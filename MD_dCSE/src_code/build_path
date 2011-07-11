@@ -1,0 +1,14 @@
+#Full coupled code(s) in serial
+ifort -CB -o coupled.exe functions_lib.f90 modules.f90 linklist.f90 messenger.serial.f90 parallel_io.serial.f90 setup_inputs.f90 setup_set_parameters.f90 setup_initialise_microstate.f90 setup_initial_record.f90 simulation_compute_forces.f90 simulation_move_particles.f90 simulation_checkrebuild.f90 simulation_record.f90 external_forces.f90 finish_final_record.f90 finish_clear_all.f90 md.f90 continuum_modules.f90 continuum_mesh_gen.f90 continuum_read_inputs.f90 continuum_record.f90 continuum_set_BC.f90 continuum_set_parameters.f90 continuum_setup_macrostate.f90 continuum_initial_record.f90 continuum_calculate_flux.f90 continuum_advance_time.f90 continuum_finish.f90 continuum.f90 setup_coupling.f90 MD_continuum_main.f90
+
+#Serial MD code only
+ifort -o md.exe modules.f90 functions_lib.f90 linklist.f90 molecular_properties.f90 messenger.serial.f90 parallel_io.serial.f90 setup_inputs.f90 setup_set_parameters.f90 setup_initialise_microstate.f90 setup_initial_record.f90 simulation_compute_forces.f90 simulation_move_particles.f90 simulation_checkrebuild.f90 simulation_record.f90 finish_final_record.f90 finish_clear_all.f90 md.f90 md_main.f90 external_forces.f90
+
+#Parallel MD code ONLY
+ifort -o md.exe modules.f90 functions_lib.f90 linklist.f90 molecular_properties.f90 external_forces.f90 messenger.MPI.f90 parallel_io.MPI2.f90 setup_inputs.f90 setup_set_parameters.f90 setup_initialise_microstate.f90 setup_initial_record.f90 simulation_compute_forces.f90 simulation_move_particles.f90 simulation_checkrebuild.f90 simulation_record.f90 finish_final_record.f90 finish_clear_all.f90 md.f90 md_main.f90
+
+#Debug Flags
+-traceback -CB
+
+#Optimisation Flags
+-O3 -funroll-loops
