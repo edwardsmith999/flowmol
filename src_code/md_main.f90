@@ -4,7 +4,7 @@ implicit none
 
 	double precision :: t1, t2 !Values used to establish simulation time
 
-	call setup_MD   !Setup simulation 
+	call setup_MD      !Setup simulation 
 	call cpu_time(t1)  !Get intial cpu time
 	call simulation_MD !Calculate & write forces & movement of particles    
 	call cpu_time(t2)  !Get final cpu time

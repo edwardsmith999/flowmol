@@ -8,6 +8,7 @@ module module_parallel_io
 	use physical_constants_MD
 	use arrays_MD
 	use calculated_properties_MD
+        save
 
 	integer		:: restartfileid, fileid !File name used for parallel i/o
 
@@ -18,6 +19,7 @@ end module
 
 subroutine parallel_io_vmd
 	use module_parallel_io
+        use messenger, only : MD_COMM
 	implicit none
 	!include 'mpif.h' 
 
@@ -46,7 +48,7 @@ subroutine parallel_io_vmd
 	enddo
 
 	!Open file on all processors
-	call MPI_FILE_OPEN(MPI_COMM_WORLD, 'results/vmd_temp.dcd', & 
+	call MPI_FILE_OPEN(MD_COMM, trim(file_dir)//'results/vmd_temp.dcd', & 
 		MPI_MODE_RDWR + MPI_MODE_CREATE, & 
 		MPI_INFO_NULL, fileid, ierr)
 
@@ -110,6 +112,7 @@ end subroutine parallel_io_vmd
 
 subroutine parallel_io_vmd_sl
 	use module_parallel_io
+        use messenger, only : MD_COMM
 	implicit none
 	!include 'mpif.h' 
 
@@ -150,7 +153,7 @@ subroutine parallel_io_vmd_sl
 	!    Write liquid Molecules	=
 	!================================
 	!Open file on all processors
-	call MPI_FILE_OPEN(MPI_COMM_WORLD, 'results/vmd_liquid_temp.dcd', & 
+	call MPI_FILE_OPEN(MD_COMM, trim(file_dir)//'results/vmd_liquid_temp.dcd', & 
 		MPI_MODE_RDWR + MPI_MODE_CREATE, & 
 		MPI_INFO_NULL, fileid, ierr)
 
@@ -224,7 +227,7 @@ subroutine parallel_io_vmd_sl
 	!================================
 
 	!Open file on all processors
-	call MPI_FILE_OPEN(MPI_COMM_WORLD, 'results/vmd_solid_temp.dcd', & 
+	call MPI_FILE_OPEN(MD_COMM, trim(file_dir)//'results/vmd_solid_temp.dcd', & 
 		MPI_MODE_RDWR + MPI_MODE_CREATE, & 
 		MPI_INFO_NULL, fileid, ierr)
 
@@ -285,6 +288,7 @@ end subroutine parallel_io_vmd_sl
 
 subroutine parallel_io_vmd_optimised
 	use module_parallel_io
+        use messenger, only : MD_COMM
 	implicit none
 	!include 'mpif.h' 
 
@@ -320,7 +324,7 @@ subroutine parallel_io_vmd_optimised
 	enddo
 
 	!Open file on all processors
-	call MPI_FILE_OPEN(MPI_COMM_WORLD, 'results/vmd_temp.dcd', & 
+	call MPI_FILE_OPEN(MD_COMM, trim(file_dir)//'results/vmd_temp.dcd', & 
 		MPI_MODE_RDWR + MPI_MODE_CREATE, & 
 		MPI_INFO_NULL, fileid, ierr)
 
@@ -358,6 +362,7 @@ end subroutine parallel_io_vmd_halo
 
 subroutine parallel_io_final_state
 	use module_parallel_io
+        use messenger, only : MD_COMM
 	implicit none
 	!include 'mpif.h'
 
@@ -396,10 +401,10 @@ subroutine parallel_io_final_state
 	enddo
 
 	!Remove previous final state file
-	call MPI_FILE_DELETE('results/final_state', MPI_INFO_NULL, ierr)
+	call MPI_FILE_DELETE(trim(file_dir)//'results/final_state', MPI_INFO_NULL, ierr)
 
 	!Open file on all processors
-	call MPI_FILE_OPEN(MPI_COMM_WORLD, 'results/final_state', & 
+	call MPI_FILE_OPEN(MD_COMM, trim(file_dir)//'results/final_state', & 
 			MPI_MODE_RDWR + MPI_MODE_CREATE, & 
 			MPI_INFO_NULL, restartfileid, ierr)
 
@@ -477,6 +482,7 @@ end subroutine parallel_io_final_state
 
 subroutine setup_restart_inputs
 	use module_parallel_io
+        use messenger, only : MD_COMM
 	implicit none
 	!include 'mpif.h'
 
@@ -496,13 +502,13 @@ subroutine setup_restart_inputs
 	if (irank .eq. iroot) then
 
 		!Call function library to get file size
-		call get_file_size('final_state',filesize)
+		call get_file_size(trim(file_dir)//'final_state',filesize)
 
 		!File size is in bytes and integer fortran records are blocks of 4 bytes
 		int_filesize = filesize/4
 
 		!Open file to read integers
-		open(13,file='final_state', form="unformatted", access="direct",recl=1)
+		open(13,file=trim(file_dir)//'final_state', form="unformatted", access="direct",recl=1)
 
 		read(13,rec=int_filesize-7) globalnp	    !Number of particles
 		read(13,rec=int_filesize-6) initialnunits(1)  !x dimension split into number of cells
@@ -516,7 +522,7 @@ subroutine setup_restart_inputs
 		dp_filesize = filesize/8
 
 		!Reopen file to read doubles
-		open(13,file='final_state', form="unformatted", access="direct",recl=2)
+		open(13,file=trim(file_dir)//'final_state', form="unformatted", access="direct",recl=2)
 
 		read(13,rec=dp_filesize-8) density		!Density of system
 		read(13,rec=dp_filesize-7) rcutoff		!Cut off distance for particle interaction
@@ -527,7 +533,7 @@ subroutine setup_restart_inputs
 
 		!Check if values from input file are different and alert user - all processors have
 		!the same values so only need to check on one processor
-		open(11,file='input')
+		open(11,file=trim(file_dir)//'input')
 	
 		read(11,* ) checkdp          !Density of system
 		if (checkdp .ne. density) print*, 'Discrepancy between system density', &
@@ -573,26 +579,26 @@ subroutine setup_restart_inputs
 	endif
 
 	!Broadcast data read by root to all other processors
-	call MPI_BCAST(globalnp,1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr)
-	call MPI_BCAST(density,1,MPI_double_precision,iroot-1,MPI_COMM_WORLD,ierr)
-	call MPI_BCAST(rcutoff,1,MPI_double_precision,iroot-1,MPI_COMM_WORLD,ierr) 
+	call MPI_BCAST(globalnp,1,MPI_integer,iroot-1,MD_COMM,ierr)
+	call MPI_BCAST(density,1,MPI_double_precision,iroot-1,MD_COMM,ierr)
+	call MPI_BCAST(rcutoff,1,MPI_double_precision,iroot-1,MD_COMM,ierr) 
 	rcutoff2= rcutoff**2         !Useful definition to save computational time
-	call MPI_BCAST(inputtemperature,1,MPI_double_precision,iroot-1,MPI_COMM_WORLD,ierr) 
-	call MPI_BCAST(initialnunits(1),1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr)
-	call MPI_BCAST(initialnunits(2),1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr)
-	call MPI_BCAST(initialnunits(3),1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr)
-	call MPI_BCAST(Nsteps,1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr)
-	call MPI_BCAST(extrasteps,1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr)
-	call MPI_BCAST(delta_t,1,MPI_double_precision,iroot-1,MPI_COMM_WORLD,ierr) 
-	call MPI_BCAST(tplot,1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr)
-	call MPI_BCAST(delta_rneighbr,1,MPI_double_precision,iroot-1,MPI_COMM_WORLD,ierr) 
-	call MPI_BCAST(vmd_outflag,1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr)
-	call MPI_BCAST(macro_outflag,1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr) 
-	call MPI_BCAST(slice_outflag,1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr) 
-	call MPI_BCAST(Nslice_ave,1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr) 
-	call MPI_BCAST(pressure_outflag,1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr)
-	call MPI_BCAST(viscsample,1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr)  
-	call MPI_BCAST(Nvisc_ave,1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr)
+	call MPI_BCAST(inputtemperature,1,MPI_double_precision,iroot-1,MD_COMM,ierr) 
+	call MPI_BCAST(initialnunits(1),1,MPI_integer,iroot-1,MD_COMM,ierr)
+	call MPI_BCAST(initialnunits(2),1,MPI_integer,iroot-1,MD_COMM,ierr)
+	call MPI_BCAST(initialnunits(3),1,MPI_integer,iroot-1,MD_COMM,ierr)
+	call MPI_BCAST(Nsteps,1,MPI_integer,iroot-1,MD_COMM,ierr)
+	call MPI_BCAST(extrasteps,1,MPI_integer,iroot-1,MD_COMM,ierr)
+	call MPI_BCAST(delta_t,1,MPI_double_precision,iroot-1,MD_COMM,ierr) 
+	call MPI_BCAST(tplot,1,MPI_integer,iroot-1,MD_COMM,ierr)
+	call MPI_BCAST(delta_rneighbr,1,MPI_double_precision,iroot-1,MD_COMM,ierr) 
+	call MPI_BCAST(vmd_outflag,1,MPI_integer,iroot-1,MD_COMM,ierr)
+	call MPI_BCAST(macro_outflag,1,MPI_integer,iroot-1,MD_COMM,ierr) 
+	call MPI_BCAST(slice_outflag,1,MPI_integer,iroot-1,MD_COMM,ierr) 
+	call MPI_BCAST(Nslice_ave,1,MPI_integer,iroot-1,MD_COMM,ierr) 
+	call MPI_BCAST(pressure_outflag,1,MPI_integer,iroot-1,MD_COMM,ierr)
+	call MPI_BCAST(viscsample,1,MPI_integer,iroot-1,MD_COMM,ierr)  
+	call MPI_BCAST(Nvisc_ave,1,MPI_integer,iroot-1,MD_COMM,ierr)
 
 	elapsedtime = elapsedtime + delta_t*extrasteps !Set elapsed time to end of simualtion
 	initialstep = Nsteps         !Set plot count to final plot of last
@@ -600,7 +606,7 @@ subroutine setup_restart_inputs
 
 	!print*,irank,globalnp,density,rcutoff,Nsteps,elapsedtime,inputtemperature,initialnunits, &
 	!	elapsedtime,extrasteps,delta_t,tplot,delta_rneighbr
-	!call MPI_BARRIER(MPI_COMM_WORLD, ierr)
+	!call MPI_BARRIER(MD_COMM, ierr)
 
 end subroutine setup_restart_inputs
 
@@ -608,6 +614,7 @@ end subroutine setup_restart_inputs
 
 subroutine setup_restart_microstate
 	use module_parallel_io
+        use messenger, only : MD_COMM 
 	implicit none
 	!include 'mpif.h'
 
@@ -620,7 +627,7 @@ subroutine setup_restart_microstate
   	call MPI_type_size(MPI_double_precision,dp_datasize,ierr)
 
 	!Open restart file on all processor
-	call MPI_FILE_OPEN(MPI_COMM_WORLD, 'final_state', & 
+	call MPI_FILE_OPEN(MD_COMM, trim(file_dir)//'final_state', & 
 		MPI_MODE_RDONLY , MPI_INFO_NULL, restartfileid, ierr)
 
 	nl = 0		!Reset local molecules count nl
@@ -682,7 +689,7 @@ subroutine velocity_average_header
 	use calculated_properties_MD
 	implicit none
 
-	open(10,file='results/v_average') !Open velocity slice file
+	open(10,file=trim(file_dir)//'results/v_average') !Open velocity slice file
 
 end subroutine velocity_average_header
 
@@ -724,7 +731,7 @@ subroutine parallel_slice_header
 	implicit none
 
 	if (irank .eq. iroot) then
-		open(18,file='results/vslice') !Open velocity slice file
+		open(18,file=trim(file_dir)//'results/vslice') !Open velocity slice file
 		write(18,'(i10,a,f10.5)') globalnp,';', globaldomain(2)
 		write(18,'(i10,a,i10)') globalnbins(1),';', Nsteps
 		write(18,'(i10,a,i10)') tplot,';', Nslice_ave
@@ -769,12 +776,13 @@ end subroutine parallel_slice_io
 
 subroutine parallel_slice_header_large_scale
 	use module_parallel_io
+        use messenger, only : MD_COMM
 	implicit none
 
 	integer		:: slicefileid
 
 	!Open file on all processors
-	call MPI_FILE_OPEN(MPI_COMM_WORLD, 'results/vslice', & 
+	call MPI_FILE_OPEN(MD_COMM, trim(file_dir)//'results/vslice', & 
 			MPI_MODE_RDWR + MPI_MODE_CREATE, & 
 			MPI_INFO_NULL, slicefileid, ierr)
 
@@ -801,6 +809,7 @@ end subroutine parallel_slice_header_large_scale
 
 
 subroutine parallel_slice_io_large_scale
+        use messenger, only : MD_COMM
 	use module_parallel_io
 	implicit none
 	!include 'mpif.h' 
@@ -812,7 +821,7 @@ subroutine parallel_slice_io_large_scale
 	call MPI_type_size(MPI_Integer,int_datasize,ierr)
 	call MPI_type_size(MPI_double_precision,dp_datasize,ierr)
 
-	call MPI_FILE_OPEN(MPI_COMM_WORLD, 'results/vslice', & 
+	call MPI_FILE_OPEN(MD_COMM, trim(file_dir)//'results/vslice', & 
 			MPI_MODE_WRONLY , & 
 			MPI_INFO_NULL, slicefileid, ierr)
 
@@ -857,7 +866,7 @@ subroutine stress_header
 	use calculated_properties_MD
 	implicit none
 
-	open(2,file='results/pressure_visc') !Open pressure field file
+	open(2,file=trim(file_dir)//'results/pressure_visc') !Open pressure field file
 
 end subroutine stress_header
 
@@ -933,7 +942,7 @@ subroutine control_volume_header
 	use calculated_properties_MD
 	implicit none
 
-	open(4,file='results/control_volume') !Open control volume file
+	open(4,file=trim(file_dir)//'results/control_volume') !Open control volume file
 
 end subroutine control_volume_header
 

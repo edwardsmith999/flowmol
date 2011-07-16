@@ -82,19 +82,30 @@ end subroutine setup_initialise_position
 
 subroutine setup_initialise_parallel_position
 	use module_initialise_microstate
+        use messenger
 	implicit none
 
 	integer :: j, ixyz, n, nl, nx, ny, nz
-	integer,dimension(nd) :: p_units_lb, p_units_ub
+	integer,dimension(nd) :: p_units_lb, p_units_ub, nfcc_max
 	double precision, dimension (nd) :: rc, c !Temporary variable
 
-	p_units_lb(1) = (iblock-1)*floor(initialnunits(1)/real((npx),kind(0.d0)))
-	p_units_ub(1) =  iblock *ceiling(initialnunits(1)/real((npx),kind(0.d0)))
-	p_units_lb(2) = (jblock-1)*floor(initialnunits(2)/real((npy),kind(0.d0)))
-	p_units_ub(2) =  jblock *ceiling(initialnunits(2)/real((npy),kind(0.d0)))
-	p_units_lb(3) = (kblock-1)*floor(initialnunits(3)/real((npz),kind(0.d0)))
-	p_units_ub(3) =  kblock *ceiling(initialnunits(3)/real((npz),kind(0.d0)))
-
+        if ( use_coupling ) then
+                p_units_lb(:) = floor( (/ iblock-1, jblock -1, kblock - 1 /) &
+                        * domain(:) / initialunitsize(:) ) 
+                p_units_ub(:) = ceiling(  (/ iblock,   jblock,    kblock /) &
+                        * domain(:) / initialunitsize(:) )
+                nfcc_max = floor( globaldomain(:) / initialunitsize(:))
+                do j = 1, nd
+                        p_units_ub(j) = min( p_units_ub(j), nfcc_max(j))
+                enddo
+        else
+                p_units_lb(1) = (iblock-1)*floor(initialnunits(1)/real((npx),kind(0.d0)))
+                p_units_ub(1) =  iblock *ceiling(initialnunits(1)/real((npx),kind(0.d0)))
+                p_units_lb(2) = (jblock-1)*floor(initialnunits(2)/real((npy),kind(0.d0)))
+                p_units_ub(2) =  jblock *ceiling(initialnunits(2)/real((npy),kind(0.d0)))
+                p_units_lb(3) = (kblock-1)*floor(initialnunits(3)/real((npz),kind(0.d0)))
+                p_units_ub(3) =  kblock *ceiling(initialnunits(3)/real((npz),kind(0.d0)))
+        endif
 	!print*, p_units_lb, p_units_ub
 
 	!Molecules per unit FCC structure (3D)
@@ -140,6 +151,9 @@ subroutine setup_initialise_parallel_position
 	np = nl			!Correct local number of particles on processor
 	rinitial = r !Record initial position of all molecules
 
+! Should one shift r initial because initialunitsize is not conmensurate with domain size ?
+
+
 	!Establish global number of particles on current process
 	globalnp = np
 	call globalSumInt(globalnp)
@@ -147,6 +161,7 @@ subroutine setup_initialise_parallel_position
 	!Build array of number of particles on neighbouring
 	!processe's subdomain on current proccess
 	call globalGathernp
+
 
 end subroutine setup_initialise_parallel_position
 

@@ -29,7 +29,7 @@ implicit none
 	allocate(seed(n))
 
 	!Open file at first recorded value
-	open(13,file='final_state', position='rewind', form='unformatted')
+	open(13,file=trim(file_dir)//'final_state', position='rewind', form='unformatted')
 
 	read(13) np		     !Number of particles
 	read(13) density             !Density of system
@@ -54,7 +54,7 @@ implicit none
 	read(13) elapsedtime	     !Total elapsed time of all restarted simulations
 
 	!Check if values from input file are different and alert user 
-	open(11,file='input')
+	open(11,file=trim(file_dir)//'input')
 	
 	read(11,* ) checkint         !Number of dimensions
 	if (checkint .ne. nd) print*, 'Discrepancy between no. dimension', &

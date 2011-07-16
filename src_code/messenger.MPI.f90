@@ -44,14 +44,16 @@
 module messenger
 	use mpi
 	use computational_constants_MD
+        use coupler_md_global_data, only : use_coupling, MD_COMM, create_communicators
+        save
 
-	integer myid                      ! my process rank
-	integer idroot                    ! rank of root process
+	integer myid                         ! my process rank
+	integer idroot                       ! rank of root process
 
 	! Grid topology
-	integer icomm_grid                ! comm for grid topology
-	integer icoord(3,nproc)           ! proc grid coordinates
-	integer	icomm_xyz(3) 		  ! Directional subcomms
+	integer icomm_grid                   ! comm for grid topology
+	integer icoord(3,nproc)              ! proc grid coordinates
+	integer	icomm_xyz(3) 		     ! Directional subcomms
 	integer, dimension(8,2) 	:: proc_topology_corner
 	integer, dimension(4,3,2) 	:: proc_topology_edge
 
@@ -67,7 +69,15 @@ subroutine messenger_invoke()
 	use messenger
 	!include "mpif.h"
 
-	call MPI_init (ierr)
+        call MPI_init (ierr)
+        
+        if (use_coupling) then
+                call create_communicators
+        else
+                call MPI_COMM_DUP(MPI_COMM_WORLD,MD_COMM,ierr)
+! or            MD_COMM = MPI_COMM_WORLD ?
+        endif
+         
 
 	return
 end
@@ -84,8 +94,8 @@ subroutine messenger_init()
 	logical Lperiodic(nd), Lremain_dims(nd)
 
 	! Initialize MPI
-	call MPI_comm_size (MPI_COMM_WORLD, npt, ierr)
-	call MPI_comm_rank (MPI_COMM_WORLD, myid, ierr)
+	call MPI_comm_size (MD_COMM, npt, ierr)
+	call MPI_comm_rank (MD_COMM, myid, ierr)
 	if (npt .ne. nproc) stop "Wrong number of processors"
 
 	! Grid topology
@@ -94,7 +104,7 @@ subroutine messenger_init()
 	idims(2) = npy
 	idims(3) = npz
 	Lperiodic = .true.
-	call MPI_Cart_create(MPI_COMM_WORLD, ndims, idims, Lperiodic, .true., &
+	call MPI_Cart_create(MD_COMM, ndims, idims, Lperiodic, .true., &
 	                     icomm_grid, ierr)
 
 	do ip=1,nproc
@@ -308,7 +318,7 @@ subroutine messenger_syncall()
 	use messenger
 	!include "mpif.h"
 
-	call MPI_Barrier(MPI_COMM_WORLD,ierr)
+	call MPI_Barrier(MD_COMM,ierr)
 
 	return
 end
@@ -334,7 +344,7 @@ subroutine messenger_free()
 	print "(a,f8.2)", "time: ", MPI_wtime() - wallTime
 
 	! Finalize MPI
-	call MPI_finalize (ierr)
+         call MPI_finalize (ierr)
 
 	return
 end
@@ -493,16 +503,16 @@ subroutine updatefacedown(ixyz)
         end select
 
 	!If processor is its own neighbour - no passing required
-	if (idest+1 .eq. irank) then
-		recvsize = sendsize
-		call MPI_type_size(MPI_DOUBLE_PRECISION,datasize,ierr)
-		length = recvsize*datasize
-		allocate(recvbuffer(recvsize))
-		recvbuffer = sendbuffer
-	else
+!	if (idest+1 .eq. irank) then
+!		recvsize = sendsize
+!		call MPI_type_size(MPI_DOUBLE_PRECISION,datasize,ierr)
+!		length = recvsize*datasize
+!		allocate(recvbuffer(recvsize))
+!		recvbuffer = sendbuffer
+!	else
 		!Send, probe for size and then receive data
 		call NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest)
-	endif
+!	endif
 
 	!call pairedsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest,ixyz)
 	!call NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest)
@@ -876,7 +886,7 @@ subroutine updateedge(face1,face2)
 		!Update number of molecules in halo to include number recieved
 		halo_np = halo_np + recvnp
 
-		!call MPI_Barrier(MPI_COMM_WORLD,ierr)
+		!call MPI_Barrier(MD_COMM,ierr)
 
 		deallocate(recvbuffer)
 		deallocate(sendbuffer)
@@ -971,7 +981,7 @@ subroutine updatecorners()
 		!Update number of molecules in halo to include number recieved
 		halo_np = halo_np + recvnp
 
-		!call MPI_Barrier(MPI_COMM_WORLD,ierr)
+		!call MPI_Barrier(MD_COMM,ierr)
 
 		deallocate(sendbuffer)
 		deallocate(recvbuffer)
@@ -1537,11 +1547,13 @@ subroutine NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest
 
 	!It appears blocking probe works before send is complete
 	!so wait for send to complete before recv called
-	call MPI_wait(request, status(:), ierr)
+
 
 	!Receive particles
 	call MPI_Recv(recvbuffer,length,MPI_PACKED, &
 	isource,0,icomm_grid,status(:),ierr)
+
+        call MPI_wait(request, status(:), ierr)
 
 	return
 end
@@ -1557,7 +1569,7 @@ subroutine globalbroadcast(A,na,broadprocid)
 	integer			:: na, broadprocid
 	double precision	:: A
 
-	call MPI_BCAST(A,na,MPI_DOUBLE_PRECISION,broadprocid-1,MPI_COMM_WORLD,ierr)
+	call MPI_BCAST(A,na,MPI_DOUBLE_PRECISION,broadprocid-1,MD_COMM,ierr)
 
 	return
 end
@@ -1573,18 +1585,18 @@ subroutine globalsyncreduce(A, na, meanA, maxA, minA)
 	double precision buf(na)
 
 	call MPI_Reduce(A, buf, na, MPI_DOUBLE_PRECISION, &
-	                    MPI_MAX, iroot-1, MPI_COMM_WORLD, ierr)
+	                    MPI_MAX, iroot-1, MD_COMM, ierr)
 
 	maxA = buf
 
 	call MPI_Reduce(A, buf, na, MPI_DOUBLE_PRECISION, &
-	                    MPI_MIN, iroot-1, MPI_COMM_WORLD, ierr)
+	                    MPI_MIN, iroot-1, MD_COMM, ierr)
 
 	minA = buf
 
 	call MPI_Reduce(A, buf, na, MPI_DOUBLE_PRECISION, &
-	                    MPI_SUM, iroot-1, MPI_COMM_WORLD, ierr)
-	call MPI_comm_size (MPI_COMM_WORLD, nprocs, ierr)
+	                    MPI_SUM, iroot-1, MD_COMM, ierr)
+	call MPI_comm_size (MD_COMM, nprocs, ierr)
 
 	meanA = buf/nprocs
 
@@ -1598,7 +1610,7 @@ subroutine globalSum(A)
 	double precision :: A, buf
 
 	call MPI_AllReduce (A, buf, 1, MPI_DOUBLE_PRECISION, &
-	                    MPI_SUM, MPI_COMM_WORLD, ierr)
+	                    MPI_SUM, MD_COMM, ierr)
 	A = buf
 
 	return
@@ -1611,7 +1623,7 @@ subroutine globalSumInt(A)
 	integer :: A, buf
 
 	call MPI_AllReduce (A, buf, 1, MPI_INTEGER, &
-	                    MPI_SUM, MPI_COMM_WORLD, ierr)
+	                    MPI_SUM, MD_COMM, ierr)
 	A = buf
 
 	return
@@ -1624,7 +1636,7 @@ subroutine globalMaxInt(A)
 	integer :: A, buf
 
 	call MPI_AllReduce (A, buf, 1, MPI_INTEGER, &
-	                    MPI_MAX, MPI_COMM_WORLD, ierr)
+	                    MPI_MAX, MD_COMM, ierr)
 	A = buf
 
 	return
@@ -1640,7 +1652,7 @@ subroutine globalSumVect(A, na)
 	double precision buf(na)
 
 	call MPI_AllReduce (A, buf, na, MPI_DOUBLE_PRECISION, &
-	                    MPI_SUM, MPI_COMM_WORLD, ierr)
+	                    MPI_SUM, MD_COMM, ierr)
 	A = buf
 
 	return
@@ -1655,7 +1667,7 @@ subroutine globalSumIntVect(A, na)
 	integer buf(na)
 
 	call MPI_AllReduce (A, buf, na, MPI_INTEGER, &
-	                    MPI_SUM, MPI_COMM_WORLD, ierr)
+	                    MPI_SUM, MD_COMM, ierr)
 	A = buf
 
 	return
@@ -1670,7 +1682,7 @@ subroutine globalMaxVect(A, na)
 	double precision buf(na)
 
 	call MPI_AllReduce (A, buf, na, MPI_DOUBLE_PRECISION, &
-	                    MPI_MAX, MPI_COMM_WORLD, ierr)
+	                    MPI_MAX, MD_COMM, ierr)
 	A = buf
 
 	return
@@ -1685,7 +1697,7 @@ subroutine globalMaxIntVect(A, na)
 	integer buf(na)
 
 	call MPI_AllReduce (A, buf, na, MPI_INTEGER, &
-	                    MPI_MAX, MPI_COMM_WORLD, ierr)
+	                    MPI_MAX, MD_COMM, ierr)
 	A = buf
 
 	return
@@ -1700,7 +1712,7 @@ subroutine globalMinVect(A, na)
 	double precision buf(na)
 
 	call MPI_AllReduce (A, buf, na, MPI_DOUBLE_PRECISION, &
-	                    MPI_MIN, MPI_COMM_WORLD, ierr)
+	                    MPI_MIN, MD_COMM, ierr)
 	A = buf
 
 	return
@@ -1715,8 +1727,8 @@ subroutine globalAverage(A, na)
 	double precision buf(na)
 
 	call MPI_AllReduce (A, buf, na, MPI_DOUBLE_PRECISION, &
-	                    MPI_SUM, MPI_COMM_WORLD, ierr)
-	call MPI_comm_size (MPI_COMM_WORLD, np, ierr)
+	                    MPI_SUM, MD_COMM, ierr)
+	call MPI_comm_size (MD_COMM, np, ierr)
 
 	buf = buf / np
 	

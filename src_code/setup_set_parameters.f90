@@ -28,6 +28,7 @@ end module module_set_parameters
 
 subroutine setup_set_parameters
 	use module_set_parameters
+        use  coupler_md_global_data, only : use_coupling
 	implicit none
 
 	integer		:: i
@@ -39,7 +40,11 @@ subroutine setup_set_parameters
 	call set_parameters_allocate(1)
 
 	!call set_parameters_domain
-	call set_parameters_global_domain
+        if ( use_coupling ) then 
+         call set_parameters_global_domain_hybrid
+        else 
+         call set_parameters_global_domain
+        endif
 	call set_parameters_cells
 	call set_parameters_setlimits
 
@@ -189,6 +194,59 @@ subroutine set_parameters_global_domain
 
 end subroutine set_parameters_global_domain
 
+!-----------------------------------------------------------------------------
+
+subroutine set_parameters_global_domain_hybrid
+	use module_set_parameters
+        use coupler_md_global_data, only : xL_md, yL_md, zL_md
+	implicit none
+
+	integer                :: ixyz
+
+! get the global domain lenghts from x, y, z array of CFD realm
+
+ globaldomain(1) = xL_md
+ globaldomain(2) = yL_md
+ globaldomain(3) = zL_md
+
+! the number of particles is 
+
+ volume   = xL_md*yL_md*zL_md
+ globalnp = density*volume  ! sigma units
+
+!!$	globalnp=1      !Set number of particles to unity for loop below
+!!$	volume=1	!Set domain size to unity for loop below
+!!$	do ixyz=1,nd
+!!$		globaldomain(ixyz) = initialnunits(ixyz) & 	!Size domain based on required density
+!!$		/((density/4.d0)**(1.d0/nd))
+!!$		globalnp = globalnp*initialnunits(ixyz)		!One particle per unit cell
+!!$		volume = volume*globaldomain(ixyz)		!Volume based on size of domain
+!!$	enddo
+!!$
+!!$	globalnp=4*globalnp   !FCC structure in 3D had 4 molecules per unit cell
+!!$
+!!$	!Initially assume molecules per processor are evenly split  - corrected after position setup
+	np = globalnp / nproc					
+
+	domain(1) = globaldomain(1) / real(npx, kind(0.d0))			!determine domain size per processor
+	domain(2) = globaldomain(2) / real(npy, kind(0.d0))			!determine domain size per processor
+	domain(3) = globaldomain(3) / real(npz, kind(0.d0))			!determine domain size per processor
+
+	do ixyz=1,nd
+		halfdomain(ixyz) = 0.5d0*domain(ixyz)			!Useful definition
+	enddo
+
+	!Establish initial size of single unit to initialise microstate
+	do ixyz=1,nd
+	initialunitsize(ixyz) = 1.0d0/((density/4.0d0)**(1.0d0/nd))
+!		initialunitsize(ixyz) = globaldomain(ixyz) / initialnunits(ixyz)
+	enddo
+
+write(0,*) 'set_parameter_global_domain_hybrid ', globalnp, np, domain, initialunitsize
+
+end subroutine set_parameters_global_domain_hybrid
+
+
 !-----------------------------------------------------------------------------------------
 
 subroutine set_parameters_cells
@@ -280,6 +338,9 @@ end subroutine setup_linklist
 
 subroutine set_parameters_outputs
 	use module_set_parameters
+        use  messenger, only :  myid, icoord
+        use coupler_md_global_data, only : use_coupling,ibmin_md, ibmax_md, jbmin_md, jbmax_md, &
+                kbmin_md, kbmax_md
 	implicit none
 
 	integer				:: n
@@ -291,12 +352,20 @@ subroutine set_parameters_outputs
 	initialvel = sqrt(nd * (1.d0 - 1.d0/np)*inputtemperature)
 
 	!Allocate bins used for calculating simulation properties
-	globalnbins(1) = ncells(1) !ncells(1)*4*floor(rcutoff)!Total number of domain bins
-	globalnbins(2) = ncells(2) !ncells(1)*4*floor(rcutoff)!Total number of domain bins
-	globalnbins(3) = ncells(3) !ncells(1)*4*floor(rcutoff)!Total number of domain bins
-	nbins(1) = nint(globalnbins(1)/dble(npy))	!Share global evenly between processes
+        if (use_coupling) then
+        ! in the coupling calculation use CFD bin as unit cell
+                globalnbins(1) = ibmax_md(icoord(1,myid+1))-ibmin_md(icoord(1,myid+1))
+                globalnbins(2) = jbmax_md(icoord(2,myid+1))-jbmin_md(icoord(2,myid+1))
+                globalnbins(3) = kbmax_md(icoord(3,myid+1))-kbmin_md(icoord(3,myid+1))                
+        else
+                
+                globalnbins(1) = ncells(1) !ncells(1)*4*floor(rcutoff)!Total number of domain bins
+                globalnbins(2) = ncells(2) !ncells(1)*4*floor(rcutoff)!Total number of domain bins
+                globalnbins(3) = ncells(3) !ncells(1)*4*floor(rcutoff)!Total number of domain bins
+        endif
+	nbins(1) = nint(globalnbins(1)/dble(npx))	!Share global evenly between processes
 	nbins(2) = nint(globalnbins(2)/dble(npy))	!Share global evenly between processes
-	nbins(3) = nint(globalnbins(3)/dble(npy))	!Share global evenly between processes
+	nbins(3) = nint(globalnbins(3)/dble(npz))	!Share global evenly between processes
 	!Obtain global number of bins after rounding to given same number per process
 	globalnbins(1) = nbins(1)
 	globalnbins(2) = nbins(2)
