@@ -10,7 +10,8 @@ module module_inputs
 	use computational_constants_MD
 	use physical_constants_MD
 	use arrays_MD
-
+        save
+       
 end module module_inputs
 !----------------------------------------------------------------------------------
 
@@ -24,7 +25,7 @@ implicit none
 	call random_seed(size=n)
 	allocate(seed(n))
 
-	open(11,file='input')
+	open(11,file=trim(file_dir)//'input')
 
 	!Input physical co-efficients
 	read(11,* ) density          !Density of system

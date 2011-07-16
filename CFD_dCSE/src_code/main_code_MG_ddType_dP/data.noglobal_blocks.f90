@@ -16,47 +16,52 @@
 !
 
 module data
-	use data_export
-	integer nfile			! file number for zdata files
+        use data_export
+        integer nfile                        ! file number for zdata files
+        character(len=128) :: file_dir ="./" ! dir for in/out files, useful when
+                                             ! using coupling  to keep
+                                             ! input output files of each code  
+                                             ! in separate directories
+
 end module
 
 !=======================================================================
 subroutine data_init()
-	use data
+        use data
 
-	! Check dimensions in archive and export file
-	! nx,ny,nz defined in export file
-	call readInt("nx", ni)
-	call readInt("ny", nj)
-	call readInt("nz", nk)
-	!------------------------------------------
-	!SY We need to read 'ngrid' here to use it.
-	!------------------------------------------
-	call readInt("ngrid", ngrid)
+        ! Check dimensions in archive and export file
+        ! nx,ny,nz defined in export file
+        call readInt("nx", ni)
+        call readInt("ny", nj)
+        call readInt("nz", nk)
+        !------------------------------------------
+        !SY We need to read 'ngrid' here to use it.
+        !------------------------------------------
+        call readInt("ngrid", ngrid)
 
-	if (ni .ne. nx .or. nj .ne. ny .or. nk .ne. nz) &
-		stop "Dimensions in archive and export file do not match"
+        if (ni .ne. nx .or. nj .ne. ny .or. nk .ne. nz) &
+                stop "Dimensions in archive and export file do not match"
 
-	!  if (niz .ne. 1 .and. mod(niz,2) .ne. 0) &
-	!  	stop "Incompatible dimension: niz must be even, unless niz=1"
+        !  if (niz .ne. 1 .and. mod(niz,2) .ne. 0) &
+        !          stop "Incompatible dimension: niz must be even, unless niz=1"
 
         if (mod(ngxm,npx).ne.0 .or. mod(ngym,npy).ne.0) then
            stop "data.noglobal: (ngxm,ngym) not multiple of (npx,npy)"
         end if
 
-	!------------------------------------------
-	!SY for 2D multigrid
-	!------------------------------------------
-	if(mod(nixp,2**ngrid).ne.0 .or. mod(niyp,2**ngrid).ne.0) then
-	   stop "data.noglobal: invalid value for (nixp,niyp)"
+        !------------------------------------------
+        !SY for 2D multigrid
+        !------------------------------------------
+        if(mod(nixp,2**ngrid).ne.0 .or. mod(niyp,2**ngrid).ne.0) then
+           stop "data.noglobal: invalid value for (nixp,niyp)"
         end if
 
-	nfile = 0
+        nfile = 0
 
-	!-------------------------------------------------------------------
-	! Initialize message passing
-	!-------------------------------------------------------------------
-	call messenger_init()
+        !-------------------------------------------------------------------
+        ! Initialize message passing
+        !-------------------------------------------------------------------
+        call messenger_init()
 
         ! Layout block ID
         iblock_1 = iblock
@@ -66,44 +71,44 @@ subroutine data_init()
         jblock_2 = 1
         kblock_2 = irank
 
-	! Set block limits
-	call data_setLimits_1()
-	!--- PLANES ----
-	!--- for2D  ----
-	!--- BOTH   ---- call data_setLimits_2()
+        ! Set block limits
+        call data_setLimits_1()
+        !--- PLANES ----
+        !--- for2D  ----
+        !--- BOTH   ---- call data_setLimits_2()
 
-	! Shorthand for primary layout
+        ! Shorthand for primary layout
 
-	nixb = nixb_1(iblock_1)
-	niyb = niyb_1(jblock_1)
-	nizb = nizb_1(kblock_1)
+        nixb = nixb_1(iblock_1)
+        niyb = niyb_1(jblock_1)
+        nizb = nizb_1(kblock_1)
 
-	nxb = nxb_1(iblock_1)
-	nyb = nyb_1(jblock_1)
-	nzb = nzb_1(kblock_1)
+        nxb = nxb_1(iblock_1)
+        nyb = nyb_1(jblock_1)
+        nzb = nzb_1(kblock_1)
 
-	ibmin = ibmin_1(iblock_1)
-	jbmin = jbmin_1(jblock_1)
-	kbmin = kbmin_1(kblock_1)
+        ibmin = ibmin_1(iblock_1)
+        jbmin = jbmin_1(jblock_1)
+        kbmin = kbmin_1(kblock_1)
 
-	ibmax = ibmax_1(iblock_1)
-	jbmax = jbmax_1(jblock_1)
-	kbmax = kbmax_1(kblock_1)
+        ibmax = ibmax_1(iblock_1)
+        jbmax = jbmax_1(jblock_1)
+        kbmax = kbmax_1(kblock_1)
 
-	ibmino = ibmino_1(iblock_1)
-	jbmino = jbmino_1(jblock_1)
-	kbmino = kbmino_1(kblock_1)
+        ibmino = ibmino_1(iblock_1)
+        jbmino = jbmino_1(jblock_1)
+        kbmino = kbmino_1(kblock_1)
 
-	ibmaxo = ibmaxo_1(iblock_1)
-	jbmaxo = jbmaxo_1(jblock_1)
-	kbmaxo = kbmaxo_1(kblock_1)
+        ibmaxo = ibmaxo_1(iblock_1)
+        jbmaxo = jbmaxo_1(jblock_1)
+        kbmaxo = kbmaxo_1(kblock_1)
 
-	ib1_ = imap_1(ibmin)
-	jb1_ = jmap_1(jbmin)
-	kb1_ = kmap_1(kbmin)
-	ib2_ = imap_1(ibmax)
-	jb2_ = jmap_1(jbmax)
-	kb2_ = kmap_1(kbmax)
+        ib1_ = imap_1(ibmin)
+        jb1_ = jmap_1(jbmin)
+        kb1_ = kmap_1(kbmin)
+        ib2_ = imap_1(ibmax)
+        jb2_ = jmap_1(jbmax)
+        kb2_ = kmap_1(kbmax)
 
 
       !-------- Set Xhiaoua's local limits--------
@@ -238,16 +243,16 @@ subroutine data_init()
          if (jblock_1.eq.1) j1_P = 0
          if (jblock_1.eq.npy) j2_P = niyp + 1
 
-	!--------------------------------
-        !	 Print out some limits
-	!--------------------------------
+        !--------------------------------
+        !         Print out some limits
+        !--------------------------------
         !  if (irank.eq.1) then
         !     print*,'iTmin_1 = ', iTmin_1
         !     print*,'iTmax_1 = ', iTmax_1
-	! 
+        ! 
         !     print*,'jTmin_1 = ', jTmin_1
         !     print*,'jTmax_1 = ', jTmax_1
-	! 
+        ! 
         !     !--- PLANES ----
         !     !--- for2D  ----
         !     !-- BOTH --    print*,'kTmin_2 = ', kTmin_2
@@ -256,41 +261,41 @@ subroutine data_init()
         !  print*,'(irank,i1_T,i2_T)',irank,i1_T,i2_T
         !  print*,'(irank,j1_T,j2_T)',irank,j1_T,j2_T
         !  print*,'(irank,nlxb, nlyb)',irank,nlxb,nlyb
-	!--------------------------------
+        !--------------------------------
 
-	return
+        return
 end
 
 subroutine data_read()
-	use data
-	call archive_isDefined("nfile", iflag)
-	if (iflag == 1) call readInt("nfile", nfile)
-	return
+        use data
+        call archive_isDefined("nfile", iflag)
+        if (iflag == 1) call readInt("nfile", nfile)
+        return
 end
 
 subroutine data_write()
-	use data
-	call writeInt("nx", nx)
-	call writeInt("ny", ny)
-	call writeInt("nz", nz)
-	call writeInt("npx", npx)
-	call writeInt("npy", npy)
-	if (nfile .ne. 0) call writeInt("nfile", nfile)
-	return
+        use data
+        call writeInt("nx", nx)
+        call writeInt("ny", ny)
+        call writeInt("nz", nz)
+        call writeInt("npx", npx)
+        call writeInt("npy", npy)
+        if (nfile .ne. 0) call writeInt("nfile", nfile)
+        return
 end
 
 subroutine data_free()
-	use data
+        use data
 
-	! Finialize message passing
-	call messenger_free()
+        ! Finialize message passing
+         call messenger_free()
 
-	return
+        return
 end
 
 !=======================================================================
 subroutine data_setLimits_1()
-	use data
+        use data
 
 !NEW WAY FOR MULTI-GRID BUT NOT WORKING ALL THE TIME
         nixb_1(:) = (nx-2*nox-1)/nbx_1 + 1
@@ -316,20 +321,20 @@ subroutine data_setLimits_1()
 !END OF NEW WAY
 
 !OLD WAY (WORKS)
-!	nixb_1(:) = (nx-2*nox1-1)/nbx_1 + 1
-!	niyb_1(:) = (ny-2*noy1-1)/nby_1 + 1
-!	nizb_1(:) = (nz-2*noz1-1)/nbz_1 + 1
-!	nrx = mod(nx-2*nox1-1, nbx_1)
-!	nry = mod(ny-2*noy1-1, nby_1)
-!	nrz = mod(nz-2*noz1-1, nbz_1)
+!        nixb_1(:) = (nx-2*nox1-1)/nbx_1 + 1
+!        niyb_1(:) = (ny-2*noy1-1)/nby_1 + 1
+!        nizb_1(:) = (nz-2*noz1-1)/nbz_1 + 1
+!        nrx = mod(nx-2*nox1-1, nbx_1)
+!        nry = mod(ny-2*noy1-1, nby_1)
+!        nrz = mod(nz-2*noz1-1, nbz_1)
 !
-!	nixb_1(1:nrx) = nixb_1(1:nrx) + 1
-!	niyb_1(1:nry) = niyb_1(1:nry) + 1
-!	nizb_1(1:nrz) = nizb_1(1:nrz) + 1
+!        nixb_1(1:nrx) = nixb_1(1:nrx) + 1
+!        niyb_1(1:nry) = niyb_1(1:nry) + 1
+!        nizb_1(1:nrz) = nizb_1(1:nrz) + 1
 !
-!	nxb_1(:) = nixb_1(:) + 2*nox1
-!	nyb_1(:) = niyb_1(:) + 2*noy1
-!	nzb_1(:) = nizb_1(:) + 2*noz1
+!        nxb_1(:) = nixb_1(:) + 2*nox1
+!        nyb_1(:) = niyb_1(:) + 2*noy1
+!        nzb_1(:) = nizb_1(:) + 2*noz1
 !END OF OLD WAY
 
         ! Note the zero because I start from zero at the halo cells.
@@ -401,11 +406,11 @@ subroutine data_setLimits_1()
                 kbmap_1(k) = k+kbmino_1(kb)-0
         end do
 
-	return
+        return
 end
 
 subroutine data_setLimits_2()
-	use data
+        use data
 
         nixb_2(:) = nixm / nbx_2 + 1
         niyb_2(:) = niym / nby_2 + 1
@@ -497,7 +502,7 @@ subroutine data_readData()
         ! Use a record length of nz
         inquire(iolength=ilength) U(1,1,:)
         iunit = iopen()
-        open (iunit, file="data", form="unformatted", &
+        open (iunit, file=trim(file_dir)//"data", form="unformatted", &
                 access="direct",recl=ilength, &
                 status="old", iostat=ierr)
         if (ierr .ne. 0) stop "A data file is required"
@@ -576,7 +581,7 @@ subroutine data_writeData()
         inquire(iolength=ilength) U(1,1,:)
 
         iunit = iopen()
-        open (iunit, file="data", form="unformatted", &
+        open (iunit, file=trim(file_dir)//"data", form="unformatted", &
                 access="direct",recl=ilength,iostat=ierr)
 
         ni = nx
@@ -637,7 +642,8 @@ subroutine data_writeData()
         enddo
         enddo
 
-        call flush(iunit,ierr)
+!        call flush(iunit,ierr)
+         call flush(iunit)  ! gfortran does not like the previous line
 
         close (iclose(iunit))
 
@@ -655,7 +661,7 @@ subroutine data_writeYdata()
         write(fname(7:10),"(i4.4)") nfile
         nfile = nfile + 1
         iunit = iopen()
-        open (iunit, file=fname, form="unformatted")
+        open (iunit, file=trim(file_dir)//fname, form="unformatted")
         write (iunit) nx, 1, nz, 4, jloc
         write (iunit) U(:,jloc,:)
         write (iunit) V(:,jloc,:)
@@ -667,20 +673,20 @@ subroutine data_writeYdata()
 end
 
 subroutine data_writeZdata()
-	use data
-	character(LEN=10) :: fname
-	data fname / "zdata.xxxx" /
+        use data
+        character(LEN=10) :: fname
+        data fname / "zdata.xxxx" /
 
-!!	write(fname(7:10),"(i4.4)") nfile
-!!	nfile = nfile + 1
-!!	iunit = iopen()
-!!	open (iunit, file=fname, form="formatted")
-!!	write (iunit) nx, ny, 1, 5
-!!	write (iunit) U(:,:,nz/2)
-!!	write (iunit) V(:,:,nz/2)
-!!	write (iunit) W(:,:,nz/2)
-!!	write (iunit) P(:,:,nz/2)
-!!	write (iunit) VT(:,:,nz/2)
+!!        write(fname(7:10),"(i4.4)") nfile
+!!        nfile = nfile + 1
+!!        iunit = iopen()
+!!        open (iunit, file=fname, form="formatted")
+!!        write (iunit) nx, ny, 1, 5
+!!        write (iunit) U(:,:,nz/2)
+!!        write (iunit) V(:,:,nz/2)
+!!        write (iunit) W(:,:,nz/2)
+!!        write (iunit) P(:,:,nz/2)
+!!        write (iunit) VT(:,:,nz/2)
 
 !!            call gather(U, R)
 !!            if (irank == iroot) then
@@ -697,28 +703,28 @@ subroutine data_writeZdata()
 !! 
  9991       format(1x,6(1pe13.5))
 
-!	close (iclose(iunit))
+!        close (iclose(iunit))
 
-	return
+        return
 end
 
 !=======================================================================
 subroutine data_isRoot(iflag)
-	use data
+        use data
 
-	if (irank == iroot) then
-		iflag = 1
-	else
-		iflag = 0
-	end if
+        if (irank == iroot) then
+                iflag = 1
+        else
+                iflag = 0
+        end if
 
-	return
+        return
 end
 
 !=======================================================================
 subroutine data_info(iunit)
-	use data
+        use data
 
-	return
+        return
 end
 

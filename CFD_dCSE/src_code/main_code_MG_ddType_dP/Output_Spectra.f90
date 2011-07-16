@@ -33,11 +33,13 @@ end module
 
 subroutine Write_uhat()
 use Output_uhat_mod
+use data, only : file_dir
 	! real	:: uhatR(0:nlx+1, 0:nly+1)
 	! real	:: uhatC(0:nlx+1, 0:nly+1)
 	real	:: uhatR(ngzm, nfreq_, inx, iny)
 	real	:: uhatC(ngzm, nfreq_, inx, iny)
 	real, dimension(2,inx,iny) :: ndx_loc
+        character(len=100) local_fname
 
 	call MPI_TYPE_SIZE(MPI_DOUBLE_PRECISION, FloatSize, ierr)
 
@@ -45,7 +47,8 @@ use Output_uhat_mod
      !			Output of Uhat(:,:,:,:)	
      !==============================================================
         if (irank.eq.iroot) write(*,*) 'writting  ', FNAME
-        call MPI_FILE_OPEN(icomm_grid, FNAME, &
+        local_fname=trim(file_dir)//FNAME
+        call MPI_FILE_OPEN(icomm_grid, local_fname, &
                            MPI_MODE_WRONLY+MPI_MODE_CREATE, &
                            MPI_INFO_NULL, fh, ierr)
 
@@ -188,12 +191,14 @@ end
 
 subroutine Write_Ez()
 use Output_uhat_mod
+use data, only : file_dir
 
 	!----------------------------------------------------
 	! (OutBuffer) is allocated of exact size as input data.
 	! It circumvents a bug in ALC MPI-IO
 	!---------------------------------------------------
 	double precision, allocatable :: OutBuffer(:,:,:)
+        character(len=100) :: local_fname
 
 	call MPI_TYPE_SIZE(MPI_DOUBLE_PRECISION, FloatSize, ierr)
 
@@ -201,7 +206,8 @@ use Output_uhat_mod
      !			Output of Ez(:,:,:)
      !==============================================================
         if (irank.eq.iroot) write(*,*) 'writting  ', FNAME
-        call MPI_FILE_OPEN(icomm_grid, FNAME, &
+        local_fname=trim(file_dir)//FNAME
+        call MPI_FILE_OPEN(icomm_grid, local_fname, &
                            MPI_MODE_WRONLY+MPI_MODE_CREATE, &
                            MPI_INFO_NULL, fh, ierr)
 

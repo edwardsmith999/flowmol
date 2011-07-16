@@ -83,7 +83,10 @@ module computational_constants_MD
 
 	!Number of cells per processor
 	integer ncellxl, ncellyl, ncellzl    !Inc Halos
-	integer nicellxl, nicellyl, nicellzl !Inner only	
+	integer nicellxl, nicellyl, nicellzl !Inner only
+
+        !Directory that holds input/output files, useful in coupling mode
+ 	character(len=128) :: file_dir = "./"
 
 end module computational_constants_MD
 

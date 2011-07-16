@@ -15,49 +15,50 @@ module Input_mod
 	include "mpif.h"
 	! include "mpiof.h"
 
-	INTEGER , DIMENSION(nproc) :: DataPnts
-	INTEGER                    :: global_cnt, FloatSize, fh
-	INTEGER                    :: status(MPI_STATUS_SIZE)
-	INTEGER (kind=MPI_OFFSET_KIND) :: offset
-	INTEGER, DIMENSION(3)      :: gsizes, lsizes, memsizes
-	INTEGER, DIMENSION(3)      :: global_indices, local_indices
-	INTEGER                    :: filetype, memtype
-	!CHARACTER(LEN=18)          :: FN2
-	CHARACTER*18     FN2
-	CHARACTER(LEN=12)          :: NAME
+        INTEGER , DIMENSION(nproc) :: DataPnts
+        INTEGER                    :: global_cnt, FloatSize, fh
+        INTEGER                    :: status(MPI_STATUS_SIZE)
+        INTEGER (kind=MPI_OFFSET_KIND) :: offset
+        INTEGER, DIMENSION(3)      :: gsizes, lsizes, memsizes
+        INTEGER, DIMENSION(3)      :: global_indices, local_indices
+        INTEGER                    :: filetype, memtype
+        !CHARACTER(LEN=18)          :: FN2
+        CHARACTER*100     FN2
+        CHARACTER(LEN=12)          :: NAME
 
-	REAL aan
+        REAL aan
 end module
 
 
 
 subroutine ReadRstrt()
 use Input_mod
+use data, only : file_dir
 
-	!----------------------------------------------------
-	! (InBuffer) is allocated of exact size as input data.
-	! It circumvents a bug in ALC MPI-IO
-	!---------------------------------------------------
-	double precision, allocatable :: InBuffer(:,:,:)
+        !----------------------------------------------------
+        ! (InBuffer) is allocated of exact size as input data.
+        ! It circumvents a bug in ALC MPI-IO
+        !---------------------------------------------------
+        double precision, allocatable :: InBuffer(:,:,:)
 
-	call MPI_TYPE_SIZE(MPI_DOUBLE_PRECISION, FloatSize, ierr)
+        call MPI_TYPE_SIZE(MPI_DOUBLE_PRECISION, FloatSize, ierr)
 
-	!********************************************************
-	! Note (ntime, ntime_, stime, stime_) are global variables
-	! ntime  :  time step at end of last simulation ==> begining of this simulation
-	! ntime_ :  time step at begining of this simulation
+        !********************************************************
+        ! Note (ntime, ntime_, stime, stime_) are global variables
+        ! ntime  :  time step at end of last simulation ==> begining of this simulation
+        ! ntime_ :  time step at begining of this simulation
 
-	!=========================================================
-	!                 DATA
-	!=========================================================
-	IF (irank.eq.iroot) THEN
-		open(28,file='data',form='formatted')
-		read(28,*) ntime
-		close(28)
-	END IF
+        !=========================================================
+        !                 DATA
+        !=========================================================
+        IF (irank.eq.iroot) THEN
+                open(28,file=trim(file_dir)//'data',form='formatted')
+                read(28,*) ntime
+                close(28)
+        END IF
 
-	CALL MPI_BCAST(ntime,1,MPI_INTEGER,0,icomm_grid,ierr)
-	!========================================================
+        CALL MPI_BCAST(ntime,1,MPI_INTEGER,0,icomm_grid,ierr)
+        !========================================================
 
      !   !============== Recall From Output ==================
      !   ! Note that (ntime) is a global variable. 
@@ -78,7 +79,8 @@ use Input_mod
      !         CARTESIAN VELOCITIES
      !=======================================================
         NAME='ucvcwc.dble.'
-	call InFileName()
+        call InFileName()
+        FN2 = trim(file_dir)//adjustl(FN2)
         if (irank.eq.iroot) write(*,*) 'reading  ', FN2
 
         call MPI_FILE_OPEN(icomm_grid, FN2, &
@@ -90,13 +92,13 @@ use Input_mod
         if (iblock.eq. 1 ) global_indices(2) = 0
         if (jblock.eq. 1 ) global_indices(3) = 0
 
-        !ALC_BUG	local_indices = (/ 0 , nox1 , noy1 /)
-        !ALC_BUG	if (iblock.eq. 1 ) local_indices(2) = 0
-        !ALC_BUG	if (jblock.eq. 1 ) local_indices(3) = 0
-        		local_indices = (/ 0 , 0, 0 /)					!ALC_FIX
-			ks = 0;		is = nox1;		js = noy1		!ALC_FIX
-			if (iblock.eq. 1 ) is = 0					!ALC_FIX
-			if (jblock.eq. 1 ) js = 0					!ALC_FIX
+        !ALC_BUG        local_indices = (/ 0 , nox1 , noy1 /)
+        !ALC_BUG        if (iblock.eq. 1 ) local_indices(2) = 0
+        !ALC_BUG        if (jblock.eq. 1 ) local_indices(3) = 0
+                        local_indices = (/ 0 , 0, 0 /)                                        !ALC_FIX
+                        ks = 0;                is = nox1;                js = noy1                !ALC_FIX
+                        if (iblock.eq. 1 ) is = 0                                        !ALC_FIX
+                        if (jblock.eq. 1 ) js = 0                                        !ALC_FIX
      
         !------------------------ uc ---------------------------
         global_cnt = 0
@@ -106,20 +108,20 @@ use Input_mod
         lsizes = (/ ngz+1 , nlxb-2*nox1+1 , nlyb-2*noy1+1 /)
         if (iblock.eq. 1 )   lsizes(2)=nlxb-nox1-0+1
         if (iblock.eq.npx)   lsizes(2)=nlxb+1-nox1+1
-	if ( npx  .eq. 1 )   lsizes(2)=ngx+2
+        if ( npx  .eq. 1 )   lsizes(2)=ngx+2
         if (jblock.eq. 1 )   lsizes(3)=nlyb-noy1-0+1
         if (jblock.eq.npy)   lsizes(3)=nlyb+0-noy1+1
-	if ( npy  .eq. 1 )   lsizes(3)=ngy+1
+        if ( npy  .eq. 1 )   lsizes(3)=ngy+1
 
-	!ALC_BUG	memsizes = (/ ngz+1 , nlx+2 , nly+1 /)
-			allocate(InBuffer(lsizes(1),lsizes(2),lsizes(3)))		!ALC_FIX
-        		memsizes = lsizes						!ALC_FIX
+        !ALC_BUG        memsizes = (/ ngz+1 , nlx+2 , nly+1 /)
+                        allocate(InBuffer(lsizes(1),lsizes(2),lsizes(3)))                !ALC_FIX
+                        memsizes = lsizes                                                !ALC_FIX
         CALL Create_commit_inputview()
         CALL Create_commit_in_subarray()
         CALL MPI_FILE_READ_ALL(fh, InBuffer, 1, memtype, status, ierr)
-		ke = ks+lsizes(1)-1;	ie = is+lsizes(2)-1;	je = js+lsizes(3)-1	!ALC_FIX
-		uc(ks:ke, is:ie, js:je) = InBuffer					!ALC_FIX
-		deallocate(InBuffer)							!ALC_FIX
+                ke = ks+lsizes(1)-1;        ie = is+lsizes(2)-1;        je = js+lsizes(3)-1        !ALC_FIX
+                uc(ks:ke, is:ie, js:je) = InBuffer                                        !ALC_FIX
+                deallocate(InBuffer)                                                        !ALC_FIX
         
         !------------------------ vc ---------------------------
         global_cnt = global_cnt + gsizes(1)*gsizes(2)*gsizes(3)
@@ -129,20 +131,20 @@ use Input_mod
         lsizes = (/ ngz+1 , nlxb-2*nox1+1 , nlyb-2*noy1+1 /)
         if (iblock.eq. 1 )   lsizes(2)=nlxb-nox1-0+1
         if (iblock.eq.npx)   lsizes(2)=nlxb+0-nox1+1
-	if ( npx  .eq. 1 )   lsizes(2)=ngx+1
+        if ( npx  .eq. 1 )   lsizes(2)=ngx+1
         if (jblock.eq. 1 )   lsizes(3)=nlyb-noy1-0+1
         if (jblock.eq.npy)   lsizes(3)=nlyb+1-noy1+1
-	if ( npy  .eq. 1 )   lsizes(3)=ngy+2
+        if ( npy  .eq. 1 )   lsizes(3)=ngy+2
         
-	!ALC_BUG	memsizes = (/ ngz+1 , nlx+1 , nly+2 /)
-			allocate(InBuffer(lsizes(1),lsizes(2),lsizes(3)))		!ALC_FIX
-			memsizes = lsizes						!ALC_FIX
+        !ALC_BUG        memsizes = (/ ngz+1 , nlx+1 , nly+2 /)
+                        allocate(InBuffer(lsizes(1),lsizes(2),lsizes(3)))                !ALC_FIX
+                        memsizes = lsizes                                                !ALC_FIX
         CALL Create_commit_inputview()
         CALL Create_commit_in_subarray()
         CALL MPI_FILE_READ_ALL(fh, InBuffer, 1, memtype, status, ierr)
-		ke = ks+lsizes(1)-1;	ie = is+lsizes(2)-1;	je = js+lsizes(3)-1	!ALC_FIX
-		vc(ks:ke, is:ie, js:je) = InBuffer					!ALC_FIX
-		deallocate(InBuffer)							!ALC_FIX
+                ke = ks+lsizes(1)-1;        ie = is+lsizes(2)-1;        je = js+lsizes(3)-1        !ALC_FIX
+                vc(ks:ke, is:ie, js:je) = InBuffer                                        !ALC_FIX
+                deallocate(InBuffer)                                                        !ALC_FIX
 
        !--------------- wc ------------------
         global_cnt = global_cnt + gsizes(1)*gsizes(2)*gsizes(3)
@@ -152,27 +154,28 @@ use Input_mod
         lsizes = (/ ngz+2 , nlxb-2*nox1+1 , nlyb-2*noy1+1 /)
         if (iblock.eq. 1 )   lsizes(2)=nlxb-nox1-0+1
         if (iblock.eq.npx)   lsizes(2)=nlxb+0-nox1+1
-	if ( npx  .eq. 1 )   lsizes(2)=ngx+1
+        if ( npx  .eq. 1 )   lsizes(2)=ngx+1
         if (jblock.eq. 1 )   lsizes(3)=nlyb-noy1-0+1
         if (jblock.eq.npy)   lsizes(3)=nlyb-noy1-0+1
-	if ( npy  .eq. 1 )   lsizes(3)=ngy+1
+        if ( npy  .eq. 1 )   lsizes(3)=ngy+1
     
-	!ALC_BUG	memsizes = (/ ngz+2 , nlx+1 , nly+1 /)
-			allocate(InBuffer(lsizes(1),lsizes(2),lsizes(3)))		!ALC_FIX
-			memsizes = lsizes						!ALC_FIX
+        !ALC_BUG        memsizes = (/ ngz+2 , nlx+1 , nly+1 /)
+                        allocate(InBuffer(lsizes(1),lsizes(2),lsizes(3)))                !ALC_FIX
+                        memsizes = lsizes                                                !ALC_FIX
         CALL Create_commit_inputview()
         CALL Create_commit_in_subarray()
         CALL MPI_FILE_READ_ALL(fh, InBuffer, 1, memtype, status, ierr)
         CALL MPI_FILE_CLOSE(fh, ierr)
-		ke = ks+lsizes(1)-1;	ie = is+lsizes(2)-1;	je = js+lsizes(3)-1	!ALC_FIX
-		wc(ks:ke, is:ie, js:je) = InBuffer					!ALC_FIX
-		deallocate(InBuffer)							!ALC_FIX
+                ke = ks+lsizes(1)-1;        ie = is+lsizes(2)-1;        je = js+lsizes(3)-1        !ALC_FIX
+                wc(ks:ke, is:ie, js:je) = InBuffer                                        !ALC_FIX
+                deallocate(InBuffer)                                                        !ALC_FIX
 
        !=========================================================
        !                 FLUXES
        !=========================================================
         NAME='uuvvww.dble.'
-	call InFileName()
+        call InFileName()
+        FN2 = trim(file_dir)//adjustl(FN2)
         if (irank.eq.iroot) write(*,*) FN2
 
         CALL MPI_FILE_OPEN(icomm_grid, FN2, &
@@ -184,13 +187,13 @@ use Input_mod
         if (iblock.eq. 1 ) global_indices(2) = 0
         if (jblock.eq. 1 ) global_indices(3) = 0
         
-        !ALC_BUG	local_indices = (/ 0 , nox1 , noy1 /)
-        !ALC_BUG	if (iblock.eq. 1 ) local_indices(2) = 0
-        !ALC_BUG	if (jblock.eq. 1 ) local_indices(3) = 0
-        		local_indices = (/ 0 , 0, 0 /)					!ALC_FIX
-			ks = 0;		is = nox1;		js = noy1		!ALC_FIX
-			if (iblock.eq. 1 ) is = 0					!ALC_FIX
-			if (jblock.eq. 1 ) js = 0					!ALC_FIX
+        !ALC_BUG        local_indices = (/ 0 , nox1 , noy1 /)
+        !ALC_BUG        if (iblock.eq. 1 ) local_indices(2) = 0
+        !ALC_BUG        if (jblock.eq. 1 ) local_indices(3) = 0
+                        local_indices = (/ 0 , 0, 0 /)                                        !ALC_FIX
+                        ks = 0;                is = nox1;                js = noy1                !ALC_FIX
+                        if (iblock.eq. 1 ) is = 0                                        !ALC_FIX
+                        if (jblock.eq. 1 ) js = 0                                        !ALC_FIX
 
         !------------------------ u  ---------------------------
         global_cnt = 0
@@ -200,20 +203,20 @@ use Input_mod
         lsizes = (/ ngz+1 , nlxb-2*nox1+1 , nlyb-2*noy1+1 /)
         if (iblock.eq. 1 )   lsizes(2)=nlxb-nox1-0+1
         if (iblock.eq.npx)   lsizes(2)=nlxb+1-nox1+1
-	if ( npx  .eq. 1 )   lsizes(2)=ngx+2
+        if ( npx  .eq. 1 )   lsizes(2)=ngx+2
         if (jblock.eq. 1 )   lsizes(3)=nlyb-noy1-0+1
         if (jblock.eq.npy)   lsizes(3)=nlyb+0-noy1+1
-	if ( npy  .eq. 1 )   lsizes(3)=ngy+1
+        if ( npy  .eq. 1 )   lsizes(3)=ngy+1
        
-	!ALC_BUG	memsizes = (/ ngz+1 , nlx+2 , nly+1 /)	
-			allocate(InBuffer(lsizes(1),lsizes(2),lsizes(3)))			!ALC_FIX
-			memsizes = lsizes							!ALC_FIX
+        !ALC_BUG        memsizes = (/ ngz+1 , nlx+2 , nly+1 /)        
+                        allocate(InBuffer(lsizes(1),lsizes(2),lsizes(3)))                        !ALC_FIX
+                        memsizes = lsizes                                                        !ALC_FIX
         CALL Create_commit_inputview()
         CALL Create_commit_in_subarray()
         CALL MPI_FILE_READ_ALL(fh, InBuffer , 1, memtype, status, ierr)
-		ke = ks+lsizes(1)-1;	ie = is+lsizes(2)-1;	je = js+lsizes(3)-1	!ALC_FIX
-		u (ks:ke, is:ie, js:je) = InBuffer					!ALC_FIX
-		deallocate(InBuffer)							!ALC_FIX
+                ke = ks+lsizes(1)-1;        ie = is+lsizes(2)-1;        je = js+lsizes(3)-1        !ALC_FIX
+                u (ks:ke, is:ie, js:je) = InBuffer                                        !ALC_FIX
+                deallocate(InBuffer)                                                        !ALC_FIX
 
 
        !---------------- v -----------------
@@ -224,20 +227,20 @@ use Input_mod
         lsizes = (/ ngz+1 , nlxb-2*nox1+1 , nlyb-2*noy1+1 /)
         if (iblock.eq. 1 )   lsizes(2)=nlxb-nox1-0+1
         if (iblock.eq.npx)   lsizes(2)=nlxb+0-nox1+1
-	if ( npx  .eq. 1 )   lsizes(2)=ngx+1
+        if ( npx  .eq. 1 )   lsizes(2)=ngx+1
         if (jblock.eq. 1 )   lsizes(3)=nlyb-noy1-0+1
         if (jblock.eq.npy)   lsizes(3)=nlyb+1-noy1+1
-	if ( npy  .eq. 1 )   lsizes(3)=ngy+2
+        if ( npy  .eq. 1 )   lsizes(3)=ngy+2
 
-	!ALC_BUG	memsizes = (/ ngz+1 , nlx+1 , nly+2 /)
-			allocate(InBuffer(lsizes(1),lsizes(2),lsizes(3)))		!ALC_FIX
-			memsizes = lsizes						!ALC_FIX
+        !ALC_BUG        memsizes = (/ ngz+1 , nlx+1 , nly+2 /)
+                        allocate(InBuffer(lsizes(1),lsizes(2),lsizes(3)))                !ALC_FIX
+                        memsizes = lsizes                                                !ALC_FIX
         CALL Create_commit_inputview()
         CALL Create_commit_in_subarray()
         CALL MPI_FILE_READ_ALL(fh, InBuffer , 1, memtype, status, ierr)
-		ke = ks+lsizes(1)-1;	ie = is+lsizes(2)-1;	je = js+lsizes(3)-1	!ALC_FIX
-		v (ks:ke, is:ie, js:je) = InBuffer					!ALC_FIX
-		deallocate(InBuffer)							!ALC_FIX
+                ke = ks+lsizes(1)-1;        ie = is+lsizes(2)-1;        je = js+lsizes(3)-1        !ALC_FIX
+                v (ks:ke, is:ie, js:je) = InBuffer                                        !ALC_FIX
+                deallocate(InBuffer)                                                        !ALC_FIX
 
        !--------------- w  ------------------
         global_cnt = global_cnt + (ngx+1)*(ngy+2)*(ngz+1)
@@ -247,55 +250,56 @@ use Input_mod
         lsizes = (/ ngz+2 , nlxb-2*nox1+1 , nlyb-2*noy1+1 /)
         if (iblock.eq. 1 )   lsizes(2)=nlxb-nox1-0+1
         if (iblock.eq.npx)   lsizes(2)=nlxb+0-nox1+1
-	if ( npx  .eq. 1 )   lsizes(2)=ngx+1
+        if ( npx  .eq. 1 )   lsizes(2)=ngx+1
         if (jblock.eq. 1 )   lsizes(3)=nlyb-noy1-0+1
         if (jblock.eq.npy)   lsizes(3)=nlyb-noy1-0+1
-	if ( npy  .eq. 1 )   lsizes(3)=ngy+1
+        if ( npy  .eq. 1 )   lsizes(3)=ngy+1
 
-	!ALC_BUG	memsizes = (/ ngz+2 , nlx+1 , nly+1 /)
-			allocate(InBuffer(lsizes(1),lsizes(2),lsizes(3)))		!ALC_FIX
-			memsizes = lsizes						!ALC_FIX
+        !ALC_BUG        memsizes = (/ ngz+2 , nlx+1 , nly+1 /)
+                        allocate(InBuffer(lsizes(1),lsizes(2),lsizes(3)))                !ALC_FIX
+                        memsizes = lsizes                                                !ALC_FIX
         CALL Create_commit_inputview()
         CALL Create_commit_in_subarray()
         CALL MPI_FILE_READ_ALL(fh, InBuffer , 1, memtype, status, ierr)
         CALL MPI_FILE_CLOSE(fh, ierr)
-		ke = ks+lsizes(1)-1;	ie = is+lsizes(2)-1;	je = js+lsizes(3)-1	!ALC_FIX
-		w (ks:ke, is:ie, js:je) = InBuffer					!ALC_FIX
-		deallocate(InBuffer)							!ALC_FIX
+                ke = ks+lsizes(1)-1;        ie = is+lsizes(2)-1;        je = js+lsizes(3)-1        !ALC_FIX
+                w (ks:ke, is:ie, js:je) = InBuffer                                        !ALC_FIX
+                deallocate(InBuffer)                                                        !ALC_FIX
 
        !=========================================================
        !                  CONVECTIVE TERMS 
        !=========================================================
         NAME='conold.dble.'
-	call InFileName()
+        call InFileName()
+        FN2= trim(file_dir)//adjustl(FN2)
         if (irank.eq.iroot) write(*,*) 'reading  ', FN2
 
         call MPI_FILE_OPEN(icomm_grid, FN2, &
-			   MPI_MODE_RDONLY, & 
+                           MPI_MODE_RDONLY, & 
                            MPI_INFO_NULL, fh, ierr)
 
-	!--------- DEFINE LIMITS (FILE & LOCAL SUBARRAY) -------
-	!  Note:  MPI assumes here that numbering starts from zero
-	!  Since my numbering starts from (one), I have to subtract
-	!  (one) from every indeex
-	!-------------------------------------------------------
-	global_indices = (/ 0 , iTmin_1(iblock)-1 , jTmin_1(jblock)-1 /)
-	if (iblock.eq. 1 ) global_indices(2) = 0
-	if (jblock.eq. 1 ) global_indices(3) = 0
+        !--------- DEFINE LIMITS (FILE & LOCAL SUBARRAY) -------
+        !  Note:  MPI assumes here that numbering starts from zero
+        !  Since my numbering starts from (one), I have to subtract
+        !  (one) from every indeex
+        !-------------------------------------------------------
+        global_indices = (/ 0 , iTmin_1(iblock)-1 , jTmin_1(jblock)-1 /)
+        if (iblock.eq. 1 ) global_indices(2) = 0
+        if (jblock.eq. 1 ) global_indices(3) = 0
 
-	!ALC_BUG	local_indices = (/ 0 , nox1-1 , noy1-1 /)
-	!ALC_BUG	if (iblock.eq. 1 ) local_indices(2) = 0
-	!ALC_BUG	if (jblock.eq. 1 ) local_indices(3) = 0
-        		local_indices = (/ 0 , 0, 0 /)					!ALC_FIX
-			ks = 1;		is = nox1;		js = noy1		!ALC_FIX
-			if (iblock.eq. 1 ) is = 1					!ALC_FIX
-			if (jblock.eq. 1 ) js = 1					!ALC_FIX
+        !ALC_BUG        local_indices = (/ 0 , nox1-1 , noy1-1 /)
+        !ALC_BUG        if (iblock.eq. 1 ) local_indices(2) = 0
+        !ALC_BUG        if (jblock.eq. 1 ) local_indices(3) = 0
+                        local_indices = (/ 0 , 0, 0 /)                                        !ALC_FIX
+                        ks = 1;                is = nox1;                js = noy1                !ALC_FIX
+                        if (iblock.eq. 1 ) is = 1                                        !ALC_FIX
+                        if (jblock.eq. 1 ) js = 1                                        !ALC_FIX
 
        !--------------- conx ------------------
         global_cnt = 0
         offset     = 0
 
-	gsizes = (/ ngz-1 , ngx-1 , ngy-1 /)
+        gsizes = (/ ngz-1 , ngx-1 , ngy-1 /)
         lsizes = (/ ngz-1 , nlxb-2*nox1+1 , nlyb-2*noy1+1 /)
         if (iblock.eq. 1 )   lsizes(2)=(nlxb-nox1)-(1)   +1
         if (iblock.eq.npx)   lsizes(2)=(nlxb-1)   -(nox1)+1
@@ -304,56 +308,56 @@ use Input_mod
         if (jblock.eq.npy)   lsizes(3)=(nlyb-1)   -(noy1)+1
         if ( npy  .eq. 1 )   lsizes(3)=(ngy-1)
 
-	!ALC_BUG	memsizes = (/ ngz-1 , nlx-1 , nly-1 /)
-			allocate(InBuffer(lsizes(1),lsizes(2),lsizes(3)))		!ALC_FIX
-			memsizes = lsizes						!ALC_FIX
+        !ALC_BUG        memsizes = (/ ngz-1 , nlx-1 , nly-1 /)
+                        allocate(InBuffer(lsizes(1),lsizes(2),lsizes(3)))                !ALC_FIX
+                        memsizes = lsizes                                                !ALC_FIX
         CALL Create_commit_inputview()
         CALL Create_commit_in_subarray()
         CALL MPI_FILE_READ_ALL(fh, InBuffer, 1, memtype, status, ierr)
-		ke = ks+lsizes(1)-1;	ie = is+lsizes(2)-1;	je = js+lsizes(3)-1	!ALC_FIX
-		conx(ks:ke, is:ie, js:je) = InBuffer					!ALC_FIX
+                ke = ks+lsizes(1)-1;        ie = is+lsizes(2)-1;        je = js+lsizes(3)-1        !ALC_FIX
+                conx(ks:ke, is:ie, js:je) = InBuffer                                        !ALC_FIX
 
        !---------------- cony -----------------
         global_cnt = global_cnt + (ngx-1)*(ngy-1)*(ngz-1)
-	offset = global_cnt*FloatSize
+        offset = global_cnt*FloatSize
 
-	CALL Create_commit_inputview()
-	CALL Create_commit_in_subarray()
-	CALL MPI_FILE_READ_ALL(fh, InBuffer, 1, memtype, status, ierr)
-		cony(ks:ke, is:ie, js:je) = InBuffer					!ALC_FIX
+        CALL Create_commit_inputview()
+        CALL Create_commit_in_subarray()
+        CALL MPI_FILE_READ_ALL(fh, InBuffer, 1, memtype, status, ierr)
+                cony(ks:ke, is:ie, js:je) = InBuffer                                        !ALC_FIX
 
        !--------------- conz ------------------
-	global_cnt = global_cnt + (ngx-1)*(ngy-1)*(ngz-1)
-	offset = global_cnt*FloatSize
+        global_cnt = global_cnt + (ngx-1)*(ngy-1)*(ngz-1)
+        offset = global_cnt*FloatSize
 
-	!OR  global_cnt = global_cnt + gsizes(1)*gsizes(2)*gsizes(3)
-	!OR  global_cnt = global_cnt + product(gsizes)
+        !OR  global_cnt = global_cnt + gsizes(1)*gsizes(2)*gsizes(3)
+        !OR  global_cnt = global_cnt + product(gsizes)
 
-	CALL Create_commit_inputview()
-	CALL Create_commit_in_subarray()
-	CALL MPI_FILE_READ_ALL(fh, InBuffer, 1, memtype, status, ierr)
-		conz(ks:ke, is:ie, js:je) = InBuffer					!ALC_FIX
-		deallocate(InBuffer)							!ALC_FIX
+        CALL Create_commit_inputview()
+        CALL Create_commit_in_subarray()
+        CALL MPI_FILE_READ_ALL(fh, InBuffer, 1, memtype, status, ierr)
+                conz(ks:ke, is:ie, js:je) = InBuffer                                        !ALC_FIX
+                deallocate(InBuffer)                                                        !ALC_FIX
 
-	!----------- codetime ------------
-	!---- Should all be in Archive ---
-	!  global_cnt = global_cnt + (ngx-1)*(ngy-1)*(ngz-1)
-	!  offset = global_cnt*FloatSize
-	!  IF (irank.EQ.iroot) THEN
-	!     call MPI_FILE_SET_VIEW(fh, offset, MPI_DOUBLE_PRECISION, &
-	!                           MPI_DOUBLE_PRECISION, 'native',   &
-	!                            MPI_INFO_NULL, ierr)
-	!     call MPI_FILE_READ(fh, stime, 1, MPI_DOUBLE_PRECISION, &
-	!                             status, ierr)
-	!     print *,'stime of root =',  stime
-	!     call MPI_FILE_READ(fh, aan, 1, MPI_DOUBLE_PRECISION, &
-	!                             status, ierr)
-	!  END IF
-	!  CALL MPI_BCAST(stime, 1, MPI_DOUBLE_PRECISION, 0, icomm_grid, ierr)
-	!  CALL MPI_BCAST(aan, 1, MPI_DOUBLE_PRECISION, 0, icomm_grid, ierr)
-	!  ntime=int(aan)
+        !----------- codetime ------------
+        !---- Should all be in Archive ---
+        !  global_cnt = global_cnt + (ngx-1)*(ngy-1)*(ngz-1)
+        !  offset = global_cnt*FloatSize
+        !  IF (irank.EQ.iroot) THEN
+        !     call MPI_FILE_SET_VIEW(fh, offset, MPI_DOUBLE_PRECISION, &
+        !                           MPI_DOUBLE_PRECISION, 'native',   &
+        !                            MPI_INFO_NULL, ierr)
+        !     call MPI_FILE_READ(fh, stime, 1, MPI_DOUBLE_PRECISION, &
+        !                             status, ierr)
+        !     print *,'stime of root =',  stime
+        !     call MPI_FILE_READ(fh, aan, 1, MPI_DOUBLE_PRECISION, &
+        !                             status, ierr)
+        !  END IF
+        !  CALL MPI_BCAST(stime, 1, MPI_DOUBLE_PRECISION, 0, icomm_grid, ierr)
+        !  CALL MPI_BCAST(aan, 1, MPI_DOUBLE_PRECISION, 0, icomm_grid, ierr)
+        !  ntime=int(aan)
 
-	CALL MPI_FILE_CLOSE(fh, ierr)
+        CALL MPI_FILE_CLOSE(fh, ierr)
 
        !=========================================================
        !                 PRESSURE
@@ -366,33 +370,33 @@ use Input_mod
        !                     MPI_INFO_NULL, fh, ierr)
 
 
-	!  !--------- DEFINE LIMITS (FILE & LOCAL SUBARRAY) -------
-	!  global_indices = (/ 0 , iTmin_1(iblock) , jTmin_1(jblock) /)
-	!  if (iblock.eq. 1 ) global_indices(2) = 0
-	!  if (jblock.eq. 1 ) global_indices(3) = 0
+        !  !--------- DEFINE LIMITS (FILE & LOCAL SUBARRAY) -------
+        !  global_indices = (/ 0 , iTmin_1(iblock) , jTmin_1(jblock) /)
+        !  if (iblock.eq. 1 ) global_indices(2) = 0
+        !  if (jblock.eq. 1 ) global_indices(3) = 0
 
-	!  local_indices = (/ 0 , nox1 , noy1 /)
-	!  if (iblock.eq. 1 ) local_indices(2) = 0
-	!  if (jblock.eq. 1 ) local_indices(3) = 0
+        !  local_indices = (/ 0 , nox1 , noy1 /)
+        !  if (iblock.eq. 1 ) local_indices(2) = 0
+        !  if (jblock.eq. 1 ) local_indices(3) = 0
 
-	!  !--------------- p ------------------
-	!  global_cnt = 0
-	!  offset     = 0
+        !  !--------------- p ------------------
+        !  global_cnt = 0
+        !  offset     = 0
 
-	!  gsizes = (/ ngz+1 , ngx+1 , ngy+1 /)
-	!  lsizes = (/ ngz+1 , nlxb-2*nox1+1 , nlyb-2*noy1+1 /)
-	!  if (iblock.eq. 1 )   lsizes(2)=(nlxb-nox1)-(0)   +1
-	!  if (iblock.eq.npx)   lsizes(2)=(nlxb+0)   -(nox1)+1
-	!  if ( npx  .eq. 1 )   lsizes(2)=(ngx+1)
-	!  if (jblock.eq. 1 )   lsizes(3)=(nlyb-noy1)-(0)   +1
-	!  if (jblock.eq.npy)   lsizes(3)=(nlyb+0)   -(noy1)+1
-	!  if ( npy  .eq. 1 )   lsizes(3)=(ngy+1)
+        !  gsizes = (/ ngz+1 , ngx+1 , ngy+1 /)
+        !  lsizes = (/ ngz+1 , nlxb-2*nox1+1 , nlyb-2*noy1+1 /)
+        !  if (iblock.eq. 1 )   lsizes(2)=(nlxb-nox1)-(0)   +1
+        !  if (iblock.eq.npx)   lsizes(2)=(nlxb+0)   -(nox1)+1
+        !  if ( npx  .eq. 1 )   lsizes(2)=(ngx+1)
+        !  if (jblock.eq. 1 )   lsizes(3)=(nlyb-noy1)-(0)   +1
+        !  if (jblock.eq.npy)   lsizes(3)=(nlyb+0)   -(noy1)+1
+        !  if ( npy  .eq. 1 )   lsizes(3)=(ngy+1)
 
-	!  CALL Create_commit_inputview()
-	!  memsizes = (/ ngz+1 , nlx+1 , nly+1 /)
-	!  CALL Create_commit_in_subarray()
-	!  CALL MPI_FILE_READ_ALL(fh, p, 1, memtype, status, ierr)
-	!  CALL MPI_FILE_CLOSE(fh, ierr)
+        !  CALL Create_commit_inputview()
+        !  memsizes = (/ ngz+1 , nlx+1 , nly+1 /)
+        !  CALL Create_commit_in_subarray()
+        !  CALL MPI_FILE_READ_ALL(fh, p, 1, memtype, status, ierr)
+        !  CALL MPI_FILE_CLOSE(fh, ierr)
 
        !==========================================================
        !     SYNC ALL THE PROCESSORS
@@ -415,6 +419,7 @@ use Input_mod
         !=======================================================
         NAME='pressure_ph.'
         call InFileName()
+        FN2=trim(file_dir)//adjustl(FN2)
         if (irank.eq.iroot) write(*,*) 'reading  ', FN2
 
         call MPI_FILE_OPEN(icomm_grid, FN2, &
@@ -422,49 +427,49 @@ use Input_mod
                            MPI_INFO_NULL, fh, ierr)
 
         !--------- DEFINE LIMITS (FILE & LOCAL SUBARRAY) -------
-	global_indices = (/ 0 , iTmin_1(iblock) , jTmin_1(jblock) /)
-	if (iblock.eq. 1 ) global_indices(2) = 0
-	if (jblock.eq. 1 ) global_indices(3) = 0
+        global_indices = (/ 0 , iTmin_1(iblock) , jTmin_1(jblock) /)
+        if (iblock.eq. 1 ) global_indices(2) = 0
+        if (jblock.eq. 1 ) global_indices(3) = 0
 
-	!ALC_BUG	local_indices  = (/ 0 , 1 ,  1 /)
-	!ALC_BUG	if (iblock.eq. 1 ) local_indices(2) = 0
-	!ALC_BUG	if (jblock.eq. 1 ) local_indices(3) = 0
-			local_indices  = (/ 0 , 0 ,  0 /)				!ALC_FIX
-			ks = 1;		is = 1;			js = 1			!ALC_FIX
-			if (iblock.eq. 1 ) is = 0					!ALC_FIX
-			if (jblock.eq. 1 ) js = 0					!ALC_FIX
+        !ALC_BUG        local_indices  = (/ 0 , 1 ,  1 /)
+        !ALC_BUG        if (iblock.eq. 1 ) local_indices(2) = 0
+        !ALC_BUG        if (jblock.eq. 1 ) local_indices(3) = 0
+                        local_indices  = (/ 0 , 0 ,  0 /)                                !ALC_FIX
+                        ks = 1;                is = 1;                        js = 1                        !ALC_FIX
+                        if (iblock.eq. 1 ) is = 0                                        !ALC_FIX
+                        if (jblock.eq. 1 ) js = 0                                        !ALC_FIX
 
-	!--------------- phatr ------------------
+        !--------------- phatr ------------------
         global_cnt = 0
         offset     = 0
 
-	gsizes = (/ ngzm , ngx+1 , ngy+1 /)
-	lsizes = (/ ngzm , nixp  , niyp  /)
-	if (iblock.eq. 1 )   lsizes(2) = nixp + 1
-	if (iblock.eq.npx)   lsizes(2) = nixp + 1
-	if ( npx  .eq. 1 )   lsizes(2) = (ngx+1)
-	if (jblock.eq. 1 )   lsizes(3) = niyp + 1
-	if (jblock.eq.npy)   lsizes(3) = niyp + 1
-	if ( npy  .eq. 1 )   lsizes(3) = (ngy+1)
+        gsizes = (/ ngzm , ngx+1 , ngy+1 /)
+        lsizes = (/ ngzm , nixp  , niyp  /)
+        if (iblock.eq. 1 )   lsizes(2) = nixp + 1
+        if (iblock.eq.npx)   lsizes(2) = nixp + 1
+        if ( npx  .eq. 1 )   lsizes(2) = (ngx+1)
+        if (jblock.eq. 1 )   lsizes(3) = niyp + 1
+        if (jblock.eq.npy)   lsizes(3) = niyp + 1
+        if ( npy  .eq. 1 )   lsizes(3) = (ngy+1)
 
-	!ALC_BUG	memsizes = (/ ngzm , nixp+2 , niyp+2 /)
-			allocate(InBuffer(lsizes(1),lsizes(2),lsizes(3)))		!ALC_FIX
-			memsizes = lsizes						!ALC_FIX
-	CALL Create_commit_inputview()
-	CALL Create_commit_in_subarray()
-	CALL MPI_FILE_READ_ALL(fh, InBuffer, 1, memtype, status, ierr)
-		ke = ks+lsizes(1)-1;	ie = is+lsizes(2)-1;	je = js+lsizes(3)-1	!ALC_FIX
-		phatr(ks:ke, is:ie, js:je) = InBuffer					!ALC_FIX
-		deallocate(InBuffer)							!ALC_FIX
+        !ALC_BUG        memsizes = (/ ngzm , nixp+2 , niyp+2 /)
+                        allocate(InBuffer(lsizes(1),lsizes(2),lsizes(3)))                !ALC_FIX
+                        memsizes = lsizes                                                !ALC_FIX
+        CALL Create_commit_inputview()
+        CALL Create_commit_in_subarray()
+        CALL MPI_FILE_READ_ALL(fh, InBuffer, 1, memtype, status, ierr)
+                ke = ks+lsizes(1)-1;        ie = is+lsizes(2)-1;        je = js+lsizes(3)-1        !ALC_FIX
+                phatr(ks:ke, is:ie, js:je) = InBuffer                                        !ALC_FIX
+                deallocate(InBuffer)                                                        !ALC_FIX
 
         CALL MPI_FILE_CLOSE(fh, ierr)
-	!--- subroutine updateBorder_lim(A, n1,n2,n3, ixyz, ijk, ia, ib, no)
-	!--- A(0:n1, 0:n2, 0:n3)
-	CALL updateBorder_lim(phatr, ngzm-1, nixp+1, niyp+1, id_x, 2, 1, nixp, 1)
-	CALL updateBorder_lim(phatr, ngzm-1, nixp+1, niyp+1, id_y, 3, 1, niyp, 1)
+        !--- subroutine updateBorder_lim(A, n1,n2,n3, ixyz, ijk, ia, ib, no)
+        !--- A(0:n1, 0:n2, 0:n3)
+        CALL updateBorder_lim(phatr, ngzm-1, nixp+1, niyp+1, id_x, 2, 1, nixp, 1)
+        CALL updateBorder_lim(phatr, ngzm-1, nixp+1, niyp+1, id_y, 3, 1, niyp, 1)
 
-	call MPI_TYPE_FREE(memtype,ierr)
-	call MPI_TYPE_FREE(filetype,ierr)
+        call MPI_TYPE_FREE(memtype,ierr)
+        call MPI_TYPE_FREE(filetype,ierr)
 
 return
 end
@@ -491,7 +496,7 @@ subroutine Create_commit_in_subarray()
 end
 
 subroutine InFileName()
-	use Input_mod
+        use Input_mod
 
         IF(ntime.LE.9                        ) &
         WRITE(FN2,'(A12,A5,I1)') NAME,'00000',ntime
@@ -506,5 +511,5 @@ subroutine InFileName()
         IF(ntime.GE.100000 .AND. ntime.LE.999999) &
         WRITE(FN2,'(A12,   I6)') NAME,        ntime
 
-	return
+        return
 end

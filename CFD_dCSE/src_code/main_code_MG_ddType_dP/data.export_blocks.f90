@@ -133,17 +133,17 @@ module data_export
 
 !=======================================================================
 ! Grid-Metrics
-	real     suxix  (0:ngx+1,0:ngy  ),suxiy  (0:ngx+1,0:ngy  )   &
-		,svetax (0:ngx  ,0:ngy+1),svetay (0:ngx  ,0:ngy+1)   &
-		,spz    (0:ngx  ,0:ngy  ),swz    (0:ngx  ,0:ngy  )   &
-		,surxix (0:ngx+1,0:ngy  ),surxiy (0:ngx+1,0:ngy  )   &
-		,svretax(0:ngx  ,0:ngy+1),svretay(0:ngx  ,0:ngy+1)   &
-		,swrz   (0:ngx  ,0:ngy  ),vp     (0:ngx  ,0:ngy  )
-	real    zpp(ngz-1),xpp(ngx-1,ngy-1),ypp(ngx-1,ngy-1),   &
-		zpu(ngz-1),xpu(ngx  ,ngy-1),ypu(ngx  ,ngy-1),   &
-		zpv(ngz-1),xpv(ngx-1,ngy  ),ypv(ngx-1,ngy  ),   &
-		zpw(ngz  ),xpw(ngx-1,ngy-1),ypw(ngx-1,ngy-1),   &
-		zpg(ngz  ),xpg(ngx  ,ngy  ),ypg(ngx  ,ngy  )
+        real     suxix  (0:ngx+1,0:ngy  ),suxiy  (0:ngx+1,0:ngy  )   &
+                ,svetax (0:ngx  ,0:ngy+1),svetay (0:ngx  ,0:ngy+1)   &
+                ,spz    (0:ngx  ,0:ngy  ),swz    (0:ngx  ,0:ngy  )   &
+                ,surxix (0:ngx+1,0:ngy  ),surxiy (0:ngx+1,0:ngy  )   &
+                ,svretax(0:ngx  ,0:ngy+1),svretay(0:ngx  ,0:ngy+1)   &
+                ,swrz   (0:ngx  ,0:ngy  ),vp     (0:ngx  ,0:ngy  )
+        real    zpp(ngz-1),xpp(ngx-1,ngy-1),ypp(ngx-1,ngy-1),   &
+                zpu(ngz-1),xpu(ngx  ,ngy-1),ypu(ngx  ,ngy-1),   &
+                zpv(ngz-1),xpv(ngx-1,ngy  ),ypv(ngx-1,ngy  ),   &
+                zpw(ngz  ),xpw(ngx-1,ngy-1),ypw(ngx-1,ngy-1),   &
+                zpg(ngz  ),xpg(ngx  ,ngy  ),ypg(ngx  ,ngy  )
 
 !=======================================================================
 ! Main data arrays
@@ -183,8 +183,8 @@ module data_export
       real          alenx,aleny,alz,dt,visc, ufree,   &
                     angle_attack,counter_avt,cpu_wavet(ngzm)
 
-      real          stime_, stime		! Start time, and current time of simulation
-      integer       ntime_, ntime		! Starting step number, and current step
+      real          stime_, stime                ! Start time, and current time of simulation
+      integer       ntime_, ntime                ! Starting step number, and current step
 
     !------------------------------------------
     ! Define id numbers for variables
@@ -214,35 +214,35 @@ module data_export
 
       real , allocatable :: qT(:,:,:), q2T(:,:,:)
 
-	!==============================================================
-	!     for multigrid Poisson solver
-	!==============================================================
+        !==============================================================
+        !     for multigrid Poisson solver
+        !==============================================================
 
-	!----- maximum grid levels -------------
-	parameter (nglevel_max=5)
-	!---------------------------------------
+        !----- maximum grid levels -------------
+        parameter (nglevel_max=5)
+        !---------------------------------------
 
-	!---------------------------------------------------------------
-	!     I think 'vkz' should be 'vkz(2*(ngzm/2))'
-	!     Note:  ngzm=niz-1
-	!---------------------------------------------------------------
-	real   vkz(niz-1),omegak(niz-1)
+        !---------------------------------------------------------------
+        !     I think 'vkz' should be 'vkz(2*(ngzm/2))'
+        !     Note:  ngzm=niz-1
+        !---------------------------------------------------------------
+        real   vkz(niz-1),omegak(niz-1)
 
-	real            resmin, resminb
-	integer         nitmax, nitmaxb
-	integer         ncycle,npre,npost,ngrid,i_allocate
+        real            resmin, resminb
+        integer         nitmax, nitmaxb
+        integer         ncycle,npre,npost,ngrid,i_allocate
 
-	!--------------------------------------------------------------
-	!SY     Derived Data Type for Local Domains (2D multigrid)
-	!--------------------------------------------------------------
-	type mglevel_local
-	   integer nx, ny
-	   real, dimension(:,:), allocatable :: zapw , zape , zaps , zapn ,         &
-	                                        zapp , zapws, zapwn, zapes, zapen,  &
-	       					zvp  , zsux , zsuy , zsvx , zsvy ,  &
-	       					zp   , zrhs , zres
-	   real, dimension(2) :: zedge
-	end type
+        !--------------------------------------------------------------
+        !SY     Derived Data Type for Local Domains (2D multigrid)
+        !--------------------------------------------------------------
+        type mglevel_local
+           integer nx, ny
+           real, dimension(:,:), allocatable :: zapw , zape , zaps , zapn ,         &
+                                                zapp , zapws, zapwn, zapes, zapen,  &
+                                                       zvp  , zsux , zsuy , zsvx , zsvy ,  &
+                                                       zp   , zrhs , zres
+           real, dimension(2) :: zedge
+        end type
 
         type (mglevel_local), dimension(nglevel_max) :: mgl
 

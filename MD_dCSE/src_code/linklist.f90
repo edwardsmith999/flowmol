@@ -10,7 +10,7 @@
 ! assigntoneighbourlist()
 ! assigntocell()
 ! assigntohalocell()
-!!======================================================================
+!!======================================================================
 !		Linklist manipulation Subroutines                     =
 !======================================================================
 ! Subroutines used throughout code for all linklist operations
@@ -1185,9 +1185,9 @@ implicit none
 	current => old
 	do j=1,cellnp
 		n = old%molno
-		print'(i,a,2f20.15,a,2f10.5,a,2f10.5)',old%molno, ' ap = ',old%ap, &
+		print'(i0,a,2f20.15,a,2f10.5,a,2f10.5)',old%molno, ' ap = ',old%ap, &
 			 ' vp = ', old%vp, ' rp = ', old%rp
-		print'(i,a,2f20.15,a,2f10.5,a,2f10.5)',n, ' a  = ',a(n,:), ' v  = ', &
+		print'(i0,a,2f20.15,a,2f10.5,a,2f10.5)',n, ' a  = ',a(n,:), ' v  = ', &
 			 v(n,:), ' r  = ', r(n,:)
 		old => current%next !Use pointer in datatype to obtain next item in list
 		current => old          !make current point to old - move along one
