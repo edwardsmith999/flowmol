@@ -35,6 +35,7 @@ end module
 
 subroutine Write_Stats()
 use Output_Stats_mod
+use data, only : file_dir
 	!----------- RECALL THE SIZES ----------
         ! real Ui (0:nlx+1, 0:nly+1, 6)		! velocity statistics
         ! real Rij(0:nlx+1, 0:nly+1, 6)		! Reynolds stresses
@@ -48,6 +49,7 @@ use Output_Stats_mod
 	! It circumvents a bug in ALC MPI-IO
 	!---------------------------------------------------
 	double precision, allocatable :: OutBuffer(:,:,:)
+        character(len=100) :: local_name
 
 	call MPI_TYPE_SIZE(MPI_DOUBLE_PRECISION, FloatSize, ierr)
 
@@ -56,8 +58,9 @@ use Output_Stats_mod
 	StatNAME = NAME(1:10)
 	call Out_Stats_FileName()
         if (irank.eq.iroot) write(*,*) 'Writting  ', NAME
+        local_name=trim(file_dir)//name
 
-        call MPI_FILE_OPEN(icomm_grid, NAME, &
+        call MPI_FILE_OPEN(icomm_grid, local_name, &
                            MPI_MODE_WRONLY+MPI_MODE_CREATE, &
                            MPI_INFO_NULL, fh, ierr)
 

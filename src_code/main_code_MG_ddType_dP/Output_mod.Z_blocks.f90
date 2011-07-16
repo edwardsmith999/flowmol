@@ -35,12 +35,13 @@ end module
 
 subroutine WriteRstrt()
 use Output_mod
-
+use data, only : file_dir
 	!----------------------------------------------------
 	! (OutBuffer) is allocated of exact size as input data.
 	! It circumvents a bug in ALC MPI-IO
 	!----------------------------------------------------
 	double precision, allocatable :: OutBuffer(:,:,:)
+        character(len=100) :: local_fn2
 
 	call MPI_TYPE_SIZE(MPI_DOUBLE_PRECISION, FloatSize, ierr)
 
@@ -53,7 +54,7 @@ use Output_mod
 	!                 DATA
 	!=========================================================
 	IF (irank.EQ.iroot) THEN
-		open(28,file='data',form='formatted')
+		open(28,file=trim(file_dir)//'data',form='formatted')
 		write(28,*) ntime
 		close(28)
 	END IF
@@ -71,7 +72,7 @@ use Output_mod
 		NAME='ucvcwc.data.'
 		call OutFileName()
 		write(*,*) FN2
-		open(29,file=FN2,form='formatted')
+		open(29,file=trim(file_dir)//FN2,form='formatted')
 		write(29,'(i10,2e16.8)') ntime,stime,aan
 		close(29)
 	END IF
@@ -82,8 +83,9 @@ use Output_mod
         NAME='ucvcwc.dble.'
         call OutFileName()
         if (irank.eq.iroot) write(*,*) FN2
+        local_fn2=trim(file_dir)//FN2
 
-        call MPI_FILE_OPEN(icomm_grid, FN2, &
+        call MPI_FILE_OPEN(icomm_grid, local_fn2, &
                            MPI_MODE_WRONLY+MPI_MODE_CREATE, &
                            MPI_INFO_NULL, fh, ierr)
 
@@ -177,7 +179,8 @@ use Output_mod
         call OutFileName()
         if (irank.eq.iroot) write(*,*) FN2
 
-        CALL MPI_FILE_OPEN(icomm_grid, FN2, & 
+        local_fn2=trim(file_dir)//FN2
+        CALL MPI_FILE_OPEN(icomm_grid, local_fn2, & 
                            MPI_MODE_WRONLY+MPI_MODE_CREATE, &
                            MPI_INFO_NULL, fh, ierr)
 
@@ -271,8 +274,9 @@ use Output_mod
         NAME='conold.dble.'
         call OutFileName()
         if (irank.eq.iroot) write(*,*) FN2
+        local_fn2=trim(file_dir)//FN2
 
-        call MPI_FILE_OPEN(icomm_grid, FN2, & 
+        call MPI_FILE_OPEN(icomm_grid, local_fn2, & 
                            MPI_MODE_WRONLY+MPI_MODE_CREATE, &
                            MPI_INFO_NULL, fh, ierr)
 
@@ -363,8 +367,9 @@ use Output_mod
         NAME='pres_p.dble.'
         call OutFileName()
         if (irank.eq.iroot) write(*,*) FN2
+        local_fn2=trim(file_dir)//FN2
 
-        call MPI_FILE_OPEN(icomm_grid, FN2, & 
+        call MPI_FILE_OPEN(icomm_grid, local_fn2, & 
                            MPI_MODE_WRONLY+MPI_MODE_CREATE, &
                            MPI_INFO_NULL, fh, ierr)
 
@@ -427,8 +432,9 @@ use Output_mod
         NAME='pressure_ph.'
         call OutFileName()
         if (irank.eq.iroot) write(*,*) FN2
+        local_fn2=trim(file_dir)//FN2
 
-        call MPI_FILE_OPEN(icomm_grid, FN2, &
+        call MPI_FILE_OPEN(icomm_grid, local_fn2, &
                            MPI_MODE_WRONLY+MPI_MODE_CREATE, &
                            MPI_INFO_NULL, fh, ierr)
 

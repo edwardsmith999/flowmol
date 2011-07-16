@@ -1,54 +1,54 @@
 
 module advance_module
-	use data_export
-	integer	:: flag_newdt
-	integer	:: flag_x, flag_y, flag_z
-	real	:: x_QUICK
+        use data_export
+        integer        :: flag_newdt
+        integer        :: flag_x, flag_y, flag_z
+        real        :: x_QUICK
 end module
 
 subroutine advance_init()
-	use advance_module
-	integer	:: iflag
-	!----------------------------------------
-	! (flag_newdt = 1) ==> changed dt
-	! (falg_newdt = 0) ==> same old dt
-	! Used in advance.f90 to figure out (r1,r2)
-	!----------------------------------------
-	call archive_isDefined("flag_newdt",iflag)
-	if (iflag == 1) then
-		call readInt("flag_newdt", flag_newdt)
-	else
-		flag_newdt = 1
-	endif
+        use advance_module
+        integer        :: iflag
+        !----------------------------------------
+        ! (flag_newdt = 1) ==> changed dt
+        ! (falg_newdt = 0) ==> same old dt
+        ! Used in advance.f90 to figure out (r1,r2)
+        !----------------------------------------
+        call archive_isDefined("flag_newdt",iflag)
+        if (iflag == 1) then
+                call readInt("flag_newdt", flag_newdt)
+        else
+                flag_newdt = 1
+        endif
 
-	flag_x = flag_newdt
-	flag_y = flag_newdt
-	flag_z = flag_newdt
+        flag_x = flag_newdt
+        flag_y = flag_newdt
+        flag_z = flag_newdt
 
-	!----------------------------------------
-	! (x_QUICK = 1.) ==> Fletcher's QUICK q = 1.*(3/8)/3
-	! (x_QUICK = x.) ==> Fletcher's QUICK q = x.*(3/8)/3
-	!----------------------------------------
-	call archive_isDefined("x_QUICK",iflag)
-	if (iflag == 1) then
-		call readFloat("x_QUICK", x_QUICK)
-	else
-		x_QUICK = 1.
-	endif
+        !----------------------------------------
+        ! (x_QUICK = 1.) ==> Fletcher's QUICK q = 1.*(3/8)/3
+        ! (x_QUICK = x.) ==> Fletcher's QUICK q = x.*(3/8)/3
+        !----------------------------------------
+        call archive_isDefined("x_QUICK",iflag)
+        if (iflag == 1) then
+                call readFloat("x_QUICK", x_QUICK)
+        else
+                x_QUICK = 1.
+        endif
 
-	return
+        return
 end
 
 subroutine advance_write()
-	use advance_module
+        use advance_module
 
-	if (flag_x.ne.flag_y  .or.  flag_y.ne.flag_z)  &
-		stop "flags in advance_xyz are not consistent"
-	flag_newdt = flag_x * flag_y * flag_z
-	call writeInt("flag_newdt", flag_newdt)
+        if (flag_x.ne.flag_y  .or.  flag_y.ne.flag_z)  &
+                stop "flags in advance_xyz are not consistent"
+        flag_newdt = flag_x * flag_y * flag_z
+        call writeInt("flag_newdt", flag_newdt)
 
-	call writeFloat("x_QUICK", x_QUICK)
-	return
+        call writeFloat("x_QUICK", x_QUICK)
+        return
 end
 
 
@@ -62,939 +62,939 @@ subroutine advancex
 ! Crank-Nicolson implicit treatment of viscous term
 ! has already be incorporated when the equation was derived
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-	! use data_export
-	use advance_module
+        ! use data_export
+        use advance_module
 
 
 !     if(ntime-ntime_.eq.0) then
 !     if(ntime-ntime_.eq.1) then
-	if(ntime.eq.0  .or.  flag_x.eq.1) then
-		r1=1.
-		r2=0.
-  		conx = 0.0
-		flag_x = 0
-	else
-		r1=1.5
-		r2=0.5
-	end if
+        if(ntime.eq.0  .or.  flag_x.eq.1) then
+                r1=1.
+                r2=0.
+                  conx = 0.0
+                flag_x = 0
+        else
+                r1=1.5
+                r2=0.5
+        end if
 
-	!ccccccccccccccccccccc
-	!   for u equation
-	!ccccccccccccccccccccc
-	do 62 jj=j1_u,j2_u
-	do 62 ii=i1_u,i2_u
-	do 61 kk=1,ngz-1
-		i = ibmap_1(ii)
-		j = jbmap_1(jj)
-		k = kk
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		! convection terms
-		!-----------------------------------------------------------------------
-		! U^{xi}_{e}U^{m}_{e}S_{m,e}
-		!     (first terms in RHS brakets of eq 3.30)
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		tta=(u(k,ii,jj)+u(k,ii+1,jj))/2.
-		ttb=(v(k,ii,jj)+v(k,ii,jj+1))/2.
-		a3=(surxix(i,j)+surxix(i+1,j))/2.
-		b1=(surxiy(i,j)+surxiy(i+1,j))/2.
-		b2=(svretax(i,j)+svretax(i,j+1))/2.
-		b3=(svretay(i,j)+svretay(i,j+1))/2.
-		
-		a1=tta*tta*a3+tta*ttb*b2 
-		a2=tta*tta*b1+tta*ttb*b3 
-		!ccccccccccccccccccccccccccccccc
-		!   add QUICK correction terms
-		!ccccccccccccccccccccccccccccccc
-		phi_m1=u(k,ii-1,jj)
-		phi_  =u(k,ii  ,jj)
-		phi_p1=u(k,ii+1,jj)
-		phi_p2=u(k,ii+2,jj)
-		
-		a1=a1+(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*a3
-		a2=a2+(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-	 		-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b1 
+        !ccccccccccccccccccccc
+        !   for u equation
+        !ccccccccccccccccccccc
+        do 62 jj=j1_u,j2_u
+        do 62 ii=i1_u,i2_u
+        do 61 kk=1,ngz-1
+                i = ibmap_1(ii)
+                j = jbmap_1(jj)
+                k = kk
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                ! convection terms
+                !-----------------------------------------------------------------------
+                ! U^{xi}_{e}U^{m}_{e}S_{m,e}
+                !     (first terms in RHS brakets of eq 3.30)
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                tta=(u(k,ii,jj)+u(k,ii+1,jj))/2.
+                ttb=(v(k,ii,jj)+v(k,ii,jj+1))/2.
+                a3=(surxix(i,j)+surxix(i+1,j))/2.
+                b1=(surxiy(i,j)+surxiy(i+1,j))/2.
+                b2=(svretax(i,j)+svretax(i,j+1))/2.
+                b3=(svretay(i,j)+svretay(i,j+1))/2.
+                
+                a1=tta*tta*a3+tta*ttb*b2 
+                a2=tta*tta*b1+tta*ttb*b3 
+                !ccccccccccccccccccccccccccccccc
+                !   add QUICK correction terms
+                !ccccccccccccccccccccccccccccccc
+                phi_m1=u(k,ii-1,jj)
+                phi_  =u(k,ii  ,jj)
+                phi_p1=u(k,ii+1,jj)
+                phi_p2=u(k,ii+2,jj)
+                
+                a1=a1+(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
+                        -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*a3
+                a2=a2+(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
+                         -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b1 
 
-		phi_m1=(v(k,ii-1,jj)+v(k,ii-2,jj)+v(k,ii-1,jj+1)+v(k,ii-2,jj+1))/4.0 
-		phi_  =(v(k,ii  ,jj)+v(k,ii-1,jj)+v(k,ii  ,jj+1)+v(k,ii-1,jj+1))/4.0
-		phi_p1=(v(k,ii  ,jj)+v(k,ii+1,jj)+v(k,ii  ,jj+1)+v(k,ii+1,jj+1))/4.0
-		
-		if(ii.ne.nlxb-1) then
-  			phi_p2=(v(k,ii+1,jj)+v(k,ii+2,jj)+v(k,ii+1,jj+1)+v(k,ii+2,jj+1))/4.0
-		else
-  			phi_p2=(v(k,ii+1,jj)+v(k,ii+1,jj+1))/2.0
-		end if 
+                phi_m1=(v(k,ii-1,jj)+v(k,ii-2,jj)+v(k,ii-1,jj+1)+v(k,ii-2,jj+1))/4.0 
+                phi_  =(v(k,ii  ,jj)+v(k,ii-1,jj)+v(k,ii  ,jj+1)+v(k,ii-1,jj+1))/4.0
+                phi_p1=(v(k,ii  ,jj)+v(k,ii+1,jj)+v(k,ii  ,jj+1)+v(k,ii+1,jj+1))/4.0
+                
+                if(ii.ne.nlxb-1) then
+                          phi_p2=(v(k,ii+1,jj)+v(k,ii+2,jj)+v(k,ii+1,jj+1)+v(k,ii+2,jj+1))/4.0
+                else
+                          phi_p2=(v(k,ii+1,jj)+v(k,ii+1,jj+1))/2.0
+                end if 
 
-		a1=a1+(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b2
-		a2=a2+(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b3
+                a1=a1+(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
+                        -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b2
+                a2=a2+(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
+                        -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b3
 
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		! -U^{xi}_{w}U^{m}_{w}S_{m,w}
-		!     (2nd terms in RHS brakets of eq 3.30)
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		tta=(u(k,ii,jj)+u(k,ii-1,jj))/2.
-		ttb=(v(k,ii-1,jj)+v(k,ii-1,jj+1))/2.
-		a3=(surxix(i,j)+surxix(i-1,j))/2.
-		b1=(surxiy(i,j)+surxiy(i-1,j))/2.
-		b2=(svretax(i-1,j)+svretax(i-1,j+1))/2.
-		b3=(svretay(i-1,j)+svretay(i-1,j+1))/2.
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                ! -U^{xi}_{w}U^{m}_{w}S_{m,w}
+                !     (2nd terms in RHS brakets of eq 3.30)
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                tta=(u(k,ii,jj)+u(k,ii-1,jj))/2.
+                ttb=(v(k,ii-1,jj)+v(k,ii-1,jj+1))/2.
+                a3=(surxix(i,j)+surxix(i-1,j))/2.
+                b1=(surxiy(i,j)+surxiy(i-1,j))/2.
+                b2=(svretax(i-1,j)+svretax(i-1,j+1))/2.
+                b3=(svretay(i-1,j)+svretay(i-1,j+1))/2.
 
-		a1=a1-(tta*tta*a3+tta*ttb*b2)
-		a2=a2-(tta*tta*b1+tta*ttb*b3)
-		!ccccccccccccccccccccccccccccccc
-		!   add QUICK correction terms
-		!ccccccccccccccccccccccccccccccc
-		phi_m1=u(k,ii-2,jj)
-		phi_  =u(k,ii-1,jj)
-		phi_p1=u(k,ii  ,jj)
-		phi_p2=u(k,ii+1,jj)
+                a1=a1-(tta*tta*a3+tta*ttb*b2)
+                a2=a2-(tta*tta*b1+tta*ttb*b3)
+                !ccccccccccccccccccccccccccccccc
+                !   add QUICK correction terms
+                !ccccccccccccccccccccccccccccccc
+                phi_m1=u(k,ii-2,jj)
+                phi_  =u(k,ii-1,jj)
+                phi_p1=u(k,ii  ,jj)
+                phi_p2=u(k,ii+1,jj)
 
-		a1=a1-(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*a3
-		a2=a2-(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b1
+                a1=a1-(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
+                        -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*a3
+                a2=a2-(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
+                        -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b1
 
-		if(ii.ne.2) then
-		phi_m1=(v(k,ii-2,jj)+v(k,ii-3,jj)+v(k,ii-2,jj+1)+v(k,ii-3,jj+1))/4.0
-		else
-		phi_m1=(v(k,ii-2,jj)+v(k,ii-2,jj+1))/2.0
-		end if    
+                if(ii.ne.2) then
+                phi_m1=(v(k,ii-2,jj)+v(k,ii-3,jj)+v(k,ii-2,jj+1)+v(k,ii-3,jj+1))/4.0
+                else
+                phi_m1=(v(k,ii-2,jj)+v(k,ii-2,jj+1))/2.0
+                end if    
 
-		phi_  =(v(k,ii-1,jj)+v(k,ii-2,jj)+v(k,ii-1,jj+1)+v(k,ii-2,jj+1))/4.0
-		phi_p1=(v(k,ii-1,jj)+v(k,ii  ,jj)+v(k,ii-1,jj+1)+v(k,ii  ,jj+1))/4.0
-		phi_p2=(v(k,ii  ,jj)+v(k,ii+1,jj)+v(k,ii  ,jj+1)+v(k,ii+1,jj+1))/4.0
+                phi_  =(v(k,ii-1,jj)+v(k,ii-2,jj)+v(k,ii-1,jj+1)+v(k,ii-2,jj+1))/4.0
+                phi_p1=(v(k,ii-1,jj)+v(k,ii  ,jj)+v(k,ii-1,jj+1)+v(k,ii  ,jj+1))/4.0
+                phi_p2=(v(k,ii  ,jj)+v(k,ii+1,jj)+v(k,ii  ,jj+1)+v(k,ii+1,jj+1))/4.0
 
-		a1=a1-(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b2
-		a2=a2-(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b3
+                a1=a1-(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
+                        -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b2
+                a2=a2-(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
+                        -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b3
 
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		! U^{eta}_{n}U^{m}_{n}S_{m,n}
-		!     (3rd terms in RHS brakets of eq 3.30)
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		tta=(v(k,ii,jj+1)+v(k,ii-1,jj+1))/2.
-		ttb=(u(k,ii,jj)+u(k,ii,jj+1))/2.
-		a3=(surxix(i,j)+surxix(i,j+1))/2.
-		b1=(surxiy(i,j)+surxiy(i,j+1))/2.
-		b2=(svretax(i,j+1)+svretax(i-1,j+1))/2.
-		b3=(svretay(i,j+1)+svretay(i-1,j+1))/2.
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                ! U^{eta}_{n}U^{m}_{n}S_{m,n}
+                !     (3rd terms in RHS brakets of eq 3.30)
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                tta=(v(k,ii,jj+1)+v(k,ii-1,jj+1))/2.
+                ttb=(u(k,ii,jj)+u(k,ii,jj+1))/2.
+                a3=(surxix(i,j)+surxix(i,j+1))/2.
+                b1=(surxiy(i,j)+surxiy(i,j+1))/2.
+                b2=(svretax(i,j+1)+svretax(i-1,j+1))/2.
+                b3=(svretay(i,j+1)+svretay(i-1,j+1))/2.
 
-		a1=a1+(tta*ttb*a3+tta*tta*b2)
-		a2=a2+(tta*ttb*b1+tta*tta*b3)
-		!ccccccccccccccccccccccccccccccc
-		!  add QUICK correction terms
-		!ccccccccccccccccccccccccccccccc
-		phi_m1=u(k,ii,jj-1) 
-		phi_  =u(k,ii,jj  )  
-		phi_p1=u(k,ii,jj+1)      
-		if(jj.ne.nlyb-1) then
-			phi_p2=u(k,ii,jj+2)
-		else
-			phi_p2=u(k,ii,jj+1)
-		end if
+                a1=a1+(tta*ttb*a3+tta*tta*b2)
+                a2=a2+(tta*ttb*b1+tta*tta*b3)
+                !ccccccccccccccccccccccccccccccc
+                !  add QUICK correction terms
+                !ccccccccccccccccccccccccccccccc
+                phi_m1=u(k,ii,jj-1) 
+                phi_  =u(k,ii,jj  )  
+                phi_p1=u(k,ii,jj+1)      
+                if(jj.ne.nlyb-1) then
+                        phi_p2=u(k,ii,jj+2)
+                else
+                        phi_p2=u(k,ii,jj+1)
+                end if
 
-		a1=a1+(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*a3
-		a2=a2+(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b1
+                a1=a1+(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
+                        -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*a3
+                a2=a2+(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
+                        -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b1
 
-		phi_m1=(v(k,ii-1,jj  )+v(k,ii,jj  )+v(k,ii-1,jj-1)+v(k,ii,jj-1))/4.0
-		phi_  =(v(k,ii-1,jj+1)+v(k,ii,jj+1)+v(k,ii-1,jj  )+v(k,ii,jj  ))/4.0
-		phi_p1=(v(k,ii-1,jj+2)+v(k,ii,jj+2)+v(k,ii-1,jj+1)+v(k,ii,jj+1))/4.0
+                phi_m1=(v(k,ii-1,jj  )+v(k,ii,jj  )+v(k,ii-1,jj-1)+v(k,ii,jj-1))/4.0
+                phi_  =(v(k,ii-1,jj+1)+v(k,ii,jj+1)+v(k,ii-1,jj  )+v(k,ii,jj  ))/4.0
+                phi_p1=(v(k,ii-1,jj+2)+v(k,ii,jj+2)+v(k,ii-1,jj+1)+v(k,ii,jj+1))/4.0
 
-		if(jj.ne.nlyb-1) then
-			phi_p2=(v(k,ii-1,jj+3)+v(k,ii,jj+3)+v(k,ii-1,jj+2)+v(k,ii,jj+2))/4.0
-		else
-			phi_p2=(v(k,ii-1,jj+2)+v(k,ii,jj+2))/2.0
-		end if
+                if(jj.ne.nlyb-1) then
+                        phi_p2=(v(k,ii-1,jj+3)+v(k,ii,jj+3)+v(k,ii-1,jj+2)+v(k,ii,jj+2))/4.0
+                else
+                        phi_p2=(v(k,ii-1,jj+2)+v(k,ii,jj+2))/2.0
+                end if
 
-		a1=a1+(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b2
-		a2=a2+(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b3
+                a1=a1+(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
+                        -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b2
+                a2=a2+(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
+                        -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b3
 
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		! -U^{eta}_{s}U^{m}_{s}S_{m,s}
-		!     (4th terms in RHS brakets of eq 3.30)
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		tta=(v(k,ii,jj)+v(k,ii-1,jj))/2.
-		ttb=(u(k,ii,jj)+u(k,ii,jj-1))/2.
-		a3=(surxix(i,j)+surxix(i,j-1))/2.
-		b1=(surxiy(i,j)+surxiy(i,j-1))/2.
-		b2=(svretax(i,j)+svretax(i-1,j))/2.
-		b3=(svretay(i,j)+svretay(i-1,j))/2.
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                ! -U^{eta}_{s}U^{m}_{s}S_{m,s}
+                !     (4th terms in RHS brakets of eq 3.30)
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                tta=(v(k,ii,jj)+v(k,ii-1,jj))/2.
+                ttb=(u(k,ii,jj)+u(k,ii,jj-1))/2.
+                a3=(surxix(i,j)+surxix(i,j-1))/2.
+                b1=(surxiy(i,j)+surxiy(i,j-1))/2.
+                b2=(svretax(i,j)+svretax(i-1,j))/2.
+                b3=(svretay(i,j)+svretay(i-1,j))/2.
 
-		a1=a1-(tta*ttb*a3+tta*tta*b2)
-		a2=a2-(tta*ttb*b1+tta*tta*b3)
-		!ccccccccccccccccccccccccccccccc
-		!  add QUICK correction terms
-		!ccccccccccccccccccccccccccccccc
-		if(jj.ne.1) then
-			phi_m1=u(k,ii,jj-2)
-		else
-			phi_m1=u(k,ii,jj-1)
-		end if
-		
-		phi_  =u(k,ii,jj-1)
-		phi_p1=u(k,ii,jj  )
-		phi_p2=u(k,ii,jj+1)
+                a1=a1-(tta*ttb*a3+tta*tta*b2)
+                a2=a2-(tta*ttb*b1+tta*tta*b3)
+                !ccccccccccccccccccccccccccccccc
+                !  add QUICK correction terms
+                !ccccccccccccccccccccccccccccccc
+                if(jj.ne.1) then
+                        phi_m1=u(k,ii,jj-2)
+                else
+                        phi_m1=u(k,ii,jj-1)
+                end if
+                
+                phi_  =u(k,ii,jj-1)
+                phi_p1=u(k,ii,jj  )
+                phi_p2=u(k,ii,jj+1)
 
-		a1=a1-(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*a3
-		a2=a2-(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b1
-		
-		if(jj.ne.1) then
-			phi_m1=(v(k,ii-1,jj-1)+v(k,ii,jj-1)+v(k,ii-1,jj-2)+v(k,ii,jj-2))/4.0
-		else
-			phi_m1=(v(k,ii-1,jj-1)+v(k,ii,jj-1))/2.0
-		end if
-		
-		phi_  =(v(k,ii-1,jj  )+v(k,ii,jj  )+v(k,ii-1,jj-1)+v(k,ii,jj-1))/4.0
-		phi_p1=(v(k,ii-1,jj+1)+v(k,ii,jj+1)+v(k,ii-1,jj  )+v(k,ii,jj  ))/4.0
-		phi_p2=(v(k,ii-1,jj+2)+v(k,ii,jj+2)+v(k,ii-1,jj+1)+v(k,ii,jj+1))/4.0
-		
-		a1=a1-(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b2
-		a2=a2-(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b3
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		! U^{z}_{f}U^{m}_{f}S_{m,f}
-		!     (5th terms in RHS brakets of eq 3.30)
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		tta=(u(k,ii,jj)+u(k+1,ii,jj))/2.
-		ttb=((v(k  ,ii-1,jj)+v(k  ,ii-1,jj+1)+v(k  ,ii,jj)+v(k  ,ii,jj+1))/4. &
-			+(v(k+1,ii-1,jj)+v(k+1,ii-1,jj+1)+v(k+1,ii,jj)+v(k+1,ii,jj+1))/4.)/2. 
-		a3=surxix(i,j)
-		b1=surxiy(i,j)
-		b2=(svretax(i,j)+svretax(i,j+1)+svretax(i-1,j)+svretax(i-1,j+1))/4.
-		b3=(svretay(i,j)+svretay(i,j+1)+svretay(i-1,j)+svretay(i-1,j+1))/4.
+                a1=a1-(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
+                        -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*a3
+                a2=a2-(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
+                        -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b1
+                
+                if(jj.ne.1) then
+                        phi_m1=(v(k,ii-1,jj-1)+v(k,ii,jj-1)+v(k,ii-1,jj-2)+v(k,ii,jj-2))/4.0
+                else
+                        phi_m1=(v(k,ii-1,jj-1)+v(k,ii,jj-1))/2.0
+                end if
+                
+                phi_  =(v(k,ii-1,jj  )+v(k,ii,jj  )+v(k,ii-1,jj-1)+v(k,ii,jj-1))/4.0
+                phi_p1=(v(k,ii-1,jj+1)+v(k,ii,jj+1)+v(k,ii-1,jj  )+v(k,ii,jj  ))/4.0
+                phi_p2=(v(k,ii-1,jj+2)+v(k,ii,jj+2)+v(k,ii-1,jj+1)+v(k,ii,jj+1))/4.0
+                
+                a1=a1-(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
+                        -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b2
+                a2=a2-(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
+                        -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b3
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                ! U^{z}_{f}U^{m}_{f}S_{m,f}
+                !     (5th terms in RHS brakets of eq 3.30)
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                tta=(u(k,ii,jj)+u(k+1,ii,jj))/2.
+                ttb=((v(k  ,ii-1,jj)+v(k  ,ii-1,jj+1)+v(k  ,ii,jj)+v(k  ,ii,jj+1))/4. &
+                        +(v(k+1,ii-1,jj)+v(k+1,ii-1,jj+1)+v(k+1,ii,jj)+v(k+1,ii,jj+1))/4.)/2. 
+                a3=surxix(i,j)
+                b1=surxiy(i,j)
+                b2=(svretax(i,j)+svretax(i,j+1)+svretax(i-1,j)+svretax(i-1,j+1))/4.
+                b3=(svretay(i,j)+svretay(i,j+1)+svretay(i-1,j)+svretay(i-1,j+1))/4.
 
-		a1=a1+(w(k+1,ii,jj)+w(k+1,ii-1,jj))/2.*(tta*a3+ttb*b2)
-		a2=a2+(w(k+1,ii,jj)+w(k+1,ii-1,jj))/2.*(tta*b1+ttb*b3)
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		! -U^{z}_{b}U^{m}_{b}S_{m,b}
-		!     (6th/Last terms in RHS brakets of eq 3.30)
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		tta=(u(k,ii,jj)+u(k-1,ii,jj))/2.
-		ttb=((v(k  ,ii-1,jj)+v(k  ,ii-1,jj+1)+v(k  ,ii,jj)+v(k  ,ii,jj+1))/4.  &
-    			+(v(k-1,ii-1,jj)+v(k-1,ii-1,jj+1)+v(k-1,ii,jj)+v(k-1,ii,jj+1))/4.)/2.
-		a3=surxix(i,j)
-		b1=surxiy(i,j)
-		b2=(svretax(i,j)+svretax(i,j+1)+svretax(i-1,j)+svretax(i-1,j+1))/4.
-		b3=(svretay(i,j)+svretay(i,j+1)+svretay(i-1,j)+svretay(i-1,j+1))/4.
+                a1=a1+(w(k+1,ii,jj)+w(k+1,ii-1,jj))/2.*(tta*a3+ttb*b2)
+                a2=a2+(w(k+1,ii,jj)+w(k+1,ii-1,jj))/2.*(tta*b1+ttb*b3)
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                ! -U^{z}_{b}U^{m}_{b}S_{m,b}
+                !     (6th/Last terms in RHS brakets of eq 3.30)
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                tta=(u(k,ii,jj)+u(k-1,ii,jj))/2.
+                ttb=((v(k  ,ii-1,jj)+v(k  ,ii-1,jj+1)+v(k  ,ii,jj)+v(k  ,ii,jj+1))/4.  &
+                            +(v(k-1,ii-1,jj)+v(k-1,ii-1,jj+1)+v(k-1,ii,jj)+v(k-1,ii,jj+1))/4.)/2.
+                a3=surxix(i,j)
+                b1=surxiy(i,j)
+                b2=(svretax(i,j)+svretax(i,j+1)+svretax(i-1,j)+svretax(i-1,j+1))/4.
+                b3=(svretay(i,j)+svretay(i,j+1)+svretay(i-1,j)+svretay(i-1,j+1))/4.
 
-		a1=a1-(w(k,ii,jj)+w(k,ii-1,jj))/2.*(tta*a3+ttb*b2)
-		a2=a2-(w(k,ii,jj)+w(k,ii-1,jj))/2.*(tta*b1+ttb*b3)
-		
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		! compute the total convection terms here  
-		! i.e.  Multiply   (a1,a2).(Suxix,Suxiy) ------> eq(3.30)
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		con=-a1*suxix(i,j)-a2*suxiy(i,j) 
+                a1=a1-(w(k,ii,jj)+w(k,ii-1,jj))/2.*(tta*a3+ttb*b2)
+                a2=a2-(w(k,ii,jj)+w(k,ii-1,jj))/2.*(tta*b1+ttb*b3)
+                
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                ! compute the total convection terms here  
+                ! i.e.  Multiply   (a1,a2).(Suxix,Suxiy) ------> eq(3.30)
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                con=-a1*suxix(i,j)-a2*suxiy(i,j) 
 
 
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		! explicit diffusion terms 
-		!-----------------------------------------------------------------------
-		! d_{xi,e,ex}            (eq 3.35)
-		!-----------------------------------------------------------------------
-		!       (S_E^xi S_eta,E + S_eta,E S_E^xi) U_E^eta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=suxix(i+1,j)
-		a2=suxiy(i+1,j)
-		b1=(svretax(i,j)+svretax(i+1,j)+svretax(i,j+1)+svretax(i+1,j+1))/4.
-		b2=(svretay(i,j)+svretay(i+1,j)+svretay(i,j+1)+svretay(i+1,j+1))/4.
-		tta=(v(k,ii,jj)+v(k,ii+1,jj)+v(k,ii,jj+1)+v(k,ii+1,jj+1))/4.
-		c1=(a1*b1)*tta 
-		c2=(a1*b2)*tta 
-		c4=(a2*b1)*tta
-		c5=(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       (S_P^xi S_eta,P + S_eta,P S_P^xi) U_P^eta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=suxix(i,j)
-		a2=suxiy(i,j)
-		b1=(svretax(i,j)+svretax(i-1,j)+svretax(i,j+1)+svretax(i-1,j+1))/4.
-		b2=(svretay(i,j)+svretay(i-1,j)+svretay(i,j+1)+svretay(i-1,j+1))/4.
-		tta=(v(k,ii,jj)+v(k,ii-1,jj)+v(k,ii,jj+1)+v(k,ii-1,jj+1))/4.
-		c1=c1-(a1*b1)*tta
-		c2=c2-(a1*b2)*tta
-		c4=c4-(a2*b1)*tta
-		c5=c5-(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       (S_ne^eta S_xi,ne + S_xi,ne S_ne^eta) U_ne^xi
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=svetax(i,j+1)
-		a2=svetay(i,j+1)
-		b1=(surxix(i,j)+surxix(i+1,j)+surxix(i,j+1)+surxix(i+1,j+1))/4.
-		b2=(surxiy(i,j)+surxiy(i+1,j)+surxiy(i,j+1)+surxiy(i+1,j+1))/4.
-		tta=(u(k,ii,jj)+u(k,ii+1,jj)+u(k,ii,jj+1)+u(k,ii+1,jj+1))/4.
-		c1=c1+(a1*b1)*tta
-		c2=c2+(a1*b2)*tta
-		c4=c4+(a2*b1)*tta
-		c5=c5+(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       (S_ne^eta S_eta,ne + S_eta,ne S_ne^eta) U_ne^eta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=svetax(i,j+1)
-		a2=svetay(i,j+1)
-		b1=svretax(i,j+1)
-		b2=svretay(i,j+1)
-		tta=v(k,ii,jj+1)
-		c1=c1+(a1*b1)*tta
-		c2=c2+(a1*b2)*tta
-		c4=c4+(a2*b1)*tta
-		c5=c5+(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       (S_se^eta S_xi,se + S_xi,se S_se^eta) U_se^xi
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=svetax(i,j)
-		a2=svetay(i,j)
-		b1=(surxix(i,j)+surxix(i+1,j)+surxix(i,j-1)+surxix(i+1,j-1))/4.
-		b2=(surxiy(i,j)+surxiy(i+1,j)+surxiy(i,j-1)+surxiy(i+1,j-1))/4.
-		tta=(u(k,ii,jj)+u(k,ii+1,jj)+u(k,ii,jj-1)+u(k,ii+1,jj-1))/4.
-		c1=c1-(a1*b1)*tta
-		c2=c2-(a1*b2)*tta
-		c4=c4-(a2*b1)*tta
-		c5=c5-(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       (S_se^eta S_eta,se + S_eta,se S_se^eta) U_se^eta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=svetax(i,j)
-		a2=svetay(i,j)
-		b1=svretax(i,j)
-		b2=svretay(i,j)
-		tta=v(k,ii,jj)
-		c1=c1-(a1*b1)*tta
-		c2=c2-(a1*b2)*tta
-		c4=c4-(a2*b1)*tta
-		c5=c5-(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!     calculate S^{xi}_{e}/(ReV_{e}) \bu d_{xi,e,ex}
-		!     (1th term of RHS braket in 3.41)
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(suxix(i,j)+suxix(i+1,j))/2.
-		a2=(suxiy(i,j)+suxiy(i+1,j))/2.
-		a3=vp(i,j) 
-		e1=(a1*(c1+c1)+a2*(c4+c2))*visc/a3 
-		e2=(a1*(c2+c4)+a2*(c5+c5))*visc/a3 
-		
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		! d_{xi,w,ex}                   (eq 3.36)
-		!-----------------------------------------------------------------------
-		!       (S_P^xi S_eta,P + S_eta,P S_P^xi) U_P^eta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=suxix(i,j)
-		a2=suxiy(i,j)
-		b1=(svretax(i,j)+svretax(i-1,j)+svretax(i,j+1)+svretax(i-1,j+1))/4.
-		b2=(svretay(i,j)+svretay(i-1,j)+svretay(i,j+1)+svretay(i-1,j+1))/4.
-		tta=(v(k,ii,jj)+v(k,ii-1,jj)+v(k,ii,jj+1)+v(k,ii-1,jj+1))/4.
-		c1=(a1*b1)*tta
-		c2=(a1*b2)*tta
-		c4=(a2*b1)*tta
-		c5=(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       (S_W^xi S_eta,W + S_eta,W S_W^xi) U_W^eta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=suxix(i-1,j)
-		a2=suxiy(i-1,j)
-		b1=(svretax(i-1,j)+svretax(i-2,j)+svretax(i-1,j+1)+svretax(i-2,j+1))/4.
-		b2=(svretay(i-1,j)+svretay(i-2,j)+svretay(i-1,j+1)+svretay(i-2,j+1))/4.
-		tta=(v(k,ii-1,jj)+v(k,ii-2,jj)+v(k,ii-1,jj+1)+v(k,ii-2,jj+1))/4.
-		c1=c1-(a1*b1)*tta
-		c2=c2-(a1*b2)*tta
-		c4=c4-(a2*b1)*tta
-		c5=c5-(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       (S^{eta}_{nw}S_{xi,nw}+S_{xi,nw}S^{eta}_{nw})U^{xi}_{nw}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=svetax(i-1,j+1)
-		a2=svetay(i-1,j+1)
-		b1=(surxix(i,j)+surxix(i-1,j)+surxix(i,j+1)+surxix(i-1,j+1))/4.
-		b2=(surxiy(i,j)+surxiy(i-1,j)+surxiy(i,j+1)+surxiy(i-1,j+1))/4.
-		tta=(u(k,ii,jj)+u(k,ii-1,jj)+u(k,ii,jj+1)+u(k,ii-1,jj+1))/4.
-		c1=c1+(a1*b1)*tta
-		c2=c2+(a1*b2)*tta
-		c4=c4+(a2*b1)*tta
-		c5=c5+(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       (S^{eta}_{nw}S_{eta,nw}+S_{eta,nw}S^{eta}_{nw})U^{eta}_{nw}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=svetax(i-1,j+1)
-		a2=svetay(i-1,j+1)
-		b1=svretax(i-1,j+1)
-		b2=svretay(i-1,j+1)
-		tta=v(k,ii-1,jj+1)
-		c1=c1+(a1*b1)*tta
-		c2=c2+(a1*b2)*tta
-		c4=c4+(a2*b1)*tta
-		c5=c5+(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       -(S^{eta}_{sw}S_{xi,sw}+S_{xi,sw}S^{eta}_{sw})U^{xi}_{sw}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=svetax(i-1,j)
-		a2=svetay(i-1,j)
-		b1=(surxix(i,j)+surxix(i-1,j)+surxix(i,j-1)+surxix(i-1,j-1))/4.
-		b2=(surxiy(i,j)+surxiy(i-1,j)+surxiy(i,j-1)+surxiy(i-1,j-1))/4.
-		tta=(u(k,ii,jj)+u(k,ii-1,jj)+u(k,ii,jj-1)+u(k,ii-1,jj-1))/4.
-		c1=c1-(a1*b1)*tta
-		c2=c2-(a1*b2)*tta
-		c4=c4-(a2*b1)*tta
-		c5=c5-(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       -(S^{eta}_{sw}S_{eta,sw}+S_{eta,sw}S^{eta}_{sw})U^{eta}_{sw}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=svetax(i-1,j)
-		a2=svetay(i-1,j)
-		b1=svretax(i-1,j)
-		b2=svretay(i-1,j)
-		tta=v(k,ii-1,jj)
-		c1=c1-(a1*b1)*tta
-		c2=c2-(a1*b2)*tta
-		c4=c4-(a2*b1)*tta
-		c5=c5-(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!    calculate -S^{xi}_{w}/(ReV_{w}) \bu d_{xi,w,ex}
-		!    (2nd term of RHS braket in 3.41)
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(suxix(i,j)+suxix(i-1,j))/2.
-		a2=(suxiy(i,j)+suxiy(i-1,j))/2.
-		a3=vp(i-1,j) 
-		e1=e1-(a1*(c1+c1)+a2*(c4+c2))*visc/a3 
-		e2=e2-(a1*(c2+c4)+a2*(c5+c5))*visc/a3
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                ! explicit diffusion terms 
+                !-----------------------------------------------------------------------
+                ! d_{xi,e,ex}            (eq 3.35)
+                !-----------------------------------------------------------------------
+                !       (S_E^xi S_eta,E + S_eta,E S_E^xi) U_E^eta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=suxix(i+1,j)
+                a2=suxiy(i+1,j)
+                b1=(svretax(i,j)+svretax(i+1,j)+svretax(i,j+1)+svretax(i+1,j+1))/4.
+                b2=(svretay(i,j)+svretay(i+1,j)+svretay(i,j+1)+svretay(i+1,j+1))/4.
+                tta=(v(k,ii,jj)+v(k,ii+1,jj)+v(k,ii,jj+1)+v(k,ii+1,jj+1))/4.
+                c1=(a1*b1)*tta 
+                c2=(a1*b2)*tta 
+                c4=(a2*b1)*tta
+                c5=(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       (S_P^xi S_eta,P + S_eta,P S_P^xi) U_P^eta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=suxix(i,j)
+                a2=suxiy(i,j)
+                b1=(svretax(i,j)+svretax(i-1,j)+svretax(i,j+1)+svretax(i-1,j+1))/4.
+                b2=(svretay(i,j)+svretay(i-1,j)+svretay(i,j+1)+svretay(i-1,j+1))/4.
+                tta=(v(k,ii,jj)+v(k,ii-1,jj)+v(k,ii,jj+1)+v(k,ii-1,jj+1))/4.
+                c1=c1-(a1*b1)*tta
+                c2=c2-(a1*b2)*tta
+                c4=c4-(a2*b1)*tta
+                c5=c5-(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       (S_ne^eta S_xi,ne + S_xi,ne S_ne^eta) U_ne^xi
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=svetax(i,j+1)
+                a2=svetay(i,j+1)
+                b1=(surxix(i,j)+surxix(i+1,j)+surxix(i,j+1)+surxix(i+1,j+1))/4.
+                b2=(surxiy(i,j)+surxiy(i+1,j)+surxiy(i,j+1)+surxiy(i+1,j+1))/4.
+                tta=(u(k,ii,jj)+u(k,ii+1,jj)+u(k,ii,jj+1)+u(k,ii+1,jj+1))/4.
+                c1=c1+(a1*b1)*tta
+                c2=c2+(a1*b2)*tta
+                c4=c4+(a2*b1)*tta
+                c5=c5+(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       (S_ne^eta S_eta,ne + S_eta,ne S_ne^eta) U_ne^eta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=svetax(i,j+1)
+                a2=svetay(i,j+1)
+                b1=svretax(i,j+1)
+                b2=svretay(i,j+1)
+                tta=v(k,ii,jj+1)
+                c1=c1+(a1*b1)*tta
+                c2=c2+(a1*b2)*tta
+                c4=c4+(a2*b1)*tta
+                c5=c5+(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       (S_se^eta S_xi,se + S_xi,se S_se^eta) U_se^xi
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=svetax(i,j)
+                a2=svetay(i,j)
+                b1=(surxix(i,j)+surxix(i+1,j)+surxix(i,j-1)+surxix(i+1,j-1))/4.
+                b2=(surxiy(i,j)+surxiy(i+1,j)+surxiy(i,j-1)+surxiy(i+1,j-1))/4.
+                tta=(u(k,ii,jj)+u(k,ii+1,jj)+u(k,ii,jj-1)+u(k,ii+1,jj-1))/4.
+                c1=c1-(a1*b1)*tta
+                c2=c2-(a1*b2)*tta
+                c4=c4-(a2*b1)*tta
+                c5=c5-(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       (S_se^eta S_eta,se + S_eta,se S_se^eta) U_se^eta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=svetax(i,j)
+                a2=svetay(i,j)
+                b1=svretax(i,j)
+                b2=svretay(i,j)
+                tta=v(k,ii,jj)
+                c1=c1-(a1*b1)*tta
+                c2=c2-(a1*b2)*tta
+                c4=c4-(a2*b1)*tta
+                c5=c5-(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !     calculate S^{xi}_{e}/(ReV_{e}) \bu d_{xi,e,ex}
+                !     (1th term of RHS braket in 3.41)
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(suxix(i,j)+suxix(i+1,j))/2.
+                a2=(suxiy(i,j)+suxiy(i+1,j))/2.
+                a3=vp(i,j) 
+                e1=(a1*(c1+c1)+a2*(c4+c2))*visc/a3 
+                e2=(a1*(c2+c4)+a2*(c5+c5))*visc/a3 
+                
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                ! d_{xi,w,ex}                   (eq 3.36)
+                !-----------------------------------------------------------------------
+                !       (S_P^xi S_eta,P + S_eta,P S_P^xi) U_P^eta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=suxix(i,j)
+                a2=suxiy(i,j)
+                b1=(svretax(i,j)+svretax(i-1,j)+svretax(i,j+1)+svretax(i-1,j+1))/4.
+                b2=(svretay(i,j)+svretay(i-1,j)+svretay(i,j+1)+svretay(i-1,j+1))/4.
+                tta=(v(k,ii,jj)+v(k,ii-1,jj)+v(k,ii,jj+1)+v(k,ii-1,jj+1))/4.
+                c1=(a1*b1)*tta
+                c2=(a1*b2)*tta
+                c4=(a2*b1)*tta
+                c5=(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       (S_W^xi S_eta,W + S_eta,W S_W^xi) U_W^eta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=suxix(i-1,j)
+                a2=suxiy(i-1,j)
+                b1=(svretax(i-1,j)+svretax(i-2,j)+svretax(i-1,j+1)+svretax(i-2,j+1))/4.
+                b2=(svretay(i-1,j)+svretay(i-2,j)+svretay(i-1,j+1)+svretay(i-2,j+1))/4.
+                tta=(v(k,ii-1,jj)+v(k,ii-2,jj)+v(k,ii-1,jj+1)+v(k,ii-2,jj+1))/4.
+                c1=c1-(a1*b1)*tta
+                c2=c2-(a1*b2)*tta
+                c4=c4-(a2*b1)*tta
+                c5=c5-(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       (S^{eta}_{nw}S_{xi,nw}+S_{xi,nw}S^{eta}_{nw})U^{xi}_{nw}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=svetax(i-1,j+1)
+                a2=svetay(i-1,j+1)
+                b1=(surxix(i,j)+surxix(i-1,j)+surxix(i,j+1)+surxix(i-1,j+1))/4.
+                b2=(surxiy(i,j)+surxiy(i-1,j)+surxiy(i,j+1)+surxiy(i-1,j+1))/4.
+                tta=(u(k,ii,jj)+u(k,ii-1,jj)+u(k,ii,jj+1)+u(k,ii-1,jj+1))/4.
+                c1=c1+(a1*b1)*tta
+                c2=c2+(a1*b2)*tta
+                c4=c4+(a2*b1)*tta
+                c5=c5+(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       (S^{eta}_{nw}S_{eta,nw}+S_{eta,nw}S^{eta}_{nw})U^{eta}_{nw}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=svetax(i-1,j+1)
+                a2=svetay(i-1,j+1)
+                b1=svretax(i-1,j+1)
+                b2=svretay(i-1,j+1)
+                tta=v(k,ii-1,jj+1)
+                c1=c1+(a1*b1)*tta
+                c2=c2+(a1*b2)*tta
+                c4=c4+(a2*b1)*tta
+                c5=c5+(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       -(S^{eta}_{sw}S_{xi,sw}+S_{xi,sw}S^{eta}_{sw})U^{xi}_{sw}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=svetax(i-1,j)
+                a2=svetay(i-1,j)
+                b1=(surxix(i,j)+surxix(i-1,j)+surxix(i,j-1)+surxix(i-1,j-1))/4.
+                b2=(surxiy(i,j)+surxiy(i-1,j)+surxiy(i,j-1)+surxiy(i-1,j-1))/4.
+                tta=(u(k,ii,jj)+u(k,ii-1,jj)+u(k,ii,jj-1)+u(k,ii-1,jj-1))/4.
+                c1=c1-(a1*b1)*tta
+                c2=c2-(a1*b2)*tta
+                c4=c4-(a2*b1)*tta
+                c5=c5-(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       -(S^{eta}_{sw}S_{eta,sw}+S_{eta,sw}S^{eta}_{sw})U^{eta}_{sw}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=svetax(i-1,j)
+                a2=svetay(i-1,j)
+                b1=svretax(i-1,j)
+                b2=svretay(i-1,j)
+                tta=v(k,ii-1,jj)
+                c1=c1-(a1*b1)*tta
+                c2=c2-(a1*b2)*tta
+                c4=c4-(a2*b1)*tta
+                c5=c5-(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !    calculate -S^{xi}_{w}/(ReV_{w}) \bu d_{xi,w,ex}
+                !    (2nd term of RHS braket in 3.41)
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(suxix(i,j)+suxix(i-1,j))/2.
+                a2=(suxiy(i,j)+suxiy(i-1,j))/2.
+                a3=vp(i-1,j) 
+                e1=e1-(a1*(c1+c1)+a2*(c4+c2))*visc/a3 
+                e2=e2-(a1*(c2+c4)+a2*(c5+c5))*visc/a3
 
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		! d_{xi,n,ex}                     (eq 3.37)
-		!-----------------------------------------------------------------------
-		!       (S^{eta}_{N}S_{eta,N}+S_{eta,N}S^{eta}_{N})U^{eta}_{N}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(svetax(i,j+1)+svetax(i-1,j+1)+svetax(i,j+2)+svetax(i-1,j+2))/4.
-		a2=(svetay(i,j+1)+svetay(i-1,j+1)+svetay(i,j+2)+svetay(i-1,j+2))/4.
-		b1=(svretax(i,j+1)+svretax(i-1,j+1)+svretax(i,j+2)+svretax(i-1,j+2))/4.
-		b2=(svretay(i,j+1)+svretay(i-1,j+1)+svretay(i,j+2)+svretay(i-1,j+2))/4.
-		tta=(v(k,ii,jj+1)+v(k,ii-1,jj+1)+v(k,ii,jj+2)+v(k,ii-1,jj+2))/4.
-		c1=(a1*b1)*tta
-		c2=(a1*b2)*tta
-		c4=(a2*b1)*tta
-		c5=(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       -(S^{eta}_{P}S_{eta,P}+S_{eta,P}S^{eta}_{P})U^{eta}_{P}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(svetax(i,j)+svetax(i,j+1)+svetax(i-1,j)+svetax(i-1,j+1))/4.
-		a2=(svetay(i,j)+svetay(i,j+1)+svetay(i-1,j)+svetay(i-1,j+1))/4.
-		b1=(svretax(i,j)+svretax(i,j+1)+svretax(i-1,j)+svretax(i-1,j+1))/4.
-		b2=(svretay(i,j)+svretay(i,j+1)+svretay(i-1,j)+svretay(i-1,j+1))/4.
-		tta=(v(k,ii,jj)+v(k,ii,jj+1)+v(k,ii-1,jj)+v(k,ii-1,jj+1))/4.
-		c1=c1-(a1*b1)*tta
-		c2=c2-(a1*b2)*tta
-		c4=c4-(a2*b1)*tta
-		c5=c5-(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       (S^{xi}_{ne}S_{xi,ne}+S_{xi,ne}S^{xi}_{ne})U^{xi}_{ne}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(suxix(i,j)+suxix(i+1,j)+suxix(i,j+1)+suxix(i+1,j+1))/4.
-		a2=(suxiy(i,j)+suxiy(i+1,j)+suxiy(i,j+1)+suxiy(i+1,j+1))/4.
-		b1=(surxix(i,j)+surxix(i+1,j)+surxix(i,j+1)+surxix(i+1,j+1))/4.
-		b2=(surxiy(i,j)+surxiy(i+1,j)+surxiy(i,j+1)+surxiy(i+1,j+1))/4.
-		tta=(u(k,ii,jj)+u(k,ii+1,jj)+u(k,ii,jj+1)+u(k,ii+1,jj+1))/4.
-		c1=c1+(a1*b1)*tta
-		c2=c2+(a1*b2)*tta
-		c4=c4+(a2*b1)*tta
-		c5=c5+(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       (S^{xi}_{ne}S_{eta,ne}+S_{eta,ne}S^{xi}_{ne})U^{eta}_{ne}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(suxix(i,j)+suxix(i+1,j)+suxix(i,j+1)+suxix(i+1,j+1))/4.
-		a2=(suxiy(i,j)+suxiy(i+1,j)+suxiy(i,j+1)+suxiy(i+1,j+1))/4.
-		b1=svretax(i,j+1)
-		b2=svretay(i,j+1)
-		tta=v(k,ii,jj+1)
-		c1=c1+(a1*b1)*tta
-		c2=c2+(a1*b2)*tta
-		c4=c4+(a2*b1)*tta
-		c5=c5+(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       -(S^{xi}_{nw}S_{xi,nw}+S_{xi,nw}S^{xi}_{nw})U^{xi}_{nw}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(suxix(i,j)+suxix(i,j+1)+suxix(i-1,j)+suxix(i-1,j+1))/4.
-		a2=(suxiy(i,j)+suxiy(i,j+1)+suxiy(i-1,j)+suxiy(i-1,j+1))/4.
-		b1=(surxix(i,j)+surxix(i,j+1)+surxix(i-1,j)+surxix(i-1,j+1))/4.
-		b2=(surxiy(i,j)+surxiy(i,j+1)+surxiy(i-1,j)+surxiy(i-1,j+1))/4.
-		tta=(u(k,ii,jj)+u(k,ii,jj+1)+u(k,ii-1,jj)+u(k,ii-1,jj+1))/4.
-		c1=c1-(a1*b1)*tta
-		c2=c2-(a1*b2)*tta
-		c4=c4-(a2*b1)*tta
-		c5=c5-(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       -(S^{xi}_{nw}S_{eta,nw}+S_{eta,nw}S^{xi}_{nw})U^{eta}_{nw}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(suxix(i,j)+suxix(i,j+1)+suxix(i-1,j)+suxix(i-1,j+1))/4.
-		a2=(suxiy(i,j)+suxiy(i,j+1)+suxiy(i-1,j)+suxiy(i-1,j+1))/4.
-		b1=svretax(i-1,j+1)
-		b2=svretay(i-1,j+1)
-		tta=v(k,ii-1,jj+1)
-		c1=c1-(a1*b1)*tta
-		c2=c2-(a1*b2)*tta
-		c4=c4-(a2*b1)*tta
-		c5=c5-(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!     calculate S^{eta}_{n}/(ReV_{n}) \bu d_{xi,n,ex}
-		!     (3rd term of RHS braket in 3.41)
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(svetax(i,j+1)+svetax(i-1,j+1))/2.
-		a2=(svetay(i,j+1)+svetay(i-1,j+1))/2.
-		a3=(vp(i,j)+vp(i,j+1)+vp(i-1,j)+vp(i-1,j+1))/4.
-		e1=e1+(a1*(c1+c1)+a2*(c4+c2))*visc/a3
-		e2=e2+(a1*(c2+c4)+a2*(c5+c5))*visc/a3 
-		
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		! d_{xi,s,ex}                       (eq 3.38)
-		!-----------------------------------------------------------------------
-		!       (S^{eta}_{P}S_{eta,P}+S_{eta,P}S^{eta}_{P})U^{eta}_{P}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(svetax(i,j)+svetax(i,j+1)+svetax(i-1,j)+svetax(i-1,j+1))/4.
-		a2=(svetay(i,j)+svetay(i,j+1)+svetay(i-1,j)+svetay(i-1,j+1))/4.
-		b1=(svretax(i,j)+svretax(i,j+1)+svretax(i-1,j)+svretax(i-1,j+1))/4.
-		b2=(svretay(i,j)+svretay(i,j+1)+svretay(i-1,j)+svretay(i-1,j+1))/4.
-		tta=(v(k,ii,jj)+v(k,ii,jj+1)+v(k,ii-1,jj)+v(k,ii-1,jj+1))/4.
-		c1=(a1*b1)*tta
-		c2=(a1*b2)*tta
-		c4=(a2*b1)*tta
-		c5=(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       -(S^{eta}_{S}S_{eta,S}+S_{eta,S}S^{eta}_{S})U^{eta}_{S}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(svetax(i,j)+svetax(i,j-1)+svetax(i-1,j)+svetax(i-1,j-1))/4.
-		a2=(svetay(i,j)+svetay(i,j-1)+svetay(i-1,j)+svetay(i-1,j-1))/4.
-		b1=(svretax(i,j)+svretax(i,j-1)+svretax(i-1,j)+svretax(i-1,j-1))/4.
-		b2=(svretay(i,j)+svretay(i,j-1)+svretay(i-1,j)+svretay(i-1,j-1))/4.
-		tta=(v(k,ii,jj)+v(k,ii,jj-1)+v(k,ii-1,jj)+v(k,ii-1,jj-1))/4.
-		c1=c1-(a1*b1)*tta
-		c2=c2-(a1*b2)*tta
-		c4=c4-(a2*b1)*tta
-		c5=c5-(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       (S^{xi}_{se}S_{xi,se}+S_{xi,se}S^{xi}_{se})U^{xi}_{se}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(suxix(i,j)+suxix(i+1,j)+suxix(i,j-1)+suxix(i+1,j-1))/4.
-		a2=(suxiy(i,j)+suxiy(i+1,j)+suxiy(i,j-1)+suxiy(i+1,j-1))/4.
-		b1=(surxix(i,j)+surxix(i+1,j)+surxix(i,j-1)+surxix(i+1,j-1))/4.
-		b2=(surxiy(i,j)+surxiy(i+1,j)+surxiy(i,j-1)+surxiy(i+1,j-1))/4.
-		tta=(u(k,ii,jj)+u(k,ii+1,jj)+u(k,ii,jj-1)+u(k,ii+1,jj-1))/4.
-		c1=c1+(a1*b1)*tta
-		c2=c2+(a1*b2)*tta
-		c4=c4+(a2*b1)*tta
-		c5=c5+(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       (S^{xi}_{se}S_{eta,se}+S_{eta,se}S^{xi}_{se})U^{eta}_{se}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(suxix(i,j)+suxix(i+1,j)+suxix(i,j-1)+suxix(i+1,j-1))/4.
-		a2=(suxiy(i,j)+suxiy(i+1,j)+suxiy(i,j-1)+suxiy(i+1,j-1))/4.
-		b1=svretax(i,j)
-		b2=svretay(i,j)
-		tta=v(k,ii,jj)
-		c1=c1+(a1*b1)*tta
-		c2=c2+(a1*b2)*tta
-		c4=c4+(a2*b1)*tta
-		c5=c5+(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       -(S^{xi}_{sw}S_{xi,sw}+S_{xi,sw}S^{xi}_{sw})U^{xi}_{sw}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(suxix(i,j)+suxix(i,j-1)+suxix(i-1,j)+suxix(i-1,j-1))/4.
-		a2=(suxiy(i,j)+suxiy(i,j-1)+suxiy(i-1,j)+suxiy(i-1,j-1))/4.
-		b1=(surxix(i,j)+surxix(i,j-1)+surxix(i-1,j)+surxix(i-1,j-1))/4.
-		b2=(surxiy(i,j)+surxiy(i,j-1)+surxiy(i-1,j)+surxiy(i-1,j-1))/4.
-		tta=(u(k,ii,jj)+u(k,ii,jj-1)+u(k,ii-1,jj)+u(k,ii-1,jj-1))/4.
-		c1=c1-(a1*b1)*tta
-		c2=c2-(a1*b2)*tta
-		c4=c4-(a2*b1)*tta
-		c5=c5-(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       -(S^{xi}_{sw}S_{eta,sw}+S_{eta,sw}S^{xi}_{sw})U^{eta}_{sw}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(suxix(i,j)+suxix(i,j-1)+suxix(i-1,j)+suxix(i-1,j-1))/4.
-		a2=(suxiy(i,j)+suxiy(i,j-1)+suxiy(i-1,j)+suxiy(i-1,j-1))/4.
-		b1=svretax(i-1,j)
-		b2=svretay(i-1,j)
-		tta=v(k,ii-1,jj)
-		c1=c1-(a1*b1)*tta
-		c2=c2-(a1*b2)*tta
-		c4=c4-(a2*b1)*tta
-		c5=c5-(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!     calculate - S^{eta}_{s}/(ReV_{s}) \bu d_{xi,s,ex}
-		!     (4th term of RHS braket in 3.41)
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(svetax(i,j)+svetax(i-1,j))/2.
-		a2=(svetay(i,j)+svetay(i-1,j))/2.
-		a3=(vp(i,j)+vp(i,j-1)+vp(i-1,j)+vp(i-1,j-1))/4.
-		e1=e1-(a1*(c1+c1)+a2*(c4+c2))*visc/a3 
-		e2=e2-(a1*(c2+c4)+a2*(c5+c5))*visc/a3
-		
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		! d_{xi,f,ex}                (eq 3.39)
-		!-----------------------------------------------------------------------
-		!       (S^{z}_{F}S_{eta,F}+S_{eta,F}S^{z}_{F})U^{eta}_{F}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a3=(swz(i,j)+swz(i-1,j))/2.
-		b1=(svretax(i,j)+svretax(i,j+1)+svretax(i-1,j)+svretax(i-1,j+1))/4.
-		b2=(svretay(i,j)+svretay(i,j+1)+svretay(i-1,j)+svretay(i-1,j+1))/4.
-		tta=(v(k+1,ii,jj)+v(k+1,ii,jj+1)+v(k+1,ii-1,jj)+v(k+1,ii-1,jj+1))/4.
-		c7=(a3*b1)*tta
-		c8=(a3*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       -(S^{z}_{P}S_{eta,P}+S_{eta,P}S^{z}_{P})U^{eta}_{P}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a3=(swz(i,j)+swz(i-1,j))/2.
-		b1=(svretax(i,j)+svretax(i,j+1)+svretax(i-1,j)+svretax(i-1,j+1))/4.
-		b2=(svretay(i,j)+svretay(i,j+1)+svretay(i-1,j)+svretay(i-1,j+1))/4.
-		tta=(v(k,ii,jj)+v(k,ii,jj+1)+v(k,ii-1,jj)+v(k,ii-1,jj+1))/4.
-		c7=c7-(a3*b1)*tta
-		c8=c8-(a3*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       (S^{xi}_{fe}S_{z,fe}+S_{z,fe}S^{xi}_{fe})U^{z}_{fe}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(suxix(i,j)+suxix(i+1,j))/2.0
-		a2=(suxiy(i,j)+suxiy(i+1,j))/2.0
-		b3=swrz(i,j)
-		tta=w(k+1,ii,jj)
-		c3=(a1*b3)*tta
-		c6=(a2*b3)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       -(S^{xi}_{fw}S_{z,fw}+S_{z,fw}S^{xi}_{fw})U^{z}_{fw}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(suxix(i,j)+suxix(i-1,j))/2.0
-		a2=(suxiy(i,j)+suxiy(i-1,j))/2.0
-		b3=swrz(i-1,j)
-		tta=w(k+1,ii-1,jj)
-		c3=c3-(a1*b3)*tta
-		c6=c6-(a2*b3)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       (S^{eta}_{fn}S_{z,fn}+S_{z,fn}S^{eta}_{fn})U^{z}_{fn}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(svetax(i,j+1)+svetax(i-1,j+1))/2.0
-		a2=(svetay(i,j+1)+svetay(i-1,j+1))/2.0
-		b3=(swrz(i,j)+swrz(i,j+1)+swrz(i-1,j)+swrz(i-1,j+1))/4.
-		tta=(w(k+1,ii,jj)+w(k+1,ii-1,jj)+w(k+1,ii,jj+1)+w(k+1,ii-1,jj+1))/4.
-		c3=c3+(a1*b3)*tta
-		c6=c6+(a2*b3)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       -(S^{eta}_{fs}S_{z,fs}+S_{z,fs}S^{eta}_{fs})U^{z}_{fs}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(svetax(i,j)+svetax(i-1,j))/2.0
-		a2=(svetay(i,j)+svetay(i-1,j))/2.0
-		b3=(swrz(i,j)+swrz(i,j-1)+swrz(i-1,j)+swrz(i-1,j-1))/4.
-		tta=(w(k+1,ii,jj)+w(k+1,ii-1,jj)+w(k+1,ii,jj-1)+w(k+1,ii-1,jj-1))/4.
-		c3=c3-(a1*b3)*tta
-		c6=c6-(a2*b3)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!     calculate  S^{z}_{f}/(ReV_{f}) \bu d_{xi,f,ex}
-		!     (5th term of RHS braket in 3.41)
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(swz(i,j)+swz(i-1,j))/2.
-		a2=(vp(i,j)+vp(i-1,j))/2.
-		e1=e1+(a1*(c7+c3))*visc/a2 
-		e2=e2+(a1*(c8+c6))*visc/a2 
-		
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		! d_{xi,b,ex}                    (eq 3.40)
-		!-----------------------------------------------------------------------
-		!       (S^{z}_{P}S_{eta,P}+S_{eta,P}S^{z}_{P})U^{eta,P}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a3=(swz(i,j)+swz(i-1,j))/2.
-		b1=(svretax(i,j)+svretax(i,j+1)+svretax(i-1,j)+svretax(i-1,j+1))/4.
-		b2=(svretay(i,j)+svretay(i,j+1)+svretay(i-1,j)+svretay(i-1,j+1))/4.
-		tta=(v(k,ii,jj)+v(k,ii,jj+1)+v(k,ii-1,jj)+v(k,ii-1,jj+1))/4.
-		c7=(a3*b1)*tta
-		c8=(a3*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       -(S^{z}_{B}S_{eta,B}+S_{eta,B}S^{z}_{B})U^{eta,B}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a3=(swz(i,j)+swz(i-1,j))/2.
-		b1=(svretax(i,j)+svretax(i,j+1)+svretax(i-1,j)+svretax(i-1,j+1))/4.
-		b2=(svretay(i,j)+svretay(i,j+1)+svretay(i-1,j)+svretay(i-1,j+1))/4.
-		tta=(v(k-1,ii,jj)+v(k-1,ii,jj+1)+v(k-1,ii-1,jj)+v(k-1,ii-1,jj+1))/4.
-				c7=c7-(a3*b1)*tta
-		c8=c8-(a3*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       (S^{xi}_{be}S_{z,be}+S_{z,be}S^{xi}_{be})U^{z}_{be}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(suxix(i,j)+suxix(i+1,j))/2.0
-		a2=(suxiy(i,j)+suxiy(i+1,j))/2.0
-		a3=0.0
-		b1=0.
-		b2=0.
-		b3=swrz(i,j)
-		tta=w(k,ii,jj)
-		c3=(a1*b3)*tta
-		c6=(a2*b3)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       -(S^{xi}_{bw}S_{z,bw}+S_{z,bw}S^{xi}_{bw})U^{z}_{bw}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(suxix(i,j)+suxix(i-1,j))/2.0
-		a2=(suxiy(i,j)+suxiy(i-1,j))/2.0
-		b3=swrz(i-1,j)
-		tta=w(k,ii-1,jj)
-		c3=c3-(a1*b3)*tta
-		c6=c6-(a2*b3)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       (S^{eta}_{bn}S_{z,bn}+S_{z,bn}S^{eta}_{bn})U^{z}_{bn}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(svetax(i,j+1)+svetax(i-1,j+1))/2.0
-		a2=(svetay(i,j+1)+svetay(i-1,j+1))/2.0
-		b3=(swrz(i,j)+swrz(i,j+1)+swrz(i-1,j)+swrz(i-1,j+1))/4.
-		tta=(w(k,ii,jj)+w(k,ii-1,jj)+w(k,ii,jj+1)+w(k,ii-1,jj+1))/4.
-		c3=c3+(a1*b3)*tta
-		c6=c6+(a2*b3)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!       -(S^{eta}_{bs}S_{z,bs}+S_{z,bs}S^{eta}_{bs})U^{z}_{bs}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(svetax(i,j)+svetax(i-1,j))/2.0
-		a2=(svetay(i,j)+svetay(i-1,j))/2.0
-		b3=(swrz(i,j)+swrz(i,j-1)+swrz(i-1,j)+swrz(i-1,j-1))/4.
-		tta=(w(k,ii,jj)+w(k,ii-1,jj)+w(k,ii,jj-1)+w(k,ii-1,jj-1))/4.
-		c3=c3-(a1*b3)*tta
-		c6=c6-(a2*b3)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!     calculate  S^{z}_{b}/(ReV_{b}) \bu d_{xi,b,ex}
-		!     (6st term of RHS braket in 3.41)
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(swz(i,j)+swz(i-1,j))/2.
-		a2=(vp(i,j)+vp(i-1,j))/2.
-		e1=e1-(a1*(c7+c3))*visc/a2 
-		e2=e2-(a1*(c8+c6))*visc/a2 
-		
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		! d_{xi,f,im}                
-		!-----------------------------------------------------------------------
-		! NOTE: Front and Back seem to be treated EXPLICITLY (Fourier Transform?????)
-		!      (1st element in 5th line  eq 3.34)
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a3=(swz(i,j)+swz(i-1,j))/2.
-		b1=surxix(i,j)
-		b2=surxiy(i,j)
-		tta=u(k+1,ii,jj)
-		c7=(a3*b1)*tta
-		c8=(a3*b2)*tta
-		!---------------------------------------------------
-		!       (2nd element in 5th line  eq 3.34)
-		!---------------------------------------------------
-		a3=(swz(i,j)+swz(i-1,j))/2.
-		b1=surxix(i,j)
-		b2=surxiy(i,j)
-		tta=u(k,ii,jj)
-		c7=c7-(a3*b1)*tta
-		c8=c8-(a3*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!    calculate  S^{z}_{f}/(ReV_{f}) \bu d_{xi,f,im}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(swz(i,j)+swz(i-1,j))/2.
-		a2=(vp(i,j)+vp(i-1,j))/2.
-		e1=e1+(a1*c7)*visc/a2
-		e2=e2+(a1*c8)*visc/a2
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                ! d_{xi,n,ex}                     (eq 3.37)
+                !-----------------------------------------------------------------------
+                !       (S^{eta}_{N}S_{eta,N}+S_{eta,N}S^{eta}_{N})U^{eta}_{N}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(svetax(i,j+1)+svetax(i-1,j+1)+svetax(i,j+2)+svetax(i-1,j+2))/4.
+                a2=(svetay(i,j+1)+svetay(i-1,j+1)+svetay(i,j+2)+svetay(i-1,j+2))/4.
+                b1=(svretax(i,j+1)+svretax(i-1,j+1)+svretax(i,j+2)+svretax(i-1,j+2))/4.
+                b2=(svretay(i,j+1)+svretay(i-1,j+1)+svretay(i,j+2)+svretay(i-1,j+2))/4.
+                tta=(v(k,ii,jj+1)+v(k,ii-1,jj+1)+v(k,ii,jj+2)+v(k,ii-1,jj+2))/4.
+                c1=(a1*b1)*tta
+                c2=(a1*b2)*tta
+                c4=(a2*b1)*tta
+                c5=(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       -(S^{eta}_{P}S_{eta,P}+S_{eta,P}S^{eta}_{P})U^{eta}_{P}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(svetax(i,j)+svetax(i,j+1)+svetax(i-1,j)+svetax(i-1,j+1))/4.
+                a2=(svetay(i,j)+svetay(i,j+1)+svetay(i-1,j)+svetay(i-1,j+1))/4.
+                b1=(svretax(i,j)+svretax(i,j+1)+svretax(i-1,j)+svretax(i-1,j+1))/4.
+                b2=(svretay(i,j)+svretay(i,j+1)+svretay(i-1,j)+svretay(i-1,j+1))/4.
+                tta=(v(k,ii,jj)+v(k,ii,jj+1)+v(k,ii-1,jj)+v(k,ii-1,jj+1))/4.
+                c1=c1-(a1*b1)*tta
+                c2=c2-(a1*b2)*tta
+                c4=c4-(a2*b1)*tta
+                c5=c5-(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       (S^{xi}_{ne}S_{xi,ne}+S_{xi,ne}S^{xi}_{ne})U^{xi}_{ne}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(suxix(i,j)+suxix(i+1,j)+suxix(i,j+1)+suxix(i+1,j+1))/4.
+                a2=(suxiy(i,j)+suxiy(i+1,j)+suxiy(i,j+1)+suxiy(i+1,j+1))/4.
+                b1=(surxix(i,j)+surxix(i+1,j)+surxix(i,j+1)+surxix(i+1,j+1))/4.
+                b2=(surxiy(i,j)+surxiy(i+1,j)+surxiy(i,j+1)+surxiy(i+1,j+1))/4.
+                tta=(u(k,ii,jj)+u(k,ii+1,jj)+u(k,ii,jj+1)+u(k,ii+1,jj+1))/4.
+                c1=c1+(a1*b1)*tta
+                c2=c2+(a1*b2)*tta
+                c4=c4+(a2*b1)*tta
+                c5=c5+(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       (S^{xi}_{ne}S_{eta,ne}+S_{eta,ne}S^{xi}_{ne})U^{eta}_{ne}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(suxix(i,j)+suxix(i+1,j)+suxix(i,j+1)+suxix(i+1,j+1))/4.
+                a2=(suxiy(i,j)+suxiy(i+1,j)+suxiy(i,j+1)+suxiy(i+1,j+1))/4.
+                b1=svretax(i,j+1)
+                b2=svretay(i,j+1)
+                tta=v(k,ii,jj+1)
+                c1=c1+(a1*b1)*tta
+                c2=c2+(a1*b2)*tta
+                c4=c4+(a2*b1)*tta
+                c5=c5+(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       -(S^{xi}_{nw}S_{xi,nw}+S_{xi,nw}S^{xi}_{nw})U^{xi}_{nw}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(suxix(i,j)+suxix(i,j+1)+suxix(i-1,j)+suxix(i-1,j+1))/4.
+                a2=(suxiy(i,j)+suxiy(i,j+1)+suxiy(i-1,j)+suxiy(i-1,j+1))/4.
+                b1=(surxix(i,j)+surxix(i,j+1)+surxix(i-1,j)+surxix(i-1,j+1))/4.
+                b2=(surxiy(i,j)+surxiy(i,j+1)+surxiy(i-1,j)+surxiy(i-1,j+1))/4.
+                tta=(u(k,ii,jj)+u(k,ii,jj+1)+u(k,ii-1,jj)+u(k,ii-1,jj+1))/4.
+                c1=c1-(a1*b1)*tta
+                c2=c2-(a1*b2)*tta
+                c4=c4-(a2*b1)*tta
+                c5=c5-(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       -(S^{xi}_{nw}S_{eta,nw}+S_{eta,nw}S^{xi}_{nw})U^{eta}_{nw}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(suxix(i,j)+suxix(i,j+1)+suxix(i-1,j)+suxix(i-1,j+1))/4.
+                a2=(suxiy(i,j)+suxiy(i,j+1)+suxiy(i-1,j)+suxiy(i-1,j+1))/4.
+                b1=svretax(i-1,j+1)
+                b2=svretay(i-1,j+1)
+                tta=v(k,ii-1,jj+1)
+                c1=c1-(a1*b1)*tta
+                c2=c2-(a1*b2)*tta
+                c4=c4-(a2*b1)*tta
+                c5=c5-(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !     calculate S^{eta}_{n}/(ReV_{n}) \bu d_{xi,n,ex}
+                !     (3rd term of RHS braket in 3.41)
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(svetax(i,j+1)+svetax(i-1,j+1))/2.
+                a2=(svetay(i,j+1)+svetay(i-1,j+1))/2.
+                a3=(vp(i,j)+vp(i,j+1)+vp(i-1,j)+vp(i-1,j+1))/4.
+                e1=e1+(a1*(c1+c1)+a2*(c4+c2))*visc/a3
+                e2=e2+(a1*(c2+c4)+a2*(c5+c5))*visc/a3 
+                
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                ! d_{xi,s,ex}                       (eq 3.38)
+                !-----------------------------------------------------------------------
+                !       (S^{eta}_{P}S_{eta,P}+S_{eta,P}S^{eta}_{P})U^{eta}_{P}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(svetax(i,j)+svetax(i,j+1)+svetax(i-1,j)+svetax(i-1,j+1))/4.
+                a2=(svetay(i,j)+svetay(i,j+1)+svetay(i-1,j)+svetay(i-1,j+1))/4.
+                b1=(svretax(i,j)+svretax(i,j+1)+svretax(i-1,j)+svretax(i-1,j+1))/4.
+                b2=(svretay(i,j)+svretay(i,j+1)+svretay(i-1,j)+svretay(i-1,j+1))/4.
+                tta=(v(k,ii,jj)+v(k,ii,jj+1)+v(k,ii-1,jj)+v(k,ii-1,jj+1))/4.
+                c1=(a1*b1)*tta
+                c2=(a1*b2)*tta
+                c4=(a2*b1)*tta
+                c5=(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       -(S^{eta}_{S}S_{eta,S}+S_{eta,S}S^{eta}_{S})U^{eta}_{S}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(svetax(i,j)+svetax(i,j-1)+svetax(i-1,j)+svetax(i-1,j-1))/4.
+                a2=(svetay(i,j)+svetay(i,j-1)+svetay(i-1,j)+svetay(i-1,j-1))/4.
+                b1=(svretax(i,j)+svretax(i,j-1)+svretax(i-1,j)+svretax(i-1,j-1))/4.
+                b2=(svretay(i,j)+svretay(i,j-1)+svretay(i-1,j)+svretay(i-1,j-1))/4.
+                tta=(v(k,ii,jj)+v(k,ii,jj-1)+v(k,ii-1,jj)+v(k,ii-1,jj-1))/4.
+                c1=c1-(a1*b1)*tta
+                c2=c2-(a1*b2)*tta
+                c4=c4-(a2*b1)*tta
+                c5=c5-(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       (S^{xi}_{se}S_{xi,se}+S_{xi,se}S^{xi}_{se})U^{xi}_{se}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(suxix(i,j)+suxix(i+1,j)+suxix(i,j-1)+suxix(i+1,j-1))/4.
+                a2=(suxiy(i,j)+suxiy(i+1,j)+suxiy(i,j-1)+suxiy(i+1,j-1))/4.
+                b1=(surxix(i,j)+surxix(i+1,j)+surxix(i,j-1)+surxix(i+1,j-1))/4.
+                b2=(surxiy(i,j)+surxiy(i+1,j)+surxiy(i,j-1)+surxiy(i+1,j-1))/4.
+                tta=(u(k,ii,jj)+u(k,ii+1,jj)+u(k,ii,jj-1)+u(k,ii+1,jj-1))/4.
+                c1=c1+(a1*b1)*tta
+                c2=c2+(a1*b2)*tta
+                c4=c4+(a2*b1)*tta
+                c5=c5+(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       (S^{xi}_{se}S_{eta,se}+S_{eta,se}S^{xi}_{se})U^{eta}_{se}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(suxix(i,j)+suxix(i+1,j)+suxix(i,j-1)+suxix(i+1,j-1))/4.
+                a2=(suxiy(i,j)+suxiy(i+1,j)+suxiy(i,j-1)+suxiy(i+1,j-1))/4.
+                b1=svretax(i,j)
+                b2=svretay(i,j)
+                tta=v(k,ii,jj)
+                c1=c1+(a1*b1)*tta
+                c2=c2+(a1*b2)*tta
+                c4=c4+(a2*b1)*tta
+                c5=c5+(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       -(S^{xi}_{sw}S_{xi,sw}+S_{xi,sw}S^{xi}_{sw})U^{xi}_{sw}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(suxix(i,j)+suxix(i,j-1)+suxix(i-1,j)+suxix(i-1,j-1))/4.
+                a2=(suxiy(i,j)+suxiy(i,j-1)+suxiy(i-1,j)+suxiy(i-1,j-1))/4.
+                b1=(surxix(i,j)+surxix(i,j-1)+surxix(i-1,j)+surxix(i-1,j-1))/4.
+                b2=(surxiy(i,j)+surxiy(i,j-1)+surxiy(i-1,j)+surxiy(i-1,j-1))/4.
+                tta=(u(k,ii,jj)+u(k,ii,jj-1)+u(k,ii-1,jj)+u(k,ii-1,jj-1))/4.
+                c1=c1-(a1*b1)*tta
+                c2=c2-(a1*b2)*tta
+                c4=c4-(a2*b1)*tta
+                c5=c5-(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       -(S^{xi}_{sw}S_{eta,sw}+S_{eta,sw}S^{xi}_{sw})U^{eta}_{sw}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(suxix(i,j)+suxix(i,j-1)+suxix(i-1,j)+suxix(i-1,j-1))/4.
+                a2=(suxiy(i,j)+suxiy(i,j-1)+suxiy(i-1,j)+suxiy(i-1,j-1))/4.
+                b1=svretax(i-1,j)
+                b2=svretay(i-1,j)
+                tta=v(k,ii-1,jj)
+                c1=c1-(a1*b1)*tta
+                c2=c2-(a1*b2)*tta
+                c4=c4-(a2*b1)*tta
+                c5=c5-(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !     calculate - S^{eta}_{s}/(ReV_{s}) \bu d_{xi,s,ex}
+                !     (4th term of RHS braket in 3.41)
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(svetax(i,j)+svetax(i-1,j))/2.
+                a2=(svetay(i,j)+svetay(i-1,j))/2.
+                a3=(vp(i,j)+vp(i,j-1)+vp(i-1,j)+vp(i-1,j-1))/4.
+                e1=e1-(a1*(c1+c1)+a2*(c4+c2))*visc/a3 
+                e2=e2-(a1*(c2+c4)+a2*(c5+c5))*visc/a3
+                
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                ! d_{xi,f,ex}                (eq 3.39)
+                !-----------------------------------------------------------------------
+                !       (S^{z}_{F}S_{eta,F}+S_{eta,F}S^{z}_{F})U^{eta}_{F}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a3=(swz(i,j)+swz(i-1,j))/2.
+                b1=(svretax(i,j)+svretax(i,j+1)+svretax(i-1,j)+svretax(i-1,j+1))/4.
+                b2=(svretay(i,j)+svretay(i,j+1)+svretay(i-1,j)+svretay(i-1,j+1))/4.
+                tta=(v(k+1,ii,jj)+v(k+1,ii,jj+1)+v(k+1,ii-1,jj)+v(k+1,ii-1,jj+1))/4.
+                c7=(a3*b1)*tta
+                c8=(a3*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       -(S^{z}_{P}S_{eta,P}+S_{eta,P}S^{z}_{P})U^{eta}_{P}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a3=(swz(i,j)+swz(i-1,j))/2.
+                b1=(svretax(i,j)+svretax(i,j+1)+svretax(i-1,j)+svretax(i-1,j+1))/4.
+                b2=(svretay(i,j)+svretay(i,j+1)+svretay(i-1,j)+svretay(i-1,j+1))/4.
+                tta=(v(k,ii,jj)+v(k,ii,jj+1)+v(k,ii-1,jj)+v(k,ii-1,jj+1))/4.
+                c7=c7-(a3*b1)*tta
+                c8=c8-(a3*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       (S^{xi}_{fe}S_{z,fe}+S_{z,fe}S^{xi}_{fe})U^{z}_{fe}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(suxix(i,j)+suxix(i+1,j))/2.0
+                a2=(suxiy(i,j)+suxiy(i+1,j))/2.0
+                b3=swrz(i,j)
+                tta=w(k+1,ii,jj)
+                c3=(a1*b3)*tta
+                c6=(a2*b3)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       -(S^{xi}_{fw}S_{z,fw}+S_{z,fw}S^{xi}_{fw})U^{z}_{fw}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(suxix(i,j)+suxix(i-1,j))/2.0
+                a2=(suxiy(i,j)+suxiy(i-1,j))/2.0
+                b3=swrz(i-1,j)
+                tta=w(k+1,ii-1,jj)
+                c3=c3-(a1*b3)*tta
+                c6=c6-(a2*b3)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       (S^{eta}_{fn}S_{z,fn}+S_{z,fn}S^{eta}_{fn})U^{z}_{fn}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(svetax(i,j+1)+svetax(i-1,j+1))/2.0
+                a2=(svetay(i,j+1)+svetay(i-1,j+1))/2.0
+                b3=(swrz(i,j)+swrz(i,j+1)+swrz(i-1,j)+swrz(i-1,j+1))/4.
+                tta=(w(k+1,ii,jj)+w(k+1,ii-1,jj)+w(k+1,ii,jj+1)+w(k+1,ii-1,jj+1))/4.
+                c3=c3+(a1*b3)*tta
+                c6=c6+(a2*b3)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       -(S^{eta}_{fs}S_{z,fs}+S_{z,fs}S^{eta}_{fs})U^{z}_{fs}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(svetax(i,j)+svetax(i-1,j))/2.0
+                a2=(svetay(i,j)+svetay(i-1,j))/2.0
+                b3=(swrz(i,j)+swrz(i,j-1)+swrz(i-1,j)+swrz(i-1,j-1))/4.
+                tta=(w(k+1,ii,jj)+w(k+1,ii-1,jj)+w(k+1,ii,jj-1)+w(k+1,ii-1,jj-1))/4.
+                c3=c3-(a1*b3)*tta
+                c6=c6-(a2*b3)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !     calculate  S^{z}_{f}/(ReV_{f}) \bu d_{xi,f,ex}
+                !     (5th term of RHS braket in 3.41)
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(swz(i,j)+swz(i-1,j))/2.
+                a2=(vp(i,j)+vp(i-1,j))/2.
+                e1=e1+(a1*(c7+c3))*visc/a2 
+                e2=e2+(a1*(c8+c6))*visc/a2 
+                
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                ! d_{xi,b,ex}                    (eq 3.40)
+                !-----------------------------------------------------------------------
+                !       (S^{z}_{P}S_{eta,P}+S_{eta,P}S^{z}_{P})U^{eta,P}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a3=(swz(i,j)+swz(i-1,j))/2.
+                b1=(svretax(i,j)+svretax(i,j+1)+svretax(i-1,j)+svretax(i-1,j+1))/4.
+                b2=(svretay(i,j)+svretay(i,j+1)+svretay(i-1,j)+svretay(i-1,j+1))/4.
+                tta=(v(k,ii,jj)+v(k,ii,jj+1)+v(k,ii-1,jj)+v(k,ii-1,jj+1))/4.
+                c7=(a3*b1)*tta
+                c8=(a3*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       -(S^{z}_{B}S_{eta,B}+S_{eta,B}S^{z}_{B})U^{eta,B}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a3=(swz(i,j)+swz(i-1,j))/2.
+                b1=(svretax(i,j)+svretax(i,j+1)+svretax(i-1,j)+svretax(i-1,j+1))/4.
+                b2=(svretay(i,j)+svretay(i,j+1)+svretay(i-1,j)+svretay(i-1,j+1))/4.
+                tta=(v(k-1,ii,jj)+v(k-1,ii,jj+1)+v(k-1,ii-1,jj)+v(k-1,ii-1,jj+1))/4.
+                                c7=c7-(a3*b1)*tta
+                c8=c8-(a3*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       (S^{xi}_{be}S_{z,be}+S_{z,be}S^{xi}_{be})U^{z}_{be}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(suxix(i,j)+suxix(i+1,j))/2.0
+                a2=(suxiy(i,j)+suxiy(i+1,j))/2.0
+                a3=0.0
+                b1=0.
+                b2=0.
+                b3=swrz(i,j)
+                tta=w(k,ii,jj)
+                c3=(a1*b3)*tta
+                c6=(a2*b3)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       -(S^{xi}_{bw}S_{z,bw}+S_{z,bw}S^{xi}_{bw})U^{z}_{bw}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(suxix(i,j)+suxix(i-1,j))/2.0
+                a2=(suxiy(i,j)+suxiy(i-1,j))/2.0
+                b3=swrz(i-1,j)
+                tta=w(k,ii-1,jj)
+                c3=c3-(a1*b3)*tta
+                c6=c6-(a2*b3)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       (S^{eta}_{bn}S_{z,bn}+S_{z,bn}S^{eta}_{bn})U^{z}_{bn}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(svetax(i,j+1)+svetax(i-1,j+1))/2.0
+                a2=(svetay(i,j+1)+svetay(i-1,j+1))/2.0
+                b3=(swrz(i,j)+swrz(i,j+1)+swrz(i-1,j)+swrz(i-1,j+1))/4.
+                tta=(w(k,ii,jj)+w(k,ii-1,jj)+w(k,ii,jj+1)+w(k,ii-1,jj+1))/4.
+                c3=c3+(a1*b3)*tta
+                c6=c6+(a2*b3)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !       -(S^{eta}_{bs}S_{z,bs}+S_{z,bs}S^{eta}_{bs})U^{z}_{bs}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(svetax(i,j)+svetax(i-1,j))/2.0
+                a2=(svetay(i,j)+svetay(i-1,j))/2.0
+                b3=(swrz(i,j)+swrz(i,j-1)+swrz(i-1,j)+swrz(i-1,j-1))/4.
+                tta=(w(k,ii,jj)+w(k,ii-1,jj)+w(k,ii,jj-1)+w(k,ii-1,jj-1))/4.
+                c3=c3-(a1*b3)*tta
+                c6=c6-(a2*b3)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !     calculate  S^{z}_{b}/(ReV_{b}) \bu d_{xi,b,ex}
+                !     (6st term of RHS braket in 3.41)
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(swz(i,j)+swz(i-1,j))/2.
+                a2=(vp(i,j)+vp(i-1,j))/2.
+                e1=e1-(a1*(c7+c3))*visc/a2 
+                e2=e2-(a1*(c8+c6))*visc/a2 
+                
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                ! d_{xi,f,im}                
+                !-----------------------------------------------------------------------
+                ! NOTE: Front and Back seem to be treated EXPLICITLY (Fourier Transform?????)
+                !      (1st element in 5th line  eq 3.34)
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a3=(swz(i,j)+swz(i-1,j))/2.
+                b1=surxix(i,j)
+                b2=surxiy(i,j)
+                tta=u(k+1,ii,jj)
+                c7=(a3*b1)*tta
+                c8=(a3*b2)*tta
+                !---------------------------------------------------
+                !       (2nd element in 5th line  eq 3.34)
+                !---------------------------------------------------
+                a3=(swz(i,j)+swz(i-1,j))/2.
+                b1=surxix(i,j)
+                b2=surxiy(i,j)
+                tta=u(k,ii,jj)
+                c7=c7-(a3*b1)*tta
+                c8=c8-(a3*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !    calculate  S^{z}_{f}/(ReV_{f}) \bu d_{xi,f,im}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(swz(i,j)+swz(i-1,j))/2.
+                a2=(vp(i,j)+vp(i-1,j))/2.
+                e1=e1+(a1*c7)*visc/a2
+                e2=e2+(a1*c8)*visc/a2
 
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		! d_{xi,b,im}
-		!----------------------------------------------------------------------
-		! NOTE:  Front and Back seem to be treated EXPLICITLY
-		!     (1st element in 6th line  eq 3.34)
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a3=(swz(i,j)+swz(i-1,j))/2.
-		b1=surxix(i,j)
-		b2=surxiy(i,j)
-		tta=u(k,ii,jj)
-		c7=(a3*b1)*tta
-		c8=(a3*b2)*tta
-		!---------------------------------------------------
-		!       (2nd element in 6th line  eq 3.34)
-		!---------------------------------------------------
-		a3=(swz(i,j)+swz(i-1,j))/2.
-		b1=surxix(i,j)
-		b2=surxiy(i,j)
-		tta=u(k-1,ii,jj)
-		c7=c7-(a3*b1)*tta
-		c8=c8-(a3*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!    calculate  S^{z}_{b}/(ReV_{b}) \bu d_{xi,b,im}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(swz(i,j)+swz(i-1,j))/2.
-		a2=(vp(i,j)+vp(i-1,j))/2.
-		e1=e1-(a1*c7)*visc/a2
-		e2=e2-(a1*c8)*visc/a2
-		
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		! calculate the total explicit diffusion terms here
-		! i.e.  Multiply   (e1,e2).(Suxix,Suxiy) ------> eq(3.41)
-		! We also add the total explicit convection term ('con')
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		con = suxix(i,j)*e1 + suxiy(i,j)*e2 + con
-		
-		
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		! implicit diffusion terms
-		!----------------------------------------------------------------------
-		! d_{xi,e,im}                
-		!----------------------------------------------------------------------
-		!       (1st elament in line 1  eq 3.34)
-		!       (S^{xi}_{E}S_{xi,E}+S_{xi,E}S^{xi}_{E})U^{xi}_{E}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=suxix(i+1,j)
-		a2=suxiy(i+1,j)
-		b1=surxix(i+1,j)
-		b2=surxiy(i+1,j)
-		tta=u(k,ii+1,jj)
-		c1=(a1*b1)*tta
-		c2=(a1*b2)*tta
-		c4=(a2*b1)*tta
-		c5=(a2*b2)*tta
-		!---------------------------------------------------
-		!       (2nd elament in line 1  eq 3.34)
-		!---------------------------------------------------
-		a1=suxix(i,j)
-		a2=suxiy(i,j)
-		b1=surxix(i,j)
-		b2=surxiy(i,j)
-		tta=u(k,ii,jj)
-		c1=c1-(a1*b1)*tta
-		c2=c2-(a1*b2)*tta
-		c4=c4-(a2*b1)*tta
-		c5=c5-(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!    calculate S^{xi}_{e}/(ReV_{e}) \bu d_{xi,e,im}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(suxix(i,j)+suxix(i+1,j))/2.
-		a2=(suxiy(i,j)+suxiy(i+1,j))/2.
-		a3=vp(i,j)
-		e1=(a1*(c1+c1)+a2*(c4+c2))*visc/a3 
-		e2=(a1*(c2+c4)+a2*(c5+c5))*visc/a3
-		
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		! d_{xi,w,im}
-		!----------------------------------------------------------------------
-		!     (1st element of 2nd line    eq 3.34)
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=suxix(i,j)
-		a2=suxiy(i,j)
-		b1=surxix(i,j)
-		b2=surxiy(i,j)
-		tta=u(k,ii,jj)
-		c1=(a1*b1)*tta
-		c2=(a1*b2)*tta
-		c4=(a2*b1)*tta
-		c5=(a2*b2)*tta
-		!---------------------------------------------------
-		!       (2nd elament in 2nd line     eq 3.34)
-		!---------------------------------------------------
-		a1=suxix(i-1,j)
-		a2=suxiy(i-1,j)
-		b1=surxix(i-1,j)
-		b2=surxiy(i-1,j)
-		tta=u(k,ii-1,jj)
-		c1=c1-(a1*b1)*tta
-		c2=c2-(a1*b2)*tta
-		c4=c4-(a2*b1)*tta
-		c5=c5-(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!    calculate -S^{xi}_{w}/(ReV_{w}) \bu d_{xi,w,im}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(suxix(i,j)+suxix(i-1,j))/2.
-		a2=(suxiy(i,j)+suxiy(i-1,j))/2.
-		a3=vp(i-1,j) 
-		e1=e1-(a1*(c1+c1)+a2*(c4+c2))*visc/a3 
-		e2=e2-(a1*(c2+c4)+a2*(c5+c5))*visc/a3 
-		
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		! d_{xi,n,im}
-		!----------------------------------------------------------------------
-		!     (1st element of 3rd line   eq 3.34)
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(svetax(i,j+1)+svetax(i-1,j+1)+svetax(i,j+2)+svetax(i-1,j+2))/4.
-		a2=(svetay(i,j+1)+svetay(i-1,j+1)+svetay(i,j+2)+svetay(i-1,j+2))/4.
-		b1=surxix(i,j+1)
-		b2=surxiy(i,j+1)
-		tta=u(k,ii,jj+1)
-		c1=(a1*b1)*tta
-		c2=(a1*b2)*tta
-		c4=(a2*b1)*tta
-		c5=(a2*b2)*tta
-		!---------------------------------------------------
-		!       (2nd elament in 3rd line     eq 3.34)
-		!---------------------------------------------------
-		a1=(svetax(i,j)+svetax(i,j+1)+svetax(i-1,j)+svetax(i-1,j+1))/4.
-		a2=(svetay(i,j)+svetay(i,j+1)+svetay(i-1,j)+svetay(i-1,j+1))/4.
-		b1=surxix(i,j)
-		b2=surxiy(i,j)
-		tta=u(k,ii,jj)
-		c1=c1-(a1*b1)*tta
-		c2=c2-(a1*b2)*tta
-		c4=c4-(a2*b1)*tta
-		c5=c5-(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!    calculate S^{eta}_{n}/(ReV_{n}) \bu d_{xi,n,im}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(svetax(i,j+1)+svetax(i-1,j+1))/2.
-		a2=(svetay(i,j+1)+svetay(i-1,j+1))/2.
-		a3=(vp(i,j)+vp(i,j+1)+vp(i-1,j)+vp(i-1,j+1))/4.
-		e1=e1+(a1*(c1+c1)+a2*(c4+c2))*visc/a3 
-		e2=e2+(a1*(c2+c4)+a2*(c5+c5))*visc/a3 
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                ! d_{xi,b,im}
+                !----------------------------------------------------------------------
+                ! NOTE:  Front and Back seem to be treated EXPLICITLY
+                !     (1st element in 6th line  eq 3.34)
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a3=(swz(i,j)+swz(i-1,j))/2.
+                b1=surxix(i,j)
+                b2=surxiy(i,j)
+                tta=u(k,ii,jj)
+                c7=(a3*b1)*tta
+                c8=(a3*b2)*tta
+                !---------------------------------------------------
+                !       (2nd element in 6th line  eq 3.34)
+                !---------------------------------------------------
+                a3=(swz(i,j)+swz(i-1,j))/2.
+                b1=surxix(i,j)
+                b2=surxiy(i,j)
+                tta=u(k-1,ii,jj)
+                c7=c7-(a3*b1)*tta
+                c8=c8-(a3*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !    calculate  S^{z}_{b}/(ReV_{b}) \bu d_{xi,b,im}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(swz(i,j)+swz(i-1,j))/2.
+                a2=(vp(i,j)+vp(i-1,j))/2.
+                e1=e1-(a1*c7)*visc/a2
+                e2=e2-(a1*c8)*visc/a2
+                
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                ! calculate the total explicit diffusion terms here
+                ! i.e.  Multiply   (e1,e2).(Suxix,Suxiy) ------> eq(3.41)
+                ! We also add the total explicit convection term ('con')
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                con = suxix(i,j)*e1 + suxiy(i,j)*e2 + con
+                
+                
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                ! implicit diffusion terms
+                !----------------------------------------------------------------------
+                ! d_{xi,e,im}                
+                !----------------------------------------------------------------------
+                !       (1st elament in line 1  eq 3.34)
+                !       (S^{xi}_{E}S_{xi,E}+S_{xi,E}S^{xi}_{E})U^{xi}_{E}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=suxix(i+1,j)
+                a2=suxiy(i+1,j)
+                b1=surxix(i+1,j)
+                b2=surxiy(i+1,j)
+                tta=u(k,ii+1,jj)
+                c1=(a1*b1)*tta
+                c2=(a1*b2)*tta
+                c4=(a2*b1)*tta
+                c5=(a2*b2)*tta
+                !---------------------------------------------------
+                !       (2nd elament in line 1  eq 3.34)
+                !---------------------------------------------------
+                a1=suxix(i,j)
+                a2=suxiy(i,j)
+                b1=surxix(i,j)
+                b2=surxiy(i,j)
+                tta=u(k,ii,jj)
+                c1=c1-(a1*b1)*tta
+                c2=c2-(a1*b2)*tta
+                c4=c4-(a2*b1)*tta
+                c5=c5-(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !    calculate S^{xi}_{e}/(ReV_{e}) \bu d_{xi,e,im}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(suxix(i,j)+suxix(i+1,j))/2.
+                a2=(suxiy(i,j)+suxiy(i+1,j))/2.
+                a3=vp(i,j)
+                e1=(a1*(c1+c1)+a2*(c4+c2))*visc/a3 
+                e2=(a1*(c2+c4)+a2*(c5+c5))*visc/a3
+                
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                ! d_{xi,w,im}
+                !----------------------------------------------------------------------
+                !     (1st element of 2nd line    eq 3.34)
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=suxix(i,j)
+                a2=suxiy(i,j)
+                b1=surxix(i,j)
+                b2=surxiy(i,j)
+                tta=u(k,ii,jj)
+                c1=(a1*b1)*tta
+                c2=(a1*b2)*tta
+                c4=(a2*b1)*tta
+                c5=(a2*b2)*tta
+                !---------------------------------------------------
+                !       (2nd elament in 2nd line     eq 3.34)
+                !---------------------------------------------------
+                a1=suxix(i-1,j)
+                a2=suxiy(i-1,j)
+                b1=surxix(i-1,j)
+                b2=surxiy(i-1,j)
+                tta=u(k,ii-1,jj)
+                c1=c1-(a1*b1)*tta
+                c2=c2-(a1*b2)*tta
+                c4=c4-(a2*b1)*tta
+                c5=c5-(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !    calculate -S^{xi}_{w}/(ReV_{w}) \bu d_{xi,w,im}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(suxix(i,j)+suxix(i-1,j))/2.
+                a2=(suxiy(i,j)+suxiy(i-1,j))/2.
+                a3=vp(i-1,j) 
+                e1=e1-(a1*(c1+c1)+a2*(c4+c2))*visc/a3 
+                e2=e2-(a1*(c2+c4)+a2*(c5+c5))*visc/a3 
+                
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                ! d_{xi,n,im}
+                !----------------------------------------------------------------------
+                !     (1st element of 3rd line   eq 3.34)
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(svetax(i,j+1)+svetax(i-1,j+1)+svetax(i,j+2)+svetax(i-1,j+2))/4.
+                a2=(svetay(i,j+1)+svetay(i-1,j+1)+svetay(i,j+2)+svetay(i-1,j+2))/4.
+                b1=surxix(i,j+1)
+                b2=surxiy(i,j+1)
+                tta=u(k,ii,jj+1)
+                c1=(a1*b1)*tta
+                c2=(a1*b2)*tta
+                c4=(a2*b1)*tta
+                c5=(a2*b2)*tta
+                !---------------------------------------------------
+                !       (2nd elament in 3rd line     eq 3.34)
+                !---------------------------------------------------
+                a1=(svetax(i,j)+svetax(i,j+1)+svetax(i-1,j)+svetax(i-1,j+1))/4.
+                a2=(svetay(i,j)+svetay(i,j+1)+svetay(i-1,j)+svetay(i-1,j+1))/4.
+                b1=surxix(i,j)
+                b2=surxiy(i,j)
+                tta=u(k,ii,jj)
+                c1=c1-(a1*b1)*tta
+                c2=c2-(a1*b2)*tta
+                c4=c4-(a2*b1)*tta
+                c5=c5-(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !    calculate S^{eta}_{n}/(ReV_{n}) \bu d_{xi,n,im}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(svetax(i,j+1)+svetax(i-1,j+1))/2.
+                a2=(svetay(i,j+1)+svetay(i-1,j+1))/2.
+                a3=(vp(i,j)+vp(i,j+1)+vp(i-1,j)+vp(i-1,j+1))/4.
+                e1=e1+(a1*(c1+c1)+a2*(c4+c2))*visc/a3 
+                e2=e2+(a1*(c2+c4)+a2*(c5+c5))*visc/a3 
 
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		! d_{xi,s,im}
-		!----------------------------------------------------------------------
-		!     (1st element in 4th line    eq 3.34)
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(svetax(i,j)+svetax(i,j+1)+svetax(i-1,j)+svetax(i-1,j+1))/4.
-		a2=(svetay(i,j)+svetay(i,j+1)+svetay(i-1,j)+svetay(i-1,j+1))/4.
-		b1=surxix(i,j)
-		b2=surxiy(i,j)
-		tta=u(k,ii,jj)
-		c1=(a1*b1)*tta
-		c2=(a1*b2)*tta
-		c4=(a2*b1)*tta
-		c5=(a2*b2)*tta
-		!---------------------------------------------------
-		!       (2nd elament in 4th line     eq 3.34)
-		!---------------------------------------------------
-		a1=(svetax(i,j)+svetax(i,j-1)+svetax(i-1,j)+svetax(i-1,j-1))/4.
-		a2=(svetay(i,j)+svetay(i,j-1)+svetay(i-1,j)+svetay(i-1,j-1))/4.
-		b1=surxix(i,j-1)
-		b2=surxiy(i,j-1)
-		tta=u(k,ii,jj-1)
-		c1=c1-(a1*b1)*tta
-		c2=c2-(a1*b2)*tta
-		c4=c4-(a2*b1)*tta
-		c5=c5-(a2*b2)*tta
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		!    calculate -S^{eta}_{s}/(ReV_{s}) \bu d_{xi,s,im}
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(svetax(i,j)+svetax(i-1,j))/2.
-		a2=(svetay(i,j)+svetay(i-1,j))/2.
-		a3=(vp(i,j)+vp(i,j-1)+vp(i-1,j)+vp(i-1,j-1))/4.
-		e1=e1-(a1*(c1+c1)+a2*(c4+c2))*visc/a3 
-		e2=e2-(a1*(c2+c4)+a2*(c5+c5))*visc/a3 
-		
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		! compute the total implicit diffusion terms     (eq 3.34)
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		vis=suxix(i,j)*e1+suxiy(i,j)*e2
-		
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		! calculate right-hand-side vector for u equation
-		! (x-component of RHS of equations 3.68, 3.80, 3.115)
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		a1=(vp(i,j)+vp(i-1,j))/2.
-		rhs(k,ii,jj)=dt/a1*(r1*con-r2*conx(k,ii,jj)+vis)
-		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-		conx(k,ii,jj)=con
-		
-61   	continue
-62  	continue
-	
-	return 
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                ! d_{xi,s,im}
+                !----------------------------------------------------------------------
+                !     (1st element in 4th line    eq 3.34)
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(svetax(i,j)+svetax(i,j+1)+svetax(i-1,j)+svetax(i-1,j+1))/4.
+                a2=(svetay(i,j)+svetay(i,j+1)+svetay(i-1,j)+svetay(i-1,j+1))/4.
+                b1=surxix(i,j)
+                b2=surxiy(i,j)
+                tta=u(k,ii,jj)
+                c1=(a1*b1)*tta
+                c2=(a1*b2)*tta
+                c4=(a2*b1)*tta
+                c5=(a2*b2)*tta
+                !---------------------------------------------------
+                !       (2nd elament in 4th line     eq 3.34)
+                !---------------------------------------------------
+                a1=(svetax(i,j)+svetax(i,j-1)+svetax(i-1,j)+svetax(i-1,j-1))/4.
+                a2=(svetay(i,j)+svetay(i,j-1)+svetay(i-1,j)+svetay(i-1,j-1))/4.
+                b1=surxix(i,j-1)
+                b2=surxiy(i,j-1)
+                tta=u(k,ii,jj-1)
+                c1=c1-(a1*b1)*tta
+                c2=c2-(a1*b2)*tta
+                c4=c4-(a2*b1)*tta
+                c5=c5-(a2*b2)*tta
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                !    calculate -S^{eta}_{s}/(ReV_{s}) \bu d_{xi,s,im}
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(svetax(i,j)+svetax(i-1,j))/2.
+                a2=(svetay(i,j)+svetay(i-1,j))/2.
+                a3=(vp(i,j)+vp(i,j-1)+vp(i-1,j)+vp(i-1,j-1))/4.
+                e1=e1-(a1*(c1+c1)+a2*(c4+c2))*visc/a3 
+                e2=e2-(a1*(c2+c4)+a2*(c5+c5))*visc/a3 
+                
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                ! compute the total implicit diffusion terms     (eq 3.34)
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                vis=suxix(i,j)*e1+suxiy(i,j)*e2
+                
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                ! calculate right-hand-side vector for u equation
+                ! (x-component of RHS of equations 3.68, 3.80, 3.115)
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                a1=(vp(i,j)+vp(i-1,j))/2.
+                rhs(k,ii,jj)=dt/a1*(r1*con-r2*conx(k,ii,jj)+vis)
+                !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                conx(k,ii,jj)=con
+                
+61           continue
+62          continue
+        
+        return 
 end
 
 
@@ -1012,8 +1012,8 @@ subroutine advancey
 ! has already be incorporated when the equation was
 ! derived
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-	! use data_export
-	use advance_module
+        ! use data_export
+        use advance_module
 
 
 !     if(ntime-ntime_.eq.0) then
@@ -1022,7 +1022,7 @@ subroutine advancey
         r1=1.
         r2=0.
         cony = 0.0
-	flag_y = 0
+        flag_y = 0
       else
         r1=1.5
         r2=0.5
@@ -2013,8 +2013,8 @@ subroutine advancez
 ! Crank-Nicolson implicit treatment of viscous term
 ! has already be incorporated when the equation was derived
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-	! use data_export
-	use advance_module
+        ! use data_export
+        use advance_module
 
 
 !     if(ntime-ntime_.eq.0) then
@@ -2022,8 +2022,8 @@ subroutine advancez
       if(ntime.eq.0  .or.  flag_z.eq.1) then
         r1=1.
         r2=0.
-	conz = 0.0
-	flag_z = 0
+        conz = 0.0
+        flag_z = 0
       else
         r1=1.5
         r2=0.5

@@ -131,6 +131,8 @@ end
 !=======================================================================
 subroutine simulation_run()
 	use simulation
+        use messenger, only : myid
+        use coupler_cfd_communication, only : recv_vel_MD
 
 	stime_ = stime
 	ntime_ = ntime
@@ -151,6 +153,9 @@ subroutine simulation_run()
 		!    Set Boundary Conditions
 		!----------------------------------------
 		before = realClock()
+                        write(0,*) 'fd: myid, ntime_, ntime, nsteps', myid, ntime_,ntime,nsteps
+                        call  recv_vel_MD
+
 			call timeDependent_Inlet_BC(dt)		!--- Inlet FST + Convective outflow
 			call CartesianBC(dt)			!--- No Slip   + Blasius upper surface
 			call FluxBC()				!--- From cartesian

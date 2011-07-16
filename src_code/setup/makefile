@@ -28,7 +28,8 @@ JET_COAX  = main.o mesh.cylindrical.o mesh.jet.coax.o initialField.jet.coax.o
 JET_COAX_DBLEXP = main.o mesh.cylindrical.o mesh.jet.coax.dblexp.o initialField.jet.coax.o
 JET_COAX_FREE   = main.o mesh.cylindrical.o mesh.jet.coax.free.o initialField.jet.coax.o
 
-LIBFILES = $(HOME)/lib/archive.o $(HOME)/lib/linearMesh.o $(HOME)/lib/tanhMesh.o $(HOME)/lib/library.o $(HOME)/lib/library.alc.o
+LIBBASE=../../lib
+LIBFILES = $(LIBBASE)/archive.o $(LIBBASE)/linearMesh.o $(LIBBASE)/tanhMesh.o $(LIBBASE)/library.o $(LIBBASE)/library.alc.o
 
 LIBS = 
 
@@ -57,13 +58,28 @@ jet.coax.free:
 # Standard definitions
 #
 
+COMP := GNU
+
 # Cray compilers
 # F90 = mpif90 -r8 -O3 -ip -funroll-loops -parallel -par-report3 -mcmodel=large -i-dynamic
-F90 = mpif90 -r8 -O3 -ip -funroll-loops           -par-report3 -mcmodel=large -i-dynamic
-F77 = f77
-CC = cc
+F90_INTEL = mpif90 -r8 -O3 -ip -funroll-loops           -par-report3 -mcmodel=large -i-dynamic
+F77INTEL = f77
+CC_INTEL = cc
 # LD = mpif90 -r8 -O3 -ip -funroll-loops -parallel -par-report3 -mcmodel=large -i-dynamic
-LD = mpif90 -r8 -O3 -ip -funroll-loops           -par-report3 -mcmodel=large -i-dynamic
+LD_INTEL = mpif90 -r8 -O3 -ip -funroll-loops           -par-report3 -mcmodel=large -i-dynamic
+
+# HECToR GNU
+
+F90_GNU := ftn -fdefault-real-8 -fdefault-double-8
+F77_GNU := ftn
+CC_GNU  := cc
+LD_GNU  := ftn -fdefault-real-8 -fdefault-double-8
+
+F90 := $(F90_$(COMP))
+F77 := $(F77_$(COMP))
+CC  := $(cc_$(COMP))
+LD  := $(LD_$(COMP))
+
 
 VPATH = obj
 .SUFFIXES:
@@ -82,7 +98,7 @@ a.out: obj $(OFILES)
 	@echo "$(LD) $(OFILES) $(LIBFILES) $(LIBS) $(MPI_LD_FLAGS)"
 	@cd obj; $(LD) $(OFILES) $(LIBFILES) $(LIBS) $(MPI_LD_FLAGS); mv a.out ..
 obj:
-	mkdir obj
+	[ -d obj ] || mkdir obj
 
 #=======================================================================
 # Compilation rules
