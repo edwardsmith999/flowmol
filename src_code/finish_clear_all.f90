@@ -41,8 +41,6 @@ implicit none
 	deallocate(shell)
 	deallocate(RDF)	
 	deallocate(normalisedvfd_bin)
-	deallocate(meanvel)
-	deallocate(countvel)
 	deallocate(seed)
 	deallocate(cell%head)
 	deallocate(cell%cellnp)

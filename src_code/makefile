@@ -2,15 +2,15 @@
 # File definitions
 #=======================================================================
 
-F90_MD_FILES = modules.f90 functions_lib.f90 linklist.f90 molecular_properties.f90 messenger.serial.f90 parallel_io.serial.f90 setup_inputs.f90 setup_set_parameters.f90 setup_initialise_microstate.f90 setup_initial_record.f90 simulation_compute_forces.f90 simulation_move_particles.f90 simulation_checkrebuild.f90 simulation_record.f90 finish_final_record.f90 finish_clear_all.f90 md.f90 md_main.f90 external_forces.f90 
+F90_MD_FILES = modules.f90 coupler_md_global_data.f90 coupler_md_setup.f90 coupler_md_communication.f90 functions_lib.f90 linklist.f90 molecular_properties.f90 messenger.serial.f90 parallel_io.serial.f90 setup_set_parameters.f90 setup_initialise_microstate.f90 setup_initial_record.f90 simulation_compute_forces.f90 simulation_move_particles.f90 simulation_checkrebuild.f90 simulation_record.f90 finish_final_record.f90 finish_clear_all.f90 md.f90 md_main.f90 external_forces.f90 
 
-F90_CUDA_MD_FILES = modules.f90 functions_lib.f90 linklist.f90 molecular_properties.f90 messenger.serial.f90 parallel_io.serial.f90 setup_inputs.f90 setup_set_parameters.f90 setup_initialise_microstate.f90 setup_initial_record.f90 simulation_compute_forces_CUDA.f90 simulation_move_particles.f90 simulation_checkrebuild.f90 simulation_record.f90 finish_final_record.f90 finish_clear_all.f90 md.f90 md_main.f90 
+F90_CUDA_MD_FILES = $(F90_MD_FILES:simulation_compute_forces.f90=simulation_compute_forces_CUDA.f90) 
 
 CU_CUDA_MD_FILES = inter.cu inter2.cu
 
 F90_CONTINUUM = continuum_modules.f90 continuum_advance_time.f90 continuum_calculate_flux.f90 continuum_CFL.f90 continuum_finish.f90 continuum_initial_record.f90 continuum_mesh_gen.f90 continuum_read_inputs.f90 continuum_record.f90 continuum_set_BC.f90 continuum_set_parameters.f90 continuum_setup_macrostate.f90 continuum.f90 continuum_main.f90
 
-F90_MD_FILES_P = modules.f90 functions_lib.f90 linklist.f90 molecular_properties.f90 external_forces.f90 messenger.MPI.f90 parallel_io.MPI2.f90 setup_inputs.f90 setup_set_parameters.f90 setup_initialise_microstate.f90 setup_initial_record.f90 simulation_compute_forces.f90 simulation_move_particles.f90 simulation_checkrebuild.f90 simulation_record.f90 finish_final_record.f90 finish_clear_all.f90 md.f90 md_main.f90 coupler_md_global_data.f90 coupler_md_setup.f90 coupler_md_communication.f90
+F90_MD_FILES_P = $(patsubst parallel_io.serial.f90,parallel_io.MPI2.f90,$(patsubst messenger.serial.f90,messenger.MPI.f90,$(F90_MD_FILES)))
 
 # use coupler ? 
 USE_COUPLER      := no
@@ -30,8 +30,8 @@ CONTINUUM_EXE = continuum.exe
 #=======================================================================
 # Compiler
 #=======================================================================
-F90 =  ftn
-COMP=gnu
+F90 =mpif90
+COMP=intel
 VERSION=opt
 
 # GNU flags
@@ -41,7 +41,7 @@ FLAGS_gnu_opt   = -O3 -Jobj
 
 
 # intel flags
-FLAGS_intel_debug = -O0 -traceback -CB -check all -warn all,nodec,interfaces -gen_interfaces
+FLAGS_intel_debug = -O0 -traceback -CB -check all
 FLAGS_intel_opt   = -O3 -funroll-loops
 
 # computed flags
@@ -111,7 +111,8 @@ parallel_md.exe: obj $(O_MD_P)
 obj:
 	[ -d obj ] || mkdir obj
 help:
-	@echo "Options"
+	@echo "======================================================================================"
+	@echo "MOLECULAR DYNAMICS Options"
 	@echo "s			Optimised serial build"
 	@echo "p			Optimised parallel build"
 	@echo "s_cuda			Optimised serial build with CUDA GPGPU force optimisation"
@@ -123,7 +124,10 @@ help:
 	@echo "full_debug_s		Serial build with no optimisation and extended debug flags"
 	@echo "full_debug_p		Parallel build with no optimisation and extended debug flags"
 	@echo "profile_s		Serial build with gprof or other profiler data generated"
+	@echo "======================================================================================"
+	@echo "GENERAL Options"
 	@echo "clean			Deletes all .mod, .obj and other temporary files"
+	@echo "======================================================================================"
 clean:
 	rm -rf obj *.exe *.mod *.f90~ *__genmod.f90 *__genmod.mod *~ 
 
@@ -143,7 +147,7 @@ obj/%.o: %.f90
 #
 obj/parallel_io.MPI2.o : obj/messenger.MPI.o
 obj/messenger.MPI.o : obj/setup_inputs.o obj/coupler_md_global_data.o
- obj/coupler_md_global_data.o : modules.o
+obj/coupler_md_global_data.o : modules.o
 obj/finish_final_record.o : obj/setup_inputs.o 
 obj/md.o : obj/coupler_md_communication.o obj/coupler_md_setup.o
 obj/setup_inputs.o : obj/coupler_md_global_data.o

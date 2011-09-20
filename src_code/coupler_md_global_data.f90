@@ -2,7 +2,7 @@ module coupler_md_global_data
         implicit none
         save
 
-! basic coupling data
+	! basic coupling data
         logical, parameter :: use_coupling = .false.
 
         integer MD_COMM                  ! MD communicator

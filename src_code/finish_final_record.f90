@@ -83,7 +83,7 @@ end subroutine finish_final_record
 
 subroutine reformat_dcd
 	use module_final_record
-        use module_inputs, only : file_dir
+	use computational_constants_MD
 	implicit none
 
 	integer				:: n, i			!--Dummy variables
@@ -171,7 +171,7 @@ end subroutine reformat_dcd
 
 subroutine reformat_dcd_sl
 	use module_final_record
-        use module_inputs, only : file_dir
+	use computational_constants_MD
 	implicit none
 
 	integer				:: n, i			!--Dummy variables
@@ -281,7 +281,6 @@ end subroutine reformat_dcd_sl
 
 subroutine reformat_dcd_halo
 	use module_final_record
-        use module_inputs, only : file_dir
 	implicit none
 
 	integer				:: n, i			!--Dummy variables

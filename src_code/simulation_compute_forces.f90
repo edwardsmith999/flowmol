@@ -74,6 +74,8 @@ implicit none
 				a(molnoj,2)= a(molnoj,2) - accijmag*rij(2)
 				a(molnoj,3)= a(molnoj,3) - accijmag*rij(3)
 
+				if (vflux_outflag .ne. 0) call Control_Volume_stresses(2.d0*accijmag*rij(:),ri,rj,molnoi,molnoj)
+
 				!Only calculate properties when required for output
 				if (mod(iter,tplot) .eq. 0) then
 
@@ -106,3 +108,100 @@ implicit none
 	nullify(old)            !Nullify old as no longer required
 
 end subroutine simulation_compute_forces
+
+!========================================================================
+!Compute Volume Averaged stress using all cells including halos
+
+subroutine simulation_compute_rfbins(imin, imax, jmin, jmax, kmin, kmax)
+use module_compute_forces
+implicit none
+
+	integer                         :: i, j, ixyz ,jxyz  !Define dummy index
+	integer				:: icell, jcell, kcell
+	integer                         :: icellshift, jcellshift, kcellshift
+	integer                         :: cellnp, adjacentcellnp, cellsperbin
+	integer				:: molnoi, molnoj, memloc
+	integer				:: minbin, maxbin, imin, jmin, kmin, imax, jmax, kmax
+	type(node), pointer 	        :: oldi, currenti, oldj, currentj
+
+
+	rfbin = 0.d0
+	rijsum = 0.d0
+
+	!Calculate bin to cell ratio
+	cellsperbin = ceiling(ncells(1)/dble(nbins(1)))
+
+	do kcell=(kmin-1)*cellsperbin+1, kmax*cellsperbin
+	do jcell=(jmin-1)*cellsperbin+1, jmax*cellsperbin
+	do icell=(imin-1)*cellsperbin+1, imax*cellsperbin
+	
+		cellnp = cell%cellnp(icell,jcell,kcell)
+		oldi => cell%head(icell,jcell,kcell)%point !Set old to first molecule in list
+
+		do i = 1,cellnp                  !Step through each particle in list 
+			molnoi = oldi%molno 	 !Number of molecule
+			ri = r(molnoi,:)         !Retrieve ri
+
+			do kcellshift = -1,1
+			do jcellshift = -1,1
+			do icellshift = -1,1
+
+				!Prevents out of range values in i
+				if (icell+icellshift .lt. imin) cycle
+				if (icell+icellshift .gt. imax) cycle
+				!Prevents out of range values in j
+				if (jcell+jcellshift .lt. jmin) cycle
+				if (jcell+jcellshift .gt. jmax) cycle
+				!Prevents out of range values in k
+				if (kcell+kcellshift .lt. kmin) cycle
+				if (kcell+kcellshift .gt. kmax) cycle
+
+				oldj => cell%head(icell+icellshift,jcell+jcellshift,kcell+kcellshift)%point
+				adjacentcellnp = cell%cellnp(icell+icellshift,jcell+jcellshift,kcell+kcellshift)
+
+				do j = 1,adjacentcellnp          !Step through all j for each i
+
+					molnoj = oldj%molno 	 !Number of molecule
+					rj = r(molnoj,:)         !Retrieve rj
+
+					currentj => oldj
+					oldj => currentj%next    !Use pointer in datatype to obtain next item in list
+
+					if(molnoi==molnoj) cycle !Check to prevent interaction with self
+
+					rij2=0                   !Set rij^2 to zero
+					rij(:) = ri(:) - rj(:)   !Evaluate distance between particle i and j
+
+					do ixyz=1,nd
+						rij2 = rij2+rij(ixyz)*rij(ixyz) !Square of vector calculated
+					enddo
+
+					if (rij2 < rcutoff2) then
+						!Add current distance to rijsum for molecules i and j
+						rijsum(molnoi,:) = rijsum(molnoi,:) + 0.5d0*rij(:)
+						rijsum(molnoj,:) = rijsum(molnoj,:) + 0.5d0*rij(:)
+						!Linear magnitude of acceleration for each molecule
+						invrij2 = 1.d0/rij2                 !Invert value
+						accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
+						call pressure_tensor_forces_VA(ri,rj,rij,accijmag)
+
+					endif
+				enddo
+			enddo
+			enddo
+			enddo
+			currenti => oldi
+			oldi => currenti%next !Use pointer in datatype to obtain next item in list
+		enddo
+	enddo
+	enddo
+	enddo
+
+	nullify(oldi)      	!Nullify as no longer required
+	nullify(oldj)      	!Nullify as no longer required
+	nullify(currenti)      	!Nullify as no longer required
+	nullify(currentj)      	!Nullify as no longer required
+
+end subroutine simulation_compute_rfbins
+
+

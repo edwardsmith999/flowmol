@@ -83,6 +83,7 @@ end subroutine setup_initialise_position
 subroutine setup_initialise_parallel_position
 	use module_initialise_microstate
         use messenger
+	use coupler_md_global_data, only : use_coupling
 	implicit none
 
 	integer :: j, ixyz, n, nl, nx, ny, nz
