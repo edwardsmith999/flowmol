@@ -18,11 +18,12 @@ CFILES =
 
 LIBBASE=../lib
 
-LIBFILES = $(LIBBASE)/archive.o $(LIBBASE)/library.o $(LIBBASE)/library.alc.o $(LIBBASE)/SSDfile.memory.o $(LIBBASE)/triDiagonal.o $(LIBBASE)/triDiagonal.mpi.o $(LIBBASE)/pentaDiagonal.o $(LIBBASE)/transforms.fftw.hitachi.o $(LIBBASE)/SinCosFFT.o $(LIBBASE)/triDiagonal.mrhs.o $(LIBBASE)/triDiagonal.mpi.mrhs.o $(LIBBASE)/pentaDiagonal.mrhs.o $(LIBBASE)/pentaDiagonal.mpi.o $(LIBBASE)/polyDiagonal.o 
+LIBFILES = $(LIBBASE)/archive.o $(LIBBASE)/library.o $(LIBBASE)/library.alc.o $(LIBBASE)/SSDfile.memory.o $(LIBBASE)/triDiagonal.o $(LIBBASE)/triDiagonal.mpi.o $(LIBBASE)/pentaDiagonal.o $(LIBBASE)/transforms.mkl_intel.alc.o $(LIBBASE)/SinCosFFT.o $(LIBBASE)/triDiagonal.mrhs.o $(LIBBASE)/triDiagonal.mpi.mrhs.o $(LIBBASE)/pentaDiagonal.mrhs.o $(LIBBASE)/pentaDiagonal.mpi.o $(LIBBASE)/polyDiagonal.o 
 
-# LIBS = -L/apps/intel/cmkl/9.0/lib/64/ -lmkl_em64t -lmkl_dft_cluster -lguide -lpthread
-# LIBS = -L/apps/intel/cmkl/9.0/lib/64/             -lmkl_dft_cluster -lguide -lpthread -lmkl
+#  LIBS = -L/apps/intel/cmkl/9.0/lib/64/ -lmkl_em64t -lmkl_dft_cluster -lguide -lpthread
+#  LIBS = -L/opt/intel/cmkl/9.0/lib/64/             -lmkl_dft_cluster -lguide -lpthread -lmkl
 #  LIBS = -L/apps/intel/cmkl/9.0/lib/64/ -lmkl_em64t                   -lguide -lpthread
+LIBS = -L/opt/intel/Compiler/11.1/046/mkl/lib/em64t/ -lmkl_em64t                   -lguide -lpthread
 
 
 #=======================================================================
@@ -30,10 +31,10 @@ LIBFILES = $(LIBBASE)/archive.o $(LIBBASE)/library.o $(LIBBASE)/library.alc.o $(
 #=======================================================================
 
 COMP    = gnu
-F90     = ftn
-F77     = ftn
+F90     = mpif90
+F77     = mpif90
 CC      = cc
-LD      = ftn
+LD      = mpif90
 VERSION = opt
 
 # GNU flags
@@ -49,8 +50,7 @@ FLAGS_intel_opt   =  -r8 -O3 -ip -funroll-loops           -par-report3 -mcmodel=
 
 FLAGS   = $(FLAGS_$(COMP)_$(VERSION))
 LDFLAGS = $(FLAGS)
-LIBS    = -ldfftw -ldrfftw
-
+#LIBS    = -L/usr/lib64 -lfftw3
 
 
 
