@@ -12,6 +12,11 @@
 ! set_parameters_outputs
 ! setup_linklist
 
+! *********CUDA ROUTINES - WILL BE IN SEPERATE FILE SOON************
+! establish_surface_cells2(CPU_buffer_region_size)
+! establish_gpusurface_cells2(CPU_buffer_region_size-1)
+! CUDA_setup
+!
 !
 !-----------------------------------------------------------------------------
 
@@ -28,23 +33,24 @@ end module module_set_parameters
 
 subroutine setup_set_parameters
 	use module_set_parameters
-        use  coupler_md_global_data, only : use_coupling
+	use coupler_md_global_data, only : use_coupling
 	implicit none
 
 	integer		:: i
 
 	!Calculate shift in lennard-Jones potential based on cutoff
-	potshift = 4*(rcutoff**-12 - rcutoff**-6)
+	potshift = 4.d0*(rcutoff**-12.d0 - rcutoff**-6.d0)
 
 	!Allocate arrays based on number of dimensions
 	call set_parameters_allocate(1)
 
 	!call set_parameters_domain
         if ( use_coupling ) then 
-         call set_parameters_global_domain_hybrid
+        	call set_parameters_global_domain_hybrid
         else 
-         call set_parameters_global_domain
+        	call set_parameters_global_domain
         endif
+	call set_parameters_global_domain
 	call set_parameters_cells
 	call set_parameters_setlimits
 
@@ -203,16 +209,16 @@ subroutine set_parameters_global_domain_hybrid
 
 	integer                :: ixyz
 
-! get the global domain lenghts from x, y, z array of CFD realm
+	! get the global domain lenghts from x, y, z array of CFD realm
 
- globaldomain(1) = xL_md
- globaldomain(2) = yL_md
- globaldomain(3) = zL_md
+	globaldomain(1) = xL_md
+	globaldomain(2) = yL_md
+	globaldomain(3) = zL_md
 
-! the number of particles is 
+	! the number of particles is 
 
- volume   = xL_md*yL_md*zL_md
- globalnp = density*volume  ! sigma units
+	volume   = xL_md*yL_md*zL_md
+	globalnp = density*volume  ! sigma units
 
 !!$	globalnp=1      !Set number of particles to unity for loop below
 !!$	volume=1	!Set domain size to unity for loop below
@@ -225,7 +231,7 @@ subroutine set_parameters_global_domain_hybrid
 !!$
 !!$	globalnp=4*globalnp   !FCC structure in 3D had 4 molecules per unit cell
 !!$
-!!$	!Initially assume molecules per processor are evenly split  - corrected after position setup
+!!$	!Initially assume molecules per processor are evenly split   corrected after position setup
 	np = globalnp / nproc					
 
 	domain(1) = globaldomain(1) / real(npx, kind(0.d0))			!determine domain size per processor
@@ -238,14 +244,16 @@ subroutine set_parameters_global_domain_hybrid
 
 	!Establish initial size of single unit to initialise microstate
 	do ixyz=1,nd
-	initialunitsize(ixyz) = 1.0d0/((density/4.0d0)**(1.0d0/nd))
+		initialunitsize(ixyz) = 1.0d0/((density/4.0d0)**(1.0d0/nd))
 !		initialunitsize(ixyz) = globaldomain(ixyz) / initialnunits(ixyz)
 	enddo
 
-write(0,*) 'set_parameter_global_domain_hybrid ', globalnp, np, domain, initialunitsize
+	write(0,*) 'set_parameter_global_domain_hybrid ', globalnp, np, domain, initialunitsize
 
 end subroutine set_parameters_global_domain_hybrid
 
+
+ 
 
 !-----------------------------------------------------------------------------------------
 
@@ -351,30 +359,31 @@ subroutine set_parameters_outputs
 	!freedom - this is to fix the momentum of the domain boundaries 
 	initialvel = sqrt(nd * (1.d0 - 1.d0/np)*inputtemperature)
 
-	!Allocate bins used for calculating simulation properties
         if (use_coupling) then
-        ! in the coupling calculation use CFD bin as unit cell
+        	! in the coupling calculation use CFD bin as unit cell
                 globalnbins(1) = ibmax_md(icoord(1,myid+1))-ibmin_md(icoord(1,myid+1))
                 globalnbins(2) = jbmax_md(icoord(2,myid+1))-jbmin_md(icoord(2,myid+1))
                 globalnbins(3) = kbmax_md(icoord(3,myid+1))-kbmin_md(icoord(3,myid+1))                
         else
-                
-                globalnbins(1) = ncells(1) !ncells(1)*4*floor(rcutoff)!Total number of domain bins
-                globalnbins(2) = ncells(2) !ncells(1)*4*floor(rcutoff)!Total number of domain bins
-                globalnbins(3) = ncells(3) !ncells(1)*4*floor(rcutoff)!Total number of domain bins
-        endif
+		!Allocate bins used for calculating simulation properties
+		globalnbins(1) = ncells(1) !initialnunits(1) ! npx*ncells(1) !Total number of domain bins
+		globalnbins(2) = ncells(2) !initialnunits(2) !Total number of domain bins
+		globalnbins(3) = ncells(3) !initialnunits(3) !Total number of domain bins
+	endif
+
 	nbins(1) = nint(globalnbins(1)/dble(npx))	!Share global evenly between processes
 	nbins(2) = nint(globalnbins(2)/dble(npy))	!Share global evenly between processes
 	nbins(3) = nint(globalnbins(3)/dble(npz))	!Share global evenly between processes
+
 	!Obtain global number of bins after rounding to given same number per process
 	globalnbins(1) = nbins(1)
 	globalnbins(2) = nbins(2)
 	globalnbins(3) = nbins(3)
-	if (slice_outflag .eq. 1) call SubcommSumInt(globalnbins(1),2)
+	call SubcommSumInt(globalnbins(1),1)	!Sum up over all x processes
+	call SubcommSumInt(globalnbins(2),2)	!Sum up over all y processes
+	call SubcommSumInt(globalnbins(3),3)	!Sum up over all z processes
 
-	!print'(a,3i8,2(a,3f10.5))','nbins ',nbins,' binsize ', domain/nbins, ' Domain size ', domain
 
-	!nbins(1) = ncells(2) 
 	!nbins(1) = ceiling(np/10.d0)    	!Set number of equal sized velocity ranges based on 1/10 number of molecules
 	allocate(vfd_bin(nbins(1)))           	!Allocate storage space for frequency tally over time
 	allocate(normalisedvfd_bin(nbins(1))) 	!Allocate storage space for normalised frequency tally over time
@@ -400,19 +409,19 @@ subroutine set_parameters_outputs
 	diffusion = 0 !diffusion set to zero before sum over all molecules
 
 	!Allocate pressure tensor correlation record length
-	allocate(Pxycorrel(viscsample))
+	allocate(Pxycorrel(Nstress_ave))
 
 	!Allocated arrays for velocity slice
-	allocate(meanvel(nbins(1)))
-	allocate(countvel(nbins(1)))
-	meanvel = 0.d0
-	countvel = 0
+	allocate(slice_momentum(nbins(2),3))
+	allocate(slice_mass(nbins(2)))
+	slice_momentum = 0.d0
+	slice_mass = 0
 
 	!Allocated bins for velocity averaging
-	allocate(meanvelbin(nbins(1),nbins(2),nbins(3),3))
-	allocate(countvelbin(nbins(1),nbins(2),nbins(3)))
-	meanvelbin  = 0.d0
-	countvelbin = 0
+	allocate(slice_momentumbin( nbins(1),nbins(2),nbins(3),3))
+	allocate(slice_massbin(nbins(1),nbins(2),nbins(3)  ))
+	slice_momentumbin  = 0.d0
+	slice_massbin = 0
 
 	!Allocated Nose Hoover local PUT thermstat bins
 	allocate(zeta_array(nbins(1),nbins(2),nbins(3)))
@@ -420,33 +429,33 @@ subroutine set_parameters_outputs
 	!call local_temperature_header
 
 	!Allocate pressure bin for Stress volume averaging
-	allocate(rfbin(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,3))
-	allocate(vvbin(nbins(1),nbins(2),nbins(3),3,3))
-	allocate(Pxybin(nbins(1),nbins(2),nbins(3),3,3))
+	allocate(  rfbin(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,3))
+	allocate(  vvbin(nbins(1),  nbins(2),  nbins(3),3,3  ))
+	allocate( Pxybin(nbins(1),  nbins(2),  nbins(3),3,3  ))
 	allocate(Pxyface(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
 	rfbin  = 0.d0
 	Pxybin = 0.d0
 
 	!Allocate bins for control volume mass fluxes
-	allocate(volume_mass(nbins(1)+2,nbins(2)+2,nbins(3)+2))
+	allocate(volume_mass(nbins(1)+2,nbins(2)+2,nbins(3)+2  ))
 	allocate(  mass_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,6))
 	volume_mass = 0
 	mass_flux   = 0
 
 	!Allocate bins for control volume momentum fluxes and forces
-	allocate(volume_momentum(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
-	allocate(momentum_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,6,3))
-	allocate(volume_force(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,2))
-	momentum_flux = 0.d0
+	allocate(volume_momentum(nbins(1)+2,nbins(2)+2,nbins(3)+2,3  ))
+	allocate(  momentum_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
+	allocate(   volume_force(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,2))
+	momentum_flux 	= 0.d0
 	volume_momentum = 0.d0
-	volume_force = 0.d0
+	volume_force 	= 0.d0
 
 	!Allocated Bins for Nose Hoover Stress Control
 	allocate(Gxybins(nbins(1),nbins(2),nbins(3),3,3))
 	Gxybins = 0.d0
 
 	!Allocate array for Stress Method of Planes
-	planespacing = 0.1*cellsidelength(2)
+	planespacing = cellsidelength(2)
 	nplanes = floor(domain(2)/planespacing)
 
 	!Shift by half difference between value rounded down and actual value
@@ -455,77 +464,13 @@ subroutine set_parameters_outputs
 	allocate(planes(nplanes))
 	allocate(Pxy_plane(3,nplanes))
 
-	!print*, 'number of planes',nplanes
-	!print*, 'planespacing', planespacing, 'times nplanes =', & 
-	!	planespacing*(nplanes),'shift',shift, 'domain',domain(2)
-
 	!Setup location of planes
 	do n = 1, nplanes
 		planes(n) = planespacing*(n-1) + shift - halfdomain(2)
 	enddo
 
-	!Write header for velocity slice record
-	if (slice_outflag .eq. 1) call parallel_slice_header
-	if (slice_outflag .eq. 2) call velocity_average_header
-	if (slice_outflag .eq. 3) then
-		call parallel_slice_header
-		call velocity_average_header
-	endif
-
-	!Open pressure tensor and viscosity record file 
-	if (pressure_outflag .ne. 0) call stress_header
-	call control_volume_header
-
 end subroutine set_parameters_outputs
 
-!-------------------------------------------------------------------
-!Establish and store indices of cells which are on the outer domain surface specified 
-!by size of buf
-! buf = -1 Halo cells
-! buf =  0 Domain outer surface cell 
-! buf =  N Outer Surface-N
-
-subroutine establish_surface_cells(buf)
-	use module_set_parameters
-	implicit none
-
-	integer		:: n
-	integer		:: icell, jcell, kcell
-	integer		:: buf
-
-	nsurfacecells =2*((ncells(1)-2*buf)*(ncells(2)-2*buf) &
-			+  (ncells(1)-2-2*buf)*(ncells(3)-2*buf) &
-		        +  (ncells(2)-2-2*buf)*(ncells(3)-2-2*buf))
-
-	allocate(surfacecell(nsurfacecells,3))
-	
-	n = 1
-	do kcell=1, ncells(1)+2
-	do jcell=1, ncells(2)+2
-	do icell=1, ncells(3)+2
-		!Remove inner part of domain
-		if((icell .gt. (2+buf) .and. icell .lt. (ncells(1)+1-buf)) .and. &
-		   (jcell .gt. (2+buf) .and. jcell .lt. (ncells(2)+1-buf)) .and. &
-		   (kcell .gt. (2+buf) .and. kcell .lt. (ncells(3)+1-buf))) cycle
-		!Remove outer cells leaving only 1 layer of surface cells
-		if((icell .lt. (2+buf) .or. icell .gt. (ncells(1)+1-buf)) .or. &
-		   (jcell .lt. (2+buf) .or. jcell .gt. (ncells(2)+1-buf)) .or. &
-		   (kcell .lt. (2+buf) .or. kcell .gt. (ncells(3)+1-buf))) cycle
-
-		surfacecell(n,1)=icell
-		surfacecell(n,2)=jcell
-		surfacecell(n,3)=kcell
-		n = n + 1
-	enddo
-	enddo
-	enddo
-
-	print*, 'Number of Surface Cells', nsurfacecells
-	!do n = 1,nsurfacecells
-	!	print*, 'surface cells',surfacecell(n,:)
-	!enddo
-
-end subroutine establish_surface_cells
 
 !-------------------------------------------------------------------
 !Establish and store indices of bins which are on the outer domain
@@ -537,36 +482,77 @@ subroutine establish_surface_bins
 	integer		:: n
 	integer		:: icell, jcell, kcell
 
-	nsurfacecells =2*((nbins(1)+2)*(nbins(2)+2) &
-			+  (nbins(1))*(nbins(3)+2) &
-		        +  (nbins(2))*(nbins(3)))
+	nsurfacebins=	2*( ncells(1)   * ncells(2) &
+			+  (ncells(3)-2)* ncells(2) &
+		        +  (ncells(3)-2)*(ncells(1)-2))
 
-	allocate(surfacecell(nsurfacecells,3))
-	
+	allocate(surfacebins(nsurfacebins,3))
+
 	n = 1
-	do kcell=1, nbins(1)+2
+	do kcell=1, nbins(3)+2
 	do jcell=1, nbins(2)+2
-	do icell=1, nbins(3)+2
+	do icell=1, nbins(1)+2
+
 		!Remove inner part of domain
-		if((icell .gt. (1) .and. icell .lt. (nbins(1)+2)) .and. &
-		   (jcell .gt. (1) .and. jcell .lt. (nbins(2)+2)) .and. &
-		   (kcell .gt. (1) .and. kcell .lt. (nbins(3)+2))) cycle
+		if((icell .gt. (2) .and. icell .lt. (nbins(1)+1)) .and. &
+		   (jcell .gt. (2) .and. jcell .lt. (nbins(2)+1)) .and. &
+		   (kcell .gt. (2) .and. kcell .lt. (nbins(3)+1))) cycle
 		!Remove outer cells leaving only 1 layer of surface cells
-		if((icell .lt. (1) .or. icell .gt. (nbins(1)+2)) .or. &
-		   (jcell .lt. (1) .or. jcell .gt. (nbins(2)+2)) .or. &
-		   (kcell .lt. (1) .or. kcell .gt. (nbins(3)+2))) cycle
+		if((icell .lt. (2) .or. icell .gt. (nbins(1)+1)) .or. &
+		   (jcell .lt. (2) .or. jcell .gt. (nbins(2)+1)) .or. &
+		   (kcell .lt. (2) .or. kcell .gt. (nbins(3)+1))) cycle
 
-		surfacecell(n,1)=icell
-		surfacecell(n,2)=jcell
-		surfacecell(n,3)=kcell
+		surfacebins(n,1)=icell
+		surfacebins(n,2)=jcell
+		surfacebins(n,3)=kcell
 		n = n + 1
-	enddo
-	enddo
-	enddo
 
-	print*, 'Number of Surface Cells', nsurfacecells
-	!do n = 1,nsurfacecells
-	!	print*, 'surface cells',surfacecell(n,:)
-	!enddo
+	enddo
+	enddo
+	enddo
 
 end subroutine establish_surface_bins
+
+!-------------------------------------------------------------------
+!Establish and store indices of cells which are on the outer domain surface specified 
+!by size of buf
+! buf = -1 Halo cells
+! buf =  0 Domain outer surface cell 
+! buf =  N Outer Surface-N
+
+!subroutine establish_surface_cells(buf)
+!	use module_set_parameters
+!	implicit none
+
+!	integer		:: n
+!	integer		:: icell, jcell, kcell
+!	integer		:: buf
+
+!	nsurfacecells =2*((ncells(1)-2*buf)*(ncells(2)-2*buf) &
+!			+  (ncells(1)-2-2*buf)*(ncells(3)-2*buf) &
+!		        +  (ncells(2)-2-2*buf)*(ncells(3)-2-2*buf))
+
+!	allocate(surfacecell(nsurfacecells,3))
+	
+!	n = 1
+!	do kcell=1, ncells(1)+2
+!	do jcell=1, ncells(2)+2
+!	do icell=1, ncells(3)+2
+		!Remove inner part of domain
+!		if((icell .gt. (2+buf) .and. icell .lt. (ncells(1)+1-buf)) .and. &
+!		   (jcell .gt. (2+buf) .and. jcell .lt. (ncells(2)+1-buf)) .and. &
+!		   (kcell .gt. (2+buf) .and. kcell .lt. (ncells(3)+1-buf))) cycle
+		!Remove outer cells leaving only 1 layer of surface cells
+!		if((icell .lt. (2+buf) .or. icell .gt. (ncells(1)+1-buf)) .or. &
+!		   (jcell .lt. (2+buf) .or. jcell .gt. (ncells(2)+1-buf)) .or. &
+!		   (kcell .lt. (2+buf) .or. kcell .gt. (ncells(3)+1-buf))) cycle
+
+!		surfacecell(n,1)=icell
+!		surfacecell(n,2)=jcell
+!		surfacecell(n,3)=kcell
+!		n = n + 1
+!	enddo
+!	enddo
+!	enddo
+
+!end subroutine establish_surface_cells

@@ -22,10 +22,9 @@ subroutine setup_tag
 	use module_molecule_properties
 	implicit none
 
-	integer 			:: mol_layers
+	integer 			:: n, mol_layers
 	!double precision		:: xlocation,zlocation, heaviside
-	double precision, dimension(3)	:: fixdisttop, slidedisttop, fixdistbottom, slidedistbottom
-	double precision, dimension(3)	:: tethereddisttop, tethereddistbottom, thermstattop,thermstatbottom
+
 
 	!For initialunitsize "a"
 	!		 [  o     o ]
@@ -35,27 +34,30 @@ subroutine setup_tag
 	!
 	!So use (0.20+0.5d0*mol_layers)*initialunitsize(ixyz)
 
-	
 	mol_layers = 2
 
-	!Setup tags for fixed molecules
-	!+0.2 to include gap between wall and 1st molecule
-	fixdistbottom(1) = 0.d0 !initialunitsize(1)
-	fixdistbottom(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
-	fixdistbottom(3) = 0.d0 !initialunitsize(3)
-	fixdisttop(1) = 0.d0 !initialunitsize(1)
-	fixdisttop(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
-	fixdisttop(3) = 0.d0 !initialunitsize(3)
+	wallslidev(1) = 1.d0
+	wallslidev(2) = 0.d0
+	wallslidev(3) = 0.d0
 
-	!Setup tags for fixed and sliding molecules
-	slidedistbottom(1) = 0.d0 !initialunitsize(1)
+	!Setup fixed molecules
+	!+0.2 to include gap between wall and 1st molecule
+	fixdistbottom(1) = 0.d0*cellsidelength(1) !initialunitsize(1)
+	fixdistbottom(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
+	fixdistbottom(3) = 0.d0*cellsidelength(3) !initialunitsize(3)
+	fixdisttop(1) = 0.d0*cellsidelength(1) !initialunitsize(1)
+	fixdisttop(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
+	fixdisttop(3) = 0.d0*cellsidelength(3) !initialunitsize(3)
+
+	!Setup sliding molecules
+	slidedistbottom(1) = 0.d0*cellsidelength(1) !initialunitsize(1)
 	slidedistbottom(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
-	slidedistbottom(3) = 0.d0 !initialunitsize(3)
+	slidedistbottom(3) = 0.d0*cellsidelength(3) !initialunitsize(3)
 	slidedisttop(1) = 0.d0 !initialunitsize(1)
 	slidedisttop(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
 	slidedisttop(3) = 0.d0 !initialunitsize(3)
 
-	!Setup tags for molecules with tethered potentials
+	!Setup molecules with tethered potentials
 	tethereddistbottom(1) = 0.d0 !initialunitsize(1)
 	tethereddistbottom(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
 	tethereddistbottom(3) = 0.d0 !initialunitsize(3)
@@ -63,65 +65,111 @@ subroutine setup_tag
 	tethereddisttop(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
 	tethereddisttop(3) = 0.d0 !initialunitsize(3)
 
-	!Setup tethered and thermostatted molecules
+	!Setup thermostatted molecules
 	thermstatbottom(1) = 0.d0 !initialunitsize(1)
 	thermstatbottom(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
 	thermstatbottom(3) = 0.d0 !initialunitsize(3)
 	thermstattop(1) = 0.d0 !initialunitsize(1)
-	thermstattop(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
+	thermstattop(2) = 0.d0 !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
 	thermstattop(3) = 0.d0 !initialunitsize(3)
 
 	!Set all molecules tag equal to zero (normal)
 	tag = 0
 
-	!x bottom
-	if (iblock .eq. 1) then
-		where(r(:,1).lt.-halfdomain(1)+tethereddistbottom(1)) 	tag(:) = 3
-		where(r(:,1).lt.-halfdomain(1)+thermstatbottom(1)) 	tag(:) = 4
-		where(r(:,1).lt.-halfdomain(1)+fixdistbottom(1))	tag(:) = 1
-		where(r(:,1).lt.-halfdomain(1)+slidedistbottom(1)) 	tag(:) = 2
-	endif
+	do n = 1,np
+		!x bottom
+		if (iblock .eq. 1) then
+			if(r(n,1).lt.-halfdomain(1)+thermstatbottom(1)) 	tag(n) = 4
+			if(r(n,1).lt.-halfdomain(1)+tethereddistbottom(1)) 	tag(n) = 3
+			if(r(n,1).lt.-halfdomain(1)+tethereddistbottom(1) & 
+		     .and. r(n,1).lt.-halfdomain(1)+thermstatbottom(1)) 	tag(n) = 5
+			if(r(n,1).lt.-halfdomain(1)+fixdistbottom(1))		tag(n) = 1
+			if(r(n,1).lt.-halfdomain(1)+slidedistbottom(1)) 	tag(n) = 2
+			if(r(n,1).lt.-halfdomain(1)+tethereddistbottom(1) & 
+		     .and. r(n,1).lt.-halfdomain(1)+slidedistbottom(1))		tag(n) = 6
+			if(r(n,1).lt.-halfdomain(1)+tethereddistbottom(1) & 
+		     .and. r(n,1).lt.-halfdomain(1)+thermstatbottom(1)    &
+		     .and. r(n,1).lt.-halfdomain(1)+slidedistbottom(1))		tag(n) = 7
+		endif
 
-	!x top	
-	if (iblock .eq. npx) then
-		where(r(:,1).ge. halfdomain(1)-tethereddisttop(1)) 	tag(:) = 3
-		where(r(:,1).ge. halfdomain(1)-thermstattop(1)) 	tag(:) = 4
-		where(r(:,1).ge. halfdomain(1)-fixdisttop(1)) 		tag(:) = 1
-		where(r(:,1).ge. halfdomain(1)-slidedisttop(1)) 	tag(:) = 2
-	endif
+		!x top	
+		if (iblock .eq. npx) then
+			if(r(n,1).ge. halfdomain(1)-thermstattop(1)) 		tag(n) = 4
+			if(r(n,1).ge. halfdomain(1)-tethereddisttop(1)) 	tag(n) = 3
+			if(r(n,1).gt. halfdomain(1)-tethereddisttop(1) 	& 
+		     .and. r(n,1).gt. halfdomain(1)-thermstattop(1)) 		tag(n) = 5
+			if(r(n,1).ge. halfdomain(1)-fixdisttop(1)) 		tag(n) = 1
+			if(r(n,1).ge. halfdomain(1)-slidedisttop(1)) 		tag(n) = 2
+			if(r(n,1).gt. halfdomain(1)-tethereddisttop(1)	& 
+		     .and. r(n,1).gt. halfdomain(1)-slidedisttop(1))		tag(n) = 6
+			if(r(n,1).gt. halfdomain(1)-tethereddisttop(1)	& 
+		     .and. r(n,1).gt. halfdomain(1)-thermstattop(1)   	&
+		     .and. r(n,1).gt. halfdomain(1)-slidedisttop(1))		tag(n) = 7
+		endif
 
-	!y bottom
-	if (jblock .eq. 1) then
-		where(r(:,2).lt.-halfdomain(2)+tethereddistbottom(2))	tag(:) = 3
-		where(r(:,2).lt.-halfdomain(2)+thermstatbottom(2))	tag(:) = 4
-		where(r(:,2).lt.-halfdomain(2)+fixdistbottom(2))	tag(:) = 1
-		where(r(:,2).lt.-halfdomain(2)+slidedistbottom(2))	tag(:) = 2
-	endif
+		!y bottom
+		if (jblock .eq. 1) then
+			if(r(n,2).lt.-halfdomain(2)+thermstatbottom(2)) 	tag(n) = 4
+			if(r(n,2).lt.-halfdomain(2)+tethereddistbottom(2)) 	tag(n) = 3
+			if(r(n,2).lt.-halfdomain(2)+tethereddistbottom(2) & 
+		     .and. r(n,2).lt.-halfdomain(2)+thermstatbottom(2) ) 	tag(n) = 5
+			if(r(n,2).lt.-halfdomain(2)+fixdistbottom(2))		tag(n) = 1
+			if(r(n,2).lt.-halfdomain(2)+slidedistbottom(2)) 	tag(n) = 2
+			if(r(n,2).lt.-halfdomain(2)+tethereddistbottom(2) & 
+		     .and. r(n,2).lt.-halfdomain(2)+slidedistbottom(2))		tag(n) = 6
+			if(r(n,2).lt.-halfdomain(2)+tethereddistbottom(2) & 
+		     .and. r(n,2).lt.-halfdomain(2)+thermstatbottom(2)    &
+		     .and. r(n,2).lt.-halfdomain(2)+slidedistbottom(2))		tag(n) = 7
+		endif
+	
+		!y top
+		if (jblock .eq. npy) then
+			if(r(n,2).ge. halfdomain(2)-thermstattop(2)) 		tag(n) = 4
+			if(r(n,2).ge. halfdomain(2)-tethereddisttop(2)) 	tag(n) = 3
+			if(r(n,2).gt. halfdomain(2)-tethereddisttop(2) & 
+		     .and. r(n,2).gt. halfdomain(2)-thermstattop(2) ) 		tag(n) = 5
+			if(r(n,2).ge. halfdomain(2)-fixdisttop(2)) 		tag(n) = 1
+			if(r(n,2).ge. halfdomain(2)-slidedisttop(2)) 		tag(n) = 2
+			if(r(n,2).gt. halfdomain(2)-tethereddisttop(2) & 
+		     .and. r(n,2).gt. halfdomain(2)-slidedisttop(2))		tag(n) = 6 
+			if(r(n,2).gt. halfdomain(2)-tethereddisttop(2) & 
+		     .and. r(n,2).gt. halfdomain(2)-thermstattop(2)    &
+		     .and. r(n,2).gt. halfdomain(2)-slidedisttop(2))		tag(n) = 7 
+		endif
 
-	!y top
-	if (jblock .eq. npy) then
-		where(r(:,2).ge. halfdomain(2)-tethereddisttop(2)) 	tag(:) = 3
-		where(r(:,2).ge. halfdomain(2)-thermstattop(2)) 	tag(:) = 4
-		where(r(:,2).ge. halfdomain(2)-fixdisttop(2)) 		tag(:) = 1
-		where(r(:,2).ge. halfdomain(2)-slidedisttop(2)) 	tag(:) = 2  
-	endif
+		!z bottom
+		if (kblock .eq. 1) then
+			if(r(n,3).lt.-halfdomain(3)+thermstatbottom(3)) 	tag(n) = 4
+			if(r(n,3).lt.-halfdomain(3)+tethereddistbottom(3)) 	tag(n) = 3
+			if(r(n,3).lt.-halfdomain(3)+tethereddistbottom(3) & 
+		     .and. r(n,3).lt.-halfdomain(3)+thermstatbottom(3) ) 	tag(n) = 5
+			if(r(n,3).lt.-halfdomain(3)+fixdistbottom(3))		tag(n) = 1
+			if(r(n,3).lt.-halfdomain(3)+slidedistbottom(3)) 	tag(n) = 2
+			if(r(n,3).lt.-halfdomain(3)+tethereddistbottom(3) & 
+		     .and. r(n,3).lt.-halfdomain(3)+slidedistbottom(3))		tag(n) = 6
+			if(r(n,3).lt.-halfdomain(3)+tethereddistbottom(3) & 
+		     .and. r(n,3).lt.-halfdomain(3)+thermstatbottom(3)    &
+		     .and. r(n,3).lt.-halfdomain(3)+slidedistbottom(3))		tag(n) = 7
+		endif
 
-	!z bottom
-	if (kblock .eq. 1) then
-		where(r(:,3).lt.-halfdomain(3)+tethereddistbottom(3)) 	tag(:) = 3
-		where(r(:,3).lt.-halfdomain(3)+thermstatbottom(3)) 	tag(:) = 4
-		where(r(:,3).lt.-halfdomain(3)+fixdistbottom(3)) 	tag(:) = 1
-		where(r(:,3).lt.-halfdomain(3)+slidedistbottom(3)) 	tag(:) = 2
-	endif
+		!z top
+		if (kblock .eq. npz) then
+			if(r(n,3).ge. halfdomain(3)-thermstattop(3)) 		tag(n) = 4
+			if(r(n,3).ge. halfdomain(3)-tethereddisttop(3)) 	tag(n) = 3
+			if(r(n,3).gt. halfdomain(3)-tethereddisttop(3) & 
+		     .and. r(n,3).gt. halfdomain(3)-thermstattop(3) ) 		tag(n) = 5
+			if(r(n,3).ge. halfdomain(3)-fixdisttop(3)) 		tag(n) = 1
+			if(r(n,3).ge. halfdomain(3)-slidedisttop(3)) 		tag(n) = 2
+			if(r(n,3).gt. halfdomain(3)-tethereddisttop(3) & 
+		     .and. r(n,3).gt. halfdomain(3)-slidedisttop(3))		tag(n) = 6
+			if(r(n,3).gt. halfdomain(3)-tethereddisttop(3) & 
+		     .and. r(n,3).gt. halfdomain(3)-thermstattop(3)    &
+		     .and. r(n,3).gt. halfdomain(3)-slidedisttop(3))		tag(n) = 7
+		endif
 
-	!z top
-	if (kblock .eq. npz) then
-		where(r(:,3).ge. halfdomain(3)-tethereddisttop(3)) 	tag(:) = 3
-		where(r(:,3).ge. halfdomain(3)-thermstattop(3)) 	tag(:) = 4
-		where(r(:,3).ge. halfdomain(3)-fixdisttop(3)) 		tag(:) = 1
-		where(r(:,3).ge. halfdomain(3)-slidedisttop(3)) 	tag(:) = 2
-	endif
+	enddo
 
+	!print*, tag
 
 	!Square ridges
 	!jcell = 1
@@ -215,31 +263,38 @@ subroutine read_tag(molno)
 	case (0)
 		!Set molecules to unfixed with no sliding velocity
 		fix(molno,:) = 1
-		slidev(molno,1) = 0.d0
+		slidev(molno,:) = 0.d0
 	case (1)
 		!Fixed Molecules
 		fix(molno,:) = 0
-		slidev(molno,1) = 0.d0
+		slidev(molno,:) = 0.d0
 	case (2)
 		!Fixed with constant sliding speed
 		fix(molno,:) = 0
-		slidev(molno,1) = 1.d0
+		slidev(molno,:) = wallslidev
 	case (3)
 		!Tethered molecules unfixed with no sliding velocity
 		fix(molno,:) = 1
-		slidev(molno,1) = 0.d0
+		slidev(molno,:) = 0.d0
 	case (4)
+		!Thermostatted molecules 
+		fix(molno,:) = 1
+		slidev(molno,:) = 0.d0
+		thermostat(molno,:) = 1
+	case (5)
 		!Thermostatted Tethered molecules unfixed with no sliding velocity
 		fix(molno,:) = 1
-		slidev(molno,1) = 0.d0
+		slidev(molno,:) = 0.d0
 		thermostat(molno,:) = 1
-		tag(molno) = 3 			!Set tag to 3 for tethered molecule
-	case (5)
+	case (6)
+		!Tethered molecules with sliding velocity
+		fix(molno,:) = 1
+		slidev(molno,:) = wallslidev
+	case (7)
 		!Thermostatted Tethered molecules unfixed with sliding velocity
 		fix(molno,:) = 1
-		slidev(molno,1) = 1.d0
+		slidev(molno,:) = wallslidev
 		thermostat(molno,:) = 1
-		tag(molno) = 3 			!Set tag to 3 for tethered molecule
 	case default
 		stop "Invalid molecular Tag"
 	end select
@@ -253,23 +308,26 @@ subroutine tether_force(molno)
 	use arrays_MD
 	implicit none
 
-	integer 			:: molno
+	integer 			:: molno, ixyz
 	double precision		:: k4, k6
 	double precision		:: magnitude,acctmag
 	double precision, dimension(3)	:: at, rio
 
 	!Define strength of tethering potential ~ phi= -k4*rio^4 - k6*rio^6
 	!Constants from Petravic and Harrowell (k4 = 5,000, k6 = 5,000,000)
-	k4 = 500.d0
-	k6 = 5000.d0
+	k4 = 5000.d0
+	k6 = 5000000.d0
 
 	!Obtain displacement from initial position
 	rio(:) = r(molno,:) - rinitial(molno,:)
+	!For serial code, the nearest neighbour convention could be used. This becomes more complicated in parallel
+	!requiring rinitial to be passed to the adjacent processor.
+	do ixyz = 1,3
+		if(abs(rio(ixyz)) .gt. halfdomain(ixyz)) rio(ixyz)=rio(ixyz)-sign(domain(ixyz),rio(ixyz))
+	enddo
 
 	!Calculate applied tethering force
-	!at = -4.d0*k4*rio(:)**3 - 6.d0*k6*rio(:)**5
-
-	acctmag = -4.d0*k4*magnitude(rio)**2 - 6.d0*k6*magnitude(rio)**4
+	acctmag = -4.d0*k4*magnitude(rio)**2 - 6.d0*k6*magnitude(rio)**4.d0
 	at(:) = acctmag * rio(:)
 
 	!Adjust molecular acceleration accordingly
@@ -277,11 +335,15 @@ subroutine tether_force(molno)
 
 	!Adjust initial postion if molecule is sliding
 	rinitial(molno,:) = rinitial(molno,:) + slidev(molno,:)*delta_t
+	do ixyz = 1,3
+		if(abs(rinitial(molno,ixyz)) .gt. halfdomain(ixyz)) then
+			rinitial(molno,ixyz)=rinitial(molno,ixyz)-sign(domain(ixyz),rinitial(molno,ixyz))
+		endif
+	enddo
 
-	!Only calculate properties when required for output
-	if (mod(iter,tplot) .eq. 0) then
-		if (pressure_outflag .eq. 2) call pressure_tensor_forces_VA(r(molno,:),rinitial(molno,:),rio,acctmag)
-	endif
+	!print'(i8,9f10.5)', molno, rinitial(molno,:), r(molno,:), at(:)
+	!if (molno .eq. 1311) print'(i8,9f10.5)', molno, rinitial(molno,:), r(molno,:),  rio(:)
+	!if (maxval(a(molno,:)) .gt. 1000.d0) print'(i8,9f10.5)', molno, rinitial(molno,:), r(molno,:),  rio(:)
 
 end subroutine tether_force
 

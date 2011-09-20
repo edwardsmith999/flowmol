@@ -8,19 +8,22 @@
 !conditions of the simulation
 module physical_constants_MD
 
-	integer, parameter :: nd = 3		   !Number of dimensions
-	integer            :: np                   !Number of particles
-	integer		   :: globalnp             !Global number of particles
-	integer		   :: halo_np              !Number of molecules in halo
-	integer,dimension(:),allocatable :: procnp !Array of all processors np
-	double precision   :: volume, density      !Define constant volume and density
-	double precision   :: rcutoff, halfrcutoff !Cut off distance for particle interactions
-	double precision   :: rcutoff2             !Cut off distance for particle interactions squared
-	double precision   :: potshift		   !Shift in Lennard Jones potential due to cutoff
-	double precision   :: inputtemperature     !Define initial temperature
-	double precision   :: initialunitcell      !Initial size of unit cell
-	double precision   :: initialvel           !Initial velocity of particles
-	double precision,parameter :: pi=4.d0*atan(1.d0)
+	integer, parameter 		:: nd = 3		   !Number of dimensions
+	integer            		:: np                   !Number of particles
+	integer		   		:: globalnp             !Global number of particles
+	integer		   		:: halo_np              !Number of molecules in halo
+	integer,dimension(:),allocatable:: procnp !Array of all processors np
+	double precision   		:: volume, density      !Define constant volume and density
+	double precision   		:: rcutoff, halfrcutoff !Cut off distance for particle interactions
+	double precision   		:: rcutoff2             !Cut off distance for particle interactions squared
+	double precision   		:: potshift		   !Shift in Lennard Jones potential due to cutoff
+	double precision   		:: inputtemperature     !Define initial temperature
+	double precision   		:: initialunitcell      !Initial size of unit cell
+	double precision   		:: initialvel           !Initial velocity of particles
+	double precision,parameter 	:: pi=4.d0*atan(1.d0)
+	!Simulation setup conditions
+	double precision, dimension(3)	:: fixdisttop, slidedisttop, fixdistbottom, slidedistbottom, wallslidev
+	double precision, dimension(3)	:: tethereddisttop, tethereddistbottom, thermstattop,thermstatbottom
 
 end module physical_constants_MD
 
@@ -34,16 +37,24 @@ module computational_constants_MD
 
 	!Input (on or off) flags
 	integer			:: vmd_outflag
-	integer			:: macro_outflag	
-	integer			:: slice_outflag
+	integer			:: macro_outflag
+	integer			:: mass_outflag	
+	integer			:: velocity_outflag
 	integer			:: pressure_outflag
+	integer			:: viscosity_outflag
+	integer			:: mflux_outflag
+	integer			:: vflux_outflag
 	integer, dimension(3)	:: periodic
+
 	!Parameters
 	integer          	:: iter              !Global simulation iteration count
 	integer          	:: tplot             !Frequency at which to record results
-	integer		 	:: viscsample	     !Number of bins for viscosity calculation
-	integer		 	:: Nvisc_ave	     !Number of averages for each bin
-	integer		 	:: Nslice_ave	     !Number of averages for each velocity slice
+	integer		 	:: Nmass_ave	     !Number of averages for each mass average
+	integer		 	:: Nvel_ave	     !Number of averages for each velocity average
+	integer		 	:: Nstress_ave	     !Number of bins for viscosity calculation
+	integer		 	:: Nvisc_ave	     !Number of samples for viscosity measurement
+	integer		 	:: Nmflux_ave	     !Number of averages for each mass flux
+	integer		 	:: Nvflux_ave	     !Number of averages for each velocity flux
 	integer          	:: initialstep       !Initial step of simulation
 	integer          	:: Nsteps            !Total number of computational steps
 	integer		 	:: extralloc	     !Extra allocation space to include copied halos
@@ -54,21 +65,25 @@ module computational_constants_MD
 	double precision 	:: rneighbr2         !Square of rcuttoff+delta_rneighbr
 	double precision 	:: delta_rneighbr    !Radius used for neighbour list construction
 	double precision 	:: rd                !Radius used for radial distribution function
-	!Store surface cells on surface of processes subdomain (i.e. the HALO)
-	integer		 	:: nsurfacecells     !Number of surface cells
-	integer,allocatable,dimension(:,:)	    :: surfacecell	!Surface cells
+
+	!Store surface bins of processes subdomain for outputs over periodic boundaries
+	integer		 	:: nsurfacebins     !Number of surface bins
+	integer,allocatable,dimension(:,:)	    :: surfacebins	!Surface Bins
+
 	!Number and size of unit used for initial setup of molecules (i.e. FCC unit)
 	integer,          dimension(3)		    :: initialnunits
 	double precision, dimension(:), allocatable :: initialunitsize
+
 	!Size of global computational domain and domain per processor
 	double precision, dimension(3)		    :: globaldomain
 	double precision, dimension(:), allocatable :: domain, halfdomain
+
 	!Number and size of cells used for domain subdivision into cells of size ~rcutoff
 	integer,          dimension(:), allocatable :: ncells
 	double precision, dimension(:), allocatable :: cellsidelength, halfcellsidelength
+
 	!Setup seed for random number generation
 	integer,          dimension(:), allocatable :: seed 
-
 
 	! Block/Process ID
 	integer irank, iroot, ierr
@@ -86,7 +101,7 @@ module computational_constants_MD
 	integer nicellxl, nicellyl, nicellzl !Inner only
 
         !Directory that holds input/output files, useful in coupling mode
- 	character(len=128) :: file_dir = "./"
+ 	character(len=128) :: file_dir = "./"	
 
 end module computational_constants_MD
 
@@ -215,10 +230,10 @@ module calculated_properties_MD
 	integer,dimension(3) :: nbins, globalnbins          !Number of groups or bins to store frequency of molecular velocity
 	integer,dimension(:), allocatable :: vfd_bin        !Array to keep tally of molecular velocity distribution
 	integer,dimension(:), allocatable :: shell          !Array to keep tally of radial distribution
-	integer,dimension(:), allocatable :: countvel	    !Array to keep tally of velocity of molecules in slice
-	integer,dimension(:,:,:), allocatable 	::countvelbin !Recorded molecules in a bin
-	integer,dimension(:,:,:), allocatable	::volume_mass!Mass in a control volume at time t
-	integer,dimension(:,:,:,:), allocatable	::mass_flux  !Flow of mass over a control volume surface
+	integer,dimension(:), allocatable :: slice_mass	    !Array to keep tally of molecules in slice
+	integer,dimension(:,:,:), allocatable 	::slice_massbin 	!Recorded molecules in a bin
+	integer,dimension(:,:,:), allocatable	::volume_mass	!Mass in a control volume at time t
+	integer,dimension(:,:,:,:), allocatable	::mass_flux  	!Flow of mass over a control volume surface
 	double precision :: binsize			    !Size of each bin
 	double precision :: delta_r		            !Size of each shell
 	double precision :: planespacing		    !Spacing between planes for MOP
@@ -229,21 +244,21 @@ module calculated_properties_MD
 	double precision :: initialenergy		    !Intial energy of system
 	double precision :: zeta			    !Parameter used in Nose Hoover thermostat
 	double precision :: gamma			    !Parameter used in Nose Hoover shearostat
-	double precision, dimension(3,3) :: gamma_xy	 	     !Parameter used in Nose Hoover stressostat
+	double precision, dimension(3,3) :: gamma_xy	 	     !Parameter used in Nose Hoover tensor stressostat 
 	double precision, dimension(:), allocatable :: planes	     !Location of planes used in MOP
-	double precision, dimension(:), allocatable :: meanvel	     !Mean velocity used in velocity slice
 	double precision, dimension(:), allocatable :: RDF           !Array to keep tally of radial distribution
 	double precision, dimension(:), allocatable :: normalisedvfd_bin !Bin normalised so sum of all bins is one
 	double precision, dimension(:), allocatable :: diffusion     !Diffusion of molecules
 	double precision, dimension(:), allocatable :: meandiffusion !Time averaged diffusion of molecules
 	double precision, dimension(:), allocatable :: Pxycorrel     !Sum of correlations of Pxy and Pxyzero
+	double precision, dimension(:,:), allocatable :: slice_momentum     !Mean velocity used in velocity slice
 	double precision, dimension(:,:)  , allocatable :: Pxy_plane !Stress on plane for MOP
 	double precision, dimension(:,:)  , allocatable :: Pxy       !Stress tensor for whole domain
 	double precision, dimension(:,:)  , allocatable :: Pxyzero   !Stress tensor at start of sample
 	double precision, dimension(:,:,:), allocatable :: rfmol     !Position(x)Force tensor per molecule
 	double precision, dimension(:,:,:), allocatable :: Pxymol    !Stress tensor per molecule
 	double precision, dimension(:,:,:), allocatable	:: zeta_array!Local Nose Hoover Thermostat strength
-	double precision, dimension(:,:,:,:), allocatable::meanvelbin!Mean velocity in a bin
+	double precision, dimension(:,:,:,:), allocatable::slice_momentumbin!Mean velocity in a bin
 	double precision, dimension(:,:,:,:), allocatable:: volume_momentum !Momentum in a control volume at time t
 	double precision, dimension(:,:,:,:,:), allocatable :: volume_force !Force acting over control volume surface 
 	double precision, dimension(:,:,:,:,:), allocatable :: momentum_flux!Flow of momentum over a control volume surface
@@ -252,5 +267,7 @@ module calculated_properties_MD
 	double precision, dimension(:,:,:,:,:), allocatable :: Pxybin!Stress tensor per bin
 	double precision, dimension(:,:,:,:,:), allocatable :: Pxyface!Stress tensor on bin face
 	double precision, dimension(:,:,:,:,:), allocatable :: Gxybins     !Parameter used in Nose Hoover stressostat
+
+	!double precision,dimension(2,3,44)	:: shiftVAstress
  
 end module calculated_properties_MD

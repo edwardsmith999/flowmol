@@ -19,6 +19,10 @@ subroutine setup_initial_record
 use module_initial_record
 implicit none
 
+	character		:: ixyz_char
+	Character(8)  		:: the_date
+	Character(10)  		:: the_time
+
 	!Evaluate system properties on all processes
 	call initial_macroscopic_properties
 
@@ -27,8 +31,12 @@ implicit none
 
 	if (irank .eq. iroot) then
 
+		call date_and_time(the_date, the_time)
+
 		!Display all parameters required to describe simulation
-		print*, '=================Molecular Simulation Parameters======================'
+		print*, 'Simulation run on Date: ', the_date
+		print*, 'Simulation start time: ', the_time
+		print*, '================= Molecular Simulation Parameters ===================='
 		print*, 'Number of Dimensions: ', nd
 		print*, 'Number of Particles: ', globalnp
 		print*, 'Time Step - delta t: ',  delta_t
@@ -39,26 +47,193 @@ implicit none
 		print*, 'Initial Temperature: ',  inputtemperature
 		print'(a,f19.15,a,f10.5)', ' Cut off distance:  ', rcutoff, &
 				    '  Neighbour List Delta r:  ', delta_rneighbr
-		print*, 'Initial unit size (FCC unit) in x,y and z'
+		print*, 'Initial unit size (FCC unit) in x,y and z:'
 		print*,	initialunitsize(1), initialunitsize(2), initialunitsize(3)
 		print*, 'Domain in x,y and z: '
-		print*, globaldomain(1), globaldomain(2), globaldomain(3)
-		print'(a,i8,a,i8,a,i8,a)', 'Split into', ncells(1)*npx, & 
-				       '  cells in x, ', ncells(2)*npy, &
-				       '  cells in y, ', ncells(3)*npz, &
-				       '  cells in z'
-		print*, cellsidelength
+		print*,  globaldomain(1), globaldomain(2), globaldomain(3)
 		print*, 'Domain volume: ', volume
-		print*, 'Number of processors in x,y and z: ', npx, npy, npz
-		print*, 'So cells per Processor', nicellxl, nicellyl, nicellzl
-		print*, 'Cells per Processor including Halos: ', ncellxl, ncellyl, ncellzl
-		print*, 'Random seed used for initial velocity generation', seed
-		!Viscosity is set to 1, wall velocity is maximum in domain
+		print'(a,3i8)', ' Periodic Boundary Conditions in x,y and z:', periodic
+		print'(a,3f10.5)', ' Distance from bottom of Fixed Molecules in x,y and z:', 	fixdistbottom
+		print'(a,3f10.5)', ' Distance from top of Fixed Molecules in x,y and z:', 	fixdisttop
+		print'(a,3f10.5)', ' Distance from bottom of Tethered Molecules in x,y and z:', tethereddistbottom
+		print'(a,3f10.5)', ' Distance from top of Tethered Molecules in x,y and z:', 	tethereddisttop
+		print'(a,3f10.5)', ' Distance from bottom of Sliding Molecules in x,y and z:', 	slidedistbottom
+		print'(a,3f10.5)', ' Distance from top of Sliding Molecules in x,y and z:', 	slidedisttop
+		print'(a,3f10.5)', ' Velocity of Sliding Molecules in x,y and z:', 	wallslidev
+		print'(a,3f10.5)', ' Distance from bottom of NH Themostatted Molecules in x,y and z:', 	thermstatbottom
+		print'(a,3f10.5)', ' Distance from top of NH Themostatted Molecules in x,y and z:', 	thermstattop
 		print*, 'Molecular Reynolds number = ', (density * maxval(slidev(:,1)) * domain(2))/1.d0
+		print*, '==================== Computational Parameters ========================='
+		print'(a,3i8)', ' Domain split into computational cells in x,y and z:', & 
+					 ncells(1)*npx, ncells(2)*npy, ncells(3)*npz
+		print'(a,3f10.5)', ' Each of size:', cellsidelength
+		print*, 'Number of processors in x,y and z: ', npx, npy, npz
+		print*, 'Cells per Processor:', nicellxl, nicellyl, nicellzl
+		print*, 'Cells per Processor including Halos: ', ncellxl, ncellyl, ncellzl
+		print*, 'Random seed used for initial velocity generation:', seed
+		print*, '======================== Output Parameters ============================'
 
+		select case(vmd_outflag)
+		case(0)
+			print*, 'VMD output off'
+		case(1)
+			print*, 'VMD output every:', tplot, 'iterations'
+		case(2)
+			print*, 'VMD output with seperate solid/liquid every:', tplot, 'iterations'
+		case(3)
+			print*, 'VMD output Domain+halos every:', tplot, 'iterations'
+		case default
+			stop "Invalid VMD output flag in input file"
+		end select
+
+		select case(macro_outflag)
+		case(0)
+			print*, 'No Macroscopic Properties printed to screen'
+		case(1)
+			print*, 'Macroscopic properties printed to screen every:', tplot, 'iterations'
+		case default
+			stop "Invalid Macroscopic properties output flag in input file"
+		end select
+
+		select case(mass_outflag)
+		case(0)
+			print*, 'Mass record off'
+			print*, ''
+			print*, ''
+		case(1:3)
+			if (mass_outflag .eq. 1) then
+				ixyz_char = 'x'
+			elseif (mass_outflag .eq. 2) then 
+				ixyz_char = 'y'
+			else 
+				ixyz_char = 'z'
+			endif
+
+			print'(3(a,i8),a)', ' Mass slice recorded every:', & 
+					tplot,' x ',Nmass_ave,' = ',tplot*Nmass_ave,' iterations'
+			print'(a,i8,2a)', ' Domain split into',globalnbins(mass_outflag) ,' mass Averaging Slices in  ', ixyz_char  
+			print'(a,f10.5)', ' With each averaging slice of width:', & 
+						globaldomain(mass_outflag)/globalnbins(mass_outflag)
+		case(4)
+			print'(3(a,i8),a)', ' mass 3D bins recorded every:', &
+					tplot,' x ',Nvel_ave,' = ',tplot*Nvel_ave,' iterations'
+			print'(a,3i8)', ' Domain split into mass Averaging Bins in x,y and z:', globalnbins
+			print'(a,3f10.5)', ' Each of size:', & 
+			globaldomain(1)/globalnbins(1), globaldomain(2)/globalnbins(2),globaldomain(3)/globalnbins(3)
+		case default
+			stop "Invalid Mass output flag in input file"
+		end select
+
+		select case(velocity_outflag)
+		case(0)
+			print*, 'Velocity record off'
+			print*, ''
+			print*, ''
+		case(1:3)
+			if (velocity_outflag .eq. 1) then
+				ixyz_char = 'x'
+			elseif (velocity_outflag .eq. 2) then 
+				ixyz_char = 'y'
+			else 
+				ixyz_char = 'z'
+			endif
+
+			print'(3(a,i8),a)', ' Velocity slice recorded every:', & 
+					tplot,' x ',Nvel_ave,' = ',tplot*Nvel_ave,' iterations'
+			print'(a,i8,2a)', ' Domain split into',globalnbins(velocity_outflag) , & 
+					  ' Velocity Averaging Slices in  ', ixyz_char  
+			print'(a,f10.5)', ' With each averaging slice of width:', & 
+						globaldomain(velocity_outflag)/globalnbins(velocity_outflag)
+		case(4)
+			print'(3(a,i8),a)', ' Velocity 3D bins recorded every:', &
+					tplot,' x ',Nvel_ave,' = ',tplot*Nvel_ave,' iterations'
+			print'(a,3i8)', ' Domain split into Velocity Averaging Bins in x,y and z:', globalnbins
+			print'(a,3f10.5)', ' Each of size:', & 
+			globaldomain(1)/globalnbins(1), globaldomain(2)/globalnbins(2),globaldomain(3)/globalnbins(3)
+		case default
+			stop "Invalid Velocity output flag in input file"
+		end select
+
+		select case(pressure_outflag)
+		case(0)
+			print*, 'Pressure tensor off'
+			print*, ''
+			print*, ''
+		case(1)
+			print'(3(a,i8),a)', ' Pressure tensor Virial recorded every', & 
+					tplot,' x ',Nstress_ave,' = ',tplot*Nstress_ave,' iterations'
+			print*, 'Single Value for Whole Domain'
+			print*, ''
+		case(2)
+			print'(3(a,i8),a)', ' Pressure tensor Volume Averaged recorded every', & 
+					tplot,' x ',Nstress_ave,' = ',tplot*Nstress_ave,' iterations'
+			print'(a,3i8)', ' Domain split into Pressure Volume Averaging Bins in x,y and z:', globalnbins
+			print'(a,3f10.5)', ' Each of size:', & 
+			globaldomain(1)/globalnbins(1), globaldomain(2)/globalnbins(2),globaldomain(3)/globalnbins(3)
+		case default
+			stop "Invalid Pressure tensor output flag in input file"
+		end select
+
+		select case(viscosity_outflag)
+		case(0)
+			print*, 'Viscosity calculation off'
+			print*, ''
+			print*, ''
+		case(1)
+			print'(a)', ' Viscosity calculated from Virial pressure using Green Kubo autocorrelation'
+			print'(2(a,i8),a)', 'Taking', Nstress_ave, 'bins in time with a new bin written every', & 
+				tplot*Nstress_ave,'iterations'
+			print*, ' with each bin averaged', Nvisc_ave,' times'
+		case default
+			stop "Invalid viscosity output flag in input file"
+		end select
+
+		select case(mflux_outflag)
+		case(0)
+			print*, 'Mass flux record off'
+			print*, ''
+			print*, ''
+		case(1)
+			print'(3(a,i8),a)', ' Mass flux over surface of 3D bins and snapshots recorded every:', &
+					tplot,' x ',Nmflux_ave,' = ',tplot*Nmflux_ave,' iterations'
+			print'(a,3i8)', ' Domain split into bins in x,y and z:', globalnbins
+			print'(a,3f10.5)', ' Each of size:', & 
+			globaldomain(1)/globalnbins(1), globaldomain(2)/globalnbins(2),globaldomain(3)/globalnbins(3)
+		case default
+			stop "Invalid mass flux output flag in input file"
+		end select
+
+		select case(vflux_outflag)
+		case(0)
+			print*, 'Momentum Flux record off'
+			print*, ''
+			print*, ''
+		case(1:3)
+			if (vflux_outflag .eq. 1) then
+				ixyz_char = 'x'
+			elseif (vflux_outflag .eq. 2) then 
+				ixyz_char = 'y'
+			else 
+				ixyz_char = 'z'
+			endif
+			print'(2a,3(a,i8),a)', ' Pressure tensor Method Of Planes in', ixyz_char, 'recorded every', &
+					tplot,' x ',Nvflux_ave,' = ',tplot*Nvflux_ave,' iterations'
+			print'(a,i8,a)', ' Domain split into ',nplanes,' Planes for Pressure Averaging' 
+			print'(2(a,f10.5))', ' Seperated by distance:', planespacing, ' with first plane at ', & 
+						 planes(1)
+		case(4)
+			print'(3(a,i8),a)', ' Momentum flux over surface of 3D bins and snapshots recorded every:', &
+					tplot,' x ',Nvflux_ave,' = ',tplot*Nvflux_ave,' iterations'
+			print'(a,3i8)', ' Domain split into bins in x,y and z:', globalnbins
+			print'(a,3f10.5)', ' Each of size:', & 
+			globaldomain(1)/globalnbins(1), globaldomain(2)/globalnbins(2),globaldomain(3)/globalnbins(3)
+		case default
+			stop "Invalid velocity flux output flag in input file"
+		end select
+
+		!print*, 'Bins per Processor:', nbins
+		!print*, 'Number of Bins on outer Surface of each processor', nsurfacebins
 		print*, '======================================================================='
-
-		!open(12,file='results/statistics')
 
 		!Set up print out table
 		print '(8a)', &
@@ -68,6 +243,8 @@ implicit none
 		print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
 		initialstep,';',vsum,';', v2sum,';', temperature,';', &
 		kinenergy,';',potenergy,';',totenergy,';',pressure
+
+		call simulation_header
 
 	endif
 
@@ -117,6 +294,7 @@ implicit none
 
 end subroutine initial_macroscopic_properties
 
+!----------------------------------------------------------------------------------
 !Add up initial control volume mass densities
 
 subroutine initial_control_volume
@@ -127,21 +305,27 @@ implicit none
 	integer, dimension(3)		:: ibin
 	double precision, dimension(3)	:: mbinsize
 
-	!Setup Initial Mass in Control Volume
-	mbinsize(:) = domain(:) / nbins(:)
-	do n = 1,np
-		ibin(:) = ceiling((r(n,:)+halfdomain(:))/mbinsize(:)) + 1
-		volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + 1
-	enddo
+	!Obtain and record velocity and mass
+	if (velocity_outflag .ne. 0) then
 
-	!Setup Initial Momentum in Control Volume
-	volume_momentum = 0.d0
-	do n = 1,np
-		!Add up current volume momentum densities
-		ibin(:) = ceiling((r(n,:)+halfdomain(:))/mbinsize(:)) + 1
-		volume_momentum(ibin(1),ibin(2),ibin(3),:) = volume_momentum(ibin(1),ibin(2),ibin(3),:) + v(n,:)
-		!print'(4i8,3f10.5)', n, ibin(:), v(n,:)
-	enddo
+		!Set mass record frequency to same as velocity
+		Nmass_ave = Nvel_ave
+		!Call first record		
+		call velocity_averaging(velocity_outflag)
+	endif
+
+	!Obtain and record mass only
+	if (velocity_outflag .eq. 0 .and. mass_outflag .ne. 0) then
+		!Call first record
+		call mass_averaging(mass_outflag)
+	endif
+
+	if (mflux_outflag .ne. 0) call mass_snapshot
+	if (vflux_outflag .eq. 4) call momentum_snapshot
+
+	!Open pressure tensor and viscosity record file 
+	!if (pressure_outflag .ne. 0) call stress_header
+	!call control_volume_header
 
 end subroutine initial_control_volume
 

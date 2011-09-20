@@ -44,6 +44,14 @@ module messenger
 	use computational_constants_MD
 	use linked_list
 
+	integer :: myid                         ! my process rank
+	integer :: idroot                       ! rank of root process
+
+	! Grid topology
+	integer :: icomm_grid                   ! comm for grid topology
+	integer :: icoord(3,nproc)              ! proc grid coordinates
+	integer	:: icomm_xyz(3) 		     ! Directional subcomms
+
 end module
 
 !======================================================================

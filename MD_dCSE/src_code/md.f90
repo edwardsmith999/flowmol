@@ -102,10 +102,18 @@ implicit none
 		if (mod(iter,tplot) .eq. 0) then
 			call simulation_record		   	!Evaluate & write properties to file
 		endif
+		if (mflux_outflag .ne. 0) then
+			call mass_flux_averaging
+		endif
 
 		!call simulation_apply_constraint_forces   	!Apply force to prevent molecules leaving domain
 		!call simulation_apply_continuum_forces	   	!Apply force based on Nie,Chen an Robbins coupling
 		call simulation_move_particles			!Move particles as a result of forces
+
+		if (vflux_outflag .ne. 0) then
+			call momentum_flux_averaging(vflux_outflag)
+		endif
+
 		call messenger_updateborders		   	!Update borders between processors
 		call simulation_checkrebuild(rebuild)	   	!Determine if neighbourlist rebuild required
 

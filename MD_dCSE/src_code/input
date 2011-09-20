@@ -1,10 +1,10 @@
-0.8		        !Density
+0.81		        !Density
 1.12246204830937	!Cut off distance for particle interaction 2^(1/6)=1.12246204830937
 1.0		 	!Define initial temperature
 8	              	!x dimension number of molecule units (FCC in 3D with 4 molecules per unit)
 8	 		!y dimension number of molecule units (FCC in 3D with 4 molecules per unit)
 8			!z dimension number of molecule units (FCC in 3D with 4 molecules per unit)
-1000	    		!Number of computational steps
+1000	   		!Number of computational steps
 0.005 			!Size of time step
 100	    	 	!Frequency at which to record results
 0.3			!Extra distance used for neighbour cell size
@@ -12,11 +12,18 @@
 2			!Random number seed value 2 N.B. set both to same for random seed generation
 0 			!OUTPUT_FLAG - vmd output 0=off 1=homogenous 2=solid/liquid 3=homogenous+halos
 1			!OUTPUT_FLAG - Macroscopic properties printed to screen
-0			!OUTPUT_FLAG - Velocity record 0=off 1=slice 2=3D bins 3=both
-10			!OUTPUT_PARAM- Number of samples for velocity slice average
-0			!OUTPUT_FLAG - Pressure tensor and viscosity 0=off 1=virial 2=Volume Averaged 3=Method Of Planes
-10			!OUTPUT_PARAM- Number of pressure bins taken in time for viscosity
-1			!OUTPUT_PARAM- Steps to average viscosity sample bins over => Visc output freq = (nbins*ave_steps)
+0			!OUTPUT_FLAG - Mass record 0=off 1,2,3=x,y,z slice 4=3D bins
+50			!OUTPUT_PARAM- Number of samples for mass average
+0			!OUTPUT_FLAG - Velocity record 0=off 1,2,3=x,y,z slice 4=3D bins
+50			!OUTPUT_PARAM- Number of samples for velocity average
+0			!OUTPUT_FLAG - Pressure binning 0=off 1=virial 2=Volume Averaged
+50			!OUTPUT_PARAM- Number of samples for pressure average (also number of bins for viscosity)
+0			!OUTPUT_FLAG - Viscosity calculated
+1000			!OUTPUT_PARAM- Steps to average viscosity sample bins over => Visc output freq = (nbins*ave_steps)
+0			!OUTPUT_FLAG - Mass flux record 0=off 1=3D CV
+50			!OUTPUT_PARAM- Number of samples for mass flux averaging and interval for CV mass snapshot
+0			!OUTPUT_FLAG - Momentum flux 0=off 1,2,3=x,y,z MOP 4=3D CV
+50			!OUTPUT_PARAM- Number of samples for momentum flux/pressure and CV momentum snapshots
 1			!Periodic in x NOTE: Constraint must be in place before periodic BC are turned off
 1			!Periodic in y NOTE: Constraint must be in place before periodic BC are turned off
 1			!Periodic in z NOTE: Constraint must be in place before periodic BC are turned off
