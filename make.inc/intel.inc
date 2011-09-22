@@ -5,7 +5,7 @@ VERSION := opt
 LD := $(F90)
 
 # local libs, needed only for CFD 
-ifeq($(branch),cfd)
+ifeq ($(branch),cfd)
   LIBFILES := $(LIBBASE)/archive.o $(LIBBASE)/library.o $(LIBBASE)/library.alc.o $(LIBBASE)/SSDfile.memory.o $(LIBBASE)/triDiagonal.o $(LIBBASE)/triDiagonal.mpi.o $(LIBBASE)/pentaDiagonal.o $(LIBBASE)/transforms.mkl_intel.alc.o $(LIBBASE)/SinCosFFT.o $(LIBBASE)/triDiagonal.mrhs.o $(LIBBASE)/triDiagonal.mpi.mrhs.o $(LIBBASE)/pentaDiagonal.mrhs.o $(LIBBASE)/pentaDiagonal.mpi.o $(LIBBASE)/polyDiagonal.o 
 endif
 
