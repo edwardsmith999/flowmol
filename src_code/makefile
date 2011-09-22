@@ -1,4 +1,12 @@
 #
+# targets for CFD and MD
+#
+MD_TARGET  := s
+CFD_TARGET := opt
+
+export USE_COUPLER := yes
+
+#
 #  CFD sector
 #
 CFD_SRC_PATH := ../../CFD_dCSE/src_code/main_code_MG_ddType_dP
@@ -7,17 +15,20 @@ CFD_SRC_PATH := ../../CFD_dCSE/src_code/main_code_MG_ddType_dP
 #
 MD_SRC_PATH := ../../MD_dCSE/src_code
 
-#
-# tasks
-#
+.PHONY. : clean_all clean_cfd clean_md cfd md
 
 all : cfd md 
 
 cfd : 
-	cd $(CFD_SRC_PATH) && make all "VERSION=debug" "USE_COUPLER=yes" 
+	cd $(CFD_SRC_PATH) && $(MAKE) $(CFD_TARGET)
 md  :
-	cd $(MD_SRC_PATH)  && make debug_p "USE_COUPLER=yes"
+	cd $(MD_SRC_PATH)  && $(MAKE) $(MD_TARGET)
 
-.PHONY. : clean
-clean :
-	cd  $(CFD_SRC_PATH) && make clean && cd - && cd $(MD_SRC_PATH)  && make clean  
+clean_all : clean_cfd clean_md
+
+clean_cfd :
+	cd  $(CFD_SRC_PATH) && $(MAKE) clean 
+
+clean_md :
+	cd $(MD_SRC_PATH)  && $(MAKE) clean  
+
