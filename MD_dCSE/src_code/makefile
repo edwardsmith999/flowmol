@@ -12,6 +12,8 @@ F90_CONTINUUM = continuum_modules.f90 continuum_advance_time.f90 continuum_calcu
 
 F90_MD_FILES_P = $(patsubst parallel_io.serial.f90,parallel_io.MPI2.f90,$(patsubst messenger.serial.f90,messenger.MPI.f90,$(F90_MD_FILES)))
 
+PARAM = param.inc
+
 # use coupler ? 
 USE_COUPLER      := no
 COUPLER_PATH_yes := ../../coupler_dCSE/src_code/
@@ -19,36 +21,28 @@ COUPLER_PATH_no  := ./
 COUPLER_PATH      := $(COUPLER_PATH_$(USE_COUPLER))
 
 
-LIBS = -L /usr/local/cuda/lib64/ -lcudart
-LIBSEMU	= -L /usr/local/cuda/lib64/ -lcudartemu
-PARAM = param.inc
-FLAGS =  -O3 -funroll-loops 
-FLAGS_CUDA = -O3 --ptxas-options=-v -arch=sm_11 -pg -g  
+#
+# get platform to build, compiler names and flags, check the make.inc directory
+#
+ 
+ifndef PLATFORM
+  platform_list := $(shell ls ../../make.inc | grep  '.inc' | sed 's/.inc//' )
+  $(error The PLATFORM variable must be specified. Try one of the following: $(platform_list) )
+else
+# 
+#   get the branch ( cfd or md)
+#
+  branch = $(if $(findstring CFD_dCSE,$(PWD)),cfd,$(if $(findstring MD_dCSE,$(PWD)),md,$(error "error in find branch")))
+  include ../../make.inc/$(PLATFORM).inc
+endif
+
+# computed flags with values from PLATFORM files
+FLAGS   := $(FLAGS_$(COMP)_$(VERSION))
+LDFLAGS := $(FLAGS)
+
+
 MD_EXE = md.exe
 CONTINUUM_EXE = continuum.exe
-
-#=======================================================================
-# Compiler
-#=======================================================================
-F90 =mpif90
-COMP=intel
-VERSION=opt
-
-# GNU flags
-FLAGS_gnu_debug = -g -fbounds-check -Wall -fbacktrace -ffpe-trap=invalid,zero,overflow -fsignaling-nans -fdump-core -Jobj 
-#-I../../HYBRID_dCSE/src_code -I../../CFD_dCSE/src_code/main_code_MG_ddType_dP/obj
-FLAGS_gnu_opt   = -O3 -Jobj
-
-
-# intel flags
-FLAGS_intel_debug = -O0 -traceback -CB -check all
-FLAGS_intel_opt   = -O3 -funroll-loops
-
-# computed flags
-
-FLAGS   = $(FLAGS_$(COMP)_$(VERSION))
-LDFLAGS = 
-
 
 #Re-use f90 file names with .o instead of .f90
 O_MD = $(addprefix obj/, $(F90_MD_FILES:.f90=.o))
@@ -62,7 +56,6 @@ $(O_CUDA): $(PARAM)
 $(O_CONTINUUM): $(PARAM)
 $(O_MD_P): $(PARAM)
 CU = nvcc
-VPATH = obj
 .SUFFIXES: .exe .o .f90 .cu .inc
 
 #=======================================================================
@@ -147,7 +140,7 @@ obj/%.o: %.f90
 #
 obj/parallel_io.MPI2.o : obj/messenger.MPI.o
 obj/messenger.MPI.o : obj/setup_inputs.o obj/coupler_md_global_data.o
-obj/coupler_md_global_data.o : modules.o
+obj/coupler_md_global_data.o : obj/modules.o
 obj/finish_final_record.o : obj/setup_inputs.o 
 obj/md.o : obj/coupler_md_communication.o obj/coupler_md_setup.o
 obj/setup_inputs.o : obj/coupler_md_global_data.o

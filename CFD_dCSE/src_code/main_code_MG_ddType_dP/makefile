@@ -12,47 +12,29 @@ COUPLER_PATH_yes := ../../../coupler_dCSE/src_code/
 COUPLER_PATH_no  := ./
 COUPLER_PATH     := $(COUPLER_PATH_$(USE_COUPLER))
 
-
 F77FILES = 
 CFILES = 
 
 LIBBASE=../lib
 
-LIBFILES = $(LIBBASE)/archive.o $(LIBBASE)/library.o $(LIBBASE)/library.alc.o $(LIBBASE)/SSDfile.memory.o $(LIBBASE)/triDiagonal.o $(LIBBASE)/triDiagonal.mpi.o $(LIBBASE)/pentaDiagonal.o $(LIBBASE)/transforms.mkl_intel.alc.o $(LIBBASE)/SinCosFFT.o $(LIBBASE)/triDiagonal.mrhs.o $(LIBBASE)/triDiagonal.mpi.mrhs.o $(LIBBASE)/pentaDiagonal.mrhs.o $(LIBBASE)/pentaDiagonal.mpi.o $(LIBBASE)/polyDiagonal.o 
+#
+# get platform to build, compiler names and flags, check the make.inc directory
+#
+ifndef PLATFORM
+  platform_list := $(shell ls ../../../make.inc | grep  '.inc' | sed 's/\.inc//' )
+  $(error The PLATFORM variable must be specified. Try one of the following: $(platform_list) )
+else
+# 
+#   get the branch ( cfd or md)
+#
+  branch = $(if $(findstring CFD_dCSE,$(PWD)),cfd,$(if $(findstring MD_dCSE,$(PWD)),md,$(error "error in find branch")))
+  include ../../../make.inc/$(PLATFORM).inc
+endif
 
-#  LIBS = -L/apps/intel/cmkl/9.0/lib/64/ -lmkl_em64t -lmkl_dft_cluster -lguide -lpthread
-#  LIBS = -L/opt/intel/cmkl/9.0/lib/64/             -lmkl_dft_cluster -lguide -lpthread -lmkl
-#  LIBS = -L/apps/intel/cmkl/9.0/lib/64/ -lmkl_em64t                   -lguide -lpthread
-LIBS = -L/opt/intel/Compiler/11.1/046/mkl/lib/em64t/ -lmkl_em64t                   -lguide -lpthread
+# computed flags with values from PLATFORM files
 
-
-#=======================================================================
-# Compiler
-#=======================================================================
-
-COMP    = gnu
-F90     = mpif90
-F77     = mpif90
-CC      = cc
-LD      = mpif90
-VERSION = opt
-
-# GNU flags
-FLAGS_gnu_debug = -fdefault-real-8 -fdefault-double-8 -ffree-line-length-0  -g -fbounds-check -Wall -fbacktrace -ffpe-trap=invalid,zero,overflow -fsignaling-nans -fdump-core -Jobj  
-FLAGS_gnu_opt   = -O3 -fdefault-real-8 -fdefault-double-8 -ffree-line-length-0 -Jobj
-
-
-# intel flags
-FLAGS_intel_debug = -O0 -traceback -CB -check all -warn all,nodec,interfaces -gen_interfaces
-FLAGS_intel_opt   =  -r8 -O3 -ip -funroll-loops           -par-report3 -mcmodel=large -i-dynamic
-
-# computed flags
-
-FLAGS   = $(FLAGS_$(COMP)_$(VERSION))
-LDFLAGS = $(FLAGS)
-#LIBS    = -L/usr/lib64 -lfftw3
-
-
+FLAGS   := $(FLAGS_$(COMP)_$(VERSION))
+LDFLAGS := $(FLAGS) 
 
 #=======================================================================
 # Standard definitions
