@@ -3,9 +3,6 @@
 #
 MD_TARGET  := s
 CFD_TARGET := opt
-
-export USE_COUPLER := yes
-
 #
 #  CFD sector
 #
@@ -20,9 +17,9 @@ MD_SRC_PATH := ../../MD_dCSE/src_code
 all : cfd md 
 
 cfd : 
-	cd $(CFD_SRC_PATH) && $(MAKE) $(CFD_TARGET)
+	cd $(CFD_SRC_PATH) && $(MAKE) USE_COUPLER=yes $(CFD_TARGET)
 md  :
-	cd $(MD_SRC_PATH)  && $(MAKE) $(MD_TARGET)
+	cd $(MD_SRC_PATH)  && $(MAKE) USE_COUPLER=yes $(MD_TARGET)
 
 clean_all : clean_cfd clean_md
 
