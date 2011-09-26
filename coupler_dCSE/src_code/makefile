@@ -1,7 +1,7 @@
 #
 # targets for CFD and MD
 #
-MD_TARGET  := s
+MD_TARGET  := p
 CFD_TARGET := opt
 #
 #  CFD sector
