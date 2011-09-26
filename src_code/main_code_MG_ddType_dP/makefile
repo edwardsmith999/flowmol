@@ -20,6 +20,12 @@ LIBBASE=../lib
 #
 # get platform to build, compiler names and flags, check the make.inc directory
 #
+
+#Check for default file
+ifndef PLATFORM
+    PLATFORM := $(shell cat ../../../make.inc/PLATFORM_default)
+endif
+
 ifndef PLATFORM
   platform_list := $(shell ls ../../../make.inc | grep  '.inc' | sed 's/\.inc//' )
   $(error The PLATFORM variable must be specified. Try one of the following: $(platform_list) )
@@ -29,6 +35,8 @@ else
 #
   branch = $(if $(findstring CFD_dCSE,$(PWD)),cfd,$(if $(findstring MD_dCSE,$(PWD)),md,$(error "error in find branch")))
   include ../../../make.inc/$(PLATFORM).inc
+  #Create default file for current platform
+  $(shell echo $(PLATFORM) > ../../../make.inc/PLATFORM_default)
 endif
 
 # computed flags with values from PLATFORM files
