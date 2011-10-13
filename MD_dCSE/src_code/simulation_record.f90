@@ -12,27 +12,32 @@
 ! given cell) or Method Of Planes (force/momentum flux over a plane).
 ! Many of these outputs are interpreted using MATLAB scripts included
 !
-! simulation_record  !Top level function choosing logging based on inputs
-! evaluate_macroscopic_properties_parallel !Macroscopic properties
-! evaluate_properties_vdistribution
-! evaluate_properties_radialdist
-! evaluate_properties_diffusion
-! CV AVERAGING			CASES
-! mass_averaging		slice/CV
-! cumulative_mass		slice/CV
-! mass_snapshot			CV
-! momentum_averaging		slice/CV
-! cumulative_momentum		slice/CV
-! momentum_snapshot		CV
-! pressure_averaging		domain/CV
-! cumulative_pressure		domain/CV
-! FLUX AVERAGING
-! mass_flux_averaging		CV_surface
-! cumulative_mass_flux		CV_surface
-! momentum_flux_averaging 	plane(MOP)/CV_surface
-! cumulative_momentum_flux	plane(MOP)/CV_surface
-! surface_pressure		plane(MOP)/CV_surface
-! cumulative_pressure		plane(MOP)/CV_surface
+! simulation_record  			   	Top level function choosing logging based on inputs
+! evaluate_macroscopic_properties_parallel 	Macroscopic properties
+! evaluate_properties_vdistribution		Maxwell Boltzmann distribution
+! evaluate_properties_radialdist		Radial distribution
+! evaluate_properties_diffusion			Diffusion
+
+! mass_averaging				slice/CV
+! cumulative_mass				slice/CV
+! velocity_averaging				slice/CV
+! cumulative_velocity				slice/CV
+! pressure_averaging				virial/CV
+! cumulative_pressure				virial/CV
+! simulation_compute_kinetic_VA		
+! simulation_compute_kinetic_VA_cells
+! mass_flux_averaging				CV_surface
+! cumulative_mass_flux				CV_surface
+! mass_snapshot					CV
+! momentum_flux_averaging			MOP_plane/CV_surface
+! cumulative_momentum_flux			MOP_plane/CV_surface
+! momentum_snapshot				CV
+! pressure_tensor_forces			virial
+! pressure_tensor_forces_VA			CV
+! control_volume_forces				CV_surface
+! control_volume_stresses			CV_surface
+! pressure_tensor_forces_MOP			MOP_plane
+! evaluate_properties_cellradialdist
 
 !===================================================================================
 ! 			FULL DOMAIN VIRIAL STRESS CALCULATION
@@ -53,7 +58,6 @@
 ! See B.D.Todd, D.J.Evans and P.J.Daivis (1995) Phys Review E, Vol 52,2
 ! Method first presented by Lutzko (1988) J. AppL Phys, Vol. 64, No.3,1 1154	!!!NO LUTSKO FIRST VA USING FOURIER TRANSFORMS!!!
 !===================================================================================
-!==========================================================================
 
 module module_record
 
