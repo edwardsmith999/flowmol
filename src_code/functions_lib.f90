@@ -14,6 +14,7 @@
 ! swap(a,b)   	  Swap a and b
 ! imaxloc(A)	  Return integer location of maximum array element
 ! outerprod(a,b)  Outer product of two vectors
+! crossprod(a,b)  Cross product of two vectors
 !
 ! --Linear Algebra--
 ! LUdcmp(a,indx,d) LU decomposition
@@ -21,6 +22,7 @@
 !
 ! --File handling--
 ! get_file_size(filename,file_size)
+! locate(fileid,keyword)
 !
 ! --Check Routines--
 ! check()
@@ -45,6 +47,12 @@ module librarymod
 			double precision,dimension(:),intent(in)	:: a, b
 			double precision,dimension(size(a),size(b))	:: outerprod
 		end function outerprod
+	end interface
+	interface
+		function crossprod(a,b)
+			double precision,dimension(3),intent(in)	:: a, b
+			double precision,dimension(3)			:: crossprod
+		end function crossprod
 	end interface
 	interface
 		function imaxloc(A)
@@ -239,6 +247,22 @@ function outerprod(a,b)
 end function outerprod
 
 !--------------------------------------------------------------------------------------
+!Calculate cross product of two 3D vectors 
+function crossprod(a,b)
+	implicit none
+
+	double precision,dimension(3),intent(in)	:: a, b
+	double precision,dimension(3)			:: crossprod
+
+	if (size(a) .ne. 3 .or. size(b) .ne. 3) stop "Error - vectors must be 3 Dimensional for cross product"
+
+	crossprod(1) = a(2) * b(3) - a(3) * b(2)
+	crossprod(2) = a(3) * b(1) - a(1) * b(3)
+	crossprod(3) = a(1) * b(2) - a(2) * b(1)
+
+end function crossprod
+
+!--------------------------------------------------------------------------------------
 !Get an integer from fortran intrinsic 'maxloc' which returns a rank 1 array
 function imaxloc(a)
 	implicit none
@@ -366,6 +390,44 @@ implicit none
 	file_size = SArray(8)
 
 end subroutine
+
+
+!-----------------------------------------------------------------------------
+! Subroutine:	locate(keyword)
+! Author(s):	David Trevelyan
+! Description:
+!		The file opened with 'fileid' is scanned sequentially by line until the 
+!		character string 'keyword' matches the beginning of what is read.
+!		The file position is thus set to the line after the matched keyword.
+!
+!		If a keyword is not found, it is assumed that the file is
+!		incomplete and the program is stopped.
+!-----------------------------------------------------------------------------
+
+subroutine locate(fileid,keyword)
+implicit none
+	
+	character*(*)	:: keyword		! Input keyword	
+	character*(100)	:: linestring		! First 100 characters in a line
+	integer		:: keyword_length	! Length of input keyword
+	integer		:: io			! File status flag
+	integer		:: fileid		! File unit number
+
+	keyword_length = len(keyword)
+	
+	rewind(fileid)	! Go to beginning of input file
+	do
+		read (fileid,*,iostat=io) linestring			! Read first 100 characters
+		if (linestring(1:keyword_length).eq.keyword) exit	! If the first characters match keyword then exit loop
+
+		if (io.ne.0) then	! If end of file is reached
+			print*, "Input parser didn't find ", keyword," in file. Stopping simulation."
+			stop 	
+		end if
+
+	end do	
+
+end subroutine locate
 
 !======================================================================
 !Ensures functions work correctly

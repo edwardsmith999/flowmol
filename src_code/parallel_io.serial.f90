@@ -9,26 +9,27 @@
 ! setup_restart_microstate	Read Initial configuration from restart file
 
 ! --- OUTPUT ROUTINES ---
+! simulation_header		Write all variables in ; seperated variable form "Description; name; variable"
+! update_simulation_progress    Record current iteration
 ! parallel_io_final_state 	Write final configuration and simulation details for restart
 ! parallel_io_vmd		Output for VMD
 ! parallel_io_vmd_sl		Output for VMD with seperate solid/lquid regions
 ! parallel_io_vmd_halo		Output Halos
+
 ! CV AVERAGING
-! mass_averaging		slice/CV
-! cumulative_mass		slice/CV
-! mass_snapshot			CV
-! momentum_averaging		slice/CV
-! cumulative_momentum		slice/CV
-! momentum_snapshot		CV
-! pressure_averaging		domain/CV
-! cumulative_pressure		domain/CV
+! mass_slice_io			Write out mass bins for a single dimension slice through domain
+! mass_bin_io			Write out mass bins in all 3 dimensions of domain
+! velocity_slice_io		Write out velocity bins for a single dimension slice through domain
+! velocity_bin_io		Write out velocity bins in all 3 dimensions of domain
+!
 ! FLUX AVERAGING
-! mass_flux_averaging		CV_surface
-! cumulative_mass_flux		CV_surface
-! momentum_flux_averaging	plane(MOP)/CV_surface
-! cumulative_momentum_flux	plane(MOP)/CV_surface
-! surface_pressure		plane(MOP)/CV_surface
-! cumulative_pressure		plane(MOP)/CV_surface
+! virial_stress_io		Write out virial stress
+! VA_stress_io			Write out Volume Averaged stress throughout domain
+! viscosity_io			Write out viscosity
+! mass_flux_io			Write out flux of mass through bin surfaces
+! momentum_flux_io		Write out flux of momnetum through bin surfaces
+! MOP_stress_io			Write out stress on single plane through domain
+! surface_stress_io		Write out stress on all surfaces of bins in domain
 ! 
 !======================================================================
 
@@ -120,6 +121,131 @@ implicit none
 	elapsedtime = 1.d0*delta_t*Nsteps !Set elapsed time to end of simualtion
 
 end subroutine setup_inputs
+
+!-----------------------------------------------------------------------------
+! Subroutine:	setup_inputs
+! Author(s):	David Trevelyan & Edward Smith
+! Description:
+!		The input file MD.in contains capitalised keywords followed by
+!		numerical values. The "locate" subroutine rewinds to the beginning
+!		of MD.in and scans each line until the keyword is matched.
+!
+!		Consequently, the file position is set for the next statement to read
+!		the line underneath the previously "located" keyword. 
+!-----------------------------------------------------------------------------
+subroutine setup_inputs_locate
+	use module_parallel_io
+	implicit none
+	
+	integer :: k, n
+
+	call random_seed
+	call random_seed(size=n)
+	allocate(seed(n))
+	
+	open(1,file='MD.in')
+
+	!Input physical co-efficients
+	call locate(1,'DENSITY')
+	read(1,*) density
+	call locate(1,'RCUTOFF')
+	read(1,*) rcutoff
+	call locate(1,'INPUTTEMPERATURE')
+	read(1,*) inputtemperature
+	call locate(1,'INITIALNUNITS')
+	read(1,*) initialnunits(1)		!x dimension split into number of cells
+	read(1,*) initialnunits(2)		!y dimension split into number of cells
+	if(nd.eq.3) read(1,*) initialnunits(3)	!z dimension split into number of cells
+
+	!Input computational co-efficients
+	call locate(1,'NSTEPS')
+	read(1,*) Nsteps 		!Number of computational steps
+	call locate(1,'DELTA_T')
+	read(1,*) delta_t 		!Size of time step
+	call locate(1,'TPLOT')
+	read(1,*) tplot 		!Frequency at which to record results
+	call locate(1,'DELTA_RNEIGHBR') 
+	read(1,*) delta_rneighbr 	!Extra distance used for neighbour cell
+	call locate(1,'SEED')
+	read(1,*) seed(1) 		!Random number seed value 1
+	read(1,*) seed(2) 		!Random number seed value 2
+
+	!Flag to determine if output is switched on
+	call locate(1,'VMD_OUTFLAG')
+	read(1,*) vmd_outflag
+	call locate(1,'MACRO_OUTFLAG')
+	read(1,*) macro_outflag
+	call locate(1,'MASS_OUTFLAG')
+	read(1,*) mass_outflag
+	if (mass_outflag .ne. 0) 	read(1,*) Nmass_ave
+	call locate(1,'VELOCITY_OUTFLAG')
+	read(1,* ) velocity_outflag
+	if (velocity_outflag .ne. 0)	read(1,* ) Nvel_ave
+	call locate(1,'PRESSURE_OUTFLAG')
+	read(1,* ) pressure_outflag
+	if (pressure_outflag .ne. 0)	read(1,* ) Nstress_ave
+	call locate(1,'VISCOSITY_OUTFLAG')
+	read(1,* ) viscosity_outflag
+	if ( viscosity_outflag .ne. 0)	read(1,* ) Nvisc_ave
+	call locate(1,'MFLUX_OUTFLAG')
+	read(1,* ) mflux_outflag
+	if (mflux_outflag .ne. 0)	read(1,* ) Nmflux_ave
+	call locate(1,'VFLUX_OUTFLAG')
+	read(1,* ) vflux_outflag
+	if (vflux_outflag .ne. 0)	read(1,* ) Nvflux_ave
+
+	! ******************* SLLOD and polymer code ***********************
+	!call locate(1,'POTENTIAL_FLAG')
+	!read(1,*) potential_flag
+
+	!if (potential_flag.eq.1) then
+	!call locate(1,'FENE_INFO')
+	!read(1,*) chain_length
+	!read(1,*) k_c
+	!read(1,*) R_0
+		
+	!call locate(1,'ETEVTCF_OUTFLAG')
+	!read(1,*) etevtcf_outflag
+	!read(1,*) etevtcf_iter0
+
+	!call locate(1,'R_GYRATION_OUTFLAG')
+	!read(1,*) r_gyration_outflag		
+
+	!call locate(1,'MICRO_STRESS_OUTFLAG')
+	!read(1,*) micro_stress_outflag
+
+	!call locate(1,'DEFINE_SHEAR')
+	!read(1,*) define_shear_as
+	!if (define_shear_as.eq.0) read(1,* ) shear_velocity
+	!if (define_shear_as.eq.1) read(1,* ) shear_rate
+	!if (define_shear_as.gt.1) stop 'Shear type undefined, &
+	!must be 0 for velocity or 1 for rate'
+	! ******************* SLLOD and polymer code ***********************
+
+	!Flags to determine if periodic boundaries required	
+	call locate(1,'PERIODIC')
+	read(1,*) periodic(1)
+	read(1,*) periodic(2)
+	if (nd.eq.3) read(1,*) periodic(3)
+
+	close(1,status='keep')      !Close input file
+
+	rcutoff2= rcutoff**2         !Useful definition to save computational time
+	initialstep = 0   	     !Set initial step to one to start
+	
+	if (seed(1)==seed(2)) then
+		call random_seed
+		call random_seed(get=seed(1:n))
+	endif
+	
+	!Assign different random number seed to each processor
+	seed = seed * irank
+	!Assign seed to random number generator
+	call random_seed(put=seed(1:n))
+
+	elapsedtime = 1.d0*delta_t*Nsteps !Set elapsed time to end of simualtion
+
+end subroutine setup_inputs_locate
 
 !----------------------------------------------------------------------
 !
