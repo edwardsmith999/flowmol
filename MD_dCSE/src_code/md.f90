@@ -96,7 +96,7 @@ implicit none
 ! This is the inner loop, it should go around autocorrelation time
 	do iter=initialstep, Nsteps			   	!Loop over specified output steps
 
-		call simulation_compute_forces		 	!Calculate forces on particles
+		call simulation_compute_forces_halfint		 	!Calculate forces on particles
 
 
 		if (mod(iter,tplot) .eq. 0) then

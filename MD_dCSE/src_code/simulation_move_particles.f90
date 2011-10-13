@@ -149,3 +149,176 @@ implicit none
 
 
 end subroutine simulation_move_particles_tag
+
+
+!----------------------------------------------------------------------------------
+! SLLOD_move based on the extensive literature from Hoover, Evans etc
+! The shear rate specifies the velocity applied at the top point of the domain.
+! SLLOD force is also applied to fixed atoms ~ they move at a slower speed
+! than free liquid atoms as there is no effect of bulk flow. 
+
+!A Nose Hoover thermostat is also applied
+
+
+subroutine SLLOD_move
+use module_move_particles
+use calculated_properties_MD
+implicit none
+
+	integer			:: n, ixyz
+	double precision	:: vel, slice_momentum2, dzeta_dt, massheatbath
+	double precision	:: vreduce, relaxfactor
+	double precision	:: shear_rate
+
+	v2sum = 0.d0      ! Reset all sums
+	massheatbath = globalnp * delta_t
+
+	!Temperature used is of the wall atoms only
+	do n = 1, np    ! Loop over all particles
+	do ixyz = 1, nd    ! Loop over all dimensions
+		vel = (v(n,ixyz) - 0.5d0*a(n,ixyz)*delta_t )*thermostat(n,ixyz)
+		v2sum = v2sum + vel**2 !Add up all molecules' velocity squared components  
+	enddo
+	enddo
+
+	!print*, 'wall temp', v2sum/ (real(nd,kind(0.d0))*real(globalnp,kind(0.d0)))
+
+	call globalSum(v2sum)	!Obtain global velocity sum
+
+	dzeta_dt = (v2sum - (nd*globalnp + 1)*inputtemperature) / massheatbath
+	zeta = zeta + delta_t*dzeta_dt
+
+	shear_rate= 0.0005d0/domain(2)
+	
+	do n = 1,np        !Step through each particle n
+
+		!Check for tethering force and correct applied force accordingly
+		if (tag(n).eq. 3) then
+			call tether_force(n)
+		endif
+
+		!Velocity calculated from acceleration
+		v(n,1) =(v(n,1) + delta_t*a(n,1))*fix(n,1)		&	!Fixed Molecules ~> a=0
+				+ shear_rate*(r(n,2)+halfdomain(2))*(1-thermostat(n,1))	&	!SLLOD force on x direction
+				+ slidev(n,1)				&	!Add sliding velocity
+				- zeta*v(n,1)*delta_t*thermostat(n,1)! *         &	!Thermostat
+
+		!Position calculated from velocity
+		r(n,1) = r(n,1) + delta_t*v(n,1)
+
+		!print*, shear_rate*(r(n,2)+halfdomain(2))
+
+		!Velocity calculated from acceleration
+		v(n,2) =(v(n,2) + delta_t*a(n,2))*fix(n,2)	  &	!Fixed Molecules ~> a=0
+				+ slidev(n,2)			  &	!Add sliding velocity
+				- zeta*v(n,2)*delta_t*thermostat(n,2)! *   &	!Thermostat
+
+		!Position calculated from velocity
+		r(n,2) = r(n,2) + delta_t*v(n,2)				
+
+		!Velocity calculated from acceleration
+		v(n,3) =(v(n,3) + delta_t*a(n,3))*fix(n,3) 	  &	!Fixed Molecules ~> a=0
+				+ slidev(n,3)			  &	!Add sliding velocity
+				- zeta*v(n,3)*delta_t*thermostat(n,3)! *   &	!Thermostat
+
+		!Position calculated from velocity
+		r(n,3) = r(n,3) + delta_t*v(n,3)				
+		
+	enddo
+	
+end subroutine SLLOD_move
+
+
+!----------------------------------------------------------------------------------
+! SLLOD_move based on the extensive literature from Hoover, Evans etc
+! The shear rate specifies the velocity applied at the top point of the domain.
+! SLLOD force is also applied to fixed atoms ~ they move at a slower speed
+! than free liquid atoms as there is no effect of bulk flow. 
+
+!A Profile Unbias [nose hoover] Thermostat (PUT) has also been used
+
+
+subroutine SLLOD_move_PUT
+use module_move_particles
+use calculated_properties_MD
+implicit none
+
+	integer				:: n, ixyz
+	integer				:: ibin, jbin, kbin
+	double precision		:: vel, slice_momentum2, dzeta_dt, massheatbath
+	double precision		:: vreduce, relaxfactor
+	double precision		:: shear_rate
+	double precision,dimension(3)	:: vmean, slicebinsize
+	
+	v2sum = 0.d0      ! Reset all sums
+	massheatbath = globalnp * delta_t
+
+	slicebinsize(:) = domain(:) / nbins(:)
+
+	!Velocity sum for fluctuations only so remove mean flow
+	do n = 1, np    ! Loop over all particles
+
+		!Determine bins using integer division
+		ibin = ceiling((r(n,1)+halfdomain(1))/slicebinsize(1)) !Establish current bin
+		if (ibin > nbins(1)) ibin = nbins(1) 		!Prevents out of range values
+		if (ibin < 1 ) ibin = 1        		!Prevents out of range values
+		jbin = ceiling((r(n,2)+halfdomain(2))/slicebinsize(2)) !Establish current bin
+		if (jbin > nbins(2)) jbin = nbins(2) 		!Prevents out of range values
+		if (jbin < 1 ) jbin = 1        		!Prevents out of range values
+		kbin = ceiling((r(n,3)+halfdomain(3))/slicebinsize(3)) !Establish current bin
+		if (kbin > nbins(3)) kbin = nbins(3) 		!Prevents out of range values
+		if (kbin < 1 ) kbin = 1        		!Prevents out of range values
+
+		!Establish average velocity of current cell
+		vmean(:) = slice_momentumbin(ibin,jbin,kbin,:)/(slice_massbin(ibin,jbin,kbin)+1)
+
+		do ixyz = 1, nd    ! Loop over all dimensions
+			vel = v(n,ixyz) - 0.5d0*a(n,ixyz)*delta_t - vmean(ixyz)
+			v2sum = v2sum + vel**2 !Add up all molecules' velocity squared components  
+		enddo
+
+	enddo
+
+	call globalSum(v2sum)	!Obtain global velocity sum
+
+	dzeta_dt = (v2sum - (nd*globalnp + 1)*inputtemperature) / massheatbath
+	zeta = zeta + delta_t*dzeta_dt
+
+	shear_rate= 0.005d0/domain(2)
+	
+	do n = 1,np        !Step through each particle n
+
+		!Check for tethering force and correct applied force accordingly
+		if (tag(n).eq. 3) then
+			call tether_force(n)
+		endif
+
+		!Velocity calculated from acceleration
+		v(n,1) =(v(n,1) + delta_t*a(n,1))*fix(n,1)		&	!Fixed Molecules ~> a=0
+				+ shear_rate*(r(n,2)+halfdomain(2))	&	!SLLOD force on x direction
+				+ slidev(n,1)				&	!Add sliding velocity
+				- zeta*v(n,1)*delta_t				!Thermostat
+
+		!Position calculated from velocity
+		r(n,1) = r(n,1) + delta_t*v(n,1)
+
+		!Velocity calculated from acceleration
+		v(n,2) =(v(n,2) + delta_t*a(n,2))*fix(n,2)	  &	!Fixed Molecules ~> a=0
+				+ slidev(n,2)			  &	!Add sliding velocity
+				- zeta*v(n,2)*delta_t			!Thermostat
+
+		!Position calculated from velocity
+		r(n,2) = r(n,2) + delta_t*v(n,2)				
+
+		!Velocity calculated from acceleration
+		v(n,3) =(v(n,3) + delta_t*a(n,3))*fix(n,3) 	  &	!Fixed Molecules ~> a=0
+				+ slidev(n,3)			  &	!Add sliding velocity
+				- zeta*v(n,3)*delta_t			!Thermostat
+
+		!Position calculated from velocity
+		r(n,3) = r(n,3) + delta_t*v(n,3)				
+		
+	enddo
+	
+end subroutine SLLOD_move_PUT
+
