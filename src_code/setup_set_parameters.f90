@@ -50,7 +50,6 @@ subroutine setup_set_parameters
         else 
         	call set_parameters_global_domain
         endif
-	call set_parameters_global_domain
 	call set_parameters_cells
 	call set_parameters_setlimits
 
@@ -347,8 +346,7 @@ end subroutine setup_linklist
 subroutine set_parameters_outputs
 	use module_set_parameters
         use  messenger, only :  myid, icoord
-        use coupler_md_global_data, only : use_coupling,ibmin_md, ibmax_md, jbmin_md, jbmax_md, &
-                kbmin_md, kbmax_md
+        use coupler_md_global_data, only : use_coupling
 	implicit none
 
 	integer				:: n
@@ -359,17 +357,10 @@ subroutine set_parameters_outputs
 	!freedom - this is to fix the momentum of the domain boundaries 
 	initialvel = sqrt(nd * (1.d0 - 1.d0/np)*inputtemperature)
 
-        if (use_coupling) then
-        	! in the coupling calculation use CFD bin as unit cell
-                globalnbins(1) = ibmax_md(icoord(1,myid+1))-ibmin_md(icoord(1,myid+1))
-                globalnbins(2) = jbmax_md(icoord(2,myid+1))-jbmin_md(icoord(2,myid+1))
-                globalnbins(3) = kbmax_md(icoord(3,myid+1))-kbmin_md(icoord(3,myid+1))                
-        else
-		!Allocate bins used for calculating simulation properties
-		globalnbins(1) = ncells(1) !initialnunits(1) ! npx*ncells(1) !Total number of domain bins
-		globalnbins(2) = ncells(2) !initialnunits(2) !Total number of domain bins
-		globalnbins(3) = ncells(3) !initialnunits(3) !Total number of domain bins
-	endif
+        !Allocate bins used for calculating simulation properties
+        globalnbins(1) = ncells(1) !initialnunits(1) ! npx*ncells(1) !Total number of domain bins
+        globalnbins(2) = ncells(2) !initialnunits(2) !Total number of domain bins
+        globalnbins(3) = ncells(3) !initialnunits(3) !Total number of domain bins
 
 	nbins(1) = nint(globalnbins(1)/dble(npx))	!Share global evenly between processes
 	nbins(2) = nint(globalnbins(2)/dble(npy))	!Share global evenly between processes

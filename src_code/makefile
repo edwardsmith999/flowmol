@@ -24,7 +24,6 @@ COUPLER_PATH      := $(COUPLER_PATH_$(USE_COUPLER))
 #
 # get platform to build, compiler names and flags, check the make.inc directory
 #
-
 #Check for default file
 ifndef PLATFORM
     PLATFORM := $(shell cat ../../make.inc/PLATFORM_default)
@@ -146,8 +145,10 @@ obj/%.o: %.f90
 # Dependecies
 #
 obj/parallel_io.MPI2.o : obj/messenger.MPI.o
-obj/messenger.MPI.o : obj/setup_inputs.o obj/coupler_md_global_data.o
+obj/messenger.MPI.o : obj/setup_inputs.o obj/coupler_md_global_data.o obj/modules.o
 obj/coupler_md_global_data.o : obj/modules.o
 obj/finish_final_record.o : obj/setup_inputs.o 
 obj/md.o : obj/coupler_md_communication.o obj/coupler_md_setup.o
 obj/setup_inputs.o : obj/coupler_md_global_data.o
+obj/coupler_md_setup.o : obj/coupler_md_global_data.o obj/messenger.MPI.o
+obj/coupler_md_communication.o : obj/coupler_md_setup.o obj/modules.o

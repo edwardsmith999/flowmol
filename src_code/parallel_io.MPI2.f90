@@ -874,7 +874,7 @@ subroutine update_simulation_progress_file
 	implicit none
 
 	if (irank .eq. iroot) then
-		open (unit=99999, file="results/simulation_progress")
+		open (unit=99999, file=trim(file_dir)//"results/simulation_progress")
 		write(99999,*) iter
 		close(99999,status='keep')
 	endif
