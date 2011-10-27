@@ -1,3 +1,6 @@
+! Dummy module needed for stand alone runs
+! of MD code
+! It sets several parameter to nedeed for MD run
 module coupler_md_global_data
         implicit none
         save
@@ -9,7 +12,7 @@ module coupler_md_global_data
         character(len=*), parameter :: code_name = "MD"
         integer, parameter :: CFD = 1, MD = 2
 
-        integer :: nsteps = 1
+        integer,parameter :: nsteps = 1, average_period = 1
 
         real xL_md, yL_md, zL_md ! macroscopic sizes of MD domain. 
 

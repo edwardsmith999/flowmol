@@ -152,9 +152,6 @@ subroutine setup_initialise_parallel_position
 	np = nl			!Correct local number of particles on processor
 	rinitial = r !Record initial position of all molecules
 
-! Should one shift r initial because initialunitsize is not conmensurate with domain size ?
-
-
 	!Establish global number of particles on current process
 	globalnp = np
 	call globalSumInt(globalnp)

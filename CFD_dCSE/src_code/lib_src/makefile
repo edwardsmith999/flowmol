@@ -31,10 +31,17 @@ COMP := GNU
  
 # HECToR GNU compiler
 
-  F90_GNU := mpif90 -O3 -fdefault-real-8 -fdefault-double-8
-  F77_GNU := mpif90
+  F90_GNU := ftn -O3 -fdefault-real-8 -fdefault-double-8
+  F77_GNU := ftn
   CC_GNU  := cc
-  LD_GNU  := mpif90 -O3 -fdefault-real-8 -fdefault-double-8
+  LD_GNU  := ftn -O3 -fdefault-real-8 -fdefault-double-8
+
+# HECToR PGI compiler
+
+  F90_PGI := ftn -fast -r8
+  F77_PGI := ftn -fast
+  CC_PGI  := cc
+  LD+PGI  := ftn -r8
 
 F90 := $(F90_$(COMP))
 F77 := $(F77_$(COMP))

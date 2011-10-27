@@ -21,6 +21,7 @@
 module boundaries
         use data_export
         use mesh_export
+        use coupler_cfd_global_data, only : use_coupling
 
         integer inflowType                ! type of inflow condition
         integer inflowFluct                ! type of inflow fluctuations
@@ -118,6 +119,9 @@ end
 subroutine CartesianBC(deltaT)
         use boundaries
         real*8  :: utemp(ngz-1)
+
+        write(0,*) 'CFD: CartesianBC: iblock, jblock, use_coupling ', iblock, jblock, use_coupling 
+
                 !-------------------------------------------------
                 !    Copy Inflow BC from (Uin) into (uc,vc,wc)
                 !-------------------------------------------------
@@ -135,13 +139,22 @@ subroutine CartesianBC(deltaT)
                 !--------------------------------------------
                 call outflow_convective(deltaT, Uout)
 
+                if (jblock.eq.1) then
+
+                        write(0,*) "CFD: use_coupling" , use_coupling
+                        if ( use_coupling ) then
+
+                                call md_vel(uc,vc,wc)
+                                
+                        else
                 !--------------------------------------------
                 !         No-slip at lower wall
                 !---
-                if (jblock.eq.1) then
-                        uc(1:ngz-1, :, 0 )=-uc(1:ngz-1, :, 1)
-                        vc(1:ngz-1, :, 1 )=0.
-                        wc(1:ngz  , :, 0 )=-wc(1:ngz  , :, 1)
+
+                                uc(1:ngz-1, :, 0 )=-uc(1:ngz-1, :, 1)
+                                vc(1:ngz-1, :, 1 )=0.
+                                wc(1:ngz  , :, 0 )=-wc(1:ngz  , :, 1)
+                         endif
                 end if
 
                 !--------------------------------------------

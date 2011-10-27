@@ -1,5 +1,4 @@
 module coupler_cfd_global_data
-        use data_export, only : npx_cfd => npx, npy_cfd => npy, npz_cfd => npz
         implicit none
         save 
 
@@ -11,50 +10,47 @@ module coupler_cfd_global_data
         integer CFD_MD_ICOMM, CFD_BDY_MD_ICOMM
 
 
-!
-!  contains processor coordinates, and overlaping regions
-!
-        type map_data
-                integer rank        ! the rank of the processor holding the overlaping domain
-                                    ! these ranks start from 1 !!!
-                integer coord(2)    ! coordinates ( which cart ?) of the above rank
-                integer ib_range(2) ! min-max block coordinates in the overlaping range i dimension
-                integer kb_range(2) ! min-max k dimension
-                integer dp2d_type   ! mpi subarray type use to communicate data 
-        end type map_data
-! integer, allocatable :: map_overlap(:,:)
-        type(map_data),allocatable :: map_overlap(:)
+! CFD data brough in by the constructor
+        integer imino,imin,imax,imaxo,jmino,jmin,jmax,jmaxo,&
+                kmino,kmin,kmax,kmaxo,npx,npy,npz, nsteps
+        integer, allocatable :: icoord(:,:)
 
-        integer icomm_xz, icoord_xz(2,npx_cfd*npz_cfd) ! obvious ?
+        real(kind(0.d0)), allocatable :: x(:), y(:), z(:)
+        real(kind(0.d0)) dx, dz, dt
 
-        integer, allocatable :: ibmin_md(:), ibmax_md(:),&
-                jbmin_md(:), jbmax_md(:), kbmin_md(:),&
-                kbmax_md(:)
+! bounding box type that holds on each processor the boundaries of the
+! CFD grid sectors allocate to every processor
+        type bbox
+                integer, allocatable :: xbb(:,:), ybb(:,:), zbb(:,:)
+        end type bbox
 
-        integer novr ! number of overlaped blocks between CFD and MD 
+        type(bbox),target :: bbox_cfd, bbox_md
+
+        integer :: jmax_overlap = 4 ! maximum j index ( in y direction) which MD has to cover, on top of that it has to cover y(0):y(1) domain and a bit of room
+                                    ! below
+
 ! MD data
 
         integer npx_md, npy_md, npz_md, nproc_md
         integer, allocatable :: icoord_md(:,:)
 
 ! velocity average data
-real, allocatable ::  vel_fromMD(:,:,:) 
+real, allocatable ::  vel_fromMD(:,:,:,:) 
 
 
 contains
 
-        subroutine create_communicators
+        subroutine create_communicators(comm_out)
                 use mpi
-                use data, only : file_dir
                 implicit none
+
+                integer, intent(out) :: comm_out
                 
                 integer :: color = CFD
                 
                 integer ierr, myid, myid_comm, myid_comm_max,&
                         iaux(2), jaux(2), remote_leader, comm, comm_size
 
-! set input output directory for this code
-                file_dir="cfd_data/"
 
                 call mpi_comm_rank(MPI_COMM_WORLD,myid,ierr)
 
@@ -63,6 +59,7 @@ contains
                 call mpi_comm_split(MPI_COMM_WORLD,color,myid,comm,ierr)
 
                 CFD_COMM = comm
+                comm_out = comm
 
 ! create inter-communicators
 
@@ -88,7 +85,7 @@ contains
                 call mpi_intercomm_create(comm, comm_size - 1, MPI_COMM_WORLD,&
                         remote_leader, 1, CFD_MD_ICOMM, ierr)
 
-                write(0,*) 'did communicators ', code_name, myid
+                write(0,*) 'did (inter)communicators ', code_name, myid
 
         end subroutine create_communicators
 

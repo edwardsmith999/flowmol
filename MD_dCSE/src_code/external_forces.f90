@@ -28,35 +28,41 @@ end module module_external_forces
 
 subroutine simulation_apply_constraint_forces
 use module_external_forces
+use coupler_md_communication, only : coupler_constrain_forces
 implicit none
 
-	integer	:: n
-	double precision :: delta_y
-	double precision :: y, y0, y1, y2, y3
+! call the coupler version.
+! This is needed because the coupler has the information about the continuum grid
 
-	if (jblock .eq. npy) then
+call coupler_constrain_forces(np,pressure,r,a)
 
-		delta_y = globaldomain(2)/6.d0
-	
-		y0 = 0.d0
-		y1 = y0 + delta_y
-		y2 = y1 + delta_y
-		y3 = globaldomain(2)/2.d0
-	
-		do n = 1, np
-			if (r(n,2) .gt. y2) then
-		
-				y = r(n,2)
-				!Initial pressure is -ve - this line prevents problems
-				if (pressure .lt. 0.d0) then
-					a(n,2)= a(n,2) - (y-y2)/(1-(y-y2)/(y3-y2))
-				else
-					a(n,2)= a(n,2) - (y-y2)/(1-(y-y2)/(y3-y2))*pressure
-				endif
-			endif
-		enddo
-
-	endif
+!!$	integer	:: n
+!!$	double precision :: delta_y
+!!$	double precision :: y, y0, y1, y2, y3
+!!$
+!!$	if (jblock .eq. npy) then
+!!$
+!!$		delta_y = globaldomain(2)/6.d0
+!!$	
+!!$		y0 = 0.d0
+!!$		y1 = y0 + delta_y
+!!$		y2 = y1 + delta_y
+!!$		y3 = globaldomain(2)/2.d0
+!!$	
+!!$		do n = 1, np
+!!$			if (r(n,2) .gt. y2) then
+!!$		
+!!$				y = r(n,2)
+!!$				!Initial pressure is -ve - this line prevents problems
+!!$				if (pressure .lt. 0.d0) then
+!!$					a(n,2)= a(n,2) - (y-y2)/(1-(y-y2)/(y3-y2))
+!!$				else
+!!$					a(n,2)= a(n,2) - (y-y2)/(1-(y-y2)/(y3-y2))*pressure
+!!$				endif
+!!$			endif
+!!$		enddo
+!!$
+!!$	endif
 	
 end subroutine simulation_apply_constraint_forces
 

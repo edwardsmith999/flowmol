@@ -4,7 +4,7 @@
 
 NAME = blayer
 
-F90FILES := main.f90 cfd_control.f90 data.export_blocks.f90 mesh.export.f90 grid.export.f90 data.noglobal_blocks.f90 arrayzero.f90 messenger.MPI.noglobal_blocks.f90 misc.mpi.f90 mesh.f90 subMesh.f90 grid.f90 mtgcoeff_blocks.f90 inflow.f90 outflow.f90 globalBCs.f90 fluct_random.f90 fluctuations_inlet_top.f90 advance_quick_Fletcher_xQUICK_deltap.f90 invert_sgi_openmp.f90 poisson_newmtg_blocks.sgi_deltap.f90 multigrid_blocks_ylines_zebra_FullMG.f90 projection_step_deltap.f90 cfl_control.f90 copyBC.f90 flowAnalysis.f90 statistics.f90 Output_SubDomain.f90 Input_mod.Z_blocks.f90 Output_mod.Z_blocks.f90 Input_Spectra.f90 Output_Spectra.f90 Input_Stats.f90 Output_Stats.f90 simulation.f90 coupler_cfd_setup.f90 coupler_cfd_global_data.f90 coupler_cfd_communication.f90
+F90FILES := main.f90 cfd_control.f90 data.export_blocks.f90 mesh.export.f90 grid.export.f90 data.noglobal_blocks.f90 arrayzero.f90 messenger.MPI.noglobal_blocks.f90 misc.mpi.f90 mesh.f90 subMesh.f90 grid.f90 mtgcoeff_blocks.f90 inflow.f90 outflow.f90 globalBCs.f90 fluct_random.f90 fluctuations_inlet_top.f90 advance_quick_Fletcher_xQUICK_deltap.f90 invert_sgi_openmp.f90 poisson_newmtg_blocks.sgi_deltap.f90 multigrid_blocks_ylines_zebra_FullMG.f90 projection_step_deltap.f90 cfl_control.f90 copyBC.f90 flowAnalysis.f90 statistics.f90 Output_SubDomain.f90 Input_mod.Z_blocks.f90 Output_mod.Z_blocks.f90 Input_Spectra.f90 Output_Spectra.f90 Input_Stats.f90 Output_Stats.f90 simulation.f90 coupler_cfd_global_data.f90 coupler_cfd_setup.f90 coupler_cfd_communication.f90 
 
 # use coupler ? 
 USE_COUPLER      := no
@@ -99,14 +99,24 @@ obj/%.o : %.f
 obj/%.o : %.c
 	$(CC) $(FLAGS) -c $< -o $@
 
+# modules
+obj/simulation.mod :  obj/simulation.o
+	if [ ! -f $@ ] ; then \
+          rm $< ;\
+          $(MAKE) $< ;\
+        fi
+
+
 #dependency list
 obj/fluct_random.o : obj/fluctuations_inlet_top.o
 obj/main.o       :  obj/cfd_control.o 
 obj/cfd_control.o  : obj/data.export_blocks.o obj/messenger.MPI.noglobal_blocks.o obj/coupler_cfd_global_data.o obj/coupler_cfd_setup.o
 obj/main.o       : obj/messenger.MPI.noglobal_blocks.o
-obj/coupler_cfd_setup.o : obj/data.export_blocks.o obj/simulation.o obj/coupler_cfd_global_data.o obj/mesh.export.o
-obj/coupler_cfd_communication.o : obj/coupler_cfd_global_data.o 
+obj/coupler_cfd_setup.o : obj/data.export_blocks.o obj/coupler_cfd_global_data.o obj/mesh.export.o
+obj/coupler_cfd_communication.o : obj/coupler_cfd_global_data.o obj/coupler_cfd_setup.o 
+obj/simulation.mod : obj/simulation.o 
 obj/simulation.o : obj/messenger.MPI.noglobal_blocks.o obj/coupler_cfd_communication.o
 obj/coupler_cfd_global_data.o : obj/data.export_blocks.o  obj/data.noglobal_blocks.o 
 obj/Output_SubDomain.o : obj/messenger.MPI.noglobal_blocks.o 
 obj/messenger.MPI.noglobal_blocks.o : obj/coupler_cfd_global_data.o
+obj/globalBCs.o : obj/coupler_cfd_communication.o

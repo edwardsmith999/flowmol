@@ -178,9 +178,13 @@ subroutine CartesianBC(deltaT)
 !     determine the cartesian velocity BCs.     
 
               use boundaries
+              use coupler_cfd_global_data, only : use_coupling
+              use coupler_cfd_communication, only : md_vel
       
         real*8  :: utemp(ngz+1)
      
+
+        integer, save :: istep = 0
         
               !==================================================================
               !         INFLOW B.C.
@@ -417,17 +421,28 @@ subroutine CartesianBC(deltaT)
               CASE(1)
                 if (jblock.eq.1) then
 
-                        ! ----- Uc ------
-                        uc(:, :, 0) = -uc(:, :, 1)
+                        if ( use_coupling ) then
+
+                                call md_vel(uc,vc,wc)
+                                
+                                istep = istep + 1
+                                write(300+10*istep+iblock,'(4(E10.4,x))') uc(:,:,0)
+                                
+                        else
+
+                                ! ----- Uc ------
+                                uc(:, :, 0) = -uc(:, :, 1)
                  
-                        ! ----- Vc ------
-                        vc(:, :, 1) = 0.0
+                                ! ----- Vc ------
+                                vc(:, :, 1) = 0.0
                 
-                        !Extend
-                        vc(:, :, 0) = 0.0
+                                !Extend
+                                vc(:, :, 0) = 0.0
          
-                        ! ----- Wc ------
-                        wc(:, :, 0) = -wc(:, :, 1)
+                                ! ----- Wc ------
+                                wc(:, :, 0) = -wc(:, :, 1)
+                        
+                        endif
                  
                 end if
         END SELECT

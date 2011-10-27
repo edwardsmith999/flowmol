@@ -74,30 +74,27 @@ end subroutine setup_MD
 !-----------------------------------------------------------------------------
 
 subroutine simulation_MD
+use mpi
 use computational_constants_MD
-use coupler_md_global_data, only : use_coupling, nsteps_cfd => nsteps
-use coupler_md_communication, only : boundary_box_average
+use coupler_md_global_data, only : use_coupling, nsteps_cfd => nsteps, average_period
+use coupler_md_communication, only : boundary_box_average, simulation_apply_continuum_forces
 use messenger, only : myid
 implicit none
   
 	integer :: rebuild    !Flag set by check rebuild to determine if linklist rebuild required
-        integer icfd 
+        integer icfd
 
 ! why is iter not declared here?
 ! why initialstep increases by 1?
- 
-        if (.not. use_coupling) then
-         nsteps_cfd = 1
-        endif
 
-        do icfd = 1, nsteps_cfd
+        initialstep = initialstep + 1			   	!Increment initial step by one 
 
-	initialstep = initialstep + 1			   	!Increment initial step by one
+        do icfd = 1, nsteps_cfd + 1   ! +1 isfor the initialisation step of CFD
+
 ! This is the inner loop, it should go around autocorrelation time
-	do iter=initialstep, Nsteps			   	!Loop over specified output steps
+        do iter = 1, Nsteps		 	        	!Loop over specified output steps
 
 		call simulation_compute_forces_halfint		 	!Calculate forces on particles
-
 
 		if (mod(iter,tplot) .eq. 0) then
 			call simulation_record		   	!Evaluate & write properties to file
@@ -106,8 +103,10 @@ implicit none
 			call mass_flux_averaging
 		endif
 
-		!call simulation_apply_constraint_forces   	!Apply force to prevent molecules leaving domain
-		!call simulation_apply_continuum_forces	   	!Apply force based on Nie,Chen an Robbins coupling
+!               call simulation_apply_constraint_forces  	!Apply force to prevent molecules leaving domain
+  
+                call simulation_apply_continuum_forces(iter)	!Apply force based on Nie,Chen an Robbins coupling
+
 		call simulation_move_particles			!Move particles as a result of forces
 
 		if (vflux_outflag .ne. 0) then
@@ -117,23 +116,26 @@ implicit none
 		call messenger_updateborders		   	!Update borders between processors
 		call simulation_checkrebuild(rebuild)	   	!Determine if neighbourlist rebuild required
 
-		if(rebuild .eq. 1 .or. &
-                        (use_coupling .and. iter .eq. Nsteps)) then
+		if(rebuild .eq. 1 &
+                        .or. (use_coupling .and. iter .eq. Nsteps) &
+                        .or. mod(icfd,average_period) == 0)  then
 			call linklist_deallocateall	   	!Deallocate all linklist components
 			call sendmols			   	!Exchange particles between processors
 			call assign_to_cell	  	   	!Re-build linklist for domain cells
 			call messenger_updateborders	   	!Update borders between processors
 			call assign_to_halocell		   	!Re-build linklist for halo cells
 			call assign_to_neighbourlist_halfint	!Setup neighbourlist
-		endif
+
+                        if ( mod(icfd,average_period) == 0 ) then
+                               call boundary_box_average(send_data=.false.) ! accumlate velocities
+		        endif
+                endif
 
         enddo
 
-! The speed for CFD boundary must be computed somewhere here
-        if ( use_coupling ) then
-                write(0,*) ' md: myid, icfd: ', myid,  icfd
-                call  boundary_box_average
-         endif
+! Average the boundary velocity and send the results to CFD
+                call boundary_box_average(send_data=.true.)
+
         enddo
 
 end subroutine simulation_MD

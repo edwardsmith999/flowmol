@@ -49,6 +49,7 @@ end module
 !=======================================================================
 subroutine simulation_init()
 	use simulation
+        use coupler_cfd_setup, only : exchange_grid_data, create_map_cfd_md
 
 	cpu_cflcal =0.0
 	cpu_bc     =0.0
@@ -91,6 +92,10 @@ subroutine simulation_init()
 	call CFLcontrol_init()
 	call advance_init()
 
+! if coupled
+        call exchange_grid_data(nsteps)
+        call create_map_cfd_md        
+
 	return
 end
 
@@ -123,16 +128,16 @@ end
 
 subroutine simulation_free()
 	use simulation
-
 	call poisson_free()
 
 	return
 end
 !=======================================================================
 subroutine simulation_run()
+        use mpi
 	use simulation
         use messenger, only : myid
-        use coupler_cfd_communication, only : recv_vel_MD
+        use continuum_coupler_socket, only : send_CFDvel
 
 	stime_ = stime
 	ntime_ = ntime
@@ -149,12 +154,19 @@ subroutine simulation_run()
 		after = realClock()
 		cpu_cflcal= (after - before) - t_over
 
+! if coupled send accros velocity field for continuum force contribution
+                call send_CFDvel
+                
+                write(0,*) 'CFD: before barrier'
+
+!                call mpi_barrier(MPI_COMM_WORLD,ierr)
+!                call mpi_abort(MPI_COMM_WORLD,1,ierr)
+
 		!----------------------------------------
 		!    Set Boundary Conditions
 		!----------------------------------------
 		before = realClock()
                         write(0,*) 'fd: myid, ntime_, ntime, nsteps', myid, ntime_,ntime,nsteps
-                        call  recv_vel_MD
 
 			call timeDependent_Inlet_BC(dt)		!--- Inlet FST + Convective outflow
 			call CartesianBC(dt)			!--- No Slip   + Blasius upper surface
