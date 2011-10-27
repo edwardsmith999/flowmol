@@ -75,6 +75,13 @@ F77_GNU := ftn
 CC_GNU  := cc
 LD_GNU  := ftn -fdefault-real-8 -fdefault-double-8
 
+# HECToR PGI
+
+F90_PGI := ftn -r8 
+F77_PGI := ftn -r8
+CC_PGI  := cc
+LD_PGI  := ftn -r8 
+
 F90 := $(F90_$(COMP))
 F77 := $(F77_$(COMP))
 CC  := $(cc_$(COMP))

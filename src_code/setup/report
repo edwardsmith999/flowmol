@@ -1,9 +1,9 @@
 
   ----- Variables in Archive ---------------------------------
 
-  irestart           0  |  nx               259  |  ny               131 
-  nz                 7  |  xL          100.0000  |  yL           20.0000 
-  zL            1.0000  | *y            -0.1562  | *ym           -0.0781 
+  irestart           0  |  nx               259  |  ny               131
+  nz                 7  |  xL          100.0000  |  yL           20.0000
+  zL            1.0000  | *y            -0.1563  | *ym           -0.0781
 
   Number of variables:    9
 

@@ -19,7 +19,6 @@ contains
 
 subroutine main_init()
         use data, only : file_dir
-        use coupler_cfd_setup, only : exchange_grid_data, create_map_cfd_md
 
         !---- Make sure MPI Starts----
         call messenger_invoke()
@@ -62,9 +61,7 @@ subroutine main_init()
         call simulation_init()
         call statistics_init()
         
-! if coupled
-        call exchange_grid_data
-        call create_map_cfd_md
+
 
         return
 end subroutine main_init
