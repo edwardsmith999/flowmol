@@ -49,7 +49,7 @@ couette : CFD_TARGET := continuum.exe
 
 clean_all : clean_cfd clean_md clean_couette clean_cfd_coupler
 
-clean_couette_md : clean_couete clean_md clean_cfd_coupler
+clean_couette_md : clean_couette clean_md clean_cfd_coupler
 
 clean_cfd :
 	cd  $(CFD_SRC_PATH) && $(MAKE) clean 
