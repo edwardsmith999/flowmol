@@ -9,7 +9,7 @@ module module_continuum_inputs
 	use physical_constants
 	use computational_constants
 	use grid_arrays
-        use data_export, only : file_dir
+        use continuum_data_export, only : file_dir
 
 end module module_continuum_inputs
 !----------------------------------------------------------------------------------

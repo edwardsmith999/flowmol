@@ -10,7 +10,7 @@ module module_continuum_record
 	!use computational_constants_MD
 	use computational_constants
 	use grid_arrays
-        use data_export, only : file_dir
+        use continuum_data_export, only : file_dir
 
 end module module_continuum_record
 !----------------------------------------------------------------------------------

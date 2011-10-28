@@ -13,7 +13,7 @@ F90_CUDA_MD_FILES = $(F90_MD_FILES:simulation_compute_forces.f90=simulation_comp
 
 CU_CUDA_MD_FILES = inter.cu inter2.cu
 
-F90_CONTINUUM = data_export.f90  continuum_modules.f90 continuum_coupler_socket_init$(COUPLER_SOCKET).f90 messenger.MPI.noglobal_blocks.f90 continuum_advance_time.f90 continuum_calculate_flux.f90 continuum_coupler_socket$(COUPLER_SOCKET).f90 continuum_CFL.f90 continuum_finish.f90 continuum_mesh_gen.f90 continuum_read_inputs.f90 continuum_record.f90 continuum_set_BC.f90 continuum_set_parameters.f90 continuum_setup_macrostate.f90 continuum.f90 continuum_main.f90
+F90_CONTINUUM = continuum_data_export.f90  continuum_modules.f90 continuum_coupler_socket_init$(COUPLER_SOCKET).f90 continuum_messenger.f90 continuum_advance_time.f90 continuum_calculate_flux.f90 continuum_coupler_socket$(COUPLER_SOCKET).f90 continuum_CFL.f90 continuum_finish.f90 continuum_mesh_gen.f90 continuum_read_inputs.f90 continuum_record.f90 continuum_set_BC.f90 continuum_set_parameters.f90 continuum_setup_macrostate.f90 continuum.f90 continuum_main.f90
 
 F90_MD_FILES_P = $(patsubst parallel_io.serial.f90,parallel_io.MPI2.f90,$(patsubst messenger.serial.f90,messenger.MPI.f90,$(F90_MD_FILES)))
 
