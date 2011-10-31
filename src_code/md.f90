@@ -94,7 +94,7 @@ implicit none
 ! This is the inner loop, it should go around autocorrelation time
         do iter = 1, Nsteps		 	        	!Loop over specified output steps
 
-		call simulation_compute_forces_halfint		 	!Calculate forces on particles
+		call simulation_compute_forces_cells	 	!Calculate forces on particles
 
 		if (mod(iter,tplot) .eq. 0) then
 			call simulation_record		   	!Evaluate & write properties to file
@@ -103,11 +103,9 @@ implicit none
 			call mass_flux_averaging
 		endif
 
-!               call simulation_apply_constraint_forces  	!Apply force to prevent molecules leaving domain
-  
+		call simulation_apply_constraint_forces  	!Apply force to prevent molecules leaving domain
                 call simulation_apply_continuum_forces(iter)	!Apply force based on Nie,Chen an Robbins coupling
-
-		call simulation_move_particles			!Move particles as a result of forces
+		call simulation_move_particles_tag		!Move particles as a result of forces
 
 		if (vflux_outflag .ne. 0) then
 			call momentum_flux_averaging(vflux_outflag)

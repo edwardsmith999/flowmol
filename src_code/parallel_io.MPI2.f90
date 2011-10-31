@@ -125,6 +125,18 @@ implicit none
 
 end subroutine setup_inputs
 
+!-----------------------------------------------------------------------------
+! Subroutine:	setup_inputs
+! Author(s):	David Trevelyan & Edward Smith
+! Description:
+!		The input file MD.in contains capitalised keywords followed by
+!		numerical values. The "locate" subroutine rewinds to the beginning
+!		of MD.in and scans each line until the keyword is matched.
+!
+!		Consequently, the file position is set for the next statement to read
+!		the line underneath the previously "located" keyword. 
+!-----------------------------------------------------------------------------
+
 subroutine setup_inputs_locate
 	use module_parallel_io
 	implicit none
@@ -239,8 +251,12 @@ subroutine setup_inputs_locate
 
 end subroutine setup_inputs_locate
 
-!------------------------------------------------------------------------------
+!----------------------------------------------------------------------
+!
+!                    Restart Simulation inputs
 ! Set up inputs on every processor, based on the final state of a previous simulation
+!
+!----------------------------------------------------------------------
 
 subroutine setup_restart_inputs
 	use module_parallel_io
@@ -453,9 +469,15 @@ subroutine simulation_header
 	use calculated_properties_MD
 	implicit none
 
+	Character(8)  		:: the_date
+	Character(10)  		:: the_time
+
+	call date_and_time(the_date, the_time)
+
 	open(3,file=trim(file_dir)//'results/simulation_header')
 
-
+	write(3,*) 'Simulation run on Date;  sim_date ;', the_date
+	write(3,*) 'Simulation start time ;  sim_start_time ;', the_time
 	write(3,*) 'Number of Dimensions ;  nd ;', nd
 	write(3,*) 'Number of Particles ;  globalnp ;', globalnp
 	write(3,*) 'Time Step - delta t ;   delta_t ;',  delta_t
@@ -466,22 +488,49 @@ subroutine simulation_header
 	write(3,*) 'Initial Temperature ;   inputtemperature ;',  inputtemperature
 	write(3,*) 'Cut off distance ;  rcutoff ;', rcutoff
 	write(3,*) 'Neighbour List Delta r ;  delta_rneighbr ;', delta_rneighbr
-	write(3,*) 'Initial FCC unit size in x ;  initialunitsize_x ;', initialunitsize(1)
-	write(3,*) 'Initial FCC unit size in y ;  initialunitsize_y ;', initialunitsize(2)
-	write(3,*) 'Initial FCC unit size in z ;  initialunitsize_z ;', initialunitsize(3)
-	write(3,*) 'Domain in x ;  globaldomain_x  ;', globaldomain(1) 
-	write(3,*) 'Domain in y ;  globaldomain_y  ;', globaldomain(2) 
-	write(3,*) 'Domain in z ;  globaldomain_z  ;', globaldomain(3) 
+	write(3,*) 'Initial FCC unit size in x ;  initialunitsize(1) ;', initialunitsize(1)
+	write(3,*) 'Initial FCC unit size in y ;  initialunitsize(2) ;', initialunitsize(2)
+	write(3,*) 'Initial FCC unit size in z ;  initialunitsize(3) ;', initialunitsize(3)
+	write(3,*) 'Domain in x ;  globaldomain(1)  ;', globaldomain(1) 
+	write(3,*) 'Domain in y ;  globaldomain(2)  ;', globaldomain(2) 
+	write(3,*) 'Domain in z ;  globaldomain(3)  ;', globaldomain(3) 
 	write(3,*) 'Domain volume ;  volume ;', volume
-	write(3,*) 'Periodic Boundary Conditions in x ;  periodic_x ;', periodic(1)
-	write(3,*) 'Periodic Boundary Conditions in y ;  periodic_y ;', periodic(2)
-	write(3,*) 'Periodic Boundary Conditions in z ;  periodic_z ;', periodic(3)
-	write(3,*) 'Computational cells in x ;  globalncells_x ;',  ncells(1)*npx
-	write(3,*) 'Computational cells in y ;  globalncells_y  ;', ncells(2)*npy 
-	write(3,*) 'Computational cells in z ;  globalncells_z  ;', ncells(3)*npz 
-	write(3,*) 'Of size in x ;  cellsidelength_x ;', cellsidelength(1)
-	write(3,*) 'Of size in y ;  cellsidelength_y ;', cellsidelength(2)
-	write(3,*) 'Of size in z ;  cellsidelength_z ;', cellsidelength(3)
+	write(3,*) 'Periodic Boundary Conditions in x ;  periodic(1) ;', periodic(1)
+	write(3,*) 'Periodic Boundary Conditions in y ;  periodic(2) ;', periodic(2)
+	write(3,*) 'Periodic Boundary Conditions in z ;  periodic(3) ;', periodic(3)
+	write(3,*) 'Dist frm bot Fixed Mol in x; fixdistbot(1);', fixdistbottom(1)
+	write(3,*) 'Dist frm bot Fixed Mol in y; fixdistbot(2);', fixdistbottom(2)
+	write(3,*) 'Dist frm bot Fixed Mol in z; fixdistbot(3);', fixdistbottom(3)
+	write(3,*) 'Dist frm top Fixed Mol in x; fixdisttop(1);', fixdisttop(1)
+	write(3,*) 'Dist frm top Fixed Mol in y; fixdisttop(2);', fixdisttop(2)
+	write(3,*) 'Dist frm top Fixed Mol in z; fixdisttop(3);', fixdisttop(3)
+	write(3,*) 'Dist frm bot Tethered Mol in x; tethdistbot(1);', tethereddistbottom(1)
+	write(3,*) 'Dist frm bot Tethered Mol in y; tethdistbot(2);', tethereddistbottom(2)
+	write(3,*) 'Dist frm bot Tethered Mol in z; tethdistbot(3);', tethereddistbottom(3)
+	write(3,*) 'Dist frm top Tethered Mol in x; tethdisttop(1);', tethereddisttop(1)
+	write(3,*) 'Dist frm top Tethered Mol in y; tethdisttop(2);', tethereddisttop(2)
+	write(3,*) 'Dist frm top Tethered Mol in z; tethdisttop(3);', tethereddisttop(3)
+	write(3,*) 'Dist frm bot Sliding Mol in x; slidedistbot(1);', slidedistbottom(1)
+	write(3,*) 'Dist frm bot Sliding Mol in y; slidedistbot(2);', slidedistbottom(2)
+	write(3,*) 'Dist frm bot Sliding Mol in z; slidedistbot(3);', slidedistbottom(3)
+	write(3,*) 'Dist frm top Sliding Mol in x; slidedisttop(1);', slidedisttop(1)
+	write(3,*) 'Dist frm top Sliding Mol in y; slidedisttop(2);', slidedisttop(2)
+	write(3,*) 'Dist frm top Sliding Mol in z; slidedisttop(3);', slidedisttop(3)
+	write(3,*) 'Sliding velocity of wall in x; wallslidev(1);', wallslidev(1)
+	write(3,*) 'Sliding velocity of wall in y; wallslidev(2);', wallslidev(2)
+	write(3,*) 'Sliding velocity of wall in z; wallslidev(3);', wallslidev(3)
+	write(3,*) 'Dist frm bot NH Thermstat Mol in x; thermstatbot(1);', thermstatbottom(1)
+	write(3,*) 'Dist frm bot NH Thermstat Mol in y; thermstatbot(2);', thermstatbottom(2)
+	write(3,*) 'Dist frm bot NH Thermstat Mol in z; thermstatbot(3);', thermstatbottom(3)
+	write(3,*) 'Dist frm top NH Thermstat Mol in x; thermstattop(1);', thermstattop(1)
+	write(3,*) 'Dist frm top NH Thermstat Mol in y; thermstattop(2);', thermstattop(2)
+	write(3,*) 'Dist frm top NH Thermstat Mol in z; thermstattop(3);', thermstattop(3)
+	write(3,*) 'Computational cells in x ;  globalncells(1) ;',  ncells(1)*npx
+	write(3,*) 'Computational cells in y ;  globalncells(2)  ;', ncells(2)*npy 
+	write(3,*) 'Computational cells in z ;  globalncells(3)  ;', ncells(3)*npz 
+	write(3,*) 'Of size in x ;  cellsidelength(1) ;', cellsidelength(1)
+	write(3,*) 'Of size in y ;  cellsidelength(2) ;', cellsidelength(2)
+	write(3,*) 'Of size in z ;  cellsidelength(3) ;', cellsidelength(3)
 	write(3,*) 'Number of processors in x ;  npx ;', npx
 	write(3,*) 'Number of processors in y ;  npy ;', npy
 	write(3,*) 'Number of processors in z ;  npz ;', npz
@@ -494,21 +543,28 @@ subroutine simulation_header
 	write(3,*) '1st Random seed ;  seed_1 ;', seed(1)
 	write(3,*) '2nd Random seed ;  seed_2 ;', seed(2)
 	write(3,*)  'VMD flag ;  vmd_outflag ;', vmd_outflag
-	write(3,*)  'macro flag ;  macro_outflag	 ;', macro_outflag	
+	write(3,*)  'macro flag ;  macro_outflag	 ;', macro_outflag
+	write(3,*)  'mass flag ;  mass_outflag ;', mass_outflag	
 	write(3,*)  'velocity flag ;  velocity_outflag ;', velocity_outflag
 	write(3,*)  'Pressure flag ;  pressure_outflag ;', pressure_outflag
+	write(3,*)  'viscosity flag ;  viscosity_outflag ;', viscosity_outflag
+	write(3,*)  'mass flux flag ;  mflux_outflag ;', mflux_outflag
+	write(3,*)  'velocity flux flag ;  vflux_outflag ;', vflux_outflag
+	write(3,*)  'mass average steps ;  Nmass_ave ;', Nmass_ave
 	write(3,*)  'velocity average steps ;  Nvel_ave ;', Nvel_ave
 	write(3,*)  'pressure average steps ;  Nstress_ave ;', Nstress_ave
 	write(3,*)  'viscosity average samples ;  Nvisc_ave ;', Nvisc_ave
-	write(3,*)  'Velocity/stress Averaging Bins in x ;  globalnbins_x ;', globalnbins(1)
-	write(3,*)  'Velocity/stress Averaging Bins in y ;  globalnbins_y ;', globalnbins(2)
-	write(3,*)  'Velocity/stress Averaging Bins in z ;  globalnbins_z ;', globalnbins(3)
-	write(3,*)  'Of size in x ;  binsize_x  ;', globaldomain(1)/globalnbins(1) 
-	write(3,*)  'Of size in y ;  binsize_y  ;', globaldomain(2)/globalnbins(2) 
-	write(3,*)  'Of size in z ;  binsize_z  ;', globaldomain(3)/globalnbins(3) 
-	write(3,*)  'Bins per Processor in x ;  nbins_x ;', nbins(1)
-	write(3,*)  'Bins per Processor in y ;  nbins_y ;', nbins(2)
-	write(3,*)  'Bins per Processor in z ;  nbins_z ;', nbins(3)
+	write(3,*)  'mass flux average steps ;  Nmflux_ave ;', Nmflux_ave
+	write(3,*)  'velocity flux average steps ;  Nvflux_ave ;', Nvflux_ave
+	write(3,*)  'Velocity/stress Averaging Bins in x ;  globalnbins(1) ;', globalnbins(1)
+	write(3,*)  'Velocity/stress Averaging Bins in y ;  globalnbins(2) ;', globalnbins(2)
+	write(3,*)  'Velocity/stress Averaging Bins in z ;  globalnbins(3) ;', globalnbins(3)
+	write(3,*)  'Of size in x ;  binsize(1)  ;', globaldomain(1)/globalnbins(1) 
+	write(3,*)  'Of size in y ;  binsize(2)  ;', globaldomain(2)/globalnbins(2) 
+	write(3,*)  'Of size in z ;  binsize(3)  ;', globaldomain(3)/globalnbins(3) 
+	write(3,*)  'Bins per Processor in x ;  nbins(1) ;', nbins(1)
+	write(3,*)  'Bins per Processor in y ;  nbins(2) ;', nbins(2)
+	write(3,*)  'Bins per Processor in z ;  nbins(3) ;', nbins(3)
 	write(3,*)  'Number of Bins on outer Surface of each processor ;  nsurfacebins ;', nsurfacebins
 	write(3,*)  'Domain split into Planes for Pressure Averaging ; nplanes  ;',nplanes 
 	write(3,*)  'Separated by distance ;  planespacing  ;', planespacing 
@@ -1019,7 +1075,7 @@ subroutine mass_slice_io(ixyz)
 
 	!Write mass slice to file
 	inquire(iolength=length) slice_mass(1:nbins(ixyz))
-	open (unit=5, file="results/mslice",form="unformatted",access='direct',recl=length)
+	open (unit=5, file=trim(file_dir)//'results/mslice',form="unformatted",access='direct',recl=length)
 	write(5,rec=m) slice_mass(1:nbins(ixyz))
 	close(5,status='keep')
 
@@ -1104,7 +1160,7 @@ implicit none
 
 		m = iter/(tplot*Nvel_ave)
 		inquire(iolength=length) slice_momentum(1:nbins(ixyz),:)
-		open (unit=6, file="results/vslice",form="unformatted",access='direct',recl=length)
+		open (unit=6, file=trim(file_dir)//'results/vslice',form="unformatted",access='direct',recl=length)
 		write(6,rec=m) slice_momentum(1:nbins(ixyz),:)
 		close(6,status='keep')
 	endif

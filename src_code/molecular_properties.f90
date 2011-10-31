@@ -59,7 +59,7 @@ subroutine setup_tag
 
 	!Setup molecules with tethered potentials
 	tethereddistbottom(1) = 0.d0 !initialunitsize(1)
-	tethereddistbottom(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
+	tethereddistbottom(2) = 1.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
 	tethereddistbottom(3) = 0.d0 !initialunitsize(3)
 	tethereddisttop(1) = 0.d0 !initialunitsize(1)
 	tethereddisttop(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
@@ -70,7 +70,7 @@ subroutine setup_tag
 	thermstatbottom(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
 	thermstatbottom(3) = 0.d0 !initialunitsize(3)
 	thermstattop(1) = 0.d0 !initialunitsize(1)
-	thermstattop(2) = 0.d0 !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
+	thermstattop(2) = (ncells(2)-1)*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
 	thermstattop(3) = 0.d0 !initialunitsize(3)
 
 	!Set all molecules tag equal to zero (normal)
