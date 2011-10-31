@@ -10,11 +10,11 @@ ifeq ($(branch),cfd)
 endif
 
 LIBS :=
-
-FLAGS_intel_debug_cfd := -O0 -traceback -CB -check all -warn all,nodec,interfaces
+# -warn all,nodec,interfaces
+FLAGS_intel_debug_cfd := -O0 -traceback -CB -check all
 FLAGS_intel_opt_cfd   :=  -r8 -O3 -ip -funroll-loops   -par-report3 -mcmodel=large -i-dynamic
 
-FLAGS_intel_debug_md := -O0 -traceback -CB -check all -warn all,nodec,interfaces
+FLAGS_intel_debug_md := -O0 -traceback -CB -check all 
 FLAGS_intel_opt_md   := -O3 -funroll-loops
 
 FLAGS_$(COMP)_$(VERSION) := $(FLAGS_$(COMP)_$(VERSION)_$(branch))

@@ -139,8 +139,6 @@ obj/%.o: %.f90
 	$(F90) $(FLAGS) -c $< -o $@
 .cu.o:
 	$(CU) $(FLAGS_CUDA) -c $*.cu -o obj/$*.o
-
-
 #
 # Dependecies
 #

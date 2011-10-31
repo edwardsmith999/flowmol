@@ -209,15 +209,15 @@ subroutine set_parameters_global_domain_hybrid
 	integer                :: ixyz
 
 	! get the global domain lenghts from x, y, z array of CFD realm
-
+	print*, xL_md, yL_md, zL_md
 	globaldomain(1) = xL_md
 	globaldomain(2) = yL_md
 	globaldomain(3) = zL_md
 
 	! the number of particles is 
-
 	volume   = xL_md*yL_md*zL_md
 	globalnp = density*volume  ! sigma units
+	!globalnp=4*globalnp   !FCC structure in 3D had 4 molecules per unit cell
 
 !!$	globalnp=1      !Set number of particles to unity for loop below
 !!$	volume=1	!Set domain size to unity for loop below
@@ -229,7 +229,6 @@ subroutine set_parameters_global_domain_hybrid
 !!$	enddo
 !!$
 !!$	globalnp=4*globalnp   !FCC structure in 3D had 4 molecules per unit cell
-!!$
 !!$	!Initially assume molecules per processor are evenly split   corrected after position setup
 	np = globalnp / nproc					
 
@@ -247,6 +246,7 @@ subroutine set_parameters_global_domain_hybrid
 !		initialunitsize(ixyz) = globaldomain(ixyz) / initialnunits(ixyz)
 	enddo
 
+	print*, npx,npy,npz
 	write(0,*) 'set_parameter_global_domain_hybrid ', globalnp, np, domain, initialunitsize
 
 end subroutine set_parameters_global_domain_hybrid

@@ -34,7 +34,9 @@ implicit none
 ! call the coupler version.
 ! This is needed because the coupler has the information about the continuum grid
 
-call coupler_constrain_forces(np,pressure,r,a)
+	pressure = 2.5d0
+
+	call coupler_constrain_forces(np,pressure,r,a)
 
 !!$	integer	:: n
 !!$	double precision :: delta_y
