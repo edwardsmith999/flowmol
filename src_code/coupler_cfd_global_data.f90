@@ -81,6 +81,8 @@ contains
                 case (MD)
                         remote_leader = jaux(CFD)
                 end select
+
+		print*,color, jaux, remote_leader
                 
                 call mpi_intercomm_create(comm, comm_size - 1, MPI_COMM_WORLD,&
                         remote_leader, 1, CFD_MD_ICOMM, ierr)

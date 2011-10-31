@@ -613,7 +613,7 @@ subroutine coupler_constrain_forces(np,pressure,r,a)
         real(kind=kind(0.d0)), intent(inout) :: a(:,:)
         real(kind=kind(0.d0)), intent(in)    :: pressure, r(:,:)
 
-! locals
+	! locals
         real(kind=kind(0.d0)), parameter :: eps = 1.d-2 ! avoid singular forces for molecules that 
                                                         ! happend to be very close to y(jmax_overlap)
         integer n

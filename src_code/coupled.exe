@@ -1,0 +1,23 @@
+#!/bin/sh
+#
+if [ $# -lt 1 ]; then
+	echo ""
+        echo "Number of processors (#) for BOTH MD and CFD required to run coupled code"
+        echo "Parameter files under MD and CFD files define this, details below:"
+	echo ""
+	echo "========================================================================="
+	echo "MD param.inc files:"
+	cat ./../../MD_dCSE/src_code/param.inc
+	echo "========================================================================="
+	echo "CFD param.inc files:"
+	grep 'parameter (npx' ./../../CFD_dCSE/src_code/main_code_MG_ddType_dP/param.inc
+	echo "========================================================================="
+	echo "Couette param.inc files:"
+	cat ./../../Couette_serial/param.inc
+	echo "========================================================================="
+        echo "Input should be of form: ./coupled.exe #"
+        exit 1
+fi
+
+#Run Coupled code
+mpiexec -n $1 ./../../Couette_serial/continuum.exe  : ./../../MD_dCSE/src_code/md.exe

@@ -117,7 +117,6 @@ contains
   endif
 
 ! create inter-communicators
-
   if ( color == 1) then
 ! CFD side
    call mpi_intercomm_create(CFD_COMM,0,MPI_COMM_WORLD,nproc_cfd,1,CFD_MD_ICOMM,ierr)
