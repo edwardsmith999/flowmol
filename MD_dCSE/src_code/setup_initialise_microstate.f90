@@ -96,9 +96,16 @@ subroutine setup_initialise_parallel_position
                 p_units_ub(:) = ceiling(  (/ iblock,   jblock,    kblock /) &
                         * domain(:) / initialunitsize(:) )
                 nfcc_max = floor( globaldomain(:) / initialunitsize(:))
+
                 do j = 1, nd
                         p_units_ub(j) = min( p_units_ub(j), nfcc_max(j))
                 enddo
+                ! Let the last two cells free at top of the doamin in y direction
+                ! as this is the region in the constrain force acts 
+                if (jblock == npy) then 
+                       p_units_ub(2) = p_units_ub(2) - 1
+                endif
+
         else
                 p_units_lb(1) = (iblock-1)*floor(initialnunits(1)/real((npx),kind(0.d0)))
                 p_units_ub(1) =  iblock *ceiling(initialnunits(1)/real((npx),kind(0.d0)))

@@ -39,6 +39,11 @@ implicit none
 	enddo
 	enddo
 
+       ! debug assertion for constrained particles
+       if (jblock == npy .and.  any(r(:,2) > halfdomain(2))) then
+                write(0,*)'MD: some molecules are above top y boundary '
+       endif
+
 end subroutine simulation_move_particles
 
 !----------------------------------------------------------------------------------
@@ -146,7 +151,6 @@ implicit none
 			stop "Invalid molecular Tag"
 		end select
 	enddo
-
 
 end subroutine simulation_move_particles_tag
 

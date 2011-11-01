@@ -57,6 +57,7 @@ module messenger
 	integer, dimension(8,2) 	:: proc_topology_corner
 	integer, dimension(4,3,2) 	:: proc_topology_edge
 
+	logical :: Lperiodic(3)
 
 	double precision wallTime
 
@@ -90,20 +91,35 @@ subroutine messenger_init()
 	!include "mpif.h"
 
 	integer idims(nd)
-        integer npt, ndims, ip, ixyz
-	logical Lperiodic(nd), Lremain_dims(nd)
+        integer npt, ndims, ip, ixyz, iper(3)
+	logical  Lremain_dims(nd)
 
 	! Initialize MPI
 	call MPI_comm_size (MD_COMM, npt, ierr)
 	call MPI_comm_rank (MD_COMM, myid, ierr)
 	if (npt .ne. nproc) stop "Wrong number of processors"
 
+        ! Get the periodic constrains form MD.in
+        open(1,file=trim(file_dir)//'MD.in')
+
+        call locate(1,'PERIODIC')
+	read(1,*) iper(1)
+	read(1,*) iper(2)
+	if (nd.eq.3) read(1,*) iper(3)
+
+	close(1,status='keep')      !Close input file
+
+        ! set Lperiodic
+        Lperiodic(1:nd) = .true.
+        where(iper(1:nd) == 0) Lperiodic(1:nd) =.false.  
+        write(0,*) 'Lperiodic ', Lperiodic
+
 	! Grid topology
 	ndims = nd
 	idims(1) = npx
 	idims(2) = npy
 	idims(3) = npz
-	Lperiodic = .true.
+
 	call MPI_Cart_create(MD_COMM, ndims, idims, Lperiodic, .true., &
 	                     icomm_grid, ierr)
 
@@ -178,11 +194,17 @@ subroutine messenger_proc_topology()
 		!topology but causes problems with some mpi flags and compilers)
 
 		pshiftcoords(1)=modulo(pshiftcoords(1),npx)
-		pshiftcoords(2)=modulo(pshiftcoords(2),npy)
+                if (Lperiodic(2)) then
+		        pshiftcoords(2)=modulo(pshiftcoords(2),npy)
+                endif
 		pshiftcoords(3)=modulo(pshiftcoords(3),npz)
 
 		!Obtain destination processor id
-		call MPI_Cart_rank(icomm_grid,pshiftcoords,idest,ierr)
+                if (pshiftcoords(2) < 0 .or. pshiftcoords(2) >= npy )then
+                        idest = MPI_PROC_NULL
+                else
+		        call MPI_Cart_rank(icomm_grid,pshiftcoords,idest,ierr)
+                endif
 		!Add to array
 		proc_topology_edge(i,1,1) = idest
 
@@ -194,11 +216,17 @@ subroutine messenger_proc_topology()
 		!Adjust for periodic boundaries (works using -ve numbers and periodic 
 		!topology but causes problems with some mpi flags and compilers)
 		pshiftcoords(1)=modulo(pshiftcoords(1),npx)
-		pshiftcoords(2)=modulo(pshiftcoords(2),npy)
+                if (Lperiodic(2)) then
+		        pshiftcoords(2)=modulo(pshiftcoords(2),npy)
+                endif
 		pshiftcoords(3)=modulo(pshiftcoords(3),npz)
 
 		!Obtain source processor id
-		call MPI_Cart_rank(icomm_grid,pshiftcoords,isource,ierr)
+                if (pshiftcoords(2) < 0 .or. pshiftcoords(2) >= npy )then
+                        isource = MPI_PROC_NULL
+                else
+		        call MPI_Cart_rank(icomm_grid,pshiftcoords,isource,ierr)
+                endif
 		!Add to array
 		proc_topology_edge(i,1,2) = isource
 
@@ -210,11 +238,17 @@ subroutine messenger_proc_topology()
 		!Adjust for periodic boundaries (works using -ve numbers and periodic 
 		!topology but causes problems with some mpi flags and compilers)
 		pshiftcoords(1)=modulo(pshiftcoords(1),npx)
-		pshiftcoords(2)=modulo(pshiftcoords(2),npy)
+                if (Lperiodic(2)) then
+		        pshiftcoords(2)=modulo(pshiftcoords(2),npy)
+                endif
 		pshiftcoords(3)=modulo(pshiftcoords(3),npz)
 
 		!Obtain destination processor id
-		call MPI_Cart_rank(icomm_grid,pshiftcoords,idest,ierr)
+                if (pshiftcoords(2) < 0 .or. pshiftcoords(2) >= npy )then
+                        idest = MPI_PROC_NULL
+                else
+		        call MPI_Cart_rank(icomm_grid,pshiftcoords,idest,ierr)
+                endif
 		!Add to array
 		proc_topology_edge(i,2,1) = idest
 
@@ -241,11 +275,17 @@ subroutine messenger_proc_topology()
 		!Adjust for periodic boundaries (works using -ve numbers and periodic 
 		!topology but causes problems with some mpi flags and compilers)
 		pshiftcoords(1)=modulo(pshiftcoords(1),npx)
-		pshiftcoords(2)=modulo(pshiftcoords(2),npy)
+                if (Lperiodic(2)) then
+		        pshiftcoords(2)=modulo(pshiftcoords(2),npy)
+                endif
 		pshiftcoords(3)=modulo(pshiftcoords(3),npz)
 
 		!Obtain destination processor id
-		call MPI_Cart_rank(icomm_grid,pshiftcoords,idest,ierr)
+                if (pshiftcoords(2) < 0 .or. pshiftcoords(2) >= npy )then
+                        idest = MPI_PROC_NULL
+                else
+		        call MPI_Cart_rank(icomm_grid,pshiftcoords,idest,ierr)
+                endif
 		!Add to array
 		proc_topology_edge(i,3,1) = idest
 
@@ -257,11 +297,17 @@ subroutine messenger_proc_topology()
 		!Adjust for periodic boundaries (works using -ve numbers and periodic 
 		!topology but causes problems with some mpi flags and compilers)
 		pshiftcoords(1)=modulo(pshiftcoords(1),npx)
-		pshiftcoords(2)=modulo(pshiftcoords(2),npy)
+                if (Lperiodic(2)) then
+		        pshiftcoords(2)=modulo(pshiftcoords(2),npy)
+                endif
 		pshiftcoords(3)=modulo(pshiftcoords(3),npz)
 
 		!Obtain source processor id
-		call MPI_Cart_rank(icomm_grid,pshiftcoords,isource,ierr)
+                if (pshiftcoords(2) < 0 .or. pshiftcoords(2) >= npy )then
+                        isource = MPI_PROC_NULL
+                else
+		        call MPI_Cart_rank(icomm_grid,pshiftcoords,isource,ierr)
+                endif
 		!Add to array
 		proc_topology_edge(i,3,2) = isource
 
@@ -287,10 +333,16 @@ subroutine messenger_proc_topology()
 		!Adjust for periodic boundaries (works using -ve numbers and periodic 
 		!topology but causes problems with some mpi flags and compilers)
 		pshiftcoords(1)=modulo(pshiftcoords(1),npx)
-		pshiftcoords(2)=modulo(pshiftcoords(2),npy)
+                if (Lperiodic(2)) then 
+             	        pshiftcoords(2)=modulo(pshiftcoords(2),npy)
+                endif
 		pshiftcoords(3)=modulo(pshiftcoords(3),npz)
 
-		call MPI_Cart_rank(icomm_grid,pshiftcoords,idest,ierr)
+                if (pshiftcoords(2) < 0 .or. pshiftcoords(2) >= npy) then
+                        idest = MPI_PROC_NULL
+                else
+		        call MPI_Cart_rank(icomm_grid,pshiftcoords,idest,ierr)
+                endif
 		!Add to array
 		proc_topology_corner(i,1) = idest
 
@@ -302,10 +354,16 @@ subroutine messenger_proc_topology()
 		!Adjust for periodic boundaries (works using -ve numbers and periodic 
 		!topology but causes problems with some mpi flags and compilers)
 		pshiftcoords(1)=modulo(pshiftcoords(1),npx)
-		pshiftcoords(2)=modulo(pshiftcoords(2),npy)
+                if (Lperiodic(2)) then
+          	        pshiftcoords(2)=modulo(pshiftcoords(2),npy)
+                endif
 		pshiftcoords(3)=modulo(pshiftcoords(3),npz)
 
-		call MPI_Cart_rank(icomm_grid,pshiftcoords,isource,ierr)
+                if (pshiftcoords(2) < 0 .or. pshiftcoords(2) >= npy) then
+                        isource = MPI_PROC_NULL
+                else
+		        call MPI_Cart_rank(icomm_grid,pshiftcoords,isource,ierr)
+                endif
 		!Add to array
 		proc_topology_corner(i,2) = isource
 
@@ -363,11 +421,11 @@ subroutine messenger_updateborders()
 
 	!Update faces of domain
 	call updatefacedown(1)
-	call updatefacedown(2)
+        call updatefacedown(2)
 	call updatefacedown(3)
 
 	call updatefaceup(1)
-	call updatefaceup(2)
+        call updatefaceup(2)
 	call updatefaceup(3)
 
 	!Update edges of domain
