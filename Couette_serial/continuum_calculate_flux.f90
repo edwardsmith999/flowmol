@@ -213,7 +213,7 @@ implicit none
 
 		!Evaluate flux for face 4 [i,j-1/2]
 
-		tau_xx(i,j,4) = (ucc(i,j,4) - ucc(i,j,3))/delta_x(j)
+		tau_xx(i,j,4) = (ucc(i,j,4) - ucc(i,j,3))/delta_x(i)
 		tau_xy(i,j,4) = (uc_t(i,j) - uc_t(i,j-1))/delta_y(j)     
 		tau_yx(i,j,4) = (vcc(i,j,4) - vcc(i,j,3))/delta_x(i)		       	
 		tau_yy(i,j,4) = (vc_t(i,j) - vc_t(i,j-1))/delta_y(j)
@@ -231,10 +231,10 @@ implicit none
 		do n = 1, 4
 			xres_t(i,j) = xres_t(i,j) &
 				    + tau_xx(i,j,n)*sx(i,n) &
-				    + tau_xy(i,j,n)*sy(i,n)
+				    + tau_xy(i,j,n)*sy(j,n)
 			yres_t(i,j) = yres_t(i,j) &
 				    + tau_yx(i,j,n)*sx(i,n) &
-				    + tau_yy(i,j,n)*sy(i,n)  
+				    + tau_yy(i,j,n)*sy(j,n)  
 		enddo
 
 	enddo
