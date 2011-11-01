@@ -210,9 +210,9 @@ implicit none
 	virial = 0.d0     !Reset virial sum before calculation
 	virialmol = 0.d0  !Reset virial sum per molecule before calculation
 
-	do kcell=2, ncells(1)+1
+	do kcell=2, ncells(3)+1
 	do jcell=2, ncells(2)+1
-	do icell=2, ncells(3)+1
+	do icell=2, ncells(1)+1
 
 		!print*, icell, jcell, kcell
 
