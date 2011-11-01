@@ -26,7 +26,7 @@ module coupler_cfd_global_data
 
         type(bbox),target :: bbox_cfd, bbox_md
 
-        integer :: jmax_overlap = 4 ! maximum j index ( in y direction) which MD has to cover, on top of that it has to cover y(0):y(1) domain and a bit of room
+        integer :: jmax_overlap = 5 ! maximum j index ( in y direction) which MD has to cover, on top of that it has to cover y(0):y(1) domain and a bit of room
                                     ! below
 
 ! MD data

@@ -123,8 +123,8 @@ subroutine exchange_grid_data
 
 	! set the sizes of MD box
 
-	DY_PURE_MD = (y(jmin_cfd) - y(jmino)) ! prototype
-
+	DY_PURE_MD = 15.6d0+3.0d0 - (y(jmin_cfd) - y(jmino)) ! prototype
+        !                   ^^^^^approximation for the 2 cells of the wall
 	xL_md = (x(imax_cfd) - x(imin_cfd))
 	yL_md = (y(jmax_overlap_cfd) - y(jmino) +&
 	 & DY_PURE_MD)		   
