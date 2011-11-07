@@ -403,7 +403,7 @@ subroutine setup_restart_microstate
   	call MPI_type_size(MPI_double_precision,dp_datasize,ierr)
 
 	!Open restart file on all processor
-	call MPI_FILE_OPEN(MD_COMM, 'final_state', & 
+	call MPI_FILE_OPEN(MPI_COMM_WORLD, 'final_state', & 
 		MPI_MODE_RDONLY , MPI_INFO_NULL, restartfileid, ierr)
 
 	nl = 0		!Reset local molecules count nl
@@ -453,6 +453,11 @@ subroutine setup_restart_microstate
 	!Close and remove final state file from directory
 	call MPI_FILE_CLOSE(restartfileid, ierr) 
 	call MPI_FILE_DELETE('final_state', MPI_INFO_NULL, ierr)
+
+	call setup_tag				!Setup location of fixed molecules
+	do n = 1,np
+		call read_tag(n)		!Read tag and assign properties
+	enddo
 
 end subroutine setup_restart_microstate
 

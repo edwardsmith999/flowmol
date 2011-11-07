@@ -46,7 +46,7 @@ DELTA_T
 #	(subroutine simulation_record is called)
 # -----------------------------------------------------------------------
 TPLOT
-100
+1
 
 #########################################################################
 # Extra distance added to r_cutoff to determine neighbour cell size

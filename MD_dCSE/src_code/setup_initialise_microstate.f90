@@ -83,37 +83,62 @@ end subroutine setup_initialise_position
 subroutine setup_initialise_parallel_position
 	use module_initialise_microstate
         use messenger
-	use coupler_md_global_data, only : use_coupling
+	!use coupler_md_global_data, only : use_coupling, y
+	!use coupler_md_setup, only : jmax_overlap_cfd
 	implicit none
 
-	integer :: j, ixyz, n, nl, nx, ny, nz
-	integer,dimension(nd) :: p_units_lb, p_units_ub, nfcc_max
-	double precision, dimension (nd) :: rc, c !Temporary variable
+	integer 			:: j, ixyz, n, nl, nx, ny, nz
+	integer,dimension(nd) 		:: p_units_lb, p_units_ub, nfcc_max
+	double precision 		:: CFD_region
+	double precision, dimension (nd):: rc, c !Temporary variable
 
-        if ( use_coupling ) then
-                p_units_lb(:) = floor( (/ iblock-1, jblock -1, kblock - 1 /) &
-                        * domain(:) / initialunitsize(:) ) 
-                p_units_ub(:) = ceiling(  (/ iblock,   jblock,    kblock /) &
-                        * domain(:) / initialunitsize(:) )
-                nfcc_max = floor( globaldomain(:) / initialunitsize(:))
+        p_units_lb(1) = (iblock-1)*floor(initialnunits(1)/real((npx),kind(0.d0)))
+        p_units_ub(1) =  iblock *ceiling(initialnunits(1)/real((npx),kind(0.d0)))
+        p_units_lb(2) = (jblock-1)*floor(initialnunits(2)/real((npy),kind(0.d0)))
+        p_units_ub(2) =  jblock *ceiling(initialnunits(2)/real((npy),kind(0.d0)))
+        p_units_lb(3) = (kblock-1)*floor(initialnunits(3)/real((npz),kind(0.d0)))
+        p_units_ub(3) =  kblock *ceiling(initialnunits(3)/real((npz),kind(0.d0)))
 
-                do j = 1, nd
-                        p_units_ub(j) = min( p_units_ub(j), nfcc_max(j))
-                enddo
-                ! Let the last two cells free at top of the doamin in y direction
-                ! as this is the region in the constrain force acts 
-                if (jblock == npy) then 
-                       p_units_ub(2) = p_units_ub(2) - 1
-                endif
 
-        else
-                p_units_lb(1) = (iblock-1)*floor(initialnunits(1)/real((npx),kind(0.d0)))
-                p_units_ub(1) =  iblock *ceiling(initialnunits(1)/real((npx),kind(0.d0)))
-                p_units_lb(2) = (jblock-1)*floor(initialnunits(2)/real((npy),kind(0.d0)))
-                p_units_ub(2) =  jblock *ceiling(initialnunits(2)/real((npy),kind(0.d0)))
-                p_units_lb(3) = (kblock-1)*floor(initialnunits(3)/real((npz),kind(0.d0)))
-                p_units_ub(3) =  kblock *ceiling(initialnunits(3)/real((npz),kind(0.d0)))
-        endif
+	!print*, 'y', y
+	!print*,'SETUP', y(jmax_overlap_cfd),halfdomain(2), halfdomain(2)-5.2, y(jmax_overlap_cfd-1)
+
+	!Set CFD region to top of domain initially
+	CFD_region = domain(2)/2.d0
+	if (jblock .eq. npy) then
+		if ( use_coupling ) CFD_region = domain(2)/2.d0 - 2*cellsidelength(2)
+	endif
+
+       ! if ( use_coupling ) then
+                ! Let the last two cells free at top of the domain in y direction
+                ! as this is the region the constrain force acts on
+        !        if (jblock == npy) CFD_region = domain(2)/2.d0 - 2*cellsidelength(2)
+	!else
+	!	CFD_region = domain(2)/2.d0	!Top of processor domain
+	!endif
+
+               ! p_units_lb(:) = floor( (/ iblock-1, jblock -1, kblock - 1 /) &
+               !         * domain(:) / initialunitsize(:) ) 
+               ! p_units_ub(:) = ceiling(  (/ iblock,   jblock,    kblock /) &
+               !         * domain(:) / initialunitsize(:) )
+               ! nfcc_max = floor( globaldomain(:) / initialunitsize(:))
+
+               ! do j = 1, nd
+               !         p_units_ub(j) = min( p_units_ub(j), nfcc_max(j))
+               ! enddo
+
+               ! if (jblock == npy) then 
+               !        p_units_ub(2) = p_units_ub(2) - 1
+               ! endif
+
+        !else
+        !        p_units_lb(1) = (iblock-1)*floor(initialnunits(1)/real((npx),kind(0.d0)))
+        !        p_units_ub(1) =  iblock *ceiling(initialnunits(1)/real((npx),kind(0.d0)))
+        !        p_units_lb(2) = (jblock-1)*floor(initialnunits(2)/real((npy),kind(0.d0)))
+        !        p_units_ub(2) =  jblock *ceiling(initialnunits(2)/real((npy),kind(0.d0)))
+        !        p_units_lb(3) = (kblock-1)*floor(initialnunits(3)/real((npz),kind(0.d0)))
+        !        p_units_ub(3) =  kblock *ceiling(initialnunits(3)/real((npz),kind(0.d0)))
+       ! endif
 	!print*, p_units_lb, p_units_ub
 
 	!Molecules per unit FCC structure (3D)
@@ -121,39 +146,42 @@ subroutine setup_initialise_parallel_position
 	nl = 0		!Reset nl
 	do nz=p_units_lb(3),p_units_ub(3)	!Loop over z column
 	c(3) = (nz - 0.75d0)*initialunitsize(3) - halfdomain(3) 
-		do ny=p_units_lb(2),p_units_ub(2)	!Loop over y column
-		c(2) = (ny - 0.75d0)*initialunitsize(2) - halfdomain(2) 
-			do nx=p_units_lb(1),p_units_ub(1)	!Loop over all x elements of y column
-			c(1) = (nx - 0.75d0)*initialunitsize(1) - halfdomain(1)
-				do j=1,4	!4 Molecules per cell
-					do ixyz=1,nd	!For all dimensions
-						if(j.eq.ixyz .or. j.eq.4) then
-							rc(ixyz)=c(ixyz)
-						else
-							rc(ixyz)=c(ixyz)+0.5d0*initialunitsize(ixyz)
-						endif
-					enddo
-
-					n = n + 1	!Move to next molecule
-
-					!Check if molecule is in domain of processor
-					if(rc(1).lt.-halfdomain(1)+domain(1)*(iblock-1)) cycle
-					if(rc(1).ge. halfdomain(1)+domain(1)*(iblock-1)) cycle
-					if(rc(2).lt.-halfdomain(2)+domain(2)*(jblock-1)) cycle
-					if(rc(2).ge. halfdomain(2)+domain(2)*(jblock-1)) cycle
-					if(rc(3).lt.-halfdomain(3)+domain(3)*(kblock-1)) cycle
-					if(rc(3).ge. halfdomain(3)+domain(3)*(kblock-1)) cycle
-
-					!If molecules is in the domain then add to total
-					nl = nl + 1 !Local molecule count
-
-					!Correct to local coordinates
-					r(nl,1) = rc(1)-domain(1)*(iblock-1)
-					r(nl,2) = rc(2)-domain(2)*(jblock-1)
-					r(nl,3) = rc(3)-domain(3)*(kblock-1)
-				enddo
+	do ny=p_units_lb(2),p_units_ub(2)	!Loop over y column
+	c(2) = (ny - 0.75d0)*initialunitsize(2) - halfdomain(2) 
+	do nx=p_units_lb(1),p_units_ub(1)	!Loop over all x elements of y column
+	c(1) = (nx - 0.75d0)*initialunitsize(1) - halfdomain(1)
+		do j=1,4	!4 Molecules per cell
+			do ixyz=1,nd	!For all dimensions
+				if(j.eq.ixyz .or. j.eq.4) then
+					rc(ixyz)=c(ixyz)
+				else
+					rc(ixyz)=c(ixyz)+0.5d0*initialunitsize(ixyz)
+				endif
 			enddo
+
+			n = n + 1	!Move to next molecule
+
+			!Remove molecules from top of domain if constraint applied
+			if (rc(2)-domain(2)*(jblock-1) .gt.  CFD_region) cycle
+
+			!Check if molecule is in domain of processor
+			if(rc(1).lt.-halfdomain(1)+domain(1)*(iblock-1)) cycle
+			if(rc(1).ge. halfdomain(1)+domain(1)*(iblock-1)) cycle
+			if(rc(2).lt.-halfdomain(2)+domain(2)*(jblock-1)) cycle
+			if(rc(2).ge. halfdomain(2)+domain(2)*(jblock-1)) cycle
+			if(rc(3).lt.-halfdomain(3)+domain(3)*(kblock-1)) cycle
+			if(rc(3).ge. halfdomain(3)+domain(3)*(kblock-1)) cycle
+
+			!If molecules is in the domain then add to total
+			nl = nl + 1 !Local molecule count
+
+			!Correct to local coordinates
+			r(nl,1) = rc(1)-domain(1)*(iblock-1)
+			r(nl,2) = rc(2)-domain(2)*(jblock-1)
+			r(nl,3) = rc(3)-domain(3)*(kblock-1)
 		enddo
+	enddo
+	enddo
 	enddo
 
 	np = nl			!Correct local number of particles on processor
@@ -167,82 +195,17 @@ subroutine setup_initialise_parallel_position
 	!processe's subdomain on current proccess
 	call globalGathernp
 
+	if (use_coupling) then
+		print*, '*********************************************************************'
+		print*, '*WARNING - TOP LAYER OF DOMAIN REMOVED IN LINE WITH CONSTRAINT FORCE*'
+		print*, 'Removed from', CFD_region, 'to Domain top', globaldomain(2)/2.d0
+		print*, 'Number of molecules reduced from',  & 
+			 4*initialnunits(1)*initialnunits(2)*initialnunits(3), 'to', np
+		print*, '*********************************************************************'
+	endif
+
 
 end subroutine setup_initialise_parallel_position
-
-!----------------------------------------------------------------------------------
-!Create an array of fixed molecules
-
-subroutine setup_fix
-	use module_initialise_microstate
-	implicit none
-
-	integer :: n, mol_layers
-	double precision, dimension(3) :: fixdist
-
-	!For initialunitsize "a"
-	!		 [  o     o ]
-	!a (1 cell size) [     o    ]  a/2 (distance between molcules)	
-	!		 [  o     o
-	!		  __________]  a/4 (distance from bottom of domain)
-	!
-	!So use (0.20+0.5d0*mol_layers)*initialunitsize(ixyz)
-
-	
-	mol_layers = 2
-
-	!+0.2 to include gap between wall and 1st molecule
-	fixdist(1) = 0.d0 !initialunitsize(1)
-	fixdist(2) = 2.d0 !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
-	fixdist(3) = 0.d0 !initialunitsize(3)
-
-	!Set all molecules fix equal to one (unfixed)
-	fix = 1
-
-	!Fix x bottom
-	if (iblock .eq. 1) then
-		do n = 1 , np
-			if(r(n,1).lt.-halfdomain(1)+fixdist(1)) fix(n,:) = 0
-		enddo
-	endif
-		
-	!Fix x top	
-	if (iblock .eq. npx) then
-		do n = 1 , np
-			if(r(n,1).ge. halfdomain(1)-fixdist(1)) fix(n,:) = 0
-		enddo
-	endif
-
-	!Fix y bottom
-	if (jblock .eq. 1) then
-		do n = 1 , np
-			if(r(n,2).lt.-halfdomain(2)+fixdist(2)) fix(n,:) = 0
-			if(r(n,2).lt.-halfdomain(2)+fixdist(2)) slidev(n,1) = 3.0d0
-		enddo
-	endif
-
-	!Fix y top
-	if (jblock .eq. npy) then
-		do n = 1 , np
-			if(r(n,2).ge. halfdomain(2)-fixdist(2)) fix(n,:) = 0 
-		enddo
-	endif
-
-	!Fix z bottom
-	if (kblock .eq. 1) then
-		do n = 1 , np
-			if(r(n,3).lt.-halfdomain(3)+fixdist(3)) fix(n,:) = 0
-		enddo
-	endif
-
-	!Fix z top
-	if (kblock .eq. npz) then
-		do n = 1 , np
-			if(r(n,3).ge. halfdomain(3)-fixdist(3)) fix(n,:) = 0
-		enddo
-	endif
-
-end subroutine setup_fix
 
 !----------------------------------------------------------------------------------
 !----------------------------------------------------------------------------------

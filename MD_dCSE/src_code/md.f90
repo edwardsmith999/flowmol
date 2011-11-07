@@ -84,14 +84,11 @@ implicit none
 	integer :: rebuild    !Flag set by check rebuild to determine if linklist rebuild required
         integer icfd
 
-! why is iter not declared here?
-! why initialstep increases by 1?
-
         initialstep = initialstep + 1			   	!Increment initial step by one 
 
         do icfd = 1, nsteps_cfd + 1   ! +1 isfor the initialisation step of CFD
 
-! This is the inner loop, it should go around autocorrelation time
+	! This is the inner loop, it should go around autocorrelation time
         do iter = 1, Nsteps		 	        	!Loop over specified output steps
 
 		call simulation_compute_forces_cells	 	!Calculate forces on particles
@@ -131,8 +128,8 @@ implicit none
 
         enddo
 
-! Average the boundary velocity and send the results to CFD
-                call boundary_box_average(send_data=.true.)
+	! Average the boundary velocity and send the results to CFD
+        call boundary_box_average(send_data=.true.)
 
         enddo
 
