@@ -89,7 +89,7 @@ subroutine setup_initialise_parallel_position
 
 	integer 			:: j, ixyz, n, nl, nx, ny, nz
 	integer,dimension(nd) 		:: p_units_lb, p_units_ub, nfcc_max
-	double precision 		:: CFD_region
+	double precision 		:: CFD_region, removed_height
 	double precision, dimension (nd):: rc, c !Temporary variable
 
         p_units_lb(1) = (iblock-1)*floor(initialnunits(1)/real((npx),kind(0.d0)))
@@ -105,8 +105,9 @@ subroutine setup_initialise_parallel_position
 
 	!Set CFD region to top of domain initially
 	CFD_region = domain(2)/2.d0
+	removed_height = 2*cellsidelength(2)
 	if (jblock .eq. npy) then
-		if ( use_coupling ) CFD_region = domain(2)/2.d0 - 2*cellsidelength(2)
+		if ( use_coupling ) CFD_region = domain(2)/2.d0 - removed_height
 	endif
 
        ! if ( use_coupling ) then
@@ -162,7 +163,7 @@ subroutine setup_initialise_parallel_position
 			n = n + 1	!Move to next molecule
 
 			!Remove molecules from top of domain if constraint applied
-			if (rc(2)-domain(2)*(jblock-1) .gt.  CFD_region) cycle
+			if (rc(2) .gt. CFD_region) cycle
 
 			!Check if molecule is in domain of processor
 			if(rc(1).lt.-halfdomain(1)+domain(1)*(iblock-1)) cycle

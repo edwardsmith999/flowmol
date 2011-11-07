@@ -90,7 +90,6 @@ implicit none
 
 	!Step through each particle n
 	do n = 1,np        
-		if (tag(n) .ne. 0) print*, irank,n,np, tag(n)
 		select case (tag(n))
 		case (0)
 			!Leapfrog mean velocity calculated here at v(t+0.5delta_t) = v(t-0.5delta_t) + a*delta_t 
