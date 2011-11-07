@@ -1058,26 +1058,46 @@ end subroutine update_simulation_progress_file
 subroutine mass_slice_io(ixyz)
 	use module_parallel_io
 	use calculated_properties_MD
+	use messenger
 	implicit none
 
-	integer		:: ixyz,jxyz,kxyz, m, length
+	integer				:: ixyz,jxyz,kxyz
+	integer				:: slicefileid, int_datasize
+	integer(kind=MPI_OFFSET_KIND)   :: disp
+	
+	!Get two directions orthogonal to slice direction
+	kxyz = mod(ixyz,3)+1
+	jxyz = mod(ixyz+1,3)+1
 
-	!Sum over all bins using directional sub communicators
-	!call SubcommSumIntVect(slice_mass, nbins(jxyz), jxyz)
-	!call SubcommSumIntVect(slice_mass, nbins(kxyz), kxyz)
+	!Sum over all bins using directional sub communicators and gather on {ijk}block=1
+	call SubcommSumIntVect(slice_mass, nbins(ixyz), jxyz)
+	call SubcommSumIntVect(slice_mass, nbins(ixyz), kxyz)
 
-	!Gather on a single processor to write out
-	!call MPI_gather(slice_mass,nbins(1),MPI_integer, & 
-	!		globalslice_mass,nbins(1),MPI_integer, &
-	!		iroot-1,icomm_xyz(2),ierr)
+	!Only root processor in each directional subcomm writes data
+	if (icoord(jxyz,irank) .eq. 1 .and. icoord(kxyz,irank) .eq. 1) then
 
-	m = iter/(tplot*Nmass_ave)
+		!Determine size of datatypes
+		call MPI_type_size(MPI_Integer,int_datasize,ierr)
 
-	!Write mass slice to file
-	inquire(iolength=length) slice_mass(1:nbins(ixyz))
-	open (unit=5, file=trim(file_dir)//'results/mslice',form="unformatted",access='direct',recl=length)
-	write(5,rec=m) slice_mass(1:nbins(ixyz))
-	close(5,status='keep')
+		!Only processors on directional subcomm write
+		call MPI_FILE_OPEN(icomm_xyz(ixyz), './results/mslice', & 
+				   MPI_MODE_WRONLY+ MPI_MODE_CREATE , & 
+				   MPI_INFO_NULL, slicefileid, ierr)
+
+		!Obtain displacement of current record
+		disp =   (iter/(tplot*Nmass_ave) - 1) 	  	&	!Current iteration
+		       * globalnbins(ixyz)*int_datasize 	&	!Record size
+		       + nbins(ixyz)*int_datasize*(jblock-1)		!Processor location
+
+		call MPI_FILE_SET_VIEW(slicefileid, disp, MPI_INTEGER, & 
+	 				MPI_INTEGER, 'native', MPI_INFO_NULL, ierr)
+
+		call MPI_FILE_WRITE_ALL(slicefileid,slice_mass,nbins(ixyz), MPI_INTEGER, & 
+						MPI_STATUS_IGNORE, ierr)
+
+		call MPI_FILE_CLOSE(slicefileid, ierr)
+
+	endif 
 
 end subroutine mass_slice_io
 
@@ -1133,11 +1153,15 @@ end subroutine mass_bin_io
 ! Record velocity in a slice through the domain
 
 subroutine velocity_slice_io(ixyz)
-use module_parallel_io
-use calculated_properties_MD
-implicit none
+	use module_parallel_io
+	use calculated_properties_MD
+	use messenger
+	implicit none
 
-	integer		:: ixyz,jxyz,kxyz, m, length
+	integer				:: ixyz,jxyz,kxyz
+	integer				:: slicefileid, dp_datasize
+	integer,dimension(3)		:: idims
+	integer(kind=MPI_OFFSET_KIND)   :: disp
 
 	!Write mass
 	call mass_slice_io(ixyz)
@@ -1145,28 +1169,63 @@ implicit none
 	!Get two directions orthogonal to slice direction
 	kxyz = mod(ixyz,3)+1
 	jxyz = mod(ixyz+1,3)+1
+	idims(1) = npx; idims(2) = npy; idims(3) = npz
 
-	!Sum over all bins using directional sub communicators
-	!call SubcommSumVect(slice_momentum, nbins(jxyz), jxyz)
-	!call SubcommSumVect(slice_momentum, nbins(kxyz), kxyz)
+	!Sum over all bins using directional sub communicators and gather on root
+	call SubcommSumVect(slice_momentum(:,1), nbins(ixyz), jxyz)
+	call SubcommSumVect(slice_momentum(:,1), nbins(ixyz), kxyz)
+	call SubcommSumVect(slice_momentum(:,2), nbins(ixyz), jxyz)
+	call SubcommSumVect(slice_momentum(:,2), nbins(ixyz), kxyz)
+	call SubcommSumVect(slice_momentum(:,3), nbins(ixyz), jxyz)
+	call SubcommSumVect(slice_momentum(:,3), nbins(ixyz), kxyz)
 
-	!Gather on a single processor to write out
-	!call MPI_gather(slice_momentum,nbins(1),MPI_double_precision,  & 
-	!		globalslice_momentum,nbins(1),MPI_double_precision, & 
-	!		iroot-1,icomm_xyz(2),ierr)
+	!Only root processor in each directional subcomm writes data
+	if (icoord(jxyz,irank) .eq. 1 .and. icoord(kxyz,irank) .eq. 1) then
 
-	!Write velocity to file
-	if (irank .eq. iroot) then
+		call MPI_type_size(MPI_double_precision,dp_datasize,ierr)
 
-		m = iter/(tplot*Nvel_ave)
-		inquire(iolength=length) slice_momentum(1:nbins(ixyz),:)
-		open (unit=6, file=trim(file_dir)//'results/vslice',form="unformatted",access='direct',recl=length)
-		write(6,rec=m) slice_momentum(1:nbins(ixyz),:)
-		close(6,status='keep')
-	endif
+		!Only processors on directional subcomm write
+		call MPI_FILE_OPEN(icomm_xyz(ixyz), './results/vslice', & 
+				   MPI_MODE_WRONLY + MPI_MODE_CREATE , & 
+				   MPI_INFO_NULL, slicefileid, ierr)
+
+		!Obtain displacement of x record
+		disp =   (iter/(tplot*Nmass_ave) - 1) 	  	&	!Current iteration
+		       * nd*globalnbins(ixyz)*dp_datasize 	&	!times record size
+		       + nbins(ixyz)*dp_datasize*(jblock-1)		!Processor location
+
+		call MPI_FILE_SET_VIEW(slicefileid, disp, MPI_DOUBLE_PRECISION, & 
+	 				MPI_DOUBLE_PRECISION, 'native', MPI_INFO_NULL, ierr)
+		call MPI_FILE_WRITE_ALL(slicefileid,slice_momentum(:,1),nbins(ixyz), & 
+					MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE, ierr)
+
+		!Obtain displacement of y record
+		disp =   (iter/(tplot*Nmass_ave) - 1) 	  	&	!Current iteration
+		       * nd*globalnbins(ixyz)*dp_datasize 	&	!Record size
+		       + nbins(ixyz)*dp_datasize*(jblock-1)	&	!Processor location
+		       + nbins(ixyz)*dp_datasize*idims(ixyz)		!after x data 
+
+		call MPI_FILE_SET_VIEW(slicefileid, disp, MPI_DOUBLE_PRECISION, & 
+	 				MPI_DOUBLE_PRECISION, 'native', MPI_INFO_NULL, ierr)
+		call MPI_FILE_WRITE_ALL(slicefileid,slice_momentum(:,2),nbins(ixyz), & 
+					MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE, ierr)
+
+		!Obtain displacement of z record
+		disp =   (iter/(tplot*Nmass_ave) - 1) 	  	&	!Current iteration
+		       * nd*globalnbins(ixyz)*dp_datasize 	&	!Record size
+		       + nbins(ixyz)*dp_datasize*(jblock-1)	&	!Processor location
+		       + 2*nbins(ixyz)*dp_datasize*idims(ixyz)		!after x & y data 
+
+		call MPI_FILE_SET_VIEW(slicefileid, disp, MPI_DOUBLE_PRECISION, & 
+	 				MPI_DOUBLE_PRECISION, 'native', MPI_INFO_NULL, ierr)
+		call MPI_FILE_WRITE_ALL(slicefileid,slice_momentum(:,3),nbins(ixyz), & 
+					MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE, ierr)
+
+		call MPI_FILE_CLOSE(slicefileid, ierr)
+
+	endif 
 
 end subroutine velocity_slice_io
-
 
 !------------------------------------------------------------------------
 !A large scale routine with each proc writing its own bins in binary
