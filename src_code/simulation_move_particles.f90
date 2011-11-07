@@ -54,14 +54,14 @@ use module_move_particles
 use calculated_properties_MD
 implicit none
 
-	integer 		:: n, ixyz, thermostatnp
+	integer 		:: maxtag, n, ixyz, thermostatnp
 	double precision	:: vel, slice_momentum2, dzeta_dt, massheatbath
 	double precision	:: vreduce, relaxfactor, ascale, bscale
 
-
-
 	!Check if any molecules are thermostatted and calculate appropriate coefficients
-	if (maxval(tag) .ge. 4) then
+	maxtag = maxval(tag)
+	call globalMaxInt(maxtag)
+	if (maxtag .ge. 4) then
 		v2sum = 0.d0      ! Reset all sums
 		thermostatnp = 0
 		do n = 1, np    ! Loop over all particles
@@ -75,9 +75,11 @@ implicit none
 			thermostatnp = thermostatnp + 1
 		enddo
 
-		massheatbath = thermostatnp * delta_t
-
+		!Obtain global sums for all parameters
+		call globalSumInt(thermostatnp)
 		call globalSum(v2sum)	!Obtain global velocity sum
+
+		massheatbath = thermostatnp * delta_t
 
 		dzeta_dt = (v2sum - (nd*thermostatnp + 1)*inputtemperature) / massheatbath
 		zeta = zeta + delta_t*dzeta_dt
@@ -86,10 +88,9 @@ implicit none
 		ascale=(1-0.5*delta_t*zeta)*bscale
 	endif
 
-
 	!Step through each particle n
 	do n = 1,np        
-
+		if (tag(n) .ne. 0) print*, irank,n,np, tag(n)
 		select case (tag(n))
 		case (0)
 			!Leapfrog mean velocity calculated here at v(t+0.5delta_t) = v(t-0.5delta_t) + a*delta_t 
@@ -153,7 +154,6 @@ implicit none
 	enddo
 
 end subroutine simulation_move_particles_tag
-
 
 !----------------------------------------------------------------------------------
 ! SLLOD_move based on the extensive literature from Hoover, Evans etc
