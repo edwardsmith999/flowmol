@@ -57,6 +57,7 @@ module computational_constants_MD
 	integer		 	:: Nvflux_ave	     !Number of averages for each velocity flux
 	integer          	:: initialstep       !Initial step of simulation
 	integer          	:: Nsteps            !Total number of computational steps
+	integer			:: initise_steps     !Initialisation steps to run before simulation start
 	integer		 	:: extralloc	     !Extra allocation space to include copied halos
 	integer		 	:: overlap	     !Size of overlap region used to apply force to molecular region
 

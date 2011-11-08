@@ -99,15 +99,13 @@ subroutine setup_initialise_parallel_position
         p_units_lb(3) = (kblock-1)*floor(initialnunits(3)/real((npz),kind(0.d0)))
         p_units_ub(3) =  kblock *ceiling(initialnunits(3)/real((npz),kind(0.d0)))
 
-
-	!print*, 'y', y
-	!print*,'SETUP', y(jmax_overlap_cfd),halfdomain(2), halfdomain(2)-5.2, y(jmax_overlap_cfd-1)
-
 	!Set CFD region to top of domain initially
 	CFD_region = domain(2)/2.d0
-	removed_height = 2*cellsidelength(2)
 	if (jblock .eq. npy) then
-		if ( use_coupling ) CFD_region = domain(2)/2.d0 - removed_height
+	if ( use_coupling ) then
+		removed_height = 2*cellsidelength(2)
+		CFD_region = domain(2)/2.d0 - removed_height
+	endif
 	endif
 
        ! if ( use_coupling ) then
@@ -163,7 +161,7 @@ subroutine setup_initialise_parallel_position
 			n = n + 1	!Move to next molecule
 
 			!Remove molecules from top of domain if constraint applied
-			if (rc(2) .gt. CFD_region) cycle
+			if (rc(2)-domain(2)*(jblock-1) .gt.  CFD_region) cycle 
 
 			!Check if molecule is in domain of processor
 			if(rc(1).lt.-halfdomain(1)+domain(1)*(iblock-1)) cycle
