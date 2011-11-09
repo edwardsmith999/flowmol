@@ -1,5 +1,4 @@
-! Dummy module needed for stand alone runs
-! of MD code
+! Dummy module needed for stand alone compilation of MD code
 module coupler_md_communication
 
 contains
@@ -21,5 +20,13 @@ contains
                 real(kind=kind(0.d0)), intent(inout) :: a(:,:)
                 real(kind=kind(0.d0)), intent(in)    :: pressure, r(:,:)
         end subroutine coupler_constrain_forces
+
+        subroutine coupler_uc_average_test(np,r,v,lwrite)
+                implicit none
+                integer, intent(in) :: np
+                real(kind=kind(0.d0)), intent(in) :: r(:,:),v(:,:)
+                logical, intent(in) :: lwrite
+        end subroutine coupler_uc_average_test
+
 
 end module coupler_md_communication

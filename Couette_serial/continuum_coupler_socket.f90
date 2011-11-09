@@ -38,9 +38,11 @@ contains
 
                 u(:) =  u3(1,:,1)
                 v(:) =  v3(1,:,1)
+!debug 
+!                 u(:) = 0.d0
+!                 v(:) = 0.d0
 
 !                ncall = ncall + 1
-!
 !                do i = 1,size(u)
 !                        write(7000+ncall,*), u(i),v(i)
 !                enddo

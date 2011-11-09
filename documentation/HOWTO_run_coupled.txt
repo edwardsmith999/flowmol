@@ -1,0 +1,53 @@
+Quick  description of the steps needed for a coupled run. 
+
+
+0) Geometries mapping:
+
+   MD needs to use a global domain that is an integer number of
+   initial FCC cells.  The side of a FCC cell is fixed by the density
+   l = 1.0/(density/4)**(1.0/3.0) ( in 3D, sigma units). An CFD cell
+   should have the length around 5 sigma in x and y direction and is
+   basically free in z direction (for the simple Couette test).
+
+   For the Couette solver we chose 10 CFD cells in X, 7 in Y and 1 in
+   Z; density is 0.8.  
+
+   MD domain in FCC cells is chosen to 32x16x20.
+
+   MD covers all CFD in X direction and first three CFD cell in Y
+   (without the boundary cells).  In Y direction we add to MD domain
+   two more CFD cells below physical CFD, one for boundary condition,
+   and one for molecule interaction with the wall.  Hence the MD
+   region below CFD y=0 boundary has the length 16*l-3*(32*l/10). This
+   parameter is set in coupler_dCSE/src_code/coupler_md_setup.f90, but
+   if you change any of the above parameters you need to reset
+   DY_PURE_MD variable.
+
+
+1) set the desired number of processors in MD_dCSE/src_code/param.inc
+   (N.B. at the moment only npx can be > 1 and it must me a divisor of
+   total number of initial FCC cells along x: 1,2,4,8,16)
+
+2) edit MD_dCSE/src_code/mlecular_properties.f90 go to subroutine
+   setup_tag and set fixedistbottom(2) = 1.d0**cellsidelength(2)
+
+3) compile both code from coupler_dCSE/src_code directory (N.B. if the
+   MD code was used uncoupled previously give a `make clean' in
+   MD_dCSE/src_code to enable the couple modules).
+
+4) create a directory for computation and results, let's call it
+   test1.  Under test1 create the following directories: md_data,
+   md_data/results, couette_data, couette_data/results.
+
+5) copy the executable files md.exe, continuum.exe in test1 
+
+6) copy MD.in in md_data/ and set the following input quantities
+   INITALUNITS to 32, 16, 20; NSTEPS to 50, PERIODIC to 1,0,1;
+   INITISE_STEPS to 1
+
+7) copy input_continuum in couette_data/. in
+   couette_data/input_continuum and set domain size in x to 54.7189;
+   domain size in y to 38.3033
+
+8) run the both code using parallel launcher in multiple programs,
+   multiple data mode.

@@ -21,7 +21,7 @@ subroutine continuum_setup_macrostate
 	do i = 2, nx+1
 	do j = 2, ny+1
 
-		uc(i,j) = 0.d0
+		uc(i,j) = 0.d0 
 		vc(i,j) = 0.d0
 
 	enddo

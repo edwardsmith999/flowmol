@@ -63,6 +63,17 @@ contains
                                 uc_bin(:,:,:)  = 0.d0  
                         endif
 
+! send it to CFD        
+                        if (send_data) then  
+! testing                        uc_bin(1,:,:) = myid
+!                                uc_bin(2,:,:) = 1.d0
+                                call send_vel(uc_bin,nlz-1,nlx-1,1)   
+                                uc_bin = 0.d0
+
+                                return
+                        endif
+
+
                         do ip = 1, np
 ! using global particle coordinates
                                 rd(:) = global_r(r(ip,:))
@@ -75,8 +86,8 @@ contains
                                 ib = ceiling((rd(1) - x(bbox%is)) / dx) + 0      ! staggered !!!
                                 kb = ceiling((rd(3) - z(bbox%ks)) / dz)       ! the last z row unused    
 
-                                if ( ib > 0 .and. ib <=  nlx  .and. &
-                                     kb > 0 .and. kb <   nlz  ) then 
+                                if ( ib > 0 .and. ib <  nlx  .and. &
+                                     kb > 0 .and. kb <  nlz  ) then 
 !  this particle are in this ranks domain
                                         uc_bin(1,kb,ib) = uc_bin(1,kb,ib) + v(ip,1)
                                         uc_bin(2,kb,ib) = uc_bin(2,kb,ib) + 1.d0 
@@ -96,13 +107,6 @@ contains
 !                        do i = 1, size(uc_bin,dim=2)
 !                                write(0, '(a,I4,64E11.4)') 'MD myid uc_bin(1,..',myid, uc_bin(1,1,:)
 !                        enddo
-! send it to CFD        
-                        if (send_data) then  
-! testing                        uc_bin(1,:,:) = myid
-!                                uc_bin(2,:,:) = 1.d0
-                                call send_vel(uc_bin,nlz-1,nlx-1,1)   
-                                uc_bin = 0.d0
-                        endif
 
                 end subroutine compute_uc_average
 
@@ -120,6 +124,17 @@ contains
                                 allocate(vc_bin(2,nlz-1,nlx-1,1),stat=ierr)
                                 vc_bin = 0.d0
                         endif
+
+
+                        if (send_data ) then
+! testing                        vc_bin(1,:,:,:) = 10*myid+1
+!                                vc_bin(2,:,:,:) = 1.d0
+                                call send_vel(vc_bin,nlz-1,nlx-1,1)    
+
+                                vc_bin = 0.d0
+                                return
+                        endif
+
 
 !                        write(2200+myid,*) bbox%bb
 
@@ -154,12 +169,6 @@ contains
 ! send to CFD
 !                        write(0,*) 'MD, vc_average: got',  np, sum(vc_bin(2,:,:,:)), 'particles'
 
-                        if (send_data ) then
-! testing                        vc_bin(1,:,:,:) = 10*myid+1
-!                                vc_bin(2,:,:,:) = 1.d0
-                                call send_vel(vc_bin,nlz-1,nlx-1,1)    
-                                vc_bin = 0.d0
-                        endif
 
                 end subroutine compute_vc_average
 
@@ -303,7 +312,15 @@ contains
                                  *(cfd_map%domains(6,i) - cfd_map%domains(5,i))
                 enddo
 
+
+! two previous values of the CFD velocity field are needed for extrapolation
+                         i    = itm1  ! swap the time indices in vel_fromCFD
+                         itm1 = itm2
+                         itm2   = i
+
                 allocate(vbuf(np),stat=ierr)
+
+!                write(6000+10*ncalls+myid,'(3I4)') nlx,nly,nlz
 
 !                write(0,*)'MD vbuf size ', myid, np
 
@@ -364,25 +381,24 @@ contains
                                  call mpi_get_count(status(1,i),mpi_double_precision,ib,ierr)
 !                                 write(0,*) 'MD recv ', myid, id, i, ib, ' DP'
                          enddo
-
+                          
+!                          write(2000+id,*) ks,ke,is,ie,js,je
+!                          write(2000+id,*) vaux
+                         
 !                         write(filename,'(a,i0,a,i0)') 'md_vel', 3*(ncalls-1),'_dim',id
 
 !                         call write_vector(vaux(1,1,1),nlz,nlx,nly,filename, MD_COMM)
 !                        call MPI_ERROR_STRING(status(MPI_ERROR,1),err_string,i,ierr)
 !                        write(0,*) 'MD get_CFDvel error VC ', err_string(1:i)
-!                         write(0,*) 'MD get_CFDvel loop' , myid, j
-
-! two previous values of the CFD velocity field are needed for extrapolation
-                         i    = itm1  ! swap the time indices in vel_fromCFD
-                         itm1 = itm2
-                         itm2   = i
+!                         write(0,*) 'MD get_CFDvel loop' , myid, j                         
+                          
 
                          do kb = 1, nlz - 1 
                                  do jb = 1, nly - 1 
                                          do ib = 1, nlx - 1 
                                                   vel_fromCFD(id,ib,jb,kb,itm1) = vaux(kb,ib,jb) !&
 !                                                          0.5d0 * (vaux(kb,ib,jb) + vaux(kb + dk,ib+ di,jb + dj))
-!                                                  write(6000+10*ncalls+myid,'(3E12.4)')  vel_fromCFD(id,ib,jb,kb,itm1)
+!                                                   if ( id == 1) write(6000+10*ncalls+myid,'(3E12.4)')  vel_fromCFD(1,ib,jb,kb,itm1)
                                          enddo
                                  enddo
                          enddo
@@ -390,6 +406,9 @@ contains
 
                 enddo ! id loop over dimensions
 
+!                call flush(2001)
+!                call flush(2002)
+!                call flush(6000+10*ncalls+myid)
 
 ! average the velocity for the box 
 
@@ -424,21 +443,19 @@ contains
                 use arrays_MD,  only : r, v, a
                 use physical_constants_MD, only : np
                 use computational_constants_MD, only : halfdomain
-                use coupler_md_global_data, only : x, y, z, dx, dz
-                use coupler_md_setup, only : nlx, nly, nlz, dt_CFD,bbox
+                use coupler_md_global_data, only : x, y, z, dx, dz, jmin => jmin_cfd
+                use coupler_md_setup, only : nlx, nly, nlz, dt_CFD,bbox, jmax_overlap => jmax_overlap_cfd
                 use messenger, only : myid
                 implicit none
                 
                 integer, intent(in) :: iter  ! iteration step, it assumes that each MD average
                                              ! start from iter = 1
 
-                type(cfd_box_sum) :: box_average(bbox%ie - bbox%is, bbox%je - bbox%js, bbox%ke - bbox%ks)
-                integer j, ib, jb, kb, nib, njb, nkb, ip, np_overlap
+                type(cfd_box_sum) :: box_average(bbox%ie - bbox%is,1, bbox%ke - bbox%ks)
+                integer j, ib, jb, kb, nib, njb, nkb, ip, np_overlap, jb_offset
                 integer list(4,np)
                 real(kind=kind(0.d0)) inv_dtCFD, rd(3)
                 integer :: ncalls = 0
-
-!                write(0,*) 'MD: simulation_apply_continuum_forces', myid
 
 ! run through the particle, check if they are in the overlap region
 ! find the CFD box to which the particle belongs              
@@ -468,9 +485,9 @@ contains
 
             np_overlap = 0 ! number of particles in overlapping reg
 
-            do kb = 1, nkb
-                    do jb = 1, njb
-                            do ib = 1, nib
+            do kb = 1, ubound(box_average,dim=3)
+                    do jb = 1, ubound(box_average,dim=2)
+                            do ib = 1, ubound(box_average,dim=1)
                                     box_average(ib,jb,kb)%np   = 0
                                     box_average(ib,jb,kb)%v(:) = 0.0d0
                                     box_average(ib,jb,kb)%a(:) = 0.0d0
@@ -486,18 +503,19 @@ contains
 
 ! struggling with the bottom boundary, bellow average boxes but with particles
 !  for the moment let's work with 1 layer of MD blocks in 1 D
-                        if ( rd(2) < y(bbox%js) .or.   rd(2) >= y(bbox%je) ) then
+                        if ( rd(2) <= y(jmax_overlap-2) .or.   rd(2) >= y(jmax_overlap-1) ) then
                                 cycle 
                         else 
 ! non uniform grid in j direction                
-                         jb=-666
-                         do j =bbox%js+1, bbox%je
-                                if( rd(2) <= y(j) ) then 
-                                        !this is my cell, exit
-                                        jb = j - bbox%js
-                                        exit
-                                endif
-                          enddo
+                         jb=1
+                         jb_offset=jmax_overlap-2-1
+!                         do j =jmin+1, jmax_overlap
+!                                if( rd(2) <= y(j) ) then 
+!                                        !this is my cell index, exit
+!                                        jb = j - jmin
+!                                        exit
+!                                endif
+!                          enddo
 
                         endif
 
@@ -537,9 +555,9 @@ contains
 ! one has to tread separatley the particle that have left the domain
 ! compute the average force for each bin
 
-!                write(0,*)'MD before average over bin'
+!                write(0,*)'MD before average over bin. np_overlap', np_overlap
 
-!                call average_over_bin
+                call average_over_bin
 
 !                write(0,*) 'MD: end simulation_apply_continuum_forces', myid
 
@@ -551,7 +569,7 @@ contains
                         implicit none
 
                         integer ib, jb, kb, i, ip, n
-                        real(kind=kind(0.d0)) alpha(3), u_cfd_t_plus_dt(3), inv_dtMD
+                        real(kind=kind(0.d0)) alpha(3), u_cfd_t_plus_dt(3), inv_dtMD, acfd
 
 
 ! set the continnum constrais for the particle in the bin
@@ -562,7 +580,7 @@ contains
 
                         inv_dtMD =1.d0/dt_MD
 
-!                        write(400+10*ncalls+myid,'(a,I7,2E12.4)') "MD continuum np, vel_fromCFD1 : ", np_overlap, &
+!                        write(0,'(a,I7,2E12.4)') "MD continuum np, vel_fromCFD1 : ", np_overlap, &
 !                                                                  maxval(a(list(1,1:np_overlap),:)), &
 !                                                                  minval(a(list(1,1:np_overlap),:))
 
@@ -574,15 +592,27 @@ contains
 
                                 n = box_average(ib,jb,kb)%np
 
+!                                write(0,'(a,4I4,14E12.4)') "MD continuum force", ib,jb,kb,n,box_average(ib,jb,kb)%v(:), &
+!                                        box_average(ib,jb,kb)%a(:),v(ip,:),a(ip,:),inv_dtMD,inv_dtCFD
+
+                                if ( n == 0 ) cycle
 ! use the following exptrapolation formula
 ! y = (y2-y1)/(x2-x1) * (x-x2) +y2
 
-                                alpha(:) = inv_dtCFD*(vel_fromCFD(:,ib,jb,kb,itm1) - vel_fromCFD(:,ib,jb,kb,itm2))
+                                alpha(1) = inv_dtCFD*(vel_fromCFD(1,ib,jb+jb_offset,kb,itm1) - &
+                                           vel_fromCFD(1,ib,jb+jb_offset,kb,itm2))
 
-                                u_cfd_t_plus_dt(:) = alpha(:) * (iter + 1)*dt_MD + vel_fromCFD(:,ib,jb,kb,itm1) 
+                                u_cfd_t_plus_dt(1) = alpha(1) * (iter + 1)*dt_MD + vel_fromCFD(1,ib,jb_offset,kb,itm1) 
 
-                                a(ip,:) = a(ip,:) - box_average(ib,jb,kb)%a(:) / n - inv_dtMD * & 
-                                          (box_average(ib,jb,kb)%v(:) / n - u_cfd_t_plus_dt(:))
+                                acfd =  - box_average(ib,jb,kb)%a(1) / n - inv_dtMD * & 
+                                          (box_average(ib,jb,kb)%v(1) / n - u_cfd_t_plus_dt(1))
+                                a(ip,1) = a(ip,1) + acfd
+
+!                                write(0,'(a,4I4,15E12.4)') "MD continuum force 2", ib,jb,kb,n, &
+!                                 alpha(1),u_cfd_t_plus_dt(1),vel_fromCFD(1,ib,jb+jb_offset,kb,itm1),&
+!                                 vel_fromCFD(1,ib,jb+jb_offset,kb,itm2),&
+!                                 a(ip,1),acfd, r(ip,2) 
+
                         enddo
 
 
@@ -633,7 +663,7 @@ subroutine coupler_constrain_forces(np,pressure,r,a)
 ! get the global value of y coordinate        
          yc  =  r(n,2) + halfdomain(2) + bbox%bb(1,2)
 
-         if (yc  < y3 .and. yc >= y2  ) then
+         if (yc  < y3 .and. yc >= y2 ) then
                  a(n,2)= a(n,2) - (yc-y2)/(1-(yc-y2)/(y3+eps-y2))*pressure
          endif
        enddo
@@ -799,6 +829,184 @@ subroutine write_vector(q,n1,n2,n3,fn, comm)
 !!$!                call mpi_type_free(three_dp_type,ierr)
 
 end subroutine write_vector
+
+
+!---------------------------------------------------------------------------------------------------------
+! average x velocity at various y grid point for comparison with continuum values
+subroutine coupler_uc_average_test(np,r,v,lwrite)
+        use coupler_md_setup, only : nlx, nlz, bbox, jmino, jmin => jmin_cfd
+        implicit none
+
+        integer, intent(in) :: np
+        real(kind=kind(0.d0)), intent(in) :: r(:,:),v(:,:)
+        logical, intent(in) :: lwrite
+
+        integer ib, kb, jb, ip, myid, ierr
+        real(kind=kind(0.d0)) rd(3), ymin, ymax, dy
+        real(kind=kind(0.d0)),allocatable, save :: uc_bin(:,:,:,:)
+        logical,save :: firsttime=.true.
+        
+        call mpi_comm_rank(MD_COMM,myid,ierr)
+
+        if(firsttime)then
+                firsttime = .false.
+                allocate(uc_bin(2,nlz-1,nlx-1,4))
+                uc_bin = 0.d0
+                
+                if (myid == 0) then 
+                        open(45, file="md_vel.txt",position="rewind")
+                        write(45,*)'# dx,dy,dz ', dx,y(jmin+1)-y(jmin),dz
+                        close(45)
+                endif
+        endif
+
+        if (lwrite) then
+                call write_data
+                return
+        endif
+
+        
+        dy = y(jmin+1) - y(jmin)
+        ymin = y(jmin) - 2.d0 * dy
+        ymax = y(jmin) + 2.d0 * dy 
+
+!        write(0,*)'MD uc test', np, dy, ymin,ymax
+        
+        do ip = 1, np
+! using global particle coordinates
+                rd(:) = global_r(r(ip,:))
+                
+                if ( rd(2) < ymin .or. rd(2) > ymax ) then
+! molecule outside the boundary layer
+                        cycle
+                endif
+                
+                ib = ceiling((rd(1) - x(bbox%is)) / dx) + 0      ! staggered !!!
+                kb = ceiling((rd(3) - z(bbox%ks)) / dz)       ! the last z row unused
+                jb = ceiling((rd(2) - ymin    )   / dy)
+                
+                if ( ib > 0 .and. ib < nlx  .and. &
+                     kb > 0 .and. kb < nlz  ) then 
+!  this particle are in this ranks domain
+                        uc_bin(1,kb,ib,jb) = uc_bin(1,kb,ib,jb) + v(ip,1)
+                        uc_bin(2,kb,ib,jb) = uc_bin(2,kb,ib,jb) + 1.d0 
+                else 
+!                                       write(0,*) 'MD uc_average, outside domain rd', rd, ' bbox%bb ', bbox 
+                endif
+        end do
+        
+! debug   
+!                         do i = 1, size(uc_bin,dim=2)
+!                          write(0, '(a,I4,64F7.1)') 'MD myid uc_bin(2,..',myid,uc_bin(2,1,:)
+!                         enddo
+        
+        
+        
+!                        write(0,*) 'MD uc sum in boxes', myid
+!                        do i = 1, size(uc_bin,dim=2)
+!                                write(0, '(a,I4,64E11.4)') 'MD myid uc_bin(1,..',myid, uc_bin(1,1,:)
+!                        enddo
+! send it to CFD        
+
+contains 
+
+       subroutine write_data
+               use mpi
+               implicit none
+
+               integer i, ibuff(2,0:npx_md-1), ntot, nrecv, sa(npx_md),req(npx_md-1),  &
+                npx, ierr
+               real(kind(0.d0)),allocatable :: buff(:,:,:,:),buff_recv(:)
+
+               npx = npx_md
+
+               if(npx > 1) then
+                
+! works only for parallel decomposition in x direction
+               call mpi_gather((/bbox%is,bbox%ie/),2,MPI_INTEGER,&
+               ibuff,2,MPI_INTEGER,0,MD_COMM,ierr)
+
+!               write(0,*) "MD write test data", myid, ibuff
+
+                if (myid == 0) then
+
+! the local bit first
+                allocate(buff(2,kmax_cfd-kmin_cfd,imin_cfd:imax_cfd-1,4))
+
+                buff = 0.d0
+                buff(:,:,ibuff(1,0):ibuff(2,0)-1,:) = &
+                 buff(:,:,ibuff(1,0):ibuff(2,0)-1,:) + &
+                 uc_bin(:,:,1:nlx-1,:)
+
+
+                 ntot = 0
+                 do i=1,npx-1
+                  ntot = ntot + 2*(nlz-1)*(ibuff(2,i)-ibuff(1,i))*4
+                 enddo
+                 
+                 allocate(buff_recv(ntot))
+                 buff_recv(ntot) = 0.d0
+                 
+                 sa(1)=1
+                 
+                 do i=1,npx-1
+                  
+                  nrecv = 2*(nlz-1)*(ibuff(2,i)-ibuff(1,i))*4
+                  sa(i+1) = sa(i) + nrecv
+                  
+                 call mpi_irecv(buff_recv(sa(i)),nrecv,MPI_DOUBLE_PRECISION,&
+                  i,1,MD_COMM,req(i),ierr)
+
+                 enddo
+
+                 call mpi_waitall(npx-1,req,MPI_STATUSES_IGNORE,ierr)
+
+                 do i =1, npx-1
+                  buff(:,:,ibuff(1,i):ibuff(2,i)-1,:) = &
+                   buff(:,:,ibuff(1,i):ibuff(2,i)-1,:) + &
+                   reshape(buff_recv(sa(i):sa(i+1)-1), (/ 2,nlz-1,ibuff(2,i)-ibuff(1,i),4 /))
+                 enddo
+                else
+                 
+                 call mpi_send(uc_bin,size(uc_bin),MPI_DOUBLE_PRECISION,0,1,MD_COMM,ierr)
+                 
+                 uc_bin = 0.d0
+                 
+                endif
+
+
+               endif
+
+
+
+               if (npx > 1) then
+                if (myid == 0 ) then
+                 open(45,file="md_vel.txt",position="append")
+                 do i = 1,4
+                  write(45, '(100(E12.4,1x))') buff(:,:,:,i)
+                 enddo
+                 write(45, '(1x/1x)')
+                 close(45)
+                endif
+               else
+                open(45,file="md_vel.txt",position="append")
+                do i = 1,4
+                 write(45, '(100(E12.4,1x))') uc_bin(:,:,:,i)
+                enddo
+                write(45, '(1x/1x)')
+                close(45)
+               endif
+               
+
+               
+               uc_bin = 0.d0
+
+
+
+       end subroutine write_data
+
+end subroutine coupler_uc_average_test
+
 
 
 end module coupler_md_communication

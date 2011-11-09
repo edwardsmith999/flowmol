@@ -123,8 +123,8 @@ subroutine exchange_grid_data
 
 	! set the sizes of MD box
 
-	DY_PURE_MD = 15.6d0+3.0d0 - (y(jmin_cfd) - y(jmino)) ! prototype
-        !                   ^^^^^approximation for the 2 cells of the wall
+	DY_PURE_MD = 10.94378734741916534432d0 - (y(jmin_cfd) - y(jmino)) ! prototype
+        !      
 	xL_md = (x(imax_cfd) - x(imin_cfd))
 	yL_md = (y(jmax_overlap_cfd) - y(jmino) +&
 	 & DY_PURE_MD)		   
@@ -226,7 +226,8 @@ subroutine create_map_cfd_md
 
 ! allocate array for CFD velocities and initialize the time indices; 
 		allocate(vel_fromCFD(3,bbox%ie - bbox%is, bbox%je - bbox%js , bbox%ke - bbox%ks ,2))
-		itm1 = 1; itm2 = 2
+                vel_fromCFD = 0.d0
+		itm1 = 2; itm2 = 1
 		
 !		write(0,*) 'MD: end of create_map_cfd_md', myid
 
