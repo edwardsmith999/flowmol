@@ -12,7 +12,7 @@ module coupler_md_global_data
         character(len=*), parameter :: code_name = "MD"
         integer, parameter :: CFD = 1, MD = 2
 
-        integer,parameter :: nsteps = 1, average_period = 5
+        integer,parameter :: nsteps = 1, average_period = 1
 
         real xL_md, yL_md, zL_md ! macroscopic sizes of MD domain. 
 
