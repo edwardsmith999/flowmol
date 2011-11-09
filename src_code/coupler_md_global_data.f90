@@ -46,7 +46,7 @@ module coupler_md_global_data
 ! nteps from CFD
         integer nsteps
 ! average period for velocities        
-        integer :: average_period = 1
+        integer :: average_period = 5
 
 ! Y coordinate  of FD boundary in MD domains 
 !        real :: Y_boundary_fraction = 0.5    ! prototype alternative
