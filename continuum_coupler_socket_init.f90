@@ -28,7 +28,7 @@ contains
                 real(kind(0.d0)) z(2), dz
                 
                 z(1) =  0.d0   ! thincknes of MD simulation
-                z(2) = 36.5d0
+                z(2) = 34.199518933533936d0
 
                 call exchange_grid_data(imino=1,imin=2,imax=nx+2,&
                         imaxo=nx+3,jmino=1,jmin=2,jmax=ny+2,jmaxo=nx+3,&
