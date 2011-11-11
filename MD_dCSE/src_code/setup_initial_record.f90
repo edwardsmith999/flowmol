@@ -17,6 +17,7 @@ end module module_initial_record
 
 subroutine setup_initial_record
 use module_initial_record
+use polymer_info_MD
 implicit none
 
 	character		:: ixyz_char
@@ -25,9 +26,10 @@ implicit none
 
 	!Evaluate system properties on all processes
 	call initial_macroscopic_properties
-
+	
 	!Calculate Control Volume starting state
 	call initial_control_volume
+
 
 	if (irank .eq. iroot) then
 
@@ -91,6 +93,9 @@ implicit none
 			print*, 'No Macroscopic Properties printed to screen'
 		case(1)
 			print*, 'Macroscopic properties printed to screen every:', tplot, 'iterations'
+		case(2)
+			call macroscopic_properties_header
+			print*, 'Macroscopic properties printed to results/macroscopic_properties every:', tplot, 'iterations.'
 		case default
 			stop "Invalid Macroscopic properties output flag in input file"
 		end select
@@ -235,18 +240,34 @@ implicit none
 		!print*, 'Number of Bins on outer Surface of each processor', nsurfacebins
 		print*, '======================================================================='
 
-		!Set up print out table
-		print '(8a)', &
-		'Iteration; 	   VSum;        V^2Sum;        Temp;         KE;                 PE;                  TE;          Pressure;'
-
-		!Print initial conditions for simulations at iteration 0
-		print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
-		initialstep,';',vsum,';', v2sum,';', temperature,';', &
-		kinenergy,';',potenergy,';',totenergy,';',pressure
+		select case(potential_flag)
+		case(0)
+			print '(8a)', &
+			'Iteration; 	   VSum;        V^2Sum;        Temp;         KE;                 PE;                  TE;          Pressure;'
+			!Print initial conditions for simulations at iteration 0
+			print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
+			initialstep,';',vsum,';', v2sum,';', temperature,';', &
+			kinenergy,';',potenergy,';',totenergy,';',pressure
+		case(1)
+			print '(8a)', &
+			'Iteration; 	   VSum;        V^2Sum;        Temp;         KE;               PE (LJ);            PE (FENE);         PE (total);             TE;          Pressure;'
+			!Print initial conditions for simulations at iteration 0
+			print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
+			initialstep,';',vsum,';', v2sum,';', temperature,';', &
+			kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure
+		case default
+			stop "Invalid potential flag in input file"
+		end select
 
 		call simulation_header
 
 	endif
+
+	!Initialise etevtcf calculation if etevtcf_iter0 = 0
+	if (potential_flag.eq.1) then
+		if (etevtcf_outflag.ne.0) call etevtcf_calculate 
+		if (etevtcf_outflag.eq.2) call etevtcf_io
+	end if
 
 end subroutine setup_initial_record
 
@@ -257,24 +278,36 @@ subroutine initial_macroscopic_properties
 use module_initial_record
 implicit none
 
-	integer          :: n, k
+	integer          :: n, ixyz
 	double precision :: vel
 
 	vsum  = 0.d0      ! Reset all sums
 	v2sum = 0.d0      ! Reset all sums
 
-	do n = 1, np    ! Loop over all particles
-	do k = 1, nd    ! Loop over all dimensions
-		!Velocity component must be shifted back half a timestep to determine 
-		!velocity of interest - required due to use of the leapfrog method
-		vel = v(n,k)
-		vsum = vsum + vel      !Add up all molecules' velocity components
-		v2sum = v2sum + vel**2 !Add up all molecules' velocity squared components  
-	enddo
-	enddo
-
 	!Calculate forces to obtain initial potential energies and virial
 	call simulation_compute_forces
+	
+	do n = 1, np    ! Loop over all particles
+
+		if (potential_flag.eq.0) then
+			potenergysum	= potenergysum + potenergymol(n)
+		else if (potential_flag.eq.1) then
+			potenergysum_LJ = potenergysum_LJ + potenergymol_LJ(n)
+			potenergysum_FENE = potenergysum_FENE + potenergymol_FENE(n)
+			potenergysum = potenergysum + potenergymol_LJ(n) + potenergymol_FENE(n)
+		end if
+
+		virial = virial + virialmol(n)
+
+		do ixyz = 1, nd   ! Loop over all dimensions
+			!Velocity component must be shifted back half a timestep to determine 
+			!velocity of interest - required due to use of the leapfrog method
+			vel = v(n,ixyz) + 0.5d0*a(n,ixyz)*delta_t
+			vsum = vsum + vel      !Add up all molecules' velocity components
+			v2sum = v2sum + vel**2 !Add up all molecules' velocity squared components  
+		enddo
+
+	enddo
 
 	!Obtain global sums for all parameters
 	call globalSum(vsum)
@@ -284,6 +317,10 @@ implicit none
 
 	kinenergy   = (0.5d0 * v2sum) / globalnp 
 	potenergy   = potenergysum /(2*globalnp) !N.B. extra 1/2 as all interactions calculated
+	if (potential_flag.eq.1) then
+		potenergy_LJ = potenergysum_LJ/(2.d0*real(globalnp,kind(0.d0)))
+		potenergy_FENE = potenergysum_FENE/(2.d0*real(globalnp,kind(0.d0)))
+	end if
 	totenergy   = kinenergy + potenergy
 	temperature = v2sum / (nd * globalnp)
 	pressure    = (density/(globalnp*nd))*(v2sum+virial/2) !N.B. virial/2 as all interactions calculated

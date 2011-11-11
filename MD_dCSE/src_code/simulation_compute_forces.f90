@@ -30,40 +30,58 @@ end module module_compute_forces
 subroutine simulation_compute_forces
 use module_compute_forces
 implicit none
+	
+	a					= 0.d0							!Initialise forces to zero
+	potenergymol		= 0.d0
+	potenergymol_LJ		= 0.d0
+	potenergysum		= 0.d0
+	potenergysum_LJ		= 0.d0
+	virial				= 0.d0
+	virialmol			= 0.d0
+
+	if (potential_flag.eq.1) then
+		potenergymol_FENE	= 0.d0
+		potenergysum_FENE	= 0.d0
+	end if
+
+	if (potential_flag.eq.0) then					!If simple LJ fluid
+		call simulation_compute_forces_LJ_halfint	!Compute LJ forces
+	else if (potential_flag.eq.1) then				!If FENE polymer
+		call simulation_compute_forces_LJ_halfint	!Compute LJ bead interactions
+		call simulation_compute_forces_FENE			!Add on FENE spring interactions
+	else									
+		stop 'Potential flag not recognised!'
+	end if
+
+end subroutine simulation_compute_forces
+
+subroutine simulation_compute_forces_LJ
+use module_compute_forces
+implicit none
 
 	integer                         :: i, j, ixyz   !Define dummy index
 	integer				:: molnoi, molnoj
 	integer				:: noneighbrs
 	type(neighbrnode), pointer	:: old, current
 
-	a=0.d0            !Reset acceleration matrix before force calculations
-	potenergymol=0.d0 !Reset potential energy per molecule before calculation
-	potenergysum=0.d0 !Reset potential energy sum before calculation
-	virial = 0.d0     !Reset virial sum before calculation
-	virialmol = 0.d0  !Reset virial sum per molecule before calculation
-
 	do molnoi = 1, np
 
-	        noneighbrs = neighbour%noneighbrs(molnoi)	!Determine number of elements in neighbourlist
-		old => neighbour%head(molnoi)%point		!Set old to head of neighbour list
+        noneighbrs = neighbour%noneighbrs(molnoi)	!Determine number of elements in neighbourlist
+		old => neighbour%head(molnoi)%point			!Set old to head of neighbour list
+		ri(:) = r(molnoi,:)							!Retrieve ri
 
-		do j = 1,noneighbrs			!Step through all pairs of neighbours molnoi and j
+		do j = 1,noneighbrs							!Step through all pairs of neighbours molnoi and j
 
-			ri(:) = r(molnoi,:)			!Retrieve ri
-			molnoj = old%molnoj		!Number of molecule j
-			rj(:) = r(molnoj,:)		!Retrieve rj
-			rij(:) = ri(:) - rj(:)   !Evaluate distance between particle i and j
+			molnoj = old%molnoj						!Number of molecule j
+			rj(:) = r(molnoj,:)						!Retrieve rj
+			rij(:) = ri(:) - rj(:)   				!Evaluate distance between particle i and j
+			rij2 = dot_product(rij,rij)				!Square of vector calculated
 
-			rij2=0                   !Set rij^2 to zero
-			do ixyz=1,nd
-				rij2 = rij2+rij(ixyz)*rij(ixyz) !Square of vector calculated
-			enddo
 
 			if (rij2 < rcutoff2) then
-				invrij2 = 1.d0/rij2                 !Invert value
-				!Linear magnitude of acceleration for each molecule
-				accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
-
+				invrij2  = 1.d0/rij2                !Invert value
+				accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4) ! (-dU/dr)*(1/|r|)
+!				if (molnoi.eq.1) print*, accijmag
 				!Sum of forces on particle i added for each j
 				a(molnoi,1)= a(molnoi,1) + accijmag*rij(1)
 				a(molnoi,2)= a(molnoi,2) + accijmag*rij(2)
@@ -72,8 +90,9 @@ implicit none
 				!Only calculate properties when required for output
 				if (mod(iter,tplot) .eq. 0) then
 					!Record potential energy total to use for output later (potshift=-1 for WCA)
-					potenergymol(molnoi)=potenergymol(molnoi) & 
+					potenergymol_LJ(molnoi)=potenergymol_LJ(molnoi) & 
 						     +4.d0*(invrij2**6-invrij2**3)-potshift
+					potenergymol(molnoi) = potenergymol_LJ(molnoi)
 					!Virial expression used to obtain pressure
 					virialmol(molnoi) = virialmol(molnoi) + accijmag*rij2
 					if (pressure_outflag .eq. 1) then
@@ -94,12 +113,78 @@ implicit none
 	nullify(current)        !Nullify current as no longer required
 	nullify(old)            !Nullify old as no longer required
 
-end subroutine simulation_compute_forces
+end subroutine simulation_compute_forces_LJ
+
+subroutine simulation_compute_forces_FENE
+use module_compute_forces
+use polymer_info_MD
+implicit none
+
+	integer	:: molnoi								!Current LJ bead
+	integer	:: molnoL								!Bead on left
+	integer	:: molnoR								!Bead on right
+	
+	do molnoi=1,np
+		
+		ri(:) = r(molnoi,:)							!Retrieve ri(:)
+		molnoL = polyinfo_mol(molnoi)%left
+		molnoR = polyinfo_mol(molnoi)%right
+		
+		if (molnoL.ne.0) then						!If there is a bead connected to the left of i
+
+			rj(:)  = r(molnoL,:)					
+			rij(:) = ri(:) - rj(:)
+			rij2 = dot_product(rij,rij)
+			if(rij2.ge.R_0**2) then
+				print('(a,i4,a,i4,a,f8.5,a,f8.5,a)'), 'Bond broken: atoms ',molnoi,' and ',molnoL,' are separated by ', &
+						rij2**0.5,', which is greater than the allowed limit of ', R_0,'. Stopping simulation.'
+				stop
+			end if
+	
+			accijmag = -k_c/(1-(rij2/(R_0**2)))			!(-dU/dr)*(1/|r|)
+			a(molnoi,1)= a(molnoi,1) + accijmag*rij(1)	!Add components of acceleration
+			a(molnoi,2)= a(molnoi,2) + accijmag*rij(2)
+			a(molnoi,3)= a(molnoi,3) + accijmag*rij(3)
+			
+			if (mod(iter,tplot) .eq. 0) then
+				potenergymol_FENE(molnoi)=potenergymol_FENE(molnoi)-0.5d0*k_c*R_0*R_0*dlog(1.d0-(rij2/(R_0**2)))
+				potenergymol(molnoi) = potenergymol(molnoi) + potenergymol_FENE(molnoi)
+				virialmol(molnoi) = virialmol(molnoi) + accijmag*rij2
+			endif
+	
+		end if
+		
+		if (molnoR.ne.0) then
+
+			rj(:)  = r(molnoR,:)	
+			rij(:) = ri(:) - rj(:)
+			rij2 = dot_product(rij,rij)
+			if(rij2.ge.R_0**2) then
+				print('(a,i4,a,i4,a,f8.5,a,f8.5,a)'), 'Bond broken: atoms ',molnoi,' and ',molnoR,' are separated by ', &
+						rij2**0.5,', which is greater than the allowed limit of ', R_0,'. Stopping simulation.'
+						stop
+			end if
+			accijmag = -k_c/(1-(rij2/(R_0**2)))
+			a(molnoi,1)= a(molnoi,1) + accijmag*rij(1)
+			a(molnoi,2)= a(molnoi,2) + accijmag*rij(2)
+			a(molnoi,3)= a(molnoi,3) + accijmag*rij(3)
+	
+			if (mod(iter,tplot) .eq. 0) then
+				potenergymol_FENE(molnoi)=potenergymol_FENE(molnoi)-0.5d0*k_c*R_0*R_0*dlog(1.d0-(rij2/(R_0**2)))
+				potenergymol(molnoi) = potenergymol(molnoi) + potenergymol_FENE(molnoi)
+				virialmol(molnoi) = virialmol(molnoi) + accijmag*rij2
+			endif
+		end if	
+		
+	end do
+
+end subroutine simulation_compute_forces_FENE
+
 
 !========================================================================
 !Compute forces using only half the interactions
 
-subroutine simulation_compute_forces_halfint
+subroutine simulation_compute_forces_LJ_halfint
 use module_compute_forces
 implicit none
 
@@ -108,15 +193,9 @@ implicit none
 	integer				:: noneighbrs
 	type(neighbrnode), pointer	:: old, current
 
-	a	    	= 0.d0	!Reset acceleration matrix before force calculations
-	potenergymol	= 0.d0	!Reset potential energy per molecule before calculation
-	potenergysum	= 0.d0	!Reset potential energy sum before calculation
-	virial 	    	= 0.d0	!Reset virial sum before calculation
-	virialmol   	= 0.d0	!Reset virial sum per molecule before calculation
-
 	do molnoi = 1, np
 
-	        noneighbrs = neighbour%noneighbrs(molnoi)!Determine number of elements in neighbourlist
+	    noneighbrs = neighbour%noneighbrs(molnoi)!Determine number of elements in neighbourlist
 		old => neighbour%head(molnoi)%point	 !Set old to head of neighbour list
 		ri(:) = r(molnoi,:)		!Retrieve ri
 
@@ -130,7 +209,8 @@ implicit none
 			do ixyz=1,nd
 				rij2 = rij2+rij(ixyz)*rij(ixyz) !Square of vector calculated
 			enddo
-
+	
+!			if (rij2**0.5.lt.0.8) print*, 'mols ',molnoi,' and ',molnoj,' are too close!', rij2**0.5 !todo
 			if (rij2 < rcutoff2) then
 
 				!Linear magnitude of acceleration for each molecule
@@ -154,11 +234,12 @@ implicit none
 				if (mod(iter,tplot) .eq. 0) then
 
 					!Record potential energy total to use for output later (potshift=-1 for WCA)
-					potenergymol(molnoi)=potenergymol(molnoi) & 
-						     +4.d0*(invrij2**6-invrij2**3)-potshift
-					potenergymol(molnoj)=potenergymol(molnoj) & 
-						     +4.d0*(invrij2**6-invrij2**3)-potshift
+					potenergymol_LJ(molnoi)=potenergymol_LJ(molnoi)+4.d0*(invrij2**6-invrij2**3)-potshift
+					potenergymol_LJ(molnoj)=potenergymol_LJ(molnoj)+4.d0*(invrij2**6-invrij2**3)-potshift
 
+					potenergymol(molnoi) = potenergymol(molnoi) + 4.d0*(invrij2**6-invrij2**3) - potshift
+					potenergymol(molnoj) = potenergymol(molnoj) + 4.d0*(invrij2**6-invrij2**3) - potshift
+					
 					!Virial expression used to obtain pressure
 					virialmol(molnoi) = virialmol(molnoi) + accijmag*rij2
 					virialmol(molnoj) = virialmol(molnoj) + accijmag*rij2
@@ -183,11 +264,11 @@ implicit none
 	!if (mod(iter,tplot) .eq. 0) then
 	!	if (pressure_outflag .eq. 2) call  simulation_compute_rfbins(1,nbins(1)+2,1,nbins(1)+2,1,nbins(1)+2)
 	!endif
-
+	
 	nullify(current)        !Nullify current as no longer required
 	nullify(old)            !Nullify old as no longer required
 
-end subroutine simulation_compute_forces_halfint
+end subroutine simulation_compute_forces_LJ_halfint
 
 
 !========================================================================

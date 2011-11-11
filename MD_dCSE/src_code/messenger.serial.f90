@@ -43,6 +43,8 @@ module messenger
 	use physical_constants_MD
 	use computational_constants_MD
 	use linked_list
+	use polymer_info_MD	
+	use shear_info_MD
 
 	integer :: myid                         ! my process rank
 	integer :: idroot                       ! rank of root process
@@ -105,11 +107,26 @@ end
 !======================================================================
 !			Border Update Subroutines                     =
 !======================================================================
+subroutine messenger_updateborders(rebuild)
+use messenger
+implicit none
 
-subroutine messenger_updateborders()
+	integer				 	:: rebuild
+	
+!todo other cases 
+	if (all(periodic.lt.2)) then
+	 	call messenger_updateborders_quiescent(rebuild)
+	else
+		call messenger_updateborders_leesedwards(rebuild)
+	end if
+
+end subroutine messenger_updateborders
+
+subroutine messenger_updateborders_quiescent(rebuild)
 	use messenger
 	implicit none
 
+	integer, intent(in) :: rebuild
 	halo_np = 0 !fixedhalo_np
 
 	!Update faces of domain
@@ -146,13 +163,201 @@ subroutine messenger_updateborders()
 		call updatecorners
 	endif
 
+	if (rebuild.eq.1) call assign_to_halocell(np+1,np+halo_np)
+
 	return
 
 end
 
-!-------------------------------------------------------------------
-!			Periodic Boundries
-!-------------------------------------------------------------------
+!-------------------------------------------------------------------------------------------
+! subroutine: messenger_updateborders_leesedwards
+! author: David Trevelyan
+! 
+! input:	rebuild		- integer, 1 if rebuilding and 0 otherwise
+! output:	rebuild		
+!
+! description:
+!
+!	messenger_updateborders_leesedwards is the master subroutine that may be used to
+!	apply the Lees-Edwards (1972) sliding boundary conditions (note that it must be used
+!	in conjunction with sendmols_leesedwards) in any direction. It is possible to correctly
+!	update the positions of molecules in the halo cells with only three calls to the
+!	subroutine update_plane. The first call updates only the halo cells that border the
+!	domain "faces". The second call to update_plane updates the halo cells in a second
+!	cartesian direction but also includes the halo cells that were previously established
+!	in the first call. Finally, the third call to update_plane includes the halo cells
+!	updated in the first two calls - this completes the entire halo correctly.
+! 
+!-------------------------------------------------------------------------------------------
+subroutine messenger_updateborders_leesedwards(rebuild)
+use messenger
+implicit none
+
+	integer :: rebuild,n
+
+	halo_np = 0
+	
+	if (iter .ge. shear_iter0) then
+		shear_time = dble(iter - shear_iter0)*delta_t
+		shear_distance = shear_time*shear_velocity	
+	end if
+
+	call update_plane(shear_plane,shear_direction,.false.,shear_remainingplane,.false.,rebuild)
+	call update_plane(shear_direction,shear_plane,.true.,shear_remainingplane,.false.,rebuild)
+	call update_plane(shear_remainingplane,shear_direction,.true.,shear_plane,.true.,rebuild)
+
+	return	
+
+end subroutine messenger_updateborders_leesedwards
+
+!===========================================================================================
+!			Periodic Boundaries
+!===========================================================================================
+
+!-------------------------------------------------------------------------------------------
+! subroutine: update_plane
+! author: David Trevelyan
+! basis: subroutine updatefacedown(ixyz), author: Ed Smith
+!
+! inputs:	copyplane	-	plane in which face cells are copied to halo cells
+!			loop1plane	-	loop direction 1
+!			loop1halos	-	logical argument for inclusion of halo cells in copy routine
+!			loop2plane	-	loop direction 2
+!			loop2halos	-	logical argument for inclusion of halo cells in copy routine
+!			rebuild		-	1 if rebuilding, 0 otherwise
+!
+! description:
+!	
+!	update_plane extends the functionality of updatefacedown(ixyz) in order to enable
+!	Lees-Edwards sliding boundary conditions. Images of molecules that are assigned to
+!   the face cells in the input plane "copyplane" are copied to the corresponding halo 
+!	cells. The inputs "loop1plane" and "loop2plane" denote the remaining cartesian 
+!	directions, over which looping considers all cells in the "copyplane" surface. 
+!	
+!	The logical input parameters "loop1halos" and "loop2halos" specify whether the 
+!	halo cells in the "loop1plane" and "loop2plane" are included in the image-making
+!	routine. If "loop1halos" is .true., the loop in the "loop1plane" direction is taken
+!	over cells 1 (bottom halo) to ncells()+2 (top halo), rather than from 2 to ncells()+1.
+!
+!	At the end of the routine, assign_to_halocell is called so that halo molecules may
+!	be correctly copied in subsequent calls to update-plane in the remaining cartesian
+!	directions.
+!
+!-------------------------------------------------------------------------------------------
+subroutine update_plane(copyplane,loop1plane,loop1halos,loop2plane,loop2halos,rebuild)
+use messenger
+use arrays_MD
+implicit none
+
+	integer :: p,q,n,m
+	integer	:: rebuild
+	integer :: copyplane, loop1plane, loop2plane
+	integer	:: loop1plane_lower, loop1plane_upper, loop2plane_lower, loop2plane_upper
+	integer	:: cellnp, molno, molno_start, molno_finish, startnp 
+	integer,dimension(3) :: xyzcell
+
+	logical :: loop1halos, loop2halos
+	type(node), pointer	 :: old,current
+
+	startnp = halo_np													!Starting number of halo particles
+	m = halo_np
+	molno_start = np+m+1
+
+	if (loop1halos.eq..true.) then
+		loop1plane_lower = 1											!Set loop limits to include halo cells
+		loop1plane_upper = ncells(loop1plane)+2
+	else
+		loop1plane_lower = 2											!Set loop limits to not include halo cells
+		loop1plane_upper = ncells(loop1plane)+1
+	end if
+	
+	if (loop2halos.eq..true.) then
+		loop2plane_lower = 1
+		loop2plane_upper = ncells(loop2plane)+2
+	else
+		loop2plane_lower = 2
+		loop2plane_upper = ncells(loop2plane)+1	
+	end if
+	
+	!Make images of bottom face cells 
+	xyzcell(copyplane) = 2												!Loop over all cells in bottom face of domain
+	do p = loop1plane_lower,loop1plane_upper							
+	do q = loop2plane_lower,loop2plane_upper
+		xyzcell(loop1plane) = p											!Can't iterate an array element
+		xyzcell(loop2plane) = q															
+		cellnp = cell%cellnp(xyzcell(1),xyzcell(2),xyzcell(3))			!Number of particles in the cell
+		old => cell%head(xyzcell(1),xyzcell(2),xyzcell(3))%point 		!Set old to top of link list
+		do n=1,cellnp
+			m = m + 1													!Count one molecule
+			molno = old%molno		    								!Obtain molecule number
+			r(np+m,:) = r(molno,:) 		    							!Copy molecule
+			r(np+m,copyplane) = r(np+m,copyplane) + domain(copyplane)   !Move to other side of domain
+			
+			if (potential_flag.eq.1) then								!Polymer IDs copied too
+				polyinfo_mol(np+m)%chainID    = polyinfo_mol(molno)%chainID
+				polyinfo_mol(np+m)%subchainID = polyinfo_mol(molno)%subchainID
+			end if
+			
+			if (copyplane.eq.shear_plane) then
+				if (rebuild.eq.1) then									!If rebuilding...
+					mol_wrap_integer(molno) = &							!Molecular wrap integer kept the same until next rebuild
+					floor((r(np+m,shear_direction)+halfdomain(shear_direction)+shear_distance)/(domain(shear_direction)))
+				end if
+				r(np+m,shear_direction) = 	r(np+m,shear_direction) + &	!Slide and wrap
+									  		(shear_distance-mol_wrap_integer(molno)*domain(shear_direction))
+			end if
+
+			current => old			    								!Use current to move to next
+			old => current%next 		    							!Use pointer to obtain next item in list
+		enddo
+	enddo
+	enddo
+	
+	!Make images of top face cells 
+	xyzcell(copyplane) = ncells(copyplane)+1
+	do p = loop1plane_lower,loop1plane_upper
+	do q = loop2plane_lower,loop2plane_upper
+		xyzcell(loop1plane) = p
+		xyzcell(loop2plane) = q
+		cellnp = cell%cellnp(xyzcell(1),xyzcell(2),xyzcell(3))			!Number of particles in the cell
+		old => cell%head(xyzcell(1),xyzcell(2),xyzcell(3))%point 		!Set old to top of link list
+		do n=1,cellnp
+			m = m + 1													!Count one molecule
+			molno = old%molno		    								!Obtain molecule number
+			r(np+m,:) = r(molno,:) 		    							!Copy molecule
+			r(np+m,copyplane) = r(np+m,copyplane) - domain(copyplane)   !Move to other side of domain
+			
+			if (potential_flag.eq.1) then								!Polymer IDs copied too
+				polyinfo_mol(np+m)%chainID    = polyinfo_mol(molno)%chainID
+				polyinfo_mol(np+m)%subchainID = polyinfo_mol(molno)%subchainID
+			end if
+		
+			if (copyplane.eq.shear_plane) then
+				if (rebuild.eq.1) then									!If rebuilding...
+					mol_wrap_integer(molno) = &							!Molecular wrap integer kept the same until next rebuild
+					-floor((r(np+m,shear_direction)+halfdomain(shear_direction)-shear_distance)/(domain(shear_direction)))
+				end if
+				r(np+m,shear_direction) = 	r(np+m,shear_direction) - & !Slide and wrap
+									  		(shear_distance-mol_wrap_integer(molno)*domain(shear_direction))
+			end if
+		
+			current => old			    								!Use current to move to next
+			old => current%next 		    							!Use pointer to obtain next item in list
+		enddo
+	enddo
+	enddo
+
+	halo_np = halo_np + m - startnp	
+	molno_finish = np+m	
+
+	if (rebuild.eq.1) call assign_to_halocell(molno_start,molno_finish)!Assign all new copies to halo cells
+	
+	nullify(current)
+	nullify(old)
+
+	return
+
+end subroutine update_plane
 
 subroutine updatefacedown(ixyz)
 	use messenger
@@ -177,6 +382,12 @@ subroutine updatefacedown(ixyz)
 				molno = old%molno		    !Obtain molecule number
 				r(np+m,:) = r(molno,:) 		    !Copy molecule
 				r(np+m,1) = r(np+m,1) + domain(1)   !Move to other side of domain
+
+				if (potential_flag.eq.1) then
+					polyinfo_mol(np+m)%chainID 	  = polyinfo_mol(molno)%chainID
+					polyinfo_mol(np+m)%subchainID = polyinfo_mol(molno)%subchainID
+				end if
+
 				current => old			    !Use current to move to next
 				old => current%next 		    !Use pointer to obtain next item in list
 				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
@@ -194,6 +405,12 @@ subroutine updatefacedown(ixyz)
 				molno = old%molno		    !Obtain molecule number
 				r(np+m,:) = r(molno,:) 		    !Copy molecule
 				r(np+m,2) = r(np+m,2) + domain(2)   !Move to other side of domain
+
+				if (potential_flag.eq.1) then
+					polyinfo_mol(np+m)%chainID 	  = polyinfo_mol(molno)%chainID
+					polyinfo_mol(np+m)%subchainID = polyinfo_mol(molno)%subchainID
+				end if
+
 				current => old			    !Use current to move to next
 				old => current%next 		    !Use pointer to obtain next item in list
 				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
@@ -211,6 +428,12 @@ subroutine updatefacedown(ixyz)
 				molno = old%molno		    !Obtain molecule number
 				r(np+m,:) = r(molno,:) 		    !Copy molecule
 				r(np+m,3) = r(np+m,3) + domain(3)   !Move to other side of domain
+
+				if (potential_flag.eq.1) then
+					polyinfo_mol(np+m)%chainID 	  = polyinfo_mol(molno)%chainID
+					polyinfo_mol(np+m)%subchainID = polyinfo_mol(molno)%subchainID
+				end if
+
 				current => old			    !Use current to move to next
 				old => current%next 		    !Use pointer to obtain next item in list
 				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
@@ -257,6 +480,12 @@ subroutine updatefaceup(ixyz)
 				molno = old%molno		    !Obtain molecule number
 				r(np+m,:) = r(molno,:) 		    !Copy molecule
 				r(np+m,1) = r(np+m,1) - domain(1)   !Move to other side of domain
+
+				if (potential_flag.eq.1) then
+					polyinfo_mol(np+m)%chainID 	  = polyinfo_mol(molno)%chainID
+					polyinfo_mol(np+m)%subchainID = polyinfo_mol(molno)%subchainID
+				end if
+
 				current => old			    !Use current to move to next
 				old => current%next 		    !Use pointer to obtain next item in list
 				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
@@ -274,6 +503,12 @@ subroutine updatefaceup(ixyz)
 				molno = old%molno		    !Obtain molecule number
 				r(np+m,:) = r(molno,:) 		    !Copy molecule
 				r(np+m,2) = r(np+m,2) - domain(2)   !Move to other side of domain
+
+				if (potential_flag.eq.1) then
+					polyinfo_mol(np+m)%chainID 	  = polyinfo_mol(molno)%chainID
+					polyinfo_mol(np+m)%subchainID = polyinfo_mol(molno)%subchainID
+				end if
+
 				current => old			    !Use current to move to next
 				old => current%next 		    !Use pointer to obtain next item in list
 				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
@@ -291,6 +526,12 @@ subroutine updatefaceup(ixyz)
 				molno = old%molno		    !Obtain molecule number
 				r(np+m,:) = r(molno,:) 		    !Copy molecule
 				r(np+m,3) = r(np+m,3) - domain(3)   !Move to other side of domain
+
+				if (potential_flag.eq.1) then
+					polyinfo_mol(np+m)%chainID 	  = polyinfo_mol(molno)%chainID
+					polyinfo_mol(np+m)%subchainID = polyinfo_mol(molno)%subchainID
+				end if
+
 				current => old			    !Use current to move to next
 				old => current%next 		    !Use pointer to obtain next item in list
 				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
@@ -350,6 +591,12 @@ subroutine updateedge(face1, face2)
 				+ sign(1,ncells(2)-edge1(1,i))*domain(2)
 				r(np+m,3) = r(np+m,3) &  !Move to other side of domain
 				+ sign(1,ncells(3)-edge2(1,i))*domain(3)
+
+				if (potential_flag.eq.1) then
+					polyinfo_mol(np+m)%chainID 	  = polyinfo_mol(molno)%chainID
+					polyinfo_mol(np+m)%subchainID = polyinfo_mol(molno)%subchainID
+				end if
+
 				current => old			    !Use current to move to next
 				old => current%next 		    !Use pointer to obtain next item in list
 				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
@@ -369,6 +616,12 @@ subroutine updateedge(face1, face2)
 				+ sign(1,ncells(1)-edge1(2,i))*domain(1)
 				r(np+m,3) = r(np+m,3) &  !Move to other side of domain
 				+ sign(1,ncells(3)-edge2(2,i))*domain(3)
+
+				if (potential_flag.eq.1) then
+					polyinfo_mol(np+m)%chainID 	  = polyinfo_mol(molno)%chainID
+					polyinfo_mol(np+m)%subchainID = polyinfo_mol(molno)%subchainID
+				end if
+
 				current => old			    !Use current to move to next
 				old => current%next 		    !Use pointer to obtain next item in list
 				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
@@ -389,6 +642,12 @@ subroutine updateedge(face1, face2)
 				+ sign(1,ncells(1)-edge1(3,i))*domain(1)
 				r(np+m,2) = r(np+m,2) &  !Move to other side of domain
 				+ sign(1,ncells(2)-edge2(3,i))*domain(2)
+
+				if (potential_flag.eq.1) then
+					polyinfo_mol(np+m)%chainID 	  = polyinfo_mol(molno)%chainID
+					polyinfo_mol(np+m)%subchainID = polyinfo_mol(molno)%subchainID
+				end if
+
 				current => old			    !Use current to move to next
 				old => current%next 		    !Use pointer to obtain next item in list
 				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
@@ -443,6 +702,12 @@ subroutine updatecorners()
 			+ sign(1,ncells(2)-jcornercell(i))*domain(2)
 			r(np+m,3) = r(np+m,3) &  !Move to other side of domain
 			+ sign(1,ncells(3)-kcornercell(i))*domain(3)
+
+			if (potential_flag.eq.1) then
+				polyinfo_mol(np+m)%chainID 	  = polyinfo_mol(molno)%chainID
+				polyinfo_mol(np+m)%subchainID = polyinfo_mol(molno)%subchainID
+			end if
+
 			current => old			    !Use current to move to next
 			old => current%next 		    !Use pointer to obtain next item in list
 			!print*, r(np+m,1), r(np+m,2), r(np+m,3)
@@ -487,8 +752,19 @@ end
 !======================================================================
 !			Molecule Transfer Subroutines                 =
 !======================================================================
-
 subroutine sendmols()
+use messenger
+implicit none
+	
+	if (all(periodic.lt.2)) then
+		call sendmols_quiescent
+	else
+		call sendmols_leesedwards
+	end if
+
+end subroutine sendmols
+
+subroutine sendmols_quiescent()
 	use messenger
 	use arrays_MD
 	implicit none
@@ -526,6 +802,56 @@ subroutine sendmols()
 	return
 end
 
+subroutine sendmols_leesedwards()
+use messenger
+use arrays_MD
+implicit none
+	
+	integer :: ixyz,n
+
+	if (iter.lt.shear_iter0) then
+		call sendmols_quiescent
+		return
+	end if
+	
+	shear_time = dble(iter - shear_iter0)*delta_t
+	shear_distance = shear_time*shear_velocity
+	wrap_integer = floor(shear_time*shear_velocity/domain(shear_direction))
+	
+	do n=1,np
+
+		!---- Slide and wrap in shearing plane first --------------------!
+		if (r(n,shear_plane) .ge. halfdomain(shear_plane)) then   									!Above +halfdomain
+			r(n,shear_plane) = r(n,shear_plane) - domain(shear_plane) 								!Move to other side of domain
+			r(n,shear_direction) = r(n,shear_direction) - (shear_distance - wrap_integer*domain(shear_direction))
+			v(n,shear_direction) = v(n,shear_direction) - shear_velocity
+		end if
+		if (r(n,shear_plane) .lt. -halfdomain(shear_plane)) then   									!Below -halfdomain
+			r(n,shear_plane) = r(n,shear_plane) + domain(shear_plane) 								!Move to other side of domain
+			r(n,shear_direction) = r(n,shear_direction) + (shear_distance - wrap_integer*domain(shear_direction))
+			v(n,shear_direction) = v(n,shear_direction) + shear_velocity
+		endif
+		!----------------------------------------------------------------!
+
+		if (r(n,shear_direction) >= halfdomain(shear_direction)) then   							!Above +halfdomain
+			r(n,shear_direction) = r(n,shear_direction) - domain(shear_direction) 					!Move to other side of domain
+		end if			
+		if (r(n,shear_direction) < -halfdomain(shear_direction)) then   							!Below -halfdomain
+			r(n,shear_direction) = r(n,shear_direction) + domain(shear_direction) 					!Move to other side of domain
+		endif
+
+		if (r(n,shear_remainingplane) >= halfdomain(shear_remainingplane)) then   					!Above +halfdomain
+			r(n,shear_remainingplane) = r(n,shear_remainingplane) - domain(shear_remainingplane) 	!Move to other side of domain
+		end if
+		if (r(n,shear_remainingplane) < -halfdomain(shear_remainingplane)) then   					!Below -halfdomain
+			r(n,shear_remainingplane) = r(n,shear_remainingplane) + domain(shear_remainingplane) 	!Move to other side of domain
+		endif
+		
+	enddo
+	
+	return
+
+end subroutine sendmols_leesedwards
 !======================================================================
 !			Data Transfer Subroutines                     =
 !======================================================================

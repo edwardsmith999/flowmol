@@ -35,6 +35,14 @@ module computational_constants_MD
 
 	include "param.inc"
 
+	!Command-line arguments
+	logical	:: restart
+	character(len=32) :: initial_microstate_file
+	character(len=32) :: input_file
+
+	!Potential flags
+	integer			:: potential_flag	!Choose LJ or Polymer Potential 
+
 	!Input (on or off) flags
 	integer			:: vmd_outflag
 	integer			:: macro_outflag
@@ -46,17 +54,18 @@ module computational_constants_MD
 	integer			:: vflux_outflag
 	integer, dimension(3)	:: periodic
 
+
 	!Parameters
-	integer          	:: iter              !Global simulation iteration count
-	integer          	:: tplot             !Frequency at which to record results
+	integer        	:: iter              !Global simulation iteration count
+	integer        	:: tplot             !Frequency at which to record results
 	integer		 	:: Nmass_ave	     !Number of averages for each mass average
 	integer		 	:: Nvel_ave	     !Number of averages for each velocity average
 	integer		 	:: Nstress_ave	     !Number of bins for viscosity calculation
 	integer		 	:: Nvisc_ave	     !Number of samples for viscosity measurement
 	integer		 	:: Nmflux_ave	     !Number of averages for each mass flux
 	integer		 	:: Nvflux_ave	     !Number of averages for each velocity flux
-	integer          	:: initialstep       !Initial step of simulation
-	integer          	:: Nsteps            !Total number of computational steps
+	integer         :: initialstep       !Initial step of simulation
+	integer        	:: Nsteps            !Total number of computational steps
 	integer			:: initise_steps     !Initialisation steps to run before simulation start
 	integer		 	:: extralloc	     !Extra allocation space to include copied halos
 	integer		 	:: overlap	     !Size of overlap region used to apply force to molecular region
@@ -107,6 +116,49 @@ module computational_constants_MD
 end module computational_constants_MD
 
 !-------------------------------------------------------------------------------------
+!----------------------------------Polymer--------------------------------------------
+module polymer_info_MD
+
+	integer				:: etevtcf_outflag			!End-to-end time correlation function output flag
+	integer				:: etevtcf_iter0			!Iteration from which to begin averaging
+	integer				:: chain_length				!Number of LJ beads per FENE chain
+	double precision 	:: k_c, R_0					!Spring constant and max elongation of bonds	
+	double precision 	:: etevtcf
+			
+	type polyinfo
+		integer :: chainID				!Integer value: chain number 
+		integer :: subchainID			!Integer value:	bead number
+		integer :: left					!Molno of adjacent bead (left)
+		integer :: right				!Molno of adjacent bead (right)
+	end type polyinfo
+
+	type(polyinfo), dimension(:), allocatable :: polyinfo_mol 
+	!eg. to access chainID of mol 23, call polyinfo_mol(23)%chainID
+
+	double precision, dimension(:,:), allocatable :: etev_0 !End-to-end vectors for polymer chains at iter=etevtcf_iter0 (size of np,only stored for leftmost chain mols) 
+
+end module polymer_info_MD
+
+!-------------------------------------------------------------------------------------
+!-------------------------------Shearing BCs------------------------------------------
+module shear_info_MD
+
+	integer 			:: define_shear_as
+	integer				:: shear_iter0
+	integer				:: wrap_integer
+	integer				:: shear_plane
+	integer				:: shear_direction
+	integer				:: shear_remainingplane
+	double precision 	:: shear_velocity
+	double precision 	:: shear_rate
+	double precision	:: shear_distance
+	double precision	:: shear_time
+
+	integer, dimension(:), allocatable	:: mol_wrap_integer		
+
+end module shear_info_MD
+
+!-------------------------------------------------------------------------------------
 !----------------------------------Arrays---------------------------------------------
 
 module arrays_MD
@@ -124,6 +176,8 @@ module arrays_MD
 	double precision, dimension(:),   allocatable 	      :: recvbuffer
 	double precision, dimension(:,:), allocatable, target :: slidev	    	!Speed for sliding molecules
 	double precision, dimension(:),   allocatable, target :: potenergymol 	!Potential energy of each molecule
+	double precision, dimension(:),   allocatable, target :: potenergymol_LJ 	!LJ Potential energy of each molecule
+	double precision, dimension(:),   allocatable, target :: potenergymol_FENE 	!FENE Potential energy of each molecule
 	double precision, dimension(:),   allocatable, target :: virialmol 	!Virial of each molecule
 
 end module arrays_MD
@@ -240,6 +294,10 @@ module calculated_properties_MD
 	double precision :: planespacing		    !Spacing between planes for MOP
 	double precision :: vsum, v2sum                     !velocity sum
 	double precision :: potenergysum                    !potential energy sum for system
+	double precision :: potenergysum_LJ                 !potential energy sum from LJ
+	double precision :: potenergysum_FENE               !potential energy sum from FENE
+	double precision :: potenergy_LJ                    !potential energy from LJ
+	double precision :: potenergy_FENE                  !potential energy FENE
 	double precision :: kinenergy, potenergy, totenergy !Energies
 	double precision :: virial, temperature, pressure   !System properties
 	double precision :: initialenergy		    !Intial energy of system

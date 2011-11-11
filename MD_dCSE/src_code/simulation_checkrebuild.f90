@@ -30,13 +30,9 @@ implicit none
 	endif
 
 	!Evaluate velocity magnitude
-	vmagnitude = 0.d0
 	do n = 1, np    ! Loop over all molecules
-	do ixyz = 1, nd    ! Loop over all dimensions
-		vmagnitude(n) = vmagnitude(n) + v(n,ixyz)*v(n,ixyz)
+		vmagnitude(n) = dot_product(v(n,:),v(n,:)) 
 	enddo
-	enddo
-
 	!Obtain maximum velocity
 	vmax = maxval(vmagnitude)
 	vmax = sqrt(vmax)

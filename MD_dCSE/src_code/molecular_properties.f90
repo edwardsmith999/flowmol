@@ -36,7 +36,7 @@ subroutine setup_tag
 
 	mol_layers = 2
 
-	wallslidev(1) = 1.d0
+	wallslidev(1) = 0.d0
 	wallslidev(2) = 0.d0
 	wallslidev(3) = 0.d0
 

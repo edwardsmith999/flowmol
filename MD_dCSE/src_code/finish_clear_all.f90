@@ -67,6 +67,8 @@ implicit none
 	deallocate(volume_force)
 	deallocate(mass_flux)
 	deallocate(potenergymol)
+	deallocate(potenergymol_LJ)
+	deallocate(potenergymol_FENE)
 	deallocate(virialmol)
 	deallocate(planes)
 

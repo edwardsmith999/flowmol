@@ -76,6 +76,9 @@ subroutine setup_set_parameters
 	!call establish_gpusurface_cells2(0)
 	!call CUDA_setup
 
+	!Setup shear info
+	call setup_shear_parameters
+
 end subroutine setup_set_parameters
 
 
@@ -83,6 +86,8 @@ end subroutine setup_set_parameters
 !Allocate arrays first based on number of dimensions (n=1) then using extra allocation (n=2)
 subroutine set_parameters_allocate(n)
 	use module_set_parameters
+	use shear_info_MD
+	use polymer_info_MD
 	implicit none
 
 	integer :: ixyz, n
@@ -127,17 +132,59 @@ subroutine set_parameters_allocate(n)
 
 		!Allocate potential energy and virial per molecule array
 		allocate(potenergymol(np+extralloc))
+		allocate(potenergymol_LJ(np+extralloc))
+		allocate(potenergymol_FENE(np+extralloc))
 		allocate(virialmol(np+extralloc))
 
 		!Allocate pressure tensors
 		allocate(rfmol(np+extralloc,nd,nd))
 		allocate(Pxymol(np+extralloc,nd,nd))
 
+		!Allocate polymer arrays
+		allocate(polyinfo_mol(np+extralloc))
+		allocate(etev_0(np,nd))
+
+		!Allocate bulk shear array
+		allocate(mol_wrap_integer(np))
+
 	end select
 
 end subroutine set_parameters_allocate
 
 !-----------------------------------------------------------------------------
+subroutine setup_shear_parameters
+use module_set_parameters
+use shear_info_MD
+implicit none
+
+	integer :: i
+	
+	do i=1,nd
+		if (periodic(i).eq.2) shear_plane = i
+	end do
+
+	if (any(periodic.gt.1)) then	
+		select case(shear_plane + shear_direction)
+		case(3)
+			shear_remainingplane = 3
+		case(4)
+			shear_remainingplane = 2
+		case(5)
+			shear_remainingplane = 1
+		case default
+			stop 'Shear plane and shear direction must be different and 1,2 or 3'
+		end select 
+	end if
+
+	if (define_shear_as.eq.0) shear_rate = shear_velocity/domain(shear_direction)
+	if (define_shear_as.eq.1) shear_velocity = shear_rate*domain(shear_direction)
+	
+	if (iter .lt. shear_iter0) then
+		shear_time = 0.d0
+		shear_distance = 0.d0
+	end if
+
+end subroutine setup_shear_parameters
 
 subroutine set_parameters_domain
 	use module_set_parameters
@@ -258,11 +305,14 @@ end subroutine set_parameters_global_domain_hybrid
 
 subroutine set_parameters_cells
 	use module_set_parameters
+	use polymer_info_MD
 	implicit none
 
 	integer :: ixyz
+	double precision :: rneighbr
 
 	!Calculate size of neighbour list region
+	rneighbr = rcutoff + delta_rneighbr
 	rneighbr2 = (rcutoff + delta_rneighbr)**2
 
 	!Calculate number of cells based on domain size and rcutoff rounding
@@ -270,6 +320,15 @@ subroutine set_parameters_cells
 	do ixyz=1,nd
 		ncells(ixyz)=floor(domain(ixyz)/(rcutoff+delta_rneighbr))
 	enddo
+
+    if (potential_flag.eq.1) then
+        if (rneighbr < R_0) then
+            rneighbr = R_0 
+            rneighbr2 = R_0**2
+            print*, 'Neighbour list distance rneighbr set to &
+                     maximum elongation of polymer spring, ',R_0
+        end if
+    end if
 
 	if (ncells(1)<3 .or. ncells(2)<3 .or. ncells(3)<3) then
 		print*, ncells(1),'    in x and ', ncells(2), '    in y' , ncells(3), '    in z' 
@@ -403,8 +462,8 @@ subroutine set_parameters_outputs
 	allocate(Pxycorrel(Nstress_ave))
 
 	!Allocated arrays for velocity slice
-	allocate(slice_momentum(nbins(2),3))
-	allocate(slice_mass(nbins(2)))
+	if (velocity_outflag.gt.0) 	allocate(slice_momentum(nbins(velocity_outflag),3))
+	if (mass_outflag.gt.0)		allocate(slice_mass(nbins(mass_outflag)))
 	slice_momentum = 0.d0
 	slice_mass = 0
 
@@ -503,6 +562,7 @@ subroutine establish_surface_bins
 	enddo
 
 end subroutine establish_surface_bins
+
 
 !-------------------------------------------------------------------
 !Establish and store indices of cells which are on the outer domain surface specified 
