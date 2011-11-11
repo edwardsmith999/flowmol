@@ -18,6 +18,18 @@ end module module_initialise_microstate
 !----------------------------------------------------------------------------------
 
 subroutine setup_initialise_microstate
+use module_initialise_microstate
+implicit none
+	
+	if (potential_flag.eq.0) call setup_initialise_microstate_LJ
+	if (potential_flag.eq.1) call setup_initialise_microstate_FENE
+	if (potential_flag.gt.1) stop 'Potential flag not recognised!'
+
+end subroutine setup_initialise_microstate
+
+!----------------------------------------------------------------------------------
+!==================================================================================
+subroutine setup_initialise_microstate_LJ
 	use module_initialise_microstate
 	implicit none
 
@@ -33,8 +45,27 @@ subroutine setup_initialise_microstate
 	!call setup_initialise_velocities_test
 
 
-end subroutine setup_initialise_microstate
+end subroutine setup_initialise_microstate_LJ
 
+subroutine setup_initialise_microstate_FENE
+	use module_initialise_microstate
+	use polymer_info_MD
+	implicit none
+
+	integer		::	n
+
+	!call setup_initialise_position       		 !Setup initial positions
+	call setup_initialise_position_FENE 		 !Setup initial positions in //el
+	call setup_tag								 !Setup location of fixed molecules
+	do n = 1,np
+		call read_tag(n)						 !Read tag and assign properties
+	enddo
+	call setup_initialise_velocities     		 !Setup initial velocities
+	!call setup_initialise_velocities_test
+
+
+end subroutine setup_initialise_microstate_FENE
+!==================================================================================
 !----------------------------------------------------------------------------------
 !Initialise Positions
 !Set up the intial position of the particles
@@ -76,14 +107,76 @@ subroutine setup_initialise_position
 
 end subroutine setup_initialise_position
 
+subroutine setup_initialise_position_FENE
+	use module_initialise_microstate
+	use polymer_info_MD
+	implicit none
+
+	integer :: j, ixyz, n, nx, ny, nz
+	integer	:: modcheck
+	integer	:: chainID, subchainID
+	double precision, dimension (nd) :: c !Temporary variable
+
+	do ixyz=1,nd
+		initialunitsize(ixyz) = domain(ixyz) / initialnunits(ixyz)
+	enddo
+
+	modcheck = 0 + mod(np,chain_length) + mod(4*initialnunits(1),chain_length)
+	if (modcheck.ne.0) stop 'Number of molecules must be exactly divisible by &
+	the polymer chain length. Please change the chain length in the input file. &
+	A chain length of 4 should (hopefully) always work.'
+	
+	!Molecules per unit FCC structure (3D)
+	n=1  																		!Reset n for start of loop
+	do nz=1,initialnunits(3)													!Loop over z column
+	c(3) = (nz - 0.75d0)*initialunitsize(3) - halfdomain(3) 
+		do ny=1,initialnunits(2)												!Loop over y column
+		c(2) = (ny - 0.75d0)*initialunitsize(2) - halfdomain(2) 
+			do nx=1,initialnunits(1)											!Loop over all x elements of y column
+			c(1) = (nx - 0.75d0)*initialunitsize(1) - halfdomain(1)
+				do j=1,4														!4 Molecules per cell
+					r(n,:) = c(:)
+					if (j.eq.2) then
+						r(n,1) = c(1) + 0.5d0*initialunitsize(1)
+						r(n,3) = c(3) + 0.5d0*initialunitsize(3)
+					else if (j.eq.3) then
+						r(n,2) = c(2) + 0.5d0*initialunitsize(2)
+						r(n,3) = c(3) + 0.5d0*initialunitsize(3)
+					else if (j.eq.4) then
+						r(n,1) = c(1) + 0.5d0*initialunitsize(1)
+						r(n,2) = c(2) + 0.5d0*initialunitsize(2)
+					end if
+					
+					chainID = ceiling(dble(n)/chain_length)						!Set chain ID of mol n
+					subchainID = mod(n,chain_length)  							!Beads are numbered 1 to chain_length
+					if (subchainID.eq.0) subchainID = chain_length				!Correct for mod returning 0
+
+					polyinfo_mol(n)%chainID = chainID
+ 					polyinfo_mol(n)%subchainID = subchainID
+
+					polyinfo_mol(n)%left = n-1
+					polyinfo_mol(n)%right= n+1
+					if (subchainID.eq.1) polyinfo_mol(n)%left = 0				!Flag for beginning of chain
+					if (subchainID.eq.chain_length) polyinfo_mol(n)%right = 0	!Flag for end of chain
+
+					n = n + 1   												!Move to next molecule
+				enddo
+			enddo
+		enddo
+	enddo
+
+	rinitial = r !Record initial position of all molecules
+
+end subroutine setup_initialise_position_FENE
+
 !----------------------------------------------------------------------------------
 !Initialise Positions
 !Set up the intial position of the particles
 
 subroutine setup_initialise_parallel_position
 	use module_initialise_microstate
-        use messenger
-	!use coupler_md_global_data, only : use_coupling, y
+	use messenger
+	use coupler_md_global_data, only : use_coupling!, y
 	!use coupler_md_setup, only : jmax_overlap_cfd
 	implicit none
 
@@ -271,18 +364,18 @@ subroutine setup_initialise_velocities_test
 	double precision, dimension (nd)   :: netv   !Overall momentum of system
 
 	!Use definition of temperature and re-arrange to define an average velocity
-	initialvel = sqrt(nd * (1.d0 - 1.d0/np)*inputtemperature)
+	!initialvel = sqrt(nd * (1.d0 - 1.d0/np)*inputtemperature)
 	v = 0.d0	!Set velocity initially to zero
-	i = 0		!Zero number of molecules with velocity assigned
-	netv=0		!Set net velocity of system to zero initially
-	zeta=0.d0	!Set Nose Hoover thermostat scaling property to zero
+	!i = 0		!Zero number of molecules with velocity assigned
+	!netv=0		!Set net velocity of system to zero initially
+	!zeta=0.d0	!Set Nose Hoover thermostat scaling property to zero
 	
-	v(1,1) = 2.d0
+	!v(1,1) = 2.d0
 
-	!do n=1,np			      		!Step through each molecule
+	do n=1,np			      		!Step through each molecule
 		!r(1,:) = halfdomain(:)
 		!v(n,1) = 1.0d0
-		!v(n,2) = 0.0d0
+		v(n,2) = 0.1d0
 		!v(n,3) = 0.0d0
 
 		!r(1,:) = -halfdomain(:)
@@ -290,7 +383,7 @@ subroutine setup_initialise_velocities_test
 		!v(n,2) = -0.0d0
 		!v(n,3) = -0.0d0
 	
-	!enddo
+	enddo
 
 end subroutine setup_initialise_velocities_test
 

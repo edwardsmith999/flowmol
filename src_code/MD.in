@@ -25,9 +25,9 @@ INPUTTEMPERATURE
 #	z	
 # -----------------------------------------------------------------------
 INITIALNUNITS
-30
-30
-20
+8
+8
+8
 
 #########################################################################
 # Total number of timesteps:
@@ -173,14 +173,16 @@ PERIODIC
 
 #########################################################################
 # Shear definition, formatted:
-#	velocity or rate flag
+#	shear direction (i.e. 1 for x direction, -2 for negative y direction)
+#	shear iter0
+#	velocity or rate flag: 0-velocity, 1-rate
 #	numerical value
-#	
-#	velocity/rate flag: 0-velocity, 1-rate
 # -----------------------------------------------------------------------
 DEFINE_SHEAR
-1
-0.0
+3
+0
+0
+1.0
 
 #########################################################################
 # Potential flag:
@@ -203,12 +205,14 @@ FENE_INFO
 
 #########################################################################
 # Output flag for end-to-end vector time correlation function (etevtcf):
-#	flag (0-off,1-on)
-#	iteration at which to begin averaging
+#	flag (0-off,1-print to terminal,2-write to output file)
+#	iteration at which to begin averaging (must be "hit" by a tplot, 
+#	otherwise etev_0 will not be initialised and the t.c.f. will be
+#	incorrectly calculated.
 # -----------------------------------------------------------------------
 ETEVTCF_OUTFLAG
 0
-1000
+40000
 
 #########################################################################
 # Microscopic stress tensor output flag:

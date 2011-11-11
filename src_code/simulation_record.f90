@@ -65,6 +65,7 @@ module module_record
 	use computational_constants_MD
 	use arrays_MD
 	use calculated_properties_MD
+	use polymer_info_MD
 
 	double precision :: vel
 
@@ -79,12 +80,19 @@ subroutine simulation_record
 	!Parallel output for molecular positions
 	if (vmd_outflag .eq. 1) call parallel_io_vmd
 	if (vmd_outflag .eq. 2) call parallel_io_vmd_sl
-	if (vmd_outflag .eq. 3) call parallel_io_vmd_halo
+	if (vmd_outflag .eq. 3) then
+		call parallel_io_vmd
+		call parallel_io_vmd_halo
+	end if
 
 	!call evaluate_macroscopic_properties
 	!Obtain each processe's subdomain's macroscopic 
 	!properties; gather on root process and record
 	if (macro_outflag .eq. 1) call evaluate_macroscopic_properties_parallel
+	if (macro_outflag .eq. 2) then
+		call evaluate_macroscopic_properties_parallel
+		call macroscopic_properties_record
+	end if
 
 	!Obtain and record velocity distributions
 	!call evaluate_properties_vdistribution
@@ -112,6 +120,11 @@ subroutine simulation_record
 		call messenger_syncall
 		call parallel_io_final_state
 	endif
+	
+	if (potential_flag.eq.1) then
+		if (etevtcf_outflag.ne.0) call etevtcf_calculate
+		if (etevtcf_outflag.eq.2) call etevtcf_io
+	end if
 
 	call update_simulation_progress_file
 
@@ -130,15 +143,25 @@ subroutine evaluate_macroscopic_properties_parallel
 	v2sum = 0.d0      ! Reset all sums
 
 	do n = 1, np    ! Loop over all particles
-		potenergysum = potenergysum + potenergymol(n)
+
+		if (potential_flag.eq.0) then
+			potenergysum	= potenergysum + potenergymol(n)
+		else if (potential_flag.eq.1) then
+			potenergysum_LJ = potenergysum_LJ + potenergymol_LJ(n)
+			potenergysum_FENE = potenergysum_FENE + potenergymol_FENE(n)
+			potenergysum = potenergysum + potenergymol_LJ(n) + potenergymol_FENE(n)
+		end if
+
 		virial = virial + virialmol(n)
-		do ixyz = 1, nd    ! Loop over all dimensions
-			!Velocity component must be shifted forward half a timestep to determine 
+
+		do ixyz = 1, nd   ! Loop over all dimensions
+			!Velocity component must be shifted back half a timestep to determine 
 			!velocity of interest - required due to use of the leapfrog method
-			vel = v(n,ixyz) + 0.5d0*a(n,ixyz)*delta_t 
+			vel = v(n,ixyz) + 0.5d0*a(n,ixyz)*delta_t
 			vsum = vsum + vel      !Add up all molecules' velocity components
 			v2sum = v2sum + vel**2 !Add up all molecules' velocity squared components  
 		enddo
+
 	enddo
 
 	!Obtain global sums for all parameters
@@ -152,14 +175,23 @@ subroutine evaluate_macroscopic_properties_parallel
 
 		kinenergy   = (0.5d0 * v2sum) / real(globalnp,kind(0.d0))
 		potenergy   = potenergysum /(2.d0*real(globalnp,kind(0.d0))) !N.B. extra 1/2 as all interactions calculated
+		if (potential_flag.eq.1) then
+			potenergy_LJ= potenergysum_LJ/(2.d0*real(globalnp,kind(0.d0)))
+			potenergy_FENE= potenergysum_FENE/(2.d0*real(globalnp,kind(0.d0)))
+		end if
 		totenergy   = kinenergy + potenergy
 		temperature = v2sum / real(nd*globalnp,kind(0.d0))
 		pressure    = (density/(globalnp*nd))*(v2sum+virial/2) !N.B. virial/2 as all interactions calculated
-
-		print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
-		iter,';',vsum,';', v2sum,';', temperature,';', &
-		kinenergy,';',potenergy,';',totenergy,';',pressure
-
+	
+		if (potential_flag.eq.0) then	
+			print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
+			iter,';',vsum,';', v2sum,';', temperature,';', &
+			kinenergy,';',potenergy,';',totenergy,';',pressure
+		else if (potential_flag.eq.1) then
+			print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
+			iter,';',vsum,';', v2sum,';', temperature,';', &
+			kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure
+		end if
 		!print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4,a,f10.4)', &
 		!iter,';',vsum,';', v2sum,';', temperature,';', &
 		!kinenergy,';',potenergy,';',totenergy,';',(density/(globalnp*nd))*(v2sum),';',(density/(globalnp*nd))*virial/2
@@ -299,6 +331,56 @@ subroutine evaluate_properties_diffusion
 	enddo
 
 end subroutine evaluate_properties_diffusion
+
+!===================================================================================
+!Calculate end-to-end time correlation function of FENE chain
+subroutine etevtcf_calculate 
+use module_record
+implicit none
+	
+	integer 			:: i,molL,molR
+	double precision	:: etev_prod, etev_prod_sum
+	double precision	:: etev2, etev2_sum
+	double precision, dimension(nd) :: etev
+
+	if (iter.eq.etevtcf_iter0) then						!Initialise end-to-end vectors at t_0
+		do i=1,np														
+			if (polyinfo_mol(i)%left.eq.0) then
+				molL = i
+				molR = i+(chain_length-1)										!Right end of chain
+				etev_0(i,:) = r(molR,:) - r(molL,:)								!End-to-end vector
+				etev_0(i,:) = etev_0(i,:) - domain(:)*anint(etev_0(i,:)/domain(:)) !Minimum image	
+			end if
+		end do
+	end if
+
+	etev_prod_sum	= 0.d0
+	etev2_sum 		= 0.d0
+
+	do i=1,np
+		if (polyinfo_mol(i)%left.eq.0) then
+			
+			molL = i
+			molR = i+(chain_length-1)
+
+			etev(:) 		= r(molR,:) - r(molL,:)								!End-to-end vector
+			etev(:) 		= etev(:) - domain(:)*anint(etev(:)/domain(:))		!Minimum image
+
+			etev_prod		= dot_product(etev(:),etev_0(i,:))
+			etev2			= dot_product(etev,etev)			
+		
+			etev_prod_sum	= etev_prod_sum + etev_prod
+			etev2_sum		= etev2_sum + etev2		
+		
+		end if
+	end do
+	
+	!etev_prod_mean = etev_prod_sum/dble(samplecount)
+	!etev2_mean = etev2_sum/dble(samplecount)
+	etevtcf = etev_prod_sum/etev2_sum											!Sample counts cancel
+	if (etevtcf_outflag.eq.1) print*, 'ETEVTCF = ', etevtcf
+
+end subroutine etevtcf_calculate
 
 !===================================================================================
 !		RECORD MASS AT LOCATION IN SPACE

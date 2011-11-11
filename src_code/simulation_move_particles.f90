@@ -19,6 +19,40 @@ end module module_move_particles
 subroutine simulation_move_particles
 use module_move_particles
 implicit none
+	
+	if (all(periodic.lt.2)) call simulation_move_particles_default
+	if (any(periodic.gt.1)) call SLLOD_move_bulk !todo actually make this SLLOD move bulk
+
+end subroutine simulation_move_particles
+
+subroutine SLLOD_move_bulk!todo actually make this SLLOD algorithm 
+use module_move_particles
+implicit none
+
+	integer :: n, ixyz
+	
+	do ixyz = 1,nd        !Step through each dimension ixyz
+	do n = 1,np        	!Step through each particle n
+
+		!Check for tethering force and correct applied force accordingly
+		if (tag(n).eq. 3) then
+			call tether_force(n)
+		endif
+
+		!Leapfrog mean velocity calculated here at v(t+0.5delta_t) = v(t-0.5delta_t) + a*delta_t 
+		!Leapfrog mean position calculated here at r(t+delta_t) = r(t) + v(t+0.5delta_t)*delta_t
+		v(n,ixyz) =(v(n,ixyz) + delta_t*a(n,ixyz))*fix(n,ixyz) 	!Velocity calculated from acceleration
+!		v(n,ixyz) = v(n,ixyz) + slidev(n,ixyz)			!Add velocity of sliding wall
+		r(n,ixyz) = r(n,ixyz) + delta_t*v(n,ixyz)		!Position calculated from velocity
+
+	enddo
+	enddo
+
+end subroutine SLLOD_move_bulk
+
+subroutine simulation_move_particles_default
+use module_move_particles
+implicit none
 
 	integer :: n, ixyz
 
@@ -39,12 +73,12 @@ implicit none
 	enddo
 	enddo
 
-       ! debug assertion for constrained particles
-       if (jblock == npy .and.  any(r(:,2) > halfdomain(2))) then
-                write(0,*)'MD: some molecules are above top y boundary '
-       endif
+	! debug assertion for constrained particles
+   	if (jblock == npy .and.  any(r(:,2) > halfdomain(2))) then
+		write(0,*)'MD: some molecules are above top y boundary '
+   	endif
 
-end subroutine simulation_move_particles
+end subroutine simulation_move_particles_default
 
 !----------------------------------------------------------------------------------
 !Move molecules and apply constraints or thermostatting as determined by tagging system

@@ -76,15 +76,12 @@ end subroutine assign_to_cell
 !--------------------------------------------------------
 !Routine used to rebuild linked list for each halo cell
 
-subroutine assign_to_halocell
+subroutine assign_to_halocell(start,finish)
 use module_linklist
 implicit none
 
 	integer		:: n, start, finish
 	integer		:: icell, jcell, kcell
-
-	start = np+1
-	finish = np+halo_np
 
 	do n=start,finish
 		icell = ceiling((r(n,1)+halfdomain(1)) &
@@ -95,9 +92,12 @@ implicit none
 		/cellsidelength(3))+nh !Add 1 due to halo
 		!if (irank .eq. iroot) print'(4i5,3f10.5)', &
 		!n, icell, jcell, kcell, r(n,1), r(n,2), r(n,3)
+!		print*, (r(271,1)+halfdomain(1))/domain(1)
+		!if (n.eq.271) print*, icell, jcell, kcell
 		call linklist_checkpush(icell, jcell, kcell, n)
+	
 	enddo
-
+	
 end subroutine assign_to_halocell
 
 !----------------------------------------------------------------------------------
@@ -149,30 +149,34 @@ implicit none
 
 				!print*, icell+icellshift,jcell+jcellshift,kcell+kcellshift
 
-				do j = 1,adjacentcellnp          !Step through all j for each i
+				do j = 1,adjacentcellnp         !Step through all j for each i
 
-					molnoj = oldj%molno 	 !Number of molecule
-					rj = r(molnoj,:)         !Retrieve rj
+					molnoj = oldj%molno 	 	!Number of molecule
+					rj = r(molnoj,:)         	!Retrieve rj
+
 					currentj => oldj
-					oldj => currentj%next    !Use pointer in datatype to obtain next item in list
+					oldj => currentj%next    	!Use pointer in datatype to obtain next item in list
+					
+					if(molnoi==molnoj) cycle 	!Check to prevent interaction with self
 
-					if(molnoi==molnoj) cycle !Check to prevent interaction with self
-
-					rij2=0                   !Set rij^2 to zero
-					rij(:) = ri(:) - rj(:)   !Evaluate distance between particle i and j
-
-					do ixyz=1,nd
-						rij2 = rij2+rij(ixyz)*rij(ixyz) !Square of vector calculated
-					enddo
+					rij(:) = ri(:) - rj(:)   	!Evaluate distance between particle i and j
+					rij2 = dot_product(rij,rij) !Square of rij
+					
+					if (potential_flag.eq.1) call check_update_adjacentbeadinfo(molnoi,molnoj)	
 
 					if (rij2 < rneighbr2) call linklist_checkpushneighbr(molnoi, molnoj)
+
+
 				enddo
+
 			enddo
 			enddo
 			enddo
 			currenti => oldi
 			oldi => currenti%next !Use pointer in datatype to obtain next item in list
+
 		enddo
+
 	enddo
 	enddo
 	enddo
@@ -247,6 +251,7 @@ implicit none
 					rij2 = rij2+rij(ixyz)*rij(ixyz) !Square of vector calculated
 				enddo
 
+				if (potential_flag.eq.1) call check_update_adjacentbeadinfo(molnoi,molnoj)	
 				if (rij2 < rneighbr2) call linklist_checkpushneighbr(molnoi, molnoj)
 				!if (rij2 < rneighbr2) print*,'own_cell', molnoi, molnoj
 			enddo
@@ -283,6 +288,7 @@ implicit none
 						rij2 = rij2+rij(ixyz)*rij(ixyz) !Square of vector calculated
 					enddo
 
+					if (potential_flag.eq.1) call check_update_adjacentbeadinfo(molnoi,molnoj)	
 					!if (rij2 < rneighbr2) print*,'neighbr_cells',  molnoi, molnoj
 					if (rij2 < rneighbr2) call linklist_checkpushneighbr(molnoi, molnoj)
 
@@ -584,26 +590,23 @@ implicit none
 		!icell+icellshift(k),';',jcell+jcellshift(k),';',kcell+kcellshift(k),';'
 
 		!Check interaction with neighbouring cells
-		do i = 1,cellnp                 !Step through each particle in list 
-			molnoi = oldi%molno 	!Number of molecule
-			ri = r(molnoi,:)        !Retrieve ri
+		do i = 1,cellnp                 	!Step through each particle in list 
+			molnoi = oldi%molno 			!Number of molecule
+			ri = r(molnoi,:)        		!Retrieve ri
 
-			oldj => oldjhead	!Reset j to head of linked list
+			oldj => oldjhead				!Reset j to head of linked list
 
-			do j = 1,adjacentcellnp          !Step through all j for each i
+			do j = 1,adjacentcellnp         !Step through all j for each i
 
-				molnoj = oldj%molno !Number of molecule
-				rj = r(molnoj,:)         !Retrieve rj
+				molnoj = oldj%molno 		!Number of molecule
+				rj = r(molnoj,:)         	!Retrieve rj
 				currentj => oldj
-				oldj => currentj%next    !Use pointer in datatype to obtain next item in list
+				oldj => currentj%next    	!Use pointer in datatype to obtain next item in list
 
-				rij2=0                   !Set rij^2 to zero
-				rij(:) = ri(:) - rj(:)   !Evaluate distance between particle i and j
+				rij(:) = ri(:) - rj(:)   	!Evaluate distance between particle i and j
+				rij2 = dot_product(rij,rij)	!Square of vector calculated
 
-				do ixyz=1,nd
-					rij2 = rij2+rij(ixyz)*rij(ixyz) !Square of vector calculated
-				enddo
-
+				if (potential_flag.eq.1) call check_update_adjacentbeadinfo(molnoi,molnoj)	
 				!if (rij2 < rneighbr2) print*,'neighbr_cells',  molnoi, molnoj
 				!Used for halo cell so molnoj and molnoi swapped over!
 				if (rij2 < rneighbr2) call linklist_checkpushneighbr(molnoj, molnoi)
@@ -1584,3 +1587,33 @@ implicit none
 	endif
 
 end subroutine linklist_printcurrent
+
+!----------------------------------------------------------------------------------
+!- check_update_adjacentbeadinfo
+!  updates left and right molnos during rebuild
+!----------------------------------------------------------------------------------
+subroutine check_update_adjacentbeadinfo(molnoi,molnoj)
+use module_linklist
+use polymer_info_MD
+implicit none
+
+	integer :: chaincheck, subchaincheck
+	integer :: molnoi, molnoj
+
+	chaincheck = polyinfo_mol(molnoi)%chainID - polyinfo_mol(molnoj)%chainID
+	subchaincheck = polyinfo_mol(molnoi)%subchainID - polyinfo_mol(molnoj)%subchainID
+
+	if (chaincheck.eq.0) then
+		if (subchaincheck.eq.1)	then
+			polyinfo_mol(molnoi)%left  = molnoj
+			polyinfo_mol(molnoj)%right = molnoi
+		end if
+		if (subchaincheck.eq.-1) then
+			polyinfo_mol(molnoi)%right = molnoj
+			polyinfo_mol(molnoj)%left = molnoi
+		end if
+	end if
+
+	return
+
+end subroutine check_update_adjacentbeadinfo
