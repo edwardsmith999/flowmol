@@ -37,6 +37,8 @@ module module_parallel_io
 	use computational_constants_MD
 	use physical_constants_MD
 	use arrays_MD
+	use polymer_info_MD
+	use shear_info_MD
 	use calculated_properties_MD
 	use messenger, only : MD_COMM
 
@@ -47,6 +49,63 @@ end module
 !======================================================================
 !	        		INPUTS			              =
 !======================================================================
+
+
+!=============================================================================
+! setup_command_arguments
+! Checks for command-line arguments passed to the program and assigns the 
+! relevant values.
+!-----------------------------------------------------------------------------
+subroutine setup_command_arguments
+use module_parallel_io
+implicit none
+	
+	integer	:: i,argcount
+	logical :: restart_file_exists, input_file_exists
+	character(len=32) :: arg,nextarg
+
+	if (irank .eq. iroot) then
+
+		!Set default values in case they aren't specified by user
+		restart = .false.			
+		input_file_exists = .false.
+		restart_file_exists = .false.
+		input_file = 'MD.in'
+		initial_microstate_file = 'final_state'
+
+		argcount = command_argument_count()
+		
+		if (argcount.gt.0) then									!If more than 0 arguments	
+				
+			do i=1,argcount-1									!Loop through all arguments...
+				
+				call get_command_argument(i,arg)				!Reading two at once
+				call get_command_argument(i+1,nextarg)
+				
+				if (trim(arg).eq.'-r' .and. nextarg(1:1).ne.'-') then
+					initial_microstate_file = trim(nextarg)
+					inquire(file=initial_microstate_file, exist=restart_file_exists) 	!Check file exists
+					if (restart_file_exists.eq..true.) restart = .true.
+				end if			
+
+				if (trim(arg).eq.'-i' .and. nextarg(1:1).ne.'-') then
+					input_file = trim(nextarg)
+				end if
+
+			end do
+
+		end if
+
+		inquire(file=input_file, exist=input_file_exists)					!Check file exists
+
+		if(input_file_exists.eq..false.) then
+			print*, 'Input file ', input_file, ' not found. Stopping simulation.'
+			stop
+		end if
+
+	endif
+
+end subroutine setup_command_arguments
 
 !=============================================================================
 ! Input values used to set up the simulation such as number of dimensions and
@@ -801,8 +860,7 @@ subroutine parallel_io_final_state
 	call linklist_deallocateall	   !Deallocate all linklist components
 	call sendmols			   !Exchange particles between processors
 	call assign_to_cell	  	   !Re-build linklist every timestep
-	call messenger_updateborders	   !Update borders between processors
-	call assign_to_halocell		   !Re-build linklist
+	call messenger_updateborders(1)	   !Update borders between processors
 	call assign_to_neighbourlist	   !Setup neighbourlist
 
 	!Build array of number of particles on neighbouring
@@ -1719,4 +1777,81 @@ subroutine surface_stress_io
 
 end subroutine surface_stress_io
 
+!-----------------------------------------------------------------------------
+! Write macroscopic properties to file
+!-----------------------------------------------------------------------------
+subroutine macroscopic_properties_header
+use module_parallel_io
+use calculated_properties_MD
+implicit none
+
+	if (irank .eq. iroot) then	
+		open(unit=10,file='results/macroscopic_properties',status='replace')
+		
+		if (potential_flag.eq.0) then
+			write(10,'(8a)'), &
+			'Iteration; 	   VSum;        V^2Sum;        Temp;         KE;        PE;         TE;        Pressure;'
+			!Print initial conditions for simulations at iteration 0
+			write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.4)'), &
+			initialstep,';',vsum,';', v2sum,';', temperature,';', &
+			kinenergy,';',potenergy,';',totenergy,';',pressure
+		else if (potential_flag.eq.1) then
+			write(10,'(8a)'), &
+			'Iteration; 	   VSum;        V^2Sum;        Temp;       KE;     PE (LJ);  PE (FENE); PE (Tot);    TE;       Pressure;'
+			!Print initial conditions for simulations at iteration 0
+			write(10, '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4)'), &
+			initialstep,';',vsum,';', v2sum,';', temperature,';', &
+			kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure
+		end if
+	endif
+
+end subroutine macroscopic_properties_header
+
+
+subroutine macroscopic_properties_record
+use module_parallel_io
+use calculated_properties_MD
+implicit none
+
+	if (irank .eq. iroot) then
+		if (potential_flag.eq.0) then	
+			write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.4)'), &
+			iter,';',vsum,';', v2sum,';', temperature,';', &
+			kinenergy,';',potenergy,';',totenergy,';',pressure
+		else if (potential_flag.eq.1) then
+			write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4)'), &
+			iter,';',vsum,';', v2sum,';', temperature,';', &
+			kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure
+		end if
+	endif
+
+end subroutine macroscopic_properties_record
+
+!-----------------------------------------------------------------------------
+! Write end-to-end vector time correlation function
+!-----------------------------------------------------------------------------
+subroutine etevtcf_io
+use module_parallel_io
+implicit none
+	
+	integer :: m
+	integer :: length
+
+	if (irank .eq. iroot) then
+		m = (iter-etevtcf_iter0)/tplot + 1
+		inquire(iolength=length) etevtcf
+		
+		if (iter.eq.etevtcf_iter0) then
+			open(14,file='results/etevtcf',status='replace',form='unformatted',access='direct',recl=length)
+			write(14,rec=m) etevtcf
+		else if (iter.gt.etevtcf_iter0) then
+			open(14,file='results/etevtcf',form='unformatted',access='direct',recl=length)
+			write(14,rec=m) etevtcf
+		end if
+		
+		close(14,status='keep')
+
+	endif
+
+end subroutine etevtcf_io
 

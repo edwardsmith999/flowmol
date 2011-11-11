@@ -77,7 +77,9 @@ subroutine setup_set_parameters
 	!call CUDA_setup
 
 	!Setup shear info
-	call setup_shear_parameters
+	if (any(periodic .gt. 1)) then
+		call setup_shear_parameters
+	endif
 
 end subroutine setup_set_parameters
 
@@ -462,16 +464,24 @@ subroutine set_parameters_outputs
 	allocate(Pxycorrel(Nstress_ave))
 
 	!Allocated arrays for velocity slice
-	if (velocity_outflag.gt.0) 	allocate(slice_momentum(nbins(velocity_outflag),3))
-	if (mass_outflag.gt.0)		allocate(slice_mass(nbins(mass_outflag)))
-	slice_momentum = 0.d0
-	slice_mass = 0
+	if (velocity_outflag.ne.0 .and. velocity_outflag.lt.4) then
+		allocate(slice_momentum(nbins(velocity_outflag),3))
+		slice_momentum = 0.d0
+	endif
+	if (mass_outflag.ne.0 .and. mass_outflag.lt.4) then
+		allocate(slice_mass(nbins(mass_outflag)))
+		slice_mass = 0
+	endif
 
 	!Allocated bins for velocity averaging
-	allocate(slice_momentumbin( nbins(1),nbins(2),nbins(3),3))
-	allocate(slice_massbin(nbins(1),nbins(2),nbins(3)  ))
-	slice_momentumbin  = 0.d0
-	slice_massbin = 0
+	if (velocity_outflag.eq.4) then
+		allocate(slice_momentumbin( nbins(1),nbins(2),nbins(3),3))
+		slice_momentumbin  = 0.d0
+	endif
+	if (mass_outflag.eq.4) then
+ 		allocate(slice_massbin(nbins(1),nbins(2),nbins(3)  ))
+		slice_massbin = 0
+	endif
 
 	!Allocated Nose Hoover local PUT thermstat bins
 	allocate(zeta_array(nbins(1),nbins(2),nbins(3)))
