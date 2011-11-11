@@ -411,11 +411,28 @@ end
 !			Border Update Subroutines                     =
 !======================================================================
 
-subroutine messenger_updateborders()
+subroutine messenger_updateborders(rebuild)
+use messenger
+implicit none
+
+	integer				 	:: rebuild
+	
+	if (all(periodic.lt.2)) then
+	 	call messenger_updateborders_quiescent(rebuild)
+	else
+		stop "CANNOT USE LEES EDWARDS IN PARALLEL (YET!!)"
+	end if
+
+end subroutine messenger_updateborders
+
+
+subroutine messenger_updateborders_quiescent(rebuild)
 	use messenger
 	use physical_constants_MD
 	use arrays_MD
 	implicit none
+
+	integer				 	:: rebuild
 	
 	halo_np = 0
 
@@ -435,6 +452,8 @@ subroutine messenger_updateborders()
 
 	!Update Corners of domain
 	call updatecorners
+
+	if (rebuild.eq.1) call assign_to_halocell(np+1,np+halo_np)
 
 	return
 end

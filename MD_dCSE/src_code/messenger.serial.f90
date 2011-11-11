@@ -280,35 +280,35 @@ implicit none
 	end if
 	
 	!Make images of bottom face cells 
-	xyzcell(copyplane) = 2												!Loop over all cells in bottom face of domain
+	xyzcell(copyplane) = 2								!Loop over all cells in bottom face of domain
 	do p = loop1plane_lower,loop1plane_upper							
 	do q = loop2plane_lower,loop2plane_upper
-		xyzcell(loop1plane) = p											!Can't iterate an array element
-		xyzcell(loop2plane) = q															
+		xyzcell(loop1plane) = p							!Can't iterate an array element
+		xyzcell(loop2plane) = q
 		cellnp = cell%cellnp(xyzcell(1),xyzcell(2),xyzcell(3))			!Number of particles in the cell
 		old => cell%head(xyzcell(1),xyzcell(2),xyzcell(3))%point 		!Set old to top of link list
 		do n=1,cellnp
-			m = m + 1													!Count one molecule
-			molno = old%molno		    								!Obtain molecule number
-			r(np+m,:) = r(molno,:) 		    							!Copy molecule
-			r(np+m,copyplane) = r(np+m,copyplane) + domain(copyplane)   !Move to other side of domain
+			m = m + 1							!Count one molecule
+			molno = old%molno						!Obtain molecule number
+			r(np+m,:) = r(molno,:) 		    				!Copy molecule
+			r(np+m,copyplane) = r(np+m,copyplane) + domain(copyplane)   	!Move to other side of domain
 			
-			if (potential_flag.eq.1) then								!Polymer IDs copied too
+			if (potential_flag.eq.1) then					!Polymer IDs copied too
 				polyinfo_mol(np+m)%chainID    = polyinfo_mol(molno)%chainID
 				polyinfo_mol(np+m)%subchainID = polyinfo_mol(molno)%subchainID
 			end if
 			
 			if (copyplane.eq.shear_plane) then
-				if (rebuild.eq.1) then									!If rebuilding...
-					mol_wrap_integer(molno) = &							!Molecular wrap integer kept the same until next rebuild
+				if (rebuild.eq.1) then				!If rebuilding...
+					mol_wrap_integer(molno) = &		!Molecular wrap integer kept the same until next rebuild
 					floor((r(np+m,shear_direction)+halfdomain(shear_direction)+shear_distance)/(domain(shear_direction)))
 				end if
 				r(np+m,shear_direction) = 	r(np+m,shear_direction) + &	!Slide and wrap
 									  		(shear_distance-mol_wrap_integer(molno)*domain(shear_direction))
 			end if
 
-			current => old			    								!Use current to move to next
-			old => current%next 		    							!Use pointer to obtain next item in list
+			current => old			!Use current to move to next
+			old => current%next 		!Use pointer to obtain next item in list
 		enddo
 	enddo
 	enddo
