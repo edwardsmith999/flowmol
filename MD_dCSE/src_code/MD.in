@@ -91,7 +91,7 @@ VMD_OUTFLAG
 #	2 - output file + print to terminal
 # -----------------------------------------------------------------------
 MACRO_OUTFLAG
-1
+2
 
 #########################################################################
 # Output flag for mass record:
@@ -190,7 +190,7 @@ DEFINE_SHEAR
 #	1 - FENE spring polymer potentials
 # -----------------------------------------------------------------------
 POTENTIAL_FLAG
-0
+1
 
 #########################################################################
 # Parameters of the FENE potential, formatted:

@@ -184,15 +184,15 @@ subroutine evaluate_macroscopic_properties_parallel
 		pressure    = (density/(globalnp*nd))*(v2sum+virial/2) !N.B. virial/2 as all interactions calculated
 	
 		if (potential_flag.eq.0) then	
-			print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
+			print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.4)', &
 			iter,';',vsum,';', v2sum,';', temperature,';', &
 			kinenergy,';',potenergy,';',totenergy,';',pressure
 		else if (potential_flag.eq.1) then
-			print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
+			print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4)', &
 			iter,';',vsum,';', v2sum,';', temperature,';', &
 			kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure
 		end if
-		!print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4,a,f10.4)', &
+		!print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.4,a,f10.4)', &
 		!iter,';',vsum,';', v2sum,';', temperature,';', &
 		!kinenergy,';',potenergy,';',totenergy,';',(density/(globalnp*nd))*(v2sum),';',(density/(globalnp*nd))*virial/2
 
