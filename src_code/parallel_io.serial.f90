@@ -1595,16 +1595,16 @@ implicit none
 	
 	if (potential_flag.eq.0) then
 		write(10,'(8a)'), &
-		'Iteration; 	   VSum;        V^2Sum;        Temp;         KE;                 PE;                  TE;          Pressure;'
+		'Iteration; 	   VSum;        V^2Sum;        Temp;         KE;        PE;         TE;        Pressure;'
 		!Print initial conditions for simulations at iteration 0
-		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)'), &
+		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.4)'), &
 		initialstep,';',vsum,';', v2sum,';', temperature,';', &
 		kinenergy,';',potenergy,';',totenergy,';',pressure
 	else if (potential_flag.eq.1) then
 		write(10,'(8a)'), &
-		'Iteration; 	   VSum;        V^2Sum;        Temp;         KE;               PE (LJ);            PE (FENE);         PE (total);             TE;          Pressure;'
+		'Iteration; 	   VSum;        V^2Sum;        Temp;       KE;     PE (LJ);  PE (FENE); PE (Tot);    TE;       Pressure;'
 		!Print initial conditions for simulations at iteration 0
-		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f10.4)'), &
+		write(10, '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4)'), &
 		initialstep,';',vsum,';', v2sum,';', temperature,';', &
 		kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure
 	end if
@@ -1618,11 +1618,11 @@ use calculated_properties_MD
 implicit none
 
 	if (potential_flag.eq.0) then	
-		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)'), &
+		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.4)'), &
 		iter,';',vsum,';', v2sum,';', temperature,';', &
 		kinenergy,';',potenergy,';',totenergy,';',pressure
 	else if (potential_flag.eq.1) then
-		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f10.4)'), &
+		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4)'), &
 		iter,';',vsum,';', v2sum,';', temperature,';', &
 		kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure
 	end if
