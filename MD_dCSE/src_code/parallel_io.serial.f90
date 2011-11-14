@@ -109,7 +109,7 @@ end subroutine setup_command_arguments
 !		Consequently, the file position is set for the next statement to read
 !		the line underneath the previously "located" keyword. 
 !-----------------------------------------------------------------------------
-subroutine setup_inputs_locate
+subroutine setup_inputs
 	use module_parallel_io
 	implicit none
 	
@@ -229,7 +229,7 @@ subroutine setup_inputs_locate
 
 	elapsedtime = 1.d0*delta_t*Nsteps !Set elapsed time to end of simualtion
 
-end subroutine setup_inputs_locate
+end subroutine setup_inputs
 
 !----------------------------------------------------------------------
 !
@@ -403,323 +403,7 @@ subroutine setup_restart_inputs
 
 end subroutine setup_restart_inputs
 
-subroutine setup_restart_inputs_old
-	use module_parallel_io
-	implicit none
 
-	integer				:: n, k
-	integer 			:: extrasteps
-	integer				:: filesize,int_filesize,dp_filesize
-	integer 			:: checkint
-	double precision 		:: checkdp
-
-	!Allocate random number seed
-	call random_seed
-	call random_seed(size=n)
-	allocate(seed(n))
-
-	!Call function library to get file size
-	call get_file_size(initial_microstate_file,filesize)
-
-	!File size is in bytes and integer fortran records are blocks of 4 bytes
-	int_filesize = filesize/4
-
-	!Open file to read integers
-	open(2,file=initial_microstate_file, form="unformatted", access="direct",recl=1)
-
-	read(2,rec=int_filesize-13) np		    		
-	globalnp = np				    				!Global np and local np same in serial
-	read(2,rec=int_filesize-12) initialnunits(1)
-	read(2,rec=int_filesize-11) initialnunits(2)
-	read(2,rec=int_filesize-10) initialnunits(3)
-	read(2,rec=int_filesize-9) Nsteps  	    
-	read(2,rec=int_filesize-8) tplot
-	read(2,rec=int_filesize-7) seed(1)
-	read(2,rec=int_filesize-6) seed(2)
-	read(2,rec=int_filesize-5) periodic(1)
-	read(2,rec=int_filesize-4) periodic(2)
-	read(2,rec=int_filesize-3) periodic(3)
-	read(2,rec=int_filesize-2) potential_flag
-	read(2,rec=int_filesize-1) chain_length
-
-	close(2,status='keep')
-
-	!File size is in bytes and fortran double precision records are blocks of 8 bytes
-	dp_filesize = filesize/8
-
-	!Reopen file to read doubles
-	open(2,file=initial_microstate_file, form="unformatted", access="direct",recl=2)
-
-	read(2,rec=dp_filesize-14) density			!Density of system
-	read(2,rec=dp_filesize-13) rcutoff			!Cut off distance for particle interaction
-	rcutoff2= rcutoff**2         				!Useful definition to save computational time
-	read(2,rec=dp_filesize-12) inputtemperature	!Define initial temperature
-	read(2,rec=dp_filesize-11) delta_t			!Timestep
-	read(2,rec=dp_filesize-10) elapsedtime   	!Elapsed simulation time to date
-	read(2,rec=dp_filesize-9)  k_c				!Polymer spring constant
-	read(2,rec=dp_filesize-8)  R_0				!Polymer max bond elongation
-	read(2,rec=dp_filesize-7)  delta_rneighbr	!Extra distance used for neighbour cell size
-
-	close(2,status='keep')
-
-	!Check if values from input file are different and alert user - all processors have
-	!read the same file so only need to check on one processor
-
-	open(1,file=input_file)
-	
-	call locate(1,'DENSITY')
-	read(1,* ) checkdp          !Density of system
-	if (checkdp .ne. density) print*, 'Discrepancy between system density', &
-	'in input & restart file - restart file will be used'
-
-	call locate(1,'RCUTOFF')
-	read(1,* ) checkdp          !Cut off distance for particle interaction
-	if (checkdp .ne. rcutoff) print*, 'Discrepancy between cut off radius', &
-	'in input & restart file - restart file will be used'
-
-	call locate(1,'INPUTTEMPERATURE')
-	read(1,* ) checkdp	     !Define initial temperature
-	if (checkdp .ne. inputtemperature) print*, 'Discrepancy between initial temperature', &
-	'in input & restart file - restart file will be used'
-
-	call locate(1,'INITIALNUNITS')
-	read(1,* ) checkint	     !x dimension split into number of cells
-	if (checkint .ne. initialnunits(1)) print*, 'Discrepancy between x domain size', &
-	'in input & restart file - restart file will be used'
-	read(1,* ) checkint         !y dimension box split into number of cells
-	if (checkint .ne. initialnunits(2)) print*, 'Discrepancy between y domain size', &
-	'in input & restart file - restart file will be used'
-	read(1,* ) checkint	     !z dimension box split into number of cells
-	if (nd == 3) then
-		if (checkint .ne. initialnunits(3)) print*, 'Discrepancy between z domain size', &
-		'in input & restart file - restart file will be used'
-	endif
-
-	!Get number of extra steps, timestep and plot frequency from input file
-	
-	call locate(1,'NSTEPS')
-	read(1,* ) extrasteps       !Number of computational steps
-	call locate(1,'DELTA_T')
-	read(1,* ) delta_t          !Size of time step
-	call locate(1,'TPLOT')
-	read(1,* ) tplot            !Frequency at which to record results
-	call locate(1,'DELTA_RNEIGHBR')
-	read(1,* ) delta_rneighbr   !Extra distance used for neighbour cell
-	call locate(1,'SEED')
-	read(1,* ) seed(1)	     	!Random number seed value 1
-	read(1,* ) seed(2)	     	!Random number seed value 2
-
-	!Flag to determine if output is switched on
-	call locate(1,'VMD_OUTFLAG')
-	read(1,* ) vmd_outflag
-	call locate(1,'MACRO_OUTFLAG')
-	read(1,* ) macro_outflag	
-	call locate(1,'VELOCITY_OUTFLAG')
-	read(1,* ) velocity_outflag
-	read(1,* ) Nvel_ave
-	call locate(1,'PRESSURE_OUTFLAG')
-	read(1,* ) pressure_outflag
-	read(1,* ) Nstress_ave
-	call locate(1,'VISCOSITY_OUTFLAG')
-	read(1,* ) viscosity_outflag
-	read(1,* ) Nvisc_ave
-	call locate(1,'MFLUX_OUTFLAG')
-	read(1,* ) mflux_outflag
-	read(1,* ) Nmflux_ave
-	call locate(1,'VFLUX_OUTFLAG')
-	read(1,* ) vflux_outflag
-	read(1,* ) Nvflux_ave
-
-	close(1,status='keep')      !Close input file
-
-	elapsedtime = elapsedtime + delta_t*extrasteps !Set elapsed time to end of simualtion
-	initialstep = Nsteps         !Set plot count to final plot of last
-	Nsteps = Nsteps + extrasteps !Establish final iteration step based on previous
-
-	print*,irank,globalnp,density,rcutoff,Nsteps,elapsedtime,inputtemperature,initialnunits, &
-		elapsedtime,extrasteps,delta_t,tplot,delta_rneighbr
-
-end subroutine setup_restart_inputs_old
-
-
-
-!-----------------------------------------------------------------------------
-! Subroutine:	setup_restart_inputs
-! Author(s):	David Trevelyan & Edward Smith
-! Description:
-!		 Set up inputs based on the final state of a previous simulation
-!		The input file MD.in contains capitalised keywords followed by
-!		numerical values. The "locate" subroutine rewinds to the beginning
-!		of MD.in and scans each line until the keyword is matched.
-!
-!		Consequently, the file position is set for the next statement to read
-!		the line underneath the previously "located" keyword. 
-!-----------------------------------------------------------------------------
-
-subroutine setup_restart_inputs_locate
-	use module_parallel_io
-	implicit none
-
-	integer				:: n, k
-	integer 			:: extrasteps
-	integer				:: filesize,int_filesize,dp_filesize
-	integer 			:: checkint
-	double precision 		:: checkdp
-
-	!Allocate random number seed
-	call random_seed
-	call random_seed(size=n)
-	allocate(seed(n))
-
-	!Call function library to get file size
-	call get_file_size('final_state',filesize)
-
-	!File size is in bytes and integer fortran records are blocks of 4 bytes
-	int_filesize = filesize/4
-
-	!Open file to read integers
-	open(2,file='final_state', form="unformatted", access="direct",recl=1)
-
-	read(2,rec=int_filesize-7) np		    !Number of particles
-	globalnp = np				    !Global np and local np same in serial
-	read(2,rec=int_filesize-6) initialnunits(1)!x dimension split into number of cells
-	read(2,rec=int_filesize-5) initialnunits(2)!y dimension box split into number of cells
-	read(2,rec=int_filesize-4) initialnunits(3)!z dimension box split into number of cells
-	read(2,rec=int_filesize-3) Nsteps  	    !Number of elapsed computational steps
-
-	close(2,status='keep')
-
-	!File size is in bytes and fortran double precision records are blocks of 8 bytes
-	dp_filesize = filesize/8
-
-	!Reopen file to read doubles
-	open(2,file='final_state', form="unformatted", access="direct",recl=2)
-
-	read(2,rec=dp_filesize-8) density		!Density of system
-	read(2,rec=dp_filesize-7) rcutoff		!Cut off distance for particle interaction
-	rcutoff2= rcutoff**2         !Useful definition to save computational time
-	read(2,rec=dp_filesize-6) inputtemperature	!Define initial temperature
-	read(2,rec=dp_filesize-4) elapsedtime   	!Elapsed simulation time to date
-
-	close(2,status='keep')
-
-	!Check if values from input file are different and alert user - all processors have
-	!read the same file so only need to check on one processor
-	open(1,file='MD.in')
-
-	!Input physical co-efficients
-	call locate(1,'DENSITY')
-	read(1,*) checkdp
-	if (checkdp .ne. density) print*, 'Discrepancy between system density', &
-	'in input & restart file - restart file will be used'
-	call locate(1,'RCUTOFF')
-	read(1,*) checkdp
-	if (checkdp .ne. rcutoff) print*, 'Discrepancy between cut off radius', &
-	'in input & restart file - restart file will be used'
-	call locate(1,'INPUTTEMPERATURE')
-	read(1,*) checkdp
-	if (checkdp .ne. inputtemperature) print*, 'Discrepancy between initial temperature', &
-	'in input & restart file - restart file will be used'
-	call locate(1,'INITIALNUNITS')
-	read(1,*) checkint		!x dimension split into number of cells
-	if (checkint .ne. initialnunits(1)) print*, 'Discrepancy between x domain size', &
-	'in input & restart file - restart file will be used'
-	read(1,*) checkint		!y dimension split into number of cells
-	if (checkint .ne. initialnunits(2)) print*, 'Discrepancy between y domain size', &
-	'in input & restart file - restart file will be used'
-	if(nd.eq.3) then
-		read(1,*) checkint	!z dimension split into number of cells
-		if (checkint .ne. initialnunits(3)) print*, 'Discrepancy between z domain size', &
-		'in input & restart file - restart file will be used'
-	endif
-
-	!Input computational co-efficients
-	call locate(1,'NSTEPS')
-	read(1,*) extrasteps 		!Number of computational steps
-	call locate(1,'DELTA_T')
-	read(1,*) delta_t 		!Size of time step
-	call locate(1,'TPLOT')
-	read(1,*) tplot 		!Frequency at which to record results
-	call locate(1,'DELTA_RNEIGHBR') 
-	read(1,*) delta_rneighbr 	!Extra distance used for neighbour cell
-	call locate(1,'SEED')
-	read(1,*) seed(1) 		!Random number seed value 1
-	read(1,*) seed(2) 		!Random number seed value 2
-
-	!Flag to determine if output is switched on
-	call locate(1,'VMD_OUTFLAG')
-	read(1,*) vmd_outflag
-	call locate(1,'MACRO_OUTFLAG')
-	read(1,*) macro_outflag
-	call locate(1,'MASS_OUTFLAG')
-	read(1,*) mass_outflag
-	if (mass_outflag .ne. 0) 	read(1,*) Nmass_ave
-	call locate(1,'VELOCITY_OUTFLAG')
-	read(1,* ) velocity_outflag
-	if (velocity_outflag .ne. 0)	read(1,* ) Nvel_ave
-	call locate(1,'PRESSURE_OUTFLAG')
-	read(1,* ) pressure_outflag
-	if (pressure_outflag .ne. 0)	read(1,* ) Nstress_ave
-	call locate(1,'VISCOSITY_OUTFLAG')
-	read(1,* ) viscosity_outflag
-	if ( viscosity_outflag .ne. 0)	read(1,* ) Nvisc_ave
-	call locate(1,'MFLUX_OUTFLAG')
-	read(1,* ) mflux_outflag
-	if (mflux_outflag .ne. 0)	read(1,* ) Nmflux_ave
-	call locate(1,'VFLUX_OUTFLAG')
-	read(1,* ) vflux_outflag
-	if (vflux_outflag .ne. 0) then
-		read(1,* ) Nvflux_ave
-		Nmflux_ave = Nvflux_ave	!Set mass averaging to same value as velocity averaging
-	endif
-
-	! ******************* SLLOD and polymer code ***********************
-	!call locate(1,'POTENTIAL_FLAG')
-	!read(1,*) potential_flag
-
-	!if (potential_flag.eq.1) then
-	!call locate(1,'FENE_INFO')
-	!read(1,*) chain_length
-	!read(1,*) k_c
-	!read(1,*) R_0
-		
-	!call locate(1,'ETEVTCF_OUTFLAG')
-	!read(1,*) etevtcf_outflag
-	!read(1,*) etevtcf_iter0
-
-	!call locate(1,'R_GYRATION_OUTFLAG')
-	!read(1,*) r_gyration_outflag		
-
-	!call locate(1,'MICRO_STRESS_OUTFLAG')
-	!read(1,*) micro_stress_outflag
-
-	!call locate(1,'DEFINE_SHEAR')
-	!read(1,*) define_shear_as
-	!if (define_shear_as.eq.0) read(1,* ) shear_velocity
-	!if (define_shear_as.eq.1) read(1,* ) shear_rate
-	!if (define_shear_as.gt.1) stop 'Shear type undefined, &
-	!must be 0 for velocity or 1 for rate'
-	! ******************* SLLOD and polymer code ***********************
-
-	!Flags to determine if periodic boundaries required	
-	call locate(1,'PERIODIC')
-	read(1,*) periodic(1)
-	read(1,*) periodic(2)
-	if (nd.eq.3) read(1,*) periodic(3)
-
-	close(1,status='keep')      !Close input file
-
-	rcutoff2= rcutoff**2         !Useful definition to save computational time
-	initialstep = 0   	     !Set initial step to one to start
-	
-	elapsedtime = elapsedtime + delta_t*extrasteps !Set elapsed time to end of simualtion
-	initialstep = Nsteps         !Set plot count to final plot of last
-	Nsteps = Nsteps + extrasteps !Establish final iteration step based on previous
-
-	print*,irank,globalnp,density,rcutoff,Nsteps,elapsedtime,inputtemperature,initialnunits, &
-		elapsedtime,extrasteps,delta_t,tplot,delta_rneighbr
-
-end subroutine setup_restart_inputs_locate
 !----------------------------------------------------------------------------------
 !
 !                                Restart Microstate
@@ -736,13 +420,24 @@ subroutine setup_restart_microstate
 	integer, dimension(np) :: chainID, subchainID,left,right
 
 	!Open file at first recorded value
-	open(2,file=initial_microstate_file, form='unformatted', access='direct',recl=2*np*nd)
-
-	!Read positions and velocities
-	read(2,rec=1) r(1:np,:)	
-	read(2,rec=2) v(1:np,:)
-	!Now at 'int' position 2*2*np*nd, or 'double' position 2*np*nd
-	
+	open(2,file=initial_microstate_file, form='unformatted', access='direct',recl=2)
+	!Read positions
+	do n=1,globalnp
+		!Read position from file
+		do ixyz=1,nd
+			read(2,rec=6*(n-1)+(ixyz-1)+1) r(n,ixyz)
+		enddo
+	enddo
+	call setup_tag				!Setup location of fixed molecules
+	do n = 1,np
+		call read_tag(n)		!Read tag and assign properties
+	enddo
+	do n=1,globalnp
+		!Read corresponding velocities
+		do ixyz=1,nd
+			read(2,rec=6*(n-1)+(ixyz-1)+4) v(n,ixyz)
+		enddo
+	enddo
 	close(2,status='keep')
 
 	if (potential_flag.eq.1) then
@@ -757,53 +452,10 @@ subroutine setup_restart_microstate
 			polyinfo_mol(n)%left = left(n)
 			polyinfo_mol(n)%right= right(n)
 		end do
+		close(2,status='keep') 		!Close final state file
 	end if
-	
-
-	call setup_tag				!Setup location of fixed molecules
-	do n = 1,np
-		call read_tag(n)		!Read tag and assign properties
-	enddo
-
-	close(2,status='keep') 		!Close final state file
 
 end subroutine setup_restart_microstate
-
-subroutine setup_restart_microstate_old
-	use module_parallel_io
-	implicit none
-
-	integer :: ixyz, n
-
-	!Open file at first recorded value
-	open(2,file=initial_microstate_file, form='unformatted', access='direct',recl=2)
-
-	!Read positions
-	do n=1,globalnp
-		!Read position from file
-		do ixyz=1,nd
-			read(2,rec=6*(n-1)+(ixyz-1)+1) r(n,ixyz)
-		enddo
-	enddo
-	
-
-	call setup_tag				!Setup location of fixed molecules
-	do n = 1,np
-		call read_tag(n)		!Read tag and assign properties
-	enddo
-
-	do n=1,globalnp
-		!Read corresponding velocities
-		do ixyz=1,nd
-			read(2,rec=6*(n-1)+(ixyz-1)+4) v(n,ixyz)
-		enddo
-
-		!print'(a,i8,6f10.5)','read', n, r(n,:), v(n,:)
-	enddo
-
-	close(2,status='delete') !Close final state file
-
-end subroutine setup_restart_microstate_old
 
 !======================================================================
 !	        		OUTPUTS			              =
@@ -965,12 +617,19 @@ subroutine parallel_io_final_state
 
 	dp_filesize = int_filesize/2
 	
-	open(2,file='results/final_state', form='unformatted',access='direct',recl=2*np*nd)
 	!Written in this form so each molecule's information is together to allow 
 	!re-allocation to seperate processors
-	write(2,rec=1) r(1:np,:)
-	write(2,rec=2) v(1:np,:)
-
+	open(2,file='results/final_state', form='unformatted',access='direct',recl=2)
+	do n=1,np
+		!Write particle n's positions
+		do ixyz=1,nd
+			write(2,rec=6*(n-1)+(ixyz-1)+1) r(n,ixyz) 
+		enddo
+		!Write particle n's velocities
+		do ixyz=1,nd
+			write(2,rec=6*(n-1)+(ixyz-1)+4) v(n,ixyz)   
+		enddo
+	enddo
 	close(2,status='keep')
 
 	if (potential_flag.eq.1) then
@@ -1594,15 +1253,17 @@ implicit none
 	open(unit=10,file='results/macroscopic_properties',status='replace')
 	
 	if (potential_flag.eq.0) then
-		write(10,'(8a)'), &
-		'Iteration; 	   VSum;        V^2Sum;        Temp;         KE;        PE;         TE;        Pressure;'
+		write(10,'(2a)'), &
+		'Iteration; 	   VSum;        V^2Sum;        Temp;', &
+		'         KE;        PE;         TE;        Pressure;'
 		!Print initial conditions for simulations at iteration 0
 		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.4)'), &
 		initialstep,';',vsum,';', v2sum,';', temperature,';', &
 		kinenergy,';',potenergy,';',totenergy,';',pressure
 	else if (potential_flag.eq.1) then
-		write(10,'(8a)'), &
-		'Iteration; 	   VSum;        V^2Sum;        Temp;       KE;     PE (LJ);  PE (FENE); PE (Tot);    TE;       Pressure;'
+		write(10,'(2a)'), &
+		'Iteration; 	   VSum;        V^2Sum;        Temp;', &
+		'       KE;     PE (LJ);  PE (FENE); PE (Tot);    TE;       Pressure;'
 		!Print initial conditions for simulations at iteration 0
 		write(10, '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4)'), &
 		initialstep,';',vsum,';', v2sum,';', temperature,';', &

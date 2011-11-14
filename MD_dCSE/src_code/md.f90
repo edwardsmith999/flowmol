@@ -45,7 +45,7 @@ implicit none
 		call setup_restart_microstate		!Recover position and velocities
 	else
 		call messenger_init   			!Establish processor topology
-		call setup_inputs_locate		!Input simulation parameters
+		call setup_inputs			!Input simulation parameters
 		call setup_set_parameters		!Calculate parameters using input
 		call setup_initialise_microstate	!Setup position and velocities
 	endif
