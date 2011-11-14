@@ -242,15 +242,17 @@ implicit none
 
 		select case(potential_flag)
 		case(0)
-			print '(8a)', &
-			'Iteration; 	   VSum;        V^2Sum;        Temp;          KE;                 PE;                  TE;          Pressure;'
+			print '(2a)', &
+			'Iteration; 	   VSum;        V^2Sum;        Temp;', & 
+			'          KE;                 PE;                  TE;          Pressure;'
 			!Print initial conditions for simulations at iteration 0
 			print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
 			initialstep,';',vsum,';', v2sum,';', temperature,';', &
 			kinenergy,';',potenergy,';',totenergy,';',pressure
 		case(1)
-			print '(8a)', &
-			'Iteration; 	   VSum;        V^2Sum;        Temp;       KE;     PE (LJ);  PE (FENE); PE (Tot);    TE;       Pressure;'
+			print '(2a)', &
+			'Iteration; 	   VSum;        V^2Sum;        Temp;', & 
+			'       KE;     PE (LJ);  PE (FENE); PE (Tot);    TE;       Pressure;'
 			!Print initial conditions for simulations at iteration 0
 			print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4)', &
 			initialstep,';',vsum,';', v2sum,';', temperature,';', &
