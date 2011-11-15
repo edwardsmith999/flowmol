@@ -85,7 +85,7 @@ implicit none
 				if (trim(arg).eq.'-r' .and. nextarg(1:1).ne.'-') then
 					initial_microstate_file = trim(nextarg)
 					inquire(file=initial_microstate_file, exist=restart_file_exists) !Check file exists
-					if (restart_file_exists.eq..true.) restart = .true.
+					if (restart_file_exists) restart = .true.
 				end if			
 
 				if (trim(arg).eq.'-i' .and. nextarg(1:1).ne.'-') then
@@ -98,7 +98,7 @@ implicit none
 
 		inquire(file=input_file, exist=input_file_exists)	!Check file exists
 
-		if(input_file_exists.eq..false.) then
+		if(.not. input_file_exists) then
 			print*, 'Input file ', input_file, ' not found. Stopping simulation.'
 			stop
 		end if
