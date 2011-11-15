@@ -5,7 +5,7 @@ contains
 
         subroutine send_CFDvel
                 use grid_arrays, only : uc, vc
-                use  coupler_cfd_communication, only : send_CFDvel_cp => send_CFDvel 
+                use  coupler, only : coupler_send_CFDvel 
                 implicit none
 
 !!$                test data transfer
@@ -18,12 +18,12 @@ contains
 !!$                 enddo
 !!$                enddo
 
-                call send_CFDvel_cp(uc,vc)
+                call coupler_send_CFDvel(uc,vc)
         end subroutine send_CFDvel
 
 
         subroutine MD_continuum_BC(u,v)
-                use coupler_cfd_communication, only : md_vel
+                use coupler, only : coupler_md_vel
                 implicit none
 
 !                integer i
@@ -34,7 +34,7 @@ contains
 
 
 !  a polimorfic inteface is needed here
-                call md_vel(u3,v3,w)
+                call coupler_md_vel(u3,v3,w)
 
                 u(:) =  u3(1,:,1)
                 v(:) =  v3(1,:,1)

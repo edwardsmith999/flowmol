@@ -6,13 +6,15 @@ module continuum_coupler_socket_init
 
 contains
 
-       subroutine create_communicators(comm)
-                use coupler_cfd_global_data, only : coupler_create_communicators => create_communicators
+         subroutine create_communicators(comm)
+                use coupler
                 implicit none
                 
                 integer, intent(out) :: comm
+                integer ierr
 
-                call coupler_create_communicators(comm) 
+                call coupler_create_comm(COUPLER_CFD,ierr)
+                comm = COUPLER_COMM
 
        end subroutine create_communicators
 
@@ -21,7 +23,7 @@ contains
                         continuum_delta_t
                 use  grid_arrays, only : mx, my
                 use continuum_data_export, only : npx,npy,npz,icoord
-                use coupler_cfd_setup, only : exchange_grid_data, create_map_cfd_md 
+                use coupler, only : coupler_get_cfd_info, coupler_create_map 
                 implicit none
 
 !                integer kmino, kmin, kmax, kmaxo
@@ -30,13 +32,13 @@ contains
                 z(1) =  0.d0   ! thincknes of MD simulation
                 z(2) = 34.199518933533936d0
 
-                call exchange_grid_data(imino=1,imin=2,imax=nx+2,&
+                call coupler_get_cfd_info(imino=1,imin=2,imax=nx+2,&
                         imaxo=nx+3,jmino=1,jmin=2,jmax=ny+2,jmaxo=nx+3,&
                         kmino=1,kmin=1,kmax=2,kmaxo=2,nsteps=nsteps,&
                         x=mx,y=my,z=z,dx=mx(2)-mx(1),dz=z(2)-z(1),npx=npx,npy=npy,npz=npz,&
                         icoord=icoord,dt=continuum_delta_t)
 
-                call create_map_cfd_md
+                call coupler_create_map
                 
         end subroutine continuum_coupler_init
 
