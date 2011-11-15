@@ -2,7 +2,7 @@
 # File definitions
 #=======================================================================
 
-F90_MD_FILES = modules.f90 coupler_md_global_data.f90 messenger.serial.f90 parallel_io.serial.f90  coupler_md_setup.f90 coupler_md_communication.f90 functions_lib.f90 linklist.f90 molecular_properties.f90  setup_set_parameters.f90 setup_initialise_microstate.f90 setup_initial_record.f90 simulation_compute_forces.f90 simulation_move_particles.f90 simulation_checkrebuild.f90 simulation_record.f90 finish_final_record.f90 finish_clear_all.f90 md.f90 md_main.f90 external_forces.f90 
+F90_MD_FILES = modules.f90 messenger.serial.f90 parallel_io.serial.f90 functions_lib.f90 linklist.f90 molecular_properties.f90  setup_set_parameters.f90 setup_initialise_microstate.f90 setup_initial_record.f90 simulation_compute_forces.f90 simulation_move_particles.f90 simulation_checkrebuild.f90 simulation_record.f90 finish_final_record.f90 finish_clear_all.f90 md.f90 md_main.f90 external_forces.f90 
 
 F90_CUDA_MD_FILES = $(F90_MD_FILES:simulation_compute_forces.f90=simulation_compute_forces_CUDA.f90) 
 
@@ -14,12 +14,23 @@ F90_MD_FILES_P = $(patsubst parallel_io.serial.f90,parallel_io.MPI2.f90,$(patsub
 
 PARAM = param.inc
 
+#
+# objec file dir
+#
+
+OBJ_DIR := obj
+
 # use coupler ? 
 USE_COUPLER      := no
-COUPLER_PATH_yes := ../../coupler_dCSE/src_code/
-COUPLER_PATH_no  := ./
+COUPLER_PATH_yes := ../../coupler_dCSE/src_code/obj
+COUPLER_PATH_no  := ../../coupler_dCSE/src_code/obj_null
 COUPLER_PATH      := $(COUPLER_PATH_$(USE_COUPLER))
 
+
+# coupler object files in coupler director
+O_COUPLER_no     := $(COUPLER_PATH)/coupler_null.o
+O_COUPLER_yes    := $(COUPLER_PATH)/coupler.o $(COUPLER_PATH)/coupler_parameters.o $(COUPLER_PATH)/coupler_internal_common.o $(COUPLER_PATH)/coupler_internal_md.o $(COUPLER_PATH)/coupler_internal_cfd.o   
+O_COUPLER        := $(O_COUPLER_$(USE_COUPLER))
 
 #
 # get platform to build, compiler names and flags, check the make.inc directory
@@ -43,7 +54,7 @@ else
 endif
 
 # computed flags with values from PLATFORM files
-FLAGS   := $(FLAGS_$(COMP)_$(VERSION))
+FFLAGS   := $(FLAGS_$(COMP)_$(VERSION))  -I$(COUPLER_PATH)
 LDFLAGS := $(FLAGS)
 
 
@@ -106,7 +117,7 @@ md_CUDA_emu.exe: obj $(O_CUDA)
 continuum.exe: obj $(O_CONTINUUM)
 	@cd obj; $(F90) -o $(CONTINUUM_EXE) $(O_CONTINUUM) ; mv continuum.exe ..
 parallel_md.exe: obj $(O_MD_P)
-	@$(F90) -o $(MD_EXE) $(FLAGS) $(O_MD_P) 
+	@$(F90) -o $(MD_EXE) $(LDFLAGS) $(O_MD_P) $(O_COUPLER)
 obj:
 	[ -d obj ] || mkdir obj
 help:
@@ -133,15 +144,14 @@ clean:
 #=======================================================================
 # Compilation rules
 #=======================================================================
-obj/coupler_%.o : $(COUPLER_PATH)coupler_%.f90
-	$(F90) $(FLAGS) -c $< -o $@
 obj/%.o: %.f90
-	$(F90) $(FLAGS) -c $< -o $@
+	$(F90) $(FFLAGS) -c $< -o $@
 .cu.o:
 	$(CU) $(FLAGS_CUDA) -c $*.cu -o obj/$*.o
 #
 # Dependecies
 #
+
 #obj/parallel_io.MPI2.o : obj/messenger.MPI.o
 #obj/messenger.MPI.o : obj/setup_inputs.o obj/coupler_md_global_data.o obj/modules.o
 #obj/coupler_md_global_data.o : obj/modules.o
@@ -150,3 +160,5 @@ obj/%.o: %.f90
 #obj/setup_inputs.o : obj/coupler_md_global_data.o
 #obj/coupler_md_setup.o : obj/coupler_md_global_data.o obj/messenger.MPI.o
 #obj/coupler_md_communication.o : obj/coupler_md_setup.o obj/modules.o
+
+
