@@ -1,4 +1,3 @@
-
 !=============================================================================
 !
 !                                  MAIN PROGRAM
@@ -26,13 +25,10 @@
 
 subroutine setup_MD
 use computational_constants_MD
-use coupler_md_setup, only : exchange_grid_data, create_map_cfd_md
+use coupler
 implicit none
 
 	call messenger_invoke	 		     	!Initialises MPI
-
-	! if coupled calculation prepare exchange layout 
-	call exchange_grid_data
 
 	!Check to see if simulation is a restart of a previous simualtion
 	call setup_command_arguments			!Establish command line arguments specifying restart and input files
@@ -46,6 +42,7 @@ implicit none
 	else
 		call messenger_init   			!Establish processor topology
 		call setup_inputs			!Input simulation parameters
+                call coupler_init
 		call setup_set_parameters		!Calculate parameters using input
 		call setup_initialise_microstate	!Setup position and velocities
 	endif
@@ -57,7 +54,18 @@ implicit none
 	call setup_initial_record			!Setup print headers and output inital
 
 	! if coupled
-	call create_map_cfd_md
+	call coupler_create_map
+
+contains 
+
+        subroutine coupler_init
+                use coupler
+                use computational_constants_MD, only : npx,npy,npz,delta_t
+                use messenger, only                  : icoord
+                implicit none
+! if coupled calculation prepare exchange layout
+                call coupler_get_md_info(npx,npy,npz,icoord,delta_t)
+        end subroutine coupler_init
 
 end subroutine setup_MD
 
@@ -75,18 +83,19 @@ subroutine simulation_MD
 	use mpi
 	use computational_constants_MD
 	use physical_constants_MD, only : np
-	use arrays_MD, only :r,v
-	use coupler_md_global_data, only : use_coupling, nsteps_cfd => nsteps, average_period
-	use coupler_md_communication, only : boundary_box_average, simulation_apply_continuum_forces, &
-	                                     coupler_uc_average_test
+	use arrays_MD, only :r,v,a
+	use coupler
 	use messenger, only : myid
 	implicit none
   
 	integer :: rebuild    				!Flag set by check rebuild to determine if linklist rebuild required
-	integer :: icfd, save_period
+	integer :: icfd, save_period, average_period, nsteps_cfd
 
-	if (.not. use_coupling) nsteps_cfd = 1
-	save_period = 10 				!This value should come from CFD
+        save_period = coupler_get_save_period()
+        nsteps_cfd  = coupler_get_nsteps()
+        average_period = coupler_get_average_period()
+
+
 	initialstep = initialstep + 1			!Increment initial step by one 
 
 	do icfd = 1, nsteps_cfd + initise_steps   	!Initise_steps - number of Nsteps times to run code in initialisation
@@ -100,8 +109,8 @@ subroutine simulation_MD
 			if (mflux_outflag .ne. 0) then
 					call mass_flux_averaging
 			endif
-			!call simulation_apply_constraint_forces  	!Apply force to prevent molecules leaving domain
-			!call simulation_apply_continuum_forces(iter)	!Apply force based on Nie,Chen an Robbins coupling
+			call simulation_apply_constraint_forces  	!Apply force to prevent molecules leaving domain
+			call coupler_apply_continuum_forces(np,r,v,a,iter)	!Apply force based on Nie,Chen an Robbins coupling
 			call simulation_move_particles_tag				!Move particles as a result of forces
 			
 			if (vflux_outflag .ne. 0) then
@@ -109,8 +118,8 @@ subroutine simulation_MD
 			endif
 			
 			if ( mod(iter,average_period) == 0 ) then
-					 call boundary_box_average(send_data=.false.) ! accumlate velocities
-					 if ( mod(icfd-1,save_period) == 0 .and. icfd > 1) then
+					 call coupler_boundary_cell_average(np,r,v,send_data=.false.) ! accumlate velocities
+					 if ( mod(icfd-initise_steps,save_period) == 0 .and. icfd > initise_steps) then
 							 call coupler_uc_average_test(np,r,v,lwrite=.false.)
 					endif
 			endif
@@ -118,8 +127,7 @@ subroutine simulation_MD
 			call messenger_updateborders(0)			!Update borders between processors
 			call simulation_checkrebuild(rebuild)		!Determine if neighbourlist rebuild required
 			
-			if(rebuild .eq. 1 .or. &
-							(use_coupling .and. iter .eq. Nsteps)) then
+			if(rebuild .eq. 1) then
 				call linklist_deallocateall	   	!Deallocate all linklist components
 				call sendmols			   	!Exchange particles between processors
 				call assign_to_cell	  	   	!Re-build linklist for domain cells
@@ -129,15 +137,9 @@ subroutine simulation_MD
 		
 		enddo
 
-		! The speed for CFD boundary must be computed somewhere here
- 		if ( use_coupling ) then
-			write(0,*) ' md: myid, icfd: ', myid,  icfd
- 			call  boundary_box_average(send_data=.false.)
-		endif
-
 		! Average the boundary velocity and send the results to CFD
-		call boundary_box_average(send_data=.true.)
-		if ( mod(icfd-1,save_period) == 0 .and. icfd > 1) then
+		call coupler_boundary_cell_average(np,r,v,send_data=.true.)
+                if ( mod(icfd-initise_steps,save_period) == 0 .and. icfd > initise_steps) then
 			call coupler_uc_average_test(np,r,v,lwrite=.true.)
 		endif
         

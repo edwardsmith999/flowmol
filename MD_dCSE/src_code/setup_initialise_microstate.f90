@@ -175,9 +175,9 @@ end subroutine setup_initialise_position_FENE
 
 subroutine setup_initialise_parallel_position
 	use module_initialise_microstate
-	use messenger
-	use coupler_md_global_data, only : use_coupling!, y
-	!use coupler_md_setup, only : jmax_overlap_cfd
+        use messenger
+	use coupler
+
 	implicit none
 
 	integer 			:: j, ixyz, n, nl, nx, ny, nz
@@ -195,7 +195,7 @@ subroutine setup_initialise_parallel_position
 	!Set CFD region to top of domain initially
 	CFD_region = domain(2)/2.d0
 	if (jblock .eq. npy) then
-	if ( use_coupling ) then
+	if ( coupler_is_active ) then
 		removed_height = 2*cellsidelength(2)
 		CFD_region = domain(2)/2.d0 - removed_height
 	endif
@@ -287,7 +287,7 @@ subroutine setup_initialise_parallel_position
 	!processe's subdomain on current proccess
 	call globalGathernp
 
-	if (use_coupling) then
+	if (coupler_is_active) then
 		print*, '*********************************************************************'
 		print*, '*WARNING - TOP LAYER OF DOMAIN REMOVED IN LINE WITH CONSTRAINT FORCE*'
 		print*, 'Removed from', CFD_region, 'to Domain top', globaldomain(2)/2.d0

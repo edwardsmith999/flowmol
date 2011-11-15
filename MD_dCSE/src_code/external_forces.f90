@@ -28,7 +28,7 @@ end module module_external_forces
 
 subroutine simulation_apply_constraint_forces
 use module_external_forces
-use coupler_md_communication, only : coupler_constrain_forces
+use coupler, only : coupler_constrain_forces
 implicit none
 
 ! call the coupler version.

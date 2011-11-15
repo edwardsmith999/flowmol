@@ -33,7 +33,7 @@ end module module_set_parameters
 
 subroutine setup_set_parameters
 	use module_set_parameters
-	use coupler_md_global_data, only : use_coupling
+	use coupler
 	implicit none
 
 	integer		:: i
@@ -45,7 +45,7 @@ subroutine setup_set_parameters
 	call set_parameters_allocate(1)
 
 	!call set_parameters_domain
-        if ( use_coupling ) then 
+        if ( coupler_is_active ) then 
         	call set_parameters_global_domain_hybrid
         else 
         	call set_parameters_global_domain
@@ -252,12 +252,16 @@ end subroutine set_parameters_global_domain
 
 subroutine set_parameters_global_domain_hybrid
 	use module_set_parameters
-        use coupler_md_global_data, only : xL_md, yL_md, zL_md
+        use coupler 
 	implicit none
 
 	integer                :: ixyz
+        real(kind(0.d0)) xL_md, yL_md,zL_md ! lenght of the MDdomain computed in coupler
 
 	! get the global domain lenghts from x, y, z array of CFD realm
+
+        call coupler_get(xL_md=xL_md,yL_md=yL_md,zL_md=zL_md)
+
 	print*, xL_md, yL_md, zL_md
 	globaldomain(1) = xL_md
 	globaldomain(2) = yL_md
@@ -407,7 +411,6 @@ end subroutine setup_linklist
 subroutine set_parameters_outputs
 	use module_set_parameters
         use  messenger, only :  myid, icoord
-        use coupler_md_global_data, only : use_coupling
 	implicit none
 
 	integer				:: n
@@ -489,10 +492,10 @@ subroutine set_parameters_outputs
 	!call local_temperature_header
 
 	!Allocate pressure bin for Stress volume averaging
-	allocate(  rfbin(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,3))
-	allocate(  vvbin(nbins(1),  nbins(2),  nbins(3),3,3  ))
+	allocate( rfbin(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,3))
+	allocate( vvbin(nbins(1),  nbins(2),  nbins(3),3,3  ))
 	allocate( Pxybin(nbins(1),  nbins(2),  nbins(3),3,3  ))
-	allocate(Pxyface(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
+	allocate( Pxyface(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
 	rfbin  = 0.d0
 	Pxybin = 0.d0
 

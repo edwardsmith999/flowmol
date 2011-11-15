@@ -12,11 +12,11 @@ ifeq ($(branch),cfd)
 endif
 
 
-FLAGS_gnu_debug_cfd := -fdefault-real-8 -fdefault-double-8 -ffree-line-length-0  -g -fbounds-check -Wall -Wtabs -Wno-unused -fbacktrace -ffpe-trap=invalid,zero,overflow -fsignaling-nans -fdump-core -Jobj  
-FLAGS_gnu_opt_cfd   := -O3 -fdefault-real-8 -fdefault-double-8 -ffree-line-length-0 -Jobj
+FLAGS_gnu_debug_cfd := -fdefault-real-8 -fdefault-double-8 -ffree-line-length-0  -g -fbounds-check -Wall -Wtabs -Wno-unused -fbacktrace -ffpe-trap=invalid,zero,overflow -fsignaling-nans -fdump-core -J$(OBJ_DIR)
+FLAGS_gnu_opt_cfd   := -O3 -fdefault-real-8 -fdefault-double-8 -ffree-line-length-0 -J$(OBJ_DIR)
 
-FLAGS_gnu_debug_md := -g -fbounds-check -Wall -Wtabs -Wno-unused -fbacktrace -ffpe-trap=invalid,zero,overflow -fsignaling-nans -fdump-core -Jobj 
-FLAGS_gnu_opt_md   := -O3 -Jobj
+FLAGS_gnu_debug_md := -g -ffree-line-length-0 -fbounds-check -Wall -Wtabs -Wno-unused -fbacktrace -ffpe-trap=invalid,zero,overflow -fsignaling-nans -fdump-core -J$(OBJ_DIR) 
+FLAGS_gnu_opt_md   := -O3 -J$(OBJ_DIR)
 
 FLAGS_$(COMP)_$(VERSION) := $(FLAGS_$(COMP)_$(VERSION)_$(branch))
 

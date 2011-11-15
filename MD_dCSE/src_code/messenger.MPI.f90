@@ -44,9 +44,9 @@
 module messenger
 	use mpi
 	use computational_constants_MD
-        use coupler_md_global_data, only : use_coupling, MD_COMM, create_communicators
-        save
+        use coupler
 
+        integer MD_COMM                      ! global communicator
 	integer myid                         ! my process rank
 	integer idroot                       ! rank of root process
 
@@ -68,15 +68,16 @@ end module
 !======================================================================
 subroutine messenger_invoke()
 	use messenger
-	!include "mpif.h"
+ 
 
-        call MPI_init (ierr)
+        call MPI_init(ierr)
         
-        if (use_coupling) then
-                call create_communicators
+        if (coupler_is_active) then
+                call coupler_create_comm(COUPLER_MD,ierr)
+                MD_COMM = COUPLER_COMM
+                file_dir = "./md_data/"
         else
-                call MPI_COMM_DUP(MPI_COMM_WORLD,MD_COMM,ierr)
-! or            MD_COMM = MPI_COMM_WORLD ?
+                MD_COMM = MPI_COMM_WORLD 
         endif
          
 

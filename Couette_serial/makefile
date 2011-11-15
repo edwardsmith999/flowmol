@@ -15,17 +15,23 @@ F90_COUPLED = $(F90_CONTINUUM:continuum_main.f90=) $(F90_MD_FILES:md_main.f90=MD
 # get platform to build, compiler names and flags, check the make.inc directory
 #
 
+#
+# objec file dir
+#
+
+OBJ_DIR := obj
+
 # use coupler ? 
 USE_COUPLER      := no
 
 # coupler path
 COUPLER_PATH_yes := ../coupler_dCSE/src_code/obj
-COUPLER_PATH_no  := ./obj
+COUPLER_PATH_no  := ../coupler_dCSE/src_code/obj_null
 COUPLER_PATH     := $(COUPLER_PATH_$(USE_COUPLER))
 
 # coupler object files in coupler director
-O_COUPLER_no     :=
-O_COUPLER_yes    := $(COUPLER_PATH)/coupler_cfd_global_data.o $(COUPLER_PATH)/coupler_cfd_setup.o $(COUPLER_PATH)/coupler_cfd_communication.o
+O_COUPLER_no     := $(COUPLER_PATH)/coupler_null.o
+O_COUPLER_yes    := $(COUPLER_PATH)/coupler.o $(COUPLER_PATH)/coupler_parameters.o $(COUPLER_PATH)/coupler_internal_common.o $(COUPLER_PATH)/coupler_internal_md.o $(COUPLER_PATH)/coupler_internal_cfd.o
 O_COUPLER        := $(O_COUPLER_$(USE_COUPLER))   
 
 # socket files
@@ -52,7 +58,7 @@ else
 endif
 
 # computed flags with values from PLATFORM files
-FFLAGS   := $(FLAGS_$(COMP)_$(VERSION)) -I$(COUPLER_PATH)/../
+FFLAGS   := $(FLAGS_$(COMP)_$(VERSION)) -I$(COUPLER_PATH)
 LDFLAGS := $(FLAGS)
 
 CONTINUUM_EXE = continuum.exe
@@ -108,8 +114,6 @@ clean:
 #=======================================================================
 # Compilation rules
 #=======================================================================
-obj/coupler_%.o : $(COUPLER_PATH)coupler_%.f90
-	$(F90) $(FLAGS) -c $< -o $@
 obj/%.o : %.f90
 	$(F90) -c $(FFLAGS) $< -o $@
 .cu.o:
@@ -118,4 +122,4 @@ obj/%.o : %.f90
 #
 # Dependecies
 #
-obj/continuum_coupler_socket_init.o : $(COUPLER_PATH)/coupler_cfd_global_data.o
+

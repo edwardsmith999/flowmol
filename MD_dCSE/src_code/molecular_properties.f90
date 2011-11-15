@@ -43,7 +43,7 @@ subroutine setup_tag
 	!Setup fixed molecules
 	!+0.2 to include gap between wall and 1st molecule
 	fixdistbottom(1) = 0.d0*cellsidelength(1) !initialunitsize(1)
-	fixdistbottom(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
+	fixdistbottom(2) = 1.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
 	fixdistbottom(3) = 0.d0*cellsidelength(3) !initialunitsize(3)
 	fixdisttop(1) = 0.d0*cellsidelength(1) !initialunitsize(1)
 	fixdisttop(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
