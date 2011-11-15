@@ -70,7 +70,7 @@ implicit none
 		restart = .false.			
 		input_file_exists = .false.
 		restart_file_exists = .false.
-		input_file = 'MD.in'
+		input_file = trim(file_dir)//'MD.in'
 		initial_microstate_file = 'final_state'
 
 		argcount = command_argument_count()
@@ -914,7 +914,7 @@ subroutine parallel_io_final_state
 		dp_filesize = int_filesize/2
 
 		!Write integer data at end of file	
-		open(2,file='results/final_state', form='unformatted',access='direct',recl=1)
+		open(2,file=trim(file_dir)//'results/final_state', form='unformatted',access='direct',recl=1)
 		write(2,rec=int_filesize-0) np               	!Number of particles
 		write(2,rec=int_filesize-1) initialnunits(1) 	!x dimension split into number of cells
 		write(2,rec=int_filesize-2) initialnunits(2) 	!y dimension box split into number of cells
