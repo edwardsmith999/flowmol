@@ -5,12 +5,17 @@ MD_TARGET  := p
 CFD_TARGET := opt
 
 F90 := ftn
-
 #
-# Define CFD coupler files
+#  object dir
 #
-F90_CFD_FILES := coupler_cfd_global_data.f90 coupler_cfd_setup.f90 coupler_cfd_communication.f90
-O_CFD         := $(addprefix obj/,$(F90_CFD_FILES:.f90=.o))
+OBJ_DIR := obj
+#
+# Coupler files
+#
+F90_COUPLER_FILES      := coupler.f90 coupler_parameters.f90 coupler_internal_cfd.f90 coupler_internal_md.f90 coupler_internal_common.f90 
+F90_NULL_COUPLER_FILES := coupler_null.f90
+O_COUPLER_FILES        := $(addprefix obj/,$(F90_COUPLER_FILES:.f90=.o))
+O_NULL_COUPLER_FILES   := $(addprefix obj_null/,$(F90_NULL_COUPLER_FILES:.f90=.o))
 
 #
 #  CFD sector
@@ -28,6 +33,10 @@ MD_SRC_PATH := ../../MD_dCSE/src_code
 # get platform to build, compiler names and flags, check the make.inc directory
 #
 #Check for default file
+
+# hack for coupler flags 
+branch := md
+
 ifndef PLATFORM
     PLATFORM := $(shell cat ../../make.inc/PLATFORM_default)
 endif
@@ -52,19 +61,26 @@ couette_md : couette md
 
 cfd : 
 	cd $(CFD_SRC_PATH) && $(MAKE) USE_COUPLER=yes $(CFD_TARGET)
-md  :
+md  : coupler
 	cd $(MD_SRC_PATH)  && $(MAKE) USE_COUPLER=yes $(MD_TARGET)
-couette : cfd_coupler 
+couette : coupler 
 	cd $(CFD_SRC_PATH) && $(MAKE) USE_COUPLER=yes $(CFD_TARGET)
 
-cfd_coupler : create_obj_dir $(O_CFD) 
+coupler : create_dir_obj $(O_COUPLER_FILES) 
 
-create_obj_dir :
+null_coupler :
+	$(MAKE) OBJ_DIR=obj_null coupler_null
+
+coupler_null : create_dir_obj_null $(O_NULL_COUPLER_FILES)
+
+create_dir_obj :
 	[ -d obj ] || mkdir obj
+create_dir_obj_null :
+	[ -d obj_null ] || mkdir obj_null
 
 clean_all : clean_cfd clean_md clean_couette clean_cfd_coupler
 
-clean_couette_md : clean_couette clean_md clean_cfd_coupler
+clean_couette_md : clean_couette clean_md clean_coupler
 
 clean_cfd :
 	cd  $(CFD_SRC_PATH) && $(MAKE) clean 
@@ -72,8 +88,10 @@ clean_md :
 	cd  $(MD_SRC_PATH)  && $(MAKE) clean  
 clean_couette :
 	cd  $(CFD_SRC_PATH) && $(MAKE) clean
-clean_cfd_coupler :
-	rm -rf obj *.mod *.f90~ *__genmod.f90 *__genmod.mod *~ 
+clean_null_coupler :
+	$(MAKE) OBJ_COUPLER=obj_null clean_coupler
+clean_coupler :
+	rm -rf $(OBJ_DIR) *.mod *.f90~ *__genmod.f90 *__genmod.mod *~ 
 help:
 	@echo "======================================================================================"
 	@echo "TOP LEVEL COUPLED BUILD - individual MD/CFD can be built using make in MD or CFD "
@@ -95,5 +113,14 @@ help:
 #=======================================================================
 # Compilation rules
 #=======================================================================
-$(O_CFD): obj/%.o : %.f90
+$(O_COUPLER_FILES) : obj/%.o : %.f90
 	$(F90) $(FLAGS) -c $< -o $@
+$(O_NULL_COUPLER_FILES) : obj_null/%.o : %.f90
+	$(F90) $(FLAGS) -c $< -o $@
+
+#=======================================================================
+# Dependencies
+#=======================================================================
+obj/coupler.o : obj/coupler_internal_cfd.o obj/coupler_internal_md.o obj/coupler_parameters.o obj/coupler_internal_common.o
+obj/coupler_internal_cfd.o obj/coupler_internal_md.o : obj/coupler_parameters.o obj/coupler_internal_common.o
+
