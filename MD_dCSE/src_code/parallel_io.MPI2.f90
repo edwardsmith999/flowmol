@@ -123,9 +123,9 @@ subroutine setup_inputs
 	use module_parallel_io
 	implicit none
 	
-	integer :: k, n
+	integer :: k, n, tvalue(8)
 
-	call random_seed
+!	call random_seed
 	call random_seed(size=n)
 	allocate(seed(n))
 	
@@ -228,12 +228,17 @@ subroutine setup_inputs
 	initialstep = 0   	     !Set initial step to one to start
 	
 	if (seed(1)==seed(2)) then
-		call random_seed
+!		call random_seed
+!               randomisations 
 		call random_seed(get=seed(1:n))
+                call date_and_time(values=tvalue)
+                seed=IEOR(tvalue(8)+irank,seed)
+        else 
+                !Assign different random number seed to each processor
+	        seed =  irank
 	endif
 	
-	!Assign different random number seed to each processor
-	seed = seed * irank
+	
 	!Assign seed to random number generator
 	call random_seed(put=seed(1:n))
 
@@ -271,7 +276,7 @@ subroutine setup_restart_inputs
 		!File size is in bytes and integer fortran records are blocks of 4 bytes
 		int_filesize = filesize/4
 		!Open file to read integers
-		open(2,file=initial_microstate_file,access="direct",recl=1)
+		open(2,file=initial_microstate_file,access="direct",recl=8)
 
 		read(2,rec=int_filesize-0) np		    		
 		globalnp = np				    				!Global np and local np same in serial
@@ -294,7 +299,7 @@ subroutine setup_restart_inputs
 		dp_filesize = filesize/8
 
 		!Reopen file to read doubles
-		open(2,file=initial_microstate_file, form="unformatted", access="direct",recl=2)
+		open(2,file=initial_microstate_file, form="unformatted", access="direct",recl=8)
 
 		read(2,rec=dp_filesize-7) density			!Density of system
 		read(2,rec=dp_filesize-8) rcutoff			!Cut off distance for particle interaction
@@ -472,7 +477,7 @@ subroutine setup_restart_inputs_locate
 		int_filesize = filesize/4
 
 		!Open file to read integers
-		open(2,file='final_state', form="unformatted", access="direct",recl=1)
+		open(2,file='final_state', form="unformatted", access="direct",recl=8)
 
 		read(2,rec=int_filesize-7) np		    !Number of particles
 		globalnp = np				    !Global np and local np same in serial
@@ -487,7 +492,7 @@ subroutine setup_restart_inputs_locate
 		dp_filesize = filesize/8
 
 		!Reopen file to read doubles
-		open(2,file='final_state', form="unformatted", access="direct",recl=2)
+		open(2,file='final_state', form="unformatted", access="direct",recl=8)
 
 		read(2,rec=dp_filesize-8) density		!Density of system
 		read(2,rec=dp_filesize-7) rcutoff		!Cut off distance for particle interaction
@@ -833,11 +838,10 @@ subroutine parallel_io_final_state
 	!include 'mpif.h'
 
 	integer				:: n, i
-	integer				:: procdisp	!Processor's displacement
 	integer 			:: write_integers, write_doubles
 	integer 			:: int_filesize,dp_filesize
-	integer				:: dp_datasize, filesize
-	integer(kind=MPI_OFFSET_KIND)   :: disp
+	integer				:: dp_datasize
+	integer(kind=MPI_OFFSET_KIND)   :: disp, procdisp, filesize
 	double precision, dimension(nd)	:: Xwrite	!Temporary variable used in write
 
 	!Rebuild simulation before recording final state
@@ -883,6 +887,7 @@ subroutine parallel_io_final_state
 	!Set each processor to that location and write particlewise
 	call MPI_FILE_SET_VIEW(restartfileid, disp, MPI_double_precision, & 
  		MPI_double_precision, 'native', MPI_INFO_NULL, ierr)
+        write(0,*) 'np ', np
 
 	do n = 1, np
 		Xwrite = r(n,:) !Load into temp in case r dimensions are non contiguous
@@ -893,12 +898,17 @@ subroutine parallel_io_final_state
 					MPI_STATUS_IGNORE, ierr) 
 	enddo
 
-	!Obtain location of end of file
-	call MPI_Barrier(MD_COMM, ierr)		
-	call MPI_File_get_size(restartfileid,filesize,ierr)
-
 	!Close file on all processors
 	call MPI_FILE_CLOSE(restartfileid, ierr)
+
+	!Obtain location of end of file
+	call MPI_Barrier(MD_COMM, ierr)	
+        call MPI_FILE_OPEN(MD_COMM,trim(file_dir)//'results/final_state', & 
+			MPI_MODE_RDONLY, & 
+			MPI_INFO_NULL, restartfileid, ierr)	
+	call MPI_File_get_size(restartfileid,filesize,ierr)
+        call MPI_FILE_CLOSE(restartfileid, ierr)
+
 
 	!----------------Write header------------------------
 	!Written at the end for performance and simplicity reasons 
@@ -907,14 +917,17 @@ subroutine parallel_io_final_state
 	!Write with one processor only
 	if (irank .eq. iroot) then
 
-		if (filesize/4 .ne. 2*2*globalnp*nd) stop "Filesize header error"
+		if (filesize .ne. 2*dp_datasize*nd*int(globalnp,MPI_OFFSET_KIND)) then
+                        write(0,*) 'filesize ', filesize, 'globalnp ', globalnp
+                           stop "Filesize header error"
+                endif
 		write_integers = 14						!Number of integers to be written to final_state
 		write_doubles =	8						!Number of doubles (disregarding arrays)
 		int_filesize = 2*2*globalnp*nd + write_integers + 2*write_doubles
 		dp_filesize = int_filesize/2
 
 		!Write integer data at end of file	
-		open(2,file=trim(file_dir)//'results/final_state', form='unformatted',access='direct',recl=1)
+		open(2,file=trim(file_dir)//'results/final_state', form='unformatted',access='direct',recl=8)
 		write(2,rec=int_filesize-0) np               	!Number of particles
 		write(2,rec=int_filesize-1) initialnunits(1) 	!x dimension split into number of cells
 		write(2,rec=int_filesize-2) initialnunits(2) 	!y dimension box split into number of cells
@@ -932,7 +945,7 @@ subroutine parallel_io_final_state
 		close(2,status='keep')	
 		
 		!Write double precision data before integers
-		open(2,file='results/final_state', form='unformatted',access='direct',recl=2)
+		open(2,file='results/final_state', form='unformatted',access='direct',recl=8)
 		write(2,rec=dp_filesize-(write_integers/2)-0) density           !Density of system
 		write(2,rec=dp_filesize-(write_integers/2)-1) rcutoff           !Cut off distance for particle interaction
 		write(2,rec=dp_filesize-(write_integers/2)-2) inputtemperature  !Define initial temperature
