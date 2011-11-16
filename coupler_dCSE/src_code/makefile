@@ -8,7 +8,7 @@ F90 := ftn
 #
 #  object dir
 #
-OBJ_DIR := obj
+OBJ_DIR = obj
 #
 # Coupler files
 #
@@ -66,17 +66,16 @@ md  : coupler
 couette : coupler 
 	cd $(CFD_SRC_PATH) && $(MAKE) USE_COUPLER=yes $(CFD_TARGET)
 
-coupler : create_dir_obj $(O_COUPLER_FILES) 
+coupler : create_obj_dir $(O_COUPLER_FILES) 
 
 null_coupler :
 	$(MAKE) OBJ_DIR=obj_null coupler_null
 
-coupler_null : create_dir_obj_null $(O_NULL_COUPLER_FILES)
+coupler_null : OBJ_DIR=obj_null 
+coupler_null : create_obj_dir $(O_NULL_COUPLER_FILES)
 
-create_dir_obj :
-	[ -d obj ] || mkdir obj
-create_dir_obj_null :
-	[ -d obj_null ] || mkdir obj_null
+create_obj_dir :
+	[ -d $(OBJ_DIR) ] || mkdir $(OBJ_DIR)
 
 clean_all : clean_cfd clean_md clean_couette clean_cfd_coupler
 
@@ -89,7 +88,7 @@ clean_md :
 clean_couette :
 	cd  $(CFD_SRC_PATH) && $(MAKE) clean
 clean_null_coupler :
-	$(MAKE) OBJ_COUPLER=obj_null clean_coupler
+	$(MAKE) OBJ_DIR=obj_null clean_coupler
 clean_coupler :
 	rm -rf $(OBJ_DIR) *.mod *.f90~ *__genmod.f90 *__genmod.mod *~ 
 help:
