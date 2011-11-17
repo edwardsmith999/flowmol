@@ -419,7 +419,8 @@ subroutine build_psf
 	mass(:)=1.00794
 
 	do i=1,NATOM
-		write(1,'(i8,3a,i4,6a,2f10.5,i1)') i,' ',seg_name(i),' ',res_ID(i),' ',res_name(i),' ',atom_name(i),' ',atom_type(i),charge(i),mass(i),0 
+		write(1,'(i8,3a,i4,6a,2f10.5,i1)') i,' ',seg_name(i),' ',res_ID(i),'&
+                 ',res_name(i),' ',atom_name(i),' ',atom_type(i),charge(i),mass(i),0 
 	end do
 
 	! Bonds
