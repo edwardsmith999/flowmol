@@ -89,7 +89,6 @@ contains
 
 
         subroutine coupler_send_CFDvel(uc,vc)
-                use mpi
                 implicit none
 
                 real(kind=kind(0.d0)) uc(:,:),vc(:,:)

@@ -80,7 +80,7 @@ end subroutine setup_MD
 !-----------------------------------------------------------------------------
 
 subroutine simulation_MD
-	use mpi
+!	use mpi
 	use computational_constants_MD
 	use physical_constants_MD, only : np
 	use arrays_MD, only :r,v,a

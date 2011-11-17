@@ -263,7 +263,7 @@ implicit none
 	m = halo_np
 	molno_start = np+m+1
 
-	if (loop1halos.eq..true.) then
+	if (loop1halos) then
 		loop1plane_lower = 1											!Set loop limits to include halo cells
 		loop1plane_upper = ncells(loop1plane)+2
 	else
@@ -271,7 +271,7 @@ implicit none
 		loop1plane_upper = ncells(loop1plane)+1
 	end if
 	
-	if (loop2halos.eq..true.) then
+	if (loop2halos) then
 		loop2plane_lower = 1
 		loop2plane_upper = ncells(loop2plane)+2
 	else

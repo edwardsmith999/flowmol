@@ -54,7 +54,8 @@ else
 endif
 
 # computed flags with values from PLATFORM files
-FFLAGS   := $(FLAGS_$(COMP)_$(VERSION))  -I$(COUPLER_PATH)
+FLAGS   := $(FLAGS_$(COMP)_$(VERSION))  
+FFLAGS  := $(FLAGS) -I$(COUPLER_PATH)
 LDFLAGS := $(FLAGS)
 
 
@@ -97,7 +98,7 @@ optimised_s:
 optimised_p:
 	@make parallel_md.exe "VERSION=opt"
 debug_s:
-	@make md.exe "FLAGS = -O0 -g -traceback -CB -fpe0"
+	@make md.exe "VERSION=debug"
 debug_p:
 	@make parallel_md.exe "VERSION=debug"
 full_debug_s:
@@ -109,7 +110,7 @@ profile_s:
 profile_p:
 	@make parallel_md.exe "FLAGS = -mpe=mpilog "
 md.exe: obj $(O_MD)
-	@$(F90) -o $(MD_EXE) $(O_MD) 
+	@$(F90) -o $(MD_EXE) $(LDFLAGS) $(O_MD) $(O_COUPLER) 
 md_CUDA.exe: obj $(O_CUDA)
 	@cd obj; $(F90) -o $(MD_EXE) $(O_CUDA) $(LIBS) ; mv md.exe ..
 md_CUDA_emu.exe: obj $(O_CUDA)
@@ -160,5 +161,4 @@ obj/%.o: %.f90
 #obj/setup_inputs.o : obj/coupler_md_global_data.o
 #obj/coupler_md_setup.o : obj/coupler_md_global_data.o obj/messenger.MPI.o
 #obj/coupler_md_communication.o : obj/coupler_md_setup.o obj/modules.o
-
 
