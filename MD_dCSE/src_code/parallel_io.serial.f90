@@ -64,21 +64,25 @@ implicit none
 	input_file_exists = .false.
 	restart_file_exists = .false.
 	input_file = 'MD.in'
-	initial_microstate_file = 'final_state'
+	initial_microstate_file = 'results/final_state'
 
 	argcount = command_argument_count()
 	
 	if (argcount.gt.0) then									!If more than 0 arguments	
 			
-		do i=1,argcount-1									!Loop through all arguments...
+		do i=1,argcount									!Loop through all arguments...
 			
 			call get_command_argument(i,arg)				!Reading two at once
-			call get_command_argument(i+1,nextarg)
-			
+                        if (i < argcount) then  
+			        call get_command_argument(i+1,nextarg)
+                        else
+                                 nextarg=''
+                        endif
+
 			if (trim(arg).eq.'-r' .and. nextarg(1:1).ne.'-') then
 				initial_microstate_file = trim(nextarg)
 				inquire(file=initial_microstate_file, exist=restart_file_exists) 	!Check file exists
-				if (restart_file_exists) restart = .true.
+				if (restart_file_exists) restart = .true.                         
 			end if			
 
 			if (trim(arg).eq.'-i' .and. nextarg(1:1).ne.'-') then
@@ -113,9 +117,9 @@ subroutine setup_inputs
 	use module_parallel_io
 	implicit none
 	
-	integer :: i,n
+	integer :: i, n, tvalue(8)
 
-	call random_seed
+!	call random_seed
 	call random_seed(size=n)
 	allocate(seed(n))
 	
@@ -218,12 +222,15 @@ subroutine setup_inputs
 	initialstep = 0   	     !Set initial step to one to start
 	
 	if (seed(1)==seed(2)) then
-		call random_seed
+!		call random_seed
+!		call random_seed(get=seed(1:n))
 		call random_seed(get=seed(1:n))
+                call date_and_time(values=tvalue)
+                seed = IEOR(tvalue(8)+irank,seed)
+        else 
+                seed = irank
 	endif
 	
-	!Assign different random number seed to each processor
-	seed = seed * irank
 	!Assign seed to random number generator
 	call random_seed(put=seed(1:n))
 
@@ -244,55 +251,48 @@ subroutine setup_restart_inputs
 
 	integer				:: n, k
 	integer 			:: extrasteps
-	integer				:: filesize,int_filesize,dp_filesize
 	integer 			:: checkint
 	double precision 	:: checkdp
 
+         integer(kind=selected_int_kind(18)) header_pos, end_pos ! 8 byte integer for header address
+
 	!Allocate random number seed
-	call random_seed
+!	call random_seed
 	call random_seed(size=n)
 	allocate(seed(n))
 
-	!Call function library to get file size
-	call get_file_size(initial_microstate_file,filesize)
 
-	!File size is in bytes and integer fortran records are blocks of 4 bytes
-	int_filesize = filesize/4
 	!Open file to read integers
-	open(2,file=initial_microstate_file,access="direct",recl=1)
+	open(2,file=initial_microstate_file,access="stream",position="append")
+        inquire(2,POS=end_pos) ! go the end of file
+ 
+        read(2,pos=end_pos-8) header_pos ! header start is in the last 8 bytes
 
-	read(2,rec=int_filesize-0) np		    		
-	globalnp = np				    				!Global np and local np same in serial
-	read(2,rec=int_filesize-1) initialnunits(1)
-	read(2,rec=int_filesize-2) initialnunits(2)
-	read(2,rec=int_filesize-3) initialnunits(3)
-	read(2,rec=int_filesize-4) Nsteps  	    
-	read(2,rec=int_filesize-5) tplot
-	read(2,rec=int_filesize-6) seed(1)
-	read(2,rec=int_filesize-7) seed(2)
-	read(2,rec=int_filesize-8) periodic(1)
-	read(2,rec=int_filesize-9) periodic(2)
-	read(2,rec=int_filesize-10) periodic(3)
-	read(2,rec=int_filesize-11) potential_flag
-	read(2,rec=int_filesize-12) chain_length
+	read(2,pos=header_pos) np
+        
+	globalnp = np	!Global np and local np same in serial
+	read(2) initialnunits(1)
+	read(2) initialnunits(2)
+	read(2) initialnunits(3)
+	read(2) Nsteps  	    
+	read(2) tplot
+	read(2) seed(1)
+	read(2) seed(2)
+	read(2) periodic(1)
+	read(2) periodic(2)
+	read(2) periodic(3)
+	read(2) potential_flag
+	read(2) chain_length
 
-	close(2,status='keep')
-
-	!File size is in bytes and fortran double precision records are blocks of 8 bytes
-	dp_filesize = filesize/8
-
-	!Reopen file to read doubles
-	open(2,file=initial_microstate_file, form="unformatted", access="direct",recl=2)
-
-	read(2,rec=dp_filesize-7) density			!Density of system
-	read(2,rec=dp_filesize-8) rcutoff			!Cut off distance for particle interaction
+	read(2) density			!Density of system
+	read(2) rcutoff			!Cut off distance for particle interaction
 	rcutoff2= rcutoff**2         				!Useful definition to save computational time
-	read(2,rec=dp_filesize-9) inputtemperature	!Define initial temperature
-	read(2,rec=dp_filesize-10) delta_t			!Timestep
-	read(2,rec=dp_filesize-11) elapsedtime   	!Elapsed simulation time to date
-	read(2,rec=dp_filesize-12)  k_c				!Polymer spring constant
-	read(2,rec=dp_filesize-13)  R_0				!Polymer max bond elongation
-	read(2,rec=dp_filesize-14)  delta_rneighbr	!Extra distance used for neighbour cell size
+	read(2) inputtemperature	!Define initial temperature
+	read(2) delta_t			!Timestep
+	read(2) elapsedtime   	!Elapsed simulation time to date
+	read(2)  k_c				!Polymer spring constant
+	read(2)  R_0				!Polymer max bond elongation
+	read(2)  delta_rneighbr	!Extra distance used for neighbour cell size
 
 	close(2,status='keep')
 
@@ -420,40 +420,36 @@ subroutine setup_restart_microstate
 	integer, dimension(np) :: chainID, subchainID,left,right
 
 	!Open file at first recorded value
-	open(2,file=initial_microstate_file, form='unformatted', access='direct',recl=2)
+	open(2,file=initial_microstate_file, form='unformatted', access='stream',position="rewind")
 	!Read positions
 	do n=1,globalnp
 		!Read position from file
 		do ixyz=1,nd
-			read(2,rec=6*(n-1)+(ixyz-1)+1) r(n,ixyz)
+			read(2) r(n,ixyz)
+		enddo
+                do ixyz=1,nd
+			read(2) v(n,ixyz)
 		enddo
 	enddo
 	call setup_tag				!Setup location of fixed molecules
 	do n = 1,np
 		call read_tag(n)		!Read tag and assign properties
 	enddo
-	do n=1,globalnp
-		!Read corresponding velocities
-		do ixyz=1,nd
-			read(2,rec=6*(n-1)+(ixyz-1)+4) v(n,ixyz)
-		enddo
-	enddo
-	close(2,status='keep')
 
 	if (potential_flag.eq.1) then
-		open(2,file=initial_microstate_file, form='unformatted', access='direct',recl=np)
-		read(2,rec=2*2*nd+1) chainID(:)						!2*np*nd/np = nd - must *2 as now reading ints...
-		read(2,rec=2*2*nd+2) subchainID(:)					!...rather than doubles.
-		read(2,rec=2*2*nd+3) left(:)
-		read(2,rec=2*2*nd+4) right(:)
+		read(2) chainID(:)				
+		read(2) subchainID(:)				
+		read(2) left(:)
+		read(2) right(:)
 		do n=1,np
 			polyinfo_mol(n)%chainID = chainID(n)
 			polyinfo_mol(n)%subchainID = subchainID(n)
 			polyinfo_mol(n)%left = left(n)
 			polyinfo_mol(n)%right= right(n)
 		end do
-		close(2,status='keep') 		!Close final state file
+
 	end if
+        close(2,status='keep') 		!Close final state file
 
 end subroutine setup_restart_microstate
 
@@ -584,9 +580,9 @@ subroutine parallel_io_final_state
 	implicit none
 
 	integer :: ixyz,n
-	integer :: write_integers, write_doubles, extra_integers_per_mol
 	integer, dimension(np) :: chainID, subchainID,right,left
 	integer :: int_filesize,dp_filesize
+        integer(kind=selected_int_kind(18)) header_pos ! 8 byte integer for header address
 
 	!Rebuild simulation before recording final state
 	call sendmols			   			!Exchange particles between processors
@@ -600,76 +596,68 @@ subroutine parallel_io_final_state
 	close(2,status='delete')
 	!open(3,file='results/finalvelocities',status='replace')
 
-	write_integers = 14							!Number of integers to be written to final_state
-	write_doubles =	8							!Number of doubles (disregarding arrays)
-	int_filesize = 2*2*np*nd + write_integers + 2*write_doubles
+	
+	!Written in this form so each molecule's information is together to allow 
+	!re-allocation to seperate processors
+	open(2,file='results/final_state', form='unformatted',access='stream')
+	do n=1,np
+		!Write particle n's positions and speed
+		do ixyz=1,nd
+			write(2) r(n,ixyz) 
+		enddo
+		!Write particle n's velocities
+		do ixyz=1,nd
+			write(2) v(n,ixyz)   
+		enddo
+	enddo
+!	close(2,status='keep')
 
 	if (potential_flag.eq.1) then
-		extra_integers_per_mol = 4
-		int_filesize = int_filesize + extra_integers_per_mol*np
 		do n=1,np
 			chainID(n)    = polyinfo_mol(n)%chainID
 			subchainID(n) = polyinfo_mol(n)%subchainID
 			left(n)       = polyinfo_mol(n)%left
 			right(n)	  = polyinfo_mol(n)%right
 		end do
-	end if
+!		open(2,file='results/final_state', form='unformatted',access='direct',recl=np)
+		write(2) chainID(:)
+		write(2) subchainID(:)
+		write(2) left(:)
+		write(2) right(:)
 
-	dp_filesize = int_filesize/2
-	
-	!Written in this form so each molecule's information is together to allow 
-	!re-allocation to seperate processors
-	open(2,file='results/final_state', form='unformatted',access='direct',recl=2)
-	do n=1,np
-		!Write particle n's positions
-		do ixyz=1,nd
-			write(2,rec=6*(n-1)+(ixyz-1)+1) r(n,ixyz) 
-		enddo
-		!Write particle n's velocities
-		do ixyz=1,nd
-			write(2,rec=6*(n-1)+(ixyz-1)+4) v(n,ixyz)   
-		enddo
-	enddo
-	close(2,status='keep')
-
-	if (potential_flag.eq.1) then
-		open(2,file='results/final_state', form='unformatted',access='direct',recl=np)
-		write(2,rec=2*2*nd+1) chainID(:)
-		write(2,rec=2*2*nd+2) subchainID(:)
-		write(2,rec=2*2*nd+3) left(:)
-		write(2,rec=2*2*nd+4) right(:)
-		close(2,status='keep')
 	end if
-	!close(3)
+ 
+        close(2,status='keep')
+
+        inquire(file='results/final_state',size=header_pos)
+        header_pos = header_pos + 1! the header will be from here on 
+
 
 	!Write integer data at end of file	
-	open(2,file='results/final_state', form='unformatted',access='direct',recl=1)
-	write(2,rec=int_filesize-0) np               	!Number of particles
-	write(2,rec=int_filesize-1) initialnunits(1) 	!x dimension split into number of cells
-	write(2,rec=int_filesize-2) initialnunits(2) 	!y dimension box split into number of cells
-	write(2,rec=int_filesize-3) initialnunits(3) 	!z dimension box split into number of cells
-	write(2,rec=int_filesize-4) Nsteps           	!Number of computational steps
-	write(2,rec=int_filesize-5) tplot            	!Frequency at which to record results
-	write(2,rec=int_filesize-6) seed(1)          	!Random number seed value 1
-	write(2,rec=int_filesize-7) seed(2)          	!Random number seed value 2
-	write(2,rec=int_filesize-8) periodic(1)	   	 	!Boundary condition flags
-	write(2,rec=int_filesize-9) periodic(2)	   		!Boundary condition flags
-	write(2,rec=int_filesize-10) periodic(3)	   	!Boundary condition flags
-	write(2,rec=int_filesize-11) potential_flag   	!Polymer/LJ potential flag
-	write(2,rec=int_filesize-12) chain_length	   	!Polymer chain length
-	write(2,rec=int_filesize-13) 0				   	!Dummy to make even filesize
-	close(2,status='keep')	
-	
-	!Write double precision data before integers
-	open(2,file='results/final_state', form='unformatted',access='direct',recl=2)
-	write(2,rec=dp_filesize-(write_integers/2)-0) density           !Density of system
-	write(2,rec=dp_filesize-(write_integers/2)-1) rcutoff           !Cut off distance for particle interaction
-	write(2,rec=dp_filesize-(write_integers/2)-2) inputtemperature  !Define initial temperature
-	write(2,rec=dp_filesize-(write_integers/2)-3) delta_t           !Size of time step
-	write(2,rec=dp_filesize-(write_integers/2)-4) elapsedtime       !Total elapsed time of all restarted simulations
-	write(2,rec=dp_filesize-(write_integers/2)-5) k_c			   	  !FENE spring constant
-	write(2,rec=dp_filesize-(write_integers/2)-6) R_0			      !FENE spring max elongation
-	write(2,rec=dp_filesize-(write_integers/2)-7) delta_rneighbr	  !Extra distance used for neighbour list cell size
+	open(2,file='results/final_state', form='unformatted',access='stream',position="append")
+	write(2) np               	!Number of particles
+	write(2) initialnunits(1) 	!x dimension split into number of cells
+	write(2) initialnunits(2) 	!y dimension box split into number of cells
+	write(2) initialnunits(3) 	!z dimension box split into number of cells
+	write(2) Nsteps           	!Number of computational steps
+	write(2) tplot            	!Frequency at which to record results
+	write(2) seed(1)          	!Random number seed value 1
+	write(2) seed(2)          	!Random number seed value 2
+	write(2) periodic(1)	   	 	!Boundary condition flags
+	write(2) periodic(2)	   		!Boundary condition flags
+	write(2) periodic(3)	   	!Boundary condition flags
+	write(2) potential_flag   	!Polymer/LJ potential flag
+	write(2) chain_length	   	!Polymer chain length
+
+	write(2) density           !Density of system
+	write(2) rcutoff           !Cut off distance for particle interaction
+	write(2) inputtemperature  !Define initial temperature
+	write(2) delta_t           !Size of time step
+	write(2) elapsedtime       !Total elapsed time of all restarted simulations
+	write(2) k_c			   	  !FENE spring constant
+	write(2) R_0			      !FENE spring max elongation
+	write(2) delta_rneighbr	  !Extra distance used for neighbour list cell size
+        write(2) header_pos
 	close(2,status='keep') !Close final_state file
 
 end subroutine parallel_io_final_state
