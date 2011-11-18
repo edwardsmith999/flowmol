@@ -124,8 +124,10 @@ end subroutine setup_command_arguments
 
 subroutine setup_inputs
 	use module_parallel_io
+	use librarymod, only : locate
 	implicit none
-	
+
+	logical	:: from_input
 	integer :: k, n, tvalue(8)
 
 !	call random_seed
@@ -135,65 +137,150 @@ subroutine setup_inputs
 	open(1,file=input_file)
 
 	!Input physical co-efficients
-	call locate(1,'DENSITY')
+	call locate(1,'DENSITY',.true.)
 	read(1,*) density
-	call locate(1,'RCUTOFF')
+	call locate(1,'RCUTOFF',.true.)
 	read(1,*) rcutoff
-	call locate(1,'INPUTTEMPERATURE')
+	call locate(1,'INPUTTEMPERATURE',.true.)
 	read(1,*) inputtemperature
-	call locate(1,'INITIALNUNITS')
+	call locate(1,'INITIALNUNITS',.true.)
 	read(1,*) initialnunits(1)		!x dimension split into number of cells
 	read(1,*) initialnunits(2)		!y dimension split into number of cells
 	if(nd.eq.3) read(1,*) initialnunits(3)	!z dimension split into number of cells
 
 	!Input computational co-efficients
-	call locate(1,'NSTEPS')
+	call locate(1,'NSTEPS',.true.)
 	read(1,*) Nsteps 		!Number of computational steps
-	call locate(1,'DELTA_T')
+	call locate(1,'DELTA_T',.true.)
 	read(1,*) delta_t 		!Size of time step
-	call locate(1,'TPLOT')
+	call locate(1,'TPLOT',.true.)
 	read(1,*) tplot 		!Frequency at which to record results
-	call locate(1,'INITISE_STEPS')
+	call locate(1,'INITISE_STEPS',.true.)
 	read(1,*) initise_steps 	!Number of initialisation steps for simulation
-	call locate(1,'DELTA_RNEIGHBR') 
+	call locate(1,'DELTA_RNEIGHBR',.true.) 
 	read(1,*) delta_rneighbr 	!Extra distance used for neighbour cell
-	call locate(1,'SEED')
+	call locate(1,'SEED',.true.)
 	read(1,*) seed(1) 		!Random number seed value 1
 	read(1,*) seed(2) 		!Random number seed value 2
 
+	!Flags to determine if periodic boundaries required	
+	call locate(1,'PERIODIC',.true.)
+	read(1,*) periodic(1)
+	read(1,*) periodic(2)
+	if (nd.eq.3) read(1,*) periodic(3)
+
+	!-------------------------------------
+	!Flag to determine molecular tags
+	!-------------------------------------
+	!Note: For initialunitsize "a"
+	!		 [  o     o ]
+	!a (1 cell size) [     o    ]  a/2 (distance between molcules)	
+	!		 [  o     o
+	!		  __________]  a/4 (distance from bottom of domain)
+	!
+	!So use (0.20+0.5d0*mol_layers)*initialunitsize(ixyz)
+
+	!Set all to zero if no specifiers
+	!Setup wall speeds
+	wallslidev = 0.d0
+	!Setup fixed molecules
+	fixdistbottom = 0.d0;	fixdisttop = 0.d0
+	!Setup sliding molecules
+	slidedistbottom = 0.d0; slidedisttop = 0.d0
+	!Setup molecules with tethered potentials
+	tethereddistbottom = 0.d0; tethereddisttop = 0.d0
+	!Setup thermostatted molecules
+	thermstatbottom = 0.d0; thermstattop = 0.d0 
+	
+	call locate(1,'WALLSLIDEV',.false.,from_input)
+	if (from_input) then
+		read(1,*) wallslidev(1)
+		read(1,*) wallslidev(2)
+		read(1,*) wallslidev(3)
+	endif
+	call locate(1,'FIXDISTBOTTOM',.false.,from_input)
+	if (from_input) then
+		read(1,*) fixdistbottom(1)
+		read(1,*) fixdistbottom(2)
+		read(1,*) fixdistbottom(3)
+	endif
+	call locate(1,'FIXDISTTOP',.false.,from_input)
+	if (from_input) then
+		read(1,*) fixdisttop(1)
+		read(1,*) fixdisttop(2)
+		read(1,*) fixdisttop(3)
+	endif
+	call locate(1,'SLIDEDISTBOTTOM',.false.,from_input)
+	if (from_input) then
+		read(1,*) slidedistbottom(1)
+		read(1,*) slidedistbottom(2)
+		read(1,*) slidedistbottom(3)
+	endif
+	call locate(1,'SLIDEDISTTOP',.false.,from_input)
+	if (from_input) then
+		read(1,*) slidedisttop(1)
+		read(1,*) slidedisttop(2)
+		read(1,*) slidedisttop(3)
+	endif
+	call locate(1,'TETHEREDDISTBOTTOM',.false.,from_input)
+	if (from_input) then
+		read(1,*) tethereddistbottom(1)
+		read(1,*) tethereddistbottom(2)
+		read(1,*) tethereddistbottom(3)
+	endif
+	call locate(1,'TETHEREDDISTTOP',.false.,from_input)
+	if (from_input) then
+		read(1,*) tethereddisttop(1)
+		read(1,*) tethereddisttop(2)
+		read(1,*) tethereddisttop(3)
+	endif
+	call locate(1,'THERMSTATBOTTOM',.false.,from_input)
+	if (from_input) then
+		read(1,*) thermstatbottom(1)
+		read(1,*) thermstatbottom(2)
+		read(1,*) thermstatbottom(3)
+	endif
+	call locate(1,'THERMSTATTOP',.false.,from_input)
+	if (from_input) then
+		read(1,*) thermstattop(1)
+		read(1,*) thermstattop(2)
+		read(1,*) thermstattop(3)
+	endif
+
+
 	!Flag to determine if output is switched on
-	call locate(1,'VMD_OUTFLAG')
+	call locate(1,'VMD_OUTFLAG',.true.)
 	read(1,*) vmd_outflag
-	call locate(1,'MACRO_OUTFLAG')
+	call locate(1,'MACRO_OUTFLAG',.true.)
 	read(1,*) macro_outflag
-	call locate(1,'MASS_OUTFLAG')
+	call locate(1,'MASS_OUTFLAG',.true.)
 	read(1,*) mass_outflag
 	if (mass_outflag .ne. 0) 	read(1,*) Nmass_ave
-	call locate(1,'VELOCITY_OUTFLAG')
+	call locate(1,'VELOCITY_OUTFLAG',.true.)
 	read(1,* ) velocity_outflag
 	if (velocity_outflag .ne. 0)	read(1,* ) Nvel_ave
-	call locate(1,'PRESSURE_OUTFLAG')
+	call locate(1,'PRESSURE_OUTFLAG',.true.)
 	read(1,* ) pressure_outflag
 	if (pressure_outflag .ne. 0)	read(1,* ) Nstress_ave
-	call locate(1,'VISCOSITY_OUTFLAG')
+	call locate(1,'VISCOSITY_OUTFLAG',.true.)
 	read(1,* ) viscosity_outflag
 	if ( viscosity_outflag .ne. 0)	read(1,* ) Nvisc_ave
-	call locate(1,'MFLUX_OUTFLAG')
+	call locate(1,'MFLUX_OUTFLAG',.true.)
 	read(1,* ) mflux_outflag
 	if (mflux_outflag .ne. 0)	read(1,* ) Nmflux_ave
-	call locate(1,'VFLUX_OUTFLAG')
+	call locate(1,'VFLUX_OUTFLAG',.true.)
 	read(1,* ) vflux_outflag
 	if (vflux_outflag .ne. 0)	read(1,* ) Nvflux_ave
-	call locate(1,'POTENTIAL_FLAG')
+	call locate(1,'POTENTIAL_FLAG',.true.)
 	read(1,*) potential_flag
 	if (potential_flag.eq.1) then
-		call locate(1,'FENE_INFO')
+		call locate(1,'FENE_INFO',.true.)
 		read(1,*) chain_length
 		read(1,*) k_c
 		read(1,*) R_0
 	end if	
 
-	call locate(1,'ETEVTCF_OUTFLAG')
+	call locate(1,'ETEVTCF_OUTFLAG',.true.)
 	read(1,*) etevtcf_outflag
 	if (etevtcf_outflag.ne.0) then
 		read(1,*) etevtcf_iter0
@@ -205,19 +292,14 @@ subroutine setup_inputs
 
 	end if
 
-	!call locate(1,'R_GYRATION_OUTFLAG')
+	!call locate(1,'R_GYRATION_OUTFLAG',.true.)
 	!read(1,*) r_gyration_outflag		
 
-	!call locate(1,'MICRO_STRESS_OUTFLAG')
+	!call locate(1,'MICRO_STRESS_OUTFLAG',.true.)
 	!read(1,*) micro_stress_outflag
 
-	!Flags to determine if periodic boundaries required	
-	call locate(1,'PERIODIC')
-	read(1,*) periodic(1)
-	read(1,*) periodic(2)
-	if (nd.eq.3) read(1,*) periodic(3)
 
-	call locate(1,'DEFINE_SHEAR')
+	call locate(1,'DEFINE_SHEAR',.true.)
 	read(1,*) shear_direction
 	read(1,*) shear_iter0
 	read(1,*) define_shear_as
@@ -245,6 +327,7 @@ subroutine setup_inputs
 	call random_seed(put=seed(1:n))
 
 	elapsedtime = 1.d0*delta_t*Nsteps !Set elapsed time to end of simualtion
+
 end subroutine setup_inputs
 
 !----------------------------------------------------------------------
@@ -256,8 +339,10 @@ end subroutine setup_inputs
 
 subroutine setup_restart_inputs
 	use module_parallel_io
+	use librarymod, only : locate
 	implicit none
 
+	logical				:: from_input
 	integer				:: n, k
 	integer 			:: extrasteps
 	integer 			:: checkint
@@ -344,19 +429,19 @@ subroutine setup_restart_inputs
 		!Check if values from input file are different and alert user - all processors have
 		!read the same file so only need to check on one processor
 		open(1,file=input_file)
-		call locate(1,'DENSITY')
+		call locate(1,'DENSITY',.true.)
 		read(1,* ) checkdp          !Density of system
 		if (checkdp .ne. density) print*, 'Discrepancy between system density', &
 		'in input & restart file - restart file will be used'
-		call locate(1,'RCUTOFF')
+		call locate(1,'RCUTOFF',.true.)
 		read(1,* ) checkdp          !Cut off distance for particle interaction
 		if (checkdp .ne. rcutoff) print*, 'Discrepancy between cut off radius', &
 		'in input & restart file - restart file will be used'
-		call locate(1,'INPUTTEMPERATURE')
+		call locate(1,'INPUTTEMPERATURE',.true.)
 		read(1,* ) checkdp	     !Define initial temperature
 		if (checkdp .ne. inputtemperature) print*, 'Discrepancy between initial temperature', &
 		'in input & restart file - restart file will be used'
-		call locate(1,'INITIALNUNITS')
+		call locate(1,'INITIALNUNITS',.true.)
 		read(1,* ) checkint	     	!x dimension split into number of cells
 		if (checkint .ne. initialnunits(1)) print*, 'Discrepancy between x domain size', &
 		'in input & restart file - restart file will be used'
@@ -370,23 +455,102 @@ subroutine setup_restart_inputs
 		endif
 
 		!Get number of extra steps, timestep and plot frequency from input file
-		call locate(1,'PERIODIC')
+		call locate(1,'PERIODIC',.true.)
 		read(1,*) periodic(1)
 		read(1,*) periodic(2)
 		if (nd.eq.3) read(1,*) periodic(3)
+
+		!-------------------------------------
+		!Flag to determine molecular tags
+		!-------------------------------------
+		!Note: For initialunitsize "a"
+		!		 [  o     o ]
+		!a (1 cell size) [     o    ]  a/2 (distance between molcules)	
+		!		 [  o     o
+		!		  __________]  a/4 (distance from bottom of domain)
+		!
+		!So use (0.20+0.5d0*mol_layers)*initialunitsize(ixyz)
+
+		!Set all to zero if no specifiers
+		!Setup wall speeds
+		wallslidev = 0.d0
+		!Setup fixed molecules
+		fixdistbottom = 0.d0;	fixdisttop = 0.d0
+		!Setup sliding molecules
+		slidedistbottom = 0.d0; slidedisttop = 0.d0
+		!Setup molecules with tethered potentials
+		tethereddistbottom = 0.d0; tethereddisttop = 0.d0
+		!Setup thermostatted molecules
+		thermstatbottom = 0.d0; thermstattop = 0.d0 
 		
-		call locate(1,'NSTEPS')
+		call locate(1,'WALLSLIDEV',.false.,from_input)
+		if (from_input) then
+			read(1,*) wallslidev(1)
+			read(1,*) wallslidev(2)
+			read(1,*) wallslidev(3)
+		endif
+		call locate(1,'FIXDISTBOTTOM',.false.,from_input)
+		if (from_input) then
+			read(1,*) fixdistbottom(1)
+			read(1,*) fixdistbottom(2)
+			read(1,*) fixdistbottom(3)
+		endif
+		call locate(1,'FIXDISTTOP',.false.,from_input)
+		if (from_input) then
+			read(1,*) fixdisttop(1)
+			read(1,*) fixdisttop(2)
+			read(1,*) fixdisttop(3)
+		endif
+		call locate(1,'SLIDEDISTBOTTOM',.false.,from_input)
+		if (from_input) then
+			read(1,*) slidedistbottom(1)
+			read(1,*) slidedistbottom(2)
+			read(1,*) slidedistbottom(3)
+		endif
+		call locate(1,'SLIDEDISTTOP',.false.,from_input)
+		if (from_input) then
+			read(1,*) slidedisttop(1)
+			read(1,*) slidedisttop(2)
+			read(1,*) slidedisttop(3)
+		endif
+		call locate(1,'TETHEREDDISTBOTTOM',.false.,from_input)
+		if (from_input) then
+			read(1,*) tethereddistbottom(1)
+			read(1,*) tethereddistbottom(2)
+			read(1,*) tethereddistbottom(3)
+		endif
+		call locate(1,'TETHEREDDISTTOP',.false.,from_input)
+		if (from_input) then
+			read(1,*) tethereddisttop(1)
+			read(1,*) tethereddisttop(2)
+			read(1,*) tethereddisttop(3)
+		endif
+		call locate(1,'THERMSTATBOTTOM',.false.,from_input)
+		if (from_input) then
+			read(1,*) thermstatbottom(1)
+			read(1,*) thermstatbottom(2)
+			read(1,*) thermstatbottom(3)
+		endif
+		call locate(1,'THERMSTATTOP',.false.,from_input)
+		if (from_input) then
+			read(1,*) thermstattop(1)
+			read(1,*) thermstattop(2)
+			read(1,*) thermstattop(3)
+		endif
+
+		
+		call locate(1,'NSTEPS',.true.)
 		read(1,* ) extrasteps       !Number of computational steps
-		call locate(1,'DELTA_T')
+		call locate(1,'DELTA_T',.true.)
 		read(1,* ) delta_t          !Size of time step
-		call locate(1,'TPLOT')
+		call locate(1,'TPLOT',.true.)
 		read(1,* ) tplot            !Frequency at which to record results
-		call locate(1,'DELTA_RNEIGHBR')
+		call locate(1,'DELTA_RNEIGHBR',.true.)
 		read(1,* ) delta_rneighbr   !Extra distance used for neighbour cell
-		call locate(1,'SEED')
+		call locate(1,'SEED',.true.)
 		read(1,* ) seed(1)	     	!Random number seed value 1
 		read(1,* ) seed(2)	     	!Random number seed value 2
-		call locate(1,'DEFINE_SHEAR')
+		call locate(1,'DEFINE_SHEAR',.true.)
 		read(1,*) shear_direction
 		read(1,*) shear_iter0
 		read(1,*) define_shear_as
@@ -395,26 +559,26 @@ subroutine setup_restart_inputs
 		if (define_shear_as.gt.1) stop 'Poorly defined shear in input file'	
 		
 		!Flag to determine if output is switched on
-		call locate(1,'VMD_OUTFLAG')
+		call locate(1,'VMD_OUTFLAG',.true.)
 		read(1,* ) vmd_outflag
-		call locate(1,'MACRO_OUTFLAG')
+		call locate(1,'MACRO_OUTFLAG',.true.)
 		read(1,* ) macro_outflag	
-		call locate(1,'MASS_OUTFLAG')
+		call locate(1,'MASS_OUTFLAG',.true.)
 		read(1,*) mass_outflag
 		if (mass_outflag .ne. 0) read(1,*) Nmass_ave
-		call locate(1,'VELOCITY_OUTFLAG')
+		call locate(1,'VELOCITY_OUTFLAG',.true.)
 		read(1,* ) velocity_outflag
 		read(1,* ) Nvel_ave
-		call locate(1,'PRESSURE_OUTFLAG')
+		call locate(1,'PRESSURE_OUTFLAG',.true.)
 		read(1,* ) pressure_outflag
 		read(1,* ) Nstress_ave
-		call locate(1,'VISCOSITY_OUTFLAG')
+		call locate(1,'VISCOSITY_OUTFLAG',.true.)
 		read(1,* ) viscosity_outflag
 		read(1,* ) Nvisc_ave
-		call locate(1,'MFLUX_OUTFLAG')
+		call locate(1,'MFLUX_OUTFLAG',.true.)
 		read(1,* ) mflux_outflag
 		read(1,* ) Nmflux_ave
-		call locate(1,'VFLUX_OUTFLAG')
+		call locate(1,'VFLUX_OUTFLAG',.true.)
 		read(1,* ) vflux_outflag
 		read(1,* ) Nvflux_ave
 		if (vflux_outflag .ne. 0) then
@@ -422,7 +586,7 @@ subroutine setup_restart_inputs
 			Nmflux_ave = Nvflux_ave	!Set mass averaging to same value as velocity averaging
 		endif
 
-		call locate(1,'ETEVTCF_OUTFLAG')
+		call locate(1,'ETEVTCF_OUTFLAG',.true.)
 		read(1,*) etevtcf_outflag
 		if (etevtcf_outflag.ne.0) then
 			read(1,*) etevtcf_iter0
@@ -467,205 +631,6 @@ subroutine setup_restart_inputs
 	Nsteps = Nsteps + extrasteps !Establish final iteration step based on previous
 
 end subroutine setup_restart_inputs
-
-!-----------------------------------------------------------------------------
-! Subroutine:	setup_restart_inputs
-! Author(s):	David Trevelyan & Edward Smith
-! Description:
-!		 Set up inputs based on the final state of a previous simulation
-!		The input file MD.in contains capitalised keywords followed by
-!		numerical values. The "locate" subroutine rewinds to the beginning
-!		of MD.in and scans each line until the keyword is matched.
-!
-!		Consequently, the file position is set for the next statement to read
-!		the line underneath the previously "located" keyword. 
-!-----------------------------------------------------------------------------
-
-subroutine setup_restart_inputs_locate
-	use module_parallel_io
-	implicit none
-
-	integer				:: n, k
-	integer 			:: extrasteps
-	integer				:: filesize,int_filesize,dp_filesize
-	integer 			:: checkint
-	double precision 		:: checkdp
-
-	!Allocate random number seed
-	call random_seed
-	call random_seed(size=n)
-	allocate(seed(n))
-
-	!Open on a single process and broadcast
-	if (irank .eq. iroot) then
-
-		!Call function library to get file size
-		call get_file_size('final_state',filesize)
-
-		!File size is in bytes and integer fortran records are blocks of 4 bytes
-		int_filesize = filesize/4
-
-		!Open file to read integers
-		open(2,file='final_state', form="unformatted", access="direct",recl=8)
-
-		read(2,rec=int_filesize-7) np		    !Number of particles
-		globalnp = np				    !Global np and local np same in serial
-		read(2,rec=int_filesize-6) initialnunits(1)!x dimension split into number of cells
-		read(2,rec=int_filesize-5) initialnunits(2)!y dimension box split into number of cells
-		read(2,rec=int_filesize-4) initialnunits(3)!z dimension box split into number of cells
-		read(2,rec=int_filesize-3) Nsteps  	    !Number of elapsed computational steps
-
-		close(2,status='keep')
-
-		!File size is in bytes and fortran double precision records are blocks of 8 bytes
-		dp_filesize = filesize/8
-
-		!Reopen file to read doubles
-		open(2,file='final_state', form="unformatted", access="direct",recl=8)
-
-		read(2,rec=dp_filesize-8) density		!Density of system
-		read(2,rec=dp_filesize-7) rcutoff		!Cut off distance for particle interaction
-		rcutoff2= rcutoff**2         !Useful definition to save computational time
-		read(2,rec=dp_filesize-6) inputtemperature	!Define initial temperature
-		read(2,rec=dp_filesize-4) elapsedtime   	!Elapsed simulation time to date
-
-		close(2,status='keep')
-
-		!Check if values from input file are different and alert user - all processors have
-		!read the same file so only need to check on one processor
-		open(1,file='MD.in')
-
-		!Input physical co-efficients
-		call locate(1,'DENSITY')
-		read(1,*) checkdp
-		if (checkdp .ne. density) print*, 'Discrepancy between system density', &
-		'in input & restart file - restart file will be used'
-		call locate(1,'RCUTOFF')
-		read(1,*) checkdp
-		if (checkdp .ne. rcutoff) print*, 'Discrepancy between cut off radius', &
-		'in input & restart file - restart file will be used'
-		call locate(1,'INPUTTEMPERATURE')
-		read(1,*) checkdp
-		if (checkdp .ne. inputtemperature) print*, 'Discrepancy between initial temperature', &
-		'in input & restart file - restart file will be used'
-		call locate(1,'INITIALNUNITS')
-		read(1,*) checkint		!x dimension split into number of cells
-		if (checkint .ne. initialnunits(1)) print*, 'Discrepancy between x domain size', &
-		'in input & restart file - restart file will be used'
-		read(1,*) checkint		!y dimension split into number of cells
-		if (checkint .ne. initialnunits(2)) print*, 'Discrepancy between y domain size', &
-		'in input & restart file - restart file will be used'
-		if(nd.eq.3) then
-			read(1,*) checkint	!z dimension split into number of cells
-			if (checkint .ne. initialnunits(3)) print*, 'Discrepancy between z domain size', &
-			'in input & restart file - restart file will be used'
-		endif
-
-		!Input computational co-efficients
-		call locate(1,'NSTEPS')
-		read(1,*) extrasteps 		!Number of computational steps
-		call locate(1,'DELTA_T')
-		read(1,*) delta_t 		!Size of time step
-		call locate(1,'TPLOT')
-		read(1,*) tplot 		!Frequency at which to record results
-		call locate(1,'DELTA_RNEIGHBR') 
-		read(1,*) delta_rneighbr 	!Extra distance used for neighbour cell
-		call locate(1,'SEED')
-		read(1,*) seed(1) 		!Random number seed value 1
-		read(1,*) seed(2) 		!Random number seed value 2
-
-		!Flag to determine if output is switched on
-		call locate(1,'VMD_OUTFLAG')
-		read(1,*) vmd_outflag
-		call locate(1,'MACRO_OUTFLAG')
-		read(1,*) macro_outflag
-		call locate(1,'MASS_OUTFLAG')
-		read(1,*) mass_outflag
-		if (mass_outflag .ne. 0) 	read(1,*) Nmass_ave
-		call locate(1,'VELOCITY_OUTFLAG')
-		read(1,* ) velocity_outflag
-		if (velocity_outflag .ne. 0)	read(1,* ) Nvel_ave
-		call locate(1,'PRESSURE_OUTFLAG')
-		read(1,* ) pressure_outflag
-		if (pressure_outflag .ne. 0)	read(1,* ) Nstress_ave
-		call locate(1,'VISCOSITY_OUTFLAG')
-		read(1,* ) viscosity_outflag
-		if ( viscosity_outflag .ne. 0)	read(1,* ) Nvisc_ave
-		call locate(1,'MFLUX_OUTFLAG')
-		read(1,* ) mflux_outflag
-		if (mflux_outflag .ne. 0)	read(1,* ) Nmflux_ave
-		call locate(1,'VFLUX_OUTFLAG')
-		read(1,* ) vflux_outflag
-		if (vflux_outflag .ne. 0) then
-			read(1,* ) Nvflux_ave
-			Nmflux_ave = Nvflux_ave	!Set mass averaging to same value as velocity averaging
-		endif
-
-		! ******************* SLLOD and polymer code ***********************
-		!call locate(1,'POTENTIAL_FLAG')
-		!read(1,*) potential_flag
-
-		!if (potential_flag.eq.1) then
-		!call locate(1,'FENE_INFO')
-		!read(1,*) chain_length
-		!read(1,*) k_c
-		!read(1,*) R_0
-			
-		!call locate(1,'ETEVTCF_OUTFLAG')
-		!read(1,*) etevtcf_outflag
-		!read(1,*) etevtcf_iter0
-
-		!call locate(1,'R_GYRATION_OUTFLAG')
-		!read(1,*) r_gyration_outflag		
-
-		!call locate(1,'MICRO_STRESS_OUTFLAG')
-		!read(1,*) micro_stress_outflag
-
-		!call locate(1,'DEFINE_SHEAR')
-		!read(1,*) define_shear_as
-		!if (define_shear_as.eq.0) read(1,* ) shear_velocity
-		!if (define_shear_as.eq.1) read(1,* ) shear_rate
-		!if (define_shear_as.gt.1) stop 'Shear type undefined, &
-		!must be 0 for velocity or 1 for rate'
-		! ******************* SLLOD and polymer code ***********************
-
-		!Flags to determine if periodic boundaries required	
-		call locate(1,'PERIODIC')
-		read(1,*) periodic(1)
-		read(1,*) periodic(2)
-		if (nd.eq.3) read(1,*) periodic(3)
-
-		close(1,status='keep')      !Close input file
-
-	endif
-
-	!Broadcast data read by root to all other processors
-	call MPI_BCAST(globalnp,1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr)
-	call MPI_BCAST(density,1,MPI_double_precision,iroot-1,MPI_COMM_WORLD,ierr)
-	call MPI_BCAST(rcutoff,1,MPI_double_precision,iroot-1,MPI_COMM_WORLD,ierr) 
-	rcutoff2= rcutoff**2         !Useful definition to save computational time
-	call MPI_BCAST(inputtemperature,1,MPI_double_precision,iroot-1,MPI_COMM_WORLD,ierr) 
-	call MPI_BCAST(initialnunits(1),1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr)
-	call MPI_BCAST(initialnunits(2),1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr)
-	call MPI_BCAST(initialnunits(3),1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr)
-	call MPI_BCAST(Nsteps,1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr)
-	call MPI_BCAST(extrasteps,1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr)
-	call MPI_BCAST(delta_t,1,MPI_double_precision,iroot-1,MPI_COMM_WORLD,ierr) 
-	call MPI_BCAST(tplot,1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr)
-	call MPI_BCAST(delta_rneighbr,1,MPI_double_precision,iroot-1,MPI_COMM_WORLD,ierr) 
-	call MPI_BCAST(vmd_outflag,1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr)
-	call MPI_BCAST(macro_outflag,1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr) 
-	call MPI_BCAST(velocity_outflag,1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr) 
-	call MPI_BCAST(Nvel_ave,1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr) 
-	call MPI_BCAST(pressure_outflag,1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr)
-	call MPI_BCAST(Nstress_ave,1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr)  
-	call MPI_BCAST(Nvisc_ave,1,MPI_integer,iroot-1,MPI_COMM_WORLD,ierr)
-
-	elapsedtime = elapsedtime + delta_t*extrasteps !Set elapsed time to end of simualtion
-	initialstep = Nsteps         !Set plot count to final plot of last
-	Nsteps = Nsteps + extrasteps !Establish final iteration step based on previous
-
-end subroutine setup_restart_inputs_locate
 
 !------------------------------------------------------------------------------
 

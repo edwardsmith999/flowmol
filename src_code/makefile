@@ -2,15 +2,16 @@
 # File definitions
 #=======================================================================
 
-F90_MD_FILES = modules.f90 messenger.serial.f90 parallel_io.serial.f90 functions_lib.f90 linklist.f90 molecular_properties.f90  setup_set_parameters.f90 setup_initialise_microstate.f90 setup_initial_record.f90 simulation_compute_forces.f90 simulation_move_particles.f90 simulation_checkrebuild.f90 simulation_record.f90 finish_final_record.f90 finish_clear_all.f90 md.f90 md_main.f90 external_forces.f90 
-
-F90_CUDA_MD_FILES = $(F90_MD_FILES:simulation_compute_forces.f90=simulation_compute_forces_CUDA.f90) 
-
-CU_CUDA_MD_FILES = inter.cu inter2.cu
-
-F90_CONTINUUM = continuum_modules.f90 continuum_advance_time.f90 continuum_calculate_flux.f90 continuum_CFL.f90 continuum_finish.f90 continuum_initial_record.f90 continuum_mesh_gen.f90 continuum_read_inputs.f90 continuum_record.f90 continuum_set_BC.f90 continuum_set_parameters.f90 continuum_setup_macrostate.f90 continuum.f90 continuum_main.f90
+F90_MD_FILES =  modules.f90 functions_lib.f90 messenger.serial.f90 parallel_io.serial.f90 linklist.f90 molecular_properties.f90  setup_set_parameters.f90 setup_initialise_microstate.f90 setup_initial_record.f90 simulation_compute_forces.f90 simulation_move_particles.f90 simulation_checkrebuild.f90 simulation_record.f90 finish_final_record.f90 finish_clear_all.f90 md.f90 md_main.f90 external_forces.f90 
 
 F90_MD_FILES_P = $(patsubst parallel_io.serial.f90,parallel_io.MPI2.f90,$(patsubst messenger.serial.f90,messenger.MPI.f90,$(F90_MD_FILES)))
+
+F90_CUDA_MD_FILES = $(F90_MD_FILES:simulation_compute_forces.f90=simulation_compute_forces_CUDA.f90) 
+CU_CUDA_MD_FILES = inter.cu inter2.cu
+
+F90_COUPLER_no     := $(COUPLER_PATH)/coupler_null.f90
+F90_COUPLER_yes    := $(COUPLER_PATH)/coupler.f90 $(COUPLER_PATH)/coupler_parameters.f90 $(COUPLER_PATH)/coupler_internal_common.f90 $(COUPLER_PATH)/coupler_internal_md.f90 $(COUPLER_PATH)/coupler_internal_cfd.f90   
+
 
 PARAM = param.inc
 
@@ -22,13 +23,13 @@ OBJ_DIR := obj
 
 # use coupler ? 
 USE_COUPLER      := no
-COUPLER_PATH_yes := ../../coupler_dCSE/src_code/obj
-COUPLER_PATH_no  := ../../coupler_dCSE/src_code/obj_null
+COUPLER_PATH_yes := ../../coupler_dCSE/src_code/#obj
+COUPLER_PATH_no  := ../../coupler_dCSE/src_code/#obj_null
 COUPLER_PATH      := $(COUPLER_PATH_$(USE_COUPLER))
 
 
-# coupler object files in coupler director
-O_COUPLER_no     := $(COUPLER_PATH)/coupler_null.o
+# coupler object files in coupler directory
+O_COUPLER_no     := $(COUPLER_PATH)/obj_null/coupler_null.o
 O_COUPLER_yes    := $(COUPLER_PATH)/coupler.o $(COUPLER_PATH)/coupler_parameters.o $(COUPLER_PATH)/coupler_internal_common.o $(COUPLER_PATH)/coupler_internal_md.o $(COUPLER_PATH)/coupler_internal_cfd.o   
 O_COUPLER        := $(O_COUPLER_$(USE_COUPLER))
 
@@ -55,24 +56,27 @@ endif
 
 # computed flags with values from PLATFORM files
 FLAGS   := $(FLAGS_$(COMP)_$(VERSION))  
-FFLAGS  := $(FLAGS) -I$(COUPLER_PATH)
+FFLAGS  := $(FLAGS) -I$(COUPLER_PATH) 
 LDFLAGS := $(FLAGS)
 
 
 MD_EXE = md.exe
-CONTINUUM_EXE = continuum.exe
 
 #Re-use f90 file names with .o instead of .f90
 O_MD = $(addprefix obj/, $(F90_MD_FILES:.f90=.o))
 O_CUDA = $(CU_CUDA_MD_FILES:.cu=.o) $(F90_CUDA_MD_FILES:.f90=.o)
 O_CONTINUUM = $(F90_CONTINUUM:.f90=.o)
 O_MD_P = $(addprefix obj/,$(F90_MD_FILES_P:.f90=.o))
+O_COUPLER_no = $(addprefix obj/,$(F90_COUPLER_no:.f90=.o))
+O_COUPLER_yes = $(addprefix obj/,$(F90_COUPLER_yes:.f90=.o))
 
 #Make everything depend on parameter files
 $(O_MD): $(PARAM)
 $(O_CUDA): $(PARAM)
 $(O_CONTINUUM): $(PARAM)
 $(O_MD_P): $(PARAM)
+$(O_COUPLER_no) : $(PARAM)
+$(O_COUPLER_yes) : $(PARAM)
 CU = nvcc
 .SUFFIXES: .exe .o .f90 .cu .inc
 
@@ -108,7 +112,7 @@ full_debug_p:
 profile_s:
 	@make md.exe "FLAGS = -O0 -pg"
 profile_p:
-	@make parallel_md.exe "FLAGS = -mpe=mpilog "
+	@make parallel_md.exe "FFLAGS = -mpe=mpilog "
 md.exe: obj $(O_MD)
 	@$(F90) -o $(MD_EXE) $(LDFLAGS) $(O_MD) $(O_COUPLER) 
 md_CUDA.exe: obj $(O_CUDA)
@@ -159,6 +163,7 @@ obj/%.o: %.f90
 #obj/finish_final_record.o : obj/setup_inputs.o 
 #obj/md.o : obj/coupler_md_communication.o obj/coupler_md_setup.o
 #obj/setup_inputs.o : obj/coupler_md_global_data.o
+#obj/setup_set_parameters.o : obj_null/coupler_null.o
 #obj/coupler_md_setup.o : obj/coupler_md_global_data.o obj/messenger.MPI.o
 #obj/coupler_md_communication.o : obj/coupler_md_setup.o obj/modules.o
 
