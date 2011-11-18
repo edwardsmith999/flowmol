@@ -1,0 +1,80 @@
+\documentclass[a4paper,10pt]{article}
+
+%Bibliography 
+\usepackage[round,authoryear]{natbib}
+%Equation maths package 
+\usepackage{amsmath}
+%Allows cancelled terms in equations
+\usepackage{cancel}
+%Allows multiple rows in tabular environment
+\usepackage{multirow} 
+%Graphical tools 
+\usepackage{graphicx}
+%Allows multiple figures under one float
+\usepackage{subfig}
+%Allows inline figures
+\usepackage{wrapfig}
+%Allows figures to be chosen in correct format depending on compilation used
+\usepackage{ifpdf}
+%Allows figures to be rotated
+\usepackage{rotating}
+%Allows extended commands in the verbatim environment
+\usepackage{alltt}
+%Allows floats to be place where they are in the tex document [H] option
+\usepackage{float}
+%Set margins to full pages size
+\usepackage{fullpage}
+
+
+%Numbering starts within each section
+\numberwithin{equation}{section}
+\numberwithin{figure}{section}
+
+%Allow new lines in long equations with parentheses
+\newcommand{\parenthnewln}[1]{\right.\\#1&\left.{}}
+\newcommand{\parenthnewlnns}[1]{\right.\\#1\left.{}}
+\newcommand{\parenthdblenewln}[1]{\right.\right.\\#1&\left.{}\left.{}}
+\newcommand{\parenthdblenewlnns}[1]{\right.\right.\\#1\left.{}\left.{}}
+
+\begin{document}
+
+
+\title{To Do list}
+\author{Ed Smith, Lucian Anton, David Trevelyan}
+
+\maketitle
+
+\section{Introduction}
+
+This Document is a list of the changes to the code that need to be made.
+These are seperated into short term and long term aims. The short
+term aims are simple features and minor changes to the current code. This can include
+new routines or consoloation of existing ones taking no longer than a few days to implement.
+They should include a score from 1 to 5 representing the importance and urgency of the proposed 
+change. They should also include the name of the person proposing the change and the
+person(s) best suited to implement this change.
+The long term aims should represent the long term project directions which will
+shape the short term aims and consequently the development of the code. 
+They should include a sense of timescale and should say if the changes are underway
+
+\section{short term aims}
+
+\begin{tabular}{|p{8cm}|l|l|l|}  \hline
+Task & Score & Propsd by & Responsible \\ \hline
+Include molecular properties (walls, thermostatting,etc) in input & 3 & LA & ES  \\ \hline
+Re-write the parallel and serial I/O to be more efficient and compatible between different architectures & 2 & LA & LA \\ \hline
+\end{tabular}
+
+\section{long term aims}
+\begin{itemize}
+ \item We aim to develop the coupler as a library  with a number of user functions that will perform the data transfers between MD and CFD. At the moment we  have in mind the transfer of the Cartesian velocities but I think that the user interface and the support subroutines will be extended to other quantities. To develop a professional look for this library, introduce  error checks, generic interfaces, data handlers, etc,  I think that a lot of  work is needed, I'd put 2-3 months.
+ \item MD farming looks to me a good idea because the top HPC machines have already about 105 cores, hence MD
+ can be run only for the autocorrelation time over a number of samples to reduce the statistics fluctuation. It is true that in the case of 2D  flows, as the Couette solver we are playing with now, this can be sorted out by extending MD in z direction. However for fixed 3D geometries and transient flow farming looks the only option. If you have in mind this kind of application we can put in the proposal.
+A time estimate for this would be 1-1.5 months.
+ \item If you want to use stream MD at very large core counts ( > 10,000) on current large node architectures one needs to move it to mixed mode ( OpenMP + MPI) and to try to overlap the halo communication with bulk computation in domains. This work plus other optimisation could take 1.5 -2 months.
+\end{itemize}
+
+\bibliographystyle{jfm}
+\bibliography{./ref}
+
+\end{document}
