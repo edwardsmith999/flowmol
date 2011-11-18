@@ -84,6 +84,66 @@ module librarymod
 			double precision, dimension(:), intent(inout)	:: b
 		end subroutine lubksb
 	end interface
+
+	
+	!-----------------------------------------------------------------------------
+	! Subroutine:	locate(keyword)
+	! Author(s):	David Trevelyan
+	! Description:
+	!		The file opened with 'fileid' is scanned sequentially by line until the 
+	!		character string 'keyword' matches the beginning of what is read.
+	!		The file position is thus set to the line after the matched keyword.
+	!
+	!		If a keyword is not found, it is assumed that the file is
+	!		incomplete and the program is stopped.
+	!-----------------------------------------------------------------------------
+contains
+	subroutine locate(fileid,keyword,required,input_present)
+	implicit none
+		
+		character*(*),intent(in)	:: keyword		! Input keyword	
+		integer,intent(in)		:: fileid		! File unit number
+		logical,intent(in)		:: required		! Flag to check if input is required
+		logical,intent(out),optional	:: input_present	! Optional flag passed back if present in intput
+
+		character*(100)			:: linestring		! First 100 characters in a line
+		integer				:: keyword_length	! Length of input keyword
+		integer				:: io			! File status flag
+
+		!Check if required, if not then check if input check variable is include
+		!and terminate if missing
+		if (required.eq..false.) then
+			if(present(input_present)) then
+				input_present = .true.	!Assume true until not found
+			else
+				print*, "ERROR IN LOCATE - If input not required, extra logical argument", &
+					"must be included to check if variable is specified in input file" 
+				stop
+			endif
+		endif
+
+		keyword_length = len(keyword)
+		rewind(fileid)	! Go to beginning of input file
+		do
+			read (fileid,*,iostat=io) linestring			! Read first 100 characters
+			if (linestring(1:keyword_length).eq.keyword) exit	! If the first characters match keyword then exit loop
+
+			if (io.ne.0) then	! If end of file is reached
+				if (required.eq..false.) then
+					print*, keyword, 'Not specified in input file - default value taken'
+					input_present = .false.
+					return
+				else
+					print*, "ERROR IN LOCATE -  Required input ", keyword, & 
+						" not found in input file. Stopping simulation."
+					stop 
+				endif
+			end if
+
+		end do	
+
+	end subroutine locate
+
 end module librarymod
 
 !--------------------------------------------------------------------------------------
@@ -392,42 +452,6 @@ implicit none
 end subroutine
 
 
-!-----------------------------------------------------------------------------
-! Subroutine:	locate(keyword)
-! Author(s):	David Trevelyan
-! Description:
-!		The file opened with 'fileid' is scanned sequentially by line until the 
-!		character string 'keyword' matches the beginning of what is read.
-!		The file position is thus set to the line after the matched keyword.
-!
-!		If a keyword is not found, it is assumed that the file is
-!		incomplete and the program is stopped.
-!-----------------------------------------------------------------------------
-
-subroutine locate(fileid,keyword)
-implicit none
-	
-	character*(*)	:: keyword		! Input keyword	
-	character*(100)	:: linestring		! First 100 characters in a line
-	integer		:: keyword_length	! Length of input keyword
-	integer		:: io			! File status flag
-	integer		:: fileid		! File unit number
-
-	keyword_length = len(keyword)
-	
-	rewind(fileid)	! Go to beginning of input file
-	do
-		read (fileid,*,iostat=io) linestring			! Read first 100 characters
-		if (linestring(1:keyword_length).eq.keyword) exit	! If the first characters match keyword then exit loop
-
-		if (io.ne.0) then	! If end of file is reached
-			print*, "Input parser didn't find ", keyword," in file. Stopping simulation."
-			stop 	
-		end if
-
-	end do	
-
-end subroutine locate
 
 !======================================================================
 !Ensures functions work correctly

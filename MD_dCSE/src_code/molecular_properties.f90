@@ -36,42 +36,42 @@ subroutine setup_tag
 
 	mol_layers = 2
 
-	wallslidev(1) = 0.d0
-	wallslidev(2) = 0.d0
-	wallslidev(3) = 0.d0
+	!wallslidev(1) = 0.d0
+	!wallslidev(2) = 0.d0
+	!wallslidev(3) = 0.d0
 
 	!Setup fixed molecules
 	!+0.2 to include gap between wall and 1st molecule
-	fixdistbottom(1) = 0.d0*cellsidelength(1) !initialunitsize(1)
-	fixdistbottom(2) = 1.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
-	fixdistbottom(3) = 0.d0*cellsidelength(3) !initialunitsize(3)
-	fixdisttop(1) = 0.d0*cellsidelength(1) !initialunitsize(1)
-	fixdisttop(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
-	fixdisttop(3) = 0.d0*cellsidelength(3) !initialunitsize(3)
+	!fixdistbottom(1) = 0.d0*cellsidelength(1) !initialunitsize(1)
+	!fixdistbottom(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
+	!fixdistbottom(3) = 0.d0*cellsidelength(3) !initialunitsize(3)
+	!fixdisttop(1) = 0.d0*cellsidelength(1) !initialunitsize(1)
+	!fixdisttop(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
+	!fixdisttop(3) = 0.d0*cellsidelength(3) !initialunitsize(3)
 
 	!Setup sliding molecules
-	slidedistbottom(1) = 0.d0*cellsidelength(1) !initialunitsize(1)
-	slidedistbottom(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
-	slidedistbottom(3) = 0.d0*cellsidelength(3) !initialunitsize(3)
-	slidedisttop(1) = 0.d0 !initialunitsize(1)
-	slidedisttop(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
-	slidedisttop(3) = 0.d0 !initialunitsize(3)
+	!slidedistbottom(1) = 0.d0*cellsidelength(1) !initialunitsize(1)
+	!slidedistbottom(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
+	!slidedistbottom(3) = 0.d0*cellsidelength(3) !initialunitsize(3)
+	!slidedisttop(1) = 0.d0 !initialunitsize(1)
+	!slidedisttop(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
+	!slidedisttop(3) = 0.d0 !initialunitsize(3)
 
 	!Setup molecules with tethered potentials
-	tethereddistbottom(1) = 0.d0 !initialunitsize(1)
-	tethereddistbottom(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
-	tethereddistbottom(3) = 0.d0 !initialunitsize(3)
-	tethereddisttop(1) = 0.d0 !initialunitsize(1)
-	tethereddisttop(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
-	tethereddisttop(3) = 0.d0 !initialunitsize(3)
+	!tethereddistbottom(1) = 0.d0 !initialunitsize(1)
+	!tethereddistbottom(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
+	!tethereddistbottom(3) = 0.d0 !initialunitsize(3)
+	!tethereddisttop(1) = 0.d0 !initialunitsize(1)
+	!tethereddisttop(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
+	!tethereddisttop(3) = 0.d0 !initialunitsize(3)
 
 	!Setup thermostatted molecules
-	thermstatbottom(1) = 0.d0 !initialunitsize(1)
-	thermstatbottom(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
-	thermstatbottom(3) = 0.d0 !initialunitsize(3)
-	thermstattop(1) = 0.d0 !initialunitsize(1)
-	thermstattop(2) = 0.d0*(ncells(2)-1)*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
-	thermstattop(3) = 0.d0 !initialunitsize(3)
+	!thermstatbottom(1) = 0.d0 !initialunitsize(1)
+	!thermstatbottom(2) = 0.d0*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
+	!thermstatbottom(3) = 0.d0 !initialunitsize(3)
+	!thermstattop(1) = 0.d0 !initialunitsize(1)
+	!thermstattop(2) = 0.d0*(ncells(2)-1)*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
+	!thermstattop(3) = 0.d0 !initialunitsize(3)
 
 	!Set all molecules tag equal to zero (normal)
 	tag = 0

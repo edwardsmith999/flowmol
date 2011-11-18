@@ -127,14 +127,14 @@ subroutine setup_initialise_position_FENE
 	A chain length of 4 should (hopefully) always work.'
 	
 	!Molecules per unit FCC structure (3D)
-	n=1  																		!Reset n for start of loop
-	do nz=1,initialnunits(3)													!Loop over z column
+	n=1  !Reset n for start of loop
+	do nz=1,initialnunits(3) !Loop over z column
 	c(3) = (nz - 0.75d0)*initialunitsize(3) - halfdomain(3) 
-		do ny=1,initialnunits(2)												!Loop over y column
+		do ny=1,initialnunits(2) !Loop over y column
 		c(2) = (ny - 0.75d0)*initialunitsize(2) - halfdomain(2) 
-			do nx=1,initialnunits(1)											!Loop over all x elements of y column
+			do nx=1,initialnunits(1) !Loop over all x elements of y column
 			c(1) = (nx - 0.75d0)*initialunitsize(1) - halfdomain(1)
-				do j=1,4														!4 Molecules per cell
+				do j=1,4 !4 Molecules per cell
 					r(n,:) = c(:)
 					if (j.eq.2) then
 						r(n,1) = c(1) + 0.5d0*initialunitsize(1)
@@ -147,19 +147,19 @@ subroutine setup_initialise_position_FENE
 						r(n,2) = c(2) + 0.5d0*initialunitsize(2)
 					end if
 					
-					chainID = ceiling(dble(n)/chain_length)						!Set chain ID of mol n
-					subchainID = mod(n,chain_length)  							!Beads are numbered 1 to chain_length
-					if (subchainID.eq.0) subchainID = chain_length				!Correct for mod returning 0
+					chainID = ceiling(dble(n)/chain_length)	 !Set chain ID of mol n
+					subchainID = mod(n,chain_length) !Beads are numbered 1 to chain_length
+					if (subchainID.eq.0) subchainID = chain_length !Correct for mod returning 0
 
 					polyinfo_mol(n)%chainID = chainID
  					polyinfo_mol(n)%subchainID = subchainID
 
 					polyinfo_mol(n)%left = n-1
 					polyinfo_mol(n)%right= n+1
-					if (subchainID.eq.1) polyinfo_mol(n)%left = 0				!Flag for beginning of chain
+					if (subchainID.eq.1) polyinfo_mol(n)%left = 0 !Flag for beginning of chain
 					if (subchainID.eq.chain_length) polyinfo_mol(n)%right = 0	!Flag for end of chain
 
-					n = n + 1   												!Move to next molecule
+					n = n + 1  !Move to next molecule
 				enddo
 			enddo
 		enddo

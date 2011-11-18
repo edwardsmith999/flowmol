@@ -88,6 +88,7 @@ end
 subroutine messenger_init()
 	use messenger
 	use physical_constants_MD
+	use librarymod, only : locate
 	implicit none
 	!include "mpif.h"
 
@@ -103,7 +104,7 @@ subroutine messenger_init()
         ! Get the periodic constrains form MD.in
         open(1,file=trim(file_dir)//'MD.in')
 
-        call locate(1,'PERIODIC')
+        call locate(1,'PERIODIC',.true.)
 	read(1,*) iper(1)
 	read(1,*) iper(2)
 	if (nd.eq.3) read(1,*) iper(3)
