@@ -74,18 +74,21 @@ implicit none
 		initial_microstate_file = 'final_state'
 
 		argcount = command_argument_count()
-		
+
 		if (argcount.gt.0) then			!If more than 0 arguments	
 				
-			do i=1,argcount-1		!Loop through all arguments...
+			do i=1,argcount 		!Loop through all arguments...
 				
 				call get_command_argument(i,arg)	!Reading two at once
-				call get_command_argument(i+1,nextarg)
+                                if ( i < argcount) then 
+                                        call get_command_argument(i+1,nextarg)
+                                else
+                                        nextarg=''
+                                endif
 				
 				if (trim(arg).eq.'-r' .and. nextarg(1:1).ne.'-') then
 					initial_microstate_file = trim(nextarg)
-					inquire(file=initial_microstate_file, exist=restart_file_exists) !Check file exists
-					if (restart_file_exists) restart = .true.
+					inquire(file=initial_microstate_file, exist=restart) !Check file exists
 				end if			
 
 				if (trim(arg).eq.'-i' .and. nextarg(1:1).ne.'-') then
@@ -237,8 +240,7 @@ subroutine setup_inputs
                 !Assign different random number seed to each processor
 	        seed =  irank
 	endif
-	
-	
+
 	!Assign seed to random number generator
 	call random_seed(put=seed(1:n))
 
@@ -258,59 +260,86 @@ subroutine setup_restart_inputs
 
 	integer				:: n, k
 	integer 			:: extrasteps
-	integer				:: filesize,int_filesize,dp_filesize
 	integer 			:: checkint
+        integer(MPI_OFFSET_KIND)        :: ofs, header_ofs
+        integer(selected_int_kind(18))  :: header_pos
 	double precision 	:: checkdp
 
 	!Allocate random number seed
-	call random_seed
+!	call random_seed
 	call random_seed(size=n)
 	allocate(seed(n))
 
 	!Open on a single process and broadcast
 	if (irank .eq. iroot) then
 
-		!Call function library to get file size
-		call get_file_size(initial_microstate_file,filesize)
+               call MPI_File_open(MPI_COMM_SELF, initial_microstate_file, & 
+		MPI_MODE_RDONLY , MPI_INFO_NULL, restartfileid, ierr)
 
-		!File size is in bytes and integer fortran records are blocks of 4 bytes
-		int_filesize = filesize/4
-		!Open file to read integers
-		open(2,file=initial_microstate_file,access="direct",recl=8)
+               ! read the size of offset, just in case we hit a system that still uses 32 bits addresses
+               ! read in a 8 bit integer
+               ofs = -8
+               call mpi_file_seek(restartfileid,ofs,mpi_seek_end,ierr)
+               call mpi_file_read(restartfileid,header_pos,1,mpi_integer8,MPI_STATUS_IGNORE,ierr)
 
-		read(2,rec=int_filesize-0) np		    		
-		globalnp = np				    				!Global np and local np same in serial
-		read(2,rec=int_filesize-1) initialnunits(1)
-		read(2,rec=int_filesize-2) initialnunits(2)
-		read(2,rec=int_filesize-3) initialnunits(3)
-		read(2,rec=int_filesize-4) Nsteps  	    
-		read(2,rec=int_filesize-5) tplot
-		read(2,rec=int_filesize-6) seed(1)
-		read(2,rec=int_filesize-7) seed(2)
-		read(2,rec=int_filesize-8) periodic(1)
-		read(2,rec=int_filesize-9) periodic(2)
-		read(2,rec=int_filesize-10) periodic(3)
-		read(2,rec=int_filesize-11) potential_flag
-		read(2,rec=int_filesize-12) chain_length
+               header_ofs = header_pos
 
-		close(2,status='keep')
+               call MPI_FILE_SEEK(restartfileid,header_ofs,MPI_SEEK_SET,ierr)
+
+               call MPI_File_read(restartfileid,np            ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+                globalnp = np
+                call MPI_File_read(restartfileid,initialnunits ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_read(restartfileid,Nsteps        ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_read(restartfileid,tplot         ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_read(restartfileid,seed          ,2,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_read(restartfileid,periodic      ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_read(restartfileid,potential_flag,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_read(restartfileid,chain_length  ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+
+		call MPI_File_read(restartfileid,density         ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_read(restartfileid,rcutoff         ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_read(restartfileid,inputtemperature,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_read(restartfileid,delta_t         ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_read(restartfileid,elapsedtime     ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_read(restartfileid,k_c             ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_read(restartfileid,R_0             ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_read(restartfileid                 ,delta_rneighbr,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+
+                call MPI_File_close(restartfileid,ierr)
+
+		!read(2,rec=int_filesize-0) np		    		
+		!globalnp = np				    				!Global np and local np same in serial
+		!read(2,rec=int_filesize-1) initialnunits(1)
+		!read(2,rec=int_filesize-2) initialnunits(2)
+		!read(2,rec=int_filesize-3) initialnunits(3)
+		!read(2,rec=int_filesize-4) Nsteps  	    
+		!read(2,rec=int_filesize-5) tplot
+		!read(2,rec=int_filesize-6) seed(1)
+		!read(2,rec=int_filesize-7) seed(2)
+		!read(2,rec=int_filesize-8) periodic(1)
+		!read(2,rec=int_filesize-9) periodic(2)
+		!read(2,rec=int_filesize-10) periodic(3)
+		!read(2,rec=int_filesize-11) potential_flag
+		!read(2,rec=int_filesize-12) chain_length
+
+		!close(2,status='keep')
 
 		!File size is in bytes and fortran double precision records are blocks of 8 bytes
-		dp_filesize = filesize/8
+		!dp_filesize = filesize/8
 
 		!Reopen file to read doubles
-		open(2,file=initial_microstate_file, form="unformatted", access="direct",recl=8)
+		!open(2,file=initial_microstate_file, form="unformatted", access="direct",recl=8)
 
-		read(2,rec=dp_filesize-7) density			!Density of system
-		read(2,rec=dp_filesize-8) rcutoff			!Cut off distance for particle interaction
-		read(2,rec=dp_filesize-9) inputtemperature	!Define initial temperature
-		read(2,rec=dp_filesize-10) delta_t			!Timestep
-		read(2,rec=dp_filesize-11) elapsedtime   	!Elapsed simulation time to date
-		read(2,rec=dp_filesize-12)  k_c				!Polymer spring constant
-		read(2,rec=dp_filesize-13)  R_0				!Polymer max bond elongation
-		read(2,rec=dp_filesize-14)  delta_rneighbr	!Extra distance used for neighbour cell size
+		!read(2,rec=dp_filesize-7) density			!Density of system
+		!read(2,rec=dp_filesize-8) rcutoff			!Cut off distance for particle interaction
+		!read(2,rec=dp_filesize-9) inputtemperature	!Define initial temperature
+		!read(2,rec=dp_filesize-10) delta_t			!Timestep
+		!read(2,rec=dp_filesize-11) elapsedtime   	!Elapsed simulation time to date
+		!read(2,rec=dp_filesize-12)  k_c				!Polymer spring constant
+		!read(2,rec=dp_filesize-13)  R_0				!Polymer max bond elongation
+		!read(2,rec=dp_filesize-14)  delta_rneighbr	!Extra distance used for neighbour cell size
 
-		close(2,status='keep')
+		!close(2,status='keep')
 
 		!Check if values from input file are different and alert user - all processors have
 		!read the same file so only need to check on one processor
@@ -654,7 +683,7 @@ subroutine setup_restart_microstate
   	call MPI_type_size(MPI_double_precision,dp_datasize,ierr)
 
 	!Open restart file on all processor
-	call MPI_FILE_OPEN(MPI_COMM_WORLD, initial_microstate_file, & 
+	call MPI_FILE_OPEN(MD_COMM, initial_microstate_file, & 
 		MPI_MODE_RDONLY , MPI_INFO_NULL, restartfileid, ierr)
 
 	nl = 0		!Reset local molecules count nl
@@ -837,11 +866,10 @@ subroutine parallel_io_final_state
 	implicit none
 	!include 'mpif.h'
 
-	integer				:: n, i
-	integer 			:: write_integers, write_doubles
-	integer 			:: int_filesize,dp_filesize
-	integer				:: dp_datasize
-	integer(kind=MPI_OFFSET_KIND)   :: disp, procdisp, filesize
+	integer				   :: n, i
+	integer 			   :: dp_datasize
+	integer(kind=MPI_OFFSET_KIND)      :: disp, procdisp, filesize
+        integer(kind=selected_int_kind(18)):: header_pos
 	double precision, dimension(nd)	:: Xwrite	!Temporary variable used in write
 
 	!Rebuild simulation before recording final state
@@ -887,7 +915,6 @@ subroutine parallel_io_final_state
 	!Set each processor to that location and write particlewise
 	call MPI_FILE_SET_VIEW(restartfileid, disp, MPI_double_precision, & 
  		MPI_double_precision, 'native', MPI_INFO_NULL, ierr)
-        write(0,*) 'np ', np
 
 	do n = 1, np
 		Xwrite = r(n,:) !Load into temp in case r dimensions are non contiguous
@@ -901,62 +928,93 @@ subroutine parallel_io_final_state
 	!Close file on all processors
 	call MPI_FILE_CLOSE(restartfileid, ierr)
 
-	!Obtain location of end of file
+	!This barrier is needed inn order to get the correct file size in the next write
 	call MPI_Barrier(MD_COMM, ierr)	
-        call MPI_FILE_OPEN(MD_COMM,trim(file_dir)//'results/final_state', & 
-			MPI_MODE_RDONLY, & 
-			MPI_INFO_NULL, restartfileid, ierr)	
-	call MPI_File_get_size(restartfileid,filesize,ierr)
-        call MPI_FILE_CLOSE(restartfileid, ierr)
+ 
+        !call MPI_FILE_CLOSE(restartfileid, ierr)
 
 
 	!----------------Write header------------------------
 	!Written at the end for performance and simplicity reasons 
 	!(See Gropp, lusk & Thakur Using MPI-2)
 
-	!Write with one processor only
+	!Write the header with one processor only
 	if (irank .eq. iroot) then
 
-		if (filesize .ne. 2*dp_datasize*nd*int(globalnp,MPI_OFFSET_KIND)) then
-                        write(0,*) 'filesize ', filesize, 'globalnp ', globalnp
-                           stop "Filesize header error"
+                call MPI_FILE_OPEN(MPI_COMM_SELF,trim(file_dir)//'results/final_state', & 
+			MPI_MODE_WRONLY, MPI_INFO_NULL, restartfileid, ierr)
+                
+                if (ierr /= 0) then 
+                        write(0,*) "MD parallel_io: error in MPI_File open"
                 endif
-		write_integers = 14						!Number of integers to be written to final_state
-		write_doubles =	8						!Number of doubles (disregarding arrays)
-		int_filesize = 2*2*globalnp*nd + write_integers + 2*write_doubles
-		dp_filesize = int_filesize/2
 
-		!Write integer data at end of file	
-		open(2,file=trim(file_dir)//'results/final_state', form='unformatted',access='direct',recl=8)
-		write(2,rec=int_filesize-0) np               	!Number of particles
-		write(2,rec=int_filesize-1) initialnunits(1) 	!x dimension split into number of cells
-		write(2,rec=int_filesize-2) initialnunits(2) 	!y dimension box split into number of cells
-		write(2,rec=int_filesize-3) initialnunits(3) 	!z dimension box split into number of cells
-		write(2,rec=int_filesize-4) Nsteps           	!Number of computational steps
-		write(2,rec=int_filesize-5) tplot            	!Frequency at which to record results
-		write(2,rec=int_filesize-6) seed(1)          	!Random number seed value 1
-		write(2,rec=int_filesize-7) seed(2)          	!Random number seed value 2
-		write(2,rec=int_filesize-8) periodic(1)	   	 	!Boundary condition flags
-		write(2,rec=int_filesize-9) periodic(2)	   		!Boundary condition flags
-		write(2,rec=int_filesize-10) periodic(3)	   	!Boundary condition flags
-		write(2,rec=int_filesize-11) potential_flag   	!Polymer/LJ potential flag
-		write(2,rec=int_filesize-12) chain_length	   	!Polymer chain length
-		write(2,rec=int_filesize-13) 0				   	!Dummy to make even filesize
-		close(2,status='keep')	
-		
-		!Write double precision data before integers
-		open(2,file='results/final_state', form='unformatted',access='direct',recl=8)
-		write(2,rec=dp_filesize-(write_integers/2)-0) density           !Density of system
-		write(2,rec=dp_filesize-(write_integers/2)-1) rcutoff           !Cut off distance for particle interaction
-		write(2,rec=dp_filesize-(write_integers/2)-2) inputtemperature  !Define initial temperature
-		write(2,rec=dp_filesize-(write_integers/2)-3) delta_t           !Size of time step
-		write(2,rec=dp_filesize-(write_integers/2)-4) elapsedtime       !Total elapsed time of all restarted simulations
-		write(2,rec=dp_filesize-(write_integers/2)-5) k_c			   	  !FENE spring constant
-		write(2,rec=dp_filesize-(write_integers/2)-6) R_0			      !FENE spring max elongation
-		write(2,rec=dp_filesize-(write_integers/2)-7) delta_rneighbr	  !Extra distance used for neighbour list cell size
+                call MPI_File_get_size(restartfileid,filesize,ierr)
+                
+                disp = filesize
 
-		close(2,status='keep') !Close final_state file
+                call MPI_FILE_SET_VIEW(restartfileid, disp, MPI_BYTE, & 
+ 		MPI_BYTE, 'native', MPI_INFO_NULL, ierr)
+
+                call MPI_File_write(restartfileid,np            ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_write(restartfileid,initialnunits ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_write(restartfileid,Nsteps        ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_write(restartfileid,tplot         ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_write(restartfileid,seed          ,2,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_write(restartfileid,periodic      ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_write(restartfileid,potential_flag,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_write(restartfileid,chain_length  ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+
+		!write(2,rec=int_filesize-0) np               	!Number of particles
+		!write(2,rec=int_filesize-1) initialnunits(1) 	!x dimension split into number of cells
+		!write(2,rec=int_filesize-2) initialnunits(2) 	!y dimension box split into number of cells
+		!write(2,rec=int_filesize-3) initialnunits(3) 	!z dimension box split into number of cells
+		!write(2,rec=int_filesize-4) Nsteps           	!Number of computational steps
+		!write(2,rec=int_filesize-5) tplot            	!Frequency at which to record results
+		!write(2,rec=int_filesize-6) seed(1)          	!Random number seed value 1
+		!write(2,rec=int_filesize-7) seed(2)          	!Random number seed value 2
+		!write(2,rec=int_filesize-8) periodic(1)	   	 	!Boundary condition flags
+		!write(2,rec=int_filesize-9) periodic(2)	   		!Boundary condition flags
+		!write(2,rec=int_filesize-10) periodic(3)	   	!Boundary condition flags
+		!write(2,rec=int_filesize-11) potential_flag   	!Polymer/LJ potential flag
+		!write(2,rec=int_filesize-12) chain_length	   	!Polymer chain length
+		!write(2,rec=int_filesize-13) 0				   	!Dummy to make even filesize
+		!close(2,status='keep')	
+
+
+		call MPI_File_write(restartfileid,density,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_write(restartfileid,rcutoff,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_write(restartfileid,inputtemperature,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_write(restartfileid,delta_t,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_write(restartfileid,elapsedtime,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_write(restartfileid,k_c,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_write(restartfileid,R_0,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_write(restartfileid,delta_rneighbr,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+
+                header_pos = filesize ! just in case offset kind is 32 bit, rather improbable these days  !!!
+                call MPI_File_write(restartfileid,header_pos,1,MPI_INTEGER8,MPI_STATUS_IGNORE,ierr)
+
+
+		!write(2,rec=dp_filesize-(write_integers/2)-0) density           !Density of system
+		!write(2,rec=dp_filesize-(write_integers/2)-1) rcutoff           !Cut off distance for particle interaction
+		!write(2,rec=dp_filesize-(write_integers/2)-2) inputtemperature  !Define initial temperature
+		!write(2,rec=dp_filesize-(write_integers/2)-3) delta_t           !Size of time step
+		!write(2,rec=dp_filesize-(write_integers/2)-4) elapsedtime       !Total elapsed time of all restarted simulations
+		!write(2,rec=dp_filesize-(write_integers/2)-5) k_c			   	  !FENE spring constant
+		!write(2,rec=dp_filesize-(write_integers/2)-6) R_0			      !FENE spring max elongation
+		!write(2,rec=dp_filesize-(write_integers/2)-7) delta_rneighbr	  !Extra distance used for neighbour list cell size
+
+		!close(2,status='keep') !Close final_state file
+                call MPI_FILE_CLOSE(restartfileid, ierr)
+
+                call MPI_FILE_OPEN(MPI_COMM_SELF,trim(file_dir)//'results/final_state', & 
+			MPI_MODE_RDONLY, MPI_INFO_NULL, restartfileid, ierr)
+                
+                call MPI_File_get_size(restartfileid,filesize,ierr)
+                call MPI_File_close(restartfileid, ierr)
+
 	endif
+
+
 
 end subroutine parallel_io_final_state
 
