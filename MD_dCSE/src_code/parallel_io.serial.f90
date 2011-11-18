@@ -263,10 +263,13 @@ subroutine setup_restart_inputs
 
 
 	!Open file to read integers
-	open(2,file=initial_microstate_file,access="stream",position="append")
+	open(2,file=initial_microstate_file,form="unformatted", access="stream",position="append")
         inquire(2,POS=end_pos) ! go the end of file
  
         read(2,pos=end_pos-8) header_pos ! header start is in the last 8 bytes
+
+        header_pos = header_pos +1 ! for compatibility with MPI IO 
+                                   ! we store header_pos - 1 in final state 
 
 	read(2,pos=header_pos) np
         
@@ -629,12 +632,12 @@ subroutine parallel_io_final_state
  
         close(2,status='keep')
 
-        inquire(file='results/final_state',size=header_pos)
-        header_pos = header_pos + 1! the header will be from here on 
-
-
 	!Write integer data at end of file	
 	open(2,file='results/final_state', form='unformatted',access='stream',position="append")
+
+        ! header address
+        inquire(2,POS=header_pos)
+        
 	write(2) np               	!Number of particles
 	write(2) initialnunits(1) 	!x dimension split into number of cells
 	write(2) initialnunits(2) 	!y dimension box split into number of cells
@@ -657,7 +660,7 @@ subroutine parallel_io_final_state
 	write(2) k_c			   	  !FENE spring constant
 	write(2) R_0			      !FENE spring max elongation
 	write(2) delta_rneighbr	  !Extra distance used for neighbour list cell size
-        write(2) header_pos
+        write(2) header_pos-1     ! -1 for MPI IO compatibility
 	close(2,status='keep') !Close final_state file
 
 end subroutine parallel_io_final_state
