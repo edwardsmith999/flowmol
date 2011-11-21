@@ -153,6 +153,22 @@ VFLUX_OUTFLAG
 50
 
 #########################################################################
+# MPI topology
+#   npx 
+#   npy
+#   npz
+#
+# if npz = 0 it will be set to nproc/(npx*npy)
+#
+# constrain: npx*npy*npz = nproc 
+# nproc is set by the argument of mpirun
+#-----------------------------------------------------------------------
+PROCESSORS
+1 
+1
+1
+
+#########################################################################
 # Periodic boundary flags, formatted:
 #	x
 #	y

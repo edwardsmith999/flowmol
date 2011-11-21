@@ -52,7 +52,7 @@ module messenger
 
 	! Grid topology
 	integer icomm_grid                   ! comm for grid topology
-	integer icoord(3,nproc)              ! proc grid coordinates
+	integer, allocatable :: icoord(:,:)  ! proc grid coordinates
 	integer	icomm_xyz(3) 		     ! Directional subcomms
 	integer, dimension(8,2) 	:: proc_topology_corner
 	integer, dimension(4,3,2) 	:: proc_topology_edge
@@ -93,21 +93,26 @@ subroutine messenger_init()
 	!include "mpif.h"
 
 	integer idims(nd)
-        integer npt, ndims, ip, ixyz, iper(3)
+        integer  ndims, ip, ixyz, iper(3)
 	logical  Lremain_dims(nd)
 
 	! Initialize MPI
-	call MPI_comm_size (MD_COMM, npt, ierr)
+	call MPI_comm_size (MD_COMM, nproc, ierr)
 	call MPI_comm_rank (MD_COMM, myid, ierr)
-	if (npt .ne. nproc) stop "Wrong number of processors"
 
         ! Get the periodic constrains form MD.in
+        ! and the processor topology description
         open(1,file=trim(file_dir)//'MD.in')
 
         call locate(1,'PERIODIC',.true.)
 	read(1,*) iper(1)
 	read(1,*) iper(2)
 	if (nd.eq.3) read(1,*) iper(3)
+
+        call locate(1,'PROCESSORS',.true.)
+        read(1,*) npx
+        read(1,*) npy
+        read(1,*) npz
 
 	close(1,status='keep')      !Close input file
 
@@ -117,6 +122,34 @@ subroutine messenger_init()
         write(0,*) 'Lperiodic ', Lperiodic
 
 	! Grid topology
+
+        ! if npz == 0 in MD.in it means that npz = nproc/(npx*npy)
+        if (npz == 0) then 
+                npz = nproc/(npx*npy)
+        endif
+
+        !check if npx*npy*npz=nproc
+        if (npx * npy * npz /= nproc ) then
+                write(*,*)' Wrong  specification for processor topology, nproc /= npx*npy*npz'
+                call MPI_Abort(MD_COMM,1,ierr)
+        endif
+
+        ! allocate arrays that depend on topology parameters
+
+        allocate(ibmin(npx), ibmax(npx), ibmino(npx), ibmaxo(npx), &
+		jbmin(npy), jbmax(npy), jbmino(npy), jbmaxo(npy), &
+		kbmin(npz), kbmax(npz), kbmino(npz), kbmaxo(npz), stat=ierr)
+        if (ierr /= 0) then 
+                write(*,*) "Error allocating topology arrays in messenger_init"
+                call MPI_Abort(MD_COMM,2,ierr)
+        endif
+
+        allocate(icoord(3,nproc),stat=ierr)
+        if (ierr /= 0) then 
+                write(*,*) "Error allocating icoord in messenger_init"
+                call MPI_Abort(MD_COMM,2,ierr)
+        endif
+
 	ndims = nd
 	idims(1) = npx
 	idims(2) = npy

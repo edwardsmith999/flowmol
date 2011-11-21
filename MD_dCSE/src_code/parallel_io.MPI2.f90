@@ -126,9 +126,9 @@ subroutine setup_inputs
 	use module_parallel_io
 	use librarymod, only : locate
 	implicit none
-
-	logical	:: from_input
+	
 	integer :: k, n, tvalue(8)
+        logical :: from_input
 
 !	call random_seed
 	call random_seed(size=n)

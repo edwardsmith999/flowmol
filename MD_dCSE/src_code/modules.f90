@@ -33,8 +33,6 @@ end module physical_constants_MD
 
 module computational_constants_MD
 
-	include "param.inc"
-
 	!Command-line arguments
 	logical	:: restart
 	character(len=32) :: initial_microstate_file
@@ -56,6 +54,7 @@ module computational_constants_MD
 
 
 	!Parameters
+        integer         :: nproc, npx, npy, npz      !Bumber of MPI ranks asn cartesian topology sizes
 	integer        	:: iter              !Global simulation iteration count
 	integer        	:: tplot             !Frequency at which to record results
 	integer		 	:: Nmass_ave	     !Number of averages for each mass average
@@ -99,9 +98,9 @@ module computational_constants_MD
 	integer irank, iroot, ierr
 	integer irankx, iranky, irankz
 	integer iblock, jblock, kblock
-	integer ibmin(npx), ibmax(npx), ibmino(npx), ibmaxo(npx), &
-		jbmin(npy), jbmax(npy), jbmino(npy), jbmaxo(npy), &
-		kbmin(npz), kbmax(npz), kbmino(npz), kbmaxo(npz)
+	integer, allocatable :: ibmin(:), ibmax(:), ibmino(:), ibmaxo(:), &
+		jbmin(:), jbmax(:), jbmino(:), jbmaxo(:), &
+		kbmin(:), kbmax(:), kbmino(:), kbmaxo(:)
 
  	!Set number of halos
 	integer, parameter :: nh = 1
