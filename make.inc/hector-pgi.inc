@@ -11,10 +11,10 @@ endif
 LIBS := -ldfftw -ldrfftw
 
 FLAGS_pgi_debug_cfd := -g -Mbounds -traceback -r8 -module $(OBJ_DIR)  
-FLAGS_pgi_opt_cfd   := -fast -O3 -r8  -module obj
+FLAGS_pgi_opt_cfd   := -fast -O3 -r8  -module  $(OBJ_DIR)
 
 FLAGS_pgi_debug_md := -g -Mbounds -traceback -module $(OBJ_DIR) 
-FLAGS_gnu_opt_md   := -fast -O3 -module obj
+FLAGS_gnu_opt_md   := -fast -O3 -module $(OBJ_DIR)
 
 FLAGS_$(COMP)_$(VERSION) := $(FLAGS_$(COMP)_$(VERSION)_$(branch))
 

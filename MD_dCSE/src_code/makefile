@@ -9,10 +9,6 @@ F90_MD_FILES_P = $(patsubst parallel_io.serial.f90,parallel_io.MPI2.f90,$(patsub
 F90_CUDA_MD_FILES = $(F90_MD_FILES:simulation_compute_forces.f90=simulation_compute_forces_CUDA.f90) 
 CU_CUDA_MD_FILES = inter.cu inter2.cu
 
-F90_COUPLER_no     := $(COUPLER_PATH)/coupler_null.f90
-F90_COUPLER_yes    := $(COUPLER_PATH)/coupler.f90 $(COUPLER_PATH)/coupler_parameters.f90 $(COUPLER_PATH)/coupler_internal_common.f90 $(COUPLER_PATH)/coupler_internal_md.f90 $(COUPLER_PATH)/coupler_internal_cfd.f90   
-
-
 PARAM = param.inc
 
 #
@@ -23,13 +19,13 @@ OBJ_DIR := obj
 
 # use coupler ? 
 USE_COUPLER      := no
-COUPLER_PATH_yes := ../../coupler_dCSE/src_code/#obj
-COUPLER_PATH_no  := ../../coupler_dCSE/src_code/#obj_null
+COUPLER_PATH_yes := ../../coupler_dCSE/src_code/obj
+COUPLER_PATH_no  := ../../coupler_dCSE/src_code/obj_null
 COUPLER_PATH      := $(COUPLER_PATH_$(USE_COUPLER))
 
 
 # coupler object files in coupler directory
-O_COUPLER_no     := $(COUPLER_PATH)/obj_null/coupler_null.o
+O_COUPLER_no     := $(COUPLER_PATH)/coupler_null.o
 O_COUPLER_yes    := $(COUPLER_PATH)/coupler.o $(COUPLER_PATH)/coupler_parameters.o $(COUPLER_PATH)/coupler_internal_common.o $(COUPLER_PATH)/coupler_internal_md.o $(COUPLER_PATH)/coupler_internal_cfd.o   
 O_COUPLER        := $(O_COUPLER_$(USE_COUPLER))
 
@@ -67,8 +63,6 @@ O_MD = $(addprefix obj/, $(F90_MD_FILES:.f90=.o))
 O_CUDA = $(CU_CUDA_MD_FILES:.cu=.o) $(F90_CUDA_MD_FILES:.f90=.o)
 O_CONTINUUM = $(F90_CONTINUUM:.f90=.o)
 O_MD_P = $(addprefix obj/,$(F90_MD_FILES_P:.f90=.o))
-O_COUPLER_no = $(addprefix obj/,$(F90_COUPLER_no:.f90=.o))
-O_COUPLER_yes = $(addprefix obj/,$(F90_COUPLER_yes:.f90=.o))
 
 #Make everything depend on parameter files
 $(O_MD): $(PARAM)
