@@ -112,7 +112,7 @@ contains
 
 		!Check if required, if not then check if input check variable is include
 		!and terminate if missing
-		if (required.eq..false.) then
+		if (.not. required) then
 			if(present(input_present)) then
 				input_present = .true.	!Assume true until not found
 			else
@@ -129,7 +129,7 @@ contains
 			if (linestring(1:keyword_length).eq.keyword) exit	! If the first characters match keyword then exit loop
 
 			if (io.ne.0) then	! If end of file is reached
-				if (required.eq..false.) then
+				if (.not. required) then
 					print*, keyword, 'Not specified in input file - default value taken'
 					input_present = .false.
 					return
