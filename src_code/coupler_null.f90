@@ -5,16 +5,16 @@ module coupler
         ! dummy or active coupler
         logical, parameter :: COUPLER_IS_ACTIVE = .false.
 
-        ! other dummy values
-        integer :: COUPLER_CFD=0, COUPLER_MD=0, COUPLER_COMM=0
+        ! dummy values
+        integer :: COUPLER_CFD=0, COUPLER_MD=0
 
 contains
 
-        subroutine coupler_create_comm(realm,ierror)
+        subroutine coupler_create_comm(realm,realm_comm,ierror)
                 implicit none
 
                 integer, intent(in) :: realm ! CFD or MD ?
-                integer, intent(out):: ierror
+                integer, intent(out):: realm_comm,ierror
 
 
                 ierror=0

@@ -6,6 +6,9 @@
 module coupler_internal_common
         implicit none
 
+        
+        integer COUPLER_COMM ! internal communicator, duplicate of realm_comm
+
         integer CFD_MD_ICOMM ! CFD - MD intracommunicator 
 
 
