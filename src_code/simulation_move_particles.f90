@@ -189,13 +189,133 @@ implicit none
 end subroutine simulation_move_particles_tag
 
 !----------------------------------------------------------------------------------
+!Velocity rescaling thermostat (Gaussian) to maintain constant energy
+
+subroutine vthermostat_move
+use module_move_particles
+use calculated_properties_MD
+implicit none
+
+	integer			:: n, ixyz
+	double precision	:: vel, slice_momentum2, vf
+	double precision	:: eta, relaxfactor
+	
+	v2sum = 0.d0      ! Reset all sums
+
+	do n = 1, np    ! Loop over all particles
+	do ixyz = 1, nd    ! Loop over all dimensions
+		vel = v(n,ixyz) + 0.5d0*a(n,ixyz)*delta_t
+		vf = vf + vel*a(n,ixyz)
+		v2sum = v2sum + vel**2 !Add up all molecules' velocity squared components  
+	enddo
+	enddo
+
+	!Increase intial energy to prevent crystalisation
+	!initialenergy = 10.d0
+
+	eta = - vf / v2sum
+	
+	do n = 1,np        !Step through each particle n	
+
+		!Check for tethering force and correct applied force accordingly
+		if (tag(n).eq. 3) then
+			call tether_force(n)
+		endif
+	
+		!Velocity calculated from acceleration
+		v(n,1) =(v(n,1) + delta_t*a(n,1))*fix(n,1)	&	!Fixed Molecules ~> a=0
+				+ eta*v(n,1)*delta_t		&	!Thermostat
+				+ 0.5d0*eta*a(n,1)*delta_t**2	&	!Thermostat
+				+ slidev(n,1)				!Add sliding velocity
+
+		!Position calculated from velocity
+		r(n,1) = r(n,1) + delta_t*v(n,1)				
+
+		!Velocity calculated from acceleration
+		v(n,2) =(v(n,2) + delta_t*a(n,2))*fix(n,2)	&	!Fixed Molecules ~> a=0
+				+ eta*v(n,2)*delta_t		&	!Thermostat
+				+ 0.5d0*eta*a(n,2)*delta_t**2	&	!Thermostat
+				+ slidev(n,2)				!Add sliding velocity
+
+		!Position calculated from velocity
+		r(n,2) = r(n,2) + delta_t*v(n,2)				
+
+		!Velocity calculated from acceleration
+		v(n,3) =(v(n,3) + delta_t*a(n,3))*fix(n,3)	&	!Fixed Molecules ~> a=0
+				+ eta*v(n,3)*delta_t		&	!Thermostat
+				+ 0.5d0*eta*a(n,3)*delta_t**2	&	!Thermostat
+				+ slidev(n,3)				!Add sliding velocity
+		
+	enddo	
+
+	return
+	
+end subroutine vthermostat_move
+
+!----------------------------------------------------------------------------------
+!Nose Hoover thermostat using verlet algorithm with extra terms
+!Professors Heyes' Algorithm
+
+subroutine NHthermostat_move
+use module_move_particles
+use calculated_properties_MD
+implicit none
+
+	integer			:: n, ixyz
+	double precision	:: vel, slice_momentum2, dzeta_dt, massheatbath
+	double precision	:: vreduce, relaxfactor, ascale, bscale
+	
+	v2sum = 0.d0      ! Reset all sums
+	massheatbath = globalnp * delta_t
+
+	do n = 1, np    ! Loop over all particles
+	do ixyz = 1, nd    ! Loop over all dimensions
+		vel = v(n,ixyz) - 0.5d0*a(n,ixyz)*delta_t
+		v2sum = v2sum + vel**2 !Add up all molecules' velocity squared components  
+	enddo
+	enddo
+
+	call globalSum(v2sum)	!Obtain global velocity sum
+
+	dzeta_dt = (v2sum - (nd*globalnp + 1)*inputtemperature) / massheatbath
+	zeta = zeta + delta_t*dzeta_dt
+
+	bscale=1.0/(1.0+0.5*delta_t*zeta)
+	ascale=(1-0.5*delta_t*zeta)*bscale
+
+	do n = 1,np        !Step through each particle n
+
+		!Check for tethering force and correct applied force accordingly
+		if (tag(n).eq. 3) then
+			call tether_force(n)
+		endif
+
+		!Velocity calculated from acceleration
+        	v(n,1) = v(n,1)*ascale + a(n,1)*delta_t*bscale	
+		!Position calculated from velocity
+		r(n,1) = r(n,1) + delta_t*v(n,1)				
+
+		!Velocity calculated from acceleration
+        	v(n,2) = v(n,2)*ascale + a(n,2)*delta_t*bscale
+		!Position calculated from velocity
+		r(n,2) = r(n,2) + delta_t*v(n,2)				
+
+		!Velocity calculated from acceleration
+        	v(n,3) = v(n,3)*ascale + a(n,3)*delta_t*bscale
+		!Position calculated from velocity
+		r(n,3) = r(n,3) + delta_t*v(n,3)				
+		
+	enddo
+	
+end subroutine NHthermostat_move
+
+!----------------------------------------------------------------------------------
 ! SLLOD_move based on the extensive literature from Hoover, Evans etc
 ! The shear rate specifies the velocity applied at the top point of the domain.
 ! SLLOD force is also applied to fixed atoms ~ they move at a slower speed
 ! than free liquid atoms as there is no effect of bulk flow. 
 
 !A Nose Hoover thermostat is also applied
-
 
 subroutine SLLOD_move
 use module_move_particles
