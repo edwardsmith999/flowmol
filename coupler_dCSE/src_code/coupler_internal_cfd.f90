@@ -52,8 +52,7 @@ contains
 
         subroutine create_map_cfd
                 use mpi 
-               use coupler_parameters, only : COUPLER_COMM
-               use coupler_internal_common, only : CFD_MD_ICOMM
+                use coupler_internal_common, only : COUPLER_COMM, CFD_MD_ICOMM
                 implicit none
 
                 integer i, myid, color, noverlaps, ir, ierr
@@ -234,8 +233,7 @@ contains
 
         subroutine recv_vel_MD(a,p1s,p1e,p2s,p2e,p3s,p3e,pbc)
                 use mpi
-                use coupler_parameters, only : COUPLER_COMM
-                use coupler_internal_common, only : CFD_MD_ICOMM
+                use coupler_internal_common, only : COUPLER_COMM, CFD_MD_ICOMM
                 implicit none
 ! the index ranges in z,x,y, periodic BC
                 integer, intent(in) :: p1s,p1e,p2s,p2e,p3s,p3e,pbc

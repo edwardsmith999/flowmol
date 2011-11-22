@@ -65,6 +65,7 @@ contains
                 implicit none
 ! if coupled calculation prepare exchange layout
                 call coupler_get_md_info(npx,npy,npz,icoord,delta_t)
+
         end subroutine coupler_init
 
 end subroutine setup_MD

@@ -488,7 +488,6 @@ contains
 
         subroutine send_vel(a,n1,n2,n3)
                 use mpi
-                use coupler_parameters
                 use coupler_internal_common
 ! send the average velocities to the corresponding rank in FD realm
                 implicit none
@@ -554,7 +553,7 @@ contains
 
 	subroutine write_overlap_map
                 use mpi
-                use coupler_parameters
+                use coupler_internal_common
 		implicit none
 
 		integer, parameter :: max_msg_length = 1024

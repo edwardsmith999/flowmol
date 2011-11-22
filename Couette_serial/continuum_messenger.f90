@@ -51,12 +51,12 @@ end module
 subroutine messenger_invoke()
         use mpi
 	use continuum_messenger
-        use continuum_coupler_socket_init, only : use_coupling, create_communicators 
+        use coupler 
 
         call MPI_init (ierr)
 
-        if (use_coupling) then
-                call create_communicators(CFD_COMM)
+        if (coupler_is_active) then
+                call coupler_create_comm(COUPLER_CFD,CFD_COMM,ierr)
                 file_dir ="./couette_data/"
         else 
                 CFD_COMM = MPI_COMM_WORLD

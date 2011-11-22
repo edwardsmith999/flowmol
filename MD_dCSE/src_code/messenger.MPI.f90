@@ -73,15 +73,12 @@ subroutine messenger_invoke()
         call MPI_init(ierr)
         
         if (coupler_is_active) then
-                call coupler_create_comm(COUPLER_MD,ierr)
-                MD_COMM = COUPLER_COMM
+                call coupler_create_comm(COUPLER_MD,MD_COMM,ierr)
                 file_dir = "./md_data/"
         else
                 MD_COMM = MPI_COMM_WORLD 
         endif
          
-
-	return
 end
 
 

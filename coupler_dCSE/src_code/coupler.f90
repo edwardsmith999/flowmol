@@ -28,18 +28,18 @@ module coupler
         implicit none
         save 
 
-        ! dummy or active coupler
+        ! dummy or active coupler ?
         logical, parameter :: COUPLER_IS_ACTIVE = .true.
 
 contains
 
-        subroutine coupler_create_comm(realm,ierror)
+        subroutine coupler_create_comm(realm, realm_comm, ierror)
                 use mpi
                 use coupler_internal_common
                 implicit none
 
                 integer, intent(in) :: realm ! CFD or MD ?
-                integer, intent(out):: ierror
+                integer, intent(out):: realm_comm, ierror
 
                 ! test if we have a CFD and a MD realm
 
@@ -55,7 +55,7 @@ contains
 
                 subroutine create_comm
                         use mpi
-                        use coupler_internal_common, only : CFD_MD_ICOMM
+                        use coupler_internal_common, only : COUPLER_COMM, CFD_MD_ICOMM
                         implicit none
 
                         integer ierr, myid, myid_comm, myid_comm_max, realm, &
@@ -66,11 +66,16 @@ contains
 
                         call mpi_comm_rank(MPI_COMM_WORLD,myid,ierr)
 
+                        realm_comm   = MPI_COMM_NULL
                         COUPLER_COMM = MPI_COMM_NULL
 
-                        call mpi_comm_split(MPI_COMM_WORLD,realm,myid,COUPLER_COMM,ierr)
+                        ! get a communicator for each realm
+                        call mpi_comm_split(MPI_COMM_WORLD,realm,myid,realm_comm,ierr)
 
-                        comm = COUPLER_COMM
+                        ! get internal communicator for coupler operations
+                        call mpi_comm_dup(realm_comm,COUPLER_COMM,ierr)
+
+                        comm = COUPLER_COMM ! shorhand
 
                         ! create inter-communicators
 
@@ -379,6 +384,7 @@ contains
         end subroutine coupler_constrain_forces
 
         subroutine coupler_apply_continuum_forces(np,r,v,a,iter)
+                use coupler_internal_common
                 use coupler_internal_md, only : cfd_box_sum, halfdomain => half_domain_lengths, &
                                                 x, y, z, dx, dz, global_r, jmin => jmin_cfd, &
                                                 nlx, nly, nlz, dt_CFD,bbox, get_CFDvel, &
@@ -575,6 +581,7 @@ contains
 
 
         subroutine coupler_uc_average_test(np,r,v,lwrite)
+                use coupler_internal_common
                 use coupler_internal_md, only : nlx, nlz, bbox, jmino, jmin => jmin_cfd,&
                                                 global_r, x, dx, y, z, dz
                  
@@ -1063,6 +1070,7 @@ contains
 
         subroutine coupler_md_vel(uc,vc,wc)
                 use mpi
+                use coupler_internal_common
                 !                use data_export, only : ngz, i1_u, i2_u, j1_u, j2_u,&
                 !                        i1_v, i2_v, j1_v, j2_v, i1_w, i2_w, j1_w, j2_w
                 !                use messenger, only : myid, icoord

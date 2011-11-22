@@ -13,8 +13,7 @@ contains
                 integer, intent(out) :: comm
                 integer ierr
 
-                call coupler_create_comm(COUPLER_CFD,ierr)
-                comm = COUPLER_COMM
+                call coupler_create_comm(COUPLER_CFD,comm,ierr)
 
        end subroutine create_communicators
 

@@ -17,9 +17,6 @@ module coupler_parameters
         integer, parameter :: COUPLER_CFD = 1, COUPLER_MD = 2
         character(len=*),parameter :: code_name(2) = (/ "CFD", "MD " /)
         integer COUPLER_REALM 
-        
-        ! communicator
-        integer COUPLER_COMM
 
         ! error codes
         integer, parameter :: COUPLER_ERROR_REALM = 1, &  ! wrong realm value
