@@ -1334,6 +1334,8 @@ implicit none
 	type(node), pointer:: old, current
 	type(neighbrnode), pointer :: oldn, currentn
 
+	call linklist_FENEresetLR
+
 	do icell=1,ncells(1)+2
 	do jcell=1,ncells(2)+2
 	do kcell=1,ncells(3)+2
@@ -1399,6 +1401,17 @@ implicit none
 	deallocate(neighbour%head)
 
 end subroutine linklist_deallocateall
+
+!=============================================================================
+subroutine linklist_FENEresetLR
+use module_linklist
+use polymer_info_MD
+implicit none
+
+	polyinfo_mol(:)%left = 0
+	polyinfo_mol(:)%right= 0
+
+end subroutine linklist_FENEresetLR
 
 !=============================================================================
 !Moves to the bottom of the linklist
