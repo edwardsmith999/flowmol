@@ -391,6 +391,7 @@ subroutine build_psf
 	NATOM  = globalnp										! Determine total number of atoms
 	NBONDS = (chain_length-1)*nchains						! Determine total number of bonds
 
+	print*, 'Generating polymer topology file polymer_topol.psf'
 	open(unit=1, file='results/polymer_topol.psf', status='replace', form='formatted')
 	
 	! Header

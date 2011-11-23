@@ -40,7 +40,7 @@ module module_parallel_io
 	use arrays_MD
 	use polymer_info_MD
 	use shear_info_MD
-        use interfaces
+	use interfaces
 end module
 
 !======================================================================
@@ -74,11 +74,11 @@ implicit none
 		do i=1,argcount									!Loop through all arguments...
 			
 			call get_command_argument(i,arg)				!Reading two at once
-                        if (i < argcount) then  
-			        call get_command_argument(i+1,nextarg)
-                        else
-                                 nextarg=''
-                        endif
+            if (i < argcount) then  
+				call get_command_argument(i+1,nextarg)
+			else
+				nextarg=''
+			endif
 
 			if (trim(arg).eq.'-r' .and. nextarg(1:1).ne.'-') then
 				initial_microstate_file = trim(nextarg)
@@ -94,7 +94,8 @@ implicit none
 	end if
 
 	inquire(file=input_file, exist=input_file_exists)					!Check file exists
-
+	if (input_file.eq.'MD.in'.and..not. input_file_exists) input_file = 'default.in'
+	inquire(file=input_file, exist=input_file_exists)
 	if(.not. input_file_exists) then
 		print*, 'Input file ', trim(input_file), ' not found. Stopping simulation.'
 		call error_abort
@@ -249,10 +250,8 @@ subroutine setup_inputs
 		        .or.abs(maxval(thermstatbottom)).ne.0.0) stop "THERMSTATTOP or THERMSTATBOTTOM non zero but THERMSTAT_FLAG_INFO set to off (THERMSTAT_FLAG=0)"
 			thermstatbottom = 0.d0; thermstattop = 0.d0 
 		case(1)
-			thermstattop = initialnunits(:) &      !Set to whole domain size
-				/((density/4)**(1.d0/nd))
-			thermstatbottom=initialnunits(:) &     !Set to whole domain size
-				/((density/4)**(1.d0/nd))
+			thermstattop 	= initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
+			thermstatbottom = initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
 		case(2)
 			if (abs(maxval(thermstattop   )).eq.0.0 & 
 		       .and.abs(maxval(thermstatbottom)).eq.0.0) stop "THERMSTATTOP or THERMSTATBOTTOM must also be specified"

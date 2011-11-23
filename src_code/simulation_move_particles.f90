@@ -20,35 +20,15 @@ subroutine simulation_move_particles
 use module_move_particles
 implicit none
 	
-	if (all(periodic.lt.2)) call simulation_move_particles_default
-	if (any(periodic.gt.1)) call SLLOD_move_bulk !todo actually make this SLLOD move bulk
-
+	call simulation_move_particles_tag
+	
 end subroutine simulation_move_particles
 
-subroutine SLLOD_move_bulk!todo actually make this SLLOD algorithm 
-use module_move_particles
-implicit none
+!======================================================================================
+!======================================================================================
 
-	integer :: n, ixyz
-	
-	do ixyz = 1,nd        !Step through each dimension ixyz
-	do n = 1,np        	!Step through each particle n
-
-		!Check for tethering force and correct applied force accordingly
-		if (tag(n).eq. 3) then
-			call tether_force(n)
-		endif
-
-		!Leapfrog mean velocity calculated here at v(t+0.5delta_t) = v(t-0.5delta_t) + a*delta_t 
-		!Leapfrog mean position calculated here at r(t+delta_t) = r(t) + v(t+0.5delta_t)*delta_t
-		v(n,ixyz) =(v(n,ixyz) + delta_t*a(n,ixyz))*fix(n,ixyz) 	!Velocity calculated from acceleration
-!		v(n,ixyz) = v(n,ixyz) + slidev(n,ixyz)			!Add velocity of sliding wall
-		r(n,ixyz) = r(n,ixyz) + delta_t*v(n,ixyz)		!Position calculated from velocity
-
-	enddo
-	enddo
-
-end subroutine SLLOD_move_bulk
+!--------------------------------------------------------------------------------------
+! Default move particles routine
 
 subroutine simulation_move_particles_default
 use module_move_particles
@@ -66,8 +46,7 @@ implicit none
 
 		!Leapfrog mean velocity calculated here at v(t+0.5delta_t) = v(t-0.5delta_t) + a*delta_t 
 		!Leapfrog mean position calculated here at r(t+delta_t) = r(t) + v(t+0.5delta_t)*delta_t
-		v(n,ixyz) =(v(n,ixyz) + delta_t*a(n,ixyz))*fix(n,ixyz) 	!Velocity calculated from acceleration
-		v(n,ixyz) = v(n,ixyz) + slidev(n,ixyz)			!Add velocity of sliding wall
+		v(n,ixyz) = v(n,ixyz) + delta_t*a(n,ixyz)		!Velocity calculated from acceleration
 		r(n,ixyz) = r(n,ixyz) + delta_t*v(n,ixyz)		!Position calculated from velocity
 
 	enddo
@@ -142,21 +121,12 @@ implicit none
 			r(n,:) = r(n,:) + delta_t * v(n,:)	!Position calculated from velocity
 		case (4)
 			!Nose Hoover Thermostatted Molecule
-	        	!v(n,1) = v(n,1)*ascale + a(n,1)*delta_t*bscale
-			!r(n,1) = r(n,1)    +     v(n,1)*delta_t			
-	        	!v(n,2) = v(n,2)*ascale + a(n,2)*delta_t*bscale
-			!r(n,2) = r(n,2)    + 	 v(n,2)*delta_t				
-	        	!v(n,3) = v(n,3)*ascale + a(n,3)*delta_t*bscale
-			!r(n,3) = r(n,3)    +     v(n,3)*delta_t	
-
-			!Nose Hoover Thermostatted Molecule z direction only
-			v(n,1) = v(n,1) + delta_t * a(n,1) 	!Velocity calculated from acceleration
-			r(n,1) = r(n,1) + delta_t * v(n,1)	!Position calculated from velocity
-			v(n,2) = v(n,2) + delta_t * a(n,2) 	!Velocity calculated from acceleration
-			r(n,2) = r(n,2) + delta_t * v(n,2)	!Position calculated from velocity
-	        	v(n,3) = v(n,3)*ascale + a(n,3)*delta_t*bscale
+	        v(n,1) = v(n,1)*ascale + a(n,1)*delta_t*bscale
+			r(n,1) = r(n,1)    +     v(n,1)*delta_t			
+	        v(n,2) = v(n,2)*ascale + a(n,2)*delta_t*bscale
+			r(n,2) = r(n,2)    + 	 v(n,2)*delta_t				
+	        v(n,3) = v(n,3)*ascale + a(n,3)*delta_t*bscale
 			r(n,3) = r(n,3)    +     v(n,3)*delta_t	
-
 		case (5)
 			!Thermostatted Tethered molecules unfixed with no sliding velocity
 			call tether_force(n)
@@ -291,17 +261,17 @@ implicit none
 		endif
 
 		!Velocity calculated from acceleration
-        	v(n,1) = v(n,1)*ascale + a(n,1)*delta_t*bscale	
+       	v(n,1) = v(n,1)*ascale + a(n,1)*delta_t*bscale	
 		!Position calculated from velocity
 		r(n,1) = r(n,1) + delta_t*v(n,1)				
 
 		!Velocity calculated from acceleration
-        	v(n,2) = v(n,2)*ascale + a(n,2)*delta_t*bscale
+       	v(n,2) = v(n,2)*ascale + a(n,2)*delta_t*bscale
 		!Position calculated from velocity
 		r(n,2) = r(n,2) + delta_t*v(n,2)				
 
 		!Velocity calculated from acceleration
-        	v(n,3) = v(n,3)*ascale + a(n,3)*delta_t*bscale
+       	v(n,3) = v(n,3)*ascale + a(n,3)*delta_t*bscale
 		!Position calculated from velocity
 		r(n,3) = r(n,3) + delta_t*v(n,3)				
 		
