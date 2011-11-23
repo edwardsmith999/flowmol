@@ -70,7 +70,7 @@ implicit none
 		restart = .false.			
 		input_file_exists = .false.
 		restart_file_exists = .false.
-		input_file = trim(file_dir)//'MD.in'
+		input_file = trim(prefix_dir)//'MD.in'
 		initial_microstate_file = 'final_state'
 
 		argcount = command_argument_count()
@@ -722,7 +722,7 @@ subroutine simulation_header
 
 	call date_and_time(the_date, the_time)
 
-	open(3,file=trim(file_dir)//'results/simulation_header')
+	open(3,file=trim(prefix_dir)//'results/simulation_header')
 
 	write(3,*) 'Simulation run on Date;  sim_date ;', the_date
 	write(3,*) 'Simulation start time ;  sim_start_time ;', the_time
@@ -865,10 +865,10 @@ subroutine parallel_io_final_state
 	enddo
 
 	!Remove previous final state file
-	call MPI_FILE_DELETE(trim(file_dir)//'results/final_state', MPI_INFO_NULL, ierr)
+	call MPI_FILE_DELETE(trim(prefix_dir)//'results/final_state', MPI_INFO_NULL, ierr)
 
 	!Open file on all processors
-	call MPI_FILE_OPEN(MD_COMM,trim(file_dir)//'results/final_state', & 
+	call MPI_FILE_OPEN(MD_COMM,trim(prefix_dir)//'results/final_state', & 
 			MPI_MODE_RDWR + MPI_MODE_CREATE, & 
 			MPI_INFO_NULL, restartfileid, ierr)
 
@@ -906,7 +906,7 @@ subroutine parallel_io_final_state
 	!Write the header with one processor only
 	if (irank .eq. iroot) then
 
-                call MPI_FILE_OPEN(MPI_COMM_SELF,trim(file_dir)//'results/final_state', & 
+                call MPI_FILE_OPEN(MPI_COMM_SELF,trim(prefix_dir)//'results/final_state', & 
 			MPI_MODE_WRONLY, MPI_INFO_NULL, restartfileid, ierr)
                 
                 if (ierr /= 0) then 
@@ -971,7 +971,7 @@ subroutine parallel_io_final_state
 		!close(2,status='keep') !Close final_state file
                 call MPI_FILE_CLOSE(restartfileid, ierr)
 
-                call MPI_FILE_OPEN(MPI_COMM_SELF,trim(file_dir)//'results/final_state', & 
+                call MPI_FILE_OPEN(MPI_COMM_SELF,trim(prefix_dir)//'results/final_state', & 
 			MPI_MODE_RDONLY, MPI_INFO_NULL, restartfileid, ierr)
                 
                 call MPI_File_get_size(restartfileid,filesize,ierr)
@@ -1016,7 +1016,7 @@ subroutine parallel_io_vmd
 	enddo
 
 	!Open file on all processors
-	call MPI_FILE_OPEN(MD_COMM,trim(file_dir)//'results/vmd_temp.dcd', & 
+	call MPI_FILE_OPEN(MD_COMM,trim(prefix_dir)//'results/vmd_temp.dcd', & 
 		MPI_MODE_RDWR + MPI_MODE_CREATE, & 
 		MPI_INFO_NULL, fileid, ierr)
 
@@ -1120,7 +1120,7 @@ subroutine parallel_io_vmd_sl
 	!    Write liquid Molecules	=
 	!================================
 	!Open file on all processors
-	call MPI_FILE_OPEN(MD_COMM, trim(file_dir)//'results/vmd_liquid_temp.dcd', & 
+	call MPI_FILE_OPEN(MD_COMM, trim(prefix_dir)//'results/vmd_liquid_temp.dcd', & 
 		MPI_MODE_RDWR + MPI_MODE_CREATE, & 
 		MPI_INFO_NULL, fileid, ierr)
 
@@ -1194,7 +1194,7 @@ subroutine parallel_io_vmd_sl
 	!================================
 
 	!Open file on all processors
-	call MPI_FILE_OPEN(MD_COMM, trim(file_dir)//'results/vmd_solid_temp.dcd', & 
+	call MPI_FILE_OPEN(MD_COMM, trim(prefix_dir)//'results/vmd_solid_temp.dcd', & 
 		MPI_MODE_RDWR + MPI_MODE_CREATE, & 
 		MPI_INFO_NULL, fileid, ierr)
 
@@ -1290,7 +1290,7 @@ subroutine parallel_io_vmd_optimised
 	enddo
 
 	!Open file on all processors
-	call MPI_FILE_OPEN(MD_COMM, trim(file_dir)//'results/vmd_temp.dcd', & 
+	call MPI_FILE_OPEN(MD_COMM, trim(prefix_dir)//'results/vmd_temp.dcd', & 
 		MPI_MODE_RDWR + MPI_MODE_CREATE, & 
 		MPI_INFO_NULL, fileid, ierr)
 
@@ -1333,7 +1333,7 @@ subroutine update_simulation_progress_file
 	implicit none
 
 	if (irank .eq. iroot) then
-		open (unit=99999, file=trim(file_dir)//"results/simulation_progress")
+		open (unit=99999, file=trim(prefix_dir)//"results/simulation_progress")
 		write(99999,*) iter
 		close(99999,status='keep')
 	endif
@@ -1405,7 +1405,7 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 	character(13)			:: filename
 
 	!Work out correct filename for i/o type
-	write(filename, '(a9,a4)' ) trim(file_dir)//'results/m', io_type
+	write(filename, '(a9,a4)' ) trim(prefix_dir)//'results/m', io_type
 
 	!Include halo surface fluxes to get correct values for all cells
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1533,7 +1533,7 @@ subroutine parallel_slice_io_large_scale
 	call MPI_type_size(MPI_Integer,int_datasize,ierr)
 	call MPI_type_size(MPI_double_precision,dp_datasize,ierr)
 
-	call MPI_FILE_OPEN(MD_COMM, trim(file_dir)//'results/vslice', & 
+	call MPI_FILE_OPEN(MD_COMM, trim(prefix_dir)//'results/vslice', & 
 			MPI_MODE_WRONLY , & 
 			MPI_INFO_NULL, slicefileid, ierr)
 
