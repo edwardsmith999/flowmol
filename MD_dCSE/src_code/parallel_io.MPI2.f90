@@ -41,6 +41,7 @@ module module_parallel_io
 	use shear_info_MD
 	use calculated_properties_MD
 	use messenger, only : MD_COMM
+        use interfaces
 
 	integer		:: restartfileid, fileid !File name used for parallel i/o
 
@@ -71,7 +72,7 @@ implicit none
 		input_file_exists = .false.
 		restart_file_exists = .false.
 		input_file = trim(prefix_dir)//'MD.in'
-		initial_microstate_file = 'final_state'
+		initial_microstate_file = trim(prefix_dir)//'final_state'
 
 		argcount = command_argument_count()
 
@@ -103,7 +104,7 @@ implicit none
 
 		if(.not. input_file_exists) then
 			print*, 'Input file ', input_file, ' not found. Stopping simulation.'
-			stop
+			call error_abort
 		end if
 
 	endif
@@ -305,7 +306,9 @@ subroutine setup_inputs
 	read(1,*) define_shear_as
 	if (define_shear_as.eq.0) read(1,*) shear_velocity
 	if (define_shear_as.eq.1) read(1,*) shear_rate
-	if (define_shear_as.gt.1) stop 'Poorly defined shear in input file'	
+	if (define_shear_as.gt.1) then 
+                call error_abort( 'Poorly defined shear in input file')
+        endif	
 
 	close(1,status='keep')      !Close input file
 
@@ -428,7 +431,7 @@ subroutine setup_restart_inputs
 
 		!Check if values from input file are different and alert user - all processors have
 		!read the same file so only need to check on one processor
-		open(1,file=input_file)
+		open(1,file=trim(prefix_dir)//input_file)
 		call locate(1,'DENSITY',.true.)
 		read(1,* ) checkdp          !Density of system
 		if (checkdp .ne. density) print*, 'Discrepancy between system density', &
@@ -556,7 +559,9 @@ subroutine setup_restart_inputs
 		read(1,*) define_shear_as
 		if (define_shear_as.eq.0) read(1,*) shear_velocity
 		if (define_shear_as.eq.1) read(1,*) shear_rate
-		if (define_shear_as.gt.1) stop 'Poorly defined shear in input file'	
+		if (define_shear_as.gt.1) then
+                         call error_abort( 'Poorly defined shear in input file'	)
+                endif
 		
 		!Flag to determine if output is switched on
 		call locate(1,'VMD_OUTFLAG',.true.)
@@ -1321,7 +1326,7 @@ subroutine parallel_io_vmd_halo
 	use module_parallel_io
 	implicit none
 
-	stop "Cannot print vmd halos in parallel simulation - run in serial"
+	call error_abort("Cannot print vmd halos in parallel simulation - run in serial")
 
 end subroutine parallel_io_vmd_halo
 
@@ -1348,6 +1353,7 @@ subroutine mass_slice_io(ixyz)
 	use module_parallel_io
 	use calculated_properties_MD
 	use messenger
+        use interfaces
 	implicit none
 
 	integer				:: ixyz,jxyz,kxyz
@@ -1359,8 +1365,8 @@ subroutine mass_slice_io(ixyz)
 	jxyz = mod(ixyz+1,3)+1
 
 	!Sum over all bins using directional sub communicators and gather on {ijk}block=1
-	call SubcommSumIntVect(slice_mass, nbins(ixyz), jxyz)
-	call SubcommSumIntVect(slice_mass, nbins(ixyz), kxyz)
+	call SubcommSum(slice_mass, nbins(ixyz), jxyz)
+	call SubcommSum(slice_mass, nbins(ixyz), kxyz)
 
 	!Only root processor in each directional subcomm writes data
 	if (icoord(jxyz,irank) .eq. 1 .and. icoord(kxyz,irank) .eq. 1) then
@@ -1369,7 +1375,7 @@ subroutine mass_slice_io(ixyz)
 		call MPI_type_size(MPI_Integer,int_datasize,ierr)
 
 		!Only processors on directional subcomm write
-		call MPI_FILE_OPEN(icomm_xyz(ixyz), './results/mslice', & 
+		call MPI_FILE_OPEN(icomm_xyz(ixyz), trim(prefix_dir)//'./results/mslice', & 
 				   MPI_MODE_WRONLY+ MPI_MODE_CREATE , & 
 				   MPI_INFO_NULL, slicefileid, ierr)
 
@@ -1461,12 +1467,12 @@ subroutine velocity_slice_io(ixyz)
 	idims(1) = npx; idims(2) = npy; idims(3) = npz
 
 	!Sum over all bins using directional sub communicators and gather on root
-	call SubcommSumVect(slice_momentum(:,1), nbins(ixyz), jxyz)
-	call SubcommSumVect(slice_momentum(:,1), nbins(ixyz), kxyz)
-	call SubcommSumVect(slice_momentum(:,2), nbins(ixyz), jxyz)
-	call SubcommSumVect(slice_momentum(:,2), nbins(ixyz), kxyz)
-	call SubcommSumVect(slice_momentum(:,3), nbins(ixyz), jxyz)
-	call SubcommSumVect(slice_momentum(:,3), nbins(ixyz), kxyz)
+	call SubcommSum(slice_momentum(:,1), nbins(ixyz), jxyz)
+	call SubcommSum(slice_momentum(:,1), nbins(ixyz), kxyz)
+	call SubcommSum(slice_momentum(:,2), nbins(ixyz), jxyz)
+	call SubcommSum(slice_momentum(:,2), nbins(ixyz), kxyz)
+	call SubcommSum(slice_momentum(:,3), nbins(ixyz), jxyz)
+	call SubcommSum(slice_momentum(:,3), nbins(ixyz), kxyz)
 
 	!Only root processor in each directional subcomm writes data
 	if (icoord(jxyz,irank) .eq. 1 .and. icoord(kxyz,irank) .eq. 1) then
@@ -1474,7 +1480,7 @@ subroutine velocity_slice_io(ixyz)
 		call MPI_type_size(MPI_double_precision,dp_datasize,ierr)
 
 		!Only processors on directional subcomm write
-		call MPI_FILE_OPEN(icomm_xyz(ixyz), './results/vslice', & 
+		call MPI_FILE_OPEN(icomm_xyz(ixyz), trim(prefix_dir)//'./results/vslice', & 
 				   MPI_MODE_WRONLY + MPI_MODE_CREATE , & 
 				   MPI_INFO_NULL, slicefileid, ierr)
 
@@ -1809,7 +1815,7 @@ use calculated_properties_MD
 implicit none
 
 	if (irank .eq. iroot) then	
-		open(unit=10,file='results/macroscopic_properties',status='replace')
+		open(unit=10,file=trim(prefix_dir)//'results/macroscopic_properties',status='replace')
 		
 		if (potential_flag.eq.0) then
 			write(10,'(2a)'), &
@@ -1867,10 +1873,10 @@ implicit none
 		inquire(iolength=length) etevtcf
 		
 		if (iter.eq.etevtcf_iter0) then
-			open(14,file='results/etevtcf',status='replace',form='unformatted',access='direct',recl=length)
+			open(14,file=trim(prefix_dir)//'results/etevtcf',status='replace',form='unformatted',access='direct',recl=length)
 			write(14,rec=m) etevtcf
 		else if (iter.gt.etevtcf_iter0) then
-			open(14,file='results/etevtcf',form='unformatted',access='direct',recl=length)
+			open(14,file=trim(prefix_dir)//'results/etevtcf',form='unformatted',access='direct',recl=length)
 			write(14,rec=m) etevtcf
 		end if
 		

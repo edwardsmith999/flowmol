@@ -1714,7 +1714,7 @@ end
 
 subroutine globalSum(A)
 	use messenger
-	!include "mpif.h"
+
 
 	double precision :: A, buf
 
@@ -1727,7 +1727,6 @@ end
 
 subroutine globalSumInt(A)
 	use messenger
-	!include "mpif.h"
 
 	integer :: A, buf
 
@@ -1740,7 +1739,6 @@ end
 
 subroutine globalMaxInt(A)
 	use messenger
-	!include "mpif.h"
 
 	integer :: A, buf
 
@@ -1769,7 +1767,6 @@ end
 
 subroutine globalSumIntVect(A, na)
 	use messenger
-	!include "mpif.h"
 
         integer, intent(in) :: na
 	integer A(na)
@@ -1784,7 +1781,6 @@ end
 
 subroutine globalMaxVect(A, na)
 	use messenger
-	!include "mpif.h"
 
         integer, intent(in) :: na
 	double precision A(na)
@@ -1799,7 +1795,6 @@ end
 
 subroutine globalMaxIntVect(A, na)
 	use messenger
-	!include "mpif.h"
 
         integer, intent(in) :: na
 	integer A(na)
@@ -1814,7 +1809,6 @@ end
 
 subroutine globalMinVect(A, na)
 	use messenger
-	!include "mpif.h"
 
         integer, intent(in) :: na
 	double precision A(na)
@@ -1829,7 +1823,6 @@ end
 
 subroutine globalAverage(A, na)
 	use messenger
-	!include "mpif.h"
 
         integer, intent(in) :: na
 	double precision A(na)
@@ -1862,7 +1855,6 @@ end
 
 subroutine SubcommSumInt(A, ixyz)
 	use messenger
-	!include "mpif.h"
 
         integer, intent(in) :: ixyz !Direction of sub-comm
 	integer	A
@@ -1877,7 +1869,6 @@ end
 
 subroutine SubcommSumVect(A, na, ixyz)
 	use messenger
-	!include "mpif.h"
 
         integer, intent(in) :: na, ixyz !Direction of sub-comm
 	double precision A(na)
@@ -1892,7 +1883,6 @@ end
 
 subroutine SubcommSumIntVect(A, na, ixyz)
 	use messenger
-	!include "mpif.h"
 
         integer, intent(in) :: na, ixyz !Direction of sub-comm
 	integer	A(na)
@@ -1904,3 +1894,19 @@ subroutine SubcommSumIntVect(A, na, ixyz)
 
 	return
 end
+
+subroutine error_abort(msg)
+        use mpi
+        implicit none
+        
+        character(len=*), intent(in), optional :: msg
+
+        integer errcode,ierr
+
+        if (present(msg)) then 
+                write(*,*) msg
+        endif
+
+        call MPI_Abort(MPI_COMM_WORLD,errcode,ierr)
+
+end subroutine error_abort

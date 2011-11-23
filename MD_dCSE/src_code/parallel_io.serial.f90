@@ -40,6 +40,7 @@ module module_parallel_io
 	use arrays_MD
 	use polymer_info_MD
 	use shear_info_MD
+        use interfaces
 end module
 
 !======================================================================
@@ -97,7 +98,7 @@ implicit none
 
 	if(.not. input_file_exists) then
 		print*, 'Input file ', input_file, ' not found. Stopping simulation.'
-		stop
+		call error_abort
 	end if
 
 end subroutine setup_command_arguments
@@ -295,7 +296,9 @@ subroutine setup_inputs
 	read(1,*) define_shear_as
 	if (define_shear_as.eq.0) read(1,*) shear_velocity
 	if (define_shear_as.eq.1) read(1,*) shear_rate
-	if (define_shear_as.gt.1) stop 'Poorly defined shear in input file'	
+	if (define_shear_as.gt.1) then 
+                call error_abort( 'Poorly defined shear in input file')
+        endif
 
 	close(1,status='keep')      !Close input file
 
@@ -505,7 +508,7 @@ subroutine setup_restart_inputs
 	read(1,*) define_shear_as
 	if (define_shear_as.eq.0) read(1,*) shear_velocity
 	if (define_shear_as.eq.1) read(1,*) shear_rate
-	if (define_shear_as.gt.1) stop 'Poorly defined shear in input file'	
+	if (define_shear_as.gt.1) call error_abort('Poorly defined shear in input file')
 	
 	!Flag to determine if output is switched on
 	call locate(1,'VMD_OUTFLAG',.true.)

@@ -411,6 +411,7 @@ end subroutine setup_linklist
 subroutine set_parameters_outputs
 	use module_set_parameters
         use  messenger, only :  myid, icoord
+        use interfaces
 	implicit none
 
 	integer				:: n
@@ -434,9 +435,9 @@ subroutine set_parameters_outputs
 	globalnbins(1) = nbins(1)
 	globalnbins(2) = nbins(2)
 	globalnbins(3) = nbins(3)
-	call SubcommSumInt(globalnbins(1),1)	!Sum up over all x processes
-	call SubcommSumInt(globalnbins(2),2)	!Sum up over all y processes
-	call SubcommSumInt(globalnbins(3),3)	!Sum up over all z processes
+	call SubcommSum(globalnbins(1),1)	!Sum up over all x processes
+	call SubcommSum(globalnbins(2),2)	!Sum up over all y processes
+	call SubcommSum(globalnbins(3),3)	!Sum up over all z processes
 
 
 	!nbins(1) = ceiling(np/10.d0)    	!Set number of equal sized velocity ranges based on 1/10 number of molecules
