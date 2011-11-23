@@ -1073,3 +1073,16 @@ subroutine SubcommSumIntVect(A, na, ixyz)
 	return
 end
 
+subroutine error_abort(msg)
+        use mpi
+        implicit none
+        
+        character(len=*), intent(in), optional :: msg
+
+        if(present(msg)) then
+                write(*,*) msg
+        endif
+
+        stop
+
+end subroutine error_abort
