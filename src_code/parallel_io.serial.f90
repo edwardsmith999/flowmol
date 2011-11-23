@@ -58,7 +58,7 @@ implicit none
 	
 	integer	:: i,argcount
 	logical :: restart_file_exists, input_file_exists
-	character(len=32) :: arg,nextarg
+	character(len=200) :: arg,nextarg
 
 	!Set default values in case they aren't specified by user
 	restart = .false.			
@@ -89,7 +89,6 @@ implicit none
 			if (trim(arg).eq.'-i' .and. nextarg(1:1).ne.'-') then
 				input_file = trim(nextarg)
 			end if
-
 		end do
 
 	end if
@@ -97,7 +96,7 @@ implicit none
 	inquire(file=input_file, exist=input_file_exists)					!Check file exists
 
 	if(.not. input_file_exists) then
-		print*, 'Input file ', input_file, ' not found. Stopping simulation.'
+		print*, 'Input file ', trim(input_file), ' not found. Stopping simulation.'
 		call error_abort
 	end if
 
@@ -120,7 +119,7 @@ subroutine setup_inputs
 	implicit none
 
 	logical			:: from_input
-	integer 		:: i, n
+	integer 		:: i, n, thermstat_flag
 	integer,dimension(8)	:: tvalue
 
 	!call random_seed
@@ -227,6 +226,7 @@ subroutine setup_inputs
 		read(1,*) tethereddisttop(2)
 		read(1,*) tethereddisttop(3)
 	endif
+
 	call locate(1,'THERMSTATBOTTOM',.false.,from_input)
 	if (from_input) then
 		read(1,*) thermstatbottom(1)
@@ -238,6 +238,25 @@ subroutine setup_inputs
 		read(1,*) thermstattop(1)
 		read(1,*) thermstattop(2)
 		read(1,*) thermstattop(3)
+	endif
+
+	call locate(1,'THERMSTAT_FLAG',.false.,from_input)
+	if (from_input) then
+		read(1,*) thermstat_flag
+		select case(thermstat_flag)
+		case(0)
+			if (abs(maxval(thermstattop   )).ne.0.0 & 
+		        .or.abs(maxval(thermstatbottom)).ne.0.0) stop "THERMSTATTOP or THERMSTATBOTTOM non zero but THERMSTAT_FLAG_INFO set to off (THERMSTAT_FLAG=0)"
+			thermstatbottom = 0.d0; thermstattop = 0.d0 
+		case(1)
+			thermstattop = initialnunits(:) &      !Set to whole domain size
+				/((density/4)**(1.d0/nd))
+			thermstatbottom=initialnunits(:) &     !Set to whole domain size
+				/((density/4)**(1.d0/nd))
+		case(2)
+			if (abs(maxval(thermstattop   )).eq.0.0 & 
+		       .and.abs(maxval(thermstatbottom)).eq.0.0) stop "THERMSTATTOP or THERMSTATBOTTOM must also be specified"
+		end select
 	endif
 
 	!Flag to determine if output is switched on
