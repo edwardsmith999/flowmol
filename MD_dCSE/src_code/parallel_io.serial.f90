@@ -623,7 +623,7 @@ subroutine simulation_header
 
 	call date_and_time(the_date, the_time)
 
-	open(3,file=trim(file_dir)//'results/simulation_header')
+	open(3,file=trim(prefix_dir)//'results/simulation_header')
 
 	write(3,*) 'Simulation run on Date;  sim_date ;', the_date
 	write(3,*) 'Simulation start time ;  sim_start_time ;', the_time

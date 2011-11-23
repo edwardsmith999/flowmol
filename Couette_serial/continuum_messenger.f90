@@ -57,10 +57,10 @@ subroutine messenger_invoke()
 
         if (coupler_is_active) then
                 call coupler_create_comm(COUPLER_CFD,CFD_COMM,ierr)
-                file_dir ="./couette_data/"
+                prefix_dir ="./couette_data/"
         else 
                 CFD_COMM = MPI_COMM_WORLD
-                file_dir = "./"
+                prefix_dir = "./"
         endif
 
         wallTime = mpi_wtime()

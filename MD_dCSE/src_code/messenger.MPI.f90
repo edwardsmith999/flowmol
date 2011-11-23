@@ -74,7 +74,7 @@ subroutine messenger_invoke()
         
         if (coupler_is_active) then
                 call coupler_create_comm(COUPLER_MD,MD_COMM,ierr)
-                file_dir = "./md_data/"
+                prefix_dir = "./md_data/"
         else
                 MD_COMM = MPI_COMM_WORLD 
         endif
@@ -99,7 +99,7 @@ subroutine messenger_init()
 
         ! Get the periodic constrains form MD.in
         ! and the processor topology description
-        open(1,file=trim(file_dir)//'MD.in')
+        open(1,file=trim(prefix_dir)//'MD.in')
 
         call locate(1,'PERIODIC',.true.)
 	read(1,*) iper(1)

@@ -110,7 +110,7 @@ module computational_constants_MD
 	integer nicellxl, nicellyl, nicellzl !Inner only
 
         !Directory that holds input/output files, useful in coupling mode
- 	character(len=128) :: file_dir = "./"	
+ 	character(len=128) :: prefix_dir = "./"	
 
 end module computational_constants_MD
 

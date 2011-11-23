@@ -9,7 +9,7 @@ module module_continuum_inputs
 	use physical_constants
 	use computational_constants
 	use grid_arrays
-        use continuum_data_export, only : file_dir
+        use continuum_data_export, only : prefix_dir
 
 end module module_continuum_inputs
 !----------------------------------------------------------------------------------
@@ -20,7 +20,7 @@ subroutine continuum_read_inputs
 
 	!double precision	:: i	!dummy variable as lx and ly are define by coupling
 
-	open(1001,file=trim(file_dir)//'input_continuum')
+	open(1001,file=trim(prefix_dir)//'input_continuum')
 
 	!Input computational co-efficients
 	read(1001,* ) continuum_Nsteps		!Number of simulation steps

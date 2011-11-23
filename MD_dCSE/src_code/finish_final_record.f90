@@ -144,7 +144,7 @@ subroutine reformat_dcd
 
 	!Read position information from file
 	!RECORD LENGTH IS 1 WHICH IN FORTRAN IS A 4 BYTE BLOCKS (REAL, INT BUT NOT DP) 	
-	open (unit=17, file=trim(file_dir)//"results/vmd_temp.dcd",access='direct',recl=1)
+	open (unit=17, file=trim(prefix_dir)//"results/vmd_temp.dcd",access='direct',recl=1)
 
 	do i=1,NSET
 	do n=1,globalnp
@@ -157,7 +157,7 @@ subroutine reformat_dcd
 	close(17,status='delete')
 
 	!Open binary .dcd file and write header information	
-	open(unit=3, file=trim(file_dir)//"results/vmd_out.dcd",status='replace', form="unformatted")
+	open(unit=3, file=trim(prefix_dir)//"results/vmd_out.dcd",status='replace', form="unformatted")
 	
 	write(3) HDR, NSET, ISTRT, NSAVC, FIVEZ, NATOMNFREAT, DELTA, NINEZ
 	write(3) NTITLE, TITLE(1), TITLE(2)
@@ -232,7 +232,7 @@ subroutine reformat_dcd_sl
 
 	!Read Solid molecule position information from file
 	!RECORD LENGTH IS 1 WHICH IN FORTRAN IS A 4 BYTE BLOCKS (REAL, INT BUT NOT DP) 	
-	open (unit=17, file=trim(file_dir)//"results/vmd_solid_temp.dcd",access='direct',recl=1)
+	open (unit=17, file=trim(prefix_dir)//"results/vmd_solid_temp.dcd",access='direct',recl=1)
 
 	do i=1,NSET
 	do n=1,globalnp
@@ -245,7 +245,7 @@ subroutine reformat_dcd_sl
 	close(17,status='delete')
 
 	!Open binary .dcd file and write header information	
-	open(unit=3, file=trim(file_dir)//"results/vmd_solid_out.dcd",status='replace', form="unformatted")
+	open(unit=3, file=trim(prefix_dir)//"results/vmd_solid_out.dcd",status='replace', form="unformatted")
 	
 	write(3) HDR, NSET, ISTRT, NSAVC, FIVEZ, NATOMNFREAT, DELTA, NINEZ
 	write(3) NTITLE, TITLE(1), TITLE(2)
@@ -261,7 +261,7 @@ subroutine reformat_dcd_sl
 
 	!Read liquid molecule position information from file
 	!RECORD LENGTH IS 1 WHICH IN FORTRAN IS A 4 BYTE BLOCKS (REAL, INT BUT NOT DP) 	
-	open (unit=17, file=trim(file_dir)//"results/vmd_liquid_temp.dcd",access='direct',recl=1)
+	open (unit=17, file=trim(prefix_dir)//"results/vmd_liquid_temp.dcd",access='direct',recl=1)
 
 	do i=1,NSET
 	do n=1,globalnp
@@ -274,7 +274,7 @@ subroutine reformat_dcd_sl
 	close(17,status='delete')
 
 	!Open binary .dcd file and write header information	
-	open(unit=3, file=trim(file_dir)//"results/vmd_liquid_out.dcd",status='replace', form="unformatted")
+	open(unit=3, file=trim(prefix_dir)//"results/vmd_liquid_out.dcd",status='replace', form="unformatted")
 	
 	write(3) HDR, NSET, ISTRT, NSAVC, FIVEZ, NATOMNFREAT, DELTA, NINEZ
 	write(3) NTITLE, TITLE(1), TITLE(2)
@@ -341,7 +341,7 @@ subroutine reformat_dcd_halo
 
 	!Read Solid molecule position information from file
 	!RECORD LENGTH IS 1 WHICH IN FORTRAN IS A 4 BYTE BLOCKS (REAL, INT BUT NOT DP) 	
-	open (unit=17, file=trim(file_dir)//"results/vmd_halo_temp.dcd",access='direct',recl=1)
+	open (unit=17, file=trim(prefix_dir)//"results/vmd_halo_temp.dcd",access='direct',recl=1)
 
 	do i=1,NSET
 	do n=1,extralloc
@@ -354,7 +354,7 @@ subroutine reformat_dcd_halo
 	close(17,status='delete')
 
 	!Open binary .dcd file and write header information	
-	open(unit=3, file=trim(file_dir)//"results/vmd_halo_out.dcd",status='replace', form="unformatted")
+	open(unit=3, file=trim(prefix_dir)//"results/vmd_halo_out.dcd",status='replace', form="unformatted")
 	
 	write(3) HDR, NSET, ISTRT, NSAVC, FIVEZ, NATOMNFREAT, DELTA, NINEZ
 	write(3) NTITLE, TITLE(1), TITLE(2)
