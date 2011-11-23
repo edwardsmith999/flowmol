@@ -10,7 +10,7 @@ module module_continuum_record
 	!use computational_constants_MD
 	use computational_constants
 	use grid_arrays
-        use continuum_data_export, only : file_dir
+        use continuum_data_export, only : prefix_dir
 
 end module module_continuum_record
 !----------------------------------------------------------------------------------
@@ -29,9 +29,9 @@ subroutine continuum_initial_record
 	Character(10)  		:: the_time
 
 	!Delete existing files
-	open (unit=1003, file=trim(file_dir)//"results/continuum_vslice")
+	open (unit=1003, file=trim(prefix_dir)//"results/continuum_vslice")
 	close(1003,status='delete')
-	open (unit=1004, file=trim(file_dir)//"results/continuum_vxbins")
+	open (unit=1004, file=trim(prefix_dir)//"results/continuum_vxbins")
 	close(1004,status='delete')
 
 	call date_and_time(the_date, the_time)
@@ -64,7 +64,7 @@ subroutine continuum_initial_record
 	print*, '======================================================================='
 
 	!Open and write header for output file
-	open(1002,file=trim(file_dir)//'results/continuum_header')
+	open(1002,file=trim(prefix_dir)//'results/continuum_header')
 
 	write(1002,*) 'Simulation run on Date;  sim_date ;', the_date
 	write(1002,*) 'Simulation start time ;  sim_start_time ;', the_time
@@ -118,7 +118,7 @@ subroutine continuum_record
 		endif
 
 		inquire(iolength=length) uslice
-		open (unit=1003, file=trim(file_dir)//"results/continuum_vslice",form="unformatted",access='direct',recl=length)
+		open (unit=1003, file=trim(prefix_dir)//"results/continuum_vslice",form="unformatted",access='direct',recl=length)
 		write(1003,rec=m) uslice
 		close(1003,status='keep')
 
@@ -128,7 +128,7 @@ subroutine continuum_record
 		m = continuum_iter/continuum_tplot
 
 		inquire(iolength=length) uc(1:nx+2,1:ny+2)
-		open (unit=1003, file=trim(file_dir)//"results/continuum_vxbins",form="unformatted",access='direct',recl=length)
+		open (unit=1003, file=trim(prefix_dir)//"results/continuum_vxbins",form="unformatted",access='direct',recl=length)
 		write(1003,rec=m) uc(1:nx+2,1:ny+2)
 		close(1003,status='keep')
 
@@ -162,7 +162,7 @@ contains
                         file_position = "append"
                 endif
 
-                open (unit=1003, file=trim(file_dir)//"results/continuum_uc.txt",position=file_position)
+                open (unit=1003, file=trim(prefix_dir)//"results/continuum_uc.txt",position=file_position)
 
                 write(1003,'(a,I6)')'# step', continuum_iter
                 do j=1,ny+2
