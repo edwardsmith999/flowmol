@@ -356,6 +356,7 @@ subroutine setup_restart_inputs
 	integer				:: n, k
 	integer 			:: extrasteps
 	integer 			:: checkint
+	integer				:: thermstat_flag
 	double precision 		:: checkdp
 
          integer(kind=selected_int_kind(18)) header_pos, end_pos ! 8 byte integer for header address
@@ -420,8 +421,11 @@ subroutine setup_restart_inputs
 
 	call locate(1,'INPUTTEMPERATURE',.true.)
 	read(1,* ) checkdp	     !Define initial temperature
-	if (checkdp .ne. inputtemperature) print*, 'Discrepancy between initial temperature', &
-	'in input & restart file - restart file will be used'
+	if (checkdp .ne. inputtemperature) then
+		inputtemperature = checkdp	
+		print*, 'Discrepancy between initial temperature', &
+				'in input & restart file - input file will be used'
+	end if
 
 	call locate(1,'INITIALNUNITS',.true.)
 	read(1,* ) checkint	     	!x dimension split into number of cells
@@ -507,6 +511,23 @@ subroutine setup_restart_inputs
 		read(1,*) thermstattop(1)
 		read(1,*) thermstattop(2)
 		read(1,*) thermstattop(3)
+	endif
+	
+	call locate(1,'THERMSTAT_FLAG',.false.,from_input)
+	if (from_input) then
+		read(1,*) thermstat_flag
+		select case(thermstat_flag)
+		case(0)
+			if (abs(maxval(thermstattop   )).ne.0.0 & 
+		        .or.abs(maxval(thermstatbottom)).ne.0.0) stop "THERMSTATTOP or THERMSTATBOTTOM non zero but THERMSTAT_FLAG_INFO set to off (THERMSTAT_FLAG=0)"
+			thermstatbottom = 0.d0; thermstattop = 0.d0 
+		case(1)
+			thermstattop 	= initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
+			thermstatbottom = initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
+		case(2)
+			if (abs(maxval(thermstattop   )).eq.0.0 & 
+		       .and.abs(maxval(thermstatbottom)).eq.0.0) stop "THERMSTATTOP or THERMSTATBOTTOM must also be specified"
+		end select
 	endif
 	
 	call locate(1,'NSTEPS',.true.)
