@@ -139,7 +139,16 @@ subroutine setup_inputs
 	call locate(1,'INITIALNUNITS',.true.)
 	read(1,*) initialnunits(1)		!x dimension split into number of cells
 	read(1,*) initialnunits(2)		!y dimension split into number of cells
-	if(nd.eq.3) read(1,*) initialnunits(3)	!z dimension split into number of cells
+	read(1,*) initialnunits(3)		!z dimension split into number of cells
+
+	call locate(1,'POTENTIAL_FLAG',.true.)	!LJ or FENE potential
+	read(1,*) potential_flag
+	if (potential_flag.eq.1) then
+		call locate(1,'FENE_INFO',.true.)
+		read(1,*) chain_length
+		read(1,*) k_c
+		read(1,*) R_0
+	end if	
 
 	!Input computational co-efficients
 	call locate(1,'NSTEPS',.true.)
@@ -148,19 +157,40 @@ subroutine setup_inputs
 	read(1,*) delta_t 		!Size of time step
 	call locate(1,'TPLOT',.true.)
 	read(1,*) tplot 		!Frequency at which to record results
-	call locate(1,'INITISE_STEPS',.true.)
-	read(1,*) initise_steps 	!Number of initialisation steps for simulation
+	call locate(1,'INITISE_STEPS',.false.,from_input)
+	if (from_input) then
+		read(1,*) initise_steps 	!Number of initialisation steps for simulation
+	else
+		initise_steps = 0
+	endif
 	call locate(1,'DELTA_RNEIGHBR',.true.) 
 	read(1,*) delta_rneighbr 	!Extra distance used for neighbour cell
-	call locate(1,'SEED',.true.)
-	read(1,*) seed(1) 		!Random number seed value 1
-	read(1,*) seed(2) 		!Random number seed value 2
+	call locate(1,'SEED',.false.,from_input)
+	if (from_input) then
+		read(1,*) seed(1) 	!Random number seed value 1
+		read(1,*) seed(2) 	!Random number seed value 2
+	else
+		seed(1) = 1		!Fixed default seed for repeatability
+		seed(2) = 2		!Fixed default seed for repeatability
+	endif
 
-	!Flags to determine if periodic boundaries .true.	
+	!Flags to determine if periodic boundaries are on	
 	call locate(1,'PERIODIC',.true.)
 	read(1,*) periodic(1)
 	read(1,*) periodic(2)
-	if (nd.eq.3) read(1,*) periodic(3)
+	read(1,*) periodic(3)
+
+	call locate(1,'DEFINE_SHEAR',.false.,from_input)
+	if (from_input) then
+		read(1,*) shear_direction
+		read(1,*) shear_iter0
+		read(1,*) define_shear_as
+		if (define_shear_as.eq.0) read(1,*) shear_velocity
+		if (define_shear_as.eq.1) read(1,*) shear_rate
+		if (define_shear_as.gt.1) then 
+                	call error_abort( 'Poorly defined shear in input file')
+        	endif
+	endif
 
 	!-------------------------------------
 	!Flag to determine molecular tags
@@ -247,76 +277,67 @@ subroutine setup_inputs
 		select case(thermstat_flag)
 		case(0)
 			if (abs(maxval(thermstattop   )).ne.0.0 & 
-		        .or.abs(maxval(thermstatbottom)).ne.0.0) stop "THERMSTATTOP or THERMSTATBOTTOM non zero but THERMSTAT_FLAG_INFO set to off (THERMSTAT_FLAG=0)"
+		        .or.abs(maxval(thermstatbottom)).ne.0.0) stop & 
+			 "THERMSTATTOP or THERMSTATBOTTOM non zero but THERMSTAT_FLAG_INFO set to off (THERMSTAT_FLAG=0)"
 			thermstatbottom = 0.d0; thermstattop = 0.d0 
 		case(1)
 			thermstattop 	= initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
 			thermstatbottom = initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
 		case(2)
 			if (abs(maxval(thermstattop   )).eq.0.0 & 
-		       .and.abs(maxval(thermstatbottom)).eq.0.0) stop "THERMSTATTOP or THERMSTATBOTTOM must also be specified"
+		       .and.abs(maxval(thermstatbottom)).eq.0.0) stop & 
+			"THERMSTATTOP or THERMSTATBOTTOM must also be specified"
 		end select
 	endif
 
-	!Flag to determine if output is switched on
-	call locate(1,'VMD_OUTFLAG',.true.)
-	read(1,*) vmd_outflag
-	call locate(1,'MACRO_OUTFLAG',.true.)
-	read(1,*) macro_outflag
-	call locate(1,'MASS_OUTFLAG',.true.)
-	read(1,*) mass_outflag
-	if (mass_outflag .ne. 0) 	read(1,*) Nmass_ave
-	call locate(1,'VELOCITY_OUTFLAG',.true.)
-	read(1,* ) velocity_outflag
-	if (velocity_outflag .ne. 0)	read(1,* ) Nvel_ave
-	call locate(1,'PRESSURE_OUTFLAG',.true.)
-	read(1,* ) pressure_outflag
-	if (pressure_outflag .ne. 0)	read(1,* ) Nstress_ave
-	call locate(1,'VISCOSITY_OUTFLAG',.true.)
-	read(1,* ) viscosity_outflag
-	if ( viscosity_outflag .ne. 0)	read(1,* ) Nvisc_ave
-	call locate(1,'MFLUX_OUTFLAG',.true.)
-	read(1,* ) mflux_outflag
-	if (mflux_outflag .ne. 0)	read(1,* ) Nmflux_ave
-	call locate(1,'VFLUX_OUTFLAG',.true.)
-	read(1,* ) vflux_outflag
-	if (vflux_outflag .ne. 0)	read(1,* ) Nvflux_ave
-	call locate(1,'POTENTIAL_FLAG',.true.)
-	read(1,*) potential_flag
-	if (potential_flag.eq.1) then
-		call locate(1,'FENE_INFO',.true.)
-		read(1,*) chain_length
-		read(1,*) k_c
-		read(1,*) R_0
-	end if	
+	!Flag to determine which outputs are switched on
+	call locate(1,'VMD_OUTFLAG',.false.,from_input)
+	if (from_input) read(1,*) vmd_outflag
+	call locate(1,'MACRO_OUTFLAG',.false.,from_input)
+	if (from_input) read(1,*) macro_outflag
+	call locate(1,'MASS_OUTFLAG',.false.,from_input)
+	if (from_input) then
+		read(1,*) mass_outflag
+		if (mass_outflag .ne. 0) 	read(1,*) Nmass_ave
+	endif
+	call locate(1,'VELOCITY_OUTFLAG',.false.,from_input)
+	if (from_input) then
+		read(1,* ) velocity_outflag
+		if (velocity_outflag .ne. 0)	read(1,* ) Nvel_ave
+	endif
+	call locate(1,'PRESSURE_OUTFLAG',.false.,from_input)
+	if (from_input) then
+		read(1,* ) pressure_outflag
+		if (pressure_outflag .ne. 0)	read(1,* ) Nstress_ave
+	endif
+	call locate(1,'VISCOSITY_OUTFLAG',.false.,from_input)
+	if (from_input) then
+		read(1,* ) viscosity_outflag
+		if ( viscosity_outflag .ne. 0)	read(1,* ) Nvisc_ave
+	endif
+	call locate(1,'MFLUX_OUTFLAG',.false.,from_input)
+	if (from_input) then
+		read(1,* ) mflux_outflag
+		if (mflux_outflag .ne. 0)	read(1,* ) Nmflux_ave
+	endif
+	call locate(1,'VFLUX_OUTFLAG',.false.,from_input)
+	if (from_input) then
+		read(1,* ) vflux_outflag
+		if (vflux_outflag .ne. 0)	read(1,* ) Nvflux_ave
+	endif
 
-	call locate(1,'ETEVTCF_OUTFLAG',.true.)
-	read(1,*) etevtcf_outflag
-	if (etevtcf_outflag.ne.0) then
-		read(1,*) etevtcf_iter0
+	call locate(1,'ETEVTCF_OUTFLAG',.false.,from_input)
+	if (from_input) then
+		read(1,*) etevtcf_outflag
+		if (etevtcf_outflag.ne.0) then
+			read(1,*) etevtcf_iter0
 	
-		if (mod(etevtcf_iter0,tplot).ne.0) then
-			etevtcf_iter0 = etevtcf_iter0 + (tplot - mod(etevtcf_iter0,tplot))
-			print*, 'Etevtcf must be a multiple of tplot, resetting etevtcf to ', etevtcf_iter0
+			if (mod(etevtcf_iter0,tplot).ne.0) then
+				etevtcf_iter0 = etevtcf_iter0 + (tplot - mod(etevtcf_iter0,tplot))
+				print*, 'Etevtcf must be a multiple of tplot, resetting etevtcf to ', etevtcf_iter0
+			end if
 		end if
-
-	end if
-
-	!call locate(1,'R_GYRATION_OUTFLAG',.true.)
-	!read(1,*) r_gyration_outflag		
-
-	!call locate(1,'MICRO_STRESS_OUTFLAG',.true.)
-	!read(1,*) micro_stress_outflag
-
-	call locate(1,'DEFINE_SHEAR',.true.)
-	read(1,*) shear_direction
-	read(1,*) shear_iter0
-	read(1,*) define_shear_as
-	if (define_shear_as.eq.0) read(1,*) shear_velocity
-	if (define_shear_as.eq.1) read(1,*) shear_rate
-	if (define_shear_as.gt.1) then 
-                call error_abort( 'Poorly defined shear in input file')
-        endif
+	endif
 
 	close(1,status='keep')      !Close input file
 
@@ -324,8 +345,6 @@ subroutine setup_inputs
 	initialstep = 0   	     !Set initial step to one to start
 
 	if (seed(1)==seed(2)) then
-!		call random_seed
-!		call random_seed(get=seed(1:n))
 		call random_seed(get=seed(1:n))
                 call date_and_time(values=tvalue)
                 seed = IEOR(tvalue(8)+irank,seed)
@@ -378,7 +397,7 @@ subroutine setup_restart_inputs
 
 	read(2,pos=header_pos) np
         
-	globalnp = np	!Global np and local np same in serial
+	globalnp = np			!Global np and local np same in serial
 	read(2) initialnunits(1)
 	read(2) initialnunits(2)
 	read(2) initialnunits(3)
@@ -397,10 +416,10 @@ subroutine setup_restart_inputs
 	rcutoff2= rcutoff**2         				!Useful definition to save computational time
 	read(2) inputtemperature	!Define initial temperature
 	read(2) delta_t			!Timestep
-	read(2) elapsedtime   	!Elapsed simulation time to date
-	read(2)  k_c				!Polymer spring constant
-	read(2)  R_0				!Polymer max bond elongation
-	read(2)  delta_rneighbr	!Extra distance used for neighbour cell size
+	read(2) elapsedtime   		!Elapsed simulation time to date
+	read(2)  k_c			!Polymer spring constant
+	read(2)  R_0			!Polymer max bond elongation
+	read(2)  delta_rneighbr		!Extra distance used for neighbour cell size
 
 	close(2,status='keep')
 
@@ -430,21 +449,49 @@ subroutine setup_restart_inputs
 	call locate(1,'INITIALNUNITS',.true.)
 	read(1,* ) checkint	     	!x dimension split into number of cells
 	if (checkint .ne. initialnunits(1)) print*, 'Discrepancy between x domain size', &
-	'in input & restart file - restart file will be used'
+				'in input & restart file - restart file will be used'
 	read(1,* ) checkint         !y dimension box split into number of cells
 	if (checkint .ne. initialnunits(2)) print*, 'Discrepancy between y domain size', &
-	'in input & restart file - restart file will be used'
+				'in input & restart file - restart file will be used'
 	read(1,* ) checkint	     	!z dimension box split into number of cells
-	if (nd == 3) then
-		if (checkint .ne. initialnunits(3)) print*, 'Discrepancy between z domain size', &
-		'in input & restart file - restart file will be used'
+	if (checkint .ne. initialnunits(3)) print*, 'Discrepancy between z domain size', &
+				'in input & restart file - restart file will be used'
+
+	!Get number of extra steps, timestep and plot frequency from input file	
+	call locate(1,'NSTEPS',.true.)
+	read(1,* ) extrasteps       !Number of computational steps
+	call locate(1,'DELTA_T',.true.)
+	read(1,* ) delta_t          !Size of time step
+	call locate(1,'TPLOT',.true.)
+	read(1,* ) tplot            !Frequency at which to record results
+	call locate(1,'DELTA_RNEIGHBR',.true.)
+	read(1,* ) delta_rneighbr   !Extra distance used for neighbour cell
+	call locate(1,'SEED',.false.,from_input)
+	if (from_input) then
+		read(1,*) seed(1) 	!Random number seed value 1
+		read(1,*) seed(2) 	!Random number seed value 2
+	else
+		seed(1) = 1		!Fixed default seed for repeatability
+		seed(2) = 2		!Fixed default seed for repeatability
 	endif
 
-	!Get number of extra steps, timestep and plot frequency from input file
+	!Check periodic BC and shear
 	call locate(1,'PERIODIC',.true.)
 	read(1,*) periodic(1)
 	read(1,*) periodic(2)
-	if (nd.eq.3) read(1,*) periodic(3)
+	read(1,*) periodic(3)
+
+	call locate(1,'DEFINE_SHEAR',.false.,from_input)
+	if (from_input) then
+		read(1,*) shear_direction
+		read(1,*) shear_iter0
+		read(1,*) define_shear_as
+		if (define_shear_as.eq.0) read(1,*) shear_velocity
+		if (define_shear_as.eq.1) read(1,*) shear_rate
+		if (define_shear_as.gt.1) then 
+                	call error_abort( 'Poorly defined shear in input file')
+        	endif
+	endif
 
 	!Set all to zero if no specifiers
 	!Setup wall speeds
@@ -519,79 +566,77 @@ subroutine setup_restart_inputs
 		select case(thermstat_flag)
 		case(0)
 			if (abs(maxval(thermstattop   )).ne.0.0 & 
-		        .or.abs(maxval(thermstatbottom)).ne.0.0) stop "THERMSTATTOP or THERMSTATBOTTOM non zero but THERMSTAT_FLAG_INFO set to off (THERMSTAT_FLAG=0)"
+		        .or.abs(maxval(thermstatbottom)).ne.0.0) stop & 
+			"THERMSTATTOP or THERMSTATBOTTOM non zero but THERMSTAT_FLAG_INFO set to off (THERMSTAT_FLAG=0)"
 			thermstatbottom = 0.d0; thermstattop = 0.d0 
 		case(1)
 			thermstattop 	= initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
 			thermstatbottom = initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
 		case(2)
 			if (abs(maxval(thermstattop   )).eq.0.0 & 
-		       .and.abs(maxval(thermstatbottom)).eq.0.0) stop "THERMSTATTOP or THERMSTATBOTTOM must also be specified"
+		       .and.abs(maxval(thermstatbottom)).eq.0.0) stop &
+			 "THERMSTATTOP or THERMSTATBOTTOM must also be specified"
 		end select
 	endif
-	
-	call locate(1,'NSTEPS',.true.)
-	read(1,* ) extrasteps       !Number of computational steps
-	call locate(1,'DELTA_T',.true.)
-	read(1,* ) delta_t          !Size of time step
-	call locate(1,'TPLOT',.true.)
-	read(1,* ) tplot            !Frequency at which to record results
-	call locate(1,'DELTA_RNEIGHBR',.true.)
-	read(1,* ) delta_rneighbr   !Extra distance used for neighbour cell
-	call locate(1,'SEED',.true.)
-	read(1,* ) seed(1)	     	!Random number seed value 1
-	read(1,* ) seed(2)	     	!Random number seed value 2
-	call locate(1,'DEFINE_SHEAR',.true.)
-	read(1,*) shear_direction
-	read(1,*) shear_iter0
-	read(1,*) define_shear_as
-	if (define_shear_as.eq.0) read(1,*) shear_velocity
-	if (define_shear_as.eq.1) read(1,*) shear_rate
-	if (define_shear_as.gt.1) call error_abort('Poorly defined shear in input file')
-	
-	!Flag to determine if output is switched on
-	call locate(1,'VMD_OUTFLAG',.true.)
-	read(1,* ) vmd_outflag
-	call locate(1,'MACRO_OUTFLAG',.true.)
-	read(1,* ) macro_outflag	
-	call locate(1,'MASS_OUTFLAG',.true.)
-	read(1,*) mass_outflag
-	if (mass_outflag .ne. 0) read(1,*) Nmass_ave
-	call locate(1,'VELOCITY_OUTFLAG',.true.)
-	read(1,* ) velocity_outflag
-	read(1,* ) Nvel_ave
-	call locate(1,'PRESSURE_OUTFLAG',.true.)
-	read(1,* ) pressure_outflag
-	read(1,* ) Nstress_ave
-	call locate(1,'VISCOSITY_OUTFLAG',.true.)
-	read(1,* ) viscosity_outflag
-	read(1,* ) Nvisc_ave
-	call locate(1,'MFLUX_OUTFLAG',.true.)
-	read(1,* ) mflux_outflag
-	read(1,* ) Nmflux_ave
-	call locate(1,'VFLUX_OUTFLAG',.true.)
-	read(1,* ) vflux_outflag
-	read(1,* ) Nvflux_ave
+
+
+	!Flag to determine which outputs are switched on
+	call locate(1,'VMD_OUTFLAG',.false.,from_input)
+	if (from_input) read(1,*) vmd_outflag
+	call locate(1,'MACRO_OUTFLAG',.false.,from_input)
+	if (from_input) read(1,*) macro_outflag
+	call locate(1,'MASS_OUTFLAG',.false.,from_input)
+	if (from_input) then
+		read(1,*) mass_outflag
+		if (mass_outflag .ne. 0) 	read(1,*) Nmass_ave
+	endif
+	call locate(1,'VELOCITY_OUTFLAG',.false.,from_input)
+	if (from_input) then
+		read(1,* ) velocity_outflag
+		if (velocity_outflag .ne. 0)	read(1,* ) Nvel_ave
+	endif
+	call locate(1,'PRESSURE_OUTFLAG',.false.,from_input)
+	if (from_input) then
+		read(1,* ) pressure_outflag
+		if (pressure_outflag .ne. 0)	read(1,* ) Nstress_ave
+	endif
+	call locate(1,'VISCOSITY_OUTFLAG',.false.,from_input)
+	if (from_input) then
+		read(1,* ) viscosity_outflag
+		if ( viscosity_outflag .ne. 0)	read(1,* ) Nvisc_ave
+	endif
+	call locate(1,'MFLUX_OUTFLAG',.false.,from_input)
+	if (from_input) then
+		read(1,* ) mflux_outflag
+		if (mflux_outflag .ne. 0)	read(1,* ) Nmflux_ave
+	endif
+	call locate(1,'VFLUX_OUTFLAG',.false.,from_input)
+	if (from_input) then
+		read(1,* ) vflux_outflag
+		if (vflux_outflag .ne. 0)	read(1,* ) Nvflux_ave
+	endif
 
 	elapsedtime = elapsedtime + delta_t*extrasteps !Set elapsed time to end of simualtion
 	initialstep = Nsteps         !Set plot count to final plot of last
 	iter = initialstep			 !Set iter to initialstep so that initial record is performed correctly at restart
 	Nsteps = Nsteps + extrasteps !Establish final iteration step based on previous
 
-	call locate(1,'ETEVTCF_OUTFLAG',.true.)
-	read(1,*) etevtcf_outflag
-	if (etevtcf_outflag.ne.0) then
-		read(1,*) etevtcf_iter0
-		if (etevtcf_iter0.lt.iter) then
-			print*, 'Restart functionality has not yet been implemented for time correlation functions. &
-					 iter_0 for calculation of the end-to-end vector time correlation function has been reset to ', iter
-			etevtcf_iter0 = iter	
+	call locate(1,'ETEVTCF_OUTFLAG',.false.,from_input)
+	if (from_input) then
+		read(1,*) etevtcf_outflag
+		if (etevtcf_outflag.ne.0) then
+			read(1,*) etevtcf_iter0
+			if (etevtcf_iter0.lt.iter) then
+				print*, 'Restart functionality has not yet been implemented for time correlation functions.', &
+					'iter_0 for calculation of the end-to-end vector time correlation function has been reset to ', iter
+				etevtcf_iter0 = iter	
+			end if
+			if (mod(etevtcf_iter0,tplot).ne.0) then
+				etevtcf_iter0 = etevtcf_iter0 + (tplot - mod(etevtcf_iter0,tplot))
+				print*, 'Etevtcf must be a multiple of tplot, resetting etevtcf to ', etevtcf_iter0
+			end if
 		end if
-		if (mod(etevtcf_iter0,tplot).ne.0) then
-			etevtcf_iter0 = etevtcf_iter0 + (tplot - mod(etevtcf_iter0,tplot))
-			print*, 'Etevtcf must be a multiple of tplot, resetting etevtcf to ', etevtcf_iter0
-		end if
-	end if
+	endif
 
 	close(1,status='keep')      !Close input file
 
