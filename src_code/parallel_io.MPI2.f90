@@ -617,6 +617,10 @@ subroutine setup_restart_inputs
 
 	!Broadcast data read by root to all other processors
 	call MPI_BCAST(globalnp,1,MPI_integer,iroot-1,MD_COMM,ierr)
+        ! temporary np, exact value will be fixed after reading r and v arrays
+        ! np is needed in set_parameters_outputs tha is called before microstate initialisation
+        ! when restart is true
+        np = globalnp/nproc
 	call MPI_BCAST(density,1,MPI_double_precision,iroot-1,MD_COMM,ierr)
 	call MPI_BCAST(rcutoff,1,MPI_double_precision,iroot-1,MD_COMM,ierr) 
 	rcutoff2= rcutoff**2         !Useful definition to save computational time
