@@ -431,7 +431,7 @@ subroutine setup_restart_inputs
 
 		!Check if values from input file are different and alert user - all processors have
 		!read the same file so only need to check on one processor
-		open(1,file=trim(prefix_dir)//input_file)
+		open(1,file=input_file)
 		call locate(1,'DENSITY',.true.)
 		read(1,* ) checkdp          !Density of system
 		if (checkdp .ne. density) print*, 'Discrepancy between system density', &
@@ -548,6 +548,8 @@ subroutine setup_restart_inputs
 		read(1,* ) delta_t          !Size of time step
 		call locate(1,'TPLOT',.true.)
 		read(1,* ) tplot            !Frequency at which to record results
+                call locate(1,'INITISE_STEPS',.true.)
+	        read(1,*) initise_steps 	!Number of initialisation steps for simulation
 		call locate(1,'DELTA_RNEIGHBR',.true.)
 		read(1,* ) delta_rneighbr   !Extra distance used for neighbour cell
 		call locate(1,'SEED',.true.)
