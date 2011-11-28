@@ -380,8 +380,9 @@ subroutine setup_restart_inputs
                 globalnp = np
                 write(0,*) 'got global np ', globalnp
                 call MPI_File_read(restartfileid,initialnunits ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
-                 write(0,*) 'got initalnunits ', initialnunits
+                write(0,*) 'got initalnunits ', initialnunits
                 call MPI_File_read(restartfileid,Nsteps        ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+                write(0,*) 'got nsteps ', nsteps 
                 call MPI_File_read(restartfileid,tplot         ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
                 call MPI_File_read(restartfileid,seed          ,2,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
                 call MPI_File_read(restartfileid,periodic      ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
@@ -938,16 +939,17 @@ subroutine parallel_io_final_state
                 call MPI_FILE_SET_VIEW(restartfileid, disp, MPI_BYTE, & 
  		MPI_BYTE, 'native', MPI_INFO_NULL, ierr)
 
-                call MPI_File_write(restartfileid,np            ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
-                write(0,*) 'put np ', np
+                call MPI_File_write(restartfileid,sum(procnp)   ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+                write(0,*) 'put sum np ', sum(procnp)
                 call MPI_File_write(restartfileid,initialnunits ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
                 write(0,*) 'put initialnunits', initialnunits 
                 call MPI_File_write(restartfileid,Nsteps        ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+                 write(0,*) 'put Nsteps', Nsteps 
                 call MPI_File_write(restartfileid,tplot         ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
                 call MPI_File_write(restartfileid,seed          ,2,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
                 call MPI_File_write(restartfileid,periodic      ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
-                call MPI_File_write(restartfileid,potential_flag,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
                 call MPI_File_write(restartfileid,chain_length  ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+                call MPI_File_write(restartfileid,potential_flag,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 
 		!write(2,rec=int_filesize-0) np               	!Number of particles
 		!write(2,rec=int_filesize-1) initialnunits(1) 	!x dimension split into number of cells
