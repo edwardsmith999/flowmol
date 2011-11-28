@@ -5,20 +5,25 @@ contains
 
         subroutine send_CFDvel
                 use grid_arrays, only : uc, vc
+                use continuum_coupler_socket_init, only : nz, z
                 use  coupler, only : coupler_send_CFDvel 
                 implicit none
 
-!!$                test data transfer
-!!$                integer i,j
-!!$
-!!$                do j=1,size(uc,dim=2)
-!!$                 do i=1,size(uc,dim=1)
-!!$                  uc(i,j) = 10*j+i
-!!$                  vc(i,j) = 100*j+10*i
-!!$                 enddo
-!!$                enddo
+                real(kind(0.d0)) uc3d(nz+1,size(uc,dim=1),size(uc,dim=2)), & ! hack for 2 d parallelism, z dimenssion should be independed of nx
+                                 vc3d(nz+1,size(vc,dim=1),size(vc,dim=2))
 
-                call coupler_send_CFDvel(uc,vc)
+                integer i
+
+                do i=1,size(uc3d,dim=1)
+                        uc3d(i,:,:) = uc (:,:)
+                enddo
+                  
+                do i=1,size(vc3d,dim=1)
+                        vc3d(i,:,:) = vc(:,:)
+                enddo
+
+                call coupler_send_CFDvel(uc3d,vc3d)
+
         end subroutine send_CFDvel
 
 
@@ -30,14 +35,14 @@ contains
 !                integer, save :: ncall = 0
 
                 real(kind(0.d0)), intent(out) :: u(:), v(:)
-                real(kind(0.d0)) w(1,1,1), u3(1,size(u),1),v3(1,size(v),1)
+                real(kind(0.d0)) w(1,1,1), u3(size(u),size(u),1),v3(size(v),size(v),1)
 
 
 !  a polimorfic inteface is needed here
                 call coupler_md_vel(u3,v3,w)
 
-                u(:) =  u3(1,:,1)
-                v(:) =  v3(1,:,1)
+                u(:) =  sum(u3(:,:,1),dim=1)
+                v(:) =  sum(v3(:,:,1),dim=1)
 !debug 
 !                 u(:) = 0.d0
 !                 v(:) = 0.d0

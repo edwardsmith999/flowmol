@@ -33,6 +33,7 @@
 
 module continuum_messenger
 	use continuum_data_export
+        use coupler
         save
        
 	integer myid                      ! my process rank
@@ -51,12 +52,12 @@ end module
 subroutine messenger_invoke()
         use mpi
 	use continuum_messenger
-        use coupler 
+        use continuum_coupler_socket_init
 
         call MPI_init (ierr)
 
         if (coupler_is_active) then
-                call coupler_create_comm(COUPLER_CFD,CFD_COMM,ierr)
+                call init_coupler(CFD_COMM)
                 prefix_dir ="./couette_data/"
         else 
                 CFD_COMM = MPI_COMM_WORLD
