@@ -28,30 +28,31 @@ use computational_constants_MD
 use coupler
 implicit none
 
-	call messenger_invoke					!Initialises MPI
+	call messenger_invoke	 		     	!Initialises MPI
 
 	!Check to see if simulation is a restart of a previous simualtion
 	call setup_command_arguments			!Establish command line arguments specifying restart and input files
 	
 	if (restart .eqv. .true.) then
 		print*, 'Simulation restarted from file: ', initial_microstate_file
-		call messenger_init					!Establish processor topology
-		call setup_restart_inputs			!Recover simulation inputs from file
-		call setup_set_parameters			!Calculate parameters using input
+		call messenger_init			!Establish processor topology
+		call setup_restart_inputs		!Recover simulation inputs from file
+                call coupler_init
+		call setup_set_parameters		!Calculate parameters using input
 		call setup_restart_microstate		!Recover position and velocities
 	else
-		call messenger_init					!Establish processor topology
-		call setup_inputs					!Input simulation parameters
-		call coupler_init
-		call setup_set_parameters			!Calculate parameters using input
+		call messenger_init   			!Establish processor topology
+		call setup_inputs			!Input simulation parameters
+                call coupler_init
+		call setup_set_parameters		!Calculate parameters using input
 		call setup_initialise_microstate	!Setup position and velocities
 	endif
 
-	call assign_to_cell						!Assign molecules to cells
+	call assign_to_cell				!Assign molecules to cells
 	call messenger_proc_topology			!Obtain topology of processors
 	call messenger_updateborders(1)			!Update borders between processors
-	call assign_to_neighbourlist_halfint	!Build neighbourlist using cell list
-	call setup_initial_record				!Setup print headers and output inital
+	call assign_to_neighbourlist_halfint		!Build neighbourlist using cell list
+	call setup_initial_record			!Setup print headers and output inital
 
 	! if coupled
 	call coupler_create_map
@@ -85,65 +86,86 @@ subroutine simulation_MD
 	use physical_constants_MD, only : np
 	use arrays_MD, only :r,v,a
 	use coupler
-	use messenger, only : myid
+	use messenger, only : myid, MD_COMM
 	implicit none
   
-	integer :: rebuild    												!Flag set by check rebuild to determine if linklist rebuild required
-	integer :: icfd, save_period, average_period, nsteps_cfd
+	integer :: rebuild    				!Flag set by check rebuild to determine if linklist rebuild required
+	integer :: icfd, iter_average, Naverage, save_period, average_period, nsteps_cfd
+        real(kind(0.d0)) :: delta_t_CFD
 
         save_period = coupler_get_save_period()
         nsteps_cfd  = coupler_get_nsteps()
         average_period = coupler_get_average_period()
+        delta_t_CFD = coupler_md_get_dt_cfd()
 
+        if (coupler_is_active) then
+               Naverage = int(delta_t_cfd/delta_t)
+               Nsteps = initialstep + nsteps_cfd * Naverage
+               elapsedtime = elapsedtime + delta_t*Naverage
+               if (myid == 0) then 
+                       write(*,*) " Warning this is coupled run in which the &
+                                  & number od step was reset to a value determinated &
+                                  & by number of steps in continuum. The elapsed time &
+                                  & was changed accordingly " 
+               endif   
+        else 
+                Naverage = 0
+                iter_average = 0
+                icfd = 0
+        endif
 
-	initialstep = initialstep + 1										!Increment initial step by one 
+	initialstep = initialstep + 1			!Increment initial step by one 
 
-	do icfd = 1, nsteps_cfd + initise_steps								!Initise_steps - number of Nsteps times to run code in initialisation
-		do iter = initialstep, Nsteps									!Loop over specified output steps
+		do iter = initialstep, Nsteps		 !Loop over specified output steps
+
+                        if (coupler_is_active) then 
+                                 iter_average = mod(iter-1, Naverage)+1
+                                 icfd         = (iter-initialstep)/Naverage +1
+                        endif
 				
-			call simulation_compute_forces								!Calculate forces on particles
+			call simulation_compute_forces	!Calculate forces on particles
 															
 			if (mod(iter,tplot) .eq. 0) then
-				call simulation_record									!Evaluate & write properties to file
+					call simulation_record		   	!Evaluate & write properties to file
 			endif
 			if (mflux_outflag .ne. 0) then
 				call mass_flux_averaging
 			endif
 			call simulation_apply_constraint_forces						!Apply force to prevent molecules leaving domain
-			call coupler_apply_continuum_forces(np,r,v,a,iter)			!Apply force based on Nie,Chen an Robbins coupling
+			call coupler_apply_continuum_forces(np,r,v,a,iter_average)			!Apply force based on Nie,Chen an Robbins coupling
 			call simulation_move_particles								!Move particles as a result of forces
 			
 			if (vflux_outflag .ne. 0) then
 				call momentum_flux_averaging(vflux_outflag)
 			endif
 			
-			if ( mod(iter,average_period) == 0 ) then
-				call coupler_boundary_cell_average(np,r,v,send_data=.false.) ! accumlate velocities
-				if ( mod(icfd-initise_steps,save_period) == 0 .and. icfd > initise_steps) then
-					call coupler_uc_average_test(np,r,v,lwrite=.false.)
-				endif
+			if ( mod(iter_average,average_period) == 0 ) then
+					 call coupler_boundary_cell_average(np,r,v,send_data=.false.) ! accumlate velocities
+					 if ( mod(icfd,save_period) == 0) then
+							 call coupler_uc_average_test(np,r,v,lwrite=.false.)
+                                                         call mpi_barrier(MD_COMM,ierr)
+					endif
 			endif
 		
-			call messenger_updateborders(0)								!Update borders between processors
-			call simulation_checkrebuild(rebuild)						!Determine if neighbourlist rebuild required
+			call messenger_updateborders(0)			!Update borders between processors
+			call simulation_checkrebuild(rebuild)		!Determine if neighbourlist rebuild required
 			
 			if(rebuild .eq. 1) then
-				call linklist_deallocateall								!Deallocate all linklist components
-				call sendmols											!Exchange particles between processors
-				call assign_to_cell										!Re-build linklist for domain cells
-				call messenger_updateborders(rebuild)					!Update borders between processors
-				call assign_to_neighbourlist_halfint					!Setup neighbourlist
+				call linklist_deallocateall	   	!Deallocate all linklist components
+				call sendmols			   	!Exchange particles between processors
+				call assign_to_cell	  	   	!Re-build linklist for domain cells
+				call messenger_updateborders(rebuild)	!Update borders between processors
+				call assign_to_neighbourlist_halfint	!Setup neighbourlist
 			endif
 		
-		enddo
-
 		! Average the boundary velocity and send the results to CFD
-		call coupler_boundary_cell_average(np,r,v,send_data=.true.)
-		if ( mod(icfd-initise_steps,save_period) == 0 .and. icfd > initise_steps) then
-			call coupler_uc_average_test(np,r,v,lwrite=.true.)
-		endif
-        
-	enddo
+                if (iter_average == Naverage) then 
+         		call coupler_boundary_cell_average(np,r,v,send_data=.true.)
+                        if ( mod(icfd,save_period) == 0 ) then
+			        call coupler_uc_average_test(np,r,v,lwrite=.true.)
+		        endif
+                endif
+           enddo
 
 end subroutine simulation_MD
 

@@ -46,7 +46,7 @@ subroutine setup_set_parameters
 
 	!call set_parameters_domain
         if ( coupler_is_active ) then 
-        	call set_parameters_global_domain_hybrid
+        	call set_parameters_global_domain_coupled
         else 
         	call set_parameters_global_domain
         endif
@@ -250,7 +250,7 @@ end subroutine set_parameters_global_domain
 
 !-----------------------------------------------------------------------------
 
-subroutine set_parameters_global_domain_hybrid
+subroutine set_parameters_global_domain_coupled
 	use module_set_parameters
         use coupler 
 	implicit none
@@ -269,21 +269,12 @@ subroutine set_parameters_global_domain_hybrid
 
 	! the number of particles is 
 	volume   = xL_md*yL_md*zL_md
-	globalnp = density*volume  ! sigma units
-	!globalnp=4*globalnp   !FCC structure in 3D had 4 molecules per unit cell
 
-!!$	globalnp=1      !Set number of particles to unity for loop below
-!!$	volume=1	!Set domain size to unity for loop below
-!!$	do ixyz=1,nd
-!!$		globaldomain(ixyz) = initialnunits(ixyz) & 	!Size domain based on required density
-!!$		/((density/4.d0)**(1.d0/nd))
-!!$		globalnp = globalnp*initialnunits(ixyz)		!One particle per unit cell
-!!$		volume = volume*globaldomain(ixyz)		!Volume based on size of domain
-!!$	enddo
-!!$
-!!$	globalnp=4*globalnp   !FCC structure in 3D had 4 molecules per unit cell
-!!$	!Initially assume molecules per processor are evenly split   corrected after position setup
-	np = globalnp / nproc					
+        ! set the number of partivles for new simulation
+        if (.not. restart)then
+	       globalnp = density*volume  ! sigma units
+	       np = globalnp / nproc					
+        endif
 
 	domain(1) = globaldomain(1) / real(npx, kind(0.d0))			!determine domain size per processor
 	domain(2) = globaldomain(2) / real(npy, kind(0.d0))			!determine domain size per processor
@@ -302,7 +293,7 @@ subroutine set_parameters_global_domain_hybrid
 	print*, npx,npy,npz
 	write(0,*) 'set_parameter_global_domain_hybrid ', globalnp, np, domain, initialunitsize
 
-end subroutine set_parameters_global_domain_hybrid
+end subroutine set_parameters_global_domain_coupled
 
 
  

@@ -371,12 +371,16 @@ subroutine setup_restart_inputs
                call mpi_file_read(restartfileid,header_pos,1,mpi_integer8,MPI_STATUS_IGNORE,ierr)
 
                header_ofs = header_pos
+               
+               write(0,*) 'got header offset at', header_ofs
 
                call MPI_FILE_SEEK(restartfileid,header_ofs,MPI_SEEK_SET,ierr)
 
                call MPI_File_read(restartfileid,np            ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
                 globalnp = np
+                write(0,*) 'got global np ', globalnp
                 call MPI_File_read(restartfileid,initialnunits ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+                 write(0,*) 'got initalnunits ', initialnunits
                 call MPI_File_read(restartfileid,Nsteps        ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
                 call MPI_File_read(restartfileid,tplot         ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
                 call MPI_File_read(restartfileid,seed          ,2,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
@@ -649,7 +653,7 @@ subroutine setup_restart_microstate
 	integer 			:: n, nl, ixyz, procassign
 	integer				:: dp_datasize
 	integer(kind=MPI_OFFSET_KIND)   :: disp
-	double precision, dimension (nd):: rc, vc !Temporary variable
+	double precision, dimension (2*nd):: rvc !Temporary variable
 
 	!Determine size of datatypes
   	call MPI_type_size(MPI_double_precision,dp_datasize,ierr)
@@ -660,42 +664,45 @@ subroutine setup_restart_microstate
 
 	nl = 0		!Reset local molecules count nl
 
+        write(0,*) 'restart globalnp ', globalnp
+
 	!read positions
 	do n=1,globalnp
 
 		!---------- For all molecule positions ------------
 
 		!Move through location of position co-ordinates
-		disp =  2 * (n-1) * nd * dp_datasize	
+!		disp =  2 * (n-1) * nd * dp_datasize	
 
 		!Set each processor to that location and write particlewise
-		call MPI_FILE_SET_VIEW(restartfileid, disp, MPI_double_precision, & 
- 					MPI_double_precision, 'native', MPI_INFO_NULL, ierr)
-		call MPI_FILE_READ_ALL(restartfileid, rc(:), nd, MPI_double_precision, & 
+!		call MPI_FILE_SET_VIEW(restartfileid, disp, MPI_double_precision, & 
+! 					MPI_double_precision, 'native', MPI_INFO_NULL, ierr)
+		call MPI_FILE_READ_ALL(restartfileid, rvc(:), 2*nd, MPI_double_precision, & 
 					MPI_STATUS_IGNORE, ierr) !Read position from file
 
 		!Use integer division to determine which processor to assign molecule to
-		procassign = ceiling((rc(1)+globaldomain(1)/2.d0)/domain(1))
+		procassign = ceiling((rvc(1)+globaldomain(1)/2.d0)/domain(1))
 		if (procassign .ne. iblock) cycle
-		procassign = ceiling((rc(2)+globaldomain(2)/2.d0)/domain(2))
+		procassign = ceiling((rvc(2)+globaldomain(2)/2.d0)/domain(2))
 		if (procassign .ne. jblock) cycle
-		procassign = ceiling((rc(3)+globaldomain(3)/2.d0)/domain(3))
-		if (procassign .ne. kblock) cycle
-
+                if ( nd == 3) then
+		        procassign = ceiling((rvc(3)+globaldomain(3)/2.d0)/domain(3))
+		        if (procassign .ne. kblock) cycle
+                endif
 		!If molecules is in the domain then add to processor's total
 		nl = nl + 1 !Local molecule count
 
 		!Correct to local coordinates
-		r(nl,1) = rc(1)-domain(1)*(iblock-1)+halfdomain(1)*(npx-1)
-		r(nl,2) = rc(2)-domain(2)*(jblock-1)+halfdomain(2)*(npy-1)
-		r(nl,3) = rc(3)-domain(3)*(kblock-1)+halfdomain(3)*(npz-1)
+		r(nl,1) = rvc(1)-domain(1)*(iblock-1)+halfdomain(1)*(npx-1)
+		r(nl,2) = rvc(2)-domain(2)*(jblock-1)+halfdomain(2)*(npy-1)
+		r(nl,3) = rvc(3)-domain(3)*(kblock-1)+halfdomain(3)*(npz-1)
 
 		!print'(2(i8,a),3(f10.5,a))', iblock, ';', n, ';', r(nl,1), ';', r(nl,2), ';', r(nl,3), ';'
 
 		!Read corresponding velocities
-		call MPI_FILE_READ(restartfileid, vc(:), nd, MPI_double_precision, & 
-					MPI_STATUS_IGNORE, ierr) !Read velocity from file
-		v(nl,:) = vc(:) 
+!		call MPI_FILE_READ(restartfileid, vc(:), nd, MPI_double_precision, & 
+!					MPI_STATUS_IGNORE, ierr) !Read velocity from file
+		v(nl,:) = rvc(nd+1:) 
 	enddo
 
 	np = nl	!Correct local number of particles on processor
@@ -928,7 +935,9 @@ subroutine parallel_io_final_state
  		MPI_BYTE, 'native', MPI_INFO_NULL, ierr)
 
                 call MPI_File_write(restartfileid,np            ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+                write(0,*) 'put np ', np
                 call MPI_File_write(restartfileid,initialnunits ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+                write(0,*) 'put initialnunits', initialnunits 
                 call MPI_File_write(restartfileid,Nsteps        ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
                 call MPI_File_write(restartfileid,tplot         ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
                 call MPI_File_write(restartfileid,seed          ,2,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
