@@ -665,15 +665,15 @@ contains
                         use coupler_internal_md, only : npx, imin_cfd, imax_cfd, kmin_cfd, kmax_cfd
                         implicit none
 
-                        integer i, ibuff(2,0:npx-1), ntot, nrecv, sa(npx),req(npx-1),  &
+                        integer i, ibuff(2,2,0:npx-1), ntot, nrecv, sa(npx),req(npx-1),  &
                                  ierr
                         real(kind(0.d0)),allocatable :: buff(:,:,:,:),buff_recv(:)
 
                         if(npx > 1) then
 
-                                ! works only for parallel decomposition in x direction
-                                call mpi_gather((/bbox%is,bbox%ie/),2,MPI_INTEGER,&
-                                        ibuff,2,MPI_INTEGER,0,COUPLER_COMM,ierr)
+                                ! works only for parallel decomposition in x and y direction
+                                call mpi_gather((/bbox%is,bbox%ie,bbox%ks,bbox%ke/),4,MPI_INTEGER,&
+                                        ibuff,4,MPI_INTEGER,0,COUPLER_COMM,ierr)
 
                                 !               write(0,*) "MD write test data", myid, ibuff
 
@@ -683,14 +683,14 @@ contains
                                         allocate(buff(2,kmax_cfd-kmin_cfd,imin_cfd:imax_cfd-1,4))
 
                                         buff = 0.d0
-                                        buff(:,:,ibuff(1,0):ibuff(2,0)-1,:) = &
-                                                buff(:,:,ibuff(1,0):ibuff(2,0)-1,:) + &
-                                                uc_bin(:,:,1:nlx-1,:)
+                                        buff(:,ibuff(1,2,0):ibuff(2,2,0)-1,ibuff(1,1,0):ibuff(2,1,0)-1,:) = &
+                                                buff(:,ibuff(1,2,0):ibuff(2,2,0)-1,ibuff(1,1,0):ibuff(2,1,0)-1,:) + &
+                                                uc_bin(:,1:nlz-1,1:nlx-1,:)
 
 
                                         ntot = 0
                                         do i=1,npx-1
-                                                ntot = ntot + 2*(nlz-1)*(ibuff(2,i)-ibuff(1,i))*4
+                                                ntot = ntot + 2*(ibuff(2,2,i)-ibuff(1,2,i))*(ibuff(2,1,i)-ibuff(1,1,i))*4
                                         enddo
 
                                         allocate(buff_recv(ntot))
@@ -700,7 +700,7 @@ contains
 
                                         do i=1,npx-1
 
-                                                nrecv = 2*(nlz-1)*(ibuff(2,i)-ibuff(1,i))*4
+                                                nrecv = 2*(ibuff(2,2,i)-ibuff(1,2,i))*(ibuff(2,1,i)-ibuff(1,1,i))*4
                                                 sa(i+1) = sa(i) + nrecv
 
                                                 call mpi_irecv(buff_recv(sa(i)),nrecv,MPI_DOUBLE_PRECISION,&
@@ -711,9 +711,9 @@ contains
                                         call mpi_waitall(npx-1,req,MPI_STATUSES_IGNORE,ierr)
 
                                         do i =1, npx-1
-                                                buff(:,:,ibuff(1,i):ibuff(2,i)-1,:) = &
-                                                        buff(:,:,ibuff(1,i):ibuff(2,i)-1,:) + &
-                                                        reshape(buff_recv(sa(i):sa(i+1)-1), (/ 2,nlz-1,ibuff(2,i)-ibuff(1,i),4 /))
+                                                buff(:,ibuff(1,2,i):ibuff(2,2,i)-1,ibuff(1,1,i):ibuff(2,1,i)-1,:) = &
+                                                        buff(:,ibuff(1,2,i):ibuff(2,2,i)-1,ibuff(1,1,i):ibuff(2,1,i)-1,:) + &
+                                                        reshape(buff_recv(sa(i):sa(i+1)-1), (/ 2,ibuff(2,2,i)-ibuff(1,2,i),ibuff(2,1,i)-ibuff(1,1,i),4 /))
                                         enddo
                                 else
 
@@ -729,7 +729,7 @@ contains
                                 if (myid == 0 ) then
                                         open(45,file="md_vel.txt",position="append")
                                         do i = 1,4
-                                                write(45, '(100(E12.4,1x))') buff(:,:,:,i)
+                                                write(45, '(100(E12.4,1x))') sum(buff(:,:,:,i),dim=2) 
                                         enddo
                                         write(45, '(1x/1x)')
                                         close(45)
@@ -737,7 +737,7 @@ contains
                         else
                                 open(45,file="md_vel.txt",position="append")
                                 do i = 1,4
-                                        write(45, '(100(E12.4,1x))') uc_bin(:,:,:,i)
+                                        write(45, '(100(E12.4,1x))') sum(uc_bin(:,:,:,i),dim=2)
                                 enddo
                                 write(45, '(1x/1x)')
                                 close(45)
@@ -964,7 +964,7 @@ contains
                 use coupler_internal_common
                 implicit none
 
-                real(kind=kind(0.d0)) uc(:,:),vc(:,:)
+                real(kind=kind(0.d0)) uc(:,:,:),vc(:,:,:)
 
                 real(kind=kind(0.d0)) vaux(nlz-1,nlx-1,nly-1), vbuf((nlz-1)*(nlx-1)*(nly-1))
                 integer i, j,k, is, ie, js, je, ks, ke, iu_s, iu_e, iv_s, iv_e, iw_s, iw_e, &
@@ -1006,9 +1006,9 @@ contains
 
                         select case (j)
                         case (1)
-                                vaux(1,:,:) = uc(iu_s:iu_e,2:jmax_overlap-1)
+                                vaux(:,:,:) = uc(1:nlz-1,iu_s:iu_e,2:jmax_overlap-1)
                         case (2)
-                                vaux(1,:,:) = vc(iv_s:iv_e,2:jmax_overlap-1)
+                                vaux(:,:,:) = vc(1:nlz-1,iv_s:iv_e,2:jmax_overlap-1)
                         case (3) 
                                 !                                vaux(:,:,:) = wc(1:1,iw_s:iw_e,1:jmax_overlap)
                         end select
@@ -1100,8 +1100,8 @@ contains
 
                 !                write(0,*) "CFD, md_vel 2: ", myid, iu_s, iu_e, iv_s, iv_e, iw_s, iw_e
 
-                call  recv_vel_MD(uc, 1, 1, 1, nlx-1, 1, 1, 0)
-                call  recv_vel_MD(vc, 1, 1, 1, nlx-1, 1, 1, 0)
+                call  recv_vel_MD(uc, 1, nlz-1, 1, nlx-1, 1, 1, 0)
+                call  recv_vel_MD(vc, 1, nlz-1, 1, nlx-1, 1, 1, 0)
                 !                call  recv_vel_MD(wc, 1, ngz-1, i1_w, i2_w, 0, 0, 1)
 
         end subroutine coupler_md_vel
