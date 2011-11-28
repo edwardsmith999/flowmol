@@ -372,17 +372,12 @@ subroutine setup_restart_inputs
 
                header_ofs = header_pos
                
-               write(0,*) 'got header offset at', header_ofs
-
                call MPI_FILE_SEEK(restartfileid,header_ofs,MPI_SEEK_SET,ierr)
 
                call MPI_File_read(restartfileid,np            ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
                 globalnp = np
-                write(0,*) 'got global np ', globalnp
                 call MPI_File_read(restartfileid,initialnunits ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
-                write(0,*) 'got initalnunits ', initialnunits
                 call MPI_File_read(restartfileid,Nsteps        ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
-                write(0,*) 'got nsteps ', nsteps 
                 call MPI_File_read(restartfileid,tplot         ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
                 call MPI_File_read(restartfileid,seed          ,2,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
                 call MPI_File_read(restartfileid,periodic      ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
@@ -669,8 +664,6 @@ subroutine setup_restart_microstate
 
 	nl = 0		!Reset local molecules count nl
 
-        write(0,*) 'restart globalnp ', globalnp
-
 	!read positions
 	do n=1,globalnp
 
@@ -940,11 +933,8 @@ subroutine parallel_io_final_state
  		MPI_BYTE, 'native', MPI_INFO_NULL, ierr)
 
                 call MPI_File_write(restartfileid,sum(procnp)   ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
-                write(0,*) 'put sum np ', sum(procnp)
                 call MPI_File_write(restartfileid,initialnunits ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
-                write(0,*) 'put initialnunits', initialnunits 
                 call MPI_File_write(restartfileid,Nsteps        ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
-                 write(0,*) 'put Nsteps', Nsteps 
                 call MPI_File_write(restartfileid,tplot         ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
                 call MPI_File_write(restartfileid,seed          ,2,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
                 call MPI_File_write(restartfileid,periodic      ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
