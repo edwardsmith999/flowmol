@@ -127,8 +127,8 @@ subroutine messenger_init()
 
         !check if npx*npy*npz=nproc
         if (npx * npy * npz /= nproc ) then
-                write(*,*)' Wrong  specification for processor topology, nproc /= npx*npy*npz'
-                call MPI_Abort(MD_COMM,1,ierr)
+                write(*,*) ' Wrong  specification for processor topology, nproc /= npx*npy*npz'
+                call MPI_Abort(MPI_COMM_WORLD,1,ierr)
         endif
 
         ! allocate arrays that depend on topology parameters
