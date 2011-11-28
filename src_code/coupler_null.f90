@@ -137,4 +137,11 @@ contains
          end function coupler_get_nsteps
 
 
+        function coupler_md_get_dt_cfd() result(t)
+
+                 real(kind=kind(0.d0)) t
+
+                 t = 0.d0
+        end function coupler_md_get_dt_cfd
+
 end module coupler

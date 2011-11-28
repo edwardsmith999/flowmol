@@ -662,14 +662,14 @@ contains
 
                 subroutine write_data
                         use mpi
-                        use coupler_internal_md, only : npx, imin_cfd, imax_cfd, kmin_cfd, kmax_cfd
+                        use coupler_internal_md, only : nproc, imin_cfd, imax_cfd, kmin_cfd, kmax_cfd
                         implicit none
 
-                        integer i, ibuff(2,2,0:npx-1), ntot, nrecv, sa(npx),req(npx-1),  &
+                        integer i, ibuff(2,2,0:nproc-1), ntot, nrecv, sa(nproc),req(nproc-1),  &
                                  ierr
                         real(kind(0.d0)),allocatable :: buff(:,:,:,:),buff_recv(:)
 
-                        if(npx > 1) then
+                        if(nproc > 1) then
 
                                 ! works only for parallel decomposition in x and y direction
                                 call mpi_gather((/bbox%is,bbox%ie,bbox%ks,bbox%ke/),4,MPI_INTEGER,&
@@ -689,7 +689,7 @@ contains
 
 
                                         ntot = 0
-                                        do i=1,npx-1
+                                        do i=1,nproc-1
                                                 ntot = ntot + 2*(ibuff(2,2,i)-ibuff(1,2,i))*(ibuff(2,1,i)-ibuff(1,1,i))*4
                                         enddo
 
@@ -698,7 +698,7 @@ contains
 
                                         sa(1)=1
 
-                                        do i=1,npx-1
+                                        do i=1,nproc-1
 
                                                 nrecv = 2*(ibuff(2,2,i)-ibuff(1,2,i))*(ibuff(2,1,i)-ibuff(1,1,i))*4
                                                 sa(i+1) = sa(i) + nrecv
@@ -708,9 +708,9 @@ contains
 
                                         enddo
 
-                                        call mpi_waitall(npx-1,req,MPI_STATUSES_IGNORE,ierr)
+                                        call mpi_waitall(nproc-1,req,MPI_STATUSES_IGNORE,ierr)
 
-                                        do i =1, npx-1
+                                        do i =1, nproc-1
                                                 buff(:,ibuff(1,2,i):ibuff(2,2,i)-1,ibuff(1,1,i):ibuff(2,1,i)-1,:) = &
                                                         buff(:,ibuff(1,2,i):ibuff(2,2,i)-1,ibuff(1,1,i):ibuff(2,1,i)-1,:) + &
                                                         reshape(buff_recv(sa(i):sa(i+1)-1), (/ 2,ibuff(2,2,i)-ibuff(1,2,i),ibuff(2,1,i)-ibuff(1,1,i),4 /))
@@ -719,13 +719,12 @@ contains
 
                                         call mpi_send(uc_bin,size(uc_bin),MPI_DOUBLE_PRECISION,0,1,COUPLER_COMM,ierr)
 
-                                        uc_bin = 0.d0
-                                endif
+                                 endif
                         endif
 
 
 
-                        if (npx > 1) then
+                        if (nproc > 1) then
                                 if (myid == 0 ) then
                                         open(45,file="md_vel.txt",position="append")
                                         do i = 1,4
@@ -1161,5 +1160,14 @@ contains
                  n = nsteps
          end function coupler_get_nsteps
 
+
+        function coupler_md_get_dt_cfd() result(t)
+                 use coupler_internal_md, only : dt_CFD  
+
+                 real(kind=kind(0.d0)) t
+
+                 t = dt_CFD
+        end function coupler_md_get_dt_cfd
+         
 
 end module coupler
