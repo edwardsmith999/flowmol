@@ -219,16 +219,21 @@ subroutine set_parameters_global_domain
 
 	integer                :: ixyz
 
-	globalnp=1      !Set number of particles to unity for loop below
 	volume=1	!Set domain size to unity for loop below
 	do ixyz=1,nd
 		globaldomain(ixyz) = initialnunits(ixyz) & 	!Size domain based on required density
 		/((density/4.d0)**(1.d0/nd))
-		globalnp = globalnp*initialnunits(ixyz)		!One particle per unit cell
 		volume = volume*globaldomain(ixyz)		!Volume based on size of domain
 	enddo
 
-	globalnp=4*globalnp   !FCC structure in 3D had 4 molecules per unit cell
+        ! no need to fix globalnp if we have it already
+        if(.not. restart) then
+               	globalnp=1      !Set number of particles to unity for loop below
+                do ixyz=1,nd
+                       globalnp = globalnp*initialnunits(ixyz)		!One particle per unit cell
+                 enddo
+	         globalnp=4*globalnp   !FCC structure in 3D had 4 molecules per unit cell
+         endif
 
 	!Initially assume molecules per processor are evenly split  - corrected after position setup
 	np = globalnp / nproc					
