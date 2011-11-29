@@ -6,13 +6,16 @@
 ! after the name, in parenthesis, is the realm in which each routine must be called
 !
 ! coupler_create_comm              (cfd+md) splits MPI_COMM_WORLD, create intercommunicator between CFD and MD
-! coupler_get_cfd_info             (cfd)    brings CFD grid info and run parameters in the internal module coupler_internal_cfd                  
+! coupler_get_cfd_info             (cfd)    brings CFD grid info and run parameters in the internal module
+!					    coupler_internal_cfd                  
 ! coupler_get_md_info              (md)     does the same for MD in the module coupler_internal_md
 ! coupler_create_map               (cfd+md) creates correspondence maps between the CFD grid and MD domains
 ! coupler_constrain_forces         (md)     applies the the constrain force in the top Y domain in order to keep molecules inside 
-! coupler_apply_continuum_forces   (md)     applies the continuum constrain force to molecules in a given sector of overlap region (see Nie's et al article)
+! coupler_apply_continuum_forces   (md)     applies the continuum constrain force to molecules in a given sector of overlap 
+!					    region (see Nie's et al article)
 ! coupler_uc_average_test          (md)     outputs uc component of Cartesian velocity in 4 for y layer centred around y=0 
-! coupler_boundary_cell_average    (md)     computes averages of MD velocities and transfers them to CFD for the computation of the boundary conditions 
+! coupler_boundary_cell_average    (md)     computes averages of MD velocities and transfers them to CFD for the computation 
+!					    of the boundary conditions 
 ! coupler_send_CFDvel              (cfd)    sends CFD velocities to MD for computation of the continuum constrains
 ! coupler_md_vel                   (cfd)    collects MD averages needed to compute boundary condition
 ! coupler_get                      (cfd+md) obtains coupler parameters from internal modules using a list of optional arguments
@@ -118,7 +121,9 @@ contains
 
                         if (myid == 0) then
                                 call mpi_comm_size(mpi_comm_world, nproc, ierr)
-                                allocate(ra(nproc))
+                        	allocate(ra(nproc))
+			else
+				allocate(ra(1))	!Assign value arbitarily
                         endif
 
                         call mpi_gather(realm,1,MPI_INTEGER,ra,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
@@ -175,9 +180,9 @@ contains
                         iaux(6)
 
 
-                imino_ = imino; imin_ = imin; imax_ = imax; jmino_ = jmin; &
-                        jmin_ = jmin; jmax_ = jmax; jmaxo_ = jmaxo; kmino_ = kmino; kmin_ = kmin; kmax_ = kmax; &
-                        kmaxo_ = kmaxo; nsteps_ = nsteps;  dx_ = dx; dz_ = dz; &
+                imino_ = imino; imin_ = imin; imax_ = imax; jmino_ = jmin
+                        jmin_ = jmin; jmax_ = jmax; jmaxo_ = jmaxo; kmino_ = kmino; kmin_ = kmin; kmax_ = kmax
+                        kmaxo_ = kmaxo; nsteps_ = nsteps;  dx_ = dx; dz_ = dz
                         npx_ = npx; npy_ = npy; npz_ = npz 
 
                 allocate(x_(size(x)),stat=ierr); x_ = x
@@ -210,13 +215,13 @@ contains
                 nproc_md = npx_md * npy_md * npz_md
 
                 ! send CFD mesh data
-
                 call mpi_bcast((/ imino,imin,imax,imaxo,jmino,jmin,jmax,jmaxo,kmino,kmin,kmax,kmaxo /), 12,&
                         MPI_INTEGER, source, CFD_MD_ICOMM,ierr)
                 call mpi_bcast(x,size(x),mpi_double_precision,source,CFD_MD_ICOMM,ierr)
                 call mpi_bcast(y,size(y),mpi_double_precision,source,CFD_MD_ICOMM,ierr)
                 call mpi_bcast(z,size(z),mpi_double_precision,source,CFD_MD_ICOMM,ierr)
                 call mpi_bcast((/ dx, dz /),2,mpi_double_precision,source,CFD_MD_ICOMM,ierr)
+
                 ! send CFD nsteps and dt
                 call mpi_bcast(nsteps,1,mpi_integer,source,CFD_MD_ICOMM,ierr)
                 call mpi_bcast(dt,1,mpi_double_precision,source,CFD_MD_ICOMM,ierr)
@@ -292,7 +297,6 @@ contains
 
                 ! rescale all lengths to MD units to avoid disasters
                 x = fsig * x; y = fsig * y; z = fsig * z 
-
                 dx = fsig * ra(1); dz = fsig * ra(2)
 
                 !		write(0,*) 'MD exchange grid data: imin0, imin ...', imino, imin_cfd, imax_cfd,imaxo, &
@@ -337,7 +341,7 @@ contains
 
                 if (COUPLER_REALM == COUPLER_CFD) then
                         call create_map_cfd
-                else if (COUPLER_REALM == COUPLER_MD) then
+                else if (COUPLER_REALM .eq. COUPLER_MD) then
                         call create_map_md
                 else
                         write(*,*) "Wrong COUPLER_REALM in coupler_create_map"
@@ -415,13 +419,13 @@ contains
                 ! What precisely is Y_boundary? It should be were the countinuum boundary is, the 
                 ! averages for the boundary condition must be changed
 
-                if (iter == 1) then
+                if (iter .eq. 1) then
                         ! get the previous value of CFD velocities
                         call  get_CFDvel
                 endif
 
                 ! at first CFD step we don't have two values to extrapolate CFD velocities, set inv_dtCFD=0
-                if (ncalls == 0) then
+                if (ncalls .eq. 0) then
                         inv_dtCFD = 0.0
                 else
                         inv_dtCFD = 1.0/dt_CFD
@@ -444,9 +448,10 @@ contains
 
                         ! we need global MD coordinats to check if the particle is in the extended box.
                         ! bbox%bb(:,:) are ok for they were used to build the MD domains
-                        rd(:) = global_r(r(ip,:))
+			rd(:) = r(ip,:)
+                        rd(:) = global_r(rd)
 
-                        ! struggling with the bottom boundary, bellow average boxes but with particles
+                        ! struggling with the bottom boundary, below average boxes but with particles
                         !  for the moment let's work with 1 layer of MD blocks in 1 D
                         if ( rd(2) <= y(jmax_overlap-2) .or.   rd(2) >= y(jmax_overlap-1) ) then
                                 cycle 
@@ -497,7 +502,7 @@ contains
 
                 ! here we should have the cell coordinates for the particle ip which is 
                 ! in the overlap region
-                ! one has to tread separatley the particle that have left the domain
+                ! one has to treat separatley the particle that have left the domain
                 ! compute the average force for each bin
 
                 !                write(0,*)'MD before average over bin. np_overlap', np_overlap
@@ -517,9 +522,7 @@ contains
 
 
                         ! set the continnum constrais for the particle in the bin
-
                         ! speed extrapolation 
-
                         ! add all up
 
                         inv_dtMD =1.d0/dt_MD
@@ -539,7 +542,7 @@ contains
                                 !                                write(0,'(a,4I4,14E12.4)') "MD continuum force", ib,jb,kb,n,box_average(ib,jb,kb)%v(:), &
                                 !                                        box_average(ib,jb,kb)%a(:),v(ip,:),a(ip,:),inv_dtMD,inv_dtCFD
 
-                                if ( n == 0 ) cycle
+                                if ( n .eq. 0 ) cycle
                                 ! use the following exptrapolation formula
                                 ! y = (y2-y1)/(x2-x1) * (x-x2) +y2
 
@@ -603,7 +606,7 @@ contains
                         allocate(uc_bin(2,nlz-1,nlx-1,4))
                         uc_bin = 0.d0
 
-                        if (myid == 0) then 
+                        if (myid .eq. 0) then 
                                 open(45, file="md_vel.txt",position="rewind")
                                 write(45,*)'# dx,dy,dz ', dx,y(jmin+1)-y(jmin),dz
                                 close(45)
@@ -624,7 +627,8 @@ contains
 
                 do ip = 1, np
                         ! using global particle coordinates
-                        rd(:) = global_r(r(ip,:))
+			rd(:)=r(ip,:)
+                        rd(:) = global_r(rd)
 
                         if ( rd(2) < ymin .or. rd(2) > ymax ) then
                                 ! molecule outside the boundary layer
@@ -677,7 +681,7 @@ contains
 
                                 !               write(0,*) "MD write test data", myid, ibuff
 
-                                if (myid == 0) then
+                                if (myid .eq. 0) then
 
                                         ! the local bit first
                                         allocate(buff(2,kmax_cfd-kmin_cfd,imin_cfd:imax_cfd-1,4))
@@ -725,7 +729,7 @@ contains
 
 
                         if (nproc > 1) then
-                                if (myid == 0 ) then
+                                if (myid .eq. 0 ) then
                                         open(45,file="md_vel.txt",position="append")
                                         do i = 1,4
                                                 write(45, '(100(E12.4,1x))') sum(buff(:,:,:,i),dim=2) 
@@ -769,11 +773,9 @@ contains
 
                 !                write(0,*) 'md box-average: dx, dy, dz (sigma units), fsig', myid, dx,dz
 
-                ! because of the staggered grid each a velocity componenet averahe
+                ! because of the staggered grid each a velocity component average
                 ! must compute separately. Optimisation to be done later
-
                 call compute_uc_average
-
                 call compute_vc_average
 
                 !                call compute_wc_average
@@ -808,7 +810,8 @@ contains
 
                         do ip = 1, np
                                 ! using global particle coordinates
-                                rd(:) = global_r(r(ip,:))
+				rd(:) = r(ip,:)
+                                rd(:) = global_r(rd)
 
                                 if ( rd(2) > y(jmin) .or. rd(2) < y(jmino) ) then
                                         ! molecule outside the boundary layer
@@ -846,7 +849,7 @@ contains
                 subroutine compute_vc_average
                         use coupler_internal_md, only : nlx, nlz, bbox, jmino, jmin => jmin_cfd, vc_bin
                         implicit none
-                        ! this is the simplest one as there is no need the of data communication
+                        ! this is the simplest one as there is no need for data communication
                         integer  ib, jb, kb, ip, ierr
                         real(kind=kind(0.d0)) rd(3)
                         logical, save :: first_time = .true.
@@ -873,7 +876,8 @@ contains
                         do ip = 1, np
 
                                 ! using global particle coordinates
-                                rd(:) = global_r(r(ip,:))
+				rd(:) = r(ip,:)
+                                rd(:) = global_r(rd)
 
                                 !                                write(2200+myid,*) rd, y(jmino), y(jmin)
 
@@ -884,7 +888,6 @@ contains
                                 endif
 
                                 ! find the box indices
-
                                 ib = ceiling((rd(1) - x(bbox%is)) / dx)
                                 kb = ceiling((rd(3) - z(bbox%ks)) / dz)     
 
@@ -894,7 +897,7 @@ contains
                                         vc_bin(1,kb,ib,jb) = vc_bin(1,kb,ib,jb) + v(ip,2)
                                         vc_bin(2,kb,ib,jb) = vc_bin(2,kb,ib,jb) + 1.d0
                                 else 
-                                        !                                       write(0,*) 'MD vc_average, outside domain rd ', rd, ' bbox%bb ', bbox%bb 
+                                        !write(0,*) 'MD vc_average, outside domain rd ', rd, ' bbox%bb ', bbox%bb 
                                 endif
                         end do
 
@@ -924,7 +927,8 @@ contains
 
                         do ip = 1, np
                                 ! use global particle coordinates
-                                rd(:) = global_r(r(ip,:))
+				rd(:) = r(ip,:)
+                                rd(:) = global_r(rd)
 
                                 if ( rd(2) > y(jmin) .or. rd(2) < y(jmino) ) then
                                         ! molecule outside the boundary layer
@@ -940,7 +944,7 @@ contains
                                         wc_bin(1,kb,ib) = wc_bin(1,kb,ib) + v(ip,3)
                                         wc_bin(2,kb,ib) = wc_bin(2,kb,ib) + 1.d0 
                                 else 
-                                        !                                       write(0,*) 'MD wc_average, outside domain rd', rd, ' bbox%bb ', bbox%bb 
+                                        !write(0,*) 'MD wc_average, outside domain rd', rd, ' bbox%bb ', bbox%bb 
                                 endif
 
                         enddo
@@ -975,15 +979,12 @@ contains
 
 
                 ! This local CFD domain is outside MD overlap zone 
-                if ( md_map%n == 0 ) return 
+                if ( md_map%n .eq. 0 ) return 
 
                 call mpi_comm_rank(COUPLER_COMM,myid,ierr)
 
                 ncalls = ncalls + 1
-
-
                 !                write(0,*) "CFD, send_CFDvel: ", myid
-
                 is = bbox_cfd%xbb(1,icoord(1,myid+1))
                 ie = bbox_cfd%xbb(2,icoord(1,myid+1))
 
@@ -994,15 +995,12 @@ contains
                 iu_e = iu_s + ie - is - 1 ! +1 - 1 !!
                 iv_e = iv_s + ie - is - 1 
                 iw_e = iw_s + ie - is - 1 
-
                 !                write(0,*) 'CFD send_CFDvel' , myid, ncalls, ie-is+1, nlx,nly,nlz
-
                 min_i = minval(md_map%domains(1,:))
                 min_j = minval(md_map%domains(3,:))
                 min_k = minval(md_map%domains(5,:))
 
                 do j = 1, 2
-
                         select case (j)
                         case (1)
                                 vaux(:,:,:) = uc(1:nlz-1,iu_s:iu_e,2:jmax_overlap-1)
@@ -1060,7 +1058,7 @@ contains
                 !                write(0,*) 'CFD send_CFDvel finish' , myid, ncalls
 
 
-                ! This barrier does not work as this function si called inside an jblock == 1
+                ! This barrier does not work as this function si called inside an jblock .eq. 1
                 ! condition. Is it really necessary?
                 !                call mpi_barrier(CFD_COMM, ierr)
 
@@ -1101,6 +1099,7 @@ contains
 
                 call  recv_vel_MD(uc, 1, nlz-1, 1, nlx-1, 1, 1, 0)
                 call  recv_vel_MD(vc, 1, nlz-1, 1, nlx-1, 1, 1, 0)
+		wc = 0.d0
                 !                call  recv_vel_MD(wc, 1, ngz-1, i1_w, i2_w, 0, 0, 1)
 
         end subroutine coupler_md_vel

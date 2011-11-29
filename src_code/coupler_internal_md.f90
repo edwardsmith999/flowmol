@@ -2,17 +2,17 @@ module coupler_internal_md
         implicit none
         save 
 
-! a local mpi rank is useful
+	! a local mpi rank is useful
         integer myid
 
-! MD data        
+	! MD data        
         integer npx, npy, npz, nproc
         integer, allocatable :: icoord(:,:)
         real(kind=kind(0.d0)) :: dt_MD
 
-! data structures to hold CFD - MD mapping 
+	! data structures to hold CFD - MD mapping 
 
-! bounding box of MD domain within FD global domain
+	! bounding box of MD domain within FD global domain
         type bbox_domain
                 integer is,ie,js,je,ks,ke
                 real(kind=kind(0.d0)) :: bb(2,3)
@@ -20,10 +20,10 @@ module coupler_internal_md
 
         type(bbox_domain), target :: bbox
 
-! thicknes of the MD region between the wall and CFD grid
+	! thicknes of the MD region between the wall and CFD grid
         real(kind=kind(0.d0)) DY_PURE_MD
 
-! local domain lenghts, and halves
+	! local domain lenghts, and halves
         real(kind=kind(0.d0)) domain_lengths(3), half_domain_lengths(3)
 
         type cfd_domain_map
@@ -35,10 +35,10 @@ module coupler_internal_md
 
         type(cfd_domain_map) cfd_map
 
-! write or not the overlap map
+	! write or not the overlap map
         logical :: dump_ovlerlap_map = .true.
 
-! local grid sizes
+	! local grid sizes
         integer nlx, nly, nlz
 
         type cfd_box_sum
@@ -49,27 +49,27 @@ module coupler_internal_md
 
         real(kind(0.d0)), allocatable :: uc_bin(:,:,:), vc_bin(:,:,:,:), wc_bin(:,:,:) 
 
-        real(kind=kind(0.d0)) :: FoP_time_ratio = 1.0    ! time ratio dt_CFD/dt_MD; to be fixed later
-        real(kind=kind(0.d0))    xL_md, yL_md, zL_md ! macroscopic sizes of MD domain. needed?
-        real(kind=kind(0.d0)) :: fsig=1.0  !Ratio betwen macroscopic unit lenght and molecular unit 
+        real(kind=kind(0.d0)) :: FoP_time_ratio = 1.0   ! time ratio dt_CFD/dt_MD; to be fixed later
+        real(kind=kind(0.d0)) :: xL_md, yL_md, zL_md 	! macroscopic sizes of MD domain. needed?
+        real(kind=kind(0.d0)) :: fsig=1.0  		!Ratio betwen macroscopic unit lenght and molecular unit 
 
-! array for velocities from CFD, last dimension holds time indices 
+	! array for velocities from CFD, last dimension holds time indices 
         real(kind=kind(0.d0)), allocatable :: vel_fromCFD(:,:,:,:,:)
         integer itm1,itm2
 
-! data from CFD
+	! data from CFD
         integer npx_cfd, npy_cfd, npz_cfd, jmax_overlap_cfd, nproc_cfd
-! CFD mesh data
+	! CFD mesh data
         integer imino, imin_cfd, imax_cfd,imaxo, jmino, jmin_cfd, jmax_cfd, jmaxo,&
                 kmino, kmin_cfd, kmax_cfd, kmaxo
         real(kind=kind(0.d0)), allocatable, target :: x(:), y(:), z(:)
         real(kind=kind(0.d0)) dx, dz, dt_CFD
 
-! nteps from CFD
+	! nsteps from CFD
         integer nsteps
-! average period for averages ( it must come from CFD !!!)      
+	! average period for averages ( it must come from CFD !!!)      
         integer :: average_period = 5
-! save period ( corresponts to tplot in CFD, revise please !!!)
+	! save period ( corresponts to tplot in CFD, revise please !!!)
         integer :: save_period = 10
 
 contains 
@@ -82,13 +82,13 @@ contains
                 integer, allocatable :: overlap_mask(:,:)
 
 
-! compute the boundaries of this MD domain in the CFD global domain.
-! assume that all domains have identical sides 
+		! compute the boundaries of this MD domain in the CFD global domain.
+		! assume that all domains have identical sides 
 
                 domain_lengths(:) = (/ xL_md/npx, yL_md/npy, zL_md/npz /)
                 half_domain_lengths(:) = 0.5d0 * domain_lengths(:)
 
-! bounding boxes coordinates start from x(imin), z(kmin) and y(jmino)-DY_PURE_MD
+		! bounding boxes coordinates start from x(imin), z(kmin) and y(jmino)-DY_PURE_MD
                 bbox%bb(1,:) = (icoord(:,myid+1)-1) * domain_lengths(:) &
                         + (/ x(imin_cfd), y(jmino)-DY_PURE_MD, z(kmin_cfd) /)
                 bbox%bb(2,:) =  bbox%bb(1,:) + domain_lengths(:)
@@ -99,7 +99,7 @@ contains
 
                 !		write(0,*) 'MD: bbox%is ', myid, bbox%is, bbox%ie, bbox%js, bbox%je, bbox%ks, bbox%ke 
                 !
-!  send box coordinate to CFD
+		!  send box coordinate to CFD
                 !
 
                 call mpi_allgather((/ bbox%is, bbox%ie, bbox%js, bbox%je, bbox%ks, bbox%ke /), 6, MPI_INTEGER,&
@@ -119,7 +119,7 @@ contains
 !!$		enddo
 
 
-! get the domain overlap mask from cfd
+		! get the domain overlap mask from cfd
 
                 allocate(overlap_mask(0:nproc-1,0:nproc_cfd-1))
 
@@ -138,7 +138,7 @@ contains
 
                 !		write(0,'(a,32I3)') 'MD, noverlaps: ', myid, noverlaps
 
-! sort out which CFD ranks hold non-void domains for this MD rank
+		! sort out which CFD ranks hold non-void domains for this MD rank
 
                 cfd_map%n = noverlaps
                 allocate ( cfd_map%rank_list(noverlaps), cfd_map%domains(6,noverlaps))
@@ -161,7 +161,7 @@ contains
                         call write_overlap_map
                 endif
 
-! allocate array for CFD velocities and initialize the time indices; 
+		! allocate array for CFD velocities and initialize the time indices; 
                 allocate(vel_fromCFD(3,bbox%ie - bbox%is, bbox%je - bbox%js , bbox%ke - bbox%ks ,2))
                 vel_fromCFD = 0.d0
                 itm1 = 2; itm2 = 1
@@ -190,21 +190,21 @@ contains
                         real(kind=kind(0.d0)) pl,pr,eps  ! left right grid points
                         logical found_start
 
-! indices covering the CFD physical domain
+			! indices covering the CFD physical domain
 
                         grid_sizes(:, :) = reshape((/ imin_cfd, imax_cfd, jmin_cfd, jmax_cfd, kmin_cfd, kmax_cfd /),(/2,3/))
 
-! starting indices (first in physical domain) in all directions
+			! starting indices (first in physical domain) in all directions
 
                         idmin = (/ imin_cfd, jmin_cfd, kmin_cfd /)
 
                         !		 write(0,*) 'MD: make box grid_sizes, idmin ', grid_sizes, idmin
 
-! how large is the halo in each direction, depending also on the MD domain position
+			! how large is the halo in each direction, depending also on the MD domain position
 
                         halo_size(:,:) = 1
 
-! specical values for the boundaries
+			! specical values for the boundaries
 
                         if ( icoord(2,myid + 1) == 1 ) then 
 
@@ -242,7 +242,7 @@ contains
 
                         endif
 
-! pointer to grid coordinates. Helpful to loop through dimensions
+			! pointer to grid coordinates. Helpful to loop through dimensions
                         grid_ptr(1)%p => x(imin_cfd:imax_cfd)
                         grid_ptr(2)%p => y(jmin_cfd:jmax_cfd)
                         grid_ptr(3)%p => z(kmin_cfd:kmax_cfd)
@@ -285,7 +285,7 @@ contains
                                                         found_start = .true.
 
 
-! here comes the decision of how much one want to cover
+							! here comes the decision of how much one want to cover
 
                                                         bbox_ptr(id)%start = idmin(id) + i - 1 - halo_size(1,id)
 

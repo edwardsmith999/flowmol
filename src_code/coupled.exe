@@ -6,18 +6,21 @@ if [ $# -lt 1 ]; then
         echo "Parameter files under MD and CFD files define this, details below:"
 	echo ""
 	echo "========================================================================="
-	echo "MD param.inc files:"
-	cat ./../../MD_dCSE/src_code/param.inc
+	echo "MD input file:"
+	grep -A3 'PROCESSORS' ./../../MD_dCSE/src_code/MD.in
+	echo "========================================================================="
+	echo "Couette input file:"
+	echo "PROCESSORS"
+	echo "1"
+	echo "1"
+	echo "1"
 	echo "========================================================================="
 	echo "CFD param.inc files:"
 	grep 'parameter (npx' ./../../CFD_dCSE/src_code/main_code_MG_ddType_dP/param.inc
-	echo "========================================================================="
-	echo "Couette param.inc files:"
-	cat ./../../Couette_serial/param.inc
 	echo "========================================================================="
         echo "Input should be of form: ./coupled.exe #"
         exit 1
 fi
 
 #Run Coupled code
-mpiexec -n $1 ./../../Couette_serial/continuum.exe  : ./../../MD_dCSE/src_code/md.exe
+mpiexec -n 1  ./../../Couette_serial/continuum.exe : -n $1 ./../../MD_dCSE/src_code/md.exe 

@@ -9,27 +9,26 @@ module coupler_internal_cfd
         save
 
 
-! CFD data 
+	! CFD data 
         integer imino,imin,imax,imaxo,jmino,jmin,jmax,jmaxo,&
          kmino,kmin,kmax,kmaxo,npx,npy,npz, nsteps
 
         integer tplot               !Output every number of steps
         integer :: jmax_overlap = 5 ! maximum j index ( in y direction) which MD 
-! has to cover, on top of that it has to cover 
-! y(0):y(1) domain and a bit of room
 
+	! has to cover, on top of that it has to cover 
+	! y(0):y(1) domain and a bit of room
         integer, allocatable :: icoord(:,:)
 
         real(kind(0.d0)), allocatable :: x(:), y(:), z(:)
         real(kind(0.d0)) dx, dz, dt
 
-! Data recieved form MD
-
+	! Data recieved form MD
         integer npx_md, npy_md, npz_md, nproc_md
 
-! Internal data 
-! bounding box type that holds on each processor the boundaries of the
-! CFD grid sectors allocate to every processor
+	! Internal data 
+	! bounding box type that holds on each processor the boundaries of the
+	! CFD grid sectors allocate to every processor
         type bbox
          integer, allocatable :: xbb(:,:), ybb(:,:), zbb(:,:)
         end type bbox
@@ -42,9 +41,9 @@ module coupler_internal_cfd
         end type md_domain_map
         type(md_domain_map) md_map
 
-! local grid sizes ( no halos, taken from bbox, helps with simpler expression of local arrays sizes)
+	! local grid sizes ( no halos, taken from bbox, helps with simpler expression of local arrays sizes)
         integer nlx, nly, nlz
-! communicator for tasks that overlap  MD region 
+	! communicator for tasks that overlap  MD region 
         integer CFD_COMM_OVERLAP
 
 
@@ -62,7 +61,7 @@ contains
 
                 call make_bbox
 
-!                 write(0,*)'CFD, bbox_cdf',  bbox_cfd%xbb, bbox_cfd%ybb, bbox_cfd%zbb
+!write(0,*)'CFD, bbox_cdf',  bbox_cfd%xbb, bbox_cfd%ybb, bbox_cfd%zbb
 
 !  get the block boundaries cover by each MD domain
 
@@ -75,7 +74,7 @@ contains
 
                 call find_overlaps
 
-! send the overlap mask across to MD
+		! send the overlap mask across to MD
                 call mpi_allgather(overlap_mask,nproc_md,MPI_INTEGER,MPI_BOTTOM,0, MPI_INTEGER,CFD_MD_ICOMM,ierr)
 
                 noverlaps = 0
@@ -88,7 +87,7 @@ contains
                 md_map%n = noverlaps
                 allocate ( md_map%rank_list(noverlaps), md_map%domains(6,noverlaps))
 
-!  overlaping communicator
+		!  overlaping communicator
                 if ( md_map%n > 0) then
                         color = 1
                 else 
@@ -131,7 +130,7 @@ contains
                         kbmin = bbox_cfd%zbb(1,icoord(3,myid + 1))
                         kbmax = bbox_cfd%zbb(2,icoord(3,myid + 1))
 
-!                       write(0, *) 'CFD: find overlap ibmin ...', myid, ibmin, ibmax, jbmin, jbmax, kbmin, kbmax
+			! write(0, *) 'CFD: find overlap ibmin ...', myid, ibmin, ibmax, jbmin, jbmax, kbmin, kbmax
 
                         do i=0,nproc_md - 1
 
@@ -180,7 +179,7 @@ contains
                         integer ixyz, i, nixyz(3), minxyz(3), npxyz(3)
                         integer, pointer :: bb_ptr(:,:) => null()
 
-! number of grid per MPI task, remainder must be added !!!
+			! number of grid per MPI task, remainder must be added !!!
                         nixyz  = (/ (imax - imin) / npx + 1, (jmax-jmin) / npy + 1, (kmax - kmin) / npz + 1/)
                         minxyz = (/ imin,  jmin,  kmin     /)
                         npxyz  = (/ npx, npy, npz  /)
@@ -207,8 +206,8 @@ contains
                                 enddo
 
                         enddo
-! sizes of local grids
 
+			! sizes of local grids
                         nlx = bbox_cfd%xbb(2,icoord(1,myid+1)) - bbox_cfd%xbb(1,icoord(1,myid + 1)) + 1
                         nly = min(bbox_cfd%ybb(2,icoord(2,myid+1)),jmax_overlap) - bbox_cfd%ybb(1,icoord(2,myid + 1)) + 1
                         nlz = bbox_cfd%zbb(2,icoord(3,myid+1)) - bbox_cfd%zbb(1,icoord(3,myid + 1)) + 1
@@ -231,13 +230,13 @@ contains
 
         end subroutine create_map_cfd
 
-        subroutine recv_vel_MD(a,p1s,p1e,p2s,p2e,p3s,p3e,pbc)
+        subroutine recv_vel_MD(vel,p1s,p1e,p2s,p2e,p3s,p3e,pbc)
                 use mpi
                 use coupler_internal_common, only : COUPLER_COMM, CFD_MD_ICOMM
                 implicit none
-! the index ranges in z,x,y, periodic BC
+		! the index ranges in z,x,y, periodic BC
                 integer, intent(in) :: p1s,p1e,p2s,p2e,p3s,p3e,pbc
-                real(kind=kind(0.d0)), intent(out) :: a(:,:,:)
+                real(kind=kind(0.d0)), intent(out) :: vel(:,:,:)
 
                 integer i,i1,j,k, is(md_map%n), ie(md_map%n), ks(md_map%n), ke(md_map%n), &
                  ny, ierr, source, myid, itag, type, req(md_map%n), &
@@ -246,7 +245,7 @@ contains
                 real(kind(0.d0)), allocatable :: vbuf(:), v1(:,:,:,:), vtot(:,:,:,:)
                 integer, save :: ncalls = 0
 
-! This local CFD domain is outside MD overlap zone 
+		! This local CFD domain is outside MD overlap zone 
                 if ( md_map%n == 0 ) return 
 
                 call mpi_comm_rank(COUPLER_COMM, myid, ierr)
@@ -286,10 +285,10 @@ contains
 
                         start_address(i+1) = start_address(i) + np
 
-! Attention ncall could go over max tag value for long runs!!
+			! Attention ncall could go over max tag value for long runs!!
                         itag = mod(ncalls, MPI_TAG_UB)
                         call mpi_irecv(vbuf(start_address(i)),np, MPI_DOUBLE_PRECISION, source, itag, CFD_MD_ICOMM, &
-                         req(i),ierr)
+                         		req(i),ierr)
 !                                write(0,*) 'CFD recv_MDvel  ', myid, i, itag,source,np, is,ie,ks,ke,ierr        
                 enddo
 
@@ -310,16 +309,15 @@ contains
 
                 enddo
 
-! Periodic boundary condition?          
+		! Periodic boundary condition?          
 
                 call set_pbc(pbc)
 
-
                 where (vtot(2,1:p1e-p1s+1,1:p2e-p2s+1,1:p3e-p3s+1) >= 0.d0) 
-                        a(p1s:p1e,p2s:p2e,p3s:p3e) = vtot(1,1:p1e-p1s+1,1:p2e-p2s+1,1:p3e-p3s+1) &
+                        vel(p1s:p1e,p2s:p2e,p3s:p3e) = vtot(1,1:p1e-p1s+1,1:p2e-p2s+1,1:p3e-p3s+1) &
                          /vtot(2,1:p1e-p1s+1,1:p2e-p2s+1,1:p3e-p3s+1)
                 elsewhere
-                        a(p1s:p1e,p2s:p2e,p3s:p3e) = 0.d0
+                        vel(p1s:p1e,p2s:p2e,p3s:p3e) = 0.d0
                 end where
 
         contains
@@ -332,7 +330,7 @@ contains
 
                         select case(pbc)
                         case(1)
-! In the case of PBC in z add the  sums of the boundary (half) cell
+				! In the case of PBC in z add the  sums of the boundary (half) cell
                                 x1 =  vtot(:,1, 1:p2e-p2s+1,:)
                                 x2 =  vtot(:,p1e-p1s+1, 1:p2e-p2s+1,:)
                                 vtot(:,1, 1:p2e-p2s+1,:) =   vtot(:,1, 1:p2e-p2s+1,:) + x2
