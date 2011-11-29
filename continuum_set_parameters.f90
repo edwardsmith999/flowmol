@@ -76,6 +76,4 @@ subroutine continuum_set_parameters
 	!enddo
 	!close(4,status='keep')
 
-
-
 end subroutine continuum_set_parameters
