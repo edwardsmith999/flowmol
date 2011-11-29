@@ -104,7 +104,7 @@ subroutine simulation_MD
                elapsedtime = elapsedtime + delta_t*Naverage
                if (myid == 0) then 
                        write(*,*) " Warning this is coupled run in which the &
-                                  & number od step was reset to a value determinated &
+                                  & number of step was reset to a value determined &
                                   & by number of steps in continuum. The elapsed time &
                                   & was changed accordingly " 
                endif   
@@ -126,14 +126,14 @@ subroutine simulation_MD
 			call simulation_compute_forces	!Calculate forces on particles
 															
 			if (mod(iter,tplot) .eq. 0) then
-					call simulation_record		   	!Evaluate & write properties to file
+					call simulation_record	!Evaluate & write properties to file
 			endif
 			if (mflux_outflag .ne. 0) then
 				call mass_flux_averaging
 			endif
-			call simulation_apply_constraint_forces						!Apply force to prevent molecules leaving domain
-			call coupler_apply_continuum_forces(np,r,v,a,iter_average)			!Apply force based on Nie,Chen an Robbins coupling
-			call simulation_move_particles								!Move particles as a result of forces
+			call simulation_apply_constraint_forces	!Apply force to prevent molecules leaving domain
+			call coupler_apply_continuum_forces(np,r,v,a,iter_average)	!Apply force based on Nie,Chen an Robbins coupling
+			call simulation_move_particles	!Move particles as a result of forces
 			
 			if (vflux_outflag .ne. 0) then
 				call momentum_flux_averaging(vflux_outflag)
@@ -142,8 +142,8 @@ subroutine simulation_MD
 			if ( mod(iter_average,average_period) == 0 ) then
 					 call coupler_boundary_cell_average(np,r,v,send_data=.false.) ! accumlate velocities
 					 if ( mod(icfd,save_period) == 0) then
-							 call coupler_uc_average_test(np,r,v,lwrite=.false.)
-                                                         call mpi_barrier(MD_COMM,ierr)
+						call coupler_uc_average_test(np,r,v,lwrite=.false.)
+						call messenger_syncall
 					endif
 			endif
 		
