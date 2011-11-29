@@ -130,7 +130,7 @@ contains
 
 			if (io.ne.0) then	! If end of file is reached
 				if (.not. required) then
-					print*, keyword, 'Not specified in input file - default value taken'
+					!print*, keyword, ' - Not specified in input file - default value taken'
 					input_present = .false.
 					return
 				else

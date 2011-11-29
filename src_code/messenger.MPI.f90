@@ -89,9 +89,9 @@ subroutine messenger_init()
 	implicit none
 	!include "mpif.h"
 
-	integer idims(nd)
-        integer  ndims, ip, ixyz, iper(3)
-	logical  Lremain_dims(nd)
+	integer :: idims(nd)
+        integer :: ndims, ip, ixyz
+	logical :: Lremain_dims(nd)
 
 	! Initialize MPI
 	call MPI_comm_size (MD_COMM, nproc, ierr)
@@ -102,9 +102,9 @@ subroutine messenger_init()
         open(1,file=trim(prefix_dir)//'MD.in')
 
         call locate(1,'PERIODIC',.true.)
-	read(1,*) iper(1)
-	read(1,*) iper(2)
-	if (nd.eq.3) read(1,*) iper(3)
+	read(1,*) periodic(1)
+	read(1,*) periodic(2)
+	read(1,*) periodic(3)
 
         call locate(1,'PROCESSORS',.true.)
         read(1,*) npx
@@ -115,7 +115,7 @@ subroutine messenger_init()
 
         ! set Lperiodic
         Lperiodic(1:nd) = .true.
-        where(iper(1:nd) == 0) Lperiodic(1:nd) =.false.  
+        where(periodic(1:nd) == 0) Lperiodic(1:nd) =.false.  
         write(0,*) 'Lperiodic ', Lperiodic
 
 	! Grid topology
