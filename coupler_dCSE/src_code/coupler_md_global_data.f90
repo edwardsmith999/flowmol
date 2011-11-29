@@ -37,7 +37,7 @@ module coupler_md_global_data
 
 !        type(bbox), target :: bbox_cfd, bbox_md
 
-! CFD mesh data
+	! CFD mesh data
         integer imino, imin_cfd, imax_cfd,imaxo, jmino, jmin_cfd, jmax_cfd, jmaxo,&
                 kmino, kmin_cfd, kmax_cfd, kmaxo
         real(kind=kind(0.d0)), allocatable, target :: x(:), y(:), z(:)
@@ -48,74 +48,73 @@ module coupler_md_global_data
 ! average period for velocities        
         integer :: average_period = 5
 
-! Y coordinate  of FD boundary in MD domains 
-!        real :: Y_boundary_fraction = 0.5    ! prototype alternative
-!        integer :: Y_domain_thickness = 4    ! MD global size along  
-                                             ! y axis in (y(2)-y(1) units
-
+	! Y coordinate  of FD boundary in MD domains 
+	!        real :: Y_boundary_fraction = 0.5    ! prototype alternative
+	!        integer :: Y_domain_thickness = 4    ! MD global size along  
+	                                             ! y axis in (y(2)-y(1) units
 
         real(kind=kind(0.d0)) :: FoP_time_ratio = 1.0    ! time ratio dt_CFD/dt_MD; to be fixed later
         real(kind=kind(0.d0))    xL_md, yL_md, zL_md ! macroscopic sizes of MD domain. needed?
         real(kind=kind(0.d0)) :: fsig=1.0  !Ratio betwen macroscopic unit lenght and molecular unit 
 
-! shift_x, shift_z are shifts for the average box from the center of FD cell
-! default is that the average box overlaps the FD cell
+	! shift_x, shift_z are shifts for the average box from the center of FD cell
+	! default is that the average box overlaps the FD cell
         real :: shift_x=0.0, shift_z=0.0 ! shift of velocity average box
 
-! array for velocities from CFD, last dimension holds time indices 
+	! array for velocities from CFD, last dimension holds time indices 
         real(kind=kind(0.d0)), allocatable :: vel_fromCFD(:,:,:,:,:)
         integer itm1,itm2
 
 
 contains
-        subroutine create_communicators
-                use mpi
-                use computational_constants_MD, only : file_dir
-                implicit none
 
-                integer :: color = MD
+subroutine create_communicators
+        use mpi
+        use computational_constants_MD, only : file_dir
+        implicit none
 
-                integer ierr, myid, myid_comm, myid_comm_max,&
-                        iaux(2), jaux(2), remote_leader, comm, comm_size
+        integer :: color = MD
 
-! set input output directory for this code
-                 file_dir="md_data/"
+        integer ierr, myid, myid_comm, myid_comm_max,&
+                iaux(2), jaux(2), remote_leader, comm, comm_size
 
-                call mpi_comm_rank(MPI_COMM_WORLD,myid,ierr)
+	! set input output directory for this code
+                file_dir="md_data/"
 
-                comm = MPI_COMM_NULL
+        call mpi_comm_rank(MPI_COMM_WORLD,myid,ierr)
 
-                call mpi_comm_split(MPI_COMM_WORLD,color,myid,comm,ierr)
+        comm = MPI_COMM_NULL
 
-                MD_COMM = comm
+        call mpi_comm_split(MPI_COMM_WORLD,color,myid,comm,ierr)
 
-! create inter-communicators
+        MD_COMM = comm
 
-! Get the mpi_comm_world ranks that hold the largest ranks in cfd_comm and md_comm
-                call mpi_comm_rank(comm,myid_comm,ierr)
-                call mpi_comm_size(comm,comm_size,ierr)
+	! create inter-communicators
+	! Get the mpi_comm_world ranks that hold the largest ranks in cfd_comm and md_comm
+        call mpi_comm_rank(comm,myid_comm,ierr)
+        call mpi_comm_size(comm,comm_size,ierr)
 
-                iaux(:) = -1
-                jaux(:) = -1
-                if ( myid_comm == comm_size - 1) then
-                        iaux(color) = myid
-                endif
-                call mpi_allreduce( iaux ,jaux, 2, MPI_INTEGER, MPI_MAX, &
-                        MPI_COMM_WORLD, ierr)  
+        iaux(:) = -1
+        jaux(:) = -1
+        if ( myid_comm == comm_size - 1) then
+                iaux(color) = myid
+        endif
+        call mpi_allreduce( iaux ,jaux, 2, MPI_INTEGER, MPI_MAX, &
+                MPI_COMM_WORLD, ierr)  
 
-                select case (color)
-                case (CFD)
-                        remote_leader = jaux(MD)
-                case (MD)
-                        remote_leader = jaux(CFD)
-                end select
+        select case (color)
+        case (CFD)
+                remote_leader = jaux(MD)
+        case (MD)
+                remote_leader = jaux(CFD)
+        end select
 
-                call mpi_intercomm_create(comm, comm_size - 1, MPI_COMM_WORLD,&
-                        remote_leader, 1, CFD_MD_ICOMM, ierr)
+        call mpi_intercomm_create(comm, comm_size - 1, MPI_COMM_WORLD,&
+                remote_leader, 1, CFD_MD_ICOMM, ierr)
 
-                write(0,*) 'did(inter) communicators ', code_name, myid
+        write(0,*) 'did(inter) communicators ', code_name, myid
 
-        end subroutine create_communicators
+end subroutine create_communicators
 
 
 end module coupler_md_global_data

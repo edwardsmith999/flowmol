@@ -9,15 +9,13 @@ contains
                 use  coupler, only : coupler_send_CFDvel 
                 implicit none
 
-                real(kind(0.d0)) uc3d(nz+1,size(uc,dim=1),size(uc,dim=2)), & ! hack for 2 d parallelism, z dimenssion should be independed of nx
+ 		integer i
+		real(kind(0.d0)) uc3d(nz+1,size(uc,dim=1),size(uc,dim=2)), & !hack for 2d parallelism, z dimension independent of nx
                                  vc3d(nz+1,size(vc,dim=1),size(vc,dim=2))
-
-                integer i
-
+ 
                 do i=1,size(uc3d,dim=1)
                         uc3d(i,:,:) = uc (:,:)
                 enddo
-                  
                 do i=1,size(vc3d,dim=1)
                         vc3d(i,:,:) = vc(:,:)
                 enddo
@@ -38,7 +36,7 @@ contains
                 real(kind(0.d0)) w(1,1,1), u3(size(u),size(u),1),v3(size(v),size(v),1)
 
 
-!  a polimorfic inteface is needed here
+		!A polymorphic interface is needed here
                 call coupler_md_vel(u3,v3,w)
 
                 u(:) =  sum(u3(:,:,1),dim=1)

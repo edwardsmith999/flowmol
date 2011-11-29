@@ -28,17 +28,13 @@ subroutine setup_continuum
 	call continuum_set_parameters
 	call continuum_mesh_gen
 
- 
         call messenger_init
         call continuum_coupler_init
-	
         call continuum_setup_macrostate
- 
-        call send_CFDvel
-	call continuum_set_BC
-	call continuum_initial_record
 
-      
+        call send_CFDvel
+	call continuum_initial_record
+ 	call continuum_set_BC
 
 end subroutine setup_continuum
 
@@ -49,9 +45,9 @@ end subroutine setup_continuum
 !-----------------------------------------------------------------------------
 
 subroutine simulation_continuum
-use computational_constants
-use continuum_coupler_socket, only : send_CFDvel
-implicit none
+	use computational_constants
+	use continuum_coupler_socket, only : send_CFDvel
+	implicit none
 
 	integer :: t	      !Time t used to determine frequency of plots
 
@@ -70,7 +66,7 @@ end subroutine simulation_continuum
 !-----------------------------------------------------------------------------
 
 subroutine finish_continuum
-implicit none
+	implicit none
 
 	
 end subroutine finish_continuum

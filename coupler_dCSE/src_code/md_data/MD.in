@@ -9,7 +9,7 @@ DENSITY
 #	2^(1/6) = 1.12246204830937
 # -----------------------------------------------------------------------
 RCUTOFF
-1.12246204830937
+2.2
 
 #########################################################################
 # Define initial temperature of the system:
@@ -33,7 +33,7 @@ INITIALNUNITS
 # Total number of timesteps:
 # -----------------------------------------------------------------------
 NSTEPS
-50
+1000
 
 #########################################################################
 # Timestep interval:
@@ -46,7 +46,7 @@ DELTA_T
 #	(subroutine simulation_record is called)
 # -----------------------------------------------------------------------
 TPLOT
-1
+4
 
 #########################################################################
 # Extra distance added to r_cutoff to determine neighbour cell size
@@ -74,7 +74,7 @@ SEED
 #	3 - homogeneous + halos
 # -----------------------------------------------------------------------
 VMD_OUTFLAG
-0
+1
 
 #########################################################################
 # Output flag for macroscopic properties:
@@ -164,15 +164,20 @@ PERIODIC
 1
 
 #########################################################################
-# Shear definition, formatted:
-#	velocity or rate flag
-#	numerical value
-#	
-#	velocity/rate flag: 0-velocity, 1-rate
-# -----------------------------------------------------------------------
-DEFINE_SHEAR
+# MPI topology
+#   npx 
+#   npy
+#   npz
+#
+# if npz = 0 it will be set to nproc/(npx*npy)
+#
+# constrain: npx*npy*npz = nproc 
+# nproc is set by the argument of mpirun
+#-----------------------------------------------------------------------
+PROCESSORS
+1 
 1
-0.0
+1
 
 #########################################################################
 # Potential flag:
@@ -182,38 +187,3 @@ DEFINE_SHEAR
 POTENTIAL_FLAG
 0
 
-#########################################################################
-# Parameters of the FENE potential, formatted:
-#	number of LJ beads for each polymer chain
-#	spring constant, k_c
-#	maximum spring elongation
-# -----------------------------------------------------------------------
-FENE_INFO
-4
-30.0
-1.5
-
-#########################################################################
-# Output flag for end-to-end vector time correlation function (etevtcf):
-#	flag (0-off,1-on)
-#	iteration at which to begin averaging
-# -----------------------------------------------------------------------
-ETEVTCF_OUTFLAG
-0
-1000
-
-#########################################################################
-# Microscopic stress tensor output flag:
-#	0 - off
-#	1 - on
-# -----------------------------------------------------------------------
-MICRO_STRESS_OUTFLAG
-0
-
-#########################################################################
-# Radius of gyration output flag:
-#	0 - off
-#	1 - on
-# -----------------------------------------------------------------------
-R_GYRATION_OUTFLAG
-0

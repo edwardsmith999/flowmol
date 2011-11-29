@@ -1,4 +1,4 @@
-2000		!Number of computational steps
+1		!Number of computational steps
 1		!Frequency of ouput plots
 7		!Number of cells in Domain in x - nx
 7		!Number of cells in Domain in y - ny

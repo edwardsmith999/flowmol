@@ -2,14 +2,14 @@ module continuum_coupler_socket_init
         implicit none
 
         logical, parameter :: use_coupling = .true.
-! attention nx, ny are the number of cell in the fluid domain !!!
+	! attention nx, ny are the number of cell in the fluid domain !!!
 
-! we need a nz and z array for MD even CFD is 2D. 
-! the simple solution is to use a small cell in z direction
-! but a larger domain can be used to get better averages and
-! 2d MD topology. 
+	! we need a nz and z array for MD even CFD is 2D. 
+	! the simple solution is to use a small cell in z direction
+	! but a larger domain can be used to get better averages and
+	! 2d MD topology. 
 
-        integer :: nz = 10 ! test, go as x direction
+        integer :: nz = 7 			!test, go as x direction
         real(kind(0.d0)), allocatable :: z(:)
 
 contains
@@ -40,8 +40,7 @@ contains
                 
                 !z(1)    =  0.d0    ! thincknes of MD simulation
                 !z(2) =  54.7189 ! 34.199518933533936d0
-                
-                z(:)=mx(2:nx+2)
+                z(:) = mx(2:nx+2)
                 
                 ! nsteps = nsteps+1 for the intialisation step in setup_continuum
 

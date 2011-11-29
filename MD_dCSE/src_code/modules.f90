@@ -35,8 +35,8 @@ module computational_constants_MD
 
 	!Command-line arguments
 	logical	:: restart
-	character(len=32) :: initial_microstate_file
-	character(len=32) :: input_file
+	character(len=200) :: initial_microstate_file
+	character(len=200) :: input_file
 
 	!Potential flags
 	integer			:: potential_flag	!Choose LJ or Polymer Potential 

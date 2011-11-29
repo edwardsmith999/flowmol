@@ -46,6 +46,7 @@ module messenger
 	use polymer_info_MD	
 	use shear_info_MD
 
+        integer :: MD_COMM                     	! global communicator
 	integer :: myid                         ! my process rank
 	integer :: idroot                       ! rank of root process
 
@@ -62,10 +63,7 @@ end module
 subroutine messenger_invoke()
 	use messenger
 
-        npx = 1
-        npy = 1
-        npz = 1
-        nproc = 1
+        npx = 1; npy = 1;  npz = 1;  nproc = 1
 	print*, 'Serial version of parallel code'
 
 	return
@@ -250,7 +248,7 @@ end subroutine messenger_updateborders_leesedwards
 !	
 !	update_plane extends the functionality of updatefacedown(ixyz) in order to enable
 !	Lees-Edwards sliding boundary conditions. Images of molecules that are assigned to
-!   the face cells in the input plane "copyplane" are copied to the corresponding halo 
+!	the face cells in the input plane "copyplane" are copied to the corresponding halo 
 !	cells. The inputs "loop1plane" and "loop2plane" denote the remaining cartesian 
 !	directions, over which looping considers all cells in the "copyplane" surface. 
 !	

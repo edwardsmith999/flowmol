@@ -68,18 +68,12 @@ CONTINUUM_EXE = continuum.exe
 #=======================================================================
 
 #Re-use f90 file names with .o instead of .f90
-O_MD = $(F90_MD_FILES:.f90=.o)
-O_CUDA = $(CU_CUDA_MD_FILES:.cu=.o) $(F90_CUDA_MD_FILES:.f90=.o)
 O_CONTINUUM = $(addprefix obj/,$(F90_CONTINUUM:.f90=.o))
 O_COUPLED = $(F90_COUPLED:.f90=.o)
-O_MD_P = $(F90_MD_FILES_P:.f90=.o)
 
 #Make everything depend on parameter files
-$(O_MD): $(PARAM)
-$(O_CUDA): $(PARAM)
 $(O_CONTINUUM): $(PARAM)
 $(O_COUPLED) : $(PARAM)
-$(O_MD_P): $(PARAM)
 
 CU = nvcc
 .SUFFIXES: .exe .o .f90 .cu .inc

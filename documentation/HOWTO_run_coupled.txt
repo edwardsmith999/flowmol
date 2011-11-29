@@ -32,7 +32,7 @@ Quick  description of the steps needed for a coupled run.
    setup_tag and set fixedistbottom(2) = 1.d0**cellsidelength(2)
 
 3) compile both code from coupler_dCSE/src_code directory (N.B. if the
-   MD code was used uncoupled previously give a `make clean' in
+   MD code was used uncoupled previously use `make clean' in
    MD_dCSE/src_code to enable the couple modules).
 
 4) create a directory for computation and results, let's call it
