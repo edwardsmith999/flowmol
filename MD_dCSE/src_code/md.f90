@@ -123,19 +123,14 @@ subroutine simulation_MD
                 endif
 			
 		call simulation_compute_forces	!Calculate forces on particles	
-		if (mod(iter,tplot) .eq. 0) then
-			call simulation_record	!Evaluate & write properties to file
-		endif
-		if (mflux_outflag .ne. 0) then
-			call mass_flux_averaging
-		endif
+		call simulation_record		!Evaluate & write properties to file
+		call mass_flux_averaging	!Average mass flux before movement of particles
+
 		call simulation_apply_constraint_forces				!Apply force to prevent molecules leaving domain
 		call coupler_apply_continuum_forces(np,r,v,a,iter_average)	!Apply force based on Nie,Chen an Robbins coupling
-		call simulation_move_particles					!Move particles as a result of forces
 
-		if (vflux_outflag .ne. 0) then
-			call momentum_flux_averaging(vflux_outflag)
-		endif
+		call simulation_move_particles					!Move particles as a result of forces
+		call momentum_flux_averaging(vflux_outflag)			!!Average momnetum flux after movement of particles
 		
 		if ( mod(iter_average,average_period) .eq. 0 ) then
 			call coupler_boundary_cell_average(np,r,v,send_data=.false.) ! accumlate velocities

@@ -77,6 +77,9 @@ subroutine simulation_record
 	use module_record
 	implicit none
 
+	!Only record every tplot iterations
+	if (mod(iter,tplot) .ne. 0) return
+
 	!Parallel output for molecular positions
 	if (vmd_outflag .eq. 1) call parallel_io_vmd
 	if (vmd_outflag .eq. 2) call parallel_io_vmd_sl
@@ -818,6 +821,9 @@ subroutine mass_flux_averaging
 
 	integer, save	:: sample_count
 
+	!Only average if mass averaging turned on
+	if (mflux_outflag .eq. 0) return
+
 	call cumulative_mass_flux
 	sample_count = sample_count + 1
 	if (sample_count .eq. Nmflux_ave) then
@@ -922,6 +928,8 @@ subroutine momentum_flux_averaging(ixyz)
 	integer			:: ixyz, i
 	integer, save		:: sample_count
 	double precision	:: binface
+
+	if (vflux_outflag .eq. 0) return
 
 	call cumulative_momentum_flux(ixyz)
 	sample_count = sample_count + 1
