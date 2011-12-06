@@ -1075,11 +1075,13 @@ subroutine parallel_io_vmd
 	!Determine size of real datatype
  	call MPI_type_size(MPI_real,datasize,ierr)
 
+        write(0,*) 'np, size r', np, size(r,dim=1)
+
 	!Load buffers with single precision r and adjust according
 	!to processor topology with r = 0 at centre
-	Xbuf(:) = r(:,1)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
-	Ybuf(:) = r(:,2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
-	Zbuf(:) = r(:,3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
+	Xbuf(:) = r(1:np,1)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
+	Ybuf(:) = r(1:np,2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
+	Zbuf(:) = r(1:np,3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
 
 	procdisp = 0
 	!Obtain displacement of each processor using all other procs' np

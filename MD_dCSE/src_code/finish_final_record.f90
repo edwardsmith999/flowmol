@@ -114,8 +114,11 @@ subroutine reformat_dcd
 	real,allocatable,dimension(:)   :: Xbuf, Ybuf, Zbuf	!--Buffers used to copy from direct access to binary
 	double precision		:: DELTA		!--Timestep between frames
 
+        real time_start, time_end
+ 
+	print*, 'Generating final VMD.dcd ouput file - for large systems this may take some time ...'
 
-	print*, 'Generating final VMD.dcd ouput file - for large systems this may take some time'
+        call cpu_time(time_start)
 
 	!Determine size of file datatype
 	!inquire(file='testfile.dcd', recl=datasize)
@@ -142,16 +145,16 @@ subroutine reformat_dcd
 	allocate(Ybuf(NSET*globalnp))
 	allocate(Zbuf(NSET*globalnp))
 
+        write(0,*)'globalnp ', globalnp
+
 	!Read position information from file
 	!RECORD LENGTH IS 1 WHICH IN FORTRAN IS A 4 BYTE BLOCKS (REAL, INT BUT NOT DP) 	
-	open (unit=17, file=trim(prefix_dir)//"results/vmd_temp.dcd",access='direct',recl=1)
+	open (unit=17, file=trim(prefix_dir)//"results/vmd_temp.dcd",access='stream')
 
 	do i=1,NSET
-	do n=1,globalnp
-		read(17,rec=(i-1)*nd*globalnp+n) Xbuf(n+globalnp*(i-1))
-		read(17,rec=(i-1)*nd*globalnp+n+globalnp) Ybuf(n+globalnp*(i-1))
-		read(17,rec=(i-1)*nd*globalnp+n+2*globalnp) Zbuf(n+globalnp*(i-1))
-	enddo
+		read(17) Xbuf(globalnp*(i-1)+1:globalnp*i)
+		read(17) Ybuf(globalnp*(i-1)+1:globalnp*i)
+		read(17) Zbuf(globalnp*(i-1)+1:globalnp*i)
 	enddo
 
 	close(17,status='delete')
@@ -170,6 +173,12 @@ subroutine reformat_dcd
 	enddo
 
 	close(3,status='keep')
+
+        call cpu_time(time_end)
+
+        print '(a,g7.0,a)', 'Generated final VMD.dcd ouput file in', time_end - time_start, ' seconds'
+
+
 
 end subroutine reformat_dcd
 
