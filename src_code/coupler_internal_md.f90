@@ -70,7 +70,7 @@ module coupler_internal_md
 	! average period for averages ( it must come from CFD !!!)      
         integer :: average_period = 5
 	! save period ( corresponts to tplot in CFD, revise please !!!)
-        integer :: save_period = 10
+        integer :: save_period = 1
 
 contains 
 
@@ -192,7 +192,7 @@ contains
 
 			! indices covering the CFD physical domain
 
-                        grid_sizes(:, :) = reshape((/ imin_cfd, imax_cfd, jmin_cfd, jmax_cfd, kmin_cfd, kmax_cfd /),(/2,3/))
+                        grid_sizes(:, :) = reshape((/ imin_cfd, imax_cfd, jmin_cfd, jmax_overlap_cfd, kmin_cfd, kmax_cfd /),(/2,3/))
 
 			! starting indices (first in physical domain) in all directions
 
@@ -244,7 +244,7 @@ contains
 
 			! pointer to grid coordinates. Helpful to loop through dimensions
                         grid_ptr(1)%p => x(imin_cfd:imax_cfd)
-                        grid_ptr(2)%p => y(jmin_cfd:jmax_cfd)
+                        grid_ptr(2)%p => y(jmin_cfd:jmax_overlap_cfd)
                         grid_ptr(3)%p => z(kmin_cfd:kmax_cfd)
 
                         bbox_ptr(1)%start => bbox%is
@@ -298,7 +298,7 @@ contains
 
                                                 if ( (i < ngp  .and. pl <= bbox%bb(2,id) + eps  .and. pr > bbox%bb(2,id))) then
 
-                                                        bbox_ptr(id)%end = idmin(id) + i - 1 -1 + halo_size(2,id)
+                                                        bbox_ptr(id)%end = idmin(id) + i - 1 + halo_size(2,id)
 
                                                         !		    write(0,*), 'MD make bbox r', myid, id, i, pl, pr ,  bbox_ptr(id)%end		     
                                                         exit
@@ -566,6 +566,7 @@ contains
 		integer fh, i, n, ierr
 
 		call mpi_file_open(COUPLER_COMM,filename,MPI_MODE_CREATE+MPI_MODE_WRONLY,MPI_INFO_NULL,fh,ierr)
+                call mpi_file_set_size(fh,0_MPI_OFFSET_KIND,ierr) ! discard previous data
 
 		n = cfd_map%n
 

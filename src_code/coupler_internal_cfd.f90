@@ -313,7 +313,7 @@ contains
 
                 call set_pbc(pbc)
 
-                where (vtot(2,1:p1e-p1s+1,1:p2e-p2s+1,1:p3e-p3s+1) >= 0.d0) 
+                where (vtot(2,1:p1e-p1s+1,1:p2e-p2s+1,1:p3e-p3s+1) > 0.d0) 
                         vel(p1s:p1e,p2s:p2e,p3s:p3e) = vtot(1,1:p1e-p1s+1,1:p2e-p2s+1,1:p3e-p3s+1) &
                          /vtot(2,1:p1e-p1s+1,1:p2e-p2s+1,1:p3e-p3s+1)
                 elsewhere
