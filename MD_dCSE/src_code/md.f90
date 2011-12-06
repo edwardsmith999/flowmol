@@ -37,13 +37,13 @@ subroutine setup_MD
 		print*, 'Simulation restarted from file: ', initial_microstate_file
 		call messenger_init			!Establish processor topology
 		call setup_restart_inputs		!Recover simulation inputs from file
-                call coupler_init
+                call socket_coupler_init
 		call setup_set_parameters		!Calculate parameters using input
 		call setup_restart_microstate		!Recover position and velocities
 	else
 		call messenger_init   			!Establish processor topology
 		call setup_inputs			!Input simulation parameters
-                call coupler_init
+                call socket_coupler_init
 		call setup_set_parameters		!Calculate parameters using input
 		call setup_initialise_microstate	!Setup position and velocities
 	endif
@@ -59,14 +59,41 @@ subroutine setup_MD
 
 contains 
 
-	subroutine coupler_init
+	subroutine socket_coupler_init
 		use coupler
-		use computational_constants_MD, only : npx,npy,npz,delta_t
-		use messenger, only                  : icoord
+		use computational_constants_MD, only : npx,npy,npz,delta_t,elapsedtime
+		use messenger, only                  : icoord, myid
 		implicit none
+
+                integer nsteps_cfd
+                real(kind(0.d0)) :: delta_t_CFD
+
+                if (.not. coupler_is_active) return
+
 		! if coupled calculation prepare exchange layout
 		call coupler_get_md_info(npx,npy,npz,icoord,delta_t)
-	end subroutine coupler_init
+ 
+                ! fix NSTEPS for the coupled case
+                delta_t_CFD = coupler_md_get_dt_cfd()
+                nsteps_cfd  = coupler_get_nsteps()
+
+                Nsteps = initialstep + nsteps_cfd * int(delta_t_cfd/delta_t)
+                elapsedtime = elapsedtime + nsteps_cfd * delta_t_CFD
+
+                if (myid .eq. 0) then 
+			write(*,'(a,8(/a))') "*******************************************************************", &
+                                             "WARNING - this is a coupled run in which the number of extrasteps  ", &
+				             "is set to :                                                        ", &
+                                             "                                                                   ", &
+                                             "nstep_cfd*(delta_t_cdf/delta_t_md)                                 ", &
+                                             "                                                                   ", & 
+                                             "The elapsed time was changed accordingly.                          ", &
+ 				             "The value of NSTEPS parameter form input file was discarded.       ", &
+                                             "********************************************************************"
+                                              
+               endif 
+
+       end subroutine socket_coupler_init
 
 end subroutine setup_MD
 
@@ -82,64 +109,26 @@ end subroutine setup_MD
 
 subroutine simulation_MD
 	use computational_constants_MD
-	use physical_constants_MD, only : np
-	use arrays_MD, only :r,v,a
-	use coupler
-	use messenger, only : myid, MD_COMM
 	implicit none
   
-	integer :: rebuild    				!Flag set by check rebuild to determine if linklist rebuild required
-	integer :: icfd, iter_average, Naverage, save_period, average_period, nsteps_cfd
-        real(kind(0.d0)) :: delta_t_CFD
-
-        save_period 	= coupler_get_save_period()
-        nsteps_cfd  	= coupler_get_nsteps()
-        average_period 	= coupler_get_average_period()
-        delta_t_CFD 	= coupler_md_get_dt_cfd()
-
-        if (coupler_is_active) then
-               Naverage = int(delta_t_cfd/delta_t)
-               Nsteps = initialstep + nsteps_cfd * Naverage
-               elapsedtime = elapsedtime + delta_t*Naverage
-               if (myid .eq. 0) then 
-			write(*,*)"Warning - this is a coupled run in which the", &
-				& "number of step was reset to a value determined", &
- 				& "by number of steps in continuum. The elapsed time", &
-				& "was changed accordingly " 
-               endif   
-        else 
-                Naverage = 0
-                iter_average = 0
-                icfd = 0
-        endif
+	integer :: rebuild    				!Flag set by check rebuild to determine if linklist rebuild require
 
 	initialstep = initialstep + 1		!Increment initial step by one 
 
-	do iter = initialstep, Nsteps		!Loop over specified output steps
-
-                if (coupler_is_active) then 
-                        iter_average = mod(iter-1, Naverage)+1
-                        icfd         = (iter-initialstep)/Naverage +1
-                endif
+	do iter = initialstep, Nsteps		!Loop over specified output steps 
 			
 		call simulation_compute_forces	!Calculate forces on particles	
 		call simulation_record		!Evaluate & write properties to file
 		call mass_flux_averaging	!Average mass flux before movement of particles
 
 		call simulation_apply_constraint_forces				!Apply force to prevent molecules leaving domain
-		call coupler_apply_continuum_forces(np,r,v,a,iter_average)	!Apply force based on Nie,Chen an Robbins coupling
+		call socket_coupler_apply_continuum_forces(iter)
 
 		call simulation_move_particles					!Move particles as a result of forces
 		call momentum_flux_averaging(vflux_outflag)			!!Average momnetum flux after movement of particles
 		
-		if ( mod(iter_average,average_period) .eq. 0 ) then
-			call coupler_boundary_cell_average(np,r,v,send_data=.false.) ! accumlate velocities
-			if ( mod(icfd,save_period) .eq. 0) then
-				call coupler_uc_average_test(np,r,v,lwrite=.false.)
-				call messenger_syncall
-			endif
-		endif
-	
+                call socket_coupler_average(iter)
+
 		call messenger_updateborders(0)			!Update borders between processors
 		call simulation_checkrebuild(rebuild)		!Determine if neighbourlist rebuild required
 		
@@ -150,15 +139,81 @@ subroutine simulation_MD
 			call messenger_updateborders(rebuild)	!Update borders between processors
 			call assign_to_neighbourlist_halfint	!Setup neighbourlist
 		endif
-	
-		! Average the boundary velocity and send the results to CFD
-        	if (iter_average .eq. Naverage) then 
-        		call coupler_boundary_cell_average(np,r,v,send_data=.true.)
-			if (mod(icfd,save_period) .eq. 0 ) then
-		        	call coupler_uc_average_test(np,r,v,lwrite=.true.)
-	        	endif
-		endif
+  
  	enddo
+
+contains 
+
+        subroutine socket_coupler_apply_continuum_forces(iter)
+                use physical_constants_MD, only : np
+                use arrays_MD, only :r,v,a
+                use coupler
+                implicit none
+                
+                integer, intent(in) :: iter
+
+                integer :: iter_average, Naverage
+                real(kind(0.d0)) :: delta_t_CFD
+                logical, save :: first_time=.true.
+                save Naverage
+
+                if (.not. coupler_is_active) return 
+
+                if (first_time) then
+                        first_time = .false.
+                        Naverage = int(coupler_md_get_dt_cfd()/delta_t)
+                endif
+                
+                iter_average = mod(iter-1, Naverage)+1
+                
+                call coupler_apply_continuum_forces(np,r,v,a,iter_average)        !Apply force based on Nie,Chen an Robbins coupling
+                
+        end subroutine socket_coupler_apply_continuum_forces
+       
+        
+        subroutine socket_coupler_average(iter)
+                use physical_constants_MD, only : np
+                use arrays_MD, only :r,v
+                use coupler
+                implicit none
+
+                integer, intent(in) :: iter
+             
+                integer :: iter_cfd, iter_average, Naverage, save_period, average_period
+                logical, save :: first_time=.true.
+                save save_period, average_period, Naverage
+
+                 if (.not. coupler_is_active) return
+
+                 if (first_time) then 
+                         first_time     = .false.
+                         save_period 	= coupler_get_save_period()    ! period to save uc data (for debugging, testing)
+                         average_period = coupler_get_average_period() ! collection interval in the average cycle
+                         Naverage = int(coupler_md_get_dt_cfd() /delta_t)           ! number of steps in MD average cycle
+                 endif
+
+                 iter_average = mod(iter-1, Naverage)+1        ! current step
+                 
+                 iter_cfd     = (iter-initialstep)/Naverage +1 ! CFD corresponding step
+                
+                 if ( mod(iter_average,average_period) .eq. 0 ) then
+                         call coupler_boundary_cell_average(np,r,v,send_data=.false.) ! accumlate velocities
+                         if ( mod(iter_cfd,save_period) .eq. 0) then
+                                 call coupler_uc_average_test(np,r,v,lwrite=.false.)
+                                 call messenger_syncall
+                         endif
+                 endif
+                 
+                 ! Send accumulated results to CFD at the end of average cycle 
+                 if (iter_average .eq. Naverage) then 
+                         call coupler_boundary_cell_average(np,r,v,send_data=.true.)
+                         if (mod(iter_cfd,save_period) .eq. 0 ) then
+                                 call coupler_uc_average_test(np,r,v,lwrite=.true.)
+                         endif
+                 endif
+                 
+                
+         end subroutine socket_coupler_average
 
 end subroutine simulation_MD
 

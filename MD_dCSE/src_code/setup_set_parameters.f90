@@ -334,8 +334,8 @@ subroutine set_parameters_cells
 
 	if (ncells(1)<3 .or. ncells(2)<3 .or. ncells(3)<3) then
 		print*, ncells(1),'    in x and ', ncells(2), '    in y' , ncells(3), '    in z' 
-		stop "WARNING - DOMAIN SHOULD HAVE AT LEAST 3 CELLS', &
-		'IN X, Y AND Z - INCREASE NUMBER OF UNITS IN INPUT"
+		call  error_abort( "WARNING - DOMAIN SHOULD HAVE AT LEAST 3 CELLS, &
+		 &IN X, Y AND Z - INCREASE NUMBER OF UNITS IN INPUT")
 	endif
 
 	!Determine side length of cells after rounding

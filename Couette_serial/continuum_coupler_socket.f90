@@ -10,8 +10,8 @@ contains
                 implicit none
 
  		integer i
-		real(kind(0.d0)) uc3d(nz+1,size(uc,dim=1),size(uc,dim=2)), & !hack for 2d parallelism, z dimension independent of nx
-                                 vc3d(nz+1,size(vc,dim=1),size(vc,dim=2))
+		real(kind(0.d0)) uc3d(nz,size(uc,dim=1),size(uc,dim=2)), & !hack for 2d parallelism, z dimension independent of nx
+                                 vc3d(nz,size(vc,dim=1),size(vc,dim=2))
  
                 do i=1,size(uc3d,dim=1)
                         uc3d(i,:,:) = uc (:,:)
@@ -26,6 +26,7 @@ contains
 
 
         subroutine MD_continuum_BC(u,v)
+                use continuum_coupler_socket_init, only : nz 
                 use coupler, only : coupler_md_vel
                 implicit none
 
@@ -33,7 +34,7 @@ contains
 !                integer, save :: ncall = 0
 
                 real(kind(0.d0)), intent(out) :: u(:), v(:)
-                real(kind(0.d0)) w(1,1,1), u3(size(u),size(u),1),v3(size(v),size(v),1)
+                real(kind(0.d0)) w(1,1,1), u3(nz,size(u),1),v3(nz,size(v),1)
 
 
 		!A polymorphic interface is needed here

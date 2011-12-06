@@ -315,7 +315,8 @@ contains
 
                 ! set the sizes of MD box
 
-                DY_PURE_MD = 10.94378734741916534432d0 - (y(jmin_cfd) - y(jmino)) ! prototype
+                DY_PURE_MD = 4.d0 * 5.12993d0 ! 4 nunits below CFD grid 
+                !10.94378734741916534432d0 - (y(jmin_cfd) - y(jmino)) ! prototype
                 !      
                 xL_md = (x(imax_cfd) - x(imin_cfd))
                 yL_md = (y(jmax_overlap_cfd) - y(jmino) +&
@@ -971,7 +972,7 @@ contains
 
                 real(kind=kind(0.d0)) vaux(nlz-1,nlx-1,nly-1), vbuf((nlz-1)*(nlx-1)*(nly-1))
                 integer i, j,k, is, ie, js, je, ks, ke, iu_s, iu_e, iv_s, iv_e, iw_s, iw_e, &
-                        min_i, min_j, min_k, np, myid, &
+                        ku_s, ku_e, kv_s, kv_e, min_i, min_j, min_k, np, myid, &
                         itag, dest, type, req(md_map%n), ierr
                 integer status(MPI_STATUS_SIZE,md_map%n)
                 integer, save :: ncalls = 0
@@ -987,14 +988,20 @@ contains
                 !                write(0,*) "CFD, send_CFDvel: ", myid
                 is = bbox_cfd%xbb(1,icoord(1,myid+1))
                 ie = bbox_cfd%xbb(2,icoord(1,myid+1))
+                js = bbox_cfd%ybb(1,icoord(2,myid+1))
+                je = bbox_cfd%ybb(2,icoord(2,myid+1))
+                ks = bbox_cfd%zbb(1,icoord(3,myid+1))
+                ke = bbox_cfd%zbb(2,icoord(3,myid+1))
 
                 iu_s = 2
+                ku_s = 1
                 iv_s = 2
-                iw_s = 1
+                kv_s = 1
 
                 iu_e = iu_s + ie - is - 1 ! +1 - 1 !!
                 iv_e = iv_s + ie - is - 1 
-                iw_e = iw_s + ie - is - 1 
+                ku_e = ku_s + ke - ks - 1
+                kv_e = kv_s + ke - ks - 1 
                 !                write(0,*) 'CFD send_CFDvel' , myid, ncalls, ie-is+1, nlx,nly,nlz
                 min_i = minval(md_map%domains(1,:))
                 min_j = minval(md_map%domains(3,:))
@@ -1003,9 +1010,9 @@ contains
                 do j = 1, 2
                         select case (j)
                         case (1)
-                                vaux(:,:,:) = uc(1:nlz-1,iu_s:iu_e,2:jmax_overlap-1)
+                                vaux(:,:,:) = uc(ku_s:ku_e,iu_s:iu_e,2:jmax_overlap-1)
                         case (2)
-                                vaux(:,:,:) = vc(1:nlz-1,iv_s:iv_e,2:jmax_overlap-1)
+                                vaux(:,:,:) = vc(kv_s:kv_e,iv_s:iv_e,2:jmax_overlap-1)
                         case (3) 
                                 !                                vaux(:,:,:) = wc(1:1,iw_s:iw_e,1:jmax_overlap)
                         end select
