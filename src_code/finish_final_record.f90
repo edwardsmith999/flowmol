@@ -145,8 +145,6 @@ subroutine reformat_dcd
 	allocate(Ybuf(NSET*globalnp))
 	allocate(Zbuf(NSET*globalnp))
 
-        write(0,*)'globalnp ', globalnp
-
 	!Read position information from file
 	!RECORD LENGTH IS 1 WHICH IN FORTRAN IS A 4 BYTE BLOCKS (REAL, INT BUT NOT DP) 	
 	open (unit=17, file=trim(prefix_dir)//"results/vmd_temp.dcd",access='stream')
@@ -176,7 +174,7 @@ subroutine reformat_dcd
 
         call cpu_time(time_end)
 
-        print '(a,g7.0,a)', 'Generated final VMD.dcd ouput file in', time_end - time_start, ' seconds'
+        print '(a,g,a)', 'Generated final VMD.dcd ouput file in', time_end - time_start, ' seconds'
 
 
 

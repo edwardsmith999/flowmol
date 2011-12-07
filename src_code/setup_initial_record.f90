@@ -325,6 +325,7 @@ implicit none
 	end if
 	totenergy   = kinenergy + potenergy
 	temperature = v2sum / (nd * globalnp)
+	if (thermstat_flag.eq.2) temperature = get_temperature_PUT()
 	pressure    = (density/(globalnp*nd))*(v2sum+virial/2) !N.B. virial/2 as all interactions calculated
 	
 	!WARNING ABOUT THERMOSTATTED RESTARTS! WILL CONSERVE TEMPERATURE OF LAST ITERATION

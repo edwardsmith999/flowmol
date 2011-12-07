@@ -73,8 +73,15 @@ subroutine setup_tag
 	!thermstattop(2) = 0.d0*(ncells(2)-1)*cellsidelength(2) !1.7029d0 !3.4058197d0  !(0.20+0.5d0*mol_layers)*initialunitsize(2) 
 	!thermstattop(3) = 0.d0 !initialunitsize(3)
 
-	!Set all molecules tag equal to zero (normal)
-	tag = 0
+	if (thermstat_flag.eq.1) then
+		tag = 4								!N-H all
+		return
+	else if (thermstat_flag.eq.2) then
+		tag = 8								!N-H(PUT) all
+		return
+	else
+		tag = 0								!Initialise
+	end if
 
 	do n = 1,np
 		!x bottom
@@ -295,6 +302,9 @@ subroutine read_tag(molno)
 		fix(molno,:) = 1
 		slidev(molno,:) = wallslidev
 		thermostat(molno,:) = 1
+	case (8)
+		fix(molno,:) = 1
+		slidev(molno,:) = 0.d0
 	case default
 		stop "Invalid molecular Tag"
 	end select

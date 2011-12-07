@@ -128,7 +128,7 @@ subroutine setup_inputs
 	use librarymod, only : locate
 	implicit none
 	
-	integer :: k, n, tvalue(8), thermstat_flag
+	integer :: k, n, tvalue(8)
         logical :: from_input
 
 !	call random_seed
@@ -287,10 +287,15 @@ subroutine setup_inputs
 		        .or.abs(maxval(thermstatbottom)).ne.0.0) stop & 
 			 "THERMSTATTOP or THERMSTATBOTTOM non zero but THERMSTAT_FLAG_INFO set to off (THERMSTAT_FLAG=0)"
 			thermstatbottom = 0.d0; thermstattop = 0.d0 
-		case(1)
+		case(1) !N-H thermostat all molecules
 			thermstattop 	= initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
 			thermstatbottom = initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
-		case(2)
+			tag = 4
+		case(2) !N-H PUT all molecules
+			thermstattop 	= initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
+			thermstatbottom = initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
+			tag = 8	!Profile unbiased thermostat
+		case(3)
 			if (abs(maxval(thermstattop   )).eq.0.0 & 
 		       .and.abs(maxval(thermstatbottom)).eq.0.0) stop & 
 			"THERMSTATTOP or THERMSTATBOTTOM must also be specified"
@@ -381,7 +386,7 @@ subroutine setup_restart_inputs
 	implicit none
 
 	logical				:: from_input
-	integer				:: n, k, thermstat_flag
+	integer				:: n, k
 	integer 			:: extrasteps
 	integer 			:: checkint
         integer(MPI_OFFSET_KIND)        :: ofs, header_ofs

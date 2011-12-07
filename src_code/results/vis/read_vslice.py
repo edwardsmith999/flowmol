@@ -28,7 +28,7 @@ import os
 import read_header
 import read_mslice
 
-def mean(values):
+def mean(values):									# Define function that averages a list of values
 	return float(sum(values)/len(values))
 
 nd				= int(read_header.nd)

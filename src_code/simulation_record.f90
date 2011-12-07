@@ -175,6 +175,7 @@ subroutine evaluate_macroscopic_properties_parallel
 
 	!Root processes prints results
 	if (irank .eq. iroot) then
+		
 
 		kinenergy   = (0.5d0 * v2sum) / real(globalnp,kind(0.d0))
 		potenergy   = potenergysum /(2.d0*real(globalnp,kind(0.d0))) !N.B. extra 1/2 as all interactions calculated
@@ -184,6 +185,7 @@ subroutine evaluate_macroscopic_properties_parallel
 		end if
 		totenergy   = kinenergy + potenergy
 		temperature = v2sum / real(nd*globalnp,kind(0.d0))
+		if (thermstat_flag.eq.2) temperature = get_temperature_PUT()
 		pressure    = (density/(globalnp*nd))*(v2sum+virial/2) !N.B. virial/2 as all interactions calculated
 	
 		if (potential_flag.eq.0) then	
@@ -489,7 +491,7 @@ subroutine velocity_averaging(ixyz)
 
 	integer			:: ixyz
 	integer, save		:: average_count=-1
-
+	
 	average_count = average_count + 1
 	call cumulative_velocity(ixyz)
 	if (average_count .eq. Nvel_ave) then
