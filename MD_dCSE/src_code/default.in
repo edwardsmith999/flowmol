@@ -215,7 +215,8 @@ TETHEREDDISTTOP
 
 #########################################################################
 # Thermostat flag:
-# 0 - off, 1 - all, 2 - selection (must also specify THERMSTATTOP and/or
+# 0 - off, 1 - all, 2 - all (PUT), 3 - selection (must also specify 
+#													THERMSTATTOP and/or
 #												 	 THERMSTATBOTTOM)
 # -----------------------------------------------------------------------
 THERMSTAT_FLAG

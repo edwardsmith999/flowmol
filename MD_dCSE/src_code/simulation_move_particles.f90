@@ -26,10 +26,8 @@ end subroutine simulation_move_particles
 
 !======================================================================================
 !======================================================================================
-
 !--------------------------------------------------------------------------------------
 ! Default move particles routine
-
 subroutine simulation_move_particles_default
 use module_move_particles
 implicit none
@@ -65,40 +63,67 @@ end subroutine simulation_move_particles_default
 subroutine simulation_move_particles_tag
 use module_move_particles
 use calculated_properties_MD
+use shear_info_MD, only: shear_plane
 implicit none
 
-	integer 		:: maxtag, n, ixyz, thermostatnp
-	double precision	:: vel, slice_momentum2, dzeta_dt, massheatbath
-	double precision	:: vreduce, relaxfactor, ascale, bscale
+	integer :: maxtag, n, thermostatnp, slicebin
+	integer, dimension(:), allocatable 	:: m_slice
+	double precision :: dzeta_dt, massheatbath, pec_v2sum
+	double precision :: ascale, bscale, alpha, beta
+	double precision, dimension(nd)	:: slicebinsize, vel
+	double precision, dimension(:,:), allocatable :: v_slice,v_avg
+	logical :: PUT
+
+	if (all(tag.eq.8)) then
+		PUT = .true.
+		allocate(m_slice(nbins(shear_plane)))				! PUT: Allocate instantaneous mass slices
+		allocate(v_slice(nbins(shear_plane),nd))			! PUT: Allocate instantaneous velocity slices
+		allocate(v_avg(nbins(shear_plane),nd))				! PUT: Allocate instantaneous velocity averages
+		slicebinsize(:) = domain(:)/nbins(:)				! PUT: Get bin size for PUT
+		m_slice = get_mass_slices(shear_plane)				! PUT: Get total mass in all slices
+		v_slice = get_velo_slices(shear_plane)				! PUT: Get total velocity in all slices
+		do slicebin=1,nbins(shear_plane)					! PUT: Loop through all slices
+			v_avg(slicebin,:) = v_slice(slicebin,:)/m_slice(slicebin) ! PUT: average velocity
+		end do			
+		pec_v2sum = 0.d0
+	else 
+		PUT = .false.
+	end if
 
 	!Check if any molecules are thermostatted and calculate appropriate coefficients
 	maxtag = maxval(tag)
 	call globalMaxInt(maxtag)
 	if (maxtag .ge. 4) then
-		v2sum = 0.d0      ! Reset all sums
-		thermostatnp = 0
-		do n = 1, np    ! Loop over all particles
-			!CHECK IF YOU WANT THIS LINE IN!!
-			if (tag(n) .lt. 4) cycle	!Only include thermostatted molecules
-			!WALL THERMOSTATS MAY NEED TO KNOW DOMAIN TEMPERATURE
-			do ixyz = 1, nd    ! Loop over all dimensions
-				vel = v(n,ixyz) - 0.5d0*a(n,ixyz)*delta_t
-				v2sum = v2sum + vel**2 !Add up all molecules' velocity squared components  
-			enddo
+		v2sum = 0.d0    									  	! Reset total v2sum
+		thermostatnp = 0										! Reset count of thermostatted mols
+		do n = 1, np   											! Loop all molecules
+			if (tag(n) .lt. 4) cycle							! Only include thermostatted molecules - DO YOU WANT THIS LINE UNCOMMENTED?
+			if (PUT) then										! PUT: If using PUT find peculiar v2sum
+				slicebin = ceiling((r(n,shear_plane)+halfdomain(shear_plane))/slicebinsize(shear_plane))
+				if (slicebin > nbins(shear_plane)) slicebin = nbins(shear_plane)	! PUT: Prevent out-of-range values
+				if (slicebin < 1) slicebin = 1										! PUT: Prevent out-of-range values
+				vel(:) = v(n,:) - v_avg(slicebin,:) - 0.5d0*a(n,:)*delta_t			! PUT: Find peculiar velocity
+				pec_v2sum = pec_v2sum + dot_product(vel,vel)						! PUT: Sum peculiar velocities squared
+			else
+				vel(:) = v(n,:) - 0.5d0*a(n,:)*delta_t	
+				v2sum = v2sum + dot_product(vel,vel)
+			end if
 			thermostatnp = thermostatnp + 1
 		enddo
 
 		!Obtain global sums for all parameters
 		call globalSumInt(thermostatnp)
-		call globalSum(v2sum)	!Obtain global velocity sum
+		call globalSum(v2sum)	
 
 		massheatbath = thermostatnp * delta_t
-
 		dzeta_dt = (v2sum - (nd*thermostatnp + 1)*inputtemperature) / massheatbath
-		zeta = zeta + delta_t*dzeta_dt
+		if (PUT) dzeta_dt = (pec_v2sum - (nd*thermostatnp + 1)*inputtemperature) / massheatbath
+		zeta 	 = zeta + delta_t*dzeta_dt
+		bscale	 = 1.0/(1.0+0.5*delta_t*zeta)
+		ascale	 = (1-0.5*delta_t*zeta)*bscale
+		alpha	 = 1.0+0.5*delta_t*zeta							! PUT: More convenient notation							
+		beta	 = 1.0-0.5*delta_t*zeta							! PUT: More convenient notation
 
-		bscale=1.0/(1.0+0.5*delta_t*zeta)
-		ascale=(1-0.5*delta_t*zeta)*bscale
 	endif
 
 	!Step through each particle n
@@ -130,11 +155,11 @@ implicit none
 		case (5)
 			!Thermostatted Tethered molecules unfixed with no sliding velocity
 			call tether_force(n)
-	        	v(n,1) = v(n,1)*ascale + a(n,1)*delta_t*bscale
+	       	v(n,1) = v(n,1)*ascale + a(n,1)*delta_t*bscale
 			r(n,1) = r(n,1)    +     v(n,1)*delta_t			
-	        	v(n,2) = v(n,2)*ascale + a(n,2)*delta_t*bscale
+	       	v(n,2) = v(n,2)*ascale + a(n,2)*delta_t*bscale
 			r(n,2) = r(n,2)    + 	 v(n,2)*delta_t				
-	        	v(n,3) = v(n,3)*ascale + a(n,3)*delta_t*bscale
+	       	v(n,3) = v(n,3)*ascale + a(n,3)*delta_t*bscale
 			r(n,3) = r(n,3)    +     v(n,3)*delta_t	
 		case (6)
 			!Tethered molecules with sliding velocity
@@ -144,17 +169,33 @@ implicit none
 		case (7)
 			!Thermostatted Tethered molecules unfixed with sliding velocity
 			call tether_force(n)
-	        	v(n,1) = v(n,1)*ascale + a(n,1)*delta_t*bscale
+	       	v(n,1) = v(n,1)*ascale + a(n,1)*delta_t*bscale
 			r(n,1) = r(n,1)    +     v(n,1)*delta_t	+ slidev(n,1)*delta_t		
-	        	v(n,2) = v(n,2)*ascale + a(n,2)*delta_t*bscale
+	       	v(n,2) = v(n,2)*ascale + a(n,2)*delta_t*bscale
 			r(n,2) = r(n,2)    + 	 v(n,2)*delta_t	+ slidev(n,2)*delta_t			
-	        	v(n,3) = v(n,3)*ascale + a(n,3)*delta_t*bscale
+	       	v(n,3) = v(n,3)*ascale + a(n,3)*delta_t*bscale
 			r(n,3) = r(n,3)    +     v(n,3)*delta_t	+ slidev(n,3)*delta_t
-
+		case (8)
+			!Profile unbiased thermostat (Nose-Hoover)
+			slicebin = ceiling((r(n,shear_plane)+halfdomain(shear_plane))/slicebinsize(shear_plane))
+			if (slicebin > nbins(shear_plane)) slicebin = nbins(shear_plane)	! Prevent out-of-range values
+			if (slicebin < 1) slicebin = 1										! Prevent out-of-range values
+			v(n,1) = v(n,1)*(beta/alpha) + a(n,1)*(delta_t/alpha) + 0.5*delta_t*zeta*(2.0*v_avg(slicebin,1)) 
+			v(n,2) = v(n,2)*(beta/alpha) + a(n,2)*(delta_t/alpha) + 0.5*delta_t*zeta*(2.0*v_avg(slicebin,2)) 
+			v(n,3) = v(n,3)*(beta/alpha) + a(n,3)*(delta_t/alpha) + 0.5*delta_t*zeta*(2.0*v_avg(slicebin,3)) 
+			r(n,1) = r(n,1) + v(n,1)*delta_t			
+			r(n,2) = r(n,2) + v(n,2)*delta_t				
+			r(n,3) = r(n,3) + v(n,3)*delta_t	
 		case default
 			stop "Invalid molecular Tag"
 		end select
 	enddo
+	
+	if (PUT) then
+		deallocate(v_avg) 				! PUT: Deallocate velocity averages
+		deallocate(m_slice)				! PUT: Deallocate mass slices
+		deallocate(v_slice)				! PUT: Deallocate velocity slices
+	end if
 
 end subroutine simulation_move_particles_tag
 

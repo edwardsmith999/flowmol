@@ -41,6 +41,9 @@ module computational_constants_MD
 	!Potential flags
 	integer			:: potential_flag	!Choose LJ or Polymer Potential 
 
+	!Thermostat flag
+	integer			:: thermstat_flag
+
 	!Input (on or off) flags
 	integer			:: vmd_outflag
 	integer			:: macro_outflag
@@ -327,5 +330,92 @@ module calculated_properties_MD
 	double precision, dimension(:,:,:,:,:), allocatable :: Gxybins     !Parameter used in Nose Hoover stressostat
 
 	!double precision,dimension(2,3,44)	:: shiftVAstress
+contains
  
+	function get_mass_slices(ixyz)
+	use computational_constants_MD, only: domain,halfdomain
+	use physical_constants_MD, only: np
+	use arrays_MD, only: r
+	implicit none
+
+		integer, intent(in) 				:: ixyz
+		integer								:: bin,n
+		double precision 					:: binsize
+		integer, dimension(nbins(ixyz)) 	:: get_mass_slices
+		
+		binsize = domain(ixyz)/nbins(ixyz)
+		get_mass_slices = 0
+		do n=1,np
+			bin = ceiling((r(n,ixyz)+halfdomain(ixyz))/binsize)
+			if (bin.lt.1) 				bin = 1
+			if (bin.gt.nbins(ixyz)) 	bin = nbins(ixyz)
+			get_mass_slices(bin) = get_mass_slices(bin) + 1
+		end do
+
+	end function get_mass_slices
+ 
+	function get_velo_slices(ixyz)
+	use arrays_MD, only: r,v
+	use computational_constants_MD, only: domain,halfdomain
+	use physical_constants_MD, only: np,nd
+	implicit none
+
+		integer, intent(in) 				:: ixyz
+		integer								:: bin,n
+		double precision 					:: binsize
+		double precision, dimension(nbins(ixyz),nd) :: get_velo_slices
+		
+		binsize = domain(ixyz)/nbins(ixyz)
+		get_velo_slices = 0
+		do n=1,np
+			bin = ceiling((r(n,ixyz)+halfdomain(ixyz))/binsize)
+			if (bin.lt.1) 				bin = 1
+			if (bin.gt.nbins(ixyz)) 	bin = nbins(ixyz)
+			get_velo_slices(bin,:) = get_velo_slices(bin,:) + v(n,:)
+		end do
+
+	end function get_velo_slices
+
+	double precision function get_temperature_PUT
+	use computational_constants_MD, only: domain, halfdomain,delta_t
+	use physical_constants_MD, only: np,nd,globalnp
+	use arrays_MD, only: r,v,a
+	use shear_info_MD, only: shear_plane
+	implicit none
+	
+		integer	:: slicebin,n	
+		integer, dimension(:), allocatable 	:: m_slice
+		double precision :: pec_v2sum
+		double precision, dimension(nd) 	:: slicebinsize, vel
+		double precision, dimension(:,:), allocatable :: v_slice,v_avg
+		
+		slicebinsize(:) = domain(:)/nbins(:)				! Get bin size
+		pec_v2sum 			= 0.d0								! Initialise
+		
+		!todo reevaluate
+		allocate(m_slice(nbins(shear_plane)))	
+		allocate(v_slice(nbins(shear_plane),nd))
+		allocate(v_avg(nbins(shear_plane),nd))
+		m_slice = get_mass_slices(shear_plane)				! Get total mass in all slices
+		v_slice = get_velo_slices(shear_plane)				! Get total velocity in all slices
+		do slicebin=1,nbins(shear_plane)
+			v_avg(slicebin,:) = v_slice(slicebin,:)/m_slice(slicebin)
+		end do
+
+		do n=1,np
+			slicebin 			= ceiling((r(n,shear_plane)+halfdomain(shear_plane))/slicebinsize(shear_plane))
+			if (slicebin > nbins(shear_plane)) slicebin = nbins(shear_plane)	! Prevent out-of-range values
+			if (slicebin < 1) slicebin = 1										! Prevent out-of-range values
+			vel(:) 			 	= v(n,:) - v_avg(slicebin,:) - 0.5d0*a(n,:)*delta_t
+			pec_v2sum 			= pec_v2sum + dot_product(vel,vel)
+		end do
+	
+		get_temperature_PUT = pec_v2sum / real(nd*globalnp,kind(0.d0))
+
+		deallocate(m_slice)
+		deallocate(v_slice)
+		deallocate(v_avg)
+
+	end function get_temperature_PUT
+
 end module calculated_properties_MD

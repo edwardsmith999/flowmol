@@ -218,7 +218,6 @@ implicit none
 				rij2 = rij2+rij(ixyz)*rij(ixyz) !Square of vector calculated
 			enddo
 	
-!			if (rij2**0.5.lt.0.8) print*, 'mols ',molnoi,' and ',molnoj,' are too close!', rij2**0.5 !todo
 			if (rij2 < rcutoff2) then
 
 				!Linear magnitude of acceleration for each molecule

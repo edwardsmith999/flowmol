@@ -44,9 +44,9 @@
 module messenger
 	use mpi
 	use computational_constants_MD
-        use coupler
+    use coupler
 
-        integer MD_COMM                      ! global communicator
+    integer MD_COMM                      ! global communicator
 	integer myid                         ! my process rank
 	integer idroot                       ! rank of root process
 
