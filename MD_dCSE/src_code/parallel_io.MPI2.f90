@@ -290,11 +290,9 @@ subroutine setup_inputs
 		case(1) !N-H thermostat all molecules
 			thermstattop 	= initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
 			thermstatbottom = initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
-			tag = 4
 		case(2) !N-H PUT all molecules
 			thermstattop 	= initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
 			thermstatbottom = initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
-			tag = 8	!Profile unbiased thermostat
 		case(3)
 			if (abs(maxval(thermstattop   )).eq.0.0 & 
 		       .and.abs(maxval(thermstatbottom)).eq.0.0) stop & 
