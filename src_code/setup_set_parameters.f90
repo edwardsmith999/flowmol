@@ -77,9 +77,7 @@ subroutine setup_set_parameters
 	!call CUDA_setup
 
 	!Setup shear info
-	if (any(periodic .gt. 1)) then
-		call setup_shear_parameters
-	endif
+	call setup_shear_parameters
 
 end subroutine setup_set_parameters
 
@@ -160,7 +158,18 @@ use shear_info_MD
 implicit none
 
 	integer :: i
-	
+
+	! DEFAULTS	
+	shear_plane = 2
+	shear_direction = 1
+	shear_remainingplane = 3
+	shear_rate = 0.d0
+	shear_velocity = 0.d0
+	shear_iter0 = 0
+	shear_time = 0.d0
+	shear_distance = 0.d0	
+
+	! CHANGE FROM DEFAULT VALUES
 	do i=1,nd
 		if (periodic(i).eq.2) shear_plane = i
 	end do
