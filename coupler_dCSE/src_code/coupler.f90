@@ -160,8 +160,8 @@ contains
         end subroutine coupler_create_comm
 
 
-        subroutine coupler_get_cfd_info(imino,imin,imax,imaxo,jmino,jmin,jmax,jmaxo,kmino,kmin,&
-                kmax,kmaxo,nsteps,x,y,z,dx,dz,npx,npy,npz,icoord,dt)
+        subroutine coupler_cfd_init(imino,imin,imax,imaxo,jmino,jmin,jmax,jmaxo,kmino,kmin,&
+                kmax,kmaxo,nsteps,x,y,z,dx,dz,npx,npy,npz,icoord,dt,density)
                 use mpi
                 use coupler_internal_common
                 use coupler_internal_cfd, only : imino_ => imino, imin_ => imin, imax_ => imax, jmino_ => jmin, &
@@ -174,7 +174,7 @@ contains
 
                 integer, intent(in) :: imino,imin,imax,imaxo,jmino,jmin,jmax,jmaxo,kmino,kmin,kmax,kmaxo,nsteps,&
                         npx,npy,npz,icoord(:,:)
-                real(kind(0.d0)), intent(in)    :: x(:),y(:),z(:),dx,dz,dt
+                real(kind(0.d0)), intent(in) :: x(:),y(:),z(:), dx, dz, dt, density
 
                 integer i, ierr, myid, source, ngrid(3), ny_md, nblock(3), &
                         iaux(6)
@@ -224,14 +224,14 @@ contains
 
                 ! send CFD nsteps and dt
                 call mpi_bcast(nsteps,1,mpi_integer,source,CFD_MD_ICOMM,ierr)
-                call mpi_bcast(dt,1,mpi_double_precision,source,CFD_MD_ICOMM,ierr)
+                call mpi_bcast( (/ dt, density /),2,mpi_double_precision,source,CFD_MD_ICOMM,ierr)
 
                 !                 write(0,*)' CFD: did exchange grid data'
 
-        end subroutine coupler_get_cfd_info
+        end subroutine coupler_cfd_init
 
 
-        subroutine coupler_get_md_info(npxin,npyin,npzin,icoordin,dtin)
+        subroutine coupler_md_init(npxin,npyin,npzin,icoordin,dtin)
                 use mpi
                 use coupler_internal_common
                 use coupler_internal_md
@@ -308,14 +308,15 @@ contains
 	 		&,ierr)
 
                 ! get CFD dt
-                call mpi_bcast(dt_CFD,1,mpi_double_precision,0&
+                call mpi_bcast(ra,2,mpi_double_precision,0&
 	 		&,CFD_MD_ICOMM,ierr)
                 ! should dt_CFD be scaled ?  see to it later
-                dt_CFD = dt_CFD * FoP_time_ratio
+                dt_CFD = ra(1) * FoP_time_ratio
+                density = ra(2)
 
                 ! set the sizes of MD box
 
-                DY_PURE_MD = 4.d0 * 5.12993d0 ! 4 nunits below CFD grid 
+                DY_PURE_MD =  y(jmin_cfd) - y(jmino) ! 4 nunits below CFD grid 
                 !10.94378734741916534432d0 - (y(jmin_cfd) - y(jmino)) ! prototype
                 !      
                 xL_md = (x(imax_cfd) - x(imin_cfd))
@@ -329,7 +330,7 @@ contains
 
 
 
-        end subroutine coupler_get_md_info
+        end subroutine coupler_md_init
 
 
         subroutine coupler_create_map
@@ -352,7 +353,7 @@ contains
         end subroutine coupler_create_map
 
 
-        subroutine coupler_constrain_forces(np,pressure,r,a)
+        subroutine coupler_md_constrain_forces(np,pressure,r,a)
                 use coupler_internal_md, only : bbox, jmax_overlap_cfd, halfdomain => half_domain_lengths, y
                 implicit none 
 
@@ -381,14 +382,14 @@ contains
                         yc  =  r(n,2) + halfdomain(2) + bbox%bb(1,2)
 
                         if (yc  < y3 .and. yc >= y2 ) then
-                                a(n,2)= a(n,2) - (yc-y2)/(1-(yc-y2)/(y3+eps-y2))*pressure
+                                a(n,2)= a(n,2) - p*(yc-y2)/(1.d0-(yc-y2)/(y3-y2)+eps)
                         endif
                 enddo
 
 
-        end subroutine coupler_constrain_forces
+        end subroutine coupler_md_constrain_forces
 
-        subroutine coupler_apply_continuum_forces(np,r,v,a,iter)
+        subroutine coupler_md_apply_continuum_forces(np,r,v,a,iter)
                 use coupler_internal_common
                 use coupler_internal_md, only : cfd_box_sum, halfdomain => half_domain_lengths, &
                                                 x, y, z, dx, dz, global_r, jmin => jmin_cfd, &
@@ -544,7 +545,7 @@ contains
                                 !                                        box_average(ib,jb,kb)%a(:),v(ip,:),a(ip,:),inv_dtMD,inv_dtCFD
 
                                 if ( n .eq. 0 ) cycle
-                                ! use the following exptrapolation formula
+                                ! using the following exptrapolation formula for continuum velocity
                                 ! y = (y2-y1)/(x2-x1) * (x-x2) +y2
 
                                 alpha(1) = inv_dtCFD*(vel_fromCFD(1,ib,jb+jb_offset,kb,itm1) - &
@@ -553,7 +554,7 @@ contains
                                 u_cfd_t_plus_dt(1) = alpha(1) * (iter + 1)*dt_MD + vel_fromCFD(1,ib,jb_offset,kb,itm1) 
 
                                 acfd =  - box_average(ib,jb,kb)%a(1) / n - inv_dtMD * & 
-                                        (box_average(ib,jb,kb)%v(1) / n - u_cfd_t_plus_dt(1))
+                                        ( box_average(ib,jb,kb)%v(1) / n - u_cfd_t_plus_dt(1) )
                                 a(ip,1) = a(ip,1) + acfd
 
                                 !                                write(0,'(a,4I4,15E12.4)') "MD continuum force 2", ib,jb,kb,n, &
@@ -580,7 +581,7 @@ contains
 
                 end subroutine average_over_bin
 
-        end subroutine coupler_apply_continuum_forces
+        end subroutine coupler_md_apply_continuum_forces
 
 
 
@@ -758,7 +759,7 @@ contains
         end subroutine coupler_uc_average_test
 
 
-        subroutine coupler_boundary_cell_average(np,r,v,send_data)
+        subroutine coupler_md_boundary_cell_average(np,r,v,send_data)
                 !  computes MD average velocity in a box of size dx*dy*dz around a staggered FD grid point 
                 use coupler_internal_md, only : myid, icoord, dx, dz, x, y, z, global_r, send_vel
                 implicit none
@@ -958,10 +959,10 @@ contains
 
                 end subroutine compute_wc_average
 
-        end subroutine coupler_boundary_cell_average
+        end subroutine coupler_md_boundary_cell_average
 
 
-        subroutine coupler_send_CFDvel(uc,vc)
+        subroutine coupler_cfd_send_velocity(uc,vc)
                 use mpi
                 use coupler_internal_cfd, only : md_map, nlx, nly, nlz, CFD_COMM_OVERLAP, &
                                                  bbox_cfd, jmax_overlap, dx, dz, icoord
@@ -1069,10 +1070,10 @@ contains
                 ! condition. Is it really necessary?
                 !                call mpi_barrier(CFD_COMM, ierr)
 
-	end subroutine coupler_send_CFDvel
+	end subroutine coupler_cfd_send_velocity
 
 
-        subroutine coupler_md_vel(uc,vc,wc)
+        subroutine coupler_cfd_get_velocity(uc,vc,wc)
                 use mpi
                 use coupler_internal_common
                 !                use data_export, only : ngz, i1_u, i2_u, j1_u, j2_u,&
@@ -1109,14 +1110,14 @@ contains
 		wc = 0.d0
                 !                call  recv_vel_MD(wc, 1, ngz-1, i1_w, i2_w, 0, 0, 1)
 
-        end subroutine coupler_md_vel
+        end subroutine coupler_cfd_get_velocity
 
 !-----------------------------------------------------------------------------
 !
 ! function and subroutines that extract parameter forn internal modules 
 !
 !-----------------------------------------------------------------------------        
-        subroutine coupler_get(xL_md,yL_md,zL_md)
+        subroutine coupler_md_get(xL_md,yL_md,zL_md)
                 use coupler_internal_md, only : xL_md_ =>  xL_md, yL_md_ =>  yL_md, zL_md_ =>  zL_md
 !                use coupler_internal_md
                 implicit none
@@ -1135,7 +1136,7 @@ contains
                         zL_md = zL_md_
                 endif
                 
-        end subroutine coupler_get
+        end subroutine coupler_md_get
 
 
         function coupler_get_save_period() result(p)
@@ -1159,7 +1160,8 @@ contains
 
 
         function coupler_get_nsteps() result(n)
-                 use coupler_internal_md, only : nsteps 
+                 use coupler_internal_md, only : nsteps
+                 implicit none 
 
                  integer n
 
@@ -1169,11 +1171,44 @@ contains
 
         function coupler_md_get_dt_cfd() result(t)
                  use coupler_internal_md, only : dt_CFD  
+                 implicit none
 
                  real(kind=kind(0.d0)) t
 
                  t = dt_CFD
         end function coupler_md_get_dt_cfd
-         
 
+        
+        subroutine coupler_md_set(zL_md)
+                use coupler_internal_md, only : zL => zL_md, z, dz, kmino, kmin_cfd, kmax_cfd, kmaxo
+                implicit none
+                
+                real(kind(0.d0)), optional, intent(in) :: zL_md
+
+                if ( present(zL_md) )then
+                        zL = zL_md
+                        if (allocated(z)) then 
+                                deallocate(z)
+                        endif
+                        ! values need for the overlap map
+                        allocate(z(2))
+                        z(:)       = (/ 0.d0, zL_md /)
+                        dz         = zL_md
+                        kmino      = 1
+                        kmin_cfd   = 1
+                        kmax_cfd   = 2
+                        kmaxo      = 2
+                        
+                endif
+        end subroutine coupler_md_set
+
+        function coupler_md_get_density() result(r)
+                use coupler_internal_md, only : density
+                implicit none
+
+                real(kind(0.d0)) r
+
+                r = density
+        end function coupler_md_get_density
+        
 end module coupler

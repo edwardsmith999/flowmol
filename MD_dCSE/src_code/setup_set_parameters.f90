@@ -266,17 +266,39 @@ end subroutine set_parameters_global_domain
 
 subroutine set_parameters_global_domain_coupled
 	use module_set_parameters
+        use messenger, only : myid
         use coupler 
 	implicit none
 
-	integer                :: ixyz
-        real(kind(0.d0)) xL_md, yL_md,zL_md ! lenght of the MDdomain computed in coupler
+	integer          ixyz, n0(2)
+        real(kind(0.d0)) xL_md, yL_md,zL_md, b0 ! lenght of the MDdomain computed in coupler
 
 	! get the global domain lenghts from x, y, z array of CFD realm
 
-        call coupler_get(xL_md=xL_md,yL_md=yL_md,zL_md=zL_md)
+        ! fix the numner of FCC cells starting from CFD density
+        density = coupler_md_get_density()
+        
+        ! size of cubic FCC cell
+        b0=(4.d0/density)**(1.0d0/3.0d0)
+        
+        call coupler_md_get(xL_md=xL_md,yL_md=yL_md)
+        
+        n0(:) = floor( (/ xL_md, yL_md /) / b0)
 
-	print*, xL_md, yL_md, zL_md
+        !write(0,*) "n0 ", b0, xL_md, yL_md, n0
+        
+        initialunitsize(1:2) =  (/ xL_md, yL_md /) / n0(:)
+        
+        initialunitsize(3) = b0**3/(initialunitsize(1)*initialunitsize(2))
+        
+        initialnunits(1:2) = n0(:)
+
+        ! number of FCC cell in z direction per MPI ranks is choosen the minimal one 
+        initialnunits(3)   = ceiling(3*(rcutoff+delta_rneighbr)/initialunitsize(3)) * npz
+        
+        zL_md =  initialnunits(3)* initialunitsize(3)
+        call coupler_md_set(zL_md = zL_md)
+
 	globaldomain(1) = xL_md
 	globaldomain(2) = yL_md
 	globaldomain(3) = zL_md
@@ -298,14 +320,18 @@ subroutine set_parameters_global_domain_coupled
 		halfdomain(ixyz) = 0.5d0*domain(ixyz)			!Useful definition
 	enddo
 
-	!Establish initial size of single unit to initialise microstate
-	do ixyz=1,nd
-		initialunitsize(ixyz) = 1.0d0/((density/4.0d0)**(1.0d0/nd))
-!		initialunitsize(ixyz) = globaldomain(ixyz) / initialnunits(ixyz)
-	enddo
-
-	print*, npx,npy,npz
 	write(0,*) 'set_parameter_global_domain_hybrid ', globalnp, np, domain, initialunitsize
+
+                if(myid == 0) then
+        	        write(*,'(a/a/a,f5.2,a,f5.2,/,a,3(f5.2),a,/,a,3(I6),/,a)') &
+                                "**********************************************************************", &
+                                "WARNING - this is a coupled run which resets the following parameters:", &
+                                " density         =", density ,                                           & 
+                                " hence the cubic FCC side  is b=", b0 ,                                  &
+                                " initialunitsize =", initialunitsize(:)/b0," in b units ",               &     
+                                " initialnunits   =", initialnunits(:),                                   &
+                                "**********************************************************************"
+                endif
 
 end subroutine set_parameters_global_domain_coupled
 

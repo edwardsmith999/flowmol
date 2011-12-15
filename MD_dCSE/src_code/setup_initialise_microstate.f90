@@ -287,13 +287,15 @@ subroutine setup_initialise_parallel_position
 	!processe's subdomain on current proccess
 	call globalGathernp
 
-	if (coupler_is_active) then
+	if (coupler_is_active .and. myid .eq. 0) then
 		print*, '*********************************************************************'
 		print*, '*WARNING - TOP LAYER OF DOMAIN REMOVED IN LINE WITH CONSTRAINT FORCE*'
 		print*, 'Removed from', CFD_region, 'to Domain top', globaldomain(2)/2.d0
 		print*, 'Number of molecules reduced from',  & 
 			 4*initialnunits(1)*initialnunits(2)*initialnunits(3), 'to', np
 		print*, '*********************************************************************'
+
+                !print*, 'microstate ', minval(r(:,1)), maxval(r(:,1)),minval(r(:,2)), maxval(r(:,2)),minval(r(:,3)), maxval(r(:,3))
 	endif
 
 

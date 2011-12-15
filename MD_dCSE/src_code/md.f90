@@ -61,8 +61,8 @@ contains
 
 	subroutine socket_coupler_init
 		use coupler
-		use computational_constants_MD, only : npx,npy,npz,delta_t,elapsedtime
-		use messenger, only                  : icoord, myid
+		use computational_constants_MD, only : npx,npy,npz,delta_t,elapsedtime 
+		use messenger, only                  :  myid, icoord
 		implicit none
 
                 integer nsteps_cfd
@@ -71,8 +71,9 @@ contains
                 if (.not. coupler_is_active) return
 
 		! if coupled calculation prepare exchange layout
-		call coupler_get_md_info(npx,npy,npz,icoord,delta_t)
+		call coupler_md_init(npx,npy,npz,icoord,delta_t)
  
+
                 ! fix NSTEPS for the coupled case
                 delta_t_CFD = coupler_md_get_dt_cfd()
                 nsteps_cfd  = coupler_get_nsteps()
@@ -81,15 +82,16 @@ contains
                 elapsedtime = elapsedtime + nsteps_cfd * delta_t_CFD
 
                 if (myid .eq. 0) then 
-			write(*,'(a,8(/a))') "*******************************************************************", &
-                                             "WARNING - this is a coupled run in which the number of extrasteps  ", &
-				             "is set to :                                                        ", &
-                                             "                                                                   ", &
-                                             "nstep_cfd*(delta_t_cdf/delta_t_md)                                 ", &
-                                             "                                                                   ", & 
-                                             "The elapsed time was changed accordingly.                          ", &
- 				             "The value of NSTEPS parameter form input file was discarded.       ", &
-                                             "********************************************************************"
+			write(*,'(4(a,/),a,I7,/a,/a,E10.4,a,/,a,/a)') &
+                                       "*********************************************************************", &
+                                       "WARNING - this is a coupled run which resets the number              ", &
+                                       " of extrasteps to:                                                   ", &
+                                       "                                                                     ", &
+                                       " nstep_cfd*(delta_t_cdf/delta_t_md) = ", nsteps_cfd * int(delta_t_cfd/delta_t), &
+                                       "                                                                     ", & 
+                                       " The elapsed time was changed accordingly to: ", elapsedtime, " s    ", &
+ 				       " The value of NSTEPS parameter form input file was discarded.        ", &
+                                       "*********************************************************************"
                                               
                endif 
 
@@ -166,7 +168,7 @@ contains
                 
                 iter_average = mod(iter-1, Naverage)+1
                 
-                call coupler_apply_continuum_forces(np,r,v,a,iter_average)        !Apply force based on Nie,Chen an Robbins coupling
+                call coupler_md_apply_continuum_forces(np,r,v,a,iter_average)        !Apply force based on Nie,Chen an Robbins coupling
                 
         end subroutine socket_coupler_apply_continuum_forces
        
@@ -197,16 +199,15 @@ contains
                  iter_cfd     = (iter-initialstep)/Naverage +1 ! CFD corresponding step
                 
                  if ( mod(iter_average,average_period) .eq. 0 ) then
-                         call coupler_boundary_cell_average(np,r,v,send_data=.false.) ! accumlate velocities
+                         call coupler_md_boundary_cell_average(np,r,v,send_data=.false.) ! accumlate velocities
                          if ( mod(iter_cfd,save_period) .eq. 0) then
                                  call coupler_uc_average_test(np,r,v,lwrite=.false.)
-                                 call messenger_syncall
                          endif
                  endif
                  
                  ! Send accumulated results to CFD at the end of average cycle 
                  if (iter_average .eq. Naverage) then 
-                         call coupler_boundary_cell_average(np,r,v,send_data=.true.)
+                         call coupler_md_boundary_cell_average(np,r,v,send_data=.true.)
                          if (mod(iter_cfd,save_period) .eq. 0 ) then
                                  call coupler_uc_average_test(np,r,v,lwrite=.true.)
                          endif
