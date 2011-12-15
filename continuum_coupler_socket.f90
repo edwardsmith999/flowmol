@@ -5,13 +5,12 @@ contains
 
         subroutine send_CFDvel
                 use grid_arrays, only : uc, vc
-                use continuum_coupler_socket_init, only : nz, z
-                use  coupler, only : coupler_send_CFDvel 
+                use  coupler, only : coupler_cfd_send_velocity
                 implicit none
 
  		integer i
-		real(kind(0.d0)) uc3d(nz,size(uc,dim=1),size(uc,dim=2)), & !hack for 2d parallelism, z dimension independent of nx
-                                 vc3d(nz,size(vc,dim=1),size(vc,dim=2))
+		real(kind(0.d0)) uc3d(1,size(uc,dim=1),size(uc,dim=2)), & !hack for 2d parallelism, z dimension independent of nx
+                                 vc3d(1,size(vc,dim=1),size(vc,dim=2))
  
                 do i=1,size(uc3d,dim=1)
                         uc3d(i,:,:) = uc (:,:)
@@ -20,28 +19,27 @@ contains
                         vc3d(i,:,:) = vc(:,:)
                 enddo
 
-                call coupler_send_CFDvel(uc3d,vc3d)
+                call coupler_cfd_send_velocity(uc3d,vc3d)
 
         end subroutine send_CFDvel
 
 
         subroutine MD_continuum_BC(u,v)
-                use continuum_coupler_socket_init, only : nz 
-                use coupler, only : coupler_md_vel
+                use coupler, only : coupler_cfd_get_velocity
                 implicit none
 
 !                integer i
 !                integer, save :: ncall = 0
 
                 real(kind(0.d0)), intent(out) :: u(:), v(:)
-                real(kind(0.d0)) w(1,1,1), u3(nz,size(u),1),v3(nz,size(v),1)
+                real(kind(0.d0)) w(1,1,1), u3(1,size(u),1),v3(1,size(v),1)
 
 
 		!A polymorphic interface is needed here
-                call coupler_md_vel(u3,v3,w)
+                call coupler_cfd_get_velocity(u3,v3,w)
 
-                u(:) =  sum(u3(:,:,1),dim=1)
-                v(:) =  sum(v3(:,:,1),dim=1)
+                u(:) =  u3(1,:,1)
+                v(:) =  v3(1,:,1)
 !debug 
 !                 u(:) = 0.d0
 !                 v(:) = 0.d0
