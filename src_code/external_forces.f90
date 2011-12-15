@@ -28,7 +28,7 @@ end module module_external_forces
 
 subroutine simulation_apply_constraint_forces
 use module_external_forces
-use coupler, only : coupler_constrain_forces
+use coupler, only : coupler_md_constrain_forces
 implicit none
 
 ! call the coupler version.
@@ -36,7 +36,7 @@ implicit none
 
 	pressure = 2.5d0
 
-	call coupler_constrain_forces(np,pressure,r,a)
+	call coupler_md_constrain_forces(np,pressure,r,a)
 
 !!$	integer	:: n
 !!$	double precision :: delta_y
