@@ -54,17 +54,31 @@ contains
                 use coupler_internal_common, only : COUPLER_COMM, CFD_MD_ICOMM
                 implicit none
 
-                integer i, myid, color, noverlaps, ir, ierr
+                integer i, myid, color, noverlaps, ir, iaux(4), ierr
                 integer, allocatable :: md_grid_boxes(:,:), overlap_mask(:), ireq(:), overlap_box(:,:)
-
+                real(kind(0.d0)) raux(2)
+                
                 call mpi_comm_rank(COUPLER_COMM,myid,ierr)
+
+                ! for 2D CFD problem one must broadcast  back the zL_md,z,dz
+                call mpi_bcast( raux, 2, MPI_DOUBLE_PRECISION, 0, CFD_MD_ICOMM,ierr)
+                if (allocated(z)) then
+                        deallocate(z)
+                endif
+                allocate(z(2))
+                z(:) = raux(:)
+                dz   = z(2) - z(1)
+                call mpi_bcast(iaux, 4, MPI_INTEGER, 0, CFD_MD_ICOMM,ierr)
+                kmino=iaux(1); kmin=iaux(2); kmax=iaux(3); kmaxo=iaux(4)
 
                 call make_bbox
 
 !write(0,*)'CFD, bbox_cdf',  bbox_cfd%xbb, bbox_cfd%ybb, bbox_cfd%zbb
 
-!  get the block boundaries cover by each MD domain
 
+
+
+                !  get the block boundaries cover by each MD domain
                 allocate(md_grid_boxes(6,0:nproc_md - 1), overlap_mask(0:nproc_md - 1), &
                  overlap_box(6,0:nproc_md-1), ireq(0:nproc_md - 1))
 
@@ -312,6 +326,19 @@ contains
 		! Periodic boundary condition?          
 
                 call set_pbc(pbc)
+
+                ! correction for z direction when used only for average
+                if ( nlz > 2) then 
+                do j=1,ny
+                        do i=1,nlx-1
+                                x = sum(vtot(2,1:nlz-1,i,j))
+                                do k=1,nlz-1
+                                        vtot(2,k,i,j) = x
+                                enddo
+                        enddo
+                enddo
+                endif
+                
 
                 where (vtot(2,1:p1e-p1s+1,1:p2e-p2s+1,1:p3e-p3s+1) > 0.d0) 
                         vel(p1s:p1e,p2s:p2e,p3s:p3e) = vtot(1,1:p1e-p1s+1,1:p2e-p2s+1,1:p3e-p3s+1) &

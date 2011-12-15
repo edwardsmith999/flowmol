@@ -63,12 +63,12 @@ module coupler_internal_md
         integer imino, imin_cfd, imax_cfd,imaxo, jmino, jmin_cfd, jmax_cfd, jmaxo,&
                 kmino, kmin_cfd, kmax_cfd, kmaxo
         real(kind=kind(0.d0)), allocatable, target :: x(:), y(:), z(:)
-        real(kind=kind(0.d0)) dx, dz, dt_CFD
+        real(kind=kind(0.d0)) dx, dz, dt_CFD, density
 
 	! nsteps from CFD
         integer nsteps
 	! average period for averages ( it must come from CFD !!!)      
-        integer :: average_period = 5
+        integer :: average_period = 1
 	! save period ( corresponts to tplot in CFD, revise please !!!)
         integer :: save_period = 1
 
@@ -78,7 +78,7 @@ contains
                 use mpi
                 use coupler_internal_common, only : CFD_MD_ICOMM
                 implicit none
-                integer  i, ir, ireq(nproc), noverlaps, ierr
+                integer  i, ir, ireq(nproc), noverlaps, source, ierr
                 integer, allocatable :: overlap_mask(:,:)
 
 
@@ -93,15 +93,23 @@ contains
                         + (/ x(imin_cfd), y(jmino)-DY_PURE_MD, z(kmin_cfd) /)
                 bbox%bb(2,:) =  bbox%bb(1,:) + domain_lengths(:)
 
-                !		write(0,*) 'MD: bbox%bb ', myid, bbox%bb !, domain, npx, npy, npz, xL_md, yL_md, zL_md, icoord_md
+                ! for 2D CFD problem one must broadcast  back the zL_md,z,dz
+                if ( myid == 0 ) then
+                        source=MPI_ROOT
+                else
+                        source=MPI_PROC_NULL
+                endif
+                
+                call mpi_bcast(z, size(z), MPI_DOUBLE_PRECISION, source, CFD_MD_ICOMM,ierr)
+                call mpi_bcast((/kmino,kmin_cfd,kmax_cfd,kmaxo/), 4, MPI_INTEGER, source, CFD_MD_ICOMM,ierr)
+
+                !write(0,*) 'MD: bbox%bb ', myid, bbox%bb !, domain, npx, npy, npz, xL_md, yL_md, zL_md, icoord_md
 
                 call make_bbox
 
-                !		write(0,*) 'MD: bbox%is ', myid, bbox%is, bbox%ie, bbox%js, bbox%je, bbox%ks, bbox%ke 
-                !
-		!  send box coordinate to CFD
-                !
+                !write(0,*) 'MD: bbox%is ', myid, bbox%is, bbox%ie, bbox%js, bbox%je, bbox%ks, bbox%ke 
 
+                !  send box coordinate to CFD
                 call mpi_allgather((/ bbox%is, bbox%ie, bbox%js, bbox%je, bbox%ks, bbox%ke /), 6, MPI_INTEGER,&
                         MPI_BOTTOM,0,MPI_INTEGER,CFD_MD_ICOMM,ierr)
 
@@ -186,7 +194,7 @@ contains
                         type(grid_pointer) grid_ptr(3)
                         type(bbox_pointer) bbox_ptr(3)
 
-                        integer id, ngp, grid_sizes(2,3), halo_size(2,3), idmin(3)
+                        integer id, ngp, grid_sizes(2,3), halo_size(2,3), idmin(3),ierr
                         real(kind=kind(0.d0)) pl,pr,eps  ! left right grid points
                         logical found_start
 
@@ -257,9 +265,17 @@ contains
 
                         do id=1,3
 
+                                ! If there is only one CFD cell in a direction then things can be done simpler.
+                                ! One CFD cell means that that direction is used to improve MD statistics. 
+                                if ( grid_sizes(2,id) - grid_sizes(1,id) == 1) then
+                                         bbox_ptr(id)%start = grid_sizes(1,id)
+                                         bbox_ptr(id)%end   = grid_sizes(2,id)
+                                        cycle
+                                endif
+
                                 eps = 1.d-2 * (grid_ptr(id)%p(2) - grid_ptr(id)%p(1))
 
-                                !		  write(0,*) "MD: make box, grid step", myid, id, eps, grid_ptr(id)%p(1),bbox%bb(:,id)!   , grid_step !,x,y,z
+                                 !write(0,*) "MD: make box, grid step", myid, id, eps, grid_ptr(id)%p(1),bbox%bb(:,id)!   , grid_step !,x,y,z
 
                                 found_start = .false.
 
@@ -268,7 +284,7 @@ contains
                                         found_start = .true.
                                         bbox_ptr(id)%start = idmin(id) - halo_size(1,id)
 
-                                        !		     write(0,*) "MD make box l", myid,id,bbox_ptr(id)%start
+                                       !write(0,*) "MD make box l", myid,id,bbox_ptr(id)%start
                                 endif
 
                                 ngp = grid_sizes(2,id) - grid_sizes(1,id) + 1
@@ -278,7 +294,7 @@ contains
                                         pl = grid_ptr(id)%p(i-1)
                                         pr = grid_ptr(id)%p(i) 
 
-                                        !		    write(0,*), 'MD make bbox ', myid, id,ngp,i,pl,pr, bbox%bb(:,id) 
+                                        !write(0,*), 'MD make bbox ', myid, id,ngp,i,pl,pr, bbox%bb(:,id) 
 
                                         if (.not. found_start )then
                                                 if ( pl < bbox%bb(1,id)  .and. pr >=  bbox%bb(1,id) - eps ) then 
@@ -289,7 +305,7 @@ contains
 
                                                         bbox_ptr(id)%start = idmin(id) + i - 1 - halo_size(1,id)
 
-                                                        !		     write(0,*), 'MD make bbox l', myid, id,i, pl, pr, bbox_ptr(id)%start
+                                                        !write(0,*), 'MD make bbox l', myid, id,i, pl, pr, bbox_ptr(id)%start
                                                 endif
 
                                         else
@@ -298,9 +314,9 @@ contains
 
                                                 if ( (i < ngp  .and. pl <= bbox%bb(2,id) + eps  .and. pr > bbox%bb(2,id))) then
 
-                                                        bbox_ptr(id)%end = idmin(id) + i - 1 + halo_size(2,id)
+                                                        bbox_ptr(id)%end = idmin(id) + i - 1 - 1 + halo_size(2,id)
 
-                                                        !		    write(0,*), 'MD make bbox r', myid, id, i, pl, pr ,  bbox_ptr(id)%end		     
+                                                        !write(0,*), 'MD make bbox r', myid, id, i, pl, pr ,  bbox_ptr(id)%end		     
                                                         exit
 
                                                 else if (i == ngp  .and. abs( pr - bbox%bb(2,id)) < eps ) then 
@@ -452,6 +468,11 @@ contains
 
 
                 enddo ! id loop over dimensions
+
+                ! debugging
+                !if (any(vel_fromCFD /= 0.d0)) then 
+                !         write(0,*)' non-zero vel_fromCFD !!! ', ncalls
+                !endif
 
 !                call flush(2001)
 !                call flush(2002)
