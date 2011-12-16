@@ -2,7 +2,7 @@
 # File definitions
 #=======================================================================
 
-F90_MD_FILES =  modules.f90 functions_lib.f90 messenger.serial.f90 interfaces.f90 parallel_io.serial.f90 linklist.f90 molecular_properties.f90  setup_set_parameters.f90 setup_initialise_microstate.f90 setup_initial_record.f90 simulation_compute_forces.f90 simulation_move_particles.f90 simulation_checkrebuild.f90 simulation_record.f90 finish_final_record.f90 finish_clear_all.f90 md.f90 md_main.f90 external_forces.f90 
+F90_MD_FILES =  modules.f90 functions_lib.f90 messenger.serial.f90 md_coupler_socket$(COUPLER_SOCKET).f90 interfaces.f90 parallel_io.serial.f90 linklist.f90 molecular_properties.f90  setup_set_parameters.f90 setup_initialise_microstate.f90 setup_initial_record.f90 simulation_compute_forces.f90 simulation_move_particles.f90 simulation_checkrebuild.f90 simulation_record.f90 finish_final_record.f90 finish_clear_all.f90 md.f90 md_main.f90 external_forces.f90 
 
 F90_MD_FILES_P = $(patsubst parallel_io.serial.f90,parallel_io.MPI2.f90,$(patsubst messenger.serial.f90,messenger.MPI.f90,$(F90_MD_FILES)))
 
@@ -23,6 +23,12 @@ COUPLER_PATH      := $(COUPLER_PATH_$(USE_COUPLER))
 O_COUPLER_no     := $(COUPLER_PATH)/coupler_null.o
 O_COUPLER_yes    := $(COUPLER_PATH)/coupler.o $(COUPLER_PATH)/coupler_parameters.o $(COUPLER_PATH)/coupler_internal_common.o $(COUPLER_PATH)/coupler_internal_md.o $(COUPLER_PATH)/coupler_internal_cfd.o   
 O_COUPLER        := $(O_COUPLER_$(USE_COUPLER))
+
+# socket files
+COUPLER_SOCKET_yes :=
+COUPLER_SOCKET_no  :=_dummy
+COUPLER_SOCKET     := $(COUPLER_SOCKET_$(USE_COUPLER))
+
 
 #
 # get platform to build, compiler names and flags, check the make.inc directory
@@ -110,10 +116,10 @@ obj:
 help:
 	@echo "======================================================================================"
 	@echo "MOLECULAR DYNAMICS Options"
-	@echo "s			Optimised serial build"
-	@echo "p			Optimised parallel build"
+	@echo "s				Optimised serial build"
+	@echo "p				Optimised parallel build"
 	@echo "s_cuda			Optimised serial build with CUDA GPGPU force optimisation"
-	@echo "s_cuda_emulate		Emulate CUDA GPU code on the CPU for debugging"
+	@echo "s_cuda_emulate	Emulate CUDA GPU code on the CPU for debugging"
 	@echo "optimised_s		Serial build optimised for intel proccessors"
 	@echo "optimised_p		Parallel build optimised for intel proccessors"
 	@echo "debug_s			Serial build with no optimisation and basic debug flags"

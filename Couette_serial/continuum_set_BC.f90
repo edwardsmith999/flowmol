@@ -17,8 +17,7 @@ end module module_setup_BC
 
 subroutine continuum_set_BC
 	use module_setup_BC
-        use continuum_coupler_socket_init, only : use_coupling
-        use continuum_coupler_socket, only : MD_continuum_BC
+    use continuum_coupler_socket, only : use_coupling, MD_continuum_BC
 	implicit none
 	
 	integer					:: i, j, n
@@ -51,10 +50,10 @@ subroutine continuum_set_BC
 	!	' & velocity average over ',averng,' cells above and below = ',  uwall	
 
 
-        if (first_time) then
-                 first_time= .false.
-                 allocate(u_MD(nx), v_MD(nx), stat=i)
-        endif
+    if (first_time) then
+                first_time= .false.
+                allocate(u_MD(nx), v_MD(nx), stat=i)
+    endif
 
 	!Loop over all 4 domain boundaries
 	do i = 1,4

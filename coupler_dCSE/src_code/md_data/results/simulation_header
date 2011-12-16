@@ -1,5 +1,5 @@
- Simulation run on Date;  sim_date ;20111215
- Simulation start time ;  sim_start_time ;201444.481
+ Simulation run on Date;  sim_date ;20111216
+ Simulation start time ;  sim_start_time ;173822.166
  Number of Dimensions ;  nd ;           3
  Number of Particles ;  globalnp ;        3648
  Time Step - delta t ;   delta_t ;  5.000000000000000E-003

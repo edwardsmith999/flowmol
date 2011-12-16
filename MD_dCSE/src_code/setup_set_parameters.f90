@@ -235,14 +235,14 @@ subroutine set_parameters_global_domain
 		volume = volume*globaldomain(ixyz)		!Volume based on size of domain
 	enddo
 
-        ! no need to fix globalnp if we have it already
-        if(.not. restart) then
-               	globalnp=1      !Set number of particles to unity for loop below
-                do ixyz=1,nd
-                       globalnp = globalnp*initialnunits(ixyz)		!One particle per unit cell
-                 enddo
-	         globalnp=4*globalnp   !FCC structure in 3D had 4 molecules per unit cell
-         endif
+    ! no need to fix globalnp if we have it already
+    if(.not. restart) then
+		globalnp=1      !Set number of particles to unity for loop below
+		do ixyz=1,nd
+			globalnp = globalnp*initialnunits(ixyz)		!One particle per unit cell
+		enddo
+		globalnp=4*globalnp   !FCC structure in 3D had 4 molecules per unit cell
+    endif
 
 	!Initially assume molecules per processor are evenly split  - corrected after position setup
 	np = globalnp / nproc					
@@ -266,38 +266,36 @@ end subroutine set_parameters_global_domain
 
 subroutine set_parameters_global_domain_coupled
 	use module_set_parameters
-        use messenger, only : myid
-        use coupler 
+	use messenger, only : myid
+	use coupler 
 	implicit none
 
 	integer          ixyz, n0(2)
-        real(kind(0.d0)) xL_md, yL_md,zL_md, b0 ! lenght of the MDdomain computed in coupler
+	real(kind(0.d0)) xL_md, yL_md,zL_md, b0 ! lenght of the MDdomain computed in coupler
 
 	! get the global domain lenghts from x, y, z array of CFD realm
 
-        ! fix the numner of FCC cells starting from CFD density
-        density = coupler_md_get_density()
-        
-        ! size of cubic FCC cell
-        b0=(4.d0/density)**(1.0d0/3.0d0)
-        
-        call coupler_md_get(xL_md=xL_md,yL_md=yL_md)
-        
-        n0(:) = floor( (/ xL_md, yL_md /) / b0)
+    ! fix the numner of FCC cells starting from CFD density
+    density = coupler_md_get_density()
+    
+    ! size of cubic FCC cell
+    b0=(4.d0/density)**(1.0d0/3.0d0)
+    
+    call coupler_md_get(xL_md=xL_md,yL_md=yL_md)
+    
+    n0(:) = floor( (/ xL_md, yL_md /) / b0)
 
-        !write(0,*) "n0 ", b0, xL_md, yL_md, n0
-        
-        initialunitsize(1:2) =  (/ xL_md, yL_md /) / n0(:)
-        
-        initialunitsize(3) = b0**3/(initialunitsize(1)*initialunitsize(2))
-        
-        initialnunits(1:2) = n0(:)
+    !write(0,*) "n0 ", b0, xL_md, yL_md, n0
+    
+    initialunitsize(1:2) =  (/ xL_md, yL_md /) / n0(:)
+	initialunitsize(3) = b0**3/(initialunitsize(1)*initialunitsize(2))
+    initialnunits(1:2) = n0(:)
 
-        ! number of FCC cell in z direction per MPI ranks is choosen the minimal one 
-        initialnunits(3)   = ceiling(3*(rcutoff+delta_rneighbr)/initialunitsize(3)) * npz
-        
-        zL_md =  initialnunits(3)* initialunitsize(3)
-        call coupler_md_set(zL_md = zL_md)
+    ! number of FCC cell in z direction per MPI ranks is choosen the minimal one 
+    initialnunits(3)   = ceiling(3*(rcutoff+delta_rneighbr)/initialunitsize(3)) * npz
+    
+    zL_md =  initialnunits(3)* initialunitsize(3)
+    call coupler_md_set(zL_md = zL_md)
 
 	globaldomain(1) = xL_md
 	globaldomain(2) = yL_md
@@ -306,11 +304,11 @@ subroutine set_parameters_global_domain_coupled
 	! the number of particles is 
 	volume   = xL_md*yL_md*zL_md
 
-        ! set the number of partivles for new simulation
-        if (.not. restart)then
-	       globalnp = density*volume  ! sigma units
-	       np = globalnp / nproc					
-        endif
+    ! set the number of partivles for new simulation
+    if (.not. restart)then
+       globalnp = density*volume  ! sigma units
+       np = globalnp / nproc					
+    endif
 
 	domain(1) = globaldomain(1) / real(npx, kind(0.d0))			!determine domain size per processor
 	domain(2) = globaldomain(2) / real(npy, kind(0.d0))			!determine domain size per processor
@@ -322,21 +320,18 @@ subroutine set_parameters_global_domain_coupled
 
 	write(0,*) 'set_parameter_global_domain_hybrid ', globalnp, np, domain, initialunitsize
 
-                if(myid == 0) then
-        	        write(*,'(a/a/a,f5.2,a,f5.2,/,a,3(f5.2),a,/,a,3(I6),/,a)') &
-                                "**********************************************************************", &
-                                "WARNING - this is a coupled run which resets the following parameters:", &
-                                " density         =", density ,                                           & 
-                                " hence the cubic FCC side  is b=", b0 ,                                  &
-                                " initialunitsize =", initialunitsize(:)/b0," in b units ",               &     
-                                " initialnunits   =", initialnunits(:),                                   &
-                                "**********************************************************************"
-                endif
+    if(myid == 0) then
+        write(*,'(a/a/a,f5.2,a,f5.2,/,a,3(f5.2),a,/,a,3(I6),/,a)') &
+                    "**********************************************************************", &
+                    "WARNING - this is a coupled run which resets the following parameters:", &
+                    " density         =", density ,                                           & 
+                    " hence the cubic FCC side  is b=", b0 ,                                  &
+                    " initialunitsize =", initialunitsize(:)/b0," in b units ",               &     
+                    " initialnunits   =", initialnunits(:),                                   &
+                    "**********************************************************************"
+    endif
 
 end subroutine set_parameters_global_domain_coupled
-
-
- 
 
 !-----------------------------------------------------------------------------------------
 

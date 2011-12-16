@@ -69,15 +69,12 @@ couette : coupler
 coupler : create_obj_dir $(O_COUPLER_FILES) 
 
 null_coupler :
-	$(MAKE) OBJ_DIR=obj_null coupler_null
-
-coupler_null : OBJ_DIR=obj_null 
-coupler_null : create_obj_dir $(O_NULL_COUPLER_FILES)
+	$(MAKE) OBJ_DIR=obj_null create_obj_dir $(O_NULL_COUPLER_FILES)
 
 create_obj_dir :
 	[ -d $(OBJ_DIR) ] || mkdir $(OBJ_DIR)
 
-clean_all : clean_cfd clean_md clean_couette clean_cfd_coupler
+clean_all : clean_null_coupler clean_coupler clean_cfd clean_md clean_couette
 
 clean_couette_md : clean_couette clean_md clean_coupler
 
@@ -99,13 +96,13 @@ help:
 	@echo "couette_md - build simple diffusive couette flow solver coupled with MD code"
 	@echo "cfd - Build full DNS CFD code only "
 	@echo "md - Build MD code only"
+	@echo "null_coupler - build coupler null files to allow MD code to be built in file"
 	@echo "GENERAL Options"
 	@echo "clean_all - Deletes all .mod, .obj and other temporary files from everywhere"
 	@echo "clean_couette_md - Deletes all .mod, .obj and other temporary files from couette & MD"
 	@echo "clean_cfd - Deletes all .mod, .obj and other temporary files from cfd"
 	@echo "clean_md - Deletes all .mod, .obj and other temporary files from md"
 	@echo "clean_couette - Deletes all .mod, .obj and other temporary files from couette"
-	@echo "clean_cfd_coupler - Deletes all .mod, .obj and temporary files from cfd and coupler"
 	@echo "======================================================================================"
 
 
