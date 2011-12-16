@@ -33,12 +33,12 @@
 
 module continuum_messenger
 	use continuum_data_export
-        use coupler
-        save
+    use coupler
+    save
        
 	integer myid                      ! my process rank
 	integer idroot                    ! rank of root process
-        integer CFD_COMM                  ! CFD communicator
+    integer CFD_COMM                  ! CFD communicator
 
 	! Grid topology
 	integer icomm_grid                ! comm for grid topology
@@ -50,32 +50,33 @@ end module
 
 !=======================================================================
 subroutine messenger_invoke()
-        use mpi
+    use mpi
 	use continuum_messenger
-        use continuum_coupler_socket_init
+    use continuum_coupler_socket
 
-        call MPI_init (ierr)
+    call MPI_init (ierr)
 
-        if (coupler_is_active) then
-                call init_coupler(CFD_COMM)
-                prefix_dir ="./couette_data/"
-        else 
-                CFD_COMM = MPI_COMM_WORLD
-                prefix_dir = "./"
-        endif
+    if (coupler_is_active) then
+            call init_coupler(CFD_COMM)
+            prefix_dir ="./couette_data/"
+    else 
+            CFD_COMM = MPI_COMM_WORLD
+            prefix_dir = "./"
+    endif
 
-        wallTime = mpi_wtime()
+    wallTime = mpi_wtime()
 
-! If coupling is used MPI initialisation is done at the top level
-! of coupled program
+	! If coupling is used MPI initialisation is done at the top level
+	! of coupled program
 
 	return
+
 end subroutine messenger_invoke
 
 
 subroutine messenger_init()
-        use mpi
-        use continuum_data_export, only : icoord
+    use mpi
+    use continuum_data_export, only : icoord
 	use continuum_messenger
 
 	integer idims(3)
@@ -84,13 +85,12 @@ subroutine messenger_init()
         integer np, ndims, ip, ixyz
 
 	! Initialize MPI
-
 	call MPI_comm_size (CFD_COMM, np, ierr)
 	call MPI_comm_rank (CFD_COMM, myid, ierr)
-        if (np .ne. nproc) then 
-                write(0,'(a,I0,a)') "rank ", myid, "Wrong number of processors in CFD_COMM"
-                call mpi_abort(CFD_COMM,1,ierr)
-        endif
+    if (np .ne. nproc) then 
+            write(0,'(a,I0,a)') "rank ", myid, "Wrong number of processors in CFD_COMM"
+            call mpi_abort(CFD_COMM,1,ierr)
+    endif
 
 	! Grid topology
 	ndims = 3
@@ -115,7 +115,7 @@ subroutine messenger_init()
 		Lremain_dims(:) = .false.
 		Lremain_dims(ixyz) = .true.
 		call MPI_Cart_sub (icomm_grid, Lremain_dims, icomm_xyz(ixyz), ierr)
-	end do
+	enddo
 	call MPI_comm_rank (icomm_xyz(1), irankx, ierr)
 	call MPI_comm_rank (icomm_xyz(2), iranky, ierr)
 	call MPI_comm_rank (icomm_xyz(3), irankz, ierr)
