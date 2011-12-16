@@ -287,7 +287,7 @@ subroutine Dirichlet_BC_set_halo(boundary,uwall,vwall)
 		enddo
 	end select
 
-	print*, uc(2:nx+1,1)
+	!print*, uc(2:nx+1,1)
 
 end subroutine Dirichlet_BC_set_halo
 
