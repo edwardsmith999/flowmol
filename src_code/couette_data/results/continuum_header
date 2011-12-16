@@ -1,5 +1,5 @@
- Simulation run on Date;  sim_date ;20111215
- Simulation start time ;  sim_start_time ;201444.482
+ Simulation run on Date;  sim_date ;20111216
+ Simulation start time ;  sim_start_time ;173822.167
  Number of cells in Domain in x ;  nx ;           7
  Number of cells in Domain in y ;  ny ;           7
  Domain size in x ; lx ;   34.0000000000000     
