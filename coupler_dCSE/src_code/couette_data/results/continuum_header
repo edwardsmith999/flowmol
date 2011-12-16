@@ -1,11 +1,11 @@
- Simulation run on Date;  sim_date ;20111129
- Simulation start time ;  sim_start_time ;171344.481
+ Simulation run on Date;  sim_date ;20111215
+ Simulation start time ;  sim_start_time ;201444.482
  Number of cells in Domain in x ;  nx ;           7
  Number of cells in Domain in y ;  ny ;           7
- Domain size in x ; lx ;   36.5000000000000     
- Domain size in y ; ly ;   36.5000000000000     
+ Domain size in x ; lx ;   34.0000000000000     
+ Domain size in y ; ly ;   34.0581951820000     
  Time Step - delta t ;   continuum_delta_t ;  0.250000000000000     
- Total number of steps ; continuum_Nsteps;           1
+ Total number of steps ; continuum_Nsteps;           3
  Continuum initial step ; continuum_initialstep;           0
  Generate output file every steps ;  continuum_tplot ;           1
  Viscosity ; meu ;   2.14000000000000     

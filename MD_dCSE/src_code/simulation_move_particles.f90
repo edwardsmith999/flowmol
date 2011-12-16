@@ -34,8 +34,8 @@ implicit none
 
 	integer :: n, ixyz
 
-	do ixyz = 1,nd        !Step through each dimension ixyz
-	do n = 1,np        	!Step through each particle n
+	do ixyz = 1,nd	!Step through each dimension ixyz
+	do n = 1,np		!Step through each particle n
 
 		!Check for tethering force and correct applied force accordingly
 		if (tag(n).eq. 3) then
@@ -164,7 +164,7 @@ implicit none
 		case (6)
 			!Tethered molecules with sliding velocity
 			call tether_force(n)
-			v(n,:) = v(n,:) + delta_t * a(n,:) 	!Velocity calculated from acceleration
+			v(n,:) = v(n,:) + delta_t * a(n,:) 							!Velocity calculated from acceleration
 			r(n,:) = r(n,:) + delta_t * v(n,:) + delta_t*slidev(n,:)	!Position calculated from velocity+slidevel
 		case (7)
 			!Thermostatted Tethered molecules unfixed with sliding velocity

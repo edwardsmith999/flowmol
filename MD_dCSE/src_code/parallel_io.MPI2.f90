@@ -4,22 +4,22 @@
 ! Parallel i/o
 
 ! --- INPUT ROUTINES ---
-! setup_inputs			Read input file
+! setup_inputs				Read input file
 ! setup_restart_inputs		Read restart files and input file
 ! setup_restart_microstate	Read Initial configuration from restart file
 
 ! --- OUTPUT ROUTINES ---
 ! parallel_io_final_state 	Write final configuration and simulation details for restart
-! parallel_io_vmd		Output for VMD
+! parallel_io_vmd			Output for VMD
 ! parallel_io_vmd_sl		Output for VMD with seperate solid/lquid regions
 ! parallel_io_vmd_halo		Output Halos
 ! CV AVERAGING
-! mass_averaging		slice/CV
-! cumulative_mass		slice/CV
-! mass_snapshot			CV
+! mass_averaging			slice/CV
+! cumulative_mass			slice/CV
+! mass_snapshot				CV
 ! momentum_averaging		slice/CV
 ! cumulative_momentum		slice/CV
-! momentum_snapshot		CV
+! momentum_snapshot			CV
 ! pressure_averaging		domain/CV
 ! cumulative_pressure		domain/CV
 ! FLUX AVERAGING
@@ -27,7 +27,7 @@
 ! cumulative_mass_flux		CV_surface
 ! momentum_flux_averaging	plane(MOP)/CV_surface
 ! cumulative_momentum_flux	plane(MOP)/CV_surface
-! surface_pressure		plane(MOP)/CV_surface
+! surface_pressure			plane(MOP)/CV_surface
 ! cumulative_pressure		plane(MOP)/CV_surface
 ! 
 !======================================================================
@@ -746,10 +746,9 @@ subroutine setup_restart_microstate
 		if (procassign .ne. iblock) cycle
 		procassign = ceiling((rvc(2)+globaldomain(2)/2.d0)/domain(2))
 		if (procassign .ne. jblock) cycle
-                if ( nd == 3) then
-		        procassign = ceiling((rvc(3)+globaldomain(3)/2.d0)/domain(3))
-		        if (procassign .ne. kblock) cycle
-                endif
+	        procassign = ceiling((rvc(3)+globaldomain(3)/2.d0)/domain(3))
+	        if (procassign .ne. kblock) cycle
+
 		!If molecules is in the domain then add to processor's total
 		nl = nl + 1 !Local molecule count
 
@@ -1066,9 +1065,9 @@ subroutine parallel_io_vmd
 	implicit none
 	!include 'mpif.h' 
 
-	integer				:: procdisp
-	integer				:: i, datasize
-	real,dimension(np)		:: Xbuf, Ybuf, Zbuf
+	integer							:: procdisp
+	integer							:: i, datasize
+	real,dimension(np)				:: Xbuf, Ybuf, Zbuf
 	integer(kind=MPI_OFFSET_KIND)   :: disp!, resultsize
 
 	!Build array of number of particles on neighbouring
@@ -1078,7 +1077,8 @@ subroutine parallel_io_vmd
 	!Determine size of real datatype
  	call MPI_type_size(MPI_real,datasize,ierr)
 
-        write(0,*) 'np, size r', np, size(r,dim=1)
+       ! write(0,*) 'np, size r', np, size(r,dim=1)
+       ! write(0,*) 'globalnp', globalnp, iblock,jblock,kblock
 
 	!Load buffers with single precision r and adjust according
 	!to processor topology with r = 0 at centre
@@ -1103,8 +1103,6 @@ subroutine parallel_io_vmd
 	disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
 		+ procdisp				  	!Processor location
 
-	!print*, irank, 'x disp', disp
-
 	call MPI_FILE_SET_VIEW(fileid, disp, MPI_REAL, & 
  		MPI_REAL, 'native', MPI_INFO_NULL, ierr)
 	
@@ -1119,8 +1117,6 @@ subroutine parallel_io_vmd
 		+ procdisp &				  	!Processor location
 		+ globalnp * datasize			  	!Y Coordinate location
 
-	!print*, irank, 'y disp', disp
-
 	call MPI_FILE_SET_VIEW(fileid, disp, MPI_REAL, & 
  		MPI_REAL, 'native', MPI_INFO_NULL, ierr)
 	
@@ -1134,8 +1130,6 @@ subroutine parallel_io_vmd
 	disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
 		+ procdisp &				  	!Processor location
 		+ 2 * globalnp * datasize		  	!Z Coordinate location
-
-	!print*, irank, 'z disp', disp
 
 	call MPI_FILE_SET_VIEW(fileid, disp, MPI_REAL, & 
  		MPI_REAL, 'native', MPI_INFO_NULL, ierr)

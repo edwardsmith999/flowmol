@@ -1160,8 +1160,9 @@ subroutine checksendbuild(ixyz,sendnp,dir)
 	use linked_list
 	implicit none
 
-	integer :: n, ixyz,dir
-	integer :: sendnp
+	integer 		:: n
+	integer,intent(in)	:: ixyz,dir
+	integer,intent(out) 	:: sendnp
 
 	!Obtain amount of data to send
 	sendnp = 0

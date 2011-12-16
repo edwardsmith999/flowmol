@@ -116,7 +116,7 @@ subroutine reformat_dcd
 
         real time_start, time_end
  
-	print*, 'Generating final VMD.dcd ouput file - for large systems this may take some time ...'
+	print*, 'Generating final VMD.dcd ouput file - for large systems this may take some time'
 
         call cpu_time(time_start)
 

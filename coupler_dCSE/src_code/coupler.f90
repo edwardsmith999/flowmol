@@ -7,15 +7,15 @@
 !
 ! coupler_create_comm              (cfd+md) splits MPI_COMM_WORLD, create intercommunicator between CFD and MD
 ! coupler_get_cfd_info             (cfd)    brings CFD grid info and run parameters in the internal module
-!					    coupler_internal_cfd                  
+!					    					coupler_internal_cfd                  
 ! coupler_get_md_info              (md)     does the same for MD in the module coupler_internal_md
 ! coupler_create_map               (cfd+md) creates correspondence maps between the CFD grid and MD domains
 ! coupler_constrain_forces         (md)     applies the the constrain force in the top Y domain in order to keep molecules inside 
 ! coupler_apply_continuum_forces   (md)     applies the continuum constrain force to molecules in a given sector of overlap 
-!					    region (see Nie's et al article)
+!					    					region (see Nie's et al article)
 ! coupler_uc_average_test          (md)     outputs uc component of Cartesian velocity in 4 for y layer centred around y=0 
 ! coupler_boundary_cell_average    (md)     computes averages of MD velocities and transfers them to CFD for the computation 
-!					    of the boundary conditions 
+!					    					of the boundary conditions 
 ! coupler_send_CFDvel              (cfd)    sends CFD velocities to MD for computation of the continuum constrains
 ! coupler_md_vel                   (cfd)    collects MD averages needed to compute boundary condition
 ! coupler_get                      (cfd+md) obtains coupler parameters from internal modules using a list of optional arguments
@@ -320,7 +320,7 @@ contains
                 !10.94378734741916534432d0 - (y(jmin_cfd) - y(jmino)) ! prototype
                 !      
                 xL_md = (x(imax_cfd) - x(imin_cfd))
-                yL_md = (y(jmax_overlap_cfd) - y(jmino) +&
+                yL_md = (y(jmax_overlap_cfd) - y(jmin_CFD) +&
                         & DY_PURE_MD)		   
                 zL_md = (z(kmax_cfd) - z(kmin_cfd))
 

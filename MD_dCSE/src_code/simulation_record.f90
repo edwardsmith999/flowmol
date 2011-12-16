@@ -18,8 +18,8 @@
 ! evaluate_properties_radialdist		Radial distribution
 ! evaluate_properties_diffusion			Diffusion
 
-! mass_averaging				slice/CV
-! cumulative_mass				slice/CV
+! mass_averaging					slice/CV
+! cumulative_mass					slice/CV
 ! velocity_averaging				slice/CV
 ! cumulative_velocity				slice/CV
 ! pressure_averaging				virial/CV
@@ -28,15 +28,15 @@
 ! simulation_compute_kinetic_VA_cells
 ! mass_flux_averaging				CV_surface
 ! cumulative_mass_flux				CV_surface
-! mass_snapshot					CV
+! mass_snapshot						CV
 ! momentum_flux_averaging			MOP_plane/CV_surface
 ! cumulative_momentum_flux			MOP_plane/CV_surface
-! momentum_snapshot				CV
+! momentum_snapshot					CV
 ! pressure_tensor_forces			virial
 ! pressure_tensor_forces_VA			CV
 ! control_volume_forces				CV_surface
 ! control_volume_stresses			CV_surface
-! pressure_tensor_forces_MOP			MOP_plane
+! pressure_tensor_forces_MOP		MOP_plane
 ! evaluate_properties_cellradialdist
 
 !===================================================================================

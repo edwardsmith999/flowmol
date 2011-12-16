@@ -2,7 +2,7 @@
 # Number density of the particles in the system:
 # -----------------------------------------------------------------------
 DENSITY
-0.8
+0.81
 
 #########################################################################
 # Cut-off distance for particle interaction:
@@ -100,7 +100,7 @@ MASS_OUTFLAG
 #	No. of samples for velocity average
 # -----------------------------------------------------------------------
 VELOCITY_OUTFLAG
-0
+2
 50
 
 #########################################################################
@@ -175,9 +175,20 @@ PERIODIC
 # nproc is set by the argument of mpirun
 #-----------------------------------------------------------------------
 PROCESSORS
-1 
 1
 1
+1
+
+########################################################################
+# Distance from domain bottom to tethered molecules using spring like
+# restoring forces with potential equation phi= -k4*rio^4 - k6*rio^6
+# strength of tethering potential from Petravic and Harrowell 
+# with constants (k4 = 5,000, k6 = 5,000,000)
+# ----------------------------------------------------------------------
+FIXDISTBOTTOM
+0.0
+2.6
+0.0
 
 #########################################################################
 # Potential flag:
