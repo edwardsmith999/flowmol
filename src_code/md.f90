@@ -33,7 +33,7 @@ subroutine setup_MD
 	!Check to see if simulation is a restart of a previous simualtion
 	call setup_command_arguments			!Establish command line arguments specifying restart and input files
 	
-	if (restart .eqv. .true.) then
+	if (restart) then
 		print*, 'Simulation restarted from file: ', initial_microstate_file
 		call messenger_init			!Establish processor topology
 		call setup_restart_inputs		!Recover simulation inputs from file
@@ -111,6 +111,7 @@ end subroutine setup_MD
 
 subroutine simulation_MD
 	use computational_constants_MD
+	use arrays_MD
 	implicit none
   
 	integer :: rebuild    				!Flag set by check rebuild to determine if linklist rebuild require
@@ -118,7 +119,7 @@ subroutine simulation_MD
 	initialstep = initialstep + 1		!Increment initial step by one 
 
 	do iter = initialstep, Nsteps		!Loop over specified output steps 
-			
+
 		call simulation_compute_forces	!Calculate forces on particles	
 		call simulation_record		!Evaluate & write properties to file
 		call mass_flux_averaging	!Average mass flux before movement of particles
@@ -128,20 +129,19 @@ subroutine simulation_MD
 
 		call simulation_move_particles					!Move particles as a result of forces
 		call momentum_flux_averaging(vflux_outflag)			!!Average momnetum flux after movement of particles
-		
                 call socket_coupler_average(iter)
 
 		call messenger_updateborders(0)			!Update borders between processors
 		call simulation_checkrebuild(rebuild)		!Determine if neighbourlist rebuild required
-		
+
 		if(rebuild .eq. 1) then
 			call linklist_deallocateall	   	!Deallocate all linklist components
 			call sendmols			   	!Exchange particles between processors
-			call assign_to_cell	  	   	!Re-build linklist for domain cells
+  			call assign_to_cell	  	   	!Re-build linklist for domain cells
 			call messenger_updateborders(rebuild)	!Update borders between processors
 			call assign_to_neighbourlist_halfint	!Setup neighbourlist
 		endif
-  
+
  	enddo
 
 contains 

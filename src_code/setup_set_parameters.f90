@@ -441,11 +441,11 @@ end subroutine setup_linklist
 
 subroutine set_parameters_outputs
 	use module_set_parameters
-        use  messenger, only :  myid, icoord
-        use interfaces
+	use  messenger, only :  myid, icoord
+	use interfaces
 	implicit none
 
-	integer				:: n
+	integer					:: n
 	double precision		:: maxv !Maximum possible velocity of all molecules
 	double precision		:: shift
 
@@ -453,10 +453,10 @@ subroutine set_parameters_outputs
 	!freedom - this is to fix the momentum of the domain boundaries 
 	initialvel = sqrt(nd * (1.d0 - 1.d0/np)*inputtemperature)
 
-        !Allocate bins used for calculating simulation properties
-        globalnbins(1) = ncells(1) !initialnunits(1) ! npx*ncells(1) !Total number of domain bins
-        globalnbins(2) = ncells(2) !initialnunits(2) !Total number of domain bins
-        globalnbins(3) = ncells(3) !initialnunits(3) !Total number of domain bins
+	!Allocate bins used for calculating simulation properties
+	globalnbins(1) = ncells(1) !initialnunits(1) ! npx*ncells(1) !Total number of domain bins
+ 	globalnbins(2) = ncells(2) !initialnunits(2) !Total number of domain bins
+	globalnbins(3) = ncells(3) !initialnunits(3) !Total number of domain bins
 
 	nbins(1) = nint(globalnbins(1)/dble(npx))	!Share global evenly between processes
 	nbins(2) = nint(globalnbins(2)/dble(npy))	!Share global evenly between processes
@@ -501,21 +501,27 @@ subroutine set_parameters_outputs
 	!Allocated arrays for velocity slice
 	if (velocity_outflag.ne.0 .and. velocity_outflag.lt.4) then
 		allocate(slice_momentum(nbins(velocity_outflag),3))
+		allocate(slice_mass(nbins(velocity_outflag)))
 		slice_momentum = 0.d0
-	endif
-	if (mass_outflag.ne.0 .and. mass_outflag.lt.4) then
-		allocate(slice_mass(nbins(mass_outflag)))
 		slice_mass = 0
+	else
+		if (mass_outflag.ne.0 .and. mass_outflag.lt.4) then
+			allocate(slice_mass(nbins(mass_outflag)))
+			slice_mass = 0
+		endif
 	endif
 
 	!Allocated bins for velocity averaging
 	if (velocity_outflag.eq.4) then
 		allocate(slice_momentumbin( nbins(1),nbins(2),nbins(3),3))
-		slice_momentumbin  = 0.d0
-	endif
-	if (mass_outflag.eq.4) then
  		allocate(slice_massbin(nbins(1),nbins(2),nbins(3)  ))
+		slice_momentumbin  = 0.d0
 		slice_massbin = 0
+	else
+		if (mass_outflag.eq.4) then
+ 			allocate(slice_massbin(nbins(1),nbins(2),nbins(3)  ))
+			slice_massbin = 0
+		endif
 	endif
 
 	!Allocated Nose Hoover local PUT thermstat bins
