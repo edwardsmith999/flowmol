@@ -87,7 +87,7 @@ module coupler_internal_md
 	! average period for averages ( it must come from CFD !!!)      
 	integer :: average_period = 1
 	! save period ( corresponts to tplot in CFD, revise please !!!)
-	integer :: save_period = 1
+        integer :: save_period = 10
 
 contains 
 
@@ -128,7 +128,7 @@ subroutine create_map_md
 
 	call make_bbox
 
-	!write(0,*) 'MD: bbox%is ', myid, bbox%is, bbox%ie, bbox%js, bbox%je, bbox%ks, bbox%ke 
+	!write(0,*) 'MD: bbox%is ', myid, jmax_overlap_cfd, bbox%is, bbox%ie, bbox%js, bbox%je, bbox%ks, bbox%ke 
 
 	!  send box coordinate to CFD
 	call mpi_allgather((/ bbox%is, bbox%ie, bbox%js, bbox%je, bbox%ks, bbox%ke /), 6, MPI_INTEGER,&
@@ -309,7 +309,7 @@ contains
 						exit
 					else if (i == ngp  .and. abs( pr - bbox%bb(2,id)) < eps ) then 
 						bbox_ptr(id)%end = idmin(id) + ngp - 1 + halo_size(2,id)
-						!		    write(0,*), 'MD make bbox r', myid, id,i, pl, pr, bbox_ptr(id)%end
+						!write(0,*), 'MD make bbox r', myid, id,i, pl, pr, bbox_ptr(id)%end
 					endif
 				endif
 			enddo
