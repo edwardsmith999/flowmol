@@ -52,7 +52,7 @@ end module
 subroutine messenger_invoke()
     use mpi
 	use continuum_messenger
-    use continuum_coupler_socket
+    use continuum_coupler_socket_init
 
     call MPI_init (ierr)
 
