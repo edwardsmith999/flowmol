@@ -187,4 +187,14 @@ function coupler_md_get_density() result(r)
 end function coupler_md_get_density
 
 
+function coupler_md_get_top_dy() result(dy)
+        implicit none
+
+        real(kind(0.d0)) dy
+
+        dy = 0.d0
+
+end function coupler_md_get_top_dy
+
+
 end module coupler
