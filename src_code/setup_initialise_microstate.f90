@@ -196,7 +196,7 @@ subroutine setup_initialise_parallel_position
 	CFD_region = domain(2)/2.d0
 	if (jblock .eq. npy) then
 	if ( coupler_is_active ) then
-		removed_height = 2*cellsidelength(2)
+		removed_height = coupler_md_get_top_dy() !2*cellsidelength(2)
 		CFD_region = domain(2)/2.d0 - removed_height
 	endif
 	endif

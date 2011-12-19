@@ -12,6 +12,7 @@ module module_molecule_properties
 	use computational_constants_MD
 	use arrays_MD
 	use calculated_properties_MD
+        use librarymod
 
 end module module_molecule_properties
 
@@ -188,7 +189,7 @@ subroutine wall_textures(texture_type)
 
 	integer 				:: n, mol_layers, icell,jcell,kcell
 	character				:: texture_type
-	double precision		:: xlocation,zlocation, heaviside
+	double precision		:: xlocation,zlocation
 
 	select case (texture_type)
 	case('square')
@@ -325,7 +326,6 @@ end subroutine read_tag
 subroutine tether_force(molno)
 	use module_molecule_properties
 	use arrays_MD
-        use librarymod
 	implicit none
 
 	integer 			:: molno, ixyz
