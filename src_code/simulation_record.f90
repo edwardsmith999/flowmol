@@ -66,6 +66,7 @@ module module_record
 	use arrays_MD
 	use calculated_properties_MD
 	use polymer_info_MD
+        use librarymod
 
 	double precision :: vel
 
@@ -845,8 +846,7 @@ subroutine cumulative_mass_flux
 	use module_record
 	implicit none
 
-	integer				:: ixyz, heaviside, n
-	integer		,dimension(1)	:: imaxloc
+	integer				:: ixyz, n
 	integer		,dimension(3)	:: ibin1,ibin2,crossplane
 	double precision,dimension(3)	:: ri, mbinsize
 
@@ -868,8 +868,8 @@ subroutine cumulative_mass_flux
 			!Find which direction the surface is crossed
 			!For simplicity, if more than one surface has been crossed surface fluxes of intermediate cells
 			!are not included. This assumption => more reasonable as Delta_t => 0
-			imaxloc = maxloc(abs(crossplane))
-			ixyz = imaxloc(1)
+			!imaxloc = maxloc(abs(crossplane))
+			ixyz = imaxloc(abs(crossplane)) 
 
 			!Add mass flux to the new bin surface count and take from the old
 			mass_flux(ibin1(1),ibin1(2),ibin1(3),ixyz+3*heaviside(dble(crossplane(ixyz)))) = & 
@@ -967,9 +967,9 @@ subroutine cumulative_momentum_flux(ixyz)
 	implicit none
 
 	integer				:: ixyz,jxyz,kxyz,i,j,k,n
-	integer				:: heaviside,planeno
+	integer				:: planeno
 	integer				:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
-	integer		,dimension(1)	:: imaxloc
+	!integer		,dimension(1)	:: imaxloc
 	integer		,dimension(3)	:: ibin1,ibin2,cbin
 	double precision		:: crosstime,crossplane,rplane,shift
 	double precision,dimension(3)	:: mbinsize,velvect,crossface
@@ -1101,8 +1101,8 @@ subroutine cumulative_momentum_flux(ixyz)
 							(heaviside(bintop(2) - Pzt(2))   &
 						       - heaviside(binbot(2) - Pzt(2)))
 
-					imaxloc = maxloc(abs(crossface))
-					jxyz = imaxloc(1)	!Integer array of size 1 copied to integer
+					!imaxloc = maxloc(abs(crossface))
+					jxyz = imaxloc(abs(crossface))	!Integer array of size 1 copied to integer
 
 					!Calculate velocity at time of intersection
 					!crosstime = (r(n,jxyz) - rplane)/v(n,jxyz)
@@ -1147,7 +1147,6 @@ end subroutine cumulative_momentum_flux
 ! Control Volume snapshot of momentum in a given bin
 
 subroutine momentum_snapshot
-	use librarymod
 	use module_record
 	implicit none
 
@@ -1224,7 +1223,7 @@ subroutine pressure_tensor_forces_VA(ri,rj,rij,accijmag)
 	integer,dimension(3)				:: ibin, jbin, bindiff 
 	integer,dimension(:,:)		   ,allocatable	:: interbin, interbindiff
 	double precision,intent(in)            		:: accijmag    !Non directional component of acceleration
-	double precision				:: magnitude, shift
+	double precision				:: shift
 	double precision,dimension(3), intent(in)	:: rij, ri, rj
 	double precision,dimension(3)			:: VAbinsize, normal, p
 	double precision,dimension(:,:)	   ,allocatable	:: intersection
@@ -1655,7 +1654,7 @@ subroutine control_volume_forces(fij,ri,rj,molnoi,molnoj)
 use module_record
 implicit none
 
-	integer				:: ixyz, heaviside, n, molnoi, molnoj
+	integer				:: ixyz, n, molnoi, molnoj
 	integer,dimension(3)		:: ibin, jbin
 	double precision		:: binforce
 	double precision,dimension(3)	:: ri, rj, fij,crossplane,fsurface
@@ -1706,7 +1705,7 @@ subroutine control_volume_stresses(fij,ri,rj,molnoi,molnoj)
 use module_record
 implicit none
 
-	integer				:: i,j,k,ixyz,n,molnoi,molnoj,tempi,heaviside
+	integer				:: i,j,k,ixyz,n,molnoi,molnoj,tempi
 	integer				:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
 	integer,dimension(3)		:: cbin, ibin, jbin
 	double precision		:: binforce
@@ -1800,7 +1799,7 @@ subroutine pressure_tensor_forces_MOP(pnxyz,ri,rj,rij,accijmag)
 	implicit none
 
 	integer,save			:: i,j,k
-	integer				:: n, heaviside
+	integer				:: n
 	integer				:: pnxyz	 !Plane normal direction
 	integer				:: molno, planenoi,planenoj
 	double precision                :: shift, plane !Plane normal components i and j

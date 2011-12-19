@@ -376,7 +376,7 @@ contains
 
 	end function get_velo_slices
 
-	double precision function get_temperature_PUT
+	double precision function get_temperature_PUT()
 	use computational_constants_MD, only: domain, halfdomain,delta_t
 	use physical_constants_MD, only: np,nd,globalnp
 	use arrays_MD, only: r,v,a

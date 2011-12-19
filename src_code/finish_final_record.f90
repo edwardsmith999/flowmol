@@ -174,7 +174,7 @@ subroutine reformat_dcd
 
         call cpu_time(time_end)
 
-        print '(a,g,a)', 'Generated final VMD.dcd ouput file in', time_end - time_start, ' seconds'
+        print '(a,g0,a)', 'Generated final VMD.dcd ouput file in', time_end - time_start, ' seconds'
 
 
 
@@ -428,7 +428,7 @@ subroutine build_psf
 
 	do i=1,NATOM
 		write(1,'(i8,3a,i4,6a,2f10.5,i1)') i,' ',seg_name(i),' ',res_ID(i),'&
-                 ',res_name(i),' ',atom_name(i),' ',atom_type(i),charge(i),mass(i),0 
+                 & ',res_name(i),' ',atom_name(i),' ',atom_type(i),charge(i),mass(i),0 
 	end do
 
 	! Bonds

@@ -123,8 +123,8 @@ subroutine setup_initialise_position_FENE
 
 	modcheck = 0 + mod(np,chain_length) + mod(4*initialnunits(1),chain_length)
 	if (modcheck.ne.0) stop 'Number of molecules must be exactly divisible by &
-	the polymer chain length. Please change the chain length in the input file. &
-	A chain length of 4 should (hopefully) always work.'
+	& the polymer chain length. Please change the chain length in the input file. &
+	& A chain length of 4 should (hopefully) always work.'
 	
 	!Molecules per unit FCC structure (3D)
 	n=1  !Reset n for start of loop

@@ -31,60 +31,15 @@
 
 
 module librarymod
-	interface
-		function magnitude(a)
-			double precision			:: magnitude
-			double precision,dimension(3),intent(in):: a
-		end function magnitude
-	end interface
-	interface
-		subroutine swap(a,b)
-			double precision,dimension(:),intent(inout)	:: a, b
-		end subroutine swap
-	end interface
-	interface
-		function outerprod(a,b)
-			double precision,dimension(:),intent(in)	:: a, b
-			double precision,dimension(size(a),size(b))	:: outerprod
-		end function outerprod
-	end interface
-	interface
-		function crossprod(a,b)
-			double precision,dimension(3),intent(in)	:: a, b
-			double precision,dimension(3)			:: crossprod
-		end function crossprod
-	end interface
-	interface
-		function imaxloc(A)
-			integer 					:: imaxloc
-			integer,dimension(1)				:: imax
-			double precision,dimension(:),intent(in)	:: A
-		end function imaxloc
-	end interface
-	interface
-		function nonzero(A)
-			integer 					:: nonzero
-			integer,dimension(1)				:: imax
-			integer,dimension(:),intent(in)			:: A
-		end function nonzero
-	end interface
-	interface
-		subroutine LUdcmp(a,indx,d)
-			integer, dimension(:), intent(out)		:: indx
-			double precision				:: d
-			double precision, dimension(:,:), intent(inout)	:: A
-		end subroutine LUdcmp
-	end interface
-	interface
-		subroutine lubksb(a,indx,b)
-			integer						:: i, n, ii, ll
-			integer, dimension(:), intent(out)		:: indx
-			double precision				:: summ
-			double precision, dimension(:,:), intent(in)	:: A
-			double precision, dimension(:), intent(inout)	:: b
-		end subroutine lubksb
-	end interface
+       ! use the same name for integer of double precision arguments versions of imaxloc
+       interface imaxloc
+               module procedure imaxloc_int, imaxloc_dp
+       end interface
 
+       ! use the same name for the same logical operation; consider implementing with BLAS
+       interface magnitude
+               module procedure magnitude3, magnitudeN
+       end interface
 	
 	!-----------------------------------------------------------------------------
 	! Subroutine:	locate(keyword)
@@ -144,20 +99,24 @@ contains
 
 	end subroutine locate
 
-end module librarymod
+
 
 !--------------------------------------------------------------------------------------
 !Returns the magnitude of an 3 dimensional vector
 
-function magnitude(a)
+function magnitude3(a)
 
 	
-	double precision			:: magnitude
+	double precision			:: magnitude3
 	double precision,dimension(3),intent(in):: a
 
-	magnitude = (a(1)*a(1)+a(2)*a(2)+a(3)*a(3))**0.5d0
+        ! this should use BLAS library 
+        ! magnitude = dnorm2(3,a,1)
+ 
 
-end function magnitude
+	magnitude3 = sqrt((a(1)*a(1)+a(2)*a(2)+a(3)*a(3)))
+
+end function magnitude3
 
 !--------------------------------------------------------------------------------------
 !Returns the magnitude of an N dimensional vector
@@ -169,13 +128,16 @@ function magnitudeN(a,n)
 	double precision		:: magnitudeN
 	double precision,intent(in)	:: a(n)
 
+        ! simpler with a BLAS call
+        ! magnituneN = dnorm2(n,a,1)
+
 	magnitudeN = 0.d0
 
 	do i=1,n
 		magnitudeN = magnitudeN + a(i)*a(i)
 	enddo
 
-	magnitudeN = magnitudeN**0.5d0
+	magnitudeN = sqrt(magnitudeN)
 
 end function  magnitudeN
 
@@ -323,18 +285,31 @@ function crossprod(a,b)
 end function crossprod
 
 !--------------------------------------------------------------------------------------
-!Get an integer from fortran intrinsic 'maxloc' which returns a rank 1 array
-function imaxloc(a)
+!Get an integer from fortran intrinsic 'maxloc' which returns a rank 1 array for real or integer arrrays
+function imaxloc_dp(a)
 	implicit none
 
-	integer 					:: imaxloc
+	integer 					:: imaxloc_dp
 	integer,dimension(1)				:: imax
 	double precision,dimension(:),intent(in)	:: a
 
 	imax = maxloc(a(:)) 
-	imaxloc = imax(1)
+	imaxloc_dp = imax(1)
 
-end function imaxloc
+end function imaxloc_dp
+
+
+function imaxloc_int(a)
+	implicit none
+
+	integer 					:: imaxloc_int
+	integer,dimension(1)				:: imax
+	integer,dimension(:),intent(in)	:: a
+
+	imax = maxloc(a(:)) 
+	imaxloc_int = imax(1)
+
+end function imaxloc_int
 
 !--------------------------------------------------------------------------------------
 ! Find location of only non-zero element in integer array and return an integer of its
@@ -358,7 +333,7 @@ end function nonzero
 !indx - output vector storing row permutation
 
 subroutine LUdcmp(A,indx,d)
-	use librarymod
+	!use librarymod
 	implicit none
 
 	double precision, dimension(:,:), intent(inout)	:: A
@@ -366,6 +341,9 @@ subroutine LUdcmp(A,indx,d)
 	double precision				:: d
 	double precision, dimension(size(A,1))		:: vv
 	integer						:: j, n, imax
+
+        ! Lapack version
+        ! call DGETRF( M, N, A, LDA, IPIV, INFO )
 
 	n = size(A,1)			!Store size of matrix
 	d=1.d0 				!Row interchange flag - zero as no row interchanges yet.
@@ -397,7 +375,7 @@ end subroutine LUdcmp
 !Matrix A must be in the form of an LU decomposition
 
 subroutine LUbksb(A,indx,b)
-	use librarymod
+	!use librarymod
 	implicit none
 
 	integer						:: i, n, ii, ll
@@ -405,6 +383,9 @@ subroutine LUbksb(A,indx,b)
 	double precision				:: summ
 	double precision, dimension(:,:), intent(in)	:: A
 	double precision, dimension(:), intent(inout)	:: b
+
+        ! Lapack version, factorisation included
+        ! call DGESV( N, NRHS, A, LDA, IPIV, B, LDB, INFO )
 
 	n = size(a,1)
 	ii = 0
@@ -436,22 +417,26 @@ implicit none
 	logical				:: op
 	character(len=*), intent(in)	:: filename
 
+        ! simpler version using inquire
+
+        inquire(file=filename,size=file_size)
+
 	!Check if unit number is used and assign unique number
-	do unit_no = 1,1000
-		inquire(unit_no,opened=op)
-		if (op .eqv. .false.) exit
-	enddo
+	!do unit_no = 1,1000
+	!	inquire(unit_no,opened=op)
+	!	if (op .eqv. .false.) exit
+	!enddo
 
 	!Use Fstat to obtain size of fule ## MAY BE COMPATABILITY ISSUE ##
-	open (unit=unit_no, file=filename)
-	call FStat(unit_no, SArray)
-	close(unit_no,status="keep")
+	!open (unit=unit_no, file=filename)
+	!call FStat(unit_no, SArray)
+	!close(unit_no,status="keep")
 
-	file_size = SArray(8)
+	!file_size = SArray(8)
 
 end subroutine
 
-
+end module librarymod
 
 !======================================================================
 !Ensures functions work correctly
