@@ -361,10 +361,9 @@ subroutine coupler_md_init(npxin,npyin,npzin,icoordin,dtin)
 	DY_PURE_MD =  y(jmin_cfd) - y(jmino) ! 4 nunits below CFD grid 
 	!10.94378734741916534432d0 - (y(jmin_cfd) - y(jmino)) ! prototype
 	!      
-	xL_md = (x(imax_cfd) - x(imin_cfd))
-	yL_md = (y(jmax_overlap_cfd) - y(jmin_CFD) +&
-		& DY_PURE_MD)		   
-	zL_md = (z(kmax_cfd) - z(kmin_cfd))
+	xL_md = x(imax_cfd) - x(imin_cfd)
+	yL_md = y(jmax_overlap_cfd) - y(jmino) + DY_PURE_MD		   
+	zL_md = z(kmax_cfd) - z(kmin_cfd)
 
 	!	write(0,*) 'MD: exchange_grid... xL_md, yL_md, zL_md',&
 	!	 & myid, xL_md, yL_md, zL_md
@@ -433,7 +432,7 @@ subroutine coupler_md_apply_continuum_forces(np,r,v,a,iter)
 	! start from iter = 1
 
 	type(cfd_box_sum) :: box_average(bbox%ie - bbox%is,1, bbox%ke - bbox%ks)
-	integer j, ib, jb, kb, nib, njb, nkb, ip, np_overlap, jb_offset
+	integer j, ib, jb, kb, nib, njb, nkb, ip, np_overlap, jb_constrain
 	integer list(4,np)
 	real(kind=kind(0.d0)) inv_dtCFD, rd(3)
 	integer :: ncalls = 0
@@ -442,13 +441,18 @@ subroutine coupler_md_apply_continuum_forces(np,r,v,a,iter)
 	! find the CFD box to which the particle belongs	      
 	! attention to the particle that have left the domain boundaries 
 
+        ! This work is done only by the MD ranks that cover the constrain region
+        ! At the moment use only the second layer from the top of CFD cell 
+        if (  jmax_overlap - 2 < bbox%js .or. jmax_overlap - 2 >= bbox%je ) return
+
 	! number of CFD cells in each direction
 	nib = bbox%ie - bbox%is
 	njb = bbox%je - bbox%js
 	nkb = bbox%ke - bbox%ks
 
-	! What precisely is Y_boundary? It should be were the countinuum boundary is, the 
-	! averages for the boundary condition must be changed
+         ! vel_fromCFD cell index from which continum constrain is applied
+         jb_constrain =   njb - 1 ! the second row of cells from the top
+
 	if (iter .eq. 1) then
 		! get the previous value of CFD velocities
 		call  get_CFDvel
@@ -486,9 +490,9 @@ subroutine coupler_md_apply_continuum_forces(np,r,v,a,iter)
 		if ( rd(2) <= y(jmax_overlap-2) .or.   rd(2) >= y(jmax_overlap-1) ) then
 			cycle 
 		else 
+                        jb = 1
+                        ! version to be analized later
 			! non uniform grid in j direction		
-			jb=1
-			jb_offset=jmax_overlap-2-1
 			!			 do j =jmin+1, jmax_overlap
 			!				if( rd(2) <= y(j) ) then 
 			!					!this is my cell index, exit
@@ -574,10 +578,10 @@ contains
 
 			! using the following exptrapolation formula for continuum velocity
 			! y = (y2-y1)/(x2-x1) * (x-x2) +y2
-			alpha(1) = inv_dtCFD*(vel_fromCFD(1,ib,jb+jb_offset,kb,itm1) - &
-				vel_fromCFD(1,ib,jb+jb_offset,kb,itm2))
+			alpha(1) = inv_dtCFD*(vel_fromCFD(1,ib,jb_constrain,kb,itm1) - &
+				vel_fromCFD(1,ib,jb_constrain,kb,itm2))
 
-			u_cfd_t_plus_dt(1) = alpha(1) * (iter + 1)*dt_MD + vel_fromCFD(1,ib,jb_offset,kb,itm1) 
+			u_cfd_t_plus_dt(1) = alpha(1) * (iter + 1)*dt_MD + vel_fromCFD(1,ib,jb_constrain,kb,itm1) 
 
 			acfd =  - box_average(ib,jb,kb)%a(1) / n - inv_dtMD * & 
 				( box_average(ib,jb,kb)%v(1) / n - u_cfd_t_plus_dt(1) )
@@ -1241,5 +1245,19 @@ function coupler_md_get_density() result(r)
 	r = density
 
 end function coupler_md_get_density
+
+!-----------------------------------------------------------------------------
+!
+!-----------------------------------------------------------------------------
+
+function coupler_md_get_top_dy() result(dy)
+        use coupler_internal_md, only : y, j => jmax_overlap_cfd
+        implicit none
+        
+        real(kind(0.d0)) dy
+
+        dy = y(j) - y(j-1)
+
+end function coupler_md_get_top_dy
 	
 end module coupler
