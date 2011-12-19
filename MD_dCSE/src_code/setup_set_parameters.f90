@@ -39,7 +39,7 @@ subroutine setup_set_parameters
 	integer		:: i
 
 	!Calculate shift in lennard-Jones potential based on cutoff
-	potshift = 4.d0*(rcutoff**-12.d0 - rcutoff**-6.d0)
+	potshift = 4.d0*(1.d0/rcutoff**12 - 1.d0/rcutoff**6)
 
 	!Allocate arrays based on number of dimensions
 	call set_parameters_allocate(1)
@@ -358,7 +358,7 @@ subroutine set_parameters_cells
             rneighbr = R_0 
             rneighbr2 = R_0**2
             print*, 'Neighbour list distance rneighbr set to &
-                     maximum elongation of polymer spring, ',R_0
+                    & maximum elongation of polymer spring, ',R_0
         end if
     end if
 

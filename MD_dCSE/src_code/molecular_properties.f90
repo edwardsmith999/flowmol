@@ -325,11 +325,12 @@ end subroutine read_tag
 subroutine tether_force(molno)
 	use module_molecule_properties
 	use arrays_MD
+        use librarymod
 	implicit none
 
 	integer 			:: molno, ixyz
 	double precision		:: k4, k6
-	double precision		:: magnitude,acctmag
+	double precision		:: acctmag
 	double precision, dimension(3)	:: at, rio
 
 	!Define strength of tethering potential ~ phi= -k4*rio^4 - k6*rio^6
