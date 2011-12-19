@@ -1,47 +1,50 @@
 module continuum_coupler_socket
-	implicit none
-
-	logical, parameter :: use_coupling = .true.
+        implicit none
 
 contains
 
-!=============================================================================
-!  call coupler routine to build CFD communicator                                  
-!-----------------------------------------------------------------------------
-subroutine create_communicators(comm)
-	implicit none
-        
-	integer, intent(out) :: comm
+        subroutine send_CFDvel
+!                use grid_arrays, only : uc, vc
+!                use  coupler_cfd_communication, only : send_CFDvel_cp => send_CFDvel 
+                implicit none
 
-end subroutine create_communicators
+!!$                test data transfer
+!!$                integer i,j
+!!$
+!!$                do j=1,size(uc,dim=2)
+!!$                 do i=1,size(uc,dim=1)
+!!$                  uc(i,j) = 10*j+i
+!!$                  vc(i,j) = 100*j+10*i
+!!$                 enddo
+!!$                enddo
 
-!=============================================================================
-! Call coupler routine to create map from CFD to MD                          
-!-----------------------------------------------------------------------------
-subroutine continuum_coupler_init 
-	implicit none
+!                call send_CFDvel_cp(uc,vc)
+        end subroutine send_CFDvel
 
-end subroutine continuum_coupler_init
 
-!=============================================================================
-!  Package velocities and pass to coupler to send to MD                                
-!-----------------------------------------------------------------------------
-subroutine send_CFDvel
-	implicit none
+        subroutine MD_continuum_BC(u,v)
+!                use coupler_cfd_communication, only : md_vel
+                implicit none
 
-end subroutine send_CFDvel
+!                integer i
+!                integer, save :: ncall = 0
 
-!=============================================================================
-!  Get MD velocities from coupler and unpack for CFD boundary conditions                                   
-!-----------------------------------------------------------------------------
-subroutine MD_continuum_BC(u,v)
-	implicit none
-	real(kind(0.d0)), intent(out) :: u(:), v(:)
+                real(kind(0.d0)), intent(out) :: u(:), v(:)
+!                real(kind(0.d0)) w(1,1,1), u3(1,size(u),1),v3(1,size(v),1)
 
- 	u(:) =  0.d0
-	v(:) =  0.d0
 
-end subroutine MD_continuum_BC
+!  a polimorfic inteface is needed here
+!                call md_vel(u3,v3,w)
 
+                u(:) =  0.d0
+                v(:) =  0.d0
+
+!                ncall = ncall + 1
+!
+!                do i = 1,size(u)
+!                        write(7000+ncall,*), u(i),v(i)
+!                enddo
+
+        end subroutine MD_continuum_BC
 end module continuum_coupler_socket
 

@@ -112,7 +112,9 @@ subroutine socket_coupler_average(iter)
 
     if ( mod(iter_average,average_period) .eq. 0 ) then
 	    call coupler_md_boundary_cell_average(np,r,v,send_data=.false.) ! accumlate velocities
-	    if ( mod(iter_cfd,save_period) .eq. 0) then
+
+            ! collect uc data every save_perion cfd iteration but discard the first one which cfd uses for initialisation
+	    if ( mod(iter_cfd-1,save_period) .eq. 0 .and. iter_cfd > 1) then
 		    call coupler_uc_average_test(np,r,v,lwrite=.false.)
 	    endif
     endif
@@ -120,7 +122,7 @@ subroutine socket_coupler_average(iter)
 	! Send accumulated results to CFD at the end of average cycle 
 	if (iter_average .eq. Naverage) then 
 	    call coupler_md_boundary_cell_average(np,r,v,send_data=.true.)
-	    if (mod(iter_cfd,save_period) .eq. 0 ) then
+	    if (mod(iter_cfd-1,save_period) .eq. 0 .and. iter_cfd > 1) then
 		    call coupler_uc_average_test(np,r,v,lwrite=.true.)
 	    endif
 	endif

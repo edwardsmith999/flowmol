@@ -17,7 +17,7 @@ end module module_setup_BC
 
 subroutine continuum_set_BC
 	use module_setup_BC
-    use continuum_coupler_socket, only : use_coupling, MD_continuum_BC
+    use continuum_coupler_socket, only : MD_continuum_BC
 	implicit none
 	
 	integer					:: i, j, n
@@ -65,12 +65,7 @@ subroutine continuum_set_BC
 		case(2)
 			stop "No Von Neumann BC yet"
 		case(3)
-                        if (use_coupling) then 
-				call MD_continuum_BC(u_MD,v_MD)
-                        else
-			!print*, 'u_MD passed to BC', u_MD
-                                u_MD = 0.d0; v_MD =0.0
-                        endif
+			call MD_continuum_BC(u_MD,v_MD)
                         call Dirichlet_BC_set_halo(i,u_MD,v_MD)
 		end select
 	enddo
