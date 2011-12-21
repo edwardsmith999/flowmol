@@ -271,7 +271,7 @@ subroutine set_parameters_global_domain_coupled
 	implicit none
 
 	integer          ixyz, n0(2)
-	real(kind(0.d0)) xL_md, yL_md,zL_md, b0 ! lenght of the MDdomain computed in coupler
+	real(kind(0.d0)) xL_md, yL_md,zL_md, b0 ! 
 
 	! get the global domain lenghts from x, y, z array of CFD realm
 
@@ -281,14 +281,13 @@ subroutine set_parameters_global_domain_coupled
     ! size of cubic FCC cell
     b0=(4.d0/density)**(1.0d0/3.0d0)
     
-    call coupler_md_get(xL_md=xL_md,yL_md=yL_md)
+    call coupler_md_get(xL_md=xL_md,yL_md=yL_md,MD_initial_cellsize=b0)
     
     n0(:) = floor( (/ xL_md, yL_md /) / b0)
 
     !write(0,*) "n0 ", b0, xL_md, yL_md, n0
     
-    initialunitsize(1:2) =  (/ xL_md, yL_md /) / n0(:)
-	initialunitsize(3) = b0**3/(initialunitsize(1)*initialunitsize(2))
+    initialunitsize(1:3) =  b0
     initialnunits(1:2) = n0(:)
 
     ! number of FCC cell in z direction per MPI ranks is choosen the minimal one 
