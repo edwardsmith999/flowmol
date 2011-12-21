@@ -22,6 +22,18 @@ contains
 
         end subroutine init_coupler
 
+
+        subroutine continuum_coupler_adjust_domain
+                use coupler
+                use computational_constants, only : lx
+                use physical_constants,      only : rho
+                implicit none
+
+                call coupler_cfd_adjust_domain(rho,"FCC",xL=lx)
+
+        end subroutine continuum_coupler_adjust_domain
+
+
         subroutine continuum_coupler_init 
                 use computational_constants, only : nx, ny, nsteps => continuum_Nsteps,&
                         continuum_delta_t

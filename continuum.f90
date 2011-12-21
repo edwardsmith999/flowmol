@@ -20,11 +20,12 @@
 !-----------------------------------------------------------------------------
 	
 subroutine setup_continuum
-        use continuum_coupler_socket_init, only : continuum_coupler_init
-        use continuum_coupler_socket, only : send_CFDvel
+        use continuum_coupler_socket_init
+        use continuum_coupler_socket
         implicit none
 
 	call continuum_read_inputs
+        call continuum_coupler_adjust_domain
 	call continuum_set_parameters
 	call continuum_mesh_gen
 
