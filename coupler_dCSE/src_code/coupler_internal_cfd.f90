@@ -36,6 +36,10 @@ module coupler_internal_cfd
 	real(kind(0.d0)), allocatable :: x(:), y(:), z(:)
 	real(kind(0.d0)) dx, dz, dt
 
+        ! size of initialisation MD cell  used to resize CFD domain, derived from density
+        ! and cell tipe
+        real(kind(0.d0)) MD_initial_cellsize
+
 	! Data recieved form MD
 	integer npx_md, npy_md, npz_md, nproc_md
 

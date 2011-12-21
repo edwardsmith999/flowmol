@@ -20,6 +20,7 @@ module coupler_parameters
 
 	! error codes
 	integer, parameter :: COUPLER_ERROR_REALM = 1, &  ! wrong realm value
-                          COUPLER_ERROR_ONE_REALM = 2     ! one realm missing
+                          COUPLER_ERROR_ONE_REALM = 2, &  ! one realm missing
+                          COUPLER_ERROR_INIT      = 3     ! initialisation error
 
 end module coupler_parameters

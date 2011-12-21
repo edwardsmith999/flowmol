@@ -16,6 +16,12 @@ contains
 
        end subroutine create_communicators
 
+       subroutine continuum_coupler_adjust_domain
+                implicit none
+
+        end subroutine continuum_coupler_adjust_domain
+
+
         subroutine continuum_coupler_init 
 !!$                use computational_constants, only : nx, ny, nsteps => continuum_Nsteps,&
 !!$                        continuum_delta_t

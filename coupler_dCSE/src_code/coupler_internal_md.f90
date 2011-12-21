@@ -82,6 +82,10 @@ module coupler_internal_md
 	real(kind=kind(0.d0)), allocatable, target :: x(:), y(:), z(:)
 	real(kind=kind(0.d0)) :: dx, dz, dt_CFD, density
 
+        ! inital MD cell size computed in CFD and used to adjust CFD domain sizes
+        ! to integer multiples of cell size  
+        real(kind(0.d0)) MD_initial_cellsize
+
 	! nsteps from CFD
 	integer :: nsteps
 	! average period for averages ( it must come from CFD !!!)      
