@@ -112,14 +112,15 @@ subroutine coupler_cfd_get_velocity(uc,vc,wc)
 end subroutine coupler_cfd_get_velocity
 
 
-subroutine coupler_md_get(xL_md,yL_md,zL_md)
+subroutine coupler_md_get(xL_md,yL_md,zL_md,MD_initial_cellsize,top_dy)
     implicit none
 
-    real(kind(0.d0)), optional, intent(out) :: xL_md, yL_md, zL_md
+    real(kind(0.d0)), optional, intent(out) :: xL_md, yL_md, zL_md,MD_initial_cellsize,top_dy
 
-	xL_md = 0.d0
-	yL_md = 0.d0
-	zL_md = 0.d0
+	xL_md               = 0.d0
+	yL_md               = 0.d0
+	zL_md               = 0.d0
+        MD_initial_cellsize = 0.d0
         
 end subroutine coupler_md_get
 
@@ -185,16 +186,5 @@ function coupler_md_get_density() result(r)
 	r = 0.d0
 
 end function coupler_md_get_density
-
-
-function coupler_md_get_top_dy() result(dy)
-        implicit none
-
-        real(kind(0.d0)) dy
-
-        dy = 0.d0
-
-end function coupler_md_get_top_dy
-
 
 end module coupler

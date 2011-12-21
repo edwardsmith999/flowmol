@@ -63,7 +63,7 @@ contains
 !	Test if CFD or MD realm is assigned correctly
 !-----------------------------------------------------------------------------
 
-	subroutine test_realms
+        subroutine test_realms
 		use mpi
 		implicit none
 
@@ -209,7 +209,7 @@ subroutine coupler_cfd_init(imino,imin,imax,imaxo,jmino,jmin,jmax,jmaxo,kmino,km
 		jmin_ => jmin, jmax_ => jmax, jmaxo_ => jmaxo, kmino_ => kmino, kmin_ => kmin, kmax_ => kmax, &
 		kmaxo_ => kmaxo, nsteps_ => nsteps, x_ => x, y_ => y, z_ => z, dx_ => dx, dz_ => dz, &
 		npx_ => npx, npy_ => npy, npz_ => npz, icoord_ => icoord, dt_ => dt, jmax_overlap, &
-		npx_md, npy_md, npz_md, nproc_md
+		npx_md, npy_md, npz_md, nproc_md, MD_initial_cellsize
 
 	implicit none
 
@@ -233,9 +233,23 @@ subroutine coupler_cfd_init(imino,imin,imax,imaxo,jmino,jmin,jmax,jmaxo,kmino,km
 	x_ = x; y_ = y; z_ = z;
 	icoord_ = icoord
 
+        call mpi_comm_rank(COUPLER_COMM,myid,ierr)
+
+        ! test if MD_init_cell size is larger than CFD cell size
+        if( (MD_initial_cellsize >= x(2)-x(1) .or. MD_initial_cellsize >= y(2)-y(1)) .and. myid == 0 ) then
+                write(*,*) 
+                write(*,*) "********************************************************************"
+                write(*,*) " WARNING ...WARNING ...WARNING ...WARNING ...WARNING ...WARNING ... "
+                write(*,*) " MD initialisation cell size larger than CFD x,y cell sizes         "
+                write(*,*) " MD_init_cellsize=",MD_initial_cellsize
+                write(*,*) " x(2)-x(1)=",x(2)-x(1), " y(2)-y(1)=",y(2)-y(1) 
+                write(*,*) "********************************************************************"
+                write(*,*)
+        endif
+  
 	! write(0,*) 'CFD exchange grid data'
 	! send CFD processor grid
-	call mpi_comm_rank(COUPLER_COMM,myid,ierr)
+	
 	if ( myid .eq. 0 ) then
 		source=MPI_ROOT
 	else
@@ -264,7 +278,7 @@ subroutine coupler_cfd_init(imino,imin,imax,imaxo,jmino,jmin,jmax,jmaxo,kmino,km
 
 	! send CFD nsteps and dt
 	call mpi_bcast(nsteps,1,mpi_integer,source,CFD_MD_ICOMM,ierr)
-	call mpi_bcast( (/ dt, density /),2,mpi_double_precision,source,CFD_MD_ICOMM,ierr)
+	call mpi_bcast( (/ dt, density, MD_initial_cellsize /),3,mpi_double_precision,source,CFD_MD_ICOMM,ierr)
 
 	! write(0,*)' CFD: did exchange grid data'
 
@@ -278,14 +292,14 @@ end subroutine coupler_cfd_init
 subroutine coupler_md_init(npxin,npyin,npzin,icoordin,dtin)
 	use mpi
 	use coupler_internal_common
-	use coupler_internal_md
+	use coupler_internal_md, b => MD_initial_cellsize
 	implicit none
 
 	integer, intent(in)	  :: npxin, npyin, npzin, icoordin(:,:)
 	real(kind(0.d0)), intent(in) :: dtin
 
 	integer i, ierr, source, iaux(12)
-	real(kind=kind(0.d0)) ra(2)
+	real(kind=kind(0.d0)) ra(3)
 
 
 	call mpi_comm_rank(COUPLER_COMM,myid,ierr)
@@ -350,19 +364,23 @@ subroutine coupler_md_init(npxin,npyin,npzin,icoordin,dtin)
 	call mpi_bcast(nsteps,1,mpi_integer,0,CFD_MD_ICOMM,ierr)
 
 	! get CFD dt
-	call mpi_bcast(ra,2,mpi_double_precision,0&
+	call mpi_bcast(ra,3,mpi_double_precision,0&
  					&,CFD_MD_ICOMM,ierr)
 	! should dt_CFD be scaled ?  see to it later
-	dt_CFD = ra(1) * FoP_time_ratio
+	dt_CFD  = ra(1) * FoP_time_ratio
 	density = ra(2)
+        b       = ra(3)
 
 	! set the sizes of MD box
 
-	DY_PURE_MD =  y(jmin_cfd) - y(jmino) ! 4 nunits below CFD grid 
-	!10.94378734741916534432d0 - (y(jmin_cfd) - y(jmino)) ! prototype
-	!      
 	xL_md = x(imax_cfd) - x(imin_cfd)
-	yL_md = y(jmax_overlap_cfd) - y(jmino) + DY_PURE_MD		   
+
+        ! yL_md is adjusted to an integer number of initialisation cells in the following steps
+	DY_PURE_MD =  y(jmin_cfd) - y(jmino)
+	yL_md = y(jmax_overlap_cfd) - y(jmino) + DY_PURE_MD
+        yL_md = real(floor(yL_md/b),kind(0.d0))*b
+        DY_PURE_MD = yL_md - (y(jmax_overlap_cfd) - y(jmino))
+
 	zL_md = z(kmax_cfd) - z(kmin_cfd)
 
 	!	write(0,*) 'MD: exchange_grid... xL_md, yL_md, zL_md',&
@@ -371,6 +389,50 @@ subroutine coupler_md_init(npxin,npyin,npzin,icoordin,dtin)
 
 end subroutine coupler_md_init
 
+!=============================================================================
+!	Adjust CFD domain size to an integer number of lattice units used by  
+!	MD
+!-----------------------------------------------------------------------------
+
+subroutine coupler_cfd_adjust_domain(density,cell_type,xL,yL,zL)
+        use mpi
+        use coupler_internal_common
+        use coupler_internal_cfd, only : b => MD_initial_cellsize
+        implicit none
+
+        real(kind(0.d0)), intent(in) :: density
+        character(len=*), intent(in) :: cell_type
+        real(kind(0.d0)),optional, intent(inout) :: xL,yL,zL
+
+        ! internal variables
+        integer myid, ierror, ierr
+
+        select case (cell_type)
+        case ("FCC")
+                b = (4.d0/density)**(1.d0/3.d0)
+        case default
+                write(*,*) "wrong cell_type value in coupler_cfd_adjust_domain. Stopping ... "
+                ierror = COUPLER_ERROR_INIT
+                call MPI_Abort(MPI_COMM_WORLD,ierror,ierr)
+        end select
+
+        if (present(xL)) then
+                xL = real(floor(xL/b),kind(0.d0))*b
+                
+                call mpi_comm_rank(COUPLER_COMM,myid,ierr)
+                if (myid .eq. 0) then 
+                        write(*,'(4(a,/),2(a,E10.4),/a,/,a)') &
+				"*********************************************************************", 		&
+ 				"WARNING - this is a coupled run which resets CFD domain size xL      ", 		&
+				" to an integer number of MD initial cells:		          	   ", 		&
+				"								     ", 		&
+				" xL =", xL, " number of cells ", xL/b,	                                                &
+				"								     ", 		& 
+				"*********************************************************************"   
+                endif
+        end if
+
+end subroutine coupler_cfd_adjust_domain
 
 !=============================================================================
 !	Apply force to prevent molecules leaving domain using form suggested by 
@@ -1137,12 +1199,12 @@ end subroutine coupler_cfd_get_velocity
 !
 !-----------------------------------------------------------------------------    
 
-subroutine coupler_md_get(xL_md,yL_md,zL_md)
-	use coupler_internal_md, only : xL_md_ =>  xL_md, yL_md_ =>  yL_md, zL_md_ =>  zL_md
-!		use coupler_internal_md
+subroutine coupler_md_get(xL_md,yL_md,zL_md, MD_initial_cellsize, top_dy)
+	use coupler_internal_md, only : xL_md_ =>  xL_md, yL_md_ =>  yL_md, zL_md_ => zL_md, &
+                                        b => MD_initial_cellsize,  y, j => jmax_overlap_cfd
 	implicit none
 
-	real(kind(0.d0)), optional, intent(out) :: xL_md, yL_md, zL_md
+	real(kind(0.d0)), optional, intent(out) :: xL_md, yL_md, zL_md, MD_initial_cellsize, top_dy
 
 	if (present(xL_md)) then 
 		xL_md = xL_md_
@@ -1155,7 +1217,14 @@ subroutine coupler_md_get(xL_md,yL_md,zL_md)
 	if (present(zL_md)) then 
 		zL_md = zL_md_
 	endif
-	
+
+        if (present(MD_initial_cellsize)) then 
+                MD_initial_cellsize = b
+	endif
+
+        if (present(top_dy)) then
+               top_dy = y(j) - y(j-1)
+        end if
 end subroutine coupler_md_get
 
 !-----------------------------------------------------------------------------
@@ -1246,18 +1315,4 @@ function coupler_md_get_density() result(r)
 
 end function coupler_md_get_density
 
-!-----------------------------------------------------------------------------
-!
-!-----------------------------------------------------------------------------
-
-function coupler_md_get_top_dy() result(dy)
-        use coupler_internal_md, only : y, j => jmax_overlap_cfd
-        implicit none
-        
-        real(kind(0.d0)) dy
-
-        dy = y(j) - y(j-1)
-
-end function coupler_md_get_top_dy
-	
 end module coupler
