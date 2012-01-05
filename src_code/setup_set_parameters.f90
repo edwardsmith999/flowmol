@@ -33,7 +33,9 @@ end module module_set_parameters
 
 subroutine setup_set_parameters
 	use module_set_parameters
+#if USE_COUPLER
 	use coupler
+#endif
 	implicit none
 
 	integer		:: i
@@ -45,11 +47,11 @@ subroutine setup_set_parameters
 	call set_parameters_allocate(1)
 
 	!call set_parameters_domain
-        if ( coupler_is_active ) then 
+#if USE_COUPLER
         	call set_parameters_global_domain_coupled
-        else 
+#else 
         	call set_parameters_global_domain
-        endif
+#endif
 	call set_parameters_cells
 	call set_parameters_setlimits
 
@@ -264,6 +266,8 @@ end subroutine set_parameters_global_domain
 
 !-----------------------------------------------------------------------------
 
+#if USE_COUPLER
+
 subroutine set_parameters_global_domain_coupled
 	use module_set_parameters
 	use messenger, only : myid
@@ -331,6 +335,8 @@ subroutine set_parameters_global_domain_coupled
     endif
 
 end subroutine set_parameters_global_domain_coupled
+
+#endif
 
 !-----------------------------------------------------------------------------------------
 
@@ -578,8 +584,8 @@ subroutine establish_surface_bins
 	integer		:: icell, jcell, kcell
 
 	nsurfacebins=	2*( ncells(1)   * ncells(2) &
-			+  (ncells(3)-2)* ncells(2) &
-		        +  (ncells(3)-2)*(ncells(1)-2))
+					+  (ncells(3)-2)* ncells(2) &
+		        	+  (ncells(3)-2)*(ncells(1)-2))
 
 	allocate(surfacebins(nsurfacebins,3))
 
@@ -608,6 +614,46 @@ subroutine establish_surface_bins
 
 end subroutine establish_surface_bins
 
+!-------------------------------------------------------------------
+!Establish and store indices of bins which are in the halo
+
+subroutine establish_halo_bins
+	use module_set_parameters
+	implicit none
+
+	integer		:: n
+	integer		:: icell, jcell, kcell
+
+	nhalobins  =	2*((ncells(1)+2)*(ncells(2)+2) &
+					+  (ncells(3)  )*(ncells(2)+2) &
+					+  (ncells(3)  )*(ncells(1)  ))
+
+	allocate(halobins(nhalobins,3))
+
+	n = 1
+	do kcell=1, nbins(3)+2
+	do jcell=1, nbins(2)+2
+	do icell=1, nbins(1)+2
+
+		!Remove inner part of domain
+		if((icell .gt. (1) .and. icell .lt. (nbins(1)+2)) .and. &
+		   (jcell .gt. (1) .and. jcell .lt. (nbins(2)+2)) .and. &
+		   (kcell .gt. (1) .and. kcell .lt. (nbins(3)+2))) cycle
+		!Remove outer cells leaving only 1 layer of surface cells
+		!if((icell .lt. (1) .or. icell .gt. (nbins(1)+2)) .or. &
+		!   (jcell .lt. (1) .or. jcell .gt. (nbins(2)+2)) .or. &
+		!   (kcell .lt. (1) .or. kcell .gt. (nbins(3)+2))) cycle
+
+		halobins(n,1)=icell
+		halobins(n,2)=jcell
+		halobins(n,3)=kcell
+		n = n + 1
+
+	enddo
+	enddo
+	enddo
+
+end subroutine establish_halo_bins
 
 !-------------------------------------------------------------------
 !Establish and store indices of cells which are on the outer domain surface specified 

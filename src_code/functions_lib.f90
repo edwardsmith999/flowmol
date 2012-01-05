@@ -29,7 +29,6 @@
 
 !-------------------------------------------------------------------------------------
 
-
 module librarymod
        ! use the same name for integer of double precision arguments versions of imaxloc
        interface imaxloc
@@ -41,65 +40,65 @@ module librarymod
                module procedure magnitude3, magnitudeN
        end interface
 	
-	!-----------------------------------------------------------------------------
-	! Subroutine:	locate(keyword)
-	! Author(s):	David Trevelyan
-	! Description:
-	!		The file opened with 'fileid' is scanned sequentially by line until the 
-	!		character string 'keyword' matches the beginning of what is read.
-	!		The file position is thus set to the line after the matched keyword.
-	!
-	!		If a keyword is not found, it is assumed that the file is
-	!		incomplete and the program is stopped.
-	!-----------------------------------------------------------------------------
 contains
-	subroutine locate(fileid,keyword,required,input_present)
-	implicit none
-		
-		character*(*),intent(in)	:: keyword		! Input keyword	
-		integer,intent(in)		:: fileid		! File unit number
-		logical,intent(in)		:: required		! Flag to check if input is required
-		logical,intent(out),optional	:: input_present	! Optional flag passed back if present in intput
 
-		character*(100)			:: linestring		! First 100 characters in a line
-		integer				:: keyword_length	! Length of input keyword
-		integer				:: io			! File status flag
+!-----------------------------------------------------------------------------
+! Subroutine:	locate(keyword)
+! Author(s):	David Trevelyan
+! Description:
+!		The file opened with 'fileid' is scanned sequentially by line until the 
+!		character string 'keyword' matches the beginning of what is read.
+!		The file position is thus set to the line after the matched keyword.
+!
+!		If a keyword is not found, it is assumed that the file is
+!		incomplete and the program is stopped.
+!-----------------------------------------------------------------------------
 
-		!Check if required, if not then check if input check variable is include
-		!and terminate if missing
-		if (.not. required) then
-			if(present(input_present)) then
-				input_present = .true.	!Assume true until not found
-			else
-				print*, "ERROR IN LOCATE - If input not required, extra logical argument", &
-					"must be included to check if variable is specified in input file" 
-				stop
-			endif
+subroutine locate(fileid,keyword,required,input_present)
+implicit none
+	
+	character*(*),intent(in)	:: keyword		! Input keyword	
+	integer,intent(in)		:: fileid		! File unit number
+	logical,intent(in)		:: required		! Flag to check if input is required
+	logical,intent(out),optional	:: input_present	! Optional flag passed back if present in intput
+
+	character*(100)			:: linestring		! First 100 characters in a line
+	integer				:: keyword_length	! Length of input keyword
+	integer				:: io			! File status flag
+
+	!Check if required, if not then check if input check variable is include
+	!and terminate if missing
+	if (.not. required) then
+		if(present(input_present)) then
+			input_present = .true.	!Assume true until not found
+		else
+			print*, "ERROR IN LOCATE - If input not required, extra logical argument", &
+				"must be included to check if variable is specified in input file" 
+			stop
 		endif
+	endif
 
-		keyword_length = len(keyword)
-		rewind(fileid)	! Go to beginning of input file
-		do
-			read (fileid,*,iostat=io) linestring			! Read first 100 characters
-			if (linestring(1:keyword_length).eq.keyword) exit	! If the first characters match keyword then exit loop
+	keyword_length = len(keyword)
+	rewind(fileid)	! Go to beginning of input file
+	do
+		read (fileid,*,iostat=io) linestring			! Read first 100 characters
+		if (linestring(1:keyword_length).eq.keyword) exit	! If the first characters match keyword then exit loop
 
-			if (io.ne.0) then	! If end of file is reached
-				if (.not. required) then
-					!print*, keyword, ' - Not specified in input file - default value taken'
-					input_present = .false.
-					return
-				else
-					print*, "ERROR IN LOCATE -  Required input ", keyword, & 
-						" not found in input file. Stopping simulation."
-					stop 
-				endif
-			end if
+		if (io.ne.0) then	! If end of file is reached
+			if (.not. required) then
+				!print*, keyword, ' - Not specified in input file - default value taken'
+				input_present = .false.
+				return
+			else
+				print*, "ERROR IN LOCATE -  Required input ", keyword, & 
+					" not found in input file. Stopping simulation."
+				stop 
+			endif
+		end if
 
-		end do	
+	end do	
 
-	end subroutine locate
-
-
+end subroutine locate
 
 !--------------------------------------------------------------------------------------
 !Returns the magnitude of an 3 dimensional vector
@@ -333,7 +332,6 @@ end function nonzero
 !indx - output vector storing row permutation
 
 subroutine LUdcmp(A,indx,d)
-	!use librarymod
 	implicit none
 
 	double precision, dimension(:,:), intent(inout)	:: A
@@ -375,7 +373,6 @@ end subroutine LUdcmp
 !Matrix A must be in the form of an LU decomposition
 
 subroutine LUbksb(A,indx,b)
-	!use librarymod
 	implicit none
 
 	integer						:: i, n, ii, ll
@@ -409,25 +406,25 @@ end subroutine LUbksb
 !--------------------------------------------------------------------------------------
 !Subroutine used to get size of file
 subroutine get_file_size(filename,file_size)
-implicit none
+	implicit none
 
-	integer				:: unit_no
-	integer,intent(out)		:: file_size
-	integer,dimension(13)		:: SArray(13)
-	logical				:: op
+	integer							:: unit_no
+	integer,intent(out)				:: file_size
+	integer,dimension(13)			:: SArray(13)
+	logical							:: op
 	character(len=*), intent(in)	:: filename
 
-        ! simpler version using inquire
-
-        inquire(file=filename,size=file_size)
-
 	!Check if unit number is used and assign unique number
-	!do unit_no = 1,1000
-	!	inquire(unit_no,opened=op)
-	!	if (op .eqv. .false.) exit
-	!enddo
+	do unit_no = 1,1000
+		inquire(unit_no,opened=op)
+		if (op .eqv. .false.) exit
+	enddo
 
-	!Use Fstat to obtain size of fule ## MAY BE COMPATABILITY ISSUE ##
+	! simpler version using inquire
+	inquire(file=filename,size=file_size)
+
+
+	!Use Fstat to obtain size of file ## MAY BE COMPATABILITY ISSUE ##
 	!open (unit=unit_no, file=filename)
 	!call FStat(unit_no, SArray)
 	!close(unit_no,status="keep")

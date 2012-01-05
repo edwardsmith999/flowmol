@@ -25,8 +25,10 @@
 
 subroutine setup_MD
 	use computational_constants_MD
+#if USE_COUPLER
 	use coupler
-	use md_coupler_socket, only : socket_coupler_init 
+	use md_coupler_socket, only : socket_coupler_init
+#endif
 	implicit none
 
 	call messenger_invoke	 		     	!Initialises MPI
@@ -38,13 +40,17 @@ subroutine setup_MD
 		print*, 'Simulation restarted from file: ', initial_microstate_file
 		call messenger_init					!Establish processor topology
 		call setup_restart_inputs			!Recover simulation inputs from file
+#if USE_COUPLER
 		call socket_coupler_init
+#endif
 		call setup_set_parameters			!Calculate parameters using input
 		call setup_restart_microstate		!Recover position and velocities
 	else
 		call messenger_init   				!Establish processor topology
 		call setup_inputs					!Input simulation parameters
+#if USE_COUPLER
  		call socket_coupler_init
+#endif
 		call setup_set_parameters			!Calculate parameters using input
 		call setup_initialise_microstate	!Setup position and velocities
 	endif
@@ -55,8 +61,9 @@ subroutine setup_MD
 	call assign_to_neighbourlist_halfint	!Build neighbourlist using cell list
 	call setup_initial_record				!Setup print headers and output inital
 
-	! if coupled
+#if USE_COUPLER
 	call coupler_create_map
+#endif
 
 end subroutine setup_MD
 
@@ -73,7 +80,9 @@ end subroutine setup_MD
 subroutine simulation_MD
 	use computational_constants_MD
 	use arrays_MD
+#if USE_COUPLER
 	use md_coupler_socket, only : socket_coupler_apply_continuum_forces, socket_coupler_average
+#endif
 	implicit none
   
 	integer :: rebuild    				!Flag set by check rebuild to determine if linklist rebuild require
@@ -86,12 +95,17 @@ subroutine simulation_MD
 		call simulation_record			!Evaluate & write properties to file
 		call mass_flux_averaging		!Average mass flux before movement of particles
 
+#if USE_COUPLER
 		call simulation_apply_boundary_forces				!Apply boundary force to prevent molecules leaving domain
 		call socket_coupler_apply_continuum_forces(iter)	!Apply coupling forces so MD => CFD
+#endif
 
 		call simulation_move_particles						!Move particles as a result of forces
 		call momentum_flux_averaging(vflux_outflag)			!Average momnetum flux after movement of particles
+
+#if USE_COUPLER
 		call socket_coupler_average(iter)					!Calculate averages of MD to pass to CFD
+#endif
 
 		call messenger_updateborders(0)				!Update borders between processors
 		call simulation_checkrebuild(rebuild)		!Determine if neighbourlist rebuild required
