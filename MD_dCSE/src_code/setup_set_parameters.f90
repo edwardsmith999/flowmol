@@ -165,8 +165,6 @@ implicit none
 	shear_plane = 2
 	shear_direction = 1
 	shear_remainingplane = 3
-	shear_rate = 0.d0
-	shear_velocity = 0.d0
 	shear_iter0 = 0
 	shear_time = 0.d0
 	shear_distance = 0.d0	
