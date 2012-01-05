@@ -10,17 +10,21 @@ F90_CUDA_MD_FILES = $(F90_MD_FILES:simulation_compute_forces.f90=simulation_comp
 CU_CUDA_MD_FILES = inter.cu inter2.cu
 
 # object files directory
-
 OBJ_DIR := obj
+
+# Yes/No To Logical
+LOGICAL_yes := .true.
+LOGICAL_no  := .false.
 
 # use coupler ? 
 USE_COUPLER      := no
 COUPLER_PATH_yes := ../../coupler_dCSE/src_code/obj
 COUPLER_PATH_no  := ../../coupler_dCSE/src_code/obj_null
-COUPLER_PATH      := $(COUPLER_PATH_$(USE_COUPLER))
+COUPLER_PATH     := $(COUPLER_PATH_$(USE_COUPLER))
+USE_COUPLER_LOGICAL := $(LOGICAL_$(USE_COUPLER))
 
 # coupler object files in coupler directory
-O_COUPLER_no     := $(COUPLER_PATH)/coupler_null.o
+O_COUPLER_no     := #$(COUPLER_PATH)/coupler_null.o
 O_COUPLER_yes    := $(COUPLER_PATH)/coupler.o $(COUPLER_PATH)/coupler_parameters.o $(COUPLER_PATH)/coupler_internal_common.o $(COUPLER_PATH)/coupler_internal_md.o $(COUPLER_PATH)/coupler_internal_cfd.o   
 O_COUPLER        := $(O_COUPLER_$(USE_COUPLER))
 
@@ -28,7 +32,6 @@ O_COUPLER        := $(O_COUPLER_$(USE_COUPLER))
 COUPLER_SOCKET_yes :=
 COUPLER_SOCKET_no  :=_dummy
 COUPLER_SOCKET     := $(COUPLER_SOCKET_$(USE_COUPLER))
-
 
 #
 # get platform to build, compiler names and flags, check the make.inc directory
@@ -52,7 +55,7 @@ else
 endif
 
 # computed flags with values from PLATFORM files
-FLAGS   := $(FLAGS_$(COMP)_$(VERSION))  
+FLAGS   := $(FLAGS_$(COMP)_$(VERSION)) 
 FFLAGS  := $(FLAGS) -I$(COUPLER_PATH) 
 LDFLAGS := $(FLAGS)
 

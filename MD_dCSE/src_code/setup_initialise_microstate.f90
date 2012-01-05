@@ -175,14 +175,16 @@ end subroutine setup_initialise_position_FENE
 
 subroutine setup_initialise_parallel_position
 	use module_initialise_microstate
-        use messenger
+	use messenger
+#if USE_COUPLER
 	use coupler
+#endif
 
 	implicit none
 
-	integer 			:: j, ixyz, n, nl, nx, ny, nz
-	integer,dimension(nd) 		:: p_units_lb, p_units_ub, nfcc_max
-	double precision 		:: CFD_region, removed_height
+	integer 						:: j, ixyz, n, nl, nx, ny, nz
+	integer,dimension(nd) 			:: p_units_lb, p_units_ub, nfcc_max
+	double precision 				:: CFD_region, removed_height
 	double precision, dimension (nd):: rc, c !Temporary variable
 
         p_units_lb(1) = (iblock-1)*floor(initialnunits(1)/real((npx),kind(0.d0)))
@@ -194,12 +196,13 @@ subroutine setup_initialise_parallel_position
 
 	!Set CFD region to top of domain initially
 	CFD_region = domain(2)/2.d0
+
+#if USE_COUPLER
 	if (jblock .eq. npy) then
-	if ( coupler_is_active ) then
 		call coupler_md_get(top_dy=removed_height) !2*cellsidelength(2)
 		CFD_region = domain(2)/2.d0 - removed_height
 	endif
-	endif
+#endif
 
        ! if ( use_coupling ) then
                 ! Let the last two cells free at top of the domain in y direction
@@ -287,7 +290,8 @@ subroutine setup_initialise_parallel_position
 	!processe's subdomain on current proccess
 	call globalGathernp
 
-	if (coupler_is_active .and. myid .eq. 0) then
+#if USE_COUPLER
+	if (myid .eq. 0) then
 		print*, '*********************************************************************'
 		print*, '*WARNING - TOP LAYER OF DOMAIN REMOVED IN LINE WITH CONSTRAINT FORCE*'
 		print*, 'Removed from', CFD_region, 'to Domain top', globaldomain(2)/2.d0
@@ -297,6 +301,7 @@ subroutine setup_initialise_parallel_position
 
                 !print*, 'microstate ', minval(r(:,1)), maxval(r(:,1)),minval(r(:,2)), maxval(r(:,2)),minval(r(:,3)), maxval(r(:,3))
 	endif
+#endif
 
 
 end subroutine setup_initialise_parallel_position

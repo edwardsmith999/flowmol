@@ -804,6 +804,7 @@ subroutine simulation_header
 	write(3,*)  'Bins per Processor in y ;  nbins(2) ;', nbins(2)
 	write(3,*)  'Bins per Processor in z ;  nbins(3) ;', nbins(3)
 	write(3,*)  'Number of Bins on outer Surface of each processor ;  nsurfacebins ;', nsurfacebins
+	write(3,*)  'Number of Bins in halo of each processor ;  nhalobins ;', nhalobins
 	write(3,*)  'Domain split into Planes for Pressure Averaging ; nplanes  ;',nplanes 
 	write(3,*)  'Separated by distance ;  planespacing  ;', planespacing 
 	write(3,*)  'with first plane at ;  planes ;', planes(1)
@@ -1137,15 +1138,15 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 	integer				:: i,j,k,n
 	integer				:: m,length
 	integer				:: CV_mass_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
-	character(4)			:: io_type
-	character(13)			:: filename
+	character(4)		:: io_type
+	character(13)		:: filename
 
 	!Work out correct filename for i/o type
 	write(filename, '(a9,a4)' ) 'results/m', io_type
 
 	!Include halo surface fluxes to get correct values for all cells
-	do n = 1, nsurfacebins
-		i = surfacebins(n,1); j = surfacebins(n,2); k = surfacebins(n,3)  
+	do n = 1, nhalobins
+		i = halobins(n,1); j = halobins(n,2); k = halobins(n,3)  
 		!Change in number of Molecules in halo cells
 		CV_mass_out(modulo((i-2),nbins(1))+2, & 
 			    modulo((j-2),nbins(2))+2, & 
@@ -1216,8 +1217,8 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 
 	!---------------Correct for surface fluxes on halo cells---------------
 	!Include halo surface fluxes to get correct values for all cells
-	do n = 1, nsurfacebins
-		i = surfacebins(n,1); j = surfacebins(n,2); k = surfacebins(n,3)  
+	do n = 1, nhalobins
+		i = halobins(n,1); j = halobins(n,2); k = halobins(n,3)  
 
 		!Change in Momentum in halo cells
 		CV_momentum_out(modulo((i-2),nbins(1))+2, & 
@@ -1304,12 +1305,13 @@ end subroutine VA_stress_io
 !Integrate virial pressure to get autocorrelations (Green Kubo) viscosity
 
 subroutine viscosity_io
-use module_parallel_io
-use physical_constants_MD
-use calculated_properties_MD
-implicit none
+	use module_parallel_io
+	use physical_constants_MD
+	use calculated_properties_MD
+	use librarymod, only : intergrate_trap
+	implicit none
 
-	integer			:: m, length
+	integer				:: m, length
 	double precision	:: viscosity
 
 	print*, Pxycorrel
@@ -1344,8 +1346,8 @@ subroutine mass_flux_io
 	integer		:: i,j,k,n,m,length
 
 	!Include halo surface fluxes to get correct values for all cells
-	do n = 1, nsurfacebins
-		i = surfacebins(n,1); j = surfacebins(n,2); k = surfacebins(n,3)  
+	do n = 1, nhalobins
+		i = halobins(n,1); j = halobins(n,2); k = halobins(n,3)  
 		!Flux over halo cells
 		mass_flux(modulo((i-2),nbins(1))+2,modulo((j-2),nbins(2))+2,modulo((k-2),nbins(3))+2,:) = & 
 		mass_flux(modulo((i-2),nbins(1))+2,modulo((j-2),nbins(2))+2,modulo((k-2),nbins(3))+2,:) + mass_flux(i,j,k,:)
@@ -1372,8 +1374,8 @@ subroutine momentum_flux_io
 	double precision		:: binface
 
 	!Include halo surface fluxes to get correct values for all cells
-	do n = 1, nsurfacebins
-		i = surfacebins(n,1); j = surfacebins(n,2); k = surfacebins(n,3)  
+	do n = 1, nhalobins
+		i = halobins(n,1); j = halobins(n,2); k = halobins(n,3)  
 		!Flux over halo cells
 		momentum_flux(	modulo((i-2),nbins(1))+2, & 
 			      	modulo((j-2),nbins(2))+2, & 
@@ -1439,8 +1441,8 @@ subroutine surface_stress_io
 	double precision,dimension(3)	:: binface
 
 	!Include halo surface stresses to get correct values for all cells
-	do n = 1, nsurfacebins
-		i = surfacebins(n,1); j = surfacebins(n,2); k = surfacebins(n,3)  
+	do n = 1, nhalobins
+		i = halobins(n,1); j = halobins(n,2); k = halobins(n,3)  
 		!Set Stresses to value of halo cells
 		Pxyface(	modulo((i-2),nbins(1))+2, & 
 			      	modulo((j-2),nbins(2))+2, & 

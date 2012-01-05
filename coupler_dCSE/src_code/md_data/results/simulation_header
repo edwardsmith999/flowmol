@@ -1,22 +1,22 @@
- Simulation run on Date;  sim_date ;20111216
- Simulation start time ;  sim_start_time ;173822.166
+ Simulation run on Date;  sim_date ;20120104
+ Simulation start time ;  sim_start_time ;153404.290
  Number of Dimensions ;  nd ;           3
- Number of Particles ;  globalnp ;        3648
+ Number of Particles ;  globalnp ;        8360
  Time Step - delta t ;   delta_t ;  5.000000000000000E-003
- Total number of steps ; Nsteps;         200
+ Total number of steps ; Nsteps;        5050
  Starting step of simulation ;  initialstep ;           0
  Generate output file every steps ;   tplot ;           4
  Density ; density ;  0.810000000000000     
  Initial Temperature ;   inputtemperature ;   1.00000000000000     
  Cut off distance ;  rcutoff ;   2.20000000000000     
  Neighbour List Delta r ;  delta_rneighbr ;  0.405000000000000     
- Initial FCC unit size in x ;  initialunitsize(1) ;   1.78947368421053     
- Initial FCC unit size in y ;  initialunitsize(2) ;   1.76925689257143     
- Initial FCC unit size in z ;  initialunitsize(3) ;   1.55976352504394     
- Domain in x ;  globaldomain(1)  ;   34.0000000000000     
- Domain in y ;  globaldomain(2)  ;   19.4618258182857     
- Domain in z ;  globaldomain(3)  ;   9.35858115026366     
- Domain volume ;  volume ;   6192.59259259259     
+ Initial FCC unit size in x ;  initialunitsize(1) ;   1.70290984976345     
+ Initial FCC unit size in y ;  initialunitsize(2) ;   1.70290984976345     
+ Initial FCC unit size in z ;  initialunitsize(3) ;   1.70290984976345     
+ Domain in x ;  globaldomain(1)  ;   32.3552871455056     
+ Domain in y ;  globaldomain(2)  ;   23.8407378966883     
+ Domain in z ;  globaldomain(3)  ;   17.0290984976345     
+ Domain volume ;  volume ;   13135.8024691358     
  Periodic Boundary Conditions in x ;  periodic(1) ;           1
  Periodic Boundary Conditions in y ;  periodic(2) ;           0
  Periodic Boundary Conditions in z ;  periodic(3) ;           1
@@ -47,20 +47,20 @@
  Dist frm top NH Thermstat Mol in x; thermstattop(1);  0.000000000000000E+000
  Dist frm top NH Thermstat Mol in y; thermstattop(2);  0.000000000000000E+000
  Dist frm top NH Thermstat Mol in z; thermstattop(3);  0.000000000000000E+000
- Computational cells in x ;  globalncells(1) ;          13
- Computational cells in y ;  globalncells(2)  ;           7
- Computational cells in z ;  globalncells(3)  ;           3
- Of size in x ;  cellsidelength(1) ;   2.61538461538462     
- Of size in y ;  cellsidelength(2) ;   2.78026083118367     
- Of size in z ;  cellsidelength(3) ;   3.11952705008789     
- Number of processors in x ;  npx ;           1
+ Computational cells in x ;  globalncells(1) ;          12
+ Computational cells in y ;  globalncells(2)  ;           9
+ Computational cells in z ;  globalncells(3)  ;           6
+ Of size in x ;  cellsidelength(1) ;   2.69627392879213     
+ Of size in y ;  cellsidelength(2) ;   2.64897087740981     
+ Of size in z ;  cellsidelength(3) ;   2.83818308293909     
+ Number of processors in x ;  npx ;           2
  Number of processors in y ;  npy ;           1
- Number of processors in z ;  npz ;           1
- Cells per Processor in x ;  nicellxl ;          13
- Cells per Processor in y ;  nicellyl ;           7
+ Number of processors in z ;  npz ;           2
+ Cells per Processor in x ;  nicellxl ;           6
+ Cells per Processor in y ;  nicellyl ;           9
  Cells per Processor in z ;  nicellzl ;           3
- Cells per Processor including Halos in x ;  ncellxl ;          15
- Cells per Processor including Halos in y ;  ncellyl ;           9
+ Cells per Processor including Halos in x ;  ncellxl ;           8
+ Cells per Processor including Halos in y ;  ncellyl ;          11
  Cells per Processor including Halos in z ;  ncellzl ;           5
  1st Random seed ;  seed_1 ;           1
  2nd Random seed ;  seed_2 ;           1
@@ -78,16 +78,16 @@
  viscosity average samples ;  Nvisc_ave ;           0
  mass flux average steps ;  Nmflux_ave ;           0
  velocity flux average steps ;  Nvflux_ave ;           0
- Velocity/stress Averaging Bins in x ;  globalnbins(1) ;          13
- Velocity/stress Averaging Bins in y ;  globalnbins(2) ;           7
- Velocity/stress Averaging Bins in z ;  globalnbins(3) ;           3
- Of size in x ;  binsize(1)  ;   2.61538461538462     
- Of size in y ;  binsize(2)  ;   2.78026083118367     
- Of size in z ;  binsize(3)  ;   3.11952705008789     
- Bins per Processor in x ;  nbins(1) ;          13
- Bins per Processor in y ;  nbins(2) ;           7
- Bins per Processor in z ;  nbins(3) ;           3
- Number of Bins on outer Surface of each processor ;  nsurfacebins ;         218
- Domain split into Planes for Pressure Averaging ; nplanes  ;           6
- Separated by distance ;  planespacing  ;   2.78026083118367     
- with first plane at ;  planes ;  -6.95065207795918     
+ Velocity/stress Averaging Bins in x ;  globalnbins(1) ;           6
+ Velocity/stress Averaging Bins in y ;  globalnbins(2) ;           9
+ Velocity/stress Averaging Bins in z ;  globalnbins(3) ;           4
+ Of size in x ;  binsize(1)  ;   5.39254785758426     
+ Of size in y ;  binsize(2)  ;   2.64897087740981     
+ Of size in z ;  binsize(3)  ;   4.25727462440863     
+ Bins per Processor in x ;  nbins(1) ;           3
+ Bins per Processor in y ;  nbins(2) ;           9
+ Bins per Processor in z ;  nbins(3) ;           2
+ Number of Bins on outer Surface of each processor ;  nsurfacebins ;         134
+ Domain split into Planes for Pressure Averaging ; nplanes  ;           9
+ Separated by distance ;  planespacing  ;   2.64897087740981     
+ with first plane at ;  planes ;  -10.5958835096393     
