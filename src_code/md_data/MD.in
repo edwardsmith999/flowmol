@@ -175,9 +175,9 @@ PERIODIC
 # nproc is set by the argument of mpirun
 #-----------------------------------------------------------------------
 PROCESSORS
+2
 1
-1
-1
+2
 
 ########################################################################
 # Distance from domain bottom to tethered molecules using spring like

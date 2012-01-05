@@ -9,6 +9,15 @@ F90 := ftn
 #  object dir
 #
 OBJ_DIR = obj
+
+# Yes/No To Logical
+LOGICAL_yes := .true.
+LOGICAL_no  := .false.
+
+# use coupler ? 
+USE_COUPLER := yes
+USE_COUPLER_LOGICAL := $(LOGICAL_$(USE_COUPLER))
+
 #
 # Coupler files
 #
