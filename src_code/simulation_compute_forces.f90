@@ -28,8 +28,8 @@ end module module_compute_forces
 !Force calculation using re-ordered neighbour list for all interactions
 
 subroutine simulation_compute_forces
-use module_compute_forces
-implicit none
+	use module_compute_forces
+	implicit none
 	
 	a					= 0.d0							!Initialise forces to zero
 	potenergymol		= 0.d0
@@ -56,13 +56,13 @@ implicit none
 end subroutine simulation_compute_forces
 
 subroutine simulation_compute_forces_LJ
-use module_compute_forces
-implicit none
+	use module_compute_forces
+	implicit none
 
 	integer                         :: i, j, ixyz   !Define dummy index
-	integer				:: molnoi, molnoj
-	integer				:: noneighbrs
-	type(neighbrnode), pointer	:: old, current
+	integer							:: molnoi, molnoj
+	integer							:: noneighbrs
+	type(neighbrnode), pointer		:: old, current
 
 	do molnoi = 1, np
 
@@ -120,9 +120,9 @@ use module_compute_forces
 use polymer_info_MD
 implicit none
 
-	integer	:: molnoi								!Current LJ bead
-	integer	:: molnoL								!Bead on left
-	integer	:: molnoR								!Bead on right
+	integer				:: molnoi								!Current LJ bead
+	integer				:: molnoL								!Bead on left
+	integer				:: molnoR								!Bead on right
 	
 	do molnoi=1,np
 		
@@ -201,9 +201,9 @@ use module_compute_forces
 implicit none
 
 	integer                         :: j, ixyz   !Define dummy index
-	integer				:: molnoi, molnoj
-	integer				:: noneighbrs
-	type(neighbrnode), pointer	:: old, current
+	integer							:: molnoi, molnoj
+	integer							:: noneighbrs
+	type(neighbrnode), pointer		:: old, current
 
 	do molnoi = 1, np
 
@@ -290,10 +290,10 @@ use module_compute_forces
 implicit none
 
 	integer                         :: i, j, ixyz   !Define dummy index
-	integer				:: icell, jcell, kcell
+	integer							:: icell, jcell, kcell
 	integer                         :: icellshift, jcellshift, kcellshift
 	integer                         :: cellnp, adjacentcellnp
-	integer				:: molnoi, molnoj, memloc
+	integer							:: molnoi, molnoj, memloc
 	type(node), pointer 	        :: oldi, currenti, oldj, currentj
 
 	a=0.d0            !Reset acceleration matrix before force calculations
@@ -398,11 +398,11 @@ use module_compute_forces
 implicit none
 
 	integer                         :: i, j, ixyz ,jxyz  !Define dummy index
-	integer				:: icell, jcell, kcell
+	integer							:: icell, jcell, kcell
 	integer                         :: icellshift, jcellshift, kcellshift
 	integer                         :: cellnp, adjacentcellnp, cellsperbin
-	integer				:: molnoi, molnoj, memloc
-	integer				:: minbin, maxbin, imin, jmin, kmin, imax, jmax, kmax
+	integer							:: molnoi, molnoj, memloc
+	integer							:: minbin, maxbin, imin, jmin, kmin, imax, jmax, kmax
 	type(node), pointer 	        :: oldi, currenti, oldj, currentj
 
 

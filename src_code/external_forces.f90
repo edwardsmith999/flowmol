@@ -22,6 +22,8 @@ module module_external_forces
 
 end module module_external_forces
 
+#if USE_COUPLER
+
 !--------------------------------------------------------------------------------------
 !Apply force to prevent molecules leaving domain using form suggested by Nie, Chen and
 !Robbins (2004)
@@ -29,6 +31,7 @@ end module module_external_forces
 subroutine simulation_apply_boundary_forces
 	use module_external_forces
 	use coupler, only : coupler_md_boundary_forces
+
 	implicit none
 
 	! call the coupler version.
@@ -36,8 +39,10 @@ subroutine simulation_apply_boundary_forces
 	pressure = 2.5d0
 
 	call coupler_md_boundary_forces(np,pressure,r,a)
-	
+
 end subroutine simulation_apply_boundary_forces
+
+#endif
 
 !--------------------------------------------------------------------------------------
 !Apply force to give linear profile
