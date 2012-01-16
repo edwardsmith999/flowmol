@@ -136,11 +136,13 @@ implicit none
 			rij(:) = ri(:) - rj(:)
 			rij2 = dot_product(rij,rij)
 			if(rij2.ge.R_0**2) then
-				print('(a,i6,a,i4,a,i4,a,f8.5,a,f8.5,a,f12.5)'), 'Bond broken at iter ',iter,': atoms ',molnoi,' and ',molnoL,' are separated by ', &
-						rij2**0.5,', which is greater than the allowed limit of ', R_0,'. Stopping simulation, total time elapsed = ', iter*delta_t
-				print('(a)'), 'Atomic positions:'
-				print('(a,i4,a,f10.5,a,f10.5,a,f10.5)'), 'Atom ',molnoi,' is located at ',r(molnoi,1),' ',r(molnoi,2),' ',r(molnoi,3) 
-				print('(a,i4,a,f10.5,a,f10.5,a,f10.5)'), 'Atom ',molnoL,' is located at ',r(molnoL,1),' ',r(molnoL,2),' ',r(molnoL,3) 
+				print '(a,i6,a,i4,a,i4,a,f8.5,a,f8.5,a,f12.5)', & 
+                                              'Bond broken at iter ',iter,': atoms ',molnoi,' and ',molnoL,' are separated by ', &
+					      rij2**0.5,', which is greater than the allowed limit of ', R_0, &
+                                              '. Stopping simulation, total time elapsed = ', iter*delta_t
+				print '(a)', 'Atomic positions:'
+				print '(a,i4,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoi,' is located at ',r(molnoi,1),' ',r(molnoi,2),' ',r(molnoi,3) 
+				print '(a,i4,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoL,' is located at ',r(molnoL,1),' ',r(molnoL,2),' ',r(molnoL,3) 
 				if (molnoL.gt.np) print*, 'Halo!'
 				stop
 			end if
@@ -164,11 +166,13 @@ implicit none
 			rij(:) = ri(:) - rj(:)
 			rij2 = dot_product(rij,rij)
 			if(rij2.ge.R_0**2) then
-				print('(a,i6,a,i4,a,i4,a,f8.5,a,f8.5,a,f12.5)'), 'Bond broken at iter ',iter,': atoms ',molnoi,' and ',molnoR,' are separated by ', &
-						rij2**0.5,', which is greater than the allowed limit of ', R_0,'. Stopping simulation, total time elapsed = ', iter*delta_t
-				print('(a)'), 'Atomic positions:'
-				print('(a,i4,a,f10.5,a,f10.5,a,f10.5)'), 'Atom ',molnoi,' is located at ',r(molnoi,1),' ',r(molnoi,2),' ',r(molnoi,3) 
-				print('(a,i4,a,f10.5,a,f10.5,a,f10.5)'), 'Atom ',molnoR,' is located at ',r(molnoR,1),' ',r(molnoR,2),' ',r(molnoR,3) 
+				print '(a,i6,a,i4,a,i4,a,f8.5,a,f8.5,a,f12.5)',&
+                                      'Bond broken at iter ',iter,': atoms ',molnoi,' and ',molnoR,' are separated by ', &
+				      rij2**0.5,', which is greater than the allowed limit of ', R_0,&
+                                      '. Stopping simulation, total time elapsed = ', iter*delta_t
+				print '(a)', 'Atomic positions:'
+				print '(a,i4,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoi,' is located at ',r(molnoi,1),' ',r(molnoi,2),' ',r(molnoi,3) 
+				print '(a,i4,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoR,' is located at ',r(molnoR,1),' ',r(molnoR,2),' ',r(molnoR,3) 
 				if (molnoR.gt.np) print*, 'Halo!'
 				stop
 			end if
