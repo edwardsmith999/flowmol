@@ -16,6 +16,12 @@ FLAGS_pgi_opt_cfd   := -fast -O3 -r8  -module  $(OBJ_DIR)
 FLAGS_pgi_debug_md := -g -Mbounds -traceback -module $(OBJ_DIR) 
 FLAGS_gnu_opt_md   := -fast -O3 -module $(OBJ_DIR)
 
-FLAGS_$(COMP)_$(VERSION) := $(FLAGS_$(COMP)_$(VERSION)_$(branch))
+# set the preprocessor flag needed to activate the coupler calls
+
+FPP_FLAGS_no  :=  -Mpreprocess -DUSE_COUPLER=0 
+FPP_FLAGS_yes :=  -Mpreprocess -DUSE_COUPLER=1
+FPP_FLAGS     := $(FPP_FLAGS_$(USE_COUPLER))
+
+FLAGS_$(COMP)_$(VERSION) := $(FPP_FLAGS) $(FLAGS_$(COMP)_$(VERSION)_$(branch))
 
 

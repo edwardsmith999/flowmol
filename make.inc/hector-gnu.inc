@@ -18,7 +18,13 @@ FLAGS_gnu_opt_cfd   := -O3 -fdefault-real-8 -fdefault-double-8 -ffree-line-lengt
 FLAGS_gnu_debug_md := -g -ffree-line-length-0 -fbounds-check -Wall -Wtabs -Wno-unused -fbacktrace -ffpe-trap=invalid,zero,overflow -fsignaling-nans -fdump-core -J$(OBJ_DIR) 
 FLAGS_gnu_opt_md   := -O3 -J$(OBJ_DIR)
 
-FLAGS_$(COMP)_$(VERSION) := $(FLAGS_$(COMP)_$(VERSION)_$(branch))
+# set the preprocessor flag needed to activate the coupler calls
+
+FPP_FLAGS_no  := -cpp -DUSE_COUPLER=0 
+FPP_FLAGS_yes := -cpp -DUSE_COUPLER=1
+FPP_FLAGS     := $(FPP_FLAGS_$(USE_COUPLER))
+
+FLAGS_$(COMP)_$(VERSION) := $(FPP_FLAGS) $(FLAGS_$(COMP)_$(VERSION)_$(branch))
 
 
 

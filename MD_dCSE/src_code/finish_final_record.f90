@@ -174,7 +174,7 @@ subroutine reformat_dcd
 
         call cpu_time(time_end)
 
-        print '(a,g,a)', 'Generated final VMD.dcd ouput file in', time_end - time_start, ' seconds'
+        print '(a,g10.2,a)', 'Generated final VMD.dcd ouput file in', time_end - time_start, ' seconds'
 
 
 
