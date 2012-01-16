@@ -130,7 +130,7 @@ end
 
 subroutine messenger_free()
 	use continuum_messenger
-	include "mpif.h"
+	use mpi
 
 	! Report time used
 	print "(a,f8.2)", "time: ", MPI_wtime() - wallTime
@@ -144,7 +144,7 @@ end
 !=======================================================================
 subroutine globalSum(A, na)
 	use continuum_messenger
-	include "mpif.h"
+	use mpi
 
         integer na
 	real*8 A(na)
@@ -159,7 +159,7 @@ end
 
 subroutine globalMax(A, na)
 	use continuum_messenger
-	include "mpif.h"
+	use mpi
 
         integer na
 	real*8 A(na)
@@ -174,7 +174,7 @@ end
 
 subroutine globalMin(A, na)
 	use continuum_messenger
-	include "mpif.h"
+	use mpi
 
         integer na
 	real*8 A(na)
@@ -189,7 +189,7 @@ end
 
 subroutine globalDirSum(A, na, ixyz)
 	use continuum_messenger
-	include "mpif.h"
+	use mpi
 
         integer na
 	real*8 A(na)
