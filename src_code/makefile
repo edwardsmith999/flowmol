@@ -11,8 +11,8 @@ F90 := ftn
 OBJ_DIR = obj
 
 # Yes/No To Logical
-LOGICAL_yes := .true.
-LOGICAL_no  := .false.
+LOGICAL_yes := 1
+LOGICAL_no  := 0
 
 # use coupler ? 
 USE_COUPLER := yes
