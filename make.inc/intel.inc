@@ -11,13 +11,19 @@ endif
 
 LIBS :=
 # -warn all,nodec,interfaces
-FLAGS_intel_debug_cfd := -O0 -traceback -CB -check all -fpp -D USE_COUPLER=$(USE_COUPLER_LOGICAL) -module $(OBJ_DIR) 
-FLAGS_intel_opt_cfd   :=  -r8 -O3 -ip -funroll-loops   -par-report3 -mcmodel=large -i-dynamic -fpp -D USE_COUPLER=$(USE_COUPLER_LOGICAL) -module $(OBJ_DIR)
+FLAGS_intel_debug_cfd := -O0 -traceback -CB -check all -module $(OBJ_DIR) 
+FLAGS_intel_opt_cfd   :=  -r8 -O3 -ip -funroll-loops -par-report3 -mcmodel=large -i-dynamic -module $(OBJ_DIR)
 
-FLAGS_intel_debug_md := -O0 -traceback -CB -check all -fpp -D USE_COUPLER=$(USE_COUPLER_LOGICAL) -module $(OBJ_DIR)
-FLAGS_intel_opt_md   := -O3 -funroll-loops -fpp -D USE_COUPLER=$(USE_COUPLER_LOGICAL) -module $(OBJ_DIR)
+FLAGS_intel_debug_md := -O0 -traceback -CB -check all -module $(OBJ_DIR)
+FLAGS_intel_opt_md   := -O3 -funroll-loops -module $(OBJ_DIR)
 
-FLAGS_$(COMP)_$(VERSION) := $(FLAGS_$(COMP)_$(VERSION)_$(branch))
+# set the preprocessor flag needed to activate the coupler calls
+
+FPP_FLAGS_no  :=  -fpp -D USE_COUPLER=0
+FPP_FLAGS_yes :=  -fpp -D USE_COUPLER=1
+FPP_FLAGS     := $(FPP_FLAGS_$(USE_COUPLER))
+
+FLAGS_$(COMP)_$(VERSION) := $(FPP_FLAGS) $(FLAGS_$(COMP)_$(VERSION)_$(branch))
 
 
 

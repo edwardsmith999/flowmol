@@ -13,8 +13,8 @@ CU_CUDA_MD_FILES = inter.cu inter2.cu
 OBJ_DIR := obj
 
 # Yes/No To Logical
-LOGICAL_yes := .true.
-LOGICAL_no  := .false.
+LOGICAL_yes := 1
+LOGICAL_no  := 0
 
 # use coupler ? 
 USE_COUPLER      := no
