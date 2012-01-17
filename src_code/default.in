@@ -65,6 +65,26 @@ DELTA_T
 0.005
 
 #########################################################################
+# Integration algorithm
+# 0: Leap-frog Verlet
+# 1: Velocity Verlet
+# 2: Other
+# -----------------------------------------------------------------------
+INTEGRATION_ALGORITHM
+0
+
+#########################################################################
+# Ensemble selector: case sensitive! (currently only developed for VV)
+# nve        - NVE
+# nvt_NH     - NVT (Nosé-Hoover thermostat)
+# nvt_PUT_NH - NVT (Profile unbiased Nosé-Hoover thermostat)
+# nvt_pwa_NH - NVT (Pairwise additive Nosé-Hoover thermostat 
+#                   by Allen & Schmid)
+# -----------------------------------------------------------------------
+ENSEMBLE
+nve
+
+#########################################################################
 # Results are recorded periodically every TPLOT timesteps:
 #	(subroutine simulation_record is called)
 # -----------------------------------------------------------------------
@@ -373,4 +393,4 @@ MICRO_STRESS_OUTFLAG
 # -----------------------------------------------------------------------
 R_GYRATION_OUTFLAG
 0
-
+0
