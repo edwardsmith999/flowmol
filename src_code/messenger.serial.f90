@@ -219,7 +219,7 @@ implicit none
 		shear_time = dble(iter - shear_iter0)*delta_t
 		shear_distance = shear_time*shear_velocity	
 	end if
-
+	
 	call update_plane(shear_plane,shear_direction,.false.,shear_remainingplane,.false.,rebuild)
 	call update_plane(shear_direction,shear_plane,.true.,shear_remainingplane,.false.,rebuild)
 	call update_plane(shear_remainingplane,shear_direction,.true.,shear_plane,.true.,rebuild)
@@ -309,6 +309,7 @@ implicit none
 			m = m + 1							!Count one molecule
 			molno = old%molno						!Obtain molecule number
 			r(np+m,:) = r(molno,:) 		    				!Copy molecule
+			v(np+m,:) = v(molno,:)                          !copy velocity
 			r(np+m,copyplane) = r(np+m,copyplane) + domain(copyplane)   	!Move to other side of domain
 			
 			if (potential_flag.eq.1) then					!Polymer IDs copied too
@@ -323,6 +324,7 @@ implicit none
 				end if
 				r(np+m,shear_direction) = 	r(np+m,shear_direction) + &	!Slide and wrap
 									  		(shear_distance-mol_wrap_integer(molno)*domain(shear_direction))
+				v(np+m,shear_direction) =   v(np+m,shear_direction) + shear_velocity
 			end if
 
 			current => old			!Use current to move to next
@@ -343,6 +345,7 @@ implicit none
 			m = m + 1													!Count one molecule
 			molno = old%molno		    								!Obtain molecule number
 			r(np+m,:) = r(molno,:) 		    							!Copy molecule
+			v(np+m,:) = v(molno,:)                          !copy velocity
 			r(np+m,copyplane) = r(np+m,copyplane) - domain(copyplane)   !Move to other side of domain
 			
 			if (potential_flag.eq.1) then								!Polymer IDs copied too
@@ -357,6 +360,7 @@ implicit none
 				end if
 				r(np+m,shear_direction) = 	r(np+m,shear_direction) - & !Slide and wrap
 									  		(shear_distance-mol_wrap_integer(molno)*domain(shear_direction))
+				v(np+m,shear_direction) =   v(np+m,shear_direction) - shear_velocity
 			end if
 		
 			current => old			    								!Use current to move to next
@@ -399,6 +403,7 @@ subroutine updatefacedown(ixyz)
 			do n=1,cellnp
 				molno = old%molno		    !Obtain molecule number
 				r(np+m,:) = r(molno,:) 		    !Copy molecule
+				v(np+m,:) = v(molno,:)                          !copy velocity
 				r(np+m,1) = r(np+m,1) + domain(1)   !Move to other side of domain
 
 				if (potential_flag.eq.1) then
@@ -422,6 +427,7 @@ subroutine updatefacedown(ixyz)
 			do n=1,cellnp
 				molno = old%molno		    !Obtain molecule number
 				r(np+m,:) = r(molno,:) 		    !Copy molecule
+				v(np+m,:) = v(molno,:)                          !copy velocity
 				r(np+m,2) = r(np+m,2) + domain(2)   !Move to other side of domain
 
 				if (potential_flag.eq.1) then
@@ -445,6 +451,7 @@ subroutine updatefacedown(ixyz)
 			do n=1,cellnp
 				molno = old%molno		    !Obtain molecule number
 				r(np+m,:) = r(molno,:) 		    !Copy molecule
+				v(np+m,:) = v(molno,:)                          !copy velocity
 				r(np+m,3) = r(np+m,3) + domain(3)   !Move to other side of domain
 
 				if (potential_flag.eq.1) then
@@ -497,6 +504,7 @@ subroutine updatefaceup(ixyz)
 			do n=1,cellnp
 				molno = old%molno		    !Obtain molecule number
 				r(np+m,:) = r(molno,:) 		    !Copy molecule
+				v(np+m,:) = v(molno,:)                          !copy velocity
 				r(np+m,1) = r(np+m,1) - domain(1)   !Move to other side of domain
 
 				if (potential_flag.eq.1) then
@@ -520,6 +528,7 @@ subroutine updatefaceup(ixyz)
 			do n=1,cellnp
 				molno = old%molno		    !Obtain molecule number
 				r(np+m,:) = r(molno,:) 		    !Copy molecule
+				v(np+m,:) = v(molno,:)                          !copy velocity
 				r(np+m,2) = r(np+m,2) - domain(2)   !Move to other side of domain
 
 				if (potential_flag.eq.1) then
@@ -543,6 +552,7 @@ subroutine updatefaceup(ixyz)
 			do n=1,cellnp
 				molno = old%molno		    !Obtain molecule number
 				r(np+m,:) = r(molno,:) 		    !Copy molecule
+				v(np+m,:) = v(molno,:)                          !copy velocity
 				r(np+m,3) = r(np+m,3) - domain(3)   !Move to other side of domain
 
 				if (potential_flag.eq.1) then
@@ -605,6 +615,7 @@ subroutine updateedge(face1, face2)
 			do n=1,cellnp
 				molno = old%molno		    !Obtain molecule number
 				r(np+m,:) = r(molno,:) 	 	    !Copy molecule
+				v(np+m,:) = v(molno,:)                          !copy velocity
 				r(np+m,2) = r(np+m,2) &  !Move to other side of domain
 				+ sign(1,ncells(2)-edge1(1,i))*domain(2)
 				r(np+m,3) = r(np+m,3) &  !Move to other side of domain
@@ -630,6 +641,7 @@ subroutine updateedge(face1, face2)
 			do n=1,cellnp
 				molno = old%molno		    !Obtain molecule number
 				r(np+m,:) = r(molno,:) 	 	    !Copy molecule
+				v(np+m,:) = v(molno,:)                          !copy velocity
 				r(np+m,1) = r(np+m,1) &  !Move to other side of domain
 				+ sign(1,ncells(1)-edge1(2,i))*domain(1)
 				r(np+m,3) = r(np+m,3) &  !Move to other side of domain
@@ -656,6 +668,7 @@ subroutine updateedge(face1, face2)
 			do n=1,cellnp
 				molno = old%molno		    !Obtain molecule number
 				r(np+m,:) = r(molno,:) 	 	    !Copy molecule
+				v(np+m,:) = v(molno,:)                          !copy velocity
 				r(np+m,1) = r(np+m,1) &  !Move to other side of domain
 				+ sign(1,ncells(1)-edge1(3,i))*domain(1)
 				r(np+m,2) = r(np+m,2) &  !Move to other side of domain
@@ -714,6 +727,7 @@ subroutine updatecorners()
 		do n=1,cellnp
 			molno = old%molno	 !Obtain molecule number
 			r(np+m,:) = r(molno,:) 	 !Copy molecule
+			v(np+m,:) = v(molno,:)                          !copy velocity
 			r(np+m,1) = r(np+m,1) &  !Move to other side of domain
 			+ sign(1,ncells(1)-icornercell(i))*domain(1)
 			r(np+m,2) = r(np+m,2) &  !Move to other side of domain

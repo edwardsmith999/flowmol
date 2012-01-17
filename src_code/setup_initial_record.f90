@@ -43,6 +43,9 @@ implicit none
 		print*, 'Number of Particles: ', globalnp
 		print*, 'Time Step - delta t: ',  delta_t
 		print*, 'Total number of steps: ',  Nsteps - initialstep
+		if (integration_algorithm.eq.0) print*, 'Integration algorithm: leapfrog-Verlet'
+		if (integration_algorithm.eq.1) print*, 'Integration algorithm: velocity-Verlet'
+		print*, 'Ensemble: ', ensemble
 		print*, 'Starting step of simulation:', initialstep
 		print*, 'Generate output file every: ',  tplot, 'steps'
 		print*, 'Density: ',              density
@@ -269,6 +272,9 @@ implicit none
 	if (potential_flag.eq.1) then
 		if (etevtcf_outflag.ne.0) call etevtcf_calculate 
 		if (etevtcf_outflag.eq.2) call etevtcf_io
+		
+		if (r_gyration_outflag.ne.0) call r_gyration_calculate
+		if (r_gyration_outflag.eq.2) call r_gyration_io
 	end if
 
 end subroutine setup_initial_record
@@ -301,13 +307,18 @@ implicit none
 
 		virial = virial + virialmol(n)
 
-		do ixyz = 1, nd   ! Loop over all dimensions
-			!Velocity component must be shifted back half a timestep to determine 
-			!velocity of interest - required due to use of the leapfrog method
-			vel = v(n,ixyz) + 0.5d0*a(n,ixyz)*delta_t
-			vsum = vsum + vel      !Add up all molecules' velocity components
-			v2sum = v2sum + vel**2 !Add up all molecules' velocity squared components  
-		enddo
+		if (lfv) then
+			do ixyz = 1, nd   ! Loop over all dimensions
+				!Velocity component must be shifted back half a timestep to determine 
+				!velocity of interest - required due to use of the leapfrog method
+				vel = v(n,ixyz) + 0.5d0*a(n,ixyz)*delta_t
+				vsum = vsum + vel      !Add up all molecules' velocity components
+				v2sum = v2sum + vel**2 !Add up all molecules' velocity squared components  
+			enddo
+		else if (vv) then
+			vsum = vsum + sum(v(n,:))
+			v2sum = v2sum + dot_product(v(n,:),v(n,:))
+		end if
 
 	enddo
 
