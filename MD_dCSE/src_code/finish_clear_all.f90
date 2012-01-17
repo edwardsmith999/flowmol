@@ -22,7 +22,7 @@ implicit none
 
 	call linklist_deallocateall !Final deallocation of all linked lists
 	call linklist_deallocate_bins
-
+	
 	!Deallocate all allocated arrays
 	deallocate(initialunitsize)
 	deallocate(domain) 

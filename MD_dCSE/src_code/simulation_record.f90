@@ -128,6 +128,9 @@ subroutine simulation_record
 	if (potential_flag.eq.1) then
 		if (etevtcf_outflag.ne.0) call etevtcf_calculate
 		if (etevtcf_outflag.eq.2) call etevtcf_io
+
+		if (r_gyration_outflag.ne.0) call r_gyration_calculate
+		if (r_gyration_outflag.eq.2) call r_gyration_io
 	end if
 
 	call update_simulation_progress_file
@@ -141,12 +144,12 @@ subroutine evaluate_macroscopic_properties_parallel
 	use module_record
 	implicit none
 
-	integer			        :: n, ixyz
+	integer :: n, ixyz
 
-	vsum  = 0.d0      ! Reset all sums
-	v2sum = 0.d0      ! Reset all sums
+	vsum  = 0.d0                                                ! Reset all sums
+	v2sum = 0.d0                                                ! Reset all sums
 
-	do n = 1, np    ! Loop over all particles
+	do n = 1, np                                                ! Loop over all particles
 
 		if (potential_flag.eq.0) then
 			potenergysum	= potenergysum + potenergymol(n)
@@ -158,13 +161,16 @@ subroutine evaluate_macroscopic_properties_parallel
 
 		virial = virial + virialmol(n)
 
-		do ixyz = 1, nd   ! Loop over all dimensions
-			!Velocity component must be shifted back half a timestep to determine 
-			!velocity of interest - required due to use of the leapfrog method
-			vel = v(n,ixyz) + 0.5d0*a(n,ixyz)*delta_t
-			vsum = vsum + vel      !Add up all molecules' velocity components
-			v2sum = v2sum + vel**2 !Add up all molecules' velocity squared components  
-		enddo
+		if (lfv) then
+			do ixyz = 1, nd                                     ! Loop over all dimensions
+				vel = v(n,ixyz) + 0.5d0*a(n,ixyz)*delta_t       ! Velocity must shifted half a timestep
+				vsum = vsum + vel                               ! Add up all molecules' velocity components
+				v2sum = v2sum + vel**2                          ! Add up all molecules' velocity squared components  
+			enddo
+		else if (vv) then                                       ! If velocity Verlet algorithm
+			vsum = vsum + sum(v(n,:))
+			v2sum = v2sum + dot_product(v(n,:),v(n,:))          ! Sum all velocity squared components
+		end if
 
 	enddo
 
@@ -186,7 +192,7 @@ subroutine evaluate_macroscopic_properties_parallel
 		end if
 		totenergy   = kinenergy + potenergy
 		temperature = v2sum / real(nd*globalnp,kind(0.d0))
-		if (thermstat_flag.eq.2) temperature = get_temperature_PUT()
+		if (any(periodic.gt.1)) temperature = get_temperature_PUT()
 		pressure    = (density/(globalnp*nd))*(v2sum+virial/2) !N.B. virial/2 as all interactions calculated
 	
 		if (potential_flag.eq.0) then	
@@ -344,18 +350,42 @@ subroutine etevtcf_calculate
 use module_record
 implicit none
 	
-	integer 			:: i,molL,molR
-	double precision	:: etev_prod, etev_prod_sum
-	double precision	:: etev2, etev2_sum
-	double precision, dimension(nd) :: etev
+	logical :: cross_boundary
+	integer :: i,j,molL,molR
+	integer, dimension(nd) :: checker
+	double precision :: max_chain_elong
+	double precision :: etev_prod, etev_prod_sum
+	double precision :: etev2, etev2_sum
+	double precision, dimension(nd) :: rij,etev
+
+	!Check if etevtcf can be reliably calculated
+	max_chain_elong = (chain_length - 1)*R_0
+	if (any(max_chain_elong.ge.halfdomain)) then
+		print('(a)'), 'Warning - maximum chain length is longer than half domain. Etevtcf &
+		is unlikely to be calculated correctly with the minimum image &
+		convention.'
+		print*, 'MAX ELONG = ', max_chain_elong, 'HALFDOMAIN = ', min(halfdomain(1),halfdomain(2),halfdomain(3))
+	end if
 
 	if (iter.eq.etevtcf_iter0) then						!Initialise end-to-end vectors at t_0
 		do i=1,np														
 			if (polyinfo_mol(i)%left.eq.0) then
+				cross_boundary = .false.
+				checker(:) = 0
+				!Check if polymer straddles boundary
+				do j=0,chain_length-2
+					rij(:) = r(i+j+1,:) - r(i+j,:)
+					checker(:) = anint(rij(:)/domain(:))
+					if (any(checker.ne.0)) cross_boundary = .true.
+				end do
 				molL = i
 				molR = i+(chain_length-1)										!Right end of chain
-				etev_0(i,:) = r(molR,:) - r(molL,:)								!End-to-end vector
-				etev_0(i,:) = etev_0(i,:) - domain(:)*anint(etev_0(i,:)/domain(:)) !Minimum image	
+				if (.not. cross_boundary) then 
+					etev_0(i,:) = r(molR,:) - r(molL,:)								!End-to-end vector
+				else
+					etev_0(i,:) = r(molR,:) - r(molL,:)								!End-to-end vector
+					etev_0(i,:) = etev_0(i,:) - domain(:)*anint(etev_0(i,:)/domain(:))		!Minimum image
+				end if
 			end if
 		end do
 	end if
@@ -365,12 +395,24 @@ implicit none
 
 	do i=1,np
 		if (polyinfo_mol(i)%left.eq.0) then
-			
+			cross_boundary = .false.
+			checker(:) = 0
+			!Check if polymer straddles boundary
+			do j=0,chain_length-2
+				rij(:) = r(i+j+1,:) - r(i+j,:)
+				checker(:) = anint(rij(:)/domain(:))
+				if (any(checker.ne.0)) cross_boundary = .true.
+			end do
+
 			molL = i
 			molR = i+(chain_length-1)
 
-			etev(:) 		= r(molR,:) - r(molL,:)								!End-to-end vector
-			etev(:) 		= etev(:) - domain(:)*anint(etev(:)/domain(:))		!Minimum image
+			if (.not. cross_boundary) then 
+				etev(:) = r(molR,:) - r(molL,:)								!End-to-end vector
+			else
+				etev(:) = r(molR,:) - r(molL,:)								!End-to-end vector
+				etev(:) = etev(:) - domain(:)*anint(etev(:)/domain(:))		!Minimum image
+			end if
 
 			etev_prod		= dot_product(etev(:),etev_0(i,:))
 			etev2			= dot_product(etev,etev)			
@@ -385,8 +427,59 @@ implicit none
 	!etev2_mean = etev2_sum/dble(samplecount)
 	etevtcf = etev_prod_sum/etev2_sum											!Sample counts cancel
 	if (etevtcf_outflag.eq.1) print*, 'ETEVTCF = ', etevtcf
-
+	
 end subroutine etevtcf_calculate
+
+subroutine r_gyration_calculate
+use module_record
+implicit none
+   
+	integer :: i,j, molnoi 
+	integer :: nchains
+	double precision :: R_g2                                                    !Radius of gyration squared 
+	double precision :: rij2                                                    !Magnitude of separation vector
+	double precision :: dr                                                      !Distance of bead to center of mass
+	double precision :: sum_dr                                                  !Sum
+	double precision :: max_chain_elong                                         !Maximum possible elongation of polymer chain
+    double precision, dimension(nd) :: ri,rij                                   !Tools
+	double precision, dimension(nd) :: r_cm                                     !Center of mass vector for chain
+	double precision, dimension(nd) :: r_sum                                    !Sum of all bead position vectors in chain
+	double precision, dimension(nd) :: r_first                                  !Location of first bead on the chain
+    
+	nchains = ceiling(dble(np)/dble(chain_length))
+
+    sum_dr = 0.d0                                                               !Reset sum
+    do i=1,nchains                                                              !Loop over all polymer chains
+    
+        !Find center of mass
+        r_first(:) = r((i-1)*chain_length + 1,:)                                !Location of first particle in chain
+        r_sum(:) = 0.d0                                                         !Reset sum
+        do j=1,chain_length
+            molnoi = (i-1)*chain_length + j                                     !Find molnoi
+            ri(:) = r(molnoi,:)                                                 !Position of mol molnoi
+            ri(:) = ri(:) + domain(:)*anint((ri(:)-r_first(:))/domain(:))       !Minimum image convention
+            r_sum(:) = r_sum(:) + ri(:)                                         !Sum of position vectors
+        end do
+        r_cm(:) = r_sum(:)/dble(chain_length)                                   !Find center of mass
+        
+        !Find sum of separations from center of mass
+        do j=1,chain_length
+            molnoi = (i-1)*chain_length + j 
+            ri(:) = r(molnoi,:)
+            rij(:) = ri(:) - r_cm(:)
+            rij2 = dot_product(rij,rij)
+            dr = rij2**0.5d0
+            sum_dr = sum_dr + dr
+        end do  
+        
+    end do
+
+    R_g2 = sum_dr/dble(chain_length*nchains)
+    R_g  = R_g2**0.5d0
+	
+   	if (r_gyration_outflag.eq.1) print*, 'R_g = ', R_g
+
+end subroutine r_gyration_calculate
 
 !===================================================================================
 !		RECORD MASS AT LOCATION IN SPACE

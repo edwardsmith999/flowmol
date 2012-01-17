@@ -2,7 +2,7 @@
 # File definitions
 #=======================================================================
 
-F90_MD_FILES =  modules.f90 functions_lib.f90 messenger.serial.f90 md_coupler_socket$(COUPLER_SOCKET).f90 interfaces.f90 parallel_io.serial.f90 linklist.f90 molecular_properties.f90  setup_set_parameters.f90 setup_initialise_microstate.f90 setup_initial_record.f90 simulation_compute_forces.f90 simulation_move_particles.f90 simulation_checkrebuild.f90 simulation_record.f90 finish_final_record.f90 finish_clear_all.f90 md.f90 md_main.f90 external_forces.f90 
+F90_MD_FILES =  modules.f90 functions_lib.f90 messenger.serial.f90 md_coupler_socket$(COUPLER_SOCKET).f90 interfaces.f90 parallel_io.serial.f90 linklist.f90 molecular_properties.f90  setup_set_parameters.f90 setup_initialise_microstate.f90 setup_initial_record.f90 simulation_compute_forces.f90 simulation_move_particles.f90 simulation_checkrebuild.f90 simulation_record.f90 finish_final_record.f90 finish_clear_all.f90 md.f90 md_main.f90 external_forces.f90 simulation_move_particles_vv.f90
 
 F90_MD_FILES_P = $(patsubst parallel_io.serial.f90,parallel_io.MPI2.f90,$(patsubst messenger.serial.f90,messenger.MPI.f90,$(F90_MD_FILES)))
 

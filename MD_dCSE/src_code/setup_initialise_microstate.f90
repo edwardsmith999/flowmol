@@ -42,7 +42,7 @@ subroutine setup_initialise_microstate_LJ
 		call read_tag(n)		!Read tag and assign properties
 	enddo
 	call setup_initialise_velocities     	!Setup initial velocities
-	!call setup_initialise_velocities_test
+!	call setup_initialise_velocities_test
 
 
 end subroutine setup_initialise_microstate_LJ
@@ -353,7 +353,7 @@ subroutine setup_initialise_velocities
 		if (fix(n,1) .eq. 1) v(n,:)= v(n,:)-netv(:)
 			       
 	enddo
-
+	
 end subroutine setup_initialise_velocities
 
 
@@ -381,9 +381,9 @@ subroutine setup_initialise_velocities_test
 
 	do n=1,np			      		!Step through each molecule
 		!r(1,:) = halfdomain(:)
-		!v(n,1) = 1.0d0
-		v(n,2) = 0.1d0
-		!v(n,3) = 0.0d0
+!		v(n,1) = 1.0d0
+!		v(n,2) = 1.0d0
+!		v(n,3) = 0.0d0
 
 		!r(1,:) = -halfdomain(:)
 		!v(n,1) = -0.0d0 
@@ -391,6 +391,9 @@ subroutine setup_initialise_velocities_test
 		!v(n,3) = -0.0d0
 	
 	enddo
+	
+	v(7,3) = -0.5d0
+	v(4,3) = 0.5d0
 
 end subroutine setup_initialise_velocities_test
 

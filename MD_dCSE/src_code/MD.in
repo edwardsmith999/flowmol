@@ -48,21 +48,41 @@ INPUTTEMPERATURE
 #	z	
 # -----------------------------------------------------------------------
 INITIALNUNITS
-8
-8
-8
+4
+4
+4
 
 #########################################################################
 # Total number of timesteps:
 # -----------------------------------------------------------------------
 NSTEPS
-1000
+100000
 
 #########################################################################
 # Timestep interval:
 # -----------------------------------------------------------------------
 DELTA_T
 0.005
+
+#########################################################################
+# Integration algorithm
+# 0: Leap-frog Verlet
+# 1: Velocity Verlet
+# 2: Other
+# -----------------------------------------------------------------------
+INTEGRATION_ALGORITHM
+1
+
+#########################################################################
+# Ensemble selector: case sensitive!
+# nve        - NVE
+# nvt_NH     - NVT (Nosé-Hoover thermostat)
+# nvt_PUT_NH - NVT (Profile unbiased Nosé-Hoover thermostat)
+# nvt_pwa_NH - NVT (Pairwise additive Nosé-Hoover thermostat 
+#                   by Allen & Schmid)
+# -----------------------------------------------------------------------
+ENSEMBLE
+nvt_pwa_NH
 
 #########################################################################
 # Results are recorded periodically every TPLOT timesteps:
@@ -215,11 +235,11 @@ TETHEREDDISTTOP
 
 #########################################################################
 # Thermostat flag:
-# 0 - off, 1 - all, 2 - selection (must also specify THERMSTATTOP and/or
+# 0 - off, 1 - all, 2- PUT 3 - selection (must also specify THERMSTATTOP and/or
 #												 	 THERMSTATBOTTOM)
 # -----------------------------------------------------------------------
 THERMSTAT_FLAG
-0
+1
 
 ########################################################################
 # Distance from domain bottom to apply thermostat 
@@ -275,7 +295,7 @@ PROCESSORS
 #	3 - homogeneous + halos
 # -----------------------------------------------------------------------
 VMD_OUTFLAG
-1
+0
 
 #########################################################################
 # Output flag for macroscopic properties:
@@ -284,7 +304,7 @@ VMD_OUTFLAG
 #	2 - output file + print to terminal
 # -----------------------------------------------------------------------
 MACRO_OUTFLAG
-1
+2
 
 #########################################################################
 # Output flag for mass record:
@@ -292,7 +312,7 @@ MACRO_OUTFLAG
 #	No. of samples for mass average
 # -----------------------------------------------------------------------
 MASS_OUTFLAG
-0
+2
 50
 
 #########################################################################
@@ -301,7 +321,7 @@ MASS_OUTFLAG
 #	No. of samples for velocity average
 # -----------------------------------------------------------------------
 VELOCITY_OUTFLAG
-0
+2
 50
 
 #########################################################################
@@ -369,7 +389,8 @@ MICRO_STRESS_OUTFLAG
 # Radius of gyration output flag:
 #	0 - off
 #	1 - on
+#   2 - output to file
 # -----------------------------------------------------------------------
 R_GYRATION_OUTFLAG
+2
 0
-

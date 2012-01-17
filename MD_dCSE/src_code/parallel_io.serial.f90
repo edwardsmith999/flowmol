@@ -141,6 +141,22 @@ subroutine setup_inputs
 	read(1,*) initialnunits(2)		!y dimension split into number of cells
 	read(1,*) initialnunits(3)		!z dimension split into number of cells
 
+	call locate(1,'INTEGRATION_ALGORITHM',.true.)
+	read(1,*) integration_algorithm
+	if (integration_algorithm.eq.0) then
+		lfv = .true.
+		vv  = .false.
+	else if (integration_algorithm.eq.1) then
+		lfv = .false.
+		vv  = .true.
+	else 
+		call error_abort( 'INTEGRATION_ALGORITHM improperly specified in input file.')
+	end if
+	
+	call locate(1,'ENSEMBLE',.true.)
+	read(1,*) ensemble
+	ensemble = trim(ensemble)
+
 	call locate(1,'POTENTIAL_FLAG',.true.)	!LJ or FENE potential
 	read(1,*) potential_flag
 	if (potential_flag.eq.1) then
@@ -341,6 +357,12 @@ subroutine setup_inputs
 			end if
 		end if
 	endif
+	
+	call locate(1,'R_GYRATION_OUTFLAG',.false.,from_input)
+	if (from_input) then
+		read(1,*) r_gyration_outflag
+		read(1,*) r_gyration_iter0
+	end if
 
 	close(1,status='keep')      !Close input file
 
@@ -477,6 +499,23 @@ subroutine setup_restart_inputs
 		seed(2) = 2		!Fixed default seed for repeatability
 	endif
 
+	!Choose integration algorithm
+	call locate(1,'INTEGRATION_ALGORITHM',.true.)
+	read(1,*) integration_algorithm
+	if (integration_algorithm.eq.0) then
+		lfv = .true.
+		vv  = .false.
+	else if (integration_algorithm.eq.1) then
+		lfv = .false.
+		vv  = .true.
+	else 
+		call error_abort( 'INTEGRATION_ALGORITHM improperly specified in input file.')
+	end if
+	
+	call locate(1,'ENSEMBLE',.true.)
+	read(1,*) ensemble
+	ensemble = trim(ensemble)
+	
 	!Check periodic BC and shear
 	call locate(1,'PERIODIC',.true.)
 	read(1,*) periodic(1)
@@ -639,6 +678,12 @@ subroutine setup_restart_inputs
 			end if
 		end if
 	endif
+	
+	call locate(1,'R_GYRATION_OUTFLAG',.false.,from_input)
+	if (from_input) then
+		read(1,*) r_gyration_outflag
+		read(1,*) r_gyration_iter0
+	end if
 
 	close(1,status='keep')      !Close input file
 
@@ -670,6 +715,7 @@ subroutine setup_restart_microstate
 		enddo
                 do ixyz=1,nd
 			read(2) v(n,ixyz)
+			if (lfv) v(n,ixyz) = v(n,ixyz) - 0.5d0*delta_t*a(n,ixyz)
 		enddo
 	enddo
 	call setup_tag				!Setup location of fixed molecules
@@ -690,7 +736,7 @@ subroutine setup_restart_microstate
 		end do
 
 	end if
-        close(2,status='keep') 		!Close final state file
+	close(2,status='keep') 		!Close final state file
 
 end subroutine setup_restart_microstate
 
@@ -809,6 +855,9 @@ subroutine simulation_header
 	write(3,*)  'Separated by distance ;  planespacing  ;', planespacing 
 	write(3,*)  'with first plane at ;  planes ;', planes(1)
 	write(3,*)	'Shear direction ; shear_direction;', shear_direction
+	if (integration_algorithm.eq.0) write(3,*) 'Integration algorithm; leapfrog-Verlet;'
+	if (integration_algorithm.eq.1) write(3,*) 'Integration algorithm; velocity-Verlet;'
+	write(3,*) 'Ensemble; ensemble; ', ensemble
 
 	close(3,status='keep')
 
@@ -1545,3 +1594,20 @@ implicit none
 	close(14,status='keep')
 
 end subroutine etevtcf_io
+
+!Write radius of gyration to output file
+subroutine r_gyration_io
+use module_parallel_io
+implicit none
+
+	if (iter.eq.r_gyration_iter0) then
+		open(15,file='results/r_gyration',status='replace')
+		write(15,'(i8,f15.8)') iter, R_g
+	else if (iter.gt.r_gyration_iter0) then
+		open(15,file='results/r_gyration',access='append')
+		write(15,'(i8,f15.8)') iter, R_g
+	end if
+	
+	close(15,status='keep')
+
+end subroutine r_gyration_io

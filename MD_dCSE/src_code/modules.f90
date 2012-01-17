@@ -41,6 +41,12 @@ module computational_constants_MD
 	!Potential flags
 	integer			:: potential_flag	!Choose LJ or Polymer Potential 
 
+	!Integration algorithm
+	integer			  :: integration_algorithm
+	logical           :: lfv
+	logical           :: vv
+	character(len=20) :: ensemble
+
 	!Thermostat flag
 	integer			:: thermstat_flag
 
@@ -57,7 +63,7 @@ module computational_constants_MD
 
 
 	!Parameters
-        integer         :: nproc, npx, npy, npz      !Bumber of MPI ranks asn cartesian topology sizes
+	integer         :: nproc, npx, npy, npz      !Bumber of MPI ranks asn cartesian topology sizes
 	integer        	:: iter              !Global simulation iteration count
 	integer        	:: tplot             !Frequency at which to record results
 	integer		 	:: Nmass_ave	     !Number of averages for each mass average
@@ -127,9 +133,12 @@ module polymer_info_MD
 	integer				:: etevtcf_outflag			!End-to-end time correlation function output flag
 	integer				:: etevtcf_iter0			!Iteration from which to begin averaging
 	integer				:: chain_length				!Number of LJ beads per FENE chain
+	integer             :: r_gyration_outflag       !Radius of gyration outflag
+	integer             :: r_gyration_iter0         !Iteration at which to start recording R_g
 	double precision 	:: k_c, R_0					!Spring constant and max elongation of bonds	
-	double precision 	:: etevtcf
-			
+	double precision 	:: etevtcf                  !End-to-end vector time correlation function
+	double precision    :: R_g                      !Radius of gyration
+	
 	type polyinfo
 		integer :: chainID				!Integer value: chain number 
 		integer :: subchainID			!Integer value:	bead number
