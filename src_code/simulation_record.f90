@@ -359,13 +359,13 @@ implicit none
 	double precision, dimension(nd) :: rij,etev
 
 	!Check if etevtcf can be reliably calculated
-	max_chain_elong = (chain_length - 1)*R_0
-	if (any(max_chain_elong.ge.halfdomain)) then
-		print('(a)'), 'Warning - maximum chain length is longer than half domain. Etevtcf &
-		is unlikely to be calculated correctly with the minimum image &
-		convention.'
-		print*, 'MAX ELONG = ', max_chain_elong, 'HALFDOMAIN = ', min(halfdomain(1),halfdomain(2),halfdomain(3))
-	end if
+!	max_chain_elong = (chain_length - 1)*R_0
+!	if (any(max_chain_elong.ge.halfdomain)) then
+!		print('(a)'), 'Warning - maximum chain length is longer than half domain. Etevtcf &
+!		is unlikely to be calculated correctly with the minimum image &
+!		convention.'
+!		print*, 'MAX ELONG = ', max_chain_elong, 'HALFDOMAIN = ', min(halfdomain(1),halfdomain(2),halfdomain(3))
+!	end if
 
 	if (iter.eq.etevtcf_iter0) then						!Initialise end-to-end vectors at t_0
 		do i=1,np														
