@@ -70,6 +70,12 @@ subroutine simulation_move_particles_vv(pass_num)
 				v(n,:) = v(n,:) + 0.5d0*delta_t*(a(n,:)-zeta*v(n,:))
 			end do
 
+		case('nvt_GIK')
+			do n=1,np
+				r(n,:) = r(n,:) + delta_t*v(n,:) + 0.5d0*(delta_t**2.d0)*(a(n,:)-zeta*v(n,:))
+				v(n,:) = v(n,:) + 0.5d0*delta_t*(a(n,:)-zeta*v(n,:))
+			end do			
+
 		case('nvt_PUT_NH')	
 			call evaluate_U_PUT
 			call evaluate_dzeta_dt_PUT
@@ -107,6 +113,16 @@ subroutine simulation_move_particles_vv(pass_num)
 					v(n,:) = (v(n,:) + 0.5d0*delta_t*a(n,:))/alpha
 				end do
 			
+			case('nvt_GIK')
+				v_old = v
+				do i=1,3
+					call evaluate_zeta_GIK
+					alpha = 1.d0 + 0.5d0*delta_t*zeta
+					do n=1,np
+						v(n,:) = (v_old(n,:) + 0.5d0*delta_t*a(n,:))/alpha
+					end do
+				end do
+
 			case('nvt_PUT_NH')
 				call evaluate_U_PUT
 				zeta  = zeta + delta_t*dzeta_dt
@@ -152,6 +168,25 @@ contains
 		dzeta_dt = (v2sum - (np*nd+1)*inputtemperature)/Q
 
 	end subroutine evaluate_dzeta_dt
+
+	!---------------------------------------------------------------------------
+	!Evaluate zeta for global Gaussian isokinetic thermostat
+	subroutine evaluate_zeta_GIK
+		implicit none
+
+		double precision :: avsum
+		double precision :: v2sum
+
+		avsum = 0.d0
+		v2sum = 0.d0
+		do n=1,np
+			avsum = avsum + dot_product(a(n,:),v(n,:))
+			v2sum = v2sum + dot_product(v(n,:),v(n,:))
+		end do
+
+		zeta = avsum/v2sum
+		
+	end subroutine evaluate_zeta_GIK
 	
 	!---------------------------------------------------------------------------
 	!Evaluate dzeta_dt for profile unbiased Nose-Hoover equations of motion
