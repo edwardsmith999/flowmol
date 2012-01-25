@@ -74,6 +74,22 @@ INTEGRATION_ALGORITHM
 0
 
 #########################################################################
+# Force list used
+# 0: All Pairs
+# 1: Cell List
+# 2: Neighbour list with all interactions
+# 3: Neighbour list using 3rd law optimisation (half interactions)
+# -----------------------------------------------------------------------
+FORCE_LIST
+3
+
+#########################################################################
+# Extra distance added to r_cutoff to determine neighbour cell size
+# -----------------------------------------------------------------------
+DELTA_RNEIGHBR
+0.3
+
+#########################################################################
 # Ensemble selector: case sensitive! (currently only developed for VV)
 # nve        - NVE
 # nvt_NH     - NVT (Nosé-Hoover thermostat)
@@ -148,14 +164,6 @@ FENE_INFO
 # -----------------------------------------------------------------------
 INITISE_STEPS
 0
-
-
-#########################################################################
-# Extra distance added to r_cutoff to determine neighbour cell size
-# -----------------------------------------------------------------------
-DELTA_RNEIGHBR
-0.3
-
 
 #########################################################################
 # Random number seeds, formattted:
@@ -290,13 +298,21 @@ PROCESSORS
 
 #########################################################################
 # Output flag for visualisation in VMD:
-#	0 - off
-#	1 - homogeneous
-# 	2 - solid/liquid
-#	3 - homogeneous + halos
+#	Flag: 	0-off, 
+#			1-homogeneous, 
+#			2-solid/liquid,
+#	      	3-homogeneous+halos, 
+#			4-Debug
+#	Number of intervals: 0-all, 1 to 20-specified in csv format below
+#						20 or more-all
+#	Intervals: start and finish iteration of each interval in format
+#	       start_1, finish_1, start_2, finish_2, etc, etc
 # -----------------------------------------------------------------------
 VMD_OUTFLAG
 0
+5
+0, 100, 200, 300, 400, 500, 600, 700, 800, 900
+
 
 #########################################################################
 # Output flag for macroscopic properties:
