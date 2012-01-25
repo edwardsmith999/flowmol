@@ -66,8 +66,6 @@ implicit none
 		/cellsidelength(2))+nh !Add 1 due to halo
 		kcell = ceiling((r(n,3)+halfdomain(3)) &
 		/cellsidelength(3))+nh !Add 1 due to halo
-		!if (irank .eq. iroot) print'(5i5,3f10.5)', irank, &
-		!n, icell, jcell, kcell, r(n,1), r(n,2), r(n,3)
 		call linklist_checkpush(icell, jcell, kcell, n)
 	enddo
 
@@ -90,10 +88,6 @@ implicit none
 		/cellsidelength(2))+nh !Add 1 due to halo
 		kcell = ceiling((r(n,3)+halfdomain(3)) &
 		/cellsidelength(3))+nh !Add 1 due to halo
-		!if (irank .eq. iroot) print'(4i5,3f10.5)', &
-		!n, icell, jcell, kcell, r(n,1), r(n,2), r(n,3)
-!		print*, (r(271,1)+halfdomain(1))/domain(1)
-		!if (n.eq.271) print*, icell, jcell, kcell
 		call linklist_checkpush(icell, jcell, kcell, n)
 	
 	enddo
@@ -110,12 +104,39 @@ subroutine assign_to_neighbourlist
 use module_linklist
 implicit none
 
+	!Choose between all pairs, cell list or neighbour list
+	select case(force_list)
+	case(0:1)
+		!Forces calculated using all pairs or cell list so nothing to build
+		! ********* Do nothing *******
+	case(2)
+		!Forces calculated using neighbour lists with all interactions
+		call assign_to_neighbourlist_allint
+	case(3)
+		!Forces calculated using neighbour lists optimised using 
+		!Newton's 3rd law to count only half of the interactions
+		call assign_to_neighbourlist_halfint
+	case default
+		stop "Error in force_list flag"
+	end select	
+
+
+end subroutine assign_to_neighbourlist
+
+!----------------------------------------------------------------------------------
+! Assign to Neighbourlist each molecules only once so each interaction is
+! counted twice.
+
+subroutine assign_to_neighbourlist_allint
+use module_linklist
+implicit none
+
 	integer                         :: i, j, ixyz   !Define dummy index
-	integer				:: icell, jcell, kcell
+	integer							:: icell, jcell, kcell
 	integer                         :: icellshift, jcellshift, kcellshift
 	integer                         :: cellnp, adjacentcellnp
-	integer				:: molnoi, molnoj
-	double precision		:: rij2   !magnitude^2 between i and j
+	integer							:: molnoi, molnoj
+	double precision				:: rij2   !magnitude^2 between i and j
 	double precision,dimension(3)   :: ri, rj !Position of molecule i and j
 	double precision,dimension(3)   :: rij    !vector between particles i and j
 	type(node), pointer 	        :: oldi, currenti, oldj, currentj
@@ -186,7 +207,7 @@ implicit none
 	nullify(currenti)      	!Nullify as no longer required
 	nullify(currentj)      	!Nullify as no longer required
 
-end subroutine assign_to_neighbourlist
+end subroutine assign_to_neighbourlist_allint
 
 !----------------------------------------------------------------------------------
 ! Assign to Neighbourlist count each interaction only once
@@ -560,12 +581,12 @@ subroutine calculate_cell_interactions(icell, jcell, kcell, k)
 use module_linklist
 implicit none
 
-	integer				:: i, j, ixyz
-	integer				:: icell, jcell, kcell, k
+	integer							:: i, j, ixyz
+	integer							:: icell, jcell, kcell, k
 	integer                         :: cellnp, adjacentcellnp
-	integer				:: molnoi, molnoj
-	integer, dimension(13)		:: icellshift, jcellshift, kcellshift
-	double precision		:: rij2   !magnitude^2 between i and j
+	integer							:: molnoi, molnoj
+	integer, dimension(13)			:: icellshift, jcellshift, kcellshift
+	double precision				:: rij2   !magnitude^2 between i and j
 	double precision,dimension(3)   :: ri, rj !Position of molecule i and j
 	double precision,dimension(3)   :: rij    !vector between particles i and j
 	type(node), pointer 	        :: oldi, currenti, oldjhead, oldj, currentj
@@ -607,7 +628,6 @@ implicit none
 				rij2 = dot_product(rij,rij)	!Square of vector calculated
 
 				if (potential_flag.eq.1) call check_update_adjacentbeadinfo(molnoi,molnoj)	
-				!if (rij2 < rneighbr2) print*,'neighbr_cells',  molnoi, molnoj
 				!Used for halo cell so molnoj and molnoi swapped over!
 				if (rij2 < rneighbr2) call linklist_checkpushneighbr(molnoj, molnoi)
 
@@ -1328,11 +1348,11 @@ subroutine linklist_deallocateall
 use module_linklist
 implicit none
 
-	integer            :: i, j
-	integer            :: cellnp, noneighbrs
-	integer            :: icell, jcell, kcell
-	type(node), pointer:: old, current
-	type(neighbrnode), pointer :: oldn, currentn
+	integer            			:: i, j
+	integer           			:: cellnp, noneighbrs
+	integer            			:: icell, jcell, kcell
+	type(node), pointer			:: old, current
+	type(neighbrnode), pointer 	:: oldn, currentn
 
 	call linklist_FENEresetLR
 
@@ -1373,32 +1393,36 @@ implicit none
 	!enddo
 	!enddo
 
-	do i = 1, np
-		if (associated(neighbour%head(i)%point) .eqv. .true. ) then !Exit if null
-        		noneighbrs = neighbour%noneighbrs(i)  !Determine number of elements in neighbourlist
-			oldn => neighbour%head(i)%point		   !Set old to head of neighbour list
-			currentn => oldn ! make current point to head of list
-			do j=1,noneighbrs-1
-				if (associated(oldn%next) .eqv. .true. ) then !Exit if null
-					oldn => currentn%next       !Make list point to next node of old
-					nullify(currentn%next)      !Remove pointer to next
-					nullify(currentn%previous)  !Remove pointer to previous
-					deallocate(currentn)        !Deallocate current entry
-					currentn => oldn            !Make current point to new previous
-				endif
-			enddo
+	if (force_list .gt. 1) then
+		do i = 1, np
+			if (associated(neighbour%head(i)%point) .eqv. .true. ) then !Exit if null
+	        		noneighbrs = neighbour%noneighbrs(i)  !Determine number of elements in neighbourlist
+				oldn => neighbour%head(i)%point		   !Set old to head of neighbour list
+				currentn => oldn ! make current point to head of list
+				do j=1,noneighbrs-1
+					if (associated(oldn%next) .eqv. .true. ) then !Exit if null
+						oldn => currentn%next       !Make list point to next node of old
+						nullify(currentn%next)      !Remove pointer to next
+						nullify(currentn%previous)  !Remove pointer to previous
+						deallocate(currentn)        !Deallocate current entry
+						currentn => oldn            !Make current point to new previous
+					endif
+				enddo
 
-			nullify(oldn%next)         !Remove pointer to next
-			nullify(oldn%previous)     !Remove pointer to previous
-			deallocate(oldn)           !Deallocate final entry
-			nullify(neighbour%head(i)%point)   !Set neighbour head pointer to null
-			neighbour%noneighbrs(i) = 0  !Zero cell molecule number
-		endif
-	enddo
+				nullify(oldn%next)         !Remove pointer to next
+				nullify(oldn%previous)     !Remove pointer to previous
+				deallocate(oldn)           !Deallocate final entry
+				nullify(neighbour%head(i)%point)   !Set neighbour head pointer to null
+				neighbour%noneighbrs(i) = 0  !Zero cell molecule number
+			endif
+		enddo
 
 	!Deallocate array of molecules neighbourlist pointers
 	deallocate(neighbour%noneighbrs)
 	deallocate(neighbour%head)
+	endif
+
+
 
 end subroutine linklist_deallocateall
 

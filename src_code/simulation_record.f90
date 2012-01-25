@@ -12,11 +12,11 @@
 ! given cell) or Method Of Planes (force/momentum flux over a plane).
 ! Many of these outputs are interpreted using MATLAB scripts included
 !
-! simulation_record  			   	Top level function choosing logging based on inputs
+! simulation_record  			   			Top level function choosing logging based on inputs
 ! evaluate_macroscopic_properties_parallel 	Macroscopic properties
-! evaluate_properties_vdistribution		Maxwell Boltzmann distribution
-! evaluate_properties_radialdist		Radial distribution
-! evaluate_properties_diffusion			Diffusion
+! evaluate_properties_vdistribution			Maxwell Boltzmann distribution
+! evaluate_properties_radialdist			Radial distribution
+! evaluate_properties_diffusion				Diffusion
 
 ! mass_averaging					slice/CV
 ! cumulative_mass					slice/CV
@@ -78,16 +78,28 @@ subroutine simulation_record
 	use module_record
 	implicit none
 
+	integer			:: vmd_iter
+	integer,save	:: i = 1
+
 	!Only record every tplot iterations
 	if (mod(iter,tplot) .ne. 0) return
 
 	!Parallel output for molecular positions
-	if (vmd_outflag .eq. 1) call parallel_io_vmd
-	if (vmd_outflag .eq. 2) call parallel_io_vmd_sl
-	if (vmd_outflag .eq. 3) then
-		call parallel_io_vmd
-		call parallel_io_vmd_halo
-	end if
+	if (vmd_outflag.ne.0) then
+		vmd_iter = iter-initialstep+1
+		if (vmd_iter.ge.vmd_intervals(1,i).and.vmd_iter.lt.vmd_intervals(2,i)) then
+			print*, iter,vmd_iter,i,vmd_count,vmd_intervals(1,i),vmd_intervals(2,i)
+			if (vmd_outflag .eq. 1) call parallel_io_vmd(vmd_intervals(1,i),vmd_intervals(2,i),i)
+			if (vmd_outflag .eq. 2) call parallel_io_vmd_sl(vmd_intervals(1,i),vmd_intervals(2,i),i)
+			if (vmd_outflag .eq. 3) then
+				call parallel_io_vmd(vmd_intervals(1,i),vmd_intervals(2,i),i)
+				call parallel_io_vmd_halo(vmd_intervals(1,i),vmd_intervals(2,i),i)
+			end if
+			vmd_count = vmd_count + 1
+		elseif (vmd_iter.ge.vmd_intervals(2,i)) then
+			i = i + 1			
+		endif
+	endif
 
 	!call evaluate_macroscopic_properties
 	!Obtain each processe's subdomain's macroscopic 
@@ -939,8 +951,8 @@ subroutine cumulative_mass_flux
 	use module_record
 	implicit none
 
-	integer				:: ixyz, n
-	integer		,dimension(3)	:: ibin1,ibin2,crossplane
+	integer							:: ixyz, n
+	integer		,dimension(3)		:: ibin1,ibin2,crossplane
 	double precision,dimension(3)	:: ri, mbinsize
 
 	!Determine bin size
@@ -984,10 +996,10 @@ subroutine mass_snapshot
 	use module_record
 	implicit none
 
-	integer						:: n
-	integer		,dimension(3)			:: ibin
+	integer										:: n
+	integer		,dimension(3)					:: ibin
 	integer		,dimension(:,:,:)  ,allocatable	:: volume_mass_temp
-	double precision,dimension(3)			:: mbinsize
+	double precision,dimension(3)				:: mbinsize
 
 	!Determine bin size
 	mbinsize(:) = domain(:) / nbins(:)
@@ -1020,7 +1032,7 @@ subroutine momentum_flux_averaging(ixyz)
 	use module_record
 	implicit none
 
-	integer			:: ixyz, i
+	integer				:: ixyz, i
 	integer, save		:: sample_count
 	double precision	:: binface
 
@@ -1059,12 +1071,11 @@ subroutine cumulative_momentum_flux(ixyz)
 	use module_record
 	implicit none
 
-	integer				:: ixyz,jxyz,kxyz,i,j,k,n
-	integer				:: planeno
-	integer				:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
-	!integer		,dimension(1)	:: imaxloc
-	integer		,dimension(3)	:: ibin1,ibin2,cbin
-	double precision		:: crosstime,crossplane,rplane,shift
+	integer							:: ixyz,jxyz,kxyz,i,j,k,n
+	integer							:: planeno
+	integer							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
+	integer		,dimension(3)		:: ibin1,ibin2,cbin
+	double precision				:: crosstime,crossplane,rplane,shift
 	double precision,dimension(3)	:: mbinsize,velvect,crossface
 	double precision,dimension(3)	:: ri1,ri2,ri12,bintop,binbot,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
 
@@ -1158,43 +1169,42 @@ subroutine cumulative_momentum_flux(ixyz)
 
 					onfacexb =0.5d0*(sign(1.d0,binbot(1) - ri2(1)) 	 & 
 						       - sign(1.d0,binbot(1) - ri1(1)))* &
-							(heaviside(bintop(2) - Pxb(2)) 	 &
+								(heaviside(bintop(2) - Pxb(2)) 	 &
 						       - heaviside(binbot(2) - Pxb(2)))* &
-							(heaviside(bintop(3) - Pxb(3)) 	 &
+								(heaviside(bintop(3) - Pxb(3)) 	 &
 						       - heaviside(binbot(3) - Pxb(3)))
 					onfaceyb =0.5d0*(sign(1.d0,binbot(2) - ri2(2))   &
 						       - sign(1.d0,binbot(2) - ri1(2)))* &
-							(heaviside(bintop(1) - Pyb(1))   &
+								(heaviside(bintop(1) - Pyb(1))   &
 						       - heaviside(binbot(1) - Pyb(1)))* &
-							(heaviside(bintop(3) - Pyb(3))   &
+								(heaviside(bintop(3) - Pyb(3))   &
 						       - heaviside(binbot(3) - Pyb(3)))
 					onfacezb =0.5d0*(sign(1.d0,binbot(3) - ri2(3))   &
 						       - sign(1.d0,binbot(3) - ri1(3)))* &
-							(heaviside(bintop(1) - Pzb(1))   &
+								(heaviside(bintop(1) - Pzb(1))   &
 						       - heaviside(binbot(1) - Pzb(1)))* &
-							(heaviside(bintop(2) - Pzb(2))   &
+								(heaviside(bintop(2) - Pzb(2))   &
 						       - heaviside(binbot(2) - Pzb(2)))
 
 					onfacext =0.5d0*(sign(1.d0,bintop(1) - ri2(1))   &
 						       - sign(1.d0,bintop(1) - ri1(1)))* &
-							(heaviside(bintop(2) - Pxt(2))   &
+								(heaviside(bintop(2) - Pxt(2))   &
 						       - heaviside(binbot(2) - Pxt(2)))* &
-				            		(heaviside(bintop(3) - Pxt(3))   &
+								(heaviside(bintop(3) - Pxt(3))   &
 						       - heaviside(binbot(3) - Pxt(3)))
 					onfaceyt =0.5d0*(sign(1.d0,bintop(2) - ri2(2))   &
 						       - sign(1.d0,bintop(2) - ri1(2)))* &
-							(heaviside(bintop(1) - Pyt(1))   &
+								(heaviside(bintop(1) - Pyt(1))   &
 						       - heaviside(binbot(1) - Pyt(1)))* &
-							(heaviside(bintop(3) - Pyt(3))   &
+								(heaviside(bintop(3) - Pyt(3))   &
 						       - heaviside(binbot(3) - Pyt(3)))
 					onfacezt =0.5d0*(sign(1.d0,bintop(3) - ri2(3))   &
 						       - sign(1.d0,bintop(3) - ri1(3)))* &
-							(heaviside(bintop(1) - Pzt(1))   &
-    						       - heaviside(binbot(1) - Pzt(1)))* &
-							(heaviside(bintop(2) - Pzt(2))   &
+								(heaviside(bintop(1) - Pzt(1))   &
+							   - heaviside(binbot(1) - Pzt(1)))* &
+								(heaviside(bintop(2) - Pzt(2))   &
 						       - heaviside(binbot(2) - Pzt(2)))
 
-					!imaxloc = maxloc(abs(crossface))
 					jxyz = imaxloc(abs(crossface))	!Integer array of size 1 copied to integer
 
 					!Calculate velocity at time of intersection
@@ -1243,11 +1253,11 @@ subroutine momentum_snapshot
 	use module_record
 	implicit none
 
-	integer						:: n,i,j,k,ixyz,m
-	integer		,dimension(3)			:: ibin
-	integer		,dimension(:,:,:)  ,allocatable	:: volume_mass_temp
-	double precision				:: binvolume
-	double precision,dimension(3)			:: ri, mbinsize, bincentre
+	integer											:: n,i,j,k,ixyz,m
+	integer		,dimension(3)						:: ibin
+	integer		,dimension(:,:,:)  ,allocatable		:: volume_mass_temp
+	double precision								:: binvolume
+	double precision,dimension(3)					:: ri, mbinsize, bincentre
 	double precision,dimension(:,:,:,:),allocatable :: volume_momentum_temp
 
 	mbinsize(:) = domain(:) / nbins(:)
@@ -1276,6 +1286,269 @@ subroutine momentum_snapshot
 	deallocate(volume_momentum_temp)
 
 end subroutine momentum_snapshot
+
+
+!===================================================================================
+! Control Volume Energy continuity
+!===================================================================================
+
+subroutine energy_flux_averaging(ixyz)
+	use module_record
+	implicit none
+
+	integer				:: ixyz, i
+	integer, save		:: sample_count
+	double precision	:: binface
+
+	call cumulative_energy_flux(ixyz)
+	sample_count = sample_count + 1
+	if (sample_count .eq. Neflux_ave) then
+
+		select case(ixyz)
+		case(1:3)
+			!MOP energy flux and Power (stresses*velocity)
+			call MOP_energy_io(ixyz)
+			Pxy_plane = 0.d0
+		case(4)
+			!CV energy flux and Power (stresses*velocity)
+			call energy_flux_io
+			call surface_power_io
+			energy_flux = 0.d0
+			Pxyvface = 0.d0
+			call energy_snapshot
+		case default 
+			stop "Energy flux averaging Error"
+		end select
+
+		sample_count = 0
+
+	endif
+
+end subroutine energy_flux_averaging
+
+!===================================================================================
+! Energy Flux over a surface of a bin including all intermediate bins
+
+subroutine cumulative_energy_flux(ixyz)
+	use module_record
+	implicit none
+
+	integer							:: ixyz,jxyz,kxyz,i,j,k,n
+	integer							:: planeno,onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
+	integer		,dimension(3)		:: ibin1,ibin2,cbin
+	double precision				:: crosstime,crossplane,rplane,shift,energy
+	double precision,dimension(3)	:: mbinsize,velvect,crossface
+	double precision,dimension(3)	:: ri1,ri2,ri12,bintop,binbot,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
+
+	select case(ixyz)
+	case(1:3)
+		!MOP energy flux
+		!Shift by half difference between value rounded down and actual value
+		!to ensure same distance to top and bottom plane from domain edge
+		shift = 0.5d0*(domain(ixyz) - planespacing * (nplanes-1))
+
+		!Add molecular velocities to the configuration stresses
+		do n=1,np
+
+			!Replace Signum function with this functions which gives a
+			!check for plane crossing and the correct sign 
+			crossplane = ceiling((r(n,ixyz)+halfdomain(ixyz)-shift)/planespacing) & 
+				    	-ceiling((r(n,ixyz)-delta_t*v(n,ixyz)+halfdomain(ixyz)-shift)/planespacing)
+
+			if (crossplane .ne. 0) then
+
+				!Obtain nearest plane number by integer division 
+				!and retrieve location of plane from array
+				planeno = ceiling((r(n,ixyz)+halfdomain(ixyz)-shift) 	& 
+					  /planespacing)-heaviside(dble(crossplane))+1
+				if (planeno .lt. 1) planeno = 1
+				if (planeno .gt. nplanes) planeno = nplanes
+				rplane = planes(planeno)
+
+				!Calculate energy at intersection
+				velvect(:) = v(n,:) + 0.5d0*a(n,:)*delta_t
+				energy = 0.5d0 * (dot_product(velvect,velvect) + potenergymol(n))
+
+				if (crosstime/delta_t .gt. 1.d0) stop "error in kinetic MOP"
+
+				!Obtain stress for three components on y plane
+				Pxyv_plane(planeno) = Pxyv_plane(planeno) + energy!*crossplane
+
+			endif
+		enddo
+
+	case(4)
+		!CV momentum flux
+		!Determine bin size
+		mbinsize(:) = domain(:) / nbins(:)
+
+		do n = 1,np
+
+			ri1(:) = r(n,:)					!Molecule i at time  t
+			ri2(:) = r(n,:)-delta_t*v(n,:)	!Molecule i at time t-dt
+			ri12   = ri1 - ri2				!Molecule i trajectory between t-dt and t
+			where (ri12 .eq. 0.d0) ri12 = 0.000001d0
+
+			!Assign to bins before and after using integer division
+			ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:))+1
+			ibin2(:) = ceiling((ri2+halfdomain(:))/mbinsize(:))+1
+
+			!Replace Signum function with this functions which gives a
+			!check for plane crossing and the correct sign 
+			crossface(:) =  ibin1(:) - ibin2(:)
+
+			if (sum(abs(crossface(:))) .ne. 0) then
+
+				do i = ibin1(1),ibin2(1),sign(1,ibin2(1)-ibin1(1))
+				do j = ibin1(2),ibin2(2),sign(1,ibin2(2)-ibin1(2))
+				do k = ibin1(3),ibin2(3),sign(1,ibin2(3)-ibin1(3))
+
+					cbin(1) = i; cbin(2) = j; cbin(3) = k
+
+					bintop(:) = (cbin(:)-1)*mbinsize(:)-halfdomain(:)
+					binbot(:) = (cbin(:)-2)*mbinsize(:)-halfdomain(:)
+
+					!Calculate the plane intersect of trajectory with surfaces of the cube
+					Pxt=(/ 			bintop(1), 		     & 
+							ri1(2)+(ri12(2)/ri12(1))*(bintop(1)-ri1(1)), & 
+							ri1(3)+(ri12(3)/ri12(1))*(bintop(1)-ri1(1))  	/)
+					Pxb=(/ 			binbot(1), 		     & 
+							ri1(2)+(ri12(2)/ri12(1))*(binbot(1)-ri1(1)), & 
+							ri1(3)+(ri12(3)/ri12(1))*(binbot(1)-ri1(1))  	/)
+					Pyt=(/	ri1(1)+(ri12(1)/ri12(2))*(bintop(2)-ri1(2)), & 
+									bintop(2), 		     & 
+							ri1(3)+(ri12(3)/ri12(2))*(bintop(2)-ri1(2))  	/)
+					Pyb=(/	ri1(1)+(ri12(1)/ri12(2))*(binbot(2)-ri1(2)), &
+									binbot(2), 		     & 
+							ri1(3)+(ri12(3)/ri12(2))*(binbot(2)-ri1(2))  	/)
+					Pzt=(/	ri1(1)+(ri12(1)/ri12(3))*(bintop(3)-ri1(3)), & 
+							ri1(2)+(ri12(2)/ri12(3))*(bintop(3)-ri1(3)), &
+									bintop(3) 			/)
+					Pzb=(/	ri1(1)+(ri12(1)/ri12(3))*(binbot(3)-ri1(3)), &
+							ri1(2)+(ri12(2)/ri12(3))*(binbot(3)-ri1(3)), & 
+									binbot(3) 			/)
+
+					onfacexb =0.5d0*(sign(1.d0,binbot(1) - ri2(1)) 	 & 
+						      	   - sign(1.d0,binbot(1) - ri1(1)))* &
+								(heaviside(bintop(2) - Pxb(2)) 	 &
+						       - heaviside(binbot(2) - Pxb(2)))* &
+								(heaviside(bintop(3) - Pxb(3)) 	 &
+						       - heaviside(binbot(3) - Pxb(3)))
+					onfaceyb =0.5d0*(sign(1.d0,binbot(2) - ri2(2))   &
+						       	   - sign(1.d0,binbot(2) - ri1(2)))* &
+								(heaviside(bintop(1) - Pyb(1))   &
+						       - heaviside(binbot(1) - Pyb(1)))* &
+								(heaviside(bintop(3) - Pyb(3))   &
+						       - heaviside(binbot(3) - Pyb(3)))
+					onfacezb =0.5d0*(sign(1.d0,binbot(3) - ri2(3))   &
+						       	   - sign(1.d0,binbot(3) - ri1(3)))* &
+								(heaviside(bintop(1) - Pzb(1))   &
+						       - heaviside(binbot(1) - Pzb(1)))* &
+								(heaviside(bintop(2) - Pzb(2))   &
+						       - heaviside(binbot(2) - Pzb(2)))
+
+					onfacext =0.5d0*(sign(1.d0,bintop(1) - ri2(1))   &
+						       	   - sign(1.d0,bintop(1) - ri1(1)))* &
+								(heaviside(bintop(2) - Pxt(2))   &
+						       - heaviside(binbot(2) - Pxt(2)))* &
+				            	(heaviside(bintop(3) - Pxt(3))   &
+						       - heaviside(binbot(3) - Pxt(3)))
+					onfaceyt =0.5d0*(sign(1.d0,bintop(2) - ri2(2))   &
+						       	   - sign(1.d0,bintop(2) - ri1(2)))* &
+								(heaviside(bintop(1) - Pyt(1))   &
+						       - heaviside(binbot(1) - Pyt(1)))* &
+								(heaviside(bintop(3) - Pyt(3))   &
+						       - heaviside(binbot(3) - Pyt(3)))
+					onfacezt =0.5d0*(sign(1.d0,bintop(3) - ri2(3))   &
+						       	   - sign(1.d0,bintop(3) - ri1(3)))* &
+								(heaviside(bintop(1) - Pzt(1))   &
+    						   - heaviside(binbot(1) - Pzt(1)))* &
+								(heaviside(bintop(2) - Pzt(2))   &
+						       - heaviside(binbot(2) - Pzt(2)))
+
+					jxyz = imaxloc(abs(crossface))	!Integer array of size 1 copied to integer
+
+					!Calculate velocity at time of intersection
+					!crosstime = (r(n,jxyz) - rplane)/v(n,jxyz)
+					velvect(:) = v(n,:) + 0.5d0*a(n,:)*delta_t
+					energy = 0.5d0 * (dot_product(velvect,velvect) + potenergymol(n))
+					!Change in velocity at time of crossing is not needed as velocity assumed constant 
+					!for timestep and changes when forces are applied.
+
+					!Add Momentum flux over face
+					energy_flux(cbin(1),cbin(2),cbin(3),1) = & 
+						energy_flux(cbin(1),cbin(2),cbin(3),1) & 
+					      - energy*dble(onfacexb)*abs(crossface(jxyz))
+					energy_flux(cbin(1),cbin(2),cbin(3),2) = & 
+						energy_flux(cbin(1),cbin(2),cbin(3),2) & 
+					      - energy*dble(onfaceyb)*abs(crossface(jxyz))
+					energy_flux(cbin(1),cbin(2),cbin(3),3) = & 
+						energy_flux(cbin(1),cbin(2),cbin(3),3) &
+					      - energy*dble(onfacezb)*abs(crossface(jxyz))
+					energy_flux(cbin(1),cbin(2),cbin(3),4) = & 
+						energy_flux(cbin(1),cbin(2),cbin(3),4) &
+					      + energy*dble(onfacext)*abs(crossface(jxyz))
+					energy_flux(cbin(1),cbin(2),cbin(3),5) = & 
+						energy_flux(cbin(1),cbin(2),cbin(3),5) &
+					      + energy*dble(onfaceyt)*abs(crossface(jxyz))
+					energy_flux(cbin(1),cbin(2),cbin(3),6) = & 
+						energy_flux(cbin(1),cbin(2),cbin(3),6) &
+					      + energy*dble(onfacezt)*abs(crossface(jxyz))
+
+				enddo
+				enddo
+				enddo
+
+			endif
+
+		enddo
+	case default 
+		stop "Cumulative Energy flux Error"
+	end select
+
+end subroutine cumulative_energy_flux
+
+!===================================================================================
+! Control Volume snapshot of momentum in a given bin
+
+subroutine energy_snapshot
+	use librarymod
+	use module_record
+	implicit none
+
+	integer											:: n,i,j,k,ixyz,m
+	integer		,dimension(3)						:: ibin
+	integer		,dimension(:,:,:)  ,allocatable		:: volume_mass_temp
+	double precision								:: binvolume
+	double precision,dimension(3)					:: ri, mbinsize, bincentre
+	double precision,dimension(:,:,:,:),allocatable :: volume_momentum_temp
+
+	mbinsize(:) = domain(:) / nbins(:)
+
+	!Allocate temporary array for mass and momentum in volume
+	allocate(volume_mass_temp(nbins(1)+2,nbins(2)+2,nbins(3)+2))
+	allocate(volume_momentum_temp(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
+
+	!Reset Control Volume momentum 
+	volume_mass_temp = 0
+	volume_momentum_temp = 0.d0
+	do n = 1,np
+		!Add up current volume momentum densities
+		ibin(:) = ceiling((r(n,:)+halfdomain(:))/mbinsize(:)) + 1
+		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = volume_mass_temp(ibin(1),ibin(2),ibin(3)) + 1
+		volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) = volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) + v(n,:)
+	enddo
+
+	binvolume = (domain(1)/nbins(1))*(domain(2)/nbins(2))*(domain(3)/nbins(3))
+	volume_momentum_temp = volume_momentum_temp/(binvolume)
+
+	!Output Control Volume momentum change and fluxes
+	call velocity_bin_io(volume_mass_temp,volume_momentum_temp,'snap')
+
+	deallocate(volume_mass_temp)
+	deallocate(volume_momentum_temp)
+
+end subroutine energy_snapshot
 
 !====================================================================================
 !
