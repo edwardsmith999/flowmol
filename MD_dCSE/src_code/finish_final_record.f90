@@ -94,31 +94,30 @@ end subroutine finish_final_record
 !http://www.ks.uiuc.edu/Research/vmd/plugins/molfile/dcdplugin.html
 !Information at the above url is a little misleading in places, comments below try to clarify. 
 
-
 subroutine reformat_dcd
 	use module_final_record
 	use computational_constants_MD
 	implicit none
 
-	integer				:: n, i			!--Dummy variables
-	integer				:: NSET			!--Number of frames
-	integer				:: ISTRT		!--Starting frame
-	integer				:: NSAVC		!--Number of frames per coordinate save
-	integer				:: NATOMNFREAT		!--Number of fixed atoms
-	integer				:: NTITLE		!--Number of 80-character strings in title (set as 2)
-	integer				:: NATOM		!--Number of atoms
-	integer, dimension (5)		:: FIVEZ		!--According to documentation, five zeros, but first is actually NSET
-	integer, dimension (9)		:: NINEZ		!--Nine zeros
-	character(len=4)		:: HDR			!--Header string, value 'CORD'
+	integer							:: n, i			!--Dummy variables
+	integer							:: NSET,vmd_sets!--Number of frames
+	integer							:: ISTRT		!--Starting frame
+	integer							:: NSAVC		!--Number of frames per coordinate save
+	integer							:: NATOMNFREAT		!--Number of fixed atoms
+	integer							:: NTITLE		!--Number of 80-character strings in title (set as 2)
+	integer							:: NATOM		!--Number of atoms
+	integer, dimension (5)			:: FIVEZ		!--According to documentation, five zeros, but first is actually NSET
+	integer, dimension (9)			:: NINEZ		!--Nine zeros
+	character(len=4)				:: HDR			!--Header string, value 'CORD'
 	character(len=80), dimension(2)	:: TITLE	        !--Title(s)
+	real 							:: time_start, time_end
 	real,allocatable,dimension(:)   :: Xbuf, Ybuf, Zbuf	!--Buffers used to copy from direct access to binary
-	double precision		:: DELTA		!--Timestep between frames
+	double precision				:: DELTA		!--Timestep between frames
 
-        real time_start, time_end
- 
-	print*, 'Generating final VMD.dcd ouput file - for large systems this may take some time'
+	print*, 'Generating final VMD.dcd ouput file - for large systems or'
+	print*, 'long runs this may take some time'
 
-        call cpu_time(time_start)
+	call cpu_time(time_start)
 
 	!Determine size of file datatype
 	!inquire(file='testfile.dcd', recl=datasize)
@@ -126,19 +125,28 @@ subroutine reformat_dcd
  	!call MPI_type_size(MPI_real,datasize,ierr)
 	!print*, 'datasize', datasize
 
+	if (Nvmd_intervals.eq.0) then
+		vmd_sets = (Nsteps-initialstep+1)/tplot
+	else
+		vmd_sets = vmd_count-1
+		!do i = 1,size(vmd_intervals,2)
+		!	vmd_sets = vmd_sets + (vmd_intervals(2,i) - vmd_intervals(1,i))
+		!enddo
+	endif
+
 	!Set header information	
-	HDR		=	'CORD'				!header text
-	NSET		=	(Nsteps/tplot)			!number of recorded frames
+	HDR			=	'CORD'			!header text
+	NSET		=	vmd_sets		!number of recorded frames
 	ISTRT		=	0				!the starting timestep
 	NSAVC		=	1				!number of timesteps between dcd frame saves
-	FIVEZ(1)	=	NSET				!not sure why
+	FIVEZ(1)	=	NSET			!not sure why
 	FIVEZ(2:5)	=	0				!buffer zeros
 	NATOMNFREAT	=	0				!number of fixed atoms?
-	DELTA		=	delta_t				!delta_t (x-plor is double, charmm is real)
+	DELTA		=	delta_t			!delta_t (x-plor is double, charmm is real)
 	NINEZ(:)	=	0				!buffer zeros
 	NTITLE		=	2				!number of 80-character strings in title
 	TITLE(1)	=	'  Simulation record file '	!
-	TITLE(2)        =	'   Written in parallel   '	!
+	TITLE(2)        =	'   Written in serial or parallel   '	!
 	NATOM		=	globalnp			!number of particles
 
 	allocate(Xbuf(NSET*globalnp))
@@ -153,6 +161,7 @@ subroutine reformat_dcd
 		read(17) Xbuf(globalnp*(i-1)+1:globalnp*i)
 		read(17) Ybuf(globalnp*(i-1)+1:globalnp*i)
 		read(17) Zbuf(globalnp*(i-1)+1:globalnp*i)
+		if (mod(i,100) .eq. 0) print*, 'Reading % complete =', (100.d0*i/NSET)
 	enddo
 
 	close(17,status='delete')
@@ -168,15 +177,14 @@ subroutine reformat_dcd
 		write(3) Xbuf((i-1)*globalnp+1:i*globalnp)
 		write(3) Ybuf((i-1)*globalnp+1:i*globalnp)
 		write(3) Zbuf((i-1)*globalnp+1:i*globalnp)
+		if (mod(i,100) .eq. 0) print*, 'Writing % complete =', (100.d0*i/NSET)
 	enddo
 
 	close(3,status='keep')
 
-        call cpu_time(time_end)
+	call cpu_time(time_end)
 
-        print '(a,g10.2,a)', 'Generated final VMD.dcd ouput file in', time_end - time_start, ' seconds'
-
-
+ 	print '(a,g10.2,a)', 'Generated final VMD.dcd ouput file in', time_end - time_start, ' seconds'
 
 end subroutine reformat_dcd
 
@@ -195,22 +203,25 @@ subroutine reformat_dcd_sl
 	use computational_constants_MD
 	implicit none
 
-	integer				:: n, i			!--Dummy variables
-	integer				:: NSET			!--Number of frames
-	integer				:: ISTRT		!--Starting frame
-	integer				:: NSAVC		!--Number of frames per coordinate save
-	integer				:: NATOMNFREAT		!--Number of fixed atoms
-	integer				:: NTITLE		!--Number of 80-character strings in title (set as 2)
-	integer				:: NATOM		!--Number of atoms
-	integer, dimension (5)		:: FIVEZ		!--According to documentation, five zeros, but first is actually NSET
-	integer, dimension (9)		:: NINEZ		!--Nine zeros
-	character(len=4)		:: HDR			!--Header string, value 'CORD'
+	integer							:: n, i			!--Dummy variables
+	integer							:: NSET,vmd_sets!--Number of frames
+	integer							:: ISTRT		!--Starting frame
+	integer							:: NSAVC		!--Number of frames per coordinate save
+	integer							:: NATOMNFREAT		!--Number of fixed atoms
+	integer							:: NTITLE		!--Number of 80-character strings in title (set as 2)
+	integer							:: NATOM		!--Number of atoms
+	integer, dimension (5)			:: FIVEZ		!--According to documentation, five zeros, but first is actually NSET
+	integer, dimension (9)			:: NINEZ		!--Nine zeros
+	character(len=4)				:: HDR			!--Header string, value 'CORD'
 	character(len=80), dimension(2)	:: TITLE	        !--Title(s)
+	real 							:: time_start, time_end
 	real,allocatable,dimension(:)   :: Xbuf, Ybuf, Zbuf	!--Buffers used to copy from direct access to binary
-	double precision		:: DELTA		!--Timestep between frames
+	double precision				:: DELTA		!--Timestep between frames
 
+	print*, 'Generating final VMD.dcd ouput file - for large systems or'
+	print*, 'long runs this may take some time'
 
-	print*, 'Generating final VMD.dcd ouput file - for large systems this may take some time'
+	call cpu_time(time_start)
 
 	!Determine size of file datatype
 	!inquire(file='testfile.dcd', recl=datasize)
@@ -218,19 +229,28 @@ subroutine reformat_dcd_sl
  	!call MPI_type_size(MPI_real,datasize,ierr)
 	!print*, 'datasize', datasize
 
+	if (Nvmd_intervals.eq.0) then
+		vmd_sets = (Nsteps-initialstep+1)/tplot
+	else
+		vmd_sets = vmd_count-1
+		!do i = 1,size(vmd_intervals,2)
+		!	vmd_sets = vmd_sets + (vmd_intervals(2,i) - vmd_intervals(1,i))
+		!enddo
+	endif
+
 	!Set header information	
-	HDR		=	'CORD'				!header text
-	NSET		=	(Nsteps/tplot)			!number of recorded frames
-	ISTRT		=	0				!the starting timestep
-	NSAVC		=	1				!number of timesteps between dcd frame saves
+	HDR			=	'CORD'				!header text
+	NSET		=	vmd_sets			!number of recorded frames
+	ISTRT		=	0					!the starting timestep
+	NSAVC		=	1					!number of timesteps between dcd frame saves
 	FIVEZ(1)	=	NSET				!not sure why
-	FIVEZ(2:5)	=	0				!buffer zeros
-	NATOMNFREAT	=	0				!number of fixed atoms?
+	FIVEZ(2:5)	=	0					!buffer zeros
+	NATOMNFREAT	=	0					!number of fixed atoms?
 	DELTA		=	delta_t				!delta_t (x-plor is double, charmm is real)
-	NINEZ(:)	=	0				!buffer zeros
-	NTITLE		=	2				!number of 80-character strings in title
+	NINEZ(:)	=	0					!buffer zeros
+	NTITLE		=	2					!number of 80-character strings in title
 	TITLE(1)	=	'  Simulation record file '	!
-	TITLE(2)        =	'   Written in parallel   '	!
+	TITLE(2)        =	'   Written in serial/parallel   '	!
 	NATOM		=	globalnp			!number of particles
 
 	allocate(Xbuf(NSET*globalnp))
@@ -246,6 +266,7 @@ subroutine reformat_dcd_sl
 		read(17,rec=(i-1)*nd*globalnp+n) Xbuf(n+globalnp*(i-1))
 		read(17,rec=(i-1)*nd*globalnp+n+globalnp) Ybuf(n+globalnp*(i-1))
 		read(17,rec=(i-1)*nd*globalnp+n+2*globalnp) Zbuf(n+globalnp*(i-1))
+		if (mod(i,100) .eq. 0) print*, 'Reading solid % complete =', (100.d0*i/NSET)
 	enddo
 	enddo
 
@@ -262,6 +283,7 @@ subroutine reformat_dcd_sl
 		write(3) Xbuf((i-1)*globalnp+1:i*globalnp)
 		write(3) Ybuf((i-1)*globalnp+1:i*globalnp)
 		write(3) Zbuf((i-1)*globalnp+1:i*globalnp)
+		if (mod(i,100) .eq. 0) print*, 'Writing solid % complete =', (100.d0*i/NSET)
 	enddo
 
 	close(3,status='keep')
@@ -275,6 +297,7 @@ subroutine reformat_dcd_sl
 		read(17,rec=(i-1)*nd*globalnp+n) Xbuf(n+globalnp*(i-1))
 		read(17,rec=(i-1)*nd*globalnp+n+globalnp) Ybuf(n+globalnp*(i-1))
 		read(17,rec=(i-1)*nd*globalnp+n+2*globalnp) Zbuf(n+globalnp*(i-1))
+		if (mod(i,100) .eq. 0) print*, 'Reading liquid % complete =', (100.d0*i/NSET)
 	enddo
 	enddo
 
@@ -291,9 +314,14 @@ subroutine reformat_dcd_sl
 		write(3) Xbuf((i-1)*globalnp+1:i*globalnp)
 		write(3) Ybuf((i-1)*globalnp+1:i*globalnp)
 		write(3) Zbuf((i-1)*globalnp+1:i*globalnp)
+		if (mod(i,100) .eq. 0) print*, 'Writing liquid % complete =', (100.d0*i/NSET)
 	enddo
 
 	close(3,status='keep')
+
+	call cpu_time(time_end)
+
+ 	print '(a,g10.2,a)', 'Generated final VMD.dcd ouput file in', time_end - time_start, ' seconds'
 
 end subroutine reformat_dcd_sl
 
@@ -304,22 +332,26 @@ subroutine reformat_dcd_halo
 	use module_final_record
 	implicit none
 
-	integer				:: n, i			!--Dummy variables
-	integer				:: NSET			!--Number of frames
-	integer				:: ISTRT		!--Starting frame
-	integer				:: NSAVC		!--Number of frames per coordinate save
-	integer				:: NATOMNFREAT		!--Number of fixed atoms
-	integer				:: NTITLE		!--Number of 80-character strings in title (set as 2)
-	integer				:: NATOM		!--Number of atoms
-	integer, dimension (5)		:: FIVEZ		!--According to documentation, five zeros, but first is actually NSET
-	integer, dimension (9)		:: NINEZ		!--Nine zeros
-	character(len=4)		:: HDR			!--Header string, value 'CORD'
+	integer							:: n, i			!--Dummy variables
+	integer							:: NSET,vmd_sets!--Number of frames
+	integer							:: ISTRT		!--Starting frame
+	integer							:: NSAVC		!--Number of frames per coordinate save
+	integer							:: NATOMNFREAT		!--Number of fixed atoms
+	integer							:: NTITLE		!--Number of 80-character strings in title (set as 2)
+	integer							:: NATOM		!--Number of atoms
+	integer, dimension (5)			:: FIVEZ		!--According to documentation, five zeros, but first is actually NSET
+	integer, dimension (9)			:: NINEZ		!--Nine zeros
+	character(len=4)				:: HDR			!--Header string, value 'CORD'
 	character(len=80), dimension(2)	:: TITLE	        !--Title(s)
+	real 							:: time_start, time_end
 	real,allocatable,dimension(:)   :: Xbuf, Ybuf, Zbuf	!--Buffers used to copy from direct access to binary
-	double precision		:: DELTA		!--Timestep between frames
+	double precision				:: DELTA		!--Timestep between frames
 
 
-	print*, 'Generating final halo VMD.dcd ouput file - for large systems this may take some time'
+	print*, 'Generating final VMD.dcd ouput file - for large systems or'
+	print*, 'long runs this may take some time'
+
+	call cpu_time(time_start)
 
 	!Determine size of file datatype
 	!inquire(file='testfile.dcd', recl=datasize)
@@ -327,19 +359,28 @@ subroutine reformat_dcd_halo
  	!call MPI_type_size(MPI_real,datasize,ierr)
 	!print*, 'datasize', datasize
 
+	if (Nvmd_intervals.eq.0) then
+		vmd_sets = (Nsteps-initialstep+1)/tplot
+	else
+		vmd_sets = vmd_count-1
+		!do i = 1,size(vmd_intervals,2)
+		!	vmd_sets = vmd_sets + (vmd_intervals(2,i) - vmd_intervals(1,i))
+		!enddo
+	endif
+
 	!Set header information	
-	HDR		=	'CORD'				!header text
-	NSET		=	(Nsteps/tplot)			!number of recorded frames
-	ISTRT		=	0				!the starting timestep
-	NSAVC		=	1				!number of timesteps between dcd frame saves
+	HDR			=	'CORD'				!header text
+	NSET		=	vmd_sets			!number of recorded frames
+	ISTRT		=	0					!the starting timestep
+	NSAVC		=	1					!number of timesteps between dcd frame saves
 	FIVEZ(1)	=	NSET				!not sure why
-	FIVEZ(2:5)	=	0				!buffer zeros
-	NATOMNFREAT	=	0				!number of fixed atoms?
+	FIVEZ(2:5)	=	0					!buffer zeros
+	NATOMNFREAT	=	0					!number of fixed atoms?
 	DELTA		=	delta_t				!delta_t (x-plor is double, charmm is real)
-	NINEZ(:)	=	0				!buffer zeros
-	NTITLE		=	2				!number of 80-character strings in title
+	NINEZ(:)	=	0					!buffer zeros
+	NTITLE		=	2					!number of 80-character strings in title
 	TITLE(1)	=	'  Simulation record file '	!
-	TITLE(2)        =	'   Written in parallel   '	!
+	TITLE(2)    =	'   Written in parallel   '	!
 	NATOM		=	extralloc			!number of particles
 
 	allocate(Xbuf(NSET*extralloc))
@@ -355,6 +396,7 @@ subroutine reformat_dcd_halo
 		read(17,rec=(i-1)*nd*extralloc+n) Xbuf(n+extralloc*(i-1))
 		read(17,rec=(i-1)*nd*extralloc+n+extralloc) Ybuf(n+extralloc*(i-1))
 		read(17,rec=(i-1)*nd*extralloc+n+2*extralloc) Zbuf(n+extralloc*(i-1))
+		if (mod(i,100) .eq. 0) print*, 'Reading % complete =', (100.d0*i/NSET)
 	enddo
 	enddo
 
@@ -371,9 +413,14 @@ subroutine reformat_dcd_halo
 		write(3) Xbuf((i-1)*extralloc+1:i*extralloc)
 		write(3) Ybuf((i-1)*extralloc+1:i*extralloc)
 		write(3) Zbuf((i-1)*extralloc+1:i*extralloc)
+		if (mod(i,100) .eq. 0) print*, 'Writing % complete =', (100.d0*i/NSET)
 	enddo
 
 	close(3,status='keep')
+
+	call cpu_time(time_end)
+
+ 	print '(a,g10.2,a)', 'Generated final VMD.dcd ouput file in', time_end - time_start, ' seconds'
 
 end subroutine reformat_dcd_halo
 

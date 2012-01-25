@@ -46,6 +46,16 @@ implicit none
 		if (integration_algorithm.eq.0) print*, 'Integration algorithm: leapfrog-Verlet'
 		if (integration_algorithm.eq.1) print*, 'Integration algorithm: velocity-Verlet'
 		print*, 'Ensemble: ', ensemble
+		select case(force_list) 
+		case(0)
+			print*,'All pairs force calculation (using Newton`s 3rd law)'
+		case(1)
+			print*,'Cell list force calculation'
+		case(2)
+			print*,'Neighbour list force calculation'
+		case(3)
+			print*,'Neighbour list force calculation (using Newton`s 3rd law)'
+		end select
 		print*, 'Starting step of simulation:', initialstep
 		print*, 'Generate output file every: ',  tplot, 'steps'
 		print*, 'Density: ',              density

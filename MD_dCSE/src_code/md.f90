@@ -58,7 +58,7 @@ subroutine setup_MD
 	call assign_to_cell                     !Assign molecules to cells
 	call messenger_proc_topology            !Obtain topology of processors
 	call messenger_updateborders(1)         !Update borders between processors
-	call assign_to_neighbourlist_halfint    !Build neighbourlist using cell list
+	call assign_to_neighbourlist		    !Build neighbourlist using cell list
 	call setup_initial_record               !Setup print headers and output inital
 
 #if USE_COUPLER
@@ -101,12 +101,14 @@ subroutine simulation_MD
 			call sendmols                           !Exchange particles between processors
   			call assign_to_cell                     !Re-build linklist for domain cells
 			call messenger_updateborders(rebuild)   !Update borders between processors
-			call assign_to_neighbourlist_halfint    !Setup neighbourlist
+			call assign_to_neighbourlist		    !Setup neighbourlist
 		endif
 
  	enddo
 
 contains
+
+!---------------------------------------------
 
 	subroutine md_advance_vv
 	implicit none
@@ -118,6 +120,8 @@ contains
 		call simulation_record                      !Evaluate and write properties 
 
 	end subroutine md_advance_vv
+
+!---------------------------------------------
 	
 	subroutine md_advance_lfv
 	implicit none
