@@ -117,11 +117,15 @@ subroutine simulation_record
 	!call evaluate_properties_radialdist
 
 	!Obtain and record velocity and mass
-	if (velocity_outflag .ne. 0) call velocity_averaging(velocity_outflag)
+	if (velocity_outflag .ne. 0) then
+		call velocity_averaging(velocity_outflag)
+	else
+		if(mass_outflag .ne. 0) call mass_averaging(mass_outflag)
+	endif
 
 	!Obtain and record mass only
-	if (velocity_outflag .eq. 0 .and. &
-		mass_outflag .ne. 0) call mass_averaging(mass_outflag)
+	!if (velocity_outflag .eq. 0 .and. &
+	!	mass_outflag .ne. 0) call mass_averaging(mass_outflag)
 
 
 	!Obtain and record molecular diffusion
@@ -195,7 +199,6 @@ subroutine evaluate_macroscopic_properties_parallel
 	!Root processes prints results
 	if (irank .eq. iroot) then
 		
-
 		kinenergy   = (0.5d0 * v2sum) / real(globalnp,kind(0.d0))
 		potenergy   = potenergysum /(2.d0*real(globalnp,kind(0.d0))) !N.B. extra 1/2 as all interactions calculated
 		if (potential_flag.eq.1) then
@@ -974,7 +977,7 @@ subroutine cumulative_mass_flux
 			!For simplicity, if more than one surface has been crossed surface fluxes of intermediate cells
 			!are not included. This assumption => more reasonable as Delta_t => 0
 			!imaxloc = maxloc(abs(crossplane))
-			ixyz = imaxloc(abs(crossplane)) 
+			ixyz = imaxloc(abs(crossplane))
 
 			!Add mass flux to the new bin surface count and take from the old
 			mass_flux(ibin1(1),ibin1(2),ibin1(3),ixyz+3*heaviside(dble(crossplane(ixyz)))) = & 
@@ -1092,7 +1095,7 @@ subroutine cumulative_momentum_flux(ixyz)
 			!Replace Signum function with this functions which gives a
 			!check for plane crossing and the correct sign 
 			crossplane = ceiling((r(n,ixyz)+halfdomain(ixyz)-shift)/planespacing) & 
-				    -ceiling((r(n,ixyz)-delta_t*v(n,ixyz)+halfdomain(ixyz)-shift)/planespacing)
+				    	-ceiling((r(n,ixyz)-delta_t*v(n,ixyz)+halfdomain(ixyz)-shift)/planespacing)
 
 			if (crossplane .ne. 0) then
 
@@ -1300,6 +1303,8 @@ subroutine energy_flux_averaging(ixyz)
 	integer, save		:: sample_count
 	double precision	:: binface
 
+	if (eflux_outflag .eq. 0) return
+
 	call cumulative_energy_flux(ixyz)
 	sample_count = sample_count + 1
 	if (sample_count .eq. Neflux_ave) then
@@ -1470,12 +1475,12 @@ subroutine cumulative_energy_flux(ixyz)
 
 					!Calculate velocity at time of intersection
 					!crosstime = (r(n,jxyz) - rplane)/v(n,jxyz)
-					velvect(:) = v(n,:) + 0.5d0*a(n,:)*delta_t
+					velvect(:) = v(n,:) !+ 0.5d0*a(n,:)*delta_t
 					energy = 0.5d0 * (dot_product(velvect,velvect) + potenergymol(n))
 					!Change in velocity at time of crossing is not needed as velocity assumed constant 
 					!for timestep and changes when forces are applied.
 
-					!Add Momentum flux over face
+					!Add Energy flux over face
 					energy_flux(cbin(1),cbin(2),cbin(3),1) = & 
 						energy_flux(cbin(1),cbin(2),cbin(3),1) & 
 					      - energy*dble(onfacexb)*abs(crossface(jxyz))
@@ -1518,35 +1523,32 @@ subroutine energy_snapshot
 
 	integer											:: n,i,j,k,ixyz,m
 	integer		,dimension(3)						:: ibin
-	integer		,dimension(:,:,:)  ,allocatable		:: volume_mass_temp
-	double precision								:: binvolume
-	double precision,dimension(3)					:: ri, mbinsize, bincentre
-	double precision,dimension(:,:,:,:),allocatable :: volume_momentum_temp
+	double precision								:: binvolume, energy
+	double precision,dimension(3)					:: ri, mbinsize, bincentre,velvect
+	double precision,dimension(:,:,:),allocatable 	:: volume_energy_temp
 
 	mbinsize(:) = domain(:) / nbins(:)
 
-	!Allocate temporary array for mass and momentum in volume
-	allocate(volume_mass_temp(nbins(1)+2,nbins(2)+2,nbins(3)+2))
-	allocate(volume_momentum_temp(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
+	!Allocate temporary array for energy in volume
+	allocate(volume_energy_temp(nbins(1)+2,nbins(2)+2,nbins(3)+2))
 
 	!Reset Control Volume momentum 
-	volume_mass_temp = 0
-	volume_momentum_temp = 0.d0
+	volume_energy_temp = 0.d0
 	do n = 1,np
 		!Add up current volume momentum densities
 		ibin(:) = ceiling((r(n,:)+halfdomain(:))/mbinsize(:)) + 1
-		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = volume_mass_temp(ibin(1),ibin(2),ibin(3)) + 1
-		volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) = volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) + v(n,:)
+		velvect(:) = v(n,:) !+ 0.5d0*a(n,:)*delta_t
+		energy = 0.5d0 * (dot_product(velvect,velvect) + potenergymol(n))
+		volume_energy_temp(ibin(1),ibin(2),ibin(3)) = volume_energy_temp(ibin(1),ibin(2),ibin(3)) + energy
 	enddo
 
 	binvolume = (domain(1)/nbins(1))*(domain(2)/nbins(2))*(domain(3)/nbins(3))
-	volume_momentum_temp = volume_momentum_temp/(binvolume)
+	volume_energy_temp = volume_energy_temp/(binvolume)
 
 	!Output Control Volume momentum change and fluxes
-	call velocity_bin_io(volume_mass_temp,volume_momentum_temp,'snap')
+	call energy_bin_io(volume_energy_temp,'snap')
 
-	deallocate(volume_mass_temp)
-	deallocate(volume_momentum_temp)
+	deallocate(volume_energy_temp)
 
 end subroutine energy_snapshot
 
@@ -1561,9 +1563,9 @@ subroutine pressure_tensor_forces(molno, rij, accijmag)
 	use module_record
 	implicit none
 
-	integer						:: ixyz, jxyz, i
-	integer,intent(in)				:: molno
-	double precision,intent(in)     		:: accijmag    !Non directional component of acceleration
+	integer										:: ixyz, jxyz, i
+	integer,intent(in)							:: molno
+	double precision,intent(in)     			:: accijmag    !Non directional component of acceleration
 	double precision,dimension(3),intent(in)   	:: rij         !vector between particles i and j
 
 	do ixyz = 1,3
@@ -1584,14 +1586,14 @@ subroutine pressure_tensor_forces_VA(ri,rj,rij,accijmag)
 	use module_record
 	implicit none
 
-	integer						:: ixyz, jxyz,i,j,k,l,n
-	integer						:: diff
-	integer,dimension(3)				:: ibin, jbin, bindiff 
-	integer,dimension(:,:)		   ,allocatable	:: interbin, interbindiff
-	double precision,intent(in)            		:: accijmag    !Non directional component of acceleration
-	double precision				:: shift
-	double precision,dimension(3), intent(in)	:: rij, ri, rj
-	double precision,dimension(3)			:: VAbinsize, normal, p
+	integer											:: ixyz, jxyz,i,j,k,l,n
+	integer											:: diff
+	integer,dimension(3)							:: ibin, jbin, bindiff 
+	integer,dimension(:,:)		   ,allocatable		:: interbin, interbindiff
+	double precision,intent(in)            			:: accijmag    !Non directional component of acceleration
+	double precision								:: shift
+	double precision,dimension(3), intent(in)		:: rij, ri, rj
+	double precision,dimension(3)					:: VAbinsize, normal, p
 	double precision,dimension(:,:)	   ,allocatable	:: intersection
 	double precision,dimension(:,:,:)  ,allocatable	:: MLfrac !Magnitude of fraction of stress
 	double precision,dimension(:,:,:,:),allocatable	:: Lfrac  !Fraction of stress in a given cell
@@ -2020,9 +2022,9 @@ subroutine control_volume_forces(fij,ri,rj,molnoi,molnoj)
 use module_record
 implicit none
 
-	integer				:: ixyz, n, molnoi, molnoj
-	integer,dimension(3)		:: ibin, jbin
-	double precision		:: binforce
+	integer							:: ixyz, n, molnoi, molnoj
+	integer,dimension(3)			:: ibin, jbin
+	double precision				:: binforce
 	double precision,dimension(3)	:: ri, rj, fij,crossplane,fsurface
 	double precision,dimension(3)	:: Fbinsize, bintopi, binboti, bintopj, binbotj
 
@@ -2071,11 +2073,11 @@ subroutine control_volume_stresses(fij,ri,rj,molnoi,molnoj)
 use module_record
 implicit none
 
-	integer				:: i,j,k,ixyz,n,molnoi,molnoj,tempi
-	integer				:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
-	integer,dimension(3)		:: cbin, ibin, jbin
-	double precision		:: binforce
-	double precision,dimension(3)	:: ri,rj,rij,fij,fsurface,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
+	integer							:: i,j,k,ixyz,n,molnoi,molnoj,tempi
+	integer							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
+	integer,dimension(3)			:: cbin, ibin, jbin
+	double precision				:: binforce
+	double precision,dimension(3)	:: ri,rj,rij,fij,fsurface,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb,velvect
 	double precision,dimension(3)	:: Fbinsize, bintop, binbot, temp
 
 	!Calculate rij
@@ -2110,24 +2112,24 @@ implicit none
 		Pzb=(/ri(1)+(rij(1)/rij(3))*(binbot(3)-ri(3)), ri(2)+(rij(2)/rij(3))*(binbot(3)-ri(3)), binbot(3) /)
 
 		onfacexb =  	(sign(1.d0,binbot(1)- rj(1)) - sign(1.d0,binbot(1)- ri(1)))* &
-				(heaviside(bintop(2)-Pxb(2)) - heaviside(binbot(2)-Pxb(2)))* &
-				(heaviside(bintop(3)-Pxb(3)) - heaviside(binbot(3)-Pxb(3)))
+						(heaviside(bintop(2)-Pxb(2)) - heaviside(binbot(2)-Pxb(2)))* &
+						(heaviside(bintop(3)-Pxb(3)) - heaviside(binbot(3)-Pxb(3)))
 		onfaceyb =  	(sign(1.d0,binbot(2)- rj(2)) - sign(1.d0,binbot(2)- ri(2)))* &
-				(heaviside(bintop(1)-Pyb(1)) - heaviside(binbot(1)-Pyb(1)))* &
-				(heaviside(bintop(3)-Pyb(3)) - heaviside(binbot(3)-Pyb(3)))
+						(heaviside(bintop(1)-Pyb(1)) - heaviside(binbot(1)-Pyb(1)))* &
+						(heaviside(bintop(3)-Pyb(3)) - heaviside(binbot(3)-Pyb(3)))
 		onfacezb =  	(sign(1.d0,binbot(3)- rj(3)) - sign(1.d0,binbot(3)- ri(3)))* &
-				(heaviside(bintop(1)-Pzb(1)) - heaviside(binbot(1)-Pzb(1)))* &
-				(heaviside(bintop(2)-Pzb(2)) - heaviside(binbot(2)-Pzb(2)))
+						(heaviside(bintop(1)-Pzb(1)) - heaviside(binbot(1)-Pzb(1)))* &
+						(heaviside(bintop(2)-Pzb(2)) - heaviside(binbot(2)-Pzb(2)))
 
 		onfacext =  	(sign(1.d0,bintop(1)- rj(1)) - sign(1.d0,bintop(1)- ri(1)))* &
-				(heaviside(bintop(2)-Pxt(2)) - heaviside(binbot(2)-Pxt(2)))* &
+						(heaviside(bintop(2)-Pxt(2)) - heaviside(binbot(2)-Pxt(2)))* &
 	            		(heaviside(bintop(3)-Pxt(3)) - heaviside(binbot(3)-Pxt(3)))
-		onfaceyt = 	(sign(1.d0,bintop(2)- rj(2)) - sign(1.d0,bintop(2)- ri(2)))* &
-				(heaviside(bintop(1)-Pyt(1)) - heaviside(binbot(1)-Pyt(1)))* &
-				(heaviside(bintop(3)-Pyt(3)) - heaviside(binbot(3)-Pyt(3)))
+		onfaceyt = 		(sign(1.d0,bintop(2)- rj(2)) - sign(1.d0,bintop(2)- ri(2)))* &
+						(heaviside(bintop(1)-Pyt(1)) - heaviside(binbot(1)-Pyt(1)))* &
+						(heaviside(bintop(3)-Pyt(3)) - heaviside(binbot(3)-Pyt(3)))
 		onfacezt =  	(sign(1.d0,bintop(3)- rj(3)) - sign(1.d0,bintop(3)- ri(3)))* &
-				(heaviside(bintop(1)-Pzt(1)) - heaviside(binbot(1)-Pzt(1)))* &
-				(heaviside(bintop(2)-Pzt(2)) - heaviside(binbot(2)-Pzt(2)))
+						(heaviside(bintop(1)-Pzt(1)) - heaviside(binbot(1)-Pzt(1)))* &
+						(heaviside(bintop(2)-Pzt(2)) - heaviside(binbot(2)-Pzt(2)))
 
 		!Prevent halo molecules from being included but include molecule which have left domain 
 		!before rebuild has been triggered.
@@ -2144,6 +2146,17 @@ implicit none
 		Pxyface(cbin(1),cbin(2),cbin(3),:,4) = Pxyface(cbin(1),cbin(2),cbin(3),:,4) + fij(:)*dble(onfacext)
 		Pxyface(cbin(1),cbin(2),cbin(3),:,5) = Pxyface(cbin(1),cbin(2),cbin(3),:,5) + fij(:)*dble(onfaceyt)
 		Pxyface(cbin(1),cbin(2),cbin(3),:,6) = Pxyface(cbin(1),cbin(2),cbin(3),:,6) + fij(:)*dble(onfacezt)
+
+		!Stress acting on face over volume
+		if (eflux_outflag .ne. 0) then
+			velvect(:) = v(molnoi,:)
+			Pxyvface(cbin(1),cbin(2),cbin(3),1) = Pxyvface(cbin(1),cbin(2),cbin(3),1) + dot_product(fij,velvect)*dble(onfacexb)
+			Pxyvface(cbin(1),cbin(2),cbin(3),2) = Pxyvface(cbin(1),cbin(2),cbin(3),2) + dot_product(fij,velvect)*dble(onfaceyb)
+			Pxyvface(cbin(1),cbin(2),cbin(3),3) = Pxyvface(cbin(1),cbin(2),cbin(3),3) + dot_product(fij,velvect)*dble(onfacezb)
+			Pxyvface(cbin(1),cbin(2),cbin(3),4) = Pxyvface(cbin(1),cbin(2),cbin(3),4) + dot_product(fij,velvect)*dble(onfacext)
+			Pxyvface(cbin(1),cbin(2),cbin(3),5) = Pxyvface(cbin(1),cbin(2),cbin(3),5) + dot_product(fij,velvect)*dble(onfaceyt)
+			Pxyvface(cbin(1),cbin(2),cbin(3),6) = Pxyvface(cbin(1),cbin(2),cbin(3),6) + dot_product(fij,velvect)*dble(onfacezt)
+		endif
 
 		!Force applied to volume
 		fsurface(:) = 0.d0

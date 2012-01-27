@@ -44,16 +44,15 @@
 module messenger
 	use mpi
 	use computational_constants_MD
-    use coupler
 
     integer MD_COMM                      ! global communicator
 	integer myid                         ! my process rank
 	integer idroot                       ! rank of root process
 
 	! Grid topology
-	integer icomm_grid                   ! comm for grid topology
-	integer, allocatable :: icoord(:,:)  ! proc grid coordinates
-	integer	icomm_xyz(3) 		     ! Directional subcomms
+	integer 					:: icomm_grid	! comm for grid topology
+	integer, allocatable 		:: icoord(:,:)  ! proc grid coordinates
+	integer						:: icomm_xyz(3)	! Directional subcomms
 	integer, dimension(8,2) 	:: proc_topology_corner
 	integer, dimension(4,3,2) 	:: proc_topology_edge
 
@@ -68,16 +67,18 @@ end module
 !======================================================================
 subroutine messenger_invoke()
 	use messenger
- 
+#if USE_COUPLER
+	use coupler
+#endif
 
-        call MPI_init(ierr)
-        
-        if (coupler_is_active) then
-                call coupler_create_comm(COUPLER_MD,MD_COMM,ierr)
-                prefix_dir = "./md_data/"
-        else
-                MD_COMM = MPI_COMM_WORLD 
-        endif
+	call MPI_init(ierr)
+    
+#if USE_COUPLER
+	call coupler_create_comm(COUPLER_MD,MD_COMM,ierr)
+    prefix_dir = "./md_data/"
+#else
+    MD_COMM = MPI_COMM_WORLD 
+#endif
          
 end
 
@@ -89,63 +90,63 @@ subroutine messenger_init()
 	implicit none
 	!include "mpif.h"
 
-	integer :: idims(nd)
-        integer :: ndims, ip, ixyz
-	logical :: Lremain_dims(nd)
+	integer 	:: idims(nd)
+	integer 	:: ndims, ip, ixyz
+	logical 	:: Lremain_dims(nd)
 
 	! Initialize MPI
 	call MPI_comm_size (MD_COMM, nproc, ierr)
 	call MPI_comm_rank (MD_COMM, myid, ierr)
 
-        ! Get the periodic constrains form MD.in
-        ! and the processor topology description
-        open(1,file=trim(prefix_dir)//'MD.in')
+    ! Get the periodic constrains form MD.in
+    ! and the processor topology description
+    open(1,file=trim(prefix_dir)//'MD.in')
 
-        call locate(1,'PERIODIC',.true.)
+	call locate(1,'PERIODIC',.true.)
 	read(1,*) periodic(1)
 	read(1,*) periodic(2)
 	read(1,*) periodic(3)
 
-        call locate(1,'PROCESSORS',.true.)
-        read(1,*) npx
-        read(1,*) npy
-        read(1,*) npz
+    call locate(1,'PROCESSORS',.true.)
+    read(1,*) npx
+    read(1,*) npy
+    read(1,*) npz
 
 	close(1,status='keep')      !Close input file
 
-        ! set Lperiodic
-        Lperiodic(1:nd) = .true.
-        where(periodic(1:nd) == 0) Lperiodic(1:nd) =.false.  
-        write(0,*) 'Lperiodic ', Lperiodic
+    ! set Lperiodic
+    Lperiodic(1:nd) = .true.
+    where(periodic(1:nd) == 0) Lperiodic(1:nd) =.false.  
+    write(0,*) 'Lperiodic ', Lperiodic
 
 	! Grid topology
 
-        ! if npz == 0 in MD.in it means that npz = nproc/(npx*npy)
-        if (npz == 0) then 
-                npz = nproc/(npx*npy)
-        endif
+    ! if npz == 0 in MD.in it means that npz = nproc/(npx*npy)
+    if (npz == 0) then 
+            npz = nproc/(npx*npy)
+    endif
 
-        !check if npx*npy*npz=nproc
-        if (npx * npy * npz /= nproc ) then
-                write(*,*) ' Wrong  specification for processor topology, nproc /= npx*npy*npz'
-                call MPI_Abort(MPI_COMM_WORLD,1,ierr)
-        endif
+    !check if npx*npy*npz=nproc
+    if (npx * npy * npz /= nproc ) then
+            write(*,*) ' Wrong  specification for processor topology, nproc /= npx*npy*npz'
+            call MPI_Abort(MPI_COMM_WORLD,1,ierr)
+    endif
 
-        ! allocate arrays that depend on topology parameters
+    ! allocate arrays that depend on topology parameters
 
-        allocate(ibmin(npx), ibmax(npx), ibmino(npx), ibmaxo(npx), &
-		jbmin(npy), jbmax(npy), jbmino(npy), jbmaxo(npy), &
-		kbmin(npz), kbmax(npz), kbmino(npz), kbmaxo(npz), stat=ierr)
-        if (ierr /= 0) then 
-                write(*,*) "Error allocating topology arrays in messenger_init"
-                call MPI_Abort(MD_COMM,2,ierr)
-        endif
+    allocate(ibmin(npx), ibmax(npx), ibmino(npx), ibmaxo(npx), &
+	jbmin(npy), jbmax(npy), jbmino(npy), jbmaxo(npy), &
+	kbmin(npz), kbmax(npz), kbmino(npz), kbmaxo(npz), stat=ierr)
+    if (ierr /= 0) then 
+            write(*,*) "Error allocating topology arrays in messenger_init"
+            call MPI_Abort(MD_COMM,2,ierr)
+    endif
 
-        allocate(icoord(3,nproc),stat=ierr)
-        if (ierr /= 0) then 
-                write(*,*) "Error allocating icoord in messenger_init"
-                call MPI_Abort(MD_COMM,2,ierr)
-        endif
+    allocate(icoord(3,nproc),stat=ierr)
+    if (ierr /= 0) then 
+            write(*,*) "Error allocating icoord in messenger_init"
+            call MPI_Abort(MD_COMM,2,ierr)
+    endif
 
 	ndims = nd
 	idims(1) = npx

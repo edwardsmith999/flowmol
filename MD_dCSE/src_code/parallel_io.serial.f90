@@ -141,7 +141,6 @@ subroutine setup_inputs
 	read(1,*) initialnunits(1)		!x dimension split into number of cells
 	read(1,*) initialnunits(2)		!y dimension split into number of cells
 	read(1,*) initialnunits(3)		!z dimension split into number of cells
-
 	call locate(1,'INTEGRATION_ALGORITHM',.true.)
 	read(1,*) integration_algorithm
 	if (integration_algorithm.eq.0) then
@@ -153,14 +152,11 @@ subroutine setup_inputs
 	else 
 		call error_abort( 'INTEGRATION_ALGORITHM improperly specified in input file.')
 	end if
-	
 	call locate(1,'ENSEMBLE',.true.)
 	read(1,*) ensemble
 	ensemble = trim(ensemble)
-
 	call locate(1,'FORCE_LIST',.true.)	!LJ or FENE potential
 	read(1,*) force_list
-
 	call locate(1,'POTENTIAL_FLAG',.true.)	!LJ or FENE potential
 	read(1,*) potential_flag
 	if (potential_flag.eq.1) then
@@ -169,7 +165,6 @@ subroutine setup_inputs
 		read(1,*) k_c
 		read(1,*) R_0
 	end if	
-
 	!Input computational co-efficients
 	call locate(1,'NSTEPS',.true.)
 	read(1,*) Nsteps 		!Number of computational steps
@@ -516,6 +511,13 @@ subroutine setup_restart_inputs
 	if (checkint .ne. initialnunits(3)) print*, 'Discrepancy between z domain size', &
 				'in input & restart file - restart file will be used'
 
+	!Check periodic BC and shear
+	call locate(1,'PERIODIC',.true.)
+	read(1,*) periodic(1)
+	read(1,*) periodic(2)
+	read(1,*) periodic(3)
+
+
 	!Get number of extra steps, timestep and plot frequency from input file	
 	call locate(1,'NSTEPS',.true.)
 	read(1,* ) extrasteps       !Number of computational steps
@@ -555,11 +557,6 @@ subroutine setup_restart_inputs
 	call locate(1,'FORCE_LIST',.true.)	!LJ or FENE potential
 	read(1,*) force_list
 	
-	!Check periodic BC and shear
-	call locate(1,'PERIODIC',.true.)
-	read(1,*) periodic(1)
-	read(1,*) periodic(2)
-	read(1,*) periodic(3)
 
 	call locate(1,'DEFINE_SHEAR',.false.,found_in_input)
 	if (found_in_input) then
@@ -573,6 +570,15 @@ subroutine setup_restart_inputs
         	endif
 	endif
 
+	!-------------------------------------
+	!Flag to determine molecular tags
+	!-------------------------------------
+	!Note: For initialunitsize "a"
+	!		 		 [  o     o ]
+	!a (1 cell size) [     o    ]  a/2 (distance between molcules)	
+	!		 		 [  o     o ]
+	!		  		 [__________]  a/4 (distance from bottom of domain)
+	!
 	!Set all to zero if no specifiers
 	!Setup wall speeds
 	wallslidev = 0.d0
@@ -918,9 +924,9 @@ subroutine simulation_header
 	write(3,*)  'Separated by distance ;  planespacing  ;', planespacing 
 	write(3,*)  'with first plane at ;  planes ;', planes(1)
 	write(3,*)	'Shear direction ; shear_direction;', shear_direction
-	write(3,*)  'Integration algorithm=Leapfrog or Velocity-Verlet ; integration_algorithm ;', integration_algorithm
+	write(3,*)  'Leapfrog or Velocity-Verlet ; integration_algorithm ;', integration_algorithm
 	write(3,*)  'Force calculation list methodd ; force_list ;', force_list
-	write(3,*)  'Ensemble; ensemble; ', ensemble
+	!write(3,*)  'Ensemble; ensemble; ', ensemble		!MATLAB input functions can't deal with words...
 	write(3,*)	'Shear direction ; shear_direction;', shear_direction
 
 	close(3,status='keep')
@@ -1296,12 +1302,12 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 		i = halobins(n,1); j = halobins(n,2); k = halobins(n,3)  
 		!Change in number of Molecules in halo cells
 		CV_mass_out(modulo((i-2),nbins(1))+2, & 
-			    modulo((j-2),nbins(2))+2, & 
-			    modulo((k-2),nbins(3))+2) = & 
+			    	modulo((j-2),nbins(2))+2, & 
+			    	modulo((k-2),nbins(3))+2) = & 
 			    CV_mass_out(modulo((i-2),nbins(1))+2, & 
-					modulo((j-2),nbins(2))+2, & 
-					modulo((k-2),nbins(3))+2) &
-						+ CV_mass_out(i,j,k)
+							modulo((j-2),nbins(2))+2, & 
+							modulo((k-2),nbins(3))+2) &
+									+ CV_mass_out(i,j,k)
 	enddo
 
 	if (io_type .eq. 'snap') then
@@ -1309,7 +1315,6 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 	else
 		m = iter/(tplot*Nmass_ave)
 	endif
-	!print*, m,iter,tplot,Nmass_ave, io_type, size(CV_mass_out(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1))
 	!Write mass to file
 	inquire(iolength=length) CV_mass_out(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1)
 	open (unit=5,file=filename,form="unformatted",access='direct',recl=length)
@@ -1391,6 +1396,55 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 	close(6,status='keep')
 
 end subroutine velocity_bin_io
+
+
+
+!---------------------------------------------------------------------------------
+! Record velocity in 3D bins throughout domain
+
+subroutine energy_bin_io(CV_energy_out,io_type)
+	use module_parallel_io
+	use calculated_properties_MD
+	implicit none
+
+	integer					:: n,m,i,j,k
+	integer					:: length
+	double precision		:: CV_energy_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
+	character(4)			:: io_type
+	character(13)			:: filename
+
+	!Work out correct filename for i/o type
+	write(filename, '(a9,a4)' ) 'results/e', io_type
+
+	!---------------Correct for surface fluxes on halo cells---------------
+	!Include halo surface fluxes to get correct values for all cells
+	do n = 1, nhalobins
+		i = halobins(n,1); j = halobins(n,2); k = halobins(n,3)  
+
+		!Change in energy in halo cells
+		CV_energy_out(modulo((i-2),nbins(1))+2, & 
+			      	modulo((j-2),nbins(2))+2, & 
+			      	modulo((k-2),nbins(3))+2) = & 
+				CV_energy_out(modulo((i-2),nbins(1))+2,& 
+						modulo((j-2),nbins(2))+2,&
+						modulo((k-2),nbins(3))+2) & 
+							+ CV_energy_out(i,j,k)
+	enddo
+
+	if (io_type .eq. 'snap') then
+		!CV_energy_out = CV_energy_out / (tplot*Nvflux_ave)
+		m = iter/(Neflux_ave) + 1 !Initial snapshot taken
+	else
+		!CV_energy_out = CV_energy_out / (tplot*Nvel_ave)
+		m = iter/(tplot*Neflux_ave)
+	endif
+	!Write velocity to file
+	inquire(iolength=length) CV_energy_out(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1)
+	open (unit=6, file=filename,form="unformatted",access='direct',recl=length)
+	write(6,rec=m) CV_energy_out(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1)
+	close(6,status='keep')
+
+end subroutine energy_bin_io
 
 !---------------------------------------------------------------------------------
 !Calculate Virial Stress in volume
@@ -1496,8 +1550,12 @@ subroutine mass_flux_io
 	do n = 1, nhalobins
 		i = halobins(n,1); j = halobins(n,2); k = halobins(n,3)  
 		!Flux over halo cells
-		mass_flux(modulo((i-2),nbins(1))+2,modulo((j-2),nbins(2))+2,modulo((k-2),nbins(3))+2,:) = & 
-		mass_flux(modulo((i-2),nbins(1))+2,modulo((j-2),nbins(2))+2,modulo((k-2),nbins(3))+2,:) + mass_flux(i,j,k,:)
+		mass_flux(modulo((i-2),nbins(1))+2, & 
+				  modulo((j-2),nbins(2))+2, & 
+				  modulo((k-2),nbins(3))+2,:) = & 
+			mass_flux(modulo((i-2),nbins(1))+2, & 
+					  modulo((j-2),nbins(2))+2, &
+					  modulo((k-2),nbins(3))+2,:) + mass_flux(i,j,k,:)
 	enddo
 
 	!Write six CV surface mass fluxes to file

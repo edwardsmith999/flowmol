@@ -90,7 +90,7 @@ subroutine simulation_MD
 	initialstep = initialstep + 1                   !Increment initial step by one 
 
 	do iter = initialstep, Nsteps                   !Loop over specified output steps 
-		
+	
 		if (lfv) call md_advance_lfv                !Advance simulation (leap-frog Verlet algorithm)
 		if (vv)  call md_advance_vv                 !Advance simulation (velocity Verlet algorithm)
 
@@ -109,21 +109,9 @@ subroutine simulation_MD
 contains
 
 !---------------------------------------------
+! 		Leapfrom integration routines
 
-	subroutine md_advance_vv
-	implicit none
-		
-		call simulation_move_particles_vv(1)        !Find r(t+dt) and v(t+dt/2)
-		call messenger_updateborders(0)             !Update borders between processors
-		call simulation_compute_forces              !Calculate forces on all particles
-		call simulation_move_particles_vv(2)        !Find v(t+dt)
-		call simulation_record                      !Evaluate and write properties 
-
-	end subroutine md_advance_vv
-
-!---------------------------------------------
-	
-	subroutine md_advance_lfv
+subroutine md_advance_lfv
 	implicit none
 		
 		call simulation_compute_forces 	                    !Calculate forces on particles	
@@ -137,6 +125,7 @@ contains
 
 		call simulation_move_particles                      !Move particles as a result of forces
 		call momentum_flux_averaging(vflux_outflag)         !Average momnetum flux after movement of particles
+		call energy_flux_averaging(eflux_outflag)
 
 #if USE_COUPLER
 		call socket_coupler_average(iter)                   !Calculate averages of MD to pass to CFD
@@ -144,6 +133,20 @@ contains
 		call messenger_updateborders(0)                     !Update borders between processors
 
 	end subroutine md_advance_lfv
+
+!---------------------------------------------
+! 		Velocity Verlet integration routines
+
+subroutine md_advance_vv
+	implicit none
+		
+		call simulation_move_particles_vv(1)        !Find r(t+dt) and v(t+dt/2)
+		call messenger_updateborders(0)             !Update borders between processors
+		call simulation_compute_forces              !Calculate forces on all particles
+		call simulation_move_particles_vv(2)        !Find v(t+dt)
+		call simulation_record                      !Evaluate and write properties 
+
+	end subroutine md_advance_vv
 
 
 end subroutine simulation_MD
