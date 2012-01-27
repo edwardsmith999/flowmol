@@ -81,6 +81,10 @@ subroutine simulation_record
 	integer			:: vmd_iter
 	integer,save	:: i = 1
 
+	call mass_flux_averaging							!Average mass flux before movement of particles
+	call momentum_flux_averaging(vflux_outflag)         !Average momnetum flux after movement of particles
+	call energy_flux_averaging(eflux_outflag)			!Average energy flux after movement of particles
+
 	!Only record every tplot iterations
 	if (mod(iter,tplot) .ne. 0) return
 
@@ -117,16 +121,11 @@ subroutine simulation_record
 	!call evaluate_properties_radialdist
 
 	!Obtain and record velocity and mass
-	if (velocity_outflag .ne. 0) then
-		call velocity_averaging(velocity_outflag)
-	else
-		if(mass_outflag .ne. 0) call mass_averaging(mass_outflag)
-	endif
+	if (velocity_outflag .ne. 0) call velocity_averaging(velocity_outflag)
 
 	!Obtain and record mass only
-	!if (velocity_outflag .eq. 0 .and. &
-	!	mass_outflag .ne. 0) call mass_averaging(mass_outflag)
-
+	if (velocity_outflag .eq. 0 .and. &
+		mass_outflag .ne. 0) call mass_averaging(mass_outflag)
 
 	!Obtain and record molecular diffusion
 	!call evaluate_properties_diffusion
@@ -286,8 +285,8 @@ subroutine evaluate_properties_radialdist
 	implicit none
 
 	integer                         :: n, i, j, ixyz   !Define dummy index
-	integer				:: currentshell
-	double precision		:: rmagnitude, rd2
+	integer							:: currentshell
+	double precision				:: rmagnitude, rd2
 	double precision, dimension(nd) :: rij       !'nd' directional vector between particles i and j
 	
 	rd2 = rd**2    !Calculate rd2 once to reduce computation
@@ -365,12 +364,12 @@ subroutine etevtcf_calculate
 use module_record
 implicit none
 	
-	logical :: cross_boundary
-	integer :: i,j,molL,molR
-	integer, dimension(nd) :: checker
-	double precision :: max_chain_elong
-	double precision :: etev_prod, etev_prod_sum
-	double precision :: etev2, etev2_sum
+	logical 						:: cross_boundary
+	integer 						:: i,j,molL,molR
+	integer, dimension(nd) 			:: checker
+	double precision 				:: max_chain_elong
+	double precision 				:: etev_prod, etev_prod_sum
+	double precision 				:: etev2, etev2_sum
 	double precision, dimension(nd) :: rij,etev
 
 	!Check if etevtcf can be reliably calculated
@@ -510,10 +509,10 @@ subroutine mass_averaging(ixyz)
 	use module_record
 	implicit none
 
-	integer						:: ixyz, n,i,j,k
+	integer							:: ixyz, n,i,j,k
 	integer, save					:: average_count=-1
-	integer		,dimension(3)			:: ibin
-	double precision,dimension(3)			:: ri, mbinsize
+	integer		,dimension(3)		:: ibin
+	double precision,dimension(3)	:: ri, mbinsize
 
 	average_count = average_count + 1
 	call cumulative_mass(ixyz)
@@ -552,10 +551,10 @@ subroutine cumulative_mass(ixyz)
 	use linked_list
 	implicit none
 
-	integer         		:: n, ixyz
-	integer         		:: cbin
-	integer,dimension(3)		:: ibin
-	double precision		:: slicebinsize
+	integer         				:: n, ixyz
+	integer         				:: cbin
+	integer,dimension(3)			:: ibin
+	double precision				:: slicebinsize
 	double precision,dimension(3) 	:: mbinsize 
 
 	select case(ixyz)
@@ -598,7 +597,7 @@ subroutine velocity_averaging(ixyz)
 	use linked_list
 	implicit none
 
-	integer			:: ixyz
+	integer				:: ixyz
 	integer, save		:: average_count=-1
 	
 	average_count = average_count + 1
@@ -638,10 +637,10 @@ subroutine cumulative_velocity(ixyz)
 	use linked_list
 	implicit none
 
-	integer				:: n,m,i,j,k,ixyz
-	integer         		:: cbin
-	integer		,dimension(3)	:: ibin
-	double precision		:: slicebinsize
+	integer							:: n,m,i,j,k,ixyz
+	integer         				:: cbin
+	integer		,dimension(3)		:: ibin
+	double precision				:: slicebinsize
 	double precision,dimension(3) 	:: Vbinsize 
 
 	select case(ixyz)
@@ -824,9 +823,9 @@ subroutine simulation_compute_kinetic_VA(imin,imax,jmin,jmax,kmin,kmax)
 	use physical_constants_MD
 	implicit none
 
-	integer					:: imin, jmin, kmin, imax, jmax, kmax
-	integer         			:: n, ixyz,jxyz
-	integer 				:: ibin, jbin, kbin
+	integer								:: imin, jmin, kmin, imax, jmax, kmax
+	integer         					:: n, ixyz,jxyz
+	integer 							:: ibin, jbin, kbin
 	double precision, dimension(3)		:: VAbinsize, velvect
 
 	vvbin = 0.d0
@@ -872,9 +871,9 @@ subroutine simulation_compute_kinetic_VA_cells(imin,imax,jmin,jmax,kmin,kmax)
 	implicit none
 
 	integer                         :: i, j, ixyz, jxyz   !Define dummy index
-	integer 			:: ibin, jbin, kbin,icell, jcell, kcell
+	integer 						:: ibin, jbin, kbin,icell, jcell, kcell
 	integer                         :: cellnp, molnoi
-	integer				:: imin, jmin, kmin, imax, jmax, kmax
+	integer							:: imin, jmin, kmin, imax, jmax, kmax
 	double precision, dimension(3)	:: velvect
 	type(node), pointer 	        :: oldi, currenti
 
@@ -1016,7 +1015,6 @@ subroutine mass_snapshot
 		!Add up current volume momentum densities
 		ibin(:) = ceiling((r(n,:)+halfdomain(:))/mbinsize(:)) + 1
 		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = volume_mass_temp(ibin(1),ibin(2),ibin(3)) + 1
-		!print*, n,r(n,:), ibin, sum(volume_mass_temp)
 	enddo
 
 	!Output Control Volume momentum change and fluxes
@@ -1124,10 +1122,12 @@ subroutine cumulative_momentum_flux(ixyz)
 		!Determine bin size
 		mbinsize(:) = domain(:) / nbins(:)
 
-		do n = 1,np
+		do n = 1,np	
 
-			ri1(:) = r(n,:)			!Molecule i at time  t
-			ri2(:) = r(n,:)-delta_t*v(n,:)	!Molecule i at time t-dt
+			!Get velocity at v(t+dt/2) from v(t-dt/2)
+			velvect(:) = v(n,:) + delta_t * a(n,:)		!Assumes no constraint/thermostat/etc
+			ri1(:) = r(n,:) + delta_t*velvect(:)		!Molecule i at time t+dt
+			ri2(:) = r(n,:)								!Molecule i at time t
 			ri12   = ri1 - ri2		!Molecule i trajectory between t-dt and t
 			where (ri12 .eq. 0.d0) ri12 = 0.000001d0
 
@@ -1152,22 +1152,22 @@ subroutine cumulative_momentum_flux(ixyz)
 
 					!Calculate the plane intersect of trajectory with surfaces of the cube
 					Pxt=(/ 			bintop(1), 		     & 
-						ri1(2)+(ri12(2)/ri12(1))*(bintop(1)-ri1(1)), & 
-						ri1(3)+(ri12(3)/ri12(1))*(bintop(1)-ri1(1))  	/)
+							ri1(2)+(ri12(2)/ri12(1))*(bintop(1)-ri1(1)), & 
+							ri1(3)+(ri12(3)/ri12(1))*(bintop(1)-ri1(1))  	/)
 					Pxb=(/ 			binbot(1), 		     & 
-						ri1(2)+(ri12(2)/ri12(1))*(binbot(1)-ri1(1)), & 
-						ri1(3)+(ri12(3)/ri12(1))*(binbot(1)-ri1(1))  	/)
+							ri1(2)+(ri12(2)/ri12(1))*(binbot(1)-ri1(1)), & 
+							ri1(3)+(ri12(3)/ri12(1))*(binbot(1)-ri1(1))  	/)
 					Pyt=(/	ri1(1)+(ri12(1)/ri12(2))*(bintop(2)-ri1(2)), & 
 								bintop(2), 		     & 
-						ri1(3)+(ri12(3)/ri12(2))*(bintop(2)-ri1(2))  	/)
+							ri1(3)+(ri12(3)/ri12(2))*(bintop(2)-ri1(2))  	/)
 					Pyb=(/	ri1(1)+(ri12(1)/ri12(2))*(binbot(2)-ri1(2)), &
 								binbot(2), 		     & 
-						ri1(3)+(ri12(3)/ri12(2))*(binbot(2)-ri1(2))  	/)
+							ri1(3)+(ri12(3)/ri12(2))*(binbot(2)-ri1(2))  	/)
 					Pzt=(/	ri1(1)+(ri12(1)/ri12(3))*(bintop(3)-ri1(3)), & 
-						ri1(2)+(ri12(2)/ri12(3))*(bintop(3)-ri1(3)), &
+							ri1(2)+(ri12(2)/ri12(3))*(bintop(3)-ri1(3)), &
 								bintop(3) 			/)
 					Pzb=(/	ri1(1)+(ri12(1)/ri12(3))*(binbot(3)-ri1(3)), &
-						ri1(2)+(ri12(2)/ri12(3))*(binbot(3)-ri1(3)), & 
+							ri1(2)+(ri12(2)/ri12(3))*(binbot(3)-ri1(3)), & 
 								binbot(3) 			/)
 
 					onfacexb =0.5d0*(sign(1.d0,binbot(1) - ri2(1)) 	 & 
@@ -1212,7 +1212,7 @@ subroutine cumulative_momentum_flux(ixyz)
 
 					!Calculate velocity at time of intersection
 					!crosstime = (r(n,jxyz) - rplane)/v(n,jxyz)
-					velvect(:) = v(n,:) !- a(n,:) * crosstime
+					!velvect(:) = v(n,:) !- a(n,:) * crosstime
 					!Change in velocity at time of crossing is not needed as velocity assumed constant 
 					!for timestep and changes when forces are applied.
 
