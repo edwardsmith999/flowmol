@@ -549,6 +549,11 @@ subroutine set_parameters_outputs
 	volume_momentum = 0.d0
 	volume_force 	= 0.d0
 
+	!Allocate bins for control volume energy fluxes and forces*velocity
+	allocate(  energy_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,6))
+	allocate( Pxyvface(nbins(1)+2,nbins(2)+2,nbins(3)+2,6))
+	energy_flux 	= 0.d0
+
 	!Allocated Bins for Nose Hoover Stress Control
 	allocate(Gxybins(nbins(1),nbins(2),nbins(3),3,3))
 	Gxybins = 0.d0

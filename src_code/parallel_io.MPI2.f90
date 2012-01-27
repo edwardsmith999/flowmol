@@ -129,7 +129,8 @@ subroutine setup_inputs
 	implicit none
 	
 	integer :: k, n, tvalue(8)
-        logical :: from_input
+	logical :: found_in_input
+	character(20)			:: readin_format
 
 !	call random_seed
 	call random_seed(size=n)
@@ -148,6 +149,22 @@ subroutine setup_inputs
 	read(1,*) initialnunits(1)		!x dimension split into number of cells
 	read(1,*) initialnunits(2)		!y dimension split into number of cells
 	read(1,*) initialnunits(3)		!z dimension split into number of cells
+	call locate(1,'INTEGRATION_ALGORITHM',.true.)
+	read(1,*) integration_algorithm
+	if (integration_algorithm.eq.0) then
+		lfv = .true.
+		vv  = .false.
+	else if (integration_algorithm.eq.1) then
+		lfv = .false.
+		vv  = .true.
+	else 
+		call error_abort( 'INTEGRATION_ALGORITHM improperly specified in input file.')
+	end if
+	call locate(1,'ENSEMBLE',.true.)
+	read(1,*) ensemble
+	ensemble = trim(ensemble)
+	call locate(1,'FORCE_LIST',.true.)	!LJ or FENE potential
+	read(1,*) force_list
 	call locate(1,'POTENTIAL_FLAG',.true.)	!LJ or FENE potential
 	read(1,*) potential_flag
 	if (potential_flag.eq.1) then
@@ -156,7 +173,6 @@ subroutine setup_inputs
 		read(1,*) k_c
 		read(1,*) R_0
 	end if	
-
 	!Input computational co-efficients
 	call locate(1,'NSTEPS',.true.)
 	read(1,*) Nsteps 		!Number of computational steps
@@ -164,16 +180,16 @@ subroutine setup_inputs
 	read(1,*) delta_t 		!Size of time step
 	call locate(1,'TPLOT',.true.)
 	read(1,*) tplot 		!Frequency at which to record results
-	call locate(1,'INITISE_STEPS',.false.,from_input)
-	if (from_input) then
+	call locate(1,'INITISE_STEPS',.false.,found_in_input)
+	if (found_in_input) then
 		read(1,*) initise_steps 	!Number of initialisation steps for simulation
 	else
 		initise_steps = 0
 	endif
 	call locate(1,'DELTA_RNEIGHBR',.true.) 
 	read(1,*) delta_rneighbr 	!Extra distance used for neighbour cell
-	call locate(1,'SEED',.false.,from_input)
-	if (from_input) then
+	call locate(1,'SEED',.false.,found_in_input)
+	if (found_in_input) then
 		read(1,*) seed(1) 	!Random number seed value 1
 		read(1,*) seed(2) 	!Random number seed value 2
 	else
@@ -187,8 +203,8 @@ subroutine setup_inputs
 	read(1,*) periodic(2)
 	read(1,*) periodic(3)
 
-	call locate(1,'DEFINE_SHEAR',.false.,from_input)
-	if (from_input) then
+	call locate(1,'DEFINE_SHEAR',.false.,found_in_input)
+	if (found_in_input) then
 		read(1,*) shear_direction
 		read(1,*) shear_iter0
 		read(1,*) define_shear_as
@@ -223,63 +239,63 @@ subroutine setup_inputs
 	!Setup thermostatted molecules
 	thermstatbottom = 0.d0; thermstattop = 0.d0 
 	
-	call locate(1,'WALLSLIDEV',.false.,from_input)
-	if (from_input) then
+	call locate(1,'WALLSLIDEV',.false.,found_in_input)
+	if (found_in_input) then
 		read(1,*) wallslidev(1)
 		read(1,*) wallslidev(2)
 		read(1,*) wallslidev(3)
 	endif
-	call locate(1,'FIXDISTBOTTOM',.false.,from_input)
-	if (from_input) then
+	call locate(1,'FIXDISTBOTTOM',.false.,found_in_input)
+	if (found_in_input) then
 		read(1,*) fixdistbottom(1)
 		read(1,*) fixdistbottom(2)
 		read(1,*) fixdistbottom(3)
 	endif
-	call locate(1,'FIXDISTTOP',.false.,from_input)
-	if (from_input) then
+	call locate(1,'FIXDISTTOP',.false.,found_in_input)
+	if (found_in_input) then
 		read(1,*) fixdisttop(1)
 		read(1,*) fixdisttop(2)
 		read(1,*) fixdisttop(3)
 	endif
-	call locate(1,'SLIDEDISTBOTTOM',.false.,from_input)
-	if (from_input) then
+	call locate(1,'SLIDEDISTBOTTOM',.false.,found_in_input)
+	if (found_in_input) then
 		read(1,*) slidedistbottom(1)
 		read(1,*) slidedistbottom(2)
 		read(1,*) slidedistbottom(3)
 	endif
-	call locate(1,'SLIDEDISTTOP',.false.,from_input)
-	if (from_input) then
+	call locate(1,'SLIDEDISTTOP',.false.,found_in_input)
+	if (found_in_input) then
 		read(1,*) slidedisttop(1)
 		read(1,*) slidedisttop(2)
 		read(1,*) slidedisttop(3)
 	endif
-	call locate(1,'TETHEREDDISTBOTTOM',.false.,from_input)
-	if (from_input) then
+	call locate(1,'TETHEREDDISTBOTTOM',.false.,found_in_input)
+	if (found_in_input) then
 		read(1,*) tethereddistbottom(1)
 		read(1,*) tethereddistbottom(2)
 		read(1,*) tethereddistbottom(3)
 	endif
-	call locate(1,'TETHEREDDISTTOP',.false.,from_input)
-	if (from_input) then
+	call locate(1,'TETHEREDDISTTOP',.false.,found_in_input)
+	if (found_in_input) then
 		read(1,*) tethereddisttop(1)
 		read(1,*) tethereddisttop(2)
 		read(1,*) tethereddisttop(3)
 	endif
-	call locate(1,'THERMSTATBOTTOM',.false.,from_input)
-	if (from_input) then
+	call locate(1,'THERMSTATBOTTOM',.false.,found_in_input)
+	if (found_in_input) then
 		read(1,*) thermstatbottom(1)
 		read(1,*) thermstatbottom(2)
 		read(1,*) thermstatbottom(3)
 	endif
-	call locate(1,'THERMSTATTOP',.false.,from_input)
-	if (from_input) then
+	call locate(1,'THERMSTATTOP',.false.,found_in_input)
+	if (found_in_input) then
 		read(1,*) thermstattop(1)
 		read(1,*) thermstattop(2)
 		read(1,*) thermstattop(3)
 	endif
 
-	call locate(1,'THERMSTAT_FLAG',.false.,from_input)
-	if (from_input) then
+	call locate(1,'THERMSTAT_FLAG',.false.,found_in_input)
+	if (found_in_input) then
 		read(1,*) thermstat_flag
 		select case(thermstat_flag)
 		case(0)
@@ -299,45 +315,68 @@ subroutine setup_inputs
 			"THERMSTATTOP or THERMSTATBOTTOM must also be specified"
 		end select
 	endif
+	!Flag to determine if output is switched on
+	call locate(1,'VMD_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) vmd_outflag
+		if (vmd_outflag .ne. 0) then
+			read(1,*) Nvmd_intervals	!Number of vmd intervals
+			if (Nvmd_intervals .gt. 20) then
+				print*, "Number of VMD intervals greater than 20 or not specified, setting on for all simualtion"
+				Nvmd_intervals = 0
+			endif
+			if (Nvmd_intervals .eq. 0) then
+				allocate(vmd_intervals(2,1))
+				vmd_intervals(1,1) = 1; vmd_intervals(2,1) = huge(1)
+			else
+				allocate(vmd_intervals(2,Nvmd_intervals))
+				write(readin_format,'(a,i,a)') '(',2*Nvmd_intervals,'i)'
+				read(1,trim(readin_format)) vmd_intervals
+#if USE_COUPLER
+				!NEED SOME SORT OF coupler total simulation time retrival here!!
+				print*, "WARNING - CHECK VMD INTERVALS is not greater than coupled number of steps"
+#else
+				if (maxval(vmd_intervals) .gt. Nsteps) stop "Specified VMD interval greater than Nsteps"
+#endif
+			endif
+		endif
+	endif
 
-	!Flag to determine which outputs are switched on
-	call locate(1,'VMD_OUTFLAG',.false.,from_input)
-	if (from_input) read(1,*) vmd_outflag
-	call locate(1,'MACRO_OUTFLAG',.false.,from_input)
-	if (from_input) read(1,*) macro_outflag
-	call locate(1,'MASS_OUTFLAG',.false.,from_input)
-	if (from_input) then
+	call locate(1,'MACRO_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) read(1,*) macro_outflag
+	call locate(1,'MASS_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
 		read(1,*) mass_outflag
 		if (mass_outflag .ne. 0) 	read(1,*) Nmass_ave
 	endif
-	call locate(1,'VELOCITY_OUTFLAG',.false.,from_input)
-	if (from_input) then
+	call locate(1,'VELOCITY_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
 		read(1,* ) velocity_outflag
 		if (velocity_outflag .ne. 0)	read(1,* ) Nvel_ave
 	endif
-	call locate(1,'PRESSURE_OUTFLAG',.false.,from_input)
-	if (from_input) then
+	call locate(1,'PRESSURE_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
 		read(1,* ) pressure_outflag
 		if (pressure_outflag .ne. 0)	read(1,* ) Nstress_ave
 	endif
-	call locate(1,'VISCOSITY_OUTFLAG',.false.,from_input)
-	if (from_input) then
+	call locate(1,'VISCOSITY_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
 		read(1,* ) viscosity_outflag
 		if ( viscosity_outflag .ne. 0)	read(1,* ) Nvisc_ave
 	endif
-	call locate(1,'MFLUX_OUTFLAG',.false.,from_input)
-	if (from_input) then
+	call locate(1,'MFLUX_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
 		read(1,* ) mflux_outflag
 		if (mflux_outflag .ne. 0)	read(1,* ) Nmflux_ave
 	endif
-	call locate(1,'VFLUX_OUTFLAG',.false.,from_input)
-	if (from_input) then
+	call locate(1,'VFLUX_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
 		read(1,* ) vflux_outflag
 		if (vflux_outflag .ne. 0)	read(1,* ) Nvflux_ave
 	endif
 
-	call locate(1,'ETEVTCF_OUTFLAG',.false.,from_input)
-	if (from_input) then
+	call locate(1,'ETEVTCF_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
 		read(1,*) etevtcf_outflag
 		if (etevtcf_outflag.ne.0) then
 			read(1,*) etevtcf_iter0
@@ -348,6 +387,13 @@ subroutine setup_inputs
 			end if
 		end if
 	endif
+
+	call locate(1,'R_GYRATION_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) r_gyration_outflag
+		read(1,*) r_gyration_iter0
+	end if
+
 	close(1,status='keep')      !Close input file
 
 	rcutoff2= rcutoff**2         !Useful definition to save computational time
@@ -383,13 +429,14 @@ subroutine setup_restart_inputs
 	use librarymod, only : locate
 	implicit none
 
-	logical				:: from_input
-	integer				:: n, k
-	integer 			:: extrasteps
-	integer 			:: checkint
-        integer(MPI_OFFSET_KIND)        :: ofs, header_ofs
-        integer(selected_int_kind(18))  :: header_pos
-	double precision 	:: checkdp
+	logical							:: found_in_input
+	integer							:: n, k
+	integer 						:: extrasteps
+	integer 						:: checkint
+    integer(MPI_OFFSET_KIND)        :: ofs, header_ofs
+    integer(selected_int_kind(18))  :: header_pos
+	double precision 				:: checkdp
+	character(20)					:: readin_format
 
 	!Allocate random number seed
 !	call random_seed
@@ -496,28 +543,29 @@ subroutine setup_restart_inputs
 			'in input & restart file - restart file will be used'
 		endif
 
-		!Get number of extra steps, timestep and plot frequency from input file
+		!Check periodic BC and shear
 		call locate(1,'PERIODIC',.true.)
 		read(1,*) periodic(1)
 		read(1,*) periodic(2)
 		read(1,*) periodic(3)
 
+		!Get number of extra steps, timestep and plot frequency from input file
 		call locate(1,'NSTEPS',.true.)
 		read(1,* ) extrasteps       !Number of computational steps
 		call locate(1,'DELTA_T',.true.)
 		read(1,* ) delta_t          !Size of time step
 		call locate(1,'TPLOT',.true.)
 		read(1,* ) tplot            !Frequency at which to record results
-		call locate(1,'INITISE_STEPS',.false.,from_input)
-		if (from_input) then
+		call locate(1,'INITISE_STEPS',.false.,found_in_input)
+		if (found_in_input) then
 			read(1,*) initise_steps 	!Number of initialisation steps for simulation
 		else
 			initise_steps = 0
 		endif
 		call locate(1,'DELTA_RNEIGHBR',.true.)
 		read(1,* ) delta_rneighbr   !Extra distance used for neighbour cell
-		call locate(1,'SEED',.false.,from_input)
-		if (from_input) then
+		call locate(1,'SEED',.false.,found_in_input)
+		if (found_in_input) then
 			read(1,*) seed(1) 	!Random number seed value 1
 			read(1,*) seed(2) 	!Random number seed value 2
 		else
@@ -525,14 +573,48 @@ subroutine setup_restart_inputs
 			seed(2) = 2		!Fixed default seed for repeatability
 		endif
 
+
+		!Choose integration algorithm
+		call locate(1,'INTEGRATION_ALGORITHM',.true.)
+		read(1,*) integration_algorithm
+		if (integration_algorithm.eq.0) then
+			lfv = .true.
+			vv  = .false.
+		else if (integration_algorithm.eq.1) then
+			lfv = .false.
+			vv  = .true.
+		else 
+			call error_abort( 'INTEGRATION_ALGORITHM improperly specified in input file.')
+		end if
+		
+		call locate(1,'ENSEMBLE',.true.)
+		read(1,*) ensemble
+		ensemble = trim(ensemble)
+
+		call locate(1,'FORCE_LIST',.true.)	!LJ or FENE potential
+		read(1,*) force_list
+		
+
+		call locate(1,'DEFINE_SHEAR',.false.,found_in_input)
+		if (found_in_input) then
+			read(1,*) shear_direction
+			read(1,*) shear_iter0
+			read(1,*) define_shear_as
+			if (define_shear_as.eq.0) read(1,*) shear_velocity
+			if (define_shear_as.eq.1) read(1,*) shear_rate
+			if (define_shear_as.gt.1) then 
+	                	call error_abort( 'Poorly defined shear in input file')
+	        	endif
+		endif
+
 		!-------------------------------------
 		!Flag to determine molecular tags
 		!-------------------------------------
 		!Note: For initialunitsize "a"
-		!		 [  o     o ]
+		!		 		 [  o     o ]
 		!a (1 cell size) [     o    ]  a/2 (distance between molcules)	
-		!		 [  o     o
-		!		  __________]  a/4 (distance from bottom of domain)
+		!		 		 [  o     o ]
+		!		  		 [__________]  a/4 (distance from bottom of domain)
 		!
 		!So use (0.20+0.5d0*mol_layers)*initialunitsize(ixyz)
 
@@ -548,63 +630,63 @@ subroutine setup_restart_inputs
 		!Setup thermostatted molecules
 		thermstatbottom = 0.d0; thermstattop = 0.d0 
 		
-		call locate(1,'WALLSLIDEV',.false.,from_input)
-		if (from_input) then
+		call locate(1,'WALLSLIDEV',.false.,found_in_input)
+		if (found_in_input) then
 			read(1,*) wallslidev(1)
 			read(1,*) wallslidev(2)
 			read(1,*) wallslidev(3)
 		endif
-		call locate(1,'FIXDISTBOTTOM',.false.,from_input)
-		if (from_input) then
+		call locate(1,'FIXDISTBOTTOM',.false.,found_in_input)
+		if (found_in_input) then
 			read(1,*) fixdistbottom(1)
 			read(1,*) fixdistbottom(2)
 			read(1,*) fixdistbottom(3)
 		endif
-		call locate(1,'FIXDISTTOP',.false.,from_input)
-		if (from_input) then
+		call locate(1,'FIXDISTTOP',.false.,found_in_input)
+		if (found_in_input) then
 			read(1,*) fixdisttop(1)
 			read(1,*) fixdisttop(2)
 			read(1,*) fixdisttop(3)
 		endif
-		call locate(1,'SLIDEDISTBOTTOM',.false.,from_input)
-		if (from_input) then
+		call locate(1,'SLIDEDISTBOTTOM',.false.,found_in_input)
+		if (found_in_input) then
 			read(1,*) slidedistbottom(1)
 			read(1,*) slidedistbottom(2)
 			read(1,*) slidedistbottom(3)
 		endif
-		call locate(1,'SLIDEDISTTOP',.false.,from_input)
-		if (from_input) then
+		call locate(1,'SLIDEDISTTOP',.false.,found_in_input)
+		if (found_in_input) then
 			read(1,*) slidedisttop(1)
 			read(1,*) slidedisttop(2)
 			read(1,*) slidedisttop(3)
 		endif
-		call locate(1,'TETHEREDDISTBOTTOM',.false.,from_input)
-		if (from_input) then
+		call locate(1,'TETHEREDDISTBOTTOM',.false.,found_in_input)
+		if (found_in_input) then
 			read(1,*) tethereddistbottom(1)
 			read(1,*) tethereddistbottom(2)
 			read(1,*) tethereddistbottom(3)
 		endif
-		call locate(1,'TETHEREDDISTTOP',.false.,from_input)
-		if (from_input) then
+		call locate(1,'TETHEREDDISTTOP',.false.,found_in_input)
+		if (found_in_input) then
 			read(1,*) tethereddisttop(1)
 			read(1,*) tethereddisttop(2)
 			read(1,*) tethereddisttop(3)
 		endif
-		call locate(1,'THERMSTATBOTTOM',.false.,from_input)
-		if (from_input) then
+		call locate(1,'THERMSTATBOTTOM',.false.,found_in_input)
+		if (found_in_input) then
 			read(1,*) thermstatbottom(1)
 			read(1,*) thermstatbottom(2)
 			read(1,*) thermstatbottom(3)
 		endif
-		call locate(1,'THERMSTATTOP',.false.,from_input)
-		if (from_input) then
+		call locate(1,'THERMSTATTOP',.false.,found_in_input)
+		if (found_in_input) then
 			read(1,*) thermstattop(1)
 			read(1,*) thermstattop(2)
 			read(1,*) thermstattop(3)
 		endif
 
-		call locate(1,'THERMSTAT_FLAG',.false.,from_input)
-		if (from_input) then
+		call locate(1,'THERMSTAT_FLAG',.false.,found_in_input)
+		if (found_in_input) then
 			read(1,*) thermstat_flag
 			select case(thermstat_flag)
 			case(0)
@@ -622,44 +704,67 @@ subroutine setup_restart_inputs
 			end select
 		endif
 
-		!Flag to determine which outputs are switched on
-		call locate(1,'VMD_OUTFLAG',.false.,from_input)
-		if (from_input) read(1,*) vmd_outflag
-		call locate(1,'MACRO_OUTFLAG',.false.,from_input)
-		if (from_input) read(1,*) macro_outflag
-		call locate(1,'MASS_OUTFLAG',.false.,from_input)
-		if (from_input) then
+		!Flag to determine if output is switched on
+		call locate(1,'VMD_OUTFLAG',.false.,found_in_input)
+		if (found_in_input) then
+			read(1,*) vmd_outflag
+			if (vmd_outflag .ne. 0) then
+				read(1,*) Nvmd_intervals	!Number of vmd intervals
+				if (Nvmd_intervals .gt. 20) then
+					print*, "Number of VMD intervals greater than 20 or not specified, setting on for all simualtion"
+					Nvmd_intervals = 0
+				endif
+				if (Nvmd_intervals .eq. 0) then
+					allocate(vmd_intervals(2,1))
+					vmd_intervals(1,1) = 1; vmd_intervals(2,1) = huge(1)
+				else
+					allocate(vmd_intervals(2,Nvmd_intervals))
+					write(readin_format,'(a,i,a)') '(',2*Nvmd_intervals,'i)'
+					read(1,trim(readin_format)) vmd_intervals
+#if USE_COUPLER
+					!NEED SOME SORT OF coupler total simulation time retrival here!!
+					print*, "WARNING - CHECK VMD INTERVALS is not greater than coupled number of steps"
+#else
+					if (maxval(vmd_intervals) .gt. Nsteps) stop "Specified VMD interval greater than Nsteps"
+#endif
+				endif
+			endif
+		endif
+		call locate(1,'MACRO_OUTFLAG',.false.,found_in_input)
+		if (found_in_input) read(1,*) macro_outflag
+		call locate(1,'MASS_OUTFLAG',.false.,found_in_input)
+		if (found_in_input) then
 			read(1,*) mass_outflag
 			if (mass_outflag .ne. 0) 	read(1,*) Nmass_ave
 		endif
-		call locate(1,'VELOCITY_OUTFLAG',.false.,from_input)
-		if (from_input) then
+		call locate(1,'VELOCITY_OUTFLAG',.false.,found_in_input)
+		if (found_in_input) then
 			read(1,* ) velocity_outflag
 			if (velocity_outflag .ne. 0)	read(1,* ) Nvel_ave
 		endif
-		call locate(1,'PRESSURE_OUTFLAG',.false.,from_input)
-		if (from_input) then
+		call locate(1,'PRESSURE_OUTFLAG',.false.,found_in_input)
+		if (found_in_input) then
 			read(1,* ) pressure_outflag
 			if (pressure_outflag .ne. 0)	read(1,* ) Nstress_ave
 		endif
-		call locate(1,'VISCOSITY_OUTFLAG',.false.,from_input)
-		if (from_input) then
+		call locate(1,'VISCOSITY_OUTFLAG',.false.,found_in_input)
+		if (found_in_input) then
 			read(1,* ) viscosity_outflag
 			if ( viscosity_outflag .ne. 0)	read(1,* ) Nvisc_ave
 		endif
-		call locate(1,'MFLUX_OUTFLAG',.false.,from_input)
-		if (from_input) then
+		call locate(1,'MFLUX_OUTFLAG',.false.,found_in_input)
+		if (found_in_input) then
 			read(1,* ) mflux_outflag
 			if (mflux_outflag .ne. 0)	read(1,* ) Nmflux_ave
 		endif
-		call locate(1,'VFLUX_OUTFLAG',.false.,from_input)
-		if (from_input) then
+		call locate(1,'VFLUX_OUTFLAG',.false.,found_in_input)
+		if (found_in_input) then
 			read(1,* ) vflux_outflag
 			if (vflux_outflag .ne. 0)	read(1,* ) Nvflux_ave
 		endif
 
-		call locate(1,'ETEVTCF_OUTFLAG',.false.,from_input)
-		if (from_input) then
+		call locate(1,'ETEVTCF_OUTFLAG',.false.,found_in_input)
+		if (found_in_input) then
 			read(1,*) etevtcf_outflag
 			if (etevtcf_outflag.ne.0) then
 				read(1,*) etevtcf_iter0
@@ -670,6 +775,12 @@ subroutine setup_restart_inputs
 				end if
 			end if
 		endif
+
+		call locate(1,'R_GYRATION_OUTFLAG',.false.,found_in_input)
+		if (found_in_input) then
+			read(1,*) r_gyration_outflag
+			read(1,*) r_gyration_iter0
+		end if
 
 		close(1,status='keep')      !Close input file
 	endif
@@ -1691,6 +1802,23 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 end subroutine velocity_bin_io
 
+
+!---------------------------------------------------------------------------------
+! Record velocity in 3D bins throughout domain
+
+subroutine energy_bin_io(CV_energy_out,io_type)
+	use module_parallel_io
+	use calculated_properties_MD
+	implicit none
+
+	double precision		:: CV_energy_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
+	character(4)			:: io_type
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+end subroutine energy_bin_io
+
+
 !---------------------------------------------------------------------------------
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine virial_stress_io
@@ -1872,6 +2000,46 @@ subroutine surface_stress_io
 
 end subroutine surface_stress_io
 
+!---------------------------------------------------------------------------------
+! Record energy fluxes accross surfaces of Control Volumes
+
+subroutine energy_flux_io
+	use module_parallel_io
+	use calculated_properties_MD
+	implicit none
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+end subroutine energy_flux_io
+
+!---------------------------------------------------------------------------------
+! Record  energy accross plane
+
+subroutine MOP_energy_io(ixyz)
+	use module_parallel_io
+	use calculated_properties_MD
+	implicit none
+
+	integer		:: ixyz
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+end subroutine MOP_energy_io
+
+
+!---------------------------------------------------------------------------------
+! Record stress times velocity (power) accross surfaces of Control Volumes
+
+subroutine surface_power_io
+	use module_parallel_io
+	use calculated_properties_MD
+	implicit none
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+end subroutine surface_power_io
+
+
 !-----------------------------------------------------------------------------
 ! Write macroscopic properties to file
 !-----------------------------------------------------------------------------
@@ -1951,4 +2119,22 @@ implicit none
 	endif
 
 end subroutine etevtcf_io
+
+
+!Write radius of gyration to output file
+subroutine r_gyration_io
+use module_parallel_io
+implicit none
+
+	if (iter.eq.r_gyration_iter0) then
+		open(15,file='results/r_gyration',status='replace')
+		write(15,'(i8,f15.8)') iter, R_g
+	else if (iter.gt.r_gyration_iter0) then
+		open(15,file='results/r_gyration',access='append')
+		write(15,'(i8,f15.8)') iter, R_g
+	end if
+	
+	close(15,status='keep')
+
+end subroutine r_gyration_io
 

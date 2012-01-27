@@ -16,11 +16,12 @@ module module_compute_forces
 	use calculated_properties_MD
 	use linked_list
 
-	double precision                :: rij2        !rij dotted with itself (one dimensional)
-	double precision                :: invrij2     !inverse of rij2 
-	double precision                :: accijmag    !Non directional component of acceleration
-	double precision,dimension(3)   :: ri, rj !Position of molecule i and j
-	double precision,dimension(3)   :: rij    !vector between particles i and j
+	double precision                :: rij2        	!rij dotted with itself (one dimensional)
+	double precision                :: invrij2     	!inverse of rij2 
+	double precision                :: accijmag    	!Non directional component of acceleration
+	double precision,dimension(3)   :: ri, rj 		!Position of molecule i and j
+	double precision,dimension(3)   :: rij    		!vector between particles i and j
+	double precision,dimension(3)   :: fij    		!force between particles i and j
 
 end module module_compute_forces
 
@@ -221,9 +222,11 @@ subroutine simulation_compute_forces_LJ_cells
 						!CV stress an force calculations
 						if (molnoj .gt. np .or. molnoi .gt. np) then
 							!call Control_Volume_Forces(2.d0*accijmag*rij(:),ri,rj,molnoi,molnoj)						
+							fij = 2.d0*accijmag*rij(:)
 							if (vflux_outflag .ne. 0) call Control_Volume_stresses(2.d0*accijmag*rij(:),ri,rj,molnoi,molnoj)
 						else
 							!call Control_Volume_Forces(accijmag*rij(:),ri,rj,molnoi,molnoj)
+							fij = accijmag*rij(:)
 							if (vflux_outflag .ne. 0) call Control_Volume_stresses(accijmag*rij(:),ri,rj,molnoi,molnoj)
 						endif
 
@@ -291,6 +294,17 @@ subroutine simulation_compute_forces_LJ_neigbr
 				a(molnoi,1)= a(molnoi,1) + accijmag*rij(1)
 				a(molnoi,2)= a(molnoi,2) + accijmag*rij(2)
 				a(molnoi,3)= a(molnoi,3) + accijmag*rij(3)
+
+				!CV stress an force calculations
+				if (molnoj .gt. np .or. molnoi .gt. np) then
+					fij = 2.d0*accijmag*rij(:)
+					!call Control_Volume_Forces(2.d0*accijmag*rij(:),ri,rj,molnoi,molnoj)						
+					if (vflux_outflag .ne. 0) call control_volume_stresses(fij,ri,rj,molnoi,molnoj)
+				else
+					fij = accijmag*rij(:)
+					!call Control_Volume_Forces(accijmag*rij(:),ri,rj,molnoi,molnoj)
+					if (vflux_outflag .ne. 0) call control_volume_stresses(fij,ri,rj,molnoi,molnoj)
+				endif
 
 				!Only calculate properties when required for output
 				if (mod(iter,tplot) .eq. 0) then
@@ -364,7 +378,10 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 				a(molnoj,3)= a(molnoj,3) - accijmag*rij(3) 
 
 				!call Control_Volume_Forces(accijmag*rij(:),ri,rj,molnoi,molnoj)
-				if (vflux_outflag .ne. 0) call Control_Volume_stresses(2.d0*accijmag*rij(:),ri,rj,molnoi,molnoj)
+				if (vflux_outflag .ne. 0) then
+					fij = 2.d0*accijmag*rij(:)
+					call control_volume_stresses(fij,ri,rj,molnoi,molnoj)
+				endif
 
 				!Only calculate properties when required for output
 				if (mod(iter,tplot) .eq. 0) then
