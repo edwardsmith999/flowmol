@@ -116,16 +116,12 @@ subroutine md_advance_lfv
 		
 		call simulation_compute_forces 	                    !Calculate forces on particles	
 		call simulation_record                              !Evaluate & write properties to file
-		call mass_flux_averaging                            !Average mass flux before movement of particles
  
 #if USE_COUPLER
 		call simulation_apply_boundary_forces               !Apply boundary force to prevent molecules leaving domain
 		call socket_coupler_apply_continuum_forces(iter)    !Apply coupling forces so MD => CFD
 #endif
-
 		call simulation_move_particles                      !Move particles as a result of forces
-		call momentum_flux_averaging(vflux_outflag)         !Average momnetum flux after movement of particles
-		call energy_flux_averaging(eflux_outflag)
 
 #if USE_COUPLER
 		call socket_coupler_average(iter)                   !Calculate averages of MD to pass to CFD

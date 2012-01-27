@@ -366,7 +366,10 @@ subroutine setup_inputs
 	if (found_in_input) then
 		read(1,* ) vflux_outflag
 		if (vflux_outflag .ne. 0)	read(1,* ) Nvflux_ave
+		if (mflux_outflag .eq. 0) Nmflux_ave = Nvflux_ave !Mass set to same as velocity
 	endif
+
+
 	call locate(1,'EFLUX_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,* ) eflux_outflag
@@ -432,7 +435,7 @@ subroutine setup_restart_inputs
 	integer,dimension(8)	:: tvalue
 	character(20)			:: readin_format
 
-         integer(kind=selected_int_kind(18)) header_pos, end_pos ! 8 byte integer for header address
+ 	integer(kind=selected_int_kind(18)) header_pos, end_pos ! 8 byte integer for header address
 
 	!Allocate random number seed
 !	call random_seed
@@ -771,7 +774,7 @@ subroutine setup_restart_microstate
 	use module_parallel_io
 	implicit none
 
-	integer :: ixyz, n
+	integer 				:: ixyz, n
 	integer, dimension(np) :: chainID, subchainID,left,right
 
 	!Open file at first recorded value
@@ -782,7 +785,7 @@ subroutine setup_restart_microstate
 		do ixyz=1,nd
 			read(2) r(n,ixyz)
 		enddo
-                do ixyz=1,nd
+		do ixyz=1,nd
 			read(2) v(n,ixyz)
 			if (lfv) v(n,ixyz) = v(n,ixyz) - 0.5d0*delta_t*a(n,ixyz)
 		enddo
@@ -1291,6 +1294,7 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 	integer				:: i,j,k,n
 	integer				:: m,length
 	integer				:: CV_mass_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
+	integer				:: buf(nbins(1),nbins(2),nbins(3))
 	character(4)		:: io_type
 	character(13)		:: filename
 
@@ -1316,9 +1320,10 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 		m = iter/(tplot*Nmass_ave)
 	endif
 	!Write mass to file
-	inquire(iolength=length) CV_mass_out(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1)
+	buf = CV_mass_out(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1)
+	inquire(iolength=length) buf
 	open (unit=5,file=filename,form="unformatted",access='direct',recl=length)
-	write(5,rec=m) CV_mass_out(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1)
+	write(5,rec=m) buf
 	close(5,status='keep')
 
 end subroutine mass_bin_io
@@ -1343,7 +1348,6 @@ implicit none
 	write(6,rec=m) slice_momentum(1:nbins(ixyz),:)
 	close(6,status='keep')
 
-
 end subroutine velocity_slice_io
 
 !---------------------------------------------------------------------------------
@@ -1354,10 +1358,11 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 	use calculated_properties_MD
 	implicit none
 
-	integer				:: n,m,i,j,k
-	integer				:: length
-	integer				:: CV_mass_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
+	integer					:: n,m,i,j,k
+	integer					:: length
+	integer					:: CV_mass_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
 	double precision		:: CV_momentum_out(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)
+	double precision		:: buf(nbins(1),nbins(2),nbins(3),3)
 	character(4)			:: io_type
 	character(13)			:: filename
 
@@ -1390,14 +1395,13 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 		m = iter/(tplot*Nvel_ave)
 	endif
 	!Write velocity to file
-	inquire(iolength=length) CV_momentum_out(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
+	buf = CV_momentum_out(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
+	inquire(iolength=length) buf
 	open (unit=6, file=filename,form="unformatted",access='direct',recl=length)
-	write(6,rec=m) CV_momentum_out(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
+	write(6,rec=m) buf
 	close(6,status='keep')
 
 end subroutine velocity_bin_io
-
-
 
 !---------------------------------------------------------------------------------
 ! Record velocity in 3D bins throughout domain
@@ -1410,6 +1414,7 @@ subroutine energy_bin_io(CV_energy_out,io_type)
 	integer					:: n,m,i,j,k
 	integer					:: length
 	double precision		:: CV_energy_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
+	double precision		:: buf(nbins(1),nbins(2),nbins(3))
 	character(4)			:: io_type
 	character(13)			:: filename
 
@@ -1439,9 +1444,10 @@ subroutine energy_bin_io(CV_energy_out,io_type)
 		m = iter/(tplot*Neflux_ave)
 	endif
 	!Write velocity to file
-	inquire(iolength=length) CV_energy_out(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1)
+	buf = CV_energy_out(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1)
+	inquire(iolength=length) buf
 	open (unit=6, file=filename,form="unformatted",access='direct',recl=length)
-	write(6,rec=m) CV_energy_out(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1)
+	write(6,rec=m) buf
 	close(6,status='keep')
 
 end subroutine energy_bin_io
@@ -1544,7 +1550,8 @@ subroutine mass_flux_io
 	use calculated_properties_MD
 	implicit none
 
-	integer		:: i,j,k,n,m,length
+	integer				:: i,j,k,n,m,length
+	integer				:: buf(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1:6)
 
 	!Include halo surface fluxes to get correct values for all cells
 	do n = 1, nhalobins
@@ -1560,9 +1567,10 @@ subroutine mass_flux_io
 
 	!Write six CV surface mass fluxes to file
 	m = iter/(Nmflux_ave)
-	inquire(iolength=length) mass_flux(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
+	buf = mass_flux(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
+	inquire(iolength=length) buf
 	open (unit=8, file="results/mflux",form="unformatted",access='direct',recl=length)
-	write(8,rec=m) mass_flux(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
+	write(8,rec=m) buf
 	close(8,status='keep')
 
 end subroutine mass_flux_io
@@ -1575,7 +1583,8 @@ subroutine momentum_flux_io
 	use calculated_properties_MD
 	implicit none
 
-	integer				:: ixyz,i,j,k,n,m,length
+	integer					:: ixyz,i,j,k,n,m,length
+	double precision		:: buf(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1:3,1:6)
 	double precision		:: binface
 
 	!Include halo surface fluxes to get correct values for all cells
@@ -1593,17 +1602,20 @@ subroutine momentum_flux_io
 
 	do ixyz = 1,3
 		binface	      = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
-			     	(domain(modulo(ixyz+1,3)+1)/nbins(modulo(ixyz+1,3)+1))
+			     		(domain(modulo(ixyz+1,3)+1)/nbins(modulo(ixyz+1,3)+1))
 		momentum_flux(:,:,:,:,ixyz  )=momentum_flux(:,:,:,:,ixyz  )/(binface) !Bottom
 		momentum_flux(:,:,:,:,ixyz+3)=momentum_flux(:,:,:,:,ixyz+3)/(binface) !Top
 	enddo
 
-	!momentum_flux = momentum_flux/(delta_t*Nvflux_ave)
-	!Write momnetum flux to file
+	!Divide momentum flux by averaing period tau=delta_t*Nvflux_ave
+	momentum_flux = momentum_flux/(delta_t*Nvflux_ave)
+
+	!Write momentum flux to file
 	m = iter/(Nvflux_ave)
-	inquire(iolength=length) momentum_flux(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:,:)
+	buf = momentum_flux(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:,:)
+	inquire(iolength=length) buf
 	open (unit=9, file="results/vflux",form="unformatted",access='direct',recl=length)
-	write(9,rec=m) momentum_flux(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:,:)
+	write(9,rec=m) buf
 	close(9,status='keep')
 
 end subroutine momentum_flux_io
@@ -1642,7 +1654,8 @@ subroutine surface_stress_io
 	use calculated_properties_MD
 	implicit none
 
-	integer				:: ixyz,i,j,k,n,m,length
+	integer							:: ixyz,i,j,k,n,m,length
+	double precision				:: buf(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1:3,1:6)
 	double precision,dimension(3)	:: binface
 
 	!Include halo surface stresses to get correct values for all cells
@@ -1661,19 +1674,21 @@ subroutine surface_stress_io
 
 	do ixyz = 1,3
 		binface(ixyz) = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
-			     	(domain(modulo(ixyz+1,3)+1)/nbins(modulo(ixyz+1,3)+1))
+			     		(domain(modulo(ixyz+1,3)+1)/nbins(modulo(ixyz+1,3)+1))
 		Pxyface(:,:,:,:,ixyz  ) = 0.25d0 * Pxyface(:,:,:,:,ixyz  )/binface(ixyz) !Bottom
 		Pxyface(:,:,:,:,ixyz+3) = 0.25d0 * Pxyface(:,:,:,:,ixyz+3)/binface(ixyz) !Top
 	enddo
 
 	!Integration of stress using trapizium rule requires multiplication by timestep
-	Pxyface = delta_t*Pxyface!/Nvflux_ave
+	!so delta_t cancels upon division by tau=elta_t*Nvflux_ave resulting in division by Nvflux_ave
+	Pxyface = Pxyface/Nvflux_ave
 
 	!Write surface pressures to file
 	m = iter/(Nvflux_ave)
-	inquire(iolength=length) Pxyface(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:,:)
+	buf = Pxyface(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:,:)
+	inquire(iolength=length) buf
 	open (unit=9, file="results/psurface",form="unformatted",access='direct',recl=length)
-	write(9,rec=m) Pxyface(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:,:)
+	write(9,rec=m) buf
 	close(9,status='keep')
 
 end subroutine surface_stress_io
@@ -1716,6 +1731,7 @@ subroutine energy_flux_io
 	m = iter/(Nvflux_ave)
 	inquire(iolength=length) energy_flux(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
 	open (unit=9, file="results/eflux",form="unformatted",access='direct',recl=length)
+	print*, 'eflux'
 	write(9,rec=m) energy_flux(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
 	close(9,status='keep')
 
@@ -1755,7 +1771,7 @@ subroutine surface_power_io
 	use calculated_properties_MD
 	implicit none
 
-	integer				:: ixyz,i,j,k,n,m,length
+	integer							:: ixyz,i,j,k,n,m,length
 	double precision,dimension(3)	:: binface
 
 	!Include halo surface stresses to get correct values for all cells
@@ -1786,6 +1802,7 @@ subroutine surface_power_io
 	m = iter/(Neflux_ave)
 	inquire(iolength=length) Pxyvface(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
 	open (unit=9, file="results/esurface",form="unformatted",access='direct',recl=length)
+	print*, 'esurface'
 	write(9,rec=m) Pxyvface(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
 	close(9,status='keep')
 
