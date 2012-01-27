@@ -330,7 +330,7 @@ subroutine setup_inputs
 				vmd_intervals(1,1) = 1; vmd_intervals(2,1) = huge(1)
 			else
 				allocate(vmd_intervals(2,Nvmd_intervals))
-				write(readin_format,'(a,i,a)') '(',2*Nvmd_intervals,'i)'
+				write(readin_format,'(a,i5,a)') '(',2*Nvmd_intervals,'i)'
 				read(1,trim(readin_format)) vmd_intervals
 #if USE_COUPLER
 				!NEED SOME SORT OF coupler total simulation time retrival here!!
@@ -719,7 +719,7 @@ subroutine setup_restart_inputs
 					vmd_intervals(1,1) = 1; vmd_intervals(2,1) = huge(1)
 				else
 					allocate(vmd_intervals(2,Nvmd_intervals))
-					write(readin_format,'(a,i,a)') '(',2*Nvmd_intervals,'i)'
+					write(readin_format,'(a,i5,a)') '(',2*Nvmd_intervals,'i)'
 					read(1,trim(readin_format)) vmd_intervals
 #if USE_COUPLER
 					!NEED SOME SORT OF coupler total simulation time retrival here!!
@@ -2130,7 +2130,7 @@ implicit none
 		open(15,file='results/r_gyration',status='replace')
 		write(15,'(i8,f15.8)') iter, R_g
 	else if (iter.gt.r_gyration_iter0) then
-		open(15,file='results/r_gyration',access='append')
+		open(15,file='results/r_gyration',position='append')
 		write(15,'(i8,f15.8)') iter, R_g
 	end if
 	

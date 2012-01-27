@@ -38,9 +38,7 @@ subroutine simulation_apply_boundary_forces
 	! This is needed because the coupler has the information about the continuum grid
 	pressure = 2.5d0
 
-#if USE_COUPLER .eq. .true.
 	call coupler_md_boundary_forces(np,pressure,r,a)
-#endif
 
 end subroutine simulation_apply_boundary_forces
 
