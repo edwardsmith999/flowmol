@@ -92,7 +92,7 @@ subroutine simulation_record
 	if (vmd_outflag.ne.0) then
 		vmd_iter = iter-initialstep+1
 		if (vmd_iter.ge.vmd_intervals(1,i).and.vmd_iter.lt.vmd_intervals(2,i)) then
-			print*, iter,vmd_iter,i,vmd_count,vmd_intervals(1,i),vmd_intervals(2,i)
+!			print*, iter,vmd_iter,i,vmd_count,vmd_intervals(1,i),vmd_intervals(2,i)
 			if (vmd_outflag .eq. 1) call parallel_io_vmd(vmd_intervals(1,i),vmd_intervals(2,i),i)
 			if (vmd_outflag .eq. 2) call parallel_io_vmd_sl(vmd_intervals(1,i),vmd_intervals(2,i),i)
 			if (vmd_outflag .eq. 3) then
@@ -176,16 +176,17 @@ subroutine evaluate_macroscopic_properties_parallel
 
 		virial = virial + virialmol(n)
 
-		if (lfv) then
+		select case(integration_algorithm)
+		case(leap_frog_verlet)
 			do ixyz = 1, nd                                     ! Loop over all dimensions
 				vel = v(n,ixyz) + 0.5d0*a(n,ixyz)*delta_t       ! Velocity must shifted half a timestep
 				vsum = vsum + vel                               ! Add up all molecules' velocity components
 				v2sum = v2sum + vel**2                          ! Add up all molecules' velocity squared components  
 			enddo
-		else if (vv) then                                       ! If velocity Verlet algorithm
+		case(velocity_verlet)                                   ! If velocity Verlet algorithm
 			vsum = vsum + sum(v(n,:))
 			v2sum = v2sum + dot_product(v(n,:),v(n,:))          ! Sum all velocity squared components
-		end if
+		end select
 
 	enddo
 
@@ -360,46 +361,24 @@ end subroutine evaluate_properties_diffusion
 
 !===================================================================================
 !Calculate end-to-end time correlation function of FENE chain
-subroutine etevtcf_calculate 
+subroutine etevtcf_calculate
 use module_record
 implicit none
 	
-	logical 						:: cross_boundary
-	integer 						:: i,j,molL,molR
-	integer, dimension(nd) 			:: checker
-	double precision 				:: max_chain_elong
-	double precision 				:: etev_prod, etev_prod_sum
-	double precision 				:: etev2, etev2_sum
+	integer :: i,j
+	double precision :: etev_prod, etev_prod_sum
+	double precision :: etev2, etev2_sum
 	double precision, dimension(nd) :: rij,etev
-
-	!Check if etevtcf can be reliably calculated
-!	max_chain_elong = (chain_length - 1)*R_0
-!	if (any(max_chain_elong.ge.halfdomain)) then
-!		print('(a)'), 'Warning - maximum chain length is longer than half domain. Etevtcf &
-!		is unlikely to be calculated correctly with the minimum image &
-!		convention.'
-!		print*, 'MAX ELONG = ', max_chain_elong, 'HALFDOMAIN = ', min(halfdomain(1),halfdomain(2),halfdomain(3))
-!	end if
 
 	if (iter.eq.etevtcf_iter0) then						!Initialise end-to-end vectors at t_0
 		do i=1,np														
 			if (polyinfo_mol(i)%left.eq.0) then
-				cross_boundary = .false.
-				checker(:) = 0
-				!Check if polymer straddles boundary
+				etev_0(i,:) = 0.d0
 				do j=0,chain_length-2
-					rij(:) = r(i+j+1,:) - r(i+j,:)
-					checker(:) = anint(rij(:)/domain(:))
-					if (any(checker.ne.0)) cross_boundary = .true.
+					rij(:)      = r(i+j+1,:) - r(i+j,:)
+					rij(:)      = rij(:) - domain(:)*anint(rij(:)/domain(:))
+					etev_0(i,:) = etev_0(i,:) + rij(:)
 				end do
-				molL = i
-				molR = i+(chain_length-1)										!Right end of chain
-				if (.not. cross_boundary) then 
-					etev_0(i,:) = r(molR,:) - r(molL,:)								!End-to-end vector
-				else
-					etev_0(i,:) = r(molR,:) - r(molL,:)								!End-to-end vector
-					etev_0(i,:) = etev_0(i,:) - domain(:)*anint(etev_0(i,:)/domain(:))		!Minimum image
-				end if
 			end if
 		end do
 	end if
@@ -409,31 +388,16 @@ implicit none
 
 	do i=1,np
 		if (polyinfo_mol(i)%left.eq.0) then
-			cross_boundary = .false.
-			checker(:) = 0
-			!Check if polymer straddles boundary
+			etev(:) = 0.d0
 			do j=0,chain_length-2
-				rij(:) = r(i+j+1,:) - r(i+j,:)
-				checker(:) = anint(rij(:)/domain(:))
-				if (any(checker.ne.0)) cross_boundary = .true.
+				rij(:)  = r(i+j+1,:) - r(i+j,:)
+				rij(:)  = rij(:) - domain(:)*anint(rij(:)/domain(:))
+				etev(:) = etev(:) + rij(:)
 			end do
-
-			molL = i
-			molR = i+(chain_length-1)
-
-			if (.not. cross_boundary) then 
-				etev(:) = r(molR,:) - r(molL,:)								!End-to-end vector
-			else
-				etev(:) = r(molR,:) - r(molL,:)								!End-to-end vector
-				etev(:) = etev(:) - domain(:)*anint(etev(:)/domain(:))		!Minimum image
-			end if
-
 			etev_prod		= dot_product(etev(:),etev_0(i,:))
 			etev2			= dot_product(etev,etev)			
-		
 			etev_prod_sum	= etev_prod_sum + etev_prod
 			etev2_sum		= etev2_sum + etev2		
-		
 		end if
 	end do
 	
@@ -444,6 +408,8 @@ implicit none
 	
 end subroutine etevtcf_calculate
 
+!---------------------------------------------------------------------------------
+!Calculate radius of gyration
 subroutine r_gyration_calculate
 use module_record
 implicit none
