@@ -91,11 +91,16 @@ subroutine simulation_MD
 
 	do iter = initialstep, Nsteps                   !Loop over specified output steps 
 	
-		if (lfv) call md_advance_lfv                !Advance simulation (leap-frog Verlet algorithm)
-		if (vv)  call md_advance_vv                 !Advance simulation (velocity Verlet algorithm)
-
+		select case(integration_algorithm)
+		case(leap_frog_verlet)
+			call md_advance_lfv                     !Advance simulation (leap-frog Verlet algorithm)
+		case(velocity_verlet)
+			call md_advance_vv                      !Advance simulation (velocity Verlet algorithm)
+		case default
+			stop 'Incorrect integration algorithm specification'
+		end select
+		
 		call simulation_checkrebuild(rebuild)       !Determine if neighbourlist rebuild required
-
 		if(rebuild .eq. 1) then
 			call linklist_deallocateall             !Deallocate all linklist components
 			call sendmols                           !Exchange particles between processors
@@ -121,7 +126,7 @@ subroutine md_advance_lfv
 		call simulation_apply_boundary_forces               !Apply boundary force to prevent molecules leaving domain
 		call socket_coupler_apply_continuum_forces(iter)    !Apply coupling forces so MD => CFD
 #endif
-		call simulation_move_particles                      !Move particles as a result of forces
+		call simulation_move_particles_lfv                  !Move particles as a result of forces
 
 #if USE_COUPLER
 		call socket_coupler_average(iter)                   !Calculate averages of MD to pass to CFD
@@ -138,10 +143,18 @@ subroutine md_advance_vv
 		
 		call simulation_move_particles_vv(1)        !Find r(t+dt) and v(t+dt/2)
 		call messenger_updateborders(0)             !Update borders between processors
+		call simulation_checkrebuild(rebuild)
+		if(rebuild .eq. 1) then
+			call linklist_deallocateall             !Deallocate all linklist components
+			call sendmols                           !Exchange particles between processors
+  			call assign_to_cell                     !Re-build linklist for domain cells
+			call messenger_updateborders(rebuild)   !Update borders between processors
+			call assign_to_neighbourlist		    !Setup neighbourlist
+		endif
 		call simulation_compute_forces              !Calculate forces on all particles
 		call simulation_move_particles_vv(2)        !Find v(t+dt)
 		call simulation_record                      !Evaluate and write properties 
-
+		
 	end subroutine md_advance_vv
 
 

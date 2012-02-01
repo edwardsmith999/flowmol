@@ -1396,7 +1396,7 @@ implicit none
 	if (force_list .gt. 1) then
 		do i = 1, np
 			if (associated(neighbour%head(i)%point) .eqv. .true. ) then !Exit if null
-	        		noneighbrs = neighbour%noneighbrs(i)  !Determine number of elements in neighbourlist
+	       		noneighbrs = neighbour%noneighbrs(i)  !Determine number of elements in neighbourlist
 				oldn => neighbour%head(i)%point		   !Set old to head of neighbour list
 				currentn => oldn ! make current point to head of list
 				do j=1,noneighbrs-1

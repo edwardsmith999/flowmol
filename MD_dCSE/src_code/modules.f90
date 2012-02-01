@@ -44,10 +44,16 @@ module computational_constants_MD
 	integer					:: potential_flag	!Choose LJ or Polymer Potential 
 
 	!Integration algorithm
-	integer			  		:: integration_algorithm
-	logical           		:: lfv
-	logical           		:: vv
-	character(len=20) 		:: ensemble
+	integer                 :: integration_algorithm
+	integer, parameter      :: leap_frog_verlet = 0
+	integer, parameter      :: velocity_verlet  = 1
+	integer                 :: ensemble
+	integer, parameter      :: nve         = 0
+	integer, parameter      :: nvt_NH      = 1
+	integer, parameter      :: nvt_GIK     = 2
+	integer, parameter      :: nvt_PUT_NH  = 3
+	integer, parameter      :: nvt_pwa_NH  = 4 
+	integer, parameter      :: tag_move    = 5
 
 	!Thermostat flag
 	integer					:: thermstat_flag

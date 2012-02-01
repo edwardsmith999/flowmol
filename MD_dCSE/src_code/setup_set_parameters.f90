@@ -48,9 +48,9 @@ subroutine setup_set_parameters
 
 	!call set_parameters_domain
 #if USE_COUPLER
-        	call set_parameters_global_domain_coupled
+   	call set_parameters_global_domain_coupled
 #else 
-        	call set_parameters_global_domain
+   	call set_parameters_global_domain
 #endif
 	call set_parameters_cells
 	call set_parameters_setlimits

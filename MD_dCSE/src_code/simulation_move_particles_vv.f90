@@ -17,7 +17,7 @@ end module module_move_particles_vv
 
 !=========================================================================================!
 ! simulation_move_particles_vv(pass_num)
-! author: David Trevelyan
+! authors: David Trevelyan & Ed Smith
 !
 ! description:
 !     simulation_move_particles_vv contains both parts of the velocity-Verlet algorithm
@@ -56,27 +56,27 @@ subroutine simulation_move_particles_vv(pass_num)
 	
 	!--------First half of velocity-Verlet algorithm. Finds r(t+dt) and v(t+dt/2).--------!
 	if (pass_num.eq.1) then
-		select case(trim(ensemble))
-		case('nve')
+		select case(ensemble)
+		case(nve)
 			do n=1,np
 				r(n,:) = r(n,:) + delta_t*v(n,:) + 0.5d0*(delta_t**2.d0)*a(n,:)
 				v(n,:) = v(n,:) + 0.5d0*delta_t*a(n,:)
 			end do
 
-		case('nvt_NH')
+		case(nvt_NH)
 			call evaluate_dzeta_dt
 			do n=1,np
 				r(n,:) = r(n,:) + delta_t*v(n,:) + 0.5d0*(delta_t**2.d0)*(a(n,:)-zeta*v(n,:))
 				v(n,:) = v(n,:) + 0.5d0*delta_t*(a(n,:)-zeta*v(n,:))
 			end do
 
-		case('nvt_GIK')
+		case(nvt_GIK)
 			do n=1,np
 				r(n,:) = r(n,:) + delta_t*v(n,:) + 0.5d0*(delta_t**2.d0)*(a(n,:)-zeta*v(n,:))
 				v(n,:) = v(n,:) + 0.5d0*delta_t*(a(n,:)-zeta*v(n,:))
 			end do			
 
-		case('nvt_PUT_NH')	
+		case(nvt_PUT_NH)	
 			call evaluate_U_PUT
 			call evaluate_dzeta_dt_PUT
 			do n=1,np
@@ -84,36 +84,39 @@ subroutine simulation_move_particles_vv(pass_num)
 				v(n,:) = v(n,:) + 0.5d0*delta_t*(a(n,:)-zeta*(v(n,:)-U(n,:)))
 			end do
 		
-		case('nvt_pwa_NH')
+		case(nvt_pwa_NH)
 			call evaluate_pwa_terms_pwaNH
 			do n=1,np
 				v(n,:) = v(n,:) + 0.5d0*delta_t*(a(n,:) - zeta*vrelsum(n,:))
 				r(n,:) = r(n,:) + delta_t*v(n,:)
 			end do
 		
-		case('tag_move_vv')
+		case(tag_move)
 			stop 'Tag mode for velocity-Verlet not yet implemented.'
+	
+		case default
+			stop 'Unrecognised ensemble, stopping.'
 
 		end select	
 	
 	!-------Second half of velocity-Verlet algorithm.-------------------------------------!
 	else if (pass_num.eq.2) then
-	
-		select case(trim(ensemble))
 
-			case('nve')
+		select case(ensemble)
+
+			case(nve)
 				do n=1,np
 					v(n,:) = v(n,:) + 0.5d0*delta_t*a(n,:)
 				end do
 	
-			case('nvt_NH')
+			case(nvt_NH)
 				zeta  = zeta + delta_t*dzeta_dt
 				alpha = 1.d0 + 0.5d0*delta_t*zeta
 				do n=1,np
 					v(n,:) = (v(n,:) + 0.5d0*delta_t*a(n,:))/alpha
 				end do
 			
-			case('nvt_GIK')
+			case(nvt_GIK)
 				v_old = v
 				do i=1,3
 					call evaluate_zeta_GIK
@@ -123,7 +126,7 @@ subroutine simulation_move_particles_vv(pass_num)
 					end do
 				end do
 
-			case('nvt_PUT_NH')
+			case(nvt_PUT_NH)
 				call evaluate_U_PUT
 				zeta  = zeta + delta_t*dzeta_dt
 				alpha = 1.d0 + 0.5d0*delta_t*zeta
@@ -131,7 +134,7 @@ subroutine simulation_move_particles_vv(pass_num)
 					v(n,:) = (v(n,:) + 0.5d0*delta_t*(a(n,:)+zeta*U(n,:)))/alpha
 				end do
 
-			case('nvt_pwa_NH')
+			case(nvt_pwa_NH)
 				call evaluate_pwa_terms_pwaNH
 				v_old = v
 				zeta_old = zeta + 0.5d0*delta_t*dzeta_dt
@@ -143,9 +146,12 @@ subroutine simulation_move_particles_vv(pass_num)
 					zeta = zeta_old + 0.5d0*delta_t*dzeta_dt
 				end do	
 		
-			case('tag_move_vv')
+			case(tag_move)
 				stop 'Tag mode for velocity-Verlet not yet implemented.'
 			
+			case default
+				stop 'Unrecognised ensemble, stopping.'
+
 		end select
 
 	end if
