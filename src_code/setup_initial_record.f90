@@ -317,7 +317,8 @@ implicit none
 
 		virial = virial + virialmol(n)
 
-		if (lfv) then
+		select case (integration_algorithm)
+		case(leap_frog_verlet)
 			do ixyz = 1, nd   ! Loop over all dimensions
 				!Velocity component must be shifted back half a timestep to determine 
 				!velocity of interest - required due to use of the leapfrog method
@@ -325,10 +326,10 @@ implicit none
 				vsum = vsum + vel      !Add up all molecules' velocity components
 				v2sum = v2sum + vel**2 !Add up all molecules' velocity squared components  
 			enddo
-		else if (vv) then
+		case(velocity_verlet)
 			vsum = vsum + sum(v(n,:))
 			v2sum = v2sum + dot_product(v(n,:),v(n,:))
-		end if
+		end select
 
 	enddo
 
@@ -338,16 +339,26 @@ implicit none
 	call globalSum(virial)
 	call globalSum(potenergysum)
 
-	kinenergy   = (0.5d0 * v2sum) / globalnp 
-	potenergy   = potenergysum /(2*globalnp) !N.B. extra 1/2 as all interactions calculated
-	if (potential_flag.eq.1) then
-		potenergy_LJ = potenergysum_LJ/(2.d0*real(globalnp,kind(0.d0)))
-		potenergy_FENE = potenergysum_FENE/(2.d0*real(globalnp,kind(0.d0)))
-	end if
-	totenergy   = kinenergy + potenergy
-	temperature = v2sum / (nd * globalnp)
-	if (thermstat_flag.eq.2) temperature = get_temperature_PUT()
-	pressure    = (density/(globalnp*nd))*(v2sum+virial/2) !N.B. virial/2 as all interactions calculated
+		kinenergy   = (0.5d0 * v2sum) / real(globalnp,kind(0.d0))
+		potenergy   = potenergysum /(2.d0*real(globalnp,kind(0.d0))) !N.B. extra 1/2 as all interactions calculated
+		if (potential_flag.eq.1) then
+			potenergy_LJ= potenergysum_LJ/(2.d0*real(globalnp,kind(0.d0)))
+			potenergy_FENE= potenergysum_FENE/(2.d0*real(globalnp,kind(0.d0)))
+		end if
+		totenergy   = kinenergy + potenergy
+		temperature = v2sum / real(nd*globalnp,kind(0.d0))
+		if (any(periodic.gt.1)) temperature = get_temperature_PUT()
+		pressure    = (density/(globalnp*nd))*(v2sum+virial/2) !N.B. virial/2 as all interactions calculated
+	!kinenergy   = (0.5d0 * v2sum) / globalnp 
+	!potenergy   = potenergysum /(2*globalnp) !N.B. extra 1/2 as all interactions calculated
+	!if (potential_flag.eq.1) then
+	!	potenergy_LJ = potenergysum_LJ/(2.d0*real(globalnp,kind(0.d0)))
+	!	potenergy_FENE = potenergysum_FENE/(2.d0*real(globalnp,kind(0.d0)))
+	!end if
+	!totenergy   = kinenergy + potenergy
+	!temperature = v2sum / (nd * globalnp)
+	!if (thermstat_flag.eq.2) temperature = get_temperature_PUT()
+	!pressure    = (density/(globalnp*nd))*(v2sum+virial/2) !N.B. virial/2 as all interactions calculated
 	
 	!WARNING ABOUT THERMOSTATTED RESTARTS! WILL CONSERVE TEMPERATURE OF LAST ITERATION
 	!For velocity rescaling thermostat

@@ -143,18 +143,8 @@ subroutine setup_inputs
 	read(1,*) initialnunits(3)		!z dimension split into number of cells
 	call locate(1,'INTEGRATION_ALGORITHM',.true.)
 	read(1,*) integration_algorithm
-	if (integration_algorithm.eq.0) then
-		lfv = .true.
-		vv  = .false.
-	else if (integration_algorithm.eq.1) then
-		lfv = .false.
-		vv  = .true.
-	else 
-		call error_abort( 'INTEGRATION_ALGORITHM improperly specified in input file.')
-	end if
 	call locate(1,'ENSEMBLE',.true.)
 	read(1,*) ensemble
-	ensemble = trim(ensemble)
 	call locate(1,'FORCE_LIST',.true.)	!LJ or FENE potential
 	read(1,*) force_list
 	call locate(1,'POTENTIAL_FLAG',.true.)	!LJ or FENE potential
@@ -543,19 +533,9 @@ subroutine setup_restart_inputs
 	!Choose integration algorithm
 	call locate(1,'INTEGRATION_ALGORITHM',.true.)
 	read(1,*) integration_algorithm
-	if (integration_algorithm.eq.0) then
-		lfv = .true.
-		vv  = .false.
-	else if (integration_algorithm.eq.1) then
-		lfv = .false.
-		vv  = .true.
-	else 
-		call error_abort( 'INTEGRATION_ALGORITHM improperly specified in input file.')
-	end if
 	
 	call locate(1,'ENSEMBLE',.true.)
 	read(1,*) ensemble
-	ensemble = trim(ensemble)
 
 	call locate(1,'FORCE_LIST',.true.)	!LJ or FENE potential
 	read(1,*) force_list
@@ -787,9 +767,19 @@ subroutine setup_restart_microstate
 		enddo
 		do ixyz=1,nd
 			read(2) v(n,ixyz)
-			if (lfv) v(n,ixyz) = v(n,ixyz) - 0.5d0*delta_t*a(n,ixyz)
 		enddo
 	enddo
+
+!	select case (integration_algorithm)
+!		case(leap_frog_verlet)
+!			call simulation_compute_forces
+!			do n=1,globalnp
+!				v(n,:) = v(n,:) - 0.5d0*delta_t*a(n,:)		
+!			end do
+!		case(velocity_verlet)
+!			!Nothing
+!	end select
+
 	call setup_tag				!Setup location of fixed molecules
 	do n = 1,np
 		call read_tag(n)		!Read tag and assign properties
@@ -960,6 +950,15 @@ subroutine parallel_io_final_state
 	close(2,status='delete')
 	!open(3,file='results/finalvelocities',status='replace')
 
+!	select case (integration_algorithm)
+!		case(leap_frog_verlet)
+!			call simulation_compute_forces
+!			do n=1,globalnp
+!				v(n,:) = v(n,:) + 0.5d0*delta_t*a(n,:)		
+!			end do
+!		case(velocity_verlet)
+!			!Nothing
+!	end select
 	
 	!Written in this form so each molecule's information is together to allow 
 	!re-allocation to seperate processors

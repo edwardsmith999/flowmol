@@ -151,18 +151,8 @@ subroutine setup_inputs
 	read(1,*) initialnunits(3)		!z dimension split into number of cells
 	call locate(1,'INTEGRATION_ALGORITHM',.true.)
 	read(1,*) integration_algorithm
-	if (integration_algorithm.eq.0) then
-		lfv = .true.
-		vv  = .false.
-	else if (integration_algorithm.eq.1) then
-		lfv = .false.
-		vv  = .true.
-	else 
-		call error_abort( 'INTEGRATION_ALGORITHM improperly specified in input file.')
-	end if
 	call locate(1,'ENSEMBLE',.true.)
 	read(1,*) ensemble
-	ensemble = trim(ensemble)
 	call locate(1,'FORCE_LIST',.true.)	!LJ or FENE potential
 	read(1,*) force_list
 	call locate(1,'POTENTIAL_FLAG',.true.)	!LJ or FENE potential
@@ -577,19 +567,9 @@ subroutine setup_restart_inputs
 		!Choose integration algorithm
 		call locate(1,'INTEGRATION_ALGORITHM',.true.)
 		read(1,*) integration_algorithm
-		if (integration_algorithm.eq.0) then
-			lfv = .true.
-			vv  = .false.
-		else if (integration_algorithm.eq.1) then
-			lfv = .false.
-			vv  = .true.
-		else 
-			call error_abort( 'INTEGRATION_ALGORITHM improperly specified in input file.')
-		end if
 		
 		call locate(1,'ENSEMBLE',.true.)
 		read(1,*) ensemble
-		ensemble = trim(ensemble)
 
 		call locate(1,'FORCE_LIST',.true.)	!LJ or FENE potential
 		read(1,*) force_list
