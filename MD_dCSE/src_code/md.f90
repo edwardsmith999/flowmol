@@ -126,7 +126,7 @@ subroutine md_advance_lfv
 		call simulation_apply_boundary_forces               !Apply boundary force to prevent molecules leaving domain
 		call socket_coupler_apply_continuum_forces(iter)    !Apply coupling forces so MD => CFD
 #endif
-		call simulation_move_particles_lfv                  !Move particles as a result of forces
+		call simulation_move_particles                      !Move particles as a result of forces
 
 #if USE_COUPLER
 		call socket_coupler_average(iter)                   !Calculate averages of MD to pass to CFD
