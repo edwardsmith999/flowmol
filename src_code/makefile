@@ -25,7 +25,7 @@ USE_COUPLER_LOGICAL := $(LOGICAL_$(USE_COUPLER))
 
 # coupler object files in coupler directory
 O_COUPLER_no     := #$(COUPLER_PATH)/coupler_null.o
-O_COUPLER_yes    := $(COUPLER_PATH)/coupler.o $(COUPLER_PATH)/coupler_parameters.o $(COUPLER_PATH)/coupler_internal_common.o $(COUPLER_PATH)/coupler_internal_md.o $(COUPLER_PATH)/coupler_internal_cfd.o   
+O_COUPLER_yes    := $(COUPLER_PATH)/coupler.o $(COUPLER_PATH)/coupler_parameters.o $(COUPLER_PATH)/coupler_internal_common.o $(COUPLER_PATH)/coupler_internal_md.o $(COUPLER_PATH)/coupler_internal_cfd.o  $(COUPLER_PATH)/coupler_input_data.o   
 O_COUPLER        := $(O_COUPLER_$(USE_COUPLER))
 
 # socket files
