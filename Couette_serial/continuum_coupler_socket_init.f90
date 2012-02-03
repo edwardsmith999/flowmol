@@ -25,11 +25,11 @@ contains
 
         subroutine continuum_coupler_adjust_domain
                 use coupler
-                use computational_constants, only : lx
+                use computational_constants, only : lx,ly,nx,ny
                 use physical_constants,      only : rho
                 implicit none
 
-                call coupler_cfd_adjust_domain(rho,"FCC",xL=lx)
+                call coupler_cfd_adjust_domain(xL=lx,yL=ly,nx=nx,ny=ny,density_cfd=rho)
 
         end subroutine continuum_coupler_adjust_domain
 
@@ -54,7 +54,7 @@ contains
                         imaxo=nx+3,jmino=1,jmin=2,jmax=ny+2,jmaxo=ny+3,&
                         kmino=1,kmin=1,kmax=1,kmaxo=1,nsteps=nsteps+1,&
                         x=mx,y=my,z=z0,dx=mx(2)-mx(1),dz=0.d0,npx=npx,npy=npy,npz=npz,&
-                        icoord=icoord,dt=continuum_delta_t,density=rho)
+                        icoord=icoord,dt=continuum_delta_t)
 
                 call coupler_create_map
                 

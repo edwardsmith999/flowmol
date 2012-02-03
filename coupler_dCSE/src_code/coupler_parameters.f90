@@ -19,8 +19,10 @@ module coupler_parameters
  	integer COUPLER_REALM 
 
 	! error codes
-	integer, parameter :: COUPLER_ERROR_REALM = 1, &  ! wrong realm value
-                          COUPLER_ERROR_ONE_REALM = 2, &  ! one realm missing
-                          COUPLER_ERROR_INIT      = 3     ! initialisation error
+	integer, parameter :: COUPLER_ERROR_REALM  = 1, &  ! wrong realm value
+                          COUPLER_ERROR_ONE_REALM  = 2, &  ! one realm missing
+                          COUPLER_ERROR_INIT       = 3, &  ! initialisation error
+                          COUPLER_ERROR_INPUT_FILE = 4, &  ! wrong value in input file
+                          COUPLER_ERROR_READ_INPUT = 5     ! error in processing input file or data transfers
 
 end module coupler_parameters

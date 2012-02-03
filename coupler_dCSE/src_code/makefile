@@ -21,7 +21,7 @@ USE_COUPLER_LOGICAL := $(LOGICAL_$(USE_COUPLER))
 #
 # Coupler files
 #
-F90_COUPLER_FILES      := coupler.f90 coupler_parameters.f90 coupler_internal_cfd.f90 coupler_internal_md.f90 coupler_internal_common.f90 
+F90_COUPLER_FILES      := coupler.f90 coupler_parameters.f90 coupler_internal_cfd.f90 coupler_internal_md.f90 coupler_internal_common.f90 coupler_input_data.f90
 F90_NULL_COUPLER_FILES := coupler_null.f90
 O_COUPLER_FILES        := $(addprefix obj/,$(F90_COUPLER_FILES:.f90=.o))
 O_NULL_COUPLER_FILES   := $(addprefix obj_null/,$(F90_NULL_COUPLER_FILES:.f90=.o))
@@ -126,6 +126,7 @@ $(O_NULL_COUPLER_FILES) : obj_null/%.o : %.f90
 #=======================================================================
 # Dependencies
 #=======================================================================
-obj/coupler.o : obj/coupler_internal_cfd.o obj/coupler_internal_md.o obj/coupler_parameters.o obj/coupler_internal_common.o
-obj/coupler_internal_cfd.o obj/coupler_internal_md.o : obj/coupler_parameters.o obj/coupler_internal_common.o
+obj/coupler.o : obj/coupler_internal_cfd.o obj/coupler_internal_md.o obj/coupler_parameters.o obj/coupler_internal_common.o obj/coupler_input_data.o
+obj/coupler_internal_cfd.o obj/coupler_internal_md.o : obj/coupler_parameters.o obj/coupler_internal_common.o obj/coupler_input_data.o 
+obj/coupler_input_data.o : obj/coupler_parameters.o obj/coupler_internal_common.o
 

@@ -28,9 +28,8 @@ module coupler_internal_cfd
 
 	integer tplot	       !Output every number of steps
 	integer :: jmax_overlap = 5 ! maximum j index ( in y direction) which MD 
-
-	! has to cover, on top of that it has to cover 
-	! y(0):y(1) domain and a bit of room
+	                            ! has to cover, on top of that it has to cover 
+	                            ! y(0):y(1) domain and a bit of room below
 	integer, allocatable :: icoord(:,:)
 
 	real(kind(0.d0)), allocatable :: x(:), y(:), z(:)
@@ -73,24 +72,24 @@ contains
 
 subroutine create_map_cfd
 	use mpi 
-	use coupler_internal_common, only : COUPLER_COMM, CFD_MD_ICOMM
+	use coupler_internal_common, only : COUPLER_REALM_COMM, COUPLER_ICOMM
 	implicit none
 
 	integer i, myid, color, noverlaps, ir, iaux(4), ierr
 	integer, allocatable :: md_grid_boxes(:,:), overlap_mask(:), ireq(:), overlap_box(:,:)
 	real(kind(0.d0)) raux(2)
 	
-	call mpi_comm_rank(COUPLER_COMM,myid,ierr)
+	call mpi_comm_rank(COUPLER_REALM_COMM,myid,ierr)
 
 	! for 2D CFD problem one must broadcast  back the zL_md,z,dz
-	call mpi_bcast( raux, 2, MPI_DOUBLE_PRECISION, 0, CFD_MD_ICOMM,ierr)
+	call mpi_bcast( raux, 2, MPI_DOUBLE_PRECISION, 0, COUPLER_ICOMM,ierr)
 	if (allocated(z)) then
 		deallocate(z)
 	endif
 	allocate(z(2))
 	z(:) = raux(:)
 	dz   = z(2) - z(1)
-	call mpi_bcast(iaux, 4, MPI_INTEGER, 0, CFD_MD_ICOMM,ierr)
+	call mpi_bcast(iaux, 4, MPI_INTEGER, 0, COUPLER_ICOMM,ierr)
 	kmino=iaux(1); kmin=iaux(2); kmax=iaux(3); kmaxo=iaux(4)
 
 	call make_bbox
@@ -101,11 +100,11 @@ subroutine create_map_cfd
 	allocate(md_grid_boxes(6,0:nproc_md - 1), overlap_mask(0:nproc_md - 1), &
 	 overlap_box(6,0:nproc_md-1), ireq(0:nproc_md - 1))
 
-	call mpi_allgather(MPI_BOTTOM, 0, MPI_INTEGER, md_grid_boxes, 6, MPI_INTEGER,CFD_MD_ICOMM, ierr)
+	call mpi_allgather(MPI_BOTTOM, 0, MPI_INTEGER, md_grid_boxes, 6, MPI_INTEGER,COUPLER_ICOMM, ierr)
 	!write(0,*) ' CFD grid boxes ', myid, md_grid_boxes
 	call find_overlaps
 	! send the overlap mask across to MD
-	call mpi_allgather(overlap_mask,nproc_md,MPI_INTEGER,MPI_BOTTOM,0, MPI_INTEGER,CFD_MD_ICOMM,ierr)
+	call mpi_allgather(overlap_mask,nproc_md,MPI_INTEGER,MPI_BOTTOM,0, MPI_INTEGER,COUPLER_ICOMM,ierr)
 
 	noverlaps = 0
 	do i = 0, nproc_md - 1
@@ -124,7 +123,7 @@ subroutine create_map_cfd
 		color = 0
 	endif
 
-	call mpi_comm_split(COUPLER_COMM, color, myid, CFD_COMM_OVERLAP, ierr)
+	call mpi_comm_split(COUPLER_REALM_COMM, color, myid, CFD_COMM_OVERLAP, ierr)
 
 	if (color == 0) then
 		CFD_COMM_OVERLAP = MPI_COMM_NULL
@@ -134,7 +133,7 @@ subroutine create_map_cfd
 	ir = 0
 	do i=0, nproc_md-1
 		if (overlap_mask(i) == 1) then
-			call mpi_isend(overlap_box(1,i),6,mpi_integer,i,2,CFD_MD_ICOMM,ireq(i),ierr)
+			call mpi_isend(overlap_box(1,i),6,mpi_integer,i,2,COUPLER_ICOMM,ireq(i),ierr)
 			ir = ir + 1
 			md_map%rank_list(ir) = i
 			md_map%domains(:,ir) = overlap_box(1:6,i)
@@ -273,7 +272,7 @@ end subroutine create_map_cfd
 !-----------------------------------------------------------------------------
 subroutine recv_vel_MD(vel,p1s,p1e,p2s,p2e,p3s,p3e,pbc)
 	use mpi
-	use coupler_internal_common, only : COUPLER_COMM, CFD_MD_ICOMM
+	use coupler_internal_common, only : COUPLER_REALM_COMM, COUPLER_ICOMM
 	implicit none
 	! the index ranges in z,x,y, periodic BC
 	integer, intent(in) :: p1s,p1e,p2s,p2e,p3s,p3e,pbc
@@ -289,7 +288,7 @@ subroutine recv_vel_MD(vel,p1s,p1e,p2s,p2e,p3s,p3e,pbc)
 	! This local CFD domain is outside MD overlap zone 
 	if ( md_map%n == 0 ) return 
 
-	call mpi_comm_rank(COUPLER_COMM, myid, ierr)
+	call mpi_comm_rank(COUPLER_REALM_COMM, myid, ierr)
 
 	ncalls = ncalls + 1
 
@@ -328,7 +327,7 @@ subroutine recv_vel_MD(vel,p1s,p1e,p2s,p2e,p3s,p3e,pbc)
 
 		! Attention ncall could go over max tag value for long runs!!
 		itag = mod(ncalls, MPI_TAG_UB)
-		call mpi_irecv(vbuf(start_address(i)),np, MPI_DOUBLE_PRECISION, source, itag, CFD_MD_ICOMM, &
+		call mpi_irecv(vbuf(start_address(i)),np, MPI_DOUBLE_PRECISION, source, itag, COUPLER_ICOMM, &
 		 		req(i),ierr)
 		!write(0,*) 'CFD recv_MDvel  ', myid, i, itag,source,np, is,ie,ks,ke,ierr	
 	enddo

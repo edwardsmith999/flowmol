@@ -45,6 +45,7 @@ contains
 subroutine coupler_create_comm(realm, realm_comm, ierror)
 	use mpi
 	use coupler_internal_common
+        use coupler_input_data
 	implicit none
 
 	integer, intent(in) :: realm ! CFD or MD ?
@@ -56,11 +57,12 @@ subroutine coupler_create_comm(realm, realm_comm, ierror)
 	call test_realms
 	COUPLER_REALM = realm
 	call create_comm
+        call  read_coupler_input
 
 contains
 
 !-----------------------------------------------------------------------------
-!	Test if CFD or MD realm is assigned correctly
+!	Test if CFD and MD realms are assigned correctly
 !-----------------------------------------------------------------------------
 
         subroutine test_realms
@@ -111,29 +113,32 @@ contains
 	end subroutine test_realms
 
 !-----------------------------------------------------------------------------
-! Create communicator for each realm and inter-communicator
+! Create communicators for each realm and inter-communicator
 !-----------------------------------------------------------------------------
 
 	subroutine create_comm
 		use mpi
-		use coupler_internal_common, only : COUPLER_COMM, CFD_MD_ICOMM
+		use coupler_internal_common, only : COUPLER_REALM_COMM, COUPLER_GLOBAL_COMM, COUPLER_ICOMM
 		implicit none
 
 		integer ierr, myid, myid_comm, myid_comm_max, realm, &
 			iaux(2), jaux(2), remote_leader, comm, comm_size
 
 		realm = COUPLER_REALM
-		call mpi_comm_rank(MPI_COMM_WORLD,myid,ierr)
-		realm_comm   = MPI_COMM_NULL
-		COUPLER_COMM = MPI_COMM_NULL
+
+                ! get a global internal communicator for coupler operations
+		call mpi_comm_dup(MPI_COMM_WORLD,COUPLER_GLOBAL_COMM,ierr)
+		call mpi_comm_rank(COUPLER_GLOBAL_COMM,myid,ierr)
+	        REALM_COMM         = MPI_COMM_NULL
+		COUPLER_REALM_COMM = MPI_COMM_NULL
 
 		! get a communicator for each realm
-		call mpi_comm_split(MPI_COMM_WORLD,realm,myid,realm_comm,ierr)
+		call mpi_comm_split(MPI_COMM_WORLD,realm,myid,REALM_COMM,ierr)
 
-		! get internal communicator for coupler operations
-		call mpi_comm_dup(realm_comm,COUPLER_COMM,ierr)
+		! get internal, realm specific communicator for coupler operations
+		call mpi_comm_split(COUPLER_GLOBAL_COMM,realm,myid,COUPLER_REALM_COMM,ierr)
 
-		comm = COUPLER_COMM ! shorhand
+		comm = COUPLER_REALM_COMM ! shorthand
 
 		! create inter-communicators
 
@@ -147,7 +152,7 @@ contains
 			iaux(COUPLER_REALM) = myid
 		endif
 		call mpi_allreduce( iaux ,jaux, 2, MPI_INTEGER, MPI_MAX, &
-			MPI_COMM_WORLD, ierr)  
+			COUPLER_GLOBAL_COMM, ierr)  
 
 		select case (COUPLER_REALM)
 		case (COUPLER_CFD)
@@ -158,8 +163,8 @@ contains
 
 		!			print*,color, jaux, remote_leader
 
-		call mpi_intercomm_create(comm, comm_size - 1, MPI_COMM_WORLD,&
-			remote_leader, 1, CFD_MD_ICOMM, ierr)
+		call mpi_intercomm_create(comm, comm_size - 1, COUPLER_GLOBAL_COMM,&
+			remote_leader, 1, COUPLER_ICOMM, ierr)
 
 		write(0,*) 'did (inter)communicators ', code_name(COUPLER_REALM), myid
 	end subroutine create_comm
@@ -202,9 +207,10 @@ end subroutine coupler_create_map
 !-----------------------------------------------------------------------------
 
 subroutine coupler_cfd_init(imino,imin,imax,imaxo,jmino,jmin,jmax,jmaxo,kmino,kmin,&
-	kmax,kmaxo,nsteps,x,y,z,dx,dz,npx,npy,npz,icoord,dt,density)
+	kmax,kmaxo,nsteps,x,y,z,dx,dz,npx,npy,npz,icoord,dt)
 	use mpi
 	use coupler_internal_common
+        use coupler_input_data
 	use coupler_internal_cfd, only : imino_ => imino, imin_ => imin, imax_ => imax, jmino_ => jmin, &
 		jmin_ => jmin, jmax_ => jmax, jmaxo_ => jmaxo, kmino_ => kmino, kmin_ => kmin, kmax_ => kmax, &
 		kmaxo_ => kmaxo, nsteps_ => nsteps, x_ => x, y_ => y, z_ => z, dx_ => dx, dz_ => dz, &
@@ -215,7 +221,7 @@ subroutine coupler_cfd_init(imino,imin,imax,imaxo,jmino,jmin,jmax,jmaxo,kmino,km
 
 	integer, intent(in) :: imino,imin,imax,imaxo,jmino,jmin,jmax,jmaxo,kmino,kmin,kmax,kmaxo,nsteps,&
 		npx,npy,npz,icoord(:,:)
-	real(kind(0.d0)), intent(in) :: x(:),y(:),z(:), dx, dz, dt, density
+	real(kind(0.d0)), intent(in) :: x(:),y(:),z(:), dx, dz, dt
 
 	integer i, ierr, myid, source, ngrid(3), ny_md, nblock(3), &
 		iaux(6)
@@ -233,7 +239,7 @@ subroutine coupler_cfd_init(imino,imin,imax,imaxo,jmino,jmin,jmax,jmaxo,kmino,km
 	x_ = x; y_ = y; z_ = z;
 	icoord_ = icoord
 
-        call mpi_comm_rank(COUPLER_COMM,myid,ierr)
+        call mpi_comm_rank(COUPLER_REALM_COMM,myid,ierr)
 
         ! test if MD_init_cell size is larger than CFD cell size
         if( (MD_initial_cellsize >= x(2)-x(1) .or. MD_initial_cellsize >= y(2)-y(1)) .and. myid == 0 ) then
@@ -250,6 +256,10 @@ subroutine coupler_cfd_init(imino,imin,imax,imaxo,jmino,jmin,jmax,jmaxo,kmino,km
 	! write(0,*) 'CFD exchange grid data'
 	! send CFD processor grid
 	
+        if (cfd_coupler_input%ncells%tag == CPL) then
+           jmax_overlap =  jmin + cfd_coupler_input%ncells%y_overlap
+        endif
+
 	if ( myid .eq. 0 ) then
 		source=MPI_ROOT
 	else
@@ -257,11 +267,11 @@ subroutine coupler_cfd_init(imino,imin,imax,imaxo,jmino,jmin,jmax,jmaxo,kmino,km
 	endif
 
 	call mpi_bcast((/ npx, npy, npz, jmax_overlap /), 4, MPI_INTEGER,&
-		source, CFD_MD_ICOMM,ierr)
+		source, COUPLER_ICOMM,ierr)
 
 	! receive MD processor grid 
 	call mpi_bcast(iaux, 3, MPI_INTEGER,&
-		0, CFD_MD_ICOMM,ierr)
+		0, COUPLER_ICOMM,ierr)
 
 	npx_md = iaux(1)
 	npy_md = iaux(2)
@@ -270,15 +280,15 @@ subroutine coupler_cfd_init(imino,imin,imax,imaxo,jmino,jmin,jmax,jmaxo,kmino,km
 
 	! send CFD mesh data
 	call mpi_bcast((/ imino,imin,imax,imaxo,jmino,jmin,jmax,jmaxo,kmino,kmin,kmax,kmaxo /), 12,&
-		MPI_INTEGER, source, CFD_MD_ICOMM,ierr)
-	call mpi_bcast(x,size(x),mpi_double_precision,source,CFD_MD_ICOMM,ierr)
-	call mpi_bcast(y,size(y),mpi_double_precision,source,CFD_MD_ICOMM,ierr)
-	call mpi_bcast(z,size(z),mpi_double_precision,source,CFD_MD_ICOMM,ierr)
-	call mpi_bcast((/ dx, dz /),2,mpi_double_precision,source,CFD_MD_ICOMM,ierr)
+		MPI_INTEGER, source, COUPLER_ICOMM,ierr)
+	call mpi_bcast(x,size(x),mpi_double_precision,source,COUPLER_ICOMM,ierr)
+	call mpi_bcast(y,size(y),mpi_double_precision,source,COUPLER_ICOMM,ierr)
+	call mpi_bcast(z,size(z),mpi_double_precision,source,COUPLER_ICOMM,ierr)
+	call mpi_bcast((/ dx, dz /),2,mpi_double_precision,source,COUPLER_ICOMM,ierr)
 
 	! send CFD nsteps and dt
-	call mpi_bcast(nsteps,1,mpi_integer,source,CFD_MD_ICOMM,ierr)
-	call mpi_bcast( (/ dt, density, MD_initial_cellsize /),3,mpi_double_precision,source,CFD_MD_ICOMM,ierr)
+	call mpi_bcast(nsteps,1,mpi_integer,source,COUPLER_ICOMM,ierr)
+	call mpi_bcast( (/ dt, density, MD_initial_cellsize /),3,mpi_double_precision,source,COUPLER_ICOMM,ierr)
 
 	! write(0,*)' CFD: did exchange grid data'
 
@@ -292,7 +302,8 @@ end subroutine coupler_cfd_init
 subroutine coupler_md_init(npxin,npyin,npzin,icoordin,dtin)
 	use mpi
 	use coupler_internal_common
-	use coupler_internal_md, b => MD_initial_cellsize
+        use coupler_input_data
+	use coupler_internal_md, b => MD_initial_cellsize, md_density => density
 	implicit none
 
 	integer, intent(in)	  :: npxin, npyin, npzin, icoordin(:,:)
@@ -301,8 +312,7 @@ subroutine coupler_md_init(npxin,npyin,npzin,icoordin,dtin)
 	integer i, ierr, source, iaux(12)
 	real(kind=kind(0.d0)) ra(3)
 
-
-	call mpi_comm_rank(COUPLER_COMM,myid,ierr)
+	call mpi_comm_rank(COUPLER_REALM_COMM,myid,ierr)
 
 	npx = npxin; npy = npyin; npz = npzin
 	nproc = npx * npy * npz
@@ -316,7 +326,7 @@ subroutine coupler_md_init(npxin,npyin,npzin,icoordin,dtin)
 	! write(0,*) 'MD exchange grid data'
 
 	! get CFD processor grid and the number of block in j direction
-	call mpi_bcast( iaux, 4, MPI_INTEGER,0, CFD_MD_ICOMM,ierr)
+	call mpi_bcast( iaux, 4, MPI_INTEGER,0, COUPLER_ICOMM,ierr)
 	npx_cfd = iaux(1)
 	npy_cfd = iaux(2)
 	npz_cfd = iaux(3)
@@ -331,7 +341,7 @@ subroutine coupler_md_init(npxin,npyin,npzin,icoordin,dtin)
 	endif
 
 	call mpi_bcast((/ npx, npy, npz /), 3, MPI_INTEGER,&
-		source, CFD_MD_ICOMM,ierr)
+		source, COUPLER_ICOMM,ierr)
 
 	!! Test
 	!	call mpi_comm_rank(MD_COMM,myid,ierr)!
@@ -340,19 +350,19 @@ subroutine coupler_md_init(npxin,npyin,npzin,icoordin,dtin)
 	!	 bbox_md%xbb(1:2,1:npx_md),bbox_md%zbb(1:2,1:npz_md)    
 
 	! CFD mesh data 
-	call mpi_bcast(iaux, 12, MPI_INTEGER, 0, CFD_MD_ICOMM,ierr) 
+	call mpi_bcast(iaux, 12, MPI_INTEGER, 0, COUPLER_ICOMM,ierr) 
 	imino = iaux(1); imin_cfd = iaux(2);  imax_cfd = iaux(3);  imaxo = iaux(4)
 	jmino = iaux(5); jmin_cfd = iaux(6);  jmax_cfd = iaux(7);  jmaxo = iaux(8)
 	kmino = iaux(9); kmin_cfd = iaux(10); kmax_cfd = iaux(11); kmaxo = iaux(12)
 	allocate (x(imino:imaxo),y(jmino:jmaxo),z(kmino:kmaxo))
 
 
-	call mpi_bcast(x,size(x),mpi_double_precision,0,CFD_MD_ICOMM,ierr)
-	call mpi_bcast(y,size(y),mpi_double_precision,0,CFD_MD_ICOMM,ierr)
-	call mpi_bcast(z,size(z),mpi_double_precision,0,CFD_MD_ICOMM,ierr)
-	call mpi_bcast(ra,2,mpi_double_precision,0,CFD_MD_ICOMM,ierr)
+	call mpi_bcast(x,size(x),mpi_double_precision,0,COUPLER_ICOMM,ierr)
+	call mpi_bcast(y,size(y),mpi_double_precision,0,COUPLER_ICOMM,ierr)
+	call mpi_bcast(z,size(z),mpi_double_precision,0,COUPLER_ICOMM,ierr)
+	call mpi_bcast(ra,2,mpi_double_precision,0,COUPLER_ICOMM,ierr)
 
-	! rescale all lengths to MD units to avoid disasters
+	! rescale all lengths to MD units
 	x = fsig * x; y = fsig * y; z = fsig * z 
 	dx = fsig * ra(1); dz = fsig * ra(2)
 
@@ -361,22 +371,26 @@ subroutine coupler_md_init(npxin,npyin,npzin,icoordin,dtin)
 	!		write(0,*) 'MD exchage grid data: recv dx, dz ', dx, dz, jmax_overlap_cfd
 
 	! get CFD nsteps
-	call mpi_bcast(nsteps,1,mpi_integer,0,CFD_MD_ICOMM,ierr)
+	call mpi_bcast(nsteps,1,mpi_integer,0,COUPLER_ICOMM,ierr)
 
 	! get CFD dt
 	call mpi_bcast(ra,3,mpi_double_precision,0&
- 					&,CFD_MD_ICOMM,ierr)
+ 					&,COUPLER_ICOMM,ierr)
 	! should dt_CFD be scaled ?  see to it later
-	dt_CFD  = ra(1) * FoP_time_ratio
-	density = ra(2)
-        b       = ra(3)
+	dt_CFD     = ra(1) * FoP_time_ratio
+	md_density = ra(2)
+        b          = ra(3)
 
 	! set the sizes of MD box
 
 	xL_md = x(imax_cfd) - x(imin_cfd)
 
         ! yL_md is adjusted to an integer number of initialisation cells in the following steps
-	DY_PURE_MD =  y(jmin_cfd) - y(jmino)
+        if (md_ly_extension_tag == CPL) then 
+           DY_PURE_MD = md_ly_extension
+        else 
+           DY_PURE_MD =  y(jmin_cfd) - y(jmino)
+        end if
 	yL_md = y(jmax_overlap_cfd) - y(jmino) + DY_PURE_MD
         yL_md = real(floor(yL_md/b),kind(0.d0))*b
         DY_PURE_MD = yL_md - (y(jmax_overlap_cfd) - y(jmino))
@@ -387,51 +401,222 @@ subroutine coupler_md_init(npxin,npyin,npzin,icoordin,dtin)
 	!	 & myid, xL_md, yL_md, zL_md
 	!	write(0,*) 'MD: nsteps (CFD) ', nsteps
 
+        ! initialise other md module variables if data is provided in coupler.in
+        if (md_average_period_tag == CPL) then 
+           average_period = md_average_period
+        endif
+        if (md_save_period_tag == CPL) then
+           save_period    = md_save_period
+        endif
+
 end subroutine coupler_md_init
 
 !=============================================================================
 !	Adjust CFD domain size to an integer number of lattice units used by  
-!	MD
+!	MD if sizes are given in sigma units
 !-----------------------------------------------------------------------------
 
-subroutine coupler_cfd_adjust_domain(density,cell_type,xL,yL,zL)
+subroutine coupler_cfd_adjust_domain(xL, yL, zL, nx, ny, nz, density_cfd)
         use mpi
         use coupler_internal_common
+        use coupler_input_data
         use coupler_internal_cfd, only : b => MD_initial_cellsize
         implicit none
 
-        real(kind(0.d0)), intent(in) :: density
-        character(len=*), intent(in) :: cell_type
         real(kind(0.d0)),optional, intent(inout) :: xL,yL,zL
+        integer, optional, intent(inout) :: nx, ny, nz
+        real(kind(0.d0)), optional, intent(inout) :: density_cfd
+
 
         ! internal variables
         integer myid, ierror, ierr
+        real(kind=kind(0.d0)), pointer :: xyz_ptr => null()
 
-        select case (cell_type)
-        case ("FCC")
+        ! local rank, useful for messeges
+        call mpi_comm_rank(COUPLER_REALM_COMM,myid,ierr)
+
+        if (density_tag == CPL) then 
+            density_cfd = density
+        else
+            density     = density_cfd
+            density_tag = CFD
+        endif
+
+! coupler input parameters are set in CFD 
+        if ( cfd_coupler_input%domain%tag == VOID) then
+            cfd_coupler_input%domain%tag = CFD
+         end if
+
+        select case (cfd_coupler_input%domain%cell_type)
+        case ("FCC","Fcc","fcc")
                 b = (4.d0/density)**(1.d0/3.d0)
         case default
-                write(*,*) "wrong cell_type value in coupler_cfd_adjust_domain. Stopping ... "
+                write(*,*) "Wrong unit cell type in coupler_cfd_adjust_domain. Stopping ... "
                 ierror = COUPLER_ERROR_INIT
                 call MPI_Abort(MPI_COMM_WORLD,ierror,ierr)
         end select
 
         if (present(xL)) then
-                xL = real(floor(xL/b),kind(0.d0))*b
-                
-                call mpi_comm_rank(COUPLER_COMM,myid,ierr)
-                if (myid .eq. 0) then 
-                        write(*,'(4(a,/),2(a,E10.4),/a,/,a)') &
-				"*********************************************************************", 		&
- 				"WARNING - this is a coupled run which resets CFD domain size xL      ", 		&
-				" to an integer number of MD initial cells:		          	   ", 		&
-				"								     ", 		&
-				" xL =", xL, " number of cells ", xL/b,	                                                &
-				"								     ", 		& 
-				"*********************************************************************"   
-                endif
-        end if
+           xyz_ptr => cfd_coupler_input%domain%x 
+           call init_length(xyz_ptr,xL,resize=.true.)
+        endif
 
+        if (present(yL)) then
+                ! No need to adjust y because we can adjust DY in MD to
+                ! have an integer number of FCC units.
+                ! But if the units are in cell side we need to bring the to sigma
+                xyz_ptr => cfd_coupler_input%domain%y
+                call init_length(xyz_ptr,xL,resize=.false.)
+        endif
+
+        if (present(zL)) then
+           xyz_ptr => cfd_coupler_input%domain%z
+           call init_length(xyz_ptr,zL,resize=.true.)
+        endif
+
+        ! set CFD number of cells
+
+        if (present(nx)) then
+           if (cfd_coupler_input%ncells%tag == CPL ) then
+              nx = cfd_coupler_input%ncells%x
+           else
+              if(myid == 0) then
+                 write(0,*)"WARNING: nx is present in coupler_cfd_adjust_domain argument list"
+                 write(0,*)"         but coupler_input%ncells tag is void."
+                 write(0,*)"         Using CFD input value!"
+              endif
+           endif
+
+        endif
+
+        if (present(ny)) then
+           if (cfd_coupler_input%ncells%tag == CPL ) then
+              ny = cfd_coupler_input%ncells%y
+           else
+              if(myid == 0) then
+                 write(0,*)"WARNING: ny is present in coupler_cfd_adjust_domain argument list"
+                 write(0,*)"         but coupler_input%ncells tag is void."
+                 write(0,*)"         Using CFD input value!"
+              endif
+           endif
+        endif
+         
+
+        if (present(nz)) then
+           if (cfd_coupler_input%ncells%tag == CPL ) then
+              nz = cfd_coupler_input%ncells%z
+           else
+              if(myid == 0) then
+                 write(0,*)"WARNING: nz is present in coupler_cfd_adjust_domain argument list"
+                 write(0,*)"         but coupler_input%ncells tag is void."
+                 write(0,*)"         Using CFD input value!"
+              endif
+           endif
+        endif
+
+        ! check id CFD cell sizes are larger than 2*sigma 
+        call test_cfd_cell_sizes
+
+        contains
+
+          subroutine init_length(rin,rout,resize)
+            implicit none
+            
+            real(kind=kind(0.d0)), intent(in)    :: rin
+            real(kind=kind(0.d0)), intent(inout) :: rout
+            logical, intent(in)                  :: resize
+
+            logical print_warning
+            real(kind=kind(0.d0)) :: rinit  ! store the initial value of rout or rin needed for print
+
+
+            print_warning=.false.
+
+            select case (cfd_coupler_input%domain%tag)
+            case (CPL)
+               select case (cfd_coupler_input%domain%units ) 
+               case ("CELLSIDE","CellSide","Cellside","cellside")
+                  rout = b * rin
+               case("SIGMA", "Sigma", "sigma")
+                  select case (cfd_coupler_input%domain%cell_type)
+                  case("FCC","Fcc","fcc")
+                     if (resize) then 
+                        rinit = rin 
+                        rout = real(floor(rin/b),kind(0.d0))*b
+                        print_warning = .true.
+                     endif
+                  case default
+                     write(*,*) "wrong unit cell type in coupler_cfd_adjust_domain. Stopping ... "
+                     ierror = COUPLER_ERROR_INIT
+                     call MPI_Abort(MPI_COMM_WORLD,ierror,ierr)
+                  end select
+               end select
+            case (CFD) 
+               if(resize) then
+                  rinit = rout
+                  rout = real(floor(rout/b),kind(0.d0))*b
+                  print_warning = .true.
+               endif
+            case default
+               write(*,*) "Wrong domain tag in coupler_cfd_adjust_domain. Stopping ... "
+               ierror = COUPLER_ERROR_INIT
+               call MPI_Abort(MPI_COMM_WORLD,ierror,ierr)
+            end select
+
+            if (print_warning) then 
+               if (myid == 0) then 
+                  write(*,'(4(a,/),2(a,E10.4),/a,/,a)') &
+                          "*********************************************************************", 		&
+                          "WARNING - this is a coupled run which resets CFD domain size         ", 		&
+                          " to an integer number of MD initial cells:		             ", 		&
+                          "								     ", 		&
+                          " inital size =", rinit, " resized ", rout,	                                        &
+                          "								     ", 		& 
+                          "*********************************************************************"   
+               endif
+            end if
+            
+          end subroutine init_length
+
+
+          subroutine test_cfd_cell_sizes
+            implicit none
+
+            integer, pointer :: ndim => null()
+
+            ndim => cfd_coupler_input%domain%ndim
+
+            if ( myid == 0) then
+               if ((present(xL) .and. present(nx)) .or. &
+                   (cfd_coupler_input%domain%tag == CPL .and. &
+                    cfd_coupler_input%ncells%tag == CPL)) then
+                  if (xL/nx < 2.0d0) then
+                     write(0,*)" WARNING: CFD cell size in x direction is less that 2 * sigma. Does this make sense?" 
+                     write(0,*)"          xL=",xL,"nx=",nx
+                  endif
+               endif
+
+               if ((present(yL) .and. present(ny)) .or. &
+                   (cfd_coupler_input%domain%tag == CPL .and. & 
+                    cfd_coupler_input%ncells%tag == CPL .and. ndim > 1)) then
+                  if (yL/ny < 2.0d0) then
+                     write(0,*)" WARNING: CFD cell size in y direction is less that 2 * sigma. Does this make sense?" 
+                     write(0,*)"          yL=",yL,"nx=",ny
+                  endif
+               endif
+
+               if ((present(zL) .and. present(nz)) .or. &
+                   (cfd_coupler_input%domain%tag == CPL .and. &
+                    cfd_coupler_input%ncells%tag == CPL .and. ndim > 2 )) then
+                  if (zL/nz < 2.0d0) then
+                     write(0,*)" WARNING: CFD cell size in z direction is less that 2 * sigma. Does this make sense?" 
+                     write(0,*)"          zL=",zL,"nx=",nz
+                  endif
+               endif
+            end if
+               
+          end subroutine test_cfd_cell_sizes
+            
 end subroutine coupler_cfd_adjust_domain
 
 !=============================================================================
@@ -695,7 +880,7 @@ subroutine coupler_uc_average_test(np,r,v,lwrite)
 	real(kind=kind(0.d0)),allocatable, save :: uc_bin(:,:,:,:)
 	logical,save :: firsttime=.true.
 
-	call mpi_comm_rank(COUPLER_COMM,myid,ierr)
+	call mpi_comm_rank(COUPLER_REALM_COMM,myid,ierr)
 
 	if(firsttime)then
 		firsttime = .false.
@@ -777,7 +962,7 @@ contains
 
 			! works only for parallel decomposition in x and y direction
 			call mpi_gather((/bbox%is,bbox%ie,bbox%ks,bbox%ke/),4,MPI_INTEGER,&
-				ibuff,4,MPI_INTEGER,0,COUPLER_COMM,ierr)
+				ibuff,4,MPI_INTEGER,0,COUPLER_REALM_COMM,ierr)
 
 			!	       write(0,*) "MD write test data", myid, ibuff
 
@@ -808,7 +993,7 @@ contains
 					sa(i+1) = sa(i) + nrecv
 
 					call mpi_irecv(buff_recv(sa(i)),nrecv,MPI_DOUBLE_PRECISION,&
-						i,1,COUPLER_COMM,req(i),ierr)
+						i,1,COUPLER_REALM_COMM,req(i),ierr)
 
 				enddo
 
@@ -820,7 +1005,7 @@ contains
 						reshape(buff_recv(sa(i):sa(i+1)-1), (/ 2,ibuff(2,2,i)-ibuff(1,2,i),ibuff(2,1,i)-ibuff(1,1,i),4 /))
 				enddo
 			else
-				call mpi_send(uc_bin,size(uc_bin),MPI_DOUBLE_PRECISION,0,1,COUPLER_COMM,ierr)
+				call mpi_send(uc_bin,size(uc_bin),MPI_DOUBLE_PRECISION,0,1,COUPLER_REALM_COMM,ierr)
 			endif
 		endif
 
@@ -1088,7 +1273,7 @@ subroutine coupler_cfd_send_velocity(uc,vc)
 	! This local CFD domain is outside MD overlap zone 
 	if ( md_map%n .eq. 0 ) return 
 
-	call mpi_comm_rank(COUPLER_COMM,myid,ierr)
+	call mpi_comm_rank(COUPLER_REALM_COMM,myid,ierr)
 
 	ncalls = ncalls + 1
 	!		write(0,*) "CFD, send_CFDvel: ", myid
@@ -1137,7 +1322,7 @@ subroutine coupler_cfd_send_velocity(uc,vc)
 
 			! Attention ncall could go over max tag value for long runs!!
 			itag = mod(j * ncalls, MPI_TAG_UB)
-			call mpi_send(vbuf, np, MPI_DOUBLE_PRECISION, dest, itag, CFD_MD_ICOMM, ierr)
+			call mpi_send(vbuf, np, MPI_DOUBLE_PRECISION, dest, itag, COUPLER_ICOMM, ierr)
 			!				write(0,*) 'CFD sendCFD vel ', myid, j, i, itag,dest,np, is,ie,js,je,ks,ke,ierr	
 		enddo
 
@@ -1168,7 +1353,7 @@ subroutine coupler_cfd_get_velocity(uc,vc,wc)
 	integer is, ie, iu_s, iu_e, iv_s, iv_e, iw_s, iw_e, myid
 	integer  ierr
 
-	call mpi_comm_rank(COUPLER_COMM, myid, ierr)
+	call mpi_comm_rank(COUPLER_REALM_COMM, myid, ierr)
 	!		write(0,*) "CFD, md_vel: ", myid, i1_u, i2_u, i1_v, i2_v, i1_w, i2_w
 
 	is = bbox_cfd%xbb(1,icoord(1,myid+1))
