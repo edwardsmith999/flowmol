@@ -1,0 +1,30 @@
+#
+# density
+#
+DENSITY
+0.8
+#
+# CFD domain 
+#
+CFD_DOMAIN
+2
+SIGMA
+FCC
+80.0
+36.0
+#
+# CFD number of cells
+#
+CFD_NCELLS
+16
+7
+3
+#
+# molecular dynamics data
+#
+MD_LY_EXTENSION
+5.142857142857
+MD_AVERAGE_PERIOD
+1
+MD_SAVE_PERIOD
+10

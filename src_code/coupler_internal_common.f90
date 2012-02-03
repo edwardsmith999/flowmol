@@ -4,9 +4,12 @@
 !
 !-----------------------------------------------------------------------------
 module coupler_internal_common
-	implicit none
-        
-	integer COUPLER_COMM ! internal communicator, duplicate of realm_comm
-	integer CFD_MD_ICOMM ! CFD - MD intracommunicator 
+    implicit none    
+
+    integer COUPLER_GLOBAL_COMM ! duplicate of MPI_COMM_WORLD, useful for input transfers
+    integer COUPLER_REALM_COMM	! internal communicator inside the realm, split of COUPLER_GLOBAL_COMM
+    integer COUPLER_ICOMM	! CFD - MD intracommunicator between COUPLER_REALM_COMM
+
+
 
 end module coupler_internal_common

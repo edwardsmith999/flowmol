@@ -38,7 +38,7 @@ module coupler_internal_md
 
 	type(bbox_domain), target :: bbox
 
-	! thicknes of the MD region between the wall and CFD grid
+	! thicknes of the MD region between the wall and CFD grid 
 	real(kind=kind(0.d0)) DY_PURE_MD
 
 	! local domain lenghts, and halves
@@ -102,7 +102,7 @@ contains
 
 subroutine create_map_md
 	use mpi
-	use coupler_internal_common, only : CFD_MD_ICOMM
+	use coupler_internal_common, only : COUPLER_ICOMM
 	implicit none
 	integer  i, ir, ireq(nproc), noverlaps, source, ierr
 	integer, allocatable :: overlap_mask(:,:)
@@ -125,8 +125,8 @@ subroutine create_map_md
 		source=MPI_PROC_NULL
 	endif
 	
-	call mpi_bcast(z, size(z), MPI_DOUBLE_PRECISION, source, CFD_MD_ICOMM,ierr)
-	call mpi_bcast((/kmino,kmin_cfd,kmax_cfd,kmaxo/), 4, MPI_INTEGER, source, CFD_MD_ICOMM,ierr)
+	call mpi_bcast(z, size(z), MPI_DOUBLE_PRECISION, source, COUPLER_ICOMM,ierr)
+	call mpi_bcast((/kmino,kmin_cfd,kmax_cfd,kmaxo/), 4, MPI_INTEGER, source, COUPLER_ICOMM,ierr)
 
 	!write(0,*) 'MD: bbox%bb ', myid, bbox%bb !, domain, npx, npy, npz, xL_md, yL_md, zL_md, icoord_md
 
@@ -136,7 +136,7 @@ subroutine create_map_md
 
 	!  send box coordinate to CFD
 	call mpi_allgather((/ bbox%is, bbox%ie, bbox%js, bbox%je, bbox%ks, bbox%ke /), 6, MPI_INTEGER,&
-		MPI_BOTTOM,0,MPI_INTEGER,CFD_MD_ICOMM,ierr)
+		MPI_BOTTOM,0,MPI_INTEGER,COUPLER_ICOMM,ierr)
 
 !!$		do i = 0, nproc_md-1
 !!$
@@ -158,7 +158,7 @@ subroutine create_map_md
 
 
 	call mpi_allgather(MPI_BOTTOM,0, MPI_INTEGER,overlap_mask, &
-		nproc,MPI_INTEGER,CFD_MD_ICOMM,ierr)
+		nproc,MPI_INTEGER,COUPLER_ICOMM,ierr)
 
 	!		write(0,'(a,32I3)') 'MD, overlap mask: ', overlap_mask
 
@@ -186,7 +186,7 @@ subroutine create_map_md
 	enddo
 
 	do i =1, ir
-		call mpi_irecv(cfd_map%domains(1,i), 6, MPI_INTEGER,cfd_map%rank_list(i),2, CFD_MD_ICOMM,ireq(i),ierr)
+		call mpi_irecv(cfd_map%domains(1,i), 6, MPI_INTEGER,cfd_map%rank_list(i),2, COUPLER_ICOMM,ireq(i),ierr)
 	enddo
 	call mpi_waitall( ir,ireq,MPI_STATUSES_IGNORE,ierr)
 
@@ -335,7 +335,7 @@ end subroutine create_map_md
 
 subroutine get_CFDvel
 	use mpi
-	use coupler_internal_common, only : CFD_MD_ICOMM
+	use coupler_internal_common, only : COUPLER_ICOMM
 	implicit none
 
 	real(kind=kind(0.d0)) vaux(nlz-1, nlx-1, nly-1)
@@ -399,7 +399,7 @@ subroutine get_CFDvel
 			! Attention ncall could go over max tag value for long runs!!
 			itag = mod(id * ncalls, MPI_TAG_UB)
 			call mpi_irecv(vbuf(start_address(i)),np,MPI_DOUBLE_PRECISION,source,itag,&
-				CFD_MD_ICOMM,req(i),ierr)
+				COUPLER_ICOMM,req(i),ierr)
 
 			!write(0,'(a,20(I4,x))') 'MD getCFD vel ',  myid, id, i, itag, source, np,is,ie,js,je,ks,ke, &
 			!size(vbuf),start_address(i),ierr
@@ -507,7 +507,7 @@ subroutine send_vel(a,n1,n2,n3)
 
 	ncalls = ncalls + 1
 	
-	call mpi_comm_rank(COUPLER_COMM,myid,ierr)
+	call mpi_comm_rank(COUPLER_REALM_COMM,myid,ierr)
 	!write(0,*) 'MD: send_vel', myid, ncalls
 
 	do i = 1, cfd_map%n
@@ -527,7 +527,7 @@ subroutine send_vel(a,n1,n2,n3)
 
 		itag = mod( ncalls, MPI_TAG_UB)
 		call mpi_send(buf,np,MPI_DOUBLE_PRECISION,dest,itag,&
-			 CFD_MD_ICOMM,ierr)
+			 COUPLER_ICOMM,ierr)
 
 	end do
 
@@ -568,7 +568,7 @@ subroutine write_overlap_map
 	
 	integer fh, i, n, ierr
 
-	call mpi_file_open(COUPLER_COMM,filename,MPI_MODE_CREATE+MPI_MODE_WRONLY,MPI_INFO_NULL,fh,ierr)
+	call mpi_file_open(COUPLER_REALM_COMM,filename,MPI_MODE_CREATE+MPI_MODE_WRONLY,MPI_INFO_NULL,fh,ierr)
 	call mpi_file_set_size(fh,0_MPI_OFFSET_KIND,ierr) ! discard previous data
 
 	n = cfd_map%n
@@ -587,7 +587,7 @@ subroutine write_overlap_map
 	n = len_trim(msg)
 
 	call mpi_file_write_shared(fh,msg(1:n),n,MPI_CHARACTER,MPI_STATUS_IGNORE,ierr) 
-	call mpi_barrier(COUPLER_COMM,ierr)
+	call mpi_barrier(COUPLER_REALM_COMM,ierr)
 	call mpi_file_close(fh,ierr)
 
 end subroutine write_overlap_map
