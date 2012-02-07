@@ -180,9 +180,9 @@ implicit none
 			slicebin = ceiling((r(n,shear_plane)+halfdomain(shear_plane))/slicebinsize(shear_plane))
 			if (slicebin > nbins(shear_plane)) slicebin = nbins(shear_plane)	! Prevent out-of-range values
 			if (slicebin < 1) slicebin = 1										! Prevent out-of-range values
-			v(n,1) = v(n,1)*(beta/alpha) + a(n,1)*(delta_t/alpha) + 0.5*delta_t*zeta*(2.0*v_avg(slicebin,1)) 
-			v(n,2) = v(n,2)*(beta/alpha) + a(n,2)*(delta_t/alpha) + 0.5*delta_t*zeta*(2.0*v_avg(slicebin,2)) 
-			v(n,3) = v(n,3)*(beta/alpha) + a(n,3)*(delta_t/alpha) + 0.5*delta_t*zeta*(2.0*v_avg(slicebin,3)) 
+			v(n,1) = v(n,1)*(beta/alpha) + a(n,1)*(delta_t/alpha) + delta_t*zeta*v_avg(slicebin,1)/alpha 
+			v(n,2) = v(n,2)*(beta/alpha) + a(n,2)*(delta_t/alpha) + delta_t*zeta*v_avg(slicebin,2)/alpha
+			v(n,3) = v(n,3)*(beta/alpha) + a(n,3)*(delta_t/alpha) + delta_t*zeta*v_avg(slicebin,3)/alpha
 			r(n,1) = r(n,1) + v(n,1)*delta_t			
 			r(n,2) = r(n,2) + v(n,2)*delta_t				
 			r(n,3) = r(n,3) + v(n,3)*delta_t	

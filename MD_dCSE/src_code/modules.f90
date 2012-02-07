@@ -402,8 +402,8 @@ contains
 	end function get_mass_slices
  
 	function get_velo_slices(ixyz)
-	use arrays_MD, only: r,v
-	use computational_constants_MD, only: domain,halfdomain
+	use arrays_MD, only: r,v,a
+	use computational_constants_MD
 	use physical_constants_MD, only: np,nd
 	implicit none
 
@@ -418,7 +418,12 @@ contains
 			bin = ceiling((r(n,ixyz)+halfdomain(ixyz))/binsize)
 			if (bin.lt.1) 				bin = 1
 			if (bin.gt.nbins(ixyz)) 	bin = nbins(ixyz)
-			get_velo_slices(bin,:) = get_velo_slices(bin,:) + v(n,:)
+			select case (integration_algorithm)
+			case (leap_frog_verlet) 
+				get_velo_slices(bin,:) = get_velo_slices(bin,:) + v(n,:) - 0.5d0*a(n,:)*delta_t
+			case (velocity_verlet)
+				get_velo_slices(bin,:) = get_velo_slices(bin,:) + v(n,:)
+			end select
 		end do
 
 	end function get_velo_slices
@@ -437,7 +442,7 @@ contains
 		double precision, dimension(:,:), allocatable :: v_slice,v_avg
 		
 		slicebinsize(:) = domain(:)/nbins(:)				! Get bin size
-		pec_v2sum 			= 0.d0								! Initialise
+		pec_v2sum 		= 0.d0								! Initialise
 		
 		!todo reevaluate
 		allocate(m_slice(nbins(shear_plane)))	
