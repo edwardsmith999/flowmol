@@ -81,6 +81,9 @@ subroutine setup_set_parameters
 	!Setup shear info
 	call setup_shear_parameters
 
+	!Setup polymer info
+	call setup_polymer_info
+
 end subroutine setup_set_parameters
 
 
@@ -89,7 +92,6 @@ end subroutine setup_set_parameters
 subroutine set_parameters_allocate(n)
 	use module_set_parameters
 	use shear_info_MD
-	use polymer_info_MD
 	implicit none
 
 	integer :: ixyz, n
@@ -135,16 +137,11 @@ subroutine set_parameters_allocate(n)
 		!Allocate potential energy and virial per molecule array
 		allocate(potenergymol(np+extralloc))
 		allocate(potenergymol_LJ(np+extralloc))
-		allocate(potenergymol_FENE(np+extralloc))
 		allocate(virialmol(np+extralloc))
 
 		!Allocate pressure tensors
 		allocate(rfmol(np+extralloc,nd,nd))
 		allocate(Pxymol(np+extralloc,nd,nd))
-
-		!Allocate polymer arrays
-		allocate(polyinfo_mol(np+extralloc))
-		allocate(etev_0(np,nd))
 
 		!Allocate bulk shear array
 		allocate(mol_wrap_integer(np))
@@ -152,6 +149,22 @@ subroutine set_parameters_allocate(n)
 	end select
 
 end subroutine set_parameters_allocate
+
+!-----------------------------------------------------------------------------
+subroutine setup_polymer_info
+	use module_set_parameters
+	use polymer_info_MD
+	implicit none
+
+	nchains = ceiling(dble(np)/dble(chain_length)) 
+	
+	!Allocate polymer arrays
+	allocate(polyinfo_mol(np+extralloc))
+	allocate(etev(nchains,nd))
+	allocate(etev_0(nchains,nd))
+	allocate(potenergymol_FENE(np+extralloc))
+
+end subroutine setup_polymer_info
 
 !-----------------------------------------------------------------------------
 subroutine setup_shear_parameters
@@ -196,6 +209,8 @@ implicit none
 	end if
 
 end subroutine setup_shear_parameters
+
+!-----------------------------------------------------------------------------
 
 subroutine set_parameters_domain
 	use module_set_parameters

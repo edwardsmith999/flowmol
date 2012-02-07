@@ -431,15 +431,13 @@ subroutine build_psf
 	use polymer_info_MD
 	implicit none
 
-	integer :: i,j,item,nchains
+	integer :: i,j,item
 	integer :: NTITLE, NATOM, NBONDS
 	integer	:: write_items
 	integer, allocatable, dimension(:,:) :: bonds	
 	integer, allocatable, dimension(:)	::	res_ID
 	character(len=4), allocatable, dimension(:) :: seg_name, res_name, atom_name, atom_type
 	real, allocatable, dimension(:)	:: charge, mass
-	
-	nchains = ceiling(np/dble(chain_length))		
 	
 	NTITLE = 1												! How many 'REMARKS' lines you want
 	NATOM  = globalnp										! Determine total number of atoms

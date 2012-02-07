@@ -828,6 +828,17 @@ subroutine simulation_header
 	write(3,*) 'Number of Particles ;  globalnp ;', globalnp
 	write(3,*) 'Time Step - delta t ;   delta_t ;',  delta_t
 	write(3,*) 'Total number of steps ; Nsteps;',  Nsteps - initialstep
+	write(3,*) 'Integration algorithm ; integration_algorithm;', integration_algorithm
+	select case(potential_flag)
+	case(0)
+		write(3,*) 'Potential flag ; potential_flag;', potential_flag
+	case(1)
+		write(3,*) 'Potential flag ; potential_flag;', potential_flag
+		write(3,*) 'Number of LJ beads per FENE chain ; chain_length;', chain_length
+		write(3,*) 'Number of FENE chains in domain ; nchains;', nchains
+		write(3,*) 'FENE bond maximum elongation ; R_0;', R_0
+		write(3,*) 'FENE spring stiffness ; k_c;', k_c
+	end select	
 	write(3,*) 'Starting step of simulation ;  initialstep ;', initialstep
 	write(3,*) 'Generate output file every steps ;   tplot ;',  tplot
 	write(3,*) 'Density ; density ;',density
@@ -1858,6 +1869,28 @@ end subroutine macroscopic_properties_record
 !-----------------------------------------------------------------------------
 ! Write end-to-end vector time correlation function
 !-----------------------------------------------------------------------------
+subroutine etev_io
+	use module_parallel_io
+	implicit none
+		
+	integer :: m
+	integer :: length
+
+	m = (iter-etevtcf_iter0)/tplot + 1
+	inquire(iolength=length) etev
+	
+	if (iter.eq.etevtcf_iter0) then
+		open  (15,file='results/etev_xyz',status='replace',form='unformatted',access='direct',recl=length)
+		write (15,rec=m) etev 
+	else if (iter.gt.etevtcf_iter0) then
+		open  (15,file='results/etev_xyz',form='unformatted',access='direct',recl=length)
+		write (15,rec=m) etev
+	end if
+	
+	close(15,status='keep')
+
+end subroutine etev_io
+
 subroutine etevtcf_io
 use module_parallel_io
 implicit none

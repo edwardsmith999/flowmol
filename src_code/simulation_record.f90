@@ -142,7 +142,7 @@ subroutine simulation_record
 	
 	if (potential_flag.eq.1) then
 		if (etevtcf_outflag.ne.0) call etevtcf_calculate
-		if (etevtcf_outflag.eq.2) call etevtcf_io
+		if (etevtcf_outflag.eq.2) call etev_io
 
 		if (r_gyration_outflag.ne.0) call r_gyration_calculate
 		if (r_gyration_outflag.eq.2) call r_gyration_io
@@ -366,39 +366,38 @@ use module_record
 implicit none
 	
 	integer :: i,j
+	integer :: chainID
 	double precision :: etev_prod, etev_prod_sum
 	double precision :: etev2, etev2_sum
-	double precision, dimension(nd) :: rij,etev
+	double precision, dimension(nd) :: rij
 
 	if (iter.eq.etevtcf_iter0) then						!Initialise end-to-end vectors at t_0
-		do i=1,np														
-			if (polyinfo_mol(i)%left.eq.0) then
-				etev_0(i,:) = 0.d0
-				do j=0,chain_length-2
-					rij(:)      = r(i+j+1,:) - r(i+j,:)
-					rij(:)      = rij(:) - domain(:)*anint(rij(:)/domain(:))
-					etev_0(i,:) = etev_0(i,:) + rij(:)
-				end do
-			end if
+		do i=1,np,chain_length
+			chainID = polyinfo_mol(i)%chainID
+			etev_0(chainID,:) = 0.d0
+			do j=0,chain_length-2
+				rij(:)            = r(i+j+1,:) - r(i+j,:)
+				rij(:)            = rij(:) - domain(:)*anint(rij(:)/domain(:))
+				etev_0(chainID,:) = etev_0(chainID,:) + rij(:)
+			end do
 		end do
 	end if
 
 	etev_prod_sum	= 0.d0
 	etev2_sum 		= 0.d0
 
-	do i=1,np
-		if (polyinfo_mol(i)%left.eq.0) then
-			etev(:) = 0.d0
-			do j=0,chain_length-2
-				rij(:)  = r(i+j+1,:) - r(i+j,:)
-				rij(:)  = rij(:) - domain(:)*anint(rij(:)/domain(:))
-				etev(:) = etev(:) + rij(:)
-			end do
-			etev_prod		= dot_product(etev(:),etev_0(i,:))
-			etev2			= dot_product(etev,etev)			
-			etev_prod_sum	= etev_prod_sum + etev_prod
-			etev2_sum		= etev2_sum + etev2		
-		end if
+	do i=1,np,chain_length
+		chainID = polyinfo_mol(i)%chainID
+		etev(chainID,:) = 0.d0
+		do j=0,chain_length-2
+			rij(:)          = r(i+j+1,:) - r(i+j,:)
+			rij(:)          = rij(:) - domain(:)*anint(rij(:)/domain(:))
+			etev(chainID,:) = etev(chainID,:) + rij(:)
+		end do
+		etev_prod		= dot_product(etev(chainID,:),etev_0(chainID,:))
+		etev2			= dot_product(etev(chainID,:),etev(chainID,:))			
+		etev_prod_sum	= etev_prod_sum + etev_prod
+		etev2_sum		= etev2_sum + etev2		
 	end do
 	
 	!etev_prod_mean = etev_prod_sum/dble(samplecount)
@@ -415,7 +414,6 @@ use module_record
 implicit none
    
 	integer :: i,j, molnoi 
-	integer :: nchains
 	double precision :: R_g2                                                    !Radius of gyration squared 
 	double precision :: rij2                                                    !Magnitude of separation vector
 	double precision :: dr                                                      !Distance of bead to center of mass
@@ -426,8 +424,6 @@ implicit none
 	double precision, dimension(nd) :: r_sum                                    !Sum of all bead position vectors in chain
 	double precision, dimension(nd) :: r_first                                  !Location of first bead on the chain
     
-	nchains = ceiling(dble(np)/dble(chain_length))
-
     sum_dr = 0.d0                                                               !Reset sum
     do i=1,nchains                                                              !Loop over all polymer chains
     
