@@ -99,15 +99,6 @@ subroutine simulation_MD
 		case default
 			stop 'Incorrect integration algorithm specification'
 		end select
-		
-		call simulation_checkrebuild(rebuild)       !Determine if neighbourlist rebuild required
-		if(rebuild .eq. 1) then
-			call linklist_deallocateall             !Deallocate all linklist components
-			call sendmols                           !Exchange particles between processors
-  			call assign_to_cell                     !Re-build linklist for domain cells
-			call messenger_updateborders(rebuild)   !Update borders between processors
-			call assign_to_neighbourlist		    !Setup neighbourlist
-		endif
 
  	enddo
 
@@ -115,7 +106,6 @@ contains
 
 !---------------------------------------------
 ! 		Leapfrom integration routines
-
 subroutine md_advance_lfv
 	implicit none
 		
@@ -126,18 +116,20 @@ subroutine md_advance_lfv
 		call simulation_apply_boundary_forces               !Apply boundary force to prevent molecules leaving domain
 		call socket_coupler_apply_continuum_forces(iter)    !Apply coupling forces so MD => CFD
 #endif
-		call simulation_move_particles                      !Move particles as a result of forces
+		call simulation_move_particles_lfv                      !Move particles as a result of forces
 
 #if USE_COUPLER
 		call socket_coupler_average(iter)                   !Calculate averages of MD to pass to CFD
 #endif
 		call messenger_updateborders(0)                     !Update borders between processors
 
+		call simulation_checkrebuild(rebuild)
+		if (rebuild .eq. 1) call rebuild_all
+
 	end subroutine md_advance_lfv
 
 !---------------------------------------------
-! 		Velocity Verlet integration routines
-
+!Velocity Verlet integration routines
 subroutine md_advance_vv
 	implicit none
 		
@@ -145,13 +137,7 @@ subroutine md_advance_vv
 		call messenger_updateborders(0)             !Update borders between processors
 
 		call simulation_checkrebuild(rebuild)
-		if(rebuild .eq. 1) then
-			call linklist_deallocateall             !Deallocate all linklist components
-			call sendmols                           !Exchange particles between processors
-  			call assign_to_cell                     !Re-build linklist for domain cells
-			call messenger_updateborders(rebuild)   !Update borders between processors
-			call assign_to_neighbourlist		    !Setup neighbourlist
-		endif
+		if (rebuild .eq. 1) call rebuild_all
 
 		call simulation_compute_forces              !Calculate forces on all particles
 		call simulation_move_particles_vv(2)        !Find v(t+dt)
@@ -161,6 +147,19 @@ subroutine md_advance_vv
 
 
 end subroutine simulation_MD
+
+!--------------------------------------------
+!Rebuild lists routine
+subroutine rebuild_all
+	implicit none
+	
+	call linklist_deallocateall             !Deallocate all linklist components
+	call sendmols                           !Exchange particles between processors
+	call assign_to_cell                     !Re-build linklist for domain cells
+	call messenger_updateborders(1)         !Update borders between processors
+	call assign_to_neighbourlist		    !Setup neighbourlist
+
+end subroutine rebuild_all
 
 !=============================================================================
 !

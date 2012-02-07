@@ -116,6 +116,7 @@ contains
 			pec_v(:)  = v(n,:) - U(n,:) - 0.5d0*a(n,:)*delta_t      ! PUT: Find peculiar velocity
 			pec_v2sum = pec_v2sum + dot_product(pec_v,pec_v)        ! PUT: Sum peculiar velocities squared
 		end do
+
 		Q        = np*delta_t                                       ! PUT: Thermal inertia
 		dzeta_dt = (pec_v2sum - (np*nd+1)*inputtemperature)/Q       ! PUT: dzeta_dt(t-dt)
 		zeta     = zeta + delta_t*dzeta_dt                          ! PUT: zeta(t)
