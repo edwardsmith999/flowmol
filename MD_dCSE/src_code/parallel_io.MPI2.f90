@@ -895,6 +895,17 @@ subroutine simulation_header
 	write(3,*) 'Number of Particles ;  globalnp ;', globalnp
 	write(3,*) 'Time Step - delta t ;   delta_t ;',  delta_t
 	write(3,*) 'Total number of steps ; Nsteps;',  Nsteps - initialstep
+	write(3,*) 'Integration algorithm ; integration_algorithm;', integration_algorithm
+	select case(potential_flag)
+	case(0)
+		write(3,*) 'Potential flag ; potential_flag;', potential_flag
+	case(1)
+		write(3,*) 'Potential flag ; potential_flag;', potential_flag
+		write(3,*) 'Number of LJ beads per FENE chain ; chain_length;', chain_length
+		write(3,*) 'Number of FENE chains in domain ; nchains;', nchains
+		write(3,*) 'FENE bond maximum elongation ; R_0;', R_0
+		write(3,*) 'FENE spring stiffness ; k_c;', k_c
+	end select	
 	write(3,*) 'Starting step of simulation ;  initialstep ;', initialstep
 	write(3,*) 'Generate output file every steps ;   tplot ;',  tplot
 	write(3,*) 'Density ; density ;',density

@@ -143,6 +143,7 @@ subroutine md_advance_vv
 		
 		call simulation_move_particles_vv(1)        !Find r(t+dt) and v(t+dt/2)
 		call messenger_updateborders(0)             !Update borders between processors
+
 		call simulation_checkrebuild(rebuild)
 		if(rebuild .eq. 1) then
 			call linklist_deallocateall             !Deallocate all linklist components
@@ -151,6 +152,7 @@ subroutine md_advance_vv
 			call messenger_updateborders(rebuild)   !Update borders between processors
 			call assign_to_neighbourlist		    !Setup neighbourlist
 		endif
+
 		call simulation_compute_forces              !Calculate forces on all particles
 		call simulation_move_particles_vv(2)        !Find v(t+dt)
 		call simulation_record                      !Evaluate and write properties 

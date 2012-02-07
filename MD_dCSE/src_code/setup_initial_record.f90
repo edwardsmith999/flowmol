@@ -43,8 +43,18 @@ implicit none
 		print*, 'Number of Particles: ', globalnp
 		print*, 'Time Step - delta t: ',  delta_t
 		print*, 'Total number of steps: ',  Nsteps - initialstep
-		if (integration_algorithm.eq.0) print*, 'Integration algorithm: leapfrog-Verlet'
-		if (integration_algorithm.eq.1) print*, 'Integration algorithm: velocity-Verlet'
+		select case(integration_algorithm)
+		case(0)
+			print*, 'Integration algorithm: leapfrog-Verlet'
+		case(1)
+			print*, 'Integration algorithm: velocity-Verlet'
+		end select
+		select case(potential_flag)
+		case(0)
+			print*, 'Interatomic potential: LJ only'
+		case(1)
+			print*, 'Interatomic potential: LJ + FENE'
+		end select
 		print*, 'Ensemble: ', ensemble
 		select case(force_list) 
 		case(0)
@@ -281,7 +291,7 @@ implicit none
 	!Initialise etevtcf calculation if etevtcf_iter0 = 0
 	if (potential_flag.eq.1) then
 		if (etevtcf_outflag.ne.0) call etevtcf_calculate 
-		if (etevtcf_outflag.eq.2) call etevtcf_io
+		if (etevtcf_outflag.eq.2) call etev_io
 		
 		if (r_gyration_outflag.ne.0) call r_gyration_calculate
 		if (r_gyration_outflag.eq.2) call r_gyration_io
