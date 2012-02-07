@@ -420,7 +420,7 @@ contains
 			if (bin.gt.nbins(ixyz)) 	bin = nbins(ixyz)
 			select case (integration_algorithm)
 			case (leap_frog_verlet) 
-				get_velo_slices(bin,:) = get_velo_slices(bin,:) + v(n,:) - 0.5d0*a(n,:)*delta_t
+				get_velo_slices(bin,:) = get_velo_slices(bin,:) + v(n,:) + 0.5d0*a(n,:)*delta_t
 			case (velocity_verlet)
 				get_velo_slices(bin,:) = get_velo_slices(bin,:) + v(n,:)
 			end select
