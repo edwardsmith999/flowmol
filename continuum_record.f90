@@ -96,7 +96,7 @@ subroutine continuum_record
 	!use calculated_properties_MD
 	implicit none
 
-	integer						:: m, length, ixyz
+	integer										:: m, length, ixyz
 	double precision, allocatable, dimension(:)	:: uslice
 
 	select case(continuum_vflag)
