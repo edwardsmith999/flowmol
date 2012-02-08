@@ -20,29 +20,35 @@ module coupler_input_data
     integer, parameter :: VOID=666,CPL=777,CFD=888 ! tag values marking the input file for domain data
 
     type cfd_domain_sizes
-	SEQUENCE ! useful for MPI
-        integer tag ! tells from which input file domain values are taken
-	integer ndim
-	character(len=8) :: units, cell_type
-	real(kind=kind(0.d0)) x,y,z
+		SEQUENCE 							! useful for MPI
+        integer tag 						! tells from which input file domain values are taken
+		integer ndim
+		character(len=8) :: units, cell_type
+		real(kind=kind(0.d0)) x,y,z
     end type cfd_domain_sizes
 
     type cfd_ncell_counts
-	SEQUENCE ! useful for MPI
-        integer tag ! tells from which input file domain values are taken
-	integer x,y,z,y_overlap !number of cells that overlaps CFD physical domain
-                                !with MD domain
+		SEQUENCE 				! useful for MPI
+        integer tag 			! tells from which input file domain values are taken
+		integer x,y,z			! number of cells in CFD physical domain
     end type cfd_ncell_counts
 
+    type cfd_md_overlap
+		SEQUENCE 				! useful for MPI
+        integer tag 			! tells from which input file domain values are taken
+		integer y_overlap 		! number of cells that overlaps CFD physical domain with MD domain
+    end type cfd_md_overlap
+
     type cfd_parameters
-	SEQUENCE
-	type(cfd_domain_sizes) domain 
-	type(cfd_ncell_counts) ncells
+		SEQUENCE
+		type(cfd_domain_sizes) domain 
+		type(cfd_ncell_counts) ncells
+		type(cfd_md_overlap)   overlap
     end type cfd_parameters
 
     type section_type
-       integer, pointer :: tag => null()
-       character(len=64) str
+		integer, pointer :: tag => null()
+		character(len=64) str
     end type section_type
 
     ! data that can be provided in coupler.in
@@ -52,15 +58,15 @@ module coupler_input_data
     !CFD
     type(cfd_parameters), target :: cfd_coupler_input 
     ! MD
-    real(kind=kind(0.d0)) md_ly_extension ! sigma units so far
-    integer, target :: md_ly_extension_tag! MD extesion below CFD grid in y direction          
-    integer md_average_period             ! collect data for velocity average every ... MD step
-    integer, target :: md_average_period_tag
-    integer md_save_period                 ! save data for velocity profile every ... CFD step
-    integer, target :: md_save_period_tag
+    real(kind=kind(0.d0)) 	:: md_ly_extension ! sigma units so far
+    integer, target 		:: md_ly_extension_tag! MD extesion below CFD grid in y direction          
+    integer 				:: md_average_period             ! collect data for velocity average every ... MD step
+    integer, target 		:: md_average_period_tag
+    integer 				:: md_save_period                 ! save data for velocity profile every ... CFD step
+    integer, target 		:: md_save_period_tag
 
     ! auxiliary list for easy manipulation
-    integer,parameter :: nsections=6 ! total number of section in input files
+    integer,parameter :: nsections=7 ! total number of section in input files
     type(section_type) section(nsections)
 
 contains
@@ -70,7 +76,7 @@ contains
         use mpi
         use coupler_parameters
         use coupler_internal_common
-	implicit none 
+		implicit none 
 
         integer ndim, myid, myid_cfd, ierr
         logical have_input
@@ -83,13 +89,13 @@ contains
 
         section(2)%str = "CFD_DOMAIN"
         section(2)%tag => cfd_coupler_input%domain%tag
-        cfd_coupler_input%domain%tag   = VOID
-        cfd_coupler_input%domain%ndim  = 0
-        cfd_coupler_input%domain%units = "sigma"
-        cfd_coupler_input%domain%cell_type = "fcc"
-        cfd_coupler_input%domain%x     = 0.d0
-        cfd_coupler_input%domain%y     = 0.d0
-        cfd_coupler_input%domain%z     = 0.d0
+        cfd_coupler_input%domain%tag   		= VOID
+        cfd_coupler_input%domain%ndim  		= 0
+        cfd_coupler_input%domain%units 		= "sigma"
+        cfd_coupler_input%domain%cell_type 	= "fcc"
+        cfd_coupler_input%domain%x     		= 0.d0
+        cfd_coupler_input%domain%y     		= 0.d0
+        cfd_coupler_input%domain%z     		= 0.d0
 
         section(3)%str = "CFD_NCELLS"
         section(3)%tag => cfd_coupler_input%ncells%tag
@@ -97,19 +103,22 @@ contains
         cfd_coupler_input%ncells%x     = 0
         cfd_coupler_input%ncells%y     = 0
         cfd_coupler_input%ncells%z     = 0
-        cfd_coupler_input%ncells%y_overlap = 0
+
+        section(4)%str = "CFD_OVERLAP"
+        section(4)%tag => cfd_coupler_input%overlap%tag
+        cfd_coupler_input%overlap%y_overlap = 0
         
         ! No initialisation of the MD values associated with the tags becase defaults are set in coupler_internal_md module         
-        section(4)%str = "MD_LY_EXTENSION"
-        section(4)%tag => md_ly_extension_tag 
+        section(5)%str = "MD_LY_EXTENSION"
+        section(5)%tag => md_ly_extension_tag 
         md_ly_extension_tag   = VOID
 
-        section(5)%str = "MD_AVERAGE_PERIOD"
-        section(5)%tag => md_average_period_tag
+        section(6)%str = "MD_AVERAGE_PERIOD"
+        section(6)%tag => md_average_period_tag
         md_average_period_tag = VOID
 
-        section(6)%str = "MD_SAVE_PERIOD"
-        section(6)%tag => md_save_period_tag
+        section(7)%str = "MD_SAVE_PERIOD"
+        section(7)%tag => md_save_period_tag
         md_save_period_tag    = VOID
 
         call mpi_comm_rank(COUPLER_GLOBAL_COMM, myid, ierr)
@@ -193,8 +202,10 @@ contains
               if (ndim > 2) then 
                  read(34,*) cfd_coupler_input%ncells%z
               endif
+           case("OVERLAP_CELLS","Overlap_Cells","Overlap_cells","overlap_cells")
+              cfd_coupler_input%overlap%tag = CPL
               if (ndim > 1) then 
-                 read(34,*) cfd_coupler_input%ncells%y_overlap
+                 read(34,*) cfd_coupler_input%overlap%y_overlap
               endif
            case("MD_LY_EXTENSION","md_ly_extension","Md_ly_extension")
               md_ly_extension_tag = CPL
@@ -242,7 +253,7 @@ contains
             call mpi_pack(cfd_coupler_input%ncells%x,1,MPI_INTEGER,buffer,sbuff,position,COUPLER_REALM_COMM,ierr)
             call mpi_pack(cfd_coupler_input%ncells%y,1,MPI_INTEGER,buffer,sbuff,position,COUPLER_REALM_COMM,ierr)
             call mpi_pack(cfd_coupler_input%ncells%z,1,MPI_INTEGER,buffer,sbuff,position,COUPLER_REALM_COMM,ierr)
-            call mpi_pack(cfd_coupler_input%ncells%y_overlap,1,MPI_INTEGER,buffer,sbuff,position,COUPLER_REALM_COMM,ierr)
+            call mpi_pack(cfd_coupler_input%overlap%y_overlap,1,MPI_INTEGER,buffer,sbuff,position,COUPLER_REALM_COMM,ierr)
 
             call mpi_pack(density,1,MPI_DOUBLE_PRECISION,buffer,sbuff,position,COUPLER_REALM_COMM,ierr)
             call mpi_pack(density_tag,1,MPI_INTEGER,buffer,sbuff,position,COUPLER_REALM_COMM,ierr)
@@ -311,7 +322,7 @@ contains
                call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%ncells%x,1,MPI_INTEGER,COUPLER_REALM_COMM,ierr)
                call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%ncells%y,1,MPI_INTEGER,COUPLER_REALM_COMM,ierr)
                call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%ncells%z,1,MPI_INTEGER,COUPLER_REALM_COMM,ierr)
-               call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%ncells%y_overlap,1,MPI_INTEGER,COUPLER_REALM_COMM,ierr)
+               call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%overlap%y_overlap,1,MPI_INTEGER,COUPLER_REALM_COMM,ierr)
 
                call mpi_unpack(buffer,sbuff,position,density,1,MPI_DOUBLE_PRECISION,COUPLER_REALM_COMM,ierr)
                call mpi_unpack(buffer,sbuff,position,density_tag,1,MPI_INTEGER,buffer,COUPLER_REALM_COMM,ierr)
@@ -363,19 +374,19 @@ contains
     subroutine locate(fileid,keyword,have_data)
         implicit none
         
-        integer,intent(in)		:: fileid		! File unit number
-        character(len=*),intent(in)	:: keyword		! Input keyword	
-        logical,intent(out)		:: have_data		! Flag to check if input is required
+        integer,intent(in)			:: fileid			! File unit number
+        character(len=*),intent(in)	:: keyword			! Input keyword	
+        logical,intent(out)			:: have_data		! Flag to check if input is required
 
-        character*(100)			:: linestring		! First 100 characters in a line
-        integer				:: keyword_length	! Length of input keyword
-        integer				:: io			! File status flag
+        character*(100)				:: linestring		! First 100 characters in a line
+        integer						:: keyword_length	! Length of input keyword
+        integer						:: io				! File status flag
 
         have_data = .false.
         keyword_length = len(keyword)
         rewind(fileid)	! Go to beginning of input file
         do
-           read (fileid,'(a)',iostat=io) linestring			! Read first 100 characters
+           read (fileid,'(a)',iostat=io) linestring				! Read first 100 characters
            if (io.ne.0) exit	                                ! If end of file is reached
            if (linestring(1:keyword_length).eq.keyword) then	! If the first characters match keyword then exit loop
               have_data = .true.

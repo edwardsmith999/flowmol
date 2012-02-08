@@ -20,20 +20,26 @@
 !-----------------------------------------------------------------------------
 	
 subroutine setup_continuum
-        use continuum_coupler_socket_init
-        use continuum_coupler_socket
-        implicit none
+#if USE_COUPLER
+	use continuum_coupler_socket_init
+	use continuum_coupler_socket
+#endif
+	implicit none
 
-	call continuum_read_inputs
-        call continuum_coupler_adjust_domain
+	call continuum_read_inputs				!Read from continuum input file parameters
+#if USE_COUPLER
+	call continuum_coupler_adjust_domain	!Adjust paramters based on coupler input and dimensions to integer number of MD FCC cells
+#endif
 	call continuum_set_parameters
 	call continuum_mesh_gen
 
-        call messenger_init
-        call continuum_coupler_init
-        call continuum_setup_macrostate
+	call messenger_init
+#if USE_COUPLER
+	call continuum_coupler_init			!Initialise coupler data structure and transfer coupled/CFD input to MD
+#endif
+	call continuum_setup_macrostate
 
-        call send_CFDvel
+	call send_CFDvel
 	call continuum_initial_record
  	call continuum_set_BC
 
@@ -47,12 +53,16 @@ end subroutine setup_continuum
 
 subroutine simulation_continuum
 	use computational_constants
+#if USE_COUPLER
 	use continuum_coupler_socket, only : send_CFDvel
+#endif
 	implicit none
 
 	integer :: t	      !Time t used to determine frequency of plots
 
-        call send_CFDvel	
+#if USE_COUPLER
+	call send_CFDvel	
+#endif
 	call continuum_calculate_flux
 	!call continuum_advance_time_RK
 	call continuum_advance_time

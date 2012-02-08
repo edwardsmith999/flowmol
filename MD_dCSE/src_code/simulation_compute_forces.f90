@@ -164,7 +164,7 @@ subroutine simulation_compute_forces_LJ_cells
 	use module_compute_forces
 	implicit none
 
-	integer                         :: i, j, ixyz   !Define dummy index
+	integer                         :: i,j,n,ixyz   	!Define dummy index
 	integer							:: icell, jcell, kcell
 	integer                         :: icellshift, jcellshift, kcellshift
 	integer                         :: cellnp, adjacentcellnp
@@ -220,14 +220,16 @@ subroutine simulation_compute_forces_LJ_cells
 						a(molnoi,3)= a(molnoi,3) + accijmag*rij(3)
 
 						!CV stress an force calculations
+						if (n.eq.2) then
 						if (molnoj .gt. np .or. molnoi .gt. np) then
 							!call Control_Volume_Forces(2.d0*accijmag*rij(:),ri,rj,molnoi,molnoj)						
 							fij = 2.d0*accijmag*rij(:)
-							if (vflux_outflag .ne. 0) call Control_Volume_stresses(2.d0*accijmag*rij(:),ri,rj,molnoi,molnoj)
+							if (vflux_outflag .ne. 0) call Control_Volume_stresses(fij,ri,rj,molnoi,molnoj)
 						else
 							!call Control_Volume_Forces(accijmag*rij(:),ri,rj,molnoi,molnoj)
 							fij = accijmag*rij(:)
-							if (vflux_outflag .ne. 0) call Control_Volume_stresses(accijmag*rij(:),ri,rj,molnoi,molnoj)
+							if (vflux_outflag .ne. 0) call Control_Volume_stresses(fij,ri,rj,molnoi,molnoj)
+						endif
 						endif
 
 						!Only calculate properties when required for output
@@ -255,8 +257,8 @@ subroutine simulation_compute_forces_LJ_cells
 	enddo
 	enddo
 
-	nullify(oldi)      	!Nullify as no longer required
-	nullify(oldj)      	!Nullify as no longer required
+	nullify(oldi)      		!Nullify as no longer required
+	nullify(oldj)      		!Nullify as no longer required
 	nullify(currenti)      	!Nullify as no longer required
 	nullify(currentj)      	!Nullify as no longer required
 

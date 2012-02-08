@@ -11,8 +11,8 @@ module module_initialise_microstate
 	use arrays_MD
 	use calculated_properties_MD
 
-	double precision                  :: angle, rand  !Define variables
-	double precision		  :: v13 !Magnitude of v1 and v3 vectors
+	double precision			:: angle, rand  !Define variables
+	double precision			:: v13 !Magnitude of v1 and v3 vectors
 	
 end module module_initialise_microstate
 !----------------------------------------------------------------------------------
@@ -326,34 +326,34 @@ subroutine setup_initialise_velocities
 	i = 0		!Zero number of molecules with velocity assigned
 	netv=0.d0	!Set net velocity of system to zero initially
 
-	do n=1,np			      		!Step through each molecule
+	do n=1,np			      				!Step through each molecule
 		if (fix(n,1) .eq. 1) then     		!For x component as fix occurs in all 3 dimensions
-			call random_number(rand)	!Generate a random number for each dimension/particle
+			call random_number(rand)		!Generate a random number for each dimension/particle
 			angle  = 2.d0*pi*rand          	!Random angle between 0 and 2pi
 			v(n,2) = initialvel*sin(angle)	!Y component of velocity magnitude for random angle
 			v13    = initialvel*cos(angle)	!Magnitude of x and z component
 			call random_number(rand)    	!Generate a new random number
 			angle  = 2.d0*pi*rand          	!Random angle between 0 and 2pi		
-			v(n,1) = v13*sin(angle)        	!X component of velocity magnitude for random angle
+			v(n,1) = v13*sin(angle)       	!X component of velocity magnitude for random angle
 			v(n,3) = v13*cos(angle)        	!Z component of velocity magnitude for random angle
-			i = i + 1			!Count number of molecules with velocity assigned
+			i = i + 1						!Count number of molecules with velocity assigned
 		else
-			v(n,:) = 0.d0			!Don't assign velocity if molecule is fixed
+			v(n,:) = 0.d0					!Don't assign velocity if molecule is fixed
 		endif
-		netv(:)= netv(:) + v(n,:)      !Sum up overall momentum of system due to random movement
+		netv(:)= netv(:) + v(n,:)      		!Sum up overall momentum of system due to random movement
 	enddo
 
-	call globalSumVect(netv, nd)	       !Sum net velocity on all processors
-	call globalSumInt(i)	       	       !Sum number of molecules assigned velocity on all processors
+	call globalSumVect(netv, nd)			!Sum net velocity on all processors
+	call globalSumInt(i)					!Sum number of molecules assigned velocity on all processors
 
-	if(i .ne. 0) netv(:) = netv(:)/i       !Divide overall momentum by number of particles
+	if(i .ne. 0) netv(:) = netv(:)/i		!Divide overall momentum by number of particles
 
 	do n=1,np
 		!reducing all non-fixed particles by same amount
-		if (fix(n,1) .eq. 1) v(n,:)= v(n,:)-netv(:)
+		if (fix(n,1) .eq. 1) v(n,:)= v(n,:)-netv(:) 
 			       
 	enddo
-	
+
 end subroutine setup_initialise_velocities
 
 

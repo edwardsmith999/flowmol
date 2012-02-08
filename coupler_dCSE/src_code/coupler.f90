@@ -210,7 +210,7 @@ subroutine coupler_cfd_init(imino,imin,imax,imaxo,jmino,jmin,jmax,jmaxo,kmino,km
 	kmax,kmaxo,nsteps,x,y,z,dx,dz,npx,npy,npz,icoord,dt)
 	use mpi
 	use coupler_internal_common
-        use coupler_input_data
+	use coupler_input_data
 	use coupler_internal_cfd, only : imino_ => imino, imin_ => imin, imax_ => imax, jmino_ => jmin, &
 		jmin_ => jmin, jmax_ => jmax, jmaxo_ => jmaxo, kmino_ => kmino, kmin_ => kmin, kmax_ => kmax, &
 		kmaxo_ => kmaxo, nsteps_ => nsteps, x_ => x, y_ => y, z_ => z, dx_ => dx, dz_ => dz, &
@@ -257,7 +257,7 @@ subroutine coupler_cfd_init(imino,imin,imax,imaxo,jmino,jmin,jmax,jmaxo,kmino,km
 	! send CFD processor grid
 	
         if (cfd_coupler_input%ncells%tag == CPL) then
-           jmax_overlap =  jmin + cfd_coupler_input%ncells%y_overlap
+           jmax_overlap =  jmin + cfd_coupler_input%overlap%y_overlap
         endif
 
 	if ( myid .eq. 0 ) then
@@ -634,7 +634,7 @@ subroutine coupler_md_boundary_forces(np,pressure,r,a)
 
 	! locals
 	real(kind=kind(0.d0)), parameter :: eps = 0.d-2 ! avoid singular forces for molecules that 
-	! happend to be very close to y(jmax_overlap)
+													! happend to be very close to y(jmax_overlap)
 	integer n
 	real(kind=kind(0.d0)) p, yc, y2, y3
 
@@ -651,7 +651,6 @@ subroutine coupler_md_boundary_forces(np,pressure,r,a)
 	do n = 1, np
 		! get the global value of y coordinate	
 		yc  =  r(n,2) + halfdomain(2) + bbox%bb(1,2)
-
 		if (yc  < y3 .and. yc >= y2 ) then
 			a(n,2)= a(n,2) - p*(yc-y2)/(1.d0-(yc-y2)/(y3-y2)+eps)
 		endif
@@ -688,7 +687,7 @@ subroutine coupler_md_apply_continuum_forces(np,r,v,a,iter)
 	! find the CFD box to which the particle belongs	      
 	! attention to the particle that have left the domain boundaries 
 
-        ! This work is done only by the MD ranks that cover the constrain region
+        ! This work is done only by the MD ranks that cover the constraint region
         ! At the moment use only the second layer from the top of CFD cell 
         if (  jmax_overlap - 2 < bbox%js .or. jmax_overlap - 2 >= bbox%je ) return
 
@@ -697,8 +696,8 @@ subroutine coupler_md_apply_continuum_forces(np,r,v,a,iter)
 	njb = bbox%je - bbox%js
 	nkb = bbox%ke - bbox%ks
 
-         ! vel_fromCFD cell index from which continum constrain is applied
-         jb_constrain =   njb - 1 ! the second row of cells from the top
+	! vel_fromCFD cell index from which continum constrain is applied
+	jb_constrain =   njb - 1 ! the second row of cells from the top
 
 	if (iter .eq. 1) then
 		! get the previous value of CFD velocities
@@ -727,7 +726,7 @@ subroutine coupler_md_apply_continuum_forces(np,r,v,a,iter)
 
 	do ip = 1, np
 
-		! we need global MD coordinats to check if the particle is in the extended box.
+		! we need global MD coordinates to check if the particle is in the extended box.
 		! bbox%bb(:,:) are ok for they were used to build the MD domains
 		rd(:) = r(ip,:)
 		rd(:) = global_r(rd)
@@ -1403,13 +1402,14 @@ subroutine coupler_md_get(xL_md,yL_md,zL_md, MD_initial_cellsize, top_dy)
 		zL_md = zL_md_
 	endif
 
-        if (present(MD_initial_cellsize)) then 
-                MD_initial_cellsize = b
+	if (present(MD_initial_cellsize)) then 
+		MD_initial_cellsize = b
 	endif
 
-        if (present(top_dy)) then
-               top_dy = y(j) - y(j-1)
-        end if
+ 	if (present(top_dy)) then
+ 		top_dy = y(j) - y(j-1)
+	end if
+
 end subroutine coupler_md_get
 
 !-----------------------------------------------------------------------------

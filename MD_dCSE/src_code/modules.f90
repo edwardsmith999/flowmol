@@ -84,7 +84,7 @@ module computational_constants_MD
 	integer								:: Neflux_ave				!Number of averages for each energy flux
 	integer								:: initialstep				!Initial step of simulation
 	integer								:: Nsteps					!Total number of computational steps
-	integer								:: initise_steps			!Initialisation steps to run before simulation start
+	integer								:: initialise_steps			!Initialisation steps to run before simulation start
 	integer								:: extralloc				!Extra allocation space to include copied halos
 	integer								:: overlap					!Size of overlap region used to apply force to molecular region
 	integer								:: Nvmd_intervals
@@ -133,7 +133,7 @@ module computational_constants_MD
 	integer ncellxl, ncellyl, ncellzl    !Inc Halos
 	integer nicellxl, nicellyl, nicellzl !Inner only
 
-        !Directory that holds input/output files, useful in coupling mode
+	!Directory that holds input/output files, useful in coupling mode
  	character(len=128) :: prefix_dir = "./"	
 
 end module computational_constants_MD
@@ -193,8 +193,8 @@ end module shear_info_MD
 module arrays_MD
 
 	integer,          dimension(:),   allocatable, target	:: tag       	!Molecular Tags
-	integer, 	  dimension(:,:), allocatable, target 		:: fix        	!Fixed molecules
-	integer, 	  dimension(:,:), allocatable, target 		:: thermostat	!Thermostatted molecules
+	integer, 	  	  dimension(:,:), allocatable, target	:: fix        	!Fixed molecules
+	integer, 	 	  dimension(:,:), allocatable, target	:: thermostat	!Thermostatted molecules
 	double precision, dimension(:,:), allocatable, target 	:: r          	!Positions
 	double precision, dimension(:,:), allocatable 	      	:: rtrue      	!Positions with no period BC
 	double precision, dimension(:,:), allocatable 	      	:: rinitial
