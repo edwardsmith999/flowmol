@@ -128,6 +128,9 @@ subroutine set_parameters_allocate(n)
 		allocate(v(np+extralloc,nd))
 		allocate(vmagnitude(np+extralloc))
 		allocate(a(np+extralloc,nd))
+!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
+		allocate(aold(np+extralloc,nd))
+!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
 
 		!Allocate arrays use to fix molecules and allow sliding
 		allocate(tag(np+extralloc))
