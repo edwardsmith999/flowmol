@@ -202,6 +202,9 @@ module arrays_MD
 	double precision, dimension(:,:), allocatable, target 	:: v          	!Velocity
 	double precision, dimension(:),   allocatable, target 	:: vmagnitude 	!Velocity magnitude	
 	double precision, dimension(:,:), allocatable, target 	:: a          	!Accelerations
+!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
+	double precision, dimension(:,:), allocatable, target 	:: aold
+!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
 	double precision, dimension(:),   allocatable 	      	:: recvbuffer
 	double precision, dimension(:,:), allocatable, target 	:: slidev	    	!Speed for sliding molecules
 	double precision, dimension(:),   allocatable, target 	:: potenergymol 	!Potential energy of each molecule
