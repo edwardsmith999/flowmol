@@ -56,9 +56,9 @@ subroutine setup_command_arguments
 use module_parallel_io
 implicit none
 	
-	integer	:: i,argcount
-	logical :: restart_file_exists, input_file_exists
-	character(len=200) :: arg,nextarg
+	integer				:: i,argcount
+	logical 			:: restart_file_exists, input_file_exists
+	character(len=200) 	:: arg,nextarg
 
 	!Set default values in case they aren't specified by user
 	restart = .false.			
@@ -162,11 +162,11 @@ subroutine setup_inputs
 	read(1,*) delta_t 		!Size of time step
 	call locate(1,'TPLOT',.true.)
 	read(1,*) tplot 		!Frequency at which to record results
-	call locate(1,'INITISE_STEPS',.false.,found_in_input)
+	call locate(1,'INITIALISE_STEPS',.false.,found_in_input)
 	if (found_in_input) then
-		read(1,*) initise_steps 	!Number of initialisation steps for simulation
+		read(1,*) initialise_steps 	!Number of initialisation steps for simulation
 	else
-		initise_steps = 0
+		initialise_steps = 0
 	endif
 	call locate(1,'DELTA_RNEIGHBR',.true.) 
 	read(1,*) delta_rneighbr 	!Extra distance used for neighbour cell
@@ -283,7 +283,7 @@ subroutine setup_inputs
 		case(0)
 			if (abs(maxval(thermstattop   )).ne.0.0 & 
 		        .or.abs(maxval(thermstatbottom)).ne.0.0) stop & 
-			 "THERMSTATTOP or THERMSTATBOTTOM non zero but THERMSTAT_FLAG_INFO set to off (THERMSTAT_FLAG=0)"
+			 'THERMSTATTOP or THERMSTATBOTTOM non zero but THERMSTAT_FLAG_INFO set to off (THERMSTAT_FLAG=0)'
 			thermstatbottom = 0.d0; thermstattop = 0.d0 
 		case(1)	!N-H thermostat all molecules
 			thermstattop 	= initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
@@ -294,7 +294,7 @@ subroutine setup_inputs
 		case(3)
 			if (abs(maxval(thermstattop   )).eq.0.0 & 
 		       .and.abs(maxval(thermstatbottom)).eq.0.0) stop & 
-			"THERMSTATTOP or THERMSTATBOTTOM must also be specified"
+			'THERMSTATTOP or THERMSTATBOTTOM must also be specified'
 		end select
 	endif
 
@@ -305,7 +305,7 @@ subroutine setup_inputs
 		if (vmd_outflag .ne. 0) then
 			read(1,*) Nvmd_intervals	!Number of vmd intervals
 			if (Nvmd_intervals .gt. 20) then
-				print*, "Number of VMD intervals greater than 20 or not specified, setting on for all simualtion"
+				print*, 'Number of VMD intervals greater than 20 or not specified, setting on for all simualtion'
 				Nvmd_intervals = 0
 			endif
 			if (Nvmd_intervals .eq. 0) then
@@ -317,9 +317,9 @@ subroutine setup_inputs
 				read(1,trim(readin_format)) vmd_intervals
 #if USE_COUPLER
 				!NEED SOME SORT OF coupler total simulation time retrival here!!
-				print*, "WARNING - CHECK VMD INTERVALS is not greater than coupled number of steps"
+				print*, 'WARNING - CHECK VMD INTERVALS is not greater than coupled number of steps'
 #else
-				if (maxval(vmd_intervals) .gt. Nsteps) stop "Specified VMD interval greater than Nsteps"
+				if (maxval(vmd_intervals) .gt. Nsteps) stop 'Specified VMD interval greater than Nsteps'
 #endif
 			endif
 		endif
@@ -428,22 +428,17 @@ subroutine setup_restart_inputs
  	integer(kind=selected_int_kind(18)) header_pos, end_pos ! 8 byte integer for header address
 
 	!Allocate random number seed
-!	call random_seed
 	call random_seed(size=n)
 	allocate(seed(n))
 
-
 	!Open file to read integers
-	open(2,file=initial_microstate_file,form="unformatted", access="stream",position="append")
-        inquire(2,POS=end_pos) ! go the end of file
- 
-        read(2,pos=end_pos-8) header_pos ! header start is in the last 8 bytes
+	open(2,file=initial_microstate_file,form='unformatted', access='stream',position='append')
 
-        header_pos = header_pos +1 ! for compatibility with MPI IO 
-                                   ! we store header_pos - 1 in final state 
+    inquire(2,POS=end_pos) ! go the end of file
+    read(2,pos=end_pos-8) header_pos ! header start is in the last 8 bytes
+    header_pos = header_pos +1 ! for compatibility with MPI IO we store header_pos - 1 in final state 
 
 	read(2,pos=header_pos) np
-        
 	globalnp = np			!Global np and local np same in serial
 	read(2) initialnunits(1)
 	read(2) initialnunits(2)
@@ -556,7 +551,7 @@ subroutine setup_restart_inputs
 	!-------------------------------------
 	!Flag to determine molecular tags
 	!-------------------------------------
-	!Note: For initialunitsize "a"
+	!Note: For initialunitsize 'a'
 	!		 		 [  o     o ]
 	!a (1 cell size) [     o    ]  a/2 (distance between molcules)	
 	!		 		 [  o     o ]
@@ -636,7 +631,7 @@ subroutine setup_restart_inputs
 		case(0)
 			if (abs(maxval(thermstattop   )).ne.0.0 & 
 		        .or.abs(maxval(thermstatbottom)).ne.0.0) stop & 
-			"THERMSTATTOP or THERMSTATBOTTOM non zero but THERMSTAT_FLAG_INFO set to off (THERMSTAT_FLAG=0)"
+			'THERMSTATTOP or THERMSTATBOTTOM non zero but THERMSTAT_FLAG_INFO set to off (THERMSTAT_FLAG=0)'
 			thermstatbottom = 0.d0; thermstattop = 0.d0 
 		case(1)
 			thermstattop 	= initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
@@ -644,7 +639,7 @@ subroutine setup_restart_inputs
 		case(2)
 			if (abs(maxval(thermstattop   )).eq.0.0 & 
 		       .and.abs(maxval(thermstatbottom)).eq.0.0) stop &
-			 "THERMSTATTOP or THERMSTATBOTTOM must also be specified"
+			 'THERMSTATTOP or THERMSTATBOTTOM must also be specified'
 		end select
 	endif
 
@@ -656,7 +651,7 @@ subroutine setup_restart_inputs
 		if (vmd_outflag .ne. 0) then
 			read(1,*) Nvmd_intervals	!Number of vmd intervals
 			if (Nvmd_intervals .gt. 20) then
-				print*, "Number of VMD intervals greater than 20 or not specified, setting on for all simualtion"
+				print*, 'Number of VMD intervals greater than 20 or not specified, setting on for all simualtion'
 				Nvmd_intervals = 0
 			endif
 			if (Nvmd_intervals .eq. 0) then
@@ -668,9 +663,9 @@ subroutine setup_restart_inputs
 				read(1,trim(readin_format)) vmd_intervals
 #if USE_COUPLER
 				!NEED SOME SORT OF coupler total simulation time retrival here!!
-				print*, "WARNING - CHECK VMD INTERVALS is not greater than coupled number of steps"
+				print*, 'WARNING - CHECK VMD INTERVALS is not greater than coupled number of steps'
 #else
-				if (maxval(vmd_intervals) .gt. Nsteps) stop "Specified VMD interval greater than Nsteps"
+				if (maxval(vmd_intervals) .gt. Nsteps) stop 'Specified VMD interval greater than Nsteps'
 #endif
 			endif
 		endif
@@ -755,10 +750,10 @@ subroutine setup_restart_microstate
 	implicit none
 
 	integer 				:: ixyz, n
-	integer, dimension(np) :: chainID, subchainID,left,right
+	integer, dimension(np)	:: chainID, subchainID,left,right
 
 	!Open file at first recorded value
-	open(2,file=initial_microstate_file, form='unformatted', access='stream',position="rewind")
+	open(2,file=initial_microstate_file, form='unformatted', access='stream',position='rewind')
 	!Read positions
 	do n=1,globalnp
 		!Read position from file
@@ -944,10 +939,10 @@ subroutine parallel_io_final_state
 	use module_parallel_io
 	implicit none
 
-	integer :: ixyz,n
-	integer, dimension(np) :: chainID, subchainID,right,left
-	integer :: int_filesize,dp_filesize
-        integer(kind=selected_int_kind(18)) header_pos ! 8 byte integer for header address
+	integer 								:: ixyz,n
+	integer, dimension(np) 					:: chainID, subchainID,right,left
+	integer 								:: int_filesize,dp_filesize
+	integer(kind=selected_int_kind(18))		:: header_pos ! 8 byte integer for header address
 
 	!Rebuild simulation before recording final state
 	call sendmols			   			!Exchange particles between processors
@@ -957,9 +952,9 @@ subroutine parallel_io_final_state
 	call assign_to_neighbourlist	   	!Setup neighbourlist
 
 	!Remove previous final state file
-	open(2,file='results/final_state')
+	open(2,file=trim(prefix_dir)//'results/final_state')
 	close(2,status='delete')
-	!open(3,file='results/finalvelocities',status='replace')
+	!open(3,file=trim(prefix_dir)//'results/finalvelocities',status='replace')
 
 !	select case (integration_algorithm)
 !		case(leap_frog_verlet)
@@ -973,7 +968,7 @@ subroutine parallel_io_final_state
 	
 	!Written in this form so each molecule's information is together to allow 
 	!re-allocation to seperate processors
-	open(2,file='results/final_state', form='unformatted',access='stream')
+	open(2,file=trim(prefix_dir)//'results/final_state', form='unformatted',access='stream')
 	do n=1,np
 		!Write particle n's positions and speed
 		do ixyz=1,nd
@@ -993,7 +988,7 @@ subroutine parallel_io_final_state
 			left(n)       = polyinfo_mol(n)%left
 			right(n)	  = polyinfo_mol(n)%right
 		end do
-!		open(2,file='results/final_state', form='unformatted',access='direct',recl=np)
+!		open(2,file=trim(prefix_dir)//'results/final_state', form='unformatted',access='direct',recl=np)
 		write(2) chainID(:)
 		write(2) subchainID(:)
 		write(2) left(:)
@@ -1001,13 +996,13 @@ subroutine parallel_io_final_state
 
 	end if
  
-        close(2,status='keep')
+	close(2,status='keep')
 
 	!Write integer data at end of file	
-	open(2,file='results/final_state', form='unformatted',access='stream',position="append")
+	open(2,file=trim(prefix_dir)//'results/final_state', form='unformatted',access='stream',position='append')
 
-        ! header address
-        inquire(2,POS=header_pos)
+	! header address
+	inquire(2,POS=header_pos)
         
 	write(2) np               	!Number of particles
 	write(2) initialnunits(1) 	!x dimension split into number of cells
@@ -1031,7 +1026,7 @@ subroutine parallel_io_final_state
 	write(2) k_c			   	  !FENE spring constant
 	write(2) R_0			      !FENE spring max elongation
 	write(2) delta_rneighbr	  !Extra distance used for neighbour list cell size
-        write(2) header_pos-1     ! -1 for MPI IO compatibility
+    write(2) header_pos-1     ! -1 for MPI IO compatibility
 	close(2,status='keep') !Close final_state file
 
 end subroutine parallel_io_final_state
@@ -1050,11 +1045,11 @@ subroutine parallel_io_final_state_old
 	call assign_to_neighbourlist	   !Setup neighbourlist
 
 	!Remove previous final state file
-	open(2,file='results/final_state')
+	open(2,file=trim(prefix_dir)//'results/final_state')
 	close(2,status='delete')
-	!open(3,file='results/finalvelocities',status='replace')
+	!open(3,file=trim(prefix_dir)//'results/finalvelocities',status='replace')
 
-	open(2,file='results/final_state', form='unformatted',access='direct',recl=2)
+	open(2,file=trim(prefix_dir)//'results/final_state', form='unformatted',access='direct',recl=2)
 	!Written in this form so each molecule's information is together to allow 
 	!re-allocation to seperate processors
 	do n=1,np
@@ -1084,7 +1079,7 @@ subroutine parallel_io_final_state_old
 	close(2,status='keep') !Close final_state file
 
 	!Re-open file with different record length to write Integer Data
-	open(2,file='results/final_state', form='unformatted',access='direct',recl=1)
+	open(2,file=trim(prefix_dir)//'results/final_state', form='unformatted',access='direct',recl=1)
 
 	write(2,rec=12*np+17) np               !Number of particles
 	write(2,rec=12*np+18) initialnunits(1) !x dimension split into number of cells
@@ -1133,7 +1128,7 @@ subroutine parallel_io_vmd(start, finish,interval_no)
 	endif
 
 	inquire(iolength=length) buf
-	open (unit=4, file="results/vmd_temp.dcd",access='direct',recl=length)
+	open (unit=4, file=trim(prefix_dir)//'results/vmd_temp.dcd',access='direct',recl=length)
 	write(4,rec=i) buf(:)
 	close(4,status='keep')
 
@@ -1173,7 +1168,7 @@ subroutine parallel_io_vmd_sl(start, finish,interval_no)
 	endif
 
 	!---Write liquid molecules---
-	open (unit=4, file="results/vmd_liquid_temp.dcd",access='direct',recl=1)
+	open (unit=4, file=trim(prefix_dir)//'results/vmd_liquid_temp.dcd',access='direct',recl=1)
 	
 	do n = 1,np
 		select case (tag(n))
@@ -1191,7 +1186,7 @@ subroutine parallel_io_vmd_sl(start, finish,interval_no)
 	close(4,status='keep')
 
 	!---Write solid molecules---
-	open (unit=4, file="results/vmd_solid_temp.dcd",access='direct',recl=1)
+	open (unit=4, file=trim(prefix_dir)//'results/vmd_solid_temp.dcd',access='direct',recl=1)
 
 	do n = 1,np
 		select case (tag(n))
@@ -1242,7 +1237,7 @@ subroutine parallel_io_vmd_halo(start, finish,interval_no)
 		!i = i + ((iter-start)/tplot)+1
 	endif
 
-	open (unit=4, file="results/vmd_halo_temp.dcd",access='direct',recl=1)
+	open (unit=4, file=trim(prefix_dir)//'results/vmd_halo_temp.dcd',access='direct',recl=1)
 	
 	do n = 1,halo_np
 		write(4,rec=(i-1)*nd*extralloc+n) Xbuf(n)
@@ -1268,7 +1263,7 @@ subroutine update_simulation_progress_file
 	use module_parallel_io
 	implicit none
 
-	open (unit=99999, file="results/simulation_progress")
+	open (unit=99999, file=trim(prefix_dir)//'results/simulation_progress')
 	write(99999,*) iter
 	close(99999,status='keep')
 
@@ -1287,7 +1282,7 @@ subroutine mass_slice_io(ixyz)
 	!Write mass slice to file
 	m = iter/(tplot*Nmass_ave)
 	inquire(iolength=length) slice_mass(1:nbins(ixyz))
-	open (unit=5, file="results/mslice",form="unformatted",access='direct',recl=length)
+	open (unit=5, file=trim(prefix_dir)//'results/mslice',form='unformatted',access='direct',recl=length)
 	write(5,rec=m) slice_mass(1:nbins(ixyz))
 	close(5,status='keep')
 
@@ -1332,7 +1327,7 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 	!Write mass to file
 	buf = CV_mass_out(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1)
 	inquire(iolength=length) buf
-	open (unit=5,file=filename,form="unformatted",access='direct',recl=length)
+	open (unit=5,file=filename,form='unformatted',access='direct',recl=length)
 	write(5,rec=m) buf
 	close(5,status='keep')
 
@@ -1354,7 +1349,7 @@ implicit none
 	!Write velocity to file
 	m = iter/(tplot*Nvel_ave)
 	inquire(iolength=length) slice_momentum(1:nbins(ixyz),:)
-	open (unit=6, file="results/vslice",form="unformatted",access='direct',recl=length)
+	open (unit=6, file=trim(prefix_dir)//'results/vslice',form='unformatted',access='direct',recl=length)
 	write(6,rec=m) slice_momentum(1:nbins(ixyz),:)
 	close(6,status='keep')
 
@@ -1407,7 +1402,7 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 	!Write velocity to file
 	buf = CV_momentum_out(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
 	inquire(iolength=length) buf
-	open (unit=6, file=filename,form="unformatted",access='direct',recl=length)
+	open (unit=6, file=filename,form='unformatted',access='direct',recl=length)
 	write(6,rec=m) buf
 	close(6,status='keep')
 
@@ -1456,9 +1451,9 @@ subroutine energy_bin_io(CV_energy_out,io_type)
 	!Write velocity to file
 	buf = CV_energy_out(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1)
 	inquire(iolength=length) buf
-	open (unit=6, file=filename,form="unformatted",access='direct',recl=length)
-	write(6,rec=m) buf
-	close(6,status='keep')
+	open (unit=10, file=filename,form='unformatted',access='direct',recl=length)
+	write(10,rec=m) buf
+	close(10,status='keep')
 
 end subroutine energy_bin_io
 
@@ -1475,7 +1470,7 @@ subroutine virial_stress_io
 	!Write virial pressure to file
 	m = iter/(tplot*Nstress_ave)
 	inquire(iolength=length) Pxy
-	open (unit=7, file="results/pvirial",form="unformatted",access='direct',recl=length)
+	open (unit=7, file=trim(prefix_dir)//'results/pvirial',form='unformatted',access='direct',recl=length)
 	write(7,rec=m) Pxy
 	close(7,status='keep')
 
@@ -1512,7 +1507,7 @@ subroutine VA_stress_io
 	!Write VA pressure to file
 	m = iter/(tplot*Nstress_ave)
 	inquire(iolength=length) Pxybin
-	open (unit=7, file="results/pVA",form="unformatted",access='direct',recl=length)
+	open (unit=7, file=trim(prefix_dir)//'results/pVA',form='unformatted',access='direct',recl=length)
 	write(7,rec=m) Pxybin
 	close(7,status='keep')
 
@@ -1540,7 +1535,7 @@ subroutine viscosity_io
 	!Write viscosity to file
 	m = iter/(tplot*Nstress_ave*Nvisc_ave)
 	inquire(iolength=length) viscosity
-	open (unit=7, file="results/visc",form="unformatted",access='direct',recl=length)
+	open (unit=7, file=trim(prefix_dir)//'results/visc',form='unformatted',access='direct',recl=length)
 	write(7,rec=m) viscosity
 	close(7,status='keep')
 
@@ -1579,7 +1574,7 @@ subroutine mass_flux_io
 	m = iter/(Nmflux_ave)
 	buf = mass_flux(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
 	inquire(iolength=length) buf
-	open (unit=8, file="results/mflux",form="unformatted",access='direct',recl=length)
+	open (unit=8, file=trim(prefix_dir)//'results/mflux',form='unformatted',access='direct',recl=length)
 	write(8,rec=m) buf
 	close(8,status='keep')
 
@@ -1624,7 +1619,7 @@ subroutine momentum_flux_io
 	m = iter/(Nvflux_ave)
 	buf = momentum_flux(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:,:)
 	inquire(iolength=length) buf
-	open (unit=9, file="results/vflux",form="unformatted",access='direct',recl=length)
+	open (unit=9, file=trim(prefix_dir)//'results/vflux',form='unformatted',access='direct',recl=length)
 	write(9,rec=m) buf
 	close(9,status='keep')
 
@@ -1649,7 +1644,7 @@ subroutine MOP_stress_io(ixyz)
 	!Write plane pressures to file
 	m = iter/(tplot*Nvflux_ave)
 	inquire(iolength=length) Pxy_plane
-	open (unit=9, file="results/pplane",form="unformatted",access='direct',recl=length)
+	open (unit=9, file=trim(prefix_dir)//'results/pplane',form='unformatted',access='direct',recl=length)
 	write(9,rec=m) Pxy_plane
 	close(9,status='keep')
 
@@ -1665,7 +1660,7 @@ subroutine surface_stress_io
 	implicit none
 
 	integer							:: ixyz,i,j,k,n,m,length
-	double precision				:: buf(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1:3,1:6)
+	double precision				:: buf(nbins(1),nbins(2),nbins(3),1:3,1:6)
 	double precision,dimension(3)	:: binface
 
 	!Include halo surface stresses to get correct values for all cells
@@ -1697,7 +1692,7 @@ subroutine surface_stress_io
 	m = iter/(Nvflux_ave)
 	buf = Pxyface(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:,:)
 	inquire(iolength=length) buf
-	open (unit=9, file="results/psurface",form="unformatted",access='direct',recl=length)
+	open (unit=9, file=trim(prefix_dir)//'results/psurface',form='unformatted',access='direct',recl=length)
 	write(9,rec=m) buf
 	close(9,status='keep')
 
@@ -1715,6 +1710,7 @@ subroutine energy_flux_io
 
 	integer					:: ixyz,i,j,k,n,m,length
 	double precision		:: binface
+	double precision		:: buf(nbins(1),nbins(2),nbins(3),6)
 
 	!Include halo surface fluxes to get correct values for all cells
 	do n = 1, nhalobins
@@ -1736,14 +1732,14 @@ subroutine energy_flux_io
 		energy_flux(:,:,:,ixyz+3)=energy_flux(:,:,:,ixyz+3)/(binface) !Top
 	enddo
 
-	!momentum_flux = momentum_flux/(delta_t*Nvflux_ave)
+	energy_flux = energy_flux/(delta_t*Neflux_ave)
 	!Write momnetum flux to file
-	m = iter/(Nvflux_ave)
-	inquire(iolength=length) energy_flux(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
-	open (unit=9, file="results/eflux",form="unformatted",access='direct',recl=length)
-	print*, 'eflux'
-	write(9,rec=m) energy_flux(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
-	close(9,status='keep')
+	m = iter/(Neflux_ave)
+	buf = energy_flux(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
+	inquire(iolength=length) buf 
+	open (unit=10, file=trim(prefix_dir)//'results/eflux',form='unformatted',access='direct',recl=length)
+	write(10,rec=m) buf 
+	close(10,status='keep')
 
 end subroutine energy_flux_io
 
@@ -1766,9 +1762,9 @@ subroutine MOP_energy_io(ixyz)
 	!Write plane pressures to file
 	m = iter/(tplot*Nvflux_ave)
 	inquire(iolength=length) Pxy_plane
-	open (unit=9, file="results/eplane",form="unformatted",access='direct',recl=length)
-	write(9,rec=m) Pxy_plane
-	close(9,status='keep')
+	open (unit=10, file=trim(prefix_dir)//'results/eplane',form='unformatted',access='direct',recl=length)
+	write(10,rec=m) Pxy_plane
+	close(10,status='keep')
 
 end subroutine MOP_energy_io
 
@@ -1782,7 +1778,9 @@ subroutine surface_power_io
 	implicit none
 
 	integer							:: ixyz,i,j,k,n,m,length
+	double precision				:: buf(nbins(1),nbins(2),nbins(3),6)
 	double precision,dimension(3)	:: binface
+
 
 	!Include halo surface stresses to get correct values for all cells
 	do n = 1, nhalobins
@@ -1806,15 +1804,15 @@ subroutine surface_power_io
 	enddo
 
 	!Integration of stress using trapizium rule requires multiplication by timestep
-	Pxyvface = delta_t*Pxyvface!/Nvflux_ave
+	Pxyvface = Pxyvface/Neflux_ave
 
 	!Write surface pressures to file
 	m = iter/(Neflux_ave)
-	inquire(iolength=length) Pxyvface(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
-	open (unit=9, file="results/esurface",form="unformatted",access='direct',recl=length)
-	print*, 'esurface'
-	write(9,rec=m) Pxyvface(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
-	close(9,status='keep')
+	buf = Pxyvface(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
+	inquire(iolength=length) buf
+	open (unit=10, file=trim(prefix_dir)//'results/esurface',form='unformatted',access='direct',recl=length)
+	write(10,rec=m) buf
+	close(10,status='keep')
 
 end subroutine surface_power_io
 
@@ -1826,7 +1824,7 @@ subroutine macroscopic_properties_header
 	use calculated_properties_MD
 	implicit none
 	
-	open(unit=10,file='results/macroscopic_properties',status='replace')
+	open(unit=10,file=trim(prefix_dir)//'results/macroscopic_properties',status='replace')
 	
 	if (potential_flag.eq.0) then
 		write(10,'(2a)'), &
@@ -1880,10 +1878,10 @@ subroutine etev_io
 	inquire(iolength=length) etev
 	
 	if (iter.eq.etevtcf_iter0) then
-		open  (15,file='results/etev_xyz',status='replace',form='unformatted',access='direct',recl=length)
+		open  (15,file=trim(prefix_dir)//'results/etev_xyz',status='replace',form='unformatted',access='direct',recl=length)
 		write (15,rec=m) etev 
 	else if (iter.gt.etevtcf_iter0) then
-		open  (15,file='results/etev_xyz',form='unformatted',access='direct',recl=length)
+		open  (15,file=trim(prefix_dir)//'results/etev_xyz',form='unformatted',access='direct',recl=length)
 		write (15,rec=m) etev
 	end if
 	
@@ -1902,10 +1900,10 @@ implicit none
 	inquire(iolength=length) etevtcf
 	
 	if (iter.eq.etevtcf_iter0) then
-		open(14,file='results/etevtcf',status='replace',form='unformatted',access='direct',recl=length)
+		open(14,file=trim(prefix_dir)//'results/etevtcf',status='replace',form='unformatted',access='direct',recl=length)
 		write(14,rec=m) etevtcf
 	else if (iter.gt.etevtcf_iter0) then
-		open(14,file='results/etevtcf',form='unformatted',access='direct',recl=length)
+		open(14,file=trim(prefix_dir)//'results/etevtcf',form='unformatted',access='direct',recl=length)
 		write(14,rec=m) etevtcf
 	end if
 	
@@ -1919,10 +1917,10 @@ use module_parallel_io
 implicit none
 
 	if (iter.eq.r_gyration_iter0) then
-		open(15,file='results/r_gyration',status='replace')
+		open(15,file=trim(prefix_dir)//'results/r_gyration',status='replace')
 		write(15,'(i8,f15.8)') iter, R_g
 	else if (iter.gt.r_gyration_iter0) then
-		open(15,file='results/r_gyration',access='append')
+		open(15,file=trim(prefix_dir)//'results/r_gyration',access='append')
 		write(15,'(i8,f15.8)') iter, R_g
 	end if
 	

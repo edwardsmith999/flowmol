@@ -20,17 +20,57 @@ use module_initial_record
 use polymer_info_MD
 implicit none
 
-	character		:: ixyz_char
+	character			:: ixyz_char
 	Character(8)  		:: the_date
 	Character(10)  		:: the_time
+
+	if (irank .eq. iroot) then
+		!Delete existing files
+		open (unit=5, file=trim(prefix_dir)//'results/mslice')
+		close(5,status='delete')
+		open (unit=5, file=trim(prefix_dir)//'results/mbins')
+		close(5,status='delete')
+		open (unit=5, file=trim(prefix_dir)//'results/msnap')
+		close(5,status='delete')
+		open (unit=6, file=trim(prefix_dir)//'results/vslice')
+		close(6,status='delete')
+		open (unit=6, file=trim(prefix_dir)//'results/vbins')
+		close(6,status='delete')
+		open (unit=6, file=trim(prefix_dir)//'results/vsnap')
+		close(6,status='delete')
+		open (unit=6, file=trim(prefix_dir)//'results/vslice')
+		close(6,status='delete')
+		open (unit=6, file=trim(prefix_dir)//'results/vbins')
+		close(6,status='delete')
+		open (unit=7, file=trim(prefix_dir)//'results/pvirial')
+		close(7,status='delete')
+		open (unit=7, file=trim(prefix_dir)//'results/pVA')
+		close(7,status='delete')
+		open (unit=7, file=trim(prefix_dir)//'results/visc')
+		close(7,status='delete')
+		open (unit=8, file=trim(prefix_dir)//'results/mflux')
+		close(8,status='delete')
+		open (unit=9, file=trim(prefix_dir)//'results/vflux')
+		close(9,status='delete')
+		open (unit=9, file=trim(prefix_dir)//'results/pplane')
+		close(9,status='delete')
+		open (unit=9, file=trim(prefix_dir)//'results/psurface')
+		close(9,status='delete')
+		open (unit=10, file=trim(prefix_dir)//'results/esnap')
+		close(10,status='delete')
+		open (unit=10, file=trim(prefix_dir)//'results/eflux')
+		close(10,status='delete')
+		open (unit=10, file=trim(prefix_dir)//'results/eplane')
+		close(10,status='delete')
+		open (unit=10, file=trim(prefix_dir)//'results/esurface')
+		close(10,status='delete')
+	endif
 
 	!Evaluate system properties on all processes
 	call initial_macroscopic_properties
 	
 	!Calculate Control Volume starting state
 	call initial_control_volume
-
-
 	if (irank .eq. iroot) then
 
 		call date_and_time(the_date, the_time)
@@ -45,9 +85,9 @@ implicit none
 		print*, 'Total number of steps: ',  Nsteps - initialstep
 		select case(integration_algorithm)
 		case(0)
-			print*, 'Integration algorithm: leapfrog-Verlet'
+			print*, 'Integration algorithm: Leapfrog-Verlet'
 		case(1)
-			print*, 'Integration algorithm: velocity-Verlet'
+			print*, 'Integration algorithm: Velocity-Verlet'
 		end select
 		select case(potential_flag)
 		case(0)
@@ -55,8 +95,19 @@ implicit none
 		case(1)
 			print*, 'Interatomic potential: LJ + FENE'
 		end select
-		print*, 'Ensemble: ', ensemble
-		select case(force_list) 
+		select case(ensemble)
+		case(0)
+			print*, 'NVE ensemble'
+		case(1)
+			print*, 'NVT (Nosé-Hoover thermostat)'
+		case(2)
+			print*, 'NVT (Gaussian iso-kinetic thermostat) - only availble with VV'
+		case(3)
+			print*, 'NVT (Profile unbiased Nosé-Hoover thermostat)'
+		case(4)
+			print*, 'NVT (Pairwise additive Nosé-Hoover thermostat by Allen & Schmid)'
+		end select
+ 		select case(force_list) 
 		case(0)
 			print*,'All pairs force calculation (using Newton`s 3rd law)'
 		case(1)
@@ -349,16 +400,16 @@ implicit none
 	call globalSum(virial)
 	call globalSum(potenergysum)
 
-		kinenergy   = (0.5d0 * v2sum) / real(globalnp,kind(0.d0))
-		potenergy   = potenergysum /(2.d0*real(globalnp,kind(0.d0))) !N.B. extra 1/2 as all interactions calculated
-		if (potential_flag.eq.1) then
-			potenergy_LJ= potenergysum_LJ/(2.d0*real(globalnp,kind(0.d0)))
-			potenergy_FENE= potenergysum_FENE/(2.d0*real(globalnp,kind(0.d0)))
-		end if
-		totenergy   = kinenergy + potenergy
-		temperature = v2sum / real(nd*globalnp,kind(0.d0))
-		if (any(periodic.gt.1)) temperature = get_temperature_PUT()
-		pressure    = (density/(globalnp*nd))*(v2sum+virial/2) !N.B. virial/2 as all interactions calculated
+	kinenergy   = (0.5d0 * v2sum) / real(globalnp,kind(0.d0))
+	potenergy   = potenergysum /(2.d0*real(globalnp,kind(0.d0))) !N.B. extra 1/2 as all interactions calculated
+	if (potential_flag.eq.1) then
+		potenergy_LJ= potenergysum_LJ/(2.d0*real(globalnp,kind(0.d0)))
+		potenergy_FENE= potenergysum_FENE/(2.d0*real(globalnp,kind(0.d0)))
+	end if
+	totenergy   = kinenergy + potenergy
+	temperature = v2sum / real(nd*globalnp,kind(0.d0))
+	if (any(periodic.gt.1)) temperature = get_temperature_PUT()
+	pressure    = (density/(globalnp*nd))*(v2sum+virial/2) !N.B. virial/2 as all interactions calculated
 	!kinenergy   = (0.5d0 * v2sum) / globalnp 
 	!potenergy   = potenergysum /(2*globalnp) !N.B. extra 1/2 as all interactions calculated
 	!if (potential_flag.eq.1) then
@@ -383,8 +434,8 @@ subroutine initial_control_volume
 use module_initial_record
 implicit none
 
-	integer				:: n
-	integer, dimension(3)		:: ibin
+	integer							:: n
+	integer, dimension(3)			:: ibin
 	double precision, dimension(3)	:: mbinsize
 
 	!Obtain and record velocity and mass

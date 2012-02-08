@@ -16,7 +16,7 @@
 ! updateedge(face1,face2)
 ! updatecorners()
 !===============================
-! Molecule Sending Subroutines =
+! Molecule Sending Subroutines =messenger_updateborders
 !===============================
 ! sendmols()
 ! sendface(ixyz)
@@ -129,7 +129,7 @@ subroutine messenger_updateborders(rebuild)
 use messenger
 implicit none
 
-	integer				 	:: rebuild
+	integer, intent(in) :: rebuild
 	
 !todo other cases 
 	if (all(periodic.lt.2)) then

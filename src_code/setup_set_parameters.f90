@@ -13,7 +13,7 @@
 ! setup_linklist
 
 ! *********CUDA ROUTINES - WILL BE IN SEPERATE FILE SOON************
-! establish_surface_cells2(CPU_buffer_region_size)
+! establish_surface_cells2(CPU_buffer_region_size)a
 ! establish_gpusurface_cells2(CPU_buffer_region_size-1)
 ! CUDA_setup
 !
@@ -89,6 +89,7 @@ end subroutine setup_set_parameters
 
 !===========================================================================================
 !Allocate arrays first based on number of dimensions (n=1) then using extra allocation (n=2)
+
 subroutine set_parameters_allocate(n)
 	use module_set_parameters
 	use shear_info_MD
@@ -145,7 +146,6 @@ subroutine set_parameters_allocate(n)
 
 		!Allocate bulk shear array
 		allocate(mol_wrap_integer(np))
-
 	end select
 
 end subroutine set_parameters_allocate
@@ -383,7 +383,7 @@ subroutine set_parameters_cells
 	if (ncells(1)<3 .or. ncells(2)<3 .or. ncells(3)<3) then
 		print*, ncells(1),'    in x and ', ncells(2), '    in y' , ncells(3), '    in z' 
 		call  error_abort( "WARNING - DOMAIN SHOULD HAVE AT LEAST 3 CELLS, &
-		 &IN X, Y AND Z - INCREASE NUMBER OF UNITS IN INPUT")
+		 					& IN X, Y AND Z - INCREASE NUMBER OF UNITS IN INPUT")
 	endif
 
 	!Determine side length of cells after rounding

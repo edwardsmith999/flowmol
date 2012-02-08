@@ -108,10 +108,10 @@ contains
 ! 		Leapfrom integration routines
 subroutine md_advance_lfv
 	implicit none
-		
+	
 		call simulation_compute_forces 	                    !Calculate forces on particles	
 		call simulation_record                              !Evaluate & write properties to file
- 
+
 #if USE_COUPLER
 		call simulation_apply_boundary_forces               !Apply boundary force to prevent molecules leaving domain
 		call socket_coupler_apply_continuum_forces(iter)    !Apply coupling forces so MD => CFD
@@ -143,7 +143,7 @@ subroutine md_advance_vv
 		call simulation_move_particles_vv(2)        !Find v(t+dt)
 		call simulation_record                      !Evaluate and write properties 
 		
-	end subroutine md_advance_vv
+end subroutine md_advance_vv
 
 
 end subroutine simulation_MD

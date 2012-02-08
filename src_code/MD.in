@@ -56,7 +56,7 @@ INITIALNUNITS
 # Total number of timesteps:
 # -----------------------------------------------------------------------
 NSTEPS
-1000
+400
 
 
 #########################################################################
@@ -64,7 +64,7 @@ NSTEPS
 #	(subroutine simulation_record is called)
 # -----------------------------------------------------------------------
 TPLOT
-100
+1
 
 #########################################################################
 # Timestep interval:
@@ -99,13 +99,12 @@ DELTA_RNEIGHBR
 
 
 #########################################################################
-# Ensemble selector: case sensitive! (currently only developed for VV)
+# Ensemble selector: case sensitive! 
 # 0 - NVE
 # 1 - NVT (Nosé-Hoover thermostat)
 # 2 - NVT (Gaussian iso-kinetic thermostat) - only availble with VV
 # 3 - NVT (Profile unbiased Nosé-Hoover thermostat)
-# 4 - NVT (Pairwise additive Nosé-Hoover thermostat 
-#                   by Allen & Schmid)
+# 4 - NVT (Pairwise additive Nosé-Hoover thermostat by Allen & Schmid)
 # -----------------------------------------------------------------------
 ENSEMBLE
 0
@@ -240,8 +239,7 @@ TETHEREDDISTTOP
 #########################################################################
 # Thermostat flag:
 # 0 - off, 1 - all, 2 - all (PUT), 3 - selection (must also specify 
-#													THERMSTATTOP and/or
-#												 	 THERMSTATBOTTOM)
+# THERMSTATTOP and/or THERMSTATBOTTOM)
 # -----------------------------------------------------------------------
 THERMSTAT_FLAG
 0
@@ -274,7 +272,7 @@ THERMSTATTOP
 # nproc is set by the argument of mpirun
 #-----------------------------------------------------------------------
 PROCESSORS
-1 
+2 
 1
 1
 
@@ -385,7 +383,7 @@ VFLUX_OUTFLAG
 # -----------------------------------------------------------------------
 EFLUX_OUTFLAG
 0
-100
+1
 
 #########################################################################
 # Output flag for end-to-end vector time correlation function (etevtcf):
