@@ -171,9 +171,6 @@ subroutine simulation_compute_forces_LJ_cells
 	integer							:: molnoi, molnoj, memloc
 	type(node), pointer 	        :: oldi, currenti, oldj, currentj
 
-!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
-	do n = 1,2
-!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
 	a=0.d0            !Reset acceleration matrix before force calculations
 	potenergymol=0.d0 !Reset potential energy per molecule before calculation
 	potenergysum=0.d0 !Reset potential energy sum before calculation
@@ -264,10 +261,7 @@ subroutine simulation_compute_forces_LJ_cells
 	nullify(oldj)      		!Nullify as no longer required
 	nullify(currenti)      	!Nullify as no longer required
 	nullify(currentj)      	!Nullify as no longer required
-!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
-	aold = a
-	enddo
-!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
+
 end subroutine simulation_compute_forces_LJ_cells
 
 !-----------------------------------------------------------------
