@@ -1354,7 +1354,11 @@ implicit none
 	type(node), pointer			:: old, current
 	type(neighbrnode), pointer 	:: oldn, currentn
 
-	call linklist_FENEresetLR
+	select case(potential_flag)
+	case(0)
+	case(1)
+		call linklist_FENEresetLR
+	end select
 
 	do icell=1,ncells(1)+2
 	do jcell=1,ncells(2)+2
