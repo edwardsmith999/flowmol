@@ -82,7 +82,11 @@ subroutine setup_set_parameters
 	call setup_shear_parameters
 
 	!Setup polymer info
-	call setup_polymer_info
+	select case(potential_flag)
+	case(0)
+	case(1)
+		call setup_polymer_info
+	end select
 
 end subroutine setup_set_parameters
 

@@ -68,9 +68,14 @@ implicit none
 	deallocate(mass_flux)
 	deallocate(potenergymol)
 	deallocate(potenergymol_LJ)
-	deallocate(potenergymol_FENE)
 	deallocate(virialmol)
 	deallocate(planes)
+	
+	select case (potential_flag)
+	case(0)
+	case(1)
+		deallocate(potenergymol_FENE)
+	end select
 
 	if (nproc .ne. 1) deallocate(procnp)	!Only allocated in parallel code
 
