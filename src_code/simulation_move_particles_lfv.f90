@@ -170,10 +170,9 @@ contains
 	subroutine simulation_move_particles_lfv_tag
 		implicit none
 				
-		integer :: maxtag, n, thermostatnp, slicebin
-		integer, dimension(:), allocatable 	:: m_slice
-		double precision :: dzeta_dt, pec_v2sum, v2sum
-		double precision :: ascale, bscale, alpha, beta
+		integer :: maxtag, n, thermostatnp 
+		double precision :: dzeta_dt, pec_v2sum, v2sum,Q
+		double precision :: ascale, bscale
 		double precision, dimension(nd)	:: vel
 		logical :: PUT
 
