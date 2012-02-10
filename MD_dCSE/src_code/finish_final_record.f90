@@ -514,6 +514,14 @@ subroutine build_psf
 	! NGRP
 
 	close(1, status='keep')	
+	
+	deallocate(seg_name)								! Determine segment names for each atom
+	deallocate(res_ID)									! Determine molecule ID for each atom
+	deallocate(res_name)								! Determine name for each molecule
+	deallocate(atom_name)								! Determine name for each atom
+	deallocate(atom_type)								! Determine type for each atom
+	deallocate(charge)									! Determine charge for each atom
+	deallocate(mass)									! Determine mass of each atom
 
 end subroutine build_psf
 
