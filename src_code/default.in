@@ -58,6 +58,14 @@ INITIALNUNITS
 NSTEPS
 1000
 
+
+#########################################################################
+# Results are recorded periodically every TPLOT timesteps:
+#	(subroutine simulation_record is called)
+# -----------------------------------------------------------------------
+TPLOT
+100
+
 #########################################################################
 # Timestep interval:
 # -----------------------------------------------------------------------
@@ -89,23 +97,19 @@ FORCE_LIST
 DELTA_RNEIGHBR
 0.3
 
-#########################################################################
-# Ensemble selector: case sensitive! (currently only developed for VV)
-# nve        - NVE
-# nvt_NH     - NVT (Nosé-Hoover thermostat)
-# nvt_PUT_NH - NVT (Profile unbiased Nosé-Hoover thermostat)
-# nvt_pwa_NH - NVT (Pairwise additive Nosé-Hoover thermostat 
-#                   by Allen & Schmid)
-# -----------------------------------------------------------------------
-ENSEMBLE
-nve
 
 #########################################################################
-# Results are recorded periodically every TPLOT timesteps:
-#	(subroutine simulation_record is called)
+# Ensemble selector: case sensitive! (currently only developed for VV)
+# 0 - NVE
+# 1 - NVT (Nosé-Hoover thermostat)
+# 2 - NVT (Gaussian iso-kinetic thermostat) - only availble with VV
+# 3 - NVT (Profile unbiased Nosé-Hoover thermostat)
+# 4 - NVT (Pairwise additive Nosé-Hoover thermostat 
+#                   by Allen & Schmid)
+# 5 - Tagged Move System
 # -----------------------------------------------------------------------
-TPLOT
-100
+ENSEMBLE
+0
 
 #########################################################################
 # Periodic boundary flags, formatted:
@@ -157,13 +161,6 @@ FENE_INFO
 8
 30.0
 1.5
-
-#########################################################################
-# Number of initialisation steps to run before simulation start
-#	
-# -----------------------------------------------------------------------
-INITISE_STEPS
-0
 
 #########################################################################
 # Random number seeds, formattted:
@@ -310,9 +307,8 @@ PROCESSORS
 # -----------------------------------------------------------------------
 VMD_OUTFLAG
 0
-5
-0, 100, 200, 300, 400, 500, 600, 700, 800, 900
-
+0
+0, 100, 200, 300, 310, 431, 600, 700, 900, 970, 980, 1000
 
 #########################################################################
 # Output flag for macroscopic properties:
@@ -330,7 +326,7 @@ MACRO_OUTFLAG
 # -----------------------------------------------------------------------
 MASS_OUTFLAG
 0
-50
+100
 
 #########################################################################
 # Output flag for Velocity record:
@@ -339,7 +335,7 @@ MASS_OUTFLAG
 # -----------------------------------------------------------------------
 VELOCITY_OUTFLAG
 0
-50
+100
 
 #########################################################################
 # Output flag for Pressure binning:
@@ -348,7 +344,7 @@ VELOCITY_OUTFLAG
 # -----------------------------------------------------------------------
 PRESSURE_OUTFLAG
 0
-50
+100
 
 #########################################################################
 # Output flag for viscosity:
@@ -359,7 +355,7 @@ PRESSURE_OUTFLAG
 # -----------------------------------------------------------------------
 VISCOSITY_OUTFLAG
 0
-50
+100
 
 
 #########################################################################
@@ -370,7 +366,7 @@ VISCOSITY_OUTFLAG
 # -----------------------------------------------------------------------
 MFLUX_OUTFLAG
 0
-50
+1
 
 #########################################################################
 # Output flag for velocity flux:
@@ -380,26 +376,32 @@ MFLUX_OUTFLAG
 # -----------------------------------------------------------------------
 VFLUX_OUTFLAG
 0
-50
+1
 
+#########################################################################
+# Output flag for energy flux:
+#	output_flag (0=off 1,2,3=x,y,z MOP 4=3D CV)
+#	No. of samples for energy flux/power & CV energy snapshots
+#
+# -----------------------------------------------------------------------
+EFLUX_OUTFLAG
+0
+100
 
 #########################################################################
 # Output flag for end-to-end vector time correlation function (etevtcf):
-#	- flag (0-off,1-print to terminal,2-write to output file)
+#	- flag:
+#	    > 0 - off
+#	    > 1 - on-the-fly calculation, printed to terminal
+#	    > 2 - write entire history of vectors so that t.c.f. may
+#	          be calculated with a post-processing routine (fft).
+#
 #	- iteration at which to begin averaging (must be "hit" by a tplot, 
 #	  otherwise etev_0 will not be initialised and the t.c.f. will be
-#	  incorrectly calculated.
+#	  incorrectly calculated.)
 # -----------------------------------------------------------------------
 ETEVTCF_OUTFLAG
 0
-0
-
-#########################################################################
-# Microscopic stress tensor output flag:
-#	0 - off
-#	1 - on
-# -----------------------------------------------------------------------
-MICRO_STRESS_OUTFLAG
 0
 
 #########################################################################
