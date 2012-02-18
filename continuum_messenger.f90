@@ -33,7 +33,9 @@
 
 module continuum_messenger
 	use continuum_data_export
+#if USE_COUPLER
     use coupler
+#endif
     save
        
 	integer myid                      ! my process rank
@@ -56,13 +58,13 @@ subroutine messenger_invoke()
 
     call MPI_init (ierr)
 
-    if (coupler_is_active) then
+#if USE_COUPLER
             call init_coupler(CFD_COMM)
             prefix_dir ="./couette_data/"
-    else 
+#else
             CFD_COMM = MPI_COMM_WORLD
             prefix_dir = "./"
-    endif
+#endif
 
     wallTime = mpi_wtime()
 

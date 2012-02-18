@@ -1,65 +1,49 @@
 #
 # Name ( useful in coupler builds)
 #
-override NAME := COUETTE
+override NAME := couette
 
 #=======================================================================
 # File definitions
 #=======================================================================
 
-F90_CONTINUUM = continuum_data_export.f90  continuum_modules.f90 continuum_coupler_socket_init$(COUPLER_SOCKET).f90 continuum_messenger.f90 continuum_advance_time.f90 continuum_calculate_flux.f90 continuum_coupler_socket$(COUPLER_SOCKET).f90 continuum_CFL.f90 continuum_finish.f90 continuum_mesh_gen.f90 continuum_read_inputs.f90 continuum_record.f90 continuum_set_BC.f90 continuum_set_parameters.f90 continuum_setup_macrostate.f90 continuum.f90 continuum_main.f90
+F90_CONTINUUM = continuum_data_export.f90  continuum_modules.f90 continuum_coupler_socket_init.f90 continuum_messenger.f90 continuum_advance_time.f90 continuum_calculate_flux.f90 continuum_coupler_socket.f90 continuum_CFL.f90 continuum_finish.f90 continuum_mesh_gen.f90 continuum_read_inputs.f90 continuum_record.f90 continuum_set_BC.f90 continuum_set_parameters.f90 continuum_setup_macrostate.f90 continuum.f90 continuum_main.f90
 
 F90_COUPLED = $(F90_CONTINUUM:continuum_main.f90=) $(F90_MD_FILES:md_main.f90=MD_continuum_main.f90) setup_coupling.f90 coupler.f90
 
-#
-# get platform to build, compiler names and flags, check the make.inc directory
-#
-
-#
-# objec file dir
-#
-
+# needed in platform
 OBJ_DIR := obj
-
-# use coupler ? 
-USE_COUPLER      := no
-
-# coupler path
-COUPLER_PATH_yes := ../coupler_dCSE/src_code/obj
-COUPLER_PATH_no  := ../coupler_dCSE/src_code/obj_null
-COUPLER_PATH     := $(COUPLER_PATH_$(USE_COUPLER))
-
-# coupler object files in coupler director
-O_COUPLER_no     := $(COUPLER_PATH)/coupler_null.o
-O_COUPLER_yes    := $(COUPLER_PATH)/coupler.o $(COUPLER_PATH)/coupler_parameters.o $(COUPLER_PATH)/coupler_internal_common.o $(COUPLER_PATH)/coupler_internal_md.o $(COUPLER_PATH)/coupler_internal_cfd.o $(COUPLER_PATH)/coupler_input_data.o
-O_COUPLER        := $(O_COUPLER_$(USE_COUPLER))   
-
-# socket files
-COUPLER_SOCKET_yes :=
-COUPLER_SOCKET_no  :=_dummy
-COUPLER_SOCKET     := $(COUPLER_SOCKET_$(USE_COUPLER))#
+USE_COUPLER := no
+#
+# make.inc path, needed because some .inc files contain include statements
+#
+MAKE_INC_PATH :=  ../platforms
+#
+# get te platform to build: compiler names and flags, see the make.inc directory
+#
 
 #Check for default file
 ifndef PLATFORM
-    PLATFORM := $(shell cat ../make.inc/PLATFORM_default)
+    PLATFORM := $(shell cat $(MAKE_INC_PATH)/PLATFORM_default)
 endif
  
 ifndef PLATFORM
-  platform_list := $(shell ls ../make.inc | grep  '.inc' | sed 's/.inc//' )
+  platform_list := $(shell ls $(MAKE_INC_PATH) | grep  '.inc' | sed 's/.inc//' )
   $(error The PLATFORM variable must be specified. Try one of the following: $(platform_list) )
 else
-# 
-#   get the branch ( cfd or md)
-#
-  branch = cfd# $(if $(findstring CFD_dCSE,$(PWD)),cfd,$(if $(findstring MD_dCSE,$(PWD)),md,$(error "error in find branch")))
-  include ../make.inc/$(PLATFORM).inc
+  include $(MAKE_INC_PATH)/$(PLATFORM).inc
   #Create default file for current platform
-  $(shell echo $(PLATFORM) > ../make.inc/PLATFORM_default)
+  $(shell echo $(PLATFORM) > $(MAKE_INC_PATH)/PLATFORM_default)
 endif
 
-# computed flags with values from PLATFORM files
-FFLAGS   := $(FLAGS_$(COMP)_$(VERSION)) -I$(COUPLER_PATH)
-LDFLAGS := $(FLAGS)
+LDFLAGES := $(FFLAGS)
+
+ifeq ($(strip $(USE_COUPLER)),yes)
+  COUPLER_LIB = ../lib/coupler/$(PLATFORM)/$(BUILD)
+  FFLAGS  +=  -I$(COUPLER_LIB)
+  LDFLAGS +=  -L$(COUPLER_LIB) -lcoupler
+endif
+
 
 CONTINUUM_EXE = continuum.exe
 
@@ -68,7 +52,7 @@ CONTINUUM_EXE = continuum.exe
 #=======================================================================
 
 #Re-use f90 file names with .o instead of .f90
-O_CONTINUUM = $(addprefix obj/,$(F90_CONTINUUM:.f90=.o))
+O_CONTINUUM = $(addprefix $(OBJ_DIR)/,$(F90_CONTINUUM:.f90=.o))
 O_COUPLED = $(F90_COUPLED:.f90=.o)
 
 #Make everything depend on parameter files
@@ -86,10 +70,11 @@ default:
 	@echo "Please add flag serial (s), parallel (p) or type help for options"
 s_continuum:
 	@make continuum.exe
-continuum.exe: obj $(O_CONTINUUM)
-	$(F90) -o $(CONTINUUM_EXE) $(O_CONTINUUM) $(O_COUPLER)
-obj:
-	[ -d obj ] || mkdir obj
+continuum.exe: $(O_CONTINUUM)
+	$(F90) -o $(CONTINUUM_EXE)  $(O_CONTINUUM)  $(LDFLAGS)
+$(O_CONTINUUM): | $(OBJ_DIR)
+$(OBJ_DIR) :
+	mkdir -p $@
 help:
 	@echo "======================================================================================"
 	@echo "CONTINUUM Options"
@@ -103,13 +88,13 @@ help:
 	@echo "clean			Deletes all .mod, .obj and other temporary files"
 	@echo "======================================================================================"
 clean:
-	rm -rf obj *.exe *.mod *.f90~ *__genmod.f90 *__genmod.mod *~ 
+	rm -rf $(OBJ_DIR) *.exe *.mod *.f90~ *__genmod.f90 *__genmod.mod *~ 
 
 #=======================================================================
 # Compilation rules
 #=======================================================================
-obj/%.o : %.f90
-	$(F90) -c $(FFLAGS) $< -o $@
+$(OBJ_DIR)/%.o : %.f90
+	$(F90) -c $(FPP_FLAGS) $(FFLAGS) $< -o $@
 .cu.o:
 	$(CU) $(FLAGS_CUDA) -c $*.cu -o obj/$*.o
 

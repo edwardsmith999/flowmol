@@ -39,9 +39,15 @@ subroutine setup_continuum
 #endif
 	call continuum_setup_macrostate
 
+#if USE_COUPLER
 	call send_CFDvel
+#endif
+
 	call continuum_initial_record
+
+#if USE_COUPLER
  	call continuum_set_BC
+#endif
 
 end subroutine setup_continuum
 
