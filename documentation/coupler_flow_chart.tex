@@ -19,11 +19,11 @@ Coupler flow diagram
   \psset{shadowcolor=black!70,blur=true}%
   \begin{psmatrix}[rowsep=0.4,colsep=0.6]
     % start
-    [name=startF]\psovalbox[fillstyle=solid,fillcolor=yellow,shadow=true]{CFD} &  [name=startP]\psovalbox[fillstyle=solid,fillcolor=yellow,shadow=true]{MD}  \\
+    [name=startF]\psovalbox[fillstyle=solid,fillcolor=yellow,shadow=true]{CFD} &  [name=startP]\psovalbox[fillstyle=solid,fillcolor=yellow,shadow=true]{MD} &  [colsep=2.0cm]\rnode{comment0}{\parbox{4cm}{comments}} \\
     % mpi init
-    [name=mpiF]\psframebox[shadow=true]{MPI init} & [name=mpiP]\psframebox[shadow=true]{MPI init} &  [colsep=2.0cm]\rnode{comment1}{\parbox{4cm}{bla,bla}}\\
+    [name=mpiF]\psframebox[shadow=true]{create communicators} & [name=mpiP]\psframebox[shadow=true]{create communicators} &  [colsep=2.0cm]\rnode{comment1}{\parbox{4cm}{bla, bla}}\\
     % init defaults
-    [name=init1F]\psframebox[shadow=true]{init defaults} & [name=init1P] \psframebox[shadow=true]{init defaults} \\
+    [name=init1F]\psframebox[shadow=true]{initialise coupler (I)} & [name=init1P] \psframebox[shadow=true]{initialise coupler (I)} \\
     % test  if  coupler.in exists, CFD side
     [name=inputfileF]\psdiabox[fillstyle=solid,fillcolor=Pink,shadow=true]{coupler.in ?} & \\
     % broadcast coupler.in tests
@@ -31,11 +31,11 @@ Coupler flow diagram
     % MD branching on coupler.in
     [name=readinF] \psframebox[shadow=true]{ read input} & [name=inputfileP]\psdiabox[fillstyle=solid,fillcolor=Pink,shadow=true]{coupler.in ?} \\    
     % initialise with data from input file
-    [name=init2F]\psframebox[shadow=true]{init(II)} & [name=init2P]\psframebox[shadow=true]{init(II)} \\
+    [name=init2F]\psframebox[shadow=true]{initialise coupler (II)} & [name=init2P]\psframebox[shadow=true]{initialise coupler (II)} \\
     % read local input files
     [name=cfdinF] \psframebox[shadow=true]{read CFD.in} &  [name=mdinP]\psframebox[shadow=true]{read MD.in} \\
-    \psframebox[shadow=true]{data setup}  \\
-    \psframebox[shadow=true]{coupler setup } & \psframebox[shadow=true]{MD coupler setup} \\
+    \psframebox[shadow=true]{CFD setup} & \psframebox[shadow=true]{MD init} \\
+    \psframebox[shadow=true]{initialise coupler (III) } & \psframebox[shadow=true]{initialise coupler (III)} \\
                                              & \psframebox[shadow=true]{MD  setup} \\
     \psframebox[shadow=true]{create maps } & \psframebox[shadow=true]{create maps} \\
     \psframebox[shadow=true]{send CFD velocities } & \psframebox[shadow=true]{constrain force} \\
