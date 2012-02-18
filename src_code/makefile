@@ -1,8 +1,14 @@
 #=======================================================================
+# application name used in coupler build
+#=======================================================================
+
+override NAME := stream_md
+
+#=======================================================================
 # File definitions
 #=======================================================================
 
-F90_MD_FILES =  modules.f90 functions_lib.f90 messenger.serial.f90 md_coupler_socket$(COUPLER_SOCKET).f90 interfaces.f90 parallel_io.serial.f90 linklist.f90 molecular_properties.f90  setup_set_parameters.f90 setup_initialise_microstate.f90 setup_initial_record.f90 simulation_compute_forces.f90 simulation_move_particles.f90 simulation_checkrebuild.f90 simulation_record.f90 finish_final_record.f90 finish_clear_all.f90 md.f90 md_main.f90 external_forces.f90 simulation_move_particles_vv.f90 simulation_move_particles_lfv.f90
+F90_MD_FILES =  modules.f90 functions_lib.f90 messenger.serial.f90 md_coupler_socket.f90 interfaces.f90 parallel_io.serial.f90 linklist.f90 molecular_properties.f90  setup_set_parameters.f90 setup_initialise_microstate.f90 setup_initial_record.f90 simulation_compute_forces.f90 simulation_move_particles.f90 simulation_checkrebuild.f90 simulation_record.f90 finish_final_record.f90 finish_clear_all.f90 md.f90 md_main.f90 external_forces.f90 simulation_move_particles_vv.f90 simulation_move_particles_lfv.f90
 
 F90_MD_FILES_P = $(patsubst parallel_io.serial.f90,parallel_io.MPI2.f90,$(patsubst messenger.serial.f90,messenger.MPI.f90,$(F90_MD_FILES)))
 
@@ -12,53 +18,37 @@ CU_CUDA_MD_FILES = inter.cu inter2.cu
 # object files directory
 OBJ_DIR := obj
 
-# Yes/No To Logical
-LOGICAL_yes := 1
-LOGICAL_no  := 0
-
-# use coupler ? 
-USE_COUPLER      := no
-COUPLER_PATH_yes := ../../coupler_dCSE/src_code/obj
-COUPLER_PATH_no  := ../../coupler_dCSE/src_code/obj_null
-COUPLER_PATH     := $(COUPLER_PATH_$(USE_COUPLER))
-USE_COUPLER_LOGICAL := $(LOGICAL_$(USE_COUPLER))
-
-# coupler object files in coupler directory
-O_COUPLER_no     := #$(COUPLER_PATH)/coupler_null.o
-O_COUPLER_yes    := $(COUPLER_PATH)/coupler.o $(COUPLER_PATH)/coupler_parameters.o $(COUPLER_PATH)/coupler_internal_common.o $(COUPLER_PATH)/coupler_internal_md.o $(COUPLER_PATH)/coupler_internal_cfd.o  $(COUPLER_PATH)/coupler_input_data.o   
-O_COUPLER        := $(O_COUPLER_$(USE_COUPLER))
-
-# socket files
-COUPLER_SOCKET_yes :=
-COUPLER_SOCKET_no  :=_dummy
-COUPLER_SOCKET     := $(COUPLER_SOCKET_$(USE_COUPLER))
-
+# Use coupler?
+USE_COUPLER := no
+#
+# path to .inc file the choosen platform. 
+# This is needed for build started in this directory
+#
+MAKE_INC_PATH :=  ../../platforms
 #
 # get platform to build, compiler names and flags, check the make.inc directory
 #
 #Check for default file
 ifndef PLATFORM
-    PLATFORM := $(shell cat ../../make.inc/PLATFORM_default)
+    PLATFORM := $(shell cat $(MAKE_INC_PATH)/PLATFORM_default)
 endif
  
 ifndef PLATFORM
-  platform_list := $(shell ls ../../make.inc | grep  '.inc' | sed 's/.inc//' )
+  platform_list := $(shell ls $(MAKE_INC_PATH) | grep  '.inc' | sed 's/.inc//' )
   $(error The PLATFORM variable must be specified. Try one of the following: $(platform_list) )
 else
-# 
-#   get the branch ( cfd or md)
-#
-  branch = $(if $(findstring CFD_dCSE,$(PWD)),cfd,$(if $(findstring MD_dCSE,$(PWD)),md,$(error "error in find branch")))
-  include ../../make.inc/$(PLATFORM).inc
+  include $(MAKE_INC_PATH)/$(PLATFORM).inc
   #Create default file for current platform
-  $(shell echo $(PLATFORM) > ../../make.inc/PLATFORM_default)
+  $(shell echo $(PLATFORM) > $(MAKE_INC_PATH)/PLATFORM_default)
 endif
 
-# computed flags with values from PLATFORM files
-FLAGS   := $(FLAGS_$(COMP)_$(VERSION)) 
-FFLAGS  := $(FLAGS) -I$(COUPLER_PATH) 
-LDFLAGS := $(FLAGS)
+ LDFLAGS := $(FFLAGS)
 
+ifeq ($(strip $(USE_COUPLER)),yes)
+  COUPLER_LIB = ../../lib/coupler/$(PLATFORM)/$(BUILD)
+  FFLAGS  +=  -I$(COUPLER_LIB)
+  LDFLAGS +=  -L$(COUPLER_LIB) -lcoupler
+endif
 
 MD_EXE = md.exe
 
@@ -91,11 +81,11 @@ debug_s_cuda:
 optimised_s:
 	@make md.exe "FLAGS = -O3"
 optimised_p:
-	@make parallel_md.exe "VERSION=opt"
+	@make parallel_md.exe "BUILD=opt"
 debug_s:
-	@make md.exe "VERSION=debug"
+	@make md.exe "BUILD=debug"
 debug_p:
-	@make parallel_md.exe "VERSION=debug"
+	@make parallel_md.exe "BUILD=debug"
 full_debug_s:
 	@make md.exe "FLAGS = -O0 -traceback -CB -check all -warn all,nodec,interfaces -gen_interfaces"
 full_debug_p:
@@ -105,7 +95,7 @@ profile_s:
 profile_p:
 	@make parallel_md.exe "FFLAGS = -mpe=mpilog "
 md.exe: obj $(O_MD)
-	@$(F90) -o $(MD_EXE) $(LDFLAGS) $(O_MD) $(O_COUPLER) 
+	@$(F90) -o $(MD_EXE) $(O_MD) $(LDFLAGS)  
 md_CUDA.exe: obj $(O_CUDA)
 	@cd obj; $(F90) -o $(MD_EXE) $(O_CUDA) $(LIBS) ; mv md.exe ..
 md_CUDA_emu.exe: obj $(O_CUDA)
@@ -113,7 +103,7 @@ md_CUDA_emu.exe: obj $(O_CUDA)
 continuum.exe: obj $(O_CONTINUUM)
 	@cd obj; $(F90) -o $(CONTINUUM_EXE) $(O_CONTINUUM) ; mv continuum.exe ..
 parallel_md.exe: obj $(O_MD_P)
-	@$(F90) -o $(MD_EXE) $(LDFLAGS) $(O_MD_P) $(O_COUPLER)
+	@$(F90) -o $(MD_EXE) $(O_MD_P)  $(LDFLAGS)
 obj:
 	[ -d obj ] || mkdir obj
 help:
@@ -141,7 +131,7 @@ clean:
 # Compilation rules
 #=======================================================================
 obj/%.o: %.f90
-	$(F90) $(FFLAGS) -c $< -o $@
+	$(F90) $(FPP_FLAGS) $(FFLAGS) -c $< -o $@
 .cu.o:
 	$(CU) $(FLAGS_CUDA) -c $*.cu -o obj/$*.o
 #
