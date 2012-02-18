@@ -1,132 +1,91 @@
 #
-# targets for CFD and MD
+# useful ID for the top make file of coupler system
 #
-MD_TARGET  := p
-CFD_TARGET := opt
-
-F90 := ftn
-#
-#  object dir
-#
-OBJ_DIR = obj
-
-# Yes/No To Logical
-LOGICAL_yes := 1
-LOGICAL_no  := 0
-
-# use coupler ? 
-USE_COUPLER := yes
-USE_COUPLER_LOGICAL := $(LOGICAL_$(USE_COUPLER))
-
+override NAME := coupler
 #
 # Coupler files
 #
-F90_COUPLER_FILES      := coupler.f90 coupler_parameters.f90 coupler_internal_cfd.f90 coupler_internal_md.f90 coupler_internal_common.f90 coupler_input_data.f90
-F90_NULL_COUPLER_FILES := coupler_null.f90
-O_COUPLER_FILES        := $(addprefix obj/,$(F90_COUPLER_FILES:.f90=.o))
-O_NULL_COUPLER_FILES   := $(addprefix obj_null/,$(F90_NULL_COUPLER_FILES:.f90=.o))
 
+F90_FILES      := coupler.f90 coupler_parameters.f90 coupler_internal_cfd.f90 coupler_internal_md.f90 coupler_internal_common.f90 coupler_input_data.f90
 #
-#  CFD sector
+# object file dir, is needed by platform
 #
-CFD_SRC_PATH := ../../CFD_dCSE/src_code/main_code_MG_ddType_dP
-#  Redefine CFD path to couette solver if couette built
-clean_couette couette : CFD_SRC_PATH := ../../Couette_serial 
-couette : CFD_TARGET := continuum.exe
-
+OBJ_DIR := .
 #
-# MD sector
+# make.inc path, needed because some .inc files contain include statements
 #
-MD_SRC_PATH := ../../MD_dCSE/src_code
-
-# get platform to build, compiler names and flags, check the make.inc directory
+MAKE_INC_PATH :=  ../../platforms
 #
-#Check for default file
-
-# hack for coupler flags 
-branch := md
-
+# pick the build platform from platform directory
+#
 ifndef PLATFORM
-    PLATFORM := $(shell cat ../../make.inc/PLATFORM_default)
+    PLATFORM := $(shell cat $(MAKE_INC_PATH)/PLATFORM_default)
 endif
- 
+
 ifndef PLATFORM
-  platform_list := $(shell ls ../../make.inc | grep  '.inc' | sed 's/.inc//' )
+  platform_list := $(shell ls $(MAKE_INC_PATH)  | grep  '.inc' | sed 's/.inc//' )
   $(error The PLATFORM variable must be specified. Try one of the following "PLATFORM= $(platform_list)" )
 else
-  include ../../make.inc/$(PLATFORM).inc
+  include $(MAKE_INC_PATH)/$(PLATFORM).inc
   #Create default file for current platform
-  $(shell echo $(PLATFORM) > ../../make.inc/PLATFORM_default)
+  $(shell echo $(PLATFORM) > $(MAKE_INC_PATH)/PLATFORM_default)
 endif
 
-FLAGS := $(FLAGS_$(COMP)_$(VERSION))
+#
+# object files
+#
+O_FILES := $(addprefix $(OBJ_DIR)/, $(F90_FILES:.f90=.o))
+#
+# library directory
+#
+LIB_DIR := ../../lib/coupler/$(PLATFORM)/$(BUILD)
 
-.PHONY. : clean_all clean_cfd clean_md cfd md create_obj_dir cfd_coupler couette couette_md
+#
+# list of interface modules to be moved in library directory
+# pgi needs coupler_parameters.mod beside coupler.mod, nag wants all modules;
+# cray used capital letters in module's name
+#
+ifeq  ($(strip $(PLATFORM)),hector-pgi)
+  INTERFACE_MODULES := $(OBJ_DIR)/coupler.mod $(OBJ_DIR)/coupler_parameters.mod
+else ifeq  ($(strip $(PLATFORM)),hector-nag)
+  INTERFACE_MODULES :=  $(O_FILES:.o=.mod)
+else ifeq  ($(strip $(PLATFORM)),hector-cray)
+   INTERFACE_MODULES := $(OBJ_DIR)/COUPLER.mod
+else 
+   INTERFACE_MODULES := $(OBJ_DIR)/coupler.mod
+endif
 
-all :
-	@echo "Top level coupled build - Type help for options"
+$(LIB_DIR)/libcoupler.a : $(O_FILES) 
+	[ -d $(LIB_DIR) ] || mkdir -p $(LIB_DIR) && ar cr $@ $(O_FILES) && mv $(INTERFACE_MODULES) $(LIB_DIR) && rm -f $(OBJ_DIR)/*.o $(OBJ_DIR)/*.mod 
 
-couette_md : couette md 
+$(O_FILES) : | $(OBJ_DIR) 
 
-cfd : 
-	cd $(CFD_SRC_PATH) && $(MAKE) USE_COUPLER=yes $(CFD_TARGET)
-md  : coupler
-	cd $(MD_SRC_PATH)  && $(MAKE) USE_COUPLER=yes $(MD_TARGET)
-couette : coupler 
-	cd $(CFD_SRC_PATH) && $(MAKE) USE_COUPLER=yes $(CFD_TARGET)
+$(OBJ_DIR) :
+	mkdir $(OBJ_DIR)
 
-coupler : create_obj_dir $(O_COUPLER_FILES) 
-
-null_coupler :
-	$(MAKE) OBJ_DIR=obj_null create_obj_dir $(O_NULL_COUPLER_FILES)
-
-create_obj_dir :
-	[ -d $(OBJ_DIR) ] || mkdir $(OBJ_DIR)
-
-clean_all : clean_null_coupler clean_coupler clean_cfd clean_md clean_couette
-
-clean_couette_md : clean_couette clean_md clean_coupler
-
-clean_cfd :
-	cd  $(CFD_SRC_PATH) && $(MAKE) clean 
-clean_md :
-	cd  $(MD_SRC_PATH)  && $(MAKE) clean  
-clean_couette :
-	cd  $(CFD_SRC_PATH) && $(MAKE) clean
-clean_null_coupler :
-	$(MAKE) OBJ_DIR=obj_null clean_coupler
-clean_coupler :
-	rm -rf $(OBJ_DIR) *.mod *.f90~ *__genmod.f90 *__genmod.mod *~ 
+.PHONY: clean 
+clean :
+	rm -rf $(O_FILES) *.mod *.a  $(LIB_DIR)/*
 help:
 	@echo "======================================================================================"
-	@echo "TOP LEVEL COUPLED BUILD - individual MD/CFD can be built using make in MD or CFD "
-	@echo "directories directly as well as from this folder. Options are as follows:"
+	@echo "Coupler library build "
+	@echo "Options are as follows:"
 	@echo ""
-	@echo "couette_md - build simple diffusive couette flow solver coupled with MD code"
-	@echo "cfd - Build full DNS CFD code only "
-	@echo "md - Build MD code only"
-	@echo "null_coupler - build coupler null files to allow MD code to be built in file"
-	@echo "GENERAL Options"
-	@echo "clean_all - Deletes all .mod, .obj and other temporary files from everywhere"
-	@echo "clean_couette_md - Deletes all .mod, .obj and other temporary files from couette & MD"
-	@echo "clean_cfd - Deletes all .mod, .obj and other temporary files from cfd"
-	@echo "clean_md - Deletes all .mod, .obj and other temporary files from md"
-	@echo "clean_couette - Deletes all .mod, .obj and other temporary files from couette"
+	@echo "clean - deletes all build files and library "
 	@echo "======================================================================================"
 
 
 #=======================================================================
 # Compilation rules
 #=======================================================================
-$(O_COUPLER_FILES) : obj/%.o : %.f90
-	$(F90) $(FLAGS) -c $< -o $@
-$(O_NULL_COUPLER_FILES) : obj_null/%.o : %.f90
-	$(F90) $(FLAGS) -c $< -o $@
+$(O_FILES) : $(OBJ_DIR)/%.o : %.f90
+	$(F90) $(FFLAGS) -c $< -o $@
+
 
 #=======================================================================
 # Dependencies
 #=======================================================================
-obj/coupler.o : obj/coupler_internal_cfd.o obj/coupler_internal_md.o obj/coupler_parameters.o obj/coupler_internal_common.o obj/coupler_input_data.o
-obj/coupler_internal_cfd.o obj/coupler_internal_md.o : obj/coupler_parameters.o obj/coupler_internal_common.o obj/coupler_input_data.o 
-obj/coupler_input_data.o : obj/coupler_parameters.o obj/coupler_internal_common.o
+ $(OBJ_DIR)/coupler.o : $(addprefix $(OBJ_DIR)/, coupler_internal_cfd.o coupler_internal_md.o coupler_parameters.o coupler_internal_common.o coupler_input_data.o)
+$(OBJ_DIR)/coupler_internal_cfd.o $(OBJ_DIR)/coupler_internal_md.o :  $(addprefix $(OBJ_DIR)/, coupler_parameters.o coupler_internal_common.o coupler_input_data.o) 
+$(OBJ_DIR)/coupler_input_data.o :  $(addprefix $(OBJ_DIR)/, coupler_parameters.o coupler_internal_common.o)
 

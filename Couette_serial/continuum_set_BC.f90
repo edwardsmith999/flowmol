@@ -17,7 +17,9 @@ end module module_setup_BC
 
 subroutine continuum_set_BC
 	use module_setup_BC
+#if USE_COUPLER
     use continuum_coupler_socket, only : MD_continuum_BC
+#endif
 	implicit none
 	
 	integer					:: i, j, n
@@ -67,9 +69,11 @@ subroutine continuum_set_BC
 		case(3)
 			call Von_Neumann_BC(i,0.d0,0.d0,0.d0,0.d0)
 			!stop "No Von Neumann BC yet"
+#if USE_COUPLER
 		case(4)
 			call MD_continuum_BC(u_MD,v_MD)
 			call Dirichlet_BC_set_halo(i,u_MD,v_MD)
+#endif
 		case default
 			stop "Error in choice of continuum BC"
 		end select

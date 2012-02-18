@@ -5,11 +5,17 @@
 !
 !  Lucian Anton, November 2011
 !
+! Gave up dummy subroutines for preprocessor flags
+!
+! LA, February 2012
+!
 !-----------------------------------------------------------------------------
 
 
 module md_coupler_socket
 	implicit none
+
+#if USE_COUPLER 
 
 contains
 
@@ -128,5 +134,7 @@ subroutine socket_coupler_average(iter)
 	endif
 	    	
 end subroutine socket_coupler_average
+
+#endif
 
 end module md_coupler_socket

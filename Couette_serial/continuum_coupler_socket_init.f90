@@ -1,6 +1,6 @@
 module continuum_coupler_socket_init
         implicit none
-
+#if USE_COUPLER
         logical, parameter :: use_coupling = .true.
 	! attention nx, ny are the number of cell in the fluid domain !!!
 
@@ -60,6 +60,7 @@ contains
                 
         end subroutine continuum_coupler_init
 
+#endif
 end module continuum_coupler_socket_init
 
 

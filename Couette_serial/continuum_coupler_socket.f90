@@ -1,6 +1,6 @@
 module continuum_coupler_socket
         implicit none
-
+#if USE_COUPLER
 contains
 
         subroutine send_CFDvel
@@ -50,5 +50,6 @@ contains
 !                enddo
 
         end subroutine MD_continuum_BC
+#endif
 end module continuum_coupler_socket
 
