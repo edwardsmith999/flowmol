@@ -55,6 +55,7 @@ subroutine setup_MD
 		call setup_initialise_microstate    !Setup position and velocities
 	endif
 
+
 	call assign_to_cell                     !Assign molecules to cells
 	call messenger_proc_topology            !Obtain topology of processors
 	call messenger_updateborders(1)         !Update borders between processors
@@ -79,7 +80,6 @@ end subroutine setup_MD
 
 subroutine simulation_MD
 	use computational_constants_MD
-	use arrays_MD
 #if USE_COUPLER
 	use md_coupler_socket, only : socket_coupler_apply_continuum_forces, socket_coupler_average
 #endif
@@ -131,6 +131,7 @@ subroutine md_advance_lfv
 !---------------------------------------------
 !Velocity Verlet integration routines
 subroutine md_advance_vv
+	use arrays_MD
 	implicit none
 		
 		call simulation_move_particles_vv(1)        !Find r(t+dt) and v(t+dt/2)
@@ -142,7 +143,7 @@ subroutine md_advance_vv
 		call simulation_compute_forces              !Calculate forces on all particles
 		call simulation_move_particles_vv(2)        !Find v(t+dt)
 		call simulation_record                      !Evaluate and write properties 
-		
+
 end subroutine md_advance_vv
 
 

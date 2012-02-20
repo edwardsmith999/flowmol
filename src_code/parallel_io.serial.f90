@@ -151,7 +151,7 @@ subroutine setup_inputs
 	read(1,*) potential_flag
 	if (potential_flag.eq.1) then
 		call locate(1,'FENE_INFO',.true.)
-		read(1,*) chain_length
+		read(1,*) nmonomers
 		read(1,*) k_c
 		read(1,*) R_0
 	end if	
@@ -451,7 +451,7 @@ subroutine setup_restart_inputs
 	read(2) periodic(2)
 	read(2) periodic(3)
 	read(2) potential_flag
-	read(2) chain_length
+	read(2) nmonomers
 
 	read(2) density			!Density of system
 	read(2) rcutoff			!Cut off distance for particle interaction
@@ -786,10 +786,10 @@ subroutine setup_restart_microstate
 		read(2) left(:)
 		read(2) right(:)
 		do n=1,np
-			polyinfo_mol(n)%chainID = chainID(n)
-			polyinfo_mol(n)%subchainID = subchainID(n)
-			polyinfo_mol(n)%left = left(n)
-			polyinfo_mol(n)%right= right(n)
+			monomer(n)%chainID = chainID(n)
+			monomer(n)%subchainID = subchainID(n)
+!			monomer(n)%left = left(n)
+!			monomer(n)%right= right(n)
 		end do
 
 	end if
@@ -829,7 +829,7 @@ subroutine simulation_header
 		write(3,*) 'Potential flag ; potential_flag;', potential_flag
 	case(1)
 		write(3,*) 'Potential flag ; potential_flag;', potential_flag
-		write(3,*) 'Number of LJ beads per FENE chain ; chain_length;', chain_length
+		write(3,*) 'Number of LJ beads per FENE chain ; nmonomers;', nmonomers
 		write(3,*) 'Number of FENE chains in domain ; nchains;', nchains
 		write(3,*) 'FENE bond maximum elongation ; R_0;', R_0
 		write(3,*) 'FENE spring stiffness ; k_c;', k_c
@@ -983,10 +983,10 @@ subroutine parallel_io_final_state
 
 	if (potential_flag.eq.1) then
 		do n=1,np
-			chainID(n)    = polyinfo_mol(n)%chainID
-			subchainID(n) = polyinfo_mol(n)%subchainID
-			left(n)       = polyinfo_mol(n)%left
-			right(n)	  = polyinfo_mol(n)%right
+			chainID(n)    = monomer(n)%chainID
+			subchainID(n) = monomer(n)%subchainID
+!			left(n)       = monomer(n)%left
+!			right(n)	  = monomer(n)%right
 		end do
 !		open(2,file=trim(prefix_dir)//'results/final_state', form='unformatted',access='direct',recl=np)
 		write(2) chainID(:)
@@ -1016,7 +1016,7 @@ subroutine parallel_io_final_state
 	write(2) periodic(2)	   		!Boundary condition flags
 	write(2) periodic(3)	   	!Boundary condition flags
 	write(2) potential_flag   	!Polymer/LJ potential flag
-	write(2) chain_length	   	!Polymer chain length
+	write(2) nmonomers	   	!Polymer chain length
 
 	write(2) density           !Density of system
 	write(2) rcutoff           !Cut off distance for particle interaction
@@ -1093,7 +1093,7 @@ subroutine parallel_io_final_state_old
 	write(2,rec=12*np+26) periodic(2)	   !Boundary condition flags
 	write(2,rec=12*np+27) periodic(3)	   !Boundary condition flags
 	write(2,rec=12*np+28) potential_flag   !Polymer/LJ potential flag
-	write(2,rec=12*np+29) chain_length	   !Polymer chain length
+	write(2,rec=12*np+29) nmonomers	   !Polymer chain length
 	write(2,rec=12*np+30) 0				   !Dummy to make even filesize
 
 	close(2,status='keep') !Close final_state file

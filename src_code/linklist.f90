@@ -1346,6 +1346,7 @@ end subroutine linklist_deallocatepasslist
 
 subroutine linklist_deallocateall
 use module_linklist
+use polymer_info_MD, only: bond, bondcount
 implicit none
 
 	integer            			:: i, j
@@ -1357,7 +1358,8 @@ implicit none
 	select case(potential_flag)
 	case(0)
 	case(1)
-		call linklist_FENEresetLR
+		bond(:,:) = 0
+		bondcount(:) = 0
 	end select
 
 	do icell=1,ncells(1)+2
@@ -1429,17 +1431,6 @@ implicit none
 
 
 end subroutine linklist_deallocateall
-
-!=============================================================================
-subroutine linklist_FENEresetLR
-use module_linklist
-use polymer_info_MD
-implicit none
-
-	polyinfo_mol(:)%left = 0
-	polyinfo_mol(:)%right= 0
-
-end subroutine linklist_FENEresetLR
 
 !=============================================================================
 !Moves to the bottom of the linklist
@@ -1638,23 +1629,39 @@ use module_linklist
 use polymer_info_MD
 implicit none
 
-	integer :: chaincheck, subchaincheck
-	integer :: molnoi, molnoj
+	integer                      :: chaindiff
+	integer, intent(in)          :: molnoi, molnoj
+	integer                      :: bflag
 
-	chaincheck = polyinfo_mol(molnoi)%chainID - polyinfo_mol(molnoj)%chainID
-	subchaincheck = polyinfo_mol(molnoi)%subchainID - polyinfo_mol(molnoj)%subchainID
+	chaindiff = monomer(molnoi)%chainID - monomer(molnoj)%chainID
 
-	if (chaincheck.eq.0) then
-		if (subchaincheck.eq.1)	then
-			polyinfo_mol(molnoi)%left  = molnoj
-			polyinfo_mol(molnoj)%right = molnoi
-		end if
-		if (subchaincheck.eq.-1) then
-			polyinfo_mol(molnoi)%right = molnoj
-			polyinfo_mol(molnoj)%left = molnoi
-		end if
+	if (chaindiff.eq.0) then
+		bflag = monomer(molnoi)%bondflag(monomer(molnoj)%subchainID)
+		select case (bflag)
+		case(1)
+			bondcount(molnoi) = bondcount(molnoi) + 1
+			bondcount(molnoj) = bondcount(molnoj) + 1
+
+			if (bondcount(molnoi).gt.monomer(molnoi)%funcy) call linklist_polymerbonderror(molnoi)
+			if (bondcount(molnoj).gt.monomer(molnoj)%funcy) call linklist_polymerbonderror(molnoj)
+
+			bond(molnoi,bondcount(molnoi)) = molnoj
+			bond(molnoj,bondcount(molnoj)) = molnoi
+
+		case default
+		end select
 	end if
 
-	return
+contains 
+	
+	subroutine linklist_polymerbonderror(molno)
+	implicit none
+		
+		integer, intent(in) :: molno
+	
+		print'(a,i5)', 'Error: too many bonds for molno ', molno
+		stop
+
+	end subroutine linklist_polymerbonderror
 
 end subroutine check_update_adjacentbeadinfo

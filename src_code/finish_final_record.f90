@@ -83,7 +83,7 @@ implicit none
 
 	if (macro_outflag.eq.2) close(10,status='keep') !Keep macroscopic_properties
 		
-	if (potential_flag.eq.1) call build_psf
+	!if (potential_flag.eq.1) call build_psf
 
 end subroutine finish_final_record
 
@@ -441,7 +441,7 @@ subroutine build_psf
 	
 	NTITLE = 1												! How many 'REMARKS' lines you want
 	NATOM  = globalnp										! Determine total number of atoms
-	NBONDS = (chain_length-1)*nchains						! Determine total number of bonds
+	NBONDS = (nmonomers-1)*nchains						! Determine total number of bonds
 
 	print*, 'Generating polymer topology file polymer_topol.psf'
 	open(unit=1, file='results/polymer_topol.psf', status='replace', form='formatted')
@@ -464,7 +464,7 @@ subroutine build_psf
 	allocate(charge(NATOM))									! Determine charge for each atom
 	allocate(mass(NATOM))									! Determine mass of each atom
 	seg_name(:)='C'
-	res_ID(:) =	polyinfo_mol(:)%chainID 
+	res_ID(:) =	monomer(:)%chainID 
 	res_name(:) = 'CBN'
 	atom_name(:)='C'
 	atom_type(:)='C'
@@ -487,8 +487,8 @@ subroutine build_psf
 	item=1
 	do i=1,globalnp
 		do j=1,i-1
-			if (polyinfo_mol(i)%chainID.eq.polyinfo_mol(j)%chainID) then
-				if (abs(polyinfo_mol(i)%subchainID-polyinfo_mol(j)%subchainID).eq.1) then
+			if (monomer(i)%chainID.eq.monomer(j)%chainID) then
+				if (abs(monomer(i)%subchainID-monomer(j)%subchainID).eq.1) then
 					bonds(item,1) = i
 					bonds(item,2) = j
 					item=item+1

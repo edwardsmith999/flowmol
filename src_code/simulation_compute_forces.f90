@@ -427,88 +427,54 @@ subroutine simulation_compute_forces_FENE
 	use polymer_info_MD
 	implicit none
 
-	integer				:: molnoi								!Current LJ bead
-	integer				:: molnoL								!Bead on left
-	integer				:: molnoR								!Bead on right
+	integer	:: molnoi,molnoj						!Current LJ bead
+	integer :: b
 	
 	do molnoi=1,np
-		
+
 		ri(:) = r(molnoi,:)							!Retrieve ri(:)
-		molnoL = polyinfo_mol(molnoi)%left
-		molnoR = polyinfo_mol(molnoi)%right
-		
-		if (molnoL.ne.0) then						!If there is a bead connected to the left of i
 
-			rj(:)  = r(molnoL,:)					
+		do b=1,monomer(molnoi)%funcy
+
+			molnoj = bond(molnoi,b)
+	!		if (molnoj.lt.molnoi) cycle             !Avoid double counting
+			if (molnoj.eq.0) cycle
+
+			rj(:)  = r(molnoj,:)
 			rij(:) = ri(:) - rj(:)
-			rij2 = dot_product(rij,rij)
+			rij2   = dot_product(rij,rij)
 
-			if(rij2.ge.R_0**2)	call polymer_bond_error(molnoL)
+			if(rij2.ge.R_0**2)	call polymer_bond_error(molnoj)
 
-			!if(rij2.ge.R_0**2) then
-			!	print '(a,i6,a,i4,a,i4,a,f8.5,a,f8.5,a,f12.5)', & 
-			!			 	'Bond broken at iter ',iter,': atoms ',molnoi,' and ',molnoL,' are separated by ', &
-			!				rij2**0.5,', which is greater than the allowed limit of ', R_0, &
-            !            	'. Stopping simulation, total time elapsed = ', iter*delta_t
-			!	print '(a)', 'Atomic positions:'
-			!	print '(a,i4,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoi,' is located at ',r(molnoi,1),' ',r(molnoi,2),' ',r(molnoi,3) 
-			!	print '(a,i4,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoL,' is located at ',r(molnoL,1),' ',r(molnoL,2),' ',r(molnoL,3) 
-			!	if (molnoL.gt.np) print*, 'Halo!'
-			!	stop
-			!end if
-	
 			accijmag = -k_c/(1-(rij2/(R_0**2)))			!(-dU/dr)*(1/|r|)
+
 			a(molnoi,1)= a(molnoi,1) + accijmag*rij(1)	!Add components of acceleration
 			a(molnoi,2)= a(molnoi,2) + accijmag*rij(2)
 			a(molnoi,3)= a(molnoi,3) + accijmag*rij(3)
-			
-			if (mod(iter,tplot) .eq. 0) then
-				potenergymol_FENE(molnoi)=potenergymol_FENE(molnoi)-0.5d0*k_c*R_0*R_0*dlog(1.d0-(rij2/(R_0**2)))
-				potenergymol(molnoi) = potenergymol(molnoi) + potenergymol_FENE(molnoi)
-				virialmol(molnoi) = virialmol(molnoi) + accijmag*rij2
-			endif
-	
-		end if
-		
-		if (molnoR.ne.0) then
 
-			rj(:)  = r(molnoR,:)	
-			rij(:) = ri(:) - rj(:)
-			rij2 = dot_product(rij,rij)
+	!		a(molnoj,1)= a(molnoj,1) - accijmag*rij(1)	!Add components of acceleration
+	!		a(molnoj,2)= a(molnoj,2) - accijmag*rij(2)
+	!		a(molnoj,3)= a(molnoj,3) - accijmag*rij(3)
 
-			if(rij2.ge.R_0**2)	call polymer_bond_error(molnoR)
-			!if(rij2.ge.R_0**2) then
-			!	print '(a,i6,a,i4,a,i4,a,f8.5,a,f8.5,a,f12.5)',&
-            !                          'Bond broken at iter ',iter,': atoms ',molnoi,' and ',molnoR,' are separated by ', &
-			!	      rij2**0.5,', which is greater than the allowed limit of ', R_0,&
-            !                          '. Stopping simulation, total time elapsed = ', iter*delta_t
-			!	print '(a)', 'Atomic positions:'
-			!	print '(a,i4,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoi,' is located at ',r(molnoi,1),' ',r(molnoi,2),' ',r(molnoi,3) 
-			!	print '(a,i4,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoR,' is located at ',r(molnoR,1),' ',r(molnoR,2),' ',r(molnoR,3) 
-			!	if (molnoR.gt.np) print*, 'Halo!'
-			!	stop
-			!end if
-			accijmag = -k_c/(1-(rij2/(R_0**2)))
-			a(molnoi,1)= a(molnoi,1) + accijmag*rij(1)
-			a(molnoi,2)= a(molnoi,2) + accijmag*rij(2)
-			a(molnoi,3)= a(molnoi,3) + accijmag*rij(3)
-	
 			if (mod(iter,tplot) .eq. 0) then
-				potenergymol_FENE(molnoi)=potenergymol_FENE(molnoi)-0.5d0*k_c*R_0*R_0*dlog(1.d0-(rij2/(R_0**2)))
-				potenergymol(molnoi) = potenergymol(molnoi) + potenergymol_FENE(molnoi)
-				virialmol(molnoi) = virialmol(molnoi) + accijmag*rij2
+				potenergymol_FENE(molnoi) = potenergymol_FENE(molnoi) - 0.5d0*k_c*R_0*R_0*dlog(1.d0-(rij2/(R_0**2)))
+				potenergymol(molnoi)      = potenergymol(molnoi)      + potenergymol_FENE(molnoi)
+				virialmol(molnoi)         = virialmol(molnoi)         + accijmag*rij2
 			endif
-		end if	
-		
+
+		end do	
+
 	end do
 
 contains
 
 subroutine polymer_bond_error(molnoX)
+	use mpi
 	implicit none
 
-	integer		::	molnoX
+	integer :: molnoX
 
+	print*, 'irank: ', irank
 	print '(a,i6,a,i4,a,i4,a,f8.5,a,f8.5,a,f12.5)', & 
 			 	'Bond broken at iter ',iter,': atoms ',molnoi,' and ',molnoX,' are separated by ', &
 				rij2**0.5,', which is greater than the allowed limit of ', R_0, &

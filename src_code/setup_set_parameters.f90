@@ -160,10 +160,21 @@ subroutine setup_polymer_info
 	use polymer_info_MD
 	implicit none
 
-	nchains = ceiling(dble(np)/dble(chain_length)) 
+	integer :: n
+
+	nchains = ceiling(dble(np)/dble(nmonomers)) 
 	
 	!Allocate polymer arrays
-	allocate(polyinfo_mol(np+extralloc))
+	allocate(bond(np+extralloc,max_funcy))
+	bond(:,:) = 0
+	allocate(bondcount(np+extralloc))
+	bondcount = 0
+	allocate(monomer(np+extralloc))
+	do n=1,np+extralloc
+		allocate(monomer(n)%bondflag(nmonomers))
+		monomer(n)%bondflag(:) = 0
+		monomer(n)%funcy       = 0
+	end do
 	allocate(etev(nchains,nd))
 	allocate(etev_0(nchains,nd))
 	allocate(potenergymol_FENE(np+extralloc))
