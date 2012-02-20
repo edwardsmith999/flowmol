@@ -195,6 +195,8 @@ subroutine evaluate_macroscopic_properties_parallel
 	call globalSum(v2sum)
 	call globalSum(virial)
 	call globalSum(potenergysum)
+	call globalSum(potenergysum_FENE)
+	call globalSum(potenergysum_LJ)
 
 	!Root processes prints results
 	if (irank .eq. iroot) then
@@ -209,19 +211,17 @@ subroutine evaluate_macroscopic_properties_parallel
 		temperature = v2sum / real(nd*globalnp,kind(0.d0))
 		if (any(periodic.gt.1)) temperature = get_temperature_PUT()
 		pressure    = (density/(globalnp*nd))*(v2sum+virial/2) !N.B. virial/2 as all interactions calculated
-	
-		if (potential_flag.eq.0) then	
+
+		select case (potential_flag)	
+		case(0)
 			print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
 			iter,';',vsum,';', v2sum,';', temperature,';', &
 			kinenergy,';',potenergy,';',totenergy,';',pressure
-		else if (potential_flag.eq.1) then
+		case(1) 
 			print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4)', &
 			iter,';',vsum,';', v2sum,';', temperature,';', &
 			kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure
-		end if
-		!print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.4,a,f10.4)', &
-		!iter,';',vsum,';', v2sum,';', temperature,';', &
-		!kinenergy,';',potenergy,';',totenergy,';',(density/(globalnp*nd))*(v2sum),';',(density/(globalnp*nd))*virial/2
+		end select
 
 	endif
 
@@ -372,10 +372,10 @@ implicit none
 	double precision, dimension(nd) :: rij
 
 	if (iter.eq.etevtcf_iter0) then						!Initialise end-to-end vectors at t_0
-		do i=1,np,chain_length
-			chainID = polyinfo_mol(i)%chainID
+		do i=1,np,nmonomers
+			chainID = monomer(i)%chainID
 			etev_0(chainID,:) = 0.d0
-			do j=0,chain_length-2
+			do j=0,nmonomers-2
 				rij(:)            = r(i+j+1,:) - r(i+j,:)
 				rij(:)            = rij(:) - domain(:)*anint(rij(:)/domain(:))
 				etev_0(chainID,:) = etev_0(chainID,:) + rij(:)
@@ -386,10 +386,10 @@ implicit none
 	etev_prod_sum	= 0.d0
 	etev2_sum 		= 0.d0
 
-	do i=1,np,chain_length
-		chainID = polyinfo_mol(i)%chainID
+	do i=1,np,nmonomers
+		chainID = monomer(i)%chainID
 		etev(chainID,:) = 0.d0
-		do j=0,chain_length-2
+		do j=0,nmonomers-2
 			rij(:)          = r(i+j+1,:) - r(i+j,:)
 			rij(:)          = rij(:) - domain(:)*anint(rij(:)/domain(:))
 			etev(chainID,:) = etev(chainID,:) + rij(:)
@@ -428,19 +428,19 @@ implicit none
     do i=1,nchains                                                              !Loop over all polymer chains
     
         !Find center of mass
-        r_first(:) = r((i-1)*chain_length + 1,:)                                !Location of first particle in chain
+        r_first(:) = r((i-1)*nmonomers + 1,:)                                !Location of first particle in chain
         r_sum(:) = 0.d0                                                         !Reset sum
-        do j=1,chain_length
-            molnoi = (i-1)*chain_length + j                                     !Find molnoi
+        do j=1,nmonomers
+            molnoi = (i-1)*nmonomers + j                                     !Find molnoi
             ri(:) = r(molnoi,:)                                                 !Position of mol molnoi
             ri(:) = ri(:) + domain(:)*anint((ri(:)-r_first(:))/domain(:))       !Minimum image convention
             r_sum(:) = r_sum(:) + ri(:)                                         !Sum of position vectors
         end do
-        r_cm(:) = r_sum(:)/dble(chain_length)                                   !Find center of mass
+        r_cm(:) = r_sum(:)/dble(nmonomers)                                   !Find center of mass
         
         !Find sum of separations from center of mass
-        do j=1,chain_length
-            molnoi = (i-1)*chain_length + j 
+        do j=1,nmonomers
+            molnoi = (i-1)*nmonomers + j 
             ri(:) = r(molnoi,:)
             rij(:) = ri(:) - r_cm(:)
             rij2 = dot_product(rij,rij)
@@ -450,7 +450,7 @@ implicit none
         
     end do
 
-    R_g2 = sum_dr/dble(chain_length*nchains)
+    R_g2 = sum_dr/dble(nmonomers*nchains)
     R_g  = R_g2**0.5d0
 	
    	if (r_gyration_outflag.eq.1) print*, 'R_g = ', R_g

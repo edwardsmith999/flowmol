@@ -20,51 +20,27 @@ end module module_initialise_microstate
 subroutine setup_initialise_microstate
 use module_initialise_microstate
 implicit none
+
+	integer		::	n
 	
-	if (potential_flag.eq.0) call setup_initialise_microstate_LJ
-	if (potential_flag.eq.1) call setup_initialise_microstate_FENE
-	if (potential_flag.gt.1) stop 'Potential flag not recognised!'
+	select case(potential_flag)
+	case(0)	
+		call setup_initialise_parallel_position       !Setup initial positions in //el
+	case(1) 
+		call setup_initialise_parallel_position_FENE  !Reordered numbering to allow FENE bonds
+		call setup_initialise_polyinfo                !Assign beads chain IDs, etc
+	case default
+		stop 'Potential flag not recognised!'
+	end select
+
+	call setup_tag                                    !Setup location of fixed molecules
+	do n = 1,np
+		call read_tag(n)                              !Read tag and assign properties
+	enddo
+	call setup_initialise_velocities                  !Setup initial velocities
 
 end subroutine setup_initialise_microstate
 
-!----------------------------------------------------------------------------------
-!==================================================================================
-subroutine setup_initialise_microstate_LJ
-	use module_initialise_microstate
-	implicit none
-
-	integer		::	n
-
-	!call setup_initialise_position       	!Setup initial positions
-	call setup_initialise_parallel_position !Setup initial positions in //el
-	call setup_tag				!Setup location of fixed molecules
-	do n = 1,np
-		call read_tag(n)		!Read tag and assign properties
-	enddo
-	call setup_initialise_velocities     	!Setup initial velocities
-!	call setup_initialise_velocities_test
-
-
-end subroutine setup_initialise_microstate_LJ
-
-subroutine setup_initialise_microstate_FENE
-	use module_initialise_microstate
-	use polymer_info_MD
-	implicit none
-
-	integer		::	n
-
-	!call setup_initialise_position       		 !Setup initial positions
-	call setup_initialise_position_FENE 		 !Setup initial positions in //el
-	call setup_tag								 !Setup location of fixed molecules
-	do n = 1,np
-		call read_tag(n)						 !Read tag and assign properties
-	enddo
-	call setup_initialise_velocities     		 !Setup initial velocities
-	!call setup_initialise_velocities_test
-
-
-end subroutine setup_initialise_microstate_FENE
 !==================================================================================
 !----------------------------------------------------------------------------------
 !Initialise Positions
@@ -121,7 +97,7 @@ subroutine setup_initialise_position_FENE
 		initialunitsize(ixyz) = domain(ixyz) / initialnunits(ixyz)
 	enddo
 
-	modcheck = 0 + mod(np,chain_length) + mod(4*initialnunits(1),chain_length)
+	modcheck = 0 + mod(np,nmonomers) + mod(4*initialnunits(1),nmonomers)
 	if (modcheck.ne.0) stop 'Number of molecules must be exactly divisible by &
 	& the polymer chain length. Please change the chain length in the input file. &
 	& A chain length of 4 should (hopefully) always work.'
@@ -147,17 +123,17 @@ subroutine setup_initialise_position_FENE
 						r(n,2) = c(2) + 0.5d0*initialunitsize(2)
 					end if
 					
-					chainID = ceiling(dble(n)/chain_length)	 !Set chain ID of mol n
-					subchainID = mod(n,chain_length) !Beads are numbered 1 to chain_length
-					if (subchainID.eq.0) subchainID = chain_length !Correct for mod returning 0
+			!		chainID = ceiling(dble(n)/nmonomers)	 !Set chain ID of mol n
+			!		subchainID = mod(n,nmonomers) !Beads are numbered 1 to nmonomers
+			!		if (subchainID.eq.0) subchainID = nmonomers !Correct for mod returning 0
 
-					polyinfo_mol(n)%chainID = chainID
- 					polyinfo_mol(n)%subchainID = subchainID
+			!		monomer(n)%chainID = chainID
+			!		monomer(n)%subchainID = subchainID
 
-					polyinfo_mol(n)%left = n-1
-					polyinfo_mol(n)%right= n+1
-					if (subchainID.eq.1) polyinfo_mol(n)%left = 0 !Flag for beginning of chain
-					if (subchainID.eq.chain_length) polyinfo_mol(n)%right = 0	!Flag for end of chain
+			!		monomer(n)%left = n-1
+			!		monomer(n)%right= n+1
+			!		if (subchainID.eq.1) monomer(n)%left = 0 !Flag for beginning of chain
+			!		if (subchainID.eq.nmonomers) monomer(n)%right = 0	!Flag for end of chain
 
 					n = n + 1  !Move to next molecule
 				enddo
@@ -306,6 +282,191 @@ subroutine setup_initialise_parallel_position
 
 end subroutine setup_initialise_parallel_position
 
+!--------------------------------------------------------------------------------
+!FENE equivalent
+subroutine setup_initialise_parallel_position_FENE
+	use module_initialise_microstate
+	use messenger
+	use polymer_info_MD
+#if USE_COUPLER
+	use coupler
+#endif
+
+	implicit none
+
+	integer 						:: j, ixyz, n, nl, nx, ny, nz
+	integer                         :: chainID, subchainID
+	integer,dimension(nd) 			:: p_units_lb, p_units_ub, nfcc_max
+	double precision 				:: CFD_region, removed_height
+	double precision, dimension (nd):: rc, c !Temporary variable
+
+	p_units_lb(1) = (iblock-1)*floor(initialnunits(1)/real((npx),kind(0.d0)))
+	p_units_ub(1) =  iblock *ceiling(initialnunits(1)/real((npx),kind(0.d0)))
+	p_units_lb(2) = (jblock-1)*floor(initialnunits(2)/real((npy),kind(0.d0)))
+	p_units_ub(2) =  jblock *ceiling(initialnunits(2)/real((npy),kind(0.d0)))
+	p_units_lb(3) = (kblock-1)*floor(initialnunits(3)/real((npz),kind(0.d0)))
+	p_units_ub(3) =  kblock *ceiling(initialnunits(3)/real((npz),kind(0.d0)))
+
+	!Set CFD region to top of domain initially
+	CFD_region = domain(2)/2.d0
+
+#if USE_COUPLER
+	if (jblock .eq. npy) then
+		call coupler_md_get(top_dy=removed_height) !2*cellsidelength(2)
+		CFD_region = domain(2)/2.d0 - removed_height
+	endif
+#endif
+
+	!Molecules per unit FCC structure (3D)
+	n  = 0  	!Reset n
+	nl = 0		!Reset nl
+	do nz=p_units_lb(3),p_units_ub(3)	!Loop over z column
+	c(3) = (nz - 0.75d0)*initialunitsize(3) - halfdomain(3) 
+	do ny=p_units_lb(2),p_units_ub(2)	!Loop over y column
+	c(2) = (ny - 0.75d0)*initialunitsize(2) - halfdomain(2) 
+	do nx=p_units_lb(1),p_units_ub(1)	!Loop over all x elements of y column
+	c(1) = (nx - 0.75d0)*initialunitsize(1) - halfdomain(1)
+		do j=1,4	!4 Molecules per cell
+			rc(:) = c(:)
+			select case(j)
+			case(2)
+				rc(1) = c(1) + 0.5d0*initialunitsize(1)
+				rc(3) = c(3) + 0.5d0*initialunitsize(3)
+			case(3)
+				rc(2) = c(2) + 0.5d0*initialunitsize(1)
+				rc(3) = c(3) + 0.5d0*initialunitsize(3)
+			case(4)
+				rc(1) = c(1) + 0.5d0*initialunitsize(1)
+				rc(2) = c(2) + 0.5d0*initialunitsize(3)
+			case default
+			end select
+
+			n = n + 1	!Move to next molecule
+			
+			!Remove molecules from top of domain if constraint applied
+			if (rc(2)-domain(2)*(jblock-1) .gt.  CFD_region) cycle 
+
+			!Check if molecule is in domain of processor
+			if(rc(1).lt.-halfdomain(1)+domain(1)*(iblock-1)) cycle
+			if(rc(1).ge. halfdomain(1)+domain(1)*(iblock-1)) cycle
+			if(rc(2).lt.-halfdomain(2)+domain(2)*(jblock-1)) cycle
+			if(rc(2).ge. halfdomain(2)+domain(2)*(jblock-1)) cycle
+			if(rc(3).lt.-halfdomain(3)+domain(3)*(kblock-1)) cycle
+			if(rc(3).ge. halfdomain(3)+domain(3)*(kblock-1)) cycle
+
+			!If molecules is in the domain then add to total
+			nl = nl + 1 !Local molecule count
+
+			!Correct to local coordinates
+			r(nl,1) = rc(1)-domain(1)*(iblock-1)
+			r(nl,2) = rc(2)-domain(2)*(jblock-1)
+			r(nl,3) = rc(3)-domain(3)*(kblock-1)
+		enddo
+	enddo
+	enddo
+	enddo
+
+	np = nl			!Correct local number of particles on processor
+	rinitial = r !Record initial position of all molecules
+
+
+	!Establish global number of particles on current process
+	globalnp = np
+	call globalSumInt(globalnp)
+
+	!Build array of number of particles on neighbouring
+	!processe's subdomain on current proccess
+	call globalGathernp
+
+#if USE_COUPLER
+	if (myid .eq. 0) then
+		print*, '*********************************************************************'
+		print*, '*WARNING - TOP LAYER OF DOMAIN REMOVED IN LINE WITH CONSTRAINT FORCE*'
+		print*, 'Removed from', CFD_region, 'to Domain top', globaldomain(2)/2.d0
+		print*, 'Number of molecules reduced from',  & 
+			 4*initialnunits(1)*initialnunits(2)*initialnunits(3), 'to', np
+		print*, '*********************************************************************'
+
+                !print*, 'microstate ', minval(r(:,1)), maxval(r(:,1)),minval(r(:,2)), maxval(r(:,2)),minval(r(:,3)), maxval(r(:,3))
+	endif
+#endif
+
+end subroutine setup_initialise_parallel_position_FENE
+!-------------------------------------------------------------------------------
+!Assign chainIDs, subchainIDs, global molecule numbers, etc...
+
+subroutine setup_initialise_polyinfo
+	use polymer_info_MD
+	use messenger
+	use physical_constants_MD, only: np
+	implicit none
+
+	integer :: i,n
+	integer :: chainID
+	integer :: subchainID
+	integer, dimension(nproc) :: proc_chains, proc_nps
+	
+	proc_chains(:)         = 0
+	proc_nps(:)            = 0
+
+	do n=1,np
+
+		chainID    = ceiling(dble(n)/dble(nmonomers)) 
+		subchainID = mod(n-1,nmonomers) + 1                     !Beads numbered 1 to nmonomers
+
+		monomer(n)%chainID    = chainID
+		monomer(n)%subchainID = subchainID
+		monomer(n)%glob_no    = n	
+		
+		if (subchainID.eq.1) then
+			monomer(n)%funcy                  = 1
+			monomer(n)%bondflag(subchainID+1) = 1
+			bond(n,1)                         = n + 1
+		else if (subchainID.eq.nmonomers) then
+			monomer(n)%funcy                  = 1
+			monomer(n)%bondflag(subchainID-1) = 1
+			bond(n,1)                         = n - 1	
+		else
+			monomer(n)%funcy                  = 2
+			monomer(n)%bondflag(subchainID+1) = 1
+			monomer(n)%bondflag(subchainID-1) = 1
+			bond(n,1)                         = n - 1
+			bond(n,2)                         = n + 1
+		end if
+
+	end do
+
+	proc_chains(irank) = chainID
+	proc_nps(irank)    = np
+	call globalSumIntVect(proc_chains,nproc)
+	call globalSumIntVect(proc_nps,nproc)
+
+	do n=1,np
+		monomer(n)%chainID     = monomer(n)%chainID + sum(proc_chains(1:irank)) - proc_chains(irank)
+		monomer(n)%glob_no     = monomer(n)%glob_no + sum(proc_nps(1:irank))    - proc_nps(irank)
+		do i=1,monomer(n)%funcy
+			bond(n,i)          = bond(n,i)          + sum(proc_nps(1:irank))    - proc_nps(irank)
+		end do
+	end do
+
+	nchains = sum(proc_chains)
+
+!	do n=1,np
+!		print'(a,i3,a,i8,a,i8)', 'irank: ',irank,', n: ', n,', glob_n: ',    monomer(n)%glob_no
+!		print'(a,i4,a,i4)',  'cID:',    monomer(n)%chainID, ', scID: ',      monomer(n)%subchainID 
+!		print'(a,i1,a,4i8)', 'funcy: ', monomer(n)%funcy,   ', bonded to: ', bond(n,1), bond(n,2), bond(n,3), bond(n,4) 
+!		print'(a,8i3)', 'bondflags: ', monomer(n)%bondflag(1), &
+!		                               monomer(n)%bondflag(2), &
+!		                               monomer(n)%bondflag(3), &
+!		                               monomer(n)%bondflag(4)!, &
+!		                               !monomer(n)%bondflag(5), &
+!		                               !monomer(n)%bondflag(6), &
+!		                               !monomer(n)%bondflag(7), &
+!		                               !monomer(n)%bondflag(8)
+!		print*, '-------------------------------------------------------------------'
+!	end do
+
+end subroutine setup_initialise_polyinfo		
 !----------------------------------------------------------------------------------
 !----------------------------------------------------------------------------------
 !Initialise Velocities
@@ -379,7 +540,7 @@ subroutine setup_initialise_velocities_test
 	
 	!v(1,1) = 2.d0
 
-	do n=1,np			      		!Step through each molecule
+!	do n=1,np			      		!Step through each molecule
 		!r(1,:) = halfdomain(:)
 !		v(n,1) = 1.0d0
 !		v(n,2) = 1.0d0
@@ -390,10 +551,12 @@ subroutine setup_initialise_velocities_test
 		!v(n,2) = -0.0d0
 		!v(n,3) = -0.0d0
 	
-	enddo
+!	enddo
 	
-	v(7,3) = -0.5d0
-	v(4,3) = 0.5d0
+	v(:,1) = 0.5d0
+	
+!	v(7,3) = -0.5d0
+!	v(4,3) = 0.5d0
 
 end subroutine setup_initialise_velocities_test
 

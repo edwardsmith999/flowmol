@@ -170,8 +170,10 @@ contains
 		do n=1,np
 			v2sum = v2sum + dot_product(v(n,:),v(n,:))
 		end do
-		Q = np*delta_t
-		dzeta_dt = (v2sum - (np*nd+1)*inputtemperature)/Q
+		call globalSum(v2sum)
+
+		Q        = globalnp*delta_t
+		dzeta_dt = (v2sum - (globalnp*nd+1)*inputtemperature)/Q
 
 	end subroutine evaluate_dzeta_dt
 
@@ -189,6 +191,8 @@ contains
 			avsum = avsum + dot_product(a(n,:),v(n,:))
 			v2sum = v2sum + dot_product(v(n,:),v(n,:))
 		end do
+		call globalSum(avsum)
+		call globalSum(v2sum)
 
 		zeta = avsum/v2sum
 		
@@ -210,8 +214,10 @@ contains
 			pec_v(:)  = v(n,:) - U(n,:)                                         ! PUT: Find peculiar velocity
 			pec_v2sum = pec_v2sum + dot_product(pec_v,pec_v)                    ! PUT: Sum peculiar velocities squared
 		end do
-		Q = np*delta_t
-		dzeta_dt = (pec_v2sum - (np*nd+1)*inputtemperature)/Q
+		call globalSum(pec_v2sum)
+
+		Q = globalnp*delta_t
+		dzeta_dt = (pec_v2sum - (globalnp*nd+1)*inputtemperature)/Q
 
 	end subroutine evaluate_dzeta_dt_PUT
 

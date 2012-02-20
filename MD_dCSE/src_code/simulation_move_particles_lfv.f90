@@ -95,9 +95,9 @@ contains
 			vel(:) = v(n,:) - 0.5d0*a(n,:)*delta_t	
 			v2sum = v2sum + dot_product(vel,vel)
 		end do
-		
-		Q        = np*delta_t
-		dzeta_dt = (v2sum - (nd*np + 1)*inputtemperature)/Q
+		call globalSum(v2sum)		
+		Q        = globalnp*delta_t
+		dzeta_dt = (v2sum - (nd*globalnp + 1)*inputtemperature)/Q
 		zeta     = zeta + delta_t*dzeta_dt
 		bscale   = 1.0/(1.0+0.5*delta_t*zeta)
 		ascale   = (1-0.5*delta_t*zeta)*bscale
@@ -119,8 +119,8 @@ contains
 			pec_v(:)  = v(n,:) - U(n,:) - 0.5d0*a(n,:)*delta_t      ! PUT: Find peculiar velocity
 			pec_v2sum = pec_v2sum + dot_product(pec_v,pec_v)        ! PUT: Sum peculiar velocities squared
 		end do
-
-		Q        = np*delta_t                                       ! PUT: Thermal inertia
+		call globalSum(pec_v2sum)
+		Q        = globalnp*delta_t                                 ! PUT: Thermal inertia
 		dzeta_dt = (pec_v2sum - (np*nd+1)*inputtemperature)/Q       ! PUT: dzeta_dt(t-dt)
 		zeta     = zeta + delta_t*dzeta_dt                          ! PUT: zeta(t)
 		bscale   = 1.0/(1.0+0.5*zeta*delta_t)                       

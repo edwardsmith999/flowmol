@@ -71,6 +71,8 @@ implicit none
 		restart = .false.			
 		input_file_exists = .false.
 		restart_file_exists = .false.
+!		input_file = 'MD.in'
+!		initial_microstate_file = 'results/final_state'
 		input_file = trim(prefix_dir)//'MD.in'
 		initial_microstate_file = trim(prefix_dir)//'final_state'
 
@@ -101,6 +103,8 @@ implicit none
 		end if
 
 		inquire(file=input_file, exist=input_file_exists)	!Check file exists
+		if (input_file.eq.'MD.in'.and..not. input_file_exists) input_file = 'default.in'
+		inquire(file=input_file, exist=input_file_exists)
 
 		if(.not. input_file_exists) then
 			print*, 'Input file ', trim(input_file), ' not found. Stopping simulation.'
@@ -108,6 +112,7 @@ implicit none
 		end if
 
 	endif
+	
 
 end subroutine setup_command_arguments
 
@@ -159,7 +164,7 @@ subroutine setup_inputs
 	read(1,*) potential_flag
 	if (potential_flag.eq.1) then
 		call locate(1,'FENE_INFO',.true.)
-		read(1,*) chain_length
+		read(1,*) nmonomers
 		read(1,*) k_c
 		read(1,*) R_0
 	end if	
@@ -457,7 +462,7 @@ subroutine setup_restart_inputs
 	    call MPI_File_read(restartfileid,seed          ,2,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 	    call MPI_File_read(restartfileid,periodic      ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 	    call MPI_File_read(restartfileid,potential_flag,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
-	    call MPI_File_read(restartfileid,chain_length  ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+	    call MPI_File_read(restartfileid,nmonomers  ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 
 		call MPI_File_read(restartfileid,density         ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 	    call MPI_File_read(restartfileid,rcutoff         ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
@@ -869,7 +874,7 @@ subroutine simulation_header
 		write(3,*) 'Potential flag ; potential_flag;', potential_flag
 	case(1)
 		write(3,*) 'Potential flag ; potential_flag;', potential_flag
-		write(3,*) 'Number of LJ beads per FENE chain ; chain_length;', chain_length
+		write(3,*) 'Number of LJ beads per FENE chain ; nmonomers;', nmonomers
 		write(3,*) 'Number of FENE chains in domain ; nchains;', nchains
 		write(3,*) 'FENE bond maximum elongation ; R_0;', R_0
 		write(3,*) 'FENE spring stiffness ; k_c;', k_c
@@ -1070,7 +1075,7 @@ subroutine parallel_io_final_state
         call MPI_File_write(restartfileid,tplot         ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,seed          ,2,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,periodic      ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
-        call MPI_File_write(restartfileid,chain_length  ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+        call MPI_File_write(restartfileid,nmonomers  ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,potential_flag,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 
 		!write(2,rec=int_filesize-0) np               	!Number of particles
@@ -1085,7 +1090,7 @@ subroutine parallel_io_final_state
 		!write(2,rec=int_filesize-9) periodic(2)	   		!Boundary condition flags
 		!write(2,rec=int_filesize-10) periodic(3)	   	!Boundary condition flags
 		!write(2,rec=int_filesize-11) potential_flag   	!Polymer/LJ potential flag
-		!write(2,rec=int_filesize-12) chain_length	   	!Polymer chain length
+		!write(2,rec=int_filesize-12) nmonomers	   	!Polymer chain length
 		!write(2,rec=int_filesize-13) 0				   	!Dummy to make even filesize
 		!close(2,status='keep')	
 

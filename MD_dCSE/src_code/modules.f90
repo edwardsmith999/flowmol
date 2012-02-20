@@ -145,23 +145,28 @@ module polymer_info_MD
 	integer				:: etevtcf_outflag			!End-to-end time correlation function output flag
 	integer				:: etevtcf_iter0			!Iteration from which to begin averaging
 	integer             :: nchains                  !Number of FENE chains in domain
-	integer				:: chain_length				!Number of LJ beads per FENE chain
+	integer				:: nmonomers				!Number of LJ beads per FENE chain
 	integer             :: r_gyration_outflag       !Radius of gyration outflag
 	integer             :: r_gyration_iter0         !Iteration at which to start recording R_g
 	double precision 	:: k_c, R_0					!Spring constant and max elongation of bonds	
 	double precision 	:: etevtcf                  !End-to-end vector time correlation function
 	double precision    :: R_g                      !Radius of gyration
-
 	
-	type polyinfo
-		integer :: chainID				!Integer value: chain number 
-		integer :: subchainID			!Integer value:	bead number
-		integer :: left					!Molno of adjacent bead (left)
-		integer :: right				!Molno of adjacent bead (right)
-	end type polyinfo
+	integer, parameter   :: max_funcy=4             !Maximum functionality of monomers in system
+	integer, allocatable :: bond(:,:)               !Chain neighbour molnos
+	integer, allocatable :: bondcount(:)            !Transient bond counter for linklist rebuild
+	
+	type monomer_info
+		SEQUENCE									!For MPI convenience
+		integer :: chainID                          !Integer value: chain number 
+		integer :: subchainID                       !Integer value: bead number
+		integer :: funcy                            !Functionality of the monomer
+		integer :: glob_no                          !Global molecule number
+		integer, allocatable :: bondflag(:)         !Integer array of length nmonomers describing bonds
+	end type monomer_info
 
-	type(polyinfo), dimension(:), allocatable :: polyinfo_mol 
-	!eg. to access chainID of mol 23, call polyinfo_mol(23)%chainID
+	type(monomer_info), dimension(:), allocatable :: monomer
+	!eg. to access chainID of mol 23, call monomer(23)%chainID
 
 	double precision, dimension(:,:), allocatable :: etev
 	double precision, dimension(:,:), allocatable :: etev_0 !End-to-end vectors for polymer chains at iter=etevtcf_iter0 (size of np,only stored for leftmost chain mols) 
@@ -461,6 +466,8 @@ contains
 			vel(:) 			 	= v(n,:) - v_avg(slicebin,:) - 0.5d0*a(n,:)*delta_t
 			pec_v2sum 			= pec_v2sum + dot_product(vel,vel)
 		end do
+
+		call globalSum(pec_v2sum)
 	
 		get_temperature_PUT = pec_v2sum / real(nd*globalnp,kind(0.d0))
 
