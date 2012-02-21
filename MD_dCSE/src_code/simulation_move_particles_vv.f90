@@ -51,9 +51,14 @@ subroutine simulation_move_particles_vv(pass_num)
 	double precision, save :: dzeta_dt
 	double precision, save :: zeta=0.d0
 	double precision, dimension(np,nd) :: v_old
-	double precision, dimension(np,nd) :: vrelsum, aD,aR
+	double precision, dimension(np,nd) :: vrelsum
 	double precision, dimension(np,nd) :: U	
-	
+	double precision, dimension(:,:),allocatable :: aD,aR
+
+	!Allocate array sizes for extra forces
+	allocate(aD(np+extralloc,nd))
+	allocate(aR(np+extralloc,nd))
+
 	!--------First half of velocity-Verlet algorithm. Finds r(t+dt) and v(t+dt/2).--------!
 	if (pass_num.eq.1) then
 		select case(ensemble)
@@ -94,7 +99,7 @@ subroutine simulation_move_particles_vv(pass_num)
 		case(nvt_DPD)
 			call evaluate_DPD
 			do n=1,np
-				v(n,:) = v(n,:) + 0.5d0*delta_t*(a(n,:) - zeta*vrelsum(n,:))
+				v(n,:) = v(n,:) + 0.5d0*delta_t*(a(n,:)  - aD(n,:) + aR(n,:))
 				r(n,:) = r(n,:) + delta_t*v(n,:)
 			end do
 		
@@ -159,7 +164,7 @@ subroutine simulation_move_particles_vv(pass_num)
 				do i = 1,5
 					call evaluate_DPD
 					do n=1,np
-						v(n,:) = v_old(n,:) + 0.5d0*delta_t*(a(n,:) - aD(n,:) + aR(n,:))
+						v(n,:) = v_old(n,:) + 0.5d0*delta_t*(a(n,:)  - aD(n,:) + aR(n,:))
 					end do
 				end do	
 		
@@ -171,7 +176,10 @@ subroutine simulation_move_particles_vv(pass_num)
 
 		end select
 
-	end if
+	endif
+
+	deallocate(aD)
+	deallocate(aR)
 
 contains
 
@@ -360,42 +368,44 @@ contains
 	
 			do j=1,noneighbrs
 				molnoj    = old%molnoj
-				if (molnoj.eq.molnoi) cycle	!Prevent self interactions
+				if (molnoj.eq.molnoi) stop "Self interaction in DPD vv"	!self interactions are unacceptable!
 				rj(:)     = r(molnoj,:)
 				rij(:)    = ri(:) - rj(:)
 				rij2      = dot_product(rij,rij)
-				!Only thermostat force ue to molecules in cutoff range
-				if (rij2.le.rcutoff2) then
+
+				!Thermostat force only local for molecules in cutoff range
+				if (rij2 .lt. rcutoff2) then
 					vj(:)     = v(molnoj,:)
 					vij(:)    = vi(:) - vj(:)
 					rijhat(:) = rij(:)/sqrt(rij2)
-					wR       = (1.d0-sqrt(rij2)/rcutoff)
-					wD       = wR**2
+					wR        = (1.d0-sqrt(rij2)/rcutoff)
+					wD        = wR**2
 					vr        = dot_product(vij,rijhat)
 					call random_number(randj)
-					theta_ij = (randi-randj) !Random noise variable
+					theta_ij = randi-randj !Random noise variable
 
 					aD(molnoi,:) = aD(molnoi,:) + zeta*wD*vr*rijhat(:)
 					aR(molnoi,:) = aR(molnoi,:) + sigma*wR*theta_ij*rijhat(:)
-					if (molnoj.le.np) then
+
+					if (molnoj .le. np) then
 						aD(molnoj,:) = aD(molnoj,:) - zeta*wD*vr*rijhat(:)
 						aR(molnoj,:) = aR(molnoj,:) - sigma*wR*theta_ij*rijhat(:)
 					endif
+
 				endif
 
 				current => old	
 				old => current%next
 
+				enddo
 			enddo
-		enddo
 		
-		nullify(current)
-		nullify(old)
+			nullify(current)
+			nullify(old)
 
 		!print'(a,4f10.5)', 'Fluctuation dissipation required 2 zeros here:', & 
 		!			sigma**2-2*inputtemperature*zeta, sqrt(wD) - wR
-		print'(a,2f18.5)', 'Sum of D and R Forces', sum(aD(1:np,:)), sum(aR(1:np,:))
-
+		!print'(a,2f18.5)', 'Sum of D and R Forces', sum(aD), sum(aR)
 	
 	end subroutine evaluate_DPD
 
