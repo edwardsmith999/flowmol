@@ -51,7 +51,7 @@ subroutine simulation_move_particles_vv(pass_num)
 	double precision, save :: dzeta_dt
 	double precision, save :: zeta=0.d0
 	double precision, dimension(np,nd) :: v_old
-	double precision, dimension(np,nd) :: vrelsum
+	double precision, dimension(np,nd) :: vrelsum, aD,aR
 	double precision, dimension(np,nd) :: U	
 	
 	!--------First half of velocity-Verlet algorithm. Finds r(t+dt) and v(t+dt/2).--------!
@@ -86,6 +86,13 @@ subroutine simulation_move_particles_vv(pass_num)
 		
 		case(nvt_pwa_NH)
 			call evaluate_pwa_terms_pwaNH
+			do n=1,np
+				v(n,:) = v(n,:) + 0.5d0*delta_t*(a(n,:) - zeta*vrelsum(n,:))
+				r(n,:) = r(n,:) + delta_t*v(n,:)
+			end do
+
+		case(nvt_DPD)
+			call evaluate_DPD
 			do n=1,np
 				v(n,:) = v(n,:) + 0.5d0*delta_t*(a(n,:) - zeta*vrelsum(n,:))
 				r(n,:) = r(n,:) + delta_t*v(n,:)
@@ -144,6 +151,16 @@ subroutine simulation_move_particles_vv(pass_num)
 						v(n,:) = v_old(n,:) + 0.5d0*delta_t*(a(n,:)- zeta*vrelsum(n,:))
 					end do
 					zeta = zeta_old + 0.5d0*delta_t*dzeta_dt
+				end do
+
+			case(nvt_DPD)
+				call evaluate_DPD
+				v_old = v
+				do i = 1,5
+					call evaluate_DPD
+					do n=1,np
+						v(n,:) = v_old(n,:) + 0.5d0*delta_t*(a(n,:) - aD(n,:) + aR(n,:))
+					end do
 				end do	
 		
 			case(tag_move)
@@ -292,7 +309,7 @@ contains
 				vij(:)    = vi(:) - vj(:)
 				rij2      = dot_product(rij,rij)
 				rijhat(:) = rij(:)/sqrt(rij2)
-				wsq       = (1-(sqrt(rij2)/rcutoff))*(1-(sqrt(rij2)/rcutoff))
+				wsq       = (1.d0-(sqrt(rij2)/rcutoff))*(1-(sqrt(rij2)/rcutoff))
 				if (rij2.ge.rcutoff2) wsq = 0.d0
 				vr        = dot_product(vij,rijhat)
 	
@@ -310,8 +327,76 @@ contains
 		
 		nullify(current)
 		nullify(old)
-
 	
 	end subroutine evaluate_pwa_terms_pwaNH
+
+	!----------------------------------------------------------------------------
+	!Evaluate pairwise terms for DPD thermostat by 
+	!Soddemann, Dunweg an Kremer Phys Rev E 68, 046702 (2003)
+	!From this paper : typical 0.5 < zeta < 1.5 
+	!Random numbers do not need to be Gaussian
+
+	subroutine evaluate_DPD
+		use linked_list
+		implicit none
+	
+		integer 						:: noneighbrs
+		integer 						:: j,molnoi,molnoj
+		double precision 				:: rij2,vr,wR,wD,sigma,theta_ij,randi,randj
+		double precision, dimension(nd) :: ri,rj,rij,rijhat
+		double precision, dimension(nd) :: vi,vj,vij
+		type(neighbrnode), pointer 		:: old, current
+
+		aD = 0.d0; aR=0.d0
+		zeta = 1.d0; sigma = sqrt(2.d0*inputtemperature*zeta)
+
+		do molnoi=1,np
+ 
+	    	noneighbrs = neighbour%noneighbrs(molnoi)   !Determine number of elements in neighbourlist
+			old        => neighbour%head(molnoi)%point  !Set old to head of neighbour list
+			ri(:)      = r(molnoi,:)
+			vi(:)      = v(molnoi,:)
+			call random_number(randi)
+	
+			do j=1,noneighbrs
+				molnoj    = old%molnoj
+				if (molnoj.eq.molnoi) cycle	!Prevent self interactions
+				rj(:)     = r(molnoj,:)
+				rij(:)    = ri(:) - rj(:)
+				rij2      = dot_product(rij,rij)
+				!Only thermostat force ue to molecules in cutoff range
+				if (rij2.le.rcutoff2) then
+					vj(:)     = v(molnoj,:)
+					vij(:)    = vi(:) - vj(:)
+					rijhat(:) = rij(:)/sqrt(rij2)
+					wR       = (1.d0-sqrt(rij2)/rcutoff)
+					wD       = wR**2
+					vr        = dot_product(vij,rijhat)
+					call random_number(randj)
+					theta_ij = (randi-randj) !Random noise variable
+
+					aD(molnoi,:) = aD(molnoi,:) + zeta*wD*vr*rijhat(:)
+					aR(molnoi,:) = aR(molnoi,:) + sigma*wR*theta_ij*rijhat(:)
+					if (molnoj.le.np) then
+						aD(molnoj,:) = aD(molnoj,:) - zeta*wD*vr*rijhat(:)
+						aR(molnoj,:) = aR(molnoj,:) - sigma*wR*theta_ij*rijhat(:)
+					endif
+				endif
+
+				current => old	
+				old => current%next
+
+			enddo
+		enddo
+		
+		nullify(current)
+		nullify(old)
+
+		!print'(a,4f10.5)', 'Fluctuation dissipation required 2 zeros here:', & 
+		!			sigma**2-2*inputtemperature*zeta, sqrt(wD) - wR
+		print'(a,2f18.5)', 'Sum of D and R Forces', sum(aD(1:np,:)), sum(aR(1:np,:))
+
+	
+	end subroutine evaluate_DPD
 
 end subroutine simulation_move_particles_vv
