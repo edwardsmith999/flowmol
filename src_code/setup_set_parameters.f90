@@ -162,7 +162,7 @@ subroutine setup_polymer_info
 
 	integer :: n
 
-	nchains = ceiling(dble(np)/dble(nmonomers)) 
+	nchains = ceiling(dble(globalnp)/dble(nmonomers)) 
 	
 	!Allocate polymer arrays
 	allocate(bond(np+extralloc,max_funcy))
