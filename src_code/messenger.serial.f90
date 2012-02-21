@@ -944,6 +944,17 @@ subroutine globalSumVect(A, na)
 	return
 end
 
+subroutine globalSumTwoDim(A,na1,na2)
+	use messenger
+
+	integer, intent(in) :: na1,na2
+	double precision A(na1,na2)
+	
+	A = A
+
+	return
+end
+
 subroutine globalSumIntVect(A, na)
 	use messenger
 	
