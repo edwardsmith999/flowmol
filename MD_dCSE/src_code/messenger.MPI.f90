@@ -2146,7 +2146,6 @@ subroutine globalSumTwoDim(A,na1,na2)
 	use messenger
 	!include "mpif.h"
 
-	integer :: n
 	integer, intent(in) :: na1,na2
 	double precision A(na1,na2)
 	double precision buf(na1,na2)
