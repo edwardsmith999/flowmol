@@ -141,7 +141,7 @@ subroutine simulation_record
 	endif
 	
 	if (potential_flag.eq.1) then
-		if (etevtcf_outflag.ne.0) call etevtcf_calculate
+		if (etevtcf_outflag.ne.0) call etevtcf_calculate_parallel
 		if (etevtcf_outflag.eq.2) call etev_io
 
 		if (r_gyration_outflag.ne.0) call r_gyration_calculate
@@ -406,6 +406,68 @@ implicit none
 	if (etevtcf_outflag.eq.1) print*, 'ETEVTCF = ', etevtcf
 	
 end subroutine etevtcf_calculate
+
+subroutine etevtcf_calculate_parallel
+use module_record
+use mpi
+implicit none
+	
+	integer :: n,i,j
+	integer :: chain, i_sub, j_sub, funcy
+	double precision :: etev_prod, etev_prod_sum
+	double precision :: etev2, etev2_sum
+	double precision, dimension(nd) :: rij
+
+	if (iter.eq.etevtcf_iter0) then						!Initialise end-to-end vectors at t_0
+		etev_0 = 0.d0
+		do i=1,np
+			chain = monomer(i)%chainID
+			i_sub = monomer(i)%subchainID
+			funcy = monomer(i)%funcy
+			do n=1,funcy
+				j      = bond(i,n)
+				j_sub  = monomer(j)%subchainID
+				if (j_sub.lt.i_sub) cycle               !Avoid counting backwards
+				rij(:) = r(j,:) - r(i,:)
+				rij(:) = rij(:) - domain(:)*anint(rij(:)/domain(:)) !Necessary for one processor?
+				etev_0(chain,:) = etev_0(chain,:) + rij(:)
+			end do
+		end do
+		call globalSumTwoDim(etev_0,nchains,nd)
+	end if
+
+	etev = 0.d0
+	do i=1,np
+		chain = monomer(i)%chainID
+		i_sub = monomer(i)%subchainID
+		funcy = monomer(i)%funcy
+		do n=1,funcy
+			j             = bond(i,n)
+			j_sub         = monomer(j)%subchainID
+			if (j_sub.lt.i_sub) cycle               !Avoid counting backwards
+			rij(:)        = r(j,:) - r(i,:)
+			rij(:)        = rij(:) - domain(:)*anint(rij(:)/domain(:))
+			etev(chain,:) = etev(chain,:) + rij(:)
+		end do
+	end do
+
+	call globalSumTwoDim(etev,nchains,nd)
+	
+	etev_prod_sum	= 0.d0
+	etev2_sum 		= 0.d0
+	
+	if (irank.eq.iroot .and. etevtcf_outflag.eq.1) then	
+		do chain=1,nchains
+			etev_prod		  = dot_product(etev(chain,:),etev_0(chain,:))
+			etev2			  = dot_product(etev(chain,:),etev(chain,:))			
+			etev_prod_sum	  = etev_prod_sum + etev_prod
+			etev2_sum		  = etev2_sum + etev2		
+		end do
+		etevtcf = etev_prod_sum/etev2_sum											!Sample counts cancel
+		print*, 'ETEVTCF = ', etevtcf
+	end if
+
+end subroutine etevtcf_calculate_parallel
 
 !---------------------------------------------------------------------------------
 !Calculate radius of gyration

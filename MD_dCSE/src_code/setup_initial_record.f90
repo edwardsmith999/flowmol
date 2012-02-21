@@ -341,7 +341,7 @@ implicit none
 
 	!Initialise etevtcf calculation if etevtcf_iter0 = 0
 	if (potential_flag.eq.1) then
-		if (etevtcf_outflag.ne.0) call etevtcf_calculate 
+		if (etevtcf_outflag.ne.0) call etevtcf_calculate_parallel
 		if (etevtcf_outflag.eq.2) call etev_io
 		
 		if (r_gyration_outflag.ne.0) call r_gyration_calculate

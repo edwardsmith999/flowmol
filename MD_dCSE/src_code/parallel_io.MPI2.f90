@@ -103,7 +103,7 @@ implicit none
 		end if
 
 		inquire(file=input_file, exist=input_file_exists)	!Check file exists
-		if (input_file.eq.'MD.in'.and..not. input_file_exists) input_file = 'default.in'
+		if (input_file.eq.'./MD.in'.and..not. input_file_exists) input_file = './default.in'
 		inquire(file=input_file, exist=input_file_exists)
 
 		if(.not. input_file_exists) then
