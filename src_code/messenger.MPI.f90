@@ -1643,8 +1643,6 @@ subroutine reorderdata(new_np)
 			v(molno,:) = v(np+new_np,:)
 			tag(molno) = tag(np+new_np)
 			monomer(molno) = monomer(np+new_np)
-			monomer(molno) = monomer(np+new_np)
-			monomer(molno) = monomer(np+new_np)
 		end select
 
 		!Read molecular tag and assign correct properties to reordered molecules
