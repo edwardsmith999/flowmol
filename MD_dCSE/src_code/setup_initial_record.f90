@@ -368,13 +368,14 @@ implicit none
 	
 	do n = 1, np    ! Loop over all particles
 
-		if (potential_flag.eq.0) then
+		select case(potential_flag)
+		case(0)
 			potenergysum	= potenergysum + potenergymol(n)
-		else if (potential_flag.eq.1) then
+		case(1)
 			potenergysum_LJ = potenergysum_LJ + potenergymol_LJ(n)
 			potenergysum_FENE = potenergysum_FENE + potenergymol_FENE(n)
 			potenergysum = potenergysum + potenergymol_LJ(n) + potenergymol_FENE(n)
-		end if
+		end select
 
 		virial = virial + virialmol(n)
 
@@ -399,6 +400,8 @@ implicit none
 	call globalSum(v2sum)
 	call globalSum(virial)
 	call globalSum(potenergysum)
+	call globalSum(potenergysum_LJ)
+	call globalSum(potenergysum_FENE)
 
 	kinenergy   = (0.5d0 * v2sum) / real(globalnp,kind(0.d0))
 	potenergy   = potenergysum /(2.d0*real(globalnp,kind(0.d0))) !N.B. extra 1/2 as all interactions calculated

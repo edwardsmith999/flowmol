@@ -52,8 +52,9 @@ module computational_constants_MD
 	integer, parameter      :: nvt_NH      = 1
 	integer, parameter      :: nvt_GIK     = 2
 	integer, parameter      :: nvt_PUT_NH  = 3
-	integer, parameter      :: nvt_pwa_NH  = 4 
-	integer, parameter      :: tag_move    = 5
+	integer, parameter      :: nvt_pwa_NH  = 4
+	integer, parameter      :: nvt_DPD     = 5
+	integer, parameter      :: tag_move    = 6
 
 	!Thermostat flag
 	integer					:: thermstat_flag
