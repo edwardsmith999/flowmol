@@ -121,7 +121,7 @@ contains
 		end do
 		call globalSum(pec_v2sum)
 		Q        = globalnp*delta_t                                 ! PUT: Thermal inertia
-		dzeta_dt = (pec_v2sum - (np*nd+1)*inputtemperature)/Q       ! PUT: dzeta_dt(t-dt)
+		dzeta_dt = (pec_v2sum - (globalnp*nd+1)*inputtemperature)/Q ! PUT: dzeta_dt(t-dt)
 		zeta     = zeta + delta_t*dzeta_dt                          ! PUT: zeta(t)
 		bscale   = 1.0/(1.0+0.5*zeta*delta_t)                       
 		ascale   = (1.0-0.5*zeta*delta_t)*bscale
