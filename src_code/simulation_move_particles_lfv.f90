@@ -34,8 +34,8 @@ end module module_move_particles_lfv
 !
 !-----------------------------------------------------------------------------------------!
 subroutine simulation_move_particles_lfv
-use module_move_particles_lfv
-implicit none
+	use module_move_particles_lfv
+	implicit none
 	
 	integer :: n
 	double precision :: ascale, bscale

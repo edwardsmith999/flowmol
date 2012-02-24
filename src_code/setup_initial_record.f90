@@ -34,8 +34,51 @@ implicit none
                                                       "eplane    ", "esurface  "/) 
        
 
-! I think this is not needed in Fortran 90 
-! A file can be opened with STATUS="replace" which ensures the deletion of the previous file
+	if (irank .eq. iroot) then
+		!Delete existing files
+		open (unit=5, file=trim(prefix_dir)//'results/mslice')
+		close(5,status='delete')
+		open (unit=5, file=trim(prefix_dir)//'results/mbins')
+		close(5,status='delete')
+		open (unit=5, file=trim(prefix_dir)//'results/msnap')
+		close(5,status='delete')
+		open (unit=6, file=trim(prefix_dir)//'results/vslice')
+		close(6,status='delete')
+		open (unit=6, file=trim(prefix_dir)//'results/vbins')
+		close(6,status='delete')
+		open (unit=6, file=trim(prefix_dir)//'results/vsnap')
+		close(6,status='delete')
+		open (unit=6, file=trim(prefix_dir)//'results/vslice')
+		close(6,status='delete')
+		open (unit=6, file=trim(prefix_dir)//'results/vbins')
+		close(6,status='delete')
+		open (unit=7, file=trim(prefix_dir)//'results/pvirial')
+		close(7,status='delete')
+		open (unit=7, file=trim(prefix_dir)//'results/pVA')
+		close(7,status='delete')
+		open (unit=7, file=trim(prefix_dir)//'results/pVA_k')
+		close(7,status='delete')
+		open (unit=7, file=trim(prefix_dir)//'results/pVA_c')
+		close(7,status='delete')
+		open (unit=7, file=trim(prefix_dir)//'results/visc')
+		close(7,status='delete')
+		open (unit=8, file=trim(prefix_dir)//'results/mflux')
+		close(8,status='delete')
+		open (unit=9, file=trim(prefix_dir)//'results/vflux')
+		close(9,status='delete')
+		open (unit=9, file=trim(prefix_dir)//'results/pplane')
+		close(9,status='delete')
+		open (unit=9, file=trim(prefix_dir)//'results/psurface')
+		close(9,status='delete')
+		open (unit=10, file=trim(prefix_dir)//'results/esnap')
+		close(10,status='delete')
+		open (unit=10, file=trim(prefix_dir)//'results/eflux')
+		close(10,status='delete')
+		open (unit=10, file=trim(prefix_dir)//'results/eplane')
+		close(10,status='delete')
+		open (unit=10, file=trim(prefix_dir)//'results/esurface')
+		close(10,status='delete')
+	endif
 
         do i=1,size(file_names)
             inquire(file=trim(prefix_dir)//'results/'//file_names(i),exist=file_exist)
@@ -265,11 +308,19 @@ implicit none
 			print*, 'Single Value for Whole Domain'
 			print*, ''
 		case(2)
-			print'(3(a,i8),a)', ' Pressure tensor Volume Averaged recorded every', & 
-					tplot,' x ',Nstress_ave,' = ',tplot*Nstress_ave,' iterations'
-			print'(a,3i8)', ' Domain split into Pressure Volume Averaging Bins in x,y and z:', globalnbins
-			print'(a,3f10.5)', ' Each of size:', & 
-			globaldomain(1)/globalnbins(1), globaldomain(2)/globalnbins(2),globaldomain(3)/globalnbins(3)
+			if (split_kin_config .eq. 0) then
+				print'(3(a,i8),a)', ' Pressure tensor Volume Averaged recorded every', & 
+						tplot,' x ',Nstress_ave,' = ',tplot*Nstress_ave,' iterations'
+				print'(a,3i8)', ' Domain split into Pressure Volume Averaging Bins in x,y and z:', globalnbins
+				print'(a,3f10.5)', ' Each of size:', & 
+				globaldomain(1)/globalnbins(1), globaldomain(2)/globalnbins(2),globaldomain(3)/globalnbins(3)
+			else
+				print'(3(a,i8),a)', ' Seperate Kinetic/Configurational Pressure tensor Volume Averaged recorded every', & 
+						tplot,' x ',Nstress_ave,' = ',tplot*Nstress_ave,' iterations'
+				print'(a,3i8)', ' Domain split into Pressure Volume Averaging Bins in x,y and z:', globalnbins
+				print'(a,3f10.5)', ' Each of size:', & 
+				globaldomain(1)/globalnbins(1), globaldomain(2)/globalnbins(2),globaldomain(3)/globalnbins(3)
+			endif
 		case default
 			call error_abort("Invalid Pressure tensor output flag in input file")
 		end select
