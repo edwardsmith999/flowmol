@@ -5,7 +5,7 @@
 #
 # calc_etevtcf_fft.py calculates the end-to-end vector time
 # correlation function for the end-to-end vectors recorded 
-# throughout a polymer simulation. The file etev_xyz contains
+# throughout a polymer simulation. The file etev contains
 # a time history of the end-to-end vectors of all chains in 
 # the domain every TPLOT timesteps. 
 # 
@@ -57,18 +57,18 @@ Nsteps		= int(read_header.Nsteps)
 nchains     = int(read_header.nchains)
 
 
-etev_xyz = np.fromfile('etev_xyz',dtype=float)           # read from binary file
-Ndt = len(etev_xyz)/(3*nchains)                          # find number of timesteps
+etev = np.fromfile('etev',dtype=float)                  # read from binary file
+Ndt = len(etev)/(3*nchains)                             # find number of timesteps
 etev_x = np.empty((nchains,Ndt),float)         
 etev_y = np.empty((nchains,Ndt),float)
 etev_z = np.empty((nchains,Ndt),float)
 
-# begin rearrange of etev_xyz
+# begin rearrange of etev
 for i in range(nchains):
-	etev_x[i]  = etev_xyz[0+i::3*nchains]
-	etev_y[i]  = etev_xyz[nchains+i::3*nchains]
-	etev_z[i]  = etev_xyz[2*nchains+i::3*nchains]
-del(etev_xyz)
+	etev_x[i]  = etev[0+i::3*nchains]
+	etev_y[i]  = etev[nchains+i::3*nchains]
+	etev_z[i]  = etev[2*nchains+i::3*nchains]
+del(etev)
 # end rearrange
 
 # calculate auto-correlation functions
@@ -76,7 +76,7 @@ C = np.zeros(Ndt)
 for i in range(nchains):
 	progress = 'Calculating auto-correlation function ' + str(i+1) + ' of ' + str(nchains) + '...\n'
 	sys.stderr.write(progress)
-	auto_cx = sp.fftconvolve(etev_x[i],etev_x[i][::-1])
+	auto_cx = sp.fftconvolve(etev_x[i],etev_x[i][::-1]) # correlation is convolution in reverse
 	auto_cy = sp.fftconvolve(etev_y[i],etev_y[i][::-1])	
 	auto_cz = sp.fftconvolve(etev_z[i],etev_z[i][::-1])	
 	l = len(auto_cx)	                                # only take positive half

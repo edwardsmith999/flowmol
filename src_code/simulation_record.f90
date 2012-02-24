@@ -142,11 +142,23 @@ subroutine simulation_record
 	endif
 	
 	if (potential_flag.eq.1) then
-		if (etevtcf_outflag.ne.0) call etevtcf_calculate_parallel
-		if (etevtcf_outflag.eq.2) call etev_io
-
-		if (r_gyration_outflag.ne.0) call r_gyration_calculate
-		if (r_gyration_outflag.eq.2) call r_gyration_io
+		select case(etevtcf_outflag)
+		case (1)
+			call etevtcf_calculate_parallel
+		case (2)
+			call etevtcf_calculate_parallel
+			call etev_io
+		case default
+		end select
+		
+		select case(r_gyration_outflag)
+		case (1)
+			call r_gyration_calculate
+		case (2)
+			call r_gyration_calculate
+			call r_gyration_io
+		case default
+		end select
 	end if
 
 	call update_simulation_progress_file
@@ -163,46 +175,46 @@ subroutine evaluate_macroscopic_properties_parallel
 	integer :: n, ixyz
 
 	vsum  = 0.d0                                                ! Reset all sums
-        v2sum = 0.d0                                                ! Reset all sums
+	v2sum = 0.d0                                                ! Reset all sums
 
-        if (potential_flag.eq.0) then
-            potenergysum = sum(potenergymol(:))
-            call globalSum(potenergysum)
-        else if (potential_flag.eq.1) then
-            potenergysum_LJ = sum(potenergymol_LJ(:))
-            potenergysum_FENE = sum(potenergymol_FENE(:))
-            potenergysum = sum(potenergymol_LJ(:) + potenergymol_FENE(:))
-            call globalSum(potenergysum_LJ)
-            call globalSum(potenergysum_FENE)
-        end if
+	if (potential_flag.eq.0) then
+		potenergysum = sum(potenergymol(1:np))
+		call globalSum(potenergysum)
+	else if (potential_flag.eq.1) then
+		potenergysum_LJ = sum(potenergymol_LJ(1:np))
+		potenergysum_FENE = sum(potenergymol_FENE(1:np))
+		potenergysum = sum(potenergymol_LJ(1:np) + potenergymol_FENE(1:np))
+		call globalSum(potenergysum_FENE)
+		call globalSum(potenergysum_LJ)
+		call globalSum(potenergysum)
+	end if
 
-        virial =sum(virialmol(:))
+	virial =sum(virialmol(1:np))
 
-        select case(integration_algorithm)
-        case(leap_frog_verlet)
-            do ixyz = 1, nd                                     ! Loop over all dimensions
-                do n = 1, np                                                ! Loop over all particles
-                    vel = v(n,ixyz) + 0.5d0*a(n,ixyz)*delta_t       ! Velocity must shifted half a timestep
-                    vsum = vsum + vel                               ! Add up all molecules' velocity components
-                    v2sum = v2sum + vel**2                          ! Add up all molecules' velocity squared components  
-                enddo
-            enddo
-        case(velocity_verlet)                                   ! If velocity Verlet algorithm
-            do ixyz = 1, nd
-                do n = 1, np
-                    vel = v(n,ixyz)
-                    vsum = vsum+vel
-                    v2sum = v2sum + vel*vel          ! Sum all velocity squared components
-                enddo
-            enddo
-        end select
+	select case(integration_algorithm)
+	case(leap_frog_verlet)
+		do ixyz = 1, nd                                     ! Loop over all dimensions
+			do n = 1, np                                                ! Loop over all particles
+				vel = v(n,ixyz) + 0.5d0*a(n,ixyz)*delta_t       ! Velocity must shifted half a timestep
+				vsum = vsum + vel                               ! Add up all molecules' velocity components
+				v2sum = v2sum + vel**2                          ! Add up all molecules' velocity squared components  
+			enddo
+		enddo
+	case(velocity_verlet)                                   ! If velocity Verlet algorithm
+		do ixyz = 1, nd
+			do n = 1, np
+				vel = v(n,ixyz)
+				vsum = vsum+vel
+				v2sum = v2sum + vel*vel          ! Sum all velocity squared components
+			enddo
+		enddo
+	end select
         
 
 	!Obtain global sums for all parameters
 	call globalSum(vsum)
 	call globalSum(v2sum)
 	call globalSum(virial)
-
 
 	!Root processes prints results
 	if (irank .eq. iroot) then
@@ -456,13 +468,12 @@ implicit none
 			etev(chain,:) = etev(chain,:) + rij(:)
 		end do
 	end do
-
+	
 	call globalSumTwoDim(etev,nchains,nd)
 	
-	etev_prod_sum	= 0.d0
-	etev2_sum 		= 0.d0
-	
 	if (irank.eq.iroot .and. etevtcf_outflag.eq.1) then	
+		etev_prod_sum	= 0.d0
+		etev2_sum 		= 0.d0
 		do chain=1,nchains
 			etev_prod		  = dot_product(etev(chain,:),etev_0(chain,:))
 			etev2			  = dot_product(etev(chain,:),etev(chain,:))			

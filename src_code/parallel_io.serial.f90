@@ -195,7 +195,7 @@ subroutine setup_inputs
 		if (define_shear_as.eq.1) read(1,*) shear_rate
 		if (define_shear_as.gt.1) then 
                 	call error_abort( 'Poorly defined shear in input file')
-        	endif
+        endif
 	endif
 
 	!-------------------------------------
@@ -460,7 +460,7 @@ subroutine setup_restart_inputs
 	read(2) density			!Density of system
 	read(2) rcutoff			!Cut off distance for particle interaction
 	rcutoff2= rcutoff**2         				!Useful definition to save computational time
-	read(2) inputtemperature	!Define initial temperature
+	!read(2) inputtemperature	!Define initial temperature
 	read(2) delta_t			!Timestep
 	read(2) elapsedtime   		!Elapsed simulation time to date
 	read(2)  k_c			!Polymer spring constant
@@ -473,42 +473,54 @@ subroutine setup_restart_inputs
 	!read the same file so only need to check on one processor
 
 	open(1,file=input_file)
-	
+
 	call locate(1,'DENSITY',.true.)
-	read(1,* ) checkdp          !Density of system
-	if (checkdp .ne. density) print*, 'Discrepancy between system density', &
-	'in input & restart file - restart file will be used'
-
+	read(1,* ) checkdp                    !Density of system
+	if (checkdp .ne. density)             print*, 'Discrepancy between system density', &
+										  'in input & restart file - restart file will be used'
 	call locate(1,'RCUTOFF',.true.)
-	read(1,* ) checkdp          !Cut off distance for particle interaction
-	if (checkdp .ne. rcutoff) print*, 'Discrepancy between cut off radius', &
-	'in input & restart file - restart file will be used'
-
-	call locate(1,'INPUTTEMPERATURE',.true.)
-	read(1,* ) checkdp	     !Define initial temperature
-	if (checkdp .ne. inputtemperature) then
-		inputtemperature = checkdp	
-		print*, 'Discrepancy between initial temperature', &
-				'in input & restart file - input file will be used'
-	end if
-
+	read(1,* ) checkdp                    !Cut off distance for particle interaction
+	if (checkdp .ne. rcutoff)             print*, 'Discrepancy between cut off radius', &
+										  'in input & restart file - restart file will be used'
+	!call locate(1,'INPUTTEMPERATURE',.true.)
+	!read(1,* ) checkdp                    !Define initial temperature
+	!if (checkdp .ne. inputtemperature)    print*, 'Discrepancy between initial temperature', &
+	!                                      'in input & restart file - restart file will be used'
 	call locate(1,'INITIALNUNITS',.true.)
-	read(1,* ) checkint	     	!x dimension split into number of cells
-	if (checkint .ne. initialnunits(1)) print*, 'Discrepancy between x domain size', &
-				'in input & restart file - restart file will be used'
-	read(1,* ) checkint         !y dimension box split into number of cells
-	if (checkint .ne. initialnunits(2)) print*, 'Discrepancy between y domain size', &
-				'in input & restart file - restart file will be used'
-	read(1,* ) checkint	     	!z dimension box split into number of cells
-	if (checkint .ne. initialnunits(3)) print*, 'Discrepancy between z domain size', &
-				'in input & restart file - restart file will be used'
+	read(1,* ) checkint                   !x dimension split into number of cells
+	if (checkint .ne. initialnunits(1))   print*, 'Discrepancy between x domain size', &
+										  'in input & restart file - restart file will be used'
+	read(1,* ) checkint                   !y dimension box split into number of cells
+	if (checkint .ne. initialnunits(2))   print*, 'Discrepancy between y domain size', &
+										  'in input & restart file - restart file will be used'
+	if (nd == 3) then	
+	  read(1,* ) checkint                 !z dimension box split into number of cells
+	  if (checkint .ne. initialnunits(3)) print*, 'Discrepancy between z domain size', &
+										  'in input & restart file - restart file will be used'
+	endif
+	
+	call locate(1,'POTENTIAL_FLAG',.true.)
+	read(1,*) checkint                    !LJ or FENE potential
+	if (checkint .ne. potential_flag)     print*, 'Discrepancy between potential_flag', &
+										  'in input & restart file - restart file will be used'
+	if (potential_flag.eq.1) then
+	  call locate(1,'FENE_INFO',.true.) 
+	  read(1,*) checkint                  !nmonomers - number of beads per chain
+	  if (checkint.ne.nmonomers)          print*, 'Discrepancy between nmonomers', &
+										  'in input & restart file - restart file will be used'
+	  read(1,*) checkdp                   !k_c - FENE spring constant
+	  if (checkint.ne.k_c)                print*, 'Discrepancy between k_c', &
+										  'in input & restart file - restart file will be used'
+	  read(1,*) checkdp                   !k_c - FENE spring constant
+	  if (checkint.ne.R_0)                print*, 'Discrepancy between R_0', &
+										  'in input & restart file - restart file will be used'
+	end if	
 
 	!Check periodic BC and shear
 	call locate(1,'PERIODIC',.true.)
 	read(1,*) periodic(1)
 	read(1,*) periodic(2)
 	read(1,*) periodic(3)
-
 
 	!Get number of extra steps, timestep and plot frequency from input file	
 	call locate(1,'NSTEPS',.true.)
@@ -539,6 +551,9 @@ subroutine setup_restart_inputs
 	call locate(1,'FORCE_LIST',.true.)	!LJ or FENE potential
 	read(1,*) force_list
 	
+	call locate(1,'INPUTTEMPERATURE',.true.)
+	read(1,* ) inputtemperature         !Define initial temperature
+	
 
 	call locate(1,'DEFINE_SHEAR',.false.,found_in_input)
 	if (found_in_input) then
@@ -548,8 +563,8 @@ subroutine setup_restart_inputs
 		if (define_shear_as.eq.0) read(1,*) shear_velocity
 		if (define_shear_as.eq.1) read(1,*) shear_rate
 		if (define_shear_as.gt.1) then 
-                	call error_abort( 'Poorly defined shear in input file')
-        	endif
+                call error_abort( 'Poorly defined shear in input file')
+        endif
 	endif
 
 	!-------------------------------------
@@ -757,20 +772,33 @@ subroutine setup_restart_microstate
 	implicit none
 
 	integer 				:: ixyz, n
-	integer, dimension(np)	:: chainID, subchainID,left,right
 
 	!Open file at first recorded value
 	open(2,file=initial_microstate_file, form='unformatted', access='stream',position='rewind')
 	!Read positions
-	do n=1,globalnp
-		!Read position from file
-		do ixyz=1,nd
-			read(2) r(n,ixyz)
+	select case (potential_flag)
+	case(0)
+		do n=1,globalnp
+			!Read position from file
+			do ixyz=1,nd
+				read(2) r(n,ixyz)
+			enddo
+			do ixyz=1,nd
+				read(2) v(n,ixyz)
+			enddo
 		enddo
-		do ixyz=1,nd
-			read(2) v(n,ixyz)
-		enddo
-	enddo
+	case(1)
+		do n=1,globalnp
+			read(2) r(n,:)
+			read(2) v(n,:)
+			read(2) monomer(n)%chainID
+			read(2) monomer(n)%subchainID
+			read(2) monomer(n)%funcy
+			read(2) monomer(n)%glob_no
+			read(2) monomer(n)%bondflag(1:nmonomers)
+		end do
+	case default
+	end select
 
 !	select case (integration_algorithm)
 !		case(leap_frog_verlet)
@@ -787,19 +815,6 @@ subroutine setup_restart_microstate
 		call read_tag(n)		!Read tag and assign properties
 	enddo
 
-	if (potential_flag.eq.1) then
-		read(2) chainID(:)				
-		read(2) subchainID(:)				
-		read(2) left(:)
-		read(2) right(:)
-		do n=1,np
-			monomer(n)%chainID = chainID(n)
-			monomer(n)%subchainID = subchainID(n)
-!			monomer(n)%left = left(n)
-!			monomer(n)%right= right(n)
-		end do
-
-	end if
 	close(2,status='keep') 		!Close final state file
 
 end subroutine setup_restart_microstate
@@ -976,32 +991,30 @@ subroutine parallel_io_final_state
 	!Written in this form so each molecule's information is together to allow 
 	!re-allocation to seperate processors
 	open(2,file=trim(prefix_dir)//'results/final_state', form='unformatted',access='stream')
-	do n=1,np
-		!Write particle n's positions and speed
-		do ixyz=1,nd
-			write(2) r(n,ixyz) 
-		enddo
-		!Write particle n's velocities
-		do ixyz=1,nd
-			write(2) v(n,ixyz)   
-		enddo
-	enddo
-!	close(2,status='keep')
-
-	if (potential_flag.eq.1) then
+	select case (potential_flag)
+	case(0)
 		do n=1,np
-			chainID(n)    = monomer(n)%chainID
-			subchainID(n) = monomer(n)%subchainID
-!			left(n)       = monomer(n)%left
-!			right(n)	  = monomer(n)%right
+			!Write particle n's positions and speed
+			do ixyz=1,nd
+				write(2) r(n,ixyz) 
+			enddo
+			!Write particle n's velocities
+			do ixyz=1,nd
+				write(2) v(n,ixyz)   
+			enddo
+		enddo
+	case(1)
+		do n=1,np
+			write(2) r(n,:)
+			write(2) v(n,:)
+			write(2) monomer(n)%chainID
+			write(2) monomer(n)%subchainID
+			write(2) monomer(n)%funcy
+			write(2) monomer(n)%glob_no
+			write(2) monomer(n)%bondflag(1:nmonomers)
 		end do
-!		open(2,file=trim(prefix_dir)//'results/final_state', form='unformatted',access='direct',recl=np)
-		write(2) chainID(:)
-		write(2) subchainID(:)
-		write(2) left(:)
-		write(2) right(:)
-
-	end if
+	case default
+	end select	
  
 	close(2,status='keep')
 
@@ -1027,7 +1040,7 @@ subroutine parallel_io_final_state
 
 	write(2) density           !Density of system
 	write(2) rcutoff           !Cut off distance for particle interaction
-	write(2) inputtemperature  !Define initial temperature
+	!write(2) inputtemperature  !Define initial temperature
 	write(2) delta_t           !Size of time step
 	write(2) elapsedtime       !Total elapsed time of all restarted simulations
 	write(2) k_c			   	  !FENE spring constant
