@@ -417,12 +417,10 @@ subroutine setup_inputs
 
 end subroutine setup_inputs
 
-!----------------------------------------------------------------------
-!
+!-------------------------------------------------------------------------------------
 !                    Restart Simulation inputs
 ! Set up inputs on every processor, based on the final state of a previous simulation
-!
-!----------------------------------------------------------------------
+!-------------------------------------------------------------------------------------
 
 subroutine setup_restart_inputs
 	use module_parallel_io
@@ -443,8 +441,11 @@ subroutine setup_restart_inputs
 	call random_seed(size=n)
 	allocate(seed(n))
 
+	!=====================================================================================================!
+	!========================   R E A D    R E S T A R T    H E A D E R   ================================!
+
 	!Open on a single process and broadcast
-        if (irank .eq. iroot) then
+	if (irank .eq. iroot) then
             
 	    call MPI_File_open(MPI_COMM_SELF, initial_microstate_file, & 
 		MPI_MODE_RDONLY , MPI_INFO_NULL, restartfileid, ierr)
@@ -459,113 +460,134 @@ subroutine setup_restart_inputs
 	    
 	    call MPI_FILE_SEEK(restartfileid,header_ofs,MPI_SEEK_SET,ierr)
 
-	    call MPI_File_read(restartfileid,globalnp      ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
-	    call MPI_File_read(restartfileid,initialnunits ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
-	    call MPI_File_read(restartfileid,Nsteps        ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
-	    call MPI_File_read(restartfileid,tplot         ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
-	    call MPI_File_read(restartfileid,seed          ,2,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
-	    call MPI_File_read(restartfileid,periodic      ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
-	    call MPI_File_read(restartfileid,potential_flag,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
-	    call MPI_File_read(restartfileid,nmonomers  ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
-
+	    call MPI_File_read(restartfileid,globalnp        ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+	    call MPI_File_read(restartfileid,initialnunits   ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+	    call MPI_File_read(restartfileid,Nsteps          ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+	    call MPI_File_read(restartfileid,tplot           ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+	    call MPI_File_read(restartfileid,seed            ,2,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+	    call MPI_File_read(restartfileid,periodic        ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+	    call MPI_File_read(restartfileid,potential_flag  ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+	    call MPI_File_read(restartfileid,nmonomers       ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 	    call MPI_File_read(restartfileid,density         ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 	    call MPI_File_read(restartfileid,rcutoff         ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
-	    call MPI_File_read(restartfileid,inputtemperature,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+	    !call MPI_File_read(restartfileid,inputtemperature,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 	    call MPI_File_read(restartfileid,delta_t         ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 	    call MPI_File_read(restartfileid,elapsedtime     ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 	    call MPI_File_read(restartfileid,k_c             ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 	    call MPI_File_read(restartfileid,R_0             ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 	    call MPI_File_read(restartfileid,delta_rneighbr  ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 
-            call MPI_File_close(restartfileid,ierr)
+		call MPI_File_close(restartfileid,ierr)
 
-            !Check if values from input file are different and alert user - all processors have
-            !read the same file so only need to check on one processor
-            !But aparently more stuff must be read from input file, this is not very nice at the moment
+		!Check if values from input file are different and alert user - all processors have
+		!read the same file so only need to check on one processor
+		!But aparently more stuff must be read from input file, this is not very nice at the moment
 
-            open(1,file=input_file)
+		open(1,file=input_file)
 
-            call locate(1,'DENSITY',.true.)
-            read(1,* ) checkdp          !Density of system
-            if (checkdp .ne. density) print*, 'Discrepancy between system density', &
-             'in input & restart file - restart file will be used'
-            call locate(1,'RCUTOFF',.true.)
-            read(1,* ) checkdp          !Cut off distance for particle interaction
-            if (checkdp .ne. rcutoff) print*, 'Discrepancy between cut off radius', &
-             'in input & restart file - restart file will be used'
-            call locate(1,'INPUTTEMPERATURE',.true.)
-            read(1,* ) checkdp	     !Define initial temperature
-            if (checkdp .ne. inputtemperature) print*, 'Discrepancy between initial temperature', &
-             'in input & restart file - restart file will be used'
-            call locate(1,'INITIALNUNITS',.true.)
-            read(1,* ) checkint	     	!x dimension split into number of cells
-            if (checkint .ne. initialnunits(1)) print*, 'Discrepancy between x domain size', &
-             'in input & restart file - restart file will be used'
-            read(1,* ) checkint         !y dimension box split into number of cells
-            if (checkint .ne. initialnunits(2)) print*, 'Discrepancy between y domain size', &
-             'in input & restart file - restart file will be used'
-            if (nd == 3) then
-		read(1,* ) checkint	     	!z dimension box split into number of cells
-                if (checkint .ne. initialnunits(3)) print*, 'Discrepancy between z domain size', &
-		'in input & restart file - restart file will be used'
-            endif
+		call locate(1,'DENSITY',.true.)
+		read(1,* ) checkdp                    !Density of system
+		if (checkdp .ne. density)             print*, 'Discrepancy between system density', &
+                                              'in input & restart file - restart file will be used'
+		call locate(1,'RCUTOFF',.true.)
+		read(1,* ) checkdp                    !Cut off distance for particle interaction
+		if (checkdp .ne. rcutoff)             print*, 'Discrepancy between cut off radius', &
+		                                      'in input & restart file - restart file will be used'
+		!call locate(1,'INPUTTEMPERATURE',.true.)
+		!read(1,* ) checkdp                    !Define initial temperature
+		!if (checkdp .ne. inputtemperature)    print*, 'Discrepancy between initial temperature', &
+		!                                      'in input & restart file - restart file will be used'
+		call locate(1,'INITIALNUNITS',.true.)
+		read(1,* ) checkint                   !x dimension split into number of cells
+		if (checkint .ne. initialnunits(1))   print*, 'Discrepancy between x domain size', &
+		                                      'in input & restart file - restart file will be used'
+		read(1,* ) checkint                   !y dimension box split into number of cells
+		if (checkint .ne. initialnunits(2))   print*, 'Discrepancy between y domain size', &
+		                                      'in input & restart file - restart file will be used'
+		if (nd == 3) then	
+		  read(1,* ) checkint                 !z dimension box split into number of cells
+		  if (checkint .ne. initialnunits(3)) print*, 'Discrepancy between z domain size', &
+		                                      'in input & restart file - restart file will be used'
+		endif
+		
+		call locate(1,'POTENTIAL_FLAG',.true.)
+		read(1,*) checkint                    !LJ or FENE potential
+		if (checkint .ne. potential_flag)     print*, 'Discrepancy between potential_flag', &
+		                                      'in input & restart file - restart file will be used'
+		if (potential_flag.eq.1) then
+		  call locate(1,'FENE_INFO',.true.) 
+		  read(1,*) checkint                  !nmonomers - number of beads per chain
+		  if (checkint.ne.nmonomers)          print*, 'Discrepancy between nmonomers', &
+		                                      'in input & restart file - restart file will be used'
+		  read(1,*) checkdp                   !k_c - FENE spring constant
+		  if (checkint.ne.k_c)                print*, 'Discrepancy between k_c', &
+		                                      'in input & restart file - restart file will be used'
+		  read(1,*) checkdp                   !k_c - FENE spring constant
+		  if (checkint.ne.R_0)                print*, 'Discrepancy between R_0', &
+		                                      'in input & restart file - restart file will be used'
+		end if	
 
-            close(1,status='keep')
+		close(1,status='keep')
 
-        endif
+	endif
+
+	!=============  E N D    R E A D    R E S T A R T    H E A D E R   ==============================!
+	!================================================================================================!
         
-        ! read some more
-        open(1,file=input_file)
+	! read some more
+	open(1,file=input_file)
 
-        !Check periodic BC and shear
-        call locate(1,'PERIODIC',.true.)
-        read(1,*) periodic(1)
-        read(1,*) periodic(2)
-        read(1,*) periodic(3)
-        
-        !Get number of extra steps, timestep and plot frequency from input file
-        call locate(1,'NSTEPS',.true.)
-        read(1,* ) extrasteps       !Number of computational steps
-        call locate(1,'DELTA_T',.true.)
-        read(1,* ) delta_t          !Size of time step
-        call locate(1,'TPLOT',.true.)
-        read(1,* ) tplot            !Frequency at which to record results
-        call locate(1,'INITIALISE_STEPS',.false.,found_in_input)
-        if (found_in_input) then
-            read(1,*) initialise_steps 	!Number of initialisation steps for simulation
-        else
-            initialise_steps = 0
-        endif
-        call locate(1,'DELTA_RNEIGHBR',.true.)
-        read(1,* ) delta_rneighbr   !Extra distance used for neighbour cell
-        call locate(1,'SEED',.false.,found_in_input)
-        if (found_in_input) then
-            read(1,*) seed(1) 	!Random number seed value 1
-            read(1,*) seed(2) 	!Random number seed value 2
-        else
-            seed(1) = 1		!Fixed default seed for repeatability
-            seed(2) = 2		!Fixed default seed for repeatability
-        endif
-        
-	!Choose integration algorithm
-        call locate(1,'INTEGRATION_ALGORITHM',.true.)
-        read(1,*) integration_algorithm
-        call locate(1,'ENSEMBLE',.true.)
-        read(1,*) ensemble
-        call locate(1,'FORCE_LIST',.true.)	!LJ or FENE potential
-        read(1,*) force_list
+	!Check periodic BC and shear
+	call locate(1,'PERIODIC',.true.)
+	read(1,*) periodic(1)
+	read(1,*) periodic(2)
+	read(1,*) periodic(3)
 	
-        call locate(1,'DEFINE_SHEAR',.false.,found_in_input)
-        if (found_in_input) then
-            read(1,*) shear_direction
-            read(1,*) shear_iter0
-            read(1,*) define_shear_as
-            if (define_shear_as.eq.0) read(1,*) shear_velocity
-            if (define_shear_as.eq.1) read(1,*) shear_rate
-            if (define_shear_as.gt.1) then 
-                call error_abort( 'Poorly defined shear in input file')
-            endif
-        endif
+	!Get number of extra steps, timestep and plot frequency from input file
+	call locate(1,'NSTEPS',.true.)
+	read(1,* ) extrasteps       !Number of computational steps
+	call locate(1,'DELTA_T',.true.)
+	read(1,* ) delta_t          !Size of time step
+	call locate(1,'TPLOT',.true.)
+	read(1,* ) tplot            !Frequency at which to record results
+	call locate(1,'INITIALISE_STEPS',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) initialise_steps 	!Number of initialisation steps for simulation
+	else
+		initialise_steps = 0
+	endif
+	call locate(1,'DELTA_RNEIGHBR',.true.)
+	read(1,* ) delta_rneighbr   !Extra distance used for neighbour cell
+	call locate(1,'SEED',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) seed(1) 	!Random number seed value 1
+		read(1,*) seed(2) 	!Random number seed value 2
+	else
+		seed(1) = 1		!Fixed default seed for repeatability
+		seed(2) = 2		!Fixed default seed for repeatability
+	endif
+	
+	call locate(1,'INTEGRATION_ALGORITHM',.true.)
+	read(1,*) integration_algorithm
+	call locate(1,'ENSEMBLE',.true.)
+	read(1,*) ensemble
+	call locate(1,'FORCE_LIST',.true.)	!LJ or FENE potential
+	read(1,*) force_list
+
+	call locate(1,'INPUTTEMPERATURE',.true.)
+	read(1,* ) inputtemperature         !Define initial temperature
+	
+	call locate(1,'DEFINE_SHEAR',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) shear_direction
+		read(1,*) shear_iter0
+		read(1,*) define_shear_as
+		if (define_shear_as.eq.0) read(1,*) shear_velocity
+		if (define_shear_as.eq.1) read(1,*) shear_rate
+		if (define_shear_as.gt.1) then 
+			call error_abort( 'Poorly defined shear in input file')
+		endif
+	endif
 
 	!-------------------------------------
 	!Flag to determine molecular tags
@@ -580,213 +602,214 @@ subroutine setup_restart_inputs
 
 	!Set all to zero if no specifiers
 	!Setup wall speeds
-        wallslidev = 0.d0
-        !Setup fixed molecules
-        fixdistbottom = 0.d0;	fixdisttop = 0.d0
-        !Setup sliding molecules
-        slidedistbottom = 0.d0; slidedisttop = 0.d0
-        !Setup molecules with tethered potentials
-        tethereddistbottom = 0.d0; tethereddisttop = 0.d0
-        !Setup thermostatted molecules
-        thermstatbottom = 0.d0; thermstattop = 0.d0 
-        
-        call locate(1,'WALLSLIDEV',.false.,found_in_input)
-        if (found_in_input) then
-            read(1,*) wallslidev(1)
-            read(1,*) wallslidev(2)
-            read(1,*) wallslidev(3)
-        endif
-        call locate(1,'FIXDISTBOTTOM',.false.,found_in_input)
-        if (found_in_input) then
-            read(1,*) fixdistbottom(1)
-            read(1,*) fixdistbottom(2)
-            read(1,*) fixdistbottom(3)
-        endif
-        call locate(1,'FIXDISTTOP',.false.,found_in_input)
-        if (found_in_input) then
-            read(1,*) fixdisttop(1)
-            read(1,*) fixdisttop(2)
-            read(1,*) fixdisttop(3)
-        endif
-        call locate(1,'SLIDEDISTBOTTOM',.false.,found_in_input)
-        if (found_in_input) then
-            read(1,*) slidedistbottom(1)
-            read(1,*) slidedistbottom(2)
-            read(1,*) slidedistbottom(3)
-        endif
-        call locate(1,'SLIDEDISTTOP',.false.,found_in_input)
-        if (found_in_input) then
-            read(1,*) slidedisttop(1)
-            read(1,*) slidedisttop(2)
-            read(1,*) slidedisttop(3)
-        endif
-        call locate(1,'TETHEREDDISTBOTTOM',.false.,found_in_input)
-        if (found_in_input) then
-            read(1,*) tethereddistbottom(1)
-            read(1,*) tethereddistbottom(2)
-            read(1,*) tethereddistbottom(3)
-        endif
-        call locate(1,'TETHEREDDISTTOP',.false.,found_in_input)
-        if (found_in_input) then
-            read(1,*) tethereddisttop(1)
-            read(1,*) tethereddisttop(2)
-            read(1,*) tethereddisttop(3)
-        endif
-        call locate(1,'THERMSTATBOTTOM',.false.,found_in_input)
-        if (found_in_input) then
-            read(1,*) thermstatbottom(1)
-            read(1,*) thermstatbottom(2)
-            read(1,*) thermstatbottom(3)
-        endif
-        call locate(1,'THERMSTATTOP',.false.,found_in_input)
-        if (found_in_input) then
-            read(1,*) thermstattop(1)
-            read(1,*) thermstattop(2)
-            read(1,*) thermstattop(3)
-        endif
-        
-        call locate(1,'THERMSTAT_FLAG',.false.,found_in_input)
-        if (found_in_input) then
-            read(1,*) thermstat_flag
-            select case(thermstat_flag)
-            case(0)
-                if (abs(maxval(thermstattop   )).ne.0.0 & 
-                 .or.abs(maxval(thermstatbottom)).ne.0.0) call error_abort( & 
-                 "THERMSTATTOP or THERMSTATBOTTOM non zero but THERMSTAT_FLAG_INFO&
-                 &  set to off (THERMSTAT_FLAG=0)")
-                thermstatbottom = 0.d0; thermstattop = 0.d0 
-            case(1)
-                thermstattop 	= initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
-                thermstatbottom = initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
-            case(2)
-                if (abs(maxval(thermstattop   )).eq.0.0 & 
-                 .and.abs(maxval(thermstatbottom)).eq.0.0) & 
-                    call error_abort("THERMSTATTOP or THERMSTATBOTTOM must also be specified")
-            end select
-        endif
-        
-        !Flag to determine if output is switched on
-        call locate(1,'VMD_OUTFLAG',.false.,found_in_input)
-        if (found_in_input) then
-            read(1,*) vmd_outflag
-            if (vmd_outflag .ne. 0) then
-                read(1,*) Nvmd_intervals	!Number of vmd intervals
-                if (Nvmd_intervals .gt. 20) then
-                    print*, "Number of VMD intervals greater than 20 or not specified, setting on for all simualtion"
-                    Nvmd_intervals = 0
-                endif
-                if (Nvmd_intervals .eq. 0) then
-                    allocate(vmd_intervals(2,1))
-                    vmd_intervals(1,1) = 1; vmd_intervals(2,1) = huge(1)
-                else
-                       allocate(vmd_intervals(2,Nvmd_intervals))
-                       write(readin_format,'(a,i5,a)') '(',2*Nvmd_intervals,'i)'
-                       read(1,trim(readin_format)) vmd_intervals
+	wallslidev = 0.d0
+	!Setup fixed molecules
+	fixdistbottom = 0.d0;	fixdisttop = 0.d0
+	!Setup sliding molecules
+	slidedistbottom = 0.d0; slidedisttop = 0.d0
+	!Setup molecules with tethered potentials
+	tethereddistbottom = 0.d0; tethereddisttop = 0.d0
+	!Setup thermostatted molecules
+	thermstatbottom = 0.d0; thermstattop = 0.d0 
+	
+	call locate(1,'WALLSLIDEV',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) wallslidev(1)
+		read(1,*) wallslidev(2)
+		read(1,*) wallslidev(3)
+	endif
+	call locate(1,'FIXDISTBOTTOM',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) fixdistbottom(1)
+		read(1,*) fixdistbottom(2)
+		read(1,*) fixdistbottom(3)
+	endif
+	call locate(1,'FIXDISTTOP',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) fixdisttop(1)
+		read(1,*) fixdisttop(2)
+		read(1,*) fixdisttop(3)
+	endif
+	call locate(1,'SLIDEDISTBOTTOM',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) slidedistbottom(1)
+		read(1,*) slidedistbottom(2)
+		read(1,*) slidedistbottom(3)
+	endif
+	call locate(1,'SLIDEDISTTOP',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) slidedisttop(1)
+		read(1,*) slidedisttop(2)
+		read(1,*) slidedisttop(3)
+	endif
+	call locate(1,'TETHEREDDISTBOTTOM',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) tethereddistbottom(1)
+		read(1,*) tethereddistbottom(2)
+		read(1,*) tethereddistbottom(3)
+	endif
+	call locate(1,'TETHEREDDISTTOP',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) tethereddisttop(1)
+		read(1,*) tethereddisttop(2)
+		read(1,*) tethereddisttop(3)
+	endif
+	call locate(1,'THERMSTATBOTTOM',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) thermstatbottom(1)
+		read(1,*) thermstatbottom(2)
+		read(1,*) thermstatbottom(3)
+	endif
+	call locate(1,'THERMSTATTOP',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) thermstattop(1)
+		read(1,*) thermstattop(2)
+		read(1,*) thermstattop(3)
+	endif
+	
+	call locate(1,'THERMSTAT_FLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) thermstat_flag
+		select case(thermstat_flag)
+		case(0)
+			if (abs(maxval(thermstattop   )).ne.0.0 & 
+			 .or.abs(maxval(thermstatbottom)).ne.0.0) call error_abort( & 
+			 "THERMSTATTOP or THERMSTATBOTTOM non zero but THERMSTAT_FLAG_INFO&
+			 &  set to off (THERMSTAT_FLAG=0)")
+			thermstatbottom = 0.d0; thermstattop = 0.d0 
+		case(1)
+			thermstattop 	= initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
+			thermstatbottom = initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
+		case(2)
+			if (abs(maxval(thermstattop   )).eq.0.0 & 
+			 .and.abs(maxval(thermstatbottom)).eq.0.0) & 
+				call error_abort("THERMSTATTOP or THERMSTATBOTTOM must also be specified")
+		end select
+	endif
+	
+	!Flag to determine if output is switched on
+	call locate(1,'VMD_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) vmd_outflag
+		if (vmd_outflag .ne. 0) then
+			read(1,*) Nvmd_intervals	!Number of vmd intervals
+			if (Nvmd_intervals .gt. 20) then
+				print*, "Number of VMD intervals greater than 20 or not specified, setting on for all simualtion"
+				Nvmd_intervals = 0
+			endif
+			if (Nvmd_intervals .eq. 0) then
+				allocate(vmd_intervals(2,1))
+				vmd_intervals(1,1) = 1; vmd_intervals(2,1) = huge(1)
+			else
+				   allocate(vmd_intervals(2,Nvmd_intervals))
+				   write(readin_format,'(a,i5,a)') '(',2*Nvmd_intervals,'i)'
+				   read(1,trim(readin_format)) vmd_intervals
 #if USE_COUPLER
-                       !NEED SOME SORT OF coupler total simulation time retrival here!!
-                       print*, "WARNING - CHECK VMD INTERVALS is not greater than coupled number of steps"
+				   !NEED SOME SORT OF coupler total simulation time retrival here!!
+				   print*, "WARNING - CHECK VMD INTERVALS is not greater than coupled number of steps"
 #else
-                       if (maxval(vmd_intervals) .gt. Nsteps) &
-                       call error_abort("Specified VMD interval greater than Nsteps")
+				   if (maxval(vmd_intervals) .gt. Nsteps) &
+				   call error_abort("Specified VMD interval greater than Nsteps")
 #endif
-                  endif
-              endif
-          endif
-          call locate(1,'MACRO_OUTFLAG',.false.,found_in_input)
-          if (found_in_input) read(1,*) macro_outflag
-          call locate(1,'MASS_OUTFLAG',.false.,found_in_input)
-          if (found_in_input) then
-              read(1,*) mass_outflag
-              if (mass_outflag .ne. 0) 	read(1,*) Nmass_ave
-          endif
-          call locate(1,'VELOCITY_OUTFLAG',.false.,found_in_input)
-          if (found_in_input) then
-              read(1,* ) velocity_outflag
-              if (velocity_outflag .ne. 0)	read(1,* ) Nvel_ave
-          endif
-          call locate(1,'PRESSURE_OUTFLAG',.false.,found_in_input)
-          if (found_in_input) then
-              read(1,* ) pressure_outflag
-              if (pressure_outflag .ne. 0)	read(1,* ) Nstress_ave
-          endif
-          call locate(1,'VISCOSITY_OUTFLAG',.false.,found_in_input)
-          if (found_in_input) then
-               read(1,* ) viscosity_outflag
-               if ( viscosity_outflag .ne. 0)	read(1,* ) Nvisc_ave
-           endif
-           call locate(1,'MFLUX_OUTFLAG',.false.,found_in_input)
-           if (found_in_input) then
-               read(1,* ) mflux_outflag
-               if (mflux_outflag .ne. 0)	read(1,* ) Nmflux_ave
-           endif
-           call locate(1,'VFLUX_OUTFLAG',.false.,found_in_input)
-           if (found_in_input) then
-               read(1,* ) vflux_outflag
-               if (vflux_outflag .ne. 0)	read(1,* ) Nvflux_ave
-           endif
-           
-           call locate(1,'ETEVTCF_OUTFLAG',.false.,found_in_input)
-           if (found_in_input) then
-               read(1,*) etevtcf_outflag
-               if (etevtcf_outflag.ne.0) then
-                   read(1,*) etevtcf_iter0
-                   
-                   if (mod(etevtcf_iter0,tplot).ne.0) then
-                       etevtcf_iter0 = etevtcf_iter0 + (tplot - mod(etevtcf_iter0,tplot))
-                       print*, 'Etevtcf must be a multiple of tplot, resetting etevtcf to ', etevtcf_iter0
-                   end if
-               end if
-           endif
-           
-           call locate(1,'R_GYRATION_OUTFLAG',.false.,found_in_input)
-           if (found_in_input) then
-               read(1,*) r_gyration_outflag
-               read(1,*) r_gyration_iter0
-           end if
-           
-           close(1,status='keep')      !Close input file
-           
-           
-           !Broadcast data read by root to all other processors
-           call MPI_BCAST(globalnp,1,MPI_integer,iroot-1,MD_COMM,ierr)
-           ! temporary np, exact value will be fixed after reading r and v arrays
-           ! np is needed in set_parameters_outputs that is called before microstate initialisation
-           ! when restart is true
-           np = globalnp/nproc
-           call MPI_BCAST(initialnunits(1),3,MPI_integer,iroot-1,MD_COMM,ierr)
-           call MPI_BCAST(Nsteps,1,MPI_integer,iroot-1,MD_COMM,ierr)
-           ! t plot, seed, periodic, potential flag nmonomers are read from input as well. Pleese fix ! 
-           !call MPI_BCAST(tplot,1,MPI_integer,iroot-1,MD_COMM,ierr)
-           ! seed ?
-           ! periodic ?
-           call MPI_BCAST(potential_flag,1,MPI_INTEGER,iroot-1,MD_COMM,ierr)
-           ! nmonomers ?
-           call MPI_BCAST(density,1,MPI_double_precision,iroot-1,MD_COMM,ierr)
-           call MPI_BCAST(rcutoff,1,MPI_double_precision,iroot-1,MD_COMM,ierr) 
-           rcutoff2 = rcutoff**2         !Useful definition to save computational time
-           call MPI_BCAST(inputtemperature,1,MPI_double_precision,iroot-1,MD_COMM,ierr) 
-           !call MPI_BCAST(delta_t,1,MPI_double_precision,iroot-1,MD_COMM,ierr) 
-           call MPI_BCAST(elapsedtime,1,MPI_DOUBLE_PRECISION,iroot-1,MD_COMM,ierr) 
-           call MPI_BCAST(k_c,1,MPI_DOUBLE_PRECISION,iroot-1,MD_COMM,ierr)
-           call MPI_BCAST(R_0,1,MPI_DOUBLE_PRECISION,iroot-1,MD_COMM,ierr)
-           !call MPI_BCAST(delta_rneighbr,1,MPI_DOUBLE_PRECISION,iroot-1,MD_COMM,ierr)
-           !call MPI_BCAST(extrasteps,1,MPI_integer,iroot-1,MD_COMM,ierr)
+			  endif
+		  endif
+	  endif
+	  call locate(1,'MACRO_OUTFLAG',.false.,found_in_input)
+	  if (found_in_input) read(1,*) macro_outflag
+	  call locate(1,'MASS_OUTFLAG',.false.,found_in_input)
+	  if (found_in_input) then
+		  read(1,*) mass_outflag
+		  if (mass_outflag .ne. 0) 	read(1,*) Nmass_ave
+	  endif
+	  call locate(1,'VELOCITY_OUTFLAG',.false.,found_in_input)
+	  if (found_in_input) then
+		  read(1,* ) velocity_outflag
+		  if (velocity_outflag .ne. 0)	read(1,* ) Nvel_ave
+	  endif
+	  call locate(1,'PRESSURE_OUTFLAG',.false.,found_in_input)
+	  if (found_in_input) then
+		  read(1,* ) pressure_outflag
+		  if (pressure_outflag .ne. 0)	read(1,* ) Nstress_ave
+	  endif
+	  call locate(1,'VISCOSITY_OUTFLAG',.false.,found_in_input)
+	  if (found_in_input) then
+		read(1,* ) viscosity_outflag
+		   if ( viscosity_outflag .ne. 0)	read(1,* ) Nvisc_ave
+		endif
+		call locate(1,'MFLUX_OUTFLAG',.false.,found_in_input)
+		if (found_in_input) then
+		   read(1,* ) mflux_outflag
+		   if (mflux_outflag .ne. 0)	read(1,* ) Nmflux_ave
+		endif
+		call locate(1,'VFLUX_OUTFLAG',.false.,found_in_input)
+		if (found_in_input) then
+		   read(1,* ) vflux_outflag
+		   if (vflux_outflag .ne. 0)	read(1,* ) Nvflux_ave
+		endif
+
+		call locate(1,'ETEVTCF_OUTFLAG',.false.,found_in_input)
+		if (found_in_input) then
+		   read(1,*) etevtcf_outflag
+		   if (etevtcf_outflag.ne.0) then
+			   read(1,*) etevtcf_iter0
+			   
+			   if (mod(etevtcf_iter0,tplot).ne.0) then
+				   etevtcf_iter0 = etevtcf_iter0 + (tplot - mod(etevtcf_iter0,tplot))
+				   print*, 'Etevtcf must be a multiple of tplot, resetting etevtcf to ', etevtcf_iter0
+			   end if
+		   end if
+		endif
+
+		call locate(1,'R_GYRATION_OUTFLAG',.false.,found_in_input)
+		if (found_in_input) then
+		   read(1,*) r_gyration_outflag
+		   read(1,*) r_gyration_iter0
+		end if
+
+		close(1,status='keep')      !Close input file
            
            
-           ! data from bellow is read by all ranks from input file, no need to broadcase
-           !call MPI_BCAST(delta_rneighbr,1,MPI_double_precision,iroot-1,MD_COMM,ierr) 
-           !call MPI_BCAST(vmd_outflag,1,MPI_integer,iroot-1,MD_COMM,ierr)
-           !call MPI_BCAST(macro_outflag,1,MPI_integer,iroot-1,MD_COMM,ierr) 
-           !call MPI_BCAST(velocity_outflag,1,MPI_integer,iroot-1,MD_COMM,ierr) 
-           !call MPI_BCAST(Nvel_ave,1,MPI_integer,iroot-1,MD_COMM,ierr) 
-           !call MPI_BCAST(pressure_outflag,1,MPI_integer,iroot-1,MD_COMM,ierr)
-           !call MPI_BCAST(Nstress_ave,1,MPI_integer,iroot-1,MD_COMM,ierr)  
-           !call MPI_BCAST(Nvisc_ave,1,MPI_integer,iroot-1,MD_COMM,ierr)
-           
-           elapsedtime = elapsedtime + delta_t*extrasteps !Set elapsed time to end of simualtion
-           initialstep = Nsteps         !Set plot count to final plot of last
-           Nsteps = Nsteps + extrasteps !Establish final iteration step based on previous
-           
+		!---------------Broadcast data read by root to all other processors-------------------------!
+		! temporary np, exact value will be fixed after reading r and v arrays
+		! np is needed in set_parameters_outputs that is called before microstate initialisation
+		! when restart is true
+		call MPI_BCAST(globalnp,          1,MPI_integer,iroot-1,MD_COMM,ierr)
+		np = globalnp/nproc
+		call MPI_BCAST(rcutoff,           1,MPI_double_precision,iroot-1,MD_COMM,ierr) 
+		rcutoff2 = rcutoff**2             !Useful definition to save computational time
+
+		call MPI_BCAST(initialnunits(1),  3,MPI_integer,iroot-1,MD_COMM,ierr)
+		call MPI_BCAST(Nsteps,            1,MPI_integer,iroot-1,MD_COMM,ierr)
+		call MPI_BCAST(potential_flag,    1,MPI_integer,iroot-1,MD_COMM,ierr)
+		call MPI_BCAST(nmonomers,         1,MPI_integer,iroot-1,MD_COMM,ierr)
+		call MPI_BCAST(density,           1,MPI_double_precision,iroot-1,MD_COMM,ierr)
+		call MPI_BCAST(inputtemperature,  1,MPI_double_precision,iroot-1,MD_COMM,ierr) 
+		call MPI_BCAST(elapsedtime,       1,MPI_double_precision,iroot-1,MD_COMM,ierr) 
+		call MPI_BCAST(k_c,               1,MPI_double_precision,iroot-1,MD_COMM,ierr)
+		call MPI_BCAST(R_0,               1,MPI_double_precision,iroot-1,MD_COMM,ierr)
+	   !call MPI_BCAST(delta_rneighbr,1,MPI_DOUBLE_PRECISION,iroot-1,MD_COMM,ierr)
+	   !call MPI_BCAST(extrasteps,1,MPI_integer,iroot-1,MD_COMM,ierr)
+	   !call MPI_BCAST(nmonomers,1,MPI_integer,iroot-1,MD_COMM,ierr)
+	   !call MPI_BCAST(delta_t,1,MPI_double_precision,iroot-1,MD_COMM,ierr) 
+	   
+		! t plot, seed, periodic, potential flag nmonomers are read from input as well. Pleese fix ! 
+	   !call MPI_BCAST(tplot,1,MPI_integer,iroot-1,MD_COMM,ierr)
+	   ! seed ?
+	   ! periodic ?
+	   
+	   ! data from bellow is read by all ranks from input file, no need to broadcase
+	   !call MPI_BCAST(delta_rneighbr,1,MPI_double_precision,iroot-1,MD_COMM,ierr) 
+	   !call MPI_BCAST(vmd_outflag,1,MPI_integer,iroot-1,MD_COMM,ierr)
+	   !call MPI_BCAST(macro_outflag,1,MPI_integer,iroot-1,MD_COMM,ierr) 
+	   !call MPI_BCAST(velocity_outflag,1,MPI_integer,iroot-1,MD_COMM,ierr) 
+	   !call MPI_BCAST(Nvel_ave,1,MPI_integer,iroot-1,MD_COMM,ierr) 
+	   !call MPI_BCAST(pressure_outflag,1,MPI_integer,iroot-1,MD_COMM,ierr)
+	   !call MPI_BCAST(Nstress_ave,1,MPI_integer,iroot-1,MD_COMM,ierr)  
+	   !call MPI_BCAST(Nvisc_ave,1,MPI_integer,iroot-1,MD_COMM,ierr)
+	   
+	   elapsedtime = elapsedtime + delta_t*extrasteps !Set elapsed time to end of simualtion
+	   initialstep = Nsteps         !Set plot count to final plot of last
+	   Nsteps = Nsteps + extrasteps !Establish final iteration step based on previous
            
 end subroutine setup_restart_inputs
 
@@ -801,6 +824,9 @@ subroutine setup_restart_microstate
 	integer								:: dp_datasize
 	integer(kind=MPI_OFFSET_KIND)   	:: disp
 	double precision, dimension (2*nd)	:: rvc !Temporary variable
+	integer, dimension(:), allocatable  :: monomerc
+	
+	allocate(monomerc(4+nmonomers))
 
 	!Determine size of datatypes
   	call MPI_type_size(MPI_double_precision,dp_datasize,ierr)
@@ -822,31 +848,68 @@ subroutine setup_restart_microstate
 		!Set each processor to that location and write particlewise
 !		call MPI_FILE_SET_VIEW(restartfileid, disp, MPI_double_precision, & 
 ! 					MPI_double_precision, 'native', MPI_INFO_NULL, ierr)
-		call MPI_FILE_READ_ALL(restartfileid, rvc(:), 2*nd, MPI_double_precision, & 
-					MPI_STATUS_IGNORE, ierr) !Read position from file
+		select case(potential_flag)
+		case(0)
+			call MPI_FILE_READ_ALL(restartfileid, rvc(:), 2*nd, MPI_double_precision, & 
+			                       MPI_STATUS_IGNORE, ierr) !Read position from file
+			!Use integer division to determine which processor to assign molecule to
+			procassign = ceiling((rvc(1)+globaldomain(1)/2.d0)/domain(1))
+			if (procassign .ne. iblock) cycle
+			procassign = ceiling((rvc(2)+globaldomain(2)/2.d0)/domain(2))
+			if (procassign .ne. jblock) cycle
+			procassign = ceiling((rvc(3)+globaldomain(3)/2.d0)/domain(3))
+			if (procassign .ne. kblock) cycle
 
-		!Use integer division to determine which processor to assign molecule to
-		procassign = ceiling((rvc(1)+globaldomain(1)/2.d0)/domain(1))
-		if (procassign .ne. iblock) cycle
-		procassign = ceiling((rvc(2)+globaldomain(2)/2.d0)/domain(2))
-		if (procassign .ne. jblock) cycle
-        procassign = ceiling((rvc(3)+globaldomain(3)/2.d0)/domain(3))
-        if (procassign .ne. kblock) cycle
+			!If molecules is in the domain then add to processor's total
+			nl = nl + 1 !Local molecule count
 
-		!If molecules is in the domain then add to processor's total
-		nl = nl + 1 !Local molecule count
+			!Correct to local coordinates
+			r(nl,1) = rvc(1)-domain(1)*(iblock-1)+halfdomain(1)*(npx-1)
+			r(nl,2) = rvc(2)-domain(2)*(jblock-1)+halfdomain(2)*(npy-1)
+			r(nl,3) = rvc(3)-domain(3)*(kblock-1)+halfdomain(3)*(npz-1)
 
-		!Correct to local coordinates
-		r(nl,1) = rvc(1)-domain(1)*(iblock-1)+halfdomain(1)*(npx-1)
-		r(nl,2) = rvc(2)-domain(2)*(jblock-1)+halfdomain(2)*(npy-1)
-		r(nl,3) = rvc(3)-domain(3)*(kblock-1)+halfdomain(3)*(npz-1)
+			!print'(2(i8,a),3(f10.5,a))', iblock, ';', n, ';', r(nl,1), ';', r(nl,2), ';', r(nl,3), ';'
 
-		!print'(2(i8,a),3(f10.5,a))', iblock, ';', n, ';', r(nl,1), ';', r(nl,2), ';', r(nl,3), ';'
+			!Read corresponding velocities
+	!		call MPI_FILE_READ(restartfileid, vc(:), nd, MPI_double_precision, & 
+	!					MPI_STATUS_IGNORE, ierr) !Read velocity from file
+			v(nl,:) = rvc(nd+1:)
 
-		!Read corresponding velocities
-!		call MPI_FILE_READ(restartfileid, vc(:), nd, MPI_double_precision, & 
-!					MPI_STATUS_IGNORE, ierr) !Read velocity from file
-		v(nl,:) = rvc(nd+1:) 
+		case(1)
+			call MPI_FILE_READ_ALL(restartfileid, rvc(:), 2*nd, MPI_double_precision, & 
+			                       MPI_STATUS_IGNORE, ierr)
+			call MPI_FILE_READ_ALL(restartfileid, monomerc, 4+nmonomers, MPI_integer, &
+			                       MPI_STATUS_IGNORE, ierr)
+			
+			!Use integer division to determine which processor to assign molecule to
+			procassign = ceiling((rvc(1)+globaldomain(1)/2.d0)/domain(1))
+			if (procassign .ne. iblock) cycle
+			procassign = ceiling((rvc(2)+globaldomain(2)/2.d0)/domain(2))
+			if (procassign .ne. jblock) cycle
+			procassign = ceiling((rvc(3)+globaldomain(3)/2.d0)/domain(3))
+			if (procassign .ne. kblock) cycle
+
+			!If molecule is in the domain then add to processor's total
+			nl = nl + 1 !Local molecule count
+
+			!Correct to local coordinates
+			r(nl,1) = rvc(1)-domain(1)*(iblock-1)+halfdomain(1)*(npx-1)
+			r(nl,2) = rvc(2)-domain(2)*(jblock-1)+halfdomain(2)*(npy-1)
+			r(nl,3) = rvc(3)-domain(3)*(kblock-1)+halfdomain(3)*(npz-1)
+			
+			!Assign corresponding velocity
+			v(nl,:)     = rvc(nd+1:)
+			
+			!Assign corresponding monomer info
+			monomer(nl)%chainID     = monomerc(1)
+			monomer(nl)%subchainID  = monomerc(2)
+			monomer(nl)%funcy       = monomerc(3)
+			monomer(nl)%glob_no     = monomerc(4) 
+			monomer(nl)%bondflag(:) = monomerc(5:)
+		
+		case default
+		end select
+		
 	enddo
 
 	np = nl	!Correct local number of particles on processor
@@ -862,6 +925,8 @@ subroutine setup_restart_microstate
 	do n = 1,np
 		call read_tag(n)		!Read tag and assign properties
 	enddo
+		
+	deallocate(monomerc)
 
 end subroutine setup_restart_microstate
 
@@ -1000,14 +1065,20 @@ end subroutine simulation_header
 
 subroutine parallel_io_final_state
 	use module_parallel_io
+	use polymer_info_MD
 	implicit none
 	!include 'mpif.h'
 
 	integer				   					:: n, i
-	integer 			   					:: dp_datasize
+	integer 			   					:: dp_datasize,int_datasize
 	integer(kind=MPI_OFFSET_KIND)      		:: disp, procdisp, filesize
-        integer(kind=selected_int_kind(18))	:: header_pos
+    integer(kind=selected_int_kind(18))     :: header_pos
+	!type(monomer_info)                      :: monomerwrite
+	integer, dimension(:), allocatable      :: monomerwrite
 	double precision, dimension(nd)			:: Xwrite	!Temporary variable used in write
+
+	!allocate(monomerwrite%bondflag(nmonomers))
+	allocate(monomerwrite(4+nmonomers))
 
 	!Rebuild simulation before recording final state
 	call linklist_deallocateall	   !Deallocate all linklist components
@@ -1022,6 +1093,7 @@ subroutine parallel_io_final_state
 
 	!Determine size of datatypes
   	call MPI_type_size(MPI_double_precision,dp_datasize,ierr)
+	call MPI_type_size(MPI_integer,int_datasize,ierr)
 
 	!Adjust r according to actual location for storage according
 	!to processor topology with r = 0 at centre
@@ -1032,10 +1104,18 @@ subroutine parallel_io_final_state
 	!Obtain displacement of each processor using all other procs' np
 	!with 3 position and 3 velocity components for each molecule
 	procdisp = 0
-	do i = 1, irank -1
-		procdisp = procdisp + 2*nd*procnp(i)*dp_datasize
-	enddo
-
+	select case (potential_flag)
+	case(0)
+		do i=1,irank-1
+			procdisp = procdisp + 2*nd*procnp(i)*dp_datasize
+		enddo
+	case(1)
+		do i=1,irank-1
+			procdisp = procdisp + 2*nd*procnp(i)*dp_datasize + (4+nmonomers)*procnp(i)*int_datasize
+		enddo
+	case default
+	end select
+		
 	!Remove previous final state file
 	call MPI_FILE_DELETE(trim(prefix_dir)//'results/final_state', MPI_INFO_NULL, ierr)
 
@@ -1053,14 +1133,36 @@ subroutine parallel_io_final_state
 	call MPI_FILE_SET_VIEW(restartfileid, disp, MPI_double_precision, & 
  		MPI_double_precision, 'native', MPI_INFO_NULL, ierr)
 
-	do n = 1, np
-		Xwrite = r(n,:) !Load into temp in case r dimensions are non contiguous
-		call MPI_FILE_WRITE(restartfileid, Xwrite, nd, MPI_double_precision, & 
-					MPI_STATUS_IGNORE, ierr) 
-		Xwrite = v(n,:) !Load into temp in case v dimensions are non contiguous
-		call MPI_FILE_WRITE(restartfileid, Xwrite, nd, MPI_double_precision, & 
-					MPI_STATUS_IGNORE, ierr) 
-	enddo
+	select case (potential_flag)
+	case(0)
+		do n=1,np
+			Xwrite = r(n,:) !Load into temp in case r dimensions are non contiguous
+			call MPI_FILE_WRITE(restartfileid, Xwrite, nd, MPI_double_precision, & 
+						MPI_STATUS_IGNORE, ierr) 
+			Xwrite = v(n,:) !Load into temp in case v dimensions are non contiguous
+			call MPI_FILE_WRITE(restartfileid, Xwrite, nd, MPI_double_precision, & 
+						MPI_STATUS_IGNORE, ierr) 
+		enddo
+	case(1)
+		do n=1,np
+			Xwrite = r(n,:) !Load into temp in case r dimensions are non contiguous
+			call MPI_FILE_WRITE(restartfileid, Xwrite, nd, MPI_double_precision, & 
+						MPI_STATUS_IGNORE, ierr) 
+			Xwrite = v(n,:) !Load into temp in case v dimensions are non contiguous
+			call MPI_FILE_WRITE(restartfileid, Xwrite, nd, MPI_double_precision, & 
+						MPI_STATUS_IGNORE, ierr) 
+			
+			monomerwrite(1)  = monomer(n)%chainID
+			monomerwrite(2)  = monomer(n)%subchainID
+			monomerwrite(3)  = monomer(n)%funcy
+			monomerwrite(4)  = monomer(n)%glob_no
+			monomerwrite(5:) = monomer(n)%bondflag(:)
+			
+			call MPI_FILE_WRITE(restartfileid, monomerwrite, 4+nmonomers, MPI_integer, &
+			                    MPI_STATUS_IGNORE, ierr)
+		end do
+	case default
+	end select
 
 	!Close file on all processors
 	call MPI_FILE_CLOSE(restartfileid, ierr)
@@ -1068,7 +1170,7 @@ subroutine parallel_io_final_state
 	!This barrier is needed inn order to get the correct file size in the next write
 	call MPI_Barrier(MD_COMM, ierr)	
  
-        !call MPI_FILE_CLOSE(restartfileid, ierr)
+    !call MPI_FILE_CLOSE(restartfileid, ierr)
 
 
 	!----------------Write header------------------------
@@ -1098,8 +1200,8 @@ subroutine parallel_io_final_state
         call MPI_File_write(restartfileid,tplot         ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,seed          ,2,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,periodic      ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
-        call MPI_File_write(restartfileid,nmonomers  ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,potential_flag,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+        call MPI_File_write(restartfileid,nmonomers     ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 
 		!write(2,rec=int_filesize-0) np               	!Number of particles
 		!write(2,rec=int_filesize-1) initialnunits(1) 	!x dimension split into number of cells
@@ -1109,18 +1211,18 @@ subroutine parallel_io_final_state
 		!write(2,rec=int_filesize-5) tplot            	!Frequency at which to record results
 		!write(2,rec=int_filesize-6) seed(1)          	!Random number seed value 1
 		!write(2,rec=int_filesize-7) seed(2)          	!Random number seed value 2
-		!write(2,rec=int_filesize-8) periodic(1)	   	 	!Boundary condition flags
-		!write(2,rec=int_filesize-9) periodic(2)	   		!Boundary condition flags
+		!write(2,rec=int_filesize-8) periodic(1)	   	!Boundary condition flags
+		!write(2,rec=int_filesize-9) periodic(2)	   	!Boundary condition flags
 		!write(2,rec=int_filesize-10) periodic(3)	   	!Boundary condition flags
 		!write(2,rec=int_filesize-11) potential_flag   	!Polymer/LJ potential flag
-		!write(2,rec=int_filesize-12) nmonomers	   	!Polymer chain length
+		!write(2,rec=int_filesize-12) nmonomers         !Polymer chain length
 		!write(2,rec=int_filesize-13) 0				   	!Dummy to make even filesize
 		!close(2,status='keep')	
 
 
 		call MPI_File_write(restartfileid,density,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,rcutoff,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
-        call MPI_File_write(restartfileid,inputtemperature,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+        !call MPI_File_write(restartfileid,inputtemperature,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,delta_t,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,elapsedtime,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,k_c,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
@@ -1150,8 +1252,8 @@ subroutine parallel_io_final_state
         call MPI_File_close(restartfileid, ierr)
 
 	endif
-
-
+	
+!	deallocate(monomerwrite%bondflag)
 
 end subroutine parallel_io_final_state
 
@@ -2085,52 +2187,29 @@ end subroutine macroscopic_properties_record
 subroutine etev_io
 	use module_parallel_io
 	implicit none
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!	
-	integer :: m
-	integer :: length
+
+	integer :: etev_fid
+
 	if (irank .eq. iroot) then
-		m = (iter-etevtcf_iter0)/tplot + 1
-		inquire(iolength=length) etev
-		
-		if (iter.eq.etevtcf_iter0) then
-			open  (15,file=trim(prefix_dir)//'results/etev_xyz',status='replace',form='unformatted',access='direct',recl=length)
-			write (15,rec=m) etev 
-		else if (iter.gt.etevtcf_iter0) then
-			open  (15,file=trim(prefix_dir)//'results/etev_xyz',form='unformatted',access='direct',recl=length)
-			write (15,rec=m) etev
-		end if
-		
-		close(15,status='keep')
-	endif
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-end subroutine etev_io
-
-
-subroutine etevtcf_io
-use module_parallel_io
-implicit none
 	
-	integer :: m
-	integer :: length
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	if (irank .eq. iroot) then
-		m = (iter-etevtcf_iter0)/tplot + 1
-		inquire(iolength=length) etevtcf
-		
 		if (iter.eq.etevtcf_iter0) then
-			open(14,file=trim(prefix_dir)//'results/etevtcf',status='replace',form='unformatted',access='direct',recl=length)
-			write(14,rec=m) etevtcf
+			call MPI_FILE_DELETE(trim(prefix_dir)//'results/etev', MPI_INFO_NULL, ierr)
+			call MPI_FILE_OPEN(MPI_COMM_SELF, trim(prefix_dir)//'results/etev', &
+			                   MPI_MODE_WRONLY + MPI_MODE_CREATE, MPI_INFO_NULL, etev_fid, ierr)
+			call MPI_FILE_WRITE(etev_fid,etev,nchains*nd,MPI_DOUBLE_PRECISION, &
+			                    MPI_STATUS_IGNORE, ierr)
 		else if (iter.gt.etevtcf_iter0) then
-			open(14,file=trim(prefix_dir)//'results/etevtcf',form='unformatted',access='direct',recl=length)
-			write(14,rec=m) etevtcf
+			call MPI_FILE_OPEN(MPI_COMM_SELF, trim(prefix_dir)//'results/etev', &
+			                   MPI_MODE_WRONLY + MPI_MODE_APPEND, MPI_INFO_NULL, etev_fid, ierr)
+			call MPI_FILE_WRITE(etev_fid,etev,nchains*nd,MPI_DOUBLE_PRECISION, &
+			                    MPI_STATUS_IGNORE, ierr)
 		end if
 		
-		close(14,status='keep')
+		call MPI_FILE_CLOSE(etev_fid,ierr)
 
 	endif
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-end subroutine etevtcf_io
 
+end subroutine etev_io
 
 !Write radius of gyration to output file
 subroutine r_gyration_io
