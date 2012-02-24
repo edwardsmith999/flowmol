@@ -4,10 +4,10 @@
 ! Serial emulation of parallel i/o
 
 ! --- INPUT ROUTINES ---
-! setup_command_arguments	Determine restart file (if any) and input file
-! setup_inputs_locate		Read input file
-! setup_restart_inputs		Read restart files and input file
-! setup_restart_microstate	Read Initial configuration from restart file
+! setup_command_arguments		Determine restart file (if any) and input file
+! setup_inputs_locate			Read input file
+! setup_restart_inputs			Read restart files and input file
+! setup_restart_microstate		Read Initial configuration from restart file
 
 ! --- OUTPUT ROUTINES ---
 ! simulation_header				Write all variables in ; seperated variable form "Description; name; variable"
@@ -18,19 +18,19 @@
 ! parallel_io_vmd_halo			Output Halos
 
 ! CV AVERAGING
-! mass_slice_io			Write out mass bins for a single dimension slice through domain
-! mass_bin_io			Write out mass bins in all 3 dimensions of domain
-! velocity_slice_io		Write out velocity bins for a single dimension slice through domain
-! velocity_bin_io		Write out velocity bins in all 3 dimensions of domain
+! mass_slice_io					Write out mass bins for a single dimension slice through domain
+! mass_bin_io					Write out mass bins in all 3 dimensions of domain
+! velocity_slice_io				Write out velocity bins for a single dimension slice through domain
+! velocity_bin_io				Write out velocity bins in all 3 dimensions of domain
 !
 ! FLUX AVERAGING
-! virial_stress_io		Write out virial stress
-! VA_stress_io			Write out Volume Averaged stress throughout domain
-! viscosity_io			Write out viscosity
-! mass_flux_io			Write out flux of mass through bin surfaces
-! momentum_flux_io		Write out flux of momnetum through bin surfaces
-! MOP_stress_io			Write out stress on single plane through domain
-! surface_stress_io		Write out stress on all surfaces of bins in domain
+! virial_stress_io				Write out virial stress
+! VA_stress_io					Write out Volume Averaged stress throughout domain
+! viscosity_io					Write out viscosity
+! mass_flux_io					Write out flux of mass through bin surfaces
+! momentum_flux_io				Write out flux of momnetum through bin surfaces
+! MOP_stress_io					Write out stress on single plane through domain
+! surface_stress_io				Write out stress on all surfaces of bins in domain
 ! 
 !======================================================================
 
@@ -121,7 +121,7 @@ subroutine setup_inputs
 	implicit none
 
 	logical					:: found_in_input
-	integer 				:: i, n 
+	integer 				:: i, n , ios
 	integer,dimension(8)	:: tvalue
 	character(20)			:: readin_format
 
@@ -146,8 +146,12 @@ subroutine setup_inputs
 	read(1,*) integration_algorithm
 	call locate(1,'ENSEMBLE',.true.)
 	read(1,*) ensemble
-	call locate(1,'FORCE_LIST',.true.)	!LJ or FENE potential
+	call locate(1,'FORCE_LIST',.true.)	!AP, Cells, neighbrs..
 	read(1,*) force_list
+	if (force_list .ne. 3 .and. ensemble .eq. 4) &
+		stop "Half int neighbour list only is compatible with pwa_terms_pwaNH thermostat"
+	if (force_list .ne. 3 .and. ensemble .eq. 5) & 
+		stop "Half int neighbour list only is compatible with DPD thermostat"
 	call locate(1,'POTENTIAL_FLAG',.true.)	!LJ or FENE potential
 	read(1,*) potential_flag
 	if (potential_flag.eq.1) then
@@ -344,7 +348,11 @@ subroutine setup_inputs
 	call locate(1,'PRESSURE_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,* ) pressure_outflag
-		if (pressure_outflag .ne. 0)	read(1,* ) Nstress_ave
+		if (pressure_outflag .ne. 0) then
+			read(1,* ) Nstress_ave
+			read(1,*,iostat=ios) 	split_kin_config
+			if (ios .ne. 0) split_kin_config = 0 !default to zero if value not found
+		endif
 	endif
 	call locate(1,'VISCOSITY_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
@@ -422,7 +430,7 @@ subroutine setup_restart_inputs
 	implicit none
 
 	logical					:: found_in_input
-	integer					:: n, k
+	integer					:: n, k, ios
 	integer 				:: extrasteps
 	integer 				:: checkint
 	double precision 		:: checkdp
@@ -708,7 +716,11 @@ subroutine setup_restart_inputs
 	call locate(1,'PRESSURE_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,* ) pressure_outflag
-		if (pressure_outflag .ne. 0)	read(1,* ) Nstress_ave
+		if (pressure_outflag .ne. 0) then
+			read(1,* ) Nstress_ave
+			read(1,*,iostat=ios) 	split_kin_config
+			if (ios .ne. 0) split_kin_config = 0 !default to zero if value not found
+		endif
 	endif
 	call locate(1,'VISCOSITY_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
@@ -1428,8 +1440,84 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 
 end subroutine velocity_bin_io
 
+
 !---------------------------------------------------------------------------------
-! Record velocity in 3D bins throughout domain
+! Record temperature in a slice through the domain
+
+subroutine temperature_slice_io(ixyz)
+use module_parallel_io
+use calculated_properties_MD
+implicit none
+
+	integer		:: ixyz, m, length
+
+	!Write mass
+	call mass_slice_io(ixyz)
+
+	!Write temperature to file
+	m = iter/(tplot*Nvel_ave)
+	inquire(iolength=length) slice_temperature(1:nbins(ixyz))
+	open (unit=6, file=trim(prefix_dir)//'results/vslice',form='unformatted',access='direct',recl=length)
+	write(6,rec=m) slice_temperature(1:nbins(ixyz))
+	close(6,status='keep')
+
+end subroutine temperature_slice_io
+
+!---------------------------------------------------------------------------------
+! Record temperature in 3D bins throughout domain
+
+subroutine temperature_bin_io(CV_mass_out,CV_temperature_out,io_type)
+	use module_parallel_io
+	use calculated_properties_MD
+	implicit none
+
+	integer					:: n,m,i,j,k
+	integer					:: length
+	integer					:: CV_mass_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
+	double precision		:: CV_temperature_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
+	double precision		:: buf(nbins(1),nbins(2),nbins(3))
+	character(4)			:: io_type
+	character(13)			:: filename
+
+	!Write mass bins
+	call mass_bin_io(CV_mass_out,io_type)
+
+	!Work out correct filename for i/o type
+	write(filename, '(a9,a4)' ) 'results/T', io_type
+
+	!---------------Correct for surface fluxes on halo cells---------------
+	!Include halo surface fluxes to get correct values for all cells
+	do n = 1, nhalobins
+		i = halobins(n,1); j = halobins(n,2); k = halobins(n,3)  
+
+		!Change in temperature in halo cells
+		CV_temperature_out(modulo((i-2),nbins(1))+2, & 
+			      	modulo((j-2),nbins(2))+2, & 
+			      	modulo((k-2),nbins(3))+2) = & 
+				CV_temperature_out(modulo((i-2),nbins(1))+2,& 
+						modulo((j-2),nbins(2))+2,&
+						modulo((k-2),nbins(3))+2) & 
+							+ CV_temperature_out(i,j,k)
+	enddo
+
+	if (io_type .eq. 'snap') then
+		!CV_temperature_out = CV_temperature_out / (tplot*Nvflux_ave)
+		m = iter/(Nvflux_ave) + 1 !Initial snapshot taken
+	else
+		!CV_temperature_out = CV_temperature_out / (tplot*Nvel_ave)
+		m = iter/(tplot*Nvel_ave)
+	endif
+	!Write temperature to file
+	buf = CV_temperature_out(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1)
+	inquire(iolength=length) buf
+	open (unit=6, file=filename,form='unformatted',access='direct',recl=length)
+	write(6,rec=m) buf
+	close(6,status='keep')
+
+end subroutine temperature_bin_io
+
+!---------------------------------------------------------------------------------
+! Record energy in 3D bins throughout domain
 
 subroutine energy_bin_io(CV_energy_out,io_type)
 	use module_parallel_io
@@ -1503,11 +1591,20 @@ subroutine VA_stress_io
 	use calculated_properties_MD
 	implicit none
 
-	integer			:: ixyz, jxyz, m, length
+	integer				:: ixyz, jxyz, m, length
 	double precision	:: binvolume
+	double precision	:: buf(nbins(1),nbins(2),nbins(3),3,3)
+
+	!Add kinetic and configurational to Pxybin total
+	Pxybin(:,:,:,:,:) = 	vvbin(:,:,:,:,:) 		& 
+					      + rfbin(  2:nbins(1)+1, 	& 
+						      		2:nbins(2)+1, 	& 
+						      		2:nbins(3)+1,:,:)/2.d0
 
 	!Average over samples
-	Pxybin = Pxybin / Nstress_ave 
+	Pxybin = Pxybin / Nstress_ave
+	vvbin  = vvbin  / Nstress_ave 
+	rfbin  = rfbin  / Nstress_ave 
 
 	!Calculate Virial from sum of Volume Averaged Stresses
 	do ixyz = 1,3
@@ -1523,13 +1620,33 @@ subroutine VA_stress_io
 	!VA pressure per bin
 	binvolume = (domain(1)/nbins(1))*(domain(2)/nbins(2))*(domain(3)/nbins(3))
 	Pxybin = Pxybin / binvolume
+	vvbin  = vvbin  / binvolume
+	rfbin  = rfbin  / (2.d0*binvolume)
 
 	!Write VA pressure to file
 	m = iter/(tplot*Nstress_ave)
-	inquire(iolength=length) Pxybin
-	open (unit=7, file=trim(prefix_dir)//'results/pVA',form='unformatted',access='direct',recl=length)
-	write(7,rec=m) Pxybin
-	close(7,status='keep')
+	select case (split_kin_config)
+	case(0)
+		!Write sum of kinetic and configurational
+		inquire(iolength=length) Pxybin
+		open (unit=7, file=trim(prefix_dir)//'results/pVA',form='unformatted',access='direct',recl=length)
+		write(7,rec=m) Pxybin
+		close(7,status='keep')
+	case(1)
+		!Kinetic
+		inquire(iolength=length) vvbin
+		open (unit=7, file=trim(prefix_dir)//'results/pVA_k',form='unformatted',access='direct',recl=length)
+		write(7,rec=m) vvbin
+		close(7,status='keep')
+		!Configurational
+		buf = rfbin(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:,:)
+		inquire(iolength=length) buf
+		open (unit=7, file=trim(prefix_dir)//'results/pVA_c',form='unformatted',access='direct',recl=length)
+		write(7,rec=m) 	buf
+		close(7,status='keep')
+	case default
+		stop 'Error in VA/virial extra flag to split_kinetic_& configuartional parts'
+	end select
 
 end subroutine VA_stress_io
 
@@ -1565,8 +1682,7 @@ end subroutine viscosity_io
 
 !=================================================================================
 ! Record Fluxes accross surfaces of Control Volumes
-
-
+!=================================================================================
 !---------------------------------------------------------------------------------
 ! Record mass fluxes accross surfaces of Control Volumes
 
@@ -1617,12 +1733,12 @@ subroutine momentum_flux_io
 		i = halobins(n,1); j = halobins(n,2); k = halobins(n,3)  
 		!Flux over halo cells
 		momentum_flux(	modulo((i-2),nbins(1))+2, & 
-			      	modulo((j-2),nbins(2))+2, & 
-			      	modulo((k-2),nbins(3))+2,:,:) = & 
+			      		modulo((j-2),nbins(2))+2, & 
+			      		modulo((k-2),nbins(3))+2,:,:) = & 
 				momentum_flux(	modulo((i-2),nbins(1))+2,& 
-						modulo((j-2),nbins(2))+2,&
-						modulo((k-2),nbins(3))+2,:,:) & 
-							+ momentum_flux(i,j,k,:,:)
+								modulo((j-2),nbins(2))+2,&
+								modulo((k-2),nbins(3))+2,:,:) & 
+									+ momentum_flux(i,j,k,:,:)
 	enddo
 
 	do ixyz = 1,3
@@ -1669,7 +1785,6 @@ subroutine MOP_stress_io(ixyz)
 	close(9,status='keep')
 
 end subroutine MOP_stress_io
-
 
 !---------------------------------------------------------------------------------
 ! Record stress accross surfaces of Control Volumes
@@ -1718,7 +1833,30 @@ subroutine surface_stress_io
 
 end subroutine surface_stress_io
 
+!---------------------------------------------------------------------------------
+! Record  energy accross plane
 
+subroutine MOP_energy_io(ixyz)
+	use module_parallel_io
+	use calculated_properties_MD
+	implicit none
+
+	integer		:: ixyz, m, length
+
+	!Divide by number of samples taken
+	Pxyv_plane = Pxyv_plane/(Nstress_ave)
+
+	!Divide by area of domain and factor of 4 for interactions
+	Pxyv_plane = Pxyv_plane/(4*domain(1)*domain(3))
+
+	!Write plane pressures to file
+	m = iter/(tplot*Nvflux_ave)
+	inquire(iolength=length) Pxy_plane
+	open (unit=10, file=trim(prefix_dir)//'results/eplane',form='unformatted',access='direct',recl=length)
+	write(10,rec=m) Pxy_plane
+	close(10,status='keep')
+
+end subroutine MOP_energy_io
 
 !---------------------------------------------------------------------------------
 ! Record energy fluxes accross surfaces of Control Volumes
@@ -1753,7 +1891,7 @@ subroutine energy_flux_io
 	enddo
 
 	energy_flux = energy_flux/(delta_t*Neflux_ave)
-	!Write momnetum flux to file
+	!Write energy flux to file
 	m = iter/(Neflux_ave)
 	buf = energy_flux(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
 	inquire(iolength=length) buf 
@@ -1762,32 +1900,6 @@ subroutine energy_flux_io
 	close(10,status='keep')
 
 end subroutine energy_flux_io
-
-!---------------------------------------------------------------------------------
-! Record  energy accross plane
-
-subroutine MOP_energy_io(ixyz)
-	use module_parallel_io
-	use calculated_properties_MD
-	implicit none
-
-	integer		:: ixyz, m, length
-
-	!Divide by number of samples taken
-	Pxyv_plane = Pxyv_plane/(Nstress_ave)
-
-	!Divide by area of domain and factor of 4 for interactions
-	Pxyv_plane = Pxyv_plane/(4*domain(1)*domain(3))
-
-	!Write plane pressures to file
-	m = iter/(tplot*Nvflux_ave)
-	inquire(iolength=length) Pxy_plane
-	open (unit=10, file=trim(prefix_dir)//'results/eplane',form='unformatted',access='direct',recl=length)
-	write(10,rec=m) Pxy_plane
-	close(10,status='keep')
-
-end subroutine MOP_energy_io
-
 
 !---------------------------------------------------------------------------------
 ! Record stress times velocity (power) accross surfaces of Control Volumes
@@ -1826,7 +1938,7 @@ subroutine surface_power_io
 	!Integration of stress using trapizium rule requires multiplication by timestep
 	Pxyvface = Pxyvface/Neflux_ave
 
-	!Write surface pressures to file
+	!Write surface pressures * velocity to file
 	m = iter/(Neflux_ave)
 	buf = Pxyvface(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
 	inquire(iolength=length) buf
@@ -1863,7 +1975,6 @@ subroutine macroscopic_properties_header
 		initialstep,';',vsum,';', v2sum,';', temperature,';', &
 		kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure
 	end if
-	
 
 end subroutine macroscopic_properties_header
 
@@ -1876,6 +1987,9 @@ subroutine macroscopic_properties_record
 		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.4)') &
 		iter,';',vsum,';', v2sum,';', temperature,';', &
 		kinenergy,';',potenergy,';',totenergy,';',pressure
+		!write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4,a,f10.4)'), &
+		!iter,';',vsum,';', v2sum,';', temperature,';', &
+		!totenergy,';',((density/(globalnp*nd))*virial/2)**2,';',pressure**2,';',(density/(globalnp*nd))*virial/2,';',pressure
 	else if (potential_flag.eq.1) then
 		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4)') &
 		iter,';',vsum,';', v2sum,';', temperature,';', &

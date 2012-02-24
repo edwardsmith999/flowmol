@@ -25,7 +25,6 @@ implicit none
 end subroutine simulation_move_particles
 
 !======================================================================================
-!======================================================================================
 !--------------------------------------------------------------------------------------
 ! Default move particles routine
 subroutine simulation_move_particles_default
@@ -208,7 +207,7 @@ use module_move_particles
 use calculated_properties_MD
 implicit none
 
-	integer			:: n, ixyz
+	integer				:: n, ixyz
 	double precision	:: vel, slice_momentum2, vf
 	double precision	:: eta, relaxfactor
 	

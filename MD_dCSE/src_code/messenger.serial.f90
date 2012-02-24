@@ -46,7 +46,8 @@ module messenger
 	use polymer_info_MD	
 	use shear_info_MD
 
-    integer :: MD_COMM                     	! global communicator
+
+	integer :: MD_COMM                     	! global communicator
 	integer :: myid                         ! my process rank
 	integer :: idroot                       ! rank of root process
 
@@ -139,6 +140,12 @@ implicit none
 
 end subroutine messenger_updateborders
 
+!-------------------------------------------------------------------------------------------
+! messenger_updateborders
+! Calls the update of the 3 cubic faces, then the edges and finally the corners
+! Serial version of parallel halo code
+!-------------------------------------------------------------------------------------------
+
 subroutine messenger_updateborders_quiescent(rebuild)
 	use messenger
 	implicit none
@@ -184,7 +191,7 @@ subroutine messenger_updateborders_quiescent(rebuild)
 
 	return
 
-end
+end subroutine messenger_updateborders_quiescent
 
 !-------------------------------------------------------------------------------------------
 ! subroutine: messenger_updateborders_leesedwards
@@ -230,6 +237,390 @@ end subroutine messenger_updateborders_leesedwards
 !===========================================================================================
 !			Periodic Boundaries
 !===========================================================================================
+!Face and corner update routines
+
+subroutine updatefacedown(ixyz)
+        use interfaces
+	use messenger
+	use arrays_MD
+	implicit none
+
+	integer			:: icell, jcell, kcell, ixyz, n, m
+	integer			:: cellnp, molno, startnp
+	type(node), pointer  	:: old, current
+
+	startnp = halo_np
+	m = halo_np + 1 !Set added molecule counter to one more than last added
+
+	select case (ixyz)
+	case (1)
+		icell = 2
+		do jcell =2,ncells(2)+1
+		do kcell =2,ncells(3)+1
+			cellnp = cell%cellnp(icell,jcell,kcell)
+			old => cell%head(icell,jcell,kcell)%point     !Set old to top of link list
+			do n=1,cellnp
+				molno = old%molno		    !Obtain molecule number
+				r(np+m,:) = r(molno,:) 		    !Copy molecule
+				v(np+m,:) = v(molno,:)                          !copy velocity
+				theta(np+m,:)= theta(molno,:)           !copy random number array
+				r(np+m,1) = r(np+m,1) + domain(1)   !Move to other side of domain
+
+				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
+
+				current => old			    !Use current to move to next
+				old => current%next 		    !Use pointer to obtain next item in list
+				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
+				m = m + 1			    !Update counter of new molecules
+			enddo
+		enddo
+		enddo
+	case (2)
+		jcell = 2
+		do icell =2,ncells(1)+1
+		do kcell =2,ncells(3)+1
+			cellnp = cell%cellnp(icell,jcell,kcell)
+			old => cell%head(icell,jcell,kcell)%point 	    !Set old to top of link list
+			do n=1,cellnp
+				molno = old%molno		    		!Obtain molecule number
+				r(np+m,:) = r(molno,:) 		    	!Copy molecule
+				v(np+m,:) = v(molno,:)				!copy velocity
+				theta(np+m,:)= theta(molno,:)           !copy random number array
+				r(np+m,2) = r(np+m,2) + domain(2)   !Move to other side of domain
+
+				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
+
+				current => old			    !Use current to move to next
+				old => current%next 		    !Use pointer to obtain next item in list
+				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
+				m = m + 1			    !Update counter of new molecules
+			enddo
+		enddo
+		enddo
+	case (3)
+		kcell = 2
+		do icell =2,ncells(1)+1
+		do jcell =2,ncells(2)+1
+			cellnp = cell%cellnp(icell,jcell,kcell)
+			old => cell%head(icell,jcell,kcell)%point !Set old to top of link list
+			do n=1,cellnp
+				molno = old%molno		    !Obtain molecule number
+				r(np+m,:) = r(molno,:) 		    !Copy molecule
+				v(np+m,:) = v(molno,:)                          !copy velocity
+				theta(np+m,:)= theta(molno,:)           !copy random number array
+				r(np+m,3) = r(np+m,3) + domain(3)   !Move to other side of domain
+
+				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
+
+				current => old			    !Use current to move to next
+				old => current%next 		    !Use pointer to obtain next item in list
+				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
+				m = m + 1			    !Update counter of new molecules
+			enddo
+		enddo
+		enddo
+	case default
+		call error_abort("updateBorder: invalid value for ixyz")
+	end select
+	
+	!Update global number of particles
+	halo_np = halo_np + m-1 - startnp
+
+	nullify(current)        !Nullify current as no longer required
+	nullify(old)            !Nullify old as no longer required
+
+	return
+
+end subroutine updatefacedown
+
+!------------------------------------------------------------------------------
+
+subroutine updatefaceup(ixyz)
+        use interfaces
+	use messenger
+	use arrays_MD
+	implicit none
+
+	integer			:: icell, jcell, kcell, ixyz, n, m 
+	integer			:: cellnp, molno, startnp
+	type(node), pointer 	:: old, current
+
+	startnp = halo_np
+	m = halo_np + 1 !Set added molecule counter to one more than last added
+
+	select case (ixyz)
+	case (1)
+		icell = ncells(1)+1
+		do jcell =2,ncells(2)+1
+		do kcell =2,ncells(3)+1
+			cellnp = cell%cellnp(icell,jcell,kcell)
+			old => cell%head(icell,jcell,kcell)%point !Set old to top of link list
+			do n=1,cellnp
+				molno = old%molno		    		!Obtain molecule number
+				r(np+m,:) = r(molno,:) 		    	!Copy molecule
+				v(np+m,:) = v(molno,:)              !copy velocity
+				theta(np+m,:)= theta(molno,:)           !copy random number array
+				r(np+m,1) = r(np+m,1) - domain(1)   !Move to other side of domain
+
+				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
+
+				current => old			    !Use current to move to next
+				old => current%next 		    !Use pointer to obtain next item in list
+				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
+				m = m + 1			    !Update counter of new molecules
+			enddo
+		enddo
+		enddo
+	case (2)
+		jcell = ncells(2)+1
+		do icell =2,ncells(1)+1
+		do kcell =2,ncells(3)+1
+			cellnp = cell%cellnp(icell,jcell,kcell)
+			old => cell%head(icell,jcell,kcell)%point !Set old to top of link list
+			do n=1,cellnp
+				molno = old%molno		    		!Obtain molecule number
+				r(np+m,:) = r(molno,:)				!Copy molecule
+				v(np+m,:) = v(molno,:)				!copy velocity
+				theta(np+m,:)= theta(molno,:)           !copy random number array
+				r(np+m,2) = r(np+m,2) - domain(2)   !Move to other side of domain
+
+				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
+
+				current => old			    !Use current to move to next
+				old => current%next 		    !Use pointer to obtain next item in list
+				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
+				m = m + 1			    !Update counter of new molecules
+			enddo
+		enddo
+		enddo
+	case (3)
+		kcell = ncells(3)+1
+		do icell =2,ncells(1)+1
+		do jcell =2,ncells(2)+1
+			cellnp = cell%cellnp(icell,jcell,kcell)
+			old => cell%head(icell,jcell,kcell)%point !Set old to top of link list
+			do n=1,cellnp
+				molno = old%molno		    		!Obtain molecule number
+				r(np+m,:) = r(molno,:)				!Copy molecule
+				v(np+m,:) = v(molno,:)				!copy velocity
+				theta(np+m,:)= theta(molno,:)           !copy random number array
+				r(np+m,3) = r(np+m,3) - domain(3)   !Move to other side of domain
+
+				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
+
+				current => old			    !Use current to move to next
+				old => current%next 		    !Use pointer to obtain next item in list
+				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
+				m = m + 1			    !Update counter of new molecules
+			enddo
+		enddo
+		enddo
+	case default
+		call error_abort("updateBorder: invalid value for ixyz")
+	end select
+
+	!Update global number of particles
+	halo_np = halo_np + m-1 - startnp
+
+	nullify(current)        !Nullify current as no longer required
+	nullify(old)            !Nullify old as no longer required
+
+	return
+
+end subroutine updatefaceup
+
+
+!Halo Edge Cells
+
+subroutine updateedge(face1, face2)
+        use interfaces
+	use messenger
+	use arrays_MD
+	implicit none
+
+	integer			:: icell, jcell, kcell, ixyz, face1, face2, i, n, m
+	integer			:: cellnp, molno, startnp
+	integer, dimension(3,4) :: edge1, edge2
+	type(node), pointer  	:: old, current
+
+	!Set up all 12 edges
+	edge1(1,:) = (/2, 2, ncells(2)+1, ncells(2)+1/)
+	edge2(1,:) = (/2, ncells(3)+1, 2, ncells(3)+1/)
+	edge1(2,:) = (/2, 2, ncells(1)+1, ncells(1)+1/)
+	edge2(2,:) = (/2, ncells(3)+1, 2, ncells(3)+1/)
+	edge1(3,:) = (/2, 2, ncells(1)+1, ncells(1)+1/)
+	edge2(3,:) = (/2, ncells(2)+1, 2, ncells(2)+1/)
+
+	startnp = halo_np
+	m = halo_np + 1 !Set added molecule counter to one more than last added
+	ixyz = 6 - face1 - face2 !Determine coordinate along edge
+
+	select case (ixyz)
+        case (1)
+		do i = 1,4 !Counter for each edge along the x-axis 
+		do icell = 2, ncells(1)+1 !Move along x-axis
+			cellnp = cell%cellnp(icell,edge1(1,i),edge2(1,i))
+			old => cell%head(icell,edge1(1,i),edge2(1,i))%point !Set old to top of link list
+			do n=1,cellnp
+				molno = old%molno		    !Obtain molecule number
+				r(np+m,:) = r(molno,:)		!Copy molecule
+				v(np+m,:) = v(molno,:)		!copy velocity
+				theta(np+m,:)= theta(molno,:)	!copy random number array
+				r(np+m,2) = r(np+m,2) &  	!Move to other side of domain
+				+ sign(1,ncells(2)-edge1(1,i))*domain(2)
+				r(np+m,3) = r(np+m,3) &  	!Move to other side of domain
+				+ sign(1,ncells(3)-edge2(1,i))*domain(3)
+
+				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
+
+				current => old			    !Use current to move to next
+				old => current%next 		    !Use pointer to obtain next item in list
+				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
+				m = m + 1                !Update counter of new molecules
+			enddo
+		enddo
+		enddo
+        case (2)
+		do i = 1,4 !Counter for each edge along the x-axis 
+		do jcell = 2, ncells(2)+1 !Move along x-axis
+			cellnp = cell%cellnp(edge1(2,i),jcell,edge2(2,i))
+			old => cell%head(edge1(2,i),jcell,edge2(2,i))%point !Set old to top of link list
+			do n=1,cellnp
+				molno = old%molno		    !Obtain molecule number
+				r(np+m,:) = r(molno,:)		!Copy molecule
+				v(np+m,:) = v(molno,:)		!copy velocity
+				theta(np+m,:)= theta(molno,:)	!copy random number array
+				r(np+m,1) = r(np+m,1) &  	!Move to other side of domain
+				+ sign(1,ncells(1)-edge1(2,i))*domain(1)
+				r(np+m,3) = r(np+m,3) &  	!Move to other side of domain
+				+ sign(1,ncells(3)-edge2(2,i))*domain(3)
+
+				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
+
+				current => old			    	!Use current to move to next
+				old => current%next 		    !Use pointer to obtain next item in list
+				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
+				m = m + 1                		!Update counter of new molecules
+			enddo
+		enddo
+		enddo
+
+        case (3)
+		do i = 1,4 !Counter for each edge along the x-axis 
+		do kcell = 2, ncells(3)+1 !Move along x-axis
+			cellnp = cell%cellnp(edge1(3,i),edge2(3,i),kcell)
+			old => cell%head(edge1(3,i),edge2(3,i),kcell)%point !Set old to top of link list
+			do n=1,cellnp
+				molno = old%molno		    !Obtain molecule number
+				r(np+m,:) = r(molno,:)		!Copy molecule
+				v(np+m,:) = v(molno,:)		!copy velocity
+				theta(np+m,:)= theta(molno,:)	!copy random number array
+				r(np+m,1) = r(np+m,1) &  	!Move to other side of domain
+				+ sign(1,ncells(1)-edge1(3,i))*domain(1)
+				r(np+m,2) = r(np+m,2) &  	!Move to other side of domain
+				+ sign(1,ncells(2)-edge2(3,i))*domain(2)
+
+				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
+
+				current => old			    !Use current to move to next
+				old => current%next			!Use pointer to obtain next item in list
+				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
+				m = m + 1                	!Update counter of new molecules
+			enddo
+		enddo
+		enddo
+	case default
+		call error_abort("updateBorder: invalid value for ixyz")
+	end select
+
+	!Update global number of particles
+	halo_np = halo_np + m-1 - startnp
+
+	nullify(current)        !Nullify current as no longer required
+	nullify(old)            !Nullify old as no longer required
+
+	return
+
+end subroutine updateedge
+
+
+!Halo Corner Cells
+
+subroutine updatecorners()
+	use messenger
+	use arrays_MD
+	implicit none
+
+	integer			:: i, n, m
+	integer			:: cellnp, molno, startnp
+	integer, dimension(8)   :: icornercell, jcornercell, kcornercell
+	type(node), pointer  	:: old, current
+
+	!Set up all 8 corners
+ 	icornercell = (/ 2, 2, 2, 2, ncells(1)+1, ncells(1)+1, ncells(1)+1, ncells(1)+1/)
+ 	jcornercell = (/ 2, 2, ncells(2)+1, ncells(2)+1, 2, 2, ncells(2)+1, ncells(2)+1/) 
+ 	kcornercell = (/ 2, ncells(3)+1, 2, ncells(3)+1, 2, ncells(3)+1, 2, ncells(3)+1/)
+
+	startnp = halo_np
+	m = halo_np + 1 !Set added molecule counter to one more than last added
+
+	do i=1,8 !Counter for each corner cell
+		cellnp = cell%cellnp(icornercell(i),jcornercell(i),kcornercell(i))
+		old => cell%head(icornercell(i),jcornercell(i),kcornercell(i))%point !Set old to top of link list
+		do n=1,cellnp
+			molno = old%molno	 		!Obtain molecule number
+			r(np+m,:) = r(molno,:) 	 	!Copy molecule
+			v(np+m,:) = v(molno,:)   	!copy velocity
+			theta(np+m,:)= theta(molno,:)	!copy random number array
+			r(np+m,1) = r(np+m,1) &  	!Move to other side of domain
+			+ sign(1,ncells(1)-icornercell(i))*domain(1)
+			r(np+m,2) = r(np+m,2) &  	!Move to other side of domain
+			+ sign(1,ncells(2)-jcornercell(i))*domain(2)
+			r(np+m,3) = r(np+m,3) &  	!Move to other side of domain
+			+ sign(1,ncells(3)-kcornercell(i))*domain(3)
+
+			if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
+
+			current => old			    !Use current to move to next
+			old => current%next			!Use pointer to obtain next item in list
+			!print*, r(np+m,1), r(np+m,2), r(np+m,3)
+			m = m + 1                	!Update counter of new molecules
+		enddo
+	enddo
+
+	!Update global number of particles
+	halo_np = halo_np + m-1 - startnp
+	!print*, 'halonp =', halo_np
+
+	nullify(current)        !Nullify current as no longer required
+	nullify(old)            !Nullify old as no longer required
+
+	return
+
+end subroutine updatecorners
+
+!Check if array allocation is big enough for halo molecules
+
+subroutine allocatecheck()
+	use messenger
+	use arrays_MD
+	implicit none
+
+	double precision, dimension(:,:), allocatable :: tempr
+
+	!Check allocated space is less than half filled at half way
+	if (nint((size(r,1)-np)/2.) < halo_np) then
+		print*, 'Increasing halo array allocation space'
+		allocate(tempr(size(r,1),nd))
+		tempr = r
+		deallocate(r)
+		allocate(r((np+halo_np+ceiling(np*0.001)+20),nd)) !Increase in size
+		r = tempr
+		deallocate(tempr)
+	endif
+
+end subroutine allocatecheck
+
 
 !-------------------------------------------------------------------------------------------
 ! subroutine: update_plane
@@ -373,379 +764,6 @@ implicit none
 	return
 
 end subroutine update_plane
-
-subroutine updatefacedown(ixyz)
-        use interfaces
-	use messenger
-	use arrays_MD
-	implicit none
-
-	integer			:: icell, jcell, kcell, ixyz, n, m
-	integer			:: cellnp, molno, startnp
-	type(node), pointer  	:: old, current
-
-	startnp = halo_np
-	m = halo_np + 1 !Set added molecule counter to one more than last added
-
-	select case (ixyz)
-	case (1)
-		icell = 2
-		do jcell =2,ncells(2)+1
-		do kcell =2,ncells(3)+1
-			cellnp = cell%cellnp(icell,jcell,kcell)
-			old => cell%head(icell,jcell,kcell)%point     !Set old to top of link list
-			do n=1,cellnp
-				molno = old%molno		    !Obtain molecule number
-				r(np+m,:) = r(molno,:) 		    !Copy molecule
-				v(np+m,:) = v(molno,:)                          !copy velocity
-				r(np+m,1) = r(np+m,1) + domain(1)   !Move to other side of domain
-
-				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
-
-				current => old			    !Use current to move to next
-				old => current%next 		    !Use pointer to obtain next item in list
-				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
-				m = m + 1			    !Update counter of new molecules
-			enddo
-		enddo
-		enddo
-	case (2)
-		jcell = 2
-		do icell =2,ncells(1)+1
-		do kcell =2,ncells(3)+1
-			cellnp = cell%cellnp(icell,jcell,kcell)
-			old => cell%head(icell,jcell,kcell)%point 	    !Set old to top of link list
-			do n=1,cellnp
-				molno = old%molno		    !Obtain molecule number
-				r(np+m,:) = r(molno,:) 		    !Copy molecule
-				v(np+m,:) = v(molno,:)                          !copy velocity
-				r(np+m,2) = r(np+m,2) + domain(2)   !Move to other side of domain
-
-				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
-
-				current => old			    !Use current to move to next
-				old => current%next 		    !Use pointer to obtain next item in list
-				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
-				m = m + 1			    !Update counter of new molecules
-			enddo
-		enddo
-		enddo
-	case (3)
-		kcell = 2
-		do icell =2,ncells(1)+1
-		do jcell =2,ncells(2)+1
-			cellnp = cell%cellnp(icell,jcell,kcell)
-			old => cell%head(icell,jcell,kcell)%point !Set old to top of link list
-			do n=1,cellnp
-				molno = old%molno		    !Obtain molecule number
-				r(np+m,:) = r(molno,:) 		    !Copy molecule
-				v(np+m,:) = v(molno,:)                          !copy velocity
-				r(np+m,3) = r(np+m,3) + domain(3)   !Move to other side of domain
-
-				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
-
-				current => old			    !Use current to move to next
-				old => current%next 		    !Use pointer to obtain next item in list
-				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
-				m = m + 1			    !Update counter of new molecules
-			enddo
-		enddo
-		enddo
-	case default
-		call error_abort("updateBorder: invalid value for ixyz")
-	end select
-	
-	!Update global number of particles
-	halo_np = halo_np + m-1 - startnp
-
-	nullify(current)        !Nullify current as no longer required
-	nullify(old)            !Nullify old as no longer required
-
-	return
-
-end
-
-!------------------------------------------------------------------------------
-
-subroutine updatefaceup(ixyz)
-        use interfaces
-	use messenger
-	use arrays_MD
-	implicit none
-
-	integer			:: icell, jcell, kcell, ixyz, n, m 
-	integer			:: cellnp, molno, startnp
-	type(node), pointer 	:: old, current
-
-	startnp = halo_np
-	m = halo_np + 1 !Set added molecule counter to one more than last added
-
-	select case (ixyz)
-	case (1)
-		icell = ncells(1)+1
-		do jcell =2,ncells(2)+1
-		do kcell =2,ncells(3)+1
-			cellnp = cell%cellnp(icell,jcell,kcell)
-			old => cell%head(icell,jcell,kcell)%point !Set old to top of link list
-			do n=1,cellnp
-				molno = old%molno		    !Obtain molecule number
-				r(np+m,:) = r(molno,:) 		    !Copy molecule
-				v(np+m,:) = v(molno,:)                          !copy velocity
-				r(np+m,1) = r(np+m,1) - domain(1)   !Move to other side of domain
-
-				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
-
-				current => old			    !Use current to move to next
-				old => current%next 		    !Use pointer to obtain next item in list
-				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
-				m = m + 1			    !Update counter of new molecules
-			enddo
-		enddo
-		enddo
-	case (2)
-		jcell = ncells(2)+1
-		do icell =2,ncells(1)+1
-		do kcell =2,ncells(3)+1
-			cellnp = cell%cellnp(icell,jcell,kcell)
-			old => cell%head(icell,jcell,kcell)%point !Set old to top of link list
-			do n=1,cellnp
-				molno = old%molno		    !Obtain molecule number
-				r(np+m,:) = r(molno,:) 		    !Copy molecule
-				v(np+m,:) = v(molno,:)                          !copy velocity
-				r(np+m,2) = r(np+m,2) - domain(2)   !Move to other side of domain
-
-				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
-
-				current => old			    !Use current to move to next
-				old => current%next 		    !Use pointer to obtain next item in list
-				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
-				m = m + 1			    !Update counter of new molecules
-			enddo
-		enddo
-		enddo
-	case (3)
-		kcell = ncells(3)+1
-		do icell =2,ncells(1)+1
-		do jcell =2,ncells(2)+1
-			cellnp = cell%cellnp(icell,jcell,kcell)
-			old => cell%head(icell,jcell,kcell)%point !Set old to top of link list
-			do n=1,cellnp
-				molno = old%molno		    !Obtain molecule number
-				r(np+m,:) = r(molno,:) 		    !Copy molecule
-				v(np+m,:) = v(molno,:)                          !copy velocity
-				r(np+m,3) = r(np+m,3) - domain(3)   !Move to other side of domain
-
-				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
-
-				current => old			    !Use current to move to next
-				old => current%next 		    !Use pointer to obtain next item in list
-				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
-				m = m + 1			    !Update counter of new molecules
-			enddo
-		enddo
-		enddo
-	case default
-		call error_abort("updateBorder: invalid value for ixyz")
-	end select
-
-	!Update global number of particles
-	halo_np = halo_np + m-1 - startnp
-
-	nullify(current)        !Nullify current as no longer required
-	nullify(old)            !Nullify old as no longer required
-
-	return
-
-end
-
-
-!Halo Edge Cells
-
-subroutine updateedge(face1, face2)
-        use interfaces
-	use messenger
-	use arrays_MD
-	implicit none
-
-	integer			:: icell, jcell, kcell, ixyz, face1, face2, i, n, m
-	integer			:: cellnp, molno, startnp
-	integer, dimension(3,4) :: edge1, edge2
-	type(node), pointer  	:: old, current
-
-	!Set up all 12 edges
-	edge1(1,:) = (/2, 2, ncells(2)+1, ncells(2)+1/)
-	edge2(1,:) = (/2, ncells(3)+1, 2, ncells(3)+1/)
-	edge1(2,:) = (/2, 2, ncells(1)+1, ncells(1)+1/)
-	edge2(2,:) = (/2, ncells(3)+1, 2, ncells(3)+1/)
-	edge1(3,:) = (/2, 2, ncells(1)+1, ncells(1)+1/)
-	edge2(3,:) = (/2, ncells(2)+1, 2, ncells(2)+1/)
-
-	startnp = halo_np
-	m = halo_np + 1 !Set added molecule counter to one more than last added
-	ixyz = 6 - face1 - face2 !Determine coordinate along edge
-
-	select case (ixyz)
-        case (1)
-		do i = 1,4 !Counter for each edge along the x-axis 
-		do icell = 2, ncells(1)+1 !Move along x-axis
-			cellnp = cell%cellnp(icell,edge1(1,i),edge2(1,i))
-			old => cell%head(icell,edge1(1,i),edge2(1,i))%point !Set old to top of link list
-			do n=1,cellnp
-				molno = old%molno		    !Obtain molecule number
-				r(np+m,:) = r(molno,:) 	 	    !Copy molecule
-				v(np+m,:) = v(molno,:)                          !copy velocity
-				r(np+m,2) = r(np+m,2) &  !Move to other side of domain
-				+ sign(1,ncells(2)-edge1(1,i))*domain(2)
-				r(np+m,3) = r(np+m,3) &  !Move to other side of domain
-				+ sign(1,ncells(3)-edge2(1,i))*domain(3)
-
-				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
-
-				current => old			    !Use current to move to next
-				old => current%next 		    !Use pointer to obtain next item in list
-				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
-				m = m + 1                !Update counter of new molecules
-			enddo
-		enddo
-		enddo
-        case (2)
-		do i = 1,4 !Counter for each edge along the x-axis 
-		do jcell = 2, ncells(2)+1 !Move along x-axis
-			cellnp = cell%cellnp(edge1(2,i),jcell,edge2(2,i))
-			old => cell%head(edge1(2,i),jcell,edge2(2,i))%point !Set old to top of link list
-			do n=1,cellnp
-				molno = old%molno		    !Obtain molecule number
-				r(np+m,:) = r(molno,:) 	 	    !Copy molecule
-				v(np+m,:) = v(molno,:)                          !copy velocity
-				r(np+m,1) = r(np+m,1) &  !Move to other side of domain
-				+ sign(1,ncells(1)-edge1(2,i))*domain(1)
-				r(np+m,3) = r(np+m,3) &  !Move to other side of domain
-				+ sign(1,ncells(3)-edge2(2,i))*domain(3)
-
-				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
-
-				current => old			    !Use current to move to next
-				old => current%next 		    !Use pointer to obtain next item in list
-				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
-				m = m + 1                !Update counter of new molecules
-			enddo
-		enddo
-		enddo
-
-        case (3)
-		do i = 1,4 !Counter for each edge along the x-axis 
-		do kcell = 2, ncells(3)+1 !Move along x-axis
-			cellnp = cell%cellnp(edge1(3,i),edge2(3,i),kcell)
-			old => cell%head(edge1(3,i),edge2(3,i),kcell)%point !Set old to top of link list
-			do n=1,cellnp
-				molno = old%molno		    !Obtain molecule number
-				r(np+m,:) = r(molno,:) 	 	    !Copy molecule
-				v(np+m,:) = v(molno,:)                          !copy velocity
-				r(np+m,1) = r(np+m,1) &  !Move to other side of domain
-				+ sign(1,ncells(1)-edge1(3,i))*domain(1)
-				r(np+m,2) = r(np+m,2) &  !Move to other side of domain
-				+ sign(1,ncells(2)-edge2(3,i))*domain(2)
-
-				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
-
-				current => old			    !Use current to move to next
-				old => current%next 		    !Use pointer to obtain next item in list
-				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
-				m = m + 1                !Update counter of new molecules
-			enddo
-		enddo
-		enddo
-	case default
-		call error_abort("updateBorder: invalid value for ixyz")
-	end select
-
-	!Update global number of particles
-	halo_np = halo_np + m-1 - startnp
-
-	nullify(current)        !Nullify current as no longer required
-	nullify(old)            !Nullify old as no longer required
-
-	return
-
-end
-
-
-!Halo Corner Cells
-
-subroutine updatecorners()
-	use messenger
-	use arrays_MD
-	implicit none
-
-	integer			:: i, n, m
-	integer			:: cellnp, molno, startnp
-	integer, dimension(8)   :: icornercell, jcornercell, kcornercell
-	type(node), pointer  	:: old, current
-
-	!Set up all 8 corners
- 	icornercell = (/ 2, 2, 2, 2, ncells(1)+1, ncells(1)+1, ncells(1)+1, ncells(1)+1/)
- 	jcornercell = (/ 2, 2, ncells(2)+1, ncells(2)+1, 2, 2, ncells(2)+1, ncells(2)+1/) 
- 	kcornercell = (/ 2, ncells(3)+1, 2, ncells(3)+1, 2, ncells(3)+1, 2, ncells(3)+1/)
-
-	startnp = halo_np
-	m = halo_np + 1 !Set added molecule counter to one more than last added
-
-	do i=1,8 !Counter for each corner cell
-		cellnp = cell%cellnp(icornercell(i),jcornercell(i),kcornercell(i))
-		old => cell%head(icornercell(i),jcornercell(i),kcornercell(i))%point !Set old to top of link list
-		do n=1,cellnp
-			molno = old%molno	 !Obtain molecule number
-			r(np+m,:) = r(molno,:) 	 !Copy molecule
-			v(np+m,:) = v(molno,:)                          !copy velocity
-			r(np+m,1) = r(np+m,1) &  !Move to other side of domain
-			+ sign(1,ncells(1)-icornercell(i))*domain(1)
-			r(np+m,2) = r(np+m,2) &  !Move to other side of domain
-			+ sign(1,ncells(2)-jcornercell(i))*domain(2)
-			r(np+m,3) = r(np+m,3) &  !Move to other side of domain
-			+ sign(1,ncells(3)-kcornercell(i))*domain(3)
-
-			if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
-
-			current => old			    !Use current to move to next
-			old => current%next 		    !Use pointer to obtain next item in list
-			!print*, r(np+m,1), r(np+m,2), r(np+m,3)
-			m = m + 1                !Update counter of new molecules
-		enddo
-	enddo
-
-	!Update global number of particles
-	halo_np = halo_np + m-1 - startnp
-	!print*, 'halonp =', halo_np
-
-	nullify(current)        !Nullify current as no longer required
-	nullify(old)            !Nullify old as no longer required
-
-	return
-
-end
-
-!---------------------------------------------------------------------------------
-!Check if array allocation is big enough for halo molecules
-
-subroutine allocatecheck()
-	use messenger
-	use arrays_MD
-	implicit none
-
-	double precision, dimension(:,:), allocatable :: tempr
-
-	!Check allocated space is less than half filled at half way
-	if (nint((size(r,1)-np)/2.) < halo_np) then
-		print*, 'Increasing halo array allocation space'
-		allocate(tempr(size(r,1),nd))
-		tempr = r
-		deallocate(r)
-		allocate(r((np+halo_np+ceiling(np*0.001)+20),nd)) !Increase in size
-		r = tempr
-		deallocate(tempr)
-	endif
-
-end
 
 !======================================================================
 !			Molecule Transfer Subroutines                 =

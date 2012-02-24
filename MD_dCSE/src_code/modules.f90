@@ -53,7 +53,7 @@ module computational_constants_MD
 	integer, parameter      :: nvt_GIK     = 2
 	integer, parameter      :: nvt_PUT_NH  = 3
 	integer, parameter      :: nvt_pwa_NH  = 4
-	integer, parameter      :: nvt_DPD     = 5
+	integer, parameter      :: nvt_DPD     = 5 
 	integer, parameter      :: tag_move    = 6
 
 	!Thermostat flag
@@ -64,6 +64,7 @@ module computational_constants_MD
 	integer					:: macro_outflag
 	integer					:: mass_outflag	
 	integer					:: velocity_outflag
+	integer					:: temperature_outflag
 	integer					:: pressure_outflag
 	integer					:: viscosity_outflag
 	integer					:: mflux_outflag
@@ -78,7 +79,9 @@ module computational_constants_MD
 	integer								:: tplot					!Frequency at which to record results
 	integer								:: Nmass_ave				!Number of averages for each mass average
 	integer								:: Nvel_ave					!Number of averages for each velocity average
-	integer								:: Nstress_ave				!Number of bins for viscosity calculation
+	integer								:: NTemp_ave				!Number of averages for each temperature measurement
+	integer								:: Nstress_ave				!Number of bins for stress calculation
+	integer								:: split_kin_config			!Flag to determine if kinetic and configurational stress seperated
 	integer								:: Nvisc_ave				!Number of samples for viscosity measurement
 	integer								:: Nmflux_ave				!Number of averages for each mass flux
 	integer								:: Nvflux_ave				!Number of averages for each velocity flux
@@ -208,12 +211,17 @@ module arrays_MD
 	double precision, dimension(:,:), allocatable, target 	:: v          	!Velocity
 	double precision, dimension(:),   allocatable, target 	:: vmagnitude 	!Velocity magnitude	
 	double precision, dimension(:,:), allocatable, target 	:: a          	!Accelerations
-	double precision, dimension(:),   allocatable 	      	:: recvbuffer
-	double precision, dimension(:,:), allocatable, target 	:: slidev	    	!Speed for sliding molecules
-	double precision, dimension(:),   allocatable, target 	:: potenergymol 	!Potential energy of each molecule
-	double precision, dimension(:),   allocatable, target 	:: potenergymol_LJ 	!LJ Potential energy of each molecule
-	double precision, dimension(:),   allocatable, target 	:: potenergymol_FENE 	!FENE Potential energy of each molecule
-	double precision, dimension(:),   allocatable, target 	:: virialmol 			!Virial of each molecule
+!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
+	double precision, dimension(:,:), allocatable, target   :: aold
+!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
+	double precision, dimension(:,:), allocatable           :: theta
+	double precision, dimension(:,:), allocatable           :: aD,aR
+	double precision, dimension(:),   allocatable           :: recvbuffer
+	double precision, dimension(:,:), allocatable, target   :: slidev             !Speed for sliding molecules
+	double precision, dimension(:),   allocatable, target   :: potenergymol       !Potential energy of each molecule
+	double precision, dimension(:),   allocatable, target   :: potenergymol_LJ    !LJ Potential energy of each molecule
+	double precision, dimension(:),   allocatable, target   :: potenergymol_FENE  !FENE Potential energy of each molecule
+	double precision, dimension(:),   allocatable, target   :: virialmol          !Virial of each molecule
 
 end module arrays_MD
 
@@ -353,6 +361,7 @@ module calculated_properties_MD
 		diffusion,			&		!Diffusion of molecules
 		meandiffusion,		&		!Time averaged diffusion of molecules
 		Pxycorrel,			&     	!Sum of correlations of Pxy and Pxyzero
+		slice_temperature,	&		!Temperature in a domain slice
 		Pxyv_plane 	 				!Energy on plane for MOP
 
 	double precision, dimension(:,:), allocatable 	:: & 
@@ -364,7 +373,8 @@ module calculated_properties_MD
 	double precision, dimension(:,:,:), allocatable :: & 
 		rfmol,				&  		!Position(x)Force tensor per molecule
 		Pxymol,				&  		!Stress tensor per molecule
-		zeta_array					!Local Nose Hoover Thermostat strength
+		zeta_array,			&		!Local Nose Hoover Thermostat strength
+		volume_temperature			!Temperature in a control volume at time t
 
 	double precision, dimension(:,:,:,:), allocatable	:: &
 		slice_momentumbin,	&		!Mean velocity in a bin

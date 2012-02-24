@@ -33,7 +33,7 @@ end module module_move_particles_vv
 !        - v(t+dt/2) = v(t) + 0.5*a(t)*dt
 !     (apply BCs, compute forces)
 !     second pass:
-!        - v(t+dt)   = v(t+dt/2_ + 0.5*a(t+dt)*dt
+!        - v(t+dt)   = v(t+dt/2) + 0.5*a(t+dt)*dt
 !
 !     computations that are only required by extended system ensembles (for example,
 !     evaluating the time derivative of the damping parameter "zeta" in the Nosé-Hoover
@@ -54,11 +54,9 @@ subroutine simulation_move_particles_vv(pass_num)
 	double precision, dimension(np,nd) :: v_old
 	double precision, dimension(np,nd) :: vrelsum
 	double precision, dimension(np,nd) :: U	
-	double precision, dimension(:,:),allocatable :: aD,aR
 
 	!Allocate array sizes for extra forces
-	allocate(aD(np+extralloc,nd))
-	allocate(aR(np+extralloc,nd))
+
 
 	!--------First half of velocity-Verlet algorithm. Finds r(t+dt) and v(t+dt/2).--------!
 	if (pass_num.eq.1) then
@@ -98,10 +96,16 @@ subroutine simulation_move_particles_vv(pass_num)
 			end do
 
 		case(nvt_DPD)
-			call evaluate_DPD
+			if (iter .eq. initialstep) then
+				call evaluate_DPD_ap(1)
+			else
+				call messenger_updateborders(0)    
+				call evaluate_DPD_ap(0)
+			endif
 			do n=1,np
-				v(n,:) = v(n,:) + 0.5d0*delta_t*(a(n,:)  - aD(n,:) + aR(n,:))
-				r(n,:) = r(n,:) + delta_t*v(n,:)
+				!r(n,:) = r(n,:) + delta_t*v(n,:) + 0.5d0*(delta_t**2.d0)*(a(n,:)+aD(n,:)+aR(n,:))
+				v(n,:) = v(n,:) + 0.5d0*delta_t*(a(n,:)+aD(n,:)+aR(n,:))
+				r(n,:) = r(n,:) + delta_t*v(n,:) 
 			end do
 		
 		case(tag_move)
@@ -159,16 +163,11 @@ subroutine simulation_move_particles_vv(pass_num)
 					zeta = zeta_old + 0.5d0*delta_t*dzeta_dt
 				end do
 
-			case(nvt_DPD)
-				call evaluate_DPD
-				v_old = v
-				do i = 1,5
-					call evaluate_DPD
-					do n=1,np
-						v(n,:) = v_old(n,:) + 0.5d0*delta_t*(a(n,:)  - aD(n,:) + aR(n,:))
-					end do
-				end do	
-		
+			case(nvt_DPD)	
+				call evaluate_DPD_ap(1)
+				do n=1,np
+					v(n,:) = v(n,:) + 0.5d0*delta_t*(a(n,:)+aD(n,:)+aR(n,:))
+				end do
 			case(tag_move)
 				call error_abort('Tag mode for velocity-Verlet not yet implemented.')
 			
@@ -178,9 +177,6 @@ subroutine simulation_move_particles_vv(pass_num)
 		end select
 
 	endif
-
-	deallocate(aD)
-	deallocate(aR)
 
 contains
 
@@ -345,28 +341,31 @@ contains
 	!From this paper : typical 0.5 < zeta < 1.5 
 	!Random numbers do not need to be Gaussian
 
-	subroutine evaluate_DPD
+	subroutine evaluate_DPD(flag)
                 use interfaces
 		use linked_list
 		implicit none
 	
-		integer 						:: noneighbrs
-		integer 						:: j,molnoi,molnoj
-		double precision 				:: rij2,vr,wR,wD,sigma,theta_ij,randi,randj
-		double precision, dimension(nd) :: ri,rj,rij,rijhat
-		double precision, dimension(nd) :: vi,vj,vij
-		type(neighbrnode), pointer 		:: old, current
+		integer,intent(in)							:: flag
+		integer 									:: noneighbrs, ixyz, tempi
+		integer 									:: j,molnoi,molnoj
+		double precision 							:: rij2,vr,wR,wD,sigma, temp, temp2
+		double precision, dimension(nd) 			:: ri,rj,rij,rijhat, randseed
+		double precision, dimension(nd) 			:: randi,randj,theta_ij,meantheta,vartheta
+		double precision, dimension(nd) 			:: vi,vj,vij
+		type(neighbrnode), pointer 					:: old, current
 
-		aD = 0.d0; aR=0.d0
 		zeta = 1.d0; sigma = sqrt(2.d0*inputtemperature*zeta)
 
-		do molnoi=1,np
- 
-	    	noneighbrs = neighbour%noneighbrs(molnoi)   !Determine number of elements in neighbourlist
-			old        => neighbour%head(molnoi)%point  !Set old to head of neighbour list
-			ri(:)      = r(molnoi,:)
-			vi(:)      = v(molnoi,:)
-			call random_number(randi)
+		select case(flag)
+		case(0)
+			!Evaluate dissipative terms only
+			aD = 0.d0
+			do molnoi=1,np
+	 	    	noneighbrs = neighbour%noneighbrs(molnoi)   !Determine number of elements in neighbourlist
+				old        => neighbour%head(molnoi)%point  !Set old to head of neighbour list
+				ri(:)      = r(molnoi,:)
+				vi(:)      = v(molnoi,:)
 	
 			do j=1,noneighbrs
 				molnoj    = old%molnoj
@@ -375,40 +374,248 @@ contains
 				rij(:)    = ri(:) - rj(:)
 				rij2      = dot_product(rij,rij)
 
-				!Thermostat force only local for molecules in cutoff range
-				if (rij2 .lt. rcutoff2) then
-					vj(:)     = v(molnoj,:)
-					vij(:)    = vi(:) - vj(:)
-					rijhat(:) = rij(:)/sqrt(rij2)
-					wR        = (1.d0-sqrt(rij2)/rcutoff)
-					wD        = wR**2
-					vr        = dot_product(vij,rijhat)
-					call random_number(randj)
-					theta_ij = randi-randj !Random noise variable
+					!Thermostat force only local for molecules in cutoff range
+					if (rij2 .lt. rcutoff2) then
+						vj(:)     = v(molnoj,:)
+						vij(:)    = vi(:)-vj(:)
+						rijhat(:) = rij(:)/sqrt(rij2)
+						wD        = -(1.d0-sqrt(rij2)/rcutoff)**2.d0
+						vr        = dot_product(rijhat,vij)
 
-					aD(molnoi,:) = aD(molnoi,:) + zeta*wD*vr*rijhat(:)
-					aR(molnoi,:) = aR(molnoi,:) + sigma*wR*theta_ij*rijhat(:)
-
-					if (molnoj .le. np) then
+						aD(molnoi,:) = aD(molnoi,:) + zeta*wD*vr*rijhat(:)
 						aD(molnoj,:) = aD(molnoj,:) - zeta*wD*vr*rijhat(:)
-						aR(molnoj,:) = aR(molnoj,:) - sigma*wR*theta_ij*rijhat(:)
+
 					endif
-
-				endif
-
-				current => old	
-				old => current%next
+					
+					current => old	
+					old => current%next
 
 				enddo
 			enddo
+			
+			nullify(current)
+			nullify(old)
+		case(1)
+			!Evaluate random and dissipative terms
+			aD = 0.d0; aR=0.d0
+			!Calculate mean and variance of random number array
+			meantheta(:) = sum(theta(1:np,:),1)/real(np,kind(0.d0))
+			do ixyz = 1,nd
+				vartheta(ixyz)  = sum((theta(1:np,ixyz)-meantheta(ixyz))**2.d0)/np
+			enddo
+			!Get mean and variance for theta_ij = (theta_i + theta_j)
+			!using mean_ij = mean_i + mean_j and var_ij = (var_i^2 + var_j^2)^0.5
+			meantheta   = 2.d0*meantheta
+			vartheta(:) = 2.d0*vartheta(:)
+			temp = 0.d0; tempi = 0
+
+			do molnoi=1,np
+	 	    	noneighbrs = neighbour%noneighbrs(molnoi)   !Determine number of elements in neighbourlist
+				old        => neighbour%head(molnoi)%point  !Set old to head of neighbour list
+				ri(:)      = r(molnoi,:)
+				vi(:)      = v(molnoi,:)
+				randi(:)   = theta(molnoi,:)
 		
+				do j=1,noneighbrs
+					molnoj    = old%molnoj
+					if (molnoj.eq.molnoi) stop "Self interaction in DPD vv"	!self interactions are unacceptable!
+					rj(:)     = r(molnoj,:)
+					rij(:)    = ri(:)-rj(:)
+					rij2      = dot_product(rij,rij)
+
+					!Thermostat force only local for molecules in cutoff range
+					if (rij2 .lt. rcutoff2) then
+						vj(:)     = v(molnoj,:)
+						vij(:)    = vi(:)-vj(:)
+						rijhat(:) = rij(:)/sqrt(rij2)
+						wR        = 1.d0-sqrt(rij2)/rcutoff
+						wD        = -wR**2.d0
+						vr        = dot_product(rijhat,vij)
+						randj(:)  = theta(molnoj,:)			
+
+						!Random noise variable normalised to one
+						theta_ij(:)= (((randi(:)+randj(:))) - meantheta )/sqrt(vartheta)
+
+						!theta_ij = sqrt(3.d0)*(2.d0*theta-1.d0)
+
+						if (molnoi .eq. 150) write(200,'(3f10.5)'), theta_ij(:)
+
+						temp  = temp + theta_ij(1)
+						temp2 = temp2+ theta_ij(1)**2
+						tempi = tempi + 1
+
+						aD(molnoi,:) = aD(molnoi,:) + zeta*wD*vr*rijhat(:)
+						aR(molnoi,:) = aR(molnoi,:) + sigma*wR*theta_ij(:)*rijhat(:)/sqrt(delta_t)
+
+						aD(molnoj,:) = aD(molnoj,:) - zeta*wD*vr*rijhat(:)
+						aR(molnoj,:) = aR(molnoj,:) - sigma*wR*theta_ij(:)*rijhat(:)/sqrt(delta_t)
+
+					endif
+					
+					current => old	
+					old => current%next
+
+				enddo
+			enddo
+			
 			nullify(current)
 			nullify(old)
 
-		!print'(a,4f10.5)', 'Fluctuation dissipation required 2 zeros here:', & 
-		!			sigma**2-2*inputtemperature*zeta, sqrt(wD) - wR
-		!print'(a,2f18.5)', 'Sum of D and R Forces', sum(aD), sum(aR)
-	
+			!Divide by sqrt of dt so delta t can be used for aD and aR 
+			!aR has sqrt of dt as required by ito calculus
+			!aR = aR 
+
+		case default
+			stop "Flag input to evaluate DPD incorrect"
+		end select
+
+		if(mod(iter,1000) .eq. 0) then
+			write(1000,'(i8,2f10.5)'), iter, temp/tempi, sqrt(temp2/tempi - (temp/tempi)**2)
+			!print'(a,2f10.5)', 'Fluctuation dissipation required 2 zeros here:', & 
+			!			sigma**2.d0-2.d0*inputtemperature*zeta, wD + wR**2.d0
+			!print'(a,2i5,2f18.5)', 'Sum of D and R Forces',iter,flag,sum(aD(1:np,:)), sum(aR(1:np,:))
+		endif
+
 	end subroutine evaluate_DPD
+
+
+
+	!----------------------------------------------------------------------------
+	!ALL PAIRS Evaluate pairwise terms for DPD thermostat by 
+	!Soddemann, Dunweg an Kremer Phys Rev E 68, 046702 (2003)
+	!From this paper : typical 0.5 < zeta < 1.5 
+	!Random numbers do not need to be Gaussian
+
+	subroutine evaluate_DPD_ap(flag)
+		use linked_list
+		implicit none
+	
+		integer,intent(in)							:: flag
+		integer 									:: noneighbrs, ixyz, tempi
+		integer 									:: j,molnoi,molnoj
+		double precision 							:: rij2,vr,wR,wD,sigma, temp, temp2
+		double precision, dimension(nd) 			:: ri,rj,rij,rijhat, randseed
+		double precision, dimension(nd) 			:: rand,randi,randj,theta_ij,meantheta,vartheta
+		double precision, dimension(nd) 			:: vi,vj,vij
+
+		zeta = 1.d0; sigma = sqrt(2.d0*inputtemperature*zeta)
+		select case(flag)
+		case(0)
+			!Evaluate dissipative terms only
+			aD = 0.d0
+			do molnoi = 1,np					!Step through each particle in list 
+				ri = r(molnoi,:)         	!Retrieve ri
+				vi = v(molnoi,:)
+
+				do molnoj = molnoi+1,np				!Step through all j for each i
+					rj = r(molnoj,:)				!Retrieve rj
+
+					!Calculate rij using nearest image convention, i.e. if more than half
+					! a domain betwen molecules, must be closer over periodic boundaries  
+					rij2 = 0.d0
+					do ixyz=1,nd
+						rij(ixyz) = r (molnoi,ixyz) - r (molnoj,ixyz)          !Evaluate distance between particle i and j
+		    				if (abs(rij(ixyz)) > halfdomain(ixyz)) then	
+								rij(ixyz) = rij(ixyz) - sign(domain(ixyz),rij(ixyz)) 
+							endif
+						rij2 = rij2+rij(ixyz)*rij(ixyz) !Square of vector calculated
+					enddo
+
+					if (rij2 < rcutoff2) then
+
+						vj        = v(molnoj,:)
+						vij(:)    = vi(:)-vj(:)
+						rijhat(:) = rij(:)/sqrt(rij2)
+						wD        = -(1.d0-sqrt(rij2)/rcutoff)**2.d0
+						vr        = dot_product(rijhat,vij)
+
+						aD(molnoi,:) = aD(molnoi,:) + zeta*wD*vr*rijhat(:)
+						aD(molnoj,:) = aD(molnoj,:) - zeta*wD*vr*rijhat(:)
+					endif
+
+				enddo
+			enddo
+
+		case(1)
+			!Evaluate random and dissipative terms
+			aD = 0.d0; aR=0.d0
+			!Calculate mean and variance of random number array
+			meantheta(:) = sum(theta(1:np,:),1)/real(np,kind(0.d0))
+			do ixyz = 1,nd
+				vartheta(ixyz)  = sum((theta(1:np,ixyz)-meantheta(ixyz))**2.d0)/np
+			enddo
+			!Get mean and variance for theta_ij = (theta_i + theta_j)
+			!using mean_ij = mean_i + mean_j and var_ij = (var_i^2 + var_j^2)^0.5
+			meantheta   = 2.d0*meantheta
+			vartheta(:) = 2.d0*vartheta(:)
+			temp = 0.d0; tempi = 0
+
+			do molnoi = 1,np					!Step through each particle in list 
+				ri = r(molnoi,:)         	!Retrieve ri
+				vi 		  = v(molnoi,:)
+				randi(:)  = theta(molnoi,:)	
+
+				do molnoj = molnoi+1,np				!Step through all j for each i
+					rj = r(molnoj,:)				!Retrieve rj
+					!Calculate rij using nearest image convention, i.e. if more than half
+					! a domain betwen molecules, must be closer over periodic boundaries  
+					rij2 = 0.d0
+					do ixyz=1,nd
+						rij(ixyz) = r (molnoi,ixyz) - r (molnoj,ixyz)          !Evaluate distance between particle i and j
+		    				if (abs(rij(ixyz)) > halfdomain(ixyz)) then	
+								rij(ixyz) = rij(ixyz) - sign(domain(ixyz),rij(ixyz)) 
+							endif
+						rij2 = rij2+rij(ixyz)*rij(ixyz) !Square of vector calculated
+					enddo
+
+					if (rij2 < rcutoff2) then
+						vi 		  = v(molnoi,:)
+						vj        = v(molnoj,:)
+						vij(:)    = vi(:)-vj(:)
+						rijhat(:) = rij(:)/sqrt(rij2)
+						wR        = 1.d0-sqrt(rij2)/rcutoff
+						wD        = -wR**2.d0
+						vr        = dot_product(rijhat,vij)
+						randj(:)  = theta(molnoj,:)			
+
+						!Random noise variable normalised to one
+						!theta_ij(:)= (((randi(:)+randj(:))) - meantheta )/sqrt(vartheta)
+
+						call random_number(rand)
+						theta_ij = sqrt(3.d0)*(2.d0*rand-1.d0)
+
+						if (molnoi .eq. 150) write(200,'(3f10.5)'), theta_ij(:)
+
+						temp  = temp + theta_ij(1)
+						temp2 = temp2+ theta_ij(1)**2
+						tempi = tempi + 1
+
+						aD(molnoi,:) = aD(molnoi,:) + zeta*wD*vr*rijhat(:)
+						aR(molnoi,:) = aR(molnoi,:) + sigma*wR*theta_ij(:)*rijhat(:)/sqrt(delta_t)
+
+						aD(molnoj,:) = aD(molnoj,:) - zeta*wD*vr*rijhat(:)
+						aR(molnoj,:) = aR(molnoj,:) - sigma*wR*theta_ij(:)*rijhat(:)/sqrt(delta_t)
+
+					endif
+
+				enddo
+			enddo
+			
+			!Divide by sqrt of dt so delta t can be used for aD and aR 
+			!aR has sqrt of dt as required by ito calculus
+			!aR = aR 
+
+		case default
+			stop "Flag input to evaluate DPD incorrect"
+		end select
+
+		if(mod(iter,1000) .eq. 0) then
+			write(1000,'(i8,2f10.5)'), iter, temp/tempi, sqrt(temp2/tempi - (temp/tempi)**2)
+			!print'(a,2f10.5)', 'Fluctuation dissipation required 2 zeros here:', & 
+			!			sigma**2.d0-2.d0*inputtemperature*zeta, wD + wR**2.d0
+			!print'(a,2i5,2f18.5)', 'Sum of D and R Forces',iter,flag,sum(aD(1:np,:)), sum(aR(1:np,:))
+		endif
+
+	end subroutine evaluate_DPD_ap
 
 end subroutine simulation_move_particles_vv

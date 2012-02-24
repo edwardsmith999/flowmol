@@ -81,6 +81,7 @@ end subroutine setup_MD
 subroutine simulation_MD
         use interfaces
 	use computational_constants_MD
+	use physical_constants_MD
 #if USE_COUPLER
 	use md_coupler_socket, only : socket_coupler_apply_continuum_forces, socket_coupler_average
 #endif
@@ -111,7 +112,7 @@ subroutine md_advance_lfv
 	implicit none
 	
 		call simulation_compute_forces 	                    !Calculate forces on particles	
-		call simulation_record                              !Evaluate & write properties to file
+		call simulation_record                              !Evaluate & write properties
 
 #if USE_COUPLER
 		call simulation_apply_boundary_forces               !Apply boundary force to prevent molecules leaving domain
@@ -134,8 +135,16 @@ subroutine md_advance_lfv
 subroutine md_advance_vv
 	use arrays_MD
 	implicit none
-		
+
+	integer	n, ixyz
+
 		call simulation_move_particles_vv(1)        !Find r(t+dt) and v(t+dt/2)
+		!call random_number(theta)
+		!do n =1,np+extralloc
+		!	do ixyz = 1,3
+		!		theta(n,ixyz) = random_normal()
+		!	enddo
+		!enddo
 		call messenger_updateborders(0)             !Update borders between processors
 
 		call simulation_checkrebuild(rebuild)

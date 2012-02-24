@@ -73,6 +73,7 @@ subroutine setup_set_parameters
 	call set_parameters_outputs
 	call setup_linklist
 	call establish_surface_bins
+	call establish_halo_bins
 	!call establish_surface_cells(-1)
 	!call establish_surface_cells2(-1)
 	!call establish_gpusurface_cells2(0)
@@ -132,6 +133,13 @@ subroutine set_parameters_allocate(n)
 		allocate(v(np+extralloc,nd))
 		allocate(vmagnitude(np+extralloc))
 		allocate(a(np+extralloc,nd))
+!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
+		allocate(aold(np+extralloc,nd))
+!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
+		allocate(theta(np+extralloc,nd))
+		allocate(aD(np+extralloc,nd))
+		allocate(aR(np+extralloc,nd))
+		call random_number(theta)
 
 		!Allocate arrays use to fix molecules and allow sliding
 		allocate(tag(np+extralloc))

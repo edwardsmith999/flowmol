@@ -1518,7 +1518,6 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 			Xpack(:) = v(molno,:)
 			call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
 					sendbuffer,buffsize,pos,icomm_grid,ierr)
-
 			!IDs
 			call prepare_FENEbuffer(molno,FENEpack)
 			call MPI_Pack(FENEpack,4+nmonomers,MPI_DOUBLE_PRECISION,& 
@@ -1980,12 +1979,11 @@ subroutine NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest
 	!It appears blocking probe works before send is complete
 	!so wait for send to complete before recv called
 
-
 	!Receive particles
 	call MPI_Recv(recvbuffer,length,MPI_PACKED, &
 	isource,0,icomm_grid,status(:),ierr)
 
-        call MPI_wait(request, status(:), ierr)
+ 	call MPI_wait(request, status(:), ierr)
 
 	return
 end
@@ -2011,7 +2009,7 @@ subroutine globalsyncreduce(A, na, meanA, maxA, minA)
 	implicit none
 	!include "mpif.h"
 
-        integer na, nprocs
+ 	integer						  :: na, nprocs
 	double precision, intent(in)  :: A(na)
 	double precision, intent(out) :: meanA(na), maxA(na), minA(na)
 	double precision buf(na)
@@ -2195,7 +2193,7 @@ end
 subroutine SubcommSumInt(A, ixyz)
 	use messenger
 
-        integer, intent(in) :: ixyz !Direction of sub-comm
+	integer, intent(in) :: ixyz !Direction of sub-comm
 	integer	A
 	integer buf
 

@@ -1076,6 +1076,7 @@ subroutine parallel_io_final_state
 	!type(monomer_info)                      :: monomerwrite
 	integer, dimension(:), allocatable      :: monomerwrite
 	double precision, dimension(nd)			:: Xwrite	!Temporary variable used in write
+	double precision, dimension(nd,2*np)	:: buf		!Temporary variable used in write
 
 	!allocate(monomerwrite%bondflag(nmonomers))
 	allocate(monomerwrite(4+nmonomers))
@@ -1135,14 +1136,23 @@ subroutine parallel_io_final_state
 
 	select case (potential_flag)
 	case(0)
-		do n=1,np
-			Xwrite = r(n,:) !Load into temp in case r dimensions are non contiguous
-			call MPI_FILE_WRITE(restartfileid, Xwrite, nd, MPI_double_precision, & 
-						MPI_STATUS_IGNORE, ierr) 
-			Xwrite = v(n,:) !Load into temp in case v dimensions are non contiguous
-			call MPI_FILE_WRITE(restartfileid, Xwrite, nd, MPI_double_precision, & 
-						MPI_STATUS_IGNORE, ierr) 
-		enddo
+		!do n=1,np
+		!	Xwrite = r(n,:) !Load into temp in case r dimensions are non contiguous
+		!	call MPI_FILE_WRITE(restartfileid, Xwrite, nd, MPI_double_precision, & 
+		!				MPI_STATUS_IGNORE, ierr) 
+		!	Xwrite = v(n,:) !Load into temp in case v dimensions are non contiguous
+		!	call MPI_FILE_WRITE(restartfileid, Xwrite, nd, MPI_double_precision, & 
+		!				MPI_STATUS_IGNORE, ierr) 
+		!enddo
+
+	 	do n = 1, np
+	 		buf(:,2*n-1) = r(n,:)
+	 		buf(:,2*n  ) = v(n,:)
+	 	enddo
+	 	call MPI_FILE_WRITE(restartfileid, buf,2*np*nd,
+	 	 						MPI_double_precision, &
+	 	               		MPI_STATUS_IGNORE, ierr)
+
 	case(1)
 		do n=1,np
 			Xwrite = r(n,:) !Load into temp in case r dimensions are non contiguous
