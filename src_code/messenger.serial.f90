@@ -71,10 +71,11 @@ end
 
 
 subroutine messenger_init()
+        use interfaces
 	use messenger
 	implicit none
 
-	if (nproc .ne. 1) stop "Serial code - Param.inc should be 1x1x1"
+	if (nproc .ne. 1) call error_abort( "Serial code - Param.inc should be 1x1x1")
 
 	irank  = 1
 	iblock = 1
@@ -88,14 +89,12 @@ subroutine messenger_init()
 		jbmin(npy), jbmax(npy), jbmino(npy), jbmaxo(npy), &
 		kbmin(npz), kbmax(npz), kbmino(npz), kbmaxo(npz), stat=ierr)
         if (ierr /= 0) then 
-                write(*,*) "Error allocating topology arrays in messenger_init"
-                stop
+                call error_abort("Error allocating topology arrays in messenger_init")
         endif
 
         allocate(icoord(3,nproc),stat=ierr)
         if (ierr /= 0) then 
-                write(*,*) "Error allocating icoord in messenger_init"
-                stop
+                call error_abort("Error allocating icoord in messenger_init")
         endif
 
 	return
@@ -376,6 +375,7 @@ implicit none
 end subroutine update_plane
 
 subroutine updatefacedown(ixyz)
+        use interfaces
 	use messenger
 	use arrays_MD
 	implicit none
@@ -452,7 +452,7 @@ subroutine updatefacedown(ixyz)
 		enddo
 		enddo
 	case default
-		stop "updateBorder: invalid value for ixyz"
+		call error_abort("updateBorder: invalid value for ixyz")
 	end select
 	
 	!Update global number of particles
@@ -468,6 +468,7 @@ end
 !------------------------------------------------------------------------------
 
 subroutine updatefaceup(ixyz)
+        use interfaces
 	use messenger
 	use arrays_MD
 	implicit none
@@ -544,7 +545,7 @@ subroutine updatefaceup(ixyz)
 		enddo
 		enddo
 	case default
-		stop "updateBorder: invalid value for ixyz"
+		call error_abort("updateBorder: invalid value for ixyz")
 	end select
 
 	!Update global number of particles
@@ -561,6 +562,7 @@ end
 !Halo Edge Cells
 
 subroutine updateedge(face1, face2)
+        use interfaces
 	use messenger
 	use arrays_MD
 	implicit none
@@ -654,7 +656,7 @@ subroutine updateedge(face1, face2)
 		enddo
 		enddo
 	case default
-		stop "updateBorder: invalid value for ixyz"
+		call error_abort("updateBorder: invalid value for ixyz")
 	end select
 
 	!Update global number of particles
@@ -1061,8 +1063,7 @@ subroutine SubcommSumIntVect(A, na, ixyz)
 	return
 end
 
-subroutine error_abort(msg)
-        use mpi
+subroutine error_abort_s(msg)
         implicit none
         
         character(len=*), intent(in), optional :: msg
@@ -1073,4 +1074,19 @@ subroutine error_abort(msg)
 
         stop
 
-end subroutine error_abort
+end subroutine error_abort_s
+
+
+subroutine error_abort_si(msg,i)
+        implicit none
+        
+        character(len=*), intent(in) :: msg
+        integer, intent(in) :: i
+
+        integer errcode,ierr
+
+        write(*,*) msg,i
+
+        stop
+
+end subroutine error_abort_si

@@ -61,6 +61,7 @@ end subroutine simulation_move_particles_default
 !Move molecules and apply constraints or thermostatting as determined by tagging system
 
 subroutine simulation_move_particles_tag
+use interfaces
 use module_move_particles
 use calculated_properties_MD
 use shear_info_MD, only: shear_plane
@@ -187,7 +188,7 @@ implicit none
 			r(n,2) = r(n,2) + v(n,2)*delta_t				
 			r(n,3) = r(n,3) + v(n,3)*delta_t	
 		case default
-			stop "Invalid molecular Tag"
+			call error_abort("Invalid molecular Tag")
 		end select
 	enddo
 	

@@ -61,6 +61,7 @@
 
 module module_record
 
+        use interfaces
 	use physical_constants_MD
 	use computational_constants_MD
 	use arrays_MD
@@ -162,41 +163,46 @@ subroutine evaluate_macroscopic_properties_parallel
 	integer :: n, ixyz
 
 	vsum  = 0.d0                                                ! Reset all sums
-	v2sum = 0.d0                                                ! Reset all sums
+        v2sum = 0.d0                                                ! Reset all sums
 
-	do n = 1, np                                                ! Loop over all particles
+        if (potential_flag.eq.0) then
+            potenergysum = sum(potenergymol(:))
+            call globalSum(potenergysum)
+        else if (potential_flag.eq.1) then
+            potenergysum_LJ = sum(potenergymol_LJ(:))
+            potenergysum_FENE = sum(potenergymol_FENE(:))
+            potenergysum = sum(potenergymol_LJ(:) + potenergymol_FENE(:))
+            call globalSum(potenergysum_LJ)
+            call globalSum(potenergysum_FENE)
+        end if
 
-		if (potential_flag.eq.0) then
-			potenergysum	= potenergysum + potenergymol(n)
-		else if (potential_flag.eq.1) then
-			potenergysum_LJ = potenergysum_LJ + potenergymol_LJ(n)
-			potenergysum_FENE = potenergysum_FENE + potenergymol_FENE(n)
-			potenergysum = potenergysum + potenergymol_LJ(n) + potenergymol_FENE(n)
-		end if
+        virial =sum(virialmol(:))
 
-		virial = virial + virialmol(n)
-
-		select case(integration_algorithm)
-		case(leap_frog_verlet)
-			do ixyz = 1, nd                                     ! Loop over all dimensions
-				vel = v(n,ixyz) + 0.5d0*a(n,ixyz)*delta_t       ! Velocity must shifted half a timestep
-				vsum = vsum + vel                               ! Add up all molecules' velocity components
-				v2sum = v2sum + vel**2                          ! Add up all molecules' velocity squared components  
-			enddo
-		case(velocity_verlet)                                   ! If velocity Verlet algorithm
-			vsum = vsum + sum(v(n,:))
-			v2sum = v2sum + dot_product(v(n,:),v(n,:))          ! Sum all velocity squared components
-		end select
-
-	enddo
+        select case(integration_algorithm)
+        case(leap_frog_verlet)
+            do ixyz = 1, nd                                     ! Loop over all dimensions
+                do n = 1, np                                                ! Loop over all particles
+                    vel = v(n,ixyz) + 0.5d0*a(n,ixyz)*delta_t       ! Velocity must shifted half a timestep
+                    vsum = vsum + vel                               ! Add up all molecules' velocity components
+                    v2sum = v2sum + vel**2                          ! Add up all molecules' velocity squared components  
+                enddo
+            enddo
+        case(velocity_verlet)                                   ! If velocity Verlet algorithm
+            do ixyz = 1, nd
+                do n = 1, np
+                    vel = v(n,ixyz)
+                    vsum = vsum+vel
+                    v2sum = v2sum + vel*vel          ! Sum all velocity squared components
+                enddo
+            enddo
+        end select
+        
 
 	!Obtain global sums for all parameters
 	call globalSum(vsum)
 	call globalSum(v2sum)
 	call globalSum(virial)
-	call globalSum(potenergysum)
-	call globalSum(potenergysum_FENE)
-	call globalSum(potenergysum_LJ)
+
 
 	!Root processes prints results
 	if (irank .eq. iroot) then
@@ -554,7 +560,7 @@ subroutine mass_averaging(ixyz)
 			!Reset mass slice
 			volume_mass = 0
 		case default
-			stop "Error input for velocity averaging incorrect"
+			call error_abort("Error input for velocity averaging incorrect")
 		end select
 
 		!Collect mass for next step
@@ -601,7 +607,7 @@ subroutine cumulative_mass(ixyz)
 			volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + 1
 		enddo
 	case default 
-		stop "Mass Binning Error"
+		call error_abort("Mass Binning Error")
 	end select
  
 end subroutine cumulative_mass
@@ -641,7 +647,7 @@ subroutine velocity_averaging(ixyz)
 			volume_mass = 0
 			volume_momentum = 0.d0
 		case default
-			stop "Error input for velocity averaging incorrect"
+			call error_abort("Error input for velocity averaging incorrect")
 		end select
 
 		!Collect velocities for next step
@@ -697,7 +703,7 @@ subroutine cumulative_velocity(ixyz)
 		enddo
 
 	case default 
-		stop "Velocity Binning Error"
+		call error_abort("Velocity Binning Error")
 	end select
 	 
 end subroutine cumulative_velocity
@@ -728,7 +734,7 @@ subroutine pressure_averaging(ixyz)
 		!VA STRESS CALCULATION
 			call VA_stress_io
 		case default 
-			stop "Average Pressure Binning Error"
+			call error_abort("Average Pressure Binning Error")
 		end select
 		if(viscosity_outflag .eq. 1) then
 			average_count = average_count+1
@@ -822,7 +828,7 @@ subroutine cumulative_pressure(ixyz,sample_count)
 		Pxy = Pxy / volume
 
 	case default 
-		stop "Cumulative Pressure Averaging Error"
+		call error_abort("Cumulative Pressure Averaging Error")
 	end select
 
 	!Calculate correrlation between current value of Pxy and intial value of sample
@@ -1080,7 +1086,7 @@ subroutine momentum_flux_averaging(ixyz)
 			Pxyface = 0.d0
 			call momentum_snapshot
 		case default 
-			stop "Momentum flux and pressure averaging Error"
+			call error_abort("Momentum flux and pressure averaging Error")
 		end select
 
 		sample_count = 0
@@ -1133,7 +1139,8 @@ subroutine cumulative_momentum_flux(ixyz)
 				!crosstime = (r(n,ixyz) - rplane)/v(n,ixyz)
 				velvect(:) = v(n,:) !- a(n,:) * crosstime
 
-				if (crosstime/delta_t .gt. 1.d0) stop "error in kinetic MOP"
+				if (crosstime/delta_t .gt. 1.d0)&
+                                    call error_abort("error in kinetic MOP")
 
 				!Obtain stress for three components on y plane
 				Pxy_plane(:,planeno) = Pxy_plane(:,planeno) + velvect(:)!*crossplane
@@ -1268,7 +1275,7 @@ subroutine cumulative_momentum_flux(ixyz)
 
 		enddo
 	case default 
-		stop "Cumulative Momentum flux Error"
+		call error_abort("Cumulative Momentum flux Error")
 	end select
 
 end subroutine cumulative_momentum_flux
@@ -1346,7 +1353,7 @@ subroutine energy_flux_averaging(ixyz)
 			Pxyvface = 0.d0
 			call energy_snapshot
 		case default 
-			stop "Energy flux averaging Error"
+			call error_abort("Energy flux averaging Error")
 		end select
 
 		sample_count = 0
@@ -1398,7 +1405,7 @@ subroutine cumulative_energy_flux(ixyz)
 				velvect(:) = v(n,:) + 0.5d0*a(n,:)*delta_t
 				energy = 0.5d0 * (dot_product(velvect,velvect) + potenergymol(n))
 
-				if (crosstime/delta_t .gt. 1.d0) stop "error in kinetic MOP"
+				if (crosstime/delta_t .gt. 1.d0) call error_abort("error in kinetic MOP")
 
 				!Obtain stress for three components on y plane
 				Pxyv_plane(planeno) = Pxyv_plane(planeno) + energy!*crossplane
@@ -1532,7 +1539,7 @@ subroutine cumulative_energy_flux(ixyz)
 
 		enddo
 	case default 
-		stop "Cumulative Energy flux Error"
+		call error_abort("Cumulative Energy flux Error")
 	end select
 
 end subroutine cumulative_energy_flux
@@ -1630,7 +1637,8 @@ subroutine pressure_tensor_forces_VA(ri,rj,rij,accijmag)
 	do ixyz = 1,nd
 
 		VAbinsize(ixyz) = domain(ixyz) / nbins(ixyz)
-		if (VAbinsize(ixyz) .lt. cellsidelength(ixyz)) stop "Binsize bigger than cellsize ~ Not ok for volume averaging"
+		if (VAbinsize(ixyz) .lt. cellsidelength(ixyz)) &
+                    call error_abort("Binsize bigger than cellsize ~ Not ok for volume averaging")
 
 		!Determine current bins using integer division
 		ibin(ixyz) = ceiling((ri(ixyz)+halfdomain(ixyz))/VAbinsize(ixyz)) + 1 !Establish current i bin
@@ -2033,7 +2041,7 @@ subroutine pressure_tensor_forces_VA(ri,rj,rij,accijmag)
 		
 	case default
 
-		stop "VOLUME AVERAGING ERROR"
+	call error_abort("VOLUME AVERAGING ERROR")
 
 	end select
 

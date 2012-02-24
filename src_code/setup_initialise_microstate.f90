@@ -18,6 +18,7 @@ end module module_initialise_microstate
 !----------------------------------------------------------------------------------
 
 subroutine setup_initialise_microstate
+use interfaces
 use module_initialise_microstate
 implicit none
 
@@ -30,7 +31,7 @@ implicit none
 		call setup_initialise_parallel_position_FENE  !Reordered numbering to allow FENE bonds
 		call setup_initialise_polyinfo                !Assign beads chain IDs, etc
 	case default
-		stop 'Potential flag not recognised!'
+		call error_abort('Potential flag not recognised!')
 	end select
 
 	call setup_tag                                    !Setup location of fixed molecules
@@ -84,6 +85,7 @@ subroutine setup_initialise_position
 end subroutine setup_initialise_position
 
 subroutine setup_initialise_position_FENE
+        use interfaces
 	use module_initialise_microstate
 	use polymer_info_MD
 	implicit none
@@ -98,9 +100,9 @@ subroutine setup_initialise_position_FENE
 	enddo
 
 	modcheck = 0 + mod(np,nmonomers) + mod(4*initialnunits(1),nmonomers)
-	if (modcheck.ne.0) stop 'Number of molecules must be exactly divisible by &
+	if (modcheck.ne.0) call error_abort('Number of molecules must be exactly divisible by &
 	& the polymer chain length. Please change the chain length in the input file. &
-	& A chain length of 4 should (hopefully) always work.'
+	& A chain length of 4 should (hopefully) always work.')
 	
 	!Molecules per unit FCC structure (3D)
 	n=1  !Reset n for start of loop

@@ -79,6 +79,7 @@ end subroutine setup_MD
 !-----------------------------------------------------------------------------
 
 subroutine simulation_MD
+        use interfaces
 	use computational_constants_MD
 #if USE_COUPLER
 	use md_coupler_socket, only : socket_coupler_apply_continuum_forces, socket_coupler_average
@@ -97,7 +98,7 @@ subroutine simulation_MD
 		case(velocity_verlet)
 			call md_advance_vv                      !Advance simulation (velocity Verlet algorithm)
 		case default
-			stop 'Incorrect integration algorithm specification'
+			call error_abort('Incorrect integration algorithm specification')
 		end select
 
  	enddo

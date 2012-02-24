@@ -7,6 +7,7 @@
 
 module module_move_particles_lfv
 
+        use interfaces
 	use physical_constants_MD
 	use computational_constants_MD
 	use arrays_MD
@@ -57,7 +58,7 @@ implicit none
 		end do
 
 	case(nvt_GIK)
-		stop 'GIK thermostat not available with leap-frog Verlet'
+		call error_abort('GIK thermostat not available with leap-frog Verlet')
 
 	case(nvt_PUT_NH)
 		call evaluate_U_PUT
@@ -68,13 +69,13 @@ implicit none
 		end do
 	
 	case(nvt_pwa_NH)
-		stop 'pwa_NH not available for leap-frog Verlet.'
+		call error_abort('pwa_NH not available for leap-frog Verlet.')
 
 	case(tag_move)
 		call simulation_move_particles_lfv_tag
 						
 	case default
-		stop 'Unrecognised move option in simulation_move_particles_lfv.f90'
+		call error_abort('Unrecognised move option in simulation_move_particles_lfv.f90')
 
 	end select
 
@@ -168,6 +169,7 @@ contains
 	!---------------------------------------------------------------------
 	!Tag move routine
 	subroutine simulation_move_particles_lfv_tag
+                use interfaces
 		implicit none
 				
 		integer :: maxtag, n, thermostatnp 
@@ -270,7 +272,7 @@ contains
 	        	v(n,:) = v(n,:)*ascale + a(n,:)*delta_t*bscale + zeta*U(n,:)*delta_t*bscale
 				r(n,:) = r(n,:)        + v(n,:)*delta_t			
 			case default
-				stop "Invalid molecular Tag"
+				call error_abort("Invalid molecular Tag")
 			end select
 		enddo
 		

@@ -20,7 +20,7 @@ implicit none
 	integer                :: n, ixyz
 	integer, intent(out)   :: rebuild
 	double precision       :: vmax
-	double precision, save :: rmax
+	double precision, save :: rmax = 0.d0
 
 	rebuild = 0
 
