@@ -55,6 +55,7 @@ contains
 !-----------------------------------------------------------------------------
 
 subroutine locate(fileid,keyword,required,input_present)
+use interfaces
 implicit none
 	
 	character*(*),intent(in)	:: keyword		! Input keyword	
@@ -72,9 +73,9 @@ implicit none
 		if(present(input_present)) then
 			input_present = .true.	!Assume true until not found
 		else
-			print*, "ERROR IN LOCATE - If input not required, extra logical argument", &
-				"must be included to check if variable is specified in input file" 
-			stop
+			call error_abort( "ERROR IN LOCATE - If input not required, extra logical argument&
+				& must be included to check if variable is specified in input file") 
+			
 		endif
 	endif
 
@@ -90,9 +91,8 @@ implicit none
 				input_present = .false.
 				return
 			else
-				print*, "ERROR IN LOCATE -  Required input ", keyword, & 
-					" not found in input file. Stopping simulation."
-				stop 
+				call error_abort("ERROR IN LOCATE -  Required input "//trim(keyword)//"& 
+					& not found in input file. Stopping simulation.")
 			endif
 		end if
 
@@ -242,12 +242,13 @@ end subroutine plane_line_intersect
 !--------------------------------------------------------------------------------------
 !Swap column a and column b
 subroutine swap(a,b)
+        use interfaces
 	implicit none
 
 	double precision,dimension(:),intent(inout)	:: a, b
 	double precision,dimension(size(a,1))		:: temp
 
-	if (size(a) .ne. size(b)) stop "Array sizes different in swap"
+	if (size(a) .ne. size(b)) call error_abort("Array sizes different in swap")
 
 	temp = a
 	a = b
@@ -270,12 +271,13 @@ end function outerprod
 !--------------------------------------------------------------------------------------
 !Calculate cross product of two 3D vectors 
 function crossprod(a,b)
+        use interfaces
 	implicit none
 
 	double precision,dimension(3),intent(in)	:: a, b
 	double precision,dimension(3)			:: crossprod
 
-	if (size(a) .ne. 3 .or. size(b) .ne. 3) stop "Error - vectors must be 3 Dimensional for cross product"
+	if (size(a) .ne. 3 .or. size(b) .ne. 3) call error_abort("Error - vectors must be 3 Dimensional for cross product")
 
 	crossprod(1) = a(2) * b(3) - a(3) * b(2)
 	crossprod(2) = a(3) * b(1) - a(1) * b(3)
@@ -332,6 +334,7 @@ end function nonzero
 !indx - output vector storing row permutation
 
 subroutine LUdcmp(A,indx,d)
+        use interfaces
 	implicit none
 
 	double precision, dimension(:,:), intent(inout)	:: A
@@ -348,9 +351,9 @@ subroutine LUdcmp(A,indx,d)
 	vv = maxval(abs(A),dim=2)	!Scaling information
 
 	!Check matrix is square
-	if (size(A,1) .ne. size(A,2)) stop "Matrix not square in LU dcmp"
+	if (size(A,1) .ne. size(A,2)) call error_abort("Matrix not square in LU dcmp")
 	!Check matrix is singular
-	if (any(vv .eq. 0.0)) stop "Singular matrix in LU dcmp"
+	if (any(vv .eq. 0.0)) call error_abort("Singular matrix in LU dcmp")
 	vv = 1.d0 / vv 			!Invert vv
 
 	do j=1,n

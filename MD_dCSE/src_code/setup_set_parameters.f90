@@ -183,6 +183,7 @@ end subroutine setup_polymer_info
 
 !-----------------------------------------------------------------------------
 subroutine setup_shear_parameters
+use interfaces
 use module_set_parameters
 use shear_info_MD
 implicit none
@@ -211,7 +212,7 @@ implicit none
 		case(5)
 			shear_remainingplane = 1
 		case default
-			stop 'Shear plane and shear direction must be different and 1,2 or 3'
+			call error_abort('Shear plane and shear direction must be different and 1,2 or 3')
 		end select 
 	end if
 
@@ -369,6 +370,7 @@ end subroutine set_parameters_global_domain_coupled
 !-----------------------------------------------------------------------------------------
 
 subroutine set_parameters_cells
+        use interfaces
 	use module_set_parameters
 	use polymer_info_MD
 	implicit none

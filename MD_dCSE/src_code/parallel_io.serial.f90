@@ -35,6 +35,7 @@
 !======================================================================
 
 module module_parallel_io
+        use interfaces
 	use computational_constants_MD
 	use physical_constants_MD
 	use arrays_MD
@@ -282,8 +283,9 @@ subroutine setup_inputs
 		select case(thermstat_flag)
 		case(0)
 			if (abs(maxval(thermstattop   )).ne.0.0 & 
-		        .or.abs(maxval(thermstatbottom)).ne.0.0) stop & 
-			 'THERMSTATTOP or THERMSTATBOTTOM non zero but THERMSTAT_FLAG_INFO set to off (THERMSTAT_FLAG=0)'
+		        .or.abs(maxval(thermstatbottom)).ne.0.0) call error_abort( & 
+			 'THERMSTATTOP or THERMSTATBOTTOM non zero but THERMSTAT_FLAG_INFO &
+                         & set to off (THERMSTAT_FLAG=0)')
 			thermstatbottom = 0.d0; thermstattop = 0.d0 
 		case(1)	!N-H thermostat all molecules
 			thermstattop 	= initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
@@ -293,8 +295,8 @@ subroutine setup_inputs
 			thermstatbottom = initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
 		case(3)
 			if (abs(maxval(thermstattop   )).eq.0.0 & 
-		       .and.abs(maxval(thermstatbottom)).eq.0.0) stop & 
-			'THERMSTATTOP or THERMSTATBOTTOM must also be specified'
+		       .and.abs(maxval(thermstatbottom)).eq.0.0) & 
+			call error_abort('THERMSTATTOP or THERMSTATBOTTOM must also be specified')
 		end select
 	endif
 
@@ -313,13 +315,15 @@ subroutine setup_inputs
 				vmd_intervals(1,1) = 1; vmd_intervals(2,1) = huge(1)
 			else
 				allocate(vmd_intervals(2,Nvmd_intervals))
-				write(readin_format,'(a,i,a)') '(',2*Nvmd_intervals,'i)'
-				read(1,trim(readin_format)) vmd_intervals
+				!write(readin_format,'(a,i,a)') '(',2*Nvmd_intervals,'i)'
+				!read(1,trim(readin_format)) vmd_intervals
+                                read(1,*) vmd_intervals
 #if USE_COUPLER
 				!NEED SOME SORT OF coupler total simulation time retrival here!!
 				print*, 'WARNING - CHECK VMD INTERVALS is not greater than coupled number of steps'
 #else
-				if (maxval(vmd_intervals) .gt. Nsteps) stop 'Specified VMD interval greater than Nsteps'
+				if (maxval(vmd_intervals) .gt. Nsteps) &
+                                    call error_abort('Specified VMD interval greater than Nsteps')
 #endif
 			endif
 		endif
@@ -630,16 +634,17 @@ subroutine setup_restart_inputs
 		select case(thermstat_flag)
 		case(0)
 			if (abs(maxval(thermstattop   )).ne.0.0 & 
-		        .or.abs(maxval(thermstatbottom)).ne.0.0) stop & 
-			'THERMSTATTOP or THERMSTATBOTTOM non zero but THERMSTAT_FLAG_INFO set to off (THERMSTAT_FLAG=0)'
+		        .or.abs(maxval(thermstatbottom)).ne.0.0) call error_abort( & 
+			'THERMSTATTOP or THERMSTATBOTTOM non zero but THERMSTAT_FLAG_INFO &
+                        & set to off (THERMSTAT_FLAG=0)')
 			thermstatbottom = 0.d0; thermstattop = 0.d0 
 		case(1)
 			thermstattop 	= initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
 			thermstatbottom = initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
 		case(2)
 			if (abs(maxval(thermstattop   )).eq.0.0 & 
-		       .and.abs(maxval(thermstatbottom)).eq.0.0) stop &
-			 'THERMSTATTOP or THERMSTATBOTTOM must also be specified'
+		       .and.abs(maxval(thermstatbottom)).eq.0.0)  call error_abort( &
+			 'THERMSTATTOP or THERMSTATBOTTOM must also be specified')
 		end select
 	endif
 
@@ -659,13 +664,15 @@ subroutine setup_restart_inputs
 				vmd_intervals(1,1) = 1; vmd_intervals(2,1) = huge(1)
 			else
 				allocate(vmd_intervals(2,Nvmd_intervals))
-				write(readin_format,'(a,i,a)') '(',2*Nvmd_intervals,'i)'
-				read(1,trim(readin_format)) vmd_intervals
+				!write(readin_format,'(a,i,a)') '(',2*Nvmd_intervals,'i)'
+				!read(1,trim(readin_format)) vmd_intervals
+                                read(1,*) vmd_intervals
 #if USE_COUPLER
 				!NEED SOME SORT OF coupler total simulation time retrival here!!
 				print*, 'WARNING - CHECK VMD INTERVALS is not greater than coupled number of steps'
 #else
-				if (maxval(vmd_intervals) .gt. Nsteps) stop 'Specified VMD interval greater than Nsteps'
+				if (maxval(vmd_intervals) .gt. Nsteps) &
+                                    call error_abort('Specified VMD interval greater than Nsteps')
 #endif
 			endif
 		endif
@@ -1827,19 +1834,19 @@ subroutine macroscopic_properties_header
 	open(unit=10,file=trim(prefix_dir)//'results/macroscopic_properties',status='replace')
 	
 	if (potential_flag.eq.0) then
-		write(10,'(2a)'), &
+		write(10,'(2a)') &
 		'Iteration; 	   VSum;        V^2Sum;        Temp;', &
 		'         KE;        PE;         TE;        Pressure;'
 		!Print initial conditions for simulations at iteration 0
-		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.4)'), &
+		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.4)') &
 		initialstep,';',vsum,';', v2sum,';', temperature,';', &
 		kinenergy,';',potenergy,';',totenergy,';',pressure
 	else if (potential_flag.eq.1) then
-		write(10,'(2a)'), &
+		write(10,'(2a)') &
 		'Iteration; 	   VSum;        V^2Sum;        Temp;', &
 		'       KE;     PE (LJ);  PE (FENE); PE (Tot);    TE;       Pressure;'
 		!Print initial conditions for simulations at iteration 0
-		write(10, '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4)'), &
+		write(10, '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4)') &
 		initialstep,';',vsum,';', v2sum,';', temperature,';', &
 		kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure
 	end if
@@ -1853,11 +1860,11 @@ subroutine macroscopic_properties_record
 	implicit none
 
 	if (potential_flag.eq.0) then	
-		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.4)'), &
+		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.4)') &
 		iter,';',vsum,';', v2sum,';', temperature,';', &
 		kinenergy,';',potenergy,';',totenergy,';',pressure
 	else if (potential_flag.eq.1) then
-		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4)'), &
+		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4)') &
 		iter,';',vsum,';', v2sum,';', temperature,';', &
 		kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure
 	end if
@@ -1920,7 +1927,7 @@ implicit none
 		open(15,file=trim(prefix_dir)//'results/r_gyration',status='replace')
 		write(15,'(i8,f15.8)') iter, R_g
 	else if (iter.gt.r_gyration_iter0) then
-		open(15,file=trim(prefix_dir)//'results/r_gyration',access='append')
+		open(15,file=trim(prefix_dir)//'results/r_gyration',position='append')
 		write(15,'(i8,f15.8)') iter, R_g
 	end if
 	

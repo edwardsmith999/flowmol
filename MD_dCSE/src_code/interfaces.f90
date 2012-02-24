@@ -8,9 +8,14 @@ module interfaces
         
 interface error_abort
 
-       subroutine error_abort(msg)
+       subroutine error_abort_s(msg)
                character(len=*), intent(in), optional :: msg
-       end subroutine error_abort
+       end subroutine error_abort_s
+
+       subroutine error_abort_si(msg,i)
+               character(len=*), intent(in) :: msg
+               integer, intent(in)          :: i
+       end subroutine error_abort_si
 
 end interface error_abort
 
@@ -18,7 +23,6 @@ end interface error_abort
 interface SubcommSum
 
         subroutine SubcommSumVect(A, na, ixyz)
-	        use messenger
 
                 integer, intent(in) :: na, ixyz !Direction of sub-comm
                 double precision A(na)
@@ -26,14 +30,12 @@ interface SubcommSum
         end subroutine SubcommSumVect
 
         subroutine SubcommSumInt(A, ixyz)
-	        use messenger
 
                 integer, intent(in) :: ixyz !Direction of sub-comm
 	        integer	A
         end
     
         subroutine SubcommSumIntVect(A, na, ixyz)
-	        use messenger
 
                 integer, intent(in) :: na, ixyz !Direction of sub-comm
          	integer	A(na)

@@ -30,6 +30,7 @@ end module module_compute_forces
 ! specified in the input file
 
 subroutine simulation_compute_forces
+        use interfaces
 	use module_compute_forces
 	implicit none
 	
@@ -49,7 +50,7 @@ subroutine simulation_compute_forces
 		case(0)
 			call simulation_compute_forces_LJ_AP
 		case default								
-			stop "Potential flag/force_list incompatible - only LJ avaible with all pairs"
+			call error_abort("Potential flag/force_list incompatible - only LJ avaible with all pairs")
 		end select
 
 	case(1)
@@ -58,7 +59,7 @@ subroutine simulation_compute_forces
 		case(0)					!If simple LJ fluid
 			call simulation_compute_forces_LJ_cells
 		case default								
-			stop "Potential flag/force_list incompatible - only LJ avaible with cell lists"
+			call error_abort("Potential flag/force_list incompatible - only LJ avaible with cell lists")
 		end select
 
 	case(2)
@@ -67,7 +68,8 @@ subroutine simulation_compute_forces
 		case(0)					!If simple LJ fluid
 			call simulation_compute_forces_LJ_neigbr
 		case default								
-			stop "Potential flag/force_list incompatible - only LJ avaible with all interactions neighbour lists"
+			call error_abort("Potential flag/force_list incompatible - &
+                        &only LJ avaible with all interactions neighbour lists")
 		end select
 	case(3)
 		!Forces calculated using neighbour lists optimised using 
@@ -81,7 +83,7 @@ subroutine simulation_compute_forces
 			call simulation_compute_forces_LJ_neigbr_halfint	!Compute LJ bead interactions
 			call simulation_compute_forces_FENE					!Add on FENE spring interactions
 		case default								
-			stop 'Potential flag not recognised!'
+			call error_abort('Potential flag not recognised!')
 		end select
 	case default
 	end select
@@ -470,6 +472,7 @@ contains
 
 subroutine polymer_bond_error(molnoX)
 	use mpi
+        use interfaces
 	implicit none
 
 	integer :: molnoX
@@ -482,8 +485,7 @@ subroutine polymer_bond_error(molnoX)
 	print '(a)', 'Atomic positions:'
 	print '(a,i4,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoi,' is located at ',r(molnoi,1),' ',r(molnoi,2),' ',r(molnoi,3) 
 	print '(a,i4,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoX,' is located at ',r(molnoX,1),' ',r(molnoX,2),' ',r(molnoX,3) 
-	if (molnoX.gt.np) print*, 'Halo!'
-	stop
+	if (molnoX.gt.np) call error_abort('Halo!')
 
 end subroutine polymer_bond_error
 

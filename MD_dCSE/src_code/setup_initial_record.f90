@@ -16,55 +16,76 @@ end module module_initial_record
 !----------------------------------------------------------------------------------
 
 subroutine setup_initial_record
+use interfaces
 use module_initial_record
 use polymer_info_MD
 implicit none
 
-	character			:: ixyz_char
+        integer i
+        logical file_exist
+	character		:: ixyz_char
 	Character(8)  		:: the_date
 	Character(10)  		:: the_time
+        Character(10),parameter :: file_names(17) = (/"mslice    ", "mbins     ", "msnap     ",&
+                                                      "vslice    ", "vbins     ", "vsnap     ",&
+                                                      "pvirial   ", "pVA       ", "visc      ",&
+                                                      "mflux     ", "vflux     ", "pplane    ",&
+                                                      "psurface  ", "esnap     ", "eflux     ",&
+                                                      "eplane    ", "esurface  "/) 
+       
 
-	if (irank .eq. iroot) then
-		!Delete existing files
-		open (unit=5, file=trim(prefix_dir)//'results/mslice')
-		close(5,status='delete')
-		open (unit=5, file=trim(prefix_dir)//'results/mbins')
-		close(5,status='delete')
-		open (unit=5, file=trim(prefix_dir)//'results/msnap')
-		close(5,status='delete')
-		open (unit=6, file=trim(prefix_dir)//'results/vslice')
-		close(6,status='delete')
-		open (unit=6, file=trim(prefix_dir)//'results/vbins')
-		close(6,status='delete')
-		open (unit=6, file=trim(prefix_dir)//'results/vsnap')
-		close(6,status='delete')
-		open (unit=6, file=trim(prefix_dir)//'results/vslice')
-		close(6,status='delete')
-		open (unit=6, file=trim(prefix_dir)//'results/vbins')
-		close(6,status='delete')
-		open (unit=7, file=trim(prefix_dir)//'results/pvirial')
-		close(7,status='delete')
-		open (unit=7, file=trim(prefix_dir)//'results/pVA')
-		close(7,status='delete')
-		open (unit=7, file=trim(prefix_dir)//'results/visc')
-		close(7,status='delete')
-		open (unit=8, file=trim(prefix_dir)//'results/mflux')
-		close(8,status='delete')
-		open (unit=9, file=trim(prefix_dir)//'results/vflux')
-		close(9,status='delete')
-		open (unit=9, file=trim(prefix_dir)//'results/pplane')
-		close(9,status='delete')
-		open (unit=9, file=trim(prefix_dir)//'results/psurface')
-		close(9,status='delete')
-		open (unit=10, file=trim(prefix_dir)//'results/esnap')
-		close(10,status='delete')
-		open (unit=10, file=trim(prefix_dir)//'results/eflux')
-		close(10,status='delete')
-		open (unit=10, file=trim(prefix_dir)//'results/eplane')
-		close(10,status='delete')
-		open (unit=10, file=trim(prefix_dir)//'results/esurface')
-		close(10,status='delete')
-	endif
+! I think this is not needed in Fortran 90 
+! A file can be opened with STATUS="replace" which ensures the deletion of the previous file
+
+        do i=1,size(file_names)
+            inquire(file=trim(prefix_dir)//'results/'//file_names(i),exist=file_exist)
+            if(file_exist) then
+               open (unit=23, file=trim(prefix_dir)//'results/'//file_names(i))
+               close(23,status='delete')
+            endif
+        enddo
+
+!!$	if (irank .eq. iroot) then
+!!$		!Delete existing files
+!!$		open (unit=5, file=trim(prefix_dir)//'results/mslice')
+!!$		close(5,status='delete')
+!!$		open (unit=5, file=trim(prefix_dir)//'results/mbins')
+!!$		close(5,status='delete')
+!!$		open (unit=5, file=trim(prefix_dir)//'results/msnap')
+!!$		close(5,status='delete')
+!!$		open (unit=6, file=trim(prefix_dir)//'results/vslice')
+!!$		close(6,status='delete')
+!!$		open (unit=6, file=trim(prefix_dir)//'results/vbins')
+!!$		close(6,status='delete')
+!!$		open (unit=6, file=trim(prefix_dir)//'results/vsnap')
+!!$		close(6,status='delete')
+!!$		open (unit=6, file=trim(prefix_dir)//'results/vslice')
+!!$		close(6,status='delete')
+!!$		open (unit=6, file=trim(prefix_dir)//'results/vbins')
+!!$		close(6,status='delete')
+!!$		open (unit=7, file=trim(prefix_dir)//'results/pvirial')
+!!$		close(7,status='delete')
+!!$		open (unit=7, file=trim(prefix_dir)//'results/pVA')
+!!$		close(7,status='delete')
+!!$		open (unit=7, file=trim(prefix_dir)//'results/visc')
+!!$		close(7,status='delete')
+!!$		open (unit=8, file=trim(prefix_dir)//'results/mflux')
+!!$		close(8,status='delete')
+!!$		open (unit=9, file=trim(prefix_dir)//'results/vflux')
+!!$		close(9,status='delete')
+!!$		open (unit=9, file=trim(prefix_dir)//'results/pplane')
+!!$		close(9,status='delete')
+!!$		open (unit=9, file=trim(prefix_dir)//'results/psurface')
+!!$		close(9,status='delete')
+!!$		open (unit=10, file=trim(prefix_dir)//'results/esnap')
+!!$		close(10,status='delete')
+!!$		open (unit=10, file=trim(prefix_dir)//'results/eflux')
+!!$		close(10,status='delete')
+!!$		open (unit=10, file=trim(prefix_dir)//'results/eplane')
+!!$		close(10,status='delete')
+!!$		open (unit=10, file=trim(prefix_dir)//'results/esurface')
+!!$		close(10,status='delete')
+!!$	endif
 
 	!Evaluate system properties on all processes
 	call initial_macroscopic_properties
@@ -138,7 +159,7 @@ implicit none
 		print'(a,3f10.5)', ' Velocity of Sliding Molecules in x,y and z:', 	wallslidev
 		print'(a,3f10.5)', ' Distance from bottom of NH Themostatted Molecules in x,y and z:', 	thermstatbottom
 		print'(a,3f10.5)', ' Distance from top of NH Themostatted Molecules in x,y and z:', 	thermstattop
-		print*, 'Molecular Reynolds number = ', (density * maxval(slidev(:,1)) * domain(2))/1.d0
+		print*, 'Molecular Reynolds number = ', (density * maxval(slidev(1:np,1)) * domain(2))/1.d0
 		print*, '==================== Computational Parameters ========================='
 		print'(a,3i8)', ' Domain split into computational cells in x,y and z:', & 
 					 ncells(1)*npx, ncells(2)*npy, ncells(3)*npz
@@ -159,7 +180,7 @@ implicit none
 		case(3)
 			print*, 'VMD output Domain+halos every:', tplot, 'iterations'
 		case default
-			stop "Invalid VMD output flag in input file"
+			call error_abort("Invalid VMD output flag in input file")
 		end select
 
 		select case(macro_outflag)
@@ -171,7 +192,7 @@ implicit none
 			call macroscopic_properties_header
 			print*, 'Macroscopic properties printed to results/macroscopic_properties every:', tplot, 'iterations.'
 		case default
-			stop "Invalid Macroscopic properties output flag in input file"
+			call error_abort("Invalid Macroscopic properties output flag in input file")
 		end select
 
 		select case(mass_outflag)
@@ -200,7 +221,7 @@ implicit none
 			print'(a,3f10.5)', ' Each of size:', & 
 			globaldomain(1)/globalnbins(1), globaldomain(2)/globalnbins(2),globaldomain(3)/globalnbins(3)
 		case default
-			stop "Invalid Mass output flag in input file"
+			call error_abort("Invalid Mass output flag in input file")
 		end select
 
 		select case(velocity_outflag)
@@ -230,7 +251,7 @@ implicit none
 			print'(a,3f10.5)', ' Each of size:', & 
 			globaldomain(1)/globalnbins(1), globaldomain(2)/globalnbins(2),globaldomain(3)/globalnbins(3)
 		case default
-			stop "Invalid Velocity output flag in input file"
+			call error_abort("Invalid Velocity output flag in input file")
 		end select
 
 		select case(pressure_outflag)
@@ -250,7 +271,7 @@ implicit none
 			print'(a,3f10.5)', ' Each of size:', & 
 			globaldomain(1)/globalnbins(1), globaldomain(2)/globalnbins(2),globaldomain(3)/globalnbins(3)
 		case default
-			stop "Invalid Pressure tensor output flag in input file"
+			call error_abort("Invalid Pressure tensor output flag in input file")
 		end select
 
 		select case(viscosity_outflag)
@@ -264,7 +285,7 @@ implicit none
 				tplot*Nstress_ave,'iterations'
 			print*, ' with each bin averaged', Nvisc_ave,' times'
 		case default
-			stop "Invalid viscosity output flag in input file"
+			call error_abort("Invalid viscosity output flag in input file")
 		end select
 
 		select case(mflux_outflag)
@@ -279,7 +300,7 @@ implicit none
 			print'(a,3f10.5)', ' Each of size:', & 
 			globaldomain(1)/globalnbins(1), globaldomain(2)/globalnbins(2),globaldomain(3)/globalnbins(3)
 		case default
-			stop "Invalid mass flux output flag in input file"
+			call error_abort("Invalid mass flux output flag in input file")
 		end select
 
 		select case(vflux_outflag)
@@ -307,7 +328,7 @@ implicit none
 			print'(a,3f10.5)', ' Each of size:', & 
 			globaldomain(1)/globalnbins(1), globaldomain(2)/globalnbins(2),globaldomain(3)/globalnbins(3)
 		case default
-			stop "Invalid velocity flux output flag in input file"
+			call error_abort("Invalid velocity flux output flag in input file")
 		end select
 
 		!print*, 'Bins per Processor:', nbins
@@ -332,7 +353,7 @@ implicit none
 			initialstep,';',vsum,';', v2sum,';', temperature,';', &
 			kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure
 		case default
-			stop "Invalid potential flag in input file"
+			call error_abort("Invalid potential flag in input file")
 		end select
 
 		call simulation_header

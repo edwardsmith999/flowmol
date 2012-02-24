@@ -270,6 +270,7 @@ end subroutine decode_tag
 !Read molecular tags and assign values accordingly
 
 subroutine read_tag(molno)
+        use interfaces
 	use module_molecule_properties
 	implicit none
 
@@ -316,7 +317,7 @@ subroutine read_tag(molno)
 		fix(molno,:) = 1
 		slidev(molno,:) = 0.d0
 	case default
-		stop "Invalid molecular Tag"
+		call error_abort("Invalid molecular Tag")
 	end select
 
 end subroutine read_tag

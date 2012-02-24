@@ -488,6 +488,7 @@ end subroutine assign_FENEbuffer
 !======================================================================
 
 subroutine messenger_updateborders(rebuild)
+use interfaces
 use messenger
 implicit none
 
@@ -496,7 +497,7 @@ implicit none
 	if (all(periodic.lt.2)) then
 	 	call messenger_updateborders_quiescent(rebuild)
 	else
-		stop "CANNOT USE LEES EDWARDS IN PARALLEL (YET!!)"
+		call error_abort( "CANNOT USE LEES EDWARDS IN PARALLEL (YET!!)")
 	end if
 
 end subroutine messenger_updateborders
@@ -540,6 +541,7 @@ end
 
 !Update face halo cells by passing to neighbours
 subroutine updatefacedown(ixyz)
+        use interfaces
 	use physical_constants_MD
 	use polymer_info_MD
 	use messenger
@@ -590,7 +592,7 @@ subroutine updatefacedown(ixyz)
 		enddo
 		enddo
 	case default
-		stop "updateBorder: invalid value for ixyz"
+		call error_abort( "updateBorder: invalid value for ixyz")
 	end select
 
 
@@ -695,7 +697,7 @@ subroutine updatefacedown(ixyz)
 		enddo
 		enddo
         case default
-                stop "updateBorder: invalid value for ixyz"
+                call error_abort("updateBorder: invalid value for ixyz")
         end select
 
 	!If processor is its own neighbour - no passing required
@@ -766,6 +768,7 @@ end
 
 !Update face halo cells by passing to neighbours
 subroutine updatefaceup(ixyz)
+        use interfaces
 	use physical_constants_MD
 	use polymer_info_MD
 	use messenger
@@ -816,7 +819,7 @@ subroutine updatefaceup(ixyz)
 		enddo
 		enddo
         case default
-                stop "updateBorder: invalid value for ixyz"
+                call error_abort("updateBorder: invalid value for ixyz")
         end select
 
 	!Determine size of send buffer
@@ -918,7 +921,7 @@ subroutine updatefaceup(ixyz)
 		enddo
 		enddo
         case default
-                stop "updateBorder: invalid value for ixyz"
+                call error_abort("updateBorder: invalid value for ixyz")
         end select
 
 	!If processor is its own neighbour - no passing required
@@ -987,6 +990,7 @@ end
 !Update edge halo cells by passing to neighbours
 
 subroutine updateedge(face1,face2)
+        use interfaces
 	use messenger
 	use physical_constants_MD
 	use polymer_info_MD
@@ -1044,7 +1048,7 @@ subroutine updateedge(face1,face2)
 				sendnp = sendnp + cellnp
 			enddo
 		case default
-                	stop "updateBorder: invalid value for ixyz"
+                	call error_abort("updateBorder: invalid value for ixyz")
 		end select
 
 		!Determine size of send buffer
@@ -1136,7 +1140,7 @@ subroutine updateedge(face1,face2)
 			enddo
 
 		case default
-                	stop "updateBorder: invalid value for ixyz"
+                	call error_abort("updateBorder: invalid value for ixyz")
 		end select
 
 		!If processor is its own neighbour - no passing required
@@ -1208,7 +1212,7 @@ subroutine updateedge(face1,face2)
 				!if(irank .eq. 18 .and. iter .gt. 33) print'(i5,3f10.5)', iter, r(np+n,:)
 			enddo
 		case default
-                	stop "updateBorder: invalid value for ixyz"
+                	call error_abort("updateBorder: invalid value for ixyz")
 		end select
 
 		!Update number of molecules in halo to include number recieved
@@ -2230,7 +2234,7 @@ subroutine SubcommSumIntVect(A, na, ixyz)
 	return
 end
 
-subroutine error_abort(msg)
+subroutine error_abort_s(msg)
         use mpi
         implicit none
         
@@ -2244,4 +2248,20 @@ subroutine error_abort(msg)
 
         call MPI_Abort(MPI_COMM_WORLD,errcode,ierr)
 
-end subroutine error_abort
+end subroutine error_abort_s
+
+
+subroutine error_abort_si(msg,i)
+        use mpi
+        implicit none
+        
+        character(len=*), intent(in) :: msg
+        integer, intent(in) :: i
+
+        integer errcode,ierr
+
+        write(*,*) msg,i
+
+        call MPI_Abort(MPI_COMM_WORLD,errcode,ierr)
+
+end subroutine error_abort_si

@@ -9,6 +9,7 @@
 
 module module_move_particles_vv
 
+        use interfaces
 	use physical_constants_MD
 	use computational_constants_MD
 	use arrays_MD
@@ -104,10 +105,10 @@ subroutine simulation_move_particles_vv(pass_num)
 			end do
 		
 		case(tag_move)
-			stop 'Tag mode for velocity-Verlet not yet implemented.'
+			call error_abort('Tag mode for velocity-Verlet not yet implemented.')
 	
 		case default
-			stop 'Unrecognised ensemble, stopping.'
+			call error_abort('Unrecognised ensemble, stopping.')
 
 		end select	
 	
@@ -169,10 +170,10 @@ subroutine simulation_move_particles_vv(pass_num)
 				end do	
 		
 			case(tag_move)
-				stop 'Tag mode for velocity-Verlet not yet implemented.'
+				call error_abort('Tag mode for velocity-Verlet not yet implemented.')
 			
 			case default
-				stop 'Unrecognised ensemble, stopping.'
+				call error_abort('Unrecognised ensemble, stopping.')
 
 		end select
 
@@ -345,6 +346,7 @@ contains
 	!Random numbers do not need to be Gaussian
 
 	subroutine evaluate_DPD
+                use interfaces
 		use linked_list
 		implicit none
 	
@@ -368,7 +370,7 @@ contains
 	
 			do j=1,noneighbrs
 				molnoj    = old%molnoj
-				if (molnoj.eq.molnoi) stop "Self interaction in DPD vv"	!self interactions are unacceptable!
+				if (molnoj.eq.molnoi) call error_abort("Self interaction in DPD vv")	!self interactions are unacceptable!
 				rj(:)     = r(molnoj,:)
 				rij(:)    = ri(:) - rj(:)
 				rij2      = dot_product(rij,rij)

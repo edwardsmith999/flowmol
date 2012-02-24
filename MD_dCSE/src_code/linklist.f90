@@ -101,6 +101,7 @@ end subroutine assign_to_halocell
 ! for each cell pair before moving to next cell pair
 
 subroutine assign_to_neighbourlist
+use interfaces
 use module_linklist
 implicit none
 
@@ -117,7 +118,7 @@ implicit none
 		!Newton's 3rd law to count only half of the interactions
 		call assign_to_neighbourlist_halfint
 	case default
-		stop "Error in force_list flag"
+		call error_abort("Error in force_list flag")
 	end select	
 
 
@@ -149,7 +150,7 @@ implicit none
 		nullify(neighbour%head(i)%point)!Nullify neighbour list head pointer 
 	enddo
 
-	!if (maxval(cell%cellnp(:,:,:)) .gt. 9) stop "ERROR - greater than 10 per cell"
+	!if (maxval(cell%cellnp(:,:,:)) .gt. 9) call error_abort("ERROR - greater than 10 per cell")
 
 	do icell=2, ncells(1)+1
 	do jcell=2, ncells(2)+1
@@ -1655,12 +1656,13 @@ implicit none
 contains 
 	
 	subroutine linklist_polymerbonderror(molno)
+        use interfaces
 	implicit none
 		
 		integer, intent(in) :: molno
 	
-		print'(a,i5)', 'Error: too many bonds for molno ', molno
-		stop
+		call error_abort('Error: too many bonds for molno ', molno)
+	
 
 	end subroutine linklist_polymerbonderror
 
