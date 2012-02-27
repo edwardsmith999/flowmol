@@ -427,9 +427,8 @@ implicit none
 end subroutine etevtcf_calculate
 
 subroutine etevtcf_calculate_parallel
-use module_record
-use mpi
-implicit none
+	use module_record
+	implicit none
 	
 	integer :: n,i,j
 	integer :: chain, i_sub, j_sub, funcy
@@ -1645,7 +1644,7 @@ subroutine cumulative_energy_flux(ixyz)
 
 					!Calculate velocity at time of intersection
 					!crosstime = (r(n,jxyz) - rplane)/v(n,jxyz)
-					velvect(:) = v(n,:) + 0.5d0*a(n,:)*delta_t
+					velvect(:) = v(n,:) !+ 0.5d0*a(n,:)*delta_t
 					energy = 0.5d0 * (dot_product(velvect,velvect) + potenergymol(n))
 					!Change in velocity at time of crossing is not needed as velocity assumed constant 
 					!for timestep and changes when forces are applied.
@@ -1707,7 +1706,7 @@ subroutine energy_snapshot
 	do n = 1,np
 		!Add up current volume momentum densities
 		ibin(:) = ceiling((r(n,:)+halfdomain(:))/mbinsize(:)) + 1
-		velvect(:) = v(n,:) + 0.5d0*a(n,:)*delta_t
+		velvect(:) = v(n,:) !+ 0.5d0*a(n,:)*delta_t
 		energy = 0.5d0 * (dot_product(velvect,velvect) + potenergymol(n))
 		volume_energy_temp(ibin(1),ibin(2),ibin(3)) = volume_energy_temp(ibin(1),ibin(2),ibin(3)) + energy
 	enddo
@@ -2422,10 +2421,7 @@ implicit none
 		!Stress acting on face over volume
 		if (eflux_outflag .ne. 0) then
 			!velvect(:) = v(molnoi,:) 
-!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
-			velvect(:) = v(molnoi,:) + 0.5d0*delta_t*aold(molnoi,:)
-			stop "Check temp lines in eflux"
-!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
+			velvect(:) = v(molnoi,:) !+ 0.5d0*delta_t*aold(molnoi,:)
 			Pxyvface(cbin(1),cbin(2),cbin(3),1) = Pxyvface(cbin(1),cbin(2),cbin(3),1) + dot_product(fij,velvect)*dble(onfacexb)
 			Pxyvface(cbin(1),cbin(2),cbin(3),2) = Pxyvface(cbin(1),cbin(2),cbin(3),2) + dot_product(fij,velvect)*dble(onfaceyb)
 			Pxyvface(cbin(1),cbin(2),cbin(3),3) = Pxyvface(cbin(1),cbin(2),cbin(3),3) + dot_product(fij,velvect)*dble(onfacezb)

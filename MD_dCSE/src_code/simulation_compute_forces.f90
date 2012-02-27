@@ -459,8 +459,7 @@ subroutine simulation_compute_forces_FENE
 contains
 
 subroutine polymer_bond_error(molnoX)
-	use mpi
-        use interfaces
+	use interfaces
 	implicit none
 
 	integer :: molnoX
