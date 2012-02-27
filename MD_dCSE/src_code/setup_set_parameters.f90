@@ -133,9 +133,6 @@ subroutine set_parameters_allocate(n)
 		allocate(v(np+extralloc,nd))
 		allocate(vmagnitude(np+extralloc))
 		allocate(a(np+extralloc,nd))
-!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
-		allocate(aold(np+extralloc,nd))
-!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
 		allocate(theta(np+extralloc,nd))
 		allocate(aD(np+extralloc,nd))
 		allocate(aR(np+extralloc,nd))

@@ -133,7 +133,7 @@ subroutine setup_inputs
 	use librarymod, only : locate
 	implicit none
 	
-	integer 			:: k, n, tvalue(8)
+	integer 			:: k, n, tvalue(8), ios
 	logical 			:: found_in_input
 	character(20)		:: readin_format
 
@@ -357,7 +357,11 @@ subroutine setup_inputs
 	call locate(1,'PRESSURE_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,* ) pressure_outflag
-		if (pressure_outflag .ne. 0)	read(1,* ) Nstress_ave
+		if (pressure_outflag .ne. 0) then
+			read(1,* ) Nstress_ave
+			read(1,*,iostat=ios) 	split_kin_config
+			if (ios .ne. 0) split_kin_config = 0 !default to zero if value not found
+		endif
 	endif
 	call locate(1,'VISCOSITY_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
@@ -1149,9 +1153,8 @@ subroutine parallel_io_final_state
 	 		buf(:,2*n-1) = r(n,:)
 	 		buf(:,2*n  ) = v(n,:)
 	 	enddo
-	 	call MPI_FILE_WRITE(restartfileid, buf,2*np*nd,
-	 	 						MPI_double_precision, &
-	 	               		MPI_STATUS_IGNORE, ierr)
+	 	call MPI_FILE_WRITE(restartfileid, buf,2*np*nd, & 
+	 	 						MPI_double_precision, MPI_STATUS_IGNORE, ierr)
 
 	case(1)
 		do n=1,np
@@ -1900,6 +1903,37 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 	!close(6,status='keep')
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 end subroutine velocity_bin_io
+
+!---------------------------------------------------------------------------------
+! Record temperature in a slice through the domain
+
+subroutine temperature_slice_io(ixyz)
+use module_parallel_io
+use calculated_properties_MD
+implicit none
+
+	integer		:: ixyz
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+end subroutine temperature_slice_io
+
+!---------------------------------------------------------------------------------
+! Record temperature in 3D bins throughout domain
+
+subroutine temperature_bin_io(CV_mass_out,CV_temperature_out,io_type)
+	use module_parallel_io
+	use calculated_properties_MD
+	implicit none
+
+	integer					:: CV_mass_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
+	double precision		:: CV_temperature_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
+	character(4)			:: io_type
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+end subroutine temperature_bin_io
+
 
 
 !---------------------------------------------------------------------------------
