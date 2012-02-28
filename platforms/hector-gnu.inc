@@ -51,7 +51,7 @@ endif
 # common compiler flags
 #
 
-FLAGS_BASE_debug := -ffree-line-length-0 -g -fbounds-check -Wall -Wtabs -Wno-unused -fbacktrace -ffpe-trap=invalid,zero,overflow -fsignaling-nans -fdump-core $(FLAG_OBJ_DIR)
+FLAGS_BASE_debug := -ffree-line-length-0 -g -finit-real=snan -fcheck=all -Wall -Wtabs -Wno-unused -fbacktrace -ffpe-trap=invalid,zero,overflow -fsignaling-nans -fdump-core $(FLAG_OBJ_DIR)
 FLAGS_BASE_opt   := -O3 -ffree-line-length-0 $(FLAG_OBJ_DIR)
 #
 # add  flags required by particulary codes
