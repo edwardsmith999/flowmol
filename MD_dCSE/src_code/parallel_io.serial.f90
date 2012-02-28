@@ -35,7 +35,7 @@
 !======================================================================
 
 module module_parallel_io
-        use interfaces
+	use interfaces
 	use computational_constants_MD
 	use physical_constants_MD
 	use arrays_MD
@@ -1141,11 +1141,27 @@ subroutine parallel_io_vmd(start, finish,interval_no)
 
 	integer,intent(in)			:: start, finish,interval_no
 	integer						:: i, n, length
+	integer                     :: molno
 	real,dimension(3*np)		:: buf
+	real,dimension(np)          :: Xbuf, Ybuf, Zbuf
 
-	buf(1     :  np) = r(:,1)
-	buf(np+1  :2*np) = r(:,2)
-	buf(2*np+1:3*np) = r(:,3)
+	select case (potential_flag)
+	case(0)
+		buf(1     :  np) = r(:,1)
+		buf(np+1  :2*np) = r(:,2)
+		buf(2*np+1:3*np) = r(:,3)
+	case(1)
+		do n=1,np
+			molno       = monomer(n)%glob_no
+			Xbuf(molno) = r(n,1)
+			Ybuf(molno) = r(n,2)
+			Zbuf(molno) = r(n,3)
+		end do
+		buf(1     :np  ) = Xbuf
+		buf(np+1  :2*np) = Ybuf
+		buf(2*np+1:3*np) = Zbuf
+	case default
+	end select		
 
 	!If intervals set to zero then full simulation recorded
 	if (Nvmd_intervals.eq.0) then

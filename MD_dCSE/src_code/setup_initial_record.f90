@@ -78,7 +78,6 @@ implicit none
 		close(10,status='delete')
 		open (unit=10, file=trim(prefix_dir)//'results/esurface')
 		close(10,status='delete')
-	endif
 
         do i=1,size(file_names)
             inquire(file=trim(prefix_dir)//'results/'//file_names(i),exist=file_exist)
@@ -87,6 +86,8 @@ implicit none
                close(23,status='delete')
             endif
         enddo
+	
+	endif
 
 !!$	if (irank .eq. iroot) then
 !!$		!Delete existing files
