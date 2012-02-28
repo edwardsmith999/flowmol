@@ -953,10 +953,21 @@ subroutine globalMaxInt(A)
 	return
 end
 
+subroutine globalSumVectReal(A, na)
+	use messenger
+
+	integer, intent(in) :: na
+	real :: A(na)
+
+	A = A
+
+	return
+end
+
 subroutine globalSumVect(A, na)
 	use messenger
 	
-        integer na
+	integer na
 	double precision A(na)
 
 	A = A
@@ -969,6 +980,17 @@ subroutine globalSumTwoDim(A,na1,na2)
 
 	integer, intent(in) :: na1,na2
 	double precision A(na1,na2)
+	
+	A = A
+
+	return
+end
+
+subroutine globalSumIntTwoDim(A,na1,na2)
+	use messenger
+
+	integer, intent(in) :: na1,na2
+	integer A(na1,na2)
 	
 	A = A
 

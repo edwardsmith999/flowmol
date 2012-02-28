@@ -398,6 +398,7 @@ end subroutine setup_initialise_parallel_position_FENE
 !Assign chainIDs, subchainIDs, global molecule numbers, etc...
 
 subroutine setup_initialise_polyinfo
+	use interfaces
 	use polymer_info_MD
 	use messenger
 	use physical_constants_MD, only: np
@@ -406,10 +407,16 @@ subroutine setup_initialise_polyinfo
 	integer :: i,n
 	integer :: chainID
 	integer :: subchainID
+	integer :: modcheck
 	integer, dimension(nproc) :: proc_chains, proc_nps
 	
 	proc_chains(:)         = 0
 	proc_nps(:)            = 0
+	
+	modcheck = 0 + mod(np,nmonomers) + mod(4*initialnunits(1),nmonomers)
+	if (modcheck.ne.0) call error_abort('Number of molecules must be exactly divisible by &
+	& the polymer chain length. Please change the chain length in the input file. &
+	& A chain length of 4 should (hopefully) always work.')
 
 	do n=1,np
 

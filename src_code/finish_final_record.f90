@@ -57,13 +57,20 @@ implicit none
 	
 	!Reformat positions recorded into the correct from for VMD to use
 	if(irank .eq. iroot) then
-		if(vmd_outflag .eq. 1) call reformat_dcd
-		if(vmd_outflag .eq. 2) call reformat_dcd_sl
-		if(vmd_outflag .eq. 3) then
+		select case (vmd_outflag)
+		case(0)
+		case(1)
+			call reformat_dcd
+		case(2)
+			call reformat_dcd_sl
+		case(3)
 			call reformat_dcd
 			call reformat_dcd_halo
-		end if
+		case default
+		end select 
 	endif
+
+	if (vmd_outflag.eq.1 .and. potential_flag.eq.1) call build_psf
 
 	!Close all output files
 	if (irank .eq. iroot) then   !Close Pressure tensor and viscosity output file
@@ -82,8 +89,7 @@ implicit none
 	!endif
 
 	if (macro_outflag.eq.2) close(10,status='keep') !Keep macroscopic_properties
-		
-	!if (potential_flag.eq.1) call build_psf
+	
 
 end subroutine finish_final_record
 
@@ -431,89 +437,117 @@ subroutine build_psf
 	use polymer_info_MD
 	implicit none
 
-	integer :: i,j,item
+	integer :: i,j,n,item, molno
 	integer :: NTITLE, NATOM, NBONDS
 	integer	:: write_items
 	integer, allocatable, dimension(:,:) :: bonds	
 	integer, allocatable, dimension(:)	::	res_ID
+	integer, allocatable, dimension(:)	::	glob_sc
+	integer, allocatable, dimension(:,:)::	glob_bf
 	character(len=4), allocatable, dimension(:) :: seg_name, res_name, atom_name, atom_type
 	real, allocatable, dimension(:)	:: charge, mass
 	
 	NTITLE = 1												! How many 'REMARKS' lines you want
 	NATOM  = globalnp										! Determine total number of atoms
-	NBONDS = (nmonomers-1)*nchains						! Determine total number of bonds
+	NBONDS = (nmonomers-1)*nchains						    ! Determine total number of bonds
 
 	print*, 'Generating polymer topology file polymer_topol.psf'
-	open(unit=1, file='results/polymer_topol.psf', status='replace', form='formatted')
-	
-	! Header
-	write(1,'(a3)') 'PSF'
-	write(1,'(a1)')
-	write(1,'(i8,a)') NTITLE, ' !NTITLE'
-	write(1,'(a9,a)') "REMARKS ","David's first attempt at writing a *.psf file in FORTRAN"
-		
-	! Atoms
-	write(1,'(a1)')
-	write(1,'(i8,a)') NATOM, ' !NATOM'
 
 	allocate(seg_name(NATOM))								! Determine segment names for each atom
 	allocate(res_ID(NATOM))									! Determine molecule ID for each atom
+	allocate(glob_sc(NATOM))								! Determine molecule ID for each atom
+	allocate(glob_bf(NATOM,nmonomers))						! Determine molecule ID for each atom
 	allocate(res_name(NATOM))								! Determine name for each molecule
 	allocate(atom_name(NATOM))								! Determine name for each atom
 	allocate(atom_type(NATOM))								! Determine type for each atom
 	allocate(charge(NATOM))									! Determine charge for each atom
 	allocate(mass(NATOM))									! Determine mass of each atom
-	seg_name(:)='C'
-	res_ID(:) =	monomer(:)%chainID 
-	res_name(:) = 'CBN'
-	atom_name(:)='C'
-	atom_type(:)='C'
-	charge(:)=0.00000
-	mass(:)=1.00794
 
-	do i=1,NATOM
-		write(1,'(i8,3a,i4,6a,2f10.5,i1)') i,' ',seg_name(i),' ',res_ID(i),'&
-                 & ',res_name(i),' ',atom_name(i),' ',atom_type(i),charge(i),mass(i),0 
+	res_ID(:) = 0
+	glob_sc(:) = 0
+	glob_bf(:,:) = 0
+	do n=1,np
+		molno            = monomer(n)%glob_no
+		res_ID(molno)    = monomer(n)%chainID 
+		glob_sc(molno)   = monomer(n)%subchainID
+		glob_bf(molno,:) = monomer(n)%bondflag(:)
 	end do
+	call globalSumIntVect(res_ID,globalnp)
+	call globalSumIntVect(glob_sc,globalnp)
+	call globalSumIntTwoDim(glob_bf,globalnp,nmonomers)
+	seg_name(:)  = 'C'
+	res_name(:)  = 'CBN'
+	atom_name(:) = 'C'
+	atom_type(:) = 'C'
+	charge(:)    = 0.00000
+	mass(:)      = 1.00794
 
-	! Bonds
-	write(1,'(a1)')
-	write(1,'(i8,a)') NBONDS, ' !NBONDS'
-	
-	write_items = 4*ceiling(NBONDS/4.0)
-	allocate(bonds(write_items,2))
-	bonds(:,:)=0
+	if (irank.eq.iroot) then
+		
+		open(unit=1, file='results/polymer_topol.psf', status='replace', form='formatted')
 
-	item=1
-	do i=1,globalnp
-		do j=1,i-1
-			if (monomer(i)%chainID.eq.monomer(j)%chainID) then
-				if (abs(monomer(i)%subchainID-monomer(j)%subchainID).eq.1) then
-					bonds(item,1) = i
-					bonds(item,2) = j
-					item=item+1
-				end if
-			end if
+		! Header
+		write(1,'(a3)') 'PSF'
+		write(1,'(a1)')
+		write(1,'(i8,a)') NTITLE, ' !NTITLE'
+		write(1,'(a9,a)') "REMARKS ","FENE polymer protein structure file, written by MD_dCSE"
+			
+		! Atoms
+		write(1,'(a1)')
+		write(1,'(i8,a)') NATOM, ' !NATOM'
+
+		do i=1,NATOM
+			write(1,'(i8,3a,i4,6a,2f10.5,i1)') i,' ',seg_name(i),' ',res_ID(i),'&
+					 & ',res_name(i),' ',atom_name(i),' ',atom_type(i),charge(i),mass(i),0 
 		end do
-	end do
 
-	do i=1,write_items,4
-		write(1,'(8i8)')bonds(i,  1), bonds(i,  2),&
-						bonds(i+1,1), bonds(i+1,2),&
-						bonds(i+2,1), bonds(i+2,2),&
-						bonds(i+3,1), bonds(i+3,2)
-	end do
+		! Bonds
+		write(1,'(a1)')
+		write(1,'(i8,a)') NBONDS, ' !NBONDS'
+	
+		write_items = 4*ceiling(NBONDS/4.0)
+		allocate(bonds(write_items,2))
+		bonds(:,:)=0
 
+		item=1                                                   !Initialise bond item number
+		do i=1,globalnp                                          !Loop through all molecules
+			do j=1,i-1                                           !Avoid double counting
+				if (res_ID(i).eq.res_ID(j)) then                 !If same global chainID
+				
+					!If j is bonded to i then add pair to items	
+					do n=1,nmonomers
+						if(glob_bf(i,n) .eq. 1 .and. glob_sc(j) .eq. n) then
+							bonds(item,1) = i
+							bonds(item,2) = j
+							item=item+1						
+						end if
+					end do
+	
+				end if
+			end do
+		end do
 
-	! Angles
-	! Dihedrals
-	! Impropers
-	! Donors
-	! Acceptors
-	! NNB
-	! NGRP
+		!Write all bonds to .psf file
+		do i=1,write_items,4
+			write(1,'(8i8)')bonds(i,  1), bonds(i,  2),&
+							bonds(i+1,1), bonds(i+1,2),&
+							bonds(i+2,1), bonds(i+2,2),&
+							bonds(i+3,1), bonds(i+3,2)
+		end do
 
-	close(1, status='keep')	
+		! Angles
+		! Dihedrals
+		! Impropers
+		! Donors
+		! Acceptors
+		! NNB
+		! NGRP
+
+		close(1, status='keep')	
+
+		deallocate(bonds)
+
+	end if
 	
 	deallocate(seg_name)								! Determine segment names for each atom
 	deallocate(res_ID)									! Determine molecule ID for each atom

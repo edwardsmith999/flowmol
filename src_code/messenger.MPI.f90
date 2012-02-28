@@ -2070,12 +2070,24 @@ subroutine globalMaxInt(A)
 	return
 end
 
+subroutine globalSumVectReal(A, na)
+	use messenger
+
+	integer, intent(in) :: na
+	real A(na)
+	real buf(na)
+
+	call MPI_AllReduce (A, buf, na, MPI_REAL, &
+	                    MPI_SUM, MD_COMM, ierr)
+	A = buf
+	return
+end
 
 subroutine globalSumVect(A, na)
 	use messenger
 	!include "mpif.h"
 
-        integer, intent(in) :: na
+	integer, intent(in) :: na
 	double precision A(na)
 	double precision buf(na)
 
@@ -2086,10 +2098,11 @@ subroutine globalSumVect(A, na)
 	return
 end
 
+
 subroutine globalSumIntVect(A, na)
 	use messenger
 
-        integer, intent(in) :: na
+    integer, intent(in) :: na
 	integer A(na)
 	integer buf(na)
 
@@ -2103,7 +2116,7 @@ end
 subroutine globalMaxVect(A, na)
 	use messenger
 
-        integer, intent(in) :: na
+    integer, intent(in) :: na
 	double precision A(na)
 	double precision buf(na)
 
@@ -2131,7 +2144,7 @@ end
 subroutine globalMinVect(A, na)
 	use messenger
 
-        integer, intent(in) :: na
+	integer, intent(in) :: na
 	double precision A(na)
 	double precision buf(na)
 
@@ -2144,13 +2157,27 @@ end
 
 subroutine globalSumTwoDim(A,na1,na2)
 	use messenger
-	!include "mpif.h"
 
 	integer, intent(in) :: na1,na2
 	double precision A(na1,na2)
 	double precision buf(na1,na2)
 	
 	call MPI_AllReduce (A, buf, na1*na2, MPI_DOUBLE_PRECISION, &
+	                    MPI_SUM, MD_COMM, ierr)
+	
+	A = buf
+
+	return
+end
+
+subroutine globalSumIntTwoDim(A,na1,na2)
+	use messenger
+
+	integer, intent(in) :: na1,na2
+	integer A(na1,na2)
+	integer buf(na1,na2)
+	
+	call MPI_AllReduce (A, buf, na1*na2, MPI_INTEGER, &
 	                    MPI_SUM, MD_COMM, ierr)
 	
 	A = buf
