@@ -524,10 +524,10 @@ subroutine setup_restart_inputs
 		  if (checkint.ne.nmonomers)          print*, 'Discrepancy between nmonomers', &
 		                                      'in input & restart file - restart file will be used'
 		  read(1,*) checkdp                   !k_c - FENE spring constant
-		  if (checkint.ne.k_c)                print*, 'Discrepancy between k_c', &
+		  if (checkdp.ne.k_c)                 print*, 'Discrepancy between k_c', &
 		                                      'in input & restart file - restart file will be used'
 		  read(1,*) checkdp                   !k_c - FENE spring constant
-		  if (checkint.ne.R_0)                print*, 'Discrepancy between R_0', &
+		  if (checkdp.ne.R_0)                 print*, 'Discrepancy between R_0', &
 		                                      'in input & restart file - restart file will be used'
 		end if	
 
