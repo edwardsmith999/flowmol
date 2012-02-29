@@ -472,9 +472,12 @@ subroutine setup_restart_inputs
 	    call MPI_File_read(restartfileid,periodic        ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 	    call MPI_File_read(restartfileid,potential_flag  ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 	    call MPI_File_read(restartfileid,nmonomers       ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+	    call MPI_File_read(restartfileid,npx             ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+	    call MPI_File_read(restartfileid,npy             ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+	    call MPI_File_read(restartfileid,npz             ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+		
 	    call MPI_File_read(restartfileid,density         ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 	    call MPI_File_read(restartfileid,rcutoff         ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
-	    !call MPI_File_read(restartfileid,inputtemperature,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 	    call MPI_File_read(restartfileid,delta_t         ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 	    call MPI_File_read(restartfileid,elapsedtime     ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 	    call MPI_File_read(restartfileid,k_c             ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
@@ -497,10 +500,6 @@ subroutine setup_restart_inputs
 		read(1,* ) checkdp                    !Cut off distance for particle interaction
 		if (checkdp .ne. rcutoff)             print*, 'Discrepancy between cut off radius', &
 		                                      'in input & restart file - restart file will be used'
-		!call locate(1,'INPUTTEMPERATURE',.true.)
-		!read(1,* ) checkdp                    !Define initial temperature
-		!if (checkdp .ne. inputtemperature)    print*, 'Discrepancy between initial temperature', &
-		!                                      'in input & restart file - restart file will be used'
 		call locate(1,'INITIALNUNITS',.true.)
 		read(1,* ) checkint                   !x dimension split into number of cells
 		if (checkint .ne. initialnunits(1))   print*, 'Discrepancy between x domain size', &
@@ -530,6 +529,25 @@ subroutine setup_restart_inputs
 		  if (checkdp.ne.R_0)                 print*, 'Discrepancy between R_0', &
 		                                      'in input & restart file - restart file will be used'
 		end if	
+		
+		call locate(1,'PROCESSORS',.true.)
+		if (npx .eq. 0 .and. npy .eq. 0 .and. npz .eq. 0) then
+			read(1,*) npx
+			read(1,*) npy
+			read(1,*) npz
+			!call setup_restart_microstate_p_to_s  !todo
+		else
+			read(1,*) checkint
+			if (checkint .ne. npx) call error_abort('Number of processors in &
+									      			 input file does not match the restart file.')
+			read(1,*) checkint
+			if (checkint .ne. npy) call error_abort('Number of processors in &
+								           			 input file does not match the restart file.')
+			read(1,*) checkint
+			if (checkint .ne. npz) call error_abort('Number of processors in &
+		                                             input file does not match the restart file.')
+			!TODO: CHANGE SETUP_RESTART_MICROSTATE TO ONLY READ DATA LOCAL TO PROCESSOR
+		end if
 
 		close(1,status='keep')
 
@@ -547,39 +565,38 @@ subroutine setup_restart_inputs
 	read(1,*) periodic(2)
 	read(1,*) periodic(3)
 	
-	!Get number of extra steps, timestep and plot frequency from input file
 	call locate(1,'NSTEPS',.true.)
-	read(1,* ) extrasteps       !Number of computational steps
+	read(1,* ) extrasteps                                     !Number of computational steps
 	call locate(1,'DELTA_T',.true.)
-	read(1,* ) delta_t          !Size of time step
+	read(1,* ) delta_t                                        !Size of time step
 	call locate(1,'TPLOT',.true.)
-	read(1,* ) tplot            !Frequency at which to record results
+	read(1,* ) tplot                                          !Frequency at which to record results
 	call locate(1,'INITIALISE_STEPS',.false.,found_in_input)
 	if (found_in_input) then
-		read(1,*) initialise_steps 	!Number of initialisation steps for simulation
+		read(1,*) initialise_steps                            !Number of initialisation steps
 	else
 		initialise_steps = 0
 	endif
 	call locate(1,'DELTA_RNEIGHBR',.true.)
-	read(1,* ) delta_rneighbr   !Extra distance used for neighbour cell
+	read(1,* ) delta_rneighbr                                 !Extra distance used for neighbour cell
 	call locate(1,'SEED',.false.,found_in_input)
 	if (found_in_input) then
-		read(1,*) seed(1) 	!Random number seed value 1
-		read(1,*) seed(2) 	!Random number seed value 2
+		read(1,*) seed(1)                                     !Random number seed value 1
+		read(1,*) seed(2)                                     !Random number seed value 2
 	else
-		seed(1) = 1		!Fixed default seed for repeatability
-		seed(2) = 2		!Fixed default seed for repeatability
+		seed(1) = 1                                           !Fixed default seed for repeatability
+		seed(2) = 2                                           !Fixed default seed for repeatability
 	endif
 	
 	call locate(1,'INTEGRATION_ALGORITHM',.true.)
 	read(1,*) integration_algorithm
 	call locate(1,'ENSEMBLE',.true.)
 	read(1,*) ensemble
-	call locate(1,'FORCE_LIST',.true.)	!LJ or FENE potential
+	call locate(1,'FORCE_LIST',.true.)                        !LJ or FENE potential
 	read(1,*) force_list
 
 	call locate(1,'INPUTTEMPERATURE',.true.)
-	read(1,* ) inputtemperature         !Define initial temperature
+	read(1,* ) inputtemperature                               !Define initial temperature
 	
 	call locate(1,'DEFINE_SHEAR',.false.,found_in_input)
 	if (found_in_input) then
@@ -1215,58 +1232,28 @@ subroutine parallel_io_final_state
         call MPI_File_write(restartfileid,periodic      ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,potential_flag,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,nmonomers     ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+		call MPI_File_write(restartfileid,npx           ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+		call MPI_File_write(restartfileid,npy           ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+		call MPI_File_write(restartfileid,npz           ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 
-		!write(2,rec=int_filesize-0) np               	!Number of particles
-		!write(2,rec=int_filesize-1) initialnunits(1) 	!x dimension split into number of cells
-		!write(2,rec=int_filesize-2) initialnunits(2) 	!y dimension box split into number of cells
-		!write(2,rec=int_filesize-3) initialnunits(3) 	!z dimension box split into number of cells
-		!write(2,rec=int_filesize-4) Nsteps           	!Number of computational steps
-		!write(2,rec=int_filesize-5) tplot            	!Frequency at which to record results
-		!write(2,rec=int_filesize-6) seed(1)          	!Random number seed value 1
-		!write(2,rec=int_filesize-7) seed(2)          	!Random number seed value 2
-		!write(2,rec=int_filesize-8) periodic(1)	   	!Boundary condition flags
-		!write(2,rec=int_filesize-9) periodic(2)	   	!Boundary condition flags
-		!write(2,rec=int_filesize-10) periodic(3)	   	!Boundary condition flags
-		!write(2,rec=int_filesize-11) potential_flag   	!Polymer/LJ potential flag
-		!write(2,rec=int_filesize-12) nmonomers         !Polymer chain length
-		!write(2,rec=int_filesize-13) 0				   	!Dummy to make even filesize
-		!close(2,status='keep')	
-
-
-		call MPI_File_write(restartfileid,density,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
-        call MPI_File_write(restartfileid,rcutoff,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
-        !call MPI_File_write(restartfileid,inputtemperature,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
-        call MPI_File_write(restartfileid,delta_t,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
-        call MPI_File_write(restartfileid,elapsedtime,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
-        call MPI_File_write(restartfileid,k_c,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
-        call MPI_File_write(restartfileid,R_0,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+		call MPI_File_write(restartfileid,density       ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+        call MPI_File_write(restartfileid,rcutoff       ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+        call MPI_File_write(restartfileid,delta_t       ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+        call MPI_File_write(restartfileid,elapsedtime   ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+        call MPI_File_write(restartfileid,k_c           ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+        call MPI_File_write(restartfileid,R_0           ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,delta_rneighbr,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 
         header_pos = filesize ! just in case offset kind is 32 bit, rather improbable these days  !!!
         call MPI_File_write(restartfileid,header_pos,1,MPI_INTEGER8,MPI_STATUS_IGNORE,ierr)
-
-
-		!write(2,rec=dp_filesize-(write_integers/2)-0) density           !Density of system
-		!write(2,rec=dp_filesize-(write_integers/2)-1) rcutoff           !Cut off distance for particle interaction
-		!write(2,rec=dp_filesize-(write_integers/2)-2) inputtemperature  !Define initial temperature
-		!write(2,rec=dp_filesize-(write_integers/2)-3) delta_t           !Size of time step
-		!write(2,rec=dp_filesize-(write_integers/2)-4) elapsedtime       !Total elapsed time of all restarted simulations
-		!write(2,rec=dp_filesize-(write_integers/2)-5) k_c			   	  !FENE spring constant
-		!write(2,rec=dp_filesize-(write_integers/2)-6) R_0			      !FENE spring max elongation
-		!write(2,rec=dp_filesize-(write_integers/2)-7) delta_rneighbr	  !Extra distance used for neighbour list cell size
-
-		!close(2,status='keep') !Close final_state file
         call MPI_FILE_CLOSE(restartfileid, ierr)
-
-        call MPI_FILE_OPEN(MPI_COMM_SELF,trim(prefix_dir)//'results/final_state', & 
-								MPI_MODE_RDONLY, MPI_INFO_NULL, restartfileid, ierr)
-        
+   
+		call MPI_FILE_OPEN(MPI_COMM_SELF,trim(prefix_dir)//'results/final_state', & 
+		                   MPI_MODE_RDONLY, MPI_INFO_NULL, restartfileid, ierr)
         call MPI_File_get_size(restartfileid,filesize,ierr)
         call MPI_File_close(restartfileid, ierr)
 
 	endif
-	
-!	deallocate(monomerwrite%bondflag)
 
 end subroutine parallel_io_final_state
 
