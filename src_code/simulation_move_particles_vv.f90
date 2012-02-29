@@ -9,7 +9,7 @@
 
 module module_move_particles_vv
 
-        use interfaces
+	use interfaces
 	use physical_constants_MD
 	use computational_constants_MD
 	use arrays_MD
@@ -438,7 +438,7 @@ contains
 
 						!theta_ij = sqrt(3.d0)*(2.d0*theta-1.d0)
 
-						if (molnoi .eq. 150) write(200,'(3f10.5)'), theta_ij(:)
+						if (molnoi .eq. 150) write(200,'(3f10.5)') theta_ij(:)
 
 						temp  = temp + theta_ij(1)
 						temp2 = temp2+ theta_ij(1)**2
@@ -466,11 +466,11 @@ contains
 			!aR = aR 
 
 		case default
-			stop "Flag input to evaluate DPD incorrect"
+			call error_abort("Flag input to evaluate DPD incorrect")
 		end select
 
 		if(mod(iter,1000) .eq. 0) then
-			write(1000,'(i8,2f10.5)'), iter, temp/tempi, sqrt(temp2/tempi - (temp/tempi)**2)
+			write(1000,'(i8,2f10.5)') iter, temp/tempi, sqrt(temp2/tempi - (temp/tempi)**2)
 			!print'(a,2f10.5)', 'Fluctuation dissipation required 2 zeros here:', & 
 			!			sigma**2.d0-2.d0*inputtemperature*zeta, wD + wR**2.d0
 			!print'(a,2i5,2f18.5)', 'Sum of D and R Forces',iter,flag,sum(aD(1:np,:)), sum(aR(1:np,:))
@@ -584,7 +584,7 @@ contains
 						call random_number(rand)
 						theta_ij = sqrt(3.d0)*(2.d0*rand-1.d0)
 
-						if (molnoi .eq. 150) write(200,'(3f10.5)'), theta_ij(:)
+						if (molnoi .eq. 150) write(200,'(3f10.5)') theta_ij(:)
 
 						temp  = temp + theta_ij(1)
 						temp2 = temp2+ theta_ij(1)**2
@@ -610,7 +610,7 @@ contains
 		end select
 
 		if(mod(iter,1000) .eq. 0) then
-			write(1000,'(i8,2f10.5)'), iter, temp/tempi, sqrt(temp2/tempi - (temp/tempi)**2)
+			write(1000,'(i8,2f10.5)') iter, temp/tempi, sqrt(temp2/tempi - (temp/tempi)**2)
 			!print'(a,2f10.5)', 'Fluctuation dissipation required 2 zeros here:', & 
 			!			sigma**2.d0-2.d0*inputtemperature*zeta, wD + wR**2.d0
 			!print'(a,2i5,2f18.5)', 'Sum of D and R Forces',iter,flag,sum(aD(1:np,:)), sum(aR(1:np,:))
