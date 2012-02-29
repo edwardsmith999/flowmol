@@ -155,8 +155,9 @@ subroutine simulation_record
 		select case(r_gyration_outflag)
 		case (1)
 			call r_gyration_calculate
+			call r_gyration_calculate_parallel
 		case (2)
-			call r_gyration_calculate
+			call r_gyration_calculate_parallel
 			call r_gyration_io
 		case default
 		end select
@@ -493,7 +494,7 @@ use module_record
 implicit none
    
 	integer :: i,j, molnoi 
-	double precision :: R_g2                                                    !Radius of gyration squared 
+	double precision :: R_g2,R_g2k                                                    !Radius of gyration squared 
 	double precision :: rij2                                                    !Magnitude of separation vector
 	double precision :: dr                                                      !Distance of bead to center of mass
 	double precision :: sum_dr                                                  !Sum
@@ -503,38 +504,118 @@ implicit none
 	double precision, dimension(nd) :: r_sum                                    !Sum of all bead position vectors in chain
 	double precision, dimension(nd) :: r_first                                  !Location of first bead on the chain
     
-    sum_dr = 0.d0                                                               !Reset sum
-    do i=1,nchains                                                              !Loop over all polymer chains
-    
-        !Find center of mass
-        r_first(:) = r((i-1)*nmonomers + 1,:)                                !Location of first particle in chain
-        r_sum(:) = 0.d0                                                         !Reset sum
-        do j=1,nmonomers
-            molnoi = (i-1)*nmonomers + j                                     !Find molnoi
-            ri(:) = r(molnoi,:)                                                 !Position of mol molnoi
-            ri(:) = ri(:) + domain(:)*anint((ri(:)-r_first(:))/domain(:))       !Minimum image convention
-            r_sum(:) = r_sum(:) + ri(:)                                         !Sum of position vectors
-        end do
-        r_cm(:) = r_sum(:)/dble(nmonomers)                                   !Find center of mass
-        
-        !Find sum of separations from center of mass
-        do j=1,nmonomers
-            molnoi = (i-1)*nmonomers + j 
-            ri(:) = r(molnoi,:)
-            rij(:) = ri(:) - r_cm(:)
-            rij2 = dot_product(rij,rij)
-            dr = rij2**0.5d0
-            sum_dr = sum_dr + dr
-        end do  
-        
-    end do
-
-    R_g2 = sum_dr/dble(nmonomers*nchains)
-    R_g  = R_g2**0.5d0
+!    sum_dr = 0.d0                                                               !Reset sum
+!    do i=1,nchains                                                              !Loop over all polymer chains
+!    
+!        !Find center of mass
+!        r_first(:) = r((i-1)*nmonomers + 1,:)                                !Location of first particle in chain
+!        r_sum(:) = 0.d0                                                         !Reset sum
+!        do j=1,nmonomers
+!            molnoi = (i-1)*nmonomers + j                                     !Find molnoi
+!            ri(:) = r(molnoi,:)                                                 !Position of mol molnoi
+!            ri(:) = ri(:) + domain(:)*anint((ri(:)-r_first(:))/domain(:))       !Minimum image convention
+!            r_sum(:) = r_sum(:) + ri(:)                                         !Sum of position vectors
+!        end do
+!        r_cm(:) = r_sum(:)/dble(nmonomers)                                   !Find center of mass
+!        
+!        !Find sum of separations from center of mass
+!        do j=1,nmonomers
+!            molnoi = (i-1)*nmonomers + j 
+!            ri(:) = r(molnoi,:)
+!            rij(:) = ri(:) - r_cm(:)
+!            rij2 = dot_product(rij,rij)
+!            dr = rij2**0.5d0
+!            sum_dr = sum_dr + dr
+!        end do  
+!        
+!    end do
+!
+!    R_g2 = sum_dr/dble(nmonomers*nchains)
+!    R_g  = R_g2**0.5d0
+!	
+!   	if (r_gyration_outflag.eq.1) print*, 'R_g = ', R_g
+!
+!	R_g2k(:) = 0.d0
+!	do i=1,np
+!		do j=i,np
+!			if (monomer(i)%chainID.eq.monomer(j)%chainID) then
+!				rij(:) = r(i,:) - r(j,:)
+!				rij(:) = rij(:) - domain(:)*anint(rij(:)/domain(:))
+!				rij2   = dot_product(rij,rij)
+!				R_g2k  = R_g2 + rij2
+!			end if
+!		end do
+!	end do
+!	
+!	R_g2 = R_g2/real(nmonomers*nmonomers*nchains,kind(0.d0))
+!	R_g  = R_g2**0.5d0
+ !  	if (r_gyration_outflag.eq.1) print*, 'R_g (alt) = ', R_g
 	
-   	if (r_gyration_outflag.eq.1) print*, 'R_g = ', R_g
 
 end subroutine r_gyration_calculate
+
+subroutine r_gyration_calculate_parallel
+use module_record
+use linked_list
+implicit none
+
+	integer :: i,j
+	integer :: ci,cj,gi,gj
+	integer :: molnoj,noneighbrs
+	double precision :: rij2
+	double precision :: R_g2
+	double precision, dimension(nd) :: ri,rj,rij
+	double precision, dimension(nd,nd) :: G
+	type(neighbrnode), pointer :: old,current
+	!	do j=i,np
+	!		if (monomer(j)%chainID.ne.chainID) cycle
+	!		rij(:) = r(i,:) - r(j,:)
+	!		do l=1,nd
+	!			do m=1,l
+	!				G(l,m) = G(l,m) + rij(l)*rij(m)	
+	!				G(m,l) = G(l,m)
+	!			end do
+	!		end do
+	!		R_g2   = R_g2 + dot_product(rij,rij) 
+	!	end do
+
+!	G(:,:) = 0
+!	R_g2   = 0.d0
+!	do i=1,np
+!		ri(:)      =  r(i,:)
+!		ci         =  monomer(i)%chainID
+!		gi         =  monomer(i)%glob_no
+!		noneighbrs =  neighbour%noneighbrs(i)
+!		old        => neighbour%head(i)%point
+!
+!		do j=1,noneighbrs
+!			molnoj = old%molnoj
+!			cj     = monomer(molnoj)%chainID
+!			gj     = monomer(molnoj)%glob_no
+!			rj(:)  = r(molnoj,:)
+!			rij    = ri - rj
+!			rij2   = dot_product(rij,rij)
+!
+!			if (ci.eq.cj) then
+!				R_g2 = R_g2 + rij2
+!			end if
+!
+!			current => old
+!			old     => current%next
+!		end do
+!	end do
+!
+!	call globalSumTwoDim(G,nd,nd)
+!	call globalSum(R_g2)
+!	G(:,:) = G(:,:)/(2.d0*real(nmonomers*nmonomers*nchains,kind(0.d0)))
+!	R_g2   = R_g2/real(nchains*nmonomers*nmonomers,kind(0.d0))
+!	R_g = sqrt(G(1,1) + G(2,2) + G(3,3))
+!	!R_g = R_g2**0.5d0
+!
+!!	if (irank.eq.iroot) print*, 'R_GYRATION = ', R_g, sqrt(R_g2)
+!	if (irank.eq.iroot) print*, 'R_GYRATION = ', sqrt(R_g2)
+
+end subroutine r_gyration_calculate_parallel
 
 !===================================================================================
 !		RECORD MASS AT LOCATION IN SPACE

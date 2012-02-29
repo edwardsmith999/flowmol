@@ -464,6 +464,12 @@ subroutine setup_restart_inputs
 	read(2) periodic(3)
 	read(2) potential_flag
 	read(2) nmonomers
+	read(2) npx
+	read(2) npy
+	read(2) npz
+	npx = 1
+	npy = 1
+	npz = 1
 
 	read(2) density			!Density of system
 	read(2) rcutoff			!Cut off distance for particle interaction
@@ -974,6 +980,7 @@ subroutine parallel_io_final_state
 	implicit none
 
 	integer 								:: ixyz,n
+	integer, parameter                      :: zero=0
 	integer, dimension(np) 					:: chainID, subchainID,right,left
 	integer 								:: int_filesize,dp_filesize
 	integer(kind=selected_int_kind(18))		:: header_pos ! 8 byte integer for header address
@@ -1044,22 +1051,24 @@ subroutine parallel_io_final_state
 	write(2) tplot            	!Frequency at which to record results
 	write(2) seed(1)          	!Random number seed value 1
 	write(2) seed(2)          	!Random number seed value 2
-	write(2) periodic(1)	   	 	!Boundary condition flags
-	write(2) periodic(2)	   		!Boundary condition flags
+	write(2) periodic(1)  	 	!Boundary condition flags
+	write(2) periodic(2)   		!Boundary condition flags
 	write(2) periodic(3)	   	!Boundary condition flags
 	write(2) potential_flag   	!Polymer/LJ potential flag
-	write(2) nmonomers	   	!Polymer chain length
+	write(2) nmonomers		   	!Polymer chain length
+	write(2) 0                  !Processors (npx) flag for serial
+	write(2) 0                  !Processors (npy) flag for serial
+	write(2) 0                  !Processors (npz) flag for serial
 
-	write(2) density           !Density of system
-	write(2) rcutoff           !Cut off distance for particle interaction
-	!write(2) inputtemperature  !Define initial temperature
-	write(2) delta_t           !Size of time step
-	write(2) elapsedtime       !Total elapsed time of all restarted simulations
-	write(2) k_c			   	  !FENE spring constant
-	write(2) R_0			      !FENE spring max elongation
+	write(2) density          !Density of system
+	write(2) rcutoff          !Cut off distance for particle interaction
+	write(2) delta_t          !Size of time step
+	write(2) elapsedtime      !Total elapsed time of all restarted simulations
+	write(2) k_c		   	  !FENE spring constant
+	write(2) R_0		      !FENE spring max elongation
 	write(2) delta_rneighbr	  !Extra distance used for neighbour list cell size
     write(2) header_pos-1     ! -1 for MPI IO compatibility
-	close(2,status='keep') !Close final_state file
+	close(2,status='keep') 	  !Close final_state file
 
 end subroutine parallel_io_final_state
 
