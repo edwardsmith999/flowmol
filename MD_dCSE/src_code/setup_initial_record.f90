@@ -13,7 +13,7 @@ module module_initial_record
 	use calculated_properties_MD
 
 end module module_initial_record
-!----------------------------------------------------------------------------------
+!----------------------------------------------------------------------------------
 
 subroutine setup_initial_record
 use interfaces
@@ -26,68 +26,24 @@ implicit none
 	character		:: ixyz_char
 	Character(8)  		:: the_date
 	Character(10)  		:: the_time
-        Character(10),parameter :: file_names(17) = (/"mslice    ", "mbins     ", "msnap     ",&
+        Character(10),parameter :: file_names(19) = (/"mslice    ", "mbins     ", "msnap     ",&
                                                       "vslice    ", "vbins     ", "vsnap     ",&
-                                                      "pvirial   ", "pVA       ", "visc      ",&
-                                                      "mflux     ", "vflux     ", "pplane    ",&
-                                                      "psurface  ", "esnap     ", "eflux     ",&
-                                                      "eplane    ", "esurface  "/) 
+                                                      "pvirial   ", "pVA       ", "pVA_k     ",& 
+                                                      "pVA_c     ", "visc      ", "mflux     ",& 
+                                                      "vflux     ", "pplane    ", "psurface  ",&
+                                                      "esnap     ", "eflux     ", "eplane    ",&
+                                                      "esurface  "/) 
        
-
-	if (irank .eq. iroot) then
-		!Delete existing files
-		open (unit=5, file=trim(prefix_dir)//'results/mslice')
-		close(5,status='delete')
-		open (unit=5, file=trim(prefix_dir)//'results/mbins')
-		close(5,status='delete')
-		open (unit=5, file=trim(prefix_dir)//'results/msnap')
-		close(5,status='delete')
-		open (unit=6, file=trim(prefix_dir)//'results/vslice')
-		close(6,status='delete')
-		open (unit=6, file=trim(prefix_dir)//'results/vbins')
-		close(6,status='delete')
-		open (unit=6, file=trim(prefix_dir)//'results/vsnap')
-		close(6,status='delete')
-		open (unit=6, file=trim(prefix_dir)//'results/vslice')
-		close(6,status='delete')
-		open (unit=6, file=trim(prefix_dir)//'results/vbins')
-		close(6,status='delete')
-		open (unit=7, file=trim(prefix_dir)//'results/pvirial')
-		close(7,status='delete')
-		open (unit=7, file=trim(prefix_dir)//'results/pVA')
-		close(7,status='delete')
-		open (unit=7, file=trim(prefix_dir)//'results/pVA_k')
-		close(7,status='delete')
-		open (unit=7, file=trim(prefix_dir)//'results/pVA_c')
-		close(7,status='delete')
-		open (unit=7, file=trim(prefix_dir)//'results/visc')
-		close(7,status='delete')
-		open (unit=8, file=trim(prefix_dir)//'results/mflux')
-		close(8,status='delete')
-		open (unit=9, file=trim(prefix_dir)//'results/vflux')
-		close(9,status='delete')
-		open (unit=9, file=trim(prefix_dir)//'results/pplane')
-		close(9,status='delete')
-		open (unit=9, file=trim(prefix_dir)//'results/psurface')
-		close(9,status='delete')
-		open (unit=10, file=trim(prefix_dir)//'results/esnap')
-		close(10,status='delete')
-		open (unit=10, file=trim(prefix_dir)//'results/eflux')
-		close(10,status='delete')
-		open (unit=10, file=trim(prefix_dir)//'results/eplane')
-		close(10,status='delete')
-		open (unit=10, file=trim(prefix_dir)//'results/esurface')
-		close(10,status='delete')
-
-        do i=1,size(file_names)
-            inquire(file=trim(prefix_dir)//'results/'//file_names(i),exist=file_exist)
-            if(file_exist) then
-               open (unit=23, file=trim(prefix_dir)//'results/'//file_names(i))
-               close(23,status='delete')
-            endif
-        enddo
-	
-	endif
+	if (irank.eq.iroot) then
+        	do i=1,size(file_names)
+			inquire(file=trim(prefix_dir)//'results/'//file_names(i),exist=file_exist)
+			if(file_exist) then
+				open (unit=23, file=trim(prefix_dir)//'results/'//file_names(i))
+				close(23,status='delete')
+                	endif
+		enddo
+        endif
+        call messenger_syncall()
 
 !!$	if (irank .eq. iroot) then
 !!$		!Delete existing files
@@ -110,6 +66,10 @@ implicit none
 !!$		open (unit=7, file=trim(prefix_dir)//'results/pvirial')
 !!$		close(7,status='delete')
 !!$		open (unit=7, file=trim(prefix_dir)//'results/pVA')
+!!$		close(7,status='delete')
+!!$		open (unit=7, file=trim(prefix_dir)//'results/pVA_k')
+!!$		close(7,status='delete')
+!!$		open (unit=7, file=trim(prefix_dir)//'results/pVA_c')
 !!$		close(7,status='delete')
 !!$		open (unit=7, file=trim(prefix_dir)//'results/visc')
 !!$		close(7,status='delete')
@@ -439,42 +399,53 @@ implicit none
 	!Calculate forces to obtain initial potential energies and virial
 	call simulation_compute_forces
 	
-	do n = 1, np    ! Loop over all particles
 
-		select case(potential_flag)
-		case(0)
-			potenergysum	= potenergysum + potenergymol(n)
-		case(1)
-			potenergysum_LJ = potenergysum_LJ + potenergymol_LJ(n)
-			potenergysum_FENE = potenergysum_FENE + potenergymol_FENE(n)
-			potenergysum = potenergysum + potenergymol_LJ(n) + potenergymol_FENE(n)
-		end select
 
-		virial = virial + virialmol(n)
+	select case(potential_flag)
+	case(0)
+		potenergysum = sum(potenergymol(1:np))
+                call globalSum(potenergysum)
+	case(1)
+		potenergysum_LJ = sum(potenergymol_LJ(1:np))
+		potenergysum_FENE = sum(potenergymol_FENE(1:np))
+		potenergysum = sum(potenergymol_LJ(1:np) + potenergymol_FENE(1:np))
+                call globalSum(potenergysum_LJ)
+        	call globalSum(potenergysum_FENE)
+                call globalSum(potenergysum)
+	end select
 
-		select case (integration_algorithm)
-		case(leap_frog_verlet)
-			do ixyz = 1, nd   ! Loop over all dimensions
-				!Velocity component must be shifted back half a timestep to determine 
-				!velocity of interest - required due to use of the leapfrog method
-				vel = v(n,ixyz) + 0.5d0*a(n,ixyz)*delta_t
-				vsum = vsum + vel      !Add up all molecules' velocity components
-				v2sum = v2sum + vel**2 !Add up all molecules' velocity squared components  
-			enddo
-		case(velocity_verlet)
-			vsum = vsum + sum(v(n,:))
-			v2sum = v2sum + dot_product(v(n,:),v(n,:))
-		end select
+	virial = sum(virialmol(1:np))
+        call globalSum(virial)  
 
-	enddo
+	select case (integration_algorithm)
+	case(leap_frog_verlet)
+		do ixyz = 1, nd   ! Loop over all dimensions
+                    do n = 1, np    ! Loop over all particles
+			!Velocity component must be shifted back half a timestep to determine 
+			!velocity of interest - required due to use of the leapfrog method
+			vel = v(n,ixyz) + 0.5d0*a(n,ixyz)*delta_t
+			vsum = vsum + vel      !Add up all molecules' velocity components
+			v2sum = v2sum + vel**2 !Add up all molecules' velocity squared components  
+		    enddo
+                enddo
+		call globalSum(vsum)
+		call globalSum(v2sum)
+	case(velocity_verlet)
+                do ixyz = 1, nd   ! Loop over all dimensions
+                    do n = 1, np    ! Loop over all particles  
+		        vsum  = vsum  + v(n,ixyz)
+			v2sum = v2sum +  v(n,ixyz) * v(n,ixyz)
+                    enddo
+                enddo
+		call globalSum(vsum)
+		call globalSum(v2sum)
+	end select
+
 
 	!Obtain global sums for all parameters
-	call globalSum(vsum)
-	call globalSum(v2sum)
-	call globalSum(virial)
-	call globalSum(potenergysum)
-	call globalSum(potenergysum_LJ)
-	call globalSum(potenergysum_FENE)
+	
+
+
 
 	kinenergy   = (0.5d0 * v2sum) / real(globalnp,kind(0.d0))
 	potenergy   = potenergysum /(2.d0*real(globalnp,kind(0.d0))) !N.B. extra 1/2 as all interactions calculated
