@@ -133,6 +133,9 @@ subroutine set_parameters_allocate(n)
 		allocate(v(np+extralloc,nd))
 		allocate(vmagnitude(np+extralloc))
 		allocate(a(np+extralloc,nd))
+		!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
+		allocate(aold(np+extralloc,nd))
+		!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
 		allocate(theta(np+extralloc,nd))
 		allocate(aD(np+extralloc,nd))
 		allocate(aR(np+extralloc,nd))
@@ -585,6 +588,11 @@ subroutine set_parameters_outputs
 	momentum_flux 	= 0.d0
 	volume_momentum = 0.d0
 	volume_force 	= 0.d0
+
+	if (temperature_outflag .eq. 4) then
+		allocate(volume_temperature(nbins(1)+2,nbins(2)+2,nbins(3)+2))
+		volume_temperature = 0.d0
+	endif
 
 	!Allocate bins for control volume energy fluxes and forces*velocity
 	allocate(  energy_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,6))

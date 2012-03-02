@@ -345,6 +345,11 @@ subroutine setup_inputs
 		read(1,* ) velocity_outflag
 		if (velocity_outflag .ne. 0)	read(1,* ) Nvel_ave
 	endif
+	call locate(1,'TEMPERATURE_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,* ) temperature_outflag
+		if (temperature_outflag .ne. 0)	read(1,* ) NTemp_ave
+	endif
 	call locate(1,'PRESSURE_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,* ) pressure_outflag
@@ -656,7 +661,7 @@ subroutine setup_restart_inputs
 		read(1,*) thermstattop(2)
 		read(1,*) thermstattop(3)
 	endif
-	
+
 	call locate(1,'THERMSTAT_FLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) thermstat_flag
@@ -938,12 +943,14 @@ subroutine simulation_header
 	write(3,*)  'macro flag ;  macro_outflag	 ;', macro_outflag
 	write(3,*)  'mass flag ;  mass_outflag ;', mass_outflag	
 	write(3,*)  'velocity flag ;  velocity_outflag ;', velocity_outflag
+	write(3,*)  'temperature flag ;  temperature_outflag ;', temperature_outflag
 	write(3,*)  'Pressure flag ;  pressure_outflag ;', pressure_outflag
 	write(3,*)  'viscosity flag ;  viscosity_outflag ;', viscosity_outflag
 	write(3,*)  'mass flux flag ;  mflux_outflag ;', mflux_outflag
 	write(3,*)  'velocity flux flag ;  vflux_outflag ;', vflux_outflag
 	write(3,*)  'mass average steps ;  Nmass_ave ;', Nmass_ave
 	write(3,*)  'velocity average steps ;  Nvel_ave ;', Nvel_ave
+	write(3,*)  'Temperature average steps ;  NTemp_ave ;', NTemp_ave
 	write(3,*)  'pressure average steps ;  Nstress_ave ;', Nstress_ave
 	write(3,*)  'viscosity average samples ;  Nvisc_ave ;', Nvisc_ave
 	write(3,*)  'mass flux average steps ;  Nmflux_ave ;', Nmflux_ave
@@ -1480,9 +1487,9 @@ implicit none
 	call mass_slice_io(ixyz)
 
 	!Write temperature to file
-	m = iter/(tplot*Nvel_ave)
+	m = iter/(tplot*NTemp_ave)
 	inquire(iolength=length) slice_temperature(1:nbins(ixyz))
-	open (unit=6, file=trim(prefix_dir)//'results/vslice',form='unformatted',access='direct',recl=length)
+	open (unit=6, file=trim(prefix_dir)//'results/Tslice',form='unformatted',access='direct',recl=length)
 	write(6,rec=m) slice_temperature(1:nbins(ixyz))
 	close(6,status='keep')
 
@@ -1527,10 +1534,11 @@ subroutine temperature_bin_io(CV_mass_out,CV_temperature_out,io_type)
 
 	if (io_type .eq. 'snap') then
 		!CV_temperature_out = CV_temperature_out / (tplot*Nvflux_ave)
-		m = iter/(Nvflux_ave) + 1 !Initial snapshot taken
+		stop "Error in temp_io - Temperature SNAP called and NTflux_ave not defined"
+		!m = iter/(NTflux_ave) + 1 !Initial snapshot taken
 	else
 		!CV_temperature_out = CV_temperature_out / (tplot*Nvel_ave)
-		m = iter/(tplot*Nvel_ave)
+		m = iter/(tplot*NTemp_ave)
 	endif
 	!Write temperature to file
 	buf = CV_temperature_out(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1)
@@ -2009,12 +2017,12 @@ subroutine macroscopic_properties_record
 	implicit none
 
 	if (potential_flag.eq.0) then	
-		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.4)') &
-		iter,';',vsum,';', v2sum,';', temperature,';', &
-		kinenergy,';',potenergy,';',totenergy,';',pressure
-		!write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4,a,f10.4)'), &
+		!write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.4)') &
 		!iter,';',vsum,';', v2sum,';', temperature,';', &
-		!totenergy,';',((density/(globalnp*nd))*virial/2)**2,';',pressure**2,';',(density/(globalnp*nd))*virial/2,';',pressure
+		!kinenergy,';',potenergy,';',totenergy,';',pressure
+		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4,a,f10.4)'), &
+		iter,';',vsum,';', v2sum,';', temperature,';', &
+		totenergy,';',((density/(globalnp*nd))*virial/2)**2,';',pressure**2,';',(density/(globalnp*nd))*virial/2,';',pressure
 	else if (potential_flag.eq.1) then
 		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4)') &
 		iter,';',vsum,';', v2sum,';', temperature,';', &

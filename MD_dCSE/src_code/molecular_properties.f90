@@ -362,7 +362,7 @@ subroutine tether_force(molno)
 		endif
 	enddo
 
-	print*,'4th', minval(r(:,2)),maxval(r(:,2)), halfdomain(2)
+	!print*,'4th', minval(r(:,2)),maxval(r(:,2)), halfdomain(2)
 
 	!print'(i8,9f10.5)', molno, rinitial(molno,:), r(molno,:), at(:)
 	!if (molno .eq. 1311) print'(i8,9f10.5)', molno, rinitial(molno,:), r(molno,:),  rio(:)
