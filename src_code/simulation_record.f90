@@ -129,6 +129,9 @@ subroutine simulation_record
 	if (velocity_outflag .eq. 0 .and. &
 		mass_outflag .ne. 0) call mass_averaging(mass_outflag)
 
+	!Obtain and record temperature
+	if (temperature_outflag .ne. 0)	call temperature_averaging(temperature_outflag)
+
 	!Obtain and record molecular diffusion
 	!call evaluate_properties_diffusion
 
@@ -821,7 +824,7 @@ subroutine temperature_averaging(ixyz)
 	
 	average_count = average_count + 1
 	call cumulative_temperature(ixyz)
-	if (average_count .eq. Nvel_ave) then
+	if (average_count .eq. NTemp_ave) then
 		average_count = 0
 
 		select case(ixyz)
@@ -860,7 +863,7 @@ subroutine cumulative_temperature(ixyz)
 	integer         				:: cbin
 	integer		,dimension(3)		:: ibin
 	double precision				:: slicebinsize
-	double precision,dimension(3) 	:: Vbinsize 
+	double precision,dimension(3) 	:: Tbinsize 
 
 	select case(ixyz)
 	!temperature measurement is a number of 2D slices through the domain
@@ -879,12 +882,12 @@ subroutine cumulative_temperature(ixyz)
 	!Temperature measurement for 3D bins throughout the domain
 	case(4)
 		!Determine bin size
-		Vbinsize(:) = domain(:) / nbins(:)
+		Tbinsize(:) = domain(:) / nbins(:)
 
 		!Reset Control Volume momentum 
 		do n = 1,np
 			!Add up current volume mass and temperature densities
-			ibin(:) = ceiling((r(n,:)+halfdomain(:))/Vbinsize(:)) + 1
+			ibin(:) = ceiling((r(n,:)+halfdomain(:))/Tbinsize(:)) + 1
 			volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + 1
 			volume_temperature(ibin(1),ibin(2),ibin(3)) = volume_temperature(ibin(1),ibin(2),ibin(3)) & 
 										+ dot_product((v(n,:)+slidev(n,:)),(v(n,:)+slidev(n,:)))
@@ -1725,7 +1728,7 @@ subroutine cumulative_energy_flux(ixyz)
 
 					!Calculate velocity at time of intersection
 					!crosstime = (r(n,jxyz) - rplane)/v(n,jxyz)
-					velvect(:) = v(n,:) !+ 0.5d0*a(n,:)*delta_t
+					velvect(:) = v(n,:) + 0.5d0*a(n,:)*delta_t
 					energy = 0.5d0 * (dot_product(velvect,velvect) + potenergymol(n))
 					!Change in velocity at time of crossing is not needed as velocity assumed constant 
 					!for timestep and changes when forces are applied.
@@ -1787,7 +1790,7 @@ subroutine energy_snapshot
 	do n = 1,np
 		!Add up current volume momentum densities
 		ibin(:) = ceiling((r(n,:)+halfdomain(:))/mbinsize(:)) + 1
-		velvect(:) = v(n,:) !+ 0.5d0*a(n,:)*delta_t
+		velvect(:) = v(n,:) + 0.5d0*a(n,:)*delta_t
 		energy = 0.5d0 * (dot_product(velvect,velvect) + potenergymol(n))
 		volume_energy_temp(ibin(1),ibin(2),ibin(3)) = volume_energy_temp(ibin(1),ibin(2),ibin(3)) + energy
 	enddo
@@ -2502,7 +2505,7 @@ implicit none
 		!Stress acting on face over volume
 		if (eflux_outflag .ne. 0) then
 			!velvect(:) = v(molnoi,:) 
-			velvect(:) = v(molnoi,:) !+ 0.5d0*delta_t*aold(molnoi,:)
+			velvect(:) = v(molnoi,:) + 0.5d0*delta_t*aold(molnoi,:)
 			Pxyvface(cbin(1),cbin(2),cbin(3),1) = Pxyvface(cbin(1),cbin(2),cbin(3),1) + dot_product(fij,velvect)*dble(onfacexb)
 			Pxyvface(cbin(1),cbin(2),cbin(3),2) = Pxyvface(cbin(1),cbin(2),cbin(3),2) + dot_product(fij,velvect)*dble(onfaceyb)
 			Pxyvface(cbin(1),cbin(2),cbin(3),3) = Pxyvface(cbin(1),cbin(2),cbin(3),3) + dot_product(fij,velvect)*dble(onfacezb)
