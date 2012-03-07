@@ -51,7 +51,7 @@ endif
 # common compiler flags
 #
 
-FLAGS_BASE_debug := -O0 -traceback -CB -check all  $(FLAG_OBJ_DIR)
+FLAGS_BASE_debug := -g -O0 -traceback -CB -check all  $(FLAG_OBJ_DIR)
 FLAGS_BASE_opt   := -O3 -funroll-loops  $(FLAG_OBJ_DIR)
 #
 # add  flags required by particulary codes
