@@ -12,6 +12,8 @@ module module_clear_all
 	use arrays_MD
 	use linked_list
 	use calculated_properties_MD
+	use shear_info_MD
+	use polymer_info_MD
 
 end module module_clear_all
 !----------------------------------------------------------------------------------
@@ -73,12 +75,25 @@ implicit none
 	deallocate(potenergymol_LJ)
 	deallocate(virialmol)
 	deallocate(planes)
+	deallocate(mol_wrap_integer)
 	
 	select case (potential_flag)
 	case(0)
 	case(1)
+		deallocate(monomer)
+		deallocate(bond)
+		deallocate(bondcount)
 		deallocate(potenergymol_FENE)
+		deallocate(etev)
+		deallocate(etev_0)
 	end select
+	
+	if (allocated(vmd_intervals))      deallocate(vmd_intervals)
+	if (allocated(volume_temperature)) deallocate(volume_temperature)
+	if (allocated(slice_momentum))     deallocate(slice_momentum)
+	if (allocated(slice_momentumbin))  deallocate(slice_momentumbin)
+	if (allocated(slice_mass))         deallocate(slice_mass)
+	if (allocated(slice_massbin))      deallocate(slice_massbin)
 
 	if (nproc .ne. 1) deallocate(procnp)	!Only allocated in parallel code
 

@@ -435,7 +435,7 @@ subroutine messenger_free()
 	print "(a,f8.2)", "time: ", MPI_wtime() - wallTime
 
 	! Finalize MPI
-         call MPI_finalize (ierr)
+    call MPI_finalize (ierr)
 
 	return
 end

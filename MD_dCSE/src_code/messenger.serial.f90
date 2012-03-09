@@ -221,9 +221,10 @@ implicit none
 
 	halo_np = 0
 	
-	if (iter .ge. shear_iter0) then
+	if (iter .gt. shear_iter0) then
 		shear_time = dble(iter - shear_iter0)*delta_t
 		shear_distance = shear_time*shear_velocity	
+		!shear_distance = shear_distance + shear_velocity*delta_t
 	end if
 	
 	call update_plane(shear_plane,shear_direction,.false.,shear_remainingplane,.false.,rebuild)

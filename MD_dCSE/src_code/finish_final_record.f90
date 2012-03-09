@@ -188,6 +188,10 @@ subroutine reformat_dcd
 
 	close(3,status='keep')
 
+	deallocate(Xbuf)
+	deallocate(Ybuf)
+	deallocate(Zbuf)
+
 	call cpu_time(time_end)
 
  	print '(a,g10.2,a)', 'Generated final VMD.dcd ouput file in', time_end - time_start, ' seconds'
@@ -324,6 +328,10 @@ subroutine reformat_dcd_sl
 	enddo
 
 	close(3,status='keep')
+	
+	deallocate(Xbuf)
+	deallocate(Ybuf)
+	deallocate(Zbuf)
 
 	call cpu_time(time_end)
 
@@ -424,6 +432,10 @@ subroutine reformat_dcd_halo
 
 	close(3,status='keep')
 
+	deallocate(Xbuf)
+	deallocate(Ybuf)
+	deallocate(Zbuf)
+
 	call cpu_time(time_end)
 
  	print '(a,g10.2,a)', 'Generated final VMD.dcd ouput file in', time_end - time_start, ' seconds'
@@ -505,7 +517,7 @@ subroutine build_psf
 		write(1,'(a1)')
 		write(1,'(i8,a)') NBONDS, ' !NBONDS'
 	
-		write_items = 4*ceiling(NBONDS/4.0)
+		write_items = 4*ceiling(NBONDS/4.0)!todo change for branched polymers
 		allocate(bonds(write_items,2))
 		bonds(:,:)=0
 
@@ -556,6 +568,9 @@ subroutine build_psf
 	deallocate(atom_type)								! Determine type for each atom
 	deallocate(charge)									! Determine charge for each atom
 	deallocate(mass)									! Determine mass of each atom
+	deallocate(bonds)
+	deallocate(glob_sc)
+	deallocate(glob_bf)
 
 end subroutine build_psf
 
