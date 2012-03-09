@@ -55,8 +55,6 @@ subroutine simulation_move_particles_vv(pass_num)
 	double precision, dimension(np,nd) :: vrelsum
 	double precision, dimension(np,nd) :: U	
 
-	!Allocate array sizes for extra forces
-
 
 	!--------First half of velocity-Verlet algorithm. Finds r(t+dt) and v(t+dt/2).--------!
 	if (pass_num.eq.1) then
@@ -168,6 +166,7 @@ subroutine simulation_move_particles_vv(pass_num)
 				do n=1,np
 					v(n,:) = v(n,:) + 0.5d0*delta_t*(a(n,:)+aD(n,:)+aR(n,:))
 				end do
+
 			case(tag_move)
 				call error_abort('Tag mode for velocity-Verlet not yet implemented.')
 			
@@ -314,22 +313,21 @@ contains
 				vij(:)    = vi(:) - vj(:)
 				rij2      = dot_product(rij,rij)
 				rijhat(:) = rij(:)/sqrt(rij2)
-				wsq       = (1.d0-(sqrt(rij2)/rcutoff))*(1-(sqrt(rij2)/rcutoff))
+				wsq       = (1.d0-(sqrt(rij2)/rcutoff))*(1.d0-(sqrt(rij2)/rcutoff))
 				if (rij2.ge.rcutoff2) wsq = 0.d0
 				vr        = dot_product(vij,rijhat)
 	
 				vrelsum(molnoi,:) = vrelsum(molnoi,:) + wsq*vr*rijhat(:)
-				if (molnoj.le.np) vrelsum(molnoj,:) = vrelsum(molnoj,:) - wsq*vr*rijhat(:)
+				vrelsum(molnoj,:) = vrelsum(molnoj,:) - wsq*vr*rijhat(:)
 			
-				tmp      = wsq*(vr**2.d0 - inputtemperature*2.d0)/Q
-				dzeta_dt = dzeta_dt + tmp
+				dzeta_dt = dzeta_dt + wsq*(vr**2.d0 - inputtemperature*2.d0)/Q 
 
 				current => old	
 				old => current%next
 
 			end do
 		end do
-		
+
 		nullify(current)
 		nullify(old)
 	

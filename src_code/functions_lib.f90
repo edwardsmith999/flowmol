@@ -566,4 +566,6 @@ subroutine check
 
 	print*, 'soln', b
 
+	deallocate(y)
+
 end

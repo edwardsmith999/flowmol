@@ -1094,12 +1094,10 @@ subroutine parallel_io_final_state
 	integer 			   					:: dp_datasize,int_datasize
 	integer(kind=MPI_OFFSET_KIND)      		:: disp, procdisp, filesize
     integer(kind=selected_int_kind(18))     :: header_pos
-	!type(monomer_info)                      :: monomerwrite
 	integer, dimension(:), allocatable      :: monomerwrite
 	double precision, dimension(nd)			:: Xwrite	!Temporary variable used in write
 	double precision, dimension(:,:), allocatable :: buf		!Temporary variable used in write
 
-	!allocate(monomerwrite%bondflag(nmonomers))
 	allocate(monomerwrite(4+nmonomers))
 
 	!Rebuild simulation before recording final state
@@ -1257,6 +1255,9 @@ subroutine parallel_io_final_state
         call MPI_File_close(restartfileid, ierr)
 
 	endif
+	
+	deallocate(monomerwrite)
+	deallocate(buf)
 
 end subroutine parallel_io_final_state
 
