@@ -1097,7 +1097,7 @@ subroutine parallel_io_final_state
 	!type(monomer_info)                      :: monomerwrite
 	integer, dimension(:), allocatable      :: monomerwrite
 	double precision, dimension(nd)			:: Xwrite	!Temporary variable used in write
-	double precision, dimension(nd,2*np)	:: buf		!Temporary variable used in write
+	double precision, dimension(:,:), allocatable :: buf		!Temporary variable used in write
 
 	!allocate(monomerwrite%bondflag(nmonomers))
 	allocate(monomerwrite(4+nmonomers))
@@ -1112,6 +1112,9 @@ subroutine parallel_io_final_state
 	!Build array of number of particles on neighbouring
 	!process' subdomains on current proccess
 	call globalGathernp
+
+	! Attention np is changed inside reorder_data%sendmols call
+    allocate(buf(nd,2*np))
 
 	!Determine size of datatypes
   	call MPI_type_size(MPI_double_precision,dp_datasize,ierr)
