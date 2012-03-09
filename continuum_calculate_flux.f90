@@ -44,6 +44,18 @@ implicit none
 
 	enddo
 	enddo
+
+    ! set values on the doamin boundary
+	flux_xx(1,:) = 0.d0 ; flux_xx(nx+2,:) = 0.d0 
+   	flux_xy(1,:) = 0.d0 ; flux_xy(nx+2,:) = 0.d0
+    flux_yx(1,:) = 0.d0 ; flux_yx(nx+2,:) = 0.d0
+    flux_yy(1,:) = 0.d0 ; flux_yy(nx+2,:) = 0.d0
+
+	flux_xx(:,1) = 0.d0 ; flux_xx(:,ny+2) = 0.d0 
+   	flux_xy(:,1) = 0.d0 ; flux_xy(:,ny+2) = 0.d0
+    flux_yx(:,1) = 0.d0 ; flux_yx(:,ny+2) = 0.d0
+    flux_yy(:,1) = 0.d0 ; flux_yy(:,ny+2) = 0.d0
+    
 	
 	!Evaluate fluxes at cell surfaces
 	do i = 2, nx + 1

@@ -18,8 +18,8 @@ subroutine continuum_setup_macrostate
 
 	integer	:: i, j
 	
-	do i = 2, nx+1
-	do j = 2, ny+1
+	do i = 1, nx+2
+	do j = 1, ny+2
 
 		uc(i,j) = 0.d0 
 		vc(i,j) = 0.d0
