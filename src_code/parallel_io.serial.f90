@@ -35,17 +35,18 @@
 !======================================================================
 
 module module_parallel_io
+
 	use interfaces
 	use computational_constants_MD
 	use physical_constants_MD
 	use arrays_MD
 	use polymer_info_MD
 	use shear_info_MD
-	use interfaces
+
 end module
 
 !======================================================================
-!	        		INPUTS			              =
+!	        		INPUTS			              					  =
 !======================================================================
 
 !=============================================================================
@@ -54,8 +55,8 @@ end module
 ! relevant values.
 !-----------------------------------------------------------------------------
 subroutine setup_command_arguments
-use module_parallel_io
-implicit none
+	use module_parallel_io
+	implicit none
 	
 	integer				:: i,argcount
 	logical 			:: restart_file_exists, input_file_exists
@@ -125,294 +126,22 @@ subroutine setup_inputs
 	integer,dimension(8)	:: tvalue
 	character(20)			:: readin_format
 
-	!call random_seed
 	call random_seed(size=n)
 	allocate(seed(n))
 
-	open(1,file=input_file)
-
-	!Input physical co-efficients
-	call locate(1,'DENSITY',.true.)
-	read(1,*) density
-	call locate(1,'RCUTOFF',.true.)
-	read(1,*) rcutoff
-	call locate(1,'INPUTTEMPERATURE',.true.)
-	read(1,*) inputtemperature
-	call locate(1,'INITIALNUNITS',.true.)
-	read(1,*) initialnunits(1)		!x dimension split into number of cells
-	read(1,*) initialnunits(2)		!y dimension split into number of cells
-	read(1,*) initialnunits(3)		!z dimension split into number of cells
-	call locate(1,'INTEGRATION_ALGORITHM',.true.)
-	read(1,*) integration_algorithm
-	call locate(1,'ENSEMBLE',.true.)
-	read(1,*) ensemble
-	call locate(1,'FORCE_LIST',.true.)	!AP, Cells, neighbrs..
-	read(1,*) force_list
-	if (force_list .ne. 3 .and. ensemble .eq. 4) &
-		stop "Half int neighbour list only is compatible with pwa_terms_pwaNH thermostat"
-	if (force_list .ne. 3 .and. ensemble .eq. 5) & 
-		stop "Half int neighbour list only is compatible with DPD thermostat"
-	call locate(1,'POTENTIAL_FLAG',.true.)	!LJ or FENE potential
-	read(1,*) potential_flag
-	if (potential_flag.eq.1) then
-		call locate(1,'FENE_INFO',.true.)
-		read(1,*) nmonomers
-		read(1,*) k_c
-		read(1,*) R_0
-	end if	
-	!Input computational co-efficients
-	call locate(1,'NSTEPS',.true.)
-	read(1,*) Nsteps 		!Number of computational steps
-	call locate(1,'DELTA_T',.true.)
-	read(1,*) delta_t 		!Size of time step
-	call locate(1,'TPLOT',.true.)
-	read(1,*) tplot 		!Frequency at which to record results
-	call locate(1,'INITIALISE_STEPS',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) initialise_steps 	!Number of initialisation steps for simulation
-	else
-		initialise_steps = 0
-	endif
-	call locate(1,'DELTA_RNEIGHBR',.true.) 
-	read(1,*) delta_rneighbr 	!Extra distance used for neighbour cell
-	call locate(1,'SEED',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) seed(1) 	!Random number seed value 1
-		read(1,*) seed(2) 	!Random number seed value 2
-	else
-		seed(1) = 1		!Fixed default seed for repeatability
-		seed(2) = 2		!Fixed default seed for repeatability
-	endif
-
-	!Flags to determine if periodic boundaries are on	
-	call locate(1,'PERIODIC',.true.)
-	read(1,*) periodic(1)
-	read(1,*) periodic(2)
-	read(1,*) periodic(3)
-
-	call locate(1,'DEFINE_SHEAR',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) shear_direction
-		read(1,*) shear_iter0
-		read(1,*) define_shear_as
-		if (define_shear_as.eq.0) read(1,*) shear_velocity
-		if (define_shear_as.eq.1) read(1,*) shear_rate
-		if (define_shear_as.gt.1) then 
-                	call error_abort( 'Poorly defined shear in input file')
-        endif
-	endif
-
-	!-------------------------------------
-	!Flag to determine molecular tags
-	!-------------------------------------
-	!Note: For initialunitsize "a"
-	!		 [  o     o ]
-	!a (1 cell size) [     o    ]  a/2 (distance between molcules)	
-	!		 [  o     o
-	!		  __________]  a/4 (distance from bottom of domain)
-	!
-	!So use (0.20+0.5d0*mol_layers)*initialunitsize(ixyz)
-
-	!Set all to zero if no specifiers
-	!Setup wall speeds
-	wallslidev = 0.d0
-	!Setup fixed molecules
-	fixdistbottom = 0.d0;	fixdisttop = 0.d0
-	!Setup sliding molecules
-	slidedistbottom = 0.d0; slidedisttop = 0.d0
-	!Setup molecules with tethered potentials
-	tethereddistbottom = 0.d0; tethereddisttop = 0.d0
-	!Setup thermostatted molecules
-	thermstatbottom = 0.d0; thermstattop = 0.d0 
-	
-	call locate(1,'WALLSLIDEV',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) wallslidev(1)
-		read(1,*) wallslidev(2)
-		read(1,*) wallslidev(3)
-	endif
-	call locate(1,'FIXDISTBOTTOM',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) fixdistbottom(1)
-		read(1,*) fixdistbottom(2)
-		read(1,*) fixdistbottom(3)
-	endif
-	call locate(1,'FIXDISTTOP',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) fixdisttop(1)
-		read(1,*) fixdisttop(2)
-		read(1,*) fixdisttop(3)
-	endif
-	call locate(1,'SLIDEDISTBOTTOM',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) slidedistbottom(1)
-		read(1,*) slidedistbottom(2)
-		read(1,*) slidedistbottom(3)
-	endif
-	call locate(1,'SLIDEDISTTOP',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) slidedisttop(1)
-		read(1,*) slidedisttop(2)
-		read(1,*) slidedisttop(3)
-	endif
-	call locate(1,'TETHEREDDISTBOTTOM',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) tethereddistbottom(1)
-		read(1,*) tethereddistbottom(2)
-		read(1,*) tethereddistbottom(3)
-	endif
-	call locate(1,'TETHEREDDISTTOP',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) tethereddisttop(1)
-		read(1,*) tethereddisttop(2)
-		read(1,*) tethereddisttop(3)
-	endif
-
-	call locate(1,'THERMSTATBOTTOM',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) thermstatbottom(1)
-		read(1,*) thermstatbottom(2)
-		read(1,*) thermstatbottom(3)
-	endif
-	call locate(1,'THERMSTATTOP',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) thermstattop(1)
-		read(1,*) thermstattop(2)
-		read(1,*) thermstattop(3)
-	endif
-
-	call locate(1,'THERMSTAT_FLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) thermstat_flag
-		select case(thermstat_flag)
-		case(0)
-			if (abs(maxval(thermstattop   )).ne.0.0 & 
-		        .or.abs(maxval(thermstatbottom)).ne.0.0) call error_abort( & 
-			 'THERMSTATTOP or THERMSTATBOTTOM non zero but THERMSTAT_FLAG_INFO &
-                         & set to off (THERMSTAT_FLAG=0)')
-			thermstatbottom = 0.d0; thermstattop = 0.d0 
-		case(1)	!N-H thermostat all molecules
-			thermstattop 	= initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
-			thermstatbottom = initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
-		case(2) !N-H PUT all molecules
-			thermstattop 	= initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
-			thermstatbottom = initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
-		case(3)
-			if (abs(maxval(thermstattop   )).eq.0.0 & 
-		       .and.abs(maxval(thermstatbottom)).eq.0.0) & 
-			call error_abort('THERMSTATTOP or THERMSTATBOTTOM must also be specified')
-		end select
-	endif
-
-	!Flag to determine if output is switched on
-	call locate(1,'VMD_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) vmd_outflag
-		if (vmd_outflag .ne. 0) then
-			read(1,*) Nvmd_intervals	!Number of vmd intervals
-			if (Nvmd_intervals .gt. 20) then
-				print*, 'Number of VMD intervals greater than 20 or not specified, setting on for all simualtion'
-				Nvmd_intervals = 0
-			endif
-			if (Nvmd_intervals .eq. 0) then
-				allocate(vmd_intervals(2,1))
-				vmd_intervals(1,1) = 1; vmd_intervals(2,1) = huge(1)
-			else
-				allocate(vmd_intervals(2,Nvmd_intervals))
-				!write(readin_format,'(a,i,a)') '(',2*Nvmd_intervals,'i)'
-				!read(1,trim(readin_format)) vmd_intervals
-                                read(1,*) vmd_intervals
-#if USE_COUPLER
-				!NEED SOME SORT OF coupler total simulation time retrival here!!
-				print*, 'WARNING - CHECK VMD INTERVALS is not greater than coupled number of steps'
-#else
-				if (maxval(vmd_intervals) .gt. Nsteps) &
-                                    call error_abort('Specified VMD interval greater than Nsteps')
-#endif
-			endif
-		endif
-	endif
-
-	call locate(1,'MACRO_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) read(1,*) macro_outflag
-	call locate(1,'MASS_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) mass_outflag
-		if (mass_outflag .ne. 0) 	read(1,*) Nmass_ave
-	endif
-	call locate(1,'VELOCITY_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,* ) velocity_outflag
-		if (velocity_outflag .ne. 0)	read(1,* ) Nvel_ave
-	endif
-	call locate(1,'TEMPERATURE_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,* ) temperature_outflag
-		if (temperature_outflag .ne. 0)	read(1,* ) NTemp_ave
-	endif
-	call locate(1,'PRESSURE_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,* ) pressure_outflag
-		if (pressure_outflag .ne. 0) then
-			read(1,* ) Nstress_ave
-			read(1,*,iostat=ios) 	split_kin_config
-			if (ios .ne. 0) split_kin_config = 0 !default to zero if value not found
-		endif
-	endif
-	call locate(1,'VISCOSITY_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,* ) viscosity_outflag
-		if ( viscosity_outflag .ne. 0)	read(1,* ) Nvisc_ave
-	endif
-	call locate(1,'MFLUX_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,* ) mflux_outflag
-		if (mflux_outflag .ne. 0)	read(1,* ) Nmflux_ave
-	endif
-	call locate(1,'VFLUX_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,* ) vflux_outflag
-		if (vflux_outflag .ne. 0)	read(1,* ) Nvflux_ave
-		if (mflux_outflag .eq. 0) Nmflux_ave = Nvflux_ave !Mass set to same as velocity
-	endif
-
-
-	call locate(1,'EFLUX_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,* ) eflux_outflag
-		if (eflux_outflag .ne. 0)	read(1,* ) Neflux_ave
-	endif
-
-	call locate(1,'ETEVTCF_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) etevtcf_outflag
-		if (etevtcf_outflag.ne.0) then
-			read(1,*) etevtcf_iter0
-	
-			if (mod(etevtcf_iter0,tplot).ne.0) then
-				etevtcf_iter0 = etevtcf_iter0 + (tplot - mod(etevtcf_iter0,tplot))
-				print*, 'Etevtcf must be a multiple of tplot, resetting etevtcf to ', etevtcf_iter0
-			end if
-		end if
-	endif
-	
-	call locate(1,'R_GYRATION_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) r_gyration_outflag
-		read(1,*) r_gyration_iter0
-	end if
-
-	close(1,status='keep')      !Close input file
+	!Read inputs from input file
+	call setup_read_input
 
 	rcutoff2= rcutoff**2         !Useful definition to save computational time
-	initialstep = 0   	     !Set initial step to one to start
+	initialstep = 0   	     	!Set initial step to one to start
 
 	if (seed(1)==seed(2)) then
+		! Randomisations 
 		call random_seed(get=seed(1:n))
-                call date_and_time(values=tvalue)
-                seed = IEOR(tvalue(8)+irank,seed)
-        else 
-                seed = irank
+		call date_and_time(values=tvalue)
+		seed = IEOR(tvalue(8)+irank,seed)
+ 	else 
+		seed = irank
 	endif
 	
 	!Assign seed to random number generator
@@ -448,339 +177,112 @@ subroutine setup_restart_inputs
 	call random_seed(size=n)
 	allocate(seed(n))
 
-	!Open file to read integers
+	!Read inputs from input file
+	call setup_read_input
+	extrasteps = Nsteps
+
+	!=====================================================================================================!
+	!========================   R E A D    R E S T A R T    H E A D E R   ================================!
+	!Check if values from input file are different and alert user - all processors have
+	!read the same file so only need to check on one processor
 	open(2,file=initial_microstate_file,form='unformatted', access='stream',position='append')
 
-    inquire(2,POS=end_pos) ! go the end of file
-    read(2,pos=end_pos-8) header_pos ! header start is in the last 8 bytes
-    header_pos = header_pos +1 ! for compatibility with MPI IO we store header_pos - 1 in final state 
+    inquire(2,POS=end_pos) 				! go the end of file
+    read(2,pos=end_pos-8) header_pos 	! header start is in the last 8 bytes
+    header_pos = header_pos +1 			! for compatibility with MPI IO we store header_pos - 1 in final state 
 
 	read(2,pos=header_pos) np
-	globalnp = np			!Global np and local np same in serial
-	read(2) initialnunits(1)
-	read(2) initialnunits(2)
-	read(2) initialnunits(3)
-	read(2) Nsteps  	    
-	read(2) tplot
-	read(2) seed(1)
-	read(2) seed(2)
-	read(2) periodic(1)
-	read(2) periodic(2)
-	read(2) periodic(3)
-	read(2) potential_flag
-	read(2) nmonomers
-	read(2) npx
-	read(2) npy
-	read(2) npz
-	npx = 1
-	npy = 1
-	npz = 1
+	globalnp = np						!Global np and local np same in serial
+	read(2) checkint                   	!x dimension split into number of cells
+	if (checkint .ne. initialnunits(1)) then
+		print*, 'Discrepancy between x domain size', &
+				'in input & restart file - restart file will be used'
+		initialnunits(1) = checkint
+	endif
+	read(2) checkint                   	!y dimension box split into number of cells
+	if (checkint .ne. initialnunits(2)) then
+		print*, 'Discrepancy between y domain size', &
+				'in input & restart file - restart file will be used'
+		initialnunits(2) = checkint
+	endif
+	read(2) checkint					!z dimension box split into number of cells
+	if (checkint .ne. initialnunits(3)) then
+		print*, 'Discrepancy between z domain size', &
+				'in input & restart file - restart file will be used'
+		initialnunits(3) = checkint
+	endif
+	!use input file values
+	read(2) Nsteps !Nsteps  	    
+	read(2) checkint !tplot
+	read(2) checkint !seed(1)
+	read(2) checkint !seed(2)
+	read(2) checkint !periodic(1)
+	read(2) checkint !periodic(2)
+	read(2) checkint !periodic(3)
+	read(2) checkint !potential_flag
+	if (checkint .ne. potential_flag) then
+	    print*, 'Discrepancy between potential_flag', &
+				  'in input & restart file - restart file will be used'
+		potential_flag = checkint
+	endif
+	!if (potential_flag.eq.1) then
+		read(2) checkint                  !nmonomers - number of beads per chain
+		if (checkint.ne.nmonomers) then
+			print*, 'Discrepancy between nmonomers', &
+				  'in input & restart file - restart file will be used'
+		nmonomers = checkint
+		endif
+	!endif
+	read(2) checkint !npx
+	read(2) checkint !npy
+	read(2) checkint !npz
+	npx = 1	!This is a Serial Run
+	npy = 1 !This is a Serial Run
+	npz = 1 !This is a Serial Run
 
-	read(2) density			!Density of system
-	read(2) rcutoff			!Cut off distance for particle interaction
-	rcutoff2= rcutoff**2         				!Useful definition to save computational time
-	!read(2) inputtemperature	!Define initial temperature
-	read(2) delta_t			!Timestep
-	read(2) elapsedtime   		!Elapsed simulation time to date
-	read(2)  k_c			!Polymer spring constant
-	read(2)  R_0			!Polymer max bond elongation
-	read(2)  delta_rneighbr		!Extra distance used for neighbour cell size
+	read(2) checkdp 					!density-Density of system
+	if (checkdp .ne. density) then
+		print*, 'Discrepancy between system density', &
+				'in input & restart file - restart file will be used'
+		density = checkdp
+	endif
+	read(2) checkdp 					!rcutoff
+	if (checkdp .ne. rcutoff) then
+		print*, 'Discrepancy between cut off radius', &
+				'in input & restart file - restart file will be used'
+		rcutoff = checkdp
+	endif
+	rcutoff2= rcutoff**2				!Useful definition to save computational time
+	read(2) checkdp 					!delta_t - Timestep
+	read(2) elapsedtime					!elapsedtime - Elapsed simulation time to date
+	!if (potential_flag.eq.1) then
+		read(2) checkdp					!k_c - Polymer spring constant
+		if (checkdp.ne.k_c) then
+			print*, 'Discrepancy between k_c', &
+				'in input & restart file - restart file will be used'
+			k_c = checkdp
+		endif
+		read(2) checkdp 					!Polymer max bond elongation
+		if (checkdp.ne.R_0) then
+			print*, 'Discrepancy between R_0', &
+					  'in input & restart file - restart file will be used'
+			R_0 = checkint
+		endif
+	!endif
+	read(2)  checkdp 					!delta_rneighbr - Extra distance used for neighbour cell size
 
 	close(2,status='keep')
 
-	!Check if values from input file are different and alert user - all processors have
-	!read the same file so only need to check on one processor
-
-	open(1,file=input_file)
-
-	call locate(1,'DENSITY',.true.)
-	read(1,* ) checkdp                    !Density of system
-	if (checkdp .ne. density)             print*, 'Discrepancy between system density', &
-										  'in input & restart file - restart file will be used'
-	call locate(1,'RCUTOFF',.true.)
-	read(1,* ) checkdp                    !Cut off distance for particle interaction
-	if (checkdp .ne. rcutoff)             print*, 'Discrepancy between cut off radius', &
-										  'in input & restart file - restart file will be used'
-	!call locate(1,'INPUTTEMPERATURE',.true.)
-	!read(1,* ) checkdp                    !Define initial temperature
-	!if (checkdp .ne. inputtemperature)    print*, 'Discrepancy between initial temperature', &
-	!                                      'in input & restart file - restart file will be used'
-	call locate(1,'INITIALNUNITS',.true.)
-	read(1,* ) checkint                   !x dimension split into number of cells
-	if (checkint .ne. initialnunits(1))   print*, 'Discrepancy between x domain size', &
-										  'in input & restart file - restart file will be used'
-	read(1,* ) checkint                   !y dimension box split into number of cells
-	if (checkint .ne. initialnunits(2))   print*, 'Discrepancy between y domain size', &
-										  'in input & restart file - restart file will be used'
-	if (nd == 3) then	
-	  read(1,* ) checkint                 !z dimension box split into number of cells
-	  if (checkint .ne. initialnunits(3)) print*, 'Discrepancy between z domain size', &
-										  'in input & restart file - restart file will be used'
-	endif
-	
-	call locate(1,'POTENTIAL_FLAG',.true.)
-	read(1,*) checkint                    !LJ or FENE potential
-	if (checkint .ne. potential_flag)     print*, 'Discrepancy between potential_flag', &
-										  'in input & restart file - restart file will be used'
-	if (potential_flag.eq.1) then
-	  call locate(1,'FENE_INFO',.true.) 
-	  read(1,*) checkint                  !nmonomers - number of beads per chain
-	  if (checkint.ne.nmonomers)          print*, 'Discrepancy between nmonomers', &
-										  'in input & restart file - restart file will be used'
-	  read(1,*) checkdp                   !k_c - FENE spring constant
-	  if (checkint.ne.k_c)                print*, 'Discrepancy between k_c', &
-										  'in input & restart file - restart file will be used'
-	  read(1,*) checkdp                   !k_c - FENE spring constant
-	  if (checkint.ne.R_0)                print*, 'Discrepancy between R_0', &
-										  'in input & restart file - restart file will be used'
-	end if	
-
-	!Check periodic BC and shear
-	call locate(1,'PERIODIC',.true.)
-	read(1,*) periodic(1)
-	read(1,*) periodic(2)
-	read(1,*) periodic(3)
-
-	!Get number of extra steps, timestep and plot frequency from input file	
-	call locate(1,'NSTEPS',.true.)
-	read(1,* ) extrasteps       !Number of computational steps
-	call locate(1,'DELTA_T',.true.)
-	read(1,* ) delta_t          !Size of time step
-	call locate(1,'TPLOT',.true.)
-	read(1,* ) tplot            !Frequency at which to record results
-	call locate(1,'DELTA_RNEIGHBR',.true.)
-	read(1,* ) delta_rneighbr   !Extra distance used for neighbour cell
-	call locate(1,'SEED',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) seed(1) 	!Random number seed value 1
-		read(1,*) seed(2) 	!Random number seed value 2
-	else
-		seed(1) = 1		!Fixed default seed for repeatability
-		seed(2) = 2		!Fixed default seed for repeatability
-	endif
-
-
-	!Choose integration algorithm
-	call locate(1,'INTEGRATION_ALGORITHM',.true.)
-	read(1,*) integration_algorithm
-	
-	call locate(1,'ENSEMBLE',.true.)
-	read(1,*) ensemble
-
-	call locate(1,'FORCE_LIST',.true.)	!LJ or FENE potential
-	read(1,*) force_list
-	
-	call locate(1,'INPUTTEMPERATURE',.true.)
-	read(1,* ) inputtemperature         !Define initial temperature
-	
-
-	call locate(1,'DEFINE_SHEAR',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) shear_direction
-		read(1,*) shear_iter0
-		read(1,*) define_shear_as
-		if (define_shear_as.eq.0) read(1,*) shear_velocity
-		if (define_shear_as.eq.1) read(1,*) shear_rate
-		if (define_shear_as.gt.1) then 
-                call error_abort( 'Poorly defined shear in input file')
-        endif
-	endif
-
-	!-------------------------------------
-	!Flag to determine molecular tags
-	!-------------------------------------
-	!Note: For initialunitsize 'a'
-	!		 		 [  o     o ]
-	!a (1 cell size) [     o    ]  a/2 (distance between molcules)	
-	!		 		 [  o     o ]
-	!		  		 [__________]  a/4 (distance from bottom of domain)
-	!
-	!Set all to zero if no specifiers
-	!Setup wall speeds
-	wallslidev = 0.d0
-	!Setup fixed molecules
-	fixdistbottom = 0.d0;	fixdisttop = 0.d0
-	!Setup sliding molecules
-	slidedistbottom = 0.d0; slidedisttop = 0.d0
-	!Setup molecules with tethered potentials
-	tethereddistbottom = 0.d0; tethereddisttop = 0.d0
-	!Setup thermostatted molecules
-	thermstatbottom = 0.d0; thermstattop = 0.d0 
-
-	call locate(1,'WALLSLIDEV',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) wallslidev(1)
-		read(1,*) wallslidev(2)
-		read(1,*) wallslidev(3)
-	endif
-	call locate(1,'FIXDISTBOTTOM',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) fixdistbottom(1)
-		read(1,*) fixdistbottom(2)
-		read(1,*) fixdistbottom(3)
-	endif
-	call locate(1,'FIXDISTTOP',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) fixdisttop(1)
-		read(1,*) fixdisttop(2)
-		read(1,*) fixdisttop(3)
-	endif
-	call locate(1,'SLIDEDISTBOTTOM',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) slidedistbottom(1)
-		read(1,*) slidedistbottom(2)
-		read(1,*) slidedistbottom(3)
-	endif
-	call locate(1,'SLIDEDISTTOP',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) slidedisttop(1)
-		read(1,*) slidedisttop(2)
-		read(1,*) slidedisttop(3)
-	endif
-	call locate(1,'TETHEREDDISTBOTTOM',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) tethereddistbottom(1)
-		read(1,*) tethereddistbottom(2)
-		read(1,*) tethereddistbottom(3)
-	endif
-	call locate(1,'TETHEREDDISTTOP',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) tethereddisttop(1)
-		read(1,*) tethereddisttop(2)
-		read(1,*) tethereddisttop(3)
-	endif
-	call locate(1,'THERMSTATBOTTOM',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) thermstatbottom(1)
-		read(1,*) thermstatbottom(2)
-		read(1,*) thermstatbottom(3)
-	endif
-	call locate(1,'THERMSTATTOP',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) thermstattop(1)
-		read(1,*) thermstattop(2)
-		read(1,*) thermstattop(3)
-	endif
-
-	call locate(1,'THERMSTAT_FLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) thermstat_flag
-		select case(thermstat_flag)
-		case(0)
-			if (abs(maxval(thermstattop   )).ne.0.0 & 
-		        .or.abs(maxval(thermstatbottom)).ne.0.0) call error_abort( & 
-			'THERMSTATTOP or THERMSTATBOTTOM non zero but THERMSTAT_FLAG_INFO &
-                        & set to off (THERMSTAT_FLAG=0)')
-			thermstatbottom = 0.d0; thermstattop = 0.d0 
-		case(1)
-			thermstattop 	= initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
-			thermstatbottom = initialnunits(:)/((density/4)**(1.d0/nd))	!Whole domain size
-		case(2)
-			if (abs(maxval(thermstattop   )).eq.0.0 & 
-		       .and.abs(maxval(thermstatbottom)).eq.0.0)  call error_abort( &
-			 'THERMSTATTOP or THERMSTATBOTTOM must also be specified')
-		end select
-	endif
-
-
-	!Flag to determine if output is switched on
-	call locate(1,'VMD_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) vmd_outflag
-		if (vmd_outflag .ne. 0) then
-			read(1,*) Nvmd_intervals	!Number of vmd intervals
-			if (Nvmd_intervals .gt. 20) then
-				print*, 'Number of VMD intervals greater than 20 or not specified, setting on for all simualtion'
-				Nvmd_intervals = 0
-			endif
-			if (Nvmd_intervals .eq. 0) then
-				allocate(vmd_intervals(2,1))
-				vmd_intervals(1,1) = 1; vmd_intervals(2,1) = huge(1)
-			else
-				allocate(vmd_intervals(2,Nvmd_intervals))
-				!write(readin_format,'(a,i,a)') '(',2*Nvmd_intervals,'i)'
-				!read(1,trim(readin_format)) vmd_intervals
-                                read(1,*) vmd_intervals
-#if USE_COUPLER
-				!NEED SOME SORT OF coupler total simulation time retrival here!!
-				print*, 'WARNING - CHECK VMD INTERVALS is not greater than coupled number of steps'
-#else
-				if (maxval(vmd_intervals) .gt. Nsteps) &
-                                    call error_abort('Specified VMD interval greater than Nsteps')
-#endif
-			endif
-		endif
-	endif
-
-	call locate(1,'MACRO_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) read(1,*) macro_outflag
-	call locate(1,'MASS_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) mass_outflag
-		if (mass_outflag .ne. 0) 	read(1,*) Nmass_ave
-	endif
-	call locate(1,'VELOCITY_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,* ) velocity_outflag
-		if (velocity_outflag .ne. 0)	read(1,* ) Nvel_ave
-	endif
-	call locate(1,'PRESSURE_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,* ) pressure_outflag
-		if (pressure_outflag .ne. 0) then
-			read(1,* ) Nstress_ave
-			read(1,*,iostat=ios) 	split_kin_config
-			if (ios .ne. 0) split_kin_config = 0 !default to zero if value not found
-		endif
-	endif
-	call locate(1,'VISCOSITY_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,* ) viscosity_outflag
-		if ( viscosity_outflag .ne. 0)	read(1,* ) Nvisc_ave
-	endif
-	call locate(1,'MFLUX_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,* ) mflux_outflag
-		if (mflux_outflag .ne. 0)	read(1,* ) Nmflux_ave
-	endif
-	call locate(1,'VFLUX_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,* ) vflux_outflag
-		if (vflux_outflag .ne. 0)	read(1,* ) Nvflux_ave
-	endif
-
+	!Setup elapsed times
 	elapsedtime = elapsedtime + delta_t*extrasteps !Set elapsed time to end of simualtion
 	initialstep = Nsteps         !Set plot count to final plot of last
 	iter = initialstep			 !Set iter to initialstep so that initial record is performed correctly at restart
 	Nsteps = Nsteps + extrasteps !Establish final iteration step based on previous
 
-	call locate(1,'ETEVTCF_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) etevtcf_outflag
-		if (etevtcf_outflag.ne.0) then
-			read(1,*) etevtcf_iter0
-			if (etevtcf_iter0.lt.iter) then
-				print*, 'Restart functionality has not yet been implemented for time correlation functions.', &
-					'iter_0 for calculation of the end-to-end vector time correlation function has been reset to ', iter
-				etevtcf_iter0 = iter	
-			end if
-			if (mod(etevtcf_iter0,tplot).ne.0) then
-				etevtcf_iter0 = etevtcf_iter0 + (tplot - mod(etevtcf_iter0,tplot))
-				print*, 'Etevtcf must be a multiple of tplot, resetting etevtcf to ', etevtcf_iter0
-			end if
-		end if
-	endif
-	
-	call locate(1,'R_GYRATION_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) r_gyration_outflag
-		read(1,*) r_gyration_iter0
-	end if
-
-	close(1,status='keep')      !Close input file
+	!=============  E N D    R E A D    R E S T A R T    H E A D E R   ==============================!
+	!================================================================================================!
 
 end subroutine setup_restart_inputs
-
 
 !----------------------------------------------------------------------------------
 !
@@ -794,26 +296,21 @@ subroutine setup_restart_microstate
 	use module_parallel_io
 	implicit none
 
-	integer 				:: ixyz, n
+	integer 							:: ixyz, n
+	double precision,dimension(nd)		:: buf
 
 	!Open file at first recorded value
 	open(2,file=initial_microstate_file, form='unformatted', access='stream',position='rewind')
-	!Read positions
 	select case (potential_flag)
 	case(0)
 		do n=1,globalnp
-			!Read position from file
-			do ixyz=1,nd
-				read(2) r(n,ixyz)
-			enddo
-			do ixyz=1,nd
-				read(2) v(n,ixyz)
-			enddo
+			read(2) buf; r(n,:)=buf	!Read particle n's positions
+			read(2) buf; v(n,:)=buf	!Read particle n's velocities
 		enddo
 	case(1)
 		do n=1,globalnp
-			read(2) r(n,:)
-			read(2) v(n,:)
+			read(2) buf; r(n,:)=buf	!Read particle n's positions
+			read(2) buf; v(n,:)=buf	!Read particle n's velocities
 			read(2) monomer(n)%chainID
 			read(2) monomer(n)%subchainID
 			read(2) monomer(n)%funcy
@@ -991,18 +488,14 @@ subroutine parallel_io_final_state
 	integer, dimension(np) 					:: chainID, subchainID,right,left
 	integer 								:: int_filesize,dp_filesize
 	integer(kind=selected_int_kind(18))		:: header_pos ! 8 byte integer for header address
+	double precision, dimension(nd) 		:: buf
 
 	!Rebuild simulation before recording final state
-	call sendmols			   			!Exchange particles between processors
 	call linklist_deallocateall	   		!Deallocate all linklist components
+	call sendmols			   			!Exchange particles between processors
 	call assign_to_cell	  	   			!Re-build linklist every timestep
 	call messenger_updateborders(1)	   	!Update borders between processors
 	call assign_to_neighbourlist	   	!Setup neighbourlist
-
-	!Remove previous final state file
-	open(2,file=trim(prefix_dir)//'results/final_state')
-	close(2,status='delete')
-	!open(3,file=trim(prefix_dir)//'results/finalvelocities',status='replace')
 
 !	select case (integration_algorithm)
 !		case(leap_frog_verlet)
@@ -1013,26 +506,22 @@ subroutine parallel_io_final_state
 !		case(velocity_verlet)
 !			!Nothing
 !	end select
+
+	!open(3,file=trim(prefix_dir)//'results/finalvelocities',status='replace')
 	
 	!Written in this form so each molecule's information is together to allow 
 	!re-allocation to seperate processors
-	open(2,file=trim(prefix_dir)//'results/final_state', form='unformatted',access='stream')
+	open(2,file=trim(prefix_dir)//'results/final_state', form='unformatted',access='stream',status='replace')
 	select case (potential_flag)
 	case(0)
 		do n=1,np
-			!Write particle n's positions and speed
-			do ixyz=1,nd
-				write(2) r(n,ixyz) 
-			enddo
-			!Write particle n's velocities
-			do ixyz=1,nd
-				write(2) v(n,ixyz)   
-			enddo
+			buf = r(n,:); write(2) buf	!Write particle n's positions and speed
+			buf = v(n,:); write(2) buf	!Write particle n's velocities
 		enddo
 	case(1)
 		do n=1,np
-			write(2) r(n,:)
-			write(2) v(n,:)
+			buf = r(n,:); write(2) buf	!Write particle n's positions and speed
+			buf = v(n,:); write(2) buf	!Write particle n's velocities
 			write(2) monomer(n)%chainID
 			write(2) monomer(n)%subchainID
 			write(2) monomer(n)%funcy
@@ -1079,75 +568,6 @@ subroutine parallel_io_final_state
 
 end subroutine parallel_io_final_state
 
-subroutine parallel_io_final_state_old
-	use module_parallel_io
-	implicit none
-
-	integer :: ixyz,n
-
-	!Rebuild simulation before recording final state
-	call sendmols			   !Exchange particles between processors
-	call linklist_deallocateall	   !Deallocate all linklist components
-	call assign_to_cell	  	   !Re-build linklist every timestep
-	call messenger_updateborders(1)	   !Update borders between processor
-	call assign_to_neighbourlist	   !Setup neighbourlist
-
-	!Remove previous final state file
-	open(2,file=trim(prefix_dir)//'results/final_state')
-	close(2,status='delete')
-	!open(3,file=trim(prefix_dir)//'results/finalvelocities',status='replace')
-
-	open(2,file=trim(prefix_dir)//'results/final_state', form='unformatted',access='direct',recl=2)
-	!Written in this form so each molecule's information is together to allow 
-	!re-allocation to seperate processors
-	do n=1,np
-		!Write particle n's positions
-		do ixyz=1,nd
-			write(2,rec=6*(n-1)+(ixyz-1)+1) r(n,ixyz)	
-		enddo
-		!Write particle n's velocities
-		do ixyz=1,nd
-			write(2,rec=6*(n-1)+(ixyz-1)+4) v(n,ixyz)   
-	!		write(3,*) v(n,ixyz)
-		enddo
-
-	enddo
-
-	!close(3)
-	
-	write(2,rec=6*np+1) density           !Density of system
-	write(2,rec=6*np+2) rcutoff           !Cut off distance for particle interaction
-	write(2,rec=6*np+3) inputtemperature  !Define initial temperature
-	write(2,rec=6*np+4) delta_t           !Size of time step
-	write(2,rec=6*np+5) elapsedtime       !Total elapsed time of all restarted simulations
-	write(2,rec=6*np+6) k_c			   	  !FENE spring constant
-	write(2,rec=6*np+7) R_0			      !FENE spring max elongation
-	write(2,rec=6*np+8) delta_rneighbr	  !Extra distance used for neighbour list cell size
-
-	close(2,status='keep') !Close final_state file
-
-	!Re-open file with different record length to write Integer Data
-	open(2,file=trim(prefix_dir)//'results/final_state', form='unformatted',access='direct',recl=1)
-
-	write(2,rec=12*np+17) np               !Number of particles
-	write(2,rec=12*np+18) initialnunits(1) !x dimension split into number of cells
-	write(2,rec=12*np+19) initialnunits(2) !y dimension box split into number of cells
-	write(2,rec=12*np+20) initialnunits(3) !z dimension box split into number of cells
-	write(2,rec=12*np+21) Nsteps           !Number of computational steps
-	write(2,rec=12*np+22) tplot            !Frequency at which to record results
-	write(2,rec=12*np+23) seed(1)          !Random number seed value 1
-	write(2,rec=12*np+24) seed(2)          !Random number seed value 2
-	write(2,rec=12*np+25) periodic(1)	   !Boundary condition flags
-	write(2,rec=12*np+26) periodic(2)	   !Boundary condition flags
-	write(2,rec=12*np+27) periodic(3)	   !Boundary condition flags
-	write(2,rec=12*np+28) potential_flag   !Polymer/LJ potential flag
-	write(2,rec=12*np+29) nmonomers	   !Polymer chain length
-	write(2,rec=12*np+30) 0				   !Dummy to make even filesize
-
-	close(2,status='keep') !Close final_state file
-
-end subroutine parallel_io_final_state_old
-
 !------------------------------------------------------------------------
 !Write positions of molecules to a file
 
@@ -1172,7 +592,7 @@ subroutine parallel_io_vmd(start, finish,interval_no)
 			Xbuf(molno) = r(n,1)
 			Ybuf(molno) = r(n,2)
 			Zbuf(molno) = r(n,3)
-		end do
+		enddo
 		buf(1     :np  ) = Xbuf
 		buf(np+1  :2*np) = Ybuf
 		buf(2*np+1:3*np) = Zbuf
@@ -1185,10 +605,6 @@ subroutine parallel_io_vmd(start, finish,interval_no)
 	else
 		!Otherwise, calculate number of previous intervals
 		i = vmd_count
-		!do n=1,interval_no-1
-		!	i = i + (vmd_intervals(2,n)-vmd_intervals(1,n))/tplot
-		!enddo
-		!i = i + ((iter-start)/tplot)+1
 	endif
 
 	inquire(iolength=length) buf
@@ -1224,11 +640,6 @@ subroutine parallel_io_vmd_sl(start, finish,interval_no)
 	else
 		!Calculate number of previous intervals and start writing from here
 		i = vmd_count
-		!i = 0
-		!do n=1,interval_no-1
-		!	i = i + (vmd_intervals(2,n)-vmd_intervals(1,n))/tplot
-		!enddo
-		!i = i + ((iter-start)/tplot)+1
 	endif
 
 	!---Write liquid molecules---
@@ -1295,10 +706,6 @@ subroutine parallel_io_vmd_halo(start, finish,interval_no)
 	else
 		!Calculate number of previous intervals
 		i = vmd_count
-		!do n=1,interval_no-1
-		!	i = i + (vmd_intervals(2,n)-vmd_intervals(1,n))/tplot
-		!enddo
-		!i = i + ((iter-start)/tplot)+1
 	endif
 
 	open (unit=4, file=trim(prefix_dir)//'results/vmd_halo_temp.dcd',access='direct',recl=1)
@@ -2057,8 +1464,8 @@ subroutine etev_io
 end subroutine etev_io
 
 subroutine etevtcf_io
-use module_parallel_io
-implicit none
+	use module_parallel_io
+	implicit none
 	
 	integer :: m
 	integer :: length
@@ -2080,8 +1487,8 @@ end subroutine etevtcf_io
 
 !Write radius of gyration to output file
 subroutine r_gyration_io
-use module_parallel_io
-implicit none
+	use module_parallel_io
+	implicit none
 
 	if (iter.eq.r_gyration_iter0) then
 		open(15,file=trim(prefix_dir)//'results/r_gyration',status='replace')

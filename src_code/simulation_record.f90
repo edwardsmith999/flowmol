@@ -91,10 +91,10 @@ subroutine simulation_record
 	call energy_flux_averaging(eflux_outflag)			!Average energy flux after movement of particles
 
 	!Parallel output for molecular positions
-	if (vmd_outflag.ne.0) then
+	if (vmd_outflag.ne.0 .and. size(vmd_intervals,2).ge.i) then
 		vmd_iter = iter-initialstep+1
 		if (vmd_iter.ge.vmd_intervals(1,i).and.vmd_iter.lt.vmd_intervals(2,i)) then
-!			print*, iter,vmd_iter,i,vmd_count,vmd_intervals(1,i),vmd_intervals(2,i)
+			!print*, iter,vmd_iter,i,vmd_count,vmd_intervals(1,i),vmd_intervals(2,i)
 			if (vmd_outflag .eq. 1) call parallel_io_vmd(vmd_intervals(1,i),vmd_intervals(2,i),i)
 			if (vmd_outflag .eq. 2) call parallel_io_vmd_sl(vmd_intervals(1,i),vmd_intervals(2,i),i)
 			if (vmd_outflag .eq. 3) then
@@ -110,11 +110,10 @@ subroutine simulation_record
 	!call evaluate_macroscopic_properties
 	!Obtain each processe's subdomain's macroscopic 
 	!properties; gather on root process and record
-	if (macro_outflag .eq. 1) call evaluate_macroscopic_properties_parallel
-	if (macro_outflag .eq. 2) then
+	if (macro_outflag .ne. 0) then
 		call evaluate_macroscopic_properties_parallel
-		call macroscopic_properties_record
-	end if
+		if (macro_outflag .eq. 2) call macroscopic_properties_record
+	endif
 
 	!Obtain and record velocity distributions
 	!call evaluate_properties_vdistribution
@@ -177,7 +176,7 @@ subroutine evaluate_macroscopic_properties_parallel
 	use module_record
 	implicit none
 
-	integer :: n, ixyz
+	integer :: n,m, ixyz
 
 	vsum  = 0.d0                                                ! Reset all sums
 	v2sum = 0.d0                                                ! Reset all sums
@@ -198,24 +197,23 @@ subroutine evaluate_macroscopic_properties_parallel
 
 	select case(integration_algorithm)
 	case(leap_frog_verlet)
-		do ixyz = 1, nd                                     ! Loop over all dimensions
-			do n = 1, np                                                ! Loop over all particles
-				vel = v(n,ixyz) + 0.5d0*a(n,ixyz)*delta_t       ! Velocity must shifted half a timestep
-				vsum = vsum + vel                               ! Add up all molecules' velocity components
-				v2sum = v2sum + vel**2                          ! Add up all molecules' velocity squared components  
-			enddo
+		do ixyz = 1, nd									! Loop over all dimensions
+		do n = 1, np 									! Loop over all particles
+			vel = v(n,ixyz) + 0.5d0*a(n,ixyz)*delta_t	! Velocity must shifted half a timestep
+			vsum = vsum + vel							! Add up all molecules' velocity components
+			v2sum = v2sum + vel**2						! Add up all molecules' velocity squared components  
 		enddo
-	case(velocity_verlet)                                   ! If velocity Verlet algorithm
+		enddo
+	case(velocity_verlet) 								! If velocity Verlet algorithm
 		do ixyz = 1, nd
-			do n = 1, np
-				vel = v(n,ixyz)
-				vsum = vsum+vel
-				v2sum = v2sum + vel*vel          ! Sum all velocity squared components
-			enddo
+		do n = 1, np
+			vel = v(n,ixyz)
+			vsum = vsum+vel
+			v2sum = v2sum + vel**2          			! Sum all velocity squared components
+		enddo
 		enddo
 	end select
         
-
 	!Obtain global sums for all parameters
 	call globalSum(vsum)
 	call globalSum(v2sum)
@@ -802,7 +800,6 @@ subroutine cumulative_velocity(ixyz)
 	end select
 	 
 end subroutine cumulative_velocity
-
 
 !===================================================================================
 !		RECORD TEMPERATURE AT LOCATION IN SPACE
@@ -2533,10 +2530,10 @@ subroutine pressure_tensor_forces_MOP(pnxyz,ri,rj,rij,accijmag)
 	use module_record
 	implicit none
 
-	integer,save			:: i,j,k
-	integer				:: n
-	integer				:: pnxyz	 !Plane normal direction
-	integer				:: molno, planenoi,planenoj
+	integer,save					:: i,j,k
+	integer							:: n
+	integer							:: pnxyz	 !Plane normal direction
+	integer							:: molno, planenoi,planenoj
 	double precision                :: shift, plane !Plane normal components i and j
 	double precision                :: accijmag      !Non directional component of acceleration
 	double precision,dimension(3)   :: ri, rj, rij   !Vector between particles i and j
@@ -2582,7 +2579,7 @@ end subroutine pressure_tensor_forces_MOP
 !	integer                         :: icell, jcell
 !	integer                         :: icellshift, jcellshift
 !	integer                         :: adjacentcellnp
-!	integer				:: molnoi, molnoj
+!	integer							:: molnoi, molnoj
 !	type(node), pointer 	        :: oldj, currentj
 
 	!Find cell location of specified molecules

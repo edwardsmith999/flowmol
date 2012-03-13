@@ -16,87 +16,40 @@ end module module_initial_record
 !----------------------------------------------------------------------------------
 
 subroutine setup_initial_record
-use interfaces
-use module_initial_record
-use polymer_info_MD
-implicit none
+	use interfaces
+	use module_initial_record
+	use polymer_info_MD
+	implicit none
 
-        integer i
-        logical file_exist
-	character		:: ixyz_char
-	Character(8)  		:: the_date
-	Character(10)  		:: the_time
-        Character(10),parameter :: file_names(19) = (/"mslice    ", "mbins     ", "msnap     ",&
-                                                      "vslice    ", "vbins     ", "vsnap     ",&
-                                                      "pvirial   ", "pVA       ", "pVA_k     ",& 
-                                                      "pVA_c     ", "visc      ", "mflux     ",& 
-                                                      "vflux     ", "pplane    ", "psurface  ",&
-                                                      "esnap     ", "eflux     ", "eplane    ",&
-                                                      "esurface  "/) 
-       
+	integer					::  i
+	logical 				:: file_exist
+	character				:: ixyz_char
+	Character(8)			:: the_date
+	Character(10)			:: the_time
+	Character(10),parameter :: file_names(19) = (/	"mslice    ", "mbins     ", "msnap     ",&
+													"vslice    ", "vbins     ", "vsnap     ",&
+													"pvirial   ", "pVA       ", "pVA_k     ",& 
+													"pVA_c     ", "visc      ", "mflux     ",& 
+													"vflux     ", "pplane    ", "psurface  ",&
+													"esnap     ", "eflux     ", "eplane    ",&
+													"esurface  "/) 
 	if (irank.eq.iroot) then
-        	do i=1,size(file_names)
+		do i=1,size(file_names)
 			inquire(file=trim(prefix_dir)//'results/'//file_names(i),exist=file_exist)
 			if(file_exist) then
 				open (unit=23, file=trim(prefix_dir)//'results/'//file_names(i))
 				close(23,status='delete')
-                	endif
+			endif
 		enddo
-        endif
-        call messenger_syncall()
-
-!!$	if (irank .eq. iroot) then
-!!$		!Delete existing files
-!!$		open (unit=5, file=trim(prefix_dir)//'results/mslice')
-!!$		close(5,status='delete')
-!!$		open (unit=5, file=trim(prefix_dir)//'results/mbins')
-!!$		close(5,status='delete')
-!!$		open (unit=5, file=trim(prefix_dir)//'results/msnap')
-!!$		close(5,status='delete')
-!!$		open (unit=6, file=trim(prefix_dir)//'results/vslice')
-!!$		close(6,status='delete')
-!!$		open (unit=6, file=trim(prefix_dir)//'results/vbins')
-!!$		close(6,status='delete')
-!!$		open (unit=6, file=trim(prefix_dir)//'results/vsnap')
-!!$		close(6,status='delete')
-!!$		open (unit=6, file=trim(prefix_dir)//'results/vslice')
-!!$		close(6,status='delete')
-!!$		open (unit=6, file=trim(prefix_dir)//'results/vbins')
-!!$		close(6,status='delete')
-!!$		open (unit=7, file=trim(prefix_dir)//'results/pvirial')
-!!$		close(7,status='delete')
-!!$		open (unit=7, file=trim(prefix_dir)//'results/pVA')
-!!$		close(7,status='delete')
-!!$		open (unit=7, file=trim(prefix_dir)//'results/pVA_k')
-!!$		close(7,status='delete')
-!!$		open (unit=7, file=trim(prefix_dir)//'results/pVA_c')
-!!$		close(7,status='delete')
-!!$		open (unit=7, file=trim(prefix_dir)//'results/visc')
-!!$		close(7,status='delete')
-!!$		open (unit=8, file=trim(prefix_dir)//'results/mflux')
-!!$		close(8,status='delete')
-!!$		open (unit=9, file=trim(prefix_dir)//'results/vflux')
-!!$		close(9,status='delete')
-!!$		open (unit=9, file=trim(prefix_dir)//'results/pplane')
-!!$		close(9,status='delete')
-!!$		open (unit=9, file=trim(prefix_dir)//'results/psurface')
-!!$		close(9,status='delete')
-!!$		open (unit=10, file=trim(prefix_dir)//'results/esnap')
-!!$		close(10,status='delete')
-!!$		open (unit=10, file=trim(prefix_dir)//'results/eflux')
-!!$		close(10,status='delete')
-!!$		open (unit=10, file=trim(prefix_dir)//'results/eplane')
-!!$		close(10,status='delete')
-!!$		open (unit=10, file=trim(prefix_dir)//'results/esurface')
-!!$		close(10,status='delete')
-!!$	endif
+	endif
+	call messenger_syncall()
 
 	!Evaluate system properties on all processes
 	call initial_macroscopic_properties
 	
 	!Calculate Control Volume starting state
 	call initial_control_volume
-	if (irank .eq. iroot) then
+	!if (irank .eq. iroot) then
 
 		call date_and_time(the_date, the_time)
 
@@ -116,7 +69,7 @@ implicit none
 		end select
 		select case(potential_flag)
 		case(0)
-			print*, 'Interatomic potential: LJ only'
+			print*, 'Interatomic potential: LJ'
 		case(1)
 			print*, 'Interatomic potential: LJ + FENE'
 		end select
@@ -370,7 +323,7 @@ implicit none
 
 		call simulation_header
 
-	endif
+	!endif
 
 	!Initialise etevtcf calculation if etevtcf_iter0 = 0
 	if (potential_flag.eq.1) then
@@ -399,19 +352,17 @@ implicit none
 	!Calculate forces to obtain initial potential energies and virial
 	call simulation_compute_forces
 	
-
-
 	select case(potential_flag)
 	case(0)
 		potenergysum = sum(potenergymol(1:np))
-                call globalSum(potenergysum)
+		call globalSum(potenergysum)
 	case(1)
 		potenergysum_LJ = sum(potenergymol_LJ(1:np))
 		potenergysum_FENE = sum(potenergymol_FENE(1:np))
 		potenergysum = sum(potenergymol_LJ(1:np) + potenergymol_FENE(1:np))
-                call globalSum(potenergysum_LJ)
-        	call globalSum(potenergysum_FENE)
-                call globalSum(potenergysum)
+		call globalSum(potenergysum_LJ)
+		call globalSum(potenergysum_FENE)
+ 		call globalSum(potenergysum)
 	end select
 
 	virial = sum(virialmol(1:np))
@@ -420,33 +371,29 @@ implicit none
 	select case (integration_algorithm)
 	case(leap_frog_verlet)
 		do ixyz = 1, nd   ! Loop over all dimensions
-                    do n = 1, np    ! Loop over all particles
+		do n = 1, np    ! Loop over all particles
 			!Velocity component must be shifted back half a timestep to determine 
 			!velocity of interest - required due to use of the leapfrog method
 			vel = v(n,ixyz) + 0.5d0*a(n,ixyz)*delta_t
 			vsum = vsum + vel      !Add up all molecules' velocity components
 			v2sum = v2sum + vel**2 !Add up all molecules' velocity squared components  
-		    enddo
-                enddo
+		enddo
+		enddo
 		call globalSum(vsum)
 		call globalSum(v2sum)
 	case(velocity_verlet)
-                do ixyz = 1, nd   ! Loop over all dimensions
-                    do n = 1, np    ! Loop over all particles  
-		        vsum  = vsum  + v(n,ixyz)
+  		do ixyz = 1, nd   ! Loop over all dimensions
+ 		do n = 1, np    ! Loop over all particles  
+			vsum  = vsum  + v(n,ixyz)
 			v2sum = v2sum +  v(n,ixyz) * v(n,ixyz)
-                    enddo
-                enddo
+ 		enddo
+		enddo
 		call globalSum(vsum)
 		call globalSum(v2sum)
 	end select
 
 
 	!Obtain global sums for all parameters
-	
-
-
-
 	kinenergy   = (0.5d0 * v2sum) / real(globalnp,kind(0.d0))
 	potenergy   = potenergysum /(2.d0*real(globalnp,kind(0.d0))) !N.B. extra 1/2 as all interactions calculated
 	if (potential_flag.eq.1) then
@@ -457,16 +404,6 @@ implicit none
 	temperature = v2sum / real(nd*globalnp,kind(0.d0))
 	if (any(periodic.gt.1)) temperature = get_temperature_PUT()
 	pressure    = (density/(globalnp*nd))*(v2sum+virial/2) !N.B. virial/2 as all interactions calculated
-	!kinenergy   = (0.5d0 * v2sum) / globalnp 
-	!potenergy   = potenergysum /(2*globalnp) !N.B. extra 1/2 as all interactions calculated
-	!if (potential_flag.eq.1) then
-	!	potenergy_LJ = potenergysum_LJ/(2.d0*real(globalnp,kind(0.d0)))
-	!	potenergy_FENE = potenergysum_FENE/(2.d0*real(globalnp,kind(0.d0)))
-	!end if
-	!totenergy   = kinenergy + potenergy
-	!temperature = v2sum / (nd * globalnp)
-	!if (thermstat_flag.eq.2) temperature = get_temperature_PUT()
-	!pressure    = (density/(globalnp*nd))*(v2sum+virial/2) !N.B. virial/2 as all interactions calculated
 	
 	!WARNING ABOUT THERMOSTATTED RESTARTS! WILL CONSERVE TEMPERATURE OF LAST ITERATION
 	!For velocity rescaling thermostat
@@ -476,7 +413,6 @@ end subroutine initial_macroscopic_properties
 
 !----------------------------------------------------------------------------------
 !Add up initial control volume mass densities
-
 subroutine initial_control_volume
 use module_initial_record
 implicit none
@@ -508,5 +444,3 @@ implicit none
 	!call control_volume_header
 
 end subroutine initial_control_volume
-
-

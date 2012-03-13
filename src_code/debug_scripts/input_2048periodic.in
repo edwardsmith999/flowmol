@@ -42,6 +42,27 @@ DELTA_T
 0.005
 
 #########################################################################
+# Integration algorithm
+# 0: Leap-frog Verlet
+# 1: Velocity Verlet
+# 2: Other
+# -----------------------------------------------------------------------
+INTEGRATION_ALGORITHM
+0
+
+#########################################################################
+# Force list used
+# 0: All Pairs
+# 1: Cell List
+# 2: Neighbour list with all interactions
+# 3: Neighbour list using 3rd law optimisation (half interactions)
+# -----------------------------------------------------------------------
+FORCE_LIST
+3
+
+
+
+#########################################################################
 # Results are recorded periodically every TPLOT timesteps:
 #	(subroutine simulation_record is called)
 # -----------------------------------------------------------------------
@@ -61,6 +82,19 @@ INITISE_STEPS
 # -----------------------------------------------------------------------
 DELTA_RNEIGHBR
 0.3
+
+#########################################################################
+# Ensemble selector: case sensitive! 
+# 0 - NVE
+# 1 - NVT (Nosé-Hoover thermostat)
+# 2 - NVT (Gaussian iso-kinetic thermostat) - only availble with VV
+# 3 - NVT (Profile unbiased Nosé-Hoover thermostat)
+# 4 - NVT (Pairwise additive Nosé-Hoover thermostat by Allen & Schmid)
+# 5 - NVT (DPD thermostat by Soddemann, Dunweg an Kremer Phys Rev E 68, 046702 (2003))
+# 6 - TAG system - specify fixed wall and localised thermostatting
+# -----------------------------------------------------------------------
+ENSEMBLE
+0
 
 #########################################################################
 # Random number seeds, formattted:
@@ -231,17 +265,10 @@ ETEVTCF_OUTFLAG
 40000
 
 #########################################################################
-# Microscopic stress tensor output flag:
-#	0 - off
-#	1 - on
-# -----------------------------------------------------------------------
-MICRO_STRESS_OUTFLAG
-0
-
-#########################################################################
 # Radius of gyration output flag:
 #	0 - off
 #	1 - on
 # -----------------------------------------------------------------------
 R_GYRATION_OUTFLAG
+0
 0

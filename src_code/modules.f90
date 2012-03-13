@@ -36,8 +36,7 @@ module computational_constants_MD
 
 	!Command-line arguments
 	logical					:: restart
-	character(len=200) 		:: initial_microstate_file
-	character(len=200) 		:: input_file
+	character(len=200) 		:: input_file, initial_microstate_file
 
 	!Force and Potential flags
 	integer					:: force_list		!flag to switch between neighbour and cell list
@@ -45,53 +44,56 @@ module computational_constants_MD
 
 	!Integration algorithm
 	integer                 :: integration_algorithm
-	integer, parameter      :: leap_frog_verlet = 0
-	integer, parameter      :: velocity_verlet  = 1
 	integer                 :: ensemble
-	integer, parameter      :: nve         = 0
-	integer, parameter      :: nvt_NH      = 1
-	integer, parameter      :: nvt_GIK     = 2
-	integer, parameter      :: nvt_PUT_NH  = 3
-	integer, parameter      :: nvt_pwa_NH  = 4
-	integer, parameter      :: nvt_DPD     = 5 
-	integer, parameter      :: tag_move    = 6
+	integer, parameter      :: & 
+		leap_frog_verlet = 0, &
+		velocity_verlet  = 1, &
+		nve         = 0, &
+		nvt_NH      = 1, &
+		nvt_GIK     = 2, &
+		nvt_PUT_NH  = 3, &
+		nvt_pwa_NH  = 4, &
+		nvt_DPD     = 5, &
+		tag_move    = 6
 
 	!Thermostat flag
 	integer					:: thermstat_flag
 
 	!Input (on or off) flags
-	integer					:: vmd_outflag, vmd_start, vmd_finish, vmd_count=1
-	integer					:: macro_outflag
-	integer					:: mass_outflag	
-	integer					:: velocity_outflag
-	integer					:: temperature_outflag
-	integer					:: pressure_outflag
-	integer					:: viscosity_outflag
-	integer					:: mflux_outflag
-	integer					:: vflux_outflag
-	integer					:: eflux_outflag
+	integer		:: & 
+		vmd_outflag, vmd_start, vmd_finish, vmd_count=1, &
+		macro_outflag, &
+		mass_outflag, &
+		velocity_outflag, &
+		temperature_outflag, &
+		pressure_outflag, &
+		viscosity_outflag, &
+		mflux_outflag, &
+		vflux_outflag, &
+		eflux_outflag
 	integer, dimension(3)	:: periodic
 
 
 	!Parameters
-	integer								:: nproc, npx, npy, npz		!Number of MPI ranks and cartesian topology sizes
-	integer								:: iter						!Global simulation iteration count
-	integer								:: tplot					!Frequency at which to record results
-	integer								:: Nmass_ave				!Number of averages for each mass average
-	integer								:: Nvel_ave					!Number of averages for each velocity average
-	integer								:: NTemp_ave				!Number of averages for each temperature measurement
-	integer								:: Nstress_ave				!Number of bins for stress calculation
-	integer								:: split_kin_config			!Flag to determine if kinetic and configurational stress seperated
-	integer								:: Nvisc_ave				!Number of samples for viscosity measurement
-	integer								:: Nmflux_ave				!Number of averages for each mass flux
-	integer								:: Nvflux_ave				!Number of averages for each velocity flux
-	integer								:: Neflux_ave				!Number of averages for each energy flux
-	integer								:: initialstep				!Initial step of simulation
-	integer								:: Nsteps					!Total number of computational steps
-	integer								:: initialise_steps			!Initialisation steps to run before simulation start
-	integer								:: extralloc				!Extra allocation space to include copied halos
-	integer								:: overlap					!Size of overlap region used to apply force to molecular region
-	integer								:: Nvmd_intervals
+	integer	:: & 
+		nproc, npx, npy, npz, 	&	!Number of MPI ranks and cartesian topology sizes
+		iter, 					&	!Global simulation iteration count
+		tplot, 					&	!Frequency at which to record results
+		Nmass_ave, 				&	!Number of averages for each mass average
+		Nvel_ave, 				&	!Number of averages for each velocity average
+		NTemp_ave, 				&	!Number of averages for each temperature measurement
+		Nstress_ave, 			&	!Number of bins for stress calculation
+		split_kin_config, 		&	!Flag to determine if kinetic and configurational stress seperated
+		Nvisc_ave, 				&	!Number of samples for viscosity measurement
+		Nmflux_ave, 			&	!Number of averages for each mass flux
+		Nvflux_ave, 			&	!Number of averages for each velocity flux
+		Neflux_ave, 			&	!Number of averages for each energy flux
+		initialstep, 			&	!Initial step of simulation
+		Nsteps, 				&	!Total number of computational steps
+		initialise_steps, 		&	!Initialisation steps to run before simulation start
+		extralloc, 				&	!Extra allocation space to include copied halos
+		overlap, 				&	!Size of overlap region used to apply force to molecular region
+		Nvmd_intervals
 	integer,dimension(:,:),allocatable	:: vmd_intervals			!Multiple intervals for vmd record
 
 	double precision 	:: delta_t           !Size of timestep for each computational step
@@ -127,8 +129,8 @@ module computational_constants_MD
 	integer irankx, iranky, irankz
 	integer iblock, jblock, kblock
 	integer, allocatable :: ibmin(:), ibmax(:), ibmino(:), ibmaxo(:), &
-		jbmin(:), jbmax(:), jbmino(:), jbmaxo(:), &
-		kbmin(:), kbmax(:), kbmino(:), kbmaxo(:)
+							jbmin(:), jbmax(:), jbmino(:), jbmaxo(:), &
+							kbmin(:), kbmax(:), kbmino(:), kbmaxo(:)
 
  	!Set number of halos
 	integer, parameter :: nh = 1
@@ -202,26 +204,28 @@ end module shear_info_MD
 module arrays_MD
 
 	integer,          dimension(:),   allocatable, target	:: tag       	!Molecular Tags
-	integer, 	  	  dimension(:,:), allocatable, target	:: fix        	!Fixed molecules
-	integer, 	 	  dimension(:,:), allocatable, target	:: thermostat	!Thermostatted molecules
-	double precision, dimension(:,:), allocatable, target 	:: r          	!Positions
-	double precision, dimension(:,:), allocatable 	      	:: rtrue      	!Positions with no period BC
-	double precision, dimension(:,:), allocatable 	      	:: rinitial
-	double precision, dimension(:,:), allocatable 	      	:: rijsum		!Sum of all molecular rij values		
-	double precision, dimension(:,:), allocatable, target 	:: v          	!Velocity
-	double precision, dimension(:),   allocatable, target 	:: vmagnitude 	!Velocity magnitude	
-	double precision, dimension(:,:), allocatable, target 	:: a          	!Accelerations
-!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
-	double precision, dimension(:,:), allocatable, target   :: aold
-!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
-	double precision, dimension(:,:), allocatable           :: theta
-	double precision, dimension(:,:), allocatable           :: aD,aR
-	double precision, dimension(:),   allocatable           :: recvbuffer
-	double precision, dimension(:,:), allocatable, target   :: slidev             !Speed for sliding molecules
-	double precision, dimension(:),   allocatable, target   :: potenergymol       !Potential energy of each molecule
-	double precision, dimension(:),   allocatable, target   :: potenergymol_LJ    !LJ Potential energy of each molecule
-	double precision, dimension(:),   allocatable, target   :: potenergymol_FENE  !FENE Potential energy of each molecule
-	double precision, dimension(:),   allocatable, target   :: virialmol          !Virial of each molecule
+	integer, 	  	  dimension(:,:), allocatable, target	:: &
+		fix, &      				!Fixed molecules
+		thermostat					!Thermostatted molecules
+	double precision, dimension(:),   allocatable, target 	:: &
+		potenergymol, 		&		!Potential energy of each molecule
+		potenergymol_LJ, 	&		!LJ Potential energy of each molecule
+		potenergymol_FENE,	&		!FENE Potential energy of each molecule
+		virialmol,			&		!Virial of each molecule
+		vmagnitude, 		&
+		recvbuffer
+	double precision, dimension(:,:),   allocatable			:: &
+		rtrue, 		&      			!Positions with no period BC
+		rinitial, 	&
+		rijsum, 	&				!Sum of all molecular rij values
+		theta, 		&
+		aD,aR
+	double precision, dimension(:,:),   allocatable, target 	:: &
+		r, 		&        		  	!Positions
+		v, 		&        		  	!Velocity
+		a, 		&					!Accelerations
+		aold,	&					!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
+		slidev						!Speed for sliding molecules
 
 end module arrays_MD
 
