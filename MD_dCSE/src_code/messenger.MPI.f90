@@ -87,6 +87,7 @@ subroutine messenger_init()
 	use messenger
 	use physical_constants_MD
 	use librarymod, only : locate
+	use interfaces, only : error_abort
 	implicit none
 	!include "mpif.h"
 
@@ -116,36 +117,35 @@ subroutine messenger_init()
 
     ! set Lperiodic
     Lperiodic(1:nd) = .true.
-    where(periodic(1:nd) == 0) Lperiodic(1:nd) =.false.  
-    write(0,*) 'Lperiodic ', Lperiodic
-
-	! Grid topology
+    where(periodic(1:nd) .eq. 0) Lperiodic(1:nd) =.false.  
+ 
+	! ==== Grid topology ====
 
     ! if npz == 0 in MD.in it means that npz = nproc/(npx*npy)
-    if (npz == 0) then 
+    if (npz .eq. 0) then 
             npz = nproc/(npx*npy)
     endif
 
     !check if npx*npy*npz=nproc
-    if (npx * npy * npz /= nproc ) then
-            write(*,*) ' Wrong  specification for processor topology, nproc /= npx*npy*npz'
-            call MPI_Abort(MPI_COMM_WORLD,1,ierr)
+    if (npx * npy * npz .ne. nproc ) then
+			print*, npx, npy, npz , nproc
+            call error_abort(' Wrong specification for processor topology, nproc not equal to npx*npy*npz')
+           ! call MPI_Abort(MPI_COMM_WORLD,1,ierr)
     endif
 
     ! allocate arrays that depend on topology parameters
-
     allocate(ibmin(npx), ibmax(npx), ibmino(npx), ibmaxo(npx), &
-	jbmin(npy), jbmax(npy), jbmino(npy), jbmaxo(npy), &
-	kbmin(npz), kbmax(npz), kbmino(npz), kbmaxo(npz), stat=ierr)
-    if (ierr /= 0) then 
-            write(*,*) "Error allocating topology arrays in messenger_init"
-            call MPI_Abort(MD_COMM,2,ierr)
+			 jbmin(npy), jbmax(npy), jbmino(npy), jbmaxo(npy), &
+			 kbmin(npz), kbmax(npz), kbmino(npz), kbmaxo(npz), stat=ierr)
+    if (ierr .ne. 0) then 
+            call error_abort('Error allocating topology arrays in messenger_init')
+            !call MPI_Abort(MD_COMM,2,ierr)
     endif
 
     allocate(icoord(3,nproc),stat=ierr)
-    if (ierr /= 0) then 
-            write(*,*) "Error allocating icoord in messenger_init"
-            call MPI_Abort(MD_COMM,2,ierr)
+    if (ierr .ne. 0) then 
+            call error_abort('Error allocating icoord in messenger_init')
+           	!call MPI_Abort(MD_COMM,2,ierr)
     endif
 
 	ndims = nd
@@ -176,8 +176,6 @@ subroutine messenger_init()
 	call MPI_comm_rank (icomm_xyz(1), irankx, ierr)
 	call MPI_comm_rank (icomm_xyz(2), iranky, ierr)
 	call MPI_comm_rank (icomm_xyz(3), irankz, ierr)
-
-	!print *, " Old comm=",irank-1,"new x,y,z:",irankx,iranky,irankz
 
 	! Root process at coordinates (0,0,0)
 	idims = 0

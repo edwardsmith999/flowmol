@@ -37,7 +37,7 @@ subroutine setup_MD
 	call setup_command_arguments            !Establish command line arguments specifying restart and input files
 	
 	if (restart) then
-		print*, 'Simulation restarted from file: ', initial_microstate_file
+		!print*, 'Simulation restarted from file: ', initial_microstate_file
 		call messenger_init                 !Establish processor topology
 		call setup_restart_inputs           !Recover simulation inputs from file
 #if USE_COUPLER

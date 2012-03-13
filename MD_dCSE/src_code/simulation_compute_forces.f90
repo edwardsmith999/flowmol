@@ -30,7 +30,7 @@ end module module_compute_forces
 ! specified in the input file
 
 subroutine simulation_compute_forces
-        use interfaces
+	use interfaces
 	use module_compute_forces
 	implicit none
 	
@@ -166,6 +166,18 @@ subroutine simulation_compute_forces_LJ_cells
 	integer							:: molnoi, molnoj, memloc
 	type(node), pointer 	        :: oldi, currenti, oldj, currentj
 
+
+!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
+!	do n = 1,2
+!	 	a = 0.d0
+!		potenergymol		= 0.d0	!Reset potential energy per molecule before calculation
+!		potenergymol_LJ		= 0.d0	!Reset LJ energy per molecule before calculation
+!		potenergysum		= 0.d0  !Reset total potential energy sum before calculation
+!		potenergysum_LJ		= 0.d0  !Reset LJ potential energy sum before calculation
+!		virial				= 0.d0	!Reset virial sum before calculation
+!		virialmol			= 0.d0	!Reset virial sum per molecule before calculation
+!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
+
 	do kcell=2, ncells(3)+1
 	do jcell=2, ncells(2)+1
 	do icell=2, ncells(1)+1
@@ -209,6 +221,7 @@ subroutine simulation_compute_forces_LJ_cells
 						a(molnoi,3)= a(molnoi,3) + accijmag*rij(3)
 
 						!CV stress an force calculations
+					!if (n .eq. 2) then
 						if (molnoj .gt. np .or. molnoi .gt. np) then
 							!call Control_Volume_Forces(2.d0*accijmag*rij(:),ri,rj,molnoi,molnoj)						
 							fij = 2.d0*accijmag*rij(:)
@@ -218,7 +231,7 @@ subroutine simulation_compute_forces_LJ_cells
 							fij = accijmag*rij(:)
 							if (vflux_outflag .eq. 4) call Control_Volume_stresses(fij,ri,rj,molnoi,molnoj)
 						endif
-
+					!endif
 						!Only calculate properties when required for output
 						if (mod(iter,tplot) .eq. 0) then
 							!Record potential energy total to use for output later (potshift=-1 for WCA)
@@ -251,6 +264,11 @@ subroutine simulation_compute_forces_LJ_cells
 
 	!Total used with other potentials (e.g. FENE)
 	potenergymol = potenergymol + potenergymol_LJ
+
+!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
+!		aold = a
+!	enddo
+!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
 
 end subroutine simulation_compute_forces_LJ_cells
 
@@ -333,7 +351,7 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 	use module_compute_forces
 	implicit none
 
-	integer                         :: j, ixyz   !Define dummy index
+	integer                         :: n, j, ixyz   !Define dummy index
 	integer							:: molnoi, molnoj
 	integer							:: noneighbrs
 	type(neighbrnode), pointer		:: old, current
