@@ -49,7 +49,7 @@ subroutine setup_initial_record
 	
 	!Calculate Control Volume starting state
 	call initial_control_volume
-	!if (irank .eq. iroot) then
+	if (irank .eq. iroot) then
 
 		call date_and_time(the_date, the_time)
 
@@ -323,7 +323,7 @@ subroutine setup_initial_record
 
 		call simulation_header
 
-	!endif
+	endif
 
 	!Initialise etevtcf calculation if etevtcf_iter0 = 0
 	if (potential_flag.eq.1) then
