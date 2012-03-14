@@ -165,7 +165,7 @@ subroutine setup_restart_inputs
 
 	logical					:: found_in_input
 	integer					:: n, k, ios
-	integer 				:: extrasteps
+	integer 				:: extrasteps, prev_nproc
 	integer 				:: checkint
 	double precision 		:: checkdp
 	integer,dimension(8)	:: tvalue
@@ -233,9 +233,13 @@ subroutine setup_restart_inputs
 		nmonomers = checkint
 		endif
 	!endif
-	read(2) checkint !npx
-	read(2) checkint !npy
-	read(2) checkint !npz
+	read(2) npx
+	read(2) npy
+	read(2) npz
+	prev_nproc = npx*npy*npz	!If parallel run, number of molecules per processor written
+	do n=1,prev_nproc			!Loop through all processors and discard information
+		read(2) checkint
+	enddo
 	npx = 1	!This is a Serial Run
 	npy = 1 !This is a Serial Run
 	npz = 1 !This is a Serial Run

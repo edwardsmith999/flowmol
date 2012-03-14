@@ -173,6 +173,7 @@ subroutine setup_restart_inputs
 
 	logical							:: found_in_input
 	integer							:: n, k
+	integer							:: prev_nproc
 	integer 						:: extrasteps
 	integer 						:: checkint
     integer(MPI_OFFSET_KIND)        :: ofs, header_ofs
@@ -249,21 +250,27 @@ subroutine setup_restart_inputs
 				nmonomers = checkint
 			endif
 		!endif
-
-		!No processors specified in input - use previous configuration
-		if (npx .eq. 0 .and. npy .eq. 0 .and. npz .eq. 0) then
-			call error_abort('RESTART WITH SAME processor topology AS PREVIOUS NOT CODED YET')
-		    call MPI_File_read(restartfileid,npx             ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
-		    call MPI_File_read(restartfileid,npy             ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
-		    call MPI_File_read(restartfileid,npz             ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
-		!Small debugging run (nproc<27) so using serial reordering (all read everything and discard)
-		elseif(npx .le. 3 .and. npy .le. 3 .and. npz .le. 3) then
-			print*, 'Small debug run (less than 3 x 3 x 3 processors). &
-					Molecules will be assigned to correct processors - all read everything and discard'
+		procnp = 0; proc_reorder = 0; 	prev_nproc = 1
+		!Small debugging run (nproc<27) - if proc mismatch use serial reordering (all read everything and discard)
+		if(npx .le. 3 .and. npy .le. 3 .and. npz .le. 3) then
+			error_message = 'Small debug run (less than 3 x 3 x 3 processors). &
+							Molecules will be assigned to correct processors - all read everything and discard'
 		    call MPI_File_read(restartfileid,checkint        ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+			if (checkint .ne. npx) 	proc_reorder = 1; prev_nproc = prev_nproc*checkint
 		    call MPI_File_read(restartfileid,checkint        ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+			if (checkint .ne. npy) 	proc_reorder = 1; prev_nproc = prev_nproc*checkint
 		    call MPI_File_read(restartfileid,checkint        ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
-		!Large run - stop code and suggest reordering in serial if too many processors
+			if (checkint .ne. npz) 	proc_reorder = 1; prev_nproc = prev_nproc*checkint
+			if (proc_reorder.eq.0) then
+				do n=1,prev_nproc			!Loop through all processors and store for restart
+					call MPI_File_read(restartfileid,procnp(n),1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+				enddo
+			else
+				do n=1,prev_nproc			!Loop through all processors and discard
+					call MPI_File_read(restartfileid,checkint,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+				enddo
+			endif
+		!Large run - if proc mismatch, stop code and suggest reordering in serial
 		else
 			error_message = 'Number of processors in input file does not match the restart file.            &
 							Options:                                                                        & 
@@ -276,10 +283,11 @@ subroutine setup_restart_inputs
 			if (checkint .ne. npy) call error_abort(error_message)
 		    call MPI_File_read(restartfileid,checkint        ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 			if (checkint .ne. npz) call error_abort(error_message)
-			error_message = 'Number of processors in input file matches the restart file.            &
-  							  Set processors in input file to zeros to use restart proc topology. '
-			call error_abort(error_message)
-		end if
+			prev_nproc = npx*npy*npz	!If parallel run, number of molecules per processor written
+			do n=1,prev_nproc			!Loop through all processors and store for restart
+				call MPI_File_read(restartfileid,procnp(n),1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+			enddo
+		endif
 	    call MPI_File_read(restartfileid,checkdp         ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 		if (checkdp .ne. density) then
 			print*, 'Discrepancy between system density', &
@@ -323,6 +331,8 @@ subroutine setup_restart_inputs
 	call MPI_BCAST(initialnunits,     3,MPI_integer,iroot-1,MD_COMM,ierr)
 	call MPI_BCAST(Nsteps,            1,MPI_integer,iroot-1,MD_COMM,ierr)
 	call MPI_BCAST(potential_flag,    1,MPI_integer,iroot-1,MD_COMM,ierr)
+	call MPI_BCAST(proc_reorder, 	  1,MPI_integer,iroot-1,MD_COMM,ierr)
+	call MPI_BCAST(procnp, size(procnp),MPI_integer,iroot-1,MD_COMM,ierr)
 	call MPI_BCAST(nmonomers,         1,MPI_integer,iroot-1,MD_COMM,ierr)
 	call MPI_BCAST(density,           1,MPI_double_precision,iroot-1,MD_COMM,ierr)
 	call MPI_BCAST(inputtemperature,  1,MPI_double_precision,iroot-1,MD_COMM,ierr) 
@@ -343,12 +353,13 @@ subroutine setup_restart_microstate
 	implicit none
 	!include 'mpif.h'
 
-	integer 							:: n, nl, ixyz, procassign
-	integer								:: dp_datasize
-	integer(kind=MPI_OFFSET_KIND)   	:: disp
-	double precision, dimension (2*nd)	:: rvc !Temporary variable
-	integer, dimension(:), allocatable  :: monomerc
-	
+	integer 											:: i,n, nl, ixyz, procassign
+	integer												:: dp_datasize
+	integer(kind=MPI_OFFSET_KIND)   					:: disp, procdisp
+	double precision, dimension (2*nd)					:: rvc !Temporary variable
+	double precision, dimension (2*nd*procnp(irank))	:: buf !Temporary variable
+	integer, dimension(:), allocatable  				:: monomerc
+
 	!Determine size of datatypes
   	call MPI_type_size(MPI_double_precision,dp_datasize,ierr)
 
@@ -356,85 +367,125 @@ subroutine setup_restart_microstate
 	call MPI_FILE_OPEN(MD_COMM, initial_microstate_file, & 
 		MPI_MODE_RDONLY , MPI_INFO_NULL, restartfileid, ierr)
 
-	nl = 0		!Reset local molecules count nl
-
-	select case(potential_flag)
+	select case(proc_reorder)
 	case(0)
-		!---------- For all molecule positions ------------
-		!Move through location of position co-ordinates
-		do n=1,globalnp
-			call MPI_FILE_READ_ALL(restartfileid, rvc(:), 2*nd, MPI_double_precision, & 
+		!Obtain displacement of each processor using procs' np from restart file
+		!with 3 position and 3 velocity components for each molecule
+		procdisp = 0
+		select case (potential_flag)
+		case(0)
+			do i=1,irank-1
+				procdisp = procdisp + 2*nd*procnp(i)*dp_datasize
+			enddo
+			!Obtain location to write in file
+			disp =  procdisp
+			!Set each processor to that location and write particlewise
+			call MPI_FILE_SET_VIEW(restartfileid, disp, MPI_double_precision, & 
+		 		MPI_double_precision, 'native', MPI_INFO_NULL, ierr)
+			call MPI_FILE_READ_ALL(restartfileid, buf, 2*nd*procnp(irank), MPI_double_precision, & 
 			                       MPI_STATUS_IGNORE, ierr) !Read position from file
+			nl = 0
+			do n = 1,6*procnp(irank),6
+				nl = nl + 1 !Local molecule count
+				!Correct to local coordinates
+				r(nl,1) = buf(n  )-domain(1)*(iblock-1)+halfdomain(1)*(npx-1)
+				r(nl,2) = buf(n+1)-domain(2)*(jblock-1)+halfdomain(2)*(npy-1)
+				r(nl,3) = buf(n+2)-domain(3)*(kblock-1)+halfdomain(3)*(npz-1)
+				!Read velocities
+				v(nl,1) = buf(n+nd  )
+				v(nl,2) = buf(n+nd+1)
+				v(nl,3) = buf(n+nd+2)
+				!if (irank .eq. iroot) print'(5i8,6f10.5)', irank, nl,n, procnp(irank),size(buf), & 
+				!										r(nl,1),r(nl,2),r(nl,3),v(nl,1),v(nl,2),v(nl,3)
+			enddo
+			np = procnp(irank)
 
-			!Use integer division to determine which processor to assign molecule to
-			procassign = ceiling((rvc(1)+globaldomain(1)/2.d0)/domain(1))
-			if (procassign .ne. iblock) cycle
-			procassign = ceiling((rvc(2)+globaldomain(2)/2.d0)/domain(2))
-			if (procassign .ne. jblock) cycle
-			procassign = ceiling((rvc(3)+globaldomain(3)/2.d0)/domain(3))
-			if (procassign .ne. kblock) cycle
+		case default
+			call error_abort('Polymer restart not developed')
+		end select
 
-			!If molecules is in the domain then add to processor's total
-			nl = nl + 1 !Local molecule count
+	case(1)	!Reorder flag triggered
 
-			!Correct to local coordinates
-			r(nl,1) = rvc(1)-domain(1)*(iblock-1)+halfdomain(1)*(npx-1)
-			r(nl,2) = rvc(2)-domain(2)*(jblock-1)+halfdomain(2)*(npy-1)
-			r(nl,3) = rvc(3)-domain(3)*(kblock-1)+halfdomain(3)*(npz-1)
+		nl = 0		!Reset local molecules count nl
+		select case(potential_flag)
+		case(0)
+			!---------- For all molecule positions ------------
+			!Move through location of position co-ordinates
+			do n=1,globalnp
+				call MPI_FILE_READ_ALL(restartfileid, rvc(:), 2*nd, MPI_double_precision, & 
+				                       MPI_STATUS_IGNORE, ierr) !Read position from file
 
-			v(nl,:) = rvc(nd+1:)
+				!Use integer division to determine which processor to assign molecule to
+				procassign = ceiling((rvc(1)+globaldomain(1)/2.d0)/domain(1))
+				if (procassign .ne. iblock) cycle
+				procassign = ceiling((rvc(2)+globaldomain(2)/2.d0)/domain(2))
+				if (procassign .ne. jblock) cycle
+				procassign = ceiling((rvc(3)+globaldomain(3)/2.d0)/domain(3))
+				if (procassign .ne. kblock) cycle
 
-			if (mod(n,1000) .eq. 0) print'(a,f10.2)', & 
-				'Redistributing molecules to input processor topology - % complete =', (100.d0*n/globalnp)
-		enddo
+				!If molecules is in the domain then add to processor's total
+				nl = nl + 1 !Local molecule count
 
-	case(1)
+				!Correct to local coordinates
+				r(nl,1) = rvc(1)-domain(1)*(iblock-1)+halfdomain(1)*(npx-1)
+				r(nl,2) = rvc(2)-domain(2)*(jblock-1)+halfdomain(2)*(npy-1)
+				r(nl,3) = rvc(3)-domain(3)*(kblock-1)+halfdomain(3)*(npz-1)
 
-		allocate(monomerc(4+nmonomers))
-		do n=1,globalnp
-			call MPI_FILE_READ_ALL(restartfileid, rvc(:), 2*nd, MPI_double_precision, & 
-			                       MPI_STATUS_IGNORE, ierr)
-			call MPI_FILE_READ_ALL(restartfileid, monomerc, 4+nmonomers, MPI_integer, &
-			                       MPI_STATUS_IGNORE, ierr)
-			
-			!Use integer division to determine which processor to assign molecule to
-			procassign = ceiling((rvc(1)+globaldomain(1)/2.d0)/domain(1))
-			if (procassign .ne. iblock) cycle
-			procassign = ceiling((rvc(2)+globaldomain(2)/2.d0)/domain(2))
-			if (procassign .ne. jblock) cycle
-			procassign = ceiling((rvc(3)+globaldomain(3)/2.d0)/domain(3))
-			if (procassign .ne. kblock) cycle
+				v(nl,:) = rvc(nd+1:)
 
-			!If molecule is in the domain then add to processor's total
-			nl = nl + 1 !Local molecule count
+				!if (irank .eq. iroot) print'(5i8,6f10.5)', irank, nl,n, procnp(irank),size(buf), & 
+				!										r(nl,1),r(nl,2),r(nl,3),v(nl,1),v(nl,2),v(nl,3)
 
-			!Correct to local coordinates
-			r(nl,1) = rvc(1)-domain(1)*(iblock-1)+halfdomain(1)*(npx-1)
-			r(nl,2) = rvc(2)-domain(2)*(jblock-1)+halfdomain(2)*(npy-1)
-			r(nl,3) = rvc(3)-domain(3)*(kblock-1)+halfdomain(3)*(npz-1)
-			
-			!Assign corresponding velocity
-			v(nl,:)     = rvc(nd+1:)
-			
-			!Assign corresponding monomer info
-			monomer(nl)%chainID     = monomerc(1)
-			monomer(nl)%subchainID  = monomerc(2)
-			monomer(nl)%funcy       = monomerc(3)
-			monomer(nl)%glob_no     = monomerc(4) 
-			monomer(nl)%bondflag(:) = monomerc(5:)
+				if (mod(n,1000) .eq. 0) print'(a,f10.2)', & 
+					'Redistributing molecules to input processor topology - % complete =', (100.d0*n/globalnp)
+			enddo
 
-			if (mod(n,1000) .eq. 0) print'(a,f10.2)', & 
-				'Redistributing molecules to different processor topology % complete =', (100.d0*n/globalnp)
-		enddo
+		case(1)
+			allocate(monomerc(4+nmonomers))
+			do n=1,globalnp
+				call MPI_FILE_READ_ALL(restartfileid, rvc(:), 2*nd, MPI_double_precision, & 
+				                       MPI_STATUS_IGNORE, ierr)
+				call MPI_FILE_READ_ALL(restartfileid, monomerc, 4+nmonomers, MPI_integer, &
+				                       MPI_STATUS_IGNORE, ierr)
+				
+				!Use integer division to determine which processor to assign molecule to
+				procassign = ceiling((rvc(1)+globaldomain(1)/2.d0)/domain(1))
+				if (procassign .ne. iblock) cycle
+				procassign = ceiling((rvc(2)+globaldomain(2)/2.d0)/domain(2))
+				if (procassign .ne. jblock) cycle
+				procassign = ceiling((rvc(3)+globaldomain(3)/2.d0)/domain(3))
+				if (procassign .ne. kblock) cycle
 
-		deallocate(monomerc)
-	
+				!If molecule is in the domain then add to processor's total
+				nl = nl + 1 !Local molecule count
+
+				!Correct to local coordinates
+				r(nl,1) = rvc(1)-domain(1)*(iblock-1)+halfdomain(1)*(npx-1)
+				r(nl,2) = rvc(2)-domain(2)*(jblock-1)+halfdomain(2)*(npy-1)
+				r(nl,3) = rvc(3)-domain(3)*(kblock-1)+halfdomain(3)*(npz-1)
+				
+				!Assign corresponding velocity
+				v(nl,:)     = rvc(nd+1:)
+				
+				!Assign corresponding monomer info
+				monomer(nl)%chainID     = monomerc(1)
+				monomer(nl)%subchainID  = monomerc(2)
+				monomer(nl)%funcy       = monomerc(3)
+				monomer(nl)%glob_no     = monomerc(4) 
+				monomer(nl)%bondflag(:) = monomerc(5:)
+
+				if (mod(n,1000) .eq. 0) print'(a,f10.2)', & 
+					'Redistributing molecules to different processor topology % complete =', (100.d0*n/globalnp)
+			enddo
+			deallocate(monomerc)
+		case default
+			call error_abort('Potential flag incorrect in restart microstate')
+		end select
+		np = nl	!Correct local number of particles on processor
 	case default
-		call error_abort('Potential flag incorrect in restart microstate')
+		call error_abort('processor re-ordering flag incorrect in restart microstate')
 	end select
-		
-	np = nl	!Correct local number of particles on processor
-
+	
 	!Close file used to load initial state and remove if called "final_state" 
 	!to prevent confusion with final state of current run
 	call MPI_FILE_CLOSE(restartfileid, ierr)
@@ -718,6 +769,7 @@ subroutine parallel_io_final_state
 		call MPI_File_write(restartfileid,npx           ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 		call MPI_File_write(restartfileid,npy           ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 		call MPI_File_write(restartfileid,npz           ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+		call MPI_File_write(restartfileid,procnp,size(procnp),MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 
 		call MPI_File_write(restartfileid,density       ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,rcutoff       ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)

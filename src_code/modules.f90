@@ -70,7 +70,8 @@ module computational_constants_MD
 		viscosity_outflag, &
 		mflux_outflag, &
 		vflux_outflag, &
-		eflux_outflag
+		eflux_outflag, &
+		proc_reorder					!Reorder processors at restart
 	integer, dimension(3)	:: periodic
 
 
