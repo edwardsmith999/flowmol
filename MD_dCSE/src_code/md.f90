@@ -55,7 +55,6 @@ subroutine setup_MD
 		call setup_initialise_microstate    !Setup position and velocities
 	endif
 
-
 	call assign_to_cell                     !Assign molecules to cells
 	call messenger_proc_topology            !Obtain topology of processors
 	call messenger_updateborders(1)         !Update borders between processors

@@ -340,9 +340,9 @@ subroutine setup_restart_inputs
 	call MPI_BCAST(k_c,               1,MPI_double_precision,iroot-1,MD_COMM,ierr)
 	call MPI_BCAST(R_0,               1,MPI_double_precision,iroot-1,MD_COMM,ierr)
 
-   elapsedtime = elapsedtime + delta_t*extrasteps !Set elapsed time to end of simualtion
-   initialstep = Nsteps         !Set plot count to final plot of last
-   Nsteps = Nsteps + extrasteps !Establish final iteration step based on previous
+	elapsedtime = elapsedtime + delta_t*extrasteps !Set elapsed time to end of simualtion
+	initialstep = Nsteps         !Set plot count to final plot of last
+	Nsteps = Nsteps + extrasteps !Establish final iteration step based on previous
 
 end subroutine setup_restart_inputs
 
@@ -395,7 +395,7 @@ subroutine setup_restart_microstate
 				v(nl,1) = buf(n+nd  )
 				v(nl,2) = buf(n+nd+1)
 				v(nl,3) = buf(n+nd+2)
-				!if (irank .eq. iroot) print'(5i8,6f10.5)', irank, nl,n, procnp(irank),size(buf), & 
+				!write(irank+10,'(5i8,6f10.5)'), irank, nl,n, procnp(irank),size(buf), & 
 				!										r(nl,1),r(nl,2),r(nl,3),v(nl,1),v(nl,2),v(nl,3)
 			enddo
 			np = procnp(irank)
@@ -433,7 +433,7 @@ subroutine setup_restart_microstate
 
 				v(nl,:) = rvc(nd+1:)
 
-				!if (irank .eq. iroot) print'(5i8,6f10.5)', irank, nl,n, procnp(irank),size(buf), & 
+				!write(irank+10,'(5i8,6f10.5)'), irank, nl,n, procnp(irank),size(buf), & 
 				!										r(nl,1),r(nl,2),r(nl,3),v(nl,1),v(nl,2),v(nl,3)
 
 				if (mod(n,1000) .eq. 0) print'(a,f10.2)', & 
@@ -497,7 +497,7 @@ subroutine setup_restart_microstate
 	do n = 1,np
 		call read_tag(n)		!Read tag and assign properties
 	enddo
-		
+
 end subroutine setup_restart_microstate
 
 !======================================================================
