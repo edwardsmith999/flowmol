@@ -65,52 +65,47 @@ implicit none
 	logical :: restart_file_exists, input_file_exists
 	character(len=200) :: arg,nextarg
 
-	if (irank .eq. iroot) then
+	!Set default values in case they aren't specified by user
+	restart = .false.			
+	input_file_exists = .false.
+	restart_file_exists = .false.
+	input_file = trim(prefix_dir)//'MD.in'
+	initial_microstate_file = trim(prefix_dir)//'final_state'
 
-		!Set default values in case they aren't specified by user
-		restart = .false.			
-		input_file_exists = .false.
-		restart_file_exists = .false.
-		input_file = trim(prefix_dir)//'MD.in'
-		initial_microstate_file = trim(prefix_dir)//'final_state'
+	argcount = command_argument_count()
 
-		argcount = command_argument_count()
-
-		if (argcount.gt.0) then			!If more than 0 arguments	
+	if (argcount.gt.0) then			!If more than 0 arguments	
 				
-			do i=1,argcount 		!Loop through all arguments...
+		do i=1,argcount			!Loop through all arguments...
 				
-				call get_command_argument(i,arg)	!Reading two at once
-                                if ( i < argcount) then 
-                                        call get_command_argument(i+1,nextarg)
-                                else
-                                        nextarg=''
-                                endif
+			call get_command_argument(i,arg)	!Reading two at once
+			if ( i < argcount) then 
+				call get_command_argument(i+1,nextarg)
+			else
+				nextarg=''
+			endif
 				
-				if (trim(arg).eq.'-r' .and. nextarg(1:1).ne.'-') then
-					initial_microstate_file = trim(nextarg)
-					inquire(file=initial_microstate_file, exist=restart) !Check file exists
-				end if			
+			if (trim(arg).eq.'-r' .and. nextarg(1:1).ne.'-') then
+				initial_microstate_file = trim(nextarg)
+				inquire(file=initial_microstate_file, exist=restart) !Check file exists
+			end if
 
-				if (trim(arg).eq.'-i' .and. nextarg(1:1).ne.'-') then
-					input_file = trim(nextarg)
-				end if
+			if (trim(arg).eq.'-i' .and. nextarg(1:1).ne.'-') then
+				input_file = trim(nextarg)
+			end if
 
-			end do
+		end do
 
-		end if
+	end if
 
-		inquire(file=input_file, exist=input_file_exists)	!Check file exists
-		if (input_file.eq.'./MD.in'.and..not. input_file_exists) input_file = './default.in'
-		inquire(file=input_file, exist=input_file_exists)
-
-		if(.not. input_file_exists) then
-			print*, 'Input file ', trim(input_file), ' not found. Stopping simulation.'
-			call error_abort
-		end if
-
-	endif
+	inquire(file=input_file, exist=input_file_exists)	!Check file exists
+	if (input_file.eq.'./MD.in'.and..not. input_file_exists) input_file = './default.in'
+	inquire(file=input_file, exist=input_file_exists)
 	
+	if(.not. input_file_exists) then
+		print*, 'Input file ', trim(input_file), ' not found. Stopping simulation.'
+		call error_abort
+	end if
 
 end subroutine setup_command_arguments
 
@@ -254,7 +249,7 @@ subroutine setup_restart_inputs
 		!Small debugging run (nproc<27) - if proc mismatch use serial reordering (all read everything and discard)
 		if(npx .le. 3 .and. npy .le. 3 .and. npz .le. 3) then
 			error_message = 'Small debug run (less than 3 x 3 x 3 processors). &
-							Molecules will be assigned to correct processors - all read everything and discard'
+							&Molecules will be assigned to correct processors - all read everything and discard'
 		    call MPI_File_read(restartfileid,checkint        ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 			if (checkint .ne. npx) 	proc_reorder = 1; prev_nproc = prev_nproc*checkint
 		    call MPI_File_read(restartfileid,checkint        ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
@@ -273,10 +268,10 @@ subroutine setup_restart_inputs
 		!Large run - if proc mismatch, stop code and suggest reordering in serial
 		else
 			error_message = 'Number of processors in input file does not match the restart file.            &
-							Options:                                                                        & 
-							1) Set processors in input file to zeros to use restart proc topology.         & 
-							2) Reorder restart file in serial for current proc topology                    & 
-							3) Run in serial or with less than 3x3x3 processors                        '
+							&Options:                                                                        & 
+							&1) Set processors in input file to zeros to use restart proc topology.         & 
+							&2) Reorder restart file in serial for current proc topology                    & 
+							&3) Run in serial or with less than 3x3x3 processors                        '
 		    call MPI_File_read(restartfileid,checkint        ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 			if (checkint .ne. npx) call error_abort(error_message)
 		    call MPI_File_read(restartfileid,checkint        ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)

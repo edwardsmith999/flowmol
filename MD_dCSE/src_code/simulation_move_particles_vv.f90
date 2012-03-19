@@ -405,7 +405,7 @@ contains
 			!using mean_ij = mean_i + mean_j and var_ij = (var_i^2 + var_j^2)^0.5
 			meantheta   = 2.d0*meantheta
 			vartheta(:) = 2.d0*vartheta(:)
-			temp = 0.d0; tempi = 0
+			temp = 0.d0; temp2 = 0.d0; tempi = 0
 
 			do molnoi=1,np
 	 	    	noneighbrs = neighbour%noneighbrs(molnoi)   !Determine number of elements in neighbourlist
