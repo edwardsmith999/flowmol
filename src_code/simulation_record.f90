@@ -1353,8 +1353,8 @@ subroutine cumulative_momentum_flux(ixyz)
 				!crosstime = (r(n,ixyz) - rplane)/v(n,ixyz)
 				velvect(:) = v(n,:) !- a(n,:) * crosstime
 
-				if (crosstime/delta_t .gt. 1.d0)&
-                                    call error_abort("error in kinetic MOP")
+				!if (crosstime/delta_t .gt. 1.d0)&
+                !                    call error_abort("error in kinetic MOP")
 
 				!Obtain stress for three components on y plane
 				Pxy_plane(:,planeno) = Pxy_plane(:,planeno) + velvect(:)!*crossplane

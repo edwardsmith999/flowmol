@@ -101,7 +101,7 @@ subroutine messenger_init()
 
     ! Get the periodic constrains form MD.in
     ! and the processor topology description
-    open(1,file=trim(prefix_dir)//trim(input_file))
+    open(1,file=trim(input_file))
 
 	call locate(1,'PERIODIC',.true.)
 	read(1,*) periodic(1)
