@@ -101,11 +101,12 @@ subroutine simulation_move_particles_vv(pass_num)
 				call evaluate_DPD(0)
 			endif
 			do n=1,np
-				!r(n,:) = r(n,:) + delta_t*v(n,:) + 0.5d0*(delta_t**2.d0)*(a(n,:)+aD(n,:)+aR(n,:))
 				v(n,:) = v(n,:) + 0.5d0*delta_t*(a(n,:)+aD(n,:)+aR(n,:))
 				r(n,:) = r(n,:) + delta_t*v(n,:) 
 			end do
-		
+			!Regenerate random number for next iteration
+			call random_number(theta)
+			theta = sqrt(3.d0)*(2.d0*theta-1.d0)
 		case(tag_move)
 			call error_abort('Tag mode for velocity-Verlet not yet implemented.')
 	
@@ -397,17 +398,6 @@ contains
 		case(1)
 			!Evaluate random and dissipative terms
 			aD = 0.d0; aR=0.d0
-			!Calculate mean and variance of random number array
-			!meantheta(:) = sum(theta(1:np,:),1)/real(np,kind(0.d0))
-			!do ixyz = 1,nd
-			!	vartheta(ixyz)  = sum((theta(1:np,ixyz)-meantheta(ixyz))**2.d0)/real(np,kind(0.d0))
-			!enddo
-			!Get mean and variance for theta_ij = (theta_i + theta_j)
-			!using mean_ij = mean_i + mean_j and var_ij = (var_i^2 + var_j^2)^0.5
-			meantheta   = 2.d0*meantheta
-			vartheta(:) = 2.d0*vartheta(:)
-			temp = 0.d0; temp2 = 0.d0; tempi = 0
-
 			do molnoi=1,np
 	 	    	noneighbrs = neighbour%noneighbrs(molnoi)   !Determine number of elements in neighbourlist
 				old        => neighbour%head(molnoi)%point  !Set old to head of neighbour list
@@ -432,17 +422,16 @@ contains
 						vr        = dot_product(rijhat,vij)
 						randj(:)  = theta(molnoj,:)			
 
-						!Random noise variable normalised to one
+						!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+						!We have N random numbers theta_i and need to generate the theta_ij interaction
+						!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -		
+						!Random noise sum of theta_i+theta_j normalised by std - This gives the correct 
+						!distribution but results in correlation as theta_i is used in multiple interactions
 						!theta_ij(:)= (((randi(:)+randj(:))) - meantheta )/sqrt(vartheta)
+
+						!Use product of random numbers - this no longer gives the same distribution
+						!but satisfies the Weiner criterion, <W>=0 and <W W> = kron_delta*kron_delta*kron_delta
 						theta_ij(:)= randi(:)*randj(:)
-
-						!theta_ij = sqrt(3.d0)*(2.d0*theta-1.d0)
-
-						if (molnoi .eq. 150) write(200,'(3f10.5)') theta_ij(:)
-
-						temp  = temp + theta_ij(1)
-						temp2 = temp2+ theta_ij(1)**2
-						tempi = tempi + 1
 
 						!Divide by sqrt of dt so delta t can be used for aD and aR 
 						!aR has sqrt of dt as required by ito calculus
@@ -467,16 +456,7 @@ contains
 			call error_abort("Flag input to evaluate DPD incorrect")
 		end select
 
-		!if(mod(iter,1000) .eq. 0) then
-		!	write(1000,'(i8,2f10.5)') iter, temp/tempi, sqrt(temp2/tempi - (temp/tempi)**2)
-			!print'(a,2f10.5)', 'Fluctuation dissipation required 2 zeros here:', & 
-			!			sigma**2.d0-2.d0*inputtemperature*zeta, wD + wR**2.d0
-		!	print'(a,2i5,2f18.5)', 'Sum of D and R Forces',iter,flag,sum(aD(1:np,:)), sum(aR(1:np,:))
-		!endif
-
 	end subroutine evaluate_DPD
-
-
 
 	!----------------------------------------------------------------------------
 	!ALL PAIRS Evaluate pairwise terms for DPD thermostat by 
@@ -574,18 +554,28 @@ contains
 						wR        = 1.d0-sqrt(rij2)/rcutoff
 						wD        = -wR**2.d0
 						vr        = dot_product(rijhat,vij)
-						randj(:)  = theta(molnoj,:)			
+						randj(:)  = theta(molnoj,:)
 
-						!Random noise variable mean zero, std 1
+
+						!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+						!We have N random numbers theta_i and need to generate the theta_ij interaction
+						!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+						!Entirely regenerate the random numbers to prevent any correlation
+						!Use random number to get mean zero, std 1
+						theta_ij = sqrt(3.d0)*(2.d0*rand-1.d0)
+
+						!Entirely regenerate the random numbers to prevent any correlation (else use theta_i array)
 						!call random_number(randi); randi=sqrt(3.d0)*(2.d0*randi-1.d0)
 						!call random_number(randj); randj=sqrt(3.d0)*(2.d0*randj-1.d0)
-						theta_ij = randi(:)*randj(:)
-						!theta_ij = (((randi(:)+randj(:))) - meantheta )/sqrt(vartheta)
-						!theta_ij = (theta_ij + sqrt(3.d0)*(2.d0*rand-1.d0))/sqrt(2.d0)
 
-						!theta_ij = (((randi(:)+randj(:)))  )/sqrt(2.d0)
-						!theta_ij = sqrt(3.d0)*(2.d0*rand-1.d0)
+						!Random noise sum of theta_i+theta_j normalised by std - This gives the correct 
+						!distribution but results in correlation as theta_i is used in multiple interactions
+						!theta_ij(:)= (((randi(:)+randj(:))) - meantheta )/sqrt(vartheta)
 
+						!Use product of random numbers - this no longer gives the same distribution
+						!but satisfies the Weiner criterion, <W>=0 and <W W> = kron_delta*kron_delta*kron_delta	
+						!theta_ij = randi(:)*randj(:)
+						
 						if (molnoi .eq. 150) write(200,'(3f10.5)') theta_ij(:)
 
 						temp  = temp + theta_ij(1)

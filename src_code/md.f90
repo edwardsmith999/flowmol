@@ -138,8 +138,6 @@ subroutine md_advance_vv
 	integer	n, ixyz
 
 		call simulation_move_particles_vv(1)        !Find r(t+dt) and v(t+dt/2)
-		call random_number(theta)
-		theta = sqrt(3.d0)*(2.d0*theta-1.d0)
 		call messenger_updateborders(0)             !Update borders between processors
 
 		call simulation_checkrebuild(rebuild)
