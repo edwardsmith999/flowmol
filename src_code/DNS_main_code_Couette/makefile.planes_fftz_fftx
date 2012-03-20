@@ -1,0 +1,69 @@
+#=======================================================================
+# User definitions
+# TJ:
+#	Planes code
+#	FFT in x-dir & z-dir
+#	Compiling the I/O from the ALC directory
+#=======================================================================
+
+NAME = blayer
+F90FILES = data.export_planes.xperiodic.f90 mesh.export.f90 grid.export.f90 data.noglobal_planes.f90 arrayzero.f90 messenger.MPI.noglobal_planes.f90 misc.mpi.f90 mesh.f90 subMesh.f90 grid.f90 dctcoeff.f90 mtgcoeff_planes.f90 inflow.f90 outflow.f90 boundaries_xzperiodic.f90 fluctuations_inlet_top.f90 advance_quick_Fletcher_xQUICK.f90 invert_sgi_openmp_xperiodic.f90 poisson_newmtg_planes_xperiodic.sgi.f90 poisson_fftz_fftx.f90 new_multigrid_planes_ylines_FullMG_xperiodic.f90 projection_step_xperiodic.f90 cfl_control.f90 copyBC.f90 flowAnalysis.f90 statistics.f90 Output_SubDomain.f90 ALC/Input_mod.Z_planes.ALC.xperiodic.f90 ALC/Output_mod.Z_planes.ALC.xperiodic.f90 ALC/Input_Spectra.ALC.f90 ALC/Output_Spectra.ALC.f90 ALC/Input_Stats.ALC.f90 ALC/Output_Stats.ALC.f90 simulation_planes.f90 main_planes.f90
+
+LIBFILES = $(HOME)/lib/archive.o $(HOME)/lib/library.o $(HOME)/lib/library.alc.o $(HOME)/lib/SSDfile.memory.o $(HOME)/lib/triDiagonal.o $(HOME)/lib/triDiagonal.mpi.o $(HOME)/lib/pentaDiagonal.o $(HOME)/lib/transforms.mkl_intel.alc.o $(HOME)/lib/SinCosFFT.o $(HOME)/lib/triDiagonal.mrhs.o $(HOME)/lib/triDiagonal.mpi.mrhs.o $(HOME)/lib/pentaDiagonal.mrhs.o $(HOME)/lib/pentaDiagonal.mpi.o $(HOME)/lib/polyDiagonal.o 
+
+
+LIBS = -L/apps/intel/cmkl/9.0/lib/64/ -lmkl_em64t
+
+FLAGS =
+F77FILES = 
+CFILES = 
+
+#=======================================================================
+# Standard definitions
+#
+OFILES = $(F90FILES:.f90=.o) $(F77FILES:.f=.o) $(CFILES:.c=.o)
+
+# SGI compilers
+# F90 = mpif90 -r8 -O3 -ip -funroll-loops -parallel -par-report3 -mcmodel=large -i-dynamic
+  F90 = mpif90 -r8 -O3 -ip -funroll-loops           -par-report3 -mcmodel=large -i-dynamic
+
+F77 = f77
+CC = cc
+LD = mpif90 -r8 -O3 -ip -funroll-loops -parallel -par-report3 -mcmodel=large -i-dynamic
+
+VPATH = obj
+.SUFFIXES:
+.SUFFIXES: .out .o .f90 .f .c .inc .h
+
+#=======================================================================
+# Targets and dependencies
+#
+default:: opt
+all:: a.out
+debug:
+	@make opt "FLAGS = -g $(FLAGS)"
+prof:
+	@make opt "LIBS = $(LIBS) -p"
+opt:
+#	@make all "FLAGS = -r8 -O3 -ip -funroll-loops -parallel -par-report3"
+	@make all "FLAGS = -r8 -O3 -ip -funroll-loops           -par-report3"
+clean:
+	rm -rf obj a.out *.mod
+a.out: obj $(OFILES)
+	@echo "$(LD) $(OFILES) $(LIBFILES) $(LIBS) "
+	@cd obj; $(LD) $(OFILES) $(LIBFILES) $(LIBS) ; mv a.out ..
+obj:
+	mkdir obj
+	mkdir obj/FST_CODES
+	mkdir obj/ALC
+
+#=======================================================================
+# Compilation rules
+#
+.f90.o:
+	$(F90) $(FLAGS) -c $*.f90 -o obj/$*.o
+.f.o:
+	$(F77) $(FLAGS) -c $*.f -o obj/$*.o
+.c.o:
+	$(CC) $(FLAGS) -c $*.c -o obj/$*.o
+
