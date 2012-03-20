@@ -264,7 +264,7 @@ subroutine updatefacedown(ixyz)
 				molno = old%molno		    !Obtain molecule number
 				r(np+m,:) = r(molno,:) 		    !Copy molecule
 				v(np+m,:) = v(molno,:)                          !copy velocity
-				theta(np+m,:)= theta(molno,:)           !copy random number array
+				if(ensemble.eq.nvt_DPD) theta(np+m,:)= theta(molno,:)           !copy random number array
 				r(np+m,1) = r(np+m,1) + domain(1)   !Move to other side of domain
 
 				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
@@ -286,7 +286,7 @@ subroutine updatefacedown(ixyz)
 				molno = old%molno		    		!Obtain molecule number
 				r(np+m,:) = r(molno,:) 		    	!Copy molecule
 				v(np+m,:) = v(molno,:)				!copy velocity
-				theta(np+m,:)= theta(molno,:)           !copy random number array
+				if(ensemble.eq.nvt_DPD) theta(np+m,:)= theta(molno,:)           !copy random number array
 				r(np+m,2) = r(np+m,2) + domain(2)   !Move to other side of domain
 
 				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
@@ -308,7 +308,7 @@ subroutine updatefacedown(ixyz)
 				molno = old%molno		    !Obtain molecule number
 				r(np+m,:) = r(molno,:) 		    !Copy molecule
 				v(np+m,:) = v(molno,:)                          !copy velocity
-				theta(np+m,:)= theta(molno,:)           !copy random number array
+				if(ensemble.eq.nvt_DPD) theta(np+m,:)= theta(molno,:)           !copy random number array
 				r(np+m,3) = r(np+m,3) + domain(3)   !Move to other side of domain
 
 				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
@@ -360,7 +360,7 @@ subroutine updatefaceup(ixyz)
 				molno = old%molno		    		!Obtain molecule number
 				r(np+m,:) = r(molno,:) 		    	!Copy molecule
 				v(np+m,:) = v(molno,:)              !copy velocity
-				theta(np+m,:)= theta(molno,:)           !copy random number array
+				if(ensemble.eq.nvt_DPD) theta(np+m,:)= theta(molno,:)           !copy random number array
 				r(np+m,1) = r(np+m,1) - domain(1)   !Move to other side of domain
 
 				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
@@ -382,7 +382,7 @@ subroutine updatefaceup(ixyz)
 				molno = old%molno		    		!Obtain molecule number
 				r(np+m,:) = r(molno,:)				!Copy molecule
 				v(np+m,:) = v(molno,:)				!copy velocity
-				theta(np+m,:)= theta(molno,:)           !copy random number array
+				if(ensemble.eq.nvt_DPD) theta(np+m,:)= theta(molno,:)           !copy random number array
 				r(np+m,2) = r(np+m,2) - domain(2)   !Move to other side of domain
 
 				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
@@ -404,7 +404,7 @@ subroutine updatefaceup(ixyz)
 				molno = old%molno		    		!Obtain molecule number
 				r(np+m,:) = r(molno,:)				!Copy molecule
 				v(np+m,:) = v(molno,:)				!copy velocity
-				theta(np+m,:)= theta(molno,:)           !copy random number array
+				if(ensemble.eq.nvt_DPD) theta(np+m,:)= theta(molno,:)	!copy random number array
 				r(np+m,3) = r(np+m,3) - domain(3)   !Move to other side of domain
 
 				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
@@ -466,7 +466,7 @@ subroutine updateedge(face1, face2)
 				molno = old%molno		    !Obtain molecule number
 				r(np+m,:) = r(molno,:)		!Copy molecule
 				v(np+m,:) = v(molno,:)		!copy velocity
-				theta(np+m,:)= theta(molno,:)	!copy random number array
+				if(ensemble.eq.nvt_DPD) theta(np+m,:)= theta(molno,:)	!copy random number array
 				r(np+m,2) = r(np+m,2) &  	!Move to other side of domain
 				+ sign(1,ncells(2)-edge1(1,i))*domain(2)
 				r(np+m,3) = r(np+m,3) &  	!Move to other side of domain
@@ -490,7 +490,7 @@ subroutine updateedge(face1, face2)
 				molno = old%molno		    !Obtain molecule number
 				r(np+m,:) = r(molno,:)		!Copy molecule
 				v(np+m,:) = v(molno,:)		!copy velocity
-				theta(np+m,:)= theta(molno,:)	!copy random number array
+				if(ensemble.eq.nvt_DPD) theta(np+m,:)= theta(molno,:)	!copy random number array
 				r(np+m,1) = r(np+m,1) &  	!Move to other side of domain
 				+ sign(1,ncells(1)-edge1(2,i))*domain(1)
 				r(np+m,3) = r(np+m,3) &  	!Move to other side of domain
@@ -515,7 +515,7 @@ subroutine updateedge(face1, face2)
 				molno = old%molno		    !Obtain molecule number
 				r(np+m,:) = r(molno,:)		!Copy molecule
 				v(np+m,:) = v(molno,:)		!copy velocity
-				theta(np+m,:)= theta(molno,:)	!copy random number array
+				if(ensemble.eq.nvt_DPD) theta(np+m,:)= theta(molno,:)	!copy random number array
 				r(np+m,1) = r(np+m,1) &  	!Move to other side of domain
 				+ sign(1,ncells(1)-edge1(3,i))*domain(1)
 				r(np+m,2) = r(np+m,2) &  	!Move to other side of domain
@@ -572,7 +572,7 @@ subroutine updatecorners()
 			molno = old%molno	 		!Obtain molecule number
 			r(np+m,:) = r(molno,:) 	 	!Copy molecule
 			v(np+m,:) = v(molno,:)   	!copy velocity
-			theta(np+m,:)= theta(molno,:)	!copy random number array
+			if(ensemble.eq.nvt_DPD) theta(np+m,:)= theta(molno,:)	!copy random number array
 			r(np+m,1) = r(np+m,1) &  	!Move to other side of domain
 			+ sign(1,ncells(1)-icornercell(i))*domain(1)
 			r(np+m,2) = r(np+m,2) &  	!Move to other side of domain
