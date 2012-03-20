@@ -95,10 +95,10 @@ subroutine simulation_move_particles_vv(pass_num)
 
 		case(nvt_DPD)
 			if (iter .eq. initialstep) then
-				call evaluate_DPD_ap(1)
+				call evaluate_DPD(1)
 			else
 				call messenger_updateborders(0)    
-				call evaluate_DPD_ap(0)
+				call evaluate_DPD(0)
 			endif
 			do n=1,np
 				!r(n,:) = r(n,:) + delta_t*v(n,:) + 0.5d0*(delta_t**2.d0)*(a(n,:)+aD(n,:)+aR(n,:))
@@ -162,7 +162,7 @@ subroutine simulation_move_particles_vv(pass_num)
 				end do
 
 			case(nvt_DPD)	
-				call evaluate_DPD_ap(1)
+				call evaluate_DPD(1)
 				do n=1,np
 					v(n,:) = v(n,:) + 0.5d0*delta_t*(a(n,:)+aD(n,:)+aR(n,:))
 				end do
@@ -340,7 +340,7 @@ contains
 	!Random numbers do not need to be Gaussian
 
 	subroutine evaluate_DPD(flag)
-                use interfaces
+		use interfaces
 		use linked_list
 		implicit none
 	
@@ -353,8 +353,9 @@ contains
 		double precision, dimension(nd) 			:: vi,vj,vij
 		type(neighbrnode), pointer 					:: old, current
 
-		zeta = 1.d0; sigma = sqrt(2.d0*inputtemperature*zeta)
+		zeta = 10.d0; sigma = sqrt(2.d0*inputtemperature*zeta)
 
+		!Either dissipative terms only or both dissipative and random terms
 		select case(flag)
 		case(0)
 			!Evaluate dissipative terms only
@@ -365,12 +366,12 @@ contains
 				ri(:)      = r(molnoi,:)
 				vi(:)      = v(molnoi,:)
 	
-			do j=1,noneighbrs
-				molnoj    = old%molnoj
-				if (molnoj.eq.molnoi) call error_abort("Self interaction in DPD vv")	!self interactions are unacceptable!
-				rj(:)     = r(molnoj,:)
-				rij(:)    = ri(:) - rj(:)
-				rij2      = dot_product(rij,rij)
+				do j=1,noneighbrs
+					molnoj    = old%molnoj
+					if (molnoj.eq.molnoi) call error_abort("Self interaction in DPD vv")	!Self interactions are unacceptable!
+					rj(:)     = r(molnoj,:)
+					rij(:)    = ri(:) - rj(:)
+					rij2      = dot_product(rij,rij)
 
 					!Thermostat force only local for molecules in cutoff range
 					if (rij2 .lt. rcutoff2) then
@@ -397,10 +398,10 @@ contains
 			!Evaluate random and dissipative terms
 			aD = 0.d0; aR=0.d0
 			!Calculate mean and variance of random number array
-			meantheta(:) = sum(theta(1:np,:),1)/real(np,kind(0.d0))
-			do ixyz = 1,nd
-				vartheta(ixyz)  = sum((theta(1:np,ixyz)-meantheta(ixyz))**2.d0)/np
-			enddo
+			!meantheta(:) = sum(theta(1:np,:),1)/real(np,kind(0.d0))
+			!do ixyz = 1,nd
+			!	vartheta(ixyz)  = sum((theta(1:np,ixyz)-meantheta(ixyz))**2.d0)/real(np,kind(0.d0))
+			!enddo
 			!Get mean and variance for theta_ij = (theta_i + theta_j)
 			!using mean_ij = mean_i + mean_j and var_ij = (var_i^2 + var_j^2)^0.5
 			meantheta   = 2.d0*meantheta
@@ -432,7 +433,8 @@ contains
 						randj(:)  = theta(molnoj,:)			
 
 						!Random noise variable normalised to one
-						theta_ij(:)= (((randi(:)+randj(:))) - meantheta )/sqrt(vartheta)
+						!theta_ij(:)= (((randi(:)+randj(:))) - meantheta )/sqrt(vartheta)
+						theta_ij(:)= randi(:)*randj(:)
 
 						!theta_ij = sqrt(3.d0)*(2.d0*theta-1.d0)
 
@@ -442,6 +444,8 @@ contains
 						temp2 = temp2+ theta_ij(1)**2
 						tempi = tempi + 1
 
+						!Divide by sqrt of dt so delta t can be used for aD and aR 
+						!aR has sqrt of dt as required by ito calculus
 						aD(molnoi,:) = aD(molnoi,:) + zeta*wD*vr*rijhat(:)
 						aR(molnoi,:) = aR(molnoi,:) + sigma*wR*theta_ij(:)*rijhat(:)/sqrt(delta_t)
 
@@ -459,20 +463,16 @@ contains
 			nullify(current)
 			nullify(old)
 
-			!Divide by sqrt of dt so delta t can be used for aD and aR 
-			!aR has sqrt of dt as required by ito calculus
-			!aR = aR 
-
 		case default
 			call error_abort("Flag input to evaluate DPD incorrect")
 		end select
 
-		if(mod(iter,1000) .eq. 0) then
-			write(1000,'(i8,2f10.5)') iter, temp/tempi, sqrt(temp2/tempi - (temp/tempi)**2)
+		!if(mod(iter,1000) .eq. 0) then
+		!	write(1000,'(i8,2f10.5)') iter, temp/tempi, sqrt(temp2/tempi - (temp/tempi)**2)
 			!print'(a,2f10.5)', 'Fluctuation dissipation required 2 zeros here:', & 
 			!			sigma**2.d0-2.d0*inputtemperature*zeta, wD + wR**2.d0
-			!print'(a,2i5,2f18.5)', 'Sum of D and R Forces',iter,flag,sum(aD(1:np,:)), sum(aR(1:np,:))
-		endif
+		!	print'(a,2i5,2f18.5)', 'Sum of D and R Forces',iter,flag,sum(aD(1:np,:)), sum(aR(1:np,:))
+		!endif
 
 	end subroutine evaluate_DPD
 
@@ -496,7 +496,7 @@ contains
 		double precision, dimension(nd) 			:: rand,randi,randj,theta_ij,meantheta,vartheta
 		double precision, dimension(nd) 			:: vi,vj,vij
 
-		zeta = 1.d0; sigma = sqrt(2.d0*inputtemperature*zeta)
+		zeta = 10.d0; sigma = sqrt(2.d0*inputtemperature*zeta)
 		select case(flag)
 		case(0)
 			!Evaluate dissipative terms only
@@ -540,13 +540,13 @@ contains
 			!Calculate mean and variance of random number array
 			meantheta(:) = sum(theta(1:np,:),1)/real(np,kind(0.d0))
 			do ixyz = 1,nd
-				vartheta(ixyz)  = sum((theta(1:np,ixyz)-meantheta(ixyz))**2.d0)/np
+				vartheta(ixyz)  = sum((theta(1:np,ixyz)-meantheta(ixyz))**2.d0)/real(np,kind(0.d0))
 			enddo
 			!Get mean and variance for theta_ij = (theta_i + theta_j)
 			!using mean_ij = mean_i + mean_j and var_ij = (var_i^2 + var_j^2)^0.5
 			meantheta   = 2.d0*meantheta
 			vartheta(:) = 2.d0*vartheta(:)
-			temp = 0.d0; tempi = 0
+			temp = 0.d0; tempi = 0; temp2 = 0.d0
 
 			do molnoi = 1,np					!Step through each particle in list 
 				ri = r(molnoi,:)         	!Retrieve ri
@@ -576,11 +576,15 @@ contains
 						vr        = dot_product(rijhat,vij)
 						randj(:)  = theta(molnoj,:)			
 
-						!Random noise variable normalised to one
-						!theta_ij(:)= (((randi(:)+randj(:))) - meantheta )/sqrt(vartheta)
+						!Random noise variable mean zero, std 1
+						!call random_number(randi); randi=sqrt(3.d0)*(2.d0*randi-1.d0)
+						!call random_number(randj); randj=sqrt(3.d0)*(2.d0*randj-1.d0)
+						theta_ij = randi(:)*randj(:)
+						!theta_ij = (((randi(:)+randj(:))) - meantheta )/sqrt(vartheta)
+						!theta_ij = (theta_ij + sqrt(3.d0)*(2.d0*rand-1.d0))/sqrt(2.d0)
 
-						call random_number(rand)
-						theta_ij = sqrt(3.d0)*(2.d0*rand-1.d0)
+						!theta_ij = (((randi(:)+randj(:)))  )/sqrt(2.d0)
+						!theta_ij = sqrt(3.d0)*(2.d0*rand-1.d0)
 
 						if (molnoi .eq. 150) write(200,'(3f10.5)') theta_ij(:)
 
@@ -588,6 +592,8 @@ contains
 						temp2 = temp2+ theta_ij(1)**2
 						tempi = tempi + 1
 
+						!Divide by sqrt of dt so delta t can be used for aD and aR 
+						!aR has sqrt of dt as required by ito calculus
 						aD(molnoi,:) = aD(molnoi,:) + zeta*wD*vr*rijhat(:)
 						aR(molnoi,:) = aR(molnoi,:) + sigma*wR*theta_ij(:)*rijhat(:)/sqrt(delta_t)
 
@@ -598,20 +604,16 @@ contains
 
 				enddo
 			enddo
-			
-			!Divide by sqrt of dt so delta t can be used for aD and aR 
-			!aR has sqrt of dt as required by ito calculus
-			!aR = aR 
 
 		case default
 			stop "Flag input to evaluate DPD incorrect"
 		end select
 
-		if(mod(iter,1000) .eq. 0) then
+		if(mod(iter,100) .eq. 0) then
 			write(1000,'(i8,2f10.5)') iter, temp/tempi, sqrt(temp2/tempi - (temp/tempi)**2)
-			!print'(a,2f10.5)', 'Fluctuation dissipation required 2 zeros here:', & 
-			!			sigma**2.d0-2.d0*inputtemperature*zeta, wD + wR**2.d0
-			!print'(a,2i5,2f18.5)', 'Sum of D and R Forces',iter,flag,sum(aD(1:np,:)), sum(aR(1:np,:))
+		!	print'(a,2f10.5)', 'Fluctuation dissipation required 2 zeros here:', & 
+		!				sigma**2.d0-2.d0*inputtemperature*zeta, wD + wR**2.d0
+		!	print'(a,2i5,2f18.5)', 'Sum of D and R Forces',iter,flag,sum(aD(1:np,:)), sum(aR(1:np,:))
 		endif
 
 	end subroutine evaluate_DPD_ap

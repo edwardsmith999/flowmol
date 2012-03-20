@@ -434,7 +434,7 @@ end subroutine updatefaceup
 !Halo Edge Cells
 
 subroutine updateedge(face1, face2)
-        use interfaces
+	use interfaces
 	use messenger
 	use arrays_MD
 	implicit none
