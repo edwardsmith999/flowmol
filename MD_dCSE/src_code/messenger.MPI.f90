@@ -225,17 +225,17 @@ subroutine messenger_proc_topology()
 		!topology but causes problems with some mpi flags and compilers)
 
 		pshiftcoords(1)=modulo(pshiftcoords(1),npx)
-                if (Lperiodic(2)) then
-		        pshiftcoords(2)=modulo(pshiftcoords(2),npy)
-                endif
+		if (Lperiodic(2)) then
+			pshiftcoords(2)=modulo(pshiftcoords(2),npy)
+		endif
 		pshiftcoords(3)=modulo(pshiftcoords(3),npz)
 
 		!Obtain destination processor id
-                if (pshiftcoords(2) < 0 .or. pshiftcoords(2) >= npy )then
-                        idest = MPI_PROC_NULL
-                else
-		        call MPI_Cart_rank(icomm_grid,pshiftcoords,idest,ierr)
-                endif
+		if (pshiftcoords(2) < 0 .or. pshiftcoords(2) >= npy )then
+			idest = MPI_PROC_NULL
+		else
+			call MPI_Cart_rank(icomm_grid,pshiftcoords,idest,ierr)
+		endif
 		!Add to array
 		proc_topology_edge(i,1,1) = idest
 
@@ -247,17 +247,17 @@ subroutine messenger_proc_topology()
 		!Adjust for periodic boundaries (works using -ve numbers and periodic 
 		!topology but causes problems with some mpi flags and compilers)
 		pshiftcoords(1)=modulo(pshiftcoords(1),npx)
-                if (Lperiodic(2)) then
-		        pshiftcoords(2)=modulo(pshiftcoords(2),npy)
-                endif
+		if (Lperiodic(2)) then
+			pshiftcoords(2)=modulo(pshiftcoords(2),npy)
+		endif
 		pshiftcoords(3)=modulo(pshiftcoords(3),npz)
 
 		!Obtain source processor id
-                if (pshiftcoords(2) < 0 .or. pshiftcoords(2) >= npy )then
-                        isource = MPI_PROC_NULL
-                else
-		        call MPI_Cart_rank(icomm_grid,pshiftcoords,isource,ierr)
-                endif
+		if (pshiftcoords(2) < 0 .or. pshiftcoords(2) >= npy )then
+			isource = MPI_PROC_NULL
+		else
+			call MPI_Cart_rank(icomm_grid,pshiftcoords,isource,ierr)
+		endif
 		!Add to array
 		proc_topology_edge(i,1,2) = isource
 
@@ -269,17 +269,17 @@ subroutine messenger_proc_topology()
 		!Adjust for periodic boundaries (works using -ve numbers and periodic 
 		!topology but causes problems with some mpi flags and compilers)
 		pshiftcoords(1)=modulo(pshiftcoords(1),npx)
-                if (Lperiodic(2)) then
-		        pshiftcoords(2)=modulo(pshiftcoords(2),npy)
-                endif
+		if (Lperiodic(2)) then
+			pshiftcoords(2)=modulo(pshiftcoords(2),npy)
+		endif
 		pshiftcoords(3)=modulo(pshiftcoords(3),npz)
 
 		!Obtain destination processor id
-                if (pshiftcoords(2) < 0 .or. pshiftcoords(2) >= npy )then
-                        idest = MPI_PROC_NULL
-                else
-		        call MPI_Cart_rank(icomm_grid,pshiftcoords,idest,ierr)
-                endif
+		if (pshiftcoords(2) < 0 .or. pshiftcoords(2) >= npy )then
+			idest = MPI_PROC_NULL
+		else
+			call MPI_Cart_rank(icomm_grid,pshiftcoords,idest,ierr)
+		endif
 		!Add to array
 		proc_topology_edge(i,2,1) = idest
 
@@ -306,17 +306,17 @@ subroutine messenger_proc_topology()
 		!Adjust for periodic boundaries (works using -ve numbers and periodic 
 		!topology but causes problems with some mpi flags and compilers)
 		pshiftcoords(1)=modulo(pshiftcoords(1),npx)
-                if (Lperiodic(2)) then
-		        pshiftcoords(2)=modulo(pshiftcoords(2),npy)
-                endif
+		if (Lperiodic(2)) then
+			pshiftcoords(2)=modulo(pshiftcoords(2),npy)
+		endif
 		pshiftcoords(3)=modulo(pshiftcoords(3),npz)
 
 		!Obtain destination processor id
-                if (pshiftcoords(2) < 0 .or. pshiftcoords(2) >= npy )then
-                        idest = MPI_PROC_NULL
-                else
-		        call MPI_Cart_rank(icomm_grid,pshiftcoords,idest,ierr)
-                endif
+		if (pshiftcoords(2) < 0 .or. pshiftcoords(2) >= npy )then
+			idest = MPI_PROC_NULL
+		else
+			call MPI_Cart_rank(icomm_grid,pshiftcoords,idest,ierr)
+		endif
 		!Add to array
 		proc_topology_edge(i,3,1) = idest
 
@@ -328,17 +328,17 @@ subroutine messenger_proc_topology()
 		!Adjust for periodic boundaries (works using -ve numbers and periodic 
 		!topology but causes problems with some mpi flags and compilers)
 		pshiftcoords(1)=modulo(pshiftcoords(1),npx)
-                if (Lperiodic(2)) then
-		        pshiftcoords(2)=modulo(pshiftcoords(2),npy)
-                endif
+		if (Lperiodic(2)) then
+			pshiftcoords(2)=modulo(pshiftcoords(2),npy)
+		endif
 		pshiftcoords(3)=modulo(pshiftcoords(3),npz)
 
 		!Obtain source processor id
-                if (pshiftcoords(2) < 0 .or. pshiftcoords(2) >= npy )then
-                        isource = MPI_PROC_NULL
-                else
-		        call MPI_Cart_rank(icomm_grid,pshiftcoords,isource,ierr)
-                endif
+		if (pshiftcoords(2) < 0 .or. pshiftcoords(2) >= npy )then
+			isource = MPI_PROC_NULL
+		else
+			call MPI_Cart_rank(icomm_grid,pshiftcoords,isource,ierr)
+		endif
 		!Add to array
 		proc_topology_edge(i,3,2) = isource
 
@@ -364,16 +364,16 @@ subroutine messenger_proc_topology()
 		!Adjust for periodic boundaries (works using -ve numbers and periodic 
 		!topology but causes problems with some mpi flags and compilers)
 		pshiftcoords(1)=modulo(pshiftcoords(1),npx)
-                if (Lperiodic(2)) then 
+		if (Lperiodic(2)) then 
              	        pshiftcoords(2)=modulo(pshiftcoords(2),npy)
-                endif
+		endif
 		pshiftcoords(3)=modulo(pshiftcoords(3),npz)
 
-                if (pshiftcoords(2) < 0 .or. pshiftcoords(2) >= npy) then
-                        idest = MPI_PROC_NULL
-                else
-		        call MPI_Cart_rank(icomm_grid,pshiftcoords,idest,ierr)
-                endif
+		if (pshiftcoords(2) < 0 .or. pshiftcoords(2) >= npy) then
+			idest = MPI_PROC_NULL
+		else
+			call MPI_Cart_rank(icomm_grid,pshiftcoords,idest,ierr)
+		endif
 		!Add to array
 		proc_topology_corner(i,1) = idest
 
@@ -385,16 +385,16 @@ subroutine messenger_proc_topology()
 		!Adjust for periodic boundaries (works using -ve numbers and periodic 
 		!topology but causes problems with some mpi flags and compilers)
 		pshiftcoords(1)=modulo(pshiftcoords(1),npx)
-                if (Lperiodic(2)) then
+		if (Lperiodic(2)) then
           	        pshiftcoords(2)=modulo(pshiftcoords(2),npy)
-                endif
+		endif
 		pshiftcoords(3)=modulo(pshiftcoords(3),npz)
 
-                if (pshiftcoords(2) < 0 .or. pshiftcoords(2) >= npy) then
-                        isource = MPI_PROC_NULL
-                else
-		        call MPI_Cart_rank(icomm_grid,pshiftcoords,isource,ierr)
-                endif
+		if (pshiftcoords(2) < 0 .or. pshiftcoords(2) >= npy) then
+			isource = MPI_PROC_NULL
+		else
+			call MPI_Cart_rank(icomm_grid,pshiftcoords,isource,ierr)
+		endif
 		!Add to array
 		proc_topology_corner(i,2) = isource
 
@@ -539,7 +539,7 @@ end
 
 !Update face halo cells by passing to neighbours
 subroutine updatefacedown(ixyz)
-        use interfaces
+ 	use interfaces
 	use physical_constants_MD
 	use polymer_info_MD
 	use messenger
@@ -695,7 +695,7 @@ subroutine updatefacedown(ixyz)
 		enddo
 		enddo
         case default
-                call error_abort("updateBorder: invalid value for ixyz")
+		call error_abort("updateBorder: invalid value for ixyz")
         end select
 
 	!If processor is its own neighbour - no passing required
@@ -817,7 +817,7 @@ subroutine updatefaceup(ixyz)
 		enddo
 		enddo
         case default
-                call error_abort("updateBorder: invalid value for ixyz")
+		call error_abort("updateBorder: invalid value for ixyz")
         end select
 
 	!Determine size of send buffer
@@ -919,7 +919,7 @@ subroutine updatefaceup(ixyz)
 		enddo
 		enddo
         case default
-                call error_abort("updateBorder: invalid value for ixyz")
+		call error_abort("updateBorder: invalid value for ixyz")
         end select
 
 	!If processor is its own neighbour - no passing required
@@ -1046,7 +1046,7 @@ subroutine updateedge(face1,face2)
 				sendnp = sendnp + cellnp
 			enddo
 		case default
-                	call error_abort("updateBorder: invalid value for ixyz")
+			call error_abort("updateBorder: invalid value for ixyz")
 		end select
 
 		!Determine size of send buffer
@@ -1138,7 +1138,7 @@ subroutine updateedge(face1,face2)
 			enddo
 
 		case default
-                	call error_abort("updateBorder: invalid value for ixyz")
+			call error_abort("updateBorder: invalid value for ixyz")
 		end select
 
 		!If processor is its own neighbour - no passing required
@@ -1210,7 +1210,7 @@ subroutine updateedge(face1,face2)
 				!if(irank .eq. 18 .and. iter .gt. 33) print'(i5,3f10.5)', iter, r(np+n,:)
 			enddo
 		case default
-                	call error_abort("updateBorder: invalid value for ixyz")
+			call error_abort("updateBorder: invalid value for ixyz")
 		end select
 
 		!Update number of molecules in halo to include number recieved
@@ -2186,7 +2186,7 @@ end
 subroutine globalAverage(A, na)
 	use messenger
 
-        integer, intent(in) :: na
+	integer, intent(in) :: na
 	double precision A(na)
 	double precision buf(na)
 
@@ -2200,6 +2200,20 @@ subroutine globalAverage(A, na)
 
 	return
 end
+
+subroutine globalGather(A,B,na)
+	use messenger
+	implicit none
+
+	integer, intent(in) :: na
+
+	integer, intent(in) :: A(na)
+	integer, intent(out):: B(na,nproc)
+
+	call MPI_Allgather (A, na, MPI_INTEGER, B, na, &
+			    MPI_INTEGER,icomm_grid, ierr)
+
+end subroutine
 
 subroutine globalGathernp()
 	use physical_constants_MD
