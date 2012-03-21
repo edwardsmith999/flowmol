@@ -838,10 +838,19 @@ subroutine parallel_io_vmd
 			MPI_INFO_NULL, fileid, ierr)
 
 		!-------------Write X coordinates--------------------
-
 		!Obtain location to write in file
-		disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
-			+ procdisp				  	!Processor location
+		!disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
+		!	+ procdisp				  	!Processor location
+
+		!If intervals set to zero then full simulation recorded
+		if (Nvmd_intervals.eq.0) then
+			disp =((iter-initialstep+1)/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
+				+ procdisp	
+		else
+			!Otherwise, calculate number of previous intervals
+			disp = vmd_count * nd * globalnp * datasize & !Current iteration
+				+ procdisp	
+		endif
 
 		call MPI_FILE_SET_VIEW(fileid, disp, MPI_REAL, & 
 			MPI_REAL, 'native', MPI_INFO_NULL, ierr)
@@ -851,11 +860,22 @@ subroutine parallel_io_vmd
 			MPI_STATUS_IGNORE, ierr) 
 
 		!-------------Write Y coordinates--------------------
-
 		!Obtain location to write in file
-		disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
-			+ procdisp &				  	!Processor location
-			+ globalnp * datasize			  	!Y Coordinate location
+		!disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
+		!	+ procdisp &				  	!Processor location
+		!	+ globalnp * datasize			  	!Y Coordinate location
+
+		!If intervals set to zero then full simulation recorded
+		if (Nvmd_intervals.eq.0) then
+			disp =((iter-initialstep+1)/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
+				+ procdisp	&
+				+ globalnp * datasize			  	!Y Coordinate location
+		else
+			!Otherwise, calculate number of previous intervals
+			disp = vmd_count * nd * globalnp * datasize & !Current iteration
+				+ procdisp		&
+				+ globalnp * datasize			  	!Y Coordinate location
+		endif
 
 		call MPI_FILE_SET_VIEW(fileid, disp, MPI_REAL, & 
 			MPI_REAL, 'native', MPI_INFO_NULL, ierr)
@@ -867,9 +887,21 @@ subroutine parallel_io_vmd
 		!-------------Write Z coordinates--------------------
 
 		!Obtain location to write in file
-		disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
-			+ procdisp &				  	!Processor location
-			+ 2 * globalnp * datasize		  	!Z Coordinate location
+		!disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
+		!	+ procdisp &				  	!Processor location
+		!	+ 2 * globalnp * datasize		  	!Z Coordinate location
+
+		!If intervals set to zero then full simulation recorded
+		if (Nvmd_intervals.eq.0) then
+			disp =((iter-initialstep+1)/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
+				+ procdisp	&
+				+ 2* globalnp * datasize			  	!Z Coordinate location
+		else
+			!Otherwise, calculate number of previous intervals
+			disp = vmd_count * nd * globalnp * datasize & !Current iteration
+				+ procdisp		&
+				+ 2* globalnp * datasize			  	!Z Coordinate location
+		endif
 
 		call MPI_FILE_SET_VIEW(fileid, disp, MPI_REAL, & 
 			MPI_REAL, 'native', MPI_INFO_NULL, ierr)
@@ -952,10 +984,10 @@ subroutine parallel_io_vmd_sl
 	!to processor topology with r = 0 at centre
 	do n = 1, np
 		select case(tag(n))
-		case(0, 4) 	!Liquid Molecules
-			Xbuf(:) = r(:,1)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
-			Ybuf(:) = r(:,2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
-			Zbuf(:) = r(:,3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
+		case(0,4) 	!Liquid Molecules
+			Xbuf(n) = r(n,1)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
+			Ybuf(n) = r(n,2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
+			Zbuf(n) = r(n,3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
 		case default	!Solid molecules
 			Xbuf(n) = -halfdomain(1)
 			Ybuf(n) = -halfdomain(2)
@@ -980,8 +1012,19 @@ subroutine parallel_io_vmd_sl
 	!-------------Write X coordinates--------------------
 
 	!Obtain location to write in file
-	disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
-		+ procdisp				  	!Processor location
+	!disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
+	!	+ procdisp				  	!Processor location
+
+	!If intervals set to zero then full simulation recorded
+	if (Nvmd_intervals.eq.0) then
+		disp =((iter-initialstep+1)/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
+			+ procdisp	
+	else
+		!Otherwise, calculate number of previous intervals
+		disp = vmd_count * nd * globalnp * datasize & !Current iteration
+				+ procdisp	
+	endif
+
 
 	!print*, irank, 'x disp', disp
 
@@ -995,9 +1038,21 @@ subroutine parallel_io_vmd_sl
 	!-------------Write Y coordinates--------------------
 
 	!Obtain location to write in file
-	disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
-		+ procdisp &				  	!Processor location
-		+ globalnp * datasize			  	!Y Coordinate location
+	!disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
+	!	+ procdisp &				  	!Processor location
+	!	+ globalnp * datasize			  	!Y Coordinate location
+
+	!If intervals set to zero then full simulation recorded
+	if (Nvmd_intervals.eq.0) then
+		disp =((iter-initialstep+1)/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
+			+ procdisp	&
+			+ globalnp * datasize			  	!Y Coordinate location
+	else
+		!Otherwise, calculate number of previous intervals
+		disp = vmd_count * nd * globalnp * datasize & !Current iteration
+				+ procdisp	&
+				+ globalnp * datasize			  	!Y Coordinate location
+	endif
 
 	!print*, irank, 'y disp', disp
 	
@@ -1011,9 +1066,21 @@ subroutine parallel_io_vmd_sl
 	!-------------Write Z coordinates--------------------
 
 	!Obtain location to write in file
-	disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
-		+ procdisp &				  	!Processor location
-		+ 2 * globalnp * datasize		  	!Z Coordinate location
+	!disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
+	!	+ procdisp &				  	!Processor location
+	!	+ 2 * globalnp * datasize		  	!Z Coordinate location
+
+	!If intervals set to zero then full simulation recorded
+	if (Nvmd_intervals.eq.0) then
+		disp =((iter-initialstep+1)/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
+				+ procdisp	&
+				+ 2 * globalnp * datasize			  	!Z Coordinate location
+	else
+		!Otherwise, calculate number of previous intervals
+		disp = vmd_count * nd * globalnp * datasize & !Current iteration
+				+ procdisp	&
+				+ 2 * globalnp * datasize			  	!Z Coordinate location
+	endif
 
 	!print*, irank, 'z disp', disp
 
@@ -1054,10 +1121,18 @@ subroutine parallel_io_vmd_sl
 	!-------------Write X coordinates--------------------
 		
 	!Obtain location to write in file
-	disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
-		+ procdisp				  	!Processor location
+	!disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
+	!	+ procdisp				  	!Processor location
 
-	!print*, irank, 'x disp', disp
+	!If intervals set to zero then full simulation recorded
+	if (Nvmd_intervals.eq.0) then
+		disp =((iter-initialstep+1)/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
+			+ procdisp	
+	else
+		!Otherwise, calculate number of previous intervals
+		disp = vmd_count * nd * globalnp * datasize & !Current iteration
+				+ procdisp	
+	endif
 
 	call MPI_FILE_SET_VIEW(fileid, disp, MPI_REAL, & 
  		MPI_REAL, 'native', MPI_INFO_NULL, ierr)
@@ -1069,11 +1144,21 @@ subroutine parallel_io_vmd_sl
 	!-------------Write Y coordinates--------------------
 
 	!Obtain location to write in file
-	disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
-		+ procdisp &				  	!Processor location
-		+ globalnp * datasize			  	!Y Coordinate location
+	!disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
+	!	+ procdisp &				  	!Processor location
+	!	+ globalnp * datasize			  	!Y Coordinate location
 
-	!print*, irank, 'y disp', disp
+	!If intervals set to zero then full simulation recorded
+	if (Nvmd_intervals.eq.0) then
+		disp =((iter-initialstep+1)/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
+			+ procdisp	&
+			+ globalnp * datasize			  	!Y Coordinate location
+	else
+		!Otherwise, calculate number of previous intervals
+		disp = vmd_count * nd * globalnp * datasize & !Current iteration
+				+ procdisp	&
+				+ globalnp * datasize			  	!Y Coordinate location
+	endif
 
 	call MPI_FILE_SET_VIEW(fileid, disp, MPI_REAL, & 
 		MPI_REAL, 'native', MPI_INFO_NULL, ierr)
@@ -1085,11 +1170,22 @@ subroutine parallel_io_vmd_sl
 	!-------------Write Z coordinates--------------------
 
 	!Obtain location to write in file
-	disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
-		+ procdisp &				  	!Processor location
-		+ 2 * globalnp * datasize		  	!Z Coordinate location
+	!disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
+	!	+ procdisp &				  	!Processor location
+	!	+ 2 * globalnp * datasize		  	!Z Coordinate location
 
-	!print*, irank, 'z disp', disp
+	!If intervals set to zero then full simulation recorded
+	if (Nvmd_intervals.eq.0) then
+		disp =((iter-initialstep+1)/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
+				+ procdisp	&
+				+ 2 * globalnp * datasize			  	!Z Coordinate location
+	else
+		!Otherwise, calculate number of previous intervals
+		disp = vmd_count * nd * globalnp * datasize & !Current iteration
+				+ procdisp	&
+				+ 2 * globalnp * datasize			  	!Z Coordinate location
+	endif
+
 
 	call MPI_FILE_SET_VIEW(fileid, disp, MPI_REAL, & 
 		MPI_REAL, 'native', MPI_INFO_NULL, ierr)
@@ -1145,8 +1241,19 @@ subroutine parallel_io_vmd_optimised
 	!-------------Write XYZ coordinates--------------------
 
 	!Obtain location to write in file
-	disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
-		+ procdisp				  	!Processor location
+	!disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
+	!	+ procdisp				  	!Processor location
+
+	!If intervals set to zero then full simulation recorded
+	if (Nvmd_intervals.eq.0) then
+		disp =((iter-initialstep+1)/real((tplot),kind(0.d0))-1)*nd*globalnp*datasize & !Current iteration
+			+ procdisp
+	else
+		!Otherwise, calculate number of previous intervals
+		disp = vmd_count * nd * globalnp * datasize & !Current iteration
+			+ procdisp
+	endif
+
 	call MPI_FILE_SET_VIEW(fileid, disp, MPI_REAL, & 
  		MPI_REAL, 'native', MPI_INFO_NULL, ierr)
 	

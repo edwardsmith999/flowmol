@@ -141,19 +141,21 @@ subroutine reformat_dcd
 	endif
 
 	!Set header information	
-	HDR			=	'CORD'			!header text
-	NSET		=	vmd_sets		!number of recorded frames
-	ISTRT		=	0				!the starting timestep
-	NSAVC		=	1				!number of timesteps between dcd frame saves
-	FIVEZ(1)	=	NSET			!not sure why
-	FIVEZ(2:5)	=	0				!buffer zeros
-	NATOMNFREAT	=	0				!number of fixed atoms?
-	DELTA		=	delta_t			!delta_t (x-plor is double, charmm is real)
-	NINEZ(:)	=	0				!buffer zeros
-	NTITLE		=	2				!number of 80-character strings in title
+	HDR			=	'CORD'				!header text
+	NSET		=	vmd_sets			!number of recorded frames
+	ISTRT		=	initialstep			!the starting timestep
+	NSAVC		=	tplot				!number of timesteps between dcd frame saves
+	FIVEZ(1)	=	NSET				!not sure why
+	FIVEZ(2:5)	=	0					!buffer zeros
+	NATOMNFREAT	=	0					!number of fixed atoms?
+	DELTA		=	delta_t				!delta_t (x-plor is double, charmm is real)
+	NINEZ(:)	=	0					!buffer zeros
+	NTITLE		=	2					!number of 80-character strings in title
 	TITLE(1)	=	'  Simulation record file '	!
-	TITLE(2)        =	'   Written in serial or parallel   '	!
+	TITLE(2)    =	'   Written in serial or parallel   '	!
 	NATOM		=	globalnp			!number of particles
+
+	PRINT*, NSET, NSET,ISTRT,NSAVC,FIVEZ(1),FIVEZ(2:5)
 
 	allocate(Xbuf(NSET*globalnp))
 	allocate(Ybuf(NSET*globalnp))
@@ -248,11 +250,12 @@ subroutine reformat_dcd_sl
 		!enddo
 	endif
 
+
 	!Set header information	
 	HDR			=	'CORD'				!header text
 	NSET		=	vmd_sets			!number of recorded frames
-	ISTRT		=	0					!the starting timestep
-	NSAVC		=	1					!number of timesteps between dcd frame saves
+	ISTRT		=	initialstep			!the starting timestep
+	NSAVC		=	tplot				!number of timesteps between dcd frame saves
 	FIVEZ(1)	=	NSET				!not sure why
 	FIVEZ(2:5)	=	0					!buffer zeros
 	NATOMNFREAT	=	0					!number of fixed atoms?
@@ -260,7 +263,7 @@ subroutine reformat_dcd_sl
 	NINEZ(:)	=	0					!buffer zeros
 	NTITLE		=	2					!number of 80-character strings in title
 	TITLE(1)	=	'  Simulation record file '	!
-	TITLE(2)        =	'   Written in serial/parallel   '	!
+	TITLE(2)    =	'   Written in serial/parallel   '	!
 	NATOM		=	globalnp			!number of particles
 
 	allocate(Xbuf(NSET*globalnp))
@@ -304,8 +307,8 @@ subroutine reformat_dcd_sl
 
 	do i=1,NSET
 	do n=1,globalnp
-		read(17,rec=(i-1)*nd*globalnp+n) Xbuf(n+globalnp*(i-1))
-		read(17,rec=(i-1)*nd*globalnp+n+globalnp) Ybuf(n+globalnp*(i-1))
+		read(17,rec=(i-1)*nd*globalnp+n) 			Xbuf(n+globalnp*(i-1))
+		read(17,rec=(i-1)*nd*globalnp+n+globalnp) 	Ybuf(n+globalnp*(i-1))
 		read(17,rec=(i-1)*nd*globalnp+n+2*globalnp) Zbuf(n+globalnp*(i-1))
 		if (mod(i,100) .eq. 0) print*, 'Reading liquid % complete =', (100.d0*i/NSET)
 	enddo
