@@ -433,7 +433,7 @@ subroutine messenger_free()
 	print "(a,f8.2)", "time: ", MPI_wtime() - wallTime
 
 	! Finalize MPI
-    call MPI_finalize (ierr)
+         call MPI_finalize (ierr)
 
 	return
 end
@@ -2260,45 +2260,47 @@ end
 subroutine SubcommSumIntVect(A, na, ixyz)
 	use messenger
 
-        integer, intent(in) :: na, ixyz !Direction of sub-comm
+    integer, intent(in) :: na, ixyz !Direction of sub-comm
 	integer	A(na)
 	integer buf(na)
 
 	call MPI_AllReduce (A, buf, na, MPI_INTEGER, &
-	                    MPI_SUM, icomm_xyz(ixyz), ierr)
+         MPI_SUM, icomm_xyz(ixyz), ierr)
 	A = buf
 
 	return
-end
+end subroutine SubcommSumIntVect
 
 subroutine error_abort_s(msg)
-        use mpi
-        implicit none
-        
-        character(len=*), intent(in), optional :: msg
+    use mpi
+    implicit none
 
-        integer errcode,ierr
+    character(len=*), intent(in), optional :: msg
 
-        if (present(msg)) then 
-                write(*,*) msg
-        endif
+    integer errcode,ierr
 
-        call MPI_Abort(MPI_COMM_WORLD,errcode,ierr)
+    if (present(msg)) then 
+        write(*,*) msg
+    endif
+
+    call MPI_Abort(MPI_COMM_WORLD,errcode,ierr)
 
 end subroutine error_abort_s
 
 
 subroutine error_abort_si(msg,i)
-        use mpi
-        implicit none
-        
-        character(len=*), intent(in) :: msg
-        integer, intent(in) :: i
+    use mpi
+    implicit none
 
-        integer errcode,ierr
+    character(len=*), intent(in) :: msg
+    integer, intent(in) :: i
 
-        write(*,*) msg,i
+    integer errcode,ierr
 
-        call MPI_Abort(MPI_COMM_WORLD,errcode,ierr)
+    write(*,*) msg,i
+
+    call MPI_Abort(MPI_COMM_WORLD,errcode,ierr)
 
 end subroutine error_abort_si
+
+

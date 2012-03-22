@@ -29,16 +29,79 @@ end module module_external_forces
 !Robbins (2004)
 
 subroutine simulation_apply_boundary_forces
-	use module_external_forces
-	use coupler, only : coupler_md_boundary_forces
+!	use module_external_forces
+!	use coupler, only : coupler_md_boundary_forces
 
 	implicit none
 
-	! call the coupler version.
-	! This is needed because the coupler has the information about the continuum grid
-	pressure = 2.5d0
+!	call coupler_md_boundary_forces(np,pressure,r,a)
+    call top_boundary_constrain_force
 
-	call coupler_md_boundary_forces(np,pressure,r,a)
+contains
+
+    subroutine top_boundary_constrain_force
+        use coupler
+        use interfaces
+        use calculated_properties_MD, only : pressure
+        use computational_constants_MD, only : nh, ncells, cellsidelength, domain, halfdomain, delta_rneighbr
+        use linked_list, only : cell, node
+        use arrays_MD, only : r, a
+        implicit none
+
+        integer i, j, k, js, je, ip, m
+        real(kind(0.d0)) dy, y2, y3, yc, p
+        type(node), pointer :: current => null()
+        logical :: overlap, firsttime = .true.
+        save :: y2, y3, dy, js, je, firsttime
+        
+        call coupler_md_get(overlap_with_top_cfd=overlap)
+
+        if(.not. overlap) return
+
+        if (firsttime) then
+            firsttime = .false.
+            call coupler_md_get(top_dy=dy)
+            
+            y2 = halfdomain(2) - dy
+            y3 = halfdomain(2)
+            
+            ! get the range of j cell index in y direction
+            js = ceiling(y2/cellsidelength(2)) + nh
+
+            ! check if molecules from below cells can get in constrain region ( heuristic condition )
+            if ( y2 - (js - nh - 1) * cellsidelength(2) < delta_rneighbr ) then  
+               js = js - 1
+            endif
+
+            ! sanity check
+            if ( y2 > (js - nh) * cellsidelength(2)  ) then  
+               call error_abort("wrong value of js in top_boundary_constrain_force", js)
+            endif
+
+            je = min(ncells(2),ceiling(domain(2)/cellsidelength(2))) + nh
+
+            write(0,*) 'boundary constrain force ', dy, y2, y3, js, je, ncells
+        endif
+
+        p = max(pressure,1.d0)
+
+        do k = nh + 1, nh + 1 + ncells(3) 
+            do j = js, je
+                do i = nh + 1, nh + 1 + ncells(1) 
+                    current => cell%head(i,j,k)%point
+                    do ip = 1, cell%cellnp(i,j,k) 
+                        m = current%molno
+                        yc = r(m,2)
+                        if ( y2 <= yc .and. yc < y3 ) then
+                            a(m,2)= a(m,2) - p*(yc-y2)/(1.d0-(yc-y2)/(y3-y2))
+                        end if
+                        current => current%next
+                    end do
+                end do
+            end do
+        end do
+                        
+    end subroutine top_boundary_constrain_force
 
 end subroutine simulation_apply_boundary_forces
 

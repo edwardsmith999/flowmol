@@ -23,6 +23,7 @@ module coupler_parameters
                           COUPLER_ERROR_ONE_REALM  = 2, &  ! one realm missing
                           COUPLER_ERROR_INIT       = 3, &  ! initialisation error
                           COUPLER_ERROR_INPUT_FILE = 4, &  ! wrong value in input file
-                          COUPLER_ERROR_READ_INPUT = 5     ! error in processing input file or data transfers
+                          COUPLER_ERROR_READ_INPUT = 5, &  ! error in processing input file or data transfers
+                          COUPLER_ERROR_CONTINUUM_FORCE = 6! the region in which the continuum constrain force is apply spans over two MD domains
 
 end module coupler_parameters
