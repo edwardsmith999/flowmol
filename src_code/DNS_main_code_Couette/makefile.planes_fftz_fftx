@@ -9,10 +9,11 @@
 NAME = blayer
 F90FILES = data.export_planes.xperiodic.f90 mesh.export.f90 grid.export.f90 data.noglobal_planes.f90 arrayzero.f90 messenger.MPI.noglobal_planes.f90 misc.mpi.f90 mesh.f90 subMesh.f90 grid.f90 dctcoeff.f90 mtgcoeff_planes.f90 inflow.f90 outflow.f90 boundaries_xzperiodic.f90 fluctuations_inlet_top.f90 advance_quick_Fletcher_xQUICK.f90 invert_sgi_openmp_xperiodic.f90 poisson_newmtg_planes_xperiodic.sgi.f90 poisson_fftz_fftx.f90 new_multigrid_planes_ylines_FullMG_xperiodic.f90 projection_step_xperiodic.f90 cfl_control.f90 copyBC.f90 flowAnalysis.f90 statistics.f90 Output_SubDomain.f90 ALC/Input_mod.Z_planes.ALC.xperiodic.f90 ALC/Output_mod.Z_planes.ALC.xperiodic.f90 ALC/Input_Spectra.ALC.f90 ALC/Output_Spectra.ALC.f90 ALC/Input_Stats.ALC.f90 ALC/Output_Stats.ALC.f90 simulation_planes.f90 main_planes.f90
 
-LIBFILES = $(HOME)/lib/archive.o $(HOME)/lib/library.o $(HOME)/lib/library.alc.o $(HOME)/lib/SSDfile.memory.o $(HOME)/lib/triDiagonal.o $(HOME)/lib/triDiagonal.mpi.o $(HOME)/lib/pentaDiagonal.o $(HOME)/lib/transforms.mkl_intel.alc.o $(HOME)/lib/SinCosFFT.o $(HOME)/lib/triDiagonal.mrhs.o $(HOME)/lib/triDiagonal.mpi.mrhs.o $(HOME)/lib/pentaDiagonal.mrhs.o $(HOME)/lib/pentaDiagonal.mpi.o $(HOME)/lib/polyDiagonal.o 
+LIBFILES = ./../../lib/archive.o ./../../lib/library.o ./../../lib/library.alc.o ./../../lib/SSDfile.memory.o ./../../lib/triDiagonal.o ./../../lib/triDiagonal.mpi.o ./../../lib/pentaDiagonal.o ./../../lib/transforms.mkl_intel.alc.o ./../../lib/SinCosFFT.o ./../../lib/triDiagonal.mrhs.o ./../../lib/triDiagonal.mpi.mrhs.o ./../../lib/pentaDiagonal.mrhs.o ./../../lib/pentaDiagonal.mpi.o ./../../lib/polyDiagonal.o 
 
 
-LIBS = -L/apps/intel/cmkl/9.0/lib/64/ -lmkl_em64t
+#LIBS = -L/apps/intel/cmkl/9.0/lib/64/ -lmkl_em64t
+LIBS = -L/opt/intel/Compiler/11.1/046/mkl/lib/em64t/dns_lib -lmkl_em64t
 
 FLAGS =
 F77FILES = 

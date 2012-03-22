@@ -39,8 +39,8 @@
 1.3	kp	Peak of inlet energy spectrum
 
 ! Animation
-0        ianim
-200.     save_dt
+12        ianim
+0.03     save_dt
 
 ! Quick parameters
 0.00       x_QUICK       Pre-multiply the Quadratic Upstream Interpolation by (x_QUICK)

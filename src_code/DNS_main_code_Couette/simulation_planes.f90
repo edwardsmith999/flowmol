@@ -294,7 +294,8 @@ subroutine simulation_run()
  					! call WriteYplane()
 					! call WriteSubDomain('SubDomYdble.', 1,ngx,1, 3, 21,2, 1,ngz,1)
 					! call WriteSubDomain('SubDomZdble.', 1,ngx,1, 1,ngy,1, 1, 7 ,2)
-					  call WriteSubDomain('SubDom_dble.', 1,ngx,2, 1,ngy,2, 1,ngz,2)
+					! call WriteSubDomain('SubDom_dble.', 1,ngx,2, 1,ngy,2, 1,ngz,2)
+					  call WriteSubDomain('SubDom_dble.', 1,ngx,1, 1,ngy,1, 1,ngz,1)
 			end if
 		end if
 		!	if (ianim == 3) then
