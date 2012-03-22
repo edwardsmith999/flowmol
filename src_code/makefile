@@ -42,21 +42,11 @@ LIB_DIR := ../../lib/coupler/$(PLATFORM)/$(BUILD)
 
 #
 # list of interface modules to be moved in library directory
-# pgi needs coupler_parameters.mod beside coupler.mod, nag wants all modules;
-# cray used capital letters in module's name
 #
-ifeq  ($(strip $(PLATFORM)),hector-pgi)
-  INTERFACE_MODULES := $(OBJ_DIR)/coupler.mod $(OBJ_DIR)/coupler_parameters.mod
-else ifeq  ($(strip $(PLATFORM)),hector-nag)
-  INTERFACE_MODULES :=  $(O_FILES:.o=.mod)
-else ifeq  ($(strip $(PLATFORM)),hector-cray)
-   INTERFACE_MODULES := $(OBJ_DIR)/COUPLER.mod
-else 
-   INTERFACE_MODULES := $(OBJ_DIR)/coupler.mod
-endif
+INTERFACE_MODULES :=  *.mod # avoids the trouble with cray compiler capitalised names $(O_FILES:.o=.mod)
 
 $(LIB_DIR)/libcoupler.a : $(O_FILES) 
-	[ -d $(LIB_DIR) ] || mkdir -p $(LIB_DIR) && ar cr $@ $(O_FILES) && mv $(INTERFACE_MODULES) $(LIB_DIR) && rm -f $(OBJ_DIR)/*.o $(OBJ_DIR)/*.mod 
+	[ -d $(LIB_DIR) ] || mkdir -p $(LIB_DIR) && ar cr $@ $(O_FILES) && cp $(INTERFACE_MODULES) $(LIB_DIR) 
 
 $(O_FILES) : | $(OBJ_DIR) 
 

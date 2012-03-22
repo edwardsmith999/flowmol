@@ -38,7 +38,7 @@ contains
 
 !=============================================================================
 ! 							coupler_create_comm	      	
-! (cfd+md) Splits MPI_COMM_WORLD in both the CFD and MD code respectivly
+! (cfd+md) Splits MPI_COMM_WORLD in both the CFD and MD code respectively
 ! 		   and create intercommunicator between CFD and MD
 !-----------------------------------------------------------------------------
 
@@ -239,26 +239,26 @@ subroutine coupler_cfd_init(imino,imin,imax,imaxo,jmino,jmin,jmax,jmaxo,kmino,km
 	x_ = x; y_ = y; z_ = z;
 	icoord_ = icoord
 
-        call mpi_comm_rank(COUPLER_REALM_COMM,myid,ierr)
+    call mpi_comm_rank(COUPLER_REALM_COMM,myid,ierr)
 
-        ! test if MD_init_cell size is larger than CFD cell size
-        if( (MD_initial_cellsize >= x(2)-x(1) .or. MD_initial_cellsize >= y(2)-y(1)) .and. myid == 0 ) then
-                write(*,*) 
-                write(*,*) "********************************************************************"
-                write(*,*) " WARNING ...WARNING ...WARNING ...WARNING ...WARNING ...WARNING ... "
-                write(*,*) " MD initialisation cell size larger than CFD x,y cell sizes         "
-                write(*,*) " MD_init_cellsize=",MD_initial_cellsize
-                write(*,*) " x(2)-x(1)=",x(2)-x(1), " y(2)-y(1)=",y(2)-y(1) 
-                write(*,*) "********************************************************************"
-                write(*,*)
-        endif
+    ! test if MD_init_cell size is larger than CFD cell size
+    if( (MD_initial_cellsize >= x(2)-x(1) .or. MD_initial_cellsize >= y(2)-y(1)) .and. myid == 0 ) then
+        write(*,*) 
+        write(*,*) "********************************************************************"
+        write(*,*) " WARNING ...WARNING ...WARNING ...WARNING ...WARNING ...WARNING ... "
+        write(*,*) " MD initialisation cell size larger than CFD x,y cell sizes         "
+        write(*,*) " MD_init_cellsize=",MD_initial_cellsize
+        write(*,*) " x(2)-x(1)=",x(2)-x(1), " y(2)-y(1)=",y(2)-y(1) 
+        write(*,*) "********************************************************************"
+        write(*,*)
+    endif
   
-	! write(0,*) 'CFD exchange grid data'
-	! send CFD processor grid
-	
-        if (cfd_coupler_input%ncells%tag == CPL) then
-           jmax_overlap =  jmin + cfd_coupler_input%overlap%y_overlap
-        endif
+	! send CFD processor grid and overlap parameter
+
+	! Note: jmax_overlap default is provided in coupler_internal_cfd
+    if (cfd_coupler_input%ncells%tag == CPL) then
+        jmax_overlap =  jmin + cfd_coupler_input%overlap%y_overlap
+    endif
 
 	if ( myid .eq. 0 ) then
 		source=MPI_ROOT
@@ -385,15 +385,15 @@ subroutine coupler_md_init(npxin,npyin,npzin,icoordin,dtin)
 
 	xL_md = x(imax_cfd) - x(imin_cfd)
 
-        ! yL_md is adjusted to an integer number of initialisation cells in the following steps
-        if (md_ly_extension_tag == CPL) then 
-           DY_PURE_MD = md_ly_extension
-        else 
-           DY_PURE_MD =  y(jmin_cfd) - y(jmino)
-        end if
-	yL_md = y(jmax_overlap_cfd) - y(jmino) + DY_PURE_MD
-        yL_md = real(floor(yL_md/b),kind(0.d0))*b
-        DY_PURE_MD = yL_md - (y(jmax_overlap_cfd) - y(jmino))
+    ! yL_md is adjusted to an integer number of initialisation cells in the following steps
+    if (md_ly_extension_tag == CPL) then 
+        DY_PURE_MD = md_ly_extension
+    else 
+        DY_PURE_MD =  y(jmin_cfd) - y(jmino)
+    end if
+    yL_md = y(jmax_overlap_cfd) - y(jmino) + DY_PURE_MD
+    yL_md = real(floor(yL_md/b),kind(0.d0))*b
+    DY_PURE_MD = yL_md - (y(jmax_overlap_cfd) - y(jmino))
 
 	zL_md = z(kmax_cfd) - z(kmin_cfd)
 
@@ -401,13 +401,13 @@ subroutine coupler_md_init(npxin,npyin,npzin,icoordin,dtin)
 	!	 & myid, xL_md, yL_md, zL_md
 	!	write(0,*) 'MD: nsteps (CFD) ', nsteps
 
-        ! initialise other md module variables if data is provided in coupler.in
-        if (md_average_period_tag == CPL) then 
-           average_period = md_average_period
-        endif
-        if (md_save_period_tag == CPL) then
-           save_period    = md_save_period
-        endif
+    ! initialise other md module variables if data is provided in coupler.in
+    if (md_average_period_tag == CPL) then 
+        average_period = md_average_period
+    endif
+    if (md_save_period_tag == CPL) then
+        save_period    = md_save_period
+    endif
 
 end subroutine coupler_md_init
 
@@ -1379,18 +1379,55 @@ end subroutine coupler_cfd_get_velocity
 
 !============================================================================
 !
-! function and subroutines that extract parameter from internal modules 
+! Receives comtinuum velocity and copies into vel_cfd if overlap is true
+!
+!-----------------------------------------------------------------------------
+subroutine coupler_md_get_CFDvel(overlap, vel_cfd)
+    use coupler_internal_md, only : get_CFDvel, itm1, itm2, vel_fromCFD, bbox
+    implicit none
+
+    logical, intent(in) :: overlap
+    real(kind(0.d0)), intent(out) :: vel_cfd(:,:,:,:,:)
+    ! locals    
+    integer jb_constrain
+
+    call get_CFDvel
+
+    if (overlap) then 
+        
+        jb_constrain = bbox%je - bbox%js - 1
+        vel_cfd(:,:,1,:,1) = vel_fromCFD(:,:,jb_constrain,:,itm1)
+        vel_cfd(:,:,1,:,2) = vel_fromCFD(:,:,jb_constrain,:,itm2)
+
+    endif
+
+
+end subroutine coupler_md_get_CFDvel
+
+
+!============================================================================
+!
+! functions and subroutines that extract parameters from internal modules 
 !
 !-----------------------------------------------------------------------------    
 
-subroutine coupler_md_get(xL_md,yL_md,zL_md, MD_initial_cellsize, top_dy)
+subroutine coupler_md_get(xL_md,yL_md,zL_md, MD_initial_cellsize, top_dy, &
+    overlap_with_continuum_force, overlap_with_top_cfd, ymin_continuum_force, &
+    ymax_continuum_force, xmin_cfd_grid, xmax_cfd_grid, zmin_cfd_grid, zmax_cfd_grid, &
+    dx_cfd, dz_cfd)
+    use mpi
 	use coupler_internal_md, only : xL_md_ =>  xL_md, yL_md_ =>  yL_md, zL_md_ => zL_md, &
-                                        b => MD_initial_cellsize,  y, j => jmax_overlap_cfd
+		b => MD_initial_cellsize, x, y, z,j => jmax_overlap_cfd, dx, dz, bbox, half_domain_lengths
 	implicit none
 
-	real(kind(0.d0)), optional, intent(out) :: xL_md, yL_md, zL_md, MD_initial_cellsize, top_dy
+	real(kind(0.d0)), optional, intent(out) :: xL_md, yL_md, zL_md, MD_initial_cellsize, top_dy,&
+        ymin_continuum_force,ymax_continuum_force, xmin_cfd_grid, xmax_cfd_grid, &
+		 zmin_cfd_grid, zmax_cfd_grid, dx_cfd, dz_cfd 
+    logical, optional, intent(out) :: overlap_with_continuum_force, overlap_with_top_cfd
 
-	if (present(xL_md)) then 
+    integer ierr
+
+    if (present(xL_md)) then
 		xL_md = xL_md_
 	endif
 
@@ -1406,9 +1443,73 @@ subroutine coupler_md_get(xL_md,yL_md,zL_md, MD_initial_cellsize, top_dy)
 		MD_initial_cellsize = b
 	endif
 
- 	if (present(top_dy)) then
- 		top_dy = y(j) - y(j-1)
+	if (present(top_dy)) then
+    	top_dy = y(j) - y(j-1)
 	end if
+
+    if(present(overlap_with_continuum_force)) then
+        ! check if the countinuum force domain is contained in one 
+        ! domain along y direction
+        if ( (y(j - 2) < bbox%bb(1,2) .and. &
+              y(j - 1) > bbox%bb(1,2)) .or. &
+             (y(j - 2) < bbox%bb(2,2) .and. &
+              y(j - 1) > bbox%bb(2,2))) then
+            write(0,*) " the region in which the continuum constrain force is apply "
+            write(0,*) " spans over two domains. This case is not programmed, please investigate"
+            call MPI_Abort(MPI_COMM_WORLD,COUPLER_ERROR_CONTINUUM_FORCE,ierr)
+        endif
+        
+        if ( y(j - 1) <  bbox%bb(2,2) .and. y(j - 2) >= bbox%bb(1,2) ) then
+            overlap_with_continuum_force = .true.
+        else   
+            overlap_with_continuum_force = .false.
+        endif
+
+    endif
+
+     if(present(overlap_with_top_cfd)) then
+        ! check if the MD domain overlaps with the top of CFD grid (along y)
+        ! the MD constrain force is applyied top layer of cfd cells
+        if ( y(j - 1) < bbox%bb(2,2) .and. y(j - 1) >= bbox%bb(1,2) ) then
+            overlap_with_top_cfd = .true.
+        else   
+            overlap_with_top_cfd = .false.
+        endif
+
+    endif
+
+ 
+     if(present(ymin_continuum_force)) then
+         ymin_continuum_force = y(j - 2) - bbox%bb(1,2) - half_domain_lengths(2)
+     endif
+         
+     if(present(ymax_continuum_force)) then
+         ymax_continuum_force = y(j - 1) - bbox%bb(1,2) - half_domain_lengths(2)
+     endif 
+
+     if(present(xmin_cfd_grid)) then
+         xmin_cfd_grid = x(bbox%is) - bbox%bb(1,1) - half_domain_lengths(1)
+     endif
+
+     if(present(xmax_cfd_grid)) then
+         xmax_cfd_grid = x(bbox%ie) - bbox%bb(1,1) - half_domain_lengths(1)
+     endif
+
+     if(present(zmin_cfd_grid)) then
+         zmin_cfd_grid = z(bbox%ks) - bbox%bb(1,3) - half_domain_lengths(3)
+     endif
+
+     if(present(zmax_cfd_grid)) then
+         zmax_cfd_grid = z(bbox%ke) - bbox%bb(1,3) - half_domain_lengths(3)
+     endif
+ 
+     if (present(dx_cfd)) then 
+         dx_cfd = dx
+     endif
+
+     if (present(dz_cfd)) then 
+         dz_cfd = dz
+     endif
 
 end subroutine coupler_md_get
 
