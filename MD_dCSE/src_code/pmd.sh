@@ -2,8 +2,8 @@
 #
 mpiexe="mpiexec"
 left=" -n 1 xterm -geometry "
-right=" -hold -e ./md.exe $2 $3 $4 $5 :"
-end=" -hold -e ./md.exe $2 $3 $4 $5"
+right=" -hold -e $2 ./md.exe $3 $4 $5 $6 :"
+end=" -hold -e $2 ./md.exe $3 $4 $5 $6"
 xwidth=150
 ywidth=10
 xpos=1000

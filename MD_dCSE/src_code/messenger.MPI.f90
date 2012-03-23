@@ -196,7 +196,7 @@ subroutine messenger_proc_topology()
 	implicit none
 	!include "mpif.h"
 
-	integer				:: i, ixyz,n, idest, isource
+	integer						:: i, ixyz,n, idest, isource
 	integer, dimension(3)  		:: pcoords, pshiftcoords
 	integer, dimension(8)   	:: icornercell, jcornercell, kcornercell
 	integer, dimension(3,4)  	:: edge1, edge2
@@ -1986,6 +1986,122 @@ subroutine NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest
 	return
 end
 
+
+!======================================================================
+!			Bin averaged handling subroutines        	            =
+!======================================================================
+
+!Swap halos of bins between processors
+
+subroutine swaphalos(A,n1,n2,n3,nresults)
+	use messenger
+	use calculated_properties_MD
+	use librarymod, only : int_heaviside
+	implicit none
+
+	integer,intent(in)					:: n1,n2,n3,nresults
+	double precision,intent(inout)		:: A(n1,n2,n3,nresults)
+
+	integer		:: n,i,j,k,ic,jc,kc
+
+	call updatefaces(A,n1,n2,n3,nresults,1)
+	call updatefaces(A,n1,n2,n3,nresults,2)
+	call updatefaces(A,n1,n2,n3,nresults,3)
+
+	!halo values to correct cells in array
+	do n = 1, nhalobins
+		i = halobins(n,1); j = halobins(n,2); k = halobins(n,3)
+
+		!print'(7i8)', n,i,j,k,int_heaviside(nbins(1)+1-i)-int_heaviside(i-2), & 
+		!					   int_heaviside(nbins(2)+1-j)-int_heaviside(j-2), &
+		!!					   int_heaviside(nbins(3)+1-k)-int_heaviside(k-2)
+
+		!Change in number of Molecules in halo cells
+		ic = i + int_heaviside(nbins(1)+1-i)-int_heaviside(i-2)
+		jc = j + int_heaviside(nbins(2)+1-j)-int_heaviside(j-2)
+		kc = k + int_heaviside(nbins(3)+1-k)-int_heaviside(k-2)
+
+		A(ic,jc,kc,:) = A(ic,jc,kc,:) + A(i,j,k,:)
+	enddo
+
+end subroutine swaphalos
+
+!Update face halo cells by passing to neighbours
+subroutine updatefaces(A,n1,n2,n3,nresults,ixyz)
+	use messenger
+	use mpi
+	implicit none
+	!include "mpif.h"
+
+	integer,intent(in)								:: n1,n2,n3,nresults
+	double precision,intent(inout)					:: A(n1,n2,n3,nresults)
+
+	integer 										:: ixyz
+	integer 										:: icount,isource,idest
+	double precision,dimension(:,:,:,:),allocatable	:: buf1, buf2
+
+	!Determine size of send buffer and copy to buffer data to pass to lower neighbour
+	select case (ixyz)
+	case (1)
+		allocate(buf1(1,n2,n3,nresults), buf2(1,n2,n3,nresults))
+		icount = 1*n2*n3*nresults
+
+		buf1(1,:,:,:) = A(1,:,:,:)
+	case (2)
+		allocate(buf1(n1,1,n3,nresults), buf2(n1,1,n3,nresults))
+		icount = n1*1*n3*nresults
+
+		buf1(:,1,:,:) = A(:,1,:,:)
+	case (3)
+		allocate(buf1(n1,n2,1,nresults), buf2(n1,n2,1,nresults))
+		icount = n1*n2*1*nresults
+
+		buf1(:,:,1,:) = A(:,:,1,:)
+	case default
+		stop "updateBorder: invalid value for ixyz"
+	end select
+
+	! Send to lower neighbor
+	call MPI_Cart_shift(icomm_grid, ixyz-1, -1, isource, idest, ierr)
+	call MPI_sendrecv(buf1, icount, MPI_double_precision, idest, 0, &
+	                  buf2, icount, MPI_double_precision, isource, 0, &
+	                  icomm_grid, MPI_STATUS_IGNORE, ierr)
+
+	!Save recieved data from upper neighbour and copy to buffer data to pass to upper neighbour
+	select case (ixyz)
+	case (1)
+		A(1,:,:,:) = buf2(1,:,:,:)
+		buf1(1,:,:,:) = A(n1,:,:,:)
+	case (2)
+		A(:,1,:,:) = buf2(:,1,:,:)
+		buf1(:,1,:,:) = A(:,n2,:,:)
+	case (3)
+		A(:,:,1,:) = buf2(:,:,1,:)
+		buf1(:,:,1,:) = A(:,:,n3,:)
+	end select
+
+	! Send to upper neighbor
+	call MPI_Cart_shift(icomm_grid, ixyz-1, +1, isource, idest, ierr)
+	call MPI_sendrecv(buf1, icount, MPI_double_precision, idest, 0, &
+	                  buf2, icount, MPI_double_precision, isource, 0, &
+	                  icomm_grid, MPI_STATUS_IGNORE, ierr)
+
+
+	!Save recieved data from lower neighbour
+	select case (ixyz)
+	case (1)
+		A(n1,:,:,:) = buf2(1,:,:,:)
+	case (2)
+		A(:,n2,:,:) = buf2(:,1,:,:) 
+	case (3)
+		A(:,:,n3,:) = buf2(:,:,1,:)
+	end select
+
+	deallocate(buf1, buf2)
+
+end subroutine updatefaces
+
+
 !======================================================================
 !			Data gathering subroutines                    =
 !======================================================================
@@ -2225,7 +2341,6 @@ subroutine globalGathernp()
 
 	return
 end
-
 
 !----Sum routines over global sub communitcators
 

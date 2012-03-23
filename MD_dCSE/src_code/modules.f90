@@ -330,7 +330,7 @@ module calculated_properties_MD
 
 	integer		 							:: nshells			    !Number of shells used to store radial distribution
 	integer		 							:: nplanes			    !Number of planes used for MOP
-	integer,dimension(3) 					:: nbins, globalnbins	!Number of groups or bins to store frequency of molecular velocity
+	integer,dimension(3) 					:: nbins, gnbins		!Number of groups or bins to store frequency of molecular velocity
 	integer,dimension(:), allocatable 		:: vfd_bin        		!Array to keep tally of molecular velocity distribution
 	integer,dimension(:), allocatable 		:: shell          		!Array to keep tally of radial distribution
 	integer,dimension(:), allocatable 		:: slice_mass	    	!Array to keep tally of molecules in slice

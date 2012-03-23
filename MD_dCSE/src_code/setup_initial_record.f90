@@ -168,15 +168,15 @@ subroutine setup_initial_record
 
 			print'(3(a,i8),a)', ' Mass slice recorded every:', & 
 					tplot,' x ',Nmass_ave,' = ',tplot*Nmass_ave,' iterations'
-			print'(a,i8,2a)', ' Domain split into',globalnbins(mass_outflag) ,' mass Averaging Slices in  ', ixyz_char  
+			print'(a,i8,2a)', ' Domain split into',gnbins(mass_outflag) ,' mass Averaging Slices in  ', ixyz_char  
 			print'(a,f10.5)', ' With each averaging slice of width:', & 
-						globaldomain(mass_outflag)/globalnbins(mass_outflag)
+						globaldomain(mass_outflag)/gnbins(mass_outflag)
 		case(4)
 			print'(3(a,i8),a)', ' mass 3D bins recorded every:', &
 					tplot,' x ',Nvel_ave,' = ',tplot*Nvel_ave,' iterations'
-			print'(a,3i8)', ' Domain split into mass Averaging Bins in x,y and z:', globalnbins
+			print'(a,3i8)', ' Domain split into mass Averaging Bins in x,y and z:', gnbins
 			print'(a,3f10.5)', ' Each of size:', & 
-			globaldomain(1)/globalnbins(1), globaldomain(2)/globalnbins(2),globaldomain(3)/globalnbins(3)
+			globaldomain(1)/gnbins(1), globaldomain(2)/gnbins(2),globaldomain(3)/gnbins(3)
 		case default
 			call error_abort("Invalid Mass output flag in input file")
 		end select
@@ -197,16 +197,16 @@ subroutine setup_initial_record
 
 			print'(3(a,i8),a)', ' Velocity slice recorded every:', & 
 					tplot,' x ',Nvel_ave,' = ',tplot*Nvel_ave,' iterations'
-			print'(a,i8,2a)', ' Domain split into',globalnbins(velocity_outflag) , & 
+			print'(a,i8,2a)', ' Domain split into',gnbins(velocity_outflag) , & 
 					  ' Velocity Averaging Slices in  ', ixyz_char  
 			print'(a,f10.5)', ' With each averaging slice of width:', & 
-						globaldomain(velocity_outflag)/globalnbins(velocity_outflag)
+						globaldomain(velocity_outflag)/gnbins(velocity_outflag)
 		case(4)
 			print'(3(a,i8),a)', ' Velocity 3D bins recorded every:', &
 					tplot,' x ',Nvel_ave,' = ',tplot*Nvel_ave,' iterations'
-			print'(a,3i8)', ' Domain split into Velocity Averaging Bins in x,y and z:', globalnbins
+			print'(a,3i8)', ' Domain split into Velocity Averaging Bins in x,y and z:', gnbins
 			print'(a,3f10.5)', ' Each of size:', & 
-			globaldomain(1)/globalnbins(1), globaldomain(2)/globalnbins(2),globaldomain(3)/globalnbins(3)
+			globaldomain(1)/gnbins(1), globaldomain(2)/gnbins(2),globaldomain(3)/gnbins(3)
 		case default
 			call error_abort("Invalid Velocity output flag in input file")
 		end select
@@ -225,15 +225,15 @@ subroutine setup_initial_record
 			if (split_kin_config .eq. 0) then
 				print'(3(a,i8),a)', ' Pressure tensor Volume Averaged recorded every', & 
 						tplot,' x ',Nstress_ave,' = ',tplot*Nstress_ave,' iterations'
-				print'(a,3i8)', ' Domain split into Pressure Volume Averaging Bins in x,y and z:', globalnbins
+				print'(a,3i8)', ' Domain split into Pressure Volume Averaging Bins in x,y and z:', gnbins
 				print'(a,3f10.5)', ' Each of size:', & 
-				globaldomain(1)/globalnbins(1), globaldomain(2)/globalnbins(2),globaldomain(3)/globalnbins(3)
+				globaldomain(1)/gnbins(1), globaldomain(2)/gnbins(2),globaldomain(3)/gnbins(3)
 			else
 				print'(3(a,i8),a)', ' Seperate Kinetic/Configurational Pressure tensor Volume Averaged recorded every', & 
 						tplot,' x ',Nstress_ave,' = ',tplot*Nstress_ave,' iterations'
-				print'(a,3i8)', ' Domain split into Pressure Volume Averaging Bins in x,y and z:', globalnbins
+				print'(a,3i8)', ' Domain split into Pressure Volume Averaging Bins in x,y and z:', gnbins
 				print'(a,3f10.5)', ' Each of size:', & 
-				globaldomain(1)/globalnbins(1), globaldomain(2)/globalnbins(2),globaldomain(3)/globalnbins(3)
+				globaldomain(1)/gnbins(1), globaldomain(2)/gnbins(2),globaldomain(3)/gnbins(3)
 			endif
 		case default
 			call error_abort("Invalid Pressure tensor output flag in input file")
@@ -261,9 +261,9 @@ subroutine setup_initial_record
 		case(1)
 			print'(3(a,i8),a)', ' Mass flux over surface of 3D bins and snapshots recorded every:', &
 					tplot,' x ',Nmflux_ave,' = ',tplot*Nmflux_ave,' iterations'
-			print'(a,3i8)', ' Domain split into bins in x,y and z:', globalnbins
+			print'(a,3i8)', ' Domain split into bins in x,y and z:', gnbins
 			print'(a,3f10.5)', ' Each of size:', & 
-			globaldomain(1)/globalnbins(1), globaldomain(2)/globalnbins(2),globaldomain(3)/globalnbins(3)
+			globaldomain(1)/gnbins(1), globaldomain(2)/gnbins(2),globaldomain(3)/gnbins(3)
 		case default
 			call error_abort("Invalid mass flux output flag in input file")
 		end select
@@ -289,9 +289,9 @@ subroutine setup_initial_record
 		case(4)
 			print'(3(a,i8),a)', ' Momentum flux over surface of 3D bins and snapshots recorded every:', &
 					tplot,' x ',Nvflux_ave,' = ',tplot*Nvflux_ave,' iterations'
-			print'(a,3i8)', ' Domain split into bins in x,y and z:', globalnbins
+			print'(a,3i8)', ' Domain split into bins in x,y and z:', gnbins
 			print'(a,3f10.5)', ' Each of size:', & 
-			globaldomain(1)/globalnbins(1), globaldomain(2)/globalnbins(2),globaldomain(3)/globalnbins(3)
+			globaldomain(1)/gnbins(1), globaldomain(2)/gnbins(2),globaldomain(3)/gnbins(3)
 		case default
 			call error_abort("Invalid velocity flux output flag in input file")
 		end select

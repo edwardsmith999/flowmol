@@ -45,6 +45,19 @@ module module_parallel_io
 
 	integer		:: restartfileid, fileid !File name used for parallel i/o
 
+	!Allows write arrays to be used with both integers and reals
+	!interface write_arrays
+	! 	subroutine iwrite_arrays(some_array,nx,ny,nz,nresults)
+	!		integer, intent(in)						:: nx,ny,nz,nresults
+	!		integer, dimension(:,:,:,:),intent(in)	:: some_array!(nx,ny,nz,nresults)
+	!	end subroutine iwrite_arrays
+
+	!	subroutine rwrite_arrays(some_array,nx,ny,nz,nresults)
+	!		integer, intent(in)								:: nx,ny,nz,nresults
+	!		double precision, dimension(:,:,:,:),intent(in)	:: some_array!(nx,ny,nz,nresults)
+	!	end subroutine rwrite_arrays
+	!end interface write_arrays
+
 end module
 
 !======================================================================
@@ -606,12 +619,12 @@ subroutine simulation_header
 	write(3,*)  'viscosity average samples ;  Nvisc_ave ;', Nvisc_ave
 	write(3,*)  'mass flux average steps ;  Nmflux_ave ;', Nmflux_ave
 	write(3,*)  'velocity flux average steps ;  Nvflux_ave ;', Nvflux_ave
-	write(3,*)  'Velocity/stress Averaging Bins in x ;  globalnbins(1) ;', globalnbins(1)
-	write(3,*)  'Velocity/stress Averaging Bins in y ;  globalnbins(2) ;', globalnbins(2)
-	write(3,*)  'Velocity/stress Averaging Bins in z ;  globalnbins(3) ;', globalnbins(3)
-	write(3,*)  'Of size in x ;  binsize(1)  ;', globaldomain(1)/globalnbins(1) 
-	write(3,*)  'Of size in y ;  binsize(2)  ;', globaldomain(2)/globalnbins(2) 
-	write(3,*)  'Of size in z ;  binsize(3)  ;', globaldomain(3)/globalnbins(3) 
+	write(3,*)  'Velocity/stress Averaging Bins in x ;  globalnbins(1) ;', gnbins(1)
+	write(3,*)  'Velocity/stress Averaging Bins in y ;  globalnbins(2) ;', gnbins(2)
+	write(3,*)  'Velocity/stress Averaging Bins in z ;  globalnbins(3) ;', gnbins(3)
+	write(3,*)  'Of size in x ;  binsize(1)  ;', globaldomain(1)/gnbins(1) 
+	write(3,*)  'Of size in y ;  binsize(2)  ;', globaldomain(2)/gnbins(2) 
+	write(3,*)  'Of size in z ;  binsize(3)  ;', globaldomain(3)/gnbins(3) 
 	write(3,*)  'Bins per Processor in x ;  nbins(1) ;', nbins(1)
 	write(3,*)  'Bins per Processor in y ;  nbins(2) ;', nbins(2)
 	write(3,*)  'Bins per Processor in z ;  nbins(3) ;', nbins(3)
@@ -1328,7 +1341,7 @@ subroutine mass_slice_io(ixyz)
 
 		!Obtain displacement of current record
 		disp =   (iter/(tplot*Nmass_ave) - 1) 	  	&		!Current iteration
-		       * globalnbins(ixyz)*int_datasize 	&		!Record size
+		       * gnbins(ixyz)*int_datasize 	&		!Record size
 		       + nbins(ixyz)*int_datasize*(jblock-1)		!Processor location
 
 		call MPI_FILE_SET_VIEW(slicefileid, disp, MPI_INTEGER, & 
@@ -1433,7 +1446,7 @@ subroutine velocity_slice_io(ixyz)
 
 		!Obtain displacement of x record
 		disp =   (iter/(tplot*Nmass_ave) - 1) 	  	&	!Current iteration
-		       * nd*globalnbins(ixyz)*dp_datasize 	&	!times record size
+		       * nd*gnbins(ixyz)*dp_datasize 	&	!times record size
 		       + nbins(ixyz)*dp_datasize*(jblock-1)		!Processor location
 
 		call MPI_FILE_SET_VIEW(slicefileid, disp, MPI_DOUBLE_PRECISION, & 
@@ -1443,7 +1456,7 @@ subroutine velocity_slice_io(ixyz)
 
 		!Obtain displacement of y record
 		disp =   (iter/(tplot*Nmass_ave) - 1) 	  	&	!Current iteration
-		       * nd*globalnbins(ixyz)*dp_datasize 	&	!Record size
+		       * nd*gnbins(ixyz)*dp_datasize 	&	!Record size
 		       + nbins(ixyz)*dp_datasize*(jblock-1)	&	!Processor location
 		       + nbins(ixyz)*dp_datasize*idims(ixyz)		!after x data 
 
@@ -1454,7 +1467,7 @@ subroutine velocity_slice_io(ixyz)
 
 		!Obtain displacement of z record
 		disp =   (iter/(tplot*Nmass_ave) - 1) 	  	&	!Current iteration
-		       * nd*globalnbins(ixyz)*dp_datasize 	&	!Record size
+		       * nd*gnbins(ixyz)*dp_datasize 	&	!Record size
 		       + nbins(ixyz)*dp_datasize*(jblock-1)	&	!Processor location
 		       + 2*nbins(ixyz)*dp_datasize*idims(ixyz)		!after x & y data 
 
@@ -1493,7 +1506,7 @@ subroutine parallel_slice_io_large_scale
 
 	!Obtain displacement of current record
 	disp =(iter/real((tplot*Nvel_ave),kind(0.d0))-1) *       &	!Current iteration
-	      globalnbins(1) *(int_datasize+3*dp_datasize) & 		!Current iteration	
+	      gnbins(1) *(int_datasize+3*dp_datasize) & 		!Current iteration	
 	      + nbins(1)*(3*dp_datasize)*(jblock-1)			!Processor location
 	!Set current processes view
 	call MPI_FILE_SET_VIEW(slicefileid, disp, MPI_double_precision, & 
@@ -1506,9 +1519,9 @@ subroutine parallel_slice_io_large_scale
 
 	!Obtain displacement of current record
 	disp =(iter/real((tplot*Nvel_ave),kind(0.d0))-1) *		& !Current iteration
-	      globalnbins(1) * (int_datasize+dp_datasize)  & !Current iteration	
+	      gnbins(1) * (int_datasize+dp_datasize)  & !Current iteration	
 		+ nbins(1)*(int_datasize)*(jblock-1) 	& !Processor location
-		+ globalnbins(1)* dp_datasize 		  !After binned velocity
+		+ gnbins(1)* dp_datasize 		  !After binned velocity
 
 	!Set current processes view
 	call MPI_FILE_SET_VIEW(slicefileid, disp, MPI_Integer, & 
@@ -1527,19 +1540,91 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 	use calculated_properties_MD
 	implicit none
 
-	integer				:: n,m,i,j,k
-	integer				:: length
-	integer				:: CV_mass_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
-	double precision		:: CV_momentum_out(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)
+	integer					:: n,m,i,j,k
+	integer					:: length
+	integer					:: CV_mass_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
+	double precision		:: CV_momentum_out(nbins(1)+2,nbins(2)+2,nbins(3)+2,3),temp
 	character(4)			:: io_type
-	character(13)			:: filename
+	character(30)			:: filename,outfile
+
+	integer												:: nresults,fh,filesize,dp_size
+	double precision, allocatable,dimension(:,:,:,:) 	:: some_array
 
 	!Write mass bins
-	call mass_bin_io(CV_mass_out,io_type)
+	!call mass_bin_io(CV_mass_out,io_type)
+
+	!Work out correct filename for i/o type
+	!write(filename, '(a9,a4)' ) trim(prefix_dir)//'results/m', io_type
+	write(filename, '(a9,a4)' ) 'results/v', io_type
+	outfile = trim(prefix_dir)//filename
+
+	!Setup arrays
+	nresults = 3
+	if (io_type .eq. 'snap') then
+		!CV_momentum_out = CV_momentum_out / (tplot*Nvflux_ave)
+		m = iter/(Nvflux_ave) + 1 !Initial snapshot taken
+	else
+		!CV_momentum_out = CV_momentum_out / (tplot*Nvel_ave)
+		m = iter/(tplot*Nvel_ave)
+	endif
+
+	!allocate(some_array(nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults))
+	!some_array(:,:,:,1)	= 0.1d0	!Set halos to 0.1
+	!some_array(:,:,:,2)	= 0.01d0	!Set halos to 0.01
+	!some_array(:,:,:,3)	= 0.001d0	!Set halos to 0.01
+	!do k=2,nbins(3)+1
+	!do j=2,nbins(2)+1
+	!do i=2,nbins(1)+1
+	!	some_array(i,j,k,1) = (i-2) + gnbins(1)*(j-2) + gnbins(1)*gnbins(2)*(k-2) +1 &
+	!						  +(iblock-1)*nbins(1) & 
+	!						  +(jblock-1)*nbins(2)*gnbins(1) & 
+	!						  +(kblock-1)*nbins(3)*gnbins(2)*gnbins(1)
+	!	some_array(i,j,k,2) = (i-2) + gnbins(1)*(j-2) + gnbins(1)*gnbins(2)*(k-2) +1 &
+	!						  +(iblock-1)*nbins(1) & 
+	!						  +(jblock-1)*nbins(2)*gnbins(1) & 
+	!						  +(kblock-1)*nbins(3)*gnbins(2)*gnbins(1) + 1000
+	!	some_array(i,j,k,3) = (i-2) + gnbins(1)*(j-2) + gnbins(1)*gnbins(2)*(k-2) +1 &
+	!						  +(iblock-1)*nbins(1) & 
+	!						  +(jblock-1)*nbins(2)*gnbins(1) & 
+	!						  +(kblock-1)*nbins(3)*gnbins(2)*gnbins(1) + 100000
+
+		
+		!print*, irank, i,j,k,some_array(i,j,k,1)
+		!write(irank,'(4i8,2f18.1)'), irank,i,j,k, some_array(i,j,k,:)
+	!enddo
+	!enddo
+	!enddo
+
+	! ===========================================================
+	! ==================    SWAP HALOS		 ====================   
+	! ===========================================================
+	call swaphalos(CV_momentum_out,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults)
+
+	!Write out arrays
+	!print*, size(some_array)
+	call write_arrays(CV_momentum_out,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,outfile)
+
+	! SYNC ALL THE PROCESSORS
+	!CALL MPI_BARRIER(MD_COMM,IERR)
+	!deallocate(some_array)
+
+	!Test by reading file
+	!if (irank .eq. iroot) then
+	!	call MPI_FILE_OPEN(MPI_COMM_SELF,outfile,MPI_MODE_RDONLY , & 
+	!		 			MPI_INFO_NULL, fh, ierr)
+	!	call MPI_file_get_size(fh,filesize,ierr)
+	!	call MPI_TYPE_SIZE(MPI_DOUBLE_PRECISION, dp_size, ierr)
+		!print*, filesize,dp_size
+	!	do i = 1,filesize/dp_size
+	!		call MPI_File_read(fh,temp,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+	!		print'(i8,f15.3)', i, temp
+	!	enddo
+	!	CALL MPI_FILE_CLOSE(fh, ierr)
+	!endif
+
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	!Work out correct filename for i/o type
-	!write(filename, '(a9,a4)' ) 'results/v', io_type
+
 
 	!---------------Correct for surface fluxes on halo cells---------------
 	!Include halo surface fluxes to get correct values for all cells
@@ -1556,13 +1641,7 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 	!						+ CV_momentum_out(i,j,k,:)
 	!enddo
 
-	if (io_type .eq. 'snap') then
-		!CV_momentum_out = CV_momentum_out / (tplot*Nvflux_ave)
-		m = iter/(Nvflux_ave) + 1 !Initial snapshot taken
-	else
-		!CV_momentum_out = CV_momentum_out / (tplot*Nvel_ave)
-		m = iter/(tplot*Nvel_ave)
-	endif
+
 	!Write velocity to file
 	!inquire(iolength=length) CV_momentum_out(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
 	!open (unit=6, file=filename,form="unformatted",access='direct',recl=length)
@@ -1928,3 +2007,227 @@ use module_parallel_io
 implicit none
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 end subroutine r_gyration_io
+
+
+
+
+subroutine iwrite_arrays(some_array,nx,ny,nz,nresults)
+	use module_parallel_io
+	use messenger, only : icomm_grid
+	implicit none
+
+	integer, intent(in)						:: nx,ny,nz,nresults
+	integer, dimension(:,:,:,:),intent(in)	:: some_array!(nx,ny,nz,nresults)
+
+	integer									:: fh
+	integer 								:: MEM_FLAG = 0
+	integer 								:: FILE_FLAG = 0
+	integer									:: n
+	integer									:: global_cnt,int_size,datatype
+	integer									:: status(mpi_status_size)
+	integer			   						:: filetype, memtype
+	integer (kind=MPI_offset_kind)			:: offset
+	integer, dimension(3)					:: gsizes, lsizes, memsizes
+	integer, dimension(3)					:: global_indices, local_indices
+	integer, dimension(:,:),allocatable 	:: proc_lsizes 
+
+	integer, allocatable,dimension(:,:,:)	:: OutBuffer
+
+	character(len=18)						:: fn2
+
+
+	datatype = MPI_INTEGER
+	call MPI_TYPE_SIZE(datatype, int_size, ierr)
+
+	FN2 ='output_mpi_io.out'
+	call MPI_file_open(icomm_grid, FN2, MPI_MODE_WRONLY+MPI_MODE_CREATE, &
+			   					MPI_INFO_NULL, fh, ierr)
+
+	!--------- DEFINE LIMITS (FILE & LOCAL SUBARRAY) -------
+	!  Note:  MPI assumes here that numbering starts from zero
+	!  Since numbering starts from (one), subtract (one) from every index
+	!-------------------------------------------------------
+	iter = 0
+	global_cnt = iter*gnbins(1)*gnbins(2)*gnbins(3)*nresults
+	offset     = global_cnt * int_size
+	gsizes = gnbins
+	lsizes = nbins
+	local_indices(:) = (/  0  , 0 , 0 /)
+	!Calculate global_indices
+	global_indices(:)= (/  0  , 0 , 0 /)
+	allocate(proc_lsizes(3,nproc))
+	call globalGather(lsizes,proc_lsizes,3)
+	global_indices(1) = sum(proc_lsizes(1,1:iblock-1))
+	global_indices(2) = sum(proc_lsizes(2,1:jblock-1))
+	global_indices(3) = sum(proc_lsizes(3,1:kblock-1))
+	deallocate(proc_lsizes)
+
+	!Allocate ouput buffer
+	allocate(OutBuffer(lsizes(1),lsizes(2),lsizes(3)))
+	memsizes = lsizes
+
+	do n =1,nresults
+
+		!Copy to outbuffer
+		OutBuffer =  some_array(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,n)
+		!Update array datatype and reset fileview to correct section of array
+		CALL Create_commit_fileview(gsizes ,lsizes,global_indices,offset,datatype,filetype)
+		!Update local array datatype to ignore halo cells
+		CALL Create_commit_subarray(memsizes,lsizes,local_indices,datatype ,memtype)
+		!Write to file
+		CALL MPI_file_write_all(fh, OutBuffer, 1, memtype, status, ierr)
+
+		!Calculate global cnt offset
+		global_cnt = global_cnt + gnbins(1)*gnbins(2)*gnbins(3)
+		offset = global_cnt * int_size
+	
+	enddo
+
+	deallocate(OutBuffer)
+	CALL MPI_FILE_CLOSE(fh, ierr)
+
+	!==========================================================
+	!     FREE DATA TYPES
+	!----------------------------------------------------------
+	CALL MPI_BARRIER(icomm_grid,IERR)
+	call MPI_TYPE_FREE(memtype,ierr) ; MEM_FLAG = 0
+	call MPI_TYPE_FREE(filetype,ierr); FILE_FLAG = 0
+
+end subroutine iwrite_arrays
+
+
+subroutine write_arrays(some_array,nx,ny,nz,nresults,outfile)
+	use module_parallel_io
+	use messenger, only : icomm_grid
+	implicit none
+
+	integer, intent(in)								:: nx,ny,nz,nresults
+	double precision, dimension(:,:,:,:),intent(in)	:: some_array(nx,ny,nz,nresults)
+	character(*),intent(in) 						:: outfile
+
+	integer								:: n, fh
+	integer 							:: MEM_FLAG = 0
+	integer 							:: FILE_FLAG = 0
+	integer								:: global_cnt,dp_size,datatype
+	integer								:: status(mpi_status_size)
+	integer			   					:: filetype, memtype
+	integer (kind=MPI_offset_kind)		:: offset
+	integer, dimension(3)				:: gsizes, lsizes, memsizes
+	integer, dimension(3)				:: global_indices, local_indices
+	integer, dimension(:,:),allocatable :: proc_lsizes 
+	double precision, allocatable,dimension(:,:,:) 		:: OutBuffer
+
+	datatype = MPI_DOUBLE_PRECISION
+	call MPI_TYPE_SIZE(datatype, dp_size, ierr)
+
+	call MPI_file_open(icomm_grid, outfile, MPI_MODE_WRONLY+MPI_MODE_CREATE, &
+			   					MPI_INFO_NULL, fh, ierr)
+
+	!--------- DEFINE LIMITS (FILE & LOCAL SUBARRAY) -------
+	!  Note:  MPI assumes here that numbering starts from zero
+	!  Since numbering starts from (one), subtract (one) from every index
+	!-------------------------------------------------------
+	global_cnt 	= ((iter-1)/tplot)*gnbins(1)*gnbins(2)*gnbins(3)*nresults
+	offset		= global_cnt * dp_size
+	gsizes 		= gnbins
+	lsizes		= nbins
+	local_indices(:) = (/  0  , 0 , 0 /)
+	!Calculate global_indices
+	global_indices(:)= (/  0  , 0 , 0 /)
+	allocate(proc_lsizes(3,nproc))
+	call globalGather(lsizes,proc_lsizes,3)
+	global_indices(1) = sum(proc_lsizes(1,1:iblock-1))
+	global_indices(2) = sum(proc_lsizes(2,1:jblock-1))
+	global_indices(3) = sum(proc_lsizes(3,1:kblock-1))
+	deallocate(proc_lsizes)
+
+	!Allocate ouput buffer
+	allocate(OutBuffer(lsizes(1),lsizes(2),lsizes(3)))
+	memsizes = lsizes
+
+	do n =1,nresults
+		!print*,n, allocated(OutBuffer),size(some_array(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,n)), size(OutBuffer)
+		!Copy to outbuffer
+		OutBuffer =  some_array(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,n)
+		!Update array datatype and reset fileview to correct section of array
+		CALL Create_commit_fileview(gsizes,lsizes,global_indices,offset,datatype,FILE_FLAG,filetype)
+		!Update local array datatype to ignore halo cells
+		CALL Create_commit_subarray(memsizes,lsizes,local_indices,datatype,MEM_FLAG,memtype)
+		!Write to file
+		CALL MPI_file_write_all(fh, OutBuffer, 1, memtype, status, ierr)
+
+		!Calculate global cnt offset
+		global_cnt = global_cnt + gnbins(1)*gnbins(2)*gnbins(3)
+		offset = global_cnt * dp_size
+	
+	enddo
+
+	deallocate(OutBuffer)
+	CALL MPI_FILE_CLOSE(fh, ierr)
+
+	!==========================================================
+	!     FREE DATA TYPES
+	!----------------------------------------------------------
+	CALL MPI_BARRIER(icomm_grid,IERR)
+	call MPI_TYPE_FREE(memtype,ierr) ; MEM_FLAG = 0
+	call MPI_TYPE_FREE(filetype,ierr); FILE_FLAG = 0
+
+end subroutine write_arrays
+
+
+subroutine Create_commit_fileview(gsizes, lsizes, global_indices,offset,datatype,FILE_FLAG,filetype)
+	use module_parallel_io
+	implicit none
+
+	integer,intent(out)							:: filetype
+	integer,intent(in)							:: datatype
+	integer (kind=MPI_offset_kind),intent(in)	:: offset
+	integer, dimension(3),intent(in)			:: gsizes, lsizes, global_indices
+	integer,intent(inout)						:: FILE_FLAG
+
+	integer										:: fh
+
+	if (FILE_FLAG.eq.1) then
+		CALL MPI_TYPE_FREE(filetype,ierr)
+		FILE_FLAG = 0
+	end if
+	CALL MPI_TYPE_CREATE_SUBARRAY(nd, gsizes, lsizes, global_indices, &
+									MPI_ORDER_FORTRAN, datatype,  filetype, ierr)
+	CALL MPI_TYPE_COMMIT(filetype, ierr)
+	CALL MPI_FILE_SET_VIEW(fh, offset, datatype, filetype, &
+			       			'native', MPI_INFO_NULL, ierr)
+	FILE_FLAG = 1
+	
+end subroutine
+
+subroutine Create_commit_subarray(memsizes,lsizes,local_indices,datatype,MEM_FLAG,memtype)
+	use module_parallel_io
+	implicit none
+
+	integer,intent(out)				::  memtype
+	integer,intent(in)				:: datatype
+	integer, dimension(3),intent(in):: memsizes, lsizes, local_indices
+	integer,intent(inout)			:: MEM_FLAG
+
+
+	if (MEM_FLAG.eq.1) then
+		CALL MPI_TYPE_FREE(memtype,ierr)
+		MEM_FLAG = 0
+	end if
+	CALL MPI_TYPE_CREATE_SUBARRAY(nd, memsizes, lsizes, local_indices, &
+			MPI_ORDER_FORTRAN, datatype,  memtype, ierr)
+	CALL MPI_TYPE_COMMIT(memtype, ierr)
+	MEM_FLAG = 1
+	
+end subroutine
+
+
+
+
+
+
+
+
+
+
+

@@ -205,14 +205,22 @@ implicit none
 end subroutine
 
 !-------------------------------------------------------------------------------------
-!Returns the heaviside function for input a
+!Returns the heaviside function for input x
 
-function heaviside(a)
+function int_heaviside(x)
 
-	integer				:: heaviside
-	double precision,intent(in)	:: a
+	integer							:: int_heaviside
+	integer	,intent(in)				:: x
+	int_heaviside = 0.5*sign(1,x)+1
 
-	heaviside = ceiling(sign(0.5d0,a))
+end function
+
+function heaviside(x)
+
+	integer						:: heaviside
+	double precision,intent(in)	:: x
+
+	heaviside = ceiling(sign(0.5d0,x))
 
 end function heaviside
 
