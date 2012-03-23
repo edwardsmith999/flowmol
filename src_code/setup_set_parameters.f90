@@ -492,22 +492,21 @@ subroutine set_parameters_outputs
 	initialvel = sqrt(nd * (1.d0 - 1.d0/np)*inputtemperature)
 
 	!Allocate bins used for calculating simulation properties
-	globalnbins(1) = ncells(1) !initialnunits(1) ! npx*ncells(1) !Total number of domain bins
- 	globalnbins(2) = ncells(2) !initialnunits(2) !Total number of domain bins
-	globalnbins(3) = ncells(3) !initialnunits(3) !Total number of domain bins
+	gnbins(1) = npx*ncells(1) !Total number of domain bins
+ 	gnbins(2) = npy*ncells(2) !Total number of domain bins
+	gnbins(3) = npz*ncells(3) !Total number of domain bins
 
-	nbins(1) = nint(globalnbins(1)/dble(npx))	!Share global evenly between processes
-	nbins(2) = nint(globalnbins(2)/dble(npy))	!Share global evenly between processes
-	nbins(3) = nint(globalnbins(3)/dble(npz))	!Share global evenly between processes
+	nbins(1) = nint(gnbins(1)/dble(npx))	!Share global evenly between processes
+	nbins(2) = nint(gnbins(2)/dble(npy))	!Share global evenly between processes
+	nbins(3) = nint(gnbins(3)/dble(npz))	!Share global evenly between processes
 
 	!Obtain global number of bins after rounding to given same number per process
-	globalnbins(1) = nbins(1)
-	globalnbins(2) = nbins(2)
-	globalnbins(3) = nbins(3)
-	call SubcommSum(globalnbins(1),1)	!Sum up over all x processes
-	call SubcommSum(globalnbins(2),2)	!Sum up over all y processes
-	call SubcommSum(globalnbins(3),3)	!Sum up over all z processes
-
+	gnbins(1) = nbins(1)
+	gnbins(2) = nbins(2)
+	gnbins(3) = nbins(3)
+	call SubcommSum(gnbins(1),1)	!Sum up over all x processes
+	call SubcommSum(gnbins(2),2)	!Sum up over all y processes
+	call SubcommSum(gnbins(3),3)	!Sum up over all z processes
 
 	!nbins(1) = ceiling(np/10.d0)    	!Set number of equal sized velocity ranges based on 1/10 number of molecules
 	allocate(vfd_bin(nbins(1)))           	!Allocate storage space for frequency tally over time
