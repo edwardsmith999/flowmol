@@ -619,9 +619,9 @@ subroutine simulation_header
 	write(3,*)  'viscosity average samples ;  Nvisc_ave ;', Nvisc_ave
 	write(3,*)  'mass flux average steps ;  Nmflux_ave ;', Nmflux_ave
 	write(3,*)  'velocity flux average steps ;  Nvflux_ave ;', Nvflux_ave
-	write(3,*)  'Velocity/stress Averaging Bins in x ;  globalnbins(1) ;', gnbins(1)
-	write(3,*)  'Velocity/stress Averaging Bins in y ;  globalnbins(2) ;', gnbins(2)
-	write(3,*)  'Velocity/stress Averaging Bins in z ;  globalnbins(3) ;', gnbins(3)
+	write(3,*)  'Velocity/stress Averaging Bins in x ;  gnbins(1) ;', gnbins(1)
+	write(3,*)  'Velocity/stress Averaging Bins in y ;  gnbins(2) ;', gnbins(2)
+	write(3,*)  'Velocity/stress Averaging Bins in z ;  gnbins(3) ;', gnbins(3)
 	write(3,*)  'Of size in x ;  binsize(1)  ;', globaldomain(1)/gnbins(1) 
 	write(3,*)  'Of size in y ;  binsize(2)  ;', globaldomain(2)/gnbins(2) 
 	write(3,*)  'Of size in z ;  binsize(3)  ;', globaldomain(3)/gnbins(3) 
@@ -2071,7 +2071,7 @@ subroutine iwrite_arrays(some_array,nx,ny,nz,nresults)
 		!Copy to outbuffer
 		OutBuffer =  some_array(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,n)
 		!Update array datatype and reset fileview to correct section of array
-		CALL Create_commit_fileview(gsizes ,lsizes,global_indices,offset,datatype,filetype)
+		CALL Create_commit_fileview(gsizes,lsizes,global_indices,offset,datatype,filetype)
 		!Update local array datatype to ignore halo cells
 		CALL Create_commit_subarray(memsizes,lsizes,local_indices,datatype ,memtype)
 		!Write to file
@@ -2146,11 +2146,11 @@ subroutine write_arrays(some_array,nx,ny,nz,nresults,outfile)
 	memsizes = lsizes
 
 	do n =1,nresults
-		!print*,n, allocated(OutBuffer),size(some_array(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,n)), size(OutBuffer)
+		print*,n,global_cnt,offset
 		!Copy to outbuffer
 		OutBuffer =  some_array(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,n)
 		!Update array datatype and reset fileview to correct section of array
-		CALL Create_commit_fileview(gsizes,lsizes,global_indices,offset,datatype,FILE_FLAG,filetype)
+		CALL Create_commit_fileview(gsizes,lsizes,global_indices,offset,datatype,FILE_FLAG,filetype,fh)
 		!Update local array datatype to ignore halo cells
 		CALL Create_commit_subarray(memsizes,lsizes,local_indices,datatype,MEM_FLAG,memtype)
 		!Write to file
@@ -2174,18 +2174,15 @@ subroutine write_arrays(some_array,nx,ny,nz,nresults,outfile)
 
 end subroutine write_arrays
 
-
-subroutine Create_commit_fileview(gsizes, lsizes, global_indices,offset,datatype,FILE_FLAG,filetype)
+subroutine Create_commit_fileview(gsizes,lsizes,global_indices,offset,datatype,FILE_FLAG,filetype,fh)
 	use module_parallel_io
 	implicit none
 
-	integer,intent(out)							:: filetype
-	integer,intent(in)							:: datatype
+	integer,intent(inout)						:: filetype
+	integer,intent(in)							:: datatype,fh
 	integer (kind=MPI_offset_kind),intent(in)	:: offset
 	integer, dimension(3),intent(in)			:: gsizes, lsizes, global_indices
 	integer,intent(inout)						:: FILE_FLAG
-
-	integer										:: fh
 
 	if (FILE_FLAG.eq.1) then
 		CALL MPI_TYPE_FREE(filetype,ierr)
@@ -2200,11 +2197,12 @@ subroutine Create_commit_fileview(gsizes, lsizes, global_indices,offset,datatype
 	
 end subroutine
 
+
 subroutine Create_commit_subarray(memsizes,lsizes,local_indices,datatype,MEM_FLAG,memtype)
 	use module_parallel_io
 	implicit none
 
-	integer,intent(out)				::  memtype
+	integer,intent(inout)			:: memtype
 	integer,intent(in)				:: datatype
 	integer, dimension(3),intent(in):: memsizes, lsizes, local_indices
 	integer,intent(inout)			:: MEM_FLAG
