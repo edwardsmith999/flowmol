@@ -132,7 +132,7 @@ subroutine setup_inputs
 	!Read inputs from input file
 	call setup_read_input
 
-	rcutoff2= rcutoff**2         !Useful definition to save computational time
+	rcutoff2= rcutoff**2.d0         !Useful definition to save computational time
 	initialstep = 0   	     	!Set initial step to one to start
 
 	if (seed(1)==seed(2)) then
@@ -456,12 +456,12 @@ subroutine simulation_header
 	write(3,*)  'viscosity average samples ;  Nvisc_ave ;', Nvisc_ave
 	write(3,*)  'mass flux average steps ;  Nmflux_ave ;', Nmflux_ave
 	write(3,*)  'velocity flux average steps ;  Nvflux_ave ;', Nvflux_ave
-	write(3,*)  'Velocity/stress Averaging Bins in x ;  globalnbins(1) ;', globalnbins(1)
-	write(3,*)  'Velocity/stress Averaging Bins in y ;  globalnbins(2) ;', globalnbins(2)
-	write(3,*)  'Velocity/stress Averaging Bins in z ;  globalnbins(3) ;', globalnbins(3)
-	write(3,*)  'Of size in x ;  binsize(1)  ;', globaldomain(1)/globalnbins(1) 
-	write(3,*)  'Of size in y ;  binsize(2)  ;', globaldomain(2)/globalnbins(2) 
-	write(3,*)  'Of size in z ;  binsize(3)  ;', globaldomain(3)/globalnbins(3) 
+	write(3,*)  'Velocity/stress Averaging Bins in x ;  gnbins(1) ;', gnbins(1)
+	write(3,*)  'Velocity/stress Averaging Bins in y ;  gnbins(2) ;', gnbins(2)
+	write(3,*)  'Velocity/stress Averaging Bins in z ;  gnbins(3) ;', gnbins(3)
+	write(3,*)  'Of size in x ;  binsize(1)  ;', globaldomain(1)/gnbins(1) 
+	write(3,*)  'Of size in y ;  binsize(2)  ;', globaldomain(2)/gnbins(2) 
+	write(3,*)  'Of size in z ;  binsize(3)  ;', globaldomain(3)/gnbins(3) 
 	write(3,*)  'Bins per Processor in x ;  nbins(1) ;', nbins(1)
 	write(3,*)  'Bins per Processor in y ;  nbins(2) ;', nbins(2)
 	write(3,*)  'Bins per Processor in z ;  nbins(3) ;', nbins(3)
@@ -836,12 +836,13 @@ end subroutine velocity_slice_io
 subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 	use module_parallel_io
 	use calculated_properties_MD
+	use librarymod, only : get_file_size
 	implicit none
 
 	integer					:: n,m,i,j,k
-	integer					:: length
+	integer					:: length,filesize
 	integer					:: CV_mass_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
-	double precision		:: CV_momentum_out(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)
+	double precision		:: temp,CV_momentum_out(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)
 	double precision		:: buf(nbins(1),nbins(2),nbins(3),3)
 	character(4)			:: io_type
 	character(13)			:: filename
