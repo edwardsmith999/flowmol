@@ -490,6 +490,21 @@ subroutine polymer_bond_error(molnoX)
 	print '(a)', 'Atomic positions:'
 	print '(a,i4,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoi,' is located at ',r(molnoi,1),' ',r(molnoi,2),' ',r(molnoi,3) 
 	print '(a,i4,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoX,' is located at ',r(molnoX,1),' ',r(molnoX,2),' ',r(molnoX,3) 
+
+	print '(a,i4,a)', 'Monomer information for atom ', molnoi,':'
+	print '(a,i8)', 'ChainID: '   , monomer(molnoi)%chainID
+	print '(a,i8)', 'SubchainID: ', monomer(molnoi)%subchainID
+	print '(a,i8)', 'Funcy: '     , monomer(molnoi)%funcy
+	print '(a,i8)', 'Glob_no: '   , monomer(molnoi)%glob_no
+	print '(a,i8)', 'Bin_bflag: ' , monomer(molnoi)%bin_bflag
+
+	print '(a,i4,a)', 'Monomer information for atom ', molnoX,':'
+	print '(a,i8)', 'ChainID: '   , monomer(molnoX)%chainID
+	print '(a,i8)', 'SubchainID: ', monomer(molnoX)%subchainID
+	print '(a,i8)', 'Funcy: '     , monomer(molnoX)%funcy
+	print '(a,i8)', 'Glob_no: '   , monomer(molnoX)%glob_no
+	print '(a,i8)', 'Bin_bflag: ' , monomer(molnoX)%bin_bflag
+
 	if (molnoX.gt.np) call error_abort('Halo!')
 
 end subroutine polymer_bond_error

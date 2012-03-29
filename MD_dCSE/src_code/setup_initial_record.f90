@@ -330,7 +330,7 @@ subroutine setup_initial_record
 		if (etevtcf_outflag.ne.0) call etevtcf_calculate_parallel
 		if (etevtcf_outflag.eq.2) call etev_io
 		
-		if (r_gyration_outflag.ne.0) call r_gyration_calculate
+		if (r_gyration_outflag.ne.0) call r_gyration_calculate_parallel
 		if (r_gyration_outflag.eq.2) call r_gyration_io
 	end if
 

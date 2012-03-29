@@ -80,12 +80,12 @@ implicit none
 	select case (potential_flag)
 	case(0)
 	case(1)
-		deallocate(monomer)
-		deallocate(bond)
-		deallocate(bondcount)
-		deallocate(potenergymol_FENE)
-		deallocate(etev)
-		deallocate(etev_0)
+!		deallocate(monomer)
+!		deallocate(bond)
+!		deallocate(bondcount)
+!		deallocate(potenergymol_FENE)
+!		deallocate(etev)
+!		deallocate(etev_0)
 	end select
 	
 	if (allocated(vmd_intervals))      deallocate(vmd_intervals)

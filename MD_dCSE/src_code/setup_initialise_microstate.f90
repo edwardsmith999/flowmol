@@ -34,6 +34,13 @@ implicit none
 		call error_abort('Potential flag not recognised!')
 	end select
 
+	do n=1,np    !Initialise global true positions
+		rtrue(n,1) = r(n,1)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
+		rtrue(n,2) = r(n,2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
+		rtrue(n,3) = r(n,3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
+	end do
+	rinitial = rtrue                                  !Store initial true positions
+
 	call setup_tag                                    !Setup location of fixed molecules
 	do n = 1,np
 		call read_tag(n)                              !Read tag and assign properties
@@ -248,6 +255,7 @@ subroutine setup_initialise_parallel_position
 			!If molecules is in the domain then add to total
 			nl = nl + 1 !Local molecule count
 
+
 			!Correct to local coordinates
 			r(nl,1) = rc(1)-domain(1)*(iblock-1)
 			r(nl,2) = rc(2)-domain(2)*(jblock-1)
@@ -257,8 +265,8 @@ subroutine setup_initialise_parallel_position
 	enddo
 	enddo
 
-	np = nl			!Correct local number of particles on processor
-	rinitial = r !Record initial position of all molecules
+	np = nl			 !Correct local number of particles on processor
+	rinitial = rtrue !Record initial position of all molecules
 
 	!Establish global number of particles on current process
 	globalnp = np
@@ -359,17 +367,19 @@ subroutine setup_initialise_parallel_position_FENE
 			!If molecules is in the domain then add to total
 			nl = nl + 1 !Local molecule count
 
+
 			!Correct to local coordinates
 			r(nl,1) = rc(1)-domain(1)*(iblock-1)
 			r(nl,2) = rc(2)-domain(2)*(jblock-1)
 			r(nl,3) = rc(3)-domain(3)*(kblock-1)
+
 		enddo
 	enddo
 	enddo
 	enddo
 
-	np = nl			!Correct local number of particles on processor
-	rinitial = r !Record initial position of all molecules
+	np = nl			    !Correct local number of particles on processor
+	rinitial = rtrue    !Record initial position of all molecules
 
 
 	!Establish global number of particles on current process
@@ -408,6 +418,7 @@ subroutine setup_initialise_polyinfo
 	integer :: chainID
 	integer :: subchainID
 	integer :: modcheck
+	integer :: solvent_selector
 	integer, dimension(nproc) :: proc_chains, proc_nps
 	
 	proc_chains(:)         = 0
@@ -417,41 +428,71 @@ subroutine setup_initialise_polyinfo
 	if (modcheck.ne.0) call error_abort('Number of molecules must be exactly divisible by &
 	& the polymer chain length. Please change the chain length in the input file. &
 	& A chain length of 4 should (hopefully) always work.')
-
+	
+	monomer(:)%funcy     = 0	
+	monomer(:)%bin_bflag = 0
+	chainID = 1
 	do n=1,np
 
-		chainID    = ceiling(dble(n)/dble(nmonomers)) 
-		subchainID = mod(n-1,nmonomers) + 1                     !Beads numbered 1 to nmonomers
-
-		monomer(n)%chainID    = chainID
-		monomer(n)%subchainID = subchainID
-		monomer(n)%glob_no    = n	
-		
-		if (subchainID.eq.1) then
-			monomer(n)%funcy                  = 1
-			monomer(n)%bondflag(subchainID+1) = 1
-			bond(n,1)                         = n + 1
-		else if (subchainID.eq.nmonomers) then
-			monomer(n)%funcy                  = 1
-			monomer(n)%bondflag(subchainID-1) = 1
-			bond(n,1)                         = n - 1	
+		if (solvent_flag .ne. 0) then
+			solvent_selector = mod((n-1)/nmonomers,solvent_ratio)
 		else
-			monomer(n)%funcy                  = 2
-			monomer(n)%bondflag(subchainID+1) = 1
-			monomer(n)%bondflag(subchainID-1) = 1
-			bond(n,1)                         = n - 1
-			bond(n,2)                         = n + 1
+			solvent_selector = 0
 		end if
+	
+		if (solvent_selector .ne. 0) then
 
+			!SET MOLECULES TO BE ATHERMAL SOLVENT MOLECULES
+			monomer(n)%chainID     = 0
+			monomer(n)%subchainID  = 1
+			monomer(n)%glob_no     = n
+			monomer(n)%funcy       = 0
+			bond(n,:)              = 0
+
+		else
+			
+			subchainID = mod(n-1,nmonomers) + 1                     !Beads numbered 1 to nmonomers
+	
+			monomer(n)%chainID    = chainID
+			monomer(n)%subchainID = subchainID
+			monomer(n)%glob_no    = n	
+			
+			if (subchainID.eq.1) then
+				monomer(n)%funcy                  = 1
+				monomer(n)%bin_bflag              = monomer(n)%bin_bflag + 2**(subchainID+1)
+				bond(n,1)                         = n + 1
+			else if (subchainID.eq.nmonomers) then
+				monomer(n)%funcy                  = 1
+				monomer(n)%bin_bflag              = monomer(n)%bin_bflag + 2**(subchainID-1)
+				bond(n,1)                         = n - 1	
+			else
+				monomer(n)%funcy                  = 2
+				monomer(n)%bin_bflag              = monomer(n)%bin_bflag + 2**(subchainID+1)
+				monomer(n)%bin_bflag              = monomer(n)%bin_bflag + 2**(subchainID-1)
+				bond(n,1)                         = n - 1
+				bond(n,2)                         = n + 1
+			end if
+			
+			if (mod(subchainID,nmonomers) .eq. 0 .and. n .lt. np) chainID = chainID + 1
+			
+		end if
+	
+		!print*, '-n,c,sc,f,g------------------------------------------------'
+		!print*, n, monomer(n)%chainID,monomer(n)%subchainID,monomer(n)%funcy,monomer(n)%glob_no
+		!print*, 'bin_bflag -', monomer(n)%bin_bflag
+		!print*, btest(monomer(n)%bin_bflag,1), btest(monomer(n)%bin_bflag,2),btest(monomer(n)%bin_bflag,3),btest(monomer(n)%bin_bflag,4)
+		!print*, '==========================================================='
 	end do
 
 	proc_chains(irank) = chainID
 	proc_nps(irank)    = np
 	call globalSumIntVect(proc_chains,nproc)
 	call globalSumIntVect(proc_nps,nproc)
-
+	
 	do n=1,np
-		monomer(n)%chainID     = monomer(n)%chainID + sum(proc_chains(1:irank)) - proc_chains(irank)
+		if (monomer(n)%chainID.ne.0) then
+			monomer(n)%chainID     = monomer(n)%chainID + sum(proc_chains(1:irank)) - proc_chains(irank)
+		end if
 		monomer(n)%glob_no     = monomer(n)%glob_no + sum(proc_nps(1:irank))    - proc_nps(irank)
 		do i=1,monomer(n)%funcy
 			bond(n,i)          = bond(n,i)          + sum(proc_nps(1:irank))    - proc_nps(irank)
@@ -459,21 +500,6 @@ subroutine setup_initialise_polyinfo
 	end do
 
 	nchains = sum(proc_chains)
-
-!	do n=1,np
-!		print'(a,i3,a,i8,a,i8)', 'irank: ',irank,', n: ', n,', glob_n: ',    monomer(n)%glob_no
-!		print'(a,i4,a,i4)',  'cID:',    monomer(n)%chainID, ', scID: ',      monomer(n)%subchainID 
-!		print'(a,i1,a,4i8)', 'funcy: ', monomer(n)%funcy,   ', bonded to: ', bond(n,1), bond(n,2), bond(n,3), bond(n,4) 
-!		print'(a,8i3)', 'bondflags: ', monomer(n)%bondflag(1), &
-!		                               monomer(n)%bondflag(2), &
-!		                               monomer(n)%bondflag(3), &
-!		                               monomer(n)%bondflag(4)!, &
-!		                               !monomer(n)%bondflag(5), &
-!		                               !monomer(n)%bondflag(6), &
-!		                               !monomer(n)%bondflag(7), &
-!		                               !monomer(n)%bondflag(8)
-!		print*, '-------------------------------------------------------------------'
-!	end do
 
 end subroutine setup_initialise_polyinfo		
 !----------------------------------------------------------------------------------
@@ -562,7 +588,7 @@ subroutine setup_initialise_velocities_test
 	
 !	enddo
 	
-	v(:,1) = 0.5d0
+!	v(:,1) = 0.5d0
 	
 !	v(7,3) = -0.5d0
 !	v(4,3) = 0.5d0

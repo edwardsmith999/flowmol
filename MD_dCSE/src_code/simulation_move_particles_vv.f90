@@ -53,7 +53,7 @@ subroutine simulation_move_particles_vv(pass_num)
 	double precision, save :: zeta=0.d0
 	double precision, dimension(np,nd) :: v_old
 	double precision, dimension(np,nd) :: vrelsum
-	double precision, dimension(np,nd) :: U	
+	double precision, dimension(np,nd) :: U, Utrue
 
 
 	!--------First half of velocity-Verlet algorithm. Finds r(t+dt) and v(t+dt/2).--------!
@@ -61,36 +61,36 @@ subroutine simulation_move_particles_vv(pass_num)
 		select case(ensemble)
 		case(nve)
 			do n=1,np
-				r(n,:) = r(n,:) + delta_t*v(n,:) + 0.5d0*(delta_t**2.d0)*a(n,:)
-				v(n,:) = v(n,:) + 0.5d0*delta_t*a(n,:)
+				r(n,:)     = r(n,:)     + delta_t*v(n,:)       + 0.5d0*(delta_t**2.d0)*a(n,:)
+				v(n,:)     = v(n,:)     + 0.5d0*delta_t*a(n,:)
 			end do
 
 		case(nvt_NH)
 			call evaluate_dzeta_dt
 			do n=1,np
-				r(n,:) = r(n,:) + delta_t*v(n,:) + 0.5d0*(delta_t**2.d0)*(a(n,:)-zeta*v(n,:))
-				v(n,:) = v(n,:) + 0.5d0*delta_t*(a(n,:)-zeta*v(n,:))
+				r(n,:)     = r(n,:)     + delta_t*v(n,:) + 0.5d0*(delta_t**2.d0)*(a(n,:)-zeta*v(n,:))
+				v(n,:)     = v(n,:)     + 0.5d0*delta_t*(a(n,:)-zeta*v(n,:))
 			end do
 
 		case(nvt_GIK)
 			do n=1,np
-				r(n,:) = r(n,:) + delta_t*v(n,:) + 0.5d0*(delta_t**2.d0)*(a(n,:)-zeta*v(n,:))
-				v(n,:) = v(n,:) + 0.5d0*delta_t*(a(n,:)-zeta*v(n,:))
+				r(n,:)     = r(n,:)     + delta_t*v(n,:) + 0.5d0*(delta_t**2.d0)*(a(n,:)-zeta*v(n,:))
+				v(n,:)     = v(n,:)     + 0.5d0*delta_t*(a(n,:)-zeta*v(n,:))
 			end do			
 
 		case(nvt_PUT_NH)	
 			call evaluate_U_PUT
 			call evaluate_dzeta_dt_PUT
 			do n=1,np
-				r(n,:) = r(n,:) + delta_t*v(n,:) + 0.5d0*(delta_t**2.d0)*(a(n,:)-zeta*(v(n,:)-U(n,:)))
-				v(n,:) = v(n,:) + 0.5d0*delta_t*(a(n,:)-zeta*(v(n,:)-U(n,:)))
+				r(n,:)     = r(n,:)     + delta_t*v(n,:) + 0.5d0*(delta_t**2.d0)*(a(n,:)-zeta*(v(n,:)-U(n,:)))
+				v(n,:)     = v(n,:)     + 0.5d0*delta_t*(a(n,:)-zeta*(v(n,:)-U(n,:)))
 			end do
 		
 		case(nvt_pwa_NH)
 			call evaluate_pwa_terms_pwaNH
 			do n=1,np
-				v(n,:) = v(n,:) + 0.5d0*delta_t*(a(n,:) - zeta*vrelsum(n,:))
-				r(n,:) = r(n,:) + delta_t*v(n,:)
+				v(n,:)     = v(n,:) + 0.5d0*delta_t*(a(n,:) - zeta*vrelsum(n,:))
+				r(n,:)     = r(n,:) + delta_t*v(n,:)
 			end do
 
 		case(nvt_DPD)
@@ -101,12 +101,13 @@ subroutine simulation_move_particles_vv(pass_num)
 				call evaluate_DPD(0)
 			endif
 			do n=1,np
-				v(n,:) = v(n,:) + 0.5d0*delta_t*(a(n,:)+aD(n,:)+aR(n,:))
-				r(n,:) = r(n,:) + delta_t*v(n,:) 
+				v(n,:)     = v(n,:)     + 0.5d0*delta_t*(a(n,:)+aD(n,:)+aR(n,:))
+				r(n,:)     = r(n,:)     + delta_t*v(n,:) 
 			end do
 			!Regenerate random number for next iteration
 			call random_number(theta)
 			theta = sqrt(3.d0)*(2.d0*theta-1.d0)
+
 		case(tag_move)
 			call error_abort('Tag mode for velocity-Verlet not yet implemented.')
 	
@@ -175,10 +176,82 @@ subroutine simulation_move_particles_vv(pass_num)
 				call error_abort('Unrecognised ensemble, stopping.')
 
 		end select
+		
 
 	endif
+	
+	call simulation_move_particles_true_vv
 
 contains
+
+	!-----------------------------------------------------------------------
+	!Evaluate "true" positions and velocities without periodic wrapping
+	subroutine simulation_move_particles_true_vv
+		use shear_info_MD, only: le_sv, le_sp, le_sd
+		implicit none
+
+		vtrue = v
+
+		if (pass_num .eq. 1) then
+
+			select case (ensemble)
+			case (nve)
+
+				do n=1,np
+					vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(n,le_sp)/domain(le_sp))*le_sv
+					rtrue(n,:)     = rtrue(n,:) + delta_t*vtrue(n,:) &
+					                            + 0.5d0*(delta_t**2.d0)*a(n,:)
+				end do
+
+			case (nvt_NH)
+
+				do n=1,np
+					vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(n,le_sp)/domain(le_sp))*le_sv
+					rtrue(n,:)     = rtrue(n,:) + delta_t*vtrue(n,:) &
+					                            + 0.5d0*(delta_t**2.d0)*(a(n,:)-zeta*vtrue(n,:))
+				end do
+
+			case (nvt_GIK)
+				
+				do n=1,np
+					vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(n,le_sp)/domain(le_sp))*le_sv
+					rtrue(n,:)     = rtrue(n,:) + delta_t*vtrue(n,:) &
+					                            + 0.5d0*(delta_t**2.d0)*(a(n,:)-zeta*vtrue(n,:))
+				end do
+	
+			case(nvt_PUT_NH)	
+				do n=1,np
+					vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(n,le_sp)/domain(le_sp))*le_sv
+					Utrue(n,:)     = U(n,:)     + anint(rtrue(n,le_sp)/domain(le_sp))*le_sv
+					rtrue(n,:)     = rtrue(n,:) + delta_t*vtrue(n,:) &
+					                            + 0.5d0*(delta_t**2.d0)*(a(n,:)-zeta*(vtrue(n,:)-Utrue(n,:)))
+				end do
+			
+			case(nvt_pwa_NH)
+				do n=1,np
+					vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(n,le_sp)/domain(le_sp))*le_sv
+					rtrue(n,:)     = rtrue(n,:) + delta_t*vtrue(n,:)
+				end do
+
+			case(nvt_DPD)
+				do n=1,np
+					vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(n,le_sp)/domain(le_sp))*le_sv
+					rtrue(n,:)     = rtrue(n,:) + delta_t*vtrue(n,:) 
+				end do
+
+			case default
+
+			end select
+		
+		else if (pass_num .eq.2) then
+		
+			do n=1,np
+				vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(n,le_sp)/domain(le_sp))*le_sv
+			end do
+	
+		end if
+
+	end subroutine simulation_move_particles_true_vv
 
 	!---------------------------------------------------------------------------
 	!Evaluate dzeta_dt for global Nose-Hoover equations of motion
@@ -224,7 +297,7 @@ contains
 	!Evaluate dzeta_dt for profile unbiased Nose-Hoover equations of motion
 	subroutine evaluate_dzeta_dt_PUT
 		use calculated_properties_MD,  only: nbins, get_mass_slices, get_velo_slices
-		use shear_info_MD,             only: shear_plane	
+		use shear_info_MD,             only: le_sp	
 		implicit none
 		
 		double precision :: pec_v2sum
@@ -247,7 +320,7 @@ contains
 	!Evaluate streaming velocity for each particle	
 	subroutine evaluate_U_PUT
 		use calculated_properties_MD,   only: nbins, get_mass_slices, get_velo_slices
-		use shear_info_MD,              only: shear_plane
+		use shear_info_MD,              only: le_sp
 		implicit none
 		
 		integer :: slicebin
@@ -256,20 +329,20 @@ contains
 		double precision, dimension(:,:), allocatable :: v_slice
 		double precision, dimension(:,:), allocatable :: v_avg
 	
-		allocate(m_slice(nbins(shear_plane)))                                   ! PUT: Allocate instantaneous mass slices
-		allocate(v_slice(nbins(shear_plane),nd))                                ! PUT: Allocate instantaneous velocity slices
-		allocate(v_avg(nbins(shear_plane),nd))                                  ! PUT: Allocate instantaneous velocity averages
+		allocate(m_slice(nbins(le_sp)))                                   ! PUT: Allocate instantaneous mass slices
+		allocate(v_slice(nbins(le_sp),nd))                                ! PUT: Allocate instantaneous velocity slices
+		allocate(v_avg(nbins(le_sp),nd))                                  ! PUT: Allocate instantaneous velocity averages
 		slicebinsize(:) = domain(:)/nbins(:)                                    ! PUT: Get bin size for PUT
-		m_slice = get_mass_slices(shear_plane)                                  ! PUT: Get total mass in all slices
-		v_slice = get_velo_slices(shear_plane)                                  ! PUT: Get total velocity in all slices (note that on the second pass this is half a timestep behind.)
-		do slicebin=1,nbins(shear_plane)                                        ! PUT: Loop through all slices
+		m_slice = get_mass_slices(le_sp)                                  ! PUT: Get total mass in all slices
+		v_slice = get_velo_slices(le_sp)                                  ! PUT: Get total velocity in all slices (note that on the second pass this is half a timestep behind.)
+		do slicebin=1,nbins(le_sp)                                        ! PUT: Loop through all slices
 			v_avg(slicebin,:) = v_slice(slicebin,:)/m_slice(slicebin)           ! PUT: average velocity
 		end do
 		
 		do n=1,np
-			slicebin = ceiling((r(n,shear_plane)+halfdomain(shear_plane))/&
-			                    slicebinsize(shear_plane))
-			if (slicebin > nbins(shear_plane)) slicebin = nbins(shear_plane)    ! PUT: Prevent out-of-range values
+			slicebin = ceiling((r(n,le_sp)+halfdomain(le_sp))/&
+			                    slicebinsize(le_sp))
+			if (slicebin > nbins(le_sp)) slicebin = nbins(le_sp)    ! PUT: Prevent out-of-range values
 			if (slicebin < 1) slicebin = 1                                      ! PUT: Prevent out-of-range values
 			U(n,:) = v_avg(slicebin,:)
 		end do
