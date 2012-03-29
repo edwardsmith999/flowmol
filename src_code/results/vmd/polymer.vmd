@@ -285,7 +285,7 @@ display eyesep       0.065000
 display focallength  2.000000
 display height       6.000000
 display distance     -2.000000
-display projection   Orthographic
+display projection   Perspective
 display nearclip set 0.500000
 display farclip  set 10.000000
 display depthcue   on
@@ -294,9 +294,9 @@ display cueend     10.000000
 display cuedensity 0.320000
 display cuemode    Exp2
 mol new ./polymer_topol.psf type psf first 0 last -1 step 1 filebonds 1 autobonds 1 waitfor all
-mol addfile ./vmd_out.dcd type dcd first 0 last -1 step 1 filebonds 1 autobonds 1 waitfor all
+mol addfile ./vmd_out_true.dcd type dcd first 0 last -1 step 1 filebonds 1 autobonds 1 waitfor all
 mol delrep 0 top
-mol representation CPK 1.000000 0.300000 25.000000 10.000000
+mol representation Lines
 mol color Name
 mol selection {all}
 mol material Opaque
@@ -330,8 +330,42 @@ mol clipplane center 5 0 top {0.0 0.0 0.0}
 mol clipplane color  5 0 top {0.5 0.5 0.5 }
 mol clipplane normal 5 0 top {0.0 0.0 1.0}
 mol clipplane status 5 0 top {0}
+mol representation Points 4.000000
+mol color Name
+mol selection {resname POL}
+mol material Opaque
+mol addrep top
+mol selupdate 1 top 0
+mol colupdate 1 top 0
+mol scaleminmax top 1 0.000000 0.000000
+mol smoothrep top 1 0
+mol drawframes top 1 {now}
+mol clipplane center 0 1 top {0.0 0.0 0.0}
+mol clipplane color  0 1 top {0.5 0.5 0.5 }
+mol clipplane normal 0 1 top {0.0 0.0 1.0}
+mol clipplane status 0 1 top {0}
+mol clipplane center 1 1 top {0.0 0.0 0.0}
+mol clipplane color  1 1 top {0.5 0.5 0.5 }
+mol clipplane normal 1 1 top {0.0 0.0 1.0}
+mol clipplane status 1 1 top {0}
+mol clipplane center 2 1 top {0.0 0.0 0.0}
+mol clipplane color  2 1 top {0.5 0.5 0.5 }
+mol clipplane normal 2 1 top {0.0 0.0 1.0}
+mol clipplane status 2 1 top {0}
+mol clipplane center 3 1 top {0.0 0.0 0.0}
+mol clipplane color  3 1 top {0.5 0.5 0.5 }
+mol clipplane normal 3 1 top {0.0 0.0 1.0}
+mol clipplane status 3 1 top {0}
+mol clipplane center 4 1 top {0.0 0.0 0.0}
+mol clipplane color  4 1 top {0.5 0.5 0.5 }
+mol clipplane normal 4 1 top {0.0 0.0 1.0}
+mol clipplane status 4 1 top {0}
+mol clipplane center 5 1 top {0.0 0.0 0.0}
+mol clipplane color  5 1 top {0.5 0.5 0.5 }
+mol clipplane normal 5 1 top {0.0 0.0 1.0}
+mol clipplane status 5 1 top {0}
 mol rename top polymer_topol.psf
-set viewpoints([molinfo top]) {{{1 0 0 0.189621} {0 1 0 -0.0623857} {0 0 1 -0.191692} {0 0 0 1}} {{1 0 0 0} {0 1 0 0} {0 0 1 0} {0 0 0 1}} {{0.251885 0 0 0} {0 0.251885 0 0} {0 0 0.251885 0} {0 0 0 1}} {{1 0 0 0} {0 1 0 0} {0 0 1 0} {0 0 0 1}}}
+set viewpoints([molinfo top]) {{{1 0 0 3.36196e-06} {0 1 0 -3.97715e-06} {0 0 1 -1.35798e-07} {0 0 0 1}} {{1 0 0 0} {0 1 0 0} {0 0 1 0} {0 0 0 1}} {{0.0600959 0 0 0} {0 0.0600959 0 0} {0 0 0.0600959 0} {0 0 0 1}} {{1 0 0 0} {0 1 0 0} {0 0 1 0} {0 0 0 1}}}
 lappend viewplist [molinfo top]
 set topmol [molinfo top]
 # done with molecule 0
@@ -472,9 +506,11 @@ color scale colors WBlk {1.0 1.0 1.0} {0.5 0.5 0.5} {0.0 0.0 0.0}
     {color Element {Y} ochre}
     {color Element {Yb} ochre}
     {color Element {Zr} ochre}
-    {color Resname {CBN} silver}
+    {color Resname {POL} silver}
     {color Chain {C} blue}
+    {color Chain {N} red}
     {color Segname {C} blue}
+    {color Segname {N} red}
     {color Conformation {all} blue}
     {color Molecule {0} blue}
     {color Structure {3_10_Helix} blue}
