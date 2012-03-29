@@ -420,6 +420,7 @@ ETEVTCF_OUTFLAG
 # Radius of gyration output flag:
 #	0 - off
 #	1 - on
+#	2 - output file
 # -----------------------------------------------------------------------
 R_GYRATION_OUTFLAG
 0
