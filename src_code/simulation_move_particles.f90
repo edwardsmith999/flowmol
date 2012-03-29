@@ -63,7 +63,7 @@ subroutine simulation_move_particles_tag
 use interfaces
 use module_move_particles
 use calculated_properties_MD
-use shear_info_MD, only: shear_plane
+use shear_info_MD, only: le_sp
 implicit none
 
 	integer :: maxtag, n, thermostatnp, slicebin
@@ -76,13 +76,13 @@ implicit none
 
 	if (all(tag.eq.8)) then
 		PUT = .true.
-		allocate(m_slice(nbins(shear_plane)))				! PUT: Allocate instantaneous mass slices
-		allocate(v_slice(nbins(shear_plane),nd))			! PUT: Allocate instantaneous velocity slices
-		allocate(v_avg(nbins(shear_plane),nd))				! PUT: Allocate instantaneous velocity averages
+		allocate(m_slice(nbins(le_sp)))				! PUT: Allocate instantaneous mass slices
+		allocate(v_slice(nbins(le_sp),nd))			! PUT: Allocate instantaneous velocity slices
+		allocate(v_avg(nbins(le_sp),nd))				! PUT: Allocate instantaneous velocity averages
 		slicebinsize(:) = domain(:)/nbins(:)				! PUT: Get bin size for PUT
-		m_slice = get_mass_slices(shear_plane)				! PUT: Get total mass in all slices
-		v_slice = get_velo_slices(shear_plane)				! PUT: Get total velocity in all slices
-		do slicebin=1,nbins(shear_plane)					! PUT: Loop through all slices
+		m_slice = get_mass_slices(le_sp)				! PUT: Get total mass in all slices
+		v_slice = get_velo_slices(le_sp)				! PUT: Get total velocity in all slices
+		do slicebin=1,nbins(le_sp)					! PUT: Loop through all slices
 			v_avg(slicebin,:) = v_slice(slicebin,:)/m_slice(slicebin) ! PUT: average velocity
 		end do			
 		pec_v2sum = 0.d0
@@ -99,8 +99,8 @@ implicit none
 		do n = 1, np   											! Loop all molecules
 			if (tag(n) .lt. 4) cycle							! Only include thermostatted molecules - DO YOU WANT THIS LINE UNCOMMENTED?
 			if (PUT) then										! PUT: If using PUT find peculiar v2sum
-				slicebin = ceiling((r(n,shear_plane)+halfdomain(shear_plane))/slicebinsize(shear_plane))
-				if (slicebin > nbins(shear_plane)) slicebin = nbins(shear_plane)	! PUT: Prevent out-of-range values
+				slicebin = ceiling((r(n,le_sp)+halfdomain(le_sp))/slicebinsize(le_sp))
+				if (slicebin > nbins(le_sp)) slicebin = nbins(le_sp)	! PUT: Prevent out-of-range values
 				if (slicebin < 1) slicebin = 1										! PUT: Prevent out-of-range values
 				vel(:) = v(n,:) - v_avg(slicebin,:) - 0.5d0*a(n,:)*delta_t			! PUT: Find peculiar velocity
 				pec_v2sum = pec_v2sum + dot_product(vel,vel)						! PUT: Sum peculiar velocities squared
@@ -177,8 +177,8 @@ implicit none
 			r(n,3) = r(n,3)    +     v(n,3)*delta_t	+ slidev(n,3)*delta_t
 		case (8)
 			!Profile unbiased thermostat (Nose-Hoover)
-			slicebin = ceiling((r(n,shear_plane)+halfdomain(shear_plane))/slicebinsize(shear_plane))
-			if (slicebin > nbins(shear_plane)) slicebin = nbins(shear_plane)	! Prevent out-of-range values
+			slicebin = ceiling((r(n,le_sp)+halfdomain(le_sp))/slicebinsize(le_sp))
+			if (slicebin > nbins(le_sp)) slicebin = nbins(le_sp)	! Prevent out-of-range values
 			if (slicebin < 1) slicebin = 1										! Prevent out-of-range values
 			v(n,1) = v(n,1)*(beta/alpha) + a(n,1)*(delta_t/alpha) + delta_t*zeta*v_avg(slicebin,1)/alpha 
 			v(n,2) = v(n,2)*(beta/alpha) + a(n,2)*(delta_t/alpha) + delta_t*zeta*v_avg(slicebin,2)/alpha
@@ -336,7 +336,7 @@ implicit none
 	integer			:: n, ixyz
 	double precision	:: vel, slice_momentum2, dzeta_dt, massheatbath
 	double precision	:: vreduce, relaxfactor
-	double precision	:: shear_rate
+	double precision	:: le_sr
 
 	v2sum = 0.d0      ! Reset all sums
 	massheatbath = globalnp * delta_t
@@ -356,7 +356,7 @@ implicit none
 	dzeta_dt = (v2sum - (nd*globalnp + 1)*inputtemperature) / massheatbath
 	zeta = zeta + delta_t*dzeta_dt
 
-	shear_rate= 0.0005d0/domain(2)
+	le_sr= 0.0005d0/domain(2)
 	
 	do n = 1,np        !Step through each particle n
 
@@ -367,14 +367,14 @@ implicit none
 
 		!Velocity calculated from acceleration
 		v(n,1) =(v(n,1) + delta_t*a(n,1))*fix(n,1)		&	!Fixed Molecules ~> a=0
-				+ shear_rate*(r(n,2)+halfdomain(2))*(1-thermostat(n,1))	&	!SLLOD force on x direction
+				+ le_sr*(r(n,2)+halfdomain(2))*(1-thermostat(n,1))	&	!SLLOD force on x direction
 				+ slidev(n,1)				&	!Add sliding velocity
 				- zeta*v(n,1)*delta_t*thermostat(n,1)! *         &	!Thermostat
 
 		!Position calculated from velocity
 		r(n,1) = r(n,1) + delta_t*v(n,1)
 
-		!print*, shear_rate*(r(n,2)+halfdomain(2))
+		!print*, le_sr*(r(n,2)+halfdomain(2))
 
 		!Velocity calculated from acceleration
 		v(n,2) =(v(n,2) + delta_t*a(n,2))*fix(n,2)	  &	!Fixed Molecules ~> a=0
@@ -415,7 +415,7 @@ implicit none
 	integer				:: ibin, jbin, kbin
 	double precision		:: vel, slice_momentum2, dzeta_dt, massheatbath
 	double precision		:: vreduce, relaxfactor
-	double precision		:: shear_rate
+	double precision		:: le_sr
 	double precision,dimension(3)	:: vmean, slicebinsize
 	
 	v2sum = 0.d0      ! Reset all sums
@@ -452,7 +452,7 @@ implicit none
 	dzeta_dt = (v2sum - (nd*globalnp + 1)*inputtemperature) / massheatbath
 	zeta = zeta + delta_t*dzeta_dt
 
-	shear_rate= 0.005d0/domain(2)
+	le_sr= 0.005d0/domain(2)
 	
 	do n = 1,np        !Step through each particle n
 
@@ -463,7 +463,7 @@ implicit none
 
 		!Velocity calculated from acceleration
 		v(n,1) =(v(n,1) + delta_t*a(n,1))*fix(n,1)		&	!Fixed Molecules ~> a=0
-				+ shear_rate*(r(n,2)+halfdomain(2))	&	!SLLOD force on x direction
+				+ le_sr*(r(n,2)+halfdomain(2))	&	!SLLOD force on x direction
 				+ slidev(n,1)				&	!Add sliding velocity
 				- zeta*v(n,1)*delta_t				!Thermostat
 

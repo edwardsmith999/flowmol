@@ -155,6 +155,10 @@ module polymer_info_MD
 	integer				:: nmonomers				!Number of LJ beads per FENE chain
 	integer             :: r_gyration_outflag       !Radius of gyration outflag
 	integer             :: r_gyration_iter0         !Iteration at which to start recording R_g
+
+	integer             :: solvent_flag
+	integer             :: solvent_ratio
+	
 	double precision 	:: k_c, R_0					!Spring constant and max elongation of bonds	
 	double precision 	:: etevtcf                  !End-to-end vector time correlation function
 	double precision    :: R_g                      !Radius of gyration
@@ -169,7 +173,7 @@ module polymer_info_MD
 		integer :: subchainID                       !Integer value: bead number
 		integer :: funcy                            !Functionality of the monomer
 		integer :: glob_no                          !Global molecule number
-		integer, allocatable :: bondflag(:)         !Integer array of length nmonomers describing bonds
+		integer :: bin_bflag                        !Integer for bit manipulation to find bond flags
 	end type monomer_info
 
 	type(monomer_info), dimension(:), allocatable :: monomer
@@ -185,15 +189,15 @@ end module polymer_info_MD
 module shear_info_MD
 
 	integer 			:: define_shear_as
-	integer				:: shear_iter0
 	integer				:: wrap_integer
-	integer				:: shear_plane
-	integer				:: shear_direction
-	integer				:: shear_remainingplane
-	double precision 	:: shear_velocity
-	double precision 	:: shear_rate
-	double precision	:: shear_distance
-	double precision	:: shear_time
+	integer				:: le_i0                    !Lees-Edwards iter0
+	integer				:: le_sp                    !Shear plane
+	integer				:: le_sd                    !Shear direction
+	integer				:: le_rp                    !Shear remaining plane
+	double precision 	:: le_sv                    !Shear velocity
+	double precision 	:: le_sr                    !Shear rate
+	double precision	:: le_sx                    !Shear distance
+	double precision	:: le_st                    !Shear time
 
 	integer, dimension(:), allocatable	:: mol_wrap_integer		
 
@@ -217,6 +221,7 @@ module arrays_MD
 		recvbuffer
 	double precision, dimension(:,:),   allocatable			:: &
 		rtrue, 		&      			!Positions with no period BC
+		vtrue,      &               !Corresponding velocities
 		rinitial, 	&
 		rijsum, 	&				!Sum of all molecular rij values
 		theta, 		&
@@ -453,7 +458,7 @@ contains
 	use computational_constants_MD, only: domain, halfdomain,delta_t
 	use physical_constants_MD, only: np,nd,globalnp
 	use arrays_MD, only: r,v,a
-	use shear_info_MD, only: shear_plane
+	use shear_info_MD, only: le_sp
 	implicit none
 	
 		integer	:: slicebin,n	
@@ -466,18 +471,18 @@ contains
 		pec_v2sum 		= 0.d0								! Initialise
 		
 		!todo reevaluate
-		allocate(m_slice(nbins(shear_plane)))	
-		allocate(v_slice(nbins(shear_plane),nd))
-		allocate(v_avg(nbins(shear_plane),nd))
-		m_slice = get_mass_slices(shear_plane)				! Get total mass in all slices
-		v_slice = get_velo_slices(shear_plane)				! Get total velocity in all slices
-		do slicebin=1,nbins(shear_plane)
+		allocate(m_slice(nbins(le_sp)))	
+		allocate(v_slice(nbins(le_sp),nd))
+		allocate(v_avg(nbins(le_sp),nd))
+		m_slice = get_mass_slices(le_sp)				! Get total mass in all slices
+		v_slice = get_velo_slices(le_sp)				! Get total velocity in all slices
+		do slicebin=1,nbins(le_sp)
 			v_avg(slicebin,:) = v_slice(slicebin,:)/m_slice(slicebin)
 		end do
 
 		do n=1,np
-			slicebin 			= ceiling((r(n,shear_plane)+halfdomain(shear_plane))/slicebinsize(shear_plane))
-			if (slicebin > nbins(shear_plane)) slicebin = nbins(shear_plane)	! Prevent out-of-range values
+			slicebin 			= ceiling((r(n,le_sp)+halfdomain(le_sp))/slicebinsize(le_sp))
+			if (slicebin > nbins(le_sp)) slicebin = nbins(le_sp)	! Prevent out-of-range values
 			if (slicebin < 1) slicebin = 1										! Prevent out-of-range values
 			vel(:) 			 	= v(n,:) - v_avg(slicebin,:) - 0.5d0*a(n,:)*delta_t
 			pec_v2sum 			= pec_v2sum + dot_product(vel,vel)

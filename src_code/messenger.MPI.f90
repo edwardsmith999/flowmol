@@ -456,9 +456,7 @@ subroutine prepare_FENEbuffer(molno,FENEpack)
 	FENEpack(2) = real(monomer(molno)%subchainID,kind(0.d0))
 	FENEpack(3) = real(monomer(molno)%funcy,     kind(0.d0))
 	FENEpack(4) = real(monomer(molno)%glob_no,   kind(0.d0))
-	do i=1,nmonomers
-		FENEpack(4+i) = real(monomer(molno)%bondflag(i), kind(0.d0))
-	end do
+	FENEpack(5) = real(monomer(molno)%bin_bflag, kind(0.d0))
 
 end subroutine prepare_FENEbuffer
 
@@ -475,9 +473,7 @@ subroutine assign_FENEbuffer(molno,FENEpack)
 	monomer(molno)%subchainID = nint(FENEpack(2))	
 	monomer(molno)%funcy      = nint(FENEpack(3))	
 	monomer(molno)%glob_no    = nint(FENEpack(4))	
-	do i=1,nmonomers
-		monomer(molno)%bondflag(i) = nint(FENEpack(4+i))
-	end do
+	monomer(molno)%bin_bflag  = nint(FENEpack(5))
 
 end subroutine assign_FENEbuffer
 
@@ -553,11 +549,9 @@ subroutine updatefacedown(ixyz)
 	integer :: molno,cellnp,sendnp,sendsize,recvnp,recvsize,pos,length,datasize,buffsize
 	integer :: isource,idest
 	double precision, dimension(nd) :: rpack	!Temporary array used to pack position
-	double precision, dimension(:), allocatable :: FENEpack
+	double precision, dimension(5)  :: FENEpack
 	double precision, dimension(:), allocatable :: sendbuffer
 	type(node), pointer 	        :: old, current
-	
-	allocate(FENEpack(4+nmonomers))
 
 	!Obtain processor ID of lower neighbour
 	call MPI_Cart_shift(icomm_grid, ixyz-1, -1, isource, idest, ierr)
@@ -599,7 +593,7 @@ subroutine updatefacedown(ixyz)
 	case(0) !LJ only
 		sendsize = nd*sendnp
 	case(1) !+FENE info 
-		sendsize = nd*sendnp + (4+nmonomers)*sendnp
+		sendsize = nd*sendnp + (5)*sendnp
 	end select
 
 	allocate(sendbuffer(sendsize))
@@ -629,7 +623,7 @@ subroutine updatefacedown(ixyz)
 					sendbuffer,buffsize,pos,icomm_grid,ierr)	
 				
 					call prepare_FENEbuffer(molno,FENEpack)
-					call MPI_Pack(FENEpack,4+nmonomers,MPI_DOUBLE_PRECISION,&
+					call MPI_Pack(FENEpack,5,MPI_DOUBLE_PRECISION,&
 					sendbuffer,buffsize,pos,icomm_grid,ierr)
 				end select
 				current => old
@@ -658,7 +652,7 @@ subroutine updatefacedown(ixyz)
 					sendbuffer,buffsize,pos,icomm_grid,ierr)	
 				
 					call prepare_FENEbuffer(molno,FENEpack)
-					call MPI_Pack(FENEpack,4+nmonomers,MPI_DOUBLE_PRECISION,&
+					call MPI_Pack(FENEpack,5,MPI_DOUBLE_PRECISION,&
 					sendbuffer,buffsize,pos,icomm_grid,ierr)
 				end select
 				current => old
@@ -686,7 +680,7 @@ subroutine updatefacedown(ixyz)
 					sendbuffer,buffsize,pos,icomm_grid,ierr)	
 				
 					call prepare_FENEbuffer(molno,FENEpack)
-					call MPI_Pack(FENEpack,4+nmonomers,MPI_DOUBLE_PRECISION,&
+					call MPI_Pack(FENEpack,5,MPI_DOUBLE_PRECISION,&
 					sendbuffer,buffsize,pos,icomm_grid,ierr)
 				end select
 				current => old
@@ -718,7 +712,7 @@ subroutine updatefacedown(ixyz)
 	case(0)
 		recvnp = recvsize/real(nd,kind(0.d0))
 	case(1)
-		recvnp = recvsize/real(nd+4+nmonomers,kind(0.d0))
+		recvnp = recvsize/real(nd+5,kind(0.d0))
 	end select
 
 	pos = 0
@@ -734,7 +728,7 @@ subroutine updatefacedown(ixyz)
 			r(np+n,:) = rpack
 
 			call MPI_Unpack(recvbuffer,length,pos,FENEpack, &
-			4+nmonomers,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+			5,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
 			call assign_FENEbuffer(np+n,FENEpack)
 		end select
 	enddo
@@ -750,7 +744,6 @@ subroutine updatefacedown(ixyz)
 
 	!call MPI_Barrier(icomm_grid,ierr)
 
-	deallocate(FENEpack)
 	deallocate(recvbuffer)
 	deallocate(sendbuffer)
 	nullify(current)        !Nullify current as no longer required
@@ -780,11 +773,9 @@ subroutine updatefaceup(ixyz)
 	integer :: molno,cellnp,sendnp,sendsize,recvnp,recvsize,pos,length,datasize,buffsize
 	integer :: isource,idest
 	double precision, dimension(nd) :: rpack	!Temporary array used to pack/unpack position
-	double precision, dimension(:), allocatable :: FENEpack
+	double precision, dimension(5)  :: FENEpack
 	double precision, dimension(:), allocatable :: sendbuffer
 	type(node), pointer 	        :: old, current
-
-	allocate(FENEpack(4+nmonomers))
 
 	!Obtain processor ID of upper neighbour
 	call MPI_Cart_shift(icomm_grid, ixyz-1, +1, isource, idest, ierr)
@@ -825,7 +816,7 @@ subroutine updatefaceup(ixyz)
 	case(0) !LJ only
 		sendsize = nd*sendnp
 	case(1) !+FENE info 
-		sendsize = nd*sendnp + (4+nmonomers)*sendnp
+		sendsize = nd*sendnp + (5)*sendnp
 	end select
 	allocate(sendbuffer(sendsize))
 	call MPI_Pack_size(sendsize,MPI_DOUBLE_PRECISION, &
@@ -854,7 +845,7 @@ subroutine updatefaceup(ixyz)
 					sendbuffer,buffsize,pos,icomm_grid,ierr)	
 				
 					call prepare_FENEbuffer(molno,FENEpack)
-					call MPI_Pack(FENEpack,4+nmonomers,MPI_DOUBLE_PRECISION,&
+					call MPI_Pack(FENEpack,5,MPI_DOUBLE_PRECISION,&
 					sendbuffer,buffsize,pos,icomm_grid,ierr)
 				end select
 				current => old
@@ -882,7 +873,7 @@ subroutine updatefaceup(ixyz)
 					sendbuffer,buffsize,pos,icomm_grid,ierr)	
 				
 					call prepare_FENEbuffer(molno,FENEpack)
-					call MPI_Pack(FENEpack,4+nmonomers,MPI_DOUBLE_PRECISION,&
+					call MPI_Pack(FENEpack,5,MPI_DOUBLE_PRECISION,&
 					sendbuffer,buffsize,pos,icomm_grid,ierr)
 				end select
 				current => old
@@ -910,7 +901,7 @@ subroutine updatefaceup(ixyz)
 					sendbuffer,buffsize,pos,icomm_grid,ierr)	
 				
 					call prepare_FENEbuffer(molno,FENEpack)
-					call MPI_Pack(FENEpack,4+nmonomers,MPI_DOUBLE_PRECISION,&
+					call MPI_Pack(FENEpack,5,MPI_DOUBLE_PRECISION,&
 					sendbuffer,buffsize,pos,icomm_grid,ierr)
 				end select
 				current => old
@@ -943,7 +934,7 @@ subroutine updatefaceup(ixyz)
 	case(0)
 		recvnp = recvsize/real(nd,kind(0.d0))
 	case(1)
-		recvnp = recvsize/real(nd+4+nmonomers,kind(0.d0))
+		recvnp = recvsize/real(nd+5,kind(0.d0))
 	end select
 
 	pos = 0
@@ -959,7 +950,7 @@ subroutine updatefaceup(ixyz)
 			r(np+n,:) = rpack
 
 			call MPI_Unpack(recvbuffer,length,pos,FENEpack, &
-			4+nmonomers,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+			5,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
 			call assign_FENEbuffer(np+n,FENEpack)
 		end select
 	enddo
@@ -975,7 +966,6 @@ subroutine updatefaceup(ixyz)
 
 	!call MPI_Barrier(icomm_grid,ierr)
 	
-	deallocate(FENEpack)	
 	deallocate(recvbuffer)
 	deallocate(sendbuffer)
 	nullify(current)        !Nullify current as no longer required
@@ -1003,11 +993,10 @@ subroutine updateedge(face1,face2)
 	integer :: isource,idest
 	integer, dimension(3,4)   :: edge1, edge2
 	double precision, dimension(nd) :: rpack	!Temporary array used to pack position
-	double precision, dimension(:), allocatable :: FENEpack
+	double precision, dimension(5)  :: FENEpack
 	double precision, dimension(:), allocatable :: sendbuffer
 	type(node), pointer 	        :: old, current
 
-	allocate(FENEpack(4+nmonomers))
 
 	!Set up all 12 edges
 	edge1(1,:) = (/2, 2, ncells(2)+1, ncells(2)+1/)
@@ -1054,7 +1043,7 @@ subroutine updateedge(face1,face2)
 		case(0) !LJ only
 			sendsize = nd*sendnp
 		case(1) !+FENE info 
-			sendsize = nd*sendnp + (4+nmonomers)*sendnp
+			sendsize = nd*sendnp + (5)*sendnp
 		end select
 		allocate(sendbuffer(sendsize))
 		call MPI_Pack_size(sendsize,MPI_DOUBLE_PRECISION, &
@@ -1080,7 +1069,7 @@ subroutine updateedge(face1,face2)
 						sendbuffer,buffsize,pos,icomm_grid,ierr)	
 					
 						call prepare_FENEbuffer(molno,FENEpack)
-						call MPI_Pack(FENEpack,4+nmonomers,MPI_DOUBLE_PRECISION,&
+						call MPI_Pack(FENEpack,5,MPI_DOUBLE_PRECISION,&
 						sendbuffer,buffsize,pos,icomm_grid,ierr)
 					end select
 					current => old			    !Use current to move to next
@@ -1104,7 +1093,7 @@ subroutine updateedge(face1,face2)
 						sendbuffer,buffsize,pos,icomm_grid,ierr)	
 					
 						call prepare_FENEbuffer(molno,FENEpack)
-						call MPI_Pack(FENEpack,4+nmonomers,MPI_DOUBLE_PRECISION,&
+						call MPI_Pack(FENEpack,5,MPI_DOUBLE_PRECISION,&
 						sendbuffer,buffsize,pos,icomm_grid,ierr)
 					end select
 					current => old			    !Use current to move to next
@@ -1129,7 +1118,7 @@ subroutine updateedge(face1,face2)
 						sendbuffer,buffsize,pos,icomm_grid,ierr)	
 					
 						call prepare_FENEbuffer(molno,FENEpack)
-						call MPI_Pack(FENEpack,4+nmonomers,MPI_DOUBLE_PRECISION,&
+						call MPI_Pack(FENEpack,5,MPI_DOUBLE_PRECISION,&
 						sendbuffer,buffsize,pos,icomm_grid,ierr)
 					end select
 					current => old			    !Use current to move to next
@@ -1161,7 +1150,7 @@ subroutine updateedge(face1,face2)
 		case(0)
 			recvnp = recvsize/real(nd,kind(0.d0))
 		case(1)
-			recvnp = recvsize/real(nd+4+nmonomers,kind(0.d0))
+			recvnp = recvsize/real(nd+5,kind(0.d0))
 		end select
 
 		pos = 0
@@ -1177,7 +1166,7 @@ subroutine updateedge(face1,face2)
 				r(np+n,:) = rpack
 
 				call MPI_Unpack(recvbuffer,length,pos,FENEpack, &
-				4+nmonomers,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+				5,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
 				call assign_FENEbuffer(np+n,FENEpack)
 			end select
 		enddo
@@ -1222,7 +1211,6 @@ subroutine updateedge(face1,face2)
 		deallocate(sendbuffer)
 	enddo
 
-	deallocate(FENEpack)
 	nullify(current)        !Nullify current as no longer required
 	nullify(old)            !Nullify old as no longer required
 
@@ -1244,11 +1232,10 @@ subroutine updatecorners()
 	integer :: isource,idest
 	integer, dimension(8)   :: icornercell, jcornercell, kcornercell
 	double precision, dimension(nd) :: rpack	!Temporary array used to pack position
-	double precision, dimension(:), allocatable :: FENEpack
+	double precision, dimension(5)  :: FENEpack
 	double precision, dimension(:), allocatable :: sendbuffer
 	type(node), pointer 	        :: old, current
 
-	allocate(FENEpack(4+nmonomers))
 
  	icornercell = (/ 2, 2, 2, 2, ncells(1)+1, ncells(1)+1, ncells(1)+1, ncells(1)+1/)
  	jcornercell = (/ 2, 2, ncells(2)+1, ncells(2)+1, 2, 2, ncells(2)+1, ncells(2)+1/) 
@@ -1274,7 +1261,7 @@ subroutine updatecorners()
 		case(0) !LJ only
 			sendsize = nd*sendnp
 		case(1) !+FENE info 
-			sendsize = nd*sendnp + (4+nmonomers)*sendnp
+			sendsize = nd*sendnp + (5)*sendnp
 		end select
 		allocate(sendbuffer(sendsize))
 		call MPI_Pack_size(sendsize,MPI_DOUBLE_PRECISION, &
@@ -1297,7 +1284,7 @@ subroutine updatecorners()
 				sendbuffer,buffsize,pos,icomm_grid,ierr)	
 			
 				call prepare_FENEbuffer(molno,FENEpack)
-				call MPI_Pack(FENEpack,4+nmonomers,MPI_DOUBLE_PRECISION,&
+				call MPI_Pack(FENEpack,5,MPI_DOUBLE_PRECISION,&
 				sendbuffer,buffsize,pos,icomm_grid,ierr)
 			end select
 			current => old			    !Use current to move to next
@@ -1313,7 +1300,7 @@ subroutine updatecorners()
 		case(0)
 			recvnp = recvsize/real(nd,kind(0.d0))
 		case(1)
-			recvnp = recvsize/real(nd+4+nmonomers,kind(0.d0))
+			recvnp = recvsize/real(nd+5,kind(0.d0))
 		end select
 
 		pos = 0
@@ -1329,7 +1316,7 @@ subroutine updatecorners()
 				r(np+n,:) = rpack
 
 				call MPI_Unpack(recvbuffer,length,pos,FENEpack, &
-				4+nmonomers,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+				5,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
 				call assign_FENEbuffer(np+n,FENEpack)
 			end select
 		enddo
@@ -1358,7 +1345,6 @@ subroutine updatecorners()
 	!	if(irank .eq. iroot) print'(i5,3f10.5)', iter, r(n,:)
 	!enddo
 
-	deallocate(FENEpack)
 	nullify(current)        !Nullify current as no longer required
 	nullify(old)            !Nullify old as no longer required
 
@@ -1463,11 +1449,10 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 	integer :: isource,idest
 	double precision			    :: tagpack	!Temporay packing buffer
 	double precision, dimension(nd) :: Xpack 	!Temporay packing buffer
-	double precision, dimension(:), allocatable  :: FENEpack
+	double precision, dimension(5)  :: FENEpack
 	double precision, dimension(:), allocatable :: sendbuffer
 	type(passnode), pointer :: old, current
 
-	allocate(FENEpack(4+nmonomers))
 
 	!Obtain processor ID of lower neighbour
 	call MPI_Cart_shift(icomm_grid, ixyz-1, dir, isource, idest, ierr)
@@ -1475,12 +1460,12 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 	!print'(a,i5,a,i5,a,i5,a,i5,a,i5)', ' proc ', irank, ' coordinate ' &
 	!,ixyz, ' dir ',dir, ' passes to ', idest+1, ' receives from ', isource+1
 
-	!One Tag, three position and three velocity components for each molecules
+	!One Tag, three position, three true position and three velocity components for each molecules
 	select case(potential_flag)
 	case(0)
-		sendsize = (6 + 1)*sendnp
+		sendsize = (9 + 1)*sendnp
 	case(1)
-		sendsize = (6 + 1)*sendnp + (4+nmonomers)*sendnp
+		sendsize = (9 + 1)*sendnp + (5)*sendnp
 	end select
 	allocate(sendbuffer(sendsize))
 	call MPI_Pack_size(sendsize,MPI_DOUBLE_PRECISION, &
@@ -1499,6 +1484,10 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 			Xpack(:) = r(molno,:)
 			call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
 					sendbuffer,buffsize,pos,icomm_grid,ierr)
+			!True global positions
+			Xpack(:) = rtrue(molno,:)
+			call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
+					sendbuffer,buffsize,pos,icomm_grid,ierr)
 			!Velocity
 			Xpack(:) = v(molno,:)
 			call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
@@ -1512,13 +1501,17 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 			Xpack(:) = r(molno,:)
 			call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
 					sendbuffer,buffsize,pos,icomm_grid,ierr)
+			!True global positions
+			Xpack(:) = rtrue(molno,:)
+			call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
+					sendbuffer,buffsize,pos,icomm_grid,ierr)
 			!Velocity
 			Xpack(:) = v(molno,:)
 			call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
 					sendbuffer,buffsize,pos,icomm_grid,ierr)
 			!IDs
 			call prepare_FENEbuffer(molno,FENEpack)
-			call MPI_Pack(FENEpack,4+nmonomers,MPI_DOUBLE_PRECISION,& 
+			call MPI_Pack(FENEpack,5,MPI_DOUBLE_PRECISION,& 
 					sendbuffer,buffsize,pos,icomm_grid,ierr)
 
 			!Molecular Tag - Convert to double precision so all passed variables same type
@@ -1550,12 +1543,12 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 	!call pairedsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest,ixyz)
 	!call NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest)
 
-	!One tag, three spatial and Three velocity components per molecule
+	!One tag, three positions, three true positions and three velocity components per molecule
 	select case(potential_flag)
 	case(0)
-		recvnp = recvsize/(2.d0*nd + 1)
+		recvnp = recvsize/(3*nd + 1)
 	case(1)
-		recvnp = recvsize/(2.d0*nd + 1 + 4+nmonomers)
+		recvnp = recvsize/(3*nd + 1 + 5)
 	end select
 
 	!Unpack data into correct arrays
@@ -1565,27 +1558,32 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 		case(0)
 			call MPI_Unpack(recvbuffer,length,pos,Xpack, &
 			                nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			r(np+n,:) = Xpack
+			r(np+n,:)     = Xpack
 			call MPI_Unpack(recvbuffer,length,pos,Xpack, &
 			                nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			v(np+n,:) = Xpack
+			rtrue(np+n,:) = Xpack
+			call MPI_Unpack(recvbuffer,length,pos,Xpack, &
+			                nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+			v(np+n,:)     = Xpack
 			call MPI_Unpack(recvbuffer,length,pos,tagpack, &
 			                1,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			tag(np+n) = nint(tagpack)	!Convert back to integer
+			tag(np+n)     = nint(tagpack)	!Convert back to integer
 		case(1)
 			call MPI_Unpack(recvbuffer,length,pos,Xpack, &
 			                nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			r(np+n,:) = Xpack
+			r(np+n,:)     = Xpack
 			call MPI_Unpack(recvbuffer,length,pos,Xpack, &
 			                nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			v(np+n,:) = Xpack
+			rtrue(np+n,:) = Xpack
+			call MPI_Unpack(recvbuffer,length,pos,Xpack, &
+			                nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+			v(np+n,:)     = Xpack
 			call MPI_Unpack(recvbuffer,length,pos,FENEpack, &
-			                4+nmonomers,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+			                5,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
 			call assign_FENEbuffer(np+n,FENEpack)
-
 			call MPI_Unpack(recvbuffer,length,pos,tagpack, &
 			                1,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			tag(np+n) = nint(tagpack)	!Convert back to integer
+			tag(np+n)     = nint(tagpack)	!Convert back to integer
 		end select
 	enddo
 
@@ -1599,7 +1597,6 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 
 	!print*, 'proc', irank, 'new molecules', new_np
 
-	deallocate(FENEpack)
 	deallocate(recvbuffer)
 	deallocate(sendbuffer)
 	nullify(current)        !Nullify current as no longer required
@@ -1636,13 +1633,15 @@ subroutine reorderdata(new_np)
 		molno = old%molno	!Position of empty location 
 		select case(potential_flag)
 		case(0)
-			r(molno,:) = r(np+new_np,:)
-			v(molno,:) = v(np+new_np,:)
-			tag(molno) = tag(np+new_np)
+			r(molno,:)     = r(np+new_np,:)
+			rtrue(molno,:) = rtrue(np+new_np,:)
+			v(molno,:)     = v(np+new_np,:)
+			tag(molno)     = tag(np+new_np)
 		case(1)
-			r(molno,:) = r(np+new_np,:)
-			v(molno,:) = v(np+new_np,:)
-			tag(molno) = tag(np+new_np)
+			r(molno,:)     = r(np+new_np,:)
+			rtrue(molno,:) = rtrue(np+new_np,:)
+			v(molno,:)     = v(np+new_np,:)
+			tag(molno)     = tag(np+new_np)
 			monomer(molno) = monomer(np+new_np)
 		end select
 

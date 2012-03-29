@@ -57,6 +57,11 @@ subroutine setup_read_input
 		read(1,*) nmonomers
 		read(1,*) k_c
 		read(1,*) R_0
+
+		call locate(1,'SOLVENT_INFO',.true.)
+		read(1,*) solvent_flag
+		if (solvent_flag.eq.1) read(1,*) solvent_ratio
+
 	end if	
 	!Input computational co-efficients
 	call locate(1,'NSTEPS',.true.)
@@ -90,11 +95,11 @@ subroutine setup_read_input
 
 	call locate(1,'DEFINE_SHEAR',.false.,found_in_input)
 	if (found_in_input) then
-		read(1,*) shear_direction
-		read(1,*) shear_iter0
+		read(1,*) le_sd
+		read(1,*) le_i0
 		read(1,*) define_shear_as
-		if (define_shear_as.eq.0) read(1,*) shear_velocity
-		if (define_shear_as.eq.1) read(1,*) shear_rate
+		if (define_shear_as.eq.0) read(1,*) le_sv
+		if (define_shear_as.eq.1) read(1,*) le_sr
 		if (define_shear_as.gt.1) call error_abort( 'Poorly defined shear in input file')
 	endif
 

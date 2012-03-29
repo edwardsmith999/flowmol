@@ -128,6 +128,7 @@ subroutine set_parameters_allocate(n)
 		!Allocate array sizes for position, velocity and acceleration
 		allocate(r(np+extralloc,nd))
 		allocate(rtrue(np+extralloc,nd)) !Used to establish diffusion - r with no periodic BC
+		allocate(vtrue(np+extralloc,nd)) !Used to establish diffusion - r with no periodic BC
 		allocate(rinitial(np+extralloc,nd))
 		allocate(rijsum(np+extralloc,nd)) !Sum of rij for each i, used for SLLOD algorithm
 		allocate(v(np+extralloc,nd))
@@ -178,11 +179,6 @@ subroutine setup_polymer_info
 	allocate(bondcount(np+extralloc))
 	bondcount = 0
 	allocate(monomer(np+extralloc))
-	do n=1,np+extralloc
-		allocate(monomer(n)%bondflag(nmonomers))
-		monomer(n)%bondflag(:) = 0
-		monomer(n)%funcy       = 0
-	end do
 	allocate(etev(nchains,nd))
 	allocate(etev_0(nchains,nd))
 	allocate(potenergymol_FENE(np+extralloc))
@@ -199,37 +195,39 @@ implicit none
 	integer :: i
 
 	! DEFAULTS	
-	shear_plane = 2
-	shear_direction = 1
-	shear_remainingplane = 3
-	shear_iter0 = 0
-	shear_time = 0.d0
-	shear_distance = 0.d0	
+	le_sp = 2
+	le_sd = 1
+	le_rp = 3
+	le_i0 = 0
+	le_st = 0.d0
+	le_sx = 0.d0	
 
 	! CHANGE FROM DEFAULT VALUES
 	do i=1,nd
-		if (periodic(i).eq.2) shear_plane = i
+		if (periodic(i).eq.2) le_sp = i
 	end do
 
 	if (any(periodic.gt.1)) then	
-		select case(shear_plane + shear_direction)
+		select case(le_sp + le_sd)
 		case(3)
-			shear_remainingplane = 3
+			le_rp = 3
 		case(4)
-			shear_remainingplane = 2
+			le_rp = 2
 		case(5)
-			shear_remainingplane = 1
+			le_rp = 1
 		case default
 			call error_abort('Shear plane and shear direction must be different and 1,2 or 3')
-		end select 
+		end select
+	else
+		le_sv = 0.d0 
 	end if
 
-	if (define_shear_as.eq.0) shear_rate = shear_velocity/domain(shear_direction)
-	if (define_shear_as.eq.1) shear_velocity = shear_rate*domain(shear_direction)
+	if (define_shear_as.eq.0) le_sr = le_sv/domain(le_sd)
+	if (define_shear_as.eq.1) le_sv = le_sr*domain(le_sd)
 	
-	if (iter .lt. shear_iter0) then
-		shear_time = 0.d0
-		shear_distance = 0.d0
+	if (iter .lt. le_i0) then
+		le_st = 0.d0
+		le_sx = 0.d0
 	end if
 
 end subroutine setup_shear_parameters

@@ -163,6 +163,18 @@ FENE_INFO
 1.5
 
 #########################################################################
+# Solvent information:
+#	- flag
+#		> 0 - Polymer only
+#		> 1 - Polymer in theta solvent
+#	- solvent ratio (integer): number of solvent molecules per FENE
+#                              monomer.
+# -----------------------------------------------------------------------
+SOLVENT_INFO
+0
+0
+
+#########################################################################
 # Random number seeds, formattted:
 #	seed1
 #	seed2

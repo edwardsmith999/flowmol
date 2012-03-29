@@ -42,19 +42,20 @@ subroutine simulation_move_particles_lfv
 	double precision, save :: zeta=0.d0
 	double precision, dimension(np,nd) :: U
 
+	
 	select case(ensemble)
 
 	case(nve)
 		do n=1,np
-			v(n,:) = v(n,:) + delta_t*a(n,:)
-			r(n,:) = r(n,:) + delta_t*v(n,:)
+			v(n,:)     = v(n,:)     + delta_t*a(n,:)
+			r(n,:)     = r(n,:)     + delta_t*v(n,:)
 		end do
 
 	case(nvt_NH)
 		call evaluate_NH_params
 		do n=1,np
-	        v(n,:) = v(n,:)*ascale + a(n,:)*delta_t*bscale
-			r(n,:) = r(n,:)        + v(n,:)*delta_t			
+	        v(n,:)     = v(n,:)*ascale + a(n,:)*delta_t*bscale
+			r(n,:)     = r(n,:)        + v(n,:)*delta_t			
 		end do
 
 	case(nvt_GIK)
@@ -64,8 +65,8 @@ subroutine simulation_move_particles_lfv
 		call evaluate_U_PUT
 		call evaluate_NH_params_PUT
 		do n=1,np
-	        v(n,:) = v(n,:)*ascale + a(n,:)*delta_t*bscale + zeta*U(n,:)*delta_t*bscale
-			r(n,:) = r(n,:)        + v(n,:)*delta_t			
+	        v(n,:)     = v(n,:)*ascale + a(n,:)*delta_t*bscale + zeta*U(n,:)*delta_t*bscale
+			r(n,:)     = r(n,:)        + v(n,:)*delta_t			
 		end do
 	
 	case(nvt_pwa_NH)
@@ -78,8 +79,25 @@ subroutine simulation_move_particles_lfv
 		call error_abort('Unrecognised move option in simulation_move_particles_lfv.f90')
 
 	end select
+	
+	call simulation_move_particles_true_lfv
 
 contains
+
+	!-----------------------------------------------------------------------
+	!Evaluate "true" positions and velocities without periodic wrapping
+	subroutine simulation_move_particles_true_lfv
+		use shear_info_MD, only: le_sp, le_sv, le_sd
+		implicit none
+
+		vtrue = v
+
+		do n=1,np
+			vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(n,le_sp)/domain(le_sp))*le_sv
+			rtrue(n,:)     = rtrue(n,:) + delta_t*vtrue(n,:)
+		end do
+
+	end subroutine simulation_move_particles_true_lfv
 	
 	!-----------------------------------------------------------------------
 	!Evaluate Nosé-Hoover parameters
@@ -133,7 +151,7 @@ contains
 	!Evaluate streaming velocity for each particle
 	subroutine evaluate_U_PUT
 		use calculated_properties_MD,   only: nbins, get_mass_slices, get_velo_slices
-		use shear_info_MD,              only: shear_plane
+		use shear_info_MD,              only: le_sp
 		implicit none
 		
 		integer :: slicebin
@@ -142,20 +160,20 @@ contains
 		double precision, dimension(:,:), allocatable :: v_slice
 		double precision, dimension(:,:), allocatable :: v_avg
 	
-		allocate(m_slice(nbins(shear_plane)))                                   ! PUT: Allocate instantaneous mass slices
-		allocate(v_slice(nbins(shear_plane),nd))                                ! PUT: Allocate instantaneous velocity slices
-		allocate(v_avg(nbins(shear_plane),nd))                                  ! PUT: Allocate instantaneous velocity averages
+		allocate(m_slice(nbins(le_sp)))                                   ! PUT: Allocate instantaneous mass slices
+		allocate(v_slice(nbins(le_sp),nd))                                ! PUT: Allocate instantaneous velocity slices
+		allocate(v_avg(nbins(le_sp),nd))                                  ! PUT: Allocate instantaneous velocity averages
 		slicebinsize(:) = domain(:)/nbins(:)                                    ! PUT: Get bin size for PUT
-		m_slice = get_mass_slices(shear_plane)                                  ! PUT: Get total mass in all slices
-		v_slice = get_velo_slices(shear_plane)                                  ! PUT: Get total velocity in all slices
-		do slicebin=1,nbins(shear_plane)                                        ! PUT: Loop through all slices
+		m_slice = get_mass_slices(le_sp)                                  ! PUT: Get total mass in all slices
+		v_slice = get_velo_slices(le_sp)                                  ! PUT: Get total velocity in all slices
+		do slicebin=1,nbins(le_sp)                                        ! PUT: Loop through all slices
 			v_avg(slicebin,:) = v_slice(slicebin,:)/m_slice(slicebin)           ! PUT: average velocity
 		end do
 		
 		do n=1,np
-			slicebin = ceiling((r(n,shear_plane)+halfdomain(shear_plane))/&
-			                    slicebinsize(shear_plane))
-			if (slicebin > nbins(shear_plane)) slicebin = nbins(shear_plane)    ! PUT: Prevent out-of-range values
+			slicebin = ceiling((r(n,le_sp)+halfdomain(le_sp))/&
+			                    slicebinsize(le_sp))
+			if (slicebin > nbins(le_sp)) slicebin = nbins(le_sp)    ! PUT: Prevent out-of-range values
 			if (slicebin < 1) slicebin = 1                                      ! PUT: Prevent out-of-range values
 			U(n,:) = v_avg(slicebin,:)
 		end do

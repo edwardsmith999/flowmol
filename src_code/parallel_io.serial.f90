@@ -308,18 +308,20 @@ subroutine setup_restart_microstate
 	select case (potential_flag)
 	case(0)
 		do n=1,globalnp
-			read(2) buf; r(n,:)=buf	!Read particle n's positions
-			read(2) buf; v(n,:)=buf	!Read particle n's velocities
+			read(2) buf; r(n,:)     = buf   !Read particle n's positions
+			read(2) buf; rtrue(n,:) = buf   !Read particle n's unwrapped positions
+			read(2) buf; v(n,:)     = buf   !Read particle n's velocities
 		enddo
 	case(1)
 		do n=1,globalnp
-			read(2) buf; r(n,:)=buf	!Read particle n's positions
-			read(2) buf; v(n,:)=buf	!Read particle n's velocities
+			read(2) buf; r(n,:)     = buf   !Read particle n's positions
+			read(2) buf; rtrue(n,:) = buf   !Read particle n's positions
+			read(2) buf; v(n,:)     = buf   !Read particle n's velocities
 			read(2) monomer(n)%chainID
 			read(2) monomer(n)%subchainID
 			read(2) monomer(n)%funcy
 			read(2) monomer(n)%glob_no
-			read(2) monomer(n)%bondflag(1:nmonomers)
+			read(2) monomer(n)%bin_bflag
 		end do
 	case default
 	end select
@@ -470,11 +472,11 @@ subroutine simulation_header
 	write(3,*)  'Domain split into Planes for Pressure Averaging ; nplanes  ;',nplanes 
 	write(3,*)  'Separated by distance ;  planespacing  ;', planespacing 
 	write(3,*)  'with first plane at ;  planes ;', planes(1)
-	write(3,*)	'Shear direction ; shear_direction;', shear_direction
+	write(3,*)	'Shear direction ; le_sd;', le_sd
 	write(3,*)  'Leapfrog or Velocity-Verlet ; integration_algorithm ;', integration_algorithm
 	write(3,*)  'Force calculation list methodd ; force_list ;', force_list
 	!write(3,*)  'Ensemble; ensemble; ', ensemble		!MATLAB input functions can't deal with words...
-	write(3,*)	'Shear direction ; shear_direction;', shear_direction
+	write(3,*)	'Shear direction ; le_sd;', le_sd
 
 	close(3,status='keep')
 
@@ -519,18 +521,20 @@ subroutine parallel_io_final_state
 	select case (potential_flag)
 	case(0)
 		do n=1,np
-			buf = r(n,:); write(2) buf	!Write particle n's positions and speed
-			buf = v(n,:); write(2) buf	!Write particle n's velocities
+			buf = r(n,:);     write(2) buf  !Write particle n's position
+			buf = rtrue(n,:); write(2) buf  !Write particle n's unwrapped position
+			buf = v(n,:);     write(2) buf  !Write particle n's velocities
 		enddo
 	case(1)
 		do n=1,np
-			buf = r(n,:); write(2) buf	!Write particle n's positions and speed
-			buf = v(n,:); write(2) buf	!Write particle n's velocities
+			buf = r(n,:);     write(2) buf  !Write particle n's positions and speed
+			buf = rtrue(n,:); write(2) buf  !Write particle n's unwrapped position
+			buf = v(n,:);     write(2) buf  !Write particle n's velocities
 			write(2) monomer(n)%chainID
 			write(2) monomer(n)%subchainID
 			write(2) monomer(n)%funcy
 			write(2) monomer(n)%glob_no
-			write(2) monomer(n)%bondflag(1:nmonomers)
+			write(2) monomer(n)%bin_bflag
 		end do
 	case default
 	end select	
@@ -582,24 +586,34 @@ subroutine parallel_io_vmd(start, finish,interval_no)
 	integer,intent(in)			:: start, finish,interval_no
 	integer						:: i, n, length
 	integer                     :: molno
-	real,dimension(3*np)		:: buf
+	real,dimension(3*np)		:: buf,buftrue
 	real,dimension(np)          :: Xbuf, Ybuf, Zbuf
+	real,dimension(np)          :: Xbuftrue, Ybuftrue, Zbuftrue
 
 	select case (potential_flag)
 	case(0)
 		buf(1     :  np) = r(:,1)
 		buf(np+1  :2*np) = r(:,2)
 		buf(2*np+1:3*np) = r(:,3)
+		buftrue(1     :  np) = rtrue(:,1)
+		buftrue(np+1  :2*np) = rtrue(:,2)
+		buftrue(2*np+1:3*np) = rtrue(:,3)
 	case(1)
 		do n=1,np
 			molno       = monomer(n)%glob_no
 			Xbuf(molno) = r(n,1)
 			Ybuf(molno) = r(n,2)
 			Zbuf(molno) = r(n,3)
+			Xbuftrue(molno) = rtrue(n,1)
+			Ybuftrue(molno) = rtrue(n,2)
+			Zbuftrue(molno) = rtrue(n,3)
 		enddo
 		buf(1     :np  ) = Xbuf
 		buf(np+1  :2*np) = Ybuf
 		buf(2*np+1:3*np) = Zbuf
+		buftrue(1     :np  ) = Xbuftrue
+		buftrue(np+1  :2*np) = Ybuftrue
+		buftrue(2*np+1:3*np) = Zbuftrue
 	case default
 	end select		
 
@@ -614,6 +628,11 @@ subroutine parallel_io_vmd(start, finish,interval_no)
 	inquire(iolength=length) buf
 	open (unit=4, file=trim(prefix_dir)//'results/vmd_temp.dcd',access='direct',recl=length)
 	write(4,rec=i) buf(:)
+	close(4,status='keep')
+	
+	inquire(iolength=length) buftrue
+	open (unit=4, file=trim(prefix_dir)//'results/vmd_temp_true.dcd',access='direct',recl=length)
+	write(4,rec=i) buftrue(:)
 	close(4,status='keep')
 
 end subroutine parallel_io_vmd

@@ -118,6 +118,7 @@ subroutine reformat_dcd
 	character(len=80), dimension(2)	:: TITLE	        !--Title(s)
 	real 							:: time_start, time_end
 	real,allocatable,dimension(:)   :: Xbuf, Ybuf, Zbuf	!--Buffers used to copy from direct access to binary
+	real,allocatable,dimension(:)   :: Xbuftrue, Ybuftrue, Zbuftrue	!--Buffers used to copy from direct access to binary
 	double precision				:: DELTA		!--Timestep between frames
 
 	print*, 'Generating final VMD.dcd ouput file - for large systems or'
@@ -160,39 +161,58 @@ subroutine reformat_dcd
 	allocate(Xbuf(NSET*globalnp))
 	allocate(Ybuf(NSET*globalnp))
 	allocate(Zbuf(NSET*globalnp))
+	allocate(Xbuftrue(NSET*globalnp))
+	allocate(Ybuftrue(NSET*globalnp))
+	allocate(Zbuftrue(NSET*globalnp))
 
 	!Read position information from file
 	!RECORD LENGTH IS 1 WHICH IN FORTRAN IS A 4 BYTE BLOCKS (REAL, INT BUT NOT DP) 	
 	open (unit=17, file=trim(prefix_dir)//"results/vmd_temp.dcd",access='stream')
+	open (unit=18, file=trim(prefix_dir)//"results/vmd_temp_true.dcd",access='stream')
 
 	do i=1,NSET
 		read(17) Xbuf(globalnp*(i-1)+1:globalnp*i)
 		read(17) Ybuf(globalnp*(i-1)+1:globalnp*i)
 		read(17) Zbuf(globalnp*(i-1)+1:globalnp*i)
+		read(18) Xbuftrue(globalnp*(i-1)+1:globalnp*i)
+		read(18) Ybuftrue(globalnp*(i-1)+1:globalnp*i)
+		read(18) Zbuftrue(globalnp*(i-1)+1:globalnp*i)
 		if (mod(i,100) .eq. 0) print*, 'Reading % complete =', (100.d0*i/NSET)
 	enddo
 
 	close(17,status='delete')
+	close(18,status='delete')
 
 	!Open binary .dcd file and write header information	
 	open(unit=3, file=trim(prefix_dir)//"results/vmd_out.dcd",status='replace', form="unformatted")
+	open(unit=4, file=trim(prefix_dir)//"results/vmd_out_true.dcd",status='replace', form="unformatted")
 	
 	write(3) HDR, NSET, ISTRT, NSAVC, FIVEZ, NATOMNFREAT, DELTA, NINEZ
 	write(3) NTITLE, TITLE(1), TITLE(2)
 	write(3) NATOM
+	write(4) HDR, NSET, ISTRT, NSAVC, FIVEZ, NATOMNFREAT, DELTA, NINEZ
+	write(4) NTITLE, TITLE(1), TITLE(2)
+	write(4) NATOM
 
 	do i=1,NSET
 		write(3) Xbuf((i-1)*globalnp+1:i*globalnp)
 		write(3) Ybuf((i-1)*globalnp+1:i*globalnp)
 		write(3) Zbuf((i-1)*globalnp+1:i*globalnp)
+		write(4) Xbuftrue((i-1)*globalnp+1:i*globalnp)
+		write(4) Ybuftrue((i-1)*globalnp+1:i*globalnp)
+		write(4) Zbuftrue((i-1)*globalnp+1:i*globalnp)
 		if (mod(i,100) .eq. 0) print*, 'Writing % complete =', (100.d0*i/NSET)
 	enddo
 
 	close(3,status='keep')
+	close(4,status='keep')
 
 	deallocate(Xbuf)
 	deallocate(Ybuf)
 	deallocate(Zbuf)
+	deallocate(Xbuftrue)
+	deallocate(Ybuftrue)
+	deallocate(Zbuftrue)
 
 	call cpu_time(time_end)
 
@@ -452,26 +472,33 @@ subroutine build_psf
 	use polymer_info_MD
 	implicit none
 
-	integer :: i,j,n,item, molno
+	integer :: i,j,n,item,molno,sc
 	integer :: NTITLE, NATOM, NBONDS
 	integer	:: write_items
 	integer, allocatable, dimension(:,:) :: bonds	
 	integer, allocatable, dimension(:)	::	res_ID
 	integer, allocatable, dimension(:)	::	glob_sc
-	integer, allocatable, dimension(:,:)::	glob_bf
+	integer, allocatable, dimension(:)  ::	glob_bf
 	character(len=4), allocatable, dimension(:) :: seg_name, res_name, atom_name, atom_type
 	real, allocatable, dimension(:)	:: charge, mass
 	
 	NTITLE = 1												! How many 'REMARKS' lines you want
 	NATOM  = globalnp										! Determine total number of atoms
-	NBONDS = (nmonomers-1)*nchains						    ! Determine total number of bonds
-
+	NBONDS = 0
+	do n=1,np
+		do sc=1,nmonomers
+			NBONDS = NBONDS + abs(btest(monomer(n)%bin_bflag,sc))
+		end do
+	end do
+	call globalSumInt(NBONDS)
+	NBONDS = int(NBONDS/2)
+	
 	print*, 'Generating polymer topology file polymer_topol.psf'
 
 	allocate(seg_name(NATOM))								! Determine segment names for each atom
 	allocate(res_ID(NATOM))									! Determine molecule ID for each atom
 	allocate(glob_sc(NATOM))								! Determine molecule ID for each atom
-	allocate(glob_bf(NATOM,nmonomers))						! Determine molecule ID for each atom
+	allocate(glob_bf(NATOM))                                ! Determine molecule ID for each atom
 	allocate(res_name(NATOM))								! Determine name for each molecule
 	allocate(atom_name(NATOM))								! Determine name for each atom
 	allocate(atom_type(NATOM))								! Determine type for each atom
@@ -480,22 +507,36 @@ subroutine build_psf
 
 	res_ID(:) = 0
 	glob_sc(:) = 0
-	glob_bf(:,:) = 0
+	glob_bf(:) = 0
 	do n=1,np
 		molno            = monomer(n)%glob_no
 		res_ID(molno)    = monomer(n)%chainID 
 		glob_sc(molno)   = monomer(n)%subchainID
-		glob_bf(molno,:) = monomer(n)%bondflag(:)
+		glob_bf(molno)   = monomer(n)%bin_bflag
 	end do
+
 	call globalSumIntVect(res_ID,globalnp)
 	call globalSumIntVect(glob_sc,globalnp)
-	call globalSumIntTwoDim(glob_bf,globalnp,nmonomers)
-	seg_name(:)  = 'C'
-	res_name(:)  = 'CBN'
-	atom_name(:) = 'C'
-	atom_type(:) = 'C'
-	charge(:)    = 0.00000
-	mass(:)      = 1.00794
+	call globalSumIntVect(glob_bf,globalnp)
+
+	do n=1,globalnp
+		select case (res_ID(n))
+		case(0)
+			seg_name(n)  = 'N'
+			res_name(n)  = 'SOL'
+			atom_name(n) = 'N'
+			atom_type(n) = 'N'
+			mass(n)      = 1.00794
+		case(1:)
+			seg_name(n)  = 'C'
+			res_name(n)  = 'POL'
+			atom_name(n) = 'C'
+			atom_type(n) = 'C'
+			mass(n)      = 1.00794
+		case default
+		end select
+		charge(n)    = 0.00000
+	end do
 
 	if (irank.eq.iroot) then
 		
@@ -531,7 +572,7 @@ subroutine build_psf
 				
 					!If j is bonded to i then add pair to items	
 					do n=1,nmonomers
-						if(glob_bf(i,n) .eq. 1 .and. glob_sc(j) .eq. n) then
+						if(abs(btest(glob_bf(i),n)) .eq. 1 .and. glob_sc(j) .eq. n) then
 							bonds(item,1) = i
 							bonds(item,2) = j
 							item=item+1						
@@ -571,7 +612,7 @@ subroutine build_psf
 	deallocate(atom_type)								! Determine type for each atom
 	deallocate(charge)									! Determine charge for each atom
 	deallocate(mass)									! Determine mass of each atom
-	deallocate(bonds)
+	if(allocated(bonds)) deallocate(bonds)
 	deallocate(glob_sc)
 	deallocate(glob_bf)
 

@@ -221,15 +221,15 @@ implicit none
 
 	halo_np = 0
 	
-	if (iter .gt. shear_iter0) then
-		shear_time = dble(iter - shear_iter0)*delta_t
-		shear_distance = shear_time*shear_velocity	
-		!shear_distance = shear_distance + shear_velocity*delta_t
+	if (iter .gt. le_i0) then
+		le_st = dble(iter - le_i0)*delta_t
+		le_sx = le_st*le_sv	
+		!le_sx = le_sx + le_sv*delta_t
 	end if
 	
-	call update_plane(shear_plane,shear_direction,.false.,shear_remainingplane,.false.,rebuild)
-	call update_plane(shear_direction,shear_plane,.true.,shear_remainingplane,.false.,rebuild)
-	call update_plane(shear_remainingplane,shear_direction,.true.,shear_plane,.true.,rebuild)
+	call update_plane(le_sp,le_sd,.false.,le_rp,.false.,rebuild)
+	call update_plane(le_sd,le_sp,.true.,le_rp,.false.,rebuild)
+	call update_plane(le_rp,le_sd,.true.,le_sp,.true.,rebuild)
 
 	return	
 
@@ -705,14 +705,14 @@ implicit none
 			
 			if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
 			
-			if (copyplane.eq.shear_plane) then
+			if (copyplane.eq.le_sp) then
 				if (rebuild.eq.1) then                                  !If rebuilding...
 					mol_wrap_integer(molno) = &                         !Molecular wrap integer kept the same until next rebuild
-					floor((r(np+m,shear_direction)+halfdomain(shear_direction)+shear_distance)/(domain(shear_direction)))
+					floor((r(np+m,le_sd)+halfdomain(le_sd)+le_sx)/(domain(le_sd)))
 				end if
-				r(np+m,shear_direction) = 	r(np+m,shear_direction) + &	!Slide and wrap
-									  		(shear_distance-mol_wrap_integer(molno)*domain(shear_direction))
-				v(np+m,shear_direction) =   v(np+m,shear_direction) + shear_velocity
+				r(np+m,le_sd) = 	r(np+m,le_sd) + &	!Slide and wrap
+									  		(le_sx-mol_wrap_integer(molno)*domain(le_sd))
+				v(np+m,le_sd) =   v(np+m,le_sd) + le_sv
 			end if
 
 			current => old                                              !Use current to move to next
@@ -738,14 +738,14 @@ implicit none
 			
 			if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
 		
-			if (copyplane.eq.shear_plane) then
+			if (copyplane.eq.le_sp) then
 				if (rebuild.eq.1) then									!If rebuilding...
 					mol_wrap_integer(molno) = &							!Molecular wrap integer kept the same until next rebuild
-					-floor((r(np+m,shear_direction)+halfdomain(shear_direction)-shear_distance)/(domain(shear_direction)))
+					-floor((r(np+m,le_sd)+halfdomain(le_sd)-le_sx)/(domain(le_sd)))
 				end if
-				r(np+m,shear_direction) = 	r(np+m,shear_direction) - & !Slide and wrap
-									  		(shear_distance-mol_wrap_integer(molno)*domain(shear_direction))
-				v(np+m,shear_direction) =   v(np+m,shear_direction) - shear_velocity
+				r(np+m,le_sd) = 	r(np+m,le_sd) - & !Slide and wrap
+									  		(le_sx-mol_wrap_integer(molno)*domain(le_sd))
+				v(np+m,le_sd) =   v(np+m,le_sd) - le_sv
 			end if
 		
 			current => old			    								!Use current to move to next
@@ -826,42 +826,42 @@ implicit none
 	
 	integer :: ixyz,n
 
-	if (iter.lt.shear_iter0) then
+	if (iter.lt.le_i0) then
 		call sendmols_quiescent
 		return
 	end if
 	
-	shear_time = dble(iter - shear_iter0)*delta_t
-	shear_distance = shear_time*shear_velocity
-	wrap_integer = floor(shear_time*shear_velocity/domain(shear_direction))
+	le_st = dble(iter - le_i0)*delta_t
+	le_sx = le_st*le_sv
+	wrap_integer = floor(le_st*le_sv/domain(le_sd))
 	
 	do n=1,np
 
 		!---- Slide and wrap in shearing plane first --------------------!
-		if (r(n,shear_plane) .ge. halfdomain(shear_plane)) then   									!Above +halfdomain
-			r(n,shear_plane) = r(n,shear_plane) - domain(shear_plane) 								!Move to other side of domain
-			r(n,shear_direction) = r(n,shear_direction) - (shear_distance - wrap_integer*domain(shear_direction))
-			v(n,shear_direction) = v(n,shear_direction) - shear_velocity
+		if (r(n,le_sp) .ge. halfdomain(le_sp)) then   									!Above +halfdomain
+			r(n,le_sp) = r(n,le_sp) - domain(le_sp) 								!Move to other side of domain
+			r(n,le_sd) = r(n,le_sd) - (le_sx - wrap_integer*domain(le_sd))
+			v(n,le_sd) = v(n,le_sd) - le_sv
 		end if
-		if (r(n,shear_plane) .lt. -halfdomain(shear_plane)) then   									!Below -halfdomain
-			r(n,shear_plane) = r(n,shear_plane) + domain(shear_plane) 								!Move to other side of domain
-			r(n,shear_direction) = r(n,shear_direction) + (shear_distance - wrap_integer*domain(shear_direction))
-			v(n,shear_direction) = v(n,shear_direction) + shear_velocity
+		if (r(n,le_sp) .lt. -halfdomain(le_sp)) then   									!Below -halfdomain
+			r(n,le_sp) = r(n,le_sp) + domain(le_sp) 								!Move to other side of domain
+			r(n,le_sd) = r(n,le_sd) + (le_sx - wrap_integer*domain(le_sd))
+			v(n,le_sd) = v(n,le_sd) + le_sv
 		endif
 		!----------------------------------------------------------------!
 
-		if (r(n,shear_direction) >= halfdomain(shear_direction)) then   							!Above +halfdomain
-			r(n,shear_direction) = r(n,shear_direction) - domain(shear_direction) 					!Move to other side of domain
+		if (r(n,le_sd) >= halfdomain(le_sd)) then   							!Above +halfdomain
+			r(n,le_sd) = r(n,le_sd) - domain(le_sd) 					!Move to other side of domain
 		end if			
-		if (r(n,shear_direction) < -halfdomain(shear_direction)) then   							!Below -halfdomain
-			r(n,shear_direction) = r(n,shear_direction) + domain(shear_direction) 					!Move to other side of domain
+		if (r(n,le_sd) < -halfdomain(le_sd)) then   							!Below -halfdomain
+			r(n,le_sd) = r(n,le_sd) + domain(le_sd) 					!Move to other side of domain
 		endif
 
-		if (r(n,shear_remainingplane) >= halfdomain(shear_remainingplane)) then   					!Above +halfdomain
-			r(n,shear_remainingplane) = r(n,shear_remainingplane) - domain(shear_remainingplane) 	!Move to other side of domain
+		if (r(n,le_rp) >= halfdomain(le_rp)) then   					!Above +halfdomain
+			r(n,le_rp) = r(n,le_rp) - domain(le_rp) 	!Move to other side of domain
 		end if
-		if (r(n,shear_remainingplane) < -halfdomain(shear_remainingplane)) then   					!Below -halfdomain
-			r(n,shear_remainingplane) = r(n,shear_remainingplane) + domain(shear_remainingplane) 	!Move to other side of domain
+		if (r(n,le_rp) < -halfdomain(le_rp)) then   					!Below -halfdomain
+			r(n,le_rp) = r(n,le_rp) + domain(le_rp) 	!Move to other side of domain
 		endif
 		
 	enddo
