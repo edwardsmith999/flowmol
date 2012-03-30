@@ -182,6 +182,9 @@ subroutine setup_polymer_info
 	allocate(etev(nchains,nd))
 	allocate(etev_0(nchains,nd))
 	allocate(potenergymol_FENE(np+extralloc))
+	
+	if (iter .gt. etevtcf_iter0)    etevtcf_iter0    = iter
+	if (iter .gt. r_gyration_iter0) r_gyration_iter0 = iter
 
 end subroutine setup_polymer_info
 
