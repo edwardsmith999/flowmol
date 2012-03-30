@@ -47,14 +47,16 @@ module module_parallel_io
 
 	!Allows write arrays to be used with both integers and reals
 	!interface write_arrays
-	! 	subroutine iwrite_arrays(some_array,nx,ny,nz,nresults)
-	!		integer, intent(in)						:: nx,ny,nz,nresults
+	! 	subroutine iwrite_arrays(some_array,nx,ny,nz,nresults,outfile,outstep)
+	!		integer, intent(in)						:: nx,ny,nz,nresults,outstep
 	!		integer, dimension(:,:,:,:),intent(in)	:: some_array!(nx,ny,nz,nresults)
+	!		character(*),intent(in) 				:: outfile
 	!	end subroutine iwrite_arrays
 
-	!	subroutine rwrite_arrays(some_array,nx,ny,nz,nresults)
-	!		integer, intent(in)								:: nx,ny,nz,nresults
+	!	subroutine rwrite_arrays(some_array,nx,ny,nz,nresults,outfile,outstep)
+	!		integer, intent(in)						:: nx,ny,nz,nresults,outstep
 	!		double precision, dimension(:,:,:,:),intent(in)	:: some_array!(nx,ny,nz,nresults)
+	!		character(*),intent(in) 				:: outfile
 	!	end subroutine rwrite_arrays
 	!end interface write_arrays
 
@@ -590,134 +592,8 @@ subroutine setup_restart_microstate
 end subroutine setup_restart_microstate
 
 !======================================================================
-!	        		OUTPUTS			              =
+!=	        							OUTPUTS			              =
 !======================================================================
-
-!---------------------------------------------------------------------------------
-! Write Simulation Parameter File contain all data required to completely recreate
-! simulation and to be used for post processing
-!
-subroutine simulation_header
-	use module_parallel_io
-	use calculated_properties_MD
-	implicit none
-
-	Character(8)  		:: the_date
-	Character(10)  		:: the_time
-
-	call date_and_time(the_date, the_time)
-
-	open(3,file=trim(prefix_dir)//'results/simulation_header')
-
-	write(3,*) 'Simulation run on Date;  sim_date ;', the_date
-	write(3,*) 'Simulation start time ;  sim_start_time ;', the_time
-	write(3,*) 'Number of Dimensions ;  nd ;', nd
-	write(3,*) 'Number of Particles ;  globalnp ;', globalnp
-	write(3,*) 'Time Step - delta t ;   delta_t ;',  delta_t
-	write(3,*) 'Total number of steps ; Nsteps;',  Nsteps - initialstep
-	write(3,*) 'Integration algorithm ; integration_algorithm;', integration_algorithm
-	select case(potential_flag)
-	case(0)
-		write(3,*) 'Potential flag ; potential_flag;', potential_flag
-	case(1)
-		write(3,*) 'Potential flag ; potential_flag;', potential_flag
-		write(3,*) 'Number of LJ beads per FENE chain ; nmonomers;', nmonomers
-		write(3,*) 'Number of FENE chains in domain ; nchains;', nchains
-		write(3,*) 'FENE bond maximum elongation ; R_0;', R_0
-		write(3,*) 'FENE spring stiffness ; k_c;', k_c
-	end select	
-	write(3,*) 'Starting step of simulation ;  initialstep ;', initialstep
-	write(3,*) 'Generate output file every steps ;   tplot ;',  tplot
-	write(3,*) 'Density ; density ;',density
-	write(3,*) 'Initial Temperature ;   inputtemperature ;',  inputtemperature
-	write(3,*) 'Cut off distance ;  rcutoff ;', rcutoff
-	write(3,*) 'Neighbour List Delta r ;  delta_rneighbr ;', delta_rneighbr
-	write(3,*) 'Initial FCC unit size in x ;  initialunitsize(1) ;', initialunitsize(1)
-	write(3,*) 'Initial FCC unit size in y ;  initialunitsize(2) ;', initialunitsize(2)
-	write(3,*) 'Initial FCC unit size in z ;  initialunitsize(3) ;', initialunitsize(3)
-	write(3,*) 'Domain in x ;  globaldomain(1)  ;', globaldomain(1) 
-	write(3,*) 'Domain in y ;  globaldomain(2)  ;', globaldomain(2) 
-	write(3,*) 'Domain in z ;  globaldomain(3)  ;', globaldomain(3) 
-	write(3,*) 'Domain volume ;  volume ;', volume
-	write(3,*) 'Periodic Boundary Conditions in x ;  periodic(1) ;', periodic(1)
-	write(3,*) 'Periodic Boundary Conditions in y ;  periodic(2) ;', periodic(2)
-	write(3,*) 'Periodic Boundary Conditions in z ;  periodic(3) ;', periodic(3)
-	write(3,*) 'Dist frm bot Fixed Mol in x; fixdistbot(1);', fixdistbottom(1)
-	write(3,*) 'Dist frm bot Fixed Mol in y; fixdistbot(2);', fixdistbottom(2)
-	write(3,*) 'Dist frm bot Fixed Mol in z; fixdistbot(3);', fixdistbottom(3)
-	write(3,*) 'Dist frm top Fixed Mol in x; fixdisttop(1);', fixdisttop(1)
-	write(3,*) 'Dist frm top Fixed Mol in y; fixdisttop(2);', fixdisttop(2)
-	write(3,*) 'Dist frm top Fixed Mol in z; fixdisttop(3);', fixdisttop(3)
-	write(3,*) 'Dist frm bot Tethered Mol in x; tethdistbot(1);', tethereddistbottom(1)
-	write(3,*) 'Dist frm bot Tethered Mol in y; tethdistbot(2);', tethereddistbottom(2)
-	write(3,*) 'Dist frm bot Tethered Mol in z; tethdistbot(3);', tethereddistbottom(3)
-	write(3,*) 'Dist frm top Tethered Mol in x; tethdisttop(1);', tethereddisttop(1)
-	write(3,*) 'Dist frm top Tethered Mol in y; tethdisttop(2);', tethereddisttop(2)
-	write(3,*) 'Dist frm top Tethered Mol in z; tethdisttop(3);', tethereddisttop(3)
-	write(3,*) 'Dist frm bot Sliding Mol in x; slidedistbot(1);', slidedistbottom(1)
-	write(3,*) 'Dist frm bot Sliding Mol in y; slidedistbot(2);', slidedistbottom(2)
-	write(3,*) 'Dist frm bot Sliding Mol in z; slidedistbot(3);', slidedistbottom(3)
-	write(3,*) 'Dist frm top Sliding Mol in x; slidedisttop(1);', slidedisttop(1)
-	write(3,*) 'Dist frm top Sliding Mol in y; slidedisttop(2);', slidedisttop(2)
-	write(3,*) 'Dist frm top Sliding Mol in z; slidedisttop(3);', slidedisttop(3)
-	write(3,*) 'Sliding velocity of wall in x; wallslidev(1);', wallslidev(1)
-	write(3,*) 'Sliding velocity of wall in y; wallslidev(2);', wallslidev(2)
-	write(3,*) 'Sliding velocity of wall in z; wallslidev(3);', wallslidev(3)
-	write(3,*) 'Dist frm bot NH Thermstat Mol in x; thermstatbot(1);', thermstatbottom(1)
-	write(3,*) 'Dist frm bot NH Thermstat Mol in y; thermstatbot(2);', thermstatbottom(2)
-	write(3,*) 'Dist frm bot NH Thermstat Mol in z; thermstatbot(3);', thermstatbottom(3)
-	write(3,*) 'Dist frm top NH Thermstat Mol in x; thermstattop(1);', thermstattop(1)
-	write(3,*) 'Dist frm top NH Thermstat Mol in y; thermstattop(2);', thermstattop(2)
-	write(3,*) 'Dist frm top NH Thermstat Mol in z; thermstattop(3);', thermstattop(3)
-	write(3,*) 'Computational cells in x ;  globalncells(1) ;',  ncells(1)*npx
-	write(3,*) 'Computational cells in y ;  globalncells(2)  ;', ncells(2)*npy 
-	write(3,*) 'Computational cells in z ;  globalncells(3)  ;', ncells(3)*npz 
-	write(3,*) 'Of size in x ;  cellsidelength(1) ;', cellsidelength(1)
-	write(3,*) 'Of size in y ;  cellsidelength(2) ;', cellsidelength(2)
-	write(3,*) 'Of size in z ;  cellsidelength(3) ;', cellsidelength(3)
-	write(3,*) 'Number of processors in x ;  npx ;', npx
-	write(3,*) 'Number of processors in y ;  npy ;', npy
-	write(3,*) 'Number of processors in z ;  npz ;', npz
-	write(3,*) 'Cells per Processor in x ;  nicellxl ;', nicellxl
-	write(3,*) 'Cells per Processor in y ;  nicellyl ;', nicellyl
-	write(3,*) 'Cells per Processor in z ;  nicellzl ;', nicellzl
-	write(3,*) 'Cells per Processor including Halos in x ;  ncellxl ;', ncellxl
-	write(3,*) 'Cells per Processor including Halos in y ;  ncellyl ;', ncellyl
-	write(3,*) 'Cells per Processor including Halos in z ;  ncellzl ;', ncellzl
-	write(3,*) '1st Random seed ;  seed_1 ;', seed(1)
-	write(3,*) '2nd Random seed ;  seed_2 ;', seed(2)
-	write(3,*)  'VMD flag ;  vmd_outflag ;', vmd_outflag
-	write(3,*)  'macro flag ;  macro_outflag	 ;', macro_outflag
-	write(3,*)  'mass flag ;  mass_outflag ;', mass_outflag	
-	write(3,*)  'velocity flag ;  velocity_outflag ;', velocity_outflag
-	write(3,*)  'Pressure flag ;  pressure_outflag ;', pressure_outflag
-	write(3,*)  'viscosity flag ;  viscosity_outflag ;', viscosity_outflag
-	write(3,*)  'mass flux flag ;  mflux_outflag ;', mflux_outflag
-	write(3,*)  'velocity flux flag ;  vflux_outflag ;', vflux_outflag
-	write(3,*)  'mass average steps ;  Nmass_ave ;', Nmass_ave
-	write(3,*)  'velocity average steps ;  Nvel_ave ;', Nvel_ave
-	write(3,*)  'pressure average steps ;  Nstress_ave ;', Nstress_ave
-	write(3,*)  'viscosity average samples ;  Nvisc_ave ;', Nvisc_ave
-	write(3,*)  'mass flux average steps ;  Nmflux_ave ;', Nmflux_ave
-	write(3,*)  'velocity flux average steps ;  Nvflux_ave ;', Nvflux_ave
-	write(3,*)  'Velocity/stress Averaging Bins in x ;  gnbins(1) ;', gnbins(1)
-	write(3,*)  'Velocity/stress Averaging Bins in y ;  gnbins(2) ;', gnbins(2)
-	write(3,*)  'Velocity/stress Averaging Bins in z ;  gnbins(3) ;', gnbins(3)
-	write(3,*)  'Of size in x ;  binsize(1)  ;', globaldomain(1)/gnbins(1) 
-	write(3,*)  'Of size in y ;  binsize(2)  ;', globaldomain(2)/gnbins(2) 
-	write(3,*)  'Of size in z ;  binsize(3)  ;', globaldomain(3)/gnbins(3) 
-	write(3,*)  'Bins per Processor in x ;  nbins(1) ;', nbins(1)
-	write(3,*)  'Bins per Processor in y ;  nbins(2) ;', nbins(2)
-	write(3,*)  'Bins per Processor in z ;  nbins(3) ;', nbins(3)
-	write(3,*)  'Number of Bins on outer Surface of each processor ;  nsurfacebins ;', nsurfacebins
-	write(3,*)  'Domain split into Planes for Pressure Averaging ; nplanes  ;',nplanes 
-	write(3,*)  'Separated by distance ;  planespacing  ;', planespacing 
-	write(3,*)  'with first plane at ;  planes ;', planes(1)
-
-	close(3,status='keep')
-
-end subroutine simulation_header
-
 
 !------------------------------------------------------------------------
 !Write positions and velocities of molecules to a file for restart
@@ -1509,43 +1385,28 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 	use calculated_properties_MD
 	implicit none
 
-	integer				:: i,j,k,n
-	integer				:: m,length
+	integer				:: m,nresults
 	integer				:: CV_mass_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
-	character(4)			:: io_type
-	character(13)			:: filename
+	character(4)		:: io_type
+	character(30)		:: filename, outfile
 
 	!Work out correct filename for i/o type
-	write(filename, '(a9,a4)' ) trim(prefix_dir)//'results/m', io_type
+	write(filename, '(a9,a4)' ) 'results/m', io_type
+	outfile = trim(prefix_dir)//filename
 
 	!Include halo surface fluxes to get correct values for all cells
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	!do n = 1, nsurfacebins
-	!	i = surfacebins(n,1); j = surfacebins(n,2); k = surfacebins(n,3)  
-		!Change in number of Molecules in halo cells
-	!	CV_mass_out(modulo((i-2),nbins(1))+2, & 
-	!		    modulo((j-2),nbins(2))+2, & 
-	!		    modulo((k-2),nbins(3))+2) = & 
-	!		    CV_mass_out(modulo((i-2),nbins(1))+2, & 
-	!				modulo((j-2),nbins(2))+2, & 
-	!				modulo((k-2),nbins(3))+2) &
-	!					+ CV_mass_out(i,j,k)
-	!enddo
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	nresults = 1
+	call iswaphalos(CV_mass_out,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults)
 
+	!Calculate record number timestep
 	if (io_type .eq. 'snap') then
-		m = iter/(Nmflux_ave) + 1 !Initial snapshot taken
+		m = (iter-initialstep+1)/(Nmflux_ave) + 1 !Initial snapshot taken
 	else
-		m = iter/(tplot*Nmass_ave)
+		m = (iter-initialstep+1)/(tplot*Nmass_ave)
 	endif
 
 	!Write mass to file
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	!inquire(iolength=length) CV_mass_out(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1)
-	!open (unit=5,file=filename,form="unformatted",access='direct',recl=length)
-	!write(5,rec=m) CV_mass_out(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1)
-	!close(5,status='keep')
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	call iwrite_arrays(CV_mass_out,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,outfile,m)
 
 end subroutine mass_bin_io
 
@@ -1631,168 +1492,90 @@ end subroutine velocity_slice_io
 !A large scale routine with each proc writing its own bins in binary
 !Write velocity slice information to a file
 
-subroutine parallel_slice_io_large_scale
-	use module_parallel_io
-	implicit none
+!subroutine parallel_slice_io_large_scale
+!	use module_parallel_io
+!	implicit none
 	!include 'mpif.h' 
 
-	integer								:: slicefileid, int_datasize, dp_datasize
-	integer(kind=MPI_OFFSET_KIND)   	:: disp!, resultsize
+!	integer								:: slicefileid, int_datasize, dp_datasize
+!	integer(kind=MPI_OFFSET_KIND)   	:: disp!, resultsize
 
 	!Determine size of datatypes
-	call MPI_type_size(MPI_Integer,int_datasize,ierr)
-	call MPI_type_size(MPI_double_precision,dp_datasize,ierr)
+!	call MPI_type_size(MPI_Integer,int_datasize,ierr)
+!	call MPI_type_size(MPI_double_precision,dp_datasize,ierr)
 
-	call MPI_FILE_OPEN(MD_COMM, trim(prefix_dir)//'results/vslice', & 
-			MPI_MODE_WRONLY , & 
-			MPI_INFO_NULL, slicefileid, ierr)
+!	call MPI_FILE_OPEN(MD_COMM, trim(prefix_dir)//'results/vslice', & 
+!			MPI_MODE_WRONLY , & 
+!			MPI_INFO_NULL, slicefileid, ierr)
 
 	!WRITE BINNED VELOCITY SUMMATION
 
 	!Obtain displacement of current record
-	disp =(iter/real((tplot*Nvel_ave),kind(0.d0))-1) *       &	!Current iteration
-	      gnbins(1) *(int_datasize+3*dp_datasize) & 		!Current iteration	
-	      + nbins(1)*(3*dp_datasize)*(jblock-1)			!Processor location
+!	disp =(iter/real((tplot*Nvel_ave),kind(0.d0))-1) *       &	!Current iteration
+!	      gnbins(1) *(int_datasize+3*dp_datasize) & 			!Current iteration	
+!	      + nbins(1)*(3*dp_datasize)*(jblock-1)					!Processor location
 	!Set current processes view
-	call MPI_FILE_SET_VIEW(slicefileid, disp, MPI_double_precision, & 
- 			MPI_double_precision, 'native', MPI_INFO_NULL, ierr)
+!	call MPI_FILE_SET_VIEW(slicefileid, disp, MPI_double_precision, & 
+! 			MPI_double_precision, 'native', MPI_INFO_NULL, ierr)
 	!Write data
-	call MPI_FILE_WRITE_ALL(slicefileid,slice_momentum(:,:),nd*nbins(1), MPI_double_precision, & 
-			MPI_STATUS_IGNORE, ierr) !Velocity bins
+!	call MPI_FILE_WRITE_ALL(slicefileid,slice_momentum(:,:),nd*nbins(1), MPI_double_precision, & 
+!			MPI_STATUS_IGNORE, ierr) !Velocity bins
 
 	!WRITE BINNED MOLECULAR COUNT
 
 	!Obtain displacement of current record
-	disp =(iter/real((tplot*Nvel_ave),kind(0.d0))-1) *		& !Current iteration
-	      gnbins(1) * (int_datasize+dp_datasize)  & !Current iteration	
-		+ nbins(1)*(int_datasize)*(jblock-1) 	& !Processor location
-		+ gnbins(1)* dp_datasize 		  !After binned velocity
+!	disp =(iter/real((tplot*Nvel_ave),kind(0.d0))-1) *		& 	!Current iteration
+!	      gnbins(1) * (int_datasize+dp_datasize)  & 			!Current iteration	
+!		+ nbins(1)*(int_datasize)*(jblock-1) 	& 				!Processor location
+!		+ gnbins(1)* dp_datasize 		  						!After binned velocity
 
 	!Set current processes view
-	call MPI_FILE_SET_VIEW(slicefileid, disp, MPI_Integer, & 
-				MPI_Integer, 'native', MPI_INFO_NULL, ierr)
+!	call MPI_FILE_SET_VIEW(slicefileid, disp, MPI_Integer, & 
+!				MPI_Integer, 'native', MPI_INFO_NULL, ierr)
 
 	!Write data
-	call MPI_FILE_WRITE_ALL(slicefileid,slice_mass(:),nbins(1), MPI_Integer, & 
-			MPI_STATUS_IGNORE, ierr) !molecular tally bins
+!	call MPI_FILE_WRITE_ALL(slicefileid,slice_mass(:),nbins(1), MPI_Integer, & 
+!			MPI_STATUS_IGNORE, ierr) !molecular tally bins
 
-	call MPI_FILE_CLOSE(slicefileid, ierr) 
+!	call MPI_FILE_CLOSE(slicefileid, ierr) 
 
-end subroutine parallel_slice_io_large_scale
+!end subroutine parallel_slice_io_large_scale
 
 subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 	use module_parallel_io
 	use calculated_properties_MD
 	implicit none
 
-	integer					:: n,m,i,j,k
-	integer					:: length
+	integer					:: m,nresults
 	integer					:: CV_mass_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
 	double precision		:: CV_momentum_out(nbins(1)+2,nbins(2)+2,nbins(3)+2,3),temp
 	character(4)			:: io_type
 	character(30)			:: filename,outfile
 
-	integer												:: nresults,fh,filesize,dp_size
-	double precision, allocatable,dimension(:,:,:,:) 	:: some_array
-
 	!Write mass bins
-	!call mass_bin_io(CV_mass_out,io_type)
+	call mass_bin_io(CV_mass_out,io_type)
 
 	!Work out correct filename for i/o type
-	!write(filename, '(a9,a4)' ) trim(prefix_dir)//'results/m', io_type
 	write(filename, '(a9,a4)' ) 'results/v', io_type
 	outfile = trim(prefix_dir)//filename
 
+	nresults = nd
+
+	! Swap Halos
+	call rswaphalos(CV_momentum_out,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults)
+
 	!Setup arrays
-	nresults = 3
 	if (io_type .eq. 'snap') then
 		!CV_momentum_out = CV_momentum_out / (tplot*Nvflux_ave)
-		m = iter/(Nvflux_ave) + 1 !Initial snapshot taken
+		m = (iter-initialstep+1)/(Nvflux_ave) + 1 !Initial snapshot taken
 	else
 		!CV_momentum_out = CV_momentum_out / (tplot*Nvel_ave)
-		m = iter/(tplot*Nvel_ave)
+		m = (iter-initialstep+1)/(tplot*Nvel_ave)
 	endif
 
-	!allocate(some_array(nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults))
-	!some_array(:,:,:,1)	= 0.1d0	!Set halos to 0.1
-	!some_array(:,:,:,2)	= 0.01d0	!Set halos to 0.01
-	!some_array(:,:,:,3)	= 0.001d0	!Set halos to 0.01
-	!do k=2,nbins(3)+1
-	!do j=2,nbins(2)+1
-	!do i=2,nbins(1)+1
-	!	some_array(i,j,k,1) = (i-2) + gnbins(1)*(j-2) + gnbins(1)*gnbins(2)*(k-2) +1 &
-	!						  +(iblock-1)*nbins(1) & 
-	!						  +(jblock-1)*nbins(2)*gnbins(1) & 
-	!						  +(kblock-1)*nbins(3)*gnbins(2)*gnbins(1)
-	!	some_array(i,j,k,2) = (i-2) + gnbins(1)*(j-2) + gnbins(1)*gnbins(2)*(k-2) +1 &
-	!						  +(iblock-1)*nbins(1) & 
-	!						  +(jblock-1)*nbins(2)*gnbins(1) & 
-	!						  +(kblock-1)*nbins(3)*gnbins(2)*gnbins(1) + 1000
-	!	some_array(i,j,k,3) = (i-2) + gnbins(1)*(j-2) + gnbins(1)*gnbins(2)*(k-2) +1 &
-	!						  +(iblock-1)*nbins(1) & 
-	!						  +(jblock-1)*nbins(2)*gnbins(1) & 
-	!						  +(kblock-1)*nbins(3)*gnbins(2)*gnbins(1) + 100000
-
-		
-		!print*, irank, i,j,k,some_array(i,j,k,1)
-		!write(irank,'(4i8,2f18.1)'), irank,i,j,k, some_array(i,j,k,:)
-	!enddo
-	!enddo
-	!enddo
-
-	! ===========================================================
-	! ==================    SWAP HALOS		 ====================   
-	! ===========================================================
-	call swaphalos(CV_momentum_out,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults)
-
 	!Write out arrays
-	!print*, size(some_array)
-	call write_arrays(CV_momentum_out,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,outfile)
+	call rwrite_arrays(CV_momentum_out,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,outfile,m)
 
-	! SYNC ALL THE PROCESSORS
-	!CALL MPI_BARRIER(MD_COMM,IERR)
-	!deallocate(some_array)
-
-	!Test by reading file
-	!if (irank .eq. iroot) then
-	!	call MPI_FILE_OPEN(MPI_COMM_SELF,outfile,MPI_MODE_RDONLY , & 
-	!		 			MPI_INFO_NULL, fh, ierr)
-	!	call MPI_file_get_size(fh,filesize,ierr)
-	!	call MPI_TYPE_SIZE(MPI_DOUBLE_PRECISION, dp_size, ierr)
-		!print*, filesize,dp_size
-	!	do i = 1,filesize/dp_size
-	!		call MPI_File_read(fh,temp,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
-	!		print'(i8,f15.3)', i, temp
-	!	enddo
-	!	CALL MPI_FILE_CLOSE(fh, ierr)
-	!endif
-
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-
-	!---------------Correct for surface fluxes on halo cells---------------
-	!Include halo surface fluxes to get correct values for all cells
-	!do n = 1, nsurfacebins
-	!	i = surfacebins(n,1); j = surfacebins(n,2); k = surfacebins(n,3)  
-
-	!	!Change in Momentum in halo cells
-	!	CV_momentum_out(modulo((i-2),nbins(1))+2, & 
-	!		      	modulo((j-2),nbins(2))+2, & 
-	!		      	modulo((k-2),nbins(3))+2,:) = & 
-	!			CV_momentum_out(modulo((i-2),nbins(1))+2,& 
-	!					modulo((j-2),nbins(2))+2,&
-	!					modulo((k-2),nbins(3))+2,:) & 
-	!						+ CV_momentum_out(i,j,k,:)
-	!enddo
-
-
-	!Write velocity to file
-	!inquire(iolength=length) CV_momentum_out(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
-	!open (unit=6, file=filename,form="unformatted",access='direct',recl=length)
-	!write(6,rec=m) CV_momentum_out(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
-	!close(6,status='keep')
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 end subroutine velocity_bin_io
 
 !---------------------------------------------------------------------------------
@@ -1817,15 +1600,36 @@ subroutine temperature_bin_io(CV_mass_out,CV_temperature_out,io_type)
 	use calculated_properties_MD
 	implicit none
 
-	integer					:: CV_mass_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
-	double precision		:: CV_temperature_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
-	character(4)			:: io_type
+	integer				:: m,nresults
+	integer				:: CV_mass_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
+	double precision	:: CV_temperature_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
+	character(4)		:: io_type
+	character(30)		:: filename, outfile
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	!Write mass bins
+	call mass_bin_io(CV_mass_out,io_type)
+
+	!Work out correct filename for i/o type
+	write(filename, '(a9,a4)' ) 'results/T', io_type
+	outfile = trim(prefix_dir)//filename
+
+	nresults = 1
+
+	! Swap Halos
+	call rswaphalos(CV_temperature_out,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults)
+
+	if (io_type .eq. 'snap') then
+		!CV_temperature_out = CV_temperature_out / (tplot*Nvflux_ave)
+		stop "Error in temp_io - Temperature SNAP called and NTflux_ave not defined"
+		!m = iter/(NTflux_ave) + 1 !Initial snapshot taken
+	else
+		!CV_temperature_out = CV_temperature_out / (tplot*Nvel_ave)
+		m = (iter-initialstep+1)/(tplot*NTemp_ave)
+	endif
+	!Write temperature to file
+	call rwrite_arrays(CV_temperature_out,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,outfile,m)
 
 end subroutine temperature_bin_io
-
-
 
 !---------------------------------------------------------------------------------
 ! Record velocity in 3D bins throughout domain
@@ -1835,30 +1639,122 @@ subroutine energy_bin_io(CV_energy_out,io_type)
 	use calculated_properties_MD
 	implicit none
 
-	double precision		:: CV_energy_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
-	character(4)			:: io_type
+	integer				:: m,nresults
+	double precision	:: CV_energy_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
+	character(4)		:: io_type
+	character(30)		:: filename, outfile
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	!Work out correct filename for i/o type
+	write(filename, '(a9,a4)' ) 'results/e', io_type
+	outfile = trim(prefix_dir)//filename
+
+	nresults = 1
+
+	!---------------Correct for surface fluxes on halo cells---------------
+	! Swap Halos
+	call rswaphalos(CV_energy_out,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults)
+
+
+	if (io_type .eq. 'snap') then
+		!CV_energy_out = CV_energy_out / (tplot*Nvflux_ave)
+		m = (iter-initialstep+1)/(Neflux_ave) + 1 !Initial snapshot taken
+	else
+		!CV_energy_out = CV_energy_out / (tplot*Nvel_ave)
+		m = (iter-initialstep+1)/(tplot*Neflux_ave)
+	endif
+
+	!Write Energy to file
+	call rwrite_arrays(CV_energy_out,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,outfile,m)
 
 end subroutine energy_bin_io
 
 
 !---------------------------------------------------------------------------------
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 subroutine virial_stress_io
 	use module_parallel_io
 	use calculated_properties_MD
 	implicit none
-
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 end subroutine virial_stress_io
 
-!---------------------------------------------------------------------------------
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine VA_stress_io
 	use module_parallel_io
 	use calculated_properties_MD
 	implicit none
 
+	integer											:: ixyz, jxyz, m, nresults
+	double precision								:: binvolume
+	double precision,dimension(:,:,:,:),allocatable	:: buf
+
+	!Add kinetic and configurational to Pxybin total
+	Pxybin(:,:,:,:,:) = 	vvbin(:,:,:,:,:) 		& 
+					      + rfbin(  2:nbins(1)+1, 	& 
+						      		2:nbins(2)+1, 	& 
+						      		2:nbins(3)+1,:,:)/2.d0
+
+	!Average over samples
+	Pxybin = Pxybin / Nstress_ave
+	vvbin  = vvbin  / Nstress_ave 
+	rfbin  = rfbin  / Nstress_ave 
+
+	!Calculate Virial from sum of Volume Averaged Stresses
+	do ixyz = 1,3
+	do jxyz = 1,3
+		Pxy(ixyz,jxyz) = sum(Pxybin(:,:,:,ixyz,jxyz))
+	enddo
+	enddo
+	Pxy = Pxy / volume
+
+	!Write out Virial stress
+	call virial_stress_io
+
+	!VA pressure per bin
+	binvolume = (domain(1)/nbins(1))*(domain(2)/nbins(2))*(domain(3)/nbins(3))
+	Pxybin = Pxybin / binvolume
+	vvbin  = vvbin  / binvolume
+	rfbin  = rfbin  / (2.d0*binvolume)
+
+	!Write VA pressure to file
+	nresults = 9
+	m = (iter-initialstep+1)/(tplot*Nstress_ave)
+
+	select case (split_kin_config)
+	case(0)
+		!print'(a,3i8,9f10.5)','Pxybin', iter,irank,size(Pxybin), & 
+		!											Pxybin(5,5,5,1,1),Pxybin(5,5,5,2,1),Pxybin(5,5,5,3,1), &
+		!											Pxybin(5,5,5,1,2),Pxybin(5,5,5,2,2),Pxybin(5,5,5,3,2), &
+		!											Pxybin(5,5,5,1,3),Pxybin(5,5,5,2,3),Pxybin(5,5,5,3,3)
+
+		!Write sum of kinetic and configurational
+		!Allocate buf with halo padding and 3x3 stresses reordered as 9 vector.
+		allocate(buf(nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults))
+		buf = 0.d0; 
+		buf(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1:9) = &
+			reshape(Pxybin,(/nbins(1),nbins(2),nbins(3),nresults/))
+		call rwrite_arrays(buf,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,trim(prefix_dir)//'results/pVA',m)
+	case(1)
+		!Kinetic
+		!Allocate buf with halo padding and 3x3 stresses reordered as 9 vector.
+		allocate(buf(nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults))
+		buf = 0.d0; 
+		buf(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1:9) = &
+			reshape(vvbin,(/nbins(1),nbins(2),nbins(3),nresults/))
+		call rwrite_arrays(buf,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,trim(prefix_dir)//'results/pVA_k',m)
+		!Configurational
+		!Allocate buf with halo padding and 3x3 stresses reordered as 9 vector.
+		allocate(buf(nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults))
+		buf = 0.d0; 
+		buf(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1:9) = &
+			reshape(rfbin,(/nbins(1),nbins(2),nbins(3),nresults/))
+		call rwrite_arrays(buf,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,trim(prefix_dir)//'results/pVA_c',m)
+	case default
+		stop 'Error in VA/virial extra flag to split_kinetic_& configuartional parts'
+	end select
+
+	!deallocate(buf)
 
 end subroutine VA_stress_io
 
@@ -1902,24 +1798,17 @@ subroutine mass_flux_io
 	use calculated_properties_MD
 	implicit none
 
-	integer		:: i,j,k,n,m,length
+	integer				:: i,j,k,n,m,nresults
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	!Include halo surface fluxes to get correct values for all cells
-	!do n = 1, nsurfacebins
-	!	i = surfacebins(n,1); j = surfacebins(n,2); k = surfacebins(n,3)  
-		!Flux over halo cells
-	!	mass_flux(modulo((i-2),nbins(1))+2,modulo((j-2),nbins(2))+2,modulo((k-2),nbins(3))+2,:) = & 
-	!	mass_flux(modulo((i-2),nbins(1))+2,modulo((j-2),nbins(2))+2,modulo((k-2),nbins(3))+2,:) + mass_flux(i,j,k,:)
-	!enddo
+	nresults = 6
+	call iswaphalos(mass_flux,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults)
 
-	!Write six CV surface mass fluxes to file
-	!m = iter/(Nmflux_ave)
-	!inquire(iolength=length) mass_flux(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
-	!open (unit=8, file="results/mflux",form="unformatted",access='direct',recl=length)
-	!write(8,rec=m) mass_flux(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
-	!close(8,status='keep')
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	!Calculate record number timestep
+	m = (iter-initialstep+1)/(tplot*Nmflux_ave)
+
+	!Write mass to file
+	call iwrite_arrays(mass_flux,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,trim(prefix_dir)//'results/mflux',m)
 
 end subroutine mass_flux_io
 
@@ -1931,48 +1820,109 @@ subroutine momentum_flux_io
 	use calculated_properties_MD
 	implicit none
 
-	integer				:: ixyz,i,j,k,n,m,length
+	integer					:: ixyz,i,j,k,n,m,nresults
 	double precision		:: binface
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	!Include halo surface fluxes to get correct values for all cells
-	!do n = 1, nsurfacebins
-	!	i = surfacebins(n,1); j = surfacebins(n,2); k = surfacebins(n,3)  
-		!Flux over halo cells
-	!	momentum_flux(	modulo((i-2),nbins(1))+2, & 
-	!		      	modulo((j-2),nbins(2))+2, & 
-	!		      	modulo((k-2),nbins(3))+2,:,:) = & 
-	!			momentum_flux(	modulo((i-2),nbins(1))+2,& 
-	!					modulo((j-2),nbins(2))+2,&
-	!					modulo((k-2),nbins(3))+2,:,:) & 
-	!						+ momentum_flux(i,j,k,:,:)
-	!enddo
+	! Swap Halos
+	nresults = 18
+	call rswaphalos(momentum_flux,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults)
 
-	!do ixyz = 1,3
-	!	binface	      = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
-	!		     	(domain(modulo(ixyz+1,3)+1)/nbins(modulo(ixyz+1,3)+1))
-	!	momentum_flux(:,:,:,:,ixyz  )=momentum_flux(:,:,:,:,ixyz  )/(binface) !Bottom
-	!	momentum_flux(:,:,:,:,ixyz+3)=momentum_flux(:,:,:,:,ixyz+3)/(binface) !Top
-	!enddo
+	do ixyz = 1,3
+		binface	      = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
+			     		(domain(modulo(ixyz+1,3)+1)/nbins(modulo(ixyz+1,3)+1))
+		momentum_flux(:,:,:,:,ixyz  )=momentum_flux(:,:,:,:,ixyz  )/(binface) !Bottom
+		momentum_flux(:,:,:,:,ixyz+3)=momentum_flux(:,:,:,:,ixyz+3)/(binface) !Top
+	enddo
 
-	!momentum_flux = momentum_flux/(delta_t*Nvflux_ave)
-	!Write momnetum flux to file
-	!m = iter/(Nvflux_ave)
-	!inquire(iolength=length) momentum_flux(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:,:)
-	!open (unit=9, file="results/vflux",form="unformatted",access='direct',recl=length)
-	!write(9,rec=m) momentum_flux(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:,:)
-	!close(9,status='keep')
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	!Divide momentum flux by averaing period tau=delta_t*Nvflux_ave
+	momentum_flux = momentum_flux/(delta_t*Nvflux_ave)
+
+	!Write temperature to file
+	m = (iter-initialstep+1)/(tplot*Nvflux_ave)
+	call rwrite_arrays(momentum_flux,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,trim(prefix_dir)//'results/vflux',m)
 
 end subroutine momentum_flux_io
 
 !---------------------------------------------------------------------------------
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Record stress accross plane
+
 subroutine MOP_stress_io
 	use module_parallel_io
 	use calculated_properties_MD
+	use messenger
 	implicit none
 
+	integer							:: m, ixyz, jxyz, kxyz
+	integer							:: slicefileid, dp_datasize
+	integer,dimension(3)			:: idims
+	integer(kind=MPI_OFFSET_KIND)   :: disp
+
+	ixyz = vflux_outflag
+
+	!Divide by number of samples taken
+	Pxy_plane = Pxy_plane/(Nstress_ave)
+
+	!Divide by area of domain and factor of 4 for interactions
+	Pxy_plane = Pxy_plane/(4*domain(1)*domain(3))
+
+	!Write plane pressures to file
+	m = (iter-initialstep+1)/(tplot*Nvflux_ave)
+!************WRITTEN ROUGHLY AND NOT TESTED************************
+	!Write mass
+	call mass_slice_io(ixyz)
+
+	!Get two directions orthogonal to slice direction
+	kxyz = mod(ixyz,3)+1
+	jxyz = mod(ixyz+1,3)+1
+	idims(1) = npx; idims(2) = npy; idims(3) = npz
+
+	!Sum over all bins using directional sub communicators and gather on root
+	call SubcommSum(Pxy_plane(1,:), nplanes, jxyz)
+	call SubcommSum(Pxy_plane(1,:), nplanes, kxyz)
+	call SubcommSum(Pxy_plane(2,:), nplanes, jxyz)
+	call SubcommSum(Pxy_plane(2,:), nplanes, kxyz)
+	call SubcommSum(Pxy_plane(3,:), nplanes, jxyz)
+	call SubcommSum(Pxy_plane(3,:), nplanes, kxyz)
+
+	!Only root processor in each directional subcomm writes data
+	if (icoord(jxyz,irank) .eq. 1 .and. icoord(kxyz,irank) .eq. 1) then
+
+		call MPI_type_size(MPI_double_precision,dp_datasize,ierr)
+
+		!Only processors on directional subcomm write
+		call MPI_FILE_OPEN(icomm_xyz(ixyz), trim(prefix_dir)//'/results/pplane', & 
+				   MPI_MODE_WRONLY + MPI_MODE_CREATE , & 
+				   MPI_INFO_NULL, slicefileid, ierr)
+
+		select case(vflux_outflag)
+			case(1)
+				!Obtain displacement of x record
+				disp =   (iter/(tplot*Nmass_ave) - 1) 	  	&	!Current iteration
+				       * nd*gnplanes*dp_datasize 			&	!times record size
+				       + nplanes*dp_datasize*(iblock-1)			!Processor location
+			case(2)
+					!Obtain displacement of x record
+				disp =   (iter/(tplot*Nmass_ave) - 1) 	  	&	!Current iteration
+				       * nd*gnplanes*dp_datasize 			&	!times record size
+				       + nplanes*dp_datasize*(jblock-1)			!Processor location
+			case(3)
+				!Obtain displacement of x record
+				disp =   (iter/(tplot*Nmass_ave) - 1) 	  	&	!Current iteration
+				       * nd*gnplanes*dp_datasize 			&	!times record size
+				       + nplanes*dp_datasize*(kblock-1)			!Processor location
+			case default
+				call error_abort('MOP average output called with incorrect vflux_outflag')
+		end select
+
+		call MPI_FILE_SET_VIEW(slicefileid, disp, MPI_DOUBLE_PRECISION, & 
+	 				MPI_DOUBLE_PRECISION, 'native', MPI_INFO_NULL, ierr)
+		call MPI_FILE_WRITE_ALL(slicefileid,Pxy_plane,nplanes, & 
+					MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE, ierr)
+
+		call MPI_FILE_CLOSE(slicefileid, ierr)
+
+	endif 
+!************WRITTEN ROUGHLY AND NOT TESTED************************
 
 end subroutine MOP_stress_io
 
@@ -1984,43 +1934,28 @@ subroutine surface_stress_io
 	use calculated_properties_MD
 	implicit none
 
-	integer				:: ixyz,i,j,k,n,m,length
-	double precision,dimension(3)	:: binface
+	integer					:: ixyz,m,nresults
+	double precision		:: binface
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	!Include halo surface stresses to get correct values for all cells
-	!do n = 1, nsurfacebins
-	!	i = surfacebins(n,1); j = surfacebins(n,2); k = surfacebins(n,3)  
-		!Set Stresses to value of halo cells
-	!	Pxyface(	modulo((i-2),nbins(1))+2, & 
-	!		      	modulo((j-2),nbins(2))+2, & 
-	!		      	modulo((k-2),nbins(3))+2,:,:) = & 
-	!			Pxyface(	modulo((i-2),nbins(1))+2,& 
-	!					modulo((j-2),nbins(2))+2,&
-	!					modulo((k-2),nbins(3))+2,:,:) & 
-	!						     + Pxyface(i,j,k,:,:)
+	! Swap Halos
+	nresults = 18
+	call rswaphalos(Pxyface,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults)
 
-	!enddo
-
-
-	!do ixyz = 1,3
-	!	binface(ixyz) = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
-	!		     	(domain(modulo(ixyz+1,3)+1)/nbins(modulo(ixyz+1,3)+1))
-	!	Pxyface(:,:,:,:,ixyz  ) = 0.25d0 * Pxyface(:,:,:,:,ixyz  )/binface(ixyz) !Bottom
-	!	Pxyface(:,:,:,:,ixyz+3) = 0.25d0 * Pxyface(:,:,:,:,ixyz+3)/binface(ixyz) !Top
-	!enddo
+	do ixyz = 1,3
+		binface		  = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
+			     		(domain(modulo(ixyz+1,3)+1)/nbins(modulo(ixyz+1,3)+1))
+		Pxyface(:,:,:,:,ixyz  ) = 0.25d0 * Pxyface(:,:,:,:,ixyz  )/binface !Bottom
+		Pxyface(:,:,:,:,ixyz+3) = 0.25d0 * Pxyface(:,:,:,:,ixyz+3)/binface !Top
+	enddo
 
 	!Integration of stress using trapizium rule requires multiplication by timestep
-	!Pxyface = delta_t*Pxyface!/Nvflux_ave
+	Pxyface = delta_t*Pxyface!/Nvflux_ave
 
 	!Write surface pressures to file
-	!m = iter/(Nvflux_ave)
-	!inquire(iolength=length) Pxyface(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:,:)
-	!open (unit=9, file="results/psurface",form="unformatted",access='direct',recl=length)
-	!write(9,rec=m) Pxyface(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:,:)
-	!close(9,status='keep')
+	m = (iter-initialstep+1)/(Nvflux_ave*tplot)
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	!Write stress to file
+	call rwrite_arrays(Pxyface,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,trim(prefix_dir)//'results/psurface',m)
 
 end subroutine surface_stress_io
 
@@ -2032,9 +1967,58 @@ subroutine energy_flux_io
 	use calculated_properties_MD
 	implicit none
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	integer					:: ixyz,m,nresults
+	double precision		:: binface
+
+	!Include halo surface fluxes to get correct values for all cells
+	nresults = 18
+	call rswaphalos(energy_flux,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults)
+
+	do ixyz = 1,3
+		binface	      = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
+			     		(domain(modulo(ixyz+1,3)+1)/nbins(modulo(ixyz+1,3)+1))
+		energy_flux(:,:,:,ixyz  )=energy_flux(:,:,:,ixyz  )/(binface) !Bottom
+		energy_flux(:,:,:,ixyz+3)=energy_flux(:,:,:,ixyz+3)/(binface) !Top
+	enddo
+
+	energy_flux = energy_flux/(delta_t*Neflux_ave)
+
+	!Write energy flux to file
+	m = (iter-initialstep+1)/(Neflux_ave)
+	call rwrite_arrays(energy_flux,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,trim(prefix_dir)//'results/eflux',m)
 
 end subroutine energy_flux_io
+
+!---------------------------------------------------------------------------------
+! Record stress times velocity (power) accross surfaces of Control Volumes
+
+subroutine surface_power_io
+	use module_parallel_io
+	use calculated_properties_MD
+	implicit none
+
+	integer					:: ixyz,m,nresults
+	double precision		:: binface
+
+	!Include halo surface stresses to get correct values for all cells
+	nresults = 18
+	call rswaphalos(Pxyvface,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults)
+
+	do ixyz = 1,3
+		binface		  = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
+			     		(domain(modulo(ixyz+1,3)+1)/nbins(modulo(ixyz+1,3)+1))
+		Pxyvface(:,:,:,ixyz  ) = 0.25d0 * Pxyvface(:,:,:,ixyz  )/binface !Bottom
+		Pxyvface(:,:,:,ixyz+3) = 0.25d0 * Pxyvface(:,:,:,ixyz+3)/binface !Top
+	enddo
+
+	!Integration of stress using trapizium rule requires multiplication by timestep
+	Pxyvface = Pxyvface/Neflux_ave
+
+	!Write surface pressures * velocity to file
+	m = (iter-initialstep+1)/(Neflux_ave*tplot)
+	call rwrite_arrays(Pxyvface,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,trim(prefix_dir)//'results/esurface',m)
+
+end subroutine surface_power_io
 
 !---------------------------------------------------------------------------------
 ! Record  energy accross plane
@@ -2049,19 +2033,6 @@ subroutine MOP_energy_io(ixyz)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 end subroutine MOP_energy_io
-
-
-!---------------------------------------------------------------------------------
-! Record stress times velocity (power) accross surfaces of Control Volumes
-
-subroutine surface_power_io
-	use module_parallel_io
-	use calculated_properties_MD
-	implicit none
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-end subroutine surface_power_io
 
 
 !-----------------------------------------------------------------------------
@@ -2178,18 +2149,18 @@ implicit none
 	
 end subroutine r_gyration_io 
 
-subroutine iwrite_arrays(some_array,nx,ny,nz,nresults)
+subroutine iwrite_arrays(some_array,nx,ny,nz,nresults,outfile,outstep)
 	use module_parallel_io
 	use messenger, only : icomm_grid
 	implicit none
 
-	integer, intent(in)						:: nx,ny,nz,nresults
-	integer, dimension(:,:,:,:),intent(in)	:: some_array!(nx,ny,nz,nresults)
+	integer, intent(in)						:: nx,ny,nz,nresults,outstep
+	integer, dimension(:,:,:,:),intent(in)	:: some_array(nx,ny,nz,nresults)
+	character(*),intent(in) 				:: outfile
 
-	integer									:: fh
+	integer									:: n, fh
 	integer 								:: MEM_FLAG = 0
 	integer 								:: FILE_FLAG = 0
-	integer									:: n
 	integer									:: global_cnt,int_size,datatype
 	integer									:: status(mpi_status_size)
 	integer			   						:: filetype, memtype
@@ -2200,25 +2171,20 @@ subroutine iwrite_arrays(some_array,nx,ny,nz,nresults)
 
 	integer, allocatable,dimension(:,:,:)	:: OutBuffer
 
-	character(len=18)						:: fn2
-
-
 	datatype = MPI_INTEGER
 	call MPI_TYPE_SIZE(datatype, int_size, ierr)
 
-	FN2 ='output_mpi_io.out'
-	call MPI_file_open(icomm_grid, FN2, MPI_MODE_WRONLY+MPI_MODE_CREATE, &
+	call MPI_file_open(icomm_grid, outfile, MPI_MODE_WRONLY+MPI_MODE_CREATE, &
 			   					MPI_INFO_NULL, fh, ierr)
 
 	!--------- DEFINE LIMITS (FILE & LOCAL SUBARRAY) -------
 	!  Note:  MPI assumes here that numbering starts from zero
 	!  Since numbering starts from (one), subtract (one) from every index
 	!-------------------------------------------------------
-	iter = 0
-	global_cnt = iter*gnbins(1)*gnbins(2)*gnbins(3)*nresults
-	offset     = global_cnt * int_size
-	gsizes = gnbins
-	lsizes = nbins
+	global_cnt 	= (outstep-1)*gnbins(1)*gnbins(2)*gnbins(3)*nresults
+	offset		= global_cnt * int_size
+	gsizes 		= gnbins
+	lsizes		= nbins
 	local_indices(:) = (/  0  , 0 , 0 /)
 	!Calculate global_indices
 	global_indices(:)= (/  0  , 0 , 0 /)
@@ -2234,13 +2200,12 @@ subroutine iwrite_arrays(some_array,nx,ny,nz,nresults)
 	memsizes = lsizes
 
 	do n =1,nresults
-
 		!Copy to outbuffer
 		OutBuffer =  some_array(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,n)
 		!Update array datatype and reset fileview to correct section of array
-		CALL Create_commit_fileview(gsizes,lsizes,global_indices,offset,datatype,filetype)
+		CALL Create_commit_fileview(gsizes,lsizes,global_indices,offset,datatype,FILE_FLAG,filetype,fh)
 		!Update local array datatype to ignore halo cells
-		CALL Create_commit_subarray(memsizes,lsizes,local_indices,datatype ,memtype)
+		CALL Create_commit_subarray(memsizes,lsizes,local_indices,datatype,MEM_FLAG,memtype)
 		!Write to file
 		CALL MPI_file_write_all(fh, OutBuffer, 1, memtype, status, ierr)
 
@@ -2262,13 +2227,13 @@ subroutine iwrite_arrays(some_array,nx,ny,nz,nresults)
 
 end subroutine iwrite_arrays
 
-
-subroutine write_arrays(some_array,nx,ny,nz,nresults,outfile)
+!Double precision arrays
+subroutine rwrite_arrays(some_array,nx,ny,nz,nresults,outfile,outstep)
 	use module_parallel_io
 	use messenger, only : icomm_grid
 	implicit none
 
-	integer, intent(in)								:: nx,ny,nz,nresults
+	integer, intent(in)								:: nx,ny,nz,nresults,outstep
 	double precision, dimension(:,:,:,:),intent(in)	:: some_array(nx,ny,nz,nresults)
 	character(*),intent(in) 						:: outfile
 
@@ -2283,6 +2248,7 @@ subroutine write_arrays(some_array,nx,ny,nz,nresults,outfile)
 	integer, dimension(3)				:: global_indices, local_indices
 	integer, dimension(:,:),allocatable :: proc_lsizes 
 	double precision, allocatable,dimension(:,:,:) 		:: OutBuffer
+	!print'(a,3i8,9f10.5)','somearray', iter,irank,size(some_array),some_array(6,6,6,:)
 
 	datatype = MPI_DOUBLE_PRECISION
 	call MPI_TYPE_SIZE(datatype, dp_size, ierr)
@@ -2294,7 +2260,7 @@ subroutine write_arrays(some_array,nx,ny,nz,nresults,outfile)
 	!  Note:  MPI assumes here that numbering starts from zero
 	!  Since numbering starts from (one), subtract (one) from every index
 	!-------------------------------------------------------
-	global_cnt 	= ((iter-1)/tplot)*gnbins(1)*gnbins(2)*gnbins(3)*nresults
+	global_cnt 	= (outstep-1)*gnbins(1)*gnbins(2)*gnbins(3)*nresults
 	offset		= global_cnt * dp_size
 	gsizes 		= gnbins
 	lsizes		= nbins
@@ -2313,9 +2279,9 @@ subroutine write_arrays(some_array,nx,ny,nz,nresults,outfile)
 	memsizes = lsizes
 
 	do n =1,nresults
-		print*,n,global_cnt,offset
 		!Copy to outbuffer
 		OutBuffer =  some_array(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,n)
+		!print*,irank, n, OutBuffer(5,5,5),global_cnt,offset
 		!Update array datatype and reset fileview to correct section of array
 		CALL Create_commit_fileview(gsizes,lsizes,global_indices,offset,datatype,FILE_FLAG,filetype,fh)
 		!Update local array datatype to ignore halo cells
@@ -2339,7 +2305,7 @@ subroutine write_arrays(some_array,nx,ny,nz,nresults,outfile)
 	call MPI_TYPE_FREE(memtype,ierr) ; MEM_FLAG = 0
 	call MPI_TYPE_FREE(filetype,ierr); FILE_FLAG = 0
 
-end subroutine write_arrays
+end subroutine rwrite_arrays
 
 subroutine Create_commit_fileview(gsizes,lsizes,global_indices,offset,datatype,FILE_FLAG,filetype,fh)
 	use module_parallel_io
