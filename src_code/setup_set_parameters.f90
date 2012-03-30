@@ -548,14 +548,14 @@ subroutine set_parameters_outputs
 
 	!Allocated bins for velocity averaging
 	if (velocity_outflag.eq.4) then
-		allocate(slice_momentumbin( nbins(1),nbins(2),nbins(3),3))
- 		allocate(slice_massbin(nbins(1),nbins(2),nbins(3)  ))
-		slice_momentumbin  = 0.d0
-		slice_massbin = 0
+		allocate(volume_momentum(nbins(1)+2,nbins(2)+2,nbins(3)+2,3  ))
+		allocate(volume_mass(nbins(1)+2,nbins(2)+2,nbins(3)+2  ))
+		volume_momentum = 0.d0
+		volume_mass = 0
 	else
 		if (mass_outflag.eq.4) then
- 			allocate(slice_massbin(nbins(1),nbins(2),nbins(3)  ))
-			slice_massbin = 0
+			allocate(volume_mass(nbins(1)+2,nbins(2)+2,nbins(3)+2  ))
+			volume_mass = 0
 		endif
 	endif
 
@@ -572,20 +572,6 @@ subroutine set_parameters_outputs
 	rfbin  = 0.d0
 	Pxybin = 0.d0
 
-	!Allocate bins for control volume mass fluxes
-	allocate(volume_mass(nbins(1)+2,nbins(2)+2,nbins(3)+2  ))
-	allocate(  mass_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,6))
-	volume_mass = 0
-	mass_flux   = 0
-
-	!Allocate bins for control volume momentum fluxes and forces
-	allocate(volume_momentum(nbins(1)+2,nbins(2)+2,nbins(3)+2,3  ))
-	allocate(  momentum_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
-	allocate(   volume_force(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,2))
-	momentum_flux 	= 0.d0
-	volume_momentum = 0.d0
-	volume_force 	= 0.d0
-
 	if (temperature_outflag .eq. 4) then
 		allocate(volume_temperature(nbins(1)+2,nbins(2)+2,nbins(3)+2))
 		volume_temperature = 0.d0
@@ -600,20 +586,74 @@ subroutine set_parameters_outputs
 	allocate(Gxybins(nbins(1),nbins(2),nbins(3),3,3))
 	Gxybins = 0.d0
 
-	!Allocate array for Stress Method of Planes
+	!Allocate array for Stress Method of Planes or 
+	!Allocate bins for control volume momentum fluxes and forces
 	planespacing = cellsidelength(2)
-	nplanes = floor(domain(2)/planespacing)
-
-	!Shift by half difference between value rounded down and actual value
-	!to ensure same distance to top and bottom plane from domain edge
-	shift = 0.5d0*(domain(2) - planespacing * (nplanes-1))
-	allocate(planes(nplanes))
-	allocate(Pxy_plane(3,nplanes))
-
-	!Setup location of planes
-	do n = 1, nplanes
-		planes(n) = planespacing*(n-1) + shift - halfdomain(2)
-	enddo
+	select case(vflux_outflag)
+		case(1)
+			gnplanes = npx*floor(domain(1)/planespacing)
+			nplanes  = nint(gnplanes/dble(npx))
+			gnplanes = nplanes
+			call SubcommSum(gnplanes,1)	!Sum up over all x processes
+			!Shift by half difference between value rounded down and actual value
+			!to ensure same distance to top and bottom plane from domain edge
+			shift = 0.5d0*(domain(1) - planespacing * (nplanes-1))
+			allocate(planes(nplanes))
+			allocate(Pxy_plane(3,nplanes))
+			!Setup location of planes
+			do n = 1, nplanes
+				planes(n) = planespacing*(n-1) + shift - halfdomain(1)
+			enddo
+		case(2)
+			gnplanes = npy*floor(domain(2)/planespacing)
+			nplanes  = nint(gnplanes/dble(npy))
+			gnplanes = nplanes
+			call SubcommSum(gnplanes,2)	!Sum up over all y processes
+			!Shift by half difference between value rounded down and actual value
+			!to ensure same distance to top and bottom plane from domain edge
+			shift = 0.5d0*(domain(2) - planespacing * (nplanes-1))
+			allocate(planes(nplanes))
+			allocate(Pxy_plane(3,nplanes))
+			!Setup location of planes
+			do n = 1, nplanes
+				planes(n) = planespacing*(n-1) + shift - halfdomain(2)
+			enddo
+		case(3)
+			gnplanes = npz*floor(domain(3)/planespacing)
+			nplanes  = nint(gnplanes/dble(npz))
+			gnplanes = nplanes
+			call SubcommSum(gnplanes,3)	!Sum up over all z processes
+			!Shift by half difference between value rounded down and actual value
+			!to ensure same distance to top and bottom plane from domain edge
+			shift = 0.5d0*(domain(3) - planespacing * (nplanes-1))
+			allocate(planes(nplanes))
+			allocate(Pxy_plane(3,nplanes))
+			!Setup location of planes
+			do n = 1, nplanes
+				planes(n) = planespacing*(n-1) + shift - halfdomain(3)
+			enddo
+		case(4)
+			if (.not.(allocated(volume_mass))) 	allocate(volume_momentum(nbins(1)+2,nbins(2)+2,nbins(3)+2,3  ))
+			allocate(  momentum_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
+			allocate(   volume_force(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,2))
+			momentum_flux 	= 0.d0
+			volume_momentum = 0.d0
+			volume_force 	= 0.d0
+			!Allocate bins for control volume mass fluxes
+			if (.not.(allocated(volume_mass)))  allocate(volume_mass(nbins(1)+2,nbins(2)+2,nbins(3)+2  ))
+			allocate(  mass_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,6))
+			volume_mass = 0
+			mass_flux   = 0
+		case default
+			!Allocate bins for control volume mass fluxes
+			if (mflux_outflag .eq. 1) then
+				if (allocated(volume_mass).eq..false.) &
+				allocate(volume_mass(nbins(1)+2,nbins(2)+2,nbins(3)+2  ))
+				allocate(  mass_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,6))
+				volume_mass = 0
+				mass_flux   = 0
+			endif
+	end select
 
 end subroutine set_parameters_outputs
 
