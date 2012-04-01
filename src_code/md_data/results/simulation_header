@@ -1,9 +1,9 @@
- Simulation run on Date;  sim_date ;20120208
- Simulation start time ;  sim_start_time ;151040.870
+ Simulation run on Date;  sim_date ;20120401
+ Simulation start time ;  sim_start_time ;145805.974
  Number of Dimensions ;  nd ;           3
- Number of Particles ;  globalnp ;        3978
+ Number of Particles ;  globalnp ;       19320
  Time Step - delta t ;   delta_t ;  5.000000000000000E-003
- Total number of steps ; Nsteps;        2550
+ Total number of steps ; Nsteps;        1050
  Integration algorithm ; integration_algorithm;           0
  Potential flag ; potential_flag;           0
  Starting step of simulation ;  initialstep ;           0
@@ -15,12 +15,12 @@
  Initial FCC unit size in x ;  initialunitsize(1) ;   1.70997594667670     
  Initial FCC unit size in y ;  initialunitsize(2) ;   1.70997594667670     
  Initial FCC unit size in z ;  initialunitsize(3) ;   1.70997594667670     
- Domain in x ;  globaldomain(1)  ;   29.0695910935039     
- Domain in y ;  globaldomain(2)  ;   35.9094948802106     
+ Domain in x ;  globaldomain(1)  ;   78.6588935471281     
+ Domain in y ;  globaldomain(2)  ;   64.9790859737145     
  Domain in z ;  globaldomain(3)  ;   5.12992784003009     
- Domain volume ;  volume ;   5355.00000000000     
+ Domain volume ;  volume ;   26220.0000000000     
  Periodic Boundary Conditions in x ;  periodic(1) ;           1
- Periodic Boundary Conditions in y ;  periodic(2) ;           0
+ Periodic Boundary Conditions in y ;  periodic(2) ;           1
  Periodic Boundary Conditions in z ;  periodic(3) ;           1
  Dist frm bot Fixed Mol in x; fixdistbot(1);  0.000000000000000E+000
  Dist frm bot Fixed Mol in y; fixdistbot(2);   2.00000000000000     
@@ -47,49 +47,52 @@
  Dist frm bot NH Thermstat Mol in y; thermstatbot(2);  0.000000000000000E+000
  Dist frm bot NH Thermstat Mol in z; thermstatbot(3);  0.000000000000000E+000
  Dist frm top NH Thermstat Mol in x; thermstattop(1);  0.000000000000000E+000
- Dist frm top NH Thermstat Mol in y; thermstattop(2);   10.0000000000000     
+ Dist frm top NH Thermstat Mol in y; thermstattop(2);  0.000000000000000E+000
  Dist frm top NH Thermstat Mol in z; thermstattop(3);  0.000000000000000E+000
- Computational cells in x ;  globalncells(1) ;          20
- Computational cells in y ;  globalncells(2)  ;          25
+ Computational cells in x ;  globalncells(1) ;          54
+ Computational cells in y ;  globalncells(2)  ;          45
  Computational cells in z ;  globalncells(3)  ;           3
- Of size in x ;  cellsidelength(1) ;   1.45347955467519     
- Of size in y ;  cellsidelength(2) ;   1.43637979520843     
+ Of size in x ;  cellsidelength(1) ;   1.45664617679867     
+ Of size in y ;  cellsidelength(2) ;   1.44397968830477     
  Of size in z ;  cellsidelength(3) ;   1.70997594667670     
  Number of processors in x ;  npx ;           2
  Number of processors in y ;  npy ;           1
  Number of processors in z ;  npz ;           1
- Cells per Processor in x ;  nicellxl ;          10
- Cells per Processor in y ;  nicellyl ;          25
+ Cells per Processor in x ;  nicellxl ;          27
+ Cells per Processor in y ;  nicellyl ;          45
  Cells per Processor in z ;  nicellzl ;           3
- Cells per Processor including Halos in x ;  ncellxl ;          12
- Cells per Processor including Halos in y ;  ncellyl ;          27
+ Cells per Processor including Halos in x ;  ncellxl ;          29
+ Cells per Processor including Halos in y ;  ncellyl ;          47
  Cells per Processor including Halos in z ;  ncellzl ;           5
  1st Random seed ;  seed_1 ;           1
  2nd Random seed ;  seed_2 ;           1
- VMD flag ;  vmd_outflag ;           0
+ VMD flag ;  vmd_outflag ;           1
  macro flag ;  macro_outflag	 ;           1
- mass flag ;  mass_outflag ;           2
- velocity flag ;  velocity_outflag ;           2
+ mass flag ;  mass_outflag ;           0
+ velocity flag ;  velocity_outflag ;           0
+ temperature flag ;  temperature_outflag ;           0
  Pressure flag ;  pressure_outflag ;           0
  viscosity flag ;  viscosity_outflag ;           0
  mass flux flag ;  mflux_outflag ;           0
  velocity flux flag ;  vflux_outflag ;           0
- mass average steps ;  Nmass_ave ;         100
- velocity average steps ;  Nvel_ave ;         100
+ mass average steps ;  Nmass_ave ;           0
+ velocity average steps ;  Nvel_ave ;           0
+ Temperature average steps ;  NTemp_ave ;           0
  pressure average steps ;  Nstress_ave ;           0
  viscosity average samples ;  Nvisc_ave ;           0
  mass flux average steps ;  Nmflux_ave ;           0
  velocity flux average steps ;  Nvflux_ave ;           0
- Velocity/stress Averaging Bins in x ;  globalnbins(1) ;          10
- Velocity/stress Averaging Bins in y ;  globalnbins(2) ;          25
- Velocity/stress Averaging Bins in z ;  globalnbins(3) ;           3
- Of size in x ;  binsize(1)  ;   2.90695910935039     
- Of size in y ;  binsize(2)  ;   1.43637979520843     
+ Velocity/stress Averaging Bins in x ;  gnbins(1) ;          54
+ Velocity/stress Averaging Bins in y ;  gnbins(2) ;          45
+ Velocity/stress Averaging Bins in z ;  gnbins(3) ;           3
+ Of size in x ;  binsize(1)  ;   1.45664617679867     
+ Of size in y ;  binsize(2)  ;   1.44397968830477     
  Of size in z ;  binsize(3)  ;   1.70997594667670     
- Bins per Processor in x ;  nbins(1) ;           5
- Bins per Processor in y ;  nbins(2) ;          25
+ Bins per Processor in x ;  nbins(1) ;          27
+ Bins per Processor in y ;  nbins(2) ;          45
  Bins per Processor in z ;  nbins(3) ;           3
- Number of Bins on outer Surface of each processor ;  nsurfacebins ;         566
- Domain split into Planes for Pressure Averaging ; nplanes  ;          25
- Separated by distance ;  planespacing  ;   1.43637979520843     
- with first plane at ;  planes ;  -17.2365575425011     
+ Number of Bins on outer Surface of each processor ;  nsurfacebins ;        2570
+ Number of Bins in halo of each processor ;  nhalobins ;        3170
+ Leapfrog or Velocity-Verlet ; integration_algorithm ;           0
+ Force calculation list methodd ; force_list ;           3
+ Shear direction ; le_sd;           1
