@@ -1,14 +1,14 @@
- Simulation run on Date;  sim_date ;20120208
- Simulation start time ;  sim_start_time ;151040.871
- Number of cells in Domain in x ;  nx ;           8
- Number of cells in Domain in y ;  ny ;           8
- Domain size in x ; lx ;   29.0695910935038     
- Domain size in y ; ly ;   20.0000000000000     
+ Simulation run on Date;  sim_date ;20120401
+ Simulation start time ;  sim_start_time ;145805.994
+ Number of cells in Domain in x ;  nx ;          16
+ Number of cells in Domain in y ;  ny ;           7
+ Domain size in x ; lx ;   78.6588935471281     
+ Domain size in y ; ly ;   36.0000000000000     
  Time Step - delta t ;   continuum_delta_t ;  0.250000000000000     
- Total number of steps ; continuum_Nsteps;          50
+ Total number of steps ; continuum_Nsteps;          20
  Continuum initial step ; continuum_initialstep;           0
- Generate output file every steps ;  continuum_tplot ;           1
+ Generate output file every steps ;  continuum_tplot ;          10
  Viscosity ; meu ;   2.14000000000000     
  Density ; rho ;  0.800000000000000     
  Reynolds Number ; Re ;  0.373831775700935     
- Continuum velocity output flag; continuum_vflag ;           2
+ Continuum velocity output flag; continuum_vflag ;           4

@@ -336,6 +336,140 @@ subroutine setup_initial_record
 
 end subroutine setup_initial_record
 
+!---------------------------------------------------------------------------------
+! Write Simulation Parameter File contain all data required to completely recreate
+! simulation and to be used for post processing
+!
+subroutine simulation_header
+	use module_parallel_io
+	use calculated_properties_MD
+	implicit none
+
+	Character(8)  		:: the_date
+	Character(10)  		:: the_time
+
+	call date_and_time(the_date, the_time)
+
+	open(3,file=trim(prefix_dir)//'results/simulation_header')
+
+	write(3,*) 'Simulation run on Date;  sim_date ;', the_date
+	write(3,*) 'Simulation start time ;  sim_start_time ;', the_time
+	write(3,*) 'Number of Dimensions ;  nd ;', nd
+	write(3,*) 'Number of Particles ;  globalnp ;', globalnp
+	write(3,*) 'Time Step - delta t ;   delta_t ;',  delta_t
+	write(3,*) 'Total number of steps ; Nsteps;',  Nsteps - initialstep
+	write(3,*) 'Integration algorithm ; integration_algorithm;', integration_algorithm
+	select case(potential_flag)
+	case(0)
+		write(3,*) 'Potential flag ; potential_flag;', potential_flag
+	case(1)
+		write(3,*) 'Potential flag ; potential_flag;', potential_flag
+		write(3,*) 'Number of LJ beads per FENE chain ; nmonomers;', nmonomers
+		write(3,*) 'Number of FENE chains in domain ; nchains;', nchains
+		write(3,*) 'FENE bond maximum elongation ; R_0;', R_0
+		write(3,*) 'FENE spring stiffness ; k_c;', k_c
+	end select	
+	write(3,*) 'Starting step of simulation ;  initialstep ;', initialstep
+	write(3,*) 'Generate output file every steps ;   tplot ;',  tplot
+	write(3,*) 'Density ; density ;',density
+	write(3,*) 'Initial Temperature ;   inputtemperature ;',  inputtemperature
+	write(3,*) 'Cut off distance ;  rcutoff ;', rcutoff
+	write(3,*) 'Neighbour List Delta r ;  delta_rneighbr ;', delta_rneighbr
+	write(3,*) 'Initial FCC unit size in x ;  initialunitsize(1) ;', initialunitsize(1)
+	write(3,*) 'Initial FCC unit size in y ;  initialunitsize(2) ;', initialunitsize(2)
+	write(3,*) 'Initial FCC unit size in z ;  initialunitsize(3) ;', initialunitsize(3)
+	write(3,*) 'Domain in x ;  globaldomain(1)  ;', globaldomain(1) 
+	write(3,*) 'Domain in y ;  globaldomain(2)  ;', globaldomain(2) 
+	write(3,*) 'Domain in z ;  globaldomain(3)  ;', globaldomain(3) 
+	write(3,*) 'Domain volume ;  volume ;', volume
+	write(3,*) 'Periodic Boundary Conditions in x ;  periodic(1) ;', periodic(1)
+	write(3,*) 'Periodic Boundary Conditions in y ;  periodic(2) ;', periodic(2)
+	write(3,*) 'Periodic Boundary Conditions in z ;  periodic(3) ;', periodic(3)
+	write(3,*) 'Dist frm bot Fixed Mol in x; fixdistbot(1);', fixdistbottom(1)
+	write(3,*) 'Dist frm bot Fixed Mol in y; fixdistbot(2);', fixdistbottom(2)
+	write(3,*) 'Dist frm bot Fixed Mol in z; fixdistbot(3);', fixdistbottom(3)
+	write(3,*) 'Dist frm top Fixed Mol in x; fixdisttop(1);', fixdisttop(1)
+	write(3,*) 'Dist frm top Fixed Mol in y; fixdisttop(2);', fixdisttop(2)
+	write(3,*) 'Dist frm top Fixed Mol in z; fixdisttop(3);', fixdisttop(3)
+	write(3,*) 'Dist frm bot Tethered Mol in x; tethdistbot(1);', tethereddistbottom(1)
+	write(3,*) 'Dist frm bot Tethered Mol in y; tethdistbot(2);', tethereddistbottom(2)
+	write(3,*) 'Dist frm bot Tethered Mol in z; tethdistbot(3);', tethereddistbottom(3)
+	write(3,*) 'Dist frm top Tethered Mol in x; tethdisttop(1);', tethereddisttop(1)
+	write(3,*) 'Dist frm top Tethered Mol in y; tethdisttop(2);', tethereddisttop(2)
+	write(3,*) 'Dist frm top Tethered Mol in z; tethdisttop(3);', tethereddisttop(3)
+	write(3,*) 'Dist frm bot Sliding Mol in x; slidedistbot(1);', slidedistbottom(1)
+	write(3,*) 'Dist frm bot Sliding Mol in y; slidedistbot(2);', slidedistbottom(2)
+	write(3,*) 'Dist frm bot Sliding Mol in z; slidedistbot(3);', slidedistbottom(3)
+	write(3,*) 'Dist frm top Sliding Mol in x; slidedisttop(1);', slidedisttop(1)
+	write(3,*) 'Dist frm top Sliding Mol in y; slidedisttop(2);', slidedisttop(2)
+	write(3,*) 'Dist frm top Sliding Mol in z; slidedisttop(3);', slidedisttop(3)
+	write(3,*) 'Sliding velocity of wall in x; wallslidev(1);', wallslidev(1)
+	write(3,*) 'Sliding velocity of wall in y; wallslidev(2);', wallslidev(2)
+	write(3,*) 'Sliding velocity of wall in z; wallslidev(3);', wallslidev(3)
+	write(3,*) 'Dist frm bot NH Thermstat Mol in x; thermstatbot(1);', thermstatbottom(1)
+	write(3,*) 'Dist frm bot NH Thermstat Mol in y; thermstatbot(2);', thermstatbottom(2)
+	write(3,*) 'Dist frm bot NH Thermstat Mol in z; thermstatbot(3);', thermstatbottom(3)
+	write(3,*) 'Dist frm top NH Thermstat Mol in x; thermstattop(1);', thermstattop(1)
+	write(3,*) 'Dist frm top NH Thermstat Mol in y; thermstattop(2);', thermstattop(2)
+	write(3,*) 'Dist frm top NH Thermstat Mol in z; thermstattop(3);', thermstattop(3)
+	write(3,*) 'Computational cells in x ;  globalncells(1) ;',  ncells(1)*npx
+	write(3,*) 'Computational cells in y ;  globalncells(2)  ;', ncells(2)*npy 
+	write(3,*) 'Computational cells in z ;  globalncells(3)  ;', ncells(3)*npz 
+	write(3,*) 'Of size in x ;  cellsidelength(1) ;', cellsidelength(1)
+	write(3,*) 'Of size in y ;  cellsidelength(2) ;', cellsidelength(2)
+	write(3,*) 'Of size in z ;  cellsidelength(3) ;', cellsidelength(3)
+	write(3,*) 'Number of processors in x ;  npx ;', npx
+	write(3,*) 'Number of processors in y ;  npy ;', npy
+	write(3,*) 'Number of processors in z ;  npz ;', npz
+	write(3,*) 'Cells per Processor in x ;  nicellxl ;', nicellxl
+	write(3,*) 'Cells per Processor in y ;  nicellyl ;', nicellyl
+	write(3,*) 'Cells per Processor in z ;  nicellzl ;', nicellzl
+	write(3,*) 'Cells per Processor including Halos in x ;  ncellxl ;', ncellxl
+	write(3,*) 'Cells per Processor including Halos in y ;  ncellyl ;', ncellyl
+	write(3,*) 'Cells per Processor including Halos in z ;  ncellzl ;', ncellzl
+	write(3,*) '1st Random seed ;  seed_1 ;', seed(1)
+	write(3,*) '2nd Random seed ;  seed_2 ;', seed(2)
+	write(3,*)  'VMD flag ;  vmd_outflag ;', vmd_outflag
+	write(3,*)  'macro flag ;  macro_outflag	 ;', macro_outflag
+	write(3,*)  'mass flag ;  mass_outflag ;', mass_outflag	
+	write(3,*)  'velocity flag ;  velocity_outflag ;', velocity_outflag
+	write(3,*)  'temperature flag ;  temperature_outflag ;', temperature_outflag
+	write(3,*)  'Pressure flag ;  pressure_outflag ;', pressure_outflag
+	write(3,*)  'viscosity flag ;  viscosity_outflag ;', viscosity_outflag
+	write(3,*)  'mass flux flag ;  mflux_outflag ;', mflux_outflag
+	write(3,*)  'velocity flux flag ;  vflux_outflag ;', vflux_outflag
+	write(3,*)  'mass average steps ;  Nmass_ave ;', Nmass_ave
+	write(3,*)  'velocity average steps ;  Nvel_ave ;', Nvel_ave
+	write(3,*)  'Temperature average steps ;  NTemp_ave ;', NTemp_ave
+	write(3,*)  'pressure average steps ;  Nstress_ave ;', Nstress_ave
+	write(3,*)  'viscosity average samples ;  Nvisc_ave ;', Nvisc_ave
+	write(3,*)  'mass flux average steps ;  Nmflux_ave ;', Nmflux_ave
+	write(3,*)  'velocity flux average steps ;  Nvflux_ave ;', Nvflux_ave
+	write(3,*)  'Velocity/stress Averaging Bins in x ;  gnbins(1) ;', gnbins(1)
+	write(3,*)  'Velocity/stress Averaging Bins in y ;  gnbins(2) ;', gnbins(2)
+	write(3,*)  'Velocity/stress Averaging Bins in z ;  gnbins(3) ;', gnbins(3)
+	write(3,*)  'Of size in x ;  binsize(1)  ;', globaldomain(1)/gnbins(1) 
+	write(3,*)  'Of size in y ;  binsize(2)  ;', globaldomain(2)/gnbins(2) 
+	write(3,*)  'Of size in z ;  binsize(3)  ;', globaldomain(3)/gnbins(3) 
+	write(3,*)  'Bins per Processor in x ;  nbins(1) ;', nbins(1)
+	write(3,*)  'Bins per Processor in y ;  nbins(2) ;', nbins(2)
+	write(3,*)  'Bins per Processor in z ;  nbins(3) ;', nbins(3)
+	write(3,*)  'Number of Bins on outer Surface of each processor ;  nsurfacebins ;', nsurfacebins
+	write(3,*)  'Number of Bins in halo of each processor ;  nhalobins ;', nhalobins
+	if (vflux_outflag .gt.0 .and. vflux_outflag  .lt. 3) then
+		write(3,*)  'Domain split into Planes for Pressure Averaging ; nplanes  ;',nplanes 
+		write(3,*)  'Separated by distance ;  planespacing  ;', planespacing 
+		write(3,*)  'with first plane at ;  planes ;', planes(1)
+	endif
+	write(3,*)  'Leapfrog or Velocity-Verlet ; integration_algorithm ;', integration_algorithm
+	write(3,*)  'Force calculation list methodd ; force_list ;', force_list
+	!write(3,*)  'Ensemble; ensemble; ', ensemble		!MATLAB input functions can't deal with words...
+	write(3,*)	'Shear direction ; le_sd;', le_sd
+
+	close(3,status='keep')
+
+end subroutine simulation_header
+
 !----------------------------------------------------------------------------------
 !Calculate Initial kinetic and potential energy as well as temperature and pressure
 

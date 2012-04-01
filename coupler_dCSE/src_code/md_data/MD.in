@@ -24,18 +24,19 @@
 # Number density of the particles in the system:
 # -----------------------------------------------------------------------
 DENSITY
-0.8
+2.0
 
 #########################################################################
 # Cut-off distance for particle interaction:
-#	2^(1/6) = 1.12246204830937
+# WCA =	2^(1/6) = 1.12246204830937
+# LJ  = 2.2 ~ 2.5
 # -----------------------------------------------------------------------
 RCUTOFF
 1.12246204830937
 
 #########################################################################
 # Define initial temperature of the system:
-#	- determines magnitude of initial random velocities
+#	- determines magnitude of initial random velocities  3.07
 # -----------------------------------------------------------------------
 INPUTTEMPERATURE
 1.0
@@ -48,15 +49,15 @@ INPUTTEMPERATURE
 #	z	
 # -----------------------------------------------------------------------
 INITIALNUNITS
-8
-8
-8
+9
+9
+9
 
 #########################################################################
 # Total number of timesteps:
 # -----------------------------------------------------------------------
 NSTEPS
-400
+100
 
 
 #########################################################################
@@ -99,16 +100,17 @@ DELTA_RNEIGHBR
 
 
 #########################################################################
-# Ensemble selector: case sensitive! (currently only developed for VV)
+# Ensemble selector: case sensitive! 
 # 0 - NVE
 # 1 - NVT (Nosé-Hoover thermostat)
 # 2 - NVT (Gaussian iso-kinetic thermostat) - only availble with VV
 # 3 - NVT (Profile unbiased Nosé-Hoover thermostat)
-# 4 - NVT (Pairwise additive Nosé-Hoover thermostat 
-#                   by Allen & Schmid)
+# 4 - NVT (Pairwise additive Nosé-Hoover thermostat by Allen & Schmid)
+# 5 - NVT (DPD thermostat by Soddemann, Dunweg an Kremer Phys Rev E 68, 046702 (2003))
+# 6 - TAG system - specify fixed wall and localised thermostatting
 # -----------------------------------------------------------------------
 ENSEMBLE
-0
+6
 
 #########################################################################
 # Periodic boundary flags, formatted:
@@ -126,7 +128,7 @@ ENSEMBLE
 # -----------------------------------------------------------------------
 PERIODIC
 1
-0
+1
 1
 
 #########################################################################
@@ -243,7 +245,7 @@ TETHEREDDISTTOP
 # THERMSTATTOP and/or THERMSTATBOTTOM)
 # -----------------------------------------------------------------------
 THERMSTAT_FLAG
-3
+0
 
 ########################################################################
 # Distance from domain bottom to apply thermostat 
@@ -258,7 +260,7 @@ THERMSTATBOTTOM
 # ----------------------------------------------------------------------
 THERMSTATTOP
 0.0
-10.0
+0.0
 0.0
 
 #########################################################################
@@ -304,9 +306,9 @@ PROCESSORS
 #	       start_1, finish_1, start_2, finish_2, etc, etc
 # -----------------------------------------------------------------------
 VMD_OUTFLAG
+1
 0
-0
-0, 100, 200, 300, 310, 431, 600, 700, 900, 970, 980, 1000
+0, 100, 130, 200, 300, 380, 400, 500, 600, 601, 700, 1000
 
 #########################################################################
 # Output flag for macroscopic properties:
@@ -323,8 +325,8 @@ MACRO_OUTFLAG
 #	No. of samples for mass average
 # -----------------------------------------------------------------------
 MASS_OUTFLAG
-2
-100
+0
+1
 
 #########################################################################
 # Output flag for Velocity record:
@@ -332,17 +334,28 @@ MASS_OUTFLAG
 #	No. of samples for velocity average
 # -----------------------------------------------------------------------
 VELOCITY_OUTFLAG
-2
+0
+1
+
+#########################################################################
+# Output flag for Velocity record:
+#	output_flag (0=off 1,2,3=x,y,z slice 4=3D bins)
+#	No. of samples for velocity average
+# -----------------------------------------------------------------------
+TEMPERATURE_OUTFLAG
+0
 100
 
 #########################################################################
 # Output flag for Pressure binning:
 #	output_flag (0=off 1=virial 2=Volume Averaged)
 #	No. of samples for pressure average (number of viscosity bins)
+#	Seperate kinetic and configurational 0 = together 1=seperate
 # -----------------------------------------------------------------------
 PRESSURE_OUTFLAG
 0
-100
+1
+0
 
 #########################################################################
 # Output flag for viscosity:

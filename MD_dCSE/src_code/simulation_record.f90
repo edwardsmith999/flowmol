@@ -1093,11 +1093,11 @@ subroutine cumulative_mass_flux
 			ixyz = imaxloc(abs(crossplane))
 
 			!Add mass flux to the new bin surface count and take from the old
-			mass_flux(ibin1(1),ibin1(2),ibin1(3),ixyz+3*heaviside(dble(crossplane(ixyz)))) = & 
-				mass_flux(ibin1(1),ibin1(2),ibin1(3),ixyz+3*heaviside(dble(crossplane(ixyz)))) & 
+			mass_flux(ibin1(1),ibin1(2),ibin1(3),ixyz+3*heaviside(-dble(crossplane(ixyz)))) = & 
+				mass_flux(ibin1(1),ibin1(2),ibin1(3),ixyz+3*heaviside(-dble(crossplane(ixyz)))) & 
 					+ abs(crossplane(ixyz))
-			mass_flux(ibin2(1),ibin2(2),ibin2(3),ixyz+3*heaviside(-dble(crossplane(ixyz)))) = & 
-				mass_flux(ibin2(1),ibin2(2),ibin2(3),ixyz+3*heaviside(-dble(crossplane(ixyz)))) &
+			mass_flux(ibin2(1),ibin2(2),ibin2(3),ixyz+3*heaviside(dble(crossplane(ixyz)))) = & 
+				mass_flux(ibin2(1),ibin2(2),ibin2(3),ixyz+3*heaviside(dble(crossplane(ixyz)))) &
 					- abs(crossplane(ixyz))
 		endif
 
@@ -1815,7 +1815,7 @@ subroutine pressure_tensor_forces_VA(ri,rj,rij,accijmag)
 	double precision,intent(in)            			:: accijmag    !Non directional component of acceleration
 	double precision								:: shift
 	double precision,dimension(3), intent(in)		:: rij, ri, rj
-	double precision,dimension(3)					:: VAbinsize, normal, p
+	double precision,dimension(3)					:: VAbinsize, normal, p,temp1,temp2,temp3
 	double precision,dimension(:,:)	   ,allocatable	:: intersection
 	double precision,dimension(:,:,:)  ,allocatable	:: MLfrac !Magnitude of fraction of stress
 	double precision,dimension(:,:,:,:),allocatable	:: Lfrac  !Fraction of stress in a given cell
@@ -1988,8 +1988,11 @@ subroutine pressure_tensor_forces_VA(ri,rj,rij,accijmag)
 
 
 		!Check which plane is closest to i and which corresponds to j
-		if (magnitude(ri(:)-intersection(:,1)) .le.  & 
-  	       	    magnitude(ri(:)-intersection(:,2))) then
+		temp1 = ri(:)-intersection(:,1)
+		temp2 = ri(:)-intersection(:,2)
+		!if (magnitude(ri(:)-intersection(:,1)) .le.  & 
+  	    !   	    magnitude(ri(:)-intersection(:,2))) then
+		if (magnitude(temp1) .le.magnitude(temp1)) then
 			i = 1
 			j = 2
 		else
@@ -2106,11 +2109,15 @@ subroutine pressure_tensor_forces_VA(ri,rj,rij,accijmag)
 		!Determine which intersection covers both intermediate cells
 		! |(1)-(2)| > |(1)-(3)| > |(2)-(3)| then 1,2 must cover
 		! both cells while 1,3 and 2,3 are the cell intercepts
-
-		if (magnitude(intersection(:,1)-intersection(:,2)) .gt. & 
-		    magnitude(intersection(:,3)-intersection(:,2))) then
-			if (magnitude(intersection(:,1)-intersection(:,2)) .gt. & 
-			    magnitude(intersection(:,1)-intersection(:,3))) then
+		temp1 = intersection(:,1)-intersection(:,2)
+		temp2 = intersection(:,3)-intersection(:,2)
+		temp3 = intersection(:,1)-intersection(:,3)
+		!if (magnitude(intersection(:,1)-intersection(:,2)) .gt. & 
+		!    magnitude(intersection(:,3)-intersection(:,2))) then
+		!	if (magnitude(intersection(:,1)-intersection(:,2)) .gt. & 
+		!	    magnitude(intersection(:,1)-intersection(:,3))) then
+		if (magnitude(temp1).gt.magnitude(temp2)) then
+			if (magnitude(temp1).gt.magnitude(temp3)) then
 				k = 1
 				l = 2
 			else
@@ -2118,8 +2125,9 @@ subroutine pressure_tensor_forces_VA(ri,rj,rij,accijmag)
 				l = 3
 			endif
 		else
-			if (magnitude(intersection(:,3)-intersection(:,2)) .gt. & 
-			    magnitude(intersection(:,1)-intersection(:,3))) then
+			!if (magnitude(intersection(:,3)-intersection(:,2)) .gt. & 
+			!    magnitude(intersection(:,1)-intersection(:,3))) then
+			if (magnitude(temp2).gt.magnitude(temp3)) then
 				k = 2
 				l = 3
 			else
@@ -2142,18 +2150,24 @@ subroutine pressure_tensor_forces_VA(ri,rj,rij,accijmag)
 
 		enddo
 
-		!Check which plane is closest to i 
-		if (magnitude(ri(:)-intersection(:,1)) .lt.  & 
-  	       	    magnitude(ri(:)-intersection(:,2))) then
-			if (magnitude(ri(:)-intersection(:,1)) .lt.  & 
-  		       	    magnitude(ri(:)-intersection(:,3))) then
+		!Check which plane is closest to i
+		temp1 = ri(:)-intersection(:,1)
+		temp2 = ri(:)-intersection(:,2)
+		temp3 = ri(:)-intersection(:,3)
+		if (magnitude(temp1).lt.magnitude(temp2)) then
+			if (magnitude(temp1).lt.magnitude(temp3)) then
+		!if (magnitude(ri(:)-intersection(:,1)) .lt.  & 
+  	    !   	    magnitude(ri(:)-intersection(:,2))) then
+		!	if (magnitude(ri(:)-intersection(:,1)) .lt.  & 
+  		 !      	    magnitude(ri(:)-intersection(:,3))) then
 				i = 1
 			else
 				i = 3
 			endif
 		else
-			if (magnitude(ri(:)-intersection(:,2)) .lt.  & 
-  	       	  	    magnitude(ri(:)-intersection(:,3))) then
+			if (magnitude(temp2) .lt. magnitude(temp3)) then
+			!if (magnitude(ri(:)-intersection(:,2)) .lt.  & 
+  	       	!  	    magnitude(ri(:)-intersection(:,3))) then
 				i = 2
 			else
 				i = 3
@@ -2161,17 +2175,23 @@ subroutine pressure_tensor_forces_VA(ri,rj,rij,accijmag)
 		endif
 
 		!Check which plane is closest to j 
-		if (magnitude(rj(:)-intersection(:,1)) .lt.  & 
-  	       	    magnitude(rj(:)-intersection(:,2))) then
-			if (magnitude(rj(:)-intersection(:,1)) .lt.  & 
-  		       	    magnitude(rj(:)-intersection(:,3))) then
+		temp1 = rj(:)-intersection(:,1)
+		temp2 = rj(:)-intersection(:,2)
+		temp3 = rj(:)-intersection(:,3)
+		!if (magnitude(rj(:)-intersection(:,1)) .lt.  & 
+  	    !   	    magnitude(rj(:)-intersection(:,2))) then
+		!	if (magnitude(rj(:)-intersection(:,1)) .lt.  & 
+  		!      	    magnitude(rj(:)-intersection(:,3))) then
+		if (magnitude(temp1).lt.magnitude(temp2))then
+			if (magnitude(temp1).lt.magnitude(temp3)) then
 				j = 1
 			else
 				j = 3
 			endif
 		else
-			if (magnitude(rj(:)-intersection(:,2)) .lt.  & 
-  	       	  	    magnitude(rj(:)-intersection(:,3))) then
+		!	if (magnitude(rj(:)-intersection(:,2)) .lt.  & 
+  	    !  	  	    magnitude(rj(:)-intersection(:,3))) then
+			if (magnitude(temp2).lt. magnitude(temp3)) then
 				j = 2
 			else
 				j = 3
