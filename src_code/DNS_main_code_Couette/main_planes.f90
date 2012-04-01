@@ -1,7 +1,7 @@
 !=======================================================================
-! Boundary layer simulation
+! Couette flow simulation
 ! 
-! Tamer Zaki (after Robert Jacobs)
+! Tom Jelly ( after Tamer Zaki (after Robert Jacobs))
 !
 program BLAYERCODE
 
