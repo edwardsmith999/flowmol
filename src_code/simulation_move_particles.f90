@@ -438,7 +438,7 @@ implicit none
 		if (kbin < 1 ) kbin = 1        		!Prevents out of range values
 
 		!Establish average velocity of current cell
-		vmean(:) = slice_momentumbin(ibin,jbin,kbin,:)/(slice_massbin(ibin,jbin,kbin)+1)
+		vmean(:) = volume_momentum(ibin+1,jbin+1,kbin+1,:)/(volume_mass(ibin+1,jbin+1,kbin+1)+1)
 
 		do ixyz = 1, nd    ! Loop over all dimensions
 			vel = v(n,ixyz) - 0.5d0*a(n,ixyz)*delta_t - vmean(ixyz)
