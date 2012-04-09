@@ -610,7 +610,8 @@ subroutine data_writeData()
         enddo  
         enddo   
 
-        call flush(iunit,ierr) 
+!        call flush(iunit,ierr) 
+        call flush(iunit)
         
         close (iclose(iunit))
         
