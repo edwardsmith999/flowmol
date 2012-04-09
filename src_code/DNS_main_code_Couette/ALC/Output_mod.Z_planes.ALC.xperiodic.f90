@@ -11,6 +11,7 @@
 module Output_mod
       use messenger
       use data_export
+      use computation_parameters
       implicit none
 	include "mpif.h"
 	! include "mpiof.h"
@@ -71,7 +72,7 @@ use Output_mod
 		NAME='ucvcwc.data.'
 		call OutFileName()
 		write(*,*) FN2
-		open(29,file=FN2,form='formatted')
+		open(29,file=trim(prefix_dir)//FN2,form='formatted')
 		write(29,'(i10,2e16.8)') ntime,stime,aan
 		close(29)
 	END IF
@@ -83,7 +84,7 @@ use Output_mod
         call OutFileName()
         if (irank.eq.iroot) write(*,*) FN2
 
-        call MPI_FILE_OPEN(icomm_grid, FN2, &
+        call MPI_FILE_OPEN(icomm_grid, trim(prefix_dir)//FN2, &
                            MPI_MODE_WRONLY+MPI_MODE_CREATE, &
                            MPI_INFO_NULL, fh, ierr)
 
@@ -177,7 +178,7 @@ use Output_mod
         call OutFileName()
         if (irank.eq.iroot) write(*,*) FN2
 
-        CALL MPI_FILE_OPEN(icomm_grid, FN2, & 
+        CALL MPI_FILE_OPEN(icomm_grid, trim(prefix_dir)//FN2, & 
                            MPI_MODE_WRONLY+MPI_MODE_CREATE, &
                            MPI_INFO_NULL, fh, ierr)
 
@@ -272,7 +273,7 @@ use Output_mod
         call OutFileName()
         if (irank.eq.iroot) write(*,*) FN2
 
-        call MPI_FILE_OPEN(icomm_grid, FN2, & 
+        call MPI_FILE_OPEN(icomm_grid, trim(prefix_dir)//FN2, & 
                            MPI_MODE_WRONLY+MPI_MODE_CREATE, &
                            MPI_INFO_NULL, fh, ierr)
 
@@ -364,7 +365,7 @@ use Output_mod
         call OutFileName()
         if (irank.eq.iroot) write(*,*) FN2
 
-        call MPI_FILE_OPEN(icomm_grid, FN2, & 
+        call MPI_FILE_OPEN(icomm_grid, trim(prefix_dir)//FN2, & 
                            MPI_MODE_WRONLY+MPI_MODE_CREATE, &
                            MPI_INFO_NULL, fh, ierr)
 
@@ -428,7 +429,7 @@ use Output_mod
         call OutFileName()
         if (irank.eq.iroot) write(*,*) FN2
 
-        call MPI_FILE_OPEN(icomm_grid, FN2, &
+        call MPI_FILE_OPEN(icomm_grid, trim(prefix_dir)//FN2, &
                            MPI_MODE_WRONLY+MPI_MODE_CREATE, &
                            MPI_INFO_NULL, fh, ierr)
 

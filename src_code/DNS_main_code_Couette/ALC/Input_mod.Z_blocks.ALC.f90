@@ -11,6 +11,7 @@
 module Input_mod
       use messenger
       use data_export
+      use computation_parameters
       implicit none
 	include "mpif.h"
 	! include "mpiof.h"
@@ -51,7 +52,7 @@ use Input_mod
 	!                 DATA
 	!=========================================================
 	IF (irank.eq.iroot) THEN
-		open(28,file='data',form='formatted')
+		open(28,file=trim(prefix_dir)//'data',form='formatted')
 		read(28,*) ntime
 		close(28)
 	END IF

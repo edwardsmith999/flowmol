@@ -12,6 +12,9 @@
 module mesh
 	use data_export
 	use mesh_export
+#if USE_COUPLER
+    use coupler
+#endif
 end module
 
 !=======================================================================
@@ -33,16 +36,24 @@ end module
 subroutine mesh_init()
 	use mesh
 
+    real(kind(0.d0)) rho_loc
+
 	! Domain size
 	call readFloat("xL", xL)
 	call readFloat("yL", yL)
 	call readFloat("zL", zL)
 
+#if USE_COUPLER
+    call coupler_cfd_adjust_domain(xL=xL,zL=zL,density_cfd=rho_loc)
+#endif
+
+    write(0,*) xL,zL, rho_loc, imin,imax
+
 	! Grid size specified in data module
 
 	!-------------------------------------------------------------------
 	! X-mesh
-        allocate (x(imino:imaxo), xm(imino:imax))
+    allocate (x(imino:imaxo), xm(imino:imax))
 	allocate (y (jmino:jmaxo), ym (jmino:jmax), dy (jmino:jmax), dym (jmin:jmax))
 	allocate (yi(jmino:jmaxo), ymi(jmino:jmax), dyi(jmino:jmax), dymi(jmin:jmax))
 	allocate (z(kmino:kmaxo), zm(kmino:kmax))

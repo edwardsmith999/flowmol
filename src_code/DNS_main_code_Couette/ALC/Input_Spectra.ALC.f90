@@ -10,6 +10,7 @@
 module Input_uhat_mod
 	use messenger
 	use statistics
+    use computation_parameters
 	implicit none
 	include "mpif.h"
 
@@ -46,7 +47,7 @@ use Input_uhat_mod
      !			Input of Uhat(:,:,:,:)
      !==============================================================
         if (irank.eq.iroot) write(*,*) 'reading  ', FNAME
-        call MPI_FILE_OPEN(icomm_grid, FNAME, &
+        call MPI_FILE_OPEN(icomm_grid, trim(prefix_dir)//FNAME, &
                            MPI_MODE_RDONLY, &
                            MPI_INFO_NULL, fh, ierr)
 
@@ -209,7 +210,7 @@ use Input_uhat_mod
      !			Output of Ez(:,:,:)
      !==============================================================
         if (irank.eq.iroot) write(*,*) 'Reading   ', FNAME
-        call MPI_FILE_OPEN(icomm_grid, FNAME, &
+        call MPI_FILE_OPEN(icomm_grid, trim(prefix_dir)//FNAME, &
                            MPI_MODE_RDONLY, &
                            MPI_INFO_NULL, fh, ierr)
 

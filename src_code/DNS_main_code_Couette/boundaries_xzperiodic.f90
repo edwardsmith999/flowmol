@@ -149,7 +149,10 @@ subroutine boundaries_write()
 	return
 end
 !===============================================================================
-subroutine CartesianBC(deltaT) 
+subroutine CartesianBC(deltaT)
+#if USE_COUPLER
+        use socket_coupler
+#endif 
       	use boundaries
      
       	!===================================================================
@@ -159,14 +162,17 @@ subroutine CartesianBC(deltaT)
 	!	Bottom B.C. 
 	!--------------------------------------------------------------
 	if (jblock.eq.1) then
-		
+
+#if USE_COUPLER
+        call socket_coupler_get_md_BC(uc,vc,wc)
+#else		
 		uc(:, :, 0) = -uc(:, :, 1) 
 		vc(:, :, 1) =  0.0            
 		wc(:, :, 0) = -wc(:, :, 1)
 	
 		!Extend
 		vc(:, :, 0) = vc(:, :, 2)        
-        	
+#endif        	
 	end if
 
 	!--------------------------------------------------------------

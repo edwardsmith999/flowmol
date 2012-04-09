@@ -12,6 +12,7 @@
 module Input_Stats_mod
 	use messenger
 	use statistics
+    use computation_parameters
 	implicit none
 	include "mpif.h"
 	! include "mpiof.h"
@@ -56,7 +57,7 @@ use Input_Stats_mod
 	call In_Stats_FileName()
         if (irank.eq.iroot) write(*,*) 'reading  ', NAME
 
-        call MPI_FILE_OPEN(icomm_grid, NAME, &
+        call MPI_FILE_OPEN(icomm_grid, trim(prefix_dir)//NAME, &
                            MPI_MODE_RDONLY, &
                            MPI_INFO_NULL, fh, ierr)
 

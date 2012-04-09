@@ -12,6 +12,7 @@
 module Output_Stats_mod
 	use messenger
 	use statistics
+    use computation_parameters
 	implicit none
 	include "mpif.h"
 	! include "mpiof.h"
@@ -57,7 +58,7 @@ use Output_Stats_mod
 	call Out_Stats_FileName()
         if (irank.eq.iroot) write(*,*) 'Writting  ', NAME
 
-        call MPI_FILE_OPEN(icomm_grid, NAME, &
+        call MPI_FILE_OPEN(icomm_grid, trim(prefix_dir)//NAME, &
                            MPI_MODE_WRONLY+MPI_MODE_CREATE, &
                            MPI_INFO_NULL, fh, ierr)
 

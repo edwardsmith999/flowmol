@@ -16,7 +16,8 @@
 !
 
 module data
-	use data_export
+    use data_export
+	use computation_parameters
 	integer nfile			! file number for zdata files
 end module
 
@@ -470,7 +471,7 @@ subroutine data_readData()
         ! Use a record length of nz
         inquire(iolength=ilength) U(1,1,:)
         iunit = iopen()
-        open (iunit, file="data", form="unformatted", &
+        open (iunit, file=trim(prefix_dir)//"data", form="unformatted", &
                 access="direct",recl=ilength, &
                 status="old", iostat=ierr)
         if (ierr .ne. 0) stop "A data file is required"
@@ -549,7 +550,7 @@ subroutine data_writeData()
         inquire(iolength=ilength) U(1,1,:)
 
         iunit = iopen()
-        open (iunit, file="data", form="unformatted", &
+        open (iunit, file=trim(prefix_dir)//"data", form="unformatted", &
                 access="direct",recl=ilength,iostat=ierr)
 
         ni = nx
@@ -629,7 +630,7 @@ subroutine data_writeYdata()
         write(fname(7:10),"(i4.4)") nfile
         nfile = nfile + 1
         iunit = iopen()
-        open (iunit, file=fname, form="unformatted")
+        open (iunit, file=trim(prefix_dir)//fname, form="unformatted")
         write (iunit) nx, 1, nz, 4, jloc
         write (iunit) U(:,jloc,:) 
         write (iunit) V(:,jloc,:)

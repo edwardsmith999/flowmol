@@ -8,7 +8,7 @@
 
 override NAME = parallel_Couette
 
-F90FILES = data.export_planes.xperiodic.f90 mesh.export.f90 grid.export.f90 data.noglobal_planes.f90 arrayzero.f90 messenger.MPI.noglobal_planes.f90 misc.mpi.f90 mesh.f90 subMesh.f90 grid.f90 dctcoeff.f90 mtgcoeff_planes.f90 inflow.f90 outflow.f90 boundaries_xzperiodic.f90 fluctuations_inlet_top.f90 advance_quick_Fletcher_xQUICK.f90 invert_sgi_openmp_xperiodic.f90 poisson_newmtg_planes_xperiodic.sgi.f90 poisson_fftz_fftx.f90 new_multigrid_planes_ylines_FullMG_xperiodic.f90 projection_step_xperiodic.f90 cfl_control.f90 copyBC.f90 flowAnalysis.f90 statistics.f90 Output_SubDomain.f90 ALC/Input_mod.Z_planes.ALC.xperiodic.f90 ALC/Output_mod.Z_planes.ALC.xperiodic.f90 ALC/Input_Spectra.ALC.f90 ALC/Output_Spectra.ALC.f90 ALC/Input_Stats.ALC.f90 ALC/Output_Stats.ALC.f90 simulation_planes.f90 main_planes.f90
+F90FILES = computation_parameters.f90 data.export_planes.xperiodic.f90 mesh.export.f90 grid.export.f90 data.noglobal_planes.f90 arrayzero.f90 messenger.MPI.noglobal_planes.f90 misc.mpi.f90 mesh.f90 subMesh.f90 grid.f90 dctcoeff.f90 mtgcoeff_planes.f90 inflow.f90 outflow.f90 socket_coupler.f90 boundaries_xzperiodic.f90 fluctuations_inlet_top.f90 advance_quick_Fletcher_xQUICK.f90 invert_sgi_openmp_xperiodic.f90 poisson_newmtg_planes_xperiodic.sgi.f90 poisson_fftz_fftx.f90 new_multigrid_planes_ylines_FullMG_xperiodic.f90 projection_step_xperiodic.f90 cfl_control.f90 copyBC.f90 flowAnalysis.f90 statistics.f90 Output_SubDomain.f90 ALC/Input_mod.Z_planes.ALC.xperiodic.f90 ALC/Output_mod.Z_planes.ALC.xperiodic.f90 ALC/Input_Spectra.ALC.f90 ALC/Output_Spectra.ALC.f90 ALC/Input_Stats.ALC.f90 ALC/Output_Stats.ALC.f90 simulation_planes.f90 main_planes.f90
 
 LIBFILES := archive.o library.o library.alc.o SSDfile.memory.o triDiagonal.o triDiagonal.mpi.o pentaDiagonal.o transforms.fftw.hitachi.o SinCosFFT.o triDiagonal.mrhs.o triDiagonal.mpi.mrhs.o pentaDiagonal.mrhs.o pentaDiagonal.mpi.o polyDiagonal.o 
 
@@ -38,7 +38,7 @@ LIBS = -ldfftw -ldrfftw #-L/apps/intel/cmkl/9.0/lib/64/ -lmkl_em64t
 LDFLAGES := $(FFLAGS) $(LIBS)
 
 ifeq ($(strip $(USE_COUPLER)),yes)
-  COUPLER_LIB = ../lib/coupler/$(PLATFORM)/$(BUILD)
+  COUPLER_LIB = ../../../lib/coupler/$(PLATFORM)/$(BUILD)
   FFLAGS  +=  -I$(COUPLER_LIB)
   LDFLAGS +=  -L$(COUPLER_LIB) -lcoupler
 endif
@@ -46,8 +46,11 @@ endif
 #=======================================================================
 # Standard definitions
 #
-OFILES = $(addprefix $(OBJ_DIR)/,$(F90FILES:.f90=.o) $(F77FILES:.f=.o) $(CFILES:.c=.o))
 
+# all object files  go in OBJ_DIR dir
+OFILES = $(addprefix $(OBJ_DIR)/,$(addsuffix .o, $(basename $(notdir $(F90FILES))))) 
+
+#$(F77FILES:.f=.o) $(CFILES:.c=.o))
 # SGI compilers
 # F90 = mpif90 -r8 -O3 -ip -funroll-loops -parallel -par-report3 -mcmodel=large -i-dynamic
 #  F90 = mpif90 -r8 -O3 -ip -funroll-loops           -par-report3 -mcmodel=large -i-dynamic
@@ -76,7 +79,7 @@ clean:
 	rm -rf obj a.out *.mod
 parallel_couette.exe: $(OFILES)
 	@echo "$(LD) $(OFILES) $(LIBFILES) $(LIBS) "
-	$(LD) -o $@ $(OFILES) $(LIBFILES) $(LIBS) 
+	$(LD) -o $@ $(OFILES) $(LIBFILES) $(LIBS) $(LDFLAGS) 
 $(OFILES): | $(OBJ_DIR) 
 $(OBJ_DIR) :
 	mkdir -p $@
@@ -85,9 +88,11 @@ $(OBJ_DIR) :
 #	mkdir obj/FST_CODES
 #	mkdir obj/ALC
 
+$(OBJ_DIR)/%.o : ALC/%.f90 
+			   $(F90) -c $(FPP_FLAGS) $(FFLAGS) $< -o $@
+
 $(OBJ_DIR)/%.o : %.f90
-	[ -d $(@D) ] || mkdir -p $(@D) ;\
-        $(F90) -c $(FPP_FLAGS) $(FFLAGS) $< -o $@
+			   $(F90) -c $(FPP_FLAGS) $(FFLAGS) $< -o $@
 
 #=======================================================================
 # Compilation rules
