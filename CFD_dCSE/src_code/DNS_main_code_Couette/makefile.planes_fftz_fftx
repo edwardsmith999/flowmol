@@ -76,7 +76,7 @@ clean:
 	rm -rf obj a.out *.mod
 parallel_couette.exe: $(OFILES)
 	@echo "$(LD) $(OFILES) $(LIBFILES) $(LIBS) "
-	$(LD) $(OFILES) $(LIBFILES) $(LIBS)
+	$(LD) -o $@ $(OFILES) $(LIBFILES) $(LIBS) 
 $(OFILES): | $(OBJ_DIR) 
 $(OBJ_DIR) :
 	mkdir -p $@

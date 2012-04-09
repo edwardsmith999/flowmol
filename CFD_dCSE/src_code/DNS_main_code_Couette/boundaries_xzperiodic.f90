@@ -623,7 +623,8 @@ subroutine timeDependent_Wall_BC()
         if (jblock == 1) then
                 Vin(:,:,1) = 0.0
                 Vin(:,:,2) = 0.0
-                Vin(:,:,3) = wbulk * cos(2.0*2.0*acos(0.0)*stime/wperiod)
+                Vin(:,:,3) = 0.0
+!                Vin(:,:,3) = wbulk * cos(2.0*2.0*acos(0.0)*stime/wperiod)
         end if
 
         return

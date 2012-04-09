@@ -244,7 +244,8 @@ subroutine CFLcontrol_maxCFL()
 	call globalMax(Atmp, 3)
 	call globalMax(vcmax,1)
 
-	if (abs(CFL-Atmp(1))/CFL .le. 1e-10) then
+!	if (abs(CFL-Atmp(1))/CFL .le. 1e-10) then
+        if (abs(CFL-Atmp(1))/max(abs(CFL),1.0e-10) .le. 1e-10) then 
 		print '(a,f12.6)'       , 'Maximum CFL = '	, CFL
 		print '(a,i17,2(a,i11))', 'Maximum CFL @ '	, iCFLmax ,',', jCFLmax ,',', kCFLmax
 		print '(a,3f12.6)'      , 'CFL x,y,z   = '	, dt*abs( uc(kCFLmax,imap_1(iCFLmax),jmap_1(jCFLmax))/(xpg(iCFLmax,jCFLmax)-xpg(iCFLmax+1,jCFLmax)) )  &
