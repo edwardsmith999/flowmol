@@ -13,8 +13,15 @@
 #
 # Couette solver
 #
+# serial
 clean_couette couette couette_solo : CFD_SRC_PATH := ./Couette_serial 
 couette couette_solo : CFD_TARGET := continuum.exe
+#
+#parallel
+#
+parallel_couette_solo clean_parallel_couette_solo : CFD_SRC_PATH := ./CFD_dCSE/src_code/DNS_main_code_Couette 
+parallel_couette_solo clean_parallel_couette_solo : MAKEFILE_NAME := -f makefile.planes_fftz_fftx 
+parallel_couette_solo clean_parallel_couette_solo : CFD_TARGET := parallel_couette.exe 
 
 #
 # MD sector 
@@ -53,6 +60,8 @@ md_solo :
 	cd $(MD_SRC_PATH)  && $(MAKE) USE_COUPLER=no $(MD_TARGET)
 couette_solo : 
 	cd $(CFD_SRC_PATH) && $(MAKE) USE_COUPLER=no $(CFD_TARGET)
+parallel_couette_solo :
+	cd $(CFD_SRC_PATH) && $(MAKE) $(MAKEFILE_NAME) USE_COUPLER=no $(CFD_TARGET)
 
 
 clean_all : clean_coupler clean_couette clean_md 
@@ -61,11 +70,12 @@ clean_couette_md : clean_couette clean_md
 
 clean_md :
 	cd  $(MD_SRC_PATH)  && $(MAKE) clean  
-clean_couette :
-	cd  $(CFD_SRC_PATH) && $(MAKE) clean
+clean_cfd :
+	cd  $(CFD_SRC_PATH) && $(MAKE) $(MAKEFILE_NAME) clean
 clean_coupler :
 	cd $(COUPLER_SRC_PATH) && $(MAKE) clean
-clean_couette_solo : clean_couette
+clean_couette_solo : clean_cfd
+clean_parallel_couette_solo : clean_cfd
 clean_md_solo : clean_md
 
 help:

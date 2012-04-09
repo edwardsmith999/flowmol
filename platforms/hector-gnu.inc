@@ -64,6 +64,10 @@ else ifeq ($(strip $(NAME)),couette)
 
   FFLAGS := $(FLAGS_BASE_$(BUILD)) -fdefault-real-8 -fdefault-double-8
 
+else ifeq ($(strip $(NAME)),parallel_Couette)
+
+  FFLAGS := $(FLAGS_BASE_$(BUILD)) -fdefault-real-8 -fdefault-double-8
+
 else ifeq ($(strip $(NAME)),stream_md)
 
   FFLAGS :=  $(FLAGS_BASE_$(BUILD))
