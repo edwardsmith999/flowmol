@@ -652,7 +652,7 @@ subroutine set_parameters_outputs
 		case default
 			!Allocate bins for control volume mass fluxes
 			if (mflux_outflag .eq. 1) then
-				if (allocated(volume_mass).eq..false.) &
+				if (.not. allocated(volume_mass)) &
 				allocate(volume_mass(nbins(1)+2,nbins(2)+2,nbins(3)+2  ))
 				allocate(  mass_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,6))
 				volume_mass = 0
