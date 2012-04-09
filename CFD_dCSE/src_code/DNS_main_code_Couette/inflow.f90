@@ -11,6 +11,7 @@
 !
 
 module inflow
+    use computation_parameters
 	integer iu_inflow              ! unit number for inflow data file
 	real    fileStart              ! time at beginning of inflow file
 	real    fileEnd                ! time at end of inflow file
@@ -54,7 +55,7 @@ subroutine inflow_init()
 
 	! Determine end time in inflow data file
 	iu_inflow = iopen()
-	open (iu_inflow, file="inflow.dat", &
+	open (iu_inflow, file=trim(prefix_dir)//"inflow.dat", &
 	      form="unformatted", status="old", position="append")
 	backspace (iu_inflow)
 	backspace (iu_inflow)

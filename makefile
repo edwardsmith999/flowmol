@@ -14,14 +14,14 @@
 # Couette solver
 #
 # serial
-clean_couette couette couette_solo : CFD_SRC_PATH := ./Couette_serial 
-couette couette_solo : CFD_TARGET := continuum.exe
+clean_serial_couette serial_couette serial_couette_solo : CFD_SRC_PATH := ./Couette_serial 
+serial_couette serial_couette_solo : CFD_TARGET := continuum.exe
 #
 #parallel
 #
-parallel_couette_solo clean_parallel_couette_solo : CFD_SRC_PATH := ./CFD_dCSE/src_code/DNS_main_code_Couette 
-parallel_couette_solo clean_parallel_couette_solo : MAKEFILE_NAME := -f makefile.planes_fftz_fftx 
-parallel_couette_solo clean_parallel_couette_solo : CFD_TARGET := parallel_couette.exe 
+couette clean_couette couette_solo clean_couette_solo : CFD_SRC_PATH := ./CFD_dCSE/src_code/DNS_main_code_Couette 
+couette clean_couette couette_solo clean_couette_solo : MAKEFILE_NAME := -f makefile.planes_fftz_fftx 
+couette clean_couette couette_solo clean_couette_solo : CFD_TARGET := parallel_couette.exe 
 
 #
 # MD sector 
@@ -43,30 +43,35 @@ export BUILD := opt
 
 # Tasks
 
-.PHONY. : couette_md couette md coupler couette_solo md_solo clean_all  clean_couette_md clean_couette clean_md clean_coupler clean_couette_solo clean_md_solo  
+.PHONY. :serial_couette_md serial_couette md coupler serial_couette_solo md_solo clean_all  clean_couette_md clean_couette clean_md clean_coupler clean_couette_solo clean_md_solo  
 
 all :
 	@echo "Top level coupled build - Type help for options"
 
-couette_md : couette md coupler
+couette_md : couette md 
+serial_couette_md :serial_couette md 
 
 md : coupler
 	cd $(MD_SRC_PATH)  && $(MAKE) USE_COUPLER=yes $(MD_TARGET)
-couette :  coupler
+couette : coupler
+	cd $(CFD_SRC_PATH) && $(MAKE) $(MAKEFILE_NAME) USE_COUPLER=yes $(CFD_TARGET)
+serial_couette :  coupler
 	cd $(CFD_SRC_PATH) && $(MAKE) USE_COUPLER=yes $(CFD_TARGET)
 coupler : 
 	cd $(COUPLER_SRC_PATH) && $(MAKE) 
 md_solo :
 	cd $(MD_SRC_PATH)  && $(MAKE) USE_COUPLER=no $(MD_TARGET)
-couette_solo : 
+serial_couette_solo : 
 	cd $(CFD_SRC_PATH) && $(MAKE) USE_COUPLER=no $(CFD_TARGET)
-parallel_couette_solo :
+couette_solo :
 	cd $(CFD_SRC_PATH) && $(MAKE) $(MAKEFILE_NAME) USE_COUPLER=no $(CFD_TARGET)
 
 
-clean_all : clean_coupler clean_couette clean_md 
+clean_all : clean_coupler clean_cfd clean_md 
 
-clean_couette_md : clean_couette clean_md 
+clean_couette_md : clean_couette_solo clean_md
+
+clean_serial_couette_md : clean_serial_couette clean_md 
 
 clean_md :
 	cd  $(MD_SRC_PATH)  && $(MAKE) clean  
@@ -74,8 +79,8 @@ clean_cfd :
 	cd  $(CFD_SRC_PATH) && $(MAKE) $(MAKEFILE_NAME) clean
 clean_coupler :
 	cd $(COUPLER_SRC_PATH) && $(MAKE) clean
-clean_couette_solo : clean_cfd
-clean_parallel_couette_solo : clean_cfd
+clean_couette clean_couette_solo : clean_cfd
+clean_serial_couette_solo clean_serial_couette : clean_cfd
 clean_md_solo : clean_md
 
 help:

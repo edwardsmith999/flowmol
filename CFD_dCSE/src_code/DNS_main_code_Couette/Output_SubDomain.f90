@@ -17,6 +17,7 @@
 module Output_SubDomain_mod
       use messenger
       use data_export
+      use computation_parameters
       implicit none
 	include "mpif.h"
 
@@ -94,7 +95,7 @@ use Output_SubDomain_mod
 		FLAG_RPOC_WRITES = 1
 	end if
 
-	CALL MPI_COMM_SPLIT(MPI_COMM_WORLD, FLAG_RPOC_WRITES, 0, WRITER_COMM, ierr)
+	CALL MPI_COMM_SPLIT(CFD_COMM, FLAG_RPOC_WRITES, 0, WRITER_COMM, ierr)
 
 	if (FLAG_RPOC_WRITES .eq. 1) then
 		!=======================================================
@@ -103,7 +104,7 @@ use Output_SubDomain_mod
 		!---------- Open File for writing -------
         	call SubDomain_FileName()
 
-        	call MPI_FILE_OPEN(WRITER_COMM, FN2, &
+        	call MPI_FILE_OPEN(WRITER_COMM, trim(prefix_dir)//FN2, &
                            	MPI_MODE_WRONLY+MPI_MODE_CREATE, &
                            	MPI_INFO_NULL, fh, ierr)
 

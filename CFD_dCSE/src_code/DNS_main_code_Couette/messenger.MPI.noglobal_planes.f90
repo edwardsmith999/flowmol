@@ -36,6 +36,7 @@
 module messenger
 	use data_export
 
+    integer CFD_COMM                  ! CFD communicator, replaces MPI_COMM_WORLD
 	integer myid                      ! my process rank
 	integer idroot                    ! rank of root process
 
@@ -50,10 +51,22 @@ end module
 
 !=======================================================================
 subroutine messenger_invoke()
+    use computation_parameters
+#if USE_COUPLER
+	use coupler
+#endif
 	use messenger
 	include "mpif.h"
 
-	call MPI_init (ierr)
+            call MPI_init (ierr)
+
+#if USE_COUPLER
+	    call coupler_create_comm(COUPLER_CFD,CFD_COMM,ierr)
+            prefix_dir ="./couette_data/"
+#else
+            CFD_COMM = MPI_COMM_WORLD
+            prefix_dir = "./"
+#endif
 
 	return
 end
@@ -69,8 +82,8 @@ subroutine messenger_init()
         integer np, ndims, ip, ixyz
 
 	! Initialize MPI
-	call MPI_comm_size (MPI_COMM_WORLD, np, ierr)
-	call MPI_comm_rank (MPI_COMM_WORLD, myid, ierr)
+	call MPI_comm_size (CFD_COMM, np, ierr)
+	call MPI_comm_rank (CFD_COMM, myid, ierr)
 	if (np .ne. nproc) stop "Wrong number of processors"
 
 	! Grid topology
@@ -79,7 +92,7 @@ subroutine messenger_init()
 	idims(2) = npy
 	idims(3) = 1
 	Lperiodic = .true.
-	call MPI_Cart_create(MPI_COMM_WORLD, ndims, idims, Lperiodic, .true., &
+	call MPI_Cart_create(CFD_COMM, ndims, idims, Lperiodic, .true., &
 	                     icomm_grid, ierr)
 	do ip=1,nproc
 		call MPI_Cart_coords(icomm_grid, ip-1, ndims, icoord(1,ip), ierr)
@@ -136,7 +149,7 @@ subroutine globalSum(A, na)
 	real*8 buf(na)
 
 	call MPI_AllReduce (A, buf, na, MPI_REAL8, &
-	                    MPI_SUM, MPI_COMM_WORLD, ierr)
+	                    MPI_SUM, CFD_COMM, ierr)
 	A = buf
 
 	return
@@ -151,7 +164,7 @@ subroutine globalMax(A, na)
 	real*8 buf(na)
 
 	call MPI_AllReduce (A, buf, na, MPI_REAL8, &
-	                    MPI_MAX, MPI_COMM_WORLD, ierr)
+	                    MPI_MAX, CFD_COMM, ierr)
 	A = buf
 
 	return
@@ -166,7 +179,7 @@ subroutine globalMin(A, na)
 	real*8 buf(na)
 
 	call MPI_AllReduce (A, buf, na, MPI_REAL8, &
-	                    MPI_MIN, MPI_COMM_WORLD, ierr)
+	                    MPI_MIN, CFD_COMM, ierr)
 	A = buf
 
 	return
@@ -255,7 +268,7 @@ subroutine gather(A, B)
 
 	call MPI_gather (A, nxyz_1, MPI_REAL8, &
 	                 recvbuf, nxyz_1, MPI_REAL8, &
-	                 idroot, MPI_COMM_WORLD, ierr)
+	                 idroot, CFD_COMM, ierr)
 
 	if (myid == idroot) then
 		do ip=1,nproc
@@ -304,7 +317,7 @@ subroutine allGather(A, B)
 
 	call MPI_allGather (A, nxyz_1, MPI_REAL8, &
 	                    recvbuf, nxyz_1, MPI_REAL8, &
-	                    MPI_COMM_WORLD, ierr)
+	                    CFD_COMM, ierr)
 
 	do ip=1,nproc
 		i1(ip) = ibmino_1(icoord(1,ip))
@@ -390,7 +403,7 @@ subroutine gatherXY(A, B, nk)
 
 	call MPI_gather (A, nx_1*ny_1*nk, MPI_REAL8, &
 	                 recvbuf, nx_1*ny_1*nk, MPI_REAL8, &
-	                 idroot, MPI_COMM_WORLD, ierr)
+	                 idroot, CFD_COMM, ierr)
 
 	if (myid == idroot) then
 		do ip=1,nproc
@@ -436,7 +449,7 @@ subroutine allGatherXY(A, B, nk)
 	! including overlapping borders
 	call MPI_allGather (A, nx_1*ny_1*nk, MPI_REAL8, &
 	                    recvbuf, nx_1*ny_1*nk, MPI_REAL8, &
-	                    MPI_COMM_WORLD, ierr)
+	                    CFD_COMM, ierr)
 
 	do ip=1,nproc
 		i1(ip) = ibmino_1(icoord(1,ip))
@@ -480,7 +493,7 @@ subroutine stat_gatherXY(A, B, nk)
 	isendcount = (nlx+2)*(nly+2)*nk
 	call MPI_gather (A, isendcount, MPI_REAL8, &
 	                 recvbuf, isendcount, MPI_REAL8, &
-	                 idroot, MPI_COMM_WORLD, ierr)
+	                 idroot, CFD_COMM, ierr)
 
 	if (myid == idroot) then
 		do ip=1,nproc
@@ -546,7 +559,7 @@ subroutine stat_allGatherXY(A, B, nk)
 	isendcount = (nlx+2)*(nly+2)*nk
 	call MPI_allGather (A, isendcount, MPI_REAL8, &
 	                    recvbuf, isendcount, MPI_REAL8, &
-	                    MPI_COMM_WORLD, ierr)
+	                    CFD_COMM, ierr)
 
 	do ip=1,nproc
 		iblk = icoord(1,ip)

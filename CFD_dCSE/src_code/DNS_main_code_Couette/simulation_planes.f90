@@ -133,6 +133,7 @@ end
 !=======================================================================
 subroutine simulation_run()
 	use simulation
+    use socket_coupler
 
 	stime_ = stime
 	ntime_ = ntime
@@ -148,6 +149,10 @@ subroutine simulation_run()
 			call CFLcontrol_maxCFL()
 		after = realClock()
 		cpu_cflcal= (after - before) - t_over  
+
+#if USE_COUPLER
+        call socket_coupler_send_velocity
+#endif
 
 		!----------------------------------------
 		!    Set Boundary Conditions

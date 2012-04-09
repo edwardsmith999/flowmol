@@ -11,6 +11,7 @@
 module Output_mod
       use messenger
       use data_export
+      use computation_parameters
       implicit none
 	include "mpif.h"
 	! include "mpiof.h"
@@ -50,7 +51,7 @@ use Output_mod
 	!                 DATA
 	!=========================================================
 	IF (irank.EQ.iroot) THEN
-		open(28,file='data',form='formatted')
+		open(28,file=trim(prefix_dir)//'data',form='formatted')
 		write(28,*) ntime
 		close(28)
 	END IF
@@ -68,7 +69,7 @@ use Output_mod
 		NAME='ucvcwc.data.'
 		call OutFileName()
 		write(*,*) FN2
-		open(29,file=FN2,form='formatted')
+		open(29,file=trim(prefix_dir)//FN2,form='formatted')
 		write(29,'(i10,2e16.8)') ntime,stime,aan
 		close(29)
 	END IF

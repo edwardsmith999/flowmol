@@ -21,7 +21,6 @@
 	
 subroutine setup_continuum
 #if USE_COUPLER
-	use continuum_coupler_socket_init
 	use continuum_coupler_socket
 #endif
 	implicit none

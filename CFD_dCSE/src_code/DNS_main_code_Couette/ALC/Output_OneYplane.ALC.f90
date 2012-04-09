@@ -83,7 +83,7 @@ use Output_OneYplane_mod
 			FLAG_RPOC_WRITES = 1
 		end if
 	end do
-	CALL MPI_COMM_SPLIT(MPI_COMM_WORLD, FLAG_RPOC_WRITES, 0, WRITER_COMM, ierr)
+	CALL MPI_COMM_SPLIT(CFD_COMM, FLAG_RPOC_WRITES, 0, WRITER_COMM, ierr)
 
 	if (FLAG_RPOC_WRITES .eq. 1) then
 		!=======================================================

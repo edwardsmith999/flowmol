@@ -1,0 +1,107 @@
+#!/bin/bash
+
+#PBS -N transflow
+#PBS -l mppwidth=64
+#PBS -l mppnppn=32
+#PBS -l walltime=20:00
+# #PBS -j oe
+#PBS -A z03
+  
+cd $PBS_O_WORKDIR
+echo 'PBS_O_WORKDIR =' $PBS_O_WORKDIR
+export MPICH_ABORT_ON_ERROR=enabled
+ulimit -c unlimited
+rm core*
+
+#start_only=1
+#
+# list of topologies to be tested, each triplet is for "npx_cfd npx npz"
+#
+if [ -z "$config" ] 
+then 
+  if [ -n "$full_test" ]
+  then
+# do the whole list
+    config_list=(" 1 1 1" "1 2 1" "1 1 2" "1 2 2" "2 1 1" "2 2 1" "2 2 2")
+  else
+#default test
+    config_list=("1 1 1" "2 2 2")
+  fi
+else
+# test only the selected case
+  config_list=("$config")
+fi
+# generating a restart file with 1 tasks for CFD and MD 
+
+npx_cfd=1
+npx=1
+npy=1
+npz=1
+nproc_md=$(( npx*npz ))
+
+sed -i '/PROCESSORS/ {
+        n
+        s/^.*$/'"$npx"'/
+        n
+        n
+        s/^.*$/'"$npz"'/
+        }' ./md_data/MD.in  
+
+if [ -z "$skip_start" ]
+then
+  echo 0 > couette_data/data
+  aprun -n "$npx_cfd" parallel_couette_npx"$npx_cfd".exe : -n $nproc_md md.exe  $arglist > out_md_start
+  mv md_data/results/final_state  md_data/results/final_state_0
+fi
+# needed?
+#mv md_vel.txt md_vel_np"$nproc_md"_npx"$npx"_npz"$npz"_start.txt 
+#mv couette_data/results/continuum_uc.txt couette_data/results/continuum_uc_np"$nproc_md"_npx"$npx"_npz"$npz"_start.txt
+
+# exit if only the start test is needed
+[ -n "$start_only" ] && exit
+
+# restart from final_start_0 with various processor configurations
+
+for config in "${config_list[@]}"
+do
+
+  echo " using processor configuration $config"
+
+  npx_cfd=$(echo $config | awk '{print $1}')
+  npx=$(echo $config | awk '{print $2}')
+  npz=$(echo $config | awk '{print $3}')
+
+  echo " using npx_cfd=$npx_cfd npx_md=$npx npz_md=$npz"
+
+  nproc_md=$(( npx*npz ))
+
+  sed -i '/PROCESSORS/ {
+          n
+          s/^.*$/'"$npx"'/
+          n
+          n
+          s/^.*$/'"$npz"'/
+          }' ./md_data/MD.in
+
+
+
+  cp md_data/results/final_state_0  md_data/results/final_state
+  arglist="-r md_data/results/final_state"
+  outfile=out_restart_cfd_npx"$npx_cfd"_md_npx"$npx"_npz"$npz"
+  echo 0 > couette_data/data
+  aprun -n "$npx_cfd" parallel_couette_npx"$npx_cfd".exe : -n $nproc_md md.exe  $arglist >  "$outfile"
+ 
+  if [ $? -ne 0 ] 
+  then 
+    echo "aprun error for config $config"
+    exit
+  fi
+
+  mv md_vel.txt md_vel_np"$nproc_md"_npx"$npx"_npz"$npz".txt 
+  mv couette_data/results/continuum_uc.txt couette_data/results/continuum_uc_np"$nproc_md"_npx"$npx"_npz"$npz".txt
+
+  datadir=test_npx_cfd"$npx_cfd"_mdxz_"$npx"x"$npz"
+  [ -d "$datadir" ] || mkdir $datadir
+  mv $outfile fort.* $datadir
+
+done

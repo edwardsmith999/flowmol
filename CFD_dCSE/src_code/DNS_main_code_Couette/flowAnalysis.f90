@@ -12,6 +12,7 @@
 module flowAnalysis
 	use data_export
 	use mesh_export
+    use computation_parameters
 end module
 
 !=======================================================================
@@ -235,7 +236,7 @@ subroutine flowAnalysis_blayerinfo()
 	! Write file header
 	if (irank == iroot) then
 		iunit = iopen()
-		open (iunit, file="flowAnalysis", form="formatted")
+		open (iunit, file=trim(prefix_dir)//"flowAnalysis", form="formatted")
 		write(iunit,'(a)') '% ------------------------------------------------------ '
 		write(iunit,'(a)') '%       Re        ubulk '
 		write(iunit,'(a,f15.8,f15.8/)') '%',Re, ubulk

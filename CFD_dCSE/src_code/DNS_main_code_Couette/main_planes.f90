@@ -25,12 +25,15 @@ end
 
 module main
 	use data_export
+    use computation_parameters
 	integer dummy  ! Not used; the module has to contain something
+  
 end module
 
 !=======================================================================
 subroutine main_init()
 	use main
+    use socket_coupler
 
 	!---- Make sure MPI Starts----
 	call messenger_invoke()
@@ -39,7 +42,7 @@ subroutine main_init()
 	! Read archive file
 	call archive_init()
 	iunit = iopen()
-	open (iunit, file="archive", form="unformatted", &
+	open (iunit, file=trim(prefix_dir)//"archive", form="unformatted", &
 	      status="old", iostat=ierr)
 	if (ierr .ne. 0) stop "An archive file is required"
 	call archive_read(iunit, 1)
@@ -47,7 +50,7 @@ subroutine main_init()
 
 	! Read input file
 	iunit = iopen()
-	open (iunit, file="input", status="old", iostat=ierr)
+	open (iunit, file=trim(prefix_dir)//"input", status="old", iostat=ierr)
 	if (ierr == 0) then
 		! Input file is present
 		call archive_read(iunit, 0)
@@ -66,6 +69,8 @@ subroutine main_init()
 	call simulation_init()
 	call statistics_init()
 
+    call socket_coupler_init
+
 	return
 end
 
@@ -76,7 +81,7 @@ subroutine main_free()
 	call data_isRoot(iflag)
 	if (iflag == 1) then
 		ireport = iopen()
-		open (ireport, file="report")
+		open (ireport, file=trim(prefix_dir)//"report")
 		call archive_info(ireport)
 		call simulation_info(ireport)
 		call data_info(ireport)
@@ -161,7 +166,7 @@ subroutine main_save()
 	call data_isRoot(iflag)
 	if (iflag == 1) then
 		iunit = iopen()
-		open (iunit, file="archive", form="unformatted")
+		open (iunit, file=trim(prefix_dir)//"archive", form="unformatted")
 		call archive_write(iunit, 1)
 		close (iclose(iunit))
 	end if

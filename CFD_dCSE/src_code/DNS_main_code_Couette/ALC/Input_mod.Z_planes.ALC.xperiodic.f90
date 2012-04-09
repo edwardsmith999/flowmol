@@ -11,6 +11,7 @@
 module Input_mod
       use messenger
       use data_export
+      use computation_parameters
       implicit none
 	include "mpif.h"
 	! include "mpiof.h"
@@ -54,7 +55,7 @@ use Input_mod
 	!                 DATA
 	!=========================================================
 	IF (irank.eq.iroot) THEN
-		open(28,file='data',form='formatted')
+		open(28,file=trim(prefix_dir)//'data',form='formatted')
 		read(28,*) ntime
 		close(28)
 	END IF
@@ -84,9 +85,14 @@ use Input_mod
 	call InFileName()
         if (irank.eq.iroot) write(*,*) 'reading  ', FN2
 
-        call MPI_FILE_OPEN(icomm_grid, FN2, &
+        call MPI_FILE_OPEN(icomm_grid, trim(prefix_dir)//FN2, &
                            MPI_MODE_RDONLY, &
                            MPI_INFO_NULL, fh, ierr)
+
+        if (ierr /= 0) then
+            write(0,*)'mpi_file_open: error opening file', trim(prefix_dir)//FN2
+        endif
+           
 
         !--------- DEFINE LIMITS (FILE & LOCAL SUBARRAY) -------
         global_indices = (/ 0 , iTmin_1(iblock) , jTmin_1(jblock) /)
@@ -178,9 +184,12 @@ use Input_mod
 	call InFileName()
         if (irank.eq.iroot) write(*,*) FN2
 
-        CALL MPI_FILE_OPEN(icomm_grid, FN2, &
+        CALL MPI_FILE_OPEN(icomm_grid, trim(prefix_dir)//FN2, &
                            MPI_MODE_RDONLY, &
                            MPI_INFO_NULL, fh, ierr)
+        if (ierr /= 0) then
+            write(0,*)'mpi_file_open: error opening file', trim(prefix_dir)//FN2
+        endif
         
         !--------- DEFINE LIMITS (FILE & LOCAL SUBARRAY) -------
         global_indices = (/ 0 , iTmin_1(iblock) , jTmin_1(jblock) /)
@@ -273,9 +282,12 @@ use Input_mod
 	call InFileName()
         if (irank.eq.iroot) write(*,*) 'reading  ', FN2
 
-        call MPI_FILE_OPEN(icomm_grid, FN2, &
+        call MPI_FILE_OPEN(icomm_grid, trim(prefix_dir)//FN2, &
 			   MPI_MODE_RDONLY, & 
                            MPI_INFO_NULL, fh, ierr)
+        if (ierr /= 0) then
+            write(0,*)'mpi_file_open: error opening file', trim(prefix_dir)//FN2
+        endif
 
 	!--------- DEFINE LIMITS (FILE & LOCAL SUBARRAY) -------
 	!  Note:  MPI assumes here that numbering starts from zero
@@ -400,8 +412,8 @@ use Input_mod
        !==========================================================
        !     SYNC ALL THE PROCESSORS
        !----------------------------------------------------------
-        CALL MPI_BARRIER(icomm_grid,IERR)
-        if (irank.eq.iroot) PRINT *,'restart file(1p) read by processor=',irank
+       CALL MPI_BARRIER(icomm_grid,IERR)
+       if (irank.eq.iroot) PRINT *,'restart file(1p) read by processor=',irank
 
        !==========================================================
        !     Read in Pressure (phatr) to check I/O working properly
@@ -420,9 +432,12 @@ use Input_mod
         call InFileName()
         if (irank.eq.iroot) write(*,*) 'reading  ', FN2
 
-        call MPI_FILE_OPEN(icomm_grid, FN2, &
+        call MPI_FILE_OPEN(icomm_grid, trim(prefix_dir)//FN2, &
                            MPI_MODE_RDONLY, &
                            MPI_INFO_NULL, fh, ierr)
+        if (ierr /= 0) then
+            write(0,*)'mpi_file_open: error opening file', trim(prefix_dir)//FN2
+        endif
 
         !--------- DEFINE LIMITS (FILE & LOCAL SUBARRAY) -------
         global_cnt = 0

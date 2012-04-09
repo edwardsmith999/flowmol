@@ -53,13 +53,17 @@ end module
 !=======================================================================
 subroutine messenger_invoke()
     use mpi
+#if USE_COUPLER
+    use coupler
+#endif
 	use continuum_messenger
-    use continuum_coupler_socket_init
+!    use continuum_coupler_socket_init
 
     call MPI_init (ierr)
 
 #if USE_COUPLER
-            call init_coupler(CFD_COMM)
+            !call init_coupler(CFD_COMM)
+            call coupler_create_comm(COUPLER_CFD, CFD_COMM, ierror)
             prefix_dir ="./couette_data/"
 #else
             CFD_COMM = MPI_COMM_WORLD

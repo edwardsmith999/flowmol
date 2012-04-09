@@ -10,6 +10,7 @@
 
 module grid
 	use data_export
+    use computation_parameters
 end module
 
 !=======================================================================
@@ -43,7 +44,7 @@ subroutine grid_init()
 
 	inquire(iolength=ilength) xpg
 	iunit = iopen()
-	open(iunit, file="grid.data", form="unformatted", access="direct", &
+	open(iunit, file=trim(prefix_dir)//"grid.data", form="unformatted", access="direct", &
 		recl=ilength, status="old", iostat=ierr)
 	if (ierr .ne. 0) stop "grid.data file is required"
 	read(iunit, rec=1) xpg
