@@ -1637,7 +1637,8 @@ implicit none
 	chaindiff = monomer(molnoi)%chainID - monomer(molnoj)%chainID
 
 	if (chaindiff.eq.0) then
-		bflag = abs(btest(monomer(molnoi)%bin_bflag,monomer(molnoj)%subchainID))
+        bflag = 0
+		if (btest(monomer(molnoi)%bin_bflag,monomer(molnoj)%subchainID)) bflag = 1
 		select case (bflag)
 		case(1)
 			bondcount(molnoi) = bondcount(molnoi) + 1

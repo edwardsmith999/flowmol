@@ -487,7 +487,10 @@ subroutine build_psf
 	NBONDS = 0
 	do n=1,np
 		do sc=1,nmonomers
-			NBONDS = NBONDS + abs(btest(monomer(n)%bin_bflag,sc))
+            j=0
+            if ( btest(monomer(n)%bin_bflag,sc) ) j = 1
+			!NBONDS = NBONDS + abs(btest(monomer(n)%bin_bflag,sc))
+            NBONDS = NBONDS + j
 		end do
 	end do
 	call globalSumInt(NBONDS)
@@ -572,7 +575,8 @@ subroutine build_psf
 				
 					!If j is bonded to i then add pair to items	
 					do n=1,nmonomers
-						if(abs(btest(glob_bf(i),n)) .eq. 1 .and. glob_sc(j) .eq. n) then
+						!if(abs(btest(glob_bf(i),n)) .eq. 1 .and. glob_sc(j) .eq. n) then 
+                        if(btest(glob_bf(i),n) .and. glob_sc(j) .eq. n) then
 							bonds(item,1) = i
 							bonds(item,2) = j
 							item=item+1						
