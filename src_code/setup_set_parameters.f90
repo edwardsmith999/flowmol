@@ -312,7 +312,7 @@ subroutine set_parameters_global_domain_coupled
 	use coupler 
 	implicit none
 
-	integer          ixyz, n0(2)
+	integer          ixyz, n0(3)
 	real(kind(0.d0)) xL_md, yL_md,zL_md, b0 ! 
 
 	! get the global domain lenghts from x, y, z array of CFD realm
@@ -323,20 +323,22 @@ subroutine set_parameters_global_domain_coupled
     ! size of cubic FCC cell
     b0=(4.d0/density)**(1.0d0/3.0d0)
     
-    call coupler_md_get(xL_md=xL_md,yL_md=yL_md,MD_initial_cellsize=b0)
+    call coupler_md_get(xL_md=xL_md,yL_md=yL_md,zL_md=zL_md,MD_initial_cellsize=b0)
     
-    n0(:) = floor( (/ xL_md, yL_md /) / b0)
+    n0(:) = nint( (/ xL_md, yL_md, zL_md/) / b0)
 
-    !write(0,*) "n0 ", b0, xL_md, yL_md, n0
+    !write(0,*) "n0 ", b0, xL_md, yL_md, zL_md, n0
     
     initialunitsize(1:3) =  b0
-    initialnunits(1:2) = n0(:)
+    initialnunits(1:3) = n0(:)
 
-    ! number of FCC cell in z direction per MPI ranks is choosen the minimal one 
-    initialnunits(3)   = ceiling(3*(rcutoff+delta_rneighbr)/initialunitsize(3)) * npz
-    
-    zL_md =  initialnunits(3)* initialunitsize(3)
-    call coupler_md_set(zL_md = zL_md)
+    ! set zL_md for for 2d CFD solvers
+    if (zl_md <= 0.d0) then
+        ! number of FCC cell in z direction per MPI ranks is choosen the minimal one 
+        initialnunits(3)   = ceiling(3*(rcutoff+delta_rneighbr)/initialunitsize(3)) * npz
+        zL_md =  initialnunits(3)* initialunitsize(3)
+        call coupler_md_set(zL_md = zL_md)      
+    endif
 
 	globaldomain(1) = xL_md
 	globaldomain(2) = yL_md
@@ -345,7 +347,7 @@ subroutine set_parameters_global_domain_coupled
 	! the number of particles is 
 	volume   = xL_md*yL_md*zL_md
 
-    ! set the number of partivles for new simulation
+    ! set the number of particles for new simulation
     if (.not. restart)then
        globalnp = density*volume  ! sigma units
        np = globalnp / nproc					
