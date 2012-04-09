@@ -14,7 +14,7 @@
 ! 
 !
 module coupler_input_data
-  implicit none
+    implicit none
 
   ! tags values
     integer, parameter :: VOID=666,CPL=777,CFD=888 ! tag values marking the input file for domain data
@@ -65,12 +65,19 @@ module coupler_input_data
     integer 				:: md_save_period                 ! save data for velocity profile every ... CFD step
     integer, target 		:: md_save_period_tag
 
+    !stop_tag used in request_abort - declared in coupler_internal_common
+
+    ! staggered_averages - declared in coupler_internal_common
+
+    character(len=64) :: cfd_code_name ! used to set cfd_code_id in MD
+    integer           :: cfd_code_id
+    integer, target   :: cfd_code_id_tag
+
     ! auxiliary list for easy manipulation
-    integer,parameter :: nsections=7 ! total number of section in input files
+    integer,parameter :: nsections=10 ! total number of section in input files
     type(section_type) section(nsections)
 
 contains
-
 
     subroutine read_coupler_input
         use mpi
@@ -78,7 +85,7 @@ contains
         use coupler_internal_common
 		implicit none 
 
-        integer ndim, myid, myid_cfd, ierr
+        integer ndim, myid, myid_cfd, iroot_global, ierr
         logical have_input
 
         ! set default values for coupler input data
@@ -107,8 +114,8 @@ contains
         section(4)%str = "CFD_OVERLAP"
         section(4)%tag => cfd_coupler_input%overlap%tag
         cfd_coupler_input%overlap%y_overlap = 0
-        
-        ! No initialisation of the MD values associated with the tags becase defaults are set in coupler_internal_md module         
+
+                                ! No initialisation of the MD values associated with the tags becase defaults are set in coupler_internal_md module         
         section(5)%str = "MD_LY_EXTENSION"
         section(5)%tag => md_ly_extension_tag 
         md_ly_extension_tag   = VOID
@@ -121,118 +128,172 @@ contains
         section(7)%tag => md_save_period_tag
         md_save_period_tag    = VOID
 
+        section(8)%str = "STOP_TAG"
+        section(8)%tag => stop_request_tag
+        stop_request_tag = VOID
+
+        section(9)%str = "STAGGERED_AVERAGES"
+        section(9)%tag => staggered_averages_tag
+        staggered_averages_tag = VOID
+
+        section(10)%str = "CFD_CODE_ID"
+        section(10)%tag => cfd_code_id_tag
+        cfd_code_id_tag = VOID
+
+
+        ! find rank 0 in CFD_COMM an open COUPLER.in file on it
         call mpi_comm_rank(COUPLER_GLOBAL_COMM, myid, ierr)
         myid_cfd = -1
+        iroot_global = -1
         if (COUPLER_REALM == COUPLER_CFD) then
-           call mpi_comm_rank(COUPLER_REALM_COMM, myid_cfd,ierr)
+            call mpi_comm_rank(COUPLER_REALM_COMM, myid_cfd,ierr)
         endif
-        
+
         have_input = .false.
         if (myid_cfd == 0) then 
-            inquire(file="COUPLER.in",exist=have_input)            
+            inquire(file="COUPLER.in",exist=have_input)
+            iroot_global = myid
         endif
-        
-        ! I cannot bcast directly have_input because it is not guaranteed that
-        ! myid == myid_cfd == 0
+
+                                ! I cannot bcast directly have_input because it is not guaranteed that
+                                ! myid == myid_cfd == 0
 
         call mpi_allreduce(MPI_IN_PLACE,have_input,1,MPI_LOGICAL,MPI_LOR,COUPLER_GLOBAL_COMM,ierr)
         !call mpi_bcast(have_input, 1, MPI_LOGICAL, 0, COUPLER_REALM_COMM, ierr)
-        
+
+                                ! set the  root for the global communicator
+        call mpi_allreduce(MPI_IN_PLACE,iroot_global,1,MPI_INTEGER,MPI_MAX,COUPLER_GLOBAL_COMM,ierr)
+
         if (have_input) then           
-           if (myid_cfd == 0) then
-              call read_input_file
-              call pack_bcast_input              
-           else
-            ! receive input data from rank 0
-              call bcast_unpack_input
-           endif
+            if (myid_cfd == 0) then
+                call read_input_file
+                call pack_bcast_input              
+            else
+                ! receive input data from rank 0
+                call bcast_unpack_input
+            endif
+            ! broadcast stop_request across communicator if section id present in COUPLER.in
+            call mpi_bcast(stop_request_tag,1,MPI_INTEGER,iroot_global,COUPLER_GLOBAL_COMM,ierr)
+            if (stop_request_tag == CPL) then 
+                call mpi_bcast(stop_request_name,len(stop_request_name),MPI_CHARACTER,iroot_global,COUPLER_GLOBAL_COMM,ierr)
+                stop_request_activated = .true.
+            endif
+
+            ! the save for staggered averages
+            call mpi_bcast(staggered_averages_tag,1,MPI_INTEGER,iroot_global,COUPLER_GLOBAL_COMM,ierr)
+            if (staggered_averages_tag == CPL) then 
+                call mpi_bcast(staggered_averages,size(staggered_averages),MPI_LOGICAL,iroot_global,COUPLER_GLOBAL_COMM,ierr)
+            endif
         else
-           if (myid_cfd == 0 ) then
-              write(0,*) "WARNING: No coupler input file, will use CFD domain data and adjust them accordingly"
-           endif
+            if (myid_cfd == 0 ) then
+                write(0,*) "WARNING: No coupler input file, will use CFD domain data and adjust them accordingly"
+            endif
         endif
 
     contains
 
-      subroutine read_input_file
-        implicit none
+        subroutine read_input_file
+            use coupler_parameters
+            implicit none
 
-        integer io,i
-        logical have_data
-        character(len=100) linein,line
-        
-        open(34,file="COUPLER.in", status="old", action="read")
+            integer io,i
+            logical have_data
+            character(len=100) linein,line
 
-        do 
-           read(34,*,iostat=io) linein
-           if (io /= 0) exit
-           
-           line=adjustl(linein)
-           if(line(1:1) == "#") cycle
+            open(34,file="COUPLER.in", status="old", action="read")
 
-           select case (line)
-           case ("DENSITY","density","Density")
-              density_tag = CPL
-              read(34,*) density
-           case ("CFD_DOMAIN","Cfd_Domain","Cfd_domain","cfd_domain")
-              cfd_coupler_input%domain%tag = CPL
-              read(34,*) ndim 
-              cfd_coupler_input%domain%ndim = ndim
-              if ( ndim < 1 .or. ndim > 3) then 
-                 write(*,*) "Wrong value for CFD number of dimensions", ndim
-                 call MPI_Abort(COUPLER_GLOBAL_COMM,COUPLER_ERROR_INPUT_FILE, ierr)
-              endif
-              read(34,*) cfd_coupler_input%domain%units
-              ! Test if units are known ? 
-              read(34,*) cfd_coupler_input%domain%cell_type
-              read(34,*) cfd_coupler_input%domain%x
-           
-              if (ndim > 1) then
-                 read(34,*) cfd_coupler_input%domain%y
-              endif
-              if (ndim > 2) then
-                 read(34,*) cfd_coupler_input%domain%z
-              endif
-           case("CFD_NCELLS","Cfd_Ncells","Cfd_ncells","cfd_ncells")
-              cfd_coupler_input%ncells%tag = CPL
-              read(34,*) cfd_coupler_input%ncells%x
-              if (ndim > 1) then 
-                 read(34,*) cfd_coupler_input%ncells%y
-              endif
-              if (ndim > 2) then 
-                 read(34,*) cfd_coupler_input%ncells%z
-              endif
-           case("OVERLAP_CELLS","Overlap_Cells","Overlap_cells","overlap_cells")
-              cfd_coupler_input%overlap%tag = CPL
-              if (ndim > 1) then 
-                 read(34,*) cfd_coupler_input%overlap%y_overlap
-              endif
-           case("MD_LY_EXTENSION","md_ly_extension","Md_ly_extension")
-              md_ly_extension_tag = CPL
-              read(34,*) md_ly_extension
-           case("MD_AVERAGE_PERIOD","md_average_period")
-              md_average_period_tag = CPL
-              read(34,*) md_average_period
-           case("MD_SAVE_PERIOD","md_save_period")
-              md_save_period_tag = CPL
-              read(34,*) md_save_period
-           end select
-        enddo
-        close(34)
-        
-        do i=1,nsections
-           ! report missing sections from input
-           if (section(i)%tag == VOID ) then 
-              write(0,*) " WARNING: no ", trim(section(i)%str), "  section found in coupler input file"
-           endif
-        end do
-        
-        write(0,*) "have read coupler.in"
-        
-      end subroutine read_input_file
+            do 
+                read(34,*,iostat=io) linein
+                if (io /= 0) exit
+
+                line=adjustl(linein)
+                if(line(1:1) == "#") cycle
+
+                select case (line)
+                case ("DENSITY","density","Density")
+                    density_tag = CPL
+                    read(34,*) density
+                case ("CFD_DOMAIN","Cfd_Domain","Cfd_domain","cfd_domain")
+                    cfd_coupler_input%domain%tag = CPL
+                    read(34,*) ndim 
+                    cfd_coupler_input%domain%ndim = ndim
+                    if ( ndim < 1 .or. ndim > 3) then 
+                        write(*,*) "Wrong value for CFD number of dimensions", ndim
+                        call MPI_Abort(COUPLER_GLOBAL_COMM,COUPLER_ERROR_INPUT_FILE, ierr)
+                    endif
+                    read(34,*) cfd_coupler_input%domain%units
+                                ! Test if units are known ? 
+                    read(34,*) cfd_coupler_input%domain%cell_type
+                    read(34,*) cfd_coupler_input%domain%x
+
+                    if (ndim > 1) then
+                        read(34,*) cfd_coupler_input%domain%y
+                    endif
+                    if (ndim > 2) then
+                        read(34,*) cfd_coupler_input%domain%z
+                    endif
+                case("CFD_NCELLS","Cfd_Ncells","Cfd_ncells","cfd_ncells")
+                    cfd_coupler_input%ncells%tag = CPL
+                    read(34,*) cfd_coupler_input%ncells%x
+                    if (ndim > 1) then 
+                        read(34,*) cfd_coupler_input%ncells%y
+                    endif
+                    if (ndim > 2) then 
+                        read(34,*) cfd_coupler_input%ncells%z
+                    endif
+                case("OVERLAP_CELLS","Overlap_Cells","Overlap_cells","overlap_cells")
+                    cfd_coupler_input%overlap%tag = CPL
+                    if (ndim > 1) then 
+                        read(34,*) cfd_coupler_input%overlap%y_overlap
+                    endif
+                case("MD_LY_EXTENSION","md_ly_extension","Md_ly_extension")
+                    md_ly_extension_tag = CPL
+                    read(34,*) md_ly_extension
+                case("MD_AVERAGE_PERIOD","md_average_period")
+                    md_average_period_tag = CPL
+                    read(34,*) md_average_period
+                case("MD_SAVE_PERIOD","md_save_period")
+                    md_save_period_tag = CPL
+                    read(34,*) md_save_period
+                case("STOP_REQUEST","Stop_request","stop_request")
+                    stop_request_tag = CPL
+                    read(34,*) stop_request_name
+                 case("STAGGERED_AVERAGES","Staggered_averages", "staggered_averages")
+                     staggered_averages_tag = CPL
+                     read(34,*) staggered_averages
+                 case("CFD_CODE_ID","cfd_code_id","Cfd_code_id")
+                     cfd_code_id_tag = CPL
+                     read(34,*) cfd_code_name
+                     select case(cfd_code_name)
+                     case ("COUETTE_SERIAL","couette_serial")
+                         cfd_code_id = couette_serial
+                     case("COUETTE_PARALLEL","couette_parallel")
+                         cfd_code_id = couette_parallel
+                     case default
+                         write(0,*) "unknow CFD_CODE_NAME, check COUPLER.in file"
+                         call MPI_Abort(MPI_COMM_WORLD,COUPLER_ERROR_INPUT_FILE,ierr)
+                     end select
+                 case default
+                    ! unkown input section abort
+                    write(0,*) "unknow coupler input section, check COUPLER.in file"
+                    call MPI_Abort(MPI_COMM_WORLD,COUPLER_ERROR_INPUT_FILE,ierr)
+                end select
+            enddo
+            close(34)
+
+            do i=1,nsections
+                !report missing sections from input
+                if (section(i)%tag == VOID ) then 
+                    write(0,*) " WARNING: no ", trim(section(i)%str), "  section found in coupler input file"
+                endif
+            end do
+
+            write(0,*) "read COUPLER.in done"
+
+        end subroutine read_input_file
 
 
-      subroutine pack_bcast_input
+        subroutine pack_bcast_input
             implicit none
 
             integer, parameter :: sbuff = 1024,scaux=64
@@ -242,7 +303,7 @@ contains
 
             position = 0
             call mpi_pack((/ cfd_coupler_input%domain%tag, cfd_coupler_input%domain%ndim /),2,MPI_INTEGER, &
-                 buffer,sbuff,position,COUPLER_REALM_COMM,ierr)
+                buffer,sbuff,position,COUPLER_REALM_COMM,ierr)
             call mpi_pack(cfd_coupler_input%domain%units,8,MPI_CHARACTER,buffer,sbuff,position,COUPLER_REALM_COMM,ierr)
             call mpi_pack(cfd_coupler_input%domain%cell_type,8,MPI_CHARACTER,buffer,sbuff,position,COUPLER_REALM_COMM,ierr)
             call mpi_pack(cfd_coupler_input%domain%x,1,MPI_DOUBLE_PRECISION,buffer,sbuff,position,COUPLER_REALM_COMM,ierr)
@@ -266,102 +327,114 @@ contains
             position = 0
 
             if (md_ly_extension_tag == CPL) then
-               write(caux,'(a)')"MD_LY_EXTENSION"
-               call mpi_pack(caux,scaux,MPI_CHARACTER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
-               call mpi_pack(md_ly_extension_tag,1,MPI_INTEGER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
-               call mpi_pack(md_ly_extension    ,1,MPI_DOUBLE_PRECISION,buffer,sbuff,position,COUPLER_ICOMM,ierr)
+                write(caux,'(a)')"MD_LY_EXTENSION"
+                call mpi_pack(caux,scaux,MPI_CHARACTER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
+                call mpi_pack(md_ly_extension_tag,1,MPI_INTEGER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
+                call mpi_pack(md_ly_extension    ,1,MPI_DOUBLE_PRECISION,buffer,sbuff,position,COUPLER_ICOMM,ierr)
             endif
 
             if (md_average_period_tag == CPL) then
-               write(caux,'(a)')"MD_AVERAGE_PERIOD"
-               call mpi_pack(caux,scaux,MPI_CHARACTER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
-               call mpi_pack(md_average_period_tag,1,MPI_INTEGER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
-               call mpi_pack(md_average_period    ,1,MPI_INTEGER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
+                write(caux,'(a)')"MD_AVERAGE_PERIOD"
+                call mpi_pack(caux,scaux,MPI_CHARACTER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
+                call mpi_pack(md_average_period_tag,1,MPI_INTEGER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
+                call mpi_pack(md_average_period    ,1,MPI_INTEGER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
             endif
 
             if (md_save_period_tag == CPL) then
-               write(caux,'(a)')"MD_SAVE_PERIOD"
-               call mpi_pack(caux,scaux,MPI_CHARACTER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
-               call mpi_pack(md_save_period_tag,1,MPI_INTEGER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
-               call mpi_pack(md_save_period    ,1,MPI_INTEGER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
-            endif 
-           
+                write(caux,'(a)')"MD_SAVE_PERIOD"
+                call mpi_pack(caux,scaux,MPI_CHARACTER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
+                call mpi_pack(md_save_period_tag,1,MPI_INTEGER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
+                call mpi_pack(md_save_period    ,1,MPI_INTEGER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
+            endif
+
+            if (cfd_code_id_tag == CPL) then
+                write(caux,'(a)')"CFD_CODE_ID"
+                call mpi_pack(caux,scaux,MPI_CHARACTER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
+                call mpi_pack(cfd_code_id_tag,1,MPI_INTEGER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
+                call mpi_pack(cfd_code_id    ,1,MPI_INTEGER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
+            endif
+            
+
             ! broadcast the packed data to MD realm
             call mpi_bcast(position,1,MPI_INTEGER,0,COUPLER_REALM_COMM,ierr)
             call mpi_bcast(position,1,MPI_INTEGER,MPI_ROOT,COUPLER_ICOMM,ierr)
             if ( position > 0) then
-               call mpi_bcast(buffer,position,MPI_PACKED,MPI_ROOT,COUPLER_ICOMM,ierr)
+                call mpi_bcast(buffer,position,MPI_PACKED,MPI_ROOT,COUPLER_ICOMM,ierr)
             endif
 
         end subroutine pack_bcast_input
 
-        
+
         subroutine bcast_unpack_input
             implicit none
 
-             integer, parameter :: sbuff = 1024, scaux=64
+            integer, parameter :: sbuff = 1024, scaux=64
             integer position, count, ierr
             character(len=sbuff) buffer
             character(len=scaux) caux
 
             if (COUPLER_REALM == COUPLER_CFD) then 
-               
-               call mpi_bcast(count,MPI_INTEGER,0,COUPLER_REALM_COMM,ierr)
-               call mpi_bcast(buffer,count,MPI_PACKED,0,COUPLER_REALM_COMM,ierr)
+                
+                call mpi_bcast(count,1,MPI_INTEGER,0,COUPLER_REALM_COMM,ierr)
+                call mpi_bcast(buffer,count,MPI_PACKED,0,COUPLER_REALM_COMM,ierr)
+                position=0
+                call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%domain%tag,1,MPI_INTEGER,COUPLER_REALM_COMM,ierr)
+                call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%domain%ndim,1,MPI_INTEGER,COUPLER_REALM_COMM,ierr)
+                call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%domain%units,8,MPI_CHARACTER,COUPLER_REALM_COMM,ierr)
+                call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%domain%cell_type,8,MPI_CHARACTER,COUPLER_REALM_COMM,ierr)
+                call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%domain%x,1,MPI_DOUBLE_PRECISION,COUPLER_REALM_COMM,ierr)
+                call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%domain%y,1,MPI_DOUBLE_PRECISION,COUPLER_REALM_COMM,ierr)
+                call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%domain%z,1,MPI_DOUBLE_PRECISION,COUPLER_REALM_COMM,ierr)
 
-               position=0
-               call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%domain%tag,1,MPI_INTEGER,COUPLER_REALM_COMM,ierr)
-               call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%domain%ndim,1,MPI_INTEGER,COUPLER_REALM_COMM,ierr)
-               call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%domain%units,8,MPI_CHARACTER,COUPLER_REALM_COMM,ierr)
-               call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%domain%cell_type,8,MPI_CHARACTER,COUPLER_REALM_COMM,ierr)
-               call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%domain%x,1,MPI_DOUBLE_PRECISION,COUPLER_REALM_COMM,ierr)
-               call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%domain%y,1,MPI_DOUBLE_PRECISION,COUPLER_REALM_COMM,ierr)
-               call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%domain%z,1,MPI_DOUBLE_PRECISION,COUPLER_REALM_COMM,ierr)
+                call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%ncells%tag,1,MPI_INTEGER,COUPLER_REALM_COMM,ierr)
+                call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%ncells%x,1,MPI_INTEGER,COUPLER_REALM_COMM,ierr)
+                call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%ncells%y,1,MPI_INTEGER,COUPLER_REALM_COMM,ierr)
+                call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%ncells%z,1,MPI_INTEGER,COUPLER_REALM_COMM,ierr)
+                call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%overlap%y_overlap,1,MPI_INTEGER,COUPLER_REALM_COMM,ierr)
 
-               call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%ncells%tag,1,MPI_INTEGER,COUPLER_REALM_COMM,ierr)
-               call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%ncells%x,1,MPI_INTEGER,COUPLER_REALM_COMM,ierr)
-               call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%ncells%y,1,MPI_INTEGER,COUPLER_REALM_COMM,ierr)
-               call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%ncells%z,1,MPI_INTEGER,COUPLER_REALM_COMM,ierr)
-               call mpi_unpack(buffer,sbuff,position,cfd_coupler_input%overlap%y_overlap,1,MPI_INTEGER,COUPLER_REALM_COMM,ierr)
+                call mpi_unpack(buffer,sbuff,position,density,1,MPI_DOUBLE_PRECISION,COUPLER_REALM_COMM,ierr)
+                call mpi_unpack(buffer,sbuff,position,density_tag,1,MPI_INTEGER,COUPLER_REALM_COMM,ierr)
 
-               call mpi_unpack(buffer,sbuff,position,density,1,MPI_DOUBLE_PRECISION,COUPLER_REALM_COMM,ierr)
-               call mpi_unpack(buffer,sbuff,position,density_tag,1,MPI_INTEGER,buffer,COUPLER_REALM_COMM,ierr)
-
-               ! intercommunicator null sends
-               call mpi_bcast(count,1,MPI_INTEGER,0,COUPLER_REALM_COMM,ierr)
-               call mpi_bcast(count,1,MPI_INTEGER,MPI_PROC_NULL,COUPLER_ICOMM,ierr)
-               if (count > 0) then
-                  call mpi_bcast(buffer,count,MPI_PACKED,MPI_PROC_NULL,COUPLER_ICOMM,ierr)
-               endif
+                                ! intercommunicator null sends
+                call mpi_bcast(count,1,MPI_INTEGER,0,COUPLER_REALM_COMM,ierr)
+                call mpi_bcast(count,1,MPI_INTEGER,MPI_PROC_NULL,COUPLER_ICOMM,ierr)
+                if (count > 0) then
+                    call mpi_bcast(buffer,count,MPI_PACKED,MPI_PROC_NULL,COUPLER_ICOMM,ierr)
+                endif
             else 
-               ! MD side receives
-               call mpi_bcast(count,1,MPI_INTEGER,0,COUPLER_ICOMM,ierr)
-               call mpi_bcast(buffer,count,MPI_PACKED,0,COUPLER_ICOMM,ierr)
-               if ( count > 0 ) then 
-                  position = 0
-                  call mpi_unpack(buffer,sbuff,position,caux,scaux,MPI_CHARACTER,COUPLER_ICOMM,ierr)
-                  do 
-                     select case (caux)
-                     case("MD_LY_EXTENSION")
-                        call mpi_unpack(buffer,sbuff,position,md_ly_extension_tag,1,MPI_INTEGER,COUPLER_ICOMM,ierr)
-                        call mpi_unpack(buffer,sbuff,position,md_ly_extension    ,1,MPI_DOUBLE_PRECISION,COUPLER_ICOMM,ierr)
-                     case("MD_AVERAGE_PERIOD")
-                        call mpi_unpack(buffer,sbuff,position,md_average_period_tag,1,MPI_INTEGER,COUPLER_ICOMM,ierr)
-                        call mpi_unpack(buffer,sbuff,position,md_average_period   ,1,MPI_INTEGER,COUPLER_ICOMM,ierr)
-                     case("MD_SAVE_PERIOD")
-                        call mpi_unpack(buffer,sbuff,position,md_save_period_tag,1,MPI_INTEGER,COUPLER_ICOMM,ierr)
-                        call mpi_unpack(buffer,sbuff,position,md_save_period    ,1,MPI_INTEGER,COUPLER_ICOMM,ierr)
-                     case default
-                        call MPI_Abort(COUPLER_GLOBAL_COMM,COUPLER_ERROR_READ_INPUT,ierr)
-                     end select
-                     
-                     if (position >= count) exit 
-                     
-                     call mpi_unpack(buffer,sbuff,position,caux,scaux,MPI_CHARACTER,COUPLER_ICOMM,ierr)
-                  enddo
-                     
+                                ! MD side receives
+                call mpi_bcast(count,1,MPI_INTEGER,0,COUPLER_ICOMM,ierr)
+               if (count > 0) then
+                    call mpi_bcast(buffer,count,MPI_PACKED,0,COUPLER_ICOMM,ierr)
                endif
-              
+                if ( count > 0 ) then 
+                    position = 0
+                    call mpi_unpack(buffer,sbuff,position,caux,scaux,MPI_CHARACTER,COUPLER_ICOMM,ierr)
+                    do 
+                        select case (caux)
+                        case("MD_LY_EXTENSION")
+                            call mpi_unpack(buffer,sbuff,position,md_ly_extension_tag,1,MPI_INTEGER,COUPLER_ICOMM,ierr)
+                            call mpi_unpack(buffer,sbuff,position,md_ly_extension    ,1,MPI_DOUBLE_PRECISION,COUPLER_ICOMM,ierr)
+                        case("MD_AVERAGE_PERIOD")
+                            call mpi_unpack(buffer,sbuff,position,md_average_period_tag,1,MPI_INTEGER,COUPLER_ICOMM,ierr)
+                            call mpi_unpack(buffer,sbuff,position,md_average_period   ,1,MPI_INTEGER,COUPLER_ICOMM,ierr)
+                        case("MD_SAVE_PERIOD")
+                            call mpi_unpack(buffer,sbuff,position,md_save_period_tag,1,MPI_INTEGER,COUPLER_ICOMM,ierr)
+                            call mpi_unpack(buffer,sbuff,position,md_save_period    ,1,MPI_INTEGER,COUPLER_ICOMM,ierr)
+                        case("CFD_CODE_ID")
+                            call mpi_unpack(buffer,sbuff,position,cfd_code_id_tag,1,MPI_INTEGER,COUPLER_ICOMM,ierr)
+                            call mpi_unpack(buffer,sbuff,position,cfd_code_id    ,1,MPI_INTEGER,COUPLER_ICOMM,ierr)
+                        case default
+                            call MPI_Abort(COUPLER_GLOBAL_COMM,COUPLER_ERROR_READ_INPUT,ierr)
+                        end select
+
+                        if (position >= count) exit 
+
+                        call mpi_unpack(buffer,sbuff,position,caux,scaux,MPI_CHARACTER,COUPLER_ICOMM,ierr)
+                    enddo
+
+                endif
+
             end if
 
 

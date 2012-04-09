@@ -75,7 +75,8 @@ $(O_FILES) : $(OBJ_DIR)/%.o : %.f90
 #=======================================================================
 # Dependencies
 #=======================================================================
- $(OBJ_DIR)/coupler.o : $(addprefix $(OBJ_DIR)/, coupler_internal_cfd.o coupler_internal_md.o coupler_parameters.o coupler_internal_common.o coupler_input_data.o)
+$(OBJ_DIR)/coupler.o : $(addprefix $(OBJ_DIR)/, coupler_internal_cfd.o coupler_internal_md.o coupler_parameters.o coupler_internal_common.o coupler_input_data.o)
 $(OBJ_DIR)/coupler_internal_cfd.o $(OBJ_DIR)/coupler_internal_md.o :  $(addprefix $(OBJ_DIR)/, coupler_parameters.o coupler_internal_common.o coupler_input_data.o) 
 $(OBJ_DIR)/coupler_input_data.o :  $(addprefix $(OBJ_DIR)/, coupler_parameters.o coupler_internal_common.o)
+
 
