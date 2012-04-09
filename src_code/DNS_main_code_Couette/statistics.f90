@@ -98,7 +98,8 @@ subroutine statistics_init()
 	call readFloat("theta0", theta0)
 	call readFloat("LengthInv",LengthInv)
 
-	LengthScale = 1.0/LengthInv
+        ! apparently this is not needed
+	!LengthScale = 1.0/LengthInv
 
 	VT = 1./Re
 	!-------------------------------------

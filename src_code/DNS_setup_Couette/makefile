@@ -29,16 +29,23 @@ JET_COAX  = main.o mesh.cylindrical.o mesh.jet.coax.o initialField.jet.coax.o
 JET_COAX_DBLEXP = main.o mesh.cylindrical.o mesh.jet.coax.dblexp.o initialField.jet.coax.o
 JET_COAX_FREE   = main.o mesh.cylindrical.o mesh.jet.coax.free.o initialField.jet.coax.o
 
-LIBFILES = ./../../lib/archive.o ./../../lib/linearMesh.o ./../../lib/tanhMesh.o ./../../lib/library.o ./../../lib/library.alc.o  ./../../lib/transforms.mkl_intel.alc.o
+LIB_BASE := ./../../lib
 
-#LIBS =
+LIBFILES := archive.o linearMesh.o tanhMesh.o library.o library.alc.o  transforms.fftw.hitachi.o
+
+LIBFILES := $(addprefix $(LIB_BASE)/, $(LIBFILES))
+
+#transforms.mkl_intel.alc.o
+
 
 #LIBFILES = $(HOME)/lib/archive.o $(HOME)/lib/linearMesh.o $(HOME)/lib/tanhMesh.o $(HOME)/lib/library.o $(HOME)/lib/library.alc.o $(HOME)/lib/SSDfile.memory.o $(HOME)/lib/triDiagonal.o $(HOME)/lib/triDiagonal.mpi.o $(HOME)/lib/pentaDiagonal.o $(HOME)/lib/transforms.mkl_intel.alc.o $(HOME)/lib/SinCosFFT.o $(HOME)/lib/triDiagonal.mrhs.o $(HOME)/lib/triDiagonal.mpi.mrhs.o $(HOME)/lib/pentaDiagonal.mrhs.o $(HOME)/lib/pentaDiagonal.mpi.o $(HOME)/lib/polyDiagonal.o
 
 # LIBS = -L/apps/intel/cmkl/9.0/lib/64/ -lmkl_em64t -lmkl_dft_cluster -lguide -lpthread
 # LIBS = -L/apps/intel/cmkl/9.0/lib/64/             -lmkl_dft_cluster -lguide -lpthread -lmkl
 # LIBS = -L/apps/intel/cmkl/9.0/lib/64/ -lmkl_em64t                   -lguide -lpthread
-LIBS = -L/opt/intel/Compiler/11.1/046/mkl/lib/em64t/dns_lib -lmkl_em64t		  -lguide -lpthread
+#LIBS = -L/opt/intel/Compiler/11.1/046/mkl/lib/em64t/dns_lib -lmkl_em64t		  -lguide -lpthread
+
+LIBS = -ldfftw -ldrfftw
 
 FLAGS = $(MPI_COMPILE_FLAGS)
 
@@ -90,9 +97,9 @@ clean::
 	rm -rf obj a.out *.mod
 a.out: obj $(OFILES)
 	@echo "$(LD) $(OFILES) $(LIBFILES) $(LIBS) $(MPI_LD_FLAGS)"
-	@cd obj; $(LD) $(OFILES) $(LIBFILES) $(LIBS) $(MPI_LD_FLAGS); mv a.out ..
+	@cd obj; $(LD) $(OFILES) $(LIBFILES) $(LIBS) $(MPI_LD_FLAGS)  ; mv a.out ..
 obj:
-	mkdir obj
+	mkdir -p obj
 
 #=======================================================================
 # Compilation rules
