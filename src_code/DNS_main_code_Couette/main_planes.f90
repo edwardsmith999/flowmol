@@ -33,7 +33,9 @@ end module
 !=======================================================================
 subroutine main_init()
 	use main
+#if USE_COUPLER
     use socket_coupler
+#endif
 
 	!---- Make sure MPI Starts----
 	call messenger_invoke()
@@ -68,9 +70,9 @@ subroutine main_init()
 	call boundaries_init()
 	call simulation_init()
 	call statistics_init()
-
+#if USE_COUPLER
     call socket_coupler_init
-
+#endif
 	return
 end
 

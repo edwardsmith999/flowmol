@@ -26,10 +26,27 @@ USE_COUPLER := no
 # make.inc path, needed because some .inc files contain include statements
 #
 MAKE_INC_PATH :=  ../../../platforms
+#
+# get platform to build, compiler names and flags, check the make.inc directory
+#
+#Check for default file
+ifndef PLATFORM
+    PLATFORM := $(shell cat $(MAKE_INC_PATH)/PLATFORM_default)
+endif
+ 
+ifndef PLATFORM
+  platform_list := $(shell ls $(MAKE_INC_PATH) | grep  '.inc' | sed 's/.inc//' )
+  $(error The PLATFORM variable must be specified. Try one of the following: $(platform_list) )
+else
+  include $(MAKE_INC_PATH)/$(PLATFORM).inc
+  #Create default file for current platform
+  $(shell echo $(PLATFORM) > $(MAKE_INC_PATH)/PLATFORM_default)
+endif
+
 
 include $(MAKE_INC_PATH)/$(PLATFORM).inc
 
-LIBS = -ldfftw -ldrfftw #-L/apps/intel/cmkl/9.0/lib/64/ -lmkl_em64t
+#LIBS = -ldfftw -ldrfftw #-L/apps/intel/cmkl/9.0/lib/64/ -lmkl_em64t
 
 #FLAGS =
 #F77FILES = 
@@ -67,7 +84,7 @@ OFILES = $(addprefix $(OBJ_DIR)/,$(addsuffix .o, $(basename $(notdir $(F90FILES)
 # Targets and dependencies
 #
 default:: opt
-all:: a.out
+all:: parallel_couette.exe
 debug:
 	@make opt "FLAGS = -g $(FLAGS)"
 prof:
