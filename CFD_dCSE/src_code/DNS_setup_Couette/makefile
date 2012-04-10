@@ -31,7 +31,7 @@ JET_COAX_FREE   = main.o mesh.cylindrical.o mesh.jet.coax.free.o initialField.je
 
 LIB_BASE := ./../../lib
 
-LIBFILES := archive.o linearMesh.o tanhMesh.o library.o library.alc.o  transforms.fftw.hitachi.o
+LIBFILES := archive.o linearMesh.o tanhMesh.o library.o library.alc.o transforms.mkl_intel.alc.o #transforms.fftw.hitachi.o
 
 LIBFILES := $(addprefix $(LIB_BASE)/, $(LIBFILES))
 
@@ -43,9 +43,9 @@ LIBFILES := $(addprefix $(LIB_BASE)/, $(LIBFILES))
 # LIBS = -L/apps/intel/cmkl/9.0/lib/64/ -lmkl_em64t -lmkl_dft_cluster -lguide -lpthread
 # LIBS = -L/apps/intel/cmkl/9.0/lib/64/             -lmkl_dft_cluster -lguide -lpthread -lmkl
 # LIBS = -L/apps/intel/cmkl/9.0/lib/64/ -lmkl_em64t                   -lguide -lpthread
-#LIBS = -L/opt/intel/Compiler/11.1/046/mkl/lib/em64t/dns_lib -lmkl_em64t		  -lguide -lpthread
+LIBS = -L/opt/intel/Compiler/11.1/046/mkl/lib/em64t/dns_lib -lmkl_em64t		  -lguide -lpthread
 
-LIBS = -ldfftw -ldrfftw
+#LIBS = -ldfftw -ldrfftw
 
 FLAGS = $(MPI_COMPILE_FLAGS)
 

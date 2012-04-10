@@ -67,7 +67,7 @@ couette_solo :
 	cd $(CFD_SRC_PATH) && $(MAKE) $(MAKEFILE_NAME) USE_COUPLER=no $(CFD_TARGET)
 
 
-clean_all : clean_coupler clean_cfd clean_md 
+clean_all : clean_coupler clean_md clean_couette_solo clean_serial_couette 
 
 clean_couette_md : clean_couette_solo clean_md
 
