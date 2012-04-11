@@ -325,13 +325,26 @@ subroutine setup_initial_record
 
 	endif
 
-	!Initialise etevtcf calculation if etevtcf_iter0 = 0
 	if (potential_flag.eq.1) then
-		if (etevtcf_outflag.ne.0) call etevtcf_calculate_parallel
-		if (etevtcf_outflag.eq.2) call etev_io
+		select case(etevtcf_outflag)
+		case (1)
+			call etevtcf_calculate_parallel
+			if (irank .eq. iroot) print('(a13,f10.4)'), 'ETEVTCF    = ', etevtcf
+		case (2)
+			call etevtcf_calculate_parallel
+			call etev_io
+		case default
+		end select
 		
-		if (r_gyration_outflag.ne.0) call r_gyration_calculate_parallel
-		if (r_gyration_outflag.eq.2) call r_gyration_io
+		select case(r_gyration_outflag)
+		case (1)
+			call r_gyration_calculate_parallel
+			if (irank .eq. iroot) print('(a13,f10.4)'), 'R_GYRATION = ', R_g
+		case (2)
+			call r_gyration_calculate_parallel
+			call r_gyration_io
+		case default
+		end select
 	end if
 
 end subroutine setup_initial_record

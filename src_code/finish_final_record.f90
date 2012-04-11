@@ -156,8 +156,6 @@ subroutine reformat_dcd
 	TITLE(2)    =	'   Written in serial or parallel   '	!
 	NATOM		=	globalnp			!number of particles
 
-	PRINT*, NSET, NSET,ISTRT,NSAVC,FIVEZ(1),FIVEZ(2:5)
-
 	allocate(Xbuf(NSET*globalnp))
 	allocate(Ybuf(NSET*globalnp))
 	allocate(Zbuf(NSET*globalnp))

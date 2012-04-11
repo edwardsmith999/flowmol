@@ -431,27 +431,27 @@ subroutine setup_initialise_polyinfo
 	
 	monomer(:)%funcy     = 0	
 	monomer(:)%bin_bflag = 0
-	chainID = 1
+	chainID    = 1
+	subchainID = 0
 	do n=1,np
 
-		if (solvent_flag .ne. 0) then
-			solvent_selector = mod((n-1)/nmonomers,solvent_ratio)
-		else
+		select case (solvent_flag)
+		case (0)
 			solvent_selector = 0
-		end if
+		case (1:)
+			solvent_selector = mod((n-1)/nmonomers,solvent_ratio)
+		case default
+		end select
 	
-		if (solvent_selector .ne. 0) then
-
-			!SET MOLECULES TO BE ATHERMAL SOLVENT MOLECULES
-			monomer(n)%chainID     = 0
-			monomer(n)%subchainID  = 1
-			monomer(n)%glob_no     = n
-			monomer(n)%funcy       = 0
-			bond(n,:)              = 0
-
-		else
+		select case (solvent_selector)
+		case(0) !POLYMER
 			
-			subchainID = mod(n-1,nmonomers) + 1                     !Beads numbered 1 to nmonomers
+		!	subchainID = mod(n-1,nmonomers) + 1                     !Beads numbered 1 to nmonomers
+			subchainID = subchainID + 1
+			if (subchainID .gt. nmonomers) then
+				subchainID = 1
+				chainID    = chainID + 1
+			end if
 	
 			monomer(n)%chainID    = chainID
 			monomer(n)%subchainID = subchainID
@@ -473,9 +473,21 @@ subroutine setup_initialise_polyinfo
 				bond(n,2)                         = n + 1
 			end if
 			
-			if (mod(subchainID,nmonomers) .eq. 0 .and. n .lt. np) chainID = chainID + 1
+			!if (mod(subchainID,nmonomers) .eq. 0 .and. n .lt. np) chainID = chainID + 1
+
+		case(1:) !SOLVENT
+
+			!SET MOLECULES TO BE ATHERMAL SOLVENT MOLECULES
+			monomer(n)%chainID     = 0
+			monomer(n)%subchainID  = 1
+			monomer(n)%glob_no     = n
+			monomer(n)%funcy       = 0
+			bond(n,:)              = 0
+		
+		case default
+		end select
 			
-		end if
+!		end if
 	
 		!print*, '-n,c,sc,f,g------------------------------------------------'
 		!print*, n, monomer(n)%chainID,monomer(n)%subchainID,monomer(n)%funcy,monomer(n)%glob_no
