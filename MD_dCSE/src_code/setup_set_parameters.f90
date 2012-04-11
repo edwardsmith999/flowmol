@@ -170,8 +170,6 @@ subroutine setup_polymer_info
 	implicit none
 
 	integer :: n
-
-	nchains = ceiling(dble(globalnp)/dble(nmonomers)) 
 	
 	!Allocate polymer arrays
 	allocate(bond(np+extralloc,max_funcy))
@@ -179,8 +177,6 @@ subroutine setup_polymer_info
 	allocate(bondcount(np+extralloc))
 	bondcount = 0
 	allocate(monomer(np+extralloc))
-	allocate(etev(nchains,nd))
-	allocate(etev_0(nchains,nd))
 	allocate(potenergymol_FENE(np+extralloc))
 	
 	if (iter .gt. etevtcf_iter0)    etevtcf_iter0    = iter

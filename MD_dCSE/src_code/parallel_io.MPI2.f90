@@ -365,6 +365,7 @@ subroutine setup_restart_microstate
 	integer 											:: i,n, nl, ixyz, procassign
 	integer												:: dp_datasize, int_datasize, monomer_datasize
 	integer(kind=MPI_OFFSET_KIND)   					:: disp, procdisp
+	integer, dimension(nproc)                           :: max_chainID
 	double precision, dimension (3*nd)					:: rvc !Temporary variable
 	double precision, dimension (3*nd*procnp(irank))	:: buf !Temporary variable
 	integer, dimension(5)                               :: intbuf
@@ -377,7 +378,7 @@ subroutine setup_restart_microstate
 		integer         , dimension (6   )              :: int_buf     !Must be of even length
 	end type monomerbuftype
 
-	type (monomerbuftype), dimension(procnp(irank)) :: monomerbuf
+	type (monomerbuftype), dimension(procnp(irank))     :: monomerbuf
 	integer :: offsets(0:1), blocklens(0:1), oldtypes(0:1)
 	integer :: mpi_monomer
 	integer(kind=MPI_ADDRESS_KIND) :: lb, extent			
@@ -477,7 +478,7 @@ subroutine setup_restart_microstate
 			
 			enddo
 			np = procnp(irank)
-
+			
 		case default
 			call error_abort('Invalid case selection in restart_microstate')
 		end select
@@ -587,8 +588,13 @@ subroutine setup_restart_microstate
 	do n = 1,np
 		call read_tag(n)		!Read tag and assign properties
 	enddo
+
+	! Determine number of chains by global maximum of chainID
+	nchains = maxval(monomer(:)%chainID)
+	call globalMaxInt(nchains)
 	
 	call MPI_TYPE_FREE(mpi_monomer,ierr)
+
 end subroutine setup_restart_microstate
 
 !======================================================================
@@ -618,7 +624,7 @@ subroutine parallel_io_final_state
 		integer         , dimension (6   )  :: int_buf          !Must be of even length
 	end type monomerbuftype
 
-	type (monomerbuftype), dimension(procnp(irank)) :: monomerbuf
+	type (monomerbuftype), dimension(:), allocatable :: monomerbuf
 	integer :: offsets(0:1), blocklens(0:1), oldtypes(0:1)
 	integer :: mpi_monomer
 	integer(kind=MPI_ADDRESS_KIND) :: lb, extent			
@@ -648,6 +654,7 @@ subroutine parallel_io_final_state
 
 	! Attention np is changed inside reorder_data%sendmols call
     allocate(buf(nd,3*np))
+	allocate(monomerbuf(procnp(irank)))
 
 	!Determine size of datatypes
   	call MPI_type_size(MPI_double_precision,dp_datasize,ierr)
@@ -705,8 +712,8 @@ subroutine parallel_io_final_state
 		
 		call MPI_FILE_SET_VIEW(restartfileid, disp, mpi_monomer, & 
  		                       mpi_monomer, 'native', MPI_INFO_NULL, ierr)
-		
-		do n=1,np
+
+		do n=1,procnp(irank)
 
 			monomerbuf(n)%dp_buf(1:3) = r(n,:)
 			monomerbuf(n)%dp_buf(4:6) = rtrue(n,:)
@@ -782,6 +789,7 @@ subroutine parallel_io_final_state
 	endif
 	
 	deallocate(buf)
+	deallocate(monomerbuf)
 	call MPI_TYPE_FREE(mpi_monomer,ierr)
 
 end subroutine parallel_io_final_state

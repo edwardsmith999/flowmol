@@ -148,6 +148,7 @@ subroutine simulation_record
 		select case(etevtcf_outflag)
 		case (1)
 			call etevtcf_calculate_parallel
+			if (irank .eq. iroot) print('(a13,f10.4)'), 'ETEVTCF    = ', etevtcf
 		case (2)
 			call etevtcf_calculate_parallel
 			call etev_io
@@ -157,7 +158,7 @@ subroutine simulation_record
 		select case(r_gyration_outflag)
 		case (1)
 			call r_gyration_calculate_parallel
-			if (irank .eq. iroot) print*, 'R_g', R_g
+			if (irank .eq. iroot) print('(a13,f10.4)'), 'R_GYRATION = ', R_g
 		case (2)
 			call r_gyration_calculate_parallel
 			call r_gyration_io
@@ -384,6 +385,7 @@ end subroutine evaluate_properties_diffusion
 !Calculate end-to-end time correlation function of FENE chain
 subroutine etevtcf_calculate_parallel
 	use module_record
+	use mpi !todo remove
 	implicit none
 	
 	integer :: n,i,j
@@ -393,6 +395,8 @@ subroutine etevtcf_calculate_parallel
 	double precision, dimension(nd) :: rij
 
 	if (iter.eq.etevtcf_iter0) then						!Initialise end-to-end vectors at t_0
+		allocate(etev(nchains,nd))
+		allocate(etev_0(nchains,nd))
 		etev_0 = 0.d0
 		do i=1,np
 			chain = monomer(i)%chainID
@@ -437,7 +441,6 @@ subroutine etevtcf_calculate_parallel
 			etev2_sum		  = etev2_sum + etev2		
 		end do
 		etevtcf = etev_prod_sum/etev2_sum											!Sample counts cancel
-		print*, 'ETEVTCF = ', etevtcf
 	end if
 
 end subroutine etevtcf_calculate_parallel

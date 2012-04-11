@@ -84,8 +84,8 @@ implicit none
 !		deallocate(bond)
 !		deallocate(bondcount)
 !		deallocate(potenergymol_FENE)
-!		deallocate(etev)
-!		deallocate(etev_0)
+		if(allocated(etev))   deallocate(etev)
+		if(allocated(etev_0)) deallocate(etev_0)
 	end select
 	
 	if (allocated(vmd_intervals))      deallocate(vmd_intervals)

@@ -341,6 +341,8 @@ subroutine setup_restart_microstate
 		call read_tag(n)		!Read tag and assign properties
 	enddo
 
+	nchains = maxval(monomer(:)%chainID)
+
 	close(2,status='keep') 		!Close final state file
 
 end subroutine setup_restart_microstate
@@ -1382,12 +1384,18 @@ subroutine r_gyration_io
 	use module_parallel_io
 	implicit none
 
+	integer :: m
+	integer :: length
+
+	m = (iter-r_gyration_iter0)/tplot + 1
+	inquire(iolength=length) R_g
+
 	if (iter.eq.r_gyration_iter0) then
-		open(15,file=trim(prefix_dir)//'results/r_gyration',status='replace')
-		write(15,'(i8,f15.8)') iter, R_g
+		open(15,file=trim(prefix_dir)//'results/r_gyration',form='unformatted',access='direct',status='replace',recl=length)
+		write(15,rec=m) R_g
 	else if (iter.gt.r_gyration_iter0) then
-		open(15,file=trim(prefix_dir)//'results/r_gyration',position='append')
-		write(15,'(i8,f15.8)') iter, R_g
+		open(15,file=trim(prefix_dir)//'results/r_gyration',form='unformatted',access='direct',recl=length)
+		write(15,rec=m) R_g
 	end if
 	
 	close(15,status='keep')
