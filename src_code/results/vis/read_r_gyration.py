@@ -11,18 +11,25 @@
 #
 # ----------------------------------------------------------------------
 from array import array
+import numpy as np
 import os
+import struct
 import read_header
 
 # Get important information from simulation_header with read_header.py
 delta_t		= float(read_header.delta_t)
 tplot		= int(read_header.tplot)
 
-f = open('r_gyration','rb')                            # Create file object
-dble_filesize = int(os.path.getsize('r_gyration')/8)   # Find number of records
+f = open('r_gyration','rb')                       # Create file object
+num_recs = int(os.path.getsize('r_gyration'))     # Find number of records
+num_recs = (num_recs-4)/16 + 1                    # Bizarre fortran binary format
+R_g = f.read(4)                                   # Padding at beginning
 
-for i in range(dble_filesize):                         # Print each record sequentially
-	R_g = array('d')
-	R_g.fromfile(f,1)
-	outstring = str(i*tplot*delta_t).rjust(32) + str(R_g[0]).rjust(32)
+for i in range(num_recs):
+	R_g = f.read(8)
+	R = struct.unpack('@d',R_g)
+	outstring = str(i*tplot*delta_t).rjust(32) + str(R[0]).rjust(30)
 	print(outstring)
+	R_g = f.read(8)                               # Padding between records
+
+f.close()	
