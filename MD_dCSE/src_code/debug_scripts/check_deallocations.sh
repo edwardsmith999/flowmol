@@ -5,7 +5,8 @@
 # 	a corresponding deallocate statement may be searched for. 
 #
 #	Please note that this is most certainly NOT a thorough check. Deallocations are called in 
-#	many different subroutines, which this script does NOT consider.
+#	many different subroutines, which this script does NOT consider. Furthermore, it doesn't
+#	check for deallocations that have been "commented out".
 #
 ##################################################################################################
 echo ''
