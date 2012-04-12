@@ -46,6 +46,28 @@ subroutine setup_initial_record
 
 	!Evaluate system properties on all processes
 	call initial_macroscopic_properties
+
+	if (potential_flag.eq.1) then
+		select case(etevtcf_outflag)
+		case (1)
+			call etevtcf_calculate_parallel
+			!if (irank .eq. iroot) print('(a13,f7.4)'), 'ETEVTCF    = ', etevtcf
+		case (2)
+			call etevtcf_calculate_parallel
+			call etev_io
+		case default
+		end select
+		
+		select case(r_gyration_outflag)
+		case (1)
+			call r_gyration_calculate_parallel
+			!if (irank .eq. iroot) print('(a13,f7.4)'), 'R_GYRATION = ', R_g
+		case (2)
+			call r_gyration_calculate_parallel
+			call r_gyration_io
+		case default
+		end select
+	end if
 	
 	!Calculate Control Volume starting state
 	call initial_control_volume
@@ -312,11 +334,11 @@ subroutine setup_initial_record
 		case(1)
 			print '(2a)', &
 			'Iteration; 	   VSum;        V^2Sum;        Temp;', & 
-			'       KE;     PE (LJ);  PE (FENE); PE (Tot);    TE;       Pressure;'
+			'       KE;     PE (LJ);  PE (FENE); PE (Tot);    TE;       Pressure;   Etevtcf;    R_g; '
 			!Print initial conditions for simulations at iteration 0
-			print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4)', &
+			print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4,a,f10.4,a,f10.4)', &
 			initialstep,';',vsum,';', v2sum,';', temperature,';', &
-			kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure
+			kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
 		case default
 			call error_abort("Invalid potential flag in input file")
 		end select
@@ -324,28 +346,6 @@ subroutine setup_initial_record
 		call simulation_header
 
 	endif
-
-	if (potential_flag.eq.1) then
-		select case(etevtcf_outflag)
-		case (1)
-			call etevtcf_calculate_parallel
-			if (irank .eq. iroot) print('(a13,f10.4)'), 'ETEVTCF    = ', etevtcf
-		case (2)
-			call etevtcf_calculate_parallel
-			call etev_io
-		case default
-		end select
-		
-		select case(r_gyration_outflag)
-		case (1)
-			call r_gyration_calculate_parallel
-			if (irank .eq. iroot) print('(a13,f10.4)'), 'R_GYRATION = ', R_g
-		case (2)
-			call r_gyration_calculate_parallel
-			call r_gyration_io
-		case default
-		end select
-	end if
 
 end subroutine setup_initial_record
 

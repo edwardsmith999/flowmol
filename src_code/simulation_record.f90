@@ -106,6 +106,28 @@ subroutine simulation_record
 			i = i + 1			
 		endif
 	endif
+	
+	if (potential_flag.eq.1) then
+		select case(etevtcf_outflag)
+		case (1)
+			call etevtcf_calculate_parallel
+			!if (irank .eq. iroot) print('(a13,f7.4)'), 'ETEVTCF    = ', etevtcf
+		case (2)
+			call etevtcf_calculate_parallel
+			call etev_io
+		case default
+		end select
+		
+		select case(r_gyration_outflag)
+		case (1)
+			call r_gyration_calculate_parallel
+			!if (irank .eq. iroot) print('(a13,f7.4)'), 'R_GYRATION = ', R_g
+		case (2)
+			call r_gyration_calculate_parallel
+			call r_gyration_io
+		case default
+		end select
+	end if
 
 	!call evaluate_macroscopic_properties
 	!Obtain each processe's subdomain's macroscopic 
@@ -143,28 +165,6 @@ subroutine simulation_record
 		call messenger_syncall
 		call parallel_io_final_state
 	endif
-	
-	if (potential_flag.eq.1) then
-		select case(etevtcf_outflag)
-		case (1)
-			call etevtcf_calculate_parallel
-			if (irank .eq. iroot) print('(a13,f10.4)'), 'ETEVTCF    = ', etevtcf
-		case (2)
-			call etevtcf_calculate_parallel
-			call etev_io
-		case default
-		end select
-		
-		select case(r_gyration_outflag)
-		case (1)
-			call r_gyration_calculate_parallel
-			if (irank .eq. iroot) print('(a13,f10.4)'), 'R_GYRATION = ', R_g
-		case (2)
-			call r_gyration_calculate_parallel
-			call r_gyration_io
-		case default
-		end select
-	end if
 
 	call update_simulation_progress_file
 
@@ -240,9 +240,9 @@ subroutine evaluate_macroscopic_properties_parallel
 			iter,';',vsum,';', v2sum,';', temperature,';', &
 			kinenergy,';',potenergy,';',totenergy,';',pressure
 		case(1) 
-			print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4)', &
+			print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4,a,f10.4,a,f10.4)', &
 			iter,';',vsum,';', v2sum,';', temperature,';', &
-			kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure
+			kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
 		end select
 
 	endif
@@ -385,7 +385,6 @@ end subroutine evaluate_properties_diffusion
 !Calculate end-to-end time correlation function of FENE chain
 subroutine etevtcf_calculate_parallel
 	use module_record
-	use mpi !todo remove
 	implicit none
 	
 	integer :: n,i,j
@@ -414,38 +413,41 @@ subroutine etevtcf_calculate_parallel
 		call globalSumTwoDim(etev_0,nchains,nd)
 	end if
 
+	!--------------------------------------------------------------------
+	!Calculate all end-to-end vectors for file output
 	etev = 0.d0
 	do i=1,np
 		chain = monomer(i)%chainID
 		i_sub = monomer(i)%subchainID
 		funcy = monomer(i)%funcy
 		do n=1,funcy
-			j             = bond(i,n)
-			j_sub         = monomer(j)%subchainID
-			if (j_sub.lt.i_sub) cycle               !Avoid counting backwards
-			rij(:)        = r(j,:) - r(i,:)
+			j             = bond(i,n)              !Molecule number j is nth bond to i
+			j_sub         = monomer(j)%subchainID  !Find subchain ID of mol j
+			if (j_sub.lt.i_sub) cycle              !Avoid counting backwards
+			rij(:)        = r(j,:) - r(i,:)                     
 			rij(:)        = rij(:) - domain(:)*anint(rij(:)/domain(:))
 			etev(chain,:) = etev(chain,:) + rij(:)
 		end do
 	end do
-	
 	call globalSumTwoDim(etev,nchains,nd)
-	
-	if (irank.eq.iroot .and. etevtcf_outflag.eq.1) then	
-		etev_prod_sum	= 0.d0
-		etev2_sum 		= 0.d0
-		do chain=1,nchains
-			etev_prod		  = dot_product(etev(chain,:),etev_0(chain,:))
-			etev2			  = dot_product(etev(chain,:),etev(chain,:))			
-			etev_prod_sum	  = etev_prod_sum + etev_prod
-			etev2_sum		  = etev2_sum + etev2		
-		end do
-		etevtcf = etev_prod_sum/etev2_sum											!Sample counts cancel
-	end if
+	!--------------------------------------------------------------------
+
+	!--------------------------------------------------------------------
+	!Running calculation for stdout...	
+	etev_prod_sum	= 0.d0
+	etev2_sum 		= 0.d0
+	do chain=1,nchains
+		etev_prod		  = dot_product(etev(chain,:),etev_0(chain,:))
+		etev2			  = dot_product(etev(chain,:),etev(chain,:))			
+		etev_prod_sum	  = etev_prod_sum + etev_prod
+		etev2_sum		  = etev2_sum + etev2		
+	end do
+	etevtcf = etev_prod_sum/etev2_sum              !Sample counts cancel
+	!-------------------------------------------------------------------
 
 end subroutine etevtcf_calculate_parallel
 
-!---------------------------------------------------------------------------------
+!=======================================================================================
 !Calculate radius of gyration
 subroutine r_gyration_calculate_parallel
 use module_record

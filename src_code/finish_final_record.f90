@@ -11,6 +11,7 @@ module module_final_record
 	use physical_constants_MD
 	use arrays_MD
 	use calculated_properties_MD
+	use polymer_info_MD
 
 end module module_final_record
 !----------------------------------------------------------------------------------
@@ -28,9 +29,9 @@ implicit none
 			kinenergy,';',potenergy,';',totenergy,';',pressure
 		else if (potential_flag.eq.1) then
 			print*, 'Results from last iteration of simulation'
-			print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4)', &
+			print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4,a,f10.4,a,f10.4)', &
 			Nsteps,';',vsum,';', v2sum,';', temperature,';', &
-			kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure
+			kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
 		end if
 	end if
 	

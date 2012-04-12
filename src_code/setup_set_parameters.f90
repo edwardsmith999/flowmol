@@ -178,6 +178,12 @@ subroutine setup_polymer_info
 	bondcount = 0
 	allocate(monomer(np+extralloc))
 	allocate(potenergymol_FENE(np+extralloc))
+
+	etevtcf = 0.d0
+	if (etevtcf_outflag.eq.0) etevtcf = sqrt(-1.0)
+	
+	R_g = 0.d0
+	if (r_gyration_outflag.eq.0) R_g = sqrt(-1.0)
 	
 	if (iter .gt. etevtcf_iter0)    etevtcf_iter0    = iter
 	if (iter .gt. r_gyration_iter0) r_gyration_iter0 = iter
