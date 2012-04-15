@@ -51,8 +51,8 @@ endif
 # common compiler flags
 #
 
-FLAGS_BASE_debug := -e mD -K trap=fp $(FLAG_OBJ_DIR)
-FLAGS_BASE_opt   := -e m $(FLAG_OBJ_DIR)
+FLAGS_BASE_debug := -e mD -K trap=fp -h noomp $(FLAG_OBJ_DIR)
+FLAGS_BASE_opt   := -e m -h noomp $(FLAG_OBJ_DIR)
 #
 # add  flags required by particulary codes
 #
@@ -61,6 +61,18 @@ ifeq ($(strip $(NAME)),coupler)
   FFLAGS := $(FLAGS_BASE_$(BUILD))
 
 else ifeq ($(strip $(NAME)),couette)
+
+  LIBFILES := archive.o library.o library.alc.o SSDfile.memory.o triDiagonal.o triDiagonal.mpi.o pentaDiagonal.o transforms.fftw.hitachi.o SinCosFFT.o triDiagonal.mrhs.o triDiagonal.mpi.mrhs.o pentaDiagonal.mrhs.o pentaDiagonal.mpi.o polyDiagonal.o 
+
+  LIBDIR := ./../lib/$(PLATFORM)
+
+  LIBFILES := $(addprefix $(LIBDIR)/,$(LIBFILES))
+
+  LIBS = -ldfftw -ldrfftw
+
+  FFLAGS := $(FLAGS_BASE_$(BUILD)) -s real64
+
+else ifeq ($(strip $(NAME)),serial_couette)
 
   FFLAGS := $(FLAGS_BASE_$(BUILD)) -s real64
 

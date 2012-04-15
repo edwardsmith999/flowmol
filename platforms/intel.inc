@@ -60,11 +60,11 @@ ifeq ($(strip $(NAME)),coupler)
 
   FFLAGS := $(FLAGS_BASE_$(BUILD))
 
-else ifeq ($(strip $(NAME)),couette)
+else ifeq ($(strip $(NAME)),serail_couette)
 
   FFLAGS := $(FLAGS_BASE_$(BUILD)) -r8
 
-else ifeq ($(strip $(NAME)),parallel_Couette)
+else ifeq ($(strip $(NAME)),couette)
 
   LIBFILES := $(LIBBASE)/archive.o $(LIBBASE)/library.o $(LIBBASE)/library.alc.o $(LIBBASE)/SSDfile.memory.o $(LIBBASE)/triDiagonal.o $(LIBBASE)/triDiagonal.mpi.o  $(LIBBASE)/pentaDiagonal.o $(LIBBASE)/transforms.mkl_intel.alc.o $(LIBBASE)/SinCosFFT.o $(LIBBASE)/triDiagonal.mrhs.o $(LIBBASE)/triDiagonal.mpi.mrhs.o $(LIBBASE)/pentaDiagonal.mrhs.o $(LIBBASE)/pentaDiagonal.mpi.o $(LIBBASE)/polyDiagonal.o
   LIBDIR := ./../lib
