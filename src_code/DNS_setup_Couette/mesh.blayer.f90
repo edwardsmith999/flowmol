@@ -19,7 +19,8 @@
 !
 
 module subMesh
-	include "mesh.inc"
+	!include "mesh.inc"
+        use mesh_parameters
 end module
 
 !=======================================================================
