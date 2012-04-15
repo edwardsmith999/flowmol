@@ -167,6 +167,7 @@ end subroutine set_parameters_allocate
 subroutine setup_polymer_info
 	use module_set_parameters
 	use polymer_info_MD
+        use interfaces
 	implicit none
 
 	integer :: n
@@ -180,10 +181,16 @@ subroutine setup_polymer_info
 	allocate(potenergymol_FENE(np+extralloc))
 
 	etevtcf = 0.d0
-	if (etevtcf_outflag.eq.0) etevtcf = sqrt(-1.0)
+	if (etevtcf_outflag.eq.0) then
+            !etevtcf = sqrt(-1.0)
+            call error_abort("setup_polymer_info: etevtcf_outflag is 0, please check")
+         endif
 	
 	R_g = 0.d0
-	if (r_gyration_outflag.eq.0) R_g = sqrt(-1.0)
+	if (r_gyration_outflag.eq.0) then 
+            !R_g = sqrt(-1.0)
+            call error_abort("setup_polymer_info: r_gyration_outflag is 0, please check")
+         endif
 	
 	if (iter .gt. etevtcf_iter0)    etevtcf_iter0    = iter
 	if (iter .gt. r_gyration_iter0) r_gyration_iter0 = iter
