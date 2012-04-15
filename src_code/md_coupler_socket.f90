@@ -751,7 +751,7 @@ subroutine simulation_apply_continuum_forces_CV(iter)
 			continuum_Fs = continuum_res/ real(isummol,kind(0.d0))
 			if(icell .eq. 5 .and. kcell .eq. 5 .and. jcell .eq. 11 ) then 
 				!print'(a,i8,4f10.5)','bin and forces',cbin,continuum_Fs
-				write(99,'(3i8,4f18.9)'),iter,jcell,isummol, isumflux, isumforce, isumvel,continuum_Fs(cbin)
+				write(99,'(3i8,4f18.9)')iter,jcell,isummol, isumflux, isumforce, isumvel,continuum_Fs(cbin)
 			endif
 		endif
 
