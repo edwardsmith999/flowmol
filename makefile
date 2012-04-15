@@ -1,7 +1,7 @@
 #
 # Name ( useful in coupler builds)
 #
-override NAME := couette
+override NAME := serial_couette
 
 #=======================================================================
 # File definitions
