@@ -17,14 +17,14 @@ subroutine Update_Flux()
 		GPxi = 0.
                 call calculate_GPxi(GPxi)
 		if (irank.eq.1) then
-			write(6,*),'MASS FLOW RATE FIXED'
+			write(6,*)'MASS FLOW RATE FIXED'
 		end if
         else
 		GPxi = 0.
                 call readFloat("GPxi",GPxi)     
 		if (irank.eq.1) then
-			write(6,*),'PRESSURE GRADIENT FIXED'
-			write(6,*),'GPxi = ',GPxi
+			write(6,*)'PRESSURE GRADIENT FIXED'
+			write(6,*)'GPxi = ',GPxi
 		end if
         end if
 
