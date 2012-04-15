@@ -176,43 +176,43 @@ subroutine flowAnalysis_blayerinfo()
 	Re_tau_avg = SQRT(0.5*Re*(dudy_xz_bot+dudy_xz_top))
 
 	!--- Print results to run_history ---
-	if (irank.eq.1) write(6,*),'Re_tau_bot   =',Re_tau_bot
-	if (irank.eq.1) write(6,*),'Re_tau_top   =',Re_tau_top
-	if (irank.eq.1) write(6,*),'Re_tau_avg   =',Re_tau_avg
+	if (irank.eq.1) write(6,*)'Re_tau_bot   =',Re_tau_bot
+	if (irank.eq.1) write(6,*)'Re_tau_top   =',Re_tau_top
+	if (irank.eq.1) write(6,*)'Re_tau_avg   =',Re_tau_avg
 
-	if (irank.eq.1) write(6,*),'uc_xz_bot    =',uc_xz_bot
-	if (irank.eq.1) write(6,*),'uc_xz_top    =',uc_xz_top
-	if (irank.eq.1) write(6,*),'dudy_xz_bot  =',dudy_xz_bot
-	if (irank.eq.1) write(6,*),'dudy_xz_top  =',dudy_xz_top
+	if (irank.eq.1) write(6,*)'uc_xz_bot    =',uc_xz_bot
+	if (irank.eq.1) write(6,*)'uc_xz_top    =',uc_xz_top
+	if (irank.eq.1) write(6,*)'dudy_xz_bot  =',dudy_xz_bot
+	if (irank.eq.1) write(6,*)'dudy_xz_top  =',dudy_xz_top
 
-	if (irank.eq.1) write(6,*),'wc_xz_bot    =',wc_xz_bot
-	if (irank.eq.1) write(6,*),'wc_xz_top    =',wc_xz_top
-	if (irank.eq.1) write(6,*),'dwdy_xz_bot  =',dwdy_xz_bot
-	if (irank.eq.1) write(6,*),'dwdy_xz_top  =',dwdy_xz_top
+	if (irank.eq.1) write(6,*)'wc_xz_bot    =',wc_xz_bot
+	if (irank.eq.1) write(6,*)'wc_xz_top    =',wc_xz_top
+	if (irank.eq.1) write(6,*)'dwdy_xz_bot  =',dwdy_xz_bot
+	if (irank.eq.1) write(6,*)'dwdy_xz_top  =',dwdy_xz_top
 	
 	if (irank.eq.1) then 
 		if (abs(dudy_xz_bot) .gt. 1.d-12) then 
-		write(6,*),'Lslip_u_bot  =',uc_xz_bot/dudy_xz_bot
+		write(6,*)'Lslip_u_bot  =',uc_xz_bot/dudy_xz_bot
                 else
-                write(6,*),'Lslip_u_bot  diverges,,uc_xz_bot,dudy_xz_bot   ',uc_xz_bot, dudy_xz_bot
+                write(6,*)'Lslip_u_bot  diverges,,uc_xz_bot,dudy_xz_bot   ',uc_xz_bot, dudy_xz_bot
                 endif
    
                 if (abs(dudy_xz_top) .gt. 1.d-12) then 
-                write(6,*),'Lslip_u_top  =',uc_xz_bot/dudy_xz_top
+                write(6,*)'Lslip_u_top  =',uc_xz_bot/dudy_xz_top
                 else
-                write(6,*),'Lslip_u_top  diverges,,uc_xz_bot,dudy_xz_top   ',uc_xz_bot,dudy_xz_top
+                write(6,*)'Lslip_u_top  diverges,,uc_xz_bot,dudy_xz_top   ',uc_xz_bot,dudy_xz_top
                 endif
 
                 if(abs(dwdy_xz_bot) .gt. 1.d-12) then 
-        	write(6,*),'Lslip_w_bot  =',wc_xz_bot/dwdy_xz_bot
+        	write(6,*)'Lslip_w_bot  =',wc_xz_bot/dwdy_xz_bot
 		else
-		write(6,*),'Lslip_w_bot  diverges,,wc_xz_bot,dwdy_xz_bot   ',wc_xz_bot, dwdy_xz_bot
+		write(6,*)'Lslip_w_bot  diverges,,wc_xz_bot,dwdy_xz_bot   ',wc_xz_bot, dwdy_xz_bot
 		endif
 
     		if (abs(dwdy_xz_top) .gt. 1.d-12) then
-		write(6,*),'Lslip_w_top  =',wc_xz_bot/dwdy_xz_top
+		write(6,*)'Lslip_w_top  =',wc_xz_bot/dwdy_xz_top
                 else
-                write(6,*),'Lslip_w_top  diverges,,wc_xz_bot,dwdy_xz_top   ',wc_xz_bot,dwdy_xz_top
+                write(6,*)'Lslip_w_top  diverges,,wc_xz_bot,dwdy_xz_top   ',wc_xz_bot,dwdy_xz_top
                 endif
 	endif
 	!---- Calculate skin friction, Cf

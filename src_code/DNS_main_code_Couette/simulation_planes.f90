@@ -90,7 +90,7 @@ subroutine simulation_init()
 	call readInt("idct", idct)
 	if (idct == 1) then
 		call poisson_init_dct()  ! Discrete cosine transform
-		write(6,*), 'FFT in Z and X directions!!!'
+		write(6,*) 'FFT in Z and X directions!!!'
 	else
 		call poisson_init()      ! Multigrid
 	end if
