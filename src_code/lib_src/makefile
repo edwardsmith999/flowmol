@@ -41,9 +41,26 @@ COMP := INTEL
 # HECToR PGI compiler
 
   F90_PGI := ftn -fast -r8
-  F77_PGI := ftn -fast
+  F77_PGI := ftn -fast -r8
   CC_PGI  := cc
-  LD+PGI  := ftn -r8
+  LD_PGI  := ftn
+
+# HECToR Cray Compiler
+ 
+  F90_CRAY := ftn -s real64
+  F77_CRAY := ftn -s real64
+  CC_CRAY  := cc -s real 64
+  LD_CRAY  := ftn 
+
+# HECToR NAG compiler
+ 
+  F90_NAG := f95 -O3 -r8 -mismatch
+  F77_NAG := f95 -O3 -r8 -mismatch
+  CC_NAG  := cc 
+  LD_NAG  := f95
+ 
+
+# Compute flags
 
 F90 := $(F90_$(COMP))
 F77 := $(F77_$(COMP))
