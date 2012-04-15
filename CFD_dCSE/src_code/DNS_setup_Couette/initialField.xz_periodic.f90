@@ -8,7 +8,8 @@
 !=========================================================================
 
 module initialField
-	include "mesh.inc"
+        use mesh_parameters
+!	include "mesh.inc"
 	allocatable U(:,:,:)
 	allocatable V(:,:,:)
 	allocatable W(:,:,:)
@@ -239,7 +240,7 @@ subroutine initialField_OSSfluct()
 		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
 		!read Reynolds number, alpha, beta and number of points in y	
-		read(iunit, *), ReOS, alphaOS, betaOS, nyOS
+		read(iunit, *) ReOS, alphaOS, betaOS, nyOS
 		
 		!Perform some checks on input parameters
 		if (ReOS.ne.Re)         Stop "ReOS and Re must be equal"
@@ -318,7 +319,7 @@ subroutine initialField_OSSfluct()
                 	if (ierr .ne. 0) Stop "The 2nd Orr-Sommerfeld data file is missing!"
 
                 	!read Reynolds number, alpha, beta and number of points in y
-                	read(iunit, *), ReOS, alphaOS2, betaOS2, nyOS
+                	read(iunit, *) ReOS, alphaOS2, betaOS2, nyOS
 		
                 	!Perform some checks on input parameters
                 	if (ReOS.ne.Re)         Stop "ReOS and Re must be equal"
@@ -399,7 +400,7 @@ subroutine initialField_OSSfluct()
                         if (ierr .ne. 0) Stop "The 2nd Orr-Sommerfeld data file is missing!"
 
                         !read Reynolds number, alpha, beta and number of points in y
-                        read(iunit, *), ReOS, alphaOS3, betaOS3, nyOS
+                        read(iunit, *) ReOS, alphaOS3, betaOS3, nyOS
 
                         !Perform some checks on input parameters
                         if (ReOS.ne.Re)         Stop "ReOS and Re must be equal"
@@ -1201,13 +1202,13 @@ subroutine FFT_check
 
 		open(11,file='U_xfluc.dat')
 			do i=0,imax-2
-				write(11,*),array_fftx(i)
+				write(11,*)array_fftx(i)
 			end do
 		close(11)
 		
 		open(12,file='U_zfluc.dat')
 			do k=0,kmax-2
-				write(12,*),array_fftz(k)
+				write(12,*)array_fftz(k)
 			end do
 		close(12)
 
@@ -1217,13 +1218,13 @@ subroutine FFT_check
 		
 		open(13,file='U_xfluc_fft.dat')
 			do i=0,imax-2
-				write(13,*),array_fftx(i)
+				write(13,*)array_fftx(i)
 			end do
 		close(13)
 		
 		open(14,file='U_zfluc_fft.dat')
 			do k=0,kmax-2
-				write(14,*),array_fftz(k)
+				write(14,*)array_fftz(k)
 			end do
 		close(14)
 
@@ -1233,13 +1234,13 @@ subroutine FFT_check
 
 		open(15,file='U_xfluc_ifft.dat')
 			do i=0,imax-2
-				write(15,*),array_fftx(i)
+				write(15,*)array_fftx(i)
 			end do
 		close(15)
 		
 		open(16,file='U_zfluc_ifft.dat')
 			do k=0,kmax-2
-				write(16,*),array_fftz(k)
+				write(16,*)array_fftz(k)
 			end do
 		close(16)
 	

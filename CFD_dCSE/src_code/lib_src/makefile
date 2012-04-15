@@ -5,9 +5,10 @@
 NAME = library
 LIBDIR = ../lib
 
-F90FILES = archive.f90 library.f90 mkl_dfti.f90 pentaDiagonal.f90  SinCosFFT.f90  timer.f90  triDiagonal.mpi.mrhs.f90  triDiagonal.f90  linearMesh.f90  pentaDiagonal.mpi.f90  polyDiagonal.f90  SSDfile.memory.f90  timeStep.RK3.f90  triDiagonal.mpi.f90  library.alc.f90  math.f90  pentaDiagonal.mrhs.f90  quadrature.f90  tanhMesh.f90 transforms.fftw.hitachi.f90 triDiagonal.mrhs.f90
+F90FILES = archive.f90 library.f90 mkl_dfti.f90 pentaDiagonal.f90  SinCosFFT.f90  timer.f90  triDiagonal.mpi.mrhs.f90  triDiagonal.f90  linearMesh.f90  pentaDiagonal.mpi.f90  polyDiagonal.f90  SSDfile.memory.f90  timeStep.RK3.f90  triDiagonal.mpi.f90  library.alc.f90  math.f90  pentaDiagonal.mrhs.f90  quadrature.f90  tanhMesh.f90 transforms.mkl_intel.alc.f90 triDiagonal.mrhs.f90
 
-# not good on hector transforms.mkl_intel.alc.f90 nreplaced with 
+# on hector transforms.mkl_intel.alc.f90 must be replaced with
+# transforms.fftw.hitachi.f90
 
 #  LIBS     = #-L$(MKL_HOME)                 -lmkl_em64t
  LIBS     = -L/apps/intel/cmkl/9.0/lib/64 -lmkl_em64t

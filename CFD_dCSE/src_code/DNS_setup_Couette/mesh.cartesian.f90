@@ -15,7 +15,9 @@
 !
 
 module mesh
-	include "mesh.inc"
+        use mesh_parameters
+	!include "mesh.inc"
+       
 end module
 
 !=======================================================================
