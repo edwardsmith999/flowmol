@@ -383,22 +383,19 @@ subroutine setup_restart_microstate
 	integer :: mpi_monomer
 	integer(kind=MPI_ADDRESS_KIND) :: lb, extent			
 
-	offsets(0)   = 0
-	oldtypes(0)	 = MPI_DOUBLE_PRECISION
-	blocklens(0) = 3*nd
-	call MPI_TYPE_GET_EXTENT(MPI_DOUBLE_PRECISION, lb, extent, ierr)
-	offsets(1)   = blocklens(0)*extent
-	oldtypes(1)  = MPI_INTEGER
-	blocklens(1) = 6
-	
-	call MPI_TYPE_STRUCT(2,blocklens,offsets,oldtypes,mpi_monomer,ierr)
-	call MPI_TYPE_COMMIT(mpi_monomer,ierr)
+	offsets(0)   = 0                                                   !Zero offset for first type
+	oldtypes(0)  = MPI_DOUBLE_PRECISION                                !First type dp
+	blocklens(0) = 3*nd                                                !9 dps in monomerbuftype
+	call MPI_TYPE_GET_EXTENT(MPI_DOUBLE_PRECISION, lb, extent, ierr)   !Get size of dp
+	offsets(1)   = blocklens(0)*extent                                 !Offset for integers after dps
+	oldtypes(1)  = MPI_INTEGER                                         !Second type ints
+	blocklens(1) = 6                                                   !6 ints in monomerbuftype
+
 	!-----------------------------------------------------------------------
 	
 	!Determine size of datatypes
   	call MPI_type_size(MPI_double_precision,dp_datasize,ierr)
   	call MPI_type_size(MPI_Integer,int_datasize,ierr)
-	call MPI_type_size(mpi_monomer,monomer_datasize,ierr)
 
 	!Open restart file on all processor
 	call MPI_FILE_OPEN(MD_COMM, initial_microstate_file, & 
@@ -444,6 +441,10 @@ subroutine setup_restart_microstate
 		
 		case(1)
 
+			call MPI_TYPE_STRUCT(2,blocklens,offsets,oldtypes,mpi_monomer,ierr)
+			call MPI_TYPE_COMMIT(mpi_monomer,ierr)
+			call MPI_TYPE_SIZE(mpi_monomer,monomer_datasize,ierr)
+
 			do i=1,irank-1
 				procdisp = procdisp + procnp(i)*monomer_datasize
 			enddo
@@ -478,6 +479,12 @@ subroutine setup_restart_microstate
 			
 			enddo
 			np = procnp(irank)
+			
+			! Determine number of chains by global maximum of chainID
+			nchains = maxval(monomer(:)%chainID)
+			call globalMaxInt(nchains)
+			
+			call MPI_TYPE_FREE(mpi_monomer,ierr)
 			
 		case default
 			call error_abort('Invalid case selection in restart_microstate')
@@ -572,8 +579,6 @@ subroutine setup_restart_microstate
 			! Determine number of chains by global maximum of chainID
 			nchains = maxval(monomer(:)%chainID)
 			call globalMaxInt(nchains)
-			
-			call MPI_TYPE_FREE(mpi_monomer,ierr)
 
 		case default
 			call error_abort('Potential flag incorrect in restart microstate')
