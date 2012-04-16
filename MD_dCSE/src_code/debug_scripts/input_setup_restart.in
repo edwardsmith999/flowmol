@@ -231,9 +231,13 @@ POTENTIAL_FLAG
 #	maximum spring elongation
 # -----------------------------------------------------------------------
 FENE_INFO
-4
+8
 30.0
 1.5
+
+SOLVENT_INFO
+0
+4
 
 #########################################################################
 # Output flag for end-to-end vector time correlation function (etevtcf):
