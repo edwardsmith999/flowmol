@@ -2073,16 +2073,19 @@ implicit none
 
 	if (irank .eq. iroot) then	
 		open(unit=10,file=trim(prefix_dir)//'results/macroscopic_properties',status='replace')
-		
-		if (potential_flag.eq.0) then
+		select case(potential_flag)
+		case(0)	
 			write(10,'(2a)') &
 			'Iteration; 	   VSum;        V^2Sum;        Temp;', & 
 			'         KE;        PE;         TE;        Pressure;'
 			!Print initial conditions for simulations at iteration 0
-			write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.4)') &
-			initialstep,';',vsum,';', v2sum,';', temperature,';', &
+			!write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.4)') &
+			!initialstep,';',vsum,';', v2sum,';', temperature,';', &
+			!kinenergy,';',potenergy,';',totenergy,';',pressure
+			write(10, '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)'), &
+			iter,';',vsum,';', v2sum,';', temperature,';', &
 			kinenergy,';',potenergy,';',totenergy,';',pressure
-		else if (potential_flag.eq.1) then
+		case(1)
 			write(10,'(2a)') &
 			'Iteration; 	   VSum;        V^2Sum;        Temp;', & 
 			'       KE;     PE (LJ);  PE (FENE); PE (Tot);    TE;       Pressure;   Etevtcf;    R_g; '
@@ -2090,7 +2093,8 @@ implicit none
 			write(10, '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4,a,f10.4,a,f10.4)') &
 			initialstep,';',vsum,';', v2sum,';', temperature,';', &
 			kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
-		end if
+		case default
+		end select
 	endif
 
 end subroutine macroscopic_properties_header
@@ -2102,15 +2106,20 @@ use calculated_properties_MD
 implicit none
 
 	if (irank .eq. iroot) then
-		if (potential_flag.eq.0) then	
-			write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.4)') &
+		select case (potential_flag)
+		case(0)
+			!write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.4)') &
+			!iter,';',vsum,';', v2sum,';', temperature,';', &
+			!kinenergy,';',potenergy,';',totenergy,';',pressure
+			write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)'), &
 			iter,';',vsum,';', v2sum,';', temperature,';', &
 			kinenergy,';',potenergy,';',totenergy,';',pressure
-		else if (potential_flag.eq.1) then
+		case(1)
 			write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4,a,f10.4,a,f10.4)') &
 			iter,';',vsum,';', v2sum,';', temperature,';', &
 			kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
-		end if
+		case default
+		end select
 	endif
 
 end subroutine macroscopic_properties_record
