@@ -61,11 +61,10 @@ implicit none
 	deallocate(rfbin)
 	deallocate(Pxy)
 	deallocate(Pxymol)
-	deallocate(Pxybin)
-	deallocate(Pxyface)
+	if (allocated(Pxybin))	deallocate(Pxybin)
+	if (allocated(Pxyface))	deallocate(Pxyface)
 	deallocate(Pxyzero)
 	deallocate(Pxycorrel)
-
 
 	if (allocated(volume_momentum))	deallocate(volume_momentum)
 	if (allocated(momentum_flux))	deallocate(momentum_flux)
@@ -76,7 +75,7 @@ implicit none
 	deallocate(potenergymol_LJ)
 	deallocate(virialmol)
 	deallocate(mol_wrap_integer)
-	
+
 	select case (potential_flag)
 	case(0)
 	case(1)
@@ -91,11 +90,9 @@ implicit none
 	if (allocated(vmd_intervals))      deallocate(vmd_intervals)
 	if (allocated(volume_temperature)) deallocate(volume_temperature)
 	if (allocated(slice_momentum))     deallocate(slice_momentum)
-	if (allocated(slice_momentumbin))  deallocate(slice_momentumbin)
 	if (allocated(slice_mass))         deallocate(slice_mass)
-	if (allocated(slice_massbin))      deallocate(slice_massbin)
 	if (allocated(planes))			   deallocate(planes)
-	if (allocated(planes))		       deallocate(Pxy_plane)
+	if (allocated(Pxy_plane))	       deallocate(Pxy_plane)
 	if (nproc .ne. 1) deallocate(procnp)	!Only allocated in parallel code
 
 end subroutine finish_clear_all

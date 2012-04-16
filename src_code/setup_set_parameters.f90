@@ -582,7 +582,6 @@ subroutine set_parameters_outputs
 	allocate( rfbin(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,3))
 	allocate( vvbin(nbins(1),  nbins(2),  nbins(3),3,3  ))
 	allocate( Pxybin(nbins(1),  nbins(2),  nbins(3),3,3  ))
-	allocate( Pxyface(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
 	rfbin  = 0.d0
 	Pxybin = 0.d0
 
@@ -648,6 +647,7 @@ subroutine set_parameters_outputs
 			enddo
 		case(4)
 			if (.not.(allocated(volume_mass))) 	allocate(volume_momentum(nbins(1)+2,nbins(2)+2,nbins(3)+2,3  ))
+			allocate( Pxyface(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
 			allocate(  momentum_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
 			allocate(   volume_force(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,2))
 			momentum_flux 	= 0.d0
@@ -738,10 +738,6 @@ subroutine establish_halo_bins
 		if((icell .gt. (1) .and. icell .lt. (nbins(1)+2)) .and. &
 		   (jcell .gt. (1) .and. jcell .lt. (nbins(2)+2)) .and. &
 		   (kcell .gt. (1) .and. kcell .lt. (nbins(3)+2))) cycle
-		!Remove outer cells leaving only 1 layer of surface cells
-		!if((icell .lt. (1) .or. icell .gt. (nbins(1)+2)) .or. &
-		!   (jcell .lt. (1) .or. jcell .gt. (nbins(2)+2)) .or. &
-		!   (kcell .lt. (1) .or. kcell .gt. (nbins(3)+2))) cycle
 
 		halobins(n,1)=icell
 		halobins(n,2)=jcell

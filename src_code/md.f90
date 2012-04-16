@@ -156,7 +156,7 @@ end subroutine simulation_MD
 !Rebuild lists routine
 subroutine rebuild_all
 	implicit none
-	
+
 	call linklist_deallocateall             !Deallocate all linklist components
 	call sendmols                           !Exchange particles between processors
 	call assign_to_cell                     !Re-build linklist for domain cells
@@ -173,7 +173,8 @@ end subroutine rebuild_all
 !-----------------------------------------------------------------------------
 
 subroutine finish_MD
-implicit none
+	use messenger, only : irank
+	implicit none
 
 	call messenger_syncall          !Synchronizes all processors using a barrier
 	call finish_final_record        !Write summary of simulation and close output files

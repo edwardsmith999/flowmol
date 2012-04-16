@@ -50,7 +50,7 @@ subroutine simulation_compute_forces
 		case(0)
 			call simulation_compute_forces_LJ_AP
 		case default								
-			call error_abort("Potential flag/force_list incompatible - only LJ avaible with all pairs")
+			call error_abort("Potential flag/force_list incompatible - only LJ available with all pairs")
 		end select
 
 	case(1)
@@ -59,7 +59,7 @@ subroutine simulation_compute_forces
 		case(0)					!If simple LJ fluid
 			call simulation_compute_forces_LJ_cells
 		case default								
-			call error_abort("Potential flag/force_list incompatible - only LJ avaible with cell lists")
+			call error_abort("Potential flag/force_list incompatible - only LJ available with cell lists")
 		end select
 
 	case(2)
@@ -69,7 +69,7 @@ subroutine simulation_compute_forces
 			call simulation_compute_forces_LJ_neigbr
 		case default								
 			call error_abort("Potential flag/force_list incompatible - &
-                        &only LJ avaible with all interactions neighbour lists")
+                        &only LJ available with all interactions neighbour lists")
 		end select
 	case(3)
 		!Forces calculated using neighbour lists optimised using 
@@ -99,8 +99,8 @@ subroutine simulation_compute_forces_LJ_AP
 
 	integer                         :: i, j,ixyz   !Define dummy index
 
-	do i = 1,np					!Step through each particle in list 
-		ri = r(i,:)         	!Retrieve ri
+	do i = 1,np						!Step through each particle in list 
+		ri = r(i,:)         		!Retrieve ri
 		do j = i+1,np				!Step through all j for each i
 			rj = r(j,:)				!Retrieve rj
 
@@ -220,18 +220,6 @@ subroutine simulation_compute_forces_LJ_cells
 						a(molnoi,2)= a(molnoi,2) + accijmag*rij(2)
 						a(molnoi,3)= a(molnoi,3) + accijmag*rij(3)
 
-						!CV stress an force calculations
-					!if (n .eq. 2) then
-						if (molnoj .gt. np .or. molnoi .gt. np) then
-							!call Control_Volume_Forces(2.d0*accijmag*rij(:),ri,rj,molnoi,molnoj)						
-							fij = 2.d0*accijmag*rij(:)
-							if (vflux_outflag .eq. 4) call Control_Volume_stresses(fij,ri,rj,molnoi,molnoj)
-						else
-							!call Control_Volume_Forces(accijmag*rij(:),ri,rj,molnoi,molnoj)
-							fij = accijmag*rij(:)
-							if (vflux_outflag .eq. 4) call Control_Volume_stresses(fij,ri,rj,molnoi,molnoj)
-						endif
-					!endif
 						!Only calculate properties when required for output
 						if (mod(iter,tplot) .eq. 0) then
 							!Record potential energy total to use for output later (potshift=-1 for WCA)
@@ -240,10 +228,31 @@ subroutine simulation_compute_forces_LJ_cells
 							!Virial expression used to obtain pressure
 							virialmol(molnoi) = virialmol(molnoi) + accijmag*rij2
 							if (pressure_outflag .eq. 1) call pressure_tensor_forces(molnoi,rij,accijmag)
-							if (pressure_outflag .eq. 2) call pressure_tensor_forces_VA(ri,rj,rij,accijmag)
+							!if (pressure_outflag .eq. 2) call pressure_tensor_forces_VA(ri,rj,rij,accijmag)
 							if (vflux_outflag.eq.1)	call pressure_tensor_forces_MOP(1,ri(:),rj(:),rij(:),accijmag)
 							if (vflux_outflag.eq.2)	call pressure_tensor_forces_MOP(2,ri(:),rj(:),rij(:),accijmag)
 							if (vflux_outflag.eq.3)	call pressure_tensor_forces_MOP(3,ri(:),rj(:),rij(:),accijmag)
+							!CV stress an force calculations
+	!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
+						!if (n .eq. 2) then
+	!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
+							if (molnoj .gt. np .or. molnoi .gt. np) then
+								if (vflux_outflag .eq. 4) then
+									fij = 2.d0*accijmag*rij(:)
+									!call Control_Volume_Forces(fij,ri,rj,molnoi,molnoj)
+									call Control_Volume_stresses(fij,ri,rj,molnoi,molnoj)
+								endif
+							else
+
+								if (vflux_outflag .eq. 4) then
+									fij = accijmag*rij(:)
+									!call Control_Volume_Forces(fij,ri,rj,molnoi,molnoj)
+									call Control_Volume_stresses(fij,ri,rj,molnoi,molnoj)
+								endif
+							endif
+	!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
+						!endif
+	!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
 						endif
 					endif
 				enddo
@@ -307,27 +316,29 @@ subroutine simulation_compute_forces_LJ_neigbr
 
 				!Only calculate properties when required for output
 				if (mod(iter,tplot) .eq. 0) then
-					!CV stress an force calculations
-					if (molnoj .gt. np .or. molnoi .gt. np) then
-						fij = 2.d0*accijmag*rij(:)
-						!call Control_Volume_Forces(2.d0*accijmag*rij(:),ri,rj,molnoi,molnoj)						
-						if (vflux_outflag .ne. 0) call control_volume_stresses(fij,ri,rj,molnoi,molnoj)
-					else
-						fij = accijmag*rij(:)
-						!call Control_Volume_Forces(accijmag*rij(:),ri,rj,molnoi,molnoj)
-						if (vflux_outflag .ne. 0) call control_volume_stresses(fij,ri,rj,molnoi,molnoj)
-					endif
+
 					!Record potential energy total to use for output later (potshift=-1 for WCA)
 					potenergymol_LJ(molnoi)=potenergymol_LJ(molnoi) & 
 						     +4.d0*(invrij2**6-invrij2**3)-potshift
 					!Virial expression used to obtain pressure
 					virialmol(molnoi) = virialmol(molnoi) + accijmag*rij2
-					if (pressure_outflag .eq. 1) then
-						if (pressure_outflag .eq. 1) call pressure_tensor_forces(molnoi,rij,accijmag)
-						if (pressure_outflag .eq. 2) stop 'VOLUME AVERAGE NOT AVAILABLE WITH ALL INTERACTIONS'
-						if (vflux_outflag.eq.1)	call pressure_tensor_forces_MOP(1,ri(:),rj(:),rij(:),accijmag)
-						if (vflux_outflag.eq.2)	call pressure_tensor_forces_MOP(2,ri(:),rj(:),rij(:),accijmag)
-						if (vflux_outflag.eq.3)	call pressure_tensor_forces_MOP(3,ri(:),rj(:),rij(:),accijmag)
+
+					if (pressure_outflag .eq. 1) call pressure_tensor_forces(molnoi,rij,accijmag)
+					!if (pressure_outflag .eq. 2) call pressure_tensor_forces_VA(ri,rj,rij,accijmag)
+					if (vflux_outflag.eq.1)	call pressure_tensor_forces_MOP(1,ri(:),rj(:),rij(:),accijmag)
+					if (vflux_outflag.eq.2)	call pressure_tensor_forces_MOP(2,ri(:),rj(:),rij(:),accijmag)
+					if (vflux_outflag.eq.3)	call pressure_tensor_forces_MOP(3,ri(:),rj(:),rij(:),accijmag)
+					!CV stress an force calculations
+					if (vflux_outflag .eq. 4) then
+						!if (molnoj .gt. np .or. molnoi .gt. np) then
+						!	fij = 2.d0*accijmag*rij(:)
+							!call Control_Volume_Forces(fij,ri,rj,molnoi,molnoj)	
+						!	call control_volume_stresses(fij,ri,rj,molnoi,molnoj)
+						!else
+							fij = accijmag*rij(:)
+							!call Control_Volume_Forces(fij,ri,rj,molnoi,molnoj)
+							call control_volume_stresses(fij,ri,rj,molnoi,molnoj)
+						!endif
 					endif
 				endif
 			endif
@@ -366,8 +377,8 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 
 			molnoj = old%molnoj			!Number of molecule j
 			rj(:) = r(molnoj,:)			!Retrieve rj
-			rij(:) = ri(:) - rj(:)   	!Evaluate distance between particle i and j
-			rij2 = dot_product(rij,rij)	!Square of vector calculated
+			rij(:)= ri(:) - rj(:)   	!Evaluate distance between particle i and j
+			rij2  = dot_product(rij,rij)!Square of vector calculated
 	
 			if (rij2 .lt. rcutoff2) then
 
@@ -388,12 +399,6 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 				!Only calculate properties when required for output
 				if (mod(iter,tplot) .eq. 0) then
 
-					!call Control_Volume_Forces(accijmag*rij(:),ri,rj,molnoi,molnoj)
-					if (vflux_outflag .ne. 0) then
-						fij = 2.d0*accijmag*rij(:)
-						call control_volume_stresses(fij,ri,rj,molnoi,molnoj)
-					endif
-
 					!Record potential energy total to use for output later (potshift=-1 for WCA)
 					potenergymol_LJ(molnoi)=potenergymol_LJ(molnoi)+4.d0*(invrij2**6-invrij2**3)-potshift
 					potenergymol_LJ(molnoj)=potenergymol_LJ(molnoj)+4.d0*(invrij2**6-invrij2**3)-potshift
@@ -411,6 +416,11 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 					if (vflux_outflag.eq.1)	call pressure_tensor_forces_MOP(1,ri(:),rj(:),rij(:),accijmag)
 					if (vflux_outflag.eq.2)	call pressure_tensor_forces_MOP(2,ri(:),rj(:),rij(:),accijmag)
 					if (vflux_outflag.eq.3)	call pressure_tensor_forces_MOP(3,ri(:),rj(:),rij(:),accijmag)
+					if (vflux_outflag.eq.4) then
+						fij = 2.d0*accijmag*rij(:)
+						!call Control_Volume_Forces(fij,ri,rj,molnoi,molnoj)
+						call control_volume_stresses(fij,ri,rj,molnoi,molnoj)
+					endif
 
 				endif
 			endif
@@ -538,9 +548,9 @@ implicit none
 		cellnp = cell%cellnp(icell,jcell,kcell)
 		oldi => cell%head(icell,jcell,kcell)%point !Set old to first molecule in list
 
-		do i = 1,cellnp                  !Step through each particle in list 
-			molnoi = oldi%molno 	 !Number of molecule
-			ri = r(molnoi,:)         !Retrieve ri
+		do i = 1,cellnp					!Step through each particle in list 
+			molnoi = oldi%molno 	 	!Number of molecule
+			ri = r(molnoi,:)         	!Retrieve ri
 
 			do kcellshift = -1,1
 			do jcellshift = -1,1
@@ -585,6 +595,11 @@ implicit none
 						accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
 						call pressure_tensor_forces_VA(ri,rj,rij,accijmag)
 						!call pressure_tensor_forces_H(ri,rj,rij,accijmag)
+						!if (vflux_outflag.eq.4) then
+						!	fij = accijmag*rij(:)
+							!call Control_Volume_Forces(fij,ri,rj,molnoi,molnoj)
+						!	call control_volume_stresses(fij,ri,rj,molnoi,molnoj)
+						!endif
 					endif
 				enddo
 			enddo

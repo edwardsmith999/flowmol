@@ -909,7 +909,7 @@ subroutine virial_stress_io
 	integer		:: m, length
 
 	!Write virial pressure to file
-	m = iter/(tplot*Nstress_ave)
+	m = (iter-initialstep+1)/(tplot*Nstress_ave)
 	inquire(iolength=length) Pxy
 	open (unit=7, file=trim(prefix_dir)//'results/pvirial',form='unformatted',access='direct',recl=length)
 	write(7,rec=m) Pxy
@@ -1085,7 +1085,7 @@ subroutine momentum_flux_io
 	momentum_flux = momentum_flux/(delta_t*Nvflux_ave)
 
 	!Write momentum flux to file
-	m = (iter-initialstep+1)/(Nvflux_ave)
+	m = (iter-initialstep+1)/(tplot*Nvflux_ave)
 	buf = momentum_flux(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:,:)
 	inquire(iolength=length) buf
 	open (unit=9, file=trim(prefix_dir)//'results/vflux',form='unformatted',access='direct',recl=length)
@@ -1139,12 +1139,11 @@ subroutine surface_stress_io
 			      	modulo((j-2),nbins(2))+2, & 
 			      	modulo((k-2),nbins(3))+2,:,:) = & 
 				Pxyface(	modulo((i-2),nbins(1))+2,& 
-						modulo((j-2),nbins(2))+2,&
-						modulo((k-2),nbins(3))+2,:,:) & 
-							     + Pxyface(i,j,k,:,:)
+							modulo((j-2),nbins(2))+2,&
+							modulo((k-2),nbins(3))+2,:,:) & 
+							     		+ Pxyface(i,j,k,:,:)
 
 	enddo
-
 	do ixyz = 1,3
 		binface(ixyz) = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
 			     		(domain(modulo(ixyz+1,3)+1)/nbins(modulo(ixyz+1,3)+1))
@@ -1157,7 +1156,7 @@ subroutine surface_stress_io
 	Pxyface = Pxyface/Nvflux_ave
 
 	!Write surface pressures to file
-	m = (iter-initialstep+1)/(Nvflux_ave)
+	m = (iter-initialstep+1)/(Nvflux_ave*tplot)
 	buf = Pxyface(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:,:)
 	inquire(iolength=length) buf
 	open (unit=9, file=trim(prefix_dir)//'results/psurface',form='unformatted',access='direct',recl=length)
@@ -1183,12 +1182,12 @@ subroutine energy_flux_io
 		i = halobins(n,1); j = halobins(n,2); k = halobins(n,3)  
 		!Flux over halo cells
 		energy_flux(	modulo((i-2),nbins(1))+2, & 
-			      	modulo((j-2),nbins(2))+2, & 
-			      	modulo((k-2),nbins(3))+2,:) = & 
+			      		modulo((j-2),nbins(2))+2, & 
+			      		modulo((k-2),nbins(3))+2,:) = & 
 				energy_flux(	modulo((i-2),nbins(1))+2,& 
-						modulo((j-2),nbins(2))+2,&
-						modulo((k-2),nbins(3))+2,:) & 
-							+ energy_flux(i,j,k,:)
+								modulo((j-2),nbins(2))+2,&
+								modulo((k-2),nbins(3))+2,:) & 
+											+ energy_flux(i,j,k,:)
 	enddo
 
 	do ixyz = 1,3

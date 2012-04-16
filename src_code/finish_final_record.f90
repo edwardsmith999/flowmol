@@ -55,7 +55,7 @@ implicit none
 	!Write simualtion properties and final position & velocity to 
 	!unformatted output file to allow restart
 	call parallel_io_final_state
-	
+
 	!Reformat positions recorded into the correct from for VMD to use
 	if(irank .eq. iroot) then
 		select case (vmd_outflag)

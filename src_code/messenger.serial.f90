@@ -16,7 +16,7 @@
 ! updateedge(face1,face2)
 ! updatecorners()
 !===============================
-! Molecule Sending Subroutines =messenger_updateborders
+! Molecule Sending Subroutines =
 !===============================
 ! sendmols()
 ! sendface(ixyz)

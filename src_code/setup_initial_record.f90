@@ -71,6 +71,7 @@ subroutine setup_initial_record
 	
 	!Calculate Control Volume starting state
 	call initial_control_volume
+
 	if (irank .eq. iroot) then
 
 		call date_and_time(the_date, the_time)
