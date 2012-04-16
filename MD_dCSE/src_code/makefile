@@ -42,7 +42,7 @@ else
   $(shell echo $(PLATFORM) > $(MAKE_INC_PATH)/PLATFORM_default)
 endif
 
- LDFLAGS := $(FFLAGS)
+LDFLAGS := $(FFLAGS)
 
 ifeq ($(strip $(USE_COUPLER)),yes)
   COUPLER_LIB = ../../lib/coupler/$(PLATFORM)/$(BUILD)

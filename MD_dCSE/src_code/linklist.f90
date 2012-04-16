@@ -112,11 +112,19 @@ implicit none
 		! ********* Do nothing *******
 	case(2)
 		!Forces calculated using neighbour lists with all interactions
+		!if (vflux_outflag .ne. 4) then
 		call assign_to_neighbourlist_allint
+		!else
+		!	call assign_to_neighbourlist_allint_halo
+		!endif
 	case(3)
 		!Forces calculated using neighbour lists optimised using 
 		!Newton's 3rd law to count only half of the interactions
+		!if (vflux_outflag .ne. 4) then
 		call assign_to_neighbourlist_halfint
+		!else
+		!	call assign_to_neighbourlist_halfint_halo
+		!endif
 	case default
 		call error_abort("Error in force_list flag")
 	end select	
@@ -129,8 +137,8 @@ end subroutine assign_to_neighbourlist
 ! counted twice.
 
 subroutine assign_to_neighbourlist_allint
-use module_linklist
-implicit none
+	use module_linklist
+	implicit none
 
 	integer                         :: i, j, ixyz   !Define dummy index
 	integer							:: icell, jcell, kcell
@@ -203,8 +211,8 @@ implicit none
 	enddo
 	enddo
 
-	nullify(oldi)      	!Nullify as no longer required
-	nullify(oldj)      	!Nullify as no longer required
+	nullify(oldi)      		!Nullify as no longer required
+	nullify(oldj)      		!Nullify as no longer required
 	nullify(currenti)      	!Nullify as no longer required
 	nullify(currentj)      	!Nullify as no longer required
 
@@ -216,15 +224,15 @@ end subroutine assign_to_neighbourlist_allint
 ! each other with each interaction counted only once
 
 subroutine assign_to_neighbourlist_halfint
-use module_linklist
-implicit none
+	use module_linklist
+	implicit none
 
 	integer                         :: i, j,k, ixyz   !Define dummy index
-	integer				:: icell, jcell, kcell
+	integer							:: icell, jcell, kcell
 	integer                         :: cellnp, adjacentcellnp
-	integer				:: molnoi, molnoj
+	integer							:: molnoi, molnoj
 	integer, dimension(13)          :: icellshift, jcellshift, kcellshift
-	double precision		:: rij2   !magnitude^2 between i and j
+	double precision				:: rij2   !magnitude^2 between i and j
 	double precision,dimension(3)   :: ri, rj !Position of molecule i and j
 	double precision,dimension(3)   :: rij    !vector between particles i and j
 	type(node), pointer 	        :: oldihead, oldi, currenti, oldjhead, oldj, currentj
@@ -573,14 +581,248 @@ implicit none
 end subroutine assign_to_neighbourlist_halfint
 
 
+!----------------------------------------------------------------------------------
+! Assign to Neighbourlist each molecules only once so each interaction is
+! counted twice. Halo molecules are also included which is essential for a
+! number of calculated properties
+
+subroutine assign_to_neighbourlist_allint_halo
+	use module_linklist
+	implicit none
+
+	integer                         :: i, j, ixyz   !Define dummy index
+	integer							:: icell, jcell, kcell
+	integer                         :: icellshift, jcellshift, kcellshift
+	integer                         :: cellnp, adjacentcellnp
+	integer							:: molnoi, molnoj
+	double precision				:: rij2   !magnitude^2 between i and j
+	double precision,dimension(3)   :: ri, rj !Position of molecule i and j
+	double precision,dimension(3)   :: rij    !vector between particles i and j
+	type(node), pointer 	        :: oldi, currenti, oldj, currentj
+
+	!Create Neighbourlist array based on current np
+	allocate(neighbour%noneighbrs(np+halo_np))
+	allocate(neighbour%head(np+halo_np))
+	do i = 1,np+halo_np
+		neighbour%noneighbrs(i) = 0			!Zero number of molecules in neighbour list
+		nullify(neighbour%head(i)%point)	!Nullify neighbour list head pointer 
+	enddo
+
+	!if (maxval(cell%cellnp(:,:,:)) .gt. 9) call error_abort("ERROR - greater than 10 per cell")
+
+	do icell=1, ncells(1)+2
+	do jcell=1, ncells(2)+2
+	do kcell=1, ncells(3)+2
+
+		cellnp = cell%cellnp(icell,jcell,kcell)
+		oldi => cell%head(icell,jcell,kcell)%point !Set old to first molecule in list
+
+		do i = 1,cellnp				!Step through each particle in list 
+			molnoi = oldi%molno		!Number of molecule
+			ri = r(molnoi,:)		!Retrieve ri
+
+			do icellshift = -1,1
+			do jcellshift = -1,1
+			do kcellshift = -1,1
+
+				!Prevents out of range values in i
+				if (icell+icellshift .lt. 	  1		 ) cycle
+				if (icell+icellshift .gt. ncells(1)+2) cycle
+				!Prevents out of range values in j
+				if (jcell+jcellshift .lt. 	  1		 ) cycle
+				if (jcell+jcellshift .gt. ncells(2)+2) cycle
+				!Prevents out of range values in k
+				if (kcell+kcellshift .lt. 	  1		 ) cycle
+				if (kcell+kcellshift .gt. ncells(3)+2) cycle
+
+				oldj => cell%head(icell+icellshift,jcell+jcellshift,kcell+kcellshift)%point
+				adjacentcellnp = cell%cellnp(icell+icellshift,jcell+jcellshift,kcell+kcellshift)
+
+				!print*, icell+icellshift,jcell+jcellshift,kcell+kcellshift
+
+				do j = 1,adjacentcellnp         !Step through all j for each i
+
+					molnoj = oldj%molno 	 	!Number of molecule
+					rj = r(molnoj,:)         	!Retrieve rj
+
+					currentj => oldj
+					oldj => currentj%next    	!Use pointer in datatype to obtain next item in list
+					
+					if(molnoi==molnoj) cycle 	!Check to prevent interaction with self
+
+					rij(:) = ri(:) - rj(:)   	!Evaluate distance between particle i and j
+					rij2 = dot_product(rij,rij) !Square of rij
+					
+					if (potential_flag.eq.1) call check_update_adjacentbeadinfo(molnoi,molnoj)
+					if (rij2 < rneighbr2) 	 call linklist_checkpushneighbr(molnoi, molnoj)
+
+				enddo
+
+			enddo
+			enddo
+			enddo
+			currenti => oldi
+			oldi => currenti%next !Use pointer in datatype to obtain next item in list
+
+		enddo
+
+	enddo
+	enddo
+	enddo
+
+	nullify(oldi)      		!Nullify as no longer required
+	nullify(oldj)      		!Nullify as no longer required
+	nullify(currenti)      	!Nullify as no longer required
+	nullify(currentj)      	!Nullify as no longer required
+
+end subroutine assign_to_neighbourlist_allint_halo
+
+
+!----------------------------------------------------------------------------------
+! Assign to Neighbourlist count each interaction only once
+! Build a list connecting molecules which are within interacting distance of
+! each other with each interaction counted only once.
+! Halo molecules are also included which is essential for a
+! number of calculated properties
+
+subroutine assign_to_neighbourlist_halfint_halo
+	use module_linklist
+	implicit none
+
+	integer                         :: i, j,k, ixyz   !Define dummy index
+	integer							:: icell, jcell, kcell
+	integer                         :: cellnp, adjacentcellnp
+	integer							:: molnoi, molnoj
+	integer, dimension(13)          :: icellshift, jcellshift, kcellshift
+	double precision				:: rij2   !magnitude^2 between i and j
+	double precision,dimension(3)   :: ri, rj !Position of molecule i and j
+	double precision,dimension(3)   :: rij    !vector between particles i and j
+	type(node), pointer 	        :: oldihead, oldi, currenti, oldjhead, oldj, currentj
+
+	!Create Neighbourlist array based on current np
+	allocate(neighbour%noneighbrs(np+halo_np))
+	allocate(neighbour%head(np+halo_np))
+	do i = 1,np+halo_np
+		neighbour%noneighbrs(i) = 0	!Zero number of molecules in neighbour list
+		nullify(neighbour%head(i)%point)!Nullify neighbour list head pointer 
+	enddo
+
+	!Assign cell offsets
+	icellshift = (/ 1, 1, 0,-1, 0, 1, 1, 0,-1,-1,-1, 0, 1/)
+	jcellshift = (/ 0, 1, 1, 1, 0, 0, 1, 1, 1, 0,-1,-1,-1/)
+	kcellshift = (/ 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1/)
+
+	!Calculate interactions between all cells in domain and halos
+	do icell=1, ncells(1)+2
+	do jcell=1, ncells(2)+2
+	do kcell=1, ncells(3)+2
+
+		!Retrieve cell np and set old to first molecule in list
+		cellnp = cell%cellnp(icell,jcell,kcell)
+		oldi => cell%head(icell,jcell,kcell)%point 
+
+		!Check interaction within own cell once
+		do i = 1,cellnp                 !Step through each particle in list 
+			molnoi = oldi%molno 		!Number of molecule
+			ri = r(molnoi,:)        	!Retrieve ri
+			oldj => oldi%next			!Point j molecule to next molecule to i
+
+			do j = i+1,cellnp			!Step through all j for each i
+
+				molnoj = oldj%molno 	!Number of molecule
+				rj = r(molnoj,:)        !Retrieve rj
+				currentj => oldj
+				oldj => currentj%next   !Use pointer in datatype to obtain next item in list
+
+				if(molnoi==molnoj) cycle!Check to prevent interaction with self
+	
+				rij2=0                  !Set rij^2 to zero
+				rij(:) = ri(:) - rj(:)  !Evaluate distance between particle i and j
+
+				do ixyz=1,nd
+					rij2 = rij2+rij(ixyz)*rij(ixyz) !Square of vector calculated
+				enddo
+
+				if (potential_flag.eq.1) call check_update_adjacentbeadinfo(molnoi,molnoj)	
+				if (rij2 < rneighbr2) call linklist_checkpushneighbr(molnoi, molnoj)
+				!if (rij2 < rneighbr2) print*,'own_cell', molnoi, molnoj
+			enddo
+
+			currenti => oldi
+			oldi => currenti%next !Use pointer in datatype to obtain next item in list
+		enddo
+
+		!Reset old to first molecule in list
+		oldihead => cell%head(icell,jcell,kcell)%point
+
+		do k = 1,13
+
+			!Prevents out of range values in i
+			if (icell+icellshift(k) .lt. 	  1		) cycle
+			if (icell+icellshift(k) .gt. ncells(1)+2) cycle
+			!Prevents out of range values in j
+			if (jcell+jcellshift(k) .lt. 	  1		) cycle
+			if (jcell+jcellshift(k) .gt. ncells(2)+2) cycle
+			!Prevents out of range values in k
+			if (kcell+kcellshift(k) .lt. 	  1		) cycle
+			if (kcell+kcellshift(k) .gt. ncells(3)+2) cycle
+
+			oldi => oldihead
+			oldjhead => cell%head(icell+icellshift(k),jcell+jcellshift(k),kcell+kcellshift(k))%point
+			adjacentcellnp = cell%cellnp(icell+icellshift(k),jcell+jcellshift(k),kcell+kcellshift(k))
+
+			do i = 1,cellnp				!Step through each particle in list 
+				molnoi = oldi%molno		!Number of molecule
+				ri = r(molnoi,:)		!Retrieve ri
+
+				oldj => oldjhead		!Reset j to head of linked list
+
+				do j = 1,adjacentcellnp          !Step through all j for each i
+
+					molnoj = oldj%molno 	!Number of molecule
+					rj = r(molnoj,:)	!Retrieve rj
+					currentj => oldj
+					oldj => currentj%next	!Use pointer in datatype to obtain next item in list
+
+					rij2=0			!Set rij^2 to zero
+					rij(:) = ri(:) - rj(:)	!Evaluate distance between particle i and j
+
+					do ixyz=1,nd
+						rij2 = rij2+rij(ixyz)*rij(ixyz) !Square of vector calculated
+					enddo
+
+					if (potential_flag.eq.1) call check_update_adjacentbeadinfo(molnoi,molnoj)	
+					!if (rij2 < rneighbr2) print*,'neighbr_cells',  molnoi, molnoj
+					if (rij2 < rneighbr2) call linklist_checkpushneighbr(molnoi, molnoj)
+
+				enddo
+
+				currenti => oldi
+				oldi => currenti%next !Use pointer in datatype to obtain next item in list
+
+			enddo
+
+
+		enddo
+	enddo
+	enddo
+	enddo
+
+	nullify(oldi)      		!Nullify as no longer required
+	nullify(oldj)      		!Nullify as no longer required
+	nullify(currenti)      	!Nullify as no longer required
+	nullify(currentj)      	!Nullify as no longer required
+
+end subroutine assign_to_neighbourlist_halfint_halo
+
 !------------------------------------------------------------------------------
 !Routine to calculate all molecular interactions between two specified cells
 !Used only for halo cell so works out interaction of j with i but adds to
 !molecule i's neighbourlist
 
 subroutine calculate_cell_interactions(icell, jcell, kcell, k)
-use module_linklist
-implicit none
+	use module_linklist
+	implicit none
 
 	integer							:: i, j, ixyz
 	integer							:: icell, jcell, kcell, k
@@ -648,8 +890,8 @@ end subroutine calculate_cell_interactions
 !Build linklist from array of positions of molecules
 
 subroutine linklist_build(start, finish)
-use module_linklist
-implicit none
+	use module_linklist
+	implicit none
 
 	integer            :: j
 	integer            :: cellnp
@@ -688,8 +930,8 @@ end subroutine linklist_build
 !Build circular linklist from array of positions of molecules
 
 subroutine linklist_circbuild(start, finish)
-use module_linklist
-implicit none
+	use module_linklist
+	implicit none
 
 	integer              :: j
 	integer              :: cellnp
@@ -735,8 +977,8 @@ end subroutine linklist_circbuild
 !Remove ('pop') a molecule from the stack an return its number, position and velocity
 
 subroutine linklist_pop(icell, jcell, kcell, molnopop)
-use module_linklist
-implicit none
+	use module_linklist
+	implicit none
 
 	integer            	       :: cellnp, flag
 	integer, intent(in)    	       :: icell, jcell, kcell
@@ -787,8 +1029,8 @@ end subroutine linklist_pop
 !Adds molecule specified by passed variables moleculenpush to linked list
 
 subroutine linklist_push(icell, jcell, kcell, molnopush)
-use module_linklist
-implicit none
+	use module_linklist
+	implicit none
 
 	integer             :: cellnp		
 	integer             :: icell, jcell, kcell
@@ -833,8 +1075,8 @@ end subroutine linklist_push
 !linklist is empty so new linklist can be established
 
 subroutine linklist_checkpush(icell, jcell, kcell, molnopush)
-use module_linklist
-implicit none
+	use module_linklist
+	implicit none
 
 	integer             :: cellnp		
 	integer             :: icell, jcell, kcell
@@ -876,12 +1118,12 @@ end subroutine linklist_checkpush
 !linklist is empty so new linklist can be established
 
 subroutine linklist_checkpush_bin(ibin, jbin, kbin, molnopush)
-use module_linklist
-implicit none
+	use module_linklist
+	implicit none
 
 	integer             :: binnp		
 	integer             :: ibin, jbin, kbin
-	integer		    :: molnopush
+	integer				:: molnopush
 	type(node), pointer :: old, current
 
 	binnp = bin%cellnp(ibin,jbin,kbin)
@@ -919,29 +1161,29 @@ end subroutine linklist_checkpush_bin
 !linklist is empty so new linklist can be established
 
 subroutine linklist_checkpushneighbr(molnoi, molnoj)
-use module_linklist
-implicit none
+	use module_linklist
+	implicit none
 
-	integer			  	:: noneighbrs
+	integer			  			:: noneighbrs
 	integer                    	:: molnoi, molnoj
 	type(neighbrnode), pointer 	:: old, current
 
 	noneighbrs = neighbour%noneighbrs(molnoi)
-	allocate(current)                         !Allocate type to add to stack
-	current%molnoj = molnoj                   !Build type from inputs
+	allocate(current)                         	!Allocate type to add to stack
+	current%molnoj = molnoj                   	!Build type from inputs
 
 	select case (noneighbrs)
 	case(0)
-		nullify(current%previous)         !Nullify pointer at top of list
-		nullify(current%next)             !Nullify pointer at bottom of list
+		nullify(current%previous)         		!Nullify pointer at top of list
+		nullify(current%next)             		!Nullify pointer at bottom of list
 	case(1:)
-		old => neighbour%head(molnoi)%point!Set old to top of list
-		current%next => old			!Set old to next item in list
-		old%previous => current			!Old previous pointer connects to new current
-		nullify(current%previous)		!Nullify pointer at top of list
+		old => neighbour%head(molnoi)%point		!Set old to top of list
+		current%next => old						!Set old to next item in list
+		old%previous => current					!Old previous pointer connects to new current
+		nullify(current%previous)				!Nullify pointer at top of list
 	end select
 
-	neighbour%head(molnoi)%point => current	!Set cell pointer to top of cell list
+	neighbour%head(molnoi)%point => current		!Set cell pointer to top of cell list
 	noneighbrs = noneighbrs + 1               	!Increase number of particles by one
 	neighbour%noneighbrs(molnoi) = noneighbrs	!Update neighbour list molecular number
 
@@ -956,20 +1198,20 @@ end subroutine linklist_checkpushneighbr
 !linklist is empty so new linklist can be established
 
 subroutine linklist_checkpushmol(molno,ipass,jpass,kpass)
-use module_linklist
-implicit none
+	use module_linklist
+	implicit none
 
-	integer,intent(in)         :: molno
-	integer			   :: sendnp
-	integer			   :: ipass, jpass, kpass
-	type(passnode), pointer    :: old, current
+	integer,intent(in)			:: molno
+	integer			   			:: sendnp
+	integer						:: ipass, jpass, kpass
+	type(passnode), pointer		:: old, current
 
 	sendnp = pass%sendnp
-	allocate(current)                         !Allocate type to add to stack
-	current%molno = molno                     !Build type from inputs
-	current%ipass = ipass			  !Build type from inputs
-	current%jpass = jpass			  !Build type from inputs
-	current%kpass = kpass			  !Build type from inputs
+	allocate(current)                 	!Allocate type to add to stack
+	current%molno = molno				!Build type from inputs
+	current%ipass = ipass			  	!Build type from inputs
+	current%jpass = jpass			  	!Build type from inputs
+	current%kpass = kpass			  	!Build type from inputs
 
 	select case (sendnp)
 	case(0)
@@ -996,8 +1238,8 @@ end subroutine linklist_checkpushmol
 !Move backwards through linked list and print out results
 	
 subroutine linklist_print(icell, jcell, kcell)
-use module_linklist
-implicit none
+	use module_linklist
+	implicit none
 
 	integer             :: j
 	integer             :: cellnp		
@@ -1031,8 +1273,8 @@ end subroutine linklist_print
 !upon completion 
 	
 subroutine linklist_printallcells
-use module_linklist
-implicit none
+	use module_linklist
+	implicit none
 
 	integer             :: j
 	integer             :: cellnp		
@@ -1076,8 +1318,8 @@ end subroutine linklist_printallcells
 !results reseting back to the top upon completion 
 	
 subroutine linklist_printalldomaincells
-use module_linklist
-implicit none
+	use module_linklist
+	implicit none
 
 	integer             :: j
 	integer             :: cellnp		
@@ -1121,12 +1363,12 @@ end subroutine linklist_printalldomaincells
 !Move backwards through linked list and print out results
 	
 subroutine linklist_printneighbourlist
-use module_linklist
-implicit none
+	use module_linklist
+	implicit none
 
-	integer                    :: i, j
-	integer			   :: noneighbrs
-	type(neighbrnode), pointer :: old, current
+	integer						:: i, j
+	integer						:: noneighbrs
+	type(neighbrnode), pointer	:: old, current
 
 	do i = 1,np
 
@@ -1157,8 +1399,8 @@ end subroutine linklist_printneighbourlist
 !Move backwards through linked list and print out results
 	
 subroutine linklist_printpassedlist
-use module_linklist
-implicit none
+	use module_linklist
+	implicit none
 
 	integer                    :: j
 	integer			   :: sendnp
@@ -1191,14 +1433,14 @@ end subroutine linklist_printpassedlist
 !Print array and linklist to compare value 
 	
 subroutine linklist_compareprint(icell, jcell, kcell)
-use module_linklist
-implicit none
+	use module_linklist
+	implicit none
 
-	integer            :: j         !Dummy counter
-	integer		   :: n         !Molecule number
-	integer            :: cellnp		
-	integer            :: icell, jcell, kcell
-	type(node), pointer:: old, current
+	integer            	:: j         !Dummy counter
+	integer		   		:: n         !Molecule number
+	integer            	:: cellnp		
+	integer            	:: icell, jcell, kcell
+	type(node), pointer	:: old, current
 
 	!Obtain molecular number and top item of link list from cell
 	old => cell%head(icell,jcell, kcell)%point
@@ -1228,8 +1470,8 @@ end subroutine linklist_compareprint
 !Deallocate cell linklist
 
 subroutine linklist_deallocate(icell, jcell, kcell)
-use module_linklist
-implicit none
+	use module_linklist
+	implicit none
 
 	integer            :: j
 	integer            :: cellnp
@@ -1265,9 +1507,9 @@ end subroutine linklist_deallocate
 !Deallocate bin linklist
 
 subroutine linklist_deallocate_bins
-use module_linklist
-use calculated_properties_MD
-implicit none
+	use module_linklist
+	use calculated_properties_MD
+	implicit none
 
 	integer            	:: j
 	integer            	:: binnp
@@ -1312,8 +1554,8 @@ end subroutine linklist_deallocate_bins
 !Deallocate all linklists
 
 subroutine linklist_deallocatepasslist
-use module_linklist
-implicit none
+	use module_linklist
+	implicit none
 
 	integer            :: j
 	integer            :: sendnp
@@ -1346,12 +1588,12 @@ end subroutine linklist_deallocatepasslist
 !Deallocate all linklists
 
 subroutine linklist_deallocateall
-use module_linklist
-use polymer_info_MD, only: bond, bondcount
-implicit none
+	use module_linklist
+	use polymer_info_MD, only: bond, bondcount
+	implicit none
 
 	integer            			:: i, j
-	integer           			:: cellnp, noneighbrs
+	integer           			:: cellnp, noneighbrs, np_neigbrs
 	integer            			:: icell, jcell, kcell
 	type(node), pointer			:: old, current
 	type(neighbrnode), pointer 	:: oldn, currentn
@@ -1401,7 +1643,13 @@ implicit none
 	!enddo
 
 	if (force_list .gt. 1) then
-		do i = 1, np
+		if (size(neighbour%noneighbrs).eq.np) then
+		!if (vflux_outflag.ne.4 ) then
+			np_neigbrs = np
+		else
+			np_neigbrs = np + halo_np
+		endif
+		do i = 1, np_neigbrs
 			if (associated(neighbour%head(i)%point) .eqv. .true. ) then !Exit if null
 	       		noneighbrs = neighbour%noneighbrs(i)  !Determine number of elements in neighbourlist
 				oldn => neighbour%head(i)%point		   !Set old to head of neighbour list
@@ -1437,8 +1685,8 @@ end subroutine linklist_deallocateall
 !Moves to the bottom of the linklist
 
 subroutine linklist_gotobottom(icell, jcell, kcell)
-use module_linklist
-implicit none
+	use module_linklist
+	implicit none
 
 	integer            :: j
 	integer            :: cellnp		
@@ -1471,8 +1719,8 @@ end subroutine linklist_gotobottom
 !Moves to the top of the linklist
 
 subroutine linklist_gototop(icell, jcell, kcell)
-use module_linklist
-implicit none
+	use module_linklist
+	implicit none
 
 	integer            :: j
 	integer            :: cellnp		
@@ -1506,8 +1754,8 @@ end subroutine linklist_gototop
 !If molecule is not found, flag is set to zero
 
 subroutine linklist_gotomolecule(icell, jcell, kcell, n, flag)
-use module_linklist
-implicit none
+	use module_linklist
+	implicit none
 
 	integer             :: j
 	integer, intent(in) :: n
@@ -1547,8 +1795,8 @@ end subroutine linklist_gotomolecule
 !down
 
 subroutine linklist_movethrough(icell, jcell, kcell, n, dir)
-use module_linklist
-implicit none
+	use module_linklist
+	implicit none
 
 	integer            :: n, j
 	character(len=4)   :: dir
@@ -1595,8 +1843,8 @@ end subroutine linklist_movethrough
 !side in the linked list
 
 subroutine linklist_printcurrent(icell, jcell, kcell)
-use module_linklist
-implicit none
+	use module_linklist
+	implicit none
 
 	integer            :: icell, jcell, kcell
 	type(node), pointer :: old
@@ -1626,9 +1874,9 @@ end subroutine linklist_printcurrent
 !  updates left and right molnos during rebuild
 !----------------------------------------------------------------------------------
 subroutine check_update_adjacentbeadinfo(molnoi,molnoj)
-use module_linklist
-use polymer_info_MD
-implicit none
+	use module_linklist
+	use polymer_info_MD
+	implicit none
 
 	integer                      :: chaindiff
 	integer, intent(in)          :: molnoi, molnoj

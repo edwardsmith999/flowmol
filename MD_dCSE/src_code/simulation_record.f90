@@ -60,7 +60,7 @@
 
 module module_record
 
-        use interfaces
+	use interfaces
 	use physical_constants_MD
 	use computational_constants_MD
 	use arrays_MD
@@ -171,6 +171,17 @@ subroutine simulation_record
 end subroutine simulation_record
 
 !==========================================================================
+! Called from force computation routine to collect molecular interaction
+! based statistics
+
+subroutine evaluate_interaction_statistics
+	use module_record
+	implicit none
+
+
+end subroutine evaluate_interaction_statistics
+
+!==========================================================================
 !Calculate kinetic and potential energy as well as temperature and pressure
 
 subroutine evaluate_macroscopic_properties_parallel
@@ -194,7 +205,7 @@ subroutine evaluate_macroscopic_properties_parallel
 		call globalSum(potenergysum)
 	end if
 
-	virial =sum(virialmol(1:np))
+	virial = sum(virialmol(1:np))
 
 	select case(integration_algorithm)
 	case(leap_frog_verlet)
@@ -232,7 +243,9 @@ subroutine evaluate_macroscopic_properties_parallel
 		totenergy   = kinenergy + potenergy
 		temperature = v2sum / real(nd*globalnp,kind(0.d0))
 		if (any(periodic.gt.1)) temperature = get_temperature_PUT()
-		pressure    = (density/(globalnp*nd))*(v2sum+virial/2) !N.B. virial/2 as all interactions calculated
+		pressure    = (density/(globalnp*nd))*(v2sum+virial/2.d0) !N.B. virial/2 as all interactions calculated
+
+		!print*, iter, (density/(globalnp*nd))*(v2sum) , (density/(globalnp*nd))*(virial/2) 
 
 		select case (potential_flag)	
 		case(0)
@@ -865,6 +878,9 @@ subroutine cumulative_pressure(ixyz,sample_count)
 		!Divide sum of stress by volume
 		Pxy = Pxy / volume
 
+
+		!print*, (Pxy(1,1)+Pxy(2,2)+Pxy(3,3))/3.d0
+
 		!Reset position force tensor before calculation
 		rfmol = 0.d0
 	case(2)
@@ -899,11 +915,14 @@ subroutine cumulative_pressure(ixyz,sample_count)
 		enddo
 		Pxy = Pxy / (volume*Nstress_ave)
 
-		!print'(a,i8,2f18.4)','Sum of all VA ',iter,(sum(rfbin(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1,1)) + & 
+		!print'(a,i8,3f18.4)','Sum of all VA ',iter,(sum(rfbin(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1,1)) + & 
 		!										    sum(rfbin(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,2,2)) + & 
 		!											sum(rfbin(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,3,3))) & 
 		!												/ (6.d0 * volume*Nstress_ave), & 
-		!												(Pxy(1,1) + Pxy(2,2) + Pxy(3,3))/3.d0
+		!										   (sum(vvbin(:,:,:,1,1)) + & 
+		!										    sum(vvbin(:,:,:,2,2)) + & 
+		!											sum(vvbin(:,:,:,3,3)))/ (3.d0 * volume*Nstress_ave), & 
+		!											(Pxy(1,1) + Pxy(2,2) + Pxy(3,3))/3.d0
 
 	case default 
 		call error_abort("Cumulative Pressure Averaging Error")
@@ -2380,11 +2399,11 @@ implicit none
 
 		!Prevent halo molecules from being included but include molecule which have left domain 
 		!before rebuild has been triggered.
-		if (molnoi .gt. np .or. molnoj .gt. np) then
-			if (cbin(1) .lt. 2 .or. cbin(1) .gt. nbins(1)+1) cycle
-			if (cbin(2) .lt. 2 .or. cbin(2) .gt. nbins(2)+1) cycle
-			if (cbin(3) .lt. 2 .or. cbin(3) .gt. nbins(3)+1) cycle
-		endif
+		!if (molnoi .gt. np .or. molnoj .gt. np) then
+		!	if (cbin(1) .lt. 2 .or. cbin(1) .gt. nbins(1)+1) cycle
+		!	if (cbin(2) .lt. 2 .or. cbin(2) .gt. nbins(2)+1) cycle
+		!	if (cbin(3) .lt. 2 .or. cbin(3) .gt. nbins(3)+1) cycle
+		!endif
 
 		!Stress acting on face over volume
 		Pxyface(cbin(1),cbin(2),cbin(3),:,1) = Pxyface(cbin(1),cbin(2),cbin(3),:,1) + fij(:)*dble(onfacexb)

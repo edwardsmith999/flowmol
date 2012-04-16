@@ -569,6 +569,12 @@ subroutine setup_restart_microstate
 
 			deallocate(monomerc)
 
+			! Determine number of chains by global maximum of chainID
+			nchains = maxval(monomer(:)%chainID)
+			call globalMaxInt(nchains)
+			
+			call MPI_TYPE_FREE(mpi_monomer,ierr)
+
 		case default
 			call error_abort('Potential flag incorrect in restart microstate')
 		end select
@@ -588,12 +594,6 @@ subroutine setup_restart_microstate
 	do n = 1,np
 		call read_tag(n)		!Read tag and assign properties
 	enddo
-
-	! Determine number of chains by global maximum of chainID
-	nchains = maxval(monomer(:)%chainID)
-	call globalMaxInt(nchains)
-	
-	call MPI_TYPE_FREE(mpi_monomer,ierr)
 
 end subroutine setup_restart_microstate
 
@@ -1556,7 +1556,7 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 
 	integer					:: m,nresults
 	integer					:: CV_mass_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
-	double precision		:: CV_momentum_out(nbins(1)+2,nbins(2)+2,nbins(3)+2,3),temp
+	double precision		:: CV_momentum_out(nbins(1)+2,nbins(2)+2,nbins(3)+2,nd)
 	character(4)			:: io_type
 	character(30)			:: filename,outfile
 
@@ -1568,7 +1568,6 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 	outfile = trim(prefix_dir)//filename
 
 	nresults = nd
-
 	! Swap Halos
 	call rswaphalos(CV_momentum_out,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults)
 
@@ -1683,10 +1682,22 @@ subroutine virial_stress_io
 	use module_parallel_io
 	use calculated_properties_MD
 	implicit none
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	integer		:: m, length
+
+	call globalAverage(Pxy, 9)
+
+	!Write virial pressure to file
+	m = (iter-initialstep+1)/(tplot*Nstress_ave)
+	if (irank .eq. iroot) then
+		inquire(iolength=length) Pxy
+		open (unit=7, file=trim(prefix_dir)//'results/pvirial',form='unformatted',access='direct',recl=length)
+		write(7,rec=m) Pxy
+		close(7,status='keep')
+	endif
+
 end subroutine virial_stress_io
+
+!---------------------------------------------------------------------------------
 
 subroutine VA_stress_io
 	use module_parallel_io
@@ -1828,8 +1839,8 @@ subroutine momentum_flux_io
 	use calculated_properties_MD
 	implicit none
 
-	integer					:: ixyz,i,j,k,n,m,nresults
-	double precision		:: binface
+	integer											:: ixyz,i,j,k,n,m,nresults
+	double precision								:: binface
 
 	! Swap Halos
 	nresults = 18
@@ -1942,12 +1953,14 @@ subroutine surface_stress_io
 	use calculated_properties_MD
 	implicit none
 
-	integer					:: ixyz,m,nresults
-	double precision		:: binface
+	integer											:: ixyz,m,nresults,n,i,j,k
+	double precision								:: binface
+	double precision,dimension(:,:,:,:,:),allocatable	:: buf
 
 	! Swap Halos
 	nresults = 18
 	call rswaphalos(Pxyface,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults)
+
 
 	do ixyz = 1,3
 		binface		  = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
@@ -1957,7 +1970,8 @@ subroutine surface_stress_io
 	enddo
 
 	!Integration of stress using trapizium rule requires multiplication by timestep
-	Pxyface = delta_t*Pxyface!/Nvflux_ave
+	!so delta_t cancels upon division by tau=elta_t*Nvflux_ave resulting in division by Nvflux_ave
+	Pxyface = Pxyface/Nvflux_ave
 
 	!Write surface pressures to file
 	m = (iter-initialstep+1)/(Nvflux_ave*tplot)
