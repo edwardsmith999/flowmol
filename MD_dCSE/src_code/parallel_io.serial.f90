@@ -1296,8 +1296,11 @@ subroutine macroscopic_properties_header
 		'Iteration; 	   VSum;        V^2Sum;        Temp;', &
 		'         KE;        PE;         TE;        Pressure;'
 		!Print initial conditions for simulations at iteration 0
-		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.4)') &
-		initialstep,';',vsum,';', v2sum,';', temperature,';', &
+		!write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.4)') &
+		!initialstep,';',vsum,';', v2sum,';', temperature,';', &
+		!kinenergy,';',potenergy,';',totenergy,';',pressure
+		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)'), &
+		iter,';',vsum,';', v2sum,';', temperature,';', &
 		kinenergy,';',potenergy,';',totenergy,';',pressure
 	else if (potential_flag.eq.1) then
 		write(10,'(2a)') &
@@ -1320,9 +1323,12 @@ subroutine macroscopic_properties_record
 		!write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.4)') &
 		!iter,';',vsum,';', v2sum,';', temperature,';', &
 		!kinenergy,';',potenergy,';',totenergy,';',pressure
-		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4,a,f10.4)'), &
+		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)'), &
 		iter,';',vsum,';', v2sum,';', temperature,';', &
-		totenergy,';',((density/(globalnp*nd))*virial/2)**2,';',pressure**2,';',(density/(globalnp*nd))*virial/2,';',pressure
+		kinenergy,';',potenergy,';',totenergy,';',pressure
+		!write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4,a,f10.4)'), &
+		!iter,';',vsum,';', v2sum,';', temperature,';', &
+		!totenergy,';',((density/(globalnp*nd))*virial/2)**2,';',pressure**2,';',(density/(globalnp*nd))*virial/2,';',pressure
 	else if (potential_flag.eq.1) then
 		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4,a,f10.4,a,f10.4)') &
 		iter,';',vsum,';', v2sum,';', temperature,';', &
