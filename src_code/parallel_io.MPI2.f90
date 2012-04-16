@@ -733,6 +733,8 @@ subroutine parallel_io_final_state
 	
 		call MPI_FILE_WRITE_ALL(restartfileid, monomerbuf, procnp(irank), mpi_monomer, &
 		                        MPI_STATUS_IGNORE, ierr)
+		
+		call MPI_TYPE_FREE(mpi_monomer,ierr)
  
 	case default
 	end select
@@ -795,7 +797,6 @@ subroutine parallel_io_final_state
 	
 	deallocate(buf)
 	deallocate(monomerbuf)
-	call MPI_TYPE_FREE(mpi_monomer,ierr)
 
 end subroutine parallel_io_final_state
 
