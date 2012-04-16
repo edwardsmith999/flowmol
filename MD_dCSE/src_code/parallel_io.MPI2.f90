@@ -642,8 +642,6 @@ subroutine parallel_io_final_state
 	oldtypes(1)  = MPI_INTEGER
 	blocklens(1) = 6
 	
-	call MPI_TYPE_STRUCT(2,blocklens,offsets,oldtypes,mpi_monomer,ierr)
-	call MPI_TYPE_COMMIT(mpi_monomer,ierr)
 	!-----------------------------------------------------------------------
 
 	!Rebuild simulation before recording final state
@@ -664,7 +662,6 @@ subroutine parallel_io_final_state
 	!Determine size of datatypes
   	call MPI_type_size(MPI_double_precision,dp_datasize,ierr)
 	call MPI_type_size(MPI_integer,int_datasize,ierr)
-	call MPI_type_size(mpi_monomer,monomer_datasize,ierr)
 
 	!Adjust r according to actual location for storage according
 	!to processor topology with r = 0 at centre
@@ -715,6 +712,9 @@ subroutine parallel_io_final_state
 	 	 						MPI_double_precision, MPI_STATUS_IGNORE, ierr)
 	case(1)
 		
+		call MPI_TYPE_STRUCT(2,blocklens,offsets,oldtypes,mpi_monomer,ierr)
+		call MPI_TYPE_COMMIT(mpi_monomer,ierr)
+		call MPI_TYPE_SIZE(mpi_monomer,monomer_datasize,ierr)
 		call MPI_FILE_SET_VIEW(restartfileid, disp, mpi_monomer, & 
  		                       mpi_monomer, 'native', MPI_INFO_NULL, ierr)
 
@@ -740,7 +740,7 @@ subroutine parallel_io_final_state
 	!Close file on all processors
 	call MPI_FILE_CLOSE(restartfileid, ierr)
 	!This barrier is needed in order to get the correct file size in the next write
-	call MPI_Barrier(MD_COMM, ierr)	
+	call MPI_BARRIER(MD_COMM, ierr)	
  
 	!----------------Write header------------------------
 	!Written at the end for performance and simplicity reasons 
