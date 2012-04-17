@@ -22,17 +22,37 @@ implicit none
 
 	!Print out final results from the simulation
 	if (irank .eq. iroot) then
-		if (potential_flag.eq.0) then	
-			print*, 'Results from last iteration of simulation'
-			print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.4)', &
-			Nsteps,';',vsum,';', v2sum,';', temperature,';', &
-			kinenergy,';',potenergy,';',totenergy,';',pressure
-		else if (potential_flag.eq.1) then
-			print*, 'Results from last iteration of simulation'
-			print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4,a,f10.4,a,f10.4)', &
-			Nsteps,';',vsum,';', v2sum,';', temperature,';', &
-			kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
-		end if
+		select case(potential_flag)
+		case(0)
+			select case(macro_outflag)
+			case(1:2)
+				print*, 'Results from last iteration of simulation'
+				print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
+				Nsteps,';',vsum,';', v2sum,';', temperature,';', &
+				kinenergy,';',potenergy,';',totenergy,';',pressure
+			case(3:4)
+				print*, 'Results from last iteration of simulation'
+				print '(1x,i8,a,f8.4,a,f8.4,a,f8.4,a,f8.4,a,f8.4,a,f8.4,a,f8.4)', &
+				Nsteps,';',vsum,';',temperature,';',&
+				kinenergy,';',potenergy,';',totenergy,';',pressure
+			case default
+			end select
+		case(1)
+			select case(macro_outflag)
+			case(1:2)
+				print*, 'Results from last iteration of simulation'
+				print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4,a,f10.4,a,f10.4)', &
+				Nsteps,';',vsum,';', v2sum,';', temperature,';', &
+				kinenergy,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
+			case(3:4)
+				print*, 'Results from last iteration of simulation'
+				print '(1x,i8,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f6.3,a,f6.2)', &
+				Nsteps,';',vsum,';',temperature,';', &
+				kinenergy,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
+			case default
+			end select
+		case default
+		end select
 	end if
 	
 	!Set up final print out table
@@ -89,7 +109,11 @@ implicit none
 	!	print*, '                  END OF SIMULATION                         '
 	!endif
 
-	if (macro_outflag.eq.2) close(10,status='keep') !Keep macroscopic_properties
+	select case (macro_outflag)
+	case(2,4)
+		close(10,status='keep') !Keep macroscopic_properties
+	case default
+	end select
 	
 
 end subroutine finish_final_record
@@ -474,10 +498,11 @@ subroutine build_psf
 	integer :: i,j,n,item,molno,sc
 	integer :: NTITLE, NATOM, NBONDS
 	integer	:: write_items
+	integer :: group, bin_expo
 	integer, allocatable, dimension(:,:) :: bonds	
-	integer, allocatable, dimension(:)	::	res_ID
-	integer, allocatable, dimension(:)	::	glob_sc
-	integer, allocatable, dimension(:)  ::	glob_bf
+	integer, allocatable, dimension(:)	 ::	res_ID
+	integer, allocatable, dimension(:)	 ::	glob_sc
+	integer, allocatable, dimension(:,:) ::	glob_bf
 	character(len=4), allocatable, dimension(:) :: seg_name, res_name, atom_name, atom_type
 	real, allocatable, dimension(:)	:: charge, mass
 	
@@ -487,8 +512,10 @@ subroutine build_psf
 	do n=1,np
 		do sc=1,nmonomers
             j=0
-            if ( btest(monomer(n)%bin_bflag,sc) ) j = 1
-			!NBONDS = NBONDS + abs(btest(monomer(n)%bin_bflag,sc))
+			group = ceiling(real(sc)/real(intbits))
+			bin_expo = mod(sc,intbits)-1
+			if (bin_expo.eq.-1) bin_expo = intbits - 1
+            if ( btest(monomer(n)%bin_bflag(group),bin_expo) ) j = 1
             NBONDS = NBONDS + j
 		end do
 	end do
@@ -500,7 +527,7 @@ subroutine build_psf
 	allocate(seg_name(NATOM))								! Determine segment names for each atom
 	allocate(res_ID(NATOM))									! Determine molecule ID for each atom
 	allocate(glob_sc(NATOM))								! Determine molecule ID for each atom
-	allocate(glob_bf(NATOM))                                ! Determine molecule ID for each atom
+	allocate(glob_bf(NATOM,4))                              ! Determine molecule ID for each atom
 	allocate(res_name(NATOM))								! Determine name for each molecule
 	allocate(atom_name(NATOM))								! Determine name for each atom
 	allocate(atom_type(NATOM))								! Determine type for each atom
@@ -509,17 +536,17 @@ subroutine build_psf
 
 	res_ID(:) = 0
 	glob_sc(:) = 0
-	glob_bf(:) = 0
+	glob_bf(:,:) = 0
 	do n=1,np
 		molno            = monomer(n)%glob_no
 		res_ID(molno)    = monomer(n)%chainID 
 		glob_sc(molno)   = monomer(n)%subchainID
-		glob_bf(molno)   = monomer(n)%bin_bflag
+		glob_bf(molno,:) = monomer(n)%bin_bflag(:)
 	end do
 
 	call globalSumIntVect(res_ID,globalnp)
 	call globalSumIntVect(glob_sc,globalnp)
-	call globalSumIntVect(glob_bf,globalnp)
+	call globalSumIntTwoDim(glob_bf,globalnp,4)
 
 	do n=1,globalnp
 		select case (res_ID(n))
@@ -571,15 +598,19 @@ subroutine build_psf
 		do i=1,globalnp                                          !Loop through all molecules
 			do j=1,i-1                                           !Avoid double counting
 				if (res_ID(i).eq.res_ID(j)) then                 !If same global chainID
-				
+					
 					!If j is bonded to i then add pair to items	
 					do n=1,nmonomers
-						!if(abs(btest(glob_bf(i),n)) .eq. 1 .and. glob_sc(j) .eq. n) then 
-                        if(btest(glob_bf(i),n) .and. glob_sc(j) .eq. n) then
-							bonds(item,1) = i
-							bonds(item,2) = j
-							item=item+1						
+						group    = ceiling(real(n)/real(intbits))
+						bin_expo = mod(n,intbits)-1
+						if (bin_expo.eq.-1) bin_expo = intbits - 1
+
+                        if(btest(glob_bf(i,group),bin_expo) .and. glob_sc(j) .eq. n) then
+								bonds(item,1) = i
+								bonds(item,2) = j
+								item=item+1
 						end if
+
 					end do
 	
 				end if

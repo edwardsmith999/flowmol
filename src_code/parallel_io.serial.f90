@@ -321,8 +321,20 @@ subroutine setup_restart_microstate
 			read(2) monomer(n)%subchainID
 			read(2) monomer(n)%funcy
 			read(2) monomer(n)%glob_no
-			read(2) monomer(n)%bin_bflag
+			read(2) monomer(n)%bin_bflag(1:4)
+!			print*, 'g,f,c,s,b-------------------------'
+!			print*, monomer(n)%glob_no
+!			print*, monomer(n)%funcy
+!			print*, monomer(n)%chainID
+!			print*, monomer(n)%subchainID
+!			print '(i,l)', monomer(n)%bin_bflag(1), btest(monomer(n)%bin_bflag(1),31)
+!			print '(i20)', monomer(n)%bin_bflag(2)
+!			print '(i20)', monomer(n)%bin_bflag(3)
+!			print '(i20)', monomer(n)%bin_bflag(4)
+!			print*, '----------------------------------'
+
 		end do
+		nchains = maxval(monomer(:)%chainID)
 	case default
 	end select
 
@@ -340,8 +352,6 @@ subroutine setup_restart_microstate
 	do n = 1,np
 		call read_tag(n)		!Read tag and assign properties
 	enddo
-
-	nchains = maxval(monomer(:)%chainID)
 
 	close(2,status='keep') 		!Close final state file
 
@@ -403,7 +413,7 @@ subroutine parallel_io_final_state
 			write(2) monomer(n)%subchainID
 			write(2) monomer(n)%funcy
 			write(2) monomer(n)%glob_no
-			write(2) monomer(n)%bin_bflag
+			write(2) monomer(n)%bin_bflag(1:4)
 		end do
 	case default
 	end select	
@@ -1295,19 +1305,14 @@ subroutine macroscopic_properties_header
 		write(10,'(2a)') &
 		'Iteration; 	   VSum;        V^2Sum;        Temp;', &
 		'         KE;        PE;         TE;        Pressure;'
-		!Print initial conditions for simulations at iteration 0
-		!write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.4)') &
-		!initialstep,';',vsum,';', v2sum,';', temperature,';', &
-		!kinenergy,';',potenergy,';',totenergy,';',pressure
 		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)'), &
 		iter,';',vsum,';', v2sum,';', temperature,';', &
 		kinenergy,';',potenergy,';',totenergy,';',pressure
 	else if (potential_flag.eq.1) then
 		write(10,'(2a)') &
-		'Iteration; 	   VSum;        V^2Sum;        Temp;', &
-		'       KE;     PE (LJ);  PE (FENE); PE (Tot);    TE;       Pressure;    Etevtcf;    R_g; '
-		!Print initial conditions for simulations at iteration 0
-		write(10, '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4,a,f10.4,a,f10.4)') &
+		'Iteration;  	     VSum;         V^2Sum;      Temp;', &
+		'        KE;   PE (LJ); PE (FENE);  PE (Tot);        TE;  Pressure;   Etevtcf;       R_g '
+		write(10, '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f10.4,a,f10.4,a,f10.4)') &
 		initialstep,';',vsum,';', v2sum,';', temperature,';', &
 		kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
 	end if
@@ -1320,17 +1325,11 @@ subroutine macroscopic_properties_record
 	implicit none
 
 	if (potential_flag.eq.0) then	
-		!write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.4)') &
-		!iter,';',vsum,';', v2sum,';', temperature,';', &
-		!kinenergy,';',potenergy,';',totenergy,';',pressure
 		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)'), &
 		iter,';',vsum,';', v2sum,';', temperature,';', &
 		kinenergy,';',potenergy,';',totenergy,';',pressure
-		!write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4,a,f10.4)'), &
-		!iter,';',vsum,';', v2sum,';', temperature,';', &
-		!totenergy,';',((density/(globalnp*nd))*virial/2)**2,';',pressure**2,';',(density/(globalnp*nd))*virial/2,';',pressure
 	else if (potential_flag.eq.1) then
-		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4,a,f10.4,a,f10.4)') &
+		write(10, '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f10.4,a,f10.4,a,f10.4)') &
 		iter,';',vsum,';', v2sum,';', temperature,';', &
 		kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
 	end if

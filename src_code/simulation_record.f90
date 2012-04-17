@@ -134,7 +134,11 @@ subroutine simulation_record
 	!properties; gather on root process and record
 	if (macro_outflag .ne. 0) then
 		call evaluate_macroscopic_properties_parallel
-		if (macro_outflag .eq. 2) call macroscopic_properties_record
+		select case(macro_outflag)
+		case(2,4)
+			call macroscopic_properties_record
+		case default
+		end select
 	endif
 
 	!Obtain and record velocity distributions
@@ -247,15 +251,33 @@ subroutine evaluate_macroscopic_properties_parallel
 
 		!print*, iter, (density/(globalnp*nd))*(v2sum) , (density/(globalnp*nd))*(virial/2) 
 
-		select case (potential_flag)	
+		select case(potential_flag)
 		case(0)
-			print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
-			iter,';',vsum,';', v2sum,';', temperature,';', &
-			kinenergy,';',potenergy,';',totenergy,';',pressure
-		case(1) 
-			print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4,a,f10.4,a,f10.4)', &
-			iter,';',vsum,';', v2sum,';', temperature,';', &
-			kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
+			select case(macro_outflag)
+			case(1:2)
+				print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
+				iter,';',vsum,';', v2sum,';', temperature,';', &
+				kinenergy,';',potenergy,';',totenergy,';',pressure
+			case(3:4)
+				print '(1x,i8,a,f8.4,a,f8.4,a,f8.4,a,f8.4,a,f8.4,a,f8.4,a,f8.4)', &
+				iter,';',vsum,';',temperature,';',&
+				kinenergy,';',potenergy,';',totenergy,';',pressure
+			case default
+			end select
+		case(1)
+			select case(macro_outflag)
+			case(1:2)
+				print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4,a,f10.4,a,f10.4)', &
+				iter,';',vsum,';', v2sum,';', temperature,';', &
+				kinenergy,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
+			case(3:4)
+				print '(1x,i8,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f6.3,a,f6.2)', &
+				iter,';',vsum,';',temperature,';', &
+				kinenergy,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
+			case default
+			end select
+		case default
+			call error_abort("Invalid potential flag in input file")
 		end select
 
 	endif

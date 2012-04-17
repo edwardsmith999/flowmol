@@ -423,14 +423,22 @@ subroutine setup_initialise_polyinfo
 	
 	proc_chains(:)         = 0
 	proc_nps(:)            = 0
+
+	intbits = bit_size(monomer(1)%bin_bflag(1))
 	
 	modcheck = 0 + mod(np,nmonomers) + mod(4*initialnunits(1),nmonomers)
 	if (modcheck.ne.0) call error_abort('Number of molecules must be exactly divisible by &
 	& the polymer chain length. Please change the chain length in the input file. &
 	& A chain length of 4 should (hopefully) always work.')
-	
-	monomer(:)%funcy     = 0	
-	monomer(:)%bin_bflag = 0
+
+	do n=1,np+extralloc
+		monomer(n)%chainID      = 0
+		monomer(n)%subchainID   = 0
+		monomer(n)%funcy        = 0
+		monomer(n)%glob_no      = 0
+		monomer(n)%bin_bflag(:) = 0
+	end do	
+
 	chainID    = 1
 	subchainID = 0
 	do n=1,np
@@ -446,7 +454,6 @@ subroutine setup_initialise_polyinfo
 		select case (solvent_selector)
 		case(0) !POLYMER
 			
-		!	subchainID = mod(n-1,nmonomers) + 1                     !Beads numbered 1 to nmonomers
 			subchainID = subchainID + 1
 			if (subchainID .gt. nmonomers) then
 				subchainID = 1
@@ -458,23 +465,14 @@ subroutine setup_initialise_polyinfo
 			monomer(n)%glob_no    = n	
 			
 			if (subchainID.eq.1) then
-				monomer(n)%funcy                  = 1
-				monomer(n)%bin_bflag              = monomer(n)%bin_bflag + 2**(subchainID+1)
-				bond(n,1)                         = n + 1
+				call connect_to_monomer(subchainID+1,n)
 			else if (subchainID.eq.nmonomers) then
-				monomer(n)%funcy                  = 1
-				monomer(n)%bin_bflag              = monomer(n)%bin_bflag + 2**(subchainID-1)
-				bond(n,1)                         = n - 1	
+				call connect_to_monomer(subchainID-1,n)				
 			else
-				monomer(n)%funcy                  = 2
-				monomer(n)%bin_bflag              = monomer(n)%bin_bflag + 2**(subchainID+1)
-				monomer(n)%bin_bflag              = monomer(n)%bin_bflag + 2**(subchainID-1)
-				bond(n,1)                         = n - 1
-				bond(n,2)                         = n + 1
+				call connect_to_monomer(subchainID+1,n)
+				call connect_to_monomer(subchainID-1,n)
 			end if
 			
-			!if (mod(subchainID,nmonomers) .eq. 0 .and. n .lt. np) chainID = chainID + 1
-
 		case(1:) !SOLVENT
 
 			!SET MOLECULES TO BE ATHERMAL SOLVENT MOLECULES
@@ -487,13 +485,11 @@ subroutine setup_initialise_polyinfo
 		case default
 		end select
 			
-!		end if
-	
-		!print*, '-n,c,sc,f,g------------------------------------------------'
-		!print*, n, monomer(n)%chainID,monomer(n)%subchainID,monomer(n)%funcy,monomer(n)%glob_no
-		!print*, 'bin_bflag -', monomer(n)%bin_bflag
-		!print*, btest(monomer(n)%bin_bflag,1), btest(monomer(n)%bin_bflag,2),btest(monomer(n)%bin_bflag,3),btest(monomer(n)%bin_bflag,4)
-		!print*, '==========================================================='
+	!	print*, '-n,c,sc,f,g------------------------------------------------'
+	!	print*, n, monomer(n)%chainID,monomer(n)%subchainID,monomer(n)%funcy,monomer(n)%glob_no
+	!	print*, 'bin_bflag -', monomer(n)%bin_bflag
+	!	print*, '==========================================================='
+
 	end do
 
 	proc_chains(irank) = chainID
@@ -506,12 +502,29 @@ subroutine setup_initialise_polyinfo
 			monomer(n)%chainID     = monomer(n)%chainID + sum(proc_chains(1:irank)) - proc_chains(irank)
 		end if
 		monomer(n)%glob_no     = monomer(n)%glob_no + sum(proc_nps(1:irank))    - proc_nps(irank)
-		do i=1,monomer(n)%funcy
-			bond(n,i)          = bond(n,i)          + sum(proc_nps(1:irank))    - proc_nps(irank)
-		end do
+!		do i=1,monomer(n)%funcy
+!			bond(n,i)          = bond(n,i)          + sum(proc_nps(1:irank))    - proc_nps(irank)
+!		end do
 	end do
 
 	nchains = sum(proc_chains)
+
+contains
+
+	subroutine connect_to_monomer(bscID,n)
+	implicit none
+	
+		integer, intent(in) :: bscID,n
+		integer :: group, expo
+
+		group = ceiling(real(bscID)/real(intbits))
+		expo  = mod(bscID,intbits) - 1
+		if(expo.eq.-1) expo = intbits - 1
+		monomer(n)%funcy            = monomer(n)%funcy + 1
+		monomer(n)%bin_bflag(group) = monomer(n)%bin_bflag(group) + 2**(expo)
+		
+	end subroutine connect_to_monomer
+
 
 end subroutine setup_initialise_polyinfo		
 !----------------------------------------------------------------------------------

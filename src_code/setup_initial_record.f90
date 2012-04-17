@@ -166,9 +166,9 @@ subroutine setup_initial_record
 		select case(macro_outflag)
 		case(0)
 			print*, 'No Macroscopic Properties printed to screen'
-		case(1)
+		case(1,3)
 			print*, 'Macroscopic properties printed to screen every:', tplot, 'iterations'
-		case(2)
+		case(2,4)
 			call macroscopic_properties_header
 			print*, 'Macroscopic properties printed to results/macroscopic_properties every:', tplot, 'iterations.'
 		case default
@@ -325,21 +325,41 @@ subroutine setup_initial_record
 
 		select case(potential_flag)
 		case(0)
-			print '(2a)', &
-			'Iteration; 	   VSum;        V^2Sum;        Temp;', & 
-			'          KE;                 PE;                  TE;          Pressure;'
-			!Print initial conditions for simulations at iteration 0
-			print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
-			initialstep,';',vsum,';', v2sum,';', temperature,';', &
-			kinenergy,';',potenergy,';',totenergy,';',pressure
+			select case(macro_outflag)
+			case(1:2)
+				print '(2a)', &
+				'Iteration; 	   VSum;        V^2Sum;        Temp;', & 
+				'          KE;                 PE;                  TE;          Pressure;'
+				print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
+				initialstep,';',vsum,';', v2sum,';', temperature,';', &
+				kinenergy,';',potenergy,';',totenergy,';',pressure
+			case(3:4)
+				print '(2a)', &
+				'Iteration;    VSum;    Temp;', & 
+				'      KE;      PE;      TE;       P'
+				print '(1x,i8,a,f8.4,a,f8.4,a,f8.4,a,f8.4,a,f8.4,a,f8.4,a,f8.4)', &
+				initialstep,';',vsum,';',temperature,';',&
+				kinenergy,';',potenergy,';',totenergy,';',pressure
+			case default
+			end select
 		case(1)
-			print '(2a)', &
-			'Iteration; 	   VSum;        V^2Sum;        Temp;', & 
-			'       KE;     PE (LJ);  PE (FENE); PE (Tot);    TE;       Pressure;   Etevtcf;    R_g; '
-			!Print initial conditions for simulations at iteration 0
-			print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4,a,f10.4,a,f10.4)', &
-			initialstep,';',vsum,';', v2sum,';', temperature,';', &
-			kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
+			select case(macro_outflag)
+			case(1:2)
+				print '(2a)', &
+				'Iteration; 	   VSum;        V^2Sum;        Temp;', & 
+				'          KE;                 PE;                  TE;          Pressure;    Rtcf;     R_g'
+				print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4,a,f10.4,a,f10.4)', &
+				initialstep,';',vsum,';', v2sum,';', temperature,';', &
+				kinenergy,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
+			case(3:4)
+				print '(2a)', &
+				'Iteration;   VSum;   Temp;', & 
+				'     KE;     PE;     TE;      P;  Rtcf;   R_g'
+				print '(1x,i8,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f6.3,a,f6.2)', &
+				initialstep,';',vsum,';',temperature,';', &
+				kinenergy,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
+			case default
+			end select
 		case default
 			call error_abort("Invalid potential flag in input file")
 		end select

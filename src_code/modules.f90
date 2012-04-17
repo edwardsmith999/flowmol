@@ -173,14 +173,112 @@ module polymer_info_MD
 		integer :: subchainID                       !Integer value: bead number
 		integer :: funcy                            !Functionality of the monomer
 		integer :: glob_no                          !Global molecule number
-		integer :: bin_bflag                        !Integer for bit manipulation to find bond flags
+		integer :: bin_bflag(4)                     !Integer for bit manipulation to find bond flags...
+                                                    !...for more info see function get_bondflag
 	end type monomer_info
+
+	integer :: intbits                              !Size in bits of integer on this machine
 
 	type(monomer_info), dimension(:), allocatable :: monomer
 	!eg. to access chainID of mol 23, call monomer(23)%chainID
 
 	double precision, dimension(:,:), allocatable :: etev
 	double precision, dimension(:,:), allocatable :: etev_0 !End-to-end vectors for polymer chains at iter=etevtcf_iter0 (size of np,only stored for leftmost chain mols) 
+
+contains
+
+	!----------------------------------------------------------------------
+	! function get_bondflag(molno,scID)
+	! author: David Trevelyan
+	! 
+	! get_bondflag returns:
+	! 		1: if molecule MOLNO is connected to the monomer with
+	!		   subchainID SCID
+	!		0: otherwise
+	!
+	! get_bondflag is intended for use AFTER establishing that, for
+	! example, two monomers are on the same chain:
+	!
+	!       if (monomer(i)%chainID .eq. monomer(j)%chainID) then
+	!			bflag = get_bondflag(i,monomer(j)%subchainID))
+	!			select case(bflag)
+	!			case(0)
+	!				THEY ARE NOT CONNECTED
+	!			case(1)
+	!				THEY ARE CONNECTED
+	!			end select
+	!		end if
+	!
+	! monomer(n)%bin_bflag is an array of 4 integers that, in binary
+	! representation, represent a longer array of 0s and 1s. For example,
+	! working with 4-bit integers to keep things simple, a bin_bflag
+	!
+	!		5 0 0 0 
+	!
+	! would represent an array that looks like:
+	!
+	!	0 0 0 0   0 0 0 0   0 0 0 0   0 1 0 1
+	!      4         3         2         1
+	!
+	! ...where we count from right to left (from LSB to MSB).
+	! 
+	! Similarly, a bin_bflag
+	!
+	!		0 0 10 0
+	!
+	! represents
+	!
+	!	0 0 0 0   1 0 1 0   0 0 0 0   0 0 0 0
+	!      4         3         2         1
+	!
+	! ... where a 1 in position scID signifies a connection to
+	! the monomer in the same chain as monomer(n) with subchainID scID. 
+	! 
+	! Again, by example, to explain the meanings of "group" and "expo" we
+	! assume 4-bit integer size. Given a subchainID of 9, we would seek
+	! the bond flag at position 9 in the array of 16:
+	!
+	!  _  _  _  _   _  _  _ ?   _ _ _ _   _ _ _ _
+	! 16 15 14 13  12 11 10 9   8 7 6 5   4 3 2 1
+	!
+	! So, we find the integer in bin_bflag(1:4) that stores the information
+	! about subchainID 9 and call it "group". In this case:
+	! 
+	!	group = ceiling(real(9)/real(4)) = 3
+	!
+	! We now know that subchainID 9 is in bin_bflag(3), and then need to
+	! find the position within "group" 3 that corresponds to subchainID 9,
+	! and the corresponding binary exponent with which to bit-test our 3rd
+	! binary number in bin_bflag.
+	!
+	!                               ___    ___    ___    _?_
+	! position:                      4      3      2      1
+	! binary exponent:               3      2      1      0
+	!
+	! In our case, the position is 1, and the corresponding binary exponent
+	! is 0. That is, adding 2**0 (and only 2**0) to bin_bflag(3) would 
+	! result in a 1 at position 1 in binary representation. We can
+	! calculate this binary exponent using the MOD intrinsic and if
+	! statement in the function below.
+	!
+	! If a 1 is found under bit test, then monomer(molno) is assumed to
+	! be connected to the monomer in the same chain with subchainID scID.
+	!
+	!----------------------------------------------------------------------
+	integer function get_bondflag(molno,scID)
+	implicit none
+	
+		integer, intent(in)  :: molno, scID
+		integer :: group, expo
+		
+		group = ceiling(real(scID)/real(intbits))
+		expo  = mod(scID,intbits) - 1
+		if (expo .eq. -1) expo = intbits - 1
+		
+		get_bondflag  = 0
+		if (btest(monomer(molno)%bin_bflag(group),expo)) get_bondflag = 1
+
+	end function get_bondflag
 
 end module polymer_info_MD
 
