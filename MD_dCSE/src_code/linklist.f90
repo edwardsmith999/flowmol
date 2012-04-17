@@ -1878,17 +1878,18 @@ subroutine check_update_adjacentbeadinfo(molnoi,molnoj)
 	use polymer_info_MD
 	implicit none
 
-	integer                      :: chaindiff
-	integer, intent(in)          :: molnoi, molnoj
-	integer                      :: bflag
+	integer              :: chaindiff
+	integer              :: jscID
+	integer, intent(in)  :: molnoi, molnoj
+	integer              :: bflag
 
-	chaindiff = monomer(molnoi)%chainID - monomer(molnoj)%chainID
+	chaindiff = monomer(molnoi)%chainID - monomer(molnoj)%chainID      !Check for same chainID
 
-	if (chaindiff.eq.0) then
-        bflag = 0
-		if (btest(monomer(molnoi)%bin_bflag,monomer(molnoj)%subchainID)) bflag = 1
+	if (chaindiff.eq.0) then                                           !If same chain
+		jscID = monomer(molnoj)%subchainID                             !Get subchainID of molnoj
+		bflag = get_bondflag(molnoi,jscID)                             !Check if molnoi/j are connected
 		select case (bflag)
-		case(1)
+		case(1)                                                        !If connected, add to bond list
 			bondcount(molnoi) = bondcount(molnoi) + 1
 			bondcount(molnoj) = bondcount(molnoj) + 1
 
@@ -1898,21 +1899,19 @@ subroutine check_update_adjacentbeadinfo(molnoi,molnoj)
 			bond(molnoi,bondcount(molnoi)) = molnoj
 			bond(molnoj,bondcount(molnoj)) = molnoi
 
-		case default
+		case default                                                   !If not connected, pass
 		end select
 	end if
 
 contains 
 	
 	subroutine linklist_polymerbonderror(molno)
-        use interfaces
+	use interfaces
 	implicit none
 		
 		integer, intent(in) :: molno
-	
 		call error_abort('Error: too many bonds for molno ', molno)
 	
-
 	end subroutine linklist_polymerbonderror
 
 end subroutine check_update_adjacentbeadinfo

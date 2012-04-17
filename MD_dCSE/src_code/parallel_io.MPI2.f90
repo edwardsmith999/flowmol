@@ -368,14 +368,14 @@ subroutine setup_restart_microstate
 	integer, dimension(nproc)                           :: max_chainID
 	double precision, dimension (3*nd)					:: rvc !Temporary variable
 	double precision, dimension (3*nd*procnp(irank))	:: buf !Temporary variable
-	integer, dimension(5)                               :: intbuf
+	integer, dimension(8)                               :: intbuf
 	integer, dimension(:), allocatable  				:: monomerc
 	
 	!-----------------------------------------------------------------------
 	!Mixed MPI datatype
 	type monomerbuftype
 		double precision, dimension (3*nd)              :: dp_buf
-		integer         , dimension (6   )              :: int_buf     !Must be of even length
+		integer         , dimension (8   )              :: int_buf     !Must be of even length
 	end type monomerbuftype
 
 	type (monomerbuftype), dimension(procnp(irank))     :: monomerbuf
@@ -390,7 +390,6 @@ subroutine setup_restart_microstate
 	offsets(1)   = blocklens(0)*extent                                 !Offset for integers after dps
 	oldtypes(1)  = MPI_INTEGER                                         !Second type ints
 	blocklens(1) = 6                                                   !6 ints in monomerbuftype
-
 	!-----------------------------------------------------------------------
 	
 	!Determine size of datatypes
@@ -471,11 +470,11 @@ subroutine setup_restart_microstate
 				v(n,2) = monomerbuf(n)%dp_buf(8)
 				v(n,3) = monomerbuf(n)%dp_buf(9)
 				!Assign corresponding monomer info
-				monomer(n)%chainID     = monomerbuf(n)%int_buf(1)
-				monomer(n)%subchainID  = monomerbuf(n)%int_buf(2)
-				monomer(n)%funcy       = monomerbuf(n)%int_buf(3)
-				monomer(n)%glob_no     = monomerbuf(n)%int_buf(4) 
-				monomer(n)%bin_bflag   = monomerbuf(n)%int_buf(5)
+				monomer(n)%chainID          = monomerbuf(n)%int_buf(1)
+				monomer(n)%subchainID       = monomerbuf(n)%int_buf(2)
+				monomer(n)%funcy            = monomerbuf(n)%int_buf(3)
+				monomer(n)%glob_no          = monomerbuf(n)%int_buf(4) 
+				monomer(n)%bin_bflag(1:4)   = monomerbuf(n)%int_buf(5:8)
 			
 			enddo
 			np = procnp(irank)
@@ -532,11 +531,11 @@ subroutine setup_restart_microstate
 			enddo
 
 		case(1)
-			allocate(monomerc(5))
+			allocate(monomerc(8))
 			do n=1,globalnp
 				call MPI_FILE_READ_ALL(restartfileid, rvc(:), 3*nd, MPI_double_precision, & 
 				                       MPI_STATUS_IGNORE, ierr)
-				call MPI_FILE_READ_ALL(restartfileid, monomerc, 5, MPI_integer, &
+				call MPI_FILE_READ_ALL(restartfileid, monomerc, 8, MPI_integer, &
 				                       MPI_STATUS_IGNORE, ierr)
 				
 				!Use integer division to determine which processor to assign molecule to
@@ -564,11 +563,11 @@ subroutine setup_restart_microstate
 				v(nl,:) = rvc(2*nd+1:)
 				
 				!Assign corresponding monomer info
-				monomer(nl)%chainID     = monomerc(1)
-				monomer(nl)%subchainID  = monomerc(2)
-				monomer(nl)%funcy       = monomerc(3)
-				monomer(nl)%glob_no     = monomerc(4) 
-				monomer(nl)%bin_bflag   = monomerc(5)
+				monomer(nl)%chainID          = monomerc(1)
+				monomer(nl)%subchainID       = monomerc(2)
+				monomer(nl)%funcy            = monomerc(3)
+				monomer(nl)%glob_no          = monomerc(4) 
+				monomer(nl)%bin_bflag(1:4)   = monomerc(5:8)
 
 				if (mod(n,1000) .eq. 0) print'(a,f10.2)', & 
 					'Redistributing molecules to different processor topology % complete =', (100.d0*n/globalnp)
@@ -626,7 +625,7 @@ subroutine parallel_io_final_state
 	!Mixed MPI datatype
 	type monomerbuftype
 		double precision, dimension (3*nd)  :: dp_buf
-		integer         , dimension (6   )  :: int_buf          !Must be of even length
+		integer         , dimension (8   )  :: int_buf          !Must be of even length
 	end type monomerbuftype
 
 	type (monomerbuftype), dimension(:), allocatable :: monomerbuf
@@ -640,7 +639,7 @@ subroutine parallel_io_final_state
 	call MPI_TYPE_GET_EXTENT(MPI_DOUBLE_PRECISION, lb, extent, ierr)
 	offsets(1)   = blocklens(0)*extent
 	oldtypes(1)  = MPI_INTEGER
-	blocklens(1) = 6
+	blocklens(1) = 8
 	
 	!-----------------------------------------------------------------------
 
@@ -720,14 +719,14 @@ subroutine parallel_io_final_state
 
 		do n=1,procnp(irank)
 
-			monomerbuf(n)%dp_buf(1:3) = r(n,:)
-			monomerbuf(n)%dp_buf(4:6) = rtrue(n,:)
-			monomerbuf(n)%dp_buf(7:9) = v(n,:)
-			monomerbuf(n)%int_buf(1)  = monomer(n)%chainID
-			monomerbuf(n)%int_buf(2)  = monomer(n)%subchainID
-			monomerbuf(n)%int_buf(3)  = monomer(n)%funcy
-			monomerbuf(n)%int_buf(4)  = monomer(n)%glob_no
-			monomerbuf(n)%int_buf(5)  = monomer(n)%bin_bflag
+			monomerbuf(n)%dp_buf(1:3)   = r(n,:)
+			monomerbuf(n)%dp_buf(4:6)   = rtrue(n,:)
+			monomerbuf(n)%dp_buf(7:9)   = v(n,:)
+			monomerbuf(n)%int_buf(1)    = monomer(n)%chainID
+			monomerbuf(n)%int_buf(2)    = monomer(n)%subchainID
+			monomerbuf(n)%int_buf(3)    = monomer(n)%funcy
+			monomerbuf(n)%int_buf(4)    = monomer(n)%glob_no
+			monomerbuf(n)%int_buf(5:8)  = monomer(n)%bin_bflag(1:4)
 			
 		end do
 	
@@ -2078,10 +2077,6 @@ implicit none
 			write(10,'(2a)') &
 			'Iteration; 	   VSum;        V^2Sum;        Temp;', & 
 			'         KE;        PE;         TE;        Pressure;'
-			!Print initial conditions for simulations at iteration 0
-			!write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.4)') &
-			!initialstep,';',vsum,';', v2sum,';', temperature,';', &
-			!kinenergy,';',potenergy,';',totenergy,';',pressure
 			write(10, '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)'), &
 			iter,';',vsum,';', v2sum,';', temperature,';', &
 			kinenergy,';',potenergy,';',totenergy,';',pressure
@@ -2090,7 +2085,7 @@ implicit none
 			'Iteration; 	   VSum;        V^2Sum;        Temp;', & 
 			'       KE;     PE (LJ);  PE (FENE); PE (Tot);    TE;       Pressure;   Etevtcf;    R_g; '
 			!Print initial conditions for simulations at iteration 0
-			write(10, '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4,a,f10.4,a,f10.4)') &
+			write(10, '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f10.4,a,f10.4,a,f10.4)') &
 			initialstep,';',vsum,';', v2sum,';', temperature,';', &
 			kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
 		case default
@@ -2108,14 +2103,11 @@ implicit none
 	if (irank .eq. iroot) then
 		select case (potential_flag)
 		case(0)
-			!write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.4)') &
-			!iter,';',vsum,';', v2sum,';', temperature,';', &
-			!kinenergy,';',potenergy,';',totenergy,';',pressure
 			write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)'), &
 			iter,';',vsum,';', v2sum,';', temperature,';', &
 			kinenergy,';',potenergy,';',totenergy,';',pressure
 		case(1)
-			write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.5,a,f10.4,a,f10.4,a,f10.4)') &
+			write(10, '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f10.4,a,f10.4,a,f10.4)') &
 			iter,';',vsum,';', v2sum,';', temperature,';', &
 			kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
 		case default

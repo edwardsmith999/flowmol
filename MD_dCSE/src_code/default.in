@@ -325,8 +325,10 @@ VMD_OUTFLAG
 #########################################################################
 # Output flag for macroscopic properties:
 #	0 - off
-#	1 - print to terminal
-#	2 - output file + print to terminal
+#	1 - high precision > stdout
+#	2 - high precision > stdout + results/macroscopic_properties
+#	3 - concise        > stdout
+#	4 - concise        > stdout + results/macroscopic_properties
 # -----------------------------------------------------------------------
 MACRO_OUTFLAG
 1
@@ -420,7 +422,7 @@ ETEVTCF_OUTFLAG
 # Radius of gyration output flag:
 #	0 - off
 #	1 - on
-#	2 - output file
+#	2 - on + output file
 # -----------------------------------------------------------------------
 R_GYRATION_OUTFLAG
 0

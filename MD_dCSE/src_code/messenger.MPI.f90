@@ -452,11 +452,11 @@ subroutine prepare_FENEbuffer(molno,FENEpack)
 	integer, intent(in) :: molno
 	double precision, dimension(*), intent(out) :: FENEpack
 		
-	FENEpack(1) = real(monomer(molno)%chainID,   kind(0.d0))
-	FENEpack(2) = real(monomer(molno)%subchainID,kind(0.d0))
-	FENEpack(3) = real(monomer(molno)%funcy,     kind(0.d0))
-	FENEpack(4) = real(monomer(molno)%glob_no,   kind(0.d0))
-	FENEpack(5) = real(monomer(molno)%bin_bflag, kind(0.d0))
+	FENEpack(1)   = real(monomer(molno)%chainID,        kind(0.d0))
+	FENEpack(2)   = real(monomer(molno)%subchainID,     kind(0.d0))
+	FENEpack(3)   = real(monomer(molno)%funcy,          kind(0.d0))
+	FENEpack(4)   = real(monomer(molno)%glob_no,        kind(0.d0))
+	FENEpack(5:8) = real(monomer(molno)%bin_bflag(1:4), kind(0.d0))
 
 end subroutine prepare_FENEbuffer
 
@@ -469,11 +469,11 @@ subroutine assign_FENEbuffer(molno,FENEpack)
 	integer, intent(in) :: molno
 	double precision, dimension(*), intent(in) :: FENEpack
 	
-	monomer(molno)%chainID    = nint(FENEpack(1))	
-	monomer(molno)%subchainID = nint(FENEpack(2))	
-	monomer(molno)%funcy      = nint(FENEpack(3))	
-	monomer(molno)%glob_no    = nint(FENEpack(4))	
-	monomer(molno)%bin_bflag  = nint(FENEpack(5))
+	monomer(molno)%chainID         = nint(FENEpack(1))	
+	monomer(molno)%subchainID      = nint(FENEpack(2))	
+	monomer(molno)%funcy           = nint(FENEpack(3))	
+	monomer(molno)%glob_no         = nint(FENEpack(4))	
+	monomer(molno)%bin_bflag(1:4)  = nint(FENEpack(5:8))
 
 end subroutine assign_FENEbuffer
 
@@ -549,7 +549,7 @@ subroutine updatefacedown(ixyz)
 	integer :: molno,cellnp,sendnp,sendsize,recvnp,recvsize,pos,length,datasize,buffsize
 	integer :: isource,idest
 	double precision, dimension(nd) :: rpack	!Temporary array used to pack position
-	double precision, dimension(5)  :: FENEpack
+	double precision, dimension(8)  :: FENEpack
 	double precision, dimension(:), allocatable :: sendbuffer
 	type(node), pointer 	        :: old, current
 
@@ -593,7 +593,7 @@ subroutine updatefacedown(ixyz)
 	case(0) !LJ only
 		sendsize = nd*sendnp
 	case(1) !+FENE info 
-		sendsize = nd*sendnp + (5)*sendnp
+		sendsize = nd*sendnp + (8)*sendnp
 	end select
 
 	allocate(sendbuffer(sendsize))
@@ -623,7 +623,7 @@ subroutine updatefacedown(ixyz)
 					sendbuffer,buffsize,pos,icomm_grid,ierr)	
 				
 					call prepare_FENEbuffer(molno,FENEpack)
-					call MPI_Pack(FENEpack,5,MPI_DOUBLE_PRECISION,&
+					call MPI_Pack(FENEpack,8,MPI_DOUBLE_PRECISION,&
 					sendbuffer,buffsize,pos,icomm_grid,ierr)
 				end select
 				current => old
@@ -652,7 +652,7 @@ subroutine updatefacedown(ixyz)
 					sendbuffer,buffsize,pos,icomm_grid,ierr)	
 				
 					call prepare_FENEbuffer(molno,FENEpack)
-					call MPI_Pack(FENEpack,5,MPI_DOUBLE_PRECISION,&
+					call MPI_Pack(FENEpack,8,MPI_DOUBLE_PRECISION,&
 					sendbuffer,buffsize,pos,icomm_grid,ierr)
 				end select
 				current => old
@@ -680,7 +680,7 @@ subroutine updatefacedown(ixyz)
 					sendbuffer,buffsize,pos,icomm_grid,ierr)	
 				
 					call prepare_FENEbuffer(molno,FENEpack)
-					call MPI_Pack(FENEpack,5,MPI_DOUBLE_PRECISION,&
+					call MPI_Pack(FENEpack,8,MPI_DOUBLE_PRECISION,&
 					sendbuffer,buffsize,pos,icomm_grid,ierr)
 				end select
 				current => old
@@ -712,7 +712,7 @@ subroutine updatefacedown(ixyz)
 	case(0)
 		recvnp = recvsize/real(nd,kind(0.d0))
 	case(1)
-		recvnp = recvsize/real(nd+5,kind(0.d0))
+		recvnp = recvsize/real(nd+8,kind(0.d0))
 	end select
 
 	pos = 0
@@ -728,7 +728,7 @@ subroutine updatefacedown(ixyz)
 			r(np+n,:) = rpack
 
 			call MPI_Unpack(recvbuffer,length,pos,FENEpack, &
-			5,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+			8,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
 			call assign_FENEbuffer(np+n,FENEpack)
 		end select
 	enddo
@@ -773,7 +773,7 @@ subroutine updatefaceup(ixyz)
 	integer :: molno,cellnp,sendnp,sendsize,recvnp,recvsize,pos,length,datasize,buffsize
 	integer :: isource,idest
 	double precision, dimension(nd) :: rpack	!Temporary array used to pack/unpack position
-	double precision, dimension(5)  :: FENEpack
+	double precision, dimension(8)  :: FENEpack
 	double precision, dimension(:), allocatable :: sendbuffer
 	type(node), pointer 	        :: old, current
 
@@ -816,7 +816,7 @@ subroutine updatefaceup(ixyz)
 	case(0) !LJ only
 		sendsize = nd*sendnp
 	case(1) !+FENE info 
-		sendsize = nd*sendnp + (5)*sendnp
+		sendsize = nd*sendnp + (8)*sendnp
 	end select
 	allocate(sendbuffer(sendsize))
 	call MPI_Pack_size(sendsize,MPI_DOUBLE_PRECISION, &
@@ -845,7 +845,7 @@ subroutine updatefaceup(ixyz)
 					sendbuffer,buffsize,pos,icomm_grid,ierr)	
 				
 					call prepare_FENEbuffer(molno,FENEpack)
-					call MPI_Pack(FENEpack,5,MPI_DOUBLE_PRECISION,&
+					call MPI_Pack(FENEpack,8,MPI_DOUBLE_PRECISION,&
 					sendbuffer,buffsize,pos,icomm_grid,ierr)
 				end select
 				current => old
@@ -873,7 +873,7 @@ subroutine updatefaceup(ixyz)
 					sendbuffer,buffsize,pos,icomm_grid,ierr)	
 				
 					call prepare_FENEbuffer(molno,FENEpack)
-					call MPI_Pack(FENEpack,5,MPI_DOUBLE_PRECISION,&
+					call MPI_Pack(FENEpack,8,MPI_DOUBLE_PRECISION,&
 					sendbuffer,buffsize,pos,icomm_grid,ierr)
 				end select
 				current => old
@@ -901,7 +901,7 @@ subroutine updatefaceup(ixyz)
 					sendbuffer,buffsize,pos,icomm_grid,ierr)	
 				
 					call prepare_FENEbuffer(molno,FENEpack)
-					call MPI_Pack(FENEpack,5,MPI_DOUBLE_PRECISION,&
+					call MPI_Pack(FENEpack,8,MPI_DOUBLE_PRECISION,&
 					sendbuffer,buffsize,pos,icomm_grid,ierr)
 				end select
 				current => old
@@ -934,7 +934,7 @@ subroutine updatefaceup(ixyz)
 	case(0)
 		recvnp = recvsize/real(nd,kind(0.d0))
 	case(1)
-		recvnp = recvsize/real(nd+5,kind(0.d0))
+		recvnp = recvsize/real(nd+8,kind(0.d0))
 	end select
 
 	pos = 0
@@ -950,7 +950,7 @@ subroutine updatefaceup(ixyz)
 			r(np+n,:) = rpack
 
 			call MPI_Unpack(recvbuffer,length,pos,FENEpack, &
-			5,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+			8,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
 			call assign_FENEbuffer(np+n,FENEpack)
 		end select
 	enddo
@@ -993,7 +993,7 @@ subroutine updateedge(face1,face2)
 	integer :: isource,idest
 	integer, dimension(3,4)   :: edge1, edge2
 	double precision, dimension(nd) :: rpack	!Temporary array used to pack position
-	double precision, dimension(5)  :: FENEpack
+	double precision, dimension(8)  :: FENEpack
 	double precision, dimension(:), allocatable :: sendbuffer
 	type(node), pointer 	        :: old, current
 
@@ -1043,7 +1043,7 @@ subroutine updateedge(face1,face2)
 		case(0) !LJ only
 			sendsize = nd*sendnp
 		case(1) !+FENE info 
-			sendsize = nd*sendnp + (5)*sendnp
+			sendsize = nd*sendnp + (8)*sendnp
 		end select
 		allocate(sendbuffer(sendsize))
 		call MPI_Pack_size(sendsize,MPI_DOUBLE_PRECISION, &
@@ -1069,7 +1069,7 @@ subroutine updateedge(face1,face2)
 						sendbuffer,buffsize,pos,icomm_grid,ierr)	
 					
 						call prepare_FENEbuffer(molno,FENEpack)
-						call MPI_Pack(FENEpack,5,MPI_DOUBLE_PRECISION,&
+						call MPI_Pack(FENEpack,8,MPI_DOUBLE_PRECISION,&
 						sendbuffer,buffsize,pos,icomm_grid,ierr)
 					end select
 					current => old			    !Use current to move to next
@@ -1093,7 +1093,7 @@ subroutine updateedge(face1,face2)
 						sendbuffer,buffsize,pos,icomm_grid,ierr)	
 					
 						call prepare_FENEbuffer(molno,FENEpack)
-						call MPI_Pack(FENEpack,5,MPI_DOUBLE_PRECISION,&
+						call MPI_Pack(FENEpack,8,MPI_DOUBLE_PRECISION,&
 						sendbuffer,buffsize,pos,icomm_grid,ierr)
 					end select
 					current => old			    !Use current to move to next
@@ -1118,7 +1118,7 @@ subroutine updateedge(face1,face2)
 						sendbuffer,buffsize,pos,icomm_grid,ierr)	
 					
 						call prepare_FENEbuffer(molno,FENEpack)
-						call MPI_Pack(FENEpack,5,MPI_DOUBLE_PRECISION,&
+						call MPI_Pack(FENEpack,8,MPI_DOUBLE_PRECISION,&
 						sendbuffer,buffsize,pos,icomm_grid,ierr)
 					end select
 					current => old			    !Use current to move to next
@@ -1150,7 +1150,7 @@ subroutine updateedge(face1,face2)
 		case(0)
 			recvnp = recvsize/real(nd,kind(0.d0))
 		case(1)
-			recvnp = recvsize/real(nd+5,kind(0.d0))
+			recvnp = recvsize/real(nd+8,kind(0.d0))
 		end select
 
 		pos = 0
@@ -1166,7 +1166,7 @@ subroutine updateedge(face1,face2)
 				r(np+n,:) = rpack
 
 				call MPI_Unpack(recvbuffer,length,pos,FENEpack, &
-				5,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+				8,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
 				call assign_FENEbuffer(np+n,FENEpack)
 			end select
 		enddo
@@ -1232,7 +1232,7 @@ subroutine updatecorners()
 	integer :: isource,idest
 	integer, dimension(8)   :: icornercell, jcornercell, kcornercell
 	double precision, dimension(nd) :: rpack	!Temporary array used to pack position
-	double precision, dimension(5)  :: FENEpack
+	double precision, dimension(8)  :: FENEpack
 	double precision, dimension(:), allocatable :: sendbuffer
 	type(node), pointer 	        :: old, current
 
@@ -1261,7 +1261,7 @@ subroutine updatecorners()
 		case(0) !LJ only
 			sendsize = nd*sendnp
 		case(1) !+FENE info 
-			sendsize = nd*sendnp + (5)*sendnp
+			sendsize = nd*sendnp + (8)*sendnp
 		end select
 		allocate(sendbuffer(sendsize))
 		call MPI_Pack_size(sendsize,MPI_DOUBLE_PRECISION, &
@@ -1284,7 +1284,7 @@ subroutine updatecorners()
 				sendbuffer,buffsize,pos,icomm_grid,ierr)	
 			
 				call prepare_FENEbuffer(molno,FENEpack)
-				call MPI_Pack(FENEpack,5,MPI_DOUBLE_PRECISION,&
+				call MPI_Pack(FENEpack,8,MPI_DOUBLE_PRECISION,&
 				sendbuffer,buffsize,pos,icomm_grid,ierr)
 			end select
 			current => old			    !Use current to move to next
@@ -1300,7 +1300,7 @@ subroutine updatecorners()
 		case(0)
 			recvnp = recvsize/real(nd,kind(0.d0))
 		case(1)
-			recvnp = recvsize/real(nd+5,kind(0.d0))
+			recvnp = recvsize/real(nd+8,kind(0.d0))
 		end select
 
 		pos = 0
@@ -1316,7 +1316,7 @@ subroutine updatecorners()
 				r(np+n,:) = rpack
 
 				call MPI_Unpack(recvbuffer,length,pos,FENEpack, &
-				5,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+				8,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
 				call assign_FENEbuffer(np+n,FENEpack)
 			end select
 		enddo
@@ -1449,7 +1449,7 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 	integer :: isource,idest
 	double precision			    :: tagpack	!Temporay packing buffer
 	double precision, dimension(nd) :: Xpack 	!Temporay packing buffer
-	double precision, dimension(5)  :: FENEpack
+	double precision, dimension(8)  :: FENEpack
 	double precision, dimension(:), allocatable :: sendbuffer
 	type(passnode), pointer :: old, current
 
@@ -1465,7 +1465,7 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 	case(0)
 		sendsize = (9 + 1)*sendnp
 	case(1)
-		sendsize = (9 + 1)*sendnp + (5)*sendnp
+		sendsize = (9 + 1)*sendnp + (8)*sendnp
 	end select
 	allocate(sendbuffer(sendsize))
 	call MPI_Pack_size(sendsize,MPI_DOUBLE_PRECISION, &
@@ -1511,7 +1511,7 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 					sendbuffer,buffsize,pos,icomm_grid,ierr)
 			!IDs
 			call prepare_FENEbuffer(molno,FENEpack)
-			call MPI_Pack(FENEpack,5,MPI_DOUBLE_PRECISION,& 
+			call MPI_Pack(FENEpack,8,MPI_DOUBLE_PRECISION,& 
 					sendbuffer,buffsize,pos,icomm_grid,ierr)
 
 			!Molecular Tag - Convert to double precision so all passed variables same type
@@ -1548,7 +1548,7 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 	case(0)
 		recvnp = recvsize/(3*nd + 1)
 	case(1)
-		recvnp = recvsize/(3*nd + 1 + 5)
+		recvnp = recvsize/(3*nd + 1 + 8)
 	end select
 
 	!Unpack data into correct arrays
@@ -1579,7 +1579,7 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 			                nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
 			v(np+n,:)     = Xpack
 			call MPI_Unpack(recvbuffer,length,pos,FENEpack, &
-			                5,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+			                8,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
 			call assign_FENEbuffer(np+n,FENEpack)
 			call MPI_Unpack(recvbuffer,length,pos,tagpack, &
 			                1,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
