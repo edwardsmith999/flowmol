@@ -165,16 +165,19 @@ subroutine data_init()
 
          iTmin_1(1) = 1
          iTmax_1(1) = iTmin_1(1) + (nlxb_(1)-nox1) -1
-         if (nbx_1.ne.1) then
+#if nbx_1 > 1
+         !if (nbx_1.ne.1) then
             do ib=2,nbx_1-1
                     iTmin_1(ib) = iTmax_1(ib-1) + 1
                     iTmax_1(ib) = iTmin_1(ib) + (nlxb_(ib) - 2*nox1 +1) -1
             end do
             iTmin_1(nbx_1) = iTmax_1(nbx_1-1) + 1
             iTmax_1(nbx_1) = iTmin_1(nbx_1) + (nlxb_(nbx_1)-1 - nox1 +1) -1
-         else
+#else
+         !else
             iTmax_1(1) = nlxb_(1) -1
-         end if
+         !end if
+#endif
 
         !-- y-direction
          j1_T = noy1
@@ -184,16 +187,19 @@ subroutine data_init()
 
          jTmin_1(1) = 1
          jTmax_1(1) = jTmin_1(1) + (nlyb_(1) - noy1) -1
-         if (nby_1.ne.1) then
+#if nby_1 > 1
+        ! if (nby_1.ne.1) then
             do jb=2,nby_1-1
                     jTmin_1(jb) = jTmax_1(jb-1) + 1
                     jTmax_1(jb) = jTmin_1(jb) + (nlyb_(jb) - 2*noy1 +1) -1
             end do
             jTmin_1(nby_1) = jTmax_1(nby_1-1) + 1
             jTmax_1(nby_1) = jTmin_1(nby_1) + (nlyb_(nby_1)-1 - noy1 +1) -1
-         else
+#else
+         !else
             jTmax_1(1) = nlyb_(1) - 1
-         end if
+         !end if
+#endif
 
         !-- z-direction (transposed)
          k1_T = 1
