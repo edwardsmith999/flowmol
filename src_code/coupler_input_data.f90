@@ -58,11 +58,11 @@ module coupler_input_data
     !CFD
     type(cfd_parameters), target :: cfd_coupler_input 
     ! MD
-    real(kind=kind(0.d0)) 	:: md_ly_extension ! sigma units so far
-    integer, target 		:: md_ly_extension_tag! MD extesion below CFD grid in y direction          
-    integer 				:: md_average_period             ! collect data for velocity average every ... MD step
+    real(kind=kind(0.d0)) 	:: md_ly_extension 			! sigma units so far
+    integer, target 		:: md_ly_extension_tag		! MD extesion below CFD grid in y direction          
+    integer 				:: md_average_period		! collect data for velocity average every ... MD step
     integer, target 		:: md_average_period_tag
-    integer 				:: md_save_period                 ! save data for velocity profile every ... CFD step
+    integer 				:: md_save_period			! save data for velocity profile every ... CFD step
     integer, target 		:: md_save_period_tag
 
     !stop_tag used in request_abort - declared in coupler_internal_common
@@ -115,7 +115,7 @@ contains
         section(4)%tag => cfd_coupler_input%overlap%tag
         cfd_coupler_input%overlap%y_overlap = 0
 
-                                ! No initialisation of the MD values associated with the tags becase defaults are set in coupler_internal_md module         
+		! No initialisation of the MD values associated with the tags becase defaults are set in coupler_internal_md module         
         section(5)%str = "MD_LY_EXTENSION"
         section(5)%tag => md_ly_extension_tag 
         md_ly_extension_tag   = VOID
@@ -161,7 +161,7 @@ contains
         call mpi_allreduce(MPI_IN_PLACE,have_input,1,MPI_LOGICAL,MPI_LOR,COUPLER_GLOBAL_COMM,ierr)
         !call mpi_bcast(have_input, 1, MPI_LOGICAL, 0, COUPLER_REALM_COMM, ierr)
 
-                                ! set the  root for the global communicator
+		! set the  root for the global communicator
         call mpi_allreduce(MPI_IN_PLACE,iroot_global,1,MPI_INTEGER,MPI_MAX,COUPLER_GLOBAL_COMM,ierr)
 
         if (have_input) then           
@@ -303,7 +303,7 @@ contains
 
             position = 0
             call mpi_pack((/ cfd_coupler_input%domain%tag, cfd_coupler_input%domain%ndim /),2,MPI_INTEGER, &
-                buffer,sbuff,position,COUPLER_REALM_COMM,ierr)
+                			buffer,sbuff,position,COUPLER_REALM_COMM,ierr)
             call mpi_pack(cfd_coupler_input%domain%units,8,MPI_CHARACTER,buffer,sbuff,position,COUPLER_REALM_COMM,ierr)
             call mpi_pack(cfd_coupler_input%domain%cell_type,8,MPI_CHARACTER,buffer,sbuff,position,COUPLER_REALM_COMM,ierr)
             call mpi_pack(cfd_coupler_input%domain%x,1,MPI_DOUBLE_PRECISION,buffer,sbuff,position,COUPLER_REALM_COMM,ierr)
