@@ -413,7 +413,10 @@ subroutine set_parameters_cells
 			end if
 		case(2)
 			if (rneighbr < sod_cut) then
-			 rneighbr2 = sod_cut2
+				rcutoff   = sod_cut
+				rcutoff2  = sod_cut2
+				rneighbr  = rcutoff + delta_rneighbr
+				rneighbr2 = rneighbr**2.d0
 			end if
 		case default
 			call error_abort('Unrecognised solvent_flag in set_parameters_cells')
