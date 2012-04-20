@@ -162,7 +162,7 @@ use Output_SubDomain_mod
 			kk = (k-    kstart)/kskip + 1
 
 			OutBuffer (kk,ii,jj)= 0.25*( uc( k-1, i, j-1)+uc( k  , i, j-1) &
-						    +uc( k  , i, j  )+uc( k-1, i, j  )  )
+						    			+uc( k  , i, j  )+uc( k-1, i, j  )  )
 
 		end do
 		end do

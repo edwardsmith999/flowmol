@@ -2,21 +2,21 @@
 ! Input file for inflow-outflow boundary layer code
 !
 
-10      nsteps      number of time steps to run
+1000	nsteps      number of time steps to run
 0.      timeLimit   stopping time (0.=ignore)
 48.     whours      wall hours (for SGI only; should be <= time in rundefs)
-1      iprint      interval to print out diagnostic information
-1      ipout       interval to print out restart file (might be same as iprint????)
-0      istat       Calculate statistics?  Sampling interval
+1		iprint      interval to print out diagnostic information
+1		ipout       interval to print out restart file (might be same as iprint????)
+0		istat       Calculate statistics?  Sampling interval
 
-100.    Re          Reynolds number
+19.5   	Re          Reynolds number
 1       iSGS        Use a subgrid-scale model?
 
 ! Time-step control
-0         iCFL        Run at (1) constant CFL number   (0) constant dt
-1.0        CFLlimit    maximum allowable CFL number
-! 1       flag_newdt  Changed time step?
-0.025     dt          time step
+0			iCFL        Run at (1) constant CFL number   (0) constant dt
+1.0			CFLlimit    maximum allowable CFL number
+! 1			flag_newdt  Changed time step?
+0.2			dt          time step
 
 ! Inflow generation
 0      inflow      Type of inflow: (0)laminar (1)data file
@@ -40,7 +40,7 @@
 
 ! Animation
 12        ianim
-0.03     save_dt
+2.0     save_dt
 
 ! Quick parameters
 0.00       x_QUICK       Pre-multiply the Quadratic Upstream Interpolation by (x_QUICK)
