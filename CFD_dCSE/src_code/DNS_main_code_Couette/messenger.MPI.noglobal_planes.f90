@@ -62,6 +62,7 @@ subroutine messenger_invoke()
 
 #if USE_COUPLER
 	    call coupler_create_comm(COUPLER_CFD,CFD_COMM,ierr)
+			!prefix_dir ="./CFD_data/"
             prefix_dir ="./couette_data/"
 #else
             CFD_COMM = MPI_COMM_WORLD

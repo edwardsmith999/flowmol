@@ -51,16 +51,16 @@ endif
 # common compiler flags
 #
 
-FLAGS_BASE_debug := -g -O0 -traceback -CB   $(FLAG_OBJ_DIR)
-FLAGS_BASE_opt   := -O3 -funroll-loops  $(FLAG_OBJ_DIR)
+FLAGS_BASE_debug := -g -O0 -traceback -CB $(FLAG_OBJ_DIR) #-warn all -debug all -ftrapuv -fpe0
+FLAGS_BASE_opt   := -O3 -funroll-loops -ip -parallel  $(FLAG_OBJ_DIR) #-par-report3 -mcmodel=large -i-dynamic
 #
 # add  flags required by particular codes
 #
 ifeq ($(strip $(NAME)),coupler)
 
-  FFLAGS := $(FLAGS_BASE_$(BUILD))
+  FFLAGS := $(FLAGS_BASE_$(BUILD))  
 
-else ifeq ($(strip $(NAME)),serail_couette)
+else ifeq ($(strip $(NAME)),serial_couette)
 
   FFLAGS := $(FLAGS_BASE_$(BUILD)) -r8
 
@@ -70,7 +70,7 @@ else ifeq ($(strip $(NAME)),couette)
   LIBDIR := ./../lib
   LIBFILES := $(addprefix $(LIBDIR)/,$(LIBFILES))
   LIBS := -L/opt/intel/Compiler/11.1/046/mkl/lib/em64t/dns_lib -lmkl_em64t -lguide -lpthread
-  FFLAGS := $(FLAGS_BASE_$(BUILD)) -r8 -ip -parallel #-par-report3 -mcmodel=large -i-dynamic
+  FFLAGS := -r8  $(FLAGS_BASE_$(BUILD))  
 
 else ifeq ($(strip $(NAME)),stream_md)
 
