@@ -156,8 +156,11 @@ module polymer_info_MD
 	integer             :: r_gyration_outflag       !Radius of gyration outflag
 	integer             :: r_gyration_iter0         !Iteration at which to start recording R_g
 
-	integer             :: solvent_flag
-	integer             :: solvent_ratio
+	integer             :: solvent_flag             !Solvent on/off flag
+	integer             :: solvent_ratio            !Solvent concentration
+	double precision    :: eps_pp, eps_ps, eps_ss   !Solvent parameters
+	double precision, parameter :: sod_cut =1.5d0   !Soddemann potential cutoff
+	double precision, parameter :: sod_cut2=2.25d0  ! 
 	
 	double precision 	:: k_c, R_0					!Spring constant and max elongation of bonds	
 	double precision 	:: etevtcf                  !End-to-end vector time correlation function

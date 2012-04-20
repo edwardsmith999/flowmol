@@ -169,10 +169,16 @@ FENE_INFO
 #		> 1 - Polymer in theta solvent
 #	- solvent ratio (integer): number of solvent molecules per FENE
 #                              monomer.
+#	- solvent energy parameter eps_pp (polymer-polymer)
+#	- solvent energy parameter eps_ps (polymer-solvent)
+#	- solvent energy parameter eps_ss (solvent-solvent)
 # -----------------------------------------------------------------------
 SOLVENT_INFO
 0
 0
+0.0
+0.0
+0.0
 
 #########################################################################
 # Random number seeds, formattted:

@@ -60,7 +60,18 @@ subroutine setup_read_input
 
 		call locate(1,'SOLVENT_INFO',.true.)
 		read(1,*) solvent_flag
-		if (solvent_flag.eq.1) read(1,*) solvent_ratio
+		select case(solvent_flag)
+		case(0)
+		case(1)
+			read(1,*) solvent_ratio
+		case(2)
+			read(1,*) solvent_ratio
+			read(1,*) eps_pp
+			read(1,*) eps_ps
+			read(1,*) eps_ss
+		case default
+			call error_abort('Unrecognised solvent flag!')
+		end select
 
 	end if	
 	!Input computational co-efficients

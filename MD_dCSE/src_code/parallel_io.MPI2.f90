@@ -444,6 +444,7 @@ subroutine setup_restart_microstate
 			call MPI_TYPE_COMMIT(mpi_monomer,ierr)
 			call MPI_TYPE_SIZE(mpi_monomer,monomer_datasize,ierr)
 
+			procdisp = 0
 			do i=1,irank-1
 				procdisp = procdisp + procnp(i)*monomer_datasize
 			enddo

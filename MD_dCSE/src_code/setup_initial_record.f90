@@ -534,7 +534,7 @@ implicit none
 	end select
 
 	virial = sum(virialmol(1:np))
-        call globalSum(virial)  
+    call globalSum(virial)  
 
 	select case (integration_algorithm)
 	case(leap_frog_verlet)
@@ -559,7 +559,6 @@ implicit none
 		call globalSum(vsum)
 		call globalSum(v2sum)
 	end select
-
 
 	!Obtain global sums for all parameters
 	kinenergy   = (0.5d0 * v2sum) / real(globalnp,kind(0.d0))
