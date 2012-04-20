@@ -113,9 +113,7 @@ contains
          endif
 
         call coupler_recv_grid_data(uc(1:ngz-1,i1_ul:i2_u,0:0),index_transpose=(/2,3,1/),accumulate=.true.,pbc=1)
-        
         call coupler_recv_grid_data(vc(1:ngz-1,i1_v:i2_v,0:1),index_transpose=(/2,3,1/),accumulate=.true.)
-        
         call coupler_recv_grid_data(wc(1:ngz,i1_w:i2_w,0:0),index_transpose=(/2,3,1/),accumulate=.true.,pbc=3)
         
         !debug writes

@@ -19,6 +19,8 @@ serial_couette serial_couette_solo : CFD_TARGET := continuum.exe
 #
 #parallel
 #
+setup_couette  : CFD_GRID_PATH  := ./CFD_dCSE/src_code/DNS_grid_generation_Couette/
+setup_couette  : CFD_SETUP_PATH := ./CFD_dCSE/src_code/DNS_setup_Couette/
 couette clean_couette couette_solo clean_couette_solo : CFD_SRC_PATH := ./CFD_dCSE/src_code/DNS_main_code_Couette 
 couette clean_couette couette_solo clean_couette_solo : MAKEFILE_NAME := -f makefile.planes_fftz_fftx 
 couette clean_couette couette_solo clean_couette_solo : CFD_TARGET := parallel_couette.exe 
@@ -66,6 +68,10 @@ serial_couette_solo :
 couette_solo :
 	cd $(CFD_SRC_PATH) && $(MAKE) $(MAKEFILE_NAME) USE_COUPLER=no $(CFD_TARGET)
 
+setup_couette :
+	cd $(CFD_GRID_PATH) && ./Gen_grid.data.exe 
+	cp $(CFD_GRID_PATH)/grid.data $(CFD_SETUP_PATH)
+	cd $(CFD_SETUP_PATH) && make simple && ./a.out
 
 clean_all : clean_coupler clean_md clean_couette_solo clean_serial_couette 
 

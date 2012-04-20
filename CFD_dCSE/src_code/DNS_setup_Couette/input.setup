@@ -8,9 +8,9 @@
 9	niz
 
 ! Domain size
-218.87692117461721463552	xL	domain length
-218.87692117461721463552	yL	domain height
-17.09975946676696989340 	zL
+52.1	xL	domain length
+52.1	yL	domain height
+52.1	zL  domain width
 
 ! Mesh parameters
 0	imeshY	stretching in Y: (0)uniform (1)pw-linear (2)matched tanh (3) Gauss-Lobatto
