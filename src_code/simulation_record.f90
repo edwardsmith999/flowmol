@@ -197,17 +197,20 @@ subroutine evaluate_macroscopic_properties_parallel
 	vsum  = 0.d0                                                ! Reset all sums
 	v2sum = 0.d0                                                ! Reset all sums
 
-	if (potential_flag.eq.0) then
+	select case(potential_flag)
+	case(0)
 		potenergysum = sum(potenergymol(1:np))
 		call globalSum(potenergysum)
-	else if (potential_flag.eq.1) then
+	case(1)
 		potenergysum_LJ = sum(potenergymol_LJ(1:np))
 		potenergysum_FENE = sum(potenergymol_FENE(1:np))
 		potenergysum = sum(potenergymol_LJ(1:np) + potenergymol_FENE(1:np))
 		call globalSum(potenergysum_FENE)
 		call globalSum(potenergysum_LJ)
 		call globalSum(potenergysum)
-	end if
+	case default
+		call error_abort("Unrecognised potential flag in simulation_record")
+	end select
 
 	virial = sum(virialmol(1:np))
 

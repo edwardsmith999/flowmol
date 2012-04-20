@@ -32,6 +32,7 @@ end module module_compute_forces
 subroutine simulation_compute_forces
 	use interfaces
 	use module_compute_forces
+	use polymer_info_MD, only: solvent_flag
 	implicit none
 	
 	a					= 0.d0	!Reset acceleration matrix before force calculations
@@ -49,7 +50,7 @@ subroutine simulation_compute_forces
 		select case(potential_flag)
 		case(0)
 			call simulation_compute_forces_LJ_AP
-		case default								
+		case default
 			call error_abort("Potential flag/force_list incompatible - only LJ available with all pairs")
 		end select
 
@@ -80,8 +81,17 @@ subroutine simulation_compute_forces
 		case(1)					!If FENE polymer
 			potenergymol_FENE	= 0.d0
 			potenergysum_FENE	= 0.d0
-			call simulation_compute_forces_LJ_neigbr_halfint	!Compute LJ bead interactions
-			call simulation_compute_forces_FENE					!Add on FENE spring interactions
+			select case(solvent_flag)
+			case(0:1)
+				call simulation_compute_forces_LJ_neigbr_halfint	!Compute LJ bead interactions
+				call simulation_compute_forces_FENE					!Add on FENE spring interactions
+			case(2)
+				!call simulation_compute_forces_Soddemann_AP
+				call simulation_compute_forces_Soddemann_neigbr_halfint
+				call simulation_compute_forces_FENE
+			case default
+				call error_abort('Solvent flag not recognised!')
+			end select
 		case default								
 			call error_abort('Potential flag not recognised!')
 		end select
@@ -151,6 +161,97 @@ subroutine simulation_compute_forces_LJ_AP
 
 end subroutine simulation_compute_forces_LJ_AP
 
+subroutine simulation_compute_forces_Soddemann_AP
+use interfaces
+use module_compute_forces
+use polymer_info_MD
+implicit none
+
+	integer                         :: n,i,j,ixyz
+	integer                         :: p_i, p_j, ptot
+	double precision, parameter     :: sod_a    = 3.1730728678
+	double precision, parameter     :: sod_b    = -0.85622864544
+	double precision, parameter     :: wca_cut  = 1.12246204830937
+!	double precision, parameter     :: wca_cut2 = 1.25992104989486
+	double precision, parameter     :: wca_cut2 = 1.25992104989487
+	double precision                :: eps
+
+	do i = 1,np
+		ri = r(i,:)
+		do j = i+1,np                !Step through all pairs
+
+			rj     = r(j,:)
+			rij    = ri - rj
+			rij(:) = rij(:) - domain(:)*anint(rij(:)/domain(:))
+			rij2   = dot_product(rij,rij)
+
+			if (rij2 .lt. sod_cut2) then
+
+				p_i = 0
+				p_j = 0
+				if (monomer(i)%chainID .ne. 0) p_i = 1
+				if (monomer(j)%chainID .ne. 0) p_j = 1
+				ptot = p_i + p_j
+			
+				!Linear magnitude of acceleration for each bead---------------
+				invrij2  = 1.d0/rij2             !Invert value
+				select case (ptot)
+				case(0)
+					eps = eps_ss                 !Solvent-solvent interaction
+				case(1)
+					eps = eps_ps                 !Polymer-solvent interaction
+				case(2)
+					eps = eps_pp                 !Polymer-polymer interaction
+				                                 !(no FENE)
+				case default
+					call error_abort("Undetermined interaction in &
+				                      compute_forces_Soddemann")
+				end select
+			
+				if (rij2 .lt. wca_cut2) then
+					accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
+				else
+					accijmag = (eps*sod_a*invrij2**2.d0)*sin(invrij2*sod_a &
+				                                          + sod_b)
+				end if          
+				!-------------------------------------------------------------
+	
+				!Sum of forces on particle i added for each j
+				a(i,1)= a(i,1) + accijmag*rij(1)
+				a(i,2)= a(i,2) + accijmag*rij(2)
+				a(i,3)= a(i,3) + accijmag*rij(3) 
+
+				!Sum of forces on particle j added for each i
+				a(j,1)= a(j,1) - accijmag*rij(1)
+				a(j,2)= a(j,2) - accijmag*rij(2)
+				a(j,3)= a(j,3) - accijmag*rij(3) 
+
+				!Only calculate properties when required for output
+				if (mod(iter,tplot) .eq. 0) then
+					!Record potential energy total to use for output later
+					if (rij2 .lt. wca_cut2) then
+						potenergymol_LJ(i) = potenergymol_LJ(i)   &
+					    + 4.d0*(invrij2**6.d0 - invrij2**3.d0 + 0.25d0) - eps 
+						potenergymol_LJ(j) = potenergymol_LJ(j)   &
+					    + 4.d0*(invrij2**6.d0 - invrij2**3.d0 + 0.25d0) - eps 
+					else
+						potenergymol_LJ(i) = potenergymol_LJ(i)   &
+						+ 0.5d0*eps*(cos(sod_a*rij2 + sod_b) - 1.d0)
+						potenergymol_LJ(j) = potenergymol_LJ(j)   &
+						+ 0.5d0*eps*(cos(sod_a*rij2 + sod_b) - 1.d0)
+					end if
+					!Virial expression used to obtain pressure
+					virialmol(i) = virialmol(i) + accijmag*rij2
+					virialmol(j) = virialmol(j) + accijmag*rij2
+				endif
+			endif
+		enddo
+	enddo
+
+	!Total used with other potentials (e.g. FENE)
+	potenergymol = potenergymol + potenergymol_LJ
+
+end subroutine simulation_compute_forces_Soddemann_AP
 
 !========================================================================
 !Compute forces using cells instead of neighbourlist
@@ -520,6 +621,112 @@ subroutine polymer_bond_error(molnoX)
 end subroutine polymer_bond_error
 
 end subroutine simulation_compute_forces_FENE
+!==============================================================================
+!Compute solvent-solvent, solvent-monomer, monomer-monomer (-FENE) forces
+subroutine simulation_compute_forces_Soddemann_neigbr_halfint
+use interfaces
+use module_compute_forces
+use polymer_info_MD
+implicit none
+
+	integer                         :: p_i, p_j, ptot
+	integer							:: molnoi, molnoj, j
+	integer							:: noneighbrs
+	type(neighbrnode), pointer		:: old, current
+	double precision, parameter     :: sod_a    = 3.1730728678
+	double precision, parameter     :: sod_b    = -0.85622864544
+	double precision, parameter     :: wca_cut  = 1.12246204830937
+	double precision, parameter     :: wca_cut2 = 1.25992104989487
+	double precision                :: eps
+
+	do molnoi = 1, np
+
+	    noneighbrs = neighbour%noneighbrs(molnoi)	!elements in neighbour list
+		old => neighbour%head(molnoi)%point			!old>head of neighbour list
+		ri(:) = r(molnoi,:)							!Retrieve ri
+
+		do j = 1,noneighbrs                         !Step through all pairs
+		                                            !of neighbours i and j
+			molnoj = old%molnoj                     !Number of molecule j
+			rj     = r(molnoj,:)                    !Position
+			rij    = ri - rj                        !Difference
+			rij(:) = rij(:) - domain(:)*anint(rij(:)/domain(:))!Min image
+			rij2   = dot_product(rij,rij)           !Square
+
+			if (rij2 .lt. sod_cut2) then            !If within potential range
+
+				p_i = 0                             !Init as solvent
+				p_j = 0                             !Init as solvent
+				if (monomer(molnoi)%chainID .ne. 0) p_i = 1 !Flag polymer
+				if (monomer(molnoj)%chainID .ne. 0) p_j = 1 !Flag polymer
+				ptot = p_i + p_j                    !Find flag total
+			
+				!Linear magnitude of acceleration for each bead---------------
+				select case (ptot)
+				case(0)
+					eps = eps_ss                 !Solvent-solvent interaction
+				case(1)
+					eps = eps_ps                 !Polymer-solvent interaction
+				case(2)
+					eps = eps_pp                 !Polymer-polymer interaction
+				                                 !(no FENE)
+				case default
+					call error_abort("Undetermined interaction in &
+				                      compute_forces_Soddemann")
+				end select
+			
+				invrij2  = 1.d0/rij2             !Useful value
+				if (rij2 .lt. wca_cut2) then
+					accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
+				else
+					accijmag = (eps*sod_a*invrij2**2.d0)*sin(invrij2*sod_a &
+				                                             + sod_b)
+				end if          
+				!-------------------------------------------------------------
+	
+				!Sum of forces on particle i added for each j
+				a(molnoi,1)= a(molnoi,1) + accijmag*rij(1)
+				a(molnoi,2)= a(molnoi,2) + accijmag*rij(2)
+				a(molnoi,3)= a(molnoi,3) + accijmag*rij(3) 
+
+				!Sum of forces on particle j added for each i
+				a(molnoj,1)= a(molnoj,1) - accijmag*rij(1)
+				a(molnoj,2)= a(molnoj,2) - accijmag*rij(2)
+				a(molnoj,3)= a(molnoj,3) - accijmag*rij(3) 
+
+				!Only calculate properties when required for output
+				if (mod(iter,tplot) .eq. 0) then
+					!Record potential energy total to use for output later
+					if (rij2 .lt. wca_cut2) then
+						potenergymol_LJ(molnoi) = potenergymol_LJ(molnoi)   &
+					    + 4.d0*(invrij2**6.d0 - invrij2**3.d0 + 0.25d0) - eps 
+						potenergymol_LJ(molnoj) = potenergymol_LJ(molnoj)   &
+					    + 4.d0*(invrij2**6.d0 - invrij2**3.d0 + 0.25d0) - eps 
+					else
+						potenergymol_LJ(molnoi) = potenergymol_LJ(molnoi)   &
+						+ 0.5d0*eps*(cos(sod_a*rij2 + sod_b) - 1.d0)
+						potenergymol_LJ(molnoj) = potenergymol_LJ(molnoj)   &
+						+ 0.5d0*eps*(cos(sod_a*rij2 + sod_b) - 1.d0)
+					end if
+					!Virial expression used to obtain pressure
+					virialmol(molnoi) = virialmol(molnoi) + accijmag*rij2
+					virialmol(molnoj) = virialmol(molnoj) + accijmag*rij2
+				endif
+			endif
+			current => old
+			old => current%next                  !obtain next item in list
+		enddo
+	enddo
+
+	!Total used with other potentials (e.g. FENE)
+	potenergymol = potenergymol + potenergymol_LJ
+	
+	nullify(current)       	                     !no longer required
+	nullify(old)                                 !no longer required
+
+
+end subroutine simulation_compute_forces_Soddemann_neigbr_halfint
+
 !========================================================================
 !Compute Volume Averaged stress using all cells including halos
 

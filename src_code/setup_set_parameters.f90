@@ -383,7 +383,7 @@ end subroutine set_parameters_global_domain_coupled
 !-----------------------------------------------------------------------------------------
 
 subroutine set_parameters_cells
-        use interfaces
+	use interfaces
 	use module_set_parameters
 	use polymer_info_MD
 	implicit none
@@ -401,14 +401,25 @@ subroutine set_parameters_cells
 		ncells(ixyz)=floor(domain(ixyz)/(rcutoff+delta_rneighbr))
 	enddo
 
-    if (potential_flag.eq.1) then
-        if (rneighbr < R_0) then
-            rneighbr = R_0 
-            rneighbr2 = R_0**2
-            print*, 'Neighbour list distance rneighbr set to &
-                    & maximum elongation of polymer spring, ',R_0
-        end if
-    end if
+	select case(potential_flag)
+	case(1)
+		select case(solvent_flag)
+		case(0:1)
+			if (rneighbr < R_0) then
+				rneighbr = R_0 
+				rneighbr2 = R_0**2
+				print*, 'Neighbour list distance rneighbr set to &
+						& maximum elongation of polymer spring, ',R_0
+			end if
+		case(2)
+			if (rneighbr < sod_cut) then
+			 rneighbr2 = sod_cut2
+			end if
+		case default
+			call error_abort('Unrecognised solvent_flag in set_parameters_cells')
+		end select
+	case default
+	end select
 
 	if (ncells(1)<3 .or. ncells(2)<3 .or. ncells(3)<3) then
 		print*, ncells(1),'    in x and ', ncells(2), '    in y' , ncells(3), '    in z' 

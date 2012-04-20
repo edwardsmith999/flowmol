@@ -446,7 +446,7 @@ subroutine setup_initialise_polyinfo
 		select case (solvent_flag)
 		case (0)
 			solvent_selector = 0
-		case (1:)
+		case (1,2)
 			solvent_selector = mod((n-1)/nmonomers,solvent_ratio)
 		case default
 		end select
