@@ -10,7 +10,7 @@ F90FILES := archive.f90 library.f90 mkl_dfti.f90 pentaDiagonal.f90  SinCosFFT.f9
 # on hector transforms.mkl_intel.alc.f90 must be replaced with
 # transforms.fftw.hitachi.f90
 #
-# hector make command `make COMP=<GNU,PGI,CRAY,NAG> LIBDIR=hector-<gnu,pgi,cray,nag> USE_HITACHI=yes'
+# hector make command `make COMP=<GNU,PGI,CRAY,NAG> LIBDIR=../lib/hector-<gnu,pgi,cray,nag> USE_HITACHI=yes LIBS="" '
 #
 ifdef USE_HITACHI
   F90FILES := $(subst transforms.mkl_intel.alc.f90,transforms.fftw.hitachi.f90,$(F90FILES))

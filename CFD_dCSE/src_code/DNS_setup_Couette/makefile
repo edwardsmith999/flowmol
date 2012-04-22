@@ -1,7 +1,11 @@
 #=======================================================================
 # User definitions
 #
-
+# Example of HECToR compilation line
+# make LIB_BASE=./../../lib/hector-pgi USE_HITACHI=yes F90="ftn -r8" LD=ftn simple
+#
+#
+#
 NAME = setup
 
 help:
@@ -31,8 +35,10 @@ JET_COAX_FREE   = mesh_parameters.o main.o mesh.cylindrical.o mesh.jet.coax.free
 
 LIB_BASE := ./../../lib
 
-#LIBFILES := archive.o linearMesh.o tanhMesh.o library.o library.alc.o transforms.fftw.hitachi.o
 LIBFILES := archive.o linearMesh.o tanhMesh.o library.o library.alc.o transforms.mkl_intel.alc.o
+ifdef USE_HITACHI
+  LIBFILES := archive.o linearMesh.o tanhMesh.o library.o library.alc.o transforms.fftw.hitachi.o
+endif 
 
 LIBFILES := $(addprefix $(LIB_BASE)/, $(LIBFILES))
 
@@ -41,9 +47,11 @@ LIBFILES := $(addprefix $(LIB_BASE)/, $(LIBFILES))
 # LIBS = -L/apps/intel/cmkl/9.0/lib/64/ -lmkl_em64t -lmkl_dft_cluster -lguide -lpthread
 # LIBS = -L/apps/intel/cmkl/9.0/lib/64/             -lmkl_dft_cluster -lguide -lpthread -lmkl
 # LIBS = -L/apps/intel/cmkl/9.0/lib/64/ -lmkl_em64t                   -lguide -lpthread
-LIBS = -L/opt/intel/Compiler/11.1/046/mkl/lib/em64t/dns_lib -lmkl_em64t		  -lguide -lpthread
+LIBS := -L/opt/intel/Compiler/11.1/046/mkl/lib/em64t/dns_lib -lmkl_em64t		  -lguide -lpthread
 
-#LIBS = -ldfftw -ldrfftw
+ifdef USE_HITACHI
+  LIBS := -ldfftw -ldrfftw
+endif
 
 FLAGS = $(MPI_COMPILE_FLAGS)
 
