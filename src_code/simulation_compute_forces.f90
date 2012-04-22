@@ -205,7 +205,7 @@ implicit none
 				                                 !(no FENE)
 				case default
 					call error_abort("Undetermined interaction in &
-				                      compute_forces_Soddemann")
+				                      &compute_forces_Soddemann")
 				end select
 			
 				if (rij2 .lt. wca_cut2) then
@@ -672,7 +672,7 @@ implicit none
 				                                 !(no FENE)
 				case default
 					call error_abort("Undetermined interaction in &
-				                      compute_forces_Soddemann")
+				                      &compute_forces_Soddemann")
 				end select
 			
 				invrij2  = 1.d0/rij2             !Useful value

@@ -2078,7 +2078,7 @@ implicit none
 			write(10,'(2a)') &
 			'Iteration; 	   VSum;        V^2Sum;        Temp;', & 
 			'         KE;        PE;         TE;        Pressure;'
-			write(10, '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)'), &
+			write(10, '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)') &
 			iter,';',vsum,';', v2sum,';', temperature,';', &
 			kinenergy,';',potenergy,';',totenergy,';',pressure
 		case(1)
@@ -2104,7 +2104,7 @@ implicit none
 	if (irank .eq. iroot) then
 		select case (potential_flag)
 		case(0)
-			write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)'), &
+			write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)') &
 			iter,';',vsum,';', v2sum,';', temperature,';', &
 			kinenergy,';',potenergy,';',totenergy,';',pressure
 		case(1)

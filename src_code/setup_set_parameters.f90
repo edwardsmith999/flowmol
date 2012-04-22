@@ -324,7 +324,7 @@ subroutine set_parameters_global_domain_coupled
     
     ! size of cubic FCC cell
     b0=(4.d0/density)**(1.0d0/3.0d0)
-    
+
     call coupler_md_get(xL_md=xL_md,yL_md=yL_md,zL_md=zL_md,MD_initial_cellsize=b0)
     
     n0(:) = nint( (/ xL_md, yL_md, zL_md/) / b0)
