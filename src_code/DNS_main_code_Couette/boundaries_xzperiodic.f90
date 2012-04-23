@@ -180,12 +180,9 @@ subroutine CartesianBC(deltaT)
 	!-------------------------------------------------------------- 
 	if (jblock.eq.npy) then
         
-		!T.Z. BC	
-		!uc(:, :, nlyb  ) =  1.0 + (0.5*(ypg(1,ngy)-ypg(1,ngy-1))) * ( (1.0 - 0.0) / (ypg(1,ngy)-ypg(1,1)) )
+			
+		!T.Z. BC => uc(:, :, nlyb  ) =  1.0 + (0.5*(ypg(1,ngy)-ypg(1,ngy-1))) * ( (1.0 - 0.0) / (ypg(1,ngy)-ypg(1,1)) )
 		uc(:, :, nlyb  ) = -uc(:, :, nlyb-1) + 2.0
-
-		write(6000,*)'Wall B.C.=', maxval(0.5*(uc(:, :, nlyb  )+uc(:, :, nlyb-1)))
-
 		vc(:, :, nlyb  ) =  0.0
 		wc(:, :, nlyb  ) = -wc(:, :, nlyb-1)
          		
