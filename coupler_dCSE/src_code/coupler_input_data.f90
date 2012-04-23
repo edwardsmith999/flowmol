@@ -68,13 +68,16 @@ module coupler_input_data
     !stop_tag used in request_abort - declared in coupler_internal_common
 
     ! staggered_averages - declared in coupler_internal_common
+    
+    integer                 :: md_steps_per_dt_cfd      ! number of MD steps per CFD tep
+    integer, target         :: md_steps_per_dt_cfd_tag
 
     character(len=64) :: cfd_code_name ! used to set cfd_code_id in MD
     integer           :: cfd_code_id
     integer, target   :: cfd_code_id_tag
 
     ! auxiliary list for easy manipulation
-    integer,parameter :: nsections=10 ! total number of section in input files
+    integer,parameter :: nsections=11 ! total number of section in input files
     type(section_type) section(nsections)
 
 contains
@@ -140,6 +143,9 @@ contains
         section(10)%tag => cfd_code_id_tag
         cfd_code_id_tag = VOID
 
+        section(11)%str = "MD_STEPS_PER_DT_CFD"
+        section(11)%tag => md_steps_per_dt_cfd_tag
+        section(11)%tag = VOID
 
         ! find rank 0 in CFD_COMM an open COUPLER.in file on it
         call mpi_comm_rank(COUPLER_GLOBAL_COMM, myid, ierr)
@@ -155,8 +161,8 @@ contains
             iroot_global = myid
         endif
 
-                                ! I cannot bcast directly have_input because it is not guaranteed that
-                                ! myid == myid_cfd == 0
+        ! I cannot bcast directly have_input because it is not guaranteed that
+        ! myid == myid_cfd == 0
 
         call mpi_allreduce(MPI_IN_PLACE,have_input,1,MPI_LOGICAL,MPI_LOR,COUPLER_GLOBAL_COMM,ierr)
         !call mpi_bcast(have_input, 1, MPI_LOGICAL, 0, COUPLER_REALM_COMM, ierr)
@@ -273,6 +279,9 @@ contains
                          write(0,*) "unknow CFD_CODE_NAME, check COUPLER.in file"
                          call MPI_Abort(MPI_COMM_WORLD,COUPLER_ERROR_INPUT_FILE,ierr)
                      end select
+                 case("MD_STEPS_PER_DT_CFD","md_steps_per_dt_cfd")
+                     md_steps_per_dt_cfd_tag = CPL
+                     read(34,*) md_steps_per_dt_cfd
                  case default
                     ! unkown input section abort
                     write(0,*) "unknow coupler input section, check COUPLER.in file"
@@ -322,8 +331,7 @@ contains
             call mpi_bcast(position,1,MPI_INTEGER,0,COUPLER_REALM_COMM,ierr)
             call mpi_bcast(buffer,position,MPI_PACKED,0,COUPLER_REALM_COMM,ierr)
 
-            ! pack MD data. This can be optimized, for a start we send variables with a void tag 
-            ! the commented if don't work correctly
+            ! pack MD data. This can be optimized, for a start we send variables with a non-void tag 
             position = 0
 
             if (md_ly_extension_tag == CPL) then
@@ -352,6 +360,13 @@ contains
                 call mpi_pack(caux,scaux,MPI_CHARACTER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
                 call mpi_pack(cfd_code_id_tag,1,MPI_INTEGER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
                 call mpi_pack(cfd_code_id    ,1,MPI_INTEGER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
+            endif
+
+            if (md_steps_per_dt_cfd_tag == CPL) then
+                write(caux,'(a)')"MD_STEPS_PER_DT_CFD"
+                call mpi_pack(caux,scaux,MPI_CHARACTER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
+                call mpi_pack(md_steps_per_dt_cfd_tag,1,MPI_INTEGER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
+                call mpi_pack(md_steps_per_dt_cfd    ,1,MPI_INTEGER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
             endif
             
 
@@ -395,14 +410,14 @@ contains
                 call mpi_unpack(buffer,sbuff,position,density,1,MPI_DOUBLE_PRECISION,COUPLER_REALM_COMM,ierr)
                 call mpi_unpack(buffer,sbuff,position,density_tag,1,MPI_INTEGER,COUPLER_REALM_COMM,ierr)
 
-                                ! intercommunicator null sends
+                ! intercommunicator null sends
                 call mpi_bcast(count,1,MPI_INTEGER,0,COUPLER_REALM_COMM,ierr)
                 call mpi_bcast(count,1,MPI_INTEGER,MPI_PROC_NULL,COUPLER_ICOMM,ierr)
                 if (count > 0) then
                     call mpi_bcast(buffer,count,MPI_PACKED,MPI_PROC_NULL,COUPLER_ICOMM,ierr)
                 endif
             else 
-                                ! MD side receives
+                ! MD side receives
                 call mpi_bcast(count,1,MPI_INTEGER,0,COUPLER_ICOMM,ierr)
                if (count > 0) then
                     call mpi_bcast(buffer,count,MPI_PACKED,0,COUPLER_ICOMM,ierr)
@@ -424,6 +439,9 @@ contains
                         case("CFD_CODE_ID")
                             call mpi_unpack(buffer,sbuff,position,cfd_code_id_tag,1,MPI_INTEGER,COUPLER_ICOMM,ierr)
                             call mpi_unpack(buffer,sbuff,position,cfd_code_id    ,1,MPI_INTEGER,COUPLER_ICOMM,ierr)
+                        case("MD_STEPS_PER_DT_CFD")
+                            call mpi_unpack(buffer,sbuff,position,md_steps_per_dt_cfd_tag,1,MPI_INTEGER,COUPLER_ICOMM,ierr)
+                            call mpi_unpack(buffer,sbuff,position,md_steps_per_dt_cfd    ,1,MPI_INTEGER,COUPLER_ICOMM,ierr)
                         case default
                             call MPI_Abort(COUPLER_GLOBAL_COMM,COUPLER_ERROR_READ_INPUT,ierr)
                         end select

@@ -27,6 +27,8 @@
 !
 ! coupler_md_get_average_period (md)     gets average period of boundary condition
 !
+! coupler_md_get_md_steps_per_dt_cfd (md) returns the number of step MD does for ech CFD step
+!
 ! coupler_md_get_nsteps         (md)     returm CFD nsteps
 !      
 ! coupler_md_get_dt_cfd         (md)     returns MD dt
@@ -338,7 +340,8 @@ subroutine coupler_md_init(npxin,npyin,npzin,icoordin,icomm_grid,dtin)
 	use mpi
 	use coupler_internal_common
         use coupler_input_data, cfd_code_id_in => cfd_code_id
-	use coupler_internal_md, b => MD_initial_cellsize, md_density => density
+	use coupler_internal_md, b => MD_initial_cellsize, md_density => density, &
+        md_steps => md_steps_per_dt_cfd
 	implicit none
 
 	integer, intent(in)	  :: npxin, npyin, npzin, icoordin(:,:),icomm_grid
@@ -417,7 +420,7 @@ subroutine coupler_md_init(npxin,npyin,npzin,icoordin,icomm_grid,dtin)
 	! should dt_CFD be scaled ?  see to it later
 	dt_CFD     = ra(1) * FoP_time_ratio
 	md_density = ra(2)
-        b          = ra(3)
+	b          = ra(3)
 
 	! set the sizes of MD box
 
@@ -453,6 +456,17 @@ subroutine coupler_md_init(npxin,npyin,npzin,icoordin,icomm_grid,dtin)
 
     if (cfd_code_id_tag == CPL) then
         cfd_code_id  = cfd_code_id_in
+    endif
+    
+    if(md_steps_per_dt_cfd_tag == CPL) then
+        md_steps = md_steps_per_dt_cfd
+    else 
+        md_steps = int(dt_cfd/dt_MD)
+    endif
+    if ( md_steps <= 0 ) then 
+        write(0,*) "Number of MD steps per dt interval <= 0"
+        write(0,*) "Coupler will not work, quitting ..."
+        call MPI_Abort(MPI_COMM_WORLD,COUPLER_ERROR_INIT,ierr)
     endif
 
 end subroutine coupler_md_init
@@ -1598,6 +1612,18 @@ function coupler_md_get_average_period() result(p)
 
 	p = average_period
 end function coupler_md_get_average_period
+!-----------------------------------------------------------------------------
+!
+!----------------------------------------------------------------------------- 
+
+function coupler_md_get_md_steps_per_dt_cfd() result(p)
+	use coupler_internal_md, only : md_steps_per_dt_cfd
+	implicit none
+
+	integer p
+
+	p = md_steps_per_dt_cfd
+end function coupler_md_get_md_steps_per_dt_cfd
 
 !-----------------------------------------------------------------------------
 !

@@ -6,5 +6,9 @@ MD_LY_EXTENSION
 26.0
 MD_AVERAGE_PERIOD
 1
-
-
+#
+# Number of MD steps per CFD step
+# in not set here coupler set is to INT(dt_cfd/dt_md)
+# 
+#MD_STEPS_PER_DT_CFD
+# -1

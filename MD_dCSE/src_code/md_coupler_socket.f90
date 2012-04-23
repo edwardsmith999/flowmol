@@ -42,32 +42,26 @@ subroutine socket_coupler_init
 	use messenger, only	      :  myid, icoord, icomm_grid
 	implicit none
 
- 	integer nsteps_cfd, naverage
+ 	integer  naverage, nsteps_cfd
 	real(kind(0.d0)) :: delta_t_CFD
 
 	! if coupled calculation prepare exchange layout
 	call coupler_md_init(npx,npy,npz,icoord,icomm_grid,delta_t)
 
 	! fix NSTEPS for the coupled case
-	delta_t_CFD = coupler_md_get_dt_cfd()
-	nsteps_cfd  = coupler_md_get_nsteps()
-
-    naverage = int(delta_t_cfd/delta_t)
-
-    if (naverage == 0) then 
-        call error_abort("ratio dt_cfd/dt_md < 1, coupler will not work !!!")
-    endif
-
+    nsteps_cfd = coupler_md_get_nsteps()
+    naverage   = coupler_md_get_md_steps_per_dt_cfd()
+    
 	Nsteps = initialstep + nsteps_cfd * naverage
-	elapsedtime = elapsedtime + nsteps_cfd * delta_t_CFD
+	elapsedtime = elapsedtime + nsteps_cfd * naverage * delta_t
 
 	if (myid .eq. 0) then 
-		write(*,'(4(a,/),a,I7,/a,/a,E10.4,a,/,a,/a)') &
+		write(*,'(4(a,/),I7,/a,/a,E10.4,a/,a,/a)') &
 				"*********************************************************************",	&
  				"WARNING - this is a coupled run which resets the number	      ", 		&
 				" of extrasteps to:						   ", 		&
 				"								     ", 		&
-				" nstep_cfd*(delta_t_cdf/delta_t_md) = ",nsteps_cfd*naverage            , 	&
+				nsteps_cfd*naverage,  	&
 				"								     ", 		& 
 				" The elapsed time was changed accordingly to: ", elapsedtime, " s    ", 		&
 				" The value of NSTEPS parameter form input file was discarded.	", 		&
@@ -95,7 +89,7 @@ subroutine socket_coupler_apply_continuum_forces(iter)
 
 	if (first_time) then
 		first_time = .false.
-		Naverage = int(coupler_md_get_dt_cfd()/delta_t)
+		Naverage = coupler_md_get_md_steps_per_dt_cfd()
 	endif
 	iter_average = mod(iter-1, Naverage)+1
 
@@ -128,7 +122,7 @@ subroutine socket_coupler_average(iter)
 	    first_time     = .false.
 	    save_period    = coupler_md_get_save_period()    	! period to save uc data (for debugging, testing)
 	    average_period = coupler_md_get_average_period() 	! collection interval in the average cycle
-	    Naverage = int(coupler_md_get_dt_cfd() /delta_t)	! number of steps in MD average cycle
+	    Naverage = coupler_md_get_md_steps_per_dt_cfd()  	! number of steps in MD average cycle
     endif
 
     iter_average = mod(iter-1, Naverage)+1	! current step

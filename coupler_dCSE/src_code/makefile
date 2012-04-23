@@ -10,7 +10,7 @@ F90_FILES      := coupler.f90 coupler_parameters.f90 coupler_internal_cfd.f90 co
 #
 # object file dir, is needed by platform
 #
-OBJ_DIR := ./obj/
+OBJ_DIR := ./obj
 #
 # make.inc path, needed because some .inc files contain include statements
 #
