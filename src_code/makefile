@@ -10,7 +10,7 @@ F90_FILES      := coupler.f90 coupler_parameters.f90 coupler_internal_cfd.f90 co
 #
 # object file dir, is needed by platform
 #
-OBJ_DIR := .
+OBJ_DIR := ./obj/
 #
 # make.inc path, needed because some .inc files contain include statements
 #
@@ -43,7 +43,8 @@ LIB_DIR := ../../lib/coupler/$(PLATFORM)/$(BUILD)
 #
 # list of interface modules to be moved in library directory
 #
-INTERFACE_MODULES :=  *.mod # avoids the trouble with cray compiler capitalised names $(O_FILES:.o=.mod)
+INTERFACE_MODULES :=  ./obj/*.mod # avoids the trouble with cray compiler capitalised names $(O_FILES:.o=.mod)
+#INTERFACE_MODULES :=  *.mod 
 
 $(LIB_DIR)/libcoupler.a : $(O_FILES) 
 	[ -d $(LIB_DIR) ] || mkdir -p $(LIB_DIR) && ar cr $@ $(O_FILES) && cp $(INTERFACE_MODULES) $(LIB_DIR) 

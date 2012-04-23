@@ -32,7 +32,7 @@ module coupler_internal_cfd
     integer :: jmax_overlap = 5 ! maximum j index ( in y direction) which MD 
 
     ! coordinates of CFD topologies
-    ! ATTENYION the values are shifted with +1, FORTRAN style
+    ! ATTENTION the values are shifted with +1, FORTRAN style
     ! if this array is passed a MPI function, remove the shift !
     integer, allocatable :: icoord(:,:)
 

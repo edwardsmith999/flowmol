@@ -463,205 +463,209 @@ end subroutine coupler_md_init
 !-----------------------------------------------------------------------------
 
 subroutine coupler_cfd_adjust_domain(xL, yL, zL, nx, ny, nz, density_cfd)
-        use mpi
-        use coupler_internal_common
-        use coupler_input_data
-        use coupler_internal_cfd, only : b => MD_initial_cellsize
-        implicit none
+    use mpi
+    use coupler_internal_common
+    use coupler_input_data
+    use coupler_internal_cfd, only : b => MD_initial_cellsize
+    implicit none
 
-        real(kind(0.d0)),optional, intent(inout) :: xL,yL,zL
-        integer, optional, intent(inout) :: nx, ny, nz
-        real(kind(0.d0)), optional, intent(inout) :: density_cfd
+    integer, optional, intent(inout) 			:: nx, ny, nz
+    real(kind(0.d0)),optional, intent(inout) 	:: xL,yL,zL
+    real(kind(0.d0)), optional, intent(inout) 	:: density_cfd
 
 
-        ! internal variables
-        integer myid, ierror, ierr
-        real(kind=kind(0.d0)), pointer :: xyz_ptr => null()
+    ! internal variables
+    integer										:: myid, ierror, ierr
+    real(kind=kind(0.d0)), pointer 				:: xyz_ptr => null()
+	character(1)				   				:: direction
+    ! local rank, useful for messeges
+    call mpi_comm_rank(COUPLER_REALM_COMM,myid,ierr)
 
-        ! local rank, useful for messeges
-        call mpi_comm_rank(COUPLER_REALM_COMM,myid,ierr)
-
-        if (density_tag == CPL) then 
-            density_cfd = density
-        else
-            density     = density_cfd
-            density_tag = CFD
-        endif
+    if (density_tag == CPL) then 
+        density_cfd = density
+    else
+        density     = density_cfd
+        density_tag = CFD
+    endif
 
 ! coupler input parameters are set in CFD 
-        if ( cfd_coupler_input%domain%tag == VOID) then
-            cfd_coupler_input%domain%tag = CFD
-         end if
+    if ( cfd_coupler_input%domain%tag == VOID) then
+        cfd_coupler_input%domain%tag = CFD
+        end if
 
-        select case (cfd_coupler_input%domain%cell_type)
-        case ("FCC","Fcc","fcc")
-                b = (4.d0/density)**(1.d0/3.d0)
-        case default
-                write(*,*) "Wrong unit cell type in coupler_cfd_adjust_domain. Stopping ... "
+    select case (cfd_coupler_input%domain%cell_type)
+    case ("FCC","Fcc","fcc")
+            b = (4.d0/density)**(1.d0/3.d0)
+    case default
+            write(*,*) "Wrong unit cell type in coupler_cfd_adjust_domain. Stopping ... "
+            ierror = COUPLER_ERROR_INIT
+            call MPI_Abort(MPI_COMM_WORLD,ierror,ierr)
+    end select
+
+    if (present(xL)) then
+        xyz_ptr => cfd_coupler_input%domain%x 
+        call init_length(xyz_ptr,xL,resize=.true.,direction='x')
+    endif
+
+    if (present(yL)) then
+            ! No need to adjust y because we can adjust DY in MD to
+            ! have an integer number of FCC units.
+            ! But if the units are in cell side we need to bring the to sigma
+            xyz_ptr => cfd_coupler_input%domain%y
+            call init_length(xyz_ptr,yL,resize=.false.,direction='y')
+    endif
+
+    if (present(zL)) then
+        xyz_ptr => cfd_coupler_input%domain%z
+        call init_length(xyz_ptr,zL,resize=.true.,direction='z')
+    endif
+
+    ! set CFD number of cells
+
+    if (present(nx)) then
+        if (cfd_coupler_input%ncells%tag == CPL ) then
+            nx = cfd_coupler_input%ncells%x
+        else
+            if(myid == 0) then
+                write(0,*)"WARNING: nx is present in coupler_cfd_adjust_domain argument list"
+                write(0,*)"         but coupler_input%ncells tag is void."
+                write(0,*)"         Using CFD input value!"
+            endif
+        endif
+
+    endif
+
+    if (present(ny)) then
+        if (cfd_coupler_input%ncells%tag == CPL ) then
+            ny = cfd_coupler_input%ncells%y
+        else
+            if(myid == 0) then
+                write(0,*)"WARNING: ny is present in coupler_cfd_adjust_domain argument list"
+                write(0,*)"         but coupler_input%ncells tag is void."
+                write(0,*)"         Using CFD input value!"
+            endif
+        endif
+    endif
+        
+
+    if (present(nz)) then
+        if (cfd_coupler_input%ncells%tag == CPL ) then
+            nz = cfd_coupler_input%ncells%z
+        else
+            if(myid == 0) then
+                write(0,*)"WARNING: nz is present in coupler_cfd_adjust_domain argument list"
+                write(0,*)"         but coupler_input%ncells tag is void."
+                write(0,*)"         Using CFD input value!"
+            endif
+        endif
+    endif
+
+    ! check id CFD cell sizes are larger than 2*sigma 
+    call test_cfd_cell_sizes
+
+contains
+
+!-----------------------------------------------------------------------------
+
+subroutine init_length(rin,rout,resize,direction)
+	implicit none
+            
+    real(kind=kind(0.d0)), intent(in)    :: rin
+    real(kind=kind(0.d0)), intent(inout) :: rout
+    logical, intent(in)                  :: resize
+	character(*),intent(in) 			 :: direction
+    logical print_warning
+    real(kind=kind(0.d0)) :: rinit  ! store the initial value of rout or rin needed for print
+
+
+    print_warning=.false.
+
+    select case (cfd_coupler_input%domain%tag)
+    case (CPL)
+        select case (cfd_coupler_input%domain%units ) 
+        case ("CELLSIDE","CellSide","Cellside","cellside")
+            rout = b * rin
+        case("SIGMA", "Sigma", "sigma")
+            select case (cfd_coupler_input%domain%cell_type)
+            case("FCC","Fcc","fcc")
+                if (resize) then 
+                rinit = rin 
+                rout = real(floor(rin/b),kind(0.d0))*b
+                print_warning = .true.
+                endif
+            case default
+                write(*,*) "wrong unit cell type in coupler_cfd_adjust_domain. Stopping ... "
                 ierror = COUPLER_ERROR_INIT
                 call MPI_Abort(MPI_COMM_WORLD,ierror,ierr)
-        end select
-
-        if (present(xL)) then
-           xyz_ptr => cfd_coupler_input%domain%x 
-           call init_length(xyz_ptr,xL,resize=.true.)
-        endif
-
-        if (present(yL)) then
-                ! No need to adjust y because we can adjust DY in MD to
-                ! have an integer number of FCC units.
-                ! But if the units are in cell side we need to bring the to sigma
-                xyz_ptr => cfd_coupler_input%domain%y
-                call init_length(xyz_ptr,xL,resize=.false.)
-        endif
-
-        if (present(zL)) then
-           xyz_ptr => cfd_coupler_input%domain%z
-           call init_length(xyz_ptr,zL,resize=.true.)
-        endif
-
-        ! set CFD number of cells
-
-        if (present(nx)) then
-           if (cfd_coupler_input%ncells%tag == CPL ) then
-              nx = cfd_coupler_input%ncells%x
-           else
-              if(myid == 0) then
-                 write(0,*)"WARNING: nx is present in coupler_cfd_adjust_domain argument list"
-                 write(0,*)"         but coupler_input%ncells tag is void."
-                 write(0,*)"         Using CFD input value!"
-              endif
-           endif
-
-        endif
-
-        if (present(ny)) then
-           if (cfd_coupler_input%ncells%tag == CPL ) then
-              ny = cfd_coupler_input%ncells%y
-           else
-              if(myid == 0) then
-                 write(0,*)"WARNING: ny is present in coupler_cfd_adjust_domain argument list"
-                 write(0,*)"         but coupler_input%ncells tag is void."
-                 write(0,*)"         Using CFD input value!"
-              endif
-           endif
-        endif
-         
-
-        if (present(nz)) then
-           if (cfd_coupler_input%ncells%tag == CPL ) then
-              nz = cfd_coupler_input%ncells%z
-           else
-              if(myid == 0) then
-                 write(0,*)"WARNING: nz is present in coupler_cfd_adjust_domain argument list"
-                 write(0,*)"         but coupler_input%ncells tag is void."
-                 write(0,*)"         Using CFD input value!"
-              endif
-           endif
-        endif
-
-        ! check id CFD cell sizes are larger than 2*sigma 
-        call test_cfd_cell_sizes
-
-        contains
-
-          subroutine init_length(rin,rout,resize)
-            implicit none
-            
-            real(kind=kind(0.d0)), intent(in)    :: rin
-            real(kind=kind(0.d0)), intent(inout) :: rout
-            logical, intent(in)                  :: resize
-
-            logical print_warning
-            real(kind=kind(0.d0)) :: rinit  ! store the initial value of rout or rin needed for print
-
-
-            print_warning=.false.
-
-            select case (cfd_coupler_input%domain%tag)
-            case (CPL)
-               select case (cfd_coupler_input%domain%units ) 
-               case ("CELLSIDE","CellSide","Cellside","cellside")
-                  rout = b * rin
-               case("SIGMA", "Sigma", "sigma")
-                  select case (cfd_coupler_input%domain%cell_type)
-                  case("FCC","Fcc","fcc")
-                     if (resize) then 
-                        rinit = rin 
-                        rout = real(floor(rin/b),kind(0.d0))*b
-                        print_warning = .true.
-                     endif
-                  case default
-                     write(*,*) "wrong unit cell type in coupler_cfd_adjust_domain. Stopping ... "
-                     ierror = COUPLER_ERROR_INIT
-                     call MPI_Abort(MPI_COMM_WORLD,ierror,ierr)
-                  end select
-               end select
-            case (CFD) 
-               if(resize) then
-                  rinit = rout
-                  rout = real(nint(rout/b),kind(0.d0))*b
-                  print_warning = .true.
-               endif
-            case default
-               write(*,*) "Wrong domain tag in coupler_cfd_adjust_domain. Stopping ... "
-               ierror = COUPLER_ERROR_INIT
-               call MPI_Abort(MPI_COMM_WORLD,ierror,ierr)
             end select
+        end select
+    case (CFD) 
+        if(resize) then
+            rinit = rout
+            rout = real(nint(rout/b),kind(0.d0))*b
+            print_warning = .true.
+        endif
+    case default
+        write(*,*) "Wrong domain tag in coupler_cfd_adjust_domain. Stopping ... "
+        ierror = COUPLER_ERROR_INIT
+        call MPI_Abort(MPI_COMM_WORLD,ierror,ierr)
+    end select
 
-            if (print_warning) then 
-               if (myid == 0) then 
-                  write(*,'(4(a,/),2(a,E10.4),/a,/,a)') &
-                          "*********************************************************************", 		&
-                          "WARNING - this is a coupled run which resets CFD domain size         ", 		&
-                          " to an integer number of MD initial cells:		             ", 		&
-                          "								     ", 		&
-                          " inital size =", rinit, " resized ", rout,	                                        &
-                          "								     ", 		& 
-                          "*********************************************************************"   
-               endif
-            end if
-            
-          end subroutine init_length
+    if (print_warning) then 
+        if (myid == 0) then 
+            write(*,'(3(a,/),3a,/,2(a,E10.4),/a,/,a)') &
+                    "*********************************************************************",	&
+                    "WARNING - this is a coupled run which resets CFD domain size         ",	&
+                    " to an integer number of MD initial cells:		                      ", 	&
+                    "	Domain resized in the the ", direction, " direction			      ",	&
+                    " inital size =", rinit, " resized ", rout,									&
+                    "								                                      ",	& 
+                    "*********************************************************************"   
+        endif
+    end if
+    
+end subroutine init_length
+
+!-----------------------------------------------------------------------------
 
 
-          subroutine test_cfd_cell_sizes
-            implicit none
+subroutine test_cfd_cell_sizes
+    implicit none
 
-            integer, pointer :: ndim => null()
+    integer, pointer :: ndim => null()
 
-            ndim => cfd_coupler_input%domain%ndim
+    ndim => cfd_coupler_input%domain%ndim
 
-            if ( myid == 0) then
-               if ((present(xL) .and. present(nx)) .or. &
-                   (cfd_coupler_input%domain%tag == CPL .and. &
-                    cfd_coupler_input%ncells%tag == CPL)) then
-                  if (xL/nx < 2.0d0) then
-                     write(0,*)" WARNING: CFD cell size in x direction is less that 2 * sigma. Does this make sense?" 
-                     write(0,*)"          xL=",xL,"nx=",nx
-                  endif
-               endif
+    if ( myid == 0) then
+        if ((present(xL) .and. present(nx)) .or. &
+            (cfd_coupler_input%domain%tag == CPL .and. &
+            cfd_coupler_input%ncells%tag == CPL)) then
+            if (xL/nx < 2.0d0) then
+                write(0,*)" WARNING: CFD cell size in x direction is less that 2 * sigma. Does this make sense?" 
+                write(0,*)"          xL=",xL,"nx=",nx
+            endif
+        endif
 
-               if ((present(yL) .and. present(ny)) .or. &
-                   (cfd_coupler_input%domain%tag == CPL .and. & 
-                    cfd_coupler_input%ncells%tag == CPL .and. ndim > 1)) then
-                  if (yL/ny < 2.0d0) then
-                     write(0,*)" WARNING: CFD cell size in y direction is less that 2 * sigma. Does this make sense?" 
-                     write(0,*)"          yL=",yL,"nx=",ny
-                  endif
-               endif
+        if ((present(yL) .and. present(ny)) .or. &
+            (cfd_coupler_input%domain%tag == CPL .and. & 
+            cfd_coupler_input%ncells%tag == CPL .and. ndim > 1)) then
+            if (yL/ny < 2.0d0) then
+                write(0,*)" WARNING: CFD cell size in y direction is less that 2 * sigma. Does this make sense?" 
+                write(0,*)"          yL=",yL,"nx=",ny
+            endif
+        endif
 
-               if ((present(zL) .and. present(nz)) .or. &
-                   (cfd_coupler_input%domain%tag == CPL .and. &
-                    cfd_coupler_input%ncells%tag == CPL .and. ndim > 2 )) then
-                  if (zL/nz < 2.0d0) then
-                     write(0,*)" WARNING: CFD cell size in z direction is less that 2 * sigma. Does this make sense?" 
-                     write(0,*)"          zL=",zL,"nx=",nz
-                  endif
-               endif
-            end if
-               
-          end subroutine test_cfd_cell_sizes
+        if ((present(zL) .and. present(nz)) .or. &
+            (cfd_coupler_input%domain%tag == CPL .and. &
+            cfd_coupler_input%ncells%tag == CPL .and. ndim > 2 )) then
+            if (zL/nz < 2.0d0) then
+                write(0,*)" WARNING: CFD cell size in z direction is less that 2 * sigma. Does this make sense?" 
+                write(0,*)"          zL=",zL,"nx=",nz
+            endif
+        endif
+    end if
+        
+end subroutine test_cfd_cell_sizes
             
 end subroutine coupler_cfd_adjust_domain
 
