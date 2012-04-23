@@ -66,6 +66,9 @@ module coupler_internal_md
 	real(kind=kind(0.d0)) :: FoP_time_ratio = 1.0   ! time ratio dt_CFD/dt_MD; to be fixed later
 	real(kind=kind(0.d0)) :: xL_md, yL_md, zL_md 	! macroscopic sizes of MD domain. needed?
 	real(kind=kind(0.d0)) :: fsig=1.0  		!Ratio betwen macroscopic unit lenght and molecular unit 
+    integer               :: md_steps_per_dt_cfd = -1 ! number of steps per CFD step
+													   ! if not defined in COUPLER.in 
+                                                       ! nsteps is set dt_cfd/dt_md (in MD socket)
 
 	! array for velocities from CFD, last dimension holds time indices 
 	real(kind=kind(0.d0)), allocatable :: vel_fromCFD(:,:,:,:,:)
