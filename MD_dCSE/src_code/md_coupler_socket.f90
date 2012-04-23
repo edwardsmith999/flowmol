@@ -63,7 +63,7 @@ subroutine socket_coupler_init
 
 	if (myid .eq. 0) then 
 		write(*,'(4(a,/),a,I7,/a,/a,E10.4,a,/,a,/a)') &
-				"*********************************************************************", 		&
+				"*********************************************************************",	&
  				"WARNING - this is a coupled run which resets the number	      ", 		&
 				" of extrasteps to:						   ", 		&
 				"								     ", 		&
@@ -126,9 +126,9 @@ subroutine socket_coupler_average(iter)
 
     if (first_time) then 
 	    first_time     = .false.
-	    save_period    = coupler_md_get_save_period()    ! period to save uc data (for debugging, testing)
-	    average_period = coupler_md_get_average_period() ! collection interval in the average cycle
-	    Naverage = int(coupler_md_get_dt_cfd() /delta_t)	   ! number of steps in MD average cycle
+	    save_period    = coupler_md_get_save_period()    	! period to save uc data (for debugging, testing)
+	    average_period = coupler_md_get_average_period() 	! collection interval in the average cycle
+	    Naverage = int(coupler_md_get_dt_cfd() /delta_t)	! number of steps in MD average cycle
     endif
 
     iter_average = mod(iter-1, Naverage)+1	! current step
