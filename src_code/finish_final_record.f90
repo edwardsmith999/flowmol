@@ -143,6 +143,109 @@ subroutine reformat_dcd
 	character(len=80), dimension(2)	:: TITLE	        !--Title(s)
 	real 							:: time_start, time_end
 	real,allocatable,dimension(:)   :: Xbuf, Ybuf, Zbuf	!--Buffers used to copy from direct access to binary
+	double precision				:: DELTA		!--Timestep between frames
+
+	print*, 'Generating final VMD.dcd ouput file - for large systems or'
+	print*, 'long runs this may take some time'
+
+	call cpu_time(time_start)
+
+	!Determine size of file datatype
+	!inquire(file='testfile.dcd', recl=datasize)
+	!print*, 'datasize', datasize
+ 	!call MPI_type_size(MPI_real,datasize,ierr)
+	!print*, 'datasize', datasize
+
+	if (Nvmd_intervals.eq.0) then
+		vmd_sets = (Nsteps-initialstep+1)/tplot
+	else
+		vmd_sets = vmd_count-1
+	endif
+
+	!Set header information	
+	HDR			=	'CORD'				!header text
+	NSET		=	vmd_sets			!number of recorded frames
+	ISTRT		=	initialstep			!the starting timestep
+	NSAVC		=	tplot				!number of timesteps between dcd frame saves
+	FIVEZ(1)	=	NSET				!not sure why
+	FIVEZ(2:5)	=	0					!buffer zeros
+	NATOMNFREAT	=	0					!number of fixed atoms?
+	DELTA		=	delta_t				!delta_t (x-plor is double, charmm is real)
+	NINEZ(:)	=	0					!buffer zeros
+	NTITLE		=	2					!number of 80-character strings in title
+	TITLE(1)	=	'  Simulation record file '	!
+	TITLE(2)    =	'   Written in serial or parallel   '	!
+	NATOM		=	globalnp			!number of particles
+
+	allocate(Xbuf(NSET*globalnp))
+	allocate(Ybuf(NSET*globalnp))
+	allocate(Zbuf(NSET*globalnp))
+
+	!Read position information from file
+	!RECORD LENGTH IS 1 WHICH IN FORTRAN IS A 4 BYTE BLOCKS (REAL, INT BUT NOT DP) 	
+	open (unit=17, file=trim(prefix_dir)//"results/vmd_temp.dcd",access='stream')
+
+	do i=1,NSET
+		read(17) Xbuf(globalnp*(i-1)+1:globalnp*i)
+		read(17) Ybuf(globalnp*(i-1)+1:globalnp*i)
+		read(17) Zbuf(globalnp*(i-1)+1:globalnp*i)
+		if (mod(i,100) .eq. 0) print*, 'Reading % complete =', (100.d0*i/NSET)
+	enddo
+
+	close(17,status='delete')
+
+	!Open binary .dcd file and write header information	
+	open(unit=3, file=trim(prefix_dir)//"results/vmd_out.dcd",status='replace', form="unformatted")
+	
+	write(3) HDR, NSET, ISTRT, NSAVC, FIVEZ, NATOMNFREAT, DELTA, NINEZ
+	write(3) NTITLE, TITLE(1), TITLE(2)
+	write(3) NATOM
+
+	do i=1,NSET
+		write(3) Xbuf((i-1)*globalnp+1:i*globalnp)
+		write(3) Ybuf((i-1)*globalnp+1:i*globalnp)
+		write(3) Zbuf((i-1)*globalnp+1:i*globalnp)
+		if (mod(i,100) .eq. 0) print*, 'Writing % complete =', (100.d0*i/NSET)
+	enddo
+
+	close(3,status='keep')
+
+	deallocate(Xbuf)
+	deallocate(Ybuf)
+	deallocate(Zbuf)
+
+	call cpu_time(time_end)
+
+ 	print '(a,g10.2,a)', 'Generated final VMD.dcd ouput file in', time_end - time_start, ' seconds'
+
+end subroutine reformat_dcd
+
+
+!--------------------------------------------------------------------------------------------
+!Re-format the file into binary with header used by .dcd file format
+
+!Header added by David Trevelyan, DCD file format from:
+!http://www.ks.uiuc.edu/Research/vmd/plugins/molfile/dcdplugin.html
+!Information at the above url is a little misleading in places, comments below try to clarify. 
+
+subroutine reformat_dcd_rtrue
+	use module_final_record
+	use computational_constants_MD
+	implicit none
+
+	integer							:: n, i			!--Dummy variables
+	integer							:: NSET,vmd_sets!--Number of frames
+	integer							:: ISTRT		!--Starting frame
+	integer							:: NSAVC		!--Number of frames per coordinate save
+	integer							:: NATOMNFREAT		!--Number of fixed atoms
+	integer							:: NTITLE		!--Number of 80-character strings in title (set as 2)
+	integer							:: NATOM		!--Number of atoms
+	integer, dimension (5)			:: FIVEZ		!--According to documentation, five zeros, but first is actually NSET
+	integer, dimension (9)			:: NINEZ		!--Nine zeros
+	character(len=4)				:: HDR			!--Header string, value 'CORD'
+	character(len=80), dimension(2)	:: TITLE	        !--Title(s)
+	real 							:: time_start, time_end
+	real,allocatable,dimension(:)   :: Xbuf, Ybuf, Zbuf	!--Buffers used to copy from direct access to binary
 	real,allocatable,dimension(:)   :: Xbuftrue, Ybuftrue, Zbuftrue	!--Buffers used to copy from direct access to binary
 	double precision				:: DELTA		!--Timestep between frames
 
@@ -241,7 +344,8 @@ subroutine reformat_dcd
 
  	print '(a,g10.2,a)', 'Generated final VMD.dcd ouput file in', time_end - time_start, ' seconds'
 
-end subroutine reformat_dcd
+end subroutine reformat_dcd_rtrue
+
 
 
 !--------------------------------------------------------------------------------------------

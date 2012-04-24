@@ -811,6 +811,170 @@ subroutine parallel_io_vmd
 	integer							:: procdisp
 	integer							:: i, datasize
 	real,dimension(np)				:: Xbuf, Ybuf, Zbuf
+	real,dimension(globalnp)        :: Xbufglob
+	real,dimension(globalnp)        :: Ybufglob
+	real,dimension(globalnp)        :: Zbufglob
+	integer                         :: n,globmolno
+	integer(kind=MPI_OFFSET_KIND)   :: disp!, resultsize
+
+	Xbufglob = 0.0           !Initialise to zero so that global array...
+	Ybufglob = 0.0           !...may be found by summation in parallel
+	Zbufglob = 0.0           !------------------------------------------
+
+	!Build array of number of particles on neighbouring
+	!processe's subdomain on current proccess
+	call globalGathernp
+
+	!Determine size of real datatype
+ 	call MPI_type_size(MPI_real,datasize,ierr)
+
+	!Load buffers with single precision r and adjust according
+	!to processor topology with r = 0 at centre
+	select case(potential_flag)
+	case(0)
+		Xbuf(:) = r(1:np,1)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
+		Ybuf(:) = r(1:np,2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
+		Zbuf(:) = r(1:np,3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
+
+		procdisp = 0
+		!Obtain displacement of each processor using all other procs' np
+		do i = 1, irank -1
+			procdisp = procdisp + procnp(i)*datasize
+		enddo
+
+		!Open file on all processors
+		call MPI_FILE_OPEN(MD_COMM,trim(prefix_dir)//'results/vmd_temp.dcd',      & 
+		                   MPI_MODE_RDWR + MPI_MODE_CREATE, & 
+		                   MPI_INFO_NULL, fileid,     ierr)
+
+		!-------------Write X coordinates--------------------
+		!Obtain location to write in file
+
+		!If intervals set to zero then full simulation recorded
+		if (Nvmd_intervals.eq.0) then
+			disp =((iter-initialstep+1)/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
+				+ procdisp	
+		else
+			!Otherwise, calculate number of previous intervals
+			disp = vmd_count * nd * globalnp * datasize & !Current iteration
+				+ procdisp	
+		endif
+
+		call MPI_FILE_SET_VIEW(fileid,     disp, MPI_REAL,          & 
+		                       MPI_REAL, 'native', MPI_INFO_NULL, ierr)
+		
+		!Write information to file
+		call MPI_FILE_WRITE_ALL(fileid,     Xbuf,     np, MPI_REAL, & 
+		                        MPI_STATUS_IGNORE, ierr) 
+
+		!-------------Write Y coordinates--------------------
+		!Obtain location to write in file
+		!If intervals set to zero then full simulation recorded
+		if (Nvmd_intervals.eq.0) then
+			disp =((iter-initialstep+1)/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
+				+ procdisp	&
+				+ globalnp * datasize			  	!Y Coordinate location
+		else
+			!Otherwise, calculate number of previous intervals
+			disp = vmd_count * nd * globalnp * datasize & !Current iteration
+				+ procdisp		&
+				+ globalnp * datasize			  	!Y Coordinate location
+		endif
+
+		call MPI_FILE_SET_VIEW(fileid,     disp, MPI_REAL,          & 
+		                       MPI_REAL, 'native', MPI_INFO_NULL, ierr)
+		
+		!Write information to file
+		call MPI_FILE_WRITE_ALL(fileid,     Ybuf,     np, MPI_REAL, & 
+		                        MPI_STATUS_IGNORE, ierr) 
+
+		!-------------Write Z coordinates--------------------
+
+		!If intervals set to zero then full simulation recorded
+		if (Nvmd_intervals.eq.0) then
+			disp =((iter-initialstep+1)/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
+				+ procdisp	&
+				+ 2* globalnp * datasize			  	!Z Coordinate location
+		else
+			!Otherwise, calculate number of previous intervals
+			disp = vmd_count * nd * globalnp * datasize & !Current iteration
+				+ procdisp		&
+				+ 2* globalnp * datasize			  	!Z Coordinate location
+		endif
+
+		!Obtain location to write in file
+		call MPI_FILE_SET_VIEW(fileid,     disp, MPI_REAL,          & 
+		                       MPI_REAL, 'native', MPI_INFO_NULL, ierr)
+		
+		!Write information to file
+		call MPI_FILE_WRITE_ALL(fileid,     Zbuf,     np, MPI_REAL, & 
+		                        MPI_STATUS_IGNORE, ierr) 
+
+		!-------------- CLOSE -------------------------------	
+		call MPI_FILE_CLOSE(fileid, ierr) 
+		call MPI_FILE_CLOSE(fileidtrue, ierr) 
+	
+	case(1)
+
+		!Build sparse individual "global" buffers according to global molecular ID of each monomer
+		do n=1,np
+			globmolno           = monomer(n)%glob_no
+			Xbufglob(globmolno) = r(n,1)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
+			Ybufglob(globmolno) = r(n,2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
+			Zbufglob(globmolno) = r(n,3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
+		end do
+
+		call globalSumVectReal(Xbufglob,globalnp)  !Global summation to complete global buffer
+		call globalSumVectReal(Ybufglob,globalnp)
+		call globalSumVectReal(Zbufglob,globalnp)
+	
+		call MPI_FILE_OPEN(MD_COMM,trim(prefix_dir)//'results/vmd_temp.dcd', & 
+		                   MPI_MODE_RDWR + MPI_MODE_CREATE,       & 
+		                   MPI_INFO_NULL, fileid, ierr)
+
+		disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize   !Current iteration
+
+		!Write X positions---------------------------------------------
+		call MPI_FILE_SET_VIEW(fileid,     disp, MPI_REAL, MPI_REAL,          &      !Find position
+		                       'native', MPI_INFO_NULL, ierr)
+		call MPI_FILE_WRITE_ALL(fileid,     Xbufglob,     globalnp, MPI_REAL, &      !Write buffer
+		                        MPI_STATUS_IGNORE, ierr)
+
+		disp = disp + globalnp*datasize                                          !Update file disp
+
+		!Write Y positions---------------------------------------------
+		call MPI_FILE_SET_VIEW(fileid,     disp, MPI_REAL, MPI_REAL,          &      !Find position
+		                       'native', MPI_INFO_NULL, ierr)
+		call MPI_FILE_WRITE_ALL(fileid,     Ybufglob,     globalnp, MPI_REAL, &      !Write buffer
+		                        MPI_STATUS_IGNORE, ierr)
+
+		disp = disp + globalnp*datasize
+
+		!Write Z positions---------------------------------------------
+		call MPI_FILE_SET_VIEW(fileid,     disp, MPI_REAL, MPI_REAL,          &      !Find position
+		                       'native', MPI_INFO_NULL, ierr)
+		call MPI_FILE_WRITE_ALL(fileid,     Zbufglob,     globalnp, MPI_REAL, &      !Write buffer
+		                        MPI_STATUS_IGNORE, ierr)
+	
+		call MPI_FILE_CLOSE(fileid, ierr) 
+	
+	case default
+	end select
+
+
+end subroutine parallel_io_vmd
+
+!------------------------------------------------------------------------
+!Write positions of molecules to a file
+
+subroutine parallel_io_vmd_rtrue
+	use module_parallel_io
+	implicit none
+	!include 'mpif.h' 
+
+	integer							:: procdisp
+	integer							:: i, datasize
+	real,dimension(np)				:: Xbuf, Ybuf, Zbuf
 	real,dimension(np)              :: Xbuftrue, Ybuftrue, Zbuftrue
 	real,dimension(globalnp)        :: Xbufglob, Xbufglobtrue
 	real,dimension(globalnp)        :: Ybufglob, Ybufglobtrue
@@ -1005,8 +1169,8 @@ subroutine parallel_io_vmd
 	case default
 	end select
 
+end subroutine parallel_io_vmd_rtrue
 
-end subroutine parallel_io_vmd
 
 !------------------------------------------------------------------------
 !Write positions of molecules to a file
