@@ -57,7 +57,7 @@ subroutine socket_coupler_init
 
 	if (myid .eq. 0) then 
 		write(*,'(4(a,/),I7,/a,/a,E10.4,a/,a,/a)') &
-				"*********************************************************************",	&
+				"*********************************************************************", 		&
  				"WARNING - this is a coupled run which resets the number	      ", 		&
 				" of extrasteps to:						   ", 		&
 				"								     ", 		&
