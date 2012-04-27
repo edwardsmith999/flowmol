@@ -1,6 +1,6 @@
 module continuum_coupler_socket
         implicit none
-#if USE_COUPLER
+if USE_COUPLER
 contains
 
     subroutine continuum_coupler_adjust_domain
@@ -76,33 +76,33 @@ contains
 ! receives average velocities between jmin0:jmin and copies the in boundary 
 ! condition arrays  
 !----------------------------------------------------------------------------------
-    subroutine MD_continuum_BC(u,v)
-                use coupler
-                implicit none
+subroutine MD_continuum_BC(u,v)
+    use coupler
+    implicit none
 
-                real(kind(0.d0)), intent(out) :: u(:), v(:)
+    real(kind(0.d0)), intent(out) :: u(:), v(:)
 
-                integer i
-                !integer, save :: ncall = 0
-                real(kind(0.d0))  u3(1,size(u),1),v3(1,size(v),1)
+    integer i
+    !integer, save :: ncall = 0
+    real(kind(0.d0))  u3(1,size(u),1),v3(1,size(v),1)
 
 
-                call coupler_recv_grid_data(u3,index_transpose=(/2,3,1/),accumulate=.true.)
-                call coupler_recv_grid_data(v3,index_transpose=(/2,3,1/),accumulate=.true.)
+    call coupler_recv_grid_data(u3,index_transpose=(/2,3,1/),accumulate=.true.)
+    call coupler_recv_grid_data(v3,index_transpose=(/2,3,1/),accumulate=.true.)
 
-                u(:) =  u3(1,:,1)
-                v(:) =  v3(1,:,1)
-!debug 
-!                 u(:) = 0.d0
-!                 v(:) = 0.d0
+    u(:) =  u3(1,:,1)
+    v(:) =  v3(1,:,1)
+	!debug 
+	!                 u(:) = 0.d0
+	!                 v(:) = 0.d0
 
-!                ncall = ncall + 1
-                !do i = 1,size(u)
-                !        write(200,*) u(i),v(i)
-                !enddo
-                !write(200,*)
+	!                ncall = ncall + 1
+    !do i = 1,size(u)
+    !        write(200,*) u(i),v(i)
+    !enddo
+    !write(200,*)
 
-        end subroutine MD_continuum_BC
+end subroutine MD_continuum_BC
 #endif
 end module continuum_coupler_socket
 
