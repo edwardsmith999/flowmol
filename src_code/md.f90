@@ -82,7 +82,8 @@ subroutine simulation_MD
 	use computational_constants_MD
 	use physical_constants_MD
 #if USE_COUPLER
-	use md_coupler_socket, only : socket_coupler_apply_continuum_forces, socket_coupler_average
+	use md_coupler_socket, only : socket_coupler_apply_continuum_forces, &
+								  average_and_send_MD_to_CFD
 #endif
 	implicit none
   
@@ -120,7 +121,7 @@ subroutine md_advance_lfv
 		call simulation_move_particles_lfv                  !Move particles as a result of forces
 
 #if USE_COUPLER
-		call socket_coupler_average(iter)                   !Calculate averages of MD to pass to CFD
+		call average_and_send_MD_to_CFD(iter)				!Calculate averages of MD to pass to CFD
 #endif
 		call messenger_updateborders(0)                     !Update borders between processors
 

@@ -71,6 +71,305 @@ subroutine socket_coupler_init
 end subroutine socket_coupler_init
 
 !=============================================================================
+! Calculate averages of MD to pass to CFD
+!-----------------------------------------------------------------------------
+subroutine average_and_send_MD_to_CFD(iter)
+	use computational_constants_MD, only : initialstep, delta_t
+	use physical_constants_MD, only : np
+	use arrays_MD, only :r,v
+	use coupler
+	implicit none
+
+	integer, intent(in) :: iter
+	
+	integer :: iter_cfd, iter_average, Naverage, save_period, average_period
+	logical, save :: first_time=.true.
+	save save_period, average_period, Naverage
+
+    if (first_time) then 
+	    first_time     = .false.
+	    save_period    = coupler_md_get_save_period()    	! period to save uc data (for debugging, testing)
+	    average_period = coupler_md_get_average_period() 	! collection interval in the average cycle
+	    Naverage = coupler_md_get_md_steps_per_dt_cfd()  	! number of steps in MD average cycle
+    endif
+
+    iter_average = mod(iter-1, Naverage)+1	! current step
+    
+    iter_cfd     = (iter-initialstep)/Naverage +1 ! CFD corresponding step
+
+	! collect uc data every save_period cfd iteration but discard the first one which cfd uses for initialisation
+    if ( mod(iter_average,average_period) .eq. 0 ) then
+	    call coupler_md_boundary_cell_average(np,r,v,send_data=.false.) ! accumlate velocities
+    endif
+	! Send accumulated results to CFD at the end of average cycle 
+	if (iter_average .eq. Naverage) then 
+	    call coupler_md_boundary_cell_average(np,r,v,send_data=.true.)
+	endif
+	    	
+end subroutine average_and_send_MD_to_CFD
+
+!=============================================================================
+! Take average of x,y and z components of MD velocity
+! Deprecated, but useful for testing
+!-----------------------------------------------------------------------------
+
+subroutine coupler_md_boundary_cell_average(np,r,v,send_data)
+	!  computes MD average velocity in a box of size dx*dy*dz around a staggered FD grid point
+    use coupler_internal_common, only : cfd_is_2d, staggered_averages
+	use coupler_internal_md, only : myid, icoord, dx, dz, x, y, z, global_r, cfd_code_id
+    use coupler
+    use coupler_parameters
+	implicit none
+
+	integer, intent(in) :: np
+	real(kind=kind(0.d0)), dimension(:,:), intent(in) :: r,v
+	logical, intent(in) :: send_data
+
+	! Tolerance for boundary overlap, 100th of sigma should do
+	real(kind=kind(0.d0)), parameter :: epsilon=1.0d-2
+
+	integer ixyz, displ, nbuff, nbuff_in, ib, kb, ic, kc, i, ip
+
+	!		write(0,*) 'md box-average: dx, dy, dz (sigma units), fsig', myid, dx,dz
+
+	! Because of the staggered grid each a velocity component average
+	! must compute separately. Optimisation to be done later
+	call compute_uc_average
+	call compute_vc_average
+    if (cfd_code_id == couette_parallel) then
+        call compute_wc_average
+    end if
+
+contains 
+
+!-----------------------------------------------------------------------------
+!	Calculate x component of velocity for a bin in the MD region
+!-----------------------------------------------------------------------------
+
+	subroutine compute_uc_average
+		use coupler_internal_md, only : nlx, nlz, bbox, jmino, jmin => jmin_cfd,&
+						uc_bin,cfd_code_id
+		implicit none
+
+		integer ib, kb, ip, source, dest, max_ix, ierr
+		real(kind=kind(0.d0)) rd(3)
+        logical ovr_box_x
+		logical, save :: first_time=.true.
+
+		! Setup averaging array on first call
+		if (first_time) then
+			first_time = .false.
+            if (cfd_code_id == couette_parallel) then 
+                allocate(uc_bin(2,nlz-1,nlx-0,1))
+            else
+                allocate(uc_bin(2,nlz-1,nlx-1,1))
+            endif
+
+			uc_bin(:,:,:,:)  = 0.d0     
+		endif
+
+		!Send data to CFD if send_data flag is set
+		if (send_data) then  
+			! testing
+			!uc_bin(1,:,:) = myid
+			!uc_bin(2,:,:) = 1.d0
+			!call send_vel(uc_bin,nlz-0,nlx-0,1)
+            if (cfd_code_id == couette_parallel) then 
+                ovr_box_x = .true.
+            else
+                ovr_box_x = .false.
+            endif
+			uc_bin = 1.234567890123456d0
+			!print'(2a,2i8,4f25.16)', 'MD  send data',code_name(COUPLER_REALM), myid, & 
+			!							size(uc_bin), maxval(uc_bin),minval(uc_bin),sum(uc_bin),uc_bin(1,3,3,1)
+            call coupler_send_grid_data(uc_bin,index_transpose=(/2,3,1/),use_overlap_box=(/ ovr_box_x, .false., .false./))
+			uc_bin = 0.d0
+
+			return
+		endif
+
+
+		do ip = 1, np
+			! using global particle coordinates
+            rd(:) = r(ip,:)
+			rd(:) = global_r(rd)
+
+			if ( rd(2) > y(jmin) .or. rd(2) < y(jmino) ) then
+				! molecule outside the boundary layer
+				cycle
+			endif
+
+            if (staggered_averages(1)) then 
+                ib = nint((rd(1) - x(bbox%iso)) / dx) + 1 
+            else 
+                ib = ceiling((rd(1) - x(bbox%is)) / dx)       
+            endif
+			kb = ceiling((rd(3) - z(bbox%ks)) / dz)       ! cell centred averages; the last z row unused    
+
+			if ( ib > 0 .and. ib <=  ubound(uc_bin,3)  .and. &
+				 kb > 0 .and. kb <  nlz  ) then 
+				!  this particle are in this ranks domain
+				uc_bin(1,kb,ib,1) = uc_bin(1,kb,ib,1) + v(ip,1)
+				uc_bin(2,kb,ib,1) = uc_bin(2,kb,ib,1) + 1.d0 
+			else 
+				!				       write(0,*) 'MD uc_average, outside domain rd', rd, ' bbox%bb ', bbox 
+			endif
+		end do
+
+		! debug   
+		!do i = 1, size(uc_bin,dim=2)
+		!	write(0, '(a,I4,64F7.1)') 'MD myid uc_bin(2,..',myid,uc_bin(2,1,:)
+		!enddo
+		!write(0,*) 'MD uc sum in boxes', myid
+		!do i = 1, size(uc_bin,dim=2)
+		!	write(0, '(a,I4,64E11.4)') 'MD myid uc_bin(1,..',myid, uc_bin(1,1,:)
+		!enddo
+
+	end subroutine compute_uc_average
+
+!-----------------------------------------------------------------------------
+!	Calculate y component of velocity for a bin in the MD region
+!-----------------------------------------------------------------------------
+
+	subroutine compute_vc_average
+		use coupler_internal_md, only : nlx, nlz, bbox, jmino, jmin => jmin_cfd, vc_bin
+		implicit none
+		! this is the simplest one as there is no need for data communication
+		integer  ib, jb, kb, ip, ierr
+		real(kind=kind(0.d0)) rd(3)
+		logical, save :: first_time = .true.
+
+		if( first_time ) then
+			first_time = .false.
+            if(cfd_code_id == couette_parallel) then
+                allocate(vc_bin(2,nlz-1,nlx-1,2),stat=ierr)
+            else 
+                allocate(vc_bin(2,nlz-1,nlx-1,1),stat=ierr)
+            endif
+			vc_bin = 0.d0
+		endif
+
+
+		if (send_data ) then
+			! testing			vc_bin(1,:,:,:) = 10*myid+1
+			!				vc_bin(2,:,:,:) = 1.d0
+			!call send_vel(vc_bin,nlz-0,nlx-0,2)    
+            call coupler_send_grid_data(vc_bin,index_transpose=(/2,3,1/))
+			vc_bin = 0.d0
+			return
+		endif
+
+		!			write(2200+myid,*) bbox%bb
+
+		do ip = 1, np
+
+			! using global particle coordinates
+			rd(:) = r(ip,:)
+			rd(:) = global_r(rd)
+
+			!				write(2200+myid,*) rd, y(jmino), y(jmin)
+! simpler version
+!
+!			if (rd(2) >= y(jmino) .and. rd(2) <= y(jmin) ) then
+!				jb = 1
+!			else
+!				cycle       
+!			endif
+
+            if( staggered_averages(2))then 
+                if ( abs(rd(2)-y(jmino)) <= 0.5d0 * (y(jmin)-y(jmino)) ) then
+                    jb = 1
+                else if ( abs(rd(2)-y(jmin)) <= 0.5d0 * (y(jmin)-y(jmino)) ) then
+                    jb = 2
+                else
+                    cycle       
+                endif
+            else 
+                jb = 1
+                 if ( rd(2) < y(jmino) .or. rd(2) > y(jmin) ) then
+                    cycle       
+                endif
+            endif
+
+			! find the box indices
+			ib = ceiling((rd(1) - x(bbox%is)) / dx) ! cell centred averages in z, x; last cell unused
+			kb = ceiling((rd(3) - z(bbox%ks)) / dz)     
+
+			if ( ib > 0 .and. ib < nlx .and. &
+				kb > 0 .and. kb < nlz ) then 
+				!  this particle are in this ranks domain
+				vc_bin(1,kb,ib,jb) = vc_bin(1,kb,ib,jb) + v(ip,2)
+				vc_bin(2,kb,ib,jb) = vc_bin(2,kb,ib,jb) + 1.d0
+			else 
+				!write(0,*) 'MD vc_average, outside domain rd ', rd, ' bbox%bb ', bbox%bb 
+			endif
+		end do
+
+		! send to CFD
+		!			write(0,*) 'MD, vc_average: got',  np, sum(vc_bin(2,:,:,:)), 'particles'
+
+
+	end subroutine compute_vc_average
+
+!-----------------------------------------------------------------------------
+!	Calculate z component of velocity for a bin in the MD region
+!-----------------------------------------------------------------------------
+
+	subroutine compute_wc_average
+		use coupler_internal_md, only : nlx, nlz, bbox, bbox, jmin => jmin_cfd, jmino, wc_bin
+		implicit none
+
+		integer ib, kb, ip, source, dest, ierr
+		real(kind(0.d0)) rd(3)
+		logical, save :: first_time = .true.
+
+		if (first_time) then 
+			first_time = .false. 
+			allocate(wc_bin(2,nlz,nlx-1,1), stat = ierr)
+			wc_bin(:,:,:,1)  = 0.d0
+		endif
+
+  		if (send_data ) then
+			!call send_vel(wc_bin,nlz,nlx,1)    
+            call coupler_send_grid_data(wc_bin,index_transpose=(/2,3,1/),use_overlap_box=(/.false.,.false.,.true./))
+			wc_bin = 0.d0
+			return
+		endif
+
+
+		do ip = 1, np
+			! use global particle coordinates
+			rd(:) = r(ip,:)
+			rd(:) = global_r(rd)
+
+			if ( rd(2) > y(jmin) .or. rd(2) < y(jmino) ) then
+				! molecule outside the boundary layer
+				cycle
+			endif
+
+			ib = ceiling((rd(1) - x(bbox%is)) / dx)
+            if ( staggered_averages(3)) then 
+                kb = nint((rd(3) - z(bbox%kso)) / dz) + 1 ! staggered    
+            else
+                kb = ceiling((rd(3) - z(bbox%ks)) / dz)
+            endif
+
+			if ( ib > 0 .and. ib <  nlx .and. &
+				kb > 0 .and. kb <= nlz ) then 
+				!  this particle are in this ranks domain
+				wc_bin(1,kb,ib,1) = wc_bin(1,kb,ib,1) + v(ip,3)
+				wc_bin(2,kb,ib,1) = wc_bin(2,kb,ib,1) + 1.d0 
+			else 
+				!write(0,*) 'MD wc_average, outside domain rd', rd, ' bbox%bb ', bbox%bb 
+			endif
+
+		enddo
+
+	end subroutine compute_wc_average
+
+end subroutine coupler_md_boundary_cell_average
+
+!=============================================================================
 !Apply coupling forces so MD => CFD
 !-----------------------------------------------------------------------------
 subroutine socket_coupler_apply_continuum_forces(iter)
@@ -96,58 +395,11 @@ subroutine socket_coupler_apply_continuum_forces(iter)
 !	coupler library version ( deprecated )
 !	call coupler_md_apply_continuum_forces(np,r,v,a,iter_average)	!Apply force based on Nie,Chen an Robbins coupling
 
-!  use this module version
+	!  use this module version
 	call apply_continuum_forces(iter_average)
 
 	
 end subroutine socket_coupler_apply_continuum_forces
-
-!=============================================================================
-! Calculate averages of MD to pass to CFD
-!-----------------------------------------------------------------------------
-subroutine socket_coupler_average(iter)
-	use computational_constants_MD, only : initialstep, delta_t
-	use physical_constants_MD, only : np
-	use arrays_MD, only :r,v
-	use coupler
-	implicit none
-
-	integer, intent(in) :: iter
-	
-	integer :: iter_cfd, iter_average, Naverage, save_period, average_period
-	logical, save :: first_time=.true.
-	save save_period, average_period, Naverage
-
-    if (first_time) then 
-	    first_time     = .false.
-	    save_period    = coupler_md_get_save_period()    	! period to save uc data (for debugging, testing)
-	    average_period = coupler_md_get_average_period() 	! collection interval in the average cycle
-	    Naverage = coupler_md_get_md_steps_per_dt_cfd()  	! number of steps in MD average cycle
-    endif
-
-    iter_average = mod(iter-1, Naverage)+1	! current step
-    
-    iter_cfd     = (iter-initialstep)/Naverage +1 ! CFD corresponding step
-
-    if ( mod(iter_average,average_period) .eq. 0 ) then
-	    call coupler_md_boundary_cell_average(np,r,v,send_data=.false.) ! accumlate velocities
-
-        ! collect uc data every save_period cfd iteration but discard the first one which cfd uses for initialisation
-	    !if ( mod(iter_cfd-1,save_period) .eq. 0 .and. iter_cfd > 1) then
-		!    call coupler_uc_average_test(np,r,v,lwrite=.false.)
-	    !endif
-    endif
-
-	! Send accumulated results to CFD at the end of average cycle 
-	if (iter_average .eq. Naverage) then 
-	    call coupler_md_boundary_cell_average(np,r,v,send_data=.true.)
-	    !if (mod(iter_cfd-1,save_period) .eq. 0 .and. iter_cfd > 1) then
-		!    call coupler_uc_average_test(np,r,v,lwrite=.true.)
-	    !endif
-	endif
-	    	
-end subroutine socket_coupler_average
-
 
 !=============================================================================
 ! Apply force from Nie et al (2004) paper to fix molecular velocity to
@@ -185,9 +437,9 @@ subroutine apply_continuum_forces(iter)
         call coupler_md_get(overlap_with_continuum_force=overlap)
 
         if (overlap) then 
-		! get cfd cell sizes
-!		call coupler_md_get(ymin_continuum_force=ymin, ymax_continuum_force=ymax, xmin_cfd_grid=xmin, &
-!			xmax_cfd_grid=xmax, zmin_cfd_grid=zmin, zmax_cfd_grid=zmax, dx_cfd=dx_cfd, dz_cfd=dz_cfd)
+			! get cfd cell sizes
+			!call coupler_md_get(ymin_continuum_force=ymin, ymax_continuum_force=ymax, xmin_cfd_grid=xmin, &
+			!xmax_cfd_grid=xmax, zmin_cfd_grid=zmin, zmax_cfd_grid=zmax, dx_cfd=dx_cfd, dz_cfd=dz_cfd)
             call coupler_md_get(cfd_box=cfd_box)
 
             cfd_code_id = coupler_md_get_cfd_id()
@@ -197,7 +449,7 @@ subroutine apply_continuum_forces(iter)
             njb = 1
             nkb = cfd_box%kmax - cfd_box%kmin 
 
-        ! layer extend in local coordinates, i.e. centered on MD box
+        	! layer extend in local coordinates, i.e. centered on MD box
             xmin = cfd_box%xmin
             xmax = cfd_box%xmax
             ymin = cfd_box%y(cfd_box%jmax-2)
@@ -212,8 +464,8 @@ subroutine apply_continuum_forces(iter)
             vel_cfd = 0.d0
             allocate(box_average(nib,njb,nkb))
 
-		! vel_fromCFD cell index from which continum velocity is collected
-		!jb_constrain =	  njb - 1 ! the second row of cells from the top
+			! vel_fromCFD cell index from which continum velocity is collected
+			!jb_constrain =	  njb - 1 ! the second row of cells from the top
 		
         endif
     endif
@@ -223,12 +475,9 @@ subroutine apply_continuum_forces(iter)
 		! this call must be global at the momment
 		! because the whole CFD grid is transferred
 		! it will be optimised later
-		!call coupler_md_get_CFDvel(overlap, vel_cfd)
-
         call coupler_recv_grid_data(vbuff,index_transpose=(/2,3,1/))
 
         if ( .not. overlap) return
-
 
         !swap the time indices and put the cfd velocities work array
         itm1 = mod(itm1,2)+1
@@ -237,28 +486,21 @@ subroutine apply_continuum_forces(iter)
         select case (cfd_code_id)
         case (couette_parallel)
             do k=1,nkb
-                do j=1,njb
-                    do i=1,nib
-                        vel_cfd(1,i,j,k,itm1)= 0.5d0*(vbuff(1,k,i,j)+vbuff(1,k,i+1,j))
-                    enddo
-                enddo
+            do j=1,njb
+            do i=1,nib
+ 				vel_cfd(1,i,j,k,itm1)= 0.5d0*(vbuff(1,k,i,j)+vbuff(1,k,i+1,j))
+            enddo
+            enddo
             enddo
         case (couette_serial)
             do k=1,nkb
-                do j=1,njb
-                    do i=1,nib
-                        vel_cfd(1,i,j,k,itm1)= vbuff(1,k,i,j)
-                    enddo
-                enddo
+            do j=1,njb
+  			do i=1,nib
+ 				vel_cfd(1,i,j,k,itm1)= vbuff(1,k,i,j)
+			enddo
+ 			enddo
             enddo
         end select
-
-        !write(800+myid, *) itm1, itm2        
-        !do i = 1, nib
-        !    write(800+myid,'(1000(E11.3,1x))') vel_cfd(1,i,njb,1:nkb,itm1), vel_cfd(1,i,njb,1:nkb,itm2)
-        !enddo
-        !write(800+myid,*)
-        !call flush(800+myid)
 
        ! at first CFD step we don't have two values to extrapolate CFD velocities, set inv_dtCFD=0
         if (ncalls .eq. 0) then
@@ -269,9 +511,28 @@ subroutine apply_continuum_forces(iter)
         ncalls = ncalls + 1	
 
 	endif
+	
+	! here we should have the cell coordinates for the particle ip which is 
+	! in the overlap region
+	! one has to treat separatley the particle that have left the domain
+	! compute the average force for each bin
 
-	  
+	!write(0,*)'MD before average over bin. np_overlap', np_overlap
+	call average_over_bin
+	call apply_force
+	!write(0,*) 'MD: end simulation_apply_continuum_forces', myid
 
+contains
+
+!=============================================================================
+! Average molecules in overlap region to obtain values for 
+! constrained dynamics algorithms
+!-----------------------------------------------------------------------------
+
+subroutine average_over_bin
+	implicit none
+
+	!Zero box averages
 	do kb = 1, ubound(box_average,dim=3)
 		do jb = 1, ubound(box_average,dim=2)
 			do ib = 1, ubound(box_average,dim=1)
@@ -283,31 +544,13 @@ subroutine apply_continuum_forces(iter)
 	enddo
 
 	! get the range of j cell index in y direction
-
 	js = min(ncells(2),ceiling((ymin+halfdomain(2))/cellsidelength(2))) + nh
 	je = min(ncells(2),ceiling((ymax+halfdomain(2))/cellsidelength(2))) + nh
 
-    !write(0,*) 'md socket ncells(2) js je', ncells(2), js, je
-
-!	find the maximum number of molecules and allocate a list array	   
+	!find the maximum number of molecules and allocate a list array	   
 	np_overlap = 0 ! number of particles in overlapping reg
-
     allocate(list(4,np))
-
-	!do k = nh + 1, nh + 1 + ncells(3)
-	!	do j = js, je
-	!		do i = nh + 1, nh + 1 + ncells(1) 
-	!			np_overlap =np_overlap + cell%cellnp(i,j,k)
-	!		enddo
-	!	enddo
-	!enddo
-
-	!allocate(list(4,np_overlap))
-
-    !write(0,*)" md socket, np_overlap", np_overlap
-
-	np_overlap = 0
-
+	
     do m = 1,np
        if ( r(m,2) >  ymin            .and. r(m,2) < ymax          .and. &
            r(m,1) >= -halfdomain(1)  .and. r(m,1) < halfdomain(1) .and. &
@@ -324,6 +567,16 @@ subroutine apply_continuum_forces(iter)
            box_average(ib,jb,kb)%a(:) =  box_average(ib,jb,kb)%a(:) + a(m,:)
        endif
    enddo
+
+end subroutine average_over_bin
+
+!=============================================================================
+! Average molecules using cell lists in overlap region to obtain values for 
+! constrained dynamics algorithms
+!-----------------------------------------------------------------------------
+
+subroutine average_over_bin_cells
+	implicit none
 
 !      The cell base version does not work 
 !      Revise !!
@@ -363,70 +616,51 @@ subroutine apply_continuum_forces(iter)
 !!$			enddo
 !!$		enddo
 !!$	enddo
-	
-	! here we should have the cell coordinates for the particle ip which is 
-	! in the overlap region
-	! one has to treat separatley the particle that have left the domain
-	! compute the average force for each bin
 
-	!write(0,*)'MD before average over bin. np_overlap', np_overlap
-
-	call average_over_bin
-
-	!write(0,*) 'MD: end simulation_apply_continuum_forces', myid
-
-contains
+end subroutine average_over_bin_cells
 
 !=============================================================================
-! Get velocity from CFD and apply force to molecule
+! Apply force to molecules in overlap region
 !-----------------------------------------------------------------------------
 
-	subroutine average_over_bin
-		implicit none
+subroutine apply_force
+	implicit none
 
-		integer ib, jb, kb, i, ip, n
-		real(kind=kind(0.d0)) alpha(3), u_cfd_t_plus_dt(3), inv_dtMD, acfd
+	integer ib, jb, kb, i, ip, n
+	real(kind=kind(0.d0)) alpha(3), u_cfd_t_plus_dt(3), inv_dtMD, acfd
 
+	! set the continnum constraints for the particle in the bin
+	! speed extrapolation add all up
+	inv_dtMD =1.d0/delta_t
 
-		! set the continnum constraints for the particle in the bin
-		! speed extrapolation 
-		! add all up
-		inv_dtMD =1.d0/delta_t
+	do i = 1, np_overlap
+		ip = list(1,i)
+		ib = list(2,i)
+		jb = list(3,i)
+		kb = list(4,i)
 
-		!write(0,'(a,I7,2E12.4)') "MD continuum np, vel_fromCFD1 : ", np_overlap, &
-		!						  maxval(a(list(1,1:np_overlap),:)), &
-		!						  minval(a(list(1,1:np_overlap),:))
+		n = box_average(ib,jb,kb)%np
+		if ( n .eq. 0 ) cycle
 
-		do i = 1, np_overlap
-			ip = list(1,i)
-			ib = list(2,i)
-			jb = list(3,i)
-			kb = list(4,i)
+-			!write(900+myid,'(a,5I4,14E12.4)') "MD continuum force", iter,ib,jb,kb,n,box_average(ib,jb,kb)%v(1), &
+-			!	box_average(ib,jb,kb)%a(1),v(ip,1),a(ip,1),inv_dtMD,inv_dtCFD
 
-			n = box_average(ib,jb,kb)%np
+		! using the following exptrapolation formula for continuum velocity
+		! y = (y2-y1)/(x2-x1) * (x-x2) +y2
+        alpha(1) = inv_dtCFD*(vel_cfd(1,ib,1,kb,itm1) - &
+                			  vel_cfd(1,ib,1,kb,itm2))
 
-			!write(900+myid,'(a,5I4,14E12.4)') "MD continuum force", iter,ib,jb,kb,n,box_average(ib,jb,kb)%v(1), &
-			!	box_average(ib,jb,kb)%a(1),v(ip,1),a(ip,1),inv_dtMD,inv_dtCFD
+		u_cfd_t_plus_dt(1) = alpha(1) * (iter + 1)*delta_t + vel_cfd(1,ib,1,kb,itm1) 
 
-			if ( n .eq. 0 ) cycle
-
-			! using the following exptrapolation formula for continuum velocity
-			! y = (y2-y1)/(x2-x1) * (x-x2) +y2
-            alpha(1) = inv_dtCFD*(vel_cfd(1,ib,1,kb,itm1) - &
-                    vel_cfd(1,ib,1,kb,itm2))
-
-			u_cfd_t_plus_dt(1) = alpha(1) * (iter + 1)*delta_t + vel_cfd(1,ib,1,kb,itm1) 
-
-			acfd =	- box_average(ib,jb,kb)%a(1) / n - inv_dtMD * & 
+		acfd =	- box_average(ib,jb,kb)%a(1) / n - inv_dtMD * & 
 				( box_average(ib,jb,kb)%v(1) / n - u_cfd_t_plus_dt(1) )
-			a(ip,1) = a(ip,1) + acfd
+		a(ip,1) = a(ip,1) + acfd
 
-			!	write(900+myid,'(a,4I4,15E12.4)') "MD continuum force 2", ib,jb,kb,n, &
-			!	 alpha(1),u_cfd_t_plus_dt(1),vel_cfd(1,ib,1,kb,itm1),&
-			!	 vel_cfd(1,ib,1,kb,itm2), a(ip,1),acfd, r(ip,2) 
+ 			!	write(900+myid,'(a,4I4,15E12.4)') "MD continuum force 2", ib,jb,kb,n, &
+ 			!	 alpha(1),u_cfd_t_plus_dt(1),vel_cfd(1,ib,1,kb,itm1),&
+ 			!	 vel_cfd(1,ib,1,kb,itm2), a(ip,1),acfd, r(ip,2) 
 
-		enddo
-
+	enddo
 
 		!	write(400+10*ncalls+myid,'(a,I7,2E12.4)') "MD continuum np, vel_fromCFD 2: ", np_overlap, &
 		!						   maxval(a(list(1,1:np_overlap),:)), &
@@ -442,7 +676,7 @@ contains
 		!	enddo
 		!	enddo
 
-	end subroutine average_over_bin
+end subroutine apply_force
 
 end subroutine apply_continuum_forces
 
@@ -487,15 +721,15 @@ subroutine apply_continuum_forces_ES(iter)
         call coupler_md_get(overlap_with_continuum_force=overlap)
 
         if (overlap) then 
-		! get cfd cell sizes
-		!call coupler_md_get(ymin_continuum_force=ymin, ymax_continuum_force=ymax, xmin_cfd_grid=xmin, &
-		!	xmax_cfd_grid=xmax, zmin_cfd_grid=zmin, zmax_cfd_grid=zmax, dx_cfd=dx_cfd, dz_cfd=dz_cfd)
+			! get cfd cell sizes
+			!call coupler_md_get(ymin_continuum_force=ymin, ymax_continuum_force=ymax, xmin_cfd_grid=xmin, &
+			!	xmax_cfd_grid=xmax, zmin_cfd_grid=zmin, zmax_cfd_grid=zmax, dx_cfd=dx_cfd, dz_cfd=dz_cfd)
 
 
             call coupler_md_get(cfd_box=cfd_box)
             cfd_code_id = coupler_md_get_cfd_id()
 
-		! number of CFD cells in each direction
+			! number of CFD cells in each direction
             nib = cfd_box%imax - cfd_box%imin
             njb = 1
             nkb = cfd_box%kmax - cfd_box%kmin
@@ -531,19 +765,19 @@ subroutine apply_continuum_forces_ES(iter)
         select case (cfd_code_id)
         case (couette_parallel)
             do k=1,nkb
-                do j=1,njb
-                    do i=1,nib
-                        vel_cfd(1,i,j,k,itm1)= 0.5d0*(vbuff(1,k,i,j)+vbuff(1,k,i+1,j))
-                    enddo
-                enddo
+			do j=1,njb
+			do i=1,nib
+				vel_cfd(1,i,j,k,itm1)= 0.5d0*(vbuff(1,k,i,j)+vbuff(1,k,i+1,j))
+			enddo
+ 			enddo
             enddo
         case (couette_serial)
             do k=1,nkb
-                do j=1,njb
-                    do i=1,nib
-                        vel_cfd(1,i,j,k,itm1)= vbuff(1,k,i,j)
-                    enddo
-                enddo
+			do j=1,njb
+			do i=1,nib
+				vel_cfd(1,i,j,k,itm1)= vbuff(1,k,i,j)
+ 			enddo
+			enddo
             enddo
         end select
 
