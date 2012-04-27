@@ -318,8 +318,8 @@ contains
 
         do id=1,3
 
-        !If there is only one CFD cell in a direction then things can be done simpler.
-        !One CFD cell means  that direction is used to improve MD statistics. 
+        !If there is only one CFD cell in a direction then things can be made simpler.
+        !One CFD cell means that direction is used to improve MD statistics. 
             if ( grid_sizes(2,id) - grid_sizes(1,id) == 1) then
 				bbox_ptr(id)%starto = grid_sizes(1,id)
                 bbox_ptr(id)%start  = grid_sizes(1,id)

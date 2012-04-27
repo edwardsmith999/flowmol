@@ -93,109 +93,110 @@ contains
 !	Test if CFD and MD realms are assigned correctly
 !-----------------------------------------------------------------------------
 
-        subroutine test_realms
-		use mpi
-		implicit none
+subroutine test_realms
+	use mpi
+	implicit none
 
-		integer i, myid, nproc, nf, np, ierr
-		integer, allocatable :: ra(:)
+	integer i, myid, nproc, nf, np, ierr
+	integer, allocatable :: ra(:)
 
-		call mpi_comm_rank(MPI_COMM_WORLD,myid,ierr)
+	call mpi_comm_rank(MPI_COMM_WORLD,myid,ierr)
 
-		if (myid .eq. 0) then
-			call mpi_comm_size(mpi_comm_world, nproc, ierr)
-			allocate(ra(nproc))
-		else
-						allocate(ra(1))	!Assign value arbitarily
-		endif
+	if (myid .eq. 0) then
+		call mpi_comm_size(mpi_comm_world, nproc, ierr)
+		allocate(ra(nproc))
+	else
+					allocate(ra(1))	!Assign value arbitarily
+	endif
 
-		call mpi_gather(realm,1,MPI_INTEGER,ra,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+	call mpi_gather(realm,1,MPI_INTEGER,ra,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 
-		if (myid .eq. 0) then
+	if (myid .eq. 0) then
 
-			nf = 0
-			np = 0
+		nf = 0
+		np = 0
 
-			do i =1, nproc
-				if ( ra(i) .eq. COUPLER_CFD ) then 
-					nf = nf + 1
-				else if ( ra(i) .eq. COUPLER_MD ) then
-					np = np +1
-				else
-					ierror = COUPLER_ERROR_REALM
-					write(*,*) "wrong realm value in coupler_create_comm"
-					call MPI_abort(MPI_COMM_WORLD,ierror,ierr)
-				endif
-			enddo
-
-			if ( nf .eq. 0 .or. np .eq. 0) then 
-				ierror = COUPLER_ERROR_ONE_REALM
-				write(*,*) "CFD or MD  realm is missing in MPI_COMM_WORLD"
+		do i =1, nproc
+			if ( ra(i) .eq. COUPLER_CFD ) then 
+				nf = nf + 1
+			else if ( ra(i) .eq. COUPLER_MD ) then
+				np = np +1
+			else
+				ierror = COUPLER_ERROR_REALM
+				write(*,*) "wrong realm value in coupler_create_comm"
 				call MPI_abort(MPI_COMM_WORLD,ierror,ierr)
 			endif
+		enddo
 
-
-
+		if ( nf .eq. 0 .or. np .eq. 0) then 
+			ierror = COUPLER_ERROR_ONE_REALM
+			write(*,*) "CFD or MD  realm is missing in MPI_COMM_WORLD"
+			call MPI_abort(MPI_COMM_WORLD,ierror,ierr)
 		endif
 
-	end subroutine test_realms
+
+
+	endif
+
+end subroutine test_realms
 
 !-----------------------------------------------------------------------------
 ! Create communicators for each realm and inter-communicator
 !-----------------------------------------------------------------------------
 
-	subroutine create_comm
-		use mpi
-		use coupler_internal_common, only : COUPLER_REALM_COMM, COUPLER_GLOBAL_COMM, COUPLER_ICOMM
-		implicit none
+subroutine create_comm
+	use mpi
+	use coupler_internal_common, only : COUPLER_REALM_COMM, COUPLER_GLOBAL_COMM, COUPLER_ICOMM
+	implicit none
 
-		integer ierr, myid, myid_comm, myid_comm_max, realm, &
-			iaux(2), jaux(2), remote_leader, comm, comm_size
+	integer ierr, myid, myid_comm, myid_comm_max, realm, &
+		iaux(2), jaux(2), remote_leader, comm, comm_size
 
-		realm = COUPLER_REALM
+	realm = COUPLER_REALM
 
-                ! get a global internal communicator for coupler operations
-		call mpi_comm_dup(MPI_COMM_WORLD,COUPLER_GLOBAL_COMM,ierr)
-		call mpi_comm_rank(COUPLER_GLOBAL_COMM,myid,ierr)
-	        REALM_COMM         = MPI_COMM_NULL
-		COUPLER_REALM_COMM = MPI_COMM_NULL
+	! get a global internal communicator for coupler operations
+	call mpi_comm_dup(MPI_COMM_WORLD,COUPLER_GLOBAL_COMM,ierr)
+	call mpi_comm_rank(COUPLER_GLOBAL_COMM,myid,ierr)
+	REALM_COMM         = MPI_COMM_NULL
+	COUPLER_REALM_COMM = MPI_COMM_NULL
 
-		! get a communicator for each realm
-		call mpi_comm_split(MPI_COMM_WORLD,realm,myid,REALM_COMM,ierr)
+	! get a communicator for each realm
+	call mpi_comm_split(MPI_COMM_WORLD,realm,myid,REALM_COMM,ierr)
 
-		! get internal, realm specific communicator for coupler operations
-		call mpi_comm_split(COUPLER_GLOBAL_COMM,realm,myid,COUPLER_REALM_COMM,ierr)
+	! get internal, realm specific communicator for coupler operations
+	call mpi_comm_split(COUPLER_GLOBAL_COMM,realm,myid,COUPLER_REALM_COMM,ierr)
 
-		comm = COUPLER_REALM_COMM ! shorthand
+	comm = COUPLER_REALM_COMM ! shorthand
 
-		! create inter-communicators
+	! create inter-communicators
 
-		! Get the mpi_comm_world ranks that hold the largest ranks in cfd_comm and md_comm
-		call mpi_comm_rank(comm,myid_comm,ierr)
-		call mpi_comm_size(comm,comm_size,ierr)
+	! Get the mpi_comm_world ranks that hold the largest ranks in cfd_comm and md_comm
+	call mpi_comm_rank(comm,myid_comm,ierr)
+	call mpi_comm_size(comm,comm_size,ierr)
 
-		iaux(:) = -1
-		jaux(:) = -1
-		if ( myid_comm .eq. comm_size - 1) then
-			iaux(COUPLER_REALM) = myid
-		endif
-		call mpi_allreduce( iaux ,jaux, 2, MPI_INTEGER, MPI_MAX, &
-			COUPLER_GLOBAL_COMM, ierr)  
+	iaux(:) = -1
+	jaux(:) = -1
+	if ( myid_comm .eq. comm_size - 1) then
+		iaux(COUPLER_REALM) = myid
+	endif
+	call mpi_allreduce( iaux ,jaux, 2, MPI_INTEGER, MPI_MAX, &
+		COUPLER_GLOBAL_COMM, ierr)  
 
-		select case (COUPLER_REALM)
-		case (COUPLER_CFD)
-			remote_leader = jaux(COUPLER_MD)
-		case (COUPLER_MD)
-			remote_leader = jaux(COUPLER_CFD)
-		end select
+	select case (COUPLER_REALM)
+	case (COUPLER_CFD)
+		remote_leader = jaux(COUPLER_MD)
+	case (COUPLER_MD)
+		remote_leader = jaux(COUPLER_CFD)
+	end select
 
-		!			print*,color, jaux, remote_leader
+	!print*,color, jaux, remote_leader
 
-		call mpi_intercomm_create(comm, comm_size - 1, COUPLER_GLOBAL_COMM,&
-			remote_leader, 1, COUPLER_ICOMM, ierr)
+	call mpi_intercomm_create(comm, comm_size - 1, COUPLER_GLOBAL_COMM,&
+									remote_leader, 1, COUPLER_ICOMM, ierr)
 
-		write(0,*) 'did (inter)communicators ', code_name(COUPLER_REALM), myid
-	end subroutine create_comm
+	write(0,*) 'did (inter)communicators ', code_name(COUPLER_REALM), myid
+
+end subroutine create_comm
 
 end subroutine coupler_create_comm
 
@@ -339,7 +340,7 @@ end subroutine coupler_cfd_init
 subroutine coupler_md_init(npxin,npyin,npzin,icoordin,icomm_grid,dtin)
 	use mpi
 	use coupler_internal_common
-        use coupler_input_data, cfd_code_id_in => cfd_code_id
+	use coupler_input_data, cfd_code_id_in => cfd_code_id
 	use coupler_internal_md, b => MD_initial_cellsize, md_density => density, &
         md_steps => md_steps_per_dt_cfd
 	implicit none
@@ -407,9 +408,9 @@ subroutine coupler_md_init(npxin,npyin,npzin,icoordin,icomm_grid,dtin)
 	x = fsig * x; y = fsig * y; z = fsig * z 
 	dx = fsig * ra(1); dz = fsig * ra(2)
 
-	!		write(0,*) 'MD exchange grid data: imin0, imin ...', imino, imin_cfd, imax_cfd,imaxo, &
-	!		 x(imino),x(imin_cfd), x(imax_cfd), x(imaxo)
-	!		write(0,*) 'MD exchage grid data: recv dx, dz ', dx, dz, jmax_overlap_cfd
+	!write(0,*) 'MD exchange grid data: imin0, imin ...', imino, imin_cfd, imax_cfd,imaxo, &
+	! x(imino),x(imin_cfd), x(imax_cfd), x(imaxo)
+	!write(0,*) 'MD exchage grid data: recv dx, dz ', dx, dz, jmax_overlap_cfd
 
 	! get CFD nsteps
 	call mpi_bcast(nsteps,1,mpi_integer,0,COUPLER_ICOMM,ierr)
@@ -423,7 +424,6 @@ subroutine coupler_md_init(npxin,npyin,npzin,icoordin,icomm_grid,dtin)
 	b          = ra(3)
 
 	! set the sizes of MD box
-
 	xL_md = x(imax_cfd) - x(imin_cfd)
 
     ! yL_md is adjusted to an integer number of initialisation cells in the following steps
@@ -442,9 +442,9 @@ subroutine coupler_md_init(npxin,npyin,npzin,icoordin,icomm_grid,dtin)
         cfd_is_2d = .true.
     endif
 
-		!write(0,*) 'MD: exchange_grid... xL_md, yL_md, zL_md',&
-		! & myid, xL_md, yL_md, zL_md
-		!write(0,*) 'MD: nsteps (CFD) ', nsteps
+	!write(0,*) 'MD: exchange_grid... xL_md, yL_md, zL_md',&
+	! & myid, xL_md, yL_md, zL_md
+	!write(0,*) 'MD: nsteps (CFD) ', nsteps
 
     ! initialise other md module variables if data is provided in coupler.in
     if (md_average_period_tag == CPL) then 
@@ -522,11 +522,11 @@ subroutine coupler_cfd_adjust_domain(xL, yL, zL, nx, ny, nz, density_cfd)
     endif
 
     if (present(yL)) then
-            ! No need to adjust y because we can adjust DY in MD to
-            ! have an integer number of FCC units.
-            ! But if the units are in cell side we need to bring the to sigma
-            xyz_ptr => cfd_coupler_input%domain%y
-            call init_length(xyz_ptr,yL,resize=.false.,direction='y')
+		! No need to adjust y because we can adjust DY in MD to
+		! have an integer number of FCC units.
+		! But if the units are in cell side we need to bring the to sigma
+		xyz_ptr => cfd_coupler_input%domain%y
+		call init_length(xyz_ptr,yL,resize=.false.,direction='y')
     endif
 
     if (present(zL)) then
@@ -822,10 +822,6 @@ subroutine coupler_send_grid_data_xd(asend,n1,n2,n3,n4,index_transpose,asend_lbo
 
 	integer, save :: ncalls = 0
 
-
-    !write(0,*) 'coupler send map', map%n
-
-
 	! This local CFD domain is outside MD overlap zone 
 	if ( map%n .eq. 0 ) return 
 
@@ -969,6 +965,9 @@ subroutine coupler_send_grid_data_xd(asend,n1,n2,n3,n4,index_transpose,asend_lbo
             dest, itag, COUPLER_ICOMM, ierr)
         ! send data only if there is anything to send
         if (np > 0) then 
+			!vbuf = 1.234567891011121314151617d0
+			!print'(2a,2i8,4f25.16)', 'ICP send data',code_name(COUPLER_REALM), myid, & 
+			!							 size(vbuf), maxval(vbuf),minval(vbuf),sum(vbuf),vbuf(10)
             call mpi_send(vbuf, np, MPI_DOUBLE_PRECISION, dest, itag, COUPLER_ICOMM, ierr)
         endif
     enddo
@@ -1062,13 +1061,13 @@ end subroutine coupler_recv_grid_data_4d
 !     collect contribution from molecule leaving local MD box.
 !  2) Periodic boundary condition can be applied, useful for averages with
 !     staggered boxes in which the end boxes collect only form half box
-!     at the moment this wors only with (z,x,y) array in z and x directions
+!     at the moment this works only with (z,x,y) array in z and x directions
 !   
 !    
 !-----------------------------------------------------------------------------
 !-----------------------------------------------------------------------------
 subroutine coupler_recv_grid_data_xd(arecv,n1,n2,n3,n4,index_transpose,a_lbound,&
-    a_grid_start,a_grid_end,glower,gupper,accumulate,pbc)
+    									a_grid_start,a_grid_end,glower,gupper,accumulate,pbc)
     use mpi
 	use coupler_internal_cfd, only : bbox_cfd, jmax_overlap, dx, dz, icoord, nlz
     use coupler_internal_md, only :  bbox_md => bbox
@@ -1089,7 +1088,7 @@ subroutine coupler_recv_grid_data_xd(arecv,n1,n2,n3,n4,index_transpose,a_lbound,
     ! starting index coordinated of grid data if is not (1,1,1)    
     integer, optional, intent(in) :: a_grid_start(3)
     ! upper corner of grid data stored in asend
-    ! if not present the the local grid box limits are  used
+    ! if not present the the local grid box limits are used
     integer, optional, intent(in) :: a_grid_end(3)  
     ! specifyle the order of dimensions in arecv
     ! default is ( x, y, z) but e.g. cartesian velocity
@@ -1106,7 +1105,6 @@ subroutine coupler_recv_grid_data_xd(arecv,n1,n2,n3,n4,index_transpose,a_lbound,
     ! local indices 
     integer is,ie,js,je,ks,ke,bis,bie,bjs,bje,bks,bke,ix,iy,iz,ais,aie,ajs,aje,aks,ake,&
         at(2,3),ig(2,3)
-
     ! auxiliaries 
     integer i,j,k,ii,jj,kk,np,itag,myid, source,req(map%n), vel_indx(8,map%n), &
         p1s,p1e,p2s,p2e,p3s,p3e,pt1s,pt1e,pt2s,pt2e,pt3s,pt3e, bgt(2,3),& 
@@ -1130,7 +1128,7 @@ subroutine coupler_recv_grid_data_xd(arecv,n1,n2,n3,n4,index_transpose,a_lbound,
          bks = bbox_cfd%zbb(1,icoord(3,myid+1))
          bke = bbox_cfd%zbb(2,icoord(3,myid+1))
      else 
-          ! using by default the indices of CFD grid  inside the MD domain
+		! using by default the indices of CFD grid  inside the MD domain
         bis = bbox_md%is
         bie = bbox_md%ie
         bjs = bbox_md%js
@@ -1215,13 +1213,12 @@ subroutine coupler_recv_grid_data_xd(arecv,n1,n2,n3,n4,index_transpose,a_lbound,
     at(1,iz) = aks
     at(2,iz) = ake
 
-
     ! first get info about what's comming
     do i = 1, map%n
         source =  map%rank_list(i)
         itag = mod( ncalls, MPI_TAG_UB)
         call mpi_irecv(vel_indx(1,i),8,MPI_Integer,source,itag,&
-            COUPLER_ICOMM,req(i),ierr)
+            			COUPLER_ICOMM,req(i),ierr)
     enddo
 
     call mpi_waitall(map%n, req, status, ierr)
@@ -1245,10 +1242,10 @@ subroutine coupler_recv_grid_data_xd(arecv,n1,n2,n3,n4,index_transpose,a_lbound,
 
         if (np > 0) then 
             
-        ! Attention ncall could go over max tag value for long runs!!
-            itag = mod(ncalls, MPI_TAG_UB)
+ 			! Attention ncall could go over max tag value for long runs!!
+			itag = mod(ncalls, MPI_TAG_UB)
             call mpi_irecv(vbuf(start_address(i)),np,MPI_DOUBLE_PRECISION,source,itag,&
-                COUPLER_ICOMM,req(i),ierr)
+                				COUPLER_ICOMM,req(i),ierr)
         else 
             req(i) = MPI_REQUEST_NULL
         endif
@@ -1256,11 +1253,12 @@ subroutine coupler_recv_grid_data_xd(arecv,n1,n2,n3,n4,index_transpose,a_lbound,
     enddo
 
     call mpi_waitall(map%n, req, status, ierr)
+	!print'(2a,2i8,4f25.16)', 'ICP recv data',code_name(COUPLER_REALM),myid, & 
+	!							 size(vbuf), maxval(vbuf),minval(vbuf),sum(vbuf),vbuf(10)
     !	write(0,*) 'MD getCFD vel wait',  myid, id, i, source, ierr
 
     ! allocate atmp corresponding to reunion of mapped grid
-    ! This must be thought as landing area for data comming from the other realm
-
+    ! This must be thought as landing area for data coming from the other realm
     ig(1,ix) = minval(vel_indx(3,:))
     ig(2,ix) = maxval(vel_indx(4,:))
     ig(1,iy) = minval(vel_indx(5,:))
@@ -1309,7 +1307,7 @@ subroutine coupler_recv_grid_data_xd(arecv,n1,n2,n3,n4,index_transpose,a_lbound,
     ! and apply periodic boundary conditions
 
     ! indices for overlapping window
-    ! usually the lading arera and arecv coincide
+    ! usually the landing arera and arecv coincide
     ! some test and warning should be done here
     p1s = max(lbound(atmp,2) - bgt(1,1) + at(1,1),at(1,1))
     p1e = min(ubound(atmp,2) - bgt(1,1) + at(1,1),at(2,1))
@@ -1335,22 +1333,25 @@ subroutine coupler_recv_grid_data_xd(arecv,n1,n2,n3,n4,index_transpose,a_lbound,
         
         np = ubound(atmp,1)
         do k = p3s, p3e
-            do j= p2s, p2e
-                do i = p1s,p1e
-                    ii = i + bgt(1,1) - at(1,1)
-                    jj = j + bgt(1,2) - at(1,2)
-                    kk = k + bgt(1,3) - at(1,3)
-                    if (atmp(np, ii,jj,kk) > 0.d0) then
-                        arecv(:,i,j,k) = atmp(1:np-1,ii,jj,kk)/atmp(np,ii,jj,kk)
-                    else
-                        arecv(:,i,j,k) = 0.d0
-                    endif
-                end do
-            end do
+ 		do j= p2s, p2e
+ 		do i = p1s,p1e
+			ii = i + bgt(1,1) - at(1,1)
+			jj = j + bgt(1,2) - at(1,2)
+			kk = k + bgt(1,3) - at(1,3)
+ 			if (atmp(np, ii,jj,kk) > 0.d0) then
+				arecv(:,i,j,k) = atmp(1:np-1,ii,jj,kk)/atmp(np,ii,jj,kk)
+			else
+				arecv(:,i,j,k) = 0.d0
+			endif
+		end do
+		end do
         end do
     else 
         arecv(:,p1s:p1e,p2s:p2e,p3s:p3e) = atmp(:,pt1s:pt1e,pt2s:pt2e,pt3s:pt3e) 
     endif
+
+	!print'(2a,2i8,4f25.16)', 'ICP trfr data',code_name(COUPLER_REALM),myid, & 
+	!						size(arecv), maxval(arecv),minval(arecv),sum(arecv),arecv(1,p1s,p2s,p3s)
             
 contains
 
@@ -1362,65 +1363,63 @@ contains
 ! attention coord array are shifted with 1 in CFD and MD
 ! to get correct result in MPI function such as mpi_cart_rank, subtract 1 
 !-----------------------------------------------------------------------------
-        subroutine set_pbc(pbc)
-            use coupler_internal_cfd, only : npx
-            implicit none
-            integer, intent(in) :: pbc
+subroutine set_pbc(pbc)
+    use coupler_internal_cfd, only : npx
+    implicit none
+    integer, intent(in) :: pbc
 
-            real(kind(0.d0)), allocatable, dimension(:,:,:) :: x1, x2
-            integer dest, ip(3), ierr, status(MPI_STATUS_SIZE)
+    real(kind(0.d0)), allocatable, dimension(:,:,:) :: x1, x2
+    integer dest, ip(3), ierr, status(MPI_STATUS_SIZE)
 
-            ! PBC works only for 3,2,1 coordinate transposition
+    ! PBC works only for 3,2,1 coordinate transposition
 
-            if ( .not. (ix == 2 .and. iy == 3 .and. iz == 1)) then
-                write(0,*) " Periodic boundary condition not implements for this layout of data"
-                return
+    if ( .not. (ix == 2 .and. iy == 3 .and. iz == 1)) then
+        write(0,*) " Periodic boundary condition not implements for this layout of data"
+        return
+    endif
+
+    ! Sanity check atmp must touch the boundary of the global grid in zin x directions
+    ! I guess that the PBC are apllied at the ends of global grid, check with CFD people
+    select case(pbc)
+    case(3)
+        ! first array dimension which corresponds to z direction vor velocity arrays 
+        allocate(x1(size(atmp,1),size(atmp,3),size(atmp,4)),x2(size(atmp,1),size(atmp,3),size(atmp,4)))
+        x1 =  atmp(:,aks, :,:)
+        x2 =  atmp(:,ake, :,:)
+        atmp(:, aks, :, :) =   atmp(:, aks, :, :) + x2
+        atmp(:, ake, :, :) =   atmp(:, ake, :, :) + x1
+    case(1)
+        ! second array dimension which correponds to x direction
+        allocate(x1(size(atmp,1),size(atmp,2),size(atmp,4)),x2(size(atmp,1),size(atmp,2),size(atmp,4)))
+        if ( npx == 1 )then 
+            ! no MPI communication needed  
+            !write(0,*) 'coupler internal cfd pbc', npx
+            x1 =  atmp(:, :,lbound(atmp,3), :)                 
+            x2 =  atmp(:, :,ubound(atmp,3), :)
+            atmp(:, :, lbound(atmp,3), :) =  atmp(:, :, lbound(atmp,3), :) + x2
+            atmp(:, :, ubound(atmp,3), :) =  atmp(:, :, ubound(atmp,3), :) + x1  
+        else 
+            call mpi_comm_rank(coupler_grid_comm,myid,ierr)
+            ip = icoord(: ,myid+1)
+            if (ip(1) == 1 .and. ip(2) == 1) then 
+                x1 =  atmp(:, :,lbound(atmp,3),:)
+                call mpi_cart_rank(coupler_grid_comm, (/ npx-1, 0, ip(3)-1 /), dest, ierr)
+                call mpi_sendrecv(x1,size(x1),MPI_DOUBLE_PRECISION,dest,1,x2,size(x2),MPI_DOUBLE_PRECISION,&
+                    dest,1,coupler_grid_comm,status,ierr)
+                atmp(:, :, lbound(atmp,3), :) =  atmp(:, :, lbound(atmp,3), :) + x2
+            else if (ip(1) == npx .and. ip(2) == 1) then 
+                x2 =  atmp(:, :,ubound(atmp,3), :)
+                call mpi_cart_rank(coupler_grid_comm, (/ 0, 0, ip(3) - 1 /), dest, ierr)
+                call mpi_sendrecv(x2,size(x2),MPI_DOUBLE_PRECISION,dest,1,x1,size(x1),MPI_DOUBLE_PRECISION,&
+                    dest,1,coupler_grid_comm,status,ierr)
+                atmp(:, :, ubound(atmp,3), :) =  atmp(:, :, ubound(atmp,3), :) + x1
             endif
-
-            ! Sanity check atmp must touch the boundary of the global grid in zin x directions
-            ! I guess that the PBC are apllied at the ends of global grid, check with CFD people
-            select case(pbc)
-            case(3)
-                ! first array dimension which corresponds to z direction vor velocity arrays 
-                allocate(x1(size(atmp,1),size(atmp,3),size(atmp,4)),x2(size(atmp,1),size(atmp,3),size(atmp,4)))
-                x1 =  atmp(:,aks, :,:)
-                x2 =  atmp(:,ake, :,:)
-                atmp(:, aks, :, :) =   atmp(:, aks, :, :) + x2
-                atmp(:, ake, :, :) =   atmp(:, ake, :, :) + x1
-            case(1)
-                ! second array dimension which correponds to x direction
-                allocate(x1(size(atmp,1),size(atmp,2),size(atmp,4)),x2(size(atmp,1),size(atmp,2),size(atmp,4)))
-                if ( npx == 1 )then 
-                    ! no MPI communication needed  
-                    !write(0,*) 'coupler internal cfd pbc', npx
-                    x1 =  atmp(:, :,lbound(atmp,3), :)                 
-                    x2 =  atmp(:, :,ubound(atmp,3), :)
-                    atmp(:, :, lbound(atmp,3), :) =  atmp(:, :, lbound(atmp,3), :) + x2
-                    atmp(:, :, ubound(atmp,3), :) =  atmp(:, :, ubound(atmp,3), :) + x1  
-                else 
-                    call mpi_comm_rank(coupler_grid_comm,myid,ierr)
-                    ip = icoord(: ,myid+1)
-                    if (ip(1) == 1 .and. ip(2) == 1) then 
-                        x1 =  atmp(:, :,lbound(atmp,3),:)
-                        call mpi_cart_rank(coupler_grid_comm, (/ npx-1, 0, ip(3)-1 /), dest, ierr)
-                        call mpi_sendrecv(x1,size(x1),MPI_DOUBLE_PRECISION,dest,1,x2,size(x2),MPI_DOUBLE_PRECISION,&
-                            dest,1,coupler_grid_comm,status,ierr)
-                        atmp(:, :, lbound(atmp,3), :) =  atmp(:, :, lbound(atmp,3), :) + x2
-                    else if (ip(1) == npx .and. ip(2) == 1) then 
-                        x2 =  atmp(:, :,ubound(atmp,3), :)
-                        call mpi_cart_rank(coupler_grid_comm, (/ 0, 0, ip(3) - 1 /), dest, ierr)
-                        call mpi_sendrecv(x2,size(x2),MPI_DOUBLE_PRECISION,dest,1,x1,size(x1),MPI_DOUBLE_PRECISION,&
-                            dest,1,coupler_grid_comm,status,ierr)
-                        atmp(:, :, ubound(atmp,3), :) =  atmp(:, :, ubound(atmp,3), :) + x1
-                    endif
-                endif
-            end select
-        end subroutine set_pbc
-        
-
-    end subroutine coupler_recv_grid_data_xd
+        endif
+    end select
+end subroutine set_pbc
 
 
+end subroutine coupler_recv_grid_data_xd
 
 !============================================================================
 !
@@ -1453,7 +1452,7 @@ end subroutine coupler_cfd_get
 
 
 !===============================================================================
-! return to the caller coupler parameters frommd realm
+! return to the caller coupler parameters from MD realm
 !-------------------------------------------------------------------------------
 subroutine coupler_md_get(xL_md,yL_md,zL_md, MD_initial_cellsize, top_dy, &
     overlap_with_continuum_force, overlap_with_top_cfd, ymin_continuum_force, &
@@ -1500,7 +1499,7 @@ subroutine coupler_md_get(xL_md,yL_md,zL_md, MD_initial_cellsize, top_dy, &
               y(j - 1) > bbox%bb(1,2)) .or. &
              (y(j - 2) < bbox%bb(2,2) .and. &
               y(j - 1) > bbox%bb(2,2))) then
-            write(0,*) " the region in which the continuum constrain force is apply "
+            write(0,*) " the region in which the continuum constraint force is applied "
             write(0,*) " spans over two domains. This case is not programmed, please investigate"
             call MPI_Abort(MPI_COMM_WORLD,COUPLER_ERROR_CONTINUUM_FORCE,ierr)
         endif
@@ -1705,264 +1704,6 @@ end function coupler_md_get_cfd_id
 ! Below are deprecated subroutine but still useful for
 ! testing or reference
 
-
-!=============================================================================
-! Take average of x,y and z components of MD velocity
-! Deprecated, but useful for testing
-!-----------------------------------------------------------------------------
-
-subroutine coupler_md_boundary_cell_average(np,r,v,send_data)
-	!  computes MD average velocity in a box of size dx*dy*dz around a staggered FD grid point
-    use coupler_internal_common, only : cfd_is_2d, staggered_averages
-	use coupler_internal_md, only : myid, icoord, dx, dz, x, y, z, global_r, cfd_code_id
-    use coupler_parameters
-	implicit none
-
-	integer, intent(in) :: np
-	real(kind=kind(0.d0)), dimension(:,:), intent(in) :: r,v
-	logical, intent(in) :: send_data
-
-	! tolerance for boundary overlap, 100th of sigma should do
-	real(kind=kind(0.d0)), parameter :: epsilon=1.0d-2
-
-	integer ixyz, displ, nbuff, nbuff_in, ib, kb, ic, kc, i, ip
-
-	!		write(0,*) 'md box-average: dx, dy, dz (sigma units), fsig', myid, dx,dz
-
-	! because of the staggered grid each a velocity component average
-	! must compute separately. Optimisation to be done later
-	call compute_uc_average
-	call compute_vc_average
-    if (cfd_code_id == couette_parallel) then
-        call compute_wc_average
-    end if
-
-contains 
-
-!-----------------------------------------------------------------------------
-!	Calculate x component of velocity for a bin in the MD region
-!-----------------------------------------------------------------------------
-
-	subroutine compute_uc_average
-		use coupler_internal_md, only : nlx, nlz, bbox, jmino, jmin => jmin_cfd,&
-						uc_bin,cfd_code_id
-		implicit none
-
-		integer ib, kb, ip, source, dest, max_ix, ierr
-		real(kind=kind(0.d0)) rd(3)
-        logical ovr_box_x
-		logical, save :: first_time=.true.
-
-		if (first_time) then
-			first_time = .false.
-            if (cfd_code_id == couette_parallel) then 
-                allocate(uc_bin(2,nlz-1,nlx-0,1))
-            else
-                allocate(uc_bin(2,nlz-1,nlx-1,1))
-            endif
-
-			uc_bin(:,:,:,:)  = 0.d0     
-		endif
-
-		! send it to CFD	
-		if (send_data) then  
-			! testing			uc_bin(1,:,:) = myid
-			!				uc_bin(2,:,:) = 1.d0
-			!call send_vel(uc_bin,nlz-0,nlx-0,1)
-            if (cfd_code_id == couette_parallel) then 
-                ovr_box_x = .true.
-            else
-                ovr_box_x = .false.
-            endif
-            call coupler_send_grid_data(uc_bin,index_transpose=(/2,3,1/),use_overlap_box=(/ ovr_box_x, .false., .false./))
-			uc_bin = 0.d0
-
-			return
-		endif
-
-
-		do ip = 1, np
-			! using global particle coordinates
-            rd(:) = r(ip,:)
-			rd(:) = global_r(rd)
-
-			if ( rd(2) > y(jmin) .or. rd(2) < y(jmino) ) then
-				! molecule outside the boundary layer
-				cycle
-			endif
-
-            if (staggered_averages(1)) then 
-                ib = nint((rd(1) - x(bbox%iso)) / dx) + 1 
-            else 
-                ib = ceiling((rd(1) - x(bbox%is)) / dx)       
-            endif
-			kb = ceiling((rd(3) - z(bbox%ks)) / dz)       ! cell centred averages; the last z row unused    
-
-			if ( ib > 0 .and. ib <=  ubound(uc_bin,3)  .and. &
-				 kb > 0 .and. kb <  nlz  ) then 
-				!  this particle are in this ranks domain
-				uc_bin(1,kb,ib,1) = uc_bin(1,kb,ib,1) + v(ip,1)
-				uc_bin(2,kb,ib,1) = uc_bin(2,kb,ib,1) + 1.d0 
-			else 
-				!				       write(0,*) 'MD uc_average, outside domain rd', rd, ' bbox%bb ', bbox 
-			endif
-		end do
-
-		! debug   
-		!			 do i = 1, size(uc_bin,dim=2)
-		!			  write(0, '(a,I4,64F7.1)') 'MD myid uc_bin(2,..',myid,uc_bin(2,1,:)
-		!			 enddo
-
-
-
-		!			write(0,*) 'MD uc sum in boxes', myid
-		!			do i = 1, size(uc_bin,dim=2)
-		!				write(0, '(a,I4,64E11.4)') 'MD myid uc_bin(1,..',myid, uc_bin(1,1,:)
-		!			enddo
-
-	end subroutine compute_uc_average
-
-!-----------------------------------------------------------------------------
-!	Calculate y component of velocity for a bin in the MD region
-!-----------------------------------------------------------------------------
-
-	subroutine compute_vc_average
-		use coupler_internal_md, only : nlx, nlz, bbox, jmino, jmin => jmin_cfd, vc_bin
-		implicit none
-		! this is the simplest one as there is no need for data communication
-		integer  ib, jb, kb, ip, ierr
-		real(kind=kind(0.d0)) rd(3)
-		logical, save :: first_time = .true.
-
-		if( first_time ) then
-			first_time = .false.
-            if(cfd_code_id == couette_parallel) then
-                allocate(vc_bin(2,nlz-1,nlx-1,2),stat=ierr)
-            else 
-                allocate(vc_bin(2,nlz-1,nlx-1,1),stat=ierr)
-            endif
-			vc_bin = 0.d0
-		endif
-
-
-		if (send_data ) then
-			! testing			vc_bin(1,:,:,:) = 10*myid+1
-			!				vc_bin(2,:,:,:) = 1.d0
-			!call send_vel(vc_bin,nlz-0,nlx-0,2)    
-            call coupler_send_grid_data(vc_bin,index_transpose=(/2,3,1/))
-			vc_bin = 0.d0
-			return
-		endif
-
-		!			write(2200+myid,*) bbox%bb
-
-		do ip = 1, np
-
-			! using global particle coordinates
-			rd(:) = r(ip,:)
-			rd(:) = global_r(rd)
-
-			!				write(2200+myid,*) rd, y(jmino), y(jmin)
-! simpler version
-!
-!			if (rd(2) >= y(jmino) .and. rd(2) <= y(jmin) ) then
-!				jb = 1
-!			else
-!				cycle       
-!			endif
-
-            if( staggered_averages(2))then 
-                if ( abs(rd(2)-y(jmino)) <= 0.5d0 * (y(jmin)-y(jmino)) ) then
-                    jb = 1
-                else if ( abs(rd(2)-y(jmin)) <= 0.5d0 * (y(jmin)-y(jmino)) ) then
-                    jb = 2
-                else
-                    cycle       
-                endif
-            else 
-                jb = 1
-                 if ( rd(2) < y(jmino) .or. rd(2) > y(jmin) ) then
-                    cycle       
-                endif
-            endif
-
-			! find the box indices
-			ib = ceiling((rd(1) - x(bbox%is)) / dx) ! cell centred averages in z, x; last cell unused
-			kb = ceiling((rd(3) - z(bbox%ks)) / dz)     
-
-			if ( ib > 0 .and. ib < nlx .and. &
-				kb > 0 .and. kb < nlz ) then 
-				!  this particle are in this ranks domain
-				vc_bin(1,kb,ib,jb) = vc_bin(1,kb,ib,jb) + v(ip,2)
-				vc_bin(2,kb,ib,jb) = vc_bin(2,kb,ib,jb) + 1.d0
-			else 
-				!write(0,*) 'MD vc_average, outside domain rd ', rd, ' bbox%bb ', bbox%bb 
-			endif
-		end do
-
-		! send to CFD
-		!			write(0,*) 'MD, vc_average: got',  np, sum(vc_bin(2,:,:,:)), 'particles'
-
-
-	end subroutine compute_vc_average
-
-!-----------------------------------------------------------------------------
-!	Calculate z component of velocity for a bin in the MD region
-!-----------------------------------------------------------------------------
-
-	subroutine compute_wc_average
-		use coupler_internal_md, only : nlx, nlz, bbox, bbox, jmin => jmin_cfd, jmino, wc_bin
-		implicit none
-
-		integer ib, kb, ip, source, dest, ierr
-		real(kind(0.d0)) rd(3)
-		logical, save :: first_time = .true.
-
-		if (first_time) then 
-			first_time = .false. 
-			allocate(wc_bin(2,nlz,nlx-1,1), stat = ierr)
-			wc_bin(:,:,:,1)  = 0.d0
-		endif
-
-  		if (send_data ) then
-			!call send_vel(wc_bin,nlz,nlx,1)    
-            call coupler_send_grid_data(wc_bin,index_transpose=(/2,3,1/),use_overlap_box=(/.false.,.false.,.true./))
-			wc_bin = 0.d0
-			return
-		endif
-
-
-		do ip = 1, np
-			! use global particle coordinates
-			rd(:) = r(ip,:)
-			rd(:) = global_r(rd)
-
-			if ( rd(2) > y(jmin) .or. rd(2) < y(jmino) ) then
-				! molecule outside the boundary layer
-				cycle
-			endif
-
-			ib = ceiling((rd(1) - x(bbox%is)) / dx)
-            if ( staggered_averages(3)) then 
-                kb = nint((rd(3) - z(bbox%kso)) / dz) + 1 ! staggered    
-            else
-                kb = ceiling((rd(3) - z(bbox%ks)) / dz)
-            endif
-
-			if ( ib > 0 .and. ib <  nlx .and. &
-				kb > 0 .and. kb <= nlz ) then 
-				!  this particle are in this ranks domain
-				wc_bin(1,kb,ib,1) = wc_bin(1,kb,ib,1) + v(ip,3)
-				wc_bin(2,kb,ib,1) = wc_bin(2,kb,ib,1) + 1.d0 
-			else 
-				!write(0,*) 'MD wc_average, outside domain rd', rd, ' bbox%bb ', bbox%bb 
-			endif
-
-		enddo
-
-	end subroutine compute_wc_average
-
-end subroutine coupler_md_boundary_cell_average
 
 !=============================================================================
 ! test subroutine
