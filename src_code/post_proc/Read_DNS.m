@@ -4,9 +4,9 @@
 %  ucvcwc.dble.xxxxxx and uuvvww.dble.xxxxxx
 %==========================================================================
 
-clear all
-close all
-fclose('all')
+%clear all
+%close all
+%fclose('all')
 
 pdir = pwd;
 
@@ -16,9 +16,9 @@ ngy = 32+1;
 ngz = 8+1;
 
 %--- domain size ----
-Lx = 1.;
+Lx = 52.1;
 Ly = 52.1;
-Lz = 1.;
+Lz = 10.0;
 
 %Axis for plots
 x = linspace(0, Lx, ngx);
@@ -32,8 +32,8 @@ za = linspace(0, Lz+1/ngz, ngz+1);
 %Reynols number
 Re = 19.5;
 
-cd '/home/es205/codes/coupled/CFD_dCSE/src_code/results'
-%cd '/home/es205/codes/coupled/coupler_dCSE/src_code/couette_data'
+%cd '/home/es205/codes/coupled/CFD_dCSE/src_code/results'
+cd '/home/es205/codes/coupled/coupler_dCSE/src_code/couette_data'
 
 %--- Read grid ----
 %read_grid
@@ -56,26 +56,28 @@ px = 1;
 py = 1:ngy;
 
 % read subdoms one at a time
-figure
-hold on
+%figure
 
 m = 1
-for n = 1:2^2:100 %length(filenames)
-    
+ for n = 1:length(filenames)
+     
     %Analytical solution
-	t = (n-1)*2.
-    analy = couette_analytical_fn(t,Re,[1.0,0],Ly,ngy-1,'top');
-    plot(y,analy,'r');
-    drawnow
+	t = (n-1)*15;
+    %analy = couette_analytical_fn(t,Re,[1.0,0],Ly,ngy-1,'top');
+    %plot(y,analy,'r');
+    %hold on
+
+    %axis([0 60 -0.1 1.1])
 
     %Read from DNS files
     V = read_sub(filenames(n).name,ngz,ngx,ngy,pz,px,py,skipk,skipi,skipj,3);
     u(:,m) = V{1};
     v(:,m) = V{2};
     w(:,m) = V{3};
-    scatter(y,u(:,m),'s')
-    drawnow
+    %scatter(y,u(:,m),'s')
+    %drawnow
     m = m + 1;
-end
+    %hold off
+ end
 
 % plot(squeeze(mean(mean(uc,1),2)))

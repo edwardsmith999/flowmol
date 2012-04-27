@@ -1,4 +1,4 @@
-module socket_coupler
+module continuum_coupler_socket
     implicit none
 #if USE_COUPLER
 
@@ -51,7 +51,6 @@ contains
         i1   = i1_u
         
         call coupler_cfd_get(jmax_overlap=jmax_ovr)
-        
         call mpi_comm_rank(icomm_grid,myid,ierr)
 
         !uc(1:ngz-1,i1_u:i2_u,j1_u+2) = myid+13.d0
@@ -64,7 +63,7 @@ contains
         endif
         
         jo = j1_u + jmax_ovr-jbmap_1(j1_u)-2 
-        write(0,*)'cfd socket, jo:',jo
+        !write(0,*)'cfd socket, jo:',jo
         call coupler_send_grid_data(uc(1:ngz-1,i1:i2_u,jo:jo),index_transpose=(/2,3,1/))
 
 
@@ -111,11 +110,15 @@ contains
             endif
 
          endif
-
+		!print'(2a,2i8,4f25.16)', 'CFD befr data',code_name(COUPLER_REALM), myid, & 
+		!							size(uc(:,:,0)), maxval(uc(:,:,0)),minval(uc(:,:,0)),sum(uc(:,:,0)),uc(3,3,0)
+		!print*, 'cfd b4', ngz-1,i1_ul,i2_u
         call coupler_recv_grid_data(uc(1:ngz-1,i1_ul:i2_u,0:0),index_transpose=(/2,3,1/),accumulate=.true.,pbc=1)
+		!print'(2a,2i8,4f25.16)', 'CFD recv data',code_name(COUPLER_REALM), myid, & 
+		!							size(uc(:,:,0)), maxval(uc(:,:,0)),minval(uc(:,:,0)),sum(uc(:,:,0)),uc(3,3,0)
         call coupler_recv_grid_data(vc(1:ngz-1,i1_v:i2_v,0:1),index_transpose=(/2,3,1/),accumulate=.true.)
         call coupler_recv_grid_data(wc(1:ngz,i1_w:i2_w,0:0),index_transpose=(/2,3,1/),accumulate=.true.,pbc=3)
-        
+
         !debug writes
         !do j=i1_ul, i2_u
         !    write(200+myid,'(1000(E11.3,1x))') uc(1:ngz-1,j,0)
@@ -138,4 +141,4 @@ contains
     end subroutine socket_coupler_get_md_BC
 
 #endif
-end module socket_coupler
+end module continuum_coupler_socket
