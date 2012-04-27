@@ -133,7 +133,9 @@ end
 !=======================================================================
 subroutine simulation_run()
 	use simulation
-    use socket_coupler
+#if USE_COUPLER
+    use continuum_coupler_socket
+#endif
 
 	stime_ = stime
 	ntime_ = ntime
@@ -223,7 +225,7 @@ subroutine simulation_run()
 
 		!--------------- Solver ------------------
 		before = realClock()
-	        if (idct == 1) then
+		if (idct == 1) then
 			!-------------------------------------------
 			! FFT in z-dir. + Cosine transform in x-dir.
 			!-------------------------------------------

@@ -34,7 +34,7 @@ end module
 subroutine main_init()
 	use main
 #if USE_COUPLER
-    use socket_coupler
+    use continuum_coupler_socket
 #endif
 
 	!---- Make sure MPI Starts----

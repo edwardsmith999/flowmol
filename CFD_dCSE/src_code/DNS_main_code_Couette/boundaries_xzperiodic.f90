@@ -151,7 +151,7 @@ end
 !===============================================================================
 subroutine CartesianBC(deltaT)
 #if USE_COUPLER
-	use socket_coupler
+	use continuum_coupler_socket
 #endif 
     	use boundaries
      

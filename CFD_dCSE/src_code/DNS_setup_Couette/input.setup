@@ -10,7 +10,7 @@
 ! Domain size
 52.1	xL	domain length
 52.1	yL	domain height
-52.1	zL  domain width
+10.0	zL  domain width
 
 ! Mesh parameters
 0	imeshY	stretching in Y: (0)uniform (1)pw-linear (2)matched tanh (3) Gauss-Lobatto
