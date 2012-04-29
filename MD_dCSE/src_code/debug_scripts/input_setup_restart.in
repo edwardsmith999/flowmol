@@ -33,7 +33,7 @@ INITIALNUNITS
 # Total number of timesteps:
 # -----------------------------------------------------------------------
 NSTEPS
-1
+100
 
 #########################################################################
 # Timestep interval:
@@ -78,7 +78,7 @@ ENSEMBLE
 #	(subroutine simulation_record is called)
 # -----------------------------------------------------------------------
 TPLOT
-1
+100
 
 #########################################################################
 # Number of initialisation steps to run before simulation start

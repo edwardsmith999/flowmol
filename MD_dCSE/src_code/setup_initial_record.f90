@@ -509,6 +509,7 @@ end subroutine simulation_header
 
 subroutine initial_macroscopic_properties
 use module_initial_record
+use interfaces
 implicit none
 
 	integer          :: n, ixyz
@@ -531,6 +532,8 @@ implicit none
 		call globalSum(potenergysum_LJ)
 		call globalSum(potenergysum_FENE)
  		call globalSum(potenergysum)
+	case default
+		call error_abort("Unrecognised potential flag in initial_macroscopic_properties")
 	end select
 
 	virial = sum(virialmol(1:np))
