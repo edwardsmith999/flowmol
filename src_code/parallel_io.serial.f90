@@ -225,14 +225,18 @@ subroutine setup_restart_inputs
 				  'in input & restart file - restart file will be used'
 		potential_flag = checkint
 	endif
-	!if (potential_flag.eq.1) then
-		read(2) checkint                  !nmonomers - number of beads per chain
-		if (checkint.ne.nmonomers) then
-			print*, 'Discrepancy between nmonomers', &
+	read(2) checkint
+	if (checkint .ne. solvent_flag) then
+	    print*, 'Discrepancy between solvent_flag', &
 				  'in input & restart file - restart file will be used'
-		nmonomers = checkint
-		endif
-	!endif
+		solvent_flag = checkint
+	endif
+	read(2) checkint                  !nmonomers - number of beads per chain
+	if (checkint.ne.nmonomers) then
+		print*, 'Discrepancy between nmonomers', &
+			  'in input & restart file - restart file will be used'
+	nmonomers = checkint
+	endif
 	read(2) npx
 	read(2) npy
 	read(2) npz
@@ -259,20 +263,37 @@ subroutine setup_restart_inputs
 	rcutoff2= rcutoff**2				!Useful definition to save computational time
 	read(2) checkdp 					!delta_t - Timestep
 	read(2) elapsedtime					!elapsedtime - Elapsed simulation time to date
-	!if (potential_flag.eq.1) then
-		read(2) checkdp					!k_c - Polymer spring constant
-		if (checkdp.ne.k_c) then
-			print*, 'Discrepancy between k_c', &
-				'in input & restart file - restart file will be used'
-			k_c = checkdp
-		endif
-		read(2) checkdp 					!Polymer max bond elongation
-		if (checkdp.ne.R_0) then
-			print*, 'Discrepancy between R_0', &
-					  'in input & restart file - restart file will be used'
-			R_0 = checkint
-		endif
-	!endif
+	read(2) checkdp					!k_c - Polymer spring constant
+	if (checkdp.ne.k_c) then
+		print*, 'Discrepancy between k_c ', &
+			'in input & restart file - restart file will be used'
+		k_c = checkdp
+	endif
+	read(2) checkdp 					!Polymer max bond elongation
+	if (checkdp.ne.R_0) then
+		print*, 'Discrepancy between R_0 ', &
+				  'in input & restart file - restart file will be used'
+		R_0 = checkdp
+	endif
+	read(2) checkdp 					!Polymer max bond elongation
+	if (checkdp.ne.eps_pp) then
+		print*, 'Discrepancy between eps_pp ', &
+				  'in input & restart file - restart file will be used'
+		eps_pp = checkdp
+	endif
+	read(2) checkdp 					!Polymer max bond elongation
+	if (checkdp.ne.eps_ps) then
+		print*, 'Discrepancy between eps_ps ', &
+				  'in input & restart file - restart file will be used'
+		eps_ps = checkdp
+	endif
+	read(2) checkdp 					!Polymer max bond elongation
+	if (checkdp.ne.eps_ss) then
+		print*, 'Discrepancy between eps_ss ', &
+				  'in input & restart file - restart file will be used'
+		eps_ss = checkdp
+	endif
+
 	read(2)  checkdp 					!delta_rneighbr - Extra distance used for neighbour cell size
 
 	close(2,status='keep')
@@ -302,6 +323,7 @@ subroutine setup_restart_microstate
 
 	integer 							:: ixyz, n
 	double precision,dimension(nd)		:: buf
+	double precision,dimension(8)       :: monomerbuf
 
 	!Open file at first recorded value
 	open(2,file=initial_microstate_file, form='unformatted', access='stream',position='rewind')
@@ -317,11 +339,12 @@ subroutine setup_restart_microstate
 			read(2) buf; r(n,:)     = buf   !Read particle n's positions
 			read(2) buf; rtrue(n,:) = buf   !Read particle n's positions
 			read(2) buf; v(n,:)     = buf   !Read particle n's velocities
-			read(2) monomer(n)%chainID
-			read(2) monomer(n)%subchainID
-			read(2) monomer(n)%funcy
-			read(2) monomer(n)%glob_no
-			read(2) monomer(n)%bin_bflag(1:4)
+			read(2) monomerbuf
+			monomer(n)%chainID        = nint(monomerbuf(1))
+			monomer(n)%subchainID     = nint(monomerbuf(2))
+			monomer(n)%funcy          = nint(monomerbuf(3))
+			monomer(n)%glob_no        = nint(monomerbuf(4))
+			monomer(n)%bin_bflag(1:4) = nint(monomerbuf(5:8))
 !			print*, 'g,f,c,s,b-------------------------'
 !			print*, monomer(n)%glob_no
 !			print*, monomer(n)%funcy
@@ -374,6 +397,7 @@ subroutine parallel_io_final_state
 	integer 								:: int_filesize,dp_filesize
 	integer(kind=selected_int_kind(18))		:: header_pos ! 8 byte integer for header address
 	double precision, dimension(nd) 		:: buf
+	double precision, dimension(8)          :: monomerbuf
 
 	!Rebuild simulation before recording final state
 	call linklist_deallocateall	   		!Deallocate all linklist components
@@ -409,11 +433,12 @@ subroutine parallel_io_final_state
 			buf = r(n,:);     write(2) buf  !Write particle n's positions and speed
 			buf = rtrue(n,:); write(2) buf  !Write particle n's unwrapped position
 			buf = v(n,:);     write(2) buf  !Write particle n's velocities
-			write(2) monomer(n)%chainID
-			write(2) monomer(n)%subchainID
-			write(2) monomer(n)%funcy
-			write(2) monomer(n)%glob_no
-			write(2) monomer(n)%bin_bflag(1:4)
+			monomerbuf(1)   = real(monomer(n)%chainID,kind(0.d0))
+			monomerbuf(2)   = real(monomer(n)%subchainID,kind(0.d0))
+			monomerbuf(3)   = real(monomer(n)%funcy,kind(0.d0))
+			monomerbuf(4)   = real(monomer(n)%glob_no,kind(0.d0))
+			monomerbuf(5:8) = real(monomer(n)%bin_bflag(1:4),kind(0.d0))
+			write(2) monomerbuf
 		end do
 	case default
 	end select	
@@ -438,6 +463,7 @@ subroutine parallel_io_final_state
 	write(2) periodic(2)   		!Boundary condition flags
 	write(2) periodic(3)	   	!Boundary condition flags
 	write(2) potential_flag   	!Polymer/LJ potential flag
+	write(2) solvent_flag       !Solvent on/off flag
 	write(2) nmonomers		   	!Polymer chain length
 	write(2) 0                  !Processors (npx) flag for serial
 	write(2) 0                  !Processors (npy) flag for serial
@@ -449,6 +475,9 @@ subroutine parallel_io_final_state
 	write(2) elapsedtime      !Total elapsed time of all restarted simulations
 	write(2) k_c		   	  !FENE spring constant
 	write(2) R_0		      !FENE spring max elongation
+	write(2) eps_pp           !Soddemann potential parameter
+	write(2) eps_ps           !Soddemann potential parameter
+	write(2) eps_ss           !Soddemann potential parameter
 	write(2) delta_rneighbr	  !Extra distance used for neighbour list cell size
     write(2) header_pos-1     ! -1 for MPI IO compatibility
 	close(2,status='keep') 	  !Close final_state file
@@ -465,34 +494,24 @@ subroutine parallel_io_vmd(start, finish,interval_no)
 	integer,intent(in)			:: start, finish,interval_no
 	integer						:: i, n, length
 	integer                     :: molno
-	real,dimension(3*np)		:: buf,buftrue
+	real,dimension(3*np)		:: buf
 	real,dimension(np)          :: Xbuf, Ybuf, Zbuf
-	real,dimension(np)          :: Xbuftrue, Ybuftrue, Zbuftrue
 
 	select case (potential_flag)
 	case(0)
 		buf(1     :  np) = r(:,1)
 		buf(np+1  :2*np) = r(:,2)
 		buf(2*np+1:3*np) = r(:,3)
-		buftrue(1     :  np) = rtrue(:,1)
-		buftrue(np+1  :2*np) = rtrue(:,2)
-		buftrue(2*np+1:3*np) = rtrue(:,3)
 	case(1)
 		do n=1,np
 			molno       = monomer(n)%glob_no
 			Xbuf(molno) = r(n,1)
 			Ybuf(molno) = r(n,2)
 			Zbuf(molno) = r(n,3)
-			Xbuftrue(molno) = rtrue(n,1)
-			Ybuftrue(molno) = rtrue(n,2)
-			Zbuftrue(molno) = rtrue(n,3)
 		enddo
 		buf(1     :np  ) = Xbuf
 		buf(np+1  :2*np) = Ybuf
 		buf(2*np+1:3*np) = Zbuf
-		buftrue(1     :np  ) = Xbuftrue
-		buftrue(np+1  :2*np) = Ybuftrue
-		buftrue(2*np+1:3*np) = Zbuftrue
 	case default
 	end select		
 
@@ -508,13 +527,51 @@ subroutine parallel_io_vmd(start, finish,interval_no)
 	open (unit=4, file=trim(prefix_dir)//'results/vmd_temp.dcd',access='direct',recl=length)
 	write(4,rec=i) buf(:)
 	close(4,status='keep')
-	
-	inquire(iolength=length) buftrue
-	open (unit=4, file=trim(prefix_dir)//'results/vmd_temp_true.dcd',access='direct',recl=length)
-	write(4,rec=i) buftrue(:)
-	close(4,status='keep')
 
 end subroutine parallel_io_vmd
+
+subroutine parallel_io_vmd_true(start, finish,interval_no)
+	use module_parallel_io
+	implicit none
+
+	integer,intent(in)			:: start, finish,interval_no
+	integer						:: i, n, length
+	integer                     :: molno
+	real,dimension(3*np)		:: buf
+	real,dimension(np)          :: Xbuf, Ybuf, Zbuf
+
+	select case (potential_flag)
+	case(0)
+		buf(1     :  np) = rtrue(:,1)
+		buf(np+1  :2*np) = rtrue(:,2)
+		buf(2*np+1:3*np) = rtrue(:,3)
+	case(1)
+		do n=1,np
+			molno       = monomer(n)%glob_no
+			Xbuf(molno) = rtrue(n,1)
+			Ybuf(molno) = rtrue(n,2)
+			Zbuf(molno) = rtrue(n,3)
+		enddo
+		buf(1     :np  ) = Xbuf
+		buf(np+1  :2*np) = Ybuf
+		buf(2*np+1:3*np) = Zbuf
+	case default
+	end select		
+
+	!If intervals set to zero then full simulation recorded
+	if (Nvmd_intervals.eq.0) then
+		i = (iter-initialstep)/tplot+1
+	else
+		!Otherwise, calculate number of previous intervals
+		i = vmd_count
+	endif
+	
+	inquire(iolength=length) buf
+	open (unit=4, file=trim(prefix_dir)//'results/vmd_temp_true.dcd',access='direct',recl=length)
+	write(4,rec=i) buf(:)
+	close(4,status='keep')
+
+end subroutine parallel_io_vmd_true
 
 !------------------------------------------------------------------------
 !Write positions of molecules to a file

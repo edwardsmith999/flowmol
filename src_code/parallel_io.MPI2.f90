@@ -251,15 +251,20 @@ subroutine setup_restart_inputs
 					  'in input & restart file - restart file will be used'
 			potential_flag = checkint
 		endif
-
-		!if (potential_flag.eq.1) then
-			call MPI_File_read(restartfileid,checkint       ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr) !nmonomers
-			if (checkint.ne.nmonomers) then
-				print*, 'Discrepancy between nmonomers', &
+		call MPI_File_read(restartfileid,checkint  		 ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr) !solvent_flag
+		if (checkint .ne. solvent_flag) then
+		    print*, 'Discrepancy between solvent_flag', &
 					  'in input & restart file - restart file will be used'
-				nmonomers = checkint
-			endif
-		!endif
+			solvent_flag = checkint
+		endif
+
+		call MPI_File_read(restartfileid,checkint       ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr) !nmonomers
+		if (checkint.ne.nmonomers) then
+			print*, 'Discrepancy between nmonomers', &
+				  'in input & restart file - restart file will be used'
+			nmonomers = checkint
+		endif
+
 		procnp = 0; proc_reorder = 0; 	prev_nproc = 1
 		!Small debugging run (nproc<27) - if proc mismatch use serial reordering (all read everything and discard)
 		if(npx .le. 3 .and. npy .le. 3 .and. npz .le. 3) then
@@ -322,7 +327,25 @@ subroutine setup_restart_inputs
 		if (checkdp.ne.R_0) then
 			print*, 'Discrepancy between R_0', &
 					  'in input & restart file - restart file will be used'
-			R_0 = checkint
+			R_0 = checkdp
+		endif
+	    call MPI_File_read(restartfileid,checkdp         ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)	!eps_pp
+		if (checkdp.ne.eps_pp) then
+			print*, 'Discrepancy between eps_pp', &
+					  'in input & restart file - restart file will be used'
+			eps_pp = checkdp
+		endif
+	    call MPI_File_read(restartfileid,checkdp         ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)	!eps_ps
+		if (checkdp.ne.eps_ps) then
+			print*, 'Discrepancy between eps_ps', &
+					  'in input & restart file - restart file will be used'
+			eps_ps = checkdp
+		endif
+	    call MPI_File_read(restartfileid,checkdp         ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)	!eps_ss
+		if (checkdp.ne.eps_ss) then
+			print*, 'Discrepancy between eps_ss', &
+					  'in input & restart file - restart file will be used'
+			eps_ss = checkdp
 		endif
 	    call MPI_File_read(restartfileid,delta_rneighbr  ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)	!delta_rneighbr
 
@@ -341,6 +364,7 @@ subroutine setup_restart_inputs
 	call MPI_BCAST(initialnunits,     3,MPI_integer,iroot-1,MD_COMM,ierr)
 	call MPI_BCAST(Nsteps,            1,MPI_integer,iroot-1,MD_COMM,ierr)
 	call MPI_BCAST(potential_flag,    1,MPI_integer,iroot-1,MD_COMM,ierr)
+	call MPI_BCAST(solvent_flag,      1,MPI_integer,iroot-1,MD_COMM,ierr)
 	call MPI_BCAST(proc_reorder, 	  1,MPI_integer,iroot-1,MD_COMM,ierr)
 	call MPI_BCAST(procnp, size(procnp),MPI_integer,iroot-1,MD_COMM,ierr)
 	call MPI_BCAST(nmonomers,         1,MPI_integer,iroot-1,MD_COMM,ierr)
@@ -349,6 +373,9 @@ subroutine setup_restart_inputs
 	call MPI_BCAST(elapsedtime,       1,MPI_double_precision,iroot-1,MD_COMM,ierr) 
 	call MPI_BCAST(k_c,               1,MPI_double_precision,iroot-1,MD_COMM,ierr)
 	call MPI_BCAST(R_0,               1,MPI_double_precision,iroot-1,MD_COMM,ierr)
+	call MPI_BCAST(eps_pp,            1,MPI_double_precision,iroot-1,MD_COMM,ierr)
+	call MPI_BCAST(eps_ps,            1,MPI_double_precision,iroot-1,MD_COMM,ierr)
+	call MPI_BCAST(eps_ss,            1,MPI_double_precision,iroot-1,MD_COMM,ierr)
 
 	elapsedtime = elapsedtime + delta_t*extrasteps !Set elapsed time to end of simualtion
 	initialstep = Nsteps         !Set plot count to final plot of last
@@ -363,38 +390,15 @@ subroutine setup_restart_microstate
 	implicit none
 
 	integer 											:: i,n, nl, ixyz, procassign
-	integer												:: dp_datasize, int_datasize, monomer_datasize
+	integer												:: dp_datasize, monomer_datasize
 	integer(kind=MPI_OFFSET_KIND)   					:: disp, procdisp
-	integer, dimension(nproc)                           :: max_chainID
 	double precision, dimension (3*nd)					:: rvc !Temporary variable
+	double precision, dimension(:), allocatable  		:: monomerc
 	double precision, dimension (3*nd*procnp(irank))	:: buf !Temporary variable
-	integer, dimension(8)                               :: intbuf
-	integer, dimension(:), allocatable  				:: monomerc
-	
-	!-----------------------------------------------------------------------
-	!Mixed MPI datatype
-	type monomerbuftype
-		double precision, dimension (3*nd)              :: dp_buf
-		integer         , dimension (8   )              :: int_buf     !Must be of even length
-	end type monomerbuftype
-
-	type (monomerbuftype), dimension(procnp(irank))     :: monomerbuf
-	integer :: offsets(0:1), blocklens(0:1), oldtypes(0:1)
-	integer :: mpi_monomer
-	integer(kind=MPI_ADDRESS_KIND) :: lb, extent			
-
-	offsets(0)   = 0                                                   !Zero offset for first type
-	oldtypes(0)  = MPI_DOUBLE_PRECISION                                !First type dp
-	blocklens(0) = 3*nd                                                !9 dps in monomerbuftype
-	call MPI_TYPE_GET_EXTENT(MPI_DOUBLE_PRECISION, lb, extent, ierr)   !Get size of dp
-	offsets(1)   = blocklens(0)*extent                                 !Offset for integers after dps
-	oldtypes(1)  = MPI_INTEGER                                         !Second type ints
-	blocklens(1) = 6                                                   !6 ints in monomerbuftype
-	!-----------------------------------------------------------------------
+	double precision, dimension ((3*nd+8)*procnp(irank)):: monomerbuf	
 	
 	!Determine size of datatypes
   	call MPI_type_size(MPI_double_precision,dp_datasize,ierr)
-  	call MPI_type_size(MPI_Integer,int_datasize,ierr)
 
 	!Open restart file on all processor
 	call MPI_FILE_OPEN(MD_COMM, initial_microstate_file, & 
@@ -440,42 +444,39 @@ subroutine setup_restart_microstate
 		
 		case(1)
 
-			call MPI_TYPE_STRUCT(2,blocklens,offsets,oldtypes,mpi_monomer,ierr)
-			call MPI_TYPE_COMMIT(mpi_monomer,ierr)
-			call MPI_TYPE_SIZE(mpi_monomer,monomer_datasize,ierr)
-
 			procdisp = 0
 			do i=1,irank-1
-				procdisp = procdisp + procnp(i)*monomer_datasize
+				procdisp = procdisp + (3*nd+8)*procnp(i)*dp_datasize
 			enddo
 			
 			!Obtain location to write in file
 			disp =  procdisp
-			call MPI_FILE_SET_VIEW(restartfileid, disp, mpi_monomer,                      & 
-			                       mpi_monomer, 'native', MPI_INFO_NULL, ierr)
-			call MPI_FILE_READ_ALL(restartfileid, monomerbuf, procnp(irank), mpi_monomer, & 
+			call MPI_FILE_SET_VIEW(restartfileid, disp, MPI_DOUBLE_PRECISION,               & 
+			                       MPI_DOUBLE_PRECISION, 'native', MPI_INFO_NULL, ierr)
+			call MPI_FILE_READ_ALL(restartfileid, monomerbuf, (3*nd+8)*procnp(irank), MPI_DOUBLE_PRECISION, & 
 			                       MPI_STATUS_IGNORE, ierr) !Read position from file
 
-			do n = 1,procnp(irank)
-		
+			nl = 0
+			do n = 1,(3*nd+8)*procnp(irank),(3*nd+8)
+				nl = nl + 1
 				!Correct to local coordinates
-				r(n,1) = monomerbuf(n)%dp_buf(1)-domain(1)*(iblock-1)+halfdomain(1)*(npx-1)
-				r(n,2) = monomerbuf(n)%dp_buf(2)-domain(2)*(jblock-1)+halfdomain(2)*(npy-1)
-				r(n,3) = monomerbuf(n)%dp_buf(3)-domain(3)*(kblock-1)+halfdomain(3)*(npz-1)
+				r(nl,1) = monomerbuf(n)-domain(1)*(iblock-1)+halfdomain(1)*(npx-1)
+				r(nl,2) = monomerbuf(n+1)-domain(2)*(jblock-1)+halfdomain(2)*(npy-1)
+				r(nl,3) = monomerbuf(n+2)-domain(3)*(kblock-1)+halfdomain(3)*(npz-1)
 				!Read true positions
-				rtrue(n,1) = monomerbuf(n)%dp_buf(4)
-				rtrue(n,2) = monomerbuf(n)%dp_buf(5)
-				rtrue(n,3) = monomerbuf(n)%dp_buf(6)
+				rtrue(nl,1) = monomerbuf(n+3)
+				rtrue(nl,2) = monomerbuf(n+4)
+				rtrue(nl,3) = monomerbuf(n+5)
 				!Read velocities
-				v(n,1) = monomerbuf(n)%dp_buf(7)
-				v(n,2) = monomerbuf(n)%dp_buf(8)
-				v(n,3) = monomerbuf(n)%dp_buf(9)
-				!Assign corresponding monomer info
-				monomer(n)%chainID          = monomerbuf(n)%int_buf(1)
-				monomer(n)%subchainID       = monomerbuf(n)%int_buf(2)
-				monomer(n)%funcy            = monomerbuf(n)%int_buf(3)
-				monomer(n)%glob_no          = monomerbuf(n)%int_buf(4) 
-				monomer(n)%bin_bflag(1:4)   = monomerbuf(n)%int_buf(5:8)
+				v(nl,1) = monomerbuf(n+6)
+				v(nl,2) = monomerbuf(n+7)
+				v(nl,3) = monomerbuf(n+8)
+				!Aslsign corresponding monomer info
+				monomer(nl)%chainID        = nint(monomerbuf(n+9))
+				monomer(nl)%subchainID     = nint(monomerbuf(n+10))
+				monomer(nl)%funcy          = nint(monomerbuf(n+11))
+				monomer(nl)%glob_no        = nint(monomerbuf(n+12))
+				monomer(nl)%bin_bflag(1:4) = nint(monomerbuf(n+13:n+16))
 			
 			enddo
 			np = procnp(irank)
@@ -483,8 +484,6 @@ subroutine setup_restart_microstate
 			! Determine number of chains by global maximum of chainID
 			nchains = maxval(monomer(:)%chainID)
 			call globalMaxInt(nchains)
-			
-			call MPI_TYPE_FREE(mpi_monomer,ierr)
 			
 		case default
 			call error_abort('Invalid case selection in restart_microstate')
@@ -536,7 +535,7 @@ subroutine setup_restart_microstate
 			do n=1,globalnp
 				call MPI_FILE_READ_ALL(restartfileid, rvc(:), 3*nd, MPI_double_precision, & 
 				                       MPI_STATUS_IGNORE, ierr)
-				call MPI_FILE_READ_ALL(restartfileid, monomerc, 8, MPI_integer, &
+				call MPI_FILE_READ_ALL(restartfileid, monomerc, 8, MPI_double_precision, &
 				                       MPI_STATUS_IGNORE, ierr)
 				
 				!Use integer division to determine which processor to assign molecule to
@@ -564,11 +563,11 @@ subroutine setup_restart_microstate
 				v(nl,:) = rvc(2*nd+1:)
 				
 				!Assign corresponding monomer info
-				monomer(nl)%chainID          = monomerc(1)
-				monomer(nl)%subchainID       = monomerc(2)
-				monomer(nl)%funcy            = monomerc(3)
-				monomer(nl)%glob_no          = monomerc(4) 
-				monomer(nl)%bin_bflag(1:4)   = monomerc(5:8)
+				monomer(nl)%chainID          = nint(monomerc(1))
+				monomer(nl)%subchainID       = nint(monomerc(2))
+				monomer(nl)%funcy            = nint(monomerc(3))
+				monomer(nl)%glob_no          = nint(monomerc(4))
+				monomer(nl)%bin_bflag(1:4)   = nint(monomerc(5:8))
 
 				if (mod(n,1000) .eq. 0) print'(a,f10.2)', & 
 					'Redistributing molecules to different processor topology % complete =', (100.d0*n/globalnp)
@@ -616,33 +615,11 @@ subroutine parallel_io_final_state
 	!include 'mpif.h'
 
 	integer				   							:: n, i
-	integer 			   							:: dp_datasize,int_datasize,monomer_datasize
+	integer 			   							:: dp_datasize
 	integer(kind=MPI_OFFSET_KIND)      				:: disp, procdisp, filesize
     integer(kind=selected_int_kind(18))     		:: header_pos
-	double precision, dimension(nd)					:: Xwrite	!Temporary variable used in write
-	double precision, dimension(:,:), allocatable 	:: buf		!Temporary variable used in write
-	
-	!-----------------------------------------------------------------------
-	!Mixed MPI datatype
-	type monomerbuftype
-		double precision, dimension (3*nd)  :: dp_buf
-		integer         , dimension (8   )  :: int_buf          !Must be of even length
-	end type monomerbuftype
-
-	type (monomerbuftype), dimension(:), allocatable :: monomerbuf
-	integer :: offsets(0:1), blocklens(0:1), oldtypes(0:1)
-	integer :: mpi_monomer
-	integer(kind=MPI_ADDRESS_KIND) :: lb, extent			
-
-	offsets(0)   = 0
-	oldtypes(0)	 = MPI_DOUBLE_PRECISION
-	blocklens(0) = 3*nd
-	call MPI_TYPE_GET_EXTENT(MPI_DOUBLE_PRECISION, lb, extent, ierr)
-	offsets(1)   = blocklens(0)*extent
-	oldtypes(1)  = MPI_INTEGER
-	blocklens(1) = 8
-	
-	!-----------------------------------------------------------------------
+	double precision, dimension(:,:), allocatable 	:: buf
+	double precision, dimension(:,:), allocatable   :: monomerbuf
 
 	!Rebuild simulation before recording final state
 	call linklist_deallocateall	   		!Deallocate all linklist components
@@ -655,13 +632,8 @@ subroutine parallel_io_final_state
 	!process' subdomains on current proccess
 	call globalGathernp
 
-	! Attention np is changed inside reorder_data%sendmols call
-    allocate(buf(nd,3*np))
-	allocate(monomerbuf(procnp(irank)))
-
 	!Determine size of datatypes
   	call MPI_type_size(MPI_double_precision,dp_datasize,ierr)
-	call MPI_type_size(MPI_integer,int_datasize,ierr)
 
 	!Adjust r according to actual location for storage according
 	!to processor topology with r = 0 at centre
@@ -669,22 +641,9 @@ subroutine parallel_io_final_state
 	r(:,2) = r(:,2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
 	r(:,3) = r(:,3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
 
-	!Obtain displacement of each processor using all other procs' np
-	!with 6 position (3 wrapped, 3 unwrapped) and 3 velocity components 
-	!for each molecule
+	!Initialise file displacements
 	procdisp = 0
-	select case (potential_flag)
-	case(0)
-		do i=1,irank-1
-			procdisp = procdisp + 3*nd*procnp(i)*dp_datasize
-		enddo
-	case(1)
-		do i=1,irank-1
-			procdisp = procdisp + procnp(i)*monomer_datasize
-		enddo
-	case default
-	end select
-		
+
 	!Remove previous final state file
 	call MPI_FILE_DELETE(trim(prefix_dir)//'results/final_state', MPI_INFO_NULL, ierr)
 
@@ -695,11 +654,20 @@ subroutine parallel_io_final_state
 
 	!-------------Write coordinates--------------------
 
-	!Obtain location to write in file
-	disp =  procdisp
-
 	select case (potential_flag)
 	case(0)
+    	
+		! Attention np is changed inside reorder_data%sendmols call
+		allocate(buf(nd,3*np))
+
+		!Obtain displacement of each processor using all other procs' np
+		!with 6 position (3 wrapped, 3 unwrapped) and 3 velocity components 
+		!for each molecule
+		do i=1,irank-1
+			procdisp = procdisp + 3*nd*procnp(i)*dp_datasize
+		enddo
+		disp = procdisp
+
 		!Set each processor to that location and write particlewise
 		call MPI_FILE_SET_VIEW(restartfileid, disp, MPI_double_precision, & 
  		                       MPI_double_precision, 'native', MPI_INFO_NULL, ierr)
@@ -710,32 +678,39 @@ subroutine parallel_io_final_state
 	 	enddo
 	 	call MPI_FILE_WRITE(restartfileid, buf,3*np*nd, & 
 	 	 						MPI_double_precision, MPI_STATUS_IGNORE, ierr)
+		
+		deallocate(buf)
+
 	case(1)
 		
-		call MPI_TYPE_STRUCT(2,blocklens,offsets,oldtypes,mpi_monomer,ierr)
-		call MPI_TYPE_COMMIT(mpi_monomer,ierr)
-		call MPI_TYPE_SIZE(mpi_monomer,monomer_datasize,ierr)
-		call MPI_FILE_SET_VIEW(restartfileid, disp, mpi_monomer, & 
- 		                       mpi_monomer, 'native', MPI_INFO_NULL, ierr)
+		allocate(monomerbuf((3*nd)+8,procnp(irank)))
+		
+		do i=1,irank-1
+			procdisp = procdisp + (3*nd+8)*procnp(i)*dp_datasize
+		enddo
+		disp = procdisp
+
+		call MPI_FILE_SET_VIEW(restartfileid, disp, MPI_DOUBLE_PRECISION, &
+		                       MPI_DOUBLE_PRECISION, 'native', MPI_INFO_NULL, ierr)
 
 		do n=1,procnp(irank)
 
-			monomerbuf(n)%dp_buf(1:3)   = r(n,:)
-			monomerbuf(n)%dp_buf(4:6)   = rtrue(n,:)
-			monomerbuf(n)%dp_buf(7:9)   = v(n,:)
-			monomerbuf(n)%int_buf(1)    = monomer(n)%chainID
-			monomerbuf(n)%int_buf(2)    = monomer(n)%subchainID
-			monomerbuf(n)%int_buf(3)    = monomer(n)%funcy
-			monomerbuf(n)%int_buf(4)    = monomer(n)%glob_no
-			monomerbuf(n)%int_buf(5:8)  = monomer(n)%bin_bflag(1:4)
+			monomerbuf(1:3,n)    = r(n,:)
+			monomerbuf(4:6,n)    = rtrue(n,:)
+			monomerbuf(7:9,n)    = v(n,:)
+			monomerbuf(10, n)    = real(monomer(n)%chainID,        kind(0.d0))
+			monomerbuf(11, n)    = real(monomer(n)%subchainID,     kind(0.d0))
+			monomerbuf(12, n)    = real(monomer(n)%funcy,          kind(0.d0))
+			monomerbuf(13, n)    = real(monomer(n)%glob_no,        kind(0.d0))
+			monomerbuf(14:17,n)  = real(monomer(n)%bin_bflag(1:4), kind(0.d0))
 			
 		end do
 	
-		call MPI_FILE_WRITE_ALL(restartfileid, monomerbuf, procnp(irank), mpi_monomer, &
+		call MPI_FILE_WRITE_ALL(restartfileid, monomerbuf, (3*nd + 8)*procnp(irank), MPI_DOUBLE_PRECISION, &
 		                        MPI_STATUS_IGNORE, ierr)
 		
-		call MPI_TYPE_FREE(mpi_monomer,ierr)
- 
+		deallocate(monomerbuf)
+
 	case default
 	end select
 
@@ -770,6 +745,7 @@ subroutine parallel_io_final_state
         call MPI_File_write(restartfileid,seed          ,2,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,periodic      ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,potential_flag,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+        call MPI_File_write(restartfileid,solvent_flag  ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,nmonomers     ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 		call MPI_File_write(restartfileid,npx           ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 		call MPI_File_write(restartfileid,npy           ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
@@ -782,21 +758,17 @@ subroutine parallel_io_final_state
         call MPI_File_write(restartfileid,elapsedtime   ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,k_c           ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,R_0           ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+        call MPI_File_write(restartfileid,eps_pp        ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+        call MPI_File_write(restartfileid,eps_ps        ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+        call MPI_File_write(restartfileid,eps_ss        ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,delta_rneighbr,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 
         header_pos = filesize ! just in case offset kind is 32 bit, rather improbable these days  !!!
         call MPI_File_write(restartfileid,header_pos,1,MPI_INTEGER8,MPI_STATUS_IGNORE,ierr)
         call MPI_file_close(restartfileid, ierr)
-   
-		!call MPI_file_open(MPI_COMM_SELF,trim(prefix_dir)//'results/final_state', & 
-		!                   MPI_MODE_RDONLY, MPI_INFO_NULL, restartfileid, ierr)
-       	!call MPI_File_get_size(restartfileid,filesize,ierr)
-        !call MPI_File_close(restartfileid, ierr)
 
 	endif
 	
-	deallocate(buf)
-	deallocate(monomerbuf)
 
 end subroutine parallel_io_final_state
 
@@ -932,7 +904,7 @@ subroutine parallel_io_vmd
 		                   MPI_MODE_RDWR + MPI_MODE_CREATE,       & 
 		                   MPI_INFO_NULL, fileid, ierr)
 
-		disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize   !Current iteration
+		disp =((iter-initialstep+1)/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize   !Current iteration
 
 		!Write X positions---------------------------------------------
 		call MPI_FILE_SET_VIEW(fileid,     disp, MPI_REAL, MPI_REAL,          &      !Find position
@@ -967,27 +939,22 @@ end subroutine parallel_io_vmd
 !------------------------------------------------------------------------
 !Write positions of molecules to a file
 
-subroutine parallel_io_vmd_rtrue
+subroutine parallel_io_vmd_true
 	use module_parallel_io
 	implicit none
-	!include 'mpif.h' 
 
 	integer							:: procdisp
 	integer							:: i, datasize
 	real,dimension(np)				:: Xbuf, Ybuf, Zbuf
-	real,dimension(np)              :: Xbuftrue, Ybuftrue, Zbuftrue
-	real,dimension(globalnp)        :: Xbufglob, Xbufglobtrue
-	real,dimension(globalnp)        :: Ybufglob, Ybufglobtrue
-	real,dimension(globalnp)        :: Zbufglob, Zbufglobtrue
+	real,dimension(globalnp)        :: Xbufglob
+	real,dimension(globalnp)        :: Ybufglob
+	real,dimension(globalnp)        :: Zbufglob
 	integer                         :: n,globmolno
 	integer(kind=MPI_OFFSET_KIND)   :: disp!, resultsize
 
 	Xbufglob = 0.0           !Initialise to zero so that global array...
 	Ybufglob = 0.0           !...may be found by summation in parallel
 	Zbufglob = 0.0           !------------------------------------------
-	Xbufglobtrue = 0.0       !Initialise to zero so that global array...
-	Ybufglobtrue = 0.0       !...may be found by summation in parallel
-	Zbufglobtrue = 0.0       !------------------------------------------
 
 	!Build array of number of particles on neighbouring
 	!processe's subdomain on current proccess
@@ -1000,12 +967,9 @@ subroutine parallel_io_vmd_rtrue
 	!to processor topology with r = 0 at centre
 	select case(potential_flag)
 	case(0)
-		Xbuf(:) = r(1:np,1)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
-		Ybuf(:) = r(1:np,2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
-		Zbuf(:) = r(1:np,3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
-		Xbuftrue(:) = rtrue(1:np,1)
-		Ybuftrue(:) = rtrue(1:np,2)
-		Zbuftrue(:) = rtrue(1:np,3)
+		Xbuf(:) = rtrue(1:np,1)
+		Ybuf(:) = rtrue(1:np,2)
+		Zbuf(:) = rtrue(1:np,3)
 
 		procdisp = 0
 		!Obtain displacement of each processor using all other procs' np
@@ -1014,12 +978,9 @@ subroutine parallel_io_vmd_rtrue
 		enddo
 
 		!Open file on all processors
-		call MPI_FILE_OPEN(MD_COMM,trim(prefix_dir)//'results/vmd_temp.dcd',      & 
-		                   MPI_MODE_RDWR + MPI_MODE_CREATE, & 
-		                   MPI_INFO_NULL, fileid,     ierr)
 		call MPI_FILE_OPEN(MD_COMM,trim(prefix_dir)//'results/vmd_temp_true.dcd', & 
 		                   MPI_MODE_RDWR + MPI_MODE_CREATE, & 
-		                   MPI_INFO_NULL, fileidtrue, ierr)
+		                   MPI_INFO_NULL, fileid, ierr)
 
 		!-------------Write X coordinates--------------------
 		!Obtain location to write in file
@@ -1036,13 +997,9 @@ subroutine parallel_io_vmd_rtrue
 
 		call MPI_FILE_SET_VIEW(fileid,     disp, MPI_REAL,          & 
 		                       MPI_REAL, 'native', MPI_INFO_NULL, ierr)
-		call MPI_FILE_SET_VIEW(fileidtrue, disp, MPI_REAL,          & 
-		                       MPI_REAL, 'native', MPI_INFO_NULL, ierr)
 		
 		!Write information to file
 		call MPI_FILE_WRITE_ALL(fileid,     Xbuf,     np, MPI_REAL, & 
-		                        MPI_STATUS_IGNORE, ierr) 
-		call MPI_FILE_WRITE_ALL(fileidtrue, Xbuftrue, np, MPI_REAL, & 
 		                        MPI_STATUS_IGNORE, ierr) 
 
 		!-------------Write Y coordinates--------------------
@@ -1061,13 +1018,8 @@ subroutine parallel_io_vmd_rtrue
 
 		call MPI_FILE_SET_VIEW(fileid,     disp, MPI_REAL,          & 
 		                       MPI_REAL, 'native', MPI_INFO_NULL, ierr)
-		call MPI_FILE_SET_VIEW(fileidtrue, disp, MPI_REAL,          & 
-		                       MPI_REAL, 'native', MPI_INFO_NULL, ierr)
-		
 		!Write information to file
 		call MPI_FILE_WRITE_ALL(fileid,     Ybuf,     np, MPI_REAL, & 
-		                        MPI_STATUS_IGNORE, ierr) 
-		call MPI_FILE_WRITE_ALL(fileidtrue, Ybuftrue, np, MPI_REAL, & 
 		                        MPI_STATUS_IGNORE, ierr) 
 
 		!-------------Write Z coordinates--------------------
@@ -1087,56 +1039,38 @@ subroutine parallel_io_vmd_rtrue
 		!Obtain location to write in file
 		call MPI_FILE_SET_VIEW(fileid,     disp, MPI_REAL,          & 
 		                       MPI_REAL, 'native', MPI_INFO_NULL, ierr)
-		call MPI_FILE_SET_VIEW(fileidtrue, disp, MPI_REAL,          & 
-		                       MPI_REAL, 'native', MPI_INFO_NULL, ierr)
 		
 		!Write information to file
 		call MPI_FILE_WRITE_ALL(fileid,     Zbuf,     np, MPI_REAL, & 
 		                        MPI_STATUS_IGNORE, ierr) 
-		call MPI_FILE_WRITE_ALL(fileidtrue, Zbuftrue, np, MPI_REAL, & 
-		                        MPI_STATUS_IGNORE, ierr) 
 
 		!-------------- CLOSE -------------------------------	
 		call MPI_FILE_CLOSE(fileid, ierr) 
-		call MPI_FILE_CLOSE(fileidtrue, ierr) 
 	
 	case(1)
 
 		!Build sparse individual "global" buffers according to global molecular ID of each monomer
 		do n=1,np
 			globmolno           = monomer(n)%glob_no
-			Xbufglob(globmolno) = r(n,1)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
-			Ybufglob(globmolno) = r(n,2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
-			Zbufglob(globmolno) = r(n,3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
-			Xbufglobtrue(globmolno) = rtrue(n,1)
-			Ybufglobtrue(globmolno) = rtrue(n,2)
-			Zbufglobtrue(globmolno) = rtrue(n,3)
+			Xbufglob(globmolno) = rtrue(n,1)
+			Ybufglob(globmolno) = rtrue(n,2)
+			Zbufglob(globmolno) = rtrue(n,3)
 		end do
 
 		call globalSumVectReal(Xbufglob,globalnp)  !Global summation to complete global buffer
 		call globalSumVectReal(Ybufglob,globalnp)
 		call globalSumVectReal(Zbufglob,globalnp)
-		call globalSumVectReal(Xbufglobtrue,globalnp)  !Global summation to complete global buffer
-		call globalSumVectReal(Ybufglobtrue,globalnp)
-		call globalSumVectReal(Zbufglobtrue,globalnp)
 	
-		call MPI_FILE_OPEN(MD_COMM,trim(prefix_dir)//'results/vmd_temp.dcd', & 
-		                   MPI_MODE_RDWR + MPI_MODE_CREATE,       & 
-		                   MPI_INFO_NULL, fileid, ierr)
 		call MPI_FILE_OPEN(MD_COMM,trim(prefix_dir)//'results/vmd_temp_true.dcd', & 
 		                   MPI_MODE_RDWR + MPI_MODE_CREATE,       & 
-		                   MPI_INFO_NULL, fileidtrue, ierr)
+		                   MPI_INFO_NULL, fileid, ierr)
 
-		disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize   !Current iteration
+		disp =((iter-initialstep+1)/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize   !Current iteration
 
 		!Write X positions---------------------------------------------
 		call MPI_FILE_SET_VIEW(fileid,     disp, MPI_REAL, MPI_REAL,          &      !Find position
 		                       'native', MPI_INFO_NULL, ierr)
-		call MPI_FILE_SET_VIEW(fileidtrue, disp, MPI_REAL, MPI_REAL,          &      !Find position
-		                       'native', MPI_INFO_NULL, ierr)
 		call MPI_FILE_WRITE_ALL(fileid,     Xbufglob,     globalnp, MPI_REAL, &      !Write buffer
-		                        MPI_STATUS_IGNORE, ierr)
-		call MPI_FILE_WRITE_ALL(fileidtrue, Xbufglobtrue, globalnp, MPI_REAL, &      !Write buffer
 		                        MPI_STATUS_IGNORE, ierr)
 
 		disp = disp + globalnp*datasize                                          !Update file disp
@@ -1144,11 +1078,7 @@ subroutine parallel_io_vmd_rtrue
 		!Write Y positions---------------------------------------------
 		call MPI_FILE_SET_VIEW(fileid,     disp, MPI_REAL, MPI_REAL,          &      !Find position
 		                       'native', MPI_INFO_NULL, ierr)
-		call MPI_FILE_SET_VIEW(fileidtrue, disp, MPI_REAL, MPI_REAL,          &      !Find position
-		                       'native', MPI_INFO_NULL, ierr)
 		call MPI_FILE_WRITE_ALL(fileid,     Ybufglob,     globalnp, MPI_REAL, &      !Write buffer
-		                        MPI_STATUS_IGNORE, ierr)
-		call MPI_FILE_WRITE_ALL(fileidtrue, Ybufglobtrue, globalnp, MPI_REAL, &      !Write buffer
 		                        MPI_STATUS_IGNORE, ierr)
 
 		disp = disp + globalnp*datasize
@@ -1156,21 +1086,15 @@ subroutine parallel_io_vmd_rtrue
 		!Write Z positions---------------------------------------------
 		call MPI_FILE_SET_VIEW(fileid,     disp, MPI_REAL, MPI_REAL,          &      !Find position
 		                       'native', MPI_INFO_NULL, ierr)
-		call MPI_FILE_SET_VIEW(fileidtrue, disp, MPI_REAL, MPI_REAL,          &      !Find position
-		                       'native', MPI_INFO_NULL, ierr)
 		call MPI_FILE_WRITE_ALL(fileid,     Zbufglob,     globalnp, MPI_REAL, &      !Write buffer
-		                        MPI_STATUS_IGNORE, ierr)
-		call MPI_FILE_WRITE_ALL(fileidtrue, Zbufglobtrue, globalnp, MPI_REAL, &      !Write buffer
 		                        MPI_STATUS_IGNORE, ierr)
 			
 		call MPI_FILE_CLOSE(fileid, ierr) 
-		call MPI_FILE_CLOSE(fileidtrue, ierr) 
-	
+		
 	case default
 	end select
 
-end subroutine parallel_io_vmd_rtrue
-
+end subroutine parallel_io_vmd_true
 
 !------------------------------------------------------------------------
 !Write positions of molecules to a file

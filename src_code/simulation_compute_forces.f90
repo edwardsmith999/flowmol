@@ -556,7 +556,6 @@ subroutine simulation_compute_forces_FENE
 		do b=1,monomer(molnoi)%funcy
 
 			molnoj = bond(molnoi,b)
-	!		if (molnoj.lt.molnoi) cycle             !Avoid double counting
 			if (molnoj.eq.0) cycle
 
 			rj(:)  = r(molnoj,:)
@@ -570,10 +569,6 @@ subroutine simulation_compute_forces_FENE
 			a(molnoi,1)= a(molnoi,1) + accijmag*rij(1)	!Add components of acceleration
 			a(molnoi,2)= a(molnoi,2) + accijmag*rij(2)
 			a(molnoi,3)= a(molnoi,3) + accijmag*rij(3)
-
-	!		a(molnoj,1)= a(molnoj,1) - accijmag*rij(1)	!Add components of acceleration
-	!		a(molnoj,2)= a(molnoj,2) - accijmag*rij(2)
-	!		a(molnoj,3)= a(molnoj,3) - accijmag*rij(3)
 
 			if (mod(iter,tplot) .eq. 0) then
 				potenergymol_FENE(molnoi) = potenergymol_FENE(molnoi) - 0.5d0*k_c*R_0*R_0*dlog(1.d0-(rij2/(R_0**2)))

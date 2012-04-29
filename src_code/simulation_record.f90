@@ -95,14 +95,37 @@ subroutine simulation_record
 		vmd_iter = iter-initialstep+1
 		if (vmd_iter.ge.vmd_intervals(1,i).and.vmd_iter.lt.vmd_intervals(2,i)) then
 			!print*, iter,vmd_iter,i,vmd_count,vmd_intervals(1,i),vmd_intervals(2,i)
-			if (vmd_outflag .eq. 1) call parallel_io_vmd(vmd_intervals(1,i),vmd_intervals(2,i),i)
-			if (vmd_outflag .eq. 2) call parallel_io_vmd_sl(vmd_intervals(1,i),vmd_intervals(2,i),i)
-			if (vmd_outflag .eq. 3) then
-				call parallel_io_vmd(vmd_intervals(1,i),vmd_intervals(2,i),i)
-				call parallel_io_vmd_halo(vmd_intervals(1,i),vmd_intervals(2,i),i)
-			end if
+			select case(vmd_outflag)
+			case(1)
+				select case(potential_flag)
+				case(0)
+					call parallel_io_vmd(vmd_intervals(1,i),vmd_intervals(2,i),i)
+				case(1)
+					call parallel_io_vmd_true(vmd_intervals(1,i),vmd_intervals(2,i),i)
+				case default
+				end select
+			case(2)
+				select case(potential_flag)
+				case(0)
+					call parallel_io_vmd_sl(vmd_intervals(1,i),vmd_intervals(2,i),i)
+				case(1)
+					call error_abort('vmd_sl not yet developed for potential_flag = 1')
+				case default
+				end select			
+			case(3)
+				select case(potential_flag)
+				case(0)
+					call parallel_io_vmd(vmd_intervals(1,i),vmd_intervals(2,i),i)
+					call parallel_io_vmd_halo(vmd_intervals(1,i),vmd_intervals(2,i),i)
+				case(1)
+					call error_abort('vmd_halo not yet developed for potential_flag = 1')
+				case default
+				end select
+			case default
+				call error_abort('Unrecognised vmd_outflag in simulation_record')
+			end select
 			vmd_count = vmd_count + 1
-		elseif (vmd_iter.ge.vmd_intervals(2,i)) then
+		else if (vmd_iter.ge.vmd_intervals(2,i)) then
 			i = i + 1			
 		endif
 	endif
@@ -111,7 +134,6 @@ subroutine simulation_record
 		select case(etevtcf_outflag)
 		case (1)
 			call etevtcf_calculate_parallel
-			!if (irank .eq. iroot) print('(a13,f7.4)'), 'ETEVTCF    = ', etevtcf
 		case (2)
 			call etevtcf_calculate_parallel
 			call etev_io
@@ -121,7 +143,6 @@ subroutine simulation_record
 		select case(r_gyration_outflag)
 		case (1)
 			call r_gyration_calculate_parallel
-			!if (irank .eq. iroot) print('(a13,f7.4)'), 'R_GYRATION = ', R_g
 		case (2)
 			call r_gyration_calculate_parallel
 			call r_gyration_io

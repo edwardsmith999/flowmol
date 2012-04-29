@@ -18,6 +18,7 @@ end module module_final_record
 
 subroutine finish_final_record
 use module_final_record
+use interfaces, only: error_abort
 implicit none
 
 	!Print out final results from the simulation
@@ -81,17 +82,33 @@ implicit none
 		select case (vmd_outflag)
 		case(0)
 		case(1)
-			call reformat_dcd
+			select case(potential_flag)
+			case(0)
+				call reformat_dcd
+			case(1)
+				call reformat_dcd_true
+			case default
+			end select
 		case(2)
-			call reformat_dcd_sl
+			select case(potential_flag)
+			case(0)
+				call reformat_dcd_sl
+			case default
+				call error_abort('Reformat_dcd_sl not available for polymers')
+			end select
 		case(3)
-			call reformat_dcd
-			call reformat_dcd_halo
+			select case(potential_flag)
+			case(0)
+				call reformat_dcd
+				call reformat_dcd_halo
+			case default
+				call error_abort('Reformat_dcd_halo not available for polymers')
+			end select
 		case default
 		end select 
 	endif
 
-	if (vmd_outflag.eq.1 .and. potential_flag.eq.1) call build_psf
+	if (vmd_outflag.ne.0 .and. potential_flag.eq.1) call build_psf
 
 	!Close all output files
 	if (irank .eq. iroot) then   !Close Pressure tensor and viscosity output file
@@ -220,7 +237,6 @@ subroutine reformat_dcd
 
 end subroutine reformat_dcd
 
-
 !--------------------------------------------------------------------------------------------
 !Re-format the file into binary with header used by .dcd file format
 
@@ -228,7 +244,7 @@ end subroutine reformat_dcd
 !http://www.ks.uiuc.edu/Research/vmd/plugins/molfile/dcdplugin.html
 !Information at the above url is a little misleading in places, comments below try to clarify. 
 
-subroutine reformat_dcd_rtrue
+subroutine reformat_dcd_true
 	use module_final_record
 	use computational_constants_MD
 	implicit none
@@ -246,7 +262,6 @@ subroutine reformat_dcd_rtrue
 	character(len=80), dimension(2)	:: TITLE	        !--Title(s)
 	real 							:: time_start, time_end
 	real,allocatable,dimension(:)   :: Xbuf, Ybuf, Zbuf	!--Buffers used to copy from direct access to binary
-	real,allocatable,dimension(:)   :: Xbuftrue, Ybuftrue, Zbuftrue	!--Buffers used to copy from direct access to binary
 	double precision				:: DELTA		!--Timestep between frames
 
 	print*, 'Generating final VMD.dcd ouput file - for large systems or'
@@ -287,66 +302,45 @@ subroutine reformat_dcd_rtrue
 	allocate(Xbuf(NSET*globalnp))
 	allocate(Ybuf(NSET*globalnp))
 	allocate(Zbuf(NSET*globalnp))
-	allocate(Xbuftrue(NSET*globalnp))
-	allocate(Ybuftrue(NSET*globalnp))
-	allocate(Zbuftrue(NSET*globalnp))
 
 	!Read position information from file
 	!RECORD LENGTH IS 1 WHICH IN FORTRAN IS A 4 BYTE BLOCKS (REAL, INT BUT NOT DP) 	
-	open (unit=17, file=trim(prefix_dir)//"results/vmd_temp.dcd",access='stream')
 	open (unit=18, file=trim(prefix_dir)//"results/vmd_temp_true.dcd",access='stream')
 
 	do i=1,NSET
-		read(17) Xbuf(globalnp*(i-1)+1:globalnp*i)
-		read(17) Ybuf(globalnp*(i-1)+1:globalnp*i)
-		read(17) Zbuf(globalnp*(i-1)+1:globalnp*i)
-		read(18) Xbuftrue(globalnp*(i-1)+1:globalnp*i)
-		read(18) Ybuftrue(globalnp*(i-1)+1:globalnp*i)
-		read(18) Zbuftrue(globalnp*(i-1)+1:globalnp*i)
+		read(18) Xbuf(globalnp*(i-1)+1:globalnp*i)
+		read(18) Ybuf(globalnp*(i-1)+1:globalnp*i)
+		read(18) Zbuf(globalnp*(i-1)+1:globalnp*i)
 		if (mod(i,100) .eq. 0) print*, 'Reading % complete =', (100.d0*i/NSET)
 	enddo
 
-	close(17,status='delete')
 	close(18,status='delete')
 
 	!Open binary .dcd file and write header information	
-	open(unit=3, file=trim(prefix_dir)//"results/vmd_out.dcd",status='replace', form="unformatted")
 	open(unit=4, file=trim(prefix_dir)//"results/vmd_out_true.dcd",status='replace', form="unformatted")
 	
-	write(3) HDR, NSET, ISTRT, NSAVC, FIVEZ, NATOMNFREAT, DELTA, NINEZ
-	write(3) NTITLE, TITLE(1), TITLE(2)
-	write(3) NATOM
 	write(4) HDR, NSET, ISTRT, NSAVC, FIVEZ, NATOMNFREAT, DELTA, NINEZ
 	write(4) NTITLE, TITLE(1), TITLE(2)
 	write(4) NATOM
 
 	do i=1,NSET
-		write(3) Xbuf((i-1)*globalnp+1:i*globalnp)
-		write(3) Ybuf((i-1)*globalnp+1:i*globalnp)
-		write(3) Zbuf((i-1)*globalnp+1:i*globalnp)
-		write(4) Xbuftrue((i-1)*globalnp+1:i*globalnp)
-		write(4) Ybuftrue((i-1)*globalnp+1:i*globalnp)
-		write(4) Zbuftrue((i-1)*globalnp+1:i*globalnp)
+		write(4) Xbuf((i-1)*globalnp+1:i*globalnp)
+		write(4) Ybuf((i-1)*globalnp+1:i*globalnp)
+		write(4) Zbuf((i-1)*globalnp+1:i*globalnp)
 		if (mod(i,100) .eq. 0) print*, 'Writing % complete =', (100.d0*i/NSET)
 	enddo
 
-	close(3,status='keep')
 	close(4,status='keep')
 
 	deallocate(Xbuf)
 	deallocate(Ybuf)
 	deallocate(Zbuf)
-	deallocate(Xbuftrue)
-	deallocate(Ybuftrue)
-	deallocate(Zbuftrue)
 
 	call cpu_time(time_end)
 
  	print '(a,g10.2,a)', 'Generated final VMD.dcd ouput file in', time_end - time_start, ' seconds'
 
-end subroutine reformat_dcd_rtrue
-
-
+end subroutine reformat_dcd_true
 
 !--------------------------------------------------------------------------------------------
 ! SPLIT SOLID AND LIQUID REGIONS INTO SEPERATE MOLECULE FILES
