@@ -1,5 +1,5 @@
 %Read velocity average output from simulation
-function[vel_bins]=read_vbins(filename)
+function[vel_bins]=read_vbins(filename,resultfile_dir)
 
 if (exist('filename') == 0)
     filename = './vbins';
