@@ -187,7 +187,7 @@ contains
 	!---------------------------------------------------------------------
 	!Tag move routine
 	subroutine simulation_move_particles_lfv_tag
-                use interfaces
+		use interfaces
 		implicit none
 				
 		integer :: maxtag, n, thermostatnp 
@@ -249,6 +249,17 @@ contains
 			case (2)
 				!Fixed with constant sliding speed
 				r(n,:) = r(n,:) + delta_t*slidev(n,:)	!Position calculated from velocity
+
+				!Moving piston for shock wave with 1000 equilibrate, 100 piston moving and 
+				!no moving wall for next 2000*0.005 time units taken for wave to cover whole domain 
+				!at which point the simulation blows up!
+				!if (iter .lt. 200) then !Initialisation
+				!	!Fixed Molecules - no movement r(n+1) = r(n)
+				!elseif (iter .ge. 200 .and. iter .lt. 300) then
+				!	r(n,:) = r(n,:) + delta_t*slidev(n,:)	!Position calculated from velocity
+				!else
+				!	!Fixed Molecules - no movement r(n+1) = r(n)
+				!endif
 			case (3)
 				!Tethered molecules
 				call tether_force(n)
