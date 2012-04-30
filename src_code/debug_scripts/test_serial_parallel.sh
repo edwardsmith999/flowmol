@@ -1,5 +1,6 @@
 #!/bin/sh
 #
+plat=intel
 
 echo "Running build and run test for serial and parallel code. Check debug_log for full outputs"
 echo "See Serial.out and parallel.out to check results - same restart file so should give same result"
@@ -9,7 +10,7 @@ echo "Difference is printed out at end of script for comparison"
 rm debug_log 
 rm serial.out parallel.out temp_restart.out diff_serialparallel.out final_state > ./debug_log
 cd ./../
-make clean >> ./debug_scripts/debug_log
+make PLATFORM=$plat clean >> ./debug_scripts/debug_log
 
 #Build serial code to generate initial configuration
 make debug_s >> ./debug_scripts/debug_log
