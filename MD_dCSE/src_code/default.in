@@ -1,4 +1,4 @@
-#########################################################################
+#######################################################################
 # This input file has been included for base-case simulation setup, and 
 # is designed to be read-only on the version-control server. Please 
 # create a copy of this file called 'MD.in' (the default input file name 
@@ -106,7 +106,8 @@ DELTA_RNEIGHBR
 # 3 - NVT (Profile unbiased Nosé-Hoover thermostat)
 # 4 - NVT (Pairwise additive Nosé-Hoover thermostat 
 #                   by Allen & Schmid)
-# 5 - Tagged Move System
+# 5 - NVT (DPD thermostat by Soddemann)
+# 6 - Tagged Move System
 # -----------------------------------------------------------------------
 ENSEMBLE
 0
@@ -135,7 +136,7 @@ PERIODIC
 #	shear direction (i.e. 1 for x direction, -2 for negative y direction)
 #	shear iter0
 #	velocity or rate flag: 0-velocity, 1-rate
-#	numerical value
+#	velocity or rate numerical value
 # -----------------------------------------------------------------------
 DEFINE_SHEAR
 1
@@ -167,6 +168,7 @@ FENE_INFO
 #	- flag
 #		> 0 - Polymer only
 #		> 1 - Polymer in theta solvent
+#		> 2 - Solvent of variable quality (Soddemann)
 #	- solvent ratio (integer): number of solvent molecules per FENE
 #                              monomer.
 #	- solvent energy parameter eps_pp (polymer-polymer)
@@ -426,9 +428,13 @@ ETEVTCF_OUTFLAG
 
 #########################################################################
 # Radius of gyration output flag:
-#	0 - off
-#	1 - on
-#	2 - on + output file
+#	- flag:
+#		> 0 - off
+#		> 1 - on
+#		> 2 - on + output file
+#	- iteration at which to begin averaging (must be "hit" by a tplot, 
+#	  otherwise etev_0 will not be initialised and the t.c.f. will be
+#	  incorrectly calculated.)
 # -----------------------------------------------------------------------
 R_GYRATION_OUTFLAG
 0
