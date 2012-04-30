@@ -226,7 +226,7 @@ implicit none
 		le_sx = le_st*le_sv	
 		!le_sx = le_sx + le_sv*delta_t
 	end if
-	
+
 	call update_plane(le_sp,le_sd,.false.,le_rp,.false.,rebuild)
 	call update_plane(le_sd,le_sp,.true.,le_rp,.false.,rebuild)
 	call update_plane(le_rp,le_sd,.true.,le_sp,.true.,rebuild)
