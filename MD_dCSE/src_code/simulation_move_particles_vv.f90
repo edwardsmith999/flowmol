@@ -156,6 +156,7 @@ subroutine simulation_move_particles_vv(pass_num)
 				v_old = v
 				zeta_old = zeta + 0.5d0*delta_t*dzeta_dt
 				do i = 1,5
+					call messenger_updateborders(0)
 					call evaluate_pwa_terms_pwaNH
 					do n=1,np
 						v(n,:) = v_old(n,:) + 0.5d0*delta_t*(a(n,:)- zeta*vrelsum(n,:))
@@ -355,6 +356,51 @@ contains
 
 	!----------------------------------------------------------------------------
 	!Evaluate pairwise terms for Allen & Schmid thermostat
+	subroutine evaluate_pwa_terms_pwaNH_AP
+		use linked_list
+		implicit none
+	
+		integer :: noneighbrs
+		integer :: i,j
+		double precision :: rij2,wsq,vr,Q,tmp
+		double precision, dimension(nd) :: ri,rj,rij,rijhat
+		double precision, dimension(nd) :: vi,vj,vij
+		type(neighbrnode), pointer :: old, current
+
+		vrelsum = 0.d0
+		dzeta_dt = 0.d0
+		Q = np*0.02*delta_t
+
+		do i=1,np
+			
+			ri(:) = r(i,:)
+			vi(:) = v(i,:)
+	
+			do j=i+1,np
+	
+				rj(:)     = r(j,:)
+				rij(:)    = ri(:) - rj(:)
+				rij2      = dot_product(rij,rij)
+				if (rij2.ge.rcutoff2) cycle
+				vj(:)     = v(j,:)
+				vij(:)    = vi(:) - vj(:)
+				rijhat(:) = rij(:)/sqrt(rij2)
+				wsq       = (1.d0-(sqrt(rij2)/rcutoff))*(1.d0-(sqrt(rij2)/rcutoff))
+				vr        = dot_product(vij,rijhat)
+
+				vrelsum(i,:) = vrelsum(i,:) + wsq*vr*rijhat(:)
+				vrelsum(j,:) = vrelsum(j,:) - wsq*vr*rijhat(:)
+				
+				dzeta_dt = dzeta_dt + wsq*(vr**2.d0 - inputtemperature*2.d0)/Q 
+
+			end do
+
+		end do
+	
+	end subroutine evaluate_pwa_terms_pwaNH_AP
+
+	!----------------------------------------------------------------------------
+	!Evaluate pairwise terms for Allen & Schmid thermostat
 	subroutine evaluate_pwa_terms_pwaNH
 		use linked_list
 		implicit none
@@ -368,7 +414,7 @@ contains
 
 		vrelsum = 0.d0
 		dzeta_dt = 0.d0
-		Q = np*0.02
+		Q = np*0.02*delta_t
 
 		do molnoi=1,np
  
@@ -380,7 +426,7 @@ contains
 			do j=1,noneighbrs
 	
 				molnoj    = old%molnoj
-				if (molnoj.eq.molnoi) cycle
+				if (molnoj.eq.molnoi) call error_abort("Self interaction in pwaNH thermostat")
 				rj(:)     = r(molnoj,:)
 				vj(:)     = v(molnoj,:)
 				rij(:)    = ri(:) - rj(:)
@@ -390,18 +436,19 @@ contains
 				wsq       = (1.d0-(sqrt(rij2)/rcutoff))*(1.d0-(sqrt(rij2)/rcutoff))
 				if (rij2.ge.rcutoff2) wsq = 0.d0
 				vr        = dot_product(vij,rijhat)
-	
+
 				vrelsum(molnoi,:) = vrelsum(molnoi,:) + wsq*vr*rijhat(:)
 				vrelsum(molnoj,:) = vrelsum(molnoj,:) - wsq*vr*rijhat(:)
-			
+				
 				dzeta_dt = dzeta_dt + wsq*(vr**2.d0 - inputtemperature*2.d0)/Q 
 
 				current => old	
 				old => current%next
 
 			end do
-		end do
 
+		end do
+		
 		nullify(current)
 		nullify(old)
 	
