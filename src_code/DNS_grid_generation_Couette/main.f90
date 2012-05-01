@@ -99,7 +99,7 @@ program main
 	inquire(iolength=ilength) xpg
 	iunit = 19
 	open(iunit, file="grid.data", form="unformatted", access="direct", &
-		recl=ilength, iostat=ierr)
+		recl=ilength, status='replace', iostat=ierr)
 	if (ierr .ne. 0) stop "grid.data file can not be created"
 	write(iunit, rec=1) xpg
 	write(iunit, rec=2) ypg
