@@ -499,6 +499,7 @@ subroutine simulation_header
 	write(3,*)  'Force calculation list methodd ; force_list ;', force_list
 	!write(3,*)  'Ensemble; ensemble; ', ensemble		!MATLAB input functions can't deal with words...
 	write(3,*)	'Shear direction ; le_sd;', le_sd
+	write(3,*)	'Shear iter0 ; le_i0;', le_i0
 
 	close(3,status='keep')
 
