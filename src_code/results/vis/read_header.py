@@ -15,6 +15,7 @@ for i in range(len(headerdata)):						# Loop through all elements in list (i.e. 
 	for j in range(len(headerdata[i])):					# Loop through all elements in sub-list
 		headerdata[i][j] = headerdata[i][j].strip().replace('(','').replace(')','') # Strip white space and remove brackets (can't create arrays using vars)
 	vars()[headerdata[i][1]] = headerdata[i][2]			# Create variables with name headerdata[i][1] and value headerdata[i][2]
+#	print(str(headerdata[i][1]),str(headerdata[i][2]))
 f.close()												# Close file object
 
 f = open('simulation_progress','r')						# Creat ascii file object

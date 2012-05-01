@@ -12,7 +12,7 @@
 # bin centered at the corresponding 'unnormalised' position. read_vslice is designed
 # to be called from the results folder.
 # 
-# EXAMPLE (if v_outflag=2 and shear_direction=1):
+# EXAMPLE (if v_outflag=2 and le_sd=1):
 #	
 #		./vis/read_vslice.py > vprofile	
 #		gnuplot
@@ -35,11 +35,12 @@ nd				= int(read_header.nd)
 Nsteps 			= int(read_header.Nsteps)
 tplot			= int(read_header.tplot)
 Nvel_ave		= int(read_header.Nvel_ave)   
-Nvel_records	= int(math.floor(Nsteps/(tplot*Nvel_ave)))
+le_sd			= int(read_header.le_sd)-1
+initialstep     = int(read_header.initialstep)
 v_outflag		= int(read_header.velocity_outflag)
-globalnbins 	= [int(read_header.globalnbins1),int(read_header.globalnbins2),int(read_header.globalnbins3)]
-shear_direction = int(read_header.shear_direction)-1
-nbins			= globalnbins[v_outflag-1]			# Fortran starts counting at 1, python counts from 0
+gnbins			= [int(read_header.gnbins1),int(read_header.gnbins2),int(read_header.gnbins3)]
+Nvel_records	= int(math.floor((Nsteps-initialstep)/(tplot*Nvel_ave)))
+nbins			= gnbins[v_outflag-1]    			# Fortran starts counting at 1, python counts from 0
 
 mslice = read_mslice.mslice
 
@@ -51,5 +52,5 @@ vslice = reshape(vslice,(Nvel_records,nd,nbins)) 	# Reshape array into number of
 f.close()
 
 for cell in range(nbins):
-	outstring = str(float(cell+0.5)/nbins).rjust(16) + str(mean(vslice[Nvel_records/2:,shear_direction,cell]/mslice[Nvel_records/2:,cell])).rjust(32)
+	outstring = str(float(cell+0.5)/nbins).rjust(16) + str(mean(vslice[Nvel_records/2:,le_sd,cell]/mslice[Nvel_records/2:,cell])).rjust(32)
 	print(outstring)
