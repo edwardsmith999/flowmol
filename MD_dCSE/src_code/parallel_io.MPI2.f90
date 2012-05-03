@@ -1463,7 +1463,7 @@ subroutine mass_slice_io(ixyz)
 				   			MPI_INFO_NULL, slicefileid, ierr)
 
 		!Obtain displacement of current record
-		disp =   (iter/(tplot*Nmass_ave) - 1) 	  	&		!Current iteration
+		disp =   ((iter-initialstep+1)/(tplot*Nmass_ave) - 1) 	  	&		!Current iteration
 		       * gnbins(ixyz)*int_datasize 	&		!Record size
 		       + nbins(ixyz)*int_datasize*(jblock-1)		!Processor location
 
@@ -1553,7 +1553,7 @@ subroutine velocity_slice_io(ixyz)
 				   MPI_INFO_NULL, slicefileid, ierr)
 
 		!Obtain displacement of x record
-		disp =   (iter/(tplot*Nmass_ave) - 1) 	  	&	!Current iteration
+		disp =   ((iter-initialstep+1)/(tplot*Nmass_ave) - 1) 	  	&	!Current iteration
 		       * nd*gnbins(ixyz)*dp_datasize 	&	!times record size
 		       + nbins(ixyz)*dp_datasize*(jblock-1)		!Processor location
 
@@ -1563,7 +1563,7 @@ subroutine velocity_slice_io(ixyz)
 					MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE, ierr)
 
 		!Obtain displacement of y record
-		disp =   (iter/(tplot*Nmass_ave) - 1) 	  	&	!Current iteration
+		disp =   ((iter-initialstep+1)/(tplot*Nmass_ave) - 1) 	  	&	!Current iteration
 		       * nd*gnbins(ixyz)*dp_datasize 	&	!Record size
 		       + nbins(ixyz)*dp_datasize*(jblock-1)	&	!Processor location
 		       + nbins(ixyz)*dp_datasize*idims(ixyz)		!after x data 
@@ -1574,7 +1574,7 @@ subroutine velocity_slice_io(ixyz)
 					MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE, ierr)
 
 		!Obtain displacement of z record
-		disp =   (iter/(tplot*Nmass_ave) - 1) 	  	&	!Current iteration
+		disp =   ((iter-initialstep+1)/(tplot*Nmass_ave) - 1) 	  	&	!Current iteration
 		       * nd*gnbins(ixyz)*dp_datasize 	&	!Record size
 		       + nbins(ixyz)*dp_datasize*(jblock-1)	&	!Processor location
 		       + 2*nbins(ixyz)*dp_datasize*idims(ixyz)		!after x & y data 
