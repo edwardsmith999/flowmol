@@ -22,11 +22,13 @@
 #
 # ---------------------------------------------------------------------------------------
 from numpy import *
+from pylab import *
 from array import array
 import math
 import os
 import read_header
 import read_mslice
+import time
 
 def mean(values):									# Define function that averages a list of values
 	return float(sum(values)/len(values))
@@ -51,6 +53,35 @@ vslice.fromfile(f,Nvel_records*nd*nbins)			# Store vslice data
 vslice = reshape(vslice,(Nvel_records,nd,nbins)) 	# Reshape array into number of records, dimensions and bins
 f.close()
 
-for cell in range(nbins):
-	outstring = str(float(cell+0.5)/nbins).rjust(16) + str(mean(vslice[Nvel_records/2:,le_sd,cell]/mslice[Nvel_records/2:,cell])).rjust(32)
-	print(outstring)
+nt = 17
+vprofile=[[0.0]*nbins]*nt
+Y = [0.0]*nbins
+
+#for cell in range(nbins):
+#	Y[cell] = float(cell+0.5)/nbins
+#	outstring = str(float(cell+0.5)/nbins).rjust(16)
+#	for i in range(nt):
+#		varray = vslice[i*(Nvel_records/nt)+1:(i+1)*(Nvel_records/nt),le_sd,cell]
+#		marray = mslice[i*(Nvel_records/nt)+1:(i+1)*(Nvel_records/nt),cell]
+#		outstring += str(mean(varray/marray)).rjust(18)
+#		vprofile[i][cell] = mean(varray/marray)
+#	#outstring = str(float(cell+0.5)/nbins).rjust(16) + str(mean(vslice[Nvel_records/2:,le_sd,cell]/mslice[Nvel_records/2:,cell])).rjust(32)
+#	print(outstring)
+
+ion()
+
+
+for t in [0,1,2,4,8,16]:
+	for cell in range(nbins):
+		Y[cell] = float(cell+0.5)/nbins
+		varray = vslice[t*(Nvel_records/nt)+1:(t+1)*(Nvel_records/nt),le_sd,cell]
+		marray = mslice[t*(Nvel_records/nt)+1:(t+1)*(Nvel_records/nt),cell]
+		vprofile[t][cell] = mean(varray/marray)
+		outstring = str(Y[cell]).rjust(16) + str(vprofile[t][cell]).rjust(32)
+		print(outstring)
+	print('\n')
+	line, = plot(vprofile[t][:],Y)
+	draw()
+	time.sleep(0.1)
+
+input('Press <Enter> to quit')

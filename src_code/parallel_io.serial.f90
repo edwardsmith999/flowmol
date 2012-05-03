@@ -710,7 +710,7 @@ subroutine mass_slice_io(ixyz)
 	integer		:: ixyz, m, length
 
 	!Write mass slice to file
-	m = iter/(tplot*Nmass_ave)
+	m = (iter-initialstep+1)/(tplot*Nmass_ave)
 	inquire(iolength=length) slice_mass(1:nbins(ixyz))
 	open (unit=5, file=trim(prefix_dir)//'results/mslice',form='unformatted',access='direct',recl=length)
 	write(5,rec=m) slice_mass(1:nbins(ixyz))
