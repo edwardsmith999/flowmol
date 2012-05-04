@@ -62,7 +62,7 @@ module statistics
 	allocatable Ez(:,:,:)		! z energy spectra
 
 	! Spectra variables
-	parameter (inx = 4, iny = 16)	! # locations per processor at which to compute uhat,
+	parameter (inx = 4, iny = 8)	! # locations per processor at which to compute uhat,
 					! should have nixb divisible by inx, etc.
 	integer indx(inx), indy(iny)	! index for x,y locations where uhst is computed
 	complex, allocatable :: uhat(:,:,:,:)	! uhat

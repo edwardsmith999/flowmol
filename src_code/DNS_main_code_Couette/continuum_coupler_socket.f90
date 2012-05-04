@@ -22,11 +22,11 @@ contains
        
         write(0,*) 'CFD socket nsteps, dt ', nsteps, dt
         
-        call coupler_cfd_init(icomm_grid,imino=imino,imin=imin,imax=imax,&
-            imaxo=imaxo,jmino=jmino,jmin=jmin,jmax=jmax,jmaxo=jmaxo,&
-            kmino=kmino,kmin=kmin,kmax=kmax,kmaxo=kmaxo,nsteps=nsteps,&
-            x=x,y=y,z=z,dx=dx,dz=dz,npx=npx,npy=npy,npz=npz,&
-            icoord=icoord,dt=dt)
+        call coupler_cfd_init(	icomm_grid,imino=imino,imin=imin,imax=imax,&
+					            imaxo=imaxo,jmino=jmino,jmin=jmin,jmax=jmax,jmaxo=jmaxo,&
+					            kmino=kmino,kmin=kmin,kmax=kmax,kmaxo=kmaxo,nsteps=nsteps,&
+					            x=x,y=y,z=z,dx=dx,dz=dz,npx=npx,npy=npy,npz=npz,&
+					            icoord=icoord,dt=dt)
         
         write(0,*) 'CFD socket, after cfd init'
 
@@ -97,9 +97,7 @@ contains
             i1g_v = ibmap_1(i1_v)
             i1g_w = ibmap_1(i1_w)
             !write(0,*) 'i indices ngz, i1_u,i2_u,i1_v,i2_v,i1_w,i2_w ', ngz, i1_u,i2_u,i1_v,i2_v,i1_w,i2_w 
-            
             !write(0,*) 'size uc ...', size(uc,2), size(vc,2), size(wc,2)
-
             !write(0,*) 'global indices i1g_u, i1g_v, i1g_w ',  i1g_u, i1g_v, i1g_w
             
             ! this is to catch the boundary condtion at x=0 (uc start from i=2 in global grid)
@@ -112,8 +110,9 @@ contains
          endif
 		!print'(2a,2i8,4f25.16)', 'CFD befr data',code_name(COUPLER_REALM), myid, & 
 		!							size(uc(:,:,0)), maxval(uc(:,:,0)),minval(uc(:,:,0)),sum(uc(:,:,0)),uc(3,3,0)
-		!print*, 'cfd b4', ngz-1,i1_ul,i2_u
-        call coupler_recv_grid_data(uc(1:ngz-1,i1_ul:i2_u,0:0),index_transpose=(/2,3,1/),accumulate=.true.,pbc=1)
+        call coupler_recv_grid_data(uc(1:ngz-1,i1_ul:i2_u,0:0),index_transpose=(/2,3,1/))
+        !call coupler_recv_grid_data(uc(1:ngz-1,1:nlx+1,0:0),index_transpose=(/2,3,1/))
+        !call coupler_recv_grid_data(uc(1:ngz-1,i1_ul:i2_u,0:0),index_transpose=(/2,3,1/),accumulate=.true.,pbc=1)
 		!print'(2a,2i8,4f25.16)', 'CFD recv data',code_name(COUPLER_REALM), myid, & 
 		!							size(uc(:,:,0)), maxval(uc(:,:,0)),minval(uc(:,:,0)),sum(uc(:,:,0)),uc(3,3,0)
         call coupler_recv_grid_data(vc(1:ngz-1,i1_v:i2_v,0:1),index_transpose=(/2,3,1/),accumulate=.true.)
