@@ -5,7 +5,7 @@
 ! Modules containing initialisation data for CFD and MD which 
 ! can be read from coupler input file.
 !
-! This offers a consitent set of parametes for both CFD and MD when 
+! This offers a consistent set of parameters for both CFD and MD when 
 ! running coupled.
 !
 ! Some flexibility is provided. If some keywords from coupler.in or the whole file is missing
@@ -59,7 +59,7 @@ module coupler_input_data
     type(cfd_parameters), target :: cfd_coupler_input 
     ! MD
     real(kind=kind(0.d0)) 	:: md_ly_extension 			! sigma units so far
-    integer, target 		:: md_ly_extension_tag		! MD extesion below CFD grid in y direction          
+    integer, target 		:: md_ly_extension_tag		! MD extension below CFD grid in y direction          
     integer 				:: md_average_period		! collect data for velocity average every ... MD step
     integer, target 		:: md_average_period_tag
     integer 				:: md_save_period			! save data for velocity profile every ... CFD step
@@ -69,7 +69,7 @@ module coupler_input_data
 
     ! staggered_averages - declared in coupler_internal_common
     
-    integer                 :: md_steps_per_dt_cfd      ! number of MD steps per CFD tep
+    integer                 :: md_steps_per_dt_cfd      ! number of MD steps per CFD step
     integer, target         :: md_steps_per_dt_cfd_tag
 
     character(len=64) :: cfd_code_name ! used to set cfd_code_id in MD
@@ -90,6 +90,9 @@ contains
 
         integer ndim, myid, myid_cfd, iroot_global, ierr
         logical have_input
+
+		!default simulation is 3D
+		!ndim = 3
 
         ! set default values for coupler input data
         section(1)%str = "DENSITY"
@@ -118,7 +121,8 @@ contains
         section(4)%tag => cfd_coupler_input%overlap%tag
         cfd_coupler_input%overlap%y_overlap = 0
 
-		! No initialisation of the MD values associated with the tags becase defaults are set in coupler_internal_md module         
+		! No initialisation of the MD values associated with the tags because 
+		!defaults are set in coupler_internal_md module         
         section(5)%str = "MD_LY_EXTENSION"
         section(5)%tag => md_ly_extension_tag 
         md_ly_extension_tag   = VOID
@@ -192,7 +196,7 @@ contains
             endif
         else
             if (myid_cfd == 0 ) then
-                write(0,*) "WARNING: No coupler input file, will use CFD domain data and adjust them accordingly"
+                write(0,*) "WARNING: No coupler input file, will use CFD domain data and adjust accordingly"
             endif
         endif
 
@@ -228,10 +232,9 @@ contains
                         call MPI_Abort(COUPLER_GLOBAL_COMM,COUPLER_ERROR_INPUT_FILE, ierr)
                     endif
                     read(34,*) cfd_coupler_input%domain%units
-                                ! Test if units are known ? 
+ 					! Test if units are known ? 
                     read(34,*) cfd_coupler_input%domain%cell_type
                     read(34,*) cfd_coupler_input%domain%x
-
                     if (ndim > 1) then
                         read(34,*) cfd_coupler_input%domain%y
                     endif
@@ -249,9 +252,9 @@ contains
                     endif
                 case("OVERLAP_CELLS","Overlap_Cells","Overlap_cells","overlap_cells")
                     cfd_coupler_input%overlap%tag = CPL
-                    if (ndim > 1) then 
-                        read(34,*) cfd_coupler_input%overlap%y_overlap
-                    endif
+                    !if (ndim > 1) then 
+                    read(34,*) cfd_coupler_input%overlap%y_overlap
+                    !endif
                 case("MD_LY_EXTENSION","md_ly_extension","Md_ly_extension")
                     md_ly_extension_tag = CPL
                     read(34,*) md_ly_extension

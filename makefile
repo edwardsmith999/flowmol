@@ -21,14 +21,14 @@ serial_couette serial_couette_solo : CFD_TARGET := continuum.exe
 #
 setup_couette  : CFD_GRID_PATH  := ./CFD_dCSE/src_code/DNS_grid_generation_Couette/
 setup_couette  : CFD_SETUP_PATH := ./CFD_dCSE/src_code/DNS_setup_Couette/
-couette clean_couette couette_solo clean_couette_solo : CFD_SRC_PATH := ./CFD_dCSE/src_code/DNS_main_code_Couette 
+couette clean_couette couette_solo clean_couette_solo sockets : CFD_SRC_PATH := ./CFD_dCSE/src_code/DNS_main_code_Couette 
 couette clean_couette couette_solo clean_couette_solo : MAKEFILE_NAME := -f makefile.planes_fftz_fftx 
 couette clean_couette couette_solo clean_couette_solo : CFD_TARGET := parallel_couette.exe 
 
 #
 # MD sector 
 #
-# so far we have only onne MD code, no need for target specific values as for CFD (see above)
+# so far we have only one MD code, no need for target specific values as for CFD (see above)
 #
 MD_SRC_PATH := ./MD_dCSE/src_code
 MD_TARGET  := p
@@ -50,7 +50,7 @@ export BUILD := opt
 all :
 	@echo "Top level coupled build - Type help for options"
 
-couette_md : couette md 
+couette_md : couette md
 serial_couette_md :serial_couette md 
 
 md : coupler
@@ -59,8 +59,11 @@ couette : coupler
 	cd $(CFD_SRC_PATH) && $(MAKE) $(MAKEFILE_NAME) USE_COUPLER=yes $(CFD_TARGET)
 serial_couette :  coupler
 	cd $(CFD_SRC_PATH) && $(MAKE) USE_COUPLER=yes $(CFD_TARGET)
-coupler : 
-	cd $(COUPLER_SRC_PATH) && $(MAKE) 
+coupler : sockets
+	cd $(COUPLER_SRC_PATH) && $(MAKE) clean && $(MAKE) USE_COUPLER=yes
+sockets:
+	cd $(CFD_SRC_PATH) && touch continuum_coupler_socket.f90
+	cd $(MD_SRC_PATH)  && touch md_coupler_socket.f90
 md_solo :
 	cd $(MD_SRC_PATH)  && $(MAKE) USE_COUPLER=no $(MD_TARGET)
 serial_couette_solo : 
@@ -69,7 +72,7 @@ couette_solo :
 	cd $(CFD_SRC_PATH) && $(MAKE) $(MAKEFILE_NAME) USE_COUPLER=no $(CFD_TARGET)
 
 setup_couette :
-	cd $(CFD_GRID_PATH) && ./Gen_grid.data.exe 
+	cd $(CFD_GRID_PATH) && ifort -r8 -o Gen_grid.data.exe  main.f90 mesh_tanh_stretch.f90 && ./Gen_grid.data.exe 
 	cp $(CFD_GRID_PATH)/grid.data $(CFD_SETUP_PATH)
 	cd $(CFD_SETUP_PATH) && make simple && ./a.out
 

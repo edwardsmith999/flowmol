@@ -165,6 +165,7 @@ subroutine CartesianBC(deltaT)
 
 #if USE_COUPLER
 	call socket_coupler_get_md_BC(uc,vc,wc)
+	!print*, 'Bottom BC', maxval(uc(:, :, 0)),minval(uc(:, :, 0))
 #else		
 		uc(:, :, 0) = -uc(:, :, 1) 
 		vc(:, :, 1) =  0.0            

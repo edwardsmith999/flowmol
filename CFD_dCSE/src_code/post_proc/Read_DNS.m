@@ -11,8 +11,8 @@
 pdir = pwd;
 
 %--- grid size ----
-ngx = 32+1;
-ngy = 32+1;
+ngx = 10+1;
+ngy = 10+1;
 ngz = 8+1;
 
 %--- domain size ----
@@ -30,10 +30,10 @@ ya = linspace(0, Ly+1/ngy, ngy+1);
 za = linspace(0, Lz+1/ngz, ngz+1);
 
 %Reynols number
-Re = 19.5;
+Re = 5.0;
 
-%cd '/home/es205/codes/coupled/CFD_dCSE/src_code/results'
-cd '/home/es205/codes/coupled/coupler_dCSE/src_code/couette_data'
+cd '/home/es205/codes/coupled/CFD_dCSE/src_code/results'
+%cd '/home/es205/codes/coupled/coupler_dCSE/src_code/couette_data'
 
 %--- Read grid ----
 %read_grid
@@ -63,21 +63,21 @@ m = 1
      
     %Analytical solution
 	t = (n-1)*15;
-    %analy = couette_analytical_fn(t,Re,[1.0,0],Ly,ngy-1,'top');
-    %plot(y,analy,'r');
-    %hold on
+    analy = couette_analytical_fn(t,Re,[1.0,0],Ly,ngy-1,'top');
+    plot(y,analy,'r');
+    hold on
 
-    %axis([0 60 -0.1 1.1])
+    axis([0 60 -0.1 1.1])
 
     %Read from DNS files
     V = read_sub(filenames(n).name,ngz,ngx,ngy,pz,px,py,skipk,skipi,skipj,3);
     u(:,m) = V{1};
     v(:,m) = V{2};
     w(:,m) = V{3};
-    %scatter(y,u(:,m),'s')
-    %drawnow
+    scatter(y,u(:,m),'s')
+    drawnow
     m = m + 1;
-    %hold off
+    hold off
  end
 
 % plot(squeeze(mean(mean(uc,1),2)))

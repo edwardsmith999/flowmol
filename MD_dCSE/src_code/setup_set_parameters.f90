@@ -49,10 +49,11 @@ subroutine setup_set_parameters
 	!call set_parameters_domain
 #if USE_COUPLER
    	call set_parameters_global_domain_coupled
+	call set_parameters_cells!_coupled
 #else 
    	call set_parameters_global_domain
-#endif
 	call set_parameters_cells
+#endif
 	call set_parameters_setlimits
 
 	!Allocate array sizes for position, velocity and acceleration
@@ -262,6 +263,7 @@ subroutine set_parameters_domain
 end subroutine set_parameters_domain
 
 !-----------------------------------------------------------------------------
+!Setup domain based on density and number of initial units specified
 
 subroutine set_parameters_global_domain
 	use module_set_parameters
@@ -304,9 +306,8 @@ subroutine set_parameters_global_domain
 end subroutine set_parameters_global_domain
 
 !-----------------------------------------------------------------------------
-
+! get the global domain lenghts from x, y, z array of CFD realm
 #if USE_COUPLER
-
 subroutine set_parameters_global_domain_coupled
 	use module_set_parameters
 	use messenger, only : myid
@@ -316,23 +317,18 @@ subroutine set_parameters_global_domain_coupled
 	integer          ixyz, n0(3)
 	real(kind(0.d0)) xL_md, yL_md,zL_md, b0 ! 
 
-	! get the global domain lenghts from x, y, z array of CFD realm
-
     ! fix the numner of FCC cells starting from CFD density
     density = coupler_md_get_density()
-    
+
     ! size of cubic FCC cell
     b0=(4.d0/density)**(1.0d0/3.0d0)
-
     call coupler_md_get(xL_md=xL_md,yL_md=yL_md,zL_md=zL_md,MD_initial_cellsize=b0)
-    
     n0(:) = nint( (/ xL_md, yL_md, zL_md/) / b0)
-
-    !write(0,*) "n0 ", b0, xL_md, yL_md, zL_md, n0
-    
     initialunitsize(1:3) =  b0
     initialnunits(1:3) = n0(:)
 
+    !write(0,*) "n0 ", b0, xL_md, yL_md, zL_md, n0
+    
     ! set zL_md for for 2d CFD solvers
     if (zl_md <= 0.d0) then
         ! number of FCC cell in z direction per MPI ranks is choosen the minimal one 
@@ -341,14 +337,13 @@ subroutine set_parameters_global_domain_coupled
         call coupler_md_set(zL_md = zL_md)      
     endif
 
+	!Set MD domain values
 	globaldomain(1) = xL_md
 	globaldomain(2) = yL_md
 	globaldomain(3) = zL_md
-
-	! the number of particles is 
 	volume   = xL_md*yL_md*zL_md
 
-    ! set the number of particles for new simulation
+    !Set the number of particles for new simulation
     if (.not. restart)then
        globalnp = density*volume  ! sigma units
        np = globalnp / nproc					
@@ -376,7 +371,6 @@ subroutine set_parameters_global_domain_coupled
     endif
 
 end subroutine set_parameters_global_domain_coupled
-
 #endif
 
 !-----------------------------------------------------------------------------------------
@@ -418,14 +412,14 @@ subroutine set_parameters_cells
 				rneighbr2 = rneighbr**2.d0
 			end if
 		case default
-			call error_abort('Unrecognised solvent_flag in set_parameters_cells')
+			call error_abort('ERROR - Unrecognised solvent_flag in set_parameters_cells')
 		end select
 	case default
 	end select
 
 	if (ncells(1)<3 .or. ncells(2)<3 .or. ncells(3)<3) then
 		print*, ncells(1),'    in x and ', ncells(2), '    in y' , ncells(3), '    in z' 
-		call  error_abort( "WARNING - DOMAIN SHOULD HAVE AT LEAST 3 CELLS, &
+		call  error_abort( "ERROR - DOMAIN SHOULD HAVE AT LEAST 3 CELLS, &
 		 					& IN X, Y AND Z - INCREASE NUMBER OF UNITS IN INPUT")
 	endif
 
@@ -435,6 +429,102 @@ subroutine set_parameters_cells
 	enddo
 
 end subroutine set_parameters_cells
+
+!-----------------------------------------------------------------------------------------
+#if USE_COUPLER
+subroutine set_parameters_cells_coupled
+	use interfaces
+	use module_set_parameters
+	use polymer_info_MD
+	use messenger, only : myid
+	use coupler
+	use coupler_internal_md, only : imax_cfd,imin_cfd,jmax_cfd,jmin_cfd,kmax_cfd,kmin_cfd,x,y,z
+	implicit none
+
+	integer 						:: ixyz
+	integer,dimension(3) 			:: max_ncells,cfd_ncells,cfd_md_cell_ratio
+	double precision 				:: rneighbr
+	double precision ,dimension(3) 	:: cfd_cellsidelength, maxdelta_rneighbr
+    type(cfd_grid_info)				:: cfd_box
+
+	!In coupled simulation, passed properties are calculated from cell lists
+	!for efficiency. The size of the cells should therefore be a multiple
+	!of the continuum cellsizes
+    cfd_ncells(1) = imax_cfd - imin_cfd
+    cfd_ncells(2) = jmax_cfd - jmin_cfd
+    cfd_ncells(3) = kmax_cfd - kmin_cfd
+
+	!Check number of cells based on rcutoff and neighbourlist size
+	max_ncells= floor(domain/rcutoff)
+
+	!Ensure CFD cells are not smaller than minimum possible MD cells
+	if (any(max_ncells .lt. cfd_ncells)) & 
+		call error_abort("ERROR - CFD cellsize smaller than minimum MD computational/averaging cell")
+
+	!Calculate ratio of CFD to maximum numbers of cells
+	!cfd_md_cell_ratio = floor(dble(max_ncells)/dble(cfd_ncells))
+
+	cfd_cellsidelength(1) = x(2) - x(1)
+	cfd_cellsidelength(2) = y(2) - y(1)
+	cfd_cellsidelength(3) = z(2) - z(1)
+	ncells(:)		      = floor(domain(:)/(rcutoff+delta_rneighbr))
+	cellsidelength(:) 	  = domain(:)/ncells(:)
+	cfd_md_cell_ratio(:)  = floor(cfd_cellsidelength(:)/cellsidelength(:))
+
+	print'(a,9i8,3f10.5)', 'cell', cfd_md_cell_ratio,cfd_ncells,ncells,domain
+	print'(a,6f10.5)', 'cellsie', cfd_cellsidelength(:),cellsidelength(:)
+
+	!Recalculate required delta_rneighbr to ensure integer numbers of cells for both domains 
+	ncells    	   = cfd_ncells * cfd_md_cell_ratio
+	delta_rneighbr = minval(domain/ncells-rcutoff)
+
+	!Calculate size of neighbour list region
+	rneighbr  = rcutoff + delta_rneighbr
+	rneighbr2 = (rcutoff + delta_rneighbr)**2
+
+	!Determine side length of cells after rounding
+	cellsidelength     = domain / ncells
+
+	if (potential_flag .eq. 1) then
+		select case(solvent_flag)
+		case(0:1)
+			if (rneighbr < R_0) then
+				rneighbr = R_0 
+				rneighbr2 = R_0**2
+				print*, 'Neighbour list distance rneighbr set to &
+						& maximum elongation of polymer spring, ',R_0
+			end if
+		case(2)
+			if (rneighbr < sod_cut) then
+				rcutoff   = sod_cut
+				rcutoff2  = sod_cut2
+				rneighbr  = rcutoff + delta_rneighbr
+				rneighbr2 = rneighbr**2.d0
+			end if
+		case default
+			call error_abort('Unrecognised solvent_flag in set_parameters_cells')
+		end select
+	endif
+
+	if (ncells(1)<3 .or. ncells(2)<3 .or. ncells(3)<3) then
+		print*, ncells(1),'    in x and ', ncells(2), '    in y' , ncells(3), '    in z' 
+		call  error_abort( "ERROR - DOMAIN SHOULD HAVE AT LEAST 3 CELLS, &
+		 					& IN X, Y AND Z - INCREASE NUMBER OF UNITS IN INPUT")
+	endif
+
+    if(myid == 0) then
+        write(*,'(a/a/a,f8.6,/,a,3i8,/,a,3(f8.5),/,a,3(i8),/,a)') &
+                    "**********************************************************************", &
+                    "WARNING - this is a coupled run which resets the following parameters:", &
+	    	        " Extra cell size for neighbourlist =", delta_rneighbr  ,                 & 
+                    " MD computational cells per CFD cell = ",cfd_md_cell_ratio,  			  &
+					" cellsize =", cellsidelength(:),     									  &     
+                    " no of cell  =", ncells(:),                                   &
+                    "**********************************************************************"
+    endif
+
+end subroutine set_parameters_cells_coupled
+#endif
 
 !-----------------------------------------------------------------------------------------
 
@@ -605,8 +695,8 @@ subroutine set_parameters_outputs
 	allocate(Gxybins(nbins(1),nbins(2),nbins(3),3,3))
 	Gxybins = 0.d0
 
-	!Allocate array for Stress Method of Planes or 
-	!Allocate bins for control volume momentum fluxes and forces
+	!Allocate array for Stress Method of Planes and/or 
+	!allocate bins for control volume momentum fluxes and forces
 	planespacing = cellsidelength(2)
 	select case(vflux_outflag)
 		case(1)
@@ -675,6 +765,19 @@ subroutine set_parameters_outputs
 			endif
 	end select
 
+#if USE_COUPLER
+	! Check end of maximum VMD intervals is not greater than the number of steps Nsteps
+	! which has been changed by the coupler.
+	!Nsteps = initialstep + coupler_md_get_nsteps() * coupler_md_get_md_steps_per_dt_cfd()
+	if (vmd_outflag .ne. 0 .and. Nvmd_intervals .ne. 0) then
+		if (maxval(vmd_intervals) .gt. Nsteps) then
+			print'(2(a,i8))', 'Value specified for end of final vmd_interval = ' & 
+							, maxval(vmd_intervals), ' but Nsteps = ', Nsteps 
+			call error_abort("Specified VMD interval greater than Nsteps")
+		endif
+	endif
+#endif
+
 end subroutine set_parameters_outputs
 
 
@@ -688,9 +791,9 @@ subroutine establish_surface_bins
 	integer		:: n
 	integer		:: icell, jcell, kcell
 
-	nsurfacebins=	2*( ncells(1)   * ncells(2) &
-					+  (ncells(3)-2)* ncells(2) &
-		        	+  (ncells(3)-2)*(ncells(1)-2))
+	nsurfacebins=	2*( nbins(1)   * nbins(2) &
+					+  (nbins(3)-2)* nbins(2) &
+		        	+  (nbins(3)-2)*(nbins(1)-2))
 
 	allocate(surfacebins(nsurfacebins,3))
 
@@ -771,9 +874,9 @@ end subroutine establish_halo_bins
 !	integer		:: icell, jcell, kcell
 !	integer		:: buf
 
-!	nsurfacecells =2*((ncells(1)-2*buf)*(ncells(2)-2*buf) &
-!			+  (ncells(1)-2-2*buf)*(ncells(3)-2*buf) &
-!		        +  (ncells(2)-2-2*buf)*(ncells(3)-2-2*buf))
+!	nsurfacecells =	2*((ncells(1)-2*buf)*(ncells(2)-2*buf) &
+!					+  (ncells(1)-2-2*buf)*(ncells(3)-2*buf) &
+!		        	+  (ncells(2)-2-2*buf)*(ncells(3)-2-2*buf))
 
 !	allocate(surfacecell(nsurfacecells,3))
 	

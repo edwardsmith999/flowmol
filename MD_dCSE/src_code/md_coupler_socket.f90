@@ -20,7 +20,7 @@ module md_coupler_socket
     ! CFD id
     integer cfd_code_id 
 
-! type used in applying continuum force
+	! type used in applying continuum force
 	type cfd_box_sum
 		integer np
 		real(kind=kind(0.d0))  v(3)
@@ -93,9 +93,8 @@ subroutine average_and_send_MD_to_CFD(iter)
 	    Naverage = coupler_md_get_md_steps_per_dt_cfd()  	! number of steps in MD average cycle
     endif
 
-    iter_average = mod(iter-1, Naverage)+1	! current step
-    
-    iter_cfd     = (iter-initialstep)/Naverage +1 ! CFD corresponding step
+    iter_average = mod(iter-1, Naverage)+1			! current step
+    iter_cfd     = (iter-initialstep)/Naverage +1 	! CFD corresponding step
 
 	! collect uc data every save_period cfd iteration but discard the first one which cfd uses for initialisation
     if ( mod(iter_average,average_period) .eq. 0 ) then
@@ -110,15 +109,17 @@ end subroutine average_and_send_MD_to_CFD
 
 !=============================================================================
 ! Take average of x,y and z components of MD velocity
-! Deprecated, but useful for testing
+! Computes MD average velocity in a box of size dx*dy*dz around a 
+! staggered FD grid point
 !-----------------------------------------------------------------------------
 
 subroutine coupler_md_boundary_cell_average(np,r,v,send_data)
-	!  computes MD average velocity in a box of size dx*dy*dz around a staggered FD grid point
+
     use coupler_internal_common, only : cfd_is_2d, staggered_averages
-	use coupler_internal_md, only : myid, icoord, dx, dz, x, y, z, global_r, cfd_code_id
+	use coupler_internal_md, only : myid, icoord, dx, dz, x, y, z, global_r, cfd_code_id,uc_bin
     use coupler
     use coupler_parameters
+	use calculated_properties_MD, only : volume_momentum						
 	implicit none
 
 	integer, intent(in) :: np
@@ -126,15 +127,18 @@ subroutine coupler_md_boundary_cell_average(np,r,v,send_data)
 	logical, intent(in) :: send_data
 
 	! Tolerance for boundary overlap, 100th of sigma should do
-	real(kind=kind(0.d0)), parameter :: epsilon=1.0d-2
+	!real(kind=kind(0.d0)), parameter :: epsilon=1.0d-2
 
 	integer ixyz, displ, nbuff, nbuff_in, ib, kb, ic, kc, i, ip
 
-	!		write(0,*) 'md box-average: dx, dy, dz (sigma units), fsig', myid, dx,dz
+	!write(0,*) 'md box-average: dx, dy, dz (sigma units), fsig', myid, dx,dz
 
 	! Because of the staggered grid each a velocity component average
 	! must compute separately. Optimisation to be done later
 	call compute_uc_average
+	print'(a,6i8)', 'sizes', size(uc_bin,3),size(uc_bin,4),size(uc_bin,2), & 
+							size(volume_momentum,1),size(volume_momentum,2),size(volume_momentum,3)
+	print'(a,l,2f10.5)','values',send_data,uc_bin(1,4,10,1),maxval(volume_momentum)
 	call compute_vc_average
     if (cfd_code_id == couette_parallel) then
         call compute_wc_average
@@ -161,6 +165,7 @@ contains
 			first_time = .false.
             if (cfd_code_id == couette_parallel) then 
                 allocate(uc_bin(2,nlz-1,nlx-0,1))
+                !allocate(uc_bin(2,ngz-1,nlx-0,1))
             else
                 allocate(uc_bin(2,nlz-1,nlx-1,1))
             endif
@@ -179,7 +184,7 @@ contains
             else
                 ovr_box_x = .false.
             endif
-			uc_bin = 1.234567890123456d0
+			!uc_bin = 1.234567890123456d0
 			!print'(2a,2i8,4f25.16)', 'MD  send data',code_name(COUPLER_REALM), myid, & 
 			!							size(uc_bin), maxval(uc_bin),minval(uc_bin),sum(uc_bin),uc_bin(1,3,3,1)
             call coupler_send_grid_data(uc_bin,index_transpose=(/2,3,1/),use_overlap_box=(/ ovr_box_x, .false., .false./))
@@ -212,7 +217,7 @@ contains
 				uc_bin(1,kb,ib,1) = uc_bin(1,kb,ib,1) + v(ip,1)
 				uc_bin(2,kb,ib,1) = uc_bin(2,kb,ib,1) + 1.d0 
 			else 
-				!				       write(0,*) 'MD uc_average, outside domain rd', rd, ' bbox%bb ', bbox 
+				!write(0,*) 'MD uc_average, outside domain rd', rd, ' bbox%bb ', bbox 
 			endif
 		end do
 
@@ -391,9 +396,6 @@ subroutine socket_coupler_apply_continuum_forces(iter)
 		Naverage = coupler_md_get_md_steps_per_dt_cfd()
 	endif
 	iter_average = mod(iter-1, Naverage)+1
-
-!	coupler library version ( deprecated )
-!	call coupler_md_apply_continuum_forces(np,r,v,a,iter_average)	!Apply force based on Nie,Chen an Robbins coupling
 
 	!  use this module version
 	call apply_continuum_forces(iter_average)
@@ -642,8 +644,8 @@ subroutine apply_force
 		n = box_average(ib,jb,kb)%np
 		if ( n .eq. 0 ) cycle
 
-			!write(900+myid,'(a,5I4,14E12.4)') "MD continuum force", iter,ib,jb,kb,n,box_average(ib,jb,kb)%v(1), &
-			!	box_average(ib,jb,kb)%a(1),v(ip,1),a(ip,1),inv_dtMD,inv_dtCFD
+		!write(900+myid,'(a,5I4,14E12.4)') "MD continuum force", iter,ib,jb,kb,n,box_average(ib,jb,kb)%v(1), &
+		!	box_average(ib,jb,kb)%a(1),v(ip,1),a(ip,1),inv_dtMD,inv_dtCFD
 
 		! using the following exptrapolation formula for continuum velocity
 		! y = (y2-y1)/(x2-x1) * (x-x2) +y2
