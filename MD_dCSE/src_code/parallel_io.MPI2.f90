@@ -638,9 +638,9 @@ subroutine parallel_io_final_state
 	!Adjust r according to actual location for storage according
 	!to processor topology with r = 0 at centre
 	allocate(rglobal(np,3))
-	r(:,1) = r(:,1)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
-	r(:,2) = r(:,2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
-	r(:,3) = r(:,3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
+	rglobal(:,1) = r(:,1)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
+	rglobal(:,2) = r(:,2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
+	rglobal(:,3) = r(:,3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
 
 	!Initialise file displacements
 	procdisp = 0
@@ -649,9 +649,9 @@ subroutine parallel_io_final_state
 	call MPI_FILE_DELETE(trim(prefix_dir)//'results/final_state', MPI_INFO_NULL, ierr)
 
 	!Open file on all processors
-	call MPI_FILE_OPEN(MD_COMM,trim(prefix_dir)//'results/final_state', & 
-			MPI_MODE_RDWR + MPI_MODE_CREATE, & 
-			MPI_INFO_NULL, restartfileid, ierr)
+	call MPI_FILE_OPEN(	MD_COMM,trim(prefix_dir)//'results/final_state', & 
+						MPI_MODE_RDWR + MPI_MODE_CREATE, & 
+						MPI_INFO_NULL, restartfileid, ierr)
 
 	!-------------Write coordinates--------------------
 
@@ -1373,8 +1373,8 @@ subroutine parallel_io_vmd_optimised
 
 	!Open file on all processors
 	call MPI_FILE_OPEN(MD_COMM, trim(prefix_dir)//'results/vmd_temp.dcd', & 
-		MPI_MODE_RDWR + MPI_MODE_CREATE, & 
-		MPI_INFO_NULL, fileid, ierr)
+						MPI_MODE_RDWR + MPI_MODE_CREATE, & 
+						MPI_INFO_NULL, fileid, ierr)
 
 	!-------------Write XYZ coordinates--------------------
 
