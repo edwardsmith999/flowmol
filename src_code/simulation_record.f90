@@ -196,17 +196,6 @@ subroutine simulation_record
 end subroutine simulation_record
 
 !==========================================================================
-! Called from force computation routine to collect molecular interaction
-! based statistics
-
-subroutine evaluate_interaction_statistics
-	use module_record
-	implicit none
-
-
-end subroutine evaluate_interaction_statistics
-
-!==========================================================================
 !Calculate kinetic and potential energy as well as temperature and pressure
 
 subroutine evaluate_macroscopic_properties_parallel

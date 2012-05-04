@@ -236,13 +236,20 @@ subroutine setup_read_input
 				!read(1,trim(readin_format)) vmd_intervals
 				read(1,*) vmd_intervals
 #if USE_COUPLER
-				!NEED SOME SORT OF coupler total simulation time retrival here!!
-				print*, "WARNING - CHECK VMD INTERVALS is not greater than coupled number of steps"
+				!Coupler total simulation time is setup later so defer this check
+				!until later
 #else
-				if (maxval(vmd_intervals) .gt. Nsteps) stop "Specified VMD interval greater than Nsteps"
+				if (maxval(vmd_intervals) .gt. Nsteps) then
+					print'(2(a,i8))', 'Value specified for end of final vmd_interval = ' & 
+									, maxval(vmd_intervals), 'but Nsteps = ', Nsteps 
+					call error_abort("Specified VMD interval greater than Nsteps")
+				endif
 #endif
 			endif
 		endif
+	else
+		!If not switched on in input then VMD set to off
+		vmd_outflag = 0
 	endif
 
 	call locate(1,'MACRO_OUTFLAG',.false.,found_in_input)

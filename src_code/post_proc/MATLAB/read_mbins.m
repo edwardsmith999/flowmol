@@ -9,8 +9,8 @@ end
 %Store Present Working directory
 pwdir = pwd;
 if (exist('resultfile_dir') == 0)
-    resultfile_dir = './../results';
-    display('setting results file to default "./../results"');
+    resultfile_dir = './../../results';
+    display('setting results file to default "./../../results"');
 end
 
 %Read simulation properties from header file and calculate simulation
