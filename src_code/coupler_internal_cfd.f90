@@ -26,24 +26,24 @@ module coupler_internal_cfd
 
     ! CFD grid indices, number of processor in grid, number of steps
     integer imino,imin,imax,imaxo,jmino,jmin,jmax,jmaxo,&
-        kmino,kmin,kmax,kmaxo,npx,npy,npz, nsteps
+        	kmino,kmin,kmax,kmaxo,npx,npy,npz,nsteps
 
-    integer tplot	       !Output every number of steps
+    integer :: tplot	       	!Output every number of steps
     integer :: jmax_overlap = 5 ! maximum j index ( in y direction) which MD 
 
     ! coordinates of CFD topologies
     ! ATTENTION the values are shifted with +1, FORTRAN style
-    ! if this array is passed a MPI function, remove the shift !
+    ! if this array is passed by an MPI function, remove the shift !
     integer, allocatable :: icoord(:,:)
 
     real(kind(0.d0)), allocatable :: x(:), y(:), z(:)
     real(kind(0.d0)) dx, dz, dt
 
     ! size of initialisation MD cell  used to resize CFD domain, derived from density
-    ! and cell tipe
+    ! and cell type
     real(kind(0.d0)) MD_initial_cellsize
 
-    ! Data recieved form MD
+    ! Data recieved from MD
     integer npx_md, npy_md, npz_md, nproc_md
 
     ! Internal data 
@@ -73,9 +73,9 @@ contains
         use coupler_internal_common, only : COUPLER_REALM_COMM, COUPLER_GRID_COMM, COUPLER_ICOMM, cfd_is_2d, map
         implicit none
 
-        integer i, myid, id_coord, color, noverlaps, ir, iaux(4), ierr
-        integer, allocatable :: md_grid_boxes(:,:), overlap_mask(:), ireq(:), overlap_box(:,:)
-        real(kind(0.d0)) raux(2)
+        integer 				:: i, myid, id_coord, color, noverlaps, ir, iaux(4), ierr
+        integer, allocatable 	:: md_grid_boxes(:,:), overlap_mask(:), ireq(:), overlap_box(:,:)
+        real(kind(0.d0))		:: raux(2)
 
         call mpi_comm_rank(COUPLER_REALM_COMM,myid,ierr)
 
@@ -100,7 +100,7 @@ contains
 
         ! Get the block boundaries covered by each MD domain
         allocate(md_grid_boxes(6,0:nproc_md - 1), overlap_mask(0:nproc_md - 1), &
-            overlap_box(6,0:nproc_md-1), ireq(0:nproc_md - 1))
+            	 overlap_box(6,0:nproc_md-1), ireq(0:nproc_md - 1))
 
         call mpi_allgather(MPI_BOTTOM, 0, MPI_INTEGER, md_grid_boxes, 6, MPI_INTEGER,COUPLER_ICOMM, ierr)
         !write(0,*) ' CFD grid boxes ', myid, md_grid_boxes
@@ -156,7 +156,7 @@ contains
             implicit none
 
             integer i, ibmin,ibmax,jbmin,jbmax,kbmin,kbmax, &
-                ibs, ibe, jbs, jbe, kbs, kbe
+                	ibs, ibe, jbs, jbe, kbs, kbe
 
             ibmin = bbox_cfd%xbb(1,icoord(1,id_coord))
             ibmax = bbox_cfd%xbb(2,icoord(1,id_coord))
@@ -176,12 +176,12 @@ contains
                 kbs = md_grid_boxes(5,i)
                 kbe = md_grid_boxes(6,i)
 
-                if	 ((( ibs <  ibmin .and. ibe > ibmin )	.or.  &
-                    ( ibs >= ibmin .and. ibs < ibmax ))  .and. &
-                    (( jbs <  jbmin .and. jbe > jbmin )	.or.  &
-                    ( jbs >= jbmin .and. jbs < jbmax))   .and. &   
-                    (( kbs <  kbmin .and. kbe > kbmin )	.or.  &
-                    ( kbs >= kbmin .and. kbs < kbmax)))  then
+                if  ((( ibs <  ibmin .and. ibe > ibmin )	.or.  &
+                    (   ibs >= ibmin .and. ibs < ibmax ))  .and. &
+                    ((  jbs <  jbmin .and. jbe > jbmin )	.or.  &
+                    (   jbs >= jbmin .and. jbs < jbmax))   .and. &   
+                    ((  kbs <  kbmin .and. kbe > kbmin )	.or.  &
+                    (   kbs >= kbmin .and. kbs < kbmax)))  then
 
                     overlap_mask(i) = 1
 

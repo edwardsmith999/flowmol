@@ -108,9 +108,9 @@ subroutine create_map_md
 	use mpi
 	use coupler_internal_common, only : COUPLER_ICOMM, cfd_is_2d, map
 	implicit none
+
 	integer  i, ir, ireq(nproc_cfd), noverlaps, source, ierr
 	integer, allocatable :: overlap_mask(:,:)
-
 
 	! compute the boundaries of this MD domain in the CFD global domain.
 	! assume that all domains have identical sides 
@@ -159,13 +159,10 @@ subroutine create_map_md
 
 
 	! get the domain overlap mask from cfd
-
 	allocate(overlap_mask(0:nproc-1,0:nproc_cfd-1))
-
 
 	call mpi_allgather(MPI_BOTTOM,0, MPI_INTEGER,overlap_mask, &
 		nproc,MPI_INTEGER,COUPLER_ICOMM,ierr)
-
 	!		write(0,'(a,32I3)') 'MD, overlap mask: ', overlap_mask
 
 	noverlaps = 0
@@ -178,13 +175,10 @@ subroutine create_map_md
 	!		write(0,'(a,32I3)') 'MD, noverlaps: ', myid, noverlaps
 
 	! sort out which CFD ranks hold non-void domains for this MD rank
-
 	map%n = noverlaps
 	allocate ( map%rank_list(noverlaps), map%domains(6,noverlaps))
-
 	ir=0
 	do i=0, nproc_cfd - 1
-
 		if (overlap_mask(myid,i) == 1) then
 			ir = ir + 1
 			map%rank_list(ir) = i
@@ -234,7 +228,6 @@ subroutine create_map_md
     cfd_box%zmin = z(bbox%ks) - bbox%bb(1,3) - half_domain_lengths(3)
     cfd_box%zmax = z(bbox%ke) - bbox%bb(1,3) - half_domain_lengths(3)
     cfd_box%dz   = z(kmin_cfd+1) - z(kmin_cfd)
-
 
 	!		write(0,*) 'MD: end of create_map_cfd_md', myid
 
