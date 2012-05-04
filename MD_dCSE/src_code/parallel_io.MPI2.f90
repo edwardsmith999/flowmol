@@ -618,7 +618,7 @@ subroutine parallel_io_final_state
 	integer 			   							:: dp_datasize
 	integer(kind=MPI_OFFSET_KIND)      				:: disp, procdisp, filesize
     integer(kind=selected_int_kind(18))     		:: header_pos
-	double precision, dimension(:,:), allocatable 	:: buf
+	double precision, dimension(:,:), allocatable 	:: buf, rglobal
 	double precision, dimension(:,:), allocatable   :: monomerbuf
 
 	!Rebuild simulation before recording final state
@@ -637,6 +637,7 @@ subroutine parallel_io_final_state
 
 	!Adjust r according to actual location for storage according
 	!to processor topology with r = 0 at centre
+	allocate(rglobal(np,3))
 	r(:,1) = r(:,1)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
 	r(:,2) = r(:,2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
 	r(:,3) = r(:,3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
@@ -672,7 +673,7 @@ subroutine parallel_io_final_state
 		call MPI_FILE_SET_VIEW(restartfileid, disp, MPI_double_precision, & 
  		                       MPI_double_precision, 'native', MPI_INFO_NULL, ierr)
 	 	do n = 1, np
-	 		buf(:,3*n-2) = r(n,:)
+	 		buf(:,3*n-2) = rglobal(n,:)
 	 		buf(:,3*n-1) = rtrue(n,:)
 	 		buf(:,3*n  ) = v(n,:)
 	 	enddo
@@ -695,7 +696,7 @@ subroutine parallel_io_final_state
 
 		do n=1,procnp(irank)
 
-			monomerbuf(1:3,n)    = r(n,:)
+			monomerbuf(1:3,n)    = rglobal(n,:)
 			monomerbuf(4:6,n)    = rtrue(n,:)
 			monomerbuf(7:9,n)    = v(n,:)
 			monomerbuf(10, n)    = real(monomer(n)%chainID,        kind(0.d0))
@@ -768,7 +769,8 @@ subroutine parallel_io_final_state
         call MPI_file_close(restartfileid, ierr)
 
 	endif
-	
+
+	deallocate(rglobal)	
 
 end subroutine parallel_io_final_state
 
