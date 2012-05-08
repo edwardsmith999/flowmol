@@ -81,7 +81,7 @@ subroutine simulation_record
 
 	integer			:: vmd_iter
 	integer,save	:: i = 1
-
+	character*8     :: iterchar
 	!-------------------------------Only record every tplot iterations------------------------
 	if (mod(iter,tplot) .ne. 0) return
 	!-------------------------------Only record every tplot iterations------------------------
@@ -186,10 +186,15 @@ subroutine simulation_record
 
 	!Check if backup file should be saved based on elapsed iterations
 	!and average size of current system per processor
-	if (mod((iter*globalnp/nproc),1000000000).eq.0) then
-		call messenger_syncall
-		call parallel_io_final_state
-	endif
+!	if (mod((iter*globalnp/nproc),1000000).eq.0) then
+!		call messenger_syncall
+!		call parallel_io_final_state
+!		if (irank.eq.iroot) then
+!			write(iterchar, '(i8)') iter
+!			iterchar = adjustl(iterchar)
+!			print('(2a)'), ' Microstate written to ./results/final_state at iter ', iterchar 
+!		end if
+!	endif
 
 	call update_simulation_progress_file
 
