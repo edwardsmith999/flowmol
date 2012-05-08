@@ -455,7 +455,7 @@ subroutine parallel_io_final_state
 	write(2) initialnunits(1) 	!x dimension split into number of cells
 	write(2) initialnunits(2) 	!y dimension box split into number of cells
 	write(2) initialnunits(3) 	!z dimension box split into number of cells
-	write(2) Nsteps           	!Number of computational steps
+	write(2) iter           	!Number of computational steps (was Nsteps)
 	write(2) tplot            	!Frequency at which to record results
 	write(2) seed(1)          	!Random number seed value 1
 	write(2) seed(2)          	!Random number seed value 2
