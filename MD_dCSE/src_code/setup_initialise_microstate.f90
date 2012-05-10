@@ -30,6 +30,7 @@ implicit none
 	case(1) 
 		call setup_initialise_parallel_position_FENE  !Reordered numbering to allow FENE bonds
 		call setup_initialise_polyinfo                !Assign beads chain IDs, etc
+		!call setup_initialise_polyinfo_singlebranched !Assign beads chain IDs, etc
 	case default
 		call error_abort('Potential flag not recognised!')
 	end select
@@ -502,31 +503,146 @@ subroutine setup_initialise_polyinfo
 			monomer(n)%chainID     = monomer(n)%chainID + sum(proc_chains(1:irank)) - proc_chains(irank)
 		end if
 		monomer(n)%glob_no     = monomer(n)%glob_no + sum(proc_nps(1:irank))    - proc_nps(irank)
-!		do i=1,monomer(n)%funcy
-!			bond(n,i)          = bond(n,i)          + sum(proc_nps(1:irank))    - proc_nps(irank)
-!		end do
 	end do
 
 	nchains = sum(proc_chains)
 
-contains
+end subroutine setup_initialise_polyinfo
 
-	subroutine connect_to_monomer(bscID,n)
+!=============================================================================
+!Initialise branched polymer simulation
+subroutine setup_initialise_polyinfo_singlebranched
+	use interfaces
+	use polymer_info_MD
+	use messenger
+	use physical_constants_MD, only: np
+	use arrays_MD, only:r
 	implicit none
+
+	integer :: i,n
+	integer :: chainID
+	integer :: subchainID
+	integer :: modcheck
+	integer :: solvent_selector
+	integer :: scIDbranch, glob_n_branch, nbranch, branchmonomers
+	integer, dimension(nproc) :: proc_chains, proc_nps
+	double precision, dimension(3) :: rij
+	double precision :: rij2
 	
-		integer, intent(in) :: bscID,n
-		integer :: group, expo
+	proc_chains(:)         = 0
+	proc_nps(:)            = 0
+	branchmonomers         = nmonomers    !Branch length specified in input
+	nmonomers              = 2*nmonomers  !Two branches per polymer
 
-		group = ceiling(real(bscID)/real(intbits))
-		expo  = mod(bscID,intbits) - 1
-		if(expo.eq.-1) expo = intbits - 1
-		monomer(n)%funcy            = monomer(n)%funcy + 1
-		monomer(n)%bin_bflag(group) = monomer(n)%bin_bflag(group) + 2**(expo)
-		
-	end subroutine connect_to_monomer
+	modcheck = 0 + mod(np,nmonomers) + mod(4*initialnunits(1),nmonomers)
+	if (modcheck.ne.0) call error_abort('Number of molecules must be exactly &
+	                                     divisible by the polymer chain      &
+	                                     length. Please change the chain     &
+	                                     length in the input file. A chain   &
+	                                     length of 4 should (hopefully)      &
+	                                     work.')
 
+	!Set all to solvents
+	do n=1,np+extralloc
+		monomer(n)%chainID      = 0
+		monomer(n)%subchainID   = 1
+		monomer(n)%funcy        = 0
+		monomer(n)%glob_no      = n
+		monomer(n)%bin_bflag(:) = 0
+	end do	
 
-end subroutine setup_initialise_polyinfo		
+	scIDbranch = branchmonomers/2            ! Choose subchainID from which
+	                                         ! to create a branch
+	chainID    = 1                           ! Initialise
+	subchainID = 0                           ! Initialise
+	!First branch
+	do n=1,branchmonomers                    ! Loop over first branch monomers
+
+		chainID = 1                          ! Set all polymers to same chain
+		subchainID = subchainID + 1          
+		monomer(n)%chainID = chainID
+		monomer(n)%subchainID = subchainID
+		if (subchainID.eq.1) then            ! The usual chain connections...
+			call connect_to_monomer(subchainID+1,n)
+		else if (subchainID.eq.branchmonomers) then
+			call connect_to_monomer(subchainID-1,n)				
+		else
+			call connect_to_monomer(subchainID+1,n)
+			call connect_to_monomer(subchainID-1,n)
+		end if
+
+		if (subchainID .eq. scIDbranch) then ! Store global mol number of
+			glob_n_branch = n                ! branching monomer
+		end if
+
+	end do
+
+	!Locate new monomer close to branching monomer
+	do n=branchmonomers+1,np
+		rij(:) = r(glob_n_branch,:) - r(n,:) ! Check separation
+		rij2 = dot_product(rij,rij)
+		if (rij2.lt.R_0**2.d0) then          ! If within spring max elongation
+			nbranch = n                      ! Store global mol no
+			exit                             ! Nothing else needed
+		end if
+	end do
+
+	!Second branch
+	do n=nbranch,nbranch+branchmonomers-1    ! Start from monomer close to
+		chainID = 1                          ! branching monomer. Same cID.
+		subchainID = subchainID + 1
+		monomer(n)%chainID = chainID
+		monomer(n)%subchainID = subchainID
+		if (subchainID.eq.branchmonomers+1) then
+			call connect_to_monomer(scIDbranch,n)   ! Connect monomer to
+		                                            ! new branch 
+			call connect_to_monomer(subchainID,glob_n_branch) ! And vice-versa
+			call connect_to_monomer(subchainID+1,n) ! Continue chain
+		else if (subchainID .gt. branchmonomers+1 .and. &
+		         subchainID .lt. nmonomers) then
+			call connect_to_monomer(subchainID+1,n)
+			call connect_to_monomer(subchainID-1,n)
+		else	
+			call connect_to_monomer(subchainID-1,n) ! End chain
+		end if
+	end do
+
+	proc_chains(irank) = chainID
+	proc_nps(irank)    = np
+	call globalSumIntVect(proc_chains,nproc)
+	call globalSumIntVect(proc_nps,nproc)
+	
+	do n=1,np
+		if (monomer(n)%chainID.ne.0) then
+			monomer(n)%chainID = monomer(n)%chainID + &
+			                     sum(proc_chains(1:irank)) - proc_chains(irank)
+		end if
+		monomer(n)%glob_no     = monomer(n)%glob_no + &
+		                         sum(proc_nps(1:irank))    - proc_nps(irank)
+	end do
+
+	nchains = sum(proc_chains)
+
+end subroutine setup_initialise_polyinfo_singlebranched
+
+!-----------------------------------------------------------------------------
+!Connect monomer to subchainID bscID
+subroutine connect_to_monomer(bscID,n)
+use polymer_info_MD
+implicit none
+
+	integer, intent(in) :: bscID,n
+	integer :: group, expo
+	integer :: otherglob
+	
+	intbits = bit_size(monomer(1)%bin_bflag(1))
+	group = ceiling(real(bscID)/real(intbits))
+	expo  = mod(bscID,intbits) - 1
+	if(expo.eq.-1) expo = intbits - 1
+	monomer(n)%funcy            = monomer(n)%funcy + 1
+	monomer(n)%bin_bflag(group) = monomer(n)%bin_bflag(group) + 2**(expo)
+	
+end subroutine connect_to_monomer
 !----------------------------------------------------------------------------------
 !----------------------------------------------------------------------------------
 !Initialise Velocities
