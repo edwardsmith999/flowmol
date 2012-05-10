@@ -611,7 +611,11 @@ subroutine polymer_bond_error(molnoX)
 	print '(a,i8)', 'Glob_no: '   , monomer(molnoX)%glob_no
 	print '(a,i8)', 'Bin_bflag: ' , monomer(molnoX)%bin_bflag
 
-	if (molnoX.gt.np) call error_abort('Halo!')
+	if (molnoX.gt.np) then
+		call error_abort('Halo!')
+	else
+		call error_abort('')
+	end if
 
 end subroutine polymer_bond_error
 
