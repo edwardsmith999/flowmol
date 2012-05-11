@@ -45,6 +45,11 @@ echo " ***************************** DNS_main_code_Couette *********************
 grep "er (ngx"  ./../../CFD_dCSE/src_code/DNS_main_code_Couette/param.inc
 echo " "
 echo " ***********************************************************************************"
+echo " "
+echo " "
+echo " ** SIMULATION STARTS * SIMULATION STARTS * SIMULATION STARTS * SIMULATION STARTS **"
+echo " "
+echo " "
 
 #Move required files to directory
 echo "  0" > data
