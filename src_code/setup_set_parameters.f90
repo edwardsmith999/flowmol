@@ -35,6 +35,7 @@ subroutine setup_set_parameters
 	use module_set_parameters
 #if USE_COUPLER
 	use coupler
+	use coupler_input_data, only : md_cfd_match_cellsize
 #endif
 	implicit none
 
@@ -48,8 +49,12 @@ subroutine setup_set_parameters
 
 	!call set_parameters_domain
 #if USE_COUPLER
-   	call set_parameters_global_domain_coupled
-	call set_parameters_cells!_coupled
+	call set_parameters_global_domain_coupled
+	if (md_cfd_match_cellsize .eq. 0) then
+		call set_parameters_cells
+ 	else
+		call set_parameters_cells_coupled
+	endif
 #else 
    	call set_parameters_global_domain
 	call set_parameters_cells
@@ -112,9 +117,6 @@ subroutine set_parameters_allocate(n)
 		allocate(ncells(nd))
 		allocate(cellsidelength(nd))
 		allocate(halfcellsidelength(nd))
-		!Pressure tensor
-		allocate(Pxy(nd,nd))
-		allocate(Pxyzero(nd,nd))
 	case(2)
 		!Calculate required extra allocation of molecules to allow copied Halos
 		!using ratio of halo to domain volume with safety factor
@@ -457,33 +459,33 @@ subroutine set_parameters_cells_coupled
 	!Check number of cells based on rcutoff and neighbourlist size
 	max_ncells= floor(domain/rcutoff)
 
-	!Ensure CFD cells are not smaller than minimum possible MD cells
-	if (any(max_ncells .lt. cfd_ncells)) & 
-		call error_abort("ERROR - CFD cellsize smaller than minimum MD computational/averaging cell")
-
 	!Calculate ratio of CFD to maximum numbers of cells
-	!cfd_md_cell_ratio = floor(dble(max_ncells)/dble(cfd_ncells))
-
 	cfd_cellsidelength(1) = x(2) - x(1)
 	cfd_cellsidelength(2) = y(2) - y(1)
 	cfd_cellsidelength(3) = z(2) - z(1)
-	ncells(:)		      = floor(domain(:)/(rcutoff+delta_rneighbr))
-	cellsidelength(:) 	  = domain(:)/ncells(:)
+	cellsidelength(:) 	  = domain(:)/max_ncells(:)
 	cfd_md_cell_ratio(:)  = floor(cfd_cellsidelength(:)/cellsidelength(:))
 
-	print'(a,9i8,3f10.5)', 'cell', cfd_md_cell_ratio,cfd_ncells,ncells,domain
-	print'(a,6f10.5)', 'cellsie', cfd_cellsidelength(:),cellsidelength(:)
+	!Determine side length of cells after rounding and MD ncells
+	cellsidelength = cfd_cellsidelength/cfd_md_cell_ratio
+	ncells = ceiling(domain/cellsidelength)
+
+	!Ensure domain allows MD cells to be a multiple of CFD cell sizes...
+	if (any(abs(domain(:)/cellsidelength(:)-nint(domain(:)/cellsidelength(:))) .gt. 0.01)) & 
+		call error_abort("ERROR - CFD cellsize and MD cellsize not compatible - Adjust domain size to      &
+						  correct this or remove MD_CFD_MATCH_CELLSIZE from COUPLER input")
+	cellsidelength = domain/ncells
 
 	!Recalculate required delta_rneighbr to ensure integer numbers of cells for both domains 
-	ncells    	   = cfd_ncells * cfd_md_cell_ratio
 	delta_rneighbr = minval(domain/ncells-rcutoff)
 
 	!Calculate size of neighbour list region
 	rneighbr  = rcutoff + delta_rneighbr
 	rneighbr2 = (rcutoff + delta_rneighbr)**2
 
-	!Determine side length of cells after rounding
-	cellsidelength     = domain / ncells
+	print'(a,6f10.5)', 'domains', domain, x(imax_cfd)-x(imin_cfd),y(jmax_cfd)-y(jmin_cfd),z(kmax_cfd)-z(kmin_cfd)
+	print'(a,12i8)',      'cell', cfd_md_cell_ratio,cfd_ncells,ncells,max_ncells
+	print'(a,6f10.5)', 'cellsize', cfd_cellsidelength(:),cellsidelength(:)
 
 	if (potential_flag .eq. 1) then
 		select case(solvent_flag)
@@ -522,6 +524,10 @@ subroutine set_parameters_cells_coupled
                     " no of cell  =", ncells(:),                                   &
                     "**********************************************************************"
     endif
+
+	!Ensure CFD cells are not smaller than minimum possible MD cells
+	if (any(max_ncells .lt. cfd_ncells)) & 
+		call error_abort("ERROR - CFD cellsize smaller than minimum MD computational/averaging cell")
 
 end subroutine set_parameters_cells_coupled
 #endif
@@ -673,6 +679,12 @@ subroutine set_parameters_outputs
 	allocate(zeta_array(nbins(1),nbins(2),nbins(3)))
 	zeta_array = 0.d0
 	!call local_temperature_header
+
+	!Pressure tensor
+	allocate(Pxy(nd,nd))
+	allocate(Pxyzero(nd,nd))
+	Pxy = 0.d0
+	Pxyzero = 0.d0
 
 	!Allocate pressure bin for Stress volume averaging
 	allocate( rfbin(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,3))

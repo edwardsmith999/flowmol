@@ -136,9 +136,9 @@ subroutine coupler_md_boundary_cell_average(np,r,v,send_data)
 	! Because of the staggered grid each a velocity component average
 	! must compute separately. Optimisation to be done later
 	call compute_uc_average
-	print'(a,6i8)', 'sizes', size(uc_bin,3),size(uc_bin,4),size(uc_bin,2), & 
-							size(volume_momentum,1),size(volume_momentum,2),size(volume_momentum,3)
-	print'(a,l,2f10.5)','values',send_data,uc_bin(1,4,10,1),maxval(volume_momentum)
+	!print'(a,6i8)', 'sizes', size(uc_bin,3),size(uc_bin,4),size(uc_bin,2), & 
+	!						size(volume_momentum,1),size(volume_momentum,2),size(volume_momentum,3)
+	!print'(a,l,2f10.5)','values',send_data,uc_bin(1,4,10,1),maxval(volume_momentum)
 	call compute_vc_average
     if (cfd_code_id == couette_parallel) then
         call compute_wc_average

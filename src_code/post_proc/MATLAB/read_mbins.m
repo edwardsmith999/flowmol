@@ -1,5 +1,5 @@
 %Read mass average output from simulation
-function[mass_bins,density_bins]=read_mbins(filename)
+function[mass_bins,density_bins]=read_mbins(filename,resultfile_dir)
 
 if (exist('filename') == 0)
     filename = './mbins';

@@ -1504,7 +1504,7 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 
 	!Calculate record number timestep
 	if (io_type .eq. 'snap') then
-		m = (iter-initialstep+1)/(Nmflux_ave) + 1 !Initial snapshot taken
+		m = (iter-initialstep+1)/(tplot*Nmflux_ave) + 1 !Initial snapshot taken
 	else
 		m = (iter-initialstep+1)/(tplot*Nmass_ave)
 	endif
@@ -1670,7 +1670,7 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 	!Setup arrays
 	if (io_type .eq. 'snap') then
 		!CV_momentum_out = CV_momentum_out / (tplot*Nvflux_ave)
-		m = (iter-initialstep+1)/(Nvflux_ave) + 1 !Initial snapshot taken
+		m = (iter-initialstep+1)/(tplot*Nvflux_ave) + 1 !Initial snapshot taken
 	else
 		!CV_momentum_out = CV_momentum_out / (tplot*Nvel_ave)
 		m = (iter-initialstep+1)/(tplot*Nvel_ave)
@@ -1760,7 +1760,7 @@ subroutine energy_bin_io(CV_energy_out,io_type)
 
 	if (io_type .eq. 'snap') then
 		!CV_energy_out = CV_energy_out / (tplot*Nvflux_ave)
-		m = (iter-initialstep+1)/(Neflux_ave) + 1 !Initial snapshot taken
+		m = (iter-initialstep+1)/(tplot*Neflux_ave) + 1 !Initial snapshot taken
 	else
 		!CV_energy_out = CV_energy_out / (tplot*Nvel_ave)
 		m = (iter-initialstep+1)/(tplot*Neflux_ave)

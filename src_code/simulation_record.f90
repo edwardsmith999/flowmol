@@ -840,12 +840,15 @@ subroutine pressure_averaging(ixyz)
 	call cumulative_pressure(ixyz,sample_count)
 	if (sample_count .eq. Nstress_ave) then
 		sample_count = 0
+		Pxy = Pxy/dble(Nstress_ave)
 		Pxyzero = Pxy		!Update Pxy(0) value
 
 		select case(ixyz)
 		case(1)
 		!FULL DOMAIN VIRIAL STRESS CALCULATION
+			print'(a,10f12.5)', 'cumulative stress', Pxy,(Pxy(1,1)+Pxy(2,2)+Pxy(3,3))/3.d0
 			call virial_stress_io
+			Pxy = 0.d0
 		case(2)
 		!VA STRESS CALCULATION
 			call VA_stress_io
@@ -876,8 +879,9 @@ subroutine cumulative_pressure(ixyz,sample_count)
 	integer								:: sample_count,i,n,ixyz,jxyz,kxyz
 	integer								:: imin, jmin, kmin, imax, jmax, kmax
 	double precision, dimension(3)		:: velvect
+	double precision, dimension(3,3)	:: Pxytemp
 
-	Pxy = 0.d0
+	Pxytemp = 0.d0
 	Pxymol = 0.d0
 
 	!Factor of 2 as every interaction calculated
@@ -906,7 +910,7 @@ subroutine cumulative_pressure(ixyz,sample_count)
 			enddo
 
 			!Sum of molecules to obtain pressure tensor for entire domain
-			Pxy(:,:) = Pxy(:,:) + Pxymol(n,:,:)
+			Pxytemp(:,:) = Pxytemp(:,:) + Pxymol(n,:,:)
 
 		enddo
 
@@ -916,9 +920,11 @@ subroutine cumulative_pressure(ixyz,sample_count)
 		call globalSumVect(Pxy(:,3), nd)
 
 		!Divide sum of stress by volume
-		Pxy = Pxy / volume
+		Pxytemp = Pxytemp / volume
+		!print'(a,10f12.4)', 'snapshot stress', Pxytemp, (Pxytemp(1,1)+Pxytemp(2,2)+Pxytemp(3,3))/3.d0
 
-
+		!Add current pressure to cumulative average
+		Pxy = Pxy + Pxytemp
 		!print*, (Pxy(1,1)+Pxy(2,2)+Pxy(3,3))/3.d0
 
 		!Reset position force tensor before calculation
@@ -945,16 +951,19 @@ subroutine cumulative_pressure(ixyz,sample_count)
 		!NOTE: REBUILD AT (mod(iter+1,tplot) .eq. 0) WHEN RECORD AFTER FORCE CALCULATION
 		!Reset bin force tensor before next calculation
 	  	!rfbin = 0.d0; vvbin = 0.d0
-		Pxy(:,:) = 0.d0
 
 		!Calculate Virial from sum of Volume Averaged Stresses
 		do kxyz = 1,3
 		do jxyz = 1,3
-			Pxy(kxyz,jxyz) = sum(Pxybin(:,:,:,kxyz,jxyz))
+			Pxytemp(kxyz,jxyz) = sum(Pxybin(:,:,:,kxyz,jxyz))
 		enddo
 		enddo
-		Pxy = Pxy / (volume*Nstress_ave)
 
+		!Divide sum of stress by volume and number of samples for each bin
+		Pxytemp = Pxytemp / (volume*sample_count)
+
+		!Add current pressure to cumulative average
+		Pxy = Pxy + Pxytemp
 		!print'(a,i8,3f18.4)','Sum of all VA ',iter,(sum(rfbin(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1,1)) + & 
 		!										    sum(rfbin(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,2,2)) + & 
 		!											sum(rfbin(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,3,3))) & 
@@ -972,9 +981,9 @@ subroutine cumulative_pressure(ixyz,sample_count)
 	!Average 3 components of Pxycorrel to improve statistics
 	if(viscosity_outflag .eq. 1) then
 		if(sample_count .ne. 0) then
-			Pxycorrel(sample_count) = Pxycorrel(sample_count) + Pxy(2,3)*Pxyzero(2,3)
-			Pxycorrel(sample_count) = Pxycorrel(sample_count) + Pxy(1,3)*Pxyzero(1,3)
-			Pxycorrel(sample_count) = Pxycorrel(sample_count) + Pxy(1,2)*Pxyzero(1,2)
+			Pxycorrel(sample_count) = Pxycorrel(sample_count) + Pxytemp(2,3)*Pxyzero(2,3)
+			Pxycorrel(sample_count) = Pxycorrel(sample_count) + Pxytemp(1,3)*Pxyzero(1,3)
+			Pxycorrel(sample_count) = Pxycorrel(sample_count) + Pxytemp(1,2)*Pxyzero(1,2)
 		endif
 	endif
 
