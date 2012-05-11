@@ -741,7 +741,7 @@ subroutine parallel_io_final_state
 
         call MPI_File_write(restartfileid,sum(procnp)   ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,initialnunits ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
-        call MPI_File_write(restartfileid,iter          ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr) !Was Nsteps
+        call MPI_File_write(restartfileid,Nsteps        ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,tplot         ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,seed          ,2,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,periodic      ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
@@ -1900,6 +1900,13 @@ implicit none
 	!Pxycorrel = 0.d0	!Reset Pxycorrel to zero
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 end subroutine viscosity_io
+
+subroutine viscometrics_io
+implicit none
+
+	print*, 'Viscometrics_io not developed in parallel'
+
+end subroutine viscometrics_io
 
 !=================================================================================
 ! Record Fluxes accross surfaces of Control Volumes

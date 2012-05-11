@@ -455,7 +455,7 @@ subroutine parallel_io_final_state
 	write(2) initialnunits(1) 	!x dimension split into number of cells
 	write(2) initialnunits(2) 	!y dimension box split into number of cells
 	write(2) initialnunits(3) 	!z dimension box split into number of cells
-	write(2) iter           	!Number of computational steps (was Nsteps)
+	write(2) Nsteps           	!Number of computational steps
 	write(2) tplot            	!Frequency at which to record results
 	write(2) seed(1)          	!Random number seed value 1
 	write(2) seed(2)          	!Random number seed value 2
@@ -981,7 +981,7 @@ subroutine virial_stress_io
 	open (unit=7, file=trim(prefix_dir)//'results/pvirial',form='unformatted',access='direct',recl=length)
 	write(7,rec=m) Pxy
 	close(7,status='keep')
-
+	
 end subroutine virial_stress_io
 
 !---------------------------------------------------------------------------------
@@ -1050,7 +1050,7 @@ subroutine VA_stress_io
 
 end subroutine VA_stress_io
 
-!===================================================================================
+!=============================================================================
 !Integrate virial pressure to get autocorrelations (Green Kubo) viscosity
 
 subroutine viscosity_io
@@ -1080,10 +1080,38 @@ subroutine viscosity_io
 
 end subroutine viscosity_io
 
-!=================================================================================
+!=============================================================================
+!Record viscometric data to file
+subroutine viscometrics_io(eta,N1,N2,P)
+use module_parallel_io
+implicit none
+	
+	integer                        :: Nviscometrics_ave
+	integer                        :: m, length
+	double precision, intent(in)   :: eta, N1, N2, P
+	double precision, dimension(4) :: buf
+
+	Nviscometrics_ave = 1	
+
+	buf(1) = eta
+	buf(2) = N1
+	buf(3) = N2
+	buf(4) = P	
+
+	m = (iter-initialstep+1)/(tplot*Nviscometrics_ave)
+	inquire(iolength=length) buf
+	open(unit=13,file=trim(prefix_dir)//'results/viscometrics', &
+	     form='unformatted',access='direct',recl=length)
+	write(13,rec=m) buf
+	close(13,status='keep')
+
+end subroutine viscometrics_io
+
+
+!=============================================================================
 ! Record Fluxes accross surfaces of Control Volumes
-!=================================================================================
-!---------------------------------------------------------------------------------
+!=============================================================================
+!-----------------------------------------------------------------------------
 ! Record mass fluxes accross surfaces of Control Volumes
 
 subroutine mass_flux_io

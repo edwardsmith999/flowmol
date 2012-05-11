@@ -19,6 +19,7 @@ subroutine setup_initial_record
 	use interfaces
 	use module_initial_record
 	use polymer_info_MD
+	use shear_info_MD
 	implicit none
 
 	integer					::  i
@@ -26,13 +27,13 @@ subroutine setup_initial_record
 	character				:: ixyz_char
 	Character(8)			:: the_date
 	Character(10)			:: the_time
-	Character(10),parameter :: file_names(19) = (/	"mslice    ", "mbins     ", "msnap     ",&
+	Character(20),parameter :: file_names(20) = (/	"mslice    ", "mbins     ", "msnap     ",&
 													"vslice    ", "vbins     ", "vsnap     ",&
 													"pvirial   ", "pVA       ", "pVA_k     ",& 
 													"pVA_c     ", "visc      ", "mflux     ",& 
 													"vflux     ", "pplane    ", "psurface  ",&
 													"esnap     ", "eflux     ", "eplane    ",&
-													"esurface  "/) 
+													"esurface  ", "viscometrics" /) 
 	if (irank.eq.iroot) then
 		do i=1,size(file_names)
 			inquire(file=trim(prefix_dir)//'results/'//file_names(i),exist=file_exist)
@@ -107,6 +108,8 @@ subroutine setup_initial_record
 			print*, 'NVT (Profile unbiased Nosé-Hoover thermostat)'
 		case(4)
 			print*, 'NVT (Pairwise additive Nosé-Hoover thermostat by Allen & Schmid)'
+		case(5)
+			print*, 'NVT (DPD thermostat by Soddemann)' 	
 		end select
  		select case(force_list) 
 		case(0)
@@ -130,6 +133,14 @@ subroutine setup_initial_record
 		print*,  globaldomain(1), globaldomain(2), globaldomain(3)
 		print*, 'Domain volume: ', volume
 		print'(a,3i8)', ' Periodic Boundary Conditions in x,y and z:', periodic
+		if (any(periodic.gt.1)) then
+			print*, 'Lees-Edwards sliding boundary conditions ON'
+			print*, 'Shear velocity: ', le_sv
+			print*, 'Shear rate: ', le_sr
+			print*, 'Shear plane: ', le_sp
+			print*, 'Shear direction: ', le_sd
+			print*, 'Shear iter0: ', le_i0
+		end if
 		print'(a,3f10.5)', ' Distance from bottom of Fixed Molecules in x,y and z:', 	fixdistbottom
 		print'(a,3f10.5)', ' Distance from top of Fixed Molecules in x,y and z:', 	fixdisttop
 		print'(a,3f10.5)', ' Distance from bottom of Tethered Molecules in x,y and z:', tethereddistbottom
@@ -499,6 +510,10 @@ subroutine simulation_header
 	write(3,*)  'Force calculation list methodd ; force_list ;', force_list
 	!write(3,*)  'Ensemble; ensemble; ', ensemble		!MATLAB input functions can't deal with words...
 	write(3,*)	'Shear direction ; le_sd;', le_sd
+	write(3,*)	'Shear plane ; le_sp;', le_sp
+	write(3,*)	'Shear remaining plane ; le_rp;', le_rp
+	write(3,*)	'Shear rate; le_sr;', le_sr
+	write(3,*)	'Shear velocity; le_sv;', le_sv
 	write(3,*)	'Shear iter0 ; le_i0;', le_i0
 
 	close(3,status='keep')
