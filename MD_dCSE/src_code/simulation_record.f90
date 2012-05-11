@@ -182,8 +182,9 @@ subroutine simulation_record
 	!call evaluate_properties_diffusion
 
 	!Calculate pressure tensor
-	if (pressure_outflag .ne. 0) call pressure_averaging(pressure_outflag)
-
+	if (pressure_outflag .ne. 0) then
+		call pressure_averaging(pressure_outflag)
+	end if
 	!Check if backup file should be saved based on elapsed iterations
 	!and average size of current system per processor
 !	if (mod((iter*globalnp/nproc),1000000).eq.0) then
@@ -434,7 +435,45 @@ subroutine evaluate_properties_diffusion
 
 end subroutine evaluate_properties_diffusion
 
-!===================================================================================
+!=============================================================================
+!Evaluate viscometric data
+subroutine evaluate_viscometrics
+use calculated_properties_MD, only: Pxy
+use shear_info_MD,            only: le_sd, le_sp, le_rp, le_sr
+implicit none
+
+	double precision :: eta              ! Shear viscosity
+	double precision :: N1               ! First normal stress difference
+	double precision :: N2               ! Second normal stress difference
+	double precision :: P                ! Hydrostatic pressure
+	integer          :: x,y,z            ! Notation (see below)
+
+	x = le_sd                            ! Shear direction
+	y = le_sp                            ! Shear plane
+	z = le_rp                            ! Remaining plane
+
+	eta = Pxy(x,y)/le_sr                 ! Shear stress / shear rate
+	N1  = Pxy(x,x) - Pxy(y,y)            ! Normal stresses
+	N2  = Pxy(y,y) - Pxy(z,z)            ! Normal stresses
+	P   = -(1.0/3.0)*(Pxy(x,x) + &
+	                  Pxy(y,y) + &
+	                  Pxy(z,z)     )     ! Hydrostatic pressure
+
+	eta = -1.d0*eta
+	N1  = -1.d0*N1
+	N2  = -1.d0*N2
+	P   = -1.d0*P
+
+!	print('(a8,f10.4)'), adjustr('eta: '), eta
+!	print('(a8,f10.4)'), adjustr('N1: '),  N1
+!	print('(a8,f10.4)'), adjustr('N2: '),  N2
+!	print('(a8,f10.4)'), adjustr('P: '),   P
+
+	call viscometrics_io(eta,N1,N2,P)
+
+end subroutine evaluate_viscometrics
+
+!=============================================================================
 !Calculate end-to-end time correlation function of FENE chain
 subroutine etevtcf_calculate_parallel
 	use module_record
@@ -446,7 +485,8 @@ subroutine etevtcf_calculate_parallel
 	double precision :: etev2, etev2_sum
 	double precision, dimension(nd) :: rij
 
-	if (iter.eq.etevtcf_iter0) then						!Initialise end-to-end vectors at t_0
+	if (iter.eq.etevtcf_iter0) then	!Initialise end-to-end vectors at t_0
+
 		allocate(etev(nchains,nd))
 		allocate(etev_0(nchains,nd))
 		etev_0 = 0.d0
@@ -457,9 +497,9 @@ subroutine etevtcf_calculate_parallel
 			do n=1,funcy
 				j      = bond(i,n)
 				j_sub  = monomer(j)%subchainID
-				if (j_sub.lt.i_sub) cycle               !Avoid counting backwards
+				if (j_sub.lt.i_sub) cycle  !Avoid counting backwards
 				rij(:) = r(j,:) - r(i,:)
-				rij(:) = rij(:) - domain(:)*anint(rij(:)/domain(:)) !Necessary for one processor?
+				rij(:) = rij(:) - domain(:)*anint(rij(:)/domain(:))
 				etev_0(chain,:) = etev_0(chain,:) + rij(:)
 			end do
 		end do
@@ -474,9 +514,9 @@ subroutine etevtcf_calculate_parallel
 		i_sub = monomer(i)%subchainID
 		funcy = monomer(i)%funcy
 		do n=1,funcy
-			j             = bond(i,n)              !Molecule number j is nth bond to i
-			j_sub         = monomer(j)%subchainID  !Find subchain ID of mol j
-			if (j_sub.lt.i_sub) cycle              !Avoid counting backwards
+			j             = bond(i,n)     ! Molecule number j is nth bond to i
+			j_sub         = monomer(j)%subchainID  ! Find subchain ID of mol j
+			if (j_sub.lt.i_sub) cycle              ! Avoid counting backwards
 			rij(:)        = r(j,:) - r(i,:)                     
 			rij(:)        = rij(:) - domain(:)*anint(rij(:)/domain(:))
 			etev(chain,:) = etev(chain,:) + rij(:)
@@ -500,7 +540,7 @@ subroutine etevtcf_calculate_parallel
 
 end subroutine etevtcf_calculate_parallel
 
-!=======================================================================================
+!=============================================================================
 !Calculate radius of gyration
 subroutine r_gyration_calculate_parallel
 use module_record
@@ -546,7 +586,7 @@ implicit none
 
 end subroutine r_gyration_calculate_parallel
 
-!===================================================================================
+!=============================================================================
 !		RECORD MASS AT LOCATION IN SPACE
 ! Either by binning or taking slices on a plane, the mass in the molecular
 ! system is recorded and output
@@ -846,7 +886,7 @@ subroutine pressure_averaging(ixyz)
 		select case(ixyz)
 		case(1)
 		!FULL DOMAIN VIRIAL STRESS CALCULATION
-			print'(a,10f12.5)', 'cumulative stress', Pxy,(Pxy(1,1)+Pxy(2,2)+Pxy(3,3))/3.d0
+			!print'(a,10f12.5)', 'cumulative stress', Pxy,(Pxy(1,1)+Pxy(2,2)+Pxy(3,3))/3.d0
 			call virial_stress_io
 			Pxy = 0.d0
 		case(2)

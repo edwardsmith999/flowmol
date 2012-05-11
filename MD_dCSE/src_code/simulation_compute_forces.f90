@@ -539,7 +539,7 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 end subroutine simulation_compute_forces_LJ_neigbr_halfint
 
 !========================================================================
-!Compute polymer FENE potential forces using only half the interactions
+!Compute polymer FENE potential forces using monomer bond lists
 
 subroutine simulation_compute_forces_FENE
 	use module_compute_forces
@@ -571,6 +571,9 @@ subroutine simulation_compute_forces_FENE
 			a(molnoi,3)= a(molnoi,3) + accijmag*rij(3)
 
 			if (mod(iter,tplot) .eq. 0) then
+				if (pressure_outflag .eq. 1) then
+					call pressure_tensor_forces(molnoi,rij,accijmag)
+				endif
 				potenergymol_FENE(molnoi) = potenergymol_FENE(molnoi) - 0.5d0*k_c*R_0*R_0*dlog(1.d0-(rij2/(R_0**2)))
 				potenergymol(molnoi)      = potenergymol(molnoi)      + potenergymol_FENE(molnoi)
 				virialmol(molnoi)         = virialmol(molnoi)         + accijmag*rij2

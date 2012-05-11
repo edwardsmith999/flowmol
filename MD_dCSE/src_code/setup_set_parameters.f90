@@ -170,7 +170,7 @@ end subroutine set_parameters_allocate
 subroutine setup_polymer_info
 	use module_set_parameters
 	use polymer_info_MD
-        use interfaces
+    use interfaces
 	implicit none
 
 	integer :: n
@@ -235,6 +235,8 @@ implicit none
 	if (iter .lt. le_i0) then
 		le_st = 0.d0
 		le_sx = 0.d0
+	else
+	!	le_i0 = iter
 	end if
 
 end subroutine setup_shear_parameters
