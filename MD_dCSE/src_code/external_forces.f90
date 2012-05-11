@@ -35,11 +35,11 @@ subroutine simulation_apply_boundary_forces
 	implicit none
 
 !	call coupler_md_boundary_forces(np,pressure,r,a)
-    call top_boundary_constrain_force
+    call top_boundary_constraint_force
 
 contains
 
-    subroutine top_boundary_constrain_force
+    subroutine top_boundary_constraint_force
         use coupler
         use interfaces
         use calculated_properties_MD, only : pressure
@@ -67,20 +67,21 @@ contains
             
             ! get the range of j cell index in y direction
             js = ceiling(y2/cellsidelength(2)) + nh
+            je = min(ncells(2),ceiling(domain(2)/cellsidelength(2))) + nh
 
-            ! check if molecules from below cells can get in constrain region ( heuristic condition )
+            write(0,*) 'boundary constraint force ', dy, y2, y3, js, je, ncells, (js-nh)*cellsidelength(2)
+
+            ! check if molecules from below cells can get in constraint region ( heuristic condition )
             if ( y2 - (js - nh - 1) * cellsidelength(2) < delta_rneighbr ) then  
                js = js - 1
             endif
 
             ! sanity check
-            if ( y2 > (js - nh) * cellsidelength(2)  ) then  
-               call error_abort("wrong value of js in top_boundary_constrain_force", js)
-            endif
+			if ( y2 > (js - nh) * cellsidelength(2)  ) then  
+				write(0,*) "wrong value of js in top_boundary_constraint_force", js
+			!    call error_abort("wrong value of js in top_boundary_constraint_force", js)
+			endif
 
-            je = min(ncells(2),ceiling(domain(2)/cellsidelength(2))) + nh
-
-            write(0,*) 'boundary constrain force ', dy, y2, y3, js, je, ncells
         endif
 
         p = max(pressure,1.d0)
@@ -101,7 +102,7 @@ contains
             end do
         end do
                         
-    end subroutine top_boundary_constrain_force
+    end subroutine top_boundary_constraint_force
 
 end subroutine simulation_apply_boundary_forces
 

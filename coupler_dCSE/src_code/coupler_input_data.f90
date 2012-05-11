@@ -63,7 +63,7 @@ module coupler_input_data
     integer 				:: md_average_period		! collect data for velocity average every ... MD step
     integer, target 		:: md_average_period_tag
     integer 				:: md_save_period			! save data for velocity profile every ... CFD step
-    integer, target 		:: md_save_period_tag
+    integer, target 		:: md_save_period_tag	
 
     !stop_tag used in request_abort - declared in coupler_internal_common
 
@@ -72,12 +72,15 @@ module coupler_input_data
     integer                 :: md_steps_per_dt_cfd      ! number of MD steps per CFD step
     integer, target         :: md_steps_per_dt_cfd_tag
 
+	integer 				:: md_cfd_match_cellsize		!Force MD cells to be an integer multiple of CFD cell size
+    integer, target 		:: md_cfd_match_cellsize_tag
+
     character(len=64) :: cfd_code_name ! used to set cfd_code_id in MD
     integer           :: cfd_code_id
     integer, target   :: cfd_code_id_tag
 
     ! auxiliary list for easy manipulation
-    integer,parameter :: nsections=11 ! total number of section in input files
+    integer,parameter :: nsections=12 ! total number of section in input files
     type(section_type) section(nsections)
 
 contains
@@ -91,10 +94,7 @@ contains
         integer ndim, myid, myid_cfd, iroot_global, ierr
         logical have_input
 
-		!default simulation is 3D
-		!ndim = 3
-
-        ! set default values for coupler input data
+		! set default values for coupler input data
         section(1)%str = "DENSITY"
         section(1)%tag => density_tag
         density_tag  = VOID
@@ -151,6 +151,11 @@ contains
         section(11)%tag => md_steps_per_dt_cfd_tag
         section(11)%tag = VOID
 
+		section(12)%str = "MD_CFD_MATCH_CELLSIZE"		!Force MD cells to be an integer multiple of CFD cell size
+        section(12)%tag => md_cfd_match_cellsize_tag
+        section(12)%tag = VOID
+		md_cfd_match_cellsize = 0
+
         ! find rank 0 in CFD_COMM an open COUPLER.in file on it
         call mpi_comm_rank(COUPLER_GLOBAL_COMM, myid, ierr)
         myid_cfd = -1
@@ -167,7 +172,6 @@ contains
 
         ! I cannot bcast directly have_input because it is not guaranteed that
         ! myid == myid_cfd == 0
-
         call mpi_allreduce(MPI_IN_PLACE,have_input,1,MPI_LOGICAL,MPI_LOR,COUPLER_GLOBAL_COMM,ierr)
         !call mpi_bcast(have_input, 1, MPI_LOGICAL, 0, COUPLER_REALM_COMM, ierr)
 
@@ -285,16 +289,19 @@ contains
                  case("MD_STEPS_PER_DT_CFD","md_steps_per_dt_cfd")
                      md_steps_per_dt_cfd_tag = CPL
                      read(34,*) md_steps_per_dt_cfd
+                 case("MD_CFD_MATCH_CELLSIZE","md_cfd_match_cellsize")
+                     md_cfd_match_cellsize_tag = CPL
+                     read(34,*) md_cfd_match_cellsize
                  case default
                     ! unkown input section abort
-                    write(0,*) "unknow coupler input section, check COUPLER.in file"
+                    write(0,*) "unknow coupler input section,",line,", check COUPLER.in file"
                     call MPI_Abort(MPI_COMM_WORLD,COUPLER_ERROR_INPUT_FILE,ierr)
                 end select
             enddo
             close(34)
 
+			!report missing sections from input
             do i=1,nsections
-                !report missing sections from input
                 if (section(i)%tag == VOID ) then 
                     write(0,*) " WARNING: no ", trim(section(i)%str), "  section found in coupler input file"
                 endif
@@ -371,6 +378,13 @@ contains
                 call mpi_pack(md_steps_per_dt_cfd_tag,1,MPI_INTEGER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
                 call mpi_pack(md_steps_per_dt_cfd    ,1,MPI_INTEGER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
             endif
+
+            if (md_cfd_match_cellsize_tag == CPL) then
+                write(caux,'(a)')"MD_CFD_MATCH_CELLSIZE_TAG"
+                call mpi_pack(caux,scaux,MPI_CHARACTER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
+                call mpi_pack(md_cfd_match_cellsize_tag,1,MPI_INTEGER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
+                call mpi_pack(md_cfd_match_cellsize    ,1,MPI_INTEGER,buffer,sbuff,position,COUPLER_ICOMM,ierr)
+            endif
             
 
             ! broadcast the packed data to MD realm
@@ -445,6 +459,9 @@ contains
                         case("MD_STEPS_PER_DT_CFD")
                             call mpi_unpack(buffer,sbuff,position,md_steps_per_dt_cfd_tag,1,MPI_INTEGER,COUPLER_ICOMM,ierr)
                             call mpi_unpack(buffer,sbuff,position,md_steps_per_dt_cfd    ,1,MPI_INTEGER,COUPLER_ICOMM,ierr)
+                        case("MD_CFD_MATCH_CELLSIZE_TAG")
+                            call mpi_unpack(buffer,sbuff,position,md_cfd_match_cellsize_tag,1,MPI_INTEGER,COUPLER_ICOMM,ierr)
+                            call mpi_unpack(buffer,sbuff,position,md_cfd_match_cellsize    ,1,MPI_INTEGER,COUPLER_ICOMM,ierr)
                         case default
                             call MPI_Abort(COUPLER_GLOBAL_COMM,COUPLER_ERROR_READ_INPUT,ierr)
                         end select
