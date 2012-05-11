@@ -1,24 +1,21 @@
-
 %==========================================================================
 % Visualization routine for VELOCITY and FLUX field from DNS files
 %  ucvcwc.dble.xxxxxx and uuvvww.dble.xxxxxx
 %==========================================================================
 
-%clear all
-%close all
-%fclose('all')
+function[u,v,w] = Read_DNS(filename,resultfile_dir)
 
 pdir = pwd;
 
 %--- grid size ----
-ngx = 10+1;
-ngy = 10+1;
+ngx = 7+1;
+ngy = 7+1;
 ngz = 8+1;
 
 %--- domain size ----
-Lx = 52.1;
-Ly = 52.1;
-Lz = 10.0;
+Lx = 35.90949;
+Ly = 35.90949;
+Lz = 20.0;
 
 %Axis for plots
 x = linspace(0, Lx, ngx);
@@ -29,15 +26,26 @@ xa = linspace(0, Lx+1/ngx, ngx+1);
 ya = linspace(0, Ly+1/ngy, ngy+1);
 za = linspace(0, Lz+1/ngz, ngz+1);
 
-%Reynols number
+%Reynolds number
 Re = 5.0;
 
-cd '/home/es205/codes/coupled/CFD_dCSE/src_code/results'
-%cd '/home/es205/codes/coupled/coupler_dCSE/src_code/couette_data'
+if (exist('filename') == 0)
+    filename = 'grid.data';
+end
+
+%Store Present Working directory
+pwdir = pwd;
+if (exist('resultfile_dir') == 0)
+    resultfile_dir = '/home/es205/codes/coupled/CFD_dCSE/src_code/results';
+    %resultfile_dir = '/home/es205/codes/coupled/coupler_dCSE/src_code/couette_data';
+    cd(resultfile_dir)
+    display('setting results file to default');
+end
 
 %--- Read grid ----
 %read_grid
-fid = fopen('grid.data','r','ieee-le.l64');
+
+fid = fopen(filename,'r','ieee-le.l64');
 xpg = fread(fid,[ngx ngy],'double');
 ypg = fread(fid,[ngx ngy],'double');
 fclose(fid);
@@ -59,25 +67,27 @@ py = 1:ngy;
 %figure
 
 m = 1
- for n = 1:length(filenames)
-     
+for n = 1:length(filenames)
+    
     %Analytical solution
-	t = (n-1)*15;
-    analy = couette_analytical_fn(t,Re,[1.0,0],Ly,ngy-1,'top');
-    plot(y,analy,'r');
-    hold on
-
-    axis([0 60 -0.1 1.1])
-
+    %t = (n-1)*15;
+    %analy = couette_analytical_fn(t,Re,[1.0,0],Ly,ngy-1,'top');
+    %plot(y,analy,'r');
+    %hold on
+    
+    %axis([0 60 -0.1 1.1])
+    
     %Read from DNS files
     V = read_sub(filenames(n).name,ngz,ngx,ngy,pz,px,py,skipk,skipi,skipj,3);
     u(:,m) = V{1};
     v(:,m) = V{2};
     w(:,m) = V{3};
-    scatter(y,u(:,m),'s')
-    drawnow
+    %scatter(y,u(:,m),'s')
+    %drawnow
     m = m + 1;
-    hold off
- end
+    %hold off
+end
+
+end
 
 % plot(squeeze(mean(mean(uc,1),2)))
