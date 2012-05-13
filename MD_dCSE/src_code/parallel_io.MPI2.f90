@@ -638,9 +638,9 @@ subroutine parallel_io_final_state
 	!Adjust r according to actual location for storage according
 	!to processor topology with r = 0 at centre
 	allocate(rglobal(np,3))
-	rglobal(:,1) = r(:,1)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
-	rglobal(:,2) = r(:,2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
-	rglobal(:,3) = r(:,3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
+	rglobal(:,1) = r(1:np,1)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
+	rglobal(:,2) = r(1:np,2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
+	rglobal(:,3) = r(1:np,3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
 
 	!Initialise file displacements
 	procdisp = 0
