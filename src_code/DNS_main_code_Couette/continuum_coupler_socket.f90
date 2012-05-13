@@ -110,9 +110,9 @@ contains
          endif
 		!print'(2a,2i8,4f25.16)', 'CFD befr data',code_name(COUPLER_REALM), myid, & 
 		!							size(uc(:,:,0)), maxval(uc(:,:,0)),minval(uc(:,:,0)),sum(uc(:,:,0)),uc(3,3,0)
-        call coupler_recv_grid_data(uc(1:ngz-1,i1_ul:i2_u,0:0),index_transpose=(/2,3,1/))
+        !call coupler_recv_grid_data(uc(1:ngz-1,i1_ul:i2_u,0:0),index_transpose=(/2,3,1/))
         !call coupler_recv_grid_data(uc(1:ngz-1,1:nlx+1,0:0),index_transpose=(/2,3,1/))
-        !call coupler_recv_grid_data(uc(1:ngz-1,i1_ul:i2_u,0:0),index_transpose=(/2,3,1/),accumulate=.true.,pbc=1)
+        call coupler_recv_grid_data(uc(1:ngz-1,i1_ul:i2_u,0:0),index_transpose=(/2,3,1/),accumulate=.true.,pbc=1)
 		!print'(2a,2i8,4f25.16)', 'CFD recv data',code_name(COUPLER_REALM), myid, & 
 		!							size(uc(:,:,0)), maxval(uc(:,:,0)),minval(uc(:,:,0)),sum(uc(:,:,0)),uc(3,3,0)
         call coupler_recv_grid_data(vc(1:ngz-1,i1_v:i2_v,0:1),index_transpose=(/2,3,1/),accumulate=.true.)
