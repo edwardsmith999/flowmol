@@ -536,11 +536,11 @@ subroutine setup_initialise_polyinfo_singlebranched
 
 	modcheck = 0 + mod(np,nmonomers) + mod(4*initialnunits(1),nmonomers)
 	if (modcheck.ne.0) call error_abort('Number of molecules must be exactly &
-	                                     divisible by the polymer chain      &
-	                                     length. Please change the chain     &
-	                                     length in the input file. A chain   &
-	                                     length of 4 should (hopefully)      &
-	                                     work.')
+	                                    &divisible by the polymer chain      &
+	                                    &length. Please change the chain     &
+	                                    &length in the input file. A chain   &
+	                                    &length of 4 should (hopefully)      &
+	                                    &work.')
 
 	!Set all to solvents
 	do n=1,np+extralloc

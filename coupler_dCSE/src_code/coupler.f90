@@ -539,7 +539,7 @@ subroutine coupler_cfd_adjust_domain(xL, yL, zL, nx, ny, nz, density_cfd)
         call init_length(xyz_ptr,zL,resize=.true.,direction='z',print_warning=changed)
     endif
 
-	if (changed .eq. .true. .and. cfd_code_id .ne. couette_serial) then
+	if (changed .and. cfd_code_id .ne. couette_serial) then
 		print*, "Regenerate Grid with corrected sizes as above"
 		call MPI_Abort(MPI_COMM_WORLD,ierror,ierr)
 	endif

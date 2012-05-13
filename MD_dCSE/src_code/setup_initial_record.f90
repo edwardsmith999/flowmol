@@ -27,13 +27,14 @@ subroutine setup_initial_record
 	character				:: ixyz_char
 	Character(8)			:: the_date
 	Character(10)			:: the_time
-	Character(20),parameter :: file_names(20) = (/	"mslice    ", "mbins     ", "msnap     ",&
-													"vslice    ", "vbins     ", "vsnap     ",&
-													"pvirial   ", "pVA       ", "pVA_k     ",& 
-													"pVA_c     ", "visc      ", "mflux     ",& 
-													"vflux     ", "pplane    ", "psurface  ",&
-													"esnap     ", "eflux     ", "eplane    ",&
-													"esurface  ", "viscometrics" /) 
+	Character(20),parameter :: file_names(20) = &
+								(/ "mslice      ", "mbins       ", "msnap       ",&
+								   "vslice      ", "vbins       ", "vsnap       ",&
+								   "pvirial     ", "pVA         ", "pVA_k       ",& 
+								   "pVA_c       ", "visc        ", "mflux       ",& 
+								   "vflux       ", "pplane      ", "psurface    ",&
+								   "esnap       ", "eflux       ", "eplane      ",&
+								   "esurface    ", "viscometrics" /) 
 	if (irank.eq.iroot) then
 		do i=1,size(file_names)
 			inquire(file=trim(prefix_dir)//'results/'//file_names(i),exist=file_exist)

@@ -475,7 +475,7 @@ subroutine set_parameters_cells_coupled
 	!Ensure domain allows MD cells to be a multiple of CFD cell sizes...
 	if (any(abs(domain(:)/cellsidelength(:)-nint(domain(:)/cellsidelength(:))) .gt. 0.01)) & 
 		call error_abort("ERROR - CFD cellsize and MD cellsize not compatible - Adjust domain size to      &
-						  correct this or remove MD_CFD_MATCH_CELLSIZE from COUPLER input")
+						&  correct this or remove MD_CFD_MATCH_CELLSIZE from COUPLER input")
 	cellsidelength = domain/ncells
 
 	!Recalculate required delta_rneighbr to ensure integer numbers of cells for both domains 
