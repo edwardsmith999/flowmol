@@ -16,7 +16,7 @@ end
 %Read simulation properties from header file and calculate simulation
 %properties
 read_header;
-Nmass_records = (Nsteps-initialstep) / (tplot * Nmass_ave);
+Nmass_records = floor((Nsteps-initialstep) / (tplot * Nmass_ave));
 
 %Load mass CV data
 cd(resultfile_dir);

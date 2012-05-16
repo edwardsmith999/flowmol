@@ -17,7 +17,7 @@ end
 %properties
 read_header
 %mass_bins = read_mbins;
-Nvel_records = (Nsteps-initialstep) / (tplot * Nvel_ave);
+Nvel_records = floor((Nsteps-initialstep) / (tplot * Nvel_ave));
 
 %Load mass CV data
 cd(resultfile_dir);

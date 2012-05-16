@@ -73,7 +73,6 @@ subroutine setup_set_parameters
 	zeta= 0.d0	!Set Nose Hoover thermostat scaling property to zero
 	rfmol = 0.d0
 	halo_np = 0
-	!Pxyzero = 0.d0
 	vmagnitude = 0.d0
 
 	call set_parameters_outputs
