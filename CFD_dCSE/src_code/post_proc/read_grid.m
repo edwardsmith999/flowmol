@@ -244,7 +244,7 @@ assignin('caller','vpg' ,vp )
 
 % Plot grid
 if show_plot
-figure
+%figure
 plot(xpp,ypp,'ro');hold all
 plot(xpg,ypg,'k.-')
 plot(xpg',ypg','k.-')

@@ -60,7 +60,7 @@ couette : coupler
 serial_couette :  coupler
 	cd $(CFD_SRC_PATH) && $(MAKE) USE_COUPLER=yes $(CFD_TARGET)
 coupler : sockets
-	cd $(COUPLER_SRC_PATH) && $(MAKE) clean && $(MAKE) USE_COUPLER=yes
+	cd $(COUPLER_SRC_PATH) &&  $(MAKE) USE_COUPLER=yes
 sockets:
 	cd $(CFD_SRC_PATH) && touch continuum_coupler_socket.f90
 	cd $(MD_SRC_PATH)  && touch md_coupler_socket.f90

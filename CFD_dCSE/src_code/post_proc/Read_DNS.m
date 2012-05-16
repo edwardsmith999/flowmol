@@ -9,7 +9,7 @@ pdir = pwd;
 
 %--- grid size ----
 ngx = 7+1;
-ngy = 7+1;
+ngy = 7;
 ngz = 8+1;
 
 %--- domain size ----
@@ -36,16 +36,17 @@ end
 %Store Present Working directory
 pwdir = pwd;
 if (exist('resultfile_dir') == 0)
-    resultfile_dir = '/home/es205/codes/coupled/CFD_dCSE/src_code/results';
-    %resultfile_dir = '/home/es205/codes/coupled/coupler_dCSE/src_code/couette_data';
-    cd(resultfile_dir)
+    %resultfile_dir = '/home/es205/codes/coupled/CFD_dCSE/src_code/results';
+    resultfile_dir = '/home/es205/codes/coupled/coupler_dCSE/src_code/couette_data/';
     display('setting results file to default');
 end
+
+cd(resultfile_dir)
 
 %--- Read grid ----
 %read_grid
 
-fid = fopen(filename,'r','ieee-le.l64');
+fid = fopen(strcat(resultfile_dir,filename),'r','ieee-le.l64');
 xpg = fread(fid,[ngx ngy],'double');
 ypg = fread(fid,[ngx ngy],'double');
 fclose(fid);

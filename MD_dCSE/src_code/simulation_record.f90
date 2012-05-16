@@ -625,7 +625,7 @@ subroutine mass_averaging(ixyz)
 		end select
 
 		!Collect mass for next step
-		call cumulative_mass(ixyz)
+		!call cumulative_mass(ixyz)
 
 	endif
 
@@ -712,7 +712,7 @@ subroutine velocity_averaging(ixyz)
 		end select
 
 		!Collect velocities for next step
-		call cumulative_velocity(ixyz)
+		!call cumulative_velocity(ixyz)
 
 	endif
 
@@ -761,7 +761,21 @@ subroutine cumulative_velocity(ixyz)
 			volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + 1
 			volume_momentum(ibin(1),ibin(2),ibin(3),:) = volume_momentum(ibin(1),ibin(2),ibin(3),:) & 
 										+ v(n,:) + slidev(n,:)
+
+			!if ( r(n,2) > +2.56497 .or. r(n,2) < -5.12993+2.56497) cycle
+			!print'(a,5i8,f15.5)','ES',iter, n, ibin, v(n,1)
+
+			!if ( r(n,2) < 0.d0 .and. r(n,2) > -5.12993) then
+			!	print'(a,4i8,3f10.5)', 'ES',n, ibin,0.d0 ,-5.12993,r(n,2)!,CV_momentum_out(ibin(1),ibin(2),ibin(3),1)
+			!endif
+
 		enddo
+		!if (iter .eq. 10) stop
+		!print'(a,2i8,a,i8,f10.5)', 'ES',iter, 4,'     7&8',4,volume_momentum(5,7,5,1)+volume_momentum(5,8,5,1)
+		!do n=1,nbins(2)+2
+		!	print'(a,i8,3f15.5)','ES',n,dble((n-1))*Vbinsize(2)-halfdomain(2),dble((n-2))*Vbinsize(2)-halfdomain(2), sum(volume_momentum(:,n,:,1))
+		!enddo
+
 
 	case default 
 		call error_abort("Velocity Binning Error")
@@ -808,7 +822,7 @@ subroutine temperature_averaging(ixyz)
 		end select
 
 		!Collect velocities for next step
-		call cumulative_temperature(ixyz)
+		!call cumulative_temperature(ixyz)
 
 	endif
 
@@ -893,8 +907,8 @@ subroutine pressure_averaging(ixyz)
 		!VA STRESS CALCULATION
 			call VA_stress_io
 			Pxybin = 0.d0
-			vvbin = 0.d0
-			rfbin = 0.d0
+			vvbin  = 0.d0
+			rfbin  = 0.d0
 		case default 
 			call error_abort("Average Pressure Binning Error")
 		end select
