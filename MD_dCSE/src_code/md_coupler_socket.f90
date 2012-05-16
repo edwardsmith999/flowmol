@@ -15,7 +15,7 @@
 module md_coupler_socket
 	implicit none
 
-!#if USE_COUPLER 
+#if USE_COUPLER 
 
     ! CFD id
     integer cfd_code_id 
@@ -1381,6 +1381,6 @@ contains
 
 end subroutine compute_force_surrounding_bins
 
-!#endif
+#endif
 
 end module md_coupler_socket
