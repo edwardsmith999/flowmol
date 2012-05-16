@@ -15,9 +15,9 @@
 !
 ! coupler_cfd_adjust_domain     (cfd)    adjust CFD tomain to an integer number FCC or similar MD initial molecule layout
 !
-! coupler_send_grid_data        (cfd+md) sends grid data exchanged between realms ( generic interface)
+! coupler_send_data        		(cfd+md) sends grid data exchanged between realms ( generic interface)
 !
-! coupler_recv_grid_data        (cfd+md) receives data exchanged between realms ( generic interface)
+! coupler_recv_data        (cfd+md) receives data exchanged between realms ( generic interface)
 !
 ! coupler_cfd_get               (cfd)    returns coupler internal parameters for CFD realm
 !
@@ -48,17 +48,17 @@ module coupler
     implicit none
     save
 
-    interface coupler_send_grid_data
-        module procedure coupler_send_grid_data_3d, coupler_send_grid_data_4d
+    interface coupler_send_data
+        module procedure coupler_send_data_3d, coupler_send_data_4d
     end interface
 
-    interface coupler_recv_grid_data
-        module procedure coupler_recv_grid_data_3d, coupler_recv_grid_data_4d
+    interface coupler_recv_data
+        module procedure coupler_recv_data_3d, coupler_recv_data_4d
     end interface
 
-    private coupler_send_grid_data_3d, coupler_send_grid_data_4d, &
-        coupler_send_grid_data_xd, coupler_recv_grid_data_3d, coupler_recv_grid_data_4d,&
-        coupler_recv_grid_data_xd
+    private coupler_send_data_3d, coupler_send_data_4d, &
+        coupler_send_data_xd, coupler_recv_data_3d, coupler_recv_data_4d,&
+        coupler_recv_data_xd
 
 contains
 
@@ -230,7 +230,7 @@ subroutine coupler_create_map
 	end if
 
     call request_stop("create_map")
-
+ 
 end subroutine coupler_create_map
 
 !=============================================================================
@@ -697,10 +697,10 @@ end subroutine coupler_cfd_adjust_domain
 
 
 !=============================================================================
-! coupler_send_grid_data wrapper for 3d arrays
-! see coupler_send_grid_data_xd for input description
+! coupler_send_data wrapper for 3d arrays
+! see coupler_send_data_xd for input description
 !-----------------------------------------------------------------------------
-subroutine coupler_send_grid_data_3d(asend,index_transpose,asend_lbound,&
+subroutine coupler_send_data_3d(asend,index_transpose,asend_lbound,&
     asend_grid_start,asend_grid_end,glower,gupper,use_overlap_box)
     implicit none
     real(kind=kind(0.d0)), intent(in) :: asend(:,:,:)
@@ -718,16 +718,16 @@ subroutine coupler_send_grid_data_3d(asend,index_transpose,asend_lbound,&
     n3 = size(asend,2)
     n4 = size(asend,3)
     
-    call coupler_send_grid_data_xd(asend,n1,n2,n3,n4,index_transpose,asend_lbound,&
+    call coupler_send_data_xd(asend,n1,n2,n3,n4,index_transpose,asend_lbound,&
         asend_grid_start,asend_grid_end,glower,gupper,use_overlap_box)
 
-end subroutine coupler_send_grid_data_3d
+end subroutine coupler_send_data_3d
 
 !=============================================================================
-! coupler_send_grid_data wrapper for 4d arrays
-! see coupler_send_grid_data_xd for input description
+! coupler_send_data wrapper for 4d arrays
+! see coupler_send_data_xd for input description
 !-----------------------------------------------------------------------------
-subroutine coupler_send_grid_data_4d(asend,index_transpose,asend_lbound,asend_grid_start,&
+subroutine coupler_send_data_4d(asend,index_transpose,asend_lbound,asend_grid_start,&
     asend_grid_end,glower,gupper,use_overlap_box)
     implicit none
     real(kind=kind(0.d0)), intent(in) :: asend(:,:,:,:)
@@ -745,10 +745,10 @@ subroutine coupler_send_grid_data_4d(asend,index_transpose,asend_lbound,asend_gr
     n3 = size(asend,3)
     n4 = size(asend,4)
     
-    call coupler_send_grid_data_xd(asend,n1,n2,n3,n4,index_transpose,asend_lbound,&
+    call coupler_send_data_xd(asend,n1,n2,n3,n4,index_transpose,asend_lbound,&
         asend_grid_start,asend_grid_end,glower,gupper,use_overlap_box)
 
-end subroutine coupler_send_grid_data_4d
+end subroutine coupler_send_data_4d
 
 
 !=============================================================================
@@ -785,7 +785,7 @@ end subroutine coupler_send_grid_data_4d
 !  3) send a quick description of the data ( an array of 8 integers )
 !  4) send the data if there is anything to send
 !-----------------------------------------------------------------------------
-subroutine coupler_send_grid_data_xd(asend,n1,n2,n3,n4,index_transpose,asend_lbound,&
+subroutine coupler_send_data_xd(asend,n1,n2,n3,n4,index_transpose,asend_lbound,&
     asend_grid_start,asend_grid_end,glower,gupper,use_overlap_box)
 	use mpi
 	use coupler_internal_cfd, only :  CFD_COMM_OVERLAP, &
@@ -984,13 +984,13 @@ subroutine coupler_send_grid_data_xd(asend,n1,n2,n3,n4,index_transpose,asend_lbo
         endif
     enddo
 
-end subroutine coupler_send_grid_data_xd
+end subroutine coupler_send_data_xd
 
 !=============================================================================
-! coupler_recv_grid_data wrapper for 3d arrays
-! see coupler_recv_grid_data_xd for input description
+! coupler_recv_data wrapper for 3d arrays
+! see coupler_recv_data_xd for input description
 !-----------------------------------------------------------------------------
-subroutine coupler_recv_grid_data_3d(arecv,index_transpose,asend_lbound,asend_grid_start,&
+subroutine coupler_recv_data_3d(arecv,index_transpose,asend_lbound,asend_grid_start,&
     asend_grid_end,glower,gupper,accumulate,pbc)
     implicit none
 
@@ -1012,16 +1012,16 @@ subroutine coupler_recv_grid_data_3d(arecv,index_transpose,asend_lbound,asend_gr
     n3 = size(arecv,2)
     n4 = size(arecv,3)
 
-    call coupler_recv_grid_data_xd(arecv,n1,n2,n3,n4,index_transpose,asend_lbound,&
+    call coupler_recv_data_xd(arecv,n1,n2,n3,n4,index_transpose,asend_lbound,&
         asend_grid_start,asend_grid_end,glower,gupper,accumulate,pbc)
 
-end subroutine coupler_recv_grid_data_3d
+end subroutine coupler_recv_data_3d
 
 !=============================================================================
-! coupler_recv_grid_data wrapper for 4d arrays
-! see coupler_recv_grid_data_xd for input description
+! coupler_recv_data wrapper for 4d arrays
+! see coupler_recv_data_xd for input description
 !-----------------------------------------------------------------------------
-subroutine coupler_recv_grid_data_4d(arecv,index_transpose,asend_lbound,&
+subroutine coupler_recv_data_4d(arecv,index_transpose,asend_lbound,&
     asend_grid_start,asend_grid_end,glower,gupper,accumulate,pbc)
 
     implicit none
@@ -1043,10 +1043,10 @@ subroutine coupler_recv_grid_data_4d(arecv,index_transpose,asend_lbound,&
     n3 = size(arecv,3)
     n4 = size(arecv,4)
 
-    call coupler_recv_grid_data_xd(arecv,n1,n2,n3,n4,index_transpose,asend_lbound,&
+    call coupler_recv_data_xd(arecv,n1,n2,n3,n4,index_transpose,asend_lbound,&
         asend_grid_start,asend_grid_end,glower,gupper,accumulate,pbc)
 
-end subroutine coupler_recv_grid_data_4d
+end subroutine coupler_recv_data_4d
 
 !=============================================================================
 ! Receive data from to local grid from the associated ranks from the other 
@@ -1078,7 +1078,7 @@ end subroutine coupler_recv_grid_data_4d
 !    
 !-----------------------------------------------------------------------------
 !-----------------------------------------------------------------------------
-subroutine coupler_recv_grid_data_xd(arecv,n1,n2,n3,n4,index_transpose,a_lbound,&
+subroutine coupler_recv_data_xd(arecv,n1,n2,n3,n4,index_transpose,a_lbound,&
     									a_grid_start,a_grid_end,glower,gupper,accumulate,pbc)
     use mpi
 	use coupler_internal_cfd, only : bbox_cfd, jmax_overlap, dx, dz, icoord, nlz
@@ -1310,7 +1310,7 @@ subroutine coupler_recv_grid_data_xd(arecv,n1,n2,n3,n4,index_transpose,a_lbound,
         ! call MPI_Error_string(status(MPI_ERROR,i), err_string, len(err_string), ierr);
 	    !  write(0,*) 'MD getCFD vel err, myid, i ', myid, i, trim(err_string) 
         !call mpi_get_count(status(1,i),mpi_double_precision,ib,ierr)
-                                ! write(0,*) 'MD recv ', myid, id, i, ib, ' DP'
+		! write(0,*) 'MD recv ', myid, id, i, ib, ' DP'
     enddo
 
     ! transfer data from the landing area to arecv 
@@ -1431,7 +1431,7 @@ subroutine set_pbc(pbc)
 end subroutine set_pbc
 
 
-end subroutine coupler_recv_grid_data_xd
+end subroutine coupler_recv_data_xd
 
 !============================================================================
 !
@@ -2346,7 +2346,7 @@ end subroutine coupler_uc_average_test
 !!$
 !!$    !call get_CFDvel
 !!$
-!!$    call coupler_recv_grid_data(arecv,index_transpose,asend_lbound,asend_grid_start,asend_grid_end,&
+!!$    call coupler_recv_data(arecv,index_transpose,asend_lbound,asend_grid_start,asend_grid_end,&
 !!$     glower,gupper,accumulate,pbc)
 !!$
 !!$    if (overlap) then 

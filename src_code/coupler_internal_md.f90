@@ -611,11 +611,12 @@ function global_r(r) result(rg)
 	real(kind(0.d0)) rg(3)
 
 	rg(:) = r(:) + half_domain_lengths(:) + bbox%bb(1,:)
+	!print'(a,f18.5)','r before & after', r(2)-rg(2)
 
 end function global_r
 
 !=============================================================================
-! Write to file the map of coupled processors for debuggin
+! Write to file the map of coupled processors for debugging
 !-----------------------------------------------------------------------------
 
 subroutine write_overlap_map
