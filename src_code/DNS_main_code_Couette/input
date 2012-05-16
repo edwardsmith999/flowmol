@@ -2,7 +2,7 @@
 ! Input file for inflow-outflow boundary layer code
 !
 
-100		nsteps      number of time steps to run
+40000	nsteps      number of time steps to run
 0.      timeLimit   stopping time (0.=ignore)
 48.     whours      wall hours (for SGI only; should be <= time in rundefs)
 1		iprint      interval to print out diagnostic information
@@ -40,7 +40,7 @@
 
 ! Animation
 12        ianim
-0.5     save_dt
+5.0     save_dt
 
 ! Quick parameters
 0.00       x_QUICK       Pre-multiply the Quadratic Upstream Interpolation by (x_QUICK)
