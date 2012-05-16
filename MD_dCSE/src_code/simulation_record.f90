@@ -928,11 +928,13 @@ end subroutine pressure_averaging
 
 subroutine cumulative_pressure(ixyz,sample_count)
 	use module_record
+	use shear_info_MD, only: le_sp, le_sr
 	implicit none
 
 	integer								:: sample_count,i,n,ixyz,jxyz,kxyz
 	integer								:: imin, jmin, kmin, imax, jmax, kmax
 	double precision, dimension(3)		:: velvect
+	double precision, dimension(3)      :: rglob
 	double precision, dimension(3,3)	:: Pxytemp
 
 	Pxytemp = 0.d0
@@ -954,6 +956,14 @@ subroutine cumulative_pressure(ixyz,sample_count)
 				!Velocity is already at time t for Velocity Verlet algorithm                              
 				velvect(:) = v(n,:)
 			end select
+
+			if (any(periodic.gt.1)) then
+				rglob(1) = r(n,1)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
+				rglob(2) = r(n,2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
+				rglob(3) = r(n,3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
+				velvect(:) = velvect(:) - rglob(le_sp)*le_sr 
+				!velvect(:) = velvect(:) - U(n,:)
+			end if
 
 			do jxyz = 1,3
 			do kxyz = 1,3
