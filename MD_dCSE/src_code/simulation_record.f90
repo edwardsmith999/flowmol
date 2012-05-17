@@ -928,7 +928,7 @@ end subroutine pressure_averaging
 
 subroutine cumulative_pressure(ixyz,sample_count)
 	use module_record
-	use shear_info_MD, only: le_sp, le_sr
+	use shear_info_MD, only: le_sp, le_sr, le_sd
 	implicit none
 
 	integer								:: sample_count,i,n,ixyz,jxyz,kxyz
@@ -961,7 +961,7 @@ subroutine cumulative_pressure(ixyz,sample_count)
 				rglob(1) = r(n,1)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
 				rglob(2) = r(n,2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
 				rglob(3) = r(n,3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
-				velvect(:) = velvect(:) - rglob(le_sp)*le_sr 
+				velvect(le_sd) = velvect(le_sd) - rglob(le_sp)*le_sr 
 				!velvect(:) = velvect(:) - U(n,:)
 			end if
 
