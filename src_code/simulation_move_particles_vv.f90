@@ -58,8 +58,11 @@ subroutine simulation_move_particles_vv(pass_num)
 
 	!--------First half of velocity-Verlet algorithm. Finds r(t+dt) and v(t+dt/2).--------!
 	if (pass_num.eq.1) then
+
+
 		select case(ensemble)
 		case(nve)
+			call simulation_move_particles_true_vv
 			do n=1,np
 				r(n,:)     = r(n,:)     + delta_t*v(n,:)       + 0.5d0*(delta_t**2.d0)*a(n,:)
 				v(n,:)     = v(n,:)     + 0.5d0*delta_t*a(n,:)
@@ -67,12 +70,14 @@ subroutine simulation_move_particles_vv(pass_num)
 
 		case(nvt_NH)
 			call evaluate_dzeta_dt
+			call simulation_move_particles_true_vv
 			do n=1,np
 				r(n,:)     = r(n,:)     + delta_t*v(n,:) + 0.5d0*(delta_t**2.d0)*(a(n,:)-zeta*v(n,:))
 				v(n,:)     = v(n,:)     + 0.5d0*delta_t*(a(n,:)-zeta*v(n,:))
 			end do
 
 		case(nvt_GIK)
+			call simulation_move_particles_true_vv
 			do n=1,np
 				r(n,:)     = r(n,:)     + delta_t*v(n,:) + 0.5d0*(delta_t**2.d0)*(a(n,:)-zeta*v(n,:))
 				v(n,:)     = v(n,:)     + 0.5d0*delta_t*(a(n,:)-zeta*v(n,:))
@@ -81,6 +86,7 @@ subroutine simulation_move_particles_vv(pass_num)
 		case(nvt_PUT_NH)	
 			call evaluate_U_PUT
 			call evaluate_dzeta_dt_PUT
+			call simulation_move_particles_true_vv
 			do n=1,np
 				r(n,:)     = r(n,:)     + delta_t*v(n,:) + 0.5d0*(delta_t**2.d0)*(a(n,:)-zeta*(v(n,:)-U(n,:)))
 				v(n,:)     = v(n,:)     + 0.5d0*delta_t*(a(n,:)-zeta*(v(n,:)-U(n,:)))
@@ -88,6 +94,7 @@ subroutine simulation_move_particles_vv(pass_num)
 		
 		case(nvt_pwa_NH)
 			call evaluate_pwa_terms_pwaNH
+			call simulation_move_particles_true_vv
 			do n=1,np
 				v(n,:)     = v(n,:) + 0.5d0*delta_t*(a(n,:) - zeta*vrelsum(n,:))
 				r(n,:)     = r(n,:) + delta_t*v(n,:)
@@ -100,6 +107,7 @@ subroutine simulation_move_particles_vv(pass_num)
 				call messenger_updateborders(0)    
 				call evaluate_DPD(0)
 			endif
+			call simulation_move_particles_true_vv
 			do n=1,np
 				v(n,:)     = v(n,:)     + 0.5d0*delta_t*(a(n,:)+aD(n,:)+aR(n,:))
 				r(n,:)     = r(n,:)     + delta_t*v(n,:) 
@@ -177,11 +185,10 @@ subroutine simulation_move_particles_vv(pass_num)
 				call error_abort('Unrecognised ensemble, stopping.')
 
 		end select
+			
+		call simulation_move_particles_true_vv	
 		
-
 	endif
-	
-	call simulation_move_particles_true_vv
 
 contains
 
@@ -202,6 +209,7 @@ contains
 					vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(n,le_sp)/domain(le_sp))*le_sv
 					rtrue(n,:)     = rtrue(n,:) + delta_t*vtrue(n,:) &
 					                            + 0.5d0*(delta_t**2.d0)*a(n,:)
+					
 				end do
 
 			case (nvt_NH)
@@ -223,9 +231,10 @@ contains
 			case(nvt_PUT_NH)	
 				do n=1,np
 					vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(n,le_sp)/domain(le_sp))*le_sv
-					Utrue(n,:)     = U(n,:)     + anint(rtrue(n,le_sp)/domain(le_sp))*le_sv
-					rtrue(n,:)     = rtrue(n,:) + delta_t*vtrue(n,:) &
-					                            + 0.5d0*(delta_t**2.d0)*(a(n,:)-zeta*(vtrue(n,:)-Utrue(n,:)))
+					Utrue(n,:)     = U(n,:)
+					Utrue(n,le_sd) = U(n,le_sd) + anint(rtrue(n,le_sp)/domain(le_sp))*le_sv
+					rtrue(n,:)     = rtrue(n,:) + delta_t*vtrue(n,:) + &
+					                 0.5d0*(delta_t**2.d0)*(a(n,:)-zeta*(v(n,:)-U(n,:)))
 				end do
 			
 			case(nvt_pwa_NH)
@@ -245,7 +254,7 @@ contains
 			end select
 		
 		else if (pass_num .eq.2) then
-		
+	
 			do n=1,np
 				vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(n,le_sp)/domain(le_sp))*le_sv
 			end do
