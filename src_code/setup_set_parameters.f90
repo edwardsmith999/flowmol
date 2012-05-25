@@ -225,7 +225,8 @@ implicit none
 			call error_abort('Shear plane and shear direction must be different and 1,2 or 3')
 		end select
 	else
-		le_sv = 0.d0 
+		le_sv = 0.d0
+		le_sr = 0.d0
 	end if
 
 	if (define_shear_as.eq.0) le_sr = le_sv/domain(le_sd)
