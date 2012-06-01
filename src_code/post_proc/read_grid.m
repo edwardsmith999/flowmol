@@ -252,3 +252,21 @@ plot(xpg',ypg','k.-')
 plot(xpu,ypu,'>b')
 plot(xpv,ypv,'^b')
 end
+
+%Check cell ratio in y
+delta_y = diff(ypg(floor(ngx/2.),:));
+for i = 1:ngy-2
+    ratio(i)=(delta_y(i)/delta_y(i+1));
+end
+maxratio = max(ratio);
+if (maxratio < 1) 
+    maxratio = min(ratio);
+    maxratio = 100*(1/maxratio-1);
+else
+    maxratio = (maxratio-1)*100;
+end
+if (maxratio > 3) 
+   disp(strcat('**WARNING** Ratio of cell sizes in y direction is greater than 3%. Largest ratio = ',num2str(maxratio),'%'))
+end
+
+end

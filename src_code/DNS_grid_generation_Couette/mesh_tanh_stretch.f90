@@ -20,26 +20,34 @@
 !-------------------------------------------------------
 
 
-subroutine tanh_stretch(y0,yL,Npnts,ratio1, y)
-        parameter (np = 1)
+subroutine tanh_stretch(y0,yL,Npnts,ratio1, y,direction)
+	parameter (np = 1)
 	real	y0, yL, ratio1
-	integer	Npnts
+	integer	Npnts,direction
 	real	y(Npnts)
 
-        real    yp(0:np), ratio(np)
-        integer jp(0:np), iyc(2)
+    real    yp(0:np), ratio(np)
+    integer jp(0:np), iyc(2)
 
-        ratio(1) = ratio1
+    ratio(1) = ratio1
 
-        yp(0) = y0
-        yp(1) = yL
+    yp(0) = y0
+    yp(1) = yL
 
-        iyc(1) = 0
-        iyc(2) = 1
+	select case(direction)	
+	case(0)
+		iyc(1) = 0
+		iyc(2) = 1
+	case(1)
+	    iyc(1) = 1
+    	iyc(2) = 0
+	case default
+		stop " Mesh Stretching direction (0=top to bottom)(1=bottom to top) not specified in input"
+	end select
 
-        call tanhMesh (yp, ratio, jp, iyc, np, y, Npnts)
+    call tanhMesh (yp, ratio, jp, iyc, np, y, Npnts)
 
-        return
+    return
 end
 
 

@@ -3,12 +3,12 @@
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
 ! Grid size  !T (Should be the same as (ngx,ngy,ngz) in "param.inc"
-8	nix
+9	nix
 8	niy
 9	niz
 
 ! Domain size
-35.90949	xL	domain length
+71.81898	xL	domain length
 35.90949	yL	domain height
 20.520		zL  domain width
 
@@ -32,11 +32,11 @@
 3       nmodes		number of modes
 
 1.12	alp_oss		streamwise wave# of 1st mode
-0.0	beta_oss	spanwise   wave# of 1st mode
+0.0		beta_oss	spanwise   wave# of 1st mode
 0.03	eps_oss		amplitude of 1st mode
 
 1.12	alp_oss2	streamwise wave# of 2nd mode
-2.1	beta_oss2       spanwise   wave# of 2nd mode
+2.1		beta_oss2       spanwise   wave# of 2nd mode
 0.001	eps_oss2        amplitude of 2nd mode
 
 1.12	alp_oss3	streamwise wave# of 2nd mode
@@ -50,7 +50,7 @@
 0.001	eps_z	spanwise   perturbation epsilon
 
 ! Flow parameters
-100.		Re		Reynolds number
+100.		Re			Reynolds number
 180.		Re_tau		Friction Reynolds number
 0.0001574	epsilon		Perturbation epsilon (Set to 1.0 if you've already scaled your perturbations!)
 

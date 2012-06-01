@@ -16,7 +16,7 @@
 0			iCFL        Run at (1) constant CFL number   (0) constant dt
 1.0			CFLlimit    maximum allowable CFL number
 ! 1			flag_newdt  Changed time step?
-0.5			dt          time step
+2.5			dt          time step
 
 ! Inflow generation
 0      inflow      Type of inflow: (0)laminar (1)data file

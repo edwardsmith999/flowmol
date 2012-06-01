@@ -16,6 +16,8 @@ LIBDIR := ./../lib
 
 LIBFILES := $(addprefix $(LIBDIR)/,$(LIBFILES))
 
+PARAM = param.inc
+
 # NOTE: On hector one has to use transforms.fftw.hitachi.f90 instead of transforms.mkl_intel.alc.f90
 
 # needed in platform
@@ -43,7 +45,6 @@ else
   $(shell echo $(PLATFORM) > $(MAKE_INC_PATH)/PLATFORM_default)
 endif
 
-
 include $(MAKE_INC_PATH)/$(PLATFORM).inc
 
 # 
@@ -62,6 +63,9 @@ ifeq ($(strip $(USE_COUPLER)),yes)
   FFLAGS  +=  -I$(COUPLER_LIB)
   LDFLAGS +=  -L$(COUPLER_LIB) -lcoupler
 endif
+
+#Make everything depend on parameter files
+$(OFILES): $(PARAM)
 
 #=======================================================================
 # Standard definitions
