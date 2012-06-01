@@ -26,7 +26,7 @@ rm ./couette_data/data ./couette_data/ucvcwc.dble.* ./couette_data/uuvvww.dble.*
 echo " "
 echo " ***************************** DNS_grid_generation_Couette *******************************"
 grep "Lx"  ./../../CFD_dCSE/src_code/DNS_grid_generation_Couette/input.file
-grep "Lx"  ./../../CFD_dCSE/src_code/DNS_grid_generation_Couette/input.file
+grep "Ly"  ./../../CFD_dCSE/src_code/DNS_grid_generation_Couette/input.file
 grep "ngx"  ./../../CFD_dCSE/src_code/DNS_grid_generation_Couette/input.file
 grep "ngy"  ./../../CFD_dCSE/src_code/DNS_grid_generation_Couette/input.file
 echo " "

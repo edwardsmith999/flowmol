@@ -8,7 +8,7 @@ resultfile_dir = './../../results/120201_CV_conservation';
 %resultfile_dir = './../../results/'
 
 %========CV Mass Conservation=======
-read_mflux
+[mass_flux,mass_snapshot,Nmflux_records]=read_mflux;
 %Calculate total CV flux and change in mass
 totalmflux = squeeze(sum(mass_flux,4));
 for i =1:Nmflux_records

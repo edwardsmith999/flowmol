@@ -690,7 +690,7 @@ subroutine updatefacedown(ixyz)
 		enddo
         case default
 		call error_abort("updateBorder: invalid value for ixyz")
-        end select
+ 	end select
 
 	!If processor is its own neighbour - no passing required
 	if (idest+1 .eq. irank) then

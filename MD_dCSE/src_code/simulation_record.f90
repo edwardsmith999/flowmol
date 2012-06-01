@@ -86,7 +86,7 @@ subroutine simulation_record
 	if (mod(iter,tplot) .ne. 0) return
 	!-------------------------------Only record every tplot iterations------------------------
 
-	call mass_flux_averaging							!Average mass flux before movement of particles
+	call mass_flux_averaging(mflux_outflag)				!Average mass flux before movement of particles
 	call momentum_flux_averaging(vflux_outflag)         !Average momnetum flux after movement of particles
 	call energy_flux_averaging(eflux_outflag)			!Average energy flux after movement of particles
 
@@ -761,21 +761,7 @@ subroutine cumulative_velocity(ixyz)
 			volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + 1
 			volume_momentum(ibin(1),ibin(2),ibin(3),:) = volume_momentum(ibin(1),ibin(2),ibin(3),:) & 
 										+ v(n,:) + slidev(n,:)
-
-			!if ( r(n,2) > +2.56497 .or. r(n,2) < -5.12993+2.56497) cycle
-			!print'(a,5i8,f15.5)','ES',iter, n, ibin, v(n,1)
-
-			!if ( r(n,2) < 0.d0 .and. r(n,2) > -5.12993) then
-			!	print'(a,4i8,3f10.5)', 'ES',n, ibin,0.d0 ,-5.12993,r(n,2)!,CV_momentum_out(ibin(1),ibin(2),ibin(3),1)
-			!endif
-
 		enddo
-		!if (iter .eq. 10) stop
-		!print'(a,2i8,a,i8,f10.5)', 'ES',iter, 4,'     7&8',4,volume_momentum(5,7,5,1)+volume_momentum(5,8,5,1)
-		!do n=1,nbins(2)+2
-		!	print'(a,i8,3f15.5)','ES',n,dble((n-1))*Vbinsize(2)-halfdomain(2),dble((n-2))*Vbinsize(2)-halfdomain(2), sum(volume_momentum(:,n,:,1))
-		!enddo
-
 
 	case default 
 		call error_abort("Velocity Binning Error")
@@ -1165,25 +1151,30 @@ subroutine simulation_compute_kinetic_VA_cells(imin,imax,jmin,jmax,kmin,kmax)
 
 end subroutine simulation_compute_kinetic_VA_cells
 
-!===================================================================================
-!		CONTROL VOLUME FORMULATION OF MASS AND STRESS
+!=================================================================================
+! CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV
+! CV 			Record Fluxes accross surfaces of Control Volumes				CV
+! CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV
+!=================================================================================
+!				CONTROL VOLUME FORMULATION OF MASS AND STRESS
 ! Based on the control volume formulation of mass and momentum, it is possible to
 ! define change in properties in terms of surface fluxes over a volume in space
-! Fluxes need to be called every timestep!!!
-!===================================================================================
+! Fluxes need to be called every timestep by setting CV_CONSERVE to 1 in input
+!=================================================================================
 
-!!-----------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------
 ! Control Volume mass continuity
 !-----------------------------------------------------------------------------------
 
-subroutine mass_flux_averaging
+subroutine mass_flux_averaging(ixyz)
 	use module_record
 	implicit none
 
+	integer			:: ixyz
 	integer, save	:: sample_count
 
 	!Only average if mass averaging turned on
-	if (mflux_outflag .eq. 0) return
+	if (ixyz .eq. 0) return
 
 	call cumulative_mass_flux
 	sample_count = sample_count + 1
@@ -1206,16 +1197,19 @@ subroutine cumulative_mass_flux
 
 	integer							:: ixyz, n
 	integer		,dimension(3)		:: ibin1,ibin2,crossplane
-	double precision,dimension(3)	:: ri, mbinsize
+	double precision,dimension(3)	:: mbinsize, ri1, ri2
 
 	!Determine bin size
 	mbinsize(:) = domain(:) / nbins(:)
 
 	do n = 1,np
 
+		ri1(:) = r(n,:) 							!Molecule i at time t
+		ri2(:) = r(n,:)	-delta_t*v(n,:)				!Molecule i at time t-dt
+
 		!Assign to bins before and after using integer division
-		ibin1(:) = ceiling((r(n,:)+halfdomain(:))/mbinsize(:))+1
-		ibin2(:) = ceiling((r(n,:)-delta_t*v(n,:)+halfdomain(:))/mbinsize(:))+1
+		ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:))+1
+		ibin2(:) = ceiling((ri2+halfdomain(:))/mbinsize(:))+1
 
 		!Replace Signum function with this functions which gives a
 		!check for plane crossing and the correct sign 
@@ -1296,15 +1290,13 @@ subroutine momentum_flux_averaging(ixyz)
 
 		select case(ixyz)
 		case(1:3)
-		!MOP momentum flux and stresses
+			!MOP momentum flux and stresses
 			call MOP_stress_io(ixyz)
 			Pxy_plane = 0.d0
 		case(4)
-		!CV momentum flux and stress
+			!CV momentum flux and stress
 			call momentum_flux_io
-			call surface_stress_io
 			momentum_flux = 0.d0
-			Pxyface = 0.d0
 			call momentum_snapshot
 		case default 
 			call error_abort("Momentum flux and pressure averaging Error")
@@ -1312,6 +1304,13 @@ subroutine momentum_flux_averaging(ixyz)
 
 		sample_count = 0
 
+	endif
+
+	!Write forces out at time t before snapshot/final fluxes
+	!as both use velocity at v(t-dt/2)
+	if (sample_count .eq. Nvflux_ave-1) then
+		call surface_stress_io
+		Pxyface = 0.d0
 	endif
 
 end subroutine momentum_flux_averaging
@@ -1377,10 +1376,10 @@ subroutine cumulative_momentum_flux(ixyz)
 		do n = 1,np	
 
 			!Get velocity at v(t+dt/2) from v(t-dt/2)
-			velvect(:) = v(n,:) + delta_t * a(n,:)		!Assumes no constraint/thermostat/etc
-			ri1(:) = r(n,:) + delta_t*velvect(:)		!Molecule i at time t+dt
-			ri2(:) = r(n,:)								!Molecule i at time t
-			ri12   = ri1 - ri2		!Molecule i trajectory between t-dt and t
+			velvect(:) = v(n,:)
+			ri1(:) = r(n,:) 							!Molecule i at time t
+			ri2(:) = r(n,:)	- delta_t*velvect			!Molecule i at time t-dt
+			ri12   = ri1 - ri2							!Molecule i trajectory between t-dt and t
 			where (ri12 .eq. 0.d0) ri12 = 0.000001d0
 
 			!Assign to bins before and after using integer division
@@ -1940,6 +1939,7 @@ end subroutine pressure_tensor_forces_H
 ! This is the Volume Average stress of Lutsko, although this is also called the
 ! Irving Kirkwood contour in NAMD (MD package) and the paper it references
 ! Jacob Sonne,a Flemming Y. Hansen, and Günther H. Peters J.CHEM.PHYS. 122, 124903 (2005)
+! 								╭∩╮（︶︿︶）╭∩╮﻿
 
 subroutine pressure_tensor_forces_VA(ri,rj,rij,accijmag)
 	use module_record

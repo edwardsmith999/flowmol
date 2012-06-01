@@ -68,6 +68,7 @@ module computational_constants_MD
 		temperature_outflag, &
 		pressure_outflag, &
 		viscosity_outflag, &
+		cv_conserve,	&
 		mflux_outflag, &
 		vflux_outflag, &
 		eflux_outflag, &

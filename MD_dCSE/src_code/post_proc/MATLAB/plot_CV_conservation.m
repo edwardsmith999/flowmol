@@ -2,11 +2,12 @@
 close all
 clear all
 
-
+pwdir = '/home/es205/codes/coupled/MD_dCSE/src_code/post_proc/MATLAB';
 ibin = 4; jbin = 4; kbin=4;
-resultfile_dir = './../../results/120201_CV_conservation';
+resultfile_dir = './../../results/';
 %========CV Mass Conservation=======
-read_mflux
+%Spacial evolution of domain at time half way from start to finish
+[mass_flux,mass_snapshot,Nmflux_records] = read_mflux('./mflux','./msnap',resultfile_dir);
 %Calculate total CV flux and change in mass
 totalmflux = squeeze(sum(mass_flux,4));
 for i =1:Nmflux_records
@@ -16,10 +17,26 @@ end
 display(strcat('Maximum error in CV mass conservation =', ... 
    num2str(max(max(max(max(squeeze(totalmflux(:,:,:,:)) - squeeze(dmassdt(:,:,:,:))))))*...
            min(min(min(min(squeeze(totalmflux(:,:,:,:)) - squeeze(dmassdt(:,:,:,:))))))*100),'%'));
-       
+
+sliceomatic(totalmflux(:,:,:,10)-dmassdt(:,:,:,10))
+
+
+%Temporal evolution of bin in centre of domain
+start = 2;
+finish = 40;
+read_header
+ibin = floor(gnbins(1)/2);
+jbin = floor(gnbins(2)/2);
+kbin = floor(gnbins(3)/2);
+plot(squeeze(totalmflux(ibin,jbin,kbin,start:finish)),'r-')
+hold all
+plot(squeeze(dmassdt(ibin,jbin,kbin,start:finish)),'b--')
+
+
+
 %========CV Momementum Conservation=======         
 %Find results files
-resultfile_dir = './../../results/120201_CV_conservation';
+resultfile_dir = './../../results/';
 
 %Check CV momentum has been recorded
 cd(resultfile_dir);
@@ -85,6 +102,8 @@ for m =1:1:Nvflux_records-3
 end
 %Adjust as multiplied by delta_t before write out
 a = a*delta_t;
+
+pause()
 
 %========CV Energy Conservation=======  
 for m =1:1:Nvflux_records-2

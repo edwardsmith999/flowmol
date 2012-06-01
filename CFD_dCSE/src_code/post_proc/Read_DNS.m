@@ -8,12 +8,12 @@ function[u,v,w] = Read_DNS(filename,resultfile_dir)
 pdir = pwd;
 
 %--- grid size ----
-ngx = 7+1;
+ngx = 8+1;
 ngy = 7;
 ngz = 8+1;
 
 %--- domain size ----
-Lx = 35.90949;
+Lx = 35.90949 %35.90949;
 Ly = 35.90949;
 Lz = 20.0;
 
@@ -27,7 +27,7 @@ ya = linspace(0, Ly+1/ngy, ngy+1);
 za = linspace(0, Lz+1/ngz, ngz+1);
 
 %Reynolds number
-Re = 5.0;
+Re = 19.5;
 
 if (exist('filename') == 0)
     filename = 'grid.data';
@@ -68,25 +68,25 @@ py = 1:ngy;
 %figure
 
 m = 1
-for n = 1:length(filenames)
-    
+for n = 1:100:length(filenames)
+    n
     %Analytical solution
-    %t = (n-1)*15;
-    %analy = couette_analytical_fn(t,Re,[1.0,0],Ly,ngy-1,'top');
-    %plot(y,analy,'r');
-    %hold on
+    t = (n-1)*5;
+    analy = couette_analytical_fn(t,Re,[1.0,0],Ly,ngy-1,'top');
+    plot(y,analy,'r');
+    hold on
     
-    %axis([0 60 -0.1 1.1])
+    %axis([0 1 -0.1 1.1])
     
     %Read from DNS files
     V = read_sub(filenames(n).name,ngz,ngx,ngy,pz,px,py,skipk,skipi,skipj,3);
     u(:,m) = V{1};
     v(:,m) = V{2};
     w(:,m) = V{3};
-    %scatter(y,u(:,m),'s')
-    %drawnow
+    scatter(ypg(4,:)+5.12/2,u(:,m),'s')
+    drawnow
     m = m + 1;
-    %hold off
+    hold off
 end
 
 end

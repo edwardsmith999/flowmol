@@ -26,7 +26,7 @@ program main
 
 	!--------INPUT PARAMETERS------
 	real	:: Lx, Ly
-	integer	:: ngx, ngy, imeshY
+	integer	:: ngx, ngy, imeshY, direction
 	real	:: ratio
 
 	!------ GEOMETRY VARIABLES -------
@@ -42,7 +42,13 @@ program main
 	read(17, *) ngy
 	read(17, *) imeshY
 	read(17, *) ratio
+	read(17, *) direction
 	close(17)
+
+	!Check grid stretching is not greater than 3% change per cell
+	if(imeshY .ne. 0 .and. ratio .gt. 1.d0/(0.97d0**(ngy-1))) then
+		print'(a,f18.8)', "WARNING - Grid stretching greater than 3% - maximum allowable ratio with specified ngy =", 1.d0/(0.97d0**(ngy-1))
+	endif
 
   	allocate(  x (  ngx  ) ,  y (  ngy  ) )
   	allocate( xpg(ngx,ngy) , ypg(ngx,ngy) )
@@ -58,7 +64,7 @@ program main
 	y_lower = 0.;
 	y_upper = Ly;
 	if (imeshY.eq.1) then
-        	call tanh_stretch(y_lower,y_upper,ngy,ratio, y)
+        	call tanh_stretch(y_lower,y_upper,ngy,ratio, y,direction)
 		do i=1,ngx
 			ypg(i,:) = y(:)
 		end do

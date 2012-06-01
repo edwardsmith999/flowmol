@@ -879,7 +879,9 @@ subroutine temperature_bin_io(CV_mass_out,CV_temperature_out,io_type)
 	character(13)			:: filename
 
 	!Write mass bins
-	call mass_bin_io(CV_mass_out,io_type)
+	if (velocity_outflag .eq. 0 .and. mass_outflag .eq. 0) then
+		call mass_bin_io(CV_mass_out,io_type)
+	endif
 
 	!Work out correct filename for i/o type
 	write(filename, '(a9,a4)' ) 'results/T', io_type
@@ -1134,8 +1136,16 @@ subroutine mass_flux_io
 					  modulo((k-2),nbins(3))+2,:) + mass_flux(i,j,k,:)
 	enddo
 
+	!Calculate record number timestep
+	select case(CV_conserve)
+	case(0)
+		m = (iter-initialstep+1)/(tplot*Nmflux_ave)
+	case(1)
+		m = (iter-initialstep+1)/(Nmflux_ave)
+	case default
+		call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
+	end select
 	!Write six CV surface mass fluxes to file
-	m = (iter-initialstep+1)/(Nmflux_ave)
 	buf = mass_flux(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
 	inquire(iolength=length) buf
 	open (unit=8, file=trim(prefix_dir)//'results/mflux',form='unformatted',access='direct',recl=length)
@@ -1176,11 +1186,20 @@ subroutine momentum_flux_io
 		momentum_flux(:,:,:,:,ixyz+3)=momentum_flux(:,:,:,:,ixyz+3)/(binface) !Top
 	enddo
 
-	!Divide momentum flux by averaing period tau=delta_t*Nvflux_ave
+	!Divide momentum flux by averaing period tau=delta_t*Nvflux_ave if CV_conserve=1
+	!or Divide momentum flux by sum of the Nvflux_ave times delta_t averaging periods 
+	!as sample is taken every tplot steps. The output is then a representaive momentum flux.
 	momentum_flux = momentum_flux/(delta_t*Nvflux_ave)
 
-	!Write momentum flux to file
-	m = (iter-initialstep+1)/(tplot*Nvflux_ave)
+	!Write momentum to file
+	select case(CV_conserve)
+	case(0)
+		m = (iter-initialstep+1)/(tplot*Nvflux_ave)
+	case(1)
+		m = (iter-initialstep+1)/(Nvflux_ave)
+	case default
+		call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
+	end select
 	buf = momentum_flux(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:,:)
 	inquire(iolength=length) buf
 	open (unit=9, file=trim(prefix_dir)//'results/vflux',form='unformatted',access='direct',recl=length)
@@ -1251,7 +1270,14 @@ subroutine surface_stress_io
 	Pxyface = Pxyface/Nvflux_ave
 
 	!Write surface pressures to file
-	m = (iter-initialstep+1)/(Nvflux_ave*tplot)
+	select case(CV_conserve)
+	case(0)
+		m = (iter-initialstep+1)/(Nvflux_ave*tplot)
+	case(1)
+		m = (iter-initialstep+1)/(Nvflux_ave)
+	case default
+		call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
+	end select
 	buf = Pxyface(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:,:)
 	inquire(iolength=length) buf
 	open (unit=9, file=trim(prefix_dir)//'results/psurface',form='unformatted',access='direct',recl=length)
@@ -1292,9 +1318,19 @@ subroutine energy_flux_io
 		energy_flux(:,:,:,ixyz+3)=energy_flux(:,:,:,ixyz+3)/(binface) !Top
 	enddo
 
+	!Divide energy flux by averaing period tau=delta_t*Neflux_ave if CV_conserve=1
+	!or Divide sample energy flux by equivalent averaging period delta_t*Neflux_ave
 	energy_flux = energy_flux/(delta_t*Neflux_ave)
 	!Write energy flux to file
-	m = (iter-initialstep+1)/(Neflux_ave)
+	select case(CV_conserve)
+	case(0)
+		m = (iter-initialstep+1)/(Neflux_ave*tplot)
+	case(1)
+		m = (iter-initialstep+1)/(Neflux_ave)
+	case default
+		call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
+	end select
+
 	buf = energy_flux(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
 	inquire(iolength=length) buf 
 	open (unit=10, file=trim(prefix_dir)//'results/eflux',form='unformatted',access='direct',recl=length)
@@ -1337,11 +1373,19 @@ subroutine surface_power_io
 		Pxyvface(:,:,:,ixyz+3) = 0.25d0 * Pxyvface(:,:,:,ixyz+3)/binface(ixyz) !Top
 	enddo
 
-	!Integration of stress using trapizium rule requires multiplication by timestep
+	!Divide energy flux by averaing period tau=delta_t*Neflux_ave if CV_conserve=1
+	!or Divide sample energy flux by equivalent averaging period delta_t*Neflux_ave
 	Pxyvface = Pxyvface/Neflux_ave
 
 	!Write surface pressures * velocity to file
-	m = (iter-initialstep+1)/(Neflux_ave)
+	select case(CV_conserve)
+	case(0)
+		m = (iter-initialstep+1)/(Neflux_ave*tplot)
+	case(1)
+		m = (iter-initialstep+1)/(Neflux_ave)
+	case default
+		call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
+	end select
 	buf = Pxyvface(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
 	inquire(iolength=length) buf
 	open (unit=10, file=trim(prefix_dir)//'results/esurface',form='unformatted',access='direct',recl=length)
