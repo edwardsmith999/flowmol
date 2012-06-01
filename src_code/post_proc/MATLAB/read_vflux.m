@@ -1,4 +1,18 @@
 %Read stress measurements at time "read_time"
+%Input of form
+%read_vflux(read_time,resultfile_dir,gnbins,nd,filename1,filename2,filename3)
+% read_time - value of record to read. note that snapshot 1 is taken before
+% evolution so all snapshots are one ahead of fluxes (read_time+1 is read
+% by this routine). Forces are taken at time before current flux reading so
+% (read_time-1 is read by this routine)
+% resultfile_dir - location of files
+% gnbins - number of global bins
+% nd - number of dimensions
+% filename1,filename2,filename3 - vflux, psurface and vsnap files
+%Output variables
+%[velocity_snapshot_t,velocity_flux_t,pressure_surface_t]
+
+
 function[velocity_snapshot_t,velocity_flux_t,pressure_surface_t] = read_vflux(read_time,resultfile_dir,gnbins,nd,filename1,filename2,filename3)
 
 if (exist('filename1') == 0)
@@ -15,8 +29,8 @@ end
 %Store Present Working directory
 pwdir = pwd;
 if (exist('resultfile_dir') == 0)
-    resultfile_dir = './../../results';
-    display('setting results file to default "./../../results"');
+    resultfile_dir = './../results';
+    display('setting results file to default "./../results"');
 end
 
 %Read simulation properties from header file and calculate simulation
@@ -26,38 +40,41 @@ datasize = gnbins(1)*gnbins(2)*gnbins(3)*nd*Ncubeface;
 bytes = 8;
 
 %Load momentum flux CV data
+flux_read_time = read_time;
 cd(resultfile_dir);
 fid = fopen(filename1,'r','ieee-le');
 %Check file exists
 if (fid == -1)
     error(strcat(filename1,'vflux file does not exist in results'))
 end
-fseek(fid, bytes*datasize*read_time, 'bof');
+fseek(fid, bytes*datasize*flux_read_time, 'bof');
 vflux = fread(fid,datasize,'double');
 velocity_flux_t = reshape(vflux,gnbins(1),gnbins(2),gnbins(3),nd,Ncubeface);
 fclose(fid);
 
 
 %Load surface pressure CV data
+stress_read_time = read_time - 1;
 fid = fopen(filename2,'r','ieee-le');
 %Check file exists
 if (fid == -1)
     error(strcat(filename2,'file does not exist in results'))
 end
-fseek(fid, bytes*datasize*read_time, 'bof');
+fseek(fid, bytes*datasize*stress_read_time, 'bof');
 psurface = fread(fid,datasize,'double');
 pressure_surface_t = reshape(psurface,gnbins(1),gnbins(2),gnbins(3),nd,Ncubeface);
 fclose(fid);
 
 
 %Load momentum snapshot CV data
+snap_read_time = read_time + 1;
 fid = fopen(filename3,'r','ieee-le');
 cd (pwdir);
 %Check file exists
 if (fid == -1)
     error(strcat(filename3,'file does not exist in results'))
 end
-fseek(fid, bytes*datasize*read_time/Ncubeface, 'bof');
+fseek(fid, bytes*datasize*snap_read_time/Ncubeface, 'bof');
 vsnap = fread(fid,datasize/Ncubeface,'double');
 velocity_snapshot_t = reshape(vsnap,gnbins(1),gnbins(2),gnbins(3),nd);
 fclose(fid);

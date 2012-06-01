@@ -283,6 +283,11 @@ subroutine setup_read_input
 		read(1,* ) viscosity_outflag
 		if ( viscosity_outflag .ne. 0)	read(1,* ) Nvisc_ave
 	endif
+	call locate(1,'CV_CONSERVE',.false.,found_in_input)
+	cv_conserve = 0
+	if (found_in_input) then
+		read(1,* ) cv_conserve
+	endif
 	call locate(1,'MFLUX_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,* ) mflux_outflag

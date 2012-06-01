@@ -482,8 +482,10 @@ subroutine simulation_header
 	write(3,*)  'temperature flag ;  temperature_outflag ;', temperature_outflag
 	write(3,*)  'Pressure flag ;  pressure_outflag ;', pressure_outflag
 	write(3,*)  'viscosity flag ;  viscosity_outflag ;', viscosity_outflag
+	write(3,*)  'cv conservation flag ;  cv_conserve ;', cv_conserve
 	write(3,*)  'mass flux flag ;  mflux_outflag ;', mflux_outflag
 	write(3,*)  'velocity flux flag ;  vflux_outflag ;', vflux_outflag
+	write(3,*)  'energy flux flag ;  eflux_outflag ;', eflux_outflag
 	write(3,*)  'mass average steps ;  Nmass_ave ;', Nmass_ave
 	write(3,*)  'velocity average steps ;  Nvel_ave ;', Nvel_ave
 	write(3,*)  'Temperature average steps ;  NTemp_ave ;', NTemp_ave
@@ -491,6 +493,7 @@ subroutine simulation_header
 	write(3,*)  'viscosity average samples ;  Nvisc_ave ;', Nvisc_ave
 	write(3,*)  'mass flux average steps ;  Nmflux_ave ;', Nmflux_ave
 	write(3,*)  'velocity flux average steps ;  Nvflux_ave ;', Nvflux_ave
+	write(3,*)  'energy flux average steps ;  Neflux_ave ;', Neflux_ave
 	write(3,*)  'Velocity/stress Averaging Bins in x ;  gnbins(1) ;', gnbins(1)
 	write(3,*)  'Velocity/stress Averaging Bins in y ;  gnbins(2) ;', gnbins(2)
 	write(3,*)  'Velocity/stress Averaging Bins in z ;  gnbins(3) ;', gnbins(3)

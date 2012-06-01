@@ -18,7 +18,17 @@ end
 %Read simulation properties from header file and calculate simulation
 %properties
 read_header;
-Nmflux_records = (Nsteps-initialstep) / (tplot * Nmflux_ave);
+if (exist('cv_conserve'))
+    cv_conserve = cv_conserve;
+else
+    cv_conserve = 0;
+end
+if (cv_conserve == 1)
+    Nmflux_records = (Nsteps-initialstep) / (Nmflux_ave);
+else
+    Nmflux_records = (Nsteps-initialstep) / (tplot*Nmflux_ave);
+end
+
 Ncubeface = 6;
 
 %Load mass flux CV data
