@@ -36,7 +36,7 @@ ifndef USE_COUPLER
   FPP_FLAGS     := -cpp -DUSE_COUPLER=0
 else 
   FPP_FLAGS_no  := -cpp -DUSE_COUPLER=0 
-  FPP_FLAGS_yes := -cpp -DUSE_COUPLER=1
+  FPP_FLAGS_yes := -cpp -DUSE_COUPLER=1 -DCOUPLER_DEBUG_LA=1
   FPP_FLAGS     := $(FPP_FLAGS_$(USE_COUPLER))
 endif
 #
@@ -58,7 +58,7 @@ FLAGS_BASE_opt   := -O3 -ffree-line-length-0 $(FLAG_OBJ_DIR)
 #
 ifeq ($(strip $(NAME)),coupler)
 
-  FFLAGS := $(FLAGS_BASE_$(BUILD))
+  FFLAGS := -cpp -DCOUPLER_DEBUG_LA=1 $(FLAGS_BASE_$(BUILD))
 
 else ifeq ($(strip $(NAME)),serial_couette)
 

@@ -153,7 +153,7 @@ subroutine simulation_run()
 		cpu_cflcal= (after - before) - t_over  
 
 #if USE_COUPLER
-        call socket_coupler_send_velocity
+        call socket_coupler_send_velocity ! send velocities needed to set the continuum forces in MD
 #endif
 
 		!----------------------------------------
@@ -167,7 +167,12 @@ subroutine simulation_run()
 			call CopyBC_out()			!--- Copy BC to free (uc,vc,wc)
 		after = realClock()
 		cpu_bc = (after - before) - t_over
-           
+
+#if USE_COUPLER
+#if COUPLER_DEBUG_LA
+               call socket_coupler_write_uc(ntime)
+#endif
+#endif 
 		!cccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 		! I. Advance the convection, explicit diffusion and
 		!    implicit diffusion terms to get intermediate velocity

@@ -1718,43 +1718,45 @@ end function coupler_md_get_cfd_id
 
 ! Below are deprecated subroutine but still useful for
 ! testing or reference
+#if COUPLER_DEBUG_LA
 !=============================================================================
-! test subroutine
+! test subroutine: averages uc over CFD boxes and writes the results
+! to a file
 !-----------------------------------------------------------------------------
-
 subroutine coupler_uc_average_test(np,r,v,lwrite)
 	use coupler_internal_common
 	use coupler_internal_md, only : nlx, nlz, nly, bbox, jmino, jmin => jmin_cfd,&
-					global_r, x, dx, y, z, dz
-	 
+        global_r, x, dx, y, z, dz	 
 	implicit none
 
 	integer, intent(in) :: np
 	real(kind=kind(0.d0)), intent(in) :: r(:,:),v(:,:)
 	logical, intent(in) :: lwrite
 
-	integer ib, kb, jb, ip, myid, jbuff, ierr
+	integer ib, kb, jb, ip, myid, jbuff, ks, ke, ierr
 	real(kind=kind(0.d0)) rd(3), ymin, ymax, dy
 	real(kind=kind(0.d0)),allocatable, save :: uc_bin(:,:,:,:)
 	logical,save :: firsttime=.true.
-    save jbuff
+	save jbuff
 
 	call mpi_comm_rank(COUPLER_REALM_COMM,myid,ierr)
+  !write a xy slab, typically of width 1
+  ! this should be a coupler input parameter
+        ks = nlz/2; ke = ks+1
 
 	if(firsttime)then
 		firsttime = .false.
-       
+
         ! how many cells to collect along y
-        jbuff = nly+1 !jmino - 1 to see the boundary effects
+		jbuff = nly+1 ! start data collection form jmino - 1 to see the boundary effects
 
-
-		allocate(uc_bin(2,nlz-1,nlx-1,jbuff))
+		allocate(uc_bin(2,ks:ke,nlx,jbuff))
 		uc_bin = 0.d0
 
 		if (myid .eq. 0) then 
 			open(45, file="md_vel.txt",position="rewind")
 			write(45,*)'# dx,dy,dz ', dx,y(jmin+1)-y(jmin),dz
-            write(45,*)'# nlx, nly, nlz', nlx,nly,nlz
+			write(45,*)'# nlx, nly, nlz', nlx,nly,nlz
 			close(45)
 		endif
 	endif
@@ -1763,98 +1765,92 @@ subroutine coupler_uc_average_test(np,r,v,lwrite)
 		call write_data
 		return
 	endif
-
-
 	dy = y(jmin+1) - y(jmin)
 	ymin = y(jmino) -  dy
 	ymax = y(bbox%je - 1)
 
-	!	write(0,*)'MD uc test', np, dy, ymin,ymax
+	!		write(0,*)'MD uc test', np, dy, ymin,ymax
 
 	do ip = 1, np
-		! using global particle coordinates
+								! using global particle coordinates
 		rd(:)=r(ip,:)
 		rd(:) = global_r(rd)
 
 		if ( rd(2) < ymin .or. rd(2) > ymax ) then
-			! molecule outside the boundary layer
+								! molecule outside the boundary layer
 			cycle
 		endif
 
-		ib = ceiling((rd(1) - x(bbox%is)) / dx) + 0      ! staggered !!!
-		kb = ceiling((rd(3) - z(bbox%ks)) / dz)       ! the last z row unused
-		jb = ceiling((rd(2) - ymin    )   / dy)
+		ib = nint((rd(1) - x(bbox%iso)) / dx) + 1	   ! staggered !!!
+		kb = ceiling((rd(3) - z(bbox%ks)) / dz)
+		jb = ceiling((rd(2) - ymin	  )	  / dy)
 
-		if ( ib > 0 .and. ib < nlx  .and. &
-			kb > 0 .and. kb < nlz  ) then 
-			!  this particle are in this ranks domain
+		if ( ib > 0 .and. ib <= nlx	 .and. &
+			kb >= ks .and. kb < ke  ) then 
+			!this particle is in this ranks domain
 			uc_bin(1,kb,ib,jb) = uc_bin(1,kb,ib,jb) + v(ip,1)
 			uc_bin(2,kb,ib,jb) = uc_bin(2,kb,ib,jb) + 1.d0 
 		else 
-			!				       write(0,*) 'MD uc_average, outside domain rd', rd, ' bbox%bb ', bbox 
+			! write(0,*) 'MD uc_average, outside domain rd', rd, ' bbox%bb ', bbox 
 		endif
 	end do
 
-	! debug   
-	!			 do i = 1, size(uc_bin,dim=2)
-	!			  write(0, '(a,I4,64F7.1)') 'MD myid uc_bin(2,..',myid,uc_bin(2,1,:)
-	!			 enddo
-
-
-
-	!			write(0,*) 'MD uc sum in boxes', myid
-	!			do i = 1, size(uc_bin,dim=2)
-	!				write(0, '(a,I4,64E11.4)') 'MD myid uc_bin(1,..',myid, uc_bin(1,1,:)
-	!			enddo
-	! send it to CFD	
+	! debug	  
+	!						 do i = 1, size(uc_bin,dim=2)
+	!						  write(0, '(a,I4,64F7.1)') 'MD myid uc_bin(2,..',myid,uc_bin(2,1,:)
+	!						 enddo
+	!						write(0,*) 'MD uc sum in boxes', myid
+	!						do i = 1, size(uc_bin,dim=2)
+	!								write(0, '(a,I4,64E11.4)') 'MD myid uc_bin(1,..',myid, uc_bin(1,1,:)
+	!						enddo
+								! send it to CFD		
 
 contains 
-
-!=============================================================================
-! Write velocities from MD domain
-!-----------------------------------------------------------------------------
+	!=============================================================================
+								! Write velocities from MD domain
+	!-----------------------------------------------------------------------------
 
 	subroutine write_data
 		use mpi
 		use coupler_internal_md, only : nproc, imin_cfd, imax_cfd, kmin_cfd, kmax_cfd
 		implicit none
 
-		integer i, ibuff(2,2,0:nproc-1), ntot, nrecv, sa(nproc),req(nproc-1),  &
+		integer i,j, ibuff(2,2,0:nproc-1), ntot, nrecv, sa(nproc),req(nproc-1),	 &
 			ierr
 		real(kind(0.d0)),allocatable :: buff(:,:,:,:),buff_recv(:)
+		real(kind(0.d0)) x(nlx)  
 
 		if(nproc > 1) then
 
-			! works only for parallel decomposition in x and y direction
+		    ! works only for parallel decomposition in x and y direction
 			call mpi_gather((/bbox%iso,bbox%ieo,bbox%kso,bbox%keo/),4,MPI_INTEGER,&
 				ibuff,4,MPI_INTEGER,0,COUPLER_REALM_COMM,ierr)
 
-			!	       write(0,*) "MD write test data", myid, ibuff
+			!			   write(0,*) "MD write test data", myid, ibuff
 
 			if (myid .eq. 0) then
 
 				! the local bit first
-				allocate(buff(2,kmax_cfd-kmin_cfd,imin_cfd:imax_cfd-1,jbuff))
+				allocate(buff(2,ke-ks,imin_cfd:imax_cfd,jbuff))
 
 				buff = 0.d0
-				buff(:,ibuff(1,2,0):ibuff(2,2,0)-1,ibuff(1,1,0):ibuff(2,1,0)-1,:) = &
-					buff(:,ibuff(1,2,0):ibuff(2,2,0)-1,ibuff(1,1,0):ibuff(2,1,0)-1,:) + &
-					uc_bin(:,1:nlz-1,1:nlx-1,:)
+				buff(:,1:ke-ks,ibuff(1,1,0):ibuff(2,1,0),:) = &
+					buff(:,1:ke-ks,ibuff(1,1,0):ibuff(2,1,0),:) + &
+					uc_bin(:,ks:ke,1:nlx,:)
 
 
 				ntot = 0
 				do i=1,nproc-1
-					ntot = ntot + 2*(ibuff(2,2,i)-ibuff(1,2,i))*(ibuff(2,1,i)-ibuff(1,1,i))*jbuff
+					ntot = ntot + 2*(ke-ks)*(ibuff(2,1,i)-ibuff(1,1,i)+1)*jbuff
 				enddo
 
 				allocate(buff_recv(ntot))
 				buff_recv(ntot) = 0.d0
 
 				sa(1)=1
-
 				do i=1,nproc-1
 
-					nrecv = 2*(ibuff(2,2,i)-ibuff(1,2,i))*(ibuff(2,1,i)-ibuff(1,1,i))*jbuff
+					nrecv = 2*(ke-ks)*(ibuff(2,1,i)-ibuff(1,1,i)+1)*jbuff
 					sa(i+1) = sa(i) + nrecv
 
 					call mpi_irecv(buff_recv(sa(i)),nrecv,MPI_DOUBLE_PRECISION,&
@@ -1865,9 +1861,9 @@ contains
 				call mpi_waitall(nproc-1,req,MPI_STATUSES_IGNORE,ierr)
 
 				do i =1, nproc-1
-					buff(:,ibuff(1,2,i):ibuff(2,2,i)-1,ibuff(1,1,i):ibuff(2,1,i)-1,:) = &
-						buff(:,ibuff(1,2,i):ibuff(2,2,i)-1,ibuff(1,1,i):ibuff(2,1,i)-1,:) + &
-						reshape(buff_recv(sa(i):sa(i+1)-1), (/ 2,ibuff(2,2,i)-ibuff(1,2,i),ibuff(2,1,i)-ibuff(1,1,i),jbuff /))
+					buff(:, 1:ke-ks, ibuff(1,1,i):ibuff(2,1,i), :) = &
+						buff(:, 1:ke-ks, ibuff(1,1,i):ibuff(2,1,i)-1, :) + &
+						reshape(buff_recv(sa(i):sa(i+1)-1), (/ 2,ke-ks,ibuff(2,1,i)-ibuff(1,1,i)+1,jbuff /))
 				enddo
 			else
 				call mpi_send(uc_bin,size(uc_bin),MPI_DOUBLE_PRECISION,0,1,COUPLER_REALM_COMM,ierr)
@@ -1876,28 +1872,46 @@ contains
 
 		if (nproc > 1) then
 			if (myid .eq. 0 ) then
-				open(45,file="md_vel.txt",position="append")
-				do i = 1,jbuff
-					write(45, '(100(E12.4,1x))') sum(buff(:,:,:,i),dim=2) 
-				enddo
-				write(45, '(1x/1x)')
-				close(45)
-			endif
+                call write_array(buff)
+            endif
 		else
-			open(45,file="md_vel.txt",position="append")
-			do i = 1,jbuff
-				write(45, '(100(E12.4,1x))') sum(uc_bin(:,:,:,i),dim=2)
-			enddo
-			write(45, '(1x/1x)')
-			close(45)
-		endif
+            call write_array(uc_bin) 
+        endif
 
-		uc_bin = 0.d0
+        uc_bin = 0.d0
 
-	end subroutine write_data
+    end subroutine write_data
+
+
+    subroutine write_array(u)
+        implicit none
+        real(kind=kind(0.d0)) u(:,:,:,:)
+
+        integer i,j,k
+        real(kind(0.d0)) x
+
+        open(45,file="md_vel.txt",position="append")
+
+        do k = 1, ke-ks
+            do i=1,size(u,dim=3)
+                do j=1,size(u,dim=4)
+                    if (u(2,k,i,j) > 0.d0 )then 
+						x = u(1,k,i,j) / u(2,k,i,j)
+                    else 
+                        x = 0.d0
+					endif
+                    write(45, '(100(E12.4,1x))') x
+                enddo
+                write(45,'(1x)') ! gnuplot block
+            enddo
+            write(45,'(1x/1x)')
+        enddo
+        close(45)
+
+    end subroutine write_array
 
 end subroutine coupler_uc_average_test
-
+#endif
 
 ! Keep these subroutines for a while, useful references 
 
