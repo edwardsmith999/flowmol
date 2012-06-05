@@ -43,7 +43,7 @@ contains
         use messenger, only : icomm_grid, icoord
         implicit none
 
-        integer i1b_u, j1b_u, i, i1, jmax_ovr,jo, myid,ierr
+        integer i1b_u, j1b_u, i, i1, jmax_ovr,jo,js,je, myid,ierr
         real(kind(0.d0)),allocatable :: buff(:,:,:,:)
 
         i1b_u=ibmap_1(i1_u)
@@ -62,10 +62,10 @@ contains
             !uc(1:ngz-1,i1:i1,j1_u+2) = myid+66.d0
         endif
         
-        jo = j1_u + jmax_ovr-jbmap_1(j1_u)-2 
+        je = j1_u + jmax_ovr-jbmap_1(j1_u)-2
+        js = je
         !write(0,*)'cfd socket, jo:',jo
-        call coupler_send_data(uc(1:ngz-1,i1:i2_u,jo:jo),index_transpose=(/2,3,1/))
-
+        call coupler_send_data(uc(1:ngz-1,i1:i2_u,js:je),index_transpose=(/2,3,1/))
 
         !do i=i1, i2_u
         !    write(600+myid,'(1000(E11.3,1x))') uc(1:ngz-1,i,j1_u+2)
@@ -138,6 +138,68 @@ contains
         !write(500+myid,*)
 
     end subroutine socket_coupler_get_md_BC
+
+#if COUPLER_DEBUG_LA
+!---------------------------------------------------------------------
+! debug subroutine that writes uc for gnuplot
+    subroutine socket_coupler_write_uc(ntime)
+        use data, only : uc,ngz,i1_u,i2_u, j1_u,j2_u
+        use data_export, only : kmin, kmax
+        use messenger, only : icomm_grid, icoord
+        use computation_parameters, only : prefix_dir
+        implicit none
+
+        integer, intent(in) :: ntime
+
+        integer, parameter :: psave = 10 
+        integer, save      :: icount=0
+
+        integer i,j,k,is, ie, ks, ke, myid, ierr
+        logical, save :: firsttime=.true.
+        character(len=32) file_position
+
+        icount = icount + 1
+        if ( mod(icount,psave) /= 0) return
+
+        ! pick the z index range of the slab to write
+        ! for beginig we look at the midle layer
+        ! this should be fixed with coupler input 
+        ! parameter
+        ks =kmin + (kmax-kmin)/2-1; ke = ks
+
+        call mpi_comm_rank(icomm_grid,myid,ierr)
+
+        if (firsttime) then
+            firsttime = .false.
+            file_position = "rewind"
+        else
+            file_position = "append"
+        endif
+
+        open (unit=1003, file=trim(prefix_dir)//"results/continuum_uc.txt",position=file_position)
+        
+        is = i1_u
+        ie = i2_u
+
+
+        if (icoord(1,myid+1)==1) then
+            is = i1_u-1
+        endif
+
+        write(1003,'(a,5I6)')'# step', ntime, is, ie, j1_u, j2_u
+        do k= ks,ke
+            do i=is,ie
+                do j=j1_u-1,j2_u+1
+                    write(1003,'(1000E12.4)') uc(k,i,j)
+                enddo
+                 write(1003,'(1x)')
+             enddo
+             write(1003,'(1x/1x)')
+         enddo
+        close(1003)
+        
+  end subroutine socket_coupler_write_uc
+#endif
 
 #endif
 end module continuum_coupler_socket
