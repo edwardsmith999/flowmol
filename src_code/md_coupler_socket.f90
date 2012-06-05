@@ -84,11 +84,10 @@ subroutine average_and_send_MD_to_CFD(iter)
 	
 	integer :: iter_cfd, iter_average, Naverage, save_period, average_period
 	logical, save :: first_time=.true.
-	save save_period, average_period, Naverage
+	save  average_period, Naverage
 
     if (first_time) then 
 	    first_time     = .false.
-	    save_period    = coupler_md_get_save_period()    	! period to save uc data (for debugging, testing)
 	    average_period = coupler_md_get_average_period() 	! collection interval in the average cycle
 	    Naverage = coupler_md_get_md_steps_per_dt_cfd()  	! number of steps in MD average cycle
     endif
@@ -104,7 +103,7 @@ subroutine average_and_send_MD_to_CFD(iter)
 	if (iter_average .eq. Naverage) then 
 	    call coupler_md_boundary_cell_average(np,r,v,send_data=.true.)
 	endif
-	    	
+
 end subroutine average_and_send_MD_to_CFD
 
 !=============================================================================
@@ -620,6 +619,9 @@ subroutine apply_force
 		n = box_average(ib,jb,kb)%np
 		if ( n .eq. 0 ) cycle
 
+        !write(900+myid,'(a,6I4,14E12.4)') "MD continuum force 1:", ncalls, iter,ib,jb,kb,n,box_average(ib,jb,kb)%v(1), &
+        !                                 box_average(ib,jb,kb)%a(1),v(ip,1),a(ip,1),inv_dtMD,inv_dtCFD
+
 		! using the following exptrapolation formula for continuum velocity
 		! y = (y2-y1)/(x2-x1) * (x-x2) +y2
         alpha(1) = inv_dtCFD*(vel_cfd(1,ib,1,kb,itm1) - &
@@ -630,6 +632,10 @@ subroutine apply_force
 		acfd =	- box_average(ib,jb,kb)%a(1) / n - inv_dtMD * & 
 				( box_average(ib,jb,kb)%v(1) / n - u_cfd_t_plus_dt(1) )
 		a(ip,1) = a(ip,1) + acfd
+
+        !write(900+myid,'(a,15E12.4)') "MD continuum force 2:", &
+        !                        alpha(1),u_cfd_t_plus_dt(1),vel_cfd(1,ib,1,kb,itm1),&
+        !                        vel_cfd(1,ib,1,kb,itm2), a(ip,1),acfd, r(ip,2)
 
 	enddo
 
@@ -1373,6 +1379,42 @@ contains
 
 
 end subroutine compute_force_surrounding_bins
+
+#if COUPLER_DEBUG_LA
+    ! dumb debug data 
+subroutine write_uc(iter)
+    use coupler
+    use computational_constants_MD, only : initialstep
+    use physical_constants_MD, only : np
+	use arrays_MD, only :r,v
+    implicit none
+    integer,intent(in) :: iter
+
+    integer :: iter_cfd, iter_average, Naverage, save_period, average_period
+	logical, save :: first_time=.true.
+	save  save_period, average_period, Naverage
+
+    if (first_time) then 
+	    first_time     = .false.
+        save_period    = coupler_md_get_save_period()   
+	    average_period = coupler_md_get_average_period() 	! collection interval in the average cycle
+	    Naverage = coupler_md_get_md_steps_per_dt_cfd()  	! number of steps in MD average cycle
+    endif
+
+    iter_average = mod(iter-1, Naverage)+1			! current step
+    iter_cfd     = (iter-initialstep)/Naverage +1 	! CFD corresponding step
+
+    if ( mod(iter_cfd,save_period) == 0) then 
+        if (mod(iter_average,average_period) == 0 ) then
+            call coupler_uc_average_test(np,r,v,lwrite=.false.)
+        endif
+        if (iter_average == Naverage) then
+            call coupler_uc_average_test(np,r,v,lwrite=.true.)
+        endif
+    endif
+end subroutine write_uc
+#endif
+
 
 #endif
 
