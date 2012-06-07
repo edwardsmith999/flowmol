@@ -664,7 +664,7 @@ subroutine cumulative_mass(ixyz)
 		mbinsize(:) = domain(:) / nbins(:) 
 		do n = 1,np
 			!Add up current volume mass densities
-			ibin(:) = ceiling((r(n,:)+halfdomain(:))/mbinsize(:)) + 1
+			ibin(:) = ceiling((r(n,:)+halfdomain(:))/mbinsize(:)) + nhb
 			volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + 1
 		enddo
 	case default 
@@ -757,7 +757,7 @@ subroutine cumulative_velocity(ixyz)
 		!Reset Control Volume momentum 
 		do n = 1,np
 			!Add up current volume mass and momentum densities
-			ibin(:) = ceiling((r(n,:)+halfdomain(:))/Vbinsize(:)) + 1
+			ibin(:) = ceiling((r(n,:)+halfdomain(:))/Vbinsize(:)) + nhb
 			volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + 1
 			volume_momentum(ibin(1),ibin(2),ibin(3),:) = volume_momentum(ibin(1),ibin(2),ibin(3),:) & 
 										+ v(n,:) + slidev(n,:)
@@ -852,7 +852,7 @@ subroutine cumulative_temperature(ixyz)
 		!Reset Control Volume momentum 
 		do n = 1,np
 			!Add up current volume mass and temperature densities
-			ibin(:) = ceiling((r(n,:)+halfdomain(:))/Tbinsize(:)) + 1
+			ibin(:) = ceiling((r(n,:)+halfdomain(:))/Tbinsize(:)) + nhb
 			volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + 1
 			volume_temperature(ibin(1),ibin(2),ibin(3)) = volume_temperature(ibin(1),ibin(2),ibin(3)) & 
 										+ dot_product((v(n,:)+slidev(n,:)),(v(n,:)+slidev(n,:)))
@@ -1208,8 +1208,8 @@ subroutine cumulative_mass_flux
 		ri2(:) = r(n,:)	-delta_t*v(n,:)				!Molecule i at time t-dt
 
 		!Assign to bins before and after using integer division
-		ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:))+1
-		ibin2(:) = ceiling((ri2+halfdomain(:))/mbinsize(:))+1
+		ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:)) + nhb
+		ibin2(:) = ceiling((ri2+halfdomain(:))/mbinsize(:)) + nhb
 
 		!Replace Signum function with this functions which gives a
 		!check for plane crossing and the correct sign 
@@ -1258,7 +1258,7 @@ subroutine mass_snapshot
 	volume_mass_temp = 0
 	do n = 1,np
 		!Add up current volume momentum densities
-		ibin(:) = ceiling((r(n,:)+halfdomain(:))/mbinsize(:)) + 1
+		ibin(:) = ceiling((r(n,:)+halfdomain(:))/mbinsize(:)) + nhb
 		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = volume_mass_temp(ibin(1),ibin(2),ibin(3)) + 1
 	enddo
 
@@ -1383,8 +1383,8 @@ subroutine cumulative_momentum_flux(ixyz)
 			where (ri12 .eq. 0.d0) ri12 = 0.000001d0
 
 			!Assign to bins before and after using integer division
-			ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:))+1
-			ibin2(:) = ceiling((ri2+halfdomain(:))/mbinsize(:))+1
+			ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:)) + nhb
+			ibin2(:) = ceiling((ri2+halfdomain(:))/mbinsize(:)) + nhb
 
 			!Replace Signum function with this functions which gives a
 			!check for plane crossing and the correct sign 
@@ -1530,7 +1530,7 @@ subroutine momentum_snapshot
 	volume_momentum_temp = 0.d0
 	do n = 1,np
 		!Add up current volume momentum densities
-		ibin(:) = ceiling((r(n,:)+halfdomain(:))/mbinsize(:)) + 1
+		ibin(:) = ceiling((r(n,:)+halfdomain(:))/mbinsize(:)) + nhb
 		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = volume_mass_temp(ibin(1),ibin(2),ibin(3)) + 1
 		volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) = volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) + v(n,:)
 	enddo
@@ -1651,8 +1651,8 @@ subroutine cumulative_energy_flux(ixyz)
 			where (ri12 .eq. 0.d0) ri12 = 0.000001d0
 
 			!Assign to bins before and after using integer division
-			ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:))+1
-			ibin2(:) = ceiling((ri2+halfdomain(:))/mbinsize(:))+1
+			ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:)) + nhb
+			ibin2(:) = ceiling((ri2+halfdomain(:))/mbinsize(:)) + nhb
 
 			!Replace Signum function with this functions which gives a
 			!check for plane crossing and the correct sign 
@@ -1792,7 +1792,7 @@ subroutine energy_snapshot
 	volume_energy_temp = 0.d0
 	do n = 1,np
 		!Add up current volume momentum densities
-		ibin(:) = ceiling((r(n,:)+halfdomain(:))/mbinsize(:)) + 1
+		ibin(:) = ceiling((r(n,:)+halfdomain(:))/mbinsize(:)) + nhb
 		velvect(:) = v(n,:) + 0.5d0*a(n,:)*delta_t
 		energy = 0.5d0 * (dot_product(velvect,velvect) + potenergymol(n))
 		volume_energy_temp(ibin(1),ibin(2),ibin(3)) = volume_energy_temp(ibin(1),ibin(2),ibin(3)) + energy
@@ -2411,8 +2411,8 @@ implicit none
 	Fbinsize(:) = domain(:) / nbins(:)
 
 	!Assign to bins using integer division
-	ibin(:) = ceiling((ri(:)+halfdomain(:))/Fbinsize(:))+1	!Establish current bin
-	jbin(:) = ceiling((rj(:)+halfdomain(:))/Fbinsize(:))+1 	!Establish current bin
+	ibin(:) = ceiling((ri(:)+halfdomain(:))/Fbinsize(:)) + nhb	!Establish current bin
+	jbin(:) = ceiling((rj(:)+halfdomain(:))/Fbinsize(:)) + nhb 	!Establish current bin
 
 	crossplane(:) =  dble(ibin(:)-jbin(:))
 
@@ -2470,8 +2470,8 @@ implicit none
 	Fbinsize(:) = domain(:) / nbins(:)
 
 	!Assign to bins using integer division
-	ibin(:) = ceiling((ri(:)+halfdomain(:))/Fbinsize(:))+1	!Establish current bin
-	jbin(:) = ceiling((rj(:)+halfdomain(:))/Fbinsize(:))+1 	!Establish current bin
+	ibin(:) = ceiling((ri(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
+	jbin(:) = ceiling((rj(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
 
 	do i = ibin(1),jbin(1),sign(1,jbin(1)-ibin(1))
 	do j = ibin(2),jbin(2),sign(1,jbin(2)-ibin(2))

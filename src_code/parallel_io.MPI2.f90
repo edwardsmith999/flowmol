@@ -1475,18 +1475,57 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 	use calculated_properties_MD
 	implicit none
 
-	integer				:: m,nresults
-	integer				:: CV_mass_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
-	character(4)		:: io_type
-	character(30)		:: filename, outfile
+	integer									:: m,nresults,nresultscell,icell,jcell,kcell,ibin,jbin,kbin,n
+	integer									:: CV_mass_out(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3))
+	integer,dimension(:,:,:,:),allocatable	:: buf
+	character(4)							:: io_type
+	character(30)							:: filename, outfile
+
+	print*,1+nhb(1),nbins(1)+nhb(1),1+nhb(2),nbins(2)+nhb(2),1+nhb(3),nbins(3)+nhb(3), sum(CV_mass_out)
+	print*, sum(CV_mass_out(1+nhb(1):nbins(1)+nhb(1),1+nhb(2):nbins(2)+nhb(2),1+nhb(3):nbins(3)+nhb(3))) 
 
 	!Work out correct filename for i/o type
 	write(filename, '(a9,a4)' ) 'results/m', io_type
 	outfile = trim(prefix_dir)//filename
 
-	!Include halo surface fluxes to get correct values for all cells
+	!Swap halo surface fluxes to get correct values for all cells
 	nresults = 1
-	call iswaphalos(CV_mass_out,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults)
+	nresultscell = nresults * nhb(1) * nhb(2) * nhb(3) 
+	allocate(buf(ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell))
+	!Load bin data into array of sizes ncells to pass efficiently
+	do icell = 1,ncells(1)+2
+	do jcell = 1,ncells(2)+2
+	do kcell = 1,ncells(3)+2
+		do ibin = 1,nhb(1)
+		do jbin = 1,nhb(2)
+		do kbin = 1,nhb(3)
+			n = ibin + (jbin-1)*nhb(1) + (kbin-1)*nhb(1)*nhb(2)
+			buf(icell,jcell,kcell,n) = CV_mass_out((icell-1)*nhb(1)+ibin,(jcell-1)*nhb(2)+jbin,(kcell-1)*nhb(3)+kbin)
+			!print'(10i8)', icell,jcell,kcell,ibin,jbin,kbin,(icell-1)*nhb(1)+ibin,(jcell-1)*nhb(2)+jbin,(kcell-1)*nhb(3)+kbin,n
+		enddo
+		enddo
+		enddo
+	enddo
+	enddo
+	enddo
+
+	call iswaphalos(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell)
+
+	do icell = 1,ncells(1)+2
+	do jcell = 1,ncells(2)+2
+	do kcell = 1,ncells(3)+2
+		do ibin = 1,nhb(1)
+		do jbin = 1,nhb(2)
+		do kbin = 1,nhb(3)
+			n = ibin + (jbin-1)*nhb(1) + (kbin-1)*nhb(1)*nhb(2)
+			CV_mass_out((icell-1)*nhb(1)+ibin,(jcell-1)*nhb(2)+jbin,(kcell-1)*nhb(3)+kbin) = buf(icell,jcell,kcell,n) 
+			!print'(10i8)', icell,jcell,kcell,ibin,jbin,kbin,(icell-1)*nhb(1)+ibin,(jcell-1)*nhb(2)+jbin,(kcell-1)*nhb(3)+kbin,n
+		enddo
+		enddo
+		enddo
+	enddo
+	enddo
+	enddo
 
 	!Calculate record number timestep
 	if (io_type .eq. 'snap') then
@@ -1503,7 +1542,7 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 	endif
 
 	!Write mass to file
-	call iwrite_arrays(CV_mass_out,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,outfile,m)
+	call iwrite_arrays(CV_mass_out,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults,outfile,m)
 
 end subroutine mass_bin_io
 
@@ -1606,8 +1645,8 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 	write(filename, '(a9,a4)' ) 'results/v', io_type
 	outfile = trim(prefix_dir)//filename
 
-	nresults = nd
 	! Swap Halos
+	nresults = nd
 	call rswaphalos(CV_momentum_out,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults)
 
 	!Setup arrays
@@ -2321,7 +2360,8 @@ subroutine iwrite_arrays(some_array,nx,ny,nz,nresults,outfile,outstep)
 
 	do n =1,nresults
 		!Copy to outbuffer
-		OutBuffer =  some_array(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,n)
+		!print*, n,1+nhb(1),nbins(1)+nhb(1),1+nhb(2),nbins(2)+nhb(2),1+nhb(3),nbins(3)+nhb(3)
+		OutBuffer =  some_array(1+nhb(1):nbins(1)+nhb(1),1+nhb(2):nbins(2)+nhb(2),1+nhb(3):nbins(3)+nhb(3),n)
 		!Update array datatype and reset fileview to correct section of array
 		CALL Create_commit_fileview(gsizes,lsizes,global_indices,offset,datatype,FILE_FLAG,filetype,fh)
 		!Update local array datatype to ignore halo cells
@@ -2400,7 +2440,7 @@ subroutine rwrite_arrays(some_array,nx,ny,nz,nresults,outfile,outstep)
 
 	do n =1,nresults
 		!Copy to outbuffer
-		OutBuffer =  some_array(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,n)
+		OutBuffer =  some_array(1+nhb(1):nbins(1)+nhb(1),1+nhb(2):nbins(2)+nhb(2),1+nhb(3):nbins(3)+nhb(3),n)
 		!print*,irank, n, OutBuffer(5,5,5),global_cnt,offset
 		!Update array datatype and reset fileview to correct section of array
 		CALL Create_commit_fileview(gsizes,lsizes,global_indices,offset,datatype,FILE_FLAG,filetype,fh)
