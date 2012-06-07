@@ -91,12 +91,13 @@ case(2)
 
         %Write a sequence of frames to a compressed AVI file, couette.avi:
         % Prepare the new file.
-        vidObj = VideoWriter('./shockplot.avi');
-        vidObj.FrameRate = 2;
-        open(vidObj);
+        %vidObj = VideoWriter('./shockplot.avi');
+        %vidObj.FrameRate = 2;
+        %open(vidObj);
 
         %resultfile_dir = './../results';
-        resultfile_dir = '/home/es205/results/md_results/fortran/3D_code/parallel/code/shock_wave/MD_dCSE/src_code/results/';
+        resultfile_dir = '/home/es205/codes/shockwave_code/results';
+        %resultfile_dir = '/home/es205/results/md_results/fortran/3D_code/parallel/code/shock_wave/MD_dCSE/src_code/results/';
         %resultfile_dir = '/home/es205/results/md_results/fortran/3D_code/parallel/code/shock_wave/MD_dCSE/src_code/results/ensemble/run_of_50';
 
         read_header
@@ -120,7 +121,7 @@ case(2)
         win_sze = 10;
         win_srt = 10;
         Wave_average = zeros(win_sze+1,5);
-        for i =1:5:(Nsteps)/tplot-5
+        for i =110:5:360%(Nsteps)/tplot-5
             i
 
             g(1)=subplot(6,1,1);
@@ -135,19 +136,19 @@ case(2)
                 if(i>=100 && i<=999)
                    filename = strcat('/home/es205/results/md_results/fortran/3D_code/parallel/code/shock_wave/MD_dCSE/src_code/results/ensemble/run_of_50/untitled.0',num2str(i),'.ppm');
                 end
-                A = imread(filename);
-                B = A(30:220,40:1400);
-                %BW = im2bw(A(30:220,40:1400),0.01);
-                %imshow(BW,'Parent', g(1))
-                image(B); colormap(gray); 
-                set(gca,'xtick',[])
+%                 A = imread(filename);
+%                 B = A(30:220,40:1400);
+%                 %BW = im2bw(A(30:220,40:1400),0.01);
+%                 %imshow(BW,'Parent', g(1))
+%                 image(B); colormap(gray); 
+%                 set(gca,'xtick',[])
 
             g(2)=subplot(6,1,2);
                 xaxis = (1:gnbins)*xaxis_scale;
                 plot(xaxis,(mean(mean(mass_snapshot(:,:,:,i+1),2),3)/binvol)/rho_0)
                 hold all
                 plot(xaxis,mean(mean(mass_bins(:,:,:,i),2),3)/(binvol)/rho_0,'--')   
-                axis([0 max(xaxis) 0.8 1.5])
+                axis([0 max(xaxis) 0.8 1.2])
                 xaxis = (0.5:gnbins+0.5)*xaxis_scale;
                 gridxy(xaxis,'LineStyle',':')
                 xlabel('x'); ylabel('\rho / \rho_0'); 
@@ -162,7 +163,7 @@ case(2)
                 dmassdt(:,:,:,i) = mass_snapshot(:,:,:,i+1) - mass_snapshot(:,:,:,i);
                 plot(xaxis,sum(sum(dmassdt(:,:,:,i),2),3),'b--')
                 xlabel('x'); ylabel('d\rho /dt ','Interpreter','tex'); 
-                axis([0 max(xaxis) -5 5])
+                axis([0 max(xaxis) -2 2])
                 xaxis = (0.5:gnbins+0.5)*xaxis_scale;
                 gridxy(xaxis,'LineStyle',':')
                 hold off
@@ -177,12 +178,12 @@ case(2)
                 xaxis = (0.5:gnbins(1)-0.5)*xaxis_scale;
                 plot(xaxis,mean(sum(sum(mass_flux(:,:,:,1,i),2),3)/(0.1*Nvflux_ave),5))
                 %plot(mean(mean(v_bins(:,:,:,1,i),2),3))
-                uin = 1.8; % max(mean(mean(velocity_snapshot_t(:,:,:,1),2),3));
+                uin = 0.5; % max(mean(mean(velocity_snapshot_t(:,:,:,1),2),3));
                 uout =0.0;
-                [u_analy,dudt_analy] = burger_analy(uout,uin,2.7,xaxis,(i)*delta_t*tplot*sigmatoA,-7,'2nd');
+                [u_analy,dudt_analy] = burger_analy(uout,uin,2.7,xaxis,(i)*delta_t*tplot*sigmatoA,0,'2nd');
                 %vu = burgers_solution ( 2.5, size(xaxis), xaxis, 10, 0:8);
-                plot(xaxis,u_analy,'k')%*(max(mean(mean(velocity_snapshot_t(:,:,:,1),2),3))/uin))
-                axis([0 max(xaxis) -0.1 2.1])
+                %plot(xaxis,u_analy,'k')%*(max(mean(mean(velocity_snapshot_t(:,:,:,1),2),3))/uin))
+                axis([0 max(xaxis) -0.1 0.5])
                 legend('MD velocity','Burgers eqn')
                 xaxis = (0.5:gnbins+0.5)*xaxis_scale;
                 gridxy(xaxis,'LineStyle',':')
@@ -209,7 +210,7 @@ case(2)
                 legend('configurational','kinetic')
                 %axis([0 max(xaxis) min(mean(mean(pressure_surface_t(:,:,:,1,4),2),3))*MDPressuretoPa*Pa2kbar ...
                 %                   max(mean(mean(pressure_surface_t(:,:,:,1,4),2),3))*MDPressuretoPa*Pa2kbar    ])
-                axis([0 max(xaxis) 0 0.9 ])
+                %axis([0 max(xaxis) 0 0.9 ])
                 xaxis = (1.0:gnbins(1)+1)*xaxis_scale;
                 gridxy(xaxis,'LineStyle',':')
                 xlabel('x'); ylabel('\Pi'); 
@@ -243,10 +244,10 @@ case(2)
                  sum(Error(10:90))
 
 
-                 plot(xaxis,squeeze(sum(sum((totalpressure(:,:,:,1)-totalflux(:,:,:,1)),2),3)),'r')
+                 plot(xaxis,0.1*squeeze(sum(sum((totalpressure(:,:,:,1)-totalflux(:,:,:,1)),2),3)),'r')
                  hold all
                  plot(xaxis,squeeze(sum(sum(   dvelocitydt(:,:,:,1),2),3)),'b--')
-                 plot(xaxis,-dudt_analy*400,'k')%*(max(mean(mean(velocity_snapshot_t(:,:,:,1),2),3))/uin))
+                 %plot(xaxis,-dudt_analy*400,'k')%*(max(mean(mean(velocity_snapshot_t(:,:,:,1),2),3))/uin))
 
                     
                 %disp(strcat(' iter= ',num2str(i), ...
@@ -257,7 +258,7 @@ case(2)
                  %plot(squeeze(sum(sum((totalpressure(:,:,:,1) ...
                  %                       -  totalflux(:,:,:,1) ...
                  %                       -dvelocitydt(:,:,:,1)),2),3)),'r')
-                 axis([0 max(xaxis) -0.1 20.0])
+                 axis([0 max(xaxis) -0.1 0.2])
                  xaxis = (0.5:gnbins+0.5)*xaxis_scale;
                  gridxy(xaxis,'LineStyle',':')
                  xlabel('x'); ylabel('d (\rho u_x) / dt');
@@ -301,13 +302,13 @@ case(2)
             drawnow
              
 
-            if (mod(i,50))
-                savefig(strcat('shock',num2str(i)),'png')
-            end
+            %if (mod(i,50))
+                savefig(strcat('shock',num2str(i)),'eps')
+            %end
 
             %Store pictures and videos
-            currFrame = getframe(gcf);
-            writeVideo(vidObj,currFrame);
+            %currFrame = getframe(gcf);
+            %writeVideo(vidObj,currFrame);
            
 %             [energy_snapshot_t,energy_flux_t,energy_surface_t] = ...
 %                 read_eflux(i,'./../results',gnbins);
@@ -324,7 +325,7 @@ case(2)
         end
 
     % Close the file.
-    close(vidObj)
+    %close(vidObj)
 
         
 end

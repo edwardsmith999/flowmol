@@ -108,7 +108,7 @@ module computational_constants_MD
 	integer									:: nsurfacebins     !Number of surface bins
 	integer,allocatable,dimension(:,:)	    :: surfacebins		!Surface Bins
 
-	integer		 							:: nhalobins !Number of halo bins
+	integer		 							:: nhalobins 	!Number of halo bins
 	integer,allocatable,dimension(:,:)	    :: halobins		!halo Bins
 
 	!Number and size of unit used for initial setup of molecules (i.e. FCC unit)
@@ -136,6 +136,8 @@ module computational_constants_MD
 
  	!Set number of halos
 	integer, parameter :: nh = 1
+	integer, dimension(3) :: nhb
+
 
 	!Number of cells per processor
 	integer ncellxl, ncellyl, ncellzl    !Inc Halos

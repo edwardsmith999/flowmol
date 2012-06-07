@@ -442,7 +442,16 @@ subroutine get_file_size(filename,file_size)
 	!file_size = SArray(8)
 
 end subroutine
-
+!--------------------------------------------------------------------------------------
+!Write matrix in correct format
+subroutine write_matrix(a)
+  real, dimension(:,:) :: a
+  write(*,*)
+  do i = lbound(a,1), ubound(a,1)
+     write(*,*) (a(i,j), j = lbound(a,2), ubound(a,2))
+  end do
+  end subroutine write_matrix
+!--------------------------------------------------------------------------------------
 REAL FUNCTION random_normal()
 
 	! Adapted from the following Fortran 77 code

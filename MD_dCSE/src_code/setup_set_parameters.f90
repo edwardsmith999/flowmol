@@ -612,7 +612,7 @@ subroutine set_parameters_outputs
  	gnbins(2) = npy*ncells(2) !Total number of domain bins
 	gnbins(3) = npz*ncells(3) !Total number of domain bins
 
-	nbins(1) = nint(gnbins(1)/dble(npx))	!Share global evenly between processes
+	nbins(1) = 2*nint(gnbins(1)/dble(npx))	!Share global evenly between processes
 	nbins(2) = nint(gnbins(2)/dble(npy))	!Share global evenly between processes
 	nbins(3) = nint(gnbins(3)/dble(npz))	!Share global evenly between processes
 
@@ -623,6 +623,9 @@ subroutine set_parameters_outputs
 	call SubcommSum(gnbins(1),1)	!Sum up over all x processes
 	call SubcommSum(gnbins(2),2)	!Sum up over all y processes
 	call SubcommSum(gnbins(3),3)	!Sum up over all z processes
+
+	!Calculate number of halo bins from ratio of cells to bins
+	nhb = nbins/ncells
 
 	!nbins(1) = ceiling(np/10.d0)    	!Set number of equal sized velocity ranges based on 1/10 number of molecules
 	allocate(vfd_bin(nbins(1)))           	!Allocate storage space for frequency tally over time
@@ -666,13 +669,13 @@ subroutine set_parameters_outputs
 
 	!Allocated bins for velocity averaging
 	if (velocity_outflag.eq.4) then
-		allocate(volume_momentum(nbins(1)+2,nbins(2)+2,nbins(3)+2,3  ))
-		allocate(volume_mass(nbins(1)+2,nbins(2)+2,nbins(3)+2  ))
+		allocate(volume_momentum(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),3  ))
+		allocate(volume_mass(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3)  ))
 		volume_momentum = 0.d0
 		volume_mass = 0
 	else
 		if (mass_outflag.eq.4) then
-			allocate(volume_mass(nbins(1)+2,nbins(2)+2,nbins(3)+2  ))
+			allocate(volume_mass(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3)  ))
 			volume_mass = 0
 		endif
 	endif
@@ -689,20 +692,20 @@ subroutine set_parameters_outputs
 	Pxyzero = 0.d0
 
 	!Allocate pressure bin for Stress volume averaging
-	allocate( rfbin(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,3))
+	allocate( rfbin(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),3,3))
 	allocate( vvbin(nbins(1),  nbins(2),  nbins(3),3,3  ))
 	allocate( Pxybin(nbins(1),  nbins(2),  nbins(3),3,3  ))
 	rfbin  = 0.d0
 	Pxybin = 0.d0
 
 	if (temperature_outflag .eq. 4) then
-		allocate(volume_temperature(nbins(1)+2,nbins(2)+2,nbins(3)+2))
+		allocate(volume_temperature(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3)))
 		volume_temperature = 0.d0
 	endif
 
 	!Allocate bins for control volume energy fluxes and forces*velocity
-	allocate(  energy_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,6))
-	allocate( Pxyvface(nbins(1)+2,nbins(2)+2,nbins(3)+2,6))
+	allocate(  energy_flux(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),6))
+	allocate( Pxyvface(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),6))
 	energy_flux 	= 0.d0
 
 	!Allocated Bins for Nose Hoover Stress Control
@@ -756,24 +759,24 @@ subroutine set_parameters_outputs
 				planes(n) = planespacing*(n-1) + shift - halfdomain(3)
 			enddo
 		case(4)
-			if (.not.(allocated(volume_mass))) 	allocate(volume_momentum(nbins(1)+2,nbins(2)+2,nbins(3)+2,3  ))
-			allocate( Pxyface(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
-			allocate(  momentum_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
-			allocate(   volume_force(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,2))
+			if (.not.(allocated(volume_mass))) 	allocate(volume_momentum(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),3  ))
+			allocate( Pxyface(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),3,6))
+			allocate(  momentum_flux(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),3,6))
+			allocate(   volume_force(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),3,2))
 			momentum_flux 	= 0.d0
 			volume_momentum = 0.d0
 			volume_force 	= 0.d0
 			!Allocate bins for control volume mass fluxes
-			if (.not.(allocated(volume_mass)))  allocate(volume_mass(nbins(1)+2,nbins(2)+2,nbins(3)+2  ))
-			allocate(  mass_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,6))
+			if (.not.(allocated(volume_mass)))  allocate(volume_mass(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3)  ))
+			allocate(  mass_flux(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),6))
 			volume_mass = 0
 			mass_flux   = 0
 		case default
 			!Allocate bins for control volume mass fluxes
 			if (mflux_outflag .eq. 1) then
 				if (.not. allocated(volume_mass)) &
-				allocate(volume_mass(nbins(1)+2,nbins(2)+2,nbins(3)+2  ))
-				allocate(  mass_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,6))
+				allocate(volume_mass(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3)  ))
+				allocate(  mass_flux(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),6))
 				volume_mass = 0
 				mass_flux   = 0
 			endif
@@ -805,25 +808,25 @@ subroutine establish_surface_bins
 	integer		:: n
 	integer		:: icell, jcell, kcell
 
-	nsurfacebins=	2*( nbins(1)   * nbins(2) &
-					+  (nbins(3)-2)* nbins(2) &
-		        	+  (nbins(3)-2)*(nbins(1)-2))
+	nsurfacebins=	2*( ncells(1)   * ncells(2) &
+					+  (ncells(3)-2)* ncells(2) &
+		        	+  (ncells(3)-2)*(ncells(1)-2))
 
 	allocate(surfacebins(nsurfacebins,3))
 
 	n = 1
-	do kcell=1, nbins(3)+2
-	do jcell=1, nbins(2)+2
-	do icell=1, nbins(1)+2
+	do kcell=1, ncells(3)+2
+	do jcell=1, ncells(2)+2
+	do icell=1, ncells(1)+2
 
 		!Remove inner part of domain
-		if((icell .gt. (2) .and. icell .lt. (nbins(1)+1)) .and. &
-		   (jcell .gt. (2) .and. jcell .lt. (nbins(2)+1)) .and. &
-		   (kcell .gt. (2) .and. kcell .lt. (nbins(3)+1))) cycle
+		if((icell .gt. (2) .and. icell .lt. (ncells(1)+1)) .and. &
+		   (jcell .gt. (2) .and. jcell .lt. (ncells(2)+1)) .and. &
+		   (kcell .gt. (2) .and. kcell .lt. (ncells(3)+1))) cycle
 		!Remove outer cells leaving only 1 layer of surface cells
-		if((icell .lt. (2) .or. icell .gt. (nbins(1)+1)) .or. &
-		   (jcell .lt. (2) .or. jcell .gt. (nbins(2)+1)) .or. &
-		   (kcell .lt. (2) .or. kcell .gt. (nbins(3)+1))) cycle
+		if((icell .lt. (2) .or. icell .gt. (ncells(1)+1)) .or. &
+		   (jcell .lt. (2) .or. jcell .gt. (ncells(2)+1)) .or. &
+		   (kcell .lt. (2) .or. kcell .gt. (ncells(3)+1))) cycle
 
 		surfacebins(n,1)=icell
 		surfacebins(n,2)=jcell
@@ -853,14 +856,14 @@ subroutine establish_halo_bins
 	allocate(halobins(nhalobins,3))
 
 	n = 1
-	do kcell=1, nbins(3)+2
-	do jcell=1, nbins(2)+2
-	do icell=1, nbins(1)+2
+	do kcell=1, ncells(3)+2
+	do jcell=1, ncells(2)+2
+	do icell=1, ncells(1)+2
 
 		!Remove inner part of domain
-		if((icell .gt. (1) .and. icell .lt. (nbins(1)+2)) .and. &
-		   (jcell .gt. (1) .and. jcell .lt. (nbins(2)+2)) .and. &
-		   (kcell .gt. (1) .and. kcell .lt. (nbins(3)+2))) cycle
+		if((icell .gt. (1) .and. icell .lt. (ncells(1)+2)) .and. &
+		   (jcell .gt. (1) .and. jcell .lt. (ncells(2)+2)) .and. &
+		   (kcell .gt. (1) .and. kcell .lt. (ncells(3)+2))) cycle
 
 		halobins(n,1)=icell
 		halobins(n,2)=jcell
