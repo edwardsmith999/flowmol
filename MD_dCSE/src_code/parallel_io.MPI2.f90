@@ -42,6 +42,7 @@ module module_parallel_io
 	use calculated_properties_MD
 	use messenger, only : MD_COMM
 	use interfaces
+	implicit none
 
 	integer		:: restartfileid, fileid, fileidtrue !File name used for parallel i/o
 
@@ -1244,12 +1245,9 @@ subroutine parallel_io_vmd_sl
 
 	!-------------Write X coordinates--------------------
 		
-	!Obtain location to write in file
-	!disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
-	!	+ procdisp				  	!Processor location
-
 	!If intervals set to zero then full simulation recorded
 	if (Nvmd_intervals.eq.0) then
+		!Obtain location to write in file
 		disp =((iter-initialstep+1)/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
 			+ procdisp	
 	else
@@ -1267,13 +1265,9 @@ subroutine parallel_io_vmd_sl
 
 	!-------------Write Y coordinates--------------------
 
-	!Obtain location to write in file
-	!disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
-	!	+ procdisp &				  	!Processor location
-	!	+ globalnp * datasize			  	!Y Coordinate location
-
 	!If intervals set to zero then full simulation recorded
 	if (Nvmd_intervals.eq.0) then
+		!Obtain location to write in file
 		disp =((iter-initialstep+1)/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
 			+ procdisp	&
 			+ globalnp * datasize			  	!Y Coordinate location
@@ -1293,13 +1287,9 @@ subroutine parallel_io_vmd_sl
 
 	!-------------Write Z coordinates--------------------
 
-	!Obtain location to write in file
-	!disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
-	!	+ procdisp &				  	!Processor location
-	!	+ 2 * globalnp * datasize		  	!Z Coordinate location
-
 	!If intervals set to zero then full simulation recorded
 	if (Nvmd_intervals.eq.0) then
+		!Obtain location to write in file
 		disp =((iter-initialstep+1)/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
 				+ procdisp	&
 				+ 2 * globalnp * datasize			  	!Z Coordinate location
@@ -1364,12 +1354,9 @@ subroutine parallel_io_vmd_optimised
 
 	!-------------Write XYZ coordinates--------------------
 
-	!Obtain location to write in file
-	!disp =(iter/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
-	!	+ procdisp				  	!Processor location
-
 	!If intervals set to zero then full simulation recorded
 	if (Nvmd_intervals.eq.0) then
+		!Obtain location to write in file
 		disp =((iter-initialstep+1)/real((tplot),kind(0.d0))-1)*nd*globalnp*datasize & !Current iteration
 			+ procdisp
 	else
@@ -1475,14 +1462,11 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 	use calculated_properties_MD
 	implicit none
 
-	integer									:: m,nresults,nresultscell,icell,jcell,kcell,ibin,jbin,kbin,n
-	integer									:: CV_mass_out(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3))
-	integer,dimension(:,:,:,:),allocatable	:: buf
-	character(4)							:: io_type
-	character(30)							:: filename, outfile
+	integer,intent(in)						:: CV_mass_out(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3))
+	character(4),intent(in)					:: io_type
 
-	print*,1+nhb(1),nbins(1)+nhb(1),1+nhb(2),nbins(2)+nhb(2),1+nhb(3),nbins(3)+nhb(3), sum(CV_mass_out)
-	print*, sum(CV_mass_out(1+nhb(1):nbins(1)+nhb(1),1+nhb(2):nbins(2)+nhb(2),1+nhb(3):nbins(3)+nhb(3))) 
+	integer									:: m,nresults,icell,jcell,kcell,ibin,jbin,kbin,n
+	character(30)							:: filename, outfile
 
 	!Work out correct filename for i/o type
 	write(filename, '(a9,a4)' ) 'results/m', io_type
@@ -1490,42 +1474,7 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 
 	!Swap halo surface fluxes to get correct values for all cells
 	nresults = 1
-	nresultscell = nresults * nhb(1) * nhb(2) * nhb(3) 
-	allocate(buf(ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell))
-	!Load bin data into array of sizes ncells to pass efficiently
-	do icell = 1,ncells(1)+2
-	do jcell = 1,ncells(2)+2
-	do kcell = 1,ncells(3)+2
-		do ibin = 1,nhb(1)
-		do jbin = 1,nhb(2)
-		do kbin = 1,nhb(3)
-			n = ibin + (jbin-1)*nhb(1) + (kbin-1)*nhb(1)*nhb(2)
-			buf(icell,jcell,kcell,n) = CV_mass_out((icell-1)*nhb(1)+ibin,(jcell-1)*nhb(2)+jbin,(kcell-1)*nhb(3)+kbin)
-			!print'(10i8)', icell,jcell,kcell,ibin,jbin,kbin,(icell-1)*nhb(1)+ibin,(jcell-1)*nhb(2)+jbin,(kcell-1)*nhb(3)+kbin,n
-		enddo
-		enddo
-		enddo
-	enddo
-	enddo
-	enddo
-
-	call iswaphalos(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell)
-
-	do icell = 1,ncells(1)+2
-	do jcell = 1,ncells(2)+2
-	do kcell = 1,ncells(3)+2
-		do ibin = 1,nhb(1)
-		do jbin = 1,nhb(2)
-		do kbin = 1,nhb(3)
-			n = ibin + (jbin-1)*nhb(1) + (kbin-1)*nhb(1)*nhb(2)
-			CV_mass_out((icell-1)*nhb(1)+ibin,(jcell-1)*nhb(2)+jbin,(kcell-1)*nhb(3)+kbin) = buf(icell,jcell,kcell,n) 
-			!print'(10i8)', icell,jcell,kcell,ibin,jbin,kbin,(icell-1)*nhb(1)+ibin,(jcell-1)*nhb(2)+jbin,(kcell-1)*nhb(3)+kbin,n
-		enddo
-		enddo
-		enddo
-	enddo
-	enddo
-	enddo
+	call iswaphalos(CV_mass_out,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults)
 
 	!Calculate record number timestep
 	if (io_type .eq. 'snap') then
@@ -1919,10 +1868,15 @@ subroutine mass_flux_io
 	implicit none
 
 	integer				:: i,j,k,n,m,nresults
+	character(30)		:: filename, outfile
+
+	!Work out correct filename for i/o type
+	filename='results/mflux'
+	outfile = trim(prefix_dir)//filename
 
 	!Include halo surface fluxes to get correct values for all cells
 	nresults = 6
-	call iswaphalos(mass_flux,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults)
+	call iswaphalos(mass_flux,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults)
 
 	!Calculate record number timestep
 	select case(CV_conserve)
@@ -1935,7 +1889,8 @@ subroutine mass_flux_io
 	end select
 
 	!Write mass to file
-	call iwrite_arrays(mass_flux,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,trim(prefix_dir)//'results/mflux',m)
+	call iwrite_arrays(mass_flux,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults,outfile,m)
+	!call iwrite_arrays(mass_flux,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,trim(prefix_dir)//'results/mflux',m)
 
 end subroutine mass_flux_io
 

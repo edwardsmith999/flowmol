@@ -1990,37 +1990,151 @@ end
 !			Bin averaged handling subroutines        	            =
 !======================================================================
 
+
 !Swap halos of bins between processors
+module pack_unpack_bins
+	implicit none
 
+	!Packs bins into cells to be used with both integers and reals
+	!interface pack_bins_into_cells
+	!	subroutine ipack_bins_into_cells(bins,cells)
+	!		integer,dimension(:,:,:)	:: bins
+	!		integer,dimension(:,:,:,:)	:: cells
+	!	end subroutine ipack_bins_into_cells
 
+	!	subroutine rpack_bins_into_cells(bins,cells)
+	!		double precision,dimension(:,:,:),  intent(in)	:: bins
+	!		double precision,dimension(:,:,:,:),intent(out)	:: cells
+	!	end subroutine rpack_bins_into_cells
+	!end interface pack_bins_into_cells
+
+	!Unpacks cells into bins to be used with both integers and reals
+	!interface unpack_cells_into_bins
+	!	subroutine iunpack_cells_into_bins(cells,bins)
+	!		integer,dimension(:,:,:)	:: bins
+	!		integer,dimension(:,:,:,:)	:: cells
+	!	end subroutine iunpack_cells_into_bins
+
+	!	subroutine runpack_cells_into_bins(cells,bins)
+	!		double precision,dimension(:,:,:),  intent(out)	:: bins
+	!		double precision,dimension(:,:,:,:),intent(in)	:: cells
+	!	end subroutine runpack_cells_into_bins
+	!end interface unpack_cells_into_bins
+
+contains
+
+!Pack bin data into array of sizes ncells to pass efficiently
+subroutine ipack_bins_into_cells(cells,bins,nresults)
+	use computational_constants_MD, only : ncells, nhb
+	implicit none
+
+	integer,intent(in)						:: nresults
+	integer,dimension(:,:,:,:),intent(in)	:: bins
+	integer,dimension(:,:,:,:),intent(out)	:: cells
+
+	integer									:: result,icell,jcell,kcell,ibin,jbin,kbin,n
+
+	do icell = 1,ncells(1)+2
+	do jcell = 1,ncells(2)+2
+	do kcell = 1,ncells(3)+2
+		do ibin = 1,nhb(1)
+		do jbin = 1,nhb(2)
+		do kbin = 1,nhb(3)
+			do result = 1,nresults
+				!n = ibin + (jbin-1)*nhb(1) + (kbin-1)*nhb(1)*nhb(2)
+				!n = result + ((ibin-1) + ((jbin-1) + (kbin-1)*nhb(2))*nhb(1))*nresults
+				n = result + (ibin-1)*nresults + (jbin-1)*nhb(1)*nresults + (kbin-1)*nhb(1)*nhb(2)*nresults
+				!print'(12i8)', result,icell,jcell,kcell,ibin,jbin,kbin, & 
+				!			   (icell-1)*nhb(1)+ibin,(jcell-1)*nhb(2)+jbin,(kcell-1)*nhb(3)+kbin,n, & 
+				!				ibin + (jbin-1)*nhb(1) + (kbin-1)*nhb(1)*nhb(2)
+				cells(icell,jcell,kcell,n) = bins((icell-1)*nhb(1)+ibin,(jcell-1)*nhb(2)+jbin,(kcell-1)*nhb(3)+kbin,result)
+			enddo
+
+		enddo
+		enddo
+		enddo
+	enddo
+	enddo
+	enddo
+
+end subroutine ipack_bins_into_cells
+
+!Unpack data from array of sizes ncells into bins 
+subroutine iunpack_cells_into_bins(bins,cells,nresults)
+	use computational_constants_MD, only : ncells, nhb
+	implicit none
+
+	integer,intent(in)						:: nresults
+	integer,dimension(:,:,:,:),intent(out)	:: bins
+	integer,dimension(:,:,:,:),intent(in)	:: cells
+
+	integer									:: result,icell,jcell,kcell,ibin,jbin,kbin,n
+
+	do icell = 1,ncells(1)+2
+	do jcell = 1,ncells(2)+2
+	do kcell = 1,ncells(3)+2
+		do ibin = 1,nhb(1)
+		do jbin = 1,nhb(2)
+		do kbin = 1,nhb(3)
+			do result = 1,nresults
+				!n = ibin + (jbin-1)*nhb(1) + (kbin-1)*nhb(1)*nhb(2)
+				n = result + (ibin-1)*nresults + (jbin-1)*nhb(1)*nresults + (kbin-1)*nhb(1)*nhb(2)*nresults
+				bins((icell-1)*nhb(1)+ibin,(jcell-1)*nhb(2)+jbin,(kcell-1)*nhb(3)+kbin,result) = cells(icell,jcell,kcell,n) 
+			enddo
+		enddo
+		enddo
+		enddo
+	enddo
+	enddo
+	enddo
+
+end subroutine iunpack_cells_into_bins
+
+end module pack_unpack_bins
 
 !integers
 subroutine iswaphalos(A,n1,n2,n3,nresults)
 	use messenger
 	use calculated_properties_MD
 	use librarymod, only : int_heaviside
+	use pack_unpack_bins
 	implicit none
 
 	integer,intent(in)			:: n1,n2,n3,nresults
 	integer,intent(inout)		:: A(n1,n2,n3,nresults)
 
-	integer		:: n,i,j,k,ic,jc,kc,buf(6)
+	integer									:: n,i,j,k,ic,jc,kc,nresultscell
+	integer,dimension(:,:,:,:),allocatable	:: buf
 
-	call iupdatefaces(A,n1,n2,n3,nresults,1)
-	call iupdatefaces(A,n1,n2,n3,nresults,2)
-	call iupdatefaces(A,n1,n2,n3,nresults,3)
+	!print'(a,6i8)','min and max bins in x,y and z', 1+nhb(1),nbins(1)+nhb(1),1+nhb(2),nbins(2)+nhb(2),1+nhb(3),nbins(3)+nhb(3)
+	!print'(2i10)','sum of all array and inner array only', & 
+	!		sum(A),sum(A(1+nhb(1):nbins(1)+nhb(1),1+nhb(2):nbins(2)+nhb(2),1+nhb(3):nbins(3)+nhb(3),1)) 
+
+	!Pack bins into array of cells
+	nresultscell = nresults * nhb(1) * nhb(2) * nhb(3) 
+	allocate(buf(ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell))
+	call ipack_bins_into_cells(buf,A,nresults)
+
+	!Exchange faces with adjacent processors
+	call iupdatefaces(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell,1)
+	call iupdatefaces(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell,2)
+	call iupdatefaces(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell,3)
 
 	!halo values to correct cells in array
 	do n = 1, nhalobins
 		i = halobins(n,1); j = halobins(n,2); k = halobins(n,3)
 
 		!Change in number of Molecules in halo cells
-		ic = i + int_heaviside(nbins(1)+1-i)-int_heaviside(i-2)
-		jc = j + int_heaviside(nbins(2)+1-j)-int_heaviside(j-2)
-		kc = k + int_heaviside(nbins(3)+1-k)-int_heaviside(k-2)
+		ic = i + int_heaviside(ncells(1)+1-i)-int_heaviside(i-2)
+		jc = j + int_heaviside(ncells(2)+1-j)-int_heaviside(j-2)
+		kc = k + int_heaviside(ncells(3)+1-k)-int_heaviside(k-2)
 
 		A(ic,jc,kc,:) = A(ic,jc,kc,:) + A(i,j,k,:)
 	enddo
+
+	!Unpack array of cells into bins
+	call iunpack_cells_into_bins(A,buf,nresults)
+	deallocate(buf)
 
 end subroutine iswaphalos
 
@@ -2110,7 +2224,6 @@ subroutine rswaphalos(A,n1,n2,n3,nresults)
 	double precision,intent(inout)		:: A(n1,n2,n3,nresults)
 
 	integer								:: n,i,j,k,ic,jc,kc
-	double precision					:: buf(18), buf2(n1,n2,n3,3,6)
 
 	call rupdatefaces(A,n1,n2,n3,nresults,1)
 	call rupdatefaces(A,n1,n2,n3,nresults,2)

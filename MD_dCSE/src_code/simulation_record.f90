@@ -1180,7 +1180,6 @@ subroutine mass_flux_averaging(ixyz)
 	sample_count = sample_count + 1
 	if (sample_count .eq. Nmflux_ave) then
 		call mass_flux_io
-		!call control_volume_mass_evolution
 		sample_count = 0
 		mass_flux = 0
 		call mass_snapshot
@@ -1252,7 +1251,7 @@ subroutine mass_snapshot
 	mbinsize(:) = domain(:) / nbins(:)
 
 	!Allocate temporary array for mass and momentum in volume
-	allocate(volume_mass_temp(nbins(1)+2,nbins(2)+2,nbins(3)+2))
+	allocate(volume_mass_temp(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3)))
 
 	!Reset Control Volume momentum 
 	volume_mass_temp = 0
@@ -1522,8 +1521,8 @@ subroutine momentum_snapshot
 	mbinsize(:) = domain(:) / nbins(:)
 
 	!Allocate temporary array for mass and momentum in volume
-	allocate(volume_mass_temp(nbins(1)+2,nbins(2)+2,nbins(3)+2))
-	allocate(volume_momentum_temp(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
+	allocate(volume_mass_temp(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3)))
+	allocate(volume_momentum_temp(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),3  ))
 
 	!Reset Control Volume momentum 
 	volume_mass_temp = 0
@@ -1786,7 +1785,7 @@ subroutine energy_snapshot
 	mbinsize(:) = domain(:) / nbins(:)
 
 	!Allocate temporary array for energy in volume
-	allocate(volume_energy_temp(nbins(1)+2,nbins(2)+2,nbins(3)+2))
+	allocate(volume_energy_temp(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3)))
 
 	!Reset Control Volume momentum 
 	volume_energy_temp = 0.d0
