@@ -451,6 +451,7 @@ subroutine write_matrix(a)
      write(*,*) (a(i,j), j = lbound(a,2), ubound(a,2))
   end do
   end subroutine write_matrix
+
 !--------------------------------------------------------------------------------------
 REAL FUNCTION random_normal()
 

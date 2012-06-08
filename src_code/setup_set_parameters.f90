@@ -612,7 +612,7 @@ subroutine set_parameters_outputs
  	gnbins(2) = npy*ncells(2) !Total number of domain bins
 	gnbins(3) = npz*ncells(3) !Total number of domain bins
 
-	nbins(1) = 2*nint(gnbins(1)/dble(npx))	!Share global evenly between processes
+	nbins(1) = nint(gnbins(1)/dble(npx))	!Share global evenly between processes
 	nbins(2) = nint(gnbins(2)/dble(npy))	!Share global evenly between processes
 	nbins(3) = nint(gnbins(3)/dble(npz))	!Share global evenly between processes
 
@@ -670,7 +670,7 @@ subroutine set_parameters_outputs
 	!Allocated bins for velocity averaging
 	if (velocity_outflag.eq.4) then
 		allocate(volume_momentum(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),3  ))
-		allocate(volume_mass(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3)  ))
+		allocate(volume_mass(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3)))
 		volume_momentum = 0.d0
 		volume_mass = 0
 	else

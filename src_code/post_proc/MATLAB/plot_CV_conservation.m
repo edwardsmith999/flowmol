@@ -18,7 +18,6 @@ display(strcat('Maximum error in CV mass conservation =', ...
    num2str(max(max(max(max(squeeze(totalmflux(:,:,:,:)) - squeeze(dmassdt(:,:,:,:))))))*...
            min(min(min(min(squeeze(totalmflux(:,:,:,:)) - squeeze(dmassdt(:,:,:,:))))))*100),'%'));
 
-sliceomatic(totalmflux(:,:,:,10)-dmassdt(:,:,:,10))
 
 
 %Temporal evolution of bin in centre of domain

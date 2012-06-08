@@ -31,13 +31,13 @@ interface SubcommSum
 
         subroutine SubcommSumInt(A, ixyz)
 
-                integer, intent(in) :: ixyz !Direction of sub-comm
+			integer, intent(in) :: ixyz !Direction of sub-comm
 	        integer	A
         end
     
         subroutine SubcommSumIntVect(A, na, ixyz)
 
-                integer, intent(in) :: na, ixyz !Direction of sub-comm
+			integer, intent(in) :: na, ixyz !Direction of sub-comm
          	integer	A(na)
         end
 
