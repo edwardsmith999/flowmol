@@ -1987,7 +1987,7 @@ end
 
 
 !======================================================================
-!			Bin averaged handling subroutines        	            =
+!			Bin averaged handling subroutines        	              =
 !======================================================================
 
 
@@ -2041,12 +2041,7 @@ subroutine ipack_bins_into_cells(cells,bins,nresults)
 		do jbin = 1,nhb(2)
 		do kbin = 1,nhb(3)
 			do result = 1,nresults
-				!n = ibin + (jbin-1)*nhb(1) + (kbin-1)*nhb(1)*nhb(2)
-				!n = result + ((ibin-1) + ((jbin-1) + (kbin-1)*nhb(2))*nhb(1))*nresults
 				n = result + (ibin-1)*nresults + (jbin-1)*nhb(1)*nresults + (kbin-1)*nhb(1)*nhb(2)*nresults
-				!print'(12i8)', result,icell,jcell,kcell,ibin,jbin,kbin, & 
-				!			   (icell-1)*nhb(1)+ibin,(jcell-1)*nhb(2)+jbin,(kcell-1)*nhb(3)+kbin,n, & 
-				!				ibin + (jbin-1)*nhb(1) + (kbin-1)*nhb(1)*nhb(2)
 				cells(icell,jcell,kcell,n) = bins((icell-1)*nhb(1)+ibin,(jcell-1)*nhb(2)+jbin,(kcell-1)*nhb(3)+kbin,result)
 			enddo
 
@@ -2077,7 +2072,6 @@ subroutine iunpack_cells_into_bins(bins,cells,nresults)
 		do jbin = 1,nhb(2)
 		do kbin = 1,nhb(3)
 			do result = 1,nresults
-				!n = ibin + (jbin-1)*nhb(1) + (kbin-1)*nhb(1)*nhb(2)
 				n = result + (ibin-1)*nresults + (jbin-1)*nhb(1)*nresults + (kbin-1)*nhb(1)*nhb(2)*nresults
 				bins((icell-1)*nhb(1)+ibin,(jcell-1)*nhb(2)+jbin,(kcell-1)*nhb(3)+kbin,result) = cells(icell,jcell,kcell,n) 
 			enddo
@@ -2090,9 +2084,77 @@ subroutine iunpack_cells_into_bins(bins,cells,nresults)
 
 end subroutine iunpack_cells_into_bins
 
+
+!Pack bin data into array of sizes ncells to pass efficiently
+subroutine rpack_bins_into_cells(cells,bins,nresults)
+	use computational_constants_MD, only : ncells, nhb
+	implicit none
+
+	integer,intent(in)								:: nresults
+	double precision,dimension(:,:,:,:),intent(in)	:: bins
+	double precision,dimension(:,:,:,:),intent(out)	:: cells
+
+	integer									:: result,icell,jcell,kcell,ibin,jbin,kbin,n
+
+	do icell = 1,ncells(1)+2
+	do jcell = 1,ncells(2)+2
+	do kcell = 1,ncells(3)+2
+		do ibin = 1,nhb(1)
+		do jbin = 1,nhb(2)
+		do kbin = 1,nhb(3)
+			do result = 1,nresults
+				!n = ibin + (jbin-1)*nhb(1) + (kbin-1)*nhb(1)*nhb(2)
+				!n = result + ((ibin-1) + ((jbin-1) + (kbin-1)*nhb(2))*nhb(1))*nresults
+				n = result + (ibin-1)*nresults + (jbin-1)*nhb(1)*nresults + (kbin-1)*nhb(1)*nhb(2)*nresults
+				!print'(12i8)', result,icell,jcell,kcell,ibin,jbin,kbin, & 
+				!			   (icell-1)*nhb(1)+ibin,(jcell-1)*nhb(2)+jbin,(kcell-1)*nhb(3)+kbin,n, & 
+				!				ibin + (jbin-1)*nhb(1) + (kbin-1)*nhb(1)*nhb(2)
+				cells(icell,jcell,kcell,n) = bins((icell-1)*nhb(1)+ibin,(jcell-1)*nhb(2)+jbin,(kcell-1)*nhb(3)+kbin,result)
+			enddo
+
+		enddo
+		enddo
+		enddo
+	enddo
+	enddo
+	enddo
+
+end subroutine rpack_bins_into_cells
+
+!Unpack data from array of sizes ncells into bins 
+subroutine runpack_cells_into_bins(bins,cells,nresults)
+	use computational_constants_MD, only : ncells, nhb
+	implicit none
+
+	integer,intent(in)								:: nresults
+	double precision,dimension(:,:,:,:),intent(out)	:: bins
+	double precision,dimension(:,:,:,:),intent(in)	:: cells
+
+	integer											:: result,icell,jcell,kcell,ibin,jbin,kbin,n
+
+	do icell = 1,ncells(1)+2
+	do jcell = 1,ncells(2)+2
+	do kcell = 1,ncells(3)+2
+		do ibin = 1,nhb(1)
+		do jbin = 1,nhb(2)
+		do kbin = 1,nhb(3)
+			do result = 1,nresults
+				!n = ibin + (jbin-1)*nhb(1) + (kbin-1)*nhb(1)*nhb(2)
+				n = result + (ibin-1)*nresults + (jbin-1)*nhb(1)*nresults + (kbin-1)*nhb(1)*nhb(2)*nresults
+				bins((icell-1)*nhb(1)+ibin,(jcell-1)*nhb(2)+jbin,(kcell-1)*nhb(3)+kbin,result) = cells(icell,jcell,kcell,n) 
+			enddo
+		enddo
+		enddo
+		enddo
+	enddo
+	enddo
+	enddo
+
+end subroutine runpack_cells_into_bins
+
 end module pack_unpack_bins
 
-!integers
+!Update face halo cells by passing integers to neighbours 
 subroutine iswaphalos(A,n1,n2,n3,nresults)
 	use messenger
 	use calculated_properties_MD
@@ -2112,7 +2174,7 @@ subroutine iswaphalos(A,n1,n2,n3,nresults)
 
 	!Pack bins into array of cells
 	nresultscell = nresults * nhb(1) * nhb(2) * nhb(3) 
-	allocate(buf(ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell))
+	allocate(buf(ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell)); buf = 0
 	call ipack_bins_into_cells(buf,A,nresults)
 
 	!Exchange faces with adjacent processors
@@ -2121,15 +2183,16 @@ subroutine iswaphalos(A,n1,n2,n3,nresults)
 	call iupdatefaces(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell,3)
 
 	!halo values to correct cells in array
-	do n = 1, nhalobins
-		i = halobins(n,1); j = halobins(n,2); k = halobins(n,3)
+	do n = 1, nhalocells
+		i = halocells(n,1); j = halocells(n,2); k = halocells(n,3)
 
 		!Change in number of Molecules in halo cells
 		ic = i + int_heaviside(ncells(1)+1-i)-int_heaviside(i-2)
 		jc = j + int_heaviside(ncells(2)+1-j)-int_heaviside(j-2)
 		kc = k + int_heaviside(ncells(3)+1-k)-int_heaviside(k-2)
 
-		A(ic,jc,kc,:) = A(ic,jc,kc,:) + A(i,j,k,:)
+		buf(ic,jc,kc,:) = buf(ic,jc,kc,:) + buf(i,j,k,:)
+
 	enddo
 
 	!Unpack array of cells into bins
@@ -2218,29 +2281,41 @@ subroutine rswaphalos(A,n1,n2,n3,nresults)
 	use messenger
 	use calculated_properties_MD
 	use librarymod, only : int_heaviside
+	use pack_unpack_bins
 	implicit none
 
-	integer,intent(in)					:: n1,n2,n3,nresults
-	double precision,intent(inout)		:: A(n1,n2,n3,nresults)
+	integer,intent(in)								:: n1,n2,n3,nresults
+	double precision,intent(inout)					:: A(n1,n2,n3,nresults)
 
-	integer								:: n,i,j,k,ic,jc,kc
+	integer											:: n,i,j,k,ic,jc,kc,nresultscell
+	double precision,dimension(:,:,:,:),allocatable	:: buf
 
-	call rupdatefaces(A,n1,n2,n3,nresults,1)
-	call rupdatefaces(A,n1,n2,n3,nresults,2)
-	call rupdatefaces(A,n1,n2,n3,nresults,3)
+	!Pack bins into array of cells
+	nresultscell = nresults * nhb(1) * nhb(2) * nhb(3) 
+	allocate(buf(ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell)); buf = 0
+	call rpack_bins_into_cells(buf,A,nresults)
+
+	call rupdatefaces(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell,1)
+	call rupdatefaces(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell,2)
+	call rupdatefaces(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell,3)
 
 	!halo values to correct cells in array
-	do n = 1, nhalobins
-		i = halobins(n,1); j = halobins(n,2); k = halobins(n,3)
+	do n = 1, nhalocells
+		i = halocells(n,1); j = halocells(n,2); k = halocells(n,3)
 
 		!Change in number of Molecules in halo cells
-		ic = i + int_heaviside(nbins(1)+1-i)-int_heaviside(i-2)
-		jc = j + int_heaviside(nbins(2)+1-j)-int_heaviside(j-2)
-		kc = k + int_heaviside(nbins(3)+1-k)-int_heaviside(k-2)
+		ic = i + int_heaviside(ncells(1)+1-i)-int_heaviside(i-2)
+		jc = j + int_heaviside(ncells(2)+1-j)-int_heaviside(j-2)
+		kc = k + int_heaviside(ncells(3)+1-k)-int_heaviside(k-2)
 
-		A(ic,jc,kc,:) = A(ic,jc,kc,:) + A(i,j,k,:)
+		buf(ic,jc,kc,:) = buf(ic,jc,kc,:) + buf(i,j,k,:)
 
 	enddo
+
+	!Unpack array of cells into bins
+	call runpack_cells_into_bins(A,buf,nresults)
+	deallocate(buf)
+
 end subroutine rswaphalos
 
 !Update face halo cells by passing to neighbours
@@ -2368,7 +2443,6 @@ end
 subroutine globalSum(A)
 	use messenger
 
-
 	double precision :: A, buf
 
 	call MPI_AllReduce (A, buf, 1, MPI_DOUBLE_PRECISION, &
@@ -2462,7 +2536,7 @@ end
 subroutine globalMaxIntVect(A, na)
 	use messenger
 
-        integer, intent(in) :: na
+	integer, intent(in) :: na
 	integer A(na)
 	integer buf(na)
 
@@ -2491,8 +2565,8 @@ subroutine globalSumTwoDim(A,na1,na2)
 	use messenger
 
 	integer, intent(in) :: na1,na2
-	double precision A(na1,na2)
-	double precision buf(na1,na2)
+	double precision 	:: A(na1,na2)
+	double precision 	:: buf(na1,na2)
 	
 	call MPI_AllReduce (A, buf, na1*na2, MPI_DOUBLE_PRECISION, &
 	                    MPI_SUM, MD_COMM, ierr)
@@ -2579,7 +2653,8 @@ end
 subroutine SubcommSumVect(A, na, ixyz)
 	use messenger
 
-        integer, intent(in) :: na, ixyz !Direction of sub-comm
+	integer, intent(in) :: na, ixyz !Direction of sub-comm
+
 	double precision A(na)
 	double precision buf(na)
 
@@ -2594,6 +2669,7 @@ subroutine SubcommSumIntVect(A, na, ixyz)
 	use messenger
 
     integer, intent(in) :: na, ixyz !Direction of sub-comm
+
 	integer	A(na)
 	integer buf(na)
 
