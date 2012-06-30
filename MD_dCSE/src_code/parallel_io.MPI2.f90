@@ -80,6 +80,7 @@ implicit none
 	integer	:: i,argcount
 	logical :: restart_file_exists, input_file_exists
 	character(len=200) :: arg,nextarg
+	character(len=270) :: errorstr
 
 	!Set default values in case they aren't specified by user
 	restart = .false.			
@@ -104,6 +105,11 @@ implicit none
 			if (trim(arg).eq.'-r' .and. nextarg(1:1).ne.'-') then
 				initial_microstate_file = trim(nextarg)
 				inquire(file=initial_microstate_file, exist=restart) !Check file exists
+				if (restart .eq. .false.) then
+					write(errorstr,'(3a)') "Restart file not found, please check file ", & 
+										trim(initial_microstate_file)," exists or remove -r flag"
+					call error_abort(errorstr)
+				endif
 			end if
 
 			if (trim(arg).eq.'-i' .and. nextarg(1:1).ne.'-') then

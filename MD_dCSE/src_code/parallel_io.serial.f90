@@ -737,8 +737,8 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 	write(filename, '(a9,a4)' ) 'results/m', io_type
 
 	!Include halo surface fluxes to get correct values for all cells
-	do n = 1, nhalobins
-		i = halobins(n,1); j = halobins(n,2); k = halobins(n,3)  
+	do n = 1, nhalocells
+		i = halocells(n,1); j = halocells(n,2); k = halocells(n,3)  
 		!Change in number of Molecules in halo cells
 		CV_mass_out(modulo((i-2),nbins(1))+2, & 
 			    	modulo((j-2),nbins(2))+2, & 
@@ -810,8 +810,8 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 
 	!---------------Correct for surface fluxes on halo cells---------------
 	!Include halo surface fluxes to get correct values for all cells
-	do n = 1, nhalobins
-		i = halobins(n,1); j = halobins(n,2); k = halobins(n,3)  
+	do n = 1, nhalocells
+		i = halocells(n,1); j = halocells(n,2); k = halocells(n,3)  
 
 		!Change in Momentum in halo cells
 		CV_momentum_out(modulo((i-2),nbins(1))+2, & 
@@ -888,8 +888,8 @@ subroutine temperature_bin_io(CV_mass_out,CV_temperature_out,io_type)
 
 	!---------------Correct for surface fluxes on halo cells---------------
 	!Include halo surface fluxes to get correct values for all cells
-	do n = 1, nhalobins
-		i = halobins(n,1); j = halobins(n,2); k = halobins(n,3)  
+	do n = 1, nhalocells
+		i = halocells(n,1); j = halocells(n,2); k = halocells(n,3)  
 
 		!Change in temperature in halo cells
 		CV_temperature_out(modulo((i-2),nbins(1))+2, & 
@@ -938,8 +938,8 @@ subroutine energy_bin_io(CV_energy_out,io_type)
 
 	!---------------Correct for surface fluxes on halo cells---------------
 	!Include halo surface fluxes to get correct values for all cells
-	do n = 1, nhalobins
-		i = halobins(n,1); j = halobins(n,2); k = halobins(n,3)  
+	do n = 1, nhalocells
+		i = halocells(n,1); j = halocells(n,2); k = halocells(n,3)  
 
 		!Change in energy in halo cells
 		CV_energy_out(modulo((i-2),nbins(1))+2, & 
@@ -1125,8 +1125,8 @@ subroutine mass_flux_io
 	integer				:: buf(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1:6)
 
 	!Include halo surface fluxes to get correct values for all cells
-	do n = 1, nhalobins
-		i = halobins(n,1); j = halobins(n,2); k = halobins(n,3)  
+	do n = 1, nhalocells
+		i = halocells(n,1); j = halocells(n,2); k = halocells(n,3)  
 		!Flux over halo cells
 		mass_flux(modulo((i-2),nbins(1))+2, & 
 				  modulo((j-2),nbins(2))+2, & 
@@ -1167,8 +1167,8 @@ subroutine momentum_flux_io
 	double precision		:: binface
 
 	!Include halo surface fluxes to get correct values for all cells
-	do n = 1, nhalobins
-		i = halobins(n,1); j = halobins(n,2); k = halobins(n,3)  
+	do n = 1, nhalocells
+		i = halocells(n,1); j = halocells(n,2); k = halocells(n,3)  
 		!Flux over halo cells
 		momentum_flux(	modulo((i-2),nbins(1))+2, & 
 			      		modulo((j-2),nbins(2))+2, & 
@@ -1246,8 +1246,8 @@ subroutine surface_stress_io
 	double precision,dimension(3)	:: binface
 
 	!Include halo surface stresses to get correct values for all cells
-	do n = 1, nhalobins
-		i = halobins(n,1); j = halobins(n,2); k = halobins(n,3)  
+	do n = 1, nhalocells
+		i = halocells(n,1); j = halocells(n,2); k = halocells(n,3)  
 		!Set Stresses to value of halo cells
 		Pxyface(	modulo((i-2),nbins(1))+2, & 
 			      	modulo((j-2),nbins(2))+2, & 
@@ -1299,8 +1299,8 @@ subroutine energy_flux_io
 	double precision		:: buf(nbins(1),nbins(2),nbins(3),6)
 
 	!Include halo surface fluxes to get correct values for all cells
-	do n = 1, nhalobins
-		i = halobins(n,1); j = halobins(n,2); k = halobins(n,3)  
+	do n = 1, nhalocells
+		i = halocells(n,1); j = halocells(n,2); k = halocells(n,3)  
 		!Flux over halo cells
 		energy_flux(	modulo((i-2),nbins(1))+2, & 
 			      		modulo((j-2),nbins(2))+2, & 
@@ -1353,8 +1353,8 @@ subroutine surface_power_io
 
 
 	!Include halo surface stresses to get correct values for all cells
-	do n = 1, nhalobins
-		i = halobins(n,1); j = halobins(n,2); k = halobins(n,3)  
+	do n = 1, nhalocells
+		i = halocells(n,1); j = halocells(n,2); k = halocells(n,3)  
 		!Set Stresses to value of halo cells
 		Pxyvface(	modulo((i-2),nbins(1))+2, & 
 			      	modulo((j-2),nbins(2))+2, & 

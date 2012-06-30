@@ -79,6 +79,8 @@ subroutine setup_set_parameters
 	call setup_linklist
 	call establish_surface_bins
 	call establish_halo_bins
+	call establish_surface_cells
+	call establish_halo_cells
 	!call establish_surface_cells(-1)
 	!call establish_surface_cells2(-1)
 	!call establish_gpusurface_cells2(0)
@@ -797,22 +799,21 @@ subroutine set_parameters_outputs
 
 end subroutine set_parameters_outputs
 
-
 !-------------------------------------------------------------------
-!Establish and store indices of bins which are on the outer domain
+!Establish and store indices of cells which are on the outer domain
 
-subroutine establish_surface_bins
+subroutine establish_surface_cells
 	use module_set_parameters
 	implicit none
 
 	integer		:: n
 	integer		:: icell, jcell, kcell
 
-	nsurfacebins=	2*( ncells(1)   * ncells(2) &
+	nsurfacecells=	2*( ncells(1)   * ncells(2) &
 					+  (ncells(3)-2)* ncells(2) &
 		        	+  (ncells(3)-2)*(ncells(1)-2))
 
-	allocate(surfacebins(nsurfacebins,3))
+	allocate(surfacecells(nsurfacecells,3))
 
 	n = 1
 	do kcell=1, ncells(3)+2
@@ -828,9 +829,87 @@ subroutine establish_surface_bins
 		   (jcell .lt. (2) .or. jcell .gt. (ncells(2)+1)) .or. &
 		   (kcell .lt. (2) .or. kcell .gt. (ncells(3)+1))) cycle
 
-		surfacebins(n,1)=icell
-		surfacebins(n,2)=jcell
-		surfacebins(n,3)=kcell
+		surfacecells(n,1)=icell
+		surfacecells(n,2)=jcell
+		surfacecells(n,3)=kcell
+		n = n + 1
+
+	enddo
+	enddo
+	enddo
+
+end subroutine establish_surface_cells
+
+!-------------------------------------------------------------------
+!Establish and store indices of cells which are in the halo
+
+subroutine establish_halo_cells
+	use module_set_parameters
+	implicit none
+
+	integer		:: n
+	integer		:: icell, jcell, kcell
+
+	nhalocells  =	2*((ncells(1)+2)*(ncells(2)+2) &
+					+  (ncells(3)  )*(ncells(2)+2) &
+					+  (ncells(3)  )*(ncells(1)  ))
+
+	allocate(halocells(nhalocells,3))
+
+	n = 1
+	do kcell=1, ncells(3)+2
+	do jcell=1, ncells(2)+2
+	do icell=1, ncells(1)+2
+
+		!Remove inner part of domain
+		if((icell .gt. (1) .and. icell .lt. (ncells(1)+2)) .and. &
+		   (jcell .gt. (1) .and. jcell .lt. (ncells(2)+2)) .and. &
+		   (kcell .gt. (1) .and. kcell .lt. (ncells(3)+2))) cycle
+
+		halocells(n,1)=icell
+		halocells(n,2)=jcell
+		halocells(n,3)=kcell
+		n = n + 1
+
+	enddo
+	enddo
+	enddo
+
+end subroutine establish_halo_cells
+
+!-------------------------------------------------------------------
+!Establish and store indices of bins which are on the outer domain
+
+subroutine establish_surface_bins
+	use module_set_parameters
+	implicit none
+
+	integer		:: n
+	integer		:: ibin, jbin, kbin
+
+	nsurfacebins=	2*( nbins(1)   * nbins(2) &
+					+  (nbins(3)-2)* nbins(2) &
+		        	+  (nbins(3)-2)*(nbins(1)-2))
+
+	allocate(surfacebins(nsurfacebins,3))
+
+	n = 1
+	do kbin=1, nbins(3)+2
+	do jbin=1, nbins(2)+2
+	do ibin=1, nbins(1)+2
+
+		!Remove inner part of domain
+		if((ibin .gt. (2) .and. ibin .lt. (nbins(1)+1)) .and. &
+		   (jbin .gt. (2) .and. jbin .lt. (nbins(2)+1)) .and. &
+		   (kbin .gt. (2) .and. kbin .lt. (nbins(3)+1))) cycle
+		!Remove outer bins leaving only 1 layer of surface bins
+		if((ibin .lt. (2) .or. ibin .gt. (nbins(1)+1)) .or. &
+		   (jbin .lt. (2) .or. jbin .gt. (nbins(2)+1)) .or. &
+		   (kbin .lt. (2) .or. kbin .gt. (nbins(3)+1))) cycle
+
+		surfacebins(n,1)=ibin
+		surfacebins(n,2)=jbin
+		surfacebins(n,3)=kbin
 		n = n + 1
 
 	enddo
@@ -847,27 +926,27 @@ subroutine establish_halo_bins
 	implicit none
 
 	integer		:: n
-	integer		:: icell, jcell, kcell
+	integer		:: ibin, jbin, kbin
 
-	nhalobins  =	2*((ncells(1)+2)*(ncells(2)+2) &
-					+  (ncells(3)  )*(ncells(2)+2) &
-					+  (ncells(3)  )*(ncells(1)  ))
+	nhalobins  =	2*((nbins(1)+2)*(nbins(2)+2) &
+					+  (nbins(3)  )*(nbins(2)+2) &
+					+  (nbins(3)  )*(nbins(1)  ))
 
 	allocate(halobins(nhalobins,3))
 
 	n = 1
-	do kcell=1, ncells(3)+2
-	do jcell=1, ncells(2)+2
-	do icell=1, ncells(1)+2
+	do kbin=1, nbins(3)+2
+	do jbin=1, nbins(2)+2
+	do ibin=1, nbins(1)+2
 
 		!Remove inner part of domain
-		if((icell .gt. (1) .and. icell .lt. (ncells(1)+2)) .and. &
-		   (jcell .gt. (1) .and. jcell .lt. (ncells(2)+2)) .and. &
-		   (kcell .gt. (1) .and. kcell .lt. (ncells(3)+2))) cycle
+		if((ibin .gt. (1) .and. ibin .lt. (nbins(1)+2)) .and. &
+		   (jbin .gt. (1) .and. jbin .lt. (nbins(2)+2)) .and. &
+		   (kbin .gt. (1) .and. kbin .lt. (nbins(3)+2))) cycle
 
-		halobins(n,1)=icell
-		halobins(n,2)=jcell
-		halobins(n,3)=kcell
+		halobins(n,1)=ibin
+		halobins(n,2)=jbin
+		halobins(n,3)=kbin
 		n = n + 1
 
 	enddo

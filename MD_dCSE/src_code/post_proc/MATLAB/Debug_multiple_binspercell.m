@@ -1,10 +1,12 @@
 
 clear all
+close all
 time = 10;
 
 runs = 2;
-names{1} = '/home/es205/codes/branch/MD_dCSE/src_code/results/1bin';
-names{2} = '/home/es205/codes/branch/MD_dCSE/src_code/results/4bins';
+names{1} = '/home/es205/codes/coupled/MD_dCSE/src_code/results/1bin';
+names{2} = '/home/es205/codes/coupled/MD_dCSE/src_code/results/4bins';
+names{3} = '/home/es205/codes/coupled/MD_dCSE/src_code/results/1bin_rev248';
 
 for o = 1:runs
     resultfile_dir = names{o};
@@ -19,7 +21,7 @@ for o = 1:runs
     case(1) 
         %First iteration set up arrays
         if (o==1) 
-            mass_bins_sum = zeros(globalncells(1),globalncells(2),globalncells(3),Nsteps/(Nmass_ave*tplot),runs); 
+            mass_bins_sum = zeros(globalncells(1),globalncells(2),globalncells(3),(Nsteps-initialstep)/(Nmass_ave*tplot),runs); 
         end
         bpc = gnbins./globalncells;
         filename = './mbins';
@@ -57,6 +59,7 @@ for o = 1:runs
         resultfile_dir = names{o};
         read_header
         bpc = gnbins./globalncells;
+        nhb = bpc;
 
         filename1 = './mflux';
         filename2 = './msnap';
@@ -64,8 +67,8 @@ for o = 1:runs
         read_header
 
         if (o==1) 
-            mass_flux_sum = zeros(size(mass_flux,1)/bpc(1),size(mass_flux,2)/bpc(2),size(mass_flux,3)/bpc(3),6,Nsteps/(Nmflux_ave*tplot),runs);        
-            mass_snap_sum = zeros(globalncells(1),globalncells(2),globalncells(3),Nsteps/(Nmflux_ave*tplot)+1,runs); 
+            mass_flux_sum = zeros(size(mass_flux,1)/bpc(1),size(mass_flux,2)/bpc(2),size(mass_flux,3)/bpc(3),6,(Nsteps-initialstep)/(Nmflux_ave*tplot),runs);        
+            mass_snap_sum = zeros(globalncells(1),globalncells(2),globalncells(3),(Nsteps-initialstep)/(Nmflux_ave*tplot)+1,runs); 
         end
         l = 1; m = 1; n = 1;
         for i=1:bpc(1):size(mass_flux,1)
@@ -95,15 +98,17 @@ for o = 1:runs
             error2= mass_snap_sum(:,:,:,:,o) - mass_snap_sum(:,:,:,:,o-1);
         elseif (o > 2)
             error = error + mass_flux_sum(:,:,:,:,:,o) - mass_flux_sum(:,:,:,:,:,o-1);
-            error2= error + mass_snap_sum(:,:,:,:,o) - mass_snap_sum(:,:,:,:,o-1);
+            error2= error2 + mass_snap_sum(:,:,:,:,o) - mass_snap_sum(:,:,:,:,o-1);
         end
 
     end
     figure
-    plot(0:size(mass_flux,1)-1,   sum(sum(sum(mass_flux(:,:,:,1,:),2),3),5),'s')
-    hold all
-    plot(1:size(mass_flux,1),-sum(sum(sum(mass_flux(:,:,:,4,:),2),3),5),'x')
-    hold off
+     plot(0:size(mass_flux,1)-1, sum(sum(sum(mass_flux(:,:,:,1,:),2),3),5),'s')
+     hold all
+     plot(1:size(mass_flux,1)  ,-sum(sum(sum(mass_flux(:,:,:,4,:),2),3),5),'x')
+     hold off
+
+    %sliceomatic(sum(mass_flux(2:end,:,:,1,:),5)+sum(mass_flux(1:end-1,:,:,4,:),5))
 end
 
 disp(strcat('Error is cell refinements over ', num2str(runs), ' runs = ', ...
