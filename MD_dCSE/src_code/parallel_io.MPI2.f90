@@ -105,7 +105,7 @@ implicit none
 			if (trim(arg).eq.'-r' .and. nextarg(1:1).ne.'-') then
 				initial_microstate_file = trim(nextarg)
 				inquire(file=initial_microstate_file, exist=restart) !Check file exists
-				if (restart .eq. .false.) then
+				if (restart .eqv. .false.) then
 					write(errorstr,'(3a)') "Restart file not found, please check file ", & 
 										trim(initial_microstate_file)," exists or remove -r flag"
 					call error_abort(errorstr)
@@ -1588,8 +1588,8 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 	implicit none
 
 	integer					:: m,nresults
-	integer					:: CV_mass_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
-	double precision		:: CV_momentum_out(nbins(1)+2,nbins(2)+2,nbins(3)+2,nd)
+	integer					:: CV_mass_out(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3))
+	double precision		:: CV_momentum_out(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nd)
 	character(4)			:: io_type
 	character(30)			:: filename,outfile
 
@@ -1602,7 +1602,7 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 
 	! Swap Halos
 	nresults = nd
-	call rswaphalos(CV_momentum_out,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults)
+	call rswaphalos(CV_momentum_out,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults)
 
 	!Setup arrays
 	if (io_type .eq. 'snap') then
@@ -1621,7 +1621,7 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 	endif
 
 	!Write out arrays
-	call rwrite_arrays(CV_momentum_out,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,outfile,m)
+	call rwrite_arrays(CV_momentum_out,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults,outfile,m)
 
 end subroutine velocity_bin_io
 
@@ -1648,8 +1648,8 @@ subroutine temperature_bin_io(CV_mass_out,CV_temperature_out,io_type)
 	implicit none
 
 	integer				:: m,nresults
-	integer				:: CV_mass_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
-	double precision	:: CV_temperature_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
+	integer				:: CV_mass_out(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3))
+	double precision	:: CV_temperature_out(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3))
 	character(4)		:: io_type
 	character(30)		:: filename, outfile
 
@@ -1663,7 +1663,7 @@ subroutine temperature_bin_io(CV_mass_out,CV_temperature_out,io_type)
 	nresults = 1
 
 	! Swap Halos
-	call rswaphalos(CV_temperature_out,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults)
+	call rswaphalos(CV_temperature_out,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults)
 
 	if (io_type .eq. 'snap') then
 		!CV_temperature_out = CV_temperature_out / (tplot*Nvflux_ave)
@@ -1674,7 +1674,7 @@ subroutine temperature_bin_io(CV_mass_out,CV_temperature_out,io_type)
 		m = (iter-initialstep+1)/(tplot*NTemp_ave)
 	endif
 	!Write temperature to file
-	call rwrite_arrays(CV_temperature_out,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,outfile,m)
+	call rwrite_arrays(CV_temperature_out,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults,outfile,m)
 
 end subroutine temperature_bin_io
 
@@ -1687,7 +1687,7 @@ subroutine energy_bin_io(CV_energy_out,io_type)
 	implicit none
 
 	integer				:: m,nresults
-	double precision	:: CV_energy_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
+	double precision	:: CV_energy_out(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3))
 	character(4)		:: io_type
 	character(30)		:: filename, outfile
 
@@ -1699,7 +1699,7 @@ subroutine energy_bin_io(CV_energy_out,io_type)
 
 	!---------------Correct for surface fluxes on halo cells---------------
 	! Swap Halos
-	call rswaphalos(CV_energy_out,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults)
+	call rswaphalos(CV_energy_out,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults)
 
 
 	if (io_type .eq. 'snap') then
@@ -1718,7 +1718,7 @@ subroutine energy_bin_io(CV_energy_out,io_type)
 	endif
 
 	!Write Energy to file
-	call rwrite_arrays(CV_energy_out,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,outfile,m)
+	call rwrite_arrays(CV_energy_out,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults,outfile,m)
 
 end subroutine energy_bin_io
 
@@ -1796,26 +1796,26 @@ subroutine VA_stress_io
 
 		!Write sum of kinetic and configurational
 		!Allocate buf with halo padding and 3x3 stresses reordered as 9 vector.
-		allocate(buf(nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults))
+		allocate(buf(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults))
 		buf = 0.d0; 
 		buf(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1:9) = &
 			reshape(Pxybin,(/nbins(1),nbins(2),nbins(3),nresults/))
-		call rwrite_arrays(buf,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,trim(prefix_dir)//'results/pVA',m)
+		call rwrite_arrays(buf,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults,trim(prefix_dir)//'results/pVA',m)
 	case(1)
 		!Kinetic
 		!Allocate buf with halo padding and 3x3 stresses reordered as 9 vector.
-		allocate(buf(nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults))
+		allocate(buf(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults))
 		buf = 0.d0; 
 		buf(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1:9) = &
 			reshape(vvbin,(/nbins(1),nbins(2),nbins(3),nresults/))
-		call rwrite_arrays(buf,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,trim(prefix_dir)//'results/pVA_k',m)
+		call rwrite_arrays(buf,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults,trim(prefix_dir)//'results/pVA_k',m)
 		!Configurational
 		!Allocate buf with halo padding and 3x3 stresses reordered as 9 vector.
-		allocate(buf(nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults))
+		allocate(buf(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults))
 		buf = 0.d0; 
 		buf(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1:9) = &
 			reshape(rfbin,(/nbins(1),nbins(2),nbins(3),nresults/))
-		call rwrite_arrays(buf,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,trim(prefix_dir)//'results/pVA_c',m)
+		call rwrite_arrays(buf,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults,trim(prefix_dir)//'results/pVA_c',m)
 	case default
 		stop 'Error in VA/virial extra flag to split_kinetic_& configuartional parts'
 	end select
@@ -1896,7 +1896,7 @@ subroutine mass_flux_io
 
 	!Write mass to file
 	call iwrite_arrays(mass_flux,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults,outfile,m)
-	!call iwrite_arrays(mass_flux,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,trim(prefix_dir)//'results/mflux',m)
+	!call iwrite_arrays(mass_flux,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults,trim(prefix_dir)//'results/mflux',m)
 
 end subroutine mass_flux_io
 
@@ -1913,7 +1913,7 @@ subroutine momentum_flux_io
 
 	! Swap Halos
 	nresults = 18
-	call rswaphalos(momentum_flux,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults)
+	call rswaphalos(momentum_flux,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults)
 
 	do ixyz = 1,3
 		binface	      = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
@@ -1937,7 +1937,7 @@ subroutine momentum_flux_io
 		call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
 	end select
 
-	call rwrite_arrays(momentum_flux,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,trim(prefix_dir)//'results/vflux',m)
+	call rwrite_arrays(momentum_flux,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults,trim(prefix_dir)//'results/vflux',m)
 
 end subroutine momentum_flux_io
 
@@ -2038,7 +2038,7 @@ subroutine surface_stress_io
 
 	! Swap Halos
 	nresults = 18
-	call rswaphalos(Pxyface,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults)
+	call rswaphalos(Pxyface,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults)
 
 
 	do ixyz = 1,3
@@ -2063,7 +2063,7 @@ subroutine surface_stress_io
 	end select
 
 	!Write surface pressures to file
-	call rwrite_arrays(Pxyface,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,trim(prefix_dir)//'results/psurface',m)
+	call rwrite_arrays(Pxyface,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults,trim(prefix_dir)//'results/psurface',m)
 
 end subroutine surface_stress_io
 
@@ -2080,7 +2080,7 @@ subroutine energy_flux_io
 
 	!Include halo surface fluxes to get correct values for all cells
 	nresults = 18
-	call rswaphalos(energy_flux,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults)
+	call rswaphalos(energy_flux,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults)
 
 	do ixyz = 1,3
 		binface	      = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
@@ -2103,7 +2103,7 @@ subroutine energy_flux_io
 		call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
 	end select
 
-	call rwrite_arrays(energy_flux,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,trim(prefix_dir)//'results/eflux',m)
+	call rwrite_arrays(energy_flux,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults,trim(prefix_dir)//'results/eflux',m)
 
 end subroutine energy_flux_io
 
@@ -2120,7 +2120,7 @@ subroutine surface_power_io
 
 	!Include halo surface stresses to get correct values for all cells
 	nresults = 18
-	call rswaphalos(Pxyvface,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults)
+	call rswaphalos(Pxyvface,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults)
 
 	do ixyz = 1,3
 		binface		  = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
@@ -2134,7 +2134,7 @@ subroutine surface_power_io
 
 	!Write surface pressures * velocity to file
 	m = (iter-initialstep+1)/(Neflux_ave*tplot)
-	call rwrite_arrays(Pxyvface,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,trim(prefix_dir)//'results/esurface',m)
+	call rwrite_arrays(Pxyvface,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults,trim(prefix_dir)//'results/esurface',m)
 
 end subroutine surface_power_io
 
