@@ -614,9 +614,9 @@ subroutine set_parameters_outputs
  	gnbins(2) = npy*ncells(2) !Total number of domain bins
 	gnbins(3) = npz*ncells(3) !Total number of domain bins
 
-	nbins(1) = nint(gnbins(1)/dble(npx))	!Share global evenly between processes
-	nbins(2) = nint(gnbins(2)/dble(npy))	!Share global evenly between processes
-	nbins(3) = nint(gnbins(3)/dble(npz))	!Share global evenly between processes
+	nbins(1) = 4*nint(gnbins(1)/dble(npx))	!Share global evenly between processes
+	nbins(2) = 4*nint(gnbins(2)/dble(npy))	!Share global evenly between processes
+	nbins(3) = 4*nint(gnbins(3)/dble(npz))	!Share global evenly between processes
 
 	!Obtain global number of bins after rounding to given same number per process
 	gnbins(1) = nbins(1)
@@ -761,7 +761,7 @@ subroutine set_parameters_outputs
 				planes(n) = planespacing*(n-1) + shift - halfdomain(3)
 			enddo
 		case(4)
-			if (.not.(allocated(volume_mass))) 	allocate(volume_momentum(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),3  ))
+			if (.not.(allocated(volume_momentum))) 	allocate(volume_momentum(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),3  ))
 			allocate( Pxyface(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),3,6))
 			allocate(  momentum_flux(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),3,6))
 			allocate(   volume_force(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),3,2))
