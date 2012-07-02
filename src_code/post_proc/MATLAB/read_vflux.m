@@ -45,7 +45,7 @@ cd(resultfile_dir);
 fid = fopen(filename1,'r','ieee-le');
 %Check file exists
 if (fid == -1)
-    error(strcat(filename1,'vflux file does not exist in results'))
+    error(strcat(filename1,' does not exist in results'))
 end
 fseek(fid, bytes*datasize*flux_read_time, 'bof');
 vflux = fread(fid,datasize,'double');
@@ -58,7 +58,7 @@ stress_read_time = read_time - 1;
 fid = fopen(filename2,'r','ieee-le');
 %Check file exists
 if (fid == -1)
-    error(strcat(filename2,'file does not exist in results'))
+    error(strcat(filename2,' does not exist in results'))
 end
 fseek(fid, bytes*datasize*stress_read_time, 'bof');
 psurface = fread(fid,datasize,'double');
@@ -72,7 +72,7 @@ fid = fopen(filename3,'r','ieee-le');
 cd (pwdir);
 %Check file exists
 if (fid == -1)
-    error(strcat(filename3,'file does not exist in results'))
+    error(strcat(filename3,' does not exist in results'))
 end
 fseek(fid, bytes*datasize*snap_read_time/Ncubeface, 'bof');
 vsnap = fread(fid,datasize/Ncubeface,'double');

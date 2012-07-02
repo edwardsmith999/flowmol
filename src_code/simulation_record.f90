@@ -1382,8 +1382,8 @@ subroutine cumulative_momentum_flux(ixyz)
 			where (ri12 .eq. 0.d0) ri12 = 0.000001d0
 
 			!Assign to bins before and after using integer division
-			ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:)) + nhb
-			ibin2(:) = ceiling((ri2+halfdomain(:))/mbinsize(:)) + nhb
+			ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:)) + nhb(:)
+			ibin2(:) = ceiling((ri2+halfdomain(:))/mbinsize(:)) + nhb(:)
 
 			!Replace Signum function with this functions which gives a
 			!check for plane crossing and the correct sign 
@@ -1397,8 +1397,8 @@ subroutine cumulative_momentum_flux(ixyz)
 
 					cbin(1) = i; cbin(2) = j; cbin(3) = k
 
-					bintop(:) = (cbin(:)-1)*mbinsize(:)-halfdomain(:)
-					binbot(:) = (cbin(:)-2)*mbinsize(:)-halfdomain(:)
+					bintop(:) = (cbin(:)-1*nhb(:)  )*mbinsize(:)-halfdomain(:)
+					binbot(:) = (cbin(:)-1*nhb(:)-1)*mbinsize(:)-halfdomain(:)
 
 					!Calculate the plane intersect of trajectory with surfaces of the cube
 					Pxt=(/ 			bintop(1), 		     & 
@@ -1486,6 +1486,7 @@ subroutine cumulative_momentum_flux(ixyz)
 						momentum_flux(cbin(1),cbin(2),cbin(3),:,6) &
 					      + velvect(:)*dble(onfacezt)*abs(crossface(jxyz))
 
+					!if (onfacexb .ne. 0) print*, n, i,j,k,ibin1,ibin2,bintop,halfdomain
 
 					!if (cbin(1) .ge. nbins(1)+1 .or. cbin(1) .le. 2) then
 					!	print'(4i8,6f10.5)',iter, cbin, momentum_flux(cbin(1),cbin(2),cbin(3),:,1),momentum_flux(cbin(1),cbin(2),cbin(3),:,4)
@@ -1665,8 +1666,8 @@ subroutine cumulative_energy_flux(ixyz)
 
 					cbin(1) = i; cbin(2) = j; cbin(3) = k
 
-					bintop(:) = (cbin(:)-1)*mbinsize(:)-halfdomain(:)
-					binbot(:) = (cbin(:)-2)*mbinsize(:)-halfdomain(:)
+					bintop(:) = (cbin(:)-1*nhb(:)  )*mbinsize(:)-halfdomain(:)
+					binbot(:) = (cbin(:)-1*nhb(:)-1)*mbinsize(:)-halfdomain(:)
 
 					!Calculate the plane intersect of trajectory with surfaces of the cube
 					Pxt=(/ 			bintop(1), 		     & 
@@ -1791,7 +1792,7 @@ subroutine energy_snapshot
 	volume_energy_temp = 0.d0
 	do n = 1,np
 		!Add up current volume momentum densities
-		ibin(:) = ceiling((r(n,:)+halfdomain(:))/mbinsize(:)) + nhb
+		ibin(:) = ceiling((r(n,:)+halfdomain(:))/mbinsize(:)) + nhb(:)
 		velvect(:) = v(n,:) + 0.5d0*a(n,:)*delta_t
 		energy = 0.5d0 * (dot_product(velvect,velvect) + potenergymol(n))
 		volume_energy_temp(ibin(1),ibin(2),ibin(3)) = volume_energy_temp(ibin(1),ibin(2),ibin(3)) + energy
@@ -2478,8 +2479,8 @@ implicit none
 
 		cbin(1) = i; cbin(2) = j; cbin(3) = k
 
-		bintop(:) = (cbin(:)-1)*Fbinsize(:)-halfdomain(:)
-		binbot(:) = (cbin(:)-2)*Fbinsize(:)-halfdomain(:)
+		bintop(:) = (cbin(:)-1*nhb(:)  )*Fbinsize(:)-halfdomain(:)
+		binbot(:) = (cbin(:)-1*nhb(:)-1)*Fbinsize(:)-halfdomain(:)
 
 		!Calculate the plane intersect of line with surfaces of the cube
 		Pxt=(/ bintop(1),ri(2)+(rij(2)/rij(1))*(bintop(1)-ri(1)),ri(3)+(rij(3)/rij(1))*(bintop(1)-ri(1))  /)
