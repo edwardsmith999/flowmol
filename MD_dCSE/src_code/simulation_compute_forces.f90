@@ -500,9 +500,15 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 				a(molnoj,3)= a(molnoj,3) - accijmag*rij(3) 
 				if (vflux_outflag.eq.4) then
 					if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
-						fij = 2.d0*accijmag*rij(:)
-						!call Control_Volume_Forces(fij,ri,rj,molnoi,molnoj)
-						call control_volume_stresses(fij,ri,rj,molnoi,molnoj)
+						if (molnoj .gt. np .or. molnoi .gt. np) then
+							fij = accijmag*rij(:)
+							!call Control_Volume_Forces(fij,ri,rj,molnoi,molnoj)
+							call control_volume_stresses(fij,ri,rj,molnoi,molnoj)
+						else
+							fij = 2.d0*accijmag*rij(:)
+							!call Control_Volume_Forces(fij,ri,rj,molnoi,molnoj)
+							call control_volume_stresses(fij,ri,rj,molnoi,molnoj)
+						endif
 					endif
 				endif
 

@@ -1796,26 +1796,26 @@ subroutine VA_stress_io
 
 		!Write sum of kinetic and configurational
 		!Allocate buf with halo padding and 3x3 stresses reordered as 9 vector.
-		allocate(buf(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults))
+		allocate(buf(nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults))
 		buf = 0.d0; 
 		buf(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1:9) = &
 			reshape(Pxybin,(/nbins(1),nbins(2),nbins(3),nresults/))
-		call rwrite_arrays(buf,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults,trim(prefix_dir)//'results/pVA',m)
+		call rwrite_arrays(buf,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,trim(prefix_dir)//'results/pVA',m)
 	case(1)
 		!Kinetic
 		!Allocate buf with halo padding and 3x3 stresses reordered as 9 vector.
-		allocate(buf(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults))
+		allocate(buf(nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults))
 		buf = 0.d0; 
 		buf(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1:9) = &
 			reshape(vvbin,(/nbins(1),nbins(2),nbins(3),nresults/))
-		call rwrite_arrays(buf,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults,trim(prefix_dir)//'results/pVA_k',m)
+		call rwrite_arrays(buf,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,trim(prefix_dir)//'results/pVA_k',m)
 		!Configurational
 		!Allocate buf with halo padding and 3x3 stresses reordered as 9 vector.
-		allocate(buf(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults))
+		allocate(buf(nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults))
 		buf = 0.d0; 
 		buf(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1:9) = &
 			reshape(rfbin,(/nbins(1),nbins(2),nbins(3),nresults/))
-		call rwrite_arrays(buf,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults,trim(prefix_dir)//'results/pVA_c',m)
+		call rwrite_arrays(buf,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,trim(prefix_dir)//'results/pVA_c',m)
 	case default
 		stop 'Error in VA/virial extra flag to split_kinetic_& configuartional parts'
 	end select
@@ -2032,8 +2032,8 @@ subroutine surface_stress_io
 	use calculated_properties_MD
 	implicit none
 
-	integer											:: ixyz,m,nresults,n,i,j,k
-	double precision								:: binface
+	integer												:: ixyz,m,nresults,n,i,j,k
+	double precision									:: binface
 	double precision,dimension(:,:,:,:,:),allocatable	:: buf
 
 	! Swap Halos
