@@ -554,7 +554,7 @@ subroutine pack_cells(icell,jcell,kcell,sendbuffer,buffsize,pos)
 end subroutine pack_cells
 
 
-!Wrapper for the routine to Pack cells using MPI_pack
+!Wrapper for the routine to unpack cells using MPI_unpack
 subroutine unpack_cells(halo_np,recvnp,length,recvbuffer)
 	use physical_constants_MD, only : nd, np
 	use computational_constants_MD, only :	potential_flag
@@ -587,6 +587,42 @@ subroutine unpack_cells(halo_np,recvnp,length,recvbuffer)
 	enddo
 
 end subroutine unpack_cells
+
+
+!Get size of array to send from number of molecules
+subroutine get_sendsize(sendnp,sendsize)
+	use physical_constants_MD, only : nd
+	use computational_constants_MD, only :	potential_flag
+
+	integer, intent(in)		:: sendnp
+	integer, intent(out)	:: sendsize
+
+	select case (potential_flag)
+	case(0) !LJ only
+		sendsize = nd*sendnp
+	case(1) !+FENE info 
+		sendsize = nd*sendnp + (8)*sendnp
+	end select
+
+end subroutine get_sendsize
+
+!Get number of molecules from size of recieved array
+
+subroutine get_recvnp(recvsize,recvnp)
+	use physical_constants_MD, only : nd
+	use computational_constants_MD, only :	potential_flag
+
+	integer, intent(in)		:: recvsize
+	integer, intent(out)	:: recvnp
+
+	select case(potential_flag)
+	case(0)
+		recvnp = recvsize/real(nd,kind(0.d0))
+	case(1)
+		recvnp = recvsize/real(nd+8,kind(0.d0))
+	end select
+
+end subroutine get_recvnp
 
 end module pack_unpack_cells
 
@@ -690,12 +726,7 @@ subroutine updatefacedown(ixyz)
 
 
 	!Determine size of send buffer
-	select case (potential_flag)
-	case(0) !LJ only
-		sendsize = nd*sendnp
-	case(1) !+FENE info 
-		sendsize = nd*sendnp + (8)*sendnp
-	end select
+	call get_sendsize(sendnp,sendsize)
 
 	allocate(sendbuffer(sendsize))
 	call MPI_Pack_size(sendsize,MPI_DOUBLE_PRECISION, &
@@ -744,13 +775,8 @@ subroutine updatefacedown(ixyz)
 	!call pairedsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest,ixyz)
 	!call NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest)
 
-	!Three dimensions per molecule, + FENE info
-	select case(potential_flag)
-	case(0)
-		recvnp = recvsize/real(nd,kind(0.d0))
-	case(1)
-		recvnp = recvsize/real(nd+8,kind(0.d0))
-	end select
+	!Get number of molecules from recieved data size
+	call get_recvnp(recvsize,recvnp)
 
 	!Unpack recieved halo data 
 	call unpack_cells(halo_np,recvnp,length,recvbuffer)
@@ -835,12 +861,8 @@ subroutine updatefaceup(ixyz)
         end select
 
 	!Determine size of send buffer
-	select case (potential_flag)
-	case(0) !LJ only
-		sendsize = nd*sendnp
-	case(1) !+FENE info 
-		sendsize = nd*sendnp + (8)*sendnp
-	end select
+	call get_sendsize(sendnp,sendsize)
+
 	allocate(sendbuffer(sendsize))
 	call MPI_Pack_size(sendsize,MPI_DOUBLE_PRECISION, &
 	icomm_grid,buffsize,ierr)
@@ -889,13 +911,8 @@ subroutine updatefaceup(ixyz)
 	!call pairedsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest,ixyz)
 	!call NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest)
 
-	!Three dimensions per molecule, + FENE info
-	select case(potential_flag)
-	case(0)
-		recvnp = recvsize/real(nd,kind(0.d0))
-	case(1)
-		recvnp = recvsize/real(nd+8,kind(0.d0))
-	end select
+	!Get number of molecules from recieved data size
+	call get_recvnp(recvsize,recvnp)
 
 	!Unpack recieved halo data 
 	call unpack_cells(halo_np,recvnp,length,recvbuffer)
@@ -985,12 +1002,8 @@ subroutine updateedge(face1,face2)
 		end select
 
 		!Determine size of send buffer
-		select case (potential_flag)
-		case(0) !LJ only
-			sendsize = nd*sendnp
-		case(1) !+FENE info 
-			sendsize = nd*sendnp + (8)*sendnp
-		end select
+		call get_sendsize(sendnp,sendsize)
+
 		allocate(sendbuffer(sendsize))
 		call MPI_Pack_size(sendsize,MPI_DOUBLE_PRECISION, &
 		icomm_grid,buffsize,ierr)
@@ -1029,13 +1042,8 @@ subroutine updateedge(face1,face2)
 		!call pairedsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest,face1)
 		!call NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest)
 	
-		!Three dimensions per molecule, + FENE info
-		select case(potential_flag)
-		case(0)
-			recvnp = recvsize/real(nd,kind(0.d0))
-		case(1)
-			recvnp = recvsize/real(nd+8,kind(0.d0))
-		end select
+		!Get number of molecules from recieved data size
+		call get_recvnp(recvsize,recvnp)
 
 		!Unpack recieved halo data 
 		call unpack_cells(halo_np,recvnp,length,recvbuffer)
@@ -1127,12 +1135,8 @@ subroutine updatecorners()
 		sendnp = sendnp + cellnp
 
 		!Determine size of send buffer
-		select case (potential_flag)
-		case(0) !LJ only
-			sendsize = nd*sendnp
-		case(1) !+FENE info 
-			sendsize = nd*sendnp + (8)*sendnp
-		end select
+		call get_sendsize(sendnp,sendsize)
+
 		allocate(sendbuffer(sendsize))
 		call MPI_Pack_size(sendsize,MPI_DOUBLE_PRECISION, &
 		icomm_grid,buffsize,ierr)
@@ -1145,13 +1149,8 @@ subroutine updatecorners()
 		!call pairedsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest,1)
 		call NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest)
 
-		!Three dimensions per molecule, + FENE info
-		select case(potential_flag)
-		case(0)
-			recvnp = recvsize/real(nd,kind(0.d0))
-		case(1)
-			recvnp = recvsize/real(nd+8,kind(0.d0))
-		end select
+		!Get number of molecules from recieved data size
+		call get_recvnp(recvsize,recvnp)
 
 		!Unpack recieved halo data 
 		call unpack_cells(halo_np,recvnp,length,recvbuffer)
