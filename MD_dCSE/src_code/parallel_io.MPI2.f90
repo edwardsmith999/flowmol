@@ -1468,7 +1468,7 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 	use calculated_properties_MD
 	implicit none
 
-	integer,intent(in)						:: CV_mass_out(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3))
+	integer,intent(in)						:: CV_mass_out(nbinso(1),nbinso(2),nbinso(3))
 	character(4),intent(in)					:: io_type
 
 	integer									:: m,nresults,icell,jcell,kcell,ibin,jbin,kbin,n
@@ -1480,7 +1480,7 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 
 	!Swap halo surface fluxes to get correct values for all cells
 	nresults = 1
-	call iswaphalos(CV_mass_out,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults)
+	call iswaphalos(CV_mass_out,nbinso(1),nbinso(2),nbinso(3),nresults)
 
 	!Calculate record number timestep
 	if (io_type .eq. 'snap') then
@@ -1497,7 +1497,7 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 	endif
 
 	!Write mass to file
-	call iwrite_arrays(CV_mass_out,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults,outfile,m)
+	call iwrite_arrays(CV_mass_out,nbinso(1),nbinso(2),nbinso(3),nresults,outfile,m)
 
 end subroutine mass_bin_io
 
@@ -1588,8 +1588,8 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 	implicit none
 
 	integer					:: m,nresults
-	integer					:: CV_mass_out(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3))
-	double precision		:: CV_momentum_out(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nd)
+	integer					:: CV_mass_out(nbinso(1),nbinso(2),nbinso(3))
+	double precision		:: CV_momentum_out(nbinso(1),nbinso(2),nbinso(3),nd)
 	character(4)			:: io_type
 	character(30)			:: filename,outfile
 
@@ -1602,7 +1602,7 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 
 	! Swap Halos
 	nresults = nd
-	call rswaphalos(CV_momentum_out,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults)
+	call rswaphalos(CV_momentum_out,nbinso(1),nbinso(2),nbinso(3),nresults)
 
 	!Setup arrays
 	if (io_type .eq. 'snap') then
@@ -1621,7 +1621,7 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 	endif
 
 	!Write out arrays
-	call rwrite_arrays(CV_momentum_out,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults,outfile,m)
+	call rwrite_arrays(CV_momentum_out,nbinso(1),nbinso(2),nbinso(3),nresults,outfile,m)
 
 end subroutine velocity_bin_io
 
@@ -1648,8 +1648,8 @@ subroutine temperature_bin_io(CV_mass_out,CV_temperature_out,io_type)
 	implicit none
 
 	integer				:: m,nresults
-	integer				:: CV_mass_out(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3))
-	double precision	:: CV_temperature_out(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3))
+	integer				:: CV_mass_out(nbinso(1),nbinso(2),nbinso(3))
+	double precision	:: CV_temperature_out(nbinso(1),nbinso(2),nbinso(3))
 	character(4)		:: io_type
 	character(30)		:: filename, outfile
 
@@ -1663,7 +1663,7 @@ subroutine temperature_bin_io(CV_mass_out,CV_temperature_out,io_type)
 	nresults = 1
 
 	! Swap Halos
-	call rswaphalos(CV_temperature_out,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults)
+	call rswaphalos(CV_temperature_out,nbinso(1),nbinso(2),nbinso(3),nresults)
 
 	if (io_type .eq. 'snap') then
 		!CV_temperature_out = CV_temperature_out / (tplot*Nvflux_ave)
@@ -1674,7 +1674,7 @@ subroutine temperature_bin_io(CV_mass_out,CV_temperature_out,io_type)
 		m = (iter-initialstep+1)/(tplot*NTemp_ave)
 	endif
 	!Write temperature to file
-	call rwrite_arrays(CV_temperature_out,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults,outfile,m)
+	call rwrite_arrays(CV_temperature_out,nbinso(1),nbinso(2),nbinso(3),nresults,outfile,m)
 
 end subroutine temperature_bin_io
 
@@ -1687,7 +1687,7 @@ subroutine energy_bin_io(CV_energy_out,io_type)
 	implicit none
 
 	integer				:: m,nresults
-	double precision	:: CV_energy_out(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3))
+	double precision	:: CV_energy_out(nbinso(1),nbinso(2),nbinso(3))
 	character(4)		:: io_type
 	character(30)		:: filename, outfile
 
@@ -1696,11 +1696,9 @@ subroutine energy_bin_io(CV_energy_out,io_type)
 	outfile = trim(prefix_dir)//filename
 
 	nresults = 1
-
 	!---------------Correct for surface fluxes on halo cells---------------
 	! Swap Halos
-	call rswaphalos(CV_energy_out,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults)
-
+	call rswaphalos(CV_energy_out,nbinso(1),nbinso(2),nbinso(3),nresults)
 
 	if (io_type .eq. 'snap') then
 		!CV_energy_out = CV_energy_out / (tplot*Nvflux_ave)
@@ -1718,10 +1716,9 @@ subroutine energy_bin_io(CV_energy_out,io_type)
 	endif
 
 	!Write Energy to file
-	call rwrite_arrays(CV_energy_out,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults,outfile,m)
+	call rwrite_arrays(CV_energy_out,nbinso(1),nbinso(2),nbinso(3),nresults,outfile,m)
 
 end subroutine energy_bin_io
-
 
 !---------------------------------------------------------------------------------
 
@@ -1882,7 +1879,7 @@ subroutine mass_flux_io
 
 	!Include halo surface fluxes to get correct values for all cells
 	nresults = 6
-	call iswaphalos(mass_flux,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults)
+	call iswaphalos(mass_flux,nbinso(1),nbinso(2),nbinso(3),nresults)
 
 	!Calculate record number timestep
 	select case(CV_conserve)
@@ -1895,8 +1892,8 @@ subroutine mass_flux_io
 	end select
 
 	!Write mass to file
-	call iwrite_arrays(mass_flux,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults,outfile,m)
-	!call iwrite_arrays(mass_flux,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults,trim(prefix_dir)//'results/mflux',m)
+	call iwrite_arrays(mass_flux,nbinso(1),nbinso(2),nbinso(3),nresults,outfile,m)
+	!call iwrite_arrays(mass_flux,nbinso(1),nbinso(2),nbinso(3),nresults,trim(prefix_dir)//'results/mflux',m)
 
 end subroutine mass_flux_io
 
@@ -1913,7 +1910,7 @@ subroutine momentum_flux_io
 
 	! Swap Halos
 	nresults = 18
-	call rswaphalos(momentum_flux,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults)
+	call rswaphalos(momentum_flux,nbinso(1),nbinso(2),nbinso(3),nresults)
 
 	do ixyz = 1,3
 		binface	      = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
@@ -1937,7 +1934,7 @@ subroutine momentum_flux_io
 		call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
 	end select
 
-	call rwrite_arrays(momentum_flux,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults,trim(prefix_dir)//'results/vflux',m)
+	call rwrite_arrays(momentum_flux,nbinso(1),nbinso(2),nbinso(3),nresults,trim(prefix_dir)//'results/vflux',m)
 
 end subroutine momentum_flux_io
 
@@ -2038,8 +2035,7 @@ subroutine surface_stress_io
 
 	! Swap Halos
 	nresults = 18
-	call rswaphalos(Pxyface,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults)
-
+	call rswaphalos(Pxyface,nbinso(1),nbinso(2),nbinso(3),nresults)
 
 	do ixyz = 1,3
 		binface		  = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
@@ -2049,7 +2045,7 @@ subroutine surface_stress_io
 	enddo
 
 	!Integration of stress using trapizium rule requires multiplication by timestep
-	!so delta_t cancels upon division by tau=elta_t*Nvflux_ave resulting in division by Nvflux_ave
+	!so delta_t cancels upon division by tau=delta_t*Nvflux_ave resulting in division by Nvflux_ave
 	Pxyface = Pxyface/Nvflux_ave
 
 	!Write surface pressures to file
@@ -2063,7 +2059,7 @@ subroutine surface_stress_io
 	end select
 
 	!Write surface pressures to file
-	call rwrite_arrays(Pxyface,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults,trim(prefix_dir)//'results/psurface',m)
+	call rwrite_arrays(Pxyface,nbinso(1),nbinso(2),nbinso(3),nresults,trim(prefix_dir)//'results/psurface',m)
 
 end subroutine surface_stress_io
 
@@ -2079,14 +2075,14 @@ subroutine energy_flux_io
 	double precision		:: binface
 
 	!Include halo surface fluxes to get correct values for all cells
-	nresults = 18
-	call rswaphalos(energy_flux,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults)
+	nresults = 6
+	call rswaphalos(energy_flux,nbinso(1),nbinso(2),nbinso(3),nresults)
 
 	do ixyz = 1,3
 		binface	      = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
 			     		(domain(modulo(ixyz+1,3)+1)/nbins(modulo(ixyz+1,3)+1))
-		energy_flux(:,:,:,ixyz  )=energy_flux(:,:,:,ixyz  )/(binface) !Bottom
-		energy_flux(:,:,:,ixyz+3)=energy_flux(:,:,:,ixyz+3)/(binface) !Top
+		energy_flux(:,:,:,ixyz  )=energy_flux(:,:,:,ixyz  )/binface !Bottom
+		energy_flux(:,:,:,ixyz+3)=energy_flux(:,:,:,ixyz+3)/binface !Top
 	enddo
 
 	!Divide energy flux by averaing period tau=delta_t*Neflux_ave if CV_conserve=1
@@ -2103,7 +2099,7 @@ subroutine energy_flux_io
 		call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
 	end select
 
-	call rwrite_arrays(energy_flux,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults,trim(prefix_dir)//'results/eflux',m)
+	call rwrite_arrays(energy_flux,nbinso(1),nbinso(2),nbinso(3),nresults,trim(prefix_dir)//'results/eflux',m)
 
 end subroutine energy_flux_io
 
@@ -2119,8 +2115,8 @@ subroutine surface_power_io
 	double precision		:: binface
 
 	!Include halo surface stresses to get correct values for all cells
-	nresults = 18
-	call rswaphalos(Pxyvface,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults)
+	nresults = 6
+	call rswaphalos(Pxyvface,nbinso(1),nbinso(2),nbinso(3),nresults)
 
 	do ixyz = 1,3
 		binface		  = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
@@ -2134,7 +2130,7 @@ subroutine surface_power_io
 
 	!Write surface pressures * velocity to file
 	m = (iter-initialstep+1)/(Neflux_ave*tplot)
-	call rwrite_arrays(Pxyvface,nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),nresults,trim(prefix_dir)//'results/esurface',m)
+	call rwrite_arrays(Pxyvface,nbinso(1),nbinso(2),nbinso(3),nresults,trim(prefix_dir)//'results/esurface',m)
 
 end subroutine surface_power_io
 
@@ -2268,6 +2264,11 @@ implicit none
 	end if
 	
 end subroutine r_gyration_io 
+
+
+!====================================================================
+!			Array writing subroutines
+!--------------------------------------------------------------------
 
 subroutine iwrite_arrays(some_array,nx,ny,nz,nresults,outfile,outstep)
 	use module_parallel_io

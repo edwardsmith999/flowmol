@@ -1251,7 +1251,7 @@ subroutine mass_snapshot
 	mbinsize(:) = domain(:) / nbins(:)
 
 	!Allocate temporary array for mass and momentum in volume
-	allocate(volume_mass_temp(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3)))
+	allocate(volume_mass_temp(nbinso(1),nbinso(2),nbinso(3)))
 
 	!Reset Control Volume momentum 
 	volume_mass_temp = 0
@@ -1522,8 +1522,8 @@ subroutine momentum_snapshot
 	mbinsize(:) = domain(:) / nbins(:)
 
 	!Allocate temporary array for mass and momentum in volume
-	allocate(volume_mass_temp(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3)))
-	allocate(volume_momentum_temp(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),3  ))
+	allocate(volume_mass_temp(nbinso(1),nbinso(2),nbinso(3)))
+	allocate(volume_momentum_temp(nbinso(1),nbinso(2),nbinso(3),3  ))
 
 	!Reset Control Volume momentum 
 	volume_mass_temp = 0
@@ -1651,8 +1651,8 @@ subroutine cumulative_energy_flux(ixyz)
 			where (ri12 .eq. 0.d0) ri12 = 0.000001d0
 
 			!Assign to bins before and after using integer division
-			ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:)) + nhb
-			ibin2(:) = ceiling((ri2+halfdomain(:))/mbinsize(:)) + nhb
+			ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:)) + nhb(:)
+			ibin2(:) = ceiling((ri2+halfdomain(:))/mbinsize(:)) + nhb(:)
 
 			!Replace Signum function with this functions which gives a
 			!check for plane crossing and the correct sign 
@@ -1786,7 +1786,7 @@ subroutine energy_snapshot
 	mbinsize(:) = domain(:) / nbins(:)
 
 	!Allocate temporary array for energy in volume
-	allocate(volume_energy_temp(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3)))
+	allocate(volume_energy_temp(nbinso(1),nbinso(2),nbinso(3)))
 
 	!Reset Control Volume momentum 
 	volume_energy_temp = 0.d0
@@ -2529,7 +2529,7 @@ implicit none
 		!Stress acting on face over volume
 		if (eflux_outflag .ne. 0) then
 			!velvect(:) = v(molnoi,:) 
-			velvect(:) = v(molnoi,:) + 0.5d0*delta_t*aold(molnoi,:)
+			velvect(:) = v(molnoi,:) + 0.5d0*delta_t*a(molnoi,:)
 			Pxyvface(cbin(1),cbin(2),cbin(3),1) = Pxyvface(cbin(1),cbin(2),cbin(3),1) + dot_product(fij,velvect)*dble(onfacexb)
 			Pxyvface(cbin(1),cbin(2),cbin(3),2) = Pxyvface(cbin(1),cbin(2),cbin(3),2) + dot_product(fij,velvect)*dble(onfaceyb)
 			Pxyvface(cbin(1),cbin(2),cbin(3),3) = Pxyvface(cbin(1),cbin(2),cbin(3),3) + dot_product(fij,velvect)*dble(onfacezb)

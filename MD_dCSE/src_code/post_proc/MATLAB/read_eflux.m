@@ -1,6 +1,17 @@
 %Read energy measurements at time "read_time"
 
-function[energy_snapshot_t,energy_flux_t,energy_surface_t] = read_eflux(read_time,resultfile_dir,gnbins)
+function[energy_snapshot_t,energy_flux_t,energy_surface_t] = read_eflux(read_time,resultfile_dir,gnbins,filename1,filename2,filename3)
+
+if (exist('filename1') == 0)
+    filename1 = './eflux';
+end
+if (exist('filename2') == 0)
+    filename2 = './esurface';
+end
+
+if (exist('filename3') == 0)
+    filename3 = './esnap';
+end
 
 %Store Present Working directory
 pwdir = pwd;

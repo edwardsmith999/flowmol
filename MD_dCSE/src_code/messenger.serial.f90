@@ -241,7 +241,7 @@ end subroutine messenger_updateborders_leesedwards
 !Face and corner update routines
 
 subroutine updatefacedown(ixyz)
-        use interfaces
+	use interfaces
 	use messenger
 	use arrays_MD
 	implicit none
@@ -337,7 +337,7 @@ end subroutine updatefacedown
 !------------------------------------------------------------------------------
 
 subroutine updatefaceup(ixyz)
-        use interfaces
+	use interfaces
 	use messenger
 	use arrays_MD
 	implicit none

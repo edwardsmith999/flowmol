@@ -61,16 +61,21 @@ implicit none
 	deallocate(rfbin)
 	deallocate(Pxy)
 	deallocate(Pxymol)
-	if (allocated(Pxybin))	deallocate(Pxybin)
-	if (allocated(Pxyface))	deallocate(Pxyface)
 	deallocate(Pxyzero)
 	deallocate(Pxycorrel)
 
-	if (allocated(volume_momentum))	deallocate(volume_momentum)
-	if (allocated(momentum_flux))	deallocate(momentum_flux)
-	if (allocated(volume_force))	deallocate(volume_force)
-	if (allocated(volume_mass))		deallocate(volume_mass)
 	if (allocated(mass_flux))		deallocate(mass_flux)
+	if (allocated(volume_mass))		deallocate(volume_mass)
+
+	if (allocated(momentum_flux))	deallocate(momentum_flux)
+	if (allocated(Pxybin))			deallocate(Pxybin)
+	if (allocated(volume_force))	deallocate(volume_force)
+	if (allocated(volume_momentum))	deallocate(volume_momentum)
+	if (allocated(Pxyface))			deallocate(Pxyface)
+
+	if (allocated(energy_flux))     deallocate(energy_flux)
+	if (allocated(Pxyvface))     	deallocate(Pxyvface)
+
 	deallocate(potenergymol)
 	deallocate(potenergymol_LJ)
 	deallocate(virialmol)
