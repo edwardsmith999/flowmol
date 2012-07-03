@@ -512,7 +512,7 @@ subroutine pack_cells(icell,jcell,kcell,sendbuffer,buffsize,pos)
 	double precision, dimension(:), intent(out) 	:: sendbuffer
 
 	integer 										:: i, molno,cellnp
-	double precision, dimension(nd) 				:: rpack, vpack	!Temporary arrays used to pack
+	double precision, dimension(nd) 				:: rpack!, vpack	!Temporary arrays used to pack
 	double precision, dimension(8)  				:: FENEpack
 
 	type(node), pointer 	        				:: old, current
@@ -552,6 +552,41 @@ subroutine pack_cells(icell,jcell,kcell,sendbuffer,buffsize,pos)
 	enddo
 
 end subroutine pack_cells
+
+
+!Wrapper for the routine to Pack cells using MPI_pack
+subroutine unpack_cells(halo_np,recvnp,length,recvbuffer)
+	use physical_constants_MD, only : nd, np
+	use computational_constants_MD, only :	potential_flag
+	use arrays_MD, only : r, v
+	use messenger
+
+	integer, intent(in)								:: halo_np,recvnp,length
+	double precision, dimension(:), intent(in) 		:: recvbuffer
+
+	integer 										:: n, pos
+	double precision, dimension(nd) 				:: rpack, vpack	!Temporary arrays used to pack
+	double precision, dimension(8)  				:: FENEpack
+
+	pos = 0
+	do n=halo_np+1,halo_np+recvnp
+		select case(potential_flag)
+		case(0)
+			call MPI_Unpack(recvbuffer,length,pos,rpack, &
+			nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+			r(np+n,:) = rpack
+		case(1)
+			call MPI_Unpack(recvbuffer,length,pos,rpack, &
+			nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+			r(np+n,:) = rpack
+
+			call MPI_Unpack(recvbuffer,length,pos,FENEpack, &
+			8,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+			call assign_FENEbuffer(np+n,FENEpack)
+		end select
+	enddo
+
+end subroutine unpack_cells
 
 end module pack_unpack_cells
 
@@ -687,7 +722,6 @@ subroutine updatefacedown(ixyz)
 			kcell = 2
 			do icell=2, ncells(1)+1
 			do jcell=2, ncells(2)+1
-
 				call pack_cells(icell,jcell,kcell,sendbuffer,buffsize,pos)
 			enddo
 			enddo
@@ -718,23 +752,8 @@ subroutine updatefacedown(ixyz)
 		recvnp = recvsize/real(nd+8,kind(0.d0))
 	end select
 
-	pos = 0
-	do n=halo_np+1,halo_np+recvnp
-		select case(potential_flag)
-		case(0)
-			call MPI_Unpack(recvbuffer,length,pos,rpack, &
-			nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			r(np+n,:) = rpack
-		case(1)
-			call MPI_Unpack(recvbuffer,length,pos,rpack, &
-			nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			r(np+n,:) = rpack
-
-			call MPI_Unpack(recvbuffer,length,pos,FENEpack, &
-			8,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			call assign_FENEbuffer(np+n,FENEpack)
-		end select
-	enddo
+	!Unpack recieved halo data 
+	call unpack_cells(halo_np,recvnp,length,recvbuffer)
 
 	!Correct positions in new processor to halo cells
 	do n=halo_np+1,halo_np+recvnp
@@ -878,23 +897,8 @@ subroutine updatefaceup(ixyz)
 		recvnp = recvsize/real(nd+8,kind(0.d0))
 	end select
 
-	pos = 0
-	do n=halo_np+1,halo_np+recvnp
-		select case(potential_flag)
-		case(0)
-			call MPI_Unpack(recvbuffer,length,pos,rpack, &
-			nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			r(np+n,:) = rpack
-		case(1)
-			call MPI_Unpack(recvbuffer,length,pos,rpack, &
-			nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			r(np+n,:) = rpack
-
-			call MPI_Unpack(recvbuffer,length,pos,FENEpack, &
-			8,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			call assign_FENEbuffer(np+n,FENEpack)
-		end select
-	enddo
+	!Unpack recieved halo data 
+	call unpack_cells(halo_np,recvnp,length,recvbuffer)
 
 	!Correct positions in new processor to halo cells
 	do n=halo_np+1,halo_np+recvnp
@@ -1033,23 +1037,8 @@ subroutine updateedge(face1,face2)
 			recvnp = recvsize/real(nd+8,kind(0.d0))
 		end select
 
-		pos = 0
-		do n=halo_np+1,halo_np+recvnp
-			select case(potential_flag)
-			case(0)
-				call MPI_Unpack(recvbuffer,length,pos,rpack, &
-				nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-				r(np+n,:) = rpack
-			case(1)
-				call MPI_Unpack(recvbuffer,length,pos,rpack, &
-				nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-				r(np+n,:) = rpack
-
-				call MPI_Unpack(recvbuffer,length,pos,FENEpack, &
-				8,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-				call assign_FENEbuffer(np+n,FENEpack)
-			end select
-		enddo
+		!Unpack recieved halo data 
+		call unpack_cells(halo_np,recvnp,length,recvbuffer)
 
 		!Correct positions in new processor to halo cells
 		select case (ixyz)
@@ -1164,23 +1153,8 @@ subroutine updatecorners()
 			recvnp = recvsize/real(nd+8,kind(0.d0))
 		end select
 
-		pos = 0
-		do n=halo_np+1,halo_np+recvnp
-			select case(potential_flag)
-			case(0)
-				call MPI_Unpack(recvbuffer,length,pos,rpack, &
-				nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-				r(np+n,:) = rpack
-			case(1)
-				call MPI_Unpack(recvbuffer,length,pos,rpack, &
-				nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-				r(np+n,:) = rpack
-
-				call MPI_Unpack(recvbuffer,length,pos,FENEpack, &
-				8,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-				call assign_FENEbuffer(np+n,FENEpack)
-			end select
-		enddo
+		!Unpack recieved halo data 
+		call unpack_cells(halo_np,recvnp,length,recvbuffer)
 
 		!Correct positions in new processor to halo cells
 		do n=halo_np+1,halo_np+recvnp
