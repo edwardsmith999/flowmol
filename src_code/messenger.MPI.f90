@@ -751,7 +751,7 @@ subroutine updatefacedown(ixyz)
 
 	return
 
-end
+end subroutine updatefacedown
 
 !-----------------------------------------------------------------
 ! 		      Send to upper neighbor 	        	 -
@@ -759,7 +759,7 @@ end
 
 !Update face halo cells by passing to neighbours
 subroutine updatefaceup(ixyz)
-        use interfaces
+	use interfaces
 	use physical_constants_MD
 	use polymer_info_MD
 	use messenger
@@ -972,13 +972,13 @@ subroutine updatefaceup(ixyz)
 	nullify(old)            !Nullify old as no longer required
 
 	return
-end
+end subroutine updatefaceup
 
 
 !Update edge halo cells by passing to neighbours
 
 subroutine updateedge(face1,face2)
-        use interfaces
+	use interfaces
 	use messenger
 	use physical_constants_MD
 	use polymer_info_MD
@@ -1215,7 +1215,7 @@ subroutine updateedge(face1,face2)
 	nullify(old)            !Nullify old as no longer required
 
 	return
-end
+end subroutine updateedge
 
 
 subroutine updatecorners()
@@ -1349,7 +1349,69 @@ subroutine updatecorners()
 	nullify(old)            !Nullify old as no longer required
 
 	return
-end
+end subroutine updatecorners
+
+!----------------------------------------------------------------------
+!Wrapper for the routine to pack/unpack cells using MPI commands
+
+module pack_unpack_cells
+	use physical_constants_MD, only : nd
+	use computational_constants_MD, only :	potential_flag
+	use arrays_MD, only : r, v
+	use linked_list
+	use messenger
+	implicit none
+
+contains
+
+!Wrapper for the routine to Pack cells using MPI_pack
+subroutine pack_cells(icell,jcell,kcell,sendbuffer,buffsize,pos)
+
+	integer, intent(in)								:: icell,jcell,kcell,buffsize
+	integer, intent(inout)							:: pos
+	double precision, dimension(:), intent(inout) 	:: sendbuffer
+
+	integer 										:: i, molno,cellnp
+	double precision, dimension(nd) 				:: rpack, vpack	!Temporary arrays used to pack
+	double precision, dimension(8)  				:: FENEpack
+
+	type(node), pointer 	        				:: old, current
+
+	cellnp = cell%cellnp(icell,jcell,kcell)
+	old => cell%head(icell,jcell,kcell)%point
+
+	do i = 1,cellnp    !Step through each molecule in list 
+		molno = old%molno !Number of molecule
+		select case (potential_flag)
+		case(0)
+			rpack(:) = r(molno,:)	!Load into temp array
+			call MPI_Pack(rpack,nd,MPI_DOUBLE_PRECISION,& 
+			sendbuffer,buffsize,pos,icomm_grid,ierr)
+			!if (pass_vhalo .ne. 0) then
+				vpack(:) = v(molno,:)	!Load into temp array
+				call MPI_Pack(vpack,nd,MPI_DOUBLE_PRECISION,& 
+				sendbuffer,buffsize,pos,icomm_grid,ierr)
+			!endif
+		case(1)
+			rpack(:) = r(molno,:)	!Load into temp array
+			call MPI_Pack(rpack,nd,MPI_DOUBLE_PRECISION,& 
+			sendbuffer,buffsize,pos,icomm_grid,ierr)	
+			!if (pass_vhalo .ne. 0) then
+				vpack(:) = v(molno,:)	!Load into temp array
+				call MPI_Pack(vpack,nd,MPI_DOUBLE_PRECISION,& 
+				sendbuffer,buffsize,pos,icomm_grid,ierr)
+			!endif
+			call prepare_FENEbuffer(molno,FENEpack)
+			call MPI_Pack(FENEpack,8,MPI_DOUBLE_PRECISION,&
+			sendbuffer,buffsize,pos,icomm_grid,ierr)
+		end select
+		current => old
+		old => current%next
+	enddo
+
+end subroutine pack_cells
+
+end module pack_unpack_cells
 
 !======================================================================
 !			Molecule Transfer Subroutines                 =
@@ -2292,7 +2354,7 @@ subroutine rswaphalos(A,n1,n2,n3,nresults)
 
 	!Pack bins into array of cells
 	nresultscell = nresults * nhb(1) * nhb(2) * nhb(3) 
-	allocate(buf(ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell)); buf = 0
+	allocate(buf(ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell)); buf = 0.d0
 	call rpack_bins_into_cells(buf,A,nresults)
 
 	call rupdatefaces(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell,1)

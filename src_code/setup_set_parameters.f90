@@ -139,7 +139,7 @@ subroutine set_parameters_allocate(n)
 		allocate(vmagnitude(np+extralloc))
 		allocate(a(np+extralloc,nd))
 		!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
-		allocate(aold(np+extralloc,nd))
+		!allocate(aold(np+extralloc,nd))
 		!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
 		allocate(theta(np+extralloc,nd))
 		allocate(aD(np+extralloc,nd))
@@ -628,6 +628,7 @@ subroutine set_parameters_outputs
 
 	!Calculate number of halo bins from ratio of cells to bins
 	nhb = nbins/ncells
+	nbinso = nbins+2*nhb
 
 	!nbins(1) = ceiling(np/10.d0)    	!Set number of equal sized velocity ranges based on 1/10 number of molecules
 	allocate(vfd_bin(nbins(1)))           	!Allocate storage space for frequency tally over time
@@ -671,13 +672,13 @@ subroutine set_parameters_outputs
 
 	!Allocated bins for velocity averaging
 	if (velocity_outflag.eq.4) then
-		allocate(volume_momentum(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),3  ))
-		allocate(volume_mass(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3)))
+		allocate(volume_momentum(nbinso(1),nbinso(2),nbinso(3),3  ))
+		allocate(volume_mass(nbinso(1),nbinso(2),nbinso(3)))
 		volume_momentum = 0.d0
 		volume_mass = 0
 	else
 		if (mass_outflag.eq.4) then
-			allocate(volume_mass(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3)  ))
+			allocate(volume_mass(nbinso(1),nbinso(2),nbinso(3)  ))
 			volume_mass = 0
 		endif
 	endif
@@ -694,21 +695,16 @@ subroutine set_parameters_outputs
 	Pxyzero = 0.d0
 
 	!Allocate pressure bin for Stress volume averaging
-	allocate( rfbin(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),3,3))
+	allocate( rfbin(nbinso(1),nbinso(2),nbinso(3),3,3))
 	allocate( vvbin(nbins(1),  nbins(2),  nbins(3),3,3  ))
 	allocate( Pxybin(nbins(1),  nbins(2),  nbins(3),3,3  ))
 	rfbin  = 0.d0
 	Pxybin = 0.d0
 
 	if (temperature_outflag .eq. 4) then
-		allocate(volume_temperature(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3)))
+		allocate(volume_temperature(nbinso(1),nbinso(2),nbinso(3)))
 		volume_temperature = 0.d0
 	endif
-
-	!Allocate bins for control volume energy fluxes and forces*velocity
-	allocate(  energy_flux(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),6))
-	allocate( Pxyvface(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),6))
-	energy_flux 	= 0.d0
 
 	!Allocated Bins for Nose Hoover Stress Control
 	allocate(Gxybins(nbins(1),nbins(2),nbins(3),3,3))
@@ -761,28 +757,35 @@ subroutine set_parameters_outputs
 				planes(n) = planespacing*(n-1) + shift - halfdomain(3)
 			enddo
 		case(4)
-			if (.not.(allocated(volume_momentum))) 	allocate(volume_momentum(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),3  ))
-			allocate( Pxyface(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),3,6))
-			allocate(  momentum_flux(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),3,6))
-			allocate(   volume_force(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),3,2))
+			if (.not.(allocated(volume_momentum))) 	allocate(volume_momentum(nbinso(1),nbinso(2),nbinso(3),3  ))
+			allocate( Pxyface(nbinso(1),nbinso(2),nbinso(3),3,6))
+			allocate(  momentum_flux(nbinso(1),nbinso(2),nbinso(3),3,6))
+			allocate(   volume_force(nbinso(1),nbinso(2),nbinso(3),3,2))
 			momentum_flux 	= 0.d0
 			volume_momentum = 0.d0
 			volume_force 	= 0.d0
 			!Allocate bins for control volume mass fluxes
-			if (.not.(allocated(volume_mass)))  allocate(volume_mass(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3)  ))
-			allocate(  mass_flux(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),6))
+			if (.not.(allocated(volume_mass)))  allocate(volume_mass(nbinso(1),nbinso(2),nbinso(3)  ))
+			allocate(  mass_flux(nbinso(1),nbinso(2),nbinso(3),6))
 			volume_mass = 0
 			mass_flux   = 0
 		case default
 			!Allocate bins for control volume mass fluxes
 			if (mflux_outflag .eq. 1) then
 				if (.not. allocated(volume_mass)) &
-				allocate(volume_mass(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3)  ))
-				allocate(  mass_flux(nbins(1)+2*nhb(1),nbins(2)+2*nhb(2),nbins(3)+2*nhb(3),6))
+				allocate(volume_mass(nbinso(1),nbinso(2),nbinso(3)  ))
+				allocate(  mass_flux(nbinso(1),nbinso(2),nbinso(3),6))
 				volume_mass = 0
 				mass_flux   = 0
 			endif
 	end select
+
+	!Allocate bins for control volume energy fluxes and forces*velocity
+	if (eflux_outflag .eq. 4) then
+		allocate(  energy_flux(nbinso(1),nbinso(2),nbinso(3),6))
+		allocate( Pxyvface(nbinso(1),nbinso(2),nbinso(3),6))
+		energy_flux 	= 0.d0; Pxyvface = 0.d0
+	endif
 
 #if USE_COUPLER
 	! Check end of maximum VMD intervals is not greater than the number of steps Nsteps

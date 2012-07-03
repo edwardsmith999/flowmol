@@ -154,6 +154,129 @@ module computational_constants_MD
 
 end module computational_constants_MD
 
+
+!-------------------------------------------------------------------------------------
+!-------------------------------Shearing BCs------------------------------------------
+module shear_info_MD
+
+	integer 			:: define_shear_as
+	integer				:: wrap_integer
+	integer				:: le_i0                    !Lees-Edwards iter0
+	integer				:: le_sp                    !Shear plane
+	integer				:: le_sd                    !Shear direction
+	integer				:: le_rp                    !Shear remaining plane
+	double precision 	:: le_sv                    !Shear velocity
+	double precision 	:: le_sr                    !Shear rate
+	double precision	:: le_sx                    !Shear distance
+	double precision	:: le_st                    !Shear time
+
+	integer, dimension(:), allocatable	:: mol_wrap_integer		
+
+end module shear_info_MD
+
+!-------------------------------------------------------------------------------------
+!----------------------------------Arrays---------------------------------------------
+
+module arrays_MD
+
+	integer,          dimension(:),   allocatable, target	:: tag       	!Molecular Tags
+	integer, 	  	  dimension(:,:), allocatable, target	:: &
+		fix, &      				!Fixed molecules
+		thermostat					!Thermostatted molecules
+	double precision, dimension(:),   allocatable, target 	:: &
+		potenergymol, 		&		!Potential energy of each molecule
+		potenergymol_LJ, 	&		!LJ Potential energy of each molecule
+		potenergymol_FENE,	&		!FENE Potential energy of each molecule
+		virialmol,			&		!Virial of each molecule
+		vmagnitude, 		&
+		recvbuffer
+	double precision, dimension(:,:),   allocatable			:: &
+		rtrue, 		&      			!Positions with no period BC
+		vtrue,      &               !Corresponding velocities
+		rinitial, 	&
+		rijsum, 	&				!Sum of all molecular rij values
+		theta, 		&
+		aD,aR
+	double precision, dimension(:,:),   allocatable, target 	:: &
+		r, 		&        		  	!Positions
+		v, 		&        		  	!Velocity
+		a, 		&					!Accelerations
+		aold,	&					!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
+		slidev						!Speed for sliding molecules
+
+end module arrays_MD
+
+
+!-------------------------------------------------------------------------------------
+!----------------------------------Linked List----------------------------------------
+
+module linked_list
+
+	!3D Information for each cell and pointer to cell/bin linked list
+	type cellinfo
+		integer  , dimension(:,:,:), allocatable :: cellnp
+		type(ptr), dimension(:,:,:), pointer     :: head
+	end type cellinfo
+	
+	!Cannot create array of pointers in Fortran so create an array of
+	!type ptr which contains a pointer
+	type ptr
+		type(node), pointer :: point
+	end type ptr
+
+	!A Node of the linked list which is built for each cell/bin
+	type node
+		double precision,dimension(:), pointer 	:: rp
+		double precision,dimension(:), pointer 	:: vp
+		double precision,dimension(:), pointer	:: ap
+		integer             :: molno
+		type(node), pointer :: next, previous
+	end type node
+
+	! Neighbourlist with cell head 
+	!Information for pointer to neighbour list
+	type neighbrinfo
+		integer,dimension(:),allocatable		:: noneighbrs
+		type(ptr_nbr), dimension(:), pointer	:: head
+	end type neighbrinfo
+	
+	!Cannot create array of pointers in Fortran so create an array of
+	!type ptr which contains a pointer
+	type ptr_nbr
+		type(neighbrnode), pointer 	:: point
+	end type ptr_nbr
+
+	!A Node of the linked list which is built for the neighbourlist
+	type neighbrnode
+		integer			   			:: molnoj
+		type(neighbrnode), pointer 	:: next, previous
+	end type neighbrnode
+
+
+	!Information for pass list
+	type passinfo
+		integer					:: sendnp
+		type(passnode), pointer :: head
+	end type passinfo
+
+	!A Node of the passed molecule list
+	type passnode
+		integer                 :: molno
+		integer					:: ipass
+		integer					:: jpass
+		integer					:: kpass
+		type(passnode), pointer :: next, previous
+	end type passnode
+
+	!Global type cell used to record location of all cells linked lists
+	!N.B. Type cell is not a pointer & nothing points to it
+	type(cellinfo)    	:: cell
+	type(cellinfo)    	:: bin	!Used to bin molecules for statistics
+	type(neighbrinfo) 	:: neighbour
+	type(passinfo)    	:: pass
+
+end module linked_list
+
 !-------------------------------------------------------------------------------------
 !----------------------------------Polymer--------------------------------------------
 module polymer_info_MD
@@ -295,57 +418,6 @@ contains
 end module polymer_info_MD
 
 !-------------------------------------------------------------------------------------
-!-------------------------------Shearing BCs------------------------------------------
-module shear_info_MD
-
-	integer 			:: define_shear_as
-	integer				:: wrap_integer
-	integer				:: le_i0                    !Lees-Edwards iter0
-	integer				:: le_sp                    !Shear plane
-	integer				:: le_sd                    !Shear direction
-	integer				:: le_rp                    !Shear remaining plane
-	double precision 	:: le_sv                    !Shear velocity
-	double precision 	:: le_sr                    !Shear rate
-	double precision	:: le_sx                    !Shear distance
-	double precision	:: le_st                    !Shear time
-
-	integer, dimension(:), allocatable	:: mol_wrap_integer		
-
-end module shear_info_MD
-
-!-------------------------------------------------------------------------------------
-!----------------------------------Arrays---------------------------------------------
-
-module arrays_MD
-
-	integer,          dimension(:),   allocatable, target	:: tag       	!Molecular Tags
-	integer, 	  	  dimension(:,:), allocatable, target	:: &
-		fix, &      				!Fixed molecules
-		thermostat					!Thermostatted molecules
-	double precision, dimension(:),   allocatable, target 	:: &
-		potenergymol, 		&		!Potential energy of each molecule
-		potenergymol_LJ, 	&		!LJ Potential energy of each molecule
-		potenergymol_FENE,	&		!FENE Potential energy of each molecule
-		virialmol,			&		!Virial of each molecule
-		vmagnitude, 		&
-		recvbuffer
-	double precision, dimension(:,:),   allocatable			:: &
-		rtrue, 		&      			!Positions with no period BC
-		vtrue,      &               !Corresponding velocities
-		rinitial, 	&
-		rijsum, 	&				!Sum of all molecular rij values
-		theta, 		&
-		aD,aR
-	double precision, dimension(:,:),   allocatable, target 	:: &
-		r, 		&        		  	!Positions
-		v, 		&        		  	!Velocity
-		a, 		&					!Accelerations
-		aold,	&					!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
-		slidev						!Speed for sliding molecules
-
-end module arrays_MD
-
-!-------------------------------------------------------------------------------------
 !----------------------------------CUDA---------------------------------------------
 
 module CUDA_MD
@@ -369,83 +441,13 @@ module CUDA_MD
 end module CUDA_MD
 
 !-------------------------------------------------------------------------------------
-!----------------------------------Linked List----------------------------------------
-
-module linked_list
-
-	!3D Information for each cell and pointer to cell/bin linked list
-	type cellinfo
-		integer  , dimension(:,:,:), allocatable :: cellnp
-		type(ptr), dimension(:,:,:), pointer     :: head
-	end type cellinfo
-	
-	!Cannot create array of pointers in Fortran so create an array of
-	!type ptr which contains a pointer
-	type ptr
-		type(node), pointer :: point
-	end type ptr
-
-	!A Node of the linked list which is built for each cell/bin
-	type node
-		double precision,dimension(:), pointer 	:: rp
-		double precision,dimension(:), pointer 	:: vp
-		double precision,dimension(:), pointer	:: ap
-		integer             :: molno
-		type(node), pointer :: next, previous
-	end type node
-
-	! Neighbourlist with cell head 
-	!Information for pointer to neighbour list
-	type neighbrinfo
-		integer,dimension(:),allocatable		:: noneighbrs
-		type(ptr_nbr), dimension(:), pointer	:: head
-	end type neighbrinfo
-	
-	!Cannot create array of pointers in Fortran so create an array of
-	!type ptr which contains a pointer
-	type ptr_nbr
-		type(neighbrnode), pointer 	:: point
-	end type ptr_nbr
-
-	!A Node of the linked list which is built for the neighbourlist
-	type neighbrnode
-		integer			   			:: molnoj
-		type(neighbrnode), pointer 	:: next, previous
-	end type neighbrnode
-
-
-	!Information for pass list
-	type passinfo
-		integer					:: sendnp
-		type(passnode), pointer :: head
-	end type passinfo
-
-	!A Node of the passed molecule list
-	type passnode
-		integer                 :: molno
-		integer					:: ipass
-		integer					:: jpass
-		integer					:: kpass
-		type(passnode), pointer :: next, previous
-	end type passnode
-
-	!Global type cell used to record location of all cells linked lists
-	!N.B. Type cell is not a pointer & nothing points to it
-	type(cellinfo)    	:: cell
-	type(cellinfo)    	:: bin	!Used to bin molecules for statistics
-	type(neighbrinfo) 	:: neighbour
-	type(passinfo)    	:: pass
-
-end module linked_list
-
-!-------------------------------------------------------------------------------------
 !---------------------------------Calculated Properties-------------------------------
 
 module calculated_properties_MD
 
 	integer		 							:: nshells			    !Number of shells used to store radial distribution
 	integer		 							:: nplanes,gnplanes	    !Number of planes used for MOP
-	integer,dimension(3) 					:: nbins, gnbins		!Number of groups or bins to store frequency of molecular velocity
+	integer,dimension(3) 					:: nbins,nbinso,gnbins	!Number of bins to store molecular properties
 	integer,dimension(:), allocatable 		:: vfd_bin        		!Array to keep tally of molecular velocity distribution
 	integer,dimension(:), allocatable 		:: shell          		!Array to keep tally of radial distribution
 	integer,dimension(:), allocatable 		:: slice_mass	    	!Array to keep tally of molecules in slice

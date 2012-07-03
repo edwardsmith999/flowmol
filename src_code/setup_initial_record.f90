@@ -331,6 +331,36 @@ subroutine setup_initial_record
 			call error_abort("Invalid velocity flux output flag in input file")
 		end select
 
+
+		select case(eflux_outflag)
+		case(0)
+			print*, 'Energy Flux record off'
+			print*, ''
+			print*, ''
+		case(1:3)
+			call error_abort("Energy MOP not developed - change eflux output flag in input file")
+			!if (eflux_outflag .eq. 1) then
+			!	ixyz_char = 'x'
+			!elseif (eflux_outflag .eq. 2) then 
+			!	ixyz_char = 'y'
+			!else 
+			!	ixyz_char = 'z'
+			!endif
+			!print'(2a,3(a,i8),a)', ' Energy Method Of Planes in', ixyz_char, 'recorded every', &
+			!		tplot,' x ',Neflux_ave,' = ',tplot*Neflux_ave,' iterations'
+			!print'(a,i8,a)', ' Domain split into ',nplanes,' Planes for Energy Averaging' 
+			!print'(2(a,f10.5))', ' Seperated by distance:', planespacing, ' with first plane at ', & 
+			!			 planes(1)
+		case(4)
+			print'(3(a,i8),a)', ' Energy flux over surface of 3D bins and snapshots recorded every:', &
+					tplot,' x ',Neflux_ave,' = ',tplot*Neflux_ave,' iterations'
+			print'(a,3i8)', ' Domain split into bins in x,y and z:', gnbins
+			print'(a,3f10.5)', ' Each of size:', & 
+			globaldomain(1)/gnbins(1), globaldomain(2)/gnbins(2),globaldomain(3)/gnbins(3)
+		case default
+			call error_abort("Invalid energy flux output flag in input file")
+		end select
+
 		!print*, 'Bins per Processor:', nbins
 		!print*, 'Number of Bins on outer Surface of each processor', nsurfacebins
 		print*, '======================================================================='
