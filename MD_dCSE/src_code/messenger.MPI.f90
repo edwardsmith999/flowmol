@@ -494,7 +494,7 @@ end subroutine messenger_updateborders_quiescent
 ! 	Routine to pack/unpack halo variables per cells using MPI commands =
 !=======================================================================
 
-module pack_unpack_cells
+module pack_unpack_cell
 	use physical_constants_MD, only : nd
 	use computational_constants_MD, only :	potential_flag
 	use arrays_MD, only : r, v
@@ -505,7 +505,7 @@ module pack_unpack_cells
 contains
 
 !Wrapper for the routine to Pack cells using MPI_pack
-subroutine pack_cells(icell,jcell,kcell,sendbuffer,buffsize,pos)
+subroutine pack_cell(icell,jcell,kcell,sendbuffer,buffsize,pos)
 
 	integer, intent(in)								:: icell,jcell,kcell,buffsize
 	integer, intent(inout)							:: pos
@@ -551,11 +551,11 @@ subroutine pack_cells(icell,jcell,kcell,sendbuffer,buffsize,pos)
 		old => current%next
 	enddo
 
-end subroutine pack_cells
+end subroutine pack_cell
 
 
 !Wrapper for the routine to unpack cells using MPI_unpack
-subroutine unpack_cells(halo_np,recvnp,length,recvbuffer)
+subroutine unpack_recvbuffer(halo_np,recvnp,length,recvbuffer)
 	use physical_constants_MD, only : nd, np
 	use computational_constants_MD, only :	potential_flag
 	use arrays_MD, only : r, v
@@ -586,7 +586,7 @@ subroutine unpack_cells(halo_np,recvnp,length,recvbuffer)
 		end select
 	enddo
 
-end subroutine unpack_cells
+end subroutine unpack_recvbuffer
 
 
 !Get size of array to send from number of molecules
@@ -624,7 +624,7 @@ subroutine get_recvnp(recvsize,recvnp)
 
 end subroutine get_recvnp
 
-end module pack_unpack_cells
+end module pack_unpack_cell
 
 
 !======================================================================
@@ -677,7 +677,7 @@ subroutine updatefacedown(ixyz)
 	use messenger
 	use arrays_MD
 	use linked_list
-	use pack_unpack_cells
+	use pack_unpack_cell
 	implicit none
 	!include "mpif.h"
 
@@ -739,21 +739,21 @@ subroutine updatefacedown(ixyz)
 			icell = 2
 			do jcell=2, ncells(2)+1
 			do kcell=2, ncells(3)+1
-				call pack_cells(icell,jcell,kcell,sendbuffer,buffsize,pos)
+				call pack_cell(icell,jcell,kcell,sendbuffer,buffsize,pos)
 			enddo
 			enddo
        	case (2)
 			jcell = 2
 			do icell=2, ncells(1)+1
 			do kcell=2, ncells(3)+1
-				call pack_cells(icell,jcell,kcell,sendbuffer,buffsize,pos)
+				call pack_cell(icell,jcell,kcell,sendbuffer,buffsize,pos)
 			enddo
 			enddo
         case (3)
 			kcell = 2
 			do icell=2, ncells(1)+1
 			do jcell=2, ncells(2)+1
-				call pack_cells(icell,jcell,kcell,sendbuffer,buffsize,pos)
+				call pack_cell(icell,jcell,kcell,sendbuffer,buffsize,pos)
 			enddo
 			enddo
         case default
@@ -779,7 +779,7 @@ subroutine updatefacedown(ixyz)
 	call get_recvnp(recvsize,recvnp)
 
 	!Unpack recieved halo data 
-	call unpack_cells(halo_np,recvnp,length,recvbuffer)
+	call unpack_recvbuffer(halo_np,recvnp,length,recvbuffer)
 
 	!Correct positions in new processor to halo cells
 	do n=halo_np+1,halo_np+recvnp
@@ -813,7 +813,7 @@ subroutine updatefaceup(ixyz)
 	use messenger
 	use arrays_MD
 	use linked_list
-	use pack_unpack_cells
+	use pack_unpack_cell
 	implicit none
 	!include "mpif.h"
 
@@ -874,21 +874,21 @@ subroutine updatefaceup(ixyz)
 			icell = ncells(1)+1
 			do jcell=2, ncells(2)+1
 			do kcell=2, ncells(3)+1
-				call pack_cells(icell,jcell,kcell,sendbuffer,buffsize,pos)
+				call pack_cell(icell,jcell,kcell,sendbuffer,buffsize,pos)
 			enddo
 			enddo
        	case (2)
 			jcell = ncells(2)+1
 			do icell=2, ncells(1)+1
 			do kcell=2, ncells(3)+1
-				call pack_cells(icell,jcell,kcell,sendbuffer,buffsize,pos)
+				call pack_cell(icell,jcell,kcell,sendbuffer,buffsize,pos)
 			enddo
 			enddo
         case (3)
 			kcell = ncells(3)+1
 			do icell=2, ncells(1)+1
 			do jcell=2, ncells(2)+1
-				call pack_cells(icell,jcell,kcell,sendbuffer,buffsize,pos)
+				call pack_cell(icell,jcell,kcell,sendbuffer,buffsize,pos)
 			enddo
 			enddo
         case default
@@ -915,7 +915,7 @@ subroutine updatefaceup(ixyz)
 	call get_recvnp(recvsize,recvnp)
 
 	!Unpack recieved halo data 
-	call unpack_cells(halo_np,recvnp,length,recvbuffer)
+	call unpack_recvbuffer(halo_np,recvnp,length,recvbuffer)
 
 	!Correct positions in new processor to halo cells
 	do n=halo_np+1,halo_np+recvnp
@@ -946,7 +946,7 @@ subroutine updateedge(face1,face2)
 	use polymer_info_MD
 	use arrays_MD
 	use linked_list
-	use pack_unpack_cells
+	use pack_unpack_cell
 	implicit none
 	!include "mpif.h"
 
@@ -1013,15 +1013,15 @@ subroutine updateedge(face1,face2)
 		select case (ixyz)
     	case (1)
 			do icell = 2, ncells(1)+1 !Move along x-axis
-				call pack_cells(icell,edge1(1,i),edge2(1,i),sendbuffer,buffsize,pos)
+				call pack_cell(icell,edge1(1,i),edge2(1,i),sendbuffer,buffsize,pos)
 			enddo
     		case (2)
 			do jcell = 2, ncells(2)+1 !Move along y-axis
-				call pack_cells(edge1(2,i),jcell,edge2(2,i),sendbuffer,buffsize,pos)
+				call pack_cell(edge1(2,i),jcell,edge2(2,i),sendbuffer,buffsize,pos)
 			enddo
 			case (3)
 			do kcell = 2, ncells(3)+1 !Move along z-axis
-				call pack_cells(edge1(3,i),edge2(3,i),kcell,sendbuffer,buffsize,pos)
+				call pack_cell(edge1(3,i),edge2(3,i),kcell,sendbuffer,buffsize,pos)
 			enddo
 		case default
 			call error_abort("updateBorder: invalid value for ixyz")
@@ -1046,7 +1046,7 @@ subroutine updateedge(face1,face2)
 		call get_recvnp(recvsize,recvnp)
 
 		!Unpack recieved halo data 
-		call unpack_cells(halo_np,recvnp,length,recvbuffer)
+		call unpack_recvbuffer(halo_np,recvnp,length,recvbuffer)
 
 		!Correct positions in new processor to halo cells
 		select case (ixyz)
@@ -1101,7 +1101,7 @@ subroutine updatecorners()
 	use polymer_info_MD
 	use arrays_MD
 	use linked_list
-	use pack_unpack_cells
+	use pack_unpack_cell
 	implicit none
 	!include "mpif.h"
 
@@ -1143,7 +1143,7 @@ subroutine updatecorners()
 
 		!Package data ready to send
 		pos = 0
-		call pack_cells(icornercell(i),jcornercell(i),kcornercell(i),sendbuffer,buffsize,pos)
+		call pack_cell(icornercell(i),jcornercell(i),kcornercell(i),sendbuffer,buffsize,pos)
 
 		!Send, probe for size and then receive data
 		!call pairedsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest,1)
@@ -1153,7 +1153,7 @@ subroutine updatecorners()
 		call get_recvnp(recvsize,recvnp)
 
 		!Unpack recieved halo data 
-		call unpack_cells(halo_np,recvnp,length,recvbuffer)
+		call unpack_recvbuffer(halo_np,recvnp,length,recvbuffer)
 
 		!Correct positions in new processor to halo cells
 		do n=halo_np+1,halo_np+recvnp
