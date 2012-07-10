@@ -41,9 +41,11 @@ subroutine boundaries_init()
 
 !     The inlet flow is composed of a base flow and a perturbation.
 !     Parameters are read from the archive
+	use boundaries
+	implicit none
 
-      use boundaries
-      
+	integer	:: iflag
+
 	! Root process is assumed to be on inflow boundary
 	call data_isRoot(iflag)
 	if (iflag == 1) then
@@ -95,6 +97,18 @@ subroutine boundaries_init()
 		stop "Both front and back boundaries must be periodic"
 	end if
 
+	! Velocity of sliding
+	if (BC_bottom .eq. 3) then
+		call readFloat("uwall_b", uwall_b)
+		call readFloat("vwall_b", vwall_b)
+		call readFloat("wwall_b", wwall_b)
+	end if
+
+	if (BC_top .eq. 3) then
+		call readFloat("uwall_t", uwall_t)
+		call readFloat("vwall_t", vwall_t)
+		call readFloat("wwall_t", wwall_t)
+	end if
 
 	!Determine fluctuations to superimpose onto base flow
       	!call readInt("inflowFluct", inflowFluct)
@@ -112,6 +126,7 @@ end
 
 subroutine boundaries_read()
 	use boundaries
+	implicit none
 
 	if (iblock.eq.1) then
 			select case (inflowType)
@@ -125,6 +140,7 @@ end
 
 subroutine boundaries_write()
 	use boundaries
+	implicit none
 
 	call writeInt("BC_bottom", BC_bottom)
 	call writeInt("BC_top"   , BC_top   )
@@ -132,6 +148,20 @@ subroutine boundaries_write()
 	call writeInt("BC_right" , BC_right )
 	call writeInt("BC_front" , BC_front ) 
 	call writeInt("BC_back"  , BC_back  )
+
+	! Velocity of sliding
+	if (BC_bottom .eq. 3) then
+		call writeFloat("uwall_b", uwall_b)
+		call writeFloat("vwall_b", vwall_b)
+		call writeFloat("wwall_b", wwall_b)
+	end if
+
+	if (BC_top .eq. 3) then
+		call writeFloat("uwall_t", uwall_t)
+		call writeFloat("vwall_t", vwall_t)
+		call writeFloat("wwall_t", wwall_t)
+	end if
+
 
 	
 	if (iblock == 1) then
@@ -153,7 +183,10 @@ subroutine CartesianBC(deltaT)
 #if USE_COUPLER
 	use continuum_coupler_socket
 #endif 
-    	use boundaries
+	use boundaries
+	implicit none
+
+	real, intent(in)	:: deltaT
      
 	!===================================================================
 	! 	NO SLIP B.C. 
@@ -164,16 +197,39 @@ subroutine CartesianBC(deltaT)
 	if (jblock.eq.1) then
 
 #if USE_COUPLER
-	call socket_coupler_get_md_BC(uc,vc,wc)
-	!print*, 'Bottom BC', maxval(uc(:, :, 0)),minval(uc(:, :, 0))
-#else		
-		uc(:, :, 0) = -uc(:, :, 1) 
-		vc(:, :, 1) =  0.0            
-		wc(:, :, 0) = -wc(:, :, 1)
+		call socket_coupler_get_md_BC(uc,vc,wc)
+		!print*, 'Bottom BC', maxval(uc(:, :, 0)),minval(uc(:, :, 0))
+#else
+		select case(BC_bottom)
+		case(0)
+			uc(:, :, 0) = uc(:, :, 1)
+			vc(:, :, 1) =  0.0            
+			wc(:, :, 0) = wc(:, :, 1)
 	
-		!Extend
-		vc(:, :, 0) = vc(:, :, 2)        
-#endif        	
+			!Extend
+			vc(:, :, 0) = vc(:, :, 2)    
+		case(1)
+			uc(:, :, 0) = -uc(:, :, 1)
+			vc(:, :, 1) =  0.0            
+			wc(:, :, 0) = -wc(:, :, 1)
+	
+			!Extend
+			vc(:, :, 0) = vc(:, :, 2)  
+		case(2)
+			stop "BC_bottom periodic BC not available"  
+		case(3)
+			uc(:, :, 0) = -uc(:, :, 1) 	+ 2.0*uwall_b 
+			vc(:, :, 1) =  0.0			+ 2.0*vwall_b 
+			wc(:, :, 0) = -wc(:, :, 1) 	+ 2.0*wwall_b 
+	
+			!Extend
+			vc(:, :, 0) = vc(:, :, 2)        
+       	
+		case default
+			print*, BC_bottom
+			stop "BC_bottom incorrectly specified/not available"
+		end select
+#endif 
 	end if
 
 	!--------------------------------------------------------------
@@ -181,16 +237,37 @@ subroutine CartesianBC(deltaT)
 	!-------------------------------------------------------------- 
 	if (jblock.eq.npy) then
         
-			
-		!T.Z. BC => uc(:, :, nlyb  ) =  1.0 + (0.5*(ypg(1,ngy)-ypg(1,ngy-1))) * ( (1.0 - 0.0) / (ypg(1,ngy)-ypg(1,1)) )
-
-		uc(:, :, nlyb  ) = -uc(:, :, nlyb-1) + 2.0
-		vc(:, :, nlyb  ) =  0.0
-		wc(:, :, nlyb  ) = -wc(:, :, nlyb-1)
+		select case(BC_top)
+		case(0)
+			uc(:, :, nlyb  ) =  uc(:, :, nlyb-1) 
+			vc(:, :, nlyb  ) =  0.0
+			wc(:, :, nlyb  ) =  wc(:, :, nlyb-1)
          		
-		!Extend
-		vc(:, :, nlyb+1) = vc(:, :, nlyb-1) 
-        	
+			!Extend
+			vc(:, :, nlyb+1) =  vc(:, :, nlyb-1) 
+		case(1)
+			uc(:, :, nlyb  ) = -uc(:, :, nlyb-1) 
+			vc(:, :, nlyb  ) =  0.0
+			wc(:, :, nlyb  ) = -wc(:, :, nlyb-1)
+         		
+			!Extend
+			vc(:, :, nlyb+1) = vc(:, :, nlyb-1) 
+		case(2)
+			stop "BC_top periodic BC not available"
+		case(3)
+			!T.Z. BC => uc(:, :, nlyb  ) =  1.0 + (0.5*(ypg(1,ngy)-ypg(1,ngy-1))) * ( (1.0 - 0.0) / (ypg(1,ngy)-ypg(1,1)) )
+			print*, 'wall velocities',uwall_t, vwall_t, wwall_t
+			uc(:, :, nlyb  ) = -uc(:, :, nlyb-1)+ 2.0*uwall_t
+			vc(:, :, nlyb  ) =  0.0				+ 2.0*vwall_t
+			wc(:, :, nlyb  ) = -wc(:, :, nlyb-1)+ 2.0*wwall_t
+         		
+			!Extend
+			vc(:, :, nlyb+1) = vc(:, :, nlyb-1) 
+		case default
+			print*, BC_top
+			stop "BC_top incorrectly specified/not available"
+		end select
+
 	end if
 
 	!-----------------------------------------------------------------------

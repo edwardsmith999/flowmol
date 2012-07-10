@@ -4,127 +4,128 @@ module data_export
 !==============================================================
 ! Get user-specified parameters
 !
-      include "param.inc"
+	include "param.inc"
 
 !==============================================================
 ! Global limits
 
-      parameter (nox=1, noy=1, noz=1)
-      parameter (nix =ngx , niy =ngy , niz =ngz )
-      parameter (nixm=ngxm, niym=ngym, nizm=ngzm)
-      parameter (nx=nix+2*nox, ny=niy+2*noy, nz=niz+2*noz  , nxyz=nx*ny*nz, Nmax=max(nx,ny,nz))
-      parameter (nxm=nx-1    , nym=ny-1    , nzm=nz-1      )
+	parameter (nox=1, noy=1, noz=1)
+	parameter (nix =ngx , niy =ngy , niz =ngz )
+	parameter (nixm=ngxm, niym=ngym, nizm=ngzm)
+	parameter (nx=nix+2*nox, ny=niy+2*noy, nz=niz+2*noz  , nxyz=nx*ny*nz, Nmax=max(nx,ny,nz))
+	parameter (nxm=nx-1    , nym=ny-1    , nzm=nz-1	)
 
-      parameter (imin=0+nox, imax=imin+nix-1, imino=imin-nox, imaxo=imax+nox)
-      parameter (jmin=0+noy, jmax=jmin+niy-1, jmino=jmin-noy, jmaxo=jmax+noy)
-      parameter (kmin=0+noz, kmax=kmin+niz-1, kmino=kmin-noz, kmaxo=kmax+noz)
+	parameter (imin=0+nox, imax=imin+nix-1, imino=imin-nox, imaxo=imax+nox)
+	parameter (jmin=0+noy, jmax=jmin+niy-1, jmino=jmin-noy, jmaxo=jmax+noy)
+	parameter (kmin=0+noz, kmax=kmin+niz-1, kmino=kmin-noz, kmaxo=kmax+noz)
 
 
 ! Primary layout (QUICK Scheme)
 ! NOTE: It used to be (NOX1, NOY1, NOZ1) but might not be enough memory!!!!!!!
 ! VERY IMPORTANT!!!!
-      parameter (nbx_1=npx, nby_1=npy, nbz_1=npz)
-      parameter (nox1=3, noy1=3, noz1=1)
-      parameter (  nix_1  = (nx-2*nox-1)/nbx_1 + 1 + min(1,mod(nx-2*nox-1,nbx_1))  )
-      parameter (  niy_1  = (ny-2*noy-1)/nby_1 + 1 + min(1,mod(ny-2*noy-1,nby_1))  )
-      parameter (  niz_1  = (nz-2*noz-1)/nbz_1 + 1 + min(1,mod(nz-2*noz-1,nbz_1))  )
-      parameter (  nixyz_1= nix_1*niy_1*niz_1  )
+	parameter (nbx_1=npx, nby_1=npy, nbz_1=npz)
+	parameter (nox1=3, noy1=3, noz1=1)
+	parameter (  nix_1  = (nx-2*nox-1)/nbx_1 + 1 + min(1,mod(nx-2*nox-1,nbx_1))  )
+	parameter (  niy_1  = (ny-2*noy-1)/nby_1 + 1 + min(1,mod(ny-2*noy-1,nby_1))  )
+	parameter (  niz_1  = (nz-2*noz-1)/nbz_1 + 1 + min(1,mod(nz-2*noz-1,nbz_1))  )
+	parameter (  nixyz_1= nix_1*niy_1*niz_1  )
 
 ! Transposed layout
-      parameter (nbx_2=1, nby_2=1, nbz_2=nproc)
-      parameter (nox2=1, noy2=1, noz2=0)
-      parameter (  nix_2  = nix  )
-      parameter (  niy_2  = niy  )
-      parameter (  niz_2  = (niz-1)/nproc + 1 + min(1,mod(nizm,nproc))  )
-      parameter (  nixyz_2= nix_2*niy_2*niz_2  )
+	parameter (nbx_2=1, nby_2=1, nbz_2=nproc)
+	parameter (nox2=1, noy2=1, noz2=0)
+	parameter (  nix_2  = nix  )
+	parameter (  niy_2  = niy  )
+	parameter (  niz_2  = (niz-1)/nproc + 1 + min(1,mod(nizm,nproc))  )
+	parameter (  nixyz_2= nix_2*niy_2*niz_2  )
 
 
 ! Array dimensions (static)
 !NOTE:  SHOULD USE (NOX1,NOY1) HERE.  Need to fix this to make it general!!!!
 ! FIX
-      parameter (nx_1 = nix_1 + 2*nox1, nxm_1=nx_1-1)
-      parameter (ny_1 = niy_1 + 2*noy1, nym_1=ny_1-1)
-      parameter (nz_1 = niz_1 + 2*noz1, nzm_1=nz_1-1)
-      parameter (nxyz_1=nx_1*ny_1*nz_1, Nmax_1=max(nx_1,ny_1,nz_1))
-      parameter (i1_=0+nox1, i2_=i1_+nix_1-1)
-      parameter (j1_=0+noy1, j2_=j1_+niy_1-1)
-      parameter (k1_=0+noz1, k2_=k1_+niz_1-1)
-      parameter (nx_=nx_1, ny_=ny_1, nz_=nz_1, nxyz_=nxyz_1)
+	parameter (nx_1 = nix_1 + 2*nox1, nxm_1=nx_1-1)
+	parameter (ny_1 = niy_1 + 2*noy1, nym_1=ny_1-1)
+	parameter (nz_1 = niz_1 + 2*noz1, nzm_1=nz_1-1)
+	parameter (nxyz_1=nx_1*ny_1*nz_1, Nmax_1=max(nx_1,ny_1,nz_1))
+	parameter (i1_=0+nox1, i2_=i1_+nix_1-1)
+	parameter (j1_=0+noy1, j2_=j1_+niy_1-1)
+	parameter (k1_=0+noz1, k2_=k1_+niz_1-1)
+	parameter (nx_=nx_1, ny_=ny_1, nz_=nz_1, nxyz_=nxyz_1)
 
-      parameter (nx_2 = nix_2 + 2*nox2, nxm_2=nx_2-1)
-      parameter (ny_2 = niy_2 + 2*noy2, nym_2=ny_2-1)
-      parameter (nz_2 = niz_2 + 2*noz2, nzm_2=nz_2-1)
-      parameter (nxyz_2=nx_2*ny_2*nz_2, Nmax_2=max(nx_1,ny_1,nz_1))
+	parameter (nx_2 = nix_2 + 2*nox2, nxm_2=nx_2-1)
+	parameter (ny_2 = niy_2 + 2*noy2, nym_2=ny_2-1)
+	parameter (nz_2 = niz_2 + 2*noz2, nzm_2=nz_2-1)
+	parameter (nxyz_2=nx_2*ny_2*nz_2, Nmax_2=max(nx_1,ny_1,nz_1))
  
 ! Local Number of grid points for Xiaohua's code
-      parameter (nlx =nx_1-2*nox, nly =ny_1-2*noy)
-      parameter (nlxm=nlx-1     , nlym=nly-1     )
-      parameter (nlz =nz_2 )
-      parameter (nlzm=nlz-1)
+	parameter (nlx =nx_1-2*nox, nly =ny_1-2*noy)
+	parameter (nlxm=nlx-1     , nlym=nly-1     )
+	parameter (nlz =nz_2 )
+	parameter (nlzm=nlz-1)
 
 
 ! Block limits (dynamic)
-      integer nxb_1 (nbx_1), nyb_1 (nby_1), nzb_1 (nbz_1)
-      integer nixb_1(nbx_1), niyb_1(nby_1), nizb_1(nbz_1)
-      integer ibmin_1(nbx_1), ibmax_1(nbx_1), ibmino_1(nbx_1), ibmaxo_1(nbx_1), &
-              jbmin_1(nby_1), jbmax_1(nby_1), jbmino_1(nby_1), jbmaxo_1(nby_1), &
-              kbmin_1(nbz_1), kbmax_1(nbz_1), kbmino_1(nbz_1), kbmaxo_1(nbz_1)
+	integer nxb_1 (nbx_1), nyb_1 (nby_1), nzb_1 (nbz_1)
+	integer nixb_1(nbx_1), niyb_1(nby_1), nizb_1(nbz_1)
+	integer ibmin_1(nbx_1), ibmax_1(nbx_1), ibmino_1(nbx_1), ibmaxo_1(nbx_1), &
+		    jbmin_1(nby_1), jbmax_1(nby_1), jbmino_1(nby_1), jbmaxo_1(nby_1), &
+		    kbmin_1(nbz_1), kbmax_1(nbz_1), kbmino_1(nbz_1), kbmaxo_1(nbz_1)
 
-      integer nxb_2 (nbx_2), nyb_2 (nby_2), nzb_2 (nbz_2)
-      integer nixb_2(nbx_2), niyb_2(nby_2), nizb_2(nbz_2)
-      integer ibmin_2(nbx_2), ibmax_2(nbx_2), ibmino_2(nbx_2), ibmaxo_2(nbx_2), &
-              jbmin_2(nby_2), jbmax_2(nby_2), jbmino_2(nby_2), jbmaxo_2(nby_2), &
-              kbmin_2(nbz_2), kbmax_2(nbz_2), kbmino_2(nbz_2), kbmaxo_2(nbz_2)
+	integer nxb_2 (nbx_2), nyb_2 (nby_2), nzb_2 (nbz_2)
+	integer nixb_2(nbx_2), niyb_2(nby_2), nizb_2(nbz_2)
+	integer ibmin_2(nbx_2), ibmax_2(nbx_2), ibmino_2(nbx_2), ibmaxo_2(nbx_2), &
+		    jbmin_2(nby_2), jbmax_2(nby_2), jbmino_2(nby_2), jbmaxo_2(nby_2), &
+		    kbmin_2(nbz_2), kbmax_2(nbz_2), kbmino_2(nbz_2), kbmaxo_2(nbz_2)
 
-      integer nlxb_(npx), nlyb_(npy), nlzb_(nproc)
-      integer nlxb, nlyb, nlzb
+	integer nlxb_(npx), nlyb_(npy), nlzb_(nproc)
+	integer nlxb, nlyb, nlzb
 
 ! Shorthand for primary layout
-      integer nxb, nyb, nzb
-      integer nixb, niyb, nizb
-      integer ibmin, ibmax, ibmino, ibmaxo
-      integer jbmin, jbmax, jbmino, jbmaxo
-      integer kbmin, kbmax, kbmino, kbmaxo
-      integer ib1_, ib2_, jb1_, jb2_, kb1_, kb2_
+	integer nxb, nyb, nzb
+	integer nixb, niyb, nizb
+	integer ibmin, ibmax, ibmino, ibmaxo
+	integer jbmin, jbmax, jbmino, jbmaxo
+	integer kbmin, kbmax, kbmino, kbmaxo
+	integer ib1_, ib2_, jb1_, jb2_, kb1_, kb2_
 
 ! Indeces for advancing velocity
-      integer i1_u, i2_u, niu
-      integer i1_v, i2_v, niv
-      integer i1_w, i2_w, niw
+	integer i1_u, i2_u, niu
+	integer i1_v, i2_v, niv
+	integer i1_w, i2_w, niw
 
-      integer j1_u, j2_u, nju
-      integer j1_v, j2_v, njv
-      integer j1_w, j2_w, njw
+	integer j1_u, j2_u, nju
+	integer j1_v, j2_v, njv
+	integer j1_w, j2_w, njw
 
 ! Indeces for FFT and Transpose
-      integer i1_T, j1_T, k1_T
-      integer i2_T, j2_T, k2_T
+	integer i1_T, j1_T, k1_T
+	integer i2_T, j2_T, k2_T
 
-      integer iTmin_1(nbx_1), iTmax_1(nbx_1),  &
-              jTmin_1(nby_1), jTmax_1(nby_1),  &
-              kTmin_2(nbz_2), kTmax_2(nbz_2)
+	integer iTmin_1(nbx_1), iTmax_1(nbx_1),  &
+		  	jTmin_1(nby_1), jTmax_1(nby_1),  &
+		  	kTmin_2(nbz_2), kTmax_2(nbz_2)
 
 ! Index mapping
-      integer imap_1 (0:nx-1)  , jmap_1 (0:ny-1)  , kmap_1 (0:nz-1)
-      !TAZ--------------------------------------------------------------
-      !TAZ  DANGER ZONE: (added some padding just because 
-      !TAZ               I need it in Jacobs' [boundaries.blayer.f90])
-      !TAZ--------------------------------------------------------------
-      !TAZ  integer ibmap_1(0:nx_1-1), jbmap_1(0:ny_1-1), kbmap_1(0:nz_1-1)
-      !TAZ--------------------------------------------------------------
-      integer ibmap_1(0:nx_1)  , jbmap_1(0:ny_1)  , kbmap_1(0:nz_1)
-      integer imap_2 (0:nx-1)  , jmap_2 (0:ny-1)  , kmap_2 (0:nz-1)
-      integer ibmap_2(0:nx_2-1), jbmap_2(0:ny_2-1), kbmap_2(0:nz_2-1)
+	integer imap_1 (0:nx-1)  , jmap_1 (0:ny-1)  , kmap_1 (0:nz-1)
+	!TAZ--------------------------------------------------------------
+	!TAZ  DANGER ZONE: (added some padding just because 
+	!TAZ		   I need it in Jacobs' [boundaries.blayer.f90])
+	!TAZ--------------------------------------------------------------
+	!TAZ  integer ibmap_1(0:nx_1-1), jbmap_1(0:ny_1-1), kbmap_1(0:nz_1-1)
+	!TAZ--------------------------------------------------------------
+	integer ibmap_1(0:nx_1)  , jbmap_1(0:ny_1)  , kbmap_1(0:nz_1)
+	integer imap_2 (0:nx-1)  , jmap_2 (0:ny-1)  , kmap_2 (0:nz-1)
+	integer ibmap_2(0:nx_2-1), jbmap_2(0:ny_2-1), kbmap_2(0:nz_2-1)
 
 ! Block/Process ID
-      integer irank, iroot, ierr
-      integer iblock, jblock, kblock
-      integer iblock_1, jblock_1, kblock_1
-      integer iblock_2, jblock_2, kblock_2
+	integer irank, iroot, ierr
+	integer iblock, jblock, kblock
+	integer iblock_1, jblock_1, kblock_1
+	integer iblock_2, jblock_2, kblock_2
 
 !=======================================================================
 ! TJ: BC for each face of the domain
 	integer BC_bottom, BC_top, BC_left, BC_right, BC_front, BC_back
+	real 	uwall_b, uwall_t, vwall_b, vwall_t, wwall_b, wwall_t
  
 !=======================================================================
 ! TJ: BC for each face of the domain
@@ -140,29 +141,29 @@ module data_export
 
 !=======================================================================
 ! TJ: Uyz_mean 
-       real    Uyz_mean(0:ngz, 0:ngy)
-       real     Uy_mean(       0:ngy)
+	real    Uyz_mean(0:ngz, 0:ngy)
+	real     Uy_mean(       0:ngy)
 
 !=======================================================================
 ! Grid-Metrics
 	real     suxix  (0:ngx+1,0:ngy  ),suxiy  (0:ngx+1,0:ngy  )   &
-		,svetax (0:ngx  ,0:ngy+1),svetay (0:ngx  ,0:ngy+1)   &
-		,spz    (0:ngx  ,0:ngy  ),swz    (0:ngx  ,0:ngy  )   &
-		,surxix (0:ngx+1,0:ngy  ),surxiy (0:ngx+1,0:ngy  )   &
-		,svretax(0:ngx  ,0:ngy+1),svretay(0:ngx  ,0:ngy+1)   &
-		,swrz   (0:ngx  ,0:ngy  ),vp     (0:ngx  ,0:ngy  )
+			,svetax (0:ngx  ,0:ngy+1),svetay (0:ngx  ,0:ngy+1)   &
+			,spz    (0:ngx  ,0:ngy  ),swz    (0:ngx  ,0:ngy  )   &
+			,surxix (0:ngx+1,0:ngy  ),surxiy (0:ngx+1,0:ngy  )   &
+			,svretax(0:ngx  ,0:ngy+1),svretay(0:ngx  ,0:ngy+1)   &
+			,swrz   (0:ngx  ,0:ngy  ),vp     (0:ngx  ,0:ngy  )
 	real    zpp(ngz-1),xpp(ngx-1,ngy-1),ypp(ngx-1,ngy-1),   &
- 		zpu(ngz-1),xpu(ngx  ,ngy-1),ypu(ngx  ,ngy-1),   &
- 		zpv(ngz-1),xpv(ngx-1,ngy  ),ypv(ngx-1,ngy  ),   &
- 		zpw(ngz  ),xpw(ngx-1,ngy-1),ypw(ngx-1,ngy-1),   &
- 		zpg(ngz  ),xpg(ngx  ,ngy  ),ypg(ngx  ,ngy  )
+ 			zpu(ngz-1),xpu(ngx  ,ngy-1),ypu(ngx  ,ngy-1),   &
+ 			zpv(ngz-1),xpv(ngx-1,ngy  ),ypv(ngx-1,ngy  ),   &
+ 			zpw(ngz  ),xpw(ngx-1,ngy-1),ypw(ngx-1,ngy-1),   &
+ 			zpg(ngz  ),xpg(ngx  ,ngy  ),ypg(ngx  ,ngy  )
 
 !=======================================================================
 ! Main data arrays
 
-      ! real    p,u,v,w,uc,vc,wc
-            
-      real :: p(0:ngz,0:nlx,0:nly),   &
+	! real    p,u,v,w,uc,vc,wc
+		
+	real :: p  (0:ngz,0:nlx,0:nly),   &
             u  (0:ngz,0:nlx+1,0:nly),v  (0:ngz,0:nlx,0:nly+1),w  (0:ngz+1,0:nlx,0:nly),   &
             uc (0:ngz,0:nlx+1,0:nly),vc (0:ngz,0:nlx,0:nly+1),wc (0:ngz+1,0:nlx,0:nly),   &
             ust(0:ngz,0:nlx+1,0:nly),vst(0:ngz,0:nlx,0:nly+1),wst(0:ngz+1,0:nlx,0:nly)
@@ -192,7 +193,7 @@ module data_export
 ! TJ: surface textures for each velocity component
         integer txtr_utopBC( 0:ngz,0:ngx+1), txtr_ubotBC( 0:ngz,0:ngx+1), &
                 txtr_vtopBC( 0:ngz, 0:ngx ), txtr_vbotBC( 0:ngz, 0:ngx ), &
-		txtr_wtopBC(0:ngz+1,0:ngx ), txtr_wbotBC(0:ngz+1,0:ngx )
+				txtr_wtopBC(0:ngz+1,0:ngx ), txtr_wbotBC(0:ngz+1,0:ngx )
 
 !------------------------------------------
 ! Some settings, and simulation parameters
@@ -204,7 +205,7 @@ module data_export
                     idwdx_1,idwdx_2,idwdy_1,idwdy_2,idwdz_1,idwdz_2,   &
                     ncounter_avt,iread_avt,ncounter_avp(nphase)
 
-      real	before,after,t_init,t_over
+      real			before,after,t_init,t_over
       real          alenx,aleny,alz,dt,visc, ufree,   &
                     angle_attack,counter_avt,cpu_wavet(ngzm)
 
@@ -325,4 +326,4 @@ module data_export
 ! i1_T       ! First (i) index in FFT and Transpose
 ! iTmin_1    ! projection of (i1_T) to global coordinates
 
-end module 
+end module data_export

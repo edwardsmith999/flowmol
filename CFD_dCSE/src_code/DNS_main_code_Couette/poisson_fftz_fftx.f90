@@ -392,6 +392,8 @@ do 20 k = ka,kb
 	cpu_period= (after - before) - t_over
 	cpu_poisson_total=cpu_source+cpu_fft1+cpu_transpose+cpu_dct1+cpu_helmholtz+cpu_dct2+cpu_fft2+cpu_period
 
+	! p = 0.	!Neglect pressure term in NS eqns
+
 	return
 end
 !--------------------------------------------------------
