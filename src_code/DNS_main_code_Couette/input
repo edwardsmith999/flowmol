@@ -24,12 +24,20 @@
 1.     ubulk        bulk velocity for laminar inflow
 
 ! Boundary condition for each face
-1      BC_bottom   Type of boundary condition: (0)free slip (1)no slip (2) periodic 
-1      BC_top      Type of boundary condition: (0)free slip (1)no slip (2) periodic
+1      BC_bottom   Type of boundary condition: (0)free slip (1)no slip (2) periodic (3) sliding
+3      BC_top      Type of boundary condition: (0)free slip (1)no slip (2) periodic (3) sliding
 2      BC_left     Type of boundary condition: (1)prescribed-inflow    (2) periodic
 2      BC_right    Type of boundary condition: (1)convective-outflow   (2) periodic
 2      BC_back     Type of boundary condition: (0)free slip (1)no slip (2) periodic
 2      BC_front    Type of boundary condition: (0)free slip (1)no slip (2) periodic
+
+!Sliding velocity
+0.		uwall_b	   u sliding velocity of bottom wall
+1.0		uwall_t	   u sliding velocity of top wall
+0.		vwall_b    v sliding velocity of bottom wall
+0.		vwall_t	   v sliding velocity of top wall
+0.		wwall_b    w sliding velocity of bottom wall
+0.		wwall_t	   w sliding velocity of top wall
 
 ! Free-stream turbulence parameters
 0.03	Tu	Turbulence intensity at inlet

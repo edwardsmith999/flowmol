@@ -8,8 +8,8 @@ close all
 fclose('all')
 
 %--- grid size ----
-ngx = 32+1;
-ngy = 32+1;
+ngx = 8+1;
+ngy = 7+1;
 ngz = 8+1;
 
 %--- domain size ----
@@ -17,7 +17,7 @@ Lx = 1.;
 Ly = 1.;
 Lz = 1.;
 
-cd './../results'
+cd '/home/es205/codes/coupled/CFD_dCSE/src_code/results'
 
 %--- Read grid ----
 fid = fopen('grid.data','r','ieee-le.l64');
@@ -80,6 +80,7 @@ for ntime=0:Nskip:Nsteps
     %vc = reshape(vc, ngz+1, ngx+1, ngy+2);
     %wc = reshape(wc, ngz+2, ngx+1, ngy+1);
 
-	plot(squeeze(mean(mean(uc,1),2)))
+	plot(squeeze(mean(mean(uc(:,:,1:end-2),1),2)))
+    drawnow
 end
 

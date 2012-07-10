@@ -125,7 +125,8 @@ module data_export
 !=======================================================================
 ! TJ: BC for each face of the domain
 	integer BC_bottom, BC_top, BC_left, BC_right, BC_front, BC_back
- 
+ 	real 	uwall_b, uwall_t, vwall_b, vwall_t, wwall_b, wwall_t
+
 !=======================================================================
 ! TJ: BC for each face of the domain
 	integer ikx_txtr, ikz_txtr
@@ -140,7 +141,7 @@ module data_export
 
 !=======================================================================
 ! Grid-Metrics
-	real     suxix  (0:ngx+1,0:ngy  ),suxiy  (0:ngx+1,0:ngy  )   &
+	real suxix  (0:ngx+1,0:ngy  ),suxiy  (0:ngx+1,0:ngy  )   &
 		,svetax (0:ngx  ,0:ngy+1),svetay (0:ngx  ,0:ngy+1)   &
 		,spz    (0:ngx  ,0:ngy  ),swz    (0:ngx  ,0:ngy  )   &
 		,surxix (0:ngx+1,0:ngy  ),surxiy (0:ngx+1,0:ngy  )   &
