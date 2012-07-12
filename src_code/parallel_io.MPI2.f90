@@ -430,7 +430,7 @@ subroutine setup_restart_microstate
 			call MPI_FILE_READ_ALL(restartfileid, buf, 3*nd*procnp(irank), MPI_double_precision, & 
 			                       MPI_STATUS_IGNORE, ierr) !Read position from file
 			nl = 0
-			do n = 1,9*procnp(irank),9
+			do n = 1,3*nd*procnp(irank),3*nd
 				nl = nl + 1 !Local molecule count
 				!Correct to local coordinates
 				r(nl,1) = buf(n  )-domain(1)*(iblock-1)+halfdomain(1)*(npx-1)

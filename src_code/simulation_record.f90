@@ -258,15 +258,15 @@ subroutine evaluate_macroscopic_properties_parallel
 	if (irank .eq. iroot) then
 		
 		kinenergy   = (0.5d0 * v2sum) / real(globalnp,kind(0.d0))
-		potenergy   = potenergysum /(2.d0*real(globalnp,kind(0.d0))) !N.B. extra 1/2 as all interactions calculated
+		potenergy   = potenergysum /(2.d0*real(globalnp,kind(0.d0))) + Potential_sLRC !N.B. extra 1/2 as all interactions calculated
 		if (potential_flag.eq.1) then
-			potenergy_LJ= potenergysum_LJ/(2.d0*real(globalnp,kind(0.d0)))
+			potenergy_LJ= potenergysum_LJ/(2.d0*real(globalnp,kind(0.d0))) + Potential_sLRC
 			potenergy_FENE= potenergysum_FENE/(2.d0*real(globalnp,kind(0.d0)))
 		end if
 		totenergy   = kinenergy + potenergy
 		temperature = v2sum / real(nd*globalnp,kind(0.d0))
 		if (any(periodic.gt.1)) temperature = get_temperature_PUT()
-		pressure    = (density/(globalnp*nd))*(v2sum+virial/2.d0) !N.B. virial/2 as all interactions calculated
+		pressure    = (density/(globalnp*nd))*(v2sum+virial/2.d0) + Pressure_sLRC !N.B. virial/2 as all interactions calculated
 
 		!print*, iter, (density/(globalnp*nd))*(v2sum) , (density/(globalnp*nd))*(virial/2) 
 
@@ -2528,8 +2528,9 @@ implicit none
 
 		!Stress acting on face over volume
 		if (eflux_outflag .ne. 0) then
-			!velvect(:) = v(molnoi,:) 
-			velvect(:) = v(molnoi,:) + 0.5d0*delta_t*a(molnoi,:)
+			velvect(:) = v(molnoi,:) 
+			!if (molnoi .gt. np) print*, velvect(1)
+			!velvect(:) = v(molnoi,:) + 0.5d0*delta_t*a(molnoi,:)
 			Pxyvface(cbin(1),cbin(2),cbin(3),1) = Pxyvface(cbin(1),cbin(2),cbin(3),1) + dot_product(fij,velvect)*dble(onfacexb)
 			Pxyvface(cbin(1),cbin(2),cbin(3),2) = Pxyvface(cbin(1),cbin(2),cbin(3),2) + dot_product(fij,velvect)*dble(onfaceyb)
 			Pxyvface(cbin(1),cbin(2),cbin(3),3) = Pxyvface(cbin(1),cbin(2),cbin(3),3) + dot_product(fij,velvect)*dble(onfacezb)

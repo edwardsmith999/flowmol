@@ -254,6 +254,8 @@ subroutine setup_read_input
 
 	call locate(1,'MACRO_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) read(1,*) macro_outflag
+	call locate(1,'SLRC_FLAG',.false.,found_in_input)
+	if (found_in_input) read(1,*) sLRC_flag
 	call locate(1,'MASS_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) mass_outflag
@@ -302,7 +304,10 @@ subroutine setup_read_input
 	call locate(1,'EFLUX_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,* ) eflux_outflag
-		if (eflux_outflag .ne. 0)	read(1,* ) Neflux_ave
+		if (eflux_outflag .ne. 0) then
+			read(1,* ) Neflux_ave
+			pass_vhalo = 1		!Turn on passing of velocities for halo images
+		endif
 	endif
 	call locate(1,'ETEVTCF_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then

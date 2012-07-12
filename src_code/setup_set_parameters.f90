@@ -44,6 +44,14 @@ subroutine setup_set_parameters
 	!Calculate shift in lennard-Jones potential based on cutoff
 	potshift = 4.d0*(1.d0/rcutoff**12 - 1.d0/rcutoff**6)
 
+	!Calculate correction to lennard-Jones potential/pressure based on cutoff
+	if (sLRC_flag .ne. 0) then
+		potential_sLRC = 8.d0*pi*density      *(1.d0/(9.d0*rcutoff**9) - 1.d0/(3.d0*rcutoff**3))
+		Pressure_sLRC  = 8.d0*pi*density**2.d0*(4.d0/(9.d0*rcutoff**9) - 2.d0/(3.d0*rcutoff**3))
+	else
+		potential_sLRC = 0.d0; Pressure_sLRC = 0.d0;
+	endif
+
 	!Allocate arrays based on number of dimensions
 	call set_parameters_allocate(1)
 

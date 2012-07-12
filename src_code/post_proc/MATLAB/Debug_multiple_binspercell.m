@@ -116,7 +116,7 @@ for o = 1:runs
         read_header
         bpc = gnbins./globalncells;
         nhb = bpc;
-        surface_plot            = zeros(gnbins(1),runs);
+        surface_plot            = zeros(gnbins(1),3);
 
         filename1 = './vflux';
         filename2 = './psurface';
@@ -162,12 +162,14 @@ for o = 1:runs
             surface_plot(:,2) = surface_plot(:,2)  ...
                                 - squeeze(sum(sum(   velocity_flux(:,:,:,1,4),2),3)) ...
                                 + squeeze(sum(sum(pressure_surface(:,:,:,1,4),2),3));
+            surface_plot(:,3) = surface_plot(:,3) + squeeze(sum(sum(velocity_snapshot(:,:,:,1,4),2),3));
         end
 
         figure
         plot(0:size(surface_plot,1)-1, surface_plot(:,1),'s')
         hold all
         plot(1:size(surface_plot,1)  , surface_plot(:,2),'x')
+        plot(0.5:size(surface_plot,1)-0.5  , surface_plot(:,3),'o')
         hold off
 
         %sliceomatic(sum(velocity_flux_sum(:,:,:,:,time,o),4))
@@ -189,7 +191,7 @@ for o = 1:runs
         read_header
         bpc = gnbins./globalncells;
         nhb = bpc;
-        surface_plot            = zeros(gnbins(1),runs);
+        surface_plot            = zeros(gnbins(1),3);
 
         filename1 = './eflux';
         filename2 = './esurface';
@@ -235,12 +237,14 @@ for o = 1:runs
             surface_plot(:,2) = surface_plot(:,2)  ...
                                 - squeeze(sum(sum(   energy_flux(:,4,4,4),2),3)) ...
                                 + squeeze(sum(sum(energy_surface(:,4,4,4),2),3));
+            surface_plot(:,3) = surface_plot(:,3) + squeeze(sum(sum(energy_snapshot(:,:,:),2),3));
         end
 
         figure
         plot(0:size(surface_plot,1)-1, surface_plot(:,1),'s')
         hold all
         plot(1:size(surface_plot,1)  , surface_plot(:,2),'x')
+        %plot(0.5:size(surface_plot,1)-0.5  , surface_plot(:,3),'o')
         hold off
 
         %sliceomatic(sum(energy_flux_sum(:,:,:,:,time,o),4))

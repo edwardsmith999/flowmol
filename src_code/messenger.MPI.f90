@@ -512,12 +512,10 @@ subroutine pack_cell(icell,jcell,kcell,sendbuffer,buffsize,pos)
 	double precision, dimension(:), intent(out) 	:: sendbuffer
 
 	integer 										:: i, molno,cellnp
-	double precision, dimension(nd) 				:: rpack!, vpack	!Temporary arrays used to pack
+	double precision, dimension(nd) 				:: rpack, vpack	!Temporary arrays used to pack
 	double precision, dimension(8)  				:: FENEpack
 
 	type(node), pointer 	        				:: old, current
-
-	!print*, icell, jcell, kcell, size(sendbuffer), buffsize, pos
 
 	cellnp = cell%cellnp(icell,jcell,kcell)
 	old => cell%head(icell,jcell,kcell)%point
@@ -529,20 +527,20 @@ subroutine pack_cell(icell,jcell,kcell,sendbuffer,buffsize,pos)
 			rpack(:) = r(molno,:)	!Load into temp array
 			call MPI_Pack(rpack,nd,MPI_DOUBLE_PRECISION,& 
 			sendbuffer,buffsize,pos,icomm_grid,ierr)
-			!if (pass_vhalo .ne. 0) then
-			!	vpack(:) = v(molno,:)	!Load into temp array
-			!	call MPI_Pack(vpack,nd,MPI_DOUBLE_PRECISION,& 
-			!	sendbuffer,buffsize,pos,icomm_grid,ierr)
-			!endif
+			if (pass_vhalo .ne. 0) then
+				vpack(:) = v(molno,:)	!Load into temp array
+				call MPI_Pack(vpack,nd,MPI_DOUBLE_PRECISION,& 
+				sendbuffer,buffsize,pos,icomm_grid,ierr)
+			endif
 		case(1)
 			rpack(:) = r(molno,:)	!Load into temp array
 			call MPI_Pack(rpack,nd,MPI_DOUBLE_PRECISION,& 
 			sendbuffer,buffsize,pos,icomm_grid,ierr)	
-			!if (pass_vhalo .ne. 0) then
-			!	vpack(:) = v(molno,:)	!Load into temp array
-			!	call MPI_Pack(vpack,nd,MPI_DOUBLE_PRECISION,& 
-			!	sendbuffer,buffsize,pos,icomm_grid,ierr)
-			!endif
+			if (pass_vhalo .ne. 0) then
+				vpack(:) = v(molno,:)	!Load into temp array
+				call MPI_Pack(vpack,nd,MPI_DOUBLE_PRECISION,& 
+				sendbuffer,buffsize,pos,icomm_grid,ierr)
+			endif
 			call prepare_FENEbuffer(molno,FENEpack)
 			call MPI_Pack(FENEpack,8,MPI_DOUBLE_PRECISION,&
 			sendbuffer,buffsize,pos,icomm_grid,ierr)
@@ -575,11 +573,20 @@ subroutine unpack_recvbuffer(halo_np,recvnp,length,recvbuffer)
 			call MPI_Unpack(recvbuffer,length,pos,rpack, &
 			nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
 			r(np+n,:) = rpack
+			if (pass_vhalo .ne. 0) then
+				call MPI_Unpack(recvbuffer,length,pos,vpack, &
+				nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+				v(np+n,:) = vpack
+			endif
 		case(1)
 			call MPI_Unpack(recvbuffer,length,pos,rpack, &
 			nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
 			r(np+n,:) = rpack
-
+			if (pass_vhalo .ne. 0) then
+				call MPI_Unpack(recvbuffer,length,pos,vpack, &
+				nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+				v(np+n,:) = vpack
+			endif
 			call MPI_Unpack(recvbuffer,length,pos,FENEpack, &
 			8,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
 			call assign_FENEbuffer(np+n,FENEpack)
@@ -600,8 +607,10 @@ subroutine get_sendsize(sendnp,sendsize)
 	select case (potential_flag)
 	case(0) !LJ only
 		sendsize = nd*sendnp
+		if (pass_vhalo .ne. 0) sendsize = sendsize + nd*sendnp
 	case(1) !+FENE info 
 		sendsize = nd*sendnp + (8)*sendnp
+		if (pass_vhalo .ne. 0) sendsize = sendsize + nd*sendnp
 	end select
 
 end subroutine get_sendsize
@@ -617,9 +626,17 @@ subroutine get_recvnp(recvsize,recvnp)
 
 	select case(potential_flag)
 	case(0)
-		recvnp = recvsize/real(nd,kind(0.d0))
+		if (pass_vhalo .eq. 0) then
+			recvnp = recvsize/real(nd,kind(0.d0))
+		else
+			recvnp = recvsize/real(2*nd,kind(0.d0))
+		endif
 	case(1)
-		recvnp = recvsize/real(nd+8,kind(0.d0))
+		if (pass_vhalo .eq. 0) then
+			recvnp = recvsize/real(nd+8,kind(0.d0))
+		else
+			recvnp = recvsize/real(2*nd+8,kind(0.d0))
+		endif
 	end select
 
 end subroutine get_recvnp
@@ -1015,11 +1032,11 @@ subroutine updateedge(face1,face2)
 			do icell = 2, ncells(1)+1 !Move along x-axis
 				call pack_cell(icell,edge1(1,i),edge2(1,i),sendbuffer,buffsize,pos)
 			enddo
-    		case (2)
+		case (2)
 			do jcell = 2, ncells(2)+1 !Move along y-axis
 				call pack_cell(edge1(2,i),jcell,edge2(2,i),sendbuffer,buffsize,pos)
 			enddo
-			case (3)
+		case (3)
 			do kcell = 2, ncells(3)+1 !Move along z-axis
 				call pack_cell(edge1(3,i),edge2(3,i),kcell,sendbuffer,buffsize,pos)
 			enddo
@@ -1038,9 +1055,6 @@ subroutine updateedge(face1,face2)
 			!Send, probe for size and then receive data
 			call NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest)
 		endif
-
-		!call pairedsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest,face1)
-		!call NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest)
 	
 		!Get number of molecules from recieved data size
 		call get_recvnp(recvsize,recvnp)
@@ -1051,38 +1065,33 @@ subroutine updateedge(face1,face2)
 		!Correct positions in new processor to halo cells
 		select case (ixyz)
         	case (1)
-			do n=halo_np+1,halo_np+recvnp 
-				r(np+n,2) = r(np+n,2) &  !Move to other side of domain
-				+ sign(1,ncells(2)-edge1(1,i))*domain(2)
-				r(np+n,3) = r(np+n,3) &  !Move to other side of domain
-				+ sign(1,ncells(3)-edge2(1,i))*domain(3)
-				!if(irank .eq. 18 .and. iter .gt. 33) print'(i5,3f10.5)', iter, r(np+n,:)
-			enddo
+				do n=halo_np+1,halo_np+recvnp 
+					r(np+n,2) = r(np+n,2) &  !Move to other side of domain
+					+ sign(1,ncells(2)-edge1(1,i))*domain(2)
+					r(np+n,3) = r(np+n,3) &  !Move to other side of domain
+					+ sign(1,ncells(3)-edge2(1,i))*domain(3)
+				enddo
        		case (2)
-			do n=halo_np+1,halo_np+recvnp
-				r(np+n,1) = r(np+n,1) &  !Move to other side of domain
-				+ sign(1,ncells(1)-edge1(2,i))*domain(1)
-				r(np+n,3) = r(np+n,3) &  !Move to other side of domain
-				+ sign(1,ncells(3)-edge2(2,i))*domain(3)
-				!if(irank .eq. 18 .and. iter .gt. 33) print'(i5,3f10.5)', iter, r(np+n,:)
-			enddo
-
+				do n=halo_np+1,halo_np+recvnp
+					r(np+n,1) = r(np+n,1) &  !Move to other side of domain
+					+ sign(1,ncells(1)-edge1(2,i))*domain(1)
+					r(np+n,3) = r(np+n,3) &  !Move to other side of domain
+					+ sign(1,ncells(3)-edge2(2,i))*domain(3)
+				enddo
  			case (3)
-			do n=halo_np+1,halo_np+recvnp
-				r(np+n,1) = r(np+n,1) &  !Move to other side of domain
-				+ sign(1,ncells(1)-edge1(3,i))*domain(1)
-				r(np+n,2) = r(np+n,2) &  !Move to other side of domain
-				+ sign(1,ncells(2)-edge2(3,i))*domain(2)
-				!if(irank .eq. 18 .and. iter .gt. 33) print'(i5,3f10.5)', iter, r(np+n,:)
-			enddo
+				do n=halo_np+1,halo_np+recvnp
+					r(np+n,1) = r(np+n,1) &  !Move to other side of domain
+					+ sign(1,ncells(1)-edge1(3,i))*domain(1)
+					r(np+n,2) = r(np+n,2) &  !Move to other side of domain
+					+ sign(1,ncells(2)-edge2(3,i))*domain(2)
+					!if(irank .eq. 18 .and. iter .gt. 33) print'(i5,3f10.5)', iter, r(np+n,:)
+				enddo
 		case default
 			call error_abort("updateBorder: invalid value for ixyz")
 		end select
 
 		!Update number of molecules in halo to include number recieved
 		halo_np = halo_np + recvnp
-
-		!call MPI_Barrier(MD_COMM,ierr)
 
 		deallocate(recvbuffer)
 		deallocate(sendbuffer)
@@ -1175,14 +1184,9 @@ subroutine updatecorners()
 		deallocate(recvbuffer)
 	enddo
 
-	!do n=np+1,np+halo_np
-	!	if(irank .eq. iroot) print'(i5,3f10.5)', iter, r(n,:)
-	!enddo
-
 	nullify(current)        !Nullify current as no longer required
 	nullify(old)            !Nullify old as no longer required
 
-	return
 end subroutine updatecorners
 
 !======================================================================
@@ -1297,9 +1301,9 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 	!One Tag, three position, three true position and three velocity components for each molecules
 	select case(potential_flag)
 	case(0)
-		sendsize = (9 + 1)*sendnp
+		sendsize = (3*nd + 1)*sendnp
 	case(1)
-		sendsize = (9 + 1)*sendnp + (8)*sendnp
+		sendsize = (3*nd + 1)*sendnp + (8)*sendnp
 	end select
 	allocate(sendbuffer(sendsize))
 	call MPI_Pack_size(sendsize,MPI_DOUBLE_PRECISION, &
@@ -1428,8 +1432,6 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 
 	!Update number of molecules in halo to include number recieved
 	new_np = new_np + recvnp
-
-	!print*, 'proc', irank, 'new molecules', new_np
 
 	deallocate(recvbuffer)
 	deallocate(sendbuffer)
