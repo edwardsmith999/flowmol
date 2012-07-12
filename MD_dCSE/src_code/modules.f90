@@ -17,6 +17,8 @@ module physical_constants_MD
 	double precision   				:: rcutoff, halfrcutoff !Cut off distance for particle interactions
 	double precision   				:: rcutoff2             !Cut off distance for particle interactions squared
 	double precision   				:: potshift		   		!Shift in Lennard Jones potential due to cutoff
+	double precision   				:: potential_sLRC 		!Long range potential correction 
+	double precision   				:: pressure_sLRC 		!Long range pressure correction 
 	double precision   				:: inputtemperature     !Define initial temperature
 	double precision   				:: initialunitcell      !Initial size of unit cell
 	double precision   				:: initialvel           !Initial velocity of particles
@@ -63,6 +65,7 @@ module computational_constants_MD
 	integer		:: & 
 		vmd_outflag, vmd_start, vmd_finish, vmd_count=1, &
 		macro_outflag, &
+		sLRC_flag,	&
 		mass_outflag, &
 		velocity_outflag, &
 		temperature_outflag, &
@@ -72,7 +75,8 @@ module computational_constants_MD
 		mflux_outflag, &
 		vflux_outflag, &
 		eflux_outflag, &
-		proc_reorder					!Reorder processors at restart
+		proc_reorder, &				!Reorder processors at restart
+		pass_vhalo = 0
 	integer, dimension(3)	:: periodic
 
 
