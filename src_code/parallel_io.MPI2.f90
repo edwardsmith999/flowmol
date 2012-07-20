@@ -2129,7 +2129,14 @@ subroutine surface_power_io
 	Pxyvface = Pxyvface/Neflux_ave
 
 	!Write surface pressures * velocity to file
-	m = (iter-initialstep+1)/(Neflux_ave*tplot)
+	select case(CV_conserve)
+	case(0)
+		m = (iter-initialstep+1)/(Neflux_ave*tplot)
+	case(1)
+		m = (iter-initialstep+1)/(Neflux_ave)
+	case default
+		call error_abort('CV_conserve value used forsurface power is incorrectly defined - should be 0=off or 1=on')
+	end select
 	call rwrite_arrays(Pxyvface,nbinso(1),nbinso(2),nbinso(3),nresults,trim(prefix_dir)//'results/esurface',m)
 
 end subroutine surface_power_io

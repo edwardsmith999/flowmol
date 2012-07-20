@@ -82,13 +82,16 @@ subroutine simulation_record
 	integer			:: vmd_iter
 	integer,save	:: i = 1
 	character*8     :: iterchar
+
+	if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
+		call mass_flux_averaging(mflux_outflag)				!Average mass flux before movement of particles
+		call momentum_flux_averaging(vflux_outflag)         !Average momnetum flux after movement of particles
+		call energy_flux_averaging(eflux_outflag)			!Average energy flux after movement of particles
+	endif
+
 	!-------------------------------Only record every tplot iterations------------------------
 	if (mod(iter,tplot) .ne. 0) return
 	!-------------------------------Only record every tplot iterations------------------------
-
-	call mass_flux_averaging(mflux_outflag)				!Average mass flux before movement of particles
-	call momentum_flux_averaging(vflux_outflag)         !Average momnetum flux after movement of particles
-	call energy_flux_averaging(eflux_outflag)			!Average energy flux after movement of particles
 
 	!Parallel output for molecular positions
 	if (vmd_outflag.ne.0 .and. size(vmd_intervals,2).ge.i) then
