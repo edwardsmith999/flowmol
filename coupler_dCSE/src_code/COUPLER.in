@@ -40,5 +40,5 @@ MD_STEPS_PER_DT_CFD
 # optimises use of cell lists for averaging in the MD code
 # 0 = off, 1 = on
 # ----------------------------------------------------------------------
-#MD_CFD_MATCH_CELLSIZE
-#1
+MD_CFD_MATCH_CELLSIZE
+0

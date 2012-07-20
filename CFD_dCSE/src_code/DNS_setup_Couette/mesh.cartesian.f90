@@ -15,7 +15,7 @@
 !
 
 module mesh
-        use mesh_parameters
+	use mesh_parameters
 	!include "mesh.inc"
        
 end module
@@ -85,9 +85,9 @@ subroutine mesh_define()
 
 	!-------------------------------------------------------------------
 	! Read in "grid.data"
-				iunit = iopen()
+		iunit = iopen()
 	!(Open in mesh_read)	open (iunit, file="grid.data", form="unformatted")
-				call mesh_read (iunit, 2)
+		call mesh_read (iunit, 2)
 	!(Open in mesh_read)	close (iclose(iunit))
 
 	! Subclass must generate the mesh

@@ -3,14 +3,14 @@
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
 ! Grid size  !T (Should be the same as (ngx,ngy,ngz) in "param.inc"
-9	nix
-8	niy
+33	nix
+33	niy
 9	niz
 
 ! Domain size
-71.81898	xL	domain length
-35.90949	yL	domain height
-20.520		zL  domain width
+51.2992784003			xL	domain length
+52.1			yL	domain height
+51.2992784003			zL  domain width
 
 ! Mesh parameters
 0	imeshY	stretching in Y: (0)uniform (1)pw-linear (2)matched tanh (3) Gauss-Lobatto

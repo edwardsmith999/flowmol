@@ -8,8 +8,8 @@ close all
 fclose('all')
 
 %--- grid size ----
-ngx = 8+1;
-ngy = 7+1;
+ngx = 33+1;
+ngy = 33+1;
 ngz = 8+1;
 
 %--- domain size ----
@@ -67,8 +67,8 @@ for ntime=0:Nskip:Nsteps
                         file_prefix, num2str(ntime  ),'/', ...
                         file_prefix, num2str(ntime+1), ...
                         '  Not found in code output'                 );
-        continue
-        %error(errorstr)
+        %continue
+        error(errorstr)
     end
     uc = fread(fid, (ngz+1)*(ngx+2)*(ngy+1),'double');
     %vc = fread(fid, (ngz+1)*(ngx+1)*(ngy+2),'double');
