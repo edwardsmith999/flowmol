@@ -669,7 +669,7 @@ subroutine spectra(S,nk,ni,nj,Uavg)
 	real S(0:nk, 0:ni, 0:nj)
 	real fw(  ngzm  ,  inx  ,  iny  )	! u(z,x,y)
 	!COMPAQ_TIGHT	real fz(0:ngzm-1,0:nlx+1,0:nly+1)	! 1D energy spectrum uhat(kz,x,y)
-			real fz(0:ngzm+1,0:nlx+1,0:nly+1)	! (Extra padding needed for SGI)
+	real fz(0:ngzm+1,0:nlx+1,0:nly+1)	! (Extra padding needed for SGI)
 	real Uavg(0:nlx+1, 0:nly+1)
 
 	i1 = ibmin ; if (iblock ==  1 ) i1 =  0  ; i1 = imap_1(i1)

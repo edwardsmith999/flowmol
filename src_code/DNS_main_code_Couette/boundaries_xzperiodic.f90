@@ -187,6 +187,8 @@ subroutine CartesianBC(deltaT)
 	implicit none
 
 	real, intent(in)	:: deltaT
+
+	!real 				:: rand
      
 	!===================================================================
 	! 	NO SLIP B.C. 
@@ -209,7 +211,9 @@ subroutine CartesianBC(deltaT)
 			!Extend
 			vc(:, :, 0) = vc(:, :, 2)    
 		case(1)
-			uc(:, :, 0) = -uc(:, :, 1)
+			!call random_number(rand)
+			!print*, 'Random bottom BC at wall uc = ', 4.*(rand-0.5)
+			uc(:, :, 0) = -uc(:, :, 1) !+ 4.*(rand-0.5)
 			vc(:, :, 1) =  0.0            
 			wc(:, :, 0) = -wc(:, :, 1)
 	
