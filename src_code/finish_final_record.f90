@@ -66,11 +66,6 @@ implicit none
 	!	write(12,'(2(f10.5))') (n-0.5d0)*binsize, normalisedbin(n) 
 	!enddo
 
-	!write(12,'(a)') 'Radial distribution function'
-	!do n = 1, nshells
-	!	write(12,'(2(f10.5))') (n-0.5d0)*delta_r, RDF(n)
-	!enddo
-
 	call messenger_syncall() !Make sure all processes have finished writing
 
 	!Write simualtion properties and final position & velocity to 

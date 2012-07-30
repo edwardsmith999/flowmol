@@ -27,14 +27,15 @@ subroutine setup_initial_record
 	character				:: ixyz_char
 	Character(8)			:: the_date
 	Character(10)			:: the_time
-	Character(20),parameter :: file_names(20) = &
+	Character(22),parameter :: file_names(22) = &
 								(/ "mslice      ", "mbins       ", "msnap       ",&
 								   "vslice      ", "vbins       ", "vsnap       ",&
 								   "pvirial     ", "pVA         ", "pVA_k       ",& 
 								   "pVA_c       ", "visc        ", "mflux       ",& 
 								   "vflux       ", "pplane      ", "psurface    ",&
 								   "esnap       ", "eflux       ", "eplane      ",&
-								   "esurface    ", "viscometrics" /) 
+								   "esurface    ", "viscometrics", "rdf         ",&
+	                               "ssf"                                         /) 
 	if (irank.eq.iroot) then
 		do i=1,size(file_names)
 			inquire(file=trim(prefix_dir)//'results/'//file_names(i),exist=file_exist)
@@ -53,7 +54,6 @@ subroutine setup_initial_record
 		select case(etevtcf_outflag)
 		case (1)
 			call etevtcf_calculate_parallel
-			!if (irank .eq. iroot) print('(a13,f7.4)'), 'ETEVTCF    = ', etevtcf
 		case (2)
 			call etevtcf_calculate_parallel
 			call etev_io
@@ -71,6 +71,7 @@ subroutine setup_initial_record
 		end select
 	end if
 	
+
 	!Calculate Control Volume starting state
 	call initial_control_volume
 
@@ -161,7 +162,7 @@ subroutine setup_initial_record
 		print*, 'Cells per Processor including Halos: ', ncellxl, ncellyl, ncellzl
 		print*, 'Random seed used for initial velocity generation:', seed
 		print*, '======================== Output Parameters ============================'
-
+	
 		select case(vmd_outflag)
 		case(0)
 			print*, 'VMD output off'
@@ -405,6 +406,21 @@ subroutine setup_initial_record
 		case default
 			call error_abort("Invalid potential flag in input file")
 		end select
+	
+		!Obtain and record radial distributions
+		select case (rdf_outflag)
+		case(1)
+			call evaluate_properties_rdf
+			call rdf_io
+		case default
+		end select
+
+		select case (ssf_outflag)
+		case(1)
+			call evaluate_properties_ssf
+			call ssf_io
+		case default
+		end select
 
 		call simulation_header
 
@@ -549,6 +565,11 @@ subroutine simulation_header
 	write(3,*)	'Shear rate; le_sr;', le_sr
 	write(3,*)	'Shear velocity; le_sv;', le_sv
 	write(3,*)	'Shear iter0 ; le_i0;', le_i0
+	write(3,*)  'g(r) nbins ; rdf_nbins;', rdf_nbins
+	write(3,*)  'g(r) rmax  ; rdf_rmax;', rdf_rmax
+	write(3,*)  'S(k) nmax  ; ssf_nmax;', ssf_nmax
+	write(3,*)  'S(k) axis1 ; ssf_ax1;', ssf_ax1
+	write(3,*)  'S(k) axis2 ; ssf_ax2;', ssf_ax2
 
 	close(3,status='keep')
 

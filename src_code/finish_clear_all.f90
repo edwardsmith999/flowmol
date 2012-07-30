@@ -43,7 +43,6 @@ implicit none
 	deallocate(aD)
 	deallocate(aR)
 	deallocate(vfd_bin)
-	deallocate(shell)
 	deallocate(RDF)	
 	deallocate(normalisedvfd_bin)
 	deallocate(seed)

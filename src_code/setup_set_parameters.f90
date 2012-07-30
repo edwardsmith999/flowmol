@@ -647,15 +647,15 @@ subroutine set_parameters_outputs
 	maxv=initialvel*3.0            		!Assume molecule will not have more than 3 time its initial velocity 
 	binsize = maxv/nbins(1)
 
-	!Allocate and define number of shells used for Radial distribution function (RDF)
-	nshells = ceiling(np / 2.d0)		!Define number of shells
-	allocate(shell(nshells))		!Allocate array to tally positions
-	allocate(RDF(nshells))		   	!Allocate array for radial distribution function
-	shell = 0 				!Set initial molecular frequency count to zero
-
-	!Define distance over which to evaluate RDF to determine delta_r	
-	rd = 7.d0				   
-	delta_r = rd/nshells			!Width of each shell
+	!Allocate and define number of shells used for Radial distribution function (rdf)
+	allocate(rdf_hist(rdf_nbins))                   !Allocate array to tally positions
+	allocate(rdf(rdf_nbins))                        !Allocate array for radial distribution function
+	allocate(ssf_hist(2*ssf_nmax+1,2*ssf_nmax+1))   !Allocate array to tally positions
+	allocate(ssf(2*ssf_nmax+1,2*ssf_nmax+1))        !Allocate array for radial distribution function
+	rdf_hist= 0
+	rdf= 0.d0
+	ssf= 0.d0
+	ssf_hist= 0.d0
 
 	!Allocate array for diffusion to number of dimensions
 	allocate(diffusion(nd))
