@@ -1534,3 +1534,53 @@ subroutine r_gyration_io
 	close(15,status='keep')
 
 end subroutine r_gyration_io
+
+subroutine rdf_io 
+	use module_parallel_io
+	use calculated_properties_MD, only: rdf
+	implicit none
+
+	integer :: m
+	integer :: length
+
+	m = 1
+	inquire(iolength=length) rdf
+
+	if (iter.eq.0) then
+		open(16,file=trim(prefix_dir)//'results/rdf', &
+		     form = 'unformatted', access = 'direct'       , &
+		     status = 'replace',   recl = length              )
+		write(16, rec = m) rdf
+	else
+		open(16,file=trim(prefix_dir)//'results/rdf', &
+		     form = 'unformatted', access = 'direct'       , &
+		                           recl = length              )
+		write(16, rec = m) rdf	
+	end if
+
+end subroutine rdf_io
+
+subroutine ssf_io
+	use module_parallel_io
+	use calculated_properties_MD, only: ssf
+	implicit none
+
+	integer :: m,x,y
+	integer :: length
+
+	m = 1
+	inquire(iolength=length) ssf
+
+	if (iter.eq.0) then
+		open(17,file=trim(prefix_dir)//'results/ssf', &
+		     form = 'unformatted', access = 'direct'       , &
+		     status = 'replace',   recl = length              )
+		write(17, rec = m) ssf
+	else
+		open(17,file=trim(prefix_dir)//'results/ssf', &
+		     form = 'unformatted', access = 'direct'       , &
+		                           recl = length              )
+		write(17, rec = m) ssf
+	end if
+
+end subroutine ssf_io 

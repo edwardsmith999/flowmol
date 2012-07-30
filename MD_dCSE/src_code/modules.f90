@@ -71,6 +71,8 @@ module computational_constants_MD
 		temperature_outflag, &
 		pressure_outflag, &
 		viscosity_outflag, &
+		rdf_outflag, &
+		ssf_outflag, &
 		cv_conserve,	&
 		mflux_outflag, &
 		vflux_outflag, &
@@ -99,15 +101,19 @@ module computational_constants_MD
 		initialise_steps, 		&	!Initialisation steps to run before simulation start
 		extralloc, 				&	!Extra allocation space to include copied halos
 		overlap, 				&	!Size of overlap region used to apply force to molecular region
-		Nvmd_intervals
+		Nvmd_intervals,         &
+		rdf_nbins,              &   !Number of discrete "bins" used to calculate g(r)
+		ssf_ax1,                &   !1st projection axis for static structure factor
+		ssf_ax2,                &
+		ssf_nmax                    !Maximum wavenumber for S(k) calculation
 	integer,dimension(:,:),allocatable	:: vmd_intervals			!Multiple intervals for vmd record
 
 	double precision 	:: delta_t           !Size of timestep for each computational step
 	double precision 	:: elapsedtime       !Total time elapsed including restarts
 	double precision 	:: rneighbr2         !Square of rcuttoff+delta_rneighbr
 	double precision 	:: delta_rneighbr    !Radius used for neighbour list construction
-	double precision 	:: rd                !Radius used for radial distribution function
-
+	double precision    :: rdf_rmax          !Maximum radius for radial distribution function
+	
 	!Store surface bins of processes subdomain for outputs over periodic boundaries
 	integer									:: nsurfacebins     !Number of surface bins
 	integer,allocatable,dimension(:,:)	    :: surfacebins		!Surface Bins
@@ -449,11 +455,11 @@ end module CUDA_MD
 
 module calculated_properties_MD
 
-	integer		 							:: nshells			    !Number of shells used to store radial distribution
-	integer		 							:: nplanes,gnplanes	    !Number of planes used for MOP
-	integer,dimension(3) 					:: nbins,nbinso,gnbins	!Number of bins to store molecular properties
+	integer	:: nplanes,gnplanes     !Number of planes used for MOP
+
+	integer,dimension(3) :: nbins,nbinso,gnbins	                    !Number of bins to store molecular properties
 	integer,dimension(:), allocatable 		:: vfd_bin        		!Array to keep tally of molecular velocity distribution
-	integer,dimension(:), allocatable 		:: shell          		!Array to keep tally of radial distribution
+	integer,dimension(:), allocatable 		:: rdf_hist             !Array to keep tally of radial distribution
 	integer,dimension(:), allocatable 		:: slice_mass	    	!Array to keep tally of molecules in slice
 	integer,dimension(:,:,:), allocatable 	:: slice_massbin 		!Recorded molecules in a bin
 	integer,dimension(:,:,:), allocatable	:: volume_mass			!Mass in a control volume at time t
@@ -461,7 +467,6 @@ module calculated_properties_MD
 
 	double precision :: 	&
 		binsize,			&		!Size of each bin
-		delta_r	,			&		!Size of each shell
 		planespacing,		&		!Spacing between planes for MOP
 		vsum, v2sum,		&		!velocity sum
 		potenergysum,		&		!potential energy sum for system
@@ -482,7 +487,7 @@ module calculated_properties_MD
 	double precision, dimension(3,3) 			:: gamma_xy	 !Parameter used in Nose Hoover tensor stressostat 
 	double precision, dimension(:), allocatable :: &
 		planes,				&  		!Location of planes used in MOP
-		RDF,				&		!Array to keep tally of radial distribution
+		rdf,				&		!Radial distribution function
 		normalisedvfd_bin,	&		!Bin normalised so sum of all bins is one
 		diffusion,			&		!Diffusion of molecules
 		meandiffusion,		&		!Time averaged diffusion of molecules
@@ -491,6 +496,8 @@ module calculated_properties_MD
 		Pxyv_plane 	 				!Energy on plane for MOP
 
 	double precision, dimension(:,:), allocatable 	:: & 
+		ssf,                &       !Static structure factor
+		ssf_hist,           &       !Running total for structure factor calculation
 		slice_momentum,		&		!Mean velocity used in velocity slice
 		Pxy_plane,			&		!Stress on plane for MOP
 		Pxy,				&  		!Stress tensor for whole domain

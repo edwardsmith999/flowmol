@@ -169,7 +169,19 @@ subroutine simulation_record
 	!call evaluate_properties_vdistribution
 
 	!Obtain and record radial distributions
-	!call evaluate_properties_radialdist
+	select case (rdf_outflag)
+	case(1)
+		call evaluate_properties_rdf
+		call rdf_io
+	case default
+	end select
+
+	select case (ssf_outflag)
+	case(1)
+		call evaluate_properties_ssf
+		call ssf_io
+	case default
+	end select
 
 	!Obtain and record velocity and mass
 	if (velocity_outflag .ne. 0) call velocity_averaging(velocity_outflag)
@@ -357,62 +369,100 @@ subroutine evaluate_properties_vdistribution
 
 end subroutine evaluate_properties_vdistribution
 
-!===================================================================================
-!Calculate Radial distribution function (RDF) using all pairs
+!==============================================================================
+!Calculate Radial distribution function (rdf) using all pairs
 
-subroutine evaluate_properties_radialdist
-	use module_record
-	implicit none
+subroutine evaluate_properties_rdf
+use module_record
+implicit none
 
-	integer                         :: n, i, j, ixyz   !Define dummy index
-	integer							:: currentshell
-	double precision				:: rmagnitude, rd2
-	double precision, dimension(nd) :: rij       !'nd' directional vector between particles i and j
+	integer                                    :: i,j,bin
+	integer, save                              :: hist_count=1
+	double precision                           :: rmag,dr,Nideal,Nbin,dV
+	double precision, dimension(nd)            :: rij
+
+	!Shell "width"
+	dr = rdf_rmax/real(rdf_nbins,kind(0.d0))
+
+	!Add to histogram of radial separations
+	do i = 1,np-1
+	do j = i+1,np
+
+		!Find distance between i and j (rmag)
+		rij(:) = r(i,:) - r(j,:)
+		rij(:) = rij(:) - domain(:)*anint(rij(:)/domain(:))
+		rmag   = sqrt(dot_product(rij,rij))
 	
-	rd2 = rd**2    !Calculate rd2 once to reduce computation
+		!Assign to bin, one entry for each molecule
+		bin    = int(rmag/dr) + 1
+		if (bin.le.rdf_nbins) rdf_hist(bin) = rdf_hist(bin) + 2
 
-	do i = 1,np-1			!Step through each particle i 
-	do j = i+1,np        		!Step through half of particles j for each i
-		rmagnitude=0		!Set rmagnitude to zero
+	end do
+	end do
 
-		do ixyz=1,nd
-			rij(ixyz) = r (i,ixyz) - r(j,ixyz)          !Evaluate distance between particle i and j
-			!If more than half a domain betwen molecules, must be closer over periodic boundaries      
-			if (abs(rij(ixyz)) > halfdomain(ixyz)) then  !N.B array operator-corresponding element compared 
-				rij(ixyz) = rij(ixyz) - sign(domain(ixyz),rij(ixyz))    !Sign of rij applied to domain
-			endif
-			rmagnitude = rmagnitude+rij(ixyz)*rij(ixyz) !Square of vector calculated
-		enddo
+	!Normalise histogram to find g(r) (rdf)
+	do bin = 1,rdf_nbins
+		rmag     = real(bin - 1.d0)*dr        !rmag now means r in g(r)
+		select case(nd)
+		case(2)
+			dV   = pi*((rmag+dr)**2.d0 - rmag**2.d0)
+		case(3)
+			dV   = (4.d0*pi/3.d0)*((rmag+dr)**3.d0 - rmag**3.d0)
+		end select
+		Nideal   = density*dV
+		Nbin     = real(rdf_hist(bin))/real(np*hist_count)
+		rdf(bin) = Nbin/Nideal
+	end do
 
-		!Assign to shell using inter division
-		if (rmagnitude < rd2) then
-			rmagnitude = sqrt(rmagnitude)
-			currentshell = ceiling(rmagnitude/delta_r)  !Assign to a current shell
-			shell(currentshell) = shell(currentshell)+1 !Add one to that current shell
-		endif
-	enddo
-	enddo
+	hist_count = hist_count + 1
 
-	!Discrete RDF using binned particles
-	!In 3D g(rn)=(V*hn)/(2*pi*np^2*rn^2*delta_r*measurementno.) where
-	!rn=(n-0.5)*delta_r and measurementno. = iter/tplot
-	RDF = 0		!Set RFD ro zero ready for next loop
-	if (nd==2) then
-		do n = 1, nshells
-			RDF(n) = shell(n) * volume / (pi*(np**2.d0)*((n-0.5d0)*delta_r)*delta_r*(iter/tplot))
-		enddo
-	else
-		do n = 1, nshells
-			RDF(n) = shell(n) * volume / (2.d0*pi*(np**2.d0)*(((n-0.5d0)*delta_r)**2.d0)*delta_r*(iter/tplot))
-		enddo
-	endif
+end subroutine evaluate_properties_rdf
 
-	write(12,'(a)') 'Radial distribution function'
-	do n = 1, nshells
-		write(12,'(2(f10.5))') (n-0.5d0)*delta_r, RDF(n)
-	enddo
+!============================================================================!
+! Evaluate static structure factor S(k) in three dimensions
+subroutine evaluate_properties_ssf
+use module_record
+implicit none
 
-end subroutine evaluate_properties_radialdist
+	integer            :: i,j,posi,posj
+	integer            :: n
+	integer, save      :: hist_count=1
+	double precision   :: c,s
+	double precision, dimension(nd)  :: k,dk
+
+	!Wavevectors restricted to fit inside periodic box lengths
+	dk(:) = 2.d0*pi/domain(:)
+
+	k = 0.d0
+	do i=-ssf_nmax,ssf_nmax
+		do j=-ssf_nmax,ssf_nmax
+	
+		k(ssf_ax1) = i*dk(ssf_ax1)
+		k(ssf_ax2) = j*dk(ssf_ax2)
+
+		c = 0.d0
+		s = 0.d0	
+		do n=1,np
+			c = c + cos(dot_product(k,r(n,:)))
+			s = s + sin(dot_product(k,r(n,:)))
+		end do
+
+		if (i.eq.0.and.j.eq.0) then
+			c = 0.d0
+			s = 0.d0
+		end if
+
+		posi = i + ssf_nmax + 1		
+		posj = j + ssf_nmax + 1		
+		ssf_hist(posi,posj) = ssf_hist(posi,posj) + c*c + s*s
+
+		end do
+	end do
+	
+	ssf(:,:) = ssf_hist(:,:)/(real(np)*hist_count)
+	hist_count = hist_count + 1
+
+end subroutine evaluate_properties_ssf
 
 !===================================================================================
 !Diffusion function calculated

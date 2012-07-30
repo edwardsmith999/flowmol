@@ -328,6 +328,21 @@ subroutine setup_read_input
 		read(1,*) r_gyration_iter0
 	endif
 
+	call locate(1,'RADIALDIST_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) rdf_outflag
+		read(1,*) rdf_rmax
+		read(1,*) rdf_nbins
+	endif
+	
+	call locate(1,'STRUCT_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) ssf_outflag
+		read(1,*) ssf_ax1
+		read(1,*) ssf_ax2 
+		read(1,*) ssf_nmax 
+	endif
+
 	close(1,status='keep')      !Close input file
 
 end subroutine setup_read_input

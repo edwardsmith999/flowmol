@@ -439,3 +439,31 @@ ETEVTCF_OUTFLAG
 R_GYRATION_OUTFLAG
 0
 0
+
+#########################################################################
+# Radial distribution output flag
+#	- flag: 
+#		> 0 - off
+#		> 1 - on
+#	- maximum radius for the calculation of g(r)
+#	- number of radial "shells" or "bins"
+# -----------------------------------------------------------------------
+RADIALDIST_OUTFLAG
+0
+3.5
+100
+
+#########################################################################
+# Static structure factor output flag
+#	- flag: 
+#		> 0 - off
+#		> 1 - on
+#	- projection axis 1 (x=1,y=2,z=3)
+#   - projection axis 2 (x=1,y=2,z=3)
+#	- maximum wavenumber n, where k = 2*pi*n/domain
+# -----------------------------------------------------------------------
+STRUCT_OUTFLAG
+0
+1
+2
+50
