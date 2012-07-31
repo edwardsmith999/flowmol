@@ -622,7 +622,7 @@ subroutine set_parameters_outputs
  	gnbins(2) = npy*ncells(2) !Total number of domain bins
 	gnbins(3) = npz*ncells(3) !Total number of domain bins
 
-	nbins(1) = 4*nint(gnbins(1)/dble(npx))	!Share global evenly between processes
+	nbins(1) = nint(gnbins(1)/dble(npx))	!Share global evenly between processes
 	nbins(2) = nint(gnbins(2)/dble(npy))	!Share global evenly between processes
 	nbins(3) = nint(gnbins(3)/dble(npz))	!Share global evenly between processes
 
