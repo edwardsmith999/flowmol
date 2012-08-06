@@ -606,6 +606,9 @@ subroutine setup_restart_microstate
 		call read_tag(n)		!Read tag and assign properties
 	enddo
 
+
+	!call setup_initialise_velocities_TG_parallel
+
 end subroutine setup_restart_microstate
 
 !======================================================================

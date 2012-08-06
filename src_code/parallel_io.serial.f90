@@ -378,6 +378,8 @@ subroutine setup_restart_microstate
 
 	close(2,status='keep') 		!Close final state file
 
+	!call setup_initialise_velocities_TG
+
 end subroutine setup_restart_microstate
 
 !======================================================================
