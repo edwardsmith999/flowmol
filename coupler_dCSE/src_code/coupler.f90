@@ -511,11 +511,11 @@ subroutine coupler_cfd_adjust_domain(xL, yL, zL, nx, ny, nz, density_cfd)
 
     select case (cfd_coupler_input%domain%cell_type)
     case ("FCC","Fcc","fcc")
-            b = (4.d0/density)**(1.d0/3.d0)
+		b = (4.d0/density)**(1.d0/3.d0)
     case default
-            write(*,*) "Wrong unit cell type in coupler_cfd_adjust_domain. Stopping ... "
-            ierror = COUPLER_ERROR_INIT
-            call MPI_Abort(MPI_COMM_WORLD,ierror,ierr)
+		write(*,*) "Wrong unit cell type in coupler_cfd_adjust_domain. Stopping ... "
+		ierror = COUPLER_ERROR_INIT
+ 		call MPI_Abort(MPI_COMM_WORLD,ierror,ierr)
     end select
 
 	! Check CFD domain and MD domain are compatible sizes to allow a
@@ -523,7 +523,7 @@ subroutine coupler_cfd_adjust_domain(xL, yL, zL, nx, ny, nz, density_cfd)
 	! stop code and demand a regeneration of grid if vary by more than 0.01
 	changed = .false.
     if (present(xL)) then
-        xyz_ptr => cfd_coupler_input%domain%x
+ 		xyz_ptr => cfd_coupler_input%domain%x
         call init_length(xyz_ptr,xL,resize=.true.,direction='x',print_warning=changed)
     endif
 

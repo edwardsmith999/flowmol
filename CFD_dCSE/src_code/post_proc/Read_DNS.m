@@ -73,21 +73,21 @@ for n = 1:2^m:length(filenames)
     %Analytical solution
     t = (n-1)*5;
     analy = couette_analytical_fn(t,Re,[1.0,0],Ly,ngy-1,'top');
-    plot(y,analy,'k');
-    hold on
+    %plot(y,analy,'k');
+    %hold on
     
-    axis([-1 58 -0.1 1.1])
+    %axis([-1 58 -0.1 1.1])
     
     %Read from DNS files
     V = read_sub(filenames(n).name,ngz,ngx,ngy,pz,px,py,skipk,skipi,skipj,3);
     u(:,m) = V{1};
     v(:,m) = V{2};
     w(:,m) = V{3};
-    scatter(ypg(4,:)+5.12/2,u(:,m),'s')
-    drawnow
+    %scatter(ypg(4,:)+5.12/2,u(:,m),'s')
+    %drawnow
     m = m + 1;
-    hold off
-    savefig(strcat('couette',num2str(m)),'eps')
+    %hold off
+    %savefig(strcat('couette',num2str(m)),'eps')
 end
 
 end

@@ -46,14 +46,14 @@ implicit none
 	do n = 1,np
 		call read_tag(n)                              !Read tag and assign properties
 	enddo
-	call setup_initialise_velocities                  !Setup initial velocities
+	call setup_initialise_velocities				  !Setup initial velocities
 
 end subroutine setup_initialise_microstate
 
 !==================================================================================
 !----------------------------------------------------------------------------------
 !Initialise Positions
-!Set up the intial position of the particles
+!Set up the intial position of the particles in an FCC lattice
 
 subroutine setup_initialise_position
 	use module_initialise_microstate
@@ -693,6 +693,86 @@ subroutine setup_initialise_velocities
 
 end subroutine setup_initialise_velocities
 
+!Initialise Velocities
+! Set up the intial velocities of the particles using Taylor Green velocity
+! contours
+
+subroutine setup_initialise_velocities_TG
+	use module_initialise_microstate
+	implicit none
+
+	integer                            :: n,i 
+	double precision				   :: x,y,z,Lx,Ly,Lz
+	double precision, dimension (nd)   :: netv   !Overall momentum of system
+
+	!Use definition of temperature and re-arrange to define an average velocity
+	initialvel = sqrt(nd * (1.d0 - 1.d0/globalnp)*inputtemperature)
+
+	v = 0.d0	!Set velocity initially to zero
+	i = 0		!Zero number of molecules with velocity assigned
+	netv=0.d0	!Set net velocity of system to zero initially
+
+	do n=1,np			      				!Step through each molecule
+		x  = r(n,1);    y  = r(n,2);    z  = r(n,3);
+		Lx = halfdomain(1); Ly = halfdomain(2); Lz = halfdomain(3);	!Domain should be cubic...
+		v(n,1) =  initialvel*sin(pi*x/Lx)*cos(pi*y/Ly)*cos(pi*z/Lz)
+		v(n,2) = -initialvel*cos(pi*x/Lx)*sin(pi*y/Ly)*cos(pi*z/Lz)
+		v(n,3) =  initialvel*cos(pi*x/Lx)*cos(pi*y/Ly)*sin(pi*z/Lz)
+		netv(:)= netv(:) + v(n,:)      		!Sum up overall momentum of system due to random movement
+	enddo
+
+	call globalSumVect(netv, nd)			!Sum net velocity on all processors
+	netv(:) = netv(:)/np		!Divide overall momentum by number of particles
+
+	do n=1,np
+		!reducing all particles by same amount
+		v(n,:)= v(n,:) - netv(:) 
+			       
+	enddo
+
+end subroutine setup_initialise_velocities_TG
+
+
+subroutine setup_initialise_velocities_TG_parallel
+	use module_initialise_microstate
+	implicit none
+
+	integer                            :: n,i 
+	double precision				   :: x,y,z,Lx,Ly,Lz
+	double precision, dimension (nd)   :: netv   !Overall momentum of system
+
+	!Use definition of temperature and re-arrange to define an average velocity
+	initialvel = sqrt(nd * (1.d0 - 1.d0/globalnp)*inputtemperature)
+
+	v = 0.d0	!Set velocity initially to zero
+	i = 0		!Zero number of molecules with velocity assigned
+	netv=0.d0	!Set net velocity of system to zero initially
+
+	do n=1,np			      				!Step through each molecule
+		x  = r(n,1)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
+	    y  = r(n,2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
+		z  = r(n,3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
+		Lx = 0.5d0*globaldomain(1); Ly = 0.5d0*globaldomain(2); Lz = 0.5d0*globaldomain(3);	!Domain should be cubic...
+		v(n,1) =  initialvel*sin(pi*x/Lx)*cos(pi*y/Ly)*cos(pi*z/Lz)
+		v(n,2) = -initialvel*cos(pi*x/Lx)*sin(pi*y/Ly)*cos(pi*z/Lz)
+		v(n,3) =  initialvel*cos(pi*x/Lx)*cos(pi*y/Ly)*sin(pi*z/Lz)
+		netv(:)= netv(:) + v(n,:)      		!Sum up overall momentum of system due to random movement
+	enddo
+
+	print*, 'before sum', irank, netv, nd
+
+	call globalSumVect(netv, nd)			!Sum net velocity on all processors
+	netv(:) = netv(:)/np		!Divide overall momentum by number of particles
+
+	print*, 'after sum', irank, netv, nd
+
+	do n=1,np
+		!reducing all particles by same amount
+		v(n,:)= v(n,:) - netv(:) 
+			       
+	enddo
+
+end subroutine setup_initialise_velocities_TG_parallel
 
 !----------------------------------------------------------------------------------
 !----------------------------------------------------------------------------------
