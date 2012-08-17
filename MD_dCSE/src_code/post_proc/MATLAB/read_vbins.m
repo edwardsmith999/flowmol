@@ -1,5 +1,5 @@
 %Read velocity average output from simulation
-function[vel_bins]=read_vbins(filename,resultfile_dir)
+function[vel_bins]=read_vbins(filename,resultfile_dir,read_time)
 
 if (exist('filename') == 0)
     filename = './vbins';
@@ -13,13 +13,7 @@ if (exist('resultfile_dir') == 0)
     display('setting results file to default "./../../results"');
 end
 
-%%Read mass ouput incluing simulation properties from header file and calculate simulation
-%properties
-read_header
-%mass_bins = read_mbins;
-Nvel_records = floor((Nsteps-initialstep) / (tplot * Nvel_ave));
-
-%Load mass CV data
+%Load velocity data
 cd(resultfile_dir);
 fid = fopen(filename,'r','n');
 cd (pwdir);
@@ -27,7 +21,21 @@ cd (pwdir);
 if (fid == -1)
     error(strcat(filename,' file does not exist in results'))
 end
-velbins = fread(fid,'double');
-vel_bins = reshape(velbins,gnbins(1),gnbins(2),gnbins(3),nd,Nvel_records);
-fclose(fid);
 
+
+% Check if snapshot or all simulation should be read then
+% read simulation properties from header file, calculate 
+% datasize to read and read required data
+read_header
+if (exist('read_time') == 0)
+    Nvel_records = floor((Nsteps-initialstep) / (tplot * Nvel_ave));
+    velbins = fread(fid,'double');
+    vel_bins = reshape(velbins,gnbins(1),gnbins(2),gnbins(3),nd,Nvel_records);
+else
+    datasize = gnbins(1)*gnbins(2)*gnbins(3)*nd;
+    bytes = 8;
+    fseek(fid, bytes*datasize*read_time, 'bof');
+    velbins = fread(fid,datasize,'double');
+    vel_bins = reshape(velbins,gnbins(1),gnbins(2),gnbins(3),nd);
+end
+fclose(fid);

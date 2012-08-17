@@ -126,8 +126,10 @@ implicit none
 		close(10,status='keep') !Keep macroscopic_properties
 	case default
 	end select
-	
 
+	!Write config to be used in DL_POLY input
+	!call write_DL_POLY_config
+	
 end subroutine finish_final_record
 
 !--------------------------------------------------------------------------------------------
@@ -744,4 +746,31 @@ subroutine build_psf
 	deallocate(glob_bf)
 
 end subroutine build_psf
+
+
+!----------------------------------------------------------------------------------
+!Write DL_POLY style CONFIG file of molecules in simulation
+subroutine write_DL_POLY_config
+use module_final_record
+implicit none
+
+	integer			i
+
+	open(1000,file=trim(prefix_dir)//'CONFIG')
+	write(1000,*) 'Argon'					!For Argon LJ units
+	write(1000,*) 2, 1, np					!2 ~ use position, velocity & acceleration input, 1 3D cube periodic BC, np
+	write(1000,*) 3.4*domain(1),	0.d0,		0.d0		!Domain size in Angstroms
+	write(1000,*) 0.d0,			3.4*domain(2),	0.d0
+	write(1000,*) 0.d0,			0.d0,		3.4*domain(3)
+	do i=1,np
+		write(1000,*) 'Ar', i
+		write(1000,*) 3.4*r(i,:) !Convert to Angstroms
+		write(1000,*) (3.4/2.16) *v(i,:)	!Convert to Angstroms/ps
+		write(1000,*) a(i,:)
+	enddo
+
+	close(1000,status='keep')
+
+end subroutine write_DL_POLY_config
+
 

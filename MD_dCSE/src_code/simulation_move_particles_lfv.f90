@@ -80,7 +80,9 @@ subroutine simulation_move_particles_lfv
 
 	end select
 	
-	call simulation_move_particles_true_lfv
+	if (rtrue_flag .eq. 1) then
+		call simulation_move_particles_true_lfv
+	endif
 
 contains
 

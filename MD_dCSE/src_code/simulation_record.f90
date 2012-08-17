@@ -271,7 +271,7 @@ subroutine evaluate_macroscopic_properties_parallel
 
 	!Root processes prints results
 	if (irank .eq. iroot) then
-		
+
 		kinenergy   = (0.5d0 * v2sum) / real(globalnp,kind(0.d0))
 		potenergy   = potenergysum /(2.d0*real(globalnp,kind(0.d0))) + Potential_sLRC !N.B. extra 1/2 as all interactions calculated
 		if (potential_flag.eq.1) then
@@ -2526,6 +2526,8 @@ implicit none
 	ibin(:) = ceiling((ri(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
 	jbin(:) = ceiling((rj(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
 
+	if (ibin(1) .eq. jbin(1) .and. ibin(2) .eq. jbin(2) .and. ibin(3) .eq. jbin(3)) return
+		
 	do i = ibin(1),jbin(1),sign(1,jbin(1)-ibin(1))
 	do j = ibin(2),jbin(2),sign(1,jbin(2)-ibin(2))
 	do k = ibin(3),jbin(3),sign(1,jbin(3)-ibin(3))
@@ -2562,6 +2564,13 @@ implicit none
 		onfacezt =  	(sign(1.d0,bintop(3)- rj(3)) - sign(1.d0,bintop(3)- ri(3)))* &
 						(heaviside(bintop(1)-Pzt(1)) - heaviside(binbot(1)-Pzt(1)))* &
 						(heaviside(bintop(2)-Pzt(2)) - heaviside(binbot(2)-Pzt(2)))
+
+		!if (ibin(1) .eq. jbin(1) .and. ibin(2) .eq. jbin(2) .and. ibin(3) .eq. jbin(3)) then
+			if (onfacexb .ne. 0 .or. onfaceyb .ne. 0 .or. onfacezb .ne. 0 .or. &
+				onfacext .ne. 0 .or. onfaceyt .ne. 0 .or. onfacezt .ne. 0 ) cycle
+!				print'(6I8)',onfacexb, onfaceyb, onfacezb, onfacext, onfaceyt, onfacezt
+			!endif
+		!endif
 
 		!Prevent halo molecules from being included but include molecule which have left domain 
 		!before rebuild has been triggered.

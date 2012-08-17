@@ -91,7 +91,7 @@ full_debug_s:
 full_debug_p:
 	@make parallel_md.exe "FLAGS = -O0 -traceback -CB -check all -warn all,nodec,interfaces -gen_interfaces"
 profile_s:
-	@make md.exe "FLAGS = -O0 -pg"
+	@make md.exe "FFLAGS = -CB -traceback -O3 -pg"
 profile_p:
 	@make parallel_md.exe "FFLAGS = -mpe=mpilog "
 md.exe: obj $(O_MD)

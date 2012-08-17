@@ -256,6 +256,13 @@ subroutine setup_read_input
 	if (found_in_input) read(1,*) macro_outflag
 	call locate(1,'SLRC_FLAG',.false.,found_in_input)
 	if (found_in_input) read(1,*) sLRC_flag
+	!Test for WCA potential and switch LRC off
+	if (abs(rcutoff-2.d0**(1.d0/6.d0)) .lt. 0.0001) then
+		if (sLRC_flag .eq. 1) then
+			print*, "WCA potential used - switching sLRC off"
+			sLRC_flag = 0
+		endif
+	endif
 	call locate(1,'MASS_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) mass_outflag
@@ -320,6 +327,13 @@ subroutine setup_read_input
 				print*, 'Etevtcf must be a multiple of tplot, resetting etevtcf to ', etevtcf_iter0
 			end if
 		end if
+	endif
+
+	call locate(1,'RTRUE_FLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) rtrue_flag
+	else
+		rtrue_flag = 0
 	endif
 
 	call locate(1,'R_GYRATION_OUTFLAG',.false.,found_in_input)

@@ -722,7 +722,7 @@ subroutine simulation_apply_continuum_forces_CV(iter)
 	double precision, dimension(4)		:: continuum_u
 	double precision, dimension(:,:,:,:,:),allocatable 	:: vel_cfd
 
-	logical								:: overlap
+	!logical								:: overlap
 	type(node), pointer 	        	:: old, current
     save nib,njb,nkb,xmin,xmax,ymin,ymax,zmin,zmax,dx_cfd,dz_cfd,inv_dtCFD
 

@@ -1274,9 +1274,9 @@ subroutine surface_stress_io
 	!Write surface pressures to file
 	select case(CV_conserve)
 	case(0)
-		m = (iter-initialstep+1)/(Nvflux_ave*tplot)
+		m = (iter-initialstep+1)/(Nvflux_ave*tplot) + 1
 	case(1)
-		m = (iter-initialstep+1)/(Nvflux_ave)
+		m = (iter-initialstep+1)/(Nvflux_ave) + 1
 	case default
 		call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
 	end select
@@ -1326,9 +1326,9 @@ subroutine energy_flux_io
 	!Write energy flux to file
 	select case(CV_conserve)
 	case(0)
-		m = (iter-initialstep+1)/(Neflux_ave*tplot)
+		m = (iter-initialstep+1)/(Neflux_ave*tplot) + 1
 	case(1)
-		m = (iter-initialstep+1)/(Neflux_ave)
+		m = (iter-initialstep+1)/(Neflux_ave) + 1
 	case default
 		call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
 	end select
