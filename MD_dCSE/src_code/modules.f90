@@ -72,6 +72,7 @@ module computational_constants_MD
 		pressure_outflag, &
 		viscosity_outflag, &
 		rdf_outflag, &
+		rtrue_flag, &
 		ssf_outflag, &
 		cv_conserve,	&
 		mflux_outflag, &
