@@ -539,10 +539,6 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 		enddo
 	enddo
 
-	!Added corrections and shifts
-	!potenergymol_LJ = potenergymol_LJ + potential_sLRC
-	!virialmol = virialmol + Pressure_sLRC
-
 	!Total used with other potentials (e.g. FENE)
 	potenergymol = potenergymol + potenergymol_LJ
 

@@ -207,20 +207,26 @@ end subroutine
 !-------------------------------------------------------------------------------------
 !Returns the heaviside function for input x
 
+!DEC$ ATTRIBUTES FORCEINLINE :: int_heaviside
 function int_heaviside(x)
+	implicit none
 
 	integer							:: int_heaviside
 	integer	,intent(in)				:: x
+
 	int_heaviside = 0.5*sign(1,x)+1
 
 end function
 
+!DEC$ ATTRIBUTES FORCEINLINE :: heaviside
 function heaviside(x)
+	implicit none
 
 	integer						:: heaviside
 	double precision,intent(in)	:: x
 
 	heaviside = ceiling(sign(0.5d0,x))
+	!heaviside = 0.5*sign(1.d0,x)+1
 
 end function heaviside
 
@@ -341,7 +347,7 @@ end function nonzero
 !indx - output vector storing row permutation
 
 subroutine LUdcmp(A,indx,d)
-        use interfaces
+	use interfaces
 	implicit none
 
 	double precision, dimension(:,:), intent(inout)	:: A

@@ -2288,7 +2288,8 @@ subroutine ssf_io
 
 	print*, 'Need to parallelise SSF i/o'
 
-end subroutine ssf_io 
+end subroutine ssf_io
+
 !====================================================================
 !			Array writing subroutines
 !--------------------------------------------------------------------
