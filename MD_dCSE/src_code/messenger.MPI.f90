@@ -53,7 +53,7 @@ module messenger
 	integer 					:: icomm_grid	! comm for grid topology
 	integer, allocatable 		:: icoord(:,:)  ! proc grid coordinates
 	integer						:: icomm_xyz(3)	! Directional subcomms
-	integer, dimension(8,2) 	:: proc_topology_corner
+	integer, dimension(8,2) 	:: proc_topology_corners
 	integer, dimension(4,3,2) 	:: proc_topology_edge
 
 	logical :: Lperiodic(3)
@@ -375,7 +375,7 @@ subroutine messenger_proc_topology()
 			call MPI_Cart_rank(icomm_grid,pshiftcoords,idest,ierr)
 		endif
 		!Add to array
-		proc_topology_corner(i,1) = idest
+		proc_topology_corners(i,1) = idest
 
 		!isource = - idest
 		pshiftcoords(1)=pcoords(1)+sign(1,ncells(1)-icornercell(i))
@@ -396,7 +396,7 @@ subroutine messenger_proc_topology()
 			call MPI_Cart_rank(icomm_grid,pshiftcoords,isource,ierr)
 		endif
 		!Add to array
-		proc_topology_corner(i,2) = isource
+		proc_topology_corners(i,2) = isource
 
 	enddo
 
@@ -524,20 +524,20 @@ subroutine pack_cell(icell,jcell,kcell,sendbuffer,buffsize,pos)
 		molno = old%molno !Number of molecule
 		select case (potential_flag)
 		case(0)
-			rpack(:) = r(molno,:)	!Load into temp array
+			rpack(:) = r(:,molno)	!Load into temp array
 			call MPI_Pack(rpack,nd,MPI_DOUBLE_PRECISION,& 
 			sendbuffer,buffsize,pos,icomm_grid,ierr)
 			if (pass_vhalo .ne. 0) then
-				vpack(:) = v(molno,:)	!Load into temp array
+				vpack(:) = v(:,molno)	!Load into temp array
 				call MPI_Pack(vpack,nd,MPI_DOUBLE_PRECISION,& 
 				sendbuffer,buffsize,pos,icomm_grid,ierr)
 			endif
 		case(1)
-			rpack(:) = r(molno,:)	!Load into temp array
+			rpack(:) = r(:,molno)	!Load into temp array
 			call MPI_Pack(rpack,nd,MPI_DOUBLE_PRECISION,& 
 			sendbuffer,buffsize,pos,icomm_grid,ierr)	
 			if (pass_vhalo .ne. 0) then
-				vpack(:) = v(molno,:)	!Load into temp array
+				vpack(:) = v(:,molno)	!Load into temp array
 				call MPI_Pack(vpack,nd,MPI_DOUBLE_PRECISION,& 
 				sendbuffer,buffsize,pos,icomm_grid,ierr)
 			endif
@@ -572,20 +572,20 @@ subroutine unpack_recvbuffer(halo_np,recvnp,length,recvbuffer)
 		case(0)
 			call MPI_Unpack(recvbuffer,length,pos,rpack, &
 			nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			r(np+n,:) = rpack
+			r(:,np+n) = rpack
 			if (pass_vhalo .ne. 0) then
 				call MPI_Unpack(recvbuffer,length,pos,vpack, &
 				nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-				v(np+n,:) = vpack
+				v(:,np+n) = vpack
 			endif
 		case(1)
 			call MPI_Unpack(recvbuffer,length,pos,rpack, &
 			nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			r(np+n,:) = rpack
+			r(:,np+n) = rpack
 			if (pass_vhalo .ne. 0) then
 				call MPI_Unpack(recvbuffer,length,pos,vpack, &
 				nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-				v(np+n,:) = vpack
+				v(:,np+n) = vpack
 			endif
 			call MPI_Unpack(recvbuffer,length,pos,FENEpack, &
 			8,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
@@ -800,8 +800,8 @@ subroutine updatefacedown(ixyz)
 
 	!Correct positions in new processor to halo cells
 	do n=halo_np+1,halo_np+recvnp
-		r(np+n,ixyz) = r(np+n,ixyz) + domain(ixyz)
-		!if(irank .eq. 18 .and. iter .gt. 33) print'(i5,3f10.5)', iter, r(np+n,:)
+		r(ixyz,np+n) = r(ixyz,np+n) + domain(ixyz)
+		!if(irank .eq. 18 .and. iter .gt. 33) print'(i5,3f10.5)', iter, r(:,np+n)
 	enddo
 
 	!Update number of molecules in halo to include number recieved
@@ -936,8 +936,8 @@ subroutine updatefaceup(ixyz)
 
 	!Correct positions in new processor to halo cells
 	do n=halo_np+1,halo_np+recvnp
-		r(np+n,ixyz) = r(np+n,ixyz) - domain(ixyz)
-		!if(irank .eq. 18 .and. iter .gt. 33) print'(i5,3f10.5)', iter, r(np+n,:)
+		r(ixyz,np+n) = r(ixyz,np+n) - domain(ixyz)
+		!if(irank .eq. 18 .and. iter .gt. 33) print'(i5,3f10.5)', iter, r(:,np+n)
 	enddo
 
 	!Update number of molecules in halo to include number recieved
@@ -1066,25 +1066,25 @@ subroutine updateedge(face1,face2)
 		select case (ixyz)
         	case (1)
 				do n=halo_np+1,halo_np+recvnp 
-					r(np+n,2) = r(np+n,2) &  !Move to other side of domain
+					r(2,np+n) = r(2,np+n) &  !Move to other side of domain
 					+ sign(1,ncells(2)-edge1(1,i))*domain(2)
-					r(np+n,3) = r(np+n,3) &  !Move to other side of domain
+					r(3,np+n) = r(3,np+n) &  !Move to other side of domain
 					+ sign(1,ncells(3)-edge2(1,i))*domain(3)
 				enddo
        		case (2)
 				do n=halo_np+1,halo_np+recvnp
-					r(np+n,1) = r(np+n,1) &  !Move to other side of domain
+					r(1,np+n) = r(1,np+n) &  !Move to other side of domain
 					+ sign(1,ncells(1)-edge1(2,i))*domain(1)
-					r(np+n,3) = r(np+n,3) &  !Move to other side of domain
+					r(3,np+n) = r(3,np+n) &  !Move to other side of domain
 					+ sign(1,ncells(3)-edge2(2,i))*domain(3)
 				enddo
  			case (3)
 				do n=halo_np+1,halo_np+recvnp
-					r(np+n,1) = r(np+n,1) &  !Move to other side of domain
+					r(1,np+n) = r(1,np+n) &  !Move to other side of domain
 					+ sign(1,ncells(1)-edge1(3,i))*domain(1)
-					r(np+n,2) = r(np+n,2) &  !Move to other side of domain
+					r(2,np+n) = r(2,np+n) &  !Move to other side of domain
 					+ sign(1,ncells(2)-edge2(3,i))*domain(2)
-					!if(irank .eq. 18 .and. iter .gt. 33) print'(i5,3f10.5)', iter, r(np+n,:)
+					!if(irank .eq. 18 .and. iter .gt. 33) print'(i5,3f10.5)', iter, r(:,np+n)
 				enddo
 		case default
 			call error_abort("updateBorder: invalid value for ixyz")
@@ -1133,8 +1133,8 @@ subroutine updatecorners()
 
 		!Obtain rank of diagonal processor
 
-		idest = proc_topology_corner(i,1)
-		isource = proc_topology_corner(i,2)
+		idest = proc_topology_corners(i,1)
+		isource = proc_topology_corners(i,2)
 
 		!print*, irank, 'corner',i,'values', isource+1, idest+1
 
@@ -1166,13 +1166,13 @@ subroutine updatecorners()
 
 		!Correct positions in new processor to halo cells
 		do n=halo_np+1,halo_np+recvnp
-			r(np+n,1) = r(np+n,1) &  !Move to other side of domain
+			r(1,np+n) = r(1,np+n) &  !Move to other side of domain
 			+ sign(1,ncells(1)-icornercell(i))*domain(1)
-			r(np+n,2) = r(np+n,2) &  !Move to other side of domain
+			r(2,np+n) = r(2,np+n) &  !Move to other side of domain
 			+ sign(1,ncells(2)-jcornercell(i))*domain(2)
-			r(np+n,3) = r(np+n,3) &  !Move to other side of domain
+			r(3,np+n) = r(3,np+n) &  !Move to other side of domain
 			+ sign(1,ncells(3)-kcornercell(i))*domain(3)
-			!if(irank .eq. 18 .and. iter .gt. 33) print'(i5,3f10.5)', iter, r(np+n,:)
+			!if(irank .eq. 18 .and. iter .gt. 33) print'(i5,3f10.5)', iter, r(:,np+n)
 		enddo
 
 		!Update number of molecules in halo to include number recieved
@@ -1252,7 +1252,7 @@ subroutine checksendbuild(ixyz,sendnp,dir)
 	select case(dir)
 	case(-1)
 		do n = 1,np
-			if(r(n,ixyz) < -halfdomain(ixyz)) then
+			if(r(ixyz,n) < -halfdomain(ixyz)) then
 				call linklist_checkpushmol(n,0,0,0)
 				!print*, 'proc id', irank, 'passes mol', n
 				sendnp = sendnp + 1
@@ -1260,7 +1260,7 @@ subroutine checksendbuild(ixyz,sendnp,dir)
 		enddo
 	case(1)
 		do n = 1,np
-			if(r(n,ixyz) >= halfdomain(ixyz)) then
+			if(r(ixyz,n) >= halfdomain(ixyz)) then
 				call linklist_checkpushmol(n,0,0,0)
 				!print*, 'proc id', irank, 'passes mol', n
 				sendnp = sendnp + 1
@@ -1319,15 +1319,15 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 		select case(potential_flag)
 		case(0)
 			!Positions
-			Xpack(:) = r(molno,:)
+			Xpack(:) = r(:,molno)
 			call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
 					sendbuffer,buffsize,pos,icomm_grid,ierr)
 			!True global positions
-			Xpack(:) = rtrue(molno,:)
+			Xpack(:) = rtrue(:,molno)
 			call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
 					sendbuffer,buffsize,pos,icomm_grid,ierr)
 			!Velocity
-			Xpack(:) = v(molno,:)
+			Xpack(:) = v(:,molno)
 			call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
 					sendbuffer,buffsize,pos,icomm_grid,ierr)
 			!Molecular Tag - Convert to double precision so all passed variables same type
@@ -1336,15 +1336,15 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 					sendbuffer,buffsize,pos,icomm_grid,ierr)
 		case(1)
 			!Positions
-			Xpack(:) = r(molno,:)
+			Xpack(:) = r(:,molno)
 			call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
 					sendbuffer,buffsize,pos,icomm_grid,ierr)
 			!True global positions
-			Xpack(:) = rtrue(molno,:)
+			Xpack(:) = rtrue(:,molno)
 			call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
 					sendbuffer,buffsize,pos,icomm_grid,ierr)
 			!Velocity
-			Xpack(:) = v(molno,:)
+			Xpack(:) = v(:,molno)
 			call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
 					sendbuffer,buffsize,pos,icomm_grid,ierr)
 			!IDs
@@ -1396,26 +1396,26 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 		case(0)
 			call MPI_Unpack(recvbuffer,length,pos,Xpack, &
 			                nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			r(np+n,:)     = Xpack
+			r(:,np+n)     = Xpack
 			call MPI_Unpack(recvbuffer,length,pos,Xpack, &
 			                nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			rtrue(np+n,:) = Xpack
+			rtrue(:,np+n) = Xpack
 			call MPI_Unpack(recvbuffer,length,pos,Xpack, &
 			                nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			v(np+n,:)     = Xpack
+			v(:,np+n)     = Xpack
 			call MPI_Unpack(recvbuffer,length,pos,tagpack, &
 			                1,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
 			tag(np+n)     = nint(tagpack)	!Convert back to integer
 		case(1)
 			call MPI_Unpack(recvbuffer,length,pos,Xpack, &
 			                nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			r(np+n,:)     = Xpack
+			r(:,np+n)     = Xpack
 			call MPI_Unpack(recvbuffer,length,pos,Xpack, &
 			                nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			rtrue(np+n,:) = Xpack
+			rtrue(:,np+n) = Xpack
 			call MPI_Unpack(recvbuffer,length,pos,Xpack, &
 			                nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			v(np+n,:)     = Xpack
+			v(:,np+n)     = Xpack
 			call MPI_Unpack(recvbuffer,length,pos,FENEpack, &
 			                8,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
 			call assign_FENEbuffer(np+n,FENEpack)
@@ -1427,7 +1427,7 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 
 	!Correct positions in new processor
 	do n=new_np+1,new_np+recvnp
-		r(np+n,ixyz) = r(np+n,ixyz) - dir * domain(ixyz)
+		r(ixyz,np+n) = r(ixyz,np+n) - dir * domain(ixyz)
 	enddo
 
 	!Update number of molecules in halo to include number recieved
@@ -1469,14 +1469,14 @@ subroutine reorderdata(new_np)
 		molno = old%molno	!Position of empty location 
 		select case(potential_flag)
 		case(0)
-			r(molno,:)     = r(np+new_np,:)
-			rtrue(molno,:) = rtrue(np+new_np,:)
-			v(molno,:)     = v(np+new_np,:)
+			r(:,molno)     = r(np+new_np,:)
+			rtrue(:,molno) = rtrue(np+new_np,:)
+			v(:,molno)     = v(np+new_np,:)
 			tag(molno)     = tag(np+new_np)
 		case(1)
-			r(molno,:)     = r(np+new_np,:)
-			rtrue(molno,:) = rtrue(np+new_np,:)
-			v(molno,:)     = v(np+new_np,:)
+			r(:,molno)     = r(np+new_np,:)
+			rtrue(:,molno) = rtrue(np+new_np,:)
+			v(:,molno)     = v(np+new_np,:)
 			tag(molno)     = tag(np+new_np)
 			monomer(molno) = monomer(np+new_np)
 		end select
@@ -1582,17 +1582,17 @@ subroutine molsendrecv(recvarray)
 		kpass = oldp%kpass	!Direction to pass
 
 		!Build Buffer to send
-		buf1(1) = r(molno,1) - ipass*domain(1)
-		buf1(2) = r(molno,2) - jpass*domain(2)
-		buf1(3) = r(molno,3) - kpass*domain(3)
-		buf1(4) = v(molno,1)
-		buf1(5) = v(molno,2)
-		buf1(6) = v(molno,3)
+		buf1(1) = r(1,molno) - ipass*domain(1)
+		buf1(2) = r(2,molno) - jpass*domain(2)
+		buf1(3) = r(3,molno) - kpass*domain(3)
+		buf1(4) = v(1,molno)
+		buf1(5) = v(2,molno)
+		buf1(6) = v(3,molno)
 
 		!Obtain processors neighbours
 		call procneighbours(ipass,jpass,kpass,isource,idest)
 
-		!print*, irank, 'sending', r(molno,2), 'to', idest+1
+		!print*, irank, 'sending', r(2,molno), 'to', idest+1
 
 		!Non blocking send
 		call MPI_isend(buf1, icount, MPI_DOUBLE_PRECISION, &
@@ -1630,19 +1630,19 @@ subroutine molsendrecv(recvarray)
 				n = n + 1
 
 				!Store new molecule position and velocity
-				r(np+n,1) = buf2(1)
-				r(np+n,2) = buf2(2)
-				r(np+n,3) = buf2(3)
-				v(np+n,1) = buf2(4)
-				v(np+n,2) = buf2(5)
-				v(np+n,3) = buf2(6)
+				r(1,np+n) = buf2(1)
+				r(2,np+n) = buf2(2)
+				r(3,np+n) = buf2(3)
+				v(1,np+n) = buf2(4)
+				v(2,np+n) = buf2(5)
+				v(3,np+n) = buf2(6)
 
-				!print*, irank, 'receiving', r(np+n,2), 'from', isource+1
+				!print*, irank, 'receiving', r(2,np+n), 'from', isource+1
 
 				!Correct position on receiving processor
-				!r(np+n,1) = r(np+n,1) + ipass*domain(1)
-				!r(np+n,2) = r(np+n,2) + jpass*domain(2)
-				!r(np+n,3) = r(np+n,3) + kpass*domain(3)
+				!r(1,np+n) = r(1,np+n) + ipass*domain(1)
+				!r(2,np+n) = r(2,np+n) + jpass*domain(2)
+				!r(3,np+n) = r(3,np+n) + kpass*domain(3)
 
 			enddo
 		endif

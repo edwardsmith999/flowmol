@@ -36,9 +36,9 @@ implicit none
 	end select
 
 	do n=1,np    !Initialise global true positions
-		rtrue(n,1) = r(n,1)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
-		rtrue(n,2) = r(n,2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
-		rtrue(n,3) = r(n,3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
+		rtrue(1,n) = r(1,n)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
+		rtrue(2,n) = r(2,n)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
+		rtrue(3,n) = r(3,n)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
 	end do
 	rinitial = rtrue                                  !Store initial true positions
 
@@ -77,9 +77,9 @@ subroutine setup_initialise_position
 				do j=1,4	!4 Molecules per cell
 				do ixyz=1,nd	!For all dimensions
 					if(j.eq.ixyz .or. j.eq.4) then
-						r(n,ixyz)=c(ixyz)
+						r(ixyz,n)=c(ixyz)
 					else
-						r(n,ixyz)=c(ixyz)+0.5d0*initialunitsize(ixyz)
+						r(ixyz,n)=c(ixyz)+0.5d0*initialunitsize(ixyz)
 					endif
 				enddo
 				n = n + 1   !Move to next molecule
@@ -121,16 +121,16 @@ subroutine setup_initialise_position_FENE
 			do nx=1,initialnunits(1) !Loop over all x elements of y column
 			c(1) = (nx - 0.75d0)*initialunitsize(1) - halfdomain(1)
 				do j=1,4 !4 Molecules per cell
-					r(n,:) = c(:)
+					r(:,n) = c(:)
 					if (j.eq.2) then
-						r(n,1) = c(1) + 0.5d0*initialunitsize(1)
-						r(n,3) = c(3) + 0.5d0*initialunitsize(3)
+						r(1,n) = c(1) + 0.5d0*initialunitsize(1)
+						r(3,n) = c(3) + 0.5d0*initialunitsize(3)
 					else if (j.eq.3) then
-						r(n,2) = c(2) + 0.5d0*initialunitsize(2)
-						r(n,3) = c(3) + 0.5d0*initialunitsize(3)
+						r(2,n) = c(2) + 0.5d0*initialunitsize(2)
+						r(3,n) = c(3) + 0.5d0*initialunitsize(3)
 					else if (j.eq.4) then
-						r(n,1) = c(1) + 0.5d0*initialunitsize(1)
-						r(n,2) = c(2) + 0.5d0*initialunitsize(2)
+						r(1,n) = c(1) + 0.5d0*initialunitsize(1)
+						r(2,n) = c(2) + 0.5d0*initialunitsize(2)
 					end if
 					
 			!		chainID = ceiling(dble(n)/nmonomers)	 !Set chain ID of mol n
@@ -258,9 +258,9 @@ subroutine setup_initialise_parallel_position
 
 
 			!Correct to local coordinates
-			r(nl,1) = rc(1)-domain(1)*(iblock-1)
-			r(nl,2) = rc(2)-domain(2)*(jblock-1)
-			r(nl,3) = rc(3)-domain(3)*(kblock-1)
+			r(1,nl) = rc(1)-domain(1)*(iblock-1)
+			r(2,nl) = rc(2)-domain(2)*(jblock-1)
+			r(3,nl) = rc(3)-domain(3)*(kblock-1)
 		enddo
 	enddo
 	enddo
@@ -286,7 +286,7 @@ subroutine setup_initialise_parallel_position
 			 4*initialnunits(1)*initialnunits(2)*initialnunits(3), 'to', np
 		print*, '*********************************************************************'
 
-                !print*, 'microstate ', minval(r(:,1)), maxval(r(:,1)),minval(r(:,2)), maxval(r(:,2)),minval(r(:,3)), maxval(r(:,3))
+                !print*, 'microstate ', minval(r(1,:)), maxval(r(1,:)),minval(r(2,:)), maxval(r(2,:)),minval(r(3,:)), maxval(r(3,:))
 	endif
 #endif
 
@@ -370,9 +370,9 @@ subroutine setup_initialise_parallel_position_FENE
 
 
 			!Correct to local coordinates
-			r(nl,1) = rc(1)-domain(1)*(iblock-1)
-			r(nl,2) = rc(2)-domain(2)*(jblock-1)
-			r(nl,3) = rc(3)-domain(3)*(kblock-1)
+			r(1,nl) = rc(1)-domain(1)*(iblock-1)
+			r(2,nl) = rc(2)-domain(2)*(jblock-1)
+			r(3,nl) = rc(3)-domain(3)*(kblock-1)
 
 		enddo
 	enddo
@@ -400,7 +400,7 @@ subroutine setup_initialise_parallel_position_FENE
 			 4*initialnunits(1)*initialnunits(2)*initialnunits(3), 'to', np
 		print*, '*********************************************************************'
 
-                !print*, 'microstate ', minval(r(:,1)), maxval(r(:,1)),minval(r(:,2)), maxval(r(:,2)),minval(r(:,3)), maxval(r(:,3))
+                !print*, 'microstate ', minval(r(1,:)), maxval(r(1,:)),minval(r(2,:)), maxval(r(2,:)),minval(r(3,:)), maxval(r(3,:))
 	endif
 #endif
 
@@ -579,7 +579,7 @@ subroutine setup_initialise_polyinfo_singlebranched
 
 	!Locate new monomer close to branching monomer
 	do n=branchmonomers+1,np
-		rij(:) = r(glob_n_branch,:) - r(n,:) ! Check separation
+		rij(:) = r(glob_n_branch,:) - r(:,n) ! Check separation
 		rij2 = dot_product(rij,rij)
 		if (rij2.lt.R_0**2.d0) then          ! If within spring max elongation
 			nbranch = n                      ! Store global mol no
@@ -664,20 +664,20 @@ subroutine setup_initialise_velocities
 	netv=0.d0	!Set net velocity of system to zero initially
 
 	do n=1,np			      				!Step through each molecule
-		if (fix(n,1) .eq. 1) then     		!For x component as fix occurs in all 3 dimensions
+		if (fix(1,n) .eq. 1) then     		!For x component as fix occurs in all 3 dimensions
 			call random_number(rand)		!Generate a random number for each dimension/particle
 			angle  = 2.d0*pi*rand          	!Random angle between 0 and 2pi
-			v(n,2) = initialvel*sin(angle)	!Y component of velocity magnitude for random angle
+			v(2,n) = initialvel*sin(angle)	!Y component of velocity magnitude for random angle
 			v13    = initialvel*cos(angle)	!Magnitude of x and z component
 			call random_number(rand)    	!Generate a new random number
 			angle  = 2.d0*pi*rand          	!Random angle between 0 and 2pi		
-			v(n,1) = v13*sin(angle)       	!X component of velocity magnitude for random angle
-			v(n,3) = v13*cos(angle)        	!Z component of velocity magnitude for random angle
+			v(1,n) = v13*sin(angle)       	!X component of velocity magnitude for random angle
+			v(3,n) = v13*cos(angle)        	!Z component of velocity magnitude for random angle
 			i = i + 1						!Count number of molecules with velocity assigned
 		else
-			v(n,:) = 0.d0					!Don't assign velocity if molecule is fixed
+			v(:,n) = 0.d0					!Don't assign velocity if molecule is fixed
 		endif
-		netv(:)= netv(:) + v(n,:)      		!Sum up overall momentum of system due to random movement
+		netv(:)= netv(:) + v(:,n)      		!Sum up overall momentum of system due to random movement
 	enddo
 
 	call globalSumVect(netv, nd)			!Sum net velocity on all processors
@@ -687,7 +687,7 @@ subroutine setup_initialise_velocities
 
 	do n=1,np
 		!reducing all non-fixed particles by same amount
-		if (fix(n,1) .eq. 1) v(n,:)= v(n,:)-netv(:) 
+		if (fix(1,n) .eq. 1) v(:,n)= v(:,n)-netv(:) 
 			       
 	enddo
 
@@ -713,12 +713,12 @@ subroutine setup_initialise_velocities_TG
 	netv=0.d0	!Set net velocity of system to zero initially
 
 	do n=1,np			      				!Step through each molecule
-		x  = r(n,1);    y  = r(n,2);    z  = r(n,3);
+		x  = r(1,n);    y  = r(2,n);    z  = r(3,n);
 		Lx = halfdomain(1); Ly = halfdomain(2); Lz = halfdomain(3);	!Domain should be cubic...
-		v(n,1) =  initialvel*sin(pi*x/Lx)*cos(pi*y/Ly)*cos(pi*z/Lz)
-		v(n,2) = -initialvel*cos(pi*x/Lx)*sin(pi*y/Ly)*cos(pi*z/Lz)
-		v(n,3) =  initialvel*cos(pi*x/Lx)*cos(pi*y/Ly)*sin(pi*z/Lz)
-		netv(:)= netv(:) + v(n,:)      		!Sum up overall momentum of system due to random movement
+		v(1,n) =  initialvel*sin(pi*x/Lx)*cos(pi*y/Ly)*cos(pi*z/Lz)
+		v(2,n) = -initialvel*cos(pi*x/Lx)*sin(pi*y/Ly)*cos(pi*z/Lz)
+		v(3,n) =  initialvel*cos(pi*x/Lx)*cos(pi*y/Ly)*sin(pi*z/Lz)
+		netv(:)= netv(:) + v(:,n)      		!Sum up overall momentum of system due to random movement
 	enddo
 
 	call globalSumVect(netv, nd)			!Sum net velocity on all processors
@@ -726,7 +726,7 @@ subroutine setup_initialise_velocities_TG
 
 	do n=1,np
 		!reducing all particles by same amount
-		v(n,:)= v(n,:) - netv(:) 
+		v(:,n)= v(:,n) - netv(:) 
 			       
 	enddo
 
@@ -749,14 +749,14 @@ subroutine setup_initialise_velocities_TG_parallel
 	netv=0.d0	!Set net velocity of system to zero initially
 
 	do n=1,np			      				!Step through each molecule
-		x  = r(n,1)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
-	    y  = r(n,2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
-		z  = r(n,3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
+		x  = r(1,n)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
+	    y  = r(2,n)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
+		z  = r(3,n)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
 		Lx = 0.5d0*globaldomain(1); Ly = 0.5d0*globaldomain(2); Lz = 0.5d0*globaldomain(3);	!Domain should be cubic...
-		v(n,1) =  initialvel*sin(pi*x/Lx)*cos(pi*y/Ly)*cos(pi*z/Lz)
-		v(n,2) = -initialvel*cos(pi*x/Lx)*sin(pi*y/Ly)*cos(pi*z/Lz)
-		v(n,3) =  initialvel*cos(pi*x/Lx)*cos(pi*y/Ly)*sin(pi*z/Lz)
-		netv(:)= netv(:) + v(n,:)      		!Sum up overall momentum of system due to random movement
+		v(1,n) =  initialvel*sin(pi*x/Lx)*cos(pi*y/Ly)*cos(pi*z/Lz)
+		v(2,n) = -initialvel*cos(pi*x/Lx)*sin(pi*y/Ly)*cos(pi*z/Lz)
+		v(3,n) =  initialvel*cos(pi*x/Lx)*cos(pi*y/Ly)*sin(pi*z/Lz)
+		netv(:)= netv(:) + v(:,n)      		!Sum up overall momentum of system due to random movement
 	enddo
 
 	print*, 'before sum', irank, netv, nd
@@ -768,7 +768,7 @@ subroutine setup_initialise_velocities_TG_parallel
 
 	do n=1,np
 		!reducing all particles by same amount
-		v(n,:)= v(n,:) - netv(:) 
+		v(:,n)= v(:,n) - netv(:) 
 			       
 	enddo
 
@@ -798,18 +798,18 @@ subroutine setup_initialise_velocities_test
 
 !	do n=1,np			      		!Step through each molecule
 		!r(1,:) = halfdomain(:)
-!		v(n,1) = 1.0d0
-!		v(n,2) = 1.0d0
-!		v(n,3) = 0.0d0
+!		v(1,n) = 1.0d0
+!		v(2,n) = 1.0d0
+!		v(3,n) = 0.0d0
 
 		!r(1,:) = -halfdomain(:)
-		!v(n,1) = -0.0d0 
-		!v(n,2) = -0.0d0
-		!v(n,3) = -0.0d0
+		!v(1,n) = -0.0d0 
+		!v(2,n) = -0.0d0
+		!v(3,n) = -0.0d0
 	
 !	enddo
 	
-!	v(:,1) = 0.5d0
+!	v(1,:) = 0.5d0
 	
 !	v(7,3) = -0.5d0
 !	v(4,3) = 0.5d0

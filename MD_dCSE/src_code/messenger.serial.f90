@@ -262,16 +262,16 @@ subroutine updatefacedown(ixyz)
 			old => cell%head(icell,jcell,kcell)%point     !Set old to top of link list
 			do n=1,cellnp
 				molno = old%molno		    !Obtain molecule number
-				r(np+m,:) = r(molno,:) 		    !Copy molecule
-				v(np+m,:) = v(molno,:)                          !copy velocity
-				if(ensemble.eq.nvt_DPD) theta(np+m,:)= theta(molno,:)           !copy random number array
-				r(np+m,1) = r(np+m,1) + domain(1)   !Move to other side of domain
+				r(:,np+m) = r(:,molno) 		    !Copy molecule
+				v(:,np+m) = v(:,molno)                          !copy velocity
+				if(ensemble.eq.nvt_DPD) theta(:,np+m)= theta(:,molno)           !copy random number array
+				r(1,np+m) = r(1,np+m) + domain(1)   !Move to other side of domain
 
 				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
 
 				current => old			    !Use current to move to next
 				old => current%next 		    !Use pointer to obtain next item in list
-				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
+				!print*, r(1,np+m), r(2,np+m), r(3,np+m)
 				m = m + 1			    !Update counter of new molecules
 			enddo
 		enddo
@@ -284,16 +284,16 @@ subroutine updatefacedown(ixyz)
 			old => cell%head(icell,jcell,kcell)%point 	    !Set old to top of link list
 			do n=1,cellnp
 				molno = old%molno		    		!Obtain molecule number
-				r(np+m,:) = r(molno,:) 		    	!Copy molecule
-				v(np+m,:) = v(molno,:)				!copy velocity
-				if(ensemble.eq.nvt_DPD) theta(np+m,:)= theta(molno,:)           !copy random number array
-				r(np+m,2) = r(np+m,2) + domain(2)   !Move to other side of domain
+				r(:,np+m) = r(:,molno) 		    	!Copy molecule
+				v(:,np+m) = v(:,molno)				!copy velocity
+				if(ensemble.eq.nvt_DPD) theta(:,np+m)= theta(:,molno)           !copy random number array
+				r(2,np+m) = r(2,np+m) + domain(2)   !Move to other side of domain
 
 				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
 
 				current => old			    !Use current to move to next
 				old => current%next 		    !Use pointer to obtain next item in list
-				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
+				!print*, r(1,np+m), r(2,np+m), r(3,np+m)
 				m = m + 1			    !Update counter of new molecules
 			enddo
 		enddo
@@ -306,16 +306,16 @@ subroutine updatefacedown(ixyz)
 			old => cell%head(icell,jcell,kcell)%point !Set old to top of link list
 			do n=1,cellnp
 				molno = old%molno		    !Obtain molecule number
-				r(np+m,:) = r(molno,:) 		    !Copy molecule
-				v(np+m,:) = v(molno,:)                          !copy velocity
-				if(ensemble.eq.nvt_DPD) theta(np+m,:)= theta(molno,:)           !copy random number array
-				r(np+m,3) = r(np+m,3) + domain(3)   !Move to other side of domain
+				r(:,np+m) = r(:,molno) 		    !Copy molecule
+				v(:,np+m) = v(:,molno)                          !copy velocity
+				if(ensemble.eq.nvt_DPD) theta(:,np+m)= theta(:,molno)           !copy random number array
+				r(3,np+m) = r(3,np+m) + domain(3)   !Move to other side of domain
 
 				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
 
 				current => old			    !Use current to move to next
 				old => current%next 		    !Use pointer to obtain next item in list
-				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
+				!print*, r(1,np+m), r(2,np+m), r(3,np+m)
 				m = m + 1			    !Update counter of new molecules
 			enddo
 		enddo
@@ -358,16 +358,16 @@ subroutine updatefaceup(ixyz)
 			old => cell%head(icell,jcell,kcell)%point !Set old to top of link list
 			do n=1,cellnp
 				molno = old%molno		    		!Obtain molecule number
-				r(np+m,:) = r(molno,:) 		    	!Copy molecule
-				v(np+m,:) = v(molno,:)              !copy velocity
-				if(ensemble.eq.nvt_DPD) theta(np+m,:)= theta(molno,:)           !copy random number array
-				r(np+m,1) = r(np+m,1) - domain(1)   !Move to other side of domain
+				r(:,np+m) = r(:,molno) 		    	!Copy molecule
+				v(:,np+m) = v(:,molno)              !copy velocity
+				if(ensemble.eq.nvt_DPD) theta(:,np+m)= theta(:,molno)           !copy random number array
+				r(1,np+m) = r(1,np+m) - domain(1)   !Move to other side of domain
 
 				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
 
 				current => old			    !Use current to move to next
 				old => current%next 		    !Use pointer to obtain next item in list
-				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
+				!print*, r(1,np+m), r(2,np+m), r(3,np+m)
 				m = m + 1			    !Update counter of new molecules
 			enddo
 		enddo
@@ -380,16 +380,16 @@ subroutine updatefaceup(ixyz)
 			old => cell%head(icell,jcell,kcell)%point !Set old to top of link list
 			do n=1,cellnp
 				molno = old%molno		    		!Obtain molecule number
-				r(np+m,:) = r(molno,:)				!Copy molecule
-				v(np+m,:) = v(molno,:)				!copy velocity
-				if(ensemble.eq.nvt_DPD) theta(np+m,:)= theta(molno,:)           !copy random number array
-				r(np+m,2) = r(np+m,2) - domain(2)   !Move to other side of domain
+				r(:,np+m) = r(:,molno)				!Copy molecule
+				v(:,np+m) = v(:,molno)				!copy velocity
+				if(ensemble.eq.nvt_DPD) theta(:,np+m)= theta(:,molno)           !copy random number array
+				r(2,np+m) = r(2,np+m) - domain(2)   !Move to other side of domain
 
 				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
 
 				current => old			    !Use current to move to next
 				old => current%next 		    !Use pointer to obtain next item in list
-				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
+				!print*, r(1,np+m), r(2,np+m), r(3,np+m)
 				m = m + 1			    !Update counter of new molecules
 			enddo
 		enddo
@@ -402,16 +402,16 @@ subroutine updatefaceup(ixyz)
 			old => cell%head(icell,jcell,kcell)%point !Set old to top of link list
 			do n=1,cellnp
 				molno = old%molno		    		!Obtain molecule number
-				r(np+m,:) = r(molno,:)				!Copy molecule
-				v(np+m,:) = v(molno,:)				!copy velocity
-				if(ensemble.eq.nvt_DPD) theta(np+m,:)= theta(molno,:)	!copy random number array
-				r(np+m,3) = r(np+m,3) - domain(3)   !Move to other side of domain
+				r(:,np+m) = r(:,molno)				!Copy molecule
+				v(:,np+m) = v(:,molno)				!copy velocity
+				if(ensemble.eq.nvt_DPD) theta(:,np+m)= theta(:,molno)	!copy random number array
+				r(3,np+m) = r(3,np+m) - domain(3)   !Move to other side of domain
 
 				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
 
 				current => old			    !Use current to move to next
 				old => current%next 		    !Use pointer to obtain next item in list
-				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
+				!print*, r(1,np+m), r(2,np+m), r(3,np+m)
 				m = m + 1			    !Update counter of new molecules
 			enddo
 		enddo
@@ -464,19 +464,19 @@ subroutine updateedge(face1, face2)
 			old => cell%head(icell,edge1(1,i),edge2(1,i))%point !Set old to top of link list
 			do n=1,cellnp
 				molno = old%molno		    !Obtain molecule number
-				r(np+m,:) = r(molno,:)		!Copy molecule
-				v(np+m,:) = v(molno,:)		!copy velocity
-				if(ensemble.eq.nvt_DPD) theta(np+m,:)= theta(molno,:)	!copy random number array
-				r(np+m,2) = r(np+m,2) &  	!Move to other side of domain
+				r(:,np+m) = r(:,molno)		!Copy molecule
+				v(:,np+m) = v(:,molno)		!copy velocity
+				if(ensemble.eq.nvt_DPD) theta(:,np+m)= theta(:,molno)	!copy random number array
+				r(2,np+m) = r(2,np+m) &  	!Move to other side of domain
 				+ sign(1,ncells(2)-edge1(1,i))*domain(2)
-				r(np+m,3) = r(np+m,3) &  	!Move to other side of domain
+				r(3,np+m) = r(3,np+m) &  	!Move to other side of domain
 				+ sign(1,ncells(3)-edge2(1,i))*domain(3)
 
 				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
 
 				current => old			    !Use current to move to next
 				old => current%next 		    !Use pointer to obtain next item in list
-				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
+				!print*, r(1,np+m), r(2,np+m), r(3,np+m)
 				m = m + 1                !Update counter of new molecules
 			enddo
 		enddo
@@ -488,19 +488,19 @@ subroutine updateedge(face1, face2)
 			old => cell%head(edge1(2,i),jcell,edge2(2,i))%point !Set old to top of link list
 			do n=1,cellnp
 				molno = old%molno		    !Obtain molecule number
-				r(np+m,:) = r(molno,:)		!Copy molecule
-				v(np+m,:) = v(molno,:)		!copy velocity
-				if(ensemble.eq.nvt_DPD) theta(np+m,:)= theta(molno,:)	!copy random number array
-				r(np+m,1) = r(np+m,1) &  	!Move to other side of domain
+				r(:,np+m) = r(:,molno)		!Copy molecule
+				v(:,np+m) = v(:,molno)		!copy velocity
+				if(ensemble.eq.nvt_DPD) theta(:,np+m)= theta(:,molno)	!copy random number array
+				r(1,np+m) = r(1,np+m) &  	!Move to other side of domain
 				+ sign(1,ncells(1)-edge1(2,i))*domain(1)
-				r(np+m,3) = r(np+m,3) &  	!Move to other side of domain
+				r(3,np+m) = r(3,np+m) &  	!Move to other side of domain
 				+ sign(1,ncells(3)-edge2(2,i))*domain(3)
 
 				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
 
 				current => old			    	!Use current to move to next
 				old => current%next 		    !Use pointer to obtain next item in list
-				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
+				!print*, r(1,np+m), r(2,np+m), r(3,np+m)
 				m = m + 1                		!Update counter of new molecules
 			enddo
 		enddo
@@ -513,19 +513,19 @@ subroutine updateedge(face1, face2)
 			old => cell%head(edge1(3,i),edge2(3,i),kcell)%point !Set old to top of link list
 			do n=1,cellnp
 				molno = old%molno		    !Obtain molecule number
-				r(np+m,:) = r(molno,:)		!Copy molecule
-				v(np+m,:) = v(molno,:)		!copy velocity
-				if(ensemble.eq.nvt_DPD) theta(np+m,:)= theta(molno,:)	!copy random number array
-				r(np+m,1) = r(np+m,1) &  	!Move to other side of domain
+				r(:,np+m) = r(:,molno)		!Copy molecule
+				v(:,np+m) = v(:,molno)		!copy velocity
+				if(ensemble.eq.nvt_DPD) theta(:,np+m)= theta(:,molno)	!copy random number array
+				r(1,np+m) = r(1,np+m) &  	!Move to other side of domain
 				+ sign(1,ncells(1)-edge1(3,i))*domain(1)
-				r(np+m,2) = r(np+m,2) &  	!Move to other side of domain
+				r(2,np+m) = r(2,np+m) &  	!Move to other side of domain
 				+ sign(1,ncells(2)-edge2(3,i))*domain(2)
 
 				if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
 
 				current => old			    !Use current to move to next
 				old => current%next			!Use pointer to obtain next item in list
-				!print*, r(np+m,1), r(np+m,2), r(np+m,3)
+				!print*, r(1,np+m), r(2,np+m), r(3,np+m)
 				m = m + 1                	!Update counter of new molecules
 			enddo
 		enddo
@@ -570,21 +570,21 @@ subroutine updatecorners()
 		old => cell%head(icornercell(i),jcornercell(i),kcornercell(i))%point !Set old to top of link list
 		do n=1,cellnp
 			molno = old%molno	 		!Obtain molecule number
-			r(np+m,:) = r(molno,:) 	 	!Copy molecule
-			v(np+m,:) = v(molno,:)   	!copy velocity
-			if(ensemble.eq.nvt_DPD) theta(np+m,:)= theta(molno,:)	!copy random number array
-			r(np+m,1) = r(np+m,1) &  	!Move to other side of domain
+			r(:,np+m) = r(:,molno) 	 	!Copy molecule
+			v(:,np+m) = v(:,molno)   	!copy velocity
+			if(ensemble.eq.nvt_DPD) theta(:,np+m)= theta(:,molno)	!copy random number array
+			r(1,np+m) = r(1,np+m) &  	!Move to other side of domain
 			+ sign(1,ncells(1)-icornercell(i))*domain(1)
-			r(np+m,2) = r(np+m,2) &  	!Move to other side of domain
+			r(2,np+m) = r(2,np+m) &  	!Move to other side of domain
 			+ sign(1,ncells(2)-jcornercell(i))*domain(2)
-			r(np+m,3) = r(np+m,3) &  	!Move to other side of domain
+			r(3,np+m) = r(3,np+m) &  	!Move to other side of domain
 			+ sign(1,ncells(3)-kcornercell(i))*domain(3)
 
 			if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
 
 			current => old			    !Use current to move to next
 			old => current%next			!Use pointer to obtain next item in list
-			!print*, r(np+m,1), r(np+m,2), r(np+m,3)
+			!print*, r(1,np+m), r(2,np+m), r(3,np+m)
 			m = m + 1                	!Update counter of new molecules
 		enddo
 	enddo
@@ -699,9 +699,9 @@ implicit none
 		do n=1,cellnp
 			m = m + 1                                                   !Count one molecule
 			molno = old%molno                                           !Obtain molecule number
-			r(np+m,:) = r(molno,:)                                      !Copy molecule
-			v(np+m,:) = v(molno,:)                                      !copy velocity
-			r(np+m,copyplane) = r(np+m,copyplane) + domain(copyplane)   !Move to other side of domain
+			r(:,np+m) = r(:,molno)                                      !Copy molecule
+			v(:,np+m) = v(:,molno)                                      !copy velocity
+			r(copyplane,np+m) = r(copyplane,np+m) + domain(copyplane)   !Move to other side of domain
 			
 			if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
 			
@@ -732,9 +732,9 @@ implicit none
 		do n=1,cellnp
 			m = m + 1													!Count one molecule
 			molno = old%molno		    								!Obtain molecule number
-			r(np+m,:) = r(molno,:) 		    							!Copy molecule
-			v(np+m,:) = v(molno,:)                          !copy velocity
-			r(np+m,copyplane) = r(np+m,copyplane) - domain(copyplane)   !Move to other side of domain
+			r(:,np+m) = r(:,molno) 		    							!Copy molecule
+			v(:,np+m) = v(:,molno)                          !copy velocity
+			r(copyplane,np+m) = r(copyplane,np+m) - domain(copyplane)   !Move to other side of domain
 			
 			if (potential_flag.eq.1) monomer(np+m) = monomer(molno)     !Copy Polymer IDs too
 		
@@ -791,27 +791,27 @@ subroutine sendmols_quiescent()
 	do n=1,np
 
 		!Domain goes from -halfdomain to +halfdomain
-		if (r(n,1) >= halfdomain(1)) then   !Above +halfdomain
-			r(n,1) = r(n,1) - domain(1) !Move to other side of domain
+		if (r(1,n) >= halfdomain(1)) then   !Above +halfdomain
+			r(1,n) = r(1,n) - domain(1) !Move to other side of domain
 		end if
-		if (r(n,1) < -halfdomain(1)) then   !Below -halfdomain
-			r(n,1) = r(n,1) + domain(1) !Move to other side of domain
+		if (r(1,n) < -halfdomain(1)) then   !Below -halfdomain
+			r(1,n) = r(1,n) + domain(1) !Move to other side of domain
 		endif
 
 		!Domain goes from -halfdomain to +halfdomain
-		if (r(n,2) >= halfdomain(2)) then   !Above +halfdomain
-			r(n,2) = r(n,2) - domain(2) !Move to other side of domain
+		if (r(2,n) >= halfdomain(2)) then   !Above +halfdomain
+			r(2,n) = r(2,n) - domain(2) !Move to other side of domain
 		end if
-		if (r(n,2) < -halfdomain(2)) then   !Below -halfdomain
-			r(n,2) = r(n,2) + domain(2) !Move to other side of domain
+		if (r(2,n) < -halfdomain(2)) then   !Below -halfdomain
+			r(2,n) = r(2,n) + domain(2) !Move to other side of domain
 		endif
 
 		!Domain goes from -halfdomain to +halfdomain
-		if (r(n,3) >= halfdomain(3)) then   !Above +halfdomain
-			r(n,3) = r(n,3) - domain(3) !Move to other side of domain
+		if (r(3,n) >= halfdomain(3)) then   !Above +halfdomain
+			r(3,n) = r(3,n) - domain(3) !Move to other side of domain
 		end if
-		if (r(n,3) < -halfdomain(3)) then   !Below -halfdomain
-			r(n,3) = r(n,3) + domain(3) !Move to other side of domain
+		if (r(3,n) < -halfdomain(3)) then   !Below -halfdomain
+			r(3,n) = r(3,n) + domain(3) !Move to other side of domain
 		endif
 
 	enddo
@@ -838,13 +838,13 @@ implicit none
 	do n=1,np
 
 		!---- Slide and wrap in shearing plane first --------------------!
-		if (r(n,le_sp) .ge. halfdomain(le_sp)) then   									!Above +halfdomain
-			r(n,le_sp) = r(n,le_sp) - domain(le_sp) 								!Move to other side of domain
+		if (r(le_sp,n) .ge. halfdomain(le_sp)) then   									!Above +halfdomain
+			r(le_sp,n) = r(le_sp,n) - domain(le_sp) 								!Move to other side of domain
 			r(n,le_sd) = r(n,le_sd) - (le_sx - wrap_integer*domain(le_sd))
 			v(n,le_sd) = v(n,le_sd) - le_sv
 		end if
-		if (r(n,le_sp) .lt. -halfdomain(le_sp)) then   									!Below -halfdomain
-			r(n,le_sp) = r(n,le_sp) + domain(le_sp) 								!Move to other side of domain
+		if (r(le_sp,n) .lt. -halfdomain(le_sp)) then   									!Below -halfdomain
+			r(le_sp,n) = r(le_sp,n) + domain(le_sp) 								!Move to other side of domain
 			r(n,le_sd) = r(n,le_sd) + (le_sx - wrap_integer*domain(le_sd))
 			v(n,le_sd) = v(n,le_sd) + le_sv
 		endif
@@ -857,11 +857,11 @@ implicit none
 			r(n,le_sd) = r(n,le_sd) + domain(le_sd) 					!Move to other side of domain
 		endif
 
-		if (r(n,le_rp) >= halfdomain(le_rp)) then   					!Above +halfdomain
-			r(n,le_rp) = r(n,le_rp) - domain(le_rp) 	!Move to other side of domain
+		if (r(le_rp,n) >= halfdomain(le_rp)) then   					!Above +halfdomain
+			r(le_rp,n) = r(le_rp,n) - domain(le_rp) 	!Move to other side of domain
 		end if
-		if (r(n,le_rp) < -halfdomain(le_rp)) then   					!Below -halfdomain
-			r(n,le_rp) = r(n,le_rp) + domain(le_rp) 	!Move to other side of domain
+		if (r(le_rp,n) < -halfdomain(le_rp)) then   					!Below -halfdomain
+			r(le_rp,n) = r(le_rp,n) + domain(le_rp) 	!Move to other side of domain
 		endif
 		
 	enddo

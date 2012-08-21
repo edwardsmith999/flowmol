@@ -92,9 +92,9 @@ contains
                     current => cell%head(i,j,k)%point
                     do ip = 1, cell%cellnp(i,j,k) 
                         m = current%molno
-                        yc = r(m,2)
+                        yc = r(2,m)
                         if ( y2 <= yc .and. yc < y3 ) then
-                            a(m,2)= a(m,2) - p*(yc-y2)/(1.d0-(yc-y2)/(y3-y2))
+                            a(2,m)= a(2,m) - p*(yc-y2)/(1.d0-(yc-y2)/(y3-y2))
                         end if
                         current => current%next
                     end do
@@ -154,8 +154,8 @@ subroutine simulation_apply_linear_forces
 			do n = 1, binnp    ! Loop over all particles
 				molno = old%molno !Number of molecule
 				!Assign to bins using integer division
-				isumvel = isumvel + v(molno,1) 	!Add streamwise velocity to current bin
-				isumacc = isumacc + a(molno,1) 	!Add acceleration to current bin
+				isumvel = isumvel + v(1,molno) 	!Add streamwise velocity to current bin
+				isumacc = isumacc + a(1,molno) 	!Add acceleration to current bin
 				current => old
 				old => current%next 
 			enddo
@@ -167,7 +167,7 @@ subroutine simulation_apply_linear_forces
 			!Linear extrapolation of velocity
 			do n = 1, binnp    ! Loop over all particles
 				molno = old%molno !Number of molecule
-				a(molno,1)= a(molno,1)-isumacc/binnp - & 
+				a(1,molno)= a(1,molno)-isumacc/binnp - & 
 					     (isumvel/binnp &
 					      -continuum_u(cbin))/delta_t
 				current => old
@@ -191,6 +191,6 @@ subroutine simulation_apply_constant_force(ixyz,F_const)
 	integer         			:: ixyz
 	double precision 			:: F_const
 
-	a(:,ixyz) = a(:,ixyz) + F_const
+	a(ixyz,:) = a(ixyz,:) + F_const
 
 end subroutine simulation_apply_constant_force

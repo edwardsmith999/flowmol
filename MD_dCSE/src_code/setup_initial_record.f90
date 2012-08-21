@@ -152,7 +152,7 @@ subroutine setup_initial_record
 		print'(a,3f10.5)', ' Velocity of Sliding Molecules in x,y and z:', 	wallslidev
 		print'(a,3f10.5)', ' Distance from bottom of NH Themostatted Molecules in x,y and z:', 	thermstatbottom
 		print'(a,3f10.5)', ' Distance from top of NH Themostatted Molecules in x,y and z:', 	thermstattop
-		print*, 'Molecular Reynolds number = ', (density * maxval(slidev(1:np,1)) * domain(2))/1.d0
+		print*, 'Molecular Reynolds number = ', (density * maxval(slidev(1,1:np)) * domain(2))/1.d0
 		print*, '==================== Computational Parameters ========================='
 		print'(a,3i8)', ' Domain split into computational cells in x,y and z:', & 
 					 ncells(1)*npx, ncells(2)*npy, ncells(3)*npz
@@ -616,7 +616,7 @@ implicit none
 		do n = 1, np    ! Loop over all particles
 			!Velocity component must be shifted back half a timestep to determine 
 			!velocity of interest - required due to use of the leapfrog method
-			vel = v(n,ixyz) + 0.5d0*a(n,ixyz)*delta_t
+			vel = v(ixyz,n) + 0.5d0*a(ixyz,n)*delta_t
 			vsum = vsum + vel      !Add up all molecules' velocity components
 			v2sum = v2sum + vel**2 !Add up all molecules' velocity squared components  
 		enddo
@@ -626,8 +626,8 @@ implicit none
 	case(velocity_verlet)
   		do ixyz = 1, nd   ! Loop over all dimensions
  		do n = 1, np    ! Loop over all particles  
-			vsum  = vsum  + v(n,ixyz)
-			v2sum = v2sum +  v(n,ixyz) * v(n,ixyz)
+			vsum  = vsum  + v(ixyz,n)
+			v2sum = v2sum +  v(ixyz,n) * v(ixyz,n)
  		enddo
 		enddo
 		call globalSum(vsum)

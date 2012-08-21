@@ -33,6 +33,7 @@ end module module_move_particles_lfv
 !     within simulation_move_particles_lfv. 
 !
 !-----------------------------------------------------------------------------------------!
+
 subroutine simulation_move_particles_lfv
 	use module_move_particles_lfv
 	implicit none
@@ -47,15 +48,22 @@ subroutine simulation_move_particles_lfv
 
 	case(nve)
 		do n=1,np
-			v(n,:)     = v(n,:)     + delta_t*a(n,:)
-			r(n,:)     = r(n,:)     + delta_t*v(n,:)
+
+			v(1,n) = v(1,n) + delta_t*a(1,n)
+			v(2,n) = v(2,n) + delta_t*a(2,n)
+			v(3,n) = v(3,n) + delta_t*a(3,n)
+
+			r(1,n) = r(1,n) + delta_t*v(1,n)
+			r(2,n) = r(2,n) + delta_t*v(2,n)
+			r(3,n) = r(3,n) + delta_t*v(3,n)
+
 		end do
 
 	case(nvt_NH)
 		call evaluate_NH_params
 		do n=1,np
-	        v(n,:)     = v(n,:)*ascale + a(n,:)*delta_t*bscale
-			r(n,:)     = r(n,:)        + v(n,:)*delta_t			
+	        v(:,n)     = v(:,n)*ascale + a(:,n)*delta_t*bscale
+			r(:,n)     = r(:,n)        + v(:,n)*delta_t			
 		end do
 
 	case(nvt_GIK)
@@ -65,8 +73,8 @@ subroutine simulation_move_particles_lfv
 		call evaluate_U_PUT
 		call evaluate_NH_params_PUT
 		do n=1,np
-	        v(n,:)     = v(n,:)*ascale + a(n,:)*delta_t*bscale + zeta*U(n,:)*delta_t*bscale
-			r(n,:)     = r(n,:)        + v(n,:)*delta_t			
+	        v(:,n)     = v(:,n)*ascale + a(:,n)*delta_t*bscale + zeta*U(n,:)*delta_t*bscale
+			r(:,n)     = r(:,n)        + v(:,n)*delta_t			
 		end do
 	
 	case(nvt_pwa_NH)
@@ -95,8 +103,8 @@ contains
 		vtrue = v
 
 		do n=1,np
-			vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(n,le_sp)/domain(le_sp))*le_sv
-			rtrue(n,:)     = rtrue(n,:) + delta_t*vtrue(n,:)
+			vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
+			rtrue(:,n)     = rtrue(:,n) + delta_t*vtrue(:,n)
 		end do
 
 	end subroutine simulation_move_particles_true_lfv
@@ -113,7 +121,7 @@ contains
 		
 		v2sum = 0.d0
 		do n=1,np
-			vel(:) = v(n,:) - 0.5d0*a(n,:)*delta_t	
+			vel(:) = v(:,n) - 0.5d0*a(:,n)*delta_t	
 			v2sum = v2sum + dot_product(vel,vel)
 		end do
 		call globalSum(v2sum)		
@@ -137,7 +145,7 @@ contains
 
 		pec_v2sum = 0.d0
 		do n=1,np
-			pec_v(:)  = v(n,:) - U(n,:) - 0.5d0*a(n,:)*delta_t      ! PUT: Find peculiar velocity
+			pec_v(:)  = v(:,n) - U(n,:) - 0.5d0*a(:,n)*delta_t      ! PUT: Find peculiar velocity
 			pec_v2sum = pec_v2sum + dot_product(pec_v,pec_v)        ! PUT: Sum peculiar velocities squared
 		end do
 		call globalSum(pec_v2sum)
@@ -173,7 +181,7 @@ contains
 		end do
 		
 		do n=1,np
-			slicebin = ceiling((r(n,le_sp)+halfdomain(le_sp))/&
+			slicebin = ceiling((r(le_sp,n)+halfdomain(le_sp))/&
 			                    slicebinsize(le_sp))
 			if (slicebin > nbins(le_sp)) slicebin = nbins(le_sp)    ! PUT: Prevent out-of-range values
 			if (slicebin < 1) slicebin = 1                                      ! PUT: Prevent out-of-range values
@@ -216,10 +224,10 @@ contains
 			do n = 1, np   											! Loop all molecules
 				if (tag(n) .lt. 4) cycle							! Only include thermostatted molecules - DO YOU WANT THIS LINE UNCOMMENTED?
 				if (PUT) then										! PUT: If using PUT find peculiar v2sum
-					vel(:) = v(n,:) - U(n,:) - 0.5d0*a(n,:)*delta_t			! PUT: Find peculiar velocity
+					vel(:) = v(:,n) - U(n,:) - 0.5d0*a(:,n)*delta_t			! PUT: Find peculiar velocity
 					pec_v2sum = pec_v2sum + dot_product(vel,vel)						! PUT: Sum peculiar velocities squared
 				else
-					vel(:) = v(n,:) - 0.5d0*a(n,:)*delta_t	
+					vel(:) = v(:,n) - 0.5d0*a(:,n)*delta_t	
 					v2sum = v2sum + dot_product(vel,vel)
 				end if
 				thermostatnp = thermostatnp + 1
@@ -244,13 +252,13 @@ contains
 			case (0)
 				!Leapfrog mean velocity calculated here at v(t+0.5delta_t) = v(t-0.5delta_t) + a*delta_t 
 				!Leapfrog mean position calculated here at r(t+delta_t) = r(t) + v(t+0.5delta_t)*delta_t
-				v(n,:) = v(n,:) + delta_t * a(n,:) 	!Velocity calculated from acceleration
-				r(n,:) = r(n,:) + delta_t * v(n,:)	!Position calculated from velocity
+				v(:,n) = v(:,n) + delta_t * a(:,n) 	!Velocity calculated from acceleration
+				r(:,n) = r(:,n) + delta_t * v(:,n)	!Position calculated from velocity
 			case (1)
 				!Fixed Molecules - no movement r(n+1) = r(n)
 			case (2)
 				!Fixed with constant sliding speed
-				r(n,:) = r(n,:) + delta_t*slidev(n,:)	!Position calculated from velocity
+				r(:,n) = r(:,n) + delta_t*slidev(:,n)	!Position calculated from velocity
 
 				!Moving piston for shock wave with 1000 equilibrate, 100 piston moving and 
 				!no moving wall for next 2000*0.005 time units taken for wave to cover whole domain 
@@ -258,50 +266,50 @@ contains
 				!if (iter .lt. 200) then !Initialisation
 				!	!Fixed Molecules - no movement r(n+1) = r(n)
 				!elseif (iter .ge. 200 .and. iter .lt. 300) then
-				!	r(n,:) = r(n,:) + delta_t*slidev(n,:)	!Position calculated from velocity
+				!	r(:,n) = r(:,n) + delta_t*slidev(:,n)	!Position calculated from velocity
 				!else
 				!	!Fixed Molecules - no movement r(n+1) = r(n)
 				!endif
 			case (3)
 				!Tethered molecules
 				call tether_force(n)
-				v(n,:) = v(n,:) + delta_t * a(n,:) 	!Velocity calculated from acceleration
-				r(n,:) = r(n,:) + delta_t * v(n,:)	!Position calculated from velocity
+				v(:,n) = v(:,n) + delta_t * a(:,n) 	!Velocity calculated from acceleration
+				r(:,n) = r(:,n) + delta_t * v(:,n)	!Position calculated from velocity
 			case (4)
 				!Nose Hoover Thermostatted Molecule
-				v(n,1) = v(n,1)*ascale + a(n,1)*delta_t*bscale
-				r(n,1) = r(n,1)    +     v(n,1)*delta_t			
-				v(n,2) = v(n,2)*ascale + a(n,2)*delta_t*bscale
-				r(n,2) = r(n,2)    + 	 v(n,2)*delta_t				
-				v(n,3) = v(n,3)*ascale + a(n,3)*delta_t*bscale
-				r(n,3) = r(n,3)    +     v(n,3)*delta_t	
+				v(1,n) = v(1,n)*ascale + a(1,n)*delta_t*bscale
+				r(1,n) = r(1,n)    +     v(1,n)*delta_t			
+				v(2,n) = v(2,n)*ascale + a(2,n)*delta_t*bscale
+				r(2,n) = r(2,n)    + 	 v(2,n)*delta_t				
+				v(3,n) = v(3,n)*ascale + a(3,n)*delta_t*bscale
+				r(3,n) = r(3,n)    +     v(3,n)*delta_t	
 			case (5)
 				!Thermostatted Tethered molecules unfixed with no sliding velocity
 				call tether_force(n)
-				v(n,1) = v(n,1)*ascale + a(n,1)*delta_t*bscale
-				r(n,1) = r(n,1)    +     v(n,1)*delta_t			
-				v(n,2) = v(n,2)*ascale + a(n,2)*delta_t*bscale
-				r(n,2) = r(n,2)    + 	 v(n,2)*delta_t				
-				v(n,3) = v(n,3)*ascale + a(n,3)*delta_t*bscale
-				r(n,3) = r(n,3)    +     v(n,3)*delta_t	
+				v(1,n) = v(1,n)*ascale + a(1,n)*delta_t*bscale
+				r(1,n) = r(1,n)    +     v(1,n)*delta_t			
+				v(2,n) = v(2,n)*ascale + a(2,n)*delta_t*bscale
+				r(2,n) = r(2,n)    + 	 v(2,n)*delta_t				
+				v(3,n) = v(3,n)*ascale + a(3,n)*delta_t*bscale
+				r(3,n) = r(3,n)    +     v(3,n)*delta_t	
 			case (6)
 				!Tethered molecules with sliding velocity
 				call tether_force(n)
-				v(n,:) = v(n,:) + delta_t * a(n,:) 							!Velocity calculated from acceleration
-				r(n,:) = r(n,:) + delta_t * v(n,:) + delta_t*slidev(n,:)	!Position calculated from velocity+slidevel
+				v(:,n) = v(:,n) + delta_t * a(:,n) 							!Velocity calculated from acceleration
+				r(:,n) = r(:,n) + delta_t * v(:,n) + delta_t*slidev(:,n)	!Position calculated from velocity+slidevel
 			case (7)
 				!Thermostatted Tethered molecules unfixed with sliding velocity
 				call tether_force(n)
-				v(n,1) = v(n,1)*ascale + a(n,1)*delta_t*bscale
-				r(n,1) = r(n,1)    +     v(n,1)*delta_t	+ slidev(n,1)*delta_t		
-				v(n,2) = v(n,2)*ascale + a(n,2)*delta_t*bscale
-				r(n,2) = r(n,2)    + 	 v(n,2)*delta_t	+ slidev(n,2)*delta_t			
-				v(n,3) = v(n,3)*ascale + a(n,3)*delta_t*bscale
-				r(n,3) = r(n,3)    +     v(n,3)*delta_t	+ slidev(n,3)*delta_t
+				v(1,n) = v(1,n)*ascale + a(1,n)*delta_t*bscale
+				r(1,n) = r(1,n)    +     v(1,n)*delta_t	+ slidev(1,n)*delta_t		
+				v(2,n) = v(2,n)*ascale + a(2,n)*delta_t*bscale
+				r(2,n) = r(2,n)    + 	 v(2,n)*delta_t	+ slidev(2,n)*delta_t			
+				v(3,n) = v(3,n)*ascale + a(3,n)*delta_t*bscale
+				r(3,n) = r(3,n)    +     v(3,n)*delta_t	+ slidev(3,n)*delta_t
 			case (8)
 				!Profile unbiased thermostat (Nose-Hoover)
-	        	v(n,:) = v(n,:)*ascale + a(n,:)*delta_t*bscale + zeta*U(n,:)*delta_t*bscale
-				r(n,:) = r(n,:)        + v(n,:)*delta_t			
+	        	v(:,n) = v(:,n)*ascale + a(:,n)*delta_t*bscale + zeta*U(n,:)*delta_t*bscale
+				r(:,n) = r(:,n)        + v(:,n)*delta_t			
 			case default
 				call error_abort("Invalid molecular Tag")
 			end select
@@ -312,6 +320,28 @@ contains
 end subroutine simulation_move_particles_lfv
 
 !======================================================================================
+
+subroutine simulation_move_particles_lfv_opt
+	use arrays_MD, only	: r,v,a
+	use physical_constants_MD, only : np
+	use computational_constants_MD, only : delta_t
+	implicit none
+
+	integer		:: n
+
+	do n=1,np
+
+		v(1,n) = v(1,n) + delta_t*a(1,n)
+		v(2,n) = v(2,n) + delta_t*a(2,n)
+		v(3,n) = v(3,n) + delta_t*a(3,n)
+
+		r(1,n) = r(1,n) + delta_t*v(1,n)
+		r(2,n) = r(2,n) + delta_t*v(2,n)
+		r(3,n) = r(3,n) + delta_t*v(3,n)
+
+	enddo
+
+end subroutine simulation_move_particles_lfv_opt
 !======================================================================================
 !--------------------------------------------------------------------------------------
 

@@ -60,11 +60,11 @@ implicit none
 	integer		:: icell, jcell, kcell
 
 	do n=1,np
-		icell = ceiling((r(n,1)+halfdomain(1)) &
+		icell = ceiling((r(1,n)+halfdomain(1)) &
 		/cellsidelength(1))+nh !Add 1 due to halo
-		jcell = ceiling((r(n,2)+halfdomain(2)) &
+		jcell = ceiling((r(2,n)+halfdomain(2)) &
 		/cellsidelength(2))+nh !Add 1 due to halo
-		kcell = ceiling((r(n,3)+halfdomain(3)) &
+		kcell = ceiling((r(3,n)+halfdomain(3)) &
 		/cellsidelength(3))+nh !Add 1 due to halo
 		call linklist_checkpush(icell, jcell, kcell, n)
 	enddo
@@ -82,11 +82,11 @@ implicit none
 	integer		:: icell, jcell, kcell
 
 	do n=start,finish
-		icell = ceiling((r(n,1)+halfdomain(1)) &
+		icell = ceiling((r(1,n)+halfdomain(1)) &
 		/cellsidelength(1))+nh !Add 1 due to halo
-		jcell = ceiling((r(n,2)+halfdomain(2)) &
+		jcell = ceiling((r(2,n)+halfdomain(2)) &
 		/cellsidelength(2))+nh !Add 1 due to halo
-		kcell = ceiling((r(n,3)+halfdomain(3)) &
+		kcell = ceiling((r(3,n)+halfdomain(3)) &
 		/cellsidelength(3))+nh !Add 1 due to halo
 		call linklist_checkpush(icell, jcell, kcell, n)
 	
@@ -169,7 +169,7 @@ subroutine assign_to_neighbourlist_allint
 
 		do i = 1,cellnp                  !Step through each particle in list 
 			molnoi = oldi%molno 	 !Number of molecule
-			ri = r(molnoi,:)         !Retrieve ri
+			ri = r(:,molnoi)         !Retrieve ri
 
 			do icellshift = -1,1
 			do jcellshift = -1,1
@@ -182,7 +182,7 @@ subroutine assign_to_neighbourlist_allint
 				do j = 1,adjacentcellnp         !Step through all j for each i
 
 					molnoj = oldj%molno 	 	!Number of molecule
-					rj = r(molnoj,:)         	!Retrieve rj
+					rj = r(:,molnoj)         	!Retrieve rj
 
 					currentj => oldj
 					oldj => currentj%next    	!Use pointer in datatype to obtain next item in list
@@ -262,13 +262,13 @@ subroutine assign_to_neighbourlist_halfint
 		!Check interaction within own cell once
 		do i = 1,cellnp                 !Step through each particle in list 
 			molnoi = oldi%molno 	!Number of molecule
-			ri = r(molnoi,:)        !Retrieve ri
+			ri = r(:,molnoi)        !Retrieve ri
 			oldj => oldi%next	!Point j molecule to next molecule to i
 
 			do j = i+1,cellnp          !Step through all j for each i
 
 				molnoj = oldj%molno 	!Number of molecule
-				rj = r(molnoj,:)        !Retrieve rj
+				rj = r(:,molnoj)        !Retrieve rj
 				currentj => oldj
 				oldj => currentj%next   !Use pointer in datatype to obtain next item in list
 
@@ -300,14 +300,14 @@ subroutine assign_to_neighbourlist_halfint
 
 			do i = 1,cellnp				!Step through each particle in list 
 				molnoi = oldi%molno		!Number of molecule
-				ri = r(molnoi,:)		!Retrieve ri
+				ri = r(:,molnoi)		!Retrieve ri
 
 				oldj => oldjhead		!Reset j to head of linked list
 
 				do j = 1,adjacentcellnp          !Step through all j for each i
 
 					molnoj = oldj%molno 	!Number of molecule
-					rj = r(molnoj,:)	!Retrieve rj
+					rj = r(:,molnoj)	!Retrieve rj
 					currentj => oldj
 					oldj => currentj%next	!Use pointer in datatype to obtain next item in list
 
@@ -619,7 +619,7 @@ subroutine assign_to_neighbourlist_allint_halo
 
 		do i = 1,cellnp				!Step through each particle in list 
 			molnoi = oldi%molno		!Number of molecule
-			ri = r(molnoi,:)		!Retrieve ri
+			ri = r(:,molnoi)		!Retrieve ri
 
 			do icellshift = -1,1
 			do jcellshift = -1,1
@@ -643,7 +643,7 @@ subroutine assign_to_neighbourlist_allint_halo
 				do j = 1,adjacentcellnp         !Step through all j for each i
 
 					molnoj = oldj%molno 	 	!Number of molecule
-					rj = r(molnoj,:)         	!Retrieve rj
+					rj = r(:,molnoj)         	!Retrieve rj
 
 					currentj => oldj
 					oldj => currentj%next    	!Use pointer in datatype to obtain next item in list
@@ -724,13 +724,13 @@ subroutine assign_to_neighbourlist_halfint_halo
 		!Check interaction within own cell once
 		do i = 1,cellnp                 !Step through each particle in list 
 			molnoi = oldi%molno 		!Number of molecule
-			ri = r(molnoi,:)        	!Retrieve ri
+			ri = r(:,molnoi)        	!Retrieve ri
 			oldj => oldi%next			!Point j molecule to next molecule to i
 
 			do j = i+1,cellnp			!Step through all j for each i
 
 				molnoj = oldj%molno 	!Number of molecule
-				rj = r(molnoj,:)        !Retrieve rj
+				rj = r(:,molnoj)        !Retrieve rj
 				currentj => oldj
 				oldj => currentj%next   !Use pointer in datatype to obtain next item in list
 
@@ -773,14 +773,14 @@ subroutine assign_to_neighbourlist_halfint_halo
 
 			do i = 1,cellnp				!Step through each particle in list 
 				molnoi = oldi%molno		!Number of molecule
-				ri = r(molnoi,:)		!Retrieve ri
+				ri = r(:,molnoi)		!Retrieve ri
 
 				oldj => oldjhead		!Reset j to head of linked list
 
 				do j = 1,adjacentcellnp          !Step through all j for each i
 
 					molnoj = oldj%molno 	!Number of molecule
-					rj = r(molnoj,:)	!Retrieve rj
+					rj = r(:,molnoj)	!Retrieve rj
 					currentj => oldj
 					oldj => currentj%next	!Use pointer in datatype to obtain next item in list
 
@@ -856,14 +856,14 @@ subroutine calculate_cell_interactions(icell, jcell, kcell, k)
 		!Check interaction with neighbouring cells
 		do i = 1,cellnp                 	!Step through each particle in list 
 			molnoi = oldi%molno 			!Number of molecule
-			ri = r(molnoi,:)        		!Retrieve ri
+			ri = r(:,molnoi)        		!Retrieve ri
 
 			oldj => oldjhead				!Reset j to head of linked list
 
 			do j = 1,adjacentcellnp         !Step through all j for each i
 
 				molnoj = oldj%molno 		!Number of molecule
-				rj = r(molnoj,:)         	!Retrieve rj
+				rj = r(:,molnoj)         	!Retrieve rj
 				currentj => oldj
 				oldj => currentj%next    	!Use pointer in datatype to obtain next item in list
 
@@ -909,9 +909,9 @@ subroutine linklist_build(start, finish)
 	
 	do j=start+1,finish
 		allocate (current)          !Allocate storage space for current to point at
-		current%rp  => r(j,:)       !Set up pointer to current molecule's r
-		current%vp  => v(j,:)       !Set up pointer to current molecule's v
-		current%ap  => a(j,:)       !Set up pointer to current molecule's a
+		current%rp  => r(:,j)       !Set up pointer to current molecule's r
+		current%vp  => v(:,j)       !Set up pointer to current molecule's v
+		current%ap  => a(:,j)       !Set up pointer to current molecule's a
 		current%molno  = j     !Assign each molecule a number
 		old%previous => current     !Set up forward pointer to allow movement forward
 		current%next => old         !Set current's link pointer to point to previous item
@@ -956,9 +956,9 @@ subroutine linklist_circbuild(start, finish)
 
 	do j=start+2,finish
 		allocate (current)          !Allocate storage space for current to point at
-		current%rp  => r(j,:)       !Set up pointer to current molecule's r
-		current%vp  => v(j,:)       !Set up pointer to current molecule's v
-		current%ap  => a(j,:)       !Set up pointer to current molecule's a
+		current%rp  => r(:,j)       !Set up pointer to current molecule's r
+		current%vp  => v(:,j)       !Set up pointer to current molecule's v
+		current%ap  => a(:,j)       !Set up pointer to current molecule's a
 		current%molno   = j    !Assign each molecule a number
 		old%previous => current     !Set up forward pointer to allow movement forward
 		current%next => old         !Set current's link pointer to point to previous item
@@ -1046,9 +1046,9 @@ subroutine linklist_push(icell, jcell, kcell, molnopush)
 
 	allocate(push) !Allocate type to add to stack
 	push%molno = molnopush !Build type from inputs
-	push%rp => r(molnopush,:)   !Build type from inputs
-	push%vp => v(molnopush,:)   !Build type from inputs
-	push%ap => a(molnopush,:)   !Build type from inputs
+	push%rp => r(:,molnopush)   !Build type from inputs
+	push%vp => v(:,molnopush)   !Build type from inputs
+	push%ap => a(:,molnopush)   !Build type from inputs
 
 	current => old           !Set current to first item in list
 	old     => current%next  !Set old to next item in list
@@ -1086,9 +1086,9 @@ subroutine linklist_checkpush(icell, jcell, kcell, molnopush)
 	cellnp = cell%cellnp(icell,jcell, kcell)
 	allocate(current) 		!Allocate type to add to stack
 	current%molno = molnopush 	!Build type from inputs
-	current%rp => r(molnopush,:)   	!Build type from inputs
-	current%vp => v(molnopush,:)   	!Build type from inputs
-	current%ap => a(molnopush,:)  	!Build type from inputs
+	current%rp => r(:,molnopush)   	!Build type from inputs
+	current%vp => v(:,molnopush)   	!Build type from inputs
+	current%ap => a(:,molnopush)  	!Build type from inputs
 
 	select case (cellnp)
 	case(0)
@@ -1381,7 +1381,7 @@ subroutine linklist_printneighbourlist
 		current => old ! make current point to head of list
 		do j=1,noneighbrs
 			!print*, 'more items in linked list?: ', associated(old%next)
-			print'(2(a,i8),6f10.5)', 'i = ', i,' j = ', current%molnoj, r(i,:), r(current%molnoj,:)
+			print'(2(a,i8),6f10.5)', 'i = ', i,' j = ', current%molnoj, r(:,i), r(current%molnoj,:)
 			if (associated(old%next) .eqv. .true. ) then !Exit if null
 				old => current%next ! Use pointer in datatype to obtain next item in list
 				current => old      ! make current point to old - move alone one
@@ -1453,8 +1453,8 @@ subroutine linklist_compareprint(icell, jcell, kcell)
 		n = old%molno
 		print'(i0,a,2f20.15,a,2f10.5,a,2f10.5)',old%molno, ' ap = ',old%ap, &
 			 ' vp = ', old%vp, ' rp = ', old%rp
-		print'(i0,a,2f20.15,a,2f10.5,a,2f10.5)',n, ' a  = ',a(n,:), ' v  = ', &
-			 v(n,:), ' r  = ', r(n,:)
+		print'(i0,a,2f20.15,a,2f10.5,a,2f10.5)',n, ' a  = ',a(:,n), ' v  = ', &
+			 v(:,n), ' r  = ', r(:,n)
 		old => current%next !Use pointer in datatype to obtain next item in list
 		current => old          !make current point to old - move along one
 	enddo

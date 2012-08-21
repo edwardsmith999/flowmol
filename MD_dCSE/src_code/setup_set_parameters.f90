@@ -138,27 +138,27 @@ subroutine set_parameters_allocate(n)
 		extralloc = extralloc/nd  + 300  !Average of all 3 dimensions inc safety factor
 
 		!Allocate array sizes for position, velocity and acceleration
-		allocate(r(np+extralloc,nd))
-		allocate(rtrue(np+extralloc,nd)) !Used to establish diffusion - r with no periodic BC
-		allocate(vtrue(np+extralloc,nd)) !Used to establish diffusion - r with no periodic BC
-		allocate(rinitial(np+extralloc,nd))
+		allocate(r(nd,np+extralloc))
+		allocate(rtrue(nd,np+extralloc)) !Used to establish diffusion - r with no periodic BC
+		allocate(vtrue(nd,np+extralloc)) !Used to establish diffusion - r with no periodic BC
+		allocate(rinitial(nd,np+extralloc))
 		allocate(rijsum(np+extralloc,nd)) !Sum of rij for each i, used for SLLOD algorithm
-		allocate(v(np+extralloc,nd))
+		allocate(v(nd,np+extralloc))
 		allocate(vmagnitude(np+extralloc))
-		allocate(a(np+extralloc,nd))
+		allocate(a(nd,np+extralloc))
 		!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
 		!allocate(aold(np+extralloc,nd))
 		!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
-		allocate(theta(np+extralloc,nd))
-		allocate(aD(np+extralloc,nd))
-		allocate(aR(np+extralloc,nd))
+		allocate(theta(nd,np+extralloc))
+		allocate(aD(nd,np+extralloc))
+		allocate(aR(nd,np+extralloc))
 		call random_number(theta)
 
 		!Allocate arrays use to fix molecules and allow sliding
 		allocate(tag(np+extralloc))
-		allocate(fix(np+extralloc,nd))
-		allocate(slidev(np+extralloc,nd))
-		allocate(thermostat(np+extralloc,nd))
+		allocate(fix(nd,np+extralloc))
+		allocate(slidev(nd,np+extralloc))
+		allocate(thermostat(nd,np+extralloc))
 
 		!Allocate potential energy and virial per molecule array
 		allocate(potenergymol(np+extralloc))

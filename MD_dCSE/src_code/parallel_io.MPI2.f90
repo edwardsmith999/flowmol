@@ -433,19 +433,19 @@ subroutine setup_restart_microstate
 			do n = 1,3*nd*procnp(irank),3*nd
 				nl = nl + 1 !Local molecule count
 				!Correct to local coordinates
-				r(nl,1) = buf(n  )-domain(1)*(iblock-1)+halfdomain(1)*(npx-1)
-				r(nl,2) = buf(n+1)-domain(2)*(jblock-1)+halfdomain(2)*(npy-1)
-				r(nl,3) = buf(n+2)-domain(3)*(kblock-1)+halfdomain(3)*(npz-1)
+				r(1,nl) = buf(n  )-domain(1)*(iblock-1)+halfdomain(1)*(npx-1)
+				r(2,nl) = buf(n+1)-domain(2)*(jblock-1)+halfdomain(2)*(npy-1)
+				r(3,nl) = buf(n+2)-domain(3)*(kblock-1)+halfdomain(3)*(npz-1)
 				!Read true positions
-				rtrue(nl,1) = buf(n+nd)
-				rtrue(nl,2) = buf(n+nd+1)
-				rtrue(nl,3) = buf(n+nd+2)
+				rtrue(1,nl) = buf(n+nd)
+				rtrue(2,nl) = buf(n+nd+1)
+				rtrue(3,nl) = buf(n+nd+2)
 				!Read velocities
-				v(nl,1) = buf(n+2*nd  )
-				v(nl,2) = buf(n+2*nd+1)
-				v(nl,3) = buf(n+2*nd+2)
+				v(1,nl) = buf(n+2*nd  )
+				v(2,nl) = buf(n+2*nd+1)
+				v(3,nl) = buf(n+2*nd+2)
 				!write(irank+10,'(5i8,6f10.5)'), irank, nl,n, procnp(irank),size(buf), & 
-				!										r(nl,1),r(nl,2),r(nl,3),v(nl,1),v(nl,2),v(nl,3)
+				!										r(1,nl),r(2,nl),r(3,nl),v(1,nl),v(2,nl),v(3,nl)
 			enddo
 			np = procnp(irank)
 		
@@ -467,17 +467,17 @@ subroutine setup_restart_microstate
 			do n = 1,(3*nd+8)*procnp(irank),(3*nd+8)
 				nl = nl + 1
 				!Correct to local coordinates
-				r(nl,1) = monomerbuf(n)-domain(1)*(iblock-1)+halfdomain(1)*(npx-1)
-				r(nl,2) = monomerbuf(n+1)-domain(2)*(jblock-1)+halfdomain(2)*(npy-1)
-				r(nl,3) = monomerbuf(n+2)-domain(3)*(kblock-1)+halfdomain(3)*(npz-1)
+				r(1,nl) = monomerbuf(n)-domain(1)*(iblock-1)+halfdomain(1)*(npx-1)
+				r(2,nl) = monomerbuf(n+1)-domain(2)*(jblock-1)+halfdomain(2)*(npy-1)
+				r(3,nl) = monomerbuf(n+2)-domain(3)*(kblock-1)+halfdomain(3)*(npz-1)
 				!Read true positions
-				rtrue(nl,1) = monomerbuf(n+3)
-				rtrue(nl,2) = monomerbuf(n+4)
-				rtrue(nl,3) = monomerbuf(n+5)
+				rtrue(1,nl) = monomerbuf(n+3)
+				rtrue(2,nl) = monomerbuf(n+4)
+				rtrue(3,nl) = monomerbuf(n+5)
 				!Read velocities
-				v(nl,1) = monomerbuf(n+6)
-				v(nl,2) = monomerbuf(n+7)
-				v(nl,3) = monomerbuf(n+8)
+				v(1,nl) = monomerbuf(n+6)
+				v(2,nl) = monomerbuf(n+7)
+				v(3,nl) = monomerbuf(n+8)
 				!Aslsign corresponding monomer info
 				monomer(nl)%chainID        = nint(monomerbuf(n+9))
 				monomer(nl)%subchainID     = nint(monomerbuf(n+10))
@@ -519,19 +519,19 @@ subroutine setup_restart_microstate
 				nl = nl + 1 !Local molecule count
 
 				!Correct to local coordinates
-				r(nl,1) = rvc(1)-domain(1)*(iblock-1)+halfdomain(1)*(npx-1)
-				r(nl,2) = rvc(2)-domain(2)*(jblock-1)+halfdomain(2)*(npy-1)
-				r(nl,3) = rvc(3)-domain(3)*(kblock-1)+halfdomain(3)*(npz-1)
+				r(1,nl) = rvc(1)-domain(1)*(iblock-1)+halfdomain(1)*(npx-1)
+				r(2,nl) = rvc(2)-domain(2)*(jblock-1)+halfdomain(2)*(npy-1)
+				r(3,nl) = rvc(3)-domain(3)*(kblock-1)+halfdomain(3)*(npz-1)
 
 				!Read true unwrapped positions
-				rtrue(nl,1) = rvc(nd+1)
-				rtrue(nl,2) = rvc(nd+2)
-				rtrue(nl,3) = rvc(nd+3)
+				rtrue(1,nl) = rvc(nd+1)
+				rtrue(2,nl) = rvc(nd+2)
+				rtrue(3,nl) = rvc(nd+3)
 
-				v(nl,:) = rvc(2*nd+1:)
+				v(:,nl) = rvc(2*nd+1:)
 
 				!write(irank+10,'(5i8,6f10.5)'), irank, nl,n, procnp(irank),size(buf), & 
-				!										r(nl,1),r(nl,2),r(nl,3),v(nl,1),v(nl,2),v(nl,3)
+				!										r(1,nl),r(2,nl),r(3,nl),v(1,nl),v(2,nl),v(3,nl)
 
 				if (mod(n,1000) .eq. 0) print'(a,f10.2)', & 
 					'Redistributing molecules to input processor topology - % complete =', (100.d0*n/globalnp)
@@ -557,17 +557,17 @@ subroutine setup_restart_microstate
 				nl = nl + 1 !Local molecule count
 
 				!Correct to local coordinates
-				r(nl,1) = rvc(1)-domain(1)*(iblock-1)+halfdomain(1)*(npx-1)
-				r(nl,2) = rvc(2)-domain(2)*(jblock-1)+halfdomain(2)*(npy-1)
-				r(nl,3) = rvc(3)-domain(3)*(kblock-1)+halfdomain(3)*(npz-1)
+				r(1,nl) = rvc(1)-domain(1)*(iblock-1)+halfdomain(1)*(npx-1)
+				r(2,nl) = rvc(2)-domain(2)*(jblock-1)+halfdomain(2)*(npy-1)
+				r(3,nl) = rvc(3)-domain(3)*(kblock-1)+halfdomain(3)*(npz-1)
 				
 				!Read true unwrapped positions
-				rtrue(nl,1) = rvc(nd+1)
-				rtrue(nl,2) = rvc(nd+2)
-				rtrue(nl,3) = rvc(nd+3)
+				rtrue(1,nl) = rvc(nd+1)
+				rtrue(2,nl) = rvc(nd+2)
+				rtrue(3,nl) = rvc(nd+3)
 				
 				!Read velocities
-				v(nl,:) = rvc(2*nd+1:)
+				v(:,nl) = rvc(2*nd+1:)
 				
 				!Assign corresponding monomer info
 				monomer(nl)%chainID          = nint(monomerc(1))
@@ -647,9 +647,9 @@ subroutine parallel_io_final_state
 	!Adjust r according to actual location for storage according
 	!to processor topology with r = 0 at centre
 	allocate(rglobal(np,3))
-	rglobal(:,1) = r(1:np,1)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
-	rglobal(:,2) = r(1:np,2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
-	rglobal(:,3) = r(1:np,3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
+	rglobal(:,1) = r(1,1:np)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
+	rglobal(:,2) = r(2,1:np)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
+	rglobal(:,3) = r(3,1:np)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
 
 	!Initialise file displacements
 	procdisp = 0
@@ -683,8 +683,8 @@ subroutine parallel_io_final_state
  		                       MPI_double_precision, 'native', MPI_INFO_NULL, ierr)
 	 	do n = 1, np
 	 		buf(:,3*n-2) = rglobal(n,:)
-	 		buf(:,3*n-1) = rtrue(n,:)
-	 		buf(:,3*n  ) = v(n,:)
+	 		buf(:,3*n-1) = rtrue(:,n)
+	 		buf(:,3*n  ) = v(:,n)
 	 	enddo
 	 	call MPI_FILE_WRITE(restartfileid, buf,3*np*nd, & 
 	 	 						MPI_double_precision, MPI_STATUS_IGNORE, ierr)
@@ -706,8 +706,8 @@ subroutine parallel_io_final_state
 		do n=1,procnp(irank)
 
 			monomerbuf(1:3,n)    = rglobal(n,:)
-			monomerbuf(4:6,n)    = rtrue(n,:)
-			monomerbuf(7:9,n)    = v(n,:)
+			monomerbuf(4:6,n)    = rtrue(:,n)
+			monomerbuf(7:9,n)    = v(:,n)
 			monomerbuf(10, n)    = real(monomer(n)%chainID,        kind(0.d0))
 			monomerbuf(11, n)    = real(monomer(n)%subchainID,     kind(0.d0))
 			monomerbuf(12, n)    = real(monomer(n)%funcy,          kind(0.d0))
@@ -815,9 +815,9 @@ subroutine parallel_io_vmd
 	!to processor topology with r = 0 at centre
 	select case(potential_flag)
 	case(0)
-		Xbuf(:) = r(1:np,1)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
-		Ybuf(:) = r(1:np,2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
-		Zbuf(:) = r(1:np,3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
+		Xbuf(:) = r(1,1:np)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
+		Ybuf(:) = r(2,1:np)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
+		Zbuf(:) = r(3,1:np)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
 
 		procdisp = 0
 		!Obtain displacement of each processor using all other procs' np
@@ -902,9 +902,9 @@ subroutine parallel_io_vmd
 		!Build sparse individual "global" buffers according to global molecular ID of each monomer
 		do n=1,np
 			globmolno           = monomer(n)%glob_no
-			Xbufglob(globmolno) = r(n,1)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
-			Ybufglob(globmolno) = r(n,2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
-			Zbufglob(globmolno) = r(n,3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
+			Xbufglob(globmolno) = r(1,n)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
+			Ybufglob(globmolno) = r(2,n)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
+			Zbufglob(globmolno) = r(3,n)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
 		end do
 
 		call globalSumVectReal(Xbufglob,globalnp)  !Global summation to complete global buffer
@@ -978,9 +978,9 @@ subroutine parallel_io_vmd_true
 	!to processor topology with r = 0 at centre
 	select case(potential_flag)
 	case(0)
-		Xbuf(:) = rtrue(1:np,1)
-		Ybuf(:) = rtrue(1:np,2)
-		Zbuf(:) = rtrue(1:np,3)
+		Xbuf(:) = rtrue(1,1:np)
+		Ybuf(:) = rtrue(2,1:np)
+		Zbuf(:) = rtrue(3,1:np)
 
 		procdisp = 0
 		!Obtain displacement of each processor using all other procs' np
@@ -1063,9 +1063,9 @@ subroutine parallel_io_vmd_true
 		!Build sparse individual "global" buffers according to global molecular ID of each monomer
 		do n=1,np
 			globmolno           = monomer(n)%glob_no
-			Xbufglob(globmolno) = rtrue(n,1)
-			Ybufglob(globmolno) = rtrue(n,2)
-			Zbufglob(globmolno) = rtrue(n,3)
+			Xbufglob(globmolno) = rtrue(1,n)
+			Ybufglob(globmolno) = rtrue(2,n)
+			Zbufglob(globmolno) = rtrue(3,n)
 		end do
 
 		call globalSumVectReal(Xbufglob,globalnp)  !Global summation to complete global buffer
@@ -1132,9 +1132,9 @@ subroutine parallel_io_vmd_sl
 	do n = 1, np
 		select case(tag(n))
 		case(0,4) 	!Liquid Molecules
-			Xbuf(n) = r(n,1)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
-			Ybuf(n) = r(n,2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
-			Zbuf(n) = r(n,3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
+			Xbuf(n) = r(1,n)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
+			Ybuf(n) = r(2,n)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
+			Zbuf(n) = r(3,n)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
 		case default	!Solid molecules
 			Xbuf(n) = -halfdomain(1)
 			Ybuf(n) = -halfdomain(2)
@@ -1236,9 +1236,9 @@ subroutine parallel_io_vmd_sl
 			Ybuf(n) = -halfdomain(2)
 			Zbuf(n) = -halfdomain(3)
 		case default	!Solid molecules
-			Xbuf(n) = r(n,1)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
-			Ybuf(n) = r(n,2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
-			Zbuf(n) = r(n,3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
+			Xbuf(n) = r(1,n)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
+			Ybuf(n) = r(2,n)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
+			Zbuf(n) = r(3,n)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
 		end select
 	enddo
 
@@ -1344,9 +1344,9 @@ subroutine parallel_io_vmd_optimised
 	!Load buffers with single precision r and adjust according
 	!to processor topology with r = 0 at centre
 	do i=1,np
-		buf(3*(i-1)+1) = r(i,1)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
-		buf(3*(i-1)+2) = r(i,2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
-		buf(3*(i-1)+3) = r(i,3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
+		buf(3*(i-1)+1) = r(1,i)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
+		buf(3*(i-1)+2) = r(2,i)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
+		buf(3*(i-1)+3) = r(3,i)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
 	enddo
 
 	procdisp = 0

@@ -110,15 +110,15 @@ subroutine simulation_compute_forces_LJ_AP
 	integer                         :: i, j,ixyz   !Define dummy index
 
 	do i = 1,np						!Step through each particle in list 
-		ri = r(i,:)         		!Retrieve ri
+		ri = r(:,i)         		!Retrieve ri
 		do j = i+1,np				!Step through all j for each i
-			rj = r(j,:)				!Retrieve rj
+			rj = r(:,j)				!Retrieve rj
 
 			!Calculate rij using nearest image convention, i.e. if more than half
 			! a domain betwen molecules, must be closer over periodic boundaries  
 			rij2 = 0.d0
 			do ixyz=1,nd
-				rij(ixyz) = r (i,ixyz) - r(j,ixyz)          !Evaluate distance between particle i and j
+				rij(ixyz) = r (ixyz,i) - r(ixyz,j)          !Evaluate distance between particle i and j
     				if (abs(rij(ixyz)) > halfdomain(ixyz)) then	
 					rij(ixyz) = rij(ixyz) - sign(domain(ixyz),rij(ixyz)) 
 				endif
@@ -132,14 +132,14 @@ subroutine simulation_compute_forces_LJ_AP
 				accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
 
 				!Sum of forces on particle i added for each j
-				a(i,1)= a(i,1) + accijmag*rij(1)
-				a(i,2)= a(i,2) + accijmag*rij(2)
-				a(i,3)= a(i,3) + accijmag*rij(3)
+				a(1,i)= a(1,i) + accijmag*rij(1)
+				a(2,i)= a(2,i) + accijmag*rij(2)
+				a(3,i)= a(3,i) + accijmag*rij(3)
 
 				!Sum of forces on particle j added for each i
-				a(j,1)= a(j,1) - accijmag*rij(1)
-				a(j,2)= a(j,2) - accijmag*rij(2)
-				a(j,3)= a(j,3) - accijmag*rij(3)
+				a(1,j)= a(1,j) - accijmag*rij(1)
+				a(2,j)= a(2,j) - accijmag*rij(2)
+				a(3,j)= a(3,j) - accijmag*rij(3)
 
 				!Only calculate properties when required for output
 				if (mod(iter,tplot) .eq. 0) then
@@ -177,10 +177,10 @@ implicit none
 	double precision                :: eps
 
 	do i = 1,np
-		ri = r(i,:)
+		ri = r(:,i)
 		do j = i+1,np                !Step through all pairs
 
-			rj     = r(j,:)
+			rj     = r(:,j)
 			rij    = ri - rj
 			rij(:) = rij(:) - domain(:)*anint(rij(:)/domain(:))
 			rij2   = dot_product(rij,rij)
@@ -217,14 +217,14 @@ implicit none
 				!-------------------------------------------------------------
 	
 				!Sum of forces on particle i added for each j
-				a(i,1)= a(i,1) + accijmag*rij(1)
-				a(i,2)= a(i,2) + accijmag*rij(2)
-				a(i,3)= a(i,3) + accijmag*rij(3) 
+				a(1,i)= a(1,i) + accijmag*rij(1)
+				a(2,i)= a(2,i) + accijmag*rij(2)
+				a(3,i)= a(3,i) + accijmag*rij(3) 
 
 				!Sum of forces on particle j added for each i
-				a(j,1)= a(j,1) - accijmag*rij(1)
-				a(j,2)= a(j,2) - accijmag*rij(2)
-				a(j,3)= a(j,3) - accijmag*rij(3) 
+				a(1,j)= a(1,j) - accijmag*rij(1)
+				a(2,j)= a(2,j) - accijmag*rij(2)
+				a(3,j)= a(3,j) - accijmag*rij(3) 
 
 				!Only calculate properties when required for output
 				if (mod(iter,tplot) .eq. 0) then
@@ -288,7 +288,7 @@ subroutine simulation_compute_forces_LJ_cells
 
 		do i = 1,cellnp					!Step through each particle in list 
 			molnoi = oldi%molno 	 	!Number of molecule
-			ri = r(molnoi,:)         	!Retrieve ri
+			ri = r(:,molnoi)         	!Retrieve ri
 
 			do kcellshift = -1,1
 			do jcellshift = -1,1
@@ -299,7 +299,7 @@ subroutine simulation_compute_forces_LJ_cells
 				do j = 1,adjacentcellnp			!Step through all j for each i
 
 					molnoj = oldj%molno			!Number of molecule
-					rj = r(molnoj,:)			!Retrieve rj
+					rj = r(:,molnoj)			!Retrieve rj
 
 					currentj => oldj
 					oldj => currentj%next		!Use pointer in datatype to obtain next item in list
@@ -317,9 +317,9 @@ subroutine simulation_compute_forces_LJ_cells
 						accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
 	
 						!Sum of forces on particle i added for each j
-						a(molnoi,1)= a(molnoi,1) + accijmag*rij(1)
-						a(molnoi,2)= a(molnoi,2) + accijmag*rij(2)
-						a(molnoi,3)= a(molnoi,3) + accijmag*rij(3)
+						a(1,molnoi)= a(1,molnoi) + accijmag*rij(1)
+						a(2,molnoi)= a(2,molnoi) + accijmag*rij(2)
+						a(3,molnoi)= a(3,molnoi) + accijmag*rij(3)
 
 						!CV stress an force calculations
 !TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
@@ -397,12 +397,12 @@ subroutine simulation_compute_forces_LJ_neigbr
 
         noneighbrs = neighbour%noneighbrs(molnoi)	!Determine number of elements in neighbourlist
 		old => neighbour%head(molnoi)%point			!Set old to head of neighbour list
-		ri(:) = r(molnoi,:)							!Retrieve ri
+		ri(:) = r(:,molnoi)							!Retrieve ri
 
 		do j = 1,noneighbrs							!Step through all pairs of neighbours molnoi and j
 
 			molnoj = old%molnoj						!Number of molecule j
-			rj(:) = r(molnoj,:)						!Retrieve rj
+			rj(:) = r(:,molnoj)						!Retrieve rj
 			rij(:) = ri(:) - rj(:)   				!Evaluate distance between particle i and j
 			rij2 = dot_product(rij,rij)				!Square of vector calculated
 
@@ -411,9 +411,9 @@ subroutine simulation_compute_forces_LJ_neigbr
 				accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4) ! (-dU/dr)*(1/|r|)
 !				if (molnoi.eq.1) print*, accijmag
 				!Sum of forces on particle i added for each j
-				a(molnoi,1)= a(molnoi,1) + accijmag*rij(1)
-				a(molnoi,2)= a(molnoi,2) + accijmag*rij(2)
-				a(molnoi,3)= a(molnoi,3) + accijmag*rij(3)
+				a(1,molnoi)= a(1,molnoi) + accijmag*rij(1)
+				a(2,molnoi)= a(2,molnoi) + accijmag*rij(2)
+				a(3,molnoi)= a(3,molnoi) + accijmag*rij(3)
 
 				!CV stress an force calculations
 				if (vflux_outflag .eq. 4) then
@@ -423,7 +423,7 @@ subroutine simulation_compute_forces_LJ_neigbr
 						!call Control_Volume_Forces(fij,ri,rj,molnoi,molnoj)	
 					!	call control_volume_stresses(fij,ri,rj,molnoi,molnoj)
 					!else
-						fij = accijmag*rij(:)
+						fij(:) = accijmag*rij(:)
 						!call Control_Volume_Forces(fij,ri,rj,molnoi,molnoj)
 						call control_volume_stresses(fij,ri,rj,molnoi,molnoj)
 					endif
@@ -474,12 +474,12 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 
 	    noneighbrs = neighbour%noneighbrs(molnoi)	!Determine number of elements in neighbourlist
 		old => neighbour%head(molnoi)%point			!Set old to head of neighbour list
-		ri(:) = r(molnoi,:)							!Retrieve ri
+		ri(:) = r(:,molnoi)							!Retrieve ri
 
 		do j = 1,noneighbrs							!Step through all pairs of neighbours i and j
 
 			molnoj = old%molnoj			!Number of molecule j
-			rj(:) = r(molnoj,:)			!Retrieve rj
+			rj(:) = r(:,molnoj)			!Retrieve rj
 			rij(:)= ri(:) - rj(:)   	!Evaluate distance between particle i and j
 			rij2  = dot_product(rij,rij)!Square of vector calculated
 	
@@ -490,14 +490,15 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 				accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
 	
 				!Sum of forces on particle i added for each j
-				a(molnoi,1)= a(molnoi,1) + accijmag*rij(1)
-				a(molnoi,2)= a(molnoi,2) + accijmag*rij(2)
-				a(molnoi,3)= a(molnoi,3) + accijmag*rij(3) 
+				a(1,molnoi)= a(1,molnoi) + accijmag*rij(1)
+				a(2,molnoi)= a(2,molnoi) + accijmag*rij(2)
+				a(3,molnoi)= a(3,molnoi) + accijmag*rij(3) 
 
 				!Sum of forces on particle j added for each i
-				a(molnoj,1)= a(molnoj,1) - accijmag*rij(1)
-				a(molnoj,2)= a(molnoj,2) - accijmag*rij(2)
-				a(molnoj,3)= a(molnoj,3) - accijmag*rij(3) 
+				a(1,molnoj)= a(1,molnoj) - accijmag*rij(1)
+				a(2,molnoj)= a(2,molnoj) - accijmag*rij(2)
+				a(3,molnoj)= a(3,molnoj) - accijmag*rij(3) 
+
 				if (vflux_outflag.eq.4) then
 					if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
 						if (molnoj .gt. np .or. molnoi .gt. np) then
@@ -560,14 +561,14 @@ subroutine simulation_compute_forces_FENE
 	
 	do molnoi=1,np
 
-		ri(:) = r(molnoi,:)							!Retrieve ri(:)
+		ri(:) = r(:,molnoi)							!Retrieve ri(:)
 
 		do b=1,monomer(molnoi)%funcy
 
 			molnoj = bond(molnoi,b)
 			if (molnoj.eq.0) cycle
 
-			rj(:)  = r(molnoj,:)
+			rj(:)  = r(:,molnoj)
 			rij(:) = ri(:) - rj(:)
 			rij2   = dot_product(rij,rij)
 
@@ -575,9 +576,9 @@ subroutine simulation_compute_forces_FENE
 
 			accijmag = -k_c/(1-(rij2/(R_0**2)))			!(-dU/dr)*(1/|r|)
 
-			a(molnoi,1)= a(molnoi,1) + accijmag*rij(1)	!Add components of acceleration
-			a(molnoi,2)= a(molnoi,2) + accijmag*rij(2)
-			a(molnoi,3)= a(molnoi,3) + accijmag*rij(3)
+			a(1,molnoi)= a(1,molnoi) + accijmag*rij(1)	!Add components of acceleration
+			a(2,molnoi)= a(2,molnoi) + accijmag*rij(2)
+			a(3,molnoi)= a(3,molnoi) + accijmag*rij(3)
 
 			if (mod(iter,tplot) .eq. 0) then
 				if (pressure_outflag .eq. 1) then
@@ -606,8 +607,8 @@ subroutine polymer_bond_error(molnoX)
 				rij2**0.5,', which is greater than the allowed limit of ', R_0, &
 				'. Stopping simulation, total time elapsed = ', iter*delta_t
 	print '(a)', 'Atomic positions:'
-	print '(a,i4,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoi,' is located at ',r(molnoi,1),' ',r(molnoi,2),' ',r(molnoi,3) 
-	print '(a,i4,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoX,' is located at ',r(molnoX,1),' ',r(molnoX,2),' ',r(molnoX,3) 
+	print '(a,i4,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoi,' is located at ',r(1,molnoi),' ',r(2,molnoi),' ',r(3,molnoi) 
+	print '(a,i4,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoX,' is located at ',r(1,molnoX),' ',r(2,molnoX),' ',r(3,molnoX) 
 
 	print '(a,i4,a)', 'Monomer information for atom ', molnoi,':'
 	print '(a,i8)', 'ChainID: '   , monomer(molnoi)%chainID
@@ -654,12 +655,12 @@ implicit none
 
 	    noneighbrs = neighbour%noneighbrs(molnoi)	!elements in neighbour list
 		old => neighbour%head(molnoi)%point			!old>head of neighbour list
-		ri(:) = r(molnoi,:)							!Retrieve ri
+		ri(:) = r(:,molnoi)							!Retrieve ri
 
 		do j = 1,noneighbrs                         !Step through all pairs
 		                                            !of neighbours i and j
 			molnoj = old%molnoj                     !Number of molecule j
-			rj     = r(molnoj,:)                    !Position
+			rj     = r(:,molnoj)                    !Position
 			rij    = ri - rj                        !Difference
 			rij(:) = rij(:) - domain(:)*anint(rij(:)/domain(:))!Min image
 			rij2   = dot_product(rij,rij)           !Square
@@ -696,14 +697,14 @@ implicit none
 				!-------------------------------------------------------------
 	
 				!Sum of forces on particle i added for each j
-				a(molnoi,1)= a(molnoi,1) + accijmag*rij(1)
-				a(molnoi,2)= a(molnoi,2) + accijmag*rij(2)
-				a(molnoi,3)= a(molnoi,3) + accijmag*rij(3) 
+				a(1,molnoi)= a(1,molnoi) + accijmag*rij(1)
+				a(2,molnoi)= a(2,molnoi) + accijmag*rij(2)
+				a(3,molnoi)= a(3,molnoi) + accijmag*rij(3) 
 
 				!Sum of forces on particle j added for each i
-				a(molnoj,1)= a(molnoj,1) - accijmag*rij(1)
-				a(molnoj,2)= a(molnoj,2) - accijmag*rij(2)
-				a(molnoj,3)= a(molnoj,3) - accijmag*rij(3) 
+				a(1,molnoj)= a(1,molnoj) - accijmag*rij(1)
+				a(2,molnoj)= a(2,molnoj) - accijmag*rij(2)
+				a(3,molnoj)= a(3,molnoj) - accijmag*rij(3) 
 
 				!Only calculate properties when required for output
 				if (mod(iter,tplot) .eq. 0) then
@@ -768,7 +769,7 @@ implicit none
 
 		do i = 1,cellnp					!Step through each particle in list 
 			molnoi = oldi%molno 	 	!Number of molecule
-			ri = r(molnoi,:)         	!Retrieve ri
+			ri = r(:,molnoi)         	!Retrieve ri
 
 			do kcellshift = -1,1
 			do jcellshift = -1,1
@@ -790,7 +791,7 @@ implicit none
 				do j = 1,adjacentcellnp          !Step through all j for each i
 
 					molnoj = oldj%molno 	 !Number of molecule
-					rj = r(molnoj,:)         !Retrieve rj
+					rj = r(:,molnoj)         !Retrieve rj
 
 					currentj => oldj
 					oldj => currentj%next    !Use pointer in datatype to obtain next item in list
@@ -806,8 +807,8 @@ implicit none
 
 					if (rij2 < rcutoff2) then
 						!Add current distance to rijsum for molecules i and j
-						rijsum(molnoi,:) = rijsum(molnoi,:) + 0.5d0*rij(:)
-						rijsum(molnoj,:) = rijsum(molnoj,:) + 0.5d0*rij(:)
+						rijsum(:,molnoi) = rijsum(:,molnoi) + 0.5d0*rij(:)
+						rijsum(:,molnoj) = rijsum(:,molnoj) + 0.5d0*rij(:)
 						!Linear magnitude of acceleration for each molecule
 						invrij2 = 1.d0/rij2                 !Invert value
 						accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)

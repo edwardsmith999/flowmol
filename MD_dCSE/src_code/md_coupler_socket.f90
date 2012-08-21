@@ -431,12 +431,12 @@ subroutine average_over_bin
     allocate(list(4,np))
 	
 	do m = 1,np
-		if ( r(m,2) >  ymin            .and. r(m,2) < ymax          .and. &
-             r(m,1) >= -halfdomain(1)  .and. r(m,1) < halfdomain(1) .and. &
-             r(m,3) >= -halfdomain(3)  .and. r(m,3) < halfdomain(3) ) then
-			ib = ceiling( (r(m,1) -	xmin) / dx_cfd)
+		if ( r(2,m) >  ymin            .and. r(2,m) < ymax          .and. &
+             r(1,m) >= -halfdomain(1)  .and. r(1,m) < halfdomain(1) .and. &
+             r(3,m) >= -halfdomain(3)  .and. r(3,m) < halfdomain(3) ) then
+			ib = ceiling( (r(1,m) -	xmin) / dx_cfd)
 			jb = 1
-			kb = ceiling( (r(m,3) - zmin) / dz_cfd)
+			kb = ceiling( (r(3,m) - zmin) / dz_cfd)
 
 			!print*, 'COUPLED AVERAGE',myid, xmin, halfdomain(1), zmin, halfdomain(3), &
 			! 		m, ib,jb,kb, dx_cfd
@@ -445,8 +445,8 @@ subroutine average_over_bin
 			list(1:4, np_overlap) = (/ m, ib, jb, kb /)
 
 			box_average(ib,jb,kb)%np   =  box_average(ib,jb,kb)%np   + 1
-			box_average(ib,jb,kb)%v(:) =  box_average(ib,jb,kb)%v(:) + v(m,:)
-			box_average(ib,jb,kb)%a(:) =  box_average(ib,jb,kb)%a(:) + a(m,:)
+			box_average(ib,jb,kb)%v(:) =  box_average(ib,jb,kb)%v(:) + v(:,m)
+			box_average(ib,jb,kb)%a(:) =  box_average(ib,jb,kb)%a(:) + a(:,m)
 		endif
 	enddo
 
@@ -500,9 +500,9 @@ subroutine average_over_bin_cells
 			box_average(icell,jcell,kcell)%np   =  & 
 							box_average(icell,jcell,kcell)%np   + 1
 			box_average(icell,jcell,kcell)%v(:) =  & 
-							box_average(icell,jcell,kcell)%v(:) + v(molno,1) !Add streamwise velocity to current bin
+							box_average(icell,jcell,kcell)%v(:) + v(1,molno) !Add streamwise velocity to current bin
 			box_average(icell,jcell,kcell)%a(:) =  & 
-							box_average(icell,jcell,kcell)%a(:) + a(molno,1) !Add acceleration to current bin
+							box_average(icell,jcell,kcell)%a(:) + a(1,molno) !Add acceleration to current bin
 
 			current => old
 			old => current%next 
@@ -637,8 +637,8 @@ subroutine apply_continuum_forces_ES(iter)
 			do n = 1, cellnp    ! Loop over all particles
 				molno = old%molno 	 !Number of molecule
 
-				isumvel = isumvel + v(molno,1) 	!Add streamwise velocity to current bin
-				isumacc = isumacc + a(molno,1) 	!Add acceleration to current bin
+				isumvel = isumvel + v(1,molno) 	!Add streamwise velocity to current bin
+				isumacc = isumacc + a(1,molno) 	!Add acceleration to current bin
 				isummol = isummol + 1
 				current => old
 				old => current%next 
@@ -668,7 +668,7 @@ subroutine apply_continuum_forces_ES(iter)
 			do n = 1, cellnp    ! Loop over all particles
 				molno = old%molno !Number of molecule
 
-				a(molno,1)= a(molno,1) - isumacc   &
+				a(1,molno)= a(1,molno) - isumacc   &
 					    -(isumvel-vel_cfd(1,icell,1,kcell,1))/delta_t
 
 				current => old
@@ -774,7 +774,7 @@ subroutine simulation_apply_continuum_forces_CV(iter)
 		do n = 1, cellnp    ! Loop over all particles
 
 			molno = old%molno	!Number of molecule
-			isumvel = isumvel + v(molno,1) 	!Add streamwise velocity to current bin
+			isumvel = isumvel + v(1,molno) 	!Add streamwise velocity to current bin
 			isummol = isummol + 1
 
 			current => old
@@ -799,7 +799,7 @@ subroutine simulation_apply_continuum_forces_CV(iter)
 		do n = 1, cellnp    ! Loop over all particles
 			molno = old%molno !Number of molecule
 
-			a(molno,1) = a(molno,1) + ((isumflux - isumforce) + continuum_Fs(cbin))
+			a(1,molno) = a(1,molno) + ((isumflux - isumforce) + continuum_Fs(cbin))
 
 			current => old
 			old => current%next 
@@ -856,9 +856,9 @@ subroutine compute_bin_surface_flux(icell,jcell,kcell,isumflux)
 
 			molno = old%molno			!Number of molecule
 
-			velvec(:) = v(molno,:) + delta_t *a(molno,:) 	!Velocity at t calculated from acceleration
-			ri1(:)    = r(molno,:) + delta_t * velvec(:)	!Position at t calculated from velocity
-			ri2(:)    = r(molno,:)				!Molecule i at time t-dt
+			velvec(:) = v(:,molno) + delta_t *a(:,molno) 	!Velocity at t calculated from acceleration
+			ri1(:)    = r(:,molno) + delta_t * velvec(:)	!Position at t calculated from velocity
+			ri2(:)    = r(:,molno)				!Molecule i at time t-dt
 
 			current => old
 			old => current%next    !Use pointer in datatype to obtain next item in list
@@ -1078,7 +1078,7 @@ subroutine compute_force_surrounding_bins(icell,jcell,kcell,isumforce)
 	do n = 1, cellnp    ! Loop over all particles
 
 		molnoi = oldi%molno	!Number of molecule
-		ri = r(molnoi,:)	!Retrieve ri
+		ri = r(:,molnoi)	!Retrieve ri
 
 		!Calculate bin surface Forces
 		do kcellshift = -1,1
@@ -1094,7 +1094,7 @@ subroutine compute_force_surrounding_bins(icell,jcell,kcell,isumforce)
 			do j = 1,adjacentcellnp          !Step through all j for each i
 
 				molnoj = oldj%molno 	 !Number of molecule
-				rj = r(molnoj,:)         !Retrieve rj
+				rj = r(:,molnoj)         !Retrieve rj
 
 				currentj => oldj
 				oldj => currentj%next    !Use pointer in datatype to obtain next item in list
