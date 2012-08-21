@@ -330,15 +330,15 @@ subroutine setup_restart_microstate
 	select case (potential_flag)
 	case(0)
 		do n=1,globalnp
-			read(2) buf; r(n,:)     = buf   !Read particle n's positions
-			read(2) buf; rtrue(n,:) = buf   !Read particle n's unwrapped positions
-			read(2) buf; v(n,:)     = buf   !Read particle n's velocities
+			read(2) buf; r(:,n)     = buf   !Read particle n's positions
+			read(2) buf; rtrue(:,n) = buf   !Read particle n's unwrapped positions
+			read(2) buf; v(:,n)     = buf   !Read particle n's velocities
 		enddo
 	case(1)
 		do n=1,globalnp
-			read(2) buf; r(n,:)     = buf   !Read particle n's positions
-			read(2) buf; rtrue(n,:) = buf   !Read particle n's positions
-			read(2) buf; v(n,:)     = buf   !Read particle n's velocities
+			read(2) buf; r(:,n)     = buf   !Read particle n's positions
+			read(2) buf; rtrue(:,n) = buf   !Read particle n's positions
+			read(2) buf; v(:,n)     = buf   !Read particle n's velocities
 			read(2) monomerbuf
 			monomer(n)%chainID        = nint(monomerbuf(1))
 			monomer(n)%subchainID     = nint(monomerbuf(2))
@@ -365,7 +365,7 @@ subroutine setup_restart_microstate
 !		case(leap_frog_verlet)
 !			call simulation_compute_forces
 !			do n=1,globalnp
-!				v(n,:) = v(n,:) - 0.5d0*delta_t*a(n,:)		
+!				v(:,n) = v(:,n) - 0.5d0*delta_t*a(:,n)		
 !			end do
 !		case(velocity_verlet)
 !			!Nothing
@@ -412,7 +412,7 @@ subroutine parallel_io_final_state
 !		case(leap_frog_verlet)
 !			call simulation_compute_forces
 !			do n=1,globalnp
-!				v(n,:) = v(n,:) + 0.5d0*delta_t*a(n,:)		
+!				v(:,n) = v(:,n) + 0.5d0*delta_t*a(:,n)		
 !			end do
 !		case(velocity_verlet)
 !			!Nothing
@@ -426,15 +426,15 @@ subroutine parallel_io_final_state
 	select case (potential_flag)
 	case(0)
 		do n=1,np
-			buf = r(n,:);     write(2) buf  !Write particle n's position
-			buf = rtrue(n,:); write(2) buf  !Write particle n's unwrapped position
-			buf = v(n,:);     write(2) buf  !Write particle n's velocities
+			buf = r(:,n);     write(2) buf  !Write particle n's position
+			buf = rtrue(:,n); write(2) buf  !Write particle n's unwrapped position
+			buf = v(:,n);     write(2) buf  !Write particle n's velocities
 		enddo
 	case(1)
 		do n=1,np
-			buf = r(n,:);     write(2) buf  !Write particle n's positions and speed
-			buf = rtrue(n,:); write(2) buf  !Write particle n's unwrapped position
-			buf = v(n,:);     write(2) buf  !Write particle n's velocities
+			buf = r(:,n);     write(2) buf  !Write particle n's positions and speed
+			buf = rtrue(:,n); write(2) buf  !Write particle n's unwrapped position
+			buf = v(:,n);     write(2) buf  !Write particle n's velocities
 			monomerbuf(1)   = real(monomer(n)%chainID,kind(0.d0))
 			monomerbuf(2)   = real(monomer(n)%subchainID,kind(0.d0))
 			monomerbuf(3)   = real(monomer(n)%funcy,kind(0.d0))
@@ -501,15 +501,15 @@ subroutine parallel_io_vmd(start, finish,interval_no)
 
 	select case (potential_flag)
 	case(0)
-		buf(1     :  np) = r(:,1)
-		buf(np+1  :2*np) = r(:,2)
-		buf(2*np+1:3*np) = r(:,3)
+		buf(1     :  np) = r(1,:)
+		buf(np+1  :2*np) = r(2,:)
+		buf(2*np+1:3*np) = r(3,:)
 	case(1)
 		do n=1,np
 			molno       = monomer(n)%glob_no
-			Xbuf(molno) = r(n,1)
-			Ybuf(molno) = r(n,2)
-			Zbuf(molno) = r(n,3)
+			Xbuf(molno) = r(1,n)
+			Ybuf(molno) = r(2,n)
+			Zbuf(molno) = r(3,n)
 		enddo
 		buf(1     :np  ) = Xbuf
 		buf(np+1  :2*np) = Ybuf
@@ -544,15 +544,15 @@ subroutine parallel_io_vmd_true(start, finish,interval_no)
 
 	select case (potential_flag)
 	case(0)
-		buf(1     :  np) = rtrue(:,1)
-		buf(np+1  :2*np) = rtrue(:,2)
-		buf(2*np+1:3*np) = rtrue(:,3)
+		buf(1     :  np) = rtrue(1,:)
+		buf(np+1  :2*np) = rtrue(2,:)
+		buf(2*np+1:3*np) = rtrue(3,:)
 	case(1)
 		do n=1,np
 			molno       = monomer(n)%glob_no
-			Xbuf(molno) = rtrue(n,1)
-			Ybuf(molno) = rtrue(n,2)
-			Zbuf(molno) = rtrue(n,3)
+			Xbuf(molno) = rtrue(1,n)
+			Ybuf(molno) = rtrue(2,n)
+			Zbuf(molno) = rtrue(3,n)
 		enddo
 		buf(1     :np  ) = Xbuf
 		buf(np+1  :2*np) = Ybuf
@@ -587,9 +587,9 @@ subroutine parallel_io_vmd_sl(start, finish,interval_no)
 	real,dimension(np)		:: Xbuf, Ybuf, Zbuf
 	real,dimension(3)		:: rhalfdomain
 
-	Xbuf(:) = r(:,1)
-	Ybuf(:) = r(:,2)
-	Zbuf(:) = r(:,3)
+	Xbuf(:) = r(1,:)
+	Ybuf(:) = r(2,:)
+	Zbuf(:) = r(3,:)
 
 	rhalfdomain(1) = -halfdomain(1)
 	rhalfdomain(2) = -halfdomain(2)
@@ -653,9 +653,9 @@ subroutine parallel_io_vmd_halo(start, finish,interval_no)
 	real,dimension(halo_np)		:: Xbuf, Ybuf, Zbuf
 	real,dimension(3)			:: rhalfdomain
 
-	Xbuf(:) = r(np+1:np+halo_np,1)
-	Ybuf(:) = r(np+1:np+halo_np,2)
-	Zbuf(:) = r(np+1:np+halo_np,3)
+	Xbuf(:) = r(1,np+1:np+halo_np)
+	Ybuf(:) = r(2,np+1:np+halo_np)
+	Zbuf(:) = r(3,np+1:np+halo_np)
 
 	rhalfdomain(1) = -halfdomain(1)
 	rhalfdomain(2) = -halfdomain(2)

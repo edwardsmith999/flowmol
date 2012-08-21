@@ -249,7 +249,7 @@ subroutine evaluate_macroscopic_properties_parallel
 	case(leap_frog_verlet)
 		do ixyz = 1, nd									! Loop over all dimensions
 		do n = 1, np 									! Loop over all particles
-			vel = v(n,ixyz) + 0.5d0*a(n,ixyz)*delta_t	! Velocity must shifted half a timestep
+			vel = v(ixyz,n) + 0.5d0*a(ixyz,n)*delta_t	! Velocity must shifted half a timestep
 			vsum = vsum + vel							! Add up all molecules' velocity components
 			v2sum = v2sum + vel**2						! Add up all molecules' velocity squared components  
 		enddo
@@ -257,7 +257,7 @@ subroutine evaluate_macroscopic_properties_parallel
 	case(velocity_verlet) 								! If velocity Verlet algorithm
 		do ixyz = 1, nd
 		do n = 1, np
-			vel = v(n,ixyz)
+			vel = v(ixyz,n)
 			vsum = vsum+vel
 			v2sum = v2sum + vel**2          			! Sum all velocity squared components
 		enddo
@@ -389,7 +389,7 @@ implicit none
 	do j = i+1,np
 
 		!Find distance between i and j (rmag)
-		rij(:) = r(i,:) - r(j,:)
+		rij(:) = r(:,i) - r(:,j)
 		rij(:) = rij(:) - domain(:)*anint(rij(:)/domain(:))
 		rmag   = sqrt(dot_product(rij,rij))
 	
@@ -443,8 +443,8 @@ implicit none
 		c = 0.d0
 		s = 0.d0	
 		do n=1,np
-			c = c + cos(dot_product(k,r(n,:)))
-			s = s + sin(dot_product(k,r(n,:)))
+			c = c + cos(dot_product(k,r(:,n)))
+			s = s + sin(dot_product(k,r(:,n)))
 		end do
 
 		if (i.eq.0.and.j.eq.0) then
@@ -475,7 +475,7 @@ subroutine evaluate_properties_diffusion
 
 	diffusion = 0
 	do n=1,np
-		diffusion(:)=diffusion(:)+(rtrue(n,:) - rinitial(n,:))**2
+		diffusion(:)=diffusion(:)+(rtrue(:,n) - rinitial(:,n))**2
 	enddo
 	meandiffusion(:) = diffusion(:)/(2.d0*nd*np*(delta_t*iter/tplot))
 	!print*, 'Instantanous diffusion', diffusion
@@ -483,7 +483,7 @@ subroutine evaluate_properties_diffusion
 
 	!Using the auto-correlation function
 	do n=1,np
-		diffusion(:) = v(n,:) - 0.5 * a(n,:) * delta_t
+		diffusion(:) = v(:,n) - 0.5 * a(:,n) * delta_t
 	enddo
 
 end subroutine evaluate_properties_diffusion
@@ -551,7 +551,7 @@ subroutine etevtcf_calculate_parallel
 				j      = bond(i,n)
 				j_sub  = monomer(j)%subchainID
 				if (j_sub.lt.i_sub) cycle  !Avoid counting backwards
-				rij(:) = r(j,:) - r(i,:)
+				rij(:) = r(:,j) - r(:,i)
 				rij(:) = rij(:) - domain(:)*anint(rij(:)/domain(:))
 				etev_0(chain,:) = etev_0(chain,:) + rij(:)
 			end do
@@ -570,7 +570,7 @@ subroutine etevtcf_calculate_parallel
 			j             = bond(i,n)     ! Molecule number j is nth bond to i
 			j_sub         = monomer(j)%subchainID  ! Find subchain ID of mol j
 			if (j_sub.lt.i_sub) cycle              ! Avoid counting backwards
-			rij(:)        = r(j,:) - r(i,:)                     
+			rij(:)        = r(:,j) - r(:,i)                     
 			rij(:)        = rij(:) - domain(:)*anint(rij(:)/domain(:))
 			etev(chain,:) = etev(chain,:) + rij(:)
 		end do
@@ -613,7 +613,7 @@ implicit none
 	do i=1,np
 		chainID = monomer(i)%chainID
 		if (chainID .eq. 0) cycle
-		r_cm(chainID,:) = r_cm(chainID,:) + rtrue(i,:) 
+		r_cm(chainID,:) = r_cm(chainID,:) + rtrue(:,i) 
 	end do
 
 	call globalSumTwoDim(r_cm,nchains,nd)
@@ -627,7 +627,7 @@ implicit none
 	do i=1,np
 		chainID = monomer(i)%chainID
 		if (chainID.eq.0) cycle
-		rij = rtrue(i,:) - r_cm(chainID,:)
+		rij = rtrue(:,i) - r_cm(chainID,:)
 		R_g2 = R_g2 + dot_product(rij,rij)
 	end do
 	call globalSum(R_g2)
@@ -707,7 +707,7 @@ subroutine cumulative_mass(ixyz)
 		slicebinsize = domain(ixyz) / nbins(ixyz)
 		do n = 1, np    ! Loop over all particles
 			!Assign to bins using integer division
-			cbin = ceiling((r(n,ixyz)+halfdomain(ixyz))/slicebinsize)!Establish current bin
+			cbin = ceiling((r(ixyz,n)+halfdomain(ixyz))/slicebinsize)!Establish current bin
 			if (cbin > nbins(ixyz)) cbin = nbins(ixyz) 		 !Prevents out of range values
 			if (cbin < 1 ) cbin = 1        				 !Prevents out of range values
 			slice_mass(cbin)= slice_mass(cbin)+1      			 !Add one to current bin
@@ -717,7 +717,7 @@ subroutine cumulative_mass(ixyz)
 		mbinsize(:) = domain(:) / nbins(:) 
 		do n = 1,np
 			!Add up current volume mass densities
-			ibin(:) = ceiling((r(n,:)+halfdomain(:))/mbinsize(:)) + nhb
+			ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
 			volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + 1
 		enddo
 	case default 
@@ -795,11 +795,11 @@ subroutine cumulative_velocity(ixyz)
 
 		do n = 1, np    ! Loop over all particles
 			!Assign to bins using integer division
-			cbin = ceiling((r(n,ixyz)+halfdomain(ixyz))/slicebinsize)!Establish current bin
+			cbin = ceiling((r(ixyz,n)+halfdomain(ixyz))/slicebinsize)!Establish current bin
 			if (cbin > nbins(ixyz)) cbin = nbins(ixyz) 		 !Prevents out of range values
 			if (cbin < 1 ) cbin = 1        				 !Prevents out of range values
 			slice_mass(cbin)= slice_mass(cbin)+1      			 !Add one to current bin
-			slice_momentum(cbin,:) = slice_momentum(cbin,:)+v(n,:) + slidev(n,:) 	 !Add streamwise velocity to current bin
+			slice_momentum(cbin,:) = slice_momentum(cbin,:)+v(:,n) + slidev(:,n) 	 !Add streamwise velocity to current bin
 		enddo
 
 	!Velocity measurement for 3D bins throughout the domain
@@ -810,10 +810,10 @@ subroutine cumulative_velocity(ixyz)
 		!Reset Control Volume momentum 
 		do n = 1,np
 			!Add up current volume mass and momentum densities
-			ibin(:) = ceiling((r(n,:)+halfdomain(:))/Vbinsize(:)) + nhb
+			ibin(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
 			volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + 1
 			volume_momentum(ibin(1),ibin(2),ibin(3),:) = volume_momentum(ibin(1),ibin(2),ibin(3),:) & 
-										+ v(n,:) + slidev(n,:)
+										+ v(:,n) + slidev(:,n)
 		enddo
 
 	case default 
@@ -889,12 +889,12 @@ subroutine cumulative_temperature(ixyz)
 		slicebinsize = domain(ixyz) / nbins(ixyz)
 		do n = 1, np    ! Loop over all particles
 			!Assign to bins using integer division
-			cbin = ceiling((r(n,ixyz)+halfdomain(ixyz))/slicebinsize)!Establish current bin
+			cbin = ceiling((r(ixyz,n)+halfdomain(ixyz))/slicebinsize)!Establish current bin
 			if (cbin > nbins(ixyz)) cbin = nbins(ixyz) 		 !Prevents out of range values
 			if (cbin < 1 ) cbin = 1        				 !Prevents out of range values
 			slice_mass(cbin)= slice_mass(cbin)+1      			 !Add one to current bin
 			slice_temperature(cbin) = slice_temperature(cbin) & 
-					+ dot_product((v(n,:)+slidev(n,:)),(v(n,:)+slidev(n,:))) 	 !Add streamwise temperature to current bin
+					+ dot_product((v(:,n)+slidev(:,n)),(v(:,n)+slidev(:,n))) 	 !Add streamwise temperature to current bin
 		enddo
 
 	!Temperature measurement for 3D bins throughout the domain
@@ -905,10 +905,10 @@ subroutine cumulative_temperature(ixyz)
 		!Reset Control Volume momentum 
 		do n = 1,np
 			!Add up current volume mass and temperature densities
-			ibin(:) = ceiling((r(n,:)+halfdomain(:))/Tbinsize(:)) + nhb
+			ibin(:) = ceiling((r(:,n)+halfdomain(:))/Tbinsize(:)) + nhb
 			volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + 1
 			volume_temperature(ibin(1),ibin(2),ibin(3)) = volume_temperature(ibin(1),ibin(2),ibin(3)) & 
-										+ dot_product((v(n,:)+slidev(n,:)),(v(n,:)+slidev(n,:)))
+										+ dot_product((v(:,n)+slidev(:,n)),(v(:,n)+slidev(:,n)))
 		enddo
 
 	case default 
@@ -990,16 +990,16 @@ subroutine cumulative_pressure(ixyz,sample_count)
 			select case(integration_algorithm)
 			case(leap_frog_verlet)
 				!Calculate velocity at time t (v is at t+0.5delta_t due to use of verlet algorithm)
-				velvect(:) = v(n,:) + 0.5d0 * a(n,:) * delta_t
+				velvect(:) = v(:,n) + 0.5d0 * a(:,n) * delta_t
 			case(velocity_verlet)     
 				!Velocity is already at time t for Velocity Verlet algorithm                              
-				velvect(:) = v(n,:)
+				velvect(:) = v(:,n)
 			end select
 
 			if (any(periodic.gt.1)) then
-				rglob(1) = r(n,1)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
-				rglob(2) = r(n,2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
-				rglob(3) = r(n,3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
+				rglob(1) = r(1,n)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
+				rglob(2) = r(2,n)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
+				rglob(3) = r(3,n)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
 				velvect(le_sd) = velvect(le_sd) - rglob(le_sp)*le_sr 
 				!velvect(:) = velvect(:) - U(n,:)
 			end if
@@ -1115,23 +1115,23 @@ subroutine simulation_compute_kinetic_VA(imin,imax,jmin,jmax,kmin,kmax)
 	do n = 1, np
 
 		!Assign to bins using integer division
-		ibin = ceiling((r(n,1)+halfdomain(1))/VAbinsize(1))	!Establish current bin
+		ibin = ceiling((r(1,n)+halfdomain(1))/VAbinsize(1))	!Establish current bin
 		if (ibin .gt. imax) cycle ! ibin = maxbin		!Prevents out of range values
 		if (ibin .lt. imin) cycle ! ibin = minbin		!Prevents out of range values
-		jbin = ceiling((r(n,2)+halfdomain(2))/VAbinsize(2)) 	!Establish current bin
+		jbin = ceiling((r(2,n)+halfdomain(2))/VAbinsize(2)) 	!Establish current bin
 		if (jbin .gt. jmax) cycle ! jbin = maxbin 		!Prevents out of range values
 		if (jbin .lt. jmin) cycle ! jbin = minbin		!Prevents out of range values
-		kbin = ceiling((r(n,3)+halfdomain(3))/VAbinsize(3)) 	!Establish current bin
+		kbin = ceiling((r(3,n)+halfdomain(3))/VAbinsize(3)) 	!Establish current bin
 		if (kbin .gt. kmax) cycle ! kbin = maxbin		!Prevents out of range values
 		if (kbin .lt. kmin) cycle ! kbin = minbin		!Prevents out of range values
 
 		select case(integration_algorithm)
 		case(leap_frog_verlet)
 			!Calculate velocity at time t (v is at t+0.5delta_t due to use of verlet algorithm)
-			velvect(:) = v(n,:) + 0.5d0 * a(n,:) * delta_t
+			velvect(:) = v(:,n) + 0.5d0 * a(:,n) * delta_t
 			!Velocity is already at time t for Velocity Verlet algorithm
 		case(velocity_verlet)                                   
-			velvect(:) = v(n,:)
+			velvect(:) = v(:,n)
 		end select
 
 		do ixyz = 1,3
@@ -1179,10 +1179,10 @@ subroutine simulation_compute_kinetic_VA_cells(imin,imax,jmin,jmax,kmin,kmax)
 			select case(integration_algorithm)
 			case(leap_frog_verlet)
 				!Calculate velocity at time t (v is at t+0.5delta_t due to use of verlet algorithm)
-				velvect(:) = v(molnoi,:) + 0.5d0 * a(molnoi,:) * delta_t
+				velvect(:) = v(:,molnoi) + 0.5d0 * a(:,molnoi) * delta_t
 				!Velocity is already at time t for Velocity Verlet algorithm
 			case(velocity_verlet)                                   
-				velvect(:) = v(molnoi,:)
+				velvect(:) = v(:,molnoi)
 			end select
 
 			do ixyz = 1,3
@@ -1256,8 +1256,8 @@ subroutine cumulative_mass_flux
 
 	do n = 1,np
 
-		ri1(:) = r(n,:) 							!Molecule i at time t
-		ri2(:) = r(n,:)	-delta_t*v(n,:)				!Molecule i at time t-dt
+		ri1(:) = r(:,n) 							!Molecule i at time t
+		ri2(:) = r(:,n)	-delta_t*v(:,n)				!Molecule i at time t-dt
 
 		!Assign to bins before and after using integer division
 		ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:)) + nhb
@@ -1310,7 +1310,7 @@ subroutine mass_snapshot
 	volume_mass_temp = 0
 	do n = 1,np
 		!Add up current volume momentum densities
-		ibin(:) = ceiling((r(n,:)+halfdomain(:))/mbinsize(:)) + nhb
+		ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
 		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = volume_mass_temp(ibin(1),ibin(2),ibin(3)) + 1
 	enddo
 
@@ -1394,22 +1394,22 @@ subroutine cumulative_momentum_flux(ixyz)
 
 			!Replace Signum function with this functions which gives a
 			!check for plane crossing and the correct sign 
-			crossplane = ceiling((r(n,ixyz)+halfdomain(ixyz)-shift)/planespacing) & 
-				    	-ceiling((r(n,ixyz)-delta_t*v(n,ixyz)+halfdomain(ixyz)-shift)/planespacing)
+			crossplane = ceiling((r(ixyz,n)+halfdomain(ixyz)-shift)/planespacing) & 
+				    	-ceiling((r(ixyz,n)-delta_t*v(ixyz,n)+halfdomain(ixyz)-shift)/planespacing)
 
 			if (crossplane .ne. 0) then
 
 				!Obtain nearest plane number by integer division 
 				!and retrieve location of plane from array
-				planeno = ceiling((r(n,ixyz)+halfdomain(ixyz)-shift) 	& 
+				planeno = ceiling((r(ixyz,n)+halfdomain(ixyz)-shift) 	& 
 					  /planespacing)-heaviside(dble(crossplane))+1
 				if (planeno .lt. 1) planeno = 1
 				if (planeno .gt. nplanes) planeno = nplanes
 				rplane = planes(planeno)
 
 				!Calculate velocity at time of intersection
-				!crosstime = (r(n,ixyz) - rplane)/v(n,ixyz)
-				velvect(:) = v(n,:) !- a(n,:) * crosstime
+				!crosstime = (r(ixyz,n) - rplane)/v(ixyz,n)
+				velvect(:) = v(:,n) !- a(:,n) * crosstime
 
 				!if (crosstime/delta_t .gt. 1.d0)&
                 !                    call error_abort("error in kinetic MOP")
@@ -1428,9 +1428,9 @@ subroutine cumulative_momentum_flux(ixyz)
 		do n = 1,np	
 
 			!Get velocity at v(t+dt/2) from v(t-dt/2)
-			velvect(:) = v(n,:)
-			ri1(:) = r(n,:) 							!Molecule i at time t
-			ri2(:) = r(n,:)	- delta_t*velvect			!Molecule i at time t-dt
+			velvect(:) = v(:,n)
+			ri1(:) = r(:,n) 							!Molecule i at time t
+			ri2(:) = r(:,n)	- delta_t*velvect			!Molecule i at time t-dt
 			ri12   = ri1 - ri2							!Molecule i trajectory between t-dt and t
 			where (ri12 .eq. 0.d0) ri12 = 0.000001d0
 
@@ -1514,8 +1514,8 @@ subroutine cumulative_momentum_flux(ixyz)
 					jxyz = imaxloc(abs(crossface))	!Integer array of size 1 copied to integer
 
 					!Calculate velocity at time of intersection
-					!crosstime = (r(n,jxyz) - rplane)/v(n,jxyz)
-					!velvect(:) = v(n,:) !- a(n,:) * crosstime
+					!crosstime = (r(jxyz,n) - rplane)/v(jxyz,n)
+					!velvect(:) = v(:,n) !- a(:,n) * crosstime
 					!Change in velocity at time of crossing is not needed as velocity assumed constant 
 					!for timestep and changes when forces are applied.
 
@@ -1583,9 +1583,9 @@ subroutine momentum_snapshot
 	volume_momentum_temp = 0.d0
 	do n = 1,np
 		!Add up current volume momentum densities
-		ibin(:) = ceiling((r(n,:)+halfdomain(:))/mbinsize(:)) + nhb
+		ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
 		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = volume_mass_temp(ibin(1),ibin(2),ibin(3)) + 1
-		volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) = volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) + v(n,:)
+		volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) = volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) + v(:,n)
 	enddo
 
 	binvolume = (domain(1)/nbins(1))*(domain(2)/nbins(2))*(domain(3)/nbins(3))
@@ -1666,21 +1666,21 @@ subroutine cumulative_energy_flux(ixyz)
 
 			!Replace Signum function with this functions which gives a
 			!check for plane crossing and the correct sign 
-			crossplane = ceiling((r(n,ixyz)+halfdomain(ixyz)-shift)/planespacing) & 
-				    	-ceiling((r(n,ixyz)-delta_t*v(n,ixyz)+halfdomain(ixyz)-shift)/planespacing)
+			crossplane = ceiling((r(ixyz,n)+halfdomain(ixyz)-shift)/planespacing) & 
+				    	-ceiling((r(ixyz,n)-delta_t*v(ixyz,n)+halfdomain(ixyz)-shift)/planespacing)
 
 			if (crossplane .ne. 0) then
 
 				!Obtain nearest plane number by integer division 
 				!and retrieve location of plane from array
-				planeno = ceiling((r(n,ixyz)+halfdomain(ixyz)-shift) 	& 
+				planeno = ceiling((r(ixyz,n)+halfdomain(ixyz)-shift) 	& 
 					  /planespacing)-heaviside(dble(crossplane))+1
 				if (planeno .lt. 1) planeno = 1
 				if (planeno .gt. nplanes) planeno = nplanes
 				rplane = planes(planeno)
 
 				!Calculate energy at intersection
-				velvect(:) = v(n,:) + 0.5d0*a(n,:)*delta_t
+				velvect(:) = v(:,n) + 0.5d0*a(:,n)*delta_t
 				energy = 0.5d0 * (dot_product(velvect,velvect) + potenergymol(n))
 
 				if (crosstime/delta_t .gt. 1.d0) call error_abort("error in kinetic MOP")
@@ -1698,8 +1698,8 @@ subroutine cumulative_energy_flux(ixyz)
 
 		do n = 1,np
 
-			ri1(:) = r(n,:)					!Molecule i at time  t
-			ri2(:) = r(n,:)-delta_t*v(n,:)	!Molecule i at time t-dt
+			ri1(:) = r(:,n)					!Molecule i at time  t
+			ri2(:) = r(:,n)-delta_t*v(:,n)	!Molecule i at time t-dt
 			ri12   = ri1 - ri2				!Molecule i trajectory between t-dt and t
 			where (ri12 .eq. 0.d0) ri12 = 0.000001d0
 
@@ -1783,8 +1783,8 @@ subroutine cumulative_energy_flux(ixyz)
 					jxyz = imaxloc(abs(crossface))	!Integer array of size 1 copied to integer
 
 					!Calculate velocity at time of intersection
-					!crosstime = (r(n,jxyz) - rplane)/v(n,jxyz)
-					velvect(:) = v(n,:) + 0.5d0*a(n,:)*delta_t
+					!crosstime = (r(jxyz,n) - rplane)/v(jxyz,n)
+					velvect(:) = v(:,n) + 0.5d0*a(:,n)*delta_t
 					energy = 0.5d0 * (dot_product(velvect,velvect) + potenergymol(n))
 					!Change in velocity at time of crossing is not needed as velocity assumed constant 
 					!for timestep and changes when forces are applied.
@@ -1845,8 +1845,8 @@ subroutine energy_snapshot
 	volume_energy_temp = 0.d0
 	do n = 1,np
 		!Add up current volume momentum densities
-		ibin(:) = ceiling((r(n,:)+halfdomain(:))/mbinsize(:)) + nhb(:)
-		velvect(:) = v(n,:) + 0.5d0*a(n,:)*delta_t
+		ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb(:)
+		velvect(:) = v(:,n) + 0.5d0*a(:,n)*delta_t
 		energy = 0.5d0 * (dot_product(velvect,velvect) + potenergymol(n))
 		volume_energy_temp(ibin(1),ibin(2),ibin(3)) = volume_energy_temp(ibin(1),ibin(2),ibin(3)) + energy
 	enddo
@@ -2590,9 +2590,9 @@ implicit none
 
 		!Stress acting on face over volume
 		if (eflux_outflag .ne. 0) then
-			velvect(:) = v(molnoi,:) 
+			velvect(:) = v(:,molnoi) 
 			!if (molnoi .gt. np) print*, velvect(1)
-			!velvect(:) = v(molnoi,:) + 0.5d0*delta_t*a(molnoi,:)
+			!velvect(:) = v(:,molnoi) + 0.5d0*delta_t*a(:,molnoi)
 			Pxyvface(cbin(1),cbin(2),cbin(3),1) = Pxyvface(cbin(1),cbin(2),cbin(3),1) + dot_product(fij,velvect)*dble(onfacexb)
 			Pxyvface(cbin(1),cbin(2),cbin(3),2) = Pxyvface(cbin(1),cbin(2),cbin(3),2) + dot_product(fij,velvect)*dble(onfaceyb)
 			Pxyvface(cbin(1),cbin(2),cbin(3),3) = Pxyvface(cbin(1),cbin(2),cbin(3),3) + dot_product(fij,velvect)*dble(onfacezb)
@@ -2673,9 +2673,9 @@ end subroutine pressure_tensor_forces_MOP
 !	type(node), pointer 	        :: oldj, currentj
 
 	!Find cell location of specified molecules
-!	icell = ceiling((r(molnoi,1)+halfdomain(1))/cellsidelength(1))+1 !Add 1 due to halo
-!	jcell = ceiling((r(molnoi,2)+halfdomain(2))/cellsidelength(2))+1 !Add 1 due to halo
-!	ri = r(molnoi,:)
+!	icell = ceiling((r(1,molnoi)+halfdomain(1))/cellsidelength(1))+1 !Add 1 due to halo
+!	jcell = ceiling((r(2,molnoi)+halfdomain(2))/cellsidelength(2))+1 !Add 1 due to halo
+!	ri = r(:,molnoi)
 
 !	do jcellshift = -1,1
 !	do icellshift = -1,1
@@ -2685,7 +2685,7 @@ end subroutine pressure_tensor_forces_MOP
 !		do j = 1,adjacentcellnp          !Step through all j for each i
 !			rij2=0                   !Set rij^2 to zero
 !			molnoj = oldj%molno !Number of molecule
-!			rj = r(molnoj,:)         !Retrieve rj
+!			rj = r(:,molnoj)         !Retrieve rj
 !					
 !			currentj => oldj
 !			oldj => currentj%next    !Use pointer in datatype to obtain next item in list

@@ -31,7 +31,7 @@ implicit none
 
 	!Evaluate velocity magnitude
 	do n = 1, np    ! Loop over all molecules
-		vmagnitude(n) = dot_product(v(n,:),v(n,:)) 
+		vmagnitude(n) = dot_product(v(:,n),v(:,n)) 
 	enddo
 	!Obtain maximum velocity
 	vmax = maxval(vmagnitude)

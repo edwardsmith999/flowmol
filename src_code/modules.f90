@@ -543,7 +543,7 @@ contains
 		binsize = domain(ixyz)/nbins(ixyz)
 		get_mass_slices = 0
 		do n=1,np
-			bin = ceiling((r(n,ixyz)+halfdomain(ixyz))/binsize)
+			bin = ceiling((r(ixyz,n)+halfdomain(ixyz))/binsize)
 			if (bin.lt.1) 				bin = 1
 			if (bin.gt.nbins(ixyz)) 	bin = nbins(ixyz)
 			get_mass_slices(bin) = get_mass_slices(bin) + 1
@@ -565,14 +565,14 @@ contains
 		binsize = domain(ixyz)/nbins(ixyz)
 		get_velo_slices = 0
 		do n=1,np
-			bin = ceiling((r(n,ixyz)+halfdomain(ixyz))/binsize)
+			bin = ceiling((r(ixyz,n)+halfdomain(ixyz))/binsize)
 			if (bin.lt.1) 				bin = 1
 			if (bin.gt.nbins(ixyz)) 	bin = nbins(ixyz)
 			select case (integration_algorithm)
 			case (leap_frog_verlet) 
-				get_velo_slices(bin,:) = get_velo_slices(bin,:) + v(n,:) + 0.5d0*a(n,:)*delta_t
+				get_velo_slices(bin,:) = get_velo_slices(bin,:) + v(:,n) + 0.5d0*a(:,n)*delta_t
 			case (velocity_verlet)
-				get_velo_slices(bin,:) = get_velo_slices(bin,:) + v(n,:)
+				get_velo_slices(bin,:) = get_velo_slices(bin,:) + v(:,n)
 			end select
 		end do
 
@@ -605,10 +605,10 @@ contains
 		end do
 
 		do n=1,np
-			slicebin 			= ceiling((r(n,le_sp)+halfdomain(le_sp))/slicebinsize(le_sp))
+			slicebin 			= ceiling((r(le_sp,n)+halfdomain(le_sp))/slicebinsize(le_sp))
 			if (slicebin > nbins(le_sp)) slicebin = nbins(le_sp)	! Prevent out-of-range values
 			if (slicebin < 1) slicebin = 1										! Prevent out-of-range values
-			vel(:) 			 	= v(n,:) - v_avg(slicebin,:) - 0.5d0*a(n,:)*delta_t
+			vel(:) 			 	= v(:,n) - v_avg(slicebin,:) - 0.5d0*a(:,n)*delta_t
 			pec_v2sum 			= pec_v2sum + dot_product(vel,vel)
 		end do
 

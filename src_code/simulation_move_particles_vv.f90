@@ -64,23 +64,23 @@ subroutine simulation_move_particles_vv(pass_num)
 		case(nve)
 			call simulation_move_particles_true_vv
 			do n=1,np
-				r(n,:)     = r(n,:)     + delta_t*v(n,:)       + 0.5d0*(delta_t**2.d0)*a(n,:)
-				v(n,:)     = v(n,:)     + 0.5d0*delta_t*a(n,:)
+				r(:,n)     = r(:,n)     + delta_t*v(:,n)       + 0.5d0*(delta_t**2.d0)*a(:,n)
+				v(:,n)     = v(:,n)     + 0.5d0*delta_t*a(:,n)
 			end do
 
 		case(nvt_NH)
 			call evaluate_dzeta_dt
 			call simulation_move_particles_true_vv
 			do n=1,np
-				r(n,:)     = r(n,:)     + delta_t*v(n,:) + 0.5d0*(delta_t**2.d0)*(a(n,:)-zeta*v(n,:))
-				v(n,:)     = v(n,:)     + 0.5d0*delta_t*(a(n,:)-zeta*v(n,:))
+				r(:,n)     = r(:,n)     + delta_t*v(:,n) + 0.5d0*(delta_t**2.d0)*(a(:,n)-zeta*v(:,n))
+				v(:,n)     = v(:,n)     + 0.5d0*delta_t*(a(:,n)-zeta*v(:,n))
 			end do
 
 		case(nvt_GIK)
 			call simulation_move_particles_true_vv
 			do n=1,np
-				r(n,:)     = r(n,:)     + delta_t*v(n,:) + 0.5d0*(delta_t**2.d0)*(a(n,:)-zeta*v(n,:))
-				v(n,:)     = v(n,:)     + 0.5d0*delta_t*(a(n,:)-zeta*v(n,:))
+				r(:,n)     = r(:,n)     + delta_t*v(:,n) + 0.5d0*(delta_t**2.d0)*(a(:,n)-zeta*v(:,n))
+				v(:,n)     = v(:,n)     + 0.5d0*delta_t*(a(:,n)-zeta*v(:,n))
 			end do			
 
 		case(nvt_PUT_NH)	
@@ -88,16 +88,16 @@ subroutine simulation_move_particles_vv(pass_num)
 			call evaluate_dzeta_dt_PUT
 			call simulation_move_particles_true_vv
 			do n=1,np
-				r(n,:)     = r(n,:)     + delta_t*v(n,:) + 0.5d0*(delta_t**2.d0)*(a(n,:)-zeta*(v(n,:)-U(n,:)))
-				v(n,:)     = v(n,:)     + 0.5d0*delta_t*(a(n,:)-zeta*(v(n,:)-U(n,:)))
+				r(:,n)     = r(:,n)     + delta_t*v(:,n) + 0.5d0*(delta_t**2.d0)*(a(:,n)-zeta*(v(:,n)-U(n,:)))
+				v(:,n)     = v(:,n)     + 0.5d0*delta_t*(a(:,n)-zeta*(v(:,n)-U(n,:)))
 			end do
 		
 		case(nvt_pwa_NH)
 			call evaluate_pwa_terms_pwaNH
 			call simulation_move_particles_true_vv
 			do n=1,np
-				v(n,:)     = v(n,:) + 0.5d0*delta_t*(a(n,:) - zeta*vrelsum(n,:))
-				r(n,:)     = r(n,:) + delta_t*v(n,:)
+				v(:,n)     = v(:,n) + 0.5d0*delta_t*(a(:,n) - zeta*vrelsum(n,:))
+				r(:,n)     = r(:,n) + delta_t*v(:,n)
 			end do
 
 		case(nvt_DPD)
@@ -109,8 +109,8 @@ subroutine simulation_move_particles_vv(pass_num)
 			endif
 			call simulation_move_particles_true_vv
 			do n=1,np
-				v(n,:)     = v(n,:)     + 0.5d0*delta_t*(a(n,:)+aD(n,:)+aR(n,:))
-				r(n,:)     = r(n,:)     + delta_t*v(n,:) 
+				v(:,n)     = v(:,n)     + 0.5d0*delta_t*(a(:,n)+aD(:,n)+aR(:,n))
+				r(:,n)     = r(:,n)     + delta_t*v(:,n) 
 			end do
 			!Regenerate random number for next iteration
 			call random_number(theta)
@@ -131,14 +131,14 @@ subroutine simulation_move_particles_vv(pass_num)
 
 			case(nve)
 				do n=1,np
-					v(n,:) = v(n,:) + 0.5d0*delta_t*a(n,:)
+					v(:,n) = v(:,n) + 0.5d0*delta_t*a(:,n)
 				end do
 	
 			case(nvt_NH)
 				zeta  = zeta + delta_t*dzeta_dt
 				alpha = 1.d0 + 0.5d0*delta_t*zeta
 				do n=1,np
-					v(n,:) = (v(n,:) + 0.5d0*delta_t*a(n,:))/alpha
+					v(:,n) = (v(:,n) + 0.5d0*delta_t*a(:,n))/alpha
 				end do
 			
 			case(nvt_GIK)
@@ -147,7 +147,7 @@ subroutine simulation_move_particles_vv(pass_num)
 					call evaluate_zeta_GIK
 					alpha = 1.d0 + 0.5d0*delta_t*zeta
 					do n=1,np
-						v(n,:) = (v_old(n,:) + 0.5d0*delta_t*a(n,:))/alpha
+						v(:,n) = (v_old(n,:) + 0.5d0*delta_t*a(:,n))/alpha
 					end do
 				end do
 
@@ -156,7 +156,7 @@ subroutine simulation_move_particles_vv(pass_num)
 				zeta  = zeta + delta_t*dzeta_dt
 				alpha = 1.d0 + 0.5d0*delta_t*zeta
 				do n=1,np
-					v(n,:) = (v(n,:) + 0.5d0*delta_t*(a(n,:)+zeta*U(n,:)))/alpha
+					v(:,n) = (v(:,n) + 0.5d0*delta_t*(a(:,n)+zeta*U(n,:)))/alpha
 				end do
 
 			case(nvt_pwa_NH)
@@ -167,7 +167,7 @@ subroutine simulation_move_particles_vv(pass_num)
 					call messenger_updateborders(0)
 					call evaluate_pwa_terms_pwaNH
 					do n=1,np
-						v(n,:) = v_old(n,:) + 0.5d0*delta_t*(a(n,:)- zeta*vrelsum(n,:))
+						v(:,n) = v_old(n,:) + 0.5d0*delta_t*(a(:,n)- zeta*vrelsum(n,:))
 					end do
 					zeta = zeta_old + 0.5d0*delta_t*dzeta_dt
 				end do
@@ -175,7 +175,7 @@ subroutine simulation_move_particles_vv(pass_num)
 			case(nvt_DPD)	
 				call evaluate_DPD(1)
 				do n=1,np
-					v(n,:) = v(n,:) + 0.5d0*delta_t*(a(n,:)+aD(n,:)+aR(n,:))
+					v(:,n) = v(:,n) + 0.5d0*delta_t*(a(:,n)+aD(:,n)+aR(:,n))
 				end do
 
 			case(tag_move)
@@ -206,47 +206,47 @@ contains
 			case (nve)
 
 				do n=1,np
-					vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(n,le_sp)/domain(le_sp))*le_sv
-					rtrue(n,:)     = rtrue(n,:) + delta_t*vtrue(n,:) &
-					                            + 0.5d0*(delta_t**2.d0)*a(n,:)
+					vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
+					rtrue(:,n)     = rtrue(:,n) + delta_t*vtrue(:,n) &
+					                            + 0.5d0*(delta_t**2.d0)*a(:,n)
 					
 				end do
 
 			case (nvt_NH)
 
 				do n=1,np
-					vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(n,le_sp)/domain(le_sp))*le_sv
-					rtrue(n,:)     = rtrue(n,:) + delta_t*vtrue(n,:) &
-					                            + 0.5d0*(delta_t**2.d0)*(a(n,:)-zeta*vtrue(n,:))
+					vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
+					rtrue(:,n)     = rtrue(:,n) + delta_t*vtrue(:,n) &
+					                            + 0.5d0*(delta_t**2.d0)*(a(:,n)-zeta*vtrue(:,n))
 				end do
 
 			case (nvt_GIK)
 				
 				do n=1,np
-					vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(n,le_sp)/domain(le_sp))*le_sv
-					rtrue(n,:)     = rtrue(n,:) + delta_t*vtrue(n,:) &
-					                            + 0.5d0*(delta_t**2.d0)*(a(n,:)-zeta*vtrue(n,:))
+					vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
+					rtrue(:,n)     = rtrue(:,n) + delta_t*vtrue(:,n) &
+					                            + 0.5d0*(delta_t**2.d0)*(a(:,n)-zeta*vtrue(:,n))
 				end do
 	
 			case(nvt_PUT_NH)	
 				do n=1,np
-					vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(n,le_sp)/domain(le_sp))*le_sv
+					vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
 					Utrue(n,:)     = U(n,:)
-					Utrue(n,le_sd) = U(n,le_sd) + anint(rtrue(n,le_sp)/domain(le_sp))*le_sv
-					rtrue(n,:)     = rtrue(n,:) + delta_t*vtrue(n,:) + &
-					                 0.5d0*(delta_t**2.d0)*(a(n,:)-zeta*(v(n,:)-U(n,:)))
+					Utrue(n,le_sd) = U(n,le_sd) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
+					rtrue(:,n)     = rtrue(:,n) + delta_t*vtrue(:,n) + &
+					                 0.5d0*(delta_t**2.d0)*(a(:,n)-zeta*(v(:,n)-U(n,:)))
 				end do
 			
 			case(nvt_pwa_NH)
 				do n=1,np
-					vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(n,le_sp)/domain(le_sp))*le_sv
-					rtrue(n,:)     = rtrue(n,:) + delta_t*vtrue(n,:)
+					vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
+					rtrue(:,n)     = rtrue(:,n) + delta_t*vtrue(:,n)
 				end do
 
 			case(nvt_DPD)
 				do n=1,np
-					vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(n,le_sp)/domain(le_sp))*le_sv
-					rtrue(n,:)     = rtrue(n,:) + delta_t*vtrue(n,:) 
+					vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
+					rtrue(:,n)     = rtrue(:,n) + delta_t*vtrue(:,n) 
 				end do
 
 			case default
@@ -256,7 +256,7 @@ contains
 		else if (pass_num .eq.2) then
 	
 			do n=1,np
-				vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(n,le_sp)/domain(le_sp))*le_sv
+				vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
 			end do
 	
 		end if
@@ -273,7 +273,7 @@ contains
 	
 		v2sum=0.d0
 		do n=1,np
-			v2sum = v2sum + dot_product(v(n,:),v(n,:))
+			v2sum = v2sum + dot_product(v(:,n),v(:,n))
 		end do
 		call globalSum(v2sum)
 
@@ -293,8 +293,8 @@ contains
 		avsum = 0.d0
 		v2sum = 0.d0
 		do n=1,np
-			avsum = avsum + dot_product(a(n,:),v(n,:))
-			v2sum = v2sum + dot_product(v(n,:),v(n,:))
+			avsum = avsum + dot_product(a(:,n),v(:,n))
+			v2sum = v2sum + dot_product(v(:,n),v(:,n))
 		end do
 		call globalSum(avsum)
 		call globalSum(v2sum)
@@ -316,7 +316,7 @@ contains
 
 		pec_v2sum = 0.d0
 		do n=1,np
-			pec_v(:)  = v(n,:) - U(n,:)                                         ! PUT: Find peculiar velocity
+			pec_v(:)  = v(:,n) - U(n,:)                                         ! PUT: Find peculiar velocity
 			pec_v2sum = pec_v2sum + dot_product(pec_v,pec_v)                    ! PUT: Sum peculiar velocities squared
 		end do
 		call globalSum(pec_v2sum)
@@ -350,7 +350,7 @@ contains
 		end do
 		
 		do n=1,np
-			slicebin = ceiling((r(n,le_sp)+halfdomain(le_sp))/&
+			slicebin = ceiling((r(le_sp,n)+halfdomain(le_sp))/&
 			                    slicebinsize(le_sp))
 			if (slicebin > nbins(le_sp)) slicebin = nbins(le_sp)    ! PUT: Prevent out-of-range values
 			if (slicebin < 1) slicebin = 1                                      ! PUT: Prevent out-of-range values
@@ -382,16 +382,16 @@ contains
 
 		do i=1,np
 			
-			ri(:) = r(i,:)
-			vi(:) = v(i,:)
+			ri(:) = r(:,i)
+			vi(:) = v(:,i)
 	
 			do j=i+1,np
 	
-				rj(:)     = r(j,:)
+				rj(:)     = r(:,j)
 				rij(:)    = ri(:) - rj(:)
 				rij2      = dot_product(rij,rij)
 				if (rij2.ge.rcutoff2) cycle
-				vj(:)     = v(j,:)
+				vj(:)     = v(:,j)
 				vij(:)    = vi(:) - vj(:)
 				rijhat(:) = rij(:)/sqrt(rij2)
 				wsq       = (1.d0-(sqrt(rij2)/rcutoff))*(1.d0-(sqrt(rij2)/rcutoff))
@@ -429,15 +429,15 @@ contains
  
 	    	noneighbrs = neighbour%noneighbrs(molnoi)   !Determine number of elements in neighbourlist
 			old        => neighbour%head(molnoi)%point  !Set old to head of neighbour list
-			ri(:)      = r(molnoi,:)
-			vi(:)      = v(molnoi,:)
+			ri(:)      = r(:,molnoi)
+			vi(:)      = v(:,molnoi)
 	
 			do j=1,noneighbrs
 	
 				molnoj    = old%molnoj
 				if (molnoj.eq.molnoi) call error_abort("Self interaction in pwaNH thermostat")
-				rj(:)     = r(molnoj,:)
-				vj(:)     = v(molnoj,:)
+				rj(:)     = r(:,molnoj)
+				vj(:)     = v(:,molnoj)
 				rij(:)    = ri(:) - rj(:)
 				vij(:)    = vi(:) - vj(:)
 				rij2      = dot_product(rij,rij)
@@ -493,26 +493,26 @@ contains
 			do molnoi=1,np
 	 	    	noneighbrs = neighbour%noneighbrs(molnoi)   !Determine number of elements in neighbourlist
 				old        => neighbour%head(molnoi)%point  !Set old to head of neighbour list
-				ri(:)      = r(molnoi,:)
-				vi(:)      = v(molnoi,:)
+				ri(:)      = r(:,molnoi)
+				vi(:)      = v(:,molnoi)
 	
 				do j=1,noneighbrs
 					molnoj    = old%molnoj
 					if (molnoj.eq.molnoi) call error_abort("Self interaction in DPD vv")	!Self interactions are unacceptable!
-					rj(:)     = r(molnoj,:)
+					rj(:)     = r(:,molnoj)
 					rij(:)    = ri(:) - rj(:)
 					rij2      = dot_product(rij,rij)
 
 					!Thermostat force only local for molecules in cutoff range
 					if (rij2 .lt. rcutoff2) then
-						vj(:)     = v(molnoj,:)
+						vj(:)     = v(:,molnoj)
 						vij(:)    = vi(:)-vj(:)
 						rijhat(:) = rij(:)/sqrt(rij2)
 						wD        = -(1.d0-sqrt(rij2)/rcutoff)**2.d0
 						vr        = dot_product(rijhat,vij)
 
-						aD(molnoi,:) = aD(molnoi,:) + zeta*wD*vr*rijhat(:)
-						aD(molnoj,:) = aD(molnoj,:) - zeta*wD*vr*rijhat(:)
+						aD(:,molnoi) = aD(:,molnoi) + zeta*wD*vr*rijhat(:)
+						aD(:,molnoj) = aD(:,molnoj) - zeta*wD*vr*rijhat(:)
 
 					endif
 					
@@ -530,26 +530,26 @@ contains
 			do molnoi=1,np
 	 	    	noneighbrs = neighbour%noneighbrs(molnoi)   !Determine number of elements in neighbourlist
 				old        => neighbour%head(molnoi)%point  !Set old to head of neighbour list
-				ri(:)      = r(molnoi,:)
-				vi(:)      = v(molnoi,:)
-				randi(:)   = theta(molnoi,:)
+				ri(:)      = r(:,molnoi)
+				vi(:)      = v(:,molnoi)
+				randi(:)   = theta(:,molnoi)
 		
 				do j=1,noneighbrs
 					molnoj    = old%molnoj
 					if (molnoj.eq.molnoi) stop "Self interaction in DPD vv"	!self interactions are unacceptable!
-					rj(:)     = r(molnoj,:)
+					rj(:)     = r(:,molnoj)
 					rij(:)    = ri(:)-rj(:)
 					rij2      = dot_product(rij,rij)
 
 					!Thermostat force only local for molecules in cutoff range
 					if (rij2 .lt. rcutoff2) then
-						vj(:)     = v(molnoj,:)
+						vj(:)     = v(:,molnoj)
 						vij(:)    = vi(:)-vj(:)
 						rijhat(:) = rij(:)/sqrt(rij2)
 						wR        = 1.d0-sqrt(rij2)/rcutoff
 						wD        = -wR**2.d0
 						vr        = dot_product(rijhat,vij)
-						randj(:)  = theta(molnoj,:)			
+						randj(:)  = theta(:,molnoj)			
 
 						!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 						!We have N random numbers theta_i and need to generate the theta_ij interaction
@@ -564,11 +564,11 @@ contains
 
 						!Divide by sqrt of dt so delta t can be used for aD and aR 
 						!aR has sqrt of dt as required by ito calculus
-						aD(molnoi,:) = aD(molnoi,:) + zeta*wD*vr*rijhat(:)
-						aR(molnoi,:) = aR(molnoi,:) + sigma*wR*theta_ij(:)*rijhat(:)/sqrt(delta_t)
+						aD(:,molnoi) = aD(:,molnoi) + zeta*wD*vr*rijhat(:)
+						aR(:,molnoi) = aR(:,molnoi) + sigma*wR*theta_ij(:)*rijhat(:)/sqrt(delta_t)
 
-						aD(molnoj,:) = aD(molnoj,:) - zeta*wD*vr*rijhat(:)
-						aR(molnoj,:) = aR(molnoj,:) - sigma*wR*theta_ij(:)*rijhat(:)/sqrt(delta_t)
+						aD(:,molnoj) = aD(:,molnoj) - zeta*wD*vr*rijhat(:)
+						aR(:,molnoj) = aR(:,molnoj) - sigma*wR*theta_ij(:)*rijhat(:)/sqrt(delta_t)
 
 					endif
 					
@@ -611,17 +611,17 @@ contains
 			!Evaluate dissipative terms only
 			aD = 0.d0
 			do molnoi = 1,np					!Step through each particle in list 
-				ri = r(molnoi,:)         	!Retrieve ri
-				vi = v(molnoi,:)
+				ri = r(:,molnoi)         	!Retrieve ri
+				vi = v(:,molnoi)
 
 				do molnoj = molnoi+1,np				!Step through all j for each i
-					rj = r(molnoj,:)				!Retrieve rj
+					rj = r(:,molnoj)				!Retrieve rj
 
 					!Calculate rij using nearest image convention, i.e. if more than half
 					! a domain betwen molecules, must be closer over periodic boundaries  
 					rij2 = 0.d0
 					do ixyz=1,nd
-						rij(ixyz) = r (molnoi,ixyz) - r (molnoj,ixyz)          !Evaluate distance between particle i and j
+						rij(ixyz) = r(ixyz,molnoi) - r(ixyz,molnoj)          !Evaluate distance between particle i and j
 		    				if (abs(rij(ixyz)) > halfdomain(ixyz)) then	
 								rij(ixyz) = rij(ixyz) - sign(domain(ixyz),rij(ixyz)) 
 							endif
@@ -630,14 +630,14 @@ contains
 
 					if (rij2 < rcutoff2) then
 
-						vj        = v(molnoj,:)
+						vj        = v(:,molnoj)
 						vij(:)    = vi(:)-vj(:)
 						rijhat(:) = rij(:)/sqrt(rij2)
 						wD        = -(1.d0-sqrt(rij2)/rcutoff)**2.d0
 						vr        = dot_product(rijhat,vij)
 
-						aD(molnoi,:) = aD(molnoi,:) + zeta*wD*vr*rijhat(:)
-						aD(molnoj,:) = aD(molnoj,:) - zeta*wD*vr*rijhat(:)
+						aD(:,molnoi) = aD(:,molnoi) + zeta*wD*vr*rijhat(:)
+						aD(:,molnoj) = aD(:,molnoj) - zeta*wD*vr*rijhat(:)
 					endif
 
 				enddo
@@ -647,9 +647,9 @@ contains
 			!Evaluate random and dissipative terms
 			aD = 0.d0; aR=0.d0
 			!Calculate mean and variance of random number array
-			meantheta(:) = sum(theta(1:np,:),1)/real(np,kind(0.d0))
+			meantheta(:) = sum(theta(:,1:np),1)/real(np,kind(0.d0))
 			do ixyz = 1,nd
-				vartheta(ixyz)  = sum((theta(1:np,ixyz)-meantheta(ixyz))**2.d0)/real(np,kind(0.d0))
+				vartheta(ixyz)  = sum((theta(ixyz,1:np)-meantheta(ixyz))**2.d0)/real(np,kind(0.d0))
 			enddo
 			!Get mean and variance for theta_ij = (theta_i + theta_j)
 			!using mean_ij = mean_i + mean_j and var_ij = (var_i^2 + var_j^2)^0.5
@@ -658,17 +658,17 @@ contains
 			temp = 0.d0; tempi = 0; temp2 = 0.d0
 
 			do molnoi = 1,np					!Step through each particle in list 
-				ri = r(molnoi,:)         	!Retrieve ri
-				vi 		  = v(molnoi,:)
-				randi(:)  = theta(molnoi,:)	
+				ri = r(:,molnoi)         	!Retrieve ri
+				vi 		  = v(:,molnoi)
+				randi(:)  = theta(:,molnoi)	
 
 				do molnoj = molnoi+1,np				!Step through all j for each i
-					rj = r(molnoj,:)				!Retrieve rj
+					rj = r(:,molnoj)				!Retrieve rj
 					!Calculate rij using nearest image convention, i.e. if more than half
 					! a domain betwen molecules, must be closer over periodic boundaries  
 					rij2 = 0.d0
 					do ixyz=1,nd
-						rij(ixyz) = r (molnoi,ixyz) - r (molnoj,ixyz)          !Evaluate distance between particle i and j
+						rij(ixyz) = r(ixyz,molnoi) - r(ixyz,molnoj)          !Evaluate distance between particle i and j
 		    				if (abs(rij(ixyz)) > halfdomain(ixyz)) then	
 								rij(ixyz) = rij(ixyz) - sign(domain(ixyz),rij(ixyz)) 
 							endif
@@ -676,14 +676,14 @@ contains
 					enddo
 
 					if (rij2 < rcutoff2) then
-						vi 		  = v(molnoi,:)
-						vj        = v(molnoj,:)
+						vi 		  = v(:,molnoi)
+						vj        = v(:,molnoj)
 						vij(:)    = vi(:)-vj(:)
 						rijhat(:) = rij(:)/sqrt(rij2)
 						wR        = 1.d0-sqrt(rij2)/rcutoff
 						wD        = -wR**2.d0
 						vr        = dot_product(rijhat,vij)
-						randj(:)  = theta(molnoj,:)
+						randj(:)  = theta(:,molnoj)
 
 
 						!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -713,11 +713,11 @@ contains
 
 						!Divide by sqrt of dt so delta t can be used for aD and aR 
 						!aR has sqrt of dt as required by ito calculus
-						aD(molnoi,:) = aD(molnoi,:) + zeta*wD*vr*rijhat(:)
-						aR(molnoi,:) = aR(molnoi,:) + sigma*wR*theta_ij(:)*rijhat(:)/sqrt(delta_t)
+						aD(:,molnoi) = aD(:,molnoi) + zeta*wD*vr*rijhat(:)
+						aR(:,molnoi) = aR(:,molnoi) + sigma*wR*theta_ij(:)*rijhat(:)/sqrt(delta_t)
 
-						aD(molnoj,:) = aD(molnoj,:) - zeta*wD*vr*rijhat(:)
-						aR(molnoj,:) = aR(molnoj,:) - sigma*wR*theta_ij(:)*rijhat(:)/sqrt(delta_t)
+						aD(:,molnoj) = aD(:,molnoj) - zeta*wD*vr*rijhat(:)
+						aR(:,molnoj) = aR(:,molnoj) - sigma*wR*theta_ij(:)*rijhat(:)/sqrt(delta_t)
 
 					endif
 
@@ -732,7 +732,7 @@ contains
 			write(1000,'(i8,2f10.5)') iter, temp/tempi, sqrt(temp2/tempi - (temp/tempi)**2)
 		!	print'(a,2f10.5)', 'Fluctuation dissipation required 2 zeros here:', & 
 		!				sigma**2.d0-2.d0*inputtemperature*zeta, wD + wR**2.d0
-		!	print'(a,2i5,2f18.5)', 'Sum of D and R Forces',iter,flag,sum(aD(1:np,:)), sum(aR(1:np,:))
+		!	print'(a,2i5,2f18.5)', 'Sum of D and R Forces',iter,flag,sum(aD(:,1:np)), sum(aR(:,1:np))
 		endif
 
 	end subroutine evaluate_DPD_ap

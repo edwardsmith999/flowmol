@@ -764,9 +764,9 @@ implicit none
 	write(1000,*) 0.d0,			0.d0,		3.4*domain(3)
 	do i=1,np
 		write(1000,*) 'Ar', i
-		write(1000,*) 3.4*r(i,:) !Convert to Angstroms
-		write(1000,*) (3.4/2.16) *v(i,:)	!Convert to Angstroms/ps
-		write(1000,*) a(i,:)
+		write(1000,*) 3.4*r(:,i) !Convert to Angstroms
+		write(1000,*) (3.4/2.16) *v(:,i)	!Convert to Angstroms/ps
+		write(1000,*) a(:,i)
 	enddo
 
 	close(1000,status='keep')
