@@ -184,7 +184,7 @@ contains
 
 		do ip = 1, np
 			! using global particle coordinates
-            rd(:) = r(ip,:)
+            rd(:) = r(:,ip)
 			rd(:) = global_r(rd)
 
 			if ( rd(2) > y(jmin) .or. rd(2) < y(jmino) ) then
@@ -203,7 +203,7 @@ contains
 				 kb > 0 .and. kb <  nlz  ) then 
 
 				!  this particle are in this ranks domain
-				uc_bin(1,kb,ib,1) = uc_bin(1,kb,ib,1) + v(ip,1)
+				uc_bin(1,kb,ib,1) = uc_bin(1,kb,ib,1) + v(1,ip)
 				uc_bin(2,kb,ib,1) = uc_bin(2,kb,ib,1) + 1.d0 
 			else 
 				!print*, 'MD uc_average, outside domain rd', rd, ' bbox%bb ', bbox
@@ -248,7 +248,7 @@ contains
 
 		do ip = 1, np
 			! using global particle coordinates
-			rd(:) = r(ip,:)
+			rd(:) = r(:,ip)
 			rd(:) = global_r(rd)
 
             if( staggered_averages(2))then 
@@ -273,7 +273,7 @@ contains
 			if ( ib > 0 .and. ib < nlx .and. &
 				kb > 0 .and. kb < nlz ) then 
 				!  this particle are in this ranks domain
-				vc_bin(1,kb,ib,jb) = vc_bin(1,kb,ib,jb) + v(ip,2)
+				vc_bin(1,kb,ib,jb) = vc_bin(1,kb,ib,jb) + v(2,ip)
 				vc_bin(2,kb,ib,jb) = vc_bin(2,kb,ib,jb) + 1.d0
 			else 
 				!write(0,*) 'MD vc_average, outside domain rd ', rd, ' bbox%bb ', bbox%bb 
@@ -310,7 +310,7 @@ contains
 
 		do ip = 1, np
 			! use global particle coordinates
-			rd(:) = r(ip,:)
+			rd(:) = r(:,ip)
 			rd(:) = global_r(rd)
 
 			if ( rd(2) > y(jmin) .or. rd(2) < y(jmino) ) then
@@ -328,7 +328,7 @@ contains
 			if ( ib > 0 .and. ib <  nlx .and. &
 				kb > 0 .and. kb <= nlz ) then 
 				!  this particle are in this ranks domain
-				wc_bin(1,kb,ib,1) = wc_bin(1,kb,ib,1) + v(ip,3)
+				wc_bin(1,kb,ib,1) = wc_bin(1,kb,ib,1) + v(3,ip)
 				wc_bin(2,kb,ib,1) = wc_bin(2,kb,ib,1) + 1.d0 
 			else 
 				!write(0,*) 'MD wc_average, outside domain rd', rd, ' bbox%bb ', bbox%bb 
@@ -546,7 +546,7 @@ subroutine apply_force
 
 		acfd =	- box_average(ib,jb,kb)%a(1) / n - inv_dtMD * & 
 				( box_average(ib,jb,kb)%v(1) / n - u_cfd_t_plus_dt(1) )
-		a(ip,1) = a(ip,1) + acfd
+		a(1,ip) = a(1,ip) + acfd
 
 	enddo
 

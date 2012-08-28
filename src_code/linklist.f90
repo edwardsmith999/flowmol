@@ -121,7 +121,7 @@ implicit none
 		!Forces calculated using neighbour lists optimised using 
 		!Newton's 3rd law to count only half of the interactions
 		!if (vflux_outflag .ne. 4) then
-		call assign_to_neighbourlist_halfint
+		call assign_to_neighbourlist_halfint_opt
 		!else
 		!	call assign_to_neighbourlist_halfint_halo
 		!endif
@@ -274,12 +274,9 @@ subroutine assign_to_neighbourlist_halfint
 
 				if(molnoi==molnoj) cycle!Check to prevent interaction with self
 	
-				rij2=0                  !Set rij^2 to zero
 				rij(:) = ri(:) - rj(:)  !Evaluate distance between particle i and j
 
-				do ixyz=1,nd
-					rij2 = rij2+rij(ixyz)*rij(ixyz) !Square of vector calculated
-				enddo
+				rij2 = dot_product(rij,rij)	!Square of vector calculated
 
 				if (potential_flag.eq.1) call check_update_adjacentbeadinfo(molnoi,molnoj)	
 				if (rij2 < rneighbr2) call linklist_checkpushneighbr(molnoi, molnoj)
@@ -311,12 +308,8 @@ subroutine assign_to_neighbourlist_halfint
 					currentj => oldj
 					oldj => currentj%next	!Use pointer in datatype to obtain next item in list
 
-					rij2=0			!Set rij^2 to zero
 					rij(:) = ri(:) - rj(:)	!Evaluate distance between particle i and j
-
-					do ixyz=1,nd
-						rij2 = rij2+rij(ixyz)*rij(ixyz) !Square of vector calculated
-					enddo
+					rij2 = dot_product(rij,rij)	!Square of vector calculated
 
 					if (potential_flag.eq.1) call check_update_adjacentbeadinfo(molnoi,molnoj)	
 					!if (rij2 < rneighbr2) print*,'neighbr_cells',  molnoi, molnoj
@@ -581,6 +574,309 @@ subroutine assign_to_neighbourlist_halfint
 end subroutine assign_to_neighbourlist_halfint
 
 
+
+
+!----------------------------------------------------------------------------------
+! Assign to Neighbourlist count each interaction only once
+! Build a list connecting molecules which are within interacting distance of
+! each other with each interaction counted only once
+
+subroutine assign_to_neighbourlist_halfint_opt
+	use module_linklist
+	implicit none
+
+	integer                         :: i, j,k, ixyz   !Define dummy index
+	integer							:: icell, jcell, kcell
+	integer                         :: cellnp, adjacentcellnp
+	integer							:: molnoi, molnoj
+	integer, dimension(13)          :: icellshift, jcellshift, kcellshift
+	double precision				:: rij2   !magnitude^2 between i and j
+	double precision,dimension(3)   :: ri, rj !Position of molecule i and j
+	double precision,dimension(3)   :: rij    !vector between particles i and j
+	type(node), pointer 	        :: oldihead, oldi, currenti, oldjhead, oldj, currentj
+
+	!Create Neighbourlist array based on current np
+	allocate(neighbour%noneighbrs(np))
+	allocate(neighbour%head(np))
+	do i = 1,np
+		neighbour%noneighbrs(i) = 0	!Zero number of molecules in neighbour list
+		nullify(neighbour%head(i)%point)!Nullify neighbour list head pointer 
+	enddo
+
+	!Assign cell offsets
+	icellshift = (/ 1, 1, 0,-1, 0, 1, 1, 0,-1,-1,-1, 0, 1/)
+	jcellshift = (/ 0, 1, 1, 1, 0, 0, 1, 1, 1, 0,-1,-1,-1/)
+	kcellshift = (/ 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1/)
+
+	!Calculate interactions between all cells in domain and halos
+	do icell=2, ncells(1)+1
+	do jcell=2, ncells(2)+1
+	do kcell=2, ncells(3)+1
+
+		!Retrieve cell np and set old to first molecule in list
+		cellnp = cell%cellnp(icell,jcell,kcell)
+		oldi => cell%head(icell,jcell,kcell)%point 
+
+		!Check interaction within own cell once
+		do i = 1,cellnp                 !Step through each particle in list 
+			molnoi = oldi%molno 	!Number of molecule
+			ri = r(:,molnoi)        !Retrieve ri
+			oldj => oldi%next	!Point j molecule to next molecule to i
+
+			do j = i+1,cellnp          !Step through all j for each i
+
+				molnoj = oldj%molno 	!Number of molecule
+				rj = r(:,molnoj)        !Retrieve rj
+				currentj => oldj
+				oldj => currentj%next   !Use pointer in datatype to obtain next item in list
+
+				if(molnoi==molnoj) cycle!Check to prevent interaction with self
+	
+				rij(:) = ri(:) - rj(:)  !Evaluate distance between particle i and j
+
+				rij2 = dot_product(rij,rij)	!Square of vector calculated
+
+				if (potential_flag.eq.1) call check_update_adjacentbeadinfo(molnoi,molnoj)	
+				if (rij2 < rneighbr2) call linklist_checkpushneighbr(molnoi, molnoj)
+				!if (rij2 < rneighbr2) print*,'own_cell', molnoi, molnoj
+			enddo
+
+			currenti => oldi
+			oldi => currenti%next !Use pointer in datatype to obtain next item in list
+		enddo
+
+		!Reset old to first molecule in list
+		oldihead => cell%head(icell,jcell,kcell)%point
+
+		do k = 1,13
+			oldi => oldihead
+			oldjhead => cell%head(icell+icellshift(k),jcell+jcellshift(k),kcell+kcellshift(k))%point
+			adjacentcellnp = cell%cellnp(icell+icellshift(k),jcell+jcellshift(k),kcell+kcellshift(k))
+
+			do i = 1,cellnp				!Step through each particle in list 
+				molnoi = oldi%molno		!Number of molecule
+				ri = r(:,molnoi)		!Retrieve ri
+
+				oldj => oldjhead		!Reset j to head of linked list
+
+				do j = 1,adjacentcellnp          !Step through all j for each i
+
+					molnoj = oldj%molno 	!Number of molecule
+					rj = r(:,molnoj)	!Retrieve rj
+					currentj => oldj
+					oldj => currentj%next	!Use pointer in datatype to obtain next item in list
+
+					rij(:) = ri(:) - rj(:)	!Evaluate distance between particle i and j
+					rij2 = dot_product(rij,rij)	!Square of vector calculated
+
+					if (potential_flag.eq.1) call check_update_adjacentbeadinfo(molnoi,molnoj)	
+					!if (rij2 < rneighbr2) print*,'neighbr_cells',  molnoi, molnoj
+					if (rij2 < rneighbr2) call linklist_checkpushneighbr(molnoi, molnoj)
+
+				enddo
+
+				currenti => oldi
+				oldi => currenti%next !Use pointer in datatype to obtain next item in list
+
+			enddo
+
+
+		enddo
+	enddo
+	enddo
+	enddo
+
+	!Build up interactions using unchecked halo cells
+
+	!-----------------------------
+	! Bottom xy plane domain face-
+		   kcell=1
+	!       9 Interactions	     -
+	!-----------------------------
+
+	!Perpendicular in z direction
+	k = 5
+	call calculate_cell_interactions_opt(     2     ,ncells(1)+1,icellshift(k), & 
+										      2     ,ncells(2)+1,jcellshift(k),	& 
+										     kcell  ,    kcell  ,kcellshift(k) )
+
+	!Edge cells diagonals in xz plane
+	k = 6
+	call calculate_cell_interactions_opt(     1     ,ncells(1)  ,icellshift(k), & 
+										      2     ,ncells(2)+1,jcellshift(k),	& 
+										     kcell  ,    kcell  ,kcellshift(k) )
+
+	k = 10
+	call calculate_cell_interactions_opt(     3     ,ncells(1)+2,icellshift(k), & 
+										      2     ,ncells(2)+1,jcellshift(k),	& 
+										     kcell  ,    kcell  ,kcellshift(k) )
+
+	!Edge cells diagonals in yz plane
+	k = 8
+	call calculate_cell_interactions_opt(     2     ,ncells(1)+1,icellshift(k), & 
+										      1     ,ncells(2)  ,jcellshift(k),	& 
+										     kcell  ,    kcell  ,kcellshift(k) )
+
+	k = 12
+	call calculate_cell_interactions_opt(     2     ,ncells(1)+1,icellshift(k), & 
+										      3     ,ncells(2)+2,jcellshift(k),	& 
+										     kcell  ,    kcell  ,kcellshift(k) )
+
+	!Corner cell xyz diagonals
+	k =7
+	call calculate_cell_interactions_opt(     1     ,ncells(1)  ,icellshift(k), & 
+										      1     ,ncells(2)  ,jcellshift(k),	& 
+										     kcell  ,    kcell  ,kcellshift(k) )
+
+	k = 9
+	call calculate_cell_interactions_opt(     3     ,ncells(1)+2,icellshift(k), & 
+										      1     ,ncells(2)  ,jcellshift(k),	& 
+										     kcell  ,    kcell  ,kcellshift(k) )
+
+	k = 11
+	call calculate_cell_interactions_opt(     3     ,ncells(1)+2,icellshift(k), & 
+										      3     ,ncells(2)+2,jcellshift(k),	& 
+										     kcell  ,    kcell  ,kcellshift(k) )
+
+	k = 13
+	call calculate_cell_interactions_opt(     1     ,ncells(1)  ,icellshift(k), & 
+										      3     ,ncells(2)+2,jcellshift(k),	& 
+										     kcell  ,    kcell  ,kcellshift(k) )
+
+	!------------------------------
+	! Bottom yz plane domain face -
+		  icell = 1
+	!	5 Interactions
+	!------------------------------
+
+	!Perpendicular in x direction
+	k = 1
+	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
+										      2     ,ncells(2)+1,jcellshift(k),	& 
+										      2     ,ncells(3)+1,kcellshift(k) )
+
+	!Edge cells diagonals in xz plane
+	k = 6
+	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
+										      2     ,ncells(2)+1,jcellshift(k),	& 
+										      2     ,ncells(3)  ,kcellshift(k) )
+
+	!Edge cells diagonals in xy plane
+	k = 2
+	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
+										      1     ,ncells(2)  ,jcellshift(k),	& 
+										      2     ,ncells(3)+1,kcellshift(k) )
+
+	!Corner cell xyz diagonals
+	k = 7
+	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
+										      1     ,ncells(2)  ,jcellshift(k),	& 
+										      2     ,ncells(3)  ,kcellshift(k) )
+
+	k = 13
+	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
+										      3     ,ncells(2)+2,jcellshift(k),	& 
+										      2     ,ncells(3)  ,kcellshift(k) )
+
+	!------------------------------
+	! Top yz plane domain face    -
+	    icell = ncells(1) + 2
+	!	4 Interactions	      -
+	!------------------------------
+
+	!Edge cells diagonals in xy plane
+	k = 4
+	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
+										      1     ,ncells(2)  ,jcellshift(k),	& 
+										      2     ,ncells(3)+1,kcellshift(k) )
+
+	!Edge cells diagonals in xz plane
+	k = 10
+	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
+										      2     ,ncells(2)+1,jcellshift(k),	& 
+										      2     ,ncells(3)  ,kcellshift(k) )
+	!Corner cell xyz diagonals
+	k = 9
+	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
+										      1     ,ncells(2)  ,jcellshift(k),	& 
+										      2     ,ncells(3)  ,kcellshift(k) )
+	k = 11
+	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
+										      3     ,ncells(2)+2,jcellshift(k),	& 
+										      2     ,ncells(3)  ,kcellshift(k) )
+
+	!------------------------------
+	! Bottom xy plane domain face -
+		  jcell = 1
+	!	6 Interactions
+	!------------------------------
+
+	!Perpendicular in y direction
+	k = 3
+	call calculate_cell_interactions_opt(    2     ,ncells(1)+1,icellshift(k), & 
+										     jcell     , jcell ,jcellshift(k),& 
+										     2     ,ncells(3)+1,kcellshift(k) )
+
+	!Edge cells diagonals in xy plane
+	k = 2
+	call calculate_cell_interactions_opt(    2     ,ncells(1)  ,icellshift(k), & 
+										     jcell     , jcell ,jcellshift(k),& 
+										     2     ,ncells(3)+1,kcellshift(k) )
+
+
+	k = 4
+	call calculate_cell_interactions_opt(    3     ,ncells(1)+1,icellshift(k), & 
+										   jcell   , jcell     ,jcellshift(k),& 
+										     2     ,ncells(3)+1,kcellshift(k) )
+
+	!Edge cells diagonals in xz plane
+	k = 8
+	call calculate_cell_interactions_opt(    2     ,ncells(1)+1,icellshift(k), & 
+										     jcell     , jcell ,jcellshift(k),& 
+										     2     ,ncells(3)  ,kcellshift(k) )
+
+	!Corner cell xyz diagonals
+	k = 7
+	call calculate_cell_interactions_opt(    2     ,ncells(1)  ,icellshift(k), & 
+										     jcell     , jcell ,jcellshift(k),& 
+										     2     ,ncells(3)  ,kcellshift(k) )
+
+	k = 9
+	call calculate_cell_interactions_opt(    3     ,ncells(1)+1,icellshift(k), & 
+										     jcell     , jcell ,jcellshift(k),& 
+										     2     ,ncells(3)  ,kcellshift(k) )
+
+	!------------------------------
+	! Top xy plane domain face    -
+	     jcell = ncells(2)+2
+	!	3 Interactions
+	!------------------------------
+
+	!Edge cells diagonals in xz plane
+	k = 12
+	call calculate_cell_interactions_opt(    2     ,ncells(1)+1,icellshift(k), & 
+										     jcell     , jcell ,jcellshift(k),& 
+										     2     ,ncells(3)  ,kcellshift(k) )
+
+	!Corner cell xyz diagonals
+	k = 11
+	call calculate_cell_interactions_opt(    3     ,ncells(1)+1,icellshift(k), & 
+										     jcell     , jcell ,jcellshift(k),& 
+										     2     ,ncells(3)  ,kcellshift(k) )
+
+	k = 13
+	call calculate_cell_interactions_opt(    2     ,ncells(1)  ,icellshift(k), & 
+										     jcell     , jcell ,jcellshift(k),& 
+										     2     ,ncells(3)  ,kcellshift(k) )
+
+
+	nullify(oldi)      	!Nullify as no longer required
+	nullify(oldj)      	!Nullify as no longer required
+	nullify(currenti)      	!Nullify as no longer required
+	nullify(currentj)      	!Nullify as no longer required
+
+end subroutine assign_to_neighbourlist_halfint_opt
+
 !----------------------------------------------------------------------------------
 ! Assign to Neighbourlist each molecules only once so each interaction is
 ! counted twice. Halo molecules are also included which is essential for a
@@ -739,9 +1035,7 @@ subroutine assign_to_neighbourlist_halfint_halo
 				rij2=0                  !Set rij^2 to zero
 				rij(:) = ri(:) - rj(:)  !Evaluate distance between particle i and j
 
-				do ixyz=1,nd
-					rij2 = rij2+rij(ixyz)*rij(ixyz) !Square of vector calculated
-				enddo
+				rij2 = dot_product(rij,rij)	!Square of vector calculated
 
 				if (potential_flag.eq.1) call check_update_adjacentbeadinfo(molnoi,molnoj)	
 				if (rij2 < rneighbr2) call linklist_checkpushneighbr(molnoi, molnoj)
@@ -787,9 +1081,7 @@ subroutine assign_to_neighbourlist_halfint_halo
 					rij2=0			!Set rij^2 to zero
 					rij(:) = ri(:) - rj(:)	!Evaluate distance between particle i and j
 
-					do ixyz=1,nd
-						rij2 = rij2+rij(ixyz)*rij(ixyz) !Square of vector calculated
-					enddo
+					rij2 = dot_product(rij,rij)	!Square of vector calculated
 
 					if (potential_flag.eq.1) call check_update_adjacentbeadinfo(molnoi,molnoj)	
 					!if (rij2 < rneighbr2) print*,'neighbr_cells',  molnoi, molnoj
@@ -876,11 +1168,71 @@ subroutine calculate_cell_interactions(icell, jcell, kcell, k)
 
 			enddo
 
-		currenti => oldi
-		oldi => currenti%next !Use pointer in datatype to obtain next item in list
+			currenti => oldi
+			oldi => currenti%next !Use pointer in datatype to obtain next item in list
 		enddo
 
 end subroutine calculate_cell_interactions
+
+
+
+
+subroutine calculate_cell_interactions_opt(istart,iend,ishift,jstart,jend,jshift,kstart,kend,kshift)
+	use module_linklist
+	implicit none
+
+	integer							:: i, j, ixyz
+	integer,intent(in)				:: istart,iend,ishift,jstart,jend,jshift,kstart,kend,kshift
+	integer							:: icell, jcell, kcell
+	integer                         :: cellnp, adjacentcellnp
+	integer							:: molnoi, molnoj
+	double precision				:: rij2   !magnitude^2 between i and j
+	double precision,dimension(3)   :: ri, rj !Position of molecule i and j
+	double precision,dimension(3)   :: rij    !vector between particles i and j
+	type(node), pointer 	        :: oldi, currenti, oldjhead, oldj, currentj
+
+	do kcell=kstart,kend
+	do jcell=jstart,jend
+	do icell=istart,iend
+
+		cellnp = cell%cellnp(icell,jcell,kcell)
+		oldi => cell%head(icell,jcell,kcell)%point !Set old to first molecule in list
+
+		!Retrieve cell np and set old to first molecule in list
+		adjacentcellnp = cell%cellnp(icell+ishift,jcell+jshift,kcell+kshift)
+		oldjhead => cell%head(icell+ishift,jcell+jshift,kcell+kshift)%point
+
+		!Check interaction with neighbouring cells
+		do i = 1,cellnp                 	!Step through each particle in list 
+			molnoi = oldi%molno 			!Number of molecule
+			ri = r(:,molnoi)        		!Retrieve ri
+
+			oldj => oldjhead				!Reset j to head of linked list
+
+			do j = 1,adjacentcellnp         !Step through all j for each i
+
+				molnoj = oldj%molno 		!Number of molecule
+				rj = r(:,molnoj)         	!Retrieve rj
+				currentj => oldj
+				oldj => currentj%next    	!Use pointer in datatype to obtain next item in list
+
+				rij(:) = ri(:) - rj(:)   	!Evaluate distance between particle i and j
+				rij2 = dot_product(rij,rij)	!Square of vector calculated
+
+				if (potential_flag.eq.1) call check_update_adjacentbeadinfo(molnoi,molnoj)	
+				if (rij2 < rneighbr2) call linklist_checkpushneighbr(molnoj, molnoi)
+
+			enddo
+
+			currenti => oldi
+			oldi => currenti%next !Use pointer in datatype to obtain next item in list
+		enddo
+
+	enddo
+	enddo
+	enddo
+
+end subroutine calculate_cell_interactions_opt
 
 !======================================================================
 !		Linklist manipulation Subroutines                     =

@@ -91,7 +91,7 @@ full_debug_s:
 full_debug_p:
 	@make parallel_md.exe "FLAGS = -O0 -traceback -CB -check all -warn all,nodec,interfaces -gen_interfaces"
 profile_s:
-	@make md.exe "FFLAGS = -fast -pg"
+	@make md.exe "FFLAGS = -O3 -funroll-loops -pg -g"
 memprofile_s:
 	@make md.exe "FFLAGS = -O3 -g"; valgrind --tool=cachegrind ./md.exe
 profile_p:
