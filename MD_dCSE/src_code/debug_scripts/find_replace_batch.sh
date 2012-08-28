@@ -39,6 +39,8 @@ M[16]=':'
 M[17]='np+1:np+halo_np'
 M[18]='1:np'
 M[19]='molnopush'
+M[20]='ip'
+M[21]='np+new_np'
 
 #DIMENSIONAL COLUMN ($D)
 D[1]=':'
@@ -57,7 +59,7 @@ for k in {1..16}
 do
 	for j in {1..11}
 	do
-		for i in {1..19}
+		for i in {1..21}
 		do
 			x="${A[k]}(${M[i]},${D[j]})"
 			y="${A[k]}(${D[j]},${M[i]})"
