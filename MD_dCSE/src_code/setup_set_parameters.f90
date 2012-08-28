@@ -649,11 +649,15 @@ subroutine set_parameters_outputs
 
 	!Allocate and define number of shells used for Radial distribution function (rdf)
 	allocate(rdf_hist(rdf_nbins))                   !Allocate array to tally positions
+	allocate(rdf3d_hist(rdf_nbins,nd))                   !Allocate array to tally positions
 	allocate(rdf(rdf_nbins))                        !Allocate array for radial distribution function
+	allocate(rdf3d(rdf_nbins,nd))                        !Allocate array for radial distribution function
 	allocate(ssf_hist(2*ssf_nmax+1,2*ssf_nmax+1))   !Allocate array to tally positions
 	allocate(ssf(2*ssf_nmax+1,2*ssf_nmax+1))        !Allocate array for radial distribution function
 	rdf_hist= 0
+	rdf3d_hist= 0
 	rdf= 0.d0
+	rdf3d= 0.d0
 	ssf= 0.d0
 	ssf_hist= 0.d0
 

@@ -173,6 +173,9 @@ subroutine simulation_record
 	case(1)
 		call evaluate_properties_rdf
 		call rdf_io
+	case(2)
+		call evaluate_properties_rdf3d
+		call rdf3d_io
 	case default
 	end select
 
@@ -417,6 +420,63 @@ implicit none
 	hist_count = hist_count + 1
 
 end subroutine evaluate_properties_rdf
+
+subroutine evaluate_properties_rdf3d
+use module_record
+implicit none
+
+	integer          :: i,j,bin,ixyz
+	integer, save    :: hist_count=1
+	double precision :: x,dx,Nideal,Nbin,dV
+	double precision :: xij
+
+	!Shell "width"
+	dx = rdf_rmax/real(rdf_nbins,kind(0.d0))
+
+	!Add to histogram of radial separations
+	do i = 1,np-1
+	do j = i+1,np
+
+		do ixyz = 1,nd
+
+			!Find distance between i and j (rmag)
+			xij = r(i,ixyz) - r(j,ixyz)
+			xij = xij - domain(ixyz)*anint(xij/domain(ixyz))
+			x   = abs(xij)			
+
+			!Assign to bin, one entry for each molecule
+			bin    = int(x/dx) + 1
+			if (bin.le.rdf_nbins) then
+				rdf3d_hist(bin,ixyz) = rdf3d_hist(bin,ixyz) + 2
+			end if
+
+		end do
+
+	end do
+	end do
+
+	!Normalise histogram to find g(r) (rdf)
+	do bin = 1,rdf_nbins
+		do ixyz = 1,nd
+
+			x = real(bin - 1.d0)*dx
+			select case(nd)
+			case(2)
+				dV = 2.d0*dx*domain(1)*domain(2)/domain(ixyz) 
+			case(3)
+				!Both sides
+				dV = 2.d0*dx*domain(1)*domain(2)*domain(3)/domain(ixyz)
+			end select
+			Nideal = density*dV
+			Nbin = real(rdf3d_hist(bin,ixyz))/real(np*hist_count)
+			rdf3d(bin,ixyz) = Nbin/Nideal
+
+		end do
+	end do
+
+	hist_count = hist_count + 1
+
+end subroutine evaluate_properties_rdf3d
 
 !============================================================================!
 ! Evaluate static structure factor S(k) in three dimensions

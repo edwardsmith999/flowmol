@@ -460,7 +460,8 @@ module calculated_properties_MD
 
 	integer,dimension(3) :: nbins,nbinso,gnbins	                    !Number of bins to store molecular properties
 	integer,dimension(:), allocatable 		:: vfd_bin        		!Array to keep tally of molecular velocity distribution
-	integer,dimension(:), allocatable 		:: rdf_hist             !Array to keep tally of radial distribution
+	integer,dimension(:), allocatable       :: rdf_hist             !Array to keep tally of radial distribution
+	integer,dimension(:,:), allocatable	    :: rdf3d_hist           !Array to keep tally of radial distribution
 	integer,dimension(:), allocatable 		:: slice_mass	    	!Array to keep tally of molecules in slice
 	integer,dimension(:,:,:), allocatable 	:: slice_massbin 		!Recorded molecules in a bin
 	integer,dimension(:,:,:), allocatable	:: volume_mass			!Mass in a control volume at time t
@@ -498,6 +499,7 @@ module calculated_properties_MD
 
 	double precision, dimension(:,:), allocatable 	:: & 
 		ssf,                &       !Static structure factor
+		rdf3d,				&		!Radial distribution function
 		ssf_hist,           &       !Running total for structure factor calculation
 		slice_momentum,		&		!Mean velocity used in velocity slice
 		Pxy_plane,			&		!Stress on plane for MOP
