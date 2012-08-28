@@ -43,7 +43,6 @@ implicit none
 	deallocate(aD)
 	deallocate(aR)
 	deallocate(vfd_bin)
-	deallocate(RDF)	
 	deallocate(normalisedvfd_bin)
 	deallocate(seed)
 	deallocate(cell%head)
@@ -63,6 +62,12 @@ implicit none
 	deallocate(Pxyzero)
 	deallocate(Pxycorrel)
 
+	if (allocated(rdf))             deallocate(rdf)	
+	if (allocated(rdf3d))           deallocate(rdf3d)	
+	if (allocated(ssf))             deallocate(ssf)	
+	if (allocated(rdf_hist))        deallocate(rdf_hist)	
+	if (allocated(rdf3d_hist))      deallocate(rdf3d_hist)	
+	if (allocated(ssf_hist))        deallocate(ssf_hist)	
 	if (allocated(mass_flux))		deallocate(mass_flux)
 	if (allocated(volume_mass))		deallocate(volume_mass)
 

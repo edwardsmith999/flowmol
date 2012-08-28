@@ -2274,6 +2274,14 @@ implicit none
 	
 end subroutine r_gyration_io 
 
+subroutine rdf3d_io
+	use module_parallel_io
+	implicit none
+
+	print*, 'Need to parallelise RDF i/o'
+
+end subroutine rdf3d_io
+
 subroutine rdf_io
 	use module_parallel_io
 	implicit none

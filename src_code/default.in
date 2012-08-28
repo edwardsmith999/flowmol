@@ -444,11 +444,12 @@ R_GYRATION_OUTFLAG
 # Radial distribution output flag
 #	- flag: 
 #		> 0 - off
-#		> 1 - on
+#		> 1 - on (1D, spherical)
+#		> 2 - on (3D, cartesian)
 #	- maximum radius for the calculation of g(r)
 #	- number of radial "shells" or "bins"
 # -----------------------------------------------------------------------
-RADIALDIST_OUTFLAG
+RDF_OUTFLAG
 0
 3.5
 100
