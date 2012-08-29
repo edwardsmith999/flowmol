@@ -481,6 +481,7 @@ subroutine set_parameters_cells_coupled
 	!Determine side length of cells after rounding and MD ncells
 	cellsidelength = cfd_cellsidelength/cfd_md_cell_ratio
 	ncells = ceiling(domain/cellsidelength)
+	print*, 'IS this ok?',cfd_cellsidelength, ncells, cellsidelength,  domain,size(x), size(y)
 
 	!Ensure domain allows MD cells to be a multiple of CFD cell sizes...
 	if (any(abs(domain(:)/cellsidelength(:)-nint(domain(:)/cellsidelength(:))) .gt. 0.01)) & 

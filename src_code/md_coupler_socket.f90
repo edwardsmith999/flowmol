@@ -15,7 +15,7 @@
 module md_coupler_socket
 	implicit none
 
-#if USE_COUPLER 
+!#if USE_COUPLER 
 
     ! CFD id
     integer cfd_code_id 
@@ -149,10 +149,14 @@ contains
 	subroutine compute_uc_average
 		use coupler_internal_md, only : nlx, nlz, bbox, jmino, jmin => jmin_cfd,&
 						uc_bin,cfd_code_id
+		use calculated_properties_MD, only : volume_mass, volume_momentum
+		use computational_constants_MD, only : iter, ncells
 		implicit none
 
+		integer		:: icell,jcell,kcell
 		integer ib, kb, ip, source, dest, max_ix, ierr
 		real(kind=kind(0.d0)) rd(3)
+		real(kind=kind(0.d0)),allocatable,dimension(:,:) ::	temp_uc
         logical ovr_box_x
 		logical, save :: first_time=.true.
 
@@ -161,8 +165,7 @@ contains
 			first_time = .false.
             if (cfd_code_id == couette_parallel) then 
                 allocate(uc_bin(2,nlz-1,nlx-0,1))
-                !allocate(uc_bin(2,ngz-1,nlx-0,1))
-            else
+             else
                 allocate(uc_bin(2,nlz-1,nlx-1,1))
             endif
 
@@ -176,14 +179,48 @@ contains
             else
                 ovr_box_x = .false.
             endif
+
+			allocate(temp_uc(nlz-1,nlx-0))
+			do icell = 1,size(uc_bin,3)
+			do kcell = 1,size(uc_bin,2)
+				if (uc_bin(2,kcell,icell,1) .gt. 0.d0) then
+					temp_uc(kcell,icell) = uc_bin(1,kcell,icell,1)/uc_bin(2,kcell,icell,1) 
+				else
+					temp_uc(kcell,icell) = 0.d0
+				endif
+			enddo
+			enddo
+
+			!print'(a,4f10.5)', 'MD send BC', maxval(temp_uc),minval(temp_uc),sum(temp_uc),temp_uc(5,60)
+			do icell=1,nlx-0
+				!print'(a,3i8,8f10.5)', 'MD   send  BC',iter,myid,icell,temp_uc(:,icell)
+				print'(a,3i8,4f10.5)', 'MD cell sizes',iter,myid,icell,icell*dx+(bbox%iso),(bbox%iso),(bbox%is),dx
+			enddo
+
+			!print'(a,2i8,4f25.16)', 'MD send2CFD     ', myid ,size(uc_bin), & 
+			!						maxval(uc_bin(1,:,:,1)/uc_bin(2,:,:,1)),minval(uc_bin(1,:,:,1)/uc_bin(2,:,:,1)), & 
+			!						sum(uc_bin(:,:,:,1)),uc_bin(1,:,:,1)/uc_bin(2,5,60,1)
+
+			!do icell = 1,size(uc_bin,3)
+			!do jcell = ncells(2)-5,ncells(2)+1
+			!do kcell = 1,size(uc_bin,2)
+			!	print'(a,5i8,f10.5)', 'coupler output', iter,icell,1,kcell, & 
+			!							sum(nint(uc_bin(2,:,:,1))),sum(uc_bin(1,:,:,1))
+			!enddo
+			!enddo
+			!enddo
+
             call coupler_send_data(uc_bin,index_transpose=(/2,3,1/),use_overlap_box=(/ ovr_box_x, .false., .false./))
 			uc_bin = 0.d0
 
 			return
 		endif
 
+		!print*, 'CFD bottom',y(jmin), y(jmino) 
+
 		do ip = 1, np
-			! using global particle coordinates
+			! Convert particle coordinates to same coordinate system
+			! as CFD code so ymin/ymax from CFD can be used in tests
             rd(:) = r(:,ip)
 			rd(:) = global_r(rd)
 
@@ -192,12 +229,14 @@ contains
 				cycle
 			endif
 
+			!print'(i8,6f10.5)', ip, r(ip,:), rd(:)
+
             if (staggered_averages(1)) then 
-                ib = nint((rd(1) - x(bbox%iso)) / dx) + 1 
+                ib = nint(   (rd(1) - x(bbox%iso)) / dx) + 1 
             else 
-                ib = ceiling((rd(1) - x(bbox%is)) / dx)       
+                ib = ceiling((rd(1) - x(bbox%is )) / dx)       
             endif
-			kb = ceiling((rd(3) - z(bbox%ks)) / dz)       ! cell centred averages; the last z row unused    
+			kb = ceiling((rd(3) - z(bbox%ks)) / dz)       ! cell centred averages; the last z row unused  
 
 			if ( ib > 0 .and. ib <=  ubound(uc_bin,3)  .and. &
 				 kb > 0 .and. kb <  nlz  ) then 
@@ -247,7 +286,8 @@ contains
 		!write(2200+myid,*) bbox%bb
 
 		do ip = 1, np
-			! using global particle coordinates
+			! Convert particle coordinates to same coordinate system
+			! as CFD code so ymin/ymax from CFD can be used in tests
 			rd(:) = r(:,ip)
 			rd(:) = global_r(rd)
 
@@ -271,7 +311,7 @@ contains
 			kb = ceiling((rd(3) - z(bbox%ks)) / dz)     
 
 			if ( ib > 0 .and. ib < nlx .and. &
-				kb > 0 .and. kb < nlz ) then 
+				 kb > 0 .and. kb < nlz ) then 
 				!  this particle are in this ranks domain
 				vc_bin(1,kb,ib,jb) = vc_bin(1,kb,ib,jb) + v(2,ip)
 				vc_bin(2,kb,ib,jb) = vc_bin(2,kb,ib,jb) + 1.d0
@@ -309,7 +349,8 @@ contains
 
 
 		do ip = 1, np
-			! use global particle coordinates
+			! Convert particle coordinates to same coordinate system
+			! as CFD code so ymin/ymax from CFD can be used in tests
 			rd(:) = r(:,ip)
 			rd(:) = global_r(rd)
 
@@ -496,6 +537,10 @@ subroutine average_over_bin_cells
 		!Calculate averages for bin
 		do n = 1, cellnp    ! Loop over all particles
 			molno = old%molno 	 !Number of molecule
+			!Add streamwise velocity & acceleration to current bin
+			box_average(icell,jcell,kcell)%np   = box_average(icell,jcell,kcell)%np   + 1
+			box_average(icell,jcell,kcell)%v(:) = box_average(icell,jcell,kcell)%v(:) + v(molno,1)
+			box_average(icell,jcell,kcell)%a(:) = box_average(icell,jcell,kcell)%a(:) + a(molno,1) 
 
 			box_average(icell,jcell,kcell)%np   =  & 
 							box_average(icell,jcell,kcell)%np   + 1
@@ -534,8 +579,10 @@ subroutine apply_force
 		jb = list(3,i)
 		kb = list(4,i)
 
+		!print'(a,5i8,3f10.5)','Molecule in constraint', i,ib,jb,kb,ip,r(ip,:)
+
 		n = box_average(ib,jb,kb)%np
-		if ( n .eq. 0 ) cycle
+		if ( n .eq. 0 ) stop "This cycle statement makes NO SENSE!! (in md_coupler_socket_apply_force)"
 
 		! using the following exptrapolation formula for continuum velocity
 		! y = (y2-y1)/(x2-x1) * (x-x2) +y2
@@ -1289,7 +1336,7 @@ subroutine setup_CFD_box(iter,xmin,xmax,ymin,ymax,zmin,zmax,dx_cfd,dz_cfd,inv_dt
 end subroutine setup_CFD_box
 
 #if COUPLER_DEBUG_LA
-    ! dumb debug data 
+    ! dump debug data 
 subroutine write_uc(iter)
     use coupler
     use computational_constants_MD, only : initialstep
@@ -1324,6 +1371,6 @@ end subroutine write_uc
 #endif
 
 
-#endif
+!#endif
 
 end module md_coupler_socket
