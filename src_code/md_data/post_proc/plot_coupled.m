@@ -6,39 +6,36 @@ clear all
 scrsz = get(0,'ScreenSize');
 %fig1 = figure('Position',[1 scrsz(4)/4 scrsz(3)/6 scrsz(4)/2]);
 fig2 = figure('Position',[scrsz(3)/6 scrsz(4)/4 scrsz(3)/4 scrsz(4)/2]);
-
+gax = axes('Position', [0.1, 0.1, 0.8, 0.8]);
+hax = axes('Position', [.2, .4, .23, .4]);
 %Select diffusive solver (0) or full DNS (1)
 CFD = 1;
-
-%--- CFD grid size ----
-ngx = 32+1;
-ngy = 32+1;
-ngz = 8+1;
-
-%--- CFD domain size ----
-Lx = 52.1;
-Ly = 52.1;
-Lz = 52.1;
-
-dx = Lx/(ngx-1);
-dy = Ly/ngy;
-dz = Lz/(ngz-1);
 
 %Find results files
 %resultfile_dir = './../results/';
 %resultfile_dir = '/home/es205/codes/coupled/coupler_dCSE/src_code/';
-resultfile_dir = '/home/es205/results/CX1_data/'
+resultfile_dir = '/home/es205/results/MD_continuum_results/code/coupled_couette/varying_processor_study/coupler_dCSE/src_code/';
 resultfile_dir_md = strcat(resultfile_dir,'md_data/results/');
 resultfile_dir_cfd = strcat(resultfile_dir,'couette_data/'); 
 
-%Read Header file
+%Read MD Header file
 resultfile_dir = resultfile_dir_md;
 read_header
 
 if (CFD == 0) 
     read_continuum_header
 elseif(CFD == 1)
-    %Do nothing here
+    %---Get CFD grid size ----
+    %read_grid(strcat(resultfile_dir_cfd,'grid.data'),[1 1 1])
+    [ngx, ngy, ngz, Lx, Ly, Lz, dx, dy, dz] = read_report(strcat(resultfile_dir_cfd,'report'));
+    %ngz = 8+1;
+
+    %--- CFD domain size ----
+    %Lx = max(x_grid);
+    %Ly = max(y_grid);
+    %Lz = 12.7;
+
+
 end
 
 %Check output flags and read data accordingly
@@ -51,7 +48,7 @@ if (velocity_outflag == 4)
 elseif ((velocity_outflag > 0) & (velocity_outflag < 4) )
     read_vslice
 elseif (mass_outflag == 4)
-    read_mbins
+    mass_bins = read_mbins('mbins',resultfile_dir_md);
 elseif ((mass_outflag > 0) & (mass_outflag < 4) )
     read_mslice
 end
@@ -63,7 +60,7 @@ if (CFD == 0)
 	    read_continuum_vslice
 	end
 elseif(CFD == 1)
-    u = Read_DNS('grid.data',resultfile_dir_cfd);
+    u = Read_DNS('grid.data',resultfile_dir_cfd,ngx-2,ngy-1,ngz-2,Lx,Ly,Lz);
     continuum_velslice = u;
 end
 
@@ -71,7 +68,7 @@ end
 
 %continuum_Domain_setup
 %set(0,'currentfigure',fig1)
-%read_grid(strcat(resultfile_dir_cfd,'/../../couette_data/grid.data'),[1 1 1],'plot')
+%read_grid(strcat(resultfile_dir_cfd,'grid.data'),[1 1 1],'plot')
 %%MD domain set-up
 Domain_setup 
 %Plot walls, thermostatted region and sliding vectors
@@ -111,15 +108,22 @@ end
 % ave_mass_slice(:,3) = mean(mass_slice(:,3*t_ave+1:4*t_ave),2);
 % ave_mass_slice(:,4) = mean(mass_slice(:,4*t_ave+1:5*t_ave),2);
 
-%Average two MD cells into one
-MD_cells_per_CFD = 2;
-ave_vel_slice = zeros(size(vel_slice,1)/MD_cells_per_CFD,size(vel_slice,2),size(vel_slice,3));
-ave_mass_slice = zeros(size(mass_slice,1)/MD_cells_per_CFD,size(mass_slice,2),size(mass_slice,3));
-n=1;
-for i=1:MD_cells_per_CFD:size(vel_slice,1)
-    ave_vel_slice(n,:,:) = 0.5*(vel_slice(i,:,:) + vel_slice(i+1,:,:));
-    ave_mass_slice(n,:,:) = 0.5*(mass_slice(i,:,:)+mass_slice(i,:,:));
-    n = n + 1;
+%Average multiple MD cells into one
+MD_cells_per_CFD = 1;
+
+switch MD_cells_per_CFD
+case 1
+    ave_vel_slice = vel_slice;
+    ave_mass_slice = mass_slice;
+case 2
+    ave_vel_slice = zeros(size(vel_slice,1)/MD_cells_per_CFD,size(vel_slice,2),size(vel_slice,3));
+    ave_mass_slice = zeros(size(mass_slice,1)/MD_cells_per_CFD,size(mass_slice,2),size(mass_slice,3));
+    n=1;
+    for i=1:MD_cells_per_CFD:size(vel_slice,1)
+        ave_vel_slice(n,:,:) = 0.5*(vel_slice(i,:,:) + vel_slice(i+1,:,:));
+        ave_mass_slice(n,:,:) = 0.5*(mass_slice(i,:,:)+mass_slice(i,:,:));
+        n = n + 1;
+    end
 end
 
 %Average velocity per molecule
@@ -149,9 +153,9 @@ elseif(CFD == 1)
     wallsize(2) = MD_cells_per_CFD*binsize(2);
     MD_domain = globaldomain - wallsize;
     CFD_domain = [Lx,Ly,Lz];
-    overlap = 3*MD_cells_per_CFD*binsize;
+    overlap = 36*MD_cells_per_CFD*binsize;
     coupleddomain = CFD_domain + MD_domain - overlap;
-    timeratio = delta_t/1.2;
+    timeratio = 4; %delta_t/1.2;
 end
 
 
@@ -159,7 +163,7 @@ u_0 = 1; t_0 = 160;
 
 %Analytical Solution
 spectral_res = 6;
-viscosity = 2.14;
+viscosity = 1.6;
 Re = density*u_0*coupleddomain(ixyz)/viscosity;
 analy_points = 20;%spectral_res*(nbins(ixyz)); % Number of spectral points
 xaxis_analy = 0:1/20:1.00; %As the liquid solid interaction is still 1, the domain is moved in slightly due to molecular sticking at the wall
@@ -170,8 +174,13 @@ xaxis_analy = 0:1/20:1.00; %As the liquid solid interaction is still 1, the doma
 %vidObj.FrameRate = 10;
 %open(vidObj);
 
+plot(ave_vel_slice(:,1,3),'x')
+hold on
+plot(u(:,1),'rs')
+
+
 t_ave = 1;  %Average over timesteps
-m = 2+t_ave; %Initial Timestep
+m = 0+t_ave; %Initial Timestep
 for i = 1:Nvel_records
 
     i
@@ -183,9 +192,10 @@ for i = 1:Nvel_records
 %     hold off
     
     set(0,'currentfigure',fig2)
+    set(fig2,'CurrentAxes',gax)
     %Time -0.5 to record value at half time interval
     %if (m > 200) 
-        t =(m-0.5)*500%delta_t*Nmass_ave*tplot;
+        t =(400+m-0.5)*500%delta_t*Nmass_ave*tplot;
     %else
     %    t = 0;
     %end
@@ -193,16 +203,18 @@ for i = 1:Nvel_records
         coupleddomain(ixyz), ...
         analy_points,'top');
     %analy = startup_plate_analytical_fn(t,t_0,viscosity,density,u_0,liquiddomain(ixyz),analy_points);
-    plot(xaxis_analy,analy/u_0,'k','LineWidth',2);
+    plot(xaxis_analy,analy/u_0,'k','LineWidth',4);
     hold on
 
     %Plot CFD velocity profile
-    plot(linspace(MD_domain(ixyz)-overlap(ixyz)+0.5*cfd_binsize(ixyz),coupleddomain(ixyz)-0.5*cfd_binsize(ixyz),ngy)/coupleddomain(ixyz),continuum_velslice(:,m)/u_0,'s','Color',[.5 .5 .5],'MarkerSize',10,'LineWidth',5);
+    plot(linspace(MD_domain(ixyz)-overlap(ixyz)+0.5*cfd_binsize(ixyz),coupleddomain(ixyz)-0.5*cfd_binsize(ixyz),ngy-1)/coupleddomain(ixyz),continuum_velslice(:,m)/u_0,'s','Color',[.5 .5 .5],'MarkerSize',10,'LineWidth',5);
 	%plot(linspace(1,size(continuum_velslice(:,m)),continuum_velslice(:,m)/u_0,'s','Color',[.5 .5 .5],'MarkerSize',10,'LineWidth',5);
 
     %plot molecular velocity profile
     %plot(xaxis(1:(gnbins(ixyz))),ave_vel_slice(:,1,m)/u_0,'x','LineWidth',5,'Color',[.5 .5 .5],'MarkerSize',20);
-    plot(linspace(-0.5*cfd_binsize(ixyz),MD_domain(ixyz)-0.5*cfd_binsize(ixyz),gnbins(ixyz)/MD_cells_per_CFD)/coupleddomain(ixyz),mean(ave_vel_slice(:,1,25*m-t_ave/2:25*m+t_ave/2),3),'x','LineWidth',5,'Color',[.2 .2 .2],'MarkerSize',10);
+    %plot(linspace(-0.5*cfd_binsize(ixyz),MD_domain(ixyz)-0.5*cfd_binsize(ixyz),gnbins(ixyz)/MD_cells_per_CFD)/coupleddomain(ixyz),mean(ave_vel_slice(:,1,25*m-t_ave/2:25*m+t_ave/2),3),'x','LineWidth',5,'Color',[.2 .2 .2],'MarkerSize',10);
+    plot(linspace(-0.5*cfd_binsize(ixyz),MD_domain(ixyz)-0.5*cfd_binsize(ixyz),gnbins(ixyz)/MD_cells_per_CFD)/coupleddomain(ixyz),mean(ave_vel_slice(:,1,m),3),'x','LineWidth',5,'Color',[.2 .2 .2],'MarkerSize',10);
+   
     %axis([-0.1 1.1 -0.1 1.1]);
 
 
@@ -220,9 +232,17 @@ for i = 1:Nvel_records
     xlabel('y/H'); ylabel('U_x/U')
     plottitle=num2str(t,'%10.6f');
     title(strcat('Plot after  ',plottitle,' time units'));
-    %hold off
+    hold off
 
+    set(fig2,'CurrentAxes',hax)
+    plot(linspace(MD_domain(ixyz)-overlap(ixyz)+0.5*cfd_binsize(ixyz),coupleddomain(ixyz)-0.5*cfd_binsize(ixyz),ngy-1)/coupleddomain(ixyz),continuum_velslice(:,m)/u_0,'s','Color',[.5 .5 .5],'MarkerSize',10,'LineWidth',5);
+    hold on
+	plot(linspace(-0.5*cfd_binsize(ixyz),MD_domain(ixyz)-0.5*cfd_binsize(ixyz),gnbins(ixyz)/MD_cells_per_CFD)/coupleddomain(ixyz),mean(ave_vel_slice(:,1,m),3),'x','LineWidth',5,'Color',[.2 .2 .2],'MarkerSize',10);
+ 	set(hax,'XTick',[]); 
+	axis([ (MD_domain(ixyz)-overlap(ixyz)+0.5*cfd_binsize(ixyz))/coupleddomain(ixyz)-0.2 MD_domain(ixyz)/coupleddomain(ixyz)+0.2 -0.01 0.01])
+    hold off
     drawnow
+    pause(0.1)
     %Store pictures and videos
     %if (mod(m,Nvel_records/10) == 0)
     %    savefig(strcat('Velocity_',num2str(i)),'png')
