@@ -752,11 +752,11 @@ implicit none
 			if (copyplane.eq.le_sp) then
 				if (rebuild.eq.1) then                                  !If rebuilding...
 					mol_wrap_integer(molno) = &                         !Molecular wrap integer kept the same until next rebuild
-					floor((r(np+m,le_sd)+halfdomain(le_sd)+le_sx)/(domain(le_sd)))
+					floor((r(le_sd,np+m)+halfdomain(le_sd)+le_sx)/(domain(le_sd)))
 				end if
-				r(np+m,le_sd) = 	r(np+m,le_sd) + &	!Slide and wrap
+				r(le_sd,np+m) = 	r(le_sd,np+m) + &	!Slide and wrap
 									  		(le_sx-mol_wrap_integer(molno)*domain(le_sd))
-				v(np+m,le_sd) =   v(np+m,le_sd) + le_sv
+				v(le_sd,np+m) =   v(le_sd,np+m) + le_sv
 			end if
 
 			current => old                                              !Use current to move to next
@@ -789,11 +789,11 @@ implicit none
 			if (copyplane.eq.le_sp) then
 				if (rebuild.eq.1) then									!If rebuilding...
 					mol_wrap_integer(molno) = &							!Molecular wrap integer kept the same until next rebuild
-					-floor((r(np+m,le_sd)+halfdomain(le_sd)-le_sx)/(domain(le_sd)))
+					-floor((r(le_sd,np+m)+halfdomain(le_sd)-le_sx)/(domain(le_sd)))
 				end if
-				r(np+m,le_sd) = 	r(np+m,le_sd) - & !Slide and wrap
+				r(le_sd,np+m) = 	r(le_sd,np+m) - & !Slide and wrap
 									  		(le_sx-mol_wrap_integer(molno)*domain(le_sd))
-				v(np+m,le_sd) =   v(np+m,le_sd) - le_sv
+				v(le_sd,np+m) =   v(le_sd,np+m) - le_sv
 			end if
 		
 			current => old			    								!Use current to move to next
@@ -888,21 +888,21 @@ implicit none
 		!---- Slide and wrap in shearing plane first --------------------!
 		if (r(le_sp,n) .ge. halfdomain(le_sp)) then   									!Above +halfdomain
 			r(le_sp,n) = r(le_sp,n) - domain(le_sp) 								!Move to other side of domain
-			r(n,le_sd) = r(n,le_sd) - (le_sx - wrap_integer*domain(le_sd))
-			v(n,le_sd) = v(n,le_sd) - le_sv
+			r(le_sd,n) = r(le_sd,n) - (le_sx - wrap_integer*domain(le_sd))
+			v(le_sd,n) = v(le_sd,n) - le_sv
 		end if
 		if (r(le_sp,n) .lt. -halfdomain(le_sp)) then   									!Below -halfdomain
 			r(le_sp,n) = r(le_sp,n) + domain(le_sp) 								!Move to other side of domain
-			r(n,le_sd) = r(n,le_sd) + (le_sx - wrap_integer*domain(le_sd))
-			v(n,le_sd) = v(n,le_sd) + le_sv
+			r(le_sd,n) = r(le_sd,n) + (le_sx - wrap_integer*domain(le_sd))
+			v(le_sd,n) = v(le_sd,n) + le_sv
 		endif
 		!----------------------------------------------------------------!
 
-		if (r(n,le_sd) >= halfdomain(le_sd)) then   							!Above +halfdomain
-			r(n,le_sd) = r(n,le_sd) - domain(le_sd) 					!Move to other side of domain
+		if (r(le_sd,n) >= halfdomain(le_sd)) then   							!Above +halfdomain
+			r(le_sd,n) = r(le_sd,n) - domain(le_sd) 					!Move to other side of domain
 		end if			
-		if (r(n,le_sd) < -halfdomain(le_sd)) then   							!Below -halfdomain
-			r(n,le_sd) = r(n,le_sd) + domain(le_sd) 					!Move to other side of domain
+		if (r(le_sd,n) < -halfdomain(le_sd)) then   							!Below -halfdomain
+			r(le_sd,n) = r(le_sd,n) + domain(le_sd) 					!Move to other side of domain
 		endif
 
 		if (r(le_rp,n) >= halfdomain(le_rp)) then   					!Above +halfdomain

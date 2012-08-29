@@ -440,7 +440,7 @@ implicit none
 		do ixyz = 1,nd
 
 			!Find distance between i and j (rmag)
-			xij = r(i,ixyz) - r(j,ixyz)
+			xij = r(ixyz,i) - r(ixyz,j)
 			xij = xij - domain(ixyz)*anint(xij/domain(ixyz))
 			x   = abs(xij)			
 
@@ -592,7 +592,7 @@ subroutine etevtcf_calculate_parallel
 	use module_record
 	implicit none
 	
-	integer :: n,i,j
+	integer :: nbond,i,j
 	integer :: chain, i_sub, j_sub, funcy
 	double precision :: etev_prod, etev_prod_sum
 	double precision :: etev2, etev2_sum
@@ -607,8 +607,8 @@ subroutine etevtcf_calculate_parallel
 			chain = monomer(i)%chainID
 			i_sub = monomer(i)%subchainID
 			funcy = monomer(i)%funcy
-			do n=1,funcy
-				j      = bond(i,n)
+			do nbond=1,funcy
+				j      = bond(nbond,i)
 				j_sub  = monomer(j)%subchainID
 				if (j_sub.lt.i_sub) cycle  !Avoid counting backwards
 				rij(:) = r(:,j) - r(:,i)
@@ -626,8 +626,8 @@ subroutine etevtcf_calculate_parallel
 		chain = monomer(i)%chainID
 		i_sub = monomer(i)%subchainID
 		funcy = monomer(i)%funcy
-		do n=1,funcy
-			j             = bond(i,n)     ! Molecule number j is nth bond to i
+		do nbond=1,funcy
+			j             = bond(nbond,i)     ! Molecule number j is nth bond to i
 			j_sub         = monomer(j)%subchainID  ! Find subchain ID of mol j
 			if (j_sub.lt.i_sub) cycle              ! Avoid counting backwards
 			rij(:)        = r(:,j) - r(:,i)                     
@@ -1075,7 +1075,7 @@ subroutine cumulative_pressure(ixyz,sample_count)
 				rglob(2) = r(2,n)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
 				rglob(3) = r(3,n)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
 				velvect(le_sd) = velvect(le_sd) - rglob(le_sp)*le_sr 
-				!velvect(:) = velvect(:) - U(n,:)
+				!velvect(:) = velvect(:) - U(:,n)
 			end if
 
 			do jxyz = 1,3

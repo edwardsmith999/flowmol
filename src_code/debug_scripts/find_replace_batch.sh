@@ -18,6 +18,7 @@ A[13]="tag"
 A[14]="fix"
 A[15]="slidev"
 A[16]="thermostat"
+A[17]="U"
 
 #MOLECULAR COLUMN ($M)
 M[1]='molno'
@@ -54,10 +55,11 @@ D[8]='le_sp'
 D[9]='le_rp'
 D[10]='np'
 D[11]='copyplane'
+D[12]='le_sd'
 
-for k in {1..16}
+for k in {1..17}
 do
-	for j in {1..11}
+	for j in {1..12}
 	do
 		for i in {1..21}
 		do
@@ -69,7 +71,7 @@ do
 	    	#echo "$x => $y"
 			grep $x *.f90
 	    	#echo "=========================================="
-			#grep -rl $x *.f90 | xargs sed -i -e $s
+			grep -rl $x *.f90 | xargs sed -i -e $s
 
 		done
 	done

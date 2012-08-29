@@ -185,8 +185,8 @@ subroutine setup_polymer_info
 	integer :: n
 	
 	!Allocate polymer arrays
-	allocate(bond(np+extralloc,max_funcy))
-	bond(:,:) = 0
+	allocate(bond(max_funcy,np+extralloc))
+	bond = 0
 	allocate(bondcount(np+extralloc))
 	bondcount = 0
 	allocate(monomer(np+extralloc))
