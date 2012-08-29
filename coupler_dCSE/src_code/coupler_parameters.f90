@@ -24,7 +24,7 @@ module coupler_parameters
                           COUPLER_ERROR_INIT       = 3, &  ! initialisation error
                           COUPLER_ERROR_INPUT_FILE = 4, &  ! wrong value in input file
                           COUPLER_ERROR_READ_INPUT = 5, &  ! error in processing input file or data transfers
-                          COUPLER_ERROR_CONTINUUM_FORCE = 6, & ! the region in which the continuum constrain force is apply spans over two MD domains
+                          COUPLER_ERROR_CONTINUUM_FORCE = 6, & !the region in which the continuum constrain force is apply spans over two MD domains
                           COUPLER_ABORT_ON_REQUEST = 7, & ! used in request_abort 
                           COUPLER_ABORT_SEND_CFD   = 8 ! error in coupler_cfd_send
 
@@ -36,7 +36,7 @@ module coupler_parameters
         !indices for the cfd grid box covering the local domain, outside and inside
         integer imino,imaxo,jmino,jmaxo,kmino,kmaxo
         integer imin, imax,  jmin, jmax, kmin, kmax
-        !global limits of CFD grig
+        !global limits of CFD grid
         integer gimin, gimax, gjmin, gjmax, gkmin,gkmax 
         
         real(kind(0.d0)) xmin,xmax,dx,zmin,zmax,dz,ymin,ymax

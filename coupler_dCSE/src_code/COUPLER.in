@@ -14,14 +14,14 @@ DENSITY
 # CFD MD overlap cells - size of overlap region
 # ----------------------------------------------------------------------
 OVERLAP_CELLS
-3
+36
 #########################################################################
 # molecular dynamics 
 # size of molecular domain? 
 # averaging used for values passed by coupler?
 # ----------------------------------------------------------------------
 MD_LY_EXTENSION
-15.39
+130.28
 MD_AVERAGE_PERIOD
 1
 #

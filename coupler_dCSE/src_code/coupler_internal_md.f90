@@ -31,7 +31,7 @@ module coupler_internal_md
 	real(kind=kind(0.d0)) :: dt_MD
 
 	! data structures to hold CFD - MD mapping 
-	! bounding box of MD domain within FD global domain
+	! bounding box of MD domain within CFD global domain
 	type bbox_domain
 		integer is,ie,js,je,ks,ke
         integer iso,ieo,jso,jeo,kso,keo ! overlap indices
@@ -40,7 +40,7 @@ module coupler_internal_md
 
 	type(bbox_domain), target :: bbox
 
-	! thicknes of the MD region between the wall and CFD grid 
+	! thickness of the MD region below the CFD grid 
 	real(kind=kind(0.d0)) DY_PURE_MD
 
 	! local domain lenghts, and halves
@@ -311,8 +311,8 @@ contains
 
         do id=1,3
 
-        !If there is only one CFD cell in a direction then things can be made simpler.
-        !One CFD cell means that direction is used to improve MD statistics. 
+        	!If there is only one CFD cell in a direction then things can be made simpler.
+        	!One CFD cell means that direction is used to improve MD statistics. 
             if ( grid_sizes(2,id) - grid_sizes(1,id) == 1) then
 				bbox_ptr(id)%starto = grid_sizes(1,id)
                 bbox_ptr(id)%start  = grid_sizes(1,id)
