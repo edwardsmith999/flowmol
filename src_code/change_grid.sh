@@ -24,22 +24,23 @@ checkparam() {
 #Check input files agree
 
 #Domain sizes
-Lx=$(awk '/Lx/  {print $1}' ./DNS_grid_generation_Couette/input.file)
-xL=$(awk '/xL/  {print $1}' ./DNS_setup_Couette/input.setup)
-px=$(awk '/ngx/ {print $3}' ./DNS_main_code_Couette/param.inc)
+Lx=$(awk '/Lx/  {print $1}' ./grid_generation/input.file)
+xL=$(awk '/xL/  {print $1}' ./setup/input.setup)
+px=$(awk '/ngx/ {print $3}' ./main_code/param.inc)
 
 #checkparam $Lx $xL
 
-awk '/Ly/  { Ly = $1}' ./DNS_grid_generation_Couette/input.file
-awk '/yL/  { yL = $1}' ./DNS_setup_Couette/input.setup
-awk '/ngy/  {print $1}' ./DNS_main_code_Couette/param.inc
+awk '/Ly/  { Ly = $1}' ./grid_generation/input.file
+awk '/yL/  { yL = $1}' ./setup/input.setup
+awk '/ngy/  {print $1}' ./main_code/param.inc
 
 #checkparam $Ly $yL
 
 #awk '/ngx/ { ngx = $1}' ./DNS_grid_generation_Couette/input.file
 #awk '/ngy/ { ngy = $1}' ./DNS_grid_generation_Couette/input.file
 
-cd ./DNS_grid_generation_Couette
+cd ./grid_generation
+touch ./Gen_grid.data.exe
 rm ./Gen_grid.data.exe
 ifort        -r8 -o Gen_grid.data.exe  main.f90 mesh_tanh_stretch.f90
 ./Gen_grid.data.exe
@@ -49,7 +50,7 @@ if [ $# -eq 1 ]; then
 	./Gen_sym_grid.exe
 	mv grid.data.2 ./grid.data
 fi
-cp grid.data ./../DNS_setup_Couette/
-cd ./../DNS_setup_Couette
+cp grid.data ./../setup/
+cd ./../setup
 ./a.out
 cd ./../
