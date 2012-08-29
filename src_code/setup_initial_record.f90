@@ -172,6 +172,8 @@ subroutine setup_initial_record
 			print*, 'VMD output with seperate solid/liquid every:', tplot, 'iterations'
 		case(3)
 			print*, 'VMD output Domain+halos every:', tplot, 'iterations'
+		case(4)
+			print*, 'VMD output true unwrapped positions every:', tplot, 'iterations'
 		case default
 			call error_abort("Invalid VMD output flag in input file")
 		end select

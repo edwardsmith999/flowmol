@@ -15,7 +15,7 @@
 module md_coupler_socket
 	implicit none
 
-!#if USE_COUPLER 
+#if USE_COUPLER 
 
     ! CFD id
     integer cfd_code_id 
@@ -1371,6 +1371,6 @@ end subroutine write_uc
 #endif
 
 
-!#endif
+#endif
 
 end module md_coupler_socket
