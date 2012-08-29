@@ -51,9 +51,9 @@ subroutine simulation_move_particles_vv(pass_num)
 	double precision       :: zeta_old
 	double precision, save :: dzeta_dt
 	double precision, save :: zeta=0.d0
-	double precision, dimension(np,nd) :: v_old
-	double precision, dimension(np,nd) :: vrelsum
-	double precision, dimension(np,nd) :: U, Utrue
+	double precision, dimension(nd,np) :: v_old
+	double precision, dimension(nd,np) :: vrelsum
+	double precision, dimension(nd,np) :: U, Utrue
 
 
 	!--------First half of velocity-Verlet algorithm. Finds r(t+dt) and v(t+dt/2).--------!
@@ -88,15 +88,15 @@ subroutine simulation_move_particles_vv(pass_num)
 			call evaluate_dzeta_dt_PUT
 			call simulation_move_particles_true_vv
 			do n=1,np
-				r(:,n)     = r(:,n)     + delta_t*v(:,n) + 0.5d0*(delta_t**2.d0)*(a(:,n)-zeta*(v(:,n)-U(n,:)))
-				v(:,n)     = v(:,n)     + 0.5d0*delta_t*(a(:,n)-zeta*(v(:,n)-U(n,:)))
+				r(:,n)     = r(:,n)     + delta_t*v(:,n) + 0.5d0*(delta_t**2.d0)*(a(:,n)-zeta*(v(:,n)-U(:,n)))
+				v(:,n)     = v(:,n)     + 0.5d0*delta_t*(a(:,n)-zeta*(v(:,n)-U(:,n)))
 			end do
 		
 		case(nvt_pwa_NH)
 			call evaluate_pwa_terms_pwaNH
 			call simulation_move_particles_true_vv
 			do n=1,np
-				v(:,n)     = v(:,n) + 0.5d0*delta_t*(a(:,n) - zeta*vrelsum(n,:))
+				v(:,n)     = v(:,n) + 0.5d0*delta_t*(a(:,n) - zeta*vrelsum(:,n))
 				r(:,n)     = r(:,n) + delta_t*v(:,n)
 			end do
 
@@ -147,7 +147,7 @@ subroutine simulation_move_particles_vv(pass_num)
 					call evaluate_zeta_GIK
 					alpha = 1.d0 + 0.5d0*delta_t*zeta
 					do n=1,np
-						v(:,n) = (v_old(n,:) + 0.5d0*delta_t*a(:,n))/alpha
+						v(:,n) = (v_old(:,n) + 0.5d0*delta_t*a(:,n))/alpha
 					end do
 				end do
 
@@ -156,7 +156,7 @@ subroutine simulation_move_particles_vv(pass_num)
 				zeta  = zeta + delta_t*dzeta_dt
 				alpha = 1.d0 + 0.5d0*delta_t*zeta
 				do n=1,np
-					v(:,n) = (v(:,n) + 0.5d0*delta_t*(a(:,n)+zeta*U(n,:)))/alpha
+					v(:,n) = (v(:,n) + 0.5d0*delta_t*(a(:,n)+zeta*U(:,n)))/alpha
 				end do
 
 			case(nvt_pwa_NH)
@@ -167,7 +167,7 @@ subroutine simulation_move_particles_vv(pass_num)
 					call messenger_updateborders(0)
 					call evaluate_pwa_terms_pwaNH
 					do n=1,np
-						v(:,n) = v_old(n,:) + 0.5d0*delta_t*(a(:,n)- zeta*vrelsum(n,:))
+						v(:,n) = v_old(:,n) + 0.5d0*delta_t*(a(:,n)- zeta*vrelsum(:,n))
 					end do
 					zeta = zeta_old + 0.5d0*delta_t*dzeta_dt
 				end do
@@ -206,7 +206,7 @@ contains
 			case (nve)
 
 				do n=1,np
-					vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
+					vtrue(le_sd,n) = v(le_sd,n) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
 					rtrue(:,n)     = rtrue(:,n) + delta_t*vtrue(:,n) &
 					                            + 0.5d0*(delta_t**2.d0)*a(:,n)
 					
@@ -215,7 +215,7 @@ contains
 			case (nvt_NH)
 
 				do n=1,np
-					vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
+					vtrue(le_sd,n) = v(le_sd,n) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
 					rtrue(:,n)     = rtrue(:,n) + delta_t*vtrue(:,n) &
 					                            + 0.5d0*(delta_t**2.d0)*(a(:,n)-zeta*vtrue(:,n))
 				end do
@@ -223,29 +223,29 @@ contains
 			case (nvt_GIK)
 				
 				do n=1,np
-					vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
+					vtrue(le_sd,n) = v(le_sd,n) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
 					rtrue(:,n)     = rtrue(:,n) + delta_t*vtrue(:,n) &
 					                            + 0.5d0*(delta_t**2.d0)*(a(:,n)-zeta*vtrue(:,n))
 				end do
 	
 			case(nvt_PUT_NH)	
 				do n=1,np
-					vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
-					Utrue(n,:)     = U(n,:)
-					Utrue(n,le_sd) = U(n,le_sd) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
+					vtrue(le_sd,n) = v(le_sd,n) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
+					Utrue(:,n)     = U(:,n)
+					Utrue(le_sd,n) = U(le_sd,n) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
 					rtrue(:,n)     = rtrue(:,n) + delta_t*vtrue(:,n) + &
-					                 0.5d0*(delta_t**2.d0)*(a(:,n)-zeta*(v(:,n)-U(n,:)))
+					                 0.5d0*(delta_t**2.d0)*(a(:,n)-zeta*(v(:,n)-U(:,n)))
 				end do
 			
 			case(nvt_pwa_NH)
 				do n=1,np
-					vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
+					vtrue(le_sd,n) = v(le_sd,n) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
 					rtrue(:,n)     = rtrue(:,n) + delta_t*vtrue(:,n)
 				end do
 
 			case(nvt_DPD)
 				do n=1,np
-					vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
+					vtrue(le_sd,n) = v(le_sd,n) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
 					rtrue(:,n)     = rtrue(:,n) + delta_t*vtrue(:,n) 
 				end do
 
@@ -256,7 +256,7 @@ contains
 		else if (pass_num .eq.2) then
 	
 			do n=1,np
-				vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
+				vtrue(le_sd,n) = v(le_sd,n) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
 			end do
 	
 		end if
@@ -316,7 +316,7 @@ contains
 
 		pec_v2sum = 0.d0
 		do n=1,np
-			pec_v(:)  = v(:,n) - U(n,:)                                         ! PUT: Find peculiar velocity
+			pec_v(:)  = v(:,n) - U(:,n)                                         ! PUT: Find peculiar velocity
 			pec_v2sum = pec_v2sum + dot_product(pec_v,pec_v)                    ! PUT: Sum peculiar velocities squared
 		end do
 		call globalSum(pec_v2sum)
@@ -354,7 +354,7 @@ contains
 			                    slicebinsize(le_sp))
 			if (slicebin > nbins(le_sp)) slicebin = nbins(le_sp)    ! PUT: Prevent out-of-range values
 			if (slicebin < 1) slicebin = 1                                      ! PUT: Prevent out-of-range values
-			U(n,:) = v_avg(slicebin,:)
+			U(:,n) = v_avg(slicebin,:)
 		end do
 
 		deallocate(m_slice)
@@ -397,8 +397,8 @@ contains
 				wsq       = (1.d0-(sqrt(rij2)/rcutoff))*(1.d0-(sqrt(rij2)/rcutoff))
 				vr        = dot_product(vij,rijhat)
 
-				vrelsum(i,:) = vrelsum(i,:) + wsq*vr*rijhat(:)
-				vrelsum(j,:) = vrelsum(j,:) - wsq*vr*rijhat(:)
+				vrelsum(:,i) = vrelsum(:,i) + wsq*vr*rijhat(:)
+				vrelsum(:,j) = vrelsum(:,j) - wsq*vr*rijhat(:)
 				
 				dzeta_dt = dzeta_dt + wsq*(vr**2.d0 - inputtemperature*2.d0)/Q 
 
@@ -446,8 +446,8 @@ contains
 				if (rij2.ge.rcutoff2) wsq = 0.d0
 				vr        = dot_product(vij,rijhat)
 
-				vrelsum(molnoi,:) = vrelsum(molnoi,:) + wsq*vr*rijhat(:)
-				vrelsum(molnoj,:) = vrelsum(molnoj,:) - wsq*vr*rijhat(:)
+				vrelsum(:,molnoi) = vrelsum(:,molnoi) + wsq*vr*rijhat(:)
+				vrelsum(:,molnoj) = vrelsum(:,molnoj) - wsq*vr*rijhat(:)
 				
 				dzeta_dt = dzeta_dt + wsq*(vr**2.d0 - inputtemperature*2.d0)/Q 
 

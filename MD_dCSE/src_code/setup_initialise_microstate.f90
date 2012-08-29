@@ -481,7 +481,7 @@ subroutine setup_initialise_polyinfo
 			monomer(n)%subchainID  = 1
 			monomer(n)%glob_no     = n
 			monomer(n)%funcy       = 0
-			bond(n,:)              = 0
+			bond(:,n)              = 0
 		
 		case default
 		end select

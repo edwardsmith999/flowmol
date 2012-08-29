@@ -565,7 +565,7 @@ subroutine simulation_compute_forces_FENE
 
 		do b=1,monomer(molnoi)%funcy
 
-			molnoj = bond(molnoi,b)
+			molnoj = bond(b,molnoi)
 			if (molnoj.eq.0) cycle
 
 			rj(:)  = r(:,molnoj)
@@ -595,42 +595,42 @@ subroutine simulation_compute_forces_FENE
 
 contains
 
-subroutine polymer_bond_error(molnoX)
-	use interfaces
-	implicit none
+	subroutine polymer_bond_error(molnoX)
+		use interfaces
+		implicit none
 
-	integer :: molnoX
+		integer :: molnoX
 
-	print*, 'irank: ', irank
-	print '(a,i6,a,i4,a,i4,a,f8.5,a,f8.5,a,f12.5)', & 
-			 	'Bond broken at iter ',iter,': atoms ',molnoi,' and ',molnoX,' are separated by ', &
-				rij2**0.5,', which is greater than the allowed limit of ', R_0, &
-				'. Stopping simulation, total time elapsed = ', iter*delta_t
-	print '(a)', 'Atomic positions:'
-	print '(a,i4,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoi,' is located at ',r(1,molnoi),' ',r(2,molnoi),' ',r(3,molnoi) 
-	print '(a,i4,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoX,' is located at ',r(1,molnoX),' ',r(2,molnoX),' ',r(3,molnoX) 
+		print*, 'irank: ', irank
+		print '(a,i6,a,i4,a,i4,a,f8.5,a,f8.5,a,f12.5)', & 
+					'Bond broken at iter ',iter,': atoms ',molnoi,' and ',molnoX,' are separated by ', &
+					rij2**0.5,', which is greater than the allowed limit of ', R_0, &
+					'. Stopping simulation, total time elapsed = ', iter*delta_t
+		print '(a)', 'Atomic positions:'
+		print '(a,i4,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoi,' is located at ',r(1,molnoi),' ',r(2,molnoi),' ',r(3,molnoi) 
+		print '(a,i4,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoX,' is located at ',r(1,molnoX),' ',r(2,molnoX),' ',r(3,molnoX) 
 
-	print '(a,i4,a)', 'Monomer information for atom ', molnoi,':'
-	print '(a,i8)', 'ChainID: '   , monomer(molnoi)%chainID
-	print '(a,i8)', 'SubchainID: ', monomer(molnoi)%subchainID
-	print '(a,i8)', 'Funcy: '     , monomer(molnoi)%funcy
-	print '(a,i8)', 'Glob_no: '   , monomer(molnoi)%glob_no
-	print '(a,i8)', 'Bin_bflag: ' , monomer(molnoi)%bin_bflag
+		print '(a,i4,a)', 'Monomer information for atom ', molnoi,':'
+		print '(a,i8)', 'ChainID: '   , monomer(molnoi)%chainID
+		print '(a,i8)', 'SubchainID: ', monomer(molnoi)%subchainID
+		print '(a,i8)', 'Funcy: '     , monomer(molnoi)%funcy
+		print '(a,i8)', 'Glob_no: '   , monomer(molnoi)%glob_no
+		print '(a,i8)', 'Bin_bflag: ' , monomer(molnoi)%bin_bflag
 
-	print '(a,i4,a)', 'Monomer information for atom ', molnoX,':'
-	print '(a,i8)', 'ChainID: '   , monomer(molnoX)%chainID
-	print '(a,i8)', 'SubchainID: ', monomer(molnoX)%subchainID
-	print '(a,i8)', 'Funcy: '     , monomer(molnoX)%funcy
-	print '(a,i8)', 'Glob_no: '   , monomer(molnoX)%glob_no
-	print '(a,i8)', 'Bin_bflag: ' , monomer(molnoX)%bin_bflag
+		print '(a,i4,a)', 'Monomer information for atom ', molnoX,':'
+		print '(a,i8)', 'ChainID: '   , monomer(molnoX)%chainID
+		print '(a,i8)', 'SubchainID: ', monomer(molnoX)%subchainID
+		print '(a,i8)', 'Funcy: '     , monomer(molnoX)%funcy
+		print '(a,i8)', 'Glob_no: '   , monomer(molnoX)%glob_no
+		print '(a,i8)', 'Bin_bflag: ' , monomer(molnoX)%bin_bflag
 
-	if (molnoX.gt.np) then
-		call error_abort('Halo!')
-	else
-		call error_abort('')
-	end if
+		if (molnoX.gt.np) then
+			call error_abort('Halo!')
+		else
+			call error_abort('')
+		end if
 
-end subroutine polymer_bond_error
+	end subroutine polymer_bond_error
 
 end subroutine simulation_compute_forces_FENE
 !==============================================================================

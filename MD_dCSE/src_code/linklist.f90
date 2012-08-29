@@ -1953,8 +1953,8 @@ subroutine linklist_deallocateall
 	select case(potential_flag)
 	case(0)
 	case(1)
-		bond(:,:) = 0
-		bondcount(:) = 0
+		bond = 0
+		bondcount = 0
 	end select
 
 	do icell=1,ncells(1)+2
@@ -2248,8 +2248,8 @@ subroutine check_update_adjacentbeadinfo(molnoi,molnoj)
 			if (bondcount(molnoi).gt.monomer(molnoi)%funcy) call linklist_polymerbonderror(molnoi)
 			if (bondcount(molnoj).gt.monomer(molnoj)%funcy) call linklist_polymerbonderror(molnoj)
 
-			bond(molnoi,bondcount(molnoi)) = molnoj
-			bond(molnoj,bondcount(molnoj)) = molnoi
+			bond(bondcount(molnoi),molnoi) = molnoj
+			bond(bondcount(molnoj),molnoj) = molnoi
 
 		case default                                                   !If not connected, pass
 		end select

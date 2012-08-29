@@ -622,7 +622,7 @@ subroutine build_psf
 	allocate(seg_name(NATOM))								! Determine segment names for each atom
 	allocate(res_ID(NATOM))									! Determine molecule ID for each atom
 	allocate(glob_sc(NATOM))								! Determine molecule ID for each atom
-	allocate(glob_bf(NATOM,4))                              ! Determine molecule ID for each atom
+	allocate(glob_bf(4,NATOM))                              ! Determine molecule ID for each atom
 	allocate(res_name(NATOM))								! Determine name for each molecule
 	allocate(atom_name(NATOM))								! Determine name for each atom
 	allocate(atom_type(NATOM))								! Determine type for each atom
@@ -636,12 +636,12 @@ subroutine build_psf
 		molno            = monomer(n)%glob_no
 		res_ID(molno)    = monomer(n)%chainID 
 		glob_sc(molno)   = monomer(n)%subchainID
-		glob_bf(molno,:) = monomer(n)%bin_bflag(:)
+		glob_bf(:,molno) = monomer(n)%bin_bflag(:)
 	end do
 
 	call globalSumIntVect(res_ID,globalnp)
 	call globalSumIntVect(glob_sc,globalnp)
-	call globalSumIntTwoDim(glob_bf,globalnp,4)
+	call globalSumIntTwoDim(glob_bf,4,globalnp)
 
 	do n=1,globalnp
 		select case (res_ID(n))
@@ -700,7 +700,7 @@ subroutine build_psf
 						bin_expo = mod(n,intbits)-1
 						if (bin_expo.eq.-1) bin_expo = intbits - 1
 
-                        if(btest(glob_bf(i,group),bin_expo) .and. glob_sc(j) .eq. n) then
+                        if(btest(glob_bf(group,i),bin_expo) .and. glob_sc(j) .eq. n) then
 								bonds(item,1) = i
 								bonds(item,2) = j
 								item=item+1

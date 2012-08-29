@@ -41,7 +41,7 @@ subroutine simulation_move_particles_lfv
 	integer :: n
 	double precision :: ascale, bscale
 	double precision, save :: zeta=0.d0
-	double precision, dimension(np,nd) :: U
+	double precision, dimension(nd,np) :: U
 
 	
 	select case(ensemble)
@@ -73,7 +73,7 @@ subroutine simulation_move_particles_lfv
 		call evaluate_U_PUT
 		call evaluate_NH_params_PUT
 		do n=1,np
-	        v(:,n)     = v(:,n)*ascale + a(:,n)*delta_t*bscale + zeta*U(n,:)*delta_t*bscale
+	        v(:,n)     = v(:,n)*ascale + a(:,n)*delta_t*bscale + zeta*U(:,n)*delta_t*bscale
 			r(:,n)     = r(:,n)        + v(:,n)*delta_t			
 		end do
 	
@@ -103,7 +103,7 @@ contains
 		vtrue = v
 
 		do n=1,np
-			vtrue(n,le_sd) = v(n,le_sd) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
+			vtrue(le_sd,n) = v(le_sd,n) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
 			rtrue(:,n)     = rtrue(:,n) + delta_t*vtrue(:,n)
 		end do
 
@@ -145,7 +145,7 @@ contains
 
 		pec_v2sum = 0.d0
 		do n=1,np
-			pec_v(:)  = v(:,n) - U(n,:) - 0.5d0*a(:,n)*delta_t      ! PUT: Find peculiar velocity
+			pec_v(:)  = v(:,n) - U(:,n) - 0.5d0*a(:,n)*delta_t      ! PUT: Find peculiar velocity
 			pec_v2sum = pec_v2sum + dot_product(pec_v,pec_v)        ! PUT: Sum peculiar velocities squared
 		end do
 		call globalSum(pec_v2sum)
@@ -185,7 +185,7 @@ contains
 			                    slicebinsize(le_sp))
 			if (slicebin > nbins(le_sp)) slicebin = nbins(le_sp)    ! PUT: Prevent out-of-range values
 			if (slicebin < 1) slicebin = 1                                      ! PUT: Prevent out-of-range values
-			U(n,:) = v_avg(slicebin,:)
+			U(:,n) = v_avg(slicebin,:)
 		end do
 
 		deallocate(m_slice)
@@ -224,7 +224,7 @@ contains
 			do n = 1, np   											! Loop all molecules
 				if (tag(n) .lt. 4) cycle							! Only include thermostatted molecules - DO YOU WANT THIS LINE UNCOMMENTED?
 				if (PUT) then										! PUT: If using PUT find peculiar v2sum
-					vel(:) = v(:,n) - U(n,:) - 0.5d0*a(:,n)*delta_t			! PUT: Find peculiar velocity
+					vel(:) = v(:,n) - U(:,n) - 0.5d0*a(:,n)*delta_t			! PUT: Find peculiar velocity
 					pec_v2sum = pec_v2sum + dot_product(vel,vel)						! PUT: Sum peculiar velocities squared
 				else
 					vel(:) = v(:,n) - 0.5d0*a(:,n)*delta_t	
@@ -308,7 +308,7 @@ contains
 				r(3,n) = r(3,n)    +     v(3,n)*delta_t	+ slidev(3,n)*delta_t
 			case (8)
 				!Profile unbiased thermostat (Nose-Hoover)
-	        	v(:,n) = v(:,n)*ascale + a(:,n)*delta_t*bscale + zeta*U(n,:)*delta_t*bscale
+	        	v(:,n) = v(:,n)*ascale + a(:,n)*delta_t*bscale + zeta*U(:,n)*delta_t*bscale
 				r(:,n) = r(:,n)        + v(:,n)*delta_t			
 			case default
 				call error_abort("Invalid molecular Tag")

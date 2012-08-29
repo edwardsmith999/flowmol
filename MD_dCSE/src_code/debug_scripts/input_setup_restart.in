@@ -222,7 +222,7 @@ DEFINE_SHEAR
 #	1 - FENE spring polymer potentials
 # -----------------------------------------------------------------------
 POTENTIAL_FLAG
-0
+1
 
 #########################################################################
 # Parameters of the FENE potential, formatted:
