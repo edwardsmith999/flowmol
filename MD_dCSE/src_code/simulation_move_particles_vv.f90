@@ -62,7 +62,7 @@ subroutine simulation_move_particles_vv(pass_num)
 
 		select case(ensemble)
 		case(nve)
-			call simulation_move_particles_true_vv
+			if (rtrue_flag.eq.1) call simulation_move_particles_true_vv
 			do n=1,np
 				r(:,n)     = r(:,n)     + delta_t*v(:,n)       + 0.5d0*(delta_t**2.d0)*a(:,n)
 				v(:,n)     = v(:,n)     + 0.5d0*delta_t*a(:,n)
@@ -70,14 +70,14 @@ subroutine simulation_move_particles_vv(pass_num)
 
 		case(nvt_NH)
 			call evaluate_dzeta_dt
-			call simulation_move_particles_true_vv
+			if (rtrue_flag.eq.1) call simulation_move_particles_true_vv
 			do n=1,np
 				r(:,n)     = r(:,n)     + delta_t*v(:,n) + 0.5d0*(delta_t**2.d0)*(a(:,n)-zeta*v(:,n))
 				v(:,n)     = v(:,n)     + 0.5d0*delta_t*(a(:,n)-zeta*v(:,n))
 			end do
 
 		case(nvt_GIK)
-			call simulation_move_particles_true_vv
+			if (rtrue_flag.eq.1) call simulation_move_particles_true_vv
 			do n=1,np
 				r(:,n)     = r(:,n)     + delta_t*v(:,n) + 0.5d0*(delta_t**2.d0)*(a(:,n)-zeta*v(:,n))
 				v(:,n)     = v(:,n)     + 0.5d0*delta_t*(a(:,n)-zeta*v(:,n))
@@ -86,7 +86,7 @@ subroutine simulation_move_particles_vv(pass_num)
 		case(nvt_PUT_NH)	
 			call evaluate_U_PUT
 			call evaluate_dzeta_dt_PUT
-			call simulation_move_particles_true_vv
+			if (rtrue_flag.eq.1) call simulation_move_particles_true_vv
 			do n=1,np
 				r(:,n)     = r(:,n)     + delta_t*v(:,n) + 0.5d0*(delta_t**2.d0)*(a(:,n)-zeta*(v(:,n)-U(:,n)))
 				v(:,n)     = v(:,n)     + 0.5d0*delta_t*(a(:,n)-zeta*(v(:,n)-U(:,n)))
@@ -94,7 +94,7 @@ subroutine simulation_move_particles_vv(pass_num)
 		
 		case(nvt_pwa_NH)
 			call evaluate_pwa_terms_pwaNH
-			call simulation_move_particles_true_vv
+			if (rtrue_flag.eq.1) call simulation_move_particles_true_vv
 			do n=1,np
 				v(:,n)     = v(:,n) + 0.5d0*delta_t*(a(:,n) - zeta*vrelsum(:,n))
 				r(:,n)     = r(:,n) + delta_t*v(:,n)
@@ -107,7 +107,7 @@ subroutine simulation_move_particles_vv(pass_num)
 				call messenger_updateborders(0)    
 				call evaluate_DPD(0)
 			endif
-			call simulation_move_particles_true_vv
+			if (rtrue_flag.eq.1) call simulation_move_particles_true_vv
 			do n=1,np
 				v(:,n)     = v(:,n)     + 0.5d0*delta_t*(a(:,n)+aD(:,n)+aR(:,n))
 				r(:,n)     = r(:,n)     + delta_t*v(:,n) 
@@ -186,7 +186,7 @@ subroutine simulation_move_particles_vv(pass_num)
 
 		end select
 			
-		call simulation_move_particles_true_vv	
+		if (rtrue_flag.eq.1) call simulation_move_particles_true_vv	
 		
 	endif
 

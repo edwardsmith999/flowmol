@@ -100,30 +100,14 @@ subroutine simulation_record
 			!print*, iter,vmd_iter,i,vmd_count,vmd_intervals(1,i),vmd_intervals(2,i)
 			select case(vmd_outflag)
 			case(1)
-				select case(potential_flag)
-				case(0)
-					call parallel_io_vmd(vmd_intervals(1,i),vmd_intervals(2,i),i)
-				case(1)
-					call parallel_io_vmd_true(vmd_intervals(1,i),vmd_intervals(2,i),i)
-				case default
-				end select
+				call parallel_io_vmd(vmd_intervals(1,i),vmd_intervals(2,i),i)
 			case(2)
-				select case(potential_flag)
-				case(0)
-					call parallel_io_vmd_sl(vmd_intervals(1,i),vmd_intervals(2,i),i)
-				case(1)
-					call error_abort('vmd_sl not yet developed for potential_flag = 1')
-				case default
-				end select			
+				call parallel_io_vmd_sl(vmd_intervals(1,i),vmd_intervals(2,i),i)
 			case(3)
-				select case(potential_flag)
-				case(0)
-					call parallel_io_vmd(vmd_intervals(1,i),vmd_intervals(2,i),i)
-					call parallel_io_vmd_halo(vmd_intervals(1,i),vmd_intervals(2,i),i)
-				case(1)
-					call error_abort('vmd_halo not yet developed for potential_flag = 1')
-				case default
-				end select
+				call parallel_io_vmd(vmd_intervals(1,i),vmd_intervals(2,i),i)
+				call parallel_io_vmd_halo(vmd_intervals(1,i),vmd_intervals(2,i),i)
+			case(4)
+				call parallel_io_vmd_true(vmd_intervals(1,i),vmd_intervals(2,i),i)
 			case default
 				call error_abort('Unrecognised vmd_outflag in simulation_record')
 			end select

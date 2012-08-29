@@ -319,7 +319,7 @@ PROCESSORS
 #			1-homogeneous, 
 #			2-solid/liquid,
 #	      	3-homogeneous+halos, 
-#			4-Debug
+#			4-"true" unwrapped positions
 #	Number of intervals: 0-all, 1 to 20-specified in csv format below
 #						20 or more-all
 #	Intervals: start and finish iteration of each interval in format

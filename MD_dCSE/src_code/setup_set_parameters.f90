@@ -27,6 +27,7 @@ module module_set_parameters
 	use arrays_MD
 	use calculated_properties_MD
 	use linked_list
+	use polymer_info_MD
 
 end module module_set_parameters 
 !----------------------------------------------------------------------------------
@@ -812,6 +813,9 @@ subroutine set_parameters_outputs
 		endif
 	endif
 #endif
+
+	if (r_gyration_outflag .eq. 1 .or. &
+	    vmd_outflag       .eq. 4) rtrue_flag = 1
 
 end subroutine set_parameters_outputs
 

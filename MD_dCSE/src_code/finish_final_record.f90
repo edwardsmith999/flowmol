@@ -77,28 +77,14 @@ implicit none
 		select case (vmd_outflag)
 		case(0)
 		case(1)
-			select case(potential_flag)
-			case(0)
-				call reformat_dcd
-			case(1)
-				call reformat_dcd_true
-			case default
-			end select
+			call reformat_dcd
 		case(2)
-			select case(potential_flag)
-			case(0)
-				call reformat_dcd_sl
-			case default
-				call error_abort('Reformat_dcd_sl not available for polymers')
-			end select
+			call reformat_dcd_sl
 		case(3)
-			select case(potential_flag)
-			case(0)
-				call reformat_dcd
-				call reformat_dcd_halo
-			case default
-				call error_abort('Reformat_dcd_halo not available for polymers')
-			end select
+			call reformat_dcd
+			call reformat_dcd_halo
+		case(4)
+			call reformat_dcd_true
 		case default
 		end select 
 	endif
