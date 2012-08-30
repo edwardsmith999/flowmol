@@ -45,7 +45,7 @@ implicit none
 	enddo
 	enddo
 
-    ! set values on the doamin boundary
+    ! set values on the domain boundary
 	flux_xx(1,:) = 0.d0 ; flux_xx(nx+2,:) = 0.d0 
    	flux_xy(1,:) = 0.d0 ; flux_xy(nx+2,:) = 0.d0
     flux_yx(1,:) = 0.d0 ; flux_yx(nx+2,:) = 0.d0
@@ -131,7 +131,7 @@ implicit none
 	do j = 2, ny + 1
 
 		xres_t(i,j) = (uc_t(i,j+1)+uc_t(i,j-1)-2*uc_t(i,j))/(delta_y(j)*delta_y(j)) &
-			    + (uc_t(i+1,j)+uc_t(i-1,j)-2*uc_t(i,j))/(delta_x(i)*delta_x(i))
+			    	+ (uc_t(i+1,j)+uc_t(i-1,j)-2*uc_t(i,j))/(delta_x(i)*delta_x(i))
 
 	enddo
 	enddo
@@ -154,20 +154,20 @@ implicit none
 
 	!VARIABLE NAMING USED FOR FINITE VOLUME
 	!
-	!		    tau(i,j,2)
-	!			|
-	!			|
-	!	ucc(i,j,2)______V_______ucc(i,j,1)
-	!		x		x
-	!		|		|
+	!		    		tau(i,j,2)
+	!						|
+	!						|
+	!		ucc(i,j,2)______V_______ucc(i,j,1)
+	!				x				x
+	!				|				|
 	!tau(i,j,3) ___\|   uc(i,j)     |/___ tau(i,j,1) 
- 	!      	       /|	x	|\
-	!		|		|
-	!		x_______________x
-	!	ucc(i,j,3)	^	ucc(i,j,4)
-	!			|
-	!			|
-	!		    tau(i,j,4)
+ 	!      	       /|		x		|\
+	!				|				|
+	!				x_______________x
+	!			ucc(i,j,3)	^	ucc(i,j,4)
+	!						|
+	!						|
+	!		   			 tau(i,j,4)
 
 	!Calculate velocity at cell corners ~> ucc by averaging surrounding cells
 	do i = 2, nx + 1
