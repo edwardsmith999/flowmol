@@ -2624,8 +2624,8 @@ implicit none
 						(heaviside(bintop(2)-Pzt(2)) - heaviside(binbot(2)-Pzt(2)))
 
 		!if (ibin(1) .eq. jbin(1) .and. ibin(2) .eq. jbin(2) .and. ibin(3) .eq. jbin(3)) then
-			if (onfacexb .ne. 0 .or. onfaceyb .ne. 0 .or. onfacezb .ne. 0 .or. &
-				onfacext .ne. 0 .or. onfaceyt .ne. 0 .or. onfacezt .ne. 0 ) cycle
+		!	if (onfacexb .ne. 0 .or. onfaceyb .ne. 0 .or. onfacezb .ne. 0 .or. &
+		!		onfacext .ne. 0 .or. onfaceyt .ne. 0 .or. onfacezt .ne. 0 ) cycle
 !				print'(6I8)',onfacexb, onfaceyb, onfacezb, onfacext, onfaceyt, onfacezt
 			!endif
 		!endif
@@ -2671,6 +2671,198 @@ implicit none
 	enddo
 
 end subroutine control_volume_stresses
+
+
+!===================================================================================
+!Forces over the surface of a Volume optmised for computational efficiency
+
+subroutine control_volume_stresses_opt(fij,ri,rj,molnoi,molnoj)
+	use module_record
+	implicit none
+
+	integer							:: i,j,k,ixyz,n,molnoi,molnoj,tempi
+	integer,dimension(3)			:: cbin, ibin, jbin, Si
+	double precision,dimension(3)	:: ri,rj,rij,fij,fsurface,Px,Py,Pz,sgnjit,sgnjib,onfaceb,onfacet,velvect
+	double precision,dimension(3)	:: Fbinsize, bintop, binbot, temp
+
+	!Calculate rij
+	rij = ri - rj
+	!Prevent Division by zero
+	do ixyz = 1,3
+		if (abs(rij(ixyz)) .lt. 0.000001d0) rij(ixyz) = sign(0.000001d0,rij(ixyz))
+	enddo
+
+	!Determine bin size
+	Fbinsize(:) = domain(:) / nbins(:)
+
+	!Assign to bins using integer division
+	ibin(:) = ceiling((ri(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
+	jbin(:) = ceiling((rj(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
+
+	if (ibin(1) .eq. jbin(1) .and. ibin(2) .eq. jbin(2) .and. ibin(3) .eq. jbin(3)) return
+		
+	do i = ibin(1),jbin(1),sign(1,jbin(1)-ibin(1))
+	do j = ibin(2),jbin(2),sign(1,jbin(2)-ibin(2))
+	do k = ibin(3),jbin(3),sign(1,jbin(3)-ibin(3))
+
+		cbin(1) = i; cbin(2) = j; cbin(3) = k
+
+		bintop(:) = (cbin(:)-1*nhb(:)  )*Fbinsize(:)-halfdomain(:)
+		binbot(:) = (cbin(:)-1*nhb(:)-1)*Fbinsize(:)-halfdomain(:)
+
+		!Calculate the plane intersect of line with surfaces of the cube
+		Px=(/ bintop(1),ri(2)+(rij(2)/rij(1))*(bintop(1)-ri(1)),ri(3)+(rij(3)/rij(1))*(bintop(1)-ri(1))  /)
+		Py=(/ri(1)+(rij(1)/rij(2))*(bintop(2)-ri(2)), bintop(2),ri(3)+(rij(3)/rij(2))*(bintop(2)-ri(2))  /)
+		Pz=(/ri(1)+(rij(1)/rij(3))*(bintop(3)-ri(3)), ri(2)+(rij(2)/rij(3))*(bintop(3)-ri(3)), bintop(3) /)
+
+		sgnjit(:)= sign(1.d0,bintop(:)- rj(:)) - sign(1.d0,bintop(:)- ri(:))
+		sgnjib(:)= sign(1.d0,binbot(:)- rj(:)) - sign(1.d0,binbot(:)- ri(:))
+
+		Si(1) =	(heaviside(bintop(2)-Px(2)) - heaviside(binbot(2)-Px(2)))* &
+				(heaviside(bintop(3)-Px(3)) - heaviside(binbot(3)-Px(3)))
+		Si(2) =	(heaviside(bintop(1)-Py(1)) - heaviside(binbot(1)-Py(1)))* &
+				(heaviside(bintop(3)-Py(3)) - heaviside(binbot(3)-Py(3)))
+		Si(3) =	(heaviside(bintop(1)-Pz(1)) - heaviside(binbot(1)-Pz(1)))* &
+				(heaviside(bintop(2)-Pz(2)) - heaviside(binbot(2)-Pz(2)))
+
+		onfaceb(:) = sgnjib(:)*dble(Si(:))
+		onfacet(:) = sgnjit(:)*dble(Si(:))
+
+		!Stress acting on face over volume
+		Pxyface(cbin(1),cbin(2),cbin(3),:,1) = Pxyface(cbin(1),cbin(2),cbin(3),:,1) + fij(:)*onfaceb(1)
+		Pxyface(cbin(1),cbin(2),cbin(3),:,2) = Pxyface(cbin(1),cbin(2),cbin(3),:,2) + fij(:)*onfaceb(2)
+		Pxyface(cbin(1),cbin(2),cbin(3),:,3) = Pxyface(cbin(1),cbin(2),cbin(3),:,3) + fij(:)*onfaceb(3)
+		Pxyface(cbin(1),cbin(2),cbin(3),:,4) = Pxyface(cbin(1),cbin(2),cbin(3),:,4) + fij(:)*onfacet(1)
+		Pxyface(cbin(1),cbin(2),cbin(3),:,5) = Pxyface(cbin(1),cbin(2),cbin(3),:,5) + fij(:)*onfacet(2)
+		Pxyface(cbin(1),cbin(2),cbin(3),:,6) = Pxyface(cbin(1),cbin(2),cbin(3),:,6) + fij(:)*onfacet(3)
+
+		!Stress acting on face over volume
+		if (eflux_outflag .ne. 0) then
+			velvect(:) = v(:,molnoi) 
+			!if (molnoi .gt. np) print*, velvect(1)
+			!velvect(:) = v(:,molnoi) + 0.5d0*delta_t*a(:,molnoi)
+			Pxyvface(cbin(1),cbin(2),cbin(3),1) = Pxyvface(cbin(1),cbin(2),cbin(3),1) + dot_product(fij,velvect)*onfaceb(1)
+			Pxyvface(cbin(1),cbin(2),cbin(3),2) = Pxyvface(cbin(1),cbin(2),cbin(3),2) + dot_product(fij,velvect)*onfaceb(2)
+			Pxyvface(cbin(1),cbin(2),cbin(3),3) = Pxyvface(cbin(1),cbin(2),cbin(3),3) + dot_product(fij,velvect)*onfaceb(3)
+			Pxyvface(cbin(1),cbin(2),cbin(3),4) = Pxyvface(cbin(1),cbin(2),cbin(3),4) + dot_product(fij,velvect)*onfacet(1)
+			Pxyvface(cbin(1),cbin(2),cbin(3),5) = Pxyvface(cbin(1),cbin(2),cbin(3),5) + dot_product(fij,velvect)*onfacet(2)
+			Pxyvface(cbin(1),cbin(2),cbin(3),6) = Pxyvface(cbin(1),cbin(2),cbin(3),6) + dot_product(fij,velvect)*onfacet(3)
+		endif
+
+		!Force applied to volume
+		fsurface(:) = 0.d0
+		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*(onfaceb(1) - onfacet(1))
+		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*(onfaceb(2) - onfacet(2))
+		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*(onfaceb(3) - onfacet(3))
+		volume_force(cbin(1),cbin(2),cbin(3),:,1) = volume_force(cbin(1),cbin(2),cbin(3),:,1) + fsurface*delta_t
+
+	enddo
+	enddo
+	enddo
+
+end subroutine control_volume_stresses_opt
+
+
+
+
+subroutine control_volume_stresses_opt_2(fij,ri,rj,molnoi,molnoj)
+use module_record
+implicit none
+
+	integer							:: i,j,k,ixyz,n,molnoi,molnoj,tempi
+	!integer							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
+	integer,dimension(3)			:: cbin, ibin, jbin
+	integer,dimension(18)			:: hfacelimits
+	double precision				:: binforce
+	double precision,dimension(3)	:: ri,rj,rij,fij,fsurface,Px,Py,Pz,Si,sgnjit,sgnjib,onfaceb,onfacet,velvect
+	double precision,dimension(3)	:: Fbinsize, bintop, binbot, temp
+	double precision,dimension(18)	:: facelimits
+
+	!Calculate rij
+	rij = ri - rj
+	!Prevent Division by zero
+	do ixyz = 1,3
+		if (abs(rij(ixyz)) .lt. 0.000001d0) rij(ixyz) = sign(0.000001d0,rij(ixyz))
+	enddo
+
+	!Determine bin size
+	Fbinsize(:) = domain(:) / nbins(:)
+
+	!Assign to bins using integer division
+	ibin(:) = ceiling((ri(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
+	jbin(:) = ceiling((rj(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
+
+	if (ibin(1) .eq. jbin(1) .and. ibin(2) .eq. jbin(2) .and. ibin(3) .eq. jbin(3)) return
+		
+	do i = ibin(1),jbin(1),sign(1,jbin(1)-ibin(1))
+	do j = ibin(2),jbin(2),sign(1,jbin(2)-ibin(2))
+	do k = ibin(3),jbin(3),sign(1,jbin(3)-ibin(3))
+
+		cbin(1) = i; cbin(2) = j; cbin(3) = k
+
+		bintop(:) = (cbin(:)-1*nhb(:)  )*Fbinsize(:)-halfdomain(:)
+		binbot(:) = (cbin(:)-1*nhb(:)-1)*Fbinsize(:)-halfdomain(:)
+
+		!Calculate the plane intersect of line with surfaces of the cube
+		Px=(/ bintop(1),ri(2)+(rij(2)/rij(1))*(bintop(1)-ri(1)),ri(3)+(rij(3)/rij(1))*(bintop(1)-ri(1))  /)
+		Py=(/ri(1)+(rij(1)/rij(2))*(bintop(2)-ri(2)), bintop(2),ri(3)+(rij(3)/rij(2))*(bintop(2)-ri(2))  /)
+		Pz=(/ri(1)+(rij(1)/rij(3))*(bintop(3)-ri(3)), ri(2)+(rij(2)/rij(3))*(bintop(3)-ri(3)), bintop(3) /)
+
+		facelimits(1 :3 ) = bintop-Px	
+		facelimits(4 :6 ) = bintop-Py 		
+		facelimits(7 :9 ) = bintop-Pz
+		facelimits(10:12) = binbot-Px	
+		facelimits(13:15) = binbot-Py 		
+		facelimits(16:18) = binbot-Pz
+
+		hfacelimits = array_heaviside(facelimits)
+
+		Si(1) =	(hfacelimits(2) - hfacelimits(11))* &
+				(hfacelimits(3) - hfacelimits(12))
+		Si(2) =	(hfacelimits(4) - hfacelimits(13))* &
+				(hfacelimits(6) - hfacelimits(15))
+		Si(3) =	(hfacelimits(7) - hfacelimits(16))* &
+				(hfacelimits(8) - hfacelimits(17))
+
+		sgnjit(:)= sign(1.d0,bintop(:)- rj(:)) - sign(1.d0,bintop(:)- ri(:))
+		sgnjib(:)= sign(1.d0,binbot(:)- rj(:)) - sign(1.d0,binbot(:)- ri(:))
+
+		onfaceb =  	sgnjib*Si
+		onfacet =  	sgnjit*Si
+
+		!Stress acting on face over volume
+		Pxyface(cbin(1),cbin(2),cbin(3),:,1) = Pxyface(cbin(1),cbin(2),cbin(3),:,1) + fij(:)*dble(onfaceb(1))
+		Pxyface(cbin(1),cbin(2),cbin(3),:,2) = Pxyface(cbin(1),cbin(2),cbin(3),:,2) + fij(:)*dble(onfaceb(2))
+		Pxyface(cbin(1),cbin(2),cbin(3),:,3) = Pxyface(cbin(1),cbin(2),cbin(3),:,3) + fij(:)*dble(onfaceb(3))
+		Pxyface(cbin(1),cbin(2),cbin(3),:,4) = Pxyface(cbin(1),cbin(2),cbin(3),:,4) + fij(:)*dble(onfacet(1))
+		Pxyface(cbin(1),cbin(2),cbin(3),:,5) = Pxyface(cbin(1),cbin(2),cbin(3),:,5) + fij(:)*dble(onfacet(2))
+		Pxyface(cbin(1),cbin(2),cbin(3),:,6) = Pxyface(cbin(1),cbin(2),cbin(3),:,6) + fij(:)*dble(onfacet(3))
+
+		!Stress acting on face over volume
+		if (eflux_outflag .ne. 0) then
+			velvect(:) = v(:,molnoi) 
+			!if (molnoi .gt. np) print*, velvect(1)
+			!velvect(:) = v(:,molnoi) + 0.5d0*delta_t*a(:,molnoi)
+			Pxyvface(cbin(1),cbin(2),cbin(3),1) = Pxyvface(cbin(1),cbin(2),cbin(3),1) + dot_product(fij,velvect)*dble(onfaceb(1))
+			Pxyvface(cbin(1),cbin(2),cbin(3),2) = Pxyvface(cbin(1),cbin(2),cbin(3),2) + dot_product(fij,velvect)*dble(onfaceb(2))
+			Pxyvface(cbin(1),cbin(2),cbin(3),3) = Pxyvface(cbin(1),cbin(2),cbin(3),3) + dot_product(fij,velvect)*dble(onfaceb(3))
+			Pxyvface(cbin(1),cbin(2),cbin(3),4) = Pxyvface(cbin(1),cbin(2),cbin(3),4) + dot_product(fij,velvect)*dble(onfacet(1))
+			Pxyvface(cbin(1),cbin(2),cbin(3),5) = Pxyvface(cbin(1),cbin(2),cbin(3),5) + dot_product(fij,velvect)*dble(onfacet(2))
+			Pxyvface(cbin(1),cbin(2),cbin(3),6) = Pxyvface(cbin(1),cbin(2),cbin(3),6) + dot_product(fij,velvect)*dble(onfacet(3))
+		endif
+
+		!Force applied to volume
+		fsurface(:) = 0.d0
+		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*dble(onfaceb(1) - onfacet(1))
+		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*dble(onfaceb(2) - onfacet(2))
+		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*dble(onfaceb(3) - onfacet(3))
+		volume_force(cbin(1),cbin(2),cbin(3),:,1) = volume_force(cbin(1),cbin(2),cbin(3),:,1) + fsurface*delta_t
+
+	enddo
+	enddo
+	enddo
+
+end subroutine control_volume_stresses_opt_2
 
 !====================================================================================
 
