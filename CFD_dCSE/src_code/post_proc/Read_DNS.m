@@ -3,19 +3,23 @@
 %  ucvcwc.dble.xxxxxx and uuvvww.dble.xxxxxx
 %==========================================================================
 
-function[u,v,w] = Read_DNS(filename,resultfile_dir)
+function[u,v,w] = Read_DNS(filename,resultfile_dir,ngx,ngy,ngz,Lx,Ly,Lz)
 
 pdir = pwd;
 
 %--- grid size ----
-ngx = 32+1;
-ngy = 32+1;
-ngz = 8+1;
+if (exist('ngz','var') == 0)
+    ngx = 128+1;
+    ngy = 128+1;
+    ngz = 8+1;
+end
 
 %--- domain size ----
-Lx = 1.0; %35.90949;
-Ly = 52.1;
-Lz = 1.0;
+if (exist('Lz','var') == 0)
+    Lx = 181.1;
+    Ly = 181.1;
+    Lz = 12.0;
+end
 
 %Axis for plots
 x = linspace(0, Lx, ngx);
@@ -36,7 +40,7 @@ end
 %Store Present Working directory
 pwdir = pwd;
 if (exist('resultfile_dir') == 0)
-    resultfile_dir = '/home/es205/codes/coupled/CFD_dCSE/src_code/results/';
+    resultfile_dir = '/home/es205/results/MD_continuum_results/code/coupled_couette/varying_processor_study/CFD_dCSE/src_code/results/';
     %resultfile_dir = '/home/es205/codes/coupled/coupler_dCSE/src_code/couette_data/';
     display('setting results file to default');
 end
@@ -60,19 +64,19 @@ skipk = 1;
 skipi = 1;
 skipj = 1;
 
-pz = 1;
-px = 1;
+pz = 1:ngz;
+px = 1:ngx;
 py = 1:ngy;
 
 % read subdoms one at a time
 %figure
 
 m = 1
-for n = 1:2^m:length(filenames)
+for n = 1:length(filenames)
     n
     %Analytical solution
-    t = (n-1)*5;
-    analy = couette_analytical_fn(t,Re,[1.0,0],Ly,ngy-1,'top');
+    %t = (n-1)*5;
+    %analy = couette_analytical_fn(t,Re,[1.0,0],Ly,ngy-1,'top');
     %plot(y,analy,'k');
     %hold on
     
@@ -80,9 +84,9 @@ for n = 1:2^m:length(filenames)
     
     %Read from DNS files
     V = read_sub(filenames(n).name,ngz,ngx,ngy,pz,px,py,skipk,skipi,skipj,3);
-    u(:,m) = V{1};
-    v(:,m) = V{2};
-    w(:,m) = V{3};
+    u(:,m) = squeeze(mean(mean(V{1},1),2));
+    v(:,m) = squeeze(mean(mean(V{2},1),2));
+    w(:,m) = squeeze(mean(mean(V{3},1),2));
     %scatter(ypg(4,:)+5.12/2,u(:,m),'s')
     %drawnow
     m = m + 1;

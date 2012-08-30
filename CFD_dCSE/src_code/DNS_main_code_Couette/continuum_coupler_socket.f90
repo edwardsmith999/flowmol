@@ -20,17 +20,14 @@ contains
 
         call readInt("nsteps", nsteps)
        
-        write(0,*) 'CFD socket nsteps, dt ', nsteps, dt
-      
+        !write(0,*) 'CFD socket nsteps, dt ', nsteps, dt
+        
         call coupler_cfd_init(	icomm_grid,imino=imino,imin=imin,imax=imax,&
 					            imaxo=imaxo,jmino=jmino,jmin=jmin,jmax=jmax,jmaxo=jmaxo,&
 					            kmino=kmino,kmin=kmin,kmax=kmax,kmaxo=kmaxo,nsteps=nsteps,&
 					            x=x,y=y,z=z,dx=dx,dz=dz,npx=npx,npy=npy,npz=npz,&
 					            icoord=icoord,dt=dt)
-        
-        !write(0,*) 'CFD socket, after cfd init'
-        !write(0,*) 'CFD socket, after create map'
-                
+                       
     end subroutine socket_coupler_init
 
 
@@ -58,11 +55,9 @@ contains
             i1 = i1_u-1
             !uc(1:ngz-1,i1:i1,j1_u+2) = myid+66.d0
         endif
-      
+        
         je = j1_u + jmax_ovr-jbmap_1(j1_u)-2
         js = je
-
-		!print*, 'CFD constraint', js,j1_u,jmax_ovr,jbmap_1(j1_u)
         !write(0,*)'cfd socket, jo:',jo
         call coupler_send_data(uc(1:ngz-1,i1:i2_u,js:je),index_transpose=(/2,3,1/))
 
@@ -111,13 +106,9 @@ contains
 		!							size(uc(:,:,0)), maxval(uc(:,:,0)),minval(uc(:,:,0)),sum(uc(:,:,0)),uc(3,3,0)
         !call coupler_recv_data(uc(1:ngz-1,i1_ul:i2_u,0:0),index_transpose=(/2,3,1/))
         !call coupler_recv_data(uc(1:ngz-1,1:nlx+1,0:0),index_transpose=(/2,3,1/))
-		!print*, 'Extents of array', ngz-1, i1_ul,i2_u
-		!uc(:,:,0:0) = 0.d0
-
-        call coupler_recv_data(uc(1:ngz-1,i1_ul:i2_u,0:0),index_transpose=(/2,3,1/),accumulate=.true.),pbc=1)
-
-		!print'(a,2i8,4f25.16)', 'CFD recv MD     ', myid,size(uc(:,:,0)), & 
-		!					maxval(uc(1:ngz-1,i1_ul:i2_u,0:0)),minval(uc(1:ngz-1,i1_ul:i2_u,0:0)),sum(uc(1:ngz-1,i1_ul:i2_u,0:0)),uc(3,3,0)
+        call coupler_recv_data(uc(1:ngz-1,i1_ul:i2_u,0:0),index_transpose=(/2,3,1/),accumulate=.true.,pbc=1)
+		!print'(2a,2i8,4f25.16)', 'CFD recv data',code_name(COUPLER_REALM), myid, & 
+		!							size(uc(:,:,0)), maxval(uc(:,:,0)),minval(uc(:,:,0)),sum(uc(:,:,0)),uc(3,3,0)
         call coupler_recv_data(vc(1:ngz-1,i1_v:i2_v,0:1),index_transpose=(/2,3,1/),accumulate=.true.)
         call coupler_recv_data(wc(1:ngz,i1_w:i2_w,0:0),index_transpose=(/2,3,1/),accumulate=.true.,pbc=3)
 
