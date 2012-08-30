@@ -379,6 +379,63 @@ contains
 
 end subroutine create_map_md
 
+
+!=============================================================================
+! Get global molecular position from local position
+!-----------------------------------------------------------------------------
+function global_r(r) result(rg)
+	implicit none
+
+	real(kind(0.d0)),intent(in) :: r(3)
+	real(kind(0.d0)) rg(3)
+
+	rg(:) = r(:) + half_domain_lengths(:) + bbox%bb(1,:)
+	!print'(a,f18.5)','r before & after', r(2)-rg(2)
+
+end function global_r
+
+!=============================================================================
+! Write to file the map of coupled processors for debugging
+!-----------------------------------------------------------------------------
+
+subroutine write_overlap_map
+	use mpi
+	use coupler_internal_common
+	implicit none
+
+	integer, parameter :: max_msg_length = 1024
+	character(len=*),parameter :: filename = "coupler_map.log"
+	character(len=*),parameter :: nl = achar(10) ! new line; portable?
+	
+	character(len=max_msg_length) msg, rec
+	character(len=100) fmtstr
+	
+	integer fh, i, n, ierr
+
+	call mpi_file_open(COUPLER_REALM_COMM,filename,MPI_MODE_CREATE+MPI_MODE_WRONLY,MPI_INFO_NULL,fh,ierr)
+	call mpi_file_set_size(fh,0_MPI_OFFSET_KIND,ierr) ! discard previous data
+
+	n = map%n
+	write(rec,'(a,I5,a,I5)')  'myid', myid, ' overlaps', map%n
+	msg = rec(1:len_trim(rec))//nl
+	write(fmtstr,*) "( a,",1,"I5,","a,", 6,"I5)"
+	
+	do i = 1, n
+		write(rec,fmtstr) 'rank', map%rank_list(i), &
+			  ' indicies',map%domains(1:6,i)
+	 
+		msg = msg(1:len_trim(msg))//rec(1:len_trim(rec))//nl
+	enddo
+	
+	msg = msg(1:len_trim(msg))//nl
+	n = len_trim(msg)
+
+	call mpi_file_write_shared(fh,msg(1:n),n,MPI_CHARACTER,MPI_STATUS_IGNORE,ierr) 
+	call mpi_barrier(COUPLER_REALM_COMM,ierr)
+	call mpi_file_close(fh,ierr)
+
+end subroutine write_overlap_map
+
 !=============================================================================
 ! Get velocity fields from CFD for the constraint force needed in MD
 !-----------------------------------------------------------------------------
@@ -600,61 +657,5 @@ end subroutine create_map_md
 !!$	!call write_vector(a,n1,n2,n3,fname, MD_COMM)
 !!$
 !!$end subroutine send_vel
-
-!=============================================================================
-! Get global molecular position from local position
-!-----------------------------------------------------------------------------
-function global_r(r) result(rg)
-	implicit none
-
-	real(kind(0.d0)),intent(in) :: r(3)
-	real(kind(0.d0)) rg(3)
-
-	rg(:) = r(:) + half_domain_lengths(:) + bbox%bb(1,:)
-	!print'(a,f18.5)','r before & after', r(2)-rg(2)
-
-end function global_r
-
-!=============================================================================
-! Write to file the map of coupled processors for debugging
-!-----------------------------------------------------------------------------
-
-subroutine write_overlap_map
-	use mpi
-	use coupler_internal_common
-	implicit none
-
-	integer, parameter :: max_msg_length = 1024
-	character(len=*),parameter :: filename = "coupler_map.log"
-	character(len=*),parameter :: nl = achar(10) ! new line; portable?
-	
-	character(len=max_msg_length) msg, rec
-	character(len=100) fmtstr
-	
-	integer fh, i, n, ierr
-
-	call mpi_file_open(COUPLER_REALM_COMM,filename,MPI_MODE_CREATE+MPI_MODE_WRONLY,MPI_INFO_NULL,fh,ierr)
-	call mpi_file_set_size(fh,0_MPI_OFFSET_KIND,ierr) ! discard previous data
-
-	n = map%n
-	write(rec,'(a,I5,a,I5)')  'myid', myid, ' overlaps', map%n
-	msg = rec(1:len_trim(rec))//nl
-	write(fmtstr,*) "( a,",1,"I5,","a,", 6,"I5)"
-	
-	do i = 1, n
-		write(rec,fmtstr) 'rank', map%rank_list(i), &
-			  ' indicies',map%domains(1:6,i)
-	 
-		msg = msg(1:len_trim(msg))//rec(1:len_trim(rec))//nl
-	enddo
-	
-	msg = msg(1:len_trim(msg))//nl
-	n = len_trim(msg)
-
-	call mpi_file_write_shared(fh,msg(1:n),n,MPI_CHARACTER,MPI_STATUS_IGNORE,ierr) 
-	call mpi_barrier(COUPLER_REALM_COMM,ierr)
-	call mpi_file_close(fh,ierr)
-
-end subroutine write_overlap_map
 
 end module coupler_internal_md
