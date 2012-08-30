@@ -230,6 +230,18 @@ function heaviside(x)
 
 end function heaviside
 
+!DEC$ ATTRIBUTES FORCEINLINE :: array_heaviside
+function array_heaviside(x)
+	implicit none
+
+	double precision,dimension(:),intent(in)	:: x
+	integer,dimension(size(x))					:: array_heaviside
+
+	array_heaviside = ceiling(sign(0.5d0,x(:)))
+	!heaviside = 0.5*sign(1.d0,x)+1
+
+end function array_heaviside
+
 !--------------------------------------------------------------------------------------
 ! Subroutine computes the intersection of a plane and a straight line
 !Inputs: 
@@ -284,11 +296,11 @@ end function outerprod
 !--------------------------------------------------------------------------------------
 !Calculate cross product of two 3D vectors 
 function crossprod(a,b)
-        use interfaces
+	use interfaces
 	implicit none
 
 	double precision,dimension(3),intent(in)	:: a, b
-	double precision,dimension(3)			:: crossprod
+	double precision,dimension(3)				:: crossprod
 
 	if (size(a) .ne. 3 .or. size(b) .ne. 3) call error_abort("Error - vectors must be 3 Dimensional for cross product")
 

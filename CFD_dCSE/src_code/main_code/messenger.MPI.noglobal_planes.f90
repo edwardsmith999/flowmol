@@ -58,15 +58,14 @@ subroutine messenger_invoke()
 	use messenger
 	include "mpif.h"
 
-            call MPI_init (ierr)
+    call MPI_init (ierr)
 
 #if USE_COUPLER
-	    call coupler_create_comm(COUPLER_CFD,CFD_COMM,ierr)
-			!prefix_dir ="./CFD_data/"
-            prefix_dir ="./couette_data/"
+	call coupler_create_comm(COUPLER_CFD,CFD_COMM,ierr)
+	prefix_dir ="./couette_data/"
 #else
-            CFD_COMM = MPI_COMM_WORLD
-            prefix_dir = "./"
+	CFD_COMM = MPI_COMM_WORLD
+	prefix_dir = "./"
 #endif
 
 	return
@@ -80,7 +79,7 @@ subroutine messenger_init()
 	integer idims(3)
 	logical Lperiodic(3)
 	logical Lremain_dims(3)
-        integer np, ndims, ip, ixyz
+	integer np, ndims, ip, ixyz
 
 	! Initialize MPI
 	call MPI_comm_size (CFD_COMM, np, ierr)
@@ -114,7 +113,7 @@ subroutine messenger_init()
 	call MPI_comm_rank (icomm_xyz(1), irankx, ierr)
 	call MPI_comm_rank (icomm_xyz(2), iranky, ierr)
 	call MPI_comm_rank (icomm_xyz(3), irankz, ierr)
-        ! print *, " Old comm=",irank-1,"new x,y,z:",irankx,iranky
+	! print *, " Old comm=",irank-1,"new x,y,z:",irankx,iranky
 
 	! Root process at coordinates (0,0,0)
 	idims = 0
@@ -145,7 +144,7 @@ subroutine globalSum(A, na)
 	use messenger
 	include "mpif.h"
 
-        integer na
+	integer na
 	real*8 A(na)
 	real*8 buf(na)
 
@@ -160,7 +159,7 @@ subroutine globalMax(A, na)
 	use messenger
 	include "mpif.h"
 
-        integer na
+	integer na
 	real*8 A(na)
 	real*8 buf(na)
 
@@ -175,7 +174,7 @@ subroutine globalMin(A, na)
 	use messenger
 	include "mpif.h"
 
-        integer na
+	integer na
 	real*8 A(na)
 	real*8 buf(na)
 
@@ -190,7 +189,7 @@ subroutine globalDirSum(A, na, ixyz)
 	use messenger
 	include "mpif.h"
 
-        integer na
+	integer na
 	real*8 A(na)
 	real*8 buf(na)
 
@@ -207,7 +206,7 @@ subroutine scatter(A, B)
 	include "mpif.h"
 
 	real*8 A(nx,ny,nz), B(nx_1,ny_1,nz_1)
-        real*8 sendbuf(nproc*nxyz_1)
+ 	real*8 sendbuf(nproc*nxyz_1)
 	!MEM  real*8, allocatable :: sendbuf(:)
 	integer i1(nproc), i2(nproc), &
 	        j1(nproc), j2(nproc), &
@@ -255,7 +254,7 @@ subroutine gather(A, B)
 	include "mpif.h"
 
 	real*8 A(nx_1,ny_1,nz_1), B(nx,ny,nz)
-        real*8 recvbuf(nx_1,ny_1,nz_1,nproc)
+ 	real*8 recvbuf(nx_1,ny_1,nz_1,nproc)
 	!MEM   real*8, allocatable :: recvbuf(:,:,:,:)
 	integer i1(nproc), i2(nproc), &
 	        j1(nproc), j2(nproc), &
@@ -304,12 +303,12 @@ subroutine allGather(A, B)
 	include "mpif.h"
 
 	real*8 A(nx_1,ny_1,nz_1), B(nx,ny,nz)
-        real*8 recvbuf(nx_1,ny_1,nz_1,nproc)
+	real*8 recvbuf(nx_1,ny_1,nz_1,nproc)
 	!MEM  real*8, allocatable :: recvbuf(:,:,:,:)
 	integer i1(nproc), i2(nproc), &
 	        j1(nproc), j2(nproc), &
 	        k1(nproc), k2(nproc)
-        integer ip,ii,jj,kk
+	integer ip,ii,jj,kk
 
 	! Gather a distributed array to the root process
 	! including overlapping borders
@@ -356,7 +355,7 @@ subroutine scatterXY(A, B, nk)
 	real*8 sendbuf(nproc*nx_1*ny_1*nk)
 	integer i1(nproc), i2(nproc), &
 	        j1(nproc), j2(nproc)
-        integer L, ip
+ 	integer L, ip
 
 	! Scatter an XY-array among the processors
 	! including overlapping borders
@@ -393,7 +392,7 @@ subroutine gatherXY(A, B, nk)
 	use messenger
 	include "mpif.h"
 
-        integer nk, ip, ii, jj
+	integer nk, ip, ii, jj
 	real*8 A(nx_1,ny_1,nk), B(nx,ny,nk)
 	real*8 recvbuf(nx_1,ny_1,nk,nproc)
 	integer i1(nproc), i2(nproc), &
@@ -434,9 +433,9 @@ subroutine allGatherXY(A, B, nk)
 	use messenger
 	include "mpif.h"
 
-        integer nk, ip, ii,jj
+	integer nk, ip, ii,jj
 	real*8 A(nx_1,ny_1,nk), B(nx,ny,nk)
-        real*8 recvbuf(nx_1,ny_1,nk,nproc)
+	real*8 recvbuf(nx_1,ny_1,nk,nproc)
 	!MEM   real*8, allocatable :: recvbuf(:,:,:,:)
 	integer i1(nproc), i2(nproc), &
 	        j1(nproc), j2(nproc)
@@ -480,7 +479,7 @@ subroutine stat_gatherXY(A, B, nk)
 	use messenger
 	include "mpif.h"
 
-        integer nk, ip, ii, jj, isendcount
+	integer nk, ip, ii, jj, isendcount
 	real*8 A(0:nlx+1, 0:nly+1, nk), B(0:ngx+1, 0:ngy+1, nk)
 	real*8 recvbuf(0:nlx+1, 0:nly+1, nk, nproc)
 	integer iblk, jblk
@@ -541,9 +540,9 @@ subroutine stat_allGatherXY(A, B, nk)
 	use messenger
 	include "mpif.h"
 
-        integer nk, ip, ii,jj, isendcount
+	integer nk, ip, ii,jj, isendcount
 	real*8 A(0:nlx+1, 0:nly+1, nk), B(0:ngx+1, 0:ngy+1, nk)
-        real*8 recvbuf(0:nlx+1, 0:nly+1, nk, nproc)
+	real*8 recvbuf(0:nlx+1, 0:nly+1, nk, nproc)
 	!MEM   real*8, allocatable :: recvbuf(:,:,:,:)
 	integer iblk, jblk
 	integer i1_loc(nproc), j1_loc(nproc)

@@ -6,37 +6,21 @@
 ! after the name, in parenthesis, is the realm in which each routine must be called
 !
 ! coupler_create_comm	      	(cfd+md) splits MPI_COMM_WORLD, create intercommunicator between CFD and MD
-!
 ! coupler_create_map	       	(cfd+md) creates correspondence maps between the CFD grid and MD domains
-!
 ! coupler_cfd_init              (cfd)    initialises coupler with CFD data
-!
 ! coupler_md_init               (cfd)    initialises coupler and set MD parameters with using dat from CFD or COUPLER.in
-!
 ! coupler_cfd_adjust_domain     (cfd)    adjust CFD tomain to an integer number FCC or similar MD initial molecule layout
-!
 ! coupler_send_data        		(cfd+md) sends grid data exchanged between realms ( generic interface)
-!
 ! coupler_recv_data        (cfd+md) receives data exchanged between realms ( generic interface)
-!
 ! coupler_cfd_get               (cfd)    returns coupler internal parameters for CFD realm
-!
 ! coupler_md_get                (md)     returns coupler internal parameters for MD realm
-!
 ! coupler_md_get_save_period    (md)     auxiliary used for testing
-!
 ! coupler_md_get_average_period (md)     gets average period of boundary condition
-!
 ! coupler_md_get_md_steps_per_dt_cfd (md) returns the number of step MD does for ech CFD step
-!
-! coupler_md_get_nsteps         (md)     returm CFD nsteps
-!      
+! coupler_md_get_nsteps         (md)     returm CFD nsteps  
 ! coupler_md_get_dt_cfd         (md)     returns MD dt
-!
 ! coupler_md_set                (md)     sets zL if CFD is 2D
-!
 ! coupler_md_get_density        (md)     gets CFD density
-!
 ! coupler_md_get_cfd_id         (md)     id for CFD code, possible values set in coupler_parameters
 !
 !  Lucian Anton, November 2011
@@ -83,7 +67,7 @@ subroutine coupler_create_comm(realm, realm_comm, ierror)
 	call test_realms
 	COUPLER_REALM = realm
 	call create_comm
-	call  read_coupler_input
+	call read_coupler_input
 
     ! stop if requested ( useful for development )
 	call request_stop("create_comm") ! stops here if in COUPLER.in  stop requestis set to "create_comm"
@@ -248,7 +232,6 @@ subroutine coupler_cfd_init(icomm_grid, imino,imin,imax,imaxo,jmino,jmin,jmax,jm
         kmax_ => kmax, kmaxo_ => kmaxo, nsteps_ => nsteps, x_ => x, y_ => y, z_ => z, dx_ => dx, dz_ => dz, &
 		npx_ => npx, npy_ => npy, npz_ => npz, icoord_ => icoord, dt_ => dt, jmax_overlap, &
 		npx_md, npy_md, npz_md, nproc_md, MD_initial_cellsize
-
 	implicit none
 
 	integer, intent(in) :: icomm_grid,imino,imin,imax,imaxo,jmino,jmin,jmax,jmaxo,kmino,kmin,kmax,kmaxo,nsteps,&
@@ -381,7 +364,7 @@ subroutine coupler_md_init(npxin,npyin,npzin,icoordin,icomm_grid,dtin)
 	endif
 
 	call mpi_bcast((/ npx, npy, npz /), 3, MPI_INTEGER,&
-		source, COUPLER_ICOMM,ierr)
+								source, COUPLER_ICOMM,ierr)
 
 	!! Test
 	!	call mpi_comm_rank(MD_COMM,myid,ierr)!
@@ -413,8 +396,8 @@ subroutine coupler_md_init(npxin,npyin,npzin,icoordin,icomm_grid,dtin)
 	call mpi_bcast(nsteps,1,mpi_integer,0,COUPLER_ICOMM,ierr)
 
 	! get CFD dt
-	call mpi_bcast(ra,3,mpi_double_precision,0&
- 					&,COUPLER_ICOMM,ierr)
+	call mpi_bcast(ra,3,mpi_double_precision,0,COUPLER_ICOMM,ierr)
+
 	! should dt_CFD be scaled ?  see to it later !!!WHAT DOES THIS MEAN!!!
 	dt_CFD     = ra(1) * FoP_time_ratio
 	md_density = ra(2)
@@ -428,7 +411,7 @@ subroutine coupler_md_init(npxin,npyin,npzin,icoordin,icomm_grid,dtin)
     if (md_ly_extension_tag == CPL) then 
         DY_PURE_MD = md_ly_extension
     else 
-        DY_PURE_MD =  y(jmin_cfd) - y(jmino)
+        DY_PURE_MD = y(jmin_cfd) - y(jmino)
     end if
     yL_md = y(jmax_overlap_cfd) - y(jmino) + DY_PURE_MD
     yL_md = real(floor(yL_md/b),kind(0.d0))*b
