@@ -83,7 +83,7 @@ subroutine simulation_MD
 	use physical_constants_MD
 #if USE_COUPLER
 	use md_coupler_socket, only : socket_coupler_apply_continuum_forces, &
-								  average_and_send_MD_to_CFD
+								  average_and_send_MD_to_CFD,average_and_send_MD_to_CFD2
 #if COUPLER_DEBUG_LA
 	use md_coupler_socket, only : write_uc
 #endif
