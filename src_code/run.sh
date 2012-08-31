@@ -55,7 +55,7 @@ echo " "
 echo "  0" > data
 mv ./data ./couette_data/
 cp ./../../CFD_dCSE/src_code/main_code/input ./couette_data/
-cp ./../../CFD_dCSE/src_code/main_code/parallel.exe ./couette_data/
+cp ./../../CFD_dCSE/src_code/main_code/parallel_couette.exe ./couette_data/
 cp ./../../CFD_dCSE/src_code/setup/ucvcwc.dble.000000 ./couette_data/
 cp ./../../CFD_dCSE/src_code/setup/uuvvww.dble.000000 ./couette_data/
 cp ./../../CFD_dCSE/src_code/setup/conold.dble.000000 ./couette_data/

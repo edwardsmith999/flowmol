@@ -28,7 +28,7 @@ MD_AVERAGE_PERIOD
 #
 #
 STAGGERED_AVERAGES
-T T T
+F F F
 #########################################################################
 # Number of MD steps per CFD step
 # in not set here coupler set is to INT(dt_cfd/dt_md)
