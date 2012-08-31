@@ -75,12 +75,12 @@ module coupler_input_data
 	integer 				:: md_cfd_match_cellsize		!Force MD cells to be an integer multiple of CFD cell size
     integer, target 		:: md_cfd_match_cellsize_tag
 
-    character(len=64) :: cfd_code_name ! used to set cfd_code_id in MD
-    integer           :: cfd_code_id
-    integer, target   :: cfd_code_id_tag
+    character(len=64) 		:: cfd_code_name ! used to set cfd_code_id in MD
+    integer           		:: cfd_code_id
+    integer, target   		:: cfd_code_id_tag
 
     ! auxiliary list for easy manipulation
-    integer,parameter :: nsections=12 ! total number of section in input files
+    integer,parameter 		:: nsections=12 ! total number of section in input files
     type(section_type) section(nsections)
 
 contains

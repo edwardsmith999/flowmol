@@ -420,8 +420,8 @@ subroutine CartesianBC(deltaT)
 	call updateBorder_lim(wc, ngz+1,nlx  ,nly  , id_y, 3, j1_u, j2_u, 2)
 
 	do icell=0,nlx+1
-		!print'(a,2i8,10f10.5)', 'Aftr_excng CFD Bottom BC',irank,icell,uc(:, icell, 0)
-		print'(a,2i8,10f10.5)', 'Aftr excng CFD Bottom BC',irank,icell,uc(:, icell, 0)
+		print'(a,2i8,10f10.5)', 'Aftr_excng CFD Bottom BC',irank,icell,uc(:, icell, 0)
+		!print'(a,2i8,6f10.5)', 'CFD grid location',irank,icell,xpg(icell,5),xpu(icell,5),x(icell),ypg(icell,5),ypu(icell,5),y(icell)
 	enddo
       	
 	return

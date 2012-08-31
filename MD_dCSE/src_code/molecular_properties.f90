@@ -26,11 +26,11 @@ subroutine setup_tag
 	integer 				:: ixyz, n, mol_layers
 	integer,dimension(3)	:: block
 
-	!For initialunitsize "a"
-	!		 [  o     o ]
-	!a (1 cell size) [     o    ]  a/2 (distance between molcules)	
-	!		 [  o     o
-	!		  __________]  a/4 (distance from bottom of domain)
+	!				For initialunitsize "a"
+	!					[  o     o ]
+	!	a (1 cell size) [     o    ]  a/2 (distance between molcules)	
+	!					[  o     o
+	!		 			 __________]  a/4 (distance from bottom of domain)
 	!
 	!So use (0.20+0.5d0*mol_layers)*initialunitsize(ixyz)
 

@@ -14,15 +14,15 @@
 # Couette solver
 #
 # serial
-clean_serial_couette serial_couette serial_couette_solo : CFD_SRC_PATH := ./Couette_serial 
+clean_serial_couette serial_couette serial_couette_solo : CFD_SRC_PATH := ./Couette_serial/ 
 serial_couette serial_couette_solo : CFD_TARGET := continuum.exe
 #
 #parallel
 #
 setup_couette  : CFD_GRID_PATH  := ./CFD_dCSE/src_code/grid_generation/
 setup_couette  : CFD_SETUP_PATH := ./CFD_dCSE/src_code/setup/
-couette clean_couette couette_solo clean_couette_solo sockets : CFD_SRC_PATH := ./CFD_dCSE/src_code/main_code 
-couette clean_couette couette_solo clean_couette_solo : MAKEFILE_NAME := makefile
+couette clean_couette couette_solo clean_couette_solo sockets : CFD_SRC_PATH := ./CFD_dCSE/src_code/main_code/ 
+couette clean_couette couette_solo clean_couette_solo : MAKEFILE_NAME := -f makefile
 couette clean_couette couette_solo clean_couette_solo : CFD_TARGET := parallel_couette.exe 
 
 #

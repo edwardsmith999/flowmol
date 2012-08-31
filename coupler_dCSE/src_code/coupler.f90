@@ -11,12 +11,12 @@
 ! coupler_md_init               (cfd)    initialises coupler and set MD parameters with using dat from CFD or COUPLER.in
 ! coupler_cfd_adjust_domain     (cfd)    adjust CFD tomain to an integer number FCC or similar MD initial molecule layout
 ! coupler_send_data        		(cfd+md) sends grid data exchanged between realms ( generic interface)
-! coupler_recv_data        (cfd+md) receives data exchanged between realms ( generic interface)
+! coupler_recv_data        		(cfd+md) receives data exchanged between realms ( generic interface)
 ! coupler_cfd_get               (cfd)    returns coupler internal parameters for CFD realm
 ! coupler_md_get                (md)     returns coupler internal parameters for MD realm
 ! coupler_md_get_save_period    (md)     auxiliary used for testing
 ! coupler_md_get_average_period (md)     gets average period of boundary condition
-! coupler_md_get_md_steps_per_dt_cfd (md) returns the number of step MD does for ech CFD step
+! coupler_md_get_md_steps_per_cfd_dt (md) returns the number of step MD does for ech CFD step
 ! coupler_md_get_nsteps         (md)     returm CFD nsteps  
 ! coupler_md_get_dt_cfd         (md)     returns MD dt
 ! coupler_md_set                (md)     sets zL if CFD is 2D
@@ -223,7 +223,7 @@ end subroutine coupler_create_map
 !-----------------------------------------------------------------------------
 
 subroutine coupler_cfd_init(icomm_grid, imino,imin,imax,imaxo,jmino,jmin,jmax,jmaxo,kmino,kmin,&
-	kmax,kmaxo,nsteps,x,y,z,dx,dz,npx,npy,npz,icoord,dt)
+							kmax,kmaxo,nsteps,x,y,z,dx,dz,npx,npy,npz,icoord,dt)
 	use mpi
 	use coupler_internal_common
 	use coupler_input_data
@@ -417,7 +417,7 @@ subroutine coupler_md_init(npxin,npyin,npzin,icoordin,icomm_grid,dtin)
     yL_md = real(floor(yL_md/b),kind(0.d0))*b
     DY_PURE_MD = yL_md - (y(jmax_overlap_cfd) - y(jmino))
 
-	write(0,*) 'MD domain etc', DY_PURE_MD,y(jmin_cfd) , yL_md, y(jmax_overlap_cfd),y(jmino)
+	write(0,*) 'MD domain etc', DY_PURE_MD,y(jmin_cfd),yL_md,y(jmax_overlap_cfd),y(jmino)
 
 	!Fix zL_md domain size to continuum
 	zL_md = z(kmax_cfd) - z(kmin_cfd)
@@ -749,7 +749,7 @@ end subroutine coupler_send_data_4d
 !  contains local grid data in the sector
 !  a(n,iags:iage,jags:jage,kags:kage)
 ! 
-!  which correspods to the global index region
+!  which corresponds to the global index region
 !  igs:ige jgs:jge, kgs:kge
 !
 !  which must be contain in the local grid box
@@ -768,6 +768,7 @@ end subroutine coupler_send_data_4d
 !  3) send a quick description of the data ( an array of 8 integers )
 !  4) send the data if there is anything to send
 !-----------------------------------------------------------------------------
+
 subroutine coupler_send_data_xd(asend,n1,n2,n3,n4,index_transpose,asend_lbound,&
     asend_grid_start,asend_grid_end,glower,gupper,use_overlap_box)
 	use mpi
@@ -833,7 +834,7 @@ subroutine coupler_send_data_xd(asend,n1,n2,n3,n4,index_transpose,asend_lbound,&
         bks = bbox_cfd%zbb(1,icoord(3,myid+1))
         bke = bbox_cfd%zbb(2,icoord(3,myid+1))
     else
-        ! using by default the indices of CFD grid  inside the MD domain
+        ! using by default the indices of CFD grid inside the MD domain
         bis = bbox_md%is
         bie = bbox_md%ie
         bjs = bbox_md%js
@@ -1479,7 +1480,7 @@ end subroutine coupler_recv_data_xd
 !
 !-----------------------------------------------------------------------------    
 
-!===============================================================================
+!-------------------------------------------------------------------------------
 ! return to the caller coupler parameters from cfd realm
 !-------------------------------------------------------------------------------
 subroutine coupler_cfd_get(jmax_overlap,jmin,jmino)
@@ -1504,7 +1505,7 @@ end subroutine coupler_cfd_get
 
 
 !===============================================================================
-! return to the caller coupler parameters from MD realm
+! Return to the caller coupler parameters from MD realm
 !-------------------------------------------------------------------------------
 subroutine coupler_md_get(	xL_md,yL_md,zL_md, MD_initial_cellsize, top_dy, &
 							overlap_with_continuum_force, overlap_with_top_cfd, ymin_continuum_force, &
@@ -1620,12 +1621,12 @@ subroutine coupler_md_get(	xL_md,yL_md,zL_md, MD_initial_cellsize, top_dy, &
          cfd_box%jmax  = cfd_box_%jmax
          cfd_box%kmin  = cfd_box_%kmin
          cfd_box%kmax  = cfd_box_%kmax
-         cfd_box%imino  = cfd_box_%imino
-         cfd_box%imaxo  = cfd_box_%imaxo
-         cfd_box%jmino  = cfd_box_%jmino
-         cfd_box%jmaxo  = cfd_box_%jmaxo
-         cfd_box%kmino  = cfd_box_%kmino
-         cfd_box%kmaxo  = cfd_box_%kmaxo
+         cfd_box%imino = cfd_box_%imino
+         cfd_box%imaxo = cfd_box_%imaxo
+         cfd_box%jmino = cfd_box_%jmino
+         cfd_box%jmaxo = cfd_box_%jmaxo
+         cfd_box%kmino = cfd_box_%kmino
+         cfd_box%kmaxo = cfd_box_%kmaxo
          cfd_box%xmin  = cfd_box_%xmin
          cfd_box%xmax  = cfd_box_%xmax
          cfd_box%dx    = cfd_box_%dx
@@ -1641,18 +1642,16 @@ subroutine coupler_md_get(	xL_md,yL_md,zL_md, MD_initial_cellsize, top_dy, &
 end subroutine coupler_md_get
 
 !-----------------------------------------------------------------------------
-!
-!----------------------------------------------------------------------------- 
+ 
 function coupler_md_get_save_period() result(p)
 	use coupler_internal_md, only : save_period
 	implicit none
 
 	integer p
-
 	p = save_period
+
 end function coupler_md_get_save_period
-!-----------------------------------------------------------------------------
-!
+
 !----------------------------------------------------------------------------- 
 
 function coupler_md_get_average_period() result(p)
@@ -1660,48 +1659,43 @@ function coupler_md_get_average_period() result(p)
 	implicit none
 
 	integer p
-
 	p = average_period
+
 end function coupler_md_get_average_period
-!-----------------------------------------------------------------------------
-!
+
 !----------------------------------------------------------------------------- 
 
-function coupler_md_get_md_steps_per_dt_cfd() result(p)
+function coupler_md_get_md_steps_per_cfd_dt() result(p)
 	use coupler_internal_md, only : md_steps_per_dt_cfd
 	implicit none
 
 	integer p
-
 	p = md_steps_per_dt_cfd
-end function coupler_md_get_md_steps_per_dt_cfd
+
+end function coupler_md_get_md_steps_per_cfd_dt
 
 !-----------------------------------------------------------------------------
-!
-!----------------------------------------------------------------------------- 
+
 function coupler_md_get_nsteps() result(n)
 	 use coupler_internal_md, only : nsteps
 	 implicit none 
 
 	 integer n
-
 	 n = nsteps
+
 end function coupler_md_get_nsteps
 
 !-----------------------------------------------------------------------------
-!
-!----------------------------------------------------------------------------- 
+
 function coupler_md_get_dt_cfd() result(t)
 	 use coupler_internal_md, only : dt_CFD  
 	 implicit none
 
 	 real(kind=kind(0.d0)) t
-
 	 t = dt_CFD
+
 end function coupler_md_get_dt_cfd
 
-!-----------------------------------------------------------------------------
-!
 !-----------------------------------------------------------------------------  
 subroutine coupler_md_set(zL_md)
 	use coupler_internal_md, only : zL => zL_md, z, dz, kmino, kmin_cfd, kmax_cfd, kmaxo
@@ -1722,700 +1716,28 @@ subroutine coupler_md_set(zL_md)
 		kmin_cfd   = 1
 		kmax_cfd   = 2
 		kmaxo      = 2
-		
 	endif
+
 end subroutine coupler_md_set
 
-!-----------------------------------------------------------------------------
-!
-!----------------------------------------------------------------------------- 
 
 function coupler_md_get_density() result(r)
 	use coupler_internal_md, only : density
 	implicit none
 
 	real(kind(0.d0)) r
-
 	r = density
 
 end function coupler_md_get_density
 
-!==============================================================================
-!
 !------------------------------------------------------------------------------
 function coupler_md_get_cfd_id() result(r)
     use coupler_internal_md, only : cfd_code_id
     implicit none
 
     integer r
-
     r = cfd_code_id
 
 end function coupler_md_get_cfd_id
-
-
-
-
-! Below are deprecated subroutine but still useful for
-! testing or reference
-!#if COUPLER_DEBUG_LA
-!=============================================================================
-! test subroutine: averages uc over CFD boxes and writes the results
-! to a file
-!-----------------------------------------------------------------------------
-subroutine coupler_uc_average_test(np,r,v,lwrite)
-	use coupler_internal_common
-	use coupler_internal_md, only : nlx, nlz, nly, bbox, jmino, jmin => jmin_cfd,&
-        global_r, x, dx, y, z, dz	 
-	implicit none
-
-	integer, intent(in) :: np
-	real(kind=kind(0.d0)), intent(in) :: r(:,:),v(:,:)
-	logical, intent(in) :: lwrite
-
-	integer ib, kb, jb, ip, myid, jbuff, ks, ke, ierr
-	real(kind=kind(0.d0)) rd(3), ymin, ymax, dy
-	real(kind=kind(0.d0)),allocatable, save :: uc_bin(:,:,:,:)
-	logical,save :: firsttime=.true.
-	save jbuff
-
-	call mpi_comm_rank(COUPLER_REALM_COMM,myid,ierr)
-  !write a xy slab, typically of width 1
-  ! this should be a coupler input parameter
-        ks = nlz/2; ke = ks+1
-
-	if(firsttime)then
-		firsttime = .false.
-
-        ! how many cells to collect along y
-		jbuff = nly+1 ! start data collection form jmino - 1 to see the boundary effects
-
-		allocate(uc_bin(2,ks:ke,nlx,jbuff))
-		uc_bin = 0.d0
-
-		if (myid .eq. 0) then 
-			open(45, file="md_vel.txt",position="rewind")
-			write(45,*)'# dx,dy,dz ', dx,y(jmin+1)-y(jmin),dz
-			write(45,*)'# nlx, nly, nlz', nlx,nly,nlz
-			close(45)
-		endif
-	endif
-
-	if (lwrite) then
-		call write_data
-		return
-	endif
-	dy = y(jmin+1) - y(jmin)
-	ymin = y(jmino) -  dy
-	ymax = y(bbox%je - 1)
-
-	!		write(0,*)'MD uc test', np, dy, ymin,ymax
-
-	do ip = 1, np
-		! Convert particle coordinates to same coordinate system
-		! as CFD code so ymin/ymax from CFD can be used in tests
-		rd(:)=r(ip,:)
-		rd(:) = global_r(rd)
-
-		if ( rd(2) < ymin .or. rd(2) > ymax ) then
-								! molecule outside the boundary layer
-			cycle
-		endif
-
-		ib = nint((rd(1) - x(bbox%iso)) / dx) + 1	   ! staggered !!!
-		kb = ceiling((rd(3) - z(bbox%ks)) / dz)
-		jb = ceiling((rd(2) - ymin	  )	  / dy)
-
-		if ( ib > 0 .and. ib <= nlx	 .and. &
-			kb >= ks .and. kb < ke  ) then 
-			!this particle is in this ranks domain
-			uc_bin(1,kb,ib,jb) = uc_bin(1,kb,ib,jb) + v(ip,1)
-			uc_bin(2,kb,ib,jb) = uc_bin(2,kb,ib,jb) + 1.d0 
-		else 
-			! write(0,*) 'MD uc_average, outside domain rd', rd, ' bbox%bb ', bbox 
-		endif
-	end do
-
-	! debug	  
-	!						 do i = 1, size(uc_bin,dim=2)
-	!						  write(0, '(a,I4,64F7.1)') 'MD myid uc_bin(2,..',myid,uc_bin(2,1,:)
-	!						 enddo
-	!						write(0,*) 'MD uc sum in boxes', myid
-	!						do i = 1, size(uc_bin,dim=2)
-	!								write(0, '(a,I4,64E11.4)') 'MD myid uc_bin(1,..',myid, uc_bin(1,1,:)
-	!						enddo
-								! send it to CFD		
-
-contains 
-	!=============================================================================
-								! Write velocities from MD domain
-	!-----------------------------------------------------------------------------
-
-	subroutine write_data
-		use mpi
-		use coupler_internal_md, only : nproc, imin_cfd, imax_cfd, kmin_cfd, kmax_cfd
-		implicit none
-
-		integer i,j, ibuff(2,2,0:nproc-1), ntot, nrecv, sa(nproc),req(nproc-1),	 &
-			ierr
-		real(kind(0.d0)),allocatable :: buff(:,:,:,:),buff_recv(:)
-		real(kind(0.d0)) x(nlx)  
-
-		if(nproc > 1) then
-
-		    ! works only for parallel decomposition in x and y direction
-			call mpi_gather((/bbox%iso,bbox%ieo,bbox%kso,bbox%keo/),4,MPI_INTEGER,&
-				ibuff,4,MPI_INTEGER,0,COUPLER_REALM_COMM,ierr)
-
-			!			   write(0,*) "MD write test data", myid, ibuff
-
-			if (myid .eq. 0) then
-
-				! the local bit first
-				allocate(buff(2,ke-ks,imin_cfd:imax_cfd,jbuff))
-
-				buff = 0.d0
-				buff(:,1:ke-ks,ibuff(1,1,0):ibuff(2,1,0),:) = &
-					buff(:,1:ke-ks,ibuff(1,1,0):ibuff(2,1,0),:) + &
-					uc_bin(:,ks:ke,1:nlx,:)
-
-
-				ntot = 0
-				do i=1,nproc-1
-					ntot = ntot + 2*(ke-ks)*(ibuff(2,1,i)-ibuff(1,1,i)+1)*jbuff
-				enddo
-
-				allocate(buff_recv(ntot))
-				buff_recv(ntot) = 0.d0
-
-				sa(1)=1
-				do i=1,nproc-1
-
-					nrecv = 2*(ke-ks)*(ibuff(2,1,i)-ibuff(1,1,i)+1)*jbuff
-					sa(i+1) = sa(i) + nrecv
-
-					call mpi_irecv(buff_recv(sa(i)),nrecv,MPI_DOUBLE_PRECISION,&
-						i,1,COUPLER_REALM_COMM,req(i),ierr)
-
-				enddo
-
-				call mpi_waitall(nproc-1,req,MPI_STATUSES_IGNORE,ierr)
-
-				do i =1, nproc-1
-					buff(:, 1:ke-ks, ibuff(1,1,i):ibuff(2,1,i), :) = &
-						buff(:, 1:ke-ks, ibuff(1,1,i):ibuff(2,1,i)-1, :) + &
-						reshape(buff_recv(sa(i):sa(i+1)-1), (/ 2,ke-ks,ibuff(2,1,i)-ibuff(1,1,i)+1,jbuff /))
-				enddo
-			else
-				call mpi_send(uc_bin,size(uc_bin),MPI_DOUBLE_PRECISION,0,1,COUPLER_REALM_COMM,ierr)
-			endif
-		endif
-
-		if (nproc > 1) then
-			if (myid .eq. 0 ) then
-                call write_array(buff)
-            endif
-		else
-            call write_array(uc_bin) 
-        endif
-
-        uc_bin = 0.d0
-
-    end subroutine write_data
-
-
-    subroutine write_array(u)
-        implicit none
-        real(kind=kind(0.d0)) u(:,:,:,:)
-
-        integer i,j,k
-        real(kind(0.d0)) x
-
-        open(45,file="md_vel.txt",position="append")
-
-        do k = 1, ke-ks
-            do i=1,size(u,dim=3)
-                do j=1,size(u,dim=4)
-                    if (u(2,k,i,j) > 0.d0 )then 
-						x = u(1,k,i,j) / u(2,k,i,j)
-                    else 
-                        x = 0.d0
-					endif
-                    write(45, '(100(E12.4,1x))') x
-                enddo
-                write(45,'(1x)') ! gnuplot block
-            enddo
-            write(45,'(1x/1x)')
-        enddo
-        close(45)
-
-    end subroutine write_array
-
-end subroutine coupler_uc_average_test
-!#endif
-
-! Keep these subroutines for a while, useful references 
-
-!=============================================================================
-!	Apply force to prevent molecules leaving domain using form suggested by 
-!	Nie, Chen, E and Robbins (2004)
-!-----------------------------------------------------------------------------
-
-!!$subroutine coupler_md_boundary_forces(np,pressure,r,a)
-!!$	use coupler_internal_md, only : bbox, jmax_overlap_cfd, halfdomain => half_domain_lengths, y
-!!$	implicit none 
-!!$
-!!$	integer, intent(in)		  :: np
-!!$	real(kind=kind(0.d0)), intent(inout) :: a(:,:)
-!!$	real(kind=kind(0.d0)), intent(in)    :: pressure, r(:,:)
-!!$
-!!$	! locals
-!!$	real(kind=kind(0.d0)), parameter :: eps = 0.d-2 ! avoid singular forces for molecules that 
-!!$													! happend to be very close to y(jmax_overlap)
-!!$	integer n
-!!$	real(kind=kind(0.d0)) p, yc, y2, y3
-!!$
-!!$
-!!$	! Initial pressure is -ve - this line prevents problems	
-!!$	p = pressure
-!!$	if(pressure <= 0 ) then 
-!!$		p= 1.d0
-!!$	endif
-!!$
-!!$	y2 = y(jmax_overlap_cfd -1)
-!!$	y3 = y(jmax_overlap_cfd) 
-!!$
-!!$	do n = 1, np
-!!$		! get the global value of y coordinate	
-!!$		yc  =  r(n,2) + halfdomain(2) + bbox%bb(1,2)
-!!$		if (yc  < y3 .and. yc >= y2 ) then
-!!$			a(n,2)= a(n,2) - p*(yc-y2)/(1.d0-(yc-y2)/(y3-y2)+eps)
-!!$		endif
-!!$	enddo
-!!$
-!!$
-!!$end subroutine coupler_md_boundary_forces
-
-!=============================================================================
-! Apply force from Nie et al (2004) paper to fix molecular velocity to
-! continuum value inside the overlap region. 
-!-----------------------------------------------------------------------------
-
-!!$subroutine coupler_md_apply_continuum_forces(np,r,v,a,iter)
-!!$	use coupler_internal_common
-!!$	use coupler_internal_md, only : cfd_box_sum, halfdomain => half_domain_lengths, &
-!!$					x, y, z, dx, dz, global_r, jmin => jmin_cfd, &
-!!$					nlx, nly, nlz, dt_CFD,bbox, get_CFDvel, &
-!!$					jmax_overlap => jmax_overlap_cfd, myid
-!!$	implicit none
-!!$
-!!$	real(kind=kind(0.d0)), dimension(:,:), intent(in) :: r,v
-!!$	real(kind=kind(0.d0)), dimension(:,:), intent(inout) :: a 
-!!$	integer, intent(in) :: np,iter  ! iteration step, it assumes that each MD average
-!!$	! start from iter = 1
-!!$
-!!$	type(cfd_box_sum) :: box_average(bbox%ie - bbox%is,1, bbox%ke - bbox%ks)
-!!$	integer j, ib, jb, kb, nib, njb, nkb, ip, np_overlap, jb_constrain
-!!$	integer list(4,np)
-!!$	real(kind=kind(0.d0)) inv_dtCFD, rd(3)
-!!$	integer :: ncalls = 0
-!!$
-!!$	! run through the particle, check if they are in the overlap region
-!!$	! find the CFD box to which the particle belongs	      
-!!$	! attention to the particle that have left the domain boundaries 
-!!$
-!!$        ! This work is done only by the MD ranks that cover the constraint region
-!!$        ! At the moment use only the second layer from the top of CFD cell 
-!!$        if (  jmax_overlap - 2 < bbox%js .or. jmax_overlap - 2 >= bbox%je ) return
-!!$
-!!$	! number of CFD cells in each direction
-!!$	nib = bbox%ie - bbox%is
-!!$	njb = bbox%je - bbox%js
-!!$	nkb = bbox%ke - bbox%ks
-!!$
-!!$	! vel_fromCFD cell index from which continum constrain is applied
-!!$	jb_constrain =   njb - 1 ! the second row of cells from the top
-!!$
-!!$	if (iter .eq. 1) then
-!!$		! get the previous value of CFD velocities
-!!$		call  get_CFDvel
-!!$	endif
-!!$
-!!$	! at first CFD step we don't have two values to extrapolate CFD velocities, set inv_dtCFD=0
-!!$	if (ncalls .eq. 0) then
-!!$		inv_dtCFD = 0.0
-!!$	else
-!!$		inv_dtCFD = 1.0/dt_CFD
-!!$	endif
-!!$	ncalls = ncalls + 1
-!!$
-!!$	np_overlap = 0 ! number of particles in overlapping reg
-!!$
-!!$	do kb = 1, ubound(box_average,dim=3)
-!!$		do jb = 1, ubound(box_average,dim=2)
-!!$			do ib = 1, ubound(box_average,dim=1)
-!!$				box_average(ib,jb,kb)%np   = 0
-!!$				box_average(ib,jb,kb)%v(:) = 0.0d0
-!!$				box_average(ib,jb,kb)%a(:) = 0.0d0
-!!$			enddo
-!!$		enddo
-!!$	enddo
-!!$
-!!$	do ip = 1, np
-!!$
-!!$		! we need global MD coordinates to check if the particle is in the extended box.
-!!$		! bbox%bb(:,:) are ok for they were used to build the MD domains
-!!$		rd(:) = r(ip,:)
-!!$		rd(:) = global_r(rd)
-!!$
-!!$		! struggling with the bottom boundary, below average boxes but with particles
-!!$		!  for the moment let's work with 1 layer of MD blocks in 1 D
-!!$		if ( rd(2) <= y(jmax_overlap-2) .or.   rd(2) >= y(jmax_overlap-1) ) then
-!!$			cycle 
-!!$		else 
-!!$                        jb = 1
-!!$                        ! version to be analized later
-!!$			! non uniform grid in j direction		
-!!$			!			 do j =jmin+1, jmax_overlap
-!!$			!				if( rd(2) <= y(j) ) then 
-!!$			!					!this is my cell index, exit
-!!$			!					jb = j - jmin
-!!$			!					exit
-!!$			!				endif
-!!$			!			  enddo
-!!$
-!!$		endif
-!!$
-!!$		! get the CFD cell coordinates   
-!!$		if (rd(1) < x(bbox%is) .or. rd(1) >= x(bbox%ie)) then
-!!$			! this particle has left the domanin
-!!$			!				write(0,*) 'particle lost in x direction'
-!!$			cycle
-!!$		else 
-!!$			ib = ceiling((rd(1) -  x(bbox%is))/ dx)
-!!$		endif
-!!$
-!!$		if (rd(3) < z(bbox%ks) .or. rd(3) >= z(bbox%ke) ) then
-!!$			! this particle has left the domanin
-!!$			!				write(0,*) 'particle lost in z direction'
-!!$			cycle
-!!$		else
-!!$			kb = ceiling( (rd(3) - z(bbox%ks) ) / dz) 
-!!$		endif
-!!$
-!!$		np_overlap = np_overlap + 1
-!!$		list(1:4, np_overlap) = (/ ip, ib, jb, kb /)
-!!$
-!!$		box_average(ib,jb,kb)%np   =  box_average(ib,jb,kb)%np + 1
-!!$		box_average(ib,jb,kb)%v(:) =  box_average(ib,jb,kb)%v(:) + v(ip,:)
-!!$		box_average(ib,jb,kb)%a(:) =  box_average(ib,jb,kb)%a(:) + a(ip,:)
-!!$
-!!$	enddo
-!!$
-!!$	! here we should have the cell coordinates for the particle ip which is 
-!!$	! in the overlap region
-!!$	! one has to treat separatley the particle that have left the domain
-!!$	! compute the average force for each bin
-!!$
-!!$	!write(0,*)'MD before average over bin. np_overlap', np_overlap
-!!$
-!!$	call average_over_bin
-!!$
-!!$	!write(0,*) 'MD: end simulation_apply_continuum_forces', myid
-!!$
-!!$contains
-!!$
-!!$!=============================================================================
-!!$! Get velocity from CFD and apply force to molecule
-!!$!-----------------------------------------------------------------------------
-!!$
-!!$	subroutine average_over_bin
-!!$		use coupler_internal_md, only : dt_MD, myid, itm1, itm2, vel_fromCFD 
-!!$		implicit none
-!!$
-!!$		integer ib, jb, kb, i, ip, n
-!!$		real(kind=kind(0.d0)) alpha(3), u_cfd_t_plus_dt(3), inv_dtMD, acfd
-!!$
-!!$
-!!$		! set the continnum constraints for the particle in the bin
-!!$		! speed extrapolation 
-!!$		! add all up
-!!$		inv_dtMD =1.d0/dt_MD
-!!$
-!!$		!write(0,'(a,I7,2E12.4)') "MD continuum np, vel_fromCFD1 : ", np_overlap, &
-!!$		!						  maxval(a(list(1,1:np_overlap),:)), &
-!!$		!						  minval(a(list(1,1:np_overlap),:))
-!!$
-!!$		do i = 1, np_overlap  
-!!$			ip = list(1,i)
-!!$			ib = list(2,i)
-!!$			jb = list(3,i)
-!!$			kb = list(4,i)
-!!$
-!!$			n = box_average(ib,jb,kb)%np
-!!$
-!!$			!write(0,'(a,4I4,14E12.4)') "MD continuum force", ib,jb,kb,n,box_average(ib,jb,kb)%v(:), &
-!!$			!	box_average(ib,jb,kb)%a(:),v(ip,:),a(ip,:),inv_dtMD,inv_dtCFD
-!!$
-!!$			if ( n .eq. 0 ) cycle
-!!$
-!!$			! using the following exptrapolation formula for continuum velocity
-!!$			! y = (y2-y1)/(x2-x1) * (x-x2) +y2
-!!$			alpha(1) = inv_dtCFD*(vel_fromCFD(1,ib,jb_constrain,kb,itm1) - &
-!!$				vel_fromCFD(1,ib,jb_constrain,kb,itm2))
-!!$
-!!$			u_cfd_t_plus_dt(1) = alpha(1) * (iter + 1)*dt_MD + vel_fromCFD(1,ib,jb_constrain,kb,itm1) 
-!!$
-!!$			acfd =  - box_average(ib,jb,kb)%a(1) / n - inv_dtMD * & 
-!!$				( box_average(ib,jb,kb)%v(1) / n - u_cfd_t_plus_dt(1) )
-!!$			a(ip,1) = a(ip,1) + acfd
-!!$
-!!$			!	write(0,'(a,4I4,15E12.4)') "MD continuum force 2", ib,jb,kb,n, &
-!!$			!	 alpha(1),u_cfd_t_plus_dt(1),vel_fromCFD(1,ib,jb+jb_offset,kb,itm1),&
-!!$			!	 vel_fromCFD(1,ib,jb+jb_offset,kb,itm2),&
-!!$			!	 a(ip,1),acfd, r(ip,2) 
-!!$
-!!$		enddo
-!!$
-!!$
-!!$		!	write(400+10*ncalls+myid,'(a,I7,2E12.4)') "MD continuum np, vel_fromCFD 2: ", np_overlap, &
-!!$		!						   maxval(a(list(1,1:np_overlap),:)), &
-!!$		!						   minval(a(list(1,1:np_overlap),:))
-!!$		!	write(400+10*ncalls+myid,'(a,2E12.4)')" inv_dtCFD, inv_dtMD ", inv_dtCFD, inv_dtMD
-!!$		!	do kb=1,nkb
-!!$		!	do jb=1,njb
-!!$		!	do ib=1,nib
-!!$		!		write(400+10*ncalls+myid,'(12E12.4,I7)') vel_fromCFD(:,ib,jb,kb,1), vel_fromCFD(:,ib,jb,kb,2),&
-!!$		!					      box_average(ib,jb,kb)%v(:), box_average(ib,jb,kb)%a(:),&
-!!$		!					      box_average(ib,jb,kb)%np
-!!$		!	enddo
-!!$		!	enddo
-!!$		!	enddo
-!!$
-!!$	end subroutine average_over_bin
-!!$
-!!$end subroutine coupler_md_apply_continuum_forces
-
-!============================================================================
-! Send CFD velocities via the intercommunicator to the MD processors
-! which are specified by the topological maps setup in create_map_cfd 
-!
-! Algoritm brief description
-! 1) CFD caller passes the array of data to be sent, the index ranges
-!    that contains data ( so far assumes 1:ngz in z ditection) and 
-!    the start i,j start on the global grid
-!
-! 1') When a local quatity starts frm grif index > imin (as uc)
-!     one has to exted the array index to the left to cover the 
-!     whole global grid. ( Assumes that some halo are present in the
-!     local quantity which hold boundary condition)
-!     To be discussed further !!!
-!     Later: this goes better to the socket where one can addapt
-!     the local array at wish
-!
-! 2) Use map to figure with domain of local indices go to what MD core
-!
-! 3) Send the starting global indices (x,y) and the extend in all direction
-!    followed by data 
-!-----------------------------------------------------------------------------
-!!$subroutine coupler_cfd_send_velocity(xc,i1_x,i2_x,i1b_x,j1_x,j2_x,j1b_x)
-!!$	use mpi
-!!$	use coupler_internal_cfd, only : md_map, nlx, nly, nlz, CFD_COMM_OVERLAP, &
-!!$					 bbox_cfd, jmax_overlap, dx, dz, icoord, nlz, coupler_grid_comm
-!!$	use coupler_internal_common
-!!$	implicit none
-!!$
-!!$    integer , intent(in) :: i1_x,i2_x,i1b_x,j1_x,j2_x,j1b_x
-!!$	real(kind=kind(0.d0)), intent(in) :: xc(0:,0:,0:)
-!!$
-!!$	real(kind=kind(0.d0)), allocatable :: vbuf(:)
-!!$	integer i, j,k, is, ie, js, je, ks, ke,i1,i2,j1,j2,gsi,gsj, gsi_md, gsj_md, &
-!!$        gsk_md, min_i, min_j, min_k, np, myid, &
-!!$		itag, dest, type, req(md_map%n), ierr
-!!$	integer status(MPI_STATUS_SIZE,md_map%n)
-!!$	integer, save :: ncalls = 0
-!!$	character(len=20) fname
-!!$
-!!$
-!!$	! This local CFD domain is outside MD overlap zone 
-!!$	if ( md_map%n .eq. 0 ) return 
-!!$
-!!$	call mpi_comm_rank(coupler_grid_comm,myid,ierr)
-!!$
-!!$	ncalls = ncalls + 1
-!!$	!		write(0,*) "CFD, send_CFDvel: ", myid
-!!$	is = bbox_cfd%xbb(1,icoord(1,myid+1))
-!!$	!ie = bbox_cfd%xbb(2,icoord(1,myid+1))
-!!$	js = bbox_cfd%ybb(1,icoord(2,myid+1))
-!!$	!je = bbox_cfd%ybb(2,icoord(2,myid+1))
-!!$	ks = bbox_cfd%zbb(1,icoord(3,myid+1))
-!!$	!ke = bbox_cfd%zbb(2,icoord(3,myid+1))
-!!$
-!!$	min_i = minval(md_map%domains(1,:))
-!!$	min_j = minval(md_map%domains(3,:))
-!!$	min_k = minval(md_map%domains(5,:))
-!!$ 
-!!$
-!!$    ! if i1b_x is not is we extend to the margin ( to catch the boundary condition)
-!!$    ! however one has to check that we don't get out of xc index range
-!!$    ! check it later 
-!!$
-!!$    i1  = i1_x
-!!$    gsi = i1b_x
-!!$    if (i1b_x > is ) then
-!!$        if (i1u_x - (i1b_x-is) >= 0) then
-!!$            i1 =i1_x - (i1b_x-is)
-!!$            gsi = is
-!!$            write(0,*) 'rank ', myid, ' xc exteded to the left ', is,i1b_x, i1_x,i2_x
-!!$        else
-!!$            write(0,*) 'ux index cannot be extended to the left'
-!!$        endif
-!!$    endif
-!!$
-!!$    i2 = i2_x
-!!$
-!!$     if (i1b_x + (i2_x-i1_x) < ie ) then
-!!$        if ( i1_x + ie - i1b_x  <= ubound(ux,2)) then
-!!$            i2  = i1_x + (ie - i1b_x)
-!!$            write(0,*) 'rank ', myid, ' ux exteded to the right ', is,i1b_x, i1_x,i2_x
-!!$        else
-!!$            write(0,*) 'ux index cannot be extended to the right'
-!!$        endif
-!!$    endif
-!!$
-!!$    j1 = j1_x
-!!$    gsj= j1b_x
-!!$    j2 = min(j2_x, j1_x+jmax_overlap-j1b_x)
-!!$
-!!$    
-!!$    !vaux(1:nzl, gsi:gsi+i2_x-i1x, gsj:gsj+j2_x-j1_x) = ux(1:nlz,i1_x:i2_x,j1_x:j2_x)
-!!$
-!!$    do i = 1, md_map%n
-!!$        dest = md_map%rank_list(i)
-!!$        is = max(i1,i1 + md_map%domains(1,i) - gsi) 
-!!$        ie = min(i2,i1 + md_map%domains(2,i) - gsi)
-!!$        js = max(j1,j1 + md_map%domains(3,i) - gsj)
-!!$        je = min(j2,j1 + md_map%domains(4,i) - gsj)
-!!$        ks = 1 + md_map%domains(5,i) - 1 
-!!$        ke = 1 + md_map%domains(6,i) - 1				
-!!$        np = (ie - is + 1) * (je - js + 1) * (ke - ks + 1)
-!!$   
-!!$        gsi_md = max(gsi,md_map%domains(1,i))
-!!$        gsj_md = max(gsj,md_map%domains(3,i))
-!!$        gsk_md = md_map%domains(5,i)
-!!$   
-!!$        if(allocated(vbuf)) deallocate(vbuf)
-!!$
-!!$        !np=size(xc(1:nlz,i1:i2,j1:j2))
-!!$        allocate(vbuf(np))
-!!$        
-!!$        vbuf(1:np) = reshape(xc(ks:ke,is:ie,js:je), (/ np /) )
-!!$
-!!$        ! Attention ncall could go over max tag value for long runs!!
-!!$        itag = mod( ncalls, MPI_TAG_UB)
-!!$        call mpi_send((/gsk_md,ke-ks+1,gsi_md,ie-is+1,gsj_md,je-js+1/),6,MPI_INTEGER,&
-!!$            dest, itag, COUPLER_ICOMM, ierr)
-!!$        call mpi_send(vbuf, np, MPI_DOUBLE_PRECISION, dest, itag, COUPLER_ICOMM, ierr)
-!!$        !				write(0,*) 'CFD sendCFD vel ', myid, j, i, itag,dest,np, is,ie,js,je,ks,ke,ierr	
-!!$    enddo
-!!$
-!!$
-!!$	! write(0,*) 'CFD send_CFDvel finish' , myid, ncalls
-!!$	! This barrier does not work as this function si called inside an jblock .eq. 1
-!!$	! condition. Is it really necessary?
-!!$	!		call mpi_barrier(CFD_COMM, ierr)
-!!$
-!!$end subroutine coupler_cfd_send_velocity
-!!$
-!!$!============================================================================
-!!$! Recieves MD velocities via the intercommunicator from the MD processors
-!!$! which are specified by the topological maps setup in create_map_cfd 
-!!$! 
-!!$!  Algorithm description:
-!!$!  1)MD data are received in a landing area which is indexed according to the 
-!!$!    coupler map.
-!!$!
-!!$!  2)To this landing array periodic boundary condition are applied if needed.
-!!$!  
-!!$!  3)Using the local indexes and the global correspondent provided in the argumentlist 
-!!$!    data from landing area are copied to the argument arrays
-!!$!  
-!!$!  Comment: this is somewhat wasteful in memory but very clear and easy to extend to 
-!!$!  other quantities 
-!!$!-----------------------------------------------------------------------------
-!!$subroutine coupler_cfd_get_velocity(uc,iuls,iule,iugs,&
-!!$    vc,ivls,ivle,ivgs,wc,iwls,iwle,iwgs)
-!!$	use mpi
-!!$	use coupler_internal_common
-!!$	use coupler_internal_cfd, only : nlx, nlz, recv_vel_MD, bbox_cfd, icoord
-!!$	implicit none
-!!$    !
-!!$    ! local start, end and global start for uc,vc,wc in x direction
-!!$    integer, intent(in) :: iuls,iule,iugs,ivls,ivle,ivgs,iwls,iwle,iwgs
-!!$    ! cartesian velocities
-!!$	real(kind=kind(0.d0)),dimension(0:,0:,0:),intent(out) :: uc, vc, wc 
-!!$
-!!$	integer kuls,kule,kugs,kvls,kvle,kvgs,kwls,kwle,kwgs,pbc
-!!$	integer  ierr
-!!$
-!!$    ! assume that in z direction the indexes are fixed
-!!$    ! they should be moved in the argument list 
-!!$    kuls = 1; kule = nlz-1; kugs = 1
-!!$    kvls = 1; kvle = nlz-1; kvgs = 1
-!!$    kwls = 1; kwle = nlz  ; kwgs = 1
-!!$
-!!$    !set periodic boundary condition
-!!$    if (staggered_averages(1)) then 
-!!$        pbc = 2
-!!$    else
-!!$        pbc = 0
-!!$    endif
-!!$	call  recv_vel_MD(uc, kuls,kule,kugs,iuls,iule,iugs, 0, 0, pbc)
-!!$    pbc = 0
-!!$	call  recv_vel_MD(vc, kvls,kvle,kvgs,ivls,ivle,ivgs, 0, 1, pbc) 
-!!$    if (.not. cfd_is_2d) then
-!!$        if (staggered_averages(3)) then 
-!!$            pbc = 1
-!!$        else
-!!$            pbc = 0
-!!$        endif
-!!$        call  recv_vel_MD(wc,kwls,kwle,kwgs,iwls,iwle,iwgs, 0, 0, pbc)
-!!$    endif
-!!$
-!!$end subroutine coupler_cfd_get_velocity
-!!$
-!!$!============================================================================
-!!$!
-!!$! Receives comtinuum velocity and copies into vel_cfd if overlap is true
-!!$!
-!!$!-----------------------------------------------------------------------------
-!!$subroutine coupler_md_get_CFDvel(overlap, vel_cfd)
-!!$    use coupler_internal_md, only : itm1, itm2, vel_fromCFD, bbox, nlx,nly,nlz
-!!$    implicit none
-!!$
-!!$    logical, intent(in) :: overlap
-!!$    real(kind(0.d0)), intent(out) :: vel_cfd(:,:,:,:,:)
-!!$    ! locals    
-!!$    integer jb_constrain
-!!$    
-!!$
-!!$    !call get_CFDvel
-!!$
-!!$    call coupler_recv_data(arecv,index_transpose,asend_lbound,asend_grid_start,asend_grid_end,&
-!!$     glower,gupper,accumulate,pbc)
-!!$
-!!$    if (overlap) then 
-!!$        
-!!$        jb_constrain = bbox%je - bbox%js - 1
-!!$        
-!!$        call 
-!!$
-!!$        vel_cfd(:,:,1,:,1) = vel_fromCFD(:,1:nlx-1,jb_constrain,1:nlz-1,itm1)
-!!$        vel_cfd(:,:,1,:,2) = vel_fromCFD(:,1:nlx-1,jb_constrain,1:nlz-1,itm2)
-!!$
-!!$    endif
-!!$
-!!$
-!!$end subroutine coupler_md_get_CFDvel
 
 end module coupler

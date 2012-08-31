@@ -1212,10 +1212,11 @@ subroutine simulation_compute_kinetic_VA_cells(imin,imax,jmin,jmax,kmin,kmax)
 	use linked_list
 	implicit none
 
+	integer,intent(in)				:: imin, jmin, kmin, imax, jmax, kmax
+
 	integer                         :: i, j, ixyz, jxyz   !Define dummy index
 	integer 						:: ibin, jbin, kbin,icell, jcell, kcell
 	integer                         :: cellnp, molnoi
-	integer							:: imin, jmin, kmin, imax, jmax, kmax
 	double precision, dimension(3)	:: velvect
 	type(node), pointer 	        :: oldi, currenti
 

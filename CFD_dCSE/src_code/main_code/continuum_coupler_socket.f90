@@ -114,7 +114,7 @@ contains
 		!print*, 'Extents of array', ngz-1, i1_ul,i2_u
 		!uc(:,:,0:0) = 0.d0
 
-        call coupler_recv_data(uc(1:ngz-1,i1_ul:i2_u,0:0),index_transpose=(/2,3,1/),accumulate=.true.),pbc=1)
+        call coupler_recv_data(uc(1:ngz-1,i1_ul:i2_u,0:0),index_transpose=(/2,3,1/),accumulate=.true.,pbc=1)
 
 		!print'(a,2i8,4f25.16)', 'CFD recv MD     ', myid,size(uc(:,:,0)), & 
 		!					maxval(uc(1:ngz-1,i1_ul:i2_u,0:0)),minval(uc(1:ngz-1,i1_ul:i2_u,0:0)),sum(uc(1:ngz-1,i1_ul:i2_u,0:0)),uc(3,3,0)

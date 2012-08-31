@@ -11,7 +11,7 @@
 ! get_CFDvel				Get velocity fields from CFD for the constraint force needed in MD
 ! send_vel(a,n1,n2,n3)   	Send the average MD bin velocities to the corresponding rank in the CFD realm
 ! write_overlap_map			Write to file the map of coupled processors for debugging
-! function global_r(r)		Get global molecular position from local position
+! function map_md2cfd(r)	Get global molecular position from local position
 ! 
 !  Lucian Anton, November 2011
 !
@@ -61,7 +61,9 @@ module coupler_internal_md
 		real(kind=kind(0.d0))  a(3)
 	end type cfd_box_sum
 
-	real(kind(0.d0)), allocatable :: uc_bin(:,:,:,:), vc_bin(:,:,:,:), wc_bin(:,:,:,:) 
+	integer			, dimension(:,:,:,:), allocatable :: mflux
+	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: uc_bin(:,:,:,:), vc_bin(:,:,:,:), wc_bin(:,:,:,:) 
+	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: uvwbin(:,:,:,:) 
 
 	real(kind=kind(0.d0)) :: FoP_time_ratio = 1.0   ! time ratio dt_CFD/dt_MD; to be fixed later
 	real(kind=kind(0.d0)) :: xL_md, yL_md, zL_md 	! macroscopic sizes of MD domain. needed?
@@ -119,8 +121,12 @@ subroutine create_map_md
 
 	! bounding boxes coordinates start from x(imin), z(kmin) and y(jmino)-DY_PURE_MD
 	bbox%bb(1,:) = (icoord(:,myid_grid)-1) * domain_lengths(:) &
-		+ (/ x(imin_cfd), y(jmino)-DY_PURE_MD, z(kmin_cfd) /)
+					+ (/ x(imin_cfd), y(jmino)-DY_PURE_MD, z(kmin_cfd) /)
 	bbox%bb(2,:) =  bbox%bb(1,:) + domain_lengths(:)
+
+	!print*, 'Create Maps', xL_md/npx, yL_md/npy, zL_md/npz,myid_grid, (icoord(:,myid_grid)-1),  & 
+	!					   (icoord(:,myid_grid)-1)*domain_lengths(:), x(imin_cfd), y(jmino)-DY_PURE_MD, z(kmin_cfd), domain_lengths, &
+	!						bbox%bb(1,:),bbox%bb(1,:)
 
 	! for 2D CFD problem one must broadcast  back the zL_md,z,dz
     ! because MD sets it
@@ -130,7 +136,6 @@ subroutine create_map_md
         else
             source=MPI_PROC_NULL
         endif
-        
         call mpi_bcast(z, size(z), MPI_DOUBLE_PRECISION, source, COUPLER_ICOMM,ierr)
         call mpi_bcast((/kmino,kmin_cfd,kmax_cfd,kmaxo/), 4, MPI_INTEGER, source, COUPLER_ICOMM,ierr)
     endif
@@ -229,8 +234,6 @@ subroutine create_map_md
     cfd_box%zmax = z(bbox%ke) - bbox%bb(1,3) - half_domain_lengths(3)
     cfd_box%dz   = z(kmin_cfd+1) - z(kmin_cfd)
 
-	!		write(0,*) 'MD: end of create_map_cfd_md', myid
-
 contains 
 
 !-----------------------------------------------------------------------------
@@ -271,7 +274,7 @@ contains
         ! from particles that have left the MD domain
 		halo_size(:,:) = 1
 
-		! specical values for the boundaries
+		! special values for the boundaries
 		if ( icoord(2,myid_grid) == 1 ) then 
 			halo_size(1,2) = 0
 		endif
@@ -375,24 +378,40 @@ contains
 		nly = bbox%jeo - bbox%jso + 1
 		nlz = bbox%keo - bbox%kso + 1
 
+		write(0,*)' MD: bbox ', myid, bbox, nlx, nly, nlz
+
 	end subroutine make_bbox
 
 end subroutine create_map_md
 
-
 !=============================================================================
-! Get global molecular position from local position
+! Get MD position in CFD coordinate frame
 !-----------------------------------------------------------------------------
-function global_r(r) result(rg)
+function  map_md2cfd(r) result(rg)
 	implicit none
 
 	real(kind(0.d0)),intent(in) :: r(3)
 	real(kind(0.d0)) rg(3)
 
 	rg(:) = r(:) + half_domain_lengths(:) + bbox%bb(1,:)
-	!print'(a,f18.5)','r before & after', r(2)-rg(2)
 
-end function global_r
+end function map_md2cfd
+
+
+!=============================================================================
+! Get CFD position in MD coordinate frame
+!-----------------------------------------------------------------------------
+function map_cfd2md(r) result(rg)
+	implicit none
+
+	real(kind(0.d0)),intent(in) :: r(3)
+	real(kind(0.d0)) rg(3)
+
+	rg(:) = r(:) - half_domain_lengths(:) - bbox%bb(1,:)
+	print'(a,12f10.5)', 'MAP', r(:), half_domain_lengths(:), bbox%bb(1,:), rg
+
+end function map_cfd2md
+
 
 !=============================================================================
 ! Write to file the map of coupled processors for debugging
@@ -436,226 +455,5 @@ subroutine write_overlap_map
 
 end subroutine write_overlap_map
 
-!=============================================================================
-! Get velocity fields from CFD for the constraint force needed in MD
-!-----------------------------------------------------------------------------
-
-!!$subroutine get_CFDvel
-!!$	use mpi
-!!$	use coupler_internal_common, only : COUPLER_ICOMM, COUPLER_REALM_COMM
-!!$	implicit none
-!!$
-!!$	real(kind=kind(0.d0)) vaux(nlz, nlx, nly)
-!!$	real(kind=kind(0.d0)), allocatable :: vbuf(:)
-!!$	integer i,j,k,ib,jb,kb,is,ie,js,je,ks,ke,np, start_address(cfd_map%n+1), &
-!!$		vel_indx(6,cfd_map%n), itag, source, type, req(cfd_map%n), ierr
-!!$	integer status(MPI_STATUS_SIZE,cfd_map%n)
-!!$	character(len=MPI_MAX_ERROR_STRING) err_string, filename*20
-!!$	integer, save :: ncalls = 0
-!!$
-!!$    call mpi_comm_rank(coupler_realm_comm, myid,ierr)
-!!$
-!!$	ncalls = ncalls + 1
-!!$
-!!$	! two previous values of the CFD velocity field are needed for extrapolation
-!!$	i    = itm1  ! swap the time indices in vel_fromCFD
-!!$	itm1 = itm2
-!!$	itm2   = i
-!!$
-!!$
-!!$	!	write(0,*) 'MD get_CFDvel' , myid, ncalls
-!!$	!	call MPI_ERRHANDLER_SET(MPI_COMM_WORLD,MPI_ERRORS_RETURN,ierr)
-!!$	!       build derived types from cfd_map for data collections
-!!$	!	write(0,*) ' MD_getCFDvel: nlz, nlx, nlz, cfd_map%n', nlz, nlx, nly, cfd_map%n
-!!$	!      alocate the buffer, a bit too large, optimise later
-!!$
-!!$    ! get the info about the span of cfd velocity array
-!!$    ! this should be done only once, optimise later
-!!$    do i = 1, cfd_map%n
-!!$        source =  cfd_map%rank_list(i)
-!!$        itag = mod( ncalls, MPI_TAG_UB)
-!!$        call mpi_irecv(vel_indx(1,i),6,MPI_Integer,source,itag,&
-!!$            COUPLER_ICOMM,req(i),ierr)
-!!$    enddo
-!!$
-!!$    call mpi_waitall(cfd_map%n, req, status, ierr)
-!!$    
-!!$     write(0,*) 'get CFD vel: myid, jmax_overlap, vel_indx ', myid, jmax_overlap_cfd, vel_indx
-!!$     write(0,*) 'get CFD vel: myid, nlz, nlx, nly          ', nlz, nlx, nly
-!!$
-!!$    np = 0
-!!$    do i = 1, cfd_map%n
-!!$        np = np + vel_indx(2,i)*vel_indx(4,i)*vel_indx(6,i)
-!!$    enddo
-!!$
-!!$	allocate(vbuf(np),stat=ierr)
-!!$	!	write(6000+10*ncalls+myid,'(3I4)') nlx,nly,nlz
-!!$	!	write(0,*)'MD vbuf size ', myid, np
-!!$
-!!$    ! get the array with cover info
-!!$    ! no need to do it each time, optimise later
-!!$ 
-!!$    start_address(1) = 1
-!!$ 
-!!$    do i = 1, cfd_map%n
-!!$        source =  cfd_map%rank_list(i) 
-!!$
-!!$        np = vel_indx(2,i)*vel_indx(4,i)*vel_indx(6,i)       
-!!$        start_address(i+1) = start_address(i) + np
-!!$
-!!$        ! Attention ncall could go over max tag value for long runs!!
-!!$        itag = mod(ncalls, MPI_TAG_UB)
-!!$        call mpi_irecv(vbuf(start_address(i)),np,MPI_DOUBLE_PRECISION,source,itag,&
-!!$            COUPLER_ICOMM,req(i),ierr)
-!!$
-!!$        !write(0,'(a,20(I4,x))') 'MD getCFD vel ',  myid, id, i, itag, source, np,is,ie,js,je,ks,ke, &
-!!$        !size(vbuf),start_address(i),ierr
-!!$
-!!$    enddo
-!!$
-!!$    call mpi_waitall(cfd_map%n, req, status, ierr)
-!!$    !	write(0,*) 'MD getCFD vel wait',  myid, id, i, source, ierr
-!!$
-!!$    do i=1,cfd_map%n
-!!$        
-!!$        is = vel_indx(3,i) - bbox%is + 1
-!!$        ie = is + vel_indx(4,i) - 1 !cfd_map%domains(2,i) - bbox%is + 1
-!!$        js = vel_indx(5,i) - bbox%js + 1       !cfd_map%domains(3,i) - bbox%js + 1
-!!$        je = js + vel_indx(6,i) - 1 !cfd_map%domains(4,i) - bbox%js + 1
-!!$        ks = vel_indx(1,i) - bbox%ks + 1       !cfd_map%domains(5,i) - bbox%ks + 1
-!!$        ke = ks + vel_indx(2,i) - 1 !cfd_map%domains(6,i) - bbox%ks + 1
-!!$        
-!!$        vaux(ks:ke,is:ie,js:je) = reshape(vbuf(start_address(i):start_address(i+1)-1), &
-!!$            (/ ke-ks+1,ie-is+1,je-js+1 /))
-!!$        
-!!$        ! call MPI_Error_string(status(MPI_ERROR,i), err_string, len(err_string), ierr);
-!!$	    !  write(0,*) 'MD getCFD vel err, myid, i ', myid, i, trim(err_string) 
-!!$        !call mpi_get_count(status(1,i),mpi_double_precision,ib,ierr)
-!!$                                ! write(0,*) 'MD recv ', myid, id, i, ib, ' DP'
-!!$    enddo
-!!$    
-!!$    do i=1,nlx
-!!$        write(700+myid,*) vaux(1:nlz,i,3)
-!!$    enddo
-!!$    write(700+myid,*)
-!!$		 !write(filename,'(a,i0,a,i0)') 'md_vel', 3*(ncalls-1),'_dim',id
-!!$
-!!$		 !call write_vector(vaux(1,1,1),nlz,nlx,nly,filename, MD_COMM)
-!!$		 !call MPI_ERROR_STRING(status(MPI_ERROR,1),err_string,i,ierr)
-!!$		 !write(0,*) 'MD get_CFDvel error VC ', err_string(1:i)
-!!$		 !write(0,*) 'MD get_CFDvel loop' , myid, j			 
-!!$
-!!$        
-!!$    ! set the loop's trips
-!!$    is = minval(vel_indx(3,:))
-!!$    ie = maxval(vel_indx(3,:)) + vel_indx(4,maxloc(vel_indx(3,:),1)) - 1
-!!$
-!!$    js = minval(vel_indx(5,:))
-!!$    je = maxval(vel_indx(5,:)) + vel_indx(6,maxloc(vel_indx(5,:),1)) - 1
-!!$    
-!!$    ks = minval(vel_indx(1,:))
-!!$    ke = maxval(vel_indx(1,:)) + vel_indx(2,maxloc(vel_indx(1,:),1)) - 1
-!!$
-!!$    write(0,*) 'vel from cfd ', is,ie,js,je,ks,ke
-!!$
-!!$    do kb = 1,nlz-1 !ks, ke  
-!!$		do jb = 1,nly-1 !js, je 
-!!$           do ib = 1,nlx-1 !is, ie - 1 
-!!$               vel_fromCFD(1,ib,jb,kb,itm1) = &
-!!$                   0.5d0 * (vaux(kb,ib,jb) + vaux(kb,ib+1,jb))
-!!$			! if ( id == 1) write(6000+10*ncalls+myid,'(3E12.4)')  vel_fromCFD(1,ib,jb,kb,itm1)
-!!$           enddo
-!!$       enddo
-!!$   enddo
-!!$
-!!$
-!!$
-!!$	! debugging
-!!$	!if (any(vel_fromCFD /= 0.d0)) then 
-!!$	!	 write(0,*)' non-zero vel_fromCFD !!! ', ncalls
-!!$	!endif
-!!$
-!!$!		call flush(2001)
-!!$!		call flush(2002)
-!!$!		call flush(6000+10*ncalls+myid)
-!!$
-!!$! average the velocity for the box 
-!!$
-!!$! two previous values of the CFD velocity field are needed for extrapolation
-!!$		i    = itm1  ! swap the time indices in vel_fromCFD
-!!$		itm1 = itm2
-!!$		itm2   = i
-!!$
-!!$		do kb = 1, nkb !bbox%ks+1, bbox%ke
-!!$			k = bbox%ks + kb
-!!$			do jb = 1, njb !bbox%js+1, bbox%je
-!!$				j = bbox%js + jb
-!!$				do ib = 1, nib !bbox%is+1, bbox%ie
-!!$					i = bbox%is + ib
-!!$					vel_fromCFD(1,ib,jb,kb,itm1) = 0.5d0 * (vaux(k,i-1,j,1) + vaux(k,i,j,1))
-!!$					vel_fromCFD(2,ib,jb,kb,itm1) = 0.5d0 * (vaux(kb,ib,jb-1,2) + vaux(k,i,j,2))
-!!$					vel_fromCFD(3,ib,jb,kb,itm1) = 0.5d0 * (vaux(k-1,i,j,3) + vaux(k,i,j,3))
-!!$				enddo
-!!$			enddo
-!!$		enddo
-!!$
-!!$! a halo of vel_fromCFD is needed in order to apply the continuum force constrains to the particles
-!!$! that have left the domain 
-!!$!		call exchange_vel_fromCFD_halo(itm1)x
-!!$
-!!$!		write(0,*) 'MD get_CFDvel finish', myid, ncalls
-!!$
-!!$end subroutine get_CFDvel
-!!$
-!!$!=============================================================================
-!!$! Send the average MD bin velocities to the corresponding rank in the CFD realm
-!!$!-----------------------------------------------------------------------------
-!!$subroutine send_vel(a,n1,n2,n3)
-!!$	use mpi
-!!$	use coupler_internal_common
-!!$
-!!$	implicit none
-!!$
-!!$	integer, intent(in) :: n1, n2, n3
-!!$	real(kind(0.d0)), intent(in) :: a(2,n1,n2,n3)
-!!$
-!!$	integer i, is, ie, ks, ke, ierr, dest, type, itag, &
-!!$		np, req(cfd_map%n), myid
-!!$	real(kind(0.d0)), allocatable :: buf(:)
-!!$	! for debug
-!!$	integer, save :: ncalls = 0
-!!$	character(len=128) fname
-!!$
-!!$	ncalls = ncalls + 1
-!!$	
-!!$	call mpi_comm_rank(COUPLER_REALM_COMM,myid,ierr)
-!!$	!write(0,*) 'MD: send_vel', myid, ncalls
-!!$
-!!$	do i = 1, cfd_map%n
-!!$		dest =  cfd_map%rank_list(i) 
-!!$		
-!!$		is = cfd_map%domains(1,i) - bbox%is + 1
-!!$		ie = cfd_map%domains(2,i) - bbox%is + 1
-!!$		ks = cfd_map%domains(5,i) - bbox%ks + 1
-!!$		ke = cfd_map%domains(6,i) - bbox%ks + 1
-!!$		np = 2 * (ie - is + 1) * (ke - ks + 1) * n3
-!!$
-!!$		! write(0,*) 'MD: send_vel: dest, is, ie , ks, ke,..', myid, dest, is,ie,ks,ke
-!!$
-!!$		if( allocated(buf)) deallocate(buf)
-!!$		allocate(buf(np), stat=ierr)
-!!$		buf(:) = reshape( a(1:2,ks:ke-0,is:ie-0,1:n3), (/ np /)) 
-!!$
-!!$		itag = mod( ncalls, MPI_TAG_UB)
-!!$		call mpi_send(buf,np,MPI_DOUBLE_PRECISION,dest,itag,&
-!!$			 COUPLER_ICOMM,ierr)
-!!$
-!!$	end do
-!!$
-!!$	!call mpi_waitall(cfd_map%n, req, MPI_STATUSES_IGNORE, ierr)
-!!$	!write(fname,'(a,i0)') 'md_vel',ncalls
-!!$	!call write_vector(a,n1,n2,n3,fname, MD_COMM)
-!!$
-!!$end subroutine send_vel
 
 end module coupler_internal_md

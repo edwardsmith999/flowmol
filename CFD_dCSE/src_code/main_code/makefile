@@ -100,7 +100,7 @@ opt:
 #	@make all "FLAGS = -r8 -O3 -ip -funroll-loops -parallel -par-report3"
 	@make all "FLAGS = -r8 -O3 -ip -funroll-loops           -par-report3"
 clean:
-	rm -rf obj a.out *.mod
+	rm -rf obj parallel_couette.exe *.mod
 parallel_couette.exe: $(OFILES)
 	@echo "$(LD) $(OFILES) $(LIBFILES) $(LIBS) "
 	$(LD) -o $@ $(OFILES) $(LIBFILES) $(LIBS) $(LDFLAGS) 
