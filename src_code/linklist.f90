@@ -53,8 +53,8 @@ end module module_linklist
 !Routine used to rebuild linked list for each cell
 
 subroutine assign_to_cell
-use module_linklist
-implicit none
+	use module_linklist
+	implicit none
 
 	integer		:: n
 	integer		:: icell, jcell, kcell
@@ -75,8 +75,8 @@ end subroutine assign_to_cell
 !Routine used to rebuild linked list for each halo cell
 
 subroutine assign_to_halocell(start,finish)
-use module_linklist
-implicit none
+	use module_linklist
+	implicit none
 
 	integer		:: n, start, finish
 	integer		:: icell, jcell, kcell
@@ -1233,6 +1233,52 @@ subroutine calculate_cell_interactions_opt(istart,iend,ishift,jstart,jend,jshift
 	enddo
 
 end subroutine calculate_cell_interactions_opt
+
+
+subroutine sort_mols
+	use module_linklist
+	implicit none
+
+	integer											:: icell,jcell,kcell
+	integer											:: n,i,cells,ave_molpercell
+	integer,allocatable,dimension(:)				:: molpercell
+	integer,allocatable,dimension(:,:)				:: tagtemp
+	double precision,allocatable,dimension(:,:,:)	:: rtemp,vtemp
+
+	!Average number of molecules per cell
+	cells=product(ncells)	
+	ave_molpercell = cells/np
+	!Add safety factor
+	ave_molpercell = ceiling(ave_molpercell*1.3d0)
+
+	allocate(rtemp(nd,ave_molpercell,cells))
+	allocate(vtemp(nd,ave_molpercell,cells))
+	allocate(tagtemp(ave_molpercell,cells))
+	allocate(molpercell(cells))
+	molpercell = 0
+
+	!Copy all molecules to temp arrays in order of cells
+	do n = 1,np
+		icell = ceiling((r(1,n)+halfdomain(1)) &
+		/cellsidelength(1))+nh !Add 1 due to halo
+		jcell = ceiling((r(2,n)+halfdomain(2)) &
+		/cellsidelength(2))+nh !Add 1 due to halo
+		kcell = ceiling((r(3,n)+halfdomain(3)) &
+		/cellsidelength(3))+nh !Add 1 due to halo
+
+		i = icell + ncells(1)*(jcell-1) + ncells(1)*ncells(2)*(kcell-1)
+		molpercell(i) = molpercell(i) + 1
+		rtemp(:,i,molpercell(i)) = r(:,n)
+		vtemp(:,i,molpercell(i)) = v(:,n)
+		tagtemp(i,molpercell(i)) = tag(n)
+	enddo
+
+	!Copy back sorted molecles
+	r(:,:) = reshape(rtemp,(/ nd, np/))
+	v(:,:) = reshape(vtemp,(/ nd, np/))
+	tag(:) = reshape(tagtemp,(/ np/))
+
+end subroutine sort_mols
 
 !======================================================================
 !		Linklist manipulation Subroutines                     =

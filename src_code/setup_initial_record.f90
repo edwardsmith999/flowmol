@@ -35,7 +35,7 @@ subroutine setup_initial_record
 								   "vflux       ", "pplane      ", "psurface    ",&
 								   "esnap       ", "eflux       ", "eplane      ",&
 								   "esurface    ", "viscometrics", "rdf         ",&
-	                               "rdf3d       ", "ssf"                         /) 
+	                               "rdf3d       ", "ssf         "                         /) 
 	if (irank.eq.iroot) then
 		do i=1,size(file_names)
 			inquire(file=trim(prefix_dir)//'results/'//file_names(i),exist=file_exist)
