@@ -1239,23 +1239,23 @@ subroutine sort_mols
 	use module_linklist
 	implicit none
 
-	integer											:: icell,jcell,kcell
+	integer											:: icell,jcell,kcell,start,finish
 	integer											:: n,i,cells,ave_molpercell
 	integer,allocatable,dimension(:)				:: molpercell
 	integer,allocatable,dimension(:,:)				:: tagtemp
 	double precision,allocatable,dimension(:,:,:)	:: rtemp,vtemp
 
 	!Average number of molecules per cell
-	cells=product(ncells)	
-	ave_molpercell = cells/np
+	cells = product(ncells)	
+	ave_molpercell = np/cells
 	!Add safety factor
-	ave_molpercell = ceiling(ave_molpercell*1.3d0)
+	ave_molpercell = ceiling(ave_molpercell*1.3d0+5)
 
 	allocate(rtemp(nd,ave_molpercell,cells))
 	allocate(vtemp(nd,ave_molpercell,cells))
 	allocate(tagtemp(ave_molpercell,cells))
 	allocate(molpercell(cells))
-	molpercell = 0
+	rtemp=0.d0;vtemp=0.d0;tagtemp=0; molpercell = 0
 
 	!Copy all molecules to temp arrays in order of cells
 	do n = 1,np
@@ -1266,17 +1266,32 @@ subroutine sort_mols
 		kcell = ceiling((r(3,n)+halfdomain(3)) &
 		/cellsidelength(3))+nh !Add 1 due to halo
 
-		i = icell + ncells(1)*(jcell-1) + ncells(1)*ncells(2)*(kcell-1)
+		i = icell-1 + ncells(1)*(jcell-2) + ncells(1)*ncells(2)*(kcell-2)
 		molpercell(i) = molpercell(i) + 1
-		rtemp(:,i,molpercell(i)) = r(:,n)
-		vtemp(:,i,molpercell(i)) = v(:,n)
-		tagtemp(i,molpercell(i)) = tag(n)
+		!print*, n,icell,jcell,kcell,i, molpercell(i), ave_molpercell
+		rtemp(:,molpercell(i),i) = r(:,n)
+		vtemp(:,molpercell(i),i) = v(:,n)
+		tagtemp(molpercell(i),i) = tag(n)
+
+		print*, 'b4',n, r(:,n)
 	enddo
 
 	!Copy back sorted molecles
-	r(:,:) = reshape(rtemp,(/ nd, np/))
-	v(:,:) = reshape(vtemp,(/ nd, np/))
-	tag(:) = reshape(tagtemp,(/ np/))
+	start = 1
+	do i=1,cells
+		finish = start + molpercell(i)-1
+		!print*, i, molpercell(i), start, finish!, rtemp(:,i,start:finish)
+		r(:,start:finish) = rtemp(:,1:molpercell(i),i)
+		v(:,start:finish) = vtemp(:,1:molpercell(i),i)
+		tag(start:finish) = tagtemp(1:molpercell(i),i)
+		do n =start,finish
+			print*, 'af',n, r(:,n)
+		enddo
+		start = start + molpercell(i)
+	
+	enddo
+
+	stop
 
 end subroutine sort_mols
 
