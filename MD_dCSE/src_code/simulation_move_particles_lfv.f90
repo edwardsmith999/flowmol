@@ -41,9 +41,12 @@ subroutine simulation_move_particles_lfv
 	integer :: n
 	double precision :: ascale, bscale
 	double precision, save :: zeta=0.d0
-	double precision, dimension(nd,np) :: U
 
-	
+	!DO NOT ALLOCATE ARRAYS LIKE THIS - IT USES THE STACK WHICH FOR LARGE SYSTEM
+	!SIZES WILL BE EXCEEDED AND CAUSE AN INEXPLICABLE SEG FAULT!!
+	!double precision, dimension(nd,np):: U
+	double precision, dimension(:,:),allocatable :: U
+
 	select case(ensemble)
 
 	case(nve)
@@ -70,12 +73,14 @@ subroutine simulation_move_particles_lfv
 		call error_abort('GIK thermostat not available with leap-frog Verlet')
 
 	case(nvt_PUT_NH)
+		allocate(U(nd,np))
 		call evaluate_U_PUT
 		call evaluate_NH_params_PUT
 		do n=1,np
 	        v(:,n)     = v(:,n)*ascale + a(:,n)*delta_t*bscale + zeta*U(:,n)*delta_t*bscale
 			r(:,n)     = r(:,n)        + v(:,n)*delta_t			
 		end do
+		deallocate(U)
 	
 	case(nvt_pwa_NH)
 		call error_abort('pwa_NH not available for leap-frog Verlet.')
