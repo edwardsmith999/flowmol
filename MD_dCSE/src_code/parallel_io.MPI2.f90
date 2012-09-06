@@ -399,11 +399,11 @@ subroutine setup_restart_microstate
 	integer 											:: i,n, nl, ixyz, procassign
 	integer												:: dp_datasize, monomer_datasize
 	integer(kind=MPI_OFFSET_KIND)   					:: disp, procdisp
-	double precision, dimension (3*nd)					:: rvc !Temporary variable
+	double precision, dimension(:), allocatable 		:: rvc !Temporary variable
 	double precision, dimension(:), allocatable  		:: monomerc
-	double precision, dimension (3*nd*procnp(irank))	:: buf !Temporary variable
-	double precision, dimension ((3*nd+8)*procnp(irank)):: monomerbuf	
-	
+	double precision, dimension(:), allocatable 		:: buf !Temporary variable
+	double precision, dimension(:), allocatable			:: monomerbuf
+
 	!Determine size of datatypes
   	call MPI_type_size(MPI_double_precision,dp_datasize,ierr)
 
@@ -424,6 +424,7 @@ subroutine setup_restart_microstate
 			enddo
 			!Obtain location to write in file
 			disp =  procdisp
+			allocate(buf(3*nd*procnp(irank)))
 			!Set each processor to that location and write particlewise
 			call MPI_FILE_SET_VIEW(restartfileid, disp, MPI_double_precision, & 
 		 	                       MPI_double_precision, 'native', MPI_INFO_NULL, ierr)
@@ -448,9 +449,9 @@ subroutine setup_restart_microstate
 				!										r(1,nl),r(2,nl),r(3,nl),v(1,nl),v(2,nl),v(3,nl)
 			enddo
 			np = procnp(irank)
-		
+			deallocate(buf)
 		case(1)
-
+			allocate(monomerbuf((3*nd+8)*procnp(irank)))
 			procdisp = 0
 			do i=1,irank-1
 				procdisp = procdisp + (3*nd+8)*procnp(i)*dp_datasize
@@ -462,12 +463,11 @@ subroutine setup_restart_microstate
 			                       MPI_DOUBLE_PRECISION, 'native', MPI_INFO_NULL, ierr)
 			call MPI_FILE_READ_ALL(restartfileid, monomerbuf, (3*nd+8)*procnp(irank), MPI_DOUBLE_PRECISION, & 
 			                       MPI_STATUS_IGNORE, ierr) !Read position from file
-
 			nl = 0
 			do n = 1,(3*nd+8)*procnp(irank),(3*nd+8)
 				nl = nl + 1
 				!Correct to local coordinates
-				r(1,nl) = monomerbuf(n)-domain(1)*(iblock-1)+halfdomain(1)*(npx-1)
+				r(1,nl) = monomerbuf(n)  -domain(1)*(iblock-1)+halfdomain(1)*(npx-1)
 				r(2,nl) = monomerbuf(n+1)-domain(2)*(jblock-1)+halfdomain(2)*(npy-1)
 				r(3,nl) = monomerbuf(n+2)-domain(3)*(kblock-1)+halfdomain(3)*(npz-1)
 				!Read true positions
@@ -491,14 +491,14 @@ subroutine setup_restart_microstate
 			! Determine number of chains by global maximum of chainID
 			nchains = maxval(monomer(:)%chainID)
 			call globalMaxInt(nchains)
-			
+			deallocate(monomerbuf)
 		case default
 			call error_abort('Invalid case selection in restart_microstate')
 		end select
 
 	case(1)	!Reorder flag triggered
-
 		nl = 0		!Reset local molecules count nl
+		allocate(rvc(3*nd))
 		select case(potential_flag)
 		case(0)
 			!---------- For all molecule positions ------------
@@ -579,9 +579,7 @@ subroutine setup_restart_microstate
 				if (mod(n,1000) .eq. 0) print'(a,f10.2)', & 
 					'Redistributing molecules to different processor topology % complete =', (100.d0*n/globalnp)
 			enddo
-
 			deallocate(monomerc)
-
 			! Determine number of chains by global maximum of chainID
 			nchains = maxval(monomer(:)%chainID)
 			call globalMaxInt(nchains)
@@ -590,6 +588,7 @@ subroutine setup_restart_microstate
 			call error_abort('Potential flag incorrect in restart microstate')
 		end select
 		np = nl	!Correct local number of particles on processor
+		deallocate(rvc)
 	case default
 		call error_abort('processor re-ordering flag incorrect in restart microstate')
 	end select
