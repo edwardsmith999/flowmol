@@ -1,15 +1,4 @@
 #########################################################################
-TETHEREDDISTBOTTOM
-0.0
-3.0
-0.0
-
-TETHEREDDISTTOP
-0.0
-3.0
-0.0
-
-#########################################################################
 # Number density of the particles in the system:
 # -----------------------------------------------------------------------
 DENSITY
@@ -104,7 +93,7 @@ DELTA_RNEIGHBR
 # 6 - TAG system - specify fixed wall and localised thermostatting
 # -----------------------------------------------------------------------
 ENSEMBLE
-6
+0
 
 #########################################################################
 # Random number seeds, formattted:
@@ -250,7 +239,7 @@ DEFINE_SHEAR
 #	1 - FENE spring polymer potentials
 # -----------------------------------------------------------------------
 POTENTIAL_FLAG
-1
+0
 
 #########################################################################
 # Parameters of the FENE potential, formatted:
