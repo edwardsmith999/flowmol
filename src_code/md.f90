@@ -30,7 +30,6 @@ subroutine setup_MD
 	use md_coupler_socket, only : socket_coupler_init
 #endif
 	implicit none
-
 	call messenger_invoke                   !Initialises MPI
 
 	!Check to see if simulation is a restart of a previous simualtion
@@ -78,7 +77,7 @@ end subroutine setup_MD
 !-----------------------------------------------------------------------------
 
 subroutine simulation_MD
-        use interfaces
+	use interfaces
 	use computational_constants_MD
 	use physical_constants_MD
 #if USE_COUPLER
@@ -95,7 +94,7 @@ subroutine simulation_MD
 	initialstep = initialstep + 1                   !Increment initial step by one 
 
 	do iter = initialstep, Nsteps                   !Loop over specified output steps 
-	
+
 		select case(integration_algorithm)
 		case(leap_frog_verlet)
 			call md_advance_lfv                     !Advance simulation (leap-frog Verlet algorithm)
@@ -105,7 +104,7 @@ subroutine simulation_MD
 			call error_abort('Incorrect integration algorithm specification')
 		end select
 
- 	enddo
+ 	end do
 
 contains
 
@@ -139,7 +138,6 @@ subroutine md_advance_lfv
 !---------------------------------------------
 !Velocity Verlet integration routines
 subroutine md_advance_vv
-	use arrays_MD
 	implicit none
 
 	integer	n, ixyz

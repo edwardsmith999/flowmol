@@ -22,7 +22,7 @@ subroutine setup_initial_record
 	use shear_info_MD
 	implicit none
 
-	integer					::  i
+	integer					::  i,n!todo
 	logical 				:: file_exist
 	character				:: ixyz_char
 	Character(8)			:: the_date
@@ -48,7 +48,8 @@ subroutine setup_initial_record
 	call messenger_syncall()
 
 	!Evaluate system properties on all processes
-	call initial_macroscopic_properties
+	call simulation_compute_forces
+	call evaluate_macroscopic_properties
 
 	if (potential_flag.eq.1) then
 		select case(etevtcf_outflag)
@@ -63,7 +64,6 @@ subroutine setup_initial_record
 		select case(r_gyration_outflag)
 		case (1)
 			call r_gyration_calculate_parallel
-			!if (irank .eq. iroot) print('(a13,f7.4)'), 'R_GYRATION = ', R_g
 		case (2)
 			call r_gyration_calculate_parallel
 			call r_gyration_io
@@ -366,48 +366,38 @@ subroutine setup_initial_record
 
 		!print*, 'Bins per Processor:', nbins
 		!print*, 'Number of Bins on outer Surface of each processor', nsurfacebins
+		print*, 'Initial condition:'
+		call print_macroscopic_properties
 		print*, '======================================================================='
-
 		select case(potential_flag)
 		case(0)
 			select case(macro_outflag)
 			case(1:2)
 				print '(2a)', &
-				'Iteration; 	   VSum;        V^2Sum;        Temp;', & 
-				'          KE;                 PE;                  TE;          Pressure;'
-				print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
-				initialstep,';',vsum,';', v2sum,';', temperature,';', &
-				kinenergy,';',potenergy,';',totenergy,';',pressure
+				'     iter;   simtime;      VSum;    V^2Sum;   Temp;', &
+				'          KE;                 PE;                  TE;               P'
 			case(3:4)
 				print '(2a)', &
-				'Iteration;    VSum;    Temp;', & 
+				'   iter;   simtime;    VSum;      T;', & 
 				'      KE;      PE;      TE;       P'
-				print '(1x,i8,a,f8.4,a,f8.4,a,f8.4,a,f8.4,a,f8.4,a,f8.4,a,f8.4)', &
-				initialstep,';',vsum,';',temperature,';',&
-				kinenergy,';',potenergy,';',totenergy,';',pressure
 			case default
 			end select
 		case(1)
 			select case(macro_outflag)
 			case(1:2)
 				print '(2a)', &
-				'Iteration; 	   VSum;        V^2Sum;        Temp;', & 
-				'          KE;                 PE;                  TE;          Pressure;    Rtcf;     R_g'
-				print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4,a,f10.4,a,f10.4)', &
-				initialstep,';',vsum,';', v2sum,';', temperature,';', &
-				kinenergy,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
+				'     iter;   simtime;      VSum;    V^2Sum;   Temp;', & 
+				'        KE;            PE;             TE;               P;   Rtcf;      R_g'
 			case(3:4)
 				print '(2a)', &
-				'Iteration;   VSum;   Temp;', & 
+				'    iter; simtime;   VSum;   Temp;', & 
 				'     KE;     PE;     TE;      P;  Rtcf;   R_g'
-				print '(1x,i8,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f6.3,a,f6.2)', &
-				initialstep,';',vsum,';',temperature,';', &
-				kinenergy,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
 			case default
 			end select
 		case default
 			call error_abort("Invalid potential flag in input file")
 		end select
+
 	
 		!Obtain and record radial distributions
 		select case (rdf_outflag)
@@ -622,8 +612,8 @@ implicit none
 			!Velocity component must be shifted back half a timestep to determine 
 			!velocity of interest - required due to use of the leapfrog method
 			vel = v(ixyz,n) + 0.5d0*a(ixyz,n)*delta_t
-			vsum = vsum + vel      !Add up all molecules' velocity components
-			v2sum = v2sum + vel**2 !Add up all molecules' velocity squared components  
+			vsum = vsum + vel         !Add up all molecules' velocity components
+			v2sum = v2sum + vel**2.d0 !Add up all molecules' velocity squared components  
 		enddo
 		enddo
 		call globalSum(vsum)

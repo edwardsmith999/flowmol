@@ -12,12 +12,20 @@ module module_molecule_properties
 	use computational_constants_MD
 	use arrays_MD
 	use calculated_properties_MD
-        use librarymod
+	use librarymod
 
 end module module_molecule_properties
 
 !----------------------------------------------------------------------------------
 !Create an array of molecular tags
+
+	!For initialunitsize "a"
+	!                [  o     o ]
+	!a (1 cell size) |     o    ]  a/2 (distance between molcules)	
+	!                |  o     o
+	!                 __________]  a/4 (distance from bottom of domain)
+	!
+	!So use (0.20+0.5d0*mol_layers)*initialunitsize(ixyz)
 
 subroutine setup_tag
 	use module_molecule_properties
@@ -26,64 +34,48 @@ subroutine setup_tag
 	integer 				:: ixyz, n, mol_layers
 	integer,dimension(3)	:: block
 
-	!				For initialunitsize "a"
-	!					[  o     o ]
-	!	a (1 cell size) [     o    ]  a/2 (distance between molcules)	
-	!					[  o     o
-	!		 			 __________]  a/4 (distance from bottom of domain)
-	!
-	!So use (0.20+0.5d0*mol_layers)*initialunitsize(ixyz)
-
+	block = (/ iblock, jblock, kblock /)
 	mol_layers = 2
 
-	!Setup all domain thermostat tags
-	if (thermstat_flag.eq.1) then
-		tag = 4								!N-H all
-		return
-	else if (thermstat_flag.eq.2) then
-		tag = 8								!N-H(PUT) all
-		return
-	else
-		tag = 0								!Initialise
-	end if
+	!Initialise
+	tag = 0	
 
-	block = (/ iblock, jblock, kblock /)
+	if (ensemble .eq. tag_move) then
+		!Setup fixed wall and location dependent thermostat tags
+		do n = 1,np
+			do ixyz = 1,3
+				!Bottom
+				if (block(ixyz) .eq. 1) then
+					if(r(ixyz,n).lt.-halfdomain(ixyz)+   thermstatbottom(ixyz)) 	tag(n) = 4
+					if(r(ixyz,n).lt.-halfdomain(ixyz)+tethereddistbottom(ixyz)) 	tag(n) = 3
+					if(r(ixyz,n).lt.-halfdomain(ixyz)+tethereddistbottom(ixyz) 		& 
+					 .and. r(ixyz,n).lt.-halfdomain(ixyz)+   thermstatbottom(ixyz)) tag(n) = 5
+					if(r(ixyz,n).lt.-halfdomain(ixyz)+     fixdistbottom(ixyz))		tag(n) = 1
+					if(r(ixyz,n).lt.-halfdomain(ixyz)+   slidedistbottom(ixyz)) 	tag(n) = 2
+					if(r(ixyz,n).lt.-halfdomain(ixyz)+tethereddistbottom(ixyz) 		& 
+					 .and. r(ixyz,n).lt.-halfdomain(ixyz)+   slidedistbottom(ixyz))	tag(n) = 6
+					if(r(ixyz,n).lt.-halfdomain(ixyz)+tethereddistbottom(ixyz) 		& 
+					 .and. r(ixyz,n).lt.-halfdomain(ixyz)+   thermstatbottom(ixyz)	&
+					 .and. r(ixyz,n).lt.-halfdomain(ixyz)+   slidedistbottom(ixyz))	tag(n) = 7
+				endif
 
-	!Setup fixed wall and location dependent thermostat tags
-	do n = 1,np
-		do ixyz = 1,3
-			!Bottom
-			if (block(ixyz) .eq. 1) then
-				if(r(ixyz,n).lt.-halfdomain(ixyz)+   thermstatbottom(ixyz)) 	tag(n) = 4
-				if(r(ixyz,n).lt.-halfdomain(ixyz)+tethereddistbottom(ixyz)) 	tag(n) = 3
-				if(r(ixyz,n).lt.-halfdomain(ixyz)+tethereddistbottom(ixyz) 		& 
-			     .and. r(ixyz,n).lt.-halfdomain(ixyz)+   thermstatbottom(ixyz)) tag(n) = 5
-				if(r(ixyz,n).lt.-halfdomain(ixyz)+     fixdistbottom(ixyz))		tag(n) = 1
-				if(r(ixyz,n).lt.-halfdomain(ixyz)+   slidedistbottom(ixyz)) 	tag(n) = 2
-				if(r(ixyz,n).lt.-halfdomain(ixyz)+tethereddistbottom(ixyz) 		& 
-			     .and. r(ixyz,n).lt.-halfdomain(ixyz)+   slidedistbottom(ixyz))	tag(n) = 6
-				if(r(ixyz,n).lt.-halfdomain(ixyz)+tethereddistbottom(ixyz) 		& 
-			     .and. r(ixyz,n).lt.-halfdomain(ixyz)+   thermstatbottom(ixyz)	&
-			     .and. r(ixyz,n).lt.-halfdomain(ixyz)+   slidedistbottom(ixyz))	tag(n) = 7
-			endif
-
-			!Top	
-			if (block(ixyz) .eq. npx) then
-				if(r(ixyz,n).ge. halfdomain(ixyz)-thermstattop(ixyz)) 		tag(n) = 4
-				if(r(ixyz,n).ge. halfdomain(ixyz)-tethereddisttop(ixyz)) 	tag(n) = 3
-				if(r(ixyz,n).gt. halfdomain(ixyz)-tethereddisttop(ixyz) 	& 
-			     .and. r(ixyz,n).gt. halfdomain(ixyz)-thermstattop(ixyz)) 	tag(n) = 5
-				if(r(ixyz,n).ge. halfdomain(ixyz)-fixdisttop(ixyz)) 		tag(n) = 1
-				if(r(ixyz,n).ge. halfdomain(ixyz)-slidedisttop(ixyz)) 		tag(n) = 2
-				if(r(ixyz,n).gt. halfdomain(ixyz)-tethereddisttop(ixyz)		& 
-			     .and. r(ixyz,n).gt. halfdomain(ixyz)-slidedisttop(ixyz))	tag(n) = 6
-				if(r(ixyz,n).gt. halfdomain(ixyz)-tethereddisttop(ixyz)		& 
-			     .and. r(ixyz,n).gt. halfdomain(ixyz)-thermstattop(ixyz)   	&
-			     .and. r(ixyz,n).gt. halfdomain(ixyz)-slidedisttop(ixyz))	tag(n) = 7
-			endif
+				!Top	
+				if (block(ixyz) .eq. npx) then
+					if(r(ixyz,n).ge. halfdomain(ixyz)-thermstattop(ixyz)) 		tag(n) = 4
+					if(r(ixyz,n).ge. halfdomain(ixyz)-tethereddisttop(ixyz)) 	tag(n) = 3
+					if(r(ixyz,n).gt. halfdomain(ixyz)-tethereddisttop(ixyz) 	& 
+					 .and. r(ixyz,n).gt. halfdomain(ixyz)-thermstattop(ixyz)) 	tag(n) = 5
+					if(r(ixyz,n).ge. halfdomain(ixyz)-fixdisttop(ixyz)) 		tag(n) = 1
+					if(r(ixyz,n).ge. halfdomain(ixyz)-slidedisttop(ixyz)) 		tag(n) = 2
+					if(r(ixyz,n).gt. halfdomain(ixyz)-tethereddisttop(ixyz)		& 
+					 .and. r(ixyz,n).gt. halfdomain(ixyz)-slidedisttop(ixyz))	tag(n) = 6
+					if(r(ixyz,n).gt. halfdomain(ixyz)-tethereddisttop(ixyz)		& 
+					 .and. r(ixyz,n).gt. halfdomain(ixyz)-thermstattop(ixyz)   	&
+					 .and. r(ixyz,n).gt. halfdomain(ixyz)-slidedisttop(ixyz))	tag(n) = 7
+				endif
+			enddo
 		enddo
-	enddo
-
+	end if
 
 !	do n = 1,np
 		!x bottom
@@ -270,7 +262,7 @@ end subroutine decode_tag
 !Read molecular tags and assign values accordingly
 
 subroutine read_tag(molno)
-        use interfaces
+	use interfaces
 	use module_molecule_properties
 	implicit none
 
@@ -298,12 +290,10 @@ subroutine read_tag(molno)
 		!Thermostatted molecules 
 		fix(:,molno) = 1
 		slidev(:,molno) = 0.d0
-		thermostat(:,molno) = 1
 	case (5)
 		!Thermostatted Tethered molecules unfixed with no sliding velocity
 		fix(:,molno) = 1
 		slidev(:,molno) = 0.d0
-		thermostat(:,molno) = 1
 	case (6)
 		!Tethered molecules with sliding velocity
 		fix(:,molno) = 1
@@ -312,7 +302,6 @@ subroutine read_tag(molno)
 		!Thermostatted Tethered molecules unfixed with sliding velocity
 		fix(:,molno) = 1
 		slidev(:,molno) = wallslidev
-		thermostat(:,molno) = 1
 	case (8)
 		fix(:,molno) = 1
 		slidev(:,molno) = 0.d0
@@ -322,30 +311,20 @@ subroutine read_tag(molno)
 
 end subroutine read_tag
 
-!-----------------------------------------------------------------------
-
+!------------------------------------------------------------------------------
 subroutine tether_force(molno)
 	use module_molecule_properties
 	use arrays_MD
 	implicit none
 
-	integer 			:: molno, ixyz
-	double precision		:: k4, k6
-	double precision		:: acctmag
-	double precision, dimension(3)	:: at, rio
-
-	!Define strength of tethering potential ~ phi= -k4*rio^4 - k6*rio^6
-	!Constants from Petravic and Harrowell (k4 = 5,000, k6 = 5,000,000)
-	k4 = 5000.d0
-	k6 = 5000000.d0
+	integer                        :: molno, ixyz
+	double precision               :: acctmag
+	double precision, dimension(3) :: at, rio
+	double precision, parameter    :: k4=5000.d0    !Force constants from...
+	double precision, parameter    :: k6=5000000.d0 !...Petravich and Harrowell
 
 	!Obtain displacement from initial position
-	rio(:) = r(:,molno) - rinitial(:,molno)
-	!For serial code, the nearest neighbour convention could be used. This becomes more complicated in parallel
-	!requiring rinitial to be passed to the adjacent processor.
-	do ixyz = 1,3
-		if(abs(rio(ixyz)) .gt. halfdomain(ixyz)) rio(ixyz)=rio(ixyz)-sign(domain(ixyz),rio(ixyz))
-	enddo
+	rio(:) = r(:,molno) - rtether(:,molno)
 
 	!Calculate applied tethering force
 	acctmag = -4.d0*k4*magnitude(rio)**2 - 6.d0*k6*magnitude(rio)**4.d0
@@ -355,18 +334,8 @@ subroutine tether_force(molno)
 	a(:,molno) = a(:,molno) + at(:)
 
 	!Adjust initial postion if molecule is sliding
-	rinitial(:,molno) = rinitial(:,molno) + slidev(:,molno)*delta_t
-	do ixyz = 1,3
-		if(abs(rinitial(ixyz,molno)) .gt. halfdomain(ixyz)) then
-			rinitial(ixyz,molno)=rinitial(ixyz,molno)-sign(domain(ixyz),rinitial(ixyz,molno))
-		endif
-	enddo
+	rtether(:,molno) = rtether(:,molno) + slidev(:,molno)*delta_t
 
-	!print*,'4th', minval(r(2,:)),maxval(r(2,:)), halfdomain(2)
-
-	!print'(i8,9f10.5)', molno, rinitial(:,molno), r(:,molno), at(:)
-	!if (molno .eq. 1311) print'(i8,9f10.5)', molno, rinitial(:,molno), r(:,molno),  rio(:)
-	!if (maxval(a(:,molno)) .gt. 1000.d0) print'(i8,9f10.5)', molno, rinitial(:,molno), r(:,molno),  rio(:)
 
 end subroutine tether_force
 

@@ -21,45 +21,15 @@ use module_final_record
 use interfaces, only: error_abort
 implicit none
 
-	!Print out final results from the simulation
-	if (irank .eq. iroot) then
-		select case(potential_flag)
-		case(0)
-			select case(macro_outflag)
-			case(1:2)
-				print*, 'Results from last iteration of simulation'
-				print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
-				Nsteps,';',vsum,';', v2sum,';', temperature,';', &
-				kinenergy,';',potenergy,';',totenergy,';',pressure
-			case(3:4)
-				print*, 'Results from last iteration of simulation'
-				print '(1x,i8,a,f8.4,a,f8.4,a,f8.4,a,f8.4,a,f8.4,a,f8.4,a,f8.4)', &
-				Nsteps,';',vsum,';',temperature,';',&
-				kinenergy,';',potenergy,';',totenergy,';',pressure
-			case default
-			end select
-		case(1)
-			select case(macro_outflag)
-			case(1:2)
-				print*, 'Results from last iteration of simulation'
-				print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4,a,f10.4,a,f10.4)', &
-				Nsteps,';',vsum,';', v2sum,';', temperature,';', &
-				kinenergy,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
-			case(3:4)
-				print*, 'Results from last iteration of simulation'
-				print '(1x,i8,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f6.3,a,f6.2)', &
-				Nsteps,';',vsum,';',temperature,';', &
-				kinenergy,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
-			case default
-			end select
-		case default
-		end select
-	end if
-	
-	!Set up final print out table
-	!print '(8a)', &
-	!'Final Iteration; Simulation time;  Mean Temp;   Mean KE; SD KE; Mean PE; SD PE; Mean TE; SD TE; Mean Pressure;'
+	integer :: n !todo
 
+	call simulation_compute_forces
+	call evaluate_macroscopic_properties
+	if (irank .eq. iroot) then
+		print('(a,i8,a)'), ' Results from final state of simulation at iter ',iter,':'
+	end if
+	call print_macroscopic_properties
+	
 	!Write values of distribution functions
 	!write(12,'(a)') 'Velocity frequency distribution'
 	!do n=1,nbins(1)
@@ -131,6 +101,7 @@ subroutine reformat_dcd
 	implicit none
 
 	integer							:: n, i			!--Dummy variables
+	integer                         :: plot_mod
 	integer							:: NSET,vmd_sets!--Number of frames
 	integer							:: ISTRT		!--Starting frame
 	integer							:: NSAVC		!--Number of frames per coordinate save
@@ -145,9 +116,9 @@ subroutine reformat_dcd
 	real,allocatable,dimension(:)   :: Xbuf, Ybuf, Zbuf	!--Buffers used to copy from direct access to binary
 	double precision				:: DELTA		!--Timestep between frames
 
-	print*, 'Generating final VMD.dcd ouput file - for large systems or'
-	print*, 'long runs this may take some time'
-
+	print*, 'Initialising trajectory file reformat to *.dcd. For large'
+	print*, 'systems or long runs this may take some time...' 
+	
 	call cpu_time(time_start)
 
 	!Determine size of file datatype
@@ -184,12 +155,20 @@ subroutine reformat_dcd
 	!Read position information from file
 	!RECORD LENGTH IS 1 WHICH IN FORTRAN IS A 4 BYTE BLOCKS (REAL, INT BUT NOT DP) 	
 	open (unit=17, file=trim(prefix_dir)//"results/vmd_temp.dcd",access='stream')
+    
+	!Open unit 6 (stdout) with fortran carriage control 
+	open (unit=6, carriagecontrol='fortran')  
+	plot_mod = max(1,NSET/100)
+	write(*,'(a)') ' VMD reformat read completion:  '
 
+	!Read temp trajectory file
 	do i=1,NSET
 		read(17) Xbuf(globalnp*(i-1)+1:globalnp*i)
 		read(17) Ybuf(globalnp*(i-1)+1:globalnp*i)
 		read(17) Zbuf(globalnp*(i-1)+1:globalnp*i)
-		if (mod(i,100) .eq. 0) print*, 'Reading % complete =', (100.d0*i/NSET)
+		if (mod(i,plot_mod) .eq. 0) then
+			call progress(100*i/NSET)
+		end if
 	enddo
 
 	close(17,status='delete')
@@ -201,11 +180,14 @@ subroutine reformat_dcd
 	write(3) NTITLE, TITLE(1), TITLE(2)
 	write(3) NATOM
 
+	write(*,'(a)') ' VMD reformat write completion: '
 	do i=1,NSET
 		write(3) Xbuf((i-1)*globalnp+1:i*globalnp)
 		write(3) Ybuf((i-1)*globalnp+1:i*globalnp)
 		write(3) Zbuf((i-1)*globalnp+1:i*globalnp)
-		if (mod(i,100) .eq. 0) print*, 'Writing % complete =', (100.d0*i/NSET)
+		if (mod(i,plot_mod) .eq. 0) then
+			call progress(100*i/NSET)
+		end if
 	enddo
 
 	close(3,status='keep')
@@ -216,9 +198,36 @@ subroutine reformat_dcd
 
 	call cpu_time(time_end)
 
- 	print '(a,g10.2,a)', 'Generated final VMD.dcd ouput file in', time_end - time_start, ' seconds'
+ 	print '(a,g10.2,a)', ' Reformatted to *.dcd in', time_end - time_start, ' seconds.'
 
 end subroutine reformat_dcd
+
+subroutine progress(j)  
+implicit none  
+
+	integer(kind=4)   :: j,k,bark
+	character(len=78) :: bar
+
+	bar(1:7) = " ???% |"
+	do k=8,77
+	bar(k:k) = " "
+	end do
+	bar(78:78) = "|"
+
+	write(unit=bar(2:4),fmt="(i3)") j
+
+	bark = int(dble(j)*70.d0/100.d0)
+
+	do k=1,bark
+	bar(7+k:7+k)="*"  
+	enddo  
+
+	! print the progress bar.  
+	write(unit=6,fmt="(a1,a1,a78)") '+',char(13), bar  
+
+	return  
+
+end subroutine progress 
 
 !--------------------------------------------------------------------------------------------
 !Re-format the file into binary with header used by .dcd file format
@@ -233,6 +242,7 @@ subroutine reformat_dcd_true
 	implicit none
 
 	integer							:: n, i			!--Dummy variables
+	integer                         :: plot_mod
 	integer							:: NSET,vmd_sets!--Number of frames
 	integer							:: ISTRT		!--Starting frame
 	integer							:: NSAVC		!--Number of frames per coordinate save
@@ -247,9 +257,10 @@ subroutine reformat_dcd_true
 	real,allocatable,dimension(:)   :: Xbuf, Ybuf, Zbuf	!--Buffers used to copy from direct access to binary
 	double precision				:: DELTA		!--Timestep between frames
 
-	print*, 'Generating final VMD.dcd ouput file - for large systems or'
-	print*, 'long runs this may take some time'
 
+	print*, 'Initialising trajectory file reformat to *.dcd. For large'
+	print*, 'systems or long runs this may take some time...' 
+	
 	call cpu_time(time_start)
 
 	!Determine size of file datatype
@@ -290,11 +301,19 @@ subroutine reformat_dcd_true
 	!RECORD LENGTH IS 1 WHICH IN FORTRAN IS A 4 BYTE BLOCKS (REAL, INT BUT NOT DP) 	
 	open (unit=18, file=trim(prefix_dir)//"results/vmd_temp_true.dcd",access='stream')
 
+	!Open unit 6 (stdout) with fortran carriage control 
+	open (unit=6, carriagecontrol='fortran')  
+	plot_mod = max(1,NSET/100)
+	write(*,'(a)') ' VMD reformat read completion:  '
+
+	!Read temp trajectory file
 	do i=1,NSET
 		read(18) Xbuf(globalnp*(i-1)+1:globalnp*i)
 		read(18) Ybuf(globalnp*(i-1)+1:globalnp*i)
 		read(18) Zbuf(globalnp*(i-1)+1:globalnp*i)
-		if (mod(i,100) .eq. 0) print*, 'Reading % complete =', (100.d0*i/NSET)
+		if (mod(i,plot_mod) .eq. 0) then
+			call progress(100*i/NSET)
+		end if
 	enddo
 
 	close(18,status='delete')
@@ -306,11 +325,14 @@ subroutine reformat_dcd_true
 	write(4) NTITLE, TITLE(1), TITLE(2)
 	write(4) NATOM
 
+	write(*,'(a)') ' VMD reformat write completion: '
 	do i=1,NSET
 		write(4) Xbuf((i-1)*globalnp+1:i*globalnp)
 		write(4) Ybuf((i-1)*globalnp+1:i*globalnp)
 		write(4) Zbuf((i-1)*globalnp+1:i*globalnp)
-		if (mod(i,100) .eq. 0) print*, 'Writing % complete =', (100.d0*i/NSET)
+		if (mod(i,plot_mod) .eq. 0) then
+			call progress(100*i/NSET)
+		end if
 	enddo
 
 	close(4,status='keep')
@@ -321,7 +343,7 @@ subroutine reformat_dcd_true
 
 	call cpu_time(time_end)
 
- 	print '(a,g10.2,a)', 'Generated final VMD.dcd ouput file in', time_end - time_start, ' seconds'
+ 	print '(a,g10.2,a)', ' Reformatted to *.dcd in', time_end - time_start, ' seconds.'
 
 end subroutine reformat_dcd_true
 
@@ -340,6 +362,7 @@ subroutine reformat_dcd_sl
 	implicit none
 
 	integer							:: n, i			!--Dummy variables
+	integer                         :: plot_mod
 	integer							:: NSET,vmd_sets!--Number of frames
 	integer							:: ISTRT		!--Starting frame
 	integer							:: NSAVC		!--Number of frames per coordinate save
@@ -354,16 +377,10 @@ subroutine reformat_dcd_sl
 	real,allocatable,dimension(:)   :: Xbuf, Ybuf, Zbuf	!--Buffers used to copy from direct access to binary
 	double precision				:: DELTA		!--Timestep between frames
 
-	print*, 'Generating final VMD.dcd ouput file - for large systems or'
-	print*, 'long runs this may take some time'
-
+	print*, 'Initialising trajectory file reformat to *.dcd. For large'
+	print*, 'systems or long runs this may take some time...' 
+	
 	call cpu_time(time_start)
-
-	!Determine size of file datatype
-	!inquire(file='testfile.dcd', recl=datasize)
-	!print*, 'datasize', datasize
- 	!call MPI_type_size(MPI_real,datasize,ierr)
-	!print*, 'datasize', datasize
 
 	if (Nvmd_intervals.eq.0) then
 		vmd_sets = (Nsteps-initialstep+1)/tplot
@@ -374,8 +391,6 @@ subroutine reformat_dcd_sl
 		!enddo
 	endif
 
-
-	!Set header information	
 	HDR			=	'CORD'				!header text
 	NSET		=	vmd_sets			!number of recorded frames
 	ISTRT		=	initialstep			!the starting timestep
@@ -397,14 +412,21 @@ subroutine reformat_dcd_sl
 	!Read Solid molecule position information from file
 	!RECORD LENGTH IS 1 WHICH IN FORTRAN IS A 4 BYTE BLOCKS (REAL, INT BUT NOT DP) 	
 	open (unit=17, file=trim(prefix_dir)//"results/vmd_solid_temp.dcd",access='direct',recl=1)
+	
+	!Open unit 6 (stdout) with fortran carriage control 
+	open (unit=6, carriagecontrol='fortran')  
+	plot_mod = max(1,NSET/100)
+	write(*,'(a)') ' VMD reformat read completion (solid):  '
 
 	do i=1,NSET
-	do n=1,globalnp
-		read(17,rec=(i-1)*nd*globalnp+n) Xbuf(n+globalnp*(i-1))
-		read(17,rec=(i-1)*nd*globalnp+n+globalnp) Ybuf(n+globalnp*(i-1))
-		read(17,rec=(i-1)*nd*globalnp+n+2*globalnp) Zbuf(n+globalnp*(i-1))
-		if (mod(i,100) .eq. 0) print*, 'Reading solid % complete =', (100.d0*i/NSET)
-	enddo
+		do n=1,globalnp
+			read(17,rec=(i-1)*nd*globalnp+n) Xbuf(n+globalnp*(i-1))
+			read(17,rec=(i-1)*nd*globalnp+n+globalnp) Ybuf(n+globalnp*(i-1))
+			read(17,rec=(i-1)*nd*globalnp+n+2*globalnp) Zbuf(n+globalnp*(i-1))
+		enddo
+		if (mod(i,plot_mod) .eq. 0) then
+			call progress(100*i/NSET)
+		end if
 	enddo
 
 	close(17,status='delete')
@@ -416,11 +438,14 @@ subroutine reformat_dcd_sl
 	write(3) NTITLE, TITLE(1), TITLE(2)
 	write(3) NATOM
 
+	write(*,'(a)') ' VMD reformat write completion (solid):  '
 	do i=1,NSET
 		write(3) Xbuf((i-1)*globalnp+1:i*globalnp)
 		write(3) Ybuf((i-1)*globalnp+1:i*globalnp)
 		write(3) Zbuf((i-1)*globalnp+1:i*globalnp)
-		if (mod(i,100) .eq. 0) print*, 'Writing solid % complete =', (100.d0*i/NSET)
+		if (mod(i,plot_mod) .eq. 0) then
+			call progress(100*i/NSET)
+		end if
 	enddo
 
 	close(3,status='keep')
@@ -429,20 +454,23 @@ subroutine reformat_dcd_sl
 	!RECORD LENGTH IS 1 WHICH IN FORTRAN IS A 4 BYTE BLOCKS (REAL, INT BUT NOT DP) 	
 	open (unit=17, file=trim(prefix_dir)//"results/vmd_liquid_temp.dcd",access='direct',recl=1)
 
+	write(*,'(a)') ' VMD reformat read completion (liquid):  '
 	do i=1,NSET
-	do n=1,globalnp
-		read(17,rec=(i-1)*nd*globalnp+n) 			Xbuf(n+globalnp*(i-1))
-		read(17,rec=(i-1)*nd*globalnp+n+globalnp) 	Ybuf(n+globalnp*(i-1))
-		read(17,rec=(i-1)*nd*globalnp+n+2*globalnp) Zbuf(n+globalnp*(i-1))
-		if (mod(i,100) .eq. 0) print*, 'Reading liquid % complete =', (100.d0*i/NSET)
-	enddo
+		do n=1,globalnp
+			read(17,rec=(i-1)*nd*globalnp+n) 			Xbuf(n+globalnp*(i-1))
+			read(17,rec=(i-1)*nd*globalnp+n+globalnp) 	Ybuf(n+globalnp*(i-1))
+			read(17,rec=(i-1)*nd*globalnp+n+2*globalnp) Zbuf(n+globalnp*(i-1))
+		enddo
+		if (mod(i,plot_mod) .eq. 0) then
+			call progress(100*i/NSET)
+		end if
 	enddo
 
 	close(17,status='delete')
 
 	!Open binary .dcd file and write header information	
 	open(unit=3, file=trim(prefix_dir)//"results/vmd_liquid_out.dcd",status='replace', form="unformatted")
-	
+	write(*,'(a)') ' VMD reformat write completion (liquid):  '
 	write(3) HDR, NSET, ISTRT, NSAVC, FIVEZ, NATOMNFREAT, DELTA, NINEZ
 	write(3) NTITLE, TITLE(1), TITLE(2)
 	write(3) NATOM
@@ -451,7 +479,9 @@ subroutine reformat_dcd_sl
 		write(3) Xbuf((i-1)*globalnp+1:i*globalnp)
 		write(3) Ybuf((i-1)*globalnp+1:i*globalnp)
 		write(3) Zbuf((i-1)*globalnp+1:i*globalnp)
-		if (mod(i,100) .eq. 0) print*, 'Writing liquid % complete =', (100.d0*i/NSET)
+		if (mod(i,plot_mod) .eq. 0) then
+			call progress(100*i/NSET)
+		end if
 	enddo
 
 	close(3,status='keep')
@@ -462,7 +492,8 @@ subroutine reformat_dcd_sl
 
 	call cpu_time(time_end)
 
- 	print '(a,g10.2,a)', 'Generated final VMD.dcd ouput file in', time_end - time_start, ' seconds'
+
+ 	print '(a,g10.2,a)', ' Reformatted to *.dcd in', time_end - time_start, ' seconds.'
 
 end subroutine reformat_dcd_sl
 
@@ -474,6 +505,7 @@ subroutine reformat_dcd_halo
 	implicit none
 
 	integer							:: n, i			!--Dummy variables
+	integer                         :: plot_mod
 	integer							:: NSET,vmd_sets!--Number of frames
 	integer							:: ISTRT		!--Starting frame
 	integer							:: NSAVC		!--Number of frames per coordinate save
@@ -488,10 +520,9 @@ subroutine reformat_dcd_halo
 	real,allocatable,dimension(:)   :: Xbuf, Ybuf, Zbuf	!--Buffers used to copy from direct access to binary
 	double precision				:: DELTA		!--Timestep between frames
 
-
-	print*, 'Generating final VMD.dcd ouput file - for large systems or'
-	print*, 'long runs this may take some time'
-
+	print*, 'Initialising trajectory file reformat to *.dcd. For large'
+	print*, 'systems or long runs this may take some time...' 
+	
 	call cpu_time(time_start)
 
 	!Determine size of file datatype
@@ -531,14 +562,21 @@ subroutine reformat_dcd_halo
 	!Read Solid molecule position information from file
 	!RECORD LENGTH IS 1 WHICH IN FORTRAN IS A 4 BYTE BLOCKS (REAL, INT BUT NOT DP) 	
 	open (unit=17, file=trim(prefix_dir)//"results/vmd_halo_temp.dcd",access='direct',recl=1)
+	
+	!Open unit 6 (stdout) with fortran carriage control 
+	open (unit=6, carriagecontrol='fortran')  
+	plot_mod = max(1,NSET/100)
+	write(*,'(a)') ' VMD reformat read completion (halo):  '
 
 	do i=1,NSET
-	do n=1,extralloc
-		read(17,rec=(i-1)*nd*extralloc+n) Xbuf(n+extralloc*(i-1))
-		read(17,rec=(i-1)*nd*extralloc+n+extralloc) Ybuf(n+extralloc*(i-1))
-		read(17,rec=(i-1)*nd*extralloc+n+2*extralloc) Zbuf(n+extralloc*(i-1))
-		if (mod(i,100) .eq. 0) print*, 'Reading % complete =', (100.d0*i/NSET)
-	enddo
+		do n=1,extralloc
+			read(17,rec=(i-1)*nd*extralloc+n) Xbuf(n+extralloc*(i-1))
+			read(17,rec=(i-1)*nd*extralloc+n+extralloc) Ybuf(n+extralloc*(i-1))
+			read(17,rec=(i-1)*nd*extralloc+n+2*extralloc) Zbuf(n+extralloc*(i-1))
+		enddo
+		if (mod(i,plot_mod) .eq. 0) then
+			call progress(100*i/NSET)
+		end if
 	enddo
 
 	close(17,status='delete')
@@ -550,11 +588,14 @@ subroutine reformat_dcd_halo
 	write(3) NTITLE, TITLE(1), TITLE(2)
 	write(3) NATOM
 
+	write(*,'(a)') ' VMD reformat write completion (halo):  '
 	do i=1,NSET
 		write(3) Xbuf((i-1)*extralloc+1:i*extralloc)
 		write(3) Ybuf((i-1)*extralloc+1:i*extralloc)
 		write(3) Zbuf((i-1)*extralloc+1:i*extralloc)
-		if (mod(i,100) .eq. 0) print*, 'Writing % complete =', (100.d0*i/NSET)
+		if (mod(i,plot_mod) .eq. 0) then
+			call progress(100*i/NSET)
+		end if
 	enddo
 
 	close(3,status='keep')
@@ -565,7 +606,7 @@ subroutine reformat_dcd_halo
 
 	call cpu_time(time_end)
 
- 	print '(a,g10.2,a)', 'Generated final VMD.dcd ouput file in', time_end - time_start, ' seconds'
+ 	print '(a,g10.2,a)', ' Reformatted to *.dcd in', time_end - time_start, ' seconds'
 
 end subroutine reformat_dcd_halo
 

@@ -184,6 +184,8 @@ subroutine messenger_init()
 
 	! Molecules per processor and i/o writing offset
 	allocate(procnp(nproc))	
+	! Molecules per processor and i/o writing offset
+	allocate(proctethernp(nproc))	
 
 	! Save current time
 	wallTime = MPI_wtime()
@@ -429,11 +431,15 @@ subroutine messenger_free()
 	use messenger
 	!include "mpif.h"
 
+	call MPI_Barrier(MD_COMM,ierr)
+
 	! Report time used
-	print "(a,f8.2)", "time: ", MPI_wtime() - wallTime
+	if (irank.eq.iroot) then
+		print "(1x,a,f8.2,a)", "MPI run-time: ", MPI_wtime() - wallTime, ' seconds.'
+	end if
 
 	! Finalize MPI
-         call MPI_finalize (ierr)
+    call MPI_finalize (ierr)
 
 	return
 end
@@ -498,6 +504,7 @@ module pack_unpack_cell
 	use physical_constants_MD, only : nd
 	use computational_constants_MD, only :	potential_flag
 	use arrays_MD, only : r, v
+	use polymer_info_MD, only: nsdmi
 	use linked_list
 	use messenger
 	implicit none
@@ -513,7 +520,7 @@ subroutine pack_cell(icell,jcell,kcell,sendbuffer,buffsize,pos)
 
 	integer 										:: i, molno,cellnp
 	double precision, dimension(nd) 				:: rpack, vpack	!Temporary arrays used to pack
-	double precision, dimension(8)  				:: FENEpack
+	double precision, dimension(nsdmi) 				:: FENEpack
 
 	type(node), pointer 	        				:: old, current
 
@@ -542,7 +549,7 @@ subroutine pack_cell(icell,jcell,kcell,sendbuffer,buffsize,pos)
 				sendbuffer,buffsize,pos,icomm_grid,ierr)
 			endif
 			call prepare_FENEbuffer(molno,FENEpack)
-			call MPI_Pack(FENEpack,8,MPI_DOUBLE_PRECISION,&
+			call MPI_Pack(FENEpack,nsdmi,MPI_DOUBLE_PRECISION,&
 			sendbuffer,buffsize,pos,icomm_grid,ierr)
 		end select
 		current => old
@@ -564,7 +571,7 @@ subroutine unpack_recvbuffer(halo_np,recvnp,length,recvbuffer)
 
 	integer 										:: n, pos
 	double precision, dimension(nd) 				:: rpack, vpack	!Temporary arrays used to pack
-	double precision, dimension(8)  				:: FENEpack
+	double precision, dimension(nsdmi)  				:: FENEpack
 
 	pos = 0
 	do n=halo_np+1,halo_np+recvnp
@@ -588,7 +595,7 @@ subroutine unpack_recvbuffer(halo_np,recvnp,length,recvbuffer)
 				v(:,np+n) = vpack
 			endif
 			call MPI_Unpack(recvbuffer,length,pos,FENEpack, &
-			8,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+			nsdmi,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
 			call assign_FENEbuffer(np+n,FENEpack)
 		end select
 	enddo
@@ -609,7 +616,7 @@ subroutine get_sendsize(sendnp,sendsize)
 		sendsize = nd*sendnp
 		if (pass_vhalo .ne. 0) sendsize = sendsize + nd*sendnp
 	case(1) !+FENE info 
-		sendsize = nd*sendnp + (8)*sendnp
+		sendsize = nd*sendnp + (nsdmi)*sendnp
 		if (pass_vhalo .ne. 0) sendsize = sendsize + nd*sendnp
 	end select
 
@@ -633,9 +640,9 @@ subroutine get_recvnp(recvsize,recvnp)
 		endif
 	case(1)
 		if (pass_vhalo .eq. 0) then
-			recvnp = recvsize/real(nd+8,kind(0.d0))
+			recvnp = recvsize/real(nd+nsdmi,kind(0.d0))
 		else
-			recvnp = recvsize/real(2*nd+8,kind(0.d0))
+			recvnp = recvsize/real(2*nd+nsdmi,kind(0.d0))
 		endif
 	end select
 
@@ -703,7 +710,7 @@ subroutine updatefacedown(ixyz)
 	integer :: molno,cellnp,sendnp,sendsize,recvnp,recvsize,pos,length,datasize,buffsize
 	integer :: isource,idest
 	double precision, dimension(nd) :: rpack	!Temporary array used to pack position
-	double precision, dimension(8)  :: FENEpack
+	double precision, dimension(nsdmi)  :: FENEpack
 	double precision, dimension(:), allocatable :: sendbuffer
 	type(node), pointer 	        :: old, current
 
@@ -839,7 +846,7 @@ subroutine updatefaceup(ixyz)
 	integer :: molno,cellnp,sendnp,sendsize,recvnp,recvsize,pos,length,datasize,buffsize
 	integer :: isource,idest
 	double precision, dimension(nd) :: rpack	!Temporary array used to pack/unpack position
-	double precision, dimension(8)  :: FENEpack
+	double precision, dimension(nsdmi)  :: FENEpack
 	double precision, dimension(:), allocatable :: sendbuffer
 	type(node), pointer 	        :: old, current
 
@@ -973,7 +980,7 @@ subroutine updateedge(face1,face2)
 	integer :: isource,idest
 	integer, dimension(3,4)   :: edge1, edge2
 	double precision, dimension(nd) :: rpack	!Temporary array used to pack position
-	double precision, dimension(8)  :: FENEpack
+	double precision, dimension(nsdmi)  :: FENEpack
 	double precision, dimension(:), allocatable :: sendbuffer
 	type(node), pointer 	        :: old, current
 
@@ -1119,7 +1126,7 @@ subroutine updatecorners()
 	integer :: isource,idest
 	integer, dimension(8)   :: icornercell, jcornercell, kcornercell
 	double precision, dimension(nd) :: rpack	!Temporary array used to pack position
-	double precision, dimension(8)  :: FENEpack
+	double precision, dimension(nsdmi)  :: FENEpack
 	double precision, dimension(:), allocatable :: sendbuffer
 	type(node), pointer 	        :: old, current
 
@@ -1200,6 +1207,7 @@ subroutine sendmols()
 	implicit none
 
 	integer		:: i,ixyz,dir,maxnew_np,sendnp,new_np
+	integer     :: sendtethernp, new_tethernp
 
 	pass%sendnp = 0
 
@@ -1279,91 +1287,79 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 	use arrays_MD
 	use linked_list
 	implicit none
-	!include "mpif.h"
 
-	integer :: i, n, ixyz, dir
-	integer :: molno,sendnp,sendsize,recvnp,recvsize
-	integer :: new_np,pos,length,datasize,buffsize
+	integer :: new_np,ixyz,sendnp,dir
+
+	integer :: i, n
+	integer :: molno,sendsize,recvnp,recvsize
+	integer :: pos,length,datasize,buffsize
 	integer :: isource,idest
-	double precision			    :: tagpack	!Temporay packing buffer
+	double precision			    :: dppack	!Temporay packing buffer
 	double precision, dimension(nd) :: Xpack 	!Temporay packing buffer
-	double precision, dimension(8)  :: FENEpack
+	double precision, dimension(nsdmi)  :: FENEpack
 	double precision, dimension(:), allocatable :: sendbuffer
 	type(passnode), pointer :: old, current
-
 
 	!Obtain processor ID of lower neighbour
 	call MPI_Cart_shift(icomm_grid, ixyz-1, dir, isource, idest, ierr)
 
-	!print'(a,i5,a,i5,a,i5,a,i5,a,i5)', ' proc ', irank, ' coordinate ' &
-	!,ixyz, ' dir ',dir, ' passes to ', idest+1, ' receives from ', isource+1
-
-	!One Tag, three position, three true position and three velocity components for each molecules
-	select case(potential_flag)
-	case(0)
-		sendsize = (3*nd + 1)*sendnp
-	case(1)
-		sendsize = (3*nd + 1)*sendnp + (8)*sendnp
-	end select
+	!Calculate required buffer size and allocate enough memory
+	call get_sendmols_buffersize
 	allocate(sendbuffer(sendsize))
+	
+	!Provide MPI with upper bound of pack size
 	call MPI_Pack_size(sendsize,MPI_DOUBLE_PRECISION, &
 				icomm_grid,buffsize,ierr)
+	!Initialise position in packed buffer
+	pos = 0
 
-	!Package data ready to send
+	!Pack buffer header (sendnp) first
+	dppack = real(sendnp,kind(0.d0))
+	call MPI_Pack(dppack,1,MPI_DOUBLE_PRECISION,sendbuffer,&
+	              buffsize,pos,icomm_grid,ierr)
+
+	!Pack rest of data -----------------------------------------!
 	old => pass%head 
 	current => old     !make current point to head of list
-	pos = 0
 	do i=1,sendnp
 
 		molno = old%molno	!Number of molecule
-		select case(potential_flag)
-		case(0)
-			!Positions
-			Xpack(:) = r(:,molno)
-			call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
-					sendbuffer,buffsize,pos,icomm_grid,ierr)
-			!True global positions
-			Xpack(:) = rtrue(:,molno)
-			call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
-					sendbuffer,buffsize,pos,icomm_grid,ierr)
-			!Velocity
-			Xpack(:) = v(:,molno)
-			call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
-					sendbuffer,buffsize,pos,icomm_grid,ierr)
-			!Molecular Tag - Convert to double precision so all passed variables same type
-			tagpack = real(tag(molno),kind(0.d0)) 
-			call MPI_Pack(tagpack,1,MPI_DOUBLE_PRECISION,& 
-					sendbuffer,buffsize,pos,icomm_grid,ierr)
-		case(1)
-			!Positions
-			Xpack(:) = r(:,molno)
-			call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
-					sendbuffer,buffsize,pos,icomm_grid,ierr)
-			!True global positions
-			Xpack(:) = rtrue(:,molno)
-			call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
-					sendbuffer,buffsize,pos,icomm_grid,ierr)
-			!Velocity
-			Xpack(:) = v(:,molno)
-			call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
-					sendbuffer,buffsize,pos,icomm_grid,ierr)
-			!IDs
-			call prepare_FENEbuffer(molno,FENEpack)
-			call MPI_Pack(FENEpack,8,MPI_DOUBLE_PRECISION,& 
-					sendbuffer,buffsize,pos,icomm_grid,ierr)
 
-			!Molecular Tag - Convert to double precision so all passed variables same type
-			tagpack = real(tag(molno),kind(0.d0)) 
-			call MPI_Pack(tagpack,1,MPI_DOUBLE_PRECISION,& 
-					sendbuffer,buffsize,pos,icomm_grid,ierr)
-	
-		case default
-		end select	
+		dppack = real(tag(molno),kind(0.d0))
+		call MPI_Pack(dppack,1,MPI_DOUBLE_PRECISION, &
+		              sendbuffer,buffsize,pos,icomm_grid,ierr)
+
+		Xpack(:) = r(:,molno)
+		call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
+		              sendbuffer,buffsize,pos,icomm_grid,ierr)
+
+		Xpack(:) = v(:,molno)
+		call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
+		              sendbuffer,buffsize,pos,icomm_grid,ierr)
+
+		if (rtrue_flag .eq. 1) then
+			Xpack(:) = rtrue(:,molno)
+			call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
+			              sendbuffer,buffsize,pos,icomm_grid,ierr)
+		end if
+
+		if (any(tag(molno).eq.tether_tags)) then
+			Xpack(:) = rtether(:,molno)
+			call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
+			              sendbuffer,buffsize,pos,icomm_grid,ierr)
+		end if
+
+		if (potential_flag .eq. 1) then
+			call prepare_FENEbuffer(molno,FENEpack)
+			call MPI_Pack(FENEpack,nsdmi,MPI_DOUBLE_PRECISION,& 
+			              sendbuffer,buffsize,pos,icomm_grid,ierr)
+		end if	
 		
 		old => current%next  !make old point to next node of current
 		current  => old      !Set current item to old ready for next loop
 
 	enddo
+	!------------------------------------------------------------!
 
 	!If processor is its own neighbour - no passing required
 	if (idest+1 .eq. irank) then
@@ -1377,61 +1373,57 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 		call NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest)
 	endif
 
-	!Send, probe for size and then receive data
-	!call pairedsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest,ixyz)
-	!call NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest)
-
-	!One tag, three positions, three true positions and three velocity components per molecule
-	select case(potential_flag)
-	case(0)
-		recvnp = recvsize/(3*nd + 1)
-	case(1)
-		recvnp = recvsize/(3*nd + 1 + 8)
-	end select
-
-	!Unpack data into correct arrays
+	!Unpack header data (recvnp)
 	pos = 0
+	call MPI_Unpack(recvbuffer,length,pos,dppack,1,MPI_DOUBLE_PRECISION, &
+	                icomm_grid,ierr)
+	recvnp = nint(dppack)
+
+	!Unpack rest of data into correct arrays --------------------!
 	do n=new_np+1,new_np+recvnp
-		select case(potential_flag)
-		case(0)
+
+		call MPI_Unpack(recvbuffer,length,pos,dppack, &
+						1,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+		tag(np+n)     = nint(dppack)
+
+		call MPI_Unpack(recvbuffer,length,pos,Xpack, &
+						nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+		r(:,np+n)     = Xpack
+
+		call MPI_Unpack(recvbuffer,length,pos,Xpack, &
+						nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+		v(:,np+n)     = Xpack
+
+		if (rtrue_flag.eq.1) then
 			call MPI_Unpack(recvbuffer,length,pos,Xpack, &
-			                nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			r(:,np+n)     = Xpack
-			call MPI_Unpack(recvbuffer,length,pos,Xpack, &
-			                nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+							nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
 			rtrue(:,np+n) = Xpack
+		end if
+		
+		if (any(tag(np+n).eq.tether_tags)) then
 			call MPI_Unpack(recvbuffer,length,pos,Xpack, &
-			                nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			v(:,np+n)     = Xpack
-			call MPI_Unpack(recvbuffer,length,pos,tagpack, &
-			                1,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			tag(np+n)     = nint(tagpack)	!Convert back to integer
-		case(1)
-			call MPI_Unpack(recvbuffer,length,pos,Xpack, &
-			                nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			r(:,np+n)     = Xpack
-			call MPI_Unpack(recvbuffer,length,pos,Xpack, &
-			                nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			rtrue(:,np+n) = Xpack
-			call MPI_Unpack(recvbuffer,length,pos,Xpack, &
-			                nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			v(:,np+n)     = Xpack
+							nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+			rtether(:,np+n) = Xpack
+		end if
+
+		if (potential_flag .eq. 1 ) then
 			call MPI_Unpack(recvbuffer,length,pos,FENEpack, &
-			                8,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+							nsdmi,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
 			call assign_FENEbuffer(np+n,FENEpack)
-			call MPI_Unpack(recvbuffer,length,pos,tagpack, &
-			                1,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			tag(np+n)     = nint(tagpack)	!Convert back to integer
-		end select
+		end if
+
 	enddo
+	!-------------------------------------------------------------!
 
 	!Correct positions in new processor
 	do n=new_np+1,new_np+recvnp
 		r(ixyz,np+n) = r(ixyz,np+n) - dir * domain(ixyz)
+		rtether(ixyz,np+n) = rtether(ixyz,np+n) - dir * domain(ixyz)
 	enddo
 
 	!Update number of molecules in halo to include number recieved
 	new_np = new_np + recvnp
+	!new_tethernp = new_tethernp + recvtethernp
 
 	deallocate(recvbuffer)
 	deallocate(sendbuffer)
@@ -1439,6 +1431,41 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 	nullify(old)            !Nullify old as no longer required
 
 	return
+
+contains
+
+	subroutine get_sendmols_buffersize
+		implicit none
+
+		!Include sendnp as double at head of buffer
+		sendsize = 1
+
+		!Add 2*nd for r, v and 1 for tag
+		sendsize = sendsize + 2*nd*sendnp + 1*sendnp
+	
+		!Add rtrue if necessary	
+		if (rtrue_flag.eq.1) then
+			sendsize = sendsize + nd*sendnp
+		end if
+
+		!Check if any molecules are tethered
+		old => pass%head
+		current => old
+		do i=1,sendnp 
+			molno = old%molno
+			if (any(tag(molno).eq.tether_tags)) then
+				sendsize = sendsize + nd
+			end if
+			old => current%next
+			current => old	
+		end do
+
+		!Add space for polymer info if required
+		if (potential_flag.eq.1) then
+			sendsize = sendsize + nsdmi*sendnp
+		end if
+
+	end subroutine get_sendmols_buffersize
 
 end
 
@@ -1467,45 +1494,39 @@ subroutine reorderdata(new_np)
 	do i=1,sendnp
 
 		molno = old%molno	!Position of empty location 
-		select case(potential_flag)
-		case(0)
-			r(:,molno)     = r(:,np+new_np)
-			rtrue(:,molno) = rtrue(:,np+new_np)
-			v(:,molno)     = v(:,np+new_np)
-			tag(molno)     = tag(np+new_np)
-		case(1)
-			r(:,molno)     = r(:,np+new_np)
-			rtrue(:,molno) = rtrue(:,np+new_np)
-			v(:,molno)     = v(:,np+new_np)
-			tag(molno)     = tag(np+new_np)
+
+		tag(molno)       = tag(np+new_np)
+		r(:,molno)       = r(:,np+new_np)
+		v(:,molno)       = v(:,np+new_np)
+		rtrue(:,molno)   = rtrue(:,np+new_np)
+		rtether(:,molno) = rtether(:,np+new_np)
+		
+		if (potential_flag .eq. 1) then	
 			monomer(molno) = monomer(np+new_np)
-		end select
+		end if
 
 		!Read molecular tag and assign correct properties to reordered molecules
 		call read_tag(molno)
-
-		!if (molno .eq. np+new_np)
-		!print*, irank, 'mol no',np+new_np, 'into gap', molno, 'of', np
 
 		!Update number of new molecules
 		new_np = new_np - 1
 
 		old => current%next  !make old point to next node of current
 		current  => old      !Set current item to old ready for next loop
+
 	enddo
 
 	!Read molecular tag and assign correct properties to new molecules
 	do i=np+1, np+new_np
 		call read_tag(i)
 	enddo
+
 	!Adjust total number of molecules to reflect difference between
 	!recieved molecules and passed molecules
 	np = np + new_np
 
 	nullify (current)   !Set current pointer to null
 	nullify (old)       !Set old pointer to null
-
-	!print*, irank, 'number of particles', np
 
 end subroutine reorderdata
 
@@ -2469,6 +2490,7 @@ subroutine globalGathernp()
 
 	return
 end
+
 
 !----Sum routines over global sub communitcators
 

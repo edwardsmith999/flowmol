@@ -1,8 +1,8 @@
-!----------------------------------------------------------------------------------
-!                                Initialise Microstate
-! Set up position and velocity of each molecule (the microstate)
+!------------------------------------------------------------------------------
+!                           Initialise Microstate
+!        Set up position and velocity of each molecule (the microstate)
 !
-!---------------------------------------------------------------------------------
+!------------------------------------------------------------------------------
 
 module module_initialise_microstate
 
@@ -12,10 +12,10 @@ module module_initialise_microstate
 	use calculated_properties_MD
 
 	double precision			:: angle, rand  !Define variables
-	double precision			:: v13 !Magnitude of v1 and v3 vectors
+	double precision			:: v13          !Mag of v1 and v3 vectors
 	
 end module module_initialise_microstate
-!----------------------------------------------------------------------------------
+!------------------------------------------------------------------------------
 
 subroutine setup_initialise_microstate
 use interfaces
@@ -26,11 +26,10 @@ implicit none
 	
 	select case(potential_flag)
 	case(0)	
-		call setup_initialise_parallel_position       !Setup initial positions in //el
+		call setup_initialise_parallel_position       !Setup initial pos
 	case(1) 
-		call setup_initialise_parallel_position_FENE  !Reordered numbering to allow FENE bonds
-		call setup_initialise_polyinfo                !Assign beads chain IDs, etc
-		!call setup_initialise_polyinfo_singlebranched !Assign beads chain IDs, etc
+		call setup_initialise_parallel_position_FENE  !Numbering for FENE bonds
+		call setup_initialise_polyinfo                !Chain IDs, etc
 	case default
 		call error_abort('Potential flag not recognised!')
 	end select
@@ -40,11 +39,12 @@ implicit none
 		rtrue(2,n) = r(2,n)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
 		rtrue(3,n) = r(3,n)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
 	end do
-	rinitial = rtrue                                  !Store initial true positions
+	!rinitial = rtrue                                 !Store initial true pos
 
-	call setup_tag                                    !Setup location of fixed molecules
+	call setup_tag                                    !Setup locn of fixed mols
+	rtether = r                                       !Init tether pos
 	do n = 1,np
-		call read_tag(n)                              !Read tag and assign properties
+		call read_tag(n)                              !Read tag, assign props
 	enddo
 	call setup_initialise_velocities				  !Setup initial velocities
 
@@ -88,12 +88,12 @@ subroutine setup_initialise_position
 		enddo
 	enddo
 
-	rinitial = r !Record initial position of all molecules
+	!rinitial = r !Record initial position of all molecules
 
 end subroutine setup_initialise_position
 
 subroutine setup_initialise_position_FENE
-        use interfaces
+    use interfaces
 	use module_initialise_microstate
 	use polymer_info_MD
 	implicit none
@@ -122,6 +122,7 @@ subroutine setup_initialise_position_FENE
 			c(1) = (nx - 0.75d0)*initialunitsize(1) - halfdomain(1)
 				do j=1,4 !4 Molecules per cell
 					r(:,n) = c(:)
+
 					if (j.eq.2) then
 						r(1,n) = c(1) + 0.5d0*initialunitsize(1)
 						r(3,n) = c(3) + 0.5d0*initialunitsize(3)
@@ -132,26 +133,15 @@ subroutine setup_initialise_position_FENE
 						r(1,n) = c(1) + 0.5d0*initialunitsize(1)
 						r(2,n) = c(2) + 0.5d0*initialunitsize(2)
 					end if
-					
-			!		chainID = ceiling(dble(n)/nmonomers)	 !Set chain ID of mol n
-			!		subchainID = mod(n,nmonomers) !Beads are numbered 1 to nmonomers
-			!		if (subchainID.eq.0) subchainID = nmonomers !Correct for mod returning 0
-
-			!		monomer(n)%chainID = chainID
-			!		monomer(n)%subchainID = subchainID
-
-			!		monomer(n)%left = n-1
-			!		monomer(n)%right= n+1
-			!		if (subchainID.eq.1) monomer(n)%left = 0 !Flag for beginning of chain
-			!		if (subchainID.eq.nmonomers) monomer(n)%right = 0	!Flag for end of chain
 
 					n = n + 1  !Move to next molecule
+
 				enddo
 			enddo
 		enddo
 	enddo
 
-	rinitial = r !Record initial position of all molecules
+	!rinitial = r !Record initial position of all molecules
 
 end subroutine setup_initialise_position_FENE
 
@@ -267,7 +257,7 @@ subroutine setup_initialise_parallel_position
 	enddo
 
 	np = nl			 !Correct local number of particles on processor
-	rinitial = rtrue !Record initial position of all molecules
+	!rinitial = rtrue !Record initial position of all molecules
 
 	!Establish global number of particles on current process
 	globalnp = np
@@ -380,7 +370,7 @@ subroutine setup_initialise_parallel_position_FENE
 	enddo
 
 	np = nl			    !Correct local number of particles on processor
-	rinitial = rtrue    !Record initial position of all molecules
+	!rinitial = rtrue    !Record initial position of all molecules
 
 
 	!Establish global number of particles on current process

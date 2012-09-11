@@ -18,9 +18,11 @@ while 1:
 
 	diff = [0.0]*len(serial)
 	diff[0] = int(serial[0])
+	diff[1] = float(serial[1])
 
 	outstring = str(diff[0]).rjust(12)
-	for i in range(1,len(serial)):
+	outstring += str(diff[1]).rjust(12)
+	for i in range(2,len(serial)):
 		diff[i] = "%22.15f" % (float(serial[i]) - float(parallel[i]))
 		outstring += diff[i]
 	d.write(outstring+'\n')

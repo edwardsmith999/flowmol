@@ -53,4 +53,4 @@ cat ./debug_scripts/diff.macro
 echo "set title \"Serial - Parallel Total Energies\"
 set xlabel \"iter\"
 set ylabel \"Energy (LJU)\"
-plot \"./debug_scripts/diff.macro\" u 1:7 w p lc 1 t \"TE\"" | gnuplot -persist
+plot \"./debug_scripts/diff.macro\" u 1:8 w p lc 1 t \"TE\"" | gnuplot -persist

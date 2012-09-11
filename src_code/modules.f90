@@ -11,8 +11,10 @@ module physical_constants_MD
 	integer, parameter 				:: nd = 3		   		!Number of dimensions
 	integer            				:: np                   !Number of particles
 	integer		   					:: globalnp             !Global number of particles
+	integer                         :: tethernp             !Number of tethered particles
 	integer		   					:: halo_np              !Number of molecules in halo
 	integer,dimension(:),allocatable:: procnp 				!Array of all processors np
+	integer,dimension(:),allocatable:: proctethernp 		!Array of all processors np
 	double precision   				:: volume, density      !Define constant volume and density
 	double precision   				:: rcutoff, halfrcutoff !Cut off distance for particle interactions
 	double precision   				:: rcutoff2             !Cut off distance for particle interactions squared
@@ -30,10 +32,9 @@ module physical_constants_MD
 
 end module physical_constants_MD
 
-!-------------------------------------------------------------------------------------
-!-----------------------------Computational Constants---------------------------------
-!Constants used to determine the computational parameters of the simulation
-
+!------------------------------------------------------------------------------
+!-----------------------------Computational Constants--------------------------
+! Constants used to determine the computational parameters of the simulation
 module computational_constants_MD
 
 	!Command-line arguments
@@ -41,8 +42,10 @@ module computational_constants_MD
 	character(len=200) 		:: input_file, initial_microstate_file
 
 	!Force and Potential flags
-	integer					:: force_list		!flag to switch between neighbour and cell list
-	integer					:: potential_flag	!Choose LJ or Polymer Potential 
+	integer					:: force_list		!flag for neighbr/cell list
+	integer					:: potential_flag	!Choose LJ or Polymer potential
+	integer                 :: tether_flag      !True if there exists 
+	integer, dimension(4), parameter :: tether_tags=(/3,5,6,7/)
 
 	!Integration algorithm
 	integer                 :: integration_algorithm
@@ -58,9 +61,6 @@ module computational_constants_MD
 		nvt_DPD     = 5, &
 		tag_move    = 6
 
-	!Thermostat flag
-	integer					:: thermstat_flag
-
 	!Input (on or off) flags
 	integer		:: & 
 		vmd_outflag, vmd_start, vmd_finish, vmd_count=1, &
@@ -73,6 +73,7 @@ module computational_constants_MD
 		viscosity_outflag, &
 		rdf_outflag, &
 		rtrue_flag, &
+		prev_rtrue_flag, &
 		ssf_outflag, &
 		cv_conserve,	&
 		mflux_outflag, &
@@ -98,6 +99,7 @@ module computational_constants_MD
 		Nvflux_ave, 			&	!Number of averages for each velocity flux
 		Neflux_ave, 			&	!Number of averages for each energy flux
 		initialstep, 			&	!Initial step of simulation
+		finalstep,              &   !Final step of simulation
 		Nsteps, 				&	!Total number of computational steps
 		initialise_steps, 		&	!Initialisation steps to run before simulation start
 		extralloc, 				&	!Extra allocation space to include copied halos
@@ -111,6 +113,7 @@ module computational_constants_MD
 
 	double precision 	:: delta_t           !Size of timestep for each computational step
 	double precision 	:: elapsedtime       !Total time elapsed including restarts
+	double precision 	:: simtime=0.d0      !Total incremented simulation time
 	double precision 	:: rneighbr2         !Square of rcuttoff+delta_rneighbr
 	double precision 	:: delta_rneighbr    !Radius used for neighbour list construction
 	double precision    :: rdf_rmax          !Maximum radius for radial distribution function
@@ -185,15 +188,14 @@ module shear_info_MD
 
 end module shear_info_MD
 
-!-------------------------------------------------------------------------------------
-!----------------------------------Arrays---------------------------------------------
+!------------------------------------------------------------------------------
+!----------------------------------Arrays--------------------------------------
 
 module arrays_MD
 
-	integer,          dimension(:),   allocatable, target	:: tag       	!Molecular Tags
+	integer,          dimension(:),   allocatable, target	:: tag !Mol tags
 	integer, 	  	  dimension(:,:), allocatable, target	:: &
-		fix, &      				!Fixed molecules
-		thermostat					!Thermostatted molecules
+		fix                         !Fixed molecules
 	double precision, dimension(:),   allocatable, target 	:: &
 		potenergymol, 		&		!Potential energy of each molecule
 		potenergymol_LJ, 	&		!LJ Potential energy of each molecule
@@ -204,7 +206,7 @@ module arrays_MD
 	double precision, dimension(:,:),   allocatable			:: &
 		rtrue, 		&      			!Positions with no period BC
 		vtrue,      &               !Corresponding velocities
-		rinitial, 	&
+		rtether, 	&
 		rijsum, 	&				!Sum of all molecular rij values
 		theta, 		&
 		aD,aR
@@ -212,14 +214,13 @@ module arrays_MD
 		r, 		&        		  	!Positions
 		v, 		&        		  	!Velocity
 		a, 		&					!Accelerations
-		aold,	&					!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
 		slidev						!Speed for sliding molecules
 
 end module arrays_MD
 
 
-!-------------------------------------------------------------------------------------
-!----------------------------------Linked List----------------------------------------
+!------------------------------------------------------------------------------
+!----------------------------------Linked List---------------------------------
 
 module linked_list
 
@@ -321,7 +322,10 @@ module polymer_info_MD
 		integer :: glob_no                          !Global molecule number
 		integer :: bin_bflag(4)                     !Integer for bit manipulation to find bond flags...
                                                     !...for more info see function get_bondflag
+		! THE TOTAL NUMBER OF ITEMS IN THIS DATA TYPE MUST ALSO BE STORED IN THE VARIABLE nsdmi
 	end type monomer_info
+
+	integer, parameter :: nsdmi=8                   !Number of sent doubles for monomer_info 
 
 	integer :: intbits                              !Size in bits of integer on this machine
 

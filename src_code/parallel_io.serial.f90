@@ -225,6 +225,12 @@ subroutine setup_restart_inputs
 				  'in input & restart file - restart file will be used'
 		potential_flag = checkint
 	endif
+	read(2) prev_rtrue_flag
+	if (prev_rtrue_flag .ne. rtrue_flag) then
+	    print*, 'Discrepancy between rtrue_flag', &
+				  'in input & restart file - current file will be used,', &
+		         ' but rtrue will still be read from restart file.'
+	endif
 	read(2) checkint
 	if (checkint .ne. solvent_flag) then
 	    print*, 'Discrepancy between solvent_flag', &
@@ -242,7 +248,10 @@ subroutine setup_restart_inputs
 	read(2) npz
 	prev_nproc = npx*npy*npz	!If parallel run, number of molecules per processor written
 	do n=1,prev_nproc			!Loop through all processors and discard information
-		read(2) checkint
+		read(2) checkint 		!procnp
+	enddo
+	do n=1,prev_nproc			!Loop through all processors and discard information
+		read(2) checkint        !proctethernp
 	enddo
 	npx = 1	!This is a Serial Run
 	npy = 1 !This is a Serial Run
@@ -263,6 +272,7 @@ subroutine setup_restart_inputs
 	rcutoff2= rcutoff**2				!Useful definition to save computational time
 	read(2) checkdp 					!delta_t - Timestep
 	read(2) elapsedtime					!elapsedtime - Elapsed simulation time to date
+	read(2) simtime					!simtime - Elapsed simulation time to date
 	read(2) checkdp					!k_c - Polymer spring constant
 	if (checkdp.ne.k_c) then
 		print*, 'Discrepancy between k_c ', &
@@ -301,7 +311,7 @@ subroutine setup_restart_inputs
 	!Setup elapsed times
 	elapsedtime = elapsedtime + delta_t*extrasteps !Set elapsed time to end of simualtion
 	initialstep = Nsteps         !Set plot count to final plot of last
-	iter = initialstep			 !Set iter to initialstep so that initial record is performed correctly at restart
+	iter = initialstep  	     !Set iter to initialstep so that initial record is performed correctly at restart
 	Nsteps = Nsteps + extrasteps !Establish final iteration step based on previous
 
 	!=============  E N D    R E A D    R E S T A R T    H E A D E R   ==============================!
@@ -322,23 +332,23 @@ subroutine setup_restart_microstate
 	implicit none
 
 	integer 							:: ixyz, n
+	double precision                    :: dpbuf
 	double precision,dimension(nd)		:: buf
 	double precision,dimension(8)       :: monomerbuf
 
 	!Open file at first recorded value
 	open(2,file=initial_microstate_file, form='unformatted', access='stream',position='rewind')
-	select case (potential_flag)
-	case(0)
-		do n=1,globalnp
-			read(2) buf; r(:,n)     = buf   !Read particle n's positions
+	do n=1,globalnp
+		read(2) dpbuf; tag(n) = nint(dpbuf) !Read particle n's tag
+		read(2) buf;   r(:,n) = buf   !Read particle n's positions
+		read(2) buf;   v(:,n) = buf   !Read particle n's velocities
+		if (prev_rtrue_flag.eq.1) then
 			read(2) buf; rtrue(:,n) = buf   !Read particle n's unwrapped positions
-			read(2) buf; v(:,n)     = buf   !Read particle n's velocities
-		enddo
-	case(1)
-		do n=1,globalnp
-			read(2) buf; r(:,n)     = buf   !Read particle n's positions
-			read(2) buf; rtrue(:,n) = buf   !Read particle n's positions
-			read(2) buf; v(:,n)     = buf   !Read particle n's velocities
+		end if
+		if (any(tag(n).eq.tether_tags)) then
+			read(2) buf; rtether(:,n) = buf
+		end if
+		if (potential_flag.eq.1) then
 			read(2) monomerbuf
 			monomer(n)%chainID        = nint(monomerbuf(1))
 			monomer(n)%subchainID     = nint(monomerbuf(2))
@@ -355,11 +365,9 @@ subroutine setup_restart_microstate
 !			print '(i20)', monomer(n)%bin_bflag(3)
 !			print '(i20)', monomer(n)%bin_bflag(4)
 !			print*, '----------------------------------'
-
-		end do
-		nchains = maxval(monomer(:)%chainID)
-	case default
-	end select
+			nchains = maxval(monomer(:)%chainID)
+		end if
+	end do
 
 !	select case (integration_algorithm)
 !		case(leap_frog_verlet)
@@ -371,7 +379,7 @@ subroutine setup_restart_microstate
 !			!Nothing
 !	end select
 
-	call setup_tag				!Setup location of fixed molecules
+	print*, 'Molecular tags have been obtained from the restart file.'
 	do n = 1,np
 		call read_tag(n)		!Read tag and assign properties
 	enddo
@@ -398,6 +406,7 @@ subroutine parallel_io_final_state
 	integer, dimension(np) 					:: chainID, subchainID,right,left
 	integer 								:: int_filesize,dp_filesize
 	integer(kind=selected_int_kind(18))		:: header_pos ! 8 byte integer for header address
+	double precision                        :: dpbuf
 	double precision, dimension(nd) 		:: buf
 	double precision, dimension(8)          :: monomerbuf
 
@@ -423,32 +432,37 @@ subroutine parallel_io_final_state
 	!Written in this form so each molecule's information is together to allow 
 	!re-allocation to seperate processors
 	open(2,file=trim(prefix_dir)//'results/final_state', form='unformatted',access='stream',status='replace')
-	select case (potential_flag)
-	case(0)
-		do n=1,np
-			buf = r(:,n);     write(2) buf  !Write particle n's position
-			buf = rtrue(:,n); write(2) buf  !Write particle n's unwrapped position
-			buf = v(:,n);     write(2) buf  !Write particle n's velocities
-		enddo
-	case(1)
-		do n=1,np
-			buf = r(:,n);     write(2) buf  !Write particle n's positions and speed
-			buf = rtrue(:,n); write(2) buf  !Write particle n's unwrapped position
-			buf = v(:,n);     write(2) buf  !Write particle n's velocities
+
+	do n=1,np
+		
+		dpbuf = real(tag(n),kind(0.d0)); write(2) dpbuf !Write n's tag
+		buf = r(:,n);           write(2) buf   !Write particle n's position
+		buf = v(:,n);           write(2) buf   !Write n's velocities
+
+		if (rtrue_flag.eq.1) then
+			buf = rtrue(:,n);   write(2) buf   !Write n's unwrapped position
+		end if
+
+		if (any(tag(n).eq.tether_tags)) then
+			buf = rtether(:,n); write(2) buf   !Write n's tether site
+		end if
+		
+		if (potential_flag .eq. 1) then
 			monomerbuf(1)   = real(monomer(n)%chainID,kind(0.d0))
 			monomerbuf(2)   = real(monomer(n)%subchainID,kind(0.d0))
 			monomerbuf(3)   = real(monomer(n)%funcy,kind(0.d0))
 			monomerbuf(4)   = real(monomer(n)%glob_no,kind(0.d0))
 			monomerbuf(5:8) = real(monomer(n)%bin_bflag(1:4),kind(0.d0))
-			write(2) monomerbuf
-		end do
-	case default
-	end select	
+			write(2) monomerbuf                   !Write n's monomer info
+		end if
+
+	enddo
  
 	close(2,status='keep')
 
 	!Write integer data at end of file	
-	open(2,file=trim(prefix_dir)//'results/final_state', form='unformatted',access='stream',position='append')
+	open(2,file=trim(prefix_dir)//'results/final_state', form='unformatted', &
+	     access='stream',position='append')
 
 	! header address
 	inquire(2,POS=header_pos)
@@ -465,6 +479,7 @@ subroutine parallel_io_final_state
 	write(2) periodic(2)   		!Boundary condition flags
 	write(2) periodic(3)	   	!Boundary condition flags
 	write(2) potential_flag   	!Polymer/LJ potential flag
+	write(2) rtrue_flag         !
 	write(2) solvent_flag       !Solvent on/off flag
 	write(2) nmonomers		   	!Polymer chain length
 	write(2) 0                  !Processors (npx) flag for serial
@@ -475,6 +490,7 @@ subroutine parallel_io_final_state
 	write(2) rcutoff          !Cut off distance for particle interaction
 	write(2) delta_t          !Size of time step
 	write(2) elapsedtime      !Total elapsed time of all restarted simulations
+	write(2) simtime          !Total elapsed time of all restarted simulations
 	write(2) k_c		   	  !FENE spring constant
 	write(2) R_0		      !FENE spring max elongation
 	write(2) eps_pp           !Soddemann potential parameter
@@ -1434,19 +1450,15 @@ subroutine macroscopic_properties_header
 	
 	if (potential_flag.eq.0) then
 		write(10,'(2a)') &
-		'Iteration; 	   VSum;        V^2Sum;        Temp;', &
-		'         KE;        PE;         TE;        Pressure;'
-		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)'), &
-		iter,';',vsum,';', v2sum,';', temperature,';', &
-		kinenergy,';',potenergy,';',totenergy,';',pressure
+		' iter; simtime; VSum; V^2Sum; Temp;', &
+		' KE; PE; TE; Pressure;'
 	else if (potential_flag.eq.1) then
 		write(10,'(2a)') &
-		'Iteration;  	     VSum;         V^2Sum;      Temp;', &
-		'        KE;   PE (LJ); PE (FENE);  PE (Tot);        TE;  Pressure;   Etevtcf;       R_g '
-		write(10, '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f10.4,a,f10.4,a,f10.4)') &
-		initialstep,';',vsum,';', v2sum,';', temperature,';', &
-		kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
+		' iter; simtime; VSum; V^2Sum; Temp;', &
+		' KE; PE (LJ); PE (FENE); PE (Tot); TE; Pressure; Etevtcf; R_g '
 	end if
+		
+	call macroscopic_properties_record
 
 end subroutine macroscopic_properties_header
 
@@ -1456,12 +1468,12 @@ subroutine macroscopic_properties_record
 	implicit none
 
 	if (potential_flag.eq.0) then	
-		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)'), &
-		iter,';',vsum,';', v2sum,';', temperature,';', &
+		write(10,'(1x,i8,a,f15.4,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)'), &
+		iter,';',simtime,';',vsum,';', v2sum,';', temperature,';', &
 		kinenergy,';',potenergy,';',totenergy,';',pressure
 	else if (potential_flag.eq.1) then
-		write(10, '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f10.4,a,f10.4,a,f10.4)') &
-		iter,';',vsum,';', v2sum,';', temperature,';', &
+		write(10, '(1x,i8,a,f15.4,a,f15.4,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f10.4,a,f10.4,a,f10.4)') &
+		iter,';',simtime,';',vsum,';', v2sum,';', temperature,';', &
 		kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
 	end if
 

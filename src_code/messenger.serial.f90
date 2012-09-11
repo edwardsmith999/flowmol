@@ -841,30 +841,37 @@ subroutine sendmols_quiescent()
 		!Domain goes from -halfdomain to +halfdomain
 		if (r(1,n) >= halfdomain(1)) then   !Above +halfdomain
 			r(1,n) = r(1,n) - domain(1) !Move to other side of domain
+			rtether(1,n) = rtether(1,n) - domain(1)
 		end if
 		if (r(1,n) < -halfdomain(1)) then   !Below -halfdomain
 			r(1,n) = r(1,n) + domain(1) !Move to other side of domain
+			rtether(1,n) = rtether(1,n) + domain(1)
 		endif
-
+ 
 		!Domain goes from -halfdomain to +halfdomain
 		if (r(2,n) >= halfdomain(2)) then   !Above +halfdomain
 			r(2,n) = r(2,n) - domain(2) !Move to other side of domain
+			rtether(2,n) = rtether(2,n) - domain(2)
 		end if
 		if (r(2,n) < -halfdomain(2)) then   !Below -halfdomain
 			r(2,n) = r(2,n) + domain(2) !Move to other side of domain
+			rtether(2,n) = rtether(2,n) + domain(2)
 		endif
 
 		!Domain goes from -halfdomain to +halfdomain
 		if (r(3,n) >= halfdomain(3)) then   !Above +halfdomain
 			r(3,n) = r(3,n) - domain(3) !Move to other side of domain
+			rtether(3,n) = rtether(3,n) - domain(3)
 		end if
 		if (r(3,n) < -halfdomain(3)) then   !Below -halfdomain
 			r(3,n) = r(3,n) + domain(3) !Move to other side of domain
+			rtether(3,n) = rtether(3,n) + domain(3)
 		endif
 
-	enddo
+	end do
 
 	return
+
 end
 
 subroutine sendmols_leesedwards()
@@ -886,30 +893,30 @@ implicit none
 	do n=1,np
 
 		!---- Slide and wrap in shearing plane first --------------------!
-		if (r(le_sp,n) .ge. halfdomain(le_sp)) then   									!Above +halfdomain
-			r(le_sp,n) = r(le_sp,n) - domain(le_sp) 								!Move to other side of domain
+		if (r(le_sp,n) .ge. halfdomain(le_sp)) then    !Above +halfdomain
+			r(le_sp,n) = r(le_sp,n) - domain(le_sp)    !Move to other side
 			r(le_sd,n) = r(le_sd,n) - (le_sx - wrap_integer*domain(le_sd))
 			v(le_sd,n) = v(le_sd,n) - le_sv
 		end if
-		if (r(le_sp,n) .lt. -halfdomain(le_sp)) then   									!Below -halfdomain
-			r(le_sp,n) = r(le_sp,n) + domain(le_sp) 								!Move to other side of domain
+		if (r(le_sp,n) .lt. -halfdomain(le_sp)) then   !Below -halfdomain
+			r(le_sp,n) = r(le_sp,n) + domain(le_sp)    !Move to other side
 			r(le_sd,n) = r(le_sd,n) + (le_sx - wrap_integer*domain(le_sd))
 			v(le_sd,n) = v(le_sd,n) + le_sv
 		endif
 		!----------------------------------------------------------------!
 
-		if (r(le_sd,n) >= halfdomain(le_sd)) then   							!Above +halfdomain
-			r(le_sd,n) = r(le_sd,n) - domain(le_sd) 					!Move to other side of domain
+		if (r(le_sd,n) >= halfdomain(le_sd)) then      !Above +halfdomain
+			r(le_sd,n) = r(le_sd,n) - domain(le_sd)    !Move to other side
 		end if			
-		if (r(le_sd,n) < -halfdomain(le_sd)) then   							!Below -halfdomain
-			r(le_sd,n) = r(le_sd,n) + domain(le_sd) 					!Move to other side of domain
+		if (r(le_sd,n) < -halfdomain(le_sd)) then      !Below -halfdomain
+			r(le_sd,n) = r(le_sd,n) + domain(le_sd)    !Move to other side
 		endif
 
-		if (r(le_rp,n) >= halfdomain(le_rp)) then   					!Above +halfdomain
-			r(le_rp,n) = r(le_rp,n) - domain(le_rp) 	!Move to other side of domain
+		if (r(le_rp,n) >= halfdomain(le_rp)) then      !Above +halfdomain
+			r(le_rp,n) = r(le_rp,n) - domain(le_rp)    !Move to other side
 		end if
-		if (r(le_rp,n) < -halfdomain(le_rp)) then   					!Below -halfdomain
-			r(le_rp,n) = r(le_rp,n) + domain(le_rp) 	!Move to other side of domain
+		if (r(le_rp,n) < -halfdomain(le_rp)) then      !Below -halfdomain
+			r(le_rp,n) = r(le_rp,n) + domain(le_rp)    !Move to other side
 		endif
 		
 	enddo
@@ -1107,6 +1114,15 @@ subroutine globalGathernp()
 	use messenger
 	
 	globalnp = np
+
+	return
+end
+
+subroutine globalGathertethernp()
+	use physical_constants_MD
+	use messenger
+	
+	tethernp = tethernp
 
 	return
 end
