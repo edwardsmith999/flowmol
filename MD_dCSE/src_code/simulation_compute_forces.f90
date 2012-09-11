@@ -119,12 +119,12 @@ subroutine simulation_compute_forces_LJ_AP
 			rij2 = 0.d0
 			do ixyz=1,nd
 				rij(ixyz) = r (ixyz,i) - r(ixyz,j)          !Evaluate distance between particle i and j
-    				if (abs(rij(ixyz)) > halfdomain(ixyz)) then	
+    			if (abs(rij(ixyz)) > halfdomain(ixyz)) then	
 					rij(ixyz) = rij(ixyz) - sign(domain(ixyz),rij(ixyz)) 
 				endif
 				rij2 = rij2+rij(ixyz)*rij(ixyz) !Square of vector calculated
 			enddo
-
+			
 			if (rij2 < rcutoff2) then
 
 				!Linear magnitude of acceleration for each molecule
@@ -374,11 +374,6 @@ subroutine simulation_compute_forces_LJ_cells
 
 	!Total used with other potentials (e.g. FENE)
 	potenergymol = potenergymol + potenergymol_LJ
-
-!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
-!		aold = a
-!	enddo
-!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
 
 end subroutine simulation_compute_forces_LJ_cells
 

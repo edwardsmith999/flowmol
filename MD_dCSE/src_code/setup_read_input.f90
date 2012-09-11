@@ -180,6 +180,11 @@ subroutine setup_read_input
 		read(1,*) tethereddisttop(2)
 		read(1,*) tethereddisttop(3)
 	endif
+	if (max(maxval(tethereddistbottom),maxval(tethereddisttop)).gt.0.d0) then
+		tether_flag = 1
+	else
+		tether_flag = 0
+	end if
 	call locate(1,'THERMSTATBOTTOM',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) thermstatbottom(1)
@@ -193,30 +198,6 @@ subroutine setup_read_input
 		read(1,*) thermstattop(3)
 	endif
 
-	call locate(1,'THERMSTAT_FLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) thermstat_flag
-		select case(thermstat_flag)
-		case(0)
-			if (abs(maxval(thermstattop   )).ne.0.0 & 
-		        .or.abs(maxval(thermstatbottom)).ne.0.0) stop & 
-			 "THERMSTATTOP or THERMSTATBOTTOM non zero but THERMSTAT_FLAG_INFO set to off (THERMSTAT_FLAG=0)"
-			thermstatbottom = 0.d0; thermstattop = 0.d0 
-		case(1) !N-H thermostat all molecules
-			thermstattop 	= initialnunits(:)/((density/4)**(1.d0/real(nd,kind(0.d0))))	!Whole domain size
-			thermstatbottom = initialnunits(:)/((density/4)**(1.d0/real(nd,kind(0.d0))))	!Whole domain size
-		case(2) !N-H PUT all molecules
-			thermstattop 	= initialnunits(:)/((density/4)**(1.d0/real(nd,kind(0.d0))))	!Whole domain size
-			thermstatbottom = initialnunits(:)/((density/4)**(1.d0/real(nd,kind(0.d0))))	!Whole domain size
-		case(3)
-			if (	abs(maxval(thermstattop   )).eq.0.0 & 
-		       .and.abs(maxval(thermstatbottom)).eq.0.0) & 
-					call error_abort("THERMSTATTOP or THERMSTATBOTTOM must also be specified")
-		end select
-	else 
-		! default initialisation
-		thermstatbottom = 0.d0; thermstattop = 0.d0
-	endif
 	!Flag to determine if output is switched on
 	call locate(1,'VMD_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then

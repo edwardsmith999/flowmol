@@ -77,7 +77,7 @@ subroutine simulation_move_particles_lfv
 		call evaluate_U_PUT
 		call evaluate_NH_params_PUT
 		do n=1,np
-	        v(:,n)     = v(:,n)*ascale + a(:,n)*delta_t*bscale + zeta*U(:,n)*delta_t*bscale
+	        v(:,n)     = v(:,n)*ascale + (a(:,n)+zeta*U(:,n))*delta_t*bscale
 			r(:,n)     = r(:,n)        + v(:,n)*delta_t			
 		end do
 		deallocate(U)
@@ -96,6 +96,8 @@ subroutine simulation_move_particles_lfv
 	if (rtrue_flag .eq. 1) then
 		call simulation_move_particles_true_lfv
 	endif
+
+	simtime = simtime + delta_t
 
 contains
 
@@ -313,7 +315,7 @@ contains
 				r(3,n) = r(3,n)    +     v(3,n)*delta_t	+ slidev(3,n)*delta_t
 			case (8)
 				!Profile unbiased thermostat (Nose-Hoover)
-	        	v(:,n) = v(:,n)*ascale + a(:,n)*delta_t*bscale + zeta*U(:,n)*delta_t*bscale
+	        	v(:,n) = v(:,n)*ascale + (a(:,n)+zeta*U(:,n))*delta_t*bscale
 				r(:,n) = r(:,n)        + v(:,n)*delta_t			
 			case default
 				call error_abort("Invalid molecular Tag")

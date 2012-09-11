@@ -188,6 +188,8 @@ subroutine simulation_move_particles_vv(pass_num)
 			
 		if (rtrue_flag.eq.1) call simulation_move_particles_true_vv	
 		
+		simtime = simtime + delta_t
+		
 	endif
 
 contains

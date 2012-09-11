@@ -30,7 +30,7 @@ module module_set_parameters
 	use polymer_info_MD
 
 end module module_set_parameters 
-!----------------------------------------------------------------------------------
+!------------------------------------------------------------------------------
 
 subroutine setup_set_parameters
 	use module_set_parameters
@@ -78,7 +78,6 @@ subroutine setup_set_parameters
 	v = 0.d0
 	a = 0.d0
 	fix = 1		!Set fix to one (unfixed)
-	thermostat = 0	!Set all molecules to unthermostatted
 	zeta= 0.d0	!Set Nose Hoover thermostat scaling property to zero
 	rfmol = 0.d0
 	halo_np = 0
@@ -142,14 +141,11 @@ subroutine set_parameters_allocate(n)
 		allocate(r(nd,np+extralloc))
 		allocate(rtrue(nd,np+extralloc)) !Used to establish diffusion - r with no periodic BC
 		allocate(vtrue(nd,np+extralloc)) !Used to establish diffusion - r with no periodic BC
-		allocate(rinitial(nd,np+extralloc))
+		allocate(rtether(nd,np+extralloc))
 		allocate(rijsum(np+extralloc,nd)) !Sum of rij for each i, used for SLLOD algorithm
 		allocate(v(nd,np+extralloc))
 		allocate(vmagnitude(np+extralloc))
 		allocate(a(nd,np+extralloc))
-		!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
-		!allocate(aold(np+extralloc,nd))
-		!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
 		allocate(theta(nd,np+extralloc))
 		allocate(aD(nd,np+extralloc))
 		allocate(aR(nd,np+extralloc))
@@ -159,7 +155,6 @@ subroutine set_parameters_allocate(n)
 		allocate(tag(np+extralloc))
 		allocate(fix(nd,np+extralloc))
 		allocate(slidev(nd,np+extralloc))
-		allocate(thermostat(nd,np+extralloc))
 
 		!Allocate potential energy and virial per molecule array
 		allocate(potenergymol(np+extralloc))

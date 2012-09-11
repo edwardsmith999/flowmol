@@ -1,4 +1,15 @@
 #########################################################################
+TETHEREDDISTBOTTOM
+0.0
+3.0
+0.0
+
+TETHEREDDISTTOP
+0.0
+3.0
+0.0
+
+#########################################################################
 # Number density of the particles in the system:
 # -----------------------------------------------------------------------
 DENSITY
@@ -71,7 +82,7 @@ FORCE_LIST
 # 6 - TAG system - specify fixed wall and localised thermostatting
 # -----------------------------------------------------------------------
 ENSEMBLE
-0
+6
 
 #########################################################################
 # Results are recorded periodically every TPLOT timesteps:

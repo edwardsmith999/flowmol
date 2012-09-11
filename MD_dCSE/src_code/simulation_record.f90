@@ -13,7 +13,7 @@
 ! Many of these outputs are interpreted using MATLAB scripts included
 !
 ! simulation_record  			   			Top level function choosing logging based on inputs
-! evaluate_macroscopic_properties_parallel 	Macroscopic properties
+! evaluate_macroscopic_properties           Macroscopic properties
 ! evaluate_properties_vdistribution			Maxwell Boltzmann distribution
 ! evaluate_properties_radialdist			Radial distribution
 ! evaluate_properties_diffusion				Diffusion
@@ -137,11 +137,11 @@ subroutine simulation_record
 		end select
 	end if
 
-	!call evaluate_macroscopic_properties
 	!Obtain each processe's subdomain's macroscopic 
 	!properties; gather on root process and record
 	if (macro_outflag .ne. 0) then
-		call evaluate_macroscopic_properties_parallel
+		call evaluate_macroscopic_properties
+		call print_macroscopic_properties
 		select case(macro_outflag)
 		case(2,4)
 			call macroscopic_properties_record
@@ -163,6 +163,7 @@ subroutine simulation_record
 	case default
 	end select
 
+	!Obtain and record static structure factor
 	select case (ssf_outflag)
 	case(1)
 		call evaluate_properties_ssf
@@ -206,7 +207,7 @@ end subroutine simulation_record
 !==========================================================================
 !Calculate kinetic and potential energy as well as temperature and pressure
 
-subroutine evaluate_macroscopic_properties_parallel
+subroutine evaluate_macroscopic_properties
 	use module_record
 	implicit none
 
@@ -230,8 +231,9 @@ subroutine evaluate_macroscopic_properties_parallel
 		call error_abort("Unrecognised potential flag in simulation_record")
 	end select
 
-	virial = sum(virialmol(1:np))
 
+	virial = sum(virialmol(1:np))
+	
 	select case(integration_algorithm)
 	case(leap_frog_verlet)
 		do ixyz = 1, nd									! Loop over all dimensions
@@ -270,44 +272,49 @@ subroutine evaluate_macroscopic_properties_parallel
 		if (any(periodic.gt.1)) temperature = get_temperature_PUT()
 		pressure    = (density/(globalnp*nd))*(v2sum+virial/2.d0) + Pressure_sLRC !N.B. virial/2 as all interactions calculated
 
-		!print*, iter, (density/(globalnp*nd))*(v2sum) , (density/(globalnp*nd))*(virial/2) 
+	end if
 
+	!Broacast pressure to all processes for constraint force
+	call globalbroadcast(pressure,1,iroot)
+
+end subroutine evaluate_macroscopic_properties
+
+subroutine print_macroscopic_properties
+use module_record
+implicit none
+
+	if (irank .eq. iroot) then
 		select case(potential_flag)
 		case(0)
 			select case(macro_outflag)
 			case(1:2)
-				print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
-				iter,';',vsum,';', v2sum,';', temperature,';', &
+				print '(1x,i8,a,f10.3,a,f10.4,a,f10.2,a,f7.3,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
+				iter,';', simtime,';',vsum,';', v2sum,';', temperature,';', &
 				kinenergy,';',potenergy,';',totenergy,';',pressure
 			case(3:4)
-				print '(1x,i8,a,f8.4,a,f8.4,a,f8.4,a,f8.4,a,f8.4,a,f8.4,a,f8.4)', &
-				iter,';',vsum,';',temperature,';',&
+				print '(1x,i7,a,f9.3,a,f8.3,a,f7.3,a,f8.4,a,f8.4,a,f8.4,a,f8.4)', &
+				iter,';', simtime,';',vsum,';', temperature,';', &
 				kinenergy,';',potenergy,';',totenergy,';',pressure
 			case default
 			end select
 		case(1)
 			select case(macro_outflag)
 			case(1:2)
-				print '(1x,i8,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4,a,f10.4,a,f10.4)', &
-				iter,';',vsum,';', v2sum,';', temperature,';', &
+				print '(1x,i8,a,f10.3,a,f10.4,a,f10.2,a,f7.3,a,f15.11,a,f15.11,a,f15.11,a,f10.4,a,f7.4,a,f10.4)', &
+				iter,';',simtime,';',vsum,';', v2sum,';', temperature,';', &
 				kinenergy,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
 			case(3:4)
-				print '(1x,i8,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f6.3,a,f6.2)', &
-				iter,';',vsum,';',temperature,';', &
+				print '(1x,i7,a,f8.3,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f6.3,a,f6.2)', &
+				iter,';', simtime,';',vsum,';', temperature,';', &
 				kinenergy,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
 			case default
 			end select
 		case default
 			call error_abort("Invalid potential flag in input file")
 		end select
+	end if
 
-	endif
-
-	!Broacast pressure to all processes for constraint force
-	call globalbroadcast(pressure,1,iroot)
-
-end subroutine evaluate_macroscopic_properties_parallel
-
+end subroutine print_macroscopic_properties
 !===================================================================================
 !Molecules grouped into velocity ranges to give vel frequency distribution graph
 !and calculate Boltzmann H function
@@ -511,26 +518,26 @@ end subroutine evaluate_properties_ssf
 !===================================================================================
 !Diffusion function calculated
 
-subroutine evaluate_properties_diffusion
-	use module_record
-	implicit none
-
-	integer          :: n
-
-	diffusion = 0
-	do n=1,np
-		diffusion(:)=diffusion(:)+(rtrue(:,n) - rinitial(:,n))**2
-	enddo
-	meandiffusion(:) = diffusion(:)/(2.d0*nd*np*(delta_t*iter/tplot))
-	!print*, 'Instantanous diffusion', diffusion
-	print*, 'time average of diffusion', meandiffusion
-
-	!Using the auto-correlation function
-	do n=1,np
-		diffusion(:) = v(:,n) - 0.5 * a(:,n) * delta_t
-	enddo
-
-end subroutine evaluate_properties_diffusion
+!subroutine evaluate_properties_diffusion
+!	use module_record
+!	implicit none
+!
+!	integer          :: n
+!
+!	diffusion = 0
+!	do n=1,np
+!		diffusion(:)=diffusion(:)+(rtrue(:,n) - rinitial(:,n))**2
+!	enddo
+!	meandiffusion(:) = diffusion(:)/(2.d0*nd*np*(delta_t*iter/tplot))
+!	!print*, 'Instantanous diffusion', diffusion
+!	print*, 'time average of diffusion', meandiffusion
+!
+!	!Using the auto-correlation function
+!	do n=1,np
+!		diffusion(:) = v(:,n) - 0.5 * a(:,n) * delta_t
+!	enddo
+!
+!end subroutine evaluate_properties_diffusion
 
 !=============================================================================
 !Evaluate viscometric data
