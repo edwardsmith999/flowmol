@@ -510,12 +510,6 @@ subroutine setup_restart_microstate
 
 		np = procnp(irank)
 	
-		! Determine number of chains by global maximum of chainID
-		if (potential_flag .eq. 1) then
-			nchains = maxval(monomer(:)%chainID)
-			call globalMaxInt(nchains)
-		end if
-
 		deallocate(buf)
 
 	case(1)	!Reorder flag triggered
@@ -600,7 +594,13 @@ subroutine setup_restart_microstate
 		call error_abort('processor re-ordering flag incorrect in restart microstate')
 
 	end select
-	
+
+	! Determine number of chains by global maximum of chainID
+	if (potential_flag .eq. 1) then
+		nchains = maxval(monomer(:)%chainID)
+		call globalMaxInt(nchains)
+	end if
+
 	!Close file used to load initial state and remove if called "final_state" 
 	!to prevent confusion with final state of current run
 	call MPI_FILE_CLOSE(restartfileid, ierr)
