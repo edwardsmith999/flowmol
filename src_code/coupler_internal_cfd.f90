@@ -1,5 +1,5 @@
 !=============================================================================
-!				   
+!				   Coupler internal CFD   				   
 ! Internal data and subroutines used by the coupler when working in CFD realm
 ! It must not be used by subroutimes working in MD realm
 ! Subroutines include:
@@ -16,7 +16,8 @@
 !
 !  Lucian Anton, November 2011
 !
-!-----------------------------------------------------------------------------
+!=============================================================================
+
 
 module coupler_internal_cfd
     implicit none
@@ -79,7 +80,7 @@ contains
 
         call mpi_comm_rank(COUPLER_REALM_COMM,myid,ierr)
 
-        ! coupler_grid_comm is the correct communicator to pick the processor coordinates in cartesian topology
+        ! Coupler_grid_comm is the correct communicator to pick the processor coordinates in cartesian topology
         call mpi_comm_rank(coupler_grid_comm,id_coord,ierr)
         id_coord = id_coord+1 ! get in sync with icoord convention
 
@@ -98,15 +99,14 @@ contains
 
         call make_bbox
 
-        ! Get the block boundaries covered by each MD domain
-        allocate(md_grid_boxes(6,0:nproc_md - 1), overlap_mask(0:nproc_md - 1), &
-            	 overlap_box(6,0:nproc_md-1), ireq(0:nproc_md - 1))
-
-        call mpi_allgather(MPI_BOTTOM, 0, MPI_INTEGER, md_grid_boxes, 6, MPI_INTEGER,COUPLER_ICOMM, ierr)
+		! Receive the overlapping box indices from all MD processors
+        allocate(md_grid_boxes(6,0:nproc_md-1), overlap_mask(0:nproc_md-1), &
+            	   overlap_box(6,0:nproc_md-1),         ireq(0:nproc_md-1))
+		call mpi_allgather(MPI_BOTTOM,0,MPI_INTEGER,md_grid_boxes,6,MPI_INTEGER,COUPLER_ICOMM, ierr)
         !write(0,*) ' CFD grid boxes ', myid, md_grid_boxes
         call find_overlaps
-        ! send the overlap mask across to MD
-        call mpi_allgather(overlap_mask,nproc_md,MPI_INTEGER,MPI_BOTTOM,0, MPI_INTEGER,COUPLER_ICOMM,ierr)
+        ! Send domain overlap mask to all MD processors
+        call mpi_allgather(overlap_mask,nproc_md,MPI_INTEGER,MPI_BOTTOM,0,MPI_INTEGER,COUPLER_ICOMM,ierr)
 
         noverlaps = 0
         do i = 0, nproc_md - 1
@@ -118,7 +118,7 @@ contains
         map%n = noverlaps
         allocate ( map%rank_list(noverlaps), map%domains(6,noverlaps))
 
-        !  overlaping communicator
+        !  Overlapping communicator
         if ( map%n > 0) then
             color = 1
         else 
@@ -131,7 +131,7 @@ contains
             CFD_COMM_OVERLAP = MPI_COMM_NULL
         endif
 
-        ! send the range of the overlaping domains
+        ! Send the range of the overlaping domains
         ir = 0
         do i=0, nproc_md-1
             if (overlap_mask(i) == 1) then
@@ -233,8 +233,10 @@ contains
                     ((  kbs <  kbmin .and. kbe > kbmin )	.or.  &
                     (   kbs >= kbmin .and. kbs < kbmax)))  then
 
+					!This processor overlaps the MD domain
                     overlap_mask(i) = 1
 
+					!I think this ensures local min/max are replaced by global min/max values if appropriate
                     overlap_box(1,i) = max(ibmin,ibs)
                     overlap_box(2,i) = min(ibmax,ibe)
                     overlap_box(3,i) = max(jbmin,jbs)
@@ -257,6 +259,3 @@ contains
     end subroutine create_map_cfd
 
 end module coupler_internal_cfd
-
-
-

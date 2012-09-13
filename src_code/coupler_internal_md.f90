@@ -1,21 +1,23 @@
 !=============================================================================
-!				   
+!				   Coupler internal MD
 ! Internal data and subroutines used by the coupler when working in MD realm
 ! It must not be used by subroutimes working in CFD realm ONLY
 ! Subroutines include:
 !
 ! create_map_md 			Establish for all MD processors the mapping (if any) 
 ! 							to coupled CFD processors
-! make_bbox					Make bbox which contains all domain information required in coupling process
-!							such as domain extents
-! get_CFDvel				Get velocity fields from CFD for the constraint force needed in MD
-! send_vel(a,n1,n2,n3)   	Send the average MD bin velocities to the corresponding rank in the CFD realm
-! write_overlap_map			Write to file the map of coupled processors for debugging
+! make_bbox					Make bbox which contains all domain information 
+!							required in coupling process such as domain extents
+! get_CFDvel				Get velocity fields from CFD for the constraint 
+!							force needed in MD
+! send_vel(a,n1,n2,n3)   	Send the average MD bin velocities to the 
+!							corresponding rank in the CFD realm
+! write_overlap_map			Write the map of coupled processors for debugging
 ! function map_md2cfd(r)	Get global molecular position from local position
 ! 
 !  Lucian Anton, November 2011
 !
-!-----------------------------------------------------------------------------
+!=============================================================================
 
 module coupler_internal_md
     use coupler_parameters
@@ -62,8 +64,8 @@ module coupler_internal_md
 	end type cfd_box_sum
 
 	integer			, dimension(:,:,:,:), allocatable :: mflux
-	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: uc_bin(:,:,:,:), vc_bin(:,:,:,:), wc_bin(:,:,:,:) 
-	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: uvwbin(:,:,:,:) 
+	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: uc_bin, vc_bin, wc_bin
+	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: uvwbin 
 
 	real(kind=kind(0.d0)) :: FoP_time_ratio = 1.0   ! time ratio dt_CFD/dt_MD; to be fixed later
 	real(kind=kind(0.d0)) :: xL_md, yL_md, zL_md 	! macroscopic sizes of MD domain. needed?
@@ -73,7 +75,7 @@ module coupler_internal_md
                                                        ! nsteps is set dt_cfd/dt_md (in MD socket)
 
 	! array for velocities from CFD, last dimension holds time indices 
-	real(kind=kind(0.d0)), allocatable :: vel_fromCFD(:,:,:,:,:)
+	real(kind=kind(0.d0)),dimension(:,:,:,:,:), allocatable :: vel_fromCFD
 	integer itm1,itm2
 
 	! data from CFD
@@ -143,31 +145,16 @@ subroutine create_map_md
 
 	call make_bbox
 
-	!write(0,*) 'MD: bbox%is ', myid, jmax_overlap_cfd, bbox%is, bbox%ie, bbox%js, bbox%je, bbox%ks, bbox%ke 
+	write(0,*) 'MD: bbox%is ', myid, jmax_overlap_cfd, bbox%is, bbox%ie, bbox%js, bbox%je, bbox%ks, bbox%ke 
 
-	!  send the overlapping box indices to CFD
-	call mpi_allgather((/ bbox%iso, bbox%ieo, bbox%jso, bbox%jeo, bbox%kso, bbox%keo /), 6, MPI_INTEGER,&
-		MPI_BOTTOM,0,MPI_INTEGER,COUPLER_ICOMM,ierr)
+	! Send the overlapping box indices to CFD processors
+	call mpi_allgather((/ bbox%iso, bbox%ieo, bbox%jso, bbox%jeo, bbox%kso, bbox%keo /), & 
+							 6,MPI_INTEGER,MPI_BOTTOM,0,MPI_INTEGER,COUPLER_ICOMM,ierr)
 
-!!$		do i = 0, nproc_md-1
-!!$
-!!$		 if ( myid == i ) then
-!!$		  source=MPI_ROOT
-!!$		 else
-!!$		  source=MPI_PROC_NULL
-!!$		 endif
-!!$		 
-!!$		 call mpi_bcast((/ bbox%is, bbox%ie, bbox%js, bbox%je, bbox%ks, bbox%ke /), 6, MPI_INTEGER,&
-!!$		  source, CFD_MD_ICOMM,ierr)
-!!$
-!!$		enddo
-
-
-	! get the domain overlap mask from cfd
+	! Receive domain overlap mask from CFD processors
 	allocate(overlap_mask(0:nproc-1,0:nproc_cfd-1))
+	call mpi_allgather(MPI_BOTTOM,0,MPI_INTEGER,overlap_mask,nproc,MPI_INTEGER,COUPLER_ICOMM,ierr)
 
-	call mpi_allgather(MPI_BOTTOM,0, MPI_INTEGER,overlap_mask, &
-		nproc,MPI_INTEGER,COUPLER_ICOMM,ierr)
 	!		write(0,'(a,32I3)') 'MD, overlap mask: ', overlap_mask
 
 	noverlaps = 0
@@ -408,7 +395,7 @@ function map_cfd2md(r) result(rg)
 	real(kind(0.d0)) rg(3)
 
 	rg(:) = r(:) - half_domain_lengths(:) - bbox%bb(1,:)
-	print'(a,12f10.5)', 'MAP', r(:), half_domain_lengths(:), bbox%bb(1,:), rg
+	!print'(a,12f10.5)', 'MAP', r(:), half_domain_lengths(:), bbox%bb(1,:), rg
 
 end function map_cfd2md
 
