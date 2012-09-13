@@ -1,3 +1,15 @@
+!=============================================================================
+!				   	CFD coupler Socket
+! Routine which interface with the coupler to the MD code
+!
+! socket_coupler_init				Passes CFD initialisation variables to 
+!									coupler_cfd_init
+! socket_coupler_send_velocity		Send velocity from CFD for MD constraint
+! socket_coupler_get_md_BC			Receive BC from MD
+!
+!=============================================================================
+
+
 module continuum_coupler_socket
     implicit none
 #if USE_COUPLER
@@ -82,11 +94,14 @@ contains
         implicit none
 
         real(kind(0.d0)), intent(inout) :: uc(0:,0:,0:),vc(0:,0:,0:),wc(0:,0:,0:) 
-        integer j
+        integer j, icell
         integer, save :: i1g_u,i1g_v,i1g_w,i1_ul,myid,ierr
         logical, save :: firsttime = .true.
 
-        real(kind(0.d0)), allocatable, dimension(:,:,:,:) :: ucbuff,vcbuff,wcbuff
+		integer, dimension(3)	:: indices
+        real(kind(0.d0)), allocatable, dimension(:,:,:,:) :: uvwbuff
+
+		allocate(uvwbuff(4,size(wc,1),size(uc,2),size(vc,3)))
 
         call mpi_comm_rank(icomm_grid,myid,ierr)
 
@@ -100,7 +115,7 @@ contains
             !write(0,*) 'global indices i1g_u, i1g_v, i1g_w ',  i1g_u, i1g_v, i1g_w
             
             ! this is to catch the boundary condtion at x=0 (uc start from i=2 in global grid)
-            ! needs some further discusion
+            ! needs some further discusion !!!!!!!!!! WHEN?
             i1_ul = i1_u
             if (icoord(1,myid+1)==1) then
                 i1_ul = i1_u-1
@@ -113,13 +128,44 @@ contains
         !call coupler_recv_data(uc(1:ngz-1,1:nlx+1,0:0),index_transpose=(/2,3,1/))
 		!print*, 'Extents of array', ngz-1, i1_ul,i2_u
 		!uc(:,:,0:0) = 0.d0
+		indices = (/2,3,1/)
 
-        call coupler_recv_data(uc(1:ngz-1,i1_ul:i2_u,0:0),index_transpose=(/2,3,1/),accumulate=.true.,pbc=1)
+		!========UNDER DEVELOPMENT=======
+		!call coupler_recv_data(uvwbuff,index_transpose=indices)
+
+		!print*, 'extents of CFD BC loop', i1_ul,i2_u
+		!do icell=i1_ul,i2_u
+		!	write(110+myid,'(a,2i5,11f10.4)') '1 CFD',myid,icell,uvwbuff(1,:,icell,1)
+		!	write(110+myid,'(a,2i5,11f10.4)') '2 CFD',myid,icell,uvwbuff(2,:,icell,1)
+		!	write(110+myid,'(a,2i5,11f10.4)') '3 CFD',myid,icell,uvwbuff(3,:,icell,1)
+		!	write(110+myid,'(a,2i5,11f10.4)') '4 CFD',myid,icell,uvwbuff(4,:,icell,1)
+			!print'(a,2i8,6f10.5)', 'CFD grid location',irank,icell,xpg(icell,5),xpu(icell,5),x(icell),ypg(icell,5),ypu(icell,5),y(icell)
+		!enddo
+
+		!uc(1:ngz-1,i1_ul:i2_u,0:0) 	= uvwbuff(1,1:ngz-1,i1_ul:i2_u,:)/uvwbuff(4,1:ngz-1,i1_ul:i2_u,:)
+		!vc(1:ngz-1,i1_v :i2_v,0:1) 	= uvwbuff(2,1:ngz-1,i1_v :i2_v,:)
+		!wc(1:ngz  ,i1_w :i2_w,0:0) 	= uvwbuff(3,1:ngz-1,i1_w :i2_w,:)
+		!========UNDER DEVELOPMENT=======
+
+        call coupler_recv_data(uc(1:ngz-1,i1_ul:i2_u,0:0),index_transpose=indices,accumulate=.true.,pbc=1)
 
 		!print'(a,2i8,4f25.16)', 'CFD recv MD     ', myid,size(uc(:,:,0)), & 
 		!					maxval(uc(1:ngz-1,i1_ul:i2_u,0:0)),minval(uc(1:ngz-1,i1_ul:i2_u,0:0)),sum(uc(1:ngz-1,i1_ul:i2_u,0:0)),uc(3,3,0)
-        call coupler_recv_data(vc(1:ngz-1,i1_v:i2_v,0:1),index_transpose=(/2,3,1/),accumulate=.true.)
-        call coupler_recv_data(wc(1:ngz,i1_w:i2_w,0:0),index_transpose=(/2,3,1/),accumulate=.true.,pbc=3)
+        call coupler_recv_data(vc(1:ngz-1,i1_v:i2_v,0:1),index_transpose=indices,accumulate=.true.)
+        call coupler_recv_data(wc(1:ngz,i1_w:i2_w,0:0),index_transpose=indices,accumulate=.true.,pbc=3)
+
+		do icell=i1_ul,i2_u
+			write(110+myid,'(a,2i5,11f10.4)') '1 CFDuc',myid,icell,uc(1:ngz-1,icell,0)
+		enddo
+
+		do icell=i1_v,i2_v
+			write(110+myid,'(a,2i5,11f10.4)') '1 CFDvc',myid,icell,vc(1:ngz-1,icell,0)
+			write(110+myid,'(a,2i5,11f10.4)') '2 CFDvc',myid,icell,vc(1:ngz-1,icell,1)
+		enddo
+
+		do icell=i1_w,i2_w
+			write(110+myid,'(a,2i5,12f10.4)') '1 CFDwc',myid,icell,wc(1:ngz,icell,0)
+		enddo
 
         !debug writes
         !do j=i1_ul, i2_u
