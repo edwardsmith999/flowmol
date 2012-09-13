@@ -232,7 +232,6 @@ subroutine CartesianBC(deltaT)
 			!=======================================================================
 			!	PERIODIC B.C.
 			!=======================================================================
-			print*, 'I HAVE NO IDEA IF THIS WILL WORK -- USE ONLY WITH PERIODIC POISSON ROUTINE!!!'
 			!Do nothing now and apply for both later
 		case(3)
 			!===================================================================
@@ -419,10 +418,10 @@ subroutine CartesianBC(deltaT)
 	call updateBorder_lim(vc, ngz  ,nlx  ,nly+1, id_y, 3, j1_v, j2_v, 3)
 	call updateBorder_lim(wc, ngz+1,nlx  ,nly  , id_y, 3, j1_u, j2_u, 2)
 
-	do icell=0,nlx+1
-		print'(a,2i8,10f10.5)', 'Aftr_excng CFD Bottom BC',irank,icell,uc(:, icell, 0)
+	!do icell=0,nlx+1
+	!	print'(a,2i8,10f10.5)', 'Aftr_excng CFD Bottom BC',irank,icell,uc(:, icell, 0)
 		!print'(a,2i8,6f10.5)', 'CFD grid location',irank,icell,xpg(icell,5),xpu(icell,5),x(icell),ypg(icell,5),ypu(icell,5),y(icell)
-	enddo
+	!enddo
       	
 	return
 end

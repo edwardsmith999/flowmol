@@ -34,7 +34,7 @@ subroutine setup_MD
 
 	!Check to see if simulation is a restart of a previous simualtion
 	call setup_command_arguments            !Establish command line arguments specifying restart and input files
-	
+
 	if (restart) then
 		!print*, 'Simulation restarted from file: ', initial_microstate_file
 		call messenger_init                 !Establish processor topology
@@ -59,7 +59,6 @@ subroutine setup_MD
 	call messenger_updateborders(1)         !Update borders between processors
 	call assign_to_neighbourlist		    !Build neighbourlist using cell list
 	call setup_initial_record               !Setup print headers and output inital
-
 #if USE_COUPLER
 	call coupler_create_map
 #endif

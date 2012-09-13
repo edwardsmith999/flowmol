@@ -51,7 +51,7 @@ endif
 # common compiler flags
 #
 
-FLAGS_BASE_debug := -g -O0 -traceback -CB -check all $(FLAG_OBJ_DIR) #-warn all -debug all -ftrapuv -fpe0
+FLAGS_BASE_debug := -g -O0 -traceback -CB  $(FLAG_OBJ_DIR) #-check all -warn all -debug all -ftrapuv -fpe0
 FLAGS_BASE_opt   := -O3 -funroll-loops -ip -parallel  $(FLAG_OBJ_DIR) #-par-report3 -mcmodel=large -i-dynamic
 #
 # add  flags required by particular codes

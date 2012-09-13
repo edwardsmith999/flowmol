@@ -807,20 +807,6 @@ subroutine velocity_averaging(ixyz)
 			slice_mass = 0
 			slice_momentum  = 0.d0
 		case(4)
-			!do jcell = ncells(2)-38,ncells(2)-36
-			!icell = 1; kcell = 1
-			!do icell = 2,ncells(1)+1
-			!do kcell = 2,ncells(3)+1
-				!print'(a,5i8,2f10.5)', 'binning output', iter,icell,jcell,kcell,sum(volume_mass(2:ncells(1)+1,jcell,2:ncells(3)+1)), & 
-				!						jcell*cellsidelength(2)-halfdomain(2),sum(volume_momentum(2:ncells(3)+1,jcell,2:ncells(3)+1,1))
-				!print'(a,5i8,2f10.5)', 'binning output', iter,icell,jcell,kcell,volume_mass(icell,jcell,kcell), & 
-				!						jcell*cellsidelength(2)-halfdomain(2),volume_momentum(icell,jcell,kcell,1)
-			!enddo
-			!enddo
-			!enddo
-
-
-
 			call velocity_bin_io(volume_mass,volume_momentum,'bins')
 			!Reset velocity bins
 			volume_mass = 0

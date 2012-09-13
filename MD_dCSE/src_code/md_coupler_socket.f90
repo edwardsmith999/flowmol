@@ -1,15 +1,22 @@
 !=============================================================================
-!				   
+!				   	MD coupler Socket
 ! Routine which interface with the coupler to the CFD code
-! Corresponding empty shell dummy routine used for uncoupled calculation
 !
-!  Lucian Anton, November 2011
+! socket_coupler_init						Passes MD initialisation variables 
+!											to coupler_md_init
+! average_and_send_MD_to_CFD				Average MD and pass to CFD as BC
+! 	coupler_md_boundary_cell_average		Calls routines for uc,vc and wc
+! 	  compute_uc_average					Accumulate averages and send
+!	  compute_vc_average					Accumulate averages and send
+!	  compute_wc_average					Accumulate averages and send
+! socket_coupler_apply_continuum_forces		Apply CFD constraint on MD 
+!	apply_continuum_forces					Calls routines for setup, average 
+!											& application of constraint
+!	  call setup_CFD_box					Setup type storing average for cell
+!	  call average_over_bin					Accumulate averages
+!	  call apply_force						Apply force
 !
-! Gave up dummy subroutines for preprocessor flags
-!
-! LA, February 2012
-!
-!-----------------------------------------------------------------------------
+!=============================================================================
 
 
 module md_coupler_socket
@@ -57,14 +64,14 @@ subroutine socket_coupler_init
 
 	if (myid .eq. 0) then 
 		write(*,'(4(a,/),I7,/a,/a,E10.4,a/,a,/a)') &
-				"*********************************************************************", 		&
+				"*********************************************************************", 	&
  				"WARNING - this is a coupled run which resets the number	      ", 		&
-				" of extrasteps to:						   ", 		&
-				"								     ", 		&
-				nsteps_cfd*naverage,  	&
-				"								     ", 		& 
-				" The elapsed time was changed accordingly to: ", elapsedtime, " s    ", 		&
-				" The value of NSTEPS parameter form input file was discarded.	", 		&
+				" of extrasteps to:						   ", 								&
+				"								     ", 									&
+											nsteps_cfd*naverage,  							&
+				"								     ", 									& 
+				" The elapsed time was changed accordingly to: ", elapsedtime, " s    ", 	&
+				" The value of NSTEPS parameter form input file was discarded.	", 			&
 				"*********************************************************************"   
 	endif 
 
@@ -113,7 +120,7 @@ end subroutine average_and_send_MD_to_CFD
 !-----------------------------------------------------------------------------
 
 subroutine coupler_md_boundary_cell_average(np,r,v,send_data)
-
+	use computational_constants_MD, only : iter
     use coupler_internal_common, only : cfd_is_2d, staggered_averages
 	use coupler_internal_md, only : myid, icoord, dx, dz, x, y, z, map_md2cfd, cfd_code_id,uc_bin
     use coupler
@@ -128,7 +135,7 @@ subroutine coupler_md_boundary_cell_average(np,r,v,send_data)
 	! Tolerance for boundary overlap, 100th of sigma should do
 	!real(kind=kind(0.d0)), parameter :: epsilon=1.0d-2
 
-	integer ixyz, displ, nbuff, nbuff_in, ib, kb, ic, kc, i, ip
+	integer ixyz, displ, nbuff, nbuff_in, ib, kb, ic, kc, i, ip, icell
 
 	!write(0,*) 'md box-average: dx, dy, dz (sigma units), fsig', myid, dx,dz
 
@@ -173,7 +180,7 @@ contains
 
 		!Send data to CFD if send_data flag is set
 		if (send_data) then  
-            if (cfd_code_id == couette_parallel) then 
+            if (cfd_code_id .eq. couette_parallel) then 
                 ovr_box_x = .true.
             else
                 ovr_box_x = .false.
@@ -191,10 +198,10 @@ contains
 			enddo
 
 			!print'(a,4f10.5)', 'MD send BC', maxval(temp_uc),minval(temp_uc),sum(temp_uc),temp_uc(5,60)
-			do icell=1,nlx-0
-				print'(a,3i8,8f10.5)', 'MD   send  BC',iter,myid,icell,temp_uc(:,icell)
+			!do icell=1,nlx-0
+			!	print'(a,3i8,8f10.5)', 'MD   send  BC',iter,myid,icell,temp_uc(:,icell)
 			!	print'(a,3i8,4f10.5)', 'MD cell sizes',iter,myid,icell,icell*dx+(bbox%iso),(bbox%iso),(bbox%is),dx
-			enddo
+			!enddo
 
 			!print'(a,2i8,4f25.16)', 'MD send2CFD     ', myid ,size(uc_bin), & 
 			!						maxval(uc_bin(1,:,:,1)/uc_bin(2,:,:,1)),minval(uc_bin(1,:,:,1)/uc_bin(2,:,:,1)), & 
@@ -208,6 +215,10 @@ contains
 			!enddo
 			!enddo
 			!enddo
+			do icell=1,nlx-0
+				write(99+myid,'(a,3i5,11f10.4)') '1 MDuc',iter,myid,icell,uc_bin(1,:,icell,1)
+				write(99+myid,'(a,3i5,11f10.4)') '2 MDuc',iter,myid,icell,uc_bin(2,:,icell,1)
+			enddo
 
             call coupler_send_data(uc_bin,index_transpose=(/2,3,1/),use_overlap_box=(/ ovr_box_x, .false., .false./))
 			uc_bin = 0.d0
@@ -223,10 +234,8 @@ contains
             rd(:) = r(:,ip)
 			rd(:) = map_md2cfd(rd)
 
-			if ( rd(2) > y(jmin) .or. rd(2) < y(jmino) ) then
-				! molecule outside the boundary layer
-				cycle
-			endif
+			! molecule outside the boundary layer
+			if ( rd(2) > y(jmin) .or. rd(2) < y(jmino) ) cycle
 
             if (staggered_averages(1)) then 
                 ib = nint(   (rd(1) - x(bbox%iso)) / dx) + 1 
@@ -279,6 +288,11 @@ contains
 			! testing			vc_bin(1,:,:,:) = 10*myid+1
 			!				vc_bin(2,:,:,:) = 1.d0
 			!call send_vel(vc_bin,nlz-0,nlx-0,2)    
+			do icell=1,nlx-1
+				write(99+myid,'(a,3i5,11f10.4)') '1 MDvc',iter,myid,icell,vc_bin(1,:,icell,1)
+				write(99+myid,'(a,3i5,11f10.4)') '1.5 MDvc',iter,myid,icell,vc_bin(1,:,icell,2)
+				write(99+myid,'(a,3i5,11f10.4)') '2 MDvc',iter,myid,icell,vc_bin(2,:,icell,1)
+			enddo
             call coupler_send_data(vc_bin,index_transpose=(/2,3,1/))
 			vc_bin = 0.d0
 			return
@@ -342,7 +356,11 @@ contains
 		endif
 
   		if (send_data ) then
-			!call send_vel(wc_bin,nlz,nlx,1)    
+			!call send_vel(wc_bin,nlz,nlx,1)   
+			do icell=1,nlx-1
+				write(99+myid,'(a,3i5,12f10.4)') '1 MDwc',iter,myid,icell,wc_bin(1,:,icell,1)
+				write(99+myid,'(a,3i5,12f10.4)') '2 MDwc',iter,myid,icell,wc_bin(2,:,icell,1)
+			enddo 
             call coupler_send_data(wc_bin,index_transpose=(/2,3,1/),use_overlap_box=(/.false.,.false.,.true./))
 			wc_bin = 0.d0
 			return
@@ -403,19 +421,20 @@ subroutine average_and_send_MD_to_CFD2(iter)
 	save  average_period, Naverage
 
     if (first_time) then 
-	    first_time     = .false.
-	    average_period = coupler_md_get_average_period() 	! collection interval in the average cycle
-	    Naverage = coupler_md_get_md_steps_per_cfd_dt()  	! number of steps in MD average cycle
+	    first_time	= .false.
 		call setup_velocity_average
     endif
 
     iter_average = mod(iter-1, Naverage)+1			! current step
     iter_cfd     = (iter-initialstep)/Naverage +1 	! CFD corresponding step
 
+	!print*, 'iter counts', iter, iter_average, Naverage
+
     if ( mod(iter_average,average_period) .eq. 0 ) then
 		!Collect uc data every save_period cfd iteration but discard the first one which cfd uses for initialisation
 	    call cumulative_velocity_average
-    elseif  (iter_average .eq. Naverage) then  
+	endif
+    if  (iter_average .eq. Naverage) then
 		!Send accumulated results to CFD at the end of average cycle 
 	    call send_velocity_average
 	endif
@@ -439,6 +458,9 @@ contains
 	subroutine setup_velocity_average
 		implicit none
 
+	    average_period = coupler_md_get_average_period() 	! collection interval in the average cycle
+	    Naverage = coupler_md_get_md_steps_per_cfd_dt()  	! number of steps in MD average cycle
+
 		! Setup averaging array on first call
 		select case(staggered_averages(1))
 		case(.true.)
@@ -453,6 +475,7 @@ contains
 !------------------------------------------
 	subroutine cumulative_velocity_average
 		use coupler_internal_md, only : bbox,jmino,jmin=>jmin_cfd,cfd_code_id
+		use coupler_internal_md, only : imax_cfd,imin_cfd,jmax_cfd,jmin_cfd,kmax_cfd,kmin_cfd,x,y,z
 		use computational_constants_MD, only : iter, ncells,domain,halfdomain
 		use librarymod, only : heaviside, imaxloc
 		implicit none
@@ -460,16 +483,22 @@ contains
 		!Limits of cells to average
 
 		integer							:: n, ixyz
+		integer,dimension(3) 			:: cfd_ncells
 		integer,dimension(3)			:: ibin,ibin1,ibin2,minbin,maxbin,crossplane,cfdbins
+		double precision,dimension(3) 	:: cfd_cellsidelength
 		double precision,dimension(3)	:: Vbinsize, ri1, ri2, cnst_top, cnst_bot, rd
-
 
 		!Velocity measurement for 3D bins throughout the domain
 		!Determine bin size
-		cfdbins(:) = (/ nlx , nly , nlz /)
-		Vbinsize(:) = domain(:) / cfdbins(:)
+    	cfdbins(1) = imax_cfd - imin_cfd
+    	cfdbins(2) = jmax_cfd - jmin_cfd
+    	cfdbins(3) = kmax_cfd - kmin_cfd
 
-		print*, dx, dz, Vbinsize
+		Vbinsize(1) = x(2) - x(1)
+		Vbinsize(2) = y(2) - y(1)
+		Vbinsize(3) = z(2) - z(1)
+
+		!print*,'cellsizes',  domain, cfdbins, domain(:) / cfdbins(:),Vbinsize
 
 		rd(:) = (/ 0.d0 , y(jmino) , 0.d0 /)
 		cnst_bot = map_cfd2md(rd)
@@ -479,7 +508,7 @@ contains
 		minbin = ceiling((cnst_bot+halfdomain(:))/Vbinsize(:)) + nhb
 		maxbin = ceiling((cnst_top+halfdomain(:))/Vbinsize(:)) + nhb
 
-		print'(a,2(6f9.4,3i4))', 'top & bottom', (/ 0.d0 , y(jmin ) , 0.d0 /), cnst_bot, minbin, (/ 0.d0 , y(jmino) , 0.d0 /), cnst_top, maxbin
+		!print*,'extents', minbin,imin_cfd,jmin_cfd,kmin_cfd,maxbin,imax_cfd,jmax_cfd,kmax_cfd
 
 		select case(staggered_averages(1))	
 		!- - - - - - - - - - - - - - - - - - - -
@@ -495,8 +524,8 @@ contains
 				ibin2(:) = ceiling((ri2+halfdomain(:))/Vbinsize(:)) + nhb
 					
 				!Exclude molecules outside of domain
-				if (	 ibin1(2) .gt. minbin(2) .or. ibin1(2) .lt. maxbin(2) &
-					.or. ibin2(2) .gt. minbin(2) .or. ibin2(2) .lt. maxbin(2) ) cycle
+				if (	  ibin1(2) .lt. minbin(2) .or. ibin1(2) .ge. maxbin(2) &
+					.and. ibin2(2) .lt. minbin(2) .or. ibin2(2) .ge. maxbin(2) ) cycle
 
 				!Replace Signum function with this functions which gives a
 				!check for plane crossing and the correct sign 
@@ -522,13 +551,12 @@ contains
 			do n = 1,np
 				!Add up current volume mass and momentum densities
 				ibin(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
-
 				!Exclude molecules outside of domain
 				if (	 ibin(2) .lt. minbin(2) .or. ibin(2) .ge. maxbin(2)) cycle
-				print'(a,12i8,3f10.5)', 'bins & ting',iter,myid,n, minbin, maxbin, ibin, r(:,n)
+				!print'(a,12i8,3f10.5)', 'bins & ting',iter,myid,n, minbin, maxbin, ibin, r(:,n)
 				uvwbin(1:3,ibin(3),ibin(1),ibin(2)-minbin(2)+1) = uvwbin(1:3,ibin(3),ibin(1),ibin(2)-minbin(2)+1) + v(:,n)
 				uvwbin(4,  ibin(3),ibin(1),ibin(2)-minbin(2)+1) = uvwbin(4,  ibin(3),ibin(1),ibin(2)-minbin(2)+1) + 1.d0
-
+				!print*, 'binning part', ibin(3),ibin(1),ibin(2)-minbin(2)+1, uvwbin(4,  ibin(3),ibin(1),ibin(2)-minbin(2)+1), v(:,n)
 			enddo
 		case default
 			call error_abort('Unknown case in staggered_averages')
@@ -540,6 +568,7 @@ contains
 	subroutine send_velocity_average
 		implicit none
 
+		integer		:: icell
         logical 	:: ovr_box_x
 
 	    if (cfd_code_id == couette_parallel) then 
@@ -552,11 +581,22 @@ contains
 		select case(staggered_averages(1))	
 		! Send velocity flux over surface
 		case(.true.)
-            call coupler_send_data(dble(mflux(:,2:nlz+nhb(3),2:nlx+nhb(1),1)),index_transpose=(/2,3,1/),use_overlap_box=(/ ovr_box_x, .false., .false./))
+            call coupler_send_data(dble(mflux(:,2:nlz+nhb(3),2:nlx+nhb(1),:)),index_transpose=(/2,3,1/), & 
+															use_overlap_box=(/ ovr_box_x, .false., .false./))
 			mflux = 0
 		! Send velocity in cell centre
 		case(.false.)
-            call coupler_send_data(uvwbin(:,2:nlz+nhb(3),2:nlx+nhb(1),1),index_transpose=(/2,3,1/),use_overlap_box=(/ ovr_box_x, .false., .false./))
+			print*, 'sending uvwbin of size',size(uvwbin,1),size(uvwbin,2),size(uvwbin,3),size(uvwbin,4)
+			do icell=1,nlx-0
+				write(99+myid,'(a,3i5,11f10.4)') '1 MD',iter,myid,icell,uvwbin(1,:,icell,1)
+				write(99+myid,'(a,3i5,11f10.4)') '2 MD',iter,myid,icell,uvwbin(2,:,icell,1)
+				write(99+myid,'(a,3i5,11f10.4)') '3 MD',iter,myid,icell,uvwbin(3,:,icell,1)
+				write(99+myid,'(a,3i5,11f10.4)') '4 MD',iter,myid,icell,uvwbin(4,:,icell,1)
+			!	print'(a,3i8,4f10.5)', 'MD cell sizes',iter,myid,icell,icell*dx+(bbox%iso),(bbox%iso),(bbox%is),dx
+			enddo
+			print*, 'size of uvwbin sent',nlz+nhb(3)-1,nlx+nhb(1), nhb
+            call coupler_send_data(uvwbin(:,2:nlz,2:nlx,:),index_transpose=(/2,3,1/))!, & 
+														!use_overlap_box=(/ ovr_box_x, .false., .false./))
 			uvwbin = 0.d0
 		end select
 

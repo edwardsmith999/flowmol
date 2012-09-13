@@ -2543,8 +2543,8 @@ subroutine error_abort_s(msg)
     implicit none
 
     character(len=*), intent(in), optional :: msg
-
-    integer errcode,ierr
+   
+	integer errcode,ierr
 
     if (present(msg)) then 
         write(*,*) msg
