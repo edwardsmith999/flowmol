@@ -87,19 +87,19 @@ contains
         p = max(pressure,1.d0)
 
         do k = nh + 1, nh + 1 + ncells(3) 
-            do j = js, je
-                do i = nh + 1, nh + 1 + ncells(1) 
-                    current => cell%head(i,j,k)%point
-                    do ip = 1, cell%cellnp(i,j,k) 
-                        m = current%molno
-                        yc = r(2,m)
-                        if ( y2 <= yc .and. yc < y3 ) then
-                            a(2,m)= a(2,m) - p*(yc-y2)/(1.d0-(yc-y2)/(y3-y2))
-                        end if
-                        current => current%next
-                    end do
-                end do
+		do j = js, je
+		do i = nh + 1, nh + 1 + ncells(1) 
+            current => cell%head(i,j,k)%point
+            do ip = 1, cell%cellnp(i,j,k) 
+                m = current%molno
+                yc = r(2,m)
+                if ( y2 <= yc .and. yc < y3 ) then
+                    a(2,m)= a(2,m) - p*(yc-y2)/(1.d0-(yc-y2)/(y3-y2))
+                end if
+                current => current%next
             end do
+        end do
+        end do
         end do
                         
     end subroutine top_boundary_constraint_force

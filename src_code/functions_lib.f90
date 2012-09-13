@@ -30,15 +30,20 @@
 !-------------------------------------------------------------------------------------
 
 module librarymod
-       ! use the same name for integer of double precision arguments versions of imaxloc
-       interface imaxloc
-               module procedure imaxloc_int, imaxloc_dp
-       end interface
+	! use the same name for integer of double precision arguments versions of imaxloc
+	interface imaxloc
+		module procedure imaxloc_int, imaxloc_dp
+	end interface
 
-       ! use the same name for the same logical operation; consider implementing with BLAS
-       interface magnitude
-               module procedure magnitude3, magnitudeN
-       end interface
+	! use the same name for the same logical operation; consider implementing with BLAS
+	interface magnitude
+		module procedure magnitude3, magnitudeN
+	end interface
+
+	!Various Heavisides
+	!interface heaviside
+	!	module procedure int_heaviside, heaviside, array_heaviside
+	!end interface
 	
 contains
 
@@ -122,8 +127,8 @@ end function magnitude3
 function magnitudeN(a,n)
 
 	
-	integer,intent(in)		:: n
-	double precision		:: magnitudeN
+	integer,intent(in)			:: n
+	double precision			:: magnitudeN
 	double precision,intent(in)	:: a(n)
 
     ! simpler with a BLAS call
@@ -145,11 +150,11 @@ end function  magnitudeN
 subroutine least_squares(y,x_interval,npoints,lstsqrsinter, lstsqrsgrad)
 implicit none
 
-	integer						:: n
-	integer		, intent(in)			:: npoints
-	double precision				:: lstsqrsx,lstsqrsy,lstsqrsx2,lstsqrsxy
-	double precision, intent(in)			:: x_interval
-	double precision, intent(out)			:: lstsqrsgrad, lstsqrsinter
+	integer											:: n
+	integer		, intent(in)						:: npoints
+	double precision								:: lstsqrsx,lstsqrsy,lstsqrsx2,lstsqrsxy
+	double precision, intent(in)					:: x_interval
+	double precision, intent(out)					:: lstsqrsgrad, lstsqrsinter
 	double precision, dimension(npoints), intent(in):: y
 
 	!Calculate molecular velocity using least squares to fit line
@@ -187,10 +192,10 @@ end subroutine
 subroutine intergrate_trap(y,x_interval,npoints,s)
 implicit none
 
-	integer						:: n
-	integer		, intent(in)			:: npoints
-	double precision, intent(in)			:: x_interval
-	double precision, intent(out)			:: s
+	integer											:: n
+	integer		, intent(in)						:: npoints
+	double precision, intent(in)					:: x_interval
+	double precision, intent(out)					:: s
 	double precision, dimension(npoints), intent(in):: y
 
 	!Zero integral before
@@ -253,7 +258,7 @@ end function array_heaviside
 subroutine plane_line_intersect(intersection,normal,p,ri,rj)
 implicit none
 
-	double precision, dimension(3)			:: rij
+	double precision, dimension(3)				:: rij
 	double precision, dimension(3), intent(in)	:: ri, rj, normal, p
 	double precision, dimension(3), intent(out)	:: intersection
 
@@ -315,8 +320,8 @@ end function crossprod
 function imaxloc_dp(a)
 	implicit none
 
-	integer 					:: imaxloc_dp
-	integer,dimension(1)				:: imax
+	integer 									:: imaxloc_dp
+	integer,dimension(1)						:: imax
 	double precision,dimension(:),intent(in)	:: a
 
 	imax = maxloc(a(:)) 
@@ -328,8 +333,8 @@ end function imaxloc_dp
 function imaxloc_int(a)
 	implicit none
 
-	integer 					:: imaxloc_int
-	integer,dimension(1)				:: imax
+	integer 						:: imaxloc_int
+	integer,dimension(1)			:: imax
 	integer,dimension(:),intent(in)	:: a
 
 	imax = maxloc(a(:)) 
@@ -363,16 +368,16 @@ subroutine LUdcmp(A,indx,d)
 	implicit none
 
 	double precision, dimension(:,:), intent(inout)	:: A
-	integer, dimension(:), intent(out)		:: indx
-	double precision				:: d
-	double precision, dimension(size(A,1))		:: vv
-	integer						:: j, n, imax
+	integer, dimension(:), intent(out)				:: indx
+	double precision								:: d
+	double precision, dimension(size(A,1))			:: vv
+	integer											:: j, n, imax
 
-        ! Lapack version
-        ! call DGETRF( M, N, A, LDA, IPIV, INFO )
+    ! Lapack version
+    ! call DGETRF( M, N, A, LDA, IPIV, INFO )
 
-	n = size(A,1)			!Store size of matrix
-	d=1.d0 				!Row interchange flag - zero as no row interchanges yet.
+	n = size(A,1)				!Store size of matrix
+	d=1.d0 						!Row interchange flag - zero as no row interchanges yet.
 	vv = maxval(abs(A),dim=2)	!Scaling information
 
 	!Check matrix is square

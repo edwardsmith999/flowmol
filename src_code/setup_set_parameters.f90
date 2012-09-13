@@ -68,7 +68,7 @@ subroutine setup_set_parameters
    	call set_parameters_global_domain
 	call set_parameters_cells
 #endif
-	call set_parameters_setlimits
+	!call set_parameters_setlimits
 
 	!Allocate array sizes for position, velocity and acceleration
 	call set_parameters_allocate(2)
@@ -300,9 +300,9 @@ subroutine set_parameters_global_domain
 	!Initially assume molecules per processor are evenly split  - corrected after position setup
 	np = globalnp / nproc					
 
-	domain(1) = globaldomain(1) / npx			!determine domain size per processor
-	domain(2) = globaldomain(2) / npy			!determine domain size per processor
-	domain(3) = globaldomain(3) / npz			!determine domain size per processor
+	domain(1) = globaldomain(1) / real(npx, kind(0.d0))			!determine domain size per processor
+	domain(2) = globaldomain(2) / real(npy, kind(0.d0))			!determine domain size per processor
+	domain(3) = globaldomain(3) / real(npz, kind(0.d0))			!determine domain size per processor
 
 	do ixyz=1,nd
 		halfdomain(ixyz) = 0.5d0*domain(ixyz)			!Useful definition
@@ -334,8 +334,8 @@ subroutine set_parameters_global_domain_coupled
     b0=(4.d0/density)**(1.0d0/3.0d0)
     call coupler_md_get(xL_md=xL_md,yL_md=yL_md,zL_md=zL_md,MD_initial_cellsize=b0)
     n0(:) = nint( (/ xL_md, yL_md, zL_md/) / b0)
-    initialunitsize(1:3) =  b0
-    initialnunits(1:3) = n0(:)
+    initialunitsize(1:3) = b0
+    initialnunits(1:3) 	 = n0(:)
 
     !write(0,*) "n0 ", b0, xL_md, yL_md, zL_md, n0
     
@@ -353,11 +353,20 @@ subroutine set_parameters_global_domain_coupled
 	globaldomain(3) = zL_md
 	volume   = xL_md*yL_md*zL_md
 
-    !Set the number of particles for new simulation
-    if (.not. restart)then
-       globalnp = density*volume  ! sigma units
-       np = globalnp / nproc					
+    ! no need to fix globalnp if we have it already
+    if(.not. restart) then
+		globalnp=1      !Set number of particles to unity for loop below
+		do ixyz=1,nd
+			globalnp = globalnp*initialnunits(ixyz)		!One particle per unit cell
+		enddo
+		globalnp=4*globalnp   !FCC structure in 3D had 4 molecules per unit cell
     endif
+
+    !if (.not. restart)then
+    !   globalnp = density*volume  ! sigma units
+   ! endif
+
+    np = globalnp / nproc	
 
 	domain(1) = globaldomain(1) / real(npx, kind(0.d0))			!determine domain size per processor
 	domain(2) = globaldomain(2) / real(npy, kind(0.d0))			!determine domain size per processor

@@ -158,8 +158,8 @@ subroutine setup_initial_record
 					 ncells(1)*npx, ncells(2)*npy, ncells(3)*npz
 		print'(a,3f10.5)', ' Each of size:', cellsidelength
 		print*, 'Number of processors in x,y and z: ', npx, npy, npz
-		print*, 'Cells per Processor:', nicellxl, nicellyl, nicellzl
-		print*, 'Cells per Processor including Halos: ', ncellxl, ncellyl, ncellzl
+		print*, 'Cells per Processor:', ncells(1), ncells(2), ncells(3)
+		print*, 'Cells per Processor including Halos: ', ncells(1)+nh, ncells(2)+nh, ncells(3)+nh
 		print*, 'Random seed used for initial velocity generation:', seed
 		print*, '======================== Output Parameters ============================'
 	
