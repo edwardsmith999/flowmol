@@ -42,9 +42,9 @@ module computational_constants_MD
 	character(len=200) 		:: input_file, initial_microstate_file
 
 	!Force and Potential flags
-	integer					:: force_list		!flag for neighbr/cell list
-	integer					:: potential_flag	!Choose LJ or Polymer potential
-	integer                 :: tether_flag      !True if there exists 
+	integer							 :: force_list		!flag for neighbr/cell list
+	integer							 :: potential_flag	!Choose LJ or Polymer potential
+	integer                 		 :: tether_flag      !True if there exists 
 	integer, dimension(4), parameter :: tether_tags=(/3,5,6,7/)
 
 	!Integration algorithm
@@ -142,6 +142,11 @@ module computational_constants_MD
 	!Number and size of cells used for domain subdivision into cells of size ~rcutoff
 	integer,          dimension(:), allocatable :: ncells
 	double precision, dimension(:), allocatable :: cellsidelength, halfcellsidelength
+
+	!Array Storing mapping from cell number to point on 3D
+	!Hilbert curve
+	integer									:: sort_flag,sort_freq,sortblocksize
+	integer,allocatable,dimension(:,:,:)    :: Hcurve		
 
 	!Setup seed for random number generation
 	integer,          dimension(:), allocatable :: seed 

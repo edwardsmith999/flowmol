@@ -34,13 +34,18 @@ end module module_set_parameters
 
 subroutine setup_set_parameters
 	use module_set_parameters
+	use librarymod, only : build_hilbert
+	use interfaces, only : error_abort
 #if USE_COUPLER
 	use coupler
 	use coupler_input_data, only : md_cfd_match_cellsize
 #endif
 	implicit none
 
-	integer		:: i
+	integer							:: iblk,jblk,kblk
+	integer							:: cellsperblock
+	integer,dimension(3)			:: nblocks
+	double precision,dimension(3)	:: blocksidelength
 
 	!Calculate shift in lennard-Jones potential based on cutoff
 	potshift = 4.d0*(1.d0/rcutoff**12 - 1.d0/rcutoff**6)
@@ -89,6 +94,33 @@ subroutine setup_set_parameters
 	call establish_halo_bins
 	call establish_surface_cells
 	call establish_halo_cells
+
+	!Setup arrays for sorting algorithms
+	select case(sort_flag)
+	case(0)
+		!No sort - do nothing
+	case(1)
+		!Build array of ordered cells
+		blocksidelength = sortblocksize*cellsidelength
+		nblocks = ceiling(domain/blocksidelength)
+		allocate(Hcurve(nblocks(1),nblocks(2),nblocks(3)))
+		do iblk=1,nblocks(1)
+		do jblk=1,nblocks(2)
+		do kblk=1,nblocks(3)
+			Hcurve(iblk,jblk,kblk) = iblk + nblocks(1)*(jblk-1) & 
+									      + nblocks(1)*nblocks(2)*(kblk-1)
+		enddo
+		enddo
+		enddo
+	case(2)
+		!Hilbert curve between blocks of cells
+		blocksidelength = sortblocksize*cellsidelength
+		nblocks = ceiling(domain/blocksidelength)
+		call build_hilbert(nblocks,Hcurve)
+	case default
+		call error_abort('Incorrect value of sort_flag')
+	end select
+
 	!call establish_surface_cells(-1)
 	!call establish_surface_cells2(-1)
 	!call establish_gpusurface_cells2(0)

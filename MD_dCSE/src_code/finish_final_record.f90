@@ -219,7 +219,7 @@ implicit none
 	bark = int(dble(j)*70.d0/100.d0)
 
 	do k=1,bark
-	bar(7+k:7+k)="*"  
+	bar(7+k:7+k)=char(2) 
 	enddo  
 
 	! print the progress bar.  

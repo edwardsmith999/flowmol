@@ -97,6 +97,22 @@ FORCE_LIST
 DELTA_RNEIGHBR
 0.3
 
+#########################################################################
+# Sorting parameters - sorts molecules every rebuild*sort_freq
+# Sort_Flag:  		0 - No sorting
+# 		 	  		1 - Sequential cell-block based Sorting
+# 		 	  		2 - 3D Hilbert Curve cell-block based sorting
+# sort_freq:		1 sorts every rebuild 
+# cell-block size:	1 is sort cell by cell, 3 uses the 27 block used in
+#					force calculation and seems to give good performance
+# Notes: large systems and long times will generally benifit most from
+# sorting algorithm - use script based tuning for your case
+# -----------------------------------------------------------------------
+SORT_FLAG
+2
+1
+3
+
 
 #########################################################################
 # Ensemble selector: case sensitive! (currently only developed for VV)
