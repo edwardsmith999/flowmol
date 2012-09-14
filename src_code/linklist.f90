@@ -1342,6 +1342,7 @@ subroutine sort_mols
 	integer,allocatable,dimension(:,:)				:: tagtemp
 	double precision,dimension(3)					:: blocksidelength
 	double precision,allocatable,dimension(:,:,:)	:: rtemp,vtemp
+	double precision,allocatable,dimension(:,:,:)	:: rtemp2,rtemp3
 	!Safety factors in allocations
 	integer,save									:: sf2=5
 	double precision,save							:: sf1=1.5d0
@@ -1355,6 +1356,7 @@ subroutine sort_mols
 	else
 		nrebuilds = 1
 	endif
+	if (potential_flag .eq. 1) call error_abort("Sort should be turned off - Not developed for polymers")
 
 	!Choose between the various sorting methodolgies
 	select case(sort_flag)
@@ -1382,6 +1384,8 @@ subroutine sort_mols
 	allocate(tagtemp(ave_molperblock,blocks))
 	allocate(molperblock(blocks))
 	rtemp=0.d0;vtemp=0.d0;tagtemp=0; molperblock = 0
+	if (rtrue_flag .eq. 1) allocate(rtemp2(nd,ave_molperblock,blocks))
+	if (any(tag(n).eq.tether_tags)) allocate(rtemp3(nd,ave_molperblock,blocks))
 
 	!Copy all molecules to temp arrays in order of blocks
 	do n = 1,np
@@ -1404,6 +1408,8 @@ subroutine sort_mols
 		rtemp(:,molperblock(i),i) = r(:,n)
 		vtemp(:,molperblock(i),i) = v(:,n)
 		tagtemp(molperblock(i),i) = tag(n)
+		if (rtrue_flag.eq.1) rtemp2(:,molperblock(i),i) = rtrue(:,n)
+		if (any(tag(n).eq.tether_tags)) rtemp3(:,molperblock(i),i) = rtether(:,n)
 
 		!print*, 'b4',n, r(:,n)
 	enddo
@@ -1423,10 +1429,6 @@ subroutine sort_mols
 	enddo
 
 end subroutine sort_mols
-
-
-
-
 
 
 !======================================================================
