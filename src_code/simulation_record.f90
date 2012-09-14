@@ -1047,6 +1047,7 @@ subroutine cumulative_pressure(ixyz,sample_count)
 				velvect(:) = v(:,n)
 			end select
 
+			!Adjustment for Lees Edwards sliding boundries
 			if (any(periodic.gt.1)) then
 				rglob(1) = r(1,n)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
 				rglob(2) = r(2,n)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
@@ -1068,12 +1069,12 @@ subroutine cumulative_pressure(ixyz,sample_count)
 
 		enddo
 
-		!Sum pressure tensor over all processors
-		call globalSumVect(Pxy(:,1), nd)
-		call globalSumVect(Pxy(:,2), nd)
-		call globalSumVect(Pxy(:,3), nd)
+		!Sum pressure tensor over all processors -- Should this be Pxytemp???
+		call globalSumVect(Pxytemp(:,1), nd)	
+		call globalSumVect(Pxytemp(:,2), nd) 	
+		call globalSumVect(Pxytemp(:,3), nd)
 
-		!Divide sum of stress by volume
+		!Divide sum of stress by volume -- Should this include sample_count - divide by Nstress above??
 		Pxytemp = Pxytemp / volume
 		!print'(a,10f12.4)', 'snapshot stress', Pxytemp, (Pxytemp(1,1)+Pxytemp(2,2)+Pxytemp(3,3))/3.d0
 

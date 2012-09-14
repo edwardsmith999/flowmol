@@ -89,6 +89,18 @@ subroutine setup_read_input
 	endif
 	call locate(1,'DELTA_RNEIGHBR',.true.) 
 	read(1,*) delta_rneighbr 	!Extra distance used for neighbour cell
+
+	call locate(1,'SORT_FLAG',.false.,found_in_input) 
+	if (found_in_input) then
+		read(1,*) sort_flag
+		read(1,*) sort_freq
+		read(1,*) sortblocksize
+	else !Default to switched off at the moment for back compatibility
+		sort_flag = 0
+		sort_freq = 0
+		sortblocksize = 0
+	endif
+
 	call locate(1,'SEED',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) seed(1) 	!Random number seed value 1

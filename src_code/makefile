@@ -75,11 +75,11 @@ p:
 s_cuda:
 	@make md_CUDA.exe
 s_cuda_emulate:
-	@make md_CUDA_emu.exe "FLAGS = -O0 -g -traceback -CB -fpe0 -g" "FLAGS_CUDA = -deviceemu -G -g"
+	@make md_CUDA_emu.exe "FFLAGS = -O0 -g -traceback -CB -fpe0 -g" "FLAGS_CUDA = -deviceemu -G -g"
 debug_s_cuda:
-	@make md_CUDA.exe "FLAGS = -O0 -g -traceback -CB -fpe0" "FLAGS_CUDA = -G -g -O0"
+	@make md_CUDA.exe "FFLAGS = -O0 -g -traceback -CB -fpe0" "FLAGS_CUDA = -G -g -O0"
 optimised_s:
-	@make md.exe "FLAGS = -O3"
+	@make md.exe "FFLAGS = -O3 -fast -funroll-loops -par-report3"
 optimised_p:
 	@make parallel_md.exe "BUILD=opt"
 debug_s:
@@ -87,11 +87,11 @@ debug_s:
 debug_p:
 	@make parallel_md.exe "BUILD=debug"
 full_debug_s:
-	@make md.exe "FLAGS = -O0 -traceback -CB -check all -warn all,nodec,interfaces -gen_interfaces"
+	@make md.exe "FFLAGS = -O0 -traceback -CB -check all -warn all,nodec,interfaces -gen_interfaces"
 full_debug_p:
-	@make parallel_md.exe "FLAGS = -O0 -traceback -CB -check all -warn all,nodec,interfaces -gen_interfaces"
+	@make parallel_md.exe "FFLAGS = -O0 -traceback -CB -check all -warn all,nodec,interfaces -gen_interfaces"
 profile_s:
-	@make md.exe "FFLAGS = -O3 -funroll-loops -pg -g"
+	@make md.exe "FFLAGS = -O3 -funroll-loops -pg -g "
 memprofile_s:
 	@make md.exe "FFLAGS = -O3 -g"; valgrind --tool=cachegrind ./md.exe
 profile_p:

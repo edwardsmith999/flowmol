@@ -336,6 +336,5 @@ subroutine tether_force(molno)
 	!Adjust initial postion if molecule is sliding
 	rtether(:,molno) = rtether(:,molno) + slidev(:,molno)*delta_t
 
-
 end subroutine tether_force
 

@@ -131,6 +131,7 @@ subroutine md_advance_lfv
 
 		call simulation_checkrebuild(rebuild)
 		if (rebuild .eq. 1) call rebuild_all
+		!if (mod(iter,20) .eq. 0) call rebuild_all			!FIXED REBUILD LIKE LAMMPS
 
 	end subroutine md_advance_lfv
 
@@ -161,8 +162,12 @@ end subroutine simulation_MD
 subroutine rebuild_all
 	implicit none
 
+	!integer, save	:: sortcount=0
+
+	!sortcount = sortcount+1
 	call linklist_deallocateall             !Deallocate all linklist components
 	call sendmols                           !Exchange particles between processors
+	call sort_mols							!Reorder molecules to improve cache efficency
 	call assign_to_cell                     !Re-build linklist for domain cells
 	call messenger_updateborders(1)         !Update borders between processors
 	call assign_to_neighbourlist		    !Setup neighbourlist

@@ -1263,65 +1263,171 @@ subroutine calculate_cell_interactions_opt(istart,iend,ishift,jstart,jend,jshift
 end subroutine calculate_cell_interactions_opt
 
 
-subroutine sort_mols
-	use module_linklist
-	implicit none
 
-	integer											:: icell,jcell,kcell,start,finish
-	integer											:: n,i,cells,ave_molpercell
-	integer,allocatable,dimension(:)				:: molpercell
-	integer,allocatable,dimension(:,:)				:: tagtemp
-	double precision,allocatable,dimension(:,:,:)	:: rtemp,vtemp
+!Sort molecular locations to improve cache efficiecy
+!subroutine sort_mols
+!	use module_linklist
+!	implicit none
+
+!	integer											:: icell,jcell,kcell,start,finish
+!	integer											:: n,i,cells,ave_molpercell
+!	integer,allocatable,dimension(:)				:: molpercell
+!	integer,allocatable,dimension(:,:)				:: tagtemp
+!	double precision,allocatable,dimension(:,:,:)	:: rtemp,vtemp
 
 	!Average number of molecules per cell
-	cells = product(ncells)	
-	ave_molpercell = np/cells
+!	cells = product(ncells)	
+!	ave_molpercell = np/cells
 	!Add safety factor
-	ave_molpercell = ceiling(ave_molpercell*1.3d0+5)
-
-	allocate(rtemp(nd,ave_molpercell,cells))
-	allocate(vtemp(nd,ave_molpercell,cells))
-	allocate(tagtemp(ave_molpercell,cells))
-	allocate(molpercell(cells))
-	rtemp=0.d0;vtemp=0.d0;tagtemp=0; molpercell = 0
+!	ave_molpercell = ceiling(ave_molpercell*1.3d0+5)
+!
+!	allocate(rtemp(nd,ave_molpercell,cells))
+!	allocate(vtemp(nd,ave_molpercell,cells))
+!	allocate(tagtemp(ave_molpercell,cells))
+!	allocate(molpercell(cells))
+!	rtemp=0.d0;vtemp=0.d0;tagtemp=0; molpercell = 0
 
 	!Copy all molecules to temp arrays in order of cells
-	do n = 1,np
-		icell = ceiling((r(1,n)+halfdomain(1)) &
-		/cellsidelength(1))+nh !Add 1 due to halo
-		jcell = ceiling((r(2,n)+halfdomain(2)) &
-		/cellsidelength(2))+nh !Add 1 due to halo
-		kcell = ceiling((r(3,n)+halfdomain(3)) &
-		/cellsidelength(3))+nh !Add 1 due to halo
+!	do n = 1,np
+!		icell = ceiling((r(1,n)+halfdomain(1)) &
+!		/cellsidelength(1))+nh !Add 1 due to halo
+!		jcell = ceiling((r(2,n)+halfdomain(2)) &
+!		/cellsidelength(2))+nh !Add 1 due to halo
+!		kcell = ceiling((r(3,n)+halfdomain(3)) &
+!		/cellsidelength(3))+nh !Add 1 due to halo
 
-		i = icell-1 + ncells(1)*(jcell-2) + ncells(1)*ncells(2)*(kcell-2)
-		molpercell(i) = molpercell(i) + 1
+		!i = icell-1 + ncells(1)*(jcell-2) + ncells(1)*ncells(2)*(kcell-2)
+!		i = Hcurve(icell-nh,jcell-nh,kcell-nh) !Use Hilbert curve
+!		!print*, i, icell,jcell,kcell
+!		molpercell(i) = molpercell(i) + 1
 		!print*, n,icell,jcell,kcell,i, molpercell(i), ave_molpercell
-		rtemp(:,molpercell(i),i) = r(:,n)
-		vtemp(:,molpercell(i),i) = v(:,n)
-		tagtemp(molpercell(i),i) = tag(n)
+!		rtemp(:,molpercell(i),i) = r(:,n)
+!		vtemp(:,molpercell(i),i) = v(:,n)
+!		tagtemp(molpercell(i),i) = tag(n)
 
-		print*, 'b4',n, r(:,n)
+		!print*, 'b4',n, r(:,n)
+!	enddo
+
+	!Copy back sorted molecles
+!	start = 1
+!	do i=1,cells
+!		finish = start + molpercell(i)-1
+		!print*, i, molpercell(i), start, finish!, rtemp(:,i,start:finish)
+!		r(:,start:finish) = rtemp(:,1:molpercell(i),i)
+!		v(:,start:finish) = vtemp(:,1:molpercell(i),i)
+!		tag(start:finish) = tagtemp(1:molpercell(i),i)
+		!do n =start,finish
+		!	print*, 'af',n, r(:,n)
+		!enddo
+!		start = start + molpercell(i)
+	
+!	enddo
+
+!end subroutine sort_mols
+
+
+
+!Sort molecular locations to improve cache efficiecy using
+!blocks of multiple cells
+
+subroutine sort_mols
+	use module_linklist
+	use interfaces, only : error_abort
+	implicit none
+
+	integer											:: iblk,jblk,kblk,start,finish
+	integer											:: n,i,ave_molperblock,blocks
+	integer,dimension(3)							:: nblocks
+	integer,allocatable,dimension(:)				:: molperblock
+	integer,allocatable,dimension(:,:)				:: tagtemp
+	double precision,dimension(3)					:: blocksidelength
+	double precision,allocatable,dimension(:,:,:)	:: rtemp,vtemp
+	!Safety factors in allocations
+	integer,save									:: sf2=5
+	double precision,save							:: sf1=1.5d0
+	!Number of rebuilds since last sort
+	integer,save									::  nrebuilds=1
+
+	! Determine if rebuild is required yet
+	if (nrebuilds .ne. sort_freq) then
+		nrebuilds = nrebuilds + 1
+		return
+	else
+		nrebuilds = 1
+	endif
+
+	!Choose between the various sorting methodolgies
+	select case(sort_flag)
+	case(0)
+		return 	!No sort - return
+	case(1)
+		!Use ordered array generated during setup
+	case(2)
+		!Use Hilbert curve generated during setup
+	case default
+		call error_abort('Incorrect value of sort_flag')
+	end select
+
+	!Work out number of cell-blocks required
+	blocksidelength = sortblocksize*cellsidelength
+	nblocks = ceiling(domain/blocksidelength)
+	blocks = product(nblocks)	
+
+	!Average number of molecules per block of sortblocksize cell
+	ave_molperblock = np/blocks
+	ave_molperblock = ceiling(ave_molperblock*sf1+sf2) 	!Add safety factor
+
+	allocate(rtemp(nd,ave_molperblock,blocks))
+	allocate(vtemp(nd,ave_molperblock,blocks))
+	allocate(tagtemp(ave_molperblock,blocks))
+	allocate(molperblock(blocks))
+	rtemp=0.d0;vtemp=0.d0;tagtemp=0; molperblock = 0
+
+	!Copy all molecules to temp arrays in order of blocks
+	do n = 1,np
+		iblk = ceiling((r(1,n)+halfdomain(1))/blocksidelength(1)) 
+		jblk = ceiling((r(2,n)+halfdomain(2))/blocksidelength(2)) 
+		kblk = ceiling((r(3,n)+halfdomain(3))/blocksidelength(3)) 
+
+		!i = iblk + nblocks(1)*(jblk-1) + nblocks(1)*nblocks(2)*(kblk-1)
+		i = Hcurve(iblk,jblk,kblk)
+		molperblock(i) = molperblock(i) + 1
+		! Error handeling
+		if (molperblock(i) .gt. ave_molperblock) then
+			print*, 'Warning - abnormal clustering of molecules in cell-block', iblk,jblk,kblk
+			print*, 'Average molecule allocation in sort is being increase from ',ave_molperblock*sf1+sf2
+			sf1 = sf1 + 0.1d0; sf2 = sf2 + 5;
+			print*, 'to',ave_molperblock*sf1+sf2
+			return	!Miss this round of sorting 
+		endif
+		!print'(7i8)', n,iblk,jblk,kblk,i, molperblock(i), ave_molperblock
+		rtemp(:,molperblock(i),i) = r(:,n)
+		vtemp(:,molperblock(i),i) = v(:,n)
+		tagtemp(molperblock(i),i) = tag(n)
+
+		!print*, 'b4',n, r(:,n)
 	enddo
 
 	!Copy back sorted molecles
 	start = 1
-	do i=1,cells
-		finish = start + molpercell(i)-1
-		!print*, i, molpercell(i), start, finish!, rtemp(:,i,start:finish)
-		r(:,start:finish) = rtemp(:,1:molpercell(i),i)
-		v(:,start:finish) = vtemp(:,1:molpercell(i),i)
-		tag(start:finish) = tagtemp(1:molpercell(i),i)
-		do n =start,finish
-			print*, 'af',n, r(:,n)
-		enddo
-		start = start + molpercell(i)
-	
+	do i=1,blocks
+		finish = start + molperblock(i)-1
+		!print*, i, molperblock(i), start, finish!, rtemp(:,i,start:finish)
+		r(:,start:finish) = rtemp(:,1:molperblock(i),i)
+		v(:,start:finish) = vtemp(:,1:molperblock(i),i)
+		tag(start:finish) = tagtemp(1:molperblock(i),i)
+		!do n =start,finish
+		!	print*, 'af',n, r(:,n)
+		!enddo
+		start = start + molperblock(i)
 	enddo
 
-	stop
-
 end subroutine sort_mols
+
+
+
+
+
 
 !======================================================================
 !		Linklist manipulation Subroutines                     =

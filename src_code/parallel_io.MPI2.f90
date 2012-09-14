@@ -1751,7 +1751,7 @@ subroutine virial_stress_io
 	implicit none
 	integer		:: m, length
 
-	call globalAverage(Pxy, 9)
+	!call globalAverage(Pxy, 9)
 
 	!Write virial pressure to file
 	m = (iter-initialstep+1)/(tplot*Nstress_ave)
@@ -1847,29 +1847,34 @@ end subroutine VA_stress_io
 !===================================================================================
 !Integrate virial pressure to get autocorrelations (Green Kubo) viscosity
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 subroutine viscosity_io
 use module_parallel_io
 use physical_constants_MD
 use calculated_properties_MD
 implicit none
 
-	integer			:: m, length
+	integer				:: m, length
 	double precision	:: viscosity
 
+	!call globalAverage(Pxycorrel, Nvisc_ave)
+
+	if (irank .eq. iroot) then
+		call intergrate_trap(Pxycorrel,tplot*delta_t,Nstress_ave,viscosity)
+
+		viscosity = (viscosity*volume)/(3.0*Nstress_ave*Nvisc_ave*inputtemperature)
+
+		!Write viscosity to file
+		m = (iter-initialstep+1)/(tplot*Nstress_ave*Nvisc_ave)
+		inquire(iolength=length) viscosity
+		open (unit=7, file=trim(prefix_dir)//'results/visc',form='unformatted',access='direct',recl=length)
+		write(7,rec=m) viscosity
+		close(7,status='keep')
+	endif
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	!call intergrate_trap(Pxycorrel,tplot*delta_t,Nstress_ave,viscosity)
 
-	!viscosity = (viscosity*volume)/(3.0*Nstress_ave*Nvisc_ave*inputtemperature)
-
-	!Write viscosity to file
-	!m = iter/(tplot*Nstress_ave*Nvisc_ave)
-	!inquire(iolength=length) viscosity
-	!open (unit=7, file="results/visc",form="unformatted",access='direct',recl=length)
-	!write(7,rec=m) viscosity
-	!close(7,status='keep')
-
-	!Pxycorrel = 0.d0	!Reset Pxycorrel to zero
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 end subroutine viscosity_io
 
 subroutine viscometrics_io
