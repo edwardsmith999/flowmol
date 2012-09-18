@@ -6,7 +6,7 @@ override NAME := coupler
 # Coupler files
 #
 
-F90_FILES      := coupler.f90 coupler_parameters.f90 coupler_internal_cfd.f90 coupler_internal_md.f90 coupler_internal_common.f90 coupler_input_data.f90
+F90_FILES      := coupler_module.f90 coupler.f90 coupler_parameters.f90 coupler_internal_cfd.f90 coupler_internal_md.f90 coupler_internal_common.f90 coupler_input_data.f90
 #
 # object file dir, is needed by platform
 #
