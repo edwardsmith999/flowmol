@@ -5,6 +5,8 @@
 ! Routines accessible from application ( molecular or continuum ) after 
 ! the name, in parenthesis, is the realm in which each routine must be called
 !
+! SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP
+!
 ! coupler_create_comm	      (cfd+md)   splits MPI_COMM_WORLD, create inter - 
 !										 communicator between CFD and MD
 ! coupler_create_map	      (cfd+md)   creates correspondence maps between 
@@ -15,6 +17,9 @@
 !										 or COUPLER.in
 ! coupler_cfd_adjust_domain     (cfd)    adjust CFD tomain to an integer number 
 !										 FCC or similar MD initial layout
+!
+! SIMULATION SIMULATION SIMULATION SIMULATION SIMULATION SIMULATION SIMULATION
+!
 ! coupler_send_data        	  (cfd+md)   sends grid data exchanged between 
 !										 realms ( generic interface)
 ! coupler_recv_data        	  (cfd+md)   receives data exchanged between realms 
@@ -38,6 +43,7 @@
 !  Revised April 2012
 !
 !=============================================================================
+
 module coupler
 	use coupler_parameters
     implicit none
@@ -58,30 +64,35 @@ module coupler
 contains
 
 !=============================================================================
+! Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup
+!
+!								SETUP
+!
+! Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup
+!=============================================================================
+
+!=============================================================================
 ! 							coupler_create_comm	      	
 ! (cfd+md) Splits MPI_COMM_WORLD in both the CFD and MD code respectively
 ! 		   and create intercommunicator between CFD and MD
 !-----------------------------------------------------------------------------
 
-subroutine coupler_create_comm(realm, realm_comm, ierror)
+subroutine coupler_create_comm(realm, REALM_COMM, ierror)
 	use mpi
 	use coupler_internal_common
 	use coupler_input_data
 	implicit none
 
-	integer, intent(in) :: realm ! CFD or MD ?
-	integer, intent(out):: realm_comm, ierror
+	integer, intent(in) :: realm ! CFD or MD
+	integer, intent(out):: REALM_COMM, ierror
 
 	! test if we have a CFD and a MD realm
 	ierror=0
 
-	call test_realms
+	call test_realms			! Test realms are assigned correctly
 	COUPLER_REALM = realm
-	call create_comm
-	call read_coupler_input
+	call create_comm			! Create intercommunicator between realms
 
-    ! stop if requested ( useful for development )
-	call request_stop("create_comm") ! stops here if in COUPLER.in  stop requestis set to "create_comm"
 contains
 
 !-----------------------------------------------------------------------------
@@ -92,30 +103,30 @@ subroutine test_realms
 	use mpi
 	implicit none
 
-	integer i, myid, nproc, nf, np, ierr
-	integer, allocatable :: ra(:)
+	integer 			 :: i, myid, root, nproc, ncfd, nmd, ierr
+	integer, allocatable :: realm_list(:)
 
-	call mpi_comm_rank(MPI_COMM_WORLD,myid,ierr)
+	!Get processor id of all processor across both codes
+	call MPI_comm_rank(MPI_COMM_WORLD,myid,ierr)
 
-	if (myid .eq. 0) then
-		call mpi_comm_size(mpi_comm_world, nproc, ierr)
-		allocate(ra(nproc))
-	else
-		allocate(ra(1))	!Assign value arbitarily
+	! Allocate and gather array with realm (MD or CFD) of each 
+	! processor in the coupled domain on the root processor
+	root = 0
+	if (myid .eq. root) then
+		call MPI_comm_size(MPI_comm_world, nproc, ierr)
+		allocate(realm_list(nproc))
 	endif
+	call MPI_gather(realm,1,MPI_INTEGER,realm_list,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 
-	call mpi_gather(realm,1,MPI_INTEGER,ra,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-
-	if (myid .eq. 0) then
-
-		nf = 0
-		np = 0
-
+	!Check through array of processors on both realms
+	!and return error if wrong values or either is missing
+	if (myid .eq. root) then
+		ncfd = 0; nmd = 0
 		do i =1, nproc
-			if ( ra(i) .eq. COUPLER_CFD ) then 
-				nf = nf + 1
-			else if ( ra(i) .eq. COUPLER_MD ) then
-				np = np +1
+			if ( realm_list(i) .eq. COUPLER_CFD ) then 
+				ncfd = ncfd + 1
+			else if ( realm_list(i) .eq. COUPLER_MD ) then
+				nmd = nmd +1
 			else
 				ierror = COUPLER_ERROR_REALM
 				write(*,*) "wrong realm value in coupler_create_comm"
@@ -123,13 +134,11 @@ subroutine test_realms
 			endif
 		enddo
 
-		if ( nf .eq. 0 .or. np .eq. 0) then 
+		if ( ncfd .eq. 0 .or. nmd .eq. 0) then 
 			ierror = COUPLER_ERROR_ONE_REALM
-			write(*,*) "CFD or MD  realm is missing in MPI_COMM_WORLD"
+			write(*,*) "CFD or MD realm is missing in MPI_COMM_WORLD"
 			call MPI_abort(MPI_COMM_WORLD,ierror,ierr)
 		endif
-
-
 
 	endif
 
@@ -145,48 +154,54 @@ subroutine create_comm
 	implicit none
 
 	integer ierr, myid, myid_comm, myid_comm_max, realm, &
-		iaux(2), jaux(2), remote_leader, comm, comm_size
+		ibuf(2), jbuf(2), remote_leader, comm, comm_size
 
 	realm = COUPLER_REALM
-
-	! get a global internal communicator for coupler operations
-	call mpi_comm_dup(MPI_COMM_WORLD,COUPLER_GLOBAL_COMM,ierr)
-	call mpi_comm_rank(COUPLER_GLOBAL_COMM,myid,ierr)
+	! Split MPI COMM WORLD ready to establish two communicators
+	! 1) A global intra-communicator in each realm for communication
+	! internally between CFD processes or between MD processes
+	! 2) An inter-communicator which allows communication between  
+	! the 'groups' of processors in MD and the group in the CFD 
+	call MPI_comm_dup(MPI_COMM_WORLD,COUPLER_GLOBAL_COMM,ierr)
+	call MPI_comm_rank(COUPLER_GLOBAL_COMM,myid,ierr)
 	REALM_COMM         = MPI_COMM_NULL
 	COUPLER_REALM_COMM = MPI_COMM_NULL
 
-	! get a communicator for each realm
-	call mpi_comm_split(MPI_COMM_WORLD,realm,myid,REALM_COMM,ierr)
+	!------------ create realm intra-communicators -----------------------
+	! Split MPI_COMM_WORLD into an intra-communicator for each realm 
+	! (used for any communication within each realm - e.g. broadcast from 
+	!  an md process to all other md processes)
+	call MPI_comm_split(MPI_COMM_WORLD,realm,myid,REALM_COMM,ierr)
 
-	! get internal, realm specific communicator for coupler operations
-	call mpi_comm_split(COUPLER_GLOBAL_COMM,realm,myid,COUPLER_REALM_COMM,ierr)
+	!------------ create realm inter-communicators -----------------------
+	! Create intercommunicator between the group of processor on each realm
+	! (used for any communication between realms - e.g. md group rank 2 sends
+	! to cfd group rank 5). inter-communication is by a single processor on each group
+	! Split duplicate of MPI_COMM_WORLD
+	call MPI_comm_split(COUPLER_GLOBAL_COMM,realm,myid,COUPLER_REALM_COMM,ierr)
 
-	comm = COUPLER_REALM_COMM ! shorthand
-
-	! create inter-communicators
-
-	! Get the mpi_comm_world ranks that hold the largest ranks in cfd_comm and md_comm
-	call mpi_comm_rank(comm,myid_comm,ierr)
-	call mpi_comm_size(comm,comm_size,ierr)
-
-	iaux(:) = -1
-	jaux(:) = -1
+	! Get the MPI_comm_world ranks that hold the largest ranks in cfd_comm and md_comm
+	call MPI_comm_rank(COUPLER_REALM_COMM,myid_comm,ierr)
+	call MPI_comm_size(COUPLER_REALM_COMM,comm_size,ierr)
+	ibuf(:) = -1
+	jbuf(:) = -1
 	if ( myid_comm .eq. comm_size - 1) then
-		iaux(COUPLER_REALM) = myid
+		ibuf(COUPLER_REALM) = myid
 	endif
-	call mpi_allreduce( iaux ,jaux, 2, MPI_INTEGER, MPI_MAX, &
-		COUPLER_GLOBAL_COMM, ierr)  
+	call MPI_allreduce( ibuf ,jbuf, 2, MPI_INTEGER, MPI_MAX, &
+						COUPLER_GLOBAL_COMM, ierr)
 
+	!Set this largest rank on each process to be the inter-communicators
 	select case (COUPLER_REALM)
 	case (COUPLER_CFD)
-		remote_leader = jaux(COUPLER_MD)
+		remote_leader = jbuf(COUPLER_MD)
 	case (COUPLER_MD)
-		remote_leader = jaux(COUPLER_CFD)
+		remote_leader = jbuf(COUPLER_CFD)
 	end select
 
-	!print*,color, jaux, remote_leader
+	!print*,color, jbuf, remote_leader
 
-	call mpi_intercomm_create(comm, comm_size - 1, COUPLER_GLOBAL_COMM,&
+	call MPI_intercomm_create(COUPLER_REALM_COMM, comm_size - 1, COUPLER_GLOBAL_COMM,&
 									remote_leader, 1, COUPLER_ICOMM, ierr)
 
 	write(0,*) 'did (inter)communicators ', code_name(COUPLER_REALM), myid
@@ -238,8 +253,8 @@ subroutine coupler_cfd_init(icomm_grid, imino,imin,imax,imaxo,jmino,jmin,jmax,jm
 	use mpi
 	use coupler_internal_common
 	use coupler_input_data
-	use coupler_internal_cfd, only : imino_ => imino, imin_ => imin, imax_ => imax, &
-        jmino_ => jmin, jmin_ => jmin, jmax_ => jmax, jmaxo_ => jmaxo, kmino_ => kmino, kmin_ => kmin, &
+	use coupler_internal_cfd, only : imino_ => imino, imin_ => imin, imax_ => imax, imaxo_ => imaxo, &
+        jmino_ => jmino, jmin_ => jmin, jmax_ => jmax, jmaxo_ => jmaxo, kmino_ => kmino, kmin_ => kmin, &
         kmax_ => kmax, kmaxo_ => kmaxo, nsteps_ => nsteps, x_ => x, y_ => y, z_ => z, dx_ => dx, dz_ => dz, &
 		npx_ => npx, npy_ => npy, npz_ => npz, icoord_ => icoord, dt_ => dt, jmax_overlap, &
 		npx_md, npy_md, npz_md, nproc_md, MD_initial_cellsize
@@ -249,14 +264,17 @@ subroutine coupler_cfd_init(icomm_grid, imino,imin,imax,imaxo,jmino,jmin,jmax,jm
 	integer, intent(in) :: nsteps,npx,npy,npz,icoord(:,:)
 	real(kind(0.d0)), intent(in) :: x(:),y(:),z(:), dx, dz, dt
 
-	integer i, myid, source, iaux(6),ierr
+	integer i, myid, source, buf(6),ierr
 
     ! duplicate grid communicator for coupler use
-    call mpi_comm_dup(icomm_grid,coupler_grid_comm,ierr)
+    call MPI_comm_dup(icomm_grid,coupler_grid_comm,ierr)
 
-	imino_ = imino; imin_ = imin;  imax_ = imax;  jmino_ = jmin
-	jmin_  = jmin;  jmax_ = jmax; jmaxo_ = jmaxo; kmino_ = kmino; kmin_ = kmin; kmax_ = kmax
-	kmaxo_ = kmaxo; nsteps_ = nsteps;  dx_ = dx; dz_ = dz
+
+	!Store copies of passed variables in CFD internal
+	imino_ = imino; imin_ = imin; imax_ = imax; imaxo_ = imaxo;  
+	jmino_ = jmino; jmin_ = jmin; jmax_ = jmax; jmaxo_ = jmaxo; 
+	kmino_ = kmino; kmin_ = kmin; kmax_ = kmax; kmaxo_ = kmaxo;
+	nsteps_ = nsteps;  dx_ = dx; dz_ = dz
 	npx_ = npx; npy_ = npy; npz_ = npz 
 
     if(kmax == kmin) then
@@ -267,14 +285,12 @@ subroutine coupler_cfd_init(icomm_grid, imino,imin,imax,imaxo,jmino,jmin,jmax,jm
 	allocate(y_(size(y)),stat=ierr); y_ = y
 	allocate(z_(size(z)),stat=ierr); z_ = z
 	allocate(icoord_(3,npx*npy*npz),stat=ierr)
-
-	x_ = x; y_ = y; z_ = z;
 	icoord_ = icoord
 
-    call mpi_comm_rank(COUPLER_REALM_COMM,myid,ierr)
+    call MPI_comm_rank(COUPLER_REALM_COMM,myid,ierr)
 
-    ! test if MD_init_cell size is larger than CFD cell size
-    if( (MD_initial_cellsize >= x(2)-x(1) .or. MD_initial_cellsize >= y(2)-y(1)) .and. myid == 0 ) then
+    ! Test if MD_init_cell size is larger than CFD cell size
+    if( (MD_initial_cellsize .ge. x(2)-x(1) .or. MD_initial_cellsize .ge. y(2)-y(1)) .and. myid .eq. 0 ) then
         write(*,*) 
         write(*,*) "********************************************************************"
         write(*,*) " WARNING ...WARNING ...WARNING ...WARNING ...WARNING ...WARNING ... "
@@ -298,37 +314,361 @@ subroutine coupler_cfd_init(icomm_grid, imino,imin,imax,imaxo,jmino,jmin,jmax,jm
 		source=MPI_PROC_NULL
 	endif
 
-	call mpi_bcast((/ npx, npy, npz, jmax_overlap /), 4, MPI_INTEGER,&
+
+	!Note - MPI Broadcast between intercommunicators is only supported by MPI-2
+	call MPI_bcast((/ npx, npy, npz, jmax_overlap /), 4, MPI_INTEGER,&
 						source, COUPLER_ICOMM,ierr)
 
 	! receive MD processor grid 
-	call mpi_bcast(iaux, 3, MPI_INTEGER,0, COUPLER_ICOMM,ierr)
+	call MPI_bcast(buf, 3, MPI_INTEGER,0, COUPLER_ICOMM,ierr)
 
-	npx_md = iaux(1)
-	npy_md = iaux(2)
-	npz_md = iaux(3)
+	npx_md = buf(1)
+	npy_md = buf(2)
+	npz_md = buf(3)
 	nproc_md = npx_md * npy_md * npz_md
 
 	! send CFD mesh data
-	call mpi_bcast((/ imino,imin,imax,imaxo,jmino,jmin,jmax,jmaxo,kmino,kmin,kmax,kmaxo /), 12,&
+	call MPI_bcast((/ imino,imin,imax,imaxo,jmino,jmin,jmax,jmaxo,kmino,kmin,kmax,kmaxo /), 12,&
 						MPI_INTEGER, source, COUPLER_ICOMM,ierr)
-	call mpi_bcast(x,size(x),mpi_double_precision,source,COUPLER_ICOMM,ierr)
-	call mpi_bcast(y,size(y),mpi_double_precision,source,COUPLER_ICOMM,ierr)
-	call mpi_bcast(z,size(z),mpi_double_precision,source,COUPLER_ICOMM,ierr)
-	call mpi_bcast((/ dx, dz /),2,mpi_double_precision,source,COUPLER_ICOMM,ierr)
+	call MPI_bcast(x,size(x),MPI_double_precision,source,COUPLER_ICOMM,ierr)
+	call MPI_bcast(y,size(y),MPI_double_precision,source,COUPLER_ICOMM,ierr)
+	call MPI_bcast(z,size(z),MPI_double_precision,source,COUPLER_ICOMM,ierr)
+	call MPI_bcast((/ dx, dz /),2,MPI_double_precision,source,COUPLER_ICOMM,ierr)
 
 	! send CFD nsteps and dt
-	call mpi_bcast(nsteps,1,mpi_integer,source,COUPLER_ICOMM,ierr)
-	call mpi_bcast( (/ dt, density, MD_initial_cellsize /),3,mpi_double_precision,source,COUPLER_ICOMM,ierr)
+	call MPI_bcast(nsteps,1,MPI_integer,source,COUPLER_ICOMM,ierr)
+	call MPI_bcast( (/ dt, density, MD_initial_cellsize /),3,MPI_double_precision,source,COUPLER_ICOMM,ierr)
 
 	! write(0,*)' CFD: did exchange grid data'
 
 end subroutine coupler_cfd_init
 
-!=============================================================================
-! Get CFD mesh and timestep details on all MD processors and send MD processor
-! topology to the CFD
-!-----------------------------------------------------------------------------
+
+
+
+! Initialisation routine for coupler - Every variable is sent and stored
+! to ensure both md and cfd region have an identical list of parameters
+
+subroutine coupler_cfd_init_es(nsteps,dt_cfd,icomm_grid,npxyz_cfd,icoord,xyzL,ngxyz, & 
+							   ijkmax,ijkmin,ijkTmax,ijkTmin,xpg,ypg,zpg)
+    use mpi
+    use coupler_internal_common
+    use coupler_input_data
+    use coupler_module,	dt_cfd_=>dt_cfd,nsteps_=>nsteps,					&	!Simulation lengths	
+									xpg_=>xpg,ypg_=>ypg,zpg_=>zpg				!CFD grid arrays
+	implicit none			
+    !use coupler_module, only: 		dt_md,dt_cfd_=>dt_cfd,			&	!Timesteps
+	!								nsteps_=>nsteps,						&	!Simulation lengths	
+	!								cfd_xL,cfd_yL,cfd_zL,					&	!CFD domain length
+	!								md_xL,md_yL,md_zL,						&	!MD domain length
+	!								ngx, ngy, ngz,							&	!CFD global no. of cells
+	!								imin,imax,jmin,jmax,kmin,kmax, 			& 	!CFD global grid limits
+	!								iTmin,iTmax,jTmin,jTmax,kTmin,kTmax, 	& 	!CFD local grid limits
+	!								xpg_=>xpg,ypg_=>ypg,zpg_=>zpg, 			& 	!CFD grid arrays
+	!								npx_cfd,npy_cfd,npz_cfd,nproc_cfd, 		&	!CFD processors
+     !   							npx_md ,npy_md ,npz_md ,nproc_md, 		& 	!MD processors
+	!								icoord_cfd , icoord_md, 				&	!Processor topologies
+	!								jmax_overlap, MD_initial_cellsize
+
+
+    integer,					   intent(in):: icomm_grid, nsteps
+    integer,dimension(3),		   intent(in):: ijkmin,ijkmax,npxyz_cfd,ngxyz
+    integer,dimension(:,:),		   intent(in):: ijkTmin, ijkTmax, icoord
+    real(kind(0.d0)),			   intent(in):: dt_cfd
+    real(kind(0.d0)),dimension(3), intent(in):: xyzL
+    real(kind(0.d0)),dimension(:  ),allocatable,intent(in):: zpg
+    real(kind(0.d0)),dimension(:,:),allocatable,intent(in):: xpg,ypg
+
+    integer											:: i, myid, source, ierr
+    integer,dimension(:),allocatable				:: buf
+    real(kind=kind(0.d0)),dimension(:),allocatable 	:: rbuf
+
+    ! Duplicate grid communicator for coupler use
+    call MPI_comm_dup(icomm_grid,coupler_grid_comm,ierr)
+    call MPI_comm_rank(COUPLER_REALM_COMM,myid,ierr)
+	!Send only from root processor
+    if ( myid .eq. 0 ) then
+        source=MPI_ROOT
+    else
+        source=MPI_PROC_NULL
+    endif
+
+	! ================ Exchange and store Data ==============================
+	! Data is stored to the coupler module with the same name in both realms
+	! Note - MPI Broadcast between intercommunicators is only supported by MPI-2
+
+	! ------------------------ Processor Topology ---------------------------
+	! Store & Send CFD number of processors
+	npx_cfd = npxyz_cfd(1)
+	npy_cfd = npxyz_cfd(2)
+	npz_cfd = npxyz_cfd(3)
+	nproc_cfd = npx_cfd * npy_cfd * npz_cfd
+    call MPI_bcast(npxyz_cfd,3,MPI_INTEGER,source,COUPLER_ICOMM,ierr)	!Send
+
+	! Receive & Store MD number of processors
+	allocate(buf(3))
+    call MPI_bcast(   buf   ,3,MPI_INTEGER,  0   ,COUPLER_ICOMM,ierr)	!Receive
+    npx_md = buf(1)
+    npy_md = buf(2)
+    npz_md = buf(3)
+    nproc_md = npx_md * npy_md * npz_md
+	deallocate(buf)
+
+	! Store & Send CFD processor topology
+    allocate(icoord_cfd(3,nproc_cfd),stat=ierr); icoord_cfd = icoord
+	allocate(buf(3*nproc_cfd)); buf = reshape(icoord, (/ 3*nproc_cfd /) )
+    call MPI_bcast(icoord_cfd,3*nproc_cfd,MPI_INTEGER,source,COUPLER_ICOMM,ierr)	!Send
+
+	! Receive & Store MD processor topology
+    allocate(icoord_md (3,nproc_md),stat=ierr)
+    call MPI_bcast(buf,3*nproc_md ,MPI_INTEGER,  0   ,COUPLER_ICOMM,ierr)	!Receive
+	icoord_md = reshape(buf,(/ 3,nproc_md /))
+	deallocate(buf)
+
+	! ------------------ Timesteps and iterations ------------------------------
+	! Store & send CFD nsteps and dt_cfd
+	nsteps_ = nsteps
+    call MPI_bcast(nsteps,1,MPI_integer,source,COUPLER_ICOMM,ierr)			!Send
+	dt_cfd_ = dt_cfd
+    call MPI_bcast(dt_cfd,1,MPI_double_precision,source,COUPLER_ICOMM,ierr)	!Send
+
+	! Receive & store MD timestep dt_md
+    call MPI_bcast(dt_md,1,MPI_double_precision,0,COUPLER_ICOMM,ierr)		!Receive
+
+	! ------------------ Send CFD grid extents ------------------------------
+	! Store & send CFD domain size
+	cfd_xL = xyzL(1); cfd_yL = xyzL(2); cfd_zL = xyzL(3)
+	call MPI_bcast(xyzL,3,MPI_double_precision,source,COUPLER_ICOMM,ierr)	!Send
+
+	! Receive & store MD domain size
+	allocate(rbuf(3))
+	call MPI_bcast(rbuf,3,MPI_double_precision,0,COUPLER_ICOMM,ierr)		!Receive
+	md_xL = rbuf(1); md_yL = rbuf(2); md_zL = rbuf(3);
+	deallocate(rbuf)
+
+	! Store & send CFD grid extents
+	imin = ijkmin(1); jmin = ijkmin(2); kmin = ijkmin(3)
+	imax = ijkmax(1); jmax = ijkmax(2); kmin = ijkmax(3)
+    call MPI_bcast((/ imin,imax,jmin,jmax,kmin,kmax /),6,MPI_INTEGER,source,COUPLER_ICOMM,ierr) !Send
+
+	! Store & send global number of cells in CFD
+	ngx = ngxyz(1); ngy = ngxyz(2); ngz = ngxyz(3)
+    call MPI_bcast(ngxyz,3,MPI_INTEGER,source,COUPLER_ICOMM,ierr)				!Send
+
+	! Store & send array of global grid points
+    allocate(xpg_(size(xpg,1),size(xpg,2)),stat=ierr); xpg_ = xpg
+    allocate(ypg_(size(ypg,1),size(ypg,2)),stat=ierr); ypg_ = ypg
+    allocate(zpg_(size(zpg,1)			 ),stat=ierr); zpg_ = zpg
+    call MPI_bcast(xpg,size(xpg),MPI_double_precision,source,COUPLER_ICOMM,ierr) !Send
+    call MPI_bcast(ypg,size(ypg),MPI_double_precision,source,COUPLER_ICOMM,ierr) !Send
+    call MPI_bcast(zpg,size(zpg),MPI_double_precision,source,COUPLER_ICOMM,ierr) !Send
+
+    ! Store & Send local (processor) CFD grid extents
+    allocate(iTmin(nproc_cfd),stat=ierr); iTmin(:) = ijkTmin(1,:)
+    allocate(iTmax(nproc_cfd),stat=ierr); iTmax(:) = ijkTmax(1,:)
+    allocate(jTmin(nproc_cfd),stat=ierr); jTmin(:) = ijkTmin(2,:)
+    allocate(jTmax(nproc_cfd),stat=ierr); jTmax(:) = ijkTmax(2,:)
+    allocate(kTmin(nproc_cfd),stat=ierr); kTmin(:) = ijkTmin(3,:)
+    allocate(kTmax(nproc_cfd),stat=ierr); kTmax(:) = ijkTmax(3,:) 
+    call MPI_bcast(iTmin,nproc_cfd,MPI_INTEGER,source,COUPLER_ICOMM,ierr) !Send
+    call MPI_bcast(iTmax,nproc_cfd,MPI_INTEGER,source,COUPLER_ICOMM,ierr) !Send
+    call MPI_bcast(jTmin,nproc_cfd,MPI_INTEGER,source,COUPLER_ICOMM,ierr) !Send
+    call MPI_bcast(jTmax,nproc_cfd,MPI_INTEGER,source,COUPLER_ICOMM,ierr) !Send
+    call MPI_bcast(kTmin,nproc_cfd,MPI_INTEGER,source,COUPLER_ICOMM,ierr) !Send
+    call MPI_bcast(kTmax,nproc_cfd,MPI_INTEGER,source,COUPLER_ICOMM,ierr) !Send
+
+    ! send CFD processor grid and overlap parameter
+    ! Note: jmax_overlap default is provided in coupler_internal_cfd
+    if (cfd_coupler_input%overlap%tag == CPL) then
+        jmax_overlap =  jmin + cfd_coupler_input%overlap%y_overlap
+    endif
+
+    ! test if MD_init_cell size is larger than CFD cell size
+    if( (MD_initial_cellsize >= xpg(2,1)-xpg(1,1) .or. & 
+		 MD_initial_cellsize >= ypg(1,2)-ypg(1,1) .or. & 
+		 MD_initial_cellsize >= zpg( 2 )-zpg( 1 )).and. myid == 0 ) then
+        write(*,*)
+        write(*,*) "********************************************************************"
+        write(*,*) " WARNING ...WARNING ...WARNING ...WARNING ...WARNING ...WARNING ... "
+        write(*,*) " MD initialisation cell size larger than CFD x,y cell sizes         "
+        write(*,*) " MD_init_cellsize=",MD_initial_cellsize
+        write(*,*) " dx=",xpg(2,1)-xpg(1,1), " dy=",ypg(1,2)-ypg(1,1)," dz=",zpg(2)-zpg(1 )
+        write(*,*) "********************************************************************"
+        write(*,*)
+    endif
+
+end subroutine coupler_cfd_init_es
+
+
+
+subroutine coupler_md_init_es(dt_md,icomm_grid,icoord,globaldomain,npxyz_md)
+	use mpi
+	use coupler_internal_common
+	use coupler_input_data, cfd_code_id_in => cfd_code_id
+    use coupler_module, dt_md_=>dt_md
+									
+   ! use coupler_module, only: 		dt_md_=>dt_md,dt_cfd,nsteps,					&	!Timesteps
+	!								cfd_xL,cfd_yL,cfd_zL,					&	!CFD domain length
+	!								md_xL,md_yL,md_zL,						&	!MD domain length
+	!								ngx, ngy, ngz,							&	!CFD global no. of cells
+	!								imin,imax,jmin,jmax,kmin,kmax, 			& 	!CFD global grid limits
+	!								iTmin,iTmax,jTmin,jTmax,kTmin,kTmax, 	& 	!CFD local grid limits
+	!								xpg_=>xpg,ypg_=>ypg,zpg_=>zpg, 			& 	!CFD grid arrays
+	!								npx_cfd,npy_cfd,npz_cfd,nproc_cfd, 		&	!CFD processors
+    !    							npx_md ,npy_md ,npz_md ,nproc_md, 		& 	!MD processors
+	!								icoord_cfd , icoord_md, 				&	!Processor topologies
+	!								jmax_overlap, MD_initial_cellsize
+	implicit none
+
+	integer, intent(in)	  							:: icomm_grid
+	integer,dimension(3), intent(in)	  			:: npxyz_md	
+	integer,dimension(:,:),allocatable,intent(in)	:: icoord
+	real(kind(0.d0)),intent(in) 					:: dt_md
+    real(kind=kind(0.d0)),dimension(3),intent(in) 	:: globaldomain
+
+    integer											:: i, myid,myid_grid, source, ierr
+    integer,dimension(:),allocatable  				:: buf
+    real(kind=kind(0.d0)),dimension(:),allocatable 	:: rbuf
+
+    ! Duplicate grid communicator for coupler use
+	call MPI_comm_rank(COUPLER_REALM_COMM,myid,ierr)
+    call MPI_comm_dup(icomm_grid,coupler_grid_comm,ierr)
+    call MPI_comm_rank(coupler_grid_comm,myid_grid,ierr) 
+    myid_grid = myid_grid + 1
+	!Send only from root processor
+	if ( myid .eq. 0 ) then
+		source=MPI_ROOT
+	else
+		source=MPI_PROC_NULL
+	endif
+
+	! ================ Exchange and store Data ==============================
+	! Data is stored to the coupler module with the same name in both realms
+	! Note - MPI Broadcast between intercommunicators is only supported by MPI-2
+
+	! ------------------------ Processor Topology ---------------------------
+	! Receive & Store CFD number of processors
+    allocate(buf(3))
+	call MPI_bcast(  buf   ,3,MPI_INTEGER,  0   ,COUPLER_ICOMM,ierr) !Receive
+	npx_cfd = buf(1); npy_cfd = buf(2); npz_cfd = buf(3)
+	nproc_cfd = npx_cfd * npy_cfd * npz_cfd
+	deallocate(buf)
+
+	! Store & Send MD number of processors
+	npx_md = npxyz_md(1);	npy_md = npxyz_md(2);	npz_md = npxyz_md(3)	
+	nproc_md = npx_md * npy_md * npz_md
+	call MPI_bcast(npxyz_md,3,MPI_INTEGER,source,COUPLER_ICOMM,ierr) !Send
+
+	! Receive & Store CFD processor topology
+	allocate(buf(3*nproc_cfd))
+    allocate(icoord_cfd(3,nproc_cfd),stat=ierr)
+    call MPI_bcast(buf,3*nproc_md,MPI_INTEGER,  0   ,COUPLER_ICOMM,ierr) !Receive
+	icoord_cfd = reshape(buf,(/ 3,nproc_cfd /))
+
+	! Store & Send MD processor topology
+    allocate(icoord_md(3,nproc_md),stat=ierr); icoord_md = icoord
+	buf = reshape(icoord,(/ 3*nproc_md /))
+    call MPI_bcast(icoord_md ,3*nproc_md,MPI_INTEGER,source,COUPLER_ICOMM,ierr) !Send
+	deallocate(buf)
+
+	! ------------------ Timesteps and iterations ------------------------------
+	! Receive & store CFD nsteps and dt_cfd
+	call MPI_bcast(nsteps,1,MPI_integer,0,COUPLER_ICOMM,ierr)				!Receive
+	call MPI_bcast(dt_cfd,1,MPI_double_precision,0,COUPLER_ICOMM,ierr)		!Receive
+
+	! Store & send MD timestep to dt_md
+	dt_md_ = dt_md
+    call MPI_bcast(dt_md,1,MPI_double_precision,source,COUPLER_ICOMM,ierr)	!Send
+
+	! ------------------ Receive CFD grid extents ------------------------------
+	! Receive & store CFD domain size
+	allocate(rbuf(3))
+	call MPI_bcast(rbuf,3,MPI_double_precision,0,COUPLER_ICOMM,ierr)				!Receive
+	cfd_xL = rbuf(1); cfd_yL = rbuf(2); cfd_zL = rbuf(3)
+	deallocate(rbuf)
+
+	! Store & send MD domain size
+	md_xL = globaldomain(1); md_yL = globaldomain(2); md_zL = globaldomain(3) 
+	call MPI_bcast(globaldomain,3,MPI_double_precision,source,COUPLER_ICOMM,ierr)	!Send
+
+	! Receive & Store global CFD grid extents
+	allocate(buf(6))
+	call MPI_bcast(buf, 6, MPI_INTEGER, 0, COUPLER_ICOMM,ierr) !Send
+	imin = buf(1); imax = buf(2)
+	jmin = buf(3); jmax = buf(4)
+	kmin = buf(5); kmax = buf(6)
+	deallocate(buf)
+
+	! Receive & Store array of global number of cells in CFD
+	allocate(buf(3))
+	call MPI_bcast(buf, 3, MPI_INTEGER, 0, COUPLER_ICOMM,ierr) !Receive
+	ngx = buf(1); ngy = buf(2); ngz = buf(3)
+	deallocate(buf)		
+
+	! Receive & Store array of global grid points
+	allocate(xpg(ngx,ngy),ypg(ngx,ngy),zpg(ngz))
+	call MPI_bcast(xpg,size(xpg),MPI_double_precision,0,COUPLER_ICOMM,ierr) !Receive
+	call MPI_bcast(ypg,size(ypg),MPI_double_precision,0,COUPLER_ICOMM,ierr) !Receive
+	call MPI_bcast(zpg,size(zpg),MPI_double_precision,0,COUPLER_ICOMM,ierr) !Receive
+
+	! Receive & Store local (processor) CFD grid extents
+    allocate(iTmin(nproc_cfd)); allocate(jTmin(nproc_cfd));
+    allocate(kTmin(nproc_cfd)); allocate(iTmax(nproc_cfd)); 
+    allocate(jTmax(nproc_cfd)); allocate(kTmax(nproc_cfd)); 
+    call MPI_bcast(iTmin,nproc_cfd,MPI_INTEGER,0,COUPLER_ICOMM,ierr) !Receive
+    call MPI_bcast(iTmax,nproc_cfd,MPI_INTEGER,0,COUPLER_ICOMM,ierr) !Receive
+    call MPI_bcast(jTmin,nproc_cfd,MPI_INTEGER,0,COUPLER_ICOMM,ierr) !Receive
+    call MPI_bcast(jTmax,nproc_cfd,MPI_INTEGER,0,COUPLER_ICOMM,ierr) !Receive
+    call MPI_bcast(kTmin,nproc_cfd,MPI_INTEGER,0,COUPLER_ICOMM,ierr) !Receive
+    call MPI_bcast(kTmax,nproc_cfd,MPI_INTEGER,0,COUPLER_ICOMM,ierr) !Receive
+
+	! ------------------ Apply domain setup etc -------------------
+	! --- set the sizes of the MD domain ---
+	!Fix xL_md domain size to continuum
+	!xL_md = x(imax_cfd) - x(imin_cfd)
+
+    ! yL_md is adjusted to an integer number of initialisation cells in the following steps
+   ! if (md_ly_extension_tag == CPL) then 
+    !    DY_PURE_MD = md_ly_extension
+    !else 
+    !    DY_PURE_MD = y(jmin_cfd) - y(jmino)
+    !end if
+    !yL_md = y(jmax_overlap_cfd) - y(jmino) + DY_PURE_MD
+    !yL_md = real(floor(yL_md/b),kind(0.d0))*b
+    !DY_PURE_MD = yL_md - (y(jmax_overlap_cfd) - y(jmino))
+
+	!Fix zL_md domain size to continuum
+	!zL_md = z(kmax_cfd) - z(kmin_cfd)
+
+    !if( kmin_cfd == kmax_cfd) then
+    !    cfd_is_2d = .true.
+    !endif
+
+    ! initialise other md module variables if data is provided in coupler.in
+    !if (md_average_period_tag == CPL) then 
+    !    average_period = md_average_period
+   ! endif
+   ! if (md_save_period_tag == CPL) then
+    !    save_period    = md_save_period
+    !endif
+
+    !if (cfd_code_id_tag == CPL) then
+   !     cfd_code_id  = cfd_code_id_in
+    !endif
+    
+    !if(md_steps_per_dt_cfd_tag == CPL) then
+    !    md_steps = md_steps_per_dt_cfd
+    !else 
+    !    md_steps = int(dt_cfd/dt_MD)
+    !endif
+    !if ( md_steps <= 0 ) then 
+    !    write(0,*) "Number of MD steps per dt interval <= 0"
+    !    write(0,*) "Coupler will not work, quitting ..."
+    !    call MPI_Abort(MPI_COMM_WORLD,COUPLER_ERROR_INIT,ierr)
+    !endif
+
+end subroutine coupler_md_init_es
+
 
 subroutine coupler_md_init(npxin,npyin,npzin,icoordin,icomm_grid,dtin)
 	use mpi
@@ -341,14 +681,22 @@ subroutine coupler_md_init(npxin,npyin,npzin,icoordin,icomm_grid,dtin)
 	integer, intent(in)	  :: npxin, npyin, npzin, icoordin(:,:),icomm_grid
 	real(kind(0.d0)), intent(in) :: dtin
 
-	integer i, ierr, source, iaux(12)
+	integer i, ierr, source, buf(12)
 	real(kind=kind(0.d0)) ra(3)
 
-	call mpi_comm_rank(COUPLER_REALM_COMM,myid,ierr)
-    call mpi_comm_dup(icomm_grid,coupler_grid_comm,ierr)
-    call mpi_comm_rank(coupler_grid_comm,myid_grid,ierr) 
+    ! Duplicate grid communicator for coupler use
+	call MPI_comm_rank(COUPLER_REALM_COMM,myid,ierr)
+    call MPI_comm_dup(icomm_grid,coupler_grid_comm,ierr)
+    call MPI_comm_rank(coupler_grid_comm,myid_grid,ierr) 
     myid_grid = myid_grid + 1
+	!Send only from root processor
+	if ( myid .eq. 0 ) then
+		source=MPI_ROOT
+	else
+		source=MPI_PROC_NULL
+	endif
 
+	! ------------------ Exchange and store Data -------------------
 	npx = npxin; npy = npyin; npz = npzin
 	nproc = npx * npy * npz
 
@@ -360,40 +708,35 @@ subroutine coupler_md_init(npxin,npyin,npzin,icoordin,icomm_grid,dtin)
 	! write(0,*) 'MD exchange grid data'
 
 	! get CFD processor grid and the number of block in j direction
-	call mpi_bcast( iaux, 4, MPI_INTEGER,0, COUPLER_ICOMM,ierr)
-	npx_cfd = iaux(1)
-	npy_cfd = iaux(2)
-	npz_cfd = iaux(3)
-	jmax_overlap_cfd = iaux(4)
+	call MPI_bcast( buf, 4, MPI_INTEGER,0, COUPLER_ICOMM,ierr)
+	npx_cfd = buf(1)
+	npy_cfd = buf(2)
+	npz_cfd = buf(3)
+	jmax_overlap_cfd = buf(4)
 	nproc_cfd = npx_cfd * npy_cfd * npz_cfd
 
-	! send MD processor grid 
-	if ( myid .eq. 0 ) then
-		source=MPI_ROOT
-	else
-		source=MPI_PROC_NULL
-	endif
 
-	call mpi_bcast((/ npx, npy, npz /), 3, MPI_INTEGER,&
+
+	call MPI_bcast((/ npx, npy, npz /), 3, MPI_INTEGER,&
 								source, COUPLER_ICOMM,ierr)
 
 	!! Test
-	!	call mpi_comm_rank(MD_COMM,myid,ierr)!
+	!	call MPI_comm_rank(MD_COMM,myid,ierr)!
 	!
 	!	write(0,*) 'exchange_grid_data: MD side', myid, bbox_cfd%xbb(1:2,1:npx_cfd),bbox_cfd%zbb(1:2,1:npz_cfd),&
 	!	 bbox_md%xbb(1:2,1:npx_md),bbox_md%zbb(1:2,1:npz_md)    
 
 	! Receive and unpack CFD mesh data 
-	call mpi_bcast(iaux, 12, MPI_INTEGER, 0, COUPLER_ICOMM,ierr) 
-	imino = iaux(1); imin_cfd = iaux(2);  imax_cfd = iaux(3);  imaxo = iaux(4)
-	jmino = iaux(5); jmin_cfd = iaux(6);  jmax_cfd = iaux(7);  jmaxo = iaux(8)
-	kmino = iaux(9); kmin_cfd = iaux(10); kmax_cfd = iaux(11); kmaxo = iaux(12)
+	call MPI_bcast(buf, 12, MPI_INTEGER, 0, COUPLER_ICOMM,ierr) 
+	imino = buf(1); imin_cfd = buf(2);  imax_cfd = buf(3);  imaxo = buf(4)
+	jmino = buf(5); jmin_cfd = buf(6);  jmax_cfd = buf(7);  jmaxo = buf(8)
+	kmino = buf(9); kmin_cfd = buf(10); kmax_cfd = buf(11); kmaxo = buf(12)
 	allocate (x(imino:imaxo),y(jmino:jmaxo),z(kmino:kmaxo))
 
-	call mpi_bcast(x,size(x),mpi_double_precision,0,COUPLER_ICOMM,ierr)
-	call mpi_bcast(y,size(y),mpi_double_precision,0,COUPLER_ICOMM,ierr)
-	call mpi_bcast(z,size(z),mpi_double_precision,0,COUPLER_ICOMM,ierr)
-	call mpi_bcast(ra,2,mpi_double_precision,0,COUPLER_ICOMM,ierr)
+	call MPI_bcast(x,size(x),MPI_double_precision,0,COUPLER_ICOMM,ierr)
+	call MPI_bcast(y,size(y),MPI_double_precision,0,COUPLER_ICOMM,ierr)
+	call MPI_bcast(z,size(z),MPI_double_precision,0,COUPLER_ICOMM,ierr)
+	call MPI_bcast(ra,2,MPI_double_precision,0,COUPLER_ICOMM,ierr)
 
 	! rescale all lengths to MD units
 	x = fsig * x; y = fsig * y; z = fsig * z 
@@ -403,13 +746,16 @@ subroutine coupler_md_init(npxin,npyin,npzin,icoordin,icomm_grid,dtin)
 	! x(imino),x(imin_cfd), x(imax_cfd), x(imaxo)
 	!write(0,*) 'MD exchage grid data: recv dx, dz ', dx, dz, jmax_overlap_cfd
 
-	! get CFD nsteps
-	call mpi_bcast(nsteps,1,mpi_integer,0,COUPLER_ICOMM,ierr)
+	! Get CFD nsteps
+	call MPI_bcast(nsteps,1,MPI_integer,0,COUPLER_ICOMM,ierr)
 
-	! get CFD dt
-	call mpi_bcast(ra,3,mpi_double_precision,0,COUPLER_ICOMM,ierr)
+	! Get CFD dt
+	call MPI_bcast(ra,3,MPI_double_precision,0,COUPLER_ICOMM,ierr)
 
-	! should dt_CFD be scaled ?  see to it later !!!WHAT DOES THIS MEAN!!!
+
+	! ------------------ Apply domain setup etc -------------------
+
+	! should dt_CFD be scaled ?  see to it later
 	dt_CFD     = ra(1) * FoP_time_ratio
 	md_density = ra(2)
 	b          = ra(3)
@@ -489,7 +835,7 @@ subroutine coupler_cfd_adjust_domain(xL, yL, zL, nx, ny, nz, density_cfd)
 	logical										:: changed
 
     ! Local rank, useful for messeges
-    call mpi_comm_rank(COUPLER_REALM_COMM,myid,ierr)
+    call MPI_comm_rank(COUPLER_REALM_COMM,myid,ierr)
 
     if (density_tag == CPL) then 
         density_cfd = density
@@ -502,6 +848,8 @@ subroutine coupler_cfd_adjust_domain(xL, yL, zL, nx, ny, nz, density_cfd)
     if ( cfd_coupler_input%domain%tag == VOID) then
         cfd_coupler_input%domain%tag = CFD
 	end if
+
+	print*, 'cell type =', cfd_coupler_input%domain%cell_type
 
     select case (cfd_coupler_input%domain%cell_type)
     case ("FCC","Fcc","fcc")
@@ -688,6 +1036,15 @@ subroutine test_cfd_cell_sizes
 end subroutine test_cfd_cell_sizes
             
 end subroutine coupler_cfd_adjust_domain
+
+
+!=============================================================================
+! Simulation  Simulation  Simulation  Simulation  Simulation  Simulation  
+!
+!							SIMULATION
+!
+! Simulation  Simulation  Simulation  Simulation  Simulation  Simulation  
+!=============================================================================
 
 
 !=============================================================================
@@ -990,14 +1347,14 @@ subroutine coupler_send_data_xd(asend,index_transpose,asend_lbound,&
         ! Attention ncall could go over max tag value for long runs!!
         itag = mod( ncalls, MPI_TAG_UB)
         ! send the info about the data to come
-        call mpi_send((/ndata,a_components,mis,mie,mjs,mje,mks,mke/),8,MPI_INTEGER,&
+        call MPI_send((/ndata,a_components,mis,mie,mjs,mje,mks,mke/),8,MPI_INTEGER,&
             			dest, itag, COUPLER_ICOMM, ierr)
         ! send data only if there is anything to send
         if (ndata > 0) then 
 			!vbuf = 1.234567891011121314151617d0
 			!print'(2a,2i8,4f25.16)', 'ICP send data',code_name(COUPLER_REALM), myid, & 
 			!							 size(vbuf), maxval(vbuf),minval(vbuf),sum(vbuf),vbuf(10)
-            call mpi_send(vbuf, ndata, MPI_DOUBLE_PRECISION, dest, itag, COUPLER_ICOMM, ierr)
+            call MPI_send(vbuf, ndata, MPI_DOUBLE_PRECISION, dest, itag, COUPLER_ICOMM, ierr)
         endif
     enddo
 
@@ -1146,7 +1503,7 @@ subroutine coupler_recv_data_xd(arecv,index_transpose,a_lbound,&
 	if ( map%n .eq. 0 ) return 
  
 	ncalls = ncalls + 1
-	call mpi_comm_rank(coupler_grid_comm,myid,ierr)
+	call MPI_comm_rank(coupler_grid_comm,myid,ierr)
 
     ! Local grid box
     if (COUPLER_REALM == COUPLER_CFD) then 
@@ -1242,11 +1599,11 @@ subroutine coupler_recv_data_xd(arecv,index_transpose,a_lbound,&
     do i = 1, map%n
         source =  map%rank_list(i)
         itag = mod( ncalls, MPI_TAG_UB)
-        call mpi_irecv(vel_indx(1,i),8,MPI_Integer,source,itag,&
+        call MPI_irecv(vel_indx(1,i),8,MPI_Integer,source,itag,&
             			COUPLER_ICOMM,req(i),ierr)
     enddo
 
-    call mpi_waitall(map%n, req, status, ierr)
+    call MPI_waitall(map%n, req, status, ierr)
 
     write(0,'(a,16i5)') 'coupler recv vel_indx ', vel_indx
 
@@ -1264,7 +1621,7 @@ subroutine coupler_recv_data_xd(arecv,index_transpose,a_lbound,&
         if (ndata > 0) then 
             ! Attention ncall could go over max tag value for long runs!!
 			itag = mod(ncalls, MPI_TAG_UB)
-            call mpi_irecv(vbuf(start_address(i)),ndata,MPI_DOUBLE_PRECISION,source,itag,&
+            call MPI_irecv(vbuf(start_address(i)),ndata,MPI_DOUBLE_PRECISION,source,itag,&
                 				COUPLER_ICOMM,req(i),ierr)
         else 
             req(i) = MPI_REQUEST_NULL
@@ -1272,7 +1629,7 @@ subroutine coupler_recv_data_xd(arecv,index_transpose,a_lbound,&
     enddo
 
 	!print*, 'BEFORE WAIT STATEMENT'
-    call mpi_waitall(map%n, req, status, ierr)
+    call MPI_waitall(map%n, req, status, ierr)
 	!print'(2a,2i8,4f25.16)', 'ICP recv data',code_name(COUPLER_REALM),myid, & 
 	!							 size(vbuf), maxval(vbuf),minval(vbuf),sum(vbuf),vbuf(10)
     !	write(0,*) 'MD getCFD vel wait',  myid, id, i, source, ierr
@@ -1317,7 +1674,7 @@ subroutine coupler_recv_data_xd(arecv,index_transpose,a_lbound,&
 
         ! call MPI_Error_string(status(MPI_ERROR,i), err_string, len(err_string), ierr);
 	    !  write(0,*) 'MD getCFD vel err, myid, i ', myid, i, trim(err_string) 
-        !call mpi_get_count(status(1,i),mpi_double_precision,ib,ierr)
+        !call MPI_get_count(status(1,i),MPI_double_precision,ib,ierr)
 		! write(0,*) 'MD recv ', myid, id, i, ib, ' DP'
     enddo
 
@@ -1426,18 +1783,18 @@ subroutine set_pbc(pbc)
             atmp(:, :, lbound(atmp,3), :) =  atmp(:, :, lbound(atmp,3), :) + x2
             atmp(:, :, ubound(atmp,3), :) =  atmp(:, :, ubound(atmp,3), :) + x1  
         else 
-            call mpi_comm_rank(coupler_grid_comm,myid,ierr)
+            call MPI_comm_rank(coupler_grid_comm,myid,ierr)
             ip = icoord(: ,myid+1)
             if (ip(1) == 1 .and. ip(2) == 1) then 
                 x1 =  atmp(:, :,lbound(atmp,3),:)
-                call mpi_cart_rank(coupler_grid_comm, (/ npx-1, 0, ip(3)-1 /), dest, ierr)
-                call mpi_sendrecv(x1,size(x1),MPI_DOUBLE_PRECISION,dest,1,x2,size(x2),MPI_DOUBLE_PRECISION,&
+                call MPI_cart_rank(coupler_grid_comm, (/ npx-1, 0, ip(3)-1 /), dest, ierr)
+                call MPI_sendrecv(x1,size(x1),MPI_DOUBLE_PRECISION,dest,1,x2,size(x2),MPI_DOUBLE_PRECISION,&
                     dest,1,coupler_grid_comm,status,ierr)
                 atmp(:, :, lbound(atmp,3), :) =  atmp(:, :, lbound(atmp,3), :) + x2
             else if (ip(1) == npx .and. ip(2) == 1) then 
                 x2 =  atmp(:, :,ubound(atmp,3), :)
-                call mpi_cart_rank(coupler_grid_comm, (/ 0, 0, ip(3) - 1 /), dest, ierr)
-                call mpi_sendrecv(x2,size(x2),MPI_DOUBLE_PRECISION,dest,1,x1,size(x1),MPI_DOUBLE_PRECISION,&
+                call MPI_cart_rank(coupler_grid_comm, (/ 0, 0, ip(3) - 1 /), dest, ierr)
+                call MPI_sendrecv(x2,size(x2),MPI_DOUBLE_PRECISION,dest,1,x1,size(x1),MPI_DOUBLE_PRECISION,&
                     dest,1,coupler_grid_comm,status,ierr)
                 atmp(:, :, ubound(atmp,3), :) =  atmp(:, :, ubound(atmp,3), :) + x1
             endif
@@ -1483,18 +1840,18 @@ subroutine halos(pbc)
             atmp(:, :, lbound(atmp,3), :) = x2  !atmp(:, :, lbound(atmp,3), :) + x2
             atmp(:, :, ubound(atmp,3), :) = x1  !atmp(:, :, ubound(atmp,3), :) + x1  
         else 
-            call mpi_comm_rank(coupler_grid_comm,myid,ierr)
+            call MPI_comm_rank(coupler_grid_comm,myid,ierr)
             ip = icoord(: ,myid+1)
             if (ip(1) == 1 .and. ip(2) == 1) then 
                 x1 =  atmp(:, :,lbound(atmp,3),:)
-                call mpi_cart_rank(coupler_grid_comm, (/ npx-1, 0, ip(3)-1 /), dest, ierr)
-                call mpi_sendrecv(x1,size(x1),MPI_DOUBLE_PRECISION,dest,1,x2,size(x2),MPI_DOUBLE_PRECISION,&
+                call MPI_cart_rank(coupler_grid_comm, (/ npx-1, 0, ip(3)-1 /), dest, ierr)
+                call MPI_sendrecv(x1,size(x1),MPI_DOUBLE_PRECISION,dest,1,x2,size(x2),MPI_DOUBLE_PRECISION,&
                     				dest,1,coupler_grid_comm,status,ierr)
                 atmp(:, :, lbound(atmp,3), :) = x2		!atmp(:, :, lbound(atmp,3), :) + x2
             else if (ip(1) == npx .and. ip(2) == 1) then 
                 x2 =  atmp(:, :,ubound(atmp,3), :)
-                call mpi_cart_rank(coupler_grid_comm, (/ 0, 0, ip(3) - 1 /), dest, ierr)
-                call mpi_sendrecv(x2,size(x2),MPI_DOUBLE_PRECISION,dest,1,x1,size(x1),MPI_DOUBLE_PRECISION,&
+                call MPI_cart_rank(coupler_grid_comm, (/ 0, 0, ip(3) - 1 /), dest, ierr)
+                call MPI_sendrecv(x2,size(x2),MPI_DOUBLE_PRECISION,dest,1,x1,size(x1),MPI_DOUBLE_PRECISION,&
                     				dest,1,coupler_grid_comm,status,ierr)
                 atmp(:, :, ubound(atmp,3), :) =  x1		!atmp(:, :, ubound(atmp,3), :) + x1
             endif
