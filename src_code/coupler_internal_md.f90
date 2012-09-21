@@ -24,14 +24,6 @@ module coupler_internal_md
 	implicit none
     save 
 
-	! local mpi ranks in realm and in topology communicators
-	integer myid, myid_grid
-
-	! MD data	
-	integer npx, npy, npz, nproc
-	integer, allocatable :: icoord(:,:)
-	real(kind=kind(0.d0)) :: dt_MD
-
 	! data structures to hold CFD - MD mapping 
 	! bounding box of MD domain within CFD global domain
 	type bbox_domain
@@ -54,9 +46,6 @@ module coupler_internal_md
 	! write or not the overlap map
 	logical :: dump_ovlerlap_map = .true.
 
-	! local grid sizes
-	integer nlx, nly, nlz
-
 	type cfd_box_sum
 		integer np
 		real(kind=kind(0.d0))  v(3)
@@ -68,7 +57,6 @@ module coupler_internal_md
 	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: uvwbin 
 
 	real(kind=kind(0.d0)) :: FoP_time_ratio = 1.0   ! time ratio dt_CFD/dt_MD; to be fixed later
-	real(kind=kind(0.d0)) :: xL_md, yL_md, zL_md 	! macroscopic sizes of MD domain. needed?
 	real(kind=kind(0.d0)) :: fsig=1.0  		!Ratio betwen macroscopic unit lenght and molecular unit 
     integer               :: md_steps_per_dt_cfd = -1 ! number of steps per CFD step
 													   ! if not defined in COUPLER.in 
@@ -78,30 +66,202 @@ module coupler_internal_md
 	real(kind=kind(0.d0)),dimension(:,:,:,:,:), allocatable :: vel_fromCFD
 	integer itm1,itm2
 
-	! data from CFD
-	integer :: npx_cfd, npy_cfd, npz_cfd, jmax_overlap_cfd, nproc_cfd
-	! CFD mesh data
-	integer :: imino, imin_cfd, imax_cfd,imaxo, jmino, jmin_cfd, jmax_cfd, jmaxo,&
-		kmino, kmin_cfd, kmax_cfd, kmaxo
-	real(kind=kind(0.d0)), allocatable, target :: x(:), y(:), z(:)
-	real(kind=kind(0.d0)) :: dx, dz, dt_CFD, density
-
     ! CFD code id
     integer :: cfd_code_id = couette_parallel
 
-    !inital MD cell size computed in CFD and used to adjust CFD domain sizes
-    ! to integer multiples of cell size  
-    real(kind(0.d0)) MD_initial_cellsize
-
-	! nsteps from CFD
-	integer :: nsteps
-	! average period for averages ( it must come from CFD !!!)      
-	integer :: average_period = 1
-    ! save period ( corresponts to tplot in CFD, revise please !!!)
-    integer :: save_period = 10
-
-
 contains 
+
+
+! ----------------------------------------------------------------------------
+! Initialisation routine for coupler - Every variable is sent and stored
+! to ensure both md and cfd region have an identical list of parameters
+
+subroutine coupler_md_init_es(nsteps,dt_md,icomm_grid,icoord,npxyz_md,globaldomain,density)
+	use mpi
+	use coupler, only : write_matrix,write_matrix_int
+	use coupler_input_data, cfd_code_id_in => cfd_code_id, density_coupled => density
+    use coupler_module, dt_md_=>dt_md		
+	implicit none
+
+	integer, intent(in)	  							:: nsteps, icomm_grid
+	integer,dimension(3), intent(in)	  			:: npxyz_md	
+	integer,dimension(:,:),allocatable,intent(in)	:: icoord
+	real(kind(0.d0)),intent(in) 					:: dt_md,density
+    real(kind=kind(0.d0)),dimension(3),intent(in) 	:: globaldomain
+
+    integer											:: i, myid, source, ierr
+    integer,dimension(:),allocatable  				:: buf
+    real(kind=kind(0.d0)),dimension(:),allocatable 	:: rbuf
+
+    ! Duplicate grid communicator for coupler use
+	call MPI_comm_rank(COUPLER_REALM_COMM,myid,ierr)
+    call MPI_comm_dup(icomm_grid,coupler_grid_comm,ierr)
+    call MPI_comm_rank(coupler_grid_comm,myid_grid,ierr) 
+    myid_grid = myid_grid + 1
+	!Send only from root processor
+	if ( myid .eq. 0 ) then
+		source=MPI_ROOT
+	else
+		source=MPI_PROC_NULL
+	endif
+
+	! ================ Exchange and store Data ==============================
+	! Data is stored to the coupler module with the same name in both realms
+	! Note - MPI Broadcast between intercommunicators is only supported by MPI-2
+
+	! ------------------------ Processor Topology ---------------------------
+	! Receive & Store CFD number of processors
+    allocate(buf(3))
+	call MPI_bcast(  buf   ,3,MPI_INTEGER,  0   ,COUPLER_ICOMM,ierr) !Receive
+	npx_cfd = buf(1); npy_cfd = buf(2); npz_cfd = buf(3)
+	nproc_cfd = npx_cfd * npy_cfd * npz_cfd
+	deallocate(buf)
+
+	write(999+myid,*), 'MD side',myid,'CFD procs',npx_cfd,npy_cfd,npz_cfd,nproc_cfd
+
+	! Store & Send MD number of processors
+	npx_md = npxyz_md(1);	npy_md = npxyz_md(2);	npz_md = npxyz_md(3)	
+	nproc_md = npx_md * npy_md * npz_md
+	call MPI_bcast(npxyz_md,3,MPI_INTEGER,source,COUPLER_ICOMM,ierr) !Send
+
+	write(999+myid,*), 'MD side',myid,'MD procs',npx_md ,npy_md ,npz_md ,nproc_md
+
+	! Receive & Store CFD processor topology
+	allocate(buf(3*nproc_cfd))
+    call MPI_bcast(buf,3*nproc_cfd,MPI_INTEGER,  0   ,COUPLER_ICOMM,ierr) !Receive
+    allocate(icoord_cfd(3,nproc_cfd),stat=ierr); icoord_cfd = reshape(buf,(/ 3,nproc_cfd /))
+	deallocate(buf)
+
+	call write_matrix_int(icoord_cfd,'MD side, icoord_cfd=',999+myid)
+
+	! Store & Send MD processor topology
+    allocate(icoord_md(3,nproc_md),stat=ierr); icoord_md = icoord
+	allocate(buf(3*nproc_md)); buf = reshape(icoord,(/ 3*nproc_md /))
+    call MPI_bcast(buf ,3*nproc_md,MPI_INTEGER,source,COUPLER_ICOMM,ierr) !Send
+	deallocate(buf)
+
+	call write_matrix_int(icoord_md,'MD side, icoord_md=',999+myid)
+
+	! ------------------ Timesteps and iterations ------------------------------
+	! Receive & store CFD nsteps and dt_cfd
+	call MPI_bcast(nsteps,1,MPI_integer,0,COUPLER_ICOMM,ierr)				!Receive
+	call MPI_bcast(dt_cfd,1,MPI_double_precision,0,COUPLER_ICOMM,ierr)		!Receive
+
+	! Store & send MD timestep to dt_md
+	dt_MD_ = dt_MD
+    call MPI_bcast(dt_md,1,MPI_double_precision,source,COUPLER_ICOMM,ierr)	!Send
+	nsteps_MD = nsteps
+    call MPI_bcast(nsteps,1,MPI_integer,source,COUPLER_ICOMM,ierr)	!Send
+
+	write(999+myid,*), 'MD side',myid,'CFD times',nsteps_cfd,dt_cfd
+	write(999+myid,*), 'MD side',myid,'MD times', nsteps_MD,dt_md
+
+	! ------------------ Receive CFD grid extents ------------------------------
+	! Receive & store CFD density
+	call MPI_bcast(density_cfd,1,MPI_double_precision,0,COUPLER_ICOMM,ierr)		!Receive
+
+	write(999+myid,*), 'MD side',myid,'CFD density',density_cfd
+
+	! Store & send MD density
+	density_md = density 
+	call MPI_bcast(density,1,MPI_double_precision,source,COUPLER_ICOMM,ierr)	!Send
+
+	write(999+myid,*), 'MD side',myid,'MD density',density_md
+
+	! Receive & store CFD domain size
+	allocate(rbuf(3))
+	call MPI_bcast(rbuf,3,MPI_double_precision,0,COUPLER_ICOMM,ierr)				!Receive
+	xL_cfd = rbuf(1); yL_cfd = rbuf(2); zL_cfd = rbuf(3)
+	deallocate(rbuf)
+
+	! Store & send MD domain size
+	xL_md = globaldomain(1); yL_md = globaldomain(2); zL_md = globaldomain(3) 
+	call MPI_bcast(globaldomain,3,MPI_double_precision,source,COUPLER_ICOMM,ierr)	!Send
+
+	write(999+myid,*), 'MD side',myid,'CFD domain',xL_cfd,yL_cfd,zL_cfd
+	write(999+myid,*), 'MD side',myid,'MD domain', xL_md,yL_md,zL_md
+
+
+	! Receive & Store global CFD grid extents
+	allocate(buf(6))
+	call MPI_bcast(buf, 6, MPI_INTEGER, 0, COUPLER_ICOMM,ierr) !Send
+	imin = buf(1); imax = buf(2)
+	jmin = buf(3); jmax = buf(4)
+	kmin = buf(5); kmax = buf(6)
+	deallocate(buf)
+
+	! Receive & Store array of global number of cells in CFD
+	allocate(buf(3))
+	call MPI_bcast(buf, 3, MPI_INTEGER, 0, COUPLER_ICOMM,ierr) !Receive
+	ngx = buf(1); ngy = buf(2); ngz = buf(3)
+	deallocate(buf)
+
+	write(999+myid,*), 'MD side',myid,'CFD global extents',imin,imax,jmin,jmax,kmin,kmax
+	write(999+myid,*), 'MD side',myid,'CFD global cells',ngx,ngy,ngz
+
+	! Receive & Store array of global grid points
+	allocate(xpg(ngx,ngy),ypg(ngx,ngy),zpg(ngz))
+	call MPI_bcast(xpg,size(xpg),MPI_double_precision,0,COUPLER_ICOMM,ierr) !Receive
+	call MPI_bcast(ypg,size(ypg),MPI_double_precision,0,COUPLER_ICOMM,ierr) !Receive
+	call MPI_bcast(zpg,size(zpg),MPI_double_precision,0,COUPLER_ICOMM,ierr) !Receive
+
+	call write_matrix(xpg,'MD side, xpg=',500+myid)
+	call write_matrix(ypg,'MD side, ypg=',500+myid)
+	write(500+myid,*), 'MD side',myid,'zpg',zpg
+
+	! Receive & Store local (processor) CFD grid extents
+    allocate(iTmin(npx_cfd)); allocate(iTmax(npx_cfd));  
+	allocate(jTmin(npy_cfd)); allocate(jTmax(npy_cfd));
+    allocate(kTmin(npz_cfd)); allocate(kTmax(npz_cfd));
+    call MPI_bcast(iTmin,npx_cfd,MPI_INTEGER,0,COUPLER_ICOMM,ierr) !Receive
+    call MPI_bcast(iTmax,npx_cfd,MPI_INTEGER,0,COUPLER_ICOMM,ierr) !Receive
+    call MPI_bcast(jTmin,npy_cfd,MPI_INTEGER,0,COUPLER_ICOMM,ierr) !Receive
+    call MPI_bcast(jTmax,npy_cfd,MPI_INTEGER,0,COUPLER_ICOMM,ierr) !Receive
+    call MPI_bcast(kTmin,npz_cfd,MPI_INTEGER,0,COUPLER_ICOMM,ierr) !Receive
+    call MPI_bcast(kTmax,npz_cfd,MPI_INTEGER,0,COUPLER_ICOMM,ierr) !Receive
+
+	write(999+myid,*), 'md side',myid,'CFD local cells',iTmin,iTmax,jTmin,jTmax,kTmin,kTmax
+
+
+	! ================ Apply domain setup  ==============================
+	! --- set the sizes of the MD domain ---
+	!Fix xL_md domain size to continuum
+	!xL_md = x(imax_cfd) - x(imin_cfd)
+
+    ! yL_md is adjusted to an integer number of initialisation cells in the following steps
+   ! if (md_ly_extension_tag == CPL) then 
+    !    DY_PURE_MD = md_ly_extension
+    !else 
+    !    DY_PURE_MD = y(jmin) - y(jmino)
+    !end if
+    !yL_md = y(jmax_overlap) - y(jmino) + DY_PURE_MD
+    !yL_md = real(floor(yL_md/b),kind(0.d0))*b
+    !DY_PURE_MD = yL_md - (y(jmax_overlap) - y(jmino))
+
+	!Fix zL_md domain size to continuum
+	!zL_md = z(kmax_cfd) - z(kmin)
+
+    ! Initialise other md module variables if data is provided in coupler.in
+	if (md_average_period_tag == CPL) then 
+		average_period = md_average_period
+	endif
+	if (md_save_period_tag == CPL) then
+		save_period    = md_save_period
+	endif
+
+	!if (cfd_code_id_tag == CPL) then
+	!	cfd_code_id  = cfd_code_id_in
+	!endif
+    
+	if ( nsteps_md <= 0 ) then 
+		write(0,*) "Number of MD steps per dt interval <= 0"
+		write(0,*) "Coupler will not work, quitting ..."
+		call MPI_Abort(MPI_COMM_WORLD,COUPLER_ERROR_INIT,ierr)
+	endif
+
+	call MPI_barrier(MPI_COMM_WORLD,ierr)
+
+end subroutine coupler_md_init_es
 
 !=============================================================================
 ! Establish for all MD processors the mapping (if any) 
@@ -110,61 +270,43 @@ contains
 
 subroutine create_map_md
 	use mpi
-	use coupler_internal_common, only : COUPLER_ICOMM, cfd_is_2d, map
+	use coupler_module !, only : COUPLER_ICOMM, COUPLER_REALM_COMM, cfd_is_2d, map
 	implicit none
 
-	integer  i, ir, ireq(nproc_cfd), noverlaps, source, ierr
+	integer  i, ir, ireq(nproc_cfd), noverlaps, source, ierr, jmino, myid
 	integer, allocatable :: overlap_mask(:,:)
+
+	call MPI_barrier(COUPLER_REALM_COMM,ierr)
+
+	jmino = jmin-1
 
 	! compute the boundaries of this MD domain in the CFD global domain.
 	! assume that all domains have identical sides 
-	domain_lengths(:) = (/ xL_md/npx, yL_md/npy, zL_md/npz /)
+	domain_lengths(:) = (/ xL_md/npx_md, yL_md/npy_md, zL_md/npz_md /)
 	half_domain_lengths(:) = 0.5d0 * domain_lengths(:)
 
 	! bounding boxes coordinates start from x(imin), z(kmin) and y(jmino)-DY_PURE_MD
-	bbox%bb(1,:) = (icoord(:,myid_grid)-1) * domain_lengths(:) &
-					+ (/ x(imin_cfd), y(jmino)-DY_PURE_MD, z(kmin_cfd) /)
+	bbox%bb(1,:) = (icoord_md(:,myid_grid)-1) * domain_lengths(:) &
+					+ (/ xpg(1,imin), ypg(jmin,1)-DY_PURE_MD, zpg(kmin) /)
 	bbox%bb(2,:) =  bbox%bb(1,:) + domain_lengths(:)
-
-	!print*, 'Create Maps', xL_md/npx, yL_md/npy, zL_md/npz,myid_grid, (icoord(:,myid_grid)-1),  & 
-	!					   (icoord(:,myid_grid)-1)*domain_lengths(:), x(imin_cfd), y(jmino)-DY_PURE_MD, z(kmin_cfd), domain_lengths, &
-	!						bbox%bb(1,:),bbox%bb(1,:)
-
-	! for 2D CFD problem one must broadcast  back the zL_md,z,dz
-    ! because MD sets it
-    if (cfd_is_2d) then
-        if ( myid == 0 ) then
-            source=MPI_ROOT
-        else
-            source=MPI_PROC_NULL
-        endif
-        call mpi_bcast(z, size(z), MPI_DOUBLE_PRECISION, source, COUPLER_ICOMM,ierr)
-        call mpi_bcast((/kmino,kmin_cfd,kmax_cfd,kmaxo/), 4, MPI_INTEGER, source, COUPLER_ICOMM,ierr)
-    endif
-	!write(0,*) 'MD: bbox%bb ', myid, bbox%bb !, domain, npx, npy, npz, xL_md, yL_md, zL_md, icoord_md
 
 	call make_bbox
 
-	write(0,*) 'MD: bbox%is ', myid, jmax_overlap_cfd, bbox%is, bbox%ie, bbox%js, bbox%je, bbox%ks, bbox%ke 
+	write(0,*) 'MD: bbox%is ', myid, jmax_overlap, bbox%is, bbox%ie, bbox%js, bbox%je, bbox%ks, bbox%ke 
 
 	! Send the overlapping box indices to CFD processors
 	call mpi_allgather((/ bbox%iso, bbox%ieo, bbox%jso, bbox%jeo, bbox%kso, bbox%keo /), & 
 							 6,MPI_INTEGER,MPI_BOTTOM,0,MPI_INTEGER,COUPLER_ICOMM,ierr)
 
 	! Receive domain overlap mask from CFD processors
-	allocate(overlap_mask(0:nproc-1,0:nproc_cfd-1))
-	call mpi_allgather(MPI_BOTTOM,0,MPI_INTEGER,overlap_mask,nproc,MPI_INTEGER,COUPLER_ICOMM,ierr)
-
-	!		write(0,'(a,32I3)') 'MD, overlap mask: ', overlap_mask
-
+	allocate(overlap_mask(0:nproc_md-1,0:nproc_cfd-1))
+	call mpi_allgather(MPI_BOTTOM,0,MPI_INTEGER,overlap_mask,nproc_md,MPI_INTEGER,COUPLER_ICOMM,ierr)
 	noverlaps = 0
 	do i = 0, nproc_cfd - 1
 		if ( overlap_mask(myid,i) == 1) then 
 			noverlaps = noverlaps + 1
 		endif
 	enddo
-
-	!		write(0,'(a,32I3)') 'MD, noverlaps: ', myid, noverlaps
 
 	! sort out which CFD ranks hold non-void domains for this MD rank
 	map%n = noverlaps
@@ -186,18 +328,13 @@ subroutine create_map_md
 		call write_overlap_map
 	endif
 
-	! allocate array for CFD velocities and initialize the time indices; 
-	!allocate(vel_fromCFD(3,bbox%ie - bbox%is + 1, bbox%je - bbox%js + 1 , bbox%ke - bbox%ks + 1 ,2))
-	!vel_fromCFD = 0.d0
-	!itm1 = 2; itm2 = 1
-
     ! set the CFD box information for MD application
-    cfd_box%gimin = imin_cfd
-    cfd_box%gimax = imax_cfd
-    cfd_box%gjmin = jmin_cfd
-    cfd_box%gjmax = jmax_cfd
-    cfd_box%gkmin = kmin_cfd
-    cfd_box%gkmax = kmax_cfd
+    cfd_box%gimin = imin
+    cfd_box%gimax = imax
+    cfd_box%gjmin = jmin
+    cfd_box%gjmax = jmax
+    cfd_box%gkmin = kmin
+    cfd_box%gkmax = kmax
     cfd_box%imin = bbox%is
     cfd_box%imax = bbox%ie
     cfd_box%jmin = bbox%js
@@ -210,16 +347,16 @@ subroutine create_map_md
     cfd_box%jmaxo = bbox%jeo
     cfd_box%kmino = bbox%kso
     cfd_box%kmaxo = bbox%keo
-    cfd_box%xmin = x(bbox%is) - bbox%bb(1,1) - half_domain_lengths(1)
-    cfd_box%xmax = x(bbox%ie) - bbox%bb(1,1) - half_domain_lengths(1)
-    cfd_box%dx   = x(imin_cfd+1) - x(imin_cfd)
+    cfd_box%xmin = xpg(1,bbox%is) - bbox%bb(1,1) - half_domain_lengths(1)
+    cfd_box%xmax = xpg(1,bbox%ie) - bbox%bb(1,1) - half_domain_lengths(1)
+    cfd_box%dx   = xpg(1,imin+1) - xpg(1,imin)
     cfd_box%ymin = bbox%bb(1,2)
     cfd_box%ymax = bbox%bb(2,2)
     allocate(cfd_box%y(cfd_box%jmin:cfd_box%jmax))
-    cfd_box%y(cfd_box%jmin:cfd_box%jmax) = y(cfd_box%jmin:cfd_box%jmax)-bbox%bb(1,2) - half_domain_lengths(2)
-    cfd_box%zmin = z(bbox%ks) - bbox%bb(1,3) - half_domain_lengths(3)
-    cfd_box%zmax = z(bbox%ke) - bbox%bb(1,3) - half_domain_lengths(3)
-    cfd_box%dz   = z(kmin_cfd+1) - z(kmin_cfd)
+    cfd_box%y(cfd_box%jmin:cfd_box%jmax) = ypg(cfd_box%jmin:cfd_box%jmax,1)-bbox%bb(1,2) - half_domain_lengths(2)
+    cfd_box%zmin = zpg(bbox%ks) - bbox%bb(1,3) - half_domain_lengths(3)
+    cfd_box%zmax = zpg(bbox%ke) - bbox%bb(1,3) - half_domain_lengths(3)
+    cfd_box%dz   = zpg(kmin+1) - zpg(kmin)
 
 contains 
 
@@ -244,47 +381,25 @@ contains
 		type(grid_pointer) grid_ptr(3)
 		type(bbox_pointer) bbox_ptr(3)
 
-		integer id, ngp, grid_sizes(2,3), halo_size(2,3), idmin(3),ierr
+		integer ixyz, ngp, grid_sizes(2,3), halo_size(2,3), idmin(3),ierr
 		real(kind=kind(0.d0)) pl,pr,eps  ! left right grid points
 		logical found_start
 
 		! indices covering the CFD physical domain
-		grid_sizes(:, :) = reshape((/ imin_cfd, imax_cfd, jmin_cfd, jmax_overlap_cfd, kmin_cfd, kmax_cfd /),(/2,3/))
+		grid_sizes(:, :) = reshape((/ imin, imax, jmin, jmax_overlap, kmin, kmax /),(/2,3/))
 
 		! starting indices (first in physical domain) in all directions
-		idmin = (/ imin_cfd, jmin_cfd, kmin_cfd /)
-
-		! write(0,*) 'MD: make box grid_sizes, idmin ', grid_sizes, idmin
+		idmin = (/ imin, jmin, kmin /)
 
 		! how large is the halo in each direction, depending also on the MD domain position
         ! this is to ensure that all MD domain is covered, also useful to collect quantites
         ! from particles that have left the MD domain
-		halo_size(:,:) = 1
-
-		! special values for the boundaries
-		if ( icoord(2,myid_grid) == 1 ) then 
-			halo_size(1,2) = 0
-		endif
-		if ( icoord(2,myid_grid) == npy ) then
-			halo_size(2,2) = 0
-		endif
-		if (icoord(1, myid_grid) == 1) then
-			halo_size(1,1) = 0
-		endif
-		if (icoord(1, myid_grid) == npx) then 
-			halo_size(2,1) = 0
-		endif
-		if (icoord(3, myid_grid) == 1) then 
-			halo_size(1,3) = 0
-		endif
-		if (icoord(3, myid_grid) == npz) then 
-			halo_size(2,3) = 0
-		endif
+		halo_size(:,:) = 0
 
 		! pointer to grid coordinates. Helpful to loop through dimensions
-		grid_ptr(1)%p => x(imin_cfd:imax_cfd)
-		grid_ptr(2)%p => y(jmin_cfd:jmax_overlap_cfd)
-		grid_ptr(3)%p => z(kmin_cfd:kmax_cfd)
+		grid_ptr(1)%p => xpg(1,imin:imax)
+		grid_ptr(2)%p => ypg(jmin:jmax_overlap,1)
+		grid_ptr(3)%p => zpg(kmin:kmax)
 
 		bbox_ptr(1)%starto => bbox%iso
         bbox_ptr(1)%start  => bbox%is
@@ -299,56 +414,51 @@ contains
 		bbox_ptr(3)%endo   => bbox%keo
         bbox_ptr(3)%end    => bbox%ke
 
-        do id=1,3
 
-        	!If there is only one CFD cell in a direction then things can be made simpler.
-        	!One CFD cell means that direction is used to improve MD statistics. 
-            if ( grid_sizes(2,id) - grid_sizes(1,id) == 1) then
-				bbox_ptr(id)%starto = grid_sizes(1,id)
-                bbox_ptr(id)%start  = grid_sizes(1,id)
-				bbox_ptr(id)%endo   = grid_sizes(2,id)
-                bbox_ptr(id)%end    = grid_sizes(2,id)
-    
-				cycle
-			endif
+		!Loop through all 3 Dimensions
+        do ixyz=1,3
 
-			eps = 1.d-2 * (grid_ptr(id)%p(2) - grid_ptr(id)%p(1))
-			!write(0,*) "MD: make box, grid step", myid, id, eps, grid_ptr(id)%p(1),bbox%bb(:,id)!   , grid_step !,x,y,z
+			!Define small number
+			eps = 1.d-2 * (grid_ptr(ixyz)%p(2) - grid_ptr(ixyz)%p(1))
+
+			!Check for special case of first processor containing first cell in global domain
 			found_start = .false.
-
-			if ( grid_ptr(id)%p(1) >= bbox%bb(1,id) - eps &
-				.and. grid_ptr(id)%p(1) < bbox%bb(2,id) ) then 
+			if ( grid_ptr(ixyz)%p(1) >= bbox%bb(1,ixyz) - eps &
+				.and. grid_ptr(ixyz)%p(1) < bbox%bb(2,ixyz) ) then 
 				found_start = .true.
-				bbox_ptr(id)%starto = idmin(id) - halo_size(1,id)
-                bbox_ptr(id)%start  = idmin(id)
-				!write(0,*) "MD make box l", myid,id,bbox_ptr(id)%start
+				bbox_ptr(ixyz)%starto = idmin(ixyz) - halo_size(1,ixyz)
+                bbox_ptr(ixyz)%start  = idmin(ixyz)
+				!write(0,*) "MD make box l", myid,ixyz,bbox_ptr(ixyz)%start
 			endif
 
-			ngp = grid_sizes(2,id) - grid_sizes(1,id) + 1
-
+			! On each processor, loop through all (global) cells in the domain (ngp) and store,
+			! when found, the start and end cells covered by current processes' local domain extents
+			ngp = grid_sizes(2,ixyz) - grid_sizes(1,ixyz) + 1
 			do i=2, ngp
-				pl = grid_ptr(id)%p(i-1)
-				pr = grid_ptr(id)%p(i) 
-				!write(0,*), 'MD make bbox ', myid, id,ngp,i,pl,pr, bbox%bb(:,id) 
+				pl = grid_ptr(ixyz)%p(i-1)
+				pr = grid_ptr(ixyz)%p(i) 
+				!write(0,*), 'MD make bbox ', myid, ixyz,ngp,i,pl,pr, bbox%bb(:,ixyz) 
+				!If processor starting cell is not yet found, continue to check
 				if (.not. found_start )then
-					if ( pl < bbox%bb(1,id)  .and. pr >=  bbox%bb(1,id) - eps ) then 
+					!Check if current cell is processor starting cell
+					if ( pl < bbox%bb(1,ixyz)  .and. pr >=  bbox%bb(1,ixyz) - eps ) then 
 						found_start = .true.
-
-						! here comes the decision of how much one want to cover
-						bbox_ptr(id)%starto = idmin(id) + i - 1 - halo_size(1,id)
-                        bbox_ptr(id)%start  = idmin(id) + i - 1
-						!write(0,*), 'MD make bbox l', myid, id,i, pl, pr, bbox_ptr(id)%start
+						bbox_ptr(ixyz)%starto = idmin(ixyz) + i - 1 - halo_size(1,ixyz)
+                        bbox_ptr(ixyz)%start  = idmin(ixyz) + i - 1
+						!write(0,*), 'MD make bbox l', myid, ixyz,i, pl, pr, bbox_ptr(ixyz)%start
 					endif
+				!Else, check if final cell in domain is found yet
 				else
-					if ( (i < ngp  .and. pl <= bbox%bb(2,id) + eps  .and. pr > bbox%bb(2,id))) then
-						bbox_ptr(id)%endo = idmin(id) + i - 1 - 1 + halo_size(2,id)
-                        bbox_ptr(id)%end  = idmin(id) + i - 1 - 1
-						!write(0,*), 'MD make bbox r', myid, id, i, pl, pr ,  bbox_ptr(id)%end		     
+					if ( (i < ngp  .and. pl <= bbox%bb(2,ixyz) + eps  .and. pr > bbox%bb(2,ixyz))) then
+						bbox_ptr(ixyz)%endo = idmin(ixyz) + i - 1 - 1 + halo_size(2,ixyz)
+                        bbox_ptr(ixyz)%end  = idmin(ixyz) + i - 1 - 1
+						!write(0,*), 'MD make bbox r', myid, ixyz, i, pl, pr ,  bbox_ptr(ixyz)%end		     
 						exit
-					else if (i == ngp  .and. abs( pr - bbox%bb(2,id)) < eps ) then 
-						bbox_ptr(id)%endo = idmin(id) + ngp - 1 + halo_size(2,id)
-                        bbox_ptr(id)%end  = idmin(id) + ngp - 1
-						!write(0,*), 'MD make bbox r', myid, id,i, pl, pr, bbox_ptr(id)%end
+					!Special case of final processor in Domain containing last cell
+					else if (i == ngp  .and. abs( pr - bbox%bb(2,ixyz)) < eps ) then 
+						bbox_ptr(ixyz)%endo = idmin(ixyz) + ngp - 1 + halo_size(2,ixyz)
+                        bbox_ptr(ixyz)%end  = idmin(ixyz) + ngp - 1
+						!write(0,*), 'MD make bbox r', myid, ixyz,i, pl, pr, bbox_ptr(ixyz)%end
 					endif
 				endif
 			enddo
@@ -361,11 +471,11 @@ contains
 
 
 		! Set maximum local grid sizes
-		nlx = bbox%ieo - bbox%iso + 1
-		nly = bbox%jeo - bbox%jso + 1
-		nlz = bbox%keo - bbox%kso + 1
+		nlgx_md = bbox%ieo - bbox%iso + 1
+		nlgy_md = bbox%jeo - bbox%jso + 1
+		nlgz_md = bbox%keo - bbox%kso + 1
 
-		write(0,*)' MD: bbox ', myid, bbox, nlx, nly, nlz
+		write(0,*)' MD: bbox ', myid, bbox, nlgx_md, nlgy_md, nlgz_md
 
 	end subroutine make_bbox
 
@@ -406,7 +516,7 @@ end function map_cfd2md
 
 subroutine write_overlap_map
 	use mpi
-	use coupler_internal_common
+	use coupler_module
 	implicit none
 
 	integer, parameter :: max_msg_length = 1024
@@ -416,8 +526,9 @@ subroutine write_overlap_map
 	character(len=max_msg_length) msg, rec
 	character(len=100) fmtstr
 	
-	integer fh, i, n, ierr
+	integer fh, i, n, ierr, myid
 
+    call MPI_comm_rank(COUPLER_REALM_COMM,myid,ierr)
 	call mpi_file_open(COUPLER_REALM_COMM,filename,MPI_MODE_CREATE+MPI_MODE_WRONLY,MPI_INFO_NULL,fh,ierr)
 	call mpi_file_set_size(fh,0_MPI_OFFSET_KIND,ierr) ! discard previous data
 

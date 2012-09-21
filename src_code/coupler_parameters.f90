@@ -12,11 +12,15 @@
 module coupler_parameters
 	implicit none
 	save
-     
+
+
+  ! tags values
+	integer, parameter :: VOID=666,CPL=777,CFD=888 ! tag values marking the input file for domain data
+
 	! realms
 	integer, parameter :: COUPLER_CFD = 1, COUPLER_MD = 2
 	character(len=*),parameter :: code_name(2) = (/ "CFD", "MD " /)
- 	integer COUPLER_REALM 
+ 	!integer COUPLER_REALM 
 
 	! error codes
 	integer, parameter :: COUPLER_ERROR_REALM  = 1,     &  ! wrong realm value
@@ -31,6 +35,7 @@ module coupler_parameters
     ! CFD code ids useful for MD
     integer, parameter :: couette_serial=101, couette_parallel=102
 
+	!THIS IS NOT A PARAMETER!!!!!!!!!!!!!!
     !derived type that describes the local CFD grid for MD subroutine 
     type cfd_grid_info
         !indices for the cfd grid box covering the local domain, outside and inside

@@ -16,9 +16,6 @@
 module coupler_input_data
 	implicit none
 
-  ! tags values
-	integer, parameter :: VOID=666,CPL=777,CFD=888 ! tag values marking the input file for domain data
-
 	type cfd_domain_sizes
 		SEQUENCE 							! useful for MPI
 		integer tag 						! tells from which input file domain values are taken
@@ -65,19 +62,19 @@ module coupler_input_data
 	integer 				:: md_save_period			! save data for velocity profile every ... CFD step
 	integer, target 		:: md_save_period_tag	
 
-	!stop_tag used in request_abort - declared in coupler_internal_common
+	!stop_tag used in request_abort - declared in coupler_module
 
-	! staggered_averages - declared in coupler_internal_common
+	! staggered_averages - declared in coupler_module
 	
 	integer				 :: md_steps_per_dt_cfd	  ! number of MD steps per CFD step
 	integer, target		 :: md_steps_per_dt_cfd_tag
 
-	integer 				:: md_cfd_match_cellsize		!Force MD cells to be an integer multiple of CFD cell size
-	integer, target 		:: md_cfd_match_cellsize_tag
+	integer 			 :: md_cfd_match_cellsize		!Force MD cells to be an integer multiple of CFD cell size
+	integer, target 	 :: md_cfd_match_cellsize_tag
 
-	character(len=64) 		:: cfd_code_name ! used to set cfd_code_id in MD
+	character(len=64)	:: cfd_code_name ! used to set cfd_code_id in MD
 	integer		   		:: cfd_code_id
-	integer, target   		:: cfd_code_id_tag
+	integer, target		:: cfd_code_id_tag
 
 	! auxiliary list for easy manipulation
 	integer,parameter 		:: nsections=12 ! total number of section in input files
@@ -88,7 +85,7 @@ contains
 subroutine read_coupler_input
 	use mpi
 	use coupler_parameters
-	use coupler_internal_common
+	use coupler_module
 	implicit none 
 
 	integer ndim, myid, myid_cfd, iroot_global, ierr
