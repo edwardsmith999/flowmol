@@ -3,31 +3,31 @@
 ! Data structures needed by coupler internal subroutines
 !
 !-----------------------------------------------------------------------------
-module coupler_internal_common
+module coupler_module
     implicit none    
 
     integer COUPLER_GLOBAL_COMM ! duplicate of MPI_COMM_WORLD, useful for input transfers
     integer COUPLER_REALM_COMM	! internal communicator inside the realm, split of COUPLER_GLOBAL_COMM
-    integer COUPLER_ICOMM	! CFD - MD intracommunicator between COUPLER_REALM_COMM
-    integer COUPLER_GRID_COMM ! duplicate of CFD or MD topology communicator
+    integer COUPLER_ICOMM		! CFD - MD intracommunicator between COUPLER_REALM_COMM
+    integer COUPLER_GRID_COMM 	! duplicate of CFD or MD topology communicator
 
     type overlap_map
-        integer n ! number of ranks that overlap with this domain
-        integer, allocatable :: rank_list(:) ! rank list of overelapping  bins
-        integer, allocatable :: domains(:,:) ! range of overlapping indices between this domain and overlapping boxes 
+        integer				 				:: n 		 ! number of ranks that overlap with this domain
+        integer,dimension(:), allocatable 	:: rank_list ! rank list of overelapping  bins
+        integer,dimension(:,:),allocatable 	:: domains   ! range of overlapping indices between domain and overlapping boxes 
     end type overlap_map
-    type(overlap_map) :: map
+    type(overlap_map) 	:: map
 
     ! flag marking 2d CFD solver
-    logical :: cfd_is_2d = .false. ! set true if dz<=0 or kmax_cfd=kmin_cfd
+    logical 			:: cfd_is_2d = .false. ! set true if dz<=0 or kmax_cfd=kmin_cfd
 
-    logical :: stop_request_activated = .false. ! request_abort is active or not (optimisation) 
+    logical 			:: stop_request_activated = .false. ! request_abort is active or not (optimisation) 
     
-    character(len=64) :: stop_request_name="none"
-    integer, target   :: stop_request_tag
+    character(len=64)	:: stop_request_name="none"
+    integer, target		:: stop_request_tag
 
-    logical           :: staggered_averages(3) = (/ .false., .false., .false. /)
-    integer, target   :: staggered_averages_tag
+    logical				:: staggered_averages(3) = (/ .false., .false., .false. /)
+    integer, target		:: staggered_averages_tag
 
 contains
 
@@ -68,4 +68,4 @@ subroutine request_stop(tag)
 end subroutine request_stop
 
 
-end module coupler_internal_common
+end module coupler_module
