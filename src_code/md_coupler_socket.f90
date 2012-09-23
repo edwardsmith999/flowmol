@@ -20,9 +20,11 @@
 
 
 module md_coupler_socket
-	implicit none
 
 #if USE_COUPLER 
+
+	use coupler
+	implicit none
 
     ! CFD id
     integer cfd_code_id 
@@ -39,13 +41,53 @@ module md_coupler_socket
 
 contains
 
+
+!=============================================================================
+! Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup
+!
+!								SETUP
+!
+! Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup
+!=============================================================================
+
+!=============================================================================
+! Invoke messenger and split inter-communicators 
+!-----------------------------------------------------------------------------
+subroutine socket_coupler_invoke
+	use messenger
+	implicit none
+
+	call coupler_create_comm(COUPLER_MD,MD_COMM,ierr)
+    prefix_dir = "./md_data/"
+
+end subroutine socket_coupler_invoke
+
+!=============================================================================
+!  Read coupler input files
+!-----------------------------------------------------------------------------
+subroutine socket_read_coupler_input
+	use messenger
+	use coupler_input_data, only : read_coupler_input
+    use coupler_module, only : request_stop
+	implicit none
+
+	call read_coupler_input		! Read COUPLER.in input file
+
+    ! stop if requested ( useful for development )
+	call request_stop("create_comm") ! stops here if in COUPLER.in stop requestis set to "create_comm"
+
+end subroutine socket_read_coupler_input
+
+
 !=============================================================================
 ! Setup initial times based on coupled calculation
 !-----------------------------------------------------------------------------
 subroutine socket_coupler_init
     use interfaces
 	use coupler
-	use computational_constants_MD, only : npx,npy,npz,delta_t,elapsedtime,Nsteps,initialstep, delta_t
+	use coupler_input_data, only : md_cfd_match_cellsize
+	use computational_constants_MD, only : npx,npy,npz,delta_t,elapsedtime, & 
+											Nsteps,initialstep, delta_t
 	use messenger, only	      :  myid, icoord, icomm_grid
 	implicit none
 
@@ -75,7 +117,296 @@ subroutine socket_coupler_init
 				"*********************************************************************"   
 	endif 
 
+	! Setup the domain and cells in the MD based on coupled data
+	call set_parameters_global_domain_coupled
+	print*, 'md_cfd_match_cellsize',md_cfd_match_cellsize
+	if (md_cfd_match_cellsize .eq. 0) then
+		call set_parameters_cells
+ 	else
+		call set_parameters_cells_coupled
+	endif
+
 end subroutine socket_coupler_init
+
+
+!=============================================================================
+! Setup initial times based on coupled calculation
+!-----------------------------------------------------------------------------
+subroutine socket_coupler_init_es
+    use interfaces
+	use coupler_input_data, only : md_cfd_match_cellsize
+	use computational_constants_MD, only : npx,npy,npz,delta_t,elapsedtime, & 
+										   Nsteps,initialstep,delta_t, & 
+										   globaldomain,initialnunits
+	use physical_constants_MD, only : nd,density
+	use messenger, only	 :  myid, icoord, icomm_grid
+	use coupler_internal_md, only : coupler_md_init_es
+	implicit none
+
+ 	integer			 :: naverage, nsteps_cfd, ixyz
+	real(kind(0.d0)) :: delta_t_CFD
+
+	!Establish Domain size from MD inputs
+	do ixyz=1,nd
+		globaldomain(ixyz) = initialnunits(ixyz) & 	
+		/((density/4.d0)**(1.d0/nd))
+	enddo
+
+	! If coupled calculation prepare exchange layout
+	call coupler_md_init_es(nsteps,delta_t,icomm_grid,icoord,(/ npx,npy,npz /),globaldomain,density)
+
+	! Setup the domain and cells in the MD based on coupled data
+	call set_parameters_global_domain_coupled
+	if (md_cfd_match_cellsize .eq. 0) then
+		call set_parameters_cells
+ 	else
+		call set_parameters_cells_coupled
+	endif
+
+	! Setup timesteps and simulation timings
+	call set_coupled_timing
+
+end subroutine socket_coupler_init_es
+
+!=============================================================================
+! get the global domain lenghts from x, y, z array of CFD realm
+
+subroutine set_parameters_global_domain_coupled
+	use computational_constants_MD
+	use physical_constants_MD
+	use messenger!, only : myid
+	use coupler 
+	use coupler_module, b0 => MD_initial_cellsize
+	implicit none
+
+	integer          ixyz, n0(3)
+
+    ! fix the numner of FCC cells starting from CFD density
+    !density = coupler_md_get_density()
+
+    ! size of cubic FCC cell
+    b0=(4.d0/density)**(1.0d0/3.0d0)
+    !call coupler_md_get(xL_md=xL_md,yL_md=yL_md,zL_md=zL_md,MD_initial_cellsize=b0)
+    n0(:) = nint( (/ xL_md, yL_md, zL_md/) / b0)
+    initialunitsize(1:3) = b0
+    initialnunits(1:3) 	 = n0(:)
+
+	write(*,*) 'density etc',  density, xL_md,yL_md,zL_md,b0,n0
+
+	call MPI_barrier(MD_COMM,ierr)
+   
+    ! set zL_md for for 2d CFD solvers
+    if (zl_md <= 0.d0) then
+        ! number of FCC cell in z direction per MPI ranks is choosen the minimal one 
+        initialnunits(3)   = ceiling(3*(rcutoff+delta_rneighbr)/initialunitsize(3)) * npz
+        zL_md =  initialnunits(3)* initialunitsize(3)
+        call coupler_md_set(zL_md = zL_md)      
+    endif
+
+	!Set MD domain values
+	globaldomain(1) = xL_md
+	globaldomain(2) = yL_md
+	globaldomain(3) = zL_md
+	volume   = xL_md*yL_md*zL_md
+
+    ! no need to fix globalnp if we have it already
+    if(.not. restart) then
+		globalnp=1      !Set number of particles to unity for loop below
+		do ixyz=1,nd
+			globalnp = globalnp*initialnunits(ixyz)		!One particle per unit cell
+		enddo
+		globalnp=4*globalnp   !FCC structure in 3D had 4 molecules per unit cell
+    endif
+
+    np = globalnp / nproc	
+
+	domain(1) = globaldomain(1) / real(npx, kind(0.d0))			!determine domain size per processor
+	domain(2) = globaldomain(2) / real(npy, kind(0.d0))			!determine domain size per processor
+	domain(3) = globaldomain(3) / real(npz, kind(0.d0))			!determine domain size per processor
+
+	do ixyz=1,nd
+		halfdomain(ixyz) = 0.5d0*domain(ixyz)			!Useful definition
+	enddo
+
+	write(0,*) 'set_parameter_global_domain_hybrid ', globalnp, np, domain, initialunitsize
+
+    if(myid .eq. 0) then
+        write(*,'(a/a/a,f5.2,a,f5.2,/,a,3(f5.2),a,/,a,3(I6),/,a)') &
+                    "**********************************************************************", &
+                    "WARNING - this is a coupled run which resets the following parameters:", &
+                    " density         =", density ,                                           & 
+                    " hence the cubic FCC side  is b=", b0 ,                                  &
+                    " initialunitsize =", initialunitsize(:)/b0," in b units ",               &     
+                    " initialnunits   =", initialnunits(:),                                   &
+                    "**********************************************************************"
+    endif
+
+end subroutine set_parameters_global_domain_coupled
+
+!-----------------------------------------------------------------------------
+! Adjust MD cells to match to continuum
+
+subroutine set_parameters_cells_coupled
+	use interfaces
+	use computational_constants_MD
+	use physical_constants_MD
+	use polymer_info_MD
+	use messenger, only : myid
+	use coupler
+	use coupler_module, only : imax,imin,jmax,jmin,kmax,kmin,dx,dy,dz
+	implicit none
+
+	integer 						:: ixyz
+	integer,dimension(3) 			:: max_ncells,cfd_ncells,cfd_md_cell_ratio
+	double precision 				:: rneighbr
+	double precision ,dimension(3) 	:: cfd_cellsidelength, maxdelta_rneighbr
+    type(cfd_grid_info)				:: cfd_box
+
+	!In coupled simulation, passed properties are calculated from cell lists
+	!for efficiency. The size of the cells should therefore be a multiple
+	!of the continuum cellsizes
+    cfd_ncells(1) = imax - imin
+    cfd_ncells(2) = jmax - jmin
+    cfd_ncells(3) = kmax - kmin
+
+	!Check number of cells based on rcutoff and neighbourlist size
+	max_ncells= floor(domain/rcutoff)
+
+	!Calculate ratio of CFD to maximum numbers of cells
+	cfd_cellsidelength(1) = dx
+	cfd_cellsidelength(2) = dy
+	cfd_cellsidelength(3) = dz
+	cellsidelength(:) 	  = domain(:)/max_ncells(:)
+	cfd_md_cell_ratio(:)  = floor(cfd_cellsidelength(:)/cellsidelength(:))
+
+	!Determine side length of cells after rounding and MD ncells
+	cellsidelength = cfd_cellsidelength/cfd_md_cell_ratio
+	ncells = ceiling(domain/cellsidelength)
+	!print*, 'IS this ok?',cfd_cellsidelength, ncells, cellsidelength,  domain,size(x), size(y)
+
+	!Ensure domain allows MD cells to be a multiple of CFD cell sizes...
+	if (any(abs(domain(:)/cellsidelength(:)-nint(domain(:)/cellsidelength(:))) .gt. 0.01)) & 
+		call error_abort("ERROR - CFD cellsize and MD cellsize not compatible - Adjust domain size to      &
+						&  correct this or remove MD_CFD_MATCH_CELLSIZE from COUPLER input")
+	cellsidelength = domain/ncells
+
+	!Recalculate required delta_rneighbr to ensure integer numbers of cells for both domains 
+	delta_rneighbr = minval(domain/ncells-rcutoff)
+
+	!Calculate size of neighbour list region
+	rneighbr  = rcutoff + delta_rneighbr
+	rneighbr2 = (rcutoff + delta_rneighbr)**2
+
+	!print'(a,6f10.5)', 'domains', domain, x(imax_cfd)-x(imin_cfd),y(jmax_cfd)-y(jmin_cfd),z(kmax_cfd)-z(kmin_cfd)
+	!print'(a,12i8)',      'cell', cfd_md_cell_ratio,cfd_ncells,ncells,max_ncells
+	!print'(a,6f10.5)', 'cellsize', cfd_cellsidelength(:),cellsidelength(:)
+
+	if (potential_flag .eq. 1) then
+		select case(solvent_flag)
+		case(0:1)
+			if (rneighbr < R_0) then
+				rneighbr = R_0 
+				rneighbr2 = R_0**2
+				print*, 'Neighbour list distance rneighbr set to &
+						& maximum elongation of polymer spring, ',R_0
+			end if
+		case(2)
+			if (rneighbr < sod_cut) then
+				rcutoff   = sod_cut
+				rcutoff2  = sod_cut2
+				rneighbr  = rcutoff + delta_rneighbr
+				rneighbr2 = rneighbr**2.d0
+			end if
+		case default
+			call error_abort('Unrecognised solvent_flag in set_parameters_cells')
+		end select
+	endif
+
+	if (ncells(1)<3 .or. ncells(2)<3 .or. ncells(3)<3) then
+		print*, ncells(1),'    in x and ', ncells(2), '    in y' , ncells(3), '    in z' 
+		call  error_abort( "ERROR - DOMAIN SHOULD HAVE AT LEAST 3 CELLS, &
+		 					& IN X, Y AND Z - INCREASE NUMBER OF UNITS IN INPUT")
+	endif
+
+    if(myid == 0) then
+        write(*,'(a/a/a,f8.6,/,a,3i8,/,a,3(f8.5),/,a,3(i8),/,a)') &
+                    "**********************************************************************", &
+                    "WARNING - this is a coupled run which resets the following parameters:", &
+	    	        " Extra cell size for neighbourlist =", delta_rneighbr  ,                 & 
+                    " MD computational cells per CFD cell = ",cfd_md_cell_ratio,  			  &
+					" cellsize =", cellsidelength(:),     									  &     
+                    " no of cell  =", ncells(:),                                   &
+                    "**********************************************************************"
+    endif
+
+	!Ensure CFD cells are not smaller than minimum possible MD cells
+	if (any(max_ncells .lt. cfd_ncells)) & 
+		call error_abort("ERROR - CFD cellsize smaller than minimum MD computational/averaging cell")
+
+end subroutine set_parameters_cells_coupled
+
+!-----------------------------------------------------------------------------
+!Setup ratio of CFD to MD timing and total number of timesteps
+
+subroutine set_coupled_timing
+	use computational_constants_MD
+	use messenger, only : myid
+	use coupler_input_data
+	use coupler_module
+	use coupler
+	implicit none
+
+	integer		:: naverage
+
+	!Set number of MD timesteps per CFD using ratio of timestep or coupler value
+	if(md_steps_per_dt_cfd_tag == CPL) then
+		nsteps_MD = md_steps_per_dt_cfd
+		nsteps_coupled = nsteps_cfd
+	else 
+		nsteps_MD = int(dt_cfd/dt_MD)
+		nsteps_coupled = nsteps_cfd
+	endif
+
+	! fix NSTEPS for the coupled case
+    nsteps_cfd = coupler_md_get_nsteps()
+    naverage   = coupler_md_get_md_steps_per_cfd_dt()
+    
+	Nsteps = initialstep + nsteps_cfd * naverage
+	elapsedtime = elapsedtime + nsteps_cfd * naverage * delta_t
+
+	if (myid .eq. 0) then 
+		write(*,'(2(a,/),a,i7,a,i7,/a,/a,f10.4,a/,a,f10.5,/a)') &
+				"*********************************************************************", 	&
+ 				"WARNING - WARNING - WARNING - WARNING - WARNING - WARNING - WARNING  ", 	&
+				" Current input timesteps from MD", nsteps_md, "and CFD", nsteps_cfd   ,	&
+				" this is a coupled run which resets the number of extrasteps to:     ", 	&
+				"								     ", 									&
+											nsteps_coupled*naverage,  							&
+				"								     ", 									& 
+				" The elapsed time was changed accordingly to: ", elapsedtime, " s    ", 	&
+				" The value of NSTEPS parameter form input file was discarded.	", 			&
+				"*********************************************************************"   
+	endif 
+
+end subroutine set_coupled_timing
+!=============================================================================
+! Establish mapping between MD an CFD
+!-----------------------------------------------------------------------------
+subroutine socket_create_map
+	implicit none
+
+	!Note coupler cannot be called directly so this socket is needed
+	call coupler_create_map
+
+end subroutine socket_create_map
+
+!=============================================================================
+! Simulation  Simulation  Simulation  Simulation  Simulation  Simulation  
+!
+!							SIMULATION
+!
+! Simulation  Simulation  Simulation  Simulation  Simulation  Simulation  
+!=============================================================================
 
 !=============================================================================
 ! Calculate averages of MD to pass to CFD
@@ -84,7 +415,6 @@ subroutine average_and_send_MD_to_CFD(iter)
 	use computational_constants_MD, only : initialstep, delta_t
 	use physical_constants_MD, only : np
 	use arrays_MD, only :r,v
-	use coupler
 	implicit none
 
 	integer, intent(in) :: iter
@@ -121,10 +451,9 @@ end subroutine average_and_send_MD_to_CFD
 
 subroutine coupler_md_boundary_cell_average(np,r,v,send_data)
 	use computational_constants_MD, only : iter
-    use coupler_internal_common, only : cfd_is_2d, staggered_averages
+    use coupler_module, only : cfd_is_2d, staggered_averages
 	use coupler_internal_md, only : myid, icoord, dx, dz, x, y, z, map_md2cfd, cfd_code_id,uc_bin
-    use coupler
-    use coupler_parameters
+     use coupler_parameters
 	use calculated_properties_MD, only : volume_momentum						
 	implicit none
 
@@ -410,8 +739,7 @@ subroutine average_and_send_MD_to_CFD2(iter)
 	use calculated_properties_MD, only : nbins
 	use physical_constants_MD, only : np
 	use arrays_MD, only :r,v
-   	use coupler_internal_common, only : staggered_averages
-	use coupler
+   	use coupler_module, only : staggered_averages
 	implicit none
 
 	integer, intent(in) :: iter
@@ -490,19 +818,19 @@ contains
 
 		!Velocity measurement for 3D bins throughout the domain
 		!Determine bin size
-    	cfdbins(1) = imax_cfd - imin_cfd
-    	cfdbins(2) = jmax_cfd - jmin_cfd
-    	cfdbins(3) = kmax_cfd - kmin_cfd
+    	cfdbins(1) = ngx
+    	cfdbins(2) = ngy
+    	cfdbins(3) = ngz
 
-		Vbinsize(1) = x(2) - x(1)
-		Vbinsize(2) = y(2) - y(1)
-		Vbinsize(3) = z(2) - z(1)
+		Vbinsize(1) = dx
+		Vbinsize(2) = dy
+		Vbinsize(3) = dz
 
 		!print*,'cellsizes',  domain, cfdbins, domain(:) / cfdbins(:),Vbinsize
 
-		rd(:) = (/ 0.d0 , y(jmino) , 0.d0 /)
+		rd(:) = (/ 0.d0 , ypg(jmin,1) , 0.d0 /)
 		cnst_bot = map_cfd2md(rd)
-		rd(:) = (/ 0.d0 , y(jmin ) , 0.d0 /)
+		rd(:) = (/ 0.d0 , ypg(jmin+1,1) , 0.d0 /)
 		cnst_top = map_cfd2md(rd)
 
 		minbin = ceiling((cnst_bot+halfdomain(:))/Vbinsize(:)) + nhb
@@ -604,11 +932,110 @@ contains
 
 end subroutine average_and_send_MD_to_CFD2
 
+
+!===================================================================================
+! Run through the particle, check if they are in the overlap region and
+! find the CFD box to which the particle belongs		 
+
+subroutine setup_CFD_box(iter,xmin,xmax,ymin,ymax,zmin,zmax,dx_cfd,dz_cfd,inv_dtCFD,itm1,itm2)
+	implicit none
+
+	!iteration step, it assumes that each MD average starts from iter = 1
+	integer, intent(in) 				:: iter 
+	integer, intent(inout) 				:: itm1,itm2 
+	real(kind=kind(0.d0)),intent(out)	:: xmin,xmax,ymin,ymax,zmin,zmax,dx_cfd,dz_cfd,inv_dtCFD
+
+	integer i, j, k, js, je, ib, jb, kb, nib, njb, nkb, ip,m, np_overlap
+	integer, save :: ncalls = 0
+    logical, save :: firsttime=.true., overlap
+	type(cfd_grid_info) cfd_box
+
+    save nib,njb,nkb
+
+	! check if this MD domain overlap with the region in which continuum
+	! force is applied
+    if (firsttime)then
+        firsttime=.false.
+        call coupler_md_get(overlap_with_continuum_force=overlap)
+
+        if (overlap) then 
+			! get cfd cell sizes
+			call coupler_md_get(cfd_box=cfd_box)
+			cfd_code_id = coupler_md_get_cfd_id()
+
+			! number of CFD cells in each direction
+			nib = cfd_box%imax - cfd_box%imin
+			njb = 1
+			nkb = cfd_box%kmax - cfd_box%kmin
+		
+			! layer extend in local coordinates, i.e. centered on MD box
+			xmin = cfd_box%xmin
+			xmax = cfd_box%xmax
+			ymin = cfd_box%y(cfd_box%jmax-2)
+			ymax = cfd_box%y(cfd_box%jmax-1)
+			zmin = cfd_box%zmin
+			zmax = cfd_box%zmax
+        
+			dx_cfd = cfd_box%dx
+			dz_cfd = cfd_box%dz
+
+			allocate(vel_cfd(3,nib,njb,nkb,2),vbuff(1,nkb,nib+1,njb))
+			vel_cfd = 0.d0
+            allocate(box_average(nib,njb,nkb))
+			! vel_fromCFD cell index from which continum velocity is collected
+			!jb_constrain =	  njb - 1 ! the second row of cells from the top
+		
+        endif
+    endif
+	
+	if (iter .eq. 1) then
+		! get the previous value of CFD velocities
+		! this call must be global at the moment
+		! because the whole CFD grid is transferred
+		! it will be optimised later
+        call coupler_recv_data(vbuff,index_transpose=(/2,3,1/))
+	
+        if ( .not. overlap) return
+
+        !swap the time indices and put the cfd velocities work array
+        itm1 = mod(itm1,2)+1
+        itm2 = mod(itm2,2)+1
+
+        select case (cfd_code_id)
+        case (couette_parallel)
+			do k=1,nkb
+			do j=1,njb
+			do i=1,nib
+				vel_cfd(1,i,j,k,itm1)= 0.5d0*(vbuff(1,k,i,j)+vbuff(1,k,i+1,j))
+			enddo
+ 			enddo
+			enddo
+        case (couette_serial)
+			do k=1,nkb
+			do j=1,njb
+			do i=1,nib
+				vel_cfd(1,i,j,k,itm1)= vbuff(1,k,i,j)
+ 			enddo
+			enddo
+			enddo
+        end select
+
+        ! at first CFD step we don't have two values to extrapolate CFD velocities, set inv_dtCFD=0
+        if (ncalls .eq. 0) then
+			inv_dtCFD = 0.0
+        else
+			inv_dtCFD = 1.0/coupler_md_get_dt_cfd()
+        endif
+        ncalls = ncalls + 1
+
+    endif
+
+end subroutine setup_CFD_box
+
 !=============================================================================
 !	Apply coupling forces so MD => CFD
 !-----------------------------------------------------------------------------
 subroutine socket_coupler_apply_continuum_forces(iter)
-	use coupler
 	use computational_constants_MD, only : delta_t
 	use physical_constants_MD, only : np
 	use arrays_MD, only :r,v,a
@@ -638,7 +1065,6 @@ end subroutine socket_coupler_apply_continuum_forces
 ! continuum value inside the overlap region. 
 !-----------------------------------------------------------------------------
 subroutine apply_continuum_forces(iter)
-	use coupler
     use physical_constants_MD, only : np
 	use computational_constants_MD, only : delta_t, nh, ncells, cellsidelength, halfdomain, delta_rneighbr
 	use linked_list
@@ -831,7 +1257,6 @@ end subroutine apply_continuum_forces
 !-----------------------------------------------------------------------------
 
 subroutine apply_continuum_forces_ES(iter)
-	use coupler
 	use computational_constants_MD, only : delta_t,nh,halfdomain,ncells,cellsidelength,initialstep,Nsteps
 	use arrays_MD, only : r, v, a
 	use linked_list, only : node, cell
@@ -1169,7 +1594,6 @@ contains
 	!Flux over the surface of a bin
 
 	subroutine get_Flux(icell,jcell,kcell,molnoi,molnoj,velvect,ri1,ri2,Fsurface)
-		use coupler
 		use librarymod, only : heaviside
 		implicit none
 
@@ -1324,7 +1748,6 @@ subroutine compute_force_surrounding_bins(icell,jcell,kcell,isumforce)
 	use calculated_properties_MD, only : nbins
 	use arrays_MD, only : r, v, a
 	use linked_list, only : node, cell
-	use coupler
 	implicit none
 
 	integer,intent(in)					:: icell,jcell,kcell
@@ -1409,7 +1832,6 @@ contains
 	!Forces over the surface of a bin
 
 	subroutine get_Fsurface(icell,jcell,kcell,molnoi,molnoj,fij,ri,rj,Fsurface)
-		use coupler
 		use librarymod, only : heaviside
 		implicit none
 
@@ -1458,105 +1880,6 @@ contains
 
 end subroutine compute_force_surrounding_bins
 
-!===================================================================================
-! Run through the particle, check if they are in the overlap region
-! find the CFD box to which the particle belongs		 
-
-subroutine setup_CFD_box(iter,xmin,xmax,ymin,ymax,zmin,zmax,dx_cfd,dz_cfd,inv_dtCFD,itm1,itm2)
-	use coupler
-	implicit none
-
-	!iteration step, it assumes that each MD average starts from iter = 1
-	integer, intent(in) 				:: iter 
-	integer, intent(inout) 				:: itm1,itm2 
-	real(kind=kind(0.d0)),intent(out)	:: xmin,xmax,ymin,ymax,zmin,zmax,dx_cfd,dz_cfd,inv_dtCFD
-
-	integer i, j, k, js, je, ib, jb, kb, nib, njb, nkb, ip,m, np_overlap
-	integer, save :: ncalls = 0
-    logical, save :: firsttime=.true., overlap
-	type(cfd_grid_info) cfd_box
-
-    save nib,njb,nkb
-
-	! check if this MD domain overlap with the region in which continuum
-	! force is applied
-    if (firsttime)then
-        firsttime=.false.
-        call coupler_md_get(overlap_with_continuum_force=overlap)
-
-        if (overlap) then 
-			! get cfd cell sizes
-			call coupler_md_get(cfd_box=cfd_box)
-			cfd_code_id = coupler_md_get_cfd_id()
-
-			! number of CFD cells in each direction
-			nib = cfd_box%imax - cfd_box%imin
-			njb = 1
-			nkb = cfd_box%kmax - cfd_box%kmin
-		
-			! layer extend in local coordinates, i.e. centered on MD box
-			xmin = cfd_box%xmin
-			xmax = cfd_box%xmax
-			ymin = cfd_box%y(cfd_box%jmax-2)
-			ymax = cfd_box%y(cfd_box%jmax-1)
-			zmin = cfd_box%zmin
-			zmax = cfd_box%zmax
-        
-			dx_cfd = cfd_box%dx
-			dz_cfd = cfd_box%dz
-
-			allocate(vel_cfd(3,nib,njb,nkb,2),vbuff(1,nkb,nib+1,njb))
-			vel_cfd = 0.d0
-            allocate(box_average(nib,njb,nkb))
-			! vel_fromCFD cell index from which continum velocity is collected
-			!jb_constrain =	  njb - 1 ! the second row of cells from the top
-		
-        endif
-    endif
-	
-	if (iter .eq. 1) then
-		! get the previous value of CFD velocities
-		! this call must be global at the moment
-		! because the whole CFD grid is transferred
-		! it will be optimised later
-        call coupler_recv_data(vbuff,index_transpose=(/2,3,1/))
-	
-        if ( .not. overlap) return
-
-        !swap the time indices and put the cfd velocities work array
-        itm1 = mod(itm1,2)+1
-        itm2 = mod(itm2,2)+1
-
-        select case (cfd_code_id)
-        case (couette_parallel)
-			do k=1,nkb
-			do j=1,njb
-			do i=1,nib
-				vel_cfd(1,i,j,k,itm1)= 0.5d0*(vbuff(1,k,i,j)+vbuff(1,k,i+1,j))
-			enddo
- 			enddo
-			enddo
-        case (couette_serial)
-			do k=1,nkb
-			do j=1,njb
-			do i=1,nib
-				vel_cfd(1,i,j,k,itm1)= vbuff(1,k,i,j)
- 			enddo
-			enddo
-			enddo
-        end select
-
-        ! at first CFD step we don't have two values to extrapolate CFD velocities, set inv_dtCFD=0
-        if (ncalls .eq. 0) then
-			inv_dtCFD = 0.0
-        else
-			inv_dtCFD = 1.0/coupler_md_get_dt_cfd()
-        endif
-        ncalls = ncalls + 1
-
-    endif
-
-end subroutine setup_CFD_box
 
 #if COUPLER_DEBUG_LA
 	! dump debug data 

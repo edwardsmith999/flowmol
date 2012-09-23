@@ -26,21 +26,24 @@
 subroutine setup_MD
 	use computational_constants_MD
 #if USE_COUPLER
-	use coupler
-	use md_coupler_socket, only : socket_coupler_init
+	use md_coupler_socket
 #endif
 	implicit none
+
 	call messenger_invoke                   !Initialises MPI
 
-	!Check to see if simulation is a restart of a previous simualtion
-	call setup_command_arguments            !Establish command line arguments specifying restart and input files
+#if USE_COUPLER
+	call socket_coupler_invoke				!INITIALISES COUPLER INTERCOMMUNICATOR
+	call socket_read_coupler_input			!READ COUPLER INPUT FILE
+#endif
+	call setup_command_arguments            !Process command line arguments specifying restart and input files
 
+	!Check to see if simulation is a restart of a previous simualtion
 	if (restart) then
-		!print*, 'Simulation restarted from file: ', initial_microstate_file
 		call messenger_init                 !Establish processor topology
 		call setup_restart_inputs           !Recover simulation inputs from file
 #if USE_COUPLER
-		call socket_coupler_init
+		call socket_coupler_init			!SETUP COUPLER AND EXCHANGE WITH CFD
 #endif
 		call setup_set_parameters           !Calculate parameters using input
 		call setup_restart_microstate       !Recover position and velocities
@@ -48,7 +51,7 @@ subroutine setup_MD
 		call messenger_init                 !Establish processor topology
 		call setup_inputs                   !Input simulation parameters
 #if USE_COUPLER
- 		call socket_coupler_init
+ 		call socket_coupler_init_es			!SETUP COUPLER AND EXCHANGE WITH CFD
 #endif
 		call setup_set_parameters           !Calculate parameters using input
 		call setup_initialise_microstate    !Setup position and velocities
@@ -60,7 +63,7 @@ subroutine setup_MD
 	call assign_to_neighbourlist		    !Build neighbourlist using cell list
 	call setup_initial_record               !Setup print headers and output inital
 #if USE_COUPLER
-	call coupler_create_map
+	call socket_create_map					!CREATE PROCESSOR AND CELL MAPPING
 #endif
 
 end subroutine setup_MD
@@ -82,9 +85,6 @@ subroutine simulation_MD
 #if USE_COUPLER
 	use md_coupler_socket, only : socket_coupler_apply_continuum_forces, &
 								  average_and_send_MD_to_CFD,average_and_send_MD_to_CFD2
-#if COUPLER_DEBUG_LA
-	use md_coupler_socket, only : write_uc
-#endif
 #endif
 	implicit none
   
@@ -107,11 +107,11 @@ subroutine simulation_MD
 
 contains
 
-!---------------------------------------------
-! 		Leapfrom integration routines
-subroutine md_advance_lfv
-	implicit none
-	
+	!---------------------------------------------
+	! 		Leapfrom integration routines
+	subroutine md_advance_lfv
+		implicit none
+		
 		call simulation_compute_forces 	                    !Calculate forces on particles	
 		call simulation_record                              !Evaluate & write properties
 
@@ -120,27 +120,21 @@ subroutine md_advance_lfv
 		call socket_coupler_apply_continuum_forces(iter)    !Apply coupling forces so MD => CFD
 		call average_and_send_MD_to_CFD(iter)				!Calculate averages of MD to pass to CFD
 #endif
+
 		call simulation_move_particles_lfv                  !Move particles as a result of forces
-
-#if USE_COUPLER
-#if COUPLER_DEBUG_LA
-		call write_uc(iter)
-#endif
-#endif
 		call messenger_updateborders(0)                     !Update borders between processors
-
 		call simulation_checkrebuild(rebuild)
 		if (rebuild .eq. 1) call rebuild_all
 		!if (mod(iter,20) .eq. 0) call rebuild_all			!FIXED REBUILD LIKE LAMMPS
 
-	end subroutine md_advance_lfv
+		end subroutine md_advance_lfv
 
-!---------------------------------------------
-!Velocity Verlet integration routines
-subroutine md_advance_vv
-	implicit none
+	!---------------------------------------------
+	!Velocity Verlet integration routines
+	subroutine md_advance_vv
+		implicit none
 
-	integer	n, ixyz
+		integer	n, ixyz
 
 		call simulation_move_particles_vv(1)        !Find r(t+dt) and v(t+dt/2)
 		call messenger_updateborders(0)             !Update borders between processors
@@ -152,8 +146,7 @@ subroutine md_advance_vv
 		call simulation_move_particles_vv(2)        !Find v(t+dt)
 		call simulation_record                      !Evaluate and write properties 
 
-end subroutine md_advance_vv
-
+	end subroutine md_advance_vv
 
 end subroutine simulation_MD
 

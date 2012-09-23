@@ -2,7 +2,6 @@
 !------------------------------DEFINE MODULES-----------------------------------------
 !=====================================================================================
 
-!-------------------------------------------------------------------------------------
 !-----------------------------Physical Constants---------------------------------
 !Constants which represent physical values and consequently change the physical
 !conditions of the simulation
@@ -132,16 +131,16 @@ module computational_constants_MD
 	integer,allocatable,dimension(:,:)	    :: halocells		!halo Bins
 
 	!Number and size of unit used for initial setup of molecules (i.e. FCC unit)
-	integer,          dimension(3)		    	:: initialnunits
-	double precision, dimension(:), allocatable :: initialunitsize
+	integer,          dimension(3)		:: initialnunits
+	double precision, dimension(3) 		:: initialunitsize
 
 	!Size of global computational domain and domain per processor
-	double precision, dimension(3)		    	:: globaldomain
-	double precision, dimension(:), allocatable :: domain, halfdomain
+	double precision, dimension(3)	:: globaldomain
+	double precision, dimension(3)	:: domain, halfdomain
 
 	!Number and size of cells used for domain subdivision into cells of size ~rcutoff
-	integer,          dimension(:), allocatable :: ncells
-	double precision, dimension(:), allocatable :: cellsidelength, halfcellsidelength
+	integer,          dimension(3)	:: ncells
+	double precision, dimension(3)	:: cellsidelength, halfcellsidelength
 
 	!Array Storing mapping from cell number to point on 3D
 	!Hilbert curve

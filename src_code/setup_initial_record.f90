@@ -367,8 +367,37 @@ subroutine setup_initial_record
 		!print*, 'Bins per Processor:', nbins
 		!print*, 'Number of Bins on outer Surface of each processor', nsurfacebins
 		print*, 'Initial condition:'
+		select case(potential_flag)
+		case(0)
+			select case(macro_outflag)
+			case(1:2)
+				print '(2a)', &
+				'     iter;   simtime;      VSum;    V^2Sum;   Temp;', &
+				'          KE;                 PE;                  TE;               P'
+			case(3:4)
+				print '(2a)', &
+				'   iter;   simtime;    VSum;      T;', & 
+				'      KE;      PE;      TE;       P'
+			case default
+			end select
+		case(1)
+			select case(macro_outflag)
+			case(1:2)
+				print '(2a)', &
+				'     iter;   simtime;      VSum;    V^2Sum;   Temp;', & 
+				'        KE;            PE;             TE;               P;   Rtcf;      R_g'
+			case(3:4)
+				print '(2a)', &
+				'    iter; simtime;   VSum;   Temp;', & 
+				'     KE;     PE;     TE;      P;  Rtcf;   R_g'
+			case default
+			end select
+		case default
+			call error_abort("Invalid potential flag in input file")
+		end select
+
 		call print_macroscopic_properties
-		print*, '======================================================================='
+		print*, '============S=I=M=U=L=A=T=I=O=N==S=T=A=R=T=S============'
 		select case(potential_flag)
 		case(0)
 			select case(macro_outflag)

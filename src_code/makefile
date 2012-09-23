@@ -79,7 +79,7 @@ s_cuda_emulate:
 debug_s_cuda:
 	@make md_CUDA.exe "FFLAGS = -O0 -g -traceback -CB -fpe0" "FLAGS_CUDA = -G -g -O0"
 optimised_s:
-	@make md.exe "FFLAGS = -O3 -fast -funroll-loops -par-report3"
+	@make md.exe "FFLAGS = -O3"
 optimised_p:
 	@make parallel_md.exe "BUILD=opt"
 debug_s:
