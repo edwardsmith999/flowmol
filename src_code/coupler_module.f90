@@ -26,7 +26,7 @@ module coupler_module
 	! Domain sizes
 	real(kind(0.d0)) ::	xL_md,yL_md,zL_md,xL_cfd,yL_cfd,zL_cfd
 	!CFD cells sizes 
-	real(kind(0.d0)) ::	dx,dymin,dy,dymax,dz
+	real(kind(0.d0)) 								   :: dx,dymin,dy,dymax,dz
     real(kind(0.d0)),dimension(:),  allocatable,target :: zpg
     real(kind(0.d0)),dimension(:,:),allocatable,target :: xpg,ypg
 

@@ -52,10 +52,6 @@ module coupler_internal_md
 		real(kind=kind(0.d0))  a(3)
 	end type cfd_box_sum
 
-	integer			, dimension(:,:,:,:), allocatable :: mflux
-	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: uc_bin, vc_bin, wc_bin
-	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: uvwbin 
-
 	real(kind=kind(0.d0)) :: FoP_time_ratio = 1.0   ! time ratio dt_CFD/dt_MD; to be fixed later
 	real(kind=kind(0.d0)) :: fsig=1.0  		!Ratio betwen macroscopic unit lenght and molecular unit 
     integer               :: md_steps_per_dt_cfd = -1 ! number of steps per CFD step
@@ -76,7 +72,7 @@ contains
 ! Initialisation routine for coupler - Every variable is sent and stored
 ! to ensure both md and cfd region have an identical list of parameters
 
-subroutine coupler_md_init_es(nsteps,dt_md,icomm_grid,icoord,npxyz_md,globaldomain,density)
+subroutine coupler_md_init(nsteps,dt_md,icomm_grid,icoord,npxyz_md,globaldomain,density)
 	use mpi
 	use coupler, only : write_matrix,write_matrix_int
 	use coupler_input_data, cfd_code_id_in => cfd_code_id, density_coupled => density
@@ -261,7 +257,7 @@ subroutine coupler_md_init_es(nsteps,dt_md,icomm_grid,icoord,npxyz_md,globaldoma
 
 	call MPI_barrier(MPI_COMM_WORLD,ierr)
 
-end subroutine coupler_md_init_es
+end subroutine coupler_md_init
 
 !=============================================================================
 ! Establish for all MD processors the mapping (if any) 

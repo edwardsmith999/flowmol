@@ -470,6 +470,62 @@ end subroutine test_cfd_cell_sizes
 end subroutine coupler_cfd_adjust_domain
 
 
+!-----------------------------------------------------------------------------
+! Establish location and size of the overlap region between the continuum
+! and molecular simulations
+!-----------------------------------------------------------------------------
+
+subroutine find_overlaps_es
+	use coupler_module, only : 	iTmin_cfd,iTmax_cfd,jTmin_cfd,jTmax_cfd,kTmin_cfd,kTmax_cfd, & 
+								iTmin_md ,iTmax_md ,jTmin_md ,jTmax_md ,kTmin_md ,kTmax_md 
+    implicit none
+
+    integer	:: i, nproc
+
+
+	if (coupler_realm .eq. COUPLER_CFD) then
+		nproc = nproc_cfd
+	else if (coupler_realm .eq. COUPLER_MD) then
+		nproc = nproc_md
+	else
+		write(*,*) "Wrong coupler_realm in find_overlaps"
+		call MPI_Abort(MPI_COMM_WORLD,COUPLER_ERROR_REALM,ierr)
+	end if
+
+    do i=0,nproc - 1
+
+        if ((  (iTmin_md (i) .ge. iTmin_cfd(i) .and. & 
+			    iTmax_cfd(i) .gt. iTmax_md (i)) .or. &
+ 				jTmin_md (i) .ge. jTmin_cfd(i) .and. & 
+			    jTmax_cfd(i) .gt. jTmax_md (i))	.or. &
+ 				kTmin_md (i) .ge. kTmin_cfd(i) .and. & 
+			    kTmax_cfd(i) .gt. kTmax_md (i))	.or. &
+
+			!This processor overlaps the MD domain
+            overlap_mask(i) = 1
+
+			!I think this ensures local min/max are replaced by global min/max values if appropriate
+            overlap_box(1,i) = max(ibmin,ibs)
+            overlap_box(2,i) = min(ibmax,ibe)
+            overlap_box(3,i) = max(jbmin,jbs)
+            overlap_box(4,i) = min(jmax_overlap,jbe)
+            overlap_box(5,i) = max(kbmin,kbs)
+            overlap_box(6,i) = min(kbmax,kbe)
+
+        else
+            overlap_mask(i) = 0
+            overlap_box(:,i) = -666
+
+        endif
+
+    enddo
+
+    write(0,*)' CFD: overlap ', myid, overlap_mask, overlap_box
+
+end subroutine find_overlaps_es
+
+
+
 !=============================================================================
 ! Simulation  Simulation  Simulation  Simulation  Simulation  Simulation  
 !

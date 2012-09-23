@@ -39,7 +39,7 @@ contains
 ! Initialisation routine for coupler - Every variable is sent and stored
 ! to ensure both md and cfd region have an identical list of parameters
 
-subroutine coupler_cfd_init_es(nsteps,dt_cfd,icomm_grid,icoord,npxyz_cfd,xyzL,ngxyz,density, & 
+subroutine coupler_cfd_init(nsteps,dt_cfd,icomm_grid,icoord,npxyz_cfd,xyzL,ngxyz,density, & 
 							   ijkmax,ijkmin,iTmin,iTmax,jTmin,jTmax,kTmin,kTmax,xpg,ypg,zpg)
     use mpi
 	use coupler, only : write_matrix,write_matrix_int
@@ -248,7 +248,7 @@ subroutine coupler_cfd_init_es(nsteps,dt_cfd,icomm_grid,icoord,npxyz_cfd,xyzL,ng
         write(*,*)
     endif
 
-end subroutine coupler_cfd_init_es
+end subroutine coupler_cfd_init
 
 !=============================================================================
 ! Establish for all CFD processors the mapping (if any) 
@@ -265,8 +265,8 @@ subroutine create_map_cfd
     real(kind(0.d0))		:: raux(2)
 
 	call MPI_barrier(COUPLER_REALM_COMM,ierr)
-
     call mpi_comm_rank(COUPLER_REALM_COMM,myid,ierr)
+	myid = myid + 1
 
     ! Coupler_grid_comm is the correct communicator to pick the processor coordinates in cartesian topology
     call mpi_comm_rank(coupler_grid_comm,id_coord,ierr)
@@ -278,9 +278,9 @@ subroutine create_map_cfd
     allocate(md_grid_boxes(6,0:nproc_md-1), overlap_mask(0:nproc_md-1), &
         	   overlap_box(6,0:nproc_md-1),         ireq(0:nproc_md-1))
 	call mpi_allgather(MPI_BOTTOM,0,MPI_INTEGER,md_grid_boxes,6,MPI_INTEGER,COUPLER_ICOMM, ierr)
-    !write(0,*) ' CFD grid boxes ', myid, md_grid_boxes
+ 
+    ! Find overlaps and send domain overlap mask to all MD processors
     call find_overlaps
-    ! Send domain overlap mask to all MD processors
     call mpi_allgather(overlap_mask,nproc_md,MPI_INTEGER,MPI_BOTTOM,0,MPI_INTEGER,COUPLER_ICOMM,ierr)
 
     noverlaps = 0
@@ -335,7 +335,6 @@ contains
         integer ixyz, i, nixyz(3), minxyz(3), npxyz(3)
         integer, pointer :: bb_ptr(:,:) => null()
 
-
 		print*, imax,imin,npx_cfd,jmax,jmin,npy_cfd,kmax,kmin,npz_cfd
         ! number of grid per MPI task, remainder must be added !!!
         nixyz  = (/ (imax - imin) / npx_cfd + 1, (jmax-jmin) / npy_cfd + 1, (kmax - kmin) / npz_cfd + 1/)
@@ -365,13 +364,15 @@ contains
 
         enddo
 
-        ! set sizes of local grids THIS IS TERRIBLE NOTATION AS IT REDEFINES A CONTINUUM VALUE
-        nlgx_cfd = iTmax(myid) - iTmin(myid)
-        nlgy_cfd = jTmax(myid) - jTmin(myid)
-        nlgz_cfd = kTmax(myid) - kTmin(myid)
-        !nlgx = bbox_cfd%xbb(2,icoord_cfd(1,id_coord)) - bbox_cfd%xbb(1,icoord_cfd(1,id_coord)) + 1
+        ! set sizes of local grids
+        nlgx_cfd = iTmax(icoord_cfd(1,myid)) - iTmin(icoord_cfd(1,myid))
+        nlgy_cfd = jTmax(icoord_cfd(2,myid)) - jTmin(icoord_cfd(2,myid))
+        nlgz_cfd = kTmax(icoord_cfd(3,myid)) - kTmin(icoord_cfd(3,myid))
+
+		! THIS IS TERRIBLE NOTATION AS IT REDEFINES A CONTINUUM VALUE
+        !nlx = bbox_cfd%xbb(2,icoord_cfd(1,id_coord)) - bbox_cfd%xbb(1,icoord_cfd(1,id_coord)) + 1
         !nly = min(bbox_cfd%ybb(2,icoord_cfd(2,id_coord)),jmax_overlap) - bbox_cfd%ybb(1,icoord_cfd(2,id_coord)) + 1
-        !nlgz = bbox_cfd%zbb(2,icoord_cfd(3,id_coord)) - bbox_cfd%zbb(1,icoord_cfd(3,id_coord)) + 1
+        !nlz = bbox_cfd%zbb(2,icoord_cfd(3,id_coord)) - bbox_cfd%zbb(1,icoord_cfd(3,id_coord)) + 1
 
 		write(0,*)' CFD: bbox ', myid, bbox_cfd%xbb,bbox_cfd%ybb,bbox_cfd%zbb, nlgx_cfd, nlgy_cfd, nlgz_cfd
 
