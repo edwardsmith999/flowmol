@@ -52,19 +52,13 @@ end module
 !=======================================================================
 subroutine messenger_invoke()
     use computation_parameters
-#if USE_COUPLER
-	use coupler
-#endif
 	use messenger
 	include "mpif.h"
 
     call MPI_init (ierr)
 
-#if USE_COUPLER
-	call coupler_create_comm(COUPLER_CFD,CFD_COMM,ierr)
-	prefix_dir ="./couette_data/"
-#else
-	CFD_COMM = MPI_COMM_WORLD
+#if (USE_COUPLER == 0)
+    MD_COMM = MPI_COMM_WORLD 
 	prefix_dir = "./"
 #endif
 
@@ -2278,6 +2272,18 @@ subroutine triPeriodicM_(ixyz, a, b, c, r, nl, lot)
 
 	return
 end
+
+subroutine messenger_lasterrorcheck
+	!use messenger
+	include "mpif.h"
+
+	integer resultlen
+	character*12 err_buffer
+
+	call MPI_Error_string(ierr,err_buffer,resultlen,ierr)
+	print*, err_buffer
+
+end subroutine messenger_lasterrorcheck
 
 
 

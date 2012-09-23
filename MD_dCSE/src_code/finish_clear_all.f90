@@ -26,12 +26,6 @@ implicit none
 	call linklist_deallocate_bins
 	
 	!Deallocate all allocated arrays
-	deallocate(initialunitsize)
-	deallocate(domain) 
-	deallocate(halfdomain)
-	deallocate(ncells)
-	deallocate(cellsidelength)
-	deallocate(halfcellsidelength)
 	deallocate(r)
 	deallocate(rtrue)
 	deallocate(rijsum)

@@ -45,9 +45,9 @@ module messenger
 	use mpi
 	use computational_constants_MD
 
-    integer MD_COMM                      ! global communicator
-	integer myid                         ! my process rank
-	integer idroot                       ! rank of root process
+    integer	::  MD_COMM                      ! global communicator
+	integer	::  myid                         ! my process rank
+	integer	::  idroot                       ! rank of root process
 
 	! Grid topology
 	integer 					:: icomm_grid	! comm for grid topology
@@ -60,10 +60,10 @@ module messenger
 
 	double precision wallTime
 
-end module
+end module messenger
 
 !======================================================================
-!			Key Messenger Subroutines                     =
+!					Key Messenger Subroutines                         =
 !======================================================================
 subroutine messenger_invoke()
 	use messenger
@@ -71,16 +71,14 @@ subroutine messenger_invoke()
 	use coupler
 #endif
 
+	!Initialise MPI
 	call MPI_init(ierr)
-    
-#if USE_COUPLER
-	call coupler_create_comm(COUPLER_MD,MD_COMM,ierr)
-    prefix_dir = "./md_data/"
-#else
+
+#if (USE_COUPLER == 0)
     MD_COMM = MPI_COMM_WORLD 
 #endif
          
-end
+end subroutine messenger_invoke
 
 
 subroutine messenger_init()
@@ -91,9 +89,9 @@ subroutine messenger_init()
 	implicit none
 	!include "mpif.h"
 
-	integer 	:: idims(nd)
-	integer 	:: ndims, ip, ixyz
-	logical 	:: Lremain_dims(nd)
+	integer 				:: ndims, ip, ixyz
+	integer,dimension(3)	:: idims
+	logical,dimension(3)	:: Lremain_dims
 
 	! Initialize MPI
 	call MPI_comm_size (MD_COMM, nproc, ierr)
@@ -161,6 +159,7 @@ subroutine messenger_init()
 	end do
 	icoord = icoord + 1
 	call MPI_comm_rank (icomm_grid, irank, ierr)
+
 	irank  = irank + 1
 	iblock = icoord(1, irank)
 	jblock = icoord(2, irank)
@@ -170,8 +169,11 @@ subroutine messenger_init()
 	do ixyz=1,3
 		Lremain_dims(:) = .false.
 		Lremain_dims(ixyz) = .true.
-		call MPI_Cart_sub (icomm_grid, Lremain_dims, icomm_xyz(ixyz), ierr)
+		call MPI_Cart_sub(icomm_grid, Lremain_dims, icomm_xyz(ixyz), ierr)
 	end do
+	if (npx .lt. 2) icomm_xyz(1) = MPI_COMM_SELF
+	if (npy .lt. 2) icomm_xyz(2) = MPI_COMM_SELF
+	if (npz .lt. 2) icomm_xyz(3) = MPI_COMM_SELF
 
 	call MPI_comm_rank (icomm_xyz(1), irankx, ierr)
 	call MPI_comm_rank (icomm_xyz(2), iranky, ierr)
@@ -182,16 +184,15 @@ subroutine messenger_init()
 	call MPI_Cart_rank(icomm_grid, idims, idroot, ierr)
 	iroot = idroot + 1
 
-	! Molecules per processor and i/o writing offset
+	! Molecules per processor for i/o writing offset
 	allocate(procnp(nproc))	
-	! Molecules per processor and i/o writing offset
+	! Molecules per processor for i/o writing offset
 	allocate(proctethernp(nproc))	
 
 	! Save current time
 	wallTime = MPI_wtime()
 
-	return
-end
+end subroutine messenger_init
 
 subroutine messenger_proc_topology()
 	use messenger
@@ -225,7 +226,6 @@ subroutine messenger_proc_topology()
 
 		!Adjust for periodic boundaries (works using -ve numbers and periodic 
 		!topology but causes problems with some mpi flags and compilers)
-
 		pshiftcoords(1)=modulo(pshiftcoords(1),npx)
 		if (Lperiodic(2)) then
 			pshiftcoords(2)=modulo(pshiftcoords(2),npy)
@@ -347,7 +347,6 @@ subroutine messenger_proc_topology()
 	enddo
 
 	!---Setup corner topology--
-
  	icornercell = (/ 2, 2, 2, 2, ncells(1)+1, ncells(1)+1, ncells(1)+1, ncells(1)+1/)
  	jcornercell = (/ 2, 2, ncells(2)+1, ncells(2)+1, 2, 2, ncells(2)+1, ncells(2)+1/) 
  	kcornercell = (/ 2, ncells(3)+1, 2, ncells(3)+1, 2, ncells(3)+1, 2, ncells(3)+1/)
@@ -402,8 +401,7 @@ subroutine messenger_proc_topology()
 
 	enddo
 
-	return
-end
+end subroutine messenger_proc_topology
 
 subroutine messenger_syncall()
 	use messenger
@@ -412,7 +410,7 @@ subroutine messenger_syncall()
 	call MPI_Barrier(MD_COMM,ierr)
 
 	return
-end
+end subroutine messenger_syncall
 
 subroutine messenger_lasterrorcheck
 	use messenger
@@ -441,8 +439,7 @@ subroutine messenger_free()
 	! Finalize MPI
     call MPI_finalize (ierr)
 
-	return
-end
+end subroutine messenger_free
 
 !======================================================================
 !			Border Update Subroutines                     =
@@ -1234,8 +1231,6 @@ subroutine sendmols()
 		!reorder new molecules
 		maxnew_np = new_np
 		call globalMaxInt(maxnew_np)
-		!if(irank .eq. iroot) print*,'transfer number',i,'maximum number passed on any processor',maxnew_np
-		!if (maxnew_np .eq. 0 ) exit
 	enddo
 
 	return
@@ -1262,7 +1257,6 @@ subroutine checksendbuild(ixyz,sendnp,dir)
 		do n = 1,np
 			if(r(ixyz,n) < -halfdomain(ixyz)) then
 				call linklist_checkpushmol(n,0,0,0)
-				!print*, 'proc id', irank, 'passes mol', n
 				sendnp = sendnp + 1
 			endif
 		enddo
@@ -1270,7 +1264,6 @@ subroutine checksendbuild(ixyz,sendnp,dir)
 		do n = 1,np
 			if(r(ixyz,n) >= halfdomain(ixyz)) then
 				call linklist_checkpushmol(n,0,0,0)
-				!print*, 'proc id', irank, 'passes mol', n
 				sendnp = sendnp + 1
 			endif
 		enddo
@@ -1309,7 +1302,7 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 	
 	!Provide MPI with upper bound of pack size
 	call MPI_Pack_size(sendsize,MPI_DOUBLE_PRECISION, &
-				icomm_grid,buffsize,ierr)
+	                   icomm_grid,buffsize,ierr)
 	!Initialise position in packed buffer
 	pos = 0
 
@@ -2260,7 +2253,7 @@ subroutine globalbroadcast(A,na,broadprocid)
 	use messenger
 	implicit none
 
-	integer			:: na, broadprocid
+	integer				:: na, broadprocid
 	double precision	:: A
 
 	call MPI_BCAST(A,na,MPI_DOUBLE_PRECISION,broadprocid-1,MD_COMM,ierr)

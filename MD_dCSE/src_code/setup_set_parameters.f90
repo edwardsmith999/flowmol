@@ -34,12 +34,6 @@ end module module_set_parameters
 
 subroutine setup_set_parameters
 	use module_set_parameters
-	use librarymod, only : build_hilbert
-	use interfaces, only : error_abort
-#if USE_COUPLER
-	use coupler
-	use coupler_input_data, only : md_cfd_match_cellsize
-#endif
 	implicit none
 
 	integer							:: iblk,jblk,kblk
@@ -58,25 +52,16 @@ subroutine setup_set_parameters
 		potential_sLRC = 0.d0; Pressure_sLRC = 0.d0;
 	endif
 
-	!Allocate arrays based on number of dimensions
-	call set_parameters_allocate(1)
-
+!This has alreay been done in initialise for a coupled run
+#if (USE_COUPLER == 0)	
 	!call set_parameters_domain
-#if USE_COUPLER
-	call set_parameters_global_domain_coupled
-	if (md_cfd_match_cellsize .eq. 0) then
-		call set_parameters_cells
- 	else
-		call set_parameters_cells_coupled
-	endif
-#else 
    	call set_parameters_global_domain
 	call set_parameters_cells
 #endif
 	!call set_parameters_setlimits
 
 	!Allocate array sizes for position, velocity and acceleration
-	call set_parameters_allocate(2)
+	call set_parameters_allocate
 
 	!Zero quantities and arrays
 	r = 0.d0
@@ -140,66 +125,56 @@ end subroutine setup_set_parameters
 
 
 !===========================================================================================
-!Allocate arrays first based on number of dimensions (n=1) then using extra allocation (n=2)
+!Allocate arrays based on number of particles, np, using extra allocation
 
-subroutine set_parameters_allocate(n)
+subroutine set_parameters_allocate
 	use module_set_parameters
 	use shear_info_MD
 	implicit none
 
-	integer :: ixyz, n
+	integer :: ixyz
 
-	select case(n)
-	case(1)
-		!Allocate arrays based on number of dimensions
-		allocate(initialunitsize(nd))
-		allocate(domain(nd)) 
-		allocate(halfdomain(nd))
-		allocate(ncells(nd))
-		allocate(cellsidelength(nd))
-		allocate(halfcellsidelength(nd))
-	case(2)
-		!Calculate required extra allocation of molecules to allow copied Halos
-		!using ratio of halo to domain volume with safety factor
-		extralloc = 0
-		do ixyz =1,nd
-			extralloc = extralloc + &
-			ceiling(((2.d0*(3*ncells(ixyz)**2+ &
-			6*ncells(ixyz)+4))/ncells(ixyz)**3))*np
-		enddo
-		extralloc = extralloc/nd  + 300  !Average of all 3 dimensions inc safety factor
+	!Calculate required extra allocation of molecules to allow copied Halos
+	!using ratio of halo to domain volume with safety factor
+	extralloc = 0
+	do ixyz =1,nd
+		extralloc = extralloc + &
+		ceiling(((2.d0*(3*ncells(ixyz)**2+ &
+		6*ncells(ixyz)+4))/ncells(ixyz)**3))*np
+	enddo
+	extralloc = extralloc/nd  + 300  !Average of all 3 dimensions inc safety factor
 
-		!Allocate array sizes for position, velocity and acceleration
-		allocate(r(nd,np+extralloc))
-		allocate(rtrue(nd,np+extralloc)) !Used to establish diffusion - r with no periodic BC
-		allocate(vtrue(nd,np+extralloc)) !Used to establish diffusion - r with no periodic BC
-		allocate(rtether(nd,np+extralloc))
-		allocate(rijsum(np+extralloc,nd)) !Sum of rij for each i, used for SLLOD algorithm
-		allocate(v(nd,np+extralloc))
-		allocate(vmagnitude(np+extralloc))
-		allocate(a(nd,np+extralloc))
-		allocate(theta(nd,np+extralloc))
-		allocate(aD(nd,np+extralloc))
-		allocate(aR(nd,np+extralloc))
-		call random_number(theta)
+	!Allocate array sizes for position, velocity and acceleration
+	allocate(r(nd,np+extralloc))
+	allocate(rtrue(nd,np+extralloc)) !Used to establish diffusion - r with no periodic BC
+	allocate(vtrue(nd,np+extralloc)) !Used to establish diffusion - r with no periodic BC
+	allocate(rtether(nd,np+extralloc))
+	allocate(rijsum(np+extralloc,nd)) !Sum of rij for each i, used for SLLOD algorithm
+	allocate(v(nd,np+extralloc))
+	allocate(vmagnitude(np+extralloc))
+	allocate(a(nd,np+extralloc))
+	allocate(theta(nd,np+extralloc))
+	allocate(aD(nd,np+extralloc))
+	allocate(aR(nd,np+extralloc))
+	call random_number(theta)
 
-		!Allocate arrays use to fix molecules and allow sliding
-		allocate(tag(np+extralloc))
-		allocate(fix(nd,np+extralloc))
-		allocate(slidev(nd,np+extralloc))
+	!Allocate arrays use to fix molecules and allow sliding
+	allocate(tag(np+extralloc))
+	allocate(fix(nd,np+extralloc))
+	allocate(slidev(nd,np+extralloc))
 
-		!Allocate potential energy and virial per molecule array
-		allocate(potenergymol(np+extralloc))
-		allocate(potenergymol_LJ(np+extralloc))
-		allocate(virialmol(np+extralloc))
+	!Allocate potential energy and virial per molecule array
+	allocate(potenergymol(np+extralloc))
+	allocate(potenergymol_LJ(np+extralloc))
+	allocate(virialmol(np+extralloc))
 
-		!Allocate pressure tensors
-		allocate(rfmol(np+extralloc,nd,nd))
-		allocate(Pxymol(np+extralloc,nd,nd))
+	!Allocate pressure tensors
+	allocate(rfmol(np+extralloc,nd,nd))
+	allocate(Pxymol(np+extralloc,nd,nd))
 
-		!Allocate bulk shear array
-		allocate(mol_wrap_integer(np))
-	end select
+	!Allocate bulk shear array
+	allocate(mol_wrap_integer(np))
+
 
 end subroutine set_parameters_allocate
 
@@ -347,83 +322,6 @@ subroutine set_parameters_global_domain
 
 end subroutine set_parameters_global_domain
 
-!-----------------------------------------------------------------------------
-! get the global domain lenghts from x, y, z array of CFD realm
-#if USE_COUPLER
-subroutine set_parameters_global_domain_coupled
-	use module_set_parameters
-	use messenger, only : myid
-	use coupler 
-	implicit none
-
-	integer          ixyz, n0(3)
-	real(kind(0.d0)) xL_md, yL_md,zL_md, b0 ! 
-
-    ! fix the numner of FCC cells starting from CFD density
-    density = coupler_md_get_density()
-
-    ! size of cubic FCC cell
-    b0=(4.d0/density)**(1.0d0/3.0d0)
-    call coupler_md_get(xL_md=xL_md,yL_md=yL_md,zL_md=zL_md,MD_initial_cellsize=b0)
-    n0(:) = nint( (/ xL_md, yL_md, zL_md/) / b0)
-    initialunitsize(1:3) = b0
-    initialnunits(1:3) 	 = n0(:)
-
-    !write(0,*) "n0 ", b0, xL_md, yL_md, zL_md, n0
-    
-    ! set zL_md for for 2d CFD solvers
-    if (zl_md <= 0.d0) then
-        ! number of FCC cell in z direction per MPI ranks is choosen the minimal one 
-        initialnunits(3)   = ceiling(3*(rcutoff+delta_rneighbr)/initialunitsize(3)) * npz
-        zL_md =  initialnunits(3)* initialunitsize(3)
-        call coupler_md_set(zL_md = zL_md)      
-    endif
-
-	!Set MD domain values
-	globaldomain(1) = xL_md
-	globaldomain(2) = yL_md
-	globaldomain(3) = zL_md
-	volume   = xL_md*yL_md*zL_md
-
-    ! no need to fix globalnp if we have it already
-    if(.not. restart) then
-		globalnp=1      !Set number of particles to unity for loop below
-		do ixyz=1,nd
-			globalnp = globalnp*initialnunits(ixyz)		!One particle per unit cell
-		enddo
-		globalnp=4*globalnp   !FCC structure in 3D had 4 molecules per unit cell
-    endif
-
-    !if (.not. restart)then
-    !   globalnp = density*volume  ! sigma units
-   ! endif
-
-    np = globalnp / nproc	
-
-	domain(1) = globaldomain(1) / real(npx, kind(0.d0))			!determine domain size per processor
-	domain(2) = globaldomain(2) / real(npy, kind(0.d0))			!determine domain size per processor
-	domain(3) = globaldomain(3) / real(npz, kind(0.d0))			!determine domain size per processor
-
-	do ixyz=1,nd
-		halfdomain(ixyz) = 0.5d0*domain(ixyz)			!Useful definition
-	enddo
-
-	write(0,*) 'set_parameter_global_domain_hybrid ', globalnp, np, domain, initialunitsize
-
-    if(myid == 0) then
-        write(*,'(a/a/a,f5.2,a,f5.2,/,a,3(f5.2),a,/,a,3(I6),/,a)') &
-                    "**********************************************************************", &
-                    "WARNING - this is a coupled run which resets the following parameters:", &
-                    " density         =", density ,                                           & 
-                    " hence the cubic FCC side  is b=", b0 ,                                  &
-                    " initialunitsize =", initialunitsize(:)/b0," in b units ",               &     
-                    " initialnunits   =", initialnunits(:),                                   &
-                    "**********************************************************************"
-    endif
-
-end subroutine set_parameters_global_domain_coupled
-#endif
-
 !-----------------------------------------------------------------------------------------
 
 subroutine set_parameters_cells
@@ -480,107 +378,6 @@ subroutine set_parameters_cells
 	enddo
 
 end subroutine set_parameters_cells
-
-!-----------------------------------------------------------------------------------------
-#if USE_COUPLER
-subroutine set_parameters_cells_coupled
-	use interfaces
-	use module_set_parameters
-	use polymer_info_MD
-	use messenger, only : myid
-	use coupler
-	use coupler_internal_md, only : imax_cfd,imin_cfd,jmax_cfd,jmin_cfd,kmax_cfd,kmin_cfd,x,y,z
-	implicit none
-
-	integer 						:: ixyz
-	integer,dimension(3) 			:: max_ncells,cfd_ncells,cfd_md_cell_ratio
-	double precision 				:: rneighbr
-	double precision ,dimension(3) 	:: cfd_cellsidelength, maxdelta_rneighbr
-    type(cfd_grid_info)				:: cfd_box
-
-	!In coupled simulation, passed properties are calculated from cell lists
-	!for efficiency. The size of the cells should therefore be a multiple
-	!of the continuum cellsizes
-    cfd_ncells(1) = imax_cfd - imin_cfd
-    cfd_ncells(2) = jmax_cfd - jmin_cfd
-    cfd_ncells(3) = kmax_cfd - kmin_cfd
-
-	!Check number of cells based on rcutoff and neighbourlist size
-	max_ncells= floor(domain/rcutoff)
-
-	!Calculate ratio of CFD to maximum numbers of cells
-	cfd_cellsidelength(1) = x(2) - x(1)
-	cfd_cellsidelength(2) = y(2) - y(1)
-	cfd_cellsidelength(3) = z(2) - z(1)
-	cellsidelength(:) 	  = domain(:)/max_ncells(:)
-	cfd_md_cell_ratio(:)  = floor(cfd_cellsidelength(:)/cellsidelength(:))
-
-	!Determine side length of cells after rounding and MD ncells
-	cellsidelength = cfd_cellsidelength/cfd_md_cell_ratio
-	ncells = ceiling(domain/cellsidelength)
-	print*, 'IS this ok?',cfd_cellsidelength, ncells, cellsidelength,  domain,size(x), size(y)
-
-	!Ensure domain allows MD cells to be a multiple of CFD cell sizes...
-	if (any(abs(domain(:)/cellsidelength(:)-nint(domain(:)/cellsidelength(:))) .gt. 0.01)) & 
-		call error_abort("ERROR - CFD cellsize and MD cellsize not compatible - Adjust domain size to      &
-						&  correct this or remove MD_CFD_MATCH_CELLSIZE from COUPLER input")
-	cellsidelength = domain/ncells
-
-	!Recalculate required delta_rneighbr to ensure integer numbers of cells for both domains 
-	delta_rneighbr = minval(domain/ncells-rcutoff)
-
-	!Calculate size of neighbour list region
-	rneighbr  = rcutoff + delta_rneighbr
-	rneighbr2 = (rcutoff + delta_rneighbr)**2
-
-	print'(a,6f10.5)', 'domains', domain, x(imax_cfd)-x(imin_cfd),y(jmax_cfd)-y(jmin_cfd),z(kmax_cfd)-z(kmin_cfd)
-	print'(a,12i8)',      'cell', cfd_md_cell_ratio,cfd_ncells,ncells,max_ncells
-	print'(a,6f10.5)', 'cellsize', cfd_cellsidelength(:),cellsidelength(:)
-
-	if (potential_flag .eq. 1) then
-		select case(solvent_flag)
-		case(0:1)
-			if (rneighbr < R_0) then
-				rneighbr = R_0 
-				rneighbr2 = R_0**2
-				print*, 'Neighbour list distance rneighbr set to &
-						& maximum elongation of polymer spring, ',R_0
-			end if
-		case(2)
-			if (rneighbr < sod_cut) then
-				rcutoff   = sod_cut
-				rcutoff2  = sod_cut2
-				rneighbr  = rcutoff + delta_rneighbr
-				rneighbr2 = rneighbr**2.d0
-			end if
-		case default
-			call error_abort('Unrecognised solvent_flag in set_parameters_cells')
-		end select
-	endif
-
-	if (ncells(1)<3 .or. ncells(2)<3 .or. ncells(3)<3) then
-		print*, ncells(1),'    in x and ', ncells(2), '    in y' , ncells(3), '    in z' 
-		call  error_abort( "ERROR - DOMAIN SHOULD HAVE AT LEAST 3 CELLS, &
-		 					& IN X, Y AND Z - INCREASE NUMBER OF UNITS IN INPUT")
-	endif
-
-    if(myid == 0) then
-        write(*,'(a/a/a,f8.6,/,a,3i8,/,a,3(f8.5),/,a,3(i8),/,a)') &
-                    "**********************************************************************", &
-                    "WARNING - this is a coupled run which resets the following parameters:", &
-	    	        " Extra cell size for neighbourlist =", delta_rneighbr  ,                 & 
-                    " MD computational cells per CFD cell = ",cfd_md_cell_ratio,  			  &
-					" cellsize =", cellsidelength(:),     									  &     
-                    " no of cell  =", ncells(:),                                   &
-                    "**********************************************************************"
-    endif
-
-	!Ensure CFD cells are not smaller than minimum possible MD cells
-	if (any(max_ncells .lt. cfd_ncells)) & 
-		call error_abort("ERROR - CFD cellsize smaller than minimum MD computational/averaging cell")
-
-end subroutine set_parameters_cells_coupled
-#endif
 
 !-----------------------------------------------------------------------------------------
 
@@ -643,7 +440,6 @@ end subroutine setup_linklist
 
 subroutine set_parameters_outputs
 	use module_set_parameters
-	use  messenger, only :  myid, icoord
 	use interfaces
 	implicit none
 
