@@ -11,40 +11,114 @@
 
 
 module continuum_coupler_socket
+	use coupler
     implicit none
 #if USE_COUPLER
 
 contains
 
+!=============================================================================
+! Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup
+!
+!								SETUP
+!
+! Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup
+!=============================================================================
 
-    subroutine socket_coupler_init 
-        use messenger, only : icomm_grid, icoord
-        use data_export, only : imino, imin, imax, imaxo,&
-                                jmino, jmin, jmax, jmaxo,& 
-                                kmino, kmin, kmax, kmaxo,&
-                                npx, npy, npz, dt
-        use mesh_export, only : x, y, z, dx, dz
-!        use simulation, only  : nsteps
-        use coupler, only : coupler_cfd_init, coupler_create_map 
-        implicit none
- 
-        integer nsteps
+!=============================================================================
+! Invoke messenger and split inter-communicators
+!-----------------------------------------------------------------------------
+subroutine socket_coupler_invoke
+	use messenger
+	use computation_parameters, only : prefix_dir
+	implicit none
 
-        call readInt("nsteps", nsteps)
-       
-        write(0,*) 'CFD socket nsteps, dt ', nsteps, dt
-      
-        call coupler_cfd_init(	icomm_grid,imino=imino,imin=imin,imax=imax,&
-					            imaxo=imaxo,jmino=jmino,jmin=jmin,jmax=jmax,jmaxo=jmaxo,&
-					            kmino=kmino,kmin=kmin,kmax=kmax,kmaxo=kmaxo,nsteps=nsteps,&
-					            x=x,y=y,z=z,dx=dx,dz=dz,npx=npx,npy=npy,npz=npz,&
-					            icoord=icoord,dt=dt)
-        
-        !write(0,*) 'CFD socket, after cfd init'
-        !write(0,*) 'CFD socket, after create map'
-                
-    end subroutine socket_coupler_init
+	call coupler_create_comm(COUPLER_CFD,CFD_COMM,ierr)
+	prefix_dir ="./couette_data/"
 
+end subroutine socket_coupler_invoke
+
+!=============================================================================
+!  Read coupler input files
+!-----------------------------------------------------------------------------
+subroutine socket_read_coupler_input
+	use messenger
+	use coupler_input_data, only : read_coupler_input
+    use coupler_module, only : request_stop
+	implicit none
+
+	call read_coupler_input		! Read COUPLER.in input file
+
+    ! stop if requested ( useful for development )
+	call request_stop("create_comm") ! stops here if in COUPLER.in stop requestis set to "create_comm"
+
+end subroutine socket_read_coupler_input
+
+!=============================================================================
+! Call coupler initialise to swap all setup data
+!-----------------------------------------------------------------------------
+subroutine socket_coupler_init_es
+	use coupler_internal_cfd, only : coupler_cfd_init_es
+    use messenger, only : icomm_grid, icoord
+    use data_export, only : imin,imax,jmin,jmax,kmin,kmax, &
+							iTmin_1,iTmax_1,jTmin_1,jTmax_1, &
+                            ngx,ngy,ngz,xL,yL,zL, &
+                            npx,npy,npz,dt,xpg,ypg,zpg
+	use mesh_export, only : xL, yL, zL
+	use coupler_input_data, only : density_tag, density
+	use coupler_module, only : error_abort
+    implicit none
+
+    integer							:: nsteps
+	integer,dimension(1)			:: kTmin_1,kTmax_1
+    integer,dimension(3)		   	:: ijkmin,ijkmax,npxyz,ngxyz
+    real(kind(0.d0)),dimension(3)	:: xyzL
+
+    call readInt("nsteps", nsteps)
+    write(0,*) 'CFD socket nsteps, dt ', nsteps, dt
+	kTmin_1(1) = kmin; kTmax_1(1) = kmax
+
+	!Define compound arrays to make passing more concise
+	ijkmin = (/ imin, jmin, kmin /)
+	ijkmax = (/ imax, jmax, kmax /)
+	npxyz  = (/ npx , npy , npz  /)
+	ngxyz  = (/ ngx , ngy , ngz  /)
+	xyzL   = (/  xL ,  yL ,  zL  /)
+
+	!Density is NOT defined for the DNS code
+	if (density_tag == CPL) then 
+		!Do nothing
+		density = density
+	else
+		call error_abort("Density not specified in coupler")
+	endif
+
+
+    call coupler_cfd_init_es(nsteps,dt,icomm_grid,icoord,npxyz,xyzL,ngxyz,density, & 
+							   ijkmax,ijkmin,iTmin_1,iTmax_1,jTmin_1,jTmax_1,kTmin_1,kTmax_1,xpg,ypg,zpg)
+
+end subroutine socket_coupler_init_es
+
+
+!=============================================================================
+! Establish mapping between CFD and MD
+!-----------------------------------------------------------------------------
+subroutine socket_create_map
+	implicit none
+
+	!Note coupler cannot be called directly so this socket is needed
+	call coupler_create_map
+
+end subroutine socket_create_map
+
+
+!=============================================================================
+! Simulation  Simulation  Simulation  Simulation  Simulation  Simulation  
+!
+!							SIMULATION
+!
+! Simulation  Simulation  Simulation  Simulation  Simulation  Simulation  
+!=============================================================================
 
     subroutine socket_coupler_send_velocity
         use coupler
