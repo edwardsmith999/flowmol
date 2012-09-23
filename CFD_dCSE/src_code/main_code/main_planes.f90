@@ -76,7 +76,7 @@ subroutine main_init()
 	call simulation_init()
 	call statistics_init()
 #if USE_COUPLER
-    call socket_coupler_init_es
+    call socket_coupler_init
 	call socket_create_map
 #endif
 	return

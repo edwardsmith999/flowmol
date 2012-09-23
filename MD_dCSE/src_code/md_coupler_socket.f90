@@ -39,6 +39,10 @@ module md_coupler_socket
 	real(kind(0.d0)), allocatable :: vel_cfd(:,:,:,:,:), vbuff(:,:,:,:)
 	type(cfd_box_sum),allocatable :: box_average(:,:,:)
 
+	integer			, dimension(:,:,:,:), allocatable :: mflux
+	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: uc_bin, vc_bin, wc_bin
+	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: uvwbin 
+
 contains
 
 
@@ -78,61 +82,10 @@ subroutine socket_read_coupler_input
 
 end subroutine socket_read_coupler_input
 
-
 !=============================================================================
 ! Setup initial times based on coupled calculation
 !-----------------------------------------------------------------------------
 subroutine socket_coupler_init
-    use interfaces
-	use coupler
-	use coupler_input_data, only : md_cfd_match_cellsize
-	use computational_constants_MD, only : npx,npy,npz,delta_t,elapsedtime, & 
-											Nsteps,initialstep, delta_t
-	use messenger, only	      :  myid, icoord, icomm_grid
-	implicit none
-
- 	integer  naverage, nsteps_cfd
-	real(kind(0.d0)) :: delta_t_CFD
-
-	! if coupled calculation prepare exchange layout
-	call coupler_md_init(npx,npy,npz,icoord,icomm_grid,delta_t)
-
-	! fix NSTEPS for the coupled case
-    nsteps_cfd = coupler_md_get_nsteps()
-    naverage   = coupler_md_get_md_steps_per_cfd_dt()
-    
-	Nsteps = initialstep + nsteps_cfd * naverage
-	elapsedtime = elapsedtime + nsteps_cfd * naverage * delta_t
-
-	if (myid .eq. 0) then 
-		write(*,'(4(a,/),I7,/a,/a,E10.4,a/,a,/a)') &
-				"*********************************************************************", 	&
- 				"WARNING - this is a coupled run which resets the number	      ", 		&
-				" of extrasteps to:						   ", 								&
-				"								     ", 									&
-											nsteps_cfd*naverage,  							&
-				"								     ", 									& 
-				" The elapsed time was changed accordingly to: ", elapsedtime, " s    ", 	&
-				" The value of NSTEPS parameter form input file was discarded.	", 			&
-				"*********************************************************************"   
-	endif 
-
-	! Setup the domain and cells in the MD based on coupled data
-	call set_parameters_global_domain_coupled
-	print*, 'md_cfd_match_cellsize',md_cfd_match_cellsize
-	if (md_cfd_match_cellsize .eq. 0) then
-		call set_parameters_cells
- 	else
-		call set_parameters_cells_coupled
-	endif
-
-end subroutine socket_coupler_init
-
-
-!=============================================================================
-! Setup initial times based on coupled calculation
-!-----------------------------------------------------------------------------
-subroutine socket_coupler_init_es
     use interfaces
 	use coupler_input_data, only : md_cfd_match_cellsize
 	use computational_constants_MD, only : npx,npy,npz,delta_t,elapsedtime, & 
@@ -140,7 +93,7 @@ subroutine socket_coupler_init_es
 										   globaldomain,initialnunits
 	use physical_constants_MD, only : nd,density
 	use messenger, only	 :  myid, icoord, icomm_grid
-	use coupler_internal_md, only : coupler_md_init_es
+	use coupler_internal_md, only : coupler_md_init
 	implicit none
 
  	integer			 :: naverage, nsteps_cfd, ixyz
@@ -153,7 +106,7 @@ subroutine socket_coupler_init_es
 	enddo
 
 	! If coupled calculation prepare exchange layout
-	call coupler_md_init_es(nsteps,delta_t,icomm_grid,icoord,(/ npx,npy,npz /),globaldomain,density)
+	call coupler_md_init(nsteps,delta_t,icomm_grid,icoord,(/ npx,npy,npz /),globaldomain,density)
 
 	! Setup the domain and cells in the MD based on coupled data
 	call set_parameters_global_domain_coupled
@@ -166,7 +119,7 @@ subroutine socket_coupler_init_es
 	! Setup timesteps and simulation timings
 	call set_coupled_timing
 
-end subroutine socket_coupler_init_es
+end subroutine socket_coupler_init
 
 !=============================================================================
 ! get the global domain lenghts from x, y, z array of CFD realm
@@ -195,14 +148,6 @@ subroutine set_parameters_global_domain_coupled
 
 	call MPI_barrier(MD_COMM,ierr)
    
-    ! set zL_md for for 2d CFD solvers
-    if (zl_md <= 0.d0) then
-        ! number of FCC cell in z direction per MPI ranks is choosen the minimal one 
-        initialnunits(3)   = ceiling(3*(rcutoff+delta_rneighbr)/initialunitsize(3)) * npz
-        zL_md =  initialnunits(3)* initialunitsize(3)
-        call coupler_md_set(zL_md = zL_md)      
-    endif
-
 	!Set MD domain values
 	globaldomain(1) = xL_md
 	globaldomain(2) = yL_md
@@ -297,7 +242,7 @@ subroutine set_parameters_cells_coupled
 	rneighbr  = rcutoff + delta_rneighbr
 	rneighbr2 = (rcutoff + delta_rneighbr)**2
 
-	!print'(a,6f10.5)', 'domains', domain, x(imax_cfd)-x(imin_cfd),y(jmax_cfd)-y(jmin_cfd),z(kmax_cfd)-z(kmin_cfd)
+	!print'(a,6f10.5)', 'domains', domain, x(imax)-x(imin),y(jmax)-y(jmin),z(kmax)-z(kmin)
 	!print'(a,12i8)',      'cell', cfd_md_cell_ratio,cfd_ncells,ncells,max_ncells
 	!print'(a,6f10.5)', 'cellsize', cfd_cellsidelength(:),cellsidelength(:)
 
@@ -409,344 +354,28 @@ end subroutine socket_create_map
 !=============================================================================
 
 !=============================================================================
-! Calculate averages of MD to pass to CFD
-!-----------------------------------------------------------------------------
-subroutine average_and_send_MD_to_CFD(iter)
-	use computational_constants_MD, only : initialstep, delta_t
-	use physical_constants_MD, only : np
-	use arrays_MD, only :r,v
-	implicit none
-
-	integer, intent(in) :: iter
-	
-	integer :: iter_cfd, iter_average, Naverage, save_period, average_period
-	logical, save :: first_time=.true.
-	save  average_period, Naverage
-
-    if (first_time) then 
-	    first_time     = .false.
-	    average_period = coupler_md_get_average_period() 	! collection interval in the average cycle
-	    Naverage = coupler_md_get_md_steps_per_cfd_dt()  	! number of steps in MD average cycle
-    endif
-
-    iter_average = mod(iter-1, Naverage)+1			! current step
-    iter_cfd     = (iter-initialstep)/Naverage +1 	! CFD corresponding step
-
-	! collect uc data every save_period cfd iteration but discard the first one which cfd uses for initialisation
-    if ( mod(iter_average,average_period) .eq. 0 ) then
-	    call coupler_md_boundary_cell_average(np,r,v,send_data=.false.) ! accumlate velocities
-    endif
-	! Send accumulated results to CFD at the end of average cycle 
-	if (iter_average .eq. Naverage) then 
-	    call coupler_md_boundary_cell_average(np,r,v,send_data=.true.)
-	endif
-
-end subroutine average_and_send_MD_to_CFD
-
-!=============================================================================
-! Take average of x,y and z components of MD velocity
-! Computes MD average velocity in a box of size dx*dy*dz around a 
-! staggered FD grid point
-!-----------------------------------------------------------------------------
-
-subroutine coupler_md_boundary_cell_average(np,r,v,send_data)
-	use computational_constants_MD, only : iter
-    use coupler_module, only : cfd_is_2d, staggered_averages
-	use coupler_internal_md, only : myid, icoord, dx, dz, x, y, z, map_md2cfd, cfd_code_id,uc_bin
-     use coupler_parameters
-	use calculated_properties_MD, only : volume_momentum						
-	implicit none
-
-	integer, intent(in) :: np
-	real(kind=kind(0.d0)), dimension(:,:), intent(in) :: r,v
-	logical, intent(in) :: send_data
-
-	! Tolerance for boundary overlap, 100th of sigma should do
-	!real(kind=kind(0.d0)), parameter :: epsilon=1.0d-2
-
-	integer ixyz, displ, nbuff, nbuff_in, ib, kb, ic, kc, i, ip, icell
-
-	!write(0,*) 'md box-average: dx, dy, dz (sigma units), fsig', myid, dx,dz
-
-	! Because of the staggered grid each velocity component average
-	! must be computed separately. Optimisation to be done later
-	call compute_uc_average
-	call compute_vc_average
-    if (cfd_code_id == couette_parallel) then
-        call compute_wc_average
-    end if
-
-contains 
-
-!-----------------------------------------------------------------------------
-!	Calculate x component of velocity for a bin in the MD region
-!-----------------------------------------------------------------------------
-
-	subroutine compute_uc_average
-		use coupler_internal_md, only : nlx, nlz, bbox, jmino, jmin => jmin_cfd,&
-						uc_bin,cfd_code_id
-		use computational_constants_MD, only : iter, ncells
-		implicit none
-
-		integer		:: icell,jcell,kcell
-		integer ib, kb, ip, source, dest, max_ix, ierr
-		real(kind=kind(0.d0)) rd(3)
-		real(kind=kind(0.d0)),allocatable,dimension(:,:) ::	temp_uc
-        logical ovr_box_x
-		logical, save :: first_time=.true.
-
-		! Setup averaging array on first call
-		if (first_time) then
-			first_time = .false.
-            if (cfd_code_id == couette_parallel) then 
-                allocate(uc_bin(2,nlz-1,nlx-0,1))
-             else
-                allocate(uc_bin(2,nlz-1,nlx-1,1))
-            endif
-
-			uc_bin(:,:,:,:)  = 0.d0     
-		endif
-
-		!Send data to CFD if send_data flag is set
-		if (send_data) then  
-            if (cfd_code_id .eq. couette_parallel) then 
-                ovr_box_x = .true.
-            else
-                ovr_box_x = .false.
-            endif
-
-			allocate(temp_uc(nlz-1,nlx-0))
-			do icell = 1,size(uc_bin,3)
-			do kcell = 1,size(uc_bin,2)
-				if (uc_bin(2,kcell,icell,1) .gt. 0.d0) then
-					temp_uc(kcell,icell) = uc_bin(1,kcell,icell,1)/uc_bin(2,kcell,icell,1) 
-				else
-					temp_uc(kcell,icell) = 0.d0
-				endif
-			enddo
-			enddo
-
-			!print'(a,4f10.5)', 'MD send BC', maxval(temp_uc),minval(temp_uc),sum(temp_uc),temp_uc(5,60)
-			!do icell=1,nlx-0
-			!	print'(a,3i8,8f10.5)', 'MD   send  BC',iter,myid,icell,temp_uc(:,icell)
-			!	print'(a,3i8,4f10.5)', 'MD cell sizes',iter,myid,icell,icell*dx+(bbox%iso),(bbox%iso),(bbox%is),dx
-			!enddo
-
-			!print'(a,2i8,4f25.16)', 'MD send2CFD     ', myid ,size(uc_bin), & 
-			!						maxval(uc_bin(1,:,:,1)/uc_bin(2,:,:,1)),minval(uc_bin(1,:,:,1)/uc_bin(2,:,:,1)), & 
-			!						sum(uc_bin(:,:,:,1)),uc_bin(1,:,:,1)/uc_bin(2,5,60,1)
-
-			!do icell = 1,size(uc_bin,3)
-			!do jcell = ncells(2)-5,ncells(2)+1
-			!do kcell = 1,size(uc_bin,2)
-			!	print'(a,5i8,f10.5)', 'coupler output', iter,icell,1,kcell, & 
-			!							sum(nint(uc_bin(2,:,:,1))),sum(uc_bin(1,:,:,1))
-			!enddo
-			!enddo
-			!enddo
-			do icell=1,nlx-0
-				write(99+myid,'(a,3i5,11f10.4)') '1 MDuc',iter,myid,icell,uc_bin(1,:,icell,1)
-				write(99+myid,'(a,3i5,11f10.4)') '2 MDuc',iter,myid,icell,uc_bin(2,:,icell,1)
-			enddo
-
-            call coupler_send_data(uc_bin,index_transpose=(/2,3,1/),use_overlap_box=(/ ovr_box_x, .false., .false./))
-			uc_bin = 0.d0
-
-			return
-		endif
-
-		!print*, 'CFD bottom',y(jmin), y(jmino) 
-
-		do ip = 1, np
-			! Convert particle coordinates to same coordinate system
-			! as CFD code so ymin/ymax from CFD can be used in tests
-            rd(:) = r(:,ip)
-			rd(:) = map_md2cfd(rd)
-
-			! molecule outside the boundary layer
-			if ( rd(2) > y(jmin) .or. rd(2) < y(jmino) ) cycle
-
-            if (staggered_averages(1)) then 
-                ib = nint(   (rd(1) - x(bbox%iso)) / dx) + 1 
-            else 
-                ib = ceiling((rd(1) - x(bbox%is )) / dx)       
-            endif
-
-			!print'(4i8,7f10.5)', iter,myid,ip,ib, r(:,ip), rd(:), ib*dx + x(bbox%iso)
-
-			kb = ceiling((rd(3) - z(bbox%ks)) / dz)       ! cell centred averages; the last z row unused  
-
-			if ( ib > 0 .and. ib <=  ubound(uc_bin,3)  .and. &
-				 kb > 0 .and. kb <  nlz  ) then 
-
-				!  this particle are in this ranks domain
-				uc_bin(1,kb,ib,1) = uc_bin(1,kb,ib,1) + v(1,ip)
-				uc_bin(2,kb,ib,1) = uc_bin(2,kb,ib,1) + 1.d0 
-			else 
-				!print*, 'MD uc_average, outside domain rd', rd, ' bbox%bb ', bbox
-			endif
-		end do
-
-	end subroutine compute_uc_average
-
-!-----------------------------------------------------------------------------
-!	Calculate y component of velocity for a bin in the MD region
-!-----------------------------------------------------------------------------
-
-	subroutine compute_vc_average
-		use coupler_internal_md, only : nlx, nlz, bbox, jmino, jmin => jmin_cfd, vc_bin
-		implicit none
-
-		! this is the simplest one as there is no need for data communication
-		integer  ib, jb, kb, ip, ierr
-		real(kind=kind(0.d0)) rd(3)
-		logical, save :: first_time = .true.
-
-		if( first_time ) then
-			first_time = .false.
-            if(cfd_code_id == couette_parallel) then
-                allocate(vc_bin(2,nlz-1,nlx-1,2),stat=ierr)
-            else 
-                allocate(vc_bin(2,nlz-1,nlx-1,1),stat=ierr)
-            endif
-			vc_bin = 0.d0
-		endif
-
-
-		if (send_data ) then
-			! testing			vc_bin(1,:,:,:) = 10*myid+1
-			!				vc_bin(2,:,:,:) = 1.d0
-			!call send_vel(vc_bin,nlz-0,nlx-0,2)    
-			do icell=1,nlx-1
-				write(99+myid,'(a,3i5,11f10.4)') '1 MDvc',iter,myid,icell,vc_bin(1,:,icell,1)
-				write(99+myid,'(a,3i5,11f10.4)') '1.5 MDvc',iter,myid,icell,vc_bin(1,:,icell,2)
-				write(99+myid,'(a,3i5,11f10.4)') '2 MDvc',iter,myid,icell,vc_bin(2,:,icell,1)
-			enddo
-            call coupler_send_data(vc_bin,index_transpose=(/2,3,1/))
-			vc_bin = 0.d0
-			return
-		endif
-
-		!write(2200+myid,*) bbox%bb
-
-		do ip = 1, np
-			! Convert particle coordinates to same coordinate system
-			! as CFD code so ymin/ymax from CFD can be used in tests
-			rd(:) = r(:,ip)
-			rd(:) = map_md2cfd(rd)
-
-            if( staggered_averages(2))then 
-                if ( abs(rd(2)-y(jmino)) <= 0.5d0 * (y(jmin)-y(jmino)) ) then
-                    jb = 1
-                else if ( abs(rd(2)-y(jmin)) <= 0.5d0 * (y(jmin)-y(jmino)) ) then
-                    jb = 2
-                else
-                    cycle       
-                endif
-            else 
-                jb = 1
-                 if ( rd(2) < y(jmino) .or. rd(2) > y(jmin) ) then
-                    cycle       
-                endif
-            endif
-
-			! find the box indices
-			ib = ceiling((rd(1) - x(bbox%is)) / dx) ! cell centred averages in z, x; last cell unused
-			kb = ceiling((rd(3) - z(bbox%ks)) / dz)     
-
-			if ( ib > 0 .and. ib < nlx .and. &
-				 kb > 0 .and. kb < nlz ) then 
-				!  this particle are in this ranks domain
-				vc_bin(1,kb,ib,jb) = vc_bin(1,kb,ib,jb) + v(2,ip)
-				vc_bin(2,kb,ib,jb) = vc_bin(2,kb,ib,jb) + 1.d0
-			else 
-				!write(0,*) 'MD vc_average, outside domain rd ', rd, ' bbox%bb ', bbox%bb 
-			endif
-		end do
-
-	end subroutine compute_vc_average
-
-!-----------------------------------------------------------------------------
-!	Calculate z component of velocity for a bin in the MD region
-!-----------------------------------------------------------------------------
-
-	subroutine compute_wc_average
-		use coupler_internal_md, only : nlx, nlz, bbox, bbox, jmin => jmin_cfd, jmino, wc_bin
-		implicit none
-
-		integer ib, kb, ip, source, dest, ierr
-		real(kind(0.d0)) rd(3)
-		logical, save :: first_time = .true.
-
-		if (first_time) then 
-			first_time = .false. 
-			allocate(wc_bin(2,nlz,nlx-1,1), stat = ierr)
-			wc_bin(:,:,:,1)  = 0.d0
-		endif
-
-  		if (send_data ) then
-			!call send_vel(wc_bin,nlz,nlx,1)   
-			do icell=1,nlx-1
-				write(99+myid,'(a,3i5,12f10.4)') '1 MDwc',iter,myid,icell,wc_bin(1,:,icell,1)
-				write(99+myid,'(a,3i5,12f10.4)') '2 MDwc',iter,myid,icell,wc_bin(2,:,icell,1)
-			enddo 
-            call coupler_send_data(wc_bin,index_transpose=(/2,3,1/),use_overlap_box=(/.false.,.false.,.true./))
-			wc_bin = 0.d0
-			return
-		endif
-
-
-		do ip = 1, np
-			! Convert particle coordinates to same coordinate system
-			! as CFD code so ymin/ymax from CFD can be used in tests
-			rd(:) = r(:,ip)
-			rd(:) = map_md2cfd(rd)
-
-			if ( rd(2) > y(jmin) .or. rd(2) < y(jmino) ) then
-				! molecule outside the boundary layer
-				cycle
-			endif
-
-			ib = ceiling((rd(1) - x(bbox%is)) / dx)
-            if ( staggered_averages(3)) then 
-                kb = nint((rd(3) - z(bbox%kso)) / dz) + 1 ! staggered    
-            else
-                kb = ceiling((rd(3) - z(bbox%ks)) / dz)
-            endif
-
-			if ( ib > 0 .and. ib <  nlx .and. &
-				kb > 0 .and. kb <= nlz ) then 
-				!  this particle are in this ranks domain
-				wc_bin(1,kb,ib,1) = wc_bin(1,kb,ib,1) + v(3,ip)
-				wc_bin(2,kb,ib,1) = wc_bin(2,kb,ib,1) + 1.d0 
-			else 
-				!write(0,*) 'MD wc_average, outside domain rd', rd, ' bbox%bb ', bbox%bb 
-			endif
-
-		enddo
-
-	end subroutine compute_wc_average
-
-end subroutine coupler_md_boundary_cell_average
-
-!-----------------------------------------------------------------------------
-!	Calculate all components of velocity to pass to contiunuum region 
+! Take average of x,y and z components of MD velocity to 
+! calculate all components of velocity to pass to contiunuum region 
 !
 !-----------------------------------------------------------------------------
-subroutine average_and_send_MD_to_CFD2(iter)
+subroutine average_and_send_MD_to_CFD(iter)
 	use computational_constants_MD, only : initialstep, delta_t, nhb
-	use coupler_internal_md, only : myid,icoord,dx,dz,x,y,z,map_md2cfd,map_cfd2md,cfd_code_id,nlx,nly,nlz,uvwbin,mflux
+	use coupler_internal_md, only : map_md2cfd,map_cfd2md
 	use calculated_properties_MD, only : nbins
 	use physical_constants_MD, only : np
 	use arrays_MD, only :r,v
-   	use coupler_module, only : staggered_averages
+   	use coupler_module, only : staggered_averages, ngx,ngy,ngz,dx,dz,ypg,cfd_code_id
+	use messenger, only : MD_COMM
 	implicit none
 
 	integer, intent(in) :: iter
 	
 	integer :: iter_cfd, iter_average, Naverage, save_period, average_period
+	integer	:: myid, ierr
 	logical, save :: first_time=.true.
 	save  average_period, Naverage
+
+	call MPI_COMM_RANK(MD_COMM,myid,ierr)
 
     if (first_time) then 
 	    first_time	= .false.
@@ -792,18 +421,18 @@ contains
 		! Setup averaging array on first call
 		select case(staggered_averages(1))
 		case(.true.)
-			allocate( mflux(6,nlz+2*nhb(3),nlx+2*nhb(1),1))
+			allocate( mflux(6,ngz-1,ngx-1,1))
 			mflux = 0
 		case(.false.)
-			allocate(uvwbin(4,nlz+2*nhb(3),nlx+2*nhb(1),1))
+			allocate(uvwbin(4,ngz-1,ngx-1,1))
 			uvwbin = 0.d0
 		end select
 	end subroutine setup_velocity_average
 
 !------------------------------------------
 	subroutine cumulative_velocity_average
-		use coupler_internal_md, only : bbox,jmino,jmin=>jmin_cfd,cfd_code_id
-		use coupler_internal_md, only : imax_cfd,imin_cfd,jmax_cfd,jmin_cfd,kmax_cfd,kmin_cfd,x,y,z
+		use coupler_internal_md, only : bbox
+		use coupler_module, only : imax,imin,jmax,jmin,kmax,kmin,dx,dy,dz,ngx,ngy,ngz,cfd_code_id
 		use computational_constants_MD, only : iter, ncells,domain,halfdomain
 		use librarymod, only : heaviside, imaxloc
 		implicit none
@@ -836,7 +465,7 @@ contains
 		minbin = ceiling((cnst_bot+halfdomain(:))/Vbinsize(:)) + nhb
 		maxbin = ceiling((cnst_top+halfdomain(:))/Vbinsize(:)) + nhb
 
-		!print*,'extents', minbin,imin_cfd,jmin_cfd,kmin_cfd,maxbin,imax_cfd,jmax_cfd,kmax_cfd
+		!print*,'extents', minbin,imin,jmin,kmin,maxbin,imax,jmax,kmax
 
 		select case(staggered_averages(1))	
 		!- - - - - - - - - - - - - - - - - - - -
@@ -909,28 +538,17 @@ contains
 		select case(staggered_averages(1))	
 		! Send velocity flux over surface
 		case(.true.)
-            call coupler_send_data(dble(mflux(:,2:nlz+nhb(3),2:nlx+nhb(1),:)),index_transpose=(/2,3,1/), & 
-															use_overlap_box=(/ ovr_box_x, .false., .false./))
+            call coupler_send_data(dble(mflux),index_transpose=(/2,3,1/))
 			mflux = 0
 		! Send velocity in cell centre
 		case(.false.)
-			print*, 'sending uvwbin of size',size(uvwbin,1),size(uvwbin,2),size(uvwbin,3),size(uvwbin,4)
-			do icell=1,nlx-0
-				write(99+myid,'(a,3i5,11f10.4)') '1 MD',iter,myid,icell,uvwbin(1,:,icell,1)
-				write(99+myid,'(a,3i5,11f10.4)') '2 MD',iter,myid,icell,uvwbin(2,:,icell,1)
-				write(99+myid,'(a,3i5,11f10.4)') '3 MD',iter,myid,icell,uvwbin(3,:,icell,1)
-				write(99+myid,'(a,3i5,11f10.4)') '4 MD',iter,myid,icell,uvwbin(4,:,icell,1)
-			!	print'(a,3i8,4f10.5)', 'MD cell sizes',iter,myid,icell,icell*dx+(bbox%iso),(bbox%iso),(bbox%is),dx
-			enddo
-			print*, 'size of uvwbin sent',nlz+nhb(3)-1,nlx+nhb(1), nhb
-            call coupler_send_data(uvwbin(:,2:nlz,2:nlx,:),index_transpose=(/2,3,1/))!, & 
-														!use_overlap_box=(/ ovr_box_x, .false., .false./))
+            call coupler_send_data(uvwbin,index_transpose=(/2,3,1/))
 			uvwbin = 0.d0
 		end select
 
 	end subroutine send_velocity_average
 
-end subroutine average_and_send_MD_to_CFD2
+end subroutine average_and_send_MD_to_CFD
 
 
 !===================================================================================

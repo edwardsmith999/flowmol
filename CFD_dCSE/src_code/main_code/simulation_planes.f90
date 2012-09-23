@@ -153,7 +153,7 @@ subroutine simulation_run()
 		cpu_cflcal= (after - before) - t_over  
 
 #if USE_COUPLER
-        call socket_coupler_send_velocity ! send velocities needed to set the continuum forces in MD
+		call socket_coupler_send_velocity ! send velocities needed to set the continuum forces in MD
 #endif
 
 		!----------------------------------------

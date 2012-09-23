@@ -6,7 +6,7 @@
 !
 ! --Misc Mathematics--
 ! least_squares(x_interval,y,npoints,intercept, gradient)
-! intergrate_trap(y,npoints,x_interval,integeral)
+! integrate_trap(y,npoints,x_interval,integeral)
 ! heaviside(a)
 ! plane_line_intersect(intersection,normal,p,ri,rj)
 
@@ -184,12 +184,12 @@ implicit none
 
 	print'(a,f10.5,a,f10.5)', 'y = ', lstsqrsgrad, ' x + ', lstsqrsinter
 
-end subroutine
+end subroutine least_squares
 
 !-------------------------------------------------------------------------------------
 !Subrountine used to intergrate a function over a uniform grid using the trapizium rule
 
-subroutine intergrate_trap(y,x_interval,npoints,s)
+subroutine integrate_trap(y,x_interval,npoints,s)
 implicit none
 
 	integer											:: n
@@ -207,7 +207,7 @@ implicit none
 		s = s + x_interval * y(n)
 	enddo
 
-end subroutine
+end subroutine integrate_trap
 
 !-------------------------------------------------------------------------------------
 !Returns the heaviside function for input x
@@ -384,7 +384,7 @@ subroutine LUdcmp(A,indx,d)
 	if (size(A,1) .ne. size(A,2)) call error_abort("Matrix not square in LU dcmp")
 	!Check matrix is singular
 	if (any(vv .eq. 0.0)) call error_abort("Singular matrix in LU dcmp")
-	vv = 1.d0 / vv 			!Invert vv
+	vv = 1.d0 / vv 			!Invert vvs
 
 	do j=1,n
 		imax=(j-1)+imaxloc(vv(j:n)*abs(A(j:n,j)))
@@ -465,6 +465,96 @@ subroutine get_file_size(filename,file_size)
 	!file_size = SArray(8)
 
 end subroutine get_file_size
+
+
+ 
+!-----------------------------------------------------
+! Build array of dimension ncells which maps to 3D Hilbert curve.
+subroutine build_hilbert(ncells,Hcurve)
+	use interfaces, only : error_abort
+	implicit none
+
+	integer,dimension(3),intent(in)					 :: ncells
+	integer,dimension(:,:,:),allocatable,intent(out) :: Hcurve
+
+	integer	:: icell,jcell,kcell,maxcells
+	integer	:: hindex,i,n,m
+	double precision	:: shift
+	double precision,dimension(:),allocatable	:: x,y,z
+
+	!Calculate max size of cell to determine required 3d Hilbert cube dimensions
+	maxcells=maxval(ncells(:))
+	!Log base 2 of max size is index used in hilbert 3 calc
+	hindex = ceiling(log(dble(maxcells))/log(2.d0))
+	call hilbert3(hindex,x,y,z)     !Get Hilbert Curve
+
+	!Check if number of cells is a power of two - if not round max cell up to 
+	!power of two, generate curves and discard rest of domain greater than ncells
+	if (hindex-log(dble(maxcells))/log(2.d0) .gt. 0.0001d0 ) then
+		 maxcells = ceiling(8.d0**(dble(hindex)/3.d0))
+	endif
+
+	!Get length of hilbert curve and loop through storing m at all cell indices 
+	n=max(size(x),size(y),size(z)); m =0
+	shift=0.00001d0-min(minval(x),minval(y),minval(z))      !Shift to just above zero then round up
+	allocate(Hcurve(ncells(1),ncells(2),ncells(3)))
+	Hcurve = -666			      !Debug values
+	do i=1,n
+		 !Get icell,jcell,kcell at index i
+		 icell = ceiling((x(i)+shift)*maxcells)
+		 jcell = ceiling((y(i)+shift)*maxcells)
+		 kcell = ceiling((z(i)+shift)*maxcells)
+		 !Trim off part of cubic domain outside limits of ncells
+	    if (icell .le. ncells(1) .and. & 
+			  jcell .le. ncells(2) .and. & 
+			  kcell .le. ncells(3)) then
+			  !Store value of index for icell,jcell & kcell
+			  m = m + 1
+		 Hcurve(icell,jcell,kcell) = m
+		 endif
+
+	enddo
+
+	!Error catching
+	if (minval(Hcurve) .eq. -666) then
+		 call error_abort('Error in generating Hilbert curve - change sort flag')
+	endif
+
+contains
+
+	!-----------------------------------------------------
+	! Calculate and return the 3D Hilbert curve.
+	recursive subroutine hilbert3(n,x,y,z)
+		implicit none
+
+		integer,intent(in)										:: n
+		double precision,dimension(:),allocatable,intent(out)   :: x,y,z
+		double precision,dimension(:),allocatable				:: xo,yo,zo
+
+
+		if (n .le. 0) then
+		  !Bottom level of recursion - set x,y and z to zero
+		  allocate(x(1)); x = 0.d0
+		  allocate(y(1)); y = 0.d0
+		  allocate(z(1)); z = 0.d0
+		else
+		  ! Recursively call the fractal Hilbert curve code to concatenate 8 previous
+		  ! smaller Hilbert curves connected by a higher level Hilbert curve
+		    call hilbert3(n-1,xo,yo,zo)
+		  allocate(x(8*size(xo)))
+		  allocate(y(8*size(yo)))
+		  allocate(z(8*size(zo)))
+		    x = 0.5d0 * (/ 0.5d0+zo,  0.5d0+yo, -0.5d0+yo, -0.5d0-xo, & 
+						  -0.5d0-xo, -0.5d0-yo,  0.5d0-yo,  0.5d0+zo /)
+		    y = 0.5d0 * (/ 0.5d0+xo,  0.5d0+zo,  0.5d0+zo,  0.5d0+yo, & 
+						  -0.5d0+yo, -0.5d0-zo, -0.5d0-zo, -0.5d0-xo /)
+		    z = 0.5d0 * (/ 0.5d0+yo, -0.5d0+xo, -0.5d0+xo,  0.5d0-zo, & 
+						   0.5d0-zo, -0.5d0+xo, -0.5d0+xo,  0.5d0-yo /)
+		endif
+
+	end subroutine hilbert3
+
+end subroutine build_hilbert
 
 !--------------------------------------------------------------------------------------
 !Write matrix in correct format
@@ -568,7 +658,7 @@ subroutine check
 
 	!Check intergration under that line
 
-	call intergrate_trap(y,x_interval,npoints,integral)
+	call integrate_trap(y,x_interval,npoints,integral)
 
 	print*, 'integral', integral
 

@@ -57,8 +57,8 @@ end subroutine socket_read_coupler_input
 !=============================================================================
 ! Call coupler initialise to swap all setup data
 !-----------------------------------------------------------------------------
-subroutine socket_coupler_init_es
-	use coupler_internal_cfd, only : coupler_cfd_init_es
+subroutine socket_coupler_init
+	use coupler_internal_cfd, only : coupler_cfd_init
     use messenger, only : icomm_grid, icoord
     use data_export, only : imin,imax,jmin,jmax,kmin,kmax, &
 							iTmin_1,iTmax_1,jTmin_1,jTmax_1, &
@@ -94,10 +94,10 @@ subroutine socket_coupler_init_es
 	endif
 
 
-    call coupler_cfd_init_es(nsteps,dt,icomm_grid,icoord,npxyz,xyzL,ngxyz,density, & 
+    call coupler_cfd_init(nsteps,dt,icomm_grid,icoord,npxyz,xyzL,ngxyz,density, & 
 							   ijkmax,ijkmin,iTmin_1,iTmax_1,jTmin_1,jTmax_1,kTmin_1,kTmax_1,xpg,ypg,zpg)
 
-end subroutine socket_coupler_init_es
+end subroutine socket_coupler_init
 
 
 !=============================================================================
