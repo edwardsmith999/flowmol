@@ -34,6 +34,8 @@ end module module_set_parameters
 
 subroutine setup_set_parameters
 	use module_set_parameters
+	use interfaces, only : error_abort
+	use librarymod, only : build_hilbert
 	implicit none
 
 	integer							:: iblk,jblk,kblk

@@ -51,7 +51,7 @@ subroutine setup_MD
 		call messenger_init                 !Establish processor topology
 		call setup_inputs                   !Input simulation parameters
 #if USE_COUPLER
- 		call socket_coupler_init_es			!SETUP COUPLER AND EXCHANGE WITH CFD
+ 		call socket_coupler_init			!SETUP COUPLER AND EXCHANGE WITH CFD
 #endif
 		call setup_set_parameters           !Calculate parameters using input
 		call setup_initialise_microstate    !Setup position and velocities
@@ -84,7 +84,7 @@ subroutine simulation_MD
 	use physical_constants_MD
 #if USE_COUPLER
 	use md_coupler_socket, only : socket_coupler_apply_continuum_forces, &
-								  average_and_send_MD_to_CFD,average_and_send_MD_to_CFD2
+								  average_and_send_MD_to_CFD
 #endif
 	implicit none
   

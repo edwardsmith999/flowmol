@@ -1850,10 +1850,11 @@ end subroutine VA_stress_io
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 subroutine viscosity_io
-use module_parallel_io
-use physical_constants_MD
-use calculated_properties_MD
-implicit none
+	use module_parallel_io
+	use physical_constants_MD
+	use calculated_properties_MD
+	use librarymod, only : integrate_trap
+	implicit none
 
 	integer				:: m, length
 	double precision	:: viscosity
@@ -1861,7 +1862,7 @@ implicit none
 	!call globalAverage(Pxycorrel, Nvisc_ave)
 
 	if (irank .eq. iroot) then
-		call intergrate_trap(Pxycorrel,tplot*delta_t,Nstress_ave,viscosity)
+		call integrate_trap(Pxycorrel,tplot*delta_t,Nstress_ave,viscosity)
 
 		viscosity = (viscosity*volume)/(3.0*Nstress_ave*Nvisc_ave*inputtemperature)
 
