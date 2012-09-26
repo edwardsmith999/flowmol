@@ -39,14 +39,11 @@ contains
 ! Initialisation routine for coupler - Every variable is sent and stored
 ! to ensure both md and cfd region have an identical list of parameters
 
-subroutine coupler_cfd_init(nsteps,dt_cfd,icomm_grid,icoord,npxyz_cfd,xyzL,ngxyz,density, & 
-							   ijkmax,ijkmin,iTmin,iTmax,jTmin,jTmax,kTmin,kTmax,xpg,ypg,zpg)
+subroutine coupler_cfd_init(nsteps,dt_cfd,icomm_grid,icoord,npxyz_cfd,xyzL,ngxyz, & 
+							   density,ijkmax,ijkmin,iTmin,iTmax,jTmin, & 
+							   jTmax,kTmin,kTmax,xpg,ypg,zpg)
     use mpi
-	use coupler, only : write_matrix,write_matrix_int
     use coupler_module,	dt_cfd_=>dt_cfd,						&	!Simulation lengths	
-						iTmin_=>iTmin,iTmax_=>iTmax, 			&   !CFD local grid limits
-						jTmin_=>jTmin,jTmax_=>jTmax, 			&   !CFD local grid limits
-						kTmin_=>kTmin,kTmax_=>kTmax,			&   !CFD local grid limits
 						xpg_=>xpg,ypg_=>ypg,zpg_=>zpg				!CFD grid arrays
 	use coupler_input_data, only : cfd_coupler_input
  	implicit none			
@@ -61,16 +58,18 @@ subroutine coupler_cfd_init(nsteps,dt_cfd,icomm_grid,icoord,npxyz_cfd,xyzL,ngxyz
     real(kind(0.d0)),dimension(:,:),intent(in)	:: xpg,ypg
 
 
-    integer											:: i, myid, source, ierr
+    integer											:: i,ib,jb,kb,pcoords(3),root,source,ierr
     integer,dimension(:),allocatable				:: buf
 	real(kind=kind(0.d0))							:: dxmin,dxmax,dzmin,dzmax
     real(kind=kind(0.d0)),dimension(:),allocatable 	:: rbuf
 
     ! Duplicate grid communicator for coupler use
     call MPI_comm_dup(icomm_grid,coupler_grid_comm,ierr)
-    call MPI_comm_rank(COUPLER_REALM_COMM,myid,ierr)
+    call MPI_comm_rank(coupler_grid_comm,myid_grid,ierr) 
+    myid_grid = myid_grid + 1
+	root = 1
 	!Send only from root processor
-    if ( myid .eq. 0 ) then
+    if ( myid_grid .eq. root ) then
         source=MPI_ROOT
     else
         source=MPI_PROC_NULL
@@ -88,7 +87,7 @@ subroutine coupler_cfd_init(nsteps,dt_cfd,icomm_grid,icoord,npxyz_cfd,xyzL,ngxyz
 	nproc_cfd = npx_cfd * npy_cfd * npz_cfd
     call MPI_bcast(npxyz_cfd,3,MPI_INTEGER,source,COUPLER_ICOMM,ierr)	!Send
 
-	write(99+myid,*), 'CFD side',myid,'CFD procs',npx_cfd,npy_cfd,npz_cfd,nproc_cfd
+	write(99+myid_grid,*), 'CFD side',myid_grid,'CFD procs',npx_cfd,npy_cfd,npz_cfd,nproc_cfd
 
 	! Receive & Store MD number of processors
 	allocate(buf(3))
@@ -99,23 +98,51 @@ subroutine coupler_cfd_init(nsteps,dt_cfd,icomm_grid,icoord,npxyz_cfd,xyzL,ngxyz
     nproc_md = npx_md * npy_md * npz_md
 	deallocate(buf)
 
-	write(99+myid,*), 'CFD side',myid,'MD procs',npx_md ,npy_md ,npz_md ,nproc_md
+	write(99+myid_grid,*), 'CFD side',myid_grid,'MD procs',npx_md ,npy_md ,npz_md ,nproc_md
 
-	! Store & Send CFD processor topology
-    allocate(icoord_cfd(3,nproc_cfd),stat=ierr); icoord_cfd = icoord
+	! Store & Send CFD processor rank to coord
+    allocate(rank2coord_cfd(3,nproc_cfd),stat=ierr); rank2coord_cfd = icoord
+	iblock=icoord(1,myid_grid); jblock=icoord(2,myid_grid); kblock=icoord(3,myid_grid)
 	allocate(buf(3*nproc_cfd)); buf = reshape(icoord, (/ 3*nproc_cfd /) )
     call MPI_bcast(buf,3*nproc_cfd,MPI_INTEGER,source,COUPLER_ICOMM,ierr)	!Send
 	deallocate(buf)
 
-	call write_matrix_int(icoord_cfd,'cfd side, icoord_cfd=',99+myid)
+	call write_matrix_int(rank2coord_cfd,'cfd side, rank2coord_cfd=',99+myid_grid)
 
-	! Receive & Store MD processor topology
+	! Receive & Store MD processor rank to coord
 	allocate(buf(3*nproc_md))
     call MPI_bcast(buf,3*nproc_md ,MPI_INTEGER,  0   ,COUPLER_ICOMM,ierr)	!Receive
-    allocate(icoord_md (3,nproc_md),stat=ierr); icoord_md = reshape(buf,(/ 3,nproc_md /))
+    allocate(rank2coord_md (3,nproc_md),stat=ierr); rank2coord_md = reshape(buf,(/ 3,nproc_md /))
 	deallocate(buf)
 
-	call write_matrix_int(icoord_md,'cfd side, icoord_md=',99+myid)
+	call write_matrix_int(rank2coord_md,'cfd side, rank2coord_md=',99+myid_grid)
+
+	!Setup CFD mapping from coordinate to rank, store and send
+	allocate(coord2rank_cfd(npx_cfd,npy_cfd,npz_cfd))
+	do ib = 1,npx_cfd
+	do jb = 1,npy_cfd
+	do kb = 1,npz_cfd
+		pcoords = (/ ib, jb, kb /)-1
+		call MPI_Cart_rank(COUPLER_GRID_COMM,pcoords,i,ierr)
+		coord2rank_cfd(ib,jb,kb) = i + 1
+	enddo
+	enddo
+	enddo
+
+	allocate(buf(nproc_cfd)); buf = reshape(coord2rank_cfd, (/ nproc_cfd /) )
+    call MPI_bcast(coord2rank_cfd,nproc_cfd,MPI_INTEGER,source,COUPLER_ICOMM,ierr)	!Send
+	deallocate(buf)
+
+	write(99+myid_grid,*), 'CFD side',myid_grid,'coord2rank_cfd=',coord2rank_cfd
+
+	! Receive & Store MD coordinate to rank mapping
+	allocate(buf(nproc_md))
+    call MPI_bcast(buf,nproc_md ,MPI_INTEGER,  0   ,COUPLER_ICOMM,ierr)	!Receive
+    allocate(coord2rank_md (npx_md,npy_md,npz_md)) 
+	coord2rank_md = reshape(buf,(/ npx_md,npy_md,npz_md /))
+	deallocate(buf)
+
+	write(99+myid_grid,*), 'CFD side',myid_grid,'coord2rank_md=',coord2rank_md
 
 	! ------------------ Timesteps and iterations ------------------------------
 	! Store & send CFD nsteps and dt_cfd
@@ -124,13 +151,13 @@ subroutine coupler_cfd_init(nsteps,dt_cfd,icomm_grid,icoord,npxyz_cfd,xyzL,ngxyz
 	dt_cfd_ = dt_cfd
     call MPI_bcast(dt_cfd,1,MPI_double_precision,source,COUPLER_ICOMM,ierr)	!Send
 
-	write(99+myid,*), 'CFD side',myid,'CFD times', nsteps_cfd,dt_cfd
+	write(99+myid_grid,*), 'CFD side',myid_grid,'CFD times', nsteps_cfd,dt_cfd
 
 	! Receive & store MD timestep dt_md
     call MPI_bcast(dt_md,1,MPI_double_precision,0,COUPLER_ICOMM,ierr)		!Receive
     call MPI_bcast(nsteps_md,1,MPI_integer,     0,COUPLER_ICOMM,ierr)		!Receive
 
-	write(99+myid,*), 'CFD side',myid,'MD times', nsteps_md,dt_md
+	write(99+myid_grid,*), 'CFD side',myid_grid,'MD times', nsteps_md,dt_md
 
 	! ------------------ Send CFD grid extents ------------------------------
 
@@ -138,117 +165,149 @@ subroutine coupler_cfd_init(nsteps,dt_cfd,icomm_grid,icoord,npxyz_cfd,xyzL,ngxyz
 	density_cfd = density
 	call MPI_bcast(density_cfd,1,MPI_double_precision,source,COUPLER_ICOMM,ierr)	!Send
 
-	write(99+myid,*), 'CFD side',myid,'CFD density',density_cfd
+	write(99+myid_grid,*), 'CFD side',myid_grid,'CFD density',density_cfd
 
 	! Receive & store MD density
 	call MPI_bcast(density_md,1,MPI_double_precision,0,COUPLER_ICOMM,ierr)		!Receive
 
-	write(99+myid,*), 'CFD side',myid,'CFD density',density_md
+	write(99+myid_grid,*), 'CFD side',myid_grid,'CFD density',density_md
 
 	! Store & send CFD domain size
 	xL_cfd = xyzL(1); yL_cfd = xyzL(2); zL_cfd = xyzL(3)
 	call MPI_bcast(xyzL,3,MPI_double_precision,source,COUPLER_ICOMM,ierr)	!Send
 
-	write(99+myid,*), 'CFD side',myid,'CFD domain',xL_cfd,yL_cfd,zL_cfd	
+	write(99+myid_grid,*), 'CFD side',myid_grid,'CFD domain',xL_cfd,yL_cfd,zL_cfd	
 	! Receive & store MD domain size
 	allocate(rbuf(3))
 	call MPI_bcast(rbuf,3,MPI_double_precision,0,COUPLER_ICOMM,ierr)		!Receive
 	xL_md = rbuf(1); yL_md = rbuf(2); zL_md = rbuf(3);
 	deallocate(rbuf)
 
-	write(99+myid,*), 'CFD side',myid,'MD domain', xL_md,yL_md,zL_md
+	write(99+myid_grid,*), 'CFD side',myid_grid,'MD domain', xL_md,yL_md,zL_md
 
 	! Store & send CFD grid extents
 	imin = ijkmin(1); jmin = ijkmin(2); kmin = ijkmin(3)
 	imax = ijkmax(1); jmax = ijkmax(2); kmax = ijkmax(3)
     call MPI_bcast((/ imin,imax,jmin,jmax,kmin,kmax /),6,MPI_INTEGER,source,COUPLER_ICOMM,ierr) !Send
 
-	write(99+myid,*), 'CFD side',myid,'CFD global extents',imin,imax,jmin,jmax,kmin,kmax
+	write(99+myid_grid,*), 'CFD side',myid_grid,'CFD global extents',imin,imax,jmin,jmax,kmin,kmax
 
 	! Store & send global number of cells in CFD
 	ngx = ngxyz(1); ngy = ngxyz(2); ngz = ngxyz(3)
     call MPI_bcast(ngxyz,3,MPI_INTEGER,source,COUPLER_ICOMM,ierr)				!Send
 
-	write(99+myid,*), 'CFD side',myid,'CFD global cells',ngx,ngy,ngz
+	write(99+myid_grid,*), 'CFD side',myid_grid,'CFD global cells',ngx,ngy,ngz
 
 	! Store & send array of global grid points
-    allocate(xpg_(size(xpg,1),size(xpg,2)),stat=ierr); xpg_ = xpg
-    allocate(ypg_(size(ypg,1),size(ypg,2)),stat=ierr); ypg_ = ypg
-    allocate(zpg_(size(zpg,1)			 ),stat=ierr); zpg_ = zpg
+    allocate(xpg_(size(xpg+1,1)+1,size(xpg,2)+1),stat=ierr); xpg_ = xpg
+    allocate(ypg_(size(ypg+1,1)+1,size(ypg,2)+1),stat=ierr); ypg_ = ypg
+    allocate(zpg_(size(zpg+1,1)+1			   ),stat=ierr); zpg_ = zpg
     call MPI_bcast(xpg,size(xpg),MPI_double_precision,source,COUPLER_ICOMM,ierr) !Send
     call MPI_bcast(ypg,size(ypg),MPI_double_precision,source,COUPLER_ICOMM,ierr) !Send
     call MPI_bcast(zpg,size(zpg),MPI_double_precision,source,COUPLER_ICOMM,ierr) !Send
 
-	call write_matrix(xpg,'cfd side, xpg=',50+myid)
-	call write_matrix(ypg,'cfd side, ypg=',50+myid)
-	write(50+myid,*), 'CFD side',myid,'zpg',zpg
+	call write_matrix(xpg,'cfd side, xpg=',50+myid_grid)
+	call write_matrix(ypg,'cfd side, ypg=',50+myid_grid)
+	write(50+myid_grid,*), 'CFD side',myid_grid,'zpg',zpg
 
     ! Store & Send local (processor) CFD grid extents
-    allocate(iTmin_(npx_cfd),stat=ierr); iTmin_(:) = iTmin(:)
-    allocate(iTmax_(npx_cfd),stat=ierr); iTmax_(:) = iTmax(:)
-    allocate(jTmin_(npy_cfd),stat=ierr); jTmin_(:) = jTmin(:)
-    allocate(jTmax_(npy_cfd),stat=ierr); jTmax_(:) = jTmax(:)
-    allocate(kTmin_(npz_cfd),stat=ierr); kTmin_(:) = kTmin(:)
-    allocate(kTmax_(npz_cfd),stat=ierr); kTmax_(:) = kTmax(:)
-    call MPI_bcast(iTmin,npx_cfd,MPI_INTEGER,source,COUPLER_ICOMM,ierr) !Send
-    call MPI_bcast(iTmax,npx_cfd,MPI_INTEGER,source,COUPLER_ICOMM,ierr) !Send
-    call MPI_bcast(jTmin,npy_cfd,MPI_INTEGER,source,COUPLER_ICOMM,ierr) !Send
-    call MPI_bcast(jTmax,npy_cfd,MPI_INTEGER,source,COUPLER_ICOMM,ierr) !Send
-    call MPI_bcast(kTmin,npz_cfd,MPI_INTEGER,source,COUPLER_ICOMM,ierr) !Send
-    call MPI_bcast(kTmax,npz_cfd,MPI_INTEGER,source,COUPLER_ICOMM,ierr) !Send
+    allocate(iTmin_cfd(npx_cfd),stat=ierr); iTmin_cfd(:) = iTmin(:)
+    allocate(iTmax_cfd(npx_cfd),stat=ierr); iTmax_cfd(:) = iTmax(:)
+    allocate(jTmin_cfd(npy_cfd),stat=ierr); jTmin_cfd(:) = jTmin(:)
+    allocate(jTmax_cfd(npy_cfd),stat=ierr); jTmax_cfd(:) = jTmax(:)
+    allocate(kTmin_cfd(npz_cfd),stat=ierr); kTmin_cfd(:) = kTmin(:)
+    allocate(kTmax_cfd(npz_cfd),stat=ierr); kTmax_cfd(:) = kTmax(:)
+    call MPI_bcast(iTmin_cfd,npx_cfd,MPI_INTEGER,source,COUPLER_ICOMM,ierr) !Send
+    call MPI_bcast(iTmax_cfd,npx_cfd,MPI_INTEGER,source,COUPLER_ICOMM,ierr) !Send
+    call MPI_bcast(jTmin_cfd,npy_cfd,MPI_INTEGER,source,COUPLER_ICOMM,ierr) !Send
+    call MPI_bcast(jTmax_cfd,npy_cfd,MPI_INTEGER,source,COUPLER_ICOMM,ierr) !Send
+    call MPI_bcast(kTmin_cfd,npz_cfd,MPI_INTEGER,source,COUPLER_ICOMM,ierr) !Send
+    call MPI_bcast(kTmax_cfd,npz_cfd,MPI_INTEGER,source,COUPLER_ICOMM,ierr) !Send
 
-	write(99+myid,*), 'CFD side',myid,'CFD local cells',iTmin,iTmax,jTmin,jTmax,kTmin,kTmax
+	write(99+myid_grid,*), 'CFD side',myid_grid,'CFD local cells',iTmin_cfd,iTmax_cfd,jTmin_cfd,jTmax_cfd,kTmin_cfd,kTmax_cfd
 
-    ! send CFD processor grid and overlap parameter
-    ! Note: jmax_overlap default is provided in coupler_internal_cfd
-    if (cfd_coupler_input%overlap%tag == CPL) then
-        jmax_overlap =  jmin + cfd_coupler_input%overlap%y_overlap
-    endif
-
-	call MPI_barrier(MPI_COMM_WORLD,ierr)
-
-	!Define cell sizes dx,dy & dz and check for grid stretching
-	! - - x - -
+	!Calculate the cell sizes dx,dy & dz
 	dx = xpg(2,1)-xpg(1,1)
-	dxmax = maxval(xpg(2:ngx,2:ngy)-xpg(1:ngx-1,1:ngy-1))
-	dxmin = minval(xpg(2:ngx,2:ngy)-xpg(1:ngx-1,1:ngy-1))
-	if (dxmax-dx.gt.0.00001d0) call error_abort("ERROR - Grid stretching in x not supported")
-	if (dx-dxmin.gt.0.00001d0) call error_abort("ERROR - Grid stretching in x not supported")
-	! - - y - -
 	dy = ypg(1,2)-ypg(1,1)
-	dymax = maxval(ypg(2:ngx,2:ngy)-ypg(1:ngx-1,1:ngy-1))
-	dymin = minval(ypg(2:ngx,2:ngy)-ypg(1:ngx-1,1:ngy-1))
-	if (dymax-dy.gt.0.0001 .or. dy-dymin.gt.0.0001) then
-        write(*,*) "********************************************************************"
-        write(*,*) " Grid stretching employed in CFD domain - range of dy sizes:        "
-		write(*,*) "dymin = ", dymin, " dy = ",dy, " dymax = ", dymax
-        write(*,*) "********************************************************************"
-        write(*,*)
-	endif
-	! - - z - -
 	dz = zpg(2  )-zpg(1  )
-	dzmax = maxval(zpg(2:ngz)-zpg(1:ngz-1))
-	dzmin = minval(zpg(2:ngz)-zpg(1:ngz-1))
-	if (dzmax-dz.gt.0.00001d0) call error_abort("ERROR - Grid stretching in z not supported")
-	if (dz-dzmin.gt.0.00001d0) call error_abort("ERROR - Grid stretching in z not supported")
 
-    ! test if MD_init_cell size is larger than CFD cell size
-    if( MD_initial_cellsize .ge. dx .or. & 
-		MD_initial_cellsize .ge. dy .or. & 
-		MD_initial_cellsize .ge. dz .and. myid == 0 ) then
-        write(*,*)
-        write(*,*) "********************************************************************"
-        write(*,*) " WARNING ...WARNING ...WARNING ...WARNING ...WARNING ...WARNING ... "
-        write(*,*) " MD initialisation cell size larger than CFD x,y cell sizes         "
-        write(*,*) " MD_init_cellsize=",MD_initial_cellsize
-        write(*,'(3(a,f10.5))') " dx=",xpg(2,1)-xpg(1,1),  & 
-								" dy=",ypg(1,2)-ypg(1,1),  & 
-								" dz=",zpg(2  )-zpg(1  )
-        write(*,*) "********************************************************************"
-        write(*,*)
-    endif
+    ! send number of overlap cells, read by input, to all processors
+    ! Note : jmax_overlap default is provided in coupler_internal_cfd
+	! but for some reason it is only broadcast to CFD processors while 
+	! the tag used in the if statement below is not broadcast at all...
+	if (myid_grid .eq. root) then
+	    if (cfd_coupler_input%overlap%tag == CPL) then
+			i_olap = 0
+    	    j_olap = cfd_coupler_input%overlap%y_overlap
+			k_olap = 0
+		else
+			call error_abort("j overlap not specified in COUPLER.in")
+	    endif
+	endif
+
+	!Broadcast the overlap to CFD on intracommunicator
+	call MPI_bcast(j_olap,1,MPI_INTEGER,0,COUPLER_GRID_COMM,ierr)
+	!Broadcast the overlap to MD over intercommunicator
+	call MPI_bcast(j_olap,1,MPI_INTEGER,source,COUPLER_ICOMM,ierr)
+
+	!Check for grid strectching and terminate process if found
+	call check_mesh
+
+contains
+
+	subroutine check_mesh
+		implicit none
+
+		!Define cell sizes dx,dy & dz and check for grid stretching
+		! - - x - -
+		dx = xpg(2,1)-xpg(1,1)
+		dxmax = maxval(xpg(2:ngx+1,2:ngy+1)-xpg(1:ngx,1:ngy))
+		dxmin = minval(xpg(2:ngx+1,2:ngy+1)-xpg(1:ngx,1:ngy))
+		if (dxmax-dx.gt.0.00001d0) call error_abort("ERROR - Grid stretching in x not supported")
+		if (dx-dxmin.gt.0.00001d0) call error_abort("ERROR - Grid stretching in x not supported")
+		! - - y - -
+		dy = ypg(1,2)-ypg(1,1)
+		dymax = maxval(ypg(2:ngx+1,2:ngy+1)-ypg(1:ngx,1:ngy))
+		dymin = minval(ypg(2:ngx+1,2:ngy+1)-ypg(1:ngx,1:ngy))
+		if (dymax-dy.gt.0.00001d0) call error_abort("ERROR - Grid stretching in y not supported")
+		if (dy-dymin.gt.0.00001d0) call error_abort("ERROR - Grid stretching in y not supported")
+		!if (dymax-dy.gt.0.0001 .or. dy-dymin.gt.0.0001) then
+	    !    write(*,*) "********************************************************************"
+	    !    write(*,*) " Grid stretching employed in CFD domain - range of dy sizes:        "
+		!	write(*,*) "dymin = ", dymin, " dy = ",dy, " dymax = ", dymax
+	    !    write(*,*) "********************************************************************"
+	    !    write(*,*)
+		!endif
+		! - - z - -
+
+		dzmax = maxval(zpg(2:ngz)-zpg(1:ngz))
+		dzmin = minval(zpg(2:ngz)-zpg(1:ngz))
+		if (dzmax-dz.gt.0.00001d0) call error_abort("ERROR - Grid stretching in z not supported")
+		if (dz-dzmin.gt.0.00001d0) call error_abort("ERROR - Grid stretching in z not supported")
+
+	    ! test if MD_init_cell size is larger than CFD cell size
+		if (myid_grid .eq. root) then
+		    if( MD_initial_cellsize .ge. dx .or. & 
+				MD_initial_cellsize .ge. dy .or. & 
+				MD_initial_cellsize .ge. dz .and. myid_grid == 0 ) then
+		        write(*,*)
+		        write(*,*) "********************************************************************"
+		        write(*,*) " WARNING ...WARNING ...WARNING ...WARNING ...WARNING ...WARNING ... "
+		        write(*,*) " MD initialisation cell size larger than CFD x,y cell sizes         "
+		        write(*,*) " MD_init_cellsize=",MD_initial_cellsize
+		        write(*,'(3(a,f10.5))') " dx=",xpg(2,1)-xpg(1,1),  & 
+										" dy=",ypg(1,2)-ypg(1,1),  & 
+										" dz=",zpg(2  )-zpg(1  )
+		        write(*,*) "********************************************************************"
+		        write(*,*)
+		    endif
+		endif
+
+	end subroutine check_mesh
 
 end subroutine coupler_cfd_init
+
+
 
 !=============================================================================
 ! Establish for all CFD processors the mapping (if any) 
@@ -257,16 +316,14 @@ end subroutine coupler_cfd_init
 
 subroutine create_map_cfd
     use mpi 
-    use coupler_module!, only : COUPLER_REALM_COMM, COUPLER_GRID_COMM, COUPLER_ICOMM, cfd_is_2d, map
+    use coupler_module, jmax_overlap=>j_olap!, only : COUPLER_REALM_COMM, COUPLER_GRID_COMM, COUPLER_ICOMM, cfd_is_2d, map
     implicit none
 
-    integer 				:: i, myid, id_coord, color, noverlaps, ir, iaux(4), ierr
+    integer 				:: i, id_coord, color, noverlaps, ir, iaux(4), ierr
     integer, allocatable 	:: md_grid_boxes(:,:), overlap_mask(:), ireq(:), overlap_box(:,:)
     real(kind(0.d0))		:: raux(2)
 
 	call MPI_barrier(COUPLER_REALM_COMM,ierr)
-    call mpi_comm_rank(COUPLER_REALM_COMM,myid,ierr)
-	myid = myid + 1
 
     ! Coupler_grid_comm is the correct communicator to pick the processor coordinates in cartesian topology
     call mpi_comm_rank(coupler_grid_comm,id_coord,ierr)
@@ -300,7 +357,7 @@ subroutine create_map_cfd
         color = 0
     endif
 
-    call mpi_comm_split(COUPLER_REALM_COMM, color, myid, CFD_COMM_OVERLAP, ierr)
+    call mpi_comm_split(COUPLER_REALM_COMM, color, myid_grid, CFD_COMM_OVERLAP, ierr)
 
     if (color == 0) then
         CFD_COMM_OVERLAP = MPI_COMM_NULL
@@ -365,16 +422,16 @@ contains
         enddo
 
         ! set sizes of local grids
-        nlgx_cfd = iTmax(icoord_cfd(1,myid)) - iTmin(icoord_cfd(1,myid))
-        nlgy_cfd = jTmax(icoord_cfd(2,myid)) - jTmin(icoord_cfd(2,myid))
-        nlgz_cfd = kTmax(icoord_cfd(3,myid)) - kTmin(icoord_cfd(3,myid))
+        nlgx_cfd = iTmax_cfd(rank2coord_cfd(1,myid_grid)) - iTmin_cfd(rank2coord_cfd(1,myid_grid))
+        nlgy_cfd = jTmax_cfd(rank2coord_cfd(2,myid_grid)) - jTmin_cfd(rank2coord_cfd(2,myid_grid))
+        nlgz_cfd = kTmax_cfd(rank2coord_cfd(3,myid_grid)) - kTmin_cfd(rank2coord_cfd(3,myid_grid))
 
 		! THIS IS TERRIBLE NOTATION AS IT REDEFINES A CONTINUUM VALUE
-        !nlx = bbox_cfd%xbb(2,icoord_cfd(1,id_coord)) - bbox_cfd%xbb(1,icoord_cfd(1,id_coord)) + 1
-        !nly = min(bbox_cfd%ybb(2,icoord_cfd(2,id_coord)),jmax_overlap) - bbox_cfd%ybb(1,icoord_cfd(2,id_coord)) + 1
-        !nlz = bbox_cfd%zbb(2,icoord_cfd(3,id_coord)) - bbox_cfd%zbb(1,icoord_cfd(3,id_coord)) + 1
+        !nlx = bbox_cfd%xbb(2,rank2coord_cfd(1,id_coord)) - bbox_cfd%xbb(1,rank2coord_cfd(1,id_coord)) + 1
+        !nly = min(bbox_cfd%ybb(2,rank2coord_cfd(2,id_coord)),jmax_overlap) - bbox_cfd%ybb(1,rank2coord_cfd(2,id_coord)) + 1
+        !nlz = bbox_cfd%zbb(2,rank2coord_cfd(3,id_coord)) - bbox_cfd%zbb(1,rank2coord_cfd(3,id_coord)) + 1
 
-		write(0,*)' CFD: bbox ', myid, bbox_cfd%xbb,bbox_cfd%ybb,bbox_cfd%zbb, nlgx_cfd, nlgy_cfd, nlgz_cfd
+		!write(0,*)' CFD: bbox ', myid_grid, bbox_cfd%xbb,bbox_cfd%ybb,bbox_cfd%zbb, nlgx_cfd, nlgy_cfd, nlgz_cfd
 
     end subroutine make_bbox
 
@@ -389,14 +446,14 @@ contains
         integer i, ibmin,ibmax,jbmin,jbmax,kbmin,kbmax, &
             	ibs, ibe, jbs, jbe, kbs, kbe
 
-        ibmin = bbox_cfd%xbb(1,icoord_cfd(1,id_coord))
-        ibmax = bbox_cfd%xbb(2,icoord_cfd(1,id_coord))
-        jbmin = bbox_cfd%ybb(1,icoord_cfd(2,id_coord))
-        jbmax = min(jmax_overlap,bbox_cfd%ybb(2,icoord_cfd(2,id_coord))) 
-        kbmin = bbox_cfd%zbb(1,icoord_cfd(3,id_coord))
-        kbmax = bbox_cfd%zbb(2,icoord_cfd(3,id_coord))
+        ibmin = iTmax_cfd(iblock) !bbox_cfd%xbb(1,rank2coord_cfd(1,id_coord))
+        ibmax = iTmax_cfd(iblock) !bbox_cfd%xbb(2,rank2coord_cfd(1,id_coord))
+        jbmin = jTmax_cfd(jblock) !bbox_cfd%ybb(1,rank2coord_cfd(2,id_coord))
+        jbmax = jTmax_cfd(jblock) !min(jmax_overlap,bbox_cfd%ybb(2,rank2coord_cfd(2,id_coord))) 
+        kbmin = kTmax_cfd(kblock) !bbox_cfd%zbb(1,rank2coord_cfd(3,id_coord))
+        kbmax = kTmax_cfd(kblock) !bbox_cfd%zbb(2,rank2coord_cfd(3,id_coord))
 
-        write(0, *) 'CFD: find overlap ibmin etc', myid, ibmin, ibmax, jbmin, jbmax, kbmin, kbmax
+        write(0, *) 'CFD: find overlap ibmin etc', myid_grid, ibmin, ibmax, jbmin, jbmax, kbmin, kbmax
 
         do i=0,nproc_md - 1
 
@@ -433,7 +490,7 @@ contains
 
         enddo
 
-        write(0,*)' CFD: overlap ', myid, overlap_mask, overlap_box
+        !write(0,*)' CFD: overlap ', myid_grid, overlap_mask, overlap_box
 
     end subroutine find_overlaps
 

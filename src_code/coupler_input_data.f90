@@ -82,17 +82,24 @@ module coupler_input_data
 
 contains
 
+!=================================================================
+!
+!	Read inputs from COUPLER.in input file
+!
+
 subroutine read_coupler_input
 	use mpi
 	use coupler_parameters
 	use coupler_module
 	implicit none 
 
-	integer ndim, myid, myid_cfd, iroot_global, ierr
+	integer ndim, myid_cfd, iroot_global, ierr
 	logical have_input
 
+	!Check input file exists and setup checking arrays and variables
 	call setup_inputs(have_input)
 
+	!If input file exists, read on cfd rank 0 and broadcast to others
 	if (have_input) then		   
 		if (myid_cfd == 0) then
 			! Read input data on rank 0 and broadcast
@@ -103,12 +110,19 @@ subroutine read_coupler_input
 			call bcast_unpack_input
 		endif
 
+		!Check inputs and stop code if required
 		call check_inputs
 	else
 		if (myid_cfd == 0 ) then
 			write(0,*) "WARNING: No coupler input file, will use CFD domain data and adjust accordingly"
 		endif
 	endif
+
+
+!------------------------------------------------------------------
+!
+!	Read inputs from COUPLER.in input file
+!
 
 contains
 
@@ -118,9 +132,8 @@ contains
 		logical,intent(out)		:: have_input
 
 		! find rank 0 in CFD_COMM and open COUPLER.in file on it
-		call mpi_comm_rank(COUPLER_GLOBAL_COMM, myid, ierr)
 		myid_cfd = -1; iroot_global = -1
-		if (COUPLER_REALM == COUPLER_CFD) then
+		if (COUPLER_REALM .eq. COUPLER_CFD) then
 			call mpi_comm_rank(COUPLER_REALM_COMM, myid_cfd,ierr)
 		endif
 
@@ -250,9 +263,7 @@ contains
 				endif
 			case("OVERLAP_CELLS","Overlap_Cells","Overlap_cells","overlap_cells")
 				cfd_coupler_input%overlap%tag = CPL
-				!if (ndim > 1) then 
 				read(34,*) cfd_coupler_input%overlap%y_overlap
-				!endif
 			case("MD_LY_EXTENSION","md_ly_extension","Md_ly_extension")
 				md_ly_extension_tag = CPL
 				read(34,*) md_ly_extension
@@ -395,8 +406,9 @@ contains
 		character(len=sbuff) buffer
 		character(len=scaux) caux
 
+		! CFD side receives
 		if (COUPLER_REALM == COUPLER_CFD) then 
-			
+
 			call mpi_bcast(count,1,MPI_INTEGER,0,COUPLER_REALM_COMM,ierr)
 			call mpi_bcast(buffer,count,MPI_PACKED,0,COUPLER_REALM_COMM,ierr)
 			position=0
@@ -423,8 +435,10 @@ contains
 			if (count > 0) then
 				call mpi_bcast(buffer,count,MPI_PACKED,MPI_PROC_NULL,COUPLER_ICOMM,ierr)
 			endif
-		else 
-			! MD side receives
+
+		! MD side receives
+		elseif (COUPLER_REALM == COUPLER_MD) then  
+
 			call mpi_bcast(count,1,MPI_INTEGER,0,COUPLER_ICOMM,ierr)
 			if (count > 0) then
 				call mpi_bcast(buffer,count,MPI_PACKED,0,COUPLER_ICOMM,ierr)

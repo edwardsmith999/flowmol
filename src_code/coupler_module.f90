@@ -6,7 +6,7 @@ module coupler_module
 	! <=><=><=><=> Simulation Time & Averaging data <=><=><=><=> 
 	!Total number of steps for coupled simulation
 	integer	:: nsteps_cfd, nsteps_md, nsteps_coupled
-	! average period for averages ( it must come from CFD !!!)      
+	! average period for averages ( it must come from CFD !!!)
 	integer :: average_period = 1
     ! save period ( corresponts to tplot in CFD, revise please !!!)
     integer :: save_period = 10
@@ -16,42 +16,60 @@ module coupler_module
 	! <=><=><=><=> Grid and domain data <=><=><=><=> 
 	! Density
 	real(kind(0.d0))	:: density_cfd, density_md
-	! CFD number of cells
-    integer	:: ngx,ngy,ngz
-	integer	:: nlgx_cfd,nlgy_cfd,nlgz_cfd,nlgx_md,nlgy_md,nlgz_md
+	! CFD/MD number of cells
+    integer	:: ngx,ngy,ngz						!Global
+	integer	:: nlgx_cfd,nlgy_cfd,nlgz_cfd, & 	!Local CFD
+			   nlgx_md ,nlgy_md ,nlgz_md 		!Local MD
+	! Overlap cells 
+    integer :: i_olap,j_olap,k_olap	
+	! MD grid indices
+	integer	:: ngy_puremd
 	! CFD grid indices
     integer	:: imin,imax,jmin,jmax,kmin,kmax 
-	! CFD local grid indices (start and end of grid per CFD process)
-    integer,dimension(:),allocatable :: iTmin,iTmax,jTmin,jTmax,kTmin,kTmax
+	! CFD/MD local grid indices (start and end of grid per CFD/MD process)
+    integer,dimension(:),allocatable :: iTmin_cfd,iTmax_cfd,jTmin_cfd,jTmax_cfd,kTmin_cfd,kTmax_cfd, & 
+										iTmin_md ,iTmax_md ,jTmin_md ,jTmax_md ,kTmin_md ,kTmax_md 
 	! Domain sizes
-	real(kind(0.d0)) ::	xL_md,yL_md,zL_md,xL_cfd,yL_cfd,zL_cfd
+	real(kind(0.d0)) ::	xL_md  ,yL_md  ,zL_md , & 
+						xL_cfd ,yL_cfd ,zL_cfd, &
+						xL_olap,yL_olap,zL_olap,&
+								yL_puremd
+	! Local Domain
+	real(kind(0.d0)) :: yLl_md, yLl_cfd
+
 	!CFD cells sizes 
 	real(kind(0.d0)) 								   :: dx,dymin,dy,dymax,dz
     real(kind(0.d0)),dimension(:),  allocatable,target :: zpg
     real(kind(0.d0)),dimension(:,:),allocatable,target :: xpg,ypg
 
 	! <=><=><=><=> Processor Topology & MPI <=><=><=><=> 
+	!Global processor number across both realms
+	integer	:: myid
 	!Processor id in grid
-	integer	:: myid_grid
+	integer	:: myid_grid,iblock,jblock,kblock
 	! Number of processor in CFD grid
 	integer :: npx_cfd, npy_cfd, npz_cfd, nproc_cfd	
     ! Number of processor in MD grid
     integer :: npx_md,  npy_md,  npz_md,  nproc_md
     ! Coordinates of MD/CFD topologies
-    ! ATTENTION the values are shifted with +1, FORTRAN style
-    ! if this array is passed by an MPI function, remove the shift
-    integer,dimension(:,:),allocatable :: icoord_cfd, icoord_md
+	integer,dimension(:,:),allocatable 	 :: rank2coord_cfd, rank2coord_md
+    integer,dimension(:,:,:),allocatable :: coord2rank_cfd, coord2rank_md
+	!Mapping between CFD processors and MD processors
+    integer,dimension(:,:),allocatable :: imap_olap,jmap_olap,kmap_olap
 	! contains COMMS and other such things
-    integer	:: COUPLER_GLOBAL_COMM ! duplicate of MPI_COMM_WORLD, useful for input transfers
-    integer	:: COUPLER_REALM_COMM	! internal communicator inside the realm, split of COUPLER_GLOBAL_COMM
+    integer	:: COUPLER_GLOBAL_COMM 	! duplicate of MPI_COMM_WORLD, useful for input transfers
+    integer	:: COUPLER_REALM_COMM	! intra communicator inside the realm, split of COUPLER_GLOBAL_COMM
     integer	:: COUPLER_ICOMM		! CFD - MD INTER-communicator between COUPLER_REALM_COMM
-    integer	:: COUPLER_GRID_COMM 	! duplicate of CFD or MD topology communicator
-    integer	:: CFD_COMM_OVERLAP 	! communicator for tasks that overlap  MD region 
+    integer	:: COUPLER_GRID_COMM 	! Duplicate of CFD or MD topology communicator
+    integer	:: CFD_COMM_OVERLAP 	! Communicator for tasks that overlap  MD region 
 
 
 	! <=><=><=><=> COUPLER VARIABLES <=><=><=><=> 
- 	integer	:: coupler_realm    	! NOT SURE YET???
-    integer :: jmax_overlap = 5 ! maximum j index ( in y direction) which MD 
+ 	integer	:: coupler_realm    	! Identifies which realm calling code is in
+
+
+
+   ! integer :: jmax_overlap = 5 	! j overlap index ( in y direction)
 	real(kind(0.d0)) :: MD_initial_cellsize
     ! CFD code id
     integer :: cfd_code_id = couette_parallel
@@ -65,7 +83,7 @@ module coupler_module
     type(overlap_map) 	:: map
 
     ! flag marking 2d CFD solver
-	logical 			:: cfd_is_2d = .false. ! set true if dz<=0 or kmax_cfd=kmin_cfd
+	logical 			:: cfd_is_2d = .false. 				! set true if dz<=0 or kmax_cfd=kmin_cfd
     logical 			:: stop_request_activated = .false. ! request_abort is active or not (optimisation) 
     logical				:: staggered_averages(3) = (/ .false., .false., .false. /)
     integer, target		:: stop_request_tag
@@ -114,6 +132,38 @@ subroutine error_abort_si(msg,i)
     call MPI_Abort(MPI_COMM_WORLD,errcode,ierr)
 
 end subroutine error_abort_si
+
+
+!--------------------------------------------------------------------------------------
+!Write matrix in correct format
+
+subroutine write_matrix_int(a,varname,fh)
+	implicit none
+
+	integer					:: i,j,fh
+	character(*)			:: varname
+	integer, dimension(:,:) :: a
+
+	write(fh,*) varname
+	do i = lbound(a,1), ubound(a,1)
+	    write(fh,*) (a(i,j), j = lbound(a,2), ubound(a,2))
+	end do
+
+end subroutine write_matrix_int
+
+subroutine write_matrix(a,varname,fh)
+	implicit none
+
+	integer							 :: i,j,fh
+	character(*)					 :: varname
+	double precision, dimension(:,:) :: a
+
+	write(fh,*) varname
+	do i = lbound(a,1), ubound(a,1)
+	    write(fh,*) (a(i,j), j = lbound(a,2), ubound(a,2))
+	end do
+
+end subroutine write_matrix
 
 !===========================================================================
 ! Subroutine that can be used to stop the code when reaching a given 
