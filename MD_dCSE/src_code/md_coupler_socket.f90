@@ -127,7 +127,6 @@ end subroutine socket_coupler_init
 subroutine set_parameters_global_domain_coupled
 	use computational_constants_MD
 	use physical_constants_MD
-	use messenger!, only : myid
 	use coupler 
 	use coupler_module, b0 => MD_initial_cellsize
 	implicit none
@@ -143,10 +142,6 @@ subroutine set_parameters_global_domain_coupled
     n0(:) = nint( (/ xL_md, yL_md, zL_md/) / b0)
     initialunitsize(1:3) = b0
     initialnunits(1:3) 	 = n0(:)
-
-	write(*,*) 'density etc',  density, xL_md,yL_md,zL_md,b0,n0
-
-	call MPI_barrier(MD_COMM,ierr)
    
 	!Set MD domain values
 	globaldomain(1) = xL_md
@@ -196,9 +191,8 @@ subroutine set_parameters_cells_coupled
 	use computational_constants_MD
 	use physical_constants_MD
 	use polymer_info_MD
-	use messenger, only : myid
 	use coupler
-	use coupler_module, only : imax,imin,jmax,jmin,kmax,kmin,dx,dy,dz
+	use coupler_module, only : imax,imin,jmax,jmin,kmax,kmin,dx,dy,dz,myid_grid
 	implicit none
 
 	integer 						:: ixyz
@@ -273,7 +267,7 @@ subroutine set_parameters_cells_coupled
 		 					& IN X, Y AND Z - INCREASE NUMBER OF UNITS IN INPUT")
 	endif
 
-    if(myid == 0) then
+    if(myid_grid == 0) then
         write(*,'(a/a/a,f8.6,/,a,3i8,/,a,3(f8.5),/,a,3(i8),/,a)') &
                     "**********************************************************************", &
                     "WARNING - this is a coupled run which resets the following parameters:", &
@@ -295,7 +289,6 @@ end subroutine set_parameters_cells_coupled
 
 subroutine set_coupled_timing
 	use computational_constants_MD
-	use messenger, only : myid
 	use coupler_input_data
 	use coupler_module
 	use coupler
@@ -315,12 +308,13 @@ subroutine set_coupled_timing
 	! fix NSTEPS for the coupled case
     nsteps_cfd = coupler_md_get_nsteps()
     naverage   = coupler_md_get_md_steps_per_cfd_dt()
+	nsteps_coupled = nsteps_cfd
     
 	Nsteps = initialstep + nsteps_cfd * naverage
 	elapsedtime = elapsedtime + nsteps_cfd * naverage * delta_t
 
-	if (myid .eq. 0) then 
-		write(*,'(2(a,/),a,i7,a,i7,/a,/a,f10.4,a/,a,f10.5,/a)') &
+	if (myid_grid .eq. 0) then 
+		write(*,'(2(a,/),a,i7,a,i7,/a,/a,i8,a/,a,f10.5,/a)') &
 				"*********************************************************************", 	&
  				"WARNING - WARNING - WARNING - WARNING - WARNING - WARNING - WARNING  ", 	&
 				" Current input timesteps from MD", nsteps_md, "and CFD", nsteps_cfd   ,	&
@@ -421,10 +415,10 @@ contains
 		! Setup averaging array on first call
 		select case(staggered_averages(1))
 		case(.true.)
-			allocate( mflux(6,ngz-1,ngx-1,1))
+			allocate( mflux(6,ngz,ngx,1))
 			mflux = 0
 		case(.false.)
-			allocate(uvwbin(4,ngz-1,ngx-1,1))
+			allocate(uvwbin(4,ngz,ngx,1))
 			uvwbin = 0.d0
 		end select
 	end subroutine setup_velocity_average
@@ -538,11 +532,11 @@ contains
 		select case(staggered_averages(1))	
 		! Send velocity flux over surface
 		case(.true.)
-            call coupler_send_data(dble(mflux),index_transpose=(/2,3,1/))
+            call coupler_send(dble(mflux),index_transpose=(/2,3,1/))
 			mflux = 0
 		! Send velocity in cell centre
 		case(.false.)
-            call coupler_send_data(uvwbin,index_transpose=(/2,3,1/))
+            call coupler_send(uvwbin,index_transpose=(/2,3,1/))
 			uvwbin = 0.d0
 		end select
 
@@ -611,7 +605,7 @@ subroutine setup_CFD_box(iter,xmin,xmax,ymin,ymax,zmin,zmax,dx_cfd,dz_cfd,inv_dt
 		! this call must be global at the moment
 		! because the whole CFD grid is transferred
 		! it will be optimised later
-        call coupler_recv_data(vbuff,index_transpose=(/2,3,1/))
+        call coupler_recv(vbuff,index_transpose=(/2,3,1/))
 	
         if ( .not. overlap) return
 

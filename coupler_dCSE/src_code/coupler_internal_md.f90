@@ -67,14 +67,12 @@ module coupler_internal_md
 
 contains 
 
-
 ! ----------------------------------------------------------------------------
 ! Initialisation routine for coupler - Every variable is sent and stored
 ! to ensure both md and cfd region have an identical list of parameters
 
 subroutine coupler_md_init(nsteps,dt_md,icomm_grid,icoord,npxyz_md,globaldomain,density)
 	use mpi
-	use coupler, only : write_matrix,write_matrix_int
 	use coupler_input_data, cfd_code_id_in => cfd_code_id, density_coupled => density
     use coupler_module, dt_md_=>dt_md		
 	implicit none
@@ -85,17 +83,17 @@ subroutine coupler_md_init(nsteps,dt_md,icomm_grid,icoord,npxyz_md,globaldomain,
 	real(kind(0.d0)),intent(in) 					:: dt_md,density
     real(kind=kind(0.d0)),dimension(3),intent(in) 	:: globaldomain
 
-    integer											:: i, myid, source, ierr
+    integer											:: i,ib,jb,kb,pcoords(3),root, source, ierr
     integer,dimension(:),allocatable  				:: buf
     real(kind=kind(0.d0)),dimension(:),allocatable 	:: rbuf
 
     ! Duplicate grid communicator for coupler use
-	call MPI_comm_rank(COUPLER_REALM_COMM,myid,ierr)
     call MPI_comm_dup(icomm_grid,coupler_grid_comm,ierr)
     call MPI_comm_rank(coupler_grid_comm,myid_grid,ierr) 
     myid_grid = myid_grid + 1
+	root = 1
 	!Send only from root processor
-	if ( myid .eq. 0 ) then
+	if ( myid_grid .eq. root ) then
 		source=MPI_ROOT
 	else
 		source=MPI_PROC_NULL
@@ -113,30 +111,57 @@ subroutine coupler_md_init(nsteps,dt_md,icomm_grid,icoord,npxyz_md,globaldomain,
 	nproc_cfd = npx_cfd * npy_cfd * npz_cfd
 	deallocate(buf)
 
-	write(999+myid,*), 'MD side',myid,'CFD procs',npx_cfd,npy_cfd,npz_cfd,nproc_cfd
+	write(999+myid_grid,*), 'MD side',myid_grid,'CFD procs',npx_cfd,npy_cfd,npz_cfd,nproc_cfd
 
 	! Store & Send MD number of processors
 	npx_md = npxyz_md(1);	npy_md = npxyz_md(2);	npz_md = npxyz_md(3)	
 	nproc_md = npx_md * npy_md * npz_md
 	call MPI_bcast(npxyz_md,3,MPI_INTEGER,source,COUPLER_ICOMM,ierr) !Send
 
-	write(999+myid,*), 'MD side',myid,'MD procs',npx_md ,npy_md ,npz_md ,nproc_md
+	write(999+myid_grid,*), 'MD side',myid_grid,'MD procs',npx_md ,npy_md ,npz_md ,nproc_md
 
-	! Receive & Store CFD processor topology
+	! Receive & Store CFD processor rank to coord
 	allocate(buf(3*nproc_cfd))
     call MPI_bcast(buf,3*nproc_cfd,MPI_INTEGER,  0   ,COUPLER_ICOMM,ierr) !Receive
-    allocate(icoord_cfd(3,nproc_cfd),stat=ierr); icoord_cfd = reshape(buf,(/ 3,nproc_cfd /))
+    allocate(rank2coord_cfd(3,nproc_cfd),stat=ierr); rank2coord_cfd = reshape(buf,(/ 3,nproc_cfd /))
 	deallocate(buf)
 
-	call write_matrix_int(icoord_cfd,'MD side, icoord_cfd=',999+myid)
+	call write_matrix_int(rank2coord_cfd,'MD side, rank2coord_cfd=',999+myid_grid)
 
-	! Store & Send MD processor topology
-    allocate(icoord_md(3,nproc_md),stat=ierr); icoord_md = icoord
+	! Store & Send MD processor rank to coord
+    allocate(rank2coord_md(3,nproc_md),stat=ierr); rank2coord_md = icoord
+	iblock=icoord(1,myid_grid); jblock=icoord(2,myid_grid); kblock=icoord(3,myid_grid)
 	allocate(buf(3*nproc_md)); buf = reshape(icoord,(/ 3*nproc_md /))
     call MPI_bcast(buf ,3*nproc_md,MPI_INTEGER,source,COUPLER_ICOMM,ierr) !Send
 	deallocate(buf)
 
-	call write_matrix_int(icoord_md,'MD side, icoord_md=',999+myid)
+	call write_matrix_int(rank2coord_md,'MD side, rank2coord_md=',999+myid_grid)
+
+	! Receive & Store CFD coordinate to rank mapping
+	allocate(buf(nproc_cfd))
+    call MPI_bcast(buf,nproc_cfd ,MPI_INTEGER,  0   ,COUPLER_ICOMM,ierr)	!Receive
+    allocate(coord2rank_cfd (npx_cfd,npy_cfd,npz_cfd))
+	coord2rank_cfd = reshape(buf,(/ npx_cfd,npy_cfd,npz_cfd /))
+	deallocate(buf)
+
+	write(999+myid_grid,*), 'MD side',myid_grid, 'coord2rank_cfd=', coord2rank_cfd
+
+	!Setup MD mapping from coordinate to rank, store and send
+	allocate(coord2rank_md(npx_md,npy_md,npz_md))
+	do ib = 1,npx_md
+	do jb = 1,npy_md
+	do kb = 1,npz_md
+		pcoords = (/ ib, jb, kb /)-1
+		call MPI_Cart_rank(COUPLER_GRID_COMM,pcoords,i,ierr)
+		coord2rank_md(ib,jb,kb) = i + 1
+	enddo
+	enddo
+	enddo
+	allocate(buf(nproc_md)); buf = reshape(coord2rank_md, (/ nproc_md /) )
+    call MPI_bcast(coord2rank_md,nproc_md,MPI_INTEGER,source,COUPLER_ICOMM,ierr)	!Send
+	deallocate(buf)
+
+	write(999+myid_grid,*), 'MD side',myid_grid, 'coord2rank_md=', coord2rank_md
 
 	! ------------------ Timesteps and iterations ------------------------------
 	! Receive & store CFD nsteps and dt_cfd
@@ -149,20 +174,20 @@ subroutine coupler_md_init(nsteps,dt_md,icomm_grid,icoord,npxyz_md,globaldomain,
 	nsteps_MD = nsteps
     call MPI_bcast(nsteps,1,MPI_integer,source,COUPLER_ICOMM,ierr)	!Send
 
-	write(999+myid,*), 'MD side',myid,'CFD times',nsteps_cfd,dt_cfd
-	write(999+myid,*), 'MD side',myid,'MD times', nsteps_MD,dt_md
+	write(999+myid_grid,*), 'MD side',myid_grid,'CFD times',nsteps_cfd,dt_cfd
+	write(999+myid_grid,*), 'MD side',myid_grid,'MD times', nsteps_MD,dt_md
 
 	! ------------------ Receive CFD grid extents ------------------------------
 	! Receive & store CFD density
 	call MPI_bcast(density_cfd,1,MPI_double_precision,0,COUPLER_ICOMM,ierr)		!Receive
 
-	write(999+myid,*), 'MD side',myid,'CFD density',density_cfd
+	write(999+myid_grid,*), 'MD side',myid_grid,'CFD density',density_cfd
 
 	! Store & send MD density
 	density_md = density 
 	call MPI_bcast(density,1,MPI_double_precision,source,COUPLER_ICOMM,ierr)	!Send
 
-	write(999+myid,*), 'MD side',myid,'MD density',density_md
+	write(999+myid_grid,*), 'MD side',myid_grid,'MD density',density_md
 
 	! Receive & store CFD domain size
 	allocate(rbuf(3))
@@ -174,8 +199,8 @@ subroutine coupler_md_init(nsteps,dt_md,icomm_grid,icoord,npxyz_md,globaldomain,
 	xL_md = globaldomain(1); yL_md = globaldomain(2); zL_md = globaldomain(3) 
 	call MPI_bcast(globaldomain,3,MPI_double_precision,source,COUPLER_ICOMM,ierr)	!Send
 
-	write(999+myid,*), 'MD side',myid,'CFD domain',xL_cfd,yL_cfd,zL_cfd
-	write(999+myid,*), 'MD side',myid,'MD domain', xL_md,yL_md,zL_md
+	write(999+myid_grid,*), 'MD side',myid_grid,'CFD domain',xL_cfd,yL_cfd,zL_cfd
+	write(999+myid_grid,*), 'MD side',myid_grid,'MD domain', xL_md,yL_md,zL_md
 
 
 	! Receive & Store global CFD grid extents
@@ -192,50 +217,37 @@ subroutine coupler_md_init(nsteps,dt_md,icomm_grid,icoord,npxyz_md,globaldomain,
 	ngx = buf(1); ngy = buf(2); ngz = buf(3)
 	deallocate(buf)
 
-	write(999+myid,*), 'MD side',myid,'CFD global extents',imin,imax,jmin,jmax,kmin,kmax
-	write(999+myid,*), 'MD side',myid,'CFD global cells',ngx,ngy,ngz
+	write(999+myid_grid,*), 'MD side',myid_grid,'CFD global extents',imin,imax,jmin,jmax,kmin,kmax
+	write(999+myid_grid,*), 'MD side',myid_grid,'CFD global cells',ngx,ngy,ngz
 
 	! Receive & Store array of global grid points
-	allocate(xpg(ngx,ngy),ypg(ngx,ngy),zpg(ngz))
+	allocate(xpg(ngx+1,ngy+1),ypg(ngx+1,ngy+1),zpg(ngz+1))
 	call MPI_bcast(xpg,size(xpg),MPI_double_precision,0,COUPLER_ICOMM,ierr) !Receive
 	call MPI_bcast(ypg,size(ypg),MPI_double_precision,0,COUPLER_ICOMM,ierr) !Receive
 	call MPI_bcast(zpg,size(zpg),MPI_double_precision,0,COUPLER_ICOMM,ierr) !Receive
 
-	call write_matrix(xpg,'MD side, xpg=',500+myid)
-	call write_matrix(ypg,'MD side, ypg=',500+myid)
-	write(500+myid,*), 'MD side',myid,'zpg',zpg
+	call write_matrix(xpg,'MD side, xpg=',500+myid_grid)
+	call write_matrix(ypg,'MD side, ypg=',500+myid_grid)
+	write(500+myid_grid,*), 'MD side',myid_grid,'zpg',zpg
 
 	! Receive & Store local (processor) CFD grid extents
-    allocate(iTmin(npx_cfd)); allocate(iTmax(npx_cfd));  
-	allocate(jTmin(npy_cfd)); allocate(jTmax(npy_cfd));
-    allocate(kTmin(npz_cfd)); allocate(kTmax(npz_cfd));
-    call MPI_bcast(iTmin,npx_cfd,MPI_INTEGER,0,COUPLER_ICOMM,ierr) !Receive
-    call MPI_bcast(iTmax,npx_cfd,MPI_INTEGER,0,COUPLER_ICOMM,ierr) !Receive
-    call MPI_bcast(jTmin,npy_cfd,MPI_INTEGER,0,COUPLER_ICOMM,ierr) !Receive
-    call MPI_bcast(jTmax,npy_cfd,MPI_INTEGER,0,COUPLER_ICOMM,ierr) !Receive
-    call MPI_bcast(kTmin,npz_cfd,MPI_INTEGER,0,COUPLER_ICOMM,ierr) !Receive
-    call MPI_bcast(kTmax,npz_cfd,MPI_INTEGER,0,COUPLER_ICOMM,ierr) !Receive
+    allocate(iTmin_cfd(npx_cfd)); allocate(iTmax_cfd(npx_cfd));  
+	allocate(jTmin_cfd(npy_cfd)); allocate(jTmax_cfd(npy_cfd));
+    allocate(kTmin_cfd(npz_cfd)); allocate(kTmax_cfd(npz_cfd));
+    call MPI_bcast(iTmin_cfd,npx_cfd,MPI_INTEGER,0,COUPLER_ICOMM,ierr) !Receive
+    call MPI_bcast(iTmax_cfd,npx_cfd,MPI_INTEGER,0,COUPLER_ICOMM,ierr) !Receive
+    call MPI_bcast(jTmin_cfd,npy_cfd,MPI_INTEGER,0,COUPLER_ICOMM,ierr) !Receive
+    call MPI_bcast(jTmax_cfd,npy_cfd,MPI_INTEGER,0,COUPLER_ICOMM,ierr) !Receive
+    call MPI_bcast(kTmin_cfd,npz_cfd,MPI_INTEGER,0,COUPLER_ICOMM,ierr) !Receive
+    call MPI_bcast(kTmax_cfd,npz_cfd,MPI_INTEGER,0,COUPLER_ICOMM,ierr) !Receive
 
-	write(999+myid,*), 'md side',myid,'CFD local cells',iTmin,iTmax,jTmin,jTmax,kTmin,kTmax
+	write(999+myid_grid,*), 'md side',myid_grid,'CFD local cells', & 
+							iTmin_cfd,iTmax_cfd,jTmin_cfd,jTmax_cfd,kTmin_cfd,kTmax_cfd
 
-
-	! ================ Apply domain setup  ==============================
-	! --- set the sizes of the MD domain ---
-	!Fix xL_md domain size to continuum
-	!xL_md = x(imax_cfd) - x(imin_cfd)
-
-    ! yL_md is adjusted to an integer number of initialisation cells in the following steps
-   ! if (md_ly_extension_tag == CPL) then 
-    !    DY_PURE_MD = md_ly_extension
-    !else 
-    !    DY_PURE_MD = y(jmin) - y(jmino)
-    !end if
-    !yL_md = y(jmax_overlap) - y(jmino) + DY_PURE_MD
-    !yL_md = real(floor(yL_md/b),kind(0.d0))*b
-    !DY_PURE_MD = yL_md - (y(jmax_overlap) - y(jmino))
-
-	!Fix zL_md domain size to continuum
-	!zL_md = z(kmax_cfd) - z(kmin)
+	!Calculate the cell sizes dx,dy & dz
+	dx = xpg(2,1)-xpg(1,1)
+	dy = ypg(1,2)-ypg(1,1)
+	dz = zpg(2  )-zpg(1  )
 
     ! Initialise other md module variables if data is provided in coupler.in
 	if (md_average_period_tag == CPL) then 
@@ -255,7 +267,26 @@ subroutine coupler_md_init(nsteps,dt_md,icomm_grid,icoord,npxyz_md,globaldomain,
 		call MPI_Abort(MPI_COMM_WORLD,COUPLER_ERROR_INIT,ierr)
 	endif
 
-	call MPI_barrier(MPI_COMM_WORLD,ierr)
+	!Receive overlap from the CFD
+    call MPI_bcast(j_olap,1,MPI_INTEGER,0,COUPLER_ICOMM,ierr) !Receive
+
+	! ================ Apply domain setup  ==============================
+	! --- set the sizes of the MD domain ---
+	!Fix xL_md domain size to continuum
+	!xL_md = x(imax_cfd) - x(imin_cfd)
+
+    ! yL_md is adjusted to an integer number of initialisation cells in the following steps
+   ! if (md_ly_extension_tag == CPL) then 
+    !    DY_PURE_MD = md_ly_extension
+    !else 
+    !    DY_PURE_MD = y(jmin) - y(jmino)
+    !end if
+    !yL_md = y(jmax_overlap) - y(jmino) + DY_PURE_MD
+    !yL_md = real(floor(yL_md/b),kind(0.d0))*b
+    !DY_PURE_MD = yL_md - (y(jmax_overlap) - y(jmino))
+
+	!Fix zL_md domain size to continuum
+	!zL_md = z(kmax_cfd) - z(kmin)
 
 end subroutine coupler_md_init
 
@@ -266,10 +297,10 @@ end subroutine coupler_md_init
 
 subroutine create_map_md
 	use mpi
-	use coupler_module !, only : COUPLER_ICOMM, COUPLER_REALM_COMM, cfd_is_2d, map
+	use coupler_module, jmax_overlap=> j_olap !, only : COUPLER_ICOMM, COUPLER_REALM_COMM, cfd_is_2d, map
 	implicit none
 
-	integer  i, ir, ireq(nproc_cfd), noverlaps, source, ierr, jmino, myid
+	integer  i, ir, ireq(nproc_cfd), noverlaps, source, ierr, jmino
 	integer, allocatable :: overlap_mask(:,:)
 
 	call MPI_barrier(COUPLER_REALM_COMM,ierr)
@@ -282,13 +313,13 @@ subroutine create_map_md
 	half_domain_lengths(:) = 0.5d0 * domain_lengths(:)
 
 	! bounding boxes coordinates start from x(imin), z(kmin) and y(jmino)-DY_PURE_MD
-	bbox%bb(1,:) = (icoord_md(:,myid_grid)-1) * domain_lengths(:) &
+	bbox%bb(1,:) = (rank2coord_md(:,myid_grid)-1) * domain_lengths(:) &
 					+ (/ xpg(1,imin), ypg(jmin,1)-DY_PURE_MD, zpg(kmin) /)
 	bbox%bb(2,:) =  bbox%bb(1,:) + domain_lengths(:)
 
 	call make_bbox
 
-	write(0,*) 'MD: bbox%is ', myid, jmax_overlap, bbox%is, bbox%ie, bbox%js, bbox%je, bbox%ks, bbox%ke 
+	write(0,*) 'MD: bbox%is ', myid_grid, jmax_overlap, bbox%is, bbox%ie, bbox%js, bbox%je, bbox%ks, bbox%ke 
 
 	! Send the overlapping box indices to CFD processors
 	call mpi_allgather((/ bbox%iso, bbox%ieo, bbox%jso, bbox%jeo, bbox%kso, bbox%keo /), & 
@@ -299,7 +330,7 @@ subroutine create_map_md
 	call mpi_allgather(MPI_BOTTOM,0,MPI_INTEGER,overlap_mask,nproc_md,MPI_INTEGER,COUPLER_ICOMM,ierr)
 	noverlaps = 0
 	do i = 0, nproc_cfd - 1
-		if ( overlap_mask(myid,i) == 1) then 
+		if ( overlap_mask(myid_grid,i) == 1) then 
 			noverlaps = noverlaps + 1
 		endif
 	enddo
@@ -309,7 +340,7 @@ subroutine create_map_md
 	allocate ( map%rank_list(noverlaps), map%domains(6,noverlaps))
 	ir=0
 	do i=0, nproc_cfd - 1
-		if (overlap_mask(myid,i) == 1) then
+		if (overlap_mask(myid_grid,i) == 1) then
 			ir = ir + 1
 			map%rank_list(ir) = i
 		endif
@@ -424,7 +455,7 @@ contains
 				found_start = .true.
 				bbox_ptr(ixyz)%starto = idmin(ixyz) - halo_size(1,ixyz)
                 bbox_ptr(ixyz)%start  = idmin(ixyz)
-				!write(0,*) "MD make box l", myid,ixyz,bbox_ptr(ixyz)%start
+				!write(0,*) "MD make box l", myid_grid,ixyz,bbox_ptr(ixyz)%start
 			endif
 
 			! On each processor, loop through all (global) cells in the domain (ngp) and store,
@@ -433,7 +464,7 @@ contains
 			do i=2, ngp
 				pl = grid_ptr(ixyz)%p(i-1)
 				pr = grid_ptr(ixyz)%p(i) 
-				!write(0,*), 'MD make bbox ', myid, ixyz,ngp,i,pl,pr, bbox%bb(:,ixyz) 
+				!write(0,*), 'MD make bbox ', myid_grid, ixyz,ngp,i,pl,pr, bbox%bb(:,ixyz) 
 				!If processor starting cell is not yet found, continue to check
 				if (.not. found_start )then
 					!Check if current cell is processor starting cell
@@ -441,20 +472,20 @@ contains
 						found_start = .true.
 						bbox_ptr(ixyz)%starto = idmin(ixyz) + i - 1 - halo_size(1,ixyz)
                         bbox_ptr(ixyz)%start  = idmin(ixyz) + i - 1
-						!write(0,*), 'MD make bbox l', myid, ixyz,i, pl, pr, bbox_ptr(ixyz)%start
+						!write(0,*), 'MD make bbox l', myid_grid, ixyz,i, pl, pr, bbox_ptr(ixyz)%start
 					endif
 				!Else, check if final cell in domain is found yet
 				else
 					if ( (i < ngp  .and. pl <= bbox%bb(2,ixyz) + eps  .and. pr > bbox%bb(2,ixyz))) then
 						bbox_ptr(ixyz)%endo = idmin(ixyz) + i - 1 - 1 + halo_size(2,ixyz)
                         bbox_ptr(ixyz)%end  = idmin(ixyz) + i - 1 - 1
-						!write(0,*), 'MD make bbox r', myid, ixyz, i, pl, pr ,  bbox_ptr(ixyz)%end		     
+						!write(0,*), 'MD make bbox r', myid_grid, ixyz, i, pl, pr ,  bbox_ptr(ixyz)%end		     
 						exit
-					!Special case of final processor in Domain containing last cell
+					!Special case of final processor in domain containing last cell
 					else if (i == ngp  .and. abs( pr - bbox%bb(2,ixyz)) < eps ) then 
 						bbox_ptr(ixyz)%endo = idmin(ixyz) + ngp - 1 + halo_size(2,ixyz)
                         bbox_ptr(ixyz)%end  = idmin(ixyz) + ngp - 1
-						!write(0,*), 'MD make bbox r', myid, ixyz,i, pl, pr, bbox_ptr(ixyz)%end
+						!write(0,*), 'MD make bbox r', myid_grid, ixyz,i, pl, pr, bbox_ptr(ixyz)%end
 					endif
 				endif
 			enddo
@@ -471,7 +502,7 @@ contains
 		nlgy_md = bbox%jeo - bbox%jso + 1
 		nlgz_md = bbox%keo - bbox%kso + 1
 
-		write(0,*)' MD: bbox ', myid, bbox, nlgx_md, nlgy_md, nlgz_md
+		write(0,*)' MD: bbox ', myid_grid, bbox, nlgx_md, nlgy_md, nlgz_md
 
 	end subroutine make_bbox
 
@@ -522,14 +553,13 @@ subroutine write_overlap_map
 	character(len=max_msg_length) msg, rec
 	character(len=100) fmtstr
 	
-	integer fh, i, n, ierr, myid
+	integer fh, i, n, ierr
 
-    call MPI_comm_rank(COUPLER_REALM_COMM,myid,ierr)
 	call mpi_file_open(COUPLER_REALM_COMM,filename,MPI_MODE_CREATE+MPI_MODE_WRONLY,MPI_INFO_NULL,fh,ierr)
 	call mpi_file_set_size(fh,0_MPI_OFFSET_KIND,ierr) ! discard previous data
 
 	n = map%n
-	write(rec,'(a,I5,a,I5)')  'myid', myid, ' overlaps', map%n
+	write(rec,'(a,I5,a,I5)')  'myid', myid_grid, ' overlaps', map%n
 	msg = rec(1:len_trim(rec))//nl
 	write(fmtstr,*) "( a,",1,"I5,","a,", 6,"I5)"
 	

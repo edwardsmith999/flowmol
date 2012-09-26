@@ -49,6 +49,18 @@ module coupler
     implicit none
     save
 
+    interface coupler_send
+        module procedure coupler_send_3d, coupler_send_4d
+    end interface
+
+    interface coupler_recv
+        module procedure coupler_recv_3d, coupler_recv_4d
+    end interface
+
+    private coupler_send_3d, coupler_send_4d, &
+        coupler_send_xd, coupler_recv_3d, coupler_recv_4d,&
+        coupler_recv_xd
+
     interface coupler_send_data
         module procedure coupler_send_data_3d, coupler_send_data_4d
     end interface
@@ -79,16 +91,22 @@ contains
 
 subroutine coupler_create_comm(realm, REALM_COMM, ierror)
 	use mpi
-	use coupler_module
-	!use coupler_module
+	use coupler_module, only : myid, coupler_realm, & 
+								COUPLER_GLOBAL_COMM, COUPLER_REALM_COMM, COUPLER_ICOMM
 	use coupler_input_data
 	implicit none
 
 	integer, intent(in) :: realm ! CFD or MD
 	integer, intent(out):: REALM_COMM, ierror
 
+	integer				:: ierr
+
 	! test if we have a CFD and a MD realm
 	ierror=0
+
+	!Get processor id of all processor across both codes
+	call MPI_comm_rank(MPI_COMM_WORLD,myid,ierr)
+	myid = myid + 1
 
 	call test_realms			! Test realms are assigned correctly
 	coupler_realm = realm
@@ -101,18 +119,16 @@ contains
 !-----------------------------------------------------------------------------
 
 subroutine test_realms
-	use mpi
 	implicit none
 
-	integer 			 :: i, myid, root, nproc, ncfd, nmd, ierr
+	integer 			 :: i, root, nproc, ncfd, nmd, ierr
 	integer, allocatable :: realm_list(:)
 
-	!Get processor id of all processor across both codes
-	call MPI_comm_rank(MPI_COMM_WORLD,myid,ierr)
+
 
 	! Allocate and gather array with realm (MD or CFD) of each 
 	! processor in the coupled domain on the root processor
-	root = 0
+	root = 1
 	if (myid .eq. root) then
 		call MPI_comm_size(MPI_comm_world, nproc, ierr)
 		allocate(realm_list(nproc))
@@ -150,11 +166,9 @@ end subroutine test_realms
 !-----------------------------------------------------------------------------
 
 subroutine create_comm
-	use mpi
-	!use coupler_module, only : COUPLER_REALM_COMM, COUPLER_GLOBAL_COMM, COUPLER_ICOMM
 	implicit none
 
-	integer ierr, myid, myid_comm, myid_comm_max, realm, &
+	integer ierr, myid_comm, myid_comm_max, realm, &
 		ibuf(2), jbuf(2), remote_leader, comm, comm_size
 
 	realm = coupler_realm
@@ -164,7 +178,6 @@ subroutine create_comm
 	! 2) An inter-communicator which allows communication between  
 	! the 'groups' of processors in MD and the group in the CFD 
 	call MPI_comm_dup(MPI_COMM_WORLD,COUPLER_GLOBAL_COMM,ierr)
-	call MPI_comm_rank(COUPLER_GLOBAL_COMM,myid,ierr)
 	REALM_COMM         = MPI_COMM_NULL
 	COUPLER_REALM_COMM = MPI_COMM_NULL
 
@@ -172,14 +185,14 @@ subroutine create_comm
 	! Split MPI_COMM_WORLD into an intra-communicator for each realm 
 	! (used for any communication within each realm - e.g. broadcast from 
 	!  an md process to all other md processes)
-	call MPI_comm_split(MPI_COMM_WORLD,realm,myid,REALM_COMM,ierr)
+	call MPI_comm_split(MPI_COMM_WORLD,realm,myid-1,REALM_COMM,ierr)
 
 	!------------ create realm inter-communicators -----------------------
 	! Create intercommunicator between the group of processor on each realm
 	! (used for any communication between realms - e.g. md group rank 2 sends
 	! to cfd group rank 5). inter-communication is by a single processor on each group
 	! Split duplicate of MPI_COMM_WORLD
-	call MPI_comm_split(COUPLER_GLOBAL_COMM,realm,myid,COUPLER_REALM_COMM,ierr)
+	call MPI_comm_split(COUPLER_GLOBAL_COMM,realm,myid-1,COUPLER_REALM_COMM,ierr)
 
 	! Get the MPI_comm_world ranks that hold the largest ranks in cfd_comm and md_comm
 	call MPI_comm_rank(COUPLER_REALM_COMM,myid_comm,ierr)
@@ -187,13 +200,13 @@ subroutine create_comm
 	ibuf(:) = -1
 	jbuf(:) = -1
 	if ( myid_comm .eq. comm_size - 1) then
-		ibuf(COUPLER_REALM) = myid
+		ibuf(coupler_realm) = myid-1
 	endif
 	call MPI_allreduce( ibuf ,jbuf, 2, MPI_INTEGER, MPI_MAX, &
 						COUPLER_GLOBAL_COMM, ierr)
 
 	!Set this largest rank on each process to be the inter-communicators
-	select case (COUPLER_REALM)
+	select case (coupler_realm)
 	case (COUPLER_CFD)
 		remote_leader = jbuf(COUPLER_MD)
 	case (COUPLER_MD)
@@ -205,43 +218,299 @@ subroutine create_comm
 	call MPI_intercomm_create(COUPLER_REALM_COMM, comm_size - 1, COUPLER_GLOBAL_COMM,&
 									remote_leader, 1, COUPLER_ICOMM, ierr)
 
-	write(0,*) 'did (inter)communicators ', code_name(COUPLER_REALM), myid
+	write(0,*) 'did (inter)communicators ', code_name(coupler_realm), myid-1
 
 end subroutine create_comm
 
 end subroutine coupler_create_comm
 
+
 !=============================================================================
-!	Setup within each of the CFD/MD the mapping to the other realm
-! --- CFD ---
-! create_map_cfd is an internal CFD only routine to build the mapping
-! only on CFD processors to the MD regions
-! ---  MD  ---
-! create_map_md is an internal MD only routine to build the mapping
-! only on MD processors to the CFD regions
+! Establish for all MD processors the mapping (if any) 
+! to coupled CFD processors
 !-----------------------------------------------------------------------------
 
 subroutine coupler_create_map
 	use mpi
-	use coupler_module, only : COUPLER_REALM, request_stop
-	use coupler_internal_cfd, only : create_map_cfd
-	use coupler_internal_md, only : create_map_md
-    !use coupler_module, only : request_stop
+	use coupler_module
 	implicit none
 
-	integer ierr
+	integer		:: n,ierr
 
+	!Get ranges of cells on each MD processor
+	call get_cell_ranges
+
+	!Get overlapping mapping for MD to CFD
+	call get_overlap_blocks
+
+	!Write Debug information
 	if (coupler_realm .eq. COUPLER_CFD) then
-		call create_map_cfd
+		call write_map_cfd
 	else if (coupler_realm .eq. COUPLER_MD) then
-		call create_map_md
+		call write_map_md
 	else
 		write(*,*) "Wrong coupler_realm in coupler_create_map"
 		call MPI_Abort(MPI_COMM_WORLD,COUPLER_ERROR_REALM,ierr)
 	end if
+	call write_map_olap
 
-    call request_stop("create_map")
- 
+	call MPI_barrier(COUPLER_GLOBAL_COMM,ierr)
+
+contains
+
+	!------------------------------------------------------------
+	!Calculate processor overlap between CFD/MD on all processors
+	
+	subroutine get_overlap_blocks
+	implicit none
+
+		integer 			:: iblock,jblock,kblock
+		integer 			:: i,endproc,nolapsx,nolapsy,nolapsz
+		integer,dimension(3):: pcoords
+		integer, parameter 	:: olap_null = -666
+
+		!Get cartesian coordinate of overlapping md cells & cfd cells
+		allocate(imap_olap(npx_cfd,npx_md/npx_cfd)); imap_olap = olap_null
+		allocate(jmap_olap(npy_cfd,npy_md/npy_cfd)); jmap_olap = olap_null
+		allocate(kmap_olap(npz_cfd,npz_md/npz_cfd)); kmap_olap = olap_null
+
+		! - - x - -
+		nolapsx = ceiling(dble(npx_md)/dble(npx_cfd))
+		do n = 1,npx_cfd
+		do i = 1,nolapsx	
+			imap_olap(n,i) = (n-1)*nolapsx + i
+		end do
+		end do
+
+		! - - y - -
+		yLl_md = yL_md/dble(npy_md)
+		nolapsy = ceiling(yL_olap/yLl_md)
+		yLl_cfd = yL_cfd / npy_cfd
+		endproc = ceiling(yL_olap/yLl_cfd)
+		do n = 1,endproc
+		do i = 1,nolapsy
+			jmap_olap(n,i) = (n-1)*nolapsy + i + (npy_md - nolapsy)
+		end do
+		end do
+
+		! - - z - -
+		nolapsz = ceiling(dble(npz_md)/dble(npz_cfd))
+		do n = 1,npz_cfd
+		do i = 1,nolapsz	
+			kmap_olap(n,i) = (n-1)*nolapsz + i
+		end do
+		end do
+
+		!Create communicator for overlapping processors
+		if (coupler_realm .eq. COUPLER_CFD) then
+			map%n = npx_md/npx_cfd
+			allocate(map%rank_list(map%n))
+			!Get rank(s) of overlapping MD processor(s)
+			do n = 1,map%n
+				pcoords(1)=imap_olap(rank2coord_cfd(1,myid_grid),n)
+				pcoords(2)=jmap_olap(rank2coord_cfd(2,myid_grid),n)
+				pcoords(3)=kmap_olap(rank2coord_cfd(3,myid_grid),n)
+				map%rank_list(n) = coord2rank_md(pcoords(1),pcoords(2),pcoords(3))
+				map%rank_list(n) = map%rank_list(n) + 1
+				write(250+myid_grid,'(2a,6i5)'), 'overlap',code_name(coupler_realm),myid_grid,map%n,map%rank_list(n),pcoords
+			enddo
+		else if (coupler_realm .eq. COUPLER_MD) then
+			map%n = 1
+			allocate(map%rank_list(map%n))	
+			!Get rank of overlapping CFD processor
+			pcoords(1) = rank2coord_md(1,myid_grid)*(dble(npx_cfd)/dble(npx_md))
+			pcoords(2) = 1 !rank2coord_md(2,myid_grid)*(dble(npy_cfd)/dble(npy_md))
+			pcoords(3) = rank2coord_md(3,myid_grid)*(dble(npz_cfd)/dble(npz_md))
+			map%rank_list(1) = coord2rank_cfd(pcoords(1),pcoords(2),pcoords(3))
+			map%rank_list(1) = map%rank_list(1) + 1
+			write(300+myid_grid,'(2a,6i5)'), 'overlap',code_name(coupler_realm),myid_grid,map%n,map%rank_list(1),pcoords
+		endif
+
+		call MPI_Barrier(MPI_COMM_WORLD,ierr)
+			
+	end subroutine get_overlap_blocks
+	!------------------------------------------------------------
+	!Calculate processor cell ranges of MD code on all processors
+		
+	subroutine get_cell_ranges
+	use coupler_input_data, only : cfd_coupler_input
+	implicit none
+
+		integer :: startproc
+		integer, parameter :: Tnull = -666
+
+		allocate(iTmin_md(npx_md)); iTmin_md = Tnull
+		allocate(jTmin_md(npy_md)); jTmin_md = Tnull
+		allocate(kTmin_md(npz_md)); kTmin_md = Tnull
+		allocate(iTmax_md(npx_md)); iTmax_md = Tnull
+		allocate(jTmax_md(npy_md)); jTmax_md = Tnull
+		allocate(kTmax_md(npz_md)); kTmax_md = Tnull
+
+		! - - x - -
+		nlgx_md = ceiling(dble(ngx)/dble(npx_md))
+		do n=1,npx_md
+			iTmax_md(n) = n * nlgx_md
+			iTmin_md(n) = iTmax_md(n) - nlgx_md + 1
+		end do	
+
+		! - - y - -
+		nlgy_md = ceiling(dble(ngy)/dble(npy_md))
+		yL_olap = j_olap * dy
+		yL_puremd = yL_md - yL_olap
+		ngy_puremd = yL_puremd / dy
+		yLl_md = yL_md / npy_md
+		startproc = ceiling(yL_puremd/yLl_md)
+		do n = startproc,npy_md
+			jTmax_md(n) = n * nlgy_md - ngy_puremd
+			jTmin_md(n) = jTmax_md(n) - nlgy_md + 1
+			if (jTmin_md(n).le.0) jTmin_md(n) = 1
+		end do 
+
+		! - - z - -
+		nlgz_md = ceiling(dble(ngz)/dble(npz_md))
+		do n=1,npz_md
+			kTmax_md(n) = n * nlgz_md
+			kTmin_md(n) = kTmax_md(n) - nlgz_md + 1
+		end do
+
+	end subroutine get_cell_ranges
+
+	!------------------------------------------------------------
+	! Write MD cell mapping to file
+
+	subroutine write_map_md
+	implicit none
+
+		write(5000+myid_grid,*), '==========================================='
+		write(5000+myid_grid,*), '------------  M D   M A P  ----------------'
+		write(5000+myid_grid,*), '==========================================='
+		write(5000+myid_grid,*), 'npx_md = ', npx_md
+		write(5000+myid_grid,*), 'ngx   = ', ngx
+		write(5000+myid_grid,*), 'nlgx_md   = ', nlgx_md
+		write(5000+myid_grid,*), '-------------------------------------------'
+		write(5000+myid_grid,*), '     n        iTmin_md(n)    iTmax_md(n)   '
+		write(5000+myid_grid,*), '-------------------------------------------'
+		do n=1,npx_md
+			write(5000+myid_grid,'(1x,3i11)'), n, iTmin_md(n), iTmax_md(n)
+		end do	
+		write(5000+myid_grid,*), '-------------------------------------------'
+		write(5000+myid_grid,*), 'npy_md = ', npy_md
+		write(5000+myid_grid,*), 'nlgy_md = ', nlgy_md 
+		write(5000+myid_grid,*), 'yL_pmd = ', yL_puremd
+		write(5000+myid_grid,*), 'ngy_puremd = ', ngy_puremd
+		write(5000+myid_grid,*), '-------------------------------------------'
+		write(5000+myid_grid,*), '     n        jTmin_md(n)    jTmax_md(n)   '
+		write(5000+myid_grid,*), '-------------------------------------------'
+		do n = 1,npy_md	
+			write(5000+myid_grid,'(1x,3i11)'), n, jTmin_md(n), jTmax_md(n)
+		end do
+		write(5000+myid_grid,*), '-------------------------------------------'
+		write(5000+myid_grid,*), 'npz_md = ', npz_md
+		write(5000+myid_grid,*), 'ngz-1   = ', ngz
+		write(5000+myid_grid,*), 'nlgz_md   = ', nlgz_md
+		write(5000+myid_grid,*), '-------------------------------------------'
+		write(5000+myid_grid,*), '     n        kTmin_md(n)    kTmax_md(n)   '
+		write(5000+myid_grid,*), '-------------------------------------------'
+		do n=1,npz_md
+			write(5000+myid_grid,'(1x,3i11)'), n, kTmin_md(n), kTmax_md(n)
+		end do
+		write(5000+myid_grid,*), '-------------------------------------------'
+
+	end subroutine write_map_md
+
+	!------------------------------------------------------------
+	! Write CFD cell mapping to file
+
+	subroutine write_map_cfd
+	implicit none
+
+		write(10000+myid_grid,*), '==========================================='
+		write(10000+myid_grid,*), '------------ C F D   M A P ----------------'
+		write(10000+myid_grid,*), '==========================================='
+		write(10000+myid_grid,*), 'npx_cfd = ', npx_cfd
+		write(10000+myid_grid,*), 'ngx   = ', ngx
+		write(10000+myid_grid,*), 'nlgx_cfd   = ', nlgx_cfd
+		write(10000+myid_grid,*), '-------------------------------------------'
+		write(10000+myid_grid,*), '     n        iTmin_cfd(n)    iTmax_cfd(n)   '
+		write(10000+myid_grid,*), '-------------------------------------------'
+		do n=1,npx_cfd
+			write(10000+myid_grid,'(1x,3i11)'), n, iTmin_cfd(n), iTmax_cfd(n)
+		end do	
+		write(10000+myid_grid,*), '-------------------------------------------'
+		write(10000+myid_grid,*), 'npy_cfd = ', npy_cfd
+		write(10000+myid_grid,*), 'nlgy_cfd = ', nlgy_cfd 
+		write(10000+myid_grid,*), '-------------------------------------------'
+		write(10000+myid_grid,*), '     n        jTmin_cfd(n)    jTmax_cfd(n)   '
+		write(10000+myid_grid,*), '-------------------------------------------'
+		do n = 1,npy_cfd	
+			write(10000+myid_grid,'(1x,3i11)'), n, jTmin_cfd(n), jTmax_cfd(n)
+		end do
+		write(10000+myid_grid,*), '-------------------------------------------'
+		write(10000+myid_grid,*), 'npz_cfd = ', npz_cfd
+		write(10000+myid_grid,*), 'ngz   = ', ngz
+		write(10000+myid_grid,*), 'nlgz_cfd   = ', nlgz_cfd
+		write(10000+myid_grid,*), '-------------------------------------------'
+		write(10000+myid_grid,*), '     n        kTmin_cfd(n)    kTmax_cfd(n)   '
+		write(10000+myid_grid,*), '-------------------------------------------'
+		do n=1,npz_cfd
+			write(10000+myid_grid,'(1x,3i11)'), n, kTmin_cfd(n), kTmax_cfd(n)
+		end do
+		write(10000+myid_grid,*), '-------------------------------------------'
+
+	end subroutine write_map_cfd
+
+	!------------------------------------------------------------
+	! Write overlap block mapping to file
+
+	subroutine write_map_olap
+		implicit none
+
+		integer	:: nolapsx,nolapsy,nolapsz
+
+		nolapsx = npx_md/npx_cfd
+		nolapsy = ceiling(yL_olap/yLl_md)
+		print*, nolapsy,yL_olap,yLl_md
+		nolapsz = npz_md/npz_cfd
+
+		write(7500+myid_grid,*), ''
+		write(7500+myid_grid,*), '==========================================='
+		write(7500+myid_grid,*), '-------- O V E R L A P   M A P ------------'
+		write(7500+myid_grid,*), '==========================================='
+		write(7500+myid_grid,*), 'nolapsx = ', nolapsx
+		write(7500+myid_grid,*), '-------------------------------------------'
+		write(7500+myid_grid,*), '  rank2coord_cfd       olapmin     olapmax     ' 
+		write(7500+myid_grid,*), '-------------------------------------------'
+		do n=1,npx_cfd
+			write(7500+myid_grid,'(1x,3i11)'), n,               &
+	              imap_olap(n,1),         &
+			      imap_olap(n,nolapsx)
+		end do	
+		write(7500+myid_grid,*), '-------------------------------------------'
+
+		write(7500+myid_grid,*), 'nolapsy = ', nolapsy
+		write(7500+myid_grid,*), '-------------------------------------------'
+		write(7500+myid_grid,*), '  jcoord_cfd       olapmin     olapmax     ' 
+		write(7500+myid_grid,*), '-------------------------------------------'
+		do n=1,npy_cfd
+			write(7500+myid_grid,'(1x,3i11)'), n,               &
+	              jmap_olap(n,1),         &
+			      jmap_olap(n,nolapsy)
+		end do	
+		write(7500+myid_grid,*), '-------------------------------------------'
+
+		write(7500+myid_grid,*), 'nolapsx = ', nolapsz
+		write(7500+myid_grid,*), '-------------------------------------------'
+		write(7500+myid_grid,*), '  kcoord_cfd       olapmin     olapmax     ' 
+		write(7500+myid_grid,*), '-------------------------------------------'
+		do n=1,npz_cfd
+			write(7500+myid_grid,'(1x,3i11)'), n,               &
+	              kmap_olap(n,1),         &
+			      kmap_olap(n,nolapsz)
+		end do	
+		write(7500+myid_grid,*), '-------------------------------------------'
+
+	end subroutine write_map_olap
+
 end subroutine coupler_create_map
 
 !=============================================================================
@@ -252,8 +521,7 @@ end subroutine coupler_create_map
 subroutine coupler_cfd_adjust_domain(xL, yL, zL, nx, ny, nz, density_cfd)
     use mpi
     use coupler_input_data
-    !use coupler_internal_cfd, only : b => MD_initial_cellsize
-    use coupler_module, only : b => MD_initial_cellsize, COUPLER_REALM_COMM
+    use coupler_module, only : b => MD_initial_cellsize, COUPLER_REALM_COMM, myid_grid
     implicit none
 
     integer, optional, intent(inout) 			:: nx, ny, nz
@@ -261,14 +529,15 @@ subroutine coupler_cfd_adjust_domain(xL, yL, zL, nx, ny, nz, density_cfd)
     real(kind(0.d0)), optional, intent(inout) 	:: density_cfd
 
     ! Internal variables
-    integer										:: myid, ierror, ierr
+    integer										:: ierror, root, ierr
     real(kind=kind(0.d0)), pointer 				:: xyz_ptr => null()
 	character(1)				   				:: direction
 	logical										:: changed
 
-    ! Local rank, useful for messeges
-    call MPI_comm_rank(COUPLER_REALM_COMM,myid,ierr)
+	!Define root processes
+	root = 1
 
+    ! Local rank, useful for messeges
     if (density_tag == CPL) then 
         density_cfd = density
     else
@@ -323,7 +592,7 @@ subroutine coupler_cfd_adjust_domain(xL, yL, zL, nx, ny, nz, density_cfd)
         if (cfd_coupler_input%ncells%tag == CPL ) then
             nx = cfd_coupler_input%ncells%x
         else
-            if(myid == 0) then
+            if(myid_grid .eq. root) then
                 write(0,*)"WARNING: nx is present in coupler_cfd_adjust_domain argument list"
                 write(0,*)"         but coupler_input%ncells tag is void."
                 write(0,*)"         Using CFD input value!"
@@ -336,7 +605,7 @@ subroutine coupler_cfd_adjust_domain(xL, yL, zL, nx, ny, nz, density_cfd)
         if (cfd_coupler_input%ncells%tag == CPL ) then
             ny = cfd_coupler_input%ncells%y
         else
-            if(myid == 0) then
+            if(myid_grid .eq. root) then
                 write(0,*)"WARNING: ny is present in coupler_cfd_adjust_domain argument list"
                 write(0,*)"         but coupler_input%ncells tag is void."
                 write(0,*)"         Using CFD input value!"
@@ -349,7 +618,7 @@ subroutine coupler_cfd_adjust_domain(xL, yL, zL, nx, ny, nz, density_cfd)
         if (cfd_coupler_input%ncells%tag == CPL ) then
             nz = cfd_coupler_input%ncells%z
         else
-            if(myid == 0) then
+            if(myid_grid .eq. root) then
                 write(0,*)"WARNING: nz is present in coupler_cfd_adjust_domain argument list"
                 write(0,*)"         but coupler_input%ncells tag is void."
                 write(0,*)"         Using CFD input value!"
@@ -410,7 +679,7 @@ subroutine init_length(rin,rout,resize,direction,print_warning)
     end select
 
     if (print_warning) then 
-        if (myid == 0) then 
+        if (myid_grid .eq. root) then 
             write(*,'(3(a,/),3a,/,2(a,f20.10),/a,/,a)') &
                     "*********************************************************************",	&
                     "WARNING - this is a coupled run which resets CFD domain size         ",	&
@@ -436,7 +705,7 @@ subroutine test_cfd_cell_sizes
 
     ndim => cfd_coupler_input%domain%ndim
 
-    if ( myid == 0) then
+    if (myid_grid .eq. root) then
         if ((present(xL) .and. present(nx)) .or. &
             (cfd_coupler_input%domain%tag == CPL .and. &
             cfd_coupler_input%ncells%tag == CPL)) then
@@ -469,63 +738,6 @@ end subroutine test_cfd_cell_sizes
             
 end subroutine coupler_cfd_adjust_domain
 
-
-!-----------------------------------------------------------------------------
-! Establish location and size of the overlap region between the continuum
-! and molecular simulations
-!-----------------------------------------------------------------------------
-
-subroutine find_overlaps_es
-	use coupler_module, only : 	iTmin_cfd,iTmax_cfd,jTmin_cfd,jTmax_cfd,kTmin_cfd,kTmax_cfd, & 
-								iTmin_md ,iTmax_md ,jTmin_md ,jTmax_md ,kTmin_md ,kTmax_md 
-    implicit none
-
-    integer	:: i, nproc
-
-
-	if (coupler_realm .eq. COUPLER_CFD) then
-		nproc = nproc_cfd
-	else if (coupler_realm .eq. COUPLER_MD) then
-		nproc = nproc_md
-	else
-		write(*,*) "Wrong coupler_realm in find_overlaps"
-		call MPI_Abort(MPI_COMM_WORLD,COUPLER_ERROR_REALM,ierr)
-	end if
-
-    do i=0,nproc - 1
-
-        if ((  (iTmin_md (i) .ge. iTmin_cfd(i) .and. & 
-			    iTmax_cfd(i) .gt. iTmax_md (i)) .or. &
- 				jTmin_md (i) .ge. jTmin_cfd(i) .and. & 
-			    jTmax_cfd(i) .gt. jTmax_md (i))	.or. &
- 				kTmin_md (i) .ge. kTmin_cfd(i) .and. & 
-			    kTmax_cfd(i) .gt. kTmax_md (i))	.or. &
-
-			!This processor overlaps the MD domain
-            overlap_mask(i) = 1
-
-			!I think this ensures local min/max are replaced by global min/max values if appropriate
-            overlap_box(1,i) = max(ibmin,ibs)
-            overlap_box(2,i) = min(ibmax,ibe)
-            overlap_box(3,i) = max(jbmin,jbs)
-            overlap_box(4,i) = min(jmax_overlap,jbe)
-            overlap_box(5,i) = max(kbmin,kbs)
-            overlap_box(6,i) = min(kbmax,kbe)
-
-        else
-            overlap_mask(i) = 0
-            overlap_box(:,i) = -666
-
-        endif
-
-    enddo
-
-    write(0,*)' CFD: overlap ', myid, overlap_mask, overlap_box
-
-end subroutine find_overlaps_es
-
-
-
 !=============================================================================
 ! Simulation  Simulation  Simulation  Simulation  Simulation  Simulation  
 !
@@ -534,6 +746,290 @@ end subroutine find_overlaps_es
 ! Simulation  Simulation  Simulation  Simulation  Simulation  Simulation  
 !=============================================================================
 
+
+
+
+!=============================================================================
+! coupler_send_data wrapper for 3d arrays
+! see coupler_send_xd for input description
+!-----------------------------------------------------------------------------
+subroutine coupler_send_3d(temp,index_transpose)
+    implicit none
+ 
+    integer, optional, intent(in) :: index_transpose(3)    
+    real(kind=kind(0.d0)),dimension(:,:,:), intent(in) :: temp
+    
+    integer n1,n2,n3,n4
+    real(kind=kind(0.d0)),dimension(:,:,:,:),allocatable :: asend
+   
+    n1 = 1
+    n2 = size(temp,1)
+    n3 = size(temp,2)
+    n4 = size(temp,3)
+
+	!Add padding column to 3D array to make it 4D
+	allocate(asend(n1,n2,n3,n4))
+	asend(1,:,:,:) = temp(:,:,:)
+  
+    call coupler_send_xd(asend,index_transpose)
+
+end subroutine coupler_send_3d
+
+!=============================================================================
+! coupler_send_data wrapper for 4d arrays
+! see coupler_send_xd for input description
+!-----------------------------------------------------------------------------
+subroutine coupler_send_4d(asend,index_transpose)
+    implicit none
+ 
+	integer, optional, intent(in)  :: index_transpose(3)   
+	real(kind=kind(0.d0)),dimension(:,:,:,:), intent(in) :: asend
+    
+    integer n1,n2,n3,n4
+ 
+    call coupler_send_xd(asend,index_transpose)
+
+end subroutine coupler_send_4d
+
+
+!=============================================================================
+! Send data from the local grid to the associated ranks from the other 
+! realm
+!-----------------------------------------------------------------------------
+
+subroutine coupler_send_xd(asend,index_transpose)
+	use mpi
+	use coupler_module
+	use coupler_internal_cfd, only: bbox_cfd
+    use coupler_internal_md, only : bbox_md => bbox
+	implicit none
+ 
+    ! array containing data distributed on the grid
+    real(kind=kind(0.d0)),dimension(:,:,:,:), intent(in) :: asend
+    ! specify the order of dimensions in asend default is ( x, y, z) 
+	! but some CFD solvers use (z,x,y)     
+    integer, optional, intent(in) :: index_transpose(3)    ! rule of transposition for the coordinates 
+
+	!Number of halos
+	integer	:: nh = 1    
+
+    ! local indices 
+    integer :: ix,iy,iz,bimin,bimax,bjmin,bjmax,bkmin,bkmax
+	integer	:: ig(2,3),a_components
+
+    ! auxiliaries 
+    integer	:: i,ndata,itag,dest,ierr
+	real(kind=kind(0.d0)), allocatable :: vbuf(:)
+	integer, save :: ncalls = 0
+
+	! This local CFD domain is outside MD overlap zone 
+	if ( map%n .eq. 0 ) return 
+
+	ncalls = ncalls + 1
+    ! Get local grid box ranges seen by this rank for either CFD or MD
+    if (coupler_realm .eq. COUPLER_CFD) then 
+		!Load CFD cells per processor
+        bimin = iTmin_cfd(iblock)
+        bimax = iTmax_cfd(iblock) 
+        bjmin = jTmin_cfd(jblock) 
+        bjmax = jTmax_cfd(jblock) 
+        bkmin = kTmin_cfd(kblock) 
+        bkmax = kTmax_cfd(kblock) 
+    elseif (coupler_realm .eq. COUPLER_MD) then 
+        ! Load MD cells per processor
+        bimin = iTmin_md(iblock)
+        bimax = iTmax_md(iblock) 
+        bjmin = jTmin_md(jblock) 
+        bjmax = jTmax_md(jblock) 
+        bkmin = kTmin_md(kblock) 
+        bkmax = kTmax_md(kblock) 
+	endif
+
+    ! Re-order indices of x,y,z coordinates (handles transpose arrays)
+    ix = 1 ; iy = 2; iz = 3
+    if( present(index_transpose)) then
+        ix = index_transpose(1)
+        iy = index_transpose(2)
+        iz = index_transpose(3)
+    endif
+
+    ! Number of components at each grid point
+    a_components = size(asend,dim=1)
+   
+    ! loop through the maps and send the corresponding sections of asend
+    do i = 1, map%n
+
+		!Get taget processor from mapping
+        dest = map%rank_list(i)
+
+        ! Amount of data to be sent
+        ndata = a_components * (bimax-bimin + 1) * (bjmax-bjmin + 1) * (bkmax-bkmin + 1)
+		if(allocated(vbuf)) deallocate(vbuf); allocate(vbuf(ndata))
+		vbuf(1:ndata) = reshape(asend, (/ ndata /) )
+
+        ! Send data 
+        itag = mod( ncalls, MPI_TAG_UB) !Attention ncall could go over max tag value for long runs!!
+		call MPI_send(vbuf, ndata, MPI_DOUBLE_PRECISION, dest, itag, COUPLER_ICOMM, ierr)
+    enddo
+
+end subroutine coupler_send_xd
+
+!=============================================================================
+! coupler_recv_data wrapper for 3d arrays
+! see coupler_recv_xd for input description
+!-----------------------------------------------------------------------------
+subroutine coupler_recv_3d(temp,index_transpose)
+    implicit none
+
+    integer, optional, intent(in) :: index_transpose(3)  
+    real(kind(0.d0)),dimension(:,:,:),intent(inout) :: temp 
+                                                        
+	integer n1, n2, n3, n4
+	real(kind(0.d0)),allocatable,dimension(:,:,:,:) :: arecv    
+
+    n1 = 1 
+    n2 = size(temp,1)
+    n3 = size(temp,2)
+    n4 = size(temp,3)
+
+	!Add padding column to 3D array to make it 4D
+	allocate(arecv(n1,n2,n3,n4))
+    call coupler_recv_xd(arecv,index_transpose)
+	temp(:,:,:) = 	arecv(1,:,:,:) 
+
+end subroutine coupler_recv_3d
+
+!=============================================================================
+! coupler_recv_data wrapper for 4d arrays
+! see coupler_recv_xd for input description
+!-----------------------------------------------------------------------------
+subroutine coupler_recv_4d(arecv,index_transpose)
+
+    implicit none
+
+    integer, optional, intent(in) :: index_transpose(3)  
+    real(kind(0.d0)),dimension(:,:,:,:),intent(inout) :: arecv
+
+    call coupler_recv_xd(arecv,index_transpose)
+
+end subroutine coupler_recv_4d
+
+!=============================================================================
+! Receive data from to local grid from the associated ranks from the other 
+! realm
+!-----------------------------------------------------------------------------
+subroutine coupler_recv_xd(arecv,index_transpose)
+    use mpi
+	use coupler_module
+    implicit none
+
+    ! specify the order of dimensions in asend default is ( x, y, z) 
+	! but some CFD solvers use (z,x,y)   
+    integer, optional, intent(in) :: index_transpose(3)      
+    ! Array that recieves grid distributed data 
+    real(kind(0.d0)), dimension(:,:,:,:),intent(inout) :: arecv     
+                                                         
+    ! local indices 
+    integer ::ix,iy,iz,bimin,bimax,bjmin,bjmax,bkmin,bkmax
+	integer	::i,ig(2,3),pcoords(3),recvdata,startbuf,endbuf,a_components
+
+    ! auxiliaries 
+    integer ndata,itag,source,req(map%n),vel_indx(8,map%n), &
+         start_address(map%n+1), status(MPI_STATUS_SIZE,map%n),ierr
+    real(kind(0.d0)),dimension(:), allocatable ::  vbuf,vbuf2
+    integer, save :: ncalls = 0
+
+	! This local CFD domain is outside MD overlap zone 
+	if ( map%n .eq. 0 ) return 
+ 
+	ncalls = ncalls + 1
+
+    ! Local grid box
+    ! Get local grid box ranges seen by this rank for either CFD or MD
+    if (coupler_realm .eq. COUPLER_CFD) then 
+		!Load CFD cells per processor
+        bimin = iTmin_cfd(iblock)
+        bimax = iTmax_cfd(iblock) 
+        bjmin = jTmin_cfd(jblock) 
+        bjmax = jTmax_cfd(jblock) 
+        bkmin = kTmin_cfd(kblock) 
+        bkmax = kTmax_cfd(kblock)
+    elseif (coupler_realm .eq. COUPLER_MD) then 
+        ! Load MD cells per processor
+        bimin = iTmin_md(iblock)
+        bimax = iTmax_md(iblock) 
+        bjmin = jTmin_md(jblock) 
+        bjmax = jTmax_md(jblock) 
+        bkmin = kTmin_md(kblock) 
+        bkmax = kTmax_md(kblock) 
+	endif
+
+    ! Get the indices in x,y,z direction from transpose array
+    ix = 1 ; iy = 2; iz = 3
+    if( present(index_transpose)) then
+        ix = index_transpose(1)
+        iy = index_transpose(2)
+        iz = index_transpose(3)
+    endif
+	ig(1,ix) = bimin;	ig(2,ix) = bimax
+	ig(1,iy) = bjmin;	ig(2,iy) = bjmax
+	ig(1,iz) = bkmin;	ig(2,iz) = bkmax
+
+    ! Amount of data to receive
+	a_components = size(arecv,dim=1)
+    ndata = a_components * (bimax-bimin + 1) * (bjmax-bjmin + 1) * (bkmax-bkmin + 1)
+	print*, 'vbuf size', ndata , a_components , (bimax-bimin + 1) , (bjmax-bjmin + 1) , (bkmax-bkmin + 1)
+	allocate(vbuf(ndata),stat=ierr) 
+
+    ! Receive from all attached processors
+    start_address(1) = 1 
+    do i = 1, map%n
+
+		!Get source processor from mapping
+        source =  map%rank_list(i)
+
+	    ! Get size of data to receive from source processors
+		if (coupler_realm .eq. COUPLER_CFD) then
+			pcoords(1)=rank2coord_md(1,source)
+			pcoords(2)=rank2coord_md(2,source)
+			pcoords(3)=rank2coord_md(3,source)
+			recvdata = a_components * (iTmax_md(pcoords(1))-iTmin_md(pcoords(1))) & 
+									* (jTmax_md(pcoords(2))-jTmin_md(pcoords(2))) & 
+									* (kTmax_md(pcoords(3))-kTmin_md(pcoords(3)))
+		elseif (coupler_realm .eq. COUPLER_MD) then
+			pcoords(1)=rank2coord_cfd(1,source)
+			pcoords(2)=rank2coord_cfd(2,source)
+			pcoords(3)=rank2coord_cfd(3,source)
+			recvdata = a_components * (iTmax_cfd(pcoords(1))-iTmin_cfd(pcoords(1))) & 
+									* (jTmax_cfd(pcoords(2))-jTmin_cfd(pcoords(2))) & 
+									* (kTmax_cfd(pcoords(3))-kTmin_cfd(pcoords(3)))
+		endif
+
+		if (recvdata .gt. ndata) then
+			! If data received is greater than required, discard excess
+			allocate(vbuf2(recvdata))
+			itag = mod(ncalls, MPI_TAG_UB) ! Attention ncall could go over max tag value for long runs!!
+			call MPI_irecv(vbuf2(:),recvdata,MPI_DOUBLE_PRECISION,source,itag,&
+                				COUPLER_ICOMM,req(i),ierr)
+			startbuf = map%rank_list(myid_grid) * ndata
+			endbuf   = map%rank_list(myid_grid) * (ndata + 1 )
+			vbuf(1:ndata) = vbuf2(startbuf:endbuf)
+			deallocate(vbuf2)
+		else
+			! Otherwise Receive section of data and increment pointer 
+			! ready to receive next piece of data
+	        start_address(i+1) = start_address(i) + recvdata
+			print*, start_address(i+1),start_address(i),recvdata
+			itag = mod(ncalls, MPI_TAG_UB) ! Attention ncall could go over max tag value for long runs!!
+			call MPI_irecv(vbuf(start_address(i)),recvdata,MPI_DOUBLE_PRECISION,source,itag,&
+                				COUPLER_ICOMM,req(i),ierr)
+		endif
+    enddo
+    call MPI_waitall(map%n, req, status, ierr)
+
+	arecv = reshape(vbuf,(/ ndata, ig(2,1)-ig(1,1)+1, ig(2,2)-ig(1,2)+1, ig(2,3)-ig(1,3)+1 /))
+           
+end subroutine coupler_recv_xd
 
 !=============================================================================
 ! coupler_send_data wrapper for 3d arrays
@@ -579,22 +1075,15 @@ subroutine coupler_send_data_4d(asend,index_transpose,asend_lbound,asend_grid_st
     implicit none
 
     integer , optional, intent(in) :: glower(3), gupper(3)
-    integer, optional, intent(in) :: asend_lbound(3)      
-    integer, optional, intent(in) :: asend_grid_start(3)  
-    integer, optional, intent(in) :: asend_grid_end(3)    
-    integer, optional, intent(in) :: index_transpose(3)   
-    logical, optional, intent(in) :: use_overlap_box(3)
+    integer, optional, intent(in)  :: asend_lbound(3)      
+    integer, optional, intent(in)  :: asend_grid_start(3)  
+    integer, optional, intent(in)  :: asend_grid_end(3)    
+    integer, optional, intent(in)  :: index_transpose(3)   
+    logical, optional, intent(in)  :: use_overlap_box(3)
     real(kind=kind(0.d0)),dimension(:,:,:,:), intent(in) :: asend
     
     integer n1,n2,n3,n4
-
-	!print*,'4DTemp size', size(asend,1),size(asend,2),size(asend,3),size(asend,4)
-
-    !n1 = size(asend,1)
-    !n2 = size(asend,2)
-    !n3 = size(asend,3)
-    !n4 = size(asend,4)
-   
+ 
     call coupler_send_data_xd(asend,index_transpose,asend_lbound,&
         asend_grid_start,asend_grid_end,glower,gupper,use_overlap_box)
 
@@ -644,8 +1133,6 @@ subroutine coupler_send_data_xd(asend,index_transpose,asend_lbound,&
     use coupler_internal_md, only : bbox_md => bbox
 	implicit none
  
-    ! asend sizes
-    !integer, intent(in) :: n1,n2,n3,n4
     ! array containing data distributed on the grid
     real(kind=kind(0.d0)),dimension(:,:,:,:), intent(in) :: asend
     ! lower and upper corners of the grid to which the data of asend
@@ -660,7 +1147,7 @@ subroutine coupler_send_data_xd(asend,index_transpose,asend_lbound,&
     ! upper corner of grid data stored in asend
     ! if not present the the local grid box limits are  used
     integer, optional, intent(in) :: asend_grid_end(3)
-    ! specifyle the order of dimensions in asend
+    ! specify the order of dimensions in asend
     ! default is ( x, y, z) but e.g. cartesian velocity
     ! in CFD solver uses (z,x,y)     
     integer, optional, intent(in) :: index_transpose(3)    ! rule of transposition for the coordinates 
@@ -670,65 +1157,59 @@ subroutine coupler_send_data_xd(asend,index_transpose,asend_lbound,&
     ! the local domain or if the CFD cells sixe is not
     ! conmensurate with sizes of MD local box
     logical, optional, intent(in) :: use_overlap_box(3)
-    
+
+	!Number of halos
+	integer	:: nh = 1    
 
     ! local indices 
-    integer is,ie,js,je,ks,ke,bis,bie,bjs,bje,bks,bke,ix,iy,iz,ais,aie,ajs,aje,aks,ake,&
-        mis,mie,mjs,mje,mks,mke,at(2,3),ig(2,3)
-
+    integer :: ix,iy,iz,bimin,bimax,bjmin,bjmax,bkmin,bkmax
+	integer	:: mimin,mimax,mjmin,mjmax,mkmin,mkmax
+	integer	:: aimin,ajmin,akmin,at(2,3),ig(2,3)
     ! auxiliaries 
-    integer i,ndata,itag,myid, dest, req(map%n), vel_indx(8,map%n), &
-        start_address(map%n+1), a_components, ierr
-
+    integer	:: i,ndata,itag, dest, req(map%n), vel_indx(8,map%n), &
+		        start_address(map%n+1), a_components, ierr
 	real(kind=kind(0.d0)), allocatable :: vbuf(:)
-
 	integer, save :: ncalls = 0
 
 	! This local CFD domain is outside MD overlap zone 
 	if ( map%n .eq. 0 ) return 
 
-	call mpi_comm_rank(coupler_grid_comm,myid,ierr)
-
-	print('(a,2i5,11f10.4)'),'sent array',myid,1,asend(1,:,1,1)
-	print('(a,2i5,11f10.4)'),'sent array',myid,2,asend(1,:,2,1)
-	print('(a,2i5,11f10.4)'),'sent array',myid,63,asend(1,:,63,1)
-	print('(a,2i5,11f10.4)'),'sent array',myid,64,asend(1,:,64,1)
-
 	ncalls = ncalls + 1
-
-    ! local grid box ranges seen by this rank
+    ! Get local grid box ranges seen by this rank for either CFD or MD
     if (coupler_realm .eq. COUPLER_CFD) then 
-        bis = bbox_cfd%xbb(1,icoord_cfd(1,myid+1))
-        bie = bbox_cfd%xbb(2,icoord_cfd(1,myid+1))
-        bjs = bbox_cfd%ybb(1,icoord_cfd(2,myid+1))
-        bje = bbox_cfd%ybb(2,icoord_cfd(2,myid+1))
-        bks = bbox_cfd%zbb(1,icoord_cfd(3,myid+1))
-        bke = bbox_cfd%zbb(2,icoord_cfd(3,myid+1))
-    else
-        ! using by default the indices of CFD grid inside the MD domain
-        bis = bbox_md%is
-        bie = bbox_md%ie
-        bjs = bbox_md%js
-        bje = bbox_md%je
-        bks = bbox_md%ks
-        bke = bbox_md%ke
+		!Load CFD cells per processor
+        bimin = iTmin_cfd(iblock)
+        bimax = iTmax_cfd(iblock) 
+        bjmin = jTmin_cfd(jblock) 
+        bjmax = jTmax_cfd(jblock) 
+        bkmin = kTmin_cfd(kblock) 
+        bkmax = kTmax_cfd(kblock) 
+    elseif (coupler_realm .eq. COUPLER_MD) then 
+        ! Load MD cells per processor
+        bimin = iTmin_md(iblock)
+        bimax = iTmax_md(iblock) 
+        bjmin = jTmin_md(jblock) 
+        bjmax = jTmax_md(jblock) 
+        bkmin = kTmin_md(kblock) 
+        bkmax = kTmax_md(kblock) 
+		! use_overlap_box includes halos on the MD side
         if(present(use_overlap_box)) then 
             if (use_overlap_box(1)) then
-                bis = bbox_md%iso
-                bie = bbox_md%ieo
+                bimin = iTmin_md(iblock)-nh
+                bimax = iTmax_md(iblock)-nh
             endif
             if(use_overlap_box(2)) then
-                bjs = bbox_md%jso
-                bje = bbox_md%jeo
+                bjmin = jTmin_md(jblock)-nh
+                bjmax = jTmax_md(jblock)-nh
             endif
             if(use_overlap_box(3)) then
-                bks = bbox_md%kso
-                bke = bbox_md%keo
+                bkmin = kTmin_md(kblock)-nh
+                bkmax = kTmax_md(kblock)-nh
             endif
        endif
-    endif
+	endif
 
-    ! get the index order of x,y,z coordinates (handles transpose arrays)
+    ! Re-order indices of x,y,z coordinates (handles transpose arrays)
     ix = 1 ; iy = 2; iz = 3
     if( present(index_transpose)) then
         ix = index_transpose(1)
@@ -736,110 +1217,113 @@ subroutine coupler_send_data_xd(asend,index_transpose,asend_lbound,&
         iz = index_transpose(3)
     endif
 
-
-    ! default start/end points for grid data in asend
-    ! +1 shift in size is because asend grid indices start from 2
-    is = bis
-    ie = min(is + size(asend,ix+1) - 1,bie)
-    js = bjs
-    je = min(js + size(asend,iy+1) - 1,bje)
-    ks = bks
-    ke = min(ks + size(asend,iz+1) - 1,bke)
+	! If asend is less than number of points in domain
+	! change amount of data to send
+    bimin = bimin
+    bimax = min(bimin + size(asend,ix+1) - 1,bimax)
+    bjmin = bjmin
+    bjmax = min(bjmin + size(asend,iy+1) - 1,bjmax)
+    bkmin = bkmin
+    bkmax = min(bkmin + size(asend,iz+1) - 1,bkmax)
 
     ! Warning if asend goes over local grid box
-	if (ie-is .ne. size(asend,ix+1)) & 
-		write(0,'(3(a,i8),a)') "Proc=",myid, " Sent datasize ",size(asend,ix+1)," not equal to gridsize ",ie-is," in x" 
-	if (je-js .ne. size(asend,iy+1)) & 
-		write(0,'(3(a,i8),a)') "Proc=",myid, " Sent datasize ",size(asend,iy+1)," not equal to gridsize ",je-js," in y" 
-	if (ke-ks .ne. size(asend,iz+1)) & 
-		write(0,'(3(a,i8),a)') "Proc=",myid, " Sent datasize ",size(asend,iz+1)," not equal to gridsize ",ke-ks," in z"  
+	if (bimax-bimin .ne. size(asend,ix+1)) & 
+		write(0,'(3(a,i8),a)') "Proc=",myid_grid, " Sent datasize ",size(asend,ix+1), & 
+								" not equal to gridsize ",bimax-bimin," in x" 
+	if (bjmax-bjmin .ne. size(asend,iy+1)) & 
+		write(0,'(3(a,i8),a)') "Proc=",myid_grid, " Sent datasize ", size(asend,iy+1), & 
+								" not equal to gridsize ",bjmax-bjmin," in y" 
+	if (bkmax-bkmin .ne. size(asend,iz+1)) & 
+		write(0,'(3(a,i8),a)') "Proc=",myid_grid, " Sent datasize ",size(asend,iz+1), & 
+								" not equal to gridsize ",bkmax-bkmin," in z"  
 
     ! grid data in asend data can be mapped to a specific region
-    ! of the local grid 
-    ! negative values are discarded in favor of defaults
+    ! of the local grid -- negative values are discarded in favor of defaults
     if (present(glower))then 
-        if (glower(1) > 0) is = glower(1)
-        if (glower(2) > 0) js = glower(2)
-        if (glower(3) > 0) ks = glower(3)
+        if (glower(1) > 0) bimin = glower(1)
+        if (glower(2) > 0) bjmin = glower(2)
+        if (glower(3) > 0) bkmin = glower(3)
     endif
 
-    ! sanity check is needed here
-
-    !  upper limit exteed for grid data point stored in asend
+    !  upper limit exceed for grid data point stored in asend
     if (present(gupper))then 
-        if (gupper(1) > 0) ie = gupper(1)
-        if (gupper(2) > 0) je = gupper(2)
-        if (gupper(3) > 0) ke = gupper(3)
+        if (gupper(1) > 0) bimax = gupper(1)
+        if (gupper(2) > 0) bjmax = gupper(2)
+        if (gupper(3) > 0) bkmax = gupper(3)
     endif
 
-    ! sanity check is needed here
+    ! sanity check
+    if (present(gupper) .and. present(glower))then 
+		if (glower(1) .gt. gupper(1)) print*, 'Proc=',myid_grid, 'Lower bounds of send', & 
+								   	glower(1),'greater than upper',gupper(1)
+		if (glower(2) .gt. gupper(2)) print*,'Proc=',myid_grid, 'Lower bounds of send', & 
+								  	glower(2),'greater than upper',gupper(2)
+		if (glower(3) .gt. gupper(3)) print*,'Proc=',myid_grid, 'Lower bounds of send', & 
+									glower(3),'greater than upper',gupper(3)
+	endif
 
     ! Array indices in asend for the data mapped on grid
     ! +1 shift is because asend grid indices start from 2
-    ais = 1
-    ajs = 1
-    aks = 1
+    aimin = 1
+    ajmin = 1
+    akmin = 1
     if (present(asend_lbound)) then 
         if (.not. present(asend_grid_start))then 
             write(0,*) "because the asend lower bound is not default asend_grid_start argument must be provided"
             call MPI_Abort(MPI_COMM_WORLD,COUPLER_ABORT_SEND_CFD,ierr)
         endif
-        ais = asend_grid_start(ix) - asend_lbound(ix) + 1
-        ajs = asend_grid_start(iy) - asend_lbound(iy) + 1
-        aks = asend_grid_start(iz) - asend_lbound(iz) + 1
+        aimin = asend_grid_start(ix) - asend_lbound(ix) + 1
+        ajmin = asend_grid_start(iy) - asend_lbound(iy) + 1
+        akmin = asend_grid_start(iz) - asend_lbound(iz) + 1
     endif
 
-    aie = ais + (ie-is) 
-    aje = ajs + (je-js)
-    ake = aks + (ke-ks)
+    ! insanity checks 
 
-    ! sanity checks are needed 
-    
-    ! number of components at each grid point
+    ! Number of components at each grid point
     a_components = size(asend,dim=1)
-
+   
     ! loop through the maps and send the corresponding sections of asend
     do i = 1, map%n
         dest = map%rank_list(i)
 
-        ! indices for the grid sector to be sent to this dest
-        mis = max(is, map%domains(1,i)) 
-        mie = min(ie, map%domains(2,i))
-        mjs = max(js, map%domains(3,i))
-        mje = min(je, map%domains(4,i))
-        mks = max(ks, map%domains(5,i)) 
-        mke = min(ke, map%domains(6,i))	
-        ndata = a_components * (mie - mis + 1) * (mje - mjs + 1) * (mke - mks + 1)
+		! map%domains contains the limits of the overlap - 
+		! if all cells do not overlap in the x-z plane then the
+		! limits defined in map domains are used instead
+        mimin = max(bimin, map%domains(1,i)) 
+        mimax = min(bimax, map%domains(2,i))
+        mjmin = max(bjmin, map%domains(3,i))
+        mjmax = min(bjmax, map%domains(4,i))
+        mkmin = max(bkmin, map%domains(5,i)) 
+        mkmax = min(bkmax, map%domains(6,i))	
 
-        write(0,'(a,13i8)') 'coupler indices', 	myid, is ,ie ,js ,je ,ks ,ke,map%domains(:,i)
-        write(0,'(a,9i8)') 	'coupler send', 	myid,mis,mie,mjs,mje,mks,mke,a_components,ndata
+        ! Amount of data to be sent
+        ndata = a_components * (mimax-mimin + 1) * (mjmax-mjmin + 1) * (mkmax-mkmin + 1)
 
         if ( ndata > 0) then 
             if(allocated(vbuf)) deallocate(vbuf)
-            
             allocate(vbuf(ndata))
             
             ! Location in asend of the domain to be sent
-            ig(1,ix) = mis - is + ais 
-            ig(2,ix) = mie - is + ais
-            ig(1,iy) = mjs - js + ajs
-            ig(2,iy) = mje - js + ajs
-            ig(1,iz) = mks - ks + aks
-            ig(2,iz) = mke - ks + aks
+            ig(1,ix) = mimin - bimin + aimin 
+            ig(2,ix) = mimax - bimax + aimin
+            ig(1,iy) = mjmin - bjmin + ajmin
+            ig(2,iy) = mjmax - bjmax + ajmin
+            ig(1,iz) = mkmin - bkmin + akmin
+            ig(2,iz) = mkmax - bkmax + akmin
  
-            write(0,'(a,14i5)') ' coupler send a*, ig ...', ncalls, myid,ais,aie,ajs,aje,aks,ake,ig 
+            write(0,'(a,14i5)') ' coupler send a*, ig ...', ncalls, myid_grid,aimin,ajmin,akmin,ig 
 
             vbuf(1:ndata) = reshape(asend(:,ig(1,1):ig(2,1),ig(1,2):ig(2,2),ig(1,3):ig(2,3)), (/ ndata /) )
         endif
         ! Attention ncall could go over max tag value for long runs!!
         itag = mod( ncalls, MPI_TAG_UB)
         ! send the info about the data to come
-        call MPI_send((/ndata,a_components,mis,mie,mjs,mje,mks,mke/),8,MPI_INTEGER,&
+        call MPI_send((/ndata,a_components,mimin,mimax,mjmin,mjmax,mkmin,mkmax/),8,MPI_INTEGER,&
             			dest, itag, COUPLER_ICOMM, ierr)
         ! send data only if there is anything to send
         if (ndata > 0) then 
 			!vbuf = 1.234567891011121314151617d0
-			!print'(2a,2i8,4f25.16)', 'ICP send data',code_name(COUPLER_REALM), myid, & 
+			!print'(2a,2i8,4f25.16)', 'ICP send data',code_name(coupler_realm), myid_grid, & 
 			!							 size(vbuf), maxval(vbuf),minval(vbuf),sum(vbuf),vbuf(10)
             call MPI_send(vbuf, ndata, MPI_DOUBLE_PRECISION, dest, itag, COUPLER_ICOMM, ierr)
         endif
@@ -897,14 +1381,6 @@ subroutine coupler_recv_data_4d(arecv,index_transpose,asend_lbound,&
     logical, optional, intent(in) :: accumulate          
     integer, optional, intent(in) :: pbc  
     real(kind(0.d0)),dimension(:,:,:,:),intent(inout) :: arecv
-                                                         
-
-    !integer n1, n2, n3, n4
-
-    !n1 = size(arecv,1)
-    !n2 = size(arecv,2)
-    !n3 = size(arecv,3)
-    !n4 = size(arecv,4)
 
     call coupler_recv_data_xd(arecv,index_transpose,asend_lbound,&
         asend_grid_start,asend_grid_end,glower,gupper,accumulate,pbc)
@@ -949,8 +1425,6 @@ subroutine coupler_recv_data_xd(arecv,index_transpose,a_lbound,&
 	use coupler_module
     implicit none
 
-    ! arecv sizes
-    !integer, intent(in) :: n1, n2, n3, n4
     ! array that recieves grid distributed data 
     real(kind(0.d0)), dimension(:,:,:,:),intent(inout) :: arecv
     ! lower and upper corners of the grid to which the data of asend
@@ -977,10 +1451,10 @@ subroutine coupler_recv_data_xd(arecv,index_transpose,a_lbound,&
     integer, optional, intent(in) :: pbc                 
                                                          
     ! local indices 
-    integer is,ie,js,je,ks,ke,bis,bie,bjs,bje,bks,bke,ix,iy,iz,ais,aie,ajs,aje,aks,ake,&
+    integer is,ie,js,je,ks,ke,bimin,bimax,bjmin,bjmax,bkmin,bkmax,ix,iy,iz,aimin,aimax,ajmin,ajmax,akmin,akmax,&
         at(2,3),ig(2,3)
     ! auxiliaries 
-    integer i,j,k,ii,jj,kk,ndata,itag,myid, source,req(map%n), vel_indx(8,map%n), &
+    integer i,j,k,ii,jj,kk,ndata,itag, source,req(map%n), vel_indx(8,map%n), &
         p1s,p1e,p2s,p2e,p3s,p3e,pt1s,pt1e,pt2s,pt2e,pt3s,pt3e, bgt(2,3),& 
         start_address(map%n+1), status(MPI_STATUS_SIZE,map%n),ierr
     real(kind(0.d0)), allocatable ::  vbuf(:), atmp(:,:,:,:)
@@ -990,25 +1464,26 @@ subroutine coupler_recv_data_xd(arecv,index_transpose,a_lbound,&
 	if ( map%n .eq. 0 ) return 
  
 	ncalls = ncalls + 1
-	call MPI_comm_rank(coupler_grid_comm,myid,ierr)
 
     ! Local grid box
-    if (coupler_realm == COUPLER_CFD) then 
-         bis = bbox_cfd%xbb(1,icoord_cfd(1,myid+1))
-         bie = bbox_cfd%xbb(2,icoord_cfd(1,myid+1))
-         bjs = bbox_cfd%ybb(1,icoord_cfd(2,myid+1))
-         bje = bbox_cfd%ybb(2,icoord_cfd(2,myid+1))
-         bks = bbox_cfd%zbb(1,icoord_cfd(3,myid+1))
-         bke = bbox_cfd%zbb(2,icoord_cfd(3,myid+1))
-     else 
-		! Use default indices of CFD grid inside the MD domain
-        bis = bbox_md%is
-        bie = bbox_md%ie
-        bjs = bbox_md%js
-        bje = bbox_md%je
-        bks = bbox_md%ks
-        bke = bbox_md%ke
-    endif
+    ! Get local grid box ranges seen by this rank for either CFD or MD
+    if (coupler_realm .eq. COUPLER_CFD) then 
+		!Load CFD cells per processor
+        bimin = iTmin_cfd(iblock)
+        bimax = iTmax_cfd(iblock) 
+        bjmin = jTmin_cfd(jblock) 
+        bjmax = jTmax_cfd(jblock)
+        bkmin = kTmin_cfd(kblock) 
+        bkmax = kTmax_cfd(kblock) 
+    elseif (coupler_realm .eq. COUPLER_MD) then 
+        ! Load MD cells per processor
+        bimin = iTmin_md(iblock)
+        bimax = iTmax_md(iblock) 
+        bjmin = jTmin_md(jblock) 
+        bjmax = jTmax_md(jblock) 
+        bkmin = kTmin_md(kblock) 
+        bkmax = kTmax_md(kblock) 
+	endif
 
     ! Get the indices in x,y,z direction from transpose array
     ix = 1 ; iy = 2; iz = 3
@@ -1018,69 +1493,63 @@ subroutine coupler_recv_data_xd(arecv,index_transpose,a_lbound,&
         iz = index_transpose(3)
     endif
 
-    ! default start/end points on grid for data in asend
-	is = bis
-    ie = bie
-	js = bjs
-    je = bje
-	ks = bks
-    ke = bke 
-
     ! grid data in asend data can be mapped to a specific region
     ! of the local grid -- negative values are discarded in favor of defaults
     if (present(glower))then 
-        if (glower(1) > 0) is = glower(1)
-        if (glower(2) > 0) js = glower(2)
-        if (glower(3) > 0) ks = glower(3)
+        if (glower(1) > 0) bimin = glower(1)
+        if (glower(2) > 0) bjmin = glower(2)
+        if (glower(3) > 0) bkmin = glower(3)
     endif
 
     ! sanity check is needed here
 
     !  upper limit exteed for grid data point stored in asend
     if (present(gupper))then 
-        if (gupper(1) > 0) ie = gupper(1)
-        if (gupper(2) > 0) je = gupper(2)
-        if (gupper(3) > 0) ke = gupper(3)
+        if (gupper(1) > 0) bimax = gupper(1)
+        if (gupper(2) > 0) bjmax = gupper(2)
+        if (gupper(3) > 0) bkmax = gupper(3)
     endif
 
     ! sanity check is needed here
 
     ! put the mapped block limits in a transposed array
-    bgt(1,ix) = is
-    bgt(2,ix) = ie
-    bgt(1,iy) = js
-    bgt(2,iy) = je
-    bgt(1,iz) = ks
-    bgt(2,iz) = ke
+    bgt(1,ix) = bimin
+    bgt(2,ix) = bimax
+    bgt(1,iy) = bjmin
+    bgt(2,iy) = bjmax
+    bgt(1,iz) = bkmin
+    bgt(2,iz) = bkmax
 
     ! Array indices in arecv for the data mapped on grid
     ! +1 shift is because asend grid indices start from 2
-    ais = 1
-    ajs = 1
-    aks = 1
+    aimin = 1
+    ajmin = 1
+    akmin = 1
     if (present(a_lbound)) then 
         if (.not. present(a_grid_start))then 
             write(0,*) "because the arecv lower bound is not default as_grid_start argument must be provided"
             call MPI_Abort(MPI_COMM_WORLD,COUPLER_ABORT_SEND_CFD,ierr)
         endif
-        ais = a_grid_start(1) - a_lbound(1) + 1
-        ajs = a_grid_start(2) - a_lbound(2) + 1
-        aks = a_grid_start(3) - a_lbound(3) + 1
+        aimin = a_grid_start(1) - a_lbound(1) + 1
+        ajmin = a_grid_start(2) - a_lbound(2) + 1
+        akmin = a_grid_start(3) - a_lbound(3) + 1
     endif
 
-    aie = min(ais + (ie-is),size(arecv,ix+1)) 
-    aje = min(ajs + (je-js),size(arecv,iy+1))
-    ake = min(aks + (ke-ks),size(arecv,iz+1))
+	!Use smallest of expected grid size or receive array size
+    aimax = min(aimin + (bimax-bimin),size(arecv,ix+1)) 
+    ajmax = min(ajmin + (bjmax-bjmin),size(arecv,iy+1))
+    akmax = min(akmin + (bkmax-bkmin),size(arecv,iz+1))
 
     ! sanity checks are needed 
+
     
     ! Store the transposition for grid boundaries limits
-    at(1,ix) = ais
-    at(2,ix) = aie
-    at(1,iy) = ajs
-    at(2,iy) = aje
-    at(1,iz) = aks
-    at(2,iz) = ake
+    at(1,ix) = aimin
+    at(2,ix) = aimax
+    at(1,iy) = ajmin
+    at(2,iy) = ajmax
+    at(1,iz) = akmin
+    at(2,iz) = akmax
 
     ! First get info about what's comming
     do i = 1, map%n
@@ -1089,7 +1558,6 @@ subroutine coupler_recv_data_xd(arecv,index_transpose,a_lbound,&
         call MPI_irecv(vel_indx(1,i),8,MPI_Integer,source,itag,&
             			COUPLER_ICOMM,req(i),ierr)
     enddo
-
     call MPI_waitall(map%n, req, status, ierr)
 
     write(0,'(a,16i5)') 'coupler recv vel_indx ', vel_indx
@@ -1117,9 +1585,9 @@ subroutine coupler_recv_data_xd(arecv,index_transpose,a_lbound,&
 
 	!print*, 'BEFORE WAIT STATEMENT'
     call MPI_waitall(map%n, req, status, ierr)
-	!print'(2a,2i8,4f25.16)', 'ICP recv data',code_name(COUPLER_REALM),myid, & 
+	!print'(2a,2i8,4f25.16)', 'ICP recv data',code_name(coupler_realm),myid_grid, & 
 	!							 size(vbuf), maxval(vbuf),minval(vbuf),sum(vbuf),vbuf(10)
-    !	write(0,*) 'MD getCFD vel wait',  myid, id, i, source, ierr
+    !	write(0,*) 'MD getCFD vel wait',  myid_grid, id, i, source, ierr
 
     ! Allocate atmp corresponding to reunion of mapped grid
     ! This must be thought as landing area for data coming from the other realm
@@ -1160,9 +1628,9 @@ subroutine coupler_recv_data_xd(arecv,index_transpose,a_lbound,&
         endif
 
         ! call MPI_Error_string(status(MPI_ERROR,i), err_string, len(err_string), ierr);
-	    !  write(0,*) 'MD getCFD vel err, myid, i ', myid, i, trim(err_string) 
+	    !  write(0,*) 'MD getCFD vel err, myid_grid, i ', myid_grid, i, trim(err_string) 
         !call MPI_get_count(status(1,i),MPI_double_precision,ib,ierr)
-		! write(0,*) 'MD recv ', myid, id, i, ib, ' DP'
+		! write(0,*) 'MD recv ', myid_grid, id, i, ib, ' DP'
     enddo
 
     ! Transfer data from the landing area to arecv 
@@ -1180,7 +1648,7 @@ subroutine coupler_recv_data_xd(arecv,index_transpose,a_lbound,&
     p3s = max(lbound(atmp,4) - bgt(1,3) + at(1,3),at(1,3))
     p3e = min(ubound(atmp,4) - bgt(1,3) + at(1,3),at(2,3))
 
-    ! needs revision, I'm not sure that it works in general !!! ARE YOU FUCKING KIDDING ME!
+    ! needs revision, I'm not sure that it works in general
     pt1s = p1s + bgt(1,1) - at(1,1)
     pt1e = p1e + bgt(1,1) - at(1,1)
     pt2s = p2s + bgt(1,2) - at(1,2)
@@ -1188,7 +1656,7 @@ subroutine coupler_recv_data_xd(arecv,index_transpose,a_lbound,&
     pt3s = p3s + bgt(1,3) - at(1,3)
     pt3e = p3e + bgt(1,3) - at(1,3)
 
-    !write(0,*)' p1s ...', myid, p1s,p1e,p2s,p2e,p3s,p3e, pt1s, pt1e, pt2s,pt2e,pt3s,pt3e
+    !write(0,*)' p1s ...', myid_grid, p1s,p1e,p2s,p2e,p3s,p3e, pt1s, pt1e, pt2s,pt2e,pt3s,pt3e
 
     if(present(accumulate)) then
         if ( present(pbc)) then
@@ -1221,7 +1689,7 @@ subroutine coupler_recv_data_xd(arecv,index_transpose,a_lbound,&
 					                vel_indx(2,i),ig(2,1)-ig(1,1)+1,ig(2,2)-ig(1,2)+1,ig(2,3)-ig(1,3)+1, &
 									p1s,p1e,p2s,p2e,p3s,p3e,pt1s,pt1e,pt2s,pt2e,pt3s,pt3e
 
-	!print'(2a,2i8,4f25.16)', 'ICP trfr data',code_name(COUPLER_REALM),myid, & 
+	!print'(2a,2i8,4f25.16)', 'ICP trfr data',code_name(coupler_realm),myid_grid, & 
 	!						size(arecv), maxval(arecv),minval(arecv),sum(arecv),arecv(1,p1s,p2s,p3s)
             
 contains
@@ -1234,64 +1702,7 @@ contains
 ! attention coord array are shifted with 1 in CFD and MD
 ! to get correct result in MPI function such as mpi_cart_rank, subtract 1 
 !-----------------------------------------------------------------------------
-subroutine set_pbc(pbc)
-    use coupler_module, only : npx_md
-    implicit none
-    integer, intent(in) :: pbc
 
-    real(kind(0.d0)), allocatable, dimension(:,:,:) :: x1, x2
-    integer dest, ip(3), ierr, status(MPI_STATUS_SIZE)
-
-    ! PBC works only for 3,2,1 coordinate transposition
-
-    if ( .not. (ix == 2 .and. iy == 3 .and. iz == 1)) then
-        write(0,*) " Periodic boundary condition not implemented for this layout of data"
-        return
-    endif
-
-    ! Sanity check atmp must touch the boundary of the global grid in zin x directions
-    ! I guess that the PBC are apllied at the ends of global grid, check with CFD people
-    select case(pbc)
-    case(3)
-        ! first array dimension which corresponds to z direction for velocity arrays 
-        allocate(x1(size(atmp,1),size(atmp,3),size(atmp,4)),x2(size(atmp,1),size(atmp,3),size(atmp,4)))
-        x1 =  atmp(:,aks, :,:)
-        x2 =  atmp(:,ake, :,:)
-        atmp(:, aks, :, :) =   atmp(:, aks, :, :) + x2
-        atmp(:, ake, :, :) =   atmp(:, ake, :, :) + x1
-    case(1)
-        ! second array dimension which correponds to x direction
-        allocate(x1(size(atmp,1),size(atmp,2),size(atmp,4)),x2(size(atmp,1),size(atmp,2),size(atmp,4)))
-        if ( npx_md == 1 )then 
-            ! no MPI communication needed  
-            !write(0,*) 'coupler internal cfd pbc', npx_md
-            x1 =  atmp(:, :,lbound(atmp,3), :)                 
-            x2 =  atmp(:, :,ubound(atmp,3), :)
-            atmp(:, :, lbound(atmp,3), :) =  atmp(:, :, lbound(atmp,3), :) + x2
-            atmp(:, :, ubound(atmp,3), :) =  atmp(:, :, ubound(atmp,3), :) + x1  
-        else 
-            call MPI_comm_rank(coupler_grid_comm,myid,ierr)
-            ip = icoord_md(: ,myid+1)
-            if (ip(1) == 1 .and. ip(2) == 1) then 
-                x1 =  atmp(:, :,lbound(atmp,3),:)
-                call MPI_cart_rank(coupler_grid_comm, (/ npx_md-1, 0, ip(3)-1 /), dest, ierr)
-                call MPI_sendrecv(x1,size(x1),MPI_DOUBLE_PRECISION,dest,1,x2,size(x2),MPI_DOUBLE_PRECISION,&
-                    dest,1,coupler_grid_comm,status,ierr)
-                atmp(:, :, lbound(atmp,3), :) =  atmp(:, :, lbound(atmp,3), :) + x2
-            else if (ip(1) == npx_md .and. ip(2) == 1) then 
-                x2 =  atmp(:, :,ubound(atmp,3), :)
-                call MPI_cart_rank(coupler_grid_comm, (/ 0, 0, ip(3) - 1 /), dest, ierr)
-                call MPI_sendrecv(x2,size(x2),MPI_DOUBLE_PRECISION,dest,1,x1,size(x1),MPI_DOUBLE_PRECISION,&
-                    dest,1,coupler_grid_comm,status,ierr)
-                atmp(:, :, ubound(atmp,3), :) =  atmp(:, :, ubound(atmp,3), :) + x1
-            endif
-        endif
-    end select
-end subroutine set_pbc
-
-!-----------------------------------------------------------------------------
-! Halo boundary condition swapped or combined
-!-----------------------------------------------------------------------------
 subroutine halos(pbc)
     use coupler_module, only : npx_md
     implicit none
@@ -1312,10 +1723,10 @@ subroutine halos(pbc)
     case(3)
         ! first array dimension which corresponds to z direction for velocity arrays 
         allocate(x1(size(atmp,1),size(atmp,3),size(atmp,4)),x2(size(atmp,1),size(atmp,3),size(atmp,4)))
-        x1 =  atmp(:, aks, :, :)
-        x2 =  atmp(:, ake, :, :)
-        atmp(:, aks, :, :) =  x2 ! atmp(:, aks, :, :) + x2
-        atmp(:, ake, :, :) =  x1 ! atmp(:, ake, :, :) + x1
+        x1 =  atmp(:, akmin, :, :)
+        x2 =  atmp(:, akmax, :, :)
+        atmp(:, akmin, :, :) =  x2 ! atmp(:, aks, :, :) + x2
+        atmp(:, akmax, :, :) =  x1 ! atmp(:, ake, :, :) + x1
     case(1)
         ! second array dimension which correponds to x direction
         allocate(x1(size(atmp,1),size(atmp,2),size(atmp,4)),x2(size(atmp,1),size(atmp,2),size(atmp,4)))
@@ -1327,8 +1738,7 @@ subroutine halos(pbc)
             atmp(:, :, lbound(atmp,3), :) = x2  !atmp(:, :, lbound(atmp,3), :) + x2
             atmp(:, :, ubound(atmp,3), :) = x1  !atmp(:, :, ubound(atmp,3), :) + x1  
         else 
-            call MPI_comm_rank(coupler_grid_comm,myid,ierr)
-            ip = icoord_md(: ,myid+1)
+            ip = rank2coord_md(: ,myid_grid)
             if (ip(1) == 1 .and. ip(2) == 1) then 
                 x1 =  atmp(:, :,lbound(atmp,3),:)
                 call MPI_cart_rank(coupler_grid_comm, (/ npx_md-1, 0, ip(3)-1 /), dest, ierr)
@@ -1358,7 +1768,7 @@ end subroutine coupler_recv_data_xd
 ! return to the caller coupler parameters from cfd realm
 !-------------------------------------------------------------------------------
 subroutine coupler_cfd_get(jmax_overlap,jmin)
-    use coupler_module, jmax_overlap_ => jmax_overlap,jmin_=>jmin
+    use coupler_module, jmax_overlap_ => j_olap,jmin_=>jmin
     implicit none
 
     integer,optional,intent(out) :: jmax_overlap,jmin
@@ -1386,7 +1796,7 @@ subroutine coupler_md_get(	xL_md,yL_md,zL_md, MD_initial_cellsize, top_dy, &
 	!use coupler_internal_md, only : xL_md_ =>  xL_md, yL_md_ =>  yL_md, zL_md_ => zL_md, &
 	!	b => MD_initial_cellsize, x, y, z,j => jmax_overlap_cfd, dx, dz, bbox, half_domain_lengths, &
     !    cfd_box_ => cfd_box
-	use coupler_module, xL_md_=>xL_md,yL_md_=>yL_md,zL_md_=>zL_md, b => MD_initial_cellsize, j=> jmax_overlap
+	use coupler_module, xL_md_=>xL_md,yL_md_=>yL_md,zL_md_=>zL_md, b => MD_initial_cellsize, j=> j_olap
 	implicit none
 
 	real(kind(0.d0)), optional, intent(out) :: xL_md, yL_md, zL_md, MD_initial_cellsize, top_dy,&
@@ -1591,37 +2001,5 @@ function coupler_md_get_cfd_id() result(r)
     r = cfd_code_id
 
 end function coupler_md_get_cfd_id
-
-
-!--------------------------------------------------------------------------------------
-!Write matrix in correct format
-
-subroutine write_matrix_int(a,varname,fh)
-	implicit none
-
-	integer					:: i,j,fh
-	character(*)			:: varname
-	integer, dimension(:,:) :: a
-
-	write(fh,*) varname
-	do i = lbound(a,1), ubound(a,1)
-	    write(fh,*) (a(i,j), j = lbound(a,2), ubound(a,2))
-	end do
-
-end subroutine write_matrix_int
-
-subroutine write_matrix(a,varname,fh)
-	implicit none
-
-	integer							 :: i,j,fh
-	character(*)					 :: varname
-	double precision, dimension(:,:) :: a
-
-	write(fh,*) varname
-	do i = lbound(a,1), ubound(a,1)
-	    write(fh,*) (a(i,j), j = lbound(a,2), ubound(a,2))
-	end do
-
-end subroutine write_matrix
 
 end module coupler
