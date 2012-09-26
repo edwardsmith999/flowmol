@@ -128,7 +128,6 @@ subroutine messenger_init()
     if (npx * npy * npz .ne. nproc ) then
 			print*, npx, npy, npz , nproc
             call error_abort(' Wrong specification for processor topology, nproc not equal to npx*npy*npz')
-           ! call MPI_Abort(MPI_COMM_WORLD,1,ierr)
     endif
 
     ! allocate arrays that depend on topology parameters
@@ -136,15 +135,13 @@ subroutine messenger_init()
 			 jbmin(npy), jbmax(npy), jbmino(npy), jbmaxo(npy), &
 			 kbmin(npz), kbmax(npz), kbmino(npz), kbmaxo(npz), stat=ierr)
     if (ierr .ne. 0) then 
-            call error_abort('Error allocating topology arrays in messenger_init')
-            !call MPI_Abort(MD_COMM,2,ierr)
+		call error_abort('Error allocating topology arrays in messenger_init')
     endif
 
     allocate(icoord(3,nproc),stat=ierr)
     if (ierr .ne. 0) then 
-            call error_abort('Error allocating icoord in messenger_init')
-           	!call MPI_Abort(MD_COMM,2,ierr)
-    endif
+		call error_abort('Error allocating icoord in messenger_init')
+     endif
 
 	ndims = nd
 	idims(1) = npx
