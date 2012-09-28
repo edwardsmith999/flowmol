@@ -52,9 +52,9 @@ module messenger
 	integer :: idroot                       ! rank of root process
 
 	! Grid topology
-	integer :: icomm_grid                   ! comm for grid topology
+	integer 			 :: icomm_grid		! comm for grid topology
 	integer, allocatable :: icoord(:,:)     ! proc grid coordinates
-	integer	:: icomm_xyz(3) 		! Directional subcomms
+	integer				 :: icomm_xyz(3)	! Directional subcomms
 
 end module
 
@@ -72,7 +72,7 @@ end
 
 
 subroutine messenger_init()
-        use interfaces
+	use interfaces
 	use messenger
 	implicit none
 
@@ -84,19 +84,10 @@ subroutine messenger_init()
 	kblock = 1
 	iroot  = 1
 
-        ! allocate arrays that depend on topology parameters
-
-        allocate(ibmin(npx), ibmax(npx), ibmino(npx), ibmaxo(npx), &
-		jbmin(npy), jbmax(npy), jbmino(npy), jbmaxo(npy), &
-		kbmin(npz), kbmax(npz), kbmino(npz), kbmaxo(npz), stat=ierr)
-        if (ierr /= 0) then 
-                call error_abort("Error allocating topology arrays in messenger_init")
-        endif
-
-        allocate(icoord(3,nproc),stat=ierr)
-        if (ierr /= 0) then 
-                call error_abort("Error allocating icoord in messenger_init")
-        endif
+    allocate(icoord(3,nproc),stat=ierr)
+    if (ierr /= 0) then 
+            call error_abort("Error allocating icoord in messenger_init")
+    endif
 
 	return
 end

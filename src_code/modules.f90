@@ -154,9 +154,6 @@ module computational_constants_MD
 	integer irank, iroot, ierr
 	integer irankx, iranky, irankz
 	integer iblock, jblock, kblock
-	integer, allocatable :: ibmin(:), ibmax(:), ibmino(:), ibmaxo(:), &
-							jbmin(:), jbmax(:), jbmino(:), jbmaxo(:), &
-							kbmin(:), kbmax(:), kbmino(:), kbmaxo(:)
 
  	!Set number of halos
 	integer, parameter :: nh = 1

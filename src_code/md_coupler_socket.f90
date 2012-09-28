@@ -758,7 +758,7 @@ end subroutine average_over_bin
 ! Average molecules using cell lists in overlap region to obtain values for 
 ! constrained dynamics algorithms
 !**************************************
-!The cell base version does not work 
+!The cell based version does not work 
 !*************************************
 !-----------------------------------------------------------------------------
 
@@ -1341,9 +1341,9 @@ contains
 			!endif
 			
 
-			Fsurface(:) = Fsurfacebins(modulo(icell,3)+1, 	& 
-				     		   modulo(jcell,3)+1, 	& 
-				    		   modulo(kcell,3)+1,:)
+			Fsurface(:) = Fsurfacebins( modulo(icell,3)+1, 	& 
+										modulo(jcell,3)+1, 	& 
+										modulo(kcell,3)+1,:)
 
 		endif
 
@@ -1354,7 +1354,7 @@ end subroutine compute_bin_surface_flux
 !===================================================================================
 ! Forces between current bin and surrounding bins
 
-subroutine compute_force_surrounding_bins(icell,jcell,kcell,isumforce)
+subroutine compute_force_surrounding_bins(icell,jcell,kcell,isumforce,Traction)
 	use physical_constants_MD, only : nd, np, rcutoff2
 	use computational_constants_MD, only : domain,halfdomain
 	use calculated_properties_MD, only : nbins
@@ -1364,6 +1364,7 @@ subroutine compute_force_surrounding_bins(icell,jcell,kcell,isumforce)
 
 	integer,intent(in)					:: icell,jcell,kcell
 	double precision,intent(out)		:: isumforce
+	double precision,dimension(3,6),optional,intent(inout)	:: Traction
 
 	integer								:: n,j,ixyz,molnoi,molnoj
 	integer								:: icellshift,jcellshift,kcellshift,cellnp,adjacentcellnp
@@ -1425,6 +1426,12 @@ subroutine compute_force_surrounding_bins(icell,jcell,kcell,isumforce)
 					fij = accijmag*rij(:)
 					Fsurface = 0.d0
 					!print*, 'FORCE', fij
+					if (present(Traction)) then
+						call get_Traction(icell,jcell,kcell,molnoi,molnoj,fij,ri,rj,Fsurface,Traction)
+					else
+						call get_Fsurface(molnoi,molnoj,fij,ri,rj,Fsurface)
+					endif
+					isumforce = isumforce +  Fsurface(1)
 					call get_Fsurface(icell,jcell,kcell,molnoi,molnoj,fij,ri,rj,Fsurface)
 					isumforce = isumforce +  Fsurface(1)
 
@@ -1488,6 +1495,178 @@ contains
 		endif
 
 	end subroutine get_Fsurface
+
+
+
+!-----------------------------------------------------------------------------------
+! Tractions on one surface of a bin
+
+	subroutine get_Traction(icell,jcell,kcell,molnoi,molnoj,fij,ri,rj,Fsurface,Traction)
+		implicit none
+
+		integer,intent(in)										:: molnoi,molnoj
+		double precision,dimension(3),intent(in)				:: ri,rj,fij
+		double precision,dimension(3),intent(out)				:: Fsurface
+		double precision,dimension(3,6),intent(inout),optional	:: Traction
+
+		integer									:: i,j,k,ixyz,n,tempi,heaviside
+		integer									:: icell,jcell,kcell
+		integer									:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
+		integer,dimension(3)					:: cbin, ibin, jbin
+		double precision						:: binforce
+		double precision,dimension(3)			:: rij,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
+		double precision,dimension(3)			:: Fbinsize, bintop, binbot
+		double precision,dimension(3,3,3,3,6)	:: Tractionbins
+		!Calculate rij
+		rij = ri - rj
+		!Prevent Division by zero
+		do ixyz = 1,3
+			if (abs(rij(ixyz)) .lt. 0.000001d0) rij(ixyz) = sign(0.000001d0,rij(ixyz))
+		enddo
+
+		!Determine bin size
+		Fbinsize(:) = domain(:) / nbins(:)
+
+		!Assign to bins using integer division
+		ibin(:) = ceiling((ri(:)+halfdomain(:))/Fbinsize(:))+1	!Establish current bin
+		jbin(:) = ceiling((rj(:)+halfdomain(:))/Fbinsize(:))+1 	!Establish current bin
+
+		do i = ibin(1),jbin(1),sign(1,jbin(1)-ibin(1))
+		do j = ibin(2),jbin(2),sign(1,jbin(2)-ibin(2))
+		do k = ibin(3),jbin(3),sign(1,jbin(3)-ibin(3))
+
+			cbin(1) = i; cbin(2) = j; cbin(3) = k
+
+			bintop(:) = (ibin(:)-1)*Fbinsize(:)-halfdomain(:)
+			binbot(:) = (ibin(:)-2)*Fbinsize(:)-halfdomain(:)
+
+			if(present(Traction)) then
+
+				!Calculate the plane intersect of line with surfaces of the cube
+				Pxt=(/ bintop(1),ri(2)+(rij(2)/rij(1))*(bintop(1)-ri(1)),ri(3)+(rij(3)/rij(1))*(bintop(1)-ri(1))  /)
+				Pxb=(/ binbot(1),ri(2)+(rij(2)/rij(1))*(binbot(1)-ri(1)),ri(3)+(rij(3)/rij(1))*(binbot(1)-ri(1))  /)
+				Pyt=(/ri(1)+(rij(1)/rij(2))*(bintop(2)-ri(2)), bintop(2),ri(3)+(rij(3)/rij(2))*(bintop(2)-ri(2))  /)
+				Pyb=(/ri(1)+(rij(1)/rij(2))*(binbot(2)-ri(2)), binbot(2),ri(3)+(rij(3)/rij(2))*(binbot(2)-ri(2))  /)
+				Pzt=(/ri(1)+(rij(1)/rij(3))*(bintop(3)-ri(3)), ri(2)+(rij(2)/rij(3))*(bintop(3)-ri(3)), bintop(3) /)
+				Pzb=(/ri(1)+(rij(1)/rij(3))*(binbot(3)-ri(3)), ri(2)+(rij(2)/rij(3))*(binbot(3)-ri(3)), binbot(3) /)
+
+				onfacexb =   (sign(1.d0,binbot(1)- rj(1))   &
+							- sign(1.d0,binbot(1)- ri(1)))* &
+							 (heaviside(bintop(2)-Pxb(2))   &
+							- heaviside(binbot(2)-Pxb(2)))* &
+							 (heaviside(bintop(3)-Pxb(3))   & 
+							- heaviside(binbot(3)-Pxb(3)))
+				onfaceyb =	 (sign(1.d0,binbot(2)- rj(2))	&
+							- sign(1.d0,binbot(2)- ri(2)))* &
+							 (heaviside(bintop(1)-Pyb(1))	& 
+							- heaviside(binbot(1)-Pyb(1)))* &
+							 (heaviside(bintop(3)-Pyb(3))	&
+							- heaviside(binbot(3)-Pyb(3)))
+				onfacezb =	 (sign(1.d0,binbot(3)- rj(3)) 	&
+							- sign(1.d0,binbot(3)- ri(3)))* &
+							 (heaviside(bintop(1)-Pzb(1))	&
+							- heaviside(binbot(1)-Pzb(1)))* &
+							 (heaviside(bintop(2)-Pzb(2))	&
+							- heaviside(binbot(2)-Pzb(2)))
+
+				onfacext =	 (sign(1.d0,bintop(1)- rj(1))	&
+							- sign(1.d0,bintop(1)- ri(1)))* &
+							 (heaviside(bintop(2)-Pxt(2))	&
+							- heaviside(binbot(2)-Pxt(2)))* &
+			            	 (heaviside(bintop(3)-Pxt(3))	&
+							- heaviside(binbot(3)-Pxt(3)))
+				onfaceyt =	 (sign(1.d0,bintop(2)- rj(2))	&
+							- sign(1.d0,bintop(2)- ri(2)))* &
+							 (heaviside(bintop(1)-Pyt(1))	&
+							- heaviside(binbot(1)-Pyt(1)))* &
+							 (heaviside(bintop(3)-Pyt(3))	&
+							- heaviside(binbot(3)-Pyt(3)))
+				onfacezt =	 (sign(1.d0,bintop(3)- rj(3))	&
+							- sign(1.d0,bintop(3)- ri(3)))* &
+							 (heaviside(bintop(1)-Pzt(1))	&
+							- heaviside(binbot(1)-Pzt(1)))* &
+							 (heaviside(bintop(2)-Pzt(2))	&
+							- heaviside(binbot(2)-Pzt(2)))
+
+				!Prevent halo molecules from being included but include molecule which have left domain 
+				!before rebuild has been triggered.
+				if (molnoi .gt. np .or. molnoj .gt. np) then
+					if (cbin(1) .lt. 2 .or. cbin(1) .gt. nbins(1)+1) cycle
+					if (cbin(2) .lt. 2 .or. cbin(2) .gt. nbins(2)+1) cycle
+					if (cbin(3) .lt. 2 .or. cbin(3) .gt. nbins(3)+1) cycle
+				endif
+
+				!Stress acting on face over volume
+				Tractionbins(modulo(i,3)+1,modulo(j,3)+1,modulo(k,3)+1,:,1) = & 
+					Tractionbins(modulo(i,3)+1,modulo(j,3)+1,modulo(k,3)+1,:,1) + fij(:)*dble(onfacexb)
+				Tractionbins(modulo(i,3)+1,modulo(j,3)+1,modulo(k,3)+1,:,2) = & 
+					Tractionbins(modulo(i,3)+1,modulo(j,3)+1,modulo(k,3)+1,:,2) + fij(:)*dble(onfaceyb)
+				Tractionbins(modulo(i,3)+1,modulo(j,3)+1,modulo(k,3)+1,:,3) = & 
+					Tractionbins(modulo(i,3)+1,modulo(j,3)+1,modulo(k,3)+1,:,3) + fij(:)*dble(onfacezb)
+				Tractionbins(modulo(i,3)+1,modulo(j,3)+1,modulo(k,3)+1,:,4) = & 
+					Tractionbins(modulo(i,3)+1,modulo(j,3)+1,modulo(k,3)+1,:,4) + fij(:)*dble(onfacext)
+				Tractionbins(modulo(i,3)+1,modulo(j,3)+1,modulo(k,3)+1,:,5) = & 
+					Tractionbins(modulo(i,3)+1,modulo(j,3)+1,modulo(k,3)+1,:,5) + fij(:)*dble(onfaceyt)
+				Tractionbins(modulo(i,3)+1,modulo(j,3)+1,modulo(k,3)+1,:,6) = & 
+					Tractionbins(modulo(i,3)+1,modulo(j,3)+1,modulo(k,3)+1,:,6) + fij(:)*dble(onfacezt)	
+
+
+				!Force applied to volume
+				!fsurface(:) = 0.25d0*fij(:)*dble(onfacexb - onfacext)
+				!fsurface(:) = 0.25d0*fij(:)*dble(onfaceyb - onfaceyt)
+				!fsurface(:) = 0.25d0*fij(:)*dble(onfacezb - onfacezt)
+
+				!Add surface force to current bin
+				!Traction(:,1) = Traction(:,1) + 0.25d0*fij(:)*dble(onfacexb)
+				!Traction(:,2) = Traction(:,2) + 0.25d0*fij(:)*dble(onfaceyb)
+				!Traction(:,3) = Traction(:,3) + 0.25d0*fij(:)*dble(onfacezb)
+				!Traction(:,4) = Traction(:,4) + 0.25d0*fij(:)*dble(onfacext)
+				!Traction(:,5) = Traction(:,5) + 0.25d0*fij(:)*dble(onfaceyt)
+				!Traction(:,6) = Traction(:,6) + 0.25d0*fij(:)*dble(onfacezt)
+
+				!Add for molecule i
+				Fsurface = fij(:)* dble((heaviside(bintop(1)-ri(1))-heaviside(binbot(1)-ri(1)))* & 
+					  					(heaviside(bintop(2)-ri(2))-heaviside(binbot(2)-ri(2)))* & 
+					  					(heaviside(bintop(3)-ri(3))-heaviside(binbot(3)-ri(3)))- & 
+					  					(heaviside(bintop(1)-rj(1))-heaviside(binbot(1)-rj(1)))* & 
+					  					(heaviside(bintop(2)-rj(2))-heaviside(binbot(2)-rj(2)))* & 
+					  					(heaviside(bintop(3)-rj(3))-heaviside(binbot(3)-rj(3))))
+
+				!if (onfaceyb.ne.0.or.onfaceyt.ne.0) print'(9i8)', iter, molnoi, molnoj,np, ibin,onfaceyb,onfaceyt
+
+			else
+				!Add for molecule i
+				Fsurface = fij(:)* dble((heaviside(bintop(1)-ri(1))-heaviside(binbot(1)-ri(1)))* & 
+					  					(heaviside(bintop(2)-ri(2))-heaviside(binbot(2)-ri(2)))* & 
+					  					(heaviside(bintop(3)-ri(3))-heaviside(binbot(3)-ri(3)))- & 
+					  					(heaviside(bintop(1)-rj(1))-heaviside(binbot(1)-rj(1)))* & 
+					  					(heaviside(bintop(2)-rj(2))-heaviside(binbot(2)-rj(2)))* & 
+					  					(heaviside(bintop(3)-rj(3))-heaviside(binbot(3)-rj(3))))
+			endif
+
+		enddo
+		enddo
+		enddo
+
+		!Take flux from central bin only
+		if (present(Traction))then
+			Traction(:,:) = Traction(:,:) +  Tractionbins(modulo(icell,3)+1, 	& 
+							     		     			  modulo(jcell,3)+1, 	& 
+			    						     			  modulo(kcell,3)+1,:,:)
+
+
+			if (icell .eq. 5 .and. kcell .eq. 3) then
+				print'(3i8,4f10.5)',icell,jcell,kcell, Tractionbins(modulo(icell,3)+1, 	& 
+							     		     			  modulo(jcell,3)+1, 	& 
+			    						     			  modulo(kcell,3)+1,1,2),& 
+											 Tractionbins(modulo(icell,3)+1, 	& 
+							     		     			  modulo(jcell,3)+1, 	& 
+			    						     			  modulo(kcell,3)+1,1,5) & 
+						, Pxyface(icell,jcell,kcell,1,2),Pxyface(icell,jcell,kcell,1,5)
+			endif
+		endif
+			
+	end subroutine get_Traction
 
 
 end subroutine compute_force_surrounding_bins
