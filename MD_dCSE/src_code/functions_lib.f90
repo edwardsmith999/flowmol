@@ -656,7 +656,7 @@ subroutine check
 		print*, n * x_interval, y(n)
 	enddo
 
-	!Check intergration under that line
+	!Check integration under that line
 
 	call integrate_trap(y,x_interval,npoints,integral)
 

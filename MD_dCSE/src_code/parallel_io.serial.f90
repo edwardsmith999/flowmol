@@ -1077,7 +1077,7 @@ subroutine viscosity_io
 	use module_parallel_io
 	use physical_constants_MD
 	use calculated_properties_MD
-	use librarymod, only : intergrate_trap
+	use librarymod, only : integrate_trap
 	implicit none
 
 	integer				:: m, length
@@ -1085,7 +1085,7 @@ subroutine viscosity_io
 
 	print*, Pxycorrel
 
-	call intergrate_trap(Pxycorrel,tplot*delta_t,Nstress_ave,viscosity)
+	call integrate_trap(Pxycorrel,tplot*delta_t,Nstress_ave,viscosity)
 
 	viscosity = (viscosity*volume)/(3.0*Nstress_ave*Nvisc_ave*inputtemperature)
 

@@ -130,18 +130,10 @@ subroutine messenger_init()
             call error_abort(' Wrong specification for processor topology, nproc not equal to npx*npy*npz')
     endif
 
-    ! allocate arrays that depend on topology parameters
-    allocate(ibmin(npx), ibmax(npx), ibmino(npx), ibmaxo(npx), &
-			 jbmin(npy), jbmax(npy), jbmino(npy), jbmaxo(npy), &
-			 kbmin(npz), kbmax(npz), kbmino(npz), kbmaxo(npz), stat=ierr)
-    if (ierr .ne. 0) then 
-		call error_abort('Error allocating topology arrays in messenger_init')
-    endif
-
     allocate(icoord(3,nproc),stat=ierr)
     if (ierr .ne. 0) then 
-		call error_abort('Error allocating icoord in messenger_init')
-     endif
+            call error_abort('Error allocating icoord in messenger_init')
+	endif
 
 	ndims = nd
 	idims(1) = npx
