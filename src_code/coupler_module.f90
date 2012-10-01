@@ -1,87 +1,173 @@
+!=============================================================================
+! COUPLER MODULE: 
 ! A single coupler module for both codes - this contains the same information 
 ! on both md and cfd side 
+!
+!	- Error handling
+!	- MPI communicators
+!	- Simulation realms
+!	- MPI processor IDs
+!	- Processor topologies
+!	- Processor cartesian coords
+!	- Global cell grid parameters
+!	- Processor cell ranges
+!	- Domain and cell dimensions
+!	- Positions of CFD grid lines
+!	- CFD to MD processor mapping
+!	- Simulation parameters
+!   - PROBABLY OBSOLETE STUFF
+!
+!=============================================================================
+
 module coupler_module
 	use coupler_parameters
 
-	! <=><=><=><=> Simulation Time & Averaging data <=><=><=><=> 
-	!Total number of steps for coupled simulation
-	integer	:: nsteps_cfd, nsteps_md, nsteps_coupled
-	! average period for averages ( it must come from CFD !!!)
-	integer :: average_period = 1
-    ! save period ( corresponts to tplot in CFD, revise please !!!)
-    integer :: save_period = 10
-	!Timesteps
-	real(kind(0.d0)) :: dt_md , dt_cfd
+	!MPI error flag
+	integer		:: ierr	
 
-	! <=><=><=><=> Grid and domain data <=><=><=><=> 
-	! Density
-	real(kind(0.d0))	:: density_cfd, density_md
-	! CFD/MD number of cells
-    integer	:: ngx,ngy,ngz						!Global
-	integer	:: nlgx_cfd,nlgy_cfd,nlgz_cfd, & 	!Local CFD
-			   nlgx_md ,nlgy_md ,nlgz_md 		!Local MD
-	! Overlap cells 
-    integer :: i_olap,j_olap,k_olap	
-	! MD grid indices
-	integer	:: ngy_puremd
-	! CFD grid indices
-    integer	:: imin,imax,jmin,jmax,kmin,kmax 
-	! CFD/MD local grid indices (start and end of grid per CFD/MD process)
-    integer,dimension(:),allocatable :: iTmin_cfd,iTmax_cfd,jTmin_cfd,jTmax_cfd,kTmin_cfd,kTmax_cfd, & 
-										iTmin_md ,iTmax_md ,jTmin_md ,jTmax_md ,kTmin_md ,kTmax_md 
-	! Domain sizes
-	real(kind(0.d0)) ::	xL_md  ,yL_md  ,zL_md , & 
-						xL_cfd ,yL_cfd ,zL_cfd, &
-						xL_olap,yL_olap,zL_olap,&
-								yL_puremd
-	! Local Domain
-	real(kind(0.d0)) :: yLl_md, yLl_cfd
+	! MPI Communicators
+	integer :: &
+		CPL_WORLD_COMM,   & ! Duplicate of MPI_COMM_WORLD -- Contains both realms' processors
+		CPL_REALM_COMM,   & ! INTRA communicators -- within MD/CFD realms
+		CPL_INTER_COMM,   & ! CFD/MD INTER communicator -- between MD/CFD COUPLER_REALM_COMMs
+		CPL_CART_COMM,    & ! CFD/MD communicator with cartesian topology -- within MD/CFD realms
+		CPL_OLAP_COMM,    & ! Local communicator -- between only MD/CFD processors which locally overlap
+		CPL_REALM_INTERSECTION_COMM ! Communicator of all intersecting processors -- between CFD/MD realm 
 
-	!CFD cells sizes 
-	real(kind(0.d0)) 								   :: dx,dymin,dy,dymax,dz
-    real(kind(0.d0)),dimension(:),  allocatable,target :: zpg
-    real(kind(0.d0)),dimension(:,:),allocatable,target :: xpg,ypg
+	! Simulation realms
+	integer :: &
+		realm
 
-	! <=><=><=><=> Processor Topology & MPI <=><=><=><=> 
-	!Global processor number across both realms
-	integer	:: myid
-	!Processor id in grid
-	integer	:: myid_grid,iblock,jblock,kblock
-	! Number of processor in CFD grid
-	integer :: npx_cfd, npy_cfd, npz_cfd, nproc_cfd	
-    ! Number of processor in MD grid
-    integer :: npx_md,  npy_md,  npz_md,  nproc_md
-    ! Coordinates of MD/CFD topologies
-	integer,dimension(:,:),allocatable 	 :: rank2coord_cfd, rank2coord_md
-    integer,dimension(:,:,:),allocatable :: coord2rank_cfd, coord2rank_md
-	!Mapping between CFD processors and MD processors
-    integer,dimension(:,:),allocatable :: imap_olap,jmap_olap,kmap_olap
-	! contains COMMS and other such things
-    integer	:: COUPLER_GLOBAL_COMM 	! duplicate of MPI_COMM_WORLD, useful for input transfers
-    integer	:: COUPLER_REALM_COMM	! intra communicator inside the realm, split of COUPLER_GLOBAL_COMM
-    integer	:: COUPLER_ICOMM		! CFD - MD INTER-communicator between COUPLER_REALM_COMM
-    integer	:: COUPLER_GRID_COMM 	! Duplicate of CFD or MD topology communicator
-    integer	:: CFD_COMM_OVERLAP 	! Communicator for tasks that overlap  MD region 
+	! MPI processor IDs
+	integer :: &
+		myid_world,       &	!Processor ID from 0 to nproc_world-1
+		rank_world,       & !Processor rank from 1 to nproc_world
+		rootid_world,     &	!Root processor in world
+		myid_realm,       & !Processor ID from 0 to nproc_realm-1
+		rank_realm,       & !Processor rank from 1 to nproc_realm
+		rootid_realm,     &	!Root processor in each realm
+		myid_cart,        & !Processor ID from 0 to nproc_cart-1
+		rank_cart,        & !Processor rank from 1 to nproc_cart
+		rootid_cart,      &	!Root processor in each cart topology
+		myid_olap,        & !Processor ID from 0 to nproc_olap-1
+		rank_olap,        & !Processor rank from 1 to nproc_olap
+		rootid_olap  		!Root processor in overlap is the CFD processor
+	integer, dimension(:), allocatable :: &
+		rank_cfd2rank_world, &	!Get world rank from realm rank
+		rank_md2rank_world		!Get realm rank from world rank
 
+	! Processor topologies
+	integer :: &
+		nproc_md,         &
+		nproc_cfd,        &
+		nproc_world,	  &
+		npx_md,           &
+		npy_md,           &
+		npz_md,           &
+		npx_cfd,          &
+		npy_cfd,          &
+		npz_cfd
+	integer, dimension(:,:), allocatable :: &
+		rank2coord_cfd,   &
+		rank2coord_md
+	integer, dimension(:,:,:), allocatable :: &
+		coord2rank_cfd,   &
+		coord2rank_md
 
-	! <=><=><=><=> COUPLER VARIABLES <=><=><=><=> 
- 	integer	:: coupler_realm    	! Identifies which realm calling code is in
+	! Processor cartesian coords	
+	integer :: &
+		iblock_realm,     &
+		jblock_realm,     &
+		kblock_realm
 
+	! Global cell grid parameters
+	integer :: &
+		ncx,              &
+		ncy,              &
+		ncz,              &
+		icmin,            &
+		icmax,            &
+		jcmin,            &
+		jcmax,            &
+		kcmin,            &
+		kcmax,            &
+		icmin_olap,       &
+		icmax_olap,       &
+		jcmin_olap,       &
+		jcmax_olap,       &
+		kcmin_olap,       &
+		kcmax_olap,		  &
+		ncx_olap,         &
+		ncy_olap,         &
+		ncz_olap
+	
+	! Processor cell ranges 
+	integer, dimension(:), allocatable :: &
+		icPmin_md,        &
+		icPmax_md,        &
+		jcPmin_md,        &
+		jcPmax_md,        &
+		kcPmin_md,        &
+		kcPmax_md,        &
+		icPmin_cfd,       &
+		icPmax_cfd,       &
+		jcPmin_cfd,       &
+		jcPmax_cfd,       &
+		kcPmin_cfd,       &
+		kcPmax_cfd
+	
+	! Domain and cell dimensions
+	real(kind(0.d0)) :: &
+		xL_md,            &
+		yL_md,            &
+		zL_md,            &
+		xL_cfd,           &
+		yL_cfd,           &
+		zL_cfd,           &
+		xL_olap,          &
+		yL_olap,          &
+		zL_olap,          &
+		dx,               &
+		dy,               &
+		dz,               &
+		dymin,            &
+		dymax
 
+	! Positions of CFD grid lines
+	real(kind(0.d0)), dimension(:,:), allocatable, target :: &
+		xg,               &
+		yg
+	real(kind(0.d0)), dimension(:)  , allocatable, target :: &
+		zg
 
-   ! integer :: jmax_overlap = 5 	! j overlap index ( in y direction)
-	real(kind(0.d0)) :: MD_initial_cellsize
-    ! CFD code id
-    integer :: cfd_code_id = couette_parallel
+	! CFD to MD processor mapping
+	integer, dimension(:,:), allocatable :: &
+		cfd_icoord2olap_md_icoords, &
+		cfd_jcoord2olap_md_jcoords, &
+		cfd_kcoord2olap_md_kcoords
 
-	! <=><=><=><=> OLD INTERNAL COMMON <=><=><=><=> 
-    type overlap_map
-        integer				 				:: n 		 ! number of ranks that overlap with this domain
-        integer,dimension(:), allocatable 	:: rank_list ! rank list of overlapping bins
-        integer,dimension(:,:),allocatable 	:: domains   ! range of overlapping indices between domain and overlapping boxes 
-    end type overlap_map
-    type(overlap_map) 	:: map
+	! Simulation parameters
+	integer :: &
+		nsteps_md,        & !MD input steps
+		nsteps_cfd,       & !CFD input steps
+		nsteps_coupled,   & !Total number of steps for coupled simulation
+		average_period=1, & ! average period for averages ( it must come from CFD !!!)
+		save_period=10      ! save period (corresponts to tplot in CFD, revise please !!!)
+	real(kind(0.d0)) :: &
+		dt_md,            &
+		dt_cfd,           &
+		density_md,       &
+		density_cfd
 
+	! PROBABLY OBSOLETE STUFF ------------------------------------------------!	
+	real(kind(0.d0)) :: MD_initial_cellsize                                   !
+    type overlap_map                                                          !
+        integer                             :: n                              ! 
+        integer,dimension(:), allocatable   :: rank_list                      !
+        integer,dimension(:,:),allocatable  :: domains                        ! 
+    end type overlap_map                                                      !
+    type(overlap_map)   :: map                                                !
+    integer :: cfd_code_id = couette_parallel     ! CFD code id  			  !
     ! flag marking 2d CFD solver
 	logical 			:: cfd_is_2d = .false. 				! set true if dz<=0 or kmax_cfd=kmin_cfd
     logical 			:: stop_request_activated = .false. ! request_abort is active or not (optimisation) 
@@ -89,6 +175,16 @@ module coupler_module
     integer, target		:: stop_request_tag
     integer, target		:: staggered_averages_tag
     character(len=64)	:: stop_request_name="none"
+	! CFD/MD number of cells
+	integer	:: nlgx_cfd,nlgy_cfd,nlgz_cfd, & 	!Local CFD
+			   nlgx_md ,nlgy_md ,nlgz_md 		!Local MD
+	! MD grid indices
+	integer	:: ncy_puremd
+	! Domain sizes
+	real(kind(0.d0)) ::	yL_puremd
+	! Local Domain
+	real(kind(0.d0)) :: yLl_md, yLl_cfd
+	!-------------------------------------------------------------------------!
 
 	interface error_abort
 		module procedure error_abort_s, error_abort_si
@@ -132,6 +228,20 @@ subroutine error_abort_si(msg,i)
     call MPI_Abort(MPI_COMM_WORLD,errcode,ierr)
 
 end subroutine error_abort_si
+
+
+subroutine messenger_lasterrorcheck
+    use mpi
+    implicit none
+
+	integer resultlen
+	character*12 err_buffer
+
+	call MPI_Error_string(ierr,err_buffer,resultlen,ierr)
+	print*, err_buffer
+
+end subroutine messenger_lasterrorcheck
+
 
 
 !--------------------------------------------------------------------------------------
@@ -183,13 +293,13 @@ subroutine request_stop(tag)
 
     select case(stop_request_name)
     case("create_comm","CREATE_COMM")
-        call mpi_comm_rank(COUPLER_REALM_COMM, myid,ierr)
-        write(0,*) 'stop as requested at ', trim(stop_request_name), ', realm',COUPLER_REALM, 'rank', myid
+        call mpi_comm_rank(CPL_REALM_COMM, myid,ierr)
+        write(0,*) 'stop as requested at ', trim(stop_request_name), ', realm',realm, 'rank', myid
         call MPI_Finalize(ierr)
         stop
     case("create_map","CREATE_MAP")
-        call mpi_comm_rank(COUPLER_REALM_COMM, myid,ierr)
-        write(0,*) 'stop as requested at ', trim(stop_request_name), ', realm',COUPLER_REALM, 'rank', myid
+        call mpi_comm_rank(CPL_REALM_COMM, myid,ierr)
+        write(0,*) 'stop as requested at ', trim(stop_request_name), ', realm',realm, 'rank', myid
         call MPI_Finalize(ierr)
         stop    
     case default

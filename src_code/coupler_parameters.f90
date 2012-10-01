@@ -15,34 +15,41 @@ module coupler_parameters
 
 
   ! tags values
-	integer, parameter :: VOID=666,CPL=777,CFD=888 ! tag values marking the input file for domain data
+	integer, parameter :: & 
+		VOID=666,         &
+		CPL=777,		  &
+		CFD=888 			! tag values marking the input file for domain data
 
 	! realms
-	integer, parameter :: COUPLER_CFD = 1, COUPLER_MD = 2
-	character(len=*),parameter :: code_name(2) = (/ "CFD", "MD " /)
- 	!integer COUPLER_REALM 
+	integer, parameter :: &
+		cfd_realm = 1,    &
+		md_realm  = 2
+	character(len=*),parameter :: & 
+		code_name(2) = (/ "CFD", "MD " /)
 
 	! error codes
-	integer, parameter :: COUPLER_ERROR_REALM  = 1,     &  ! wrong realm value
-                          COUPLER_ERROR_ONE_REALM  = 2, &  ! one realm missing
-                          COUPLER_ERROR_INIT       = 3, &  ! initialisation error
-                          COUPLER_ERROR_INPUT_FILE = 4, &  ! wrong value in input file
-                          COUPLER_ERROR_READ_INPUT = 5, &  ! error in processing input file or data transfers
-                          COUPLER_ERROR_CONTINUUM_FORCE = 6, & !the region in which the continuum constrain force is apply spans over two MD domains
-                          COUPLER_ABORT_ON_REQUEST = 7, & ! used in request_abort 
-                          COUPLER_ABORT_SEND_CFD   = 8 ! error in coupler_cfd_send
+	integer, parameter :: & 
+		COUPLER_ERROR_REALM  = 1,     &  ! wrong realm value
+		COUPLER_ERROR_ONE_REALM  = 2, &  ! one realm missing
+		COUPLER_ERROR_INIT       = 3, &  ! initialisation error
+		COUPLER_ERROR_INPUT_FILE = 4, &  ! wrong value in input file
+		COUPLER_ERROR_READ_INPUT = 5, &  ! error in processing input file or data transfers
+		COUPLER_ERROR_CONTINUUM_FORCE = 6, & !the region in which the continuum constrain force is apply spans over two MD domains
+		COUPLER_ABORT_ON_REQUEST = 7, & ! used in request_abort 
+		COUPLER_ABORT_SEND_CFD   = 8 ! error in coupler_cfd_send
 
     ! CFD code ids useful for MD
-    integer, parameter :: couette_serial=101, couette_parallel=102
+    integer, parameter ::   & 
+		couette_serial=101, & 
+		couette_parallel=102
 
-	!THIS IS NOT A PARAMETER!!!!!!!!!!!!!!
     !derived type that describes the local CFD grid for MD subroutine 
     type cfd_grid_info
         !indices for the cfd grid box covering the local domain, outside and inside
-        integer imino,imaxo,jmino,jmaxo,kmino,kmaxo
-        integer imin, imax,  jmin, jmax, kmin, kmax
+        integer icmino,icmaxo,jcmino,jcmaxo,kcmino,kcmaxo
+        integer icmin, icmax,  jcmin, jcmax, kcmin, kcmax
         !global limits of CFD grid
-        integer gimin, gimax, gjmin, gjmax, gkmin,gkmax 
+        integer gicmin, gicmax, gjcmin, gjcmax, gkcmin,gkcmax 
         
         real(kind(0.d0)) xmin,xmax,dx,zmin,zmax,dz,ymin,ymax
         real(kind(0.d0)), allocatable :: y(:) 
