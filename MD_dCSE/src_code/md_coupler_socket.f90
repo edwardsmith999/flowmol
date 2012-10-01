@@ -61,7 +61,7 @@ subroutine socket_coupler_invoke
 	use messenger
 	implicit none
 
-	call coupler_create_comm(COUPLER_MD,MD_COMM,ierr)
+	call coupler_create_comm(md_realm,MD_COMM,ierr)
     prefix_dir = "./md_data/"
 
 end subroutine socket_coupler_invoke
@@ -170,7 +170,7 @@ subroutine set_parameters_global_domain_coupled
 
 	write(0,*) 'set_parameter_global_domain_hybrid ', globalnp, np, domain, initialunitsize
 
-    if(myid .eq. 0) then
+    if(myid_world .eq. rootid_world) then
         write(*,'(a/a/a,f5.2,a,f5.2,/,a,3(f5.2),a,/,a,3(I6),/,a)') &
                     "**********************************************************************", &
                     "WARNING - this is a coupled run which resets the following parameters:", &
@@ -192,7 +192,7 @@ subroutine set_parameters_cells_coupled
 	use physical_constants_MD
 	use polymer_info_MD
 	use coupler
-	use coupler_module, only : imax,imin,jmax,jmin,kmax,kmin,dx,dy,dz,myid_grid
+	use coupler_module, only : icmax,icmin,jcmax,jcmin,kcmax,kcmin,dx,dy,dz,rank_realm
 	implicit none
 
 	integer 						:: ixyz
@@ -204,9 +204,9 @@ subroutine set_parameters_cells_coupled
 	!In coupled simulation, passed properties are calculated from cell lists
 	!for efficiency. The size of the cells should therefore be a multiple
 	!of the continuum cellsizes
-    cfd_ncells(1) = imax - imin
-    cfd_ncells(2) = jmax - jmin
-    cfd_ncells(3) = kmax - kmin
+    cfd_ncells(1) = icmax - icmin
+    cfd_ncells(2) = jcmax - jcmin
+    cfd_ncells(3) = kcmax - kcmin
 
 	!Check number of cells based on rcutoff and neighbourlist size
 	max_ncells= floor(domain/rcutoff)
@@ -236,7 +236,7 @@ subroutine set_parameters_cells_coupled
 	rneighbr  = rcutoff + delta_rneighbr
 	rneighbr2 = (rcutoff + delta_rneighbr)**2
 
-	!print'(a,6f10.5)', 'domains', domain, x(imax)-x(imin),y(jmax)-y(jmin),z(kmax)-z(kmin)
+	!print'(a,6f10.5)', 'domains', domain, x(icmax)-x(icmin),y(jcmax)-y(jcmin),z(kcmax)-z(kcmin)
 	!print'(a,12i8)',      'cell', cfd_md_cell_ratio,cfd_ncells,ncells,max_ncells
 	!print'(a,6f10.5)', 'cellsize', cfd_cellsidelength(:),cellsidelength(:)
 
@@ -267,7 +267,7 @@ subroutine set_parameters_cells_coupled
 		 					& IN X, Y AND Z - INCREASE NUMBER OF UNITS IN INPUT")
 	endif
 
-    if(myid_grid == 0) then
+    if(rank_realm == 0) then
         write(*,'(a/a/a,f8.6,/,a,3i8,/,a,3(f8.5),/,a,3(i8),/,a)') &
                     "**********************************************************************", &
                     "WARNING - this is a coupled run which resets the following parameters:", &
@@ -313,7 +313,7 @@ subroutine set_coupled_timing
 	Nsteps = initialstep + nsteps_cfd * naverage
 	elapsedtime = elapsedtime + nsteps_cfd * naverage * delta_t
 
-	if (myid_grid .eq. 0) then 
+	if (rank_realm .eq. 0) then 
 		write(*,'(2(a,/),a,i7,a,i7,/a,/a,i8,a/,a,f10.5,/a)') &
 				"*********************************************************************", 	&
  				"WARNING - WARNING - WARNING - WARNING - WARNING - WARNING - WARNING  ", 	&
@@ -358,7 +358,7 @@ subroutine average_and_send_MD_to_CFD(iter)
 	use calculated_properties_MD, only : nbins
 	use physical_constants_MD, only : np
 	use arrays_MD, only :r,v
-   	use coupler_module, only : staggered_averages, ngx,ngy,ngz,dx,dz,ypg,cfd_code_id
+   	use coupler_module, only : staggered_averages, ncx,ncy,ncz,dx,dz,yg,cfd_code_id
 	use messenger, only : MD_COMM
 	implicit none
 
@@ -415,10 +415,10 @@ contains
 		! Setup averaging array on first call
 		select case(staggered_averages(1))
 		case(.true.)
-			allocate( mflux(6,ngz,ngx,1))
+			allocate( mflux(6,ncz,ncx,1))
 			mflux = 0
 		case(.false.)
-			allocate(uvwbin(4,ngz,ngx,1))
+			allocate(uvwbin(4,ncz,ncx,1))
 			uvwbin = 0.d0
 		end select
 	end subroutine setup_velocity_average
@@ -426,7 +426,7 @@ contains
 !------------------------------------------
 	subroutine cumulative_velocity_average
 		use coupler_internal_md, only : bbox
-		use coupler_module, only : imax,imin,jmax,jmin,kmax,kmin,dx,dy,dz,ngx,ngy,ngz,cfd_code_id
+		use coupler_module, only : icmax,icmin,jcmax,jcmin,kcmax,kcmin,dx,dy,dz,ncx,ncy,ncz,cfd_code_id
 		use computational_constants_MD, only : iter, ncells,domain,halfdomain
 		use librarymod, only : heaviside, imaxloc
 		implicit none
@@ -441,9 +441,9 @@ contains
 
 		!Velocity measurement for 3D bins throughout the domain
 		!Determine bin size
-    	cfdbins(1) = ngx
-    	cfdbins(2) = ngy
-    	cfdbins(3) = ngz
+    	cfdbins(1) = ncx
+    	cfdbins(2) = ncy
+    	cfdbins(3) = ncz
 
 		Vbinsize(1) = dx
 		Vbinsize(2) = dy
@@ -451,15 +451,15 @@ contains
 
 		!print*,'cellsizes',  domain, cfdbins, domain(:) / cfdbins(:),Vbinsize
 
-		rd(:) = (/ 0.d0 , ypg(jmin,1) , 0.d0 /)
+		rd(:) = (/ 0.d0 , yg(jcmin,1) , 0.d0 /)
 		cnst_bot = map_cfd2md(rd)
-		rd(:) = (/ 0.d0 , ypg(jmin+1,1) , 0.d0 /)
+		rd(:) = (/ 0.d0 , yg(jcmin+1,1) , 0.d0 /)
 		cnst_top = map_cfd2md(rd)
 
 		minbin = ceiling((cnst_bot+halfdomain(:))/Vbinsize(:)) + nhb
 		maxbin = ceiling((cnst_top+halfdomain(:))/Vbinsize(:)) + nhb
 
-		!print*,'extents', minbin,imin,jmin,kmin,maxbin,imax,jmax,kmax
+		!print*,'extents', minbin,icmin,jcmin,kcmin,maxbin,icmax,jcmax,kcmax
 
 		select case(staggered_averages(1))	
 		!- - - - - - - - - - - - - - - - - - - -
@@ -576,15 +576,15 @@ subroutine setup_CFD_box(iter,xmin,xmax,ymin,ymax,zmin,zmax,dx_cfd,dz_cfd,inv_dt
 			cfd_code_id = coupler_md_get_cfd_id()
 
 			! number of CFD cells in each direction
-			nib = cfd_box%imax - cfd_box%imin
+			nib = cfd_box%icmax - cfd_box%icmin
 			njb = 1
-			nkb = cfd_box%kmax - cfd_box%kmin
+			nkb = cfd_box%kcmax - cfd_box%kcmin
 		
 			! layer extend in local coordinates, i.e. centered on MD box
 			xmin = cfd_box%xmin
 			xmax = cfd_box%xmax
-			ymin = cfd_box%y(cfd_box%jmax-2)
-			ymax = cfd_box%y(cfd_box%jmax-1)
+			ymin = cfd_box%y(cfd_box%jcmax-2)
+			ymax = cfd_box%y(cfd_box%jcmax-1)
 			zmin = cfd_box%zmin
 			zmax = cfd_box%zmax
         
@@ -1360,6 +1360,7 @@ subroutine compute_force_surrounding_bins(icell,jcell,kcell,isumforce,Traction)
 	use calculated_properties_MD, only : nbins
 	use arrays_MD, only : r, v, a
 	use linked_list, only : node, cell
+	use librarymod, only : heaviside
 	implicit none
 
 	integer,intent(in)					:: icell,jcell,kcell
@@ -1429,7 +1430,7 @@ subroutine compute_force_surrounding_bins(icell,jcell,kcell,isumforce,Traction)
 					if (present(Traction)) then
 						call get_Traction(icell,jcell,kcell,molnoi,molnoj,fij,ri,rj,Fsurface,Traction)
 					else
-						call get_Fsurface(molnoi,molnoj,fij,ri,rj,Fsurface)
+						call get_Fsurface(icell,jcell,kcell,molnoi,molnoj,fij,ri,rj,Fsurface)
 					endif
 					isumforce = isumforce +  Fsurface(1)
 					call get_Fsurface(icell,jcell,kcell,molnoi,molnoj,fij,ri,rj,Fsurface)
@@ -1451,17 +1452,16 @@ contains
 	!Forces over the surface of a bin
 
 	subroutine get_Fsurface(icell,jcell,kcell,molnoi,molnoj,fij,ri,rj,Fsurface)
-		use librarymod, only : heaviside
 		implicit none
 
-		integer,intent(in)				:: icell,jcell,kcell,molnoi,molnoj
+		integer,intent(in)							:: icell,jcell,kcell,molnoi,molnoj
 		double precision,dimension(3),intent(in)	:: ri, rj, fij
 		double precision,dimension(3),intent(out)	:: Fsurface
 
-		integer									:: ixyz
-		integer,dimension(3)					:: ibin, jbin
-		double precision,dimension(3)			:: Fbinsize, bintopi, binboti, bintopj, binbotj, crossplane
-
+		integer										:: ixyz
+		integer,dimension(3)						:: ibin, jbin
+		double precision,dimension(3)				:: Fbinsize, bintopi, binboti, bintopj, binbotj, crossplane
+	
 		!Determine bin size
 		Fbinsize(:) = domain(:) / nbins(:)
 
@@ -1509,7 +1509,7 @@ contains
 		double precision,dimension(3),intent(out)				:: Fsurface
 		double precision,dimension(3,6),intent(inout),optional	:: Traction
 
-		integer									:: i,j,k,ixyz,n,tempi,heaviside
+		integer									:: i,j,k,ixyz,n,tempi
 		integer									:: icell,jcell,kcell
 		integer									:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
 		integer,dimension(3)					:: cbin, ibin, jbin
@@ -1656,13 +1656,12 @@ contains
 
 
 			if (icell .eq. 5 .and. kcell .eq. 3) then
-				print'(3i8,4f10.5)',icell,jcell,kcell, Tractionbins(modulo(icell,3)+1, 	& 
+				print'(3i8,2f10.5)',icell,jcell,kcell, Tractionbins(modulo(icell,3)+1, 	& 
 							     		     			  modulo(jcell,3)+1, 	& 
 			    						     			  modulo(kcell,3)+1,1,2),& 
 											 Tractionbins(modulo(icell,3)+1, 	& 
 							     		     			  modulo(jcell,3)+1, 	& 
-			    						     			  modulo(kcell,3)+1,1,5) & 
-						, Pxyface(icell,jcell,kcell,1,2),Pxyface(icell,jcell,kcell,1,5)
+			    						     			  modulo(kcell,3)+1,1,5)
 			endif
 		endif
 			

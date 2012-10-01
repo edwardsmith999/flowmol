@@ -6,10 +6,10 @@
 module coupler_module
     implicit none    
 
-    integer COUPLER_GLOBAL_COMM ! duplicate of MPI_COMM_WORLD, useful for input transfers
-    integer COUPLER_REALM_COMM	! internal communicator inside the realm, split of COUPLER_GLOBAL_COMM
-    integer COUPLER_ICOMM		! CFD - MD intracommunicator between COUPLER_REALM_COMM
-    integer COUPLER_GRID_COMM 	! duplicate of CFD or MD topology communicator
+    integer CPL_WORLD_COMM ! duplicate of MPI_COMM_WORLD, useful for input transfers
+    integer CPL_REALM_COMM	! internal communicator inside the realm, split of CPL_WORLD_COMM
+    integer CPL_INTER_COMM		! CFD - MD intracommunicator between CPL_REALM_COMM
+    integer CPL_CART_COMM 	! duplicate of CFD or MD topology communicator
 
     type overlap_map
         integer				 				:: n 		 ! number of ranks that overlap with this domain
@@ -19,7 +19,7 @@ module coupler_module
     type(overlap_map) 	:: map
 
     ! flag marking 2d CFD solver
-    logical 			:: cfd_is_2d = .false. ! set true if dz<=0 or kmax_cfd=kmin_cfd
+    logical 			:: cfd_is_2d = .false. ! set true if dz<=0 or kcmax_cfd=kcmin_cfd
 
     logical 			:: stop_request_activated = .false. ! request_abort is active or not (optimisation) 
     
@@ -42,7 +42,7 @@ subroutine request_stop(tag)
     implicit none
 
     character(len=*),intent(in) ::tag
-    integer myid, ierr
+    integer rank_world, ierr
 
     ! do nothing, get out quick 
     if(.not. stop_request_activated ) return
@@ -51,13 +51,13 @@ subroutine request_stop(tag)
 
     select case(stop_request_name)
     case("create_comm","CREATE_COMM")
-        call mpi_comm_rank(COUPLER_REALM_COMM, myid,ierr)
-        write(0,*) 'stop as requested at ', trim(stop_request_name), ', realm',COUPLER_REALM, 'rank', myid
+        call mpi_comm_rank(CPL_REALM_COMM, rank_world,ierr)
+        write(0,*) 'stop as requested at ', trim(stop_request_name), ', realm',COUPLER_REALM, 'rank', rank_world
         call MPI_Finalize(ierr)
         stop
     case("create_map","CREATE_MAP")
-        call mpi_comm_rank(COUPLER_REALM_COMM, myid,ierr)
-        write(0,*) 'stop as requested at ', trim(stop_request_name), ', realm',COUPLER_REALM, 'rank', myid
+        call mpi_comm_rank(CPL_REALM_COMM, rank_world,ierr)
+        write(0,*) 'stop as requested at ', trim(stop_request_name), ', realm',COUPLER_REALM, 'rank', rank_world
         call MPI_Finalize(ierr)
         stop    
     case default
