@@ -68,7 +68,7 @@ subroutine coupler_cfd_init(nsteps,dt_cfd,icomm_grid,icoord,npxyz_cfd,xyzL,ncxyz
     call MPI_comm_rank(CPL_CART_COMM,myid_cart,ierr) 
     rank_cart = myid_cart + 1; rootid_cart = 0
 	!Send only from root processor
-    if ( rank_realm .eq. root ) then
+    if (myid_realm .eq. rootid_realm ) then
         source=MPI_ROOT
     else
         source=MPI_PROC_NULL
