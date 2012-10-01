@@ -227,9 +227,9 @@ subroutine coupler_cfd_init(nsteps,dt_cfd,icomm_grid,icoord,npxyz_cfd,xyzL,ngxyz
 	write(99+myid_grid,*), 'CFD side',myid_grid,'CFD local cells',iTmin_cfd,iTmax_cfd,jTmin_cfd,jTmax_cfd,kTmin_cfd,kTmax_cfd
 
 	!Calculate the cell sizes dx,dy & dz
-	dx = xpg(2,1)-xpg(1,1)
-	dy = ypg(1,2)-ypg(1,1)
-	dz = zpg(2  )-zpg(1  )
+	dx = xL_cfd/ngx  !xpg(2,1)-xpg(1,1)
+	dy = yL_cfd/ngy	 !ypg(1,2)-ypg(1,1)
+	dz = zL_cfd/ngz  !zpg(2  )-zpg(1  )
 
     ! send number of overlap cells, read by input, to all processors
     ! Note : jmax_overlap default is provided in coupler_internal_cfd
@@ -239,7 +239,7 @@ subroutine coupler_cfd_init(nsteps,dt_cfd,icomm_grid,icoord,npxyz_cfd,xyzL,ngxyz
 	    if (cfd_coupler_input%overlap%tag == CPL) then
 			i_olap = 0
     	    j_olap = cfd_coupler_input%overlap%y_overlap
-			k_olap = 0
+			!ncz_olap = 0
 		else
 			call error_abort("j overlap not specified in COUPLER.in")
 	    endif
@@ -316,7 +316,7 @@ end subroutine coupler_cfd_init
 
 subroutine create_map_cfd
     use mpi 
-    use coupler_module, jmax_overlap=>j_olap!, only : COUPLER_REALM_COMM, COUPLER_GRID_COMM, COUPLER_ICOMM, cfd_is_2d, map
+    use coupler_module !, only : COUPLER_REALM_COMM, COUPLER_GRID_COMM, COUPLER_ICOMM, cfd_is_2d, map
     implicit none
 
     integer 				:: i, id_coord, color, noverlaps, ir, iaux(4), ierr
@@ -443,44 +443,44 @@ contains
     subroutine find_overlaps
         implicit none
 
-        integer i, ibmin,ibmax,jbmin,jbmax,kbmin,kbmax, &
-            	ibs, ibe, jbs, jbe, kbs, kbe
+        integer i, 	ibmin_cfd,ibmax_cfd,jbmin_cfd,jbmax_cfd,kbmin_cfd,kbmax_cfd, &
+            		ibmin_md, ibmax_md, jbmin_md, jbmax_md, kbmin_md, kbmax_md
 
-        ibmin = iTmax_cfd(iblock) !bbox_cfd%xbb(1,rank2coord_cfd(1,id_coord))
-        ibmax = iTmax_cfd(iblock) !bbox_cfd%xbb(2,rank2coord_cfd(1,id_coord))
-        jbmin = jTmax_cfd(jblock) !bbox_cfd%ybb(1,rank2coord_cfd(2,id_coord))
-        jbmax = jTmax_cfd(jblock) !min(jmax_overlap,bbox_cfd%ybb(2,rank2coord_cfd(2,id_coord))) 
-        kbmin = kTmax_cfd(kblock) !bbox_cfd%zbb(1,rank2coord_cfd(3,id_coord))
-        kbmax = kTmax_cfd(kblock) !bbox_cfd%zbb(2,rank2coord_cfd(3,id_coord))
+        ibmin_cfd = iTmin_cfd(iblock) !bbox_cfd%xbb(1,rank2coord_cfd(1,id_coord))
+        ibmax_cfd = iTmax_cfd(iblock) !bbox_cfd%xbb(2,rank2coord_cfd(1,id_coord))
+        jbmin_cfd = jTmin_cfd(jblock) !bbox_cfd%ybb(1,rank2coord_cfd(2,id_coord))
+        jbmax_cfd = jTmax_cfd(jblock) !min(jmax_overlap,bbox_cfd%ybb(2,rank2coord_cfd(2,id_coord))) 
+        kbmin_cfd = kTmin_cfd(kblock) !bbox_cfd%zbb(1,rank2coord_cfd(3,id_coord))
+        kbmax_cfd = kTmax_cfd(kblock) !bbox_cfd%zbb(2,rank2coord_cfd(3,id_coord))
 
-        write(0, *) 'CFD: find overlap ibmin etc', myid_grid, ibmin, ibmax, jbmin, jbmax, kbmin, kbmax
+        write(0, *) 'CFD: find overlap ibmin etc', myid_grid, ibmin_cfd, ibmax_cfd, jbmin_cfd, jbmax_cfd, kbmin_cfd, kbmax_cfd
 
         do i=0,nproc_md - 1
 
-            ibs = md_grid_boxes(1,i)
-            ibe = md_grid_boxes(2,i)
-            jbs = md_grid_boxes(3,i)
-            jbe = md_grid_boxes(4,i)
-            kbs = md_grid_boxes(5,i)
-            kbe = md_grid_boxes(6,i)
+            ibmin_md = iTmin_md(iblock)
+            ibmax_md = iTmax_md(iblock)
+            jbmin_md = jTmin_md(jblock)
+            jbmax_md = jTmax_md(jblock)
+            kbmin_md = kTmin_md(kblock)
+            kbmax_md = kTmax_md(kblock)
 
-            if  ((( ibs <  ibmin .and. ibe > ibmin )	.or.  &
-                (   ibs >= ibmin .and. ibs < ibmax ))  .and. &
-                ((  jbs <  jbmin .and. jbe > jbmin )	.or.  &
-                (   jbs >= jbmin .and. jbs < jbmax))   .and. &   
-                ((  kbs <  kbmin .and. kbe > kbmin )	.or.  &
-                (   kbs >= kbmin .and. kbs < kbmax)))  then
+            if  ((( ibmin_md <  ibmin_cfd .and. ibmax_md > ibmin_cfd )	.or.  &
+                (   ibmin_md >= ibmin_cfd .and. ibmin_md < ibmax_cfd )) .and. &
+                ((  jbmin_md <  jbmin_cfd .and. jbmax_md > jbmin_cfd )	.or.  &
+                (   jbmin_md >= jbmin_cfd .and. jbmin_md < jbmax_cfd))  .and. &   
+                ((  kbmin_md <  kbmin_cfd .and. kbmax_md > kbmin_cfd )	.or.  &
+                (   kbmin_md >= kbmin_cfd .and. kbmin_md < kbmax_cfd)))  then
 
 				!This processor overlaps the MD domain
                 overlap_mask(i) = 1
 
 				!I think this ensures local min/max are replaced by global min/max values if appropriate
-                overlap_box(1,i) = max(ibmin,ibs)
-                overlap_box(2,i) = min(ibmax,ibe)
-                overlap_box(3,i) = max(jbmin,jbs)
-                overlap_box(4,i) = min(jmax_overlap,jbe)
-                overlap_box(5,i) = max(kbmin,kbs)
-                overlap_box(6,i) = min(kbmax,kbe)
+                overlap_box(1,i) = max(ibmin_cfd,ibmin_md)
+                overlap_box(2,i) = min(ibmax_cfd,ibmax_md)
+                overlap_box(3,i) = max(jbmin_cfd,jbmin_md)
+                overlap_box(4,i) = min(j_olap,jbmax_md)
+                overlap_box(5,i) = max(kbmin_cfd,kbmin_md)
+                overlap_box(6,i) = min(kbmax_cfd,kbmax_md)
 
             else
                 overlap_mask(i) = 0
@@ -489,8 +489,6 @@ contains
             endif
 
         enddo
-
-        !write(0,*)' CFD: overlap ', myid_grid, overlap_mask, overlap_box
 
     end subroutine find_overlaps
 
