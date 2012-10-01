@@ -195,6 +195,8 @@ subroutine simulation_apply_constant_force(ixyz,F_const)
 
 end subroutine simulation_apply_constant_force
 
+#if USE_COUPLER
+
 !=============================================================================
 ! Apply force from Nie et al (2004) paper to fix molecular velocity to
 ! continuum value inside the overlap region. 
@@ -324,10 +326,6 @@ subroutine apply_continuum_forces_ES(iter)
 	!enddo
 
 end subroutine apply_continuum_forces_ES
-
-
-
-
 
 !=============================================================================
 ! Apply force to match velocity to continuum using CV formulation of Nie et al 2004
@@ -564,3 +562,5 @@ subroutine CFD_cells_to_MD_compute_cells(ii_cfd,jj_cfd,kk_cfd, &
 	print*,'zcells', zg(kk_cfd  ),(zg(kk_cfd)-zL_min)/cellsidelength(3)+1, (zg(kk_cfd+1)-zL_min)/cellsidelength(3)+1
 
 end subroutine CFD_cells_to_MD_compute_cells
+
+#endif
