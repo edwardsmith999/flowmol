@@ -238,10 +238,20 @@ subroutine coupler_create_map
 	integer		:: n,ierr
 
 	!Get ranges of cells on each MD processor
-	call get_cell_ranges
+	call get_md_cell_ranges
+
+
+    ! Find overlaps between processors
+    !call find_overlaps
 
 	!Get overlapping mapping for MD to CFD
 	call get_overlap_blocks
+
+	!Setup overlap communicators
+
+	!Setup graph topology
+	!call CPL_overlap_topology
+
 
 	!Write Debug information
 	if (coupler_realm .eq. COUPLER_CFD) then
@@ -257,6 +267,52 @@ subroutine coupler_create_map
 	call MPI_barrier(COUPLER_GLOBAL_COMM,ierr)
 
 contains
+
+	!------------------------------------------------------------
+	!Calculate processor cell ranges of MD code on all processors
+		
+	subroutine get_md_cell_ranges
+	use coupler_input_data, only : cfd_coupler_input
+	implicit none
+
+		integer :: startproc
+		integer, parameter :: Tnull = -666
+
+		allocate(iTmin_md(npx_md)); iTmin_md = Tnull
+		allocate(jTmin_md(npy_md)); jTmin_md = Tnull
+		allocate(kTmin_md(npz_md)); kTmin_md = Tnull
+		allocate(iTmax_md(npx_md)); iTmax_md = Tnull
+		allocate(jTmax_md(npy_md)); jTmax_md = Tnull
+		allocate(kTmax_md(npz_md)); kTmax_md = Tnull
+
+		! - - x - -
+		nlgx_md = ceiling(dble(ngx)/dble(npx_md))
+		do n=1,npx_md
+			iTmax_md(n) = n * nlgx_md
+			iTmin_md(n) = iTmax_md(n) - nlgx_md + 1
+		end do	
+
+		! - - y - -
+		nlgy_md = ceiling(dble(ngy)/dble(npy_md))
+		yL_olap = j_olap * dy
+		yL_puremd = yL_md - yL_olap
+		ngy_puremd = yL_puremd / dy
+		yLl_md = yL_md / npy_md
+		startproc = ceiling(yL_puremd/yLl_md)
+		do n = startproc,npy_md
+			jTmax_md(n) = n * nlgy_md - ngy_puremd
+			jTmin_md(n) = jTmax_md(n) - nlgy_md + 1
+			if (jTmin_md(n).le.0) jTmin_md(n) = 1
+		end do 
+
+		! - - z - -
+		nlgz_md = ceiling(dble(ngz)/dble(npz_md))
+		do n=1,npz_md
+			kTmax_md(n) = n * nlgz_md
+			kTmin_md(n) = kTmax_md(n) - nlgz_md + 1
+		end do
+
+	end subroutine get_md_cell_ranges
 
 	!------------------------------------------------------------
 	!Calculate processor overlap between CFD/MD on all processors
@@ -329,51 +385,50 @@ contains
 		call MPI_Barrier(MPI_COMM_WORLD,ierr)
 			
 	end subroutine get_overlap_blocks
-	!------------------------------------------------------------
-	!Calculate processor cell ranges of MD code on all processors
-		
-	subroutine get_cell_ranges
-	use coupler_input_data, only : cfd_coupler_input
-	implicit none
 
-		integer :: startproc
-		integer, parameter :: Tnull = -666
+	!Setup topology graph of overlaps between CFD & MD processors
 
-		allocate(iTmin_md(npx_md)); iTmin_md = Tnull
-		allocate(jTmin_md(npy_md)); jTmin_md = Tnull
-		allocate(kTmin_md(npz_md)); kTmin_md = Tnull
-		allocate(iTmax_md(npx_md)); iTmax_md = Tnull
-		allocate(jTmax_md(npy_md)); jTmax_md = Tnull
-		allocate(kTmax_md(npz_md)); kTmax_md = Tnull
+!	subroutine CPL_overlap_topology
+!	use coupler_module, only : nproc_olap
+!	implicit none
 
-		! - - x - -
-		nlgx_md = ceiling(dble(ngx)/dble(npx_md))
-		do n=1,npx_md
-			iTmax_md(n) = n * nlgx_md
-			iTmin_md(n) = iTmax_md(n) - nlgx_md + 1
-		end do	
+!		integer	:: n, nneighbors
+!		logical :: reorder
 
-		! - - y - -
-		nlgy_md = ceiling(dble(ngy)/dble(npy_md))
-		yL_olap = j_olap * dy
-		yL_puremd = yL_md - yL_olap
-		ngy_puremd = yL_puremd / dy
-		yLl_md = yL_md / npy_md
-		startproc = ceiling(yL_puremd/yLl_md)
-		do n = startproc,npy_md
-			jTmax_md(n) = n * nlgy_md - ngy_puremd
-			jTmin_md(n) = jTmax_md(n) - nlgy_md + 1
-			if (jTmin_md(n).le.0) jTmin_md(n) = 1
-		end do 
+		!Allow optimisations of ordering
+!		reorder = .true.
 
-		! - - z - -
-		nlgz_md = ceiling(dble(ngz)/dble(npz_md))
-		do n=1,npz_md
-			kTmax_md(n) = n * nlgz_md
-			kTmin_md(n) = kTmax_md(n) - nlgz_md + 1
-		end do
+		!Get number of processors in communicating overlap region 
+!		call MPI_comm_size(MPI_OLAP_COMM, nproc_olap, ierr)
 
-	end subroutine get_cell_ranges
+		!CFD processor is root and has mapping to all MD processors
+!		allocate(index(nproc_olap))			!Index for each processor
+!		allocate(edges(2*(nproc_olap-1)))	!nproc_olap-1 for CFD and one for each of nproc_olap MD processors
+
+		!CFD processor has connections to nproc_olap MD processors
+!		index(rootid+1) = nproc_olap
+!		do n = 1,nproc_olap
+!			edges(n) = n
+!		enddo
+
+		!MD processor has a single connection to CFD
+!		i = 2
+!		do n = nproc_olap,2*(nproc_olap-1)
+!			index(i) = index(i-1) + 1
+!			edges(n) = rootid
+!			i = i + 1
+!		enddo
+
+		!Create graph topology for overlap region
+!		call MPI_Graph_create(MPI_OLAP_COMM, nproc_olap, index, edges,reorder, MPI_OLAP_GRAPH_COMM, ierr)
+
+		! - - TEST - - TEST - -
+		!Get number of neighbours
+!		call MPI_Graph_neighbors_count( MPI_OLAP_COMM, myid, nneighbors, ierr)
+		!Get neighbours
+!		call MPI_Graph_neighbors( MPI_OLAP_COMM, myid, nneighbors, neighbors,ierr )
+
+!	end subroutine CPL_overlap_topology
 
 	!------------------------------------------------------------
 	! Write MD cell mapping to file

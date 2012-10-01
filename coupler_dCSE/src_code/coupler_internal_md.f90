@@ -44,7 +44,7 @@ module coupler_internal_md
     type(cfd_grid_info) cfd_box
  
 	! write or not the overlap map
-	logical :: dump_ovlerlap_map = .true.
+	logical :: dump_overlap_map = .true.
 
 	type cfd_box_sum
 		integer np
@@ -245,9 +245,9 @@ subroutine coupler_md_init(nsteps,dt_md,icomm_grid,icoord,npxyz_md,globaldomain,
 							iTmin_cfd,iTmax_cfd,jTmin_cfd,jTmax_cfd,kTmin_cfd,kTmax_cfd
 
 	!Calculate the cell sizes dx,dy & dz
-	dx = xpg(2,1)-xpg(1,1)
-	dy = ypg(1,2)-ypg(1,1)
-	dz = zpg(2  )-zpg(1  )
+	dx = xL_cfd/ngx	  !xpg(2,1)-xpg(1,1)
+	dy = yL_cfd/ngy	  !ypg(1,2)-ypg(1,1)
+	dz = zL_cfd/ngz	  !zpg(2  )-zpg(1  )
 
     ! Initialise other md module variables if data is provided in coupler.in
 	if (md_average_period_tag == CPL) then 
@@ -346,12 +346,13 @@ subroutine create_map_md
 		endif
 	enddo
 
+    ! Receive the range of the overlapping domains
 	do i =1, ir
 		call mpi_irecv(map%domains(1,i), 6, MPI_INTEGER,map%rank_list(i),2, COUPLER_ICOMM,ireq(i),ierr)
 	enddo
 	call mpi_waitall(ir,ireq,MPI_STATUSES_IGNORE,ierr)
 
-	if ( dump_ovlerlap_map) then
+	if ( dump_overlap_map) then
 		call write_overlap_map
 	endif
 
