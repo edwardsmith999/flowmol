@@ -22,55 +22,6 @@ module module_external_forces
 
 end module module_external_forces
 
-
-module coupler_module
-
-	! <=><=><=><=> Grid and domain data <=><=><=><=> 
-	! Density
-	real(kind(0.d0))	:: density_cfd, density_md
-	! CFD/MD number of cells
-    integer	:: ngx,ngy,ngz						!Global
-	integer	:: nlgx_cfd,nlgy_cfd,nlgz_cfd, & 	!Local CFD
-			   nlgx_md ,nlgy_md ,nlgz_md 		!Local MD
-	! Overlap cells 
-    integer :: i_olap,j_olap,k_olap	
-	! MD grid indices
-	integer	:: ngy_puremd
-	! CFD grid indices
-    integer	:: imin,imax,jmin,jmax,kmin,kmax 
-	! CFD/MD local grid indices (start and end of grid per CFD/MD process)
-    integer,dimension(:),allocatable :: iTmin_cfd,iTmax_cfd,jTmin_cfd,jTmax_cfd,kTmin_cfd,kTmax_cfd, & 
-										iTmin_md ,iTmax_md ,jTmin_md ,jTmax_md ,kTmin_md ,kTmax_md 
-	! Domain sizes
-	real(kind(0.d0)) ::	xL_md  ,yL_md  ,zL_md , & 
-						xL_cfd ,yL_cfd ,zL_cfd, &
-						xL_olap,yL_olap,zL_olap,&
-								yL_puremd
-	! Local Domain
-	real(kind(0.d0)) :: yLl_md, yLl_cfd
-
-	!CFD cells sizes 
-	real(kind(0.d0)) 								   :: dx,dymin,dy,dymax,dz
-    real(kind(0.d0)),dimension(:),  allocatable,target :: zpg
-    real(kind(0.d0)),dimension(:,:),allocatable,target :: xpg,ypg
-
-	! <=><=><=><=> Processor Topology & MPI <=><=><=><=> 
-	!Global processor number across both realms
-	integer	:: myid
-	!Processor id in grid
-	integer	:: myid_grid,iblock,jblock,kblock
-	! Number of processor in CFD grid
-	integer :: npx_cfd, npy_cfd, npz_cfd, nproc_cfd	
-    ! Number of processor in MD grid
-    integer :: npx_md,  npy_md,  npz_md,  nproc_md
-    ! Coordinates of MD/CFD topologies
-	integer,dimension(:,:),allocatable 	 :: rank2coord_cfd, rank2coord_md
-    integer,dimension(:,:,:),allocatable :: coord2rank_cfd, coord2rank_md
-	!Mapping between CFD processors and MD processors
-    integer,dimension(:,:),allocatable :: imap_olap,jmap_olap,kmap_olap
-
-end module coupler_module
-
 #if USE_COUPLER
 
 !--------------------------------------------------------------------------------------
@@ -167,12 +118,12 @@ subroutine simulation_apply_linear_forces
 	!double precision :: y, y0, y1, y2, y3
 	integer         			:: n, molno, ixyz
 	integer         			:: cbin, binnp
-	integer					:: ibin, jbin, kbin
-	integer					:: averagecount
+	integer						:: ibin, jbin, kbin
+	integer						:: averagecount
 	double precision 			:: F, fixdist, slicebinsize
 	double precision			:: isumvel, isumacc
 	double precision, dimension(overlap)	:: continuum_u
-	type(node), pointer:: old, current
+	type(node), pointer			:: old, current
 
 	if (jblock .eq. npy) then
 
@@ -252,11 +203,12 @@ end subroutine simulation_apply_constant_force
 
 subroutine apply_continuum_forces_ES(iter)
 	use computational_constants_MD, only : delta_t,nh,halfdomain,ncells, & 
-											cellsidelength,initialstep,Nsteps,iblock,jblock,kblock, & 
+											cellsidelength,initialstep,Nsteps, & 
 											npx,npy,npz
 	use arrays_MD, only : r, v, a
 	use linked_list, only : node, cell
-	use coupler_module, only : iTmin_md,iTmax_md,jTmin_md,jTmax_md,kTmin_md,kTmax_md
+	use coupler_module, only : icPmin_md,icPmax_md,jcPmin_md,jcPmax_md,kcPmin_md,kcPmax_md, & 
+								iblock_realm,jblock_realm,kblock_realm
 	implicit none
 
 	integer, intent(in) 				:: iter ! iteration step, it assumes that each MD average starts from iter = 1
@@ -273,16 +225,16 @@ subroutine apply_continuum_forces_ES(iter)
 	integer         					:: averagecount
 	double precision					:: average
 
-	!allocate(u_continuum(iTmin_md(iblock):iTmax_md(iblock), & 
-	!					 jTmin_md(jblock):jTmax_md(jblock), & 
-	!					 kTmin_md(kblock):kTmax_md(kblock)))
+	!allocate(u_continuum(icPmin_md(iblock_realm):icPmax_md(iblock_realm), & 
+	!					 jcPmin_md(jblock_realm):jcPmax_md(jblock_realm), & 
+	!					 kcPmin_md(kblock_realm):kcPmax_md(kblock_realm)))
 
-	!	print'(a,6i8)', 'limits', iTmin_md(iblock),iTmax_md(iblock),jTmin_md(jblock),jTmax_md(jblock),kTmin_md(kblock),kTmax_md(kblock)
+	!	print'(a,6i8)', 'limits', icPmin_md(iblock_realm),icPmax_md(iblock_realm),jcPmin_md(jblock_realm),jcPmax_md(jblock_realm),kcPmin_md(kblock_realm),kcPmax_md(kblock_realm)
 
 
-	!do ii=iTmin_md(iblock),iTmax_md(iblock)
-	!do jj=jTmin_md(jblock),jTmax_md(jblock)
-	!do kk=kTmin_md(kblock),kTmax_md(kblock)
+	!do ii=icPmin_md(iblock_realm),icPmax_md(iblock_realm)
+	!do jj=jcPmin_md(jblock_realm),jcPmax_md(jblock_realm)
+	!do kk=kcPmin_md(kblock_realm),kcPmax_md(kblock_realm)
 
 		allocate(u_continuum(1,1,1))
 		u_continuum = 1.d0
@@ -384,11 +336,13 @@ end subroutine apply_continuum_forces_ES
 
 subroutine apply_continuum_forces_CV(iter)
 	use computational_constants_MD, only : delta_t,nh,halfdomain,ncells, & 
-											cellsidelength,initialstep,Nsteps,iblock,jblock,kblock, & 
+											cellsidelength,initialstep,Nsteps, & 
 											npx,npy,npz
 	use arrays_MD, only : r, v, a
 	use linked_list, only : node, cell
-	use coupler_module, only : iTmin_md,iTmax_md,jTmin_md,jTmax_md,kTmin_md,kTmax_md
+	use coupler_module, only : icPmin_md,icPmax_md,jcPmin_md,jcPmax_md,kcPmin_md,kcPmax_md, & 
+							   iblock_realm,jblock_realm,kblock_realm
+	use md_coupler_socket
 	implicit none
 
 	integer, intent(in) 				:: iter ! iteration step, it assumes that each MD average starts from iter = 1
@@ -406,16 +360,16 @@ subroutine apply_continuum_forces_CV(iter)
 	integer         					:: averagecount
 	double precision					:: average
 
-	!allocate(u_continuum(iTmin_md(iblock):iTmax_md(iblock), & 
-	!					 jTmin_md(jblock):jTmax_md(jblock), & 
-	!					 kTmin_md(kblock):kTmax_md(kblock)))
+	!allocate(u_continuum(icPmin_md(iblock_realm):icPmax_md(iblock_realm), & 
+	!					 jcPmin_md(jblock_realm):jcPmax_md(jblock_realm), & 
+	!					 kcPmin_md(kblock_realm):kcPmax_md(kblock_realm)))
 
-	!	print'(a,6i8)', 'limits', iTmin_md(iblock),iTmax_md(iblock),jTmin_md(jblock),jTmax_md(jblock),kTmin_md(kblock),kTmax_md(kblock)
+	!	print'(a,6i8)', 'limits', icPmin_md(iblock_realm),icPmax_md(iblock_realm),jcPmin_md(jblock_realm),jcPmax_md(jblock_realm),kcPmin_md(kblock_realm),kcPmax_md(kblock_realm)
 
 
-	!do ii=iTmin_md(iblock),iTmax_md(iblock)
-	!do jj=jTmin_md(jblock),jTmax_md(jblock)
-	!do kk=kTmin_md(kblock),kTmax_md(kblock)
+	!do ii=icPmin_md(iblock_realm),icPmax_md(iblock_realm)
+	!do jj=jcPmin_md(jblock_realm),jcPmax_md(jblock_realm)
+	!do kk=kcPmin_md(kblock_realm),kcPmax_md(kblock_realm)
 		allocate(continuum_Fs(1,1,1))
 		continuum_Fs = 1.d0
 		ii = 1; jj=1; kk=1
@@ -512,77 +466,77 @@ subroutine get_cell_ranges
 	integer 			:: i,n,startproc
 	integer, parameter 	:: Tnull = -666
 
-	allocate(iTmin_md(npx)); iTmin_md = Tnull
-	allocate(jTmin_md(npy)); jTmin_md = Tnull
-	allocate(kTmin_md(npz)); kTmin_md = Tnull
-	allocate(iTmax_md(npx)); iTmax_md = Tnull
-	allocate(jTmax_md(npy)); jTmax_md = Tnull
-	allocate(kTmax_md(npz)); kTmax_md = Tnull
+	allocate(icPmin_md(npx)); icPmin_md = Tnull
+	allocate(jcPmin_md(npy)); jcPmin_md = Tnull
+	allocate(kcPmin_md(npz)); kcPmin_md = Tnull
+	allocate(icPmax_md(npx)); icPmax_md = Tnull
+	allocate(jcPmax_md(npy)); jcPmax_md = Tnull
+	allocate(kcPmax_md(npz)); kcPmax_md = Tnull
 
 	xL_cfd = 181.1; yL_cfd = 181.1; zL_cfd = 10.0
-	ngx = 64;	ngy = 64;	ngz = 8
-	j_olap = 5
+	ncx = 64;	ncy = 64;	ncz = 8
+	ncy_olap = 5
 	yL_md = domain(2)
 
-  	allocate( xpg(ngx+1,ngy+1) , ypg(ngx+1,ngy+1), zpg(ngz+1) )
+  	allocate( xg(ncx+1,ncy+1) , yg(ncx+1,ncy+1), zg(ncz+1) )
 	!----- X grid ------
-	dx = xL_cfd  / ngx
-	do i=1,ngx
-		xpg(i,:) = (i-1.) * dx
+	dx = xL_cfd  / ncx
+	do i=1,ncx
+		xg(i,:) = (i-1.) * dx
 	end do
 
 	!----- Y grid ------
-	dy = yL_cfd  / ngy
-	do i=1,ngy
-		ypg(i,:) = (i-1.) * dy
+	dy = yL_cfd  / ncy
+	do i=1,ncy
+		yg(i,:) = (i-1.) * dy
 	end do
 
 	!----- Z grid ------
-	dz = zL_cfd  / ngz
-	do i=1,ngz
-		zpg(i) = (i-1.) * dz
+	dz = zL_cfd  / ncz
+	do i=1,ncz
+		zg(i) = (i-1.) * dz
 	end do
 		
 	! - - x - -
-	nlgx_md = ceiling(dble(ngx)/dble(npx))
+	nlgx_md = ceiling(dble(ncx)/dble(npx))
 	do n=1,npx
-		iTmax_md(n) = n * nlgx_md
-		iTmin_md(n) = iTmax_md(n) - nlgx_md + 1
+		icPmax_md(n) = n * nlgx_md
+		icPmin_md(n) = icPmax_md(n) - nlgx_md + 1
 	end do	
 
 	! - - y - -
-	nlgy_md = ceiling(dble(ngy)/dble(npy))
-	yL_olap = j_olap * dy
+	nlgy_md = ceiling(dble(ncy)/dble(npy))
+	yL_olap = ncy_olap * dy
 	yL_puremd = yL_md - yL_olap
-	ngy_puremd = yL_puremd / dy
+	ncy_puremd = yL_puremd / dy
 	yLl_md = yL_md / npy
 	startproc = ceiling(yL_puremd/yLl_md)
 	do n = startproc,npy
-		jTmax_md(n) = n * nlgy_md - ngy_puremd
-		jTmin_md(n) = jTmax_md(n) - nlgy_md + 1
-		if (jTmin_md(n).le.0) jTmin_md(n) = 1
+		jcPmax_md(n) = n * nlgy_md - ncy_puremd
+		jcPmin_md(n) = jcPmax_md(n) - nlgy_md + 1
+		if (jcPmin_md(n).le.0) jcPmin_md(n) = 1
 	end do 
 
 	! - - z - -
-	nlgz_md = ceiling(dble(ngz)/dble(npz))
+	nlgz_md = ceiling(dble(ncz)/dble(npz))
 	do n=1,npz
-		kTmax_md(n) = n * nlgz_md
-		kTmin_md(n) = kTmax_md(n) - nlgz_md + 1
+		kcPmax_md(n) = n * nlgz_md
+		kcPmin_md(n) = kcPmax_md(n) - nlgz_md + 1
 	end do
 
 end subroutine get_cell_ranges
 
 !------------------------------------------
-!subroutine CFD_cells_to_MD_compute_cells(ibmin_cfd,imin_cfd,jbmin_cfd,jmin_cfd,kbmin_cfd,kmin_cfd, & 
-!										  ibmin_md, imin_md, jbmin_md, jmin_md, kbmin_md, kmin_md)
+!subroutine CFD_cells_to_MD_compute_cells(ibmin_cfd,icmin_cfd,jbmin_cfd,jcmin_cfd,kbmin_cfd,kcmin_cfd, & 
+!										  ibmin_md, icmin_md, jbmin_md, jcmin_md, kbmin_md, kcmin_md)
 !	implicit none
 
-!	integer,intent(in)		:: ibmin_cfd,imin_cfd,jbmin_cfd,jmin_cfd,kbmin_cfd,kmin_cfd
-!	integer,intent(out)		:: ibmin_md,imin_md,jbmin_md,jmin_md,kbmin_md,kmin_md
+!	integer,intent(in)		:: ibmin_cfd,icmin_cfd,jbmin_cfd,jcmin_cfd,kbmin_cfd,kcmin_cfd
+!	integer,intent(out)		:: ibmin_md,icmin_md,jbmin_md,jcmin_md,kbmin_md,kcmin_md
 
 subroutine CFD_cells_to_MD_compute_cells(ii_cfd,jj_cfd,kk_cfd, & 
 										  ibmin_md, ibmax_md, jbmin_md, jbmax_md, kbmin_md, kbmax_md)
-	use coupler_module, only : xpg, ypg, zpg, xL_md,yL_md,zL_md, iblock,jblock,kblock
+	use coupler_module, only : xg, yg, zg, xL_md,yL_md,zL_md, iblock_realm,jblock_realm,kblock_realm
 	use computational_constants_MD, only : cellsidelength
 	implicit none
 
@@ -592,21 +546,21 @@ subroutine CFD_cells_to_MD_compute_cells(ii_cfd,jj_cfd,kk_cfd, &
 	double precision		:: xL_min,xL_max,yL_min,yL_max,zL_min,zL_max
 
 	! Get minimum point in processors domain
-	xL_min = xL_md*(iblock-1); xL_max = xL_md*(iblock)
-	yL_min = yL_md*(jblock-1); yL_max = yL_md*(jblock)
-	zL_min = zL_md*(kblock-1); zL_max = zL_md*(kblock)
+	xL_min = xL_md*(iblock_realm-1); xL_max = xL_md*(iblock_realm)
+	yL_min = yL_md*(jblock_realm-1); yL_max = yL_md*(jblock_realm)
+	zL_min = zL_md*(kblock_realm-1); zL_max = zL_md*(kblock_realm)
 
 	! Get range of cells to check so that top and bottom of current CFD cell are covered
-	ibmin_md = (xpg(ii_cfd  ,jj_cfd  )-xL_min)/cellsidelength(1)+1
-	ibmax_md = (xpg(ii_cfd+1,jj_cfd  )-xL_min)/cellsidelength(1)+1
-	jbmin_md = (ypg(ii_cfd  ,jj_cfd  )-yL_min)/cellsidelength(2)+1
-	jbmax_md = (ypg(ii_cfd  ,jj_cfd+1)-yL_min)/cellsidelength(2)+1
-	kbmin_md = (zpg(     kk_cfd      )-zL_min)/cellsidelength(3)+1
-	kbmax_md = (zpg(     kk_cfd+1    )-zL_min)/cellsidelength(3)+1
+	ibmin_md = (xg(ii_cfd  ,jj_cfd  )-xL_min)/cellsidelength(1)+1
+	ibmax_md = (xg(ii_cfd+1,jj_cfd  )-xL_min)/cellsidelength(1)+1
+	jbmin_md = (yg(ii_cfd  ,jj_cfd  )-yL_min)/cellsidelength(2)+1
+	jbmax_md = (yg(ii_cfd  ,jj_cfd+1)-yL_min)/cellsidelength(2)+1
+	kbmin_md = (zg(     kk_cfd      )-zL_min)/cellsidelength(3)+1
+	kbmax_md = (zg(     kk_cfd+1    )-zL_min)/cellsidelength(3)+1
 
 	print'(a,9i8)','indices', ii_cfd,ibmin_md,ibmax_md,jj_cfd,jbmin_md,jbmax_md,kk_cfd,kbmin_md,kbmax_md
-	print*,'xcells', xpg(ii_cfd  ,jj_cfd  ),(xpg(ii_cfd  ,jj_cfd  )-xL_min)/cellsidelength(1)+1, (xpg(ii_cfd+1,jj_cfd  )-xL_min)/cellsidelength(1)+1
-	print*,'ycells', ypg(ii_cfd  ,jj_cfd  ),(ypg(ii_cfd  ,jj_cfd  )-yL_min)/cellsidelength(2)+1, (ypg(ii_cfd+1,jj_cfd  )-yL_min)/cellsidelength(2)+1
-	print*,'zcells', zpg(kk_cfd  ),(zpg(kk_cfd)-zL_min)/cellsidelength(3)+1, (zpg(kk_cfd+1)-zL_min)/cellsidelength(3)+1
+	print*,'xcells', xg(ii_cfd  ,jj_cfd  ),(xg(ii_cfd  ,jj_cfd  )-xL_min)/cellsidelength(1)+1, (xg(ii_cfd+1,jj_cfd  )-xL_min)/cellsidelength(1)+1
+	print*,'ycells', yg(ii_cfd  ,jj_cfd  ),(yg(ii_cfd  ,jj_cfd  )-yL_min)/cellsidelength(2)+1, (yg(ii_cfd+1,jj_cfd  )-yL_min)/cellsidelength(2)+1
+	print*,'zcells', zg(kk_cfd  ),(zg(kk_cfd)-zL_min)/cellsidelength(3)+1, (zg(kk_cfd+1)-zL_min)/cellsidelength(3)+1
 
 end subroutine CFD_cells_to_MD_compute_cells
