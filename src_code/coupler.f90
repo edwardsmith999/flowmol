@@ -89,7 +89,7 @@ contains
 ! 		   and create intercommunicator between CFD and MD
 !-----------------------------------------------------------------------------
 
-subroutine coupler_create_comm(callingrealm, REALM_COMM, ierror)
+subroutine coupler_create_comm(callingrealm, RETURNED_REALM_COMM, ierror)
 	use mpi
 	use coupler_module, only : rank_world,myid_world,rootid_world, & 
 							   realm, rank_realm,myid_realm,rootid_realm, ierr, & 
@@ -98,7 +98,7 @@ subroutine coupler_create_comm(callingrealm, REALM_COMM, ierror)
 	implicit none
 
 	integer, intent(in) :: callingrealm ! CFD or MD
-	integer, intent(out):: REALM_COMM, ierror
+	integer, intent(out):: RETURNED_REALM_COMM, ierror
 
 	!Get processor id in world across both realms
 	call MPI_comm_rank(MPI_COMM_WORLD,myid_world,ierr)
@@ -176,16 +176,14 @@ subroutine create_comm
 	! 2) An inter-communicator which allows communication between  
 	! the 'groups' of processors in MD and the group in the CFD 
 	call MPI_comm_dup(MPI_COMM_WORLD,CPL_WORLD_COMM,ierr)
-	REALM_COMM		= MPI_COMM_NULL
-	CPL_REALM_COMM 	= MPI_COMM_NULL
+	RETURNED_REALM_COMM	= MPI_COMM_NULL
+	CPL_REALM_COMM 		= MPI_COMM_NULL
 
 	!------------ create realm intra-communicators -----------------------
 	! Split MPI_COMM_WORLD into an intra-communicator for each realm 
 	! (used for any communication within each realm - e.g. broadcast from 
 	!  an md process to all other md processes) 
-	! THIS COMMUNICATOR IS REDEFINED TO BE THE CARTESIAN COMMUNICATOR OF 
-	! BOTH CODES DURING THE INITIALISATION
-	call MPI_comm_split(CPL_WORLD_COMM,callingrealm,myid_world,REALM_COMM,ierr)
+	call MPI_comm_split(CPL_WORLD_COMM,callingrealm,myid_world,RETURNED_REALM_COMM,ierr)
 
 	!------------ create realm inter-communicators -----------------------
 	! Create intercommunicator between the group of processor on each realm

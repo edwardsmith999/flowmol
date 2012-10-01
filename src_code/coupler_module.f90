@@ -242,8 +242,6 @@ subroutine messenger_lasterrorcheck
 
 end subroutine messenger_lasterrorcheck
 
-
-
 !--------------------------------------------------------------------------------------
 !Write matrix in correct format
 

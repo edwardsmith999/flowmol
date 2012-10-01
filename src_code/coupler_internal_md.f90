@@ -92,7 +92,7 @@ subroutine coupler_md_init(nsteps,dt_md,icomm_grid,icoord,npxyz_md,globaldomain,
     call MPI_comm_rank(CPL_CART_COMM,myid_cart,ierr) 
     rank_cart = myid_cart + 1; rootid_cart = 0	
 	!Send only from root processor
-	if ( myid_cart .eq. rootid_cart ) then
+	if ( myid_realm .eq. rootid_realm ) then
 		source=MPI_ROOT
 	else
 		source=MPI_PROC_NULL
