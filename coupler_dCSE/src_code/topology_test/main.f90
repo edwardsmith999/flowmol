@@ -262,8 +262,6 @@ subroutine setup_input_and_arrays
 	yLl_md = yL_md/npy_md
 	yLl_cfd = yL_cfd/npy_cfd
 
-	call barrier
-
 end subroutine setup_input_and_arrays
 
 !subroutine get_overlap_gridstretch
