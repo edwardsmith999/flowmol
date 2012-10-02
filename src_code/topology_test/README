@@ -1,0 +1,6 @@
+Topology_test contains a standalone code that is designed to perform the
+communications and mapping setup of the coupler only. Module source files
+are symbolically linked to the src_code directory.
+
+The python script "run.py" reads the input file "procs", and makes a system
+call to mpiexec with the appropriate number of processors. 

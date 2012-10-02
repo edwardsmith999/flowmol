@@ -22,17 +22,17 @@
 module coupler_module
 	use coupler_parameters
 
-	!MPI error flag
+	! MPI error flag
 	integer		:: ierr	
 
 	! MPI Communicators
 	integer :: &
-		CPL_WORLD_COMM,   & ! Duplicate of MPI_COMM_WORLD -- Contains both realms' processors
-		CPL_REALM_COMM,   & ! INTRA communicators -- within MD/CFD realms
-		CPL_INTER_COMM,   & ! CFD/MD INTER communicator -- between MD/CFD COUPLER_REALM_COMMs
-		CPL_CART_COMM,    & ! CFD/MD communicator with cartesian topology -- within MD/CFD realms
-		CPL_OLAP_COMM,    & ! Local communicator -- between only MD/CFD processors which locally overlap
-		CPL_REALM_INTERSECTION_COMM ! Communicator of all intersecting processors -- between CFD/MD realm 
+		CPL_WORLD_COMM,   & ! Copy of MPI_COMM_WORLD, both CFD and MD realms
+		CPL_REALM_COMM,   & ! INTRA communicators within MD/CFD realms
+		CPL_INTER_COMM,   & ! CFD/MD INTER communicator between realm comms
+		CPL_CART_COMM,    & ! Comm w/cartesian topology for each realm
+		CPL_OLAP_COMM,    & ! Local comm between only overlapping MD/CFD procs
+		CPL_REALM_INTERSECTION_COMM ! Intersecting MD/CFD procs in world
 
 	! Simulation realms
 	integer :: &
@@ -51,10 +51,10 @@ module coupler_module
 		rootid_cart,      &	!Root processor in each cart topology
 		myid_olap,        & !Processor ID from 0 to nproc_olap-1
 		rank_olap,        & !Processor rank from 1 to nproc_olap
-		rootid_olap  		!Root processor in overlap is the CFD processor
+		rootid_olap         !Root proc in overlap is the CFD one 
 	integer, dimension(:), allocatable :: &
-		rank_cfd2rank_world, &	!Get world rank from realm rank
-		rank_md2rank_world		!Get realm rank from world rank
+		rank_cfd2rank_world, & !Get world rank from realm rank
+		rank_md2rank_world     !Get world rank from realm rank
 
 	! Processor topologies
 	integer :: &
@@ -184,6 +184,8 @@ module coupler_module
 	real(kind(0.d0)) ::	yL_puremd
 	! Local Domain
 	real(kind(0.d0)) :: yLl_md, yLl_cfd
+	
+	integer :: testval
 	!-------------------------------------------------------------------------!
 
 	interface error_abort

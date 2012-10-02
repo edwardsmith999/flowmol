@@ -496,7 +496,6 @@ contains
         ! Test if the local grid contains local MD domain
         ! that is: x(bbox%is) < bboxbb(1,1) ; bbox%bb(2,1) < x(bbox%ie) ...
 
-
 		! Set maximum local grid sizes
 		nlgx_md = bbox%ieo - bbox%iso + 1
 		nlgy_md = bbox%jeo - bbox%jso + 1
