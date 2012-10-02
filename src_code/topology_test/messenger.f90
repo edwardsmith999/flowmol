@@ -42,7 +42,7 @@ subroutine create_realms
 	call collect_coord2ranks
 	call collect_rank2coords
 	call collect_rank2ranks
-	call print_realm_info
+	call write_realm_info
 
 end subroutine create_realms
 
@@ -188,84 +188,9 @@ subroutine prepare_overlap_comms
 	deallocate(mdjcoords)
 	deallocate(mdkcoords)
 
-!	integer :: trank_md, trank_cfd, trank_world, tid_md, tid_world
-!	integer :: ncxl_cfd
-!	integer :: ncyl_cfd
-!	integer :: nczl_cfd
-!	integer :: ncyP_md
-!	integer :: ncy_md
-!	integer :: ncy_olap
-!	integer :: olap_jmin_mdcoord
-!	integer, parameter :: coordnull = -666
-!	integer :: mdcoord(3)
-!	integer :: cfdcoord(3)
-!	integer :: group(nproc_world)
-!
-!	ncxl_cfd = ncx / npx_cfd
-!	ncyl_cfd = ncy / npy_cfd
-!	nczl_cfd = ncz / npz_cfd
+	if (realm.eq.md_realm) call write_overlap_comms_md
 
-!	do trank_md = 1,nproc_md
-!		
-!		trank_world = rank_md2rank_world(trank_md)
-!
-!		tid_md = trank_md - 1
-!
-!		if (realm.eq.md_realm) then
-!			call MPI_cart_coords(CPL_CART_COMM,tid_md,3,mdcoord,ierr)
-!			call MPI_comm_rank(CPL_WORLD_COMM,tid_world,ierr)
-!		end if
-!
-!		call MPI_bcast(mdcoord,3,MPI_INTEGER,tid_world,CPL_WORLD_COMM,ierr)
-!		mdcoord = mdcoord + 1
-!
-!		!CALCULATE OLAP_JMIN_MDCOORD
-!		mdcoord(2) = mdcoord(2) - (olap_jmin_mdcoord - 1) 
-!
-!		cfdcoord(1) = ceiling(mdcoord(1)*dble(npx_cfd)/dble(npx_md))	
-!		cfdcoord(2) = ceiling(mdcoord(2)*dble(npy_cfd)/dble(npy_md))
-!		cfdcoord(3) = ceiling(mdcoord(3)*dble(npz_cfd)/dble(npz_md))
-!		trank_cfd   = coord2rank_cfd(cfdcoord(1),cfdcoord(2),cfdcoord(3))
-!
-!		if (olap_mask(trank_world) .eq. 1) then
-!			group(trank_world) = trank_cfd
-!		else
-!			group(trank_world) = 0
-!		end if
-!
-!	end do
-!	
-!	do trank_cfd = 1,nproc_cfd 
-!
-!		trank_world = rank_cfd2rank_world(trank_cfd)
-!		if (olap_mask(trank_world) .eq. 1) then
-!			group(trank_world) = trank_cfd
-!		else
-!			group(trank_world) = 0
-!		end if
-!
-!	end do
-!	
-!	call MPI_comm_split(CPL_WORLD_COMM,group(rank_world),realm, &
-!	                    CPL_OLAP_COMM,ierr)
-!
-!	if (olap_mask(rank_world).eq.1) then
-!
-!		call MPI_comm_rank(CPL_OLAP_COMM,myid_olap,ierr)
-!		rank_olap = myid_olap + 1	
-!		if (myid_olap .eq. 0) testval = group(rank_world)
-!		call MPI_bcast(testval,1,MPI_INTEGER,0,CPL_OLAP_COMM,ierr)
-!
-!	else
-!
-!		CPL_OLAP_COMM = MPI_COMM_NULL
-!
-!	end if
-
-
-	call print_overlap_comms
-
-
+	!TODO OLAP COMM NULL
 
 end subroutine prepare_overlap_comms
 
@@ -336,78 +261,51 @@ subroutine gatherscatter
 
 end subroutine gatherscatter
 
-
-subroutine print_realm_info
+subroutine write_realm_info
 	use coupler_module
 	use mpi
 	implicit none
 
-	integer :: trank
 	integer :: coord(3)
 
-	call barrier
-
 	if (myid_world.eq.0) then
-		print*, '---------- REALM INFORMATION --------------'
-		print*, ' wrank    realm    realmrank   cart coords '
-		print*, '-------------------------------------------'
+		write(1000+rank_world,*), '---------- REALM INFORMATION --------------'
+		write(1000+rank_world,*), ' wrank  realm  realmrank       cart coords '
+		write(1000+rank_world,*), '-------------------------------------------'
 	end if
 
 	call MPI_cart_coords(CPL_CART_COMM,myid_cart,3,coord,ierr)
 	coord(:) = coord(:) + 1
 
-	do trank = 1,nproc_world
-		if (rank_world.eq.trank) then
-			if (realm .eq. md_realm) then
-				print('(i5,2x,a10,i8,4x,3i5)'), rank_world, 'md_realm',  &
-				      rank_realm, coord(1), coord(2), coord(3)
-			else if (realm .eq. cfd_realm) then
-				print('(i5,2x,a10,i8,4x,3i5)'), rank_world, 'cfd_realm', &
-				      rank_realm, coord(1), coord(2), coord(3)
-			end if
-		end if
-		call barrier
-	end do
+	write(1000+rank_world,'(3i6,a10,3i5)'),rank_world, realm, rank_realm,'',&
+	                                       coord(1), coord(2), coord(3)
 	
-	if (myid_world.eq.0) then
-		print*, '------------ END REALM INFO ---------------'
-		print*, '==========================================='
+	if (myid_world.eq.nproc_world) then
+		write(1000+rank_world,*), '------------ END REALM INFO ---------------'
+		write(1000+rank_world,*), '==========================================='
 	end if
 	
-end subroutine print_realm_info
+end subroutine write_realm_info
 
-subroutine print_overlap_comms
+subroutine write_overlap_comms_md
 	use coupler_module
 	use mpi
 	implicit none
 
-	integer :: trank
+	integer :: coord(3)
 
-	call barrier
-
-	if (myid_world.eq.0) then
-		print*, ''
-		print*, '----------- OVERLAP COMMS INFO ------------'
-		print*, '-------------------------------------------'
-		print*, '        RANKS              BROADCAST TEST  '
-		print*, '  world  realm  olap      testval( = group)'
-		print*, '-------------------------------------------'
+	if (myid_realm.eq.0) then
+		write(2000+rank_realm,*),'rank_realm,rank_olap,   mdcoord,'  &
+		                        ,'   overlapgroup' 
 	end if
 	
-	do trank = 1,nproc_world
-		if (rank_world.eq.trank) then
-			print('(3i7,i16)'), rank_world,rank_realm, &
-			                    rank_olap, testval 	
-		end if
-		call barrier
-	end do
+	call MPI_cart_coords(CPL_CART_COMM,myid_cart,3,coord,ierr)
+	coord(:) = coord(:) + 1
 
-	if (myid_world.eq.0) then
-		print*, '-------- END OVERLAP COMMS INFO  ----------'
-		print*, '==========================================='
-	end if
-	
-end subroutine print_overlap_comms
+	write(2000+rank_realm,'(2i7,a5,3i5,a5,i10)'), &
+		rank_realm,rank_olap,'',coord,'',testval 	
+
+end subroutine write_overlap_comms_md
 
 ! ++ UNINTERESTING ++ ========================================================
 subroutine initialise
