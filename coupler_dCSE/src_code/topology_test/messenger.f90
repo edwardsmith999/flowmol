@@ -147,7 +147,7 @@ subroutine prepare_overlap_comms
 	allocate(mdjcoords(npy_md/npy_cfd))
 	allocate(mdkcoords(npz_md/npz_cfd))
 
-	group = -666
+	group = olap_null
 
 	do trank_cfd = 1,nproc_cfd
 
@@ -175,14 +175,22 @@ subroutine prepare_overlap_comms
 
 	end do
 
+	! Split world Comm into a set of comms for overlapping processors
 	call MPI_comm_split(CPL_WORLD_COMM,group(rank_world),realm, &
 	                    CPL_OLAP_COMM,ierr)
 
 	call MPI_comm_rank(CPL_OLAP_COMM,myid_olap,ierr)
 	rank_olap = myid_olap + 1	
-
 	if (myid_olap .eq. 0) testval = group(rank_world)
 	call MPI_bcast(testval,1,MPI_INTEGER,0,CPL_OLAP_COMM,ierr)
+
+	! Set all non-overlapping processors to MPI_COMM_NULL
+	call MPI_comm_size(CPL_OLAP_COMM, nproc_olap, ierr)
+	if (group(rank_world).eq.olap_null) then
+		CPL_OLAP_COMM = MPI_COMM_NULL
+	elseif (nproc_olap .eq. 1) then
+		CPL_OLAP_COMM = MPI_COMM_NULL
+	endif
 
 	deallocate(mdicoords)
 	deallocate(mdjcoords)
@@ -193,6 +201,84 @@ subroutine prepare_overlap_comms
 	!TODO OLAP COMM NULL
 
 end subroutine prepare_overlap_comms
+
+
+
+!Setup topology graph of overlaps between CFD & MD processors
+
+subroutine CPL_overlap_topology
+	use coupler_module
+	use mpi
+	implicit none
+
+	integer								:: i, n, nneighbors, myid_graph, nconnections
+	integer, dimension(:),allocatable	:: index, edges, neighbors
+	logical								:: reorder
+
+	!Allow optimisations of ordering
+	reorder = .true.
+
+	!Get number of processors in communicating overlap region 
+	!call MPI_comm_rank(CPL_OLAP_COMM, myid_graph, ierr)
+	if (CPL_OLAP_COMM .ne. MPI_COMM_NULL) then
+
+		!call MPI_comm_size(CPL_OLAP_COMM, nproc_olap, ierr)
+
+		!CFD processor is root and has mapping to all MD processors
+		allocate(index(nproc_olap))			!Index for each processor
+		allocate(edges(2*(nproc_olap)-1))	!nproc_olap-1 for CFD and one for each of nproc_olap MD processors
+		index = 0; 	edges = 0
+
+
+		!select case(realm)
+		!case(cfd_realm)
+		!	print'(2a,i5,a,i5,a,4i5)', code_name(realm),' World procs ',myid_world+1, & 
+		!								' Is olap procs ', myid_olap+1, ' of ',nproc_olap, rank2coord_cfd(:,rank_realm)
+		!case(md_realm)
+		!	print'(2a,i5,a,i5,a,4i5)', code_name(realm),' World procs ',myid_world+1, & 
+		!								' Is olap procs ', myid_olap+1, ' of ',nproc_olap,rank2coord_md(:,rank_realm)
+		!end select
+
+		!CFD processor has connections to nproc_olap MD processors
+		nconnections = nproc_olap-1
+		index(1) = nconnections
+		do n = 1,nconnections
+			edges(n) = n !CFD connected to all MD processors 1 to nconnections
+			!if (myid_olap .eq. 0) &
+			!print*, 'CFD graph info',code_name(realm),myid_realm,myid_olap, index(1), edges(n)
+		enddo
+
+		!MD processor has a single connection to CFD
+		nconnections = 1; i = 2
+		do n = nproc_olap+1,2*(nproc_olap)-1
+			index(i) = index(i-1) + nconnections !Each successive index incremented by one
+			edges(n) = CFDid_olap	!Connected to CFD processor
+			!if (myid_olap .eq. 0) &
+			!print*, 'MD graph info',code_name(realm),myid_realm,myid_olap,n,i,index(i), edges(n)
+			i = i + 1
+		enddo
+
+		!if (myid_olap .eq. 0) &
+		!print*, 'final values  ', ' index = ',index, 'Edges = ',edges
+
+		!Create graph topology for overlap region
+		call MPI_Graph_create(CPL_OLAP_COMM, nproc_olap,index,edges,reorder,CPL_GRAPH_COMM,ierr)
+
+		! - - TEST - - TEST - -
+		!Get number of neighbours
+		call MPI_comm_rank( CPL_GRAPH_COMM, myid_graph, ierr)
+		call MPI_Graph_neighbors_count( CPL_GRAPH_COMM, myid_graph, nneighbors, ierr)
+		allocate(neighbors(nneighbors))
+		!Get neighbours
+		call MPI_Graph_neighbors( CPL_GRAPH_COMM, myid_graph, nneighbors, neighbors,ierr )
+
+		print*, 'My graph',myid_world,myid_graph,myid_olap, nneighbors, neighbors
+
+	endif
+
+
+
+end subroutine CPL_overlap_topology
 
 subroutine gatherscatter
 	use mpi

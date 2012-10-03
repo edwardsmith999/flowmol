@@ -8,6 +8,7 @@ program create_map
 	call get_overlap_blocks_cfd 
 	call create_realms
 	call prepare_overlap_comms
+	call CPL_overlap_topology
 
 	call gatherscatter
 	
