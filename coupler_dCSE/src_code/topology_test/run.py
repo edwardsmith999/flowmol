@@ -22,3 +22,9 @@ cmd = 'cat fort.10* > info_realms && rm fort.10*'
 system(cmd)
 cmd = 'cat fort.20* > info_olap_md && rm fort.20*'
 system(cmd)
+cmd = 'cat fort.3* > info_graph && rm fort.3*'
+system(cmd)
+cmd = 'cat fort.4* > info_MD_send && rm fort.4*'
+system(cmd)
+cmd = 'cat fort.5* > info_CFD_recv && rm fort.5*'
+system(cmd)

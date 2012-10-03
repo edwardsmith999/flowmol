@@ -33,11 +33,18 @@ subroutine create_realms
 		coord2rank_md(coord(1),coord(2),coord(3)) = rank_realm
 		rank2coord_md(:,rank_realm)    = coord(:)
 		rank_md2rank_world(rank_realm) = rank_world
+		iblock_realm=rank2coord_md(1,rank_realm)
+		jblock_realm=rank2coord_md(2,rank_realm)
+		kblock_realm=rank2coord_md(3,rank_realm)	
 	else if (realm .eq. cfd_realm) then
 		coord2rank_cfd(coord(1),coord(2),coord(3)) = rank_realm
 		rank2coord_cfd(:,rank_realm)    = coord(:)
 		rank_cfd2rank_world(rank_realm) = rank_world
+		iblock_realm=rank2coord_cfd(1,rank_realm)
+		jblock_realm=rank2coord_cfd(2,rank_realm)
+		kblock_realm=rank2coord_cfd(3,rank_realm)	
 	end if
+
 
 	call collect_coord2ranks
 	call collect_rank2coords
@@ -224,7 +231,7 @@ subroutine CPL_overlap_topology
 	use mpi
 	implicit none
 
-	integer								:: i, n, nneighbors, myid_graph, nconnections
+	integer								:: i, n, nneighbors, nconnections
 	integer, dimension(:),allocatable	:: index, edges, neighbors
 	logical								:: reorder
 
@@ -233,15 +240,13 @@ subroutine CPL_overlap_topology
 
 	!Get number of processors in communicating overlap region 
 	!call MPI_comm_rank(CPL_OLAP_COMM, myid_graph, ierr)
-	if (CPL_OLAP_COMM .ne. MPI_COMM_NULL) then
-
-		!call MPI_comm_size(CPL_OLAP_COMM, nproc_olap, ierr)
+	!if (CPL_OLAP_COMM .ne. MPI_COMM_NULL) then
+	if (olap_mask(rank_world).eq.1) then
 
 		!CFD processor is root and has mapping to all MD processors
 		allocate(index(nproc_olap))			!Index for each processor
 		allocate(edges(2*(nproc_olap)-1))	!nproc_olap-1 for CFD and one for each of nproc_olap MD processors
 		index = 0; 	edges = 0
-
 
 		!select case(realm)
 		!case(cfd_realm)
@@ -276,6 +281,7 @@ subroutine CPL_overlap_topology
 
 		!Create graph topology for overlap region
 		call MPI_Graph_create(CPL_OLAP_COMM, nproc_olap,index,edges,reorder,CPL_GRAPH_COMM,ierr)
+		call MPI_comm_rank(CPL_GRAPH_COMM,myid_graph,ierr)
 
 		! - - TEST - - TEST - -
 		!Get number of neighbours
@@ -284,12 +290,16 @@ subroutine CPL_overlap_topology
 		allocate(neighbors(nneighbors))
 		!Get neighbours
 		call MPI_Graph_neighbors( CPL_GRAPH_COMM, myid_graph, nneighbors, neighbors,ierr )
+		select case(realm)
+		case(cfd_realm)
+			write(3000+myid_world,*), code_name(realm),' My graph',myid_world,myid_graph,myid_olap,rank2coord_cfd(:,rank_realm), nneighbors, neighbors
+		case(md_realm)
+			write(3000+myid_world,*), code_name(realm),' My graph',myid_world,myid_graph,myid_olap,rank2coord_md(:,rank_realm), nneighbors, neighbors
+		end select
+		! - - TEST - - TEST - -
 
-		print*, 'My graph',myid_world,myid_graph,myid_olap, nneighbors, neighbors
 
 	endif
-
-
 
 end subroutine CPL_overlap_topology
 
@@ -359,6 +369,333 @@ subroutine gatherscatter
 	if (realm.eq.md_realm) deallocate(u)
 
 end subroutine gatherscatter
+
+
+module coupler
+
+
+    interface coupler_send
+        module procedure coupler_send_3d, coupler_send_4d
+    end interface
+
+    interface coupler_recv
+        module procedure coupler_recv_3d, coupler_recv_4d
+    end interface
+
+    private coupler_send_3d, coupler_send_4d, &
+        coupler_send_xd, coupler_recv_3d, coupler_recv_4d,&
+        coupler_recv_xd
+
+contains
+
+
+!=============================================================================
+! coupler_send_data wrapper for 3d arrays
+! see coupler_send_xd for input description
+!-----------------------------------------------------------------------------
+subroutine coupler_send_3d(temp,index_transpose)
+    implicit none
+ 
+    integer, optional, intent(in) :: index_transpose(3)    
+    real(kind=kind(0.d0)),dimension(:,:,:), intent(in) :: temp
+    
+    integer n1,n2,n3,n4
+    real(kind=kind(0.d0)),dimension(:,:,:,:),allocatable :: asend
+   
+    n1 = 1
+    n2 = size(temp,1)
+    n3 = size(temp,2)
+    n4 = size(temp,3)
+
+	!Add padding column to 3D array to make it 4D
+	allocate(asend(n1,n2,n3,n4))
+	asend(1,:,:,:) = temp(:,:,:)
+  
+    call coupler_send_xd(asend,index_transpose)
+
+end subroutine coupler_send_3d
+
+!=============================================================================
+! coupler_send_data wrapper for 4d arrays
+! see coupler_send_xd for input description
+!-----------------------------------------------------------------------------
+subroutine coupler_send_4d(asend,index_transpose)
+    implicit none
+ 
+	integer, optional, intent(in)  :: index_transpose(3)   
+	real(kind=kind(0.d0)),dimension(:,:,:,:), intent(in) :: asend
+    
+    integer n1,n2,n3,n4
+ 
+    call coupler_send_xd(asend,index_transpose)
+
+end subroutine coupler_send_4d
+
+
+!=============================================================================
+! Send data from the local grid to the associated ranks from the other 
+! realm
+!-----------------------------------------------------------------------------
+
+subroutine coupler_send_xd(asend,index_transpose)
+	use mpi
+	use coupler_module
+	implicit none
+ 
+    ! array containing data distributed on the grid
+    real(kind=kind(0.d0)),dimension(:,:,:,:), intent(in) :: asend
+    ! specify the order of dimensions in asend default is ( x, y, z) 
+	! but some CFD solvers use (z,x,y)     
+    integer, optional, intent(in) :: index_transpose(3)    ! rule of transposition for the coordinates 
+
+	!Number of halos
+	integer	:: nh = 1    
+
+	!Neighbours
+	integer								:: nneighbors   
+	integer,dimension(:),allocatable	:: neighbors
+
+    ! local indices 
+    integer :: ix,iy,iz,bicmin,bicmax,bjcmin,bjcmax,bkcmin,bkcmax
+	integer	:: ig(2,3),a_components
+
+    ! auxiliaries 
+    integer	:: i,ndata,itag,dest
+	real(kind=kind(0.d0)), allocatable :: vbuf(:)
+	integer, save :: ncalls = 0
+
+	! This local CFD domain is outside MD overlap zone 
+	!if (CPL_OLAP_COMM .eq. MPI_COMM_NULL) return
+	if (olap_mask(rank_world).eq.0) return
+
+	ncalls = ncalls + 1
+    ! Get local grid box ranges seen by this rank for either CFD or MD
+    if (realm .eq. cfd_realm) then 
+		!Load CFD cells per processor
+        bicmin = icPmin_cfd(iblock_realm)
+        bicmax = icPmax_cfd(iblock_realm) 
+        bjcmin = 1 !jcPmin_cfd(jblock_realm) 
+        bjcmax = 2 !jcPmax_cfd(jblock_realm) 
+        bkcmin = kcPmin_cfd(kblock_realm) 
+        bkcmax = kcPmax_cfd(kblock_realm) 
+    elseif (realm .eq. md_realm) then 
+        ! Load MD cells per processor
+        bicmin = icPmin_md(iblock_realm)
+        bicmax = icPmax_md(iblock_realm) 
+        bjcmin = 1 !jcPmin_md(jblock_realm) 
+        bjcmax = 2 !jcPmax_md(jblock_realm) 
+        bkcmin = kcPmin_md(kblock_realm) 
+        bkcmax = kcPmax_md(kblock_realm) 
+	endif
+
+    ! Re-order indices of x,y,z coordinates (handles transpose arrays)
+    ix = 1 ; iy = 2; iz = 3
+    if( present(index_transpose)) then
+        ix = index_transpose(1)
+        iy = index_transpose(2)
+        iz = index_transpose(3)
+    endif
+
+    ! Number of components at each grid point
+    a_components = size(asend,1)
+
+	!Get neighbours
+	call MPI_Graph_neighbors_count(CPL_GRAPH_COMM,myid_graph,nneighbors,ierr)
+	allocate(neighbors(nneighbors))
+	call MPI_Graph_neighbors(CPL_GRAPH_COMM,myid_graph,nneighbors,neighbors,ierr )
+   
+    ! loop through the maps and send the corresponding sections of asend
+    do i = 1, nneighbors
+
+		!Get taget processor from mapping
+        dest = neighbors(i)
+
+        ! Amount of data to be sent
+        ndata = a_components * (bicmax-bicmin) * (bjcmax-bjcmin) * (bkcmax-bkcmin)
+		if (allocated(vbuf)) deallocate(vbuf); allocate(vbuf(ndata))
+		!print*, 'seg fault', ndata,size(asend,1),size(asend,2),size(asend,3),size(asend,4),size(asend), &
+ 		!		a_components,bicmax,bicmin,bjcmax,bjcmin,bkcmax,bkcmin,(bicmax-bicmin),(bjcmax-bjcmin),&
+		!		(bkcmax-bkcmin)
+		vbuf(1:ndata) = reshape(asend, (/ ndata /))
+
+        ! Send data 
+        itag = 0 !mod( ncalls, MPI_TAG_UB) !Attention ncall could go over max tag value for long runs!!
+		call MPI_send(vbuf, ndata, MPI_DOUBLE_PRECISION, dest, itag, CPL_GRAPH_COMM, ierr)
+    enddo
+
+end subroutine coupler_send_xd
+
+!=============================================================================
+! coupler_recv_data wrapper for 3d arrays
+! see coupler_recv_xd for input description
+!-----------------------------------------------------------------------------
+subroutine coupler_recv_3d(temp,index_transpose)
+    implicit none
+
+    integer, optional, intent(in) :: index_transpose(3)  
+    real(kind(0.d0)),dimension(:,:,:),intent(inout) :: temp 
+                                                        
+	integer n1, n2, n3, n4
+	real(kind(0.d0)),allocatable,dimension(:,:,:,:) :: arecv    
+
+    n1 = 1 
+    n2 = size(temp,1)
+    n3 = size(temp,2)
+    n4 = size(temp,3)
+
+	!Add padding column to 3D array to make it 4D
+	allocate(arecv(n1,n2,n3,n4))
+    call coupler_recv_xd(arecv,index_transpose)
+	temp(:,:,:) = 	arecv(1,:,:,:) 
+
+end subroutine coupler_recv_3d
+
+!=============================================================================
+! coupler_recv_data wrapper for 4d arrays
+! see coupler_recv_xd for input description
+!-----------------------------------------------------------------------------
+subroutine coupler_recv_4d(arecv,index_transpose)
+
+    implicit none
+
+    integer, optional, intent(in) :: index_transpose(3)  
+    real(kind(0.d0)),dimension(:,:,:,:),intent(inout) :: arecv
+
+    call coupler_recv_xd(arecv,index_transpose)
+
+end subroutine coupler_recv_4d
+
+!=============================================================================
+! Receive data from to local grid from the associated ranks from the other 
+! realm
+!-----------------------------------------------------------------------------
+subroutine coupler_recv_xd(arecv,index_transpose)
+    use mpi
+	use coupler_module
+    implicit none
+
+    ! specify the order of dimensions in asend default is ( x, y, z) 
+	! but some CFD solvers use (z,x,y)   
+    integer, optional, intent(in) :: index_transpose(3) 
+     
+    ! Array that recieves grid distributed data 
+    real(kind(0.d0)), dimension(:,:,:,:),intent(inout) :: arecv     
+
+	!Neighbours
+	integer								:: nneighbors   
+	integer,dimension(:),allocatable	:: neighbors
+                                                         
+    ! local indices 
+    integer :: ix,iy,iz,bicmin,bicmax,bjcmin,bjcmax,bkcmin,bkcmax
+	integer	:: i,ig(2,3),pcoords(3),recvdata,startbuf,endbuf,a_components
+
+    ! auxiliaries 
+    integer	:: ndata, itag, source,start_address
+	integer,dimension(:),allocatable   :: req
+	integer,dimension(:,:),allocatable :: vel_indx, status
+    real(kind(0.d0)),dimension(:), allocatable ::  vbuf,vbuf2
+ 
+	! This local CFD domain is outside MD overlap zone 
+	if (CPL_OLAP_COMM .eq. MPI_COMM_NULL) return
+
+    ! Local grid box
+    ! Get local grid box ranges seen by this rank for either CFD or MD
+    if (realm .eq. cfd_realm) then 
+		!Load CFD cells per processor
+        bicmin = icPmin_cfd(iblock_realm)
+        bicmax = icPmax_cfd(iblock_realm) 
+        bjcmin = 1 !jcPmin_cfd(jblock_realm) 
+        bjcmax = 2 !jcPmax_cfd(jblock_realm) 
+        bkcmin = kcPmin_cfd(kblock_realm) 
+        bkcmax = kcPmax_cfd(kblock_realm)
+    elseif (realm .eq. md_realm) then 
+        ! Load MD cells per processor
+        bicmin = icPmin_md(iblock_realm)
+        bicmax = icPmax_md(iblock_realm) 
+        bjcmin = 1 !jcPmin_md(jblock_realm) 
+        bjcmax = 2 !jcPmax_md(jblock_realm) 
+        bkcmin = kcPmin_md(kblock_realm) 
+        bkcmax = kcPmax_md(kblock_realm) 
+	endif
+
+    ! Get the indices in x,y,z direction from transpose array
+    ix = 1 ; iy = 2; iz = 3
+    if( present(index_transpose)) then
+        ix = index_transpose(1)
+        iy = index_transpose(2)
+        iz = index_transpose(3)
+    endif
+	ig(1,ix) = bicmin;	ig(2,ix) = bicmax
+	ig(1,iy) = bjcmin;	ig(2,iy) = bjcmax
+	ig(1,iz) = bkcmin;	ig(2,iz) = bkcmax
+
+    ! Amount of data to receive
+	a_components = size(arecv,1)
+    ndata = a_components * (bicmax-bicmin) * (bjcmax-bjcmin) * (bkcmax-bkcmin)
+	!print*, 'vbuf size', ndata , a_components , (bicmax-bicmin + 1) , (bjcmax-bjcmin + 1) , (bkcmax-bkcmin + 1)
+	allocate(vbuf(ndata),stat=ierr) 
+
+	!Get neighbours
+	call MPI_Graph_neighbors_count(CPL_GRAPH_COMM,myid_graph,nneighbors,ierr)
+	allocate(neighbors(nneighbors))
+	call MPI_Graph_neighbors(CPL_GRAPH_COMM,myid_graph,nneighbors,neighbors,ierr )
+
+    ! Receive from all attached processors
+	allocate(req(nneighbors))
+	allocate(vel_indx(8,nneighbors), status(MPI_STATUS_SIZE,nneighbors))
+    start_address = 1 
+
+    do i = 1, nneighbors
+
+		!Get source processor from mapping
+        source =  neighbors(i)
+
+	    ! Get size of data to receive from source processors
+		if (realm .eq. cfd_realm) then
+			pcoords(1)=rank2coord_md(1,source)
+			pcoords(2)=rank2coord_md(2,source)
+			pcoords(3)=rank2coord_md(3,source)
+			recvdata = a_components * (icPmax_md(pcoords(1))-icPmin_md(pcoords(1))) & 
+									* (jcPmax_md(pcoords(2))-jcPmin_md(pcoords(2))) & 
+									* (kcPmax_md(pcoords(3))-kcPmin_md(pcoords(3)))
+		elseif (realm .eq. md_realm) then
+			pcoords(1)=rank2coord_cfd(1,source)
+			pcoords(2)=rank2coord_cfd(2,source)
+			pcoords(3)=rank2coord_cfd(3,source)
+			recvdata = a_components * (icPmax_cfd(pcoords(1))-icPmin_cfd(pcoords(1))) & 
+									* (jcPmax_cfd(pcoords(2))-jcPmin_cfd(pcoords(2))) & 
+									* (kcPmax_cfd(pcoords(3))-kcPmin_cfd(pcoords(3)))
+		endif
+
+		if (recvdata .gt. ndata) then
+			! If data received is greater than required, discard excess
+			allocate(vbuf2(recvdata))
+			itag = 0 !mod(ncalls, MPI_TAG_UB) ! Attention ncall could go over max tag value for long runs!!
+			call MPI_irecv(vbuf2(:),recvdata,MPI_DOUBLE_PRECISION,source,itag,&
+                				CPL_GRAPH_COMM,req(i),ierr)
+			startbuf = neighbors(rank_realm) * ndata
+			endbuf   = neighbors(rank_realm) * (ndata + 1 )
+			vbuf(1:ndata) = vbuf2(startbuf:endbuf)
+			deallocate(vbuf2)
+		else
+			! Otherwise Receive section of data and increment pointer 
+			! ready to receive next piece of data
+	        start_address = start_address + recvdata
+			itag = 0 !mod(ncalls, MPI_TAG_UB) ! Attention ncall could go over max tag value for long runs!!
+			call MPI_irecv(vbuf(start_address),recvdata,MPI_DOUBLE_PRECISION,source,itag,&
+                				CPL_GRAPH_COMM,req(i),ierr)
+		endif
+    enddo
+    call MPI_waitall(nneighbors, req, status, ierr)
+
+	print*, 'RECV reshape', ig(2,1),ig(1,1), ig(2,2),ig(1,2), ig(2,3),ig(1,3) , & 
+			ig(2,1)-ig(1,1)+1, ig(2,2)-ig(1,2)+1, ig(2,3)-ig(1,3)+1 
+	arecv = reshape(vbuf,(/ ndata, ig(2,1)-ig(1,1), ig(2,2)-ig(1,2), ig(2,3)-ig(1,3) /))
+           
+end subroutine coupler_recv_xd
+
+end module coupler
+
 
 subroutine write_realm_info
 	use coupler_module

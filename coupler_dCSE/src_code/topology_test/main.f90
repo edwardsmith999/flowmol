@@ -10,6 +10,7 @@ program create_map
 	call prepare_overlap_comms
 	call CPL_overlap_topology
 
+	!call test_send_recv
 	call gatherscatter
 	
 	call finalise
@@ -220,6 +221,12 @@ subroutine setup_input_and_arrays
 	allocate(jcPmax_md(npy_md))
 	allocate(kcPmin_md(npz_md))
 	allocate(kcPmax_md(npz_md))
+	allocate(icPmin_cfd(npx_cfd))
+	allocate(icPmax_cfd(npx_cfd))
+	allocate(jcPmin_cfd(npy_cfd))
+	allocate(jcPmax_cfd(npy_cfd))
+	allocate(kcPmin_cfd(npz_cfd))
+	allocate(kcPmax_cfd(npz_cfd))
 	allocate(cfd_icoord2olap_md_icoords(npx_cfd,npx_md/npx_cfd))
 	allocate(cfd_jcoord2olap_md_jcoords(npy_cfd,npy_md/npy_cfd))
 	allocate(cfd_kcoord2olap_md_kcoords(npz_cfd,npz_md/npz_cfd))
@@ -265,7 +272,84 @@ subroutine setup_input_and_arrays
 	yLl_md = yL_md/npy_md
 	yLl_cfd = yL_cfd/npy_cfd
 
+	call setup_CFD_procs
+
 end subroutine setup_input_and_arrays
+
+subroutine setup_CFD_procs
+	use coupler_module
+	implicit none
+
+	integer	:: n
+	integer :: ncxl, ncyl, nczl
+
+	ncxl = ncx / npx_cfd
+	do n=1,npx_cfd
+		icPmax_cfd(n) = n * ncxl
+		icPmin_cfd(n) = icPmax_cfd(n) - ncxl + 1
+	end do	
+
+	ncyl = ncy / npy_cfd
+	do n=1,npy_cfd
+		jcPmax_cfd(n) = n * ncyl
+		jcPmin_cfd(n) = jcPmax_cfd(n) - ncyl + 1
+	end do
+
+	nczl = ncz / npz_cfd
+	do n=1,npz_cfd
+		kcPmax_cfd(n) = n * nczl
+		kcPmin_cfd(n) = kcPmax_cfd(n) - nczl + 1
+	end do
+
+
+end subroutine setup_CFD_procs
+
+! ----------------------------------------------
+! Test the send and recv routines from coupler
+
+subroutine test_send_recv
+	use coupler_module
+	use coupler
+	implicit none
+
+	integer :: ncxl, ncyl, nczl
+	double precision,dimension(:,:,:,:),allocatable	:: sendbuf,recvbuf
+
+
+
+	! CFD to MD							   
+	if (realm .eq. md_realm) then		   
+		ncxl = icPmax_md(iblock_realm) - icPmin_md(iblock_realm)
+		ncyl = 1 !jcPmax_md(jblock_realm) - jcPmin_md(jblock_realm) 
+		nczl = kcPmax_md(kblock_realm) - kcPmin_md(kblock_realm) 
+		allocate(sendbuf(3,ncxl,ncyl,nczl))
+		sendbuf = 0.d0
+		sendbuf = iblock_realm*1 + jblock_realm*10 + kblock_realm*100  + rank_realm*10000
+		call coupler_send(sendbuf)		   
+	else if (realm .eq. cfd_realm) then	   
+		ncxl = ncx/npx_cfd !icPmax_cfd(iblock_realm) - icPmin_cfd(iblock_realm)
+		ncyl = 1	   !jcPmax_cfd(jblock_realm) - jcPmin_cfd(jblock_realm) 
+		nczl = ncz/npz_cfd !kcPmax_cfd(kblock_realm) - kcPmin_cfd(kblock_realm) 
+		allocate(recvbuf(3,ncxl,ncyl,nczl))
+		recvbuf = 0
+		call coupler_recv(recvbuf)				   
+	end if								   
+		
+	call barrier
+
+	 if (realm .eq. md_realm) write(4000+myid_world,*), sendbuf
+	 if (realm .eq. cfd_realm) write(5000+myid_world,*), recvbuf
+	
+
+	!MD to CFD							   
+	!if (realm .eq. md_realm) then		   
+	!	call coupler_recv()				   
+	!else if (realm .eq. cfd_realm) then    
+	!	call coupler_send()				   
+	!end if								   
+
+
+end subroutine test_send_recv
 
 !subroutine get_overlap_gridstretch
 !implicit none
