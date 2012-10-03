@@ -74,7 +74,6 @@ subroutine collect_rank2coords
 	use coupler_module
 	implicit none
 
-	!integer :: n
 	integer, dimension(:), allocatable :: mbuf, cbuf
 
 	allocate(mbuf(3*nproc_md))
@@ -87,12 +86,6 @@ subroutine collect_rank2coords
 
 	rank2coord_md  = reshape(mbuf,(/3,nproc_md/))                  
 	rank2coord_cfd = reshape(cbuf,(/3,nproc_cfd/))
-	
-!	if (myid_world.eq.0) then
-!		do n = 1,nproc_cfd
-!			print('(4i5)'), n, rank2coord_cfd(1,n),rank2coord_cfd(2,n),rank2coord_cfd(3,n)
-!		end do
-!	end if
 
 	deallocate(mbuf)
 	deallocate(cbuf)
@@ -133,8 +126,8 @@ subroutine prepare_overlap_comms
 	!   find md cart rank from md cart coords (coord2rank_md) 
 	!    find md world rank from md cart rank (rank_md2rank_world)
 	!     set group(md_world_rank) to cfd cart rank
-	!      split comm to groups
-	!       if group(world_rank) == 0, set olap_comm to null 
+	!split comm to groups
+	!if group(world_rank) == 0, set olap_comm to null 
 
 	integer :: i,j,k,ic,jc,kc
 	integer :: trank_md, trank_cfd, trank_world
@@ -147,31 +140,53 @@ subroutine prepare_overlap_comms
 	allocate(mdjcoords(npy_md/npy_cfd))
 	allocate(mdkcoords(npz_md/npz_cfd))
 
-	group = olap_null
+	!Set default values, must be done because coord2rank_md cannot
+	!take "null" coordinates.
+	group(:) = olap_null
+	olap_mask(:) = 0
 
+	! Every process loop over all cfd ranks
 	do trank_cfd = 1,nproc_cfd
 
-		cfdcoord(:) = rank2coord_cfd(:,trank_cfd)
+		! Get cart coords of cfd rank
+		cfdcoord(:)  = rank2coord_cfd(:,trank_cfd)
+
+		! Get md cart coords overlapping cfd proc
 		mdicoords(:) = cfd_icoord2olap_md_icoords(cfdcoord(1),:)
 		mdjcoords(:) = cfd_jcoord2olap_md_jcoords(cfdcoord(2),:)
 		mdkcoords(:) = cfd_kcoord2olap_md_kcoords(cfdcoord(3),:)
 
+		! Set group and olap_mask for CFD processor if it overlaps
+		if (any(mdicoords.ne.olap_null) .and. &
+		    any(mdjcoords.ne.olap_null) .and. &
+		    any(mdkcoords.ne.olap_null)) then
+
+			trank_world = rank_cfd2rank_world(trank_cfd)
+			olap_mask(trank_world) = 1	
+			group    (trank_world) = trank_cfd
+
+		end if
+
+		! Set group and olap_mask for MD processors
 		do i = 1,size(mdicoords)
 		do j = 1,size(mdjcoords)
 		do k = 1,size(mdkcoords)
+
 			ic = mdicoords(i)
 			jc = mdjcoords(j)
 			kc = mdkcoords(k)
+
 			if (any((/ic,jc,kc/).eq.olap_null)) cycle
+
 			trank_md = coord2rank_md(ic,jc,kc)
 			trank_world = rank_md2rank_world(trank_md)
-			group(trank_world) = trank_cfd
+
+			olap_mask(trank_world) = 1
+			group    (trank_world) = trank_cfd
+
 		end do
 		end do	
 		end do
-			
-		trank_world = rank_cfd2rank_world(trank_cfd)
-		group(trank_world) = trank_cfd
 
 	end do
 
@@ -179,26 +194,24 @@ subroutine prepare_overlap_comms
 	call MPI_comm_split(CPL_WORLD_COMM,group(rank_world),realm, &
 	                    CPL_OLAP_COMM,ierr)
 
+	call MPI_comm_size(CPL_OLAP_COMM,nproc_olap,ierr)
 	call MPI_comm_rank(CPL_OLAP_COMM,myid_olap,ierr)
 	rank_olap = myid_olap + 1	
 	if (myid_olap .eq. 0) testval = group(rank_world)
 	call MPI_bcast(testval,1,MPI_INTEGER,0,CPL_OLAP_COMM,ierr)
 
 	! Set all non-overlapping processors to MPI_COMM_NULL
-	call MPI_comm_size(CPL_OLAP_COMM, nproc_olap, ierr)
-	if (group(rank_world).eq.olap_null) then
+	if (olap_mask(rank_world).eq.0) then
+		myid_olap = olap_null
+		rank_olap = olap_null
 		CPL_OLAP_COMM = MPI_COMM_NULL
-	elseif (nproc_olap .eq. 1) then
-		CPL_OLAP_COMM = MPI_COMM_NULL
-	endif
+	end if
 
 	deallocate(mdicoords)
 	deallocate(mdjcoords)
 	deallocate(mdkcoords)
 
 	if (realm.eq.md_realm) call write_overlap_comms_md
-
-	!TODO OLAP COMM NULL
 
 end subroutine prepare_overlap_comms
 
@@ -381,15 +394,16 @@ subroutine write_overlap_comms_md
 	integer :: coord(3)
 
 	if (myid_realm.eq.0) then
-		write(2000+rank_realm,*),'rank_realm,rank_olap,   mdcoord,'  &
-		                        ,'   overlapgroup' 
+		write(2000+rank_realm,*),'rank_realm,rank_olap,  mdcoord,'  &
+		                        ,'   overlapgroup,   olap_mask,  CPL_OLAP_COMM'
 	end if
 	
 	call MPI_cart_coords(CPL_CART_COMM,myid_cart,3,coord,ierr)
 	coord(:) = coord(:) + 1
 
-	write(2000+rank_realm,'(2i7,a5,3i5,a5,i10)'), &
-		rank_realm,rank_olap,'',coord,'',testval 	
+	write(2000+rank_realm,'(2i7,a5,3i5,a5,2i10,a5,i)'), &
+		rank_realm,rank_olap,'',coord,'',testval,olap_mask(rank_world), &
+		'',CPL_OLAP_COMM
 
 end subroutine write_overlap_comms_md
 
