@@ -224,6 +224,8 @@ subroutine setup_input_and_arrays
 	allocate(cfd_jcoord2olap_md_jcoords(npy_cfd,npy_md/npy_cfd))
 	allocate(cfd_kcoord2olap_md_kcoords(npz_cfd,npz_md/npz_cfd))
 
+	allocate(olap_mask(nproc_world))
+
 	allocate(coord2rank_md(npx_md,npy_md,npz_md))
 	allocate(coord2rank_cfd(npx_cfd,npy_cfd,npz_cfd))
 	allocate(rank2coord_cfd(3,nproc_cfd))
