@@ -28,3 +28,5 @@ cmd = 'cat fort.4* > info_MD_send && rm fort.4*'
 system(cmd)
 cmd = 'cat fort.5* > info_CFD_recv && rm fort.5*'
 system(cmd)
+cmd = 'cat fort.6* > info_MDCFD && rm fort.6*'
+system(cmd)

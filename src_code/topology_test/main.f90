@@ -2,6 +2,8 @@ program create_map
 	use coupler_module
 	implicit none
 
+	integer, dimension(3)	:: coords
+
 	call initialise
 	call setup_input_and_arrays
 	call get_cell_ranges_md 
@@ -9,6 +11,9 @@ program create_map
 	call create_realms
 	call prepare_overlap_comms
 	call CPL_overlap_topology
+
+	!call CPL_Cart_coords(CPL_WORLD_COMM, myid_world+1, md_realm, 3, coords, ierr)
+	!print*, 'CPL_CART_COORDS', myid_world, coords
 
 	!call test_send_recv
 	call gatherscatter
@@ -65,44 +70,44 @@ contains
 
 		integer :: n
 
-		print*, ''
-		print*, '==========================================='
-		print*, '------------ M D   M A P ------------------'
-		print*, '==========================================='
-		print*, 'npx_md = ', npx_md
-		print*, 'ncx    = ', ncx
-		print*, 'ncxl   = ', ncxl
-		print*, '-------------------------------------------'
-		print*, '  icoord_md   icPmin_md(n)    icPmax_md(n) '
-		print*, '-------------------------------------------'
+		write(6000+myid_world,*), ''
+		write(6000+myid_world,*), '==========================================='
+		write(6000+myid_world,*), '------------ M D   M A P ------------------'
+		write(6000+myid_world,*), '==========================================='
+		write(6000+myid_world,*), 'npx_md = ', npx_md
+		write(6000+myid_world,*), 'ncx    = ', ncx
+		write(6000+myid_world,*), 'ncxl   = ', ncxl
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), '  icoord_md   icPmin_md(n)    icPmax_md(n) '
+		write(6000+myid_world,*), '-------------------------------------------'
 		do n=1,npx_md
-			print('(1x,3i11)'), n, icPmin_md(n), icPmax_md(n)
+			write(6000+myid_world,'(1x,3i11)'), n, icPmin_md(n), icPmax_md(n)
 		end do	
-		print*, '-------------------------------------------'
-		print*, 'npy_md     = ', npy_md
-		print*, 'ncy_md     = ', ncy_md
-		print*, 'ncyP_md    = ', ncyP_md 
-		print*, 'ncy_olap   = ', ncy_olap
-		print*, 'ncy_mdonly = ', ncy_mdonly
-		print*, 'olap_jmin_mdcoord = ', olap_jmin_mdcoord
-		print*, 'dy         = ', dy
-		print*, '-------------------------------------------'
-		print*, '  jcoord_md   jcPmin_md(n)    jcPmax_md(n) '
-		print*, '-------------------------------------------'
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), 'npy_md     = ', npy_md
+		write(6000+myid_world,*), 'ncy_md     = ', ncy_md
+		write(6000+myid_world,*), 'ncyP_md    = ', ncyP_md 
+		write(6000+myid_world,*), 'ncy_olap   = ', ncy_olap
+		write(6000+myid_world,*), 'ncy_mdonly = ', ncy_mdonly
+		write(6000+myid_world,*), 'olap_jmin_mdcoord = ', olap_jmin_mdcoord
+		write(6000+myid_world,*), 'dy         = ', dy
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), '  jcoord_md   jcPmin_md(n)    jcPmax_md(n) '
+		write(6000+myid_world,*), '-------------------------------------------'
 		do n = 1,npy_md	
-			print('(1x,3i11)'), n, jcPmin_md(n), jcPmax_md(n)
+			write(6000+myid_world,'(1x,3i11)'), n, jcPmin_md(n), jcPmax_md(n)
 		end do
-		print*, '-------------------------------------------'
-		print*, 'npz_md = ', npz_md
-		print*, 'ncz    = ', ncz
-		print*, 'nczl   = ', nczl
-		print*, '-------------------------------------------'
-		print*, '  kcoord_md   kcPmin_md(n)    kcPmax_md(n) '
-		print*, '-------------------------------------------'
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), 'npz_md = ', npz_md
+		write(6000+myid_world,*), 'ncz    = ', ncz
+		write(6000+myid_world,*), 'nczl   = ', nczl
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), '  kcoord_md   kcPmin_md(n)    kcPmax_md(n) '
+		write(6000+myid_world,*), '-------------------------------------------'
 		do n=1,npz_md
-			print('(1x,3i11)'), n, kcPmin_md(n), kcPmax_md(n)
+			write(6000+myid_world,'(1x,3i11)'), n, kcPmin_md(n), kcPmax_md(n)
 		end do
-		print*, '-------------------------------------------'
+		write(6000+myid_world,*), '-------------------------------------------'
 
 	end subroutine print_map_md
 	
@@ -154,45 +159,45 @@ contains
 
 		integer :: n,i
 		
-		print*, ''
-		print*, '==========================================='
-		print*, '------------ C F D   M A P ----------------'
-		print*, '==========================================='
-		print*, 'npx_cfd = ', npx_cfd
-		print*, 'nolapsx = ', nolapsx
-		print*, '-------------------------------------------'
-		print*, '  icoord_cfd       olapmin     olapmax     ' 
-		print*, '-------------------------------------------'
+		write(6000+myid_world,*), ''
+		write(6000+myid_world,*), '==========================================='
+		write(6000+myid_world,*), '------------ C F D   M A P ----------------'
+		write(6000+myid_world,*), '==========================================='
+		write(6000+myid_world,*), 'npx_cfd = ', npx_cfd
+		write(6000+myid_world,*), 'nolapsx = ', nolapsx
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), '  icoord_cfd       olapmin     olapmax     ' 
+		write(6000+myid_world,*), '-------------------------------------------'
 		do n=1,npx_cfd
-			print('(1x,3i11)'), n,               &
+			write(6000+myid_world,'(1x,3i11)'), n,               &
 				  cfd_icoord2olap_md_icoords(n,1),         &
 				  cfd_icoord2olap_md_icoords(n,nolapsx)
 		end do	
-		print*, '-------------------------------------------'
+		write(6000+myid_world,*), '-------------------------------------------'
 
-		print*, 'npy_cfd = ', npy_cfd
-		print*, 'nolapsy = ', nolapsy
-		print*, '-------------------------------------------'
-		print*, '  jcoord_cfd       olapmin     olapmax     ' 
-		print*, '-------------------------------------------'
+		write(6000+myid_world,*), 'npy_cfd = ', npy_cfd
+		write(6000+myid_world,*), 'nolapsy = ', nolapsy
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), '  jcoord_cfd       olapmin     olapmax     ' 
+		write(6000+myid_world,*), '-------------------------------------------'
 		do n=1,npy_cfd
-			print('(1x,3i11)'), n,               &
+			write(6000+myid_world,'(1x,3i11)'), n,               &
 				  cfd_jcoord2olap_md_jcoords(n,1),         &
 				  cfd_jcoord2olap_md_jcoords(n,nolapsy)
 		end do	
-		print*, '-------------------------------------------'
+		write(6000+myid_world,*), '-------------------------------------------'
 
-		print*, 'npz_cfd = ', npz_cfd
-		print*, 'nolapsz = ', nolapsz
-		print*, '-------------------------------------------'
-		print*, '  kcoord_cfd       olapmin     olapmax     ' 
-		print*, '-------------------------------------------'
+		write(6000+myid_world,*), 'npz_cfd = ', npz_cfd
+		write(6000+myid_world,*), 'nolapsz = ', nolapsz
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), '  kcoord_cfd       olapmin     olapmax     ' 
+		write(6000+myid_world,*), '-------------------------------------------'
 		do n=1,npz_cfd
-			print('(1x,3i11)'), n,               &
+			write(6000+myid_world,'(1x,3i11)'), n,               &
 				  cfd_kcoord2olap_md_kcoords(n,1),         &
 				  cfd_kcoord2olap_md_kcoords(n,nolapsz)
 		end do	
-		print*, '-------------------------------------------'
+		write(6000+myid_world,*), '-------------------------------------------'
 
 	end subroutine print_map_cfd
 	
@@ -237,15 +242,15 @@ subroutine setup_input_and_arrays
 	allocate(coord2rank_cfd(npx_cfd,npy_cfd,npz_cfd))
 	allocate(rank2coord_cfd(3,nproc_cfd))
 	allocate(rank2coord_md(3,nproc_md))
-	allocate(rank_md2rank_world(nproc_md))
-	allocate(rank_cfd2rank_world(nproc_cfd))
+	allocate(rank_mdcart2rank_world(nproc_md))
+	allocate(rank_cfdcart2rank_world(nproc_cfd))
 
 	coord2rank_md       = 0
 	coord2rank_cfd      = 0
 	rank2coord_md       = 0
 	rank2coord_cfd      = 0
-	rank_md2rank_world  = 0
-	rank_cfd2rank_world = 0
+	rank_mdcart2rank_world  = 0
+	rank_cfdcart2rank_world = 0
 
 	! Inputs
 	ncx = 128
@@ -301,7 +306,6 @@ subroutine setup_CFD_procs
 		kcPmin_cfd(n) = kcPmax_cfd(n) - nczl + 1
 	end do
 
-
 end subroutine setup_CFD_procs
 
 ! ----------------------------------------------
@@ -315,41 +319,162 @@ subroutine test_send_recv
 	integer :: ncxl, ncyl, nczl
 	double precision,dimension(:,:,:,:),allocatable	:: sendbuf,recvbuf
 
-
-
 	! CFD to MD							   
 	if (realm .eq. md_realm) then		   
-		ncxl = icPmax_md(iblock_realm) - icPmin_md(iblock_realm)
+		ncxl = icPmax_md(iblock_realm) - icPmin_md(iblock_realm) + 1
 		ncyl = 1 !jcPmax_md(jblock_realm) - jcPmin_md(jblock_realm) 
-		nczl = kcPmax_md(kblock_realm) - kcPmin_md(kblock_realm) 
+		nczl = kcPmax_md(kblock_realm) - kcPmin_md(kblock_realm) + 1
+		!print*, 'sent size',realm_name(realm),3*ncxl*ncyl*nczl 
 		allocate(sendbuf(3,ncxl,ncyl,nczl))
 		sendbuf = 0.d0
-		sendbuf = iblock_realm*1 + jblock_realm*10 + kblock_realm*100  + rank_realm*10000
+		sendbuf = rank_realm*1000 + iblock_realm*100 + jblock_realm*10 + kblock_realm*1
 		call coupler_send(sendbuf)		   
 	else if (realm .eq. cfd_realm) then	   
-		ncxl = ncx/npx_cfd !icPmax_cfd(iblock_realm) - icPmin_cfd(iblock_realm)
-		ncyl = 1	   !jcPmax_cfd(jblock_realm) - jcPmin_cfd(jblock_realm) 
-		nczl = ncz/npz_cfd !kcPmax_cfd(kblock_realm) - kcPmin_cfd(kblock_realm) 
+		ncxl = ncx/npx_cfd 	!icPmax_cfd(iblock_realm) - icPmin_cfd(iblock_realm)
+		ncyl = 1	   		!jcPmax_cfd(jblock_realm) - jcPmin_cfd(jblock_realm) 
+		nczl = ncz/npz_cfd 	!kcPmax_cfd(kblock_realm) - kcPmin_cfd(kblock_realm) 
+		!print*, 'recv size', realm_name(realm),3*ncxl*ncyl*nczl 
 		allocate(recvbuf(3,ncxl,ncyl,nczl))
-		recvbuf = 0
-		call coupler_recv(recvbuf)				   
+		recvbuf = 0.d0
+		call coupler_recv(recvbuf)
 	end if								   
-		
-	call barrier
 
-	 if (realm .eq. md_realm) write(4000+myid_world,*), sendbuf
-	 if (realm .eq. cfd_realm) write(5000+myid_world,*), recvbuf
+	 if (realm .eq.  md_realm) write(4000+myid_world,*),myid_world, 'BUF=', sendbuf
+	 if (realm .eq. cfd_realm) write(5000+myid_world,*),myid_world, 'BUF=', recvbuf
 	
-
 	!MD to CFD							   
 	!if (realm .eq. md_realm) then		   
 	!	call coupler_recv()				   
 	!else if (realm .eq. cfd_realm) then    
 	!	call coupler_send()				   
-	!end if								   
-
+	!end if							   
 
 end subroutine test_send_recv
+
+
+!-------------------------------------------------------------------
+! 					CPL_Cart_coords								   -
+!-------------------------------------------------------------------
+
+! Determines process coords in appropriate realm's cartesian topology 
+! given a rank in any communicator
+
+! - - - Synopsis - - -
+
+! CPL_Cart_coords(COMM, rank, realm, maxdims, coords, ierr)
+
+! - - - Input Parameters - - -
+
+!comm
+!    communicator with cartesian structure (handle) 
+!realm
+!    cfd_realm (1) or md_realm (2) (integer) 
+!rank
+!    rank of a process within group of comm (integer) 
+!maxdims
+!    length of vector coords in the calling program (integer) 
+!ierr
+!    error flag
+! - - - Output Parameter - - -
+
+!coords
+!    integer array (of size ndims) containing the Cartesian coordinates 
+!    of specified process (integer) 
+
+subroutine CPL_Cart_coords(COMM, rank, realm, maxdims, coords, ierr)
+	use coupler_module, only :  CPL_WORLD_COMM, CPL_REALM_COMM, CPL_INTER_COMM, & 
+								CPL_CART_COMM, CPL_OLAP_COMM, CPL_GRAPH_COMM,   &
+								CPL_REALM_INTERSECTION_COMM, md_realm,cfd_realm, &
+								rank_world2rank_mdrealm,rank_world2rank_mdcart,     &
+								rank_world2rank_cfdrealm,rank_world2rank_cfdcart,    &
+								rank_world2rank_olap,rank_world2rank_graph,      &
+								rank_world2rank_inter,rank_mdrealm2rank_world,    &
+								rank_mdcart2rank_world,rank_cfdrealm2rank_world,    &
+								rank_cfdcart2rank_world,rank_olap2rank_world,    &
+								rank_graph2rank_world,rank_inter2rank_world,	&
+								rank2coord_cfd,	rank2coord_md, &
+								COUPLER_ERROR_CART_COMM
+	implicit none
+
+	integer, intent(in)		:: COMM, realm, rank, maxdims
+	integer, intent(out)	:: coords(maxdims), ierr
+
+	integer					:: worldrank, cartrank
+
+	!Get rank in world COMM from current COMM
+	if (COMM .eq. CPL_WORLD_COMM) then
+
+		worldrank = rank
+
+	elseif(COMM .eq. CPL_REALM_COMM) then
+		! -  -  -  -  -  -  -  -  -  -  -  -  -
+		if (realm .eq. cfd_realm) then
+			worldrank = rank_cfdrealm2rank_world(rank)
+		elseif (realm .eq. md_realm) then
+			worldrank = rank_mdrealm2rank_world(rank)
+		endif
+		! -  -  -  -  -  -  -  -  -  -  -  -  -
+	elseif(COMM .eq. CPL_CART_COMM) then
+		! -  -  -  -  -  -  -  -  -  -  -  -  -
+		if (realm .eq. cfd_realm) then
+			coords = rank2coord_cfd(:,rank)
+		elseif (realm .eq. md_realm) then
+			coords = rank2coord_md(:,rank)
+		endif
+		return
+		! -  -  -  -  -  -  -  -  -  -  -  -  -
+	elseif(COMM .eq. CPL_OLAP_COMM) then
+		! -  -  -  -  -  -  -  -  -  -  -  -  -
+		worldrank = rank_olap2rank_world(rank)
+		! -  -  -  -  -  -  -  -  -  -  -  -  -
+	elseif(COMM .eq. CPL_GRAPH_COMM) then
+		! -  -  -  -  -  -  -  -  -  -  -  -  -
+		worldrank = rank_graph2rank_world(rank)
+		! -  -  -  -  -  -  -  -  -  -  -  -  -
+	elseif(COMM .eq. CPL_REALM_INTERSECTION_COMM) then
+		! -  -  -  -  -  -  -  -  -  -  -  -  -
+		stop " Intersection not programmed"
+		!worldrank = rank_intersect2rank_world(rank)
+		! -  -  -  -  -  -  -  -  -  -  -  -  -
+
+	elseif(COMM .eq. CPL_INTER_COMM) then
+		! -  -  -  -  -  -  -  -  -  -  -  -  -
+		ierr = COUPLER_ERROR_CART_COMM 
+		return
+		! -  -  -  -  -  -  -  -  -  -  -  -  -
+	else 
+		! -  -  -  -  -  -  -  -  -  -  -  -  -
+		ierr = COUPLER_ERROR_CART_COMM 
+		return
+		! -  -  -  -  -  -  -  -  -  -  -  -  -
+	endif
+	
+	!Get rank in realm
+	if (realm .eq. cfd_realm) then
+		cartrank = rank_world2rank_cfdcart(worldrank)
+	elseif (realm .eq. md_realm) then
+		cartrank = rank_world2rank_mdcart(worldrank)
+	endif
+
+	!Get cartesian coordinate in appropriate realm
+	if (realm .eq. cfd_realm) then
+		coords = rank2coord_cfd(:,cartrank)
+	elseif (realm .eq. md_realm) then
+		coords = rank2coord_md(:,cartrank)
+	endif
+
+	!Success
+	ierr = 0
+ 
+end subroutine CPL_Cart_coords
+
+
+
+
+
+
+
+
 
 !subroutine get_overlap_gridstretch
 !implicit none
