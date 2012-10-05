@@ -27,11 +27,13 @@ module coupler_module
 
 	! MPI Communicators
 	integer :: &
+
 		CPL_WORLD_COMM,   & ! Copy of MPI_COMM_WORLD, both CFD and MD realms
 		CPL_REALM_COMM,   & ! INTRA communicators within MD/CFD realms
 		CPL_INTER_COMM,   & ! CFD/MD INTER communicator between realm comms
 		CPL_CART_COMM,    & ! Comm w/cartesian topology for each realm
 		CPL_OLAP_COMM,    & ! Local comm between only overlapping MD/CFD procs
+		CPL_GRAPH_COMM,	  & ! Comm w/ graph topolgy between locally olapg procs
 		CPL_REALM_INTERSECTION_COMM ! Intersecting MD/CFD procs in world
 
 	! Simulation realms
@@ -51,15 +53,37 @@ module coupler_module
 		rootid_cart,      &	!Root processor in each cart topology
 		myid_olap,        & !Processor ID from 0 to nproc_olap-1
 		rank_olap,        & !Processor rank from 1 to nproc_olap
-		rootid_olap         !Root proc in overlap is the CFD one 
-	integer, dimension(:), allocatable :: &
-		rank_cfd2rank_world, & !Get world rank from realm rank
-		rank_md2rank_world     !Get world rank from realm rank
+		CFDid_olap,		  &	!Root processor in overlap is the CFD processor
+		myid_graph,		  &	!Processor ID from 0 to nproc_graph-1
+		rank_graph			!Processor rank from 1 to nproc_graph
+
+	! Get rank in CPL_world_COMM from rank in local COMM
+	integer, dimension(:), allocatable	:: &
+		rank_world2rank_mdrealm,    &
+		rank_world2rank_mdcart,     &
+		rank_world2rank_cfdrealm,   &
+		rank_world2rank_cfdcart,    &
+		rank_world2rank_olap,       &
+		rank_world2rank_graph,      &
+		rank_world2rank_inter
+
+	! Get rank in local COMM from rank in CPL_world_COMM
+	integer, dimension(:), allocatable	:: &
+		 rank_mdrealm2rank_world,    &
+		  rank_mdcart2rank_world,    &
+		rank_cfdrealm2rank_world,    &
+		 rank_cfdcart2rank_world,    &
+		    rank_olap2rank_world,    &
+		   rank_graph2rank_world,    &
+		   rank_inter2rank_world,    &
+			rank_olap2rank_realm
+
 
 	! Processor topologies
 	integer :: &
 		nproc_md,         &
 		nproc_cfd,        &
+		nproc_olap,		  &
 		nproc_world,	  &
 		npx_md,           &
 		npy_md,           &
@@ -67,6 +91,8 @@ module coupler_module
 		npx_cfd,          &
 		npy_cfd,          &
 		npz_cfd
+	integer, dimension(:), allocatable :: &
+		olap_mask
 	integer, dimension(:,:), allocatable :: &
 		rank2coord_cfd,   &
 		rank2coord_md
