@@ -4,7 +4,7 @@ a.out: *.f90
 	mpif90 -O3 -mpe=mpilog  $(SOURCES)
 
 debug: *.f90
-	mpif90 -O0 -g -traceback -check all $(SOURCES)
+	mpif90 -O0 -g -traceback -check all -mpe=mpitrace -mpe=mpicheck $(SOURCES)
 
 clean:
 	rm a.out *.mod
