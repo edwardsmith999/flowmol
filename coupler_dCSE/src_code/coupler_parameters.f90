@@ -16,7 +16,7 @@ module coupler_parameters
 
   ! tags values
 	integer, parameter :: & 
-		VOID=666,         &
+		VOID=-666,         &
 		CPL=777,		  &
 		CFD=888 			! tag values marking the input file for domain data
 
@@ -25,7 +25,7 @@ module coupler_parameters
 		cfd_realm = 1,    &
 		md_realm  = 2
 	character(len=*),parameter :: & 
-		code_name(2) = (/ "CFD", "MD " /)
+		realm_name(2) = (/ "CFD", "MD " /)
 
 	! error codes
 	integer, parameter :: & 
@@ -36,7 +36,8 @@ module coupler_parameters
 		COUPLER_ERROR_READ_INPUT = 5, &  ! error in processing input file or data transfers
 		COUPLER_ERROR_CONTINUUM_FORCE = 6, & !the region in which the continuum constrain force is apply spans over two MD domains
 		COUPLER_ABORT_ON_REQUEST = 7, & ! used in request_abort 
-		COUPLER_ABORT_SEND_CFD   = 8 ! error in coupler_cfd_send
+		COUPLER_ABORT_SEND_CFD   = 8, &	! error in coupler_cfd_send
+		COUPLER_ERROR_CART_COMM   = 9 	! Wrong comm value in CPL_Cart_coords
 
     ! CFD code ids useful for MD
     integer, parameter ::   & 
