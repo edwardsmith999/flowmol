@@ -18,9 +18,9 @@ cmd = 'mpiexec -n ' + str(nproc) + ' ./a.out'
 print(cmd)
 system(cmd)
 
-cmd = 'cat fort.10* > info_realms && rm fort.10*'
+cmd = 'cat fort.1* > info_realms && rm fort.1*'
 system(cmd)
-cmd = 'cat fort.20* > info_olap_md && rm fort.20*'
+cmd = 'cat fort.2* > info_olap_md && rm fort.2*'
 system(cmd)
 cmd = 'cat fort.3* > info_graph && rm fort.3*'
 system(cmd)
@@ -28,5 +28,9 @@ cmd = 'cat fort.4* > info_MD_send && rm fort.4*'
 system(cmd)
 cmd = 'cat fort.5* > info_CFD_recv && rm fort.5*'
 system(cmd)
-cmd = 'cat fort.6* > info_MDCFD && rm fort.6*'
+cmd = 'cat fort.6* > info_maps && rm fort.6*'
+system(cmd)
+cmd = 'cat fort.7* > info_scatter_md && rm fort.7*'
+system(cmd)
+cmd = 'cat fort.8* > info_gather_cfd && rm fort.8*'
 system(cmd)
