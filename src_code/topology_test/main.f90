@@ -16,7 +16,8 @@ program create_map
 	!print*, 'CPL_CART_COORDS', myid_world, coords
 
 	!call test_send_recv
-	call gatherscatter
+	if (olap_mask(rank_world).eq.1) call gather_u
+	if (olap_mask(rank_world).eq.1) call scatter_s
 	
 	call finalise
 
