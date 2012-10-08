@@ -1,8 +1,7 @@
 program create_map
-	use coupler_module
+	use coupler_module, only : olap_mask, rank_world
 	implicit none
 
-	integer, dimension(3)	:: coords
 
 	call initialise
 	call setup_input_and_arrays
@@ -11,9 +10,7 @@ program create_map
 	call create_realms
 	call prepare_overlap_comms
 	call CPL_overlap_topology
-
-	!call CPL_Cart_coords(CPL_WORLD_COMM, myid_world+1, md_realm, 3, coords, ierr)
-	!print*, 'CPL_CART_COORDS', myid_world, coords
+	call test_COMMS
 
 	!call test_send_recv
 	if (olap_mask(rank_world).eq.1) call gather_u
@@ -353,6 +350,93 @@ subroutine test_send_recv
 end subroutine test_send_recv
 
 
+subroutine test_comms
+	use coupler_module
+	use mpi
+	implicit none
+	integer					:: i
+	integer, dimension(3)	:: coords
+	double precision		:: rand
+
+
+	!if (realm .eq. md_realm) then
+	!	call CPL_Cart_coords(CPL_WORLD_COMM, myid_world+1, md_realm, 3, coords, ierr)
+	!	print'(a,5i8)', 'CPL_CART_COORDS WORLD_COMM MD ', realm, myid_world+1, coords
+	!elseif (realm .eq. cfd_realm) then
+	!	call CPL_Cart_coords(CPL_WORLD_COMM, myid_world+1, cfd_realm, 3, coords, ierr)
+	!	print'(a,5i8)', 'CPL_CART_COORDS WORLD_COMM CFD', realm, myid_world+1, coords
+	!endif
+
+	!Test loop on a single random processor
+	
+	! Get a random proccessor
+	if (myid_world .eq. 0) then
+		CALL random_seed()
+		call random_number(rand)
+	endif
+	call MPI_bcast(rand,1,MPI_DOUBLE_PRECISION,0,CPL_WORLD_COMM,ierr)
+
+	!Only loop on that processor
+	if (myid_world .eq. floor(rand*nproc_world)) then
+
+		!World
+		do i=1,nproc_md
+			call CPL_Cart_coords(CPL_WORLD_COMM, i, md_realm, 3, coords, ierr)
+			print'(a,6i8)', 'CPL_WORLD_MD ',myid_world, md_realm, i, coords
+		enddo
+		do i=nproc_md+1,nproc_world
+			call CPL_Cart_coords(CPL_WORLD_COMM, i, cfd_realm, 3, coords, ierr)
+			print'(a,6i8)', 'CPL_WORLD_CFD', myid_world,cfd_realm, i, coords
+		enddo
+
+		!Realm
+		do i=1,nproc_cfd
+			call CPL_Cart_coords(CPL_REALM_COMM, i, cfd_realm, 3, coords, ierr)
+			print'(a,6i8)', 'CPL_REALM_CFD', myid_world,cfd_realm, i, coords
+		enddo
+		do i=1,nproc_md
+			call CPL_Cart_coords(CPL_REALM_COMM, i, md_realm, 3, coords, ierr)
+			print'(a,6i8)', 'CPL_REALM_MD ',myid_world, md_realm, i, coords
+		enddo
+
+		!Cart
+		do i=1,nproc_cfd
+			call CPL_Cart_coords(CPL_CART_COMM, i, cfd_realm, 3, coords, ierr)
+			print'(a,6i8)', 'CPL_CART_CFD', myid_world,cfd_realm, i, coords
+		enddo
+		do i=1,nproc_md
+			call CPL_Cart_coords(CPL_CART_COMM, i, md_realm, 3, coords, ierr)
+			print'(a,6i8)', 'CPL_CART_MD ',myid_world, md_realm, i, coords
+		enddo
+
+	endif
+
+	call barrier
+
+	!Only within overlap processors
+	if (myid_olap .eq. floor(rand*nproc_olap)) then
+
+		!Olap
+		call CPL_Cart_coords(CPL_OLAP_COMM, 1, cfd_realm, 3, coords, ierr)
+		print'(a,6i8)', 'CPL_OLAP', myid_world,cfd_realm, 1, coords
+		do i=2,nproc_olap
+			call CPL_Cart_coords(CPL_OLAP_COMM, i, md_realm, 3, coords, ierr)
+			print'(a,6i8)', 'CPL_OLAP', myid_world,cfd_realm, i, coords
+		enddo
+
+		!Graph
+		call CPL_Cart_coords(CPL_GRAPH_COMM, 1, cfd_realm, 3, coords, ierr)
+		print'(a,6i8)', 'CPL_GRAPH', myid_world,cfd_realm, 1, coords
+		do i=2,nproc_olap
+			call CPL_Cart_coords(CPL_GRAPH_COMM, i, md_realm, 3, coords, ierr)
+			print'(a,6i8)', 'CPL_GRAPH', myid_world,cfd_realm, i, coords
+		enddo
+
+	endif
+
+end subroutine test_comms
+
+
 !-------------------------------------------------------------------
 ! 					CPL_Cart_coords								   -
 !-------------------------------------------------------------------
@@ -394,7 +478,8 @@ subroutine CPL_Cart_coords(COMM, rank, realm, maxdims, coords, ierr)
 								rank_cfdcart2rank_world,rank_olap2rank_world,    &
 								rank_graph2rank_world,rank_inter2rank_world,	&
 								rank2coord_cfd,	rank2coord_md, &
-								COUPLER_ERROR_CART_COMM
+								COUPLER_ERROR_CART_COMM, VOID, nproc_cfd,nproc_md, & 
+								error_abort
 	implicit none
 
 	integer, intent(in)		:: COMM, realm, rank, maxdims
@@ -404,57 +489,95 @@ subroutine CPL_Cart_coords(COMM, rank, realm, maxdims, coords, ierr)
 
 	!Get rank in world COMM from current COMM
 	if (COMM .eq. CPL_WORLD_COMM) then
-
+		! -  -  -  -  -  -  -  -  -  -  -  -  -
 		worldrank = rank
-
+		! -  -  -  -  -  -  -  -  -  -  -  -  -
 	elseif(COMM .eq. CPL_REALM_COMM) then
 		! -  -  -  -  -  -  -  -  -  -  -  -  -
 		if (realm .eq. cfd_realm) then
+			if (allocated(rank_cfdrealm2rank_world) .eq. .false.) then
+				call error_abort("CPL_Cart_coords Error - Setup not complete for CFD CPL_REALM_COMM")
+			elseif (rank .gt. size(rank_cfdrealm2rank_world)) then
+				print*, 'rank = ', rank, 'comm size = ', size(rank_cfdrealm2rank_world)
+				call error_abort("CPL_Cart_coords Error -Specified rank is not in CFD realm")
+			endif
 			worldrank = rank_cfdrealm2rank_world(rank)
 		elseif (realm .eq. md_realm) then
+			if (allocated(rank_mdrealm2rank_world) .eq. .false.) then
+				call error_abort("CPL_Cart_coords Error - Setup not complete for MD CPL_REALM_COMM")
+			elseif (rank .gt. size(rank_mdrealm2rank_world)) then
+				print*, 'rank = ', rank, 'comm size = ', size(rank_cfdrealm2rank_world)
+				call error_abort("CPL_Cart_coords Error -Specified rank is not in MD realm")
+			endif
 			worldrank = rank_mdrealm2rank_world(rank)
 		endif
 		! -  -  -  -  -  -  -  -  -  -  -  -  -
 	elseif(COMM .eq. CPL_CART_COMM) then
 		! -  -  -  -  -  -  -  -  -  -  -  -  -
 		if (realm .eq. cfd_realm) then
+			if (allocated(rank2coord_cfd) .eq. .false.) &
+				call error_abort("CPL_Cart_coords Error - Setup not complete for CFD CPL_CART_COMM")
 			coords = rank2coord_cfd(:,rank)
 		elseif (realm .eq. md_realm) then
+			if (allocated(rank2coord_md) .eq. .false.) &
+				call error_abort("CPL_Cart_coords Error - Setup not complete for MD CPL_CART_COMM")
 			coords = rank2coord_md(:,rank)
 		endif
 		return
 		! -  -  -  -  -  -  -  -  -  -  -  -  -
 	elseif(COMM .eq. CPL_OLAP_COMM) then
 		! -  -  -  -  -  -  -  -  -  -  -  -  -
+		if (allocated(rank_olap2rank_world) .eq. .false.) then
+			call error_abort("CPL_Cart_coords Error - Setup not complete for CPL_OLAP_COMM")
+		elseif (rank .gt. size(rank_olap2rank_world)) then
+			print*, 'rank = ', rank, 'comm size = ', size(rank_olap2rank_world)
+			call error_abort("CPL_Cart_coords Error - Specified rank is not in overlap")
+		endif
 		worldrank = rank_olap2rank_world(rank)
 		! -  -  -  -  -  -  -  -  -  -  -  -  -
 	elseif(COMM .eq. CPL_GRAPH_COMM) then
 		! -  -  -  -  -  -  -  -  -  -  -  -  -
+		if (allocated(rank_graph2rank_world) .eq. .false.) then
+			call error_abort("CPL_Cart_coords Error - Setup not complete for CPL_GRAPH_COMM")
+		elseif (rank .gt. size(rank_graph2rank_world)) then
+			call error_abort("CPL_Cart_coords Error - Specified rank is not in graph")
+		endif
 		worldrank = rank_graph2rank_world(rank)
 		! -  -  -  -  -  -  -  -  -  -  -  -  -
 	elseif(COMM .eq. CPL_REALM_INTERSECTION_COMM) then
 		! -  -  -  -  -  -  -  -  -  -  -  -  -
-		stop " Intersection not programmed"
-		!worldrank = rank_intersect2rank_world(rank)
+		call error_abort("CPL_Cart_coords Error - Intersection COMM not programmed")
 		! -  -  -  -  -  -  -  -  -  -  -  -  -
 
 	elseif(COMM .eq. CPL_INTER_COMM) then
 		! -  -  -  -  -  -  -  -  -  -  -  -  -
+		call error_abort("CPL_Cart_coords Error - Intercomm between realms id - use realm comms instead")
 		ierr = COUPLER_ERROR_CART_COMM 
 		return
 		! -  -  -  -  -  -  -  -  -  -  -  -  -
 	else 
 		! -  -  -  -  -  -  -  -  -  -  -  -  -
+		call error_abort("CPL_Cart_coords Error - Unknown COMM")
 		ierr = COUPLER_ERROR_CART_COMM 
 		return
 		! -  -  -  -  -  -  -  -  -  -  -  -  -
 	endif
 	
-	!Get rank in realm
+	!Get rank in realm cartesian communicator
 	if (realm .eq. cfd_realm) then
+		if (allocated(rank_world2rank_cfdcart) .eq. .false.) then
+			call error_abort("CPL_Cart_coords Error - world to cart mapping not initialised correctly")
+		endif
 		cartrank = rank_world2rank_cfdcart(worldrank)
+		if (cartrank .eq. VOID) call error_abort("CPL_Cart_coords Error - void element in mapping")
+		if (cartrank .gt. nproc_cfd) call error_abort("CPL_Cart_coords Error - rank not in cfd realm")
 	elseif (realm .eq. md_realm) then
+		if (allocated(rank_world2rank_mdcart) .eq. .false.) then
+			call error_abort("CPL_Cart_coords Error - world to cart mapping not initialised correctly")
+		endif
 		cartrank = rank_world2rank_mdcart(worldrank)
+		if (cartrank .eq. VOID) call error_abort("CPL_Cart_coords Error - void element in mapping")
+		if (cartrank .gt. nproc_md) call error_abort("CPL_Cart_coords Error - rank not in md realm")
 	endif
 
 	!Get cartesian coordinate in appropriate realm
