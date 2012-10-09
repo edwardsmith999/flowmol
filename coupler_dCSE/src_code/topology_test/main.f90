@@ -2,7 +2,6 @@ program create_map
 	use coupler_module, only : olap_mask, rank_world
 	implicit none
 
-
 	call initialise
 	call setup_input_and_arrays
 	call get_cell_ranges_md 
@@ -10,12 +9,12 @@ program create_map
 	call create_realms
 	call prepare_overlap_comms
 	call CPL_overlap_topology
-	call test_COMMS
+	!call test_COMMS
 
-	!call test_send_recv
-	if (olap_mask(rank_world).eq.1) call gather_u
-	if (olap_mask(rank_world).eq.1) call scatter_s
-	
+	call test_send_recv_MD2CFD
+	!call test_send_recv_CFD2MD
+	call test_gather_scatter
+
 	call finalise
 
 end program create_map
@@ -309,7 +308,7 @@ end subroutine setup_CFD_procs
 ! ----------------------------------------------
 ! Test the send and recv routines from coupler
 
-subroutine test_send_recv
+subroutine test_send_recv_MD2CFD
 	use coupler_module
 	use coupler
 	implicit none
@@ -317,7 +316,7 @@ subroutine test_send_recv
 	integer :: ncxl, ncyl, nczl
 	double precision,dimension(:,:,:,:),allocatable	:: sendbuf,recvbuf
 
-	! CFD to MD							   
+	! Test Sending from CFD to MD							   
 	if (realm .eq. md_realm) then		   
 		ncxl = icPmax_md(iblock_realm) - icPmin_md(iblock_realm) + 1
 		ncyl = 1 !jcPmax_md(jblock_realm) - jcPmin_md(jblock_realm) 
@@ -326,7 +325,7 @@ subroutine test_send_recv
 		allocate(sendbuf(3,ncxl,ncyl,nczl))
 		sendbuf = 0.d0
 		sendbuf = rank_realm*1000 + iblock_realm*100 + jblock_realm*10 + kblock_realm*1
-		call coupler_send(sendbuf)		   
+		call CPL_send(sendbuf,1,1)		   
 	else if (realm .eq. cfd_realm) then	   
 		ncxl = ncx/npx_cfd 	!icPmax_cfd(iblock_realm) - icPmin_cfd(iblock_realm)
 		ncyl = 1	   		!jcPmax_cfd(jblock_realm) - jcPmin_cfd(jblock_realm) 
@@ -334,22 +333,95 @@ subroutine test_send_recv
 		!print*, 'recv size', realm_name(realm),3*ncxl*ncyl*nczl 
 		allocate(recvbuf(3,ncxl,ncyl,nczl))
 		recvbuf = 0.d0
-		call coupler_recv(recvbuf)
+		call CPL_recv(recvbuf,1,1)
 	end if								   
 
 	 if (realm .eq.  md_realm) write(4000+myid_world,*),myid_world, 'BUF=', sendbuf
 	 if (realm .eq. cfd_realm) write(5000+myid_world,*),myid_world, 'BUF=', recvbuf
 	
-	!MD to CFD							   
-	!if (realm .eq. md_realm) then		   
-	!	call coupler_recv()				   
-	!else if (realm .eq. cfd_realm) then    
-	!	call coupler_send()				   
-	!end if							   
+end subroutine test_send_recv_MD2CFD
 
-end subroutine test_send_recv
+! Test Sending from MD to CFD
+
+subroutine test_send_recv_CFD2MD
+	use coupler_module
+	use coupler
+	implicit none
+
+	integer :: ncxl, ncyl, nczl
+	double precision,dimension(:,:,:,:),allocatable	:: sendbuf,recvbuf
+
+	! Test Sending from CFD to MD							   
+	if (realm .eq. md_realm) then		   
+		ncxl = icPmax_md(iblock_realm) - icPmin_md(iblock_realm) + 1
+		ncyl = 1 !jcPmax_md(jblock_realm) - jcPmin_md(jblock_realm) 
+		nczl = kcPmax_md(kblock_realm) - kcPmin_md(kblock_realm) + 1
+		!print*, 'recv size', realm_name(realm),3*ncxl*ncyl*nczl 
+		allocate(recvbuf(3,ncxl,ncyl,nczl)); recvbuf = 0.d0
+		call CPL_recv(recvbuf,1,1)		   
+	else if (realm .eq. cfd_realm) then	   
+		ncxl = ncx/npx_cfd 	!icPmax_cfd(iblock_realm) - icPmin_cfd(iblock_realm)
+		ncyl = 1	   		!jcPmax_cfd(jblock_realm) - jcPmin_cfd(jblock_realm) 
+		nczl = ncz/npz_cfd 	!kcPmax_cfd(kblock_realm) - kcPmin_cfd(kblock_realm) 
+		!print*, 'sent size',realm_name(realm),3*ncxl*ncyl*nczl 
+		allocate(sendbuf(3,ncxl,ncyl,nczl))
+		sendbuf = rank_realm*1000 + iblock_realm*100 + jblock_realm*10 + kblock_realm*1
+		call CPL_send(sendbuf,1,1)
+	end if								   
+
+	 if (realm .eq.  md_realm) write(9000+myid_world,*),myid_world, 'BUF=', recvbuf
+	 if (realm .eq. cfd_realm) write(11000+myid_world,*),myid_world, 'BUF=', sendbuf
+	
+end subroutine test_send_recv_CFD2MD
 
 
+
+subroutine test_gather_scatter
+	use coupler_module
+	use coupler
+	implicit none
+
+	double precision,dimension(:,:,:,:),allocatable	:: gatherbuf
+	integer :: coord(3), extents(6)
+	integer :: pos, ixyz, icell, jcell, kcell
+
+	if (realm .eq. md_realm) then	
+		call CPL_Cart_coords(CPL_CART_COMM,rank_cart,md_realm,3,coord,ierr)
+		!coord(:) = rank2coord_md(:,rank_cart)
+		call CPL_proc_extents(coord,md_realm,extents)
+
+		allocate(gatherbuf(3,extents(1):extents(2),extents(3):extents(4),extents(5):extents(6)))
+
+		! Populate dummy gatherbuf
+		pos = 1
+		do ixyz = 1,3
+		do icell=extents(1),extents(2)
+		do jcell=extents(3),extents(4)
+		do kcell=extents(5),extents(6)
+
+			gatherbuf(ixyz,icell,jcell,kcell) = 0.1d0*ixyz + 1*icell + &
+			                       				1000*jcell + &
+			                    				1000000*kcell
+			pos = pos + 1
+
+		end do
+		end do
+		end do
+		end do
+
+	else if (realm .eq. cfd_realm) then	  
+		call CPL_Cart_coords(CPL_CART_COMM,rank_cart,cfd_realm,3,coord,ierr)
+		!coord(:) = rank2coord_md(:,rank_cart)
+		call CPL_proc_extents(coord,cfd_realm,extents)
+	endif
+
+	if (olap_mask(rank_world).eq.1) call gather_u(gatherbuf)
+	if (olap_mask(rank_world).eq.1) call scatter_s		   
+
+	
+end subroutine test_gather_scatter
+
+				 
 subroutine test_comms
 	use coupler_module
 	use mpi
@@ -376,7 +448,7 @@ subroutine test_comms
 	endif
 	call MPI_bcast(rand,1,MPI_DOUBLE_PRECISION,0,CPL_WORLD_COMM,ierr)
 
-	!Only loop on that processor
+	!Only loop on random processor within world processors
 	if (myid_world .eq. floor(rand*nproc_world)) then
 
 		!World
@@ -413,7 +485,7 @@ subroutine test_comms
 
 	call barrier
 
-	!Only within overlap processors
+	!Only within random overlap processors
 	if (myid_olap .eq. floor(rand*nproc_olap)) then
 
 		!Olap
@@ -456,15 +528,17 @@ end subroutine test_comms
 !    cfd_realm (1) or md_realm (2) (integer) 
 !rank
 !    rank of a process within group of comm (integer) 
+!    NOTE fortran convention rank=1 to nproc
 !maxdims
 !    length of vector coords in the calling program (integer) 
-!ierr
-!    error flag
+
 ! - - - Output Parameter - - -
 
 !coords
 !    integer array (of size ndims) containing the Cartesian coordinates 
 !    of specified process (integer) 
+!ierr
+!    error flag
 
 subroutine CPL_Cart_coords(COMM, rank, realm, maxdims, coords, ierr)
 	use coupler_module, only :  CPL_WORLD_COMM, CPL_REALM_COMM, CPL_INTER_COMM, & 
@@ -593,11 +667,69 @@ subroutine CPL_Cart_coords(COMM, rank, realm, maxdims, coords, ierr)
 end subroutine CPL_Cart_coords
 
 
+!-------------------------------------------------------------------
+! 					CPL_proc_extents  						      -
+!-------------------------------------------------------------------
+
+! Get maximum and minimum cells for current communicator
+
+! - - - Synopsis - - -
+
+! CPL_proc_extents(coord,realm,extents,ncells)
+
+! - - - Input Parameters - - -
+
+!coord
+!    processor cartesian coordinate (3 x integer) 
+!realm
+!    cfd_realm (1) or md_realm (2) (integer) 
+!
+! - - - Output Parameter - - -
+
+!extents
+!	 Six components array which defines processor extents
+!	 xmin,xmax,ymin,ymax,zmin,zmax (6 x integer) 
+!ncells (optional)
+!    number of cells on processor (integer) 
 
 
+subroutine CPL_proc_extents(coord,realm,extents,ncells)
+	use mpi
+	use coupler_module, only: md_realm,      cfd_realm,      &
+	                          icPmin_md,     icPmax_md,      &
+	                          jcPmin_md,     jcPmax_md,      &
+	                          kcPmin_md,     kcPmax_md,      &
+	                          icPmin_cfd,    icPmax_cfd,     &
+	                          jcPmin_cfd,    jcPmax_cfd,     &
+	                          kcPmin_cfd,    kcPmax_cfd,     &
+	                          error_abort
+	implicit none
 
+	integer, intent(in)  :: coord(3), realm
+	integer, intent(out) :: extents(6)
+	integer, optional, intent(out) :: ncells
 
+	select case(realm)
+	case(md_realm)
+		extents = (/icPmin_md(coord(1)),icPmax_md(coord(1)), & 
+		            jcPmin_md(coord(2)),jcPmax_md(coord(2)), & 
+		            kcPmin_md(coord(3)),kcPmax_md(coord(3))/)
+	case(cfd_realm)
+		extents = (/icPmin_cfd(coord(1)),icPmax_cfd(coord(1)), & 
+		            jcPmin_cfd(coord(2)),jcPmax_cfd(coord(2)), & 
+		            kcPmin_cfd(coord(3)),kcPmax_cfd(coord(3))/)
 
+	case default
+		call error_abort('Wrong realm in rank_cart_to_cell_extents')
+	end select
+
+	if (present(ncells)) then
+		ncells = (extents(2) - extents(1) + 1) * &
+				 (extents(4) - extents(3) + 1) * &
+				 (extents(6) - extents(5) + 1)
+	end if
+
+end subroutine CPL_proc_extents
 
 
 !subroutine get_overlap_gridstretch

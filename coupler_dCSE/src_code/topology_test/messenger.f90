@@ -1,26 +1,28 @@
 module coupler
 
-    interface coupler_send
-        module procedure coupler_send_3d, coupler_send_4d
+    interface CPL_send
+        module procedure CPL_send_3d, CPL_send_4d
     end interface
 
-    interface coupler_recv
-        module procedure coupler_recv_3d, coupler_recv_4d
+    interface CPL_recv
+        module procedure CPL_recv_3d, CPL_recv_4d
     end interface
 
-    private coupler_send_3d, coupler_send_4d, &
-        coupler_send_xd, coupler_recv_3d, coupler_recv_4d,&
-        coupler_recv_xd
+    private CPL_send_3d, CPL_send_4d, &
+        CPL_send_xd, CPL_recv_3d, CPL_recv_4d,&
+        CPL_recv_xd
 
 contains
 
 !=============================================================================
-! coupler_send_data wrapper for 3d arrays
-! see coupler_send_xd for input description
+! CPL_send_data wrapper for 3d arrays
+! see CPL_send_xd for input description
 !-----------------------------------------------------------------------------
-subroutine coupler_send_3d(temp,index_transpose)
+subroutine CPL_send_3d(temp,jcmax_send,jcmin_send,index_transpose)
     implicit none
  
+ 	integer, intent(in), optional						:: jcmax_send,jcmin_send
+
     integer, optional, intent(in) :: index_transpose(3)    
     real(kind=kind(0.d0)),dimension(:,:,:), intent(in) :: temp
     
@@ -36,40 +38,43 @@ subroutine coupler_send_3d(temp,index_transpose)
 	allocate(asend(n1,n2,n3,n4))
 	asend(1,:,:,:) = temp(:,:,:)
   
-    call coupler_send_xd(asend,index_transpose)
+    call CPL_send_xd(asend,jcmax_send,jcmin_send,index_transpose)
 
-end subroutine coupler_send_3d
+end subroutine CPL_send_3d
 
 !=============================================================================
-! coupler_send_data wrapper for 4d arrays
-! see coupler_send_xd for input description
+! CPL_send_data wrapper for 4d arrays
+! see CPL_send_xd for input description
 !-----------------------------------------------------------------------------
-subroutine coupler_send_4d(asend,index_transpose)
+subroutine CPL_send_4d(asend,jcmax_send,jcmin_send,index_transpose)
     implicit none
  
+ 	integer, intent(in), optional						:: jcmax_send,jcmin_send
 	integer, optional, intent(in)  :: index_transpose(3)   
 	real(kind=kind(0.d0)),dimension(:,:,:,:), intent(in) :: asend
     
     integer n1,n2,n3,n4
  
-    call coupler_send_xd(asend,index_transpose)
+    call CPL_send_xd(asend,jcmax_send,jcmin_send,index_transpose)
 
-end subroutine coupler_send_4d
+end subroutine CPL_send_4d
 
 !=============================================================================
 ! Send data from the local grid to the associated ranks from the other 
 ! realm
 !-----------------------------------------------------------------------------
-subroutine coupler_send_xd(asend,index_transpose)
+subroutine CPL_send_xd(asend,jcmax_send,jcmin_send,index_transpose)
 	use mpi
 	use coupler_module
 	implicit none
- 
-    ! array containing data distributed on the grid
-    real(kind=kind(0.d0)),dimension(:,:,:,:), intent(in) :: asend
-    ! specify the order of dimensions in asend default is ( x, y, z) 
-	! but some CFD solvers use (z,x,y)     
-    integer, optional, intent(in) :: index_transpose(3)    ! rule of transposition for the coordinates 
+
+    ! Minimum and maximum values of j to send
+ 	integer, intent(in), optional						:: jcmax_send,jcmin_send
+    ! Specify the order of dimensions in asend default is ( x, y, z) but some CFD solvers use (z,x,y)   
+	integer, intent(in), dimension(3), optional			:: index_transpose
+   ! Array containing data distributed on the grid
+    real(kind=kind(0.d0)),dimension(:,:,:,:), intent(in):: asend
+   
 
 	!Number of halos
 	integer	:: nh = 1    
@@ -79,35 +84,35 @@ subroutine coupler_send_xd(asend,index_transpose)
 	integer,dimension(:),allocatable	:: neighbors
 
     ! local indices 
+	integer	:: jcmin_lim,jcmax_lim
     integer :: ix,iy,iz,bicmin,bicmax,bjcmin,bjcmax,bkcmin,bkcmax
-	integer	:: a_components
+	integer	:: npercell
 
     ! auxiliaries 
-    integer	:: i,ndata,itag,destid
-	real(kind=kind(0.d0)), allocatable :: vbuf(:)
-	integer, save :: ncalls = 0
+    integer								:: i,ndata,itag,destid
+    integer,dimension(3)				:: pcoords
+	real(kind=kind(0.d0)), allocatable 	:: vbuf(:)
 
 	! This local CFD domain is outside MD overlap zone 
 	!if (CPL_OLAP_COMM .eq. MPI_COMM_NULL) return
 	if (olap_mask(rank_world) .eq. 0) return
 
-    ! Get local grid box ranges seen by this rank for either CFD or MD
-    if (realm .eq. cfd_realm) then 
-		!Load CFD cells per processor
-        bicmin = icPmin_cfd(iblock_realm)
-        bicmax = icPmax_cfd(iblock_realm) 
-        bjcmin = 1 !jcPmin_cfd(jblock_realm) 
-        bjcmax = 1 !jcPmax_cfd(jblock_realm) 
-        bkcmin = kcPmin_cfd(kblock_realm) 
-        bkcmax = kcPmax_cfd(kblock_realm) 
-    elseif (realm .eq. md_realm) then 
-        ! Load MD cells per processor
-        bicmin = icPmin_md(iblock_realm)
-        bicmax = icPmax_md(iblock_realm) 
-        bjcmin = 1 !jcPmin_md(jblock_realm) 
-        bjcmax = 1 !jcPmax_md(jblock_realm) 
-        bkcmin = kcPmin_md(kblock_realm) 
-        bkcmax = kcPmax_md(kblock_realm) 
+	!Revert to default j domain sending - top of overlap for CFD and bottom of overlap for MD
+	if ((present(jcmax_send)) .and. & 
+		(present(jcmin_send))) then
+			jcmax_lim = jcmax_send
+			jcmin_lim = jcmin_send
+	elseif ((.not. present(jcmax_send)) .and. & 
+		    (.not. present(jcmin_send))) then
+		if (realm .eq. cfd_realm) then
+			jcmax_lim = jcmax_olap
+			jcmin_lim = jcmax_olap
+		elseif (realm .eq. md_realm) then
+			jcmax_lim = jcmin_olap!+1
+			jcmin_lim = jcmin_olap
+		endif
+	else
+		call error_abort("CPL_send error - both maximum and minimum j limits required and only one supplied")
 	endif
 
     ! Re-order indices of x,y,z coordinates (handles transpose arrays)
@@ -119,7 +124,7 @@ subroutine coupler_send_xd(asend,index_transpose)
     endif
 
     ! Number of components at each grid point
-    a_components = size(asend,1)
+    npercell = size(asend,1)
 
 	!Get neighbours
 	call MPI_Graph_neighbors_count(CPL_GRAPH_COMM,myid_graph,nneighbors,ierr)
@@ -134,26 +139,58 @@ subroutine coupler_send_xd(asend,index_transpose)
 		!Get taget processor from mapping
         destid = neighbors(i)
 
-        ! Amount of data to be sent
-        ndata = a_components * (bicmax-bicmin+1) * (bjcmax-bjcmin+1) * (bkcmax-bkcmin+1)
-		if (allocated(vbuf)) deallocate(vbuf); allocate(vbuf(ndata))
-		vbuf(1:ndata) = reshape(asend, (/ ndata /))
-		!print'(a,8i8,f20.5)', 'send data',rank_world,rank_realm,rank_olap,ndata, & 
-		!						size(asend),iblock_realm,jblock_realm,kblock_realm,vbuf(10)
+	    ! Get size of data to Send
+		if (realm .eq. cfd_realm) then
+			!Data to send is based on destination processor
+			call CPL_Cart_coords(CPL_GRAPH_COMM, destid+1,  md_realm, 3, pcoords, ierr) 
+	        bicmin = icPmin_md(pcoords(1))
+	        bicmax = icPmax_md(pcoords(1)) 
+	        bjcmin = jcmin_lim
+	        bjcmax = jcmax_lim 
+	        bkcmin = kcPmin_md(pcoords(3)) 
+	        bkcmax = kcPmax_md(pcoords(3)) 
+
+	        ! Amount of data to be sent
+	        ndata = npercell * (bicmax-bicmin+1) * (bjcmax-bjcmin+1) * (bkcmax-bkcmin+1)
+			if (allocated(vbuf)) deallocate(vbuf); allocate(vbuf(ndata))
+
+			vbuf(1:ndata) = reshape(asend(:,bicmin:bicmax,bjcmin:bjcmax,bkcmin:bkcmax), (/ ndata /))
+
+		elseif (realm .eq. md_realm) then
+			!Data to send is based on current processor
+	        bicmin = icPmin_md(iblock_realm)
+	        bicmax = icPmax_md(iblock_realm) 
+	        bjcmin = jcmin_lim
+	        bjcmax = jcmax_lim
+	        bkcmin = kcPmin_md(kblock_realm) 
+	        bkcmax = kcPmax_md(kblock_realm) 
+
+        	! Amount of data to be sent
+	        ndata = npercell * (bicmax-bicmin+1) * (bjcmax-bjcmin+1) * (bkcmax-bkcmin+1)
+			if (allocated(vbuf)) deallocate(vbuf); allocate(vbuf(ndata))
+
+			vbuf(1:ndata) = reshape(asend, (/ ndata /))
+		endif
+
+		print'(a,17i4,f20.5)', 'send data',rank_world,rank_realm,rank_olap,ndata, & 
+								size(asend),iblock_realm,jblock_realm,kblock_realm,pcoords, & 
+								bicmax,bicmin,bjcmax,bjcmin,bkcmax,bkcmin,vbuf(10)
 
         ! Send data 
         itag = 0 !mod( ncalls, MPI_TAG_UB) !Attention ncall could go over max tag value for long runs!!
 		call MPI_send(vbuf, ndata, MPI_DOUBLE_PRECISION, destid, itag, CPL_GRAPH_COMM, ierr)
     enddo
 
-end subroutine coupler_send_xd
+end subroutine CPL_send_xd
 
 !=============================================================================
-! coupler_recv_data wrapper for 3d arrays
-! see coupler_recv_xd for input description
+! CPL_recv_data wrapper for 3d arrays
+! see CPL_recv_xd for input description
 !-----------------------------------------------------------------------------
-subroutine coupler_recv_3d(temp,index_transpose)
+subroutine CPL_recv_3d(temp,jcmax_recv,jcmin_recv,index_transpose)
     implicit none
+
+ 	integer, optional, intent(in)				      :: jcmax_recv,jcmin_recv
 
     integer, optional, intent(in) :: index_transpose(3)  
     real(kind(0.d0)),dimension(:,:,:),intent(inout) :: temp 
@@ -168,49 +205,51 @@ subroutine coupler_recv_3d(temp,index_transpose)
 
 	!Add padding column to 3D array to make it 4D
 	allocate(arecv(n1,n2,n3,n4))
-    call coupler_recv_xd(arecv,index_transpose)
+    call CPL_recv_xd(arecv,jcmax_recv,jcmin_recv,index_transpose)
 	temp(:,:,:) = 	arecv(1,:,:,:) 
 
-end subroutine coupler_recv_3d
+end subroutine CPL_recv_3d
 
 !=============================================================================
-! coupler_recv_data wrapper for 4d arrays
-! see coupler_recv_xd for input description
+! CPL_recv_data wrapper for 4d arrays
+! see CPL_recv_xd for input description
 !-----------------------------------------------------------------------------
-subroutine coupler_recv_4d(arecv,index_transpose)
+subroutine CPL_recv_4d(arecv,jcmax_recv,jcmin_recv,index_transpose)
 
     implicit none
 
+ 	integer, optional, intent(in)				      :: jcmax_recv,jcmin_recv
     integer, optional, intent(in) :: index_transpose(3)  
     real(kind(0.d0)),dimension(:,:,:,:),intent(inout) :: arecv
 
-    call coupler_recv_xd(arecv,index_transpose)
+    call CPL_recv_xd(arecv,jcmax_recv,jcmin_recv,index_transpose)
 
-end subroutine coupler_recv_4d
+end subroutine CPL_recv_4d
 
 !=============================================================================
 ! Receive data from to local grid from the associated ranks from the other 
 ! realm
 !-----------------------------------------------------------------------------
-subroutine coupler_recv_xd(arecv,index_transpose)
+subroutine CPL_recv_xd(arecv,jcmax_recv,jcmin_recv,index_transpose)
     use mpi
 	use coupler_module
     implicit none
 
-    ! specify the order of dimensions in asend default is ( x, y, z) 
-	! but some CFD solvers use (z,x,y)   
-    integer, optional, intent(in) :: index_transpose(3) 
-     
+    ! Minimum and maximum values of j to receive
+ 	integer, optional, intent(in)				      :: jcmax_recv,jcmin_recv
+    ! specify the order of dimensions in asend default is ( x, y, z) but some CFD solvers use (z,x,y)   
+    integer, optional, dimension(3), intent(in) 	  :: index_transpose(3) 
     ! Array that recieves grid distributed data 
-    real(kind(0.d0)), dimension(:,:,:,:),intent(inout) :: arecv     
+    real(kind(0.d0)), dimension(:,:,:,:),intent(inout):: arecv     
 
 	!Neighbours
 	integer								:: nneighbors   
 	integer,dimension(:),allocatable	:: neighbors
                                                          
     ! local indices 
+	integer	:: jcmax_lim, jcmin_lim
     integer :: n,i,j,k,ix,iy,iz,bicmin,bicmax,bjcmin,bjcmax,bkcmin,bkcmax
-	integer	:: ncl(2,3),pcoords(3),recvsize,startbuf,endbuf,a_components
+	integer	:: ncl(2,3),pcoords(3),recvsize,startbuf,endbuf,npercell
 
     ! auxiliaries 
     integer	:: ndata, itag, sourceid,source_realm,start_address
@@ -223,24 +262,40 @@ subroutine coupler_recv_xd(arecv,index_transpose)
 	if (olap_mask(rank_world).eq.0) return
 	!if (CPL_OLAP_COMM .eq. MPI_COMM_NULL) return
 
+	!Revert to default j domain receive - top of overlap for CFD and bottom of overlap for MD
+	if ((present(jcmax_recv)) .and. & 
+		(present(jcmin_recv))) then
+			jcmax_lim = jcmax_recv
+			jcmin_lim = jcmin_recv
+	elseif ((.not. present(jcmax_recv)) .and. & 
+		    (.not. present(jcmin_recv))) then
+		if (realm .eq. cfd_realm) then
+			jcmax_lim = jcmax_olap
+			jcmin_lim = jcmax_olap
+		elseif (realm .eq. md_realm) then
+			jcmax_lim = jcmin_olap
+			jcmin_lim = jcmin_olap
+		endif
+	else
+		call error_abort("CPL_recv error - both maximum and minimum j limits required and only one supplied")
+	endif
+
     ! Local grid box
     ! Get local grid box ranges seen by this rank for either CFD or MD
     if (realm .eq. cfd_realm) then 
 		!Load CFD cells per processor
         bicmin = icPmin_cfd(iblock_realm)
         bicmax = icPmax_cfd(iblock_realm) 
-        bjcmin = 1 !jcPmin_cfd(jblock_realm) 
-        bjcmax = 1 !jcPmax_cfd(jblock_realm) 
+		bjcmin = jcmin_lim 
+        bjcmax = jcmax_lim 
         bkcmin = kcPmin_cfd(kblock_realm) 
         bkcmax = kcPmax_cfd(kblock_realm)
-    elseif (realm .eq. md_realm) then 
-        ! Load MD cells per processor
-        bicmin = icPmin_md(iblock_realm)
-        bicmax = icPmax_md(iblock_realm) 
-        bjcmin = 1 !jcPmin_md(jblock_realm) 
-        bjcmax = 1 !jcPmax_md(jblock_realm) 
-        bkcmin = kcPmin_md(kblock_realm) 
-        bkcmax = kcPmax_md(kblock_realm) 
+
+		! Amount of data to receive from all MD processors
+		npercell = size(arecv,1)
+		ndata = npercell * (bicmax-bicmin+1) * (bjcmax-bjcmin+1) * (bkcmax-bkcmin+1)
+		allocate(vbuf(ndata)); vbuf = 0.d0
+
 	endif
 
     ! Get the indices in x,y,z direction from transpose array
@@ -250,16 +305,9 @@ subroutine coupler_recv_xd(arecv,index_transpose)
         iy = index_transpose(2)
         iz = index_transpose(3)
     endif
-	ncl(1,ix) = bicmin;	ncl(2,ix) = bicmax
-	ncl(1,iy) = bjcmin;	ncl(2,iy) = bjcmax
-	ncl(1,iz) = bkcmin;	ncl(2,iz) = bkcmax
-
-    ! Amount of data to receive
-	a_components = size(arecv,1)
-    ndata = a_components * (bicmax-bicmin+1) * (bjcmax-bjcmin+1) * (bkcmax-bkcmin+1)
-	allocate(vbuf(ndata),stat=ierr); vbuf = 0.d0
-
-	if (size(arecv) .ne. ndata) stop "domain size mismatch in recv data"
+	!ncl(1,ix) = bicmin;	ncl(2,ix) = bicmax
+	!ncl(1,iy) = bjcmin;	ncl(2,iy) = bjcmax
+	!ncl(1,iz) = bkcmin;	ncl(2,iz) = bkcmax
 
 	!Get neighbours
 	call MPI_Graph_neighbors_count(CPL_GRAPH_COMM,myid_graph,nneighbors,ierr)
@@ -278,59 +326,81 @@ subroutine coupler_recv_xd(arecv,index_transpose)
 
 	    ! Get size of data to receive from source processors
 		if (realm .eq. cfd_realm) then
-			source_realm = rank_olap2rank_realm(sourceid+1)
-			pcoords(1)=rank2coord_md(1,source_realm)
-			pcoords(2)=rank2coord_md(2,source_realm)
-			pcoords(3)=rank2coord_md(3,source_realm)
-			ncl_recv(1,ix,sourceid) = icPmin_md(pcoords(1)); ncl_recv(2,ix,sourceid) = icPmax_md(pcoords(1))
-			ncl_recv(1,iy,sourceid) = jcPmin_md(pcoords(2)); ncl_recv(2,iy,sourceid) = jcPmax_md(pcoords(2))
-			ncl_recv(1,iz,sourceid) = kcPmin_md(pcoords(3)); ncl_recv(2,iz,sourceid) = kcPmax_md(pcoords(3))
-			recvsize = a_components * (icPmax_md(pcoords(1))-icPmin_md(pcoords(1))+1) & 
-									* 1 & !(jcPmax_md(pcoords(2))-jcPmin_md(pcoords(2))) & 
-									* (kcPmax_md(pcoords(3))-kcPmin_md(pcoords(3))+1)
-			!print'(a,12i8)', 'cfd source data',realm,sourceid,source_realm, & 
-			!				olap_mask(rank_mdcart2rank_world(source_realm)),pcoords,recvsize,a_components, & 
-			!				icPmax_md(pcoords(1))-icPmin_md(pcoords(1))+1,jcPmax_md(pcoords(2))- & 
-			!				jcPmin_md(pcoords(2))+1,kcPmax_md(pcoords(3))-kcPmin_md(pcoords(3))+1
+
+			!CFD realm receives data based on size of MD processor domain
+			call CPL_Cart_coords(CPL_GRAPH_COMM, sourceid+1, md_realm, 3, pcoords, ierr) 
+
+	        bicmin = icPmin_md(pcoords(1))
+	        bicmax = icPmax_md(pcoords(1)) 
+	        bjcmin = jcmin_lim 
+	        bjcmax = jcmax_lim 
+	        bkcmin = kcPmin_md(pcoords(3)) 
+	        bkcmax = kcPmax_md(pcoords(3))
+
+			! Amount of data to receive
+			npercell = size(arecv,1)
+			ndata = npercell * (bicmax-bicmin+1) * (bjcmax-bjcmin+1) * (bkcmax-bkcmin+1)
+
+			!increment pointer ready to receive next piece of data		
+			start_address = 1+((pcoords(1)-1) + (pcoords(3)-1)*npx_md)*ndata
+
 		elseif (realm .eq. md_realm) then
-			source_realm = rank_olap2rank_realm(sourceid)
-			pcoords(1)=rank2coord_cfd(1,source_realm)
-			pcoords(2)=rank2coord_cfd(2,source_realm)
-			pcoords(3)=rank2coord_cfd(3,source_realm)
-			recvsize = a_components * (icPmax_cfd(pcoords(1))-icPmin_cfd(pcoords(1))) & 
-									* 1 & !(jcPmax_cfd(pcoords(2))-jcPmin_cfd(pcoords(2))) & 
-									* (kcPmax_cfd(pcoords(3))-kcPmin_cfd(pcoords(3)))
-			!print'(a,14i8)', 'md  source data',realm,sourceid,source_realm, & 
-			!				olap_mask(rank_cfdcart2rank_world(source_realm)),pcoords,recvsize, & 
-			!				icPmax_md(pcoords(1)),icPmin_md(pcoords(1)),jcPmax_md(pcoords(2)), & 
-			!				jcPmin_md(pcoords(2)),kcPmax_md(pcoords(3)),kcPmin_md(pcoords(3))
-		endif
 
-		if (recvsize .gt. ndata) then
-			! If data received is greater than required, discard excess
-			allocate(vbuf2(recvsize))
-			itag = 0 !mod(ncalls, MPI_TAG_UB) ! Attention ncall could go over max tag value for long runs!!
-			call MPI_irecv(vbuf2(:),recvsize,MPI_DOUBLE_PRECISION,sourceid,itag,&
-                				CPL_GRAPH_COMM,req(i),ierr)
-			startbuf = neighbors(rank_realm) * ndata
-			endbuf   = neighbors(rank_realm) *(ndata + 1 )
-			vbuf(1:ndata) = vbuf2(startbuf:endbuf)
-			deallocate(vbuf2)
-		else
-			! Otherwise Receive section of data and increment pointer 
-			! ready to receive next piece of data
-			itag = 0 !mod(ncalls, MPI_TAG_UB) ! Attention ncall could go over max tag value for long runs!!
-			start_address = 1+((pcoords(1)-1) + (pcoords(3)-1)*npx_md)*recvsize
-			!print'(a,10i8)', 'recv data',realm,sourceid+1,source_realm,ndata,recvsize,size(arecv),start_address,pcoords
-			!start_address=(sourceid-1)*recvsize+1
-			call MPI_irecv(vbuf(start_address),recvsize,MPI_DOUBLE_PRECISION,sourceid,itag,&
-                				CPL_GRAPH_COMM,req(i),ierr)
+			!MD realm receives data as big as own processor domain
+	        bicmin = icPmin_md(iblock_realm)
+	        bicmax = icPmax_md(iblock_realm) 
+	        bjcmin = jcmin_lim
+	        bjcmax = jcmax_lim 
+	        bkcmin = kcPmin_md(kblock_realm) 
+	        bkcmax = kcPmax_md(kblock_realm)
 
-	        !start_address = start_address + recvsize
+			! Amount of data to receive
+			npercell = size(arecv,1)
+			ndata = npercell * (bicmax-bicmin+1) * (bjcmax-bjcmin+1) * (bkcmax-bkcmin+1) 
+			start_address = 1
+
+			if (size(arecv) .ne. ndata) then
+				print*, 'size of expected recv data = ',  size(arecv), 'actual size of recv data = ', ndata
+				call error_abort("domain size mismatch in recv data")
+			endif
+			! Amount of data to receive
+			allocate(vbuf(ndata)); vbuf = 0.d0
 
 		endif
+		! Receive section of data and 
+		print'(a,8i8)', 'recv data',realm,sourceid+1,ndata,size(arecv),start_address,pcoords
+		call MPI_irecv(vbuf(start_address),ndata,MPI_DOUBLE_PRECISION,sourceid,itag,&
+            						CPL_GRAPH_COMM,req(i),ierr)
+
     enddo
     call MPI_waitall(nneighbors, req, status, ierr)
+
+
+	if (realm .eq. cfd_realm) then
+		do i=1, nneighbors
+
+			!CFD realm receives data based on size of MD processor domain
+			call CPL_Cart_coords(CPL_GRAPH_COMM, sourceid+1, md_realm, 3, pcoords, ierr) 
+
+	        bicmin = icPmin_md(pcoords(1))
+	        bicmax = icPmax_md(pcoords(1)) 
+	        bjcmin = jcmin_lim 
+	        bjcmax = jcmax_lim 
+	        bkcmin = kcPmin_md(pcoords(3)) 
+	        bkcmax = kcPmax_md(pcoords(3))
+
+			! Amount of data to receive
+			npercell = size(arecv,1)
+			ndata = npercell * (bicmax-bicmin+1) * (bjcmax-bjcmin+1) * (bkcmax-bkcmin+1)
+			!increment pointer ready to receive next piece of data		
+			start_address = 1+((pcoords(1)-1) + (pcoords(3)-1)*npx_md)*ndata
+
+			arecv(:,bicmin:bicmax,bjcmin:bjcmax,bkcmin:bkcmax) =  & 
+						reshape(vbuf(start_address:start_address+ndata-1), & 
+								(/npercell,bicmax-bicmin+1,bjcmax-bjcmin+1,bkcmax-bkcmin+1 /))	
+		enddo
+	endif
+
 
 	!do i=1, nneighbors
 	!	arecv(:,ncl_recv(1,1,i):ncl_recv(2,1,i), & 
@@ -342,24 +412,24 @@ subroutine coupler_recv_xd(arecv,index_transpose)
 
 	!arecv = reshape(vbuf,(/ 3, ncl(2,1)-ncl(1,1), ncl(2,2)-ncl(1,2), ncl(2,3)-ncl(1,3) /))
 
-	!do n = 1,size(vbuf),recvsize
-	!	print*, 'vbuf', n, vbuf(n)
-	!enddo
+	do n = 1,size(vbuf)
+		print*, 'vbuf', n, vbuf(n)
+	enddo
 
-	!do n = 1,size(arecv,1)
-	!do i = 1,size(arecv,2)
-	!do j = 1,size(arecv,3)
-	!do k = 1,size(arecv,4)
-	!	print*, 'arecv', n,i,j,k, arecv(n,i,j,k)
-	!enddo
-	!enddo
-	!enddo
-	!enddo
+	do n = 1,size(arecv,1)
+	do i = 1,size(arecv,2)
+	do j = 1,size(arecv,3)
+	do k = 1,size(arecv,4)
+		print*, 'arecv', n,i,j,k, arecv(n,i,j,k)
+	enddo
+	enddo
+	enddo
+	enddo
            
-end subroutine coupler_recv_xd
+end subroutine CPL_recv_xd
 
 !-------------------------------------------------------------------
-! 					CPL_comm_map								   -
+! 					CPL_create_olap_map								   -
 !-------------------------------------------------------------------
 
 ! Get COMM map for current communicator and relationship to 
@@ -367,7 +437,7 @@ end subroutine coupler_recv_xd
 
 ! - - - Synopsis - - -
 
-! CPL_comm_rank(COMM, rank, comm2world, world2comm, ierr)
+! CPL_create_olap_map(COMM, rank, comm2world, world2comm, ierr)
 
 ! - - - Input Parameters - - -
 
@@ -377,7 +447,8 @@ end subroutine coupler_recv_xd
 ! - - - Output Parameter - - -
 
 !rank
-!    rank of a process within group of comm (integer) 
+!    rank of a process within group of comm (integer)
+!    NOTE - fortran convention rank=1 to nproc  
 !nproc
 !    number of processes within group of comm (integer) 
 !comm2world
@@ -390,7 +461,7 @@ end subroutine coupler_recv_xd
 !    error flag
 
 
-subroutine CPL_comm_map(COMM,rank,nproc,comm2world,world2comm,ierr)
+subroutine CPL_create_olap_map(COMM,rank,nproc,comm2world,world2comm,ierr)
 	use coupler_module, only : rank_world, nproc_world, CPL_WORLD_COMM, VOID
 	use mpi
 	implicit none
@@ -406,6 +477,7 @@ subroutine CPL_comm_map(COMM,rank,nproc,comm2world,world2comm,ierr)
 
 		!Mapping from comm rank to world rank
 		call MPI_comm_rank(COMM,rank,ierr)
+		rank = rank + 1
 		call MPI_comm_size(COMM,nproc,ierr)
 		allocate(comm2world(nproc))
 		call MPI_allgather(rank_world,1,MPI_INTEGER, & 
@@ -418,9 +490,107 @@ subroutine CPL_comm_map(COMM,rank,nproc,comm2world,world2comm,ierr)
 	!Mapping from world rank to comm rank
 	call MPI_allgather(rank      ,1,MPI_INTEGER, & 
 					   world2comm,1,MPI_INTEGER,CPL_WORLD_COMM,ierr)
-	world2comm = world2comm + 1
 
-end subroutine CPL_comm_map
+end subroutine CPL_create_olap_map
+
+!-------------------------------------------------------------------
+
+subroutine CPL_pack(unpacked,packed)
+	use coupler_module, only : CPL_CART_COMM,rank_cart, md_realm
+	implicit none
+
+	real(kind=kind(0.d0)),dimension(:,:,:,:), intent(in)		:: unpacked
+	real(kind=kind(0.d0)),dimension(:),allocatable, intent(out)	:: packed
+	integer :: coord(3), extents(6), npercell, ncells
+	integer :: pos, ixyz, icell, jcell, kcell, ierr
+
+	!Amount of data per cell
+	npercell = size(unpacked,1)
+
+	!Get coordinate of processor
+	call CPL_Cart_coords(CPL_CART_COMM,rank_cart,md_realm,3,coord,ierr) 
+	call CPL_proc_extents(coord,md_realm,extents,ncells)
+
+	!Allocate size of packing buffer
+	if (allocated(packed)) deallocate(packed)
+	allocate(packed(size(unpacked)))
+
+	!Sanity check
+	if (size(packed) .ne. npercell*ncells) then
+		call error_abort("CPL_pack error - cell array does not match expected extents")
+	endif
+
+	! Pack array into buffer
+	pos = 1
+	do ixyz = 1,npercell
+	do icell=extents(1),extents(2)
+	do jcell=extents(3),extents(4)
+	do kcell=extents(5),extents(6)
+
+		packed(pos) = unpacked(ixyz,icell,jcell,kcell)
+		pos = pos + 1
+
+	end do
+	end do
+	end do
+	end do
+
+end subroutine CPL_pack
+
+subroutine CPL_unpack(packed,unpacked)
+	use coupler_module, only : CPL_CART_COMM,rank_cart, md_realm, & 
+								nproc_olap,CFDid_olap,CPL_OLAP_COMM
+	implicit none
+
+	real(kind=kind(0.d0)),dimension(:,:,:,:),allocatable,intent(out) :: unpacked
+	real(kind=kind(0.d0)),dimension(:),allocatable, intent(in)	     :: packed
+
+	integer 										  :: ncells, npercell,coord(3), extents(6)
+	integer											  :: trank_olap, trank_world, trank_cart, tid_olap
+	integer 										  :: pos,ixyz,icell,jcell,kcell, ierr
+
+	call CPL_Cart_coords(CPL_CART_COMM,rank_cart,md_realm,3,coord,ierr) 
+	call CPL_proc_extents(coord,md_realm,extents,ncells)
+
+	npercell = size(packed)/ncells
+
+	allocate(unpacked(npercell,extents(1):extents(2), &
+	                 		   extents(3):extents(4), &
+	                 		   extents(5):extents(6)))
+
+	do trank_olap = 1,nproc_olap
+		tid_olap = trank_olap - 1
+
+		if (tid_olap .eq. CFDid_olap) cycle
+
+		call CPL_Cart_coords(CPL_OLAP_COMM,trank_olap,md_realm,3,coord,ierr) 
+		call CPL_proc_extents(coord,md_realm,extents,ncells)
+
+		pos = (trank_olap-1)*npercell*ncells 
+		write(8000+trank_olap-1,'(a)'), 'unpacked(ixyz,icell,jcell,kcell)'
+		do ixyz = 1,npercell
+		do icell = extents(1),extents(2)
+		do jcell = extents(3),extents(4)
+		do kcell = extents(5),extents(6)
+
+			unpacked(ixyz,icell,jcell,kcell) = packed(pos)
+			pos = pos + 1
+
+			write(8000+trank_olap-1,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
+			      'unpacked(',ixyz,',',icell,',',jcell,',',kcell,') =', &
+			       unpacked(ixyz,icell,jcell,kcell)
+		end do	
+		end do	
+		write(8000+trank_olap-1,'(a)'), 'recvu(ixyz,icell,jcell,kcell)'
+		end do
+		end do
+				
+	end do
+
+	deallocate(unpacked)
+
+end subroutine CPL_unpack
+
 
 end module coupler
 
@@ -556,7 +726,7 @@ end subroutine collect_rank2coords
 subroutine collect_rank2ranks
 	use mpi
 	use coupler_module
-	use coupler, only : CPL_comm_map
+	use coupler, only : CPL_create_olap_map
 	implicit none
 	
 	integer							   :: buf, source, nproc
@@ -566,7 +736,7 @@ subroutine collect_rank2ranks
 
 
 	!------------------------ Cart------------------
-	call CPL_comm_map(CPL_CART_COMM,myid_cart,nproc, & 
+	call CPL_create_olap_map(CPL_CART_COMM,rank_cart,nproc, & 
 					 rank_cart2rank_world,rank_world2rank_cart,ierr)
 
 	!World to rank
@@ -593,7 +763,7 @@ subroutine collect_rank2ranks
 	deallocate(cbuf)
 
 	! - - Collect on own realm intracomm - -
-	call CPL_comm_map(CPL_REALM_COMM,myid_realm,nproc, & 
+	call CPL_create_olap_map(CPL_REALM_COMM,rank_realm,nproc, & 
 					 rank_realm2rank_world,rank_world2rank_realm,ierr)
 
 	!World to rank
@@ -662,7 +832,7 @@ end subroutine collect_rank2ranks_olap
 subroutine prepare_overlap_comms
 	use coupler_module
 	use mpi
-	use coupler, only : CPL_comm_map
+	use coupler, only : CPL_create_olap_map
 	implicit none
 
 	!loop over cfd cart ranks
@@ -741,20 +911,8 @@ subroutine prepare_overlap_comms
 	                    CPL_OLAP_COMM,ierr)
 
 	!Setup Overlap comm sizes and id
-	!call MPI_comm_size(CPL_OLAP_COMM,nproc_olap,ierr)
-	!call MPI_comm_rank(CPL_OLAP_COMM,myid_olap,ierr)
-	!rank_olap = myid_olap + 1
 	if (realm.eq.cfd_realm) CFDid_olap = myid_olap
 	call MPI_bcast(CFDid_olap,1,MPI_INTEGER,CFDid_olap,CPL_OLAP_COMM,ierr)
-
-	!Setup rank_olap_2_rank_realm array
-	!allocate(rank_olap2rank_realm(nproc_olap))
-	!allocate(rank_olap2rank_world(nproc_olap))
-	!call collect_rank2ranks_olap
-
-	!Store rank_olap_2_rank_realm from temp counting array
-	!allocate(rank_olap2rank_realm(nolap))
-	!rank_olap2rank_realm = rank_olap2rank_realm_temp(1:nolap)
 
 	! USED ONLY FOR OUTPUT/TESTING??
 	if (myid_olap .eq. CFDid_olap) testval = group(rank_world)
@@ -767,9 +925,10 @@ subroutine prepare_overlap_comms
 		CPL_OLAP_COMM = MPI_COMM_NULL
 	end if
 
-	call CPL_comm_map(CPL_OLAP_COMM,myid_olap,nproc_olap, & 
+	!Setup overlap map
+	call CPL_create_olap_map(CPL_OLAP_COMM,rank_olap,nproc_olap, & 
 					 rank_olap2rank_world,rank_world2rank_olap,ierr)
-	rank_olap = myid_olap + 1
+	myid_olap = rank_olap - 1
 
 	deallocate(mdicoords)
 	deallocate(mdjcoords)
@@ -785,7 +944,7 @@ end subroutine prepare_overlap_comms
 
 subroutine CPL_overlap_topology
 	use coupler_module
-	use coupler, only : CPL_comm_map
+	use coupler, only : CPL_create_olap_map
 	use mpi
 	implicit none
 
@@ -822,9 +981,9 @@ subroutine CPL_overlap_topology
 		!Create graph topology for overlap region
 		call MPI_Graph_create(CPL_OLAP_COMM, nproc_olap,index,edges,reorder,CPL_GRAPH_COMM,ierr)
 
-        !   TEST   TEST  
+        ! <><><><><><>  TEST <><><><><><>  TEST <><><><><><>  TEST <><><><><><> 
         !Get number of neighbours
-        !call MPI_comm_rank( CPL_GRAPH_COMM, myid_graph, ierr)
+        call MPI_comm_rank( CPL_GRAPH_COMM, myid_graph, ierr)
         call MPI_Graph_neighbors_count( CPL_GRAPH_COMM, myid_graph, nneighbors, ierr)
         allocate(neighbors(nneighbors))
         !Get neighbours
@@ -839,40 +998,55 @@ subroutine CPL_overlap_topology
 								myid_world,myid_graph,myid_olap, & 
 								rank2coord_md(:,rank_realm), nneighbors, neighbors
         end select
-        !   TEST   TEST  
+		! <><><><><><>  TEST <><><><><><>  TEST <><><><><><>  TEST <><><><><><> 
 
 	else
 		CPL_GRAPH_COMM = MPI_COMM_NULL
 	endif
 
-	call CPL_comm_map(CPL_GRAPH_COMM,myid_graph,nproc_olap, & 
+	! Setup graph map
+	call CPL_create_olap_map(CPL_GRAPH_COMM,rank_graph,nproc_olap, & 
 					 rank_graph2rank_world,rank_world2rank_graph,ierr)
-	rank_graph = myid_graph + 1
+	myid_graph = rank_graph - 1
 
 end subroutine CPL_overlap_topology
 
-subroutine gather_u
+
+
+
+subroutine gather_u(gatherbuf)
 	use mpi
 	use coupler_module
+	use coupler, only : CPL_pack
 	implicit none
 
-	real(kind(0.d0)), dimension(:), allocatable :: sendu
+	real(kind(0.d0)), dimension(:,:,:,:), intent(in):: gatherbuf
+	real(kind(0.d0)), dimension(:), allocatable     :: sendu
 
-	integer :: sendcount
+	integer :: sendcount, npercell
 	integer, dimension(:), allocatable :: recvcounts, displs
 	real(kind(0.d0)), dimension(:), allocatable :: buf 
 	
 	integer :: bufsize
 
+	npercell = size(gatherbuf,1)
+
 	call prepare_gatherv_parameters	
 	
-	if (realm.eq.md_realm)  call pack_gatherbuf
+	if (realm.eq.md_realm) then
+		!call pack_gatherbuf
+		call CPL_pack(gatherbuf,sendu)
+	elseif (realm .eq. cfd_realm) then 
+		allocate(sendu(0))
+	end if
 
 	call MPI_gatherv(sendu,sendcount,MPI_DOUBLE_PRECISION,buf,recvcounts,  &
-	                 displs,MPI_DOUBLE_PRECISION,CFDid_olap,CPL_OLAP_COMM, &
-	                 ierr)
+	                 displs,MPI_DOUBLE_PRECISION,CFDid_olap,CPL_OLAP_COMM,ierr)
 
-	if (realm.eq.cfd_realm) call unpack_gatherbuf
+	if (realm.eq.cfd_realm) then
+		call unpack_gatherbuf
+		!call CPL_unpack(gatherbuf,recvu)
+	end if
 
 	call deallocate_gather_u
 
@@ -886,33 +1060,17 @@ contains
 		integer :: ncells
 		integer :: trank_olap,trank_world,trank_cart,tid_olap
 
-		if (realm .eq. md_realm) then
-			coord(:) = rank2coord_md(:,rank_cart)
-			call CPL_proc_extents(coord,md_realm,extents,ncells)
-			bufsize = 3*ncells
-		else
-			bufsize = 0	
-		end if
-
-		allocate(sendu(bufsize))
-		sendcount = size(sendu)
-
 		allocate(recvcounts(nproc_olap))
 		do trank_olap = 1,nproc_olap
 			tid_olap = trank_olap - 1
 			if (tid_olap .eq. CFDid_olap) then
 				recvcounts(trank_olap) = 0 
 			else
-				trank_world = rank_olap2rank_world(trank_olap)
-				trank_cart  = rank_world2rank_mdcart(trank_world)
-				coord(:) = rank2coord_md(:,trank_cart)
-!				call CPL_get_coords(CPL_OLAP_COMM,trank_olap,md_realm,3, &
-!				                    coord,ierr)
+				call CPL_Cart_coords(CPL_OLAP_COMM,trank_olap,md_realm,3,coord,ierr) 
 				call CPL_proc_extents(coord,md_realm,extents,ncells)
 				recvcounts(trank_olap) = 3*ncells 
 			end if
 		end do
-
 
 		allocate(displs(nproc_olap))
 		displs(1) = 0
@@ -1069,12 +1227,7 @@ contains
 			if (tid_olap .eq. CFDid_olap) then
 				sendcounts(trank_olap) = 0 
 			else
-				trank_world = rank_olap2rank_world(trank_olap)
-				trank_cart  = rank_world2rank_mdcart(trank_world)
-				coord(:) = rank2coord_md(:,trank_cart)
-
-!				call CPL_get_coords(CPL_OLAP_COMM,trank_olap,md_realm,3, &
-!				                    coord,ierr)
+				call CPL_Cart_coords(CPL_OLAP_COMM,trank_olap,md_realm,3,coord, ierr) 
 				call CPL_proc_extents(coord,md_realm,extents,ncells)
 				sendcounts(trank_olap) = 9*ncells 
 			end if
@@ -1102,9 +1255,10 @@ contains
 		pos = 1
 		do n = 2,nproc_olap
 
-			trank_world = rank_olap2rank_world(n)
-			trank_cart  = rank_world2rank_mdcart(trank_world)
-			coord(:)    = rank2coord_md(:,trank_cart)
+			call CPL_Cart_coords(CPL_OLAP_COMM,n,md_realm,3,coord,ierr)
+			!trank_world = rank_olap2rank_world(n)
+			!trank_cart  = rank_world2rank_mdcart(trank_world)
+			!coord(:)    = rank2coord_md(:,trank_cart)
 			call CPL_proc_extents(coord,md_realm,extents)
 
 			do ixyz = 1,9
@@ -1119,7 +1273,7 @@ contains
 			end do
 			end do
 			end do
-	
+
 		end do
 	
 	end subroutine pack_scatterbuf	
@@ -1170,43 +1324,6 @@ contains
 	end subroutine deallocate_scatter_s
 
 end subroutine scatter_s
-
-subroutine CPL_proc_extents(coord,realm,extents,ncells)
-	use mpi
-	use coupler_module, only: md_realm,      cfd_realm,      &
-	                          icPmin_md,     icPmax_md,      &
-	                          jcPmin_md,     jcPmax_md,      &
-	                          kcPmin_md,     kcPmax_md,      &
-	                          icPmin_cfd,    icPmax_cfd,     &
-	                          jcPmin_cfd,    jcPmax_cfd,     &
-	                          kcPmin_cfd,    kcPmax_cfd
-	implicit none
-
-	integer, intent(in)  :: coord(3), realm
-	integer, intent(out) :: extents(6)
-	integer, optional, intent(out) :: ncells
-
-	select case(realm)
-	case(md_realm)
-		extents = (/icPmin_md(coord(1)),icPmax_md(coord(1)), & 
-		            jcPmin_md(coord(2)),jcPmax_md(coord(2)), & 
-		            kcPmin_md(coord(3)),kcPmax_md(coord(3))/)
-	case(cfd_realm)
-		extents = (/icPmin_cfd(coord(1)),icPmax_cfd(coord(1)), & 
-		            jcPmin_cfd(coord(2)),jcPmax_cfd(coord(2)), & 
-		            kcPmin_cfd(coord(3)),kcPmax_cfd(coord(3))/)
-
-	case default
-!		call error_abort('Wrong realm in rank_cart_to_cell_extents')
-	end select
-
-	if (present(ncells)) then
-		ncells = (extents(2) - extents(1) + 1) * &
-				 (extents(4) - extents(3) + 1) * &
-				 (extents(6) - extents(5) + 1)
-	end if
-
-end subroutine CPL_proc_extents
 
 subroutine write_realm_info
 	use coupler_module
