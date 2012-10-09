@@ -569,7 +569,7 @@ subroutine CPL_Cart_coords(COMM, rank, realm, maxdims, coords, ierr)
 	elseif(COMM .eq. CPL_REALM_COMM) then
 		! -  -  -  -  -  -  -  -  -  -  -  -  -
 		if (realm .eq. cfd_realm) then
-			if (allocated(rank_cfdrealm2rank_world) .eq. .false.) then
+			if (allocated(rank_cfdrealm2rank_world) .eqv. .false.) then
 				call error_abort("CPL_Cart_coords Error - Setup not complete for CFD CPL_REALM_COMM")
 			elseif (rank .gt. size(rank_cfdrealm2rank_world)) then
 				print*, 'rank = ', rank, 'comm size = ', size(rank_cfdrealm2rank_world)
@@ -577,7 +577,7 @@ subroutine CPL_Cart_coords(COMM, rank, realm, maxdims, coords, ierr)
 			endif
 			worldrank = rank_cfdrealm2rank_world(rank)
 		elseif (realm .eq. md_realm) then
-			if (allocated(rank_mdrealm2rank_world) .eq. .false.) then
+			if (allocated(rank_mdrealm2rank_world) .eqv. .false.) then
 				call error_abort("CPL_Cart_coords Error - Setup not complete for MD CPL_REALM_COMM")
 			elseif (rank .gt. size(rank_mdrealm2rank_world)) then
 				print*, 'rank = ', rank, 'comm size = ', size(rank_cfdrealm2rank_world)
@@ -589,11 +589,11 @@ subroutine CPL_Cart_coords(COMM, rank, realm, maxdims, coords, ierr)
 	elseif(COMM .eq. CPL_CART_COMM) then
 		! -  -  -  -  -  -  -  -  -  -  -  -  -
 		if (realm .eq. cfd_realm) then
-			if (allocated(rank2coord_cfd) .eq. .false.) &
+			if (allocated(rank2coord_cfd) .eqv. .false.) &
 				call error_abort("CPL_Cart_coords Error - Setup not complete for CFD CPL_CART_COMM")
 			coords = rank2coord_cfd(:,rank)
 		elseif (realm .eq. md_realm) then
-			if (allocated(rank2coord_md) .eq. .false.) &
+			if (allocated(rank2coord_md) .eqv. .false.) &
 				call error_abort("CPL_Cart_coords Error - Setup not complete for MD CPL_CART_COMM")
 			coords = rank2coord_md(:,rank)
 		endif
@@ -601,7 +601,7 @@ subroutine CPL_Cart_coords(COMM, rank, realm, maxdims, coords, ierr)
 		! -  -  -  -  -  -  -  -  -  -  -  -  -
 	elseif(COMM .eq. CPL_OLAP_COMM) then
 		! -  -  -  -  -  -  -  -  -  -  -  -  -
-		if (allocated(rank_olap2rank_world) .eq. .false.) then
+		if (allocated(rank_olap2rank_world) .eqv. .false.) then
 			call error_abort("CPL_Cart_coords Error - Setup not complete for CPL_OLAP_COMM")
 		elseif (rank .gt. size(rank_olap2rank_world)) then
 			print*, 'rank = ', rank, 'comm size = ', size(rank_olap2rank_world)
@@ -611,7 +611,7 @@ subroutine CPL_Cart_coords(COMM, rank, realm, maxdims, coords, ierr)
 		! -  -  -  -  -  -  -  -  -  -  -  -  -
 	elseif(COMM .eq. CPL_GRAPH_COMM) then
 		! -  -  -  -  -  -  -  -  -  -  -  -  -
-		if (allocated(rank_graph2rank_world) .eq. .false.) then
+		if (allocated(rank_graph2rank_world) .eqv. .false.) then
 			call error_abort("CPL_Cart_coords Error - Setup not complete for CPL_GRAPH_COMM")
 		elseif (rank .gt. size(rank_graph2rank_world)) then
 			call error_abort("CPL_Cart_coords Error - Specified rank is not in graph")
@@ -639,14 +639,14 @@ subroutine CPL_Cart_coords(COMM, rank, realm, maxdims, coords, ierr)
 	
 	!Get rank in realm cartesian communicator
 	if (realm .eq. cfd_realm) then
-		if (allocated(rank_world2rank_cfdcart) .eq. .false.) then
+		if (allocated(rank_world2rank_cfdcart) .eqv. .false.) then
 			call error_abort("CPL_Cart_coords Error - world to cart mapping not initialised correctly")
 		endif
 		cartrank = rank_world2rank_cfdcart(worldrank)
 		if (cartrank .eq. VOID) call error_abort("CPL_Cart_coords Error - void element in mapping")
 		if (cartrank .gt. nproc_cfd) call error_abort("CPL_Cart_coords Error - rank not in cfd realm")
 	elseif (realm .eq. md_realm) then
-		if (allocated(rank_world2rank_mdcart) .eq. .false.) then
+		if (allocated(rank_world2rank_mdcart) .eqv. .false.) then
 			call error_abort("CPL_Cart_coords Error - world to cart mapping not initialised correctly")
 		endif
 		cartrank = rank_world2rank_mdcart(worldrank)
@@ -665,71 +665,6 @@ subroutine CPL_Cart_coords(COMM, rank, realm, maxdims, coords, ierr)
 	ierr = 0
  
 end subroutine CPL_Cart_coords
-
-
-!-------------------------------------------------------------------
-! 					CPL_proc_extents  						      -
-!-------------------------------------------------------------------
-
-! Get maximum and minimum cells for current communicator
-
-! - - - Synopsis - - -
-
-! CPL_proc_extents(coord,realm,extents,ncells)
-
-! - - - Input Parameters - - -
-
-!coord
-!    processor cartesian coordinate (3 x integer) 
-!realm
-!    cfd_realm (1) or md_realm (2) (integer) 
-!
-! - - - Output Parameter - - -
-
-!extents
-!	 Six components array which defines processor extents
-!	 xmin,xmax,ymin,ymax,zmin,zmax (6 x integer) 
-!ncells (optional)
-!    number of cells on processor (integer) 
-
-
-subroutine CPL_proc_extents(coord,realm,extents,ncells)
-	use mpi
-	use coupler_module, only: md_realm,      cfd_realm,      &
-	                          icPmin_md,     icPmax_md,      &
-	                          jcPmin_md,     jcPmax_md,      &
-	                          kcPmin_md,     kcPmax_md,      &
-	                          icPmin_cfd,    icPmax_cfd,     &
-	                          jcPmin_cfd,    jcPmax_cfd,     &
-	                          kcPmin_cfd,    kcPmax_cfd,     &
-	                          error_abort
-	implicit none
-
-	integer, intent(in)  :: coord(3), realm
-	integer, intent(out) :: extents(6)
-	integer, optional, intent(out) :: ncells
-
-	select case(realm)
-	case(md_realm)
-		extents = (/icPmin_md(coord(1)),icPmax_md(coord(1)), & 
-		            jcPmin_md(coord(2)),jcPmax_md(coord(2)), & 
-		            kcPmin_md(coord(3)),kcPmax_md(coord(3))/)
-	case(cfd_realm)
-		extents = (/icPmin_cfd(coord(1)),icPmax_cfd(coord(1)), & 
-		            jcPmin_cfd(coord(2)),jcPmax_cfd(coord(2)), & 
-		            kcPmin_cfd(coord(3)),kcPmax_cfd(coord(3))/)
-
-	case default
-		call error_abort('Wrong realm in rank_cart_to_cell_extents')
-	end select
-
-	if (present(ncells)) then
-		ncells = (extents(2) - extents(1) + 1) * &
-				 (extents(4) - extents(3) + 1) * &
-				 (extents(6) - extents(5) + 1)
-	end if
-
-end subroutine CPL_proc_extents
 
 
 !subroutine get_overlap_gridstretch
