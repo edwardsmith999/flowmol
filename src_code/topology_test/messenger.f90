@@ -367,7 +367,8 @@ subroutine CPL_recv_xd(arecv,jcmax_recv,jcmin_recv,index_transpose)
 			allocate(vbuf(ndata)); vbuf = 0.d0
 
 		endif
-		! Receive section of data and 
+		! Receive section of data
+		itag = 0
 		print'(a,8i8)', 'recv data',realm,sourceid+1,ndata,size(arecv),start_address,pcoords
 		call MPI_irecv(vbuf(start_address),ndata,MPI_DOUBLE_PRECISION,sourceid,itag,&
             						CPL_GRAPH_COMM,req(i),ierr)
@@ -496,7 +497,7 @@ end subroutine CPL_create_olap_map
 !-------------------------------------------------------------------
 
 subroutine CPL_pack(unpacked,packed)
-	use coupler_module, only : CPL_CART_COMM,rank_cart, md_realm
+	use coupler_module, only : CPL_CART_COMM,rank_cart, md_realm, error_abort
 	implicit none
 
 	real(kind=kind(0.d0)),dimension(:,:,:,:), intent(in)		:: unpacked
@@ -517,6 +518,7 @@ subroutine CPL_pack(unpacked,packed)
 
 	!Sanity check
 	if (size(packed) .ne. npercell*ncells) then
+		print*, 'data size', size(packed), 'expected size', npercell*ncells
 		call error_abort("CPL_pack error - cell array does not match expected extents")
 	endif
 
@@ -590,6 +592,72 @@ subroutine CPL_unpack(packed,unpacked)
 	deallocate(unpacked)
 
 end subroutine CPL_unpack
+
+
+!-------------------------------------------------------------------
+! 					CPL_proc_extents  			      -
+!-------------------------------------------------------------------
+
+! Get maximum and minimum cells for current communicator
+
+! - - - Synopsis - - -
+
+! CPL_proc_extents(coord,realm,extents,ncells)
+
+! - - - Input Parameters - - -
+
+!coord
+!    processor cartesian coordinate (3 x integer) 
+!realm
+!    cfd_realm (1) or md_realm (2) (integer) 
+!
+! - - - Output Parameter - - -
+
+!extents
+!	 Six components array which defines processor extents
+!	 xmin,xmax,ymin,ymax,zmin,zmax (6 x integer) 
+!ncells (optional)
+!    number of cells on processor (integer) 
+
+
+subroutine CPL_proc_extents(coord,realm,extents,ncells)
+	use mpi
+	use coupler_module, only: md_realm,      cfd_realm,      &
+	                          icPmin_md,     icPmax_md,      &
+	                          jcPmin_md,     jcPmax_md,      &
+	                          kcPmin_md,     kcPmax_md,      &
+	                          icPmin_cfd,    icPmax_cfd,     &
+	                          jcPmin_cfd,    jcPmax_cfd,     &
+	                          kcPmin_cfd,    kcPmax_cfd,     &
+	                          error_abort
+	implicit none
+
+	integer, intent(in)  :: coord(3), realm
+	integer, intent(out) :: extents(6)
+	integer, optional, intent(out) :: ncells
+
+	select case(realm)
+	case(md_realm)
+		extents = (/icPmin_md(coord(1)),icPmax_md(coord(1)), & 
+		            jcPmin_md(coord(2)),jcPmax_md(coord(2)), & 
+		            kcPmin_md(coord(3)),kcPmax_md(coord(3))/)
+	case(cfd_realm)
+		extents = (/icPmin_cfd(coord(1)),icPmax_cfd(coord(1)), & 
+		            jcPmin_cfd(coord(2)),jcPmax_cfd(coord(2)), & 
+		            kcPmin_cfd(coord(3)),kcPmax_cfd(coord(3))/)
+
+	case default
+		call error_abort('Wrong realm in rank_cart_to_cell_extents')
+	end select
+
+	if (present(ncells)) then
+		ncells = (extents(2) - extents(1) + 1) * &
+				 (extents(4) - extents(3) + 1) * &
+				 (extents(6) - extents(5) + 1)
+	end if
+
+end subroutine CPL_proc_extents
+
 
 
 end module coupler
@@ -1053,6 +1121,7 @@ subroutine gather_u(gatherbuf)
 contains
 
 	subroutine prepare_gatherv_parameters
+		use coupler, only : CPL_proc_extents
 		implicit none
 
 		integer :: coord(3), extents(6)
@@ -1085,6 +1154,7 @@ contains
 	end subroutine prepare_gatherv_parameters
 
 	subroutine pack_gatherbuf
+		use coupler, only : CPL_proc_extents
 		implicit none
 
 		integer :: coord(3), extents(6)
@@ -1113,6 +1183,7 @@ contains
 	end subroutine pack_gatherbuf
 	
 	subroutine unpack_gatherbuf
+		use coupler, only : CPL_proc_extents
 		implicit none
 
 		integer :: coord(3), extents(6)
@@ -1200,7 +1271,8 @@ subroutine scatter_s
 
 contains
 
-	subroutine prepare_scatterv_parameters	
+	subroutine prepare_scatterv_parameters
+		use coupler, only : CPL_proc_extents
 		implicit none
 
 		integer :: ncxl,ncyl,nczl
@@ -1245,6 +1317,7 @@ contains
 	end subroutine prepare_scatterv_parameters
 
 	subroutine pack_scatterbuf
+		use coupler, only : CPL_proc_extents
 		implicit none
 		
 		integer :: pos, n
@@ -1279,6 +1352,7 @@ contains
 	end subroutine pack_scatterbuf	
 
 	subroutine unpack_scatterbuf
+		use coupler, only : CPL_proc_extents
 		implicit none
 
 		integer :: pos, n
@@ -1366,7 +1440,7 @@ subroutine write_overlap_comms_md
 	call MPI_cart_coords(CPL_CART_COMM,myid_cart,3,coord,ierr)
 	coord(:) = coord(:) + 1
 
-	write(2000+rank_realm,'(2i7,a5,3i5,a5,2i10,a5,i)'), &
+	write(2000+rank_realm,'(2i7,a5,3i5,a5,2i10,a5,i8)'), &
 		rank_realm,rank_olap,'',coord,'',testval,olap_mask(rank_world), &
 		'',CPL_OLAP_COMM
 
