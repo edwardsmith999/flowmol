@@ -34,3 +34,7 @@ cmd = 'cat fort.7* > info_scatter_md && rm fort.7*'
 system(cmd)
 cmd = 'cat fort.8* > info_gather_cfd && rm fort.8*'
 system(cmd)
+cmd = 'cat fort.9* > info_CFD_send && rm fort.9*'
+system(cmd)
+cmd = 'cat fort.11* > info_MD_recv && rm fort.11*'
+system(cmd)
