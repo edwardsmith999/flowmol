@@ -1,4 +1,3 @@
-
 module coupler
 
     interface coupler_send
@@ -593,8 +592,6 @@ subroutine collect_rank2ranks
 	deallocate(mbuf)
 	deallocate(cbuf)
 
-	!---------------Realms--------------------
-
 	! - - Collect on own realm intracomm - -
 	call CPL_comm_map(CPL_REALM_COMM,myid_realm,nproc, & 
 					 rank_realm2rank_world,rank_world2rank_realm,ierr)
@@ -640,8 +637,6 @@ subroutine collect_rank2ranks
 								MPI_INTEGER,source,CPL_INTER_COMM,ierr)	!Send
 		!print*, 'MD realm to world CFD', rank_cfdrealm2rank_world
 	endif
-
-
 
 end subroutine collect_rank2ranks
 
@@ -749,7 +744,8 @@ subroutine prepare_overlap_comms
 	!call MPI_comm_size(CPL_OLAP_COMM,nproc_olap,ierr)
 	!call MPI_comm_rank(CPL_OLAP_COMM,myid_olap,ierr)
 	!rank_olap = myid_olap + 1
-	CFDid_olap = 0 !TODO
+	if (realm.eq.cfd_realm) CFDid_olap = myid_olap
+	call MPI_bcast(CFDid_olap,1,MPI_INTEGER,CFDid_olap,CPL_OLAP_COMM,ierr)
 
 	!Setup rank_olap_2_rank_realm array
 	!allocate(rank_olap2rank_realm(nproc_olap))
@@ -761,8 +757,8 @@ subroutine prepare_overlap_comms
 	!rank_olap2rank_realm = rank_olap2rank_realm_temp(1:nolap)
 
 	! USED ONLY FOR OUTPUT/TESTING??
-	if (myid_olap .eq. 0) testval = group(rank_world)
-	call MPI_bcast(testval,1,MPI_INTEGER,0,CPL_OLAP_COMM,ierr)
+	if (myid_olap .eq. CFDid_olap) testval = group(rank_world)
+	call MPI_bcast(testval,1,MPI_INTEGER,CFDid_olap,CPL_OLAP_COMM,ierr)
 
 	! Set all non-overlapping processors to MPI_COMM_NULL
 	if (olap_mask(rank_world).eq.0) then
@@ -862,121 +858,152 @@ subroutine gather_u
 	use coupler_module
 	implicit none
 
-	integer :: n,extents(6)
-	integer :: ecount,pos
-	integer :: icell, jcell, kcell, ixyz
-	integer :: imin,imax,jmin,jmax,kmin,kmax
-	integer :: coord(3)
-	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: sendu
-	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: recvu
+	real(kind(0.d0)), dimension(:), allocatable :: sendu
 
 	integer :: sendcount
-	integer, dimension(:), allocatable :: recvcounts,displs,allextents
+	integer, dimension(:), allocatable :: recvcounts, displs
 	real(kind(0.d0)), dimension(:), allocatable :: buf 
 	
-	call MPI_cart_coords(CPL_CART_COMM,myid_cart,3,coord,ierr)
-	coord(:) = coord(:) + 1
+	integer :: bufsize
 
-	if (realm .eq. md_realm) then
+	call prepare_gatherv_parameters	
 	
-		allocate(sendu(3,                                        &
-		               icPmin_md(coord(1)):icPmax_md(coord(1)),  &
-		               jcPmin_md(coord(2)):jcPmax_md(coord(2)),  &
-		               kcPmin_md(coord(3)):kcPmax_md(coord(3))))
-		          
-		extents = (/icPmin_md(coord(1)),icPmax_md(coord(1)), & 
-		            jcPmin_md(coord(2)),jcPmax_md(coord(2)), & 
-		            kcPmin_md(coord(3)),kcPmax_md(coord(3))/)
+	if (realm.eq.md_realm)  call pack_gatherbuf
 
-		! Populate dummy u
-		do ixyz = 1,3
-		do icell=icPmin_md(coord(1)),icPmax_md(coord(1))
-		do jcell=jcPmin_md(coord(2)),jcPmax_md(coord(2))
-		do kcell=kcPmin_md(coord(3)),kcPmax_md(coord(3))
-			sendu(ixyz,icell,jcell,kcell) = 0.1d0*ixyz + 1*icell + &
-			                                          1000*jcell + &
-			                                       1000000*kcell
-		end do
-		end do
-		end do
-		end do
-
-		sendcount = size(sendu)
-
-	else
-			
-		allocate(sendu(0,0,0,0))				
-		extents(:) = 0
-		sendcount  = 0
-
-	end if
-
-	!Gather sendcounts
-	allocate(recvcounts(nproc_olap))
-	call MPI_allgather(sendcount,1,MPI_INTEGER,recvcounts,1,MPI_INTEGER,      &
-	                   CPL_OLAP_COMM,ierr)
-
-	allocate(allextents(nproc_olap*6))
-	call MPI_gather(extents,6,MPI_INTEGER,allextents,6,MPI_INTEGER,           &
-	                CFDid_olap,CPL_OLAP_COMM,ierr)
-		
-	allocate(displs(nproc_olap))
-	displs(1) = 0
-	do n=2,nproc_olap
-		displs(n) = sum(recvcounts(1:n-1))	
-	end do
-
-	allocate(buf(sum(recvcounts)))
 	call MPI_gatherv(sendu,sendcount,MPI_DOUBLE_PRECISION,buf,recvcounts,  &
 	                 displs,MPI_DOUBLE_PRECISION,CFDid_olap,CPL_OLAP_COMM, &
 	                 ierr)
 
-	if (myid_olap.eq.CFDid_olap) then
+	if (realm.eq.cfd_realm) call unpack_gatherbuf
 
-		allocate(recvu(3,icPmin_cfd(coord(1)):icPmax_cfd(coord(1)), &
-		                 jcPmin_cfd(coord(2)):jcPmax_cfd(coord(2)), &
-		                 kcPmin_cfd(coord(3)):kcPmax_cfd(coord(3))))
-		ecount = 1
-		do n = 1,nproc_olap
+	call deallocate_gather_u
 
-			!--------------------------------
-			! Sketch of process
-			!	- get from olap_proc_rank (n) the realm rank
-			!   - from realm rank get the coords
-			!   - from coords get the extents
-			!--------------------------------
+contains
 
-	!		trank_realm = rank_olap2rank_realm(rank_olap)
-	!		coord(:)    = rank2coord_md(:,trank_realm)
-	!		imin = icPmin_md(coord(1))
-	!		imax = icPmax_md(coord(1))
-	!		jmin = jcPmin_md(coord(2))
-	!		jmax = jcPmax_md(coord(2))
-	!		kmin = kcPmin_md(coord(3))
-	!		kmax = kcPmax_md(coord(3))
+	subroutine prepare_gatherv_parameters
+		implicit none
 
-			imin = allextents(ecount)
-			imax = allextents(ecount+1)
-			jmin = allextents(ecount+2)
-			jmax = allextents(ecount+3)
-			kmin = allextents(ecount+4)
-			kmax = allextents(ecount+5)
-			ecount = ecount + 6
-		
-			if (all((/imin,imax,jmin,jmax,kmin,kmax/).eq.0)) cycle			
+		integer :: coord(3), extents(6)
+		integer :: bufsize
+		integer :: ncells
+		integer :: trank_olap,trank_world,trank_cart,tid_olap
 
-			pos = displs(n) + 1
-			do kcell = kmin,kmax
-			do jcell = jmin,jmax
-			do icell = imin,imax
+		if (realm .eq. md_realm) then
+			coord(:) = rank2coord_md(:,rank_cart)
+			call coord_to_cell_extents(coord,md_realm,extents)
+			ncells = (extents(2) - extents(1) + 1)* &
+					 (extents(4) - extents(3) + 1)* &
+					 (extents(6) - extents(5) + 1)
+			bufsize = 3*ncells
+		else
+			bufsize = 0	
+		end if
+
+		allocate(sendu(bufsize))
+		sendcount = size(sendu)
+
+		allocate(recvcounts(nproc_olap))
+		do trank_olap = 1,nproc_olap
+			tid_olap = trank_olap - 1
+			if (tid_olap .eq. CFDid_olap) then
+				recvcounts(trank_olap) = 0 
+			else
+				trank_world = rank_olap2rank_world(trank_olap)
+				trank_cart  = rank_world2rank_mdcart(trank_world)
+				coord(:) = rank2coord_md(:,trank_cart)
+!				call CPL_get_coords(CPL_OLAP_COMM,trank_olap,md_realm,3, &
+!				                    coord,ierr)
+				call coord_to_cell_extents(coord,md_realm,extents)
+				ncells = (extents(2) - extents(1) + 1)* &
+						 (extents(4) - extents(3) + 1)* &
+						 (extents(6) - extents(5) + 1)
+				recvcounts(trank_olap) = 3*ncells 
+			end if
+		end do
+
+
+		allocate(displs(nproc_olap))
+		displs(1) = 0
+		do trank_olap=2,nproc_olap
+			displs(trank_olap) = sum(recvcounts(1:trank_olap-1))	
+		end do
+
+		sendcount = recvcounts(rank_olap)
+
+		allocate(buf(sum(recvcounts)))
+
+	end subroutine prepare_gatherv_parameters
+
+	subroutine pack_gatherbuf
+		implicit none
+
+		integer :: coord(3), extents(6)
+		integer :: pos, ixyz, icell, jcell, kcell
+
+		coord(:) = rank2coord_md(:,rank_cart)
+		call coord_to_cell_extents(coord,md_realm,extents)
+
+		! Populate dummy u
+		pos = 1
+		do ixyz = 1,3
+		do icell=extents(1),extents(2)
+		do jcell=extents(3),extents(4)
+		do kcell=extents(5),extents(6)
+
+			sendu(pos) = 0.1d0*ixyz + 1*icell + &
+			                       1000*jcell + &
+			                    1000000*kcell
+			pos = pos + 1
+
+		end do
+		end do
+		end do
+		end do
+	
+	end subroutine pack_gatherbuf
+	
+	subroutine unpack_gatherbuf
+		implicit none
+
+		integer :: coord(3), extents(6)
+		integer :: trank_olap, trank_world, trank_cart, tid_olap
+		integer :: pos,ixyz,icell,jcell,kcell
+		real(kind(0.d0)), dimension(:,:,:,:), allocatable :: recvu
+
+		coord(:) = rank2coord_cfd(:,rank_cart)
+		call coord_to_cell_extents(coord,cfd_realm,extents)
+
+		allocate(recvu(3,extents(1):extents(2), &
+		                 extents(3):extents(4), &
+		                 extents(5):extents(6)))
+
+		do trank_olap = 1,nproc_olap
+
+			tid_olap = trank_olap - 1
+			if (tid_olap .eq. CFDid_olap) cycle
+
+			trank_world = rank_olap2rank_world(trank_olap)
+			trank_cart  = rank_world2rank_mdcart(trank_world)
+			coord(:)    = rank2coord_md(:,trank_cart)
+			call coord_to_cell_extents(coord,md_realm,extents)
+	
+			pos = displs(trank_olap) + 1	
+			write(8000+myid_olap,'(a)'), 'recvu(ixyz,icell,jcell,kcell)'
 			do ixyz = 1,3
+			do icell = extents(1),extents(2)
+			do jcell = extents(3),extents(4)
+			do kcell = extents(5),extents(6)
+
 				recvu(ixyz,icell,jcell,kcell) = buf(pos)
 				pos = pos + 1
-				write(8000+myid_olap,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),  &
+
+				write(8000+myid_olap,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
 				      'recvu(',ixyz,',',icell,',',jcell,',',kcell,') =', &
 				       recvu(ixyz,icell,jcell,kcell)
+
 			end do	
 			end do	
+			write(8000+myid_olap,'(a)'), 'recvu(ixyz,icell,jcell,kcell)'
 			end do
 			end do
 					
@@ -984,13 +1011,17 @@ subroutine gather_u
 
 		deallocate(recvu)
 
-	end if
+	end subroutine unpack_gatherbuf 
+	
+	subroutine deallocate_gather_u
+		implicit none
 
-	deallocate(recvcounts)
-	deallocate(allextents)
-	deallocate(displs)
-	deallocate(sendu)
-	deallocate(buf)
+		if(allocated(recvcounts)) deallocate(recvcounts)
+		if(allocated(displs)) deallocate(displs)
+		if(allocated(sendu)) deallocate(sendu)
+		if(allocated(buf)) deallocate(buf)
+
+	end subroutine deallocate_gather_u
 
 end subroutine gather_u
 
@@ -999,51 +1030,103 @@ subroutine scatter_s
 	use mpi
 	implicit none
 
-	integer :: n,pos,tsize
-	integer :: trank_cart,tid_cart,trank_world
-	integer :: extents(6), coord(3), mdcoord(3)
 	integer :: recvcount
-	integer :: icell,jcell,kcell,ixyz
-	integer :: imin,imax,jmin,jmax,kmin,kmax
-	integer :: ncxl, ncyl, nczl
 	integer, dimension(:), allocatable :: displs,sendcounts
-!	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: sends
-	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: recvs
-	real(kind(0.d0)), dimension(:), allocatable :: buf 
-	real(kind(0.d0)), dimension(:), allocatable :: sends
+	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: stress
+	real(kind(0.d0)), dimension(:), allocatable :: recvbuf 
+	real(kind(0.d0)), dimension(:), allocatable :: scatterbuf
 
-	if (realm.eq.cfd_realm) then
+	call prepare_scatterv_parameters
+
+	if (realm.eq.cfd_realm) call pack_scatterbuf
+
+	call MPI_scatterv(scatterbuf,sendcounts,displs,MPI_DOUBLE_PRECISION, &
+	                  recvbuf,recvcount,MPI_DOUBLE_PRECISION,CFDid_olap, &
+	                  CPL_OLAP_COMM,ierr) 
+
+	if (realm.eq.md_realm)  call unpack_scatterbuf
+
+	call deallocate_scatter_s
+
+contains
+
+	subroutine prepare_scatterv_parameters	
+		implicit none
+
+		integer :: ncxl,ncyl,nczl
+		integer :: ncells
+		integer :: icell,jcell,kcell
+		integer :: coord(3),extents(6)
+		integer :: bufsize
+		integer :: trank_olap, tid_olap, trank_world, trank_cart
 
 		! THIS ASSUMES ONE OVERLAP CFD PROCESSOR IN Y DIRECTION
 		ncxl = icmax_olap - icmin_olap + 1
 		ncyl = jcmax_olap - jcmin_olap + 1
 		nczl = kcmax_olap - kcmin_olap + 1
-		allocate(sends(9*ncxl*ncyl*nczl))
 
-		! Loop over overlapping md processors
-		! Get their extents
-		! Loop over their extents, populating and incrementing pos
+		if (realm.eq.cfd_realm) bufsize = 9*ncxl*ncyl*nczl
+		if (realm.eq.md_realm)  bufsize = 0
+
+		allocate(scatterbuf(bufsize))
+		allocate(sendcounts(nproc_olap))
+		allocate(displs(nproc_olap))
+
+		do trank_olap = 1,nproc_olap
+			tid_olap = trank_olap - 1
+			if (tid_olap .eq. CFDid_olap) then
+				sendcounts(trank_olap) = 0 
+			else
+				trank_world = rank_olap2rank_world(trank_olap)
+				trank_cart  = rank_world2rank_mdcart(trank_world)
+				coord(:) = rank2coord_md(:,trank_cart)
+
+!				call CPL_get_coords(CPL_OLAP_COMM,trank_olap,md_realm,3, &
+!				                    coord,ierr)
+				call coord_to_cell_extents(coord,md_realm,extents)
+
+				
+				ncells = (extents(2) - extents(1) + 1)* &
+						 (extents(4) - extents(3) + 1)* &
+						 (extents(6) - extents(5) + 1)
+				sendcounts(trank_olap) = 9*ncells 
+			end if
+		end do
+
+		recvcount = sendcounts(rank_olap)
+
+		displs(1) = 0
+		do trank_olap=2,nproc_olap
+			displs(trank_olap) = sum(sendcounts(1:trank_olap-1))	
+		end do
+
+		allocate(recvbuf(sum(sendcounts)))
+
+	end subroutine prepare_scatterv_parameters
+
+	subroutine pack_scatterbuf
+		implicit none
+		
+		integer :: pos, n
+		integer :: trank_world, trank_cart
+		integer :: coord(3), extents(6)
+		integer :: ixyz, icell, jcell, kcell
+
 		pos = 1
 		do n = 2,nproc_olap
 
 			trank_world = rank_olap2rank_world(n)
 			trank_cart  = rank_world2rank_mdcart(trank_world)
 			coord(:)    = rank2coord_md(:,trank_cart)
-
-			imin = icPmin_md(coord(1))	
-			imax = icPmax_md(coord(1))	
-			jmin = jcPmin_md(coord(2))	
-			jmax = jcPmax_md(coord(2))	
-			kmin = kcPmin_md(coord(3))	
-			kmax = kcPmax_md(coord(3))
+			call coord_to_cell_extents(coord,md_realm,extents)
 
 			do ixyz = 1,9
-			do icell= imin,imax
-			do jcell= jmin,jmax
-			do kcell= kmin,kmax
-				sends(pos) = 0.1d0*ixyz + 1*icell + &
-									   1000*jcell + &
-									1000000*kcell
+			do icell= extents(1),extents(2)
+			do jcell= extents(3),extents(4)
+			do kcell= extents(5),extents(6)
+				scatterbuf(pos) = 0.1d0*ixyz + 1*icell + &
+				                            1000*jcell + &
+				                         1000000*kcell
 				pos = pos + 1
 			end do
 			end do
@@ -1051,84 +1134,85 @@ subroutine scatter_s
 			end do
 	
 		end do
+	
+	end subroutine pack_scatterbuf	
 
-		recvcount = 0
+	subroutine unpack_scatterbuf
+		implicit none
 
-	else if (realm.eq.md_realm) then
+		integer :: pos, n
+		integer :: trank_world, trank_cart
+		integer :: coord(3), extents(6)
+		integer :: ixyz, icell, jcell, kcell
 
 		coord(:) = rank2coord_md(:,rank_cart)
+		call coord_to_cell_extents(coord,realm,extents)
 
-		allocate(recvs(9,                                        &
-		               icPmin_md(coord(1)):icPmax_md(coord(1)),  &
-		               jcPmin_md(coord(2)):jcPmax_md(coord(2)),  &
-		               kcPmin_md(coord(3)):kcPmax_md(coord(3))))
-		          
+		allocate(stress(9,extents(1):extents(2), &
+		                  extents(3):extents(4), &
+		                  extents(5):extents(6)))
+
+		write(7000+myid_olap,'(a)'), 'stress(ixyz,icell,jcell,kcell)'
+		pos = 1
+		do ixyz  = 1,9
+		do icell= extents(1),extents(2)
+		do jcell= extents(3),extents(4)
+		do kcell= extents(5),extents(6)
+			stress(ixyz,icell,jcell,kcell) = recvbuf(pos)
+			write(7000+myid_realm,'(i4,a,i4,a,i4,a,i4,a,i4,a,f20.1)'),    &
+				  rank_cart,' stress(',ixyz,',',icell,',',jcell,',',kcell, &
+				  ') =',stress(ixyz,icell,jcell,kcell)
+			pos = pos + 1
+		end do	
+		end do	
+		write(7000+myid_olap,'(a)'), 'stress(ixyz,icell,jcell,kcell)'
+		end do
+		end do
+
+	end subroutine unpack_scatterbuf
+	
+	subroutine deallocate_scatter_s
+		implicit none
+
+		if(allocated(stress))     deallocate(stress)
+		if(allocated(displs))     deallocate(displs)
+		if(allocated(scatterbuf)) deallocate(scatterbuf)
+		if(allocated(recvbuf))    deallocate(recvbuf)
+		if(allocated(sendcounts)) deallocate(sendcounts)
+
+	end subroutine deallocate_scatter_s
+
+end subroutine scatter_s
+
+subroutine coord_to_cell_extents(coord,realm,extents)
+	use mpi
+	use coupler_module, only: md_realm,      cfd_realm,      &
+	                          icPmin_md,     icPmax_md,      &
+	                          jcPmin_md,     jcPmax_md,      &
+	                          kcPmin_md,     kcPmax_md,      &
+	                          icPmin_cfd,    icPmax_cfd,     &
+	                          jcPmin_cfd,    jcPmax_cfd,     &
+	                          kcPmin_cfd,    kcPmax_cfd
+	implicit none
+
+	integer, intent(in)  :: coord(3), realm
+	integer, intent(out) :: extents(6)
+
+	select case(realm)
+	case(md_realm)
 		extents = (/icPmin_md(coord(1)),icPmax_md(coord(1)), & 
 		            jcPmin_md(coord(2)),jcPmax_md(coord(2)), & 
 		            kcPmin_md(coord(3)),kcPmax_md(coord(3))/)
+	case(cfd_realm)
+		extents = (/icPmin_cfd(coord(1)),icPmax_cfd(coord(1)), & 
+		            jcPmin_cfd(coord(2)),jcPmax_cfd(coord(2)), & 
+		            kcPmin_cfd(coord(3)),kcPmax_cfd(coord(3))/)
 
-		recvcount = size(recvs)
+	case default
+!		call error_abort('Wrong realm in rank_cart_to_cell_extents')
+	end select
 
-		allocate(sends(0))
-
-	end if
-
-	allocate(sendcounts(nproc_olap))
-	call MPI_allgather(recvcount,1,MPI_INTEGER,sendcounts,1,MPI_INTEGER,  &
-	                   CPL_OLAP_COMM,ierr)
-
-	! THIS ASSUMES CFDid_olap = 0!
-	allocate(displs(nproc_olap))
-	displs(1) = 0
-	do n=2,nproc_olap
-		displs(n) = sum(sendcounts(1:n-1))	
-	end do
-	if (myid_olap.eq.0) print*, 'displs:', displs
-
-	allocate(buf(sum(sendcounts)))
-	call MPI_scatterv(sends,sendcounts,displs,MPI_DOUBLE_PRECISION,buf,   &
-	                  recvcount,MPI_DOUBLE_PRECISION,CFDid_olap,          &
-	                  CPL_OLAP_COMM,ierr) 
-
-	if (realm.eq.md_realm) then
-
-			imin = extents(1)
-			imax = extents(2)
-			jmin = extents(3)
-			jmax = extents(4)
-			kmin = extents(5)
-			kmax = extents(6)
-
-			write(7000+myid_realm,'(a)'), 'recvs(ixyz,icell,jcell,kcell)'
-			pos = 1
-			do ixyz  = 1,9
-			do icell = imin,imax
-			do jcell = jmin,jmax
-			do kcell = kmin,kmax
-				recvs(ixyz,icell,jcell,kcell) = buf(pos)
-				write(7000+myid_realm,'(i4,a,i4,a,i4,a,i4,a,i4,a,f20.1)'),    &
-				      rank_cart,' recvs(',ixyz,',',icell,',',jcell,',',kcell, &
-				      ') =',recvs(ixyz,icell,jcell,kcell)
-				pos = pos + 1
-			end do	
-			end do	
-			write(7000+myid_olap,'(a)'), 'recvs(ixyz,icell,jcell,kcell)'
-			end do
-			end do
-
-		deallocate(recvs)
-		deallocate(displs)
-
-	else
-
-		deallocate(sends)
-
-	end if
-
-	deallocate(buf)
-	deallocate(sendcounts)
-	
-end subroutine scatter_s
+end subroutine coord_to_cell_extents
 
 subroutine write_realm_info
 	use coupler_module
