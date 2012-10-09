@@ -851,8 +851,6 @@ subroutine CPL_overlap_topology
 
 end subroutine CPL_overlap_topology
 
-
-
 subroutine gather_u
 	use mpi
 	use coupler_module
@@ -890,10 +888,7 @@ contains
 
 		if (realm .eq. md_realm) then
 			coord(:) = rank2coord_md(:,rank_cart)
-			call coord_to_cell_extents(coord,md_realm,extents)
-			ncells = (extents(2) - extents(1) + 1)* &
-					 (extents(4) - extents(3) + 1)* &
-					 (extents(6) - extents(5) + 1)
+			call CPL_proc_extents(coord,md_realm,extents,ncells)
 			bufsize = 3*ncells
 		else
 			bufsize = 0	
@@ -913,10 +908,7 @@ contains
 				coord(:) = rank2coord_md(:,trank_cart)
 !				call CPL_get_coords(CPL_OLAP_COMM,trank_olap,md_realm,3, &
 !				                    coord,ierr)
-				call coord_to_cell_extents(coord,md_realm,extents)
-				ncells = (extents(2) - extents(1) + 1)* &
-						 (extents(4) - extents(3) + 1)* &
-						 (extents(6) - extents(5) + 1)
+				call CPL_proc_extents(coord,md_realm,extents,ncells)
 				recvcounts(trank_olap) = 3*ncells 
 			end if
 		end do
@@ -941,7 +933,7 @@ contains
 		integer :: pos, ixyz, icell, jcell, kcell
 
 		coord(:) = rank2coord_md(:,rank_cart)
-		call coord_to_cell_extents(coord,md_realm,extents)
+		call CPL_proc_extents(coord,md_realm,extents)
 
 		! Populate dummy u
 		pos = 1
@@ -969,9 +961,9 @@ contains
 		integer :: trank_olap, trank_world, trank_cart, tid_olap
 		integer :: pos,ixyz,icell,jcell,kcell
 		real(kind(0.d0)), dimension(:,:,:,:), allocatable :: recvu
-
+	
 		coord(:) = rank2coord_cfd(:,rank_cart)
-		call coord_to_cell_extents(coord,cfd_realm,extents)
+		call CPL_proc_extents(coord,cfd_realm,extents)
 
 		allocate(recvu(3,extents(1):extents(2), &
 		                 extents(3):extents(4), &
@@ -985,7 +977,7 @@ contains
 			trank_world = rank_olap2rank_world(trank_olap)
 			trank_cart  = rank_world2rank_mdcart(trank_world)
 			coord(:)    = rank2coord_md(:,trank_cart)
-			call coord_to_cell_extents(coord,md_realm,extents)
+			call CPL_proc_extents(coord,md_realm,extents)
 	
 			pos = displs(trank_olap) + 1	
 			write(8000+myid_olap,'(a)'), 'recvu(ixyz,icell,jcell,kcell)'
@@ -1083,12 +1075,7 @@ contains
 
 !				call CPL_get_coords(CPL_OLAP_COMM,trank_olap,md_realm,3, &
 !				                    coord,ierr)
-				call coord_to_cell_extents(coord,md_realm,extents)
-
-				
-				ncells = (extents(2) - extents(1) + 1)* &
-						 (extents(4) - extents(3) + 1)* &
-						 (extents(6) - extents(5) + 1)
+				call CPL_proc_extents(coord,md_realm,extents,ncells)
 				sendcounts(trank_olap) = 9*ncells 
 			end if
 		end do
@@ -1118,7 +1105,7 @@ contains
 			trank_world = rank_olap2rank_world(n)
 			trank_cart  = rank_world2rank_mdcart(trank_world)
 			coord(:)    = rank2coord_md(:,trank_cart)
-			call coord_to_cell_extents(coord,md_realm,extents)
+			call CPL_proc_extents(coord,md_realm,extents)
 
 			do ixyz = 1,9
 			do icell= extents(1),extents(2)
@@ -1146,7 +1133,7 @@ contains
 		integer :: ixyz, icell, jcell, kcell
 
 		coord(:) = rank2coord_md(:,rank_cart)
-		call coord_to_cell_extents(coord,realm,extents)
+		call CPL_proc_extents(coord,realm,extents)
 
 		allocate(stress(9,extents(1):extents(2), &
 		                  extents(3):extents(4), &
@@ -1184,7 +1171,7 @@ contains
 
 end subroutine scatter_s
 
-subroutine coord_to_cell_extents(coord,realm,extents)
+subroutine CPL_proc_extents(coord,realm,extents,ncells)
 	use mpi
 	use coupler_module, only: md_realm,      cfd_realm,      &
 	                          icPmin_md,     icPmax_md,      &
@@ -1197,6 +1184,7 @@ subroutine coord_to_cell_extents(coord,realm,extents)
 
 	integer, intent(in)  :: coord(3), realm
 	integer, intent(out) :: extents(6)
+	integer, optional, intent(out) :: ncells
 
 	select case(realm)
 	case(md_realm)
@@ -1212,7 +1200,13 @@ subroutine coord_to_cell_extents(coord,realm,extents)
 !		call error_abort('Wrong realm in rank_cart_to_cell_extents')
 	end select
 
-end subroutine coord_to_cell_extents
+	if (present(ncells)) then
+		ncells = (extents(2) - extents(1) + 1) * &
+				 (extents(4) - extents(3) + 1) * &
+				 (extents(6) - extents(5) + 1)
+	end if
+
+end subroutine CPL_proc_extents
 
 subroutine write_realm_info
 	use coupler_module
