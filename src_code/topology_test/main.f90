@@ -10,9 +10,10 @@ program create_map
 	call prepare_overlap_comms
 	call CPL_overlap_topology
 	!call test_COMMS
+	!call test_packing
 
 	call test_send_recv_MD2CFD
-	!call test_send_recv_CFD2MD
+	call test_send_recv_CFD2MD
 	call test_gather_scatter
 
 	call finalise
@@ -304,6 +305,91 @@ subroutine setup_CFD_procs
 	end do
 
 end subroutine setup_CFD_procs
+
+
+! ----------------------------------------------
+! Test the packing routines from coupler
+
+subroutine test_packing
+	use coupler_module
+	use coupler
+	implicit none
+
+
+	integer 										:: ncxl, ncyl, nczl
+	integer 										:: coord(3), extents(6)
+	integer											:: ixyz, icell, jcell, kcell
+	double precision,dimension(:),allocatable		:: outbuf
+	double precision,dimension(:,:,:,:),allocatable	:: packbuf,testbuf
+
+	! Test Packing in the overlap region only
+	if (olap_mask(rank_world).ne.1) return
+				   
+	if (realm .eq. md_realm) then		   
+
+		call CPL_Cart_coords(CPL_CART_COMM,rank_cart,realm,3,coord,ierr)
+		call CPL_proc_extents(coord,md_realm,extents)
+
+		ncxl = extents(2)-extents(1)+1
+		ncyl = extents(4)-extents(3)+1
+		nczl = extents(6)-extents(5)+1
+
+		allocate(packbuf(3,ncxl,ncyl,nczl),testbuf(3,ncxl,ncyl,nczl))
+
+		! Populate dummy packbuf
+		do ixyz = 1,3
+		do icell=1,extents(2)-extents(1)
+		do jcell=1,extents(4)-extents(3)
+		do kcell=1,extents(6)-extents(5)
+
+			packbuf(ixyz,icell,jcell,kcell) = 0.1d0*ixyz + 1*icell + &
+			                       			  1000*jcell + &
+			                    			  1000000*kcell
+
+		end do
+		end do
+		end do
+		end do
+
+
+	else if (realm .eq. cfd_realm) then	
+
+		call CPL_Cart_coords(CPL_CART_COMM,rank_cart,realm,3,coord,ierr)
+		call CPL_proc_extents(coord,cfd_realm,extents)
+
+		ncxl = extents(2)-extents(1)+1
+		ncyl = extents(4)-extents(3)+1
+		nczl = extents(6)-extents(5)+1
+
+		allocate(packbuf(3,ncxl,ncyl,nczl),testbuf(3,ncxl,ncyl,nczl))
+
+		! Populate dummy packbuf
+		do ixyz = 1,3
+		do icell=1,extents(2)-extents(1)
+		do jcell=1,extents(4)-extents(3)
+		do kcell=1,extents(6)-extents(5)
+
+			packbuf(ixyz,icell,jcell,kcell) = 0.1d0*ixyz + 1*icell + &
+			                       			  1000*jcell + &
+			                    			  1000000*kcell
+
+		end do
+		end do
+		end do
+		end do
+
+	end if
+
+	!print*,'Test pack',rank_world,myid_cart,realm,olap_mask(rank_world), extents, coord
+
+	call CPL_pack(packbuf,outbuf,realm)
+	call CPL_unpack(outbuf,testbuf,realm)
+
+	print'(a,3f10.5)', 'Error in pack/unpack = ', maxval(testbuf-packbuf), & 
+												  minval(testbuf-packbuf), & 
+												     sum(testbuf-packbuf)
+
+end subroutine test_packing
 
 ! ----------------------------------------------
 ! Test the send and recv routines from coupler

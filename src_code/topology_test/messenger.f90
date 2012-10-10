@@ -39,7 +39,7 @@ subroutine CPL_gather(gatherbuf)
 	
 	if (realm.eq.md_realm) then
 		!call pack_gatherbuf
-		call CPL_pack(gatherbuf,sendu)
+		call CPL_pack(gatherbuf,sendu,realm)
 	elseif (realm .eq. cfd_realm) then 
 		allocate(sendu(0))
 	end if
@@ -402,7 +402,7 @@ subroutine CPL_send_xd(asend,jcmax_send,jcmin_send,index_transpose)
 
 	!Neighbours
 	integer								:: nneighbors   
-	integer,dimension(:),allocatable	:: neighbors
+	integer,dimension(:),allocatable	:: id_neighbors
 
     ! local indices 
 	integer	:: jcmin_lim,jcmax_lim
@@ -410,7 +410,7 @@ subroutine CPL_send_xd(asend,jcmax_send,jcmin_send,index_transpose)
 	integer	:: npercell
 
     ! auxiliaries 
-    integer								:: i,ndata,itag,destid
+    integer								:: nbr,ndata,itag,destid
     integer,dimension(3)				:: pcoords
 	real(kind=kind(0.d0)), allocatable 	:: vbuf(:)
 
@@ -449,16 +449,16 @@ subroutine CPL_send_xd(asend,jcmax_send,jcmin_send,index_transpose)
 
 	!Get neighbours
 	call MPI_Graph_neighbors_count(CPL_GRAPH_COMM,myid_graph,nneighbors,ierr)
-	allocate(neighbors(nneighbors))
-	call MPI_Graph_neighbors(CPL_GRAPH_COMM,myid_graph,nneighbors,neighbors,ierr )
+	allocate(id_neighbors(nneighbors))
+	call MPI_Graph_neighbors(CPL_GRAPH_COMM,myid_graph,nneighbors,id_neighbors,ierr )
 
 	!print*, 'send data',rank_world,rank_realm,rank_olap,olap_mask(rank_world),bicmax,bjcmax,bjcmin,bkcmax,bkcmin
    
     ! loop through the maps and send the corresponding sections of asend
-    do i = 1, nneighbors
+    do nbr = 1, nneighbors
 
 		!Get taget processor from mapping
-        destid = neighbors(i)
+        destid = id_neighbors(nbr)
 
 	    ! Get size of data to Send
 		if (realm .eq. cfd_realm) then
@@ -565,11 +565,11 @@ subroutine CPL_recv_xd(arecv,jcmax_recv,jcmin_recv,index_transpose)
 
 	!Neighbours
 	integer								:: nneighbors   
-	integer,dimension(:),allocatable	:: neighbors
+	integer,dimension(:),allocatable	:: id_neighbors
                                                          
     ! local indices 
 	integer	:: jcmax_lim, jcmin_lim
-    integer :: n,i,j,k,ix,iy,iz,bicmin,bicmax,bjcmin,bjcmax,bkcmin,bkcmax
+    integer :: n,nbr,i,j,k,ix,iy,iz,bicmin,bicmax,bjcmin,bjcmax,bkcmin,bkcmax
 	integer	:: ncl(2,3),pcoords(3),recvsize,startbuf,endbuf,npercell
 
     ! auxiliaries 
@@ -632,18 +632,18 @@ subroutine CPL_recv_xd(arecv,jcmax_recv,jcmin_recv,index_transpose)
 
 	!Get neighbours
 	call MPI_Graph_neighbors_count(CPL_GRAPH_COMM,myid_graph,nneighbors,ierr)
-	allocate(neighbors(nneighbors))
-	call MPI_Graph_neighbors(CPL_GRAPH_COMM,myid_graph,nneighbors,neighbors,ierr )
+	allocate(id_neighbors(nneighbors))
+	call MPI_Graph_neighbors(CPL_GRAPH_COMM,myid_graph,nneighbors,id_neighbors,ierr )
 
     ! Receive from all attached processors
 	allocate(req(nneighbors))
 	allocate(status(MPI_STATUS_SIZE,nneighbors))
 	allocate(ncl_recv(2,3,nneighbors))
     start_address = 1 
-    do i = 1, nneighbors
+    do nbr = 1, nneighbors
 
 		!Get source processor from topology graph
-        sourceid =  neighbors(i)
+        sourceid =  id_neighbors(nbr)
 
 	    ! Get size of data to receive from source processors
 		if (realm .eq. cfd_realm) then
@@ -692,14 +692,14 @@ subroutine CPL_recv_xd(arecv,jcmax_recv,jcmin_recv,index_transpose)
 		itag = 0
 		print'(a,8i8)', 'recv data',realm,sourceid+1,ndata,size(arecv),start_address,pcoords
 		call MPI_irecv(vbuf(start_address),ndata,MPI_DOUBLE_PRECISION,sourceid,itag,&
-            						CPL_GRAPH_COMM,req(i),ierr)
+            						CPL_GRAPH_COMM,req(nbr),ierr)
 
     enddo
     call MPI_waitall(nneighbors, req, status, ierr)
 
 
 	if (realm .eq. cfd_realm) then
-		do i=1, nneighbors
+		do nbr=1, nneighbors
 
 			!CFD realm receives data based on size of MD processor domain
 			call CPL_Cart_coords(CPL_GRAPH_COMM, sourceid+1, md_realm, 3, pcoords, ierr) 
@@ -724,29 +724,29 @@ subroutine CPL_recv_xd(arecv,jcmax_recv,jcmin_recv,index_transpose)
 	endif
 
 
-	!do i=1, nneighbors
-	!	arecv(:,ncl_recv(1,1,i):ncl_recv(2,1,i), & 
+	!do nbr=1, nneighbors
+	!	arecv(:,ncl_recv(1,1,nbr):ncl_recv(2,1,nbr), & 
 	!			1:1, & 
-	!			ncl_recv(1,3,i):ncl_recv(2,3,i)) = reshape(vbuf,(/ 3,ncl_recv(1,1,i)-ncl_recv(2,1,i), & 
+	!			ncl_recv(1,3,nbr):ncl_recv(2,3,nbr)) = reshape(vbuf,(/ 3,ncl_recv(1,1,nbr)-ncl_recv(2,1,nbr), & 
 	!															 	 1, & 
-	!															 	 ncl_recv(1,3,i)-ncl_recv(2,3,i)/))
+	!															 	 ncl_recv(1,3,nbr)-ncl_recv(2,3,nbr)/))
 	!enddo
 
 	!arecv = reshape(vbuf,(/ 3, ncl(2,1)-ncl(1,1), ncl(2,2)-ncl(1,2), ncl(2,3)-ncl(1,3) /))
 
-	do n = 1,size(vbuf)
-		print*, 'vbuf', n, vbuf(n)
-	enddo
+	!do n = 1,size(vbuf)
+	!	print*, 'vbuf', n, vbuf(n)
+	!enddo
 
-	do n = 1,size(arecv,1)
-	do i = 1,size(arecv,2)
-	do j = 1,size(arecv,3)
-	do k = 1,size(arecv,4)
-		print*, 'arecv', n,i,j,k, arecv(n,i,j,k)
-	enddo
-	enddo
-	enddo
-	enddo
+	!do n = 1,size(arecv,1)
+	!do i = 1,size(arecv,2)
+	!do j = 1,size(arecv,3)
+	!do k = 1,size(arecv,4)
+	!	print*, 'arecv', n,i,j,k, arecv(n,i,j,k)
+	!enddo
+	!enddo
+	!enddo
+	!enddo
            
 end subroutine CPL_recv_xd
 
@@ -817,25 +817,76 @@ end subroutine CPL_rank_map
 
 !-------------------------------------------------------------------
 
-subroutine CPL_pack(unpacked,packed)
-	use coupler_module, only : CPL_CART_COMM,rank_cart, md_realm, error_abort
+subroutine CPL_pack(unpacked,packed,realm)
+	use coupler_module, only : CPL_CART_COMM,rank_cart,md_realm,cfd_realm, & 
+	                           error_abort,CPL_GRAPH_COMM,myid_graph,realm_name
 	implicit none
 
+	integer, intent(in)											:: realm
 	real(kind=kind(0.d0)),dimension(:,:,:,:), intent(in)		:: unpacked
 	real(kind=kind(0.d0)),dimension(:),allocatable, intent(out)	:: packed
-	integer :: coord(3), extents(6), npercell, ncells
-	integer :: pos, ixyz, icell, jcell, kcell, ierr
+
+	integer                          :: pos,n,nbr,id_nbr,icell,jcell,kcell,ierr
+	integer                          :: npercell,ncells,nneighbors
+	integer,dimension(3)			 :: coord
+	integer,dimension(6)			 :: extents,gextents
+	integer,dimension(:),allocatable :: id_neighbors
 
 	!Amount of data per cell
 	npercell = size(unpacked,1)
 
-	!Get coordinate of processor
-	call CPL_Cart_coords(CPL_CART_COMM,rank_cart,md_realm,3,coord,ierr) 
-	call CPL_proc_extents(coord,md_realm,extents,ncells)
-
-	!Allocate size of packing buffer
+	!Allocate packing buffer
 	if (allocated(packed)) deallocate(packed)
 	allocate(packed(size(unpacked)))
+
+	! Get neighbour topology to determine ordering of packed data
+	call MPI_Graph_neighbors_count(CPL_GRAPH_COMM,myid_graph,nneighbors,ierr)
+    allocate(id_neighbors(nneighbors))
+    call MPI_Graph_neighbors(CPL_GRAPH_COMM,myid_graph,nneighbors,id_neighbors,ierr)
+
+	! Loop through all neighbours which will be sent to and order the data 
+	! appropriately to send each correctly
+	do nbr = 1,nneighbors
+
+		if (realm .eq. cfd_realm) then
+			! Get MD neighbour
+			id_nbr = id_neighbors(nbr)
+			call CPL_Cart_coords(CPL_GRAPH_COMM,id_nbr+1,md_realm,3,coord,ierr) 
+			call CPL_proc_extents(coord,md_realm,extents,ncells)
+			! Get offset of neighbouring processor
+			pos = id_nbr * npercell * ncells
+
+
+			!print*,'Pack',rank_cart,realm_name(realm),coord,nbr,id_nbr,extents,coord
+
+		elseif (realm .eq. md_realm) then
+			!Get own processor coordinates 
+			call CPL_Cart_coords(CPL_CART_COMM,rank_cart,realm,3,coord,ierr) 
+			call CPL_proc_extents(coord,realm,gextents,ncells)
+			! Get local extents
+			extents(1) = 1;	extents(2) = gextents(2)-gextents(1)
+			extents(3) = 1;	extents(4) = gextents(4)-gextents(3)
+			extents(5) = 1;	extents(6) = gextents(6)-gextents(5)
+			pos = 1
+		endif
+
+
+
+		! Pack array into buffer
+		do kcell=extents(5),extents(6)
+		do jcell=extents(3),extents(4)
+		do icell=extents(1),extents(2)
+		do n = 1,npercell
+
+			packed(pos) = unpacked(n,icell,jcell,kcell)
+			pos = pos + 1
+
+		end do
+		end do
+		end do
+		end do
+
+	end do
 
 	!Sanity check
 	if (size(packed) .ne. npercell*ncells) then
@@ -843,74 +894,83 @@ subroutine CPL_pack(unpacked,packed)
 		call error_abort("CPL_pack error - cell array does not match expected extents")
 	endif
 
-	! Pack array into buffer
-	pos = 1
-	do ixyz = 1,npercell
-	do icell=extents(1),extents(2)
-	do jcell=extents(3),extents(4)
-	do kcell=extents(5),extents(6)
-
-		packed(pos) = unpacked(ixyz,icell,jcell,kcell)
-		pos = pos + 1
-
-	end do
-	end do
-	end do
-	end do
-
 end subroutine CPL_pack
 
-subroutine CPL_unpack(packed,unpacked)
-	use coupler_module, only : CPL_CART_COMM,rank_cart, md_realm, & 
-								nproc_olap,CFDid_olap,CPL_OLAP_COMM
+
+!-------------------------------------------------------------------
+
+subroutine CPL_unpack(packed,unpacked,realm)
+	use coupler_module, only : CPL_CART_COMM,rank_cart,md_realm,cfd_realm, & 
+	                           error_abort,CPL_GRAPH_COMM,myid_graph
 	implicit none
 
-	real(kind=kind(0.d0)),dimension(:,:,:,:),allocatable,intent(out) :: unpacked
-	real(kind=kind(0.d0)),dimension(:),allocatable, intent(in)	     :: packed
+	integer, intent(in)											      :: realm
+	real(kind=kind(0.d0)),dimension(:,:,:,:),allocatable, intent(out) :: unpacked
+	real(kind=kind(0.d0)),dimension(:),allocatable, intent(inout)     :: packed
 
-	integer 										  :: ncells, npercell,coord(3), extents(6)
-	integer											  :: trank_olap, trank_world, trank_cart, tid_olap
-	integer 										  :: pos,ixyz,icell,jcell,kcell, ierr
+	integer                          :: pos,n,nbr,id_nbr,icell,jcell,kcell,ierr
+	integer                          :: npercell,ncells,nneighbors
+	integer,dimension(3)			 :: coord
+	integer,dimension(6)			 :: extents,gextents
+	integer,dimension(:),allocatable :: id_neighbors
 
-	call CPL_Cart_coords(CPL_CART_COMM,rank_cart,md_realm,3,coord,ierr) 
-	call CPL_proc_extents(coord,md_realm,extents,ncells)
+	call CPL_Cart_coords(CPL_CART_COMM,rank_cart,realm,3,coord,ierr) 
+	call CPL_proc_extents(coord,realm,extents,ncells)
 
+	!Amount of data per cell
 	npercell = size(packed)/ncells
 
-	allocate(unpacked(npercell,extents(1):extents(2), &
-	                 		   extents(3):extents(4), &
-	                 		   extents(5):extents(6)))
+	!Allocate packing buffer
+	if (allocated(unpacked)) deallocate(unpacked)
+	allocate(unpacked(npercell,1:extents(2)-extents(1), &
+	                 		   1:extents(4)-extents(3), &
+	                 		   1:extents(6)-extents(5)))
 
-	do trank_olap = 1,nproc_olap
-		tid_olap = trank_olap - 1
+	! Get neighbour topology to determine ordering of packed data
+	call MPI_Graph_neighbors_count(CPL_GRAPH_COMM,myid_graph,nneighbors,ierr)
+    allocate(id_neighbors(nneighbors))
+    call MPI_Graph_neighbors(CPL_GRAPH_COMM,myid_graph,nneighbors,id_neighbors,ierr)
 
-		if (tid_olap .eq. CFDid_olap) cycle
+	! Loop through all neighbours which will be sent to and order the data 
+	! appropriately to send each correctly
+	do nbr = 1,nneighbors
 
-		call CPL_Cart_coords(CPL_OLAP_COMM,trank_olap,md_realm,3,coord,ierr) 
-		call CPL_proc_extents(coord,md_realm,extents,ncells)
+		if (realm .eq. cfd_realm) then
+			! Get MD neighbour
+			id_nbr = id_neighbors(nbr)
+			call CPL_Cart_coords(CPL_GRAPH_COMM,id_nbr,md_realm,3,coord,ierr) 
+			call CPL_proc_extents(coord,md_realm,extents,ncells)
+			! Get offset of neighbouring processor
+			pos = id_nbr * npercell * ncells	!ASSUMES all ncell the same!!
+		elseif (realm .eq. md_realm) then
+			!Get own processor coordinates 
+			call CPL_Cart_coords(CPL_CART_COMM,rank_cart,realm,3,coord,ierr) 
+			call CPL_proc_extents(coord,realm,gextents,ncells)
+			! Get local extents
+			extents(1) = 1;	extents(2) = gextents(2)-gextents(1)
+			extents(3) = 1;	extents(4) = gextents(4)-gextents(3)
+			extents(5) = 1;	extents(6) = gextents(6)-gextents(5)
+			pos = 1
+		endif
 
-		pos = (trank_olap-1)*npercell*ncells 
-		write(8000+trank_olap-1,'(a)'), 'unpacked(ixyz,icell,jcell,kcell)'
-		do ixyz = 1,npercell
-		do icell = extents(1),extents(2)
-		do jcell = extents(3),extents(4)
-		do kcell = extents(5),extents(6)
+		! Unpack buffer into array
+		do kcell=extents(5),extents(6)
+		do jcell=extents(3),extents(4)
+		do icell=extents(1),extents(2)
+		do n = 1,npercell
 
-			unpacked(ixyz,icell,jcell,kcell) = packed(pos)
+			unpacked(n,icell,jcell,kcell) = packed(pos)
 			pos = pos + 1
 
-			write(8000+trank_olap-1,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
-			      'unpacked(',ixyz,',',icell,',',jcell,',',kcell,') =', &
-			       unpacked(ixyz,icell,jcell,kcell)
-		end do	
-		end do	
-		write(8000+trank_olap-1,'(a)'), 'recvu(ixyz,icell,jcell,kcell)'
 		end do
 		end do
-				
+		end do
+		end do
+
 	end do
 
-	deallocate(unpacked)
+	!Deallocate packed buffer
+	deallocate(packed)
 
 end subroutine CPL_unpack
 
@@ -1338,7 +1398,7 @@ subroutine CPL_overlap_topology
 	implicit none
 
 	integer								:: i, n, nneighbors, nconnections
-	integer, dimension(:),allocatable	:: index, edges, neighbors
+	integer, dimension(:),allocatable	:: index, edges, id_neighbors
 	logical								:: reorder
 
 	!Allow optimisations of ordering
@@ -1374,18 +1434,18 @@ subroutine CPL_overlap_topology
         !Get number of neighbours
         call MPI_comm_rank( CPL_GRAPH_COMM, myid_graph, ierr)
         call MPI_Graph_neighbors_count( CPL_GRAPH_COMM, myid_graph, nneighbors, ierr)
-        allocate(neighbors(nneighbors))
+        allocate(id_neighbors(nneighbors))
         !Get neighbours
-        call MPI_Graph_neighbors( CPL_GRAPH_COMM, myid_graph, nneighbors, neighbors,ierr )
+        call MPI_Graph_neighbors( CPL_GRAPH_COMM, myid_graph, nneighbors, id_neighbors,ierr )
         select case(realm)
         case(cfd_realm)
                 write(3000+myid_world,*), realm_name(realm),' My graph', & 
 								myid_world,myid_graph,myid_olap, & 
-								rank2coord_cfd(:,rank_realm), nneighbors, neighbors
+								rank2coord_cfd(:,rank_realm), nneighbors, id_neighbors
         case(md_realm)
                 write(3000+myid_world,*), realm_name(realm),' My graph', & 
 								myid_world,myid_graph,myid_olap, & 
-								rank2coord_md(:,rank_realm), nneighbors, neighbors
+								rank2coord_md(:,rank_realm), nneighbors, id_neighbors
         end select
 		! <><><><><><>  TEST <><><><><><>  TEST <><><><><><>  TEST <><><><><><> 
 
@@ -1442,7 +1502,7 @@ subroutine write_overlap_comms_md
 	call MPI_cart_coords(CPL_CART_COMM,myid_cart,3,coord,ierr)
 	coord(:) = coord(:) + 1
 
-	write(2000+rank_realm,'(2i7,a5,3i5,a5,2i10,a5,i8)'), &
+	write(2000+rank_realm,'(2i7,a5,3i5,a5,2i10,a5,i20)'), &
 		rank_realm,rank_olap,'',coord,'',testval,olap_mask(rank_world), &
 		'',CPL_OLAP_COMM
 
