@@ -415,8 +415,8 @@ subroutine test_gather_scatter
 		call CPL_proc_extents(coord,cfd_realm,extents)
 	endif
 
-	if (olap_mask(rank_world).eq.1) call gather_u(gatherbuf)
-	if (olap_mask(rank_world).eq.1) call scatter_s		   
+	if (olap_mask(rank_world).eq.1) call CPL_gather(gatherbuf)
+	if (olap_mask(rank_world).eq.1) call CPL_scatter		   
 
 	
 end subroutine test_gather_scatter
