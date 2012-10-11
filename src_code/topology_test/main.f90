@@ -12,9 +12,9 @@ program create_map
 	!call test_COMMS
 	!call test_packing
 
-	call test_send_recv_MD2CFD
-	call test_send_recv_CFD2MD
-	call test_gather_scatter
+!	call test_send_recv_MD2CFD
+!	call test_send_recv_CFD2MD
+	if (olap_mask(rank_world).eq.1) call test_gather_scatter
 
 	call finalise
 
@@ -467,27 +467,32 @@ subroutine test_gather_scatter
 	use coupler
 	implicit none
 
-	double precision,dimension(:,:,:,:),allocatable	:: gatherbuf
-	integer :: coord(3), extents(6)
+	double precision,dimension(:,:,:,:),allocatable	:: u,stress
+	integer :: coord(3), extents(6), npercell
 	integer :: pos, ixyz, icell, jcell, kcell
 
 	if (realm .eq. md_realm) then	
-		call CPL_Cart_coords(CPL_CART_COMM,rank_cart,md_realm,3,coord,ierr)
-		!coord(:) = rank2coord_md(:,rank_cart)
-		call CPL_proc_extents(coord,md_realm,extents)
 
-		allocate(gatherbuf(3,extents(1):extents(2),extents(3):extents(4),extents(5):extents(6)))
+		call CPL_Cart_coords(CPL_CART_COMM,rank_cart,md_realm,3,coord,ierr)
+		call CPL_proc_extents(coord,md_realm,extents)
+		npercell = 3
+		allocate(u(npercell,extents(1):extents(2), &
+		                    extents(3):extents(4), &
+		                    extents(5):extents(6)))
+		allocate(stress(0,0,0,0))
+
+!		print*, rank_world, 'main extents', extents
 
 		! Populate dummy gatherbuf
 		pos = 1
-		do ixyz = 1,3
+		do ixyz = 1,npercell
 		do icell=extents(1),extents(2)
 		do jcell=extents(3),extents(4)
 		do kcell=extents(5),extents(6)
 
-			gatherbuf(ixyz,icell,jcell,kcell) = 0.1d0*ixyz + 1*icell + &
-			                       				1000*jcell + &
-			                    				1000000*kcell
+			u(ixyz,icell,jcell,kcell) = 0.1d0*ixyz + 1*icell + &
+			                                      1000*jcell + &
+			                                   1000000*kcell
 			pos = pos + 1
 
 		end do
@@ -496,13 +501,36 @@ subroutine test_gather_scatter
 		end do
 
 	else if (realm .eq. cfd_realm) then	  
+		
 		call CPL_Cart_coords(CPL_CART_COMM,rank_cart,cfd_realm,3,coord,ierr)
-		!coord(:) = rank2coord_md(:,rank_cart)
 		call CPL_proc_extents(coord,cfd_realm,extents)
+		npercell = 9
+		allocate(u(0,0,0,0))
+		allocate(stress(npercell,extents(1):extents(2), &
+		                         extents(3):extents(4), &
+		                         extents(5):extents(6)))
+
+		! Populate dummy gatherbuf
+		pos = 1
+		do ixyz = 1,npercell
+		do icell=extents(1),extents(2)
+		do jcell=extents(3),extents(4)
+		do kcell=extents(5),extents(6)
+
+			stress(ixyz,icell,jcell,kcell) = 0.1d0*ixyz + 1*icell + &
+			                                           1000*jcell + &
+			                                        1000000*kcell
+			pos = pos + 1
+
+		end do
+		end do
+		end do
+		end do
+
 	endif
 
-	if (olap_mask(rank_world).eq.1) call CPL_gather(gatherbuf)
-	if (olap_mask(rank_world).eq.1) call CPL_scatter		   
+	if (olap_mask(rank_world).eq.1) call CPL_gather(u,3)
+	if (olap_mask(rank_world).eq.1) call CPL_scatter(stress,9)
 
 	
 end subroutine test_gather_scatter
