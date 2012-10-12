@@ -145,7 +145,8 @@ subroutine coupler_md_init(nsteps,dt_md,icomm_grid,icoord,npxyz_md,globaldomain,
 
 	write(999+rank_realm,*), 'MD side',rank_realm, 'coord2rank_cfd=', coord2rank_cfd
 
-	!Setup MD mapping from coordinate to rank, store and send
+	! Setup MD mapping from coordinate to rank, 
+	! Store & Send MD mapping from coordinate to rank to CFD
 	allocate(coord2rank_md(npx_md,npy_md,npz_md))
 	do ib = 1,npx_md
 	do jb = 1,npy_md
@@ -161,6 +162,32 @@ subroutine coupler_md_init(nsteps,dt_md,icomm_grid,icoord,npxyz_md,globaldomain,
 	deallocate(buf)
 
 	write(999+rank_realm,*), 'MD side',rank_realm, 'coord2rank_md=', coord2rank_md
+
+	! Receive & Store CFD mapping from realm to local rank from CFD
+	allocate(rank_cfdrealm2rank_world(nproc_cfd))
+	call MPI_bcast(rank_cfdrealm2rank_world,nproc_cfd,MPI_integer,0,CPL_INTER_COMM,ierr)	!Receive
+
+	write(999+rank_realm,*), 'MD side',rank_realm, 'rank_cfdrealm2rank_world', rank_cfdrealm2rank_world
+
+	! Setup MD mapping from realm to local rank, 
+	! Store & Send MD mapping from realm to local rank to CFD
+	allocate(rank_mdrealm2rank_world(nproc_md))
+	allocate(buf(1)); buf = rank_world
+	call MPI_allgather(        buf        ,1,MPI_INTEGER, & 
+						rank_mdrealm2rank_world,1,MPI_INTEGER,CPL_REALM_COMM,ierr) !Reduce on all processors
+	call MPI_bcast(rank_mdrealm2rank_world,nproc_md,MPI_integer,source,CPL_INTER_COMM,ierr)	 !send
+	deallocate(buf)
+
+	write(999+rank_realm,*), 'MD side',rank_realm, 'rank_mdrealm2rank_world', rank_mdrealm2rank_world
+
+
+	! CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE
+	! CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE
+	! CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE
+	! CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE
+	! CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE
+
+
 
 	! ------------------ Timesteps and iterations ------------------------------
 	! Receive & store CFD nsteps and dt_cfd
@@ -268,6 +295,8 @@ subroutine coupler_md_init(nsteps,dt_md,icomm_grid,icoord,npxyz_md,globaldomain,
 
 	!Receive overlap from the CFD
     call MPI_bcast(ncy_olap,1,MPI_INTEGER,0,CPL_INTER_COMM,ierr) !Receive
+
+	write(999+rank_realm,*), 'MD side - y overlap',ncy_olap
 
 	! ================ Apply domain setup  ==============================
 	! --- set the sizes of the MD domain ---
@@ -497,11 +526,11 @@ contains
         ! that is: x(bbox%is) < bboxbb(1,1) ; bbox%bb(2,1) < x(bbox%ie) ...
 
 		! Set maximum local grid sizes
-		nlgx_md = bbox%ieo - bbox%iso + 1
-		nlgy_md = bbox%jeo - bbox%jso + 1
-		nlgz_md = bbox%keo - bbox%kso + 1
+		!nlgx_md = bbox%ieo - bbox%iso + 1
+		!nlgy_md = bbox%jeo - bbox%jso + 1
+		!nlgz_md = bbox%keo - bbox%kso + 1
 
-		write(0,*)' MD: bbox ', rank_realm, bbox, nlgx_md, nlgy_md, nlgz_md
+		!write(0,*)' MD: bbox ', rank_realm, bbox, nlgx_md, nlgy_md, nlgz_md
 
 	end subroutine make_bbox
 

@@ -202,14 +202,12 @@ module coupler_module
     integer, target		:: staggered_averages_tag
     character(len=64)	:: stop_request_name="none"
 	! CFD/MD number of cells
-	integer	:: nlgx_cfd,nlgy_cfd,nlgz_cfd, & 	!Local CFD
-			   nlgx_md ,nlgy_md ,nlgz_md 		!Local MD
+	!integer	:: nlgx_cfd,nlgy_cfd,nlgz_cfd, & 	!Local CFD
+	!		   nlgx_md ,nlgy_md ,nlgz_md 		!Local MD
 	! MD grid indices
 	integer	:: ncy_puremd
 	! Domain sizes
 	real(kind(0.d0)) ::	yL_puremd
-	! Local Domain
-	real(kind(0.d0)) :: yLl_md, yLl_cfd
 	
 	integer :: testval
 	!-------------------------------------------------------------------------!
