@@ -224,7 +224,6 @@ end subroutine create_comm
 
 end subroutine coupler_create_comm
 
-
 !=============================================================================
 ! Establish for all MD processors the mapping (if any) 
 ! to coupled CFD processors
@@ -266,443 +265,443 @@ subroutine coupler_create_map
 
 	call MPI_barrier(CPL_WORLD_COMM,ierr)
 
-contains
+end subroutine coupler_create_map
 
-	!------------------------------------------------------------
-	!Calculate processor cell ranges of MD code on all processors
-		
-	subroutine get_md_cell_ranges
+!------------------------------------------------------------
+!Calculate processor cell ranges of MD code on all processors
+	
+subroutine get_md_cell_ranges
 	use coupler_input_data, only : cfd_coupler_input
+	use coupler_module
 	implicit none
 
-		integer :: n
-		integer :: olap_jmin_mdcoord
-		integer :: ncxl, ncyl, nczl
-		integer :: ncy_mdonly, ncy_md, ncyP_md
+	integer :: n
+	integer :: olap_jmin_mdcoord
+	integer :: ncxl, ncyl, nczl
+	integer :: ncy_mdonly, ncy_md, ncyP_md
 
-		allocate(icPmin_md(npx_md)); icPmin_md = VOID
-		allocate(jcPmin_md(npy_md)); jcPmin_md = VOID
-		allocate(kcPmin_md(npz_md)); kcPmin_md = VOID
-		allocate(icPmax_md(npx_md)); icPmax_md = VOID
-		allocate(jcPmax_md(npy_md)); jcPmax_md = VOID
-		allocate(kcPmax_md(npz_md)); kcPmax_md = VOID
+	allocate(icPmin_md(npx_md)); icPmin_md = VOID
+	allocate(jcPmin_md(npy_md)); jcPmin_md = VOID
+	allocate(kcPmin_md(npz_md)); kcPmin_md = VOID
+	allocate(icPmax_md(npx_md)); icPmax_md = VOID
+	allocate(jcPmax_md(npy_md)); jcPmax_md = VOID
+	allocate(kcPmax_md(npz_md)); kcPmax_md = VOID
 
-		! - - x - -
-		ncxl = ceiling(dble(ncx)/dble(npx_md))
-		do n=1,npx_md
-			icPmax_md(n) = n * ncxl
-			icPmin_md(n) = icPmax_md(n) - ncxl + 1
-		end do	
+	! - - x - -
+	ncxl = ceiling(dble(ncx)/dble(npx_md))
+	do n=1,npx_md
+		icPmax_md(n) = n * ncxl
+		icPmin_md(n) = icPmax_md(n) - ncxl + 1
+	end do	
 
-		! - - y - -
-		ncy_md   = nint(yL_md/dy)
-		ncy_mdonly = ncy_md - ncy_olap
-		ncyP_md = ncy_md / npy_md
-		olap_jmin_mdcoord = npy_md - floor(dble(ncy_olap)/dble(ncyP_md))	 
-		do n = olap_jmin_mdcoord,npy_md
-			jcPmax_md(n) = n * ncyP_md - ncy_mdonly
-			jcPmin_md(n) = jcPmax_md(n) - ncyP_md + 1
-			if (jcPmin_md(n).le.0) jcPmin_md(n) = 1
-		end do  
+	! - - y - -
+	ncy_md   = nint(yL_md/dy)
+	ncy_mdonly = ncy_md - ncy_olap
+	ncyP_md = ncy_md / npy_md
+	olap_jmin_mdcoord = npy_md - floor(dble(ncy_olap)/dble(ncyP_md))	 
+	do n = olap_jmin_mdcoord,npy_md
+		jcPmax_md(n) = n * ncyP_md - ncy_mdonly
+		jcPmin_md(n) = jcPmax_md(n) - ncyP_md + 1
+		if (jcPmin_md(n).le.0) jcPmin_md(n) = 1
+	end do  
 
-		! - - z - -
-		nczl = ceiling(dble(ncz)/dble(npz_md))
-		do n=1,npz_md
-			kcPmax_md(n) = n * nczl
-			kcPmin_md(n) = kcPmax_md(n) - nczl + 1
-		end do
-
+	! - - z - -
+	nczl = ceiling(dble(ncz)/dble(npz_md))
+	do n=1,npz_md
+		kcPmax_md(n) = n * nczl
+		kcPmin_md(n) = kcPmax_md(n) - nczl + 1
+	end do
 
 	if (myid_world.eq.0) then
 
-			write(6000+myid_world,*), ''
-			write(6000+myid_world,*), '==========================================='
-			write(6000+myid_world,*), '------------ M D   M A P ------------------'
-			write(6000+myid_world,*), '==========================================='
-			write(6000+myid_world,*), 'npx_md = ', npx_md
-			write(6000+myid_world,*), 'ncx    = ', ncx
-			write(6000+myid_world,*), 'ncxl   = ', ncxl
-			write(6000+myid_world,*), '-------------------------------------------'
-			write(6000+myid_world,*), '  icoord_md   icPmin_md(n)    icPmax_md(n) '
-			write(6000+myid_world,*), '-------------------------------------------'
-			do n=1,npx_md
-				write(6000+myid_world,'(1x,3i11)'), n, icPmin_md(n), icPmax_md(n)
-			end do	
-			write(6000+myid_world,*), '-------------------------------------------'
-			write(6000+myid_world,*), 'npy_md     = ', npy_md
-			write(6000+myid_world,*), 'ncy_md     = ', ncy_md
-			write(6000+myid_world,*), 'ncyP_md    = ', ncyP_md 
-			write(6000+myid_world,*), 'ncy_olap   = ', ncy_olap
-			write(6000+myid_world,*), 'ncy_mdonly = ', ncy_mdonly
-			write(6000+myid_world,*), 'olap_jmin_mdcoord = ', olap_jmin_mdcoord
-			write(6000+myid_world,*), 'dy         = ', dy
-			write(6000+myid_world,*), '-------------------------------------------'
-			write(6000+myid_world,*), '  jcoord_md   jcPmin_md(n)    jcPmax_md(n) '
-			write(6000+myid_world,*), '-------------------------------------------'
-			do n = 1,npy_md	
-				write(6000+myid_world,'(1x,3i11)'), n, jcPmin_md(n), jcPmax_md(n)
-			end do
-			write(6000+myid_world,*), '-------------------------------------------'
-			write(6000+myid_world,*), 'npz_md = ', npz_md
-			write(6000+myid_world,*), 'ncz    = ', ncz
-			write(6000+myid_world,*), 'nczl   = ', nczl
-			write(6000+myid_world,*), '-------------------------------------------'
-			write(6000+myid_world,*), '  kcoord_md   kcPmin_md(n)    kcPmax_md(n) '
-			write(6000+myid_world,*), '-------------------------------------------'
-			do n=1,npz_md
-				write(6000+myid_world,'(1x,3i11)'), n, kcPmin_md(n), kcPmax_md(n)
-			end do
-			write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), ''
+		write(6000+myid_world,*), '==========================================='
+		write(6000+myid_world,*), '------------ M D   M A P ------------------'
+		write(6000+myid_world,*), '==========================================='
+		write(6000+myid_world,*), 'npx_md = ', npx_md
+		write(6000+myid_world,*), 'ncx    = ', ncx
+		write(6000+myid_world,*), 'ncxl   = ', ncxl
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), '  icoord_md   icPmin_md(n)    icPmax_md(n) '
+		write(6000+myid_world,*), '-------------------------------------------'
+		do n=1,npx_md
+			write(6000+myid_world,'(1x,3i11)'), n, icPmin_md(n), icPmax_md(n)
+		end do	
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), 'npy_md     = ', npy_md
+		write(6000+myid_world,*), 'ncy_md     = ', ncy_md
+		write(6000+myid_world,*), 'ncyP_md    = ', ncyP_md 
+		write(6000+myid_world,*), 'ncy_olap   = ', ncy_olap
+		write(6000+myid_world,*), 'ncy_mdonly = ', ncy_mdonly
+		write(6000+myid_world,*), 'olap_jmin_mdcoord = ', olap_jmin_mdcoord
+		write(6000+myid_world,*), 'dy         = ', dy
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), '  jcoord_md   jcPmin_md(n)    jcPmax_md(n) '
+		write(6000+myid_world,*), '-------------------------------------------'
+		do n = 1,npy_md	
+			write(6000+myid_world,'(1x,3i11)'), n, jcPmin_md(n), jcPmax_md(n)
+		end do
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), 'npz_md = ', npz_md
+		write(6000+myid_world,*), 'ncz    = ', ncz
+		write(6000+myid_world,*), 'nczl   = ', nczl
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), '  kcoord_md   kcPmin_md(n)    kcPmax_md(n) '
+		write(6000+myid_world,*), '-------------------------------------------'
+		do n=1,npz_md
+			write(6000+myid_world,'(1x,3i11)'), n, kcPmin_md(n), kcPmax_md(n)
+		end do
+		write(6000+myid_world,*), '-------------------------------------------'
 
-		endif
+	endif
 
-	end subroutine get_md_cell_ranges
+end subroutine get_md_cell_ranges
 
-	!------------------------------------------------------------
-	!Calculate processor overlap between CFD/MD on all processors
-	
-	subroutine get_overlap_blocks
+!------------------------------------------------------------
+!Calculate processor overlap between CFD/MD on all processors
+
+subroutine get_overlap_blocks
+	use coupler_module
 	implicit none
 
-		integer 			:: i,n,endproc,nolapsx,nolapsy,nolapsz
-		integer				:: yLl_md,yLl_cfd
-		integer,dimension(3):: pcoords
+	integer 			:: i,n,endproc,nolapsx,nolapsy,nolapsz
+	integer				:: yLl_md,yLl_cfd
+	integer,dimension(3):: pcoords
 
-		!Get cartesian coordinate of overlapping md cells & cfd cells
-		allocate(cfd_icoord2olap_md_icoords(npx_cfd,npx_md/npx_cfd)) 
-		allocate(cfd_jcoord2olap_md_jcoords(npy_cfd,npy_md/npy_cfd)) 
-		allocate(cfd_kcoord2olap_md_kcoords(npz_cfd,npz_md/npz_cfd)) 
-		cfd_icoord2olap_md_icoords = VOID
-		cfd_jcoord2olap_md_jcoords = VOID
-		cfd_kcoord2olap_md_kcoords = VOID
+	!Get cartesian coordinate of overlapping md cells & cfd cells
+	allocate(cfd_icoord2olap_md_icoords(npx_cfd,npx_md/npx_cfd)) 
+	allocate(cfd_jcoord2olap_md_jcoords(npy_cfd,npy_md/npy_cfd)) 
+	allocate(cfd_kcoord2olap_md_kcoords(npz_cfd,npz_md/npz_cfd)) 
+	cfd_icoord2olap_md_icoords = VOID
+	cfd_jcoord2olap_md_jcoords = VOID
+	cfd_kcoord2olap_md_kcoords = VOID
 
-		! - - x - -
-		nolapsx = nint(dble(npx_md)/dble(npx_cfd))
-		do n = 1,npx_cfd
-		do i = 1,nolapsx	
-			cfd_icoord2olap_md_icoords(n,i) = (n-1)*nolapsx + i
-		end do
-		end do
+	! - - x - -
+	nolapsx = nint(dble(npx_md)/dble(npx_cfd))
+	do n = 1,npx_cfd
+	do i = 1,nolapsx	
+		cfd_icoord2olap_md_icoords(n,i) = (n-1)*nolapsx + i
+	end do
+	end do
 
-		! - - y - -
-		yL_olap = (jcmax_olap - jcmin_olap + 1) * dy
-		yLl_md  = yL_md/npy_md
-		yLl_cfd = yL_cfd/npy_cfd
-		nolapsy = ceiling(yL_olap/yLl_md)
-		endproc = ceiling(yL_olap/yLl_cfd)
-		do n = 1,endproc
-		do i = 1,nolapsy
-				cfd_jcoord2olap_md_jcoords(n,i) = (n-1)*nolapsy + i &
-				                                  + (npy_md - nolapsy)
-		end do
-		end do
+	! - - y - -
+	yL_olap = (jcmax_olap - jcmin_olap + 1) * dy
+	yLl_md  = yL_md/npy_md
+	yLl_cfd = yL_cfd/npy_cfd
+	nolapsy = ceiling(yL_olap/yLl_md)
+	endproc = ceiling(yL_olap/yLl_cfd)
+	do n = 1,endproc
+	do i = 1,nolapsy
+			cfd_jcoord2olap_md_jcoords(n,i) = (n-1)*nolapsy + i &
+											  + (npy_md - nolapsy)
+	end do
+	end do
 
-		! - - z - -
-		nolapsz = nint(dble(npz_md)/dble(npz_cfd))
-		do n = 1,npz_cfd
-		do i = 1,nolapsz	
-			cfd_kcoord2olap_md_kcoords(n,i) = (n-1)*nolapsz + i
-		end do
-		end do
+	! - - z - -
+	nolapsz = nint(dble(npz_md)/dble(npz_cfd))
+	do n = 1,npz_cfd
+	do i = 1,nolapsz	
+		cfd_kcoord2olap_md_kcoords(n,i) = (n-1)*nolapsz + i
+	end do
+	end do
 
-		!nolaps = nolapsx*nolapsy*nolapsz
+	!nolaps = nolapsx*nolapsy*nolapsz
+
+	if(myid_world.eq.0) then 
+		
+		write(6000+myid_world,*), ''
+		write(6000+myid_world,*), '==========================================='
+		write(6000+myid_world,*), '------------ C F D   M A P ----------------'
+		write(6000+myid_world,*), '==========================================='
+		write(6000+myid_world,*), 'npx_cfd = ', npx_cfd
+		write(6000+myid_world,*), 'nolapsx = ', nolapsx
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), '  icoord_cfd       olapmin     olapmax     ' 
+		write(6000+myid_world,*), '-------------------------------------------'
+		do n=1,npx_cfd
+			write(6000+myid_world,'(1x,3i11)'), n,               &
+				  cfd_icoord2olap_md_icoords(n,1),         &
+				  cfd_icoord2olap_md_icoords(n,nolapsx)
+		end do	
+		write(6000+myid_world,*), '-------------------------------------------'
+
+		write(6000+myid_world,*), 'npy_cfd = ', npy_cfd
+		write(6000+myid_world,*), 'nolapsy = ', nolapsy
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), '  jcoord_cfd       olapmin     olapmax     ' 
+		write(6000+myid_world,*), '-------------------------------------------'
+		do n=1,npy_cfd
+			write(6000+myid_world,'(1x,3i11)'), n,               &
+				  cfd_jcoord2olap_md_jcoords(n,1),         &
+				  cfd_jcoord2olap_md_jcoords(n,nolapsy)
+		end do	
+		write(6000+myid_world,*), '-------------------------------------------'
+
+		write(6000+myid_world,*), 'npz_cfd = ', npz_cfd
+		write(6000+myid_world,*), 'nolapsz = ', nolapsz
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), '  kcoord_cfd       olapmin     olapmax     ' 
+		write(6000+myid_world,*), '-------------------------------------------'
+		do n=1,npz_cfd
+			write(6000+myid_world,'(1x,3i11)'), n,               &
+				  cfd_kcoord2olap_md_kcoords(n,1),         &
+				  cfd_kcoord2olap_md_kcoords(n,nolapsz)
+		end do	
+		write(6000+myid_world,*), '-------------------------------------------'
+
+	endif
+			
+end subroutine get_overlap_blocks
+
+subroutine intersect_comm
+	use coupler_module
+	use mpi
+	implicit none
+
+	integer :: n
+	integer,dimension(3)   :: pcoords
+
+	!Create communicator for all intersecting processors
+	if (realm .eq. cfd_realm) then
+		map%n = npx_md/npx_cfd
+		allocate(map%rank_list(map%n))
+		!Get rank(s) of overlapping MD processor(s)
+		do n = 1,map%n
+			pcoords(1)=cfd_icoord2olap_md_icoords(rank2coord_cfd(1,rank_realm),n)
+			pcoords(2)=cfd_jcoord2olap_md_jcoords(rank2coord_cfd(2,rank_realm),n)
+			pcoords(3)=cfd_kcoord2olap_md_kcoords(rank2coord_cfd(3,rank_realm),n)
+			if (any(pcoords(:).eq.VOID)) then
+				map%n = 0; map%rank_list(:) = VOID
+			else
+				map%rank_list(n) = coord2rank_md(pcoords(1),pcoords(2),pcoords(3))
+			endif
+			write(250+rank_realm,'(2a,6i5)'), 'overlap',realm_name(realm),rank_realm,map%n,map%rank_list(n),pcoords
+		enddo
+	else if (realm .eq. md_realm) then
+		map%n = 1
+		allocate(map%rank_list(map%n))	
+		!Get rank of overlapping CFD processor
+		pcoords(1) = rank2coord_md(1,rank_realm)*(dble(npx_cfd)/dble(npx_md))
+		pcoords(2) = npy_cfd !rank2coord_md(2,rank_realm)*(dble(npy_cfd)/dble(npy_md))
+		pcoords(3) = rank2coord_md(3,rank_realm)*(dble(npz_cfd)/dble(npz_md))
+		map%rank_list(1) = coord2rank_cfd(pcoords(1),pcoords(2),pcoords(3))
+		write(300+rank_realm,'(2a,6i5)'), 'overlap',realm_name(realm),rank_realm,map%n,map%rank_list(1),pcoords
+	endif
+
+end subroutine intersect_comm
+
+!=========================================================================
+
+subroutine prepare_overlap_comms
+	use coupler_module
+	use mpi
+	implicit none
+
+	!loop over cfd cart ranks
+	! find cfd cart coords from cfd cart rank
+	!  find md cart coords (from cfd_icoord2olap_md_jcoords)
+	!   find md cart rank from md cart coords (coord2rank_md) 
+	!    find md world rank from md cart rank (rank_mdcart2rank_world)
+	!     set group(md_world_rank) to cfd cart rank
+	!split comm to groups
+	!if group(world_rank) == 0, set olap_comm to null 
+
+	integer :: i,j,k,ic,jc,kc
+	integer :: trank_md, trank_cfd, trank_world, nolap
+	integer, dimension(:), allocatable :: mdicoords, mdjcoords, mdkcoords
+	integer, parameter :: olap_null = -666
+	integer :: group(nproc_world), rank_olap2rank_realm_temp(nproc_world)
+	integer :: cfdcoord(3)
+
+	allocate(mdicoords(npx_md/npx_cfd))
+	allocate(mdjcoords(npy_md/npy_cfd))
+	allocate(mdkcoords(npz_md/npz_cfd))
 	
-		if(myid_world.eq.0) then 
+	allocate(olap_mask(nproc_world))
+
+	!Set default values, must be done because coord2rank_md cannot
+	!take "null" coordinates.
+	group(:) = olap_null
+	olap_mask(:) = 0
+	nolap = 0
+
+	! Every process loop over all cfd ranks
+	do trank_cfd = 1,nproc_cfd
+
+		! Get cart coords of cfd rank
+		cfdcoord(:)  = rank2coord_cfd(:,trank_cfd)
+
+		! Get md cart coords overlapping cfd proc
+		mdicoords(:) = cfd_icoord2olap_md_icoords(cfdcoord(1),:)
+		mdjcoords(:) = cfd_jcoord2olap_md_jcoords(cfdcoord(2),:)
+		mdkcoords(:) = cfd_kcoord2olap_md_kcoords(cfdcoord(3),:)
+
+		! Set group and olap_mask for CFD processor if it overlaps
+		if (any(mdicoords.ne.olap_null) .and. &
+			any(mdjcoords.ne.olap_null) .and. &
+			any(mdkcoords.ne.olap_null)) then
+
+			trank_world = rank_cfdcart2rank_world(trank_cfd)
+			olap_mask(trank_world) = 1
+			group    (trank_world) = trank_cfd
+
+		end if
+
+		! Set group and olap_mask for MD processors
+		do i = 1,size(mdicoords)
+		do j = 1,size(mdjcoords)
+		do k = 1,size(mdkcoords)
+
+			ic = mdicoords(i)
+			jc = mdjcoords(j)
+			kc = mdkcoords(k)
+
+			if (any((/ic,jc,kc/).eq.olap_null)) cycle
+
+			trank_md = coord2rank_md(ic,jc,kc)
+			trank_world = rank_mdcart2rank_world(trank_md)
+
+			olap_mask(trank_world) = 1
+			group    (trank_world) = trank_cfd
 			
-			write(6000+myid_world,*), ''
-			write(6000+myid_world,*), '==========================================='
-			write(6000+myid_world,*), '------------ C F D   M A P ----------------'
-			write(6000+myid_world,*), '==========================================='
-			write(6000+myid_world,*), 'npx_cfd = ', npx_cfd
-			write(6000+myid_world,*), 'nolapsx = ', nolapsx
-			write(6000+myid_world,*), '-------------------------------------------'
-			write(6000+myid_world,*), '  icoord_cfd       olapmin     olapmax     ' 
-			write(6000+myid_world,*), '-------------------------------------------'
-			do n=1,npx_cfd
-				write(6000+myid_world,'(1x,3i11)'), n,               &
-					  cfd_icoord2olap_md_icoords(n,1),         &
-					  cfd_icoord2olap_md_icoords(n,nolapsx)
-			end do	
-			write(6000+myid_world,*), '-------------------------------------------'
-
-			write(6000+myid_world,*), 'npy_cfd = ', npy_cfd
-			write(6000+myid_world,*), 'nolapsy = ', nolapsy
-			write(6000+myid_world,*), '-------------------------------------------'
-			write(6000+myid_world,*), '  jcoord_cfd       olapmin     olapmax     ' 
-			write(6000+myid_world,*), '-------------------------------------------'
-			do n=1,npy_cfd
-				write(6000+myid_world,'(1x,3i11)'), n,               &
-					  cfd_jcoord2olap_md_jcoords(n,1),         &
-					  cfd_jcoord2olap_md_jcoords(n,nolapsy)
-			end do	
-			write(6000+myid_world,*), '-------------------------------------------'
-
-			write(6000+myid_world,*), 'npz_cfd = ', npz_cfd
-			write(6000+myid_world,*), 'nolapsz = ', nolapsz
-			write(6000+myid_world,*), '-------------------------------------------'
-			write(6000+myid_world,*), '  kcoord_cfd       olapmin     olapmax     ' 
-			write(6000+myid_world,*), '-------------------------------------------'
-			do n=1,npz_cfd
-				write(6000+myid_world,'(1x,3i11)'), n,               &
-					  cfd_kcoord2olap_md_kcoords(n,1),         &
-					  cfd_kcoord2olap_md_kcoords(n,nolapsz)
-			end do	
-			write(6000+myid_world,*), '-------------------------------------------'
-
-		endif
-			
-	end subroutine get_overlap_blocks
-
-
-	subroutine intersect_comm
-		use coupler_module
-		use mpi
-		implicit none
-
-		integer,dimension(3)   :: pcoords
-
-		!Create communicator for all intersecting processors
-		if (realm .eq. cfd_realm) then
-			map%n = npx_md/npx_cfd
-			allocate(map%rank_list(map%n))
-			!Get rank(s) of overlapping MD processor(s)
-			do n = 1,map%n
-				pcoords(1)=cfd_icoord2olap_md_icoords(rank2coord_cfd(1,rank_realm),n)
-				pcoords(2)=cfd_jcoord2olap_md_jcoords(rank2coord_cfd(2,rank_realm),n)
-				pcoords(3)=cfd_kcoord2olap_md_kcoords(rank2coord_cfd(3,rank_realm),n)
-				if (any(pcoords(:).eq.VOID)) then
-					map%n = 0; map%rank_list(:) = VOID
-				else
-					map%rank_list(n) = coord2rank_md(pcoords(1),pcoords(2),pcoords(3))
-				endif
-				write(250+rank_realm,'(2a,6i5)'), 'overlap',realm_name(realm),rank_realm,map%n,map%rank_list(n),pcoords
-			enddo
-		else if (realm .eq. md_realm) then
-			map%n = 1
-			allocate(map%rank_list(map%n))	
-			!Get rank of overlapping CFD processor
-			pcoords(1) = rank2coord_md(1,rank_realm)*(dble(npx_cfd)/dble(npx_md))
-			pcoords(2) = npy_cfd !rank2coord_md(2,rank_realm)*(dble(npy_cfd)/dble(npy_md))
-			pcoords(3) = rank2coord_md(3,rank_realm)*(dble(npz_cfd)/dble(npz_md))
-			map%rank_list(1) = coord2rank_cfd(pcoords(1),pcoords(2),pcoords(3))
-			write(300+rank_realm,'(2a,6i5)'), 'overlap',realm_name(realm),rank_realm,map%n,map%rank_list(1),pcoords
-		endif
-
-	end subroutine intersect_comm
-
-	!=========================================================================
-
-	subroutine prepare_overlap_comms
-		use coupler_module
-		use mpi
-		implicit none
-
-		!loop over cfd cart ranks
-		! find cfd cart coords from cfd cart rank
-		!  find md cart coords (from cfd_icoord2olap_md_jcoords)
-		!   find md cart rank from md cart coords (coord2rank_md) 
-		!    find md world rank from md cart rank (rank_mdcart2rank_world)
-		!     set group(md_world_rank) to cfd cart rank
-		!split comm to groups
-		!if group(world_rank) == 0, set olap_comm to null 
-
-		integer :: i,j,k,ic,jc,kc
-		integer :: trank_md, trank_cfd, trank_world, nolap
-		integer, dimension(:), allocatable :: mdicoords, mdjcoords, mdkcoords
-		integer, parameter :: olap_null = -666
-		integer :: group(nproc_world), rank_olap2rank_realm_temp(nproc_world)
-		integer :: cfdcoord(3)
-
-		allocate(mdicoords(npx_md/npx_cfd))
-		allocate(mdjcoords(npy_md/npy_cfd))
-		allocate(mdkcoords(npz_md/npz_cfd))
-
-		!Set default values, must be done because coord2rank_md cannot
-		!take "null" coordinates.
-		group(:) = olap_null
-		olap_mask(:) = 0
-		nolap = 0
-
-		! Every process loop over all cfd ranks
-		do trank_cfd = 1,nproc_cfd
-
-			! Get cart coords of cfd rank
-			cfdcoord(:)  = rank2coord_cfd(:,trank_cfd)
-
-			! Get md cart coords overlapping cfd proc
-			mdicoords(:) = cfd_icoord2olap_md_icoords(cfdcoord(1),:)
-			mdjcoords(:) = cfd_jcoord2olap_md_jcoords(cfdcoord(2),:)
-			mdkcoords(:) = cfd_kcoord2olap_md_kcoords(cfdcoord(3),:)
-
-			! Set group and olap_mask for CFD processor if it overlaps
-			if (any(mdicoords.ne.olap_null) .and. &
-			    any(mdjcoords.ne.olap_null) .and. &
-			    any(mdkcoords.ne.olap_null)) then
-
-				trank_world = rank_cfdcart2rank_world(trank_cfd)
-				olap_mask(trank_world) = 1
-				group    (trank_world) = trank_cfd
-
-			end if
-
-			! Set group and olap_mask for MD processors
-			do i = 1,size(mdicoords)
-			do j = 1,size(mdjcoords)
-			do k = 1,size(mdkcoords)
-
-				ic = mdicoords(i)
-				jc = mdjcoords(j)
-				kc = mdkcoords(k)
-
-				if (any((/ic,jc,kc/).eq.olap_null)) cycle
-
-				trank_md = coord2rank_md(ic,jc,kc)
-				trank_world = rank_mdcart2rank_world(trank_md)
-
-				olap_mask(trank_world) = 1
-				group    (trank_world) = trank_cfd
-				
-			end do
-			end do	
-			end do
-
+		end do
+		end do	
 		end do
 
-		! Split world Comm into a set of comms for overlapping processors
-		call MPI_comm_split(CPL_WORLD_COMM,group(rank_world),realm, &
-		                    CPL_OLAP_COMM,ierr)
+	end do
 
-		!Setup Overlap comm sizes and id
-		if (realm.eq.cfd_realm) CFDid_olap = myid_olap
-		call MPI_bcast(CFDid_olap,1,MPI_INTEGER,CFDid_olap,CPL_OLAP_COMM,ierr)
+	! Split world Comm into a set of comms for overlapping processors
+	call MPI_comm_split(CPL_WORLD_COMM,group(rank_world),realm, &
+						CPL_OLAP_COMM,ierr)
 
-		! USED ONLY FOR OUTPUT/TESTING??
-		if (myid_olap .eq. CFDid_olap) testval = group(rank_world)
-		call MPI_bcast(testval,1,MPI_INTEGER,CFDid_olap,CPL_OLAP_COMM,ierr)
+	!Setup Overlap comm sizes and id
+	if (realm.eq.cfd_realm) CFDid_olap = myid_olap
+	call MPI_bcast(CFDid_olap,1,MPI_INTEGER,CFDid_olap,CPL_OLAP_COMM,ierr)
 
-		! Set all non-overlapping processors to MPI_COMM_NULL
-		if (olap_mask(rank_world).eq.0) then
-			myid_olap = olap_null
-			rank_olap = olap_null
-			CPL_OLAP_COMM = MPI_COMM_NULL
+	! USED ONLY FOR OUTPUT/TESTING??
+	if (myid_olap .eq. CFDid_olap) testval = group(rank_world)
+	call MPI_bcast(testval,1,MPI_INTEGER,CFDid_olap,CPL_OLAP_COMM,ierr)
+
+	! Set all non-overlapping processors to MPI_COMM_NULL
+	if (olap_mask(rank_world).eq.0) then
+		myid_olap = olap_null
+		rank_olap = olap_null
+		CPL_OLAP_COMM = MPI_COMM_NULL
+	end if
+
+	!Setup overlap map
+	call CPL_rank_map(CPL_OLAP_COMM,rank_olap,nproc_olap, & 
+					 rank_olap2rank_world,rank_world2rank_olap,ierr)
+	myid_olap = rank_olap - 1
+
+	deallocate(mdicoords)
+	deallocate(mdjcoords)
+	deallocate(mdkcoords)
+	
+	if (realm.eq.md_realm) call write_overlap_comms_md
+
+end subroutine prepare_overlap_comms
+
+!=========================================================================
+!Setup topology graph of overlaps between CFD & MD processors
+
+subroutine CPL_overlap_topology
+	use coupler_module
+	use mpi
+	implicit none
+
+	integer								:: i, n, nneighbors, nconnections
+	integer, dimension(:),allocatable	:: index, edges, id_neighbors
+	logical								:: reorder
+
+	!Allow optimisations of ordering
+	reorder = .true.
+
+	!Get number of processors in communicating overlap region 
+	if (olap_mask(rank_world).eq.1) then
+
+		!CFD processor is root and has mapping to all MD processors
+		allocate(index(nproc_olap))			!Index for each processor
+		allocate(edges(2*(nproc_olap)-1))	!nproc_olap-1 for CFD and one for each of nproc_olap MD processors
+		index = 0; 	edges = 0
+
+		!CFD processor has connections to nproc_olap MD processors
+		nconnections = nproc_olap-1
+		index(1) = nconnections
+		do n = 1,nconnections
+			edges(n) = n !olap_list(n+1) !CFD connected to all MD processors 1 to nconnections
+		enddo
+
+		!MD processor has a single connection to CFD
+		nconnections = 1; i = 2
+		do n = nproc_olap+1,2*(nproc_olap)-1
+			index(i) = index(i-1) + nconnections !Each successive index incremented by one
+			edges(n) = CFDid_olap	!Connected to CFD processor
+			i = i + 1
+		enddo
+
+		!Create graph topology for overlap region
+		call MPI_Graph_create(CPL_OLAP_COMM, nproc_olap,index,edges,reorder,CPL_GRAPH_COMM,ierr)
+
+		! <><><><><><>  TEST <><><><><><>  TEST <><><><><><>  TEST <><><><><><> 
+		!Get number of neighbours
+		call MPI_comm_rank( CPL_GRAPH_COMM, myid_graph, ierr)
+		call MPI_Graph_neighbors_count( CPL_GRAPH_COMM, myid_graph, nneighbors, ierr)
+		allocate(id_neighbors(nneighbors))
+		!Get neighbours
+		call MPI_Graph_neighbors( CPL_GRAPH_COMM, myid_graph, nneighbors, id_neighbors,ierr )
+		select case(realm)
+		case(cfd_realm)
+				write(3000+myid_world,*), realm_name(realm),' My graph', & 
+								myid_world,myid_graph,myid_olap, & 
+								rank2coord_cfd(:,rank_realm), nneighbors, id_neighbors
+		case(md_realm)
+				write(3000+myid_world,*), realm_name(realm),' My graph', & 
+								myid_world,myid_graph,myid_olap, & 
+								rank2coord_md(:,rank_realm), nneighbors, id_neighbors
+		end select
+		! <><><><><><>  TEST <><><><><><>  TEST <><><><><><>  TEST <><><><><><> 
+
+	else
+		CPL_GRAPH_COMM = MPI_COMM_NULL
+	endif
+
+	! Setup graph map
+	call CPL_rank_map(CPL_GRAPH_COMM,rank_graph,nproc_olap, & 
+					 rank_graph2rank_world,rank_world2rank_graph,ierr)
+	myid_graph = rank_graph - 1
+
+end subroutine CPL_overlap_topology
+
+subroutine print_overlap_comms
+	use coupler_module
+	use mpi
+	implicit none
+
+	integer :: trank
+
+	if (myid_world.eq.0) then
+		write(7500+rank_realm,*), ''
+		write(7500+rank_realm,*), '----------- OVERLAP COMMS INFO ------------'
+		write(7500+rank_realm,*), '-------------------------------------------'
+		write(7500+rank_realm,*), '        RANKS              BROADCAST TEST  '
+		write(7500+rank_realm,*), '  world  realm  olap      testval( = group)'
+		write(7500+rank_realm,*), '-------------------------------------------'
+	end if
+	
+	do trank = 1,nproc_world
+		if (rank_world.eq.trank) then
+			write(7500+rank_realm,'(3i7,i16)'), rank_world,rank_realm, &
+								rank_olap, testval 	
 		end if
+	end do
 
-		!Setup overlap map
-		call CPL_rank_map(CPL_OLAP_COMM,rank_olap,nproc_olap, & 
-						 rank_olap2rank_world,rank_world2rank_olap,ierr)
-		myid_olap = rank_olap - 1
-
-		deallocate(mdicoords)
-		deallocate(mdjcoords)
-		deallocate(mdkcoords)
-		
-		!if (realm.eq.md_realm) call write_overlap_comms_md
-
-	end subroutine prepare_overlap_comms
-
-	!=========================================================================
-	!Setup topology graph of overlaps between CFD & MD processors
-
-	subroutine CPL_overlap_topology
-		use coupler_module
-		use mpi
-		implicit none
-
-		integer								:: i, n, nneighbors, nconnections
-		integer, dimension(:),allocatable	:: index, edges, id_neighbors
-		logical								:: reorder
-
-		!Allow optimisations of ordering
-		reorder = .true.
-
-		!Get number of processors in communicating overlap region 
-		if (olap_mask(rank_world).eq.1) then
-
-			!CFD processor is root and has mapping to all MD processors
-			allocate(index(nproc_olap))			!Index for each processor
-			allocate(edges(2*(nproc_olap)-1))	!nproc_olap-1 for CFD and one for each of nproc_olap MD processors
-			index = 0; 	edges = 0
-
-			!CFD processor has connections to nproc_olap MD processors
-			nconnections = nproc_olap-1
-			index(1) = nconnections
-			do n = 1,nconnections
-				edges(n) = n !olap_list(n+1) !CFD connected to all MD processors 1 to nconnections
-			enddo
-
-			!MD processor has a single connection to CFD
-			nconnections = 1; i = 2
-			do n = nproc_olap+1,2*(nproc_olap)-1
-				index(i) = index(i-1) + nconnections !Each successive index incremented by one
-				edges(n) = CFDid_olap	!Connected to CFD processor
-				i = i + 1
-			enddo
-
-			!Create graph topology for overlap region
-			call MPI_Graph_create(CPL_OLAP_COMM, nproc_olap,index,edges,reorder,CPL_GRAPH_COMM,ierr)
-
-	        ! <><><><><><>  TEST <><><><><><>  TEST <><><><><><>  TEST <><><><><><> 
-	        !Get number of neighbours
-	        call MPI_comm_rank( CPL_GRAPH_COMM, myid_graph, ierr)
-	        call MPI_Graph_neighbors_count( CPL_GRAPH_COMM, myid_graph, nneighbors, ierr)
-	        allocate(id_neighbors(nneighbors))
-	        !Get neighbours
-	        call MPI_Graph_neighbors( CPL_GRAPH_COMM, myid_graph, nneighbors, id_neighbors,ierr )
-	        select case(realm)
-	        case(cfd_realm)
-	                write(3000+myid_world,*), realm_name(realm),' My graph', & 
-									myid_world,myid_graph,myid_olap, & 
-									rank2coord_cfd(:,rank_realm), nneighbors, id_neighbors
-	        case(md_realm)
-	                write(3000+myid_world,*), realm_name(realm),' My graph', & 
-									myid_world,myid_graph,myid_olap, & 
-									rank2coord_md(:,rank_realm), nneighbors, id_neighbors
-	        end select
-			! <><><><><><>  TEST <><><><><><>  TEST <><><><><><>  TEST <><><><><><> 
-
-		else
-			CPL_GRAPH_COMM = MPI_COMM_NULL
-		endif
-
-		! Setup graph map
-		call CPL_rank_map(CPL_GRAPH_COMM,rank_graph,nproc_olap, & 
-						 rank_graph2rank_world,rank_world2rank_graph,ierr)
-		myid_graph = rank_graph - 1
-
-	end subroutine CPL_overlap_topology
-
-
-	subroutine print_overlap_comms
-		use coupler_module
-		use mpi
-		implicit none
-
-		integer :: trank
-
-		if (myid_world.eq.0) then
-			write(7500+rank_realm,*), ''
-			write(7500+rank_realm,*), '----------- OVERLAP COMMS INFO ------------'
-			write(7500+rank_realm,*), '-------------------------------------------'
-			write(7500+rank_realm,*), '        RANKS              BROADCAST TEST  '
-			write(7500+rank_realm,*), '  world  realm  olap      testval( = group)'
-			write(7500+rank_realm,*), '-------------------------------------------'
-		end if
-		
-		do trank = 1,nproc_world
-			if (rank_world.eq.trank) then
-				write(7500+rank_realm,'(3i7,i16)'), rank_world,rank_realm, &
-				                    rank_olap, testval 	
-			end if
-		end do
-
-		if (myid_world.eq.0) then
-			write(7500+rank_realm,*), '-------- END OVERLAP COMMS INFO  ----------'
-			write(7500+rank_realm,*), '==========================================='
-		end if
-		
-	end subroutine print_overlap_comms
-
-end subroutine coupler_create_map
+	if (myid_world.eq.0) then
+		write(7500+rank_realm,*), '-------- END OVERLAP COMMS INFO  ----------'
+		write(7500+rank_realm,*), '==========================================='
+	end if
+	
+end subroutine print_overlap_comms
 
 !=============================================================================
 !	Adjust CFD domain size to an integer number of lattice units used by  

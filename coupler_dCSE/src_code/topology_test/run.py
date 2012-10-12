@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 from os import system 
 
-fobj    = open('procs','r')
+fobj    = open('input','r')
 
 npx_md  = int(fobj.readline()[0:4])
 npy_md  = int(fobj.readline()[0:4])

@@ -1,13 +1,12 @@
-
-program create_map
+program test_coupler
 	use coupler_module, only : olap_mask, rank_world
 	use coupler
 	implicit none
 
 	call initialise
-	call setup_input_and_arrays
-	call get_cell_ranges_md 
-	call get_overlap_blocks_cfd 
+	call test_setup_input_and_arrays
+	call get_md_cell_ranges 
+	call get_overlap_blocks
 	call create_realms
 	call prepare_overlap_comms
 	call CPL_overlap_topology
@@ -20,8 +19,7 @@ program create_map
 
 	call finalise
 
-end program create_map
-
+end program test_coupler
 
 !===========================================
 !
@@ -29,86 +27,45 @@ end program create_map
 !
 !===========================================
 
-
-subroutine setup_input_and_arrays
+subroutine test_setup_input_and_arrays
 	use coupler_module
 	implicit none
 
-	open(unit=1,file='procs',form='formatted')
+	open(unit=1,file='input',form='formatted')
 		read(1,*) npx_md 
 		read(1,*) npy_md 
 		read(1,*) npz_md 
 		read(1,*) npx_cfd 
 		read(1,*) npy_cfd 
 		read(1,*) npz_cfd 
+		read(1,*) ncx 
+		read(1,*) ncy 
+		read(1,*) ncz 
+		read(1,*) xL_cfd 
+		read(1,*) yL_cfd 
+		read(1,*) zL_cfd 
+		read(1,*) icmin_olap 
+		read(1,*) icmax_olap 
+		read(1,*) jcmin_olap 
+		read(1,*) jcmax_olap 
+		read(1,*) kcmin_olap 
+		read(1,*) kcmax_olap 
 	close(1)
 
-	nproc_md  = npx_md*npy_md*npz_md
-	nproc_cfd = npx_cfd*npy_cfd*npz_cfd
-	nproc_world = nproc_md + nproc_cfd
-
-	allocate(icPmin_md(npx_md))
-	allocate(icPmax_md(npx_md))
-	allocate(jcPmin_md(npy_md))
-	allocate(jcPmax_md(npy_md))
-	allocate(kcPmin_md(npz_md))
-	allocate(kcPmax_md(npz_md))
-	allocate(icPmin_cfd(npx_cfd))
-	allocate(icPmax_cfd(npx_cfd))
-	allocate(jcPmin_cfd(npy_cfd))
-	allocate(jcPmax_cfd(npy_cfd))
-	allocate(kcPmin_cfd(npz_cfd))
-	allocate(kcPmax_cfd(npz_cfd))
-	allocate(cfd_icoord2olap_md_icoords(npx_cfd,npx_md/npx_cfd))
-	allocate(cfd_jcoord2olap_md_jcoords(npy_cfd,npy_md/npy_cfd))
-	allocate(cfd_kcoord2olap_md_kcoords(npz_cfd,npz_md/npz_cfd))
-
-	allocate(olap_mask(nproc_world))
-
-	allocate(coord2rank_md(npx_md,npy_md,npz_md))
-	allocate(coord2rank_cfd(npx_cfd,npy_cfd,npz_cfd))
-	allocate(rank2coord_cfd(3,nproc_cfd))
-	allocate(rank2coord_md(3,nproc_md))
-	allocate(rank_mdcart2rank_world(nproc_md))
-	allocate(rank_cfdcart2rank_world(nproc_cfd))
-
-	coord2rank_md       = 0
-	coord2rank_cfd      = 0
-	rank2coord_md       = 0
-	rank2coord_cfd      = 0
-	rank_mdcart2rank_world  = 0
-	rank_cfdcart2rank_world = 0
-
-	! Inputs
-	ncx = 128
-	ncy = 128
-	ncz = 8	
-	xL_cfd = 2048.d0
-	yL_cfd = 2048.d0
-	zL_cfd = 128.d0
-	icmin_olap = 1
-	icmax_olap = ncx
-	jcmin_olap = 1
-	jcmax_olap = 23 
-	kcmin_olap = 1
-	kcmax_olap = ncz
-
+	! Calcs	
 	ncx_olap = icmax_olap - icmin_olap + 1
 	ncy_olap = jcmax_olap - jcmin_olap + 1
 	ncz_olap = kcmax_olap - kcmin_olap + 1
-
-	! Calcs	
+	nproc_md  = npx_md*npy_md*npz_md
+	nproc_cfd = npx_cfd*npy_cfd*npz_cfd
+	nproc_world = nproc_md + nproc_cfd
 	dy = yL_cfd / ncy
 	yL_md = yL_cfd / 2.d0
 	yL_olap = (jcmax_olap - jcmin_olap + 1) * dy
-	yLl_md = yL_md/npy_md
-	yLl_cfd = yL_cfd/npy_cfd
 
 	call setup_CFD_procs
 
-end subroutine setup_input_and_arrays
-
-
+end subroutine test_setup_input_and_arrays
 
 subroutine setup_CFD_procs
 	use coupler_module
@@ -116,6 +73,13 @@ subroutine setup_CFD_procs
 
 	integer	:: n
 	integer :: ncxl, ncyl, nczl
+
+	allocate(icPmin_cfd(npx_cfd))
+	allocate(icPmax_cfd(npx_cfd))
+	allocate(jcPmin_cfd(npy_cfd))
+	allocate(jcPmax_cfd(npy_cfd))
+	allocate(kcPmin_cfd(npz_cfd))
+	allocate(kcPmax_cfd(npz_cfd))
 
 	ncxl = ncx / npx_cfd
 	do n=1,npx_cfd
@@ -137,14 +101,7 @@ subroutine setup_CFD_procs
 
 end subroutine setup_CFD_procs
 
-
-
-
-
-
-
 !=========================================================================
-
 subroutine create_realms
 	use coupler_module
 	use mpi
@@ -204,26 +161,27 @@ subroutine create_realms
 end subroutine create_realms
 
 subroutine collect_rank_mappings
-	implicit none
-
-	call collect_coord2ranks
-	call collect_rank2coords
-	call collect_rank2ranks
-	call write_realm_info
-
-end subroutine collect_rank_mappings
-
-subroutine collect_coord2ranks
-	use mpi
 	use coupler_module
 	implicit none
 
 	integer :: coord(3)
-	integer, dimension(:), allocatable :: mbuf, cbuf
+
+	allocate(coord2rank_md(npx_md,npy_md,npz_md))
+	allocate(coord2rank_cfd(npx_cfd,npy_cfd,npz_cfd))
+	allocate(rank2coord_cfd(3,nproc_cfd))
+	allocate(rank2coord_md(3,nproc_md))
+	allocate(rank_mdcart2rank_world(nproc_md))
+	allocate(rank_cfdcart2rank_world(nproc_cfd))
+
+	coord2rank_md           = 0
+	coord2rank_cfd          = 0
+	rank2coord_md           = 0
+	rank2coord_cfd          = 0
+	rank_mdcart2rank_world  = 0
+	rank_cfdcart2rank_world = 0
 
 	call MPI_cart_coords(CPL_CART_COMM,myid_cart,3,coord,ierr)
 	coord(:) = coord(:) + 1
-
 
 	if (realm .eq. md_realm) then
 		coord2rank_md(coord(1),coord(2),coord(3)) = rank_cart
@@ -240,6 +198,21 @@ subroutine collect_coord2ranks
 		jblock_realm=rank2coord_cfd(2,rank_cart)
 		kblock_realm=rank2coord_cfd(3,rank_cart)	
 	end if
+
+	call collect_coord2ranks
+	call collect_rank2coords
+	call collect_rank2ranks
+	call write_realm_info
+
+end subroutine collect_rank_mappings
+
+subroutine collect_coord2ranks
+	use mpi
+	use coupler_module
+	implicit none
+
+	integer :: coord(3)
+	integer, dimension(:), allocatable :: mbuf, cbuf
 
 	allocate(mbuf(nproc_md))
 	allocate(cbuf(nproc_cfd))
@@ -290,7 +263,6 @@ subroutine collect_rank2ranks
 	integer, dimension(:), allocatable :: mbuf, cbuf
 	integer, dimension(:), allocatable :: rank_cart2rank_world,rank_world2rank_cart
 	integer, dimension(:), allocatable :: rank_realm2rank_world,rank_world2rank_realm
-
 
 	!------------------------ Cart------------------
 	call CPL_rank_map(CPL_CART_COMM,rank_cart,nproc, & 

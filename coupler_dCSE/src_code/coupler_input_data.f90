@@ -502,7 +502,6 @@ contains
 
 end subroutine read_coupler_input
 
-
 subroutine locate(fileid,keyword,have_data)
 	implicit none
 	
