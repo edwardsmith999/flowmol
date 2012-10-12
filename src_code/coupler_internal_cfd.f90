@@ -58,7 +58,7 @@ subroutine coupler_cfd_init(nsteps,dt_cfd,icomm_grid,icoord,npxyz_cfd,xyzL,ncxyz
     real(kind(0.d0)),dimension(:,:),intent(in)	:: xg,yg
 
 
-    integer											:: i,ib,jb,kb,pcoords(3),root,source
+    integer											:: i,ib,jb,kb,pcoords(3),source
     integer,dimension(:),allocatable				:: buf
 	real(kind=kind(0.d0))							:: dxmin,dxmax,dzmin,dzmax
     real(kind=kind(0.d0)),dimension(:),allocatable 	:: rbuf
@@ -116,7 +116,8 @@ subroutine coupler_cfd_init(nsteps,dt_cfd,icomm_grid,icoord,npxyz_cfd,xyzL,ncxyz
 
 	call write_matrix_int(rank2coord_md,'cfd side, rank2coord_md=',99+rank_realm)
 
-	!Setup CFD mapping from coordinate to rank, store and send
+	! Setup CFD mapping from coordinate to rank
+	! Store & Send CFD mapping from coordinate to rank to MD
 	allocate(coord2rank_cfd(npx_cfd,npy_cfd,npz_cfd))
 	do ib = 1,npx_cfd
 	do jb = 1,npy_cfd
@@ -142,6 +143,31 @@ subroutine coupler_cfd_init(nsteps,dt_cfd,icomm_grid,icoord,npxyz_cfd,xyzL,ncxyz
 	deallocate(buf)
 
 	write(99+rank_realm,*), 'CFD side',rank_realm,'coord2rank_md=',coord2rank_md
+
+	! Setup MD mapping from realm to local rank,
+	allocate(rank_cfdrealm2rank_world(nproc_cfd))
+	allocate(buf(1)); buf = rank_world
+	call MPI_allgather(        buf         ,1,MPI_INTEGER, & 
+						rank_cfdrealm2rank_world,1,MPI_INTEGER,CPL_REALM_COMM,ierr) !Reduce on all processors
+
+	! Store & Send MD mapping from realm to local rank to CFD
+	call MPI_bcast(rank_cfdrealm2rank_world,nproc_cfd,MPI_integer,source,CPL_INTER_COMM,ierr)	 !send
+	deallocate(buf)
+
+	write(99+rank_realm,*), 'CFD side',rank_realm, 'rank_cfd2rank_world', rank_cfdrealm2rank_world
+
+	! Receive & Store MD mapping from realm to local rank from MD
+	allocate(rank_mdrealm2rank_world(nproc_md))
+	call MPI_bcast(rank_mdrealm2rank_world,nproc_md,MPI_integer,0,CPL_INTER_COMM,ierr)	!Receive
+
+	write(99+rank_realm,*), 'CFD side',rank_realm, 'rank_md2rank_world', rank_mdrealm2rank_world
+
+
+	! CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE
+	! CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE
+	! CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE
+	! CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE
+	! CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE
 
 	! ------------------ Timesteps and iterations ------------------------------
 	! Store & send CFD nsteps and dt_cfd
@@ -223,7 +249,8 @@ subroutine coupler_cfd_init(nsteps,dt_cfd,icomm_grid,icoord,npxyz_cfd,xyzL,ncxyz
     call MPI_bcast(kcPmin_cfd,npz_cfd,MPI_INTEGER,source,CPL_INTER_COMM,ierr) !Send
     call MPI_bcast(kcPmax_cfd,npz_cfd,MPI_INTEGER,source,CPL_INTER_COMM,ierr) !Send
 
-	write(99+rank_realm,*), 'CFD side',rank_realm,'CFD local cells',icPmin_cfd,icPmax_cfd,jcPmin_cfd,jcPmax_cfd,kcPmin_cfd,kcPmax_cfd
+	write(99+rank_realm,*), 'CFD side',rank_realm, & 
+		'CFD local cells',icPmin_cfd,icPmax_cfd,jcPmin_cfd,jcPmax_cfd,kcPmin_cfd,kcPmax_cfd
 
 	!Calculate the cell sizes dx,dy & dz
 	dx = xL_cfd/ncx  !xg(2,1)-xg(1,1)
@@ -234,11 +261,11 @@ subroutine coupler_cfd_init(nsteps,dt_cfd,icomm_grid,icoord,npxyz_cfd,xyzL,ncxyz
     ! Note : jcmax_overlap default is provided in coupler_internal_cfd
 	! but for some reason it is only broadcast to CFD processors while 
 	! the tag used in the if statement below is not broadcast at all...
-	if (rank_realm .eq. root) then
+	if (myid_realm .eq. rootid_realm) then
 	    if (cfd_coupler_input%overlap%tag == CPL) then
 			ncx_olap = 0
     	    ncy_olap = cfd_coupler_input%overlap%y_overlap
-			!ncz_olap = 0
+			ncz_olap = 0
 		else
 			call error_abort("j overlap not specified in COUPLER.in")
 	    endif
@@ -248,6 +275,8 @@ subroutine coupler_cfd_init(nsteps,dt_cfd,icomm_grid,icoord,npxyz_cfd,xyzL,ncxyz
 	call MPI_bcast(ncy_olap,1,MPI_INTEGER,rootid_realm,CPL_REALM_COMM,ierr)
 	!Broadcast the overlap to MD over intercommunicator
 	call MPI_bcast(ncy_olap,1,MPI_INTEGER,source,CPL_INTER_COMM,ierr)
+
+	write(99+rank_realm,*), 'CFD side - y overlap',ncy_olap
 
 	!Check for grid strectching and terminate process if found
 	call check_mesh
@@ -285,7 +314,7 @@ contains
 		if (dz-dzmin.gt.0.00001d0) call error_abort("ERROR - Grid stretching in z not supported")
 
 	    ! test if MD_init_cell size is larger than CFD cell size
-		if (rank_realm .eq. root) then
+		if (myid_realm .eq. rootid_realm) then
 		    if( MD_initial_cellsize .ge. dx .or. & 
 				MD_initial_cellsize .ge. dy .or. & 
 				MD_initial_cellsize .ge. dz .and. rank_realm == 0 ) then
@@ -421,9 +450,9 @@ contains
         enddo
 
         ! set sizes of local grids
-        nlgx_cfd = icPmax_cfd(rank2coord_cfd(1,rank_realm)) - icPmin_cfd(rank2coord_cfd(1,rank_realm))
-        nlgy_cfd = jcPmax_cfd(rank2coord_cfd(2,rank_realm)) - jcPmin_cfd(rank2coord_cfd(2,rank_realm))
-        nlgz_cfd = kcPmax_cfd(rank2coord_cfd(3,rank_realm)) - kcPmin_cfd(rank2coord_cfd(3,rank_realm))
+        !nlgx_cfd = icPmax_cfd(rank2coord_cfd(1,rank_realm)) - icPmin_cfd(rank2coord_cfd(1,rank_realm))
+        !nlgy_cfd = jcPmax_cfd(rank2coord_cfd(2,rank_realm)) - jcPmin_cfd(rank2coord_cfd(2,rank_realm))
+        !nlgz_cfd = kcPmax_cfd(rank2coord_cfd(3,rank_realm)) - kcPmin_cfd(rank2coord_cfd(3,rank_realm))
 
 		! THIS IS TERRIBLE NOTATION AS IT REDEFINES A CONTINUUM VALUE
         !nlx = bbox_cfd%xbb(2,rank2coord_cfd(1,id_coord)) - bbox_cfd%xbb(1,rank2coord_cfd(1,id_coord)) + 1

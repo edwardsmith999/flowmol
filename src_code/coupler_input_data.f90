@@ -72,7 +72,7 @@ module coupler_input_data
 	integer 			 :: md_cfd_match_cellsize		!Force MD cells to be an integer multiple of CFD cell size
 	integer, target 	 :: md_cfd_match_cellsize_tag
 
-	character(len=64)	:: cfd_code_name ! used to set cfd_code_id in MD
+	character(len=64)	:: cfd_realm_name ! used to set cfd_code_id in MD
 	integer		   		:: cfd_code_id
 	integer, target		:: cfd_code_id_tag
 
@@ -179,7 +179,7 @@ contains
 		cfd_coupler_input%overlap%y_overlap = 0
 
 		! No initialisation of the MD values associated with the tags because 
-		!defaults are set in coupler_internal_md module		 
+		! defaults are set in coupler_internal_md module		 
 		section(5)%str = "MD_LY_EXTENSION"
 		section(5)%tag => md_ly_extension_tag 
 		md_ly_extension_tag   = VOID
@@ -207,6 +207,7 @@ contains
 		section(11)%str = "MD_STEPS_PER_DT_CFD"
 		section(11)%tag => md_steps_per_dt_cfd_tag
 		section(11)%tag = VOID
+
 		!Force MD cells to be an integer multiple of CFD cell size
 		section(12)%str = "MD_CFD_MATCH_CELLSIZE"		
 		section(12)%tag => md_cfd_match_cellsize_tag
@@ -283,8 +284,8 @@ contains
 					read(34,*) staggered_averages
 				case("CFD_CODE_ID","cfd_code_id","Cfd_code_id")
 					cfd_code_id_tag = CPL
-					read(34,*) cfd_code_name
-					select case(cfd_code_name)
+					read(34,*) cfd_realm_name
+					select case(cfd_realm_name)
 					case ("COUETTE_SERIAL","couette_serial")
 						cfd_code_id = couette_serial
 					case("COUETTE_PARALLEL","couette_parallel")

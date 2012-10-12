@@ -1,4 +1,4 @@
-SOURCES= coupler_parameters.f90 coupler_module.f90 messenger.f90 main.f90
+SOURCES= coupler_parameters.f90 coupler_module.f90 tocoupler.f90 tests.f90  
 
 a.out: *.f90
 	mpif90 -O3 -mpe=mpilog $(SOURCES)
