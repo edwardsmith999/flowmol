@@ -5,6 +5,7 @@ program test_coupler
 
 	call initialise                        ! FROM TEST
 	call test_setup_input_and_arrays       ! FROM TEST
+	call get_cfd_cell_ranges               ! FROM TEST
 	call get_md_cell_ranges                ! FROM COUPLER
 	call get_overlap_blocks                ! FROM COUPLER
 	call create_realms                     ! FROM TEST
@@ -54,6 +55,7 @@ subroutine test_setup_input_and_arrays
 		read(1,*) kcmax_olap 
 	close(1)
 
+
 	! Calcs	
 	ncx_olap = icmax_olap - icmin_olap + 1
 	ncy_olap = jcmax_olap - jcmin_olap + 1
@@ -65,11 +67,10 @@ subroutine test_setup_input_and_arrays
 	yL_md = yL_cfd / 2.d0
 	yL_olap = (jcmax_olap - jcmin_olap + 1) * dy
 
-	call setup_CFD_procs
 
 end subroutine test_setup_input_and_arrays
 
-subroutine setup_CFD_procs
+subroutine get_cfd_cell_ranges
 	use coupler_module
 	implicit none
 
@@ -101,7 +102,7 @@ subroutine setup_CFD_procs
 		kcPmin_cfd(n) = kcPmax_cfd(n) - nczl + 1
 	end do
 
-end subroutine setup_CFD_procs
+end subroutine get_cfd_cell_ranges 
 
 !=========================================================================
 subroutine create_realms
@@ -699,6 +700,8 @@ subroutine test_gather_scatter
 		end do
 		end do
 		end do
+
+!		write(7700+rank_realm,*) stress
 
 	endif
 

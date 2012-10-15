@@ -505,24 +505,34 @@ end subroutine read_coupler_input
 subroutine locate(fileid,keyword,have_data)
 	implicit none
 	
-	integer,intent(in)			:: fileid			! File unit number
-	character(len=*),intent(in)	:: keyword			! Input keyword	
-	logical,intent(out)			:: have_data		! Flag to check if input is required
+	integer,intent(in)			:: fileid               ! File unit number
+	character(len=*),intent(in)	:: keyword              ! Input keyword	
+	logical,intent(out)			:: have_data            ! Flag: input found
 
-	character*(100)				:: linestring		! First 100 characters in a line
-	integer						:: keyword_length	! Length of input keyword
-	integer						:: io				! File status flag
+	character*(100)				:: linestring           ! First 100 chars
+	integer						:: keyword_length       ! Length of keyword
+	integer						:: io                   ! File status flag
 
-	have_data = .false.
 	keyword_length = len(keyword)
-	rewind(fileid)	! Go to beginning of input file
+	rewind(fileid)
+	
+	! Loop until end of file or keyword found
 	do
-	   read (fileid,'(a)',iostat=io) linestring				! Read first 100 characters
-	   if (io.ne.0) exit									! If end of file is reached
-	   if (linestring(1:keyword_length).eq.keyword) then	! If the first characters match keyword then exit loop
-		  have_data = .true.
-		  exit
-	   endif
+		! Read first 100 characters of line
+		read (fileid,'(a)',iostat=io) linestring
+
+		! If end of file is reached, exit
+		if (io.ne.0) then 
+			have_data = .false.
+			exit
+		end if
+		
+		! If the first characters match keyword, exit
+		if (linestring(1:keyword_length).eq.keyword) then
+			have_data = .true.
+			exit
+		endif
+
 	end do
 
 end subroutine locate

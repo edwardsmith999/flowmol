@@ -322,7 +322,7 @@ subroutine get_md_cell_ranges
 		write(6000+myid_world,*), 'ncx    = ', ncx
 		write(6000+myid_world,*), 'ncxl   = ', ncxl
 		write(6000+myid_world,*), '-------------------------------------------'
-		write(6000+myid_world,*), '  icoord_md   icPmin_md(n)    icPmax_md(n) '
+		write(6000+myid_world,*), '  icoord_md     icPmin_md     icPmax_md    '
 		write(6000+myid_world,*), '-------------------------------------------'
 		do n=1,npx_md
 			write(6000+myid_world,'(1x,3i11)'), n, icPmin_md(n), icPmax_md(n)
@@ -336,7 +336,7 @@ subroutine get_md_cell_ranges
 		write(6000+myid_world,*), 'olap_jmin_mdcoord = ', olap_jmin_mdcoord
 		write(6000+myid_world,*), 'dy         = ', dy
 		write(6000+myid_world,*), '-------------------------------------------'
-		write(6000+myid_world,*), '  jcoord_md   jcPmin_md(n)    jcPmax_md(n) '
+		write(6000+myid_world,*), '  jcoord_md     jcPmin_md       jcPmax_md  '
 		write(6000+myid_world,*), '-------------------------------------------'
 		do n = 1,npy_md	
 			write(6000+myid_world,'(1x,3i11)'), n, jcPmin_md(n), jcPmax_md(n)
@@ -346,7 +346,7 @@ subroutine get_md_cell_ranges
 		write(6000+myid_world,*), 'ncz    = ', ncz
 		write(6000+myid_world,*), 'nczl   = ', nczl
 		write(6000+myid_world,*), '-------------------------------------------'
-		write(6000+myid_world,*), '  kcoord_md   kcPmin_md(n)    kcPmax_md(n) '
+		write(6000+myid_world,*), '  kcoord_md     kcPmin_md       kcPmax_md  '
 		write(6000+myid_world,*), '-------------------------------------------'
 		do n=1,npz_md
 			write(6000+myid_world,'(1x,3i11)'), n, kcPmin_md(n), kcPmax_md(n)
@@ -1046,11 +1046,7 @@ contains
 	subroutine pack_sendbuf
 		implicit none
 
-		integer :: coord(3), extents(6)
 		integer :: pos, ixyz, icell, jcell, kcell
-
-		call CPL_cart_coords(CPL_OLAP_COMM,rank_olap,md_realm,3,coord,ierr)
-		call CPL_proc_extents(coord,md_realm,extents)
 
 		pos = 1
 		do ixyz  = 1,size(gatherarray,1)
@@ -1183,6 +1179,7 @@ contains
 	subroutine prepare_scatterv_parameters
 		implicit none
 
+		integer :: maxi,mini,maxj,minj,maxk,mink
 		integer :: ncxl,ncyl,nczl
 		integer :: ncells
 		integer :: icell,jcell,kcell
@@ -1190,13 +1187,13 @@ contains
 		integer :: bufsize
 		integer :: trank_olap, tid_olap, trank_world, trank_cart
 
-		! THIS ASSUMES ONE OVERLAP CFD PROCESSOR IN Y DIRECTION
-		ncxl = icmax_olap - icmin_olap + 1
-		ncyl = jcmax_olap - jcmin_olap + 1
-		nczl = kcmax_olap - kcmin_olap + 1
-
-		if (realm.eq.cfd_realm) bufsize = npercell*ncxl*ncyl*nczl
-		if (realm.eq.md_realm)  bufsize = 0
+		if (realm.eq.cfd_realm) then
+			call CPL_Cart_coords(CPL_CART_COMM,rank_cart,cfd_realm,3,coord,ierr)
+			call CPL_olap_extents(coord,cfd_realm,extents,ncells)
+			bufsize = npercell*ncells
+		else
+			bufsize = 0
+		end if
 
 		allocate(scatterbuf(bufsize))
 		allocate(sendcounts(nproc_olap))
@@ -1235,31 +1232,64 @@ contains
 		implicit none
 		
 		integer :: pos, n
+		integer :: tid_olap
+		integer :: ncxl, ncyl, nczl
 		integer :: trank_world, trank_cart
 		integer :: coord(3), extents(6)
 		integer :: ixyz, icell, jcell, kcell
+		integer :: i,j,k
+
+!		write(7800+rank_realm,*) scatterarray
+!		real(kind(0.d0)), allocatable :: arraycopy(:,:,:,:)
+!
+!		call CPL_cart_coords(CPL_OLAP_COMM,rank_olap,cfd_realm,3,coord,ierr)
+!		call CPL_proc_extents(coord,cfd_realm,extents)
+!		
+!		allocate(arraycopy(npercell,extents(1):extents(2), &
+!		                            extents(3):extents(4), &
+!		                            extents(5):extents(6)))
+!
+!		arraycopy(1:npercell,extents(1):extents(2),&
+!		                     extents(3):extents(4),&
+!		                     extents(5):extents(6)) = &
+!		scatterarray(1:size(scatterarray,1), &
+!		             1:size(scatterarray,2), &
+ !                    1:size(scatterarray,3), &
+!                     1:size(scatterarray,4))
 
 		! CFD proc is rank 1, loop over MD procs in olap comm and
 		! pack scatter buffer in separate regions for each MD proc
 		pos = 1
-		do n = 2,nproc_olap
+		do n = 1,nproc_olap
+
+			tid_olap = n - 1
+			if (tid_olap.eq.CFDid_olap) cycle
 
 			call CPL_Cart_coords(CPL_OLAP_COMM,n,md_realm,3,coord,ierr)
 			call CPL_proc_extents(coord,md_realm,extents)
+!			print('(a,i2,3i2,6i4)'),'n,c,e | ',n,coord(1),coord(2),coord(3),extents
+			ncxl = extents(2) - extents(1) + 1
+			ncyl = extents(4) - extents(3) + 1
+			nczl = extents(6) - extents(5) + 1
 
 			do ixyz = 1,npercell
-			do icell= extents(1),extents(2)
-			do jcell= extents(3),extents(4)
-			do kcell= extents(5),extents(6)
-				scatterbuf(pos) = 0.1d0*ixyz + 1*icell + &
-				                            1000*jcell + &
-				                         1000000*kcell
+			!do icell= extents(1),extents(2) 
+			!do jcell= extents(3),extents(4) 
+			!do kcell= extents(5),extents(6)
+			do icell=1,ncxl
+			do jcell=1,ncyl
+			do kcell=1,nczl
+				i = icell - extents(1) + 1
+				j = jcell - extents(3) + 1
+				k = kcell - extents(5) + 1
+		!		scatterbuf(pos) = arraycopy(ixyz,icell,jcell,kcell)
+				scatterbuf(pos) = scatterarray(ixyz,i,j,k)
 				pos = pos + 1
 			end do
 			end do
 			end do
 			end do
-
+			
 		end do
 	
 	end subroutine pack_scatterbuf	
@@ -1280,9 +1310,9 @@ contains
 		                            extents(3):extents(4), &
 		                            extents(5):extents(6)))
 
-		write(7000+myid_olap,'(a)'), 'recvarray(ixyz,icell,jcell,kcell)'
+		write(7000+myid_realm,'(a)'), 'recvarray(ixyz,icell,jcell,kcell)'
 		pos = 1
-		do ixyz  = 1,npercell
+		do ixyz = 1,npercell
 		do icell= extents(1),extents(2)
 		do jcell= extents(3),extents(4)
 		do kcell= extents(5),extents(6)
@@ -1293,7 +1323,7 @@ contains
 			pos = pos + 1
 		end do	
 		end do	
-		write(7000+myid_olap,'(a)'), 'recvarray(ixyz,icell,jcell,kcell)'
+		write(7000+myid_realm,'(a)'), 'recvarray(ixyz,icell,jcell,kcell)'
 		end do
 		end do
 
@@ -2007,7 +2037,7 @@ subroutine CPL_proc_extents(coord,realm,extents,ncells)
 		            kcPmin_cfd(coord(3)),kcPmax_cfd(coord(3))/)
 
 	case default
-		call error_abort('Wrong realm in rank_cart_to_cell_extents')
+		call error_abort('Wrong realm in CPL_proc_extents')
 	end select
 
 	if (present(ncells)) then
@@ -2018,6 +2048,71 @@ subroutine CPL_proc_extents(coord,realm,extents,ncells)
 
 end subroutine CPL_proc_extents
 
+subroutine CPL_olap_extents(coord,realm,extents,ncells)
+	use mpi
+	use coupler_module, only: md_realm,      cfd_realm,      &
+	                          icPmin_md,     icPmax_md,      &
+	                          jcPmin_md,     jcPmax_md,      &
+	                          kcPmin_md,     kcPmax_md,      &
+	                          icPmin_cfd,    icPmax_cfd,     &
+	                          jcPmin_cfd,    jcPmax_cfd,     &
+	                          kcPmin_cfd,    kcPmax_cfd,     &
+	                          cfd_icoord2olap_md_icoords,    &
+	                          cfd_jcoord2olap_md_jcoords,    &
+	                          cfd_kcoord2olap_md_kcoords,    &
+	                          icmin_olap,                    & 
+	                          icmax_olap,                    & 
+	                          jcmin_olap,                    & 
+	                          jcmax_olap,                    & 
+	                          kcmin_olap,                    & 
+	                          kcmax_olap,                    & 
+	                          error_abort
+	implicit none
+
+	integer, intent(in)  :: coord(3), realm
+	integer, intent(out) :: extents(6)
+	integer, optional, intent(out) :: ncells
+!	integer :: mini, maxi, minj, maxj, mink, maxk
+
+	select case(realm)
+	case(md_realm)
+		!call CPL_proc_extents(coord,md_realm,extents)
+		extents(1) = max(icPmin_md(coord(1)),icmin_olap)
+		extents(2) = min(icPmax_md(coord(1)),icmax_olap) 
+		extents(3) = max(jcPmin_md(coord(2)),jcmin_olap) 
+		extents(4) = min(jcPmax_md(coord(2)),jcmax_olap) 
+		extents(5) = max(kcPmin_md(coord(3)),kcmin_olap) 
+		extents(6) = min(kcPmax_md(coord(3)),kcmax_olap) 
+	case(cfd_realm)
+		!maxi = maxval(cfd_icoord2olap_md_icoords(coord(1),:))
+		!mini = minval(cfd_icoord2olap_md_icoords(coord(1),:))
+		!maxj = maxval(cfd_jcoord2olap_md_jcoords(coord(2),:))
+		!minj = minval(cfd_jcoord2olap_md_jcoords(coord(2),:))
+		!maxk = maxval(cfd_kcoord2olap_md_kcoords(coord(3),:))
+		!mink = minval(cfd_kcoord2olap_md_kcoords(coord(3),:))
+		!extents(1) = icPmin_md(mini)
+		!extents(2) = icPmax_md(maxi)
+		!extents(3) = jcPmin_md(minj)
+		!extents(4) = jcPmax_md(maxj)
+		!extents(5) = kcPmin_md(mink)
+		!extents(6) = kcPmax_md(maxk)
+		extents(1) = max(icPmin_cfd(coord(1)),icmin_olap)
+		extents(2) = min(icPmax_cfd(coord(1)),icmax_olap) 
+		extents(3) = max(jcPmin_cfd(coord(2)),jcmin_olap) 
+		extents(4) = min(jcPmax_cfd(coord(2)),jcmax_olap) 
+		extents(5) = max(kcPmin_cfd(coord(3)),kcmin_olap) 
+		extents(6) = min(kcPmax_cfd(coord(3)),kcmax_olap) 
+	case default
+		call error_abort('Wrong realm in CPL_olap_extents')
+	end select
+
+	if (present(ncells)) then
+		ncells = (extents(2) - extents(1) + 1) * &
+				 (extents(4) - extents(3) + 1) * &
+				 (extents(6) - extents(5) + 1)
+	end if
+
+end subroutine CPL_olap_extents
 
 !-------------------------------------------------------------------
 ! 					CPL_Cart_coords								   -
