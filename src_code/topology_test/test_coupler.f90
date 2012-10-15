@@ -3,21 +3,23 @@ program test_coupler
 	use coupler
 	implicit none
 
-	call initialise
-	call test_setup_input_and_arrays
-	call get_md_cell_ranges 
-	call get_overlap_blocks
-	call create_realms
-	call prepare_overlap_comms
-	call CPL_overlap_topology
+	call initialise                        ! FROM TEST
+	call test_setup_input_and_arrays       ! FROM TEST
+	call get_md_cell_ranges                ! FROM COUPLER
+	call get_overlap_blocks                ! FROM COUPLER
+	call create_realms                     ! FROM TEST
+	call prepare_overlap_comms             ! FROM COUPLER
+	call CPL_overlap_topology              ! FROM COUPLER
 	!call test_COMMS
 	!call test_packing
 
-!	call test_send_recv_MD2CFD
+!	call test_send_recv_MD2CFD             
 !	call test_send_recv_CFD2MD
-	if (olap_mask(rank_world).eq.1) call test_gather_scatter
+	if (olap_mask(rank_world).eq.1) then
+		call test_gather_scatter           ! FROM TEST
+	end if
 
-	call finalise
+	call finalise                          ! FROM TEST
 
 end program test_coupler
 
