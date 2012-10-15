@@ -1235,30 +1235,17 @@ contains
 		integer :: tid_olap
 		integer :: ncxl, ncyl, nczl
 		integer :: trank_world, trank_cart
-		integer :: coord(3), extents(6)
+		integer :: coord(3),cfdextents(6),mdextents(6)
 		integer :: ixyz, icell, jcell, kcell
 		integer :: i,j,k
 
-!		write(7800+rank_realm,*) scatterarray
-!		real(kind(0.d0)), allocatable :: arraycopy(:,:,:,:)
-!
-!		call CPL_cart_coords(CPL_OLAP_COMM,rank_olap,cfd_realm,3,coord,ierr)
-!		call CPL_proc_extents(coord,cfd_realm,extents)
-!		
-!		allocate(arraycopy(npercell,extents(1):extents(2), &
-!		                            extents(3):extents(4), &
-!		                            extents(5):extents(6)))
-!
-!		arraycopy(1:npercell,extents(1):extents(2),&
-!		                     extents(3):extents(4),&
-!		                     extents(5):extents(6)) = &
-!		scatterarray(1:size(scatterarray,1), &
-!		             1:size(scatterarray,2), &
- !                    1:size(scatterarray,3), &
-!                     1:size(scatterarray,4))
+		! Grab CFD proc extents to be used for local cell mapping (when an 
+		! array is an input to subroutine it has lower bound 1 by default)
+		call CPL_cart_coords(CPL_CART_COMM,rank_cart,cfd_realm,3,coord,ierr)
+		call CPL_proc_extents(coord,cfd_realm,cfdextents)
 
-		! CFD proc is rank 1, loop over MD procs in olap comm and
-		! pack scatter buffer in separate regions for each MD proc
+		! Loop over procs in olap comm and pack scatter buffer 
+		! in separate regions for each MD proc
 		pos = 1
 		do n = 1,nproc_olap
 
@@ -1266,23 +1253,18 @@ contains
 			if (tid_olap.eq.CFDid_olap) cycle
 
 			call CPL_Cart_coords(CPL_OLAP_COMM,n,md_realm,3,coord,ierr)
-			call CPL_proc_extents(coord,md_realm,extents)
-!			print('(a,i2,3i2,6i4)'),'n,c,e | ',n,coord(1),coord(2),coord(3),extents
-			ncxl = extents(2) - extents(1) + 1
-			ncyl = extents(4) - extents(3) + 1
-			nczl = extents(6) - extents(5) + 1
+			call CPL_proc_extents(coord,md_realm,mdextents)
+			ncxl = mdextents(2) - mdextents(1) + 1
+			ncyl = mdextents(4) - mdextents(3) + 1
+			nczl = mdextents(6) - mdextents(5) + 1
 
 			do ixyz = 1,npercell
-			!do icell= extents(1),extents(2) 
-			!do jcell= extents(3),extents(4) 
-			!do kcell= extents(5),extents(6)
-			do icell=1,ncxl
-			do jcell=1,ncyl
-			do kcell=1,nczl
-				i = icell - extents(1) + 1
-				j = jcell - extents(3) + 1
-				k = kcell - extents(5) + 1
-		!		scatterbuf(pos) = arraycopy(ixyz,icell,jcell,kcell)
+			do icell= mdextents(1),mdextents(2)
+			do jcell= mdextents(3),mdextents(4)
+			do kcell= mdextents(5),mdextents(6)
+				i = icell - cfdextents(1) + 1
+				j = jcell - cfdextents(3) + 1
+				k = kcell - cfdextents(5) + 1
 				scatterbuf(pos) = scatterarray(ixyz,i,j,k)
 				pos = pos + 1
 			end do
