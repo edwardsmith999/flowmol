@@ -963,12 +963,13 @@ end subroutine coupler_cfd_adjust_domain
 ! - - - Output Parameters - - -
 ! - NONE -
 
-subroutine CPL_gather(gatherarray,npercell)
+subroutine CPL_gather(gatherarray,npercell,limits)
 	use mpi
 	use coupler_module
 	implicit none
 
 	integer, intent(in) :: npercell
+	integer, intent(in) :: limits(6)
 	real(kind(0.d0)), dimension(:,:,:,:), intent(in) :: gatherarray
 	real(kind(0.d0)), dimension(:), allocatable :: sendbuf 
 
@@ -979,13 +980,11 @@ subroutine CPL_gather(gatherarray,npercell)
 	call prepare_gatherv_parameters	
 	
 	if (realm.eq.md_realm) call pack_sendbuf
-	!if (realm.eq.md_realm) call CPL_pack(gatherarray,sendbuf)
 
 	call MPI_gatherv(sendbuf,sendcount,MPI_DOUBLE_PRECISION,recvbuf,recvcounts,&
 	                 displs,MPI_DOUBLE_PRECISION,CFDid_olap,CPL_OLAP_COMM,ierr)
 
 	if (realm.eq.cfd_realm) call unpack_recvbuf 
-	!if (realm.eq.cfd_realm) call CPL_unpack(gatherbuf,recvarray)
 
 	call deallocate_gather_u
 	
@@ -994,10 +993,9 @@ contains
 	subroutine prepare_gatherv_parameters
 		implicit none
 
-		integer :: coord(3), extents(6)
-		integer :: ncells
+		integer :: coord(3), extents(6), portion(6)
+		integer :: ncells,bufsize
 		integer :: trank_olap,trank_world,trank_cart,tid_olap
-		character(len=128) :: errmessage
 
 		! Check if CFD processor has tried to "send" anything
 		if (myid_olap.eq.CFDid_olap .and. any(shape(gatherarray).ne.0)) then
@@ -1007,7 +1005,14 @@ contains
 		end if
 
 		! Allocate send buffer
-		allocate(sendbuf(size(gatherarray)))
+		if (realm.eq.md_realm) then
+			call CPL_Cart_coords(CPL_CART_COMM,rank_cart,realm,3,coord,ierr) 
+			call CPL_proc_portion(coord,md_realm,limits,portion,ncells)
+			bufsize = npercell*ncells
+		else
+			bufsize = 0
+		end if
+		allocate(sendbuf(bufsize))
 
 		! Allocate array of sendbuffer sizes and populate it
 		allocate(recvcounts(nproc_olap))
@@ -1018,13 +1023,13 @@ contains
 			else
 				call CPL_Cart_coords(CPL_OLAP_COMM,trank_olap,md_realm,3, &
 				                     coord,ierr) 
-				call CPL_proc_extents(coord,md_realm,extents,ncells)
+				call CPL_proc_portion(coord,md_realm,limits,portion,ncells)
 				recvcounts(trank_olap) = npercell*ncells 
 			end if
 		end do
 	
-		! Grab own sendbuffer size
-		sendcount = size(gatherarray)
+		! Own sendbuffer size
+		sendcount = size(sendbuf)
 		! Sanity check
 		if (sendcount .ne. recvcounts(rank_olap)) then
 			call error_abort('Send buffer sizes calculated incorrectly '//&
@@ -1047,13 +1052,28 @@ contains
 		implicit none
 
 		integer :: pos, ixyz, icell, jcell, kcell
+		integer :: i,j,k
+		integer :: coord(3),cfdextents(6),portion(6),mdextents(6)
+
+		! Get MD processor extents and cells portion of send region
+		call CPL_Cart_coords(CPL_CART_COMM,rank_cart,realm,3,coord,ierr) 
+		call CPL_proc_extents(coord,realm,mdextents)
+		call CPL_proc_portion(coord,realm,limits,portion)
+
+		! If MD proc has nothing to send, exit
+		if (any(portion.eq.VOID)) return
 
 		pos = 1
-		do ixyz  = 1,size(gatherarray,1)
-		do icell = 1,size(gatherarray,2)
-		do jcell = 1,size(gatherarray,3)
-		do kcell = 1,size(gatherarray,4)
-			sendbuf(pos) = gatherarray(ixyz,icell,jcell,kcell)
+		do ixyz  = 1,npercell 
+		do icell = portion(1),portion(2) 
+		do jcell = portion(3),portion(4) 
+		do kcell = portion(5),portion(6) 
+			! Map to local coords (assumed shape array has
+			! lower bound 1 by default when input to subroutine) 
+			i = icell - mdextents(1) + 1
+			j = jcell - mdextents(3) + 1
+			k = kcell - mdextents(5) + 1
+			sendbuf(pos) = gatherarray(ixyz,i,j,k)
 			pos = pos + 1
 		end do
 		end do
@@ -1065,18 +1085,18 @@ contains
 	subroutine unpack_recvbuf
 		implicit none
 
-		integer :: coord(3), extents(6)
+		integer :: coord(3), extents(6),portion(6)
 		integer :: trank_olap, trank_world, trank_cart, tid_olap
 		integer :: pos,ixyz,icell,jcell,kcell
 		real(kind(0.d0)), dimension(:,:,:,:), allocatable :: recvarray 
 
-		!coord(:) = rank2coord_cfd(:,rank_cart)
 		! Get CFD proc coords and extents, allocate suitable array
 		call CPL_cart_coords(CPL_OLAP_COMM,rank_olap,cfd_realm,3,coord,ierr)
-		call CPL_proc_extents(coord,cfd_realm,extents)
-		allocate(recvarray(3,extents(1):extents(2), &
-		                     extents(3):extents(4), &
-		                     extents(5):extents(6)))
+		call CPL_proc_portion(coord,cfd_realm,limits,portion)
+
+		allocate(recvarray(3,portion(1):portion(2), &
+		                     portion(3):portion(4), &
+		                     portion(5):portion(6)))
 
 		! Loop over all processors in overlap comm
 		do trank_olap = 1,nproc_olap
@@ -1085,20 +1105,22 @@ contains
 			if (tid_olap .eq. CFDid_olap) cycle
 
 			call CPL_Cart_coords(CPL_OLAP_COMM,trank_olap,md_realm,3,coord,ierr)
-			call CPL_proc_extents(coord,md_realm,extents)
+			call CPL_proc_portion(coord,md_realm,limits,portion)
+			
+			if (any(portion.eq.VOID)) cycle
 
 			! Set position and unpack MD proc's part of recvbuf to
 			! correct region of recvarray	
 			pos = displs(trank_olap) + 1	
-			do ixyz = 1,3
-			do icell = extents(1),extents(2)
-			do jcell = extents(3),extents(4)
-			do kcell = extents(5),extents(6)
+			do ixyz = 1,npercell
+			do icell = portion(1),portion(2)
+			do jcell = portion(3),portion(4)
+			do kcell = portion(5),portion(6)
 
 				recvarray(ixyz,icell,jcell,kcell) = recvbuf(pos)
 				pos = pos + 1
 
-				write(8000+myid_olap,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
+				write(8000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
 				      'recvarray(',ixyz,',',icell,',',jcell,',',kcell,') =', &
 				       recvarray(ixyz,icell,jcell,kcell)
 
@@ -1126,7 +1148,7 @@ contains
 end subroutine CPL_gather
 
 !------------------------------------------------------------------------------
-!                              CPL_gather                                     -
+!                              CPL_scatter                                    -
 !------------------------------------------------------------------------------
 
 ! Scatter cell-wise data from CFD processor to corresponding MD processors
@@ -1147,12 +1169,13 @@ end subroutine CPL_gather
 ! - - - Output Parameters - - -
 ! - NONE -
 
-subroutine CPL_scatter(scatterarray,npercell)
+subroutine CPL_scatter(scatterarray,npercell,limits)
 	use coupler_module
 	use mpi
 	implicit none
 
 	integer, intent(in) :: npercell
+	integer, intent(in) :: limits(6)
 	real(kind(0.d0)), dimension(:,:,:,:), intent(in) :: scatterarray
 
 	integer :: recvcount
@@ -1181,13 +1204,13 @@ contains
 		integer :: ncxl,ncyl,nczl
 		integer :: ncells
 		integer :: icell,jcell,kcell
-		integer :: coord(3),extents(6)
+		integer :: coord(3),portion(6)
 		integer :: bufsize
 		integer :: trank_olap, tid_olap, trank_world, trank_cart
 
 		if (realm.eq.cfd_realm) then
 			call CPL_Cart_coords(CPL_CART_COMM,rank_cart,cfd_realm,3,coord,ierr)
-			call CPL_olap_extents(coord,cfd_realm,extents,ncells)
+			call CPL_proc_portion(coord,cfd_realm,limits,portion,ncells)
 			bufsize = npercell*ncells
 		else
 			bufsize = 0
@@ -1206,7 +1229,7 @@ contains
 			else
 				call CPL_Cart_coords(CPL_OLAP_COMM,trank_olap,md_realm,3, &
 				                     coord, ierr) 
-				call CPL_proc_extents(coord,md_realm,extents,ncells)
+				call CPL_proc_portion(coord,md_realm,limits,portion,ncells)
 				sendcounts(trank_olap) = npercell*ncells 
 			end if
 		end do
@@ -1233,7 +1256,7 @@ contains
 		integer :: tid_olap
 		integer :: ncxl, ncyl, nczl
 		integer :: trank_world, trank_cart
-		integer :: coord(3),cfdextents(6),mdextents(6)
+		integer :: coord(3),cfdextents(6),portion(6)
 		integer :: ixyz, icell, jcell, kcell
 		integer :: i,j,k
 
@@ -1251,15 +1274,13 @@ contains
 			if (tid_olap.eq.CFDid_olap) cycle
 
 			call CPL_Cart_coords(CPL_OLAP_COMM,n,md_realm,3,coord,ierr)
-			call CPL_proc_extents(coord,md_realm,mdextents)
-			ncxl = mdextents(2) - mdextents(1) + 1
-			ncyl = mdextents(4) - mdextents(3) + 1
-			nczl = mdextents(6) - mdextents(5) + 1
+			call CPL_proc_portion(coord,md_realm,limits,portion)
+			if (any(portion.eq.VOID)) cycle
 
 			do ixyz = 1,npercell
-			do icell= mdextents(1),mdextents(2)
-			do jcell= mdextents(3),mdextents(4)
-			do kcell= mdextents(5),mdextents(6)
+			do icell= portion(1),portion(2)
+			do jcell= portion(3),portion(4)
+			do kcell= portion(5),portion(6)
 				i = icell - cfdextents(1) + 1
 				j = jcell - cfdextents(3) + 1
 				k = kcell - cfdextents(5) + 1
@@ -1279,22 +1300,23 @@ contains
 
 		integer :: pos, n, ierr
 		integer :: trank_world, trank_cart
-		integer :: coord(3), extents(6)
+		integer :: coord(3), portion(6)
 		integer :: ixyz, icell, jcell, kcell
 		real(kind(0.d0)), dimension(:,:,:,:), allocatable :: recvarray
 
 		call CPL_cart_coords(CPL_OLAP_COMM,rank_olap,md_realm,3,coord,ierr)
-		call CPL_proc_extents(coord,realm,extents)
+		call CPL_proc_portion(coord,realm,limits,portion)
+		if (any(portion.eq.VOID)) return
 
-		allocate(recvarray(npercell,extents(1):extents(2), &
-		                            extents(3):extents(4), &
-		                            extents(5):extents(6)))
+		allocate(recvarray(npercell,portion(1):portion(2), &
+		                            portion(3):portion(4), &
+		                            portion(5):portion(6)))
 
 		pos = 1
 		do ixyz = 1,npercell
-		do icell= extents(1),extents(2)
-		do jcell= extents(3),extents(4)
-		do kcell= extents(5),extents(6)
+		do icell= portion(1),portion(2)
+		do jcell= portion(3),portion(4)
+		do kcell= portion(5),portion(6)
 			recvarray(ixyz,icell,jcell,kcell) = recvbuf(pos)
 			write(7000+myid_realm,'(i4,a,i4,a,i4,a,i4,a,i4,a,f20.1)'),        &
 				  rank_cart,' recvarray(',ixyz,',',icell,',',jcell,',',kcell, &
@@ -1857,8 +1879,6 @@ subroutine CPL_pack(unpacked,packed,realm)
 			pos = 1
 		endif
 
-
-
 		! Pack array into buffer
 		do kcell=extents(5),extents(6)
 		do jcell=extents(3),extents(4)
@@ -2050,11 +2070,9 @@ subroutine CPL_olap_extents(coord,realm,extents,ncells)
 	integer, intent(in)  :: coord(3), realm
 	integer, intent(out) :: extents(6)
 	integer, optional, intent(out) :: ncells
-!	integer :: mini, maxi, minj, maxj, mink, maxk
 
 	select case(realm)
 	case(md_realm)
-		!call CPL_proc_extents(coord,md_realm,extents)
 		extents(1) = max(icPmin_md(coord(1)),icmin_olap)
 		extents(2) = min(icPmax_md(coord(1)),icmax_olap) 
 		extents(3) = max(jcPmin_md(coord(2)),jcmin_olap) 
@@ -2062,18 +2080,6 @@ subroutine CPL_olap_extents(coord,realm,extents,ncells)
 		extents(5) = max(kcPmin_md(coord(3)),kcmin_olap) 
 		extents(6) = min(kcPmax_md(coord(3)),kcmax_olap) 
 	case(cfd_realm)
-		!maxi = maxval(cfd_icoord2olap_md_icoords(coord(1),:))
-		!mini = minval(cfd_icoord2olap_md_icoords(coord(1),:))
-		!maxj = maxval(cfd_jcoord2olap_md_jcoords(coord(2),:))
-		!minj = minval(cfd_jcoord2olap_md_jcoords(coord(2),:))
-		!maxk = maxval(cfd_kcoord2olap_md_kcoords(coord(3),:))
-		!mink = minval(cfd_kcoord2olap_md_kcoords(coord(3),:))
-		!extents(1) = icPmin_md(mini)
-		!extents(2) = icPmax_md(maxi)
-		!extents(3) = jcPmin_md(minj)
-		!extents(4) = jcPmax_md(maxj)
-		!extents(5) = kcPmin_md(mink)
-		!extents(6) = kcPmax_md(maxk)
 		extents(1) = max(icPmin_cfd(coord(1)),icmin_olap)
 		extents(2) = min(icPmax_cfd(coord(1)),icmax_olap) 
 		extents(3) = max(jcPmin_cfd(coord(2)),jcmin_olap) 
@@ -2092,6 +2098,47 @@ subroutine CPL_olap_extents(coord,realm,extents,ncells)
 
 end subroutine CPL_olap_extents
 
+
+subroutine CPL_proc_portion(coord,realm,limits,portion,ncells)
+	use mpi
+	use coupler_module, only: md_realm,      cfd_realm,      &
+	                          error_abort
+	implicit none
+
+	integer, intent(in)  :: coord(3), limits(6),realm
+	integer, intent(out) :: portion(6)
+	integer, optional, intent(out) :: ncells
+	integer :: extents(6)
+
+	call CPL_proc_extents(coord,realm,extents)
+
+	if (extents(1).gt.limits(2) .or. &
+		extents(2).lt.limits(1) .or. &
+		extents(3).gt.limits(4) .or. &
+	    extents(4).lt.limits(3) .or. &
+	    extents(5).gt.limits(6) .or. &
+	    extents(6).lt.limits(5)) then
+
+		portion(:) = VOID
+		if(present(ncells)) ncells = 0
+		return
+		
+	end if
+
+	portion(1) = max(extents(1),limits(1))							
+	portion(2) = min(extents(2),limits(2))							
+	portion(3) = max(extents(3),limits(3))							
+	portion(4) = min(extents(4),limits(4))							
+	portion(5) = max(extents(5),limits(5))							
+	portion(6) = min(extents(6),limits(6))							
+
+	if (present(ncells)) then
+		ncells = (portion(2) - portion(1) + 1) * &
+				 (portion(4) - portion(3) + 1) * &
+				 (portion(6) - portion(5) + 1)
+	end if
+
+end subroutine CPL_proc_portion 
 !-------------------------------------------------------------------
 ! 					CPL_Cart_coords								   -
 !-------------------------------------------------------------------

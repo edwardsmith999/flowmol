@@ -628,7 +628,7 @@ subroutine test_gather_scatter
 	implicit none
 
 	double precision,dimension(:,:,:,:),allocatable	:: u,stress
-	integer :: coord(3), extents(6), npercell
+	integer :: coord(3), extents(6), gatherlims(6), scatterlims(6), npercell
 	integer :: pos, ixyz, icell, jcell, kcell
 
 	if (realm .eq. md_realm) then	
@@ -691,8 +691,11 @@ subroutine test_gather_scatter
 
 	endif
 
-	if (olap_mask(rank_world).eq.1) call CPL_gather(u,3)
-	if (olap_mask(rank_world).eq.1) call CPL_scatter(stress,9)
+	gatherlims  = (/11,85,15,21, 3, 4/)
+	scatterlims = (/11,85, 2, 9, 1, 8/)
+
+	if (olap_mask(rank_world).eq.1) call CPL_gather(u,3,gatherlims)
+	if (olap_mask(rank_world).eq.1) call CPL_scatter(stress,9,scatterlims)
 
 	
 end subroutine test_gather_scatter
