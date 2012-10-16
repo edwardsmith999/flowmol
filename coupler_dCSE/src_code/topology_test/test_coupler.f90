@@ -14,8 +14,8 @@ program test_coupler
 	!call test_COMMS
 	!call test_packing
 
-!	call test_send_recv_MD2CFD             
-!	call test_send_recv_CFD2MD
+	!call test_send_recv_MD2CFD             
+	!call test_send_recv_CFD2MD
 	if (olap_mask(rank_world).eq.1) then
 		call test_gather_scatter           ! FROM TEST
 	end if
@@ -458,20 +458,6 @@ end subroutine lasterrorcheck
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 !===========================================
 !
 !		TESTING USED IN DUMMY COUPLER
@@ -585,7 +571,7 @@ subroutine test_send_recv_MD2CFD
 		allocate(sendbuf(3,ncxl,ncyl,nczl))
 		sendbuf = 0.d0
 		sendbuf = rank_realm*1000 + iblock_realm*100 + jblock_realm*10 + kblock_realm*1
-		call CPL_send(sendbuf,1,1)		   
+		call CPL_send(sendbuf,jcmax_send=1,jcmin_send=1)		   
 	else if (realm .eq. cfd_realm) then	   
 		ncxl = ncx/npx_cfd 	!icPmax_cfd(iblock_realm) - icPmin_cfd(iblock_realm)
 		ncyl = 1	   		!jcPmax_cfd(jblock_realm) - jcPmin_cfd(jblock_realm) 
@@ -626,7 +612,7 @@ subroutine test_send_recv_CFD2MD
 		!print*, 'sent size',realm_name(realm),3*ncxl*ncyl*nczl 
 		allocate(sendbuf(3,ncxl,ncyl,nczl))
 		sendbuf = rank_realm*1000 + iblock_realm*100 + jblock_realm*10 + kblock_realm*1
-		call CPL_send(sendbuf,1,1)
+		call CPL_send(sendbuf,jcmax_send=1,jcmin_send=1)
 	end if								   
 
 	 if (realm .eq.  md_realm) write(9000+myid_world,*),myid_world, 'BUF=', recvbuf
@@ -798,3 +784,4 @@ subroutine test_comms
 	endif
 
 end subroutine test_comms
+
