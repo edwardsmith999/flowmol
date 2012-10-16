@@ -1090,7 +1090,6 @@ contains
 			! Set position and unpack MD proc's part of recvbuf to
 			! correct region of recvarray	
 			pos = displs(trank_olap) + 1	
-			write(8000+myid_olap,'(a)'), 'recvarray(ixyz,icell,jcell,kcell)'
 			do ixyz = 1,3
 			do icell = extents(1),extents(2)
 			do jcell = extents(3),extents(4)
@@ -1105,7 +1104,6 @@ contains
 
 			end do	
 			end do	
-			write(8000+myid_olap,'(a)'), 'recvarray(ixyz,icell,jcell,kcell)'
 			end do
 			end do
 					
@@ -1292,7 +1290,6 @@ contains
 		                            extents(3):extents(4), &
 		                            extents(5):extents(6)))
 
-		write(7000+myid_realm,'(a)'), 'recvarray(ixyz,icell,jcell,kcell)'
 		pos = 1
 		do ixyz = 1,npercell
 		do icell= extents(1),extents(2)
@@ -1305,7 +1302,6 @@ contains
 			pos = pos + 1
 		end do	
 		end do	
-		write(7000+myid_realm,'(a)'), 'recvarray(ixyz,icell,jcell,kcell)'
 		end do
 		end do
 
