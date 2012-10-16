@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 from os import system 
+import check
 
 fobj    = open('input','r')
 
@@ -38,3 +39,6 @@ cmd = 'cat fort.9* > info_CFD_send && rm fort.9*'
 system(cmd)
 cmd = 'cat fort.11* > info_MD_recv && rm fort.11*'
 system(cmd)
+
+check.gatherscattervals('info_scatter_md')
+check.gatherscattervals('info_gather_cfd')
