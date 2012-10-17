@@ -1,4 +1,4 @@
-8			!npx_md 
+4			!npx_md 
 4			!npy_md 
 1			!npz_md 
 2			!npx_cfd 
@@ -15,4 +15,4 @@
 1  			!jcmin_olap
 23   		!jcmax_olap
 1  			!kcmin_olap
-128  		!kcmax_olap
+8	  		!kcmax_olap

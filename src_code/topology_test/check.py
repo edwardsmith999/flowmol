@@ -8,6 +8,13 @@ def gatherscattervals(filename):
 	# are "correct"
 	all_correct = True
 
+	import os
+	size = os.path.getsize(filename)
+	if (size == 0):
+		all_correct = False
+		string = 'File is empty '+filename 
+		print(string) 
+
 	# Read cells and values
 	for line in iter(fobj.readline,""):
 
