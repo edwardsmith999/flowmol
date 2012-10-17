@@ -45,7 +45,7 @@ check.gatherscattervals('info_scatter_md')
 check.gatherscattervals('info_gather_cfd')
 
 #check.gatherscattervals('info_CFD_send')
-#check.gatherscattervals('info_MD_send')
+check.gatherscattervals('info_MD_send')
 
-check.gatherscattervals('info_MD_recv')
+#check.gatherscattervals('info_MD_recv')
 check.gatherscattervals('info_CFD_recv')

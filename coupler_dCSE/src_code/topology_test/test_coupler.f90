@@ -558,45 +558,52 @@ subroutine test_send_recv_MD2CFD
 	use coupler
 	implicit none
 
-	integer :: ncxl,ncyl,nczl,ixyz,icell,jcell,kcell,npercell,coord(3),extents(6)
+	logical	:: send_flag,recv_flag
+	integer :: ncxl,ncyl,nczl,ixyz,icell,jcell,kcell
+	integer	:: jcmin_send,jcmax_send,jcmin_recv,jcmax_recv,npercell,coord(3),extents(6)
 	double precision,dimension(:,:,:,:),allocatable	:: sendbuf,recvbuf
 
 	npercell = 3
+	jcmax_send=1; jcmin_send=1; 
+	jcmax_recv = jcmax_send
+	jcmin_recv = jcmin_send
+	if (olap_mask(rank_world) .eq. 0) return
 
 	! Test Sending from MD to CFD							   
 	if (realm .eq. md_realm) then	
 
 		call CPL_Cart_coords(CPL_CART_COMM,rank_cart,realm,3,coord,ierr)
-		call CPL_proc_extents(coord,md_realm,extents)
+		call CPL_olap_extents(coord,realm,extents)
 
-		ncxl = extents(2)-extents(1)+1
-		ncyl = 1 ! extents(4)-extents(3)+1
-		nczl = extents(6)-extents(5)+1
-		allocate(sendbuf(npercell,ncxl,ncyl,nczl))
-		!print*, 'sent size',realm_name(realm),3*ncxl*ncyl*nczl,size(sendbuf)
-		sendbuf = 0.d0
-		do ixyz =1,npercell
-		do icell=1,ncxl
-		do jcell=1,ncyl
-		do kcell=1,nczl
-			sendbuf(ixyz,icell,jcell,kcell) = 0.1d0*ixyz + 1*(icell+extents(1)-1) + &
-			                       			  1000*(jcell+extents(3)-1) + &
-			                    			  1000000*(kcell+extents(5)-1)
+		allocate(sendbuf(npercell,extents(1):extents(2), &
+		                          extents(3):extents(4), &
+		                          extents(5):extents(6)))
 
+		!print'(2a,11i7)', 'sent size',realm_name(realm),extents,size(sendbuf),shape(sendbuf)
+
+		! Populate dummy gatherbuf
+		sendbuf = -333.d0 ! 0.d0
+		do ixyz = 1,npercell
+		do icell=extents(1),extents(2)
+		do jcell=extents(3),extents(4)
+		do kcell=extents(5),extents(6)
+			sendbuf(ixyz,icell,jcell,kcell) = 0.1d0*ixyz + 1*icell + &
+			                                            1000*jcell + &
+			                                         1000000*kcell
 		end do
 		end do
 		end do
 		end do
 
-		call CPL_send(sendbuf,jcmax_send=1,jcmin_send=1)	
+		call CPL_send(sendbuf,jcmax_send=jcmax_send,jcmin_send=jcmin_send,send_flag=send_flag)	
 
-		if (any(sendbuf .ne. 0.d0)) then
-			do icell=1,ncxl
-			do jcell=1,ncyl
-			do kcell=1,nczl
-			do ixyz = 1,npercell
-				write(4000+myid_graph,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
-				      'send buf(',ixyz,',',icell,',',jcell,',',kcell,') =', &
+		if (send_flag .eqv. .true.) then
+			do kcell=extents(5),extents(6)
+			do jcell=jcmin_send,jcmax_send
+			do icell=extents(1),extents(2)
+			do ixyz =1,npercell
+				write(4000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
+				      'send MD(',ixyz,',',icell,',',jcell,',',kcell,') =', &
 				       sendbuf(ixyz,icell,jcell,kcell)
 			end do
 			end do
@@ -607,27 +614,37 @@ subroutine test_send_recv_MD2CFD
 	else if (realm .eq. cfd_realm) then	 
 
 		call CPL_Cart_coords(CPL_CART_COMM,rank_cart,realm,3,coord,ierr)
-		call CPL_proc_extents(coord,cfd_realm,extents)
+		call CPL_proc_extents(coord,realm,extents)
+		!print'(2a,8i7)', 'proc extents', realm_name(realm),rank_world,rank_cart,extents
+		call CPL_olap_extents(coord,realm,extents)
+		print'(2a,8i7)', 'olap extents', realm_name(realm),rank_world,rank_cart,extents
 
-		ncxl = extents(2)-extents(1)+1
-		ncyl = 1 ! extents(4)-extents(3)+1
-		nczl = extents(6)-extents(5)+1
-		allocate(recvbuf(npercell,ncxl,ncyl,nczl))
-		print*, 'recv size', realm_name(realm),3*ncxl*ncyl*nczl,size(recvbuf)
-		recvbuf = 0.d0
-		call CPL_recv(recvbuf,jcmax_recv=1,jcmin_recv=1)
+		allocate(recvbuf(npercell,extents(1):extents(2), &
+		                          extents(3):extents(4), &
+		                          extents(5):extents(6)))
 
-		do kcell=1,nczl
-		do jcell=1,ncyl
-		do icell=1,ncxl
-		do ixyz = 1,npercell
-			write(5000+myid_graph,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
-			      'recv array(',ixyz,',',icell,',',jcell,',',kcell,') =', &
-			       recvbuf(ixyz,icell,jcell,kcell)
-		end do
-		end do
-		end do
-		end do
+		!print'(2a,11i7)', 'recv size', realm_name(realm),extents,size(recvbuf),shape(recvbuf)
+		recvbuf = -444.d0
+		call CPL_recv(recvbuf,jcmax_recv=jcmax_recv,jcmin_recv=jcmin_recv,recv_flag=recv_flag)
+
+		if (recv_flag .eqv. .true.) then
+			do kcell=extents(5),extents(6)
+			do jcell=extents(3),extents(4)
+			do icell=extents(1),extents(2)
+			do ixyz =1,npercell
+				if ( recvbuf(ixyz,icell,jcell,kcell) .ne. VOID) then
+				!print'(a,i4,a,i4,a,i4,a,i4,a,f20.1)',   &
+				!      'recv CFD(',ixyz,',',icell,',',jcell,',',kcell,') =', &
+				!       recvbuf(ixyz,icell,jcell,kcell)
+				endif
+			!	write(5000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
+			!	      'recv CFD(',ixyz,',',icell,',',jcell,',',kcell,') =', &
+			!	       recvbuf(ixyz,icell,jcell,kcell)
+			end do
+			end do
+			end do
+			end do
+		endif
 	end if								   
 
 	! if (realm .eq.  md_realm) write(4000+myid_world,*),myid_world, 'BUF=', sendbuf
@@ -642,6 +659,7 @@ subroutine test_send_recv_CFD2MD
 	use coupler
 	implicit none
 
+	logical	:: send_flag,recv_flag
 	integer :: ncxl,ncyl,nczl,ixyz,icell,jcell,kcell,npercell,coord(3),extents(6)
 	double precision,dimension(:,:,:,:),allocatable	:: sendbuf,recvbuf
 
@@ -659,16 +677,16 @@ subroutine test_send_recv_CFD2MD
 
 		allocate(recvbuf(3,ncxl,ncyl,nczl)); recvbuf = 0.d0
 		!print*, 'recv size', realm_name(realm),3*ncxl*ncyl*nczl , size(recvbuf)
-		call CPL_recv(recvbuf,jcmax_recv=1,jcmin_recv=1)   
+		call CPL_recv(recvbuf,jcmax_recv=1,jcmin_recv=1,recv_flag=recv_flag)   
 
 		if (sum(recvbuf) .ne. 0.d0) then
 			do kcell=1,nczl
 			do jcell=1,ncyl
 			do icell=1,ncxl
 			do ixyz = 1,npercell
-				!write(11000+myid_graph,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
-			    !  	'recv array(',ixyz,',',icell,',',jcell,',',kcell,') =', &
-			    !  	 recvbuf(ixyz,icell,jcell,kcell)
+				write(11000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
+			      	'recv MD(',ixyz,',',icell,',',jcell,',',kcell,') =', &
+			      	 recvbuf(ixyz,icell,jcell,kcell)
 			end do
 			end do
 			end do
@@ -699,14 +717,14 @@ subroutine test_send_recv_CFD2MD
 		end do
 
 		!print*, 'sent size',realm_name(realm),3*ncxl*ncyl*nczl,size(sendbuf)
-		call CPL_send(sendbuf,jcmax_send=1,jcmin_send=1)
+		call CPL_send(sendbuf,jcmax_send=1,jcmin_send=1,send_flag=send_flag)
 
 		do kcell=1,extents(6)-extents(5)+1
 		do jcell=1,1
 		do icell=1,extents(2)-extents(1)+1
 		do ixyz = 1,npercell
-			write(9000+myid_graph,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
-			      'sendbuf(',ixyz,',',icell,',',jcell,',',kcell,') =', &
+			write(9000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
+			      'send CFD(',ixyz,',',icell,',',jcell,',',kcell,') =', &
 			       sendbuf(ixyz,icell,jcell,kcell)
 		end do
 		end do
