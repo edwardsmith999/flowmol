@@ -14,7 +14,7 @@ program test_coupler
 	!call test_COMMS
 	!call test_packing
 
-	call test_send_recv_MD2CFD             
+!	call test_send_recv_MD2CFD             
 	!call test_send_recv_CFD2MD
 	if (olap_mask(rank_world).eq.1) then
 		call test_gather_scatter           ! FROM TEST
@@ -724,7 +724,7 @@ subroutine test_gather_scatter
 	use coupler
 	implicit none
 
-	double precision,dimension(:,:,:,:),allocatable	:: u,stress
+	double precision,dimension(:,:,:,:),allocatable	:: u,stress,gatheru,scatterstress
 	integer :: coord(3), extents(6), gatherlims(6), scatterlims(6), npercell
 	integer :: pos, ixyz, icell, jcell, kcell
 
@@ -784,16 +784,13 @@ subroutine test_gather_scatter
 		end do
 		end do
 
-!		write(7700+rank_realm,*) stress
-
 	endif
 
 	gatherlims  = (/11,85,15,21, 3, 4/)
 	scatterlims = (/11,85, 2, 9, 1, 8/)
 
-	if (olap_mask(rank_world).eq.1) call CPL_gather(u,3,gatherlims)
-	if (olap_mask(rank_world).eq.1) call CPL_scatter(stress,9,scatterlims)
-
+	if (olap_mask(rank_world).eq.1) call CPL_gather(u,3,gatherlims,gatheru)
+	if (olap_mask(rank_world).eq.1) call CPL_scatter(stress,9,scatterlims,scatterstress)
 	
 end subroutine test_gather_scatter
 

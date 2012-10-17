@@ -975,12 +975,12 @@ end subroutine CPL_cfd_adjust_domain
 !	assumed shape array of data to be gathered (double precision)
 !npercell
 !	number of data points per cell to be gathered (integer)
-!	note - should be the same as size(gatherarray(1))
+!	note - should be the same as size(gatherarray(1)) for MD proc
 
 ! - - - Output Parameters - - -
 ! - NONE -
 
-subroutine CPL_gather(gatherarray,npercell,limits)
+subroutine CPL_gather(gatherarray,npercell,limits,recvarray)!todo better name than recvarray
 	use mpi
 	use coupler_module
 	implicit none
@@ -988,10 +988,11 @@ subroutine CPL_gather(gatherarray,npercell,limits)
 	integer, intent(in) :: npercell
 	integer, intent(in) :: limits(6)
 	real(kind(0.d0)), dimension(:,:,:,:), intent(in) :: gatherarray
-	real(kind(0.d0)), dimension(:), allocatable :: sendbuf 
+	real(kind(0.d0)), dimension(:,:,:,:), allocatable, intent(out) :: recvarray
 
 	integer :: sendcount
 	integer, dimension(:), allocatable :: recvcounts, displs
+	real(kind(0.d0)), dimension(:), allocatable :: sendbuf 
 	real(kind(0.d0)), dimension(:), allocatable :: recvbuf 
 		
 	call prepare_gatherv_parameters	
@@ -1105,7 +1106,6 @@ contains
 		integer :: coord(3), extents(6),portion(6)
 		integer :: trank_olap, trank_world, trank_cart, tid_olap
 		integer :: pos,ixyz,icell,jcell,kcell
-		real(kind(0.d0)), dimension(:,:,:,:), allocatable :: recvarray 
 
 		! Get CFD proc coords and extents, allocate suitable array
 		call CPL_cart_coords(CPL_OLAP_COMM,rank_olap,cfd_realm,3,coord,ierr)
@@ -1148,8 +1148,6 @@ contains
 					
 		end do
 
-		deallocate(recvarray)
-
 	end subroutine unpack_recvbuf
 	
 	subroutine deallocate_gather_u
@@ -1180,20 +1178,21 @@ end subroutine CPL_gather
 !scatterarray
 !	assumed shape array of data to be scattered (double precision)
 !npercell
-!	number of data points per cell to be gathered (integer)
-!	note - should be the same as size(gatherarray(1))
+!	number of data points per cell to be scattered (integer)
+!	note - should be the same as size(scatterarray(1)) for CFD proc
 
 ! - - - Output Parameters - - -
 ! - NONE -
 
-subroutine CPL_scatter(scatterarray,npercell,limits)
+subroutine CPL_scatter(scatterarray,npercell,limits,recvarray)
 	use coupler_module
 	use mpi
 	implicit none
 
-	integer, intent(in) :: npercell
-	integer, intent(in) :: limits(6)
-	real(kind(0.d0)), dimension(:,:,:,:), intent(in) :: scatterarray
+	integer,intent(in) :: npercell
+	integer,intent(in) :: limits(6)
+	real(kind(0.d0)),dimension(:,:,:,:),intent(in) :: scatterarray
+	real(kind(0.d0)),dimension(:,:,:,:),allocatable,intent(out) :: recvarray 
 
 	integer :: recvcount
 	integer, dimension(:), allocatable :: displs,sendcounts
@@ -1319,7 +1318,7 @@ contains
 		integer :: trank_world, trank_cart
 		integer :: coord(3), portion(6)
 		integer :: ixyz, icell, jcell, kcell
-		real(kind(0.d0)), dimension(:,:,:,:), allocatable :: recvarray
+!		real(kind(0.d0)), dimension(:,:,:,:), allocatable :: recvarray
 
 		call CPL_cart_coords(CPL_OLAP_COMM,rank_olap,md_realm,3,coord,ierr)
 		call CPL_proc_portion(coord,realm,limits,portion)
@@ -1344,7 +1343,7 @@ contains
 		end do
 		end do
 
-		if(allocated(recvarray))  deallocate(recvarray)
+!		if(allocated(recvarray))  deallocate(recvarray)
 
 	end subroutine unpack_scatterbuf
 	

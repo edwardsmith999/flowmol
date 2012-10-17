@@ -1,4 +1,6 @@
 #! /usr/bin/env python
+import os
+
 def gatherscattervals(filename):
 
 	# Open file object
@@ -8,7 +10,6 @@ def gatherscattervals(filename):
 	# are "correct"
 	all_correct = True
 
-	import os
 	size = os.path.getsize(filename)
 	if (size == 0):
 		all_correct = False
