@@ -9,7 +9,7 @@ debug: *.f90
 	mpif90 -O0 -g -traceback -check all $(SOURCES)
 
 mpidebug: *.f90
-	mpif90 -O0 -g -traceback -check all -mpe=mpilog mpe=mpicheck -mpe=mpitrace $(SOURCES)
+	mpif90 -O0 -g -traceback -check all -mpe=mpicheck  $(SOURCES)
 
 clean:
 	rm a.out *.mod info_*

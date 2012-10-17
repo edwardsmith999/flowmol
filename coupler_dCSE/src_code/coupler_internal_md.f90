@@ -3,7 +3,9 @@
 ! Internal data and subroutines used by the coupler when working in MD realm
 ! It must not be used by subroutimes working in CFD realm ONLY
 ! Subroutines include:
-!
+! coupler_md_init           initialises coupler and set MD 
+!							parameters with using data from CFD 
+!							or COUPLER.in
 ! create_map_md 			Establish for all MD processors the mapping (if any) 
 ! 							to coupled CFD processors
 ! make_bbox					Make bbox which contains all domain information 
@@ -73,6 +75,7 @@ contains
 
 subroutine coupler_md_init(nsteps,dt_md,icomm_grid,icoord,npxyz_md,globaldomain,density)
 	use mpi
+	use coupler, only : CPL_rank_map
 	use coupler_input_data, cfd_code_id_in => cfd_code_id, density_coupled => density
     use coupler_module, dt_md_=>dt_md		
 	implicit none
@@ -83,8 +86,8 @@ subroutine coupler_md_init(nsteps,dt_md,icomm_grid,icoord,npxyz_md,globaldomain,
 	real(kind(0.d0)),intent(in) 					:: dt_md,density
     real(kind=kind(0.d0)),dimension(3),intent(in) 	:: globaldomain
 
-    integer											:: i,ib,jb,kb,pcoords(3),source
-    integer,dimension(:),allocatable  				:: buf
+    integer											:: i,ib,jb,kb,pcoords(3),source,nproc
+    integer,dimension(:),allocatable  				:: buf,rank_world2rank_realm,rank_world2rank_cart
     real(kind=kind(0.d0)),dimension(:),allocatable 	:: rbuf
 
     ! Duplicate grid communicator for coupler use
@@ -163,31 +166,53 @@ subroutine coupler_md_init(nsteps,dt_md,icomm_grid,icoord,npxyz_md,globaldomain,
 
 	write(999+rank_realm,*), 'MD side',rank_realm, 'coord2rank_md=', coord2rank_md
 
-	! Receive & Store CFD mapping from realm to local rank from CFD
+	! Setup MD mapping between realm & world rank 
+	allocate(rank_mdrealm2rank_world(nproc_md))
+	allocate(rank_world2rank_realm(nproc_world))
+	call CPL_rank_map(CPL_REALM_COMM,rank_realm,nproc, & 
+						rank_mdrealm2rank_world,rank_world2rank_realm,ierr)
+
+	!World to rank is the same on both realms
+	allocate(rank_world2rank_cfdrealm(nproc_world))
+	allocate(rank_world2rank_mdrealm(nproc_world))
+	rank_world2rank_cfdrealm = rank_world2rank_realm
+	rank_world2rank_mdrealm  = rank_world2rank_realm
+
+	! Receive & Store CFD_mapping from realm to local rank
 	allocate(rank_cfdrealm2rank_world(nproc_cfd))
 	call MPI_bcast(rank_cfdrealm2rank_world,nproc_cfd,MPI_integer,0,CPL_INTER_COMM,ierr)	!Receive
 
 	write(999+rank_realm,*), 'MD side',rank_realm, 'rank_cfdrealm2rank_world', rank_cfdrealm2rank_world
 
-	! Setup MD mapping from realm to local rank, 
-	! Store & Send MD mapping from realm to local rank to CFD
-	allocate(rank_mdrealm2rank_world(nproc_md))
-	allocate(buf(1)); buf = rank_world
-	call MPI_allgather(        buf        ,1,MPI_INTEGER, & 
-						rank_mdrealm2rank_world,1,MPI_INTEGER,CPL_REALM_COMM,ierr) !Reduce on all processors
+	! Send MD mapping from realm to local rank to CFD
 	call MPI_bcast(rank_mdrealm2rank_world,nproc_md,MPI_integer,source,CPL_INTER_COMM,ierr)	 !send
-	deallocate(buf)
 
 	write(999+rank_realm,*), 'MD side',rank_realm, 'rank_mdrealm2rank_world', rank_mdrealm2rank_world
+	write(999+rank_realm,*), 'MD side',rank_realm, 'rank_world2rank_mdrealm', rank_world2rank_mdrealm
 
+	! Setup MD mapping between cartesian topology & world rank 
+	allocate(rank_mdcart2rank_world(nproc_md))
+	allocate(rank_world2rank_cart(nproc_world))
+	call CPL_rank_map(CPL_CART_COMM,rank_cart,nproc, & 
+						rank_mdcart2rank_world,rank_world2rank_cart,ierr)
 
-	! CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE
-	! CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE
-	! CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE
-	! CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE
-	! CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE CART VERSION HERE
+	!World to rank is the same on both realms cart
+	allocate(rank_world2rank_cfdcart(nproc_world))
+	allocate(rank_world2rank_mdcart(nproc_world))
+	rank_world2rank_cfdcart = rank_world2rank_cart
+	rank_world2rank_mdcart  = rank_world2rank_cart
 
+	! Receive & Store CFD_mapping from cart to local rank
+	allocate(rank_cfdcart2rank_world(nproc_cfd))
+	call MPI_bcast(rank_cfdcart2rank_world,nproc_cfd,MPI_integer,0,CPL_INTER_COMM,ierr)	!Receive
 
+	write(999+rank_realm,*), 'MD side',rank_cart, 'rank_cfdcart2rank_world', rank_cfdcart2rank_world
+
+	! Send MD mapping from cart to local rank to CFD
+	call MPI_bcast(rank_mdcart2rank_world,nproc_md,MPI_integer,source,CPL_INTER_COMM,ierr)	 !send
+
+	write(999+rank_realm,*), 'MD side',rank_cart, 'rank_mdcart2rank_world', rank_mdcart2rank_world
+	write(999+rank_realm,*), 'MD side',rank_cart, 'rank_world2rank_mdcart', rank_world2rank_mdcart
 
 	! ------------------ Timesteps and iterations ------------------------------
 	! Receive & store CFD nsteps and dt_cfd
