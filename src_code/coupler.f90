@@ -987,8 +987,8 @@ subroutine CPL_gather(gatherarray,npercell,limits,recvarray)!todo better name th
 
 	integer, intent(in) :: npercell
 	integer, intent(in) :: limits(6)
-	real(kind(0.d0)), dimension(:,:,:,:), intent(in) :: gatherarray
-	real(kind(0.d0)), dimension(:,:,:,:), allocatable, intent(out) :: recvarray
+	real(kind(0.d0)), dimension(:,:,:,:), intent(in)    :: gatherarray
+	real(kind(0.d0)), dimension(:,:,:,:), intent(inout) :: recvarray
 
 	integer :: sendcount
 	integer, dimension(:), allocatable :: recvcounts, displs
@@ -1011,9 +1011,9 @@ contains
 	subroutine prepare_gatherv_parameters
 		implicit none
 
-		integer :: coord(3), extents(6), portion(6)
+		integer :: coord(3),portion(6)
 		integer :: ncells,bufsize
-		integer :: trank_olap,trank_world,trank_cart,tid_olap
+		integer :: trank_olap,tid_olap
 
 		! Check if CFD processor has tried to "send" anything
 		if (myid_olap.eq.CFDid_olap .and. any(shape(gatherarray).ne.0)) then
@@ -1071,7 +1071,7 @@ contains
 
 		integer :: pos, ixyz, icell, jcell, kcell
 		integer :: i,j,k
-		integer :: coord(3),cfdextents(6),portion(6),mdextents(6)
+		integer :: coord(3),portion(6),mdextents(6)
 
 		! Get MD processor extents and cells portion of send region
 		call CPL_Cart_coords(CPL_CART_COMM,rank_cart,realm,3,coord,ierr) 
@@ -1103,17 +1103,15 @@ contains
 	subroutine unpack_recvbuf
 		implicit none
 
-		integer :: coord(3), extents(6),portion(6)
-		integer :: trank_olap, trank_world, trank_cart, tid_olap
+		integer :: coord(3),portion(6),cfdextents(6)
+		integer :: trank_olap, tid_olap
 		integer :: pos,ixyz,icell,jcell,kcell
+		integer :: i,j,k
 
 		! Get CFD proc coords and extents, allocate suitable array
 		call CPL_cart_coords(CPL_OLAP_COMM,rank_olap,cfd_realm,3,coord,ierr)
+		call CPL_proc_extents(coord,cfd_realm,cfdextents)
 		call CPL_proc_portion(coord,cfd_realm,limits,portion)
-
-		allocate(recvarray(3,portion(1):portion(2), &
-		                     portion(3):portion(4), &
-		                     portion(5):portion(6)))
 
 		! Loop over all processors in overlap comm
 		do trank_olap = 1,nproc_olap
@@ -1134,12 +1132,16 @@ contains
 			do jcell = portion(3),portion(4)
 			do kcell = portion(5),portion(6)
 
-				recvarray(ixyz,icell,jcell,kcell) = recvbuf(pos)
+				i = icell - cfdextents(1) + 1 
+				j = jcell - cfdextents(3) + 1 
+				k = kcell - cfdextents(5) + 1 
+
+				recvarray(ixyz,i,j,k) = recvbuf(pos)
 				pos = pos + 1
 
-				write(8000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
-				      'recvarray(',ixyz,',',icell,',',jcell,',',kcell,') =', &
-				       recvarray(ixyz,icell,jcell,kcell)
+!				write(8000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
+!				      'recvarray(',ixyz,',',icell,',',jcell,',',kcell,') =', &
+!				       recvarray(ixyz,i,j,k)
 
 			end do	
 			end do	
@@ -1191,8 +1193,8 @@ subroutine CPL_scatter(scatterarray,npercell,limits,recvarray)
 
 	integer,intent(in) :: npercell
 	integer,intent(in) :: limits(6)
-	real(kind(0.d0)),dimension(:,:,:,:),intent(in) :: scatterarray
-	real(kind(0.d0)),dimension(:,:,:,:),allocatable,intent(out) :: recvarray 
+	real(kind(0.d0)),dimension(:,:,:,:),intent(in)    :: scatterarray
+	real(kind(0.d0)),dimension(:,:,:,:),intent(inout) :: recvarray 
 
 	integer :: recvcount
 	integer, dimension(:), allocatable :: displs,sendcounts
@@ -1216,13 +1218,10 @@ contains
 	subroutine prepare_scatterv_parameters
 		implicit none
 
-		integer :: maxi,mini,maxj,minj,maxk,mink
-		integer :: ncxl,ncyl,nczl
 		integer :: ncells
-		integer :: icell,jcell,kcell
 		integer :: coord(3),portion(6)
 		integer :: bufsize
-		integer :: trank_olap, tid_olap, trank_world, trank_cart
+		integer :: trank_olap, tid_olap
 
 		if (realm.eq.cfd_realm) then
 			call CPL_Cart_coords(CPL_CART_COMM,rank_cart,cfd_realm,3,coord,ierr)
@@ -1270,8 +1269,6 @@ contains
 		
 		integer :: pos, n
 		integer :: tid_olap
-		integer :: ncxl, ncyl, nczl
-		integer :: trank_world, trank_cart
 		integer :: coord(3),cfdextents(6),portion(6)
 		integer :: ixyz, icell, jcell, kcell
 		integer :: i,j,k
@@ -1315,35 +1312,32 @@ contains
 		implicit none
 
 		integer :: pos, n, ierr
-		integer :: trank_world, trank_cart
-		integer :: coord(3), portion(6)
-		integer :: ixyz, icell, jcell, kcell
-!		real(kind(0.d0)), dimension(:,:,:,:), allocatable :: recvarray
+		integer :: coord(3),portion(6),extents(6)
+		integer :: ixyz,icell,jcell,kcell
+		integer :: i,j,k
 
 		call CPL_cart_coords(CPL_OLAP_COMM,rank_olap,md_realm,3,coord,ierr)
+		call CPL_proc_extents(coord,realm,extents)
 		call CPL_proc_portion(coord,realm,limits,portion)
 		if (any(portion.eq.VOID)) return
-
-		allocate(recvarray(npercell,portion(1):portion(2), &
-		                            portion(3):portion(4), &
-		                            portion(5):portion(6)))
 
 		pos = 1
 		do ixyz = 1,npercell
 		do icell= portion(1),portion(2)
 		do jcell= portion(3),portion(4)
 		do kcell= portion(5),portion(6)
-			recvarray(ixyz,icell,jcell,kcell) = recvbuf(pos)
-			write(7000+myid_realm,'(i4,a,i4,a,i4,a,i4,a,i4,a,f20.1)'),        &
-				  rank_cart,' recvarray(',ixyz,',',icell,',',jcell,',',kcell, &
-				  ') =',recvarray(ixyz,icell,jcell,kcell)
+			i = icell - extents(1) + 1
+			j = jcell - extents(3) + 1
+			k = kcell - extents(5) + 1
+			recvarray(ixyz,i,j,k) = recvbuf(pos)
+!			write(7000+myid_realm,'(i4,a,i4,a,i4,a,i4,a,i4,a,f20.1)'),        &
+!				  rank_cart,' recvarray(',ixyz,',',icell,',',jcell,',',kcell, &
+!				  ') =',recvarray(ixyz,i,j,k)
 			pos = pos + 1
 		end do	
 		end do	
 		end do
 		end do
-
-!		if(allocated(recvarray))  deallocate(recvarray)
 
 	end subroutine unpack_scatterbuf
 	
