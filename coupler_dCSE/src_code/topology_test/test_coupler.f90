@@ -67,7 +67,6 @@ subroutine test_setup_input_and_arrays
 	yL_md = yL_cfd / 2.d0
 	yL_olap = (jcmax_olap - jcmin_olap + 1) * dy
 
-
 end subroutine test_setup_input_and_arrays
 
 subroutine get_cfd_cell_ranges
@@ -717,8 +716,6 @@ subroutine test_send_recv_CFD2MD
 	
 end subroutine test_send_recv_CFD2MD
 
-
-
 subroutine test_gather_scatter
 	use coupler_module
 	use coupler
@@ -727,6 +724,8 @@ subroutine test_gather_scatter
 	double precision,dimension(:,:,:,:),allocatable	:: u,stress,gatheru,scatterstress
 	integer :: coord(3), extents(6), gatherlims(6), scatterlims(6), npercell
 	integer :: pos, ixyz, icell, jcell, kcell
+	integer :: ncxl,ncyl,nczl
+	integer :: i,j,k
 
 	if (realm .eq. md_realm) then	
 
@@ -737,8 +736,6 @@ subroutine test_gather_scatter
 		                    extents(3):extents(4), &
 		                    extents(5):extents(6)))
 		allocate(stress(0,0,0,0))
-
-!		print*, rank_world, 'main extents', extents
 
 		! Populate dummy gatherbuf
 		pos = 1
@@ -786,11 +783,93 @@ subroutine test_gather_scatter
 
 	endif
 
-	gatherlims  = (/11,85,15,21, 3, 4/)
-	scatterlims = (/11,85, 2, 9, 1, 8/)
 
+	! Allocate test arrays over local domain
+	if (realm.eq.cfd_realm) then
+		call CPL_cart_coords(CPL_CART_COMM,rank_cart,cfd_realm,3,coord,ierr)
+		call CPL_proc_extents(coord,cfd_realm,extents)
+		ncxl = extents(2) - extents(1) + 1
+		ncyl = extents(4) - extents(3) + 1
+		nczl = extents(6) - extents(5) + 1
+		allocate(gatheru(3,ncxl,ncyl,nczl))
+		gatheru = 0.d0
+	else if (realm.eq.md_realm) then
+		call CPL_cart_coords(CPL_CART_COMM,rank_cart,md_realm,3,coord,ierr)
+		call CPL_proc_extents(coord,md_realm,extents)
+		ncxl = extents(2) - extents(1) + 1
+		ncyl = extents(4) - extents(3) + 1
+		nczl = extents(6) - extents(5) + 1
+		allocate(scatterstress(9,ncxl,ncyl,nczl))
+		scatterstress = 0.d0
+	end if
+
+
+
+
+	!gatherlims  = (/1,1,1,1,1,1/)
+	!scatterlims = (/1,1,1,1,1,1/)
+	!================== PERFORM GATHER/SCATTER =============================!	
+	gatherlims  = (/1,85,15,21, 3, 4/)
+	scatterlims = (/1,85, 2, 9, 1, 8/)
 	if (olap_mask(rank_world).eq.1) call CPL_gather(u,3,gatherlims,gatheru)
-	if (olap_mask(rank_world).eq.1) call CPL_scatter(stress,9,scatterlims,scatterstress)
+	if (olap_mask(rank_world).eq.1) call CPL_scatter(stress,9,scatterlims, &
+	                                                 scatterstress)
+
+
+
+
+	! Print results to file
+	if (realm.eq.cfd_realm) then
+
+		do ixyz  = 1,size(gatheru,1)
+		do icell = 1,size(gatheru,2)
+		do jcell = 1,size(gatheru,3)
+		do kcell = 1,size(gatheru,4)
+
+			i = icell + extents(1) - 1
+			j = jcell + extents(3) - 1
+			k = kcell + extents(5) - 1
+
+			if (gatheru(ixyz,icell,jcell,kcell).lt.0.0001) then
+				write(8000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
+					  'gatheru(',0,',',0,',',0,',',0,') =', 0.d0
+			else
+				write(8000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
+					  'gatheru(',ixyz,',',i,',',j,',',k,') =', &
+					   gatheru(ixyz,icell,jcell,kcell)
+			end if
+
+		end do	
+		end do	
+		end do
+		end do
+
+	else if (realm.eq.md_realm) then
+
+		do ixyz  = 1,size(scatterstress,1)
+		do icell = 1,size(scatterstress,2)
+		do jcell = 1,size(scatterstress,3)
+		do kcell = 1,size(scatterstress,4)
+
+			i = icell + extents(1) - 1
+			j = jcell + extents(3) - 1
+			k = kcell + extents(5) - 1
+
+			if (scatterstress(ixyz,icell,jcell,kcell).lt.0.0001) then
+				write(7000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
+					  'scatterstress(',0,',',0,',',0,',',0,') =', 0.d0
+			else
+				write(7000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
+					  'scatterstress(',ixyz,',',i,',',j,',',k,') =', &
+					   scatterstress(ixyz,icell,jcell,kcell)
+			end if
+
+		end do	
+		end do	
+		end do
+		end do
+	
+	end if
 	
 end subroutine test_gather_scatter
 
