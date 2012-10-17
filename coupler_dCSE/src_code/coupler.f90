@@ -1359,12 +1359,13 @@ end subroutine CPL_scatter
 ! see CPL_send_xd for input description
 !-----------------------------------------------------------------------------
 subroutine CPL_send_3d(temp,icmin_send,icmax_send,jcmin_send, & 
-							jcmax_send,kcmin_send,kcmax_send    )
+							jcmax_send,kcmin_send,kcmax_send,send_flag)
 	use coupler_module, only : icmin_olap,icmax_olap, & 
 							   jcmin_olap,jcmax_olap, &
 							   kcmin_olap,kcmax_olap,error_abort
     implicit none
  
+	logical, intent(out), optional						:: send_flag
  	integer, intent(in), optional						:: icmax_send,icmin_send
  	integer, intent(in), optional						:: jcmax_send,jcmin_send
  	integer, intent(in), optional						:: kcmax_send,kcmin_send
@@ -1416,7 +1417,7 @@ subroutine CPL_send_3d(temp,icmin_send,icmax_send,jcmin_send, &
 	asend(1,:,:,:) = temp(:,:,:)
 
     call CPL_send_xd(asend,icmax,icmin,jcmax, & 
-						   jcmin,kcmax,kcmin )
+						   jcmin,kcmax,kcmin,send_flag )
 
 end subroutine CPL_send_3d
 
@@ -1425,21 +1426,22 @@ end subroutine CPL_send_3d
 ! see CPL_send_xd for input description
 !-----------------------------------------------------------------------------
 subroutine CPL_send_4d(asend,icmin_send,icmax_send,jcmin_send, & 
-							 jcmax_send,kcmin_send,kcmax_send    )
+							 jcmax_send,kcmin_send,kcmax_send,send_flag)
 	use coupler_module, only : icmin_olap,icmax_olap, & 
 							   jcmin_olap,jcmax_olap, &
 							   kcmin_olap,kcmax_olap,error_abort
     implicit none
  
+	logical, intent(out), optional						:: send_flag
  	integer, intent(in), optional						:: icmax_send,icmin_send
  	integer, intent(in), optional						:: jcmax_send,jcmin_send
  	integer, intent(in), optional						:: kcmax_send,kcmin_send
 	real(kind=kind(0.d0)),dimension(:,:,:,:), intent(in) :: asend
     
-    integer	:: n1,n2,n3,n4
+    integer	:: npercell,send_extents(4)
 	integer	:: icmin,icmax,jcmin,jcmax,kcmin,kcmax
 
-
+	npercell = size(asend,1)
 	!if ((present(icmax_send))) print*, 'icmax_send', icmax_send
 	!if ((present(icmin_send))) print*, 'icmin_send', icmin_send
 	!if ((present(jcmax_send))) print*, 'jcmax_send', jcmax_send
@@ -1476,9 +1478,17 @@ subroutine CPL_send_4d(asend,icmin_send,icmax_send,jcmin_send, &
 		call error_abort("CPL_send error - both max and min k limits " // &
 						 "required and only one supplied")
 	endif
+
+	!send_extents = (/npercell,icmax-icmin+1,jcmax-jcmin+1,kcmax-kcmin+1 /) 
+	!if (any(shape(asend) .lt. send_extents)) then
+	!	print'(2(a,4i5))', '  Shape of input array = ', shape(asend), & 
+	!					  '  Passed range = ',send_extents 
+	!	call error_abort("CPL_send error - Specified send range is greater" // &
+	!					 "than the number of cells on processor")
+	!endif
  
     call CPL_send_xd(asend,icmin,icmax,jcmin, & 
-						   jcmax,kcmin,kcmax	 )
+						   jcmax,kcmin,kcmax,send_flag )
 
 end subroutine CPL_send_4d
 
@@ -1487,7 +1497,7 @@ end subroutine CPL_send_4d
 ! realm
 !-----------------------------------------------------------------------------
 subroutine CPL_send_xd(asend,icmin_send,icmax_send,jcmin_send, & 
-						     jcmax_send,kcmin_send,kcmax_send	 )
+						     jcmax_send,kcmin_send,kcmax_send,send_flag)
 	use mpi
 	use coupler_module, only : CPL_CART_COMM,rank_cart,md_realm,cfd_realm, & 
 	                           error_abort,CPL_GRAPH_COMM,myid_graph,olap_mask, &
@@ -1495,7 +1505,10 @@ subroutine CPL_send_xd(asend,icmin_send,icmax_send,jcmin_send, &
 							   iblock_realm,jblock_realm,kblock_realm,ierr
 	implicit none
 
-    ! Minimum and maximum values of j to send
+	!Flag set if processor has passed data
+	logical, intent(out), optional	:: send_flag
+
+    ! Minimum and maximum values to send
  	integer, intent(in)	:: icmax_send,icmin_send, & 
 						   jcmax_send,jcmin_send, & 
 						   kcmax_send,kcmin_send
@@ -1518,11 +1531,15 @@ subroutine CPL_send_xd(asend,icmin_send,icmax_send,jcmin_send, &
 
     ! auxiliaries 
     integer								:: nbr,ndata,itag,destid,ncells
-    integer                             :: pcoords(3), extents(6)
+    integer                             :: pcoords(3)
+	integer,dimension(6)				:: extents,limits,portion
 	real(kind=kind(0.d0)), allocatable 	:: vbuf(:)
 
 	! This local CFD domain is outside MD overlap zone 
 	if (olap_mask(rank_world) .eq. 0) return
+
+	! Save limits array of Minimum and maximum values to send
+	limits = (/ icmin_send,icmax_send,jcmin_send,jcmax_send,kcmin_send,kcmax_send /)
 
     ! Number of components at each grid point
     npercell = size(asend,1)
@@ -1538,6 +1555,7 @@ subroutine CPL_send_xd(asend,icmin_send,icmax_send,jcmin_send, &
 		!Get taget processor from mapping
         destid = id_neighbors(nbr)
 
+		! ----------------- pack data for destid-----------------------------
 		if (realm .eq. cfd_realm) then
 			!Get extents of nbr MD processor to send to
 			call CPL_Cart_coords(CPL_GRAPH_COMM, destid+1,  md_realm, 3, pcoords, ierr) 
@@ -1546,54 +1564,53 @@ subroutine CPL_send_xd(asend,icmin_send,icmax_send,jcmin_send, &
 			pcoords = (/iblock_realm,jblock_realm,kblock_realm /)
 		endif
 
-		!Get extents of current processor/overlap region
-		call CPL_olap_extents(pcoords,md_realm,extents,ncells)
+		!Get extents of current processor
+		call CPL_proc_extents(pcoords,md_realm,extents)
 
 		! If limits passed to send routine, use these instead
 		! of overlap/processor limits
-        icmin = max(extents(1),icmin_send); icmax = min(extents(2),icmax_send)
-        jcmin = max(extents(3),jcmin_send); jcmax = min(extents(4),jcmax_send) 
-        kcmin = max(extents(5),kcmin_send); kcmax = min(extents(6),kcmax_send)
+		call CPL_proc_portion(pcoords,md_realm,limits,portion,ncells)
 
-		! Get local extents
-		iclmin = 1;	iclmax = icmax-icmin+1
-		jclmin = 1;	jclmax = jcmax-jcmin+1
-		kclmin = 1;	kclmax = kcmax-kcmin+1
+		! Get data range on processor's local extents
+		iclmin = portion(1)-extents(1)+1;	iclmax = portion(2)-extents(1)+1
+		jclmin = portion(3)-extents(3)+1;	jclmax = portion(4)-extents(3)+1
+		kclmin = portion(5)-extents(5)+1;	kclmax = portion(6)-extents(3)+1
 
         ! Amount of data to be sent
-		if (any((/iclmax,jclmax,kclmax/) .le. 0)) then
+		if (any(portion.eq.VOID)) then
+			print*, 'VOID send',realm_name(realm),rank_world,rank_realm
 			ndata = 0
+			if (present(send_flag)) send_flag = .false.
 		else
-			ncells = (icmax-icmin+1) * (jcmax-jcmin+1) * (kcmax-kcmin+1)
 	        ndata = npercell * ncells
 			if (allocated(vbuf)) deallocate(vbuf); allocate(vbuf(ndata))
-		endif
+			if (present(send_flag)) send_flag = .true.
+			! Pack array into buffer
+			pos = 1
+			do kcell=kclmin,kclmax
+			do jcell=jclmin,jclmax
+			do icell=iclmin,iclmax
+			do n = 1,npercell
+				vbuf(pos) = asend(n,icell,jcell,kcell)
+				!print*, 'vbuf pack',pos, vbuf(pos)
+				pos = pos + 1
+			end do
+			end do
+			end do
+			end do
+			! ----------------- pack data for destid -----------------------------
+			print'(a,6i4,i5,i6,24i4)', 'send data',rank_world,rank_realm,rank_olap,ndata,nbr,destid, & 
+									size(asend),pos,&
+									iclmin,   iclmax,   jclmin,   jclmax,   kclmin,   kclmax,     &
+									icmin_send,icmax_send,jcmin_send,jcmax_send,kcmin_send,kcmax_send, & 
+									portion, extents
 
-		! Pack array into buffer
-		pos = 1
-		do kcell=kclmin,kclmax
-		do jcell=jclmin,jclmax
-		do icell=iclmin,iclmax
-		do n = 1,npercell
-			vbuf(pos) = asend(n,icell,jcell,kcell)
-			pos = pos + 1
-		end do
-		end do
-		end do
-		end do
-
-		print'(a,6i4,i5,i6,24i4)', 'send data',rank_world,rank_realm,rank_olap,ndata,nbr,destid, & 
-								size(asend),pos,&
-								iclmin,   iclmax,   jclmin,   jclmax,   kclmin,   kclmax,     &
-								icmin_send,icmax_send,jcmin_send,jcmax_send,kcmin_send,kcmax_send, & 
-								icmin,    icmax,    jcmin,    jcmax,    kcmin,    kcmax,     &
-								extents
-
-        ! Send data 
-		if (ndata .ne. 0) then
+ 			! Send data 
 	        itag = 0 !mod( ncalls, MPI_TAG_UB) !Attention ncall could go over max tag value for long runs!!
 			call MPI_send(vbuf, ndata, MPI_DOUBLE_PRECISION, destid, itag, CPL_GRAPH_COMM, ierr)
+
 		endif
+
     enddo
 
 end subroutine CPL_send_xd
@@ -1603,12 +1620,13 @@ end subroutine CPL_send_xd
 ! see CPL_recv_xd for input description
 !-----------------------------------------------------------------------------
 subroutine CPL_recv_3d(temp,icmin_recv,icmax_recv,jcmin_recv, & 
-							jcmax_recv,kcmin_recv,kcmax_recv    )
+							jcmax_recv,kcmin_recv,kcmax_recv,recv_flag)
 	use coupler_module, only : icmin_olap,icmax_olap, & 
 							   jcmin_olap,jcmax_olap, &
 							   kcmin_olap,kcmax_olap,error_abort
     implicit none
 
+	logical, intent(out), optional					:: recv_flag
   	integer, intent(in), optional					:: icmax_recv,icmin_recv
  	integer, intent(in), optional					:: jcmax_recv,jcmin_recv
  	integer, intent(in), optional					:: kcmax_recv,kcmin_recv
@@ -1663,7 +1681,7 @@ subroutine CPL_recv_3d(temp,icmin_recv,icmax_recv,jcmin_recv, &
 	!Add padding column to 3D array to make it 4D
 	allocate(arecv(n1,n2,n3,n4))
     call CPL_recv_xd(arecv,icmin,icmax,jcmin, & 
-						   jcmax,kcmin,kcmax   )
+						   jcmax,kcmin,kcmax,recv_flag)
 	temp(:,:,:) = 	arecv(1,:,:,:) 
 
 end subroutine CPL_recv_3d
@@ -1673,12 +1691,13 @@ end subroutine CPL_recv_3d
 ! see CPL_recv_xd for input description
 !-----------------------------------------------------------------------------
 subroutine CPL_recv_4d(arecv,icmin_recv,icmax_recv,jcmin_recv, & 
-							 jcmax_recv,kcmin_recv,kcmax_recv    )
+							 jcmax_recv,kcmin_recv,kcmax_recv,recv_flag)
 	use coupler_module, only : icmin_olap,icmax_olap, & 
 							   jcmin_olap,jcmax_olap, &
 							   kcmin_olap,kcmax_olap,error_abort
     implicit none
  
+	logical, intent(out), optional						  :: recv_flag
  	integer, intent(in), optional						  :: icmax_recv,icmin_recv
  	integer, intent(in), optional						  :: jcmax_recv,jcmin_recv
  	integer, intent(in), optional						  :: kcmax_recv,kcmin_recv
@@ -1725,7 +1744,7 @@ subroutine CPL_recv_4d(arecv,icmin_recv,icmax_recv,jcmin_recv, &
 	endif
  
     call CPL_recv_xd(arecv,icmin,icmax,jcmin, & 
-						   jcmax,kcmin,kcmax   )
+						   jcmax,kcmin,kcmax,recv_flag)
 
 end subroutine CPL_recv_4d
 
@@ -1734,14 +1753,17 @@ end subroutine CPL_recv_4d
 ! realm
 !-----------------------------------------------------------------------------
 subroutine CPL_recv_xd(arecv,icmin_recv,icmax_recv,jcmin_recv, & 
-						     jcmax_recv,kcmin_recv,kcmax_recv	 )
+						     jcmax_recv,kcmin_recv,kcmax_recv,recv_flag)
 	use mpi
 	use coupler_module, only : CPL_CART_COMM,rank_cart,md_realm,cfd_realm, & 
-							   rank_graph, &
+							   rank_graph, rank_graph2rank_world, &
 	                           error_abort,CPL_GRAPH_COMM,myid_graph,olap_mask, &
 							   rank_world,rank_realm,realm,rank_olap, & 
 							   iblock_realm,jblock_realm,kblock_realm,ierr
 	implicit none
+
+	!Flag set if processor has received data
+	logical, intent(out), optional					:: recv_flag
 
     ! Minimum and maximum values of j to send
  	integer, intent(in)	:: icmax_recv,icmin_recv, & 
@@ -1758,7 +1780,8 @@ subroutine CPL_recv_xd(arecv,icmin_recv,icmax_recv,jcmin_recv, &
     ! local indices 
     integer :: n,nbr,i,j,k,icell,jcell,kcell,icmin,icmax,jcmin,jcmax,kcmin,kcmax
 	integer :: pos,iclmin,iclmax,jclmin,jclmax,kclmin,kclmax
-	integer	:: pcoords(3),extents(6),npercell,ndata,ncells
+	integer	:: pcoords(3),npercell,ndata,ncells
+	integer,dimension(6) :: extents,mdportion,portion,limits
 
     ! auxiliaries 
     integer	:: itag, sourceid,source_realm,start_address
@@ -1769,6 +1792,11 @@ subroutine CPL_recv_xd(arecv,icmin_recv,icmax_recv,jcmin_recv, &
 	! This local CFD domain is outside MD overlap zone 
 	if (olap_mask(rank_world).eq.0) return
 
+	print*, 'recv array sizes', shape(arecv), size(arecv)
+
+	! Save limits array of Minimum and maximum values to recv
+	limits = (/ icmin_recv,icmax_recv,jcmin_recv,jcmax_recv,kcmin_recv,kcmax_recv /)
+
     ! Number of components at each grid point
 	npercell = size(arecv,1)
 
@@ -1778,16 +1806,13 @@ subroutine CPL_recv_xd(arecv,icmin_recv,icmax_recv,jcmin_recv, &
 
 		!Load CFD cells per processor
 		call CPL_Cart_coords(CPL_GRAPH_COMM, rank_graph, cfd_realm, 3, pcoords, ierr) 
-		call CPL_olap_extents(pcoords,cfd_realm,extents,ncells)
+		call CPL_proc_extents(pcoords,cfd_realm,extents)
 
-		! If limits passed to send routine, use these instead
+		! If limits passed to recv routine, use these instead
 		! of overlap/processor limits
-        icmin = max(extents(1),icmin_recv); icmax = min(extents(2),icmax_recv)
-        jcmin = max(extents(3),jcmin_recv); jcmax = min(extents(4),jcmax_recv) 
-        kcmin = max(extents(5),kcmin_recv); kcmax = min(extents(6),kcmax_recv)
+		call CPL_proc_portion(pcoords,cfd_realm,limits,portion,ncells)
 
 		! Amount of data to receive from all MD processors
-		ncells = (icmax-icmin+1) * (jcmax-jcmin+1) * (kcmax-kcmin+1)
 		ndata = npercell * ncells
 		allocate(vbuf(ndata)); vbuf = 0.d0
 
@@ -1816,54 +1841,30 @@ subroutine CPL_recv_xd(arecv,icmin_recv,icmax_recv,jcmin_recv, &
 			pcoords = (/iblock_realm,jblock_realm,kblock_realm /)
 		endif
 
-		!MD realm receives data as big as own processor domain and
-		!CFD realm receives data as big as MD processor
-		call CPL_olap_extents(pcoords,md_realm,extents)
-
-		! If limits passed to send routine, use these instead
+		! If limits passed to recv routine, use these instead
 		! of overlap/processor limits
-        icmin = max(extents(1),icmin_recv); icmax = min(extents(2),icmax_recv)
-        jcmin = max(extents(3),jcmin_recv); jcmax = min(extents(4),jcmax_recv) 
-        kcmin = max(extents(5),kcmin_recv); kcmax = min(extents(6),kcmax_recv)
+		call CPL_proc_portion(pcoords,md_realm,limits,portion,ncells)
 
-		! Get local extents in received region
-		iclmin = 1;	iclmax = icmax-icmin+1
-		jclmin = 1;	jclmax = jcmax-jcmin+1
-		kclmin = 1;	kclmax = kcmax-kcmin+1
-
-		! Amount of data to receive
-		if (any((/iclmax,jclmax,kclmax/) .le. 0)) then
+		!Only receive if overlapping
+		if (any(portion.eq.VOID)) then
 			ndata = 0
+			req(nbr) = MPI_REQUEST_NULL
+			if (present(recv_flag)) recv_flag = .false.
 		else
-			ncells = (icmax-icmin+1) * (jcmax-jcmin+1) * (kcmax-kcmin+1)
+			! Amount of data to receive
 	        ndata = npercell * ncells
-
-			if ((realm .eq. md_realm) .and. (size(arecv) .ne. ndata)) then
-				print'(2(a,i7))', 'size of expected recv data = ',  size(arecv), & 
-						          'actual size of recv data = ', ndata
-				call error_abort("CPL_recv error - domain size mismatch in recv data")
+			if (present(recv_flag)) recv_flag = .true.
+			
+			if (realm .eq. md_realm) then
+				!Allocate receive buffer for MD processors
+				if (allocated(vbuf)) deallocate(vbuf); allocate(vbuf(ndata)); vbuf=0.d0
 			endif
-		endif
 
-		print'(a,6i4,i5,i6,24i4)', 'recv data',rank_world,rank_realm,rank_olap,ndata,nbr,sourceid, & 
-								size(arecv),start_address,&
-								iclmin,   iclmax,   jclmin,   jclmax,   kclmin,   kclmax,     &
-								icmin_recv,icmax_recv,jcmin_recv,jcmax_recv,kcmin_recv,kcmax_recv, & 
-								icmin,    icmax,    jcmin,    jcmax,    kcmin,    kcmax,     &
-								extents
-
-		if (realm .eq. md_realm) then
-			if (allocated(vbuf)) deallocate(vbuf); allocate(vbuf(ndata)); vbuf=0.d0
-		endif
-
-		! Receive section of data
-		if (ndata .ne. 0) then
+			! Receive section of data
 			itag = 0
-			!print'(a,8i8)', 'recv data',realm,sourceid+1,ndata,size(arecv),start_address,pcoords
 			call MPI_irecv(vbuf(start_address),ndata,MPI_DOUBLE_PRECISION,sourceid,itag,&
             						CPL_GRAPH_COMM,req(nbr),ierr)
-		else
-			req(nbr) = MPI_REQUEST_NULL
+
 		endif
 
 		!Increment pointer ready to receive next piece of data		
@@ -1872,11 +1873,13 @@ subroutine CPL_recv_xd(arecv,icmin_recv,icmax_recv,jcmin_recv, &
     enddo
     call MPI_waitall(nneighbors, req, status, ierr)
 
-	!do n = 1,size(vbuf)
-	!	print*, 'vbuf', n, vbuf(n)
-	!enddo
+	!if (rank_world .eq. 33) then
+	!	do n = 1,size(vbuf)
+	!		print*, 'vbuf', n, vbuf(n)
+	!	enddo
+	!endif
 
-	! Unpack data 
+	! ----------------- Unpack data -----------------------------
 	start_address = 1
 	do nbr = 1, nneighbors
 
@@ -1885,89 +1888,55 @@ subroutine CPL_recv_xd(arecv,icmin_recv,icmax_recv,jcmin_recv, &
 
 	    ! Get size of data to receive from source processors
 		if (realm .eq. cfd_realm) then
+			!CFD always receives data
+			if (present(recv_flag)) recv_flag = .true.
 			!CFD realm receives data based on size of MD processor domain
 			call CPL_Cart_coords(CPL_GRAPH_COMM, sourceid+1, md_realm, 3, pcoords, ierr) 
 		elseif (realm .eq. md_realm) then
 			!MD realm receives data as big as own processor domain
 			pcoords = (/iblock_realm,jblock_realm,kblock_realm /)
+			!Get extents of current processor/overlap region
+			call CPL_proc_extents(pcoords,md_realm,extents)
 		endif
-		!Get extents of current processor/overlap region
-		call CPL_olap_extents(pcoords,md_realm,extents)
 
-		! If limits passed to send routine, use these instead
+		! If limits passed to recv routine, use these instead
 		! of overlap/processor limits
-        icmin = max(extents(1),icmin_recv); icmax = min(extents(2),icmax_recv)
-        jcmin = max(extents(3),jcmin_recv); jcmax = min(extents(4),jcmax_recv) 
-        kcmin = max(extents(5),kcmin_recv); kcmax = min(extents(6),kcmax_recv)
-
-		!For CFD unpack section of MD array into required location
-		if (realm .eq. cfd_realm) then
-
-			print'(a,18i4)', 'unpacking', rank_world,rank_realm,extents,  & 
-								icmin, icmax, jcmin, jcmax, kcmin, kcmax, & 
-								shape(arecv)
-			pos = start_address
-			do kcell=kcmin,kcmax
-			do jcell=jcmin,jcmax
-			do icell=icmin,icmax
+		call CPL_proc_portion(pcoords,md_realm,limits,portion,ncells)
+				
+		! Unpack array into buffer
+		if (any(portion.eq.VOID)) then
+			print*, 'VOID recv',realm_name(realm),rank_world,rank_realm,rank_graph2rank_world(sourceid+1),recv_flag
+			arecv = VOID
+			ndata = 0
+		else
+			! Get local extents in received region
+			pos = start_address; ndata = npercell * ncells
+			iclmin = portion(1)-extents(1)+1;	iclmax = portion(2)-extents(1)+1
+			jclmin = portion(3)-extents(3)+1;	jclmax = portion(4)-extents(3)+1
+			kclmin = portion(5)-extents(5)+1;	kclmax = portion(6)-extents(5)+1
+			print'(a,5i4,2i8,i6,18i4,l)', 'recv data',rank_world,rank_realm,rank_olap,ndata,nbr, & 
+										rank_graph2rank_world(sourceid+1),size(arecv),start_address,&
+										iclmin,iclmax,jclmin,jclmax,kclmin,kclmax, & 
+										portion,extents,recv_flag
+			do kcell=kclmin,kclmax
+			do jcell=jclmin,jclmax
+			do icell=iclmin,iclmax
 			do n = 1,npercell
 				arecv(n,icell,jcell,kcell) = vbuf(pos)
 				pos = pos + 1
-				write(5000+myid_graph,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
-			      	'recv array(',n,',',icell,',',jcell,',',kcell,') =', &
-			      	 arecv(n,icell,jcell,kcell)
 			end do
 			end do
 			end do
 			end do
 
-		!For MD unpack all of received array
-		elseif (realm .eq. md_realm) then	
 
-			! Get local extents in received region
-			iclmin = 1;	iclmax = icmax-icmin+1
-			jclmin = 1;	jclmax = jcmax-jcmin+1
-			kclmin = 1;	kclmax = kcmax-kcmin+1
-
-			print'(a,24i4)', 'unpacking', rank_world,rank_realm,extents,  & 
-								icmin, icmax, jcmin, jcmax, kcmin, kcmax, & 
-								iclmin,iclmax,jclmin,jclmax,kclmin,kclmax,&
-								shape(arecv)
-
-			! Unpack array into buffer
-			if (any((/iclmax,jclmax,kclmax/) .le. 0)) then
-				arecv = VOID
-			else
-				pos = 1
-				do kcell=kclmin,kclmax
-				do jcell=jclmin,jclmax
-				do icell=iclmin,iclmax
-				do n = 1,npercell
-					arecv(n,icell,jcell,kcell) = vbuf(pos)
-					pos = pos + 1
-					write(11000+myid_graph,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
-				      	'recv array(',n,',',icell,',',jcell,',',kcell,') =', &
-				      	 arecv(n,icell,jcell,kcell)
-				end do
-				end do
-				end do
-				end do
-			endif
-
-		endif
-
-		! Amount of data unpacked
-		if (any((/(icmax-icmin+1),(jcmax-jcmin+1),(kcmax-kcmin+1)/) .le. 0)) then
-			ndata = 0
-		else
-			ncells = (icmax-icmin+1) * (jcmax-jcmin+1) * (kcmax-kcmin+1)
-	        ndata = npercell * ncells
 		endif
 
 		!Increment reading position of packed data
 		start_address = start_address + ndata
 
 	enddo
+	! ----------------- Unpack data -----------------------------
            
 end subroutine CPL_recv_xd
 
