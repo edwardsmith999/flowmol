@@ -21,9 +21,9 @@ program test_coupler
 	!EXCHANGE ROUTINES
 	call test_send_recv_MD2CFD             
 	call test_send_recv_CFD2MD
-	!if (olap_mask(rank_world).eq.1) then
-	!	call test_gather_scatter           ! FROM TEST
-	!end if
+	if (olap_mask(rank_world).eq.1) then
+		call test_gather_scatter           ! FROM TEST
+	end if
 
 	call finalise                          ! FROM TEST
 
@@ -860,8 +860,8 @@ subroutine test_gather_scatter
 			k = kcell + extents(5) - 1
 
 			if (gatheru(ixyz,icell,jcell,kcell).lt.0.0001) then
-				write(8000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
-					  'gatheru(',0,',',0,',',0,',',0,') =', 0.d0
+				!write(8000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
+				!	  'gatheru(',0,',',0,',',0,',',0,') =', 0.d0
 			else
 				write(8000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
 					  'gatheru(',ixyz,',',i,',',j,',',k,') =', &
@@ -885,8 +885,8 @@ subroutine test_gather_scatter
 			k = kcell + extents(5) - 1
 
 			if (scatterstress(ixyz,icell,jcell,kcell).lt.0.0001) then
-				write(7000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
-					  'scatterstress(',0,',',0,',',0,',',0,') =', 0.d0
+				!write(7000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
+				!	  'scatterstress(',0,',',0,',',0,',',0,') =', 0.d0
 			else
 				write(7000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
 					  'scatterstress(',ixyz,',',i,',',j,',',k,') =', &

@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 import os
 
-def gatherscattervals(filename):
+def vals(filename):
 
 	# Open file object
 	fobj = open(filename,'r')
@@ -15,6 +15,8 @@ def gatherscattervals(filename):
 		all_correct = False
 		string = 'File is empty '+filename 
 		print(string) 
+
+	print('Checking values in file '+filename+'...')
 
 	# Read cells and values
 	for line in iter(fobj.readline,""):
@@ -41,9 +43,15 @@ def gatherscattervals(filename):
 			string += str(value)+'.'
 			print(string)
 
+	fobj.close()
+
 	# Success message
 	if (all_correct == True):
-		string = 'All printed results are as expected in '+filename 
-		print(string)
+		#string = 'All printed results are as expected in '+filename 
+		#print(string)
+		return 0
+	else:
+		#string = 'Printed results not all as expected in '+filename 
+		#print(string)
+		return 1
 	
-	fobj.close()
