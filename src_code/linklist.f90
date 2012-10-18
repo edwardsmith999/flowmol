@@ -1385,7 +1385,9 @@ subroutine sort_mols
 	allocate(molperblock(blocks))
 	rtemp=0.d0;vtemp=0.d0;tagtemp=0; molperblock = 0
 	if (rtrue_flag .eq. 1) allocate(rtemp2(nd,ave_molperblock,blocks))
-	if (any(tag(:).eq.tether_tags)) allocate(rtemp3(nd,ave_molperblock,blocks))
+	if (allocated(tag)) then
+		allocate(rtemp3(nd,ave_molperblock,blocks))
+	endif
 
 	!Copy all molecules to temp arrays in order of blocks
 	do n = 1,np
@@ -1409,7 +1411,9 @@ subroutine sort_mols
 		vtemp(:,molperblock(i),i) = v(:,n)
 		tagtemp(molperblock(i),i) = tag(n)
 		if (rtrue_flag.eq.1) rtemp2(:,molperblock(i),i) = rtrue(:,n)
-		if (any(tag(n).eq.tether_tags)) rtemp3(:,molperblock(i),i) = rtether(:,n)
+		if (allocated(tag)) then
+			if (any(tag(n).eq.tether_tags)) rtemp3(:,molperblock(i),i) = rtether(:,n)
+		endif
 
 		!print*, 'b4',n, r(:,n)
 	enddo
