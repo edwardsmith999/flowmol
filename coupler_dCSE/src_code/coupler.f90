@@ -1541,6 +1541,13 @@ subroutine CPL_send_xd(asend,icmin_send,icmax_send,jcmin_send, &
 	! Save limits array of Minimum and maximum values to send
 	limits = (/ icmin_send,icmax_send,jcmin_send,jcmax_send,kcmin_send,kcmax_send /)
 
+    ! Get local grid box ranges seen by this rank for CFD
+    if (realm .eq. cfd_realm) then 
+		!Load extents of CFD processor
+		pcoords = (/iblock_realm,jblock_realm,kblock_realm /)
+		call CPL_proc_extents(pcoords,cfd_realm,extents)
+	endif
+
     ! Number of components at each grid point
     npercell = size(asend,1)
 
@@ -1562,10 +1569,9 @@ subroutine CPL_send_xd(asend,icmin_send,icmax_send,jcmin_send, &
 		elseif (realm .eq. md_realm) then
 			!Data to send is based on current processor
 			pcoords = (/iblock_realm,jblock_realm,kblock_realm /)
+			!Get extents of current processor
+			call CPL_proc_extents(pcoords,md_realm,extents)
 		endif
-
-		!Get extents of current processor
-		call CPL_proc_extents(pcoords,md_realm,extents)
 
 		! If limits passed to send routine, use these instead
 		! of overlap/processor limits
@@ -1578,7 +1584,7 @@ subroutine CPL_send_xd(asend,icmin_send,icmax_send,jcmin_send, &
 
         ! Amount of data to be sent
 		if (any(portion.eq.VOID)) then
-			print*, 'VOID send',realm_name(realm),rank_world,rank_realm
+			!print*, 'VOID send',realm_name(realm),rank_world,rank_realm
 			ndata = 0
 			if (present(send_flag)) send_flag = .false.
 		else
@@ -1592,18 +1598,18 @@ subroutine CPL_send_xd(asend,icmin_send,icmax_send,jcmin_send, &
 			do icell=iclmin,iclmax
 			do n = 1,npercell
 				vbuf(pos) = asend(n,icell,jcell,kcell)
-				!print*, 'vbuf pack',pos, vbuf(pos)
+				!write(98000+destid+1+10*rank_world,'(3i8,f20.5)') rank_world,destid+1,n, vbuf(pos)
 				pos = pos + 1
 			end do
 			end do
 			end do
 			end do
 			! ----------------- pack data for destid -----------------------------
-			print'(a,6i4,i5,i6,24i4)', 'send data',rank_world,rank_realm,rank_olap,ndata,nbr,destid, & 
-									size(asend),pos,&
-									iclmin,   iclmax,   jclmin,   jclmax,   kclmin,   kclmax,     &
-									icmin_send,icmax_send,jcmin_send,jcmax_send,kcmin_send,kcmax_send, & 
-									portion, extents
+			!print'(a,5i4,2i6,i4,24i4)', 'send data',rank_world,rank_realm,rank_olap,ndata,nbr,destid, & 
+			!						size(asend),pos,&
+			!						iclmin,   iclmax,   jclmin,   jclmax,   kclmin,   kclmax,     &
+			!						icmin_send,icmax_send,jcmin_send,jcmax_send,kcmin_send,kcmax_send, & 
+			!						portion, extents
 
  			! Send data 
 	        itag = 0 !mod( ncalls, MPI_TAG_UB) !Attention ncall could go over max tag value for long runs!!
@@ -1792,16 +1798,13 @@ subroutine CPL_recv_xd(arecv,icmin_recv,icmax_recv,jcmin_recv, &
 	! This local CFD domain is outside MD overlap zone 
 	if (olap_mask(rank_world).eq.0) return
 
-	print*, 'recv array sizes', shape(arecv), size(arecv)
-
 	! Save limits array of Minimum and maximum values to recv
 	limits = (/ icmin_recv,icmax_recv,jcmin_recv,jcmax_recv,kcmin_recv,kcmax_recv /)
 
     ! Number of components at each grid point
 	npercell = size(arecv,1)
 
-    ! Local grid box
-    ! Get local grid box ranges seen by this rank for either CFD or MD
+    ! Get local grid box ranges seen by this rank for CFD and allocate buffer
     if (realm .eq. cfd_realm) then 
 
 		!Load CFD cells per processor
@@ -1875,7 +1878,7 @@ subroutine CPL_recv_xd(arecv,icmin_recv,icmax_recv,jcmin_recv, &
 
 	!if (rank_world .eq. 33) then
 	!	do n = 1,size(vbuf)
-	!		print*, 'vbuf', n, vbuf(n)
+	!		write(98000+rank_world,*) rank_world,n, vbuf(n)
 	!	enddo
 	!endif
 
@@ -1905,8 +1908,7 @@ subroutine CPL_recv_xd(arecv,icmin_recv,icmax_recv,jcmin_recv, &
 				
 		! Unpack array into buffer
 		if (any(portion.eq.VOID)) then
-			print*, 'VOID recv',realm_name(realm),rank_world,rank_realm,rank_graph2rank_world(sourceid+1),recv_flag
-			arecv = VOID
+			!print*, 'VOID recv',realm_name(realm),rank_world,rank_realm,rank_graph2rank_world(sourceid+1),recv_flag
 			ndata = 0
 		else
 			! Get local extents in received region
@@ -1914,10 +1916,10 @@ subroutine CPL_recv_xd(arecv,icmin_recv,icmax_recv,jcmin_recv, &
 			iclmin = portion(1)-extents(1)+1;	iclmax = portion(2)-extents(1)+1
 			jclmin = portion(3)-extents(3)+1;	jclmax = portion(4)-extents(3)+1
 			kclmin = portion(5)-extents(5)+1;	kclmax = portion(6)-extents(5)+1
-			print'(a,5i4,2i8,i6,18i4,l)', 'recv data',rank_world,rank_realm,rank_olap,ndata,nbr, & 
-										rank_graph2rank_world(sourceid+1),size(arecv),start_address,&
-										iclmin,iclmax,jclmin,jclmax,kclmin,kclmax, & 
-										portion,extents,recv_flag
+			!print'(a,5i4,2i6,i4,18i4,l)', 'recv data',rank_world,rank_realm,rank_olap,ndata,nbr, & 
+			!							rank_graph2rank_world(sourceid+1),size(arecv),start_address,&
+			!							iclmin,iclmax,jclmin,jclmax,kclmin,kclmax, & 
+			!							portion,extents,recv_flag
 			do kcell=kclmin,kclmax
 			do jcell=jclmin,jclmax
 			do icell=iclmin,iclmax

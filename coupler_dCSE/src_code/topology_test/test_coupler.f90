@@ -3,6 +3,8 @@ program test_coupler
 	use coupler
 	implicit none
 
+
+	!SETUP PROCESS
 	call initialise                        ! FROM TEST
 	call test_setup_input_and_arrays       ! FROM TEST
 	call get_cfd_cell_ranges               ! FROM TEST
@@ -14,11 +16,14 @@ program test_coupler
 	!call test_COMMS
 	!call test_packing
 
-!	call test_send_recv_MD2CFD             
-	!call test_send_recv_CFD2MD
-	if (olap_mask(rank_world).eq.1) then
-		call test_gather_scatter           ! FROM TEST
-	end if
+	call barrier
+
+	!EXCHANGE ROUTINES
+	call test_send_recv_MD2CFD             
+	call test_send_recv_CFD2MD
+	!if (olap_mask(rank_world).eq.1) then
+	!	call test_gather_scatter           ! FROM TEST
+	!end if
 
 	call finalise                          ! FROM TEST
 
@@ -617,7 +622,7 @@ subroutine test_send_recv_MD2CFD
 		call CPL_proc_extents(coord,realm,extents)
 		!print'(2a,8i7)', 'proc extents', realm_name(realm),rank_world,rank_cart,extents
 		call CPL_olap_extents(coord,realm,extents)
-		print'(2a,8i7)', 'olap extents', realm_name(realm),rank_world,rank_cart,extents
+		!print'(2a,8i7)', 'olap extents', realm_name(realm),rank_world,rank_cart,extents
 
 		allocate(recvbuf(npercell,extents(1):extents(2), &
 		                          extents(3):extents(4), &
@@ -629,17 +634,18 @@ subroutine test_send_recv_MD2CFD
 
 		if (recv_flag .eqv. .true.) then
 			do kcell=extents(5),extents(6)
-			do jcell=extents(3),extents(4)
+			do jcell=jcmin_recv,jcmax_recv  !extents(3),extents(4)
 			do icell=extents(1),extents(2)
 			do ixyz =1,npercell
-				if ( recvbuf(ixyz,icell,jcell,kcell) .ne. VOID) then
+				!if ( recvbuf(ixyz,icell,jcell,kcell) .ne. -444.d0) then
 				!print'(a,i4,a,i4,a,i4,a,i4,a,f20.1)',   &
 				!      'recv CFD(',ixyz,',',icell,',',jcell,',',kcell,') =', &
 				!       recvbuf(ixyz,icell,jcell,kcell)
-				endif
-			!	write(5000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
-			!	      'recv CFD(',ixyz,',',icell,',',jcell,',',kcell,') =', &
-			!	       recvbuf(ixyz,icell,jcell,kcell)
+					write(5000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
+					      'recv CFD(',ixyz,',',icell,',',jcell,',',kcell,') =', &
+					       recvbuf(ixyz,icell,jcell,kcell)
+				!endif
+
 			end do
 			end do
 			end do
@@ -652,6 +658,8 @@ subroutine test_send_recv_MD2CFD
 	
 end subroutine test_send_recv_MD2CFD
 
+
+! ۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩
 ! Test Sending from MD to CFD
 
 subroutine test_send_recv_CFD2MD
@@ -660,29 +668,34 @@ subroutine test_send_recv_CFD2MD
 	implicit none
 
 	logical	:: send_flag,recv_flag
+	integer	:: jcmin_send,jcmax_send,jcmin_recv,jcmax_recv
 	integer :: ncxl,ncyl,nczl,ixyz,icell,jcell,kcell,npercell,coord(3),extents(6)
 	double precision,dimension(:,:,:,:),allocatable	:: sendbuf,recvbuf
 
 	npercell = 3
+	jcmax_send=1; jcmin_send=1; 
+	jcmax_recv = jcmax_send
+	jcmin_recv = jcmin_send
+	if (olap_mask(rank_world) .eq. 0) return
 
 	! Test Sending from CFD to MD							   
 	if (realm .eq. md_realm) then		   
 
 		coord = (/iblock_realm,jblock_realm,kblock_realm /)
-		call CPL_proc_extents(coord,md_realm,extents)
+		call CPL_olap_extents(coord,realm,extents)
 
-		ncxl = extents(2)-extents(1)+1
-		ncyl = 1 !extents(4)-extents(3)+1
-		nczl = extents(6)-extents(5)+1
+		allocate(recvbuf(npercell,extents(1):extents(2), &
+		                          extents(3):extents(4), &
+		                          extents(5):extents(6)))
+		recvbuf = -444
 
-		allocate(recvbuf(3,ncxl,ncyl,nczl)); recvbuf = 0.d0
-		!print*, 'recv size', realm_name(realm),3*ncxl*ncyl*nczl , size(recvbuf)
+		!print*, 'recv size', realm_name(realm),extents, size(recvbuf),shape(recvbuf)
 		call CPL_recv(recvbuf,jcmax_recv=1,jcmin_recv=1,recv_flag=recv_flag)   
 
-		if (sum(recvbuf) .ne. 0.d0) then
-			do kcell=1,nczl
-			do jcell=1,ncyl
-			do icell=1,ncxl
+		if (recv_flag .eqv. .true.) then
+			do kcell=extents(5),extents(6)
+			do jcell=jcmin_send,jcmax_send
+			do icell=extents(1),extents(2)
 			do ixyz = 1,npercell
 				write(11000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
 			      	'recv MD(',ixyz,',',icell,',',jcell,',',kcell,') =', &
@@ -696,17 +709,15 @@ subroutine test_send_recv_CFD2MD
 	else if (realm .eq. cfd_realm) then	   
 
 		coord = (/iblock_realm,jblock_realm,kblock_realm /)
-		call CPL_proc_extents(coord,cfd_realm,extents)
+		call CPL_olap_extents(coord,realm,extents)
+		allocate(sendbuf(npercell,extents(1):extents(2), &
+		                          extents(3):extents(4), &
+		                          extents(5):extents(6)))
 
-		ncxl = extents(2)-extents(1)+1
-		ncyl = 1 !extents(4)-extents(3)+1
-		nczl = extents(6)-extents(5)+1
-
-		allocate(sendbuf(npercell,ncxl,ncyl,nczl))
 		do ixyz =1,npercell
-		do icell=1,extents(2)-extents(1)+1
-		do jcell=1,1
-		do kcell=1,extents(6)-extents(5)+1
+		do icell=extents(1),extents(2)
+		do jcell=extents(3),extents(4)
+		do kcell=extents(5),extents(6)
 			sendbuf(ixyz,icell,jcell,kcell) = 0.1d0*ixyz + 1*(icell) + &
 			                       			  1000*(jcell) + &
 			                    			  1000000*(kcell)
@@ -719,9 +730,9 @@ subroutine test_send_recv_CFD2MD
 		!print*, 'sent size',realm_name(realm),3*ncxl*ncyl*nczl,size(sendbuf)
 		call CPL_send(sendbuf,jcmax_send=1,jcmin_send=1,send_flag=send_flag)
 
-		do kcell=1,extents(6)-extents(5)+1
-		do jcell=1,1
-		do icell=1,extents(2)-extents(1)+1
+		do kcell=extents(5),extents(6)
+		do jcell=jcmin_send,jcmax_send
+		do icell=extents(1),extents(2)
 		do ixyz = 1,npercell
 			write(9000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
 			      'send CFD(',ixyz,',',icell,',',jcell,',',kcell,') =', &
