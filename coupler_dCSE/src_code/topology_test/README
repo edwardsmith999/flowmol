@@ -2,7 +2,8 @@ Topology_test contains a standalone code that is designed to perform the
 communications and mapping setup of the coupler, before performing gather,
 scatter, send and recv processes with dummy arrays. 
 
-Module source files are symbolically linked to the src_code directory. 
+The python script "singlerun.py" reads the input file "input", and makes
+ a system call to mpiexec with the appropriate number of processors. 
 
-The python script "run.py" reads the input file "procs", and makes a system
-call to mpiexec with the appropriate number of processors. 
+"topology_test.py" is in development and is designed to allow easy parametric
+studies of inputs to the coupler.
