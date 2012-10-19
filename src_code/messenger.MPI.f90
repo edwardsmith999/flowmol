@@ -121,18 +121,18 @@ subroutine messenger_init()
 
     ! if npz == 0 in MD.in it means that npz = nproc/(npx*npy)
     if (npz .eq. 0) then 
-            npz = nproc/(npx*npy)
+		npz = nproc/(npx*npy)
     endif
 
     !check if npx*npy*npz=nproc
     if (npx * npy * npz .ne. nproc ) then
-			print*, npx, npy, npz , nproc
-            call error_abort(' Wrong specification for processor topology, nproc not equal to npx*npy*npz')
+		print*, npx, npy, npz , nproc
+		call error_abort(' Wrong specification for processor topology, nproc not equal to npx*npy*npz')
     endif
 
     allocate(icoord(3,nproc),stat=ierr)
     if (ierr .ne. 0) then 
-            call error_abort('Error allocating icoord in messenger_init')
+		call error_abort('Error allocating icoord in messenger_init')
 	endif
 
 	ndims = nd
@@ -163,7 +163,8 @@ subroutine messenger_init()
 	if (npx .lt. 2) icomm_xyz(1) = MPI_COMM_SELF
 	if (npy .lt. 2) icomm_xyz(2) = MPI_COMM_SELF
 	if (npz .lt. 2) icomm_xyz(3) = MPI_COMM_SELF
-
+	!if (any(icomm_xyz .eq. MPI_COMM_NULL)) icomm_xyz(:)=MPI_COMM_SELF
+	
 	call MPI_comm_rank (icomm_xyz(1), irankx, ierr)
 	call MPI_comm_rank (icomm_xyz(2), iranky, ierr)
 	call MPI_comm_rank (icomm_xyz(3), irankz, ierr)
@@ -1997,7 +1998,7 @@ end module pack_unpack_bins
 subroutine iswaphalos(A,n1,n2,n3,nresults)
 	use messenger
 	use calculated_properties_MD
-	use librarymod, only : int_heaviside
+	use librarymod, only : heaviside
 	use pack_unpack_bins
 	implicit none
 
@@ -2026,9 +2027,9 @@ subroutine iswaphalos(A,n1,n2,n3,nresults)
 		i = halocells(n,1); j = halocells(n,2); k = halocells(n,3)
 
 		!Change in number of Molecules in halo cells
-		ic = i + int_heaviside(ncells(1)+1-i)-int_heaviside(i-2)
-		jc = j + int_heaviside(ncells(2)+1-j)-int_heaviside(j-2)
-		kc = k + int_heaviside(ncells(3)+1-k)-int_heaviside(k-2)
+		ic = i + heaviside(ncells(1)+1-i)-heaviside(i-2)
+		jc = j + heaviside(ncells(2)+1-j)-heaviside(j-2)
+		kc = k + heaviside(ncells(3)+1-k)-heaviside(k-2)
 
 		buf(ic,jc,kc,:) = buf(ic,jc,kc,:) + buf(i,j,k,:)
 
@@ -2119,7 +2120,7 @@ end subroutine iupdatefaces
 subroutine rswaphalos(A,n1,n2,n3,nresults)
 	use messenger
 	use calculated_properties_MD
-	use librarymod, only : int_heaviside
+	use librarymod, only : heaviside
 	use pack_unpack_bins
 	implicit none
 
@@ -2143,9 +2144,9 @@ subroutine rswaphalos(A,n1,n2,n3,nresults)
 		i = halocells(n,1); j = halocells(n,2); k = halocells(n,3)
 
 		!Change in number of Molecules in halo cells
-		ic = i + int_heaviside(ncells(1)+1-i)-int_heaviside(i-2)
-		jc = j + int_heaviside(ncells(2)+1-j)-int_heaviside(j-2)
-		kc = k + int_heaviside(ncells(3)+1-k)-int_heaviside(k-2)
+		ic = i + heaviside(ncells(1)+1-i)-heaviside(i-2)
+		jc = j + heaviside(ncells(2)+1-j)-heaviside(j-2)
+		kc = k + heaviside(ncells(3)+1-k)-heaviside(k-2)
 
 		buf(ic,jc,kc,:) = buf(ic,jc,kc,:) + buf(i,j,k,:)
 

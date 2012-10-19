@@ -2810,7 +2810,7 @@ implicit none
 		facelimits(13:15) = binbot-Py 		
 		facelimits(16:18) = binbot-Pz
 
-		hfacelimits = array_heaviside(facelimits)
+		hfacelimits = heaviside(facelimits)
 
 		Si(1) =	(hfacelimits(2) - hfacelimits(11))* &
 				(hfacelimits(3) - hfacelimits(12))

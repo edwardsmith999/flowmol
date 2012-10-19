@@ -37,10 +37,10 @@ subroutine setup_MD
 	call socket_read_coupler_input			!READ COUPLER INPUT FILE
 #endif
 	call setup_command_arguments            !Process command line arguments specifying restart and input files
+	call messenger_init						!Establish processor topology
 
 	!Check to see if simulation is a restart of a previous simualtion
 	if (restart) then
-		call messenger_init                 !Establish processor topology
 		call setup_restart_inputs           !Recover simulation inputs from file
 #if USE_COUPLER
 		call socket_coupler_init			!SETUP COUPLER AND EXCHANGE WITH CFD
@@ -48,7 +48,6 @@ subroutine setup_MD
 		call setup_set_parameters           !Calculate parameters using input
 		call setup_restart_microstate       !Recover position and velocities
 	else
-		call messenger_init                 !Establish processor topology
 		call setup_inputs                   !Input simulation parameters
 #if USE_COUPLER
  		call socket_coupler_init			!SETUP COUPLER AND EXCHANGE WITH CFD
@@ -83,8 +82,8 @@ subroutine simulation_MD
 	use computational_constants_MD
 	use physical_constants_MD
 #if USE_COUPLER
-	use md_coupler_socket, only : socket_coupler_apply_continuum_forces, &
-								  average_and_send_MD_to_CFD
+	use md_coupler_socket, only : socket_apply_continuum_forces_ES, &
+								  average_and_send_MD_to_CFD,test_send_recv_MD2CFD,test_send_recv_CFD2MD, test_gather_scatter
 #endif
 	implicit none
   
@@ -116,9 +115,16 @@ contains
 		call simulation_record                              !Evaluate & write properties
 
 #if USE_COUPLER
+
 		call simulation_apply_boundary_forces               !Apply boundary force to prevent molecules leaving domain
-		call socket_coupler_apply_continuum_forces(iter)    !Apply coupling forces so MD => CFD
-		call average_and_send_MD_to_CFD(iter)				!Calculate averages of MD to pass to CFD
+		!call socket_apply_continuum_forces_ES(iter)		!CFD=> MD Apply CFD based coupling forces on MD
+		!all average_and_send_MD_to_CFD(iter)				! MD=>CFD Calculate averages of MD to pass to CFD
+
+		!Testing exchange codes
+		all test_send_recv_MD2CFD
+		all test_send_recv_CFD2MD
+		all test_gather_scatter
+
 #endif
 
 		call simulation_move_particles_lfv                  !Move particles as a result of forces
@@ -155,9 +161,6 @@ end subroutine simulation_MD
 subroutine rebuild_all
 	implicit none
 
-	!integer, save	:: sortcount=0
-
-	!sortcount = sortcount+1
 	call linklist_deallocateall             !Deallocate all linklist components
 	call sendmols                           !Exchange particles between processors
 	call sort_mols							!Reorder molecules to improve cache efficency
@@ -175,7 +178,6 @@ end subroutine rebuild_all
 !-----------------------------------------------------------------------------
 
 subroutine finish_MD
-	use messenger, only : irank
 	implicit none
 
 	call messenger_syncall          !Synchronizes all processors using a barrier
