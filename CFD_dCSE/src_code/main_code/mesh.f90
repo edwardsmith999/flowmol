@@ -44,7 +44,7 @@ subroutine mesh_init()
 	call readFloat("zL", zL)
 
 #if USE_COUPLER
-    call coupler_cfd_adjust_domain(xL=xL,zL=zL,density_cfd=rho_loc)
+    call CPL_cfd_adjust_domain(xL=xL,zL=zL,density_cfd=rho_loc)
 #endif
 
     write(0,*) xL,zL, rho_loc, imin,imax

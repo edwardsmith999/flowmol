@@ -112,6 +112,14 @@ subroutine read_coupler_input
 			call bcast_unpack_input
 		endif
 
+
+		icmin_olap=1; icmax_olap=128
+		jcmin_olap=1; jcmax_olap=40
+		kcmin_olap=1; kcmax_olap=8
+		ncx_olap = icmax_olap - icmin_olap + 1
+		ncy_olap = jcmax_olap - jcmin_olap + 1
+		ncz_olap = kcmax_olap - kcmin_olap + 1
+
 		!Check inputs and stop code if required
 		call check_inputs
 	else

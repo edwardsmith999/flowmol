@@ -41,9 +41,11 @@ module librarymod
 	end interface
 
 	!Various Heavisides
-	!interface heaviside
-	!	module procedure int_heaviside, heaviside, array_heaviside
-	!end interface
+	interface heaviside
+		module procedure int_heaviside, int_array_heaviside, dp_heaviside, dp_array_heaviside
+	end interface
+
+    private int_heaviside, int_array_heaviside, dp_heaviside, dp_array_heaviside
 	
 contains
 
@@ -223,29 +225,39 @@ function int_heaviside(x)
 
 end function
 
-!DEC$ ATTRIBUTES FORCEINLINE :: heaviside
-function heaviside(x)
+!DEC$ ATTRIBUTES FORCEINLINE :: int_array_heaviside
+function int_array_heaviside(x)
 	implicit none
 
-	integer						:: heaviside
+	integer,dimension(:),intent(in)	:: x
+	integer,dimension(size(x))		:: int_array_heaviside
+
+	int_array_heaviside = 0.5*sign(1,x(:))+1
+
+end function int_array_heaviside
+
+!DEC$ ATTRIBUTES FORCEINLINE :: dp_heaviside
+function dp_heaviside(x)
+	implicit none
+
+	integer						:: dp_heaviside
 	double precision,intent(in)	:: x
 
-	heaviside = ceiling(sign(0.5d0,x))
+	dp_heaviside = ceiling(sign(0.5d0,x))
 	!heaviside = 0.5*sign(1.d0,x)+1
 
-end function heaviside
+end function dp_heaviside
 
-!DEC$ ATTRIBUTES FORCEINLINE :: array_heaviside
-function array_heaviside(x)
+!DEC$ ATTRIBUTES FORCEINLINE :: dp_array_heaviside
+function dp_array_heaviside(x)
 	implicit none
 
 	double precision,dimension(:),intent(in)	:: x
-	integer,dimension(size(x))					:: array_heaviside
+	integer,dimension(size(x))					:: dp_array_heaviside
 
-	array_heaviside = ceiling(sign(0.5d0,x(:)))
-	!heaviside = 0.5*sign(1.d0,x)+1
+	dp_array_heaviside = ceiling(sign(0.5d0,x(:)))
 
-end function array_heaviside
+end function dp_array_heaviside
 
 !--------------------------------------------------------------------------------------
 ! Subroutine computes the intersection of a plane and a straight line
@@ -533,17 +545,17 @@ contains
 
 
 		if (n .le. 0) then
-		  !Bottom level of recursion - set x,y and z to zero
-		  allocate(x(1)); x = 0.d0
-		  allocate(y(1)); y = 0.d0
-		  allocate(z(1)); z = 0.d0
+			!Bottom level of recursion - set x,y and z to zero
+			allocate(x(1)); x = 0.d0
+			allocate(y(1)); y = 0.d0
+			allocate(z(1)); z = 0.d0
 		else
-		  ! Recursively call the fractal Hilbert curve code to concatenate 8 previous
-		  ! smaller Hilbert curves connected by a higher level Hilbert curve
-		    call hilbert3(n-1,xo,yo,zo)
-		  allocate(x(8*size(xo)))
-		  allocate(y(8*size(yo)))
-		  allocate(z(8*size(zo)))
+			! Recursively call the fractal Hilbert curve code to concatenate 8 previous
+			! smaller Hilbert curves connected by a higher level Hilbert curve
+			call hilbert3(n-1,xo,yo,zo)
+			allocate(x(8*size(xo)))
+			allocate(y(8*size(yo)))
+			allocate(z(8*size(zo)))
 		    x = 0.5d0 * (/ 0.5d0+zo,  0.5d0+yo, -0.5d0+yo, -0.5d0-xo, & 
 						  -0.5d0-xo, -0.5d0-yo,  0.5d0-yo,  0.5d0+zo /)
 		    y = 0.5d0 * (/ 0.5d0+xo,  0.5d0+zo,  0.5d0+zo,  0.5d0+yo, & 

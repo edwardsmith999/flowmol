@@ -211,6 +211,8 @@ subroutine coupler_cfd_init(nsteps,dt_cfd,icomm_grid,icoord,npxyz_cfd,xyzL,ncxyz
 
 	write(99+rank_realm,*), 'CFD side',rank_realm,'MD times', nsteps_md,dt_md
 
+
+
 	! ------------------ Send CFD grid extents ------------------------------
 
 	! Store & send CFD density
@@ -258,9 +260,9 @@ subroutine coupler_cfd_init(nsteps,dt_cfd,icomm_grid,icoord,npxyz_cfd,xyzL,ncxyz
     call MPI_bcast(yg,size(yg),MPI_double_precision,source,CPL_INTER_COMM,ierr) !Send
     call MPI_bcast(zg,size(zg),MPI_double_precision,source,CPL_INTER_COMM,ierr) !Send
 
-	call write_matrix(xg,'cfd side, xg=',50+rank_realm)
-	call write_matrix(yg,'cfd side, yg=',50+rank_realm)
-	write(50+rank_realm,*), 'CFD side',rank_realm,'zg',zg
+	!call write_matrix(xg,'cfd side, xg=',50+rank_realm)
+	!call write_matrix(yg,'cfd side, yg=',50+rank_realm)
+	!write(50+rank_realm,*), 'CFD side',rank_realm,'zg',zg
 
     ! Store & Send local (processor) CFD grid extents
     allocate(icPmin_cfd(npx_cfd),stat=ierr); icPmin_cfd(:) = iTmin(:)

@@ -461,6 +461,7 @@ subroutine get_cell_ranges
 	use computational_constants_MD, only : npx,npy,npz, domain
 	implicit none
 
+	integer				:: nlgx_md,nlgy_md, nlgz_md, yLl_md,yLl_cfd
 	integer 			:: i,n,startproc
 	integer, parameter 	:: Tnull = -666
 
@@ -496,7 +497,7 @@ subroutine get_cell_ranges
 	end do
 		
 	! - - x - -
-	nlgx_md = ceiling(dble(ncx)/dble(npx))
+	nlgx_md = nint(dble(ncx)/dble(npx))
 	do n=1,npx
 		icPmax_md(n) = n * nlgx_md
 		icPmin_md(n) = icPmax_md(n) - nlgx_md + 1
@@ -516,7 +517,7 @@ subroutine get_cell_ranges
 	end do 
 
 	! - - z - -
-	nlgz_md = ceiling(dble(ncz)/dble(npz))
+	nlgz_md = nint(dble(ncz)/dble(npz))
 	do n=1,npz
 		kcPmax_md(n) = n * nlgz_md
 		kcPmin_md(n) = kcPmax_md(n) - nlgz_md + 1

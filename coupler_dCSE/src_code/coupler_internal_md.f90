@@ -216,7 +216,7 @@ subroutine coupler_md_init(nsteps,dt_md,icomm_grid,icoord,npxyz_md,globaldomain,
 
 	! ------------------ Timesteps and iterations ------------------------------
 	! Receive & store CFD nsteps and dt_cfd
-	call MPI_bcast(nsteps,1,MPI_integer,0,CPL_INTER_COMM,ierr)				!Receive
+	call MPI_bcast(nsteps_cfd,1,MPI_integer,0,CPL_INTER_COMM,ierr)				!Receive
 	call MPI_bcast(dt_cfd,1,MPI_double_precision,0,CPL_INTER_COMM,ierr)		!Receive
 
 	! Store & send MD timestep to dt_md
@@ -227,6 +227,7 @@ subroutine coupler_md_init(nsteps,dt_md,icomm_grid,icoord,npxyz_md,globaldomain,
 
 	write(999+rank_realm,*), 'MD side',rank_realm,'CFD times',nsteps_cfd,dt_cfd
 	write(999+rank_realm,*), 'MD side',rank_realm,'MD times', nsteps_MD,dt_md
+
 
 	! ------------------ Receive CFD grid extents ------------------------------
 	! Receive & store CFD density
@@ -277,9 +278,9 @@ subroutine coupler_md_init(nsteps,dt_md,icomm_grid,icoord,npxyz_md,globaldomain,
 	call MPI_bcast(yg,size(yg),MPI_double_precision,0,CPL_INTER_COMM,ierr) !Receive
 	call MPI_bcast(zg,size(zg),MPI_double_precision,0,CPL_INTER_COMM,ierr) !Receive
 
-	call write_matrix(xg,'MD side, xg=',500+rank_realm)
-	call write_matrix(yg,'MD side, yg=',500+rank_realm)
-	write(500+rank_realm,*), 'MD side',rank_realm,'zg',zg
+	!call write_matrix(xg,'MD side, xg=',500+rank_realm)
+	!call write_matrix(yg,'MD side, yg=',500+rank_realm)
+	!write(500+rank_realm,*), 'MD side',rank_realm,'zg',zg
 
 	! Receive & Store local (processor) CFD grid extents
     allocate(icPmin_cfd(npx_cfd)); allocate(icPmax_cfd(npx_cfd));  
@@ -500,12 +501,12 @@ contains
         do ixyz=1,3
 
 			!Define small number
-			eps = 1.d-2 * (grid_ptr(ixyz)%p(2) - grid_ptr(ixyz)%p(1))
+			eps = 1.d0-2 * (grid_ptr(ixyz)%p(2) - grid_ptr(ixyz)%p(1))
 
 			!Check for special case of first processor containing first cell in global domain
 			found_start = .false.
-			if ( grid_ptr(ixyz)%p(1) >= bbox%bb(1,ixyz) - eps &
-				.and. grid_ptr(ixyz)%p(1) < bbox%bb(2,ixyz) ) then 
+			if (      grid_ptr(ixyz)%p(1) .ge. bbox%bb(1,ixyz) - eps &
+				.and. grid_ptr(ixyz)%p(1) .lt. bbox%bb(2,ixyz) ) then 
 				found_start = .true.
 				bbox_ptr(ixyz)%starto = idmin(ixyz) - halo_size(1,ixyz)
                 bbox_ptr(ixyz)%start  = idmin(ixyz)
@@ -513,7 +514,7 @@ contains
 			endif
 
 			! On each processor, loop through all (global) cells in the domain (ngp) and store,
-			! when found, the start and end cells covered by current processes' local domain extents
+			! when found, the start and end cells covered by current processes's local domain extents
 			ngp = grid_sizes(2,ixyz) - grid_sizes(1,ixyz) + 1
 			do i=2, ngp
 				pl = grid_ptr(ixyz)%p(i-1)
@@ -522,7 +523,7 @@ contains
 				!If processor starting cell is not yet found, continue to check
 				if (.not. found_start )then
 					!Check if current cell is processor starting cell
-					if ( pl < bbox%bb(1,ixyz)  .and. pr >=  bbox%bb(1,ixyz) - eps ) then 
+					if ( pl < bbox%bb(1,ixyz)  .and. pr .ge.  bbox%bb(1,ixyz) - eps ) then 
 						found_start = .true.
 						bbox_ptr(ixyz)%starto = idmin(ixyz) + i - 1 - halo_size(1,ixyz)
                         bbox_ptr(ixyz)%start  = idmin(ixyz) + i - 1
@@ -530,13 +531,14 @@ contains
 					endif
 				!Else, check if final cell in domain is found yet
 				else
-					if ( (i < ngp  .and. pl <= bbox%bb(2,ixyz) + eps  .and. pr > bbox%bb(2,ixyz))) then
+					if (( i .lt. ngp  .and. pl .le. bbox%bb(2,ixyz) + eps  .and. & 
+						 pr .gt. bbox%bb(2,ixyz))) then
 						bbox_ptr(ixyz)%endo = idmin(ixyz) + i - 1 - 1 + halo_size(2,ixyz)
                         bbox_ptr(ixyz)%end  = idmin(ixyz) + i - 1 - 1
 						!write(0,*), 'MD make bbox r', rank_realm, ixyz, i, pl, pr ,  bbox_ptr(ixyz)%end		     
 						exit
 					!Special case of final processor in domain containing last cell
-					else if (i == ngp  .and. abs( pr - bbox%bb(2,ixyz)) < eps ) then 
+					else if (i .eq. ngp  .and. abs( pr - bbox%bb(2,ixyz)) .lt. eps ) then 
 						bbox_ptr(ixyz)%endo = idmin(ixyz) + ngp - 1 + halo_size(2,ixyz)
                         bbox_ptr(ixyz)%end  = idmin(ixyz) + ngp - 1
 						!write(0,*), 'MD make bbox r', rank_realm, ixyz,i, pl, pr, bbox_ptr(ixyz)%end
