@@ -352,6 +352,7 @@ subroutine get_md_cell_ranges
 
 	endif
 
+
 end subroutine get_md_cell_ranges
 
 !------------------------------------------------------------
@@ -363,7 +364,8 @@ subroutine get_overlap_blocks
 
 	integer				:: npx_ratio,npy_ratio,npz_ratio
 	integer 			:: i,n,endproc,nolapsx,nolapsy,nolapsz
-	integer				:: yLl_md,yLl_cfd
+	integer             :: xLl_md, yLl_md, zLl_md
+	integer				:: yLl_cfd
 	integer,dimension(3):: pcoords
 
 	!Get processor ratios between md & cfd
@@ -390,16 +392,27 @@ subroutine get_overlap_blocks
 
 	endif
 
+	xL_olap = ncx_olap * dx 
+	yL_olap = ncy_olap * dy 
+	zL_olap = ncz_olap * dz 
+
+	xLl_md  = xL_md / npx_md
+	yLl_md  = yL_md / npy_md
+	zLl_md  = zL_md / npz_md
+
+	nolapsx = nint( dble( npx_md ) / dble( npx_cfd ) )
+	nolapsy = ceiling ( yL_olap / yLl_md ) 
+	nolapsz = nint( dble( npz_md ) / dble( npz_cfd ) )
+
 	!Get cartesian coordinate of overlapping md cells & cfd cells
-	allocate(cfd_icoord2olap_md_icoords(npx_cfd,npx_ratio)) 
-	allocate(cfd_jcoord2olap_md_jcoords(npy_cfd,npy_ratio)) 
-	allocate(cfd_kcoord2olap_md_kcoords(npz_cfd,npz_ratio)) 
+	allocate(cfd_icoord2olap_md_icoords(npx_cfd,nolapsx)) 
+	allocate(cfd_jcoord2olap_md_jcoords(npy_cfd,nolapsy)) 
+	allocate(cfd_kcoord2olap_md_kcoords(npz_cfd,nolapsz)) 
 	cfd_icoord2olap_md_icoords = VOID
 	cfd_jcoord2olap_md_jcoords = VOID
 	cfd_kcoord2olap_md_kcoords = VOID
 
 	! - - x - -
-	nolapsx = npx_ratio
 	do n = 1,npx_cfd
 	do i = 1,nolapsx	
 		cfd_icoord2olap_md_icoords(n,i) = (n-1)*nolapsx + i
@@ -407,10 +420,7 @@ subroutine get_overlap_blocks
 	end do
 
 	! - - y - -
-	yL_olap = (jcmax_olap - jcmin_olap + 1) * dy
-	yLl_md  = yL_md/npy_md
 	yLl_cfd = yL_cfd/npy_cfd
-	nolapsy = ceiling(yL_olap/yLl_md)
 	endproc = ceiling(yL_olap/yLl_cfd)
 	do n = 1,endproc
 	do i = 1,nolapsy
@@ -420,7 +430,6 @@ subroutine get_overlap_blocks
 	end do
 
 	! - - z - -
-	nolapsz = npz_ratio
 	do n = 1,npz_cfd
 	do i = 1,nolapsz	
 		cfd_kcoord2olap_md_kcoords(n,i) = (n-1)*nolapsz + i
@@ -534,11 +543,15 @@ subroutine prepare_overlap_comms
 	integer, parameter :: olap_null = -666
 	integer :: group(nproc_world), rank_olap2rank_realm_temp(nproc_world)
 	integer :: cfdcoord(3)
+	integer :: tempsize
 
-	allocate(mdicoords(npx_md/npx_cfd))
-	allocate(mdjcoords(npy_md/npy_cfd))
-	allocate(mdkcoords(npz_md/npz_cfd))
-
+	tempsize = size(cfd_icoord2olap_md_icoords,2)
+	allocate(mdicoords(tempsize))
+	tempsize = size(cfd_jcoord2olap_md_jcoords,2)
+	allocate(mdjcoords(tempsize))
+	tempsize = size(cfd_kcoord2olap_md_kcoords,2)
+	allocate(mdkcoords(tempsize))
+	
 	allocate(olap_mask(nproc_world))
 
 	!Set default values, must be done because coord2rank_md cannot
@@ -1108,6 +1121,8 @@ contains
 		integer :: pos,ixyz,icell,jcell,kcell
 		integer :: i,j,k
 
+		integer :: tempextents(6)
+
 		! Get CFD proc coords and extents, allocate suitable array
 		call CPL_cart_coords(CPL_OLAP_COMM,rank_olap,cfd_realm,3,coord,ierr)
 		call CPL_proc_extents(coord,cfd_realm,cfdextents)
@@ -1121,6 +1136,8 @@ contains
 
 			call CPL_Cart_coords(CPL_OLAP_COMM,trank_olap,md_realm,3,coord,ierr)
 			call CPL_proc_portion(coord,md_realm,limits,portion)
+
+			call CPL_proc_extents(coord,md_realm,tempextents)
 			
 			if (any(portion.eq.VOID)) cycle
 

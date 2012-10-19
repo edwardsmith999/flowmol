@@ -65,11 +65,20 @@ subroutine test_setup_input_and_arrays
 	ncx_olap = icmax_olap - icmin_olap + 1
 	ncy_olap = jcmax_olap - jcmin_olap + 1
 	ncz_olap = kcmax_olap - kcmin_olap + 1
+
 	nproc_md  = npx_md*npy_md*npz_md
 	nproc_cfd = npx_cfd*npy_cfd*npz_cfd
 	nproc_world = nproc_md + nproc_cfd
+
+	dx = xL_cfd / ncx
 	dy = yL_cfd / ncy
+	dz = zL_cfd / ncz
+
+	! TODO TODO TODO TODO TODO TODO
+	xL_md = xL_cfd
 	yL_md = yL_cfd / 2.d0
+	zL_md = zL_cfd
+
 	yL_olap = (jcmax_olap - jcmin_olap + 1) * dy
 
 end subroutine test_setup_input_and_arrays
@@ -697,7 +706,7 @@ subroutine test_send_recv_CFD2MD
 			do jcell=jcmin_send,jcmax_send
 			do icell=extents(1),extents(2)
 			do ixyz = 1,npercell
-				write(11000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
+				write(2000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
 			      	'recv MD(',ixyz,',',icell,',',jcell,',',kcell,') =', &
 			      	 recvbuf(ixyz,icell,jcell,kcell)
 			end do
@@ -838,14 +847,11 @@ subroutine test_gather_scatter
 	!gatherlims  = (/1,1,1,1,1,1/)
 	!scatterlims = (/1,1,1,1,1,1/)
 	!================== PERFORM GATHER/SCATTER =============================!	
-	gatherlims  = (/1,85,15,21, 3, 4/)
-	scatterlims = (/1,85, 2, 9, 1, 8/)
+	gatherlims  = (/1,ncx, jcmax_olap, jcmax_olap , 1, ncz/)
+	scatterlims = (/1,ncx, 1, 1, 1,ncz/)
 	if (olap_mask(rank_world).eq.1) call CPL_gather(u,3,gatherlims,gatheru)
 	if (olap_mask(rank_world).eq.1) call CPL_scatter(stress,9,scatterlims, &
 	                                                 scatterstress)
-
-
-
 
 	! Print results to file
 	if (realm.eq.cfd_realm) then
