@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python2.7
 from testmodule import *
 import os
 
@@ -33,9 +33,11 @@ set_defaults()
 
 # Parameter study
 npxmdlist = [2,4,8,16]
+npymdlist = [2,4,8,16]
 for NPXMDTEST in npxmdlist:
-	job = RunClass( NPXMDTEST, npy_md, npz_md, npx_cfd, npy_cfd, npz_cfd )
-	print(job)
-	job.execute()
-	job.concatenate()
-	job.checkvalues()
+	for NPYMDTEST in npymdlist:
+		job = RunClass( NPXMDTEST, NPYMDTEST, npz_md, npx_cfd, npy_cfd, npz_cfd )
+		print(job)
+		job.execute()
+		job.concatenate()
+		job.checkvalues()

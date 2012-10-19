@@ -8,24 +8,24 @@ program test_coupler
 	call initialise                        ! FROM TEST
 	call test_setup_input_and_arrays       ! FROM TEST
 	call get_cfd_cell_ranges               ! FROM TEST
-	call get_md_cell_ranges                ! FROM COUPLER
-	call get_overlap_blocks                ! FROM COUPLER
 	call create_realms                     ! FROM TEST
-	call prepare_overlap_comms             ! FROM COUPLER
-	call CPL_overlap_topology              ! FROM COUPLER
-	!call test_COMMS
-	!call test_packing
+	call CPL_create_map	                   ! FROM COUPLER
+	!call get_md_cell_ranges                ! FROM COUPLER        
+	!call get_overlap_blocks                ! FROM COUPLER
+	!call prepare_overlap_comms             ! FROM COUPLER
+	!call CPL_overlap_topology              ! FROM COUPLER
 
 	call barrier
 
-	!EXCHANGE ROUTINES
-	call test_send_recv_MD2CFD             
-	call test_send_recv_CFD2MD
-	if (olap_mask(rank_world).eq.1) then
-		call test_gather_scatter           ! FROM TEST
-	end if
+	!EXCHANGE/TESTING ROUTINES
+	!call test_COMMS
+	!call test_packing
+	call test_gather_scatter           ! FROM TEST
+	call test_send_recv_MD2CFD         ! FROM TEST
+	call test_send_recv_CFD2MD         ! FROM TEST
 
-	call finalise                          ! FROM TEST
+
+	call finalise                      ! FROM TEST
 
 end program test_coupler
 
@@ -123,9 +123,7 @@ subroutine create_realms
 	use mpi
 	implicit none
 
-	integer :: &
-		gridsize(3), &
-		coord(3)
+	integer :: gridsize(3),coord(3)
 	integer	::  callingrealm,ibuf(2),jbuf(2),remote_leader,comm,comm_size
 	logical, dimension(3), parameter :: &
 		periodicity = (/.true.,.false.,.true./)
@@ -764,6 +762,8 @@ subroutine test_gather_scatter
 	integer :: pos, ixyz, icell, jcell, kcell
 	integer :: ncxl,ncyl,nczl
 	integer :: i,j,k
+
+ 	if (olap_mask(rank_world).ne.1) return
 
 	if (realm .eq. md_realm) then	
 

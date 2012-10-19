@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python2.7
 """
 	TOPOLOGY TEST MODULE
 
@@ -48,7 +48,7 @@ class RunClass:
 
 	# Print statement
 	def __str__(self):
-
+		
 		string =  'jobID: ' + str(self.jobID) + '\n'
 		string += '-----------------------------------------\n'
 
@@ -65,7 +65,8 @@ class RunClass:
 	
 	def execute(self):
 		import os	
-	
+
+
 		if (os.path.exists('./logs')):
 
 			logfile = './logs/' + str(self.jobID) + '_log'
@@ -118,7 +119,6 @@ class RunClass:
 		import check
 
 		all_success = True
-
 
 		success = check.vals('info_scatter_md')
 		if success is not 0:

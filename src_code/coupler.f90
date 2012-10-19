@@ -236,9 +236,6 @@ subroutine CPL_create_map
 	!Get ranges of cells on each MD processor
 	call get_md_cell_ranges
 
-    ! Find overlaps between processors
-    !call find_overlaps
-
 	!Get overlapping mapping for MD to CFD
 	call get_overlap_blocks
 
@@ -248,21 +245,7 @@ subroutine CPL_create_map
 	!Setup graph topology
 	call CPL_overlap_topology
 
-
-	!Write Debug information
-	!if (realm .eq. cfd_realm) then
-	!	call write_map_cfd
-	!else if (realm .eq. md_realm) then
-	!	call write_map_md
-	!else
-	!	write(*,*) "Wrong realm in coupler_create_map"
-	!	call MPI_Abort(MPI_COMM_WORLD,COUPLER_ERROR_REALM,ierr)
-	!end if
-	!call write_map_olap
-
-	call MPI_barrier(CPL_WORLD_COMM,ierr)
-
-end subroutine CPL_create_map
+	contains
 
 !------------------------------------------------------------
 !Calculate processor cell ranges of MD code on all processors
@@ -424,8 +407,8 @@ subroutine get_overlap_blocks
 	endproc = ceiling(yL_olap/yLl_cfd)
 	do n = 1,endproc
 	do i = 1,nolapsy
-			cfd_jcoord2olap_md_jcoords(n,i) = (n-1)*nolapsy + i &
-											  + (npy_md - nolapsy)
+		cfd_jcoord2olap_md_jcoords(n,i) =   (n-1)*nolapsy + i &
+										  + (npy_md - nolapsy)
 	end do
 	end do
 
@@ -484,42 +467,42 @@ subroutine get_overlap_blocks
 			
 end subroutine get_overlap_blocks
 
-subroutine intersect_comm
-	use coupler_module
-	use mpi
-	implicit none
+!subroutine intersect_comm
+!	use coupler_module
+!	use mpi
+!	implicit none
 
-	integer :: n
-	integer,dimension(3)   :: pcoords
+!	integer :: n
+!	integer,dimension(3)   :: pcoords
 
 	!Create communicator for all intersecting processors
-	if (realm .eq. cfd_realm) then
-		map%n = npx_md/npx_cfd
-		allocate(map%rank_list(map%n))
+!	if (realm .eq. cfd_realm) then
+!		map%n = npx_md/npx_cfd
+!		allocate(map%rank_list(map%n))
 		!Get rank(s) of overlapping MD processor(s)
-		do n = 1,map%n
-			pcoords(1)=cfd_icoord2olap_md_icoords(rank2coord_cfd(1,rank_realm),n)
-			pcoords(2)=cfd_jcoord2olap_md_jcoords(rank2coord_cfd(2,rank_realm),n)
-			pcoords(3)=cfd_kcoord2olap_md_kcoords(rank2coord_cfd(3,rank_realm),n)
-			if (any(pcoords(:).eq.VOID)) then
-				map%n = 0; map%rank_list(:) = VOID
-			else
-				map%rank_list(n) = coord2rank_md(pcoords(1),pcoords(2),pcoords(3))
-			endif
-			write(250+rank_realm,'(2a,6i5)'), 'overlap',realm_name(realm),rank_realm,map%n,map%rank_list(n),pcoords
-		enddo
-	else if (realm .eq. md_realm) then
-		map%n = 1
-		allocate(map%rank_list(map%n))	
+!		do n = 1,map%n
+!			pcoords(1)=cfd_icoord2olap_md_icoords(rank2coord_cfd(1,rank_realm),n)
+!			pcoords(2)=cfd_jcoord2olap_md_jcoords(rank2coord_cfd(2,rank_realm),n)
+!			pcoords(3)=cfd_kcoord2olap_md_kcoords(rank2coord_cfd(3,rank_realm),n)
+!			if (any(pcoords(:).eq.VOID)) then
+!				map%n = 0; map%rank_list(:) = VOID
+!			else
+!				map%rank_list(n) = coord2rank_md(pcoords(1),pcoords(2),pcoords(3))
+!			endif
+!			write(250+rank_realm,'(2a,6i5)'), 'overlap',realm_name(realm),rank_realm,map%n,map%rank_list(n),pcoords
+!		enddo
+!	else if (realm .eq. md_realm) then
+!		map%n = 1
+!		allocate(map%rank_list(map%n))	
 		!Get rank of overlapping CFD processor
-		pcoords(1) = rank2coord_md(1,rank_realm)*(dble(npx_cfd)/dble(npx_md))
-		pcoords(2) = npy_cfd !rank2coord_md(2,rank_realm)*(dble(npy_cfd)/dble(npy_md))
-		pcoords(3) = rank2coord_md(3,rank_realm)*(dble(npz_cfd)/dble(npz_md))
-		map%rank_list(1) = coord2rank_cfd(pcoords(1),pcoords(2),pcoords(3))
-		write(300+rank_realm,'(2a,6i5)'), 'overlap',realm_name(realm),rank_realm,map%n,map%rank_list(1),pcoords
-	endif
+!		pcoords(1) = rank2coord_md(1,rank_realm)*(dble(npx_cfd)/dble(npx_md))
+!		pcoords(2) = npy_cfd !rank2coord_md(2,rank_realm)*(dble(npy_cfd)/dble(npy_md))
+!		pcoords(3) = rank2coord_md(3,rank_realm)*(dble(npz_cfd)/dble(npz_md))
+!!		map%rank_list(1) = coord2rank_cfd(pcoords(1),pcoords(2),pcoords(3))
+!		write(300+rank_realm,'(2a,6i5)'), 'overlap',realm_name(realm),rank_realm,map%n,map%rank_list(1),pcoords
+!	endif
 
-end subroutine intersect_comm
+!end subroutine intersect_comm
 
 !=========================================================================
 
@@ -738,6 +721,9 @@ subroutine print_overlap_comms
 	
 end subroutine print_overlap_comms
 
+
+end subroutine CPL_create_map
+
 !=============================================================================
 !	Adjust CFD domain size to an integer number of lattice units used by  
 !	MD if sizes are given in sigma units
@@ -775,7 +761,7 @@ subroutine CPL_cfd_adjust_domain(xL, yL, zL, nx, ny, nz, density_cfd)
         cfd_coupler_input%domain%tag = CFD
 	end if
 
-	print*, 'cell type =', cfd_coupler_input%domain%cell_type
+	!print*, 'cell type =', cfd_coupler_input%domain%cell_type
 
     select case (cfd_coupler_input%domain%cell_type)
     case ("FCC","Fcc","fcc")
@@ -1594,22 +1580,28 @@ subroutine CPL_send_xd(asend,icmin_send,icmax_send,jcmin_send, &
 		! of overlap/processor limits
 		call CPL_proc_portion(pcoords,md_realm,limits,portion,ncells)
 
-		! Get data range on processor's local extents
-		iclmin = portion(1)-extents(1)+1;	iclmax = portion(2)-extents(1)+1
-		jclmin = portion(3)-extents(3)+1;	jclmax = portion(4)-extents(3)+1
-		kclmin = portion(5)-extents(5)+1;	kclmax = portion(6)-extents(3)+1
-
         ! Amount of data to be sent
 		if (any(portion.eq.VOID)) then
 			!print*, 'VOID send',realm_name(realm),rank_world,rank_realm
 			ndata = 0
 			if (present(send_flag)) send_flag = .false.
 		else
+
+			! Get data range on processor's local extents
+			iclmin = portion(1)-extents(1)+1;	iclmax = portion(2)-extents(1)+1
+			jclmin = portion(3)-extents(3)+1;	jclmax = portion(4)-extents(3)+1
+			kclmin = portion(5)-extents(5)+1;	kclmax = portion(6)-extents(3)+1
+
 	        ndata = npercell * ncells
 			if (allocated(vbuf)) deallocate(vbuf); allocate(vbuf(ndata))
 			if (present(send_flag)) send_flag = .true.
 			! Pack array into buffer
 			pos = 1
+			!print'(a,5i4,2i6,i4,24i4)', 'send qqqq',rank_world,rank_realm,rank_olap,ndata,nbr,destid, & 
+			!						size(asend),pos,&
+			!						iclmin,   iclmax,   jclmin,   jclmax,   kclmin,   kclmax,     &
+			!						icmin_send,icmax_send,jcmin_send,jcmax_send,kcmin_send,kcmax_send, & 
+			!						portion, extents
 			do kcell=kclmin,kclmax
 			do jcell=jclmin,jclmax
 			do icell=iclmin,iclmax
@@ -1622,11 +1614,6 @@ subroutine CPL_send_xd(asend,icmin_send,icmax_send,jcmin_send, &
 			end do
 			end do
 			! ----------------- pack data for destid -----------------------------
-			!print'(a,5i4,2i6,i4,24i4)', 'send data',rank_world,rank_realm,rank_olap,ndata,nbr,destid, & 
-			!						size(asend),pos,&
-			!						iclmin,   iclmax,   jclmin,   jclmax,   kclmin,   kclmax,     &
-			!						icmin_send,icmax_send,jcmin_send,jcmax_send,kcmin_send,kcmax_send, & 
-			!						portion, extents
 
  			! Send data 
 	        itag = 0 !mod( ncalls, MPI_TAG_UB) !Attention ncall could go over max tag value for long runs!!
@@ -1933,7 +1920,7 @@ subroutine CPL_recv_xd(arecv,icmin_recv,icmax_recv,jcmin_recv, &
 			iclmin = portion(1)-extents(1)+1;	iclmax = portion(2)-extents(1)+1
 			jclmin = portion(3)-extents(3)+1;	jclmax = portion(4)-extents(3)+1
 			kclmin = portion(5)-extents(5)+1;	kclmax = portion(6)-extents(5)+1
-			!print'(a,5i4,2i6,i4,18i4,l)', 'recv data',rank_world,rank_realm,rank_olap,ndata,nbr, & 
+			!print'(a,5i4,2i6,i4,18i4,l)', 'recv qqqq',rank_world,rank_realm,rank_olap,ndata,nbr, & 
 			!							rank_graph2rank_world(sourceid+1),size(arecv),start_address,&
 			!							iclmin,iclmax,jclmin,jclmax,kclmin,kclmax, & 
 			!							portion,extents,recv_flag
@@ -3319,79 +3306,72 @@ end subroutine coupler_cfd_get
 !===============================================================================
 ! Return to the caller coupler parameters from MD realm
 !-------------------------------------------------------------------------------
-subroutine coupler_md_get!(	xL_md,yL_md,zL_md, MD_initial_cellsize, top_dy, &
-!!							overlap_with_continuum_force, overlap_with_top_cfd, ymin_continuum_force, &
-!    						ymax_continuum_force, xmin_cfd_grid, xmax_cfd_grid, zmin_cfd_grid, zmax_cfd_grid, &
-!    						dx_cfd, dz_cfd, cfd_box)
-!    use mpi
-!	use coupler_internal_md, only : bbox,cfd_box_ => cfd_box
-!	use coupler_internal_md, only : xL_md_ =>  xL_md, yL_md_ =>  yL_md, zL_md_ => zL_md, &
-!		b => MD_initial_cellsize, x, y, z,j => jcmax_overlap_cfd, dx, dz, bbox, half_domain_lengths, &
-!        cfd_box_ => cfd_box
-!	use coupler_module, xL_md_=>xL_md,yL_md_=>yL_md,zL_md_=>zL_md, b => MD_initial_cellsize, j=> ncy_olap
-	use coupler_module, only : error_abort
+subroutine coupler_md_get(	xL_md,yL_md,zL_md, MD_initial_cellsize, top_dy, overlap_with_top_cfd) !, &
+							!overlap_with_continuum_force, overlap_with_top_cfd, ymin_continuum_force, &
+    						!ymax_continuum_force, xmin_cfd_grid, xmax_cfd_grid, zmin_cfd_grid, zmax_cfd_grid, &
+    						!dx_cfd, dz_cfd, cfd_box)
+	use coupler_module, xL_md_=>xL_md,yL_md_=>yL_md,zL_md_=>zL_md, b => MD_initial_cellsize, j=> ncy_olap
 	implicit none
 
-	call error_abort
-
-!	real(kind(0.d0)), optional, intent(out) :: xL_md, yL_md, zL_md, MD_initial_cellsize, top_dy,&
-!        ymin_continuum_force,ymax_continuum_force, xmin_cfd_grid, xmax_cfd_grid, &
-!		 zmin_cfd_grid, zmax_cfd_grid, dx_cfd, dz_cfd 
-!    logical, optional, intent(out) :: overlap_with_continuum_force, overlap_with_top_cfd
-!    type(cfd_grid_info), optional, intent(out) :: cfd_box
+	real(kind(0.d0)), optional, intent(out) :: xL_md, yL_md, zL_md, MD_initial_cellsize, top_dy!,&
+  !      ymin_continuum_force,ymax_continuum_force, xmin_cfd_grid, xmax_cfd_grid, &
+	!	 zmin_cfd_grid, zmax_cfd_grid, dx_cfd, dz_cfd 
+    logical, optional, intent(out) :: overlap_with_top_cfd !,overlap_with_continuum_force
+   ! type(cfd_grid_info), optional, intent(out) :: cfd_box
 
 !	real(kind(0.d0)),dimension(3)	:: half_domain_lengths
 
 !	half_domain_lengths = 0.5d0 * (/ xL_md_, yL_md_, zL_md_ /)
 
-!    if (present(xL_md)) then
-!		xL_md = xL_md_
-!	endif
+    if (present(xL_md)) then
+		xL_md = xL_md_
+	endif
 
-!	if (present(yL_md)) then 
-!		yL_md = yL_md_
-!	endif
+	if (present(yL_md)) then 
+		yL_md = yL_md_
+	endif
 
-!	if (present(zL_md)) then 
-!		zL_md = zL_md_
-!	endif
+	if (present(zL_md)) then 
+		zL_md = zL_md_
+	endif
 
-!	if (present(MD_initial_cellsize)) then 
-!!		MD_initial_cellsize = b
-!	endif
+	if (present(MD_initial_cellsize)) then 
+		MD_initial_cellsize = b
+	endif
 
-!	if (present(top_dy)) then
- !   	top_dy = yg(1,j) - yg(1,j-1)
-!	end if
+	if (present(top_dy)) then
+    	top_dy = yg(1,j) - yg(1,j-1)
+	end if
 
- !   if(present(overlap_with_continuum_force)) then
+    !if(present(overlap_with_continuum_force)) then
         ! check if the countinuum force domain is contained in one 
         ! domain along y direction
- !       if ( (yg(1,j - 2) < bbox%bb(1,2) .and. &
- !             yg(1,j - 1) > bbox%bb(1,2)) .or. &
- !            (yg(1,j - 2) < bbox%bb(2,2) .and. &
- !             yg(1,j - 1) > bbox%bb(2,2))) then
- !           write(0,*) " the region in which the continuum constraint force is applied "
- !           write(0,*) " spans over two domains. This case is not programmed, please investigate"
- !           call MPI_Abort(MPI_COMM_WORLD,COUPLER_ERROR_CONTINUUM_FORCE,ierr)
- !       endif
+    !    if ( (yg(1,j - 2) < bbox%bb(1,2) .and. &
+    !          yg(1,j - 1) > bbox%bb(1,2)) .or. &
+    !         (yg(1,j - 2) < bbox%bb(2,2) .and. &
+    !          yg(1,j - 1) > bbox%bb(2,2))) then
+    !        write(0,*) " the region in which the continuum constraint force is applied "
+     !       write(0,*) " spans over two domains. This case is not programmed, please investigate"
+     !       call MPI_Abort(CPL_WORLD_COMM,COUPLER_ERROR_CONTINUUM_FORCE,ierr)
+    !    endif
         
- !       if ( yg(1,j - 1) <  bbox%bb(2,2) .and. yg(1,j - 2) >= bbox%bb(1,2) ) then
- !           overlap_with_continuum_force = .true.
- !       else   
- !           overlap_with_continuum_force = .false.
-  !      endif
+    !    if ( yg(1,j - 1) .lt. bbox%bb(2,2) .and. yg(1,j - 2) .ge. bbox%bb(1,2) ) then
+	!		overlap_with_continuum_force = .true.
+    !    else   
+	!		overlap_with_continuum_force = .false.
+    !    endif
 
-  !  endif
+	!endif
 
-  !   if(present(overlap_with_top_cfd)) then
+	if(present(overlap_with_top_cfd)) then
+		overlap_with_top_cfd = .false.
         ! check if the MD domain overlaps with the top of CFD grid (along y)
         ! the MD constrain force is applyied top layer of cfd cells
  !       if ( yg(1,j - 1) < bbox%bb(2,2) .and. yg(1,j - 1) >= bbox%bb(1,2) ) then
 !            overlap_with_top_cfd = .true.
 !        else   
 !            overlap_with_top_cfd = .false.
-!        endif
+	endif
 
 !    endif
  
