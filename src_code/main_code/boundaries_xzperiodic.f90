@@ -181,7 +181,10 @@ end
 !===============================================================================
 subroutine CartesianBC(deltaT)
 #if USE_COUPLER
-	use continuum_coupler_socket
+	use continuum_coupler_socket, only : socket_coupler_get_md_BC, & 
+										 test_send_recv_MD2CFD,    &
+										 test_send_recv_CFD2MD,    &
+										 test_gather_scatter
 #endif 
 	use boundaries
 	implicit none
@@ -198,12 +201,17 @@ subroutine CartesianBC(deltaT)
 	if (jblock.eq.1) then
 
 #if USE_COUPLER
-		call socket_coupler_get_md_BC(uc,vc,wc)
+
+		! MD=>CFD Receive averages of MD
+		!call socket_coupler_get_md_BC(uc,vc,wc) 
+
 		!print'(a,4f10.5)', 'CFD Bottom BC', maxval(uc(:, :, 0)),minval(uc(:, :, 0)),sum(uc(:, :, 0)),uc(5, 60, 0)
 
-		!do icell=0,nlx+1
-		!	print'(a,2i8,10f10.5)', 'recvd CFD Bottom BC',irank,icell,uc(:, icell, 0)
-		!enddo
+		!Testing exchange codes
+		call test_send_recv_MD2CFD
+		call test_send_recv_CFD2MD
+		call test_gather_scatter
+
 #else
 		select case(BC_bottom)
 		case(0)

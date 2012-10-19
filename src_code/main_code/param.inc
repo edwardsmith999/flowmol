@@ -19,6 +19,6 @@
    parameter (ngx = 128+1 , ngy = 128+1, ngz = 8+1, ngxyz =ngx *ngy *ngz  , nphase=26)
    parameter (ngxm= ngx-1 , ngym= ngy-1, ngzm= ngz-1, ngxyzm=ngxm*ngym*ngzm            )
 
-   parameter (npx=4, npy=1, npz=1, nproc=npx*npy*npz)
+   parameter (npx=2, npy=2, npz=1, nproc=npx*npy*npz)
 
 
