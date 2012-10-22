@@ -46,22 +46,258 @@ module module_parallel_io
 
 	integer		:: restartfileid, fileid, fileidtrue !File name used for parallel i/o
 
-	!Allows write arrays to be used with both integers and reals
-	!interface write_arrays
-	! 	subroutine iwrite_arrays(some_array,nx,ny,nz,nresults,outfile,outstep)
-	!		integer, intent(in)						:: nx,ny,nz,nresults,outstep
-	!		integer, dimension(:,:,:,:),intent(in)	:: some_array!(nx,ny,nz,nresults)
-	!		character(*),intent(in) 				:: outfile
-	!	end subroutine iwrite_arrays
+	!Generic interface so write arrays can be used with both integers and reals
+	interface write_arrays
+		module procedure iwrite_arrays_1, rwrite_arrays_1, iwrite_arrays, rwrite_arrays 
+	end interface write_arrays
 
-	!	subroutine rwrite_arrays(some_array,nx,ny,nz,nresults,outfile,outstep)
-	!		integer, intent(in)						:: nx,ny,nz,nresults,outstep
-	!		double precision, dimension(:,:,:,:),intent(in)	:: some_array!(nx,ny,nz,nresults)
-	!		character(*),intent(in) 				:: outfile
-	!	end subroutine rwrite_arrays
-	!end interface write_arrays
+	private  iwrite_arrays_1, rwrite_arrays_1, iwrite_arrays, rwrite_arrays
 
-end module
+contains
+
+
+!====================================================================
+!			Array writing subroutines
+!--------------------------------------------------------------------
+
+
+! -- Integer arrays --
+
+!	1D array wrapper
+subroutine iwrite_arrays_1(temp,nresults,outfile,outstep)
+
+	integer, intent(in)						:: nresults,outstep
+	integer, dimension(:,:,:),intent(in)	:: temp
+	character(*),intent(in) 				:: outfile
+
+	integer, dimension(:,:,:,:),allocatable	:: some_array
+
+	allocate(some_array(size(temp,1),size(temp,2),size(temp,3),1))
+	some_array(:,:,:,1) = temp(:,:,:)
+	call iwrite_arrays(some_array,nresults,outfile,outstep)
+	deallocate(some_array)
+
+end subroutine iwrite_arrays_1
+
+subroutine iwrite_arrays(some_array,nresults,outfile,outstep)
+	use messenger, only : icomm_grid
+	implicit none
+
+	integer, intent(in)						:: nresults,outstep
+	integer, dimension(:,:,:,:),intent(in)	:: some_array!(nx,ny,nz,nresults)
+	character(*),intent(in) 				:: outfile
+
+	integer									:: n, fh
+	integer 								:: MEM_FLAG = 0
+	integer 								:: FILE_FLAG = 0
+	integer									:: global_cnt,int_size,datatype
+	integer									:: status(mpi_status_size)
+	integer			   						:: filetype, memtype
+	integer (kind=MPI_offset_kind)			:: offset
+	integer, dimension(3)					:: gsizes, lsizes, memsizes
+	integer, dimension(3)					:: global_indices, local_indices
+	integer, dimension(:,:),allocatable 	:: proc_lsizes 
+
+	integer, allocatable,dimension(:,:,:)	:: OutBuffer
+
+	datatype = MPI_INTEGER
+	call MPI_TYPE_SIZE(datatype, int_size, ierr)
+
+	call MPI_file_open(icomm_grid, outfile, MPI_MODE_WRONLY+MPI_MODE_CREATE, &
+			   					MPI_INFO_NULL, fh, ierr)
+
+	!--------- DEFINE LIMITS (FILE & LOCAL SUBARRAY) -------
+	!  Note:  MPI assumes here that numbering starts from zero
+	!  Since numbering starts from (one), subtract (one) from every index
+	!-------------------------------------------------------
+	global_cnt 	= (outstep-1)*gnbins(1)*gnbins(2)*gnbins(3)*nresults
+	offset		= global_cnt * int_size
+	gsizes 		= gnbins
+	lsizes		= nbins
+	local_indices(:) = (/  0  , 0 , 0 /)
+	!Calculate global_indices
+	global_indices(:)= (/  0  , 0 , 0 /)
+	allocate(proc_lsizes(3,nproc))
+	call globalGather(lsizes,proc_lsizes,3)
+	global_indices(1) = sum(proc_lsizes(1,1:iblock-1))
+	global_indices(2) = sum(proc_lsizes(2,1:jblock-1))
+	global_indices(3) = sum(proc_lsizes(3,1:kblock-1))
+	deallocate(proc_lsizes)
+
+	!Allocate ouput buffer
+	allocate(OutBuffer(lsizes(1),lsizes(2),lsizes(3)))
+	memsizes = lsizes
+
+	do n =1,nresults
+		!Copy to outbuffer
+		!print*, n,1+nhb(1),nbins(1)+nhb(1),1+nhb(2),nbins(2)+nhb(2),1+nhb(3),nbins(3)+nhb(3)
+		OutBuffer =  some_array(1+nhb(1):nbins(1)+nhb(1),1+nhb(2):nbins(2)+nhb(2),1+nhb(3):nbins(3)+nhb(3),n)
+		!Update array datatype and reset fileview to correct section of array
+		CALL Create_commit_fileview(gsizes,lsizes,global_indices,offset,datatype,FILE_FLAG,filetype,fh)
+		!Update local array datatype to ignore halo cells
+		CALL Create_commit_subarray(memsizes,lsizes,local_indices,datatype,MEM_FLAG,memtype)
+		!Write to file
+		CALL MPI_file_write_all(fh, OutBuffer, 1, memtype, status, ierr)
+
+		!Calculate global cnt offset
+		global_cnt = global_cnt + gnbins(1)*gnbins(2)*gnbins(3)
+		offset = global_cnt * int_size
+	
+	enddo
+
+	deallocate(OutBuffer)
+	CALL MPI_FILE_CLOSE(fh, ierr)
+
+	!==========================================================
+	!     FREE DATA TYPES
+	!----------------------------------------------------------
+	CALL MPI_BARRIER(icomm_grid,IERR)
+	call MPI_TYPE_FREE(memtype,ierr) ; MEM_FLAG = 0
+	call MPI_TYPE_FREE(filetype,ierr); FILE_FLAG = 0
+
+end subroutine iwrite_arrays
+
+
+! -- Double precision arrays --
+
+!	1D array wrapper
+subroutine rwrite_arrays_1(temp,nresults,outfile,outstep)
+
+	integer, intent(in)								:: nresults,outstep
+	double precision, dimension(:,:,:),intent(in)	:: temp
+	character(*),intent(in) 						:: outfile
+
+	double precision, dimension(:,:,:,:),allocatable	:: some_array
+
+	allocate(some_array(size(temp,1),size(temp,2),size(temp,3),1))
+	some_array(:,:,:,1) = temp(:,:,:)
+	call rwrite_arrays(some_array,nresults,outfile,outstep)
+	deallocate(some_array)
+
+end subroutine rwrite_arrays_1
+
+subroutine rwrite_arrays(some_array,nresults,outfile,outstep)
+	use messenger, only : icomm_grid
+	implicit none
+
+	integer, intent(in)								:: nresults,outstep
+	double precision, dimension(:,:,:,:),intent(in)	:: some_array!(nx,ny,nz,nresults)
+	character(*),intent(in) 						:: outfile
+
+	integer								:: n, fh
+	integer 							:: MEM_FLAG = 0
+	integer 							:: FILE_FLAG = 0
+	integer								:: global_cnt,dp_size,datatype
+	integer								:: status(mpi_status_size)
+	integer			   					:: filetype, memtype
+	integer (kind=MPI_offset_kind)		:: offset
+	integer, dimension(3)				:: gsizes, lsizes, memsizes
+	integer, dimension(3)				:: global_indices, local_indices
+	integer, dimension(:,:),allocatable :: proc_lsizes 
+	double precision, allocatable,dimension(:,:,:) 		:: OutBuffer
+	!print'(a,3i8,9f10.5)','somearray', iter,irank,size(some_array),some_array(6,6,6,:)
+
+	datatype = MPI_DOUBLE_PRECISION
+	call MPI_TYPE_SIZE(datatype, dp_size, ierr)
+
+	call MPI_file_open(icomm_grid, outfile, MPI_MODE_WRONLY+MPI_MODE_CREATE, &
+			   					MPI_INFO_NULL, fh, ierr)
+
+	!--------- DEFINE LIMITS (FILE & LOCAL SUBARRAY) -------
+	!  Note:  MPI assumes here that numbering starts from zero
+	!  Since numbering starts from (one), subtract (one) from every index
+	!-------------------------------------------------------
+	global_cnt 	= (outstep-1)*gnbins(1)*gnbins(2)*gnbins(3)*nresults
+	offset		= global_cnt * dp_size
+	gsizes 		= gnbins
+	lsizes		= nbins
+	local_indices(:) = (/  0  , 0 , 0 /)
+	!Calculate global_indices
+	global_indices(:)= (/  0  , 0 , 0 /)
+	allocate(proc_lsizes(3,nproc))
+	call globalGather(lsizes,proc_lsizes,3)
+	global_indices(1) = sum(proc_lsizes(1,1:iblock-1))
+	global_indices(2) = sum(proc_lsizes(2,1:jblock-1))
+	global_indices(3) = sum(proc_lsizes(3,1:kblock-1))
+	deallocate(proc_lsizes)
+
+	!Allocate ouput buffer
+	allocate(OutBuffer(lsizes(1),lsizes(2),lsizes(3)))
+	memsizes = lsizes
+
+	do n =1,nresults
+		!Copy to outbuffer
+		OutBuffer =  some_array(1+nhb(1):nbins(1)+nhb(1),1+nhb(2):nbins(2)+nhb(2),1+nhb(3):nbins(3)+nhb(3),n)
+		!print*,irank, n, OutBuffer(5,5,5),global_cnt,offset
+		!Update array datatype and reset fileview to correct section of array
+		CALL Create_commit_fileview(gsizes,lsizes,global_indices,offset,datatype,FILE_FLAG,filetype,fh)
+		!Update local array datatype to ignore halo cells
+		CALL Create_commit_subarray(memsizes,lsizes,local_indices,datatype,MEM_FLAG,memtype)
+		!Write to file
+		CALL MPI_file_write_all(fh, OutBuffer, 1, memtype, status, ierr)
+
+		!Calculate global cnt offset
+		global_cnt = global_cnt + gnbins(1)*gnbins(2)*gnbins(3)
+		offset = global_cnt * dp_size
+	
+	enddo
+
+	deallocate(OutBuffer)
+	CALL MPI_FILE_CLOSE(fh, ierr)
+
+	!==========================================================
+	!     FREE DATA TYPES
+	!----------------------------------------------------------
+	CALL MPI_BARRIER(icomm_grid,IERR)
+	call MPI_TYPE_FREE(memtype,ierr) ; MEM_FLAG = 0
+	call MPI_TYPE_FREE(filetype,ierr); FILE_FLAG = 0
+
+end subroutine rwrite_arrays
+
+subroutine Create_commit_fileview(gsizes,lsizes,global_indices,offset,datatype,FILE_FLAG,filetype,fh)
+	implicit none
+
+	integer,intent(inout)						:: filetype
+	integer,intent(in)							:: datatype,fh
+	integer (kind=MPI_offset_kind),intent(in)	:: offset
+	integer, dimension(3),intent(in)			:: gsizes, lsizes, global_indices
+	integer,intent(inout)						:: FILE_FLAG
+
+	if (FILE_FLAG.eq.1) then
+		CALL MPI_TYPE_FREE(filetype,ierr)
+		FILE_FLAG = 0
+	end if
+	CALL MPI_TYPE_CREATE_SUBARRAY(nd, gsizes, lsizes, global_indices, &
+									MPI_ORDER_FORTRAN, datatype,  filetype, ierr)
+	CALL MPI_TYPE_COMMIT(filetype, ierr)
+	CALL MPI_FILE_SET_VIEW(fh, offset, datatype, filetype, &
+			       			'native', MPI_INFO_NULL, ierr)
+	FILE_FLAG = 1
+	
+end subroutine
+
+
+subroutine Create_commit_subarray(memsizes,lsizes,local_indices,datatype,MEM_FLAG,memtype)
+	implicit none
+
+	integer,intent(inout)			:: memtype
+	integer,intent(in)				:: datatype
+	integer, dimension(3),intent(in):: memsizes, lsizes, local_indices
+	integer,intent(inout)			:: MEM_FLAG
+
+
+	if (MEM_FLAG.eq.1) then
+		CALL MPI_TYPE_FREE(memtype,ierr)
+		MEM_FLAG = 0
+	end if
+	CALL MPI_TYPE_CREATE_SUBARRAY(nd, memsizes, lsizes, local_indices, &
+			MPI_ORDER_FORTRAN, datatype,  memtype, ierr)
+	CALL MPI_TYPE_COMMIT(memtype, ierr)
+	MEM_FLAG = 1
+	
+end subroutine
+
+end module module_parallel_io
 
 !======================================================================
 !	        		INPUTS			              =
@@ -1520,7 +1756,7 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 	endif
 
 	!Write mass to file
-	call iwrite_arrays(CV_mass_out,nbinso(1),nbinso(2),nbinso(3),nresults,outfile,m)
+	call write_arrays(CV_mass_out,nresults,outfile,m)
 
 end subroutine mass_bin_io
 
@@ -1644,7 +1880,7 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 	endif
 
 	!Write out arrays
-	call rwrite_arrays(CV_momentum_out,nbinso(1),nbinso(2),nbinso(3),nresults,outfile,m)
+	call write_arrays(CV_momentum_out,nresults,outfile,m)
 
 end subroutine velocity_bin_io
 
@@ -1697,7 +1933,7 @@ subroutine temperature_bin_io(CV_mass_out,CV_temperature_out,io_type)
 		m = (iter-initialstep+1)/(tplot*NTemp_ave)
 	endif
 	!Write temperature to file
-	call rwrite_arrays(CV_temperature_out,nbinso(1),nbinso(2),nbinso(3),nresults,outfile,m)
+	call write_arrays(CV_temperature_out,nresults,outfile,m)
 
 end subroutine temperature_bin_io
 
@@ -1739,7 +1975,7 @@ subroutine energy_bin_io(CV_energy_out,io_type)
 	endif
 
 	!Write Energy to file
-	call rwrite_arrays(CV_energy_out,nbinso(1),nbinso(2),nbinso(3),nresults,outfile,m)
+	call write_arrays(CV_energy_out,nresults,outfile,m)
 
 end subroutine energy_bin_io
 
@@ -1820,7 +2056,7 @@ subroutine VA_stress_io
 		buf = 0.d0; 
 		buf(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1:9) = &
 			reshape(Pxybin,(/nbins(1),nbins(2),nbins(3),nresults/))
-		call rwrite_arrays(buf,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,trim(prefix_dir)//'results/pVA',m)
+		call write_arrays(buf,nresults,trim(prefix_dir)//'results/pVA',m)
 	case(1)
 		!Kinetic
 		!Allocate buf with halo padding and 3x3 stresses reordered as 9 vector.
@@ -1828,14 +2064,14 @@ subroutine VA_stress_io
 		buf = 0.d0; 
 		buf(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1:9) = &
 			reshape(vvbin,(/nbins(1),nbins(2),nbins(3),nresults/))
-		call rwrite_arrays(buf,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,trim(prefix_dir)//'results/pVA_k',m)
+		call write_arrays(buf,nresults,trim(prefix_dir)//'results/pVA_k',m)
 		!Configurational
 		!Allocate buf with halo padding and 3x3 stresses reordered as 9 vector.
 		allocate(buf(nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults))
 		buf = 0.d0; 
 		buf(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1:9) = &
 			reshape(rfbin,(/nbins(1),nbins(2),nbins(3),nresults/))
-		call rwrite_arrays(buf,nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults,trim(prefix_dir)//'results/pVA_c',m)
+		call write_arrays(buf,nresults,trim(prefix_dir)//'results/pVA_c',m)
 	case default
 		stop 'Error in VA/virial extra flag to split_kinetic_& configuartional parts'
 	end select
@@ -1921,8 +2157,8 @@ subroutine mass_flux_io
 	end select
 
 	!Write mass to file
-	call iwrite_arrays(mass_flux,nbinso(1),nbinso(2),nbinso(3),nresults,outfile,m)
-	!call iwrite_arrays(mass_flux,nbinso(1),nbinso(2),nbinso(3),nresults,trim(prefix_dir)//'results/mflux',m)
+	call write_arrays(mass_flux,nresults,outfile,m)
+	!call write_arrays(mass_flux,nbinso(1),nbinso(2),nbinso(3),nresults,trim(prefix_dir)//'results/mflux',m)
 
 end subroutine mass_flux_io
 
@@ -1936,6 +2172,7 @@ subroutine momentum_flux_io
 
 	integer											:: ixyz,i,j,k,n,m,nresults
 	double precision								:: binface
+	double precision,allocatable,dimension(:,:,:,:)	:: temp
 
 	! Swap Halos
 	nresults = 18
@@ -1963,7 +2200,8 @@ subroutine momentum_flux_io
 		call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
 	end select
 
-	call rwrite_arrays(momentum_flux,nbinso(1),nbinso(2),nbinso(3),nresults,trim(prefix_dir)//'results/vflux',m)
+	temp = reshape(momentum_flux,(/ size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),9 /))
+	call write_arrays(temp,nresults,trim(prefix_dir)//'results/vflux',m)
 
 end subroutine momentum_flux_io
 
@@ -2060,7 +2298,7 @@ subroutine surface_stress_io
 
 	integer												:: ixyz,m,nresults,n,i,j,k
 	double precision									:: binface
-	double precision,dimension(:,:,:,:,:),allocatable	:: buf
+	double precision,dimension(:,:,:,:),allocatable		:: temp
 
 	! Swap Halos
 	nresults = 18
@@ -2088,7 +2326,8 @@ subroutine surface_stress_io
 	end select
 
 	!Write surface pressures to file
-	call rwrite_arrays(Pxyface,nbinso(1),nbinso(2),nbinso(3),nresults,trim(prefix_dir)//'results/psurface',m)
+	temp = reshape(Pxyface,(/ size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),9 /))
+	call write_arrays(temp,nresults,trim(prefix_dir)//'results/psurface',m)
 
 end subroutine surface_stress_io
 
@@ -2128,7 +2367,7 @@ subroutine energy_flux_io
 		call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
 	end select
 
-	call rwrite_arrays(energy_flux,nbinso(1),nbinso(2),nbinso(3),nresults,trim(prefix_dir)//'results/eflux',m)
+	call write_arrays(energy_flux,nresults,trim(prefix_dir)//'results/eflux',m)
 
 end subroutine energy_flux_io
 
@@ -2166,7 +2405,7 @@ subroutine surface_power_io
 	case default
 		call error_abort('CV_conserve value used forsurface power is incorrectly defined - should be 0=off or 1=on')
 	end select
-	call rwrite_arrays(Pxyvface,nbinso(1),nbinso(2),nbinso(3),nresults,trim(prefix_dir)//'results/esurface',m)
+	call write_arrays(Pxyvface,nresults,trim(prefix_dir)//'results/esurface',m)
 
 end subroutine surface_power_io
 
@@ -2315,210 +2554,3 @@ subroutine ssf_io
 
 end subroutine ssf_io
 
-!====================================================================
-!			Array writing subroutines
-!--------------------------------------------------------------------
-
-subroutine iwrite_arrays(some_array,nx,ny,nz,nresults,outfile,outstep)
-	use module_parallel_io
-	use messenger, only : icomm_grid
-	implicit none
-
-	integer, intent(in)						:: nx,ny,nz,nresults,outstep
-	integer, dimension(:,:,:,:),intent(in)	:: some_array(nx,ny,nz,nresults)
-	character(*),intent(in) 				:: outfile
-
-	integer									:: n, fh
-	integer 								:: MEM_FLAG = 0
-	integer 								:: FILE_FLAG = 0
-	integer									:: global_cnt,int_size,datatype
-	integer									:: status(mpi_status_size)
-	integer			   						:: filetype, memtype
-	integer (kind=MPI_offset_kind)			:: offset
-	integer, dimension(3)					:: gsizes, lsizes, memsizes
-	integer, dimension(3)					:: global_indices, local_indices
-	integer, dimension(:,:),allocatable 	:: proc_lsizes 
-
-	integer, allocatable,dimension(:,:,:)	:: OutBuffer
-
-	datatype = MPI_INTEGER
-	call MPI_TYPE_SIZE(datatype, int_size, ierr)
-
-	call MPI_file_open(icomm_grid, outfile, MPI_MODE_WRONLY+MPI_MODE_CREATE, &
-			   					MPI_INFO_NULL, fh, ierr)
-
-	!--------- DEFINE LIMITS (FILE & LOCAL SUBARRAY) -------
-	!  Note:  MPI assumes here that numbering starts from zero
-	!  Since numbering starts from (one), subtract (one) from every index
-	!-------------------------------------------------------
-	global_cnt 	= (outstep-1)*gnbins(1)*gnbins(2)*gnbins(3)*nresults
-	offset		= global_cnt * int_size
-	gsizes 		= gnbins
-	lsizes		= nbins
-	local_indices(:) = (/  0  , 0 , 0 /)
-	!Calculate global_indices
-	global_indices(:)= (/  0  , 0 , 0 /)
-	allocate(proc_lsizes(3,nproc))
-	call globalGather(lsizes,proc_lsizes,3)
-	global_indices(1) = sum(proc_lsizes(1,1:iblock-1))
-	global_indices(2) = sum(proc_lsizes(2,1:jblock-1))
-	global_indices(3) = sum(proc_lsizes(3,1:kblock-1))
-	deallocate(proc_lsizes)
-
-	!Allocate ouput buffer
-	allocate(OutBuffer(lsizes(1),lsizes(2),lsizes(3)))
-	memsizes = lsizes
-
-	do n =1,nresults
-		!Copy to outbuffer
-		!print*, n,1+nhb(1),nbins(1)+nhb(1),1+nhb(2),nbins(2)+nhb(2),1+nhb(3),nbins(3)+nhb(3)
-		OutBuffer =  some_array(1+nhb(1):nbins(1)+nhb(1),1+nhb(2):nbins(2)+nhb(2),1+nhb(3):nbins(3)+nhb(3),n)
-		!Update array datatype and reset fileview to correct section of array
-		CALL Create_commit_fileview(gsizes,lsizes,global_indices,offset,datatype,FILE_FLAG,filetype,fh)
-		!Update local array datatype to ignore halo cells
-		CALL Create_commit_subarray(memsizes,lsizes,local_indices,datatype,MEM_FLAG,memtype)
-		!Write to file
-		CALL MPI_file_write_all(fh, OutBuffer, 1, memtype, status, ierr)
-
-		!Calculate global cnt offset
-		global_cnt = global_cnt + gnbins(1)*gnbins(2)*gnbins(3)
-		offset = global_cnt * int_size
-	
-	enddo
-
-	deallocate(OutBuffer)
-	CALL MPI_FILE_CLOSE(fh, ierr)
-
-	!==========================================================
-	!     FREE DATA TYPES
-	!----------------------------------------------------------
-	CALL MPI_BARRIER(icomm_grid,IERR)
-	call MPI_TYPE_FREE(memtype,ierr) ; MEM_FLAG = 0
-	call MPI_TYPE_FREE(filetype,ierr); FILE_FLAG = 0
-
-end subroutine iwrite_arrays
-
-!Double precision arrays
-subroutine rwrite_arrays(some_array,nx,ny,nz,nresults,outfile,outstep)
-	use module_parallel_io
-	use messenger, only : icomm_grid
-	implicit none
-
-	integer, intent(in)								:: nx,ny,nz,nresults,outstep
-	double precision, dimension(:,:,:,:),intent(in)	:: some_array(nx,ny,nz,nresults)
-	character(*),intent(in) 						:: outfile
-
-	integer								:: n, fh
-	integer 							:: MEM_FLAG = 0
-	integer 							:: FILE_FLAG = 0
-	integer								:: global_cnt,dp_size,datatype
-	integer								:: status(mpi_status_size)
-	integer			   					:: filetype, memtype
-	integer (kind=MPI_offset_kind)		:: offset
-	integer, dimension(3)				:: gsizes, lsizes, memsizes
-	integer, dimension(3)				:: global_indices, local_indices
-	integer, dimension(:,:),allocatable :: proc_lsizes 
-	double precision, allocatable,dimension(:,:,:) 		:: OutBuffer
-	!print'(a,3i8,9f10.5)','somearray', iter,irank,size(some_array),some_array(6,6,6,:)
-
-	datatype = MPI_DOUBLE_PRECISION
-	call MPI_TYPE_SIZE(datatype, dp_size, ierr)
-
-	call MPI_file_open(icomm_grid, outfile, MPI_MODE_WRONLY+MPI_MODE_CREATE, &
-			   					MPI_INFO_NULL, fh, ierr)
-
-	!--------- DEFINE LIMITS (FILE & LOCAL SUBARRAY) -------
-	!  Note:  MPI assumes here that numbering starts from zero
-	!  Since numbering starts from (one), subtract (one) from every index
-	!-------------------------------------------------------
-	global_cnt 	= (outstep-1)*gnbins(1)*gnbins(2)*gnbins(3)*nresults
-	offset		= global_cnt * dp_size
-	gsizes 		= gnbins
-	lsizes		= nbins
-	local_indices(:) = (/  0  , 0 , 0 /)
-	!Calculate global_indices
-	global_indices(:)= (/  0  , 0 , 0 /)
-	allocate(proc_lsizes(3,nproc))
-	call globalGather(lsizes,proc_lsizes,3)
-	global_indices(1) = sum(proc_lsizes(1,1:iblock-1))
-	global_indices(2) = sum(proc_lsizes(2,1:jblock-1))
-	global_indices(3) = sum(proc_lsizes(3,1:kblock-1))
-	deallocate(proc_lsizes)
-
-	!Allocate ouput buffer
-	allocate(OutBuffer(lsizes(1),lsizes(2),lsizes(3)))
-	memsizes = lsizes
-
-	do n =1,nresults
-		!Copy to outbuffer
-		OutBuffer =  some_array(1+nhb(1):nbins(1)+nhb(1),1+nhb(2):nbins(2)+nhb(2),1+nhb(3):nbins(3)+nhb(3),n)
-		!print*,irank, n, OutBuffer(5,5,5),global_cnt,offset
-		!Update array datatype and reset fileview to correct section of array
-		CALL Create_commit_fileview(gsizes,lsizes,global_indices,offset,datatype,FILE_FLAG,filetype,fh)
-		!Update local array datatype to ignore halo cells
-		CALL Create_commit_subarray(memsizes,lsizes,local_indices,datatype,MEM_FLAG,memtype)
-		!Write to file
-		CALL MPI_file_write_all(fh, OutBuffer, 1, memtype, status, ierr)
-
-		!Calculate global cnt offset
-		global_cnt = global_cnt + gnbins(1)*gnbins(2)*gnbins(3)
-		offset = global_cnt * dp_size
-	
-	enddo
-
-	deallocate(OutBuffer)
-	CALL MPI_FILE_CLOSE(fh, ierr)
-
-	!==========================================================
-	!     FREE DATA TYPES
-	!----------------------------------------------------------
-	CALL MPI_BARRIER(icomm_grid,IERR)
-	call MPI_TYPE_FREE(memtype,ierr) ; MEM_FLAG = 0
-	call MPI_TYPE_FREE(filetype,ierr); FILE_FLAG = 0
-
-end subroutine rwrite_arrays
-
-subroutine Create_commit_fileview(gsizes,lsizes,global_indices,offset,datatype,FILE_FLAG,filetype,fh)
-	use module_parallel_io
-	implicit none
-
-	integer,intent(inout)						:: filetype
-	integer,intent(in)							:: datatype,fh
-	integer (kind=MPI_offset_kind),intent(in)	:: offset
-	integer, dimension(3),intent(in)			:: gsizes, lsizes, global_indices
-	integer,intent(inout)						:: FILE_FLAG
-
-	if (FILE_FLAG.eq.1) then
-		CALL MPI_TYPE_FREE(filetype,ierr)
-		FILE_FLAG = 0
-	end if
-	CALL MPI_TYPE_CREATE_SUBARRAY(nd, gsizes, lsizes, global_indices, &
-									MPI_ORDER_FORTRAN, datatype,  filetype, ierr)
-	CALL MPI_TYPE_COMMIT(filetype, ierr)
-	CALL MPI_FILE_SET_VIEW(fh, offset, datatype, filetype, &
-			       			'native', MPI_INFO_NULL, ierr)
-	FILE_FLAG = 1
-	
-end subroutine
-
-
-subroutine Create_commit_subarray(memsizes,lsizes,local_indices,datatype,MEM_FLAG,memtype)
-	use module_parallel_io
-	implicit none
-
-	integer,intent(inout)			:: memtype
-	integer,intent(in)				:: datatype
-	integer, dimension(3),intent(in):: memsizes, lsizes, local_indices
-	integer,intent(inout)			:: MEM_FLAG
-
-
-	if (MEM_FLAG.eq.1) then
-		CALL MPI_TYPE_FREE(memtype,ierr)
-		MEM_FLAG = 0
-	end if
-	CALL MPI_TYPE_CREATE_SUBARRAY(nd, memsizes, lsizes, local_indices, &
-			MPI_ORDER_FORTRAN, datatype,  memtype, ierr)
-	CALL MPI_TYPE_COMMIT(memtype, ierr)
-	MEM_FLAG = 1
-	
-end subroutine
