@@ -32,11 +32,11 @@ os.mkdir('./logs')
 set_defaults()
 
 # Parameter study
-npxmdlist = [2,4,8,16]
-npymdlist = [2,4,8,16]
-for NPXMDTEST in npxmdlist:
-	for NPYMDTEST in npymdlist:
-		job = RunClass( NPXMDTEST, NPYMDTEST, npz_md, npx_cfd, npy_cfd, npz_cfd )
+npxmdlist  = [2,4,6,8,10,12]
+npycfdlist = [2,3,4,5,6,7,8]
+for npx_md in npxmdlist:
+	for npy_cfd in npycfdlist:
+		job = RunClass( npx_md, npy_md, npz_md, npx_cfd, npy_cfd, npz_cfd )
 		print(job)
 		job.execute()
 		job.concatenate()

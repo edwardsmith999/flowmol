@@ -19,9 +19,12 @@ class RunClass:
 	def __init__(self, npx_md,  npy_md,  npz_md, 
 	                   npx_cfd, npy_cfd, npz_cfd):
 		from re import sub 
-		from os import mkdir
+		from os import system
 
 		global prevjobID
+
+		# Remove any previous "info" files
+		system('rm info_*')
 
 		# Create new ID for every job initialised
 		self.jobID = prevjobID + 1

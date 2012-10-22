@@ -2,7 +2,7 @@
 4			!npy_md 
 1			!npz_md 
 2			!npx_cfd 
-4			!npy_cfd 
+2			!npy_cfd 
 1			!npz_cfd 
 128			!ncx
 128  		!ncy
