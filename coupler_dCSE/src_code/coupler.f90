@@ -343,31 +343,12 @@ subroutine get_overlap_blocks
 	use coupler_module
 	implicit none
 
-	integer				:: npx_ratio,npy_ratio,npz_ratio
 	integer 			:: i,n,endproc,nolapsx,nolapsy,nolapsz
 	integer             :: xLl_md, yLl_md, zLl_md
 	integer				:: yLl_cfd
 	integer,dimension(3):: pcoords
 
-	!Get processor ratios between md & cfd
-	npx_ratio=nint(dble(npx_md)/dble(npx_cfd))
-	npy_ratio=nint(dble(npy_md)/dble(npy_cfd))
-	npz_ratio=nint(dble(npz_md)/dble(npz_cfd))
-
-	!Check MD/CFD ratios are integers
-	if (mod(npx_md,npx_cfd) .ne. 0) then
-		print'(a,i8,a,i8)', ' number of MD processors in x ', npx_md,        & 
-				            ' number of CFD processors in x ', npx_cfd
-		call error_abort("get_overlap_blocks error - number of MD "       // & 
-		                 "processors in x must be an integer multiple "   // &
-		                 "of number of CFD processors in x")
-	elseif (mod(npz_md,npz_cfd) .ne. 0) then
-		print'(a,i8,a,i8)', ' number of MD processors in z ', npz_md,        & 
-				            ' number of CFD processors in z ', npz_cfd
-		call error_abort("get_overlap_blocks error - number of MD "       // &
-		                 "processors in z must be an integer multiple "   // &
-		                 "of number of CFD processors in z")
-	endif
+	call check_config_feasibility
 
 	xL_olap = ncx_olap * dx 
 	yL_olap = ncy_olap * dy 
@@ -458,8 +439,40 @@ subroutine get_overlap_blocks
 		write(6000+myid_world,*), '-------------------------------------------'
 
 	endif
-			
+
 end subroutine get_overlap_blocks
+
+subroutine check_config_feasibility
+	implicit none
+
+	integer :: ncyl
+	character(len=128) :: string
+
+	! Check there is only one overlap CFD proc in y
+	ncyl = nint( dble(ncy) / dble(npy_cfd) )
+	if (ncy_olap .gt. ncyl) then
+	    string = "This coupler will not work if there is more than one "// &
+		         "CFD (y-coordinate) in the overlapping region. "       // &
+		         "Aborting simulation."
+		call error_abort(string)
+	end if	
+	
+	! Check MD/CFD ratios are integers in x and z
+	if (mod(npx_md,npx_cfd) .ne. 0) then
+		print'(a,i8,a,i8)', ' number of MD processors in x ', npx_md,     & 
+							' number of CFD processors in x ', npx_cfd
+		call error_abort("get_overlap_blocks error - number of MD "    // & 
+						 "processors in x must be an integer multiple "// &
+						 "of number of CFD processors in x")
+	elseif (mod(npz_md,npz_cfd) .ne. 0) then
+		print'(a,i8,a,i8)', ' number of MD processors in z ', npz_md,     & 
+							' number of CFD processors in z ', npz_cfd
+		call error_abort("get_overlap_blocks error - number of MD "    // &
+						 "processors in z must be an integer multiple "// &
+						 "of number of CFD processors in z")
+	endif
+
+end subroutine check_config_feasibility
 
 !subroutine intersect_comm
 !	use coupler_module
