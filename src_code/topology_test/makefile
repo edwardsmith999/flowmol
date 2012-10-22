@@ -1,4 +1,3 @@
-#SOURCES= ./../coupler_parameters.f90 ./../coupler_module.f90 ./../coupler_input_data.f90  ./../coupler_internal_cfd.f90 ./../coupler_internal_md.f90 ./../coupler.f90 ./test_coupler.f90
 SOURCES= ../coupler_parameters.f90 ../coupler_module.f90 ../coupler_input_data.f90 ../coupler.f90 ./test_coupler.f90
 
 a.out: *.f90

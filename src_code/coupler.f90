@@ -231,8 +231,6 @@ subroutine CPL_create_map
 	use coupler_module
 	implicit none
 
-	integer		:: n
-
 	!Get ranges of cells on each MD processor
 	call get_md_cell_ranges
 
@@ -245,7 +243,7 @@ subroutine CPL_create_map
 	!Setup graph topology
 	call CPL_overlap_topology
 
-	contains
+contains
 
 !------------------------------------------------------------
 !Calculate processor cell ranges of MD code on all processors
@@ -358,21 +356,17 @@ subroutine get_overlap_blocks
 
 	!Check MD/CFD ratios are integers
 	if (mod(npx_md,npx_cfd) .ne. 0) then
-		print'(a,i8,a,i8)', ' number of MD processors in x ', npx_md, & 
+		print'(a,i8,a,i8)', ' number of MD processors in x ', npx_md,        & 
 				            ' number of CFD processors in x ', npx_cfd
-		call error_abort("get_overlap_blocks error - number of MD processors in x " // &
-						 "must be an integer multiple of number of CFD processors in x")
-	!elseif (mod(npy_md,npy_cfd) .ne. 0) then
-	!	print*, 'number of MD processors in y ', npy_md, & 
-	!			'number of CFD processors in y', npy_cfd
-	!	call error_abort("get_overlap_blocks error - number of MD processors in y " //
-	!					 "must be an integer multiple of number of CFD processors in y")
+		call error_abort("get_overlap_blocks error - number of MD "       // & 
+		                 "processors in x must be an integer multiple "   // &
+		                 "of number of CFD processors in x")
 	elseif (mod(npz_md,npz_cfd) .ne. 0) then
-		print'(a,i8,a,i8)', ' number of MD processors in z ', npz_md, & 
+		print'(a,i8,a,i8)', ' number of MD processors in z ', npz_md,        & 
 				            ' number of CFD processors in z ', npz_cfd
-		call error_abort("get_overlap_blocks error - number of MD processors in z " // &
-						 "must be an integer multiple of number of CFD processors in z")
-
+		call error_abort("get_overlap_blocks error - number of MD "       // &
+		                 "processors in z must be an integer multiple "   // &
+		                 "of number of CFD processors in z")
 	endif
 
 	xL_olap = ncx_olap * dx 
@@ -590,7 +584,7 @@ subroutine prepare_overlap_comms
 
 	! Split world Comm into a set of comms for overlapping processors
 	call MPI_comm_split(CPL_WORLD_COMM,group(rank_world),realm, &
-						CPL_OLAP_COMM,ierr)
+	                    CPL_OLAP_COMM,ierr)
 
 	!Setup Overlap comm sizes and id
 	if (realm.eq.cfd_realm) CFDid_olap = myid_olap
@@ -609,7 +603,7 @@ subroutine prepare_overlap_comms
 
 	!Setup overlap map
 	call CPL_rank_map(CPL_OLAP_COMM,rank_olap,nproc_olap, & 
-					 rank_olap2rank_world,rank_world2rank_olap,ierr)
+	                  rank_olap2rank_world,rank_world2rank_olap,ierr)
 	myid_olap = rank_olap - 1
 
 	deallocate(mdicoords)
@@ -639,8 +633,9 @@ subroutine CPL_overlap_topology
 	if (olap_mask(rank_world).eq.1) then
 
 		!CFD processor is root and has mapping to all MD processors
-		allocate(index(nproc_olap))			!Index for each processor
-		allocate(edges(2*(nproc_olap)-1))	!nproc_olap-1 for CFD and one for each of nproc_olap MD processors
+		allocate(index(nproc_olap))			! Index for each processor
+		allocate(edges(2*(nproc_olap)-1))	! nproc_olap-1 for CFD and one for
+		                                    ! each of nproc_olap MD processors
 		index = 0; 	edges = 0
 
 		!CFD processor has connections to nproc_olap MD processors
@@ -732,7 +727,8 @@ end subroutine CPL_create_map
 subroutine CPL_cfd_adjust_domain(xL, yL, zL, nx, ny, nz, density_cfd)
     use mpi
     use coupler_input_data
-    use coupler_module, only : b => MD_initial_cellsize, CPL_REALM_COMM, rank_realm, ierr
+    use coupler_module, only : b => MD_initial_cellsize, CPL_REALM_COMM, &
+	                           rank_realm, ierr
     implicit none
 
     integer, optional, intent(inout) 			:: nx, ny, nz
@@ -748,7 +744,6 @@ subroutine CPL_cfd_adjust_domain(xL, yL, zL, nx, ny, nz, density_cfd)
 	!Define root processes
 	root = 1
 
-    ! Local rank, useful for messeges
     if (density_tag == CPL) then 
         density_cfd = density
     else
@@ -767,7 +762,8 @@ subroutine CPL_cfd_adjust_domain(xL, yL, zL, nx, ny, nz, density_cfd)
     case ("FCC","Fcc","fcc")
 		b = (4.d0/density)**(1.d0/3.d0)
     case default
-		write(*,*) "Wrong unit cell type in coupler_cfd_adjust_domain. Stopping ... "
+		write(*,*) "Wrong unit cell type in coupler_cfd_adjust_domain. " // &
+		           "Stopping ... "
 		ierror = COUPLER_ERROR_INIT
  		call MPI_Abort(MPI_COMM_WORLD,ierror,ierr)
     end select
@@ -778,19 +774,22 @@ subroutine CPL_cfd_adjust_domain(xL, yL, zL, nx, ny, nz, density_cfd)
 	changed = .false.
     if (present(xL)) then
  		xyz_ptr => cfd_coupler_input%domain%x
-        call init_length(xyz_ptr,xL,resize=.true.,direction='x',print_warning=changed)
+        call init_length(xyz_ptr,xL,resize=.true.,direction='x', &
+		                 print_warning=changed)
     endif
 
     if (present(yL)) then
 		! No need to adjust y because we can adjust DY in MD to
 		! have an integer number of FCC units.
 		xyz_ptr => cfd_coupler_input%domain%y
-		call init_length(xyz_ptr,yL,resize=.false.,direction='y',print_warning=changed)
+		call init_length(xyz_ptr,yL,resize=.false.,direction='y', &
+		                 print_warning=changed)
     endif
 
     if (present(zL)) then
         xyz_ptr => cfd_coupler_input%domain%z
-        call init_length(xyz_ptr,zL,resize=.true.,direction='z',print_warning=changed)
+        call init_length(xyz_ptr,zL,resize=.true.,direction='z', &
+		                 print_warning=changed)
     endif
 
 	if (changed .and. cfd_code_id .ne. couette_serial) then
@@ -804,7 +803,8 @@ subroutine CPL_cfd_adjust_domain(xL, yL, zL, nx, ny, nz, density_cfd)
             nx = cfd_coupler_input%ncells%x
         else
             if(rank_realm .eq. root) then
-                write(0,*)"WARNING: nx is present in coupler_cfd_adjust_domain argument list"
+                write(0,*)"WARNING: nx is present in " // &
+				          "coupler_cfd_adjust_domain argument list"
                 write(0,*)"         but coupler_input%ncells tag is void."
                 write(0,*)"         Using CFD input value!"
             endif
@@ -817,7 +817,8 @@ subroutine CPL_cfd_adjust_domain(xL, yL, zL, nx, ny, nz, density_cfd)
             ny = cfd_coupler_input%ncells%y
         else
             if(rank_realm .eq. root) then
-                write(0,*)"WARNING: ny is present in coupler_cfd_adjust_domain argument list"
+                write(0,*)"WARNING: ny is present in " // &
+				          "coupler_cfd_adjust_domain argument list"
                 write(0,*)"         but coupler_input%ncells tag is void."
                 write(0,*)"         Using CFD input value!"
             endif
@@ -830,7 +831,8 @@ subroutine CPL_cfd_adjust_domain(xL, yL, zL, nx, ny, nz, density_cfd)
             nz = cfd_coupler_input%ncells%z
         else
             if(rank_realm .eq. root) then
-                write(0,*)"WARNING: nz is present in coupler_cfd_adjust_domain argument list"
+                write(0,*)"WARNING: nz is present in " // &
+				          "coupler_cfd_adjust_domain argument list"
                 write(0,*)"         but coupler_input%ncells tag is void."
                 write(0,*)"         Using CFD input value!"
             endif
@@ -853,8 +855,7 @@ subroutine init_length(rin,rout,resize,direction,print_warning)
 	character(*),intent(in) 			 :: direction
     logical,intent(out)					 :: print_warning
 
-    real(kind=kind(0.d0)) :: rinit  ! store the initial value of rout or rin needed for print
-
+    real(kind=kind(0.d0)) :: rinit  ! initial val of rout or rin for print
 
     print_warning=.false.
 
@@ -908,7 +909,6 @@ end subroutine init_length
 
 !-----------------------------------------------------------------------------
 
-
 subroutine test_cfd_cell_sizes
     implicit none
 
@@ -950,34 +950,41 @@ end subroutine test_cfd_cell_sizes
 end subroutine CPL_cfd_adjust_domain
 
 !=============================================================================
-! Simulation  Simulation  Simulation  Simulation  Simulation  Simulation  
+!				 _____ _                 _       _   _             
+!				/  ___(_)               | |     | | (_)            
+!				\ `--. _ _ __ ___  _   _| | __ _| |_ _  ___  _ __  
+!				 `--. \ | '_ ` _ \| | | | |/ _` | __| |/ _ \| '_ \ 
+!				/\__/ / | | | | | | |_| | | (_| | |_| | (_) | | | |
+!				\____/|_|_| |_| |_|\__,_|_|\__,_|\__|_|\___/|_| |_|
 !
-!							SIMULATION
-!
-! Simulation  Simulation  Simulation  Simulation  Simulation  Simulation  
-!=============================================================================
-
 !------------------------------------------------------------------------------
 !                              CPL_gather                                     -
 !------------------------------------------------------------------------------
-
+!
 ! Perform gather operation on CPL_OLAP_COMM communicator. The CFD processor
 ! is the root process.  
-
+!
 ! - - - Synopsis - - -
-
-! CPL_gather(gatherarray,npercell)
-
+!
+! CPL_gather(gatherarray,npercell,limits,recvarray)
+!
 ! - - - Input Parameters - - -
-
-!gatherarray
+!
+! gatherarray
 !	assumed shape array of data to be gathered (double precision)
-!npercell
+! limits
+!	integer array of length 6, specifying the global cell extents of the
+!	region to be gathered, is the same on all processors.
+! npercell
 !	number of data points per cell to be gathered (integer)
 !	note - should be the same as size(gatherarray(1)) for MD proc
-
+!
+! - - - In/Out Parameters - - -
+! recvarray
+!	the array in which the gathered values are stored
+! 
 ! - - - Output Parameters - - -
-! - NONE -
+! 
 
 subroutine CPL_gather(gatherarray,npercell,limits,recvarray)!todo better name than recvarray
 	use mpi
@@ -998,8 +1005,9 @@ subroutine CPL_gather(gatherarray,npercell,limits,recvarray)!todo better name th
 	
 	if (realm.eq.md_realm) call pack_sendbuf
 
-	call MPI_gatherv(sendbuf,sendcount,MPI_DOUBLE_PRECISION,recvbuf,recvcounts,&
-	                 displs,MPI_DOUBLE_PRECISION,CFDid_olap,CPL_OLAP_COMM,ierr)
+	call MPI_gatherv(sendbuf,sendcount,MPI_DOUBLE_PRECISION,recvbuf,    &
+	                 recvcounts,displs,MPI_DOUBLE_PRECISION,CFDid_olap, &
+	                 CPL_OLAP_COMM,ierr)
 
 	if (realm.eq.cfd_realm) call unpack_recvbuf 
 
@@ -1176,18 +1184,25 @@ end subroutine CPL_gather
 
 ! - - - Synopsis - - -
 
-! CPL_scatter(scatterarray,npercell)
+! CPL_scatter(scatterarray,npercell,limits,recvarray)
 
 ! - - - Input Parameters - - -
 
 !scatterarray
 !	assumed shape array of data to be scattered (double precision)
+! limits
+!	integer array of length 6, specifying the global cell extents of the
+!	region to be scattered, is the same on all processors.
 !npercell
 !	number of data points per cell to be scattered (integer)
 !	note - should be the same as size(scatterarray(1)) for CFD proc
-
+!
+! - - - In/Out Parameters - - -
+! recvarray
+!	the array in which the scattered values are stored
+!
 ! - - - Output Parameters - - -
-! - NONE -
+! 
 
 subroutine CPL_scatter(scatterarray,npercell,limits,recvarray)
 	use coupler_module
