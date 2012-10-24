@@ -60,6 +60,12 @@ subroutine test_setup_input_and_arrays
 		read(1,*) kcmax_olap 
 	close(1)
 
+	icmin = 1
+	jcmin = 1
+	kcmin = 1
+	icmax = ncx
+	jcmax = ncy
+	kcmax = ncz
 
 	! Calcs	
 	ncx_olap = icmax_olap - icmin_olap + 1

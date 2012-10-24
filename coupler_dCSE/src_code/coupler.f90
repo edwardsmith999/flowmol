@@ -231,16 +231,19 @@ subroutine CPL_create_map
 	use coupler_module
 	implicit none
 
-	!Get ranges of cells on each MD processor
+	! Check (as best as one can) that the inputs will work
+	call check_config_feasibility
+
+	! Get ranges of cells on each MD processor
 	call get_md_cell_ranges
 
-	!Get overlapping mapping for MD to CFD
+	! Get overlapping mapping for MD to CFD
 	call get_overlap_blocks
 
-	!Setup overlap communicators
+	! Setup overlap communicators
 	call prepare_overlap_comms
 
-	!Setup graph topology
+	! Setup graph topology
 	call CPL_overlap_topology
 
 contains
@@ -348,8 +351,6 @@ subroutine get_overlap_blocks
 	integer				:: yLl_cfd
 	integer,dimension(3):: pcoords
 
-	call check_config_feasibility
-
 	xL_olap = ncx_olap * dx 
 	yL_olap = ncy_olap * dy 
 	zL_olap = ncz_olap * dz 
@@ -445,31 +446,83 @@ end subroutine get_overlap_blocks
 subroutine check_config_feasibility
 	implicit none
 
-	integer :: ncyl
-	character(len=128) :: string
+	integer :: ival
+	character(len=256) :: string
 
 	! Check there is only one overlap CFD proc in y
-	ncyl = nint( dble(ncy) / dble(npy_cfd) )
-	if (ncy_olap .gt. ncyl) then
+	ival = nint( dble(ncy) / dble(npy_cfd) )
+	if (ncy_olap .gt. ival) then
+
 	    string = "This coupler will not work if there is more than one "// &
 		         "CFD (y-coordinate) in the overlapping region. "       // &
 		         "Aborting simulation."
+
 		call error_abort(string)
-	end if	
+
+	end if
+
+
+	! Check whether ncx,ncy,ncz are an integer multiple of npx_md, etc.
+	! - N.B. no need to check ncy/npy_md.
+	ival = 0
+	ival = ival + mod(ncx,npx_cfd)
+	ival = ival + mod(ncy,npy_cfd)
+	ival = ival + mod(ncz,npz_cfd)
+	ival = ival + mod(ncx,npx_md)
+	ival = ival + mod(ncz,npz_md)
+	if (ival.ne.0) then	
+		string = "The number of cells in the cfd domain is not an "    // &
+		         "integer multiple of the number of processors in "    // &
+		         "the x and z directions. Aborting simulation."	
+		call error_abort(string)
+	end if
+
+	! Check that the MD region is large enough to cover overlap
+	ival = 0
+	ival = ival + floor(xL_olap/xL_md)
+	ival = ival + floor(yL_olap/yL_md)
+	ival = ival + floor(zL_olap/zL_md)
+	if (ival.ne.0) then	
+		string = "Overlap region is larger than the MD region. "       // &
+		         "Aborting simulation."
+		call error_abort(string)
+	end if
+
+
+	! Check overlap cells are within CFD extents
+	ival = 0
+	if (icmin_olap.lt.icmin) ival = ival + 1		
+	if (icmax_olap.gt.icmax) ival = ival + 1		
+	if (jcmin_olap.lt.jcmin) ival = ival + 1		
+	if (jcmax_olap.gt.jcmax) ival = ival + 1		
+	if (kcmin_olap.lt.kcmin) ival = ival + 1		
+	if (kcmax_olap.gt.kcmax) ival = ival + 1		
+	if (ival.ne.0) then
+		string = "Overlap region has been specified outisde of the "  // &
+		         "CFD region. Aborting simulation."
+		call error_abort(string)
+	end if
 	
+		
 	! Check MD/CFD ratios are integers in x and z
 	if (mod(npx_md,npx_cfd) .ne. 0) then
+
 		print'(a,i8,a,i8)', ' number of MD processors in x ', npx_md,     & 
 							' number of CFD processors in x ', npx_cfd
+
 		call error_abort("get_overlap_blocks error - number of MD "    // & 
 						 "processors in x must be an integer multiple "// &
 						 "of number of CFD processors in x")
+
 	elseif (mod(npz_md,npz_cfd) .ne. 0) then
+
 		print'(a,i8,a,i8)', ' number of MD processors in z ', npz_md,     & 
 							' number of CFD processors in z ', npz_cfd
+
 		call error_abort("get_overlap_blocks error - number of MD "    // &
 						 "processors in z must be an integer multiple "// &
 						 "of number of CFD processors in z")
+
 	endif
 
 end subroutine check_config_feasibility
@@ -1013,7 +1066,7 @@ subroutine CPL_gather(gatherarray,npercell,limits,recvarray)!todo better name th
 	integer, dimension(:), allocatable :: recvcounts, displs
 	real(kind(0.d0)), dimension(:), allocatable :: sendbuf 
 	real(kind(0.d0)), dimension(:), allocatable :: recvbuf 
-		
+	
 	call prepare_gatherv_parameters	
 	
 	if (realm.eq.md_realm) call pack_sendbuf
@@ -1034,6 +1087,20 @@ contains
 		integer :: coord(3),portion(6)
 		integer :: ncells,bufsize
 		integer :: trank_olap,tid_olap
+		
+		! Check send limits are inside overlap region
+		if (limits(1) .lt. icmin .or. &
+		    limits(2) .gt. icmax .or. &
+		    limits(3) .lt. jcmin .or. &
+		    limits(4) .gt. jcmax .or. &
+		    limits(5) .lt. kcmin .or. &
+		    limits(6) .lt. kcmax) then
+			
+			call error_abort("Gather limits are outside global domain. " // &
+			                 "Aborting simulation.")
+			
+		end if 
+		
 
 		! Check if CFD processor has tried to "send" anything
 		if (myid_olap.eq.CFDid_olap .and. any(shape(gatherarray).ne.0)) then
@@ -1253,6 +1320,19 @@ contains
 		integer :: coord(3),portion(6)
 		integer :: bufsize
 		integer :: trank_olap, tid_olap
+
+		! Check send limits are inside overlap region
+		if (limits(1) .lt. icmin .or. &
+		    limits(2) .gt. icmax .or. &
+		    limits(3) .lt. jcmin .or. &
+		    limits(4) .gt. jcmax .or. &
+		    limits(5) .lt. kcmin .or. &
+		    limits(6) .lt. kcmax) then
+			
+			call error_abort("Scatter limits are outside global domain. " // &
+			                 "Aborting simulation.")
+			
+		end if 
 
 		if (realm.eq.cfd_realm) then
 			call CPL_Cart_coords(CPL_CART_COMM,rank_cart,cfd_realm,3,coord,ierr)

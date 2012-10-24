@@ -13,10 +13,8 @@ def vals(filename):
 	size = os.path.getsize(filename)
 	if (size == 0):
 		all_correct = False
-		string = 'File is empty '+filename 
-		print(string) 
-
-	print('Checking values in file '+filename+'...')
+#		string = 'File is empty '+filename 
+#		print(string) 
 
 	# Read cells and values
 	for line in iter(fobj.readline,""):
