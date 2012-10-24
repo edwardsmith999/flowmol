@@ -18,23 +18,23 @@ cmd = 'mpiexec -n ' + str(nproc) + ' ./a.out'
 print(cmd)
 system(cmd)
 
-cmd = 'cat fort.1* > info_realms && rm fort.1*'
+cmd = 'cat fort.1* > info_realms     2> /dev/null && rm fort.1*'
 system(cmd)
-cmd = 'cat fort.2* > info_MD_recv && rm fort.2*'
+cmd = 'cat fort.2* > info_MD_recv    2> /dev/null && rm fort.2*'
 system(cmd)
-cmd = 'cat fort.3* > info_graph && rm fort.3*'
+cmd = 'cat fort.3* > info_graph      2> /dev/null && rm fort.3*'
 system(cmd)
-cmd = 'cat fort.4* > info_MD_send && rm fort.4*'
+cmd = 'cat fort.4* > info_MD_send    2> /dev/null && rm fort.4*'
 system(cmd)
-cmd = 'cat fort.5* > info_CFD_recv && rm fort.5*'
+cmd = 'cat fort.5* > info_CFD_recv   2> /dev/null && rm fort.5*'
 system(cmd)
-cmd = 'cat fort.6* > info_maps && rm fort.6*'
+cmd = 'cat fort.6* > info_maps       2> /dev/null && rm fort.6*'
 system(cmd)
-cmd = 'cat fort.7* > info_scatter_md && rm fort.7*'
+cmd = 'cat fort.7* > info_scatter_md 2> /dev/null && rm fort.7*'
 system(cmd)
-cmd = 'cat fort.8* > info_gather_cfd && rm fort.8*'
+cmd = 'cat fort.8* > info_gather_cfd 2> /dev/null && rm fort.8*'
 system(cmd)
-cmd = 'cat fort.9* > info_CFD_send && rm fort.9*'
+cmd = 'cat fort.9* > info_CFD_send   2> /dev/null && rm fort.9*'
 system(cmd)
 
 check.vals('info_scatter_md')
