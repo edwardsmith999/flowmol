@@ -82,7 +82,7 @@ subroutine simulation_MD
 	use computational_constants_MD
 	use physical_constants_MD
 #if USE_COUPLER
-	use md_coupler_socket, only : socket_apply_continuum_forces_ES, &
+	use md_coupler_socket, only : socket_apply_continuum_forces, &
 								  average_and_send_MD_to_CFD,test_send_recv_MD2CFD,test_send_recv_CFD2MD, test_gather_scatter
 #endif
 	implicit none
@@ -117,7 +117,7 @@ contains
 #if USE_COUPLER
 
 		call simulation_apply_boundary_forces               ! Apply boundary force to prevent molecules leaving domain
-		call socket_apply_continuum_forces_ES(iter)			! CFD=> MD Apply CFD based coupling forces on MD
+		!call socket_apply_continuum_forces(iter)			! CFD=> MD Apply CFD based coupling forces on MD
 		call average_and_send_MD_to_CFD(iter)				! MD=>CFD Calculate averages of MD to pass to CFD
 
 		!Testing exchange codes
