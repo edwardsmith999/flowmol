@@ -116,14 +116,14 @@ contains
 
 #if USE_COUPLER
 
-		call simulation_apply_boundary_forces               !Apply boundary force to prevent molecules leaving domain
-		!call socket_apply_continuum_forces_ES(iter)		!CFD=> MD Apply CFD based coupling forces on MD
-		!all average_and_send_MD_to_CFD(iter)				! MD=>CFD Calculate averages of MD to pass to CFD
+		call simulation_apply_boundary_forces               ! Apply boundary force to prevent molecules leaving domain
+		call socket_apply_continuum_forces_ES(iter)			! CFD=> MD Apply CFD based coupling forces on MD
+		call average_and_send_MD_to_CFD(iter)				! MD=>CFD Calculate averages of MD to pass to CFD
 
 		!Testing exchange codes
-		all test_send_recv_MD2CFD
-		all test_send_recv_CFD2MD
-		all test_gather_scatter
+		!call test_send_recv_MD2CFD
+		!call test_send_recv_CFD2MD
+		!call test_gather_scatter
 
 #endif
 

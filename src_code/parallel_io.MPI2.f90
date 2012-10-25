@@ -61,7 +61,7 @@ contains
 !--------------------------------------------------------------------
 
 
-! -- Integer arrays --
+! --- Write integer arrays ---
 
 !	1D array wrapper
 subroutine iwrite_arrays_1(temp,nresults,outfile,outstep)
@@ -79,6 +79,7 @@ subroutine iwrite_arrays_1(temp,nresults,outfile,outstep)
 
 end subroutine iwrite_arrays_1
 
+!	Main iwrite Routine
 subroutine iwrite_arrays(some_array,nresults,outfile,outstep)
 	use messenger, only : icomm_grid
 	implicit none
@@ -158,7 +159,7 @@ subroutine iwrite_arrays(some_array,nresults,outfile,outstep)
 end subroutine iwrite_arrays
 
 
-! -- Double precision arrays --
+! --- Double precision arrays ---
 
 !	1D array wrapper
 subroutine rwrite_arrays_1(temp,nresults,outfile,outstep)
@@ -176,6 +177,7 @@ subroutine rwrite_arrays_1(temp,nresults,outfile,outstep)
 
 end subroutine rwrite_arrays_1
 
+!	Main rwrite Routine
 subroutine rwrite_arrays(some_array,nresults,outfile,outstep)
 	use messenger, only : icomm_grid
 	implicit none
