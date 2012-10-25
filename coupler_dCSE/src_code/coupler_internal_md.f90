@@ -228,7 +228,6 @@ subroutine coupler_md_init(nsteps,dt_md,icomm_grid,icoord,npxyz_md,globaldomain,
 	write(999+rank_realm,*), 'MD side',rank_realm,'CFD times',nsteps_cfd,dt_cfd
 	write(999+rank_realm,*), 'MD side',rank_realm,'MD times', nsteps_MD,dt_md
 
-
 	! ------------------ Receive CFD grid extents ------------------------------
 	! Receive & store CFD density
 	call MPI_bcast(density_cfd,1,MPI_double_precision,0,CPL_INTER_COMM,ierr)		!Receive
@@ -298,7 +297,7 @@ subroutine coupler_md_init(nsteps,dt_md,icomm_grid,icoord,npxyz_md,globaldomain,
 
 	!Calculate the cell sizes dx,dy & dz
 	dx = xL_cfd/ncx	  !xg(2,1)-xg(1,1)
-	dy = yL_cfd/ncy	  !yg(1,2)-yg(1,1)
+	dy = yg(1,2)-yg(1,1) ! yL_cfd/ncy
 	dz = zL_cfd/ncz	  !zg(2  )-zg(1  )
 
     ! Initialise other md module variables if data is provided in coupler.in
@@ -564,32 +563,96 @@ contains
 end subroutine create_map_md
 
 !=============================================================================
-! Get MD position in CFD coordinate frame
+! Get molecule's global position from position local to processor.
 !-----------------------------------------------------------------------------
-function  map_md2cfd(r) result(rg)
+function globalise(r) result(rg)
+	use coupler_module, only : 	xLl,iblock_realm,npx_md, & 
+								yLl,jblock_realm,npy_md, & 
+								zLl,kblock_realm,npz_md
 	implicit none
 
 	real(kind(0.d0)),intent(in) :: r(3)
 	real(kind(0.d0)) rg(3)
 
-	rg(:) = r(:) + half_domain_lengths(:) + bbox%bb(1,:)
+	rg(1) = r(1) - xLl*(iblock_realm-1)+0.5d0*xLl*(npx_md-1)
+	rg(2) = r(2) - yLl*(jblock_realm-1)+0.5d0*yLl*(npy_md-1)
+	rg(3) = r(3) - zLl*(kblock_realm-1)+0.5d0*zLl*(npz_md-1)
 
-end function map_md2cfd
+end function globalise
+
+!=============================================================================
+! Get local position on processor from molecule's global position.
+!-----------------------------------------------------------------------------
+function localise(r) result(rg)
+	use coupler_module, only : 	xLl,iblock_realm,npx_md, & 
+								yLl,jblock_realm,npy_md, & 
+								zLl,kblock_realm,npz_md
+	implicit none
+
+	real(kind(0.d0)),intent(in) :: r(3)
+	real(kind(0.d0)) rg(3)
+
+	!Global domain has origin at centre
+	rg(1) = r(1) - xLl*(iblock_realm-1)+0.5d0*xLl*(npx_md-1)
+	rg(2) = r(2) - yLl*(jblock_realm-1)+0.5d0*yLl*(npy_md-1)
+	rg(3) = r(3) - zLl*(kblock_realm-1)+0.5d0*zLl*(npz_md-1)
+
+end function localise
+
+!=============================================================================
+! Map global MD position to global CFD coordinate frame
+!-----------------------------------------------------------------------------
+function map_md2cfd_global(r) result(rg)
+	use coupler_module, only : 	xL_md,xg,icmin_olap,icmax_olap, & 
+								yL_md,yg,jcmin_olap,jcmax_olap, & 
+								zL_md,zg,kcmin_olap,kcmax_olap
+	implicit none
+
+	real(kind(0.d0)),intent(in) :: r(3)
+	real(kind(0.d0)):: md_only(3), rg(3)
+
+	!Get size of MD domain which has no CFD cells overlapping
+	!This should be general enough to include grid stretching
+	!and total overlap in any directions 
+	md_only(1) = xL_md-(xg(icmax_olap+1,1) - xg(icmin_olap,1))
+	md_only(2) = yL_md-(yg(1,jcmax_olap+1) - yg(1,jcmin_olap))
+	md_only(3) = zL_md-(zg( kcmax_olap+1 ) - zg( kcmin_olap ))
+
+	! CFD has origin at bottom left while MD origin at centre
+	rg(1) = r(1) + 0.5d0*xL_md - md_only(1)
+	rg(2) = r(2) + 0.5d0*yL_md - md_only(2)
+	rg(3) = r(3) + 0.5d0*zL_md - md_only(3)
+
+end function map_md2cfd_global
 
 
 !=============================================================================
-! Get CFD position in MD coordinate frame
+! Map global CFD position in global MD coordinate frame
 !-----------------------------------------------------------------------------
-function map_cfd2md(r) result(rg)
+function map_cfd2md_global(r) result(rg)
+	use coupler_module, only : 	xL_md,xg,icmin_olap,icmax_olap, & 
+								yL_md,yg,jcmin_olap,jcmax_olap, & 
+								zL_md,zg,kcmin_olap,kcmax_olap
 	implicit none
 
 	real(kind(0.d0)),intent(in) :: r(3)
-	real(kind(0.d0)) rg(3)
+	real(kind(0.d0)) :: md_only(3), rg(3)
 
-	rg(:) = r(:) - half_domain_lengths(:) - bbox%bb(1,:)
-	!print'(a,12f10.5)', 'MAP', r(:), half_domain_lengths(:), bbox%bb(1,:), rg
+	!Get size of MD domain which has no CFD cells overlapping
+	!This should be general enough to include grid stretching
+	!and total overlap in any directions 
+	md_only(1) = xL_md-(xg(icmax_olap+1,1) - xg(icmin_olap,1))
+	md_only(2) = yL_md-(yg(1,jcmax_olap+1) - yg(1,jcmin_olap))
+	md_only(3) = zL_md-(zg( kcmax_olap+1 ) - zg( kcmin_olap ))
 
-end function map_cfd2md
+	! CFD has origin at bottom left while MD origin at centre
+	rg(1) = r(1) - 0.5d0*xL_md + md_only(1)
+	rg(2) = r(2) - 0.5d0*yL_md + md_only(2)
+	rg(3) = r(3) - 0.5d0*zL_md + md_only(3)
+
+	!print'(a,13f8.3)', 'md only', r,md_only,rg,yL_md,(yg(1,jcmax_olap+1),yg(1,jcmin_olap)),(yg(1,jcmax_olap+1) - yg(1,jcmin_olap))
+
+end function map_cfd2md_global
 
 
 !=============================================================================

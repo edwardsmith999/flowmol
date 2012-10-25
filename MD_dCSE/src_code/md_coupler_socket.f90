@@ -713,7 +713,6 @@ end subroutine test_gather_scatter
 !-----------------------------------------------------------------------------
 subroutine average_and_send_MD_to_CFD(iter)
 	use computational_constants_MD, only : initialstep, delta_t, nhb
-	use coupler_internal_md, only : map_md2cfd,map_cfd2md
 	use calculated_properties_MD, only : nbins
 	use physical_constants_MD, only : np
 	use arrays_MD, only :r,v
@@ -724,29 +723,28 @@ subroutine average_and_send_MD_to_CFD(iter)
 
 	integer, intent(in) :: iter
 	
+	integer :: ixyz,icell,jcell,kcell,pcoords(3),extents(6)
 	integer :: iter_cfd, iter_average, Naverage, save_period, average_period
-	integer	:: myid, ierr
+	integer	:: ierr
 	logical, save :: first_time=.true.
 	save  average_period, Naverage
 
-	call MPI_COMM_RANK(MD_COMM,myid,ierr)
-
+	!Setup arrays on first call
     if (first_time) then 
 	    first_time	= .false.
 		call setup_velocity_average
     endif
-
     iter_average = mod(iter-1, Naverage)+1			! current step
     iter_cfd     = (iter-initialstep)/Naverage +1 	! CFD corresponding step
 
-	if (rank_realm .eq. 1) print*, 'iter counts', iter, iter_average, Naverage
-
+	!Collect uc data every save_period cfd iteration but discard the first one which cfd uses for initialisation
     if ( mod(iter_average,average_period) .eq. 0 ) then
-		!Collect uc data every save_period cfd iteration but discard the first one which cfd uses for initialisation
 	    call cumulative_velocity_average
 	endif
+
+	!Send accumulated results to CFD at the end of average cycle 
     if  (iter_average .eq. Naverage) then
-		!Send accumulated results to CFD at the end of average cycle 
+		
 	    call send_velocity_average
 	endif
 
@@ -779,16 +777,16 @@ contains
 		!Allocate array to size of cells in current processor
 		pcoords = (/ iblock_realm,jblock_realm,kblock_realm /)
 		call CPL_proc_extents(pcoords,md_realm,extents)
+		nclx = extents(2)-extents(1)+1
+		ncly = extents(4)-extents(3)+1
+		nclz = extents(6)-extents(5)+1
 
 		! Setup averaging array on first call
 		select case(staggered_averages(1))
 		case(.true.)
-			allocate( mflux(6,ncz,ncx,1))
+			allocate( mflux(6,nclx,ncly,nclz))
 			mflux = 0
 		case(.false.)
-			nclx = extents(2)-extents(1)+1
-			ncly = extents(4)-extents(3)+1
-			nclz = extents(6)-extents(5)+1
 			allocate(uvwbin(4,nclx,ncly,nclz))
 			uvwbin = 0.d0
 		end select
@@ -796,37 +794,61 @@ contains
 
 !------------------------------------------
 	subroutine cumulative_velocity_average
-		use coupler_internal_md, only : bbox
-		use coupler_module, only : icmax,icmin,jcmax,jcmin,kcmax,kcmin,dx,dy,dz,ncx,ncy,ncz,cfd_code_id
+		use coupler, only : CPL_Cart_coords, CPL_proc_extents
+		use coupler_module, only : xL_md,zL_md,xg,yg,zg, & 
+								   dx,dy,dz,ncx,ncy,ncz,cfd_code_id, CPL_REALM_COMM,rank_world
+		use coupler_internal_md, only : map_md2cfd_global,map_cfd2md_global,globalise,localise	
 		use computational_constants_MD, only : iter, ncells,domain,halfdomain
 		use librarymod, only : heaviside, imaxloc
 		implicit none
 
 		!Limits of cells to average
 
-		integer							:: n, ixyz
-		integer,dimension(3) 			:: cfd_ncells
+		integer							:: n, ixyz,extents(6),pcoords(3)
 		integer,dimension(3)			:: ibin,ibin1,ibin2,minbin,maxbin,crossplane,cfdbins
+		double precision	 			:: xbcmin,xbcmax, ybcmin,ybcmax, zbcmin,zbcmax
 		double precision,dimension(3) 	:: cfd_cellsidelength
-		double precision,dimension(3)	:: Vbinsize, ri1, ri2, cnst_top, cnst_bot, rd
+		double precision,dimension(3)	:: dxyz,ri1,ri2,avrg_top,avrg_bot,rd,rd2
+
+		!Specify BC region to average molecules
+		ybcmin = yg(1,jcmin)-dy; ybcmax = yg(1,jcmin)
+
+		!<TEST><TEST><TEST><TEST><TEST><TEST><TEST><TEST><TEST>
+		!uvwbin = uvwbin + 0.001d0	!Counter for no. of cumulative velocity
+		!<TEST><TEST><TEST><TEST><TEST><TEST><TEST><TEST><TEST>
 
 		!Velocity measurement for 3D bins throughout the domain
 		!Determine bin size
-		Vbinsize(1) = dx
-		Vbinsize(2) = dy
-		Vbinsize(3) = dz
+		dxyz = (/ dx, dy, dz /)
 
-		!print*,'cellsizes',  domain, cfdbins, domain(:) / cfdbins(:),Vbinsize
+		!print*,'cellsizes',  domain, cfdbins, domain(:) / cfdbins(:),dxyz
+		!print'(a,i4,9f10.3)', 'Mapping functions',rank_realm, r(:,10),globalise(r(:,10)), map_md2cfd_global(globalise(r(:,10)))
 
-		rd(:) = (/ 0.d0 , yg(jcmin,1) , 0.d0 /)
-		cnst_bot = map_cfd2md(rd)
-		rd(:) = (/ 0.d0 , yg(jcmin+1,1) , 0.d0 /)
-		cnst_top = map_cfd2md(rd)
+		!Eliminate processors outside of passing region
+		call CPL_Cart_coords(CPL_REALM_COMM,rank_realm,md_realm,3,pcoords,ierr)
+		call CPL_proc_extents(pcoords,md_realm,extents)
+		if (any(extents .eq. VOID)) return
+		!print'(a,3i4,4f10.5)', 'Extents check', pcoords,yg(1,extents(3)),ybcmin,yg(1,extents(4)),ybcmax
+		if ((yg(1,extents(3)) .gt. ybcmax) .or. (yg(1,extents(4)+1) .lt. ybcmin)) return
 
-		minbin = ceiling((cnst_bot+halfdomain(:))/Vbinsize(:)) + nhb
-		maxbin = ceiling((cnst_top+halfdomain(:))/Vbinsize(:)) + nhb
+		!Get local extents on processor(s) of interest
+		rd(:) = (/ 0.d0 , ybcmin, 0.d0 /)	!Bottom of cell below domain
+		avrg_bot = localise(map_cfd2md_global(rd))
+		rd2(:) = (/ xL_md , ybcmax , zL_md   /)   !Top of cell below domain (= bottom of domain)
+		avrg_top = localise(map_cfd2md_global(rd2))
 
-		!print*,'extents', minbin,icmin,jcmin,kcmin,maxbin,icmax,jcmax,kcmax
+
+		!print'(a,3i4,8f8.2)','Mapping functions',pcoords,map_cfd2md_global(rd),map_cfd2md_global(rd2),avrg_bot(2),avrg_top(2) !, & 
+								!xg(extents(1),1), xg(extents(2)+1,1), & 
+							    !yg(1,extents(3)), yg(1,extents(4)+1), &
+								!zg(extents(5)),   zg(extents(6)+1)
+		!					  (extents(1)-1)*dx,(extents(2))*dx, & 
+		!					  (extents(3)-1)*dy,(extents(4))*dy, &
+		!					  (extents(5)-1)*dz,(extents(6))*dz
+		minbin = ceiling((avrg_bot+halfdomain(:))/dxyz(:)) + nhb
+		maxbin = ceiling((avrg_top+halfdomain(:))/dxyz(:)) + nhb
+
+		!print'(a,16i5)','extents',rank_world, ceiling(map_cfd2md_global(rd)/dy), minbin,extents(1),extents(3),extents(5),maxbin,extents(2),extents(4),extents(6)
 
 		select case(staggered_averages(1))	
 		!- - - - - - - - - - - - - - - - - - - -
@@ -838,12 +860,16 @@ contains
 				ri1(:) = r(:,n) 							!Molecule i at time t
 				ri2(:) = r(:,n)	-delta_t*v(:,n)				!Molecule i at time t-dt
 				!Assign to bins before and after using integer division
-				ibin1(:) = ceiling((ri1+halfdomain(:))/Vbinsize(:)) + nhb
-				ibin2(:) = ceiling((ri2+halfdomain(:))/Vbinsize(:)) + nhb
+				ibin1(:) = ceiling((ri1+halfdomain(:))/dxyz(:)) + nhb
+				ibin2(:) = ceiling((ri2+halfdomain(:))/dxyz(:)) + nhb
 					
-				!Exclude molecules outside of domain
+				!Exclude molecules outside of processor domain
 				if (	  ibin1(2) .lt. minbin(2) .or. ibin1(2) .ge. maxbin(2) &
 					.and. ibin2(2) .lt. minbin(2) .or. ibin2(2) .ge. maxbin(2) ) cycle
+
+				!Exclude molecules outside of processor domain
+				!if (	  any(ibin1(:) .lt. minbin(:)) .or. any(ibin1(:) .ge. maxbin(:)) &
+				!	.and. any(ibin2(:) .lt. minbin(:)) .or. any(ibin2(:) .ge. maxbin(:)) ) cycle
 
 				!Replace Signum function with this functions which gives a
 				!check for plane crossing and the correct sign 
@@ -865,16 +891,28 @@ contains
 		!- - - - - - - - - - - - - - - - - - - -
 		!Record velocity in cell centre
 		!- - - - - - - - - - - - - - - - - - - -
+		!Add up current volume mass and momentum densities
 		case(.false.)
 			do n = 1,np
-				!Add up current volume mass and momentum densities
-				ibin(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
-				!Exclude molecules outside of domain
-				if (	 ibin(2) .lt. minbin(2) .or. ibin(2) .ge. maxbin(2)) cycle
-				!print'(a,12i8,3f10.5)', 'bins & ting',iter,myid,n, minbin, maxbin, ibin, r(:,n)
-				uvwbin(1:3,ibin(1),ibin(2)-minbin(2)+1,ibin(3)) = uvwbin(1:3,ibin(1),ibin(2)-minbin(2)+1,ibin(3)) + v(:,n)
-				uvwbin(4,  ibin(1),ibin(2)-minbin(2)+1,ibin(3)) = uvwbin(4,  ibin(1),ibin(2)-minbin(2)+1,ibin(3)) + 1.d0
-				!print*, 'binning part', ibin(3),ibin(1),ibin(2)-minbin(2)+1, uvwbin(4,  ibin(3),ibin(1),ibin(2)-minbin(2)+1), v(:,n)
+				!Get bin containing molecule
+				ibin(:) = ceiling((r(:,n)+halfdomain(:))/dxyz(:)) + nhb
+
+				!Exclude molecules outside of averaging region
+				!if (any(ibin(:).lt.minbin(:)) .or. any(ibin(:).ge.maxbin(:))) cycle
+				if (r(2,n).lt.avrg_bot(2) .or. r(2,n).gt.avrg_top(2) ) cycle
+
+				!Exclude molecules which leave processor between rebuilds
+				if (ibin(1).lt.1 .or. ibin(1).gt.nbins(1)) cycle
+				if (ibin(3).lt.1 .or. ibin(3).gt.nbins(3)) cycle
+
+				!Add velocity and molecular count to bin
+				uvwbin(1:3,ibin(1),ibin(2)-minbin(2)+1,ibin(3)) = &
+					uvwbin(1:3,ibin(1),ibin(2)-minbin(2)+1,ibin(3)) + v(:,n)
+				uvwbin(4,  ibin(1),ibin(2)-minbin(2)+1,ibin(3)) = & 	
+					uvwbin(4,  ibin(1),ibin(2)-minbin(2)+1,ibin(3)) + 1.d0
+
+				!print'(a,6i4,3f9.5)', 'binning',ibin(1),ibin(2),ibin(3),minbin(2), & 
+				!						rank_realm,n, r(2,n),avrg_bot(2),avrg_top(2)
 			enddo
 		case default
 			call error_abort('Unknown case in staggered_averages')
@@ -885,13 +923,13 @@ contains
 !------------------------------------------
 	subroutine send_velocity_average
 		use coupler_module, only : olap_mask,rank_world, & 
-									iblock_realm,jblock_realm,kblock_realm
+								   iblock_realm,jblock_realm,kblock_realm, &
+								   icmin_olap,icmax_olap,kcmin_olap,kcmax_olap,printf
 		implicit none
 
 		logical :: send_flag
         logical :: ovr_box_x
-		integer :: jcmin_send,jcmax_send
-		integer :: ixyz,icell,jcell,kcell,pcoords(3),extents(6)
+		integer :: jcmin_send,jcmax_send,limits(6)
 
 		jcmin_send = 1; jcmax_send = 1
 
@@ -903,31 +941,21 @@ contains
 			mflux = 0
 		! Send velocity in cell centre
 		case(.false.)
-			!<TEST><TEST><TEST><TEST><TEST><TEST><TEST><TEST><TEST>
-			pcoords = (/ iblock_realm,jblock_realm,kblock_realm /)
-			call CPL_proc_extents(pcoords,md_realm,extents)
-			do ixyz = 1,4
-			do icell=extents(1),extents(2)
-			do jcell=extents(3),extents(4)
-			do kcell=extents(5),extents(6)
-				uvwbin(ixyz,icell-extents(1)+1, & 
-							jcell-extents(3)+1, & 
-							kcell-extents(5)+1) = 0.1d0*ixyz + 1*icell + &
-				                                            1000*jcell + &
-				                                         1000000*kcell
-			end do
-			end do
-			end do
-			end do
-			!<TEST><TEST><TEST><TEST><TEST><TEST><TEST><TEST><TEST>
+			!limits = (/ icmin_olap,icmax_olap,jcmin_send,jcmax_send,kcmin_olap,kcmax_olap /)
+			!call CPL_gather(uvwbin,limits)
+
+			!call printf(uvwbin(1,:,1,4))
+			!call printf(uvwbin(4,:,1,4))
+
             call CPL_send(uvwbin,jcmax_send=jcmax_send,jcmin_send=jcmin_send,send_flag=send_flag)
-			!call CPL_gather(uvwbin,3)
 			uvwbin = 0.d0
+
 		end select
 
 	end subroutine send_velocity_average
 
 end subroutine average_and_send_MD_to_CFD
+
 
 
 !===================================================================================
@@ -1253,6 +1281,40 @@ end subroutine apply_continuum_forces
 ! continuum value inside the overlap region. 
 ! Adapted serial version written by ES including cells and (originally) fully verified
 !-----------------------------------------------------------------------------
+
+subroutine socket_CPL_apply_continuum_forces(iter)
+	use computational_constants_MD, only : delta_t
+	use physical_constants_MD, only : np
+	use arrays_MD, only :r,v,a
+	implicit none
+	
+	integer, intent(in) :: iter
+
+	integer :: iter_average, Naverage
+	real(kind(0.d0)) :: delta_t_CFD
+	logical, save :: first_time=.true.
+	save Naverage
+
+	!Setup arrays on first call
+    if (first_time) then 
+	    first_time	= .false.
+		Naverage = coupler_md_get_md_steps_per_cfd_dt()
+    endif
+    iter_average = mod(iter-1, Naverage)+1			! current step
+
+	!Receive results from CFD at exchange times
+    if  (iter_average .eq. Naverage) then
+	    call receive_CFD_velocity
+	endif
+
+	!Apply the force to the molecular dynamics region
+    if ( mod(iter_average,average_period) .eq. 0 ) then
+		call average_over_bin
+	    call apply_force
+	endif
+
+	
+end subroutine socket_coupler_apply_continuum_forces
 
 subroutine socket_apply_continuum_forces_ES(iter)
 	use computational_constants_MD, only : delta_t,nh,halfdomain,ncells, & 

@@ -1259,6 +1259,14 @@ end subroutine simulation_compute_kinetic_VA_cells
 
 !=================================================================================
 ! CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV
+! CV 																			CV
+! CV   _____             _             _   _   _       _                      	CV
+! CV  /  __ \           | |           | | | | | |     | |                     	CV
+! CV  | /  \/ ___  _ __ | |_ _ __ ___ | | | | | | ___ | |_   _ _ __ ___   ___ 	CV
+! CV  | |    / _ \| '_ \| __| '__/ _ \| | | | | |/ _ \| | | | | '_ ` _ \ / _ \	CV
+! CV  | \__/\ (_) | | | | |_| | | (_) | | \ \_/ / (_) | | |_| | | | | | |  __/	CV
+! CV  \_____/\___/|_| |_|\__|_|  \___/|_|  \___/ \___/|_|\__,_|_| |_| |_|\___|	CV
+! CV 																		    CV
 ! CV 			Record Fluxes accross surfaces of Control Volumes				CV
 ! CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV
 !=================================================================================

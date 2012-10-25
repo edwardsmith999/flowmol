@@ -73,11 +73,14 @@ module coupler
 contains
 
 !=============================================================================
-! Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup
-!
-!								SETUP
-!
-! Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup
+!					 _____      _               
+!					/  ___|    | |              
+!					\ `--.  ___| |_ _   _ _ __  
+!					 `--. \/ _ \ __| | | | '_ \ 
+!					/\__/ /  __/ |_| |_| | |_) |
+!					\____/ \___|\__|\__,_| .__/ 
+!					                     | |    
+!					                     |_|    
 !=============================================================================
 
 !=============================================================================
@@ -358,6 +361,10 @@ subroutine get_overlap_blocks
 	xLl_md  = xL_md / npx_md
 	yLl_md  = yL_md / npy_md
 	zLl_md  = zL_md / npz_md
+
+	if (realm .eq. md_realm) then
+		xLl = xLl_md; yLl = yLl_md ; zLl = zLl_md 
+	endif
 
 	nolapsx = nint( dble( npx_md ) / dble( npx_cfd ) )
 	nolapsy = ceiling ( yL_olap / yLl_md ) 

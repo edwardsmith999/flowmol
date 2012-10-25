@@ -120,7 +120,7 @@ end subroutine socket_create_map
 !=============================================================================
 
 
-! ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬ஜ۩۞۩ஜ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
+! ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬(-_-)▬▬ஜ۩۞۩ஜ▬▬(●̪•)▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬ 
 ! Test the send and recv routines from coupler
 
 subroutine test_send_recv_MD2CFD
@@ -511,26 +511,97 @@ end subroutine socket_coupler_send_velocity
 
 subroutine  socket_coupler_get_md_BC(uc,vc,wc)
     use coupler, only : CPL_recv
-	use coupler_module, only : rank_realm,olap_mask,rank_world
+	use coupler_module, only : rank_realm,olap_mask,rank_world,printf, & 
+							   iblock_realm,jblock_realm,kblock_realm,error_abort
+	use data_export, only : nixb, niyb, nizb, & 
+							i1_u,i2_u,j1_u,j2_u, & 
+							i1_v,i2_v,j1_v,j2_v, & 
+							i1_w,i2_w,j1_w,j2_w, & 
+							i1_T,i2_T,j1_T,j2_T,k1_T,k2_T
     implicit none
 
-    real(kind(0.d0)),dimension(:,:,:),intent(inout)   :: uc,vc,wc 
+    real(kind(0.d0)),dimension(0:,0:,0:),intent(out)  :: uc,vc,wc 
 
 	logical		  								      :: recv_flag
     logical, save 								      :: firsttime = .true.
+	integer											  :: i,j,k,nclx,ncly,nclz,pcoords(3),extents(6)
 	integer											  :: jcmin_recv,jcmax_recv
     real(kind(0.d0)), allocatable, dimension(:,:,:,:) :: uvwbuff
+	real											  :: uvw_BC(4)
 
-	!Allocate array to receive data
-	allocate(uvwbuff(4,size(uc,2),size(vc,3),size(wc,1)))
-	uvwbuff = VOID
+	integer		:: bufsize
+	character	:: str_bufsize
+
 	jcmin_recv = 1; jcmax_recv = 1
+
+	!Allocate array to CFD number of cells ready to receive data
+	pcoords = (/ iblock_realm,jblock_realm,kblock_realm /)
+	call CPL_proc_extents(pcoords,cfd_realm,extents)
+	nclx = extents(2)-extents(1)+1
+	ncly = extents(4)-extents(3)+1
+	nclz = extents(6)-extents(5)+1
+	allocate(uvwbuff(4,nclx,ncly,nclz)); uvwbuff = VOID
 
 	call CPL_recv(uvwbuff,jcmax_recv=jcmax_recv,jcmin_recv=jcmin_recv,recv_flag=recv_flag)
 	!call CPL_gather(uvwbuff,3)
+	!call printf(uvwbuff(1,:,jcmax_recv,4))
+	!call printf(uvwbuff(4,:,jcmax_recv,4))
 
-	!where(uvwbuff(1,:,:,:).ne.VOID) uc(:,:,:) = uvwbuff(1,:,:,:)
-	print'(64f8.1)', uvwbuff(1,:,jcmax_recv,4)
+	!Set full extent of halos to zero and set domain portion to MD values
+	uc(:,:,0) = 0.d0; vc(:,:,1) = 0.d0; wc(:,:,0) = 0.d0
+
+	!Average all cells on a CFD processor to give a single BC
+	uvw_BC(1) = sum(uvwbuff(1,:,1,:)) 
+	uvw_BC(2) = sum(uvwbuff(2,:,1,:))
+	uvw_BC(3) = sum(uvwbuff(3,:,1,:))
+	uvw_BC(4) = sum(uvwbuff(4,:,1,:)) 
+	print'(i4,a,4f10.3)', rank_world,'per proc BC',uvw_BC
+
+	!Average in x so all processor have same global average BC
+	call globalDirSum(uvw_BC,4,1)
+
+	uc(:,:,0) = uvw_BC(1)/uvw_BC(4)
+	vc(:,:,1) = uvw_BC(2)/uvw_BC(4)
+	wc(:,:,0) = uvw_BC(3)/uvw_BC(4)
+
+	if (rank_realm .eq. 1) then
+		print'(i4,a,7f10.3)', rank_world,'global average BC',uc(5,10,0),vc(5,10,1),wc(5,10,0),uvw_BC
+	endif
+
+	if (any(uc .eq. VOID) .or. &
+		any(uc .eq. VOID) .or. &
+		any(uc .eq. VOID)) call error_abort("socket_coupler_get_md_BC error - VOID value copied to uc,vc or wc")
+
+	!print'(a,26i5)', 'array extents',rank_world,shape(uvwbuff),nixb, niyb, nizb, & 
+	!														   i1_u,i2_u,j1_u,j2_u, & 
+	!														   i1_v,i2_v,j1_v,j2_v, & 
+	!														   i1_w,i2_w,j1_w,j2_w, & 
+	!														   i1_T,i2_T,j1_T,j2_T,k1_T,k2_T
+
+	! u interval [i1_u, i2_u], or [2,  ngx ] ??? 4 Procs = [2 32][3 34][3 34][3 35] ???
+	! v interval [i1_v, i2_v], or [1, ngx-1] ??? 4 Procs = [1 32][3 34][3 34][3 34] ???
+	! w interval [i1_w, i2_w], or [1, ngx-1] ??? 4 Procs = [1 32][3 34][3 34][3 34] ???
+	!uc(ngz  ,nlx+1,nly  )  
+	!vc(ngz  ,nlx  ,nly+1)
+	!wc(ngz+1,nlx  ,nly  )
+
+	!call printf(uc(:,jcmax_recv,4))
+	!call printf(vc(:,jcmax_recv,4))
+	!call printf(wc(:,jcmax_recv,4))
+
+	!Transposed indices
+	!ix = 2; iy = 3; iz = 1
+
+	!Coupler passes cell centered values so set CFD halo directly
+	!do i=0,size(uc,2)-1
+	!do j=jcmin_recv-1,jcmax_recv-1
+	!do k=0,size(uc,1)-1
+	!	uc(k,i,j) = uvwbuff(1,i+1,j+1,k+1)
+	!	print'(3i8,2f20.8)', i,j,k,uc(k,i,j),uvwbuff(1,i+1,j+1,k+1)
+	!enddo
+	!enddo
+	!enddo
+
 
 end subroutine socket_coupler_get_md_BC
 

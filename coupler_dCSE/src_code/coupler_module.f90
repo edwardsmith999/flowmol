@@ -153,6 +153,9 @@ module coupler_module
 		xL_olap,          &
 		yL_olap,          &
 		zL_olap,          &
+		xLl,              &
+		yLl,              &
+		zLl,              &
 		dx,               &
 		dy,               &
 		dz,               &
@@ -267,6 +270,56 @@ subroutine messenger_lasterrorcheck
 	print*, err_buffer
 
 end subroutine messenger_lasterrorcheck
+
+
+	!--------------------------------------------------------------------------------------
+	! Prints formatted debug statements
+	subroutine printf(buf,dplaces_in)
+		implicit none
+
+		double precision,dimension(:),intent(in):: buf
+		integer, intent(in), optional			:: dplaces_in
+
+		integer				:: n,dplaces
+		double precision	:: maxbuf,minbuf,order
+		character*13	 	:: string
+		character*42	 	:: buf_precision
+
+		!Default number of decimal places if not supplied
+		if (present(dplaces_in)) then
+			if (dplaces_in .le. 9) then
+				dplaces = dplaces_in
+			else
+				print*, 'Number of decimal places in printf if limited to 9'
+				dplaces = 9 !Maximum
+			endif
+		else
+			dplaces = 4
+		endif
+
+		!Find out required format to display maximum element in buffer
+		maxbuf = maxval(buf); minbuf = minval(buf)
+		maxbuf = max(maxbuf,10*abs(minbuf))	!10*Ensures extra space for minus sign
+		order = 1.d0; n =1
+		do while (max(maxbuf,order) .ne. order)
+			order = order*10.d0
+			n = n + 1
+		enddo
+		if (n+dplaces+2 .le. 9) then
+			write(buf_precision,'(a,i1,a,i1)'), 'f',n+dplaces+2,'.', dplaces
+		else
+			write(buf_precision,'(a,i2,a,i1)'), 'f',n+dplaces+2,'.', dplaces
+		endif
+
+		! Build up format specifier string based on size of passed array
+		string='(i3,   ' // trim(buf_precision) // ')'
+		write(string(5:7),'(i3)'), size(buf) 
+
+		!Write formatted data 
+		print(string), rank_world,buf
+
+	end subroutine printf
+
 
 !--------------------------------------------------------------------------------------
 !Write matrix in correct format

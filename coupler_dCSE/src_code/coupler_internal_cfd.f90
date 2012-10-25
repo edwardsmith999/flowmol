@@ -211,8 +211,6 @@ subroutine coupler_cfd_init(nsteps,dt_cfd,icomm_grid,icoord,npxyz_cfd,xyzL,ncxyz
 
 	write(99+rank_realm,*), 'CFD side',rank_realm,'MD times', nsteps_md,dt_md
 
-
-
 	! ------------------ Send CFD grid extents ------------------------------
 
 	! Store & send CFD density
@@ -255,7 +253,7 @@ subroutine coupler_cfd_init(nsteps,dt_cfd,icomm_grid,icoord,npxyz_cfd,xyzL,ncxyz
 	! Store & send array of global grid points
     allocate(xg_(size(xg+1,1)+1,size(xg,2)+1),stat=ierr); xg_ = xg
     allocate(yg_(size(yg+1,1)+1,size(yg,2)+1),stat=ierr); yg_ = yg
-    allocate(zg_(size(zg+1,1)+1			   ),stat=ierr); zg_ = zg
+    allocate(zg_(size(zg+1,1)+1			   ),stat=ierr);  zg_ = zg
     call MPI_bcast(xg,size(xg),MPI_double_precision,source,CPL_INTER_COMM,ierr) !Send
     call MPI_bcast(yg,size(yg),MPI_double_precision,source,CPL_INTER_COMM,ierr) !Send
     call MPI_bcast(zg,size(zg),MPI_double_precision,source,CPL_INTER_COMM,ierr) !Send
