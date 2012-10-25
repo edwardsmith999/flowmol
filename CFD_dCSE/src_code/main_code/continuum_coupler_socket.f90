@@ -526,7 +526,7 @@ subroutine  socket_coupler_get_md_BC(uc,vc,wc)
     logical, save 								      :: firsttime = .true.
 	integer											  :: i,j,k,nclx,ncly,nclz,pcoords(3),extents(6)
 	integer											  :: jcmin_recv,jcmax_recv
-    real(kind(0.d0)), allocatable, dimension(:,:,:,:) :: uvwbuff
+    real(kind(0.d0)), allocatable, dimension(:,:,:,:) :: uvw_md
 	real											  :: uvw_BC(4)
 
 	integer		:: bufsize
@@ -540,22 +540,22 @@ subroutine  socket_coupler_get_md_BC(uc,vc,wc)
 	nclx = extents(2)-extents(1)+1
 	ncly = extents(4)-extents(3)+1
 	nclz = extents(6)-extents(5)+1
-	allocate(uvwbuff(4,nclx,ncly,nclz)); uvwbuff = VOID
+	allocate(uvw_md(4,nclx,ncly,nclz)); uvw_md = VOID
 
-	call CPL_recv(uvwbuff,jcmax_recv=jcmax_recv,jcmin_recv=jcmin_recv,recv_flag=recv_flag)
-	!call CPL_gather(uvwbuff,3)
-	!call printf(uvwbuff(1,:,jcmax_recv,4))
-	!call printf(uvwbuff(4,:,jcmax_recv,4))
+	call CPL_recv(uvw_md,jcmax_recv=jcmax_recv,jcmin_recv=jcmin_recv,recv_flag=recv_flag)
+	!call CPL_gather(uvw_md,3)
+	!call printf(uvw_md(1,:,jcmax_recv,4))
+	!call printf(uvw_md(4,:,jcmax_recv,4))
 
 	!Set full extent of halos to zero and set domain portion to MD values
 	uc(:,:,0) = 0.d0; vc(:,:,1) = 0.d0; wc(:,:,0) = 0.d0
 
 	!Average all cells on a CFD processor to give a single BC
-	uvw_BC(1) = sum(uvwbuff(1,:,1,:)) 
-	uvw_BC(2) = sum(uvwbuff(2,:,1,:))
-	uvw_BC(3) = sum(uvwbuff(3,:,1,:))
-	uvw_BC(4) = sum(uvwbuff(4,:,1,:)) 
-	print'(i4,a,4f10.3)', rank_world,'per proc BC',uvw_BC
+	uvw_BC(1) = sum(uvw_md(1,:,1,:)) 
+	uvw_BC(2) = sum(uvw_md(2,:,1,:))
+	uvw_BC(3) = sum(uvw_md(3,:,1,:))
+	uvw_BC(4) = sum(uvw_md(4,:,1,:)) 
+	!print'(i4,a,4f10.3)', rank_world,'per proc BC',uvw_BC
 
 	!Average in x so all processor have same global average BC
 	call globalDirSum(uvw_BC,4,1)
@@ -564,15 +564,15 @@ subroutine  socket_coupler_get_md_BC(uc,vc,wc)
 	vc(:,:,1) = uvw_BC(2)/uvw_BC(4)
 	wc(:,:,0) = uvw_BC(3)/uvw_BC(4)
 
-	if (rank_realm .eq. 1) then
-		print'(i4,a,7f10.3)', rank_world,'global average BC',uc(5,10,0),vc(5,10,1),wc(5,10,0),uvw_BC
-	endif
+	!if (rank_realm .eq. 1) then
+	!	print'(i4,a,7f10.3)', rank_world,'global average BC',uc(5,10,0),vc(5,10,1),wc(5,10,0),uvw_BC
+	!endif
 
 	if (any(uc .eq. VOID) .or. &
 		any(uc .eq. VOID) .or. &
 		any(uc .eq. VOID)) call error_abort("socket_coupler_get_md_BC error - VOID value copied to uc,vc or wc")
 
-	!print'(a,26i5)', 'array extents',rank_world,shape(uvwbuff),nixb, niyb, nizb, & 
+	!print'(a,26i5)', 'array extents',rank_world,shape(uvw_md),nixb, niyb, nizb, & 
 	!														   i1_u,i2_u,j1_u,j2_u, & 
 	!														   i1_v,i2_v,j1_v,j2_v, & 
 	!														   i1_w,i2_w,j1_w,j2_w, & 
@@ -596,8 +596,8 @@ subroutine  socket_coupler_get_md_BC(uc,vc,wc)
 	!do i=0,size(uc,2)-1
 	!do j=jcmin_recv-1,jcmax_recv-1
 	!do k=0,size(uc,1)-1
-	!	uc(k,i,j) = uvwbuff(1,i+1,j+1,k+1)
-	!	print'(3i8,2f20.8)', i,j,k,uc(k,i,j),uvwbuff(1,i+1,j+1,k+1)
+	!	uc(k,i,j) = uvw_md(1,i+1,j+1,k+1)
+	!	print'(3i8,2f20.8)', i,j,k,uc(k,i,j),uvw_md(1,i+1,j+1,k+1)
 	!enddo
 	!enddo
 	!enddo
