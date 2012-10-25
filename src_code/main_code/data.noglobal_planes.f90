@@ -178,7 +178,7 @@ subroutine data_init()
             iTmax_1(1) = nlxb_(1) -1
          end if
 
-        !-- y-direction
+        !-- y-direction 
          j1_T = noy1
          j2_T = nlyb-noy1
          if (jblock_1.eq.1  ) j1_T = 1
