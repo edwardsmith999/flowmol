@@ -319,7 +319,7 @@ subroutine coupler_md_init(nsteps,dt_md,icomm_grid,icoord,npxyz_md,globaldomain,
 	endif
 
 	!Receive overlap from the CFD
-    call MPI_bcast(ncy_olap,1,MPI_INTEGER,0,CPL_INTER_COMM,ierr) !Receive
+    !call MPI_bcast(ncy_olap,1,MPI_INTEGER,0,CPL_INTER_COMM,ierr) !Receive
 
 	write(999+rank_realm,*), 'MD side - y overlap',ncy_olap
 
@@ -372,7 +372,7 @@ subroutine create_map_md
 
 	call make_bbox
 
-	write(0,*) 'MD: bbox%is ', rank_realm, jcmax_overlap, bbox%is, bbox%ie, bbox%js, bbox%je, bbox%ks, bbox%ke 
+	!write(0,*) 'MD: bbox%is ', rank_realm, jcmax_overlap, bbox%is, bbox%ie, bbox%js, bbox%je, bbox%ks, bbox%ke 
 
 	! Send the overlapping box indices to CFD processors
 	call mpi_allgather((/ bbox%iso, bbox%ieo, bbox%jso, bbox%jeo, bbox%kso, bbox%keo /), & 

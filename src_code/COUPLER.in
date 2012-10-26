@@ -34,7 +34,7 @@ F F F
 # in not set here coupler set is to INT(dt_cfd/dt_md)
 # ----------------------------------------------------------------------
 MD_STEPS_PER_DT_CFD
-1
+10
 #########################################################################
 # Force MD cells to be an integer multiple of CFD cells - This
 # optimises use of cell lists for averaging in the MD code
