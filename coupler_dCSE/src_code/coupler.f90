@@ -1673,6 +1673,9 @@ subroutine CPL_send_xd(asend,icmin_send,icmax_send,jcmin_send, &
 	call MPI_Graph_neighbors_count(CPL_GRAPH_COMM,myid_graph,nneighbors,ierr)
 	allocate(id_neighbors(nneighbors))
 	call MPI_Graph_neighbors(CPL_GRAPH_COMM,myid_graph,nneighbors,id_neighbors,ierr )
+
+	!Set sendflag to false and only change if anything is sent
+	if (present(send_flag)) send_flag = .false.
   
     ! loop through the maps and send the corresponding sections of asend
     do nbr = 1, nneighbors
@@ -1697,9 +1700,8 @@ subroutine CPL_send_xd(asend,icmin_send,icmax_send,jcmin_send, &
 
         ! Amount of data to be sent
 		if (any(portion.eq.VOID)) then
-			!print*, 'VOID send',realm_name(realm),rank_world,rank_realm
+			!print*, 'VOID send qqqq',realm_name(realm),rank_world,rank_realm
 			ndata = 0
-			if (present(send_flag)) send_flag = .false.
 		else
 
 			! Get data range on processor's local extents
@@ -2027,7 +2029,7 @@ subroutine CPL_recv_xd(arecv,icmin_recv,icmax_recv,jcmin_recv, &
 				
 		! Unpack array into buffer
 		if (any(portion.eq.VOID)) then
-			!print*, 'VOID recv',realm_name(realm),rank_world,rank_realm,rank_graph2rank_world(sourceid+1),recv_flag
+			!print*, 'VOID recv qqqq',realm_name(realm),rank_world,rank_realm,rank_graph2rank_world(sourceid+1),recv_flag
 			ndata = 0
 		else
 			! Get local extents in received region

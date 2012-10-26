@@ -288,15 +288,15 @@ subroutine coupler_cfd_init(nsteps,dt_cfd,icomm_grid,icoord,npxyz_cfd,xyzL,ncxyz
     ! Note : jcmax_overlap default is provided in coupler_internal_cfd
 	! but for some reason it is only broadcast to CFD processors while 
 	! the tag used in the if statement below is not broadcast at all...
-	if (myid_realm .eq. rootid_realm) then
-	    if (cfd_coupler_input%overlap%tag == CPL) then
-			ncx_olap = 0
-    	    ncy_olap = cfd_coupler_input%overlap%y_overlap
-			ncz_olap = 0
-		else
-			call error_abort("j overlap not specified in COUPLER.in")
-	    endif
-	endif
+	!if (myid_realm .eq. rootid_realm) then
+	!    if (cfd_coupler_input%overlap%tag == CPL) then
+	!		ncx_olap = 0
+    !	    ncy_olap = cfd_coupler_input%overlap%y_overlap
+	!		ncz_olap = 0
+	!	else
+	!		call error_abort("j overlap not specified in COUPLER.in")
+	!    endif
+	!endif
 
 	!Broadcast the overlap to CFD on intracommunicator
 	call MPI_bcast(ncy_olap,1,MPI_INTEGER,rootid_realm,CPL_REALM_COMM,ierr)
@@ -447,7 +447,7 @@ contains
         integer ixyz, i, nixyz(3), minxyz(3), npxyz(3)
         integer, pointer :: bb_ptr(:,:) => null()
 
-		print*, icmax,icmin,npx_cfd,jcmax,jcmin,npy_cfd,kcmax,kcmin,npz_cfd
+		!print*, icmax,icmin,npx_cfd,jcmax,jcmin,npy_cfd,kcmax,kcmin,npz_cfd
         ! number of grid per MPI task, remainder must be added !!!
         nixyz  = (/ (icmax - icmin) / npx_cfd + 1, (jcmax-jcmin) / npy_cfd + 1, (kcmax - kcmin) / npz_cfd + 1/)
         minxyz = (/ icmin,  jcmin,  kcmin /)
@@ -508,7 +508,7 @@ contains
         kbmin_cfd = kcPmin_cfd(kblock_realm) !bbox_cfd%zbb(1,rank2coord_cfd(3,id_coord))
         kbmax_cfd = kcPmax_cfd(kblock_realm) !bbox_cfd%zbb(2,rank2coord_cfd(3,id_coord))
 
-        write(0, *) 'CFD: find overlap ibmin etc', rank_realm, ibmin_cfd, ibmax_cfd, jbmin_cfd, jbmax_cfd, kbmin_cfd, kbmax_cfd
+       ! write(0, *) 'CFD: find overlap ibmin etc', rank_realm, ibmin_cfd, ibmax_cfd, jbmin_cfd, jbmax_cfd, kbmin_cfd, kbmax_cfd
 
         do i=0,nproc_md - 1
 
