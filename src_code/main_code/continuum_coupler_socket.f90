@@ -120,6 +120,206 @@ end subroutine socket_create_map
 !=============================================================================
 
 
+subroutine socket_coupler_send_velocity
+    use coupler, only : CPL_send,CPL_olap_extents
+	use coupler_module, only : rank_realm,jcmax_olap,olap_mask,rank_world, & 
+							   iblock_realm,jblock_realm,kblock_realm,realm,printf
+ 	use data_export, only : uc,i1_u,i2_u,ngz,nlx,nlxb,ibmin_1,ibmax_1
+    implicit none
+
+	logical	:: send_flag
+    integer	:: i,n,ixyz,icell,jcell,kcell,npercell,nclx,ncly,nclz
+    integer	:: coord(3),extents(6)
+    real(kind(0.d0)),dimension(:,:,:,:), allocatable 	:: sendbuf
+	real(kind(0.d0)) :: gradient
+
+	! Check processor is inside MD/CFD overlap zone 
+	if (olap_mask(rank_world) .eq. 0) return
+
+	npercell = 3
+
+	coord = (/iblock_realm,jblock_realm,kblock_realm /)
+	call CPL_olap_extents(coord,realm,extents)
+	nclx = extents(2)-extents(1)+1
+	ncly = extents(4)-extents(3)+1
+	nclz = extents(6)-extents(5)+1
+
+	allocate(sendbuf(npercell,nclx,ncly,nclz))
+	!print*, 'Shapes', shape(sendbuf(1,:,jcmax_olap-1,:)),i1_u,i2_u,ibmin_1(iblock_realm),ibmax_1(iblock_realm),nlxb,nlx,jcmax_olap-1,ngz,shape(uc)
+ 
+
+	!if (   nclx-1 .eq. i2_u-i1_u+1) then
+		!Extrapolat Initial cell
+	!	gradient = (uc(2:ngz,nclx-1,jcmax_olap-1)-uc(2:ngz,nclx-2,jcmax_olap-1))/dx
+	!	sendbuf(1,nclx,:,jcmax_olap-1) = dx * gradient + uc(2:ngz,nclx-1,jcmax_olap-1)
+		!Interpolate cell centres using all surface
+	!	do i=1,nclx-1
+	!		sendbuf(1,i,jcmax_olap-1,:) = 0.5d0(uc(2:ngz,i,jcmax_olap-1)+uc(2:ngz,i,jcmax_olap-1))
+	!	enddo
+		!Extrapolat final cell
+	!	gradient = (uc(2:ngz,nclx-1,jcmax_olap-1)-uc(2:ngz,nclx-2,jcmax_olap-1))/dx
+	!	sendbuf(1,nclx,:,jcmax_olap-1) = dx * gradient + uc(2:ngz,nclx-1,jcmax_olap-1)
+	!elseif(nclx   .eq. i2_u-i1_u+1) then
+!
+	!elseif(nclx+1 .eq. i2_u-i1_u+1) then
+
+	!Interpolate cell centres using all surface
+	sendbuf = 0.d0
+	do i=1,nclx
+		n = i + i1_u - 1
+		sendbuf(1,i,jcmax_olap-1,:) = 0.5d0*(uc(:,n,jcmax_olap-1) + uc(:,n+1,jcmax_olap-1))
+	!	print'(2i4,a,i4,3f20.5)',rank_world, i,'of',nclx,uc(4,i,jcmax_olap-1),uc(4,i+1,jcmax_olap-1),sendbuf(1,i,jcmax_olap-1,4)
+	enddo
+	!endif
+
+	!call printf(uc(4,:,jcmax_olap-1))
+	!print*, rank_realm, 'uc done, sendbuf coming'
+	!call printf(sendbuf(1,4,jcmax_olap-1,:))
+
+
+	!sendbuf(1,:,jcmax_olap-1,:) = uc(2:ngz,jcmax_olap-1,i1_u:i2_u)
+
+	!do ixyz =1,npercell
+	!do icell=extents(1),extents(2)
+	!do jcell=extents(3),extents(4)
+	!do kcell=extents(5),extents(6)
+	!	sendbuf(ixyz,icell,jcell,kcell) = 0.1d0*ixyz + 1*(icell) + &
+	!	                       			  1000*(jcell) + &
+	!	                    			  1000000*(kcell)
+!
+	!end do
+	!end do
+	!end do
+	!end do
+
+
+
+	call CPL_send(sendbuf,jcmax_send=jcmax_olap-1, & 
+					      jcmin_send=jcmax_olap-1,send_flag=send_flag)
+
+	!print*, 'sent', rank_world, send_flag
+	!if (send_flag) call printf(sendbuf(1,:,jcmax_olap,4))
+
+end subroutine socket_coupler_send_velocity
+
+
+
+!---------------------------------------------------------------------
+! Get Boundary condition for continuum from average of MD 
+
+subroutine  socket_coupler_get_md_BC(uc,vc,wc)
+    use coupler, only : CPL_recv
+	use coupler_module, only : rank_realm,olap_mask,rank_world,printf, & 
+							   iblock_realm,jblock_realm,kblock_realm,error_abort
+	use data_export, only : nixb, niyb, nizb, & 
+							i1_u,i2_u,j1_u,j2_u, & 
+							i1_v,i2_v,j1_v,j2_v, & 
+							i1_w,i2_w,j1_w,j2_w, & 
+							i1_T,i2_T,j1_T,j2_T,k1_T,k2_T
+    implicit none
+
+    real(kind(0.d0)),dimension(0:,0:,0:),intent(out)  :: uc,vc,wc 
+
+	logical		  								      :: recv_flag
+    logical, save 								      :: firsttime = .true.
+	integer											  :: i,j,k,nclx,ncly,nclz,pcoords(3),extents(6)
+	integer											  :: jcmin_recv,jcmax_recv
+    real(kind(0.d0)), allocatable, dimension(:,:,:,:) :: uvw_md
+	real											  :: uvw_BC(4)
+
+	integer		:: bufsize
+	character	:: str_bufsize
+
+	jcmin_recv = 1; jcmax_recv = 1
+
+	!Allocate array to CFD number of cells ready to receive data
+	pcoords = (/ iblock_realm,jblock_realm,kblock_realm /)
+	call CPL_proc_extents(pcoords,cfd_realm,extents)
+	nclx = extents(2)-extents(1)+1
+	ncly = extents(4)-extents(3)+1
+	nclz = extents(6)-extents(5)+1
+	allocate(uvw_md(4,nclx,ncly,nclz)); uvw_md = VOID
+
+	call CPL_recv(uvw_md,jcmax_recv=jcmax_recv,jcmin_recv=jcmin_recv,recv_flag=recv_flag)
+	!call CPL_gather(uvw_md,3)
+	!call printf(uvw_md(1,:,jcmax_recv,4))
+	!call printf(uvw_md(4,:,jcmax_recv,4))
+
+	!Set full extent of halos to zero and set domain portion to MD values
+	uc(:,:,0) = 0.d0; vc(:,:,1) = 0.d0; wc(:,:,0) = 0.d0
+
+	!Average all cells on a CFD processor to give a single BC
+	uvw_BC(1) = sum(uvw_md(1,:,1,:)) 
+	uvw_BC(2) = sum(uvw_md(2,:,1,:))
+	uvw_BC(3) = sum(uvw_md(3,:,1,:))
+	uvw_BC(4) = sum(uvw_md(4,:,1,:)) 
+	!print'(i4,a,4f10.3)', rank_world,'per proc BC',uvw_BC
+
+	!Average in x so all processor have same global average BC
+	call globalDirSum(uvw_BC,4,1)
+
+	uc(:,:,0) = uvw_BC(1)/uvw_BC(4)
+	vc(:,:,1) = uvw_BC(2)/uvw_BC(4)
+	wc(:,:,0) = uvw_BC(3)/uvw_BC(4)
+
+	!if (rank_realm .eq. 1) then
+	!	print'(i4,a,7f10.3)', rank_world,'global average BC',uc(5,10,0),vc(5,10,1),wc(5,10,0),uvw_BC
+	!endif
+
+	if (any(uc .eq. VOID) .or. &
+		any(uc .eq. VOID) .or. &
+		any(uc .eq. VOID)) call error_abort("socket_coupler_get_md_BC error - VOID value copied to uc,vc or wc")
+
+	!print'(a,26i5)', 'array extents',rank_world,shape(uvw_md),nixb, niyb, nizb, & 
+	!														   i1_u,i2_u,j1_u,j2_u, & 
+	!														   i1_v,i2_v,j1_v,j2_v, & 
+	!														   i1_w,i2_w,j1_w,j2_w, & 
+	!														   i1_T,i2_T,j1_T,j2_T,k1_T,k2_T
+
+	! u interval [i1_u, i2_u], or [2,  ngx ] ??? 4 Procs = [2 32][3 34][3 34][3 35] ???
+	! v interval [i1_v, i2_v], or [1, ngx-1] ??? 4 Procs = [1 32][3 34][3 34][3 34] ???
+	! w interval [i1_w, i2_w], or [1, ngx-1] ??? 4 Procs = [1 32][3 34][3 34][3 34] ???
+	!uc(ngz  ,nlx+1,nly  )  
+	!vc(ngz  ,nlx  ,nly+1)
+	!wc(ngz+1,nlx  ,nly  )
+
+	!call printf(uc(:,jcmax_recv,4))
+	!call printf(vc(:,jcmax_recv,4))
+	!call printf(wc(:,jcmax_recv,4))
+
+	!Transposed indices
+	!ix = 2; iy = 3; iz = 1
+
+	!Coupler passes cell centered values so set CFD halo directly
+	!do i=0,size(uc,2)-1
+	!do j=jcmin_recv-1,jcmax_recv-1
+	!do k=0,size(uc,1)-1
+	!	uc(k,i,j) = uvw_md(1,i+1,j+1,k+1)
+	!	print'(3i8,2f20.8)', i,j,k,uc(k,i,j),uvw_md(1,i+1,j+1,k+1)
+	!enddo
+	!enddo
+	!enddo
+
+
+end subroutine socket_coupler_get_md_BC
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ! ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬(-_-)▬▬ஜ۩۞۩ஜ▬▬(●̪•)▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬ 
 ! Test the send and recv routines from coupler
 
@@ -463,147 +663,6 @@ subroutine test_gather_scatter
 end subroutine test_gather_scatter
 
 ! ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
-
-subroutine socket_coupler_send_velocity
-    use coupler
-    use data, only : uc, i1_u, i2_u, j1_u, j2_u, ibmap_1, jbmap_1, ngz
-    use messenger, only : icomm_grid, icoord
-	use coupler_module, only : rank_realm
-    implicit none
-
-    integer i1b_u, j1b_u, i, i1, jmax_ovr,jo,js,je, ierr
-    real(kind(0.d0)),allocatable :: buff(:,:,:,:)
-
-    i1b_u=ibmap_1(i1_u)
-    j1b_u=jbmap_1(j1_u)
-    i1   = i1_u
-    
-    call coupler_cfd_get(jcmax_overlap=jmax_ovr)
-
-    !uc(1:ngz-1,i1_u:i2_u,j1_u+2) = rank_world+13.d0
-
-    ! this is to catch the boundary condtion at x=0 (uc start from i=2 in global grid)
-    ! needs some further discusion
-    if (icoord(1,rank_realm)==1) then
-        i1 = i1_u-1
-        !uc(1:ngz-1,i1:i1,j1_u+2) = rank_realm+66.d0
-    endif
-    
-    je = j1_u + jmax_ovr-jbmap_1(j1_u)-2
-    js = je
-
-	!print*, 'CFD constraint', js,j1_u,jmax_ovr,jbmap_1(j1_u)
-    !write(0,*)'cfd socket, jo:',jo
-    !call CPL_send(uc(1:ngz-1,i1:i2_u,js:je),index_transpose=(/2,3,1/))
-    !call CPL_send(uc,index_transpose=(/2,3,1/))
-    !do i=i1, i2_u
-    !    write(600+rank_realm,'(1000(E11.3,1x))') uc(1:ngz-1,i,j1_u+2)
-    !enddo
-    ! write(600+rank_realm,'(1000(E11.3,1x))')
-    ! call flush(600+rank_realm)
-
-end subroutine socket_coupler_send_velocity
-
-
-
-!---------------------------------------------------------------------
-! Get Boundary condition for continuum from average of MD 
-
-subroutine  socket_coupler_get_md_BC(uc,vc,wc)
-    use coupler, only : CPL_recv
-	use coupler_module, only : rank_realm,olap_mask,rank_world,printf, & 
-							   iblock_realm,jblock_realm,kblock_realm,error_abort
-	use data_export, only : nixb, niyb, nizb, & 
-							i1_u,i2_u,j1_u,j2_u, & 
-							i1_v,i2_v,j1_v,j2_v, & 
-							i1_w,i2_w,j1_w,j2_w, & 
-							i1_T,i2_T,j1_T,j2_T,k1_T,k2_T
-    implicit none
-
-    real(kind(0.d0)),dimension(0:,0:,0:),intent(out)  :: uc,vc,wc 
-
-	logical		  								      :: recv_flag
-    logical, save 								      :: firsttime = .true.
-	integer											  :: i,j,k,nclx,ncly,nclz,pcoords(3),extents(6)
-	integer											  :: jcmin_recv,jcmax_recv
-    real(kind(0.d0)), allocatable, dimension(:,:,:,:) :: uvw_md
-	real											  :: uvw_BC(4)
-
-	integer		:: bufsize
-	character	:: str_bufsize
-
-	jcmin_recv = 1; jcmax_recv = 1
-
-	!Allocate array to CFD number of cells ready to receive data
-	pcoords = (/ iblock_realm,jblock_realm,kblock_realm /)
-	call CPL_proc_extents(pcoords,cfd_realm,extents)
-	nclx = extents(2)-extents(1)+1
-	ncly = extents(4)-extents(3)+1
-	nclz = extents(6)-extents(5)+1
-	allocate(uvw_md(4,nclx,ncly,nclz)); uvw_md = VOID
-
-	call CPL_recv(uvw_md,jcmax_recv=jcmax_recv,jcmin_recv=jcmin_recv,recv_flag=recv_flag)
-	!call CPL_gather(uvw_md,3)
-	!call printf(uvw_md(1,:,jcmax_recv,4))
-	!call printf(uvw_md(4,:,jcmax_recv,4))
-
-	!Set full extent of halos to zero and set domain portion to MD values
-	uc(:,:,0) = 0.d0; vc(:,:,1) = 0.d0; wc(:,:,0) = 0.d0
-
-	!Average all cells on a CFD processor to give a single BC
-	uvw_BC(1) = sum(uvw_md(1,:,1,:)) 
-	uvw_BC(2) = sum(uvw_md(2,:,1,:))
-	uvw_BC(3) = sum(uvw_md(3,:,1,:))
-	uvw_BC(4) = sum(uvw_md(4,:,1,:)) 
-	!print'(i4,a,4f10.3)', rank_world,'per proc BC',uvw_BC
-
-	!Average in x so all processor have same global average BC
-	call globalDirSum(uvw_BC,4,1)
-
-	uc(:,:,0) = uvw_BC(1)/uvw_BC(4)
-	vc(:,:,1) = uvw_BC(2)/uvw_BC(4)
-	wc(:,:,0) = uvw_BC(3)/uvw_BC(4)
-
-	!if (rank_realm .eq. 1) then
-	!	print'(i4,a,7f10.3)', rank_world,'global average BC',uc(5,10,0),vc(5,10,1),wc(5,10,0),uvw_BC
-	!endif
-
-	if (any(uc .eq. VOID) .or. &
-		any(uc .eq. VOID) .or. &
-		any(uc .eq. VOID)) call error_abort("socket_coupler_get_md_BC error - VOID value copied to uc,vc or wc")
-
-	!print'(a,26i5)', 'array extents',rank_world,shape(uvw_md),nixb, niyb, nizb, & 
-	!														   i1_u,i2_u,j1_u,j2_u, & 
-	!														   i1_v,i2_v,j1_v,j2_v, & 
-	!														   i1_w,i2_w,j1_w,j2_w, & 
-	!														   i1_T,i2_T,j1_T,j2_T,k1_T,k2_T
-
-	! u interval [i1_u, i2_u], or [2,  ngx ] ??? 4 Procs = [2 32][3 34][3 34][3 35] ???
-	! v interval [i1_v, i2_v], or [1, ngx-1] ??? 4 Procs = [1 32][3 34][3 34][3 34] ???
-	! w interval [i1_w, i2_w], or [1, ngx-1] ??? 4 Procs = [1 32][3 34][3 34][3 34] ???
-	!uc(ngz  ,nlx+1,nly  )  
-	!vc(ngz  ,nlx  ,nly+1)
-	!wc(ngz+1,nlx  ,nly  )
-
-	!call printf(uc(:,jcmax_recv,4))
-	!call printf(vc(:,jcmax_recv,4))
-	!call printf(wc(:,jcmax_recv,4))
-
-	!Transposed indices
-	!ix = 2; iy = 3; iz = 1
-
-	!Coupler passes cell centered values so set CFD halo directly
-	!do i=0,size(uc,2)-1
-	!do j=jcmin_recv-1,jcmax_recv-1
-	!do k=0,size(uc,1)-1
-	!	uc(k,i,j) = uvw_md(1,i+1,j+1,k+1)
-	!	print'(3i8,2f20.8)', i,j,k,uc(k,i,j),uvw_md(1,i+1,j+1,k+1)
-	!enddo
-	!enddo
-	!enddo
-
-
-end subroutine socket_coupler_get_md_BC
 
 #if COUPLER_DEBUG_LA
 !---------------------------------------------------------------------
