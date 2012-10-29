@@ -58,7 +58,7 @@ subroutine messenger_invoke()
     call MPI_init (ierr)
 
 #if (USE_COUPLER == 0)
-    MD_COMM = MPI_COMM_WORLD 
+    CFD_COMM = MPI_COMM_WORLD 
 	prefix_dir = "./"
 #endif
 
