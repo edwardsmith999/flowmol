@@ -106,6 +106,81 @@ contains
 
 end subroutine simulation_apply_boundary_forces
 
+
+
+!--------------------------------------------------------------------------------------
+!Apply force to prevent molecules leaving domain using form suggested by O'Connell
+!and Thompson (1995)
+subroutine simulation_apply_boundary_forces_OT
+	use module_external_forces
+	implicit none
+
+	integer				:: n
+	double precision 	:: alpha
+	double precision 	:: y, y0
+
+	if (jblock .eq. npy) then
+
+		y0 = globaldomain(2)/2.d0 - 2.34d0
+	
+		!Set alpha and pressure to fixed value in O'Connell and Thompson
+		alpha = 2
+		pressure = 3.d0
+
+		do n = 1, np
+			if (r(n,2) .gt. y0) then
+				y = r(n,2)
+				a(n,2)= a(n,2) - alpha * pressure * density**(-2.d0/3.d0)*(y-y0)
+			endif
+		enddo
+
+	endif
+	
+end subroutine simulation_apply_boundary_forces_OT
+
+
+!--------------------------------------------------------------------------------------
+!Apply force to prevent molecules leaving domain using form suggested by Nie, Chen and
+!Robbins (2004)
+
+subroutine simulation_apply_boundary_forces_NCER
+	use module_external_forces
+	implicit none
+
+	integer	:: n
+	double precision 	:: delta_y
+	double precision 	:: y, y0, y1, y2, y3
+
+	if (jblock .eq. npy) then
+
+		delta_y = 2*cellsidelength(2)!globaldomain(2)/6.d0
+
+		y3 = globaldomain(2)/2.d0
+		y2 = y3 - delta_y
+		y1 = y2 - delta_y
+		y0 = y1 - delta_y
+	
+		!Set pressure to fixed value from graph in Rapaport for T=1.1, rho=0.8
+		pressure = 2.5d0
+
+		do n = 1, np
+			if (r(n,2) .gt. y2) then
+		
+				y = r(n,2)
+				!Initial pressure is -ve - this line prevents problems
+				if (pressure .lt. 0.d0) then
+					a(n,2)= a(n,2) - (y-y2)/(1-(y-y2)/(y3-y2))
+				else
+					a(n,2)= a(n,2) - (y-y2)/(1-(y-y2)/(y3-y2))*pressure
+				endif
+			endif
+		enddo
+
+	endif
+	
+end subroutine simulation_apply_boundary_forces_NCER
+
+
 #endif
 
 !--------------------------------------------------------------------------------------
