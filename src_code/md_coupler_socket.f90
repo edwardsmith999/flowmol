@@ -312,12 +312,12 @@ subroutine set_coupled_timing(Nsteps_md)
 	elapsedtime = elapsedtime + Nsteps_cfd * Nsteps_MD * dt_MD
 
 	if (rank_realm .eq. 1) then 
-		write(*,'(2(a,/),a,i7,a,i7,/a,i7,a,i7,/a,f15.8,a,/a)') &
+		write(*,'(2(a,/),a,i7,a,i7,/a,i7,a,i7,/a,f12.4,a,/a)') &
 			"*********************************************************************", 		&
 			" WARNING - WARNING - WARNING - WARNING - WARNING - WARNING - WARNING  ", 		&
 			" Input number of timesteps from MD: ",Nsteps_md_old," & CFD: ", Nsteps_cfd,	&
 			" is set in this coupled run to MD: ", Nsteps_md, ",CFD/Coupled: ", Nsteps_cfd,	&
-			" At the end of the run, the elapsed time will be: ", elapsedtime, " s ", 		&
+			" At the end of the run, elapsed time will be: ", elapsedtime, " LJ time units ", 		&
 			"*********************************************************************"   
 	endif 
 

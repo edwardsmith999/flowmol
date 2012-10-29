@@ -2202,7 +2202,8 @@ subroutine momentum_flux_io
 		call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
 	end select
 
-	temp = reshape(momentum_flux,(/ size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),9 /))
+	allocate(temp(size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),18))
+	temp = reshape(momentum_flux,(/ size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),18 /))
 	call write_arrays(temp,nresults,trim(prefix_dir)//'results/vflux',m)
 
 end subroutine momentum_flux_io
@@ -2328,7 +2329,8 @@ subroutine surface_stress_io
 	end select
 
 	!Write surface pressures to file
-	temp = reshape(Pxyface,(/ size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),9 /))
+	allocate(temp(size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),18))
+	temp = reshape(Pxyface,(/ size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),18 /))
 	call write_arrays(temp,nresults,trim(prefix_dir)//'results/psurface',m)
 
 end subroutine surface_stress_io

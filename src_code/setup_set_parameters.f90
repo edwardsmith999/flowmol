@@ -151,7 +151,7 @@ subroutine set_parameters_allocate
 	allocate(rtrue(nd,np+extralloc)) !Used to establish diffusion - r with no periodic BC
 	allocate(vtrue(nd,np+extralloc)) !Used to establish diffusion - r with no periodic BC
 	allocate(rtether(nd,np+extralloc))
-	allocate(rijsum(np+extralloc,nd)) !Sum of rij for each i, used for SLLOD algorithm
+	allocate(rijsum(nd,np+extralloc)) !Sum of rij for each i, used for SLLOD algorithm
 	allocate(v(nd,np+extralloc))
 	allocate(vmagnitude(np+extralloc))
 	allocate(a(nd,np+extralloc))
