@@ -141,7 +141,14 @@ subroutine simulation_record
 	!properties; gather on root process and record
 	if (macro_outflag .ne. 0) then
 		call evaluate_macroscopic_properties
-		call print_macroscopic_properties
+
+       select case(integration_algorithm)
+       case(leap_frog_verlet)
+           call print_macroscopic_properties(iter-1)   
+       case(velocity_verlet)
+           call print_macroscopic_properties(iter) 
+       end select
+
 		select case(macro_outflag)
 		case(2,4)
 			call macroscopic_properties_record
@@ -279,9 +286,11 @@ subroutine evaluate_macroscopic_properties
 
 end subroutine evaluate_macroscopic_properties
 
-subroutine print_macroscopic_properties
+subroutine print_macroscopic_properties(it)
 use module_record
 implicit none
+
+	integer, intent(in) :: it
 
 	if (irank .eq. iroot) then
 		select case(potential_flag)
@@ -289,11 +298,11 @@ implicit none
 			select case(macro_outflag)
 			case(1:2)
 				print '(1x,i8,a,f10.3,a,f10.4,a,f10.2,a,f7.3,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
-				iter,';', simtime,';',vsum,';', v2sum,';', temperature,';', &
+				it,';', simtime,';',vsum,';', v2sum,';', temperature,';', &
 				kinenergy,';',potenergy,';',totenergy,';',pressure
 			case(3:4)
 				print '(1x,i7,a,f9.3,a,f8.3,a,f7.3,a,f8.4,a,f8.4,a,f8.4,a,f8.4)', &
-				iter,';', simtime,';',vsum,';', temperature,';', &
+				it,';', simtime,';',vsum,';', temperature,';', &
 				kinenergy,';',potenergy,';',totenergy,';',pressure
 			case default
 			end select
@@ -301,11 +310,11 @@ implicit none
 			select case(macro_outflag)
 			case(1:2)
 				print '(1x,i8,a,f10.3,a,f10.4,a,f10.2,a,f7.3,a,f15.11,a,f15.11,a,f15.11,a,f10.4,a,f7.4,a,f10.4)', &
-				iter,';',simtime,';',vsum,';', v2sum,';', temperature,';', &
+				it,';',simtime,';',vsum,';', v2sum,';', temperature,';', &
 				kinenergy,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
 			case(3:4)
 				print '(1x,i7,a,f8.3,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f6.3,a,f6.2)', &
-				iter,';', simtime,';',vsum,';', temperature,';', &
+				it,';', simtime,';',vsum,';', temperature,';', &
 				kinenergy,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
 			case default
 			end select
