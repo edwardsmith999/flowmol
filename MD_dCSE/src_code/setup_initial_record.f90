@@ -406,7 +406,13 @@ subroutine setup_initial_record
 			call error_abort("Invalid potential flag in input file")
 		end select
 
-		call print_macroscopic_properties
+       select case(integration_algorithm)
+       case(leap_frog_verlet)
+           call print_macroscopic_properties(initialstep)
+       case(velocity_verlet)
+           call print_macroscopic_properties(initialstep)
+       end select
+
 		print*, "   =========================================================="
 		print*,	"   |    _____ _                 _       _   _               |"
 		print*,	"   |   /  ___(_)               | |     | | (_)              |"

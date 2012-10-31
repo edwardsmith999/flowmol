@@ -28,7 +28,13 @@ implicit none
 	if (irank .eq. iroot) then
 		print('(a,i8,a)'), ' Results from final state of simulation at iter ',iter,':'
 	end if
-	call print_macroscopic_properties
+
+   select case(integration_algorithm)
+   case(leap_frog_verlet)
+       call print_macroscopic_properties(Nsteps)
+   case(velocity_verlet)
+       call print_macroscopic_properties(Nsteps)
+   end select
 	
 	!Write values of distribution functions
 	!write(12,'(a)') 'Velocity frequency distribution'

@@ -1,8 +1,9 @@
-!-------------------------------------------------------------------------------------
+!------------------------------------------------------------------------------
 !
 !				Library Functions 
-! Used to calculate least squares fits, intergration under a line, plane line intersections
-! Heaviside function
+!
+! Used to calculate least squares fits, intergration under a line, plane line 
+! intersections Heaviside function
 !
 ! --Misc Mathematics--
 ! least_squares(x_interval,y,npoints,intercept, gradient)
@@ -27,25 +28,28 @@
 ! --Check Routines--
 ! check()
 
-!-------------------------------------------------------------------------------------
+!------------------------------------------------------------------------------
 
 module librarymod
-	! use the same name for integer of double precision arguments versions of imaxloc
+
+	! use same name for integer or double precision args versions of imaxloc
 	interface imaxloc
 		module procedure imaxloc_int, imaxloc_dp
 	end interface
 
-	! use the same name for the same logical operation; consider implementing with BLAS
+	! use same name for the same logical operation; consider BLAS
 	interface magnitude
 		module procedure magnitude3, magnitudeN
 	end interface
 
 	!Various Heavisides
 	interface heaviside
-		module procedure int_heaviside, int_array_heaviside, dp_heaviside, dp_array_heaviside
+		module procedure int_heaviside, int_array_heaviside, dp_heaviside, &
+		                 dp_array_heaviside
 	end interface
 
-    private int_heaviside, int_array_heaviside, dp_heaviside, dp_array_heaviside
+    private int_heaviside, int_array_heaviside, dp_heaviside, &
+	        dp_array_heaviside
 	
 contains
 
@@ -214,7 +218,6 @@ end subroutine integrate_trap
 !-------------------------------------------------------------------------------------
 !Returns the heaviside function for input x
 
-!DEC$ ATTRIBUTES FORCEINLINE :: int_heaviside
 function int_heaviside(x)
 	implicit none
 
@@ -225,7 +228,6 @@ function int_heaviside(x)
 
 end function
 
-!DEC$ ATTRIBUTES FORCEINLINE :: int_array_heaviside
 function int_array_heaviside(x)
 	implicit none
 
@@ -236,7 +238,6 @@ function int_array_heaviside(x)
 
 end function int_array_heaviside
 
-!DEC$ ATTRIBUTES FORCEINLINE :: dp_heaviside
 function dp_heaviside(x)
 	implicit none
 
@@ -248,7 +249,6 @@ function dp_heaviside(x)
 
 end function dp_heaviside
 
-!DEC$ ATTRIBUTES FORCEINLINE :: dp_array_heaviside
 function dp_array_heaviside(x)
 	implicit none
 
@@ -259,7 +259,7 @@ function dp_array_heaviside(x)
 
 end function dp_array_heaviside
 
-!--------------------------------------------------------------------------------------
+!------------------------------------------------------------------------------
 ! Subroutine computes the intersection of a plane and a straight line
 !Inputs: 
 !       normal - normal vector of the Plane 
