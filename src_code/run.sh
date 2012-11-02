@@ -20,7 +20,7 @@ fi
 mkdir -p ./couette_data/results
 
 #Clean it up if it is present
-rm ./couette_data/data ./couette_data/ucvcwc.dble.* ./couette_data/uuvvww.dble.* ./couette_data/conold.dble.* ./couette_data/pressure_ph.* ./couette_data/archive* ./couette_data/report ./couette_data/SubDom_dble*
+rm ./couette_data/data ./couette_data/ucvcwc.dble.* ./couette_data/uuvvww.dble.* ./couette_data/conold.dble.* ./couette_data/pressure_ph.* ./couette_md/pres_p* ./couette_data/archive* ./couette_data/report ./couette_data/SubDom_dble*
 
 #Check version of setup/grid/etc is current
 echo " "
