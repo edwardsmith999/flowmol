@@ -1117,7 +1117,7 @@ subroutine apply_continuum_forces_flekkoy(iter)
 	use computational_constants_MD, only : delta_t,nh,halfdomain,ncells,cellsidelength,initialstep,Nsteps
 	use arrays_MD, only : r, v, a
 	use linked_list, only : node, cell
-	use coupler_module, only : md_steps_per_dt_cfd
+	!use coupler_module, only : md_steps_per_dt_cfd
 	implicit none
 
 	integer, intent(in) 				:: iter ! iteration step, it assumes that each MD average starts from iter = 1
@@ -1129,13 +1129,13 @@ subroutine apply_continuum_forces_flekkoy(iter)
 
 	type(node), pointer 	        	:: old, current
 
-	iter_average = mod(iter-1, md_steps_per_dt_cfd)+1
+	!iter_average = mod(iter-1, md_steps_per_dt_cfd)+1
 
 	! Receive value of CFD velocities at first timestep of md_steps_per_dt_cfd
-	if (iter_average .eq. 1) then
-			call CPL_recv(uvw_cfd,jcmax_recv=jcmax_recv, & 
-						          jcmin_recv=jcmin_recv,recv_flag=recv_flag)
-	else
+	!if (iter_average .eq. 1) then
+	!		call CPL_recv(uvw_cfd,jcmax_recv=jcmax_recv, & 
+	!					          jcmin_recv=jcmin_recv,recv_flag=recv_flag)
+	!else
 
 	!Apply force to top three bins in y
 	!ASSUME Cell same size as bins and one continuum cell is two MD cells
