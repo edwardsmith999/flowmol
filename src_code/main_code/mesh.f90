@@ -47,8 +47,6 @@ subroutine mesh_init()
     call CPL_cfd_adjust_domain(xL=xL,zL=zL,density_cfd=rho_loc)
 #endif
 
-    write(0,*) xL,zL, rho_loc, imin,imax
-
 	! Grid size specified in data module
 
 	!-------------------------------------------------------------------
