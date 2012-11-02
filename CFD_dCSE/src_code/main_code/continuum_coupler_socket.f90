@@ -228,8 +228,8 @@ subroutine socket_coupler_send_velocity
     implicit none
 
 	logical	:: send_flag
-    integer	:: i,n,ixyz,icell,jcell,kcell,npercell,nclx,ncly,nclz
-    integer	:: coord(3),extents(6)
+    integer	:: i,j,n,ixyz,icell,jcell,kcell,npercell,nclx,ncly,nclz
+    integer	:: coord(3),extents(6),cnstnd_cells,jcmin_send,jcmax_send
     real(kind(0.d0)),dimension(:,:,:,:), allocatable 	:: sendbuf
 	real(kind(0.d0)) :: gradient
 
@@ -245,35 +245,25 @@ subroutine socket_coupler_send_velocity
 	nclx = extents(2)-extents(1)+1
 	ncly = extents(4)-extents(3)+1
 	nclz = extents(6)-extents(5)+1
-
 	allocate(sendbuf(npercell,nclx,ncly,nclz))
-	!print*, 'Shapes', shape(sendbuf(1,:,jcmax_olap-1,:)),i1_u,i2_u,ibmin_1(iblock_realm),ibmax_1(iblock_realm),nlxb,nlx,jcmax_olap-1,ngz,shape(uc)
  
-
-	!if (   nclx-1 .eq. i2_u-i1_u+1) then
-		!Extrapolat Initial cell
-	!	gradient = (uc(2:ngz,nclx-1,jcmax_olap-1)-uc(2:ngz,nclx-2,jcmax_olap-1))/dx
-	!	sendbuf(1,nclx,:,jcmax_olap-1) = dx * gradient + uc(2:ngz,nclx-1,jcmax_olap-1)
-		!Interpolate cell centres using all surface
-	!	do i=1,nclx-1
-	!		sendbuf(1,i,jcmax_olap-1,:) = 0.5d0(uc(2:ngz,i,jcmax_olap-1)+uc(2:ngz,i,jcmax_olap-1))
-	!	enddo
-		!Extrapolat final cell
-	!	gradient = (uc(2:ngz,nclx-1,jcmax_olap-1)-uc(2:ngz,nclx-2,jcmax_olap-1))/dx
-	!	sendbuf(1,nclx,:,jcmax_olap-1) = dx * gradient + uc(2:ngz,nclx-1,jcmax_olap-1)
-	!elseif(nclx   .eq. i2_u-i1_u+1) then
-!	!elseif(nclx+1 .eq. i2_u-i1_u+1) then
+	!Number of cells to package and send
+	cnstnd_cells = 17
+	jcmin_send = jcmax_olap-1-cnstnd_cells
+	jcmax_send = jcmax_olap-1
 
 	!Interpolate cell centres using all surface
 	sendbuf = 0.d0
 	do i=1,nclx
+	do j=jcmin_send,jcmax_send
 		n = i + i1_u - 1
-		sendbuf(1,i,jcmax_olap-1,:) = 0.5d0*(uc(:,n,jcmax_olap-1) + uc(:,n+1,jcmax_olap-1))
-	!	print'(2i4,a,i4,3f20.5)',rank_world, i,'of',nclx,uc(4,i,jcmax_olap-1),uc(4,i+1,jcmax_olap-1),sendbuf(1,i,jcmax_olap-1,4)
+		sendbuf(1,i,j,:) = 0.5d0*(uc(:,n,j) + uc(:,n+1,j))
+	enddo
 	enddo
 
-	call CPL_send(sendbuf,jcmax_send=jcmax_olap-1, & 
-					      jcmin_send=jcmax_olap-1,send_flag=send_flag)
+	!Send data to MD
+	call CPL_send(sendbuf,jcmax_send=jcmax_send, & 
+					      jcmin_send=jcmin_send,send_flag=send_flag)
 
 end subroutine socket_coupler_send_velocity
 
@@ -322,7 +312,8 @@ subroutine socket_coupler_send_stress
 
 end subroutine socket_coupler_send_stress
 
-
+!---------------------------------------------------------------------
+! 			Gets cell centered strain from velocity field
 
 subroutine Evaluate_strain(uc,vc,wc,dUidxj)
 	use data_export, only : ibmin,ibmax,jbmin,jbmax,kbmin,kbmax, &
