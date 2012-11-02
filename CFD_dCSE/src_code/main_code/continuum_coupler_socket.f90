@@ -254,11 +254,12 @@ subroutine socket_coupler_send_velocity
 
 	!Interpolate cell centres using all surface
 	sendbuf = 0.d0
-	do i=1,nclx
 	do j=jcmin_send,jcmax_send
+	do i=1,nclx
 		n = i + i1_u - 1
 		sendbuf(1,i,j,:) = 0.5d0*(uc(:,n,j) + uc(:,n+1,j))
 	enddo
+	!call printf(sendbuf(1,40,j,:))
 	enddo
 
 	!Send data to MD

@@ -610,7 +610,7 @@ subroutine socket_apply_continuum_forces(iter)
 	! Receive value of CFD velocities at first timestep of md_steps_per_dt_cfd
 	if (iter_average .eq. 1) then
 			call CPL_recv(uvw_cfd,jcmax_recv=jcmax_recv, & 
-						      jcmin_recv=jcmin_recv,recv_flag=recv_flag)
+						          jcmin_recv=jcmin_recv,recv_flag=recv_flag)
 	else
 		!Linear extrapolation between velocity at t and t+1
 	endif
@@ -727,7 +727,9 @@ subroutine average_over_bin
 			jb = ceiling((r(2,n)-CFD_box(3)   )/dy)
 			kb = ceiling((r(3,n)+halfdomain(3))/dz)
 
-			!print'(8i5,5f10.5)', rank_world,ceiling((r(2,n)+halfdomain(2))/dy),jb,jcmin_recv,jcmax_recv,jcmin_olap,jcmax_olap,cnstnd_cells,r(2,n),CFD_box(3),CFD_box(4),dy,halfdomain(2)
+			!print'(8i5,5f10.5)', rank_world,ceiling((r(2,n)+halfdomain(2))/dy),jb,jcmin_recv, & 
+			!						jcmax_recv,jcmin_olap,jcmax_olap,cnstnd_cells,r(2,n),      & 
+			!						CFD_box(3),CFD_box(4),dy,halfdomain(2)
 
 			!Exlude out of domain molecules
 			if (ib.lt.1 .or. ib.gt.size(box_average,1)) cycle
@@ -780,9 +782,12 @@ subroutine apply_force
         !        			  uvw_cfd(1,ib,1,kb))
 
 		!u_cfd_t_plus_dt(1) = alpha(1) * (iter_average + 1)*delta_t + uvw_cfd(1,ib,1,kb) 
+		if (uvw_cfd(1,ib,jb+jcmin_recv-1,kb) .eq. 0.00) then
+			print*,rank_world,ib,jb+jcmin_recv-1,kb, uvw_cfd(1,ib,jb+jcmin_recv-1,kb)
+		endif
 
 		acfd =	- box_average(ib,jb,kb)%a(1) / n - inv_dtMD * & 
-				( box_average(ib,jb,kb)%v(1) / n -uvw_cfd(1,ib,size(uvw_cfd,3)-1,kb)  )
+				( box_average(ib,jb,kb)%v(1) / n - uvw_cfd(1,ib,jb+jcmin_recv-1,kb) )
 		!if (ib .eq. 8 .and. kb .eq. 5) then
 		!	print'(a,2i5,i10,4i4,5f9.4)', 'FORCE OUT', rank_world, i, np_overlap, box_average(ib,jb,kb)%np, & 
 		!							   			   ib,jb,kb,box_average(ib,jb,kb)%a(1),box_average(ib,jb,kb)%v(1), & 
@@ -1100,6 +1105,72 @@ subroutine CFD_cells_to_MD_compute_cells(ii_cfd,jj_cfd,kk_cfd, &
 	print*,'zcells', zg(kk_cfd  ),(zg(kk_cfd)-zL_min)/cellsidelength(3)+1, (zg(kk_cfd+1)-zL_min)/cellsidelength(3)+1
 
 end subroutine CFD_cells_to_MD_compute_cells
+
+
+
+
+
+!----------------------------------------------------------------
+! Attempt to apply continuum forces based on Flekkoy 
+
+subroutine apply_continuum_forces_flekkoy(iter)
+	use computational_constants_MD, only : delta_t,nh,halfdomain,ncells,cellsidelength,initialstep,Nsteps
+	use arrays_MD, only : r, v, a
+	use linked_list, only : node, cell
+	use coupler_module, only : md_steps_per_dt_cfd
+	implicit none
+
+	integer, intent(in) 				:: iter ! iteration step, it assumes that each MD average starts from iter = 1
+
+	integer         					:: js,je,n, molno, cellnp
+	integer         					:: cbin, iter_average
+	integer								:: icell, jcell, kcell
+	double precision					:: weight, cfd_stress
+
+	type(node), pointer 	        	:: old, current
+
+	iter_average = mod(iter-1, md_steps_per_dt_cfd)+1
+
+	! Receive value of CFD velocities at first timestep of md_steps_per_dt_cfd
+	if (iter_average .eq. 1) then
+			call CPL_recv(uvw_cfd,jcmax_recv=jcmax_recv, & 
+						          jcmin_recv=jcmin_recv,recv_flag=recv_flag)
+	else
+
+	!Apply force to top three bins in y
+	!ASSUME Cell same size as bins and one continuum cell is two MD cells
+	do jcell= js,je	!Loop through all overlap y cells
+ 		cbin = jcell - js+1					!Local no. of overlap cell from 1 to overlap
+    	do kcell = nh+1,ncells(3)+1+nh !Loop through all x cells
+		do icell = nh+1,ncells(1)+1+nh !Loop through all z cells
+
+			cellnp = cell%cellnp(icell,jcell,kcell)
+			old => cell%head(icell,jcell,kcell)%point 	!Set old to first molecule in list
+			
+			!Apply coupling force as Nie, Chen and Robbins (2004), using
+			!Linear extrapolation of velocity
+			do n = 1, cellnp    ! Loop over all particles
+				molno = old%molno !Number of molecule
+
+				!weight = weight(r(:,n))
+				a(1,molno)= a(1,molno) - weight * cfd_stress
+
+				current => old
+				old => current%next 
+
+			enddo
+
+		enddo
+		enddo
+	enddo
+
+	nullify(current)        !Nullify current as no longer required
+	nullify(old)            !Nullify old as no longer required
+
+end subroutine apply_continuum_forces_flekkoy
+
+
+
 
 
 
