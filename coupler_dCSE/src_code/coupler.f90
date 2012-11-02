@@ -2,43 +2,58 @@
 !
 !				  Coupler 
 !
-! Routines accessible from application ( molecular or continuum ) after 
-! the name, in parenthesis, is the realm in which each routine must be called
-!
+!! Routines accessible from application ( molecular or continuum ) after 
+!! the name, in parenthesis, is the realm in which each routine must be called
+!!
 ! SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP
 !
-! CPL_create_comm	      (cfd+md)   splits MPI_COMM_WORLD, create inter - 
-!										 communicator between CFD and MD
-! CPL_create_map	      (cfd+md)   creates correspondence maps between 
-!										 the CFD grid and MD domains
-! CPL_cfd_adjust_domain     (cfd)    adjust CFD tomain to an integer number 
-!										 FCC or similar MD initial layout
-!
+!! - CPL_create_comm	      (cfd+md)   splits MPI_COMM_WORLD, create inter - 
+!!                                   communicator between CFD and MD
+!!
+!! - CPL_create_map	      (cfd+md)   creates correspondence maps between 
+!!                                      the CFD grid and MD domains
+!!
+!! - CPL_cfd_adjust_domain     (cfd)    adjust CFD tomain to an integer number 
+!!                                      FCC or similar MD initial layout
+!!
 ! SIMULATION SIMULATION SIMULATION SIMULATION SIMULATION SIMULATION SIMULATION
-!
-! CPL_send_data        	  (cfd+md)   sends grid data exchanged between 
-!										 realms ( generic interface)
-! CPL_recv_data        	  (cfd+md)   receives data exchanged between realms 
-!										 ( generic interface)
-! CPL_cfd_get               (cfd)    returns coupler internal parameters 
-!										 for CFD realm
-! CPL_md_get                 (md)    returns coupler internal parameters 
-!										 for MD realm
-! CPL_md_get_save_period     (md)    auxiliary used for testing
-! CPL_md_get_average_period  (md)    returns average period of BC
-! CPL_md_get_md_per_cfd_dt   (md) 	 returns the number of step MD does for 
-										 !each CFD step
-! CPL_md_get_nsteps          (md)    returm CFD nsteps  
-! CPL_md_get_dt_cfd          (md)    returns MD dt
-! CPL_md_set                 (md)    sets zL if CFD is 2D
-! CPL_md_get_density         (md)    gets CFD density
-! CPL_md_get_cfd_id          (md)    id for CFD code, possible values set 
-!										 in coupler_parameters
-!
-!  Lucian Anton, November 2011
-!  Revised April 2012
-!  Largly re-written by Edward Smith & Dave Trevelyan September 2012
-!
+!!
+!! - CPL_send_data        	  (cfd+md)   sends grid data exchanged between 
+!!                                      realms ( generic interface)
+!!
+!! - CPL_recv_data        	  (cfd+md)   receives data exchanged between realms 
+!!                                      ( generic interface)
+!!
+!! - CPL_cfd_get               (cfd)    returns coupler internal parameters 
+!!                                      for CFD realm
+!!
+!! - CPL_md_get                 (md)    returns coupler internal parameters 
+!!                                      for MD realm
+!!
+!! - CPL_md_get_save_period     (md)    auxiliary used for testing
+!!
+!! - CPL_md_get_average_period  (md)    returns average period of BC
+!!
+!! - CPL_md_get_md_per_cfd_dt   (md) 	returns the number of step MD does for 
+!!                                      each CFD step
+!!
+!! - CPL_md_get_nsteps          (md)    returm CFD nsteps  
+!!
+!! - CPL_md_get_dt_cfd          (md)    returns MD dt
+!!
+!! - CPL_md_set                 (md)    sets zL if CFD is 2D
+!!
+!! - CPL_md_get_density         (md)    gets CFD density
+!!
+!! - CPL_md_get_cfd_id          (md)    id for CFD code, possible values set 
+!!                                      in coupler_parameters
+!!
+!! @author  Lucian Anton, November 2011  
+!! @author Edward Smith, Dave Trevelyan September 2012
+!! @see coupler_module
+!! @see coupler_internal_cfd
+!! @see coupler_internal_md
+!! @see coupler_parameters
 !=============================================================================
 
 module coupler
@@ -85,8 +100,8 @@ contains
 
 !=============================================================================
 ! 							coupler_create_comm	      	
-! (cfd+md) Splits MPI_COMM_WORLD in both the CFD and MD code respectively
-! 		   and create intercommunicator between CFD and MD
+!! (cfd+md) Splits MPI_COMM_WORLD in both the CFD and MD code respectively
+!! 		   and create intercommunicator between CFD and MD
 !-----------------------------------------------------------------------------
 
 subroutine CPL_create_comm(callingrealm, RETURNED_REALM_COMM, ierror)
@@ -225,8 +240,8 @@ end subroutine create_comm
 end subroutine CPL_create_comm
 
 !=============================================================================
-! Establish for all MD processors the mapping (if any) 
-! to coupled CFD processors
+!! Establish for all MD processors the mapping (if any) 
+!! to coupled CFD processors
 !-----------------------------------------------------------------------------
 
 subroutine CPL_create_map
@@ -1473,8 +1488,9 @@ end subroutine CPL_scatter
 
 
 !=============================================================================
-! CPL_send_data wrapper for 3d arrays
-! see CPL_send_xd for input description
+!! CPL_send_data wrapper for 3d arrays
+!! see CPL_send_xd for input description
+!! @see coupler#subroutine_CPL_send_xd
 !-----------------------------------------------------------------------------
 subroutine CPL_send_3d(temp,icmin_send,icmax_send,jcmin_send, & 
 							jcmax_send,kcmin_send,kcmax_send,send_flag)
@@ -1540,8 +1556,9 @@ subroutine CPL_send_3d(temp,icmin_send,icmax_send,jcmin_send, &
 end subroutine CPL_send_3d
 
 !=============================================================================
-! CPL_send_data wrapper for 4d arrays
-! see CPL_send_xd for input description
+!! CPL_send_data wrapper for 4d arrays
+!! see CPL_send_xd for input description
+!! @see coupler#subroutine_CPL_send_xd
 !-----------------------------------------------------------------------------
 subroutine CPL_send_4d(asend,icmin_send,icmax_send,jcmin_send, & 
 							 jcmax_send,kcmin_send,kcmax_send,send_flag)
@@ -1611,9 +1628,30 @@ subroutine CPL_send_4d(asend,icmin_send,icmax_send,jcmin_send, &
 end subroutine CPL_send_4d
 
 !=============================================================================
-! Send data from the local grid to the associated ranks from the other 
-! realm
-!-----------------------------------------------------------------------------
+!						CPL_send_xd
+!
+!! Send data from the local grid to the associated ranks from the other 
+!! realm
+!!
+!! - Synopsis
+!!
+!!  - CPL_send_xd(asend,icmin_send,icmax_send,jcmin_send,  
+!!						     jcmax_send,kcmin_send,kcmax_send,send_flag)
+!!
+!! - Input Parameters
+!!
+!!   - asend
+!!
+!!   - jcmax_recv
+!!
+!!   - jcmin_recv
+!!
+!! - Output Parameter
+!!
+!!   - send_flag
+!!
+!! @author Edward Smith
+! ----------------------------------------------------------------------------
 subroutine CPL_send_xd(asend,icmin_send,icmax_send,jcmin_send, & 
 						     jcmax_send,kcmin_send,kcmax_send,send_flag)
 	use mpi
@@ -1743,8 +1781,9 @@ subroutine CPL_send_xd(asend,icmin_send,icmax_send,jcmin_send, &
 end subroutine CPL_send_xd
 
 !=============================================================================
-! CPL_recv_data wrapper for 3d arrays
-! see CPL_recv_xd for input description
+!! CPL_recv_xd wrapper for 3d arrays
+!! see CPL_recv_xd for input description
+!! @see coupler#subroutine_CPL_recv_xd
 !-----------------------------------------------------------------------------
 subroutine CPL_recv_3d(temp,icmin_recv,icmax_recv,jcmin_recv, & 
 							jcmax_recv,kcmin_recv,kcmax_recv,recv_flag)
@@ -1814,8 +1853,9 @@ subroutine CPL_recv_3d(temp,icmin_recv,icmax_recv,jcmin_recv, &
 end subroutine CPL_recv_3d
 
 !=============================================================================
-! CPL_recv_data wrapper for 4d arrays
-! see CPL_recv_xd for input description
+!! CPL_recv_xd  wrapper for 4d arrays
+!! See CPL_recv_xd for input description
+!! @see coupler#subroutine_CPL_recv_xd
 !-----------------------------------------------------------------------------
 subroutine CPL_recv_4d(arecv,icmin_recv,icmax_recv,jcmin_recv, & 
 							 jcmax_recv,kcmin_recv,kcmax_recv,recv_flag)
@@ -1875,9 +1915,34 @@ subroutine CPL_recv_4d(arecv,icmin_recv,icmax_recv,jcmin_recv, &
 
 end subroutine CPL_recv_4d
 
+
 !=============================================================================
-! Receive data from to local grid from the associated ranks from the other 
-! realm
+!						CPL_recv_xd
+!
+!! Receive data from to local grid from the associated ranks from the other 
+!! realm
+!!
+!! - Synopsis
+!!
+!!  - CPL_recv_xdarecv,icmin_recv,icmax_recv,jcmin_recv,  
+!!						     jcmax_recv,kcmin_recv,kcmax_recv,recv_flag)
+!!
+!! - Input Parameters
+!!
+!!   - arecv
+!!
+!!   - jcmax_recv
+!!
+!!   - jcmin_recv
+!!
+!!   - index_transpose
+!!
+!! - Output Parameter
+!!
+!!   - recv_flag
+!!
+!! @author Edward Smith
+! ----------------------------------------------------------------------------
 !-----------------------------------------------------------------------------
 subroutine CPL_recv_xd(arecv,icmin_recv,icmax_recv,jcmin_recv, & 
 						     jcmax_recv,kcmin_recv,kcmax_recv,recv_flag)
@@ -2362,28 +2427,28 @@ end subroutine CPL_proc_extents
 ! 					CPL_olap_extents  			      -
 !-------------------------------------------------------------------
 
-! Get maximum and minimum cells for current communicator within
-! the overlapping region only
+!! Get maximum and minimum cells for current communicator within
+!! the overlapping region only
+!!
+!! - Synopsis
+!!
+!!  - CPL_olap_extents(coord,realm,extents,ncells)
+!!
+!! - Input
+!!
+!!  - coord
+!!   - processor cartesian coordinate (3 x integer) 
+!!  - realm
+!!   - cfd_realm (1) or md_realm (2) (integer) 
+!!
+!! - Output
 
-! - - - Synopsis - - -
-
-! CPL_olap_extents(coord,realm,extents,ncells)
-
-! - - - Input Parameters - - -
-
-!coord
-!    processor cartesian coordinate (3 x integer) 
-!realm
-!    cfd_realm (1) or md_realm (2) (integer) 
-!
-! - - - Output Parameter - - -
-
-!extents
-!	 Six components array which defines processor extents within
-!    the overlap region only 
-!	 xmin,xmax,ymin,ymax,zmin,zmax (6 x integer) 
-!ncells (optional)
-!    number of cells on processor (integer) 
+!!  - extents
+!!   - Six components array which defines processor extents within
+!!     the overlap region only xmin,xmax,ymin,ymax,zmin,zmax (6 x integer) 
+!!  - ncells (optional)
+!!   - number of cells on processor (integer)
+!! @author David Trevelyan
 
 subroutine CPL_olap_extents(coord,realm,extents,ncells)
 	use mpi
@@ -2502,36 +2567,42 @@ subroutine CPL_proc_portion(coord,realm,limits,portion,ncells)
 	end if
 
 end subroutine CPL_proc_portion 
+
 !-------------------------------------------------------------------
 ! 					CPL_Cart_coords								   -
 !-------------------------------------------------------------------
 
-! Determines process coords in appropriate realm's cartesian topology 
-! given a rank in any communicator
-
-! - - - Synopsis - - -
-
-! CPL_Cart_coords(COMM, rank, realm, maxdims, coords, ierr)
-
-! - - - Input Parameters - - -
-
-!comm
-!    communicator with cartesian structure (handle) 
-!realm
-!    cfd_realm (1) or md_realm (2) (integer) 
-!rank
-!    rank of a process within group of comm (integer) 
-!    NOTE fortran convention rank=1 to nproc
-!maxdims
-!    length of vector coords in the calling program (integer) 
-
-! - - - Output Parameter - - -
-
-!coords
-!    integer array (of size ndims) containing the Cartesian coordinates 
-!    of specified process (integer) 
-!ierr
-!    error flag
+!! Determines process coords in appropriate realm's cartesian topology 
+!! given a rank in any communicator
+!!
+!! - Synopsis
+!!
+!!  - CPL_Cart_coords(COMM, rank, realm, maxdims, coords, ierr)
+!!
+!! - Input Parameters
+!!
+!!  - comm
+!!   - communicator with cartesian structure (handle) 
+!!
+!!  - realm
+!!   - cfd_realm (1) or md_realm (2) (integer) 
+!!
+!!  - rank
+!!   - rank of a process within group of comm (integer) 
+!!      NOTE fortran convention rank=1 to nproc
+!!
+!!  - maxdims
+!!   - length of vector coords in the calling program (integer) 
+!!
+!! - Output Parameter
+!!
+!!  - coords
+!!   - integer array (of size ndims) containing the Cartesian coordinates 
+!!     of specified process (integer) 
+!!
+!!  - ierr
+!!   - error flag
+!! @author Edward Smith
 
 subroutine CPL_Cart_coords(COMM, rank, realm, maxdims, coords, ierr)
 	use coupler_module, only :  CPL_WORLD_COMM, CPL_REALM_COMM, CPL_INTER_COMM, & 

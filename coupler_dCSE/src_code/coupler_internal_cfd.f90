@@ -1,7 +1,7 @@
 !=============================================================================
-!				   Coupler internal CFD   				   
-! Internal data and subroutines used by the coupler when working in CFD realm
-! It must not be used by subroutimes working in MD realm
+!!				   Coupler internal CFD   				   
+!! Internal data and subroutines used by the coupler when working in CFD realm
+!! It must not be used by subroutimes working in MD realm
 ! Subroutines include:
 !
 ! coupler_cfd_init          (cfd)    initialises coupler with CFD data
@@ -35,10 +35,73 @@ module coupler_internal_cfd
 
 contains
 
-
+!------------------------------------------------------------------------------
+!                              coupler_cfd_init                               -
+!------------------------------------------------------------------------------
+!!
+!! Initialisation routine for coupler module - Every variable is sent and stored
+!! to ensure both md and cfd region have an identical list of parameters
+!!
+!! - Synopsis
+!!
+!!  - coupler_cfd_init(nsteps,dt_cfd,icomm_grid,icoord,npxyz_cfd,xyzL,ncxyz,
+!!							   density,ijkcmax,ijkcmin,iTmin,iTmax,jTmin,
+!!							   jTmax,kTmin,kTmax,xg,yg,zg)
+!!
+!! - Input
+!!
+!!  - nsteps
+!!   - Number of time steps the CFD code is expected to run for (integer)
+!!  - dt_cfd
+!!   - CFD timestep (dp real)
+!!  - icomm_grid
+!!   - The MPI communicator setup by the MPI_CART_CREATE command in the 
+!!     CFD region (integer)
+!!  - icoord
+!!   - The three coordinate for each rank in the domain (integer array nproc by 3)
+!!  - npxyz_cfd
+!!   - Number of processors in each cartesian dimension (integer array 3)
+!!  - xyzL
+!!   - Size of domain in each cartesian dimension (dp real array 3)
+!!  - ncxyz
+!!   - Global number of cells in each cartesian dimension (integer array 3)
+!!  - density
+!!   - Density of the CFD simulation (dp_real)
+!!  - ijkcmax
+!!   - Global minimum cell in each cartesian dimension (integer array 3)
+!!  - ijkcmin
+!!   - Global maximum cell in each cartesian dimension (integer array 3)
+!!  - iTmin
+!!   - Local minimum cell for each rank (integer array no. procs in x)
+!!  - iTmax
+!!   - Local maximum cell for each rank (integer array no. procs in x)
+!!  - jTmin
+!!   - Local minimum cell for each rank (integer array no. procs in y)
+!!  - jTmax
+!!   - Local maximum cell for each rank (integer array no. procs in y)
+!!  - kTmin
+!!   - Local minimum cell for each rank (integer array no. procs in z)
+!!  - kTmax
+!!   - Local maximum cell for each rank (integer array no. procs in z)
+!!  - xg
+!!   - Array of cell vertices in the x direction (no. cells in x by 
+!!     no. cells in y)
+!!  - yg
+!!   - Array of cell vertices in the y direction (no. cells in x by 
+!!     no. cells in y)
+!!  - zg
+!!   - Array of cell vertices in the z direction (no. cells in z)
+!!
+!! - Input/Output
+!!  - NONE
+!!
+!! - Output
+!!  - NONE
+!! 
+!! @author Edward Smith
+!
 ! ----------------------------------------------------------------------------
-! Initialisation routine for coupler - Every variable is sent and stored
-! to ensure both md and cfd region have an identical list of parameters
+
 
 subroutine coupler_cfd_init(nsteps,dt_cfd,icomm_grid,icoord,npxyz_cfd,xyzL,ncxyz, & 
 							   density,ijkcmax,ijkcmin,iTmin,iTmax,jTmin, & 
@@ -280,9 +343,9 @@ subroutine coupler_cfd_init(nsteps,dt_cfd,icomm_grid,icoord,npxyz_cfd,xyzL,ncxyz
 		'CFD local cells',icPmin_cfd,icPmax_cfd,jcPmin_cfd,jcPmax_cfd,kcPmin_cfd,kcPmax_cfd
 
 	!Calculate the cell sizes dx,dy & dz
-	dx = xL_cfd/ncx  !xg(2,1)-xg(1,1)
-	dy = yL_cfd/ncy	 !yg(1,2)-yg(1,1)
-	dz = zL_cfd/ncz  !zg(2  )-zg(1  )
+	dx = xL_cfd/ncx	  !xg(2,1)-xg(1,1)
+	dy = yg(1,2)-yg(1,1) ! yL_cfd/ncy
+	dz = zL_cfd/ncz	  !zg(2  )-zg(1  )
 
     ! send number of overlap cells, read by input, to all processors
     ! Note : jcmax_overlap default is provided in coupler_internal_cfd

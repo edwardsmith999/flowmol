@@ -11,9 +11,10 @@
 
 
 module continuum_coupler_socket
-	use coupler
-    implicit none
+
 #if USE_COUPLER
+	use coupler
+	implicit none
 
 contains
 
@@ -119,91 +120,6 @@ end subroutine socket_create_map
 ! Simulation  Simulation  Simulation  Simulation  Simulation  Simulation  
 !=============================================================================
 
-
-subroutine socket_coupler_send_velocity
-    use coupler, only : CPL_send,CPL_olap_extents
-	use coupler_module, only : rank_realm,jcmax_olap,olap_mask,rank_world, & 
-							   iblock_realm,jblock_realm,kblock_realm,realm,printf
- 	use data_export, only : uc,i1_u,i2_u,ngz,nlx,nlxb,ibmin_1,ibmax_1
-    implicit none
-
-	logical	:: send_flag
-    integer	:: i,n,ixyz,icell,jcell,kcell,npercell,nclx,ncly,nclz
-    integer	:: coord(3),extents(6)
-    real(kind(0.d0)),dimension(:,:,:,:), allocatable 	:: sendbuf
-	real(kind(0.d0)) :: gradient
-
-	! Check processor is inside MD/CFD overlap zone 
-	if (olap_mask(rank_world) .eq. 0) return
-
-	npercell = 3
-
-	coord = (/iblock_realm,jblock_realm,kblock_realm /)
-	call CPL_olap_extents(coord,realm,extents)
-	nclx = extents(2)-extents(1)+1
-	ncly = extents(4)-extents(3)+1
-	nclz = extents(6)-extents(5)+1
-
-	allocate(sendbuf(npercell,nclx,ncly,nclz))
-	!print*, 'Shapes', shape(sendbuf(1,:,jcmax_olap-1,:)),i1_u,i2_u,ibmin_1(iblock_realm),ibmax_1(iblock_realm),nlxb,nlx,jcmax_olap-1,ngz,shape(uc)
- 
-
-	!if (   nclx-1 .eq. i2_u-i1_u+1) then
-		!Extrapolat Initial cell
-	!	gradient = (uc(2:ngz,nclx-1,jcmax_olap-1)-uc(2:ngz,nclx-2,jcmax_olap-1))/dx
-	!	sendbuf(1,nclx,:,jcmax_olap-1) = dx * gradient + uc(2:ngz,nclx-1,jcmax_olap-1)
-		!Interpolate cell centres using all surface
-	!	do i=1,nclx-1
-	!		sendbuf(1,i,jcmax_olap-1,:) = 0.5d0(uc(2:ngz,i,jcmax_olap-1)+uc(2:ngz,i,jcmax_olap-1))
-	!	enddo
-		!Extrapolat final cell
-	!	gradient = (uc(2:ngz,nclx-1,jcmax_olap-1)-uc(2:ngz,nclx-2,jcmax_olap-1))/dx
-	!	sendbuf(1,nclx,:,jcmax_olap-1) = dx * gradient + uc(2:ngz,nclx-1,jcmax_olap-1)
-	!elseif(nclx   .eq. i2_u-i1_u+1) then
-!
-	!elseif(nclx+1 .eq. i2_u-i1_u+1) then
-
-	!Interpolate cell centres using all surface
-	sendbuf = 0.d0
-	do i=1,nclx
-		n = i + i1_u - 1
-		sendbuf(1,i,jcmax_olap-1,:) = 0.5d0*(uc(:,n,jcmax_olap-1) + uc(:,n+1,jcmax_olap-1))
-	!	print'(2i4,a,i4,3f20.5)',rank_world, i,'of',nclx,uc(4,i,jcmax_olap-1),uc(4,i+1,jcmax_olap-1),sendbuf(1,i,jcmax_olap-1,4)
-	enddo
-	!endif
-
-	!call printf(uc(4,:,jcmax_olap-1))
-	!print*, rank_realm, 'uc done, sendbuf coming'
-	!call printf(sendbuf(1,4,jcmax_olap-1,:))
-
-
-	!sendbuf(1,:,jcmax_olap-1,:) = uc(2:ngz,jcmax_olap-1,i1_u:i2_u)
-
-	!do ixyz =1,npercell
-	!do icell=extents(1),extents(2)
-	!do jcell=extents(3),extents(4)
-	!do kcell=extents(5),extents(6)
-	!	sendbuf(ixyz,icell,jcell,kcell) = 0.1d0*ixyz + 1*(icell) + &
-	!	                       			  1000*(jcell) + &
-	!	                    			  1000000*(kcell)
-!
-	!end do
-	!end do
-	!end do
-	!end do
-
-
-
-	call CPL_send(sendbuf,jcmax_send=jcmax_olap-1, & 
-					      jcmin_send=jcmax_olap-1,send_flag=send_flag)
-
-	!print*, 'sent', rank_world, send_flag
-	!if (send_flag) call printf(sendbuf(1,:,jcmax_olap,4))
-
-end subroutine socket_coupler_send_velocity
-
-
-
 !---------------------------------------------------------------------
 ! Get Boundary condition for continuum from average of MD 
 
@@ -242,8 +158,6 @@ subroutine  socket_coupler_get_md_BC(uc,vc,wc)
 
 	call CPL_recv(uvw_md,jcmax_recv=jcmax_recv,jcmin_recv=jcmin_recv,recv_flag=recv_flag)
 	!call CPL_gather(uvw_md,3)
-	!call printf(uvw_md(1,:,jcmax_recv,4))
-	!call printf(uvw_md(4,:,jcmax_recv,4))
 
 	!Set full extent of halos to zero and set domain portion to MD values
 	uc(:,:,0) = 0.d0; vc(:,:,1) = 0.d0; wc(:,:,0) = 0.d0
@@ -253,7 +167,6 @@ subroutine  socket_coupler_get_md_BC(uc,vc,wc)
 	uvw_BC(2) = sum(uvw_md(2,:,1,:))
 	uvw_BC(3) = sum(uvw_md(3,:,1,:))
 	uvw_BC(4) = sum(uvw_md(4,:,1,:)) 
-	!print'(i4,a,4f10.3)', rank_world,'per proc BC',uvw_BC
 
 	!Average in x so all processor have same global average BC
 	call globalDirSum(uvw_BC,4,1)
@@ -304,23 +217,208 @@ subroutine  socket_coupler_get_md_BC(uc,vc,wc)
 end subroutine socket_coupler_get_md_BC
 
 
+!---------------------------------------------------------------------
+! Send continuum velocity in x direction to be used by MD
+
+subroutine socket_coupler_send_velocity
+    use coupler, only : CPL_send,CPL_olap_extents
+	use coupler_module, only : rank_realm,jcmax_olap,olap_mask,rank_world, & 
+							   iblock_realm,jblock_realm,kblock_realm,realm,printf
+ 	use data_export, only : uc,i1_u,i2_u,ngz,nlx,nlxb,ibmin_1,ibmax_1
+    implicit none
+
+	logical	:: send_flag
+    integer	:: i,n,ixyz,icell,jcell,kcell,npercell,nclx,ncly,nclz
+    integer	:: coord(3),extents(6)
+    real(kind(0.d0)),dimension(:,:,:,:), allocatable 	:: sendbuf
+	real(kind(0.d0)) :: gradient
+
+	! Check processor is inside MD/CFD overlap zone 
+	if (olap_mask(rank_world) .eq. 0) return
+
+	!Three velocity components
+	npercell = 3
+
+	!Allocate array for size of data on local processor
+	coord = (/iblock_realm,jblock_realm,kblock_realm /)
+	call CPL_olap_extents(coord,realm,extents)
+	nclx = extents(2)-extents(1)+1
+	ncly = extents(4)-extents(3)+1
+	nclz = extents(6)-extents(5)+1
+
+	allocate(sendbuf(npercell,nclx,ncly,nclz))
+	!print*, 'Shapes', shape(sendbuf(1,:,jcmax_olap-1,:)),i1_u,i2_u,ibmin_1(iblock_realm),ibmax_1(iblock_realm),nlxb,nlx,jcmax_olap-1,ngz,shape(uc)
+ 
+
+	!if (   nclx-1 .eq. i2_u-i1_u+1) then
+		!Extrapolat Initial cell
+	!	gradient = (uc(2:ngz,nclx-1,jcmax_olap-1)-uc(2:ngz,nclx-2,jcmax_olap-1))/dx
+	!	sendbuf(1,nclx,:,jcmax_olap-1) = dx * gradient + uc(2:ngz,nclx-1,jcmax_olap-1)
+		!Interpolate cell centres using all surface
+	!	do i=1,nclx-1
+	!		sendbuf(1,i,jcmax_olap-1,:) = 0.5d0(uc(2:ngz,i,jcmax_olap-1)+uc(2:ngz,i,jcmax_olap-1))
+	!	enddo
+		!Extrapolat final cell
+	!	gradient = (uc(2:ngz,nclx-1,jcmax_olap-1)-uc(2:ngz,nclx-2,jcmax_olap-1))/dx
+	!	sendbuf(1,nclx,:,jcmax_olap-1) = dx * gradient + uc(2:ngz,nclx-1,jcmax_olap-1)
+	!elseif(nclx   .eq. i2_u-i1_u+1) then
+!	!elseif(nclx+1 .eq. i2_u-i1_u+1) then
+
+	!Interpolate cell centres using all surface
+	sendbuf = 0.d0
+	do i=1,nclx
+		n = i + i1_u - 1
+		sendbuf(1,i,jcmax_olap-1,:) = 0.5d0*(uc(:,n,jcmax_olap-1) + uc(:,n+1,jcmax_olap-1))
+	!	print'(2i4,a,i4,3f20.5)',rank_world, i,'of',nclx,uc(4,i,jcmax_olap-1),uc(4,i+1,jcmax_olap-1),sendbuf(1,i,jcmax_olap-1,4)
+	enddo
+
+	call CPL_send(sendbuf,jcmax_send=jcmax_olap-1, & 
+					      jcmin_send=jcmax_olap-1,send_flag=send_flag)
+
+end subroutine socket_coupler_send_velocity
+
+
+!---------------------------------------------------------------------
+! Send continuum Stress in all directions to be used by MD
+
+subroutine socket_coupler_send_stress
+    use coupler, only : CPL_send,CPL_olap_extents
+	use coupler_module, only : rank_realm,jcmax_olap,olap_mask,rank_world,density_cfd, & 
+							   iblock_realm,jblock_realm,kblock_realm,realm,printf
+ 	use data_export, only : uc,vc,wc,visc
+    implicit none
+
+	logical			 	  :: send_flag
+    integer			 	  :: i,n,ixyz,icell,jcell,kcell,npercell,nclx,ncly,nclz
+    integer			 	  :: coord(3),extents(6)
+    real(kind(0.d0)),dimension(:,:,:,:), allocatable 	:: sendbuf
+	real(kind(0.d0)),dimension(:,:,:,:,:), allocatable 	:: dUidxj
+
+	! Check processor is inside MD/CFD overlap zone 
+	if (olap_mask(rank_world) .eq. 0) return
+
+	!Three by three stress tensor components
+	npercell = 9
+
+	!Allocate array for size of data on local processor
+	coord = (/iblock_realm,jblock_realm,kblock_realm /)
+	call CPL_olap_extents(coord,realm,extents)
+	nclx = extents(2)-extents(1)+1
+	ncly = extents(4)-extents(3)+1
+	nclz = extents(6)-extents(5)+1
+
+	!Get strain tensor at cell centers
+	call Evaluate_strain(uc,vc,wc,dUidxj)
+
+	!Get stress and store in buffer
+	! QUESTION -- if this visc is kinematic (rho/meu) then 
+	! is this the stress? Does DNS assume unit density?
+	allocate(sendbuf(npercell,nclx,ncly,nclz))
+	sendbuf = visc*reshape(dUidxj,(/ 9,nclx,ncly,nclz /))
+
+	!Send stress tensor to MD code
+	call CPL_send(sendbuf,jcmax_send=jcmax_olap-1, & 
+					      jcmin_send=jcmax_olap-1,send_flag=send_flag)
+
+end subroutine socket_coupler_send_stress
 
 
 
+subroutine Evaluate_strain(uc,vc,wc,dUidxj)
+	use data_export, only : ibmin,ibmax,jbmin,jbmax,kbmin,kbmax, &
+						   	imap_1,jmap_1,ibmap_1,jbmap_1,npx,npy, & 
+							ngx,ngy,ngzm,iblock,jblock,kblock,vp, &
+							suxix,suxiy,svetax,svetay,spz
+	implicit none
 
+	real(kind(0.d0)),intent(in),dimension(:,:,:)					:: uc,vc,wc
+	real(kind(0.d0)),intent(out),dimension(:,:,:,:,:),allocatable	:: dUidxj
 
+	integer			:: i,j,k,ib,jb,i1,i2,j1,j2
+	real(kind(0.d0)):: voli, ds, Eval_eps
+	real(kind(0.d0)):: dudx,dudy,dudz,dvdx,dvdy,dvdz,dwdx,dwdy,dwdz
 
+	! Average in the homogeneous z direction
+	ds = 1./ngzm
 
+	!-----------------------------------------------------------
+	! Derivatives: dudx,dudy,dudz,dvdx,dvdy,dvdz,dwdx,dwdy,dwdz
+	!-----------------------------------------------------------
+	! Dissipation:  epsilon=\nu * average ( duidxj * duidxj )
+	!-----------------------------------------------------------
 
+	i1 = ibmin ; if (iblock ==  1 ) i1 =  1   ; i1 = imap_1(i1)
+	i2 = ibmax ; if (iblock == npx) i2 = ngx-1; i2 = imap_1(i2)
+	j1 = jbmin ; if (jblock ==  1 ) j1 =  1   ; j1 = jmap_1(j1)
+	j2 = jbmax ; if (jblock == npy) j2 = ngy-1; j2 = jmap_1(j2)
 
+	!Allocate array to store strain tensor
+	if (allocated(dUidxj)) deallocate(dUidxj)
+	allocate(dUidxj(3,3,ibmin:ibmax,jbmin:jbmax,ngzm)); dUidxj = 0.d0
 
+	do j=j1,j2
+		jb = jbmap_1(j)
+	do i=i1,i2
+		ib = ibmap_1(i)
+		voli = 1./vp(ib,jb)
+	do k=1,ngzm
+		!------------------------ du/dx -------------------------
+		dudx= voli  * (  uc(k,i+1,j)*suxix(ib+1,jb) &
+				-uc(k, i ,j)*suxix(ib  ,jb) &
+				+0.25*(uc(k,i,j)+uc(k,i+1,j)+uc(k,i,j+1)+uc(k,i+1,j+1))*svetax(ib,jb+1) &
+				-0.25*(uc(k,i,j)+uc(k,i+1,j)+uc(k,i,j-1)+uc(k,i+1,j-1))*svetax(ib,jb  )   )
 
+		dudy= voli  * (  uc(k,i+1,j)*suxiy(ib+1,jb) &
+				-uc(k, i ,j)*suxiy( ib ,jb) &
+				+0.25*(uc(k,i,j)+uc(k,i+1,j)+uc(k,i,j+1)+uc(k,i+1,j+1))*svetay(ib,jb+1) &
+				-0.25*(uc(k,i,j)+uc(k,i+1,j)+uc(k,i,j-1)+uc(k,i+1,j-1))*svetay(ib, jb )   )
 
+		dudz= voli  *	spz(ib,jb)*( 0.25*(uc( k ,i,j)+uc( k ,i+1,j)+uc(k+1,i,j)+uc(k+1,i+1,j)) &
+					    -0.25*(uc(k-1,i,j)+uc(k-1,i+1,j)+uc( k ,i,j)+uc( k ,i+1,j))  )
 
+		!------------------------ dv/dx -------------------------
+		dvdx= voli  * (  vc(k,i,j+1)*svetax(ib,jb+1) &
+				-vc(k,i, j )*svetax(ib, jb ) &
+				+0.25*(vc(k,i,j)+vc(k,i,j+1)+vc(k,i+1,j)+vc(k,i+1,j+1))*suxix(ib+1,jb) &
+				-0.25*(vc(k,i,j)+vc(k,i,j+1)+vc(k,i-1,j)+vc(k,i-1,j+1))*suxix( ib ,jb)   )
 
+		dvdy= voli  * (  vc(k,i,j+1)*svetay(ib,jb+1) &
+				-vc(k,i, j )*svetay(ib, jb ) &
+				+0.25*(vc(k,i,j)+vc(k,i,j+1)+vc(k,i+1,j)+vc(k,i+1,j+1))*suxiy(ib+1,jb) &
+				-0.25*(vc(k,i,j)+vc(k,i,j+1)+vc(k,i-1,j)+vc(k,i-1,j+1))*suxiy( ib ,jb)   )
 
+		dvdz= voli  *	spz(ib,jb)*( 0.25*(vc( k ,i,j)+vc( k ,i,j+1)+vc(k+1,i,j)+vc(k+1,i,j+1)) &
+					    -0.25*(vc(k-1,i,j)+vc(k-1,i,j+1)+vc( k ,i,j)+vc( k ,i,j+1))   )
 
-! ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬(-_-)▬▬ஜ۩۞۩ஜ▬▬(●̪•)▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬ 
+		!------------------------ dw/dx -------------------------
+		dwdx= voli  *  ( 0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i+1,j  )+wc(k+1,i+1,j  ))*suxix(ib+1,jb) &
+				-0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i-1,j  )+wc(k+1,i-1,j  ))*suxix( ib ,jb) &
+				+0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i  ,j+1)+wc(k+1,i  ,j+1))*svetax(ib,jb+1) &
+				-0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i  ,j-1)+wc(k+1,i  ,j-1))*svetax(ib, jb )   )
+
+		dwdy= voli  *  ( 0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i+1,j  )+wc(k+1,i+1,j  ))*suxiy(ib+1,jb) &
+				-0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i-1,j  )+wc(k+1,i-1,j  ))*suxiy( ib ,jb) &
+				+0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i  ,j+1)+wc(k+1,i  ,j+1))*svetay(ib,jb+1) &
+				-0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i  ,j-1)+wc(k+1,i  ,j-1))*svetay(ib, jb )   )
+
+		dwdz= voli  *	spz(ib,jb)*(wc(k+1,i,j)-wc(k,i,j))
+
+		!--------------------- Store strain rate tensor ----------------------
+		dUidxj(1,:,ib,jb,k) = (/dudx,dudy,dudz/)
+		dUidxj(2,:,ib,jb,k) = (/dvdx,dvdy,dvdz/)
+		dUidxj(3,:,ib,jb,k) = (/dwdx,dwdy,dwdz/)
+
+	end do
+	end do
+	end do
+
+end subroutine Evaluate_strain
+
+!▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
+!  ۩ ۩ ۩  ۩ ۩ ۩  ۩ ۩ ۩  ۩ ۩ ۩  ۩ ۩ ۩  ۩ ۩ ۩  ۩ ۩ ۩  ۩ ۩ ۩  ۩ ۩ ۩  ۩ ۩ ۩  ۩ ۩ 
+!▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
+
+! ▬▬▬▬▬▬▬▬(●̪•) ▬▬▬▬▬▬(●̪•)▬▬▬▬▬▬(-_-)▬▬▬▬▬▬▬ஜ۩۞۩ஜ▬▬▬▬▬(●̪•)▬▬▬▬▬▬(-_-)▬▬▬▬▬(-_-) ▬▬▬▬▬
 ! Test the send and recv routines from coupler
 
 subroutine test_send_recv_MD2CFD

@@ -32,7 +32,7 @@ module statistics
 	integer     nsample_         ! number of samples from previous run
 	real        sampleTime       ! total integration time
 	real        sampleTime_      ! previous integration time
-	real	    VT		     ! molecular viscosity
+	real	    VT		     	 ! molecular viscosity
 
 	!TAZ real Ui(nx_,ny_,6)           ! velocity statistics
 	!TAZ real Rij(nx_,ny_,6)          ! Reynolds stresses

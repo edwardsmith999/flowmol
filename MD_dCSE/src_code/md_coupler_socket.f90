@@ -719,7 +719,7 @@ subroutine average_over_bin
 
 			ib = ceiling((r(1,n)+halfdomain(1))/dx)
 			jb = 1
-			kb = ceiling((r(3,n)+halfdomain(3))/dx)
+			kb = ceiling((r(3,n)+halfdomain(3))/dz)
 
 			!Exlude out of domain molecules
 			if (ib.lt.1 .or. ib.gt.size(box_average,1)) cycle

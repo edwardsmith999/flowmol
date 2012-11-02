@@ -1,63 +1,81 @@
 !=============================================================================
-! COUPLER MODULE: 
-! A single coupler module for both codes - this contains the same information 
-! on both md and cfd side 
-!
-!	- Error handling
-!	- MPI communicators
-!	- Simulation realms
-!	- MPI processor IDs
-!	- Processor topologies
-!	- Processor cartesian coords
-!	- Global cell grid parameters
-!	- Processor cell ranges
-!	- Domain and cell dimensions
-!	- Positions of CFD grid lines
-!	- CFD to MD processor mapping
-!	- Simulation parameters
-!   - PROBABLY OBSOLETE STUFF
-!
+!! COUPLER MODULE: 
+!! A single coupler module for both codes - this contains the same information 
+!! on both md and cfd side 
+!!
+!!  - Error handling
+!!  - MPI communicators
+!!  - Simulation realms
+!!  - MPI processor IDs
+!!  - Processor topologies
+!!  - Processor cartesian coords
+!!  - Global cell grid parameters
+!!  - Processor cell ranges
+!!  - Domain and cell dimensions
+!!  - Positions of CFD grid lines
+!!  - CFD to MD processor mapping
+!!  - Simulation parameters
+!!  - PROBABLY OBSOLETE STUFF
+!! @author David Trevelyan, Edward Smith
 !=============================================================================
 
 module coupler_module
 	use coupler_parameters
 
-	! MPI error flag
+	!! MPI error flag
 	integer		:: ierr	
 
 	! MPI Communicators
 	integer :: &
+		CPL_WORLD_COMM !! Copy of MPI_COMM_WORLD, both CFD and MD realms;
+	integer :: &
+		CPL_REALM_COMM !! INTRA communicators within MD/CFD realms;
+	integer :: &
+		CPL_INTER_COMM !!  CFD/MD INTER communicator between realm comms;
+	integer :: &
+		CPL_CART_COMM !!  Comm w/cartesian topology for each realm;
+	integer :: &
+		CPL_OLAP_COMM !!  Local comm between only overlapping MD/CFD procs;
+	integer :: &
+		CPL_GRAPH_COMM !!  Comm w/ graph topolgy between locally olapg procs;
+	integer :: &
+		CPL_REALM_INTERSECTION_COMM !!  Intersecting MD/CFD procs in world;
 
-		CPL_WORLD_COMM,   & ! Copy of MPI_COMM_WORLD, both CFD and MD realms
-		CPL_REALM_COMM,   & ! INTRA communicators within MD/CFD realms
-		CPL_INTER_COMM,   & ! CFD/MD INTER communicator between realm comms
-		CPL_CART_COMM,    & ! Comm w/cartesian topology for each realm
-		CPL_OLAP_COMM,    & ! Local comm between only overlapping MD/CFD procs
-		CPL_GRAPH_COMM,	  & ! Comm w/ graph topolgy between locally olapg procs
-		CPL_REALM_INTERSECTION_COMM ! Intersecting MD/CFD procs in world
-
-	! Simulation realms
+	!! Simulation realms
 	integer :: &
 		realm
 
 	! MPI processor IDs
 	integer :: &
-		myid_world,       &	!Processor ID from 0 to nproc_world-1
-		rank_world,       & !Processor rank from 1 to nproc_world
-		rootid_world,     &	!Root processor in world
-		myid_realm,       & !Processor ID from 0 to nproc_realm-1
-		rank_realm,       & !Processor rank from 1 to nproc_realm
-		rootid_realm,     &	!Root processor in each realm
-		myid_cart,        & !Processor ID from 0 to nproc_cart-1
-		rank_cart,        & !Processor rank from 1 to nproc_cart
-		rootid_cart,      &	!Root processor in each cart topology
-		myid_olap,        & !Processor ID from 0 to nproc_olap-1
-		rank_olap,        & !Processor rank from 1 to nproc_olap
-		CFDid_olap,		  &	!Root processor in overlap is the CFD processor
-		myid_graph,		  &	!Processor ID from 0 to nproc_graph-1
-		rank_graph			!Processor rank from 1 to nproc_graph
+		myid_world   !! Processor ID from 0 to nproc_world-1;
+	integer :: &
+		rank_world   !! Processor rank from 1 to nproc_world;
+	integer :: &
+		rootid_world !! Root processor in world;
+	integer :: &
+		myid_realm   !! Processor ID from 0 to nproc_realm-1;
+	integer :: &
+		rank_realm   !! Processor rank from 1 to nproc_realm;
+	integer :: &
+		rootid_realm !! Root processor in each realm;
+	integer :: &
+		myid_cart   !! Processor ID from 0 to nproc_cart-1;
+	integer :: &
+		rank_cart   !! Processor rank from 1 to nproc_cart;
+	integer :: &
+		rootid_cart !! Root processor in each cart topology;
+	integer :: &
+		myid_olap   !! Processor ID from 0 to nproc_olap-1;
+	integer :: &
+		rank_olap   !! Processor rank from 1 to nproc_olap;
+	integer :: &
+		CFDid_olap  !! Root processor in overlap is the CFD processor;
+	integer :: &
+		myid_graph  !! Processor ID from 0 to nproc_graph-1;
+	integer :: &
+		rank_graph  !! Processor rank from 1 to nproc_graph;
 
-	! Get rank in CPL_world_COMM from rank in local COMM
+	!! Get rank in CPL_world_COMM from rank in local COMM
 	integer, dimension(:), allocatable	:: &
 		rank_world2rank_mdrealm,    &
 		rank_world2rank_mdcart,     &
@@ -67,7 +85,7 @@ module coupler_module
 		rank_world2rank_graph,      &
 		rank_world2rank_inter
 
-	! Get rank in local COMM from rank in CPL_world_COMM
+	!! Get rank in local COMM from rank in CPL_world_COMM
 	integer, dimension(:), allocatable	:: &
 		 rank_mdrealm2rank_world,    &
 		  rank_mdcart2rank_world,    &
@@ -81,26 +99,36 @@ module coupler_module
 
 	! Processor topologies
 	integer :: &
-		nproc_md,         &
-		nproc_cfd,        &
-		nproc_olap,		  &
-		nproc_world,	  &
-		npx_md,           &
-		npy_md,           &
-		npz_md,           &
-		npx_cfd,          &
-		npy_cfd,          &
-		npz_cfd
+		nproc_md     !! Total number of processor in md
+	integer :: &
+		nproc_cfd    !! Total number of processor in cfd
+	integer :: &
+		nproc_olap   !! Total number of processor in overlap region
+	integer :: &
+		nproc_world  !! Total number of processor in world
+	integer :: &
+		npx_md       !! Number of processor in x in the md
+	integer :: &
+		npy_md       !! Number of processor in y in the md
+	integer :: &
+		npz_md       !! Number of processor in z in the md
+	integer :: &
+		npx_cfd      !! Number of processor in x in the cfd
+	integer :: &
+		npy_cfd      !! Number of processor in y in the cfd
+	integer :: &
+		npz_cfd      !! Number of processor in z in the cfd
+
 	integer, dimension(:), allocatable :: &
-		olap_mask
+		olap_mask           !! Overlap mask specifying which processors overlap using world ranks
 	integer, dimension(:,:), allocatable :: &
-		rank2coord_cfd,   &
+		rank2coord_cfd,   &   !! Array containing coordinates for each cartesian rank 
 		rank2coord_md
 	integer, dimension(:,:,:), allocatable :: &
 		coord2rank_cfd,   &
 		coord2rank_md
 
-	! Processor cartesian coords	
+	!! Processor cartesian coords	
 	integer :: &
 		iblock_realm,     &
 		jblock_realm,     &
