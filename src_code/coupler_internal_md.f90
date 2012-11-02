@@ -69,6 +69,46 @@ module coupler_internal_md
 
 contains 
 
+
+!------------------------------------------------------------------------------
+!                              coupler_md_init                               -
+!------------------------------------------------------------------------------
+!!
+!! Initialisation routine for coupler module - Every variable is sent and stored
+!! to ensure both md and cfd region have an identical list of parameters
+!!
+!! - Synopsis
+!!
+!!  - coupler_mf_init(nsteps,dt_md,icomm_grid,icoord,npxyz_md,globaldomain,density)
+!!
+!! - Input
+!!
+!!  - nsteps
+!!   - Number of time steps the MD code is expected to run for (integer)
+!!  - dt_md
+!!   - MD timestep (dp real)
+!!  - icomm_grid
+!!   - The MPI communicator setup by the MPI_CART_CREATE command in the 
+!!     CFD region (integer)
+!!  - icoord
+!!   - The three coordinate for each rank in the domain (integer array nproc by 3)
+!!  - npxyz_md
+!!   - Number of processors in each cartesian dimension (integer array 3)
+!!  - globaldomain
+!!   - Size of domain in each cartesian dimension (dp real array 3)
+!!  - density
+!!   - Density of the CFD simulation (dp_real)
+!!
+!! - Input/Output
+!!  - NONE
+!!
+!! - Output
+!!  - NONE
+!! 
+!! @author Edward Smith
+!
+! ----------------------------------------------------------------------------
+
 ! ----------------------------------------------------------------------------
 ! Initialisation routine for coupler - Every variable is sent and stored
 ! to ensure both md and cfd region have an identical list of parameters
