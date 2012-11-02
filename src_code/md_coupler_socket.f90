@@ -570,7 +570,7 @@ subroutine socket_apply_continuum_forces(iter)
 										cellsidelength, halfdomain, delta_rneighbr
 	use coupler_input_data, only : md_steps_per_dt_cfd
 	use coupler_module, only : rank_world,olap_mask, icmin_olap,icmax_olap, & 
-								jcmax_olap,jcmax_olap,kcmin_olap,kcmax_olap, printf
+								jcmin_olap,jcmax_olap,kcmin_olap,kcmax_olap, printf
 	use linked_list
 	implicit none
 
@@ -581,6 +581,8 @@ subroutine socket_apply_continuum_forces(iter)
 	integer					:: i,j,k,n,np_overlap
 	integer,allocatable 	:: list(:,:)
 	real(kind=kind(0.d0))	:: inv_dtCFD,t_fract,CFD_box(6)
+
+	integer,save			:: cnstnd_cells,jcmin_recv,jcmax_recv
 	logical,save			:: recv_flag
 	logical, save 	 		:: first_time=.true.
 	save CFD_box
@@ -590,7 +592,11 @@ subroutine socket_apply_continuum_forces(iter)
 
 	if (first_time) then
 		first_time = .false.
-		limits = (/ icmin_olap,icmax_olap, jcmax_olap-1,jcmax_olap-1, kcmin_olap,kcmax_olap  /)
+		!Number of cells to receive
+		cnstnd_cells = 17	!~10% of the total domain
+		jcmin_recv = jcmax_olap-1-cnstnd_cells
+		jcmax_recv = jcmax_olap-1
+		limits = (/ icmin_olap,icmax_olap, jcmin_recv,jcmax_recv, kcmin_olap,kcmax_olap  /)
 		call setup_CFD_box(limits,CFD_box,recv_flag)
 		!At first CFD step we don't have two values to extrapolate CFD velocities, set inv_dtCFD=0
 		inv_dtCFD = 0.0
@@ -603,8 +609,8 @@ subroutine socket_apply_continuum_forces(iter)
 
 	! Receive value of CFD velocities at first timestep of md_steps_per_dt_cfd
 	if (iter_average .eq. 1) then
-		call CPL_recv(uvw_cfd,jcmax_recv=jcmax_olap-1, & 
-						      jcmin_recv=jcmax_olap-1,recv_flag=recv_flag)
+			call CPL_recv(uvw_cfd,jcmax_recv=jcmax_recv, & 
+						      jcmin_recv=jcmin_recv,recv_flag=recv_flag)
 	else
 		!Linear extrapolation between velocity at t and t+1
 	endif
@@ -693,7 +699,7 @@ end subroutine setup_CFD_box
 subroutine average_over_bin
 	use computational_constants_MD, only : nhb
 	use arrays_MD, only : r, v, a
-	use coupler_module, only : dx,dz,CPL_OLAP_COMM
+	use coupler_module, only : dx,dy,dz,CPL_OLAP_COMM
 	implicit none
 
 	integer	:: ib,jb,kb,n
@@ -715,11 +721,13 @@ subroutine average_over_bin
 
 	do n = 1,np
 
-		if ( r(2,n) .gt. 	CFD_box(3)   .and. r(2,n) .lt.  CFD_box(4)) then
+		if ( r(2,n) .gt. CFD_box(3) .and. r(2,n) .lt. CFD_box(4)) then
 
 			ib = ceiling((r(1,n)+halfdomain(1))/dx)
-			jb = 1
+			jb = ceiling((r(2,n)-CFD_box(3)   )/dy)
 			kb = ceiling((r(3,n)+halfdomain(3))/dz)
+
+			!print'(8i5,5f10.5)', rank_world,ceiling((r(2,n)+halfdomain(2))/dy),jb,jcmin_recv,jcmax_recv,jcmin_olap,jcmax_olap,cnstnd_cells,r(2,n),CFD_box(3),CFD_box(4),dy,halfdomain(2)
 
 			!Exlude out of domain molecules
 			if (ib.lt.1 .or. ib.gt.size(box_average,1)) cycle
