@@ -60,7 +60,7 @@ subroutine mesh_init()
 
 	! Uniform X-mesh !T includes halos
 	! Non-periodic boundaries
-        dx = xL/(imax - imin)
+	dx = xL/(imax - imin)
 	dxi = 1./dx
 	dxm = dx
 	dxmi = dxi
