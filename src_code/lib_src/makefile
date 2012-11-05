@@ -17,7 +17,8 @@ ifdef USE_HITACHI
 endif
 
 #  LIBS     = #-L$(MKL_HOME)                 -lmkl_em64t
- LIBS     = -L/apps/intel/cmkl/9.0/lib/64 -lmkl_em64t
+# LIBS     = -L/apps/intel/cmkl/9.0/lib/64 -lmkl_em64t
+LIBS = -mkl
 
 FLAGS =
 F77FILES = 
