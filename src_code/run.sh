@@ -7,7 +7,7 @@ if [ $# -lt 1 ]; then
 	echo ""
 	echo "========================================================================="
 	echo "MD input file:"
-	grep -A3 "PROCESSORS" ./../../MD_dCSE/src_code/MD.in
+	grep -A3 "PROCESSORS" ./md_data/MD_coupled.in
 	echo "========================================================================="
 	echo "CFD param.inc files:"
 	grep "parameter (npx" ./../../CFD_dCSE/src_code/main_code/param.inc
