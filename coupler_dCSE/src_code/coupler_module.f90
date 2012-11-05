@@ -215,33 +215,12 @@ module coupler_module
 		dt_cfd,           &
 		density_md,       &
 		density_cfd
-
-	! PROBABLY OBSOLETE STUFF ------------------------------------------------!	
-	real(kind(0.d0)) :: MD_initial_cellsize                                   !
-    type overlap_map                                                          !
-        integer                             :: n                              ! 
-        integer,dimension(:), allocatable   :: rank_list                      !
-        integer,dimension(:,:),allocatable  :: domains                        ! 
-    end type overlap_map                                                      !
-    type(overlap_map)   :: map                                                !
-    integer :: cfd_code_id = couette_parallel     ! CFD code id  			  !
-    ! flag marking 2d CFD solver
-	logical 			:: cfd_is_2d = .false. 				! set true if dz<=0 or kmax_cfd=kmin_cfd
-    logical 			:: stop_request_activated = .false. ! request_abort is active or not (optimisation) 
-    logical				:: staggered_averages(3) = (/ .false., .false., .false. /)
-    integer, target		:: stop_request_tag
-    integer, target		:: staggered_averages_tag
-    character(len=64)	:: stop_request_name="none"
-	! CFD/MD number of cells
-	!integer	:: nlgx_cfd,nlgy_cfd,nlgz_cfd, & 	!Local CFD
-	!		   nlgx_md ,nlgy_md ,nlgz_md 		!Local MD
-	! MD grid indices
-	integer	:: ncy_puremd
-	! Domain sizes
-	real(kind(0.d0)) ::	yL_puremd
-	
-	integer :: testval
-	!-------------------------------------------------------------------------!
+	integer :: &
+		timestep_ratio,        &
+		md_cfd_match_cellsize, &
+		testval
+	logical :: &
+		staggered_averages(3) = (/.false.,.false.,.false./)
 
 	interface error_abort
 		module procedure error_abort_s, error_abort_si
@@ -384,35 +363,35 @@ end subroutine write_matrix
 ! Subroutine that can be used to stop the code when reaching a given 
 ! point in coupler -- useful when coupling new codes
 !---------------------------------------------------------------------------
-subroutine request_stop(tag)
-    use mpi
-    implicit none
-
-    character(len=*),intent(in) ::tag
-    integer myid, ierr
-
-    ! do nothing, get out quick 
-    if(.not. stop_request_activated ) return
-
-    if (tag /= stop_request_name) return
-
-    select case(stop_request_name)
-    case("create_comm","CREATE_COMM")
-        call mpi_comm_rank(CPL_REALM_COMM, myid,ierr)
-        write(0,*) 'stop as requested at ', trim(stop_request_name), ', realm',realm, 'rank', myid
-        call MPI_Finalize(ierr)
-        stop
-    case("create_map","CREATE_MAP")
-        call mpi_comm_rank(CPL_REALM_COMM, myid,ierr)
-        write(0,*) 'stop as requested at ', trim(stop_request_name), ', realm',realm, 'rank', myid
-        call MPI_Finalize(ierr)
-        stop    
-    case default
-        write(0,*) "WARNING: request abort activated, but the tag is unrecognized, check COUPLER.in"
-        write(0,*) "         accepted stop tags are: create_comm"
-    end select
-
-end subroutine request_stop
+!subroutine request_stop(tag)
+!    use mpi
+!    implicit none
+!
+!    character(len=*),intent(in) ::tag
+!    integer myid, ierr
+!
+!    ! do nothing, get out quick 
+!    if(.not. stop_request_activated ) return
+!
+!    if (tag /= stop_request_name) return
+!
+!    select case(stop_request_name)
+!    case("create_comm","CREATE_COMM")
+!        call mpi_comm_rank(CPL_REALM_COMM, myid,ierr)
+!        write(0,*) 'stop as requested at ', trim(stop_request_name), ', realm',realm, 'rank', myid
+!        call MPI_Finalize(ierr)
+!        stop
+!    case("create_map","CREATE_MAP")
+!        call mpi_comm_rank(CPL_REALM_COMM, myid,ierr)
+!        write(0,*) 'stop as requested at ', trim(stop_request_name), ', realm',realm, 'rank', myid
+!        call MPI_Finalize(ierr)
+!        stop    
+!    case default
+!        write(0,*) "WARNING: request abort activated, but the tag is unrecognized, check COUPLER.in"
+!        write(0,*) "         accepted stop tags are: create_comm"
+!    end select
+!
+!end subroutine request_stop
 
 
 end module coupler_module

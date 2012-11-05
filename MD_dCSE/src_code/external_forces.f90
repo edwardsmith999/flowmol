@@ -40,12 +40,13 @@ subroutine simulation_apply_boundary_forces
 contains
 
     subroutine top_boundary_constraint_force
-        use coupler
         use interfaces
         use calculated_properties_MD, only : pressure
         use computational_constants_MD, only : nh, ncells, cellsidelength, domain, halfdomain, delta_rneighbr
         use linked_list, only : cell, node
         use arrays_MD, only : r, a
+		use md_coupler_socket, only: socket_get_bottom_of_top_boundary, &
+		                             socket_get_overlap_status
         implicit none
 
         integer i, j, k, js, je, ip, m
@@ -53,16 +54,14 @@ contains
         type(node), pointer :: current => null()
         logical :: overlap, firsttime = .true.
         save :: y2, y3, dy, js, je, firsttime
+
+		overlap = socket_get_overlap_status()
+		if (.not. overlap) return
         
-        call coupler_md_get(overlap_with_top_cfd=overlap)
-
-        if(.not. overlap) return
-
         if (firsttime) then
             firsttime = .false.
-            call coupler_md_get(top_dy=dy)
-            
-            y2 = halfdomain(2) - dy
+
+			y2 = socket_get_bottom_of_top_boundary() !todo better name
             y3 = halfdomain(2)
             
             ! get the range of j cell index in y direction
@@ -528,77 +527,6 @@ subroutine apply_continuum_forces_CV(iter)
 		nullify(old)            !Nullify old as no longer required
 
 end subroutine apply_continuum_forces_CV
-
-
-	
-subroutine get_cell_ranges
-	use coupler_module
-	use computational_constants_MD, only : npx,npy,npz, domain
-	implicit none
-
-	integer				:: nlgx_md,nlgy_md, nlgz_md, yLl_md,yLl_cfd
-	integer 			:: i,n,startproc
-	integer, parameter 	:: Tnull = -666
-
-	allocate(icPmin_md(npx)); icPmin_md = Tnull
-	allocate(jcPmin_md(npy)); jcPmin_md = Tnull
-	allocate(kcPmin_md(npz)); kcPmin_md = Tnull
-	allocate(icPmax_md(npx)); icPmax_md = Tnull
-	allocate(jcPmax_md(npy)); jcPmax_md = Tnull
-	allocate(kcPmax_md(npz)); kcPmax_md = Tnull
-
-	xL_cfd = 181.1; yL_cfd = 181.1; zL_cfd = 10.0
-	ncx = 64;	ncy = 64;	ncz = 8
-	ncy_olap = 5
-	yL_md = domain(2)
-
-  	allocate( xg(ncx+1,ncy+1) , yg(ncx+1,ncy+1), zg(ncz+1) )
-	!----- X grid ------
-	dx = xL_cfd  / ncx
-	do i=1,ncx
-		xg(i,:) = (i-1.) * dx
-	end do
-
-	!----- Y grid ------
-	dy = yL_cfd  / ncy
-	do i=1,ncy
-		yg(i,:) = (i-1.) * dy
-	end do
-
-	!----- Z grid ------
-	dz = zL_cfd  / ncz
-	do i=1,ncz
-		zg(i) = (i-1.) * dz
-	end do
-		
-	! - - x - -
-	nlgx_md = nint(dble(ncx)/dble(npx))
-	do n=1,npx
-		icPmax_md(n) = n * nlgx_md
-		icPmin_md(n) = icPmax_md(n) - nlgx_md + 1
-	end do	
-
-	! - - y - -
-	nlgy_md = ceiling(dble(ncy)/dble(npy))
-	yL_olap = ncy_olap * dy
-	yL_puremd = yL_md - yL_olap
-	ncy_puremd = yL_puremd / dy
-	yLl_md = yL_md / npy
-	startproc = ceiling(yL_puremd/yLl_md)
-	do n = startproc,npy
-		jcPmax_md(n) = n * nlgy_md - ncy_puremd
-		jcPmin_md(n) = jcPmax_md(n) - nlgy_md + 1
-		if (jcPmin_md(n).le.0) jcPmin_md(n) = 1
-	end do 
-
-	! - - z - -
-	nlgz_md = nint(dble(ncz)/dble(npz))
-	do n=1,npz
-		kcPmax_md(n) = n * nlgz_md
-		kcPmin_md(n) = kcPmax_md(n) - nlgz_md + 1
-	end do
-
-end subroutine get_cell_ranges
 
 !------------------------------------------
 !subroutine CFD_cells_to_MD_compute_cells(ibmin_cfd,icmin_cfd,jbmin_cfd,jcmin_cfd,kbmin_cfd,kcmin_cfd, & 

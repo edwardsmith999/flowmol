@@ -68,15 +68,10 @@ end subroutine socket_coupler_invoke
 !  Read coupler input files
 !-----------------------------------------------------------------------------
 subroutine socket_read_coupler_input
-	use messenger
 	use coupler_input_data, only : read_coupler_input
-    use coupler_module, only : request_stop
 	implicit none
 
 	call read_coupler_input		! Read COUPLER.in input file
-
-    ! stop if requested ( useful for development )
-	call request_stop("create_comm") ! stops here if in COUPLER.in stop requestis set to "create_comm"
 
 end subroutine socket_read_coupler_input
 
@@ -85,7 +80,7 @@ end subroutine socket_read_coupler_input
 !-----------------------------------------------------------------------------
 subroutine socket_coupler_init
     use interfaces
-	use coupler_input_data, only : md_cfd_match_cellsize
+	use coupler_module, only : md_cfd_match_cellsize
 	use computational_constants_MD, only : npx,npy,npz,delta_t,elapsedtime, & 
 										   Nsteps,initialstep,delta_t, & 
 										   globaldomain,initialnunits
@@ -104,10 +99,11 @@ subroutine socket_coupler_init
 	enddo
 
 	! If coupled calculation prepare exchange layout
-	call coupler_md_init(nsteps,delta_t,icomm_grid,icoord,(/ npx,npy,npz /),globaldomain,density)
+	call coupler_md_init(nsteps,delta_t,icomm_grid,icoord, &
+	                     (/ npx,npy,npz /),globaldomain,density)
 
 	! Setup the domain and cells in the MD based on coupled data
-	call set_parameters_global_domain_coupled
+	call set_params_globdomain_cpld
 	if (md_cfd_match_cellsize .eq. 0) then
 		call set_parameters_cells
  	else
@@ -122,14 +118,15 @@ end subroutine socket_coupler_init
 !=============================================================================
 ! get the global domain lenghts from x, y, z array of CFD realm
 
-subroutine set_parameters_global_domain_coupled
+subroutine set_params_globdomain_cpld
 	use computational_constants_MD
-	use physical_constants_MD
+	use physical_constants_MD, only: globalnp,volume,nd,np,density
 	use coupler 
-	use coupler_module, b0 => MD_initial_cellsize
+	use coupler_module, only: xL_md, yL_md, zL_md, myid_world, rootid_world
 	implicit none
 
-	integer          ixyz, n0(3)
+	integer :: ixyz, n0(3)
+	real(kind(0.d0)) :: b0
 
     ! fix the numner of FCC cells starting from CFD density
     !density = coupler_md_get_density()
@@ -145,7 +142,7 @@ subroutine set_parameters_global_domain_coupled
 	globaldomain(1) = xL_md
 	globaldomain(2) = yL_md
 	globaldomain(3) = zL_md
-	volume   = xL_md*yL_md*zL_md
+	volume = xL_md*yL_md*zL_md
 
     ! no need to fix globalnp if we have it already
     if(.not. restart) then
@@ -169,7 +166,7 @@ subroutine set_parameters_global_domain_coupled
 	!write(0,*) 'set_parameter_global_domain_hybrid ', globalnp, np, domain, initialunitsize
 
     if(myid_world .eq. rootid_world) then
-        write(*,'(a/a/a,f5.2,a,f5.2,/,a,3(f5.2),a,/,a,3(I6),/,a)') &
+        write(*,'(a/a/a,f5.2,a,f5.2,/,a,3(f5.2),a,/,a,3(I6),/,a)'), &
                 "**********************************************************************", &
                 "WARNING - this is a coupled run which resets the following parameters:", &
                 " density         =", density ,                                           & 
@@ -179,7 +176,7 @@ subroutine set_parameters_global_domain_coupled
                 "**********************************************************************"
     endif
 
-end subroutine set_parameters_global_domain_coupled
+end subroutine set_params_globdomain_cpld
 
 !-----------------------------------------------------------------------------
 ! Adjust MD cells to match to continuum
@@ -266,7 +263,7 @@ subroutine set_parameters_cells_coupled
 	endif
 
     if(rank_realm .eq. 1) then
-        write(*,'(a/a/a,f8.6,/,a,3i8,/,a,3(f8.5),/,a,3(i8),/,a)') &
+        write(*,'(a/a/a,f9.6,/,a,3i8,/,a,3(f8.5),/,a,3(i8),/,a)') &
                     "**********************************************************************", &
                     "WARNING - this is a coupled run which resets the following parameters:", &
 	    	        " Extra cell size for neighbourlist =", delta_rneighbr  ,                 & 
@@ -291,28 +288,21 @@ end subroutine set_parameters_cells_coupled
 
 subroutine set_coupled_timing(Nsteps_md)
 	use computational_constants_MD, only : initialstep,elapsedtime
-	use coupler_input_data, only : md_steps_per_dt_cfd,md_steps_per_dt_cfd_tag
-	use coupler_module, only : dt_cfd,dt_MD,Nsteps_cfd,Nsteps_md_old=>Nsteps_md, & 
+	use coupler_module, only : timestep_ratio,dt_cfd,dt_MD, &
+	                           Nsteps_cfd,Nsteps_md_old=>Nsteps_md, & 
 							   rank_realm,Nsteps_coupled
 	implicit none
 
 	integer,intent(out)		:: Nsteps_md
 	integer					:: Nsteps_MDperCFD
 
-	!Set number of MD timesteps per CFD using ratio of timestep or coupler value
-	if(md_steps_per_dt_cfd_tag == CPL) then
-		Nsteps_MDperCFD = md_steps_per_dt_cfd
-	else 
-		Nsteps_MDperCFD = int(dt_cfd/dt_MD)
-	endif
 	Nsteps_coupled = Nsteps_cfd
-
- 	!Set number of steps in MD simulation, Nsteps
-	Nsteps_md   = initialstep + Nsteps_cfd * Nsteps_MDperCFD
+ 	!Set number of steps in MD simulation
+	Nsteps_md   = initialstep + Nsteps_cfd * timestep_ratio 
 	elapsedtime = elapsedtime + Nsteps_cfd * Nsteps_MD * dt_MD
 
 	if (rank_realm .eq. 1) then 
-		write(*,'(2(a,/),a,i7,a,i7,/a,i7,a,i7,/a,f12.4,a,/a)') &
+		write(*,'(2(a,/),a,i7,a,i7,/a,i7,a,i7,/a,f12.4,a,/a)'), &
 			"*********************************************************************", 		&
 			" WARNING - WARNING - WARNING - WARNING - WARNING - WARNING - WARNING  ", 		&
 			" Input number of timesteps from MD: ",Nsteps_md_old," & CFD: ", Nsteps_cfd,	&
@@ -333,6 +323,66 @@ subroutine socket_create_map
 
 end subroutine socket_create_map
 
+function socket_get_overlap_status result(olap)
+	use coupler_module, only: olap_mask, rank_world
+	implicit none
+
+	logical :: olap
+	
+	if (olap_mask(rank_world).eq.1) then
+		olap = .true.
+	else
+		olap = .false.
+	end if
+
+end function socket_get_overlap_status
+
+function socket_get_domain_top() result(top)
+	use coupler_module, only: yL_md, dy
+	implicit none
+
+	real(kind(0.d0)) :: top
+
+	top = yL_md/2.d0 - dy
+
+end function socket_get_domain_top
+
+function socket_get_bottom_of_top_boundary() result(bottom)
+   use computational_constants_MD, only: halfdomain
+   use coupler_module, only: dy
+   implicit none
+
+   real(kind(0.d0)) :: bottom
+
+   bottom = halfdomain(2) - dy
+
+end function socket_get_bottom_of_top_boundary
+
+subroutine socket_check_cell_sizes
+   use computational_constants_MD, only: cellsidelength  
+   use coupler_module, only: dx,dy,dz,myid_realm,rootid_realm, &
+                             rank_realm,xg,yg,zg
+   implicit none
+   
+   if (myid_realm .eq. rootid_realm) then
+       if( cellsidelength(1) .ge. dx .or. & 
+           cellsidelength(2) .ge. dy .or. & 
+           cellsidelength(3) .ge. dz .and. rank_realm == 0 ) then
+           write(*,*), ""
+           write(*,*), "********************************************************************"
+           write(*,*), " WARNING ...WARNING ...WARNING ...WARNING ...WARNING ...WARNING ... "
+           write(*,*), " MD cell size larger than CFD x,y cell sizes         "
+           write(*,*), " cellsidelength = ", cellsidelength
+           write(*,'(3(a,f10.5))'), " dx=", xg(2,1) - xg(1,1),  & 
+                                   " dy=", yg(1,2) - yg(1,1),  & 
+                                   " dz=", zg(2  ) - zg(1  )
+           write(*,*), "********************************************************************"
+           write(*,*), ""
+       endif
+   endif
+
+end subroutine socket_check_cell_sizes
+
 !=============================================================================
 ! Simulation  Simulation  Simulation  Simulation  Simulation  Simulation  
 !
@@ -352,8 +402,7 @@ subroutine average_and_send_MD_to_CFD(iter)
 	use physical_constants_MD, only : np
 	use arrays_MD, only :r,v
    	use coupler_module, only : staggered_averages, ncx,ncy,ncz, & 
-							   dx,dz,yg,cfd_code_id,md_realm,rank_realm
-	use coupler_input_data, only : md_steps_per_dt_cfd
+							   dx,dz,yg,md_realm,rank_realm,timestep_ratio
 	use messenger, only : MD_COMM
 	implicit none
 
@@ -370,8 +419,8 @@ subroutine average_and_send_MD_to_CFD(iter)
 	    first_time	= .false.
 		call setup_velocity_average
     endif
-    iter_average = mod(iter-1, md_steps_per_dt_cfd)+1			! current step
-    iter_cfd     = (iter-initialstep)/md_steps_per_dt_cfd +1 	! CFD corresponding step
+    iter_average = mod(iter-1, timestep_ratio)+1			! current step
+    iter_cfd     = (iter-initialstep)/timestep_ratio +1 	! CFD corresponding step
 
 	!Collect uc data every save_period cfd iteration but discard the first one which cfd uses for initialisation
     if ( mod(iter_average,average_period) .eq. 0 ) then
@@ -379,7 +428,7 @@ subroutine average_and_send_MD_to_CFD(iter)
 	endif
 
 	!Send accumulated results to CFD at the end of average cycle 
-    if  (iter_average .eq. md_steps_per_dt_cfd) then
+    if  (iter_average .eq. timestep_ratio) then
 	    call send_velocity_average
 	endif
 
@@ -417,8 +466,10 @@ contains
 	subroutine cumulative_velocity_average
 		use coupler, only : CPL_Cart_coords, CPL_proc_extents
 		use coupler_module, only : xL_md,zL_md,xg,yg,zg,jcmin_olap, & 
-								   dx,dy,dz,ncx,ncy,ncz,cfd_code_id, CPL_REALM_COMM,rank_world
-		use coupler_internal_md, only : map_md2cfd_global,map_cfd2md_global,globalise,localise	
+								   dx,dy,dz,ncx,ncy,ncz,CPL_REALM_COMM, &
+		                           rank_world
+		use coupler_internal_md, only : map_md2cfd_global,map_cfd2md_global, &
+		                                globalise,localise	
 		use computational_constants_MD, only : iter, ncells,domain,halfdomain
 		use librarymod, only : heaviside, imaxloc
 		implicit none
@@ -567,10 +618,11 @@ end subroutine average_and_send_MD_to_CFD
 subroutine socket_apply_continuum_forces(iter)
 	use physical_constants_MD, only : np
 	use computational_constants_MD, only : delta_t, nh, ncells, & 
-										cellsidelength, halfdomain, delta_rneighbr
-	use coupler_input_data, only : md_steps_per_dt_cfd
+										   cellsidelength, halfdomain, &
+	                                       delta_rneighbr
 	use coupler_module, only : rank_world,olap_mask, icmin_olap,icmax_olap, & 
-								jcmin_olap,jcmax_olap,kcmin_olap,kcmax_olap, printf
+	                           jcmin_olap,jcmax_olap,kcmin_olap,kcmax_olap, &
+	                           printf, timestep_ratio
 	use linked_list
 	implicit none
 
@@ -603,11 +655,11 @@ subroutine socket_apply_continuum_forces(iter)
 	else
 		inv_dtCFD = 1.0/coupler_md_get_dt_cfd()
 	endif
-	iter_average = mod(iter-1, md_steps_per_dt_cfd)+1
+	iter_average = mod(iter-1, timestep_ratio)+1
 
-	if (rank_world .eq. 1) print'(i8,a,i4,a,i4)', iter,'step', iter_average, 'of', md_steps_per_dt_cfd
+	if (rank_world .eq. 1) print'(i8,a,i4,a,i4)', iter,'step', iter_average, 'of', timestep_ratio
 
-	! Receive value of CFD velocities at first timestep of md_steps_per_dt_cfd
+	! Receive value of CFD velocities at first timestep of timestep_ratio
 	if (iter_average .eq. 1) then
 			call CPL_recv(uvw_cfd,jcmax_recv=jcmax_recv, & 
 						          jcmin_recv=jcmin_recv,recv_flag=recv_flag)
@@ -880,7 +932,7 @@ end subroutine socket_apply_continuum_forces
 !-----------------------------------------------------------------------------
 
 subroutine socket_CPL_apply_continuum_forces(iter)
-	use coupler_input_data, only : md_steps_per_dt_cfd
+	use coupler_module, only : timestep_ratio
 	implicit none
 	
 	integer, intent(in) :: iter
@@ -895,10 +947,10 @@ subroutine socket_CPL_apply_continuum_forces(iter)
 	    first_time	= .false.
 	    average_period = coupler_md_get_average_period() 	! collection interval in the average cycle
     endif
-    iter_average = mod(iter-1, md_steps_per_dt_cfd)+1			! current step
+    iter_average = mod(iter-1, timestep_ratio)+1			! current step
 
 	!Receive results from CFD at exchange times
-    if  (iter_average .eq. md_steps_per_dt_cfd) then
+    if  (iter_average .eq. timestep_ratio) then
 	    call receive_CFD_velocity
 	else
 		call interpolate_CFD_velocity

@@ -45,13 +45,9 @@ end subroutine socket_coupler_invoke
 subroutine socket_read_coupler_input
 	use messenger
 	use coupler_input_data, only : read_coupler_input
-    use coupler_module, only : request_stop
 	implicit none
 
 	call read_coupler_input		! Read COUPLER.in input file
-
-    ! stop if requested ( useful for development )
-	call request_stop("create_comm") ! stops here if in COUPLER.in stop requestis set to "create_comm"
 
 end subroutine socket_read_coupler_input
 
@@ -66,8 +62,7 @@ subroutine socket_coupler_init
                             ngx,ngy,ngz,xL,yL,zL, &
                             npx,npy,npz,dt,xpg,ypg,zpg
 	use mesh_export, only : xL, yL, zL
-	use coupler_input_data, only : density_tag, density
-	use coupler_module, only : error_abort
+	use coupler_module, only : error_abort, density_cfd
     implicit none
 
     integer							:: nsteps
@@ -86,16 +81,9 @@ subroutine socket_coupler_init
 	ngxyz  = (/ ngx , ngy , ngz  /)-1 !Minus 1 as coupler requires no. of cells NOT no. surfaces
 	xyzL   = (/  xL ,  yL ,  zL  /)
 
-	!Density is NOT defined for the DNS code
-	if (density_tag == CPL) then 
-		!Do nothing
-		density = density
-	else
-		call error_abort("Density not specified in coupler")
-	endif
-
-    call coupler_cfd_init(nsteps,dt,icomm_grid,icoord,npxyz,xyzL,ngxyz,density, & 
-							   ijkmax,ijkmin,iTmin_1,iTmax_1,jTmin_1,jTmax_1,kTmin_1,kTmax_1,xpg,ypg,zpg)
+    call coupler_cfd_init(nsteps,dt,icomm_grid,icoord,npxyz,xyzL,ngxyz, & 
+	                      density_cfd,ijkmax,ijkmin,iTmin_1,iTmax_1,jTmin_1,&
+	                      jTmax_1,kTmin_1,kTmax_1,xpg,ypg,zpg)
 
 end subroutine socket_coupler_init
 

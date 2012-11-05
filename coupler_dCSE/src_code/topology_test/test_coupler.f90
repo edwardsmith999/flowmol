@@ -10,10 +10,6 @@ program test_coupler
 	call get_cfd_cell_ranges               ! FROM TEST
 	call create_realms                     ! FROM TEST
 	call CPL_create_map	                   ! FROM COUPLER
-	!call get_md_cell_ranges                ! FROM COUPLER        
-	!call get_overlap_blocks                ! FROM COUPLER
-	!call prepare_overlap_comms             ! FROM COUPLER
-	!call CPL_overlap_topology              ! FROM COUPLER
 
 	call barrier
 

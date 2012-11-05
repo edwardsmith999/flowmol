@@ -1,44 +1,68 @@
-#########################################################################
-# Density
-# Specifies same density for both continuum and MD domain
-# ----------------------------------------------------------------------
-DENSITY
+###############################################################################
+#                                                                             #
+#           8888888 888b    888 8888888b.  888     888 88888888888            #
+#             888   8888b   888 888   Y88b 888     888     888                #
+#             888   88888b  888 888    888 888     888     888                #
+#             888   888Y88b 888 888   d88P 888     888     888                #
+#             888   888 Y88b888 8888888P"  888     888     888                #
+#             888   888  Y88888 888        888     888     888                #
+#             888   888   Y8888 888        Y88b. .d88P     888                #
+#           8888888 888    Y888 888         "Y88888P"      888                #
+#                                                                             #
+###############################################################################
+
+###############################################################################
+#
+#   density_cfd (float)
+#     - specifies the density for both continuum fluid
+#
+# -----------------------------------------------------------------------------
+DENSITY_CFD
 0.8
-#########################################################################
-# CFD number of cells - overwrites the number of CFD cells in CFD input 
-# ----------------------------------------------------------------------
-#CFD_NCELLS
-#16
-#7
-#########################################################################
-# CFD MD overlap cells - size of overlap region
-# ----------------------------------------------------------------------
-OVERLAP_CELLS
-36
-#########################################################################
-# molecular dynamics 
-# size of molecular domain? 
-# averaging used for values passed by coupler?
-# ----------------------------------------------------------------------
-MD_LY_EXTENSION
-130.28
-MD_AVERAGE_PERIOD
+
+
+###############################################################################
+#
+#   overlap_extents (6 * integers)
+#     - define the global cell boundaries of the overlap region
+#
+#     1. icmin_olap
+#     2. icmax_olap
+#     3. jcmin_olap
+#     4. jcmax_olap
+#     5. kcmin_olap
+#     6. kcmax_olap
+#
+# -----------------------------------------------------------------------------
+OVERLAP_EXTENTS
 1
+128
+1
+23
+1
+8
+
+
+###############################################################################
 #
+#   timestep ratio (integer) 
+#     - number of molecular time steps per continuum time step 
 #
-#
-STAGGERED_AVERAGES
-F F F
-#########################################################################
-# Number of MD steps per CFD step
-# in not set here coupler set is to INT(dt_cfd/dt_md)
-# ----------------------------------------------------------------------
-MD_STEPS_PER_DT_CFD
+# -----------------------------------------------------------------------------
+TIMESTEP_RATIO
 25
-#########################################################################
-# Force MD cells to be an integer multiple of CFD cells - This
-# optimises use of cell lists for averaging in the MD code
-# 0 = off, 1 = on
-# ----------------------------------------------------------------------
-MD_CFD_MATCH_CELLSIZE
+
+
+###############################################################################
+#
+#   match cellsize (integer, flag)
+#     - if on, force number of molecular cells (from the force-interaction 
+#       cell-list optimisation) to be an integer multiple of the number of 
+#       continuum cells 
+#
+#          0 = "off"
+#          1 = "on"
+#
+# -----------------------------------------------------------------------------
+MATCH_CELLSIZE
 0

@@ -12,9 +12,6 @@
 module mesh
 	use data_export
 	use mesh_export
-#if USE_COUPLER
-    use coupler
-#endif
 end module
 
 !=======================================================================
@@ -43,11 +40,6 @@ subroutine mesh_init()
 	call readFloat("yL", yL)
 	call readFloat("zL", zL)
 
-#if USE_COUPLER
-    call CPL_cfd_adjust_domain(xL=xL,zL=zL,density_cfd=rho_loc)
-#endif
-
-	! Grid size specified in data module
 
 	!-------------------------------------------------------------------
 	! X-mesh

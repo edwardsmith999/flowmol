@@ -22,20 +22,20 @@ subroutine setup_initial_record
 	use shear_info_MD
 	implicit none
 
-	integer					::  i,n!todo
+	integer					:: i,n!todo
 	logical 				:: file_exist
 	character				:: ixyz_char
-	Character(8)			:: the_date
-	Character(10)			:: the_time
-	Character(23),parameter :: file_names(23) = &
-								(/ "mslice      ", "mbins       ", "msnap       ",&
-								   "vslice      ", "vbins       ", "vsnap       ",&
-								   "pvirial     ", "pVA         ", "pVA_k       ",& 
-								   "pVA_c       ", "visc        ", "mflux       ",& 
-								   "vflux       ", "pplane      ", "psurface    ",&
-								   "esnap       ", "eflux       ", "eplane      ",&
-								   "esurface    ", "viscometrics", "rdf         ",&
-	                               "rdf3d       ", "ssf         "                         /) 
+	character(8)			:: the_date
+	character(10)			:: the_time
+	character(23),parameter :: file_names(23) = &
+								(/ "mslice      ", "mbins       ", "msnap   ",&
+								   "vslice      ", "vbins       ", "vsnap   ",&
+								   "pvirial     ", "pVA         ", "pVA_k   ",& 
+								   "pVA_c       ", "visc        ", "mflux   ",& 
+								   "vflux       ", "pplane      ", "psurface",&
+								   "esnap       ", "eflux       ", "eplane  ",&
+								   "esurface    ", "viscometrics", "rdf     ",&
+	                               "rdf3d       ", "ssf         "            /) 
 	if (irank.eq.iroot) then
 		do i=1,size(file_names)
 			inquire(file=trim(prefix_dir)//'results/'//file_names(i),exist=file_exist)
