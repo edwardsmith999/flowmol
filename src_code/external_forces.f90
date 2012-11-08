@@ -466,8 +466,8 @@ subroutine apply_continuum_forces_CV(iter)
 			isummol   = 0
 
 			!Calculate flux and force averages for bin
-			call compute_bin_surface_flux(icell,jcell,kcell,isumflux)
-			call compute_force_surrounding_bins(icell,jcell,kcell,isumforce)
+			!call compute_bin_surface_flux(icell,jcell,kcell,isumflux)
+			!call compute_force_surrounding_bins(icell,jcell,kcell,isumforce)
 
 			cellnp = cell%cellnp(icell,jcell,kcell)
 			old => cell%head(icell,jcell,kcell)%point 	!Set old to first molecule in list

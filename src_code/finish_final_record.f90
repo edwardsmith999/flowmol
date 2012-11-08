@@ -48,7 +48,7 @@ implicit none
 	!unformatted output file to allow restart
 	call parallel_io_final_state
 
-	!Reformat positions recorded into the correct from for VMD to use
+	!Reformat positions recorded into the correct form for VMD to use
 	if(irank .eq. iroot) then
 		select case (vmd_outflag)
 		case(0)
