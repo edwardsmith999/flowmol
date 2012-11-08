@@ -46,17 +46,17 @@ subroutine setup_tag
 			do ixyz = 1,3
 				!Bottom
 				if (block(ixyz) .eq. 1) then
-					if(r(ixyz,n).lt.-halfdomain(ixyz)+   thermstatbottom(ixyz)) 	tag(n) = 4
-					if(r(ixyz,n).lt.-halfdomain(ixyz)+tethereddistbottom(ixyz)) 	tag(n) = 3
+					if(r(ixyz,n).lt.-halfdomain(ixyz)+thermstatbottom(ixyz)) 	tag(n) = 4
+					if(r(ixyz,n).lt.-halfdomain(ixyz)+tethereddistbottom(ixyz))	tag(n) = 3
 					if(r(ixyz,n).lt.-halfdomain(ixyz)+tethereddistbottom(ixyz) 		& 
-					 .and. r(ixyz,n).lt.-halfdomain(ixyz)+   thermstatbottom(ixyz)) tag(n) = 5
-					if(r(ixyz,n).lt.-halfdomain(ixyz)+     fixdistbottom(ixyz))		tag(n) = 1
-					if(r(ixyz,n).lt.-halfdomain(ixyz)+   slidedistbottom(ixyz)) 	tag(n) = 2
+				 .and. r(ixyz,n).lt.-halfdomain(ixyz)+thermstatbottom(ixyz)) 	tag(n) = 5
+					if(r(ixyz,n).lt.-halfdomain(ixyz)+fixdistbottom(ixyz))		tag(n) = 1
+					if(r(ixyz,n).lt.-halfdomain(ixyz)+slidedistbottom(ixyz)) 	tag(n) = 2
 					if(r(ixyz,n).lt.-halfdomain(ixyz)+tethereddistbottom(ixyz) 		& 
-					 .and. r(ixyz,n).lt.-halfdomain(ixyz)+   slidedistbottom(ixyz))	tag(n) = 6
+				 .and. r(ixyz,n).lt.-halfdomain(ixyz)+slidedistbottom(ixyz))	tag(n) = 6
 					if(r(ixyz,n).lt.-halfdomain(ixyz)+tethereddistbottom(ixyz) 		& 
-					 .and. r(ixyz,n).lt.-halfdomain(ixyz)+   thermstatbottom(ixyz)	&
-					 .and. r(ixyz,n).lt.-halfdomain(ixyz)+   slidedistbottom(ixyz))	tag(n) = 7
+				 .and. r(ixyz,n).lt.-halfdomain(ixyz)+thermstatbottom(ixyz)	&
+				 .and. r(ixyz,n).lt.-halfdomain(ixyz)+slidedistbottom(ixyz))	tag(n) = 7
 				endif
 
 				!Top	
@@ -303,6 +303,11 @@ subroutine read_tag(molno)
 		fix(:,molno) = 1
 		slidev(:,molno) = wallslidev
 	case (8)
+		!Profile unbiased thermostat (Nose-Hoover)
+		fix(:,molno) = 1
+		slidev(:,molno) = 0.d0
+	case (9)
+		!Thermostat in the z direction only (Nose-Hoover) 
 		fix(:,molno) = 1
 		slidev(:,molno) = 0.d0
 	case default

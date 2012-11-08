@@ -229,10 +229,10 @@ contains
 			v2sum = 0.d0    									  	! Reset total v2sum
 			thermostatnp = 0										! Reset count of thermostatted mols
 			do n = 1, np   											! Loop all molecules
-				if (tag(n) .lt. 4) cycle							! Only include thermostatted molecules - DO YOU WANT THIS LINE UNCOMMENTED?
+				if (tag(n) .lt. 4) cycle							! Only include thermostatted molecules 
 				if (PUT) then										! PUT: If using PUT find peculiar v2sum
-					vel(:) = v(:,n) - U(:,n) - 0.5d0*a(:,n)*delta_t			! PUT: Find peculiar velocity
-					pec_v2sum = pec_v2sum + dot_product(vel,vel)						! PUT: Sum peculiar velocities squared
+					vel(:) = v(:,n) - U(:,n) - 0.5d0*a(:,n)*delta_t	! PUT: Find peculiar velocity
+					pec_v2sum = pec_v2sum + dot_product(vel,vel)	! PUT: Sum peculiar velocities squared
 				else
 					vel(:) = v(:,n) - 0.5d0*a(:,n)*delta_t	
 					v2sum = v2sum + dot_product(vel,vel)
@@ -317,18 +317,28 @@ contains
 				!Profile unbiased thermostat (Nose-Hoover)
 	        	v(:,n) = v(:,n)*ascale + (a(:,n)+zeta*U(:,n))*delta_t*bscale
 				r(:,n) = r(:,n)        + v(:,n)*delta_t			
+			case (9)
+				!Thermostat in the z direction only (Nose-Hoover)
+				v(1,n) = v(1,n) + delta_t * a(1,n) 	
+				r(1,n) = r(1,n) + delta_t * v(1,n)	
+				v(2,n) = v(2,n) + delta_t * a(2,n) 	
+				r(2,n) = r(2,n) + delta_t * v(2,n)	
+				v(3,n) = v(3,n)*ascale + a(3,n)*delta_t*bscale
+				r(3,n) = r(3,n)    +     v(3,n)*delta_t	
 			case default
 				call error_abort("Invalid molecular Tag")
 			end select
 		enddo
-		
+
 	end subroutine simulation_move_particles_lfv_tag
 
 end subroutine simulation_move_particles_lfv
 
 !======================================================================================
+! Minimal form of the move particles subroutine
+!
 
-subroutine simulation_move_particles_lfv_opt
+subroutine simulation_move_particles_lfv_basic
 	use arrays_MD, only	: r,v,a
 	use physical_constants_MD, only : np
 	use computational_constants_MD, only : delta_t
@@ -348,7 +358,7 @@ subroutine simulation_move_particles_lfv_opt
 
 	enddo
 
-end subroutine simulation_move_particles_lfv_opt
+end subroutine simulation_move_particles_lfv_basic
 !======================================================================================
 !--------------------------------------------------------------------------------------
 

@@ -25,9 +25,12 @@ implicit none
 	rebuild = 0
 
 	!Trigger rebuild if record to be taken on next timestep
-	if (mod(iter+1,tplot) .eq. 0) then
-		rebuild = 1
-	endif
+	if (mod(iter+1,tplot) .eq. 0) rebuild = 1
+
+	!Trigger rebuild if FIXED REBUILD specified in inpuy
+	!if (fixed_rebuild_flag .eq. 1) then
+	!	if (mod(iter,fixed_rebuild) .eq. 0) rebuild = 1
+	!endif
 
 	!Evaluate velocity magnitude
 	do n = 1, np    ! Loop over all molecules

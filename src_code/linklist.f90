@@ -1356,7 +1356,7 @@ subroutine sort_mols
 	else
 		nrebuilds = 1
 	endif
-	if (potential_flag .eq. 1) call error_abort("Sort should be turned off - Not developed for polymers")
+
 
 	!Choose between the various sorting methodolgies
 	select case(sort_flag)
@@ -1364,8 +1364,10 @@ subroutine sort_mols
 		return 	!No sort - return
 	case(1)
 		!Use ordered array generated during setup
+		if (potential_flag .eq. 1) call error_abort("Sort should be turned off - Not developed for polymers")
 	case(2)
 		!Use Hilbert curve generated during setup
+		if (potential_flag .eq. 1) call error_abort("Sort should be turned off - Not developed for polymers")
 	case default
 		call error_abort('Incorrect value of sort_flag')
 	end select
@@ -1381,9 +1383,9 @@ subroutine sort_mols
 
 	allocate(rtemp(nd,ave_molperblock,blocks))
 	allocate(vtemp(nd,ave_molperblock,blocks))
-	allocate(tagtemp(ave_molperblock,blocks))
+	allocate(tagtemp( ave_molperblock,blocks))
 	allocate(molperblock(blocks))
-	rtemp=0.d0;vtemp=0.d0;tagtemp=0; molperblock = 0
+	rtemp=0.d0; vtemp=0.d0; tagtemp=0; molperblock = 0
 	if (rtrue_flag .eq. 1) allocate(rtemp2(nd,ave_molperblock,blocks))
 	if (allocated(tag)) then
 		allocate(rtemp3(nd,ave_molperblock,blocks))

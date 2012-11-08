@@ -243,18 +243,18 @@ subroutine evaluate_macroscopic_properties
 	
 	select case(integration_algorithm)
 	case(leap_frog_verlet)
-		do ixyz = 1, nd									! Loop over all dimensions
 		do n = 1, np 									! Loop over all particles
-			vel = v(ixyz,n) + 0.5d0*a(ixyz,n)*delta_t	! Velocity must shifted half a timestep
-			vsum = vsum + vel							! Add up all molecules' velocity components
+		do ixyz = 1, nd									! Loop over all dimensions
+			vel   = v(ixyz,n) + 0.5d0*a(ixyz,n)*delta_t	! Velocity must shifted half a timestep
+			vsum  = vsum + vel							! Add up all molecules' velocity components
 			v2sum = v2sum + vel**2						! Add up all molecules' velocity squared components  
 		enddo
 		enddo
 	case(velocity_verlet) 								! If velocity Verlet algorithm
-		do ixyz = 1, nd
 		do n = 1, np
-			vel = v(ixyz,n)
-			vsum = vsum+vel
+		do ixyz = 1, nd
+			vel   = v(ixyz,n)
+			vsum  = vsum+vel
 			v2sum = v2sum + vel**2          			! Sum all velocity squared components
 		enddo
 		enddo
@@ -297,7 +297,7 @@ implicit none
 		case(0)
 			select case(macro_outflag)
 			case(1:2)
-				print '(1x,i8,a,f10.3,a,f10.4,a,f10.2,a,f7.3,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
+				print '(1x,i8,a,f10.3,a,E10.3,a,f10.2,a,f7.3,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
 				it,';', simtime,';',vsum,';', v2sum,';', temperature,';', &
 				kinenergy,';',potenergy,';',totenergy,';',pressure
 			case(3:4)

@@ -131,10 +131,10 @@ subroutine setup_read_input
 	!Flag to determine molecular tags
 	!-------------------------------------
 	!Note: For initialunitsize "a"
-	!		 [  o     o ]
+	!                [  o     o ]
 	!a (1 cell size) [     o    ]  a/2 (distance between molcules)	
-	!		 [  o     o
-	!		  __________]  a/4 (distance from bottom of domain)
+	!                [  o     o ]
+	!                [__________]  a/4 (distance from bottom of domain)
 	!
 	!So use (0.20+0.5d0*mol_layers)*initialunitsize(ixyz)
 
