@@ -11,6 +11,7 @@ else
 	if [ "$REPLY" == "y" ]; then
 		cp ./$1/input.file  ./../CFD_dCSE/src_code/grid_generation/
 		cp ./$1/input.setup ./../CFD_dCSE/src_code/setup/
+		cp ./$1/uy_input ./../CFD_dCSE/src_code/setup/
 		cp ./$1/param.inc  ./../CFD_dCSE/src_code/main_code/
 		cp ./$1/input  ./../CFD_dCSE/src_code/main_code/
 		cp ./$1/COUPLER.in  ./../coupler_dCSE/src_code/

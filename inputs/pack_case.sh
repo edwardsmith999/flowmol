@@ -8,6 +8,7 @@ else
 	mkdir $1
 	cp ./../CFD_dCSE/src_code/grid_generation/input.file ./$1
 	cp ./../CFD_dCSE/src_code/setup/input.setup ./$1
+	cp ./../CFD_dCSE/src_code/setup/uy_input ./$1
 	cp ./../CFD_dCSE/src_code/main_code/param.inc ./$1
 	cp ./../CFD_dCSE/src_code/main_code/input ./$1
 	cp ./../coupler_dCSE/src_code/COUPLER.in ./$1
