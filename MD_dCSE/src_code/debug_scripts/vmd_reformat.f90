@@ -97,10 +97,10 @@ end subroutine get_file_size
 !http://www.ks.uiuc.edu/Research/vmd/plugins/molfile/dcdplugin.html
 !Information at the above url is a little misleading in places, comments below try to clarify. 
 
-subroutine reformat_dcd(filename,vmd_sets,np,delta_t_in,initialstep_in,tplot_in)
+subroutine reformat_dcd(folder,filename,vmd_sets,np,delta_t_in,initialstep_in,tplot_in)
 	implicit none
 
-	character(len=*), intent(in)		:: filename
+	character(len=*), intent(in)		:: folder,filename
 
 	integer, intent(in)					:: vmd_sets
 	integer, intent(in)					:: np		!--Number of atoms
@@ -124,6 +124,7 @@ subroutine reformat_dcd(filename,vmd_sets,np,delta_t_in,initialstep_in,tplot_in)
 	real 							:: time_start, time_end
 	real,allocatable,dimension(:)   :: Xbuf, Ybuf, Zbuf	!--Buffers used to copy from direct access to binary
 	double precision				:: DELTA		!--Timestep between frames
+	character(40)					:: filename_out
 
 	!Set defaults - I'm not convinces these do anything anyway
 	if (.not. present(delta_t_in)) then
@@ -188,7 +189,8 @@ subroutine reformat_dcd(filename,vmd_sets,np,delta_t_in,initialstep_in,tplot_in)
 	close(17)
 
 	!Open binary .dcd file and write header information	
-	open(unit=3, file="./../results/vmd_out.dcd",status='replace', form="unformatted")
+	write (filename_out,'(2a)') trim(folder), "vmd_out.dcd"	
+	open(unit=3, file=filename_out,status='replace', form="unformatted")
 	
 	write(3) HDR, NSET, ISTRT, NSAVC, FIVEZ, NATOMNFREAT, DELTA, NINEZ
 	write(3) NTITLE, TITLE(1), TITLE(2)
@@ -254,10 +256,11 @@ program vmd_reformat
 	implicit none
 
 	integer			:: np, vmd_outflag,file_size,vmd_steps,datasize
-	character(40) 	:: filename,npstring
+	character(40) 	:: filename,folder,npstring
 
 	!Set Constants
-	filename = "./../results/vmd_temp.dcd"
+	folder = "./../results/"
+	write (filename,'(2a)') trim(folder), "vmd_temp.dcd"	
 	datasize = 4
 
 	!Get paramters required from input line
@@ -282,7 +285,7 @@ program vmd_reformat
 	select case (vmd_outflag)
 	case(0)
 	case(1)
-		call reformat_dcd(filename,vmd_steps,np)
+		call reformat_dcd(folder,filename,vmd_steps,np)
 	case(2)
 		!call reformat_dcd_sl
 	case(3)

@@ -214,7 +214,6 @@ subroutine setup_initialise_parallel_position
 			!If molecules is in the domain then add to total
 			nl = nl + 1 !Local molecule count
 
-
 			!Correct to local coordinates
 			r(1,nl) = rc(1)-domain(1)*(iblock-1)
 			r(2,nl) = rc(2)-domain(2)*(jblock-1)

@@ -26,7 +26,7 @@ else
   $(if $(findstring $(BUILD), $(BUILD_LIST)),,$(error unknown value of BUILD = $(BUILD)))
 endif
 
-F90   := mpif90 #gfortran
+F90   := gfortran
 LD    := $(F90)
 
 # set the preprocessor flags for coupler calls activation
