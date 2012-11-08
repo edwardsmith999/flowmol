@@ -43,9 +43,9 @@ program setup
         !close (iclose(iunit))
 
 	iunit = iopen()
-        open (iunit, file="Inflow.mean.000000", form="unformatted")
-        call Inflow_BC_write(iunit)
-        close (iclose(iunit))
+	open (iunit, file="Inflow.mean.000000", form="unformatted")
+	call Inflow_BC_write(iunit)
+	close (iclose(iunit))
 
 	! Write data file
 	iunit = iopen()

@@ -99,7 +99,7 @@ program main
 	!----print out y-grid to screen----
 	print*,'Print out y(j=1,ngy)'
 	do j=1,ngy
-		print*,y(j)
+		print'(a,i4,a,f10.5)', 'Cell ', j, ' in y is ', y(j)
 	end do
 
 	inquire(iolength=ilength) xpg

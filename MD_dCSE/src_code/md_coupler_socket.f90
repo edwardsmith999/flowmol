@@ -296,10 +296,20 @@ subroutine set_coupled_timing(Nsteps_md)
 	integer,intent(out)		:: Nsteps_md
 	integer					:: Nsteps_MDperCFD
 
+
+	!Set number of MD timesteps per CFD using ratio of timestep or coupler value
+	if(timestep_ratio .eq. VOID) then
+		Nsteps_MDperCFD = int(dt_cfd/dt_MD)
+	else 
+		Nsteps_MDperCFD = timestep_ratio
+	endif
 	Nsteps_coupled = Nsteps_cfd
+
  	!Set number of steps in MD simulation
-	Nsteps_md   = initialstep + Nsteps_cfd * timestep_ratio 
+	Nsteps_md   = initialstep + Nsteps_cfd * Nsteps_MDperCFD
 	elapsedtime = elapsedtime + Nsteps_cfd * Nsteps_MD * dt_MD
+
+
 
 	if (rank_realm .eq. 1) then 
 		write(*,'(2(a,/),a,i7,a,i7,/a,i7,a,i7,/a,f12.4,a,/a)'), &
@@ -554,8 +564,11 @@ contains
 				if (r(2,n).lt.avrg_bot(2) .or. r(2,n).gt.avrg_top(2) ) cycle
 
 				!Exclude molecules which leave processor between rebuilds
-				if (ibin(1).lt.1 .or. ibin(1).gt.nbins(1)) cycle
-				if (ibin(3).lt.1 .or. ibin(3).gt.nbins(3)) cycle
+				if (ibin(1).lt.1 .or. ibin(1).gt.extents(2)-extents(1)+1) cycle
+				if (ibin(3).lt.1 .or. ibin(3).gt.extents(6)-extents(5)+1) cycle
+
+				!print'(a,7i4,4f9.5)', 'binning',rank_world,ibin(1),ibin(2),ibin(3),minbin(2), & 
+				!						extents(2),extents(6), r(2,n),avrg_bot(2),avrg_top(2)
 
 				!Add velocity and molecular count to bin
 				uvw_md(1:3,ibin(1),ibin(2)-minbin(2)+1,ibin(3)) = &
@@ -563,8 +576,7 @@ contains
 				uvw_md(4,  ibin(1),ibin(2)-minbin(2)+1,ibin(3)) = & 	
 					uvw_md(4,  ibin(1),ibin(2)-minbin(2)+1,ibin(3)) + 1.d0
 
-				!print'(a,6i4,3f9.5)', 'binning',ibin(1),ibin(2),ibin(3),minbin(2), & 
-				!						rank_realm,n, r(2,n),avrg_bot(2),avrg_top(2)
+
 			enddo
 		case default
 			call error_abort('Unknown case in staggered_averages')
@@ -606,10 +618,6 @@ contains
 end subroutine average_and_send_MD_to_CFD
 
 
-
-
-
-
 !=============================================================================
 ! Apply coupling forces so MD => CFD
 ! Force from Nie et al (2004) paper to fix molecular velocity to
@@ -645,7 +653,7 @@ subroutine socket_apply_continuum_forces(iter)
 	if (first_time) then
 		first_time = .false.
 		!Number of cells to receive
-		cnstnd_cells = 17	!~10% of the total domain
+		cnstnd_cells = 1	!~10% of the total domain
 		jcmin_recv = jcmax_olap-1-cnstnd_cells
 		jcmax_recv = jcmax_olap-1
 		limits = (/ icmin_olap,icmax_olap, jcmin_recv,jcmax_recv, kcmin_olap,kcmax_olap  /)
@@ -656,8 +664,6 @@ subroutine socket_apply_continuum_forces(iter)
 		inv_dtCFD = 1.0/coupler_md_get_dt_cfd()
 	endif
 	iter_average = mod(iter-1, timestep_ratio)+1
-
-	if (rank_world .eq. 1) print'(i8,a,i4,a,i4)', iter,'step', iter_average, 'of', timestep_ratio
 
 	! Receive value of CFD velocities at first timestep of timestep_ratio
 	if (iter_average .eq. 1) then
@@ -834,9 +840,9 @@ subroutine apply_force
         !        			  uvw_cfd(1,ib,1,kb))
 
 		!u_cfd_t_plus_dt(1) = alpha(1) * (iter_average + 1)*delta_t + uvw_cfd(1,ib,1,kb) 
-		if (uvw_cfd(1,ib,jb+jcmin_recv-1,kb) .eq. 0.00) then
-			print*,rank_world,ib,jb+jcmin_recv-1,kb, uvw_cfd(1,ib,jb+jcmin_recv-1,kb)
-		endif
+		!if (uvw_cfd(1,ib,jb+jcmin_recv-1,kb) .eq. 0.00) then
+		!	print*,rank_world,ib,jb+jcmin_recv-1,kb, uvw_cfd(1,ib,jb+jcmin_recv-1,kb)
+		!endif
 
 		acfd =	- box_average(ib,jb,kb)%a(1) / n - inv_dtMD * & 
 				( box_average(ib,jb,kb)%v(1) / n - uvw_cfd(1,ib,jb+jcmin_recv-1,kb) )
@@ -850,10 +856,6 @@ subroutine apply_force
 	enddo
 
 end subroutine apply_force
-
-
-
-
 
 
 !=============================================================================
@@ -2389,7 +2391,7 @@ subroutine test_gather_scatter
 	
 end subroutine test_gather_scatter
 
-! ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
+! ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ 
 
 
 #if COUPLER_DEBUG_LA

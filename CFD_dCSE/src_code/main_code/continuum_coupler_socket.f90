@@ -236,7 +236,7 @@ subroutine socket_coupler_send_velocity
 	allocate(sendbuf(npercell,nclx,ncly,nclz))
  
 	!Number of cells to package and send
-	cnstnd_cells = 17
+	cnstnd_cells = 1
 	jcmin_send = jcmax_olap-1-cnstnd_cells
 	jcmax_send = jcmax_olap-1
 
@@ -285,6 +285,7 @@ subroutine socket_coupler_send_stress
 	nclx = extents(2)-extents(1)+1
 	ncly = extents(4)-extents(3)+1
 	nclz = extents(6)-extents(5)+1
+	allocate(sendbuf(npercell,nclx,ncly,nclz))
 
 	!Get strain tensor at cell centers
 	call Evaluate_strain(uc,vc,wc,dUidxj)
@@ -292,7 +293,6 @@ subroutine socket_coupler_send_stress
 	!Get stress and store in buffer
 	! QUESTION -- if this visc is kinematic (rho/meu) then 
 	! is this the stress? Does DNS assume unit density?
-	allocate(sendbuf(npercell,nclx,ncly,nclz))
 	sendbuf = visc*reshape(dUidxj,(/ 9,nclx,ncly,nclz /))
 
 	!Send stress tensor to MD code

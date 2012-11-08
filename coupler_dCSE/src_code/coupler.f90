@@ -220,7 +220,7 @@ subroutine create_comm
 	call MPI_intercomm_create(CPL_REALM_COMM, comm_size - 1, CPL_WORLD_COMM,&
 									remote_leader, 1, CPL_INTER_COMM, ierr)
 
-	write(0,*) 'did (inter)communicators ', realm_name(realm), myid_world
+	print*, 'did (inter)communicators ', realm_name(realm), myid_world
 
 end subroutine create_comm
 
@@ -665,8 +665,8 @@ subroutine prepare_overlap_comms
 	call MPI_bcast(CFDid_olap,1,MPI_INTEGER,CFDid_olap,CPL_OLAP_COMM,ierr)
 
 	! USED ONLY FOR OUTPUT/TESTING??
-	if (myid_olap .eq. CFDid_olap) testval = group(rank_world)
-	call MPI_bcast(testval,1,MPI_INTEGER,CFDid_olap,CPL_OLAP_COMM,ierr)
+	!if (myid_olap .eq. CFDid_olap) testval = group(rank_world)
+	!call MPI_bcast(testval,1,MPI_INTEGER,CFDid_olap,CPL_OLAP_COMM,ierr)
 
 	! Set all non-overlapping processors to MPI_COMM_NULL
 	if (olap_mask(rank_world).eq.0) then

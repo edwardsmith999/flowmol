@@ -131,7 +131,6 @@ contains
 		call messenger_updateborders(0)                     !Update borders between processors
 		call simulation_checkrebuild(rebuild)
 		if (rebuild .eq. 1) call rebuild_all
-		!if (mod(iter,20) .eq. 0) call rebuild_all			!FIXED REBUILD LIKE LAMMPS
 
 		end subroutine md_advance_lfv
 

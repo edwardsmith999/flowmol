@@ -11,9 +11,7 @@ override NAME = couette
 F90FILES = computation_parameters.f90 data.export_planes.xperiodic.f90 mesh.export.f90 grid.export.f90 data.noglobal_planes.f90 arrayzero.f90 messenger.MPI.noglobal_planes.f90 misc.mpi.f90 mesh.f90 subMesh.f90 grid.f90 dctcoeff.f90 mtgcoeff_planes.f90 inflow.f90 outflow.f90 continuum_coupler_socket.f90 boundaries_xzperiodic.f90 fluctuations_inlet_top.f90 advance_quick_Fletcher_xQUICK.f90 invert_sgi_openmp_xperiodic.f90 poisson_newmtg_planes_xperiodic.sgi.f90 poisson_fftz_fftx.f90 new_multigrid_planes_ylines_FullMG_xperiodic.f90 projection_step_xperiodic.f90 cfl_control.f90 copyBC.f90 flowAnalysis.f90 statistics.f90 Output_SubDomain.f90 ALC/Input_mod.Z_planes.ALC.xperiodic.f90 ALC/Output_mod.Z_planes.ALC.xperiodic.f90 ALC/Input_Spectra.ALC.f90 ALC/Output_Spectra.ALC.f90 ALC/Input_Stats.ALC.f90 ALC/Output_Stats.ALC.f90 simulation_planes.f90 main_planes.f90
 
 LIBFILES := archive.o library.o library.alc.o SSDfile.memory.o triDiagonal.o triDiagonal.mpi.o pentaDiagonal.o transforms.fftw.hitachi.o SinCosFFT.o triDiagonal.mrhs.o triDiagonal.mpi.mrhs.o pentaDiagonal.mrhs.o pentaDiagonal.mpi.o polyDiagonal.o 
-
 LIBDIR := ./../lib
-
 LIBFILES := $(addprefix $(LIBDIR)/,$(LIBFILES))
 
 PARAM = param.inc
@@ -96,13 +94,11 @@ debug:
 	@make opt "FLAGS = -g $(FLAGS)"
 prof:
 	@make opt "LIBS = $(LIBS) -p"
-opt:
-#	@make all "FLAGS = -r8 -O3 -ip -funroll-loops -parallel -par-report3"
-	@make all "FLAGS = -r8 -O3 -ip -funroll-loops           -par-report3"
-clean:
-	rm -rf obj parallel_couette.exe *.mod
+opt: 
+	@make all "FLAGS = -r8 -O3 -ip -funroll-loops -parallel -par-report3"
+#	@make all "FLAGS = -r8 -O3 -ip -funroll-loops           -par-report3"
 parallel_couette.exe: $(OFILES)
-	@echo "$(LD) $(OFILES) $(LIBFILES) $(LIBS) "
+	#@echo "$(LD) $(OFILES) $(LIBFILES) $(LIBS) "
 	$(LD) -o $@ $(OFILES) $(LIBFILES) $(LIBS) $(LDFLAGS) 
 $(OFILES): | $(OBJ_DIR) 
 $(OBJ_DIR) :
@@ -111,6 +107,12 @@ $(OBJ_DIR) :
 #	mkdir obj
 #	mkdir obj/FST_CODES
 #	mkdir obj/ALC
+library: $(LIBFILES)
+	cd $(LIBDIR)
+	make 
+clean:
+	rm -rf obj parallel_couette.exe *.mod
+
 
 $(OBJ_DIR)/%.o : ALC/%.f90 
 			   $(F90) -c $(FPP_FLAGS) $(FFLAGS) $< -o $@

@@ -6,9 +6,18 @@ subroutine read_coupler_input
 	use coupler_module
 	implicit none
 
-	integer :: infileid=873457263
+	integer :: infileid
 	logical :: found
 
+	!Check all file ids until an unused one is found
+	infileid = 100000
+	do 
+		inquire(unit=infileid,opened=found)
+		if (.not.(found)) exit
+		infileid = infileid + 1
+	enddo
+
+	!Open and read input file on all processes
 	open(infileid,file='COUPLER.in',status="old",action="read", &
 				  form="formatted")
 
