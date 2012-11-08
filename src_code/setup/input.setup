@@ -3,8 +3,8 @@
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
 ! Grid size  !T (Should be the same as (ngx,ngy,ngz) in "param.inc"
-129	nix
-129	niy
+33	nix
+33	niy
 9	niz
 
 ! Domain size

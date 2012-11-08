@@ -93,11 +93,6 @@ subroutine initialField_define()
 		call FFT_check
 	end if
 
-        print*,MAXVAL(U); print*,MAXLOC(U)
-        print*,MAXVAL(V); print*,MAXLOC(V)
-        print*,MAXVAL(W); print*,MAXLOC(W)
-
-
 	return
 end
 
@@ -174,10 +169,11 @@ subroutine initialField_read_uy()
 	open(iunit, file='uy_input', status='old',form='unformatted',access="direct",recl=ilength, iostat=ierr)
 
 	! Read Couette profile from input file    
+	
 	do j=jmin,jmax
 		read(iunit,rec=j) read_Uanaly
 		U(:,:,j) = read_Uanaly
-		print'(i8,f10.5)', j, U(5,5,j)
+		print'(a,i8,a,f10.5)', 'Initial Velcity field ux(y) for cell ', j, ' is' , U(5,5,j)
 	enddo
 
 	close(iunit)
