@@ -1268,14 +1268,17 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 	use linked_list
 	implicit none
 
-	integer :: new_np,ixyz,sendnp,dir
+	integer, intent(inout) :: new_np
+	integer, intent(in)    :: ixyz
+	integer, intent(in)    :: sendnp
+	integer, intent(in)    :: dir
 
 	integer :: i, n
 	integer :: molno,sendsize,recvnp,recvsize
 	integer :: pos,length,datasize,buffsize
 	integer :: isource,idest
-	double precision			    :: dppack	!Temporay packing buffer
-	double precision, dimension(nd) :: Xpack 	!Temporay packing buffer
+	double precision :: dppack !Temporay packing buffer
+	double precision, dimension(nd) :: Xpack !Temporay packing buffer
 	double precision, dimension(nsdmi)  :: FENEpack
 	double precision, dimension(:), allocatable :: sendbuffer
 	type(passnode), pointer :: old, current
@@ -1303,7 +1306,7 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 	current => old     !make current point to head of list
 	do i=1,sendnp
 
-		molno = old%molno	!Number of molecule
+		molno = old%molno!Number of molecule
 
 		dppack = real(tag(molno),kind(0.d0))
 		call MPI_Pack(dppack,1,MPI_DOUBLE_PRECISION, &
@@ -1336,7 +1339,7 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 		end if	
 		
 		old => current%next  !make old point to next node of current
-		current  => old      !Set current item to old ready for next loop
+		current => old      !Set current item to old ready for next loop
 
 	enddo
 	!------------------------------------------------------------!
@@ -1355,51 +1358,58 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 
 	!Unpack header data (recvnp)
 	pos = 0
-	call MPI_Unpack(recvbuffer,length,pos,dppack,1,MPI_DOUBLE_PRECISION, &
-	                icomm_grid,ierr)
-	recvnp = nint(dppack)
+	if (length .eq. 0) then
 
-	!Unpack rest of data into correct arrays --------------------!
-	do n=new_np+1,new_np+recvnp
+		recvnp = 0
 
-		call MPI_Unpack(recvbuffer,length,pos,dppack, &
-						1,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-		tag(np+n)     = nint(dppack)
+	else
 
-		call MPI_Unpack(recvbuffer,length,pos,Xpack, &
-						nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-		r(:,np+n)     = Xpack
+		call MPI_Unpack(recvbuffer,length,pos,dppack,1,MPI_DOUBLE_PRECISION, &
+						icomm_grid,ierr)
+		recvnp = nint(dppack)
+		!Unpack rest of data into correct arrays --------------------!
+		do n=new_np+1,new_np+recvnp
 
-		call MPI_Unpack(recvbuffer,length,pos,Xpack, &
-						nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-		v(:,np+n)     = Xpack
+			call MPI_Unpack(recvbuffer,length,pos,dppack, &
+							1,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+			tag(np+n)     = nint(dppack)
 
-		if (rtrue_flag.eq.1) then
 			call MPI_Unpack(recvbuffer,length,pos,Xpack, &
 							nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			rtrue(:,np+n) = Xpack
-		end if
-		
-		if (any(tag(np+n).eq.tether_tags)) then
+			r(:,np+n)     = Xpack
+
 			call MPI_Unpack(recvbuffer,length,pos,Xpack, &
 							nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			rtether(:,np+n) = Xpack
-		end if
+			v(:,np+n)     = Xpack
 
-		if (potential_flag .eq. 1 ) then
-			call MPI_Unpack(recvbuffer,length,pos,FENEpack, &
-							nsdmi,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			call assign_FENEbuffer(np+n,FENEpack)
-		end if
+			if (rtrue_flag.eq.1) then
+				call MPI_Unpack(recvbuffer,length,pos,Xpack, &
+								nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+				rtrue(:,np+n) = Xpack
+			end if
+			
+			if (any(tag(np+n).eq.tether_tags)) then
+				call MPI_Unpack(recvbuffer,length,pos,Xpack, &
+								nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+				rtether(:,np+n) = Xpack
+			end if
 
-	enddo
-	!-------------------------------------------------------------!
+			if (potential_flag .eq. 1 ) then
+				call MPI_Unpack(recvbuffer,length,pos,FENEpack, &
+								nsdmi,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+				call assign_FENEbuffer(np+n,FENEpack)
+			end if
 
-	!Correct positions in new processor
-	do n=new_np+1,new_np+recvnp
-		r(ixyz,np+n) = r(ixyz,np+n) - dir * domain(ixyz)
-		rtether(ixyz,np+n) = rtether(ixyz,np+n) - dir * domain(ixyz)
-	enddo
+		enddo
+		!-------------------------------------------------------------!
+
+		!Correct positions in new processor
+		do n=new_np+1,new_np+recvnp
+			r(ixyz,np+n) = r(ixyz,np+n) - dir * domain(ixyz)
+			rtether(ixyz,np+n) = rtether(ixyz,np+n) - dir * domain(ixyz)
+		enddo
+
+	end if
 
 	!Update number of molecules in halo to include number recieved
 	new_np = new_np + recvnp
@@ -1461,9 +1471,10 @@ subroutine reorderdata(new_np)
 	use linked_list
 	implicit none
 
-	integer			   :: i
-	integer			   :: molno,sendnp,new_np
-	type(passnode), pointer    :: old, current
+	integer			        :: i
+	integer			        :: molno,sendnp
+	integer, intent(inout)  :: new_np
+	type(passnode), pointer :: old, current
 
 	!Work through passed molecules to fill gaps
 	old => pass%head
