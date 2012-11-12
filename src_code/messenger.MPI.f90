@@ -67,9 +67,6 @@ end module messenger
 !======================================================================
 subroutine messenger_invoke()
 	use messenger
-#if USE_COUPLER
-	use coupler
-#endif
 
 	!Initialise MPI
 	call MPI_init(ierr)

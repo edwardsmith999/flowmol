@@ -26,7 +26,9 @@
 subroutine setup_MD
 	use computational_constants_MD
 #if USE_COUPLER
-	use md_coupler_socket
+	use md_coupler_socket, only : socket_coupler_invoke, & 
+								  socket_read_coupler_input, &
+								  socket_coupler_init
 #endif
 	implicit none
 
@@ -61,9 +63,6 @@ subroutine setup_MD
 	call messenger_updateborders(1)         !Update borders between processors
 	call assign_to_neighbourlist		    !Build neighbourlist using cell list
 	call setup_initial_record               !Setup print headers and output inital
-#if USE_COUPLER
-	call socket_create_map					!CREATE PROCESSOR AND CELL MAPPING
-#endif
 
 end subroutine setup_MD
 
@@ -83,7 +82,7 @@ subroutine simulation_MD
 	use physical_constants_MD
 #if USE_COUPLER
 	use md_coupler_socket, only : socket_apply_continuum_forces, &
-								  average_and_send_MD_to_CFD,test_send_recv_MD2CFD,test_send_recv_CFD2MD, test_gather_scatter
+								  average_and_send_MD_to_CFD
 #endif
 	implicit none
   
