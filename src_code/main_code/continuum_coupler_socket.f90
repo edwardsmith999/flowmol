@@ -85,19 +85,10 @@ subroutine socket_coupler_init
 	                      density_cfd,ijkmax,ijkmin,iTmin_1,iTmax_1,jTmin_1,&
 	                      jTmax_1,kTmin_1,kTmax_1,xpg,ypg,zpg)
 
-end subroutine socket_coupler_init
-
-
-!=============================================================================
-! Establish mapping between CFD and MD
-!-----------------------------------------------------------------------------
-subroutine socket_create_map
-	implicit none
-
-	!Note coupler cannot be called directly so this socket is needed
+	! Establish mapping between MD an CFD
 	call CPL_create_map
 
-end subroutine socket_create_map
+end subroutine socket_coupler_init
 
 
 !=============================================================================
@@ -113,8 +104,8 @@ end subroutine socket_create_map
 
 subroutine  socket_coupler_get_md_BC(uc,vc,wc)
     use coupler, only : CPL_recv
-	use coupler_module, only : rank_realm,olap_mask,rank_world,printf, & 
-							   iblock_realm,jblock_realm,kblock_realm,error_abort
+	use coupler_module, only : printf,error_abort, & 
+							   iblock_realm,jblock_realm,kblock_realm
 	use data_export, only : nixb, niyb, nizb, & 
 							i1_u,i2_u,j1_u,j2_u, & 
 							i1_v,i2_v,j1_v,j2_v, & 
@@ -210,7 +201,7 @@ end subroutine socket_coupler_get_md_BC
 
 subroutine socket_coupler_send_velocity
     use coupler, only : CPL_send,CPL_olap_extents
-	use coupler_module, only : rank_realm,jcmax_olap,olap_mask,rank_world, & 
+	use coupler_module, only : jcmax_olap, & 
 							   iblock_realm,jblock_realm,kblock_realm,realm,printf
  	use data_export, only : uc,i1_u,i2_u,ngz,nlx,nlxb,ibmin_1,ibmax_1
     implicit none
@@ -222,7 +213,7 @@ subroutine socket_coupler_send_velocity
 	real(kind(0.d0)) :: gradient
 
 	! Check processor is inside MD/CFD overlap zone 
-	if (olap_mask(rank_world) .eq. 0) return
+	if (.not.(CPL_overlap())) return
 
 	!Three velocity components
 	npercell = 3
@@ -262,7 +253,7 @@ end subroutine socket_coupler_send_velocity
 
 subroutine socket_coupler_send_stress
     use coupler, only : CPL_send,CPL_olap_extents
-	use coupler_module, only : rank_realm,jcmax_olap,olap_mask,rank_world,density_cfd, & 
+	use coupler_module, only : jcmax_olap,density_cfd, & 
 							   iblock_realm,jblock_realm,kblock_realm,realm,printf
  	use data_export, only : uc,vc,wc,visc
     implicit none
@@ -274,7 +265,7 @@ subroutine socket_coupler_send_stress
 	real(kind(0.d0)),dimension(:,:,:,:,:), allocatable 	:: dUidxj
 
 	! Check processor is inside MD/CFD overlap zone 
-	if (olap_mask(rank_world) .eq. 0) return
+	if (.not.(CPL_overlap())) return
 
 	!Three by three stress tensor components
 	npercell = 9
@@ -417,12 +408,14 @@ subroutine test_send_recv_MD2CFD
 	jcmin_recv = jcmin_send
 
 	call CPL_Cart_coords(CPL_WORLD_COMM,rank_world,realm,3,coord,ierr)
-	!print'(2a,5i8)', 'CFD SIDE',realm_name(realm), rank_world, olap_mask(rank_world),coord
+	!print'(2a,5i8)', 'CFD SIDE',realm_name(realm), rank_world, CPL_overlap,coord
 
-	if (olap_mask(rank_world) .eq. 0) return
+	if (.not.(CPL_overlap())) return
 
 	! Test Sending from MD to CFD							   
 	if (realm .eq. md_realm) then	
+
+
 
 		call CPL_Cart_coords(CPL_CART_COMM,rank_cart,realm,3,coord,ierr)
 		call CPL_olap_extents(coord,realm,extents)
@@ -514,7 +507,7 @@ subroutine test_send_recv_CFD2MD
 	jcmax_send=1; jcmin_send=1; 
 	jcmax_recv = jcmax_send
 	jcmin_recv = jcmin_send
-	if (olap_mask(rank_world) .eq. 0) return
+	if (.not.(CPL_overlap())) return
 
 	! Test Sending from CFD to MD							   
 	if (realm .eq. md_realm) then		   
@@ -595,7 +588,7 @@ subroutine test_gather_scatter
 	integer :: ncxl,ncyl,nczl
 	integer :: i,j,k
 
- 	if (olap_mask(rank_world).ne.1) return
+ 	if (.not.(CPL_overlap())) return
 
 	!print*, 'test_gather_scatter called on CFD proc ID:', rank_realm, rank_world
 

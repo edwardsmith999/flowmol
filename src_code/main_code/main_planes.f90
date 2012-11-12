@@ -1,20 +1,4 @@
 !=======================================================================
-! Couette flow simulation
-! 
-! Tom Jelly ( after Tamer Zaki (after Robert Jacobs))
-!
-program BLAYERCODE
-
-	call main_init()          ! Initialize
-	call main_restore()       ! Read restart data
-	call simulation_run()     ! Run the simulation
-	call main_save()          ! Save the results
-	call main_free()          ! Clean up
-
-	stop "Exited normally"
-end
-
-!=======================================================================
 ! High-level routines for starting and stopping the code
 !
 ! main_init()
@@ -77,7 +61,6 @@ subroutine main_init()
 	call statistics_init()
 #if USE_COUPLER
     call socket_coupler_init
-	call socket_create_map
 #endif
 	return
 end
