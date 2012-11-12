@@ -14,7 +14,7 @@
 
 # list og known builds
 
-BUILD_LIST := debug opt
+BUILD_LIST := debug opt profile
 
 # check for default build
 
@@ -53,6 +53,7 @@ endif
 
 FLAGS_BASE_debug := -g -O0 -traceback -CB $(FLAG_OBJ_DIR) #-check all -warn all -debug all -ftrapuv -fpe0
 FLAGS_BASE_opt   := -O3 -funroll-loops -ip -parallel -heap-arrays 1024  $(FLAG_OBJ_DIR) #-par-report3 -mcmodel=large -i-dynamic
+FLAGS_BASE_profile:= -pg -g -CB -traceback -O0 #-O3 -funroll-loops -ip -parallel  $(FLAG_OBJ_DIR) 
 #
 # add  flags required by particular codes
 #

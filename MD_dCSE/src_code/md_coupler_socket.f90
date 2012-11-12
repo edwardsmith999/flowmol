@@ -113,6 +113,9 @@ subroutine socket_coupler_init
 	! Setup timesteps and simulation timings based on CFD/coupler
 	call set_coupled_timing(Nsteps)
 
+	! Establish mapping between MD an CFD
+	call CPL_create_map
+
 end subroutine socket_coupler_init
 
 !=============================================================================
@@ -122,14 +125,14 @@ subroutine set_params_globdomain_cpld
 	use computational_constants_MD
 	use physical_constants_MD, only: globalnp,volume,nd,np,density
 	use coupler 
-	use coupler_module, only: xL_md, yL_md, zL_md, myid_world, rootid_world
+	!use coupler_module, only: xL_md, yL_md, zL_md
 	implicit none
 
 	integer :: ixyz, n0(3)
-	real(kind(0.d0)) :: b0
+	real(kind(0.d0)) :: b0,xL_md, yL_md, zL_md,density_cfd
 
-    ! fix the numner of FCC cells starting from CFD density
-    !density = coupler_md_get_density()
+	!Get domain size and density from coupler
+	call CPL_get(xL_md=xL_md, yL_md=yL_md, zL_md=zL_md, density_cfd=density_cfd)
 
     ! size of cubic FCC cell
     b0=(4.d0/density)**(1.0d0/3.0d0)
@@ -165,16 +168,17 @@ subroutine set_params_globdomain_cpld
 
 	!write(0,*) 'set_parameter_global_domain_hybrid ', globalnp, np, domain, initialunitsize
 
-    if(myid_world .eq. rootid_world) then
-        write(*,'(a/a/a,f5.2,a,f5.2,/,a,3(f5.2),a,/,a,3(I6),/,a)'), &
+    if(irank .eq. iroot) then
+        write(*,'(a/a/a,f5.2,a,f5.2,a,f5.2,/,a,3(f5.2),a,/,a,3(I6),/,a)'), &
                 "**********************************************************************", &
                 "WARNING - this is a coupled run which resets the following parameters:", &
-                " density         =", density ,                                           & 
-                " hence the cubic FCC side  is b=", b0 ,                                  &
+                " density from MD =", density , ' changed to ', density_cfd,              & 
+                " hence the cubic FCC side =", b0 ,                  	                  &
                 " initialunitsize =", initialunitsize(:)/b0," in b units ",               &     
                 " initialnunits   =", initialnunits(:),                                   &
                 "**********************************************************************"
     endif
+	density = density_cfd
 
 end subroutine set_params_globdomain_cpld
 
@@ -309,8 +313,6 @@ subroutine set_coupled_timing(Nsteps_md)
 	Nsteps_md   = initialstep + Nsteps_cfd * Nsteps_MDperCFD
 	elapsedtime = elapsedtime + Nsteps_cfd * Nsteps_MD * dt_MD
 
-
-
 	if (rank_realm .eq. 1) then 
 		write(*,'(2(a,/),a,i7,a,i7,/a,i7,a,i7,/a,f12.4,a,/a)'), &
 			"*********************************************************************", 		&
@@ -322,51 +324,7 @@ subroutine set_coupled_timing(Nsteps_md)
 	endif 
 
 end subroutine set_coupled_timing
-!=============================================================================
-! Establish mapping between MD an CFD
-!-----------------------------------------------------------------------------
-subroutine socket_create_map
-	implicit none
 
-	!Note coupler cannot be called directly so this socket is needed
-	call CPL_create_map
-
-end subroutine socket_create_map
-
-function socket_get_overlap_status result(olap)
-	use coupler_module, only: olap_mask, rank_world
-	implicit none
-
-	logical :: olap
-	
-	if (olap_mask(rank_world).eq.1) then
-		olap = .true.
-	else
-		olap = .false.
-	end if
-
-end function socket_get_overlap_status
-
-function socket_get_domain_top() result(top)
-	use coupler_module, only: yL_md, dy
-	implicit none
-
-	real(kind(0.d0)) :: top
-
-	top = yL_md/2.d0 - dy
-
-end function socket_get_domain_top
-
-function socket_get_bottom_of_top_boundary() result(bottom)
-   use computational_constants_MD, only: halfdomain
-   use coupler_module, only: dy
-   implicit none
-
-   real(kind(0.d0)) :: bottom
-
-   bottom = halfdomain(2) - dy
-
-end function socket_get_bottom_of_top_boundary
 
 subroutine socket_check_cell_sizes
    use computational_constants_MD, only: cellsidelength  
@@ -384,8 +342,8 @@ subroutine socket_check_cell_sizes
            write(*,*), " MD cell size larger than CFD x,y cell sizes         "
            write(*,*), " cellsidelength = ", cellsidelength
            write(*,'(3(a,f10.5))'), " dx=", xg(2,1) - xg(1,1),  & 
-                                   " dy=", yg(1,2) - yg(1,1),  & 
-                                   " dz=", zg(2  ) - zg(1  )
+                                   " dy=",  yg(1,2) - yg(1,1),  & 
+                                   " dz=",  zg(2  ) - zg(1  )
            write(*,*), "********************************************************************"
            write(*,*), ""
        endif
@@ -412,7 +370,7 @@ subroutine average_and_send_MD_to_CFD(iter)
 	use physical_constants_MD, only : np
 	use arrays_MD, only :r,v
    	use coupler_module, only : staggered_averages, ncx,ncy,ncz, & 
-							   dx,dz,yg,md_realm,rank_realm,timestep_ratio
+							   dx,dz,yg,md_realm,timestep_ratio
 	use messenger, only : MD_COMM
 	implicit none
 
@@ -446,7 +404,7 @@ contains
 
 	!THIS SHOULD BE DONE IN THE SETUP!!!!
 	subroutine setup_velocity_average
-	   	use coupler_module, only : iblock_realm,jblock_realm,kblock_realm 
+		use computational_constants_MD, only : iblock,jblock,kblock 
 		implicit none
 
 		integer		:: nclx,ncly,nclz
@@ -455,7 +413,7 @@ contains
 	    average_period = coupler_md_get_average_period() 	! collection interval in the average cycle
 
 		!Allocate array to size of cells in current processor
-		pcoords = (/ iblock_realm,jblock_realm,kblock_realm /)
+		pcoords = (/ iblock,jblock,kblock /)
 		call CPL_proc_extents(pcoords,md_realm,extents)
 		nclx = extents(2)-extents(1)+1
 		ncly = extents(4)-extents(3)+1
@@ -476,11 +434,12 @@ contains
 	subroutine cumulative_velocity_average
 		use coupler, only : CPL_Cart_coords, CPL_proc_extents
 		use coupler_module, only : xL_md,zL_md,xg,yg,zg,jcmin_olap, & 
-								   dx,dy,dz,ncx,ncy,ncz,CPL_REALM_COMM, &
+								   dx,dy,dz,ncx,ncy,ncz, &
 		                           rank_world
 		use coupler_internal_md, only : map_md2cfd_global,map_cfd2md_global, &
 		                                globalise,localise	
-		use computational_constants_MD, only : iter, ncells,domain,halfdomain
+		use computational_constants_MD, only : iter, ncells,domain,halfdomain, &
+											   iblock,jblock,kblock
 		use librarymod, only : heaviside, imaxloc
 		implicit none
 
@@ -500,7 +459,7 @@ contains
 		dxyz = (/ dx, dy, dz /)
 
 		!Eliminate processors outside of passing region
-		call CPL_Cart_coords(CPL_REALM_COMM,rank_realm,md_realm,3,pcoords,ierr)
+		pcoords=(/ iblock,jblock,kblock /)
 		call CPL_proc_extents(pcoords,md_realm,extents)
 		if (any(extents .eq. VOID)) return
 		if ((yg(1,extents(3)) .gt. ybcmax) .or. (yg(1,extents(4)+1) .lt. ybcmin)) return
@@ -586,9 +545,9 @@ contains
 
 !------------------------------------------
 	subroutine send_velocity_average
-		use coupler_module, only : olap_mask,rank_world, & 
-								   iblock_realm,jblock_realm,kblock_realm, &
+		use coupler_module, only : rank_world, & 
 								   icmin_olap,icmax_olap,kcmin_olap,kcmax_olap,printf
+		use computational_constants_MD, only : iblock,jblock,kblock
 		implicit none
 
 		logical :: send_flag
@@ -627,8 +586,8 @@ subroutine socket_apply_continuum_forces(iter)
 	use physical_constants_MD, only : np
 	use computational_constants_MD, only : delta_t, nh, ncells, & 
 										   cellsidelength, halfdomain, &
-	                                       delta_rneighbr
-	use coupler_module, only : rank_world,olap_mask, icmin_olap,icmax_olap, & 
+	                                       delta_rneighbr,iblock,jblock,kblock
+	use coupler_module, only : rank_world, icmin_olap,icmax_olap, & 
 	                           jcmin_olap,jcmax_olap,kcmin_olap,kcmax_olap, &
 	                           printf, timestep_ratio
 	use linked_list
@@ -636,22 +595,26 @@ subroutine socket_apply_continuum_forces(iter)
 
 	integer, intent(in) 	:: iter ! iteration step, it assumes that each MD average starts from iter = 1
 
-
 	integer 				:: iter_average, limits(6)
 	integer					:: i,j,k,n,np_overlap
 	integer,allocatable 	:: list(:,:)
 	real(kind=kind(0.d0))	:: inv_dtCFD,t_fract,CFD_box(6)
 
-	integer,save			:: cnstnd_cells,jcmin_recv,jcmax_recv
-	logical,save			:: recv_flag
-	logical, save 	 		:: first_time=.true.
+	integer,save			:: cnstnd_cells,jcmin_recv,jcmax_recv	!to do - SHOULD NOT BE HARDWIRED
+	integer,save			:: pcoords(3),extents(6)
+	logical,save			:: recv_flag, first_time=.true.
 	save CFD_box
 
 	! Check processor is inside MD/CFD overlap zone 
-	if (olap_mask(rank_world) .eq. 0) return
+	if (.not.(CPL_overlap())) return
 
 	if (first_time) then
 		first_time = .false.
+
+		!Save extents of current processor
+		pcoords= (/ iblock,jblock,kblock   /)
+		call CPL_proc_extents(pcoords,md_realm,extents)
+
 		!Number of cells to receive
 		cnstnd_cells = 1	!~10% of the total domain
 		jcmin_recv = jcmax_olap-1-cnstnd_cells
@@ -686,8 +649,7 @@ contains
 ! find the CFD box to which the particle belongs		 
 
 subroutine setup_CFD_box(limits,CFD_box,recv_flag)
-	use coupler_module, only : iblock_realm,jblock_realm,kblock_realm, &
-							   xg,yg,zg, CPL_REALM_COMM
+	use coupler_module, only : 	xg,yg,zg
 	use coupler, only : CPL_recv
 	use coupler_internal_md, only : localise,map_cfd2md_global
 	implicit none
@@ -699,15 +661,13 @@ subroutine setup_CFD_box(limits,CFD_box,recv_flag)
 	!Returned spacial limits of CFD box to receive data
 	real(kind=kind(0.d0)),dimension(6) :: CFD_box
 
-	integer 	  		  :: pcoords(3),extents(6),portion(6)
+	integer 	  		  :: portion(6)
 	integer		  		  :: nclx,ncly,nclz,ncbax,ncbay,ncbaz,ierr
 	integer, save 		  :: ncalls = 0
     logical, save 		  :: firsttime=.true.
 	real(kind=kind(0.d0)),dimension(3) :: xyzmin,xyzmax
 
 	! Get total number of CFD cells on each processor
-	pcoords= (/ iblock_realm,jblock_realm,kblock_realm   /)
-	call CPL_proc_extents(pcoords,md_realm,extents)
 	nclx = extents(2)-extents(1)+1
 	ncly = extents(4)-extents(3)+1
 	nclz = extents(6)-extents(5)+1
@@ -757,7 +717,7 @@ end subroutine setup_CFD_box
 subroutine average_over_bin
 	use computational_constants_MD, only : nhb
 	use arrays_MD, only : r, v, a
-	use coupler_module, only : dx,dy,dz,CPL_OLAP_COMM
+	use coupler_module, only : dx,dy,dz
 	implicit none
 
 	integer	:: ib,jb,kb,n
@@ -785,9 +745,11 @@ subroutine average_over_bin
 			jb = ceiling((r(2,n)-CFD_box(3)   )/dy)
 			kb = ceiling((r(3,n)+halfdomain(3))/dz)
 
-			!print'(8i5,5f10.5)', rank_world,ceiling((r(2,n)+halfdomain(2))/dy),jb,jcmin_recv, & 
+			!if (jb+jcmin_recv-1 .eq. 9) then
+			!print'(a,9i5,5f10.5)', 'qqqq',rank_world,ceiling((r(2,n)+halfdomain(2))/dy),jb,jb+jcmin_recv-1,jcmin_recv, & 
 			!						jcmax_recv,jcmin_olap,jcmax_olap,cnstnd_cells,r(2,n),      & 
 			!						CFD_box(3),CFD_box(4),dy,halfdomain(2)
+			!endif
 
 			!Exlude out of domain molecules
 			if (ib.lt.1 .or. ib.gt.size(box_average,1)) cycle
@@ -823,6 +785,7 @@ subroutine apply_force
 	! speed extrapolation add all up
 	inv_dtMD =1.d0/delta_t
 
+	!Loop over all molecules and apply constraint
 	do i = 1, np_overlap
 		ip = list(1,i)
 		ib = list(2,i)
@@ -840,12 +803,14 @@ subroutine apply_force
         !        			  uvw_cfd(1,ib,1,kb))
 
 		!u_cfd_t_plus_dt(1) = alpha(1) * (iter_average + 1)*delta_t + uvw_cfd(1,ib,1,kb) 
-		!if (uvw_cfd(1,ib,jb+jcmin_recv-1,kb) .eq. 0.00) then
-		!	print*,rank_world,ib,jb+jcmin_recv-1,kb, uvw_cfd(1,ib,jb+jcmin_recv-1,kb)
+		!if (jb+jcmin_recv-1 .ge. 8) then
+		!	print'(a,9i5,f10.5)','qqqq',rank_world,ib,jb,kb,jcmin_recv,extents(3), & 
+		!						jb+jcmin_recv-1,jb+jcmin_recv-extents(3),size(uvw_cfd,3), uvw_cfd(1,ib,jb+jcmin_recv-extents(3),kb)
+			!stop "STOP BEFORE ERROR"
 		!endif
 
 		acfd =	- box_average(ib,jb,kb)%a(1) / n - inv_dtMD * & 
-				( box_average(ib,jb,kb)%v(1) / n - uvw_cfd(1,ib,jb+jcmin_recv-1,kb) )
+				( box_average(ib,jb,kb)%v(1) / n - uvw_cfd(1,ib,jb+jcmin_recv-extents(3),kb) )
 		!if (ib .eq. 8 .and. kb .eq. 5) then
 		!	print'(a,2i5,i10,4i4,5f9.4)', 'FORCE OUT', rank_world, i, np_overlap, box_average(ib,jb,kb)%np, & 
 		!							   			   ib,jb,kb,box_average(ib,jb,kb)%a(1),box_average(ib,jb,kb)%v(1), & 
@@ -1006,11 +971,11 @@ end subroutine socket_CPL_apply_continuum_forces
 subroutine socket_apply_continuum_forces_ES(iter)
 	use computational_constants_MD, only : delta_t,nh,halfdomain,ncells, & 
 											cellsidelength,initialstep,Nsteps, & 
-											npx,npy,npz
+											npx,npy,npz,iblock,jblock,kblock
 	use arrays_MD, only : r, v, a
 	use linked_list, only : node, cell
-	use coupler_module, only : icPmin_md,icPmax_md,jcPmin_md,jcPmax_md,kcPmin_md,kcPmax_md, & 
-								iblock_realm,jblock_realm,kblock_realm
+	use coupler_module, only : icPmin_md,icPmax_md,jcPmin_md,jcPmax_md,kcPmin_md,kcPmax_md
+								
 	implicit none
 
 	integer, intent(in) 				:: iter ! iteration step, it assumes that each MD average starts from iter = 1
@@ -1027,20 +992,20 @@ subroutine socket_apply_continuum_forces_ES(iter)
 	integer         					:: averagecount
 	double precision					:: average
 
-	!allocate(u_continuum(icPmin_md(iblock_realm):icPmax_md(iblock_realm), & 
-	!					 jcPmin_md(jblock_realm):jcPmax_md(jblock_realm), & 
-	!					 kcPmin_md(kblock_realm):kcPmax_md(kblock_realm)))
+	!allocate(u_continuum(icPmin_md(iblock):icPmax_md(iblock), & 
+	!					 jcPmin_md(jblock):jcPmax_md(jblock), & 
+	!					 kcPmin_md(kblock):kcPmax_md(kblock)))
 
-	!	print'(a,6i8)', 'limits', icPmin_md(iblock_realm),icPmax_md(iblock_realm),jcPmin_md(jblock_realm),jcPmax_md(jblock_realm),kcPmin_md(kblock_realm),kcPmax_md(kblock_realm)
+	!	print'(a,6i8)', 'limits', icPmin_md(iblock),icPmax_md(iblock),jcPmin_md(jblock),jcPmax_md(jblock),kcPmin_md(kblock),kcPmax_md(kblock)
 
-	allocate(u_continuum(icPmin_md(iblock_realm):icPmax_md(iblock_realm), & 
-						 jcPmin_md(jblock_realm):jcPmax_md(jblock_realm), & 
-						 kcPmin_md(kblock_realm):kcPmax_md(kblock_realm)))
+	allocate(u_continuum(icPmin_md(iblock):icPmax_md(iblock), & 
+						 jcPmin_md(jblock):jcPmax_md(jblock), & 
+						 kcPmin_md(kblock):kcPmax_md(kblock)))
 	u_continuum = 1.d0
 
-	do ii=icPmin_md(iblock_realm),icPmax_md(iblock_realm)
-	do jj=jcPmin_md(jblock_realm),jcPmax_md(jblock_realm)
-	do kk=kcPmin_md(kblock_realm),kcPmax_md(kblock_realm)
+	do ii=icPmin_md(iblock),icPmax_md(iblock)
+	do jj=jcPmin_md(jblock),jcPmax_md(jblock)
+	do kk=kcPmin_md(kblock),kcPmax_md(kblock)
 
 		! For each continuum cell get MD cells to average over
 		call CFD_cells_to_MD_compute_cells(ii,jj,kk,ibmin_md,ibmax_md,jbmin_md,jbmax_md,kbmin_md,kbmax_md)
@@ -1130,9 +1095,10 @@ subroutine socket_apply_continuum_forces_ES(iter)
 end subroutine socket_apply_continuum_forces_ES
 
 subroutine CFD_cells_to_MD_compute_cells(ii_cfd,jj_cfd,kk_cfd, & 
-										  ibmin_md, ibmax_md, jbmin_md, jbmax_md, kbmin_md, kbmax_md)
-	use coupler_module, only : xg, yg, zg, xL_md,yL_md,zL_md, iblock_realm,jblock_realm,kblock_realm
-	use computational_constants_MD, only : cellsidelength
+										  ibmin_md, ibmax_md, jbmin_md, & 
+										  jbmax_md, kbmin_md, kbmax_md)
+	use coupler_module, only : xg, yg, zg, xL_md,yL_md,zL_md
+	use computational_constants_MD, only : cellsidelength, iblock,jblock,kblock
 	implicit none
 
 	integer,intent(in)		:: ii_cfd,jj_cfd,kk_cfd
@@ -1141,9 +1107,9 @@ subroutine CFD_cells_to_MD_compute_cells(ii_cfd,jj_cfd,kk_cfd, &
 	double precision		:: xL_min,xL_max,yL_min,yL_max,zL_min,zL_max
 
 	! Get minimum point in processors domain
-	xL_min = xL_md*(iblock_realm-1); xL_max = xL_md*(iblock_realm)
-	yL_min = yL_md*(jblock_realm-1); yL_max = yL_md*(jblock_realm)
-	zL_min = zL_md*(kblock_realm-1); zL_max = zL_md*(kblock_realm)
+	xL_min = xL_md*(iblock-1); xL_max = xL_md*(iblock)
+	yL_min = yL_md*(jblock-1); yL_max = yL_md*(jblock)
+	zL_min = zL_md*(kblock-1); zL_max = zL_md*(kblock)
 
 	! Get range of cells to check so that top and bottom of current CFD cell are covered
 	ibmin_md = (xg(ii_cfd  ,jj_cfd  )-xL_min)/cellsidelength(1)+1
@@ -2030,6 +1996,51 @@ contains
 end subroutine compute_force_surrounding_bins
 
 
+!=============================================================================
+! 					INQUIRY ROUTINES
+!
+function socket_get_overlap_status result(olap)
+	use coupler, only: CPL_overlap
+	implicit none
+
+	logical :: olap
+
+	olap = CPL_overlap()
+	
+end function socket_get_overlap_status
+
+function socket_get_domain_top() result(top)
+	use coupler_module, only: yL_md, dy
+	implicit none
+
+	real(kind(0.d0)) :: top
+
+	top = yL_md/2.d0 - dy
+
+end function socket_get_domain_top
+
+function socket_get_bottom_of_top_boundary() result(bottom)
+	use computational_constants_MD, only: halfdomain
+	use coupler_module, only: dy
+	implicit none
+
+	real(kind(0.d0)) :: bottom
+
+	bottom = halfdomain(2) - dy
+
+end function socket_get_bottom_of_top_boundary
+
+function socket_get_dy() result(dy_)
+	use coupler_module, only: dy
+	implicit none
+
+	real(kind(0.d0)) :: dy_
+
+	dy_ = dy
+
+end function socket_get_dy
+
+
 
 ! ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬ஜ۩۞۩ஜ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
 ! Test the send and recv routines from coupler
@@ -2051,9 +2062,9 @@ subroutine test_send_recv_MD2CFD
 	jcmin_recv = jcmin_send
 
 	call CPL_Cart_coords(CPL_WORLD_COMM,rank_world,realm,3,coord,ierr)
-	!print'(2a,5i8)', 'MD SIDE',realm_name(realm), rank_world, olap_mask(rank_world),coord
+	!print'(2a,5i8)', 'MD SIDE',realm_name(realm), rank_world, CPL_overlap,coord
 
-	if (olap_mask(rank_world) .eq. 0) return
+	if (.not.(CPL_overlap())) return
 
 	! Test Sending from MD to CFD							   
 	if (realm .eq. md_realm) then
@@ -2153,7 +2164,7 @@ subroutine test_send_recv_CFD2MD
 	jcmax_send=1; jcmin_send=1; 
 	jcmax_recv = jcmax_send
 	jcmin_recv = jcmin_send
-	if (olap_mask(rank_world) .eq. 0) return
+	if (.not.(CPL_overlap())) return
 
 	! Test Sending from CFD to MD							   
 	if (realm .eq. md_realm) then	
@@ -2238,7 +2249,7 @@ subroutine test_gather_scatter
 	integer :: ncxl,ncyl,nczl
 	integer :: i,j,k
 
- 	if (olap_mask(rank_world).ne.1) return
+ 	if (.not.(CPL_overlap())) return
 
 	!print*, 'test_gather_scatter called on MD proc ID:', rank_realm, rank_world
 
@@ -2330,8 +2341,8 @@ subroutine test_gather_scatter
 	!================== PERFORM GATHER/SCATTER =============================!	
 	gatherlims  = (/1,85,15,21, 3, 4/)
 	scatterlims = (/1,85, 2, 9, 1, 8/)
-	if (olap_mask(rank_world).eq.1) call CPL_gather(u,3,gatherlims,gatheru)
-	if (olap_mask(rank_world).eq.1) call CPL_scatter(stress,9,scatterlims, &
+	if ((CPL_overlap())) call CPL_gather(u,3,gatherlims,gatheru)
+	if ((CPL_overlap())) call CPL_scatter(stress,9,scatterlims, &
 	                                                 scatterstress)
 
 	! Print results to file

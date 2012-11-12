@@ -35,7 +35,8 @@ subroutine simulation_apply_boundary_forces
 	implicit none
 
 !	call coupler_md_boundary_forces(np,pressure,r,a)
-    call top_boundary_constraint_force
+    !call top_boundary_constraint_force
+    call simulation_apply_boundary_forces_NCER
 
 contains
 
@@ -50,10 +51,10 @@ contains
         implicit none
 
         integer i, j, k, js, je, ip, m
-        real(kind(0.d0)) dy, y2, y3, yc, p
+        real(kind(0.d0)) y2, y3, yc, p
         type(node), pointer :: current => null()
         logical :: overlap, firsttime = .true.
-        save :: y2, y3, dy, js, je, firsttime
+        save :: y2, y3, js, je, firsttime
 
 		overlap = socket_get_overlap_status()
 		if (.not. overlap) return
@@ -68,8 +69,6 @@ contains
             js = ceiling(y2/cellsidelength(2)) + nh
             je = min(ncells(2),ceiling(domain(2)/cellsidelength(2))) + nh
 
-            write(0,*) 'boundary constraint force ', dy, y2, y3, js, je, ncells, (js-nh)*cellsidelength(2)
-
             ! check if molecules from below cells can get in constraint region ( heuristic condition )
             if ( y2 - (js - nh - 1) * cellsidelength(2) < delta_rneighbr ) then  
                js = js - 1
@@ -77,8 +76,9 @@ contains
 
             ! sanity check
 			if ( y2 > (js - nh) * cellsidelength(2)  ) then  
-				write(0,*) "wrong value of js in top_boundary_constraint_force", js
-			!    call error_abort("wrong value of js in top_boundary_constraint_force", js)
+           		print'(2(a,f10.5),5i6,f10.5)', "WARNING - cnst region from", & 
+									 y2, 'to', y3, js, je, ncells, (js-nh)*cellsidelength(2)
+			    call error_abort("THIS ROUTINE IS OBSOLETE")
 			endif
 
         endif
@@ -144,6 +144,7 @@ end subroutine simulation_apply_boundary_forces_OT
 
 subroutine simulation_apply_boundary_forces_NCER
 	use module_external_forces
+	use md_coupler_socket, only: socket_get_dy
 	implicit none
 
 	integer	:: n
@@ -152,26 +153,20 @@ subroutine simulation_apply_boundary_forces_NCER
 
 	if (jblock .eq. npy) then
 
-		delta_y = 2*cellsidelength(2)!globaldomain(2)/6.d0
+		delta_y = socket_get_dy()
 
 		y3 = globaldomain(2)/2.d0
 		y2 = y3 - delta_y
 		y1 = y2 - delta_y
 		y0 = y1 - delta_y
 	
-		!Set pressure to fixed value from graph in Rapaport for T=1.1, rho=0.8
-		pressure = 2.5d0
+		!Prevents negative pressure (during initialisation) from releasing molecules
+        pressure = max(pressure,1.d0)
 
 		do n = 1, np
-			if (r(n,2) .gt. y2) then
-		
-				y = r(n,2)
-				!Initial pressure is -ve - this line prevents problems
-				if (pressure .lt. 0.d0) then
-					a(n,2)= a(n,2) - (y-y2)/(1-(y-y2)/(y3-y2))
-				else
-					a(n,2)= a(n,2) - (y-y2)/(1-(y-y2)/(y3-y2))*pressure
-				endif
+			if (r(2,n) .gt. y2) then
+				y = r(2,n)
+				a(2,n)= a(2,n) - (y-y2)/(1-(y-y2)/(y3-y2))*pressure
 			endif
 		enddo
 

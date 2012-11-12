@@ -168,11 +168,6 @@ subroutine simulation_run()
 		after = realClock()
 		cpu_bc = (after - before) - t_over
 
-#if USE_COUPLER
-#if COUPLER_DEBUG_LA
-               call socket_coupler_write_uc(ntime)
-#endif
-#endif 
 		!cccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 		! I. Advance the convection, explicit diffusion and
 		!    implicit diffusion terms to get intermediate velocity

@@ -53,8 +53,9 @@ end module
 subroutine messenger_invoke()
     use computation_parameters
 	use messenger
-	include "mpif.h"
+	use mpi
 
+	!Initialise MPI
     call MPI_init (ierr)
 
 #if (USE_COUPLER == 0)
@@ -68,7 +69,7 @@ end
 
 subroutine messenger_init()
 	use messenger
-	include "mpif.h"
+	use mpi
 
 	integer idims(3)
 	logical Lperiodic(3)
@@ -122,7 +123,7 @@ end
 
 subroutine messenger_free()
 	use messenger
-	include "mpif.h"
+	use mpi
 
 	! Report time used
 	print "(a,f8.2)", "time: ", MPI_wtime() - wallTime
@@ -136,7 +137,7 @@ end
 !=======================================================================
 subroutine globalSum(A, na)
 	use messenger
-	include "mpif.h"
+	use mpi
 
 	integer na
 	real*8 A(na)
@@ -151,7 +152,7 @@ end
 
 subroutine globalMax(A, na)
 	use messenger
-	include "mpif.h"
+	use mpi
 
 	integer na
 	real*8 A(na)
@@ -166,7 +167,7 @@ end
 
 subroutine globalMin(A, na)
 	use messenger
-	include "mpif.h"
+	use mpi
 
 	integer na
 	real*8 A(na)
@@ -181,7 +182,7 @@ end
 
 subroutine globalDirSum(A, na, ixyz)
 	use messenger
-	include "mpif.h"
+	use mpi
 
 	integer na
 	real*8 A(na)
@@ -197,7 +198,7 @@ end
 !=======================================================================
 subroutine scatter(A, B)
 	use messenger
-	include "mpif.h"
+	use mpi
 
 	real*8 A(nx,ny,nz), B(nx_1,ny_1,nz_1)
  	real*8 sendbuf(nproc*nxyz_1)
@@ -245,7 +246,7 @@ end
 
 subroutine gather(A, B)
 	use messenger
-	include "mpif.h"
+	use mpi
 
 	real*8 A(nx_1,ny_1,nz_1), B(nx,ny,nz)
  	real*8 recvbuf(nx_1,ny_1,nz_1,nproc)
@@ -294,7 +295,7 @@ end
 
 subroutine allGather(A, B)
 	use messenger
-	include "mpif.h"
+	use mpi
 
 	real*8 A(nx_1,ny_1,nz_1), B(nx,ny,nz)
 	real*8 recvbuf(nx_1,ny_1,nz_1,nproc)
@@ -343,7 +344,7 @@ end
 !=======================================================================
 subroutine scatterXY(A, B, nk)
 	use messenger
-	include "mpif.h"
+	use mpi
 
 	real*8 A(nx,ny,nk), B(nx_1,ny_1,nk)
 	real*8 sendbuf(nproc*nx_1*ny_1*nk)
@@ -384,7 +385,7 @@ end
 
 subroutine gatherXY(A, B, nk)
 	use messenger
-	include "mpif.h"
+	use mpi
 
 	integer nk, ip, ii, jj
 	real*8 A(nx_1,ny_1,nk), B(nx,ny,nk)
@@ -425,7 +426,7 @@ end
 
 subroutine allGatherXY(A, B, nk)
 	use messenger
-	include "mpif.h"
+	use mpi
 
 	integer nk, ip, ii,jj
 	real*8 A(nx_1,ny_1,nk), B(nx,ny,nk)
@@ -471,7 +472,7 @@ end
 
 subroutine stat_gatherXY(A, B, nk)
 	use messenger
-	include "mpif.h"
+	use mpi
 
 	integer nk, ip, ii, jj, isendcount
 	real*8 A(0:nlx+1, 0:nly+1, nk), B(0:ngx+1, 0:ngy+1, nk)
@@ -532,7 +533,7 @@ end
 
 subroutine stat_allGatherXY(A, B, nk)
 	use messenger
-	include "mpif.h"
+	use mpi
 
 	integer nk, ip, ii,jj, isendcount
 	real*8 A(0:nlx+1, 0:nly+1, nk), B(0:ngx+1, 0:ngy+1, nk)
@@ -599,7 +600,7 @@ end
 !=======================================================================
 !  subroutine transpose(R1, R2, isign)
 !  	use messenger
-!  	include "mpif.h"
+!  	use mpi
 !
 !	real   R1(nz,nix_1,niy_1), R2(nx,niz_2,niy_2)
 !	real   sendbuf(nix_1,niy_1,niz_2,nbz_2), &
@@ -696,7 +697,7 @@ end
 !=======================================================================
 !subroutine transposeA(R1, R2, isign)
 !	use messenger
-!	include "mpif.h"
+!	use mpi
 !
 !	real   R1(nix_1,niy_1,nz), R2(nx,niz_2,niy_2)
 !	real   sendbuf(nix_1,niy_1,niz_2,nbz_2), &
@@ -1505,7 +1506,7 @@ end
 
 subroutine updateBorder(A, n1,n2,n3, ixyz, ijk)
 	use messenger
-	include "mpif.h"
+	use mpi
 
 	real A(n1,n2,n3)
 	real*8, allocatable :: buf1(:,:,:), buf2(:,:,:)
@@ -1630,7 +1631,7 @@ end
 !=======================================================================
 subroutine updateBorder_lim(A, n1,n2,n3, ixyz, ijk, ia, ib, no)
 	use messenger
-	include "mpif.h"
+	use mpi
 
 	real*8 A(0:n1,0:n2,0:n3)
 	real*8, allocatable :: buf1(:,:,:), buf2(:,:,:)
@@ -1732,7 +1733,7 @@ end
 !=======================================================================
 subroutine updateBorder_xperiodic(flag)
 	use messenger
-	include "mpif.h"
+	use mpi
 
 	integer flag, src_dst, icount
 	real*8, allocatable :: buf1(:,:,:), buf2(:,:,:)
@@ -2239,7 +2240,7 @@ end
 !=======================================================================
 subroutine triPeriodic_(ixyz, a, b, c, r, nl)
 	use messenger
-	include "mpif.h"
+	use mpi
 
 	integer nl, isize, ixyz
 	real a(nl), b(nl), c(nl), r(nl)
@@ -2256,7 +2257,7 @@ end
 
 subroutine triPeriodicM_(ixyz, a, b, c, r, nl, lot)
 	use messenger
-	include "mpif.h"
+	use mpi
 
 	integer lot, nl, ixyz,isize
 	real    a(lot,nl), b(lot,nl), c(lot,nl), r(lot,nl)
@@ -2275,7 +2276,7 @@ end
 
 subroutine messenger_lasterrorcheck
 	!use messenger
-	include "mpif.h"
+	use mpi
 
 	integer resultlen
 	character*12 err_buffer
@@ -2335,7 +2336,7 @@ end subroutine messenger_lasterrorcheck
 
 !subroutine triDiagonalLUM_(ixyz, a, b, c, work, nl, lot)
 !	use messenger
-!	include "mpif.h"
+!	use mpi
 !
 !       integer nl, ixyz, isize, lot
 !	real    work(lot,2*nl+6)
@@ -2354,7 +2355,7 @@ end subroutine messenger_lasterrorcheck
 
 !subroutine triLUSolveM_(ixyz, a, b, c, r, work, nl, lot)
 !	use messenger
-!	include "mpif.h"
+!	use mpi
 !
 !       integer ixyz, nl, lot
 !	real    work(lot,2*nl+6)
