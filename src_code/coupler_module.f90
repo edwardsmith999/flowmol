@@ -119,7 +119,7 @@ module coupler_module
 	integer :: &
 		npz_cfd      !! Number of processor in z in the cfd
 
-	integer, dimension(:), allocatable :: &
+	logical, dimension(:), allocatable :: &
 		olap_mask           !! Overlap mask specifying which processors overlap using world ranks
 	integer, dimension(:,:), allocatable :: &
 		rank2coord_cfd,   &   !! Array containing coordinates for each cartesian rank 

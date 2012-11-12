@@ -114,7 +114,7 @@ subroutine CPL_create_comm(callingrealm, RETURNED_REALM_COMM, ierror)
 
 	! Create intercommunicator between realms		
 	realm = callingrealm
-	call create_comm			
+	call create_comm		
 
 contains
 
@@ -204,6 +204,7 @@ subroutine create_comm
 	if ( myid_realm .eq. comm_size - 1) then
 		ibuf(realm) = myid_world
 	endif
+
 	call MPI_allreduce( ibuf ,jbuf, 2, MPI_INTEGER, MPI_MAX, &
 						CPL_WORLD_COMM, ierr)
 
@@ -219,7 +220,6 @@ subroutine create_comm
 
 	call MPI_intercomm_create(CPL_REALM_COMM, comm_size - 1, CPL_WORLD_COMM,&
 									remote_leader, 1, CPL_INTER_COMM, ierr)
-
 	print*, 'did (inter)communicators ', realm_name(realm), myid_world
 
 end subroutine create_comm
@@ -608,7 +608,7 @@ subroutine prepare_overlap_comms
 	!Set default values, must be done because coord2rank_md cannot
 	!take "null" coordinates.
 	group(:) = olap_null
-	olap_mask(:) = 0
+	olap_mask(:) = .false.
 	nolap = 0
 
 	! Every process loop over all cfd ranks
@@ -628,7 +628,7 @@ subroutine prepare_overlap_comms
 			any(mdkcoords.ne.olap_null)) then
 
 			trank_world = rank_cfdcart2rank_world(trank_cfd)
-			olap_mask(trank_world) = 1
+			olap_mask(trank_world) = .true.
 			group    (trank_world) = trank_cfd
 
 		end if
@@ -647,7 +647,7 @@ subroutine prepare_overlap_comms
 			trank_md = coord2rank_md(ic,jc,kc)
 			trank_world = rank_mdcart2rank_world(trank_md)
 
-			olap_mask(trank_world) = 1
+			olap_mask(trank_world) = .true.
 			group    (trank_world) = trank_cfd
 			
 		end do
@@ -669,7 +669,7 @@ subroutine prepare_overlap_comms
 	!call MPI_bcast(testval,1,MPI_INTEGER,CFDid_olap,CPL_OLAP_COMM,ierr)
 
 	! Set all non-overlapping processors to MPI_COMM_NULL
-	if (olap_mask(rank_world).eq.0) then
+	if (olap_mask(rank_world).eq..false.) then
 		myid_olap = olap_null
 		rank_olap = olap_null
 		CPL_OLAP_COMM = MPI_COMM_NULL
@@ -704,7 +704,7 @@ subroutine CPL_overlap_topology
 	reorder = .true.
 
 	!Get number of processors in communicating overlap region 
-	if (olap_mask(rank_world).eq.1) then
+	if (olap_mask(rank_world).eq..true.) then
 
 		!CFD processor is root and has mapping to all MD processors
 		allocate(index(nproc_olap))			! Index for each processor
@@ -760,6 +760,7 @@ subroutine CPL_overlap_topology
 
 end subroutine CPL_overlap_topology
 
+
 subroutine print_overlap_comms
 	use coupler_module
 	use mpi
@@ -792,6 +793,71 @@ end subroutine print_overlap_comms
 
 
 end subroutine CPL_create_map
+
+!-------------------------------------------------------------------
+! 					CPL_rank_map								   -
+!-------------------------------------------------------------------
+
+! Get COMM map for current communicator and relationship to 
+! world rank used to link to others in the coupler hierachy
+
+! - - - Synopsis - - -
+
+! CPL_rank_map(COMM, rank, comm2world, world2comm, ierr)
+
+! - - - Input Parameters - - -
+
+!comm
+!    communicator with cartesian structure (handle) 
+
+! - - - Output Parameter - - -
+
+!rank
+!    rank of a process within group of comm (integer)
+!    NOTE - fortran convention rank=1 to nproc  
+!nproc
+!    number of processes within group of comm (integer) 
+!comm2world
+!	Array of size nproc_world which for element at 
+!	world_rank has local rank in COMM
+!world2comm
+!	Array of size nproc_COMM which for element at 
+!	for local ranks in COMM has world rank 
+!ierr
+!    error flag
+
+
+subroutine CPL_rank_map(COMM,rank,nproc,comm2world,world2comm,ierr)
+	use coupler_module, only : rank_world, nproc_world, CPL_WORLD_COMM, VOID
+	use mpi
+	implicit none
+
+	integer, intent(in)								:: COMM
+	integer, intent(out)							:: rank,nproc,ierr
+	integer, dimension(:),allocatable,intent(out)	:: comm2world,world2comm
+
+	allocate(world2comm( nproc_world))
+	world2comm( nproc_world) = VOID
+
+	if (COMM .ne. MPI_COMM_NULL) then
+
+		!Mapping from comm rank to world rank
+		call MPI_comm_rank(COMM,rank,ierr)
+		rank = rank + 1
+		call MPI_comm_size(COMM,nproc,ierr)
+		allocate(comm2world(nproc))
+		call MPI_allgather(rank_world,1,MPI_INTEGER, & 
+						   comm2world,1,MPI_INTEGER,COMM,ierr)
+	else
+		rank = VOID
+		allocate(comm2world(0))
+	endif
+
+	!Mapping from world rank to comm rank
+	call MPI_allgather(rank      ,1,MPI_INTEGER, & 
+					   world2comm,1,MPI_INTEGER,CPL_WORLD_COMM,ierr)
+
+end subroutine CPL_rank_map
 
 !=============================================================================
 !	Adjust CFD domain size to an integer number of lattice units used by  
@@ -1594,7 +1660,7 @@ subroutine CPL_send_xd(asend,icmin_send,icmax_send,jcmin_send, &
 	real(kind=kind(0.d0)), allocatable 	:: vbuf(:)
 
 	! This local CFD domain is outside MD overlap zone 
-	if (olap_mask(rank_world) .eq. 0) return
+	if (olap_mask(rank_world) .eq. .false.) return
 
 	! Save limits array of Minimum and maximum values to send
 	limits = (/ icmin_send,icmax_send,jcmin_send,jcmax_send,kcmin_send,kcmax_send /)
@@ -1884,7 +1950,7 @@ subroutine CPL_recv_xd(arecv,icmin_recv,icmax_recv,jcmin_recv, &
     real(kind(0.d0)),dimension(:), allocatable ::  vbuf
  
 	! This local CFD domain is outside MD overlap zone 
-	if (olap_mask(rank_world).eq.0) return
+	if (olap_mask(rank_world).eq. .false.) return
 
 	! Save limits array of Minimum and maximum values to recv
 	limits = (/ icmin_recv,icmax_recv,jcmin_recv,jcmax_recv,kcmin_recv,kcmax_recv /)
@@ -2029,71 +2095,6 @@ subroutine CPL_recv_xd(arecv,icmin_recv,icmax_recv,jcmin_recv, &
 	! ----------------- Unpack data -----------------------------
            
 end subroutine CPL_recv_xd
-
-!-------------------------------------------------------------------
-! 					CPL_rank_map								   -
-!-------------------------------------------------------------------
-
-! Get COMM map for current communicator and relationship to 
-! world rank used to link to others in the coupler hierachy
-
-! - - - Synopsis - - -
-
-! CPL_rank_map(COMM, rank, comm2world, world2comm, ierr)
-
-! - - - Input Parameters - - -
-
-!comm
-!    communicator with cartesian structure (handle) 
-
-! - - - Output Parameter - - -
-
-!rank
-!    rank of a process within group of comm (integer)
-!    NOTE - fortran convention rank=1 to nproc  
-!nproc
-!    number of processes within group of comm (integer) 
-!comm2world
-!	Array of size nproc_world which for element at 
-!	world_rank has local rank in COMM
-!world2comm
-!	Array of size nproc_COMM which for element at 
-!	for local ranks in COMM has world rank 
-!ierr
-!    error flag
-
-
-subroutine CPL_rank_map(COMM,rank,nproc,comm2world,world2comm,ierr)
-	use coupler_module, only : rank_world, nproc_world, CPL_WORLD_COMM, VOID
-	use mpi
-	implicit none
-
-	integer, intent(in)								:: COMM
-	integer, intent(out)							:: rank,nproc,ierr
-	integer, dimension(:),allocatable,intent(out)	:: comm2world,world2comm
-
-	allocate(world2comm( nproc_world))
-	world2comm( nproc_world) = VOID
-
-	if (COMM .ne. MPI_COMM_NULL) then
-
-		!Mapping from comm rank to world rank
-		call MPI_comm_rank(COMM,rank,ierr)
-		rank = rank + 1
-		call MPI_comm_size(COMM,nproc,ierr)
-		allocate(comm2world(nproc))
-		call MPI_allgather(rank_world,1,MPI_INTEGER, & 
-						   comm2world,1,MPI_INTEGER,COMM,ierr)
-	else
-		rank = VOID
-		allocate(comm2world(0))
-	endif
-
-	!Mapping from world rank to comm rank
-	call MPI_allgather(rank      ,1,MPI_INTEGER, & 
-					   world2comm,1,MPI_INTEGER,CPL_WORLD_COMM,ierr)
-
-end subroutine CPL_rank_map
 
 !-------------------------------------------------------------------
 
@@ -2649,15 +2650,212 @@ subroutine CPL_Cart_coords(COMM, rank, realm, maxdims, coords, ierr)
  
 end subroutine CPL_Cart_coords
 
+!-------------------------------------------------------------------
+! 					CPL_get_rank					   -
+!-------------------------------------------------------------------
+!! Return rank of current processor in specified COMM 
+!!
+!! - Synopsis
+!!
+!!  - CPL_get_rank(COMM, rank)
+!!
+!! - Input Parameters
+!!
+!!  - comm
+!!   - communicator with cartesian structure (handle) 
+!!
+!! - Output Parameter
+!!
+!!  - rank
+!!   - rank of a process within group of comm (integer) 
+!!      NOTE fortran convention rank=1 to nproc
+!!
+!! @author Edward Smith
+
+subroutine CPL_get_rank(COMM,rank)
+	use coupler_module, only :  CPL_WORLD_COMM, CPL_REALM_COMM, CPL_INTER_COMM, & 
+								CPL_CART_COMM,  CPL_OLAP_COMM,  CPL_GRAPH_COMM, &
+								CPL_REALM_INTERSECTION_COMM,rank_world,			&
+								rank_realm,rank_cart,rank_olap,rank_graph,error_abort
+
+	integer, intent(in)		:: COMM
+	integer, intent(out) 	:: rank
+
+	!Get rank in world COMM from current COMM
+	if (COMM .eq. CPL_WORLD_COMM) then
+		rank = rank_world
+		return
+	elseif(COMM .eq. CPL_REALM_COMM) then
+		rank = rank_realm
+		return
+	elseif(COMM .eq. CPL_CART_COMM) then
+		rank = rank_cart
+		return
+	elseif(COMM .eq. CPL_OLAP_COMM) then
+		rank = rank_olap
+		return
+	elseif(COMM .eq. CPL_GRAPH_COMM) then
+		rank = rank_graph
+		return
+	elseif(COMM .eq. CPL_REALM_INTERSECTION_COMM) then
+		call error_abort("CPL_Cart_coords Error - Intersection COMM not programmed")
+	elseif(COMM .eq. CPL_INTER_COMM) then
+		call error_abort("CPL_Cart_coords Error - No rank in Intercomm" // &
+								 " - use realm comms instead")
+	else 
+		call error_abort("CPL_Cart_coords Error - Unknown COMM")
+	endif
+	
+
+end subroutine CPL_get_rank
+
+
+!-------------------------------------------------------------------
+! 					CPL_olap_check										   -
+!-------------------------------------------------------------------
+!! Check if current processor is in the overlap region
+!!
+!! - Synopsis
+!!
+!!  - CPL_olap_check()
+!!
+!! - Input Parameters
+!!
+!!  - NONE
+!!
+!! - Returns
+!!
+!!  - CPL_olap_check
+!!	 - True if calling processor is in the overlap region
+!!     and false otherwise
+!!
+!! @author Edward Smith
+
+
+function CPL_overlap() result(p)
+	use coupler_module, only : olap_mask, rank_world
+	implicit none
+
+	logical	:: p
+
+	p = olap_mask(rank_world)
+
+end function CPL_overlap
+
+
 !============================================================================
 !
 ! Utility functions and subroutines that extract parameters from internal modules 
 !
 !-----------------------------------------------------------------------------    
 
-!-------------------------------------------------------------------------------
-! return to the caller coupler parameters from cfd realm
-!-------------------------------------------------------------------------------
+!-------------------------------------------------------------------
+! 					CPL_get										   -
+!-------------------------------------------------------------------
+!! Wrapper to retrieve (read only) parameters from the coupler_module 
+!! Note - this ensures all variable in the coupler are protected
+!! from corruption by either CFD or MD codes
+!!
+!! - Synopsis
+!!
+!!  - CPL_get([see coupler_module])
+!!
+!! - Input Parameters
+!!
+!!  - NONE
+!!
+!! - Output Parameter
+!!
+!!  - @see coupler_module
+!!
+!! @author Edward Smith
+
+
+subroutine CPL_get(icmax_olap,icmin_olap,jcmax_olap,jcmin_olap,  & 
+				   kcmax_olap,kcmin_olap,density_cfd,density_md, &
+				   dt_cfd,dt_MD,dx,dy,dz,ncx,ncy,ncz,xg,yg,zg,	 &
+				   xL_md,xL_cfd,yL_md,yL_cfd,zL_md,zL_cfd       )
+	use coupler_module, only : 	icmax_olap_=>icmax_olap, &
+							    icmin_olap_=>icmin_olap, &
+								jcmax_olap_=>jcmax_olap, &		
+								kcmax_olap_=>kcmax_olap, &		
+								density_cfd_=>density_cfd, &		
+								jcmin_olap_=>jcmin_olap, &		
+								kcmin_olap_=>kcmin_olap, &		
+								density_md_=>density_md, &		
+								dt_cfd_=>dt_cfd,dt_MD_=>dt_MD, &	
+								dx_=>dx,dy_=>dy,dz_=>dz, &
+								ncx_=>ncx,ncy_=> ncy,ncz_=> ncz, &
+								xL_md_ =>xL_md, &		
+								yL_md_ =>yL_md, &		
+								zL_md_ =>zL_md, &		
+								xL_cfd_=> xL_cfd, &		
+								yL_cfd_=> yL_cfd, &		
+								zL_cfd_=> zL_cfd, &		
+								xg_=>xg, yg_=> yg, zg_=> zg
+	implicit none
+
+	integer, optional, intent(out)			:: icmax_olap ,icmin_olap
+	integer, optional, intent(out)			:: jcmax_olap ,jcmin_olap
+	integer, optional, intent(out)			:: kcmax_olap ,kcmin_olap
+	integer, optional, intent(out)			:: ncx,ncy,ncz
+	real(kind(0.d0)), optional, intent(out)	:: density_cfd,density_md
+	real(kind(0.d0)), optional, intent(out) :: dt_cfd,dt_MD
+	real(kind(0.d0)), optional, intent(out) :: dx,dy,dz
+	real(kind(0.d0)), optional, intent(out) :: xL_md,xL_cfd
+	real(kind(0.d0)), optional, intent(out) :: yL_md,yL_cfd
+	real(kind(0.d0)), optional, intent(out) :: zL_md,zL_cfd
+	real(kind(0.d0)),dimension(:,:),allocatable,optional,intent(out) :: xg,yg
+	real(kind(0.d0)),dimension(:)  ,allocatable,optional,intent(out) :: zg
+
+	!Overlap extents
+	if (present(icmax_olap)) icmax_olap = icmax_olap_
+	if (present(icmin_olap)) icmin_olap = icmin_olap_
+	if (present(jcmax_olap)) jcmax_olap = jcmax_olap_
+	if (present(jcmin_olap)) jcmin_olap = jcmin_olap_
+	if (present(kcmax_olap)) kcmax_olap = kcmax_olap_
+	if (present(kcmin_olap)) kcmin_olap = kcmin_olap_
+
+	!Density
+	if (present(density_cfd)) density_cfd = density_cfd_
+	if (present(density_md )) density_md  = density_md_
+
+	!Cells
+	if (present(ncx)) ncx = ncx_
+	if (present(ncy)) ncy = ncy_
+	if (present(ncz)) ncz = ncz_
+			
+	!Temporal and spatial steps
+	if (present(dt_cfd)) dt_cfd= dt_cfd_
+	if (present(dt_MD )) dt_MD = dt_MD_
+	if (present(dx)) dx = dx_
+	if (present(dy)) dy = dy_	
+	if (present(dz)) dz = dz_
+
+	!Domain sizes
+	if (present(xL_md )) xL_md = xL_md_
+	if (present(xL_cfd)) xL_cfd= xL_cfd_
+	if (present(yL_md )) yL_md = yL_md_
+	if (present(yL_cfd)) yL_cfd= yL_cfd_
+	if (present(zL_md )) zL_md = zL_md_
+	if (present(zL_cfd)) zL_cfd= zL_cfd_
+			
+	!The mesh
+	if (present(xg)) then
+		allocate(xg(size(xg_,1),size(xg_,2)))
+		xg = xg_
+	endif
+	if (present(yg)) then
+		allocate(yg(size(yg_,1),size(yg_,2)))
+		yg = yg_
+	endif
+	if (present(zg)) then
+		allocate(zg(size(zg_,1)))
+		zg = zg_
+	endif
+
+end subroutine CPL_get
+
 
 !-----------------------------------------------------------------------------
  
@@ -2694,36 +2892,25 @@ end function coupler_md_get_md_steps_per_cfd_dt
 
 !-----------------------------------------------------------------------------
 
-function coupler_md_get_nsteps() result(n)
+function coupler_md_get_nsteps() result(p)
 	use coupler_module, only :  nsteps_md
 	implicit none 
 
-	 integer n
-	 n = nsteps_md
+	 integer p
+	 p = nsteps_md
 
 end function coupler_md_get_nsteps
 
 !-----------------------------------------------------------------------------
 
-function coupler_md_get_dt_cfd() result(t)
+function coupler_md_get_dt_cfd() result(p)
 	use coupler_module, only : dt_CFD  
 	implicit none
 
-	real(kind=kind(0.d0)) t
-	t = dt_CFD
+	real(kind=kind(0.d0)) p
+	p = dt_CFD
 
 end function coupler_md_get_dt_cfd
-
-!------------------------------------------------------------------------------
-
-function coupler_md_get_density() result(r)
-	use coupler_module, only : density_md
-	implicit none
-
-	real(kind(0.d0)) r
-	r = density_md
-
-end function coupler_md_get_density
 
 !------------------------------------------------------------------------------
 
