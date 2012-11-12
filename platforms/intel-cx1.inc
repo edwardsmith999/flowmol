@@ -69,7 +69,8 @@ else ifeq ($(strip $(NAME)),couette)
   LIBFILES := $(LIBBASE)/archive.o $(LIBBASE)/library.o $(LIBBASE)/library.alc.o $(LIBBASE)/SSDfile.memory.o $(LIBBASE)/triDiagonal.o $(LIBBASE)/triDiagonal.mpi.o  $(LIBBASE)/pentaDiagonal.o $(LIBBASE)/transforms.mkl_intel.alc.o $(LIBBASE)/SinCosFFT.o $(LIBBASE)/triDiagonal.mrhs.o $(LIBBASE)/triDiagonal.mpi.mrhs.o $(LIBBASE)/pentaDiagonal.mrhs.o $(LIBBASE)/pentaDiagonal.mpi.o $(LIBBASE)/polyDiagonal.o
   LIBDIR := ./../lib
   LIBFILES := $(addprefix $(LIBDIR)/,$(LIBFILES))
-  LIBS := -L/apps/intel/cmkl/9.0/lib/64/ -lmkl_em64t -lguide -lpthread
+  #LIBS := -L/apps/intel/cmkl/9.0/lib/64/ -lmkl_em64t -lguide -lpthread
+  LIBS := -L/apps/intel/2013/mkl/lib/64/ -mkl
   FFLAGS := -r8  $(FLAGS_BASE_$(BUILD))  
 
 else ifeq ($(strip $(NAME)),stream_md)
@@ -84,7 +85,8 @@ else ifeq ($(strip $(NAME)),blayer)
   LIBFILES := $(LIBBASE)/archive.o $(LIBBASE)/library.o $(LIBBASE)/library.alc.o $(LIBBASE)/SSDfile.memory.o $(LIBBASE)/triDiagonal.o $(LIBBASE)/triDiagonal.mpi.o  $(LIBBASE)/pentaDiagonal.o $(LIBBASE)/transforms.mkl_intel.alc.o $(LIBBASE)/SinCosFFT.o $(LIBBASE)/triDiagonal.mrhs.o $(LIBBASE)/triDiagonal.mpi.mrhs.o $(LIBBASE)/pentaDiagonal.mrhs.o $(LIBBASE)/pentaDiagonal.mpi.o $(LIBBASE)/polyDiagonal.o
   LIBDIR := ./../lib
   LIBFILES := $(addprefix $(LIBDIR)/,$(LIBFILES))
-  LIBS := -L/apps/intel/cmkl/9.0/lib/64/ -lmkl_em64t -lguide -lpthread
+  #LIBS := -L/apps/intel/cmkl/9.0/lib/64/ -lmkl_em64t -lguide -lpthread
+  LIBS := -L/apps/intel/2013/mkl/lib/64/ -mkl
   FFLAGS := $(FLAGS_BASE_$(BUILD)) -r8 -ip -parallel -par-report3 -mcmodel=large -i-dynamic
 
 else 

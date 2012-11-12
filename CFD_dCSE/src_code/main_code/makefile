@@ -49,6 +49,7 @@ include $(MAKE_INC_PATH)/$(PLATFORM).inc
 # NOTE: LIBS are provided in $(PLATFORM).inc files
 #
 # LIBS = -ldfftw -ldrfftw #-L/apps/intel/cmkl/9.0/lib/64/ -lmkl_em64t
+LIBS=-L/apps/intel/2013/mkl/lib/64/ -mkl
 
 #FLAGS =
 #F77FILES = 
