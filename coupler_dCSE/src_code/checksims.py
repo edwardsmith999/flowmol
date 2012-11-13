@@ -1,7 +1,7 @@
 #!/usr/bin/python
 import sys
 
-# Define custom grep wrapper
+# Define custom grep wrapper, "out" is a string
 def grep(args): 
 	import subprocess
 	cmd = ["grep"] + args
@@ -9,6 +9,7 @@ def grep(args):
 	out = obj.communicate()[0]
 	return out 
 
+# Define custom diff wrapper, "out" is a string
 def diff(args):
 	import subprocess
 	cmd = ["diff"] + args
@@ -50,64 +51,67 @@ print(message)
 
 # If not one argument to ./checksims.py then exit with error
 # (sys.argv counts "./checksims.py" as an argument, hence the 2)
-if ( len(sys.argv) != 2 ): 
+if ( len(sys.argv) != 3 ): 
 
-	message = ('checksims.py requires a single input argument that \n' +
-	           'should be the total number of MD processors.')
+	message = ('checksims.py requires two input arguments that \n' +
+	           'should be (in order) the total number of MD and \n' +
+	           'CFD processors.')
 	print(message)
 	sys.exit(1)
 
 
-# Check user has specified correct number of MD procs
+# Check user has specified correct number of MD and CFD procs
 nproc_md_IN = int(sys.argv[1])
+nproc_cfd_IN = int(sys.argv[2])
 if ( nproc_md_IN != nproc_md ):
 	message = ('User specified nproc_md differs to that in the \n' +
+	           'input file. Aborting.')
+	print(message)
+	sys.exit(1)	
+if ( nproc_cfd_IN != nproc_cfd ):
+	message = ('User specified nproc_cfd differs to that in the \n' +
 	           'input file. Aborting.')
 	print(message)
 	sys.exit(1)	
 
 # Grid information
 grid_infile = cfd_dir + "grid_generation/input.file"
+xL_grid  = float( grep( ['Lx',  grid_infile] ).split()[0] )
+yL_grid  = float( grep( ['Ly',  grid_infile] ).split()[0] )
+ngx_grid =   int( grep( ['ngx', grid_infile] ).split()[0] )
+ngy_grid =   int( grep( ['ngy', grid_infile] ).split()[0] )
+
 message  = 'CFD grid info:\n'
 message += '==================================================\n'
-
-floatparams = ["Lx","Ly"]
-for param in floatparams:
-	grep_out = grep([param,grid_infile])
-	vars()[param] = float(grep_out.split()[0])
-	message += param + ': ' + str(vars()[param]) + '\n'
-
-intparams = ["ngx","ngy"]
-for param in intparams:
-	grep_out = grep([param,grid_infile])
-	vars()[param] = int(grep_out.split()[0])
-	message += param + ': ' + str(vars()[param]) + '\n'
+message += ('xL: '  + str(xL_grid)  + '\n' +
+            'yL: '  + str(yL_grid)  + '\n' +
+            'ngx: ' + str(ngx_grid) + '\n' +
+            'ngy: ' + str(ngy_grid) + '\n' )
 
 message += '=================================================='
 print(message)
 
 # Setup information
-grid_infile = cfd_dir + "setup/input.setup"
-message  = 'CFD setup info:\n'
-message += '==================================================\n'
+setup_infile = cfd_dir + "setup/input.setup"
+xL_setup  = float( grep( ['xL',  setup_infile] ).split()[0] )
+yL_setup  = float( grep( ['yL',  setup_infile] ).split()[0] )
+ngx_setup =   int( grep( ['nix', setup_infile] ).split()[0] )
+ngy_setup =   int( grep( ['niy', setup_infile] ).split()[0] )
+ngz_setup =   int( grep( ['niz', setup_infile] ).split()[0] )
 
-floatparams = ["xL","yL"]
-for param in floatparams:
-	grep_out = grep([param,grid_infile])
-	vars()[param] = float(grep_out.split()[0])
-	message += param + ': ' + str(vars()[param]) + '\n'
-
-intparams = ["nix","niy","niz"]
-for param in intparams:
-	grep_out = grep([param,grid_infile])
-	vars()[param] = int(grep_out.split()[0])
-	message += param + ': ' + str(vars()[param]) + '\n'
-
+message   = 'CFD setup info:\n'
+message  += '==================================================\n'
+message  += ('xL: '  + str(xL_setup)  + '\n' +
+             'yL: '  + str(yL_setup)  + '\n' +
+             'ngx: ' + str(ngx_setup) + '\n' +
+             'ngy: ' + str(ngy_setup) + '\n' +
+             'ngz: ' + str(ngz_setup) + '\n' )
 message += '=================================================='
 print(message)
 
 # Check setup and grid info are the same 
-if ( xL != Lx or yL != Ly or nix != ngx or niy != ngy ):
+if ( xL_setup  != xL_grid  or yL_setup  != yL_grid or 
+     ngx_setup != ngx_grid or ngy_setup != ngy_grid ):
 	print('Grid and setup input files do not match. Aborting.')
 	sys.exit(1)
 else:
@@ -121,6 +125,5 @@ if (diff([gengrid,setupgrid]) != ""):
 	sys.exit(1)
 else:
 	print('grid.data files are identical. Proceeding...')
-	sys.exit(1)
 
 sys.exit(0)
