@@ -22,7 +22,6 @@
 module md_coupler_socket
 
 #if USE_COUPLER 
-
 	use coupler
 	implicit none
 
@@ -57,6 +56,7 @@ contains
 !-----------------------------------------------------------------------------
 subroutine socket_coupler_invoke
 	use messenger
+	use coupler_module, only : CPL_create_comm, md_realm
 	implicit none
 
 	call CPL_create_comm(md_realm,MD_COMM,ierr)
@@ -68,7 +68,7 @@ end subroutine socket_coupler_invoke
 !  Read coupler input files
 !-----------------------------------------------------------------------------
 subroutine socket_read_coupler_input
-	use coupler_input_data, only : read_coupler_input
+	use coupler_module, only : read_coupler_input
 	implicit none
 
 	call read_coupler_input		! Read COUPLER.in input file
@@ -80,12 +80,12 @@ end subroutine socket_read_coupler_input
 !-----------------------------------------------------------------------------
 subroutine socket_coupler_init
     use interfaces
+	use coupler_module, only : coupler_md_init, CPL_create_map, set_coupled_timing
 	use computational_constants_MD, only : npx,npy,npz,delta_t,elapsedtime, & 
 										   Nsteps,initialstep,delta_t, & 
 										   globaldomain,initialnunits
 	use physical_constants_MD, only : nd,density
 	use messenger, only	 :  myid, icoord, icomm_grid
-	use coupler_internal_md, only : coupler_md_init
 	implicit none
 
  	integer			 :: naverage, nsteps_cfd, ixyz
@@ -112,7 +112,7 @@ subroutine socket_coupler_init
 	endif
 
 	! Setup timesteps and simulation timings based on CFD/coupler
-	call set_coupled_timing(Nsteps)
+	call set_coupled_timing(Nsteps,initialstep,elapsedtime)
 
 	! Establish mapping between MD an CFD
 	call CPL_create_map
@@ -125,7 +125,7 @@ end subroutine socket_coupler_init
 subroutine set_params_globdomain_cpld
 	use computational_constants_MD
 	use physical_constants_MD, only: globalnp,volume,nd,np,density
-	use coupler 
+	use coupler, only : CPL_get
 	!use coupler_module, only: xL_md, yL_md, zL_md
 	implicit none
 
@@ -199,7 +199,6 @@ subroutine set_parameters_cells_coupled
 	integer,dimension(3) 			:: max_ncells,cfd_ncells,cfd_md_cell_ratio
 	double precision 				:: rneighbr
 	double precision ,dimension(3) 	:: cfd_cellsidelength, maxdelta_rneighbr
-    type(cfd_grid_info)				:: cfd_box
 
 	!In coupled simulation, passed properties are calculated from cell lists
 	!for efficiency. The size of the cells should therefore be a multiple
@@ -283,48 +282,6 @@ subroutine set_parameters_cells_coupled
 		call error_abort("ERROR - CFD cellsize smaller than minimum MD computational/averaging cell")
 
 end subroutine set_parameters_cells_coupled
-
-!-----------------------------------------------------------------------------
-!	THIS ROUTINE SHOULD BE PART OF THE INITIALISATION OF THE COUPLER
-!	WHERE THE INITIAL TIMES (STIME FOR CFD & ELAPSEDTIME FOR MD) ARE
-!	COMPARED TO SEE IF RESTART IS CONSISTENT AND NUMBER OF STEPS ON
-!	BOTH SIDES OF THE COUPLER ARE CALCULATED AND STORED
-! Setup ratio of CFD to MD timing and total number of timesteps
-
-subroutine set_coupled_timing(Nsteps_md)
-	use computational_constants_MD, only : initialstep,elapsedtime
-	use coupler_module, only : timestep_ratio,dt_cfd,dt_MD, &
-	                           Nsteps_cfd,Nsteps_md_old=>Nsteps_md, & 
-							   rank_realm,Nsteps_coupled
-	implicit none
-
-	integer,intent(out)		:: Nsteps_md
-	integer					:: Nsteps_MDperCFD
-
-
-	!Set number of MD timesteps per CFD using ratio of timestep or coupler value
-	if(timestep_ratio .eq. VOID) then
-		Nsteps_MDperCFD = int(dt_cfd/dt_MD)
-	else 
-		Nsteps_MDperCFD = timestep_ratio
-	endif
-	Nsteps_coupled = Nsteps_cfd
-
- 	!Set number of steps in MD simulation
-	Nsteps_md   = initialstep + Nsteps_cfd * Nsteps_MDperCFD
-	elapsedtime = elapsedtime + Nsteps_cfd * Nsteps_MD * dt_MD
-
-	if (rank_realm .eq. 1) then 
-		write(*,'(2(a,/),a,i7,a,i7,/a,i7,a,i7,/a,f12.4,a,/a)'), &
-			"*********************************************************************", 		&
-			" WARNING - WARNING - WARNING - WARNING - WARNING - WARNING - WARNING  ", 		&
-			" Input number of timesteps from MD: ",Nsteps_md_old," & CFD: ", Nsteps_cfd,	&
-			" is set in this coupled run to MD: ", Nsteps_md, ",CFD/Coupled: ", Nsteps_cfd,	&
-			" At the end of the run, elapsed time will be: ", elapsedtime, " LJ time units ", 		&
-			"*********************************************************************"   
-	endif 
-
-end subroutine set_coupled_timing
 
 
 subroutine socket_check_cell_sizes
@@ -436,8 +393,8 @@ contains
 		use coupler, only : CPL_Cart_coords, CPL_proc_extents
 		use coupler_module, only : xL_md,zL_md,xg,yg,zg,jcmin_olap, & 
 								   dx,dy,dz,ncx,ncy,ncz, &
-		                           rank_world
-		use coupler_internal_md, only : map_md2cfd_global,map_cfd2md_global, &
+		                           rank_world, VOID
+		use coupler, only : map_md2cfd_global,map_cfd2md_global, &
 		                                globalise,localise	
 		use computational_constants_MD, only : iter, ncells,domain,halfdomain, &
 											   iblock,jblock,kblock
@@ -590,7 +547,7 @@ subroutine socket_apply_continuum_forces(iter)
 	                                       delta_rneighbr,iblock,jblock,kblock
 	use coupler_module, only : rank_world, icmin_olap,icmax_olap, & 
 	                           jcmin_olap,jcmax_olap,kcmin_olap,kcmax_olap, &
-	                           printf, timestep_ratio
+	                           printf, timestep_ratio,md_realm
 	use linked_list
 	implicit none
 
@@ -650,9 +607,8 @@ contains
 ! find the CFD box to which the particle belongs		 
 
 subroutine setup_CFD_box(limits,CFD_box,recv_flag)
-	use coupler_module, only : 	xg,yg,zg
-	use coupler, only : CPL_recv
-	use coupler_internal_md, only : localise,map_cfd2md_global
+	use coupler_module, only : 	xg,yg,zg,VOID
+	use coupler, only : CPL_recv,localise,map_cfd2md_global
 	implicit none
 
 	!Limits of CFD box to receive data in
@@ -1203,7 +1159,6 @@ subroutine apply_continuum_forces_ES(iter)
 
 	integer, intent(in) 				:: iter ! iteration step, it assumes that each MD average starts from iter = 1
 
-    type(cfd_grid_info)                 :: cfd_box
 	integer								:: i,j,k,js,je,ib,jb,kb,nib,njb,nkb,ip,m,np_overlap
 	integer         					:: n, molno, ixyz, cellnp
 	integer         					:: cbin, averagecount
