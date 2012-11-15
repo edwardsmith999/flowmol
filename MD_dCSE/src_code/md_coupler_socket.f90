@@ -55,10 +55,10 @@ contains
 !-----------------------------------------------------------------------------
 subroutine socket_coupler_invoke
 	use messenger
-	use CPL, only : CPL_create_comm, CPL_realm
+	use CPL, only : CPL_create_comm, md_realm
 	implicit none
 
-	call CPL_create_comm(CPL_realm(),MD_COMM,ierr)
+	call CPL_create_comm(md_realm,MD_COMM,ierr)
     prefix_dir = "./md_data/"
 
 end subroutine socket_coupler_invoke
@@ -79,7 +79,7 @@ end subroutine socket_read_coupler_input
 !-----------------------------------------------------------------------------
 subroutine socket_coupler_init
     use interfaces
-	use CPL, only : coupler_md_init, CPL_create_map, set_coupled_timing
+	use CPL, only : coupler_md_init, CPL_create_map, set_coupled_timing, CPL_get
 	use computational_constants_MD, only : npx,npy,npz,delta_t,elapsedtime, & 
 										   Nsteps,initialstep,delta_t, & 
 										   globaldomain,initialnunits
@@ -199,8 +199,8 @@ subroutine set_parameters_cells_coupled
 	double precision ,dimension(3) 	:: cfd_cellsidelength, maxdelta_rneighbr
 
 
-	call CPL_get(icmax=icmax,icmin=icmin,jcmax=jcmax,jcmin=jcmin, & 
-				 kcmax=kcmax,kcmin=kcmin,dx=dx,dy=dy,dz=dz)
+	call CPL_get(icmax_olap=icmax,icmin_olap=icmin,jcmax_olap=jcmax,jcmin_olap=jcmin, & 
+				 kcmax_olap=kcmax,kcmin_olap=kcmin,dx=dx,dy=dy,dz=dz)
 
 	!In coupled simulation, passed properties are calculated from cell lists
 	!for efficiency. The size of the cells should therefore be a multiple
@@ -299,7 +299,7 @@ subroutine socket_check_cell_sizes
 	if (irank .eq. iroot) then
 		if( cellsidelength(1) .ge. dx .or. & 
 			cellsidelength(2) .ge. dy .or. & 
-			cellsidelength(3) .ge. dz .and. rank_realm == 0 ) then
+			cellsidelength(3) .ge. dz 		 ) then
 			write(*,*), ""
 			write(*,*), "********************************************************************"
 			write(*,*), " WARNING ...WARNING ...WARNING ...WARNING ...WARNING ...WARNING ... "
@@ -333,7 +333,7 @@ subroutine average_and_send_MD_to_CFD(iter)
 	use calculated_properties_MD, only : nbins
 	use physical_constants_MD, only : np
 	use arrays_MD, only :r,v
-   	use CPL, only : CPL_get, CPL_realm
+   	use CPL, only : CPL_get, CPL_realm,coupler_md_get_average_period
 	implicit none
 
 	integer, intent(in) :: iter
@@ -342,11 +342,11 @@ subroutine average_and_send_MD_to_CFD(iter)
 	integer :: iter_cfd, iter_average, save_period 
 	integer	:: ierr
 
-	logical, save :: first_time=.true.
-	integer, save :: ncx, ncy, ncz, average_period
+	logical, save :: first_time=.true.,staggered_averages(3)
+	integer, save :: ncx, ncy, ncz, average_period, jcmin_olap,timestep_ratio
 	real(kind(0.d0)),save :: dx, dy, dz
 	real(kind(0.d0)),dimension(:),allocatable,save :: zg
-	real(kind(0.d0)),dimension(:,:),allocatable,save :: yg, zg
+	real(kind(0.d0)),dimension(:,:),allocatable,save :: xg, yg
 
 	!Setup arrays on first call
     if (first_time) then 
@@ -354,9 +354,7 @@ subroutine average_and_send_MD_to_CFD(iter)
 		call setup_velocity_average
 		call CPL_get(ncx=ncx,ncy=ncy,ncz=ncz,dx=dx,dy=dy,dz=dz,xg=xg,yg=yg,zg=zg, & 
 						staggered_averages=staggered_averages,timestep_ratio=timestep_ratio, &
-						icmin_olap=icmin_olap,icmax_olap=icmax_olap, & 
-						jcmin_olap=jcmin_olap,jcmax_olap=jcmax_olap, & 
-						kcmin_olap=kcmin_olap,kcmax_olap=kcmax_olap   )
+						jcmin_olap=jcmin_olap)
 	    average_period = coupler_md_get_average_period() 	! collection interval in the average cycle
     endif
     iter_average = mod(iter-1, timestep_ratio)+1			! current step
@@ -376,6 +374,7 @@ contains
 
 	!THIS SHOULD BE DONE IN THE SETUP!!!!
 	subroutine setup_velocity_average
+		use CPL, only : CPL_proc_extents
 		use computational_constants_MD, only : iblock,jblock,kblock 
 		implicit none
 
@@ -404,8 +403,8 @@ contains
 	subroutine cumulative_velocity_average
 		use CPL, only : CPL_Cart_coords, CPL_proc_extents, CPL_realm, VOID, &
 						map_md2cfd_global,map_cfd2md_global,globalise,localise	
-		use computational_constants_MD, only : iter, ncells,domain,halfdomain, &
-											   iblock,jblock,kblock
+		use computational_constants_MD, only : iter,ncells,domain,halfdomain, & 
+												globaldomain,iblock,jblock,kblock
 		use librarymod, only : heaviside, imaxloc
 		implicit none
 
@@ -516,7 +515,7 @@ contains
 		implicit none
 
 		logical :: send_flag,ovr_box_x
-		integer :: limits(6)
+		integer :: limits(6), jcmin_send,jcmax_send
 
 		!Define arbitary range to send -- TODO move to input file --
 		jcmin_send = 1; jcmax_send = 1
@@ -552,7 +551,8 @@ subroutine socket_apply_continuum_forces(iter)
 	use computational_constants_MD, only : delta_t, nh, ncells, & 
 										   cellsidelength, halfdomain, &
 	                                       delta_rneighbr,iblock,jblock,kblock
-	use CPL, only : CPL_overlap, CPL_recv, CPL_realm, CPL_get
+	use CPL, only : CPL_overlap, CPL_recv, CPL_proc_extents, & 
+					CPL_realm, CPL_get, coupler_md_get_dt_cfd
 	use linked_list
 	implicit none
 
@@ -576,7 +576,7 @@ subroutine socket_apply_continuum_forces(iter)
 		first_time = .false.
 		!Save extents of current processor
 		pcoords= (/ iblock,jblock,kblock   /)
-		call CPL_proc_extents(pcoords,md_realm,extents)
+		call CPL_proc_extents(pcoords,CPL_realm(),extents)
 		!Get local copies of required simulation parameters
 		call CPL_get(icmin_olap=icmin_olap,icmax_olap=icmax_olap, & 
 	                 jcmin_olap=jcmin_olap,jcmax_olap=jcmax_olap, & 
@@ -631,7 +631,7 @@ subroutine setup_CFD_box(limits,CFD_box,recv_flag)
     logical, save 		  :: firsttime=.true.
 	real(kind=kind(0.d0)),dimension(3) 			:: xyzmin,xyzmax
 	real(kind(0.d0)),dimension(:),allocatable 	:: zg
-	real(kind(0.d0)),dimension(:,:),allocatable :: yg, zg
+	real(kind(0.d0)),dimension(:,:),allocatable :: xg, yg
 
 	! Get total number of CFD cells on each processor
 	nclx = extents(2)-extents(1)+1
@@ -869,7 +869,7 @@ end subroutine socket_apply_continuum_forces
 !-----------------------------------------------------------------------------
 
 subroutine socket_CPL_apply_continuum_forces(iter)
-	use CPL, only : CPL_get
+	use CPL, only : CPL_get,coupler_md_get_average_period
 	implicit none
 	
 	integer, intent(in) :: iter
