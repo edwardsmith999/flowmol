@@ -22,7 +22,6 @@
 module md_coupler_socket
 
 #if USE_COUPLER 
-	use coupler
 	implicit none
 
     ! CFD id

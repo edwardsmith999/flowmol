@@ -13,7 +13,6 @@
 module continuum_coupler_socket
 
 #if USE_COUPLER
-	use coupler
 	implicit none
 
 contains
@@ -31,7 +30,7 @@ contains
 !-----------------------------------------------------------------------------
 subroutine socket_coupler_invoke
 	use messenger
-	use coupler_module, only : CPL_create_comm, cfd_realm
+	use CPL, only : CPL_create_comm, cfd_realm
 	use computation_parameters, only : prefix_dir
 	implicit none
 
@@ -45,7 +44,7 @@ end subroutine socket_coupler_invoke
 !-----------------------------------------------------------------------------
 subroutine socket_read_coupler_input
 	use messenger
-	use coupler_module, only : read_coupler_input
+	use CPL, only : read_coupler_input
 	implicit none
 
 	call read_coupler_input		! Read COUPLER.in input file
@@ -56,7 +55,7 @@ end subroutine socket_read_coupler_input
 ! Call coupler initialise to swap all setup data
 !-----------------------------------------------------------------------------
 subroutine socket_coupler_init
-	use coupler_module, only : coupler_cfd_init,CPL_create_map,error_abort, density_cfd
+	use CPL, only : coupler_cfd_init,CPL_create_map,error_abort, density_cfd
     use messenger, only : icomm_grid, icoord
     use data_export, only : imin,imax,jmin,jmax,kmin,kmax, &
 							iTmin_1,iTmax_1,jTmin_1,jTmax_1, &
@@ -103,10 +102,8 @@ end subroutine socket_coupler_init
 ! Get Boundary condition for continuum from average of MD 
 
 subroutine  socket_coupler_get_md_BC(uc,vc,wc)
-    use coupler, only : CPL_recv
-	use coupler_module, only : printf,error_abort,VOID,cfd_realm, & 
-							   iblock_realm,jblock_realm,kblock_realm
-	use data_export, only : nixb, niyb, nizb, & 
+    use CPL, only : CPL_recv,CPL_realm,error_abort,cpl_proc_extents,VOID
+	use data_export, only : nixb, niyb, nizb,iblock,jblock,kblock, & 
 							i1_u,i2_u,j1_u,j2_u, & 
 							i1_v,i2_v,j1_v,j2_v, & 
 							i1_w,i2_w,j1_w,j2_w, & 
@@ -128,8 +125,8 @@ subroutine  socket_coupler_get_md_BC(uc,vc,wc)
 	jcmin_recv = 1; jcmax_recv = 1
 
 	!Allocate array to CFD number of cells ready to receive data
-	pcoords = (/ iblock_realm,jblock_realm,kblock_realm /)
-	call CPL_proc_extents(pcoords,cfd_realm,extents)
+	pcoords = (/ iblock,jblock,kblock /)
+	call CPL_proc_extents(pcoords,CPL_realm(),extents)
 	nclx = extents(2)-extents(1)+1
 	ncly = extents(4)-extents(3)+1
 	nclz = extents(6)-extents(5)+1
@@ -200,27 +197,26 @@ end subroutine socket_coupler_get_md_BC
 ! Send continuum velocity in x direction to be used by MD
 
 subroutine socket_coupler_send_velocity
-    use coupler, only : CPL_send,CPL_olap_extents
-	use coupler_module, only : jcmax_olap, & 
-							   iblock_realm,jblock_realm,kblock_realm,realm,printf
- 	use data_export, only : uc,i1_u,i2_u,ngz,nlx,nlxb,ibmin_1,ibmax_1
+    use CPL, only : CPL_send,CPL_olap_extents,CPL_overlap,CPL_get,CPL_realm
+ 	use data_export, only : uc,i1_u,i2_u,ngz,nlx,nlxb,ibmin_1,ibmax_1,iblock,jblock,kblock
     implicit none
 
 	logical	:: send_flag
     integer	:: i,j,n,ixyz,icell,jcell,kcell,npercell,nclx,ncly,nclz
-    integer	:: coord(3),extents(6),cnstnd_cells,jcmin_send,jcmax_send
+    integer	:: coord(3),extents(6),cnstnd_cells,jcmin_send,jcmax_send,jcmax_olap
     real(kind(0.d0)),dimension(:,:,:,:), allocatable 	:: sendbuf
 	real(kind(0.d0)) :: gradient
 
 	! Check processor is inside MD/CFD overlap zone 
 	if (.not.(CPL_overlap())) return
+	call CPL_get(jcmax_olap=jcmax_olap)
 
 	!Three velocity components
 	npercell = 3
 
 	!Allocate array for size of data on local processor
-	coord = (/iblock_realm,jblock_realm,kblock_realm /)
-	call CPL_olap_extents(coord,realm,extents)
+	coord = (/iblock,jblock,kblock /)
+	call CPL_olap_extents(coord,CPL_realm(),extents)
 	nclx = extents(2)-extents(1)+1
 	ncly = extents(4)-extents(3)+1
 	nclz = extents(6)-extents(5)+1
@@ -252,27 +248,27 @@ end subroutine socket_coupler_send_velocity
 ! Send continuum Stress in all directions to be used by MD
 
 subroutine socket_coupler_send_stress
-    use coupler, only : CPL_send,CPL_olap_extents
-	use coupler_module, only : jcmax_olap,density_cfd, & 
-							   iblock_realm,jblock_realm,kblock_realm,realm,printf
- 	use data_export, only : uc,vc,wc,visc
+    use CPL, only : CPL_send,CPL_olap_extents,CPL_overlap,CPL_get,CPL_realm
+ 	use data_export, only : uc,vc,wc,visc,iblock,jblock,kblock
     implicit none
 
 	logical			 	  :: send_flag
     integer			 	  :: i,n,ixyz,icell,jcell,kcell,npercell,nclx,ncly,nclz
-    integer			 	  :: coord(3),extents(6)
+    integer			 	  :: coord(3),extents(6),jcmax_olap
+	real(kind(0.d0))	  :: density_cfd
     real(kind(0.d0)),dimension(:,:,:,:), allocatable 	:: sendbuf
 	real(kind(0.d0)),dimension(:,:,:,:,:), allocatable 	:: dUidxj
 
 	! Check processor is inside MD/CFD overlap zone 
 	if (.not.(CPL_overlap())) return
+	call CPL_get(jcmax_olap=jcmax_olap,density_cfd=density_cfd)
 
 	!Three by three stress tensor components
 	npercell = 9
 
 	!Allocate array for size of data on local processor
-	coord = (/iblock_realm,jblock_realm,kblock_realm /)
-	call CPL_olap_extents(coord,realm,extents)
+	coord = (/iblock,jblock,kblock /)
+	call CPL_olap_extents(coord,CPL_realm(),extents)
 	nclx = extents(2)-extents(1)+1
 	ncly = extents(4)-extents(3)+1
 	nclz = extents(6)-extents(5)+1
