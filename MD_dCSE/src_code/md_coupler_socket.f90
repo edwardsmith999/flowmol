@@ -55,10 +55,10 @@ contains
 !-----------------------------------------------------------------------------
 subroutine socket_coupler_invoke
 	use messenger
-	use coupler_module, only : CPL_create_comm, md_realm
+	use CPL, only : CPL_create_comm, CPL_realm
 	implicit none
 
-	call CPL_create_comm(md_realm,MD_COMM,ierr)
+	call CPL_create_comm(CPL_realm(),MD_COMM,ierr)
     prefix_dir = "./md_data/"
 
 end subroutine socket_coupler_invoke
@@ -67,7 +67,7 @@ end subroutine socket_coupler_invoke
 !  Read coupler input files
 !-----------------------------------------------------------------------------
 subroutine socket_read_coupler_input
-	use coupler_module, only : read_coupler_input
+	use CPL, only : read_coupler_input
 	implicit none
 
 	call read_coupler_input		! Read COUPLER.in input file
@@ -79,7 +79,7 @@ end subroutine socket_read_coupler_input
 !-----------------------------------------------------------------------------
 subroutine socket_coupler_init
     use interfaces
-	use coupler_module, only : coupler_md_init, CPL_create_map, set_coupled_timing
+	use CPL, only : coupler_md_init, CPL_create_map, set_coupled_timing
 	use computational_constants_MD, only : npx,npy,npz,delta_t,elapsedtime, & 
 										   Nsteps,initialstep,delta_t, & 
 										   globaldomain,initialnunits
@@ -124,7 +124,7 @@ end subroutine socket_coupler_init
 subroutine set_params_globdomain_cpld
 	use computational_constants_MD
 	use physical_constants_MD, only: globalnp,volume,nd,np,density
-	use coupler, only : CPL_get
+	use CPL, only : CPL_get
 	!use coupler_module, only: xL_md, yL_md, zL_md
 	implicit none
 
@@ -190,14 +190,17 @@ subroutine set_parameters_cells_coupled
 	use computational_constants_MD
 	use physical_constants_MD
 	use polymer_info_MD
-	use coupler
-	use coupler_module, only : icmax,icmin,jcmax,jcmin,kcmax,kcmin,dx,dy,dz,rank_realm
+	use CPL, only : error_abort, CPL_get
 	implicit none
 
-	integer 						:: ixyz
+	integer 						:: ixyz,icmax,icmin,jcmax,jcmin,kcmax,kcmin
 	integer,dimension(3) 			:: max_ncells,cfd_ncells,cfd_md_cell_ratio
-	double precision 				:: rneighbr
+	double precision 				:: rneighbr,dx,dy,dz
 	double precision ,dimension(3) 	:: cfd_cellsidelength, maxdelta_rneighbr
+
+
+	call CPL_get(icmax=icmax,icmin=icmin,jcmax=jcmax,jcmin=jcmin, & 
+				 kcmax=kcmax,kcmin=kcmin,dx=dx,dy=dy,dz=dz)
 
 	!In coupled simulation, passed properties are calculated from cell lists
 	!for efficiency. The size of the cells should therefore be a multiple
@@ -265,7 +268,7 @@ subroutine set_parameters_cells_coupled
 		 					& IN X, Y AND Z - INCREASE NUMBER OF UNITS IN INPUT")
 	endif
 
-    if(rank_realm .eq. 1) then
+    if(irank .eq. iroot) then
         write(*,'(a/a/a,f9.6,/,a,3i8,/,a,3(f8.5),/,a,3(i8),/,a)') &
                     "**********************************************************************", &
                     "WARNING - this is a coupled run which resets the following parameters:", &
@@ -284,25 +287,29 @@ end subroutine set_parameters_cells_coupled
 
 
 subroutine socket_check_cell_sizes
-   use computational_constants_MD, only: cellsidelength  
-   use coupler_module, only: dx,dy,dz,myid_realm,rootid_realm, &
-                             rank_realm,xg,yg,zg
-   implicit none
-   
-   if (myid_realm .eq. rootid_realm) then
-       if( cellsidelength(1) .ge. dx .or. & 
-           cellsidelength(2) .ge. dy .or. & 
-           cellsidelength(3) .ge. dz .and. rank_realm == 0 ) then
-           write(*,*), ""
-           write(*,*), "********************************************************************"
-           write(*,*), " WARNING ...WARNING ...WARNING ...WARNING ...WARNING ...WARNING ... "
-           write(*,*), " MD cell size larger than CFD x,y cell sizes         "
-           write(*,*), " cellsidelength = ", cellsidelength
-           write(*,'(3(a,f10.5))'), " dx=", xg(2,1) - xg(1,1),  & 
-                                   " dy=",  yg(1,2) - yg(1,1),  & 
-                                   " dz=",  zg(2  ) - zg(1  )
-           write(*,*), "********************************************************************"
-           write(*,*), ""
+	use computational_constants_MD, only: cellsidelength,irank,iroot
+	use CPL, only: CPL_get
+	implicit none
+
+	double precision							:: dx,dy,dz
+	double precision,dimension(:),allocatable	:: zg
+	double precision,dimension(:,:),allocatable	:: xg,yg
+
+	call CPL_get(dx=dx,dy=dy,dz=dz,xg=xg,yg=yg,zg=zg)
+	if (irank .eq. iroot) then
+		if( cellsidelength(1) .ge. dx .or. & 
+			cellsidelength(2) .ge. dy .or. & 
+			cellsidelength(3) .ge. dz .and. rank_realm == 0 ) then
+			write(*,*), ""
+			write(*,*), "********************************************************************"
+			write(*,*), " WARNING ...WARNING ...WARNING ...WARNING ...WARNING ...WARNING ... "
+			write(*,*), " MD cell size larger than CFD x,y cell sizes         "
+			write(*,*), " cellsidelength = ", cellsidelength
+			write(*,'(3(a,f10.5))'), " dx=", xg(2,1) - xg(1,1),  & 
+									   " dy=",  yg(1,2) - yg(1,1),  & 
+									   " dz=",  zg(2  ) - zg(1  )
+			write(*,*), "********************************************************************"
+			write(*,*), ""
        endif
    endif
 
@@ -326,23 +333,31 @@ subroutine average_and_send_MD_to_CFD(iter)
 	use calculated_properties_MD, only : nbins
 	use physical_constants_MD, only : np
 	use arrays_MD, only :r,v
-   	use coupler_module, only : staggered_averages, ncx,ncy,ncz, & 
-							   dx,dz,yg,md_realm,timestep_ratio
-	use messenger, only : MD_COMM
+   	use CPL, only : CPL_get, CPL_realm
 	implicit none
 
 	integer, intent(in) :: iter
 	
 	integer :: ixyz,icell,jcell,kcell,pcoords(3),extents(6)
-	integer :: iter_cfd, iter_average, save_period, average_period
+	integer :: iter_cfd, iter_average, save_period 
 	integer	:: ierr
+
 	logical, save :: first_time=.true.
-	save  average_period
+	integer, save :: ncx, ncy, ncz, average_period
+	real(kind(0.d0)),save :: dx, dy, dz
+	real(kind(0.d0)),dimension(:),allocatable,save :: zg
+	real(kind(0.d0)),dimension(:,:),allocatable,save :: yg, zg
 
 	!Setup arrays on first call
     if (first_time) then 
 	    first_time	= .false.
 		call setup_velocity_average
+		call CPL_get(ncx=ncx,ncy=ncy,ncz=ncz,dx=dx,dy=dy,dz=dz,xg=xg,yg=yg,zg=zg, & 
+						staggered_averages=staggered_averages,timestep_ratio=timestep_ratio, &
+						icmin_olap=icmin_olap,icmax_olap=icmax_olap, & 
+						jcmin_olap=jcmin_olap,jcmax_olap=jcmax_olap, & 
+						kcmin_olap=kcmin_olap,kcmax_olap=kcmax_olap   )
+	    average_period = coupler_md_get_average_period() 	! collection interval in the average cycle
     endif
     iter_average = mod(iter-1, timestep_ratio)+1			! current step
     iter_cfd     = (iter-initialstep)/timestep_ratio +1 	! CFD corresponding step
@@ -367,11 +382,9 @@ contains
 		integer		:: nclx,ncly,nclz
 		integer		:: pcoords(3),extents(6)
 
-	    average_period = coupler_md_get_average_period() 	! collection interval in the average cycle
-
 		!Allocate array to size of cells in current processor
 		pcoords = (/ iblock,jblock,kblock /)
-		call CPL_proc_extents(pcoords,md_realm,extents)
+		call CPL_proc_extents(pcoords,CPL_realm(),extents)
 		nclx = extents(2)-extents(1)+1
 		ncly = extents(4)-extents(3)+1
 		nclz = extents(6)-extents(5)+1
@@ -389,12 +402,8 @@ contains
 
 !------------------------------------------
 	subroutine cumulative_velocity_average
-		use coupler, only : CPL_Cart_coords, CPL_proc_extents
-		use coupler_module, only : xL_md,zL_md,xg,yg,zg,jcmin_olap, & 
-								   dx,dy,dz,ncx,ncy,ncz, &
-		                           rank_world, VOID
-		use coupler, only : map_md2cfd_global,map_cfd2md_global, &
-		                                globalise,localise	
+		use CPL, only : CPL_Cart_coords, CPL_proc_extents, CPL_realm, VOID, &
+						map_md2cfd_global,map_cfd2md_global,globalise,localise	
 		use computational_constants_MD, only : iter, ncells,domain,halfdomain, &
 											   iblock,jblock,kblock
 		use librarymod, only : heaviside, imaxloc
@@ -417,14 +426,14 @@ contains
 
 		!Eliminate processors outside of passing region
 		pcoords=(/ iblock,jblock,kblock /)
-		call CPL_proc_extents(pcoords,md_realm,extents)
+		call CPL_proc_extents(pcoords,CPL_realm(),extents)
 		if (any(extents .eq. VOID)) return
 		if ((yg(1,extents(3)) .gt. ybcmax) .or. (yg(1,extents(4)+1) .lt. ybcmin)) return
 
 		!Get local extents on processor(s) of interest
 		rd(:) = (/ 0.d0 , ybcmin, 0.d0 /)	!Bottom of cell below domain
 		avrg_bot = localise(map_cfd2md_global(rd))
-		rd2(:) = (/ xL_md , ybcmax , zL_md   /)   !Top of cell below domain (= bottom of domain)
+		rd2(:) = (/ globaldomain(1) , ybcmax , globaldomain(3)   /)   !Top of cell below domain (= bottom of domain)
 		avrg_top = localise(map_cfd2md_global(rd2))
 
 		minbin = ceiling((avrg_bot+halfdomain(:))/dxyz(:)) + nhb
@@ -502,15 +511,14 @@ contains
 
 !------------------------------------------
 	subroutine send_velocity_average
-		use coupler_module, only : rank_world, & 
-								   icmin_olap,icmax_olap,kcmin_olap,kcmax_olap,printf
+		use CPL, only : CPL_send
 		use computational_constants_MD, only : iblock,jblock,kblock
 		implicit none
 
-		logical :: send_flag
-        logical :: ovr_box_x
-		integer :: jcmin_send,jcmax_send,limits(6)
+		logical :: send_flag,ovr_box_x
+		integer :: limits(6)
 
+		!Define arbitary range to send -- TODO move to input file --
 		jcmin_send = 1; jcmax_send = 1
 
 		!Send data to CFD if send_data flag is set
@@ -544,9 +552,7 @@ subroutine socket_apply_continuum_forces(iter)
 	use computational_constants_MD, only : delta_t, nh, ncells, & 
 										   cellsidelength, halfdomain, &
 	                                       delta_rneighbr,iblock,jblock,kblock
-	use coupler_module, only : rank_world, icmin_olap,icmax_olap, & 
-	                           jcmin_olap,jcmax_olap,kcmin_olap,kcmax_olap, &
-	                           printf, timestep_ratio,md_realm
+	use CPL, only : CPL_overlap, CPL_recv, CPL_realm, CPL_get
 	use linked_list
 	implicit none
 
@@ -554,11 +560,12 @@ subroutine socket_apply_continuum_forces(iter)
 
 	integer 				:: iter_average, limits(6)
 	integer					:: i,j,k,n,np_overlap
+	integer					:: icmin_olap,icmax_olap,jcmin_olap,jcmax_olap,kcmin_olap,kcmax_olap
 	integer,allocatable 	:: list(:,:)
 	real(kind=kind(0.d0))	:: inv_dtCFD,t_fract,CFD_box(6)
 
 	integer,save			:: cnstnd_cells,jcmin_recv,jcmax_recv	!to do - SHOULD NOT BE HARDWIRED
-	integer,save			:: pcoords(3),extents(6)
+	integer,save			:: pcoords(3),extents(6),timestep_ratio
 	logical,save			:: recv_flag, first_time=.true.
 	save CFD_box
 
@@ -567,11 +574,14 @@ subroutine socket_apply_continuum_forces(iter)
 
 	if (first_time) then
 		first_time = .false.
-
 		!Save extents of current processor
 		pcoords= (/ iblock,jblock,kblock   /)
 		call CPL_proc_extents(pcoords,md_realm,extents)
-
+		!Get local copies of required simulation parameters
+		call CPL_get(icmin_olap=icmin_olap,icmax_olap=icmax_olap, & 
+	                 jcmin_olap=jcmin_olap,jcmax_olap=jcmax_olap, & 
+					 kcmin_olap=kcmin_olap,kcmax_olap=kcmax_olap, &
+	                 timestep_ratio=timestep_ratio)
 		!Number of cells to receive
 		cnstnd_cells = 1	!~10% of the total domain
 		jcmin_recv = jcmax_olap-1-cnstnd_cells
@@ -606,8 +616,7 @@ contains
 ! find the CFD box to which the particle belongs		 
 
 subroutine setup_CFD_box(limits,CFD_box,recv_flag)
-	use coupler_module, only : 	xg,yg,zg,VOID
-	use coupler, only : CPL_recv,localise,map_cfd2md_global
+	use CPL, only : CPL_recv,CPL_proc_portion,localise,map_cfd2md_global,CPL_get,VOID
 	implicit none
 
 	!Limits of CFD box to receive data in
@@ -619,9 +628,10 @@ subroutine setup_CFD_box(limits,CFD_box,recv_flag)
 
 	integer 	  		  :: portion(6)
 	integer		  		  :: nclx,ncly,nclz,ncbax,ncbay,ncbaz,ierr
-	integer, save 		  :: ncalls = 0
     logical, save 		  :: firsttime=.true.
-	real(kind=kind(0.d0)),dimension(3) :: xyzmin,xyzmax
+	real(kind=kind(0.d0)),dimension(3) 			:: xyzmin,xyzmax
+	real(kind(0.d0)),dimension(:),allocatable 	:: zg
+	real(kind(0.d0)),dimension(:,:),allocatable :: yg, zg
 
 	! Get total number of CFD cells on each processor
 	nclx = extents(2)-extents(1)+1
@@ -633,11 +643,13 @@ subroutine setup_CFD_box(limits,CFD_box,recv_flag)
 	uvw_cfd = 0.d0
 
 	!Get limits of constraint region in which to receive data
-	call CPL_proc_portion(pcoords,md_realm,limits,portion)
+	call CPL_proc_portion(pcoords,CPL_realm(),limits,portion)
 
 	! Get physical extents of received region on MD processor
 	!print'(a,19i4)', 'portion',rank_world, portion,limits,extents
 	if (all(portion .ne. VOID)) then
+		!Get CFD overlapping grid arrays
+		call CPL_get(xg=xg,yg=yg,zg=zg)
 		recv_flag = .true.
 		xyzmin(1) = xg(portion(1)  ,1); xyzmax(1) = xg(portion(2)+1,1)
 		xyzmin(2) = yg(1,portion(3)  ); xyzmax(2) = yg(1,portion(4)+1)
@@ -673,10 +685,11 @@ end subroutine setup_CFD_box
 subroutine average_over_bin
 	use computational_constants_MD, only : nhb
 	use arrays_MD, only : r, v, a
-	use coupler_module, only : dx,dy,dz
+	use CPL, only : CPL_get
 	implicit none
 
-	integer	:: ib,jb,kb,n
+	integer				:: ib,jb,kb,n
+	real(kind(0.d0))	:: dx,dy,dz
 
 	!Zero box averages
 	do kb = 1, ubound(box_average,dim=3)
@@ -692,6 +705,7 @@ subroutine average_over_bin
 	!find the maximum number of molecules and allocate a list array	   
 	np_overlap = 0 ! number of particles in overlapping reg
     allocate(list(4,np))
+	call CPL_get(dx=dx,dy=dy,dz=dz)
 
 	do n = 1,np
 
@@ -855,19 +869,21 @@ end subroutine socket_apply_continuum_forces
 !-----------------------------------------------------------------------------
 
 subroutine socket_CPL_apply_continuum_forces(iter)
-	use coupler_module, only : timestep_ratio
+	use CPL, only : CPL_get
 	implicit none
 	
 	integer, intent(in) :: iter
 
-	integer :: iter_average,  average_period
+	integer :: iter_average
 	real(kind(0.d0)) :: delta_t_CFD
+
 	logical, save :: first_time=.true.
-	save  average_period
+	integer,save :: timestep_ratio,  average_period
 
 	!Setup arrays on first call
     if (first_time) then 
 	    first_time	= .false.
+		call CPL_get(timestep_ratio=timestep_ratio)
 	    average_period = coupler_md_get_average_period() 	! collection interval in the average cycle
     endif
     iter_average = mod(iter-1, timestep_ratio)+1			! current step

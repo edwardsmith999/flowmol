@@ -1141,6 +1141,7 @@ subroutine CPL_recv_xd(arecv,icmin_recv,icmax_recv,jcmin_recv, &
 			do icell=iclmin,iclmax
 			do n = 1,npercell
 				arecv(n,icell,jcell,kcell) = vbuf(pos)
+				!print'(6i5,f15.5)', rank_world,pos,n,icell,jcell,kcell,vbuf(pos)
 				pos = pos + 1
 			end do
 			end do
@@ -1837,12 +1838,12 @@ subroutine CPL_get(icmax_olap,icmin_olap,jcmax_olap,jcmin_olap,  &
                    kcmax_olap,kcmin_olap,density_cfd,density_md, &
                    dt_cfd,dt_MD,dx,dy,dz,ncx,ncy,ncz,xg,yg,zg,	 &
                    xL_md,xL_cfd,yL_md,yL_cfd,zL_md,zL_cfd,       &
-                   md_cfd_match_cellsize                          )
+                   md_cfd_match_cellsize,staggered_averages,timestep_ratio	)
 	use coupler_module, only : 	icmax_olap_=>icmax_olap,         &
 	                            icmin_olap_=>icmin_olap,         &
 	                            jcmax_olap_=>jcmax_olap,         &
 	                            kcmax_olap_=>kcmax_olap,         &
-	                            density_cfd_=>density_cfd,       &
+	                            density_cfd_=>density_cfd,       &             
 	                            jcmin_olap_=>jcmin_olap,         &
 	                            kcmin_olap_=>kcmin_olap,         &
 	                            density_md_=>density_md,         &
@@ -1856,15 +1857,19 @@ subroutine CPL_get(icmax_olap,icmin_olap,jcmax_olap,jcmin_olap,  &
 	                            yL_cfd_=> yL_cfd,                &
 	                            zL_cfd_=> zL_cfd,                &
 	                            xg_=>xg, yg_=> yg, zg_=> zg,     &
-	                            md_cfd_match_cellsize_ => md_cfd_match_cellsize
+								timestep_ratio_ => timestep_ratio, &
+	                            md_cfd_match_cellsize_ => md_cfd_match_cellsize, &
+								staggered_averages_ => staggered_averages
 
 	implicit none
+
+	logical,dimension(3),optional,intent(out) :: staggered_averages
 
 	integer, optional, intent(out)			:: icmax_olap ,icmin_olap
 	integer, optional, intent(out)			:: jcmax_olap ,jcmin_olap
 	integer, optional, intent(out)			:: kcmax_olap ,kcmin_olap
 	integer, optional, intent(out)			:: ncx,ncy,ncz
-	integer, optional, intent(out)			:: md_cfd_match_cellsize
+	integer, optional, intent(out)			:: md_cfd_match_cellsize,timestep_ratio
 
 	real(kind(0.d0)), optional, intent(out)	:: density_cfd,density_md
 	real(kind(0.d0)), optional, intent(out) :: dt_cfd,dt_MD
@@ -1922,6 +1927,9 @@ subroutine CPL_get(icmax_olap,icmin_olap,jcmax_olap,jcmin_olap,  &
 		zg = zg_
 	endif
 
+	!Coupler input parameters
+	if (present(staggered_averages)) staggered_averages = staggered_averages_
+	if (present(timestep_ratio)) timestep_ratio = timestep_ratio_
 	if (present(md_cfd_match_cellsize)) then
 		md_cfd_match_cellsize = md_cfd_match_cellsize_
 	end if
