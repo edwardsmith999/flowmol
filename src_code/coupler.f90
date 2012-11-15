@@ -5,17 +5,6 @@
 !! Routines accessible from application ( molecular or continuum ) after 
 !! the name, in parenthesis, is the realm in which each routine must be called
 !!
-! SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP
-!
-!! - CPL_create_comm	      (cfd+md)   splits MPI_COMM_WORLD, create inter - 
-!!                                   communicator between CFD and MD
-!!
-!! - CPL_create_map	      (cfd+md)   creates correspondence maps between 
-!!                                      the CFD grid and MD domains
-!!
-!! - CPL_cfd_adjust_domain     (cfd)    adjust CFD tomain to an integer number 
-!!                                      FCC or similar MD initial layout
-!!
 ! SIMULATION SIMULATION SIMULATION SIMULATION SIMULATION SIMULATION SIMULATION
 !!
 !! - CPL_send_data        	  (cfd+md)   sends grid data exchanged between 
@@ -51,15 +40,11 @@
 !! @author  Lucian Anton, November 2011  
 !! @author Edward Smith, Dave Trevelyan September 2012
 !! @see coupler_module
-!! @see coupler_internal_cfd
-!! @see coupler_internal_md
-!! @see coupler_parameters
 !=============================================================================
 
 module coupler
-	use coupler_parameters
+	USE ISO_C_BINDING
     implicit none
-    save
 
     interface CPL_send
         module procedure CPL_send_3d, CPL_send_4d
@@ -75,929 +60,6 @@ module coupler
 
 contains
 
-!=============================================================================
-!					 _____      _               
-!					/  ___|    | |              
-!					\ `--.  ___| |_ _   _ _ __  
-!					 `--. \/ _ \ __| | | | '_ \ 
-!					/\__/ /  __/ |_| |_| | |_) |
-!					\____/ \___|\__|\__,_| .__/ 
-!					                     | |    
-!					                     |_|    
-!=============================================================================
-
-!=============================================================================
-! 							coupler_create_comm	      	
-!! (cfd+md) Splits MPI_COMM_WORLD in both the CFD and MD code respectively
-!! 		   and create intercommunicator between CFD and MD
-!-----------------------------------------------------------------------------
-
-subroutine CPL_create_comm(callingrealm, RETURNED_REALM_COMM, ierror)
-	use mpi
-	use coupler_module, only : rank_world,myid_world,rootid_world,nproc_world,&
-	                           realm, rank_realm,myid_realm,rootid_realm,ierr,& 
-	                           CPL_WORLD_COMM, CPL_REALM_COMM, CPL_INTER_COMM
-	implicit none
-
-	integer, intent(in) :: callingrealm ! CFD or MD
-	integer, intent(out):: RETURNED_REALM_COMM, ierror
-
-	!Get processor id in world across both realms
-	call MPI_comm_rank(MPI_COMM_WORLD,myid_world,ierr)
-	rank_world = myid_world + 1; rootid_world = 0
-	call MPI_comm_size(MPI_COMM_WORLD,nproc_world,ierr)
-
-	! test if we have a CFD and a MD realm
-	ierror=0
-	! Test realms are assigned correctly
-	call test_realms	
-
-	! Create intercommunicator between realms		
-	realm = callingrealm
-	call create_comm		
-
-contains
-
-!-----------------------------------------------------------------------------
-!	Test if CFD and MD realms are assigned correctly
-!-----------------------------------------------------------------------------
-
-subroutine test_realms
-	implicit none
-
-	integer 			 :: i, root, nproc, ncfd, nmd
-	integer, allocatable :: realm_list(:)
-
-	! Allocate and gather array with realm (MD or CFD) of each 
-	! processor in the coupled domain on the root processor
-	root = 1
-	if (rank_world .eq. root) then
-		call MPI_comm_size(MPI_comm_world, nproc, ierr)
-		allocate(realm_list(nproc))
-	endif
-	call MPI_gather(callingrealm,1,MPI_INTEGER,realm_list,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-
-	!Check through array of processors on both realms
-	!and return error if wrong values or either is missing
-	if (rank_world .eq. root) then
-		ncfd = 0; nmd = 0
-		do i =1, nproc
-			if ( realm_list(i) .eq. cfd_realm ) then 
-				ncfd = ncfd + 1
-			else if ( realm_list(i) .eq. md_realm ) then
-				nmd = nmd +1
-			else
-				ierror = COUPLER_ERROR_REALM
-				write(*,*) "wrong realm value in coupler_create_comm"
-				call MPI_abort(MPI_COMM_WORLD,ierror,ierr)
-			endif
-		enddo
-
-		if ( ncfd .eq. 0 .or. nmd .eq. 0) then 
-			ierror = COUPLER_ERROR_ONE_REALM
-			write(*,*) "CFD or MD realm is missing in MPI_COMM_WORLD"
-			call MPI_abort(MPI_COMM_WORLD,ierror,ierr)
-		endif
-
-	endif
-
-end subroutine test_realms
-
-!-----------------------------------------------------------------------------
-! Create communicators for each realm and inter-communicator
-!-----------------------------------------------------------------------------
-
-subroutine create_comm
-	implicit none
-
-	integer	::  callingrealm,ibuf(2),jbuf(2),remote_leader,comm,comm_size
-
-	callingrealm = realm
-	! Split MPI COMM WORLD ready to establish two communicators
-	! 1) A global intra-communicator in each realm for communication
-	! internally between CFD processes or between MD processes
-	! 2) An inter-communicator which allows communication between  
-	! the 'groups' of processors in MD and the group in the CFD 
-	call MPI_comm_dup(MPI_COMM_WORLD,CPL_WORLD_COMM,ierr)
-	RETURNED_REALM_COMM	= MPI_COMM_NULL
-	CPL_REALM_COMM 		= MPI_COMM_NULL
-
-	!------------ create realm intra-communicators -----------------------
-	! Split MPI_COMM_WORLD into an intra-communicator for each realm 
-	! (used for any communication within each realm - e.g. broadcast from 
-	!  an md process to all other md processes) 
-	call MPI_comm_split(CPL_WORLD_COMM,callingrealm,myid_world,RETURNED_REALM_COMM,ierr)
-
-	!------------ create realm inter-communicators -----------------------
-	! Create intercommunicator between the group of processor on each realm
-	! (used for any communication between realms - e.g. md group rank 2 sends
-	! to cfd group rank 5). inter-communication is by a single processor on each group
-	! Split duplicate of MPI_COMM_WORLD
-	call MPI_comm_split(CPL_WORLD_COMM,callingrealm,myid_world,CPL_REALM_COMM,ierr)
-	call MPI_comm_rank(CPL_REALM_COMM,myid_realm,ierr)
-	rank_realm = myid_realm + 1; rootid_realm = 0
-
-	! Get the MPI_comm_world ranks that hold the largest ranks in cfd_comm and md_comm
-	call MPI_comm_size(CPL_REALM_COMM,comm_size,ierr)
-	ibuf(:) = -1
-	jbuf(:) = -1
-	if ( myid_realm .eq. comm_size - 1) then
-		ibuf(realm) = myid_world
-	endif
-
-	call MPI_allreduce( ibuf ,jbuf, 2, MPI_INTEGER, MPI_MAX, &
-						CPL_WORLD_COMM, ierr)
-
-	!Set this largest rank on each process to be the inter-communicators (WHY NOT 0??)
-	select case (realm)
-	case (cfd_realm)
-		remote_leader = jbuf(md_realm)
-	case (md_realm)
-		remote_leader = jbuf(cfd_realm)
-	end select
-
-	!print*,color, jbuf, remote_leader
-
-	call MPI_intercomm_create(CPL_REALM_COMM, comm_size - 1, CPL_WORLD_COMM,&
-									remote_leader, 1, CPL_INTER_COMM, ierr)
-	print*, 'did (inter)communicators ', realm_name(realm), myid_world
-
-end subroutine create_comm
-
-end subroutine CPL_create_comm
-
-!=============================================================================
-!! Establish for all MD processors the mapping (if any) 
-!! to coupled CFD processors
-!-----------------------------------------------------------------------------
-
-subroutine CPL_create_map
-	use mpi
-	use coupler_module
-	implicit none
-
-	! Check (as best as one can) that the inputs will work
-	call check_config_feasibility
-
-	! Get ranges of cells on each MD processor
-	call get_md_cell_ranges
-
-	! Get overlapping mapping for MD to CFD
-	call get_overlap_blocks
-
-	! Setup overlap communicators
-	call prepare_overlap_comms
-
-	! Setup graph topology
-	call CPL_overlap_topology
-
-contains
-
-!------------------------------------------------------------
-!Calculate processor cell ranges of MD code on all processors
-	
-subroutine get_md_cell_ranges
-	use coupler_module
-	implicit none
-
-	integer :: n
-	integer :: olap_jmin_mdcoord
-	integer :: ncxl, ncyl, nczl
-	integer :: ncy_mdonly, ncy_md, ncyP_md
-
-	allocate(icPmin_md(npx_md)); icPmin_md = VOID
-	allocate(jcPmin_md(npy_md)); jcPmin_md = VOID
-	allocate(kcPmin_md(npz_md)); kcPmin_md = VOID
-	allocate(icPmax_md(npx_md)); icPmax_md = VOID
-	allocate(jcPmax_md(npy_md)); jcPmax_md = VOID
-	allocate(kcPmax_md(npz_md)); kcPmax_md = VOID
-
-	! - - x - -
-	ncxl = ceiling(dble(ncx)/dble(npx_md))
-	do n=1,npx_md
-		icPmax_md(n) = n * ncxl
-		icPmin_md(n) = icPmax_md(n) - ncxl + 1
-	end do	
-
-	! - - y - -
-	ncy_md   = nint(yL_md/dy)
-	ncy_mdonly = ncy_md - ncy_olap
-	ncyP_md = ncy_md / npy_md
-	olap_jmin_mdcoord = npy_md - floor(dble(ncy_olap)/dble(ncyP_md))	 
-	do n = olap_jmin_mdcoord,npy_md
-		jcPmax_md(n) = n * ncyP_md - ncy_mdonly
-		jcPmin_md(n) = jcPmax_md(n) - ncyP_md + 1
-		if (jcPmin_md(n).le.0) jcPmin_md(n) = 1
-	end do  
-
-	! - - z - -
-	nczl = ceiling(dble(ncz)/dble(npz_md))
-	do n=1,npz_md
-		kcPmax_md(n) = n * nczl
-		kcPmin_md(n) = kcPmax_md(n) - nczl + 1
-	end do
-
-	if (myid_world.eq.0) then
-
-		write(6000+myid_world,*), ''
-		write(6000+myid_world,*), '==========================================='
-		write(6000+myid_world,*), '------------ M D   M A P ------------------'
-		write(6000+myid_world,*), '==========================================='
-		write(6000+myid_world,*), 'npx_md = ', npx_md
-		write(6000+myid_world,*), 'ncx    = ', ncx
-		write(6000+myid_world,*), 'ncxl   = ', ncxl
-		write(6000+myid_world,*), '-------------------------------------------'
-		write(6000+myid_world,*), '  icoord_md     icPmin_md     icPmax_md    '
-		write(6000+myid_world,*), '-------------------------------------------'
-		do n=1,npx_md
-			write(6000+myid_world,'(1x,3i11)'), n, icPmin_md(n), icPmax_md(n)
-		end do	
-		write(6000+myid_world,*), '-------------------------------------------'
-		write(6000+myid_world,*), 'npy_md     = ', npy_md
-		write(6000+myid_world,*), 'ncy_md     = ', ncy_md
-		write(6000+myid_world,*), 'ncyP_md    = ', ncyP_md 
-		write(6000+myid_world,*), 'ncy_olap   = ', ncy_olap
-		write(6000+myid_world,*), 'ncy_mdonly = ', ncy_mdonly
-		write(6000+myid_world,*), 'olap_jmin_mdcoord = ', olap_jmin_mdcoord
-		write(6000+myid_world,*), 'dy         = ', dy
-		write(6000+myid_world,*), '-------------------------------------------'
-		write(6000+myid_world,*), '  jcoord_md     jcPmin_md       jcPmax_md  '
-		write(6000+myid_world,*), '-------------------------------------------'
-		do n = 1,npy_md	
-			write(6000+myid_world,'(1x,3i11)'), n, jcPmin_md(n), jcPmax_md(n)
-		end do
-		write(6000+myid_world,*), '-------------------------------------------'
-		write(6000+myid_world,*), 'npz_md = ', npz_md
-		write(6000+myid_world,*), 'ncz    = ', ncz
-		write(6000+myid_world,*), 'nczl   = ', nczl
-		write(6000+myid_world,*), '-------------------------------------------'
-		write(6000+myid_world,*), '  kcoord_md     kcPmin_md       kcPmax_md  '
-		write(6000+myid_world,*), '-------------------------------------------'
-		do n=1,npz_md
-			write(6000+myid_world,'(1x,3i11)'), n, kcPmin_md(n), kcPmax_md(n)
-		end do
-		write(6000+myid_world,*), '-------------------------------------------'
-
-	endif
-
-
-end subroutine get_md_cell_ranges
-
-!------------------------------------------------------------
-!Calculate processor overlap between CFD/MD on all processors
-
-subroutine get_overlap_blocks
-	use coupler_module
-	implicit none
-
-	integer 			:: i,n,endproc,nolapsx,nolapsy,nolapsz
-	integer             :: xLl_md, yLl_md, zLl_md
-	integer				:: yLl_cfd
-	integer,dimension(3):: pcoords
-
-	xL_olap = ncx_olap * dx 
-	yL_olap = ncy_olap * dy 
-	zL_olap = ncz_olap * dz 
-
-	xLl_md  = xL_md / npx_md
-	yLl_md  = yL_md / npy_md
-	zLl_md  = zL_md / npz_md
-
-	if (realm .eq. md_realm) then
-		xLl = xLl_md; yLl = yLl_md ; zLl = zLl_md 
-	endif
-
-	nolapsx = nint( dble( npx_md ) / dble( npx_cfd ) )
-	nolapsy = ceiling ( yL_olap / yLl_md ) 
-	nolapsz = nint( dble( npz_md ) / dble( npz_cfd ) )
-
-	!Get cartesian coordinate of overlapping md cells & cfd cells
-	allocate(cfd_icoord2olap_md_icoords(npx_cfd,nolapsx)) 
-	allocate(cfd_jcoord2olap_md_jcoords(npy_cfd,nolapsy)) 
-	allocate(cfd_kcoord2olap_md_kcoords(npz_cfd,nolapsz)) 
-	cfd_icoord2olap_md_icoords = VOID
-	cfd_jcoord2olap_md_jcoords = VOID
-	cfd_kcoord2olap_md_kcoords = VOID
-
-	! - - x - -
-	do n = 1,npx_cfd
-	do i = 1,nolapsx	
-		cfd_icoord2olap_md_icoords(n,i) = (n-1)*nolapsx + i
-	end do
-	end do
-
-	! - - y - -
-	yLl_cfd = yL_cfd/npy_cfd
-	endproc = ceiling(yL_olap/yLl_cfd)
-	do n = 1,endproc
-	do i = 1,nolapsy
-		cfd_jcoord2olap_md_jcoords(n,i) =   (n-1)*nolapsy + i &
-										  + (npy_md - nolapsy)
-	end do
-	end do
-
-	! - - z - -
-	do n = 1,npz_cfd
-	do i = 1,nolapsz	
-		cfd_kcoord2olap_md_kcoords(n,i) = (n-1)*nolapsz + i
-	end do
-	end do
-
-	!nolaps = nolapsx*nolapsy*nolapsz
-
-	if(myid_world.eq.0) then 
-		
-		write(6000+myid_world,*), ''
-		write(6000+myid_world,*), '==========================================='
-		write(6000+myid_world,*), '------------ C F D   M A P ----------------'
-		write(6000+myid_world,*), '==========================================='
-		write(6000+myid_world,*), 'npx_cfd = ', npx_cfd
-		write(6000+myid_world,*), 'nolapsx = ', nolapsx
-		write(6000+myid_world,*), '-------------------------------------------'
-		write(6000+myid_world,*), '  icoord_cfd       olapmin     olapmax     ' 
-		write(6000+myid_world,*), '-------------------------------------------'
-		do n=1,npx_cfd
-			write(6000+myid_world,'(1x,3i11)'), n,               &
-				  cfd_icoord2olap_md_icoords(n,1),         &
-				  cfd_icoord2olap_md_icoords(n,nolapsx)
-		end do	
-		write(6000+myid_world,*), '-------------------------------------------'
-
-		write(6000+myid_world,*), 'npy_cfd = ', npy_cfd
-		write(6000+myid_world,*), 'nolapsy = ', nolapsy
-		write(6000+myid_world,*), '-------------------------------------------'
-		write(6000+myid_world,*), '  jcoord_cfd       olapmin     olapmax     ' 
-		write(6000+myid_world,*), '-------------------------------------------'
-		do n=1,npy_cfd
-			write(6000+myid_world,'(1x,3i11)'), n,               &
-				  cfd_jcoord2olap_md_jcoords(n,1),         &
-				  cfd_jcoord2olap_md_jcoords(n,nolapsy)
-		end do	
-		write(6000+myid_world,*), '-------------------------------------------'
-
-		write(6000+myid_world,*), 'npz_cfd = ', npz_cfd
-		write(6000+myid_world,*), 'nolapsz = ', nolapsz
-		write(6000+myid_world,*), '-------------------------------------------'
-		write(6000+myid_world,*), '  kcoord_cfd       olapmin     olapmax     ' 
-		write(6000+myid_world,*), '-------------------------------------------'
-		do n=1,npz_cfd
-			write(6000+myid_world,'(1x,3i11)'), n,               &
-				  cfd_kcoord2olap_md_kcoords(n,1),         &
-				  cfd_kcoord2olap_md_kcoords(n,nolapsz)
-		end do	
-		write(6000+myid_world,*), '-------------------------------------------'
-
-	endif
-
-end subroutine get_overlap_blocks
-
-subroutine check_config_feasibility
-	implicit none
-
-	integer :: ival
-	character(len=256) :: string
-
-	! Check there is only one overlap CFD proc in y
-	ival = nint( dble(ncy) / dble(npy_cfd) )
-	if (ncy_olap .gt. ival) then
-
-	    string = "This coupler will not work if there is more than one "// &
-		         "CFD (y-coordinate) in the overlapping region. "       // &
-		         "Aborting simulation."
-
-		call error_abort(string)
-
-	end if
-
-
-	! Check whether ncx,ncy,ncz are an integer multiple of npx_md, etc.
-	! - N.B. no need to check ncy/npy_md.
-	ival = 0
-	ival = ival + mod(ncx,npx_cfd)
-	ival = ival + mod(ncy,npy_cfd)
-	ival = ival + mod(ncz,npz_cfd)
-	ival = ival + mod(ncx,npx_md)
-	ival = ival + mod(ncz,npz_md)
-	if (ival.ne.0) then	
-		string = "The number of cells in the cfd domain is not an "    // &
-		         "integer multiple of the number of processors in "    // &
-		         "the x and z directions. Aborting simulation."	
-		call error_abort(string)
-	end if
-
-	! Check that the MD region is large enough to cover overlap
-	ival = 0
-	ival = ival + floor(xL_olap/xL_md)
-	ival = ival + floor(yL_olap/yL_md)
-	ival = ival + floor(zL_olap/zL_md)
-	if (ival.ne.0) then	
-		string = "Overlap region is larger than the MD region. "       // &
-		         "Aborting simulation."
-		call error_abort(string)
-	end if
-
-
-	! Check overlap cells are within CFD extents
-	ival = 0
-	if (icmin_olap.lt.icmin) ival = ival + 1		
-	if (icmax_olap.gt.icmax) ival = ival + 1		
-	if (jcmin_olap.lt.jcmin) ival = ival + 1		
-	if (jcmax_olap.gt.jcmax) ival = ival + 1		
-	if (kcmin_olap.lt.kcmin) ival = ival + 1		
-	if (kcmax_olap.gt.kcmax) ival = ival + 1		
-	if (ival.ne.0) then
-		string = "Overlap region has been specified outisde of the "  // &
-		         "CFD region. Aborting simulation."
-		call error_abort(string)
-	end if
-	
-		
-	! Check MD/CFD ratios are integers in x and z
-	if (mod(npx_md,npx_cfd) .ne. 0) then
-
-		print'(a,i8,a,i8)', ' number of MD processors in x ', npx_md,     & 
-							' number of CFD processors in x ', npx_cfd
-
-		call error_abort("get_overlap_blocks error - number of MD "    // & 
-						 "processors in x must be an integer multiple "// &
-						 "of number of CFD processors in x")
-
-	elseif (mod(npz_md,npz_cfd) .ne. 0) then
-
-		print'(a,i8,a,i8)', ' number of MD processors in z ', npz_md,     & 
-							' number of CFD processors in z ', npz_cfd
-
-		call error_abort("get_overlap_blocks error - number of MD "    // &
-						 "processors in z must be an integer multiple "// &
-						 "of number of CFD processors in z")
-
-	endif
-
-end subroutine check_config_feasibility
-
-!subroutine intersect_comm
-!	use coupler_module
-!	use mpi
-!	implicit none
-
-!	integer :: n
-!	integer,dimension(3)   :: pcoords
-
-	!Create communicator for all intersecting processors
-!	if (realm .eq. cfd_realm) then
-!		map%n = npx_md/npx_cfd
-!		allocate(map%rank_list(map%n))
-		!Get rank(s) of overlapping MD processor(s)
-!		do n = 1,map%n
-!			pcoords(1)=cfd_icoord2olap_md_icoords(rank2coord_cfd(1,rank_realm),n)
-!			pcoords(2)=cfd_jcoord2olap_md_jcoords(rank2coord_cfd(2,rank_realm),n)
-!			pcoords(3)=cfd_kcoord2olap_md_kcoords(rank2coord_cfd(3,rank_realm),n)
-!			if (any(pcoords(:).eq.VOID)) then
-!				map%n = 0; map%rank_list(:) = VOID
-!			else
-!				map%rank_list(n) = coord2rank_md(pcoords(1),pcoords(2),pcoords(3))
-!			endif
-!			write(250+rank_realm,'(2a,6i5)'), 'overlap',realm_name(realm),rank_realm,map%n,map%rank_list(n),pcoords
-!		enddo
-!	else if (realm .eq. md_realm) then
-!		map%n = 1
-!		allocate(map%rank_list(map%n))	
-		!Get rank of overlapping CFD processor
-!		pcoords(1) = rank2coord_md(1,rank_realm)*(dble(npx_cfd)/dble(npx_md))
-!		pcoords(2) = npy_cfd !rank2coord_md(2,rank_realm)*(dble(npy_cfd)/dble(npy_md))
-!		pcoords(3) = rank2coord_md(3,rank_realm)*(dble(npz_cfd)/dble(npz_md))
-!!		map%rank_list(1) = coord2rank_cfd(pcoords(1),pcoords(2),pcoords(3))
-!		write(300+rank_realm,'(2a,6i5)'), 'overlap',realm_name(realm),rank_realm,map%n,map%rank_list(1),pcoords
-!	endif
-
-!end subroutine intersect_comm
-
-!=========================================================================
-
-subroutine prepare_overlap_comms
-	use coupler_module
-	use mpi
-	implicit none
-
-	!loop over cfd cart ranks
-	! find cfd cart coords from cfd cart rank
-	!  find md cart coords (from cfd_icoord2olap_md_jcoords)
-	!   find md cart rank from md cart coords (coord2rank_md) 
-	!    find md world rank from md cart rank (rank_mdcart2rank_world)
-	!     set group(md_world_rank) to cfd cart rank
-	!split comm to groups
-	!if group(world_rank) == 0, set olap_comm to null 
-
-	integer :: i,j,k,ic,jc,kc
-	integer :: trank_md, trank_cfd, trank_world, nolap
-	integer, dimension(:), allocatable :: mdicoords, mdjcoords, mdkcoords
-	integer, parameter :: olap_null = -666
-	integer :: group(nproc_world), rank_olap2rank_realm_temp(nproc_world)
-	integer :: cfdcoord(3)
-	integer :: tempsize
-
-	tempsize = size(cfd_icoord2olap_md_icoords,2)
-	allocate(mdicoords(tempsize))
-	tempsize = size(cfd_jcoord2olap_md_jcoords,2)
-	allocate(mdjcoords(tempsize))
-	tempsize = size(cfd_kcoord2olap_md_kcoords,2)
-	allocate(mdkcoords(tempsize))
-	
-	allocate(olap_mask(nproc_world))
-
-	!Set default values, must be done because coord2rank_md cannot
-	!take "null" coordinates.
-	group(:) = olap_null
-	olap_mask(:) = .false.
-	nolap = 0
-
-	! Every process loop over all cfd ranks
-	do trank_cfd = 1,nproc_cfd
-
-		! Get cart coords of cfd rank
-		cfdcoord(:)  = rank2coord_cfd(:,trank_cfd)
-
-		! Get md cart coords overlapping cfd proc
-		mdicoords(:) = cfd_icoord2olap_md_icoords(cfdcoord(1),:)
-		mdjcoords(:) = cfd_jcoord2olap_md_jcoords(cfdcoord(2),:)
-		mdkcoords(:) = cfd_kcoord2olap_md_kcoords(cfdcoord(3),:)
-
-		! Set group and olap_mask for CFD processor if it overlaps
-		if (any(mdicoords.ne.olap_null) .and. &
-			any(mdjcoords.ne.olap_null) .and. &
-			any(mdkcoords.ne.olap_null)) then
-
-			trank_world = rank_cfdcart2rank_world(trank_cfd)
-			olap_mask(trank_world) = .true.
-			group    (trank_world) = trank_cfd
-
-		end if
-
-		! Set group and olap_mask for MD processors
-		do i = 1,size(mdicoords)
-		do j = 1,size(mdjcoords)
-		do k = 1,size(mdkcoords)
-
-			ic = mdicoords(i)
-			jc = mdjcoords(j)
-			kc = mdkcoords(k)
-
-			if (any((/ic,jc,kc/).eq.olap_null)) cycle
-
-			trank_md = coord2rank_md(ic,jc,kc)
-			trank_world = rank_mdcart2rank_world(trank_md)
-
-			olap_mask(trank_world) = .true.
-			group    (trank_world) = trank_cfd
-			
-		end do
-		end do	
-		end do
-
-	end do
-
-	! Split world Comm into a set of comms for overlapping processors
-	call MPI_comm_split(CPL_WORLD_COMM,group(rank_world),realm, &
-	                    CPL_OLAP_COMM,ierr)
-
-	!Setup Overlap comm sizes and id
-	if (realm.eq.cfd_realm) CFDid_olap = myid_olap
-	call MPI_bcast(CFDid_olap,1,MPI_INTEGER,CFDid_olap,CPL_OLAP_COMM,ierr)
-
-	! USED ONLY FOR OUTPUT/TESTING??
-	!if (myid_olap .eq. CFDid_olap) testval = group(rank_world)
-	!call MPI_bcast(testval,1,MPI_INTEGER,CFDid_olap,CPL_OLAP_COMM,ierr)
-
-	! Set all non-overlapping processors to MPI_COMM_NULL
-	if (olap_mask(rank_world).eq..false.) then
-		myid_olap = olap_null
-		rank_olap = olap_null
-		CPL_OLAP_COMM = MPI_COMM_NULL
-	end if
-
-	!Setup overlap map
-	call CPL_rank_map(CPL_OLAP_COMM,rank_olap,nproc_olap, & 
-	                  rank_olap2rank_world,rank_world2rank_olap,ierr)
-	myid_olap = rank_olap - 1
-
-	deallocate(mdicoords)
-	deallocate(mdjcoords)
-	deallocate(mdkcoords)
-	
-	!if (realm.eq.md_realm) call write_overlap_comms_md
-
-end subroutine prepare_overlap_comms
-
-!=========================================================================
-!Setup topology graph of overlaps between CFD & MD processors
-
-subroutine CPL_overlap_topology
-	use coupler_module
-	use mpi
-	implicit none
-
-	integer								:: i, n, nneighbors, nconnections
-	integer, dimension(:),allocatable	:: index, edges, id_neighbors
-	logical								:: reorder
-
-	!Allow optimisations of ordering
-	reorder = .true.
-
-	!Get number of processors in communicating overlap region 
-	if (olap_mask(rank_world).eq..true.) then
-
-		!CFD processor is root and has mapping to all MD processors
-		allocate(index(nproc_olap))			! Index for each processor
-		allocate(edges(2*(nproc_olap)-1))	! nproc_olap-1 for CFD and one for
-		                                    ! each of nproc_olap MD processors
-		index = 0; 	edges = 0
-
-		!CFD processor has connections to nproc_olap MD processors
-		nconnections = nproc_olap-1
-		index(1) = nconnections
-		do n = 1,nconnections
-			edges(n) = n !olap_list(n+1) !CFD connected to all MD processors 1 to nconnections
-		enddo
-
-		!MD processor has a single connection to CFD
-		nconnections = 1; i = 2
-		do n = nproc_olap+1,2*(nproc_olap)-1
-			index(i) = index(i-1) + nconnections !Each successive index incremented by one
-			edges(n) = CFDid_olap	!Connected to CFD processor
-			i = i + 1
-		enddo
-
-		!Create graph topology for overlap region
-		call MPI_Graph_create(CPL_OLAP_COMM, nproc_olap,index,edges,reorder,CPL_GRAPH_COMM,ierr)
-
-		! <><><><><><>  TEST <><><><><><>  TEST <><><><><><>  TEST <><><><><><> 
-		!Get number of neighbours
-		call MPI_comm_rank( CPL_GRAPH_COMM, myid_graph, ierr)
-		call MPI_Graph_neighbors_count( CPL_GRAPH_COMM, myid_graph, nneighbors, ierr)
-		allocate(id_neighbors(nneighbors))
-		!Get neighbours
-		call MPI_Graph_neighbors( CPL_GRAPH_COMM, myid_graph, nneighbors, id_neighbors,ierr )
-		select case(realm)
-		case(cfd_realm)
-				write(3000+myid_world,*), realm_name(realm),' My graph', & 
-								myid_world,myid_graph,myid_olap, & 
-								rank2coord_cfd(:,rank_realm), nneighbors, id_neighbors
-		case(md_realm)
-				write(3000+myid_world,*), realm_name(realm),' My graph', & 
-								myid_world,myid_graph,myid_olap, & 
-								rank2coord_md(:,rank_realm), nneighbors, id_neighbors
-		end select
-		! <><><><><><>  TEST <><><><><><>  TEST <><><><><><>  TEST <><><><><><> 
-
-	else
-		CPL_GRAPH_COMM = MPI_COMM_NULL
-	endif
-
-	! Setup graph map
-	call CPL_rank_map(CPL_GRAPH_COMM,rank_graph,nproc_olap, & 
-					 rank_graph2rank_world,rank_world2rank_graph,ierr)
-	myid_graph = rank_graph - 1
-
-end subroutine CPL_overlap_topology
-
-
-subroutine print_overlap_comms
-	use coupler_module
-	use mpi
-	implicit none
-
-	integer :: trank
-
-	if (myid_world.eq.0) then
-		write(7500+rank_realm,*), ''
-		write(7500+rank_realm,*), '----------- OVERLAP COMMS INFO ------------'
-		write(7500+rank_realm,*), '-------------------------------------------'
-		write(7500+rank_realm,*), '        RANKS              BROADCAST TEST  '
-		write(7500+rank_realm,*), '  world  realm  olap      testval( = group)'
-		write(7500+rank_realm,*), '-------------------------------------------'
-	end if
-	
-	do trank = 1,nproc_world
-		if (rank_world.eq.trank) then
-			write(7500+rank_realm,'(3i7,i16)'), rank_world,rank_realm, &
-								rank_olap, testval 	
-		end if
-	end do
-
-	if (myid_world.eq.0) then
-		write(7500+rank_realm,*), '-------- END OVERLAP COMMS INFO  ----------'
-		write(7500+rank_realm,*), '==========================================='
-	end if
-	
-end subroutine print_overlap_comms
-
-
-end subroutine CPL_create_map
-
-!-------------------------------------------------------------------
-! 					CPL_rank_map								   -
-!-------------------------------------------------------------------
-
-! Get COMM map for current communicator and relationship to 
-! world rank used to link to others in the coupler hierachy
-
-! - - - Synopsis - - -
-
-! CPL_rank_map(COMM, rank, comm2world, world2comm, ierr)
-
-! - - - Input Parameters - - -
-
-!comm
-!    communicator with cartesian structure (handle) 
-
-! - - - Output Parameter - - -
-
-!rank
-!    rank of a process within group of comm (integer)
-!    NOTE - fortran convention rank=1 to nproc  
-!nproc
-!    number of processes within group of comm (integer) 
-!comm2world
-!	Array of size nproc_world which for element at 
-!	world_rank has local rank in COMM
-!world2comm
-!	Array of size nproc_COMM which for element at 
-!	for local ranks in COMM has world rank 
-!ierr
-!    error flag
-
-
-subroutine CPL_rank_map(COMM,rank,nproc,comm2world,world2comm,ierr)
-	use coupler_module, only : rank_world, nproc_world, CPL_WORLD_COMM, VOID
-	use mpi
-	implicit none
-
-	integer, intent(in)								:: COMM
-	integer, intent(out)							:: rank,nproc,ierr
-	integer, dimension(:),allocatable,intent(out)	:: comm2world,world2comm
-
-	allocate(world2comm( nproc_world))
-	world2comm( nproc_world) = VOID
-
-	if (COMM .ne. MPI_COMM_NULL) then
-
-		!Mapping from comm rank to world rank
-		call MPI_comm_rank(COMM,rank,ierr)
-		rank = rank + 1
-		call MPI_comm_size(COMM,nproc,ierr)
-		allocate(comm2world(nproc))
-		call MPI_allgather(rank_world,1,MPI_INTEGER, & 
-						   comm2world,1,MPI_INTEGER,COMM,ierr)
-	else
-		rank = VOID
-		allocate(comm2world(0))
-	endif
-
-	!Mapping from world rank to comm rank
-	call MPI_allgather(rank      ,1,MPI_INTEGER, & 
-					   world2comm,1,MPI_INTEGER,CPL_WORLD_COMM,ierr)
-
-end subroutine CPL_rank_map
-
-!=============================================================================
-!	Adjust CFD domain size to an integer number of lattice units used by  
-!	MD if sizes are given in sigma units
-!-----------------------------------------------------------------------------
-
-subroutine CPL_cfd_adjust_domain(xL, yL, zL, nx, ny, nz, density_output)
-    use mpi
-    use coupler_module, only : density_cfd,CPL_REALM_COMM, rank_realm, ierr
-    implicit none
-
-    integer, optional, intent(inout) 			:: nx, ny, nz
-    real(kind(0.d0)), optional, intent(inout) 	:: xL,yL,zL
-    real(kind(0.d0)), optional, intent(inout)  	:: density_output
-
-    ! Internal variables
-    integer										:: ierror, root
-	character(1)				   				:: direction
-	logical										:: changed
-
-	!Define root processes
-	root = 1
-
-    density_output = density_cfd
-
-	! Check CFD domain and MD domain are compatible sizes to allow a
-	! stable initial MD lattice structure - resize if possible or
-	! stop code and demand a regeneration of grid if vary by more than 0.01
-	changed = .false.
-    if (present(xL)) then
-        call init_length(xL,resize=.true.,direction='x', &
-		                 print_warning=changed)
-    endif
-
-	! No need to adjust y because we can adjust DY in MD to
-	! have an integer number of FCC units. ??????? What
-
-    if (present(zL)) then
-        call init_length(zL,resize=.true.,direction='z', &
-		                 print_warning=changed)
-    endif
-
-	if ( changed ) then
-		print*, "Regenerate Grid with corrected sizes as above"
-		call MPI_Abort(MPI_COMM_WORLD,ierror,ierr)
-	endif
-
-    ! check id CFD cell sizes are larger than 2*sigma 
-    call test_cfd_cell_sizes
-
-contains
-
-!-----------------------------------------------------------------------------
-
-subroutine init_length(rout,resize,direction,print_warning)
-	use coupler_module, only: dx,dy,dz,error_abort
-	implicit none
-            
-    real(kind=kind(0.d0)), intent(inout) :: rout
-    logical, intent(in)                  :: resize
-	character(*),intent(in)              :: direction
-    logical,intent(out)                  :: print_warning
-
-	real(kind(0.d0)) :: dxyz  ! dx, dy or dz
-    real(kind(0.d0)) :: rinit ! initial val of rout or rin for print
-
-    print_warning=.false.
-
-	select case (direction)
-	case('x','X')
-		dxyz = dx
-	case('y','Y')
-		dxyz = dy
-	case('z','Z')
-		dxyz = dz
-	case default
-		call error_abort('Wrong direction specified in init_length')
-	end select
-
-	if ( resize ) then
-
-		rinit = rout
-		rout = real(nint(rout/dxyz),kind(0.d0))*dxyz
-		print_warning = .true.
-		print*, direction, 'dxyz = ', dxyz 
-
-	endif
-
-    if (print_warning) then 
-
-        !if (rank_realm .eq. root) then 
-
-            write(*,'(3(a,/),3a,/,2(a,f20.10),/a,/,a)') &
-                    "*********************************************************************",	&
-                    "WARNING - this is a coupled run which resets CFD domain size         ",	&
-                    " to an integer number of MD initial cells:		                      ", 	&
-                    "	Domain resized in the ", direction, " direction			          ",	&
-                    " inital size =", rinit, " resized ", rout,									&
-                    "								                                      ",	& 
-                    "*********************************************************************"   
-        !endif
-
-		!If resize is insignificant then return flag print_warning as false
-		if (abs(rinit-rout) .lt. 0.01) print_warning = .false.
-
-    end if
-    
-end subroutine init_length
-
-!-----------------------------------------------------------------------------
-
-subroutine test_cfd_cell_sizes
-    implicit none
-
-    if (rank_realm .eq. root) then
-        if (present(xL) .and. present(nx)) then
-            if (xL/nx < 2.0d0) then
-                write(0,*)" WARNING: CFD cell size in x direction is less that 2 * sigma. Does this make sense?" 
-                write(0,*)"          xL=",xL,"nx=",nx
-            endif
-        endif
-
-        if (present(yL) .and. present(ny)) then
-            if (yL/ny < 2.0d0) then
-                write(0,*)" WARNING: CFD cell size in y direction is less that 2 * sigma. Does this make sense?" 
-                write(0,*)"          yL=",yL,"nx=",ny
-            endif
-        endif
-
-        if (present(zL) .and. present(nz)) then
-            if (zL/nz < 2.0d0) then
-                write(0,*)" WARNING: CFD cell size in z direction is less that 2 * sigma. Does this make sense?" 
-                write(0,*)"          zL=",zL,"nx=",nz
-            endif
-        endif
-    end if
-        
-end subroutine test_cfd_cell_sizes
-            
-end subroutine CPL_cfd_adjust_domain
 
 !=============================================================================
 !				 _____ _                 _       _   _             
@@ -1626,7 +688,7 @@ subroutine CPL_send_xd(asend,icmin_send,icmax_send,jcmin_send, &
 	use coupler_module, only : CPL_CART_COMM,rank_cart,md_realm,cfd_realm, & 
 	                           error_abort,CPL_GRAPH_COMM,myid_graph,olap_mask, &
 							   rank_world,rank_realm,realm,rank_olap, & 
-							   iblock_realm,jblock_realm,kblock_realm,ierr
+							   iblock_realm,jblock_realm,kblock_realm,ierr, VOID
 	implicit none
 
 	!Flag set if processor has passed data
@@ -1919,7 +981,7 @@ subroutine CPL_recv_xd(arecv,icmin_recv,icmax_recv,jcmin_recv, &
 							   rank_graph, rank_graph2rank_world, &
 	                           error_abort,CPL_GRAPH_COMM,myid_graph,olap_mask, &
 							   rank_world,rank_realm,realm,rank_olap, & 
-							   iblock_realm,jblock_realm,kblock_realm,ierr
+							   iblock_realm,jblock_realm,kblock_realm,VOID,ierr
 	implicit none
 
 	!Flag set if processor has received data
@@ -2442,7 +1504,7 @@ end subroutine CPL_olap_extents
 subroutine CPL_proc_portion(coord,realm,limits,portion,ncells)
 	use mpi
 	use coupler_module, only: md_realm,      cfd_realm,      &
-	                          error_abort
+	                          error_abort, VOID
 	implicit none
 
 	integer, intent(in)  :: coord(3), limits(6),realm
@@ -2865,6 +1927,100 @@ subroutine CPL_get(icmax_olap,icmin_olap,jcmax_olap,jcmin_olap,  &
 	end if
 
 end subroutine CPL_get
+
+
+!=============================================================================
+! Get molecule's global position from position local to processor.
+!-----------------------------------------------------------------------------
+function globalise(r) result(rg)
+	use coupler_module, only : 	xLl,iblock_realm,npx_md, & 
+								yLl,jblock_realm,npy_md, & 
+								zLl,kblock_realm,npz_md
+	implicit none
+
+	real(kind(0.d0)),intent(in) :: r(3)
+	real(kind(0.d0)) rg(3)
+
+	rg(1) = r(1) - xLl*(iblock_realm-1)+0.5d0*xLl*(npx_md-1)
+	rg(2) = r(2) - yLl*(jblock_realm-1)+0.5d0*yLl*(npy_md-1)
+	rg(3) = r(3) - zLl*(kblock_realm-1)+0.5d0*zLl*(npz_md-1)
+
+end function globalise
+
+!=============================================================================
+! Get local position on processor from molecule's global position.
+!-----------------------------------------------------------------------------
+function localise(r) result(rg)
+	use coupler_module, only : 	xLl,iblock_realm,npx_md, & 
+								yLl,jblock_realm,npy_md, & 
+								zLl,kblock_realm,npz_md
+	implicit none
+
+	real(kind(0.d0)),intent(in) :: r(3)
+	real(kind(0.d0)) rg(3)
+
+	!Global domain has origin at centre
+	rg(1) = r(1) - xLl*(iblock_realm-1)+0.5d0*xLl*(npx_md-1)
+	rg(2) = r(2) - yLl*(jblock_realm-1)+0.5d0*yLl*(npy_md-1)
+	rg(3) = r(3) - zLl*(kblock_realm-1)+0.5d0*zLl*(npz_md-1)
+
+end function localise
+
+!=============================================================================
+! Map global MD position to global CFD coordinate frame
+!-----------------------------------------------------------------------------
+function map_md2cfd_global(r) result(rg)
+	use coupler_module, only : 	xL_md,xg,icmin_olap,icmax_olap, & 
+								yL_md,yg,jcmin_olap,jcmax_olap, & 
+								zL_md,zg,kcmin_olap,kcmax_olap
+	implicit none
+
+	real(kind(0.d0)),intent(in) :: r(3)
+	real(kind(0.d0)):: md_only(3), rg(3)
+
+	!Get size of MD domain which has no CFD cells overlapping
+	!This should be general enough to include grid stretching
+	!and total overlap in any directions 
+	md_only(1) = xL_md-(xg(icmax_olap+1,1) - xg(icmin_olap,1))
+	md_only(2) = yL_md-(yg(1,jcmax_olap+1) - yg(1,jcmin_olap))
+	md_only(3) = zL_md-(zg( kcmax_olap+1 ) - zg( kcmin_olap ))
+
+	! CFD has origin at bottom left while MD origin at centre
+	rg(1) = r(1) + 0.5d0*xL_md - md_only(1)
+	rg(2) = r(2) + 0.5d0*yL_md - md_only(2)
+	rg(3) = r(3) + 0.5d0*zL_md - md_only(3)
+
+end function map_md2cfd_global
+
+
+!=============================================================================
+! Map global CFD position in global MD coordinate frame
+!-----------------------------------------------------------------------------
+function map_cfd2md_global(r) result(rg)
+	use coupler_module, only : 	xL_md,xg,icmin_olap,icmax_olap, & 
+								yL_md,yg,jcmin_olap,jcmax_olap, & 
+								zL_md,zg,kcmin_olap,kcmax_olap
+	implicit none
+
+	real(kind(0.d0)),intent(in) :: r(3)
+	real(kind(0.d0)) :: md_only(3), rg(3)
+
+	!Get size of MD domain which has no CFD cells overlapping
+	!This should be general enough to include grid stretching
+	!and total overlap in any directions 
+	md_only(1) = xL_md-(xg(icmax_olap+1,1) - xg(icmin_olap,1))
+	md_only(2) = yL_md-(yg(1,jcmax_olap+1) - yg(1,jcmin_olap))
+	md_only(3) = zL_md-(zg( kcmax_olap+1 ) - zg( kcmin_olap ))
+
+	! CFD has origin at bottom left while MD origin at centre
+	rg(1) = r(1) - 0.5d0*xL_md + md_only(1)
+	rg(2) = r(2) - 0.5d0*yL_md + md_only(2)
+	rg(3) = r(3) - 0.5d0*zL_md + md_only(3)
+
+	!print'(a,13f8.3)', 'md only', r,md_only,rg,yL_md,(yg(1,jcmax_olap+1),yg(1,jcmin_olap)),(yg(1,jcmax_olap+1) - yg(1,jcmin_olap))
+
+end function map_cfd2md_global
+
 
 
 !-----------------------------------------------------------------------------
