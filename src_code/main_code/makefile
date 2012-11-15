@@ -48,8 +48,8 @@ include $(MAKE_INC_PATH)/$(PLATFORM).inc
 # 
 # NOTE: LIBS are provided in $(PLATFORM).inc files
 #
-# LIBS = -ldfftw -ldrfftw #-L/apps/intel/cmkl/9.0/lib/64/ -lmkl_em64t
-LIBS=-L/apps/intel/2013/mkl/lib/64/ -mkl
+#LIBS = -ldfftw -ldrfftw #-L/apps/intel/cmkl/9.0/lib/64/ -lmkl_em64t
+#LIBS=-L/apps/intel/2013/mkl/lib/64/ -mkl
 
 #FLAGS =
 #F77FILES = 
@@ -97,9 +97,7 @@ prof:
 	@make opt "LIBS = $(LIBS) -p"
 opt: 
 	@make all "FLAGS = -r8 -O3 -ip -funroll-loops -parallel -par-report3"
-#	@make all "FLAGS = -r8 -O3 -ip -funroll-loops           -par-report3"
 parallel_couette.exe: $(OFILES)
-	#@echo "$(LD) $(OFILES) $(LIBFILES) $(LIBS) "
 	$(LD) -o $@ $(OFILES) $(LIBFILES) $(LIBS) $(LDFLAGS) 
 $(OFILES): | $(OBJ_DIR) 
 $(OBJ_DIR) :

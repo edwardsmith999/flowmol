@@ -31,6 +31,7 @@ contains
 !-----------------------------------------------------------------------------
 subroutine socket_coupler_invoke
 	use messenger
+	use coupler_module, only : CPL_create_comm, cfd_realm
 	use computation_parameters, only : prefix_dir
 	implicit none
 
@@ -44,7 +45,7 @@ end subroutine socket_coupler_invoke
 !-----------------------------------------------------------------------------
 subroutine socket_read_coupler_input
 	use messenger
-	use coupler_input_data, only : read_coupler_input
+	use coupler_module, only : read_coupler_input
 	implicit none
 
 	call read_coupler_input		! Read COUPLER.in input file
@@ -55,14 +56,13 @@ end subroutine socket_read_coupler_input
 ! Call coupler initialise to swap all setup data
 !-----------------------------------------------------------------------------
 subroutine socket_coupler_init
-	use coupler_internal_cfd, only : coupler_cfd_init
+	use coupler_module, only : coupler_cfd_init,CPL_create_map,error_abort, density_cfd
     use messenger, only : icomm_grid, icoord
     use data_export, only : imin,imax,jmin,jmax,kmin,kmax, &
 							iTmin_1,iTmax_1,jTmin_1,jTmax_1, &
                             ngx,ngy,ngz,xL,yL,zL, &
                             npx,npy,npz,dt,xpg,ypg,zpg
 	use mesh_export, only : xL, yL, zL
-	use coupler_module, only : error_abort, density_cfd
     implicit none
 
     integer							:: nsteps
@@ -104,7 +104,7 @@ end subroutine socket_coupler_init
 
 subroutine  socket_coupler_get_md_BC(uc,vc,wc)
     use coupler, only : CPL_recv
-	use coupler_module, only : printf,error_abort, & 
+	use coupler_module, only : printf,error_abort,VOID,cfd_realm, & 
 							   iblock_realm,jblock_realm,kblock_realm
 	use data_export, only : nixb, niyb, nizb, & 
 							i1_u,i2_u,j1_u,j2_u, & 
