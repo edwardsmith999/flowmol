@@ -2772,41 +2772,47 @@ end function CPL_overlap
 
 
 subroutine CPL_get(icmax_olap,icmin_olap,jcmax_olap,jcmin_olap,  & 
-				   kcmax_olap,kcmin_olap,density_cfd,density_md, &
-				   dt_cfd,dt_MD,dx,dy,dz,ncx,ncy,ncz,xg,yg,zg,	 &
-				   xL_md,xL_cfd,yL_md,yL_cfd,zL_md,zL_cfd       )
-	use coupler_module, only : 	icmax_olap_=>icmax_olap, &
-							    icmin_olap_=>icmin_olap, &
-								jcmax_olap_=>jcmax_olap, &		
-								kcmax_olap_=>kcmax_olap, &		
-								density_cfd_=>density_cfd, &		
-								jcmin_olap_=>jcmin_olap, &		
-								kcmin_olap_=>kcmin_olap, &		
-								density_md_=>density_md, &		
-								dt_cfd_=>dt_cfd,dt_MD_=>dt_MD, &	
-								dx_=>dx,dy_=>dy,dz_=>dz, &
-								ncx_=>ncx,ncy_=> ncy,ncz_=> ncz, &
-								xL_md_ =>xL_md, &		
-								yL_md_ =>yL_md, &		
-								zL_md_ =>zL_md, &		
-								xL_cfd_=> xL_cfd, &		
-								yL_cfd_=> yL_cfd, &		
-								zL_cfd_=> zL_cfd, &		
-								xg_=>xg, yg_=> yg, zg_=> zg
+                   kcmax_olap,kcmin_olap,density_cfd,density_md, &
+                   dt_cfd,dt_MD,dx,dy,dz,ncx,ncy,ncz,xg,yg,zg,	 &
+                   xL_md,xL_cfd,yL_md,yL_cfd,zL_md,zL_cfd,       &
+                   md_cfd_match_cellsize                          )
+	use coupler_module, only : 	icmax_olap_=>icmax_olap,         &
+	                            icmin_olap_=>icmin_olap,         &
+	                            jcmax_olap_=>jcmax_olap,         &
+	                            kcmax_olap_=>kcmax_olap,         &
+	                            density_cfd_=>density_cfd,       &
+	                            jcmin_olap_=>jcmin_olap,         &
+	                            kcmin_olap_=>kcmin_olap,         &
+	                            density_md_=>density_md,         &
+	                            dt_cfd_=>dt_cfd,dt_MD_=>dt_MD,   &
+	                            dx_=>dx,dy_=>dy,dz_=>dz,         &
+	                            ncx_=>ncx,ncy_=> ncy,ncz_=> ncz, &
+	                            xL_md_ =>xL_md,                  &
+	                            yL_md_ =>yL_md,                  &
+	                            zL_md_ =>zL_md,                  &
+	                            xL_cfd_=> xL_cfd,                &
+	                            yL_cfd_=> yL_cfd,                &
+	                            zL_cfd_=> zL_cfd,                &
+	                            xg_=>xg, yg_=> yg, zg_=> zg,     &
+	                            md_cfd_match_cellsize_ => md_cfd_match_cellsize
+
 	implicit none
 
 	integer, optional, intent(out)			:: icmax_olap ,icmin_olap
 	integer, optional, intent(out)			:: jcmax_olap ,jcmin_olap
 	integer, optional, intent(out)			:: kcmax_olap ,kcmin_olap
 	integer, optional, intent(out)			:: ncx,ncy,ncz
+	integer, optional, intent(out)			:: md_cfd_match_cellsize
+
 	real(kind(0.d0)), optional, intent(out)	:: density_cfd,density_md
 	real(kind(0.d0)), optional, intent(out) :: dt_cfd,dt_MD
 	real(kind(0.d0)), optional, intent(out) :: dx,dy,dz
 	real(kind(0.d0)), optional, intent(out) :: xL_md,xL_cfd
 	real(kind(0.d0)), optional, intent(out) :: yL_md,yL_cfd
 	real(kind(0.d0)), optional, intent(out) :: zL_md,zL_cfd
-	real(kind(0.d0)),dimension(:,:),allocatable,optional,intent(out) :: xg,yg
-	real(kind(0.d0)),dimension(:)  ,allocatable,optional,intent(out) :: zg
+
+	real(kind(0.d0)), dimension(:,:),allocatable,optional,intent(out) :: xg,yg
+	real(kind(0.d0)), dimension(:)  ,allocatable,optional,intent(out) :: zg
 
 	!Overlap extents
 	if (present(icmax_olap)) icmax_olap = icmax_olap_
@@ -2853,6 +2859,10 @@ subroutine CPL_get(icmax_olap,icmin_olap,jcmax_olap,jcmin_olap,  &
 		allocate(zg(size(zg_,1)))
 		zg = zg_
 	endif
+
+	if (present(md_cfd_match_cellsize)) then
+		md_cfd_match_cellsize = md_cfd_match_cellsize_
+	end if
 
 end subroutine CPL_get
 

@@ -80,7 +80,6 @@ end subroutine socket_read_coupler_input
 !-----------------------------------------------------------------------------
 subroutine socket_coupler_init
     use interfaces
-	use coupler_module, only : md_cfd_match_cellsize
 	use computational_constants_MD, only : npx,npy,npz,delta_t,elapsedtime, & 
 										   Nsteps,initialstep,delta_t, & 
 										   globaldomain,initialnunits
@@ -90,6 +89,7 @@ subroutine socket_coupler_init
 	implicit none
 
  	integer			 :: naverage, nsteps_cfd, ixyz
+	integer          :: match_cellsize
 	real(kind(0.d0)) :: delta_t_CFD
 
 	!Establish Domain size from MD inputs
@@ -104,7 +104,8 @@ subroutine socket_coupler_init
 
 	! Setup the domain and cells in the MD based on coupled data
 	call set_params_globdomain_cpld
-	if (md_cfd_match_cellsize .eq. 0) then
+	call CPL_get(md_cfd_match_cellsize=match_cellsize)
+	if (match_cellsize .eq. 0) then
 		call set_parameters_cells
  	else
 		call set_parameters_cells_coupled
