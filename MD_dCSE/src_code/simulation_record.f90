@@ -297,7 +297,7 @@ implicit none
 		case(0)
 			select case(macro_outflag)
 			case(1:2)
-				print '(1x,i8,a,f10.3,a,E10.3,a,f10.2,a,f7.3,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
+				print '(1x,i8,a,f10.3,a,E12.2,a,f10.2,a,f7.3,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
 				it,';', simtime,';',vsum,';', v2sum,';', temperature,';', &
 				kinenergy,';',potenergy,';',totenergy,';',pressure
 			case(3:4)

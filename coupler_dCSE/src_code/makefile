@@ -6,7 +6,7 @@ override NAME := coupler
 # Coupler files
 #
 
-F90_FILES      := coupler_parameters.f90 coupler_module.f90 coupler.f90 coupler_internal_cfd.f90 coupler_internal_md.f90  coupler_input_data.f90
+F90_FILES      := coupler_module.f90 coupler.f90 CPL.f90
 #
 # object file dir, is needed by platform
 #
@@ -76,8 +76,6 @@ $(O_FILES) : $(OBJ_DIR)/%.o : %.f90
 #=======================================================================
 # Dependencies
 #=======================================================================
-$(OBJ_DIR)/coupler.o : $(addprefix $(OBJ_DIR)/, coupler_parameters.o coupler_input_data.o)
-$(OBJ_DIR)/coupler_internal_cfd.o $(OBJ_DIR)/coupler_internal_md.o :  $(addprefix $(OBJ_DIR)/, coupler_parameters.o coupler_input_data.o) 
-$(OBJ_DIR)/coupler_input_data.o :  $(addprefix $(OBJ_DIR)/, coupler_parameters.o )
-
+#$(OBJ_DIR)/coupler.o : $(addprefix $(OBJ_DIR)/, coupler_module.o)
+#$(OBJ_DIR)/coupler_module.o : $(addprefix $(OBJ_DIR)/, coupler.o)
 
