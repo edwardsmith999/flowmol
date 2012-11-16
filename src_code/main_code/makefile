@@ -33,7 +33,6 @@ MAKE_INC_PATH :=  ../../../platforms
 ifndef PLATFORM
     PLATFORM := $(shell cat $(MAKE_INC_PATH)/PLATFORM_default)
 endif
- 
 ifndef PLATFORM
   platform_list := $(shell ls $(MAKE_INC_PATH) | grep  '.inc' | sed 's/.inc//' )
   $(error The PLATFORM variable must be specified. Try one of the following: $(platform_list) )
@@ -46,7 +45,7 @@ endif
 include $(MAKE_INC_PATH)/$(PLATFORM).inc
 
 # 
-# NOTE: LIBS are provided in $(PLATFORM).inc files
+# NOTE: LIBS are provided in $(PLATFORM).inc files !!!!!
 #
 #LIBS = -ldfftw -ldrfftw #-L/apps/intel/cmkl/9.0/lib/64/ -lmkl_em64t
 #LIBS=-L/apps/intel/2013/mkl/lib/64/ -mkl
@@ -55,12 +54,14 @@ include $(MAKE_INC_PATH)/$(PLATFORM).inc
 #F77FILES = 
 #CFILES = 
 
-LDFLAGES := $(FFLAGS) $(LIBS)
+LDFLAGS := $(FFLAGS) $(LIBS)
+CPL_LIB = 
 
 ifeq ($(strip $(USE_COUPLER)),yes)
-  COUPLER_LIB = ../../../lib/coupler/$(PLATFORM)/$(BUILD)
-  FFLAGS  +=  -I$(COUPLER_LIB)
-  LDFLAGS +=  -L$(COUPLER_LIB) -lcoupler
+  CPL_LIB_DIR = ../../../lib/coupler/$(PLATFORM)/$(BUILD)
+  FFLAGS  +=  -I$(CPL_LIB_DIR)
+  LDFLAGS +=  -L$(CPL_LIB_DIR) -lcoupler
+  CPL_LIB = $(CPL_LIB_DIR)/libcoupler.a
 endif
 
 #Make everything depend on parameter files
@@ -97,8 +98,9 @@ prof:
 	@make opt "LIBS = $(LIBS) -p"
 opt: 
 	@make all "FLAGS = -r8 -O3 -ip -funroll-loops -parallel -par-report3"
-parallel_couette.exe: $(OFILES)
-	$(LD) -o $@ $(OFILES) $(LIBFILES) $(LIBS) $(LDFLAGS) 
+parallel_couette.exe: $(OFILES) $(CPL_LIB)
+	@echo "CFD executable is being relinked"
+	@$(LD) -o $@ $(OFILES) $(LIBFILES) $(LIBS) $(LDFLAGS) 
 $(OFILES): | $(OBJ_DIR) 
 $(OBJ_DIR) :
 	mkdir -p $@
@@ -112,16 +114,14 @@ library: $(LIBFILES)
 clean:
 	rm -rf obj parallel_couette.exe *.mod
 
-
+#=======================================================================
+# Compilation rules
 $(OBJ_DIR)/%.o : ALC/%.f90 
 			   $(F90) -c $(FPP_FLAGS) $(FFLAGS) $< -o $@
 
 $(OBJ_DIR)/%.o : %.f90
 			   $(F90) -c $(FPP_FLAGS) $(FFLAGS) $< -o $@
 
-#=======================================================================
-# Compilation rules
-#
 #.f90.o:
 #	$(F90) $(FLAGS) -c $*.f90 -o obj/$*.o
 #.f.o:
