@@ -16,31 +16,30 @@
 !!  - CFD to MD processor mapping
 !!  - Simulation parameters
 !!
-!!
+!! The data is protected so only setup routines in this module can change it
 ! SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP
 !! Setup routine which have access to coupler parameters
 !!
 !! - CPL_create_comm	      (cfd+md)   splits MPI_COMM_WORLD, create inter - 
 !!                                   communicator between CFD and MD
 !!
-!! - CPL_create_map	      (cfd+md)   creates correspondence maps between 
+!! - CPL_create_map	      	  (cfd+md)   creates correspondence maps between 
 !!                                      the CFD grid and MD domains
 !!
 !! - CPL_cfd_adjust_domain     (cfd)    adjust CFD tomain to an integer number 
 !!                                      FCC or similar MD initial layout
 !! @author David Trevelyan, Edward Smith
+!! @see coupler
 !=============================================================================
 
 module coupler_module
 	USE ISO_C_BINDING
 	implicit none
 
-  ! tags values
-	integer, parameter ::VOID=-666			!!VOID value for data initialisation
-
+ 	integer, parameter :: VOID=-666			!!VOID value for data initialisation
 	integer, parameter :: cfd_realm = 1		!! CFD realm identifier
 	integer, parameter :: md_realm  = 2		!! MD realm identifier
-	character(len=*),parameter :: & 
+	character(len=*),parameter :: &
 		realm_name(2) = (/ "CFD", "MD " /) 	!! Used with realm identifier to get name
 
 	!! error codes

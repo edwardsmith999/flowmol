@@ -1,51 +1,57 @@
-# Top makefile for the coupler
-#
+###################################################################
+#  _______ ____  _____                    _         __ _ _        #
+# |__   __/ __ \|  __ \                  | |       / _(_) |       #
+#    | | | |  | | |__) |  _ __ ___   __ _| | _____| |_ _| | ___   #
+#    | | | |  | |  ___/  | '_ ` _ \ / _` | |/ / _ \  _| | |/ _ \  #
+#    | | | |__| | |      | | | | | | (_| |   <  __/ | | | |  __/  #
+#    |_|  \____/|_|      |_| |_| |_|\__,_|_|\_\___|_| |_|_|\___|  #
+#                                                                 #
+###################################################################
 # The organisation schema is as follow:
 #
 # three top sectors: CFD MD COUPLER
 #
 # CFD and MD sectors contain sets of codes for cfd and md computations
 # COUPLER is a library
-
 #
+#==============================
+# 		CFD sector
+#==============================
 #
-# CFD sector
+# serial (OBSOLETE)
 #
-# Couette solver
-#
-# serial
 clean_serial_couette serial_couette serial_couette_solo : CFD_SRC_PATH := ./Couette_serial/ 
 serial_couette serial_couette_solo : CFD_TARGET := continuum.exe
 #
-#parallel
+# parallel (DNS CODE)
 #
 setup_couette  : CFD_GRID_PATH  := ./CFD_dCSE/src_code/grid_generation/
 setup_couette  : CFD_SETUP_PATH := ./CFD_dCSE/src_code/setup/
 couette clean_couette couette_solo clean_couette_solo sockets : CFD_SRC_PATH := ./CFD_dCSE/src_code/main_code/ 
 couette clean_couette couette_solo clean_couette_solo : MAKEFILE_NAME := -f makefile
 couette clean_couette couette_solo clean_couette_solo : CFD_TARGET := parallel_couette.exe 
-
-#
-# MD sector 
-#
+#==============================
+# 		MD sector
+#==============================
 # so far we have only one MD code, no need for target specific values as for CFD (see above)
 #
 MD_SRC_PATH := ./MD_dCSE/src_code
-MD_TARGET  := p
-#
-# Coupler sector
-#
-COUPLER_SRC_PATH := coupler_dCSE/src_code
+MD_TARGET  := md.exe
+
+#==============================
+# 		Coupler sector
+#==============================
+LIB_DIR := ../../lib/coupler/$(PLATFORM)/$(BUILD)
+CPL_LIB =  $(LIB_DIR)/libcoupler.a
+COUPLER_SRC_PATH := ./coupler_dCSE/src_code
 
 #
 # variables for submakes
 #
 export BUILD := opt
 
-
 # Tasks
-
-.PHONY. :serial_couette_md serial_couette md coupler serial_couette_solo md_solo clean_all  clean_couette_md clean_couette clean_md clean_coupler clean_couette_solo clean_md_solo  
+.PHONY. :serial_couette_md serial_couette md coupler serial_couette_solo md_solo clean_all clean_couette_md clean_couette clean_md clean_coupler clean_couette_solo clean_md_solo  
 
 all :
 	@echo "Top level coupled build - Type help for options"
@@ -53,17 +59,16 @@ all :
 couette_md : couette md
 serial_couette_md :serial_couette md 
 
-md : coupler
-	cd $(MD_SRC_PATH)  && $(MAKE) USE_COUPLER=yes $(MD_TARGET)
-couette : coupler
-	cd $(CFD_SRC_PATH) && $(MAKE) $(MAKEFILE_NAME) USE_COUPLER=yes $(CFD_TARGET)
-serial_couette :  coupler
+md : $(CPL_LIB)
+	@cd $(MD_SRC_PATH)  && $(MAKE) USE_COUPLER=yes $(MD_TARGET)
+couette : $(CPL_LIB)
+	@cd $(CFD_SRC_PATH) && $(MAKE) $(MAKEFILE_NAME) USE_COUPLER=yes $(CFD_TARGET)
+serial_couette : $(CPL_LIB)
 	cd $(CFD_SRC_PATH) && $(MAKE) USE_COUPLER=yes $(CFD_TARGET)
-coupler : sockets
-	cd $(COUPLER_SRC_PATH) &&  $(MAKE) clean && $(MAKE) USE_COUPLER=yes
-sockets:
-	cd $(CFD_SRC_PATH) && touch continuum_coupler_socket.f90
-	cd $(MD_SRC_PATH)  && touch md_coupler_socket.f90
+$(CPL_LIB) :
+	@cd $(COUPLER_SRC_PATH) && $(MAKE) USE_COUPLER=yes
+#cd $(CFD_SRC_PATH) && touch continuum_coupler_socket.f90	# Touch socket to ensure a rebuild
+#cd $(MD_SRC_PATH)  && touch md_coupler_socket.f90			# Touch socket to ensure a rebuild
 md_solo :
 	cd $(MD_SRC_PATH)  && $(MAKE) USE_COUPLER=no $(MD_TARGET)
 serial_couette_solo : 
@@ -110,7 +115,3 @@ help:
 	@echo "clean_md_solo - The same as clean_md"
 	@echo "clean_couette_solo - The same as clean_couette"
 	@echo "======================================================================================"
-
-
-
-

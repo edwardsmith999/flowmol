@@ -1,13 +1,19 @@
-#=======================================================================
-# application name used in coupler build
-#=======================================================================
+############################################################
+# __  __ _____                    _         __ _ _         #
+# |  \/  |  __ \                  | |       / _(_) |       #
+# | \  / | |  | |  _ __ ___   __ _| | _____| |_ _| | ___   #
+# | |\/| | |  | | | '_ ` _ \ / _` | |/ / _ \  _| | |/ _ \  #
+# | |  | | |__| | | | | | | | (_| |   <  __/ | | | |  __/  #
+# |_|  |_|_____/  |_| |_| |_|\__,_|_|\_\___|_| |_|_|\___|  #
+# 														   #
+############################################################
 
+# application name used in coupler build
 override NAME := stream_md
 
 #=======================================================================
 # File definitions
 #=======================================================================
-
 F90_MD_FILES =  interfaces.f90 modules.f90 functions_lib.f90 messenger.serial.f90 md_coupler_socket.f90 setup_read_input.f90  parallel_io.serial.f90 linklist.f90 molecular_properties.f90 setup_set_parameters.f90 setup_initialise_microstate.f90 setup_initial_record.f90  simulation_compute_forces.f90 simulation_checkrebuild.f90 simulation_record.f90 finish_final_record.f90 finish_clear_all.f90 md.f90 md_main.f90 external_forces.f90 simulation_move_particles_vv.f90 simulation_move_particles_lfv.f90
 
 F90_MD_FILES_P = $(patsubst parallel_io.serial.f90,parallel_io.MPI2.f90,$(patsubst messenger.serial.f90,messenger.MPI.f90,$(F90_MD_FILES)))
@@ -18,7 +24,7 @@ CU_CUDA_MD_FILES = inter.cu inter2.cu
 # object files directory
 OBJ_DIR := obj
 
-# Use coupler?
+# Use coupler default value
 USE_COUPLER := no
 #
 # path to .inc file the choosen platform. 
@@ -26,13 +32,12 @@ USE_COUPLER := no
 #
 MAKE_INC_PATH :=  ../../platforms
 #
-# get platform to build, compiler names and flags, check the make.inc directory
+# Get platform to build, compiler names and flags, check the make.inc directory
 #
 #Check for default file
 ifndef PLATFORM
     PLATFORM := $(shell cat $(MAKE_INC_PATH)/PLATFORM_default)
 endif
- 
 ifndef PLATFORM
   platform_list := $(shell ls $(MAKE_INC_PATH) | grep  '.inc' | sed 's/.inc//' )
   $(error The PLATFORM variable must be specified. Try one of the following: $(platform_list) )
@@ -42,14 +47,10 @@ else
   $(shell echo $(PLATFORM) > $(MAKE_INC_PATH)/PLATFORM_default)
 endif
 
+# Linking flags to use
 LDFLAGS := $(FFLAGS)
 
-ifeq ($(strip $(USE_COUPLER)),yes)
-  COUPLER_LIB = ../../lib/coupler/$(PLATFORM)/$(BUILD)
-  FFLAGS  +=  -I$(COUPLER_LIB)
-  LDFLAGS +=  -L$(COUPLER_LIB) -lcoupler
-endif
-
+#Executable name
 MD_EXE = md.exe
 
 #Re-use f90 file names with .o instead of .f90
@@ -57,6 +58,15 @@ O_MD = $(addprefix obj/, $(F90_MD_FILES:.f90=.o))
 O_CUDA = $(CU_CUDA_MD_FILES:.cu=.o) $(F90_CUDA_MD_FILES:.f90=.o)
 O_CONTINUUM = $(F90_CONTINUUM:.f90=.o)
 O_MD_P = $(addprefix obj/,$(F90_MD_FILES_P:.f90=.o))
+CPL_LIB = 
+
+# If coupled, link to static library coupler.a
+ifeq ($(strip $(USE_COUPLER)),yes)
+  CPL_LIB_DIR = ../../lib/coupler/$(PLATFORM)/$(BUILD)
+  FFLAGS  +=  -I$(CPL_LIB_DIR) #Object generation flags
+  LDFLAGS +=  -L$(CPL_LIB_DIR) -lcoupler
+  CPL_LIB = $(CPL_LIB_DIR)/libcoupler.a
+endif
 
 CU = nvcc
 .SUFFIXES: .exe .o .f90 .cu .inc
@@ -67,7 +77,7 @@ CU = nvcc
 default: 
 	@echo "Please add flag serial (s), parallel (p) or type help for options"
 s:
-	@make md.exe
+	@make serial_md.exe
 s_continuum:
 	@make continuum.exe
 p:
@@ -79,24 +89,28 @@ s_cuda_emulate:
 debug_s_cuda:
 	@make md_CUDA.exe "FFLAGS = -O0 -g -traceback -CB -fpe0" "FLAGS_CUDA = -G -g -O0"
 optimised_s:
-	@make md.exe "FFLAGS = -O3"
+	@make serial_md.exe "FFLAGS = -O3"
 optimised_p:
 	@make parallel_md.exe "BUILD=opt"
 debug_s:
-	@make md.exe "BUILD=debug"
+	@make serial_md.exe "BUILD=debug"
 debug_p:
 	@make parallel_md.exe "BUILD=debug"
 full_debug_s:
-	@make md.exe "FFLAGS = -O0 -traceback -CB -check all -warn all,nodec,interfaces -gen_interfaces"
+	@make serial_md.exe "FFLAGS = -O0 -traceback -CB -check all -warn all,nodec,interfaces -gen_interfaces"
 full_debug_p:
 	@make parallel_md.exe "FFLAGS = -O0 -traceback -CB -check all -warn all,nodec,interfaces -gen_interfaces"
 profile_s:
-	@make md.exe "FFLAGS = -O3 -funroll-loops -pg -g "
+	@make serial_md.exe "FFLAGS = -O3 -funroll-loops -pg -g "
 memprofile_s:
-	@make md.exe "FFLAGS = -O3 -g"; valgrind --tool=cachegrind ./md.exe
+	@make serial_md.exe "FFLAGS = -O3 -g"; valgrind --tool=cachegrind ./md.exe
 profile_p:
 	@make parallel_md.exe "FFLAGS = -mpe=mpilog "
-md.exe: obj $(O_MD)
+#Make executables
+md.exe: obj $(O_MD_P) $(CPL_LIB)
+	@echo "MD executable is being relinked"
+	@$(F90) -o $@ $(O_MD_P) $(LDFLAGS)
+serial_md.exe: obj $(O_MD) 
 	@$(F90) -o $(MD_EXE) $(O_MD) $(LDFLAGS)  
 md_CUDA.exe: obj $(O_CUDA)
 	@cd obj; $(F90) -o $(MD_EXE) $(O_CUDA) $(LIBS) ; mv md.exe ..
@@ -104,8 +118,6 @@ md_CUDA_emu.exe: obj $(O_CUDA)
 	@cd obj; $(F90) -o $(MD_EXE) $(O_CUDA) $(LIBSEMU) ; mv md.exe ..
 continuum.exe: obj $(O_CONTINUUM)
 	@cd obj; $(F90) -o $(CONTINUUM_EXE) $(O_CONTINUUM) ; mv continuum.exe ..
-parallel_md.exe: obj $(O_MD_P)
-	@$(F90) -o $(MD_EXE) $(O_MD_P)  $(LDFLAGS)
 obj:
 	[ -d obj ] || mkdir obj
 help:
@@ -139,7 +151,6 @@ obj/%.o: %.f90
 #
 # Dependecies
 #
-
 #obj/parallel_io.MPI2.o : obj/messenger.MPI.o
 #obj/messenger.MPI.o : obj/setup_inputs.o obj/coupler_md_global_data.o obj/modules.o
 #obj/coupler_md_global_data.o : obj/modules.o
