@@ -1937,6 +1937,18 @@ subroutine CPL_get(icmax_olap,icmin_olap,jcmax_olap,jcmin_olap,  &
 end subroutine CPL_get
 
 
+! Function to get cuurent realm
+function CPL_realm
+	use coupler_module, only : realm
+	implicit none
+	
+	integer	:: CPL_realm
+
+	CPL_realm = realm
+
+end function
+
+
 !=============================================================================
 ! Get molecule's global position from position local to processor.
 !-----------------------------------------------------------------------------
