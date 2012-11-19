@@ -1148,6 +1148,7 @@ subroutine check_config_feasibility
 	implicit none
 
 	integer :: ival
+	real(kind(0.d0)) :: rval, rtoler
 	character(len=256) :: string
 
 	! Check there is only one overlap CFD proc in y
@@ -1162,6 +1163,20 @@ subroutine check_config_feasibility
 
 	end if
 
+	! Check that MD processor size is an integer multiple of CFD cell size
+	rtoler = 1.d-7
+	rval = 0.d0
+	rval = rval + mod( xL_md , dx )
+	rval = rval + mod( yL_md , dy )
+	rval = rval + mod( zL_md , dz )
+	if (rval .gt. rtoler) then
+		
+		string = "MD region lengths must be an integer number of CFD " // &
+		         "cell sizes (i.e. xL_md must be an integer multiple " // &
+		         "of dx, etc. ), aborting simulation."
+		call error_abort(string)
+
+	end if 
 
 	! Check whether ncx,ncy,ncz are an integer multiple of npx_md, etc.
 	! - N.B. no need to check ncy/npy_md.
@@ -1172,23 +1187,24 @@ subroutine check_config_feasibility
 	ival = ival + mod(ncx,npx_md)
 	ival = ival + mod(ncz,npz_md)
 	if (ival.ne.0) then	
+
 		string = "The number of cells in the cfd domain is not an "    // &
 		         "integer multiple of the number of processors in "    // &
 		         "the x and z directions. Aborting simulation."	
 		call error_abort(string)
+
 	end if
 
 	! Check that the MD region is large enough to cover overlap
-	ival = 0
-	ival = ival + floor(xL_olap/xL_md)
-	ival = ival + floor(yL_olap/yL_md)
-	ival = ival + floor(zL_olap/zL_md)
-	if (ival.ne.0) then	
+	if (xL_md .lt. xL_olap .or. &
+	    yL_md .lt. yL_olap .or. &
+	    zL_md .lt. zL_olap       ) then
+
 		string = "Overlap region is larger than the MD region. "       // &
 		         "Aborting simulation."
 		call error_abort(string)
-	end if
 
+	end if
 
 	! Check overlap cells are within CFD extents
 	ival = 0
