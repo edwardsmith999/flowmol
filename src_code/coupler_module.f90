@@ -271,7 +271,6 @@ module coupler_module
 
 contains
 
-
 !=============================================================================
 !					 _____      _               
 !					/  ___|    | |              
@@ -1260,7 +1259,7 @@ subroutine get_md_cell_ranges
 	ncy_md   = nint(yL_md/dy)
 	ncy_mdonly = ncy_md - ncy_olap
 	ncyP_md = ncy_md / npy_md
-	olap_jmin_mdcoord = npy_md - floor(dble(ncy_olap)/dble(ncyP_md))	 
+	olap_jmin_mdcoord = npy_md - ceiling(dble(ncy_olap)/dble(ncyP_md)) + 1
 	do n = olap_jmin_mdcoord,npy_md
 		jcPmax_md(n) = n * ncyP_md - ncy_mdonly
 		jcPmin_md(n) = jcPmax_md(n) - ncyP_md + 1

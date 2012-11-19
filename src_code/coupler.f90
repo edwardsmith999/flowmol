@@ -75,7 +75,10 @@ contains
 !! @author David Trevelyan
 !
 !! Perform gather operation on CPL_OLAP_COMM communicator. The CFD processor
-!! is the root process.  
+!! is the root process. The gathered data is effectively "slotted" into the
+!! correct part of the recvarray, and is intented for use in providing the
+!! CFD simulation boundary conditions with data obtained from the MD
+!! simulation.   
 !!
 !! - Synopsis
 !!
@@ -84,19 +87,23 @@ contains
 !! - Input
 !!
 !!  - gatherarray
-!!   - Assumed shape array of data to be gathered (double precision)
+!!   - Assumed shape array of data to be gathered from each MD processor
+!!     in the overlap communicator.
 !!
 !!  - limits
 !!   - Integer array of length 6, specifying the global cell extents of the
-!!     region to be gathered, is the same on all processors.
+!!     region to be gathered, is the same on ALL processors.
 !!
 !!  - npercell
-!!   - number of data points per cell to be gathered (integer).
-!!     Note: should be the same as size(gatherarray(1)) for MD proc
+!!   - number of data points per cell to be gathered (integer)
+!!     Note: should be the same as size(gatherarray(1)) for MD
+!!     processor. E.G. npercell = 3 for gathering 3D velocities.
 !!
 !! - Input/Output
 !!  - recvarray
-!!   - The array in which the gathered values are stored
+!!   - The array in which the gathered values are to be stored on the CFD
+!!     processor. The only values to be changed in recvarray are:
+!!     recvarray(limits(1):limits(2),limits(3):limits(4),limits(5):limits(6))
 !!
 !! - Output Parameters
 !!  - NONE
@@ -331,7 +338,8 @@ end subroutine CPL_gather
 !!
 !! - Input/Output
 !!  - recvarray
-!!   - the array in which the scattered values are stored
+!!   - the array in which the scattered values are stored on the MD
+!!     processors.
 !!
 !! - Output
 !!  - NONE
@@ -1475,32 +1483,38 @@ end subroutine CPL_olap_extents
 ! 					CPL_proc_portion  			      -
 !-------------------------------------------------------------------
 !! @author David Trevelyan
-! Get maximum and minimum cells (a 'portion') based on the INPUT 
-! limits within the current processor and overlapping region
-
-! - - - Synopsis - - -
-
-! CPL_proc_portion(coord,realm,limits,portion,ncells)
-
-! - - - Input Parameters - - -
-
-!coord
-!    processor cartesian coordinate (3 x integer) 
-!realm
-!    cfd_realm (1) or md_realm (2) (integer) 
-!limits
-!	 Six components array which, together with processor and
-!    overlap extents, determines the returned extents (6 x integer) 
-!
-! - - - Output Parameter - - -
-
-!extents
-!	 Six components array which defines processor extents within
-!    the overlap region only 
-!	 xmin,xmax,ymin,ymax,zmin,zmax (6 x integer) 
-!ncells (optional)
-!    number of cells in portion (integer) 
-
+!! Get maximum and minimum cell indices, i.e. the 'portion', of the
+!! input cell extents 'limits' that is contributed by the current
+!! overlapping processor. 
+!!
+!! - Synopsis
+!!  - CPL_proc_portion(coord,realm,limits,portion,ncells)
+!!
+!! - Input
+!!
+!!  - coord
+!!   - processor cartesian coordinate (3 x integer) 
+!!
+!!  - realm
+!!   - cfd_realm (1) or md_realm (2) (integer) 
+!!
+!!  - limits(6)
+!!   - Array of cell extents that specify the input region. 
+!!
+!! - Input/Output
+!!  - NONE
+!!
+!! - Output
+!!
+!!  - portion(6) 
+!!   - Array of cell extents that define the local processor's
+!!     contribution to the input region 'limits'.
+!!
+!!   - ncells (optional)
+!!    - number of cells in portion (integer) 
+!!
+!! - Note: limits(6) and portion(6) are of the form:
+!!   (xmin,xmax,ymin,ymax,zmin,zmax)
 
 subroutine CPL_proc_portion(coord,realm,limits,portion,ncells)
 	use mpi
