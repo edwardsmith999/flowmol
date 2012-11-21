@@ -1,5 +1,5 @@
 program test_coupler
-	use coupler_module, only : olap_mask, rank_world
+	use coupler_module, only : olap_mask, rank_world, CPL_create_map
 	use coupler
 	implicit none
 
@@ -78,7 +78,7 @@ subroutine test_setup_input_and_arrays
 
 	! TODO TODO TODO TODO TODO TODO
 	xL_md = xL_cfd
-	yL_md = yL_cfd / 2.d0
+	yL_md = yL_cfd * 6.d0/8.d0
 	zL_md = zL_cfd
 
 	yL_olap = (jcmax_olap - jcmin_olap + 1) * dy

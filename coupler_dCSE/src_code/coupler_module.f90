@@ -1276,6 +1276,7 @@ subroutine get_md_cell_ranges
 	ncy_mdonly = ncy_md - ncy_olap
 	ncyP_md = ncy_md / npy_md
 	olap_jmin_mdcoord = npy_md - ceiling(dble(ncy_olap)/dble(ncyP_md)) + 1
+	print*, 'cell ranges', olap_jmin_mdcoord ,npy_md,floor(dble(ncy_olap)/dble(ncyP_md)),dble(ncy_olap),dble(ncyP_md)
 	do n = olap_jmin_mdcoord,npy_md
 		jcPmax_md(n) = n * ncyP_md - ncy_mdonly
 		jcPmin_md(n) = jcPmax_md(n) - ncyP_md + 1
@@ -1288,6 +1289,51 @@ subroutine get_md_cell_ranges
 		kcPmax_md(n) = n * nczl
 		kcPmin_md(n) = kcPmax_md(n) - nczl + 1
 	end do
+
+
+
+	if (myid_world.eq.0) then
+
+		write(6000+myid_world,*), ''
+		write(6000+myid_world,*), '==========================================='
+		write(6000+myid_world,*), '------------ M D   M A P ------------------'
+		write(6000+myid_world,*), '==========================================='
+		write(6000+myid_world,*), 'npx_md = ', npx_md
+		write(6000+myid_world,*), 'ncx    = ', ncx
+		write(6000+myid_world,*), 'ncxl   = ', ncxl
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), '  icoord_md     icPmin_md     icPmax_md    '
+		write(6000+myid_world,*), '-------------------------------------------'
+		do n=1,npx_md
+			write(6000+myid_world,'(1x,3i11)'), n, icPmin_md(n), icPmax_md(n)
+		end do	
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), 'npy_md     = ', npy_md
+		write(6000+myid_world,*), 'ncy_md     = ', ncy_md
+		write(6000+myid_world,*), 'ncyP_md    = ', ncyP_md 
+		write(6000+myid_world,*), 'ncy_olap   = ', ncy_olap
+		write(6000+myid_world,*), 'ncy_mdonly = ', ncy_mdonly
+		write(6000+myid_world,*), 'olap_jmin_mdcoord = ', olap_jmin_mdcoord
+		write(6000+myid_world,*), 'dy         = ', dy
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), '  jcoord_md     jcPmin_md       jcPmax_md  '
+		write(6000+myid_world,*), '-------------------------------------------'
+		do n = 1,npy_md	
+			write(6000+myid_world,'(1x,3i11)'), n, jcPmin_md(n), jcPmax_md(n)
+		end do
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), 'npz_md = ', npz_md
+		write(6000+myid_world,*), 'ncz    = ', ncz
+		write(6000+myid_world,*), 'nczl   = ', nczl
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), '  kcoord_md     kcPmin_md       kcPmax_md  '
+		write(6000+myid_world,*), '-------------------------------------------'
+		do n=1,npz_md
+			write(6000+myid_world,'(1x,3i11)'), n, kcPmin_md(n), kcPmax_md(n)
+		end do
+		write(6000+myid_world,*), '-------------------------------------------'
+
+	endif
 
 end subroutine get_md_cell_ranges
 
@@ -1350,6 +1396,51 @@ subroutine get_overlap_blocks
 		cfd_kcoord2olap_md_kcoords(n,i) = (n-1)*nolapsz + i
 	end do
 	end do
+
+
+	if(myid_world.eq.0) then 
+		
+		write(6000+myid_world,*), ''
+		write(6000+myid_world,*), '==========================================='
+		write(6000+myid_world,*), '------------ C F D   M A P ----------------'
+		write(6000+myid_world,*), '==========================================='
+		write(6000+myid_world,*), 'npx_cfd = ', npx_cfd
+		write(6000+myid_world,*), 'nolapsx = ', nolapsx
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), '  icoord_cfd       olapmin     olapmax     ' 
+		write(6000+myid_world,*), '-------------------------------------------'
+		do n=1,npx_cfd
+			write(6000+myid_world,'(1x,3i11)'), n,               &
+				  cfd_icoord2olap_md_icoords(n,1),         &
+				  cfd_icoord2olap_md_icoords(n,nolapsx)
+		end do	
+		write(6000+myid_world,*), '-------------------------------------------'
+
+		write(6000+myid_world,*), 'npy_cfd = ', npy_cfd
+		write(6000+myid_world,*), 'nolapsy = ', nolapsy
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), '  jcoord_cfd       olapmin     olapmax     ' 
+		write(6000+myid_world,*), '-------------------------------------------'
+		do n=1,npy_cfd
+			write(6000+myid_world,'(1x,3i11)'), n,               &
+				  cfd_jcoord2olap_md_jcoords(n,1),         &
+				  cfd_jcoord2olap_md_jcoords(n,nolapsy)
+		end do	
+		write(6000+myid_world,*), '-------------------------------------------'
+
+		write(6000+myid_world,*), 'npz_cfd = ', npz_cfd
+		write(6000+myid_world,*), 'nolapsz = ', nolapsz
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), '  kcoord_cfd       olapmin     olapmax     ' 
+		write(6000+myid_world,*), '-------------------------------------------'
+		do n=1,npz_cfd
+			write(6000+myid_world,'(1x,3i11)'), n,               &
+				  cfd_kcoord2olap_md_kcoords(n,1),         &
+				  cfd_kcoord2olap_md_kcoords(n,nolapsz)
+		end do	
+		write(6000+myid_world,*), '-------------------------------------------'
+
+	endif
 
 end subroutine get_overlap_blocks
 
@@ -1556,6 +1647,36 @@ subroutine CPL_overlap_topology
 	myid_graph = rank_graph - 1
 
 end subroutine CPL_overlap_topology
+
+
+subroutine print_overlap_comms
+	use mpi
+	implicit none
+
+	integer :: trank
+
+	if (myid_world.eq.0) then
+		write(7500+rank_realm,*), ''
+		write(7500+rank_realm,*), '----------- OVERLAP COMMS INFO ------------'
+		write(7500+rank_realm,*), '-------------------------------------------'
+		write(7500+rank_realm,*), '        RANKS              BROADCAST TEST  '
+		write(7500+rank_realm,*), '  world  realm  olap      testval( = group)'
+		write(7500+rank_realm,*), '-------------------------------------------'
+	end if
+	
+	do trank = 1,nproc_world
+		if (rank_world.eq.trank) then
+			write(7500+rank_realm,'(3i7,i16)'), rank_world,rank_realm, &
+								rank_olap, testval 	
+		end if
+	end do
+
+	if (myid_world.eq.0) then
+		write(7500+rank_realm,*), '-------- END OVERLAP COMMS INFO  ----------'
+		write(7500+rank_realm,*), '==========================================='
+	end if
+	
+end subroutine print_overlap_comms
 
 end subroutine CPL_create_map
 

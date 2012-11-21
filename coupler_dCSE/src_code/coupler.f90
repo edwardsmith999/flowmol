@@ -783,7 +783,7 @@ subroutine CPL_send_xd(asend,icmin_send,icmax_send,jcmin_send, &
 			! Get data range on processor's local extents
 			iclmin = portion(1)-extents(1)+1;	iclmax = portion(2)-extents(1)+1
 			jclmin = portion(3)-extents(3)+1;	jclmax = portion(4)-extents(3)+1
-			kclmin = portion(5)-extents(5)+1;	kclmax = portion(6)-extents(3)+1
+			kclmin = portion(5)-extents(5)+1;	kclmax = portion(6)-extents(5)+1
 
 	        ndata = npercell * ncells
 			if (allocated(vbuf)) deallocate(vbuf); allocate(vbuf(ndata))

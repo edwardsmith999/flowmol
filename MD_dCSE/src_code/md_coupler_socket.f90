@@ -39,6 +39,7 @@ module md_coupler_socket
 
 	integer			, dimension(:,:,:,:), allocatable :: mflux
 	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: uvw_md, uvw_cfd
+	real(kind(0.d0)), dimension(:,:,:,:,:), allocatable :: stress_cfd
 
 contains
 
@@ -1101,68 +1102,247 @@ end subroutine CFD_cells_to_MD_compute_cells
 
 
 
-
-!----------------------------------------------------------------
-! Attempt to apply continuum forces based on Flekkoy 
-
+!=============================================================================
+! Apply coupling forces so MD => CFD
+! Force from Flekkøy (2004) paper to apply continuum stress to molecular region
+! inside the overlap region. 
+!-----------------------------------------------------------------------------
 subroutine apply_continuum_forces_flekkoy(iter)
-	use computational_constants_MD, only : delta_t,nh,halfdomain,ncells,cellsidelength,initialstep,Nsteps
-	use arrays_MD, only : r, v, a
-	use linked_list, only : node, cell
-	!use coupler_module, only : md_steps_per_dt_cfd
+	use physical_constants_MD, only : np
+	use computational_constants_MD, only : delta_t, nh, ncells, & 
+										   cellsidelength, halfdomain, &
+	                                       delta_rneighbr,iblock,jblock,kblock
+	use CPL, only : CPL_overlap, CPL_recv, CPL_proc_extents, & 
+					CPL_realm, CPL_get, coupler_md_get_dt_cfd
+	use linked_list
 	implicit none
 
-	integer, intent(in) 				:: iter ! iteration step, it assumes that each MD average starts from iter = 1
+	integer, intent(in) 	:: iter ! iteration step, it assumes that each MD average starts from iter = 1
 
-	integer         					:: js,je,n, molno, cellnp
-	integer         					:: cbin, iter_average
-	integer								:: icell, jcell, kcell
-	double precision					:: weight, cfd_stress
+	integer 				:: iter_average, limits(6)
+	integer					:: i,j,k,n,np_overlap
+	integer					:: icmin_olap,icmax_olap,jcmin_olap,jcmax_olap,kcmin_olap,kcmax_olap
+	integer,allocatable 	:: list(:,:)
+	real(kind=kind(0.d0))	:: inv_dtCFD,t_fract,CFD_box(6)
+	real(kind=kind(0.d0)),allocatable,dimension(:,:,:,:)	:: recv_buf
 
-	type(node), pointer 	        	:: old, current
+	integer,save			:: cnstnd_cells,jcmin_recv,jcmax_recv	!to do - SHOULD NOT BE HARDWIRED
+	integer,save			:: pcoords(3),extents(6),timestep_ratio
+	logical,save			:: recv_flag, first_time=.true.
+	save CFD_box
 
-	!iter_average = mod(iter-1, md_steps_per_dt_cfd)+1
+	! Check processor is inside MD/CFD overlap zone 
+	if (.not.(CPL_overlap())) return
 
-	! Receive value of CFD velocities at first timestep of md_steps_per_dt_cfd
-	!if (iter_average .eq. 1) then
-	!		call CPL_recv(uvw_cfd,jcmax_recv=jcmax_recv, & 
-	!					          jcmin_recv=jcmin_recv,recv_flag=recv_flag)
-	!else
+	if (first_time) then
+		first_time = .false.
+		!Save extents of current processor
+		pcoords= (/ iblock,jblock,kblock   /)
+		call CPL_proc_extents(pcoords,CPL_realm(),extents)
+		!Get local copies of required simulation parameters
+		call CPL_get(icmin_olap=icmin_olap,icmax_olap=icmax_olap, & 
+	                 jcmin_olap=jcmin_olap,jcmax_olap=jcmax_olap, & 
+					 kcmin_olap=kcmin_olap,kcmax_olap=kcmax_olap, &
+	                 timestep_ratio=timestep_ratio)
+		!Number of cells to receive
+		cnstnd_cells = 1	!~10% of the total domain
+		jcmin_recv = jcmax_olap-1-cnstnd_cells
+		jcmax_recv = jcmax_olap-1
+		limits = (/ icmin_olap,icmax_olap, jcmin_recv,jcmax_recv, kcmin_olap,kcmax_olap  /)
+		call setup_CFD_box(limits,CFD_box,recv_flag)
+	endif
+	iter_average = mod(iter-1, timestep_ratio)+1
 
-	!Apply force to top three bins in y
-	!ASSUME Cell same size as bins and one continuum cell is two MD cells
-	do jcell= js,je	!Loop through all overlap y cells
- 		cbin = jcell - js+1					!Local no. of overlap cell from 1 to overlap
-    	do kcell = nh+1,ncells(3)+1+nh !Loop through all x cells
-		do icell = nh+1,ncells(1)+1+nh !Loop through all z cells
+	! Receive value of CFD velocities at first timestep of timestep_ratio
+	if (iter_average .eq. 1) then
+		allocate(recv_buf(9,size(stress_cfd,3),size(stress_cfd,4),size(stress_cfd,5)))
+		call CPL_recv(recv_buf,jcmax_recv=jcmax_recv, & 
+						       jcmin_recv=jcmin_recv,recv_flag=recv_flag)
+		stress_cfd = reshape(recv_buf,(/ 3,3,size(recv_buf,2),size(recv_buf,3),size(recv_buf,4) /) )
+	else
+		!Linear extrapolation between velocity at t and t+1
+	endif
 
-			cellnp = cell%cellnp(icell,jcell,kcell)
-			old => cell%head(icell,jcell,kcell)%point 	!Set old to first molecule in list
-			
-			!Apply coupling force as Nie, Chen and Robbins (2004), using
-			!Linear extrapolation of velocity
-			do n = 1, cellnp    ! Loop over all particles
-				molno = old%molno !Number of molecule
+	!Get average over current cell and apply constraint forces
+	if (recv_flag .eq. .true.) then
+		call average_over_bin
+		call apply_force
+	endif
 
-				!weight = weight(r(:,n))
-				a(1,molno)= a(1,molno) - weight * cfd_stress
+contains
 
-				current => old
-				old => current%next 
+!===================================================================================
+! Run through the particle, check if they are in the overlap region and
+! find the CFD box to which the particle belongs		 
 
-			enddo
+subroutine setup_CFD_box(limits,CFD_box,recv_flag)
+	use CPL, only : CPL_recv,CPL_proc_portion,localise,map_cfd2md_global,CPL_get,VOID
+	implicit none
 
-		enddo
-		enddo
+	!Limits of CFD box to receive data in
+	integer,dimension(6) ,intent(in)	:: limits
+	!Flag to check if limits cover current processor
+	logical				 ,intent(out)	:: recv_flag
+	!Returned spacial limits of CFD box to receive data
+	real(kind=kind(0.d0)),dimension(6) :: CFD_box
+
+	integer 	  		  :: portion(6)
+	integer		  		  :: nclx,ncly,nclz,ncbax,ncbay,ncbaz,ierr
+    logical, save 		  :: firsttime=.true.
+	real(kind=kind(0.d0)),dimension(3) 			:: xyzmin,xyzmax
+	real(kind(0.d0)),dimension(:),allocatable 	:: zg
+	real(kind(0.d0)),dimension(:,:),allocatable :: xg, yg
+
+	! Get total number of CFD cells on each processor
+	nclx = extents(2)-extents(1)+1
+	ncly = extents(4)-extents(3)+1
+	nclz = extents(6)-extents(5)+1
+
+	!Allocate CFD received box
+	allocate(stress_cfd(3,3,nclx,ncly,nclz))
+	stress_cfd = 0.d0
+
+	!Get limits of constraint region in which to receive data
+	call CPL_proc_portion(pcoords,CPL_realm(),limits,portion)
+
+	! Get physical extents of received region on MD processor
+	!print'(a,19i4)', 'portion',rank_world, portion,limits,extents
+	if (all(portion .ne. VOID)) then
+		!Get CFD overlapping grid arrays
+		call CPL_get(xg=xg,yg=yg,zg=zg)
+		recv_flag = .true.
+		xyzmin(1) = xg(portion(1)  ,1); xyzmax(1) = xg(portion(2)+1,1)
+		xyzmin(2) = yg(1,portion(3)  ); xyzmax(2) = yg(1,portion(4)+1)
+		xyzmin(3) = zg(  portion(5)  );	xyzmax(3) = zg(  portion(6)+1)
+
+		!Map to local MD processor
+		xyzmin = localise(map_cfd2md_global(xyzmin))
+		xyzmax = localise(map_cfd2md_global(xyzmax))
+
+		!Store in return array
+		CFD_box(1) = xyzmin(1); CFD_box(2) = xyzmax(1)
+		CFD_box(3) = xyzmin(2); CFD_box(4) = xyzmax(2)
+		CFD_box(5) = xyzmin(3); CFD_box(6) = xyzmax(3)
+
+		!Allocate MD averaging box to size of received region on MD processor
+		ncbax = portion(2)-portion(1)+1
+		ncbay = portion(4)-portion(3)+1
+		ncbaz = portion(6)-portion(5)+1
+
+		!print'(a,4i4,6f9.3)', 'Box average',rank_world, ncbax,ncbay,ncbaz,xmin,xmax,ymin,ymax,zmin,zmax
+        allocate(box_average(ncbax,ncbay,ncbaz))
+	else
+		recv_flag = .false.
+	endif
+
+end subroutine setup_CFD_box
+
+!=============================================================================
+! Average molecules in overlap region to obtain values for 
+! constrained dynamics algorithms
+!-----------------------------------------------------------------------------
+
+subroutine average_over_bin
+	use computational_constants_MD, only : nhb
+	use arrays_MD, only : r, v, a
+	use CPL, only : CPL_get
+	implicit none
+
+	integer				:: ib,jb,kb,n
+	real(kind(0.d0))	:: dx,dy,dz
+
+	!Zero box averages
+	do kb = 1, ubound(box_average,dim=3)
+	do jb = 1, ubound(box_average,dim=2)
+	do ib = 1, ubound(box_average,dim=1)
+		box_average(ib,jb,kb)%np = 0
+		box_average(ib,jb,kb)%a	 = 0
+	enddo
+	enddo
 	enddo
 
-	nullify(current)        !Nullify current as no longer required
-	nullify(old)            !Nullify old as no longer required
+	!find the maximum number of molecules and allocate a list array	   
+	np_overlap = 0 ! number of particles in overlapping reg
+    allocate(list(4,np))
+	call CPL_get(dx=dx,dy=dy,dz=dz)
+
+	do n = 1,np
+
+		if ( r(2,n) .gt. CFD_box(3) .and. r(2,n) .lt. CFD_box(4)) then
+
+			ib = ceiling((r(1,n)+halfdomain(1))/dx)
+			jb = ceiling((r(2,n)-CFD_box(3)   )/dy)
+			kb = ceiling((r(3,n)+halfdomain(3))/dz)
+
+			!Exlude out of domain molecules
+			if (ib.lt.1 .or. ib.gt.size(box_average,1)) cycle
+			if (kb.lt.1 .or. kb.gt.size(box_average,3)) cycle
+
+			np_overlap = np_overlap + 1
+			list(1:4, np_overlap) = (/ n, ib, jb, kb /)
+
+			box_average(ib,jb,kb)%np   =  box_average(ib,jb,kb)%np   + 1
+			box_average(ib,jb,kb)%a(2)    =  box_average(ib,jb,kb)%a(2)  + flekkoy_gweight(r(2,n),CFD_box(3),CFD_box(4))
+		endif
+	enddo
+
+end subroutine average_over_bin
+
+!=============================================================================
+! Apply force to molecules in overlap region
+!-----------------------------------------------------------------------------
+
+subroutine apply_force
+	use arrays_MD, only : r,a
+	implicit none
+
+	integer					:: ib, jb, kb, i, ip, n
+	real(kind=kind(0.d0)) 	:: alpha(3), u_cfd_t_plus_dt(3), g, gsum, dx, dz, dA
+
+	call CPL_get(dx=dx,dz=dz)
+
+	!Loop over all molecules and apply constraint
+	do i = 1, np_overlap
+		ip = list(1,i)
+		ib = list(2,i)
+		jb = list(3,i)
+		kb = list(4,i)
+
+		n = box_average(ib,jb,kb)%np
+		g = flekkoy_gweight(r(2,ip),CFD_box(3),CFD_box(4))
+		gsum = box_average(ib,jb,kb)%a(2)
+		dA = dx*dz
+
+		a(:,ip) = a(:,ip) + (g/gsum) * dA * stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb) 
+
+	enddo
+
+end subroutine apply_force
+
+function flekkoy_gweight(y,ymin,ymax) result (g)
+	use CPL, only : error_abort
+
+	real(kind=kind(0.d0)), intent(in)	:: y, ymin, ymax
+	real(kind=kind(0.d0))				:: g, L, yhat
+
+	!Define local coordinate as const runs from 0 < y < L/2
+	L = ymax - ymin
+	yhat = y - ymin - 0.5*L
+
+    !Sanity Check and exceptions
+    if (yhat .lt. ymin) then
+        g = 0
+        return
+    elseif (yhat .gt. 0.5*L) then
+		call error_abort(" flekkoy_gweight error - input y cannot be greater than ymax")
+    endif
+
+	!Calculate weighting function
+	g = 2*( 1/(L-2*yhat) - 1/L - 2*y/(L**2))
+
+end function
 
 end subroutine apply_continuum_forces_flekkoy
-
-
-
 
 
 
