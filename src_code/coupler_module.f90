@@ -1164,13 +1164,13 @@ subroutine check_config_feasibility
 	end if
 
 	! Check that MD processor size is an integer multiple of CFD cell size
-	rtoler = 1.d-7
+	rtoler = 1.d-4
 	rval = 0.d0
 	rval = rval + mod( xL_md , dx )
 	rval = rval + mod( yL_md , dy )
 	rval = rval + mod( zL_md , dz )
 	if (rval .gt. rtoler) then
-		
+		print'(3(a,f10.5))', ' xL_md/dx = ',xL_md/dx,' yL_md/dy = ', yL_md/dy,' zL_md/dz = ',zL_md/dz
 		string = "MD region lengths must be an integer number of CFD " // &
 		         "cell sizes (i.e. xL_md must be an integer multiple " // &
 		         "of dx, etc. ), aborting simulation."
@@ -1276,7 +1276,6 @@ subroutine get_md_cell_ranges
 	ncy_mdonly = ncy_md - ncy_olap
 	ncyP_md = ncy_md / npy_md
 	olap_jmin_mdcoord = npy_md - ceiling(dble(ncy_olap)/dble(ncyP_md)) + 1
-	print*, 'cell ranges', olap_jmin_mdcoord ,npy_md,floor(dble(ncy_olap)/dble(ncyP_md)),dble(ncy_olap),dble(ncyP_md)
 	do n = olap_jmin_mdcoord,npy_md
 		jcPmax_md(n) = n * ncyP_md - ncy_mdonly
 		jcPmin_md(n) = jcPmax_md(n) - ncyP_md + 1
