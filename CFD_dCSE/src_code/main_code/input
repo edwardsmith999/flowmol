@@ -2,14 +2,14 @@
 ! Input file for inflow-outflow boundary layer code
 !
 
-10	nsteps      number of time steps to run
+1000	nsteps      number of time steps to run
 0.      timeLimit   stopping time (0.=ignore)
 48.     whours      wall hours (for SGI only; should be <= time in rundefs)
 1		iprint      interval to print out diagnostic information
 1		ipout       interval to print out restart file (might be same as iprint????)
 0		istat       Calculate statistics?  Sampling interval
 
-0.5  	Re          Reynolds number
+0.5 	Re          Reynolds number
 1       iSGS        Use a subgrid-scale model?
 
 ! Time-step control

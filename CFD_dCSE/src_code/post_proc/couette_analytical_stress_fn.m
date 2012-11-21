@@ -24,6 +24,6 @@ end
 
 %tau = tau_wall+tau;
 %tau=fliplr(tau')';
-tau = -tau;
+%tau = -tau;
 %Set top value to adjacent
 %tau(1,1) = tau_wall;
