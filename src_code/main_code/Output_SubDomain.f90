@@ -41,6 +41,7 @@ module Output_SubDomain_mod
 	INTEGER :: FILE_FLAG = 0
 
 	REAL aan
+
 end module
 
 !============================================================================================
@@ -243,7 +244,8 @@ end subroutine WriteSubDomain
 ! Write subdomain with cell centered velocities and pressures
 
 subroutine WriteSubDomain_cc(FNAME, istart,iend,iskip, jstart,jend,jskip, kstart,kend,kskip)
-use Output_SubDomain_mod
+	use Output_SubDomain_mod
+	use Stress_strain
 
 	implicit none
 	!----------------------------------------------------
@@ -255,6 +257,7 @@ use Output_SubDomain_mod
 	integer,intent(in)				:: jstart, jend, jskip
 	integer,intent(in)				:: kstart, kend, kskip
 	double precision, allocatable	:: OutBuffer(:,:,:)
+	real(kind(0.d0)),dimension(:,:,:,:,:),allocatable	:: stress
 
 	INTEGER	:: loc_istart, loc_iend
 	INTEGER	:: loc_jstart, loc_jend
@@ -263,9 +266,8 @@ use Output_SubDomain_mod
 	INTEGER	:: FLAG_RPOC_WRITES = 0
 
 	INTEGER	::  i, j, k
-	INTEGER	:: ii,jj,kk
-
-	!print*, 'inputs', istart,iend,iskip, jstart,jend,jskip, kstart,kend,kskip
+	INTEGER	::  ii,jj,kk
+	INTEGER	::  ixyz, jxyz
 
 	NAME = FNAME
 	call MPI_TYPE_SIZE(MPI_DOUBLE_PRECISION, FloatSize, ierr)
@@ -276,11 +278,6 @@ use Output_SubDomain_mod
 	!=======================================================
 	!--------- DEFINE PROCESS LIMITS (in order to locate desired output box on processes) -------
 	!--------------------------------------------------------------------------------------------
-	!my_istart = ibmin	;	if (iblock ==  1 ) my_istart =  1
-	!my_iend   = ibmax	;	if (iblock == npx) my_iend   = ngx
-	!my_jstart = jbmin	;	if (jblock ==  1 ) my_jstart =  1
-	!my_jend   = jbmax	;	if (jblock == npy) my_jend   = ngy
-
 	my_istart = iTmin_1(iblock)	;	if (iblock ==  1 ) my_istart =  1
 	my_iend   = iTmax_1(iblock)	;	if (iblock == npx) my_iend   = ngx
 	my_jstart = jTmin_1(jblock)	;	if (jblock ==  1 ) my_jstart =  0
@@ -295,8 +292,6 @@ use Output_SubDomain_mod
 	end if
 
 	CALL MPI_COMM_SPLIT(CFD_COMM, FLAG_RPOC_WRITES, 0, WRITER_COMM, ierr)
-
-	!print*, 'proc limits', my_istart,my_iend ,my_jstart,my_jend
 
 	if (FLAG_RPOC_WRITES .eq. 1) then
 		!=======================================================
@@ -319,7 +314,6 @@ use Output_SubDomain_mod
 			loc_istart	  = imap_1(istart)
 		else
 			global_indices(2) = ( my_istart - istart -1 )/iskip + 1
-			!loc_istart	  = imap_1( my_istart + iskip - mod(my_istart-istart,iskip) )
 			loc_istart	  = imap_1( istart + ((my_istart-istart-1)/iskip)*iskip + iskip)
 		end if
 
@@ -335,7 +329,6 @@ use Output_SubDomain_mod
 			loc_jstart	  = jmap_1(jstart)
 		else
 			global_indices(3) = ( my_jstart - jstart -1 )/jskip + 1
-			!loc_jstart	  = jmap_1( my_jstart + jskip - mod(my_jstart-jstart,jskip) )
 			loc_jstart	  = jmap_1( jstart + ((my_jstart-jstart-1)/jskip)*jskip + jskip)
 		end if
 
@@ -344,8 +337,6 @@ use Output_SubDomain_mod
 		else
 			loc_jend	  = jmap_1( my_jend - mod(my_jend-jstart,jskip) )
 		end if
-
-		!print*, 'resulting limits', loc_istart,loc_iend, loc_jstart, loc_jend
 
 		!--------- DEFINE SIZES (GLOBAL & LOCAL PORTION OF ARRAY) -------
 		gsizes = (/  (kend-kstart)/kskip +1 ,         (iend-istart)/iskip +1 ,         (jend-jstart)/jskip +1  /)
@@ -358,8 +349,6 @@ use Output_SubDomain_mod
 
 		!------------------------ uc ---------------------------
 		do j = loc_jstart, loc_jend, jskip
-		!	write(10,*), ntime,j, 0.5*( uc(ceiling(kend/2.d0),ceiling(loc_iend/2.d0)  ,j) & 
-		!							   +uc(ceiling(kend/2.d0),ceiling(loc_iend/2.d0)+1,j))
 		do i = loc_istart, loc_iend, iskip
 		do k =     kstart,     kend, kskip
 			jj = (j-loc_jstart)/jskip + 1
@@ -371,32 +360,6 @@ use Output_SubDomain_mod
 		end do
 		end do
 		end do
-
-
-	
-		!print'(a,12i8)', 'some indices',nx, nix, nox, ngx,ny, niy, noy, ngy,nz, niz, noz, ngz
-		!print*,'Number of points written',(loc_iend-loc_istart)/iskip+1,(loc_jend-loc_jstart)/jskip+1,(kend-kstart)/kskip+1
-		!print'(a,3i8,f10.5)','Bottom Halo-1',ceiling(kend/2.d0),ceiling(loc_iend/2.d0),loc_jstart-1, & 
-		!						0.5*( uc(ceiling(kend/2.d0),ceiling(loc_iend/2.d0)  ,loc_jstart-1) & 
-		!							 +uc(ceiling(kend/2.d0),ceiling(loc_iend/2.d0)+1,loc_jstart-1))
-		!print'(a,3i8,f10.5)','Bottom Halo',ceiling(kend/2.d0),ceiling(loc_iend/2.d0),loc_jstart, & 
-		!						0.5*( uc(ceiling(kend/2.d0),ceiling(loc_iend/2.d0)  ,loc_jstart) & 
-		!							 +uc(ceiling(kend/2.d0),ceiling(loc_iend/2.d0)+1,loc_jstart))
-		!print'(a,3i8,f10.5)','Bottom Halo+1',ceiling(kend/2.d0),ceiling(loc_iend/2.d0),loc_jstart+1, & 
-		!						0.5*( uc(ceiling(kend/2.d0),ceiling(loc_iend/2.d0)  ,loc_jstart+1) & 
-		!							 +uc(ceiling(kend/2.d0),ceiling(loc_iend/2.d0)+1,loc_jstart+1))
-
-		!print'(a,3i8,f10.5)','   Top Halo-1',ceiling(kend/2.d0),ceiling(loc_iend/2.d0),loc_jend-1, & 
-		!!						0.5*( uc(ceiling(kend/2.d0),ceiling(loc_iend/2.d0)  ,loc_jend-1  ) & 
-		!							 +uc(ceiling(kend/2.d0),ceiling(loc_iend/2.d0)+1,loc_jend-1 ))
-		!print'(a,3i8,f10.5)','   Top Halo',ceiling(kend/2.d0),ceiling(loc_iend/2.d0),loc_jend, & 
-		!						0.5*( uc(ceiling(kend/2.d0),ceiling(loc_iend/2.d0)  ,loc_jend  ) & 
-		!							 +uc(ceiling(kend/2.d0),ceiling(loc_iend/2.d0)+1,loc_jend  ))
-		!print'(a,3i8,f10.5)','   Top Halo+1',ceiling(kend/2.d0),ceiling(loc_iend/2.d0),loc_jend+1, & 
-		!						0.5*( uc(ceiling(kend/2.d0),ceiling(loc_iend/2.d0)  ,loc_jend+1  ) & 
-		!							 +uc(ceiling(kend/2.d0),ceiling(loc_iend/2.d0)+1,loc_jend+1 ))
-
-
 
 		CALL Create_commit_SubDomain_fileview()
 		CALL Create_commit_SubDomain_subarray() 
@@ -467,6 +430,35 @@ use Output_SubDomain_mod
 		
 		global_cnt = global_cnt + gsizes(1)*gsizes(2)*gsizes(3)
 		offset = global_cnt * FloatSize
+
+		!---------------------- Stress -------------------------
+		call Evaluate_stress(uc,vc,wc,P,stress)
+		! Write all nine components of stress
+		do jxyz = 1,3
+		do ixyz = 1,3
+
+			do j = loc_jstart, loc_jend, jskip
+			do i = loc_istart, loc_iend, iskip
+			do k =     kstart,     kend, kskip
+				jj = (j-loc_jstart)/jskip + 1
+				ii = (i-loc_istart)/iskip + 1
+				kk = (k-    kstart)/kskip + 1
+
+				OutBuffer (kk,ii,jj)= stress(ixyz,jxyz,k,i,j)
+
+			end do
+			end do
+			end do
+
+			CALL Create_commit_SubDomain_fileview()
+			CALL Create_commit_SubDomain_subarray() 
+			CALL MPI_FILE_WRITE_ALL(fh, OutBuffer, 1, memtype, status, ierr)
+			
+			global_cnt = global_cnt + gsizes(1)*gsizes(2)*gsizes(3)
+			offset = global_cnt * FloatSize
+
+		enddo
+		enddo
 
 		!------ close file and clean up -----
 	

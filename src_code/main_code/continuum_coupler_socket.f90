@@ -84,7 +84,7 @@ subroutine socket_coupler_init
 	                      density_cfd,ijkmax,ijkmin,iTmin_1,iTmax_1,jTmin_1,&
 	                      jTmax_1,kTmin_1,kTmax_1,xpg,ypg,zpg)
 
-	! Establish mapping between MD an CFD
+	! Establish mapping between MD and CFD
 	call CPL_create_map
 
 end subroutine socket_coupler_init
@@ -202,10 +202,9 @@ subroutine socket_coupler_send_velocity
     implicit none
 
 	logical	:: send_flag
-    integer	:: i,j,n,ixyz,icell,jcell,kcell,npercell,nclx,ncly,nclz
+    integer	:: i,j,ii,ixyz,icell,jcell,kcell,npercell,nclx,ncly,nclz
     integer	:: coord(3),extents(6),cnstnd_cells,jcmin_send,jcmax_send,jcmax_olap
     real(kind(0.d0)),dimension(:,:,:,:), allocatable 	:: sendbuf
-	real(kind(0.d0)) :: gradient
 
 	! Check processor is inside MD/CFD overlap zone 
 	if (.not.(CPL_overlap())) return
@@ -227,12 +226,12 @@ subroutine socket_coupler_send_velocity
 	jcmin_send = jcmax_olap-1-cnstnd_cells
 	jcmax_send = jcmax_olap-1
 
-	!Interpolate cell centres using all surface
+	!Interpolate cell centres using surfaces
 	sendbuf = 0.d0
 	do j=jcmin_send,jcmax_send
 	do i=1,nclx
-		n = i + i1_u - 1
-		sendbuf(1,i,j,:) = 0.5d0*(uc(:,n,j) + uc(:,n+1,j))
+		ii = i + i1_u - 1
+		sendbuf(1,i,j,:) = 0.5d0*(uc(:,ii,j) + uc(:,ii+1,j))
 	enddo
 	!call printf(sendbuf(1,40,j,:))
 	enddo
@@ -249,19 +248,19 @@ end subroutine socket_coupler_send_velocity
 
 subroutine socket_coupler_send_stress
     use CPL, only : CPL_send,CPL_olap_extents,CPL_overlap,CPL_get,CPL_realm
- 	use data_export, only : uc,vc,wc,visc,iblock,jblock,kblock
+ 	use data_export, only : uc,vc,wc,P,i1_u,i2_u,ngz,nlx,nlxb, &
+							ibmin_1,ibmax_1,iblock,jblock,kblock
     implicit none
 
-	logical			 	  :: send_flag
-    integer			 	  :: i,n,ixyz,icell,jcell,kcell,npercell,nclx,ncly,nclz
-    integer			 	  :: coord(3),extents(6),jcmax_olap
-	real(kind(0.d0))	  :: density_cfd
+	logical	:: send_flag
+    integer	:: i,j,k,ii,ixyz,icell,jcell,kcell,npercell,nclx,ncly,nclz
+    integer	:: coord(3),extents(6),cnstnd_cells,jcmin_send,jcmax_send,jcmax_olap
     real(kind(0.d0)),dimension(:,:,:,:), allocatable 	:: sendbuf
-	real(kind(0.d0)),dimension(:,:,:,:,:), allocatable 	:: dUidxj
+	real(kind(0.d0)),dimension(:,:,:,:,:), allocatable 	:: stress
 
 	! Check processor is inside MD/CFD overlap zone 
 	if (.not.(CPL_overlap())) return
-	call CPL_get(jcmax_olap=jcmax_olap,density_cfd=density_cfd)
+	call CPL_get(jcmax_olap=jcmax_olap)
 
 	!Three by three stress tensor components
 	npercell = 9
@@ -274,13 +273,22 @@ subroutine socket_coupler_send_stress
 	nclz = extents(6)-extents(5)+1
 	allocate(sendbuf(npercell,nclx,ncly,nclz))
 
-	!Get strain tensor at cell centers
-	call Evaluate_strain(uc,vc,wc,dUidxj)
+	!Number of cells to package and send
+	cnstnd_cells = 1
+	jcmin_send = jcmax_olap-1-cnstnd_cells
+	jcmax_send = jcmax_olap-1
 
-	!Get stress and store in buffer
-	! QUESTION -- if this visc is kinematic (rho/meu) then 
-	! is this the stress? Does DNS assume unit density?
-	sendbuf = visc*reshape(dUidxj,(/ 9,nclx,ncly,nclz /))
+	!Get stress tensor at cell centers and store in buffer
+	call Evaluate_stress(uc,vc,wc,P,stress)
+	sendbuf = 0.d0
+	do i=1,nclx
+	ii = i + i1_u - 1
+	do j=jcmin_send,jcmax_send
+	do k=1,nclz
+		sendbuf(:,i,j,k) = reshape(stress(:,:,k,ii,j),(/ 9 /))
+	enddo
+	enddo
+	enddo
 
 	!Send stress tensor to MD code
 	call CPL_send(sendbuf,jcmax_send=jcmax_olap-1, & 
@@ -289,20 +297,62 @@ subroutine socket_coupler_send_stress
 end subroutine socket_coupler_send_stress
 
 !---------------------------------------------------------------------
+! 	Gets cell centered stress from velocity and pressure field
+
+
+subroutine Evaluate_stress(uc,vc,wc,P,stress)
+	use data_export, only : ibmin,ibmax,jbmin,jbmax,kbmin,kbmax, &
+						   	imap_1,jmap_1,ibmap_1,jbmap_1,npx,npy, & 
+							ngx,ngy,ngzm,iblock,jblock,kblock,vp, &
+							suxix,suxiy,svetax,svetay,spz,visc,nlx,nly,ngz
+	implicit none
+
+	real(kind(0.d0)),intent(in),dimension(:,:,:)					:: uc,vc,wc,P
+	real(kind(0.d0)),intent(out),dimension(:,:,:,:,:),allocatable	:: stress
+
+	integer												:: i,j,k,ib,jb,i1,i2,j1,j2
+	real(kind(0.d0)),dimension(:,:,:,:,:),allocatable	:: dUidxj
+
+	call Evaluate_strain(uc,vc,wc,dUidxj)
+
+	i1 = ibmin ; if (iblock ==  1 ) i1 =  1   ; i1 = imap_1(i1)
+	i2 = ibmax ; if (iblock == npx) i2 = ngx-1; i2 = imap_1(i2)
+	j1 = jbmin ; if (jblock ==  1 ) j1 =  1   ; j1 = jmap_1(j1)
+	j2 = jbmax ; if (jblock == npy) j2 = ngy-1; j2 = jmap_1(j2)
+
+	!Allocate array to store stress tensor
+	if (allocated(stress)) deallocate(stress)
+	allocate(stress(3,3,0:ngz,0:nlx,0:nly)); stress = 0.d0
+
+	do j=j1,j2
+	do i=i1,i2
+	do k=1,ngzm
+		stress(:,:,k,i,j) = - P(k,i,j) * IDM(3) & 
+							-(2.d0/3.d0)*visc*trace(dUidxj(:,:,k,i,j)) * IDM(3) &
+						    +visc*(dUidxj(:,:,k,i,j)+transpose(dUidxj(:,:,k,i,j)))
+
+	enddo
+	enddo
+	enddo
+
+end subroutine Evaluate_stress
+
+
+!---------------------------------------------------------------------
 ! 			Gets cell centered strain from velocity field
 
 subroutine Evaluate_strain(uc,vc,wc,dUidxj)
 	use data_export, only : ibmin,ibmax,jbmin,jbmax,kbmin,kbmax, &
 						   	imap_1,jmap_1,ibmap_1,jbmap_1,npx,npy, & 
 							ngx,ngy,ngzm,iblock,jblock,kblock,vp, &
-							suxix,suxiy,svetax,svetay,spz
+							suxix,suxiy,svetax,svetay,spz,nlx,nly,ngz
 	implicit none
 
-	real(kind(0.d0)),intent(in),dimension(:,:,:)					:: uc,vc,wc
+	real(kind(0.d0)),intent(in),dimension(0:,0:,0:)					:: uc,vc,wc
 	real(kind(0.d0)),intent(out),dimension(:,:,:,:,:),allocatable	:: dUidxj
 
 	integer			:: i,j,k,ib,jb,i1,i2,j1,j2
-	real(kind(0.d0)):: voli, ds, Eval_eps
+	real(kind(0.d0)):: voli, ds
 	real(kind(0.d0)):: dudx,dudy,dudz,dvdx,dvdy,dvdz,dwdx,dwdy,dwdz
 
 	! Average in the homogeneous z direction
@@ -321,7 +371,7 @@ subroutine Evaluate_strain(uc,vc,wc,dUidxj)
 
 	!Allocate array to store strain tensor
 	if (allocated(dUidxj)) deallocate(dUidxj)
-	allocate(dUidxj(3,3,ibmin:ibmax,jbmin:jbmax,ngzm)); dUidxj = 0.d0
+	allocate(dUidxj(3,3,0:ngz,0:nlx,0:nly)); dUidxj = 0.d0
 
 	do j=j1,j2
 		jb = jbmap_1(j)
@@ -331,12 +381,12 @@ subroutine Evaluate_strain(uc,vc,wc,dUidxj)
 	do k=1,ngzm
 		!------------------------ du/dx -------------------------
 		dudx= voli  * (  uc(k,i+1,j)*suxix(ib+1,jb) &
-				-uc(k, i ,j)*suxix(ib  ,jb) &
+						-uc(k, i ,j)*suxix(ib  ,jb) &
 				+0.25*(uc(k,i,j)+uc(k,i+1,j)+uc(k,i,j+1)+uc(k,i+1,j+1))*svetax(ib,jb+1) &
 				-0.25*(uc(k,i,j)+uc(k,i+1,j)+uc(k,i,j-1)+uc(k,i+1,j-1))*svetax(ib,jb  )   )
 
 		dudy= voli  * (  uc(k,i+1,j)*suxiy(ib+1,jb) &
-				-uc(k, i ,j)*suxiy( ib ,jb) &
+						-uc(k, i ,j)*suxiy( ib ,jb) &
 				+0.25*(uc(k,i,j)+uc(k,i+1,j)+uc(k,i,j+1)+uc(k,i+1,j+1))*svetay(ib,jb+1) &
 				-0.25*(uc(k,i,j)+uc(k,i+1,j)+uc(k,i,j-1)+uc(k,i+1,j-1))*svetay(ib, jb )   )
 
@@ -345,41 +395,78 @@ subroutine Evaluate_strain(uc,vc,wc,dUidxj)
 
 		!------------------------ dv/dx -------------------------
 		dvdx= voli  * (  vc(k,i,j+1)*svetax(ib,jb+1) &
-				-vc(k,i, j )*svetax(ib, jb ) &
+						-vc(k,i, j )*svetax(ib, jb ) &
 				+0.25*(vc(k,i,j)+vc(k,i,j+1)+vc(k,i+1,j)+vc(k,i+1,j+1))*suxix(ib+1,jb) &
 				-0.25*(vc(k,i,j)+vc(k,i,j+1)+vc(k,i-1,j)+vc(k,i-1,j+1))*suxix( ib ,jb)   )
 
 		dvdy= voli  * (  vc(k,i,j+1)*svetay(ib,jb+1) &
-				-vc(k,i, j )*svetay(ib, jb ) &
+						-vc(k,i, j )*svetay(ib, jb ) &
 				+0.25*(vc(k,i,j)+vc(k,i,j+1)+vc(k,i+1,j)+vc(k,i+1,j+1))*suxiy(ib+1,jb) &
 				-0.25*(vc(k,i,j)+vc(k,i,j+1)+vc(k,i-1,j)+vc(k,i-1,j+1))*suxiy( ib ,jb)   )
 
 		dvdz= voli  *	spz(ib,jb)*( 0.25*(vc( k ,i,j)+vc( k ,i,j+1)+vc(k+1,i,j)+vc(k+1,i,j+1)) &
-					    -0.25*(vc(k-1,i,j)+vc(k-1,i,j+1)+vc( k ,i,j)+vc( k ,i,j+1))   )
+					    			-0.25*(vc(k-1,i,j)+vc(k-1,i,j+1)+vc( k ,i,j)+vc( k ,i,j+1))   )
 
 		!------------------------ dw/dx -------------------------
 		dwdx= voli  *  ( 0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i+1,j  )+wc(k+1,i+1,j  ))*suxix(ib+1,jb) &
-				-0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i-1,j  )+wc(k+1,i-1,j  ))*suxix( ib ,jb) &
-				+0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i  ,j+1)+wc(k+1,i  ,j+1))*svetax(ib,jb+1) &
-				-0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i  ,j-1)+wc(k+1,i  ,j-1))*svetax(ib, jb )   )
+						-0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i-1,j  )+wc(k+1,i-1,j  ))*suxix( ib ,jb) &
+						+0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i  ,j+1)+wc(k+1,i  ,j+1))*svetax(ib,jb+1) &
+						-0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i  ,j-1)+wc(k+1,i  ,j-1))*svetax(ib, jb )   )
 
 		dwdy= voli  *  ( 0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i+1,j  )+wc(k+1,i+1,j  ))*suxiy(ib+1,jb) &
-				-0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i-1,j  )+wc(k+1,i-1,j  ))*suxiy( ib ,jb) &
-				+0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i  ,j+1)+wc(k+1,i  ,j+1))*svetay(ib,jb+1) &
-				-0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i  ,j-1)+wc(k+1,i  ,j-1))*svetay(ib, jb )   )
+						-0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i-1,j  )+wc(k+1,i-1,j  ))*suxiy( ib ,jb) &
+						+0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i  ,j+1)+wc(k+1,i  ,j+1))*svetay(ib,jb+1) &
+						-0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i  ,j-1)+wc(k+1,i  ,j-1))*svetay(ib, jb )   )
 
 		dwdz= voli  *	spz(ib,jb)*(wc(k+1,i,j)-wc(k,i,j))
 
 		!--------------------- Store strain rate tensor ----------------------
-		dUidxj(1,:,ib,jb,k) = (/dudx,dudy,dudz/)
-		dUidxj(2,:,ib,jb,k) = (/dvdx,dvdy,dvdz/)
-		dUidxj(3,:,ib,jb,k) = (/dwdx,dwdy,dwdz/)
+		dUidxj(1,:,k,ib,jb) = (/dudx,dudy,dudz/)
+		dUidxj(2,:,k,ib,jb) = (/dvdx,dvdy,dvdz/)
+		dUidxj(3,:,k,ib,jb) = (/dwdx,dwdy,dwdz/)
 
 	end do
 	end do
 	end do
 
 end subroutine Evaluate_strain
+
+
+!  A function that returns the trace of a square matrix
+
+function trace(A)
+   implicit none
+
+	real(kind(0.d0)) 					:: trace
+	real(kind(0.d0)) , dimension(:,:) 	:: a
+
+	integer :: j            ! local loop index
+   
+	trace = 0.d0   ! Set trace to zero
+	if (size(A,1) .ne. size(A,2)) stop "Trace error - must be square matrix"
+	do j = 1,size(A,1)                      
+	    trace = trace + A(j,j)  ! Add along diagonal 
+	enddo
+
+end function trace
+
+!  A function that produces an Identity Matrix of dimension (n,n)
+
+function IDM(n)
+implicit none
+integer, intent(in) 				:: n
+real(kind(0.d0)) , dimension(n,n)	:: IDM
+
+integer :: j            		! local loop index
+
+IDM = 0.d0   			! Set all elements to zero
+do j = 1,n
+    IDM(j,j) = 1.d0  	! Change value of diagonal elements to one
+enddo
+
+end function IDM
+
+
 
 !▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
 !  ۩ ۩ ۩  ۩ ۩ ۩  ۩ ۩ ۩  ۩ ۩ ۩  ۩ ۩ ۩  ۩ ۩ ۩  ۩ ۩ ۩  ۩ ۩ ۩  ۩ ۩ ۩  ۩ ۩ ۩  ۩ ۩ 

@@ -885,6 +885,235 @@ subroutine Evaluate_eps()
 end
 
 
+module stress_strain
+
+
+
+contains
+
+	!  A function that returns the trace of a square matrix
+
+	function trace(A)
+	   implicit none
+
+		real(kind(0.d0)) 					:: trace
+		real(kind(0.d0)) , dimension(:,:) 	:: a
+
+		integer :: j            ! local loop index
+	   
+		trace = 0.d0   ! Set trace to zero
+		if (size(A,1) .ne. size(A,2)) stop "Trace error - must be square matrix"
+		do j = 1,size(A,1)                      
+		    trace = trace + A(j,j)  ! Add along diagonal 
+		enddo
+
+	end function trace
+
+	!  A function that produces an Identity Matrix of dimension (n,n)
+
+	function IDM(n)
+	implicit none
+	integer, intent(in) 				:: n
+	real(kind(0.d0)) , dimension(n,n)	:: IDM
+
+	integer :: j            		! local loop index
+
+	IDM = 0.d0   			! Set all elements to zero
+	do j = 1,n
+	    IDM(j,j) = 1.d0  	! Change value of diagonal elements to one
+	enddo
+
+	end function IDM
+
+
+!---------------------------------------------------------------------
+! 			Gets cell centered strain from velocity field
+
+subroutine Evaluate_strain(uc,vc,wc,dUidxj)
+	use data_export, only : ibmin,ibmax,jbmin,jbmax,kbmin,kbmax, &
+						   	imap_1,jmap_1,ibmap_1,jbmap_1,npx,npy, & 
+							ngx,ngy,ngzm,iblock,jblock,kblock,vp, &
+							suxix,suxiy,svetax,svetay,spz,nlx,nly,ngz
+	implicit none
+
+	real(kind(0.d0)),intent(in),dimension(0:,0:,0:)					:: uc,vc,wc
+	real(kind(0.d0)),intent(out),dimension(:,:,:,:,:),allocatable	:: dUidxj
+
+	integer			:: i,j,k,ib,jb,i1,i2,j1,j2
+	real(kind(0.d0)):: voli, ds
+	real(kind(0.d0)):: dudx,dudy,dudz,dvdx,dvdy,dvdz,dwdx,dwdy,dwdz
+
+	! Average in the homogeneous z direction
+	ds = 1./ngzm
+
+	!-----------------------------------------------------------
+	! Derivatives: dudx,dudy,dudz,dvdx,dvdy,dvdz,dwdx,dwdy,dwdz
+	!-----------------------------------------------------------
+	! Dissipation:  epsilon=\nu * average ( duidxj * duidxj )
+	!-----------------------------------------------------------
+
+	i1 = ibmin ; if (iblock ==  1 ) i1 =  1   ; i1 = imap_1(i1)
+	i2 = ibmax ; if (iblock == npx) i2 = ngx-1; i2 = imap_1(i2)
+	j1 = jbmin ; if (jblock ==  1 ) j1 =  1   ; j1 = jmap_1(j1)
+	j2 = jbmax ; if (jblock == npy) j2 = ngy-1; j2 = jmap_1(j2)
+
+	!Allocate array to store strain tensor
+	if (allocated(dUidxj)) deallocate(dUidxj)
+	allocate(dUidxj(3,3,0:ngz,0:nlx,0:nly)); dUidxj = 0.d0
+
+	do j=j1,j2
+		jb = jbmap_1(j)
+	do i=i1,i2
+		ib = ibmap_1(i)
+		voli = 1./vp(ib,jb)
+	do k=1,ngzm
+		!------------------------ du/dx -------------------------
+		dudx= voli  * (  uc(k,i+1,j)*suxix(ib+1,jb) &
+						-uc(k, i ,j)*suxix(ib  ,jb) &
+				+0.25*(uc(k,i,j)+uc(k,i+1,j)+uc(k,i,j+1)+uc(k,i+1,j+1))*svetax(ib,jb+1) &
+				-0.25*(uc(k,i,j)+uc(k,i+1,j)+uc(k,i,j-1)+uc(k,i+1,j-1))*svetax(ib,jb  )   )
+
+		dudy= voli  * (  uc(k,i+1,j)*suxiy(ib+1,jb) &
+						-uc(k, i ,j)*suxiy( ib ,jb) &
+				+0.25*(uc(k,i,j)+uc(k,i+1,j)+uc(k,i,j+1)+uc(k,i+1,j+1))*svetay(ib,jb+1) &
+				-0.25*(uc(k,i,j)+uc(k,i+1,j)+uc(k,i,j-1)+uc(k,i+1,j-1))*svetay(ib, jb )   )
+
+		dudz= voli  *	spz(ib,jb)*( 0.25*(uc( k ,i,j)+uc( k ,i+1,j)+uc(k+1,i,j)+uc(k+1,i+1,j)) &
+					    -0.25*(uc(k-1,i,j)+uc(k-1,i+1,j)+uc( k ,i,j)+uc( k ,i+1,j))  )
+
+		!------------------------ dv/dx -------------------------
+		dvdx= voli  * (  vc(k,i,j+1)*svetax(ib,jb+1) &
+						-vc(k,i, j )*svetax(ib, jb ) &
+				+0.25*(vc(k,i,j)+vc(k,i,j+1)+vc(k,i+1,j)+vc(k,i+1,j+1))*suxix(ib+1,jb) &
+				-0.25*(vc(k,i,j)+vc(k,i,j+1)+vc(k,i-1,j)+vc(k,i-1,j+1))*suxix( ib ,jb)   )
+
+		dvdy= voli  * (  vc(k,i,j+1)*svetay(ib,jb+1) &
+						-vc(k,i, j )*svetay(ib, jb ) &
+				+0.25*(vc(k,i,j)+vc(k,i,j+1)+vc(k,i+1,j)+vc(k,i+1,j+1))*suxiy(ib+1,jb) &
+				-0.25*(vc(k,i,j)+vc(k,i,j+1)+vc(k,i-1,j)+vc(k,i-1,j+1))*suxiy( ib ,jb)   )
+
+		dvdz= voli  *	spz(ib,jb)*( 0.25*(vc( k ,i,j)+vc( k ,i,j+1)+vc(k+1,i,j)+vc(k+1,i,j+1)) &
+					    			-0.25*(vc(k-1,i,j)+vc(k-1,i,j+1)+vc( k ,i,j)+vc( k ,i,j+1))   )
+
+		!------------------------ dw/dx -------------------------
+		dwdx= voli  *  ( 0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i+1,j  )+wc(k+1,i+1,j  ))*suxix(ib+1,jb) &
+						-0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i-1,j  )+wc(k+1,i-1,j  ))*suxix( ib ,jb) &
+						+0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i  ,j+1)+wc(k+1,i  ,j+1))*svetax(ib,jb+1) &
+						-0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i  ,j-1)+wc(k+1,i  ,j-1))*svetax(ib, jb )   )
+
+		dwdy= voli  *  ( 0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i+1,j  )+wc(k+1,i+1,j  ))*suxiy(ib+1,jb) &
+						-0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i-1,j  )+wc(k+1,i-1,j  ))*suxiy( ib ,jb) &
+						+0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i  ,j+1)+wc(k+1,i  ,j+1))*svetay(ib,jb+1) &
+						-0.25*(wc(k,i,j)+wc(k+1,i,j)+wc(k,i  ,j-1)+wc(k+1,i  ,j-1))*svetay(ib, jb )   )
+
+		dwdz= voli  *	spz(ib,jb)*(wc(k+1,i,j)-wc(k,i,j))
+
+		!--------------------- Store strain rate tensor ----------------------
+		dUidxj(1,:,k,ib,jb) = (/dudx,dudy,dudz/)
+		dUidxj(2,:,k,ib,jb) = (/dvdx,dvdy,dvdz/)
+		dUidxj(3,:,k,ib,jb) = (/dwdx,dwdy,dwdz/)
+
+	end do
+	end do
+	end do
+
+end subroutine Evaluate_strain
+
+
+subroutine Evaluate_stress(uc,vc,wc,P,stress)
+	use data_export, only : ibmin,ibmax,jbmin,jbmax,kbmin,kbmax, &
+						   	imap_1,jmap_1,ibmap_1,jbmap_1,npx,npy, & 
+							ngx,ngy,ngzm,iblock,jblock,kblock,vp, &
+							suxix,suxiy,svetax,svetay,spz,visc,nlx,nly,ngz
+	implicit none
+
+	real(kind(0.d0)),intent(in),dimension(:,:,:)					:: uc,vc,wc,P
+	real(kind(0.d0)),intent(out),dimension(:,:,:,:,:),allocatable	:: stress
+
+	integer												:: i,j,k,ib,jb,i1,i2,j1,j2
+	real(kind(0.d0)),dimension(:,:,:,:,:),allocatable	:: dUidxj
+
+	call Evaluate_strain(uc,vc,wc,dUidxj)
+
+	i1 = ibmin ; if (iblock ==  1 ) i1 =  1   ; i1 = imap_1(i1)
+	i2 = ibmax ; if (iblock == npx) i2 = ngx-1; i2 = imap_1(i2)
+	j1 = jbmin ; if (jblock ==  1 ) j1 =  1   ; j1 = jmap_1(j1)
+	j2 = jbmax ; if (jblock == npy) j2 = ngy-1; j2 = jmap_1(j2)
+
+	!Allocate array to store stress tensor
+	if (allocated(stress)) deallocate(stress)
+	allocate(stress(3,3,0:ngz,0:nlx,0:nly)); stress = 0.d0
+
+	do j=j1,j2
+		jb = jbmap_1(j)
+	do i=i1,i2
+		ib = ibmap_1(i)
+	do k=1,ngzm
+		stress(:,:,k,i,j) = - P(k,i,j) * IDM(3) & 
+							-(2.d0/3.d0)*visc*trace(dUidxj(:,:,k,i,j)) * IDM(3) &
+						    +visc*(dUidxj(:,:,k,i,j)+transpose(dUidxj(:,:,k,i,j)))
+
+	enddo
+	enddo
+	enddo
+
+end subroutine Evaluate_stress
+
+
+!--------------------------------------------------------------------------------------
+! Prints formatted debug statements
+subroutine printf(buf,dplaces_in)
+	implicit none
+
+	double precision,dimension(:),intent(in):: buf
+	integer, intent(in), optional			:: dplaces_in
+
+	integer				:: n,dplaces,rank_world
+	double precision	:: maxbuf,minbuf,order
+	character*13	 	:: string
+	character*42	 	:: buf_precision
+
+	rank_world = 0
+
+	!Default number of decimal places if not supplied
+	if (present(dplaces_in)) then
+		if (dplaces_in .le. 9) then
+			dplaces = dplaces_in
+		else
+			print*, 'Number of decimal places in printf if limited to 9'
+			dplaces = 9 !Maximum
+		endif
+	else
+		dplaces = 4
+	endif
+
+	!Find out required format to display maximum element in buffer
+	maxbuf = maxval(buf); minbuf = minval(buf)
+	maxbuf = max(maxbuf,10*abs(minbuf))	!10*Ensures extra space for minus sign
+	order = 1.d0; n =1
+	do while (max(maxbuf,order) .ne. order)
+		order = order*10.d0
+		n = n + 1
+	enddo
+	if (n+dplaces+2 .le. 9) then
+		write(buf_precision,'(a,i1,a,i1)'), 'f',n+dplaces+2,'.', dplaces
+	else
+		write(buf_precision,'(a,i2,a,i1)'), 'f',n+dplaces+2,'.', dplaces
+	endif
+
+	! Build up format specifier string based on size of passed array
+	string='(i3,   ' // trim(buf_precision) // ')'
+	write(string(5:7),'(i3)'), size(buf) 
+
+	!Write formatted data 
+	print(string), rank_world,buf
+
+end subroutine printf
+
+
+end module stress_strain
+
+
 !--------------------------------- BELOW IS BACKUP FOR COMPUTING DISSIPATION (\epsilon) ------------------
 !
 !	!-----------------------------------------------------------

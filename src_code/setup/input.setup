@@ -3,21 +3,21 @@
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
 ! Grid size  !T (Should be the same as (ngx,ngy,ngz) in "param.inc"
-33	nix
-33	niy
+9	nix
+9	niy
 9	niz
 
 ! Domain size
-181.2574503477			xL	domain length
-181.2574503477			yL	domain height
-11.9698316267			zL  domain width
+41.0394  xL	domain length
+41.0394  yL	domain height
+41.0394  zL  domain width
 
 ! Mesh parameters
 0	imeshY	stretching in Y: (0)uniform (1)pw-linear (2)matched tanh (3) Gauss-Lobatto
 40.	ratio
 
 ! Initial field parameters
-5	ifield		(1)zero (2)uniform (3)parabolic (4)dummy (5)Read "uy_input" file
+1	ifield		(1)zero (2)uniform (3)parabolic (4)dummy (5)Read "uy_input" file
 0	iturb		add random fluctuations?
 0	iOSS		read orr-sommerfeld/squire data? (0)no (1)yes
 0	iPeriodic	add periodic perturbations?      (0)no (1)yes

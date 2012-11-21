@@ -74,7 +74,6 @@ subroutine simulation_init()
 	call readFloat("Re",Re)
 	visc = 1.0/Re
 
-
 	call readInt("nsteps", nsteps)
 	call readInt("ipout", ipout)
 	call readFloat("timeLimit", timeLimit)
