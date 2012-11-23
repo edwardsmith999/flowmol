@@ -23,16 +23,33 @@ use module_initialise_microstate
 implicit none
 
 	integer		::	n
-	
-	select case(potential_flag)
-	case(0)	
-		call setup_initialise_parallel_position       !Setup initial pos
-	case(1) 
-		call setup_initialise_parallel_position_FENE  !Numbering for FENE bonds
-		call setup_initialise_polyinfo                !Chain IDs, etc
+
+	select case(initial_config_flag)
+	case(0)
+		call setup_initialise_lattice        !Setup FCC lattice
+	case(1)
+		select case (config_special_case)
+		case('fene_melt')
+			call setup_initialise_lattice    !Numbering for FENE bonds
+			call setup_initialise_polyinfo   !Chain IDs, etc
+		case default
+			call error_abort('Unidentified configuration special case')
+		end select
+	case(2)
+		call error_abort('Initial configuration file input not yet developed')
 	case default
-		call error_abort('Potential flag not recognised!')
+		call error_abort('Unidentified initial configuration flag')	
 	end select
+
+!	select case(potential_flag)
+!	case(0)	
+!		call setup_initialise_parallel_position       !Setup initial pos
+!	case(1) 
+!		call setup_initialise_parallel_position_FENE  !Numbering for FENE bonds
+!		call setup_initialise_polyinfo                !Chain IDs, etc
+!	case default
+!		call error_abort('Potential flag not recognised!')
+!	end select
 
 	do n=1,np    !Initialise global true positions
 		rtrue(1,n) = r(1,n)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
@@ -252,21 +269,18 @@ end subroutine setup_initialise_parallel_position
 
 !--------------------------------------------------------------------------------
 !FENE equivalent
-subroutine setup_initialise_parallel_position_FENE
+subroutine setup_initialise_lattice
 	use module_initialise_microstate
 	use messenger
-	use polymer_info_MD
 #if USE_COUPLER
 	use coupler
 	use md_coupler_socket, only: socket_get_domain_top
 #endif
-
 	implicit none
 
-	integer 						:: j, ixyz, n, nl, nx, ny, nz
-	integer                         :: chainID, subchainID
-	integer,dimension(nd) 			:: p_units_lb, p_units_ub, nfcc_max
-	double precision 				:: domain_top, removed_height
+	integer	:: j, n, nl, nx, ny, nz
+	integer, dimension(nd) :: p_units_lb, p_units_ub 
+	double precision :: domain_top
 	double precision, dimension (nd):: rc, c !Temporary variable
 
 	p_units_lb(1) = (iblock-1)*floor(initialnunits(1)/real((npx),kind(0.d0)))
@@ -276,25 +290,31 @@ subroutine setup_initialise_parallel_position_FENE
 	p_units_lb(3) = (kblock-1)*floor(initialnunits(3)/real((npz),kind(0.d0)))
 	p_units_ub(3) =  kblock *ceiling(initialnunits(3)/real((npz),kind(0.d0)))
 
-	!Set CFD region to top of domain initially
+	!Set top of domain initially
 	domain_top = domain(2)/2.d0
 
 #if USE_COUPLER
+
 	if (jblock .eq. npy) then
 		domain_top = socket_get_domain_top()
 	endif
+
 #endif
 
 	!Molecules per unit FCC structure (3D)
-	n  = 0  	!Reset n
-	nl = 0		!Reset nl
-	do nz=p_units_lb(3),p_units_ub(3)	!Loop over z column
+	n  = 0  	!Initialise global np counter n
+	nl = 0		!Initialise local np counter nl
+
+	!Inner loop in y (useful for setting connectivity)
+	do nz=p_units_lb(3),p_units_ub(3)
 	c(3) = (nz - 0.75d0)*initialunitsize(3) - halfdomain(3) 
-	do ny=p_units_lb(2),p_units_ub(2)	!Loop over y column
-	c(2) = (ny - 0.75d0)*initialunitsize(2) - halfdomain(2) 
-	do nx=p_units_lb(1),p_units_ub(1)	!Loop over all x elements of y column
+	do nx=p_units_lb(1),p_units_ub(1)
 	c(1) = (nx - 0.75d0)*initialunitsize(1) - halfdomain(1)
+	do ny=p_units_lb(2),p_units_ub(2)
+	c(2) = (ny - 0.75d0)*initialunitsize(2) - halfdomain(2) 
+
 		do j=1,4	!4 Molecules per cell
+
 			rc(:) = c(:)
 			select case(j)
 			case(2)
@@ -309,7 +329,7 @@ subroutine setup_initialise_parallel_position_FENE
 			case default
 			end select
 
-			n = n + 1	!Move to next molecule
+			n = n + 1	!Move to next particle
 			
 			!Remove molecules from top of domain if constraint applied
 			if (rc(2)-domain(2)*(jblock-1) .gt.  domain_top) cycle 
@@ -325,20 +345,19 @@ subroutine setup_initialise_parallel_position_FENE
 			!If molecules is in the domain then add to total
 			nl = nl + 1 !Local molecule count
 
-
 			!Correct to local coordinates
 			r(1,nl) = rc(1)-domain(1)*(iblock-1)
 			r(2,nl) = rc(2)-domain(2)*(jblock-1)
 			r(3,nl) = rc(3)-domain(3)*(kblock-1)
 
 		enddo
+
 	enddo
 	enddo
 	enddo
 
-	np = nl			    !Correct local number of particles on processor
-	!rinitial = rtrue    !Record initial position of all molecules
-
+	!Correct local number of particles on processor
+	np = nl
 
 	!Establish global number of particles on current process
 	globalnp = np
@@ -349,19 +368,21 @@ subroutine setup_initialise_parallel_position_FENE
 	call globalGathernp
 
 #if USE_COUPLER
+
 	if (myid .eq. 0) then
 		print*, '*********************************************************************'
 		print*, '*WARNING - TOP LAYER OF DOMAIN REMOVED IN LINE WITH CONSTRAINT FORCE*'
 		print*, 'Removed from', domain_top, 'to Domain top', globaldomain(2)/2.d0
 		print*, 'Number of molecules reduced from',  & 
-			 4*initialnunits(1)*initialnunits(2)*initialnunits(3), 'to', np
+		         4*initialnunits(1)*initialnunits(2)*initialnunits(3), 'to', np
 		print*, '*********************************************************************'
-
-                !print*, 'microstate ', minval(r(1,:)), maxval(r(1,:)),minval(r(2,:)), maxval(r(2,:)),minval(r(3,:)), maxval(r(3,:))
+		!print*, 'microstate ', minval(r(1,:)), maxval(r(1,:)),minval(r(2,:)),  &
+		!         maxval(r(2,:)),minval(r(3,:)), maxval(r(3,:))
 	endif
+
 #endif
 
-end subroutine setup_initialise_parallel_position_FENE
+end subroutine setup_initialise_lattice
 !-------------------------------------------------------------------------------
 !Assign chainIDs, subchainIDs, global molecule numbers, etc...
 

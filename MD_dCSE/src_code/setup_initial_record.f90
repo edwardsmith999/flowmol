@@ -394,12 +394,12 @@ subroutine setup_initial_record
 			select case(macro_outflag)
 			case(1:2)
 				print '(2a)', &
-				'     iter;   simtime;      VSum;    V^2Sum;   Temp;', & 
-				'        KE;            PE;             TE;               P;   Rtcf;      R_g'
+				'     iter;   simtime;      VSum;     V^2Sum;   Temp;', & 
+				'        KE;            PE;             TE;               P;   Rtcf;     R_g'
 			case(3:4)
 				print '(2a)', &
-				'    iter; simtime;   VSum;   Temp;', & 
-				'     KE;     PE;     TE;      P;  Rtcf;   R_g'
+				'    iter; simtime;    VSum;   Temp;', & 
+				'     KE;     PE;     TE;      P;  Rtcf;  R_g'
 			case default
 			end select
 		case default
@@ -413,43 +413,44 @@ subroutine setup_initial_record
            call print_macroscopic_properties(initialstep)
        end select
 
-		print*, "   =========================================================="
-		print*,	"   |    _____ _                 _       _   _               |"
-		print*,	"   |   /  ___(_)               | |     | | (_)              |"
-		print*,	"   |   \ `--. _ _ __ ___  _   _| | __ _| |_ _  ___  _ __    |"
-		print*,	"   |    `--. \ | '_ ` _ \| | | | |/ _` | __| |/ _ \| '_ \   |"
-		print*,	"   |   /\__/ / | | | | | | |_| | | (_| | |_| | (_) | | | |  |"
-		print*,	"   |   \____/|_|_| |_| |_|\__,_|_|\__,_|\__|_|\___/|_| |_|  |"
-		print*, "   |                                                        |"
-		print*, "   =========================================================="
-		select case(potential_flag)
-		case(0)
-			select case(macro_outflag)
-			case(1:2)
-				print '(2a)', &
-				'     iter;   simtime;      VSum;    V^2Sum;   Temp;', &
-				'          KE;                 PE;                  TE;               P'
-			case(3:4)
-				print '(2a)', &
-				'   iter;   simtime;    VSum;      T;', & 
-				'      KE;      PE;      TE;       P'
-			case default
-			end select
-		case(1)
-			select case(macro_outflag)
-			case(1:2)
-				print '(2a)', &
-				'     iter;   simtime;      VSum;    V^2Sum;   Temp;', & 
-				'        KE;            PE;             TE;               P;   Rtcf;      R_g'
-			case(3:4)
-				print '(2a)', &
-				'    iter; simtime;   VSum;   Temp;', & 
-				'     KE;     PE;     TE;      P;  Rtcf;   R_g'
-			case default
-			end select
-		case default
-			call error_abort("Invalid potential flag in input file")
-		end select
+		print*, "Simulation:"
+!		print*, "   =========================================================="
+!		print*,	"   |    _____ _                 _       _   _               |"
+!		print*,	"   |   /  ___(_)               | |     | | (_)              |"
+!		print*,	"   |   \ `--. _ _ __ ___  _   _| | __ _| |_ _  ___  _ __    |"
+!		print*,	"   |    `--. \ | '_ ` _ \| | | | |/ _` | __| |/ _ \| '_ \   |"
+!		print*,	"   |   /\__/ / | | | | | | |_| | | (_| | |_| | (_) | | | |  |"
+!		print*,	"   |   \____/|_|_| |_| |_|\__,_|_|\__,_|\__|_|\___/|_| |_|  |"
+!		print*, "   |                                                        |"
+!		print*, "   =========================================================="
+!		select case(potential_flag)
+!		case(0)
+!			select case(macro_outflag)
+!			case(1:2)
+!				print '(2a)', &
+!				'     iter;   simtime;      VSum;    V^2Sum;   Temp;', &
+!				'          KE;                 PE;                  TE;               P'
+!			case(3:4)
+!				print '(2a)', &
+!				'   iter;   simtime;    VSum;      T;', & 
+!				'      KE;      PE;      TE;       P'
+!			case default
+!			end select
+!		case(1)
+!			select case(macro_outflag)
+!			case(1:2)
+!				print '(2a)', &
+!				'     iter;   simtime;      VSum;    V^2Sum;   Temp;', & 
+!				'        KE;            PE;             TE;               P;   Rtcf;      R_g'
+!			case(3:4)
+!				print '(2a)', &
+!				'    iter; simtime;   VSum;   Temp;', & 
+!				'     KE;     PE;     TE;      P;  Rtcf;   R_g'
+!			case default
+!			end select
+!		case default
+!			call error_abort("Invalid potential flag in input file")
+!		end select
 
 	
 		!Obtain and record radial distributions

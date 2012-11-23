@@ -26,7 +26,12 @@ implicit none
 	call simulation_compute_forces
 	call evaluate_macroscopic_properties
 	if (irank .eq. iroot) then
-		print('(a,i8,a)'), ' Results from final state of simulation at iter ',iter,':'
+		select case(integration_algorithm)
+		case(leap_frog_verlet)
+			print('(a,i8,a)'), ' Results from final state of simulation at iter ',iter-1,':'
+		case(velocity_verlet)
+			print('(a,i8,a)'), ' Results from final state of simulation at iter ',iter,':'
+		end select
 	end if
 
    select case(integration_algorithm)

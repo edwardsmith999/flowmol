@@ -36,10 +36,19 @@ subroutine setup_read_input
 	read(1,*) rcutoff
 	call locate(1,'INPUTTEMPERATURE',.true.)
 	read(1,*) inputtemperature
-	call locate(1,'INITIALNUNITS',.true.)
-	read(1,*) initialnunits(1)		!x dimension split into number of cells
-	read(1,*) initialnunits(2)		!y dimension split into number of cells
-	read(1,*) initialnunits(3)		!z dimension split into number of cells
+	call locate(1,'INITIAL_CONFIG_FLAG',.true.)
+	read(1,*) initial_config_flag 
+	select case (initial_config_flag)
+	case(0)
+		call locate(1,'INITIALNUNITS',.true.)
+		read(1,*) initialnunits(1)		!x dimension split into number of cells
+		read(1,*) initialnunits(2)		!y dimension split into number of cells
+		read(1,*) initialnunits(3)		!z dimension split into number of cells
+	case(1)	
+		read(1,*) config_special_case	
+	case(2)
+	case default
+	end select 
 	call locate(1,'INTEGRATION_ALGORITHM',.true.)
 	read(1,*) integration_algorithm
 	call locate(1,'ENSEMBLE',.true.)

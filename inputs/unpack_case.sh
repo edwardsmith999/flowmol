@@ -7,8 +7,8 @@ if [ $# -lt 1 ]; then
 	echo "Input of the form unpack_case.sh [Case Name]"
 else
 	echo "WARNING - this will replace all input files in the CFD and coupler directories"
-	read -p "Are you sure? (y/n) "
-	if [ "$REPLY" == "y" ]; then
+	read -p "Are you sure? (y/n) " user_reply
+	if [ "$user_reply" = "y" ]; then
 		cp ./$1/input.file  ./../CFD_dCSE/src_code/grid_generation/
 		cp ./$1/input.setup ./../CFD_dCSE/src_code/setup/
 		cp ./$1/uy_input ./../CFD_dCSE/src_code/setup/

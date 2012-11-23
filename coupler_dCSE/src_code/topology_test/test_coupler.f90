@@ -32,8 +32,27 @@ end program test_coupler
 !===========================================
 
 subroutine test_setup_input_and_arrays
-	use coupler_module
+	use CPL, only: coupler_cfd_init(), coupler_md_init()
 	implicit none
+
+	integer :: npx_md 
+	integer :: npy_md 
+	integer :: npz_md 
+	integer :: npx_cfd 
+	integer :: npy_cfd 
+	integer :: npz_cfd 
+	integer :: ncx 
+	integer :: ncy 
+	integer :: ncz 
+	integer :: icmin_olap 
+	integer :: icmax_olap 
+	integer :: jcmin_olap 
+	integer :: jcmax_olap 
+	integer :: kcmin_olap 
+	integer :: kcmax_olap 
+	real(kind(0.d0)) :: xL_cfd 
+	real(kind(0.d0)) :: yL_cfd 
+	real(kind(0.d0)) :: zL_cfd 
 
 	open(unit=1,file='input',form='formatted')
 		read(1,*) npx_md 
@@ -55,6 +74,14 @@ subroutine test_setup_input_and_arrays
 		read(1,*) kcmin_olap 
 		read(1,*) kcmax_olap 
 	close(1)
+
+	if (irank .le. nproc_cfd) then
+		! CALL CFD INITIALISATION ROUTINES
+		call test_cfd_setup	
+	else
+		! CALL MD INITIALISATION ROUTINES
+		call test_md_setup
+	end if
 
 	icmin = 1
 	jcmin = 1
@@ -82,6 +109,39 @@ subroutine test_setup_input_and_arrays
 	zL_md = zL_cfd
 
 	yL_olap = (jcmax_olap - jcmin_olap + 1) * dy
+
+contains
+
+	subroutine test_cfd_setup
+	implicit none
+
+		integer,					    :: _nsteps,_icomm_grid 
+		integer,dimension(3),		    :: _ijkcmin,_ijkcmax,_npxyz_cfd,_ncxyz
+		integer,dimension(:),		    :: _iTmin,_iTmax,_jTmin,_jTmax,_kTmin,_kTmax
+		integer,dimension(:,:),		    :: _icoord
+		real(kind(0.d0)),			    :: _dt,_density
+		real(kind(0.d0)),dimension(3),  :: _xyzL
+		real(kind(0.d0)),dimension(:  ) :: _zgrid
+		real(kind(0.d0)),dimension(:,:) :: _xgrid,_ygrid
+
+
+		! Defaults for test
+		_nsteps = 1
+		_dt = 0.1d0
+		_icomm_grid = !TODO
+		_icoord =     !TODO
+
+		call coupler_cfd_init(_nsteps,_dt,_icomm_grid,_icoord,_npxyz_cfd,_xyzL,_ncxyz, & 
+		                      _density,_ijkcmax,_ijkcmin,_iTmin,_iTmax,_jTmin, & 
+		                      _jTmax,_kTmin,_kTmax,_xgrid,_ygrid,_zgrid)
+
+	end subroutine test_cfd_setup
+
+	subroutine test_md_setup
+	implicit none
+
+	end subroutine test_md_setup
+
 
 end subroutine test_setup_input_and_arrays
 

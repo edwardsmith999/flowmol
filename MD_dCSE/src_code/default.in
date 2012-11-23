@@ -40,6 +40,16 @@ RCUTOFF
 INPUTTEMPERATURE
 1.0
 
+#########################################################################
+# Initial configuration
+#
+#    0 - FCC Lattice
+#    1 - Special case, must be followed by string on next line 
+#    2 - Configuration file
+# -----------------------------------------------------------------------
+INITIAL_CONFIG_FLAG
+0
+special_case_name
 
 #########################################################################
 # Number of unit cells in the x,y,z directions, formatted:
