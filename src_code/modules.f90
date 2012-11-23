@@ -60,8 +60,12 @@ module computational_constants_MD
 		nvt_DPD     = 5, &
 		tag_move    = 6
 
+	!Initial configuration selection
+	integer            :: initial_config_flag
+	character(len=128) :: config_special_case
+
 	!Input (on or off) flags
-	integer		:: & 
+	integer	:: & 
 		vmd_outflag, vmd_start, vmd_finish, vmd_count=1, &
 		macro_outflag, &
 		sLRC_flag,	&

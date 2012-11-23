@@ -297,11 +297,11 @@ implicit none
 		case(0)
 			select case(macro_outflag)
 			case(1:2)
-				print '(1x,i8,a,f10.3,a,E12.2,a,f10.2,a,f7.3,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
+				print '(1x,i8,a,f10.3,a,e12.2,a,f10.2,a,f7.3,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
 				it,';', simtime,';',vsum,';', v2sum,';', temperature,';', &
 				kinenergy,';',potenergy,';',totenergy,';',pressure
 			case(3:4)
-				print '(1x,i7,a,f9.3,a,f8.3,a,f7.3,a,f8.4,a,f8.4,a,f8.4,a,f8.4)', &
+				print '(1x,i7,a,f9.3,a,e9.2,a,f7.3,a,f8.4,a,f8.4,a,f8.4,a,f8.4)', &
 				it,';', simtime,';',vsum,';', temperature,';', &
 				kinenergy,';',potenergy,';',totenergy,';',pressure
 			case default
@@ -309,11 +309,11 @@ implicit none
 		case(1)
 			select case(macro_outflag)
 			case(1:2)
-				print '(1x,i8,a,f10.3,a,f10.4,a,f10.2,a,f7.3,a,f15.11,a,f15.11,a,f15.11,a,f10.4,a,f7.4,a,f10.4)', &
+				print '(1x,i8,a,f10.3,a,e10.3,a,f10.2,a,f7.3,a,f15.11,a,f15.11,a,f15.11,a,f10.4,a,f7.4,a,f9.3)', &
 				it,';',simtime,';',vsum,';', v2sum,';', temperature,';', &
 				kinenergy,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
 			case(3:4)
-				print '(1x,i7,a,f8.3,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f6.3,a,f6.2)', &
+				print '(1x,i7,a,f8.3,a,e8.1,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f6.3,a,f5.1)', &
 				it,';', simtime,';',vsum,';', temperature,';', &
 				kinenergy,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
 			case default

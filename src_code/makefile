@@ -110,6 +110,9 @@ profile_p:
 md.exe: obj $(O_MD_P) $(CPL_LIB)
 	@echo "MD executable is being relinked"
 	@$(F90) -o $@ $(O_MD_P) $(LDFLAGS)
+parallel_md.exe: obj $(O_MD_P) $(CPL_LIB)
+	@echo "MD executable is being relinked"
+	@$(F90) -o $@ $(O_MD_P) $(LDFLAGS)
 serial_md.exe: obj $(O_MD) 
 	@$(F90) -o $(MD_EXE) $(O_MD) $(LDFLAGS)  
 md_CUDA.exe: obj $(O_CUDA)
