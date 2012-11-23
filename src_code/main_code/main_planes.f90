@@ -18,7 +18,7 @@ end module
 subroutine main_init()
 	use main
 #if USE_COUPLER
-    use continuum_coupler_socket
+    use continuum_coupler_socket, only : socket_coupler_invoke, socket_coupler_init
 #endif
 
 	!---- Make sure MPI Starts----
@@ -26,7 +26,6 @@ subroutine main_init()
 
 #if USE_COUPLER
 	call socket_coupler_invoke				!INITIALISES COUPLER INTERCOMMUNICATOR
-	call socket_read_coupler_input			!READ COUPLER INPUT FILE
 #endif
 
 	!--- SYSTEM CALL --- call system("ps -l -u tzaki | grep 'a.out'")
@@ -59,9 +58,11 @@ subroutine main_init()
 	call boundaries_init()
 	call simulation_init()
 	call statistics_init()
+
 #if USE_COUPLER
     call socket_coupler_init
 #endif
+
 	return
 end
 

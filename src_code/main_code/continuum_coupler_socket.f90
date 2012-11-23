@@ -40,18 +40,6 @@ subroutine socket_coupler_invoke
 end subroutine socket_coupler_invoke
 
 !=============================================================================
-!  Read coupler input files
-!-----------------------------------------------------------------------------
-subroutine socket_read_coupler_input
-	use messenger
-	use CPL, only : read_coupler_input
-	implicit none
-
-	call read_coupler_input		! Read COUPLER.in input file
-
-end subroutine socket_read_coupler_input
-
-!=============================================================================
 ! Call coupler initialise to swap all setup data
 !-----------------------------------------------------------------------------
 subroutine socket_coupler_init
@@ -70,22 +58,18 @@ subroutine socket_coupler_init
     real(kind(0.d0)),dimension(3)	:: xyzL
 
     call readInt("nsteps", nsteps)
-   ! write(0,*) 'CFD socket nsteps, dt ', nsteps, dt
 	kTmin_1(1) = kmin; kTmax_1(1) = kmax-1
 
 	!Define compound arrays to make passing more concise
 	ijkmin = (/ imin, jmin, kmin /)	
-	ijkmax = (/ imax, jmax, kmax /)-1 !Minus 1 as coupler requires max cells NOT max surfaces
+	ijkmax = (/ imax, jmax, kmax /)-1 !Minus 1 as coupler requires max cells NOT max cell vertices
 	npxyz  = (/ npx , npy , npz  /)
-	ngxyz  = (/ ngx , ngy , ngz  /)-1 !Minus 1 as coupler requires no. of cells NOT no. surfaces
+	ngxyz  = (/ ngx , ngy , ngz  /)-1 !Minus 1 as coupler requires no. of cells NOT no. cell vertices
 	xyzL   = (/  xL ,  yL ,  zL  /)
 
     call coupler_cfd_init(nsteps,dt,icomm_grid,icoord,npxyz,xyzL,ngxyz, & 
 	                      density_cfd,ijkmax,ijkmin,iTmin_1,iTmax_1,jTmin_1,&
 	                      jTmax_1,kTmin_1,kTmax_1,xpg,ypg,zpg)
-
-	! Establish mapping between MD and CFD
-	call CPL_create_map
 
 end subroutine socket_coupler_init
 
@@ -224,7 +208,7 @@ subroutine socket_coupler_send_velocity
 	!Number of cells to package and send
 	cnstnd_cells = 1
 	jcmin_send = jcmax_olap-1-cnstnd_cells
-	jcmax_send = jcmax_olap-1
+	jcmax_send = jcmax_olap-1-cnstnd_cells
 
 	!Interpolate cell centres using surfaces
 	sendbuf = 0.d0
@@ -247,7 +231,7 @@ end subroutine socket_coupler_send_velocity
 ! Send continuum Stress in all directions to be used by MD
 
 subroutine socket_coupler_send_stress
-    use CPL, only : CPL_send,CPL_olap_extents,CPL_overlap,CPL_get,CPL_realm
+    use CPL, only : CPL_send,CPL_olap_extents,CPL_overlap,CPL_get,CPL_realm, printf
  	use data_export, only : uc,vc,wc,P,i1_u,i2_u,ngz,nlx,nlxb, &
 							ibmin_1,ibmax_1,iblock,jblock,kblock
     implicit none
@@ -276,7 +260,7 @@ subroutine socket_coupler_send_stress
 	!Number of cells to package and send
 	cnstnd_cells = 1
 	jcmin_send = jcmax_olap-1-cnstnd_cells
-	jcmax_send = jcmax_olap-1
+	jcmax_send = jcmax_olap-1-cnstnd_cells
 
 	!Get stress tensor at cell centers and store in buffer
 	call Evaluate_stress(uc,vc,wc,P,stress)
@@ -289,6 +273,9 @@ subroutine socket_coupler_send_stress
 	enddo
 	enddo
 	enddo
+
+	!call printf(stress(1,2,4,4,:))
+	!call printf(sendbuf(2,4,:,4))
 
 	!Send stress tensor to MD code
 	call CPL_send(sendbuf,jcmax_send=jcmax_olap-1, & 
@@ -334,6 +321,8 @@ subroutine Evaluate_stress(uc,vc,wc,P,stress)
 	enddo
 	enddo
 	enddo
+
+	print'(a,i5,14f7.4)', 'shear stress', nly, stress(1,2,4,4,:)
 
 end subroutine Evaluate_stress
 
@@ -453,16 +442,16 @@ end function trace
 !  A function that produces an Identity Matrix of dimension (n,n)
 
 function IDM(n)
-implicit none
-integer, intent(in) 				:: n
-real(kind(0.d0)) , dimension(n,n)	:: IDM
+	implicit none
+	integer, intent(in) 				:: n
+	real(kind(0.d0)) , dimension(n,n)	:: IDM
 
-integer :: j            		! local loop index
+	integer :: j            		! local loop index
 
-IDM = 0.d0   			! Set all elements to zero
-do j = 1,n
-    IDM(j,j) = 1.d0  	! Change value of diagonal elements to one
-enddo
+	IDM = 0.d0   			! Set all elements to zero
+	do j = 1,n
+	    IDM(j,j) = 1.d0  	! Change value of diagonal elements to one
+	enddo
 
 end function IDM
 
