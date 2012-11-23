@@ -26,8 +26,7 @@
 subroutine setup_MD
 	use computational_constants_MD
 #if USE_COUPLER
-	use md_coupler_socket, only : socket_coupler_invoke, & 
-								  socket_read_coupler_input, &
+	use md_coupler_socket, only : socket_coupler_invoke,  &
 								  socket_coupler_init
 #endif
 	implicit none
@@ -36,8 +35,8 @@ subroutine setup_MD
 
 #if USE_COUPLER
 	call socket_coupler_invoke				!INITIALISES COUPLER INTERCOMMUNICATOR
-	call socket_read_coupler_input			!READ COUPLER INPUT FILE
 #endif
+
 	call setup_command_arguments            !Process command line arguments specifying restart and input files
 	call messenger_init						!Establish processor topology
 
@@ -82,7 +81,7 @@ subroutine simulation_MD
 	use physical_constants_MD
 #if USE_COUPLER
 	use md_coupler_socket, only : socket_apply_continuum_forces, &
-								  average_and_send_MD_to_CFD
+								  average_and_send_MD_to_CFD,apply_continuum_forces_flekkoy
 #endif
 	implicit none
   
@@ -116,7 +115,8 @@ contains
 #if USE_COUPLER
 
 		call simulation_apply_boundary_forces               ! Apply boundary force to prevent molecules leaving domain
-		call socket_apply_continuum_forces(iter)			! CFD=> MD Apply CFD based coupling forces on MD
+		!call socket_apply_continuum_forces(iter)			! CFD=> MD Apply CFD based coupling forces on MD
+		call apply_continuum_forces_flekkoy(iter)			! CFD=> MD Apply CFD based coupling forces on MD
 		call average_and_send_MD_to_CFD(iter)				! MD=>CFD Calculate averages of MD to pass to CFD
 
 		!Testing exchange codes

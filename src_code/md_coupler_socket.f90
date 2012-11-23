@@ -65,17 +65,6 @@ subroutine socket_coupler_invoke
 end subroutine socket_coupler_invoke
 
 !=============================================================================
-!  Read coupler input files
-!-----------------------------------------------------------------------------
-subroutine socket_read_coupler_input
-	use CPL, only : read_coupler_input
-	implicit none
-
-	call read_coupler_input		! Read COUPLER.in input file
-
-end subroutine socket_read_coupler_input
-
-!=============================================================================
 ! Setup initial times based on coupled calculation
 !-----------------------------------------------------------------------------
 subroutine socket_coupler_init
@@ -99,7 +88,7 @@ subroutine socket_coupler_init
 	enddo
 
 	! If coupled calculation prepare exchange layout
-	call coupler_md_init(nsteps,delta_t,icomm_grid,icoord, &
+	call coupler_md_init(nsteps,initialstep,elapsedtime,delta_t,icomm_grid,icoord, &
 	                     (/ npx,npy,npz /),globaldomain,density)
 
 	! Setup the domain and cells in the MD based on coupled data
@@ -110,12 +99,6 @@ subroutine socket_coupler_init
  	else
 		call set_parameters_cells_coupled
 	endif
-
-	! Setup timesteps and simulation timings based on CFD/coupler
-	call set_coupled_timing(Nsteps,initialstep,elapsedtime)
-
-	! Establish mapping between MD an CFD
-	call CPL_create_map
 
 end subroutine socket_coupler_init
 
@@ -130,14 +113,13 @@ subroutine set_params_globdomain_cpld
 	implicit none
 
 	integer :: ixyz, n0(3)
-	real(kind(0.d0)) :: b0,xL_md, yL_md, zL_md,density_cfd
+	real(kind(0.d0)) :: b0, xL_md, yL_md, zL_md,density_cfd
 
 	!Get domain size and density from coupler
 	call CPL_get(xL_md=xL_md, yL_md=yL_md, zL_md=zL_md, density_cfd=density_cfd)
 
     ! size of cubic FCC cell
-    b0=(4.d0/density)**(1.0d0/3.0d0)
-    !call coupler_md_get(xL_md=xL_md,yL_md=yL_md,zL_md=zL_md,MD_initial_cellsize=b0)
+    b0 = (4.d0/density)**(1.0d0/3.0d0)
     n0(:) = nint( (/ xL_md, yL_md, zL_md/) / b0)
     initialunitsize(1:3) = b0
     initialnunits(1:3) 	 = n0(:)
@@ -166,8 +148,6 @@ subroutine set_params_globdomain_cpld
 	do ixyz=1,nd
 		halfdomain(ixyz) = 0.5d0*domain(ixyz)			!Useful definition
 	enddo
-
-	!write(0,*) 'set_parameter_global_domain_hybrid ', globalnp, np, domain, initialunitsize
 
     if(irank .eq. iroot) then
         write(*,'(a/a/a,f5.2,a,f5.2,a,f5.2,/,a,3(f5.2),a,/,a,3(I6),/,a)'), &
@@ -306,7 +286,7 @@ subroutine socket_check_cell_sizes
 			write(*,*), " WARNING ...WARNING ...WARNING ...WARNING ...WARNING ...WARNING ... "
 			write(*,*), " MD cell size larger than CFD x,y cell sizes         "
 			write(*,*), " cellsidelength = ", cellsidelength
-			write(*,'(3(a,f10.5))'), " dx=", xg(2,1) - xg(1,1),  & 
+			write(*,'(3(a,f10.5))'),   " dx=",  xg(2,1) - xg(1,1),  & 
 									   " dy=",  yg(1,2) - yg(1,1),  & 
 									   " dz=",  zg(2  ) - zg(1  )
 			write(*,*), "********************************************************************"
@@ -586,7 +566,7 @@ subroutine socket_apply_continuum_forces(iter)
 		!Number of cells to receive
 		cnstnd_cells = 1	!~10% of the total domain
 		jcmin_recv = jcmax_olap-1-cnstnd_cells
-		jcmax_recv = jcmax_olap-1
+		jcmax_recv = jcmax_olap-1-cnstnd_cells
 		limits = (/ icmin_olap,icmax_olap, jcmin_recv,jcmax_recv, kcmin_olap,kcmax_olap  /)
 		call setup_CFD_box(limits,CFD_box,recv_flag)
 		!At first CFD step we don't have two values to extrapolate CFD velocities, set inv_dtCFD=0
@@ -646,12 +626,12 @@ subroutine setup_CFD_box(limits,CFD_box,recv_flag)
 	!Get limits of constraint region in which to receive data
 	call CPL_proc_portion(pcoords,CPL_realm(),limits,portion)
 
-	! Get physical extents of received region on MD processor
-	!print'(a,19i4)', 'portion',rank_world, portion,limits,extents
 	if (all(portion .ne. VOID)) then
 		!Get CFD overlapping grid arrays
 		call CPL_get(xg=xg,yg=yg,zg=zg)
 		recv_flag = .true.
+
+		! Get physical extents of received region on MD processor
 		xyzmin(1) = xg(portion(1)  ,1); xyzmax(1) = xg(portion(2)+1,1)
 		xyzmin(2) = yg(1,portion(3)  ); xyzmax(2) = yg(1,portion(4)+1)
 		xyzmin(3) = zg(  portion(5)  );	xyzmax(3) = zg(  portion(6)+1)
@@ -669,8 +649,6 @@ subroutine setup_CFD_box(limits,CFD_box,recv_flag)
 		ncbax = portion(2)-portion(1)+1
 		ncbay = portion(4)-portion(3)+1
 		ncbaz = portion(6)-portion(5)+1
-
-		!print'(a,4i4,6f9.3)', 'Box average',rank_world, ncbax,ncbay,ncbaz,xmin,xmax,ymin,ymax,zmin,zmax
         allocate(box_average(ncbax,ncbay,ncbaz))
 	else
 		recv_flag = .false.
@@ -684,7 +662,7 @@ end subroutine setup_CFD_box
 !-----------------------------------------------------------------------------
 
 subroutine average_over_bin
-	use computational_constants_MD, only : nhb
+	use computational_constants_MD, only : nhb, irank
 	use arrays_MD, only : r, v, a
 	use CPL, only : CPL_get
 	implicit none
@@ -703,7 +681,7 @@ subroutine average_over_bin
 	enddo
 	enddo
 
-	!find the maximum number of molecules and allocate a list array	   
+	!Find the maximum number of molecules and allocate a list array	   
 	np_overlap = 0 ! number of particles in overlapping reg
     allocate(list(4,np))
 	call CPL_get(dx=dx,dy=dy,dz=dz)
@@ -716,20 +694,16 @@ subroutine average_over_bin
 			jb = ceiling((r(2,n)-CFD_box(3)   )/dy)
 			kb = ceiling((r(3,n)+halfdomain(3))/dz)
 
-			!if (jb+jcmin_recv-1 .eq. 9) then
-			!print'(a,9i5,5f10.5)', 'qqqq',rank_world,ceiling((r(2,n)+halfdomain(2))/dy),jb,jb+jcmin_recv-1,jcmin_recv, & 
-			!						jcmax_recv,jcmin_olap,jcmax_olap,cnstnd_cells,r(2,n),      & 
-			!						CFD_box(3),CFD_box(4),dy,halfdomain(2)
-			!endif
+			!Exclude out of domain molecules
+			if (ib.lt.1 .or. ib.gt.size(box_average,1)) then
+				print'(a,3i8,f10.5,i5)', 'Out of domain molecule in x', irank, n, ib, r(1,n),size(box_average,1)
+				cycle
+			endif
+			if (kb.lt.1 .or. kb.gt.size(box_average,3)) then
+				print'(a,3i8,f10.5,i5)', 'Out of domain molecule in z', irank, n, ib, r(1,n),size(box_average,1)
+				cycle
+			endif
 
-			!Exlude out of domain molecules
-			if (ib.lt.1 .or. ib.gt.size(box_average,1)) cycle
-			if (kb.lt.1 .or. kb.gt.size(box_average,3)) cycle
-
-			!print'(a,i4,5f8.3,5i4,l)', 'COUPLED AVERAGE',rank_world, CFD_box(3), CFD_box(4), halfdomain, &
-			! 		np_overlap,n, ib,jb,kb,  (r(1,n) >= -halfdomain(1)  .and. r(1,n) < halfdomain(1) .and. &
-            ! 					   r(3,n) >= -halfdomain(3)  .and. r(3,n) < halfdomain(3))
-           
 			np_overlap = np_overlap + 1
 			list(1:4, np_overlap) = (/ n, ib, jb, kb /)
 
@@ -763,30 +737,10 @@ subroutine apply_force
 		jb = list(3,i)
 		kb = list(4,i)
 
-		!print'(a,5i8,3f10.5)','Molecule in constraint', i,ib,jb,kb,ip,r(ip,:)
-
 		n = box_average(ib,jb,kb)%np
-		if ( n .eq. 0 ) stop "This cycle statement makes NO SENSE!! (in md_coupler_socket_apply_force)"
-
-		! using the following extrapolation formula for continuum velocity
-		! y = (y2-y1)/(x2-x1) * (x-x2) +y2
-        !alpha(1) = inv_dtCFD*(uvw_cfd(1,ib,1,kb) - &
-        !        			  uvw_cfd(1,ib,1,kb))
-
-		!u_cfd_t_plus_dt(1) = alpha(1) * (iter_average + 1)*delta_t + uvw_cfd(1,ib,1,kb) 
-		!if (jb+jcmin_recv-1 .ge. 8) then
-		!	print'(a,9i5,f10.5)','qqqq',rank_world,ib,jb,kb,jcmin_recv,extents(3), & 
-		!						jb+jcmin_recv-1,jb+jcmin_recv-extents(3),size(uvw_cfd,3), uvw_cfd(1,ib,jb+jcmin_recv-extents(3),kb)
-			!stop "STOP BEFORE ERROR"
-		!endif
-
 		acfd =	- box_average(ib,jb,kb)%a(1) / n - inv_dtMD * & 
 				( box_average(ib,jb,kb)%v(1) / n - uvw_cfd(1,ib,jb+jcmin_recv-extents(3),kb) )
-		!if (ib .eq. 8 .and. kb .eq. 5) then
-		!	print'(a,2i5,i10,4i4,5f9.4)', 'FORCE OUT', rank_world, i, np_overlap, box_average(ib,jb,kb)%np, & 
-		!							   			   ib,jb,kb,box_average(ib,jb,kb)%a(1),box_average(ib,jb,kb)%v(1), & 
-		!									       uvw_cfd(1,ib,size(uvw_cfd,3)-1,kb), a(1,ip), acfd
-		!endif
+
 		a(1,ip) = a(1,ip) + acfd
 
 	enddo
@@ -1147,7 +1101,7 @@ subroutine apply_continuum_forces_flekkoy(iter)
 		!Number of cells to receive
 		cnstnd_cells = 1	!~10% of the total domain
 		jcmin_recv = jcmax_olap-1-cnstnd_cells
-		jcmax_recv = jcmax_olap-1
+		jcmax_recv = jcmax_olap-1-cnstnd_cells
 		limits = (/ icmin_olap,icmax_olap, jcmin_recv,jcmax_recv, kcmin_olap,kcmax_olap  /)
 		call setup_CFD_box(limits,CFD_box,recv_flag)
 	endif
@@ -1159,6 +1113,8 @@ subroutine apply_continuum_forces_flekkoy(iter)
 		call CPL_recv(recv_buf,jcmax_recv=jcmax_recv, & 
 						       jcmin_recv=jcmin_recv,recv_flag=recv_flag)
 		stress_cfd = reshape(recv_buf,(/ 3,3,size(recv_buf,2),size(recv_buf,3),size(recv_buf,4) /) )
+
+		print'(a,3f15.9)', 'CFD Stress', maxval(stress_cfd), minval(stress_cfd), sum(stress_cfd)
 	else
 		!Linear extrapolation between velocity at t and t+1
 	endif
@@ -1176,7 +1132,7 @@ contains
 ! find the CFD box to which the particle belongs		 
 
 subroutine setup_CFD_box(limits,CFD_box,recv_flag)
-	use CPL, only : CPL_recv,CPL_proc_portion,localise,map_cfd2md_global,CPL_get,VOID
+	use CPL, only : CPL_recv,CPL_proc_portion,localise,map_cfd2md_global,CPL_get,VOID, rank_world, CPL_WORLD_COMM !2xTEMPS
 	implicit none
 
 	!Limits of CFD box to receive data in
@@ -1205,12 +1161,12 @@ subroutine setup_CFD_box(limits,CFD_box,recv_flag)
 	!Get limits of constraint region in which to receive data
 	call CPL_proc_portion(pcoords,CPL_realm(),limits,portion)
 
-	! Get physical extents of received region on MD processor
-	!print'(a,19i4)', 'portion',rank_world, portion,limits,extents
 	if (all(portion .ne. VOID)) then
 		!Get CFD overlapping grid arrays
 		call CPL_get(xg=xg,yg=yg,zg=zg)
 		recv_flag = .true.
+
+		! Get physical extents of received region on MD processor
 		xyzmin(1) = xg(portion(1)  ,1); xyzmax(1) = xg(portion(2)+1,1)
 		xyzmin(2) = yg(1,portion(3)  ); xyzmax(2) = yg(1,portion(4)+1)
 		xyzmin(3) = zg(  portion(5)  );	xyzmax(3) = zg(  portion(6)+1)
@@ -1228,8 +1184,6 @@ subroutine setup_CFD_box(limits,CFD_box,recv_flag)
 		ncbax = portion(2)-portion(1)+1
 		ncbay = portion(4)-portion(3)+1
 		ncbaz = portion(6)-portion(5)+1
-
-		!print'(a,4i4,6f9.3)', 'Box average',rank_world, ncbax,ncbay,ncbaz,xmin,xmax,ymin,ymax,zmin,zmax
         allocate(box_average(ncbax,ncbay,ncbaz))
 	else
 		recv_flag = .false.
@@ -1243,7 +1197,7 @@ end subroutine setup_CFD_box
 !-----------------------------------------------------------------------------
 
 subroutine average_over_bin
-	use computational_constants_MD, only : nhb
+	use computational_constants_MD, only : nhb, irank
 	use arrays_MD, only : r, v, a
 	use CPL, only : CPL_get
 	implicit none
@@ -1274,15 +1228,21 @@ subroutine average_over_bin
 			jb = ceiling((r(2,n)-CFD_box(3)   )/dy)
 			kb = ceiling((r(3,n)+halfdomain(3))/dz)
 
-			!Exlude out of domain molecules
-			if (ib.lt.1 .or. ib.gt.size(box_average,1)) cycle
-			if (kb.lt.1 .or. kb.gt.size(box_average,3)) cycle
+			!Exclude out of domain molecules
+			if (ib.lt.1 .or. ib.gt.size(box_average,1)) then
+				print'(a,3i8,f10.5,i5)', 'Out of domain molecule in x', irank, n, ib, r(1,n),size(box_average,1)
+				cycle
+			endif
+			if (kb.lt.1 .or. kb.gt.size(box_average,3)) then
+				print'(a,3i8,f10.5,i5)', 'Out of domain molecule in z', irank, n, kb, r(3,n),size(box_average,3)
+				cycle
+			endif
 
 			np_overlap = np_overlap + 1
 			list(1:4, np_overlap) = (/ n, ib, jb, kb /)
 
 			box_average(ib,jb,kb)%np   =  box_average(ib,jb,kb)%np   + 1
-			box_average(ib,jb,kb)%a(2)    =  box_average(ib,jb,kb)%a(2)  + flekkoy_gweight(r(2,n),CFD_box(3),CFD_box(4))
+			box_average(ib,jb,kb)%a(2) =  box_average(ib,jb,kb)%a(2)  + flekkoy_gweight(r(2,n),CFD_box(3),CFD_box(4))
 		endif
 	enddo
 
@@ -1294,6 +1254,7 @@ end subroutine average_over_bin
 
 subroutine apply_force
 	use arrays_MD, only : r,a
+	use computational_constants_MD, only : irank
 	implicit none
 
 	integer					:: ib, jb, kb, i, ip, n
@@ -1312,6 +1273,8 @@ subroutine apply_force
 		g = flekkoy_gweight(r(2,ip),CFD_box(3),CFD_box(4))
 		gsum = box_average(ib,jb,kb)%a(2)
 		dA = dx*dz
+
+		!print'(a,i5,i7,i3,13f8.3)', 'qqq applied const', iter,ip, irank,CFD_box(3),r(2,ip),CFD_box(4), a(:,ip), g, gsum, g/gsum, dA, stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb) 
 
 		a(:,ip) = a(:,ip) + (g/gsum) * dA * stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb) 
 
@@ -1344,7 +1307,7 @@ end function
 
 end subroutine apply_continuum_forces_flekkoy
 
-
+!=================================================================================================
 
 subroutine apply_continuum_forces_ES(iter)
 	use computational_constants_MD, only : delta_t,nh,halfdomain,ncells,cellsidelength,initialstep,Nsteps
