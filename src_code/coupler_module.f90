@@ -577,6 +577,9 @@ subroutine coupler_cfd_init(nsteps,dt,icomm_grid,icoord,npxyz_cfd,xyzL,ncxyz, &
 	real(kind=kind(0.d0))							:: dxmin,dxmax,dzmin,dzmax
     real(kind=kind(0.d0)),dimension(:),allocatable 	:: rbuf
 
+	! Read COUPLER.in input file
+	call read_coupler_input		
+
     ! Duplicate grid communicator for coupler use
     call MPI_comm_dup(icomm_grid,CPL_CART_COMM,ierr)
     call MPI_comm_rank(CPL_CART_COMM,myid_cart,ierr) 
@@ -754,6 +757,7 @@ subroutine coupler_cfd_init(nsteps,dt,icomm_grid,icoord,npxyz_cfd,xyzL,ncxyz, &
 	dy = yg(1,2)-yg(1,1) ! yL_cfd/ncy
 	dz = zL_cfd/ncz	  !zg(2  )-zg(1  )
 
+	!Calculate number of cells in overlap region
 	ncx_olap = icmax_olap - icmin_olap + 1
 	ncy_olap = jcmax_olap - jcmin_olap + 1
 	ncz_olap = kcmax_olap - kcmin_olap + 1
@@ -762,6 +766,9 @@ subroutine coupler_cfd_init(nsteps,dt,icomm_grid,icoord,npxyz_cfd,xyzL,ncxyz, &
 	call MPI_bcast(ncy_olap,1,MPI_INTEGER,rootid_realm,CPL_REALM_COMM,ierr)
 	!Broadcast the overlap to MD over intercommunicator
 	call MPI_bcast(ncy_olap,1,MPI_INTEGER,source,CPL_INTER_COMM,ierr)
+
+	! Establish mapping between MD and CFD
+	call CPL_create_map
 
 	!Check for grid strectching and terminate process if found
 	call check_mesh
@@ -847,19 +854,23 @@ end subroutine coupler_cfd_init
 ! Initialisation routine for coupler - Every variable is sent and stored
 ! to ensure both md and cfd region have an identical list of parameters
 
-subroutine coupler_md_init(nsteps,dt,icomm_grid,icoord,npxyz_md,globaldomain,density)
+subroutine coupler_md_init(Nsteps,initialstep,elapsedtime,dt,icomm_grid,icoord,npxyz_md,globaldomain,density)
 	use mpi
 	implicit none
 
-	integer, intent(in)	  							:: nsteps, icomm_grid
+	integer, intent(inout)	  						:: nsteps
+	integer, intent(in)								:: initialstep,icomm_grid
 	integer,dimension(3), intent(in)	  			:: npxyz_md	
 	integer,dimension(:,:),allocatable,intent(in)	:: icoord
-	real(kind(0.d0)),intent(in) 					:: dt,density
+	real(kind(0.d0)),intent(in) 					:: elapsedtime,dt,density
     real(kind=kind(0.d0)),dimension(3),intent(in) 	:: globaldomain
 
     integer											:: i,ib,jb,kb,pcoords(3),source,nproc
     integer,dimension(:),allocatable  				:: buf,rank_world2rank_realm,rank_world2rank_cart
     real(kind=kind(0.d0)),dimension(:),allocatable 	:: rbuf
+
+	! Read COUPLER.in input file
+	call read_coupler_input		
 
     ! Duplicate grid communicator for coupler use
     call MPI_comm_dup(icomm_grid,CPL_CART_COMM,ierr)
@@ -1028,52 +1039,24 @@ subroutine coupler_md_init(nsteps,dt,icomm_grid,icoord,npxyz_md,globaldomain,den
 	dy = yg(1,2)-yg(1,1) ! yL_cfd/ncy
 	dz = zL_cfd/ncz	  !zg(2  )-zg(1  )
 
+	!Define number of cells in overlap region
 	ncx_olap = icmax_olap - icmin_olap + 1
 	ncy_olap = jcmax_olap - jcmin_olap + 1
 	ncz_olap = kcmax_olap - kcmin_olap + 1
 
-    ! Initialise other md module variables if data is provided in coupler.in
-!	if (md_average_period_tag == CPL) then 
-!		average_period = md_average_period
-!	endif
-!	if (md_save_period_tag == CPL) then
-!		save_period    = md_save_period
-!	endif
-
-	!if (cfd_code_id_tag == CPL) then
-	!	cfd_code_id  = cfd_code_id_in
-	!endif
-    
+	! Establish mapping between MD an CFD
+	call CPL_create_map
+   
 	if ( nsteps_md <= 0 ) then 
 		write(0,*) "Number of MD steps per dt interval <= 0"
 		write(0,*) "Coupler will not work, quitting ..."
 		call MPI_Abort(MPI_COMM_WORLD,COUPLER_ERROR_INIT,ierr)
 	endif
 
-	!Receive overlap from the CFD
-    !call MPI_bcast(ncy_olap,1,MPI_INTEGER,0,CPL_INTER_COMM,ierr) !Receive
-
-	! ================ Apply domain setup  ==============================
-	! --- set the sizes of the MD domain ---
-	!Fix xL_md domain size to continuum
-	!xL_md = x(icmax_cfd) - x(icmin_cfd)
-
-    ! yL_md is adjusted to an integer number of initialisation cells in the following steps
-   ! if (md_ly_extension_tag == CPL) then 
-    !    DY_PURE_MD = md_ly_extension
-    !else 
-    !    DY_PURE_MD = y(jcmin) - y(jcmino)
-    !end if
-    !yL_md = y(jcmax_overlap) - y(jcmino) + DY_PURE_MD
-    !yL_md = real(floor(yL_md/b),kind(0.d0))*b
-    !DY_PURE_MD = yL_md - (y(jcmax_overlap) - y(jcmino))
-
-	!Fix zL_md domain size to continuum
-	!zL_md = z(kcmax_cfd) - z(kcmin)
+	! Setup timesteps and simulation timings based on CFD/coupler
+	call set_coupled_timing(Nsteps,initialstep,elapsedtime)
 
 end subroutine coupler_md_init
-
-
 
 !-----------------------------------------------------------------------------
 !	THIS ROUTINE SHOULD BE PART OF THE INITIALISATION OF THE COUPLER
@@ -1102,7 +1085,7 @@ subroutine set_coupled_timing(Nsteps,initialstep,elapsedtime)
 	endif
 	Nsteps_coupled = Nsteps_cfd
 
- 	!Set number of steps in MD simulation
+ 	!Set number of steps in MD simulation and final time elapsed
 	Nsteps_md   = initialstep + Nsteps_cfd * Nsteps_MDperCFD
 	elapsedtime = elapsedtime + Nsteps_cfd * Nsteps_MD * dt_MD
 
@@ -1395,9 +1378,9 @@ subroutine get_overlap_blocks
 	implicit none
 
 	integer 			:: i,n,endproc,nolapsx,nolapsy,nolapsz
-	integer             :: xLl_md, yLl_md, zLl_md
-	integer				:: yLl_cfd
 	integer,dimension(3):: pcoords
+
+	real(kind(0.d0)) 	:: xLl_md, yLl_md, zLl_md, yLl_cfd
 
 	xL_olap = ncx_olap * dx 
 	yL_olap = ncy_olap * dy 

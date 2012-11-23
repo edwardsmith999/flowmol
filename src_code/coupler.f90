@@ -2037,7 +2037,7 @@ function map_cfd2md_global(r) result(rg)
 	implicit none
 
 	real(kind(0.d0)),intent(in) :: r(3)
-	real(kind(0.d0)) :: md_only(3), rg(3)
+	real(kind(0.d0)) 			:: md_only(3), rg(3)
 
 	!Get size of MD domain which has no CFD cells overlapping
 	!This should be general enough to include grid stretching
@@ -2051,11 +2051,7 @@ function map_cfd2md_global(r) result(rg)
 	rg(2) = r(2) - 0.5d0*yL_md + md_only(2)
 	rg(3) = r(3) - 0.5d0*zL_md + md_only(3)
 
-	!print'(a,13f8.3)', 'md only', r,md_only,rg,yL_md,(yg(1,jcmax_olap+1),yg(1,jcmin_olap)),(yg(1,jcmax_olap+1) - yg(1,jcmin_olap))
-
 end function map_cfd2md_global
-
-
 
 !-----------------------------------------------------------------------------
  
