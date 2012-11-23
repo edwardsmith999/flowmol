@@ -17,17 +17,23 @@
 !!  - Simulation parameters
 !!
 !! The data is protected so only setup routines in this module can change it
-! SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP
-!! Setup routine which have access to coupler parameters
+!
+!
+!
+!  SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP 
+!  -----------------------------------------------------------------------
+!
+!! Setup routines which have access to coupler parameters
 !!
-!! - CPL_create_comm	      (cfd+md)   splits MPI_COMM_WORLD, create inter - 
-!!                                   communicator between CFD and MD
+!! - CPL_create_comm          (cfd+md)   splits MPI_COMM_WORLD, create inter - 
+!!                                       communicator between CFD and MD
 !!
-!! - CPL_create_map	      	  (cfd+md)   creates correspondence maps between 
-!!                                      the CFD grid and MD domains
+!! - CPL_create_map           (cfd+md)   creates correspondence maps between 
+!!                                       the CFD grid and MD domains
 !!
-!! - CPL_cfd_adjust_domain     (cfd)    adjust CFD tomain to an integer number 
-!!                                      FCC or similar MD initial layout
+!! - CPL_cfd_adjust_domain     (cfd)     adjust CFD tomain to an integer number 
+!!                                       FCC or similar MD initial layout
+!
 !! @author David Trevelyan, Edward Smith
 !! @see coupler
 !=============================================================================
@@ -798,7 +804,6 @@ contains
 end subroutine coupler_cfd_init
 
 
-
 !------------------------------------------------------------------------------
 !                              coupler_md_init                               -
 !------------------------------------------------------------------------------
@@ -1124,7 +1129,6 @@ end subroutine set_coupled_timing
 
 subroutine CPL_create_map
 	use mpi
-	!use coupler_module
 	implicit none
 
 	! Check (as best as one can) that the inputs will work
@@ -1151,6 +1155,23 @@ subroutine check_config_feasibility
 	real(kind(0.d0)) :: rval, rtoler
 	character(len=256) :: string
 
+	! Check that CFD and MD domains agree in x and z directions
+	rtoler = 1.d-7
+	rval = 0.d0
+	rval = rval + abs(xL_md - xL_cfd)
+	rval = rval + abs(zL_md - zL_cfd)
+	if (rval .gt. rtoler) then
+		
+		string = "MD/CFD domain sizes do not match in both x and z "   // &
+		         "directions. Aborting simulation. "
+		print*, "xL_md = ", xL_md
+		print*, "xL_cfd = ", xL_cfd
+		print*, "zL_md = ", zL_md
+		print*, "zL_cfd = ", zL_cfd
+		call error_abort(string)
+	
+	end if
+
 	! Check there is only one overlap CFD proc in y
 	ival = nint( dble(ncy) / dble(npy_cfd) )
 	if (ncy_olap .gt. ival) then
@@ -1158,7 +1179,6 @@ subroutine check_config_feasibility
 	    string = "This coupler will not work if there is more than one "// &
 		         "CFD (y-coordinate) in the overlapping region. "       // &
 		         "Aborting simulation."
-
 		call error_abort(string)
 
 	end if
@@ -1220,7 +1240,6 @@ subroutine check_config_feasibility
 		call error_abort(string)
 	end if
 	
-		
 	! Check MD/CFD ratios are integers in x and z
 	if (mod(npx_md,npx_cfd) .ne. 0) then
 
@@ -1247,9 +1266,25 @@ end subroutine check_config_feasibility
 
 !------------------------------------------------------------
 !Calculate processor cell ranges of MD code on all processors
-	
+!------------------------------------------------------------------------------
+!                      GET MD CELL RANGES                                     -
+!------------------------------------------------------------------------------
+!! @author David Trevelyan 
+!! Store the minimum and maximum CFD cell coordinates that overlap each
+!! MD processor.   
+!!
+!! - Synopsis
+!!
+!!  - get_md_cell_ranges()
+!!
+!! - Input
+!!  - NONE 
+!! - Input/Output
+!!  - NONE 
+!! - Output
+!!  - NONE 
+!! 
 subroutine get_md_cell_ranges
-	!use coupler_module
 	implicit none
 
 	integer :: n
@@ -1339,8 +1374,24 @@ end subroutine get_md_cell_ranges
 !------------------------------------------------------------
 !Calculate processor overlap between CFD/MD on all processors
 
+!------------------------------------------------------------------------------
+!                          GET OVERLAP BLOCKS                                 -
+!------------------------------------------------------------------------------
+!! @author David Trevelyan
+!! Store MD processor coordinates that overlap each CFD processor coordinate. 
+!!
+!! - Synopsis
+!!
+!!  - get_overlap_blocks()
+!!
+!! - Input
+!!  - NONE 
+!! - Input/Output
+!!  - NONE 
+!! - Output
+!!  - NONE 
+!! 
 subroutine get_overlap_blocks
-	!use coupler_module
 	implicit none
 
 	integer 			:: i,n,endproc,nolapsx,nolapsy,nolapsz
@@ -1482,19 +1533,38 @@ end subroutine get_overlap_blocks
 
 !=========================================================================
 
+!------------------------------------------------------------------------------
+!                    PREPARE OVERLAP COMMS                                    -
+!------------------------------------------------------------------------------
+!! @author David Trevelyan 
+!! Splits the world communicator into "overlap" communicators. Each overlap 
+!! communicator consists of a CFD root processor and the MD processors which
+!! lie on top of it in the domain. 
+!!
+!! - Synopsis
+!!
+!!  - prepare_overlap_comms()
+!!
+!! - Input
+!!  - NONE
+!! - Input/Output
+!!  - NONE 
+!! - Output
+!!  - NONE 
+!! 
 subroutine prepare_overlap_comms
-	!use coupler_module
 	use mpi
 	implicit none
 
-	!loop over cfd cart ranks
-	! find cfd cart coords from cfd cart rank
-	!  find md cart coords (from cfd_icoord2olap_md_jcoords)
-	!   find md cart rank from md cart coords (coord2rank_md) 
-	!    find md world rank from md cart rank (rank_mdcart2rank_world)
-	!     set group(md_world_rank) to cfd cart rank
-	!split comm to groups
-	!if group(world_rank) == 0, set olap_comm to null 
+	!General idea:
+	!	1. loop over cfd cart ranks
+	!	2. find cfd cart coords from cfd cart rank
+	!	3. find overlapping md cart coords (from cfd_icoord2olap_md_jcoords)
+	!	4. find md cart rank from md cart coords (coord2rank_md) 
+	!	5. find md world rank from md cart rank (rank_mdcart2rank_world)
+	!	6. set group(md_world_rank) to cfd cart rank
+	!	7. split world comm according to groups
+	!      if group(world_rank) == 0, set olap_comm to null 
 
 	integer :: i,j,k,ic,jc,kc
 	integer :: trank_md, trank_cfd, trank_world, nolap
