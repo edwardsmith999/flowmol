@@ -37,8 +37,8 @@ files = dir('Sub*');
 [u,v,w,p,stress] = Read_DNS('grid.data',resultfile_dir,ngx-2,ngy-1,ngz-2,Lx,Ly,Lz,13,true);
 xaxis = linspace(-dy/2,Ly+dy/2,ngy-1)/Ly;
 dlmwrite(strcat(resultfile_dir,'../analystress'),zeros(1,analy_points), 'delimiter', ' ')
-for ntime=1:size(files,1)
-
+for ntime=1:30%size(files,1)
+    ntime
     % =================================
     %    Plot CFD velocity
     % =================================
@@ -69,7 +69,8 @@ for ntime=1:size(files,1)
     hold off
 
 	drawnow
-    pause(0.1)
+    savefig(strcat('Velocity_',num2str(ntime)),'png')
+    %pause(0.1)
 
     % =================================
     %    Plot CFD stress
@@ -97,6 +98,7 @@ for ntime=1:size(files,1)
     hold off
 
 	drawnow
-    pause(0.1)
+    %pause(0.1)
+    savefig(strcat('Stress_',num2str(ntime)),'png')
 
 end
