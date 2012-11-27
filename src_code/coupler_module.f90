@@ -854,15 +854,15 @@ end subroutine coupler_cfd_init
 ! Initialisation routine for coupler - Every variable is sent and stored
 ! to ensure both md and cfd region have an identical list of parameters
 
-subroutine coupler_md_init(Nsteps,initialstep,elapsedtime,dt,icomm_grid,icoord,npxyz_md,globaldomain,density)
+subroutine coupler_md_init(Nsteps,initialstep,dt,icomm_grid,icoord,npxyz_md,globaldomain,density)
 	use mpi
 	implicit none
 
-	integer, intent(inout)	  						:: nsteps
-	integer, intent(in)								:: initialstep,icomm_grid
+	integer, intent(inout)	  						:: nsteps,initialstep
+	integer, intent(in)								:: icomm_grid
 	integer,dimension(3), intent(in)	  			:: npxyz_md	
 	integer,dimension(:,:),allocatable,intent(in)	:: icoord
-	real(kind(0.d0)),intent(in) 					:: elapsedtime,dt,density
+	real(kind(0.d0)),intent(in) 					:: dt,density
     real(kind=kind(0.d0)),dimension(3),intent(in) 	:: globaldomain
 
     integer											:: i,ib,jb,kb,pcoords(3),source,nproc
@@ -1054,7 +1054,7 @@ subroutine coupler_md_init(Nsteps,initialstep,elapsedtime,dt,icomm_grid,icoord,n
 	endif
 
 	! Setup timesteps and simulation timings based on CFD/coupler
-	call set_coupled_timing(Nsteps,initialstep,elapsedtime)
+	call set_coupled_timing(Nsteps,initialstep)
 
 end subroutine coupler_md_init
 
@@ -1065,7 +1065,7 @@ end subroutine coupler_md_init
 !	BOTH SIDES OF THE COUPLER ARE CALCULATED AND STORED
 ! Setup ratio of CFD to MD timing and total number of timesteps
 
-subroutine set_coupled_timing(Nsteps,initialstep,elapsedtime)
+subroutine set_coupled_timing(Nsteps,initialstep)
 	!use coupler_module, only : timestep_ratio,dt_cfd,dt_MD, &
 	!                           Nsteps_cfd,Nsteps_md_old=>Nsteps_md, & 
 	!						   rank_realm,Nsteps_coupled
@@ -1073,7 +1073,7 @@ subroutine set_coupled_timing(Nsteps,initialstep,elapsedtime)
 
 	integer,intent(in)					:: initialstep
 	integer,intent(out)					:: Nsteps
-	real(kind=kind(0.d0)),intent(out)	:: elapsedtime
+	real(kind=kind(0.d0))				:: elapsedtime
 
 	integer								:: Nsteps_MDperCFD
 
@@ -1087,7 +1087,7 @@ subroutine set_coupled_timing(Nsteps,initialstep,elapsedtime)
 
  	!Set number of steps in MD simulation and final time elapsed
 	Nsteps_md   = initialstep + Nsteps_cfd * Nsteps_MDperCFD
-	elapsedtime = elapsedtime + Nsteps_cfd * Nsteps_MD * dt_MD
+	elapsedtime = Nsteps * dt_MD
 
 	if (rank_realm .eq. 1) then 
 		write(*,'(2(a,/),a,i7,a,i7,/a,i7,a,i7,/a,f12.4,a,/a)'), &
@@ -1139,7 +1139,7 @@ subroutine check_config_feasibility
 	character(len=256) :: string
 
 	! Check that CFD and MD domains agree in x and z directions
-	rtoler = 1.d-7
+	rtoler = 1.d-4
 	rval = 0.d0
 	rval = rval + abs(xL_md - xL_cfd)
 	rval = rval + abs(zL_md - zL_cfd)
@@ -1162,7 +1162,7 @@ subroutine check_config_feasibility
 	    string = "This coupler will not work if there is more than one "// &
 		         "CFD (y-coordinate) in the overlapping region. "       // &
 		         "Aborting simulation."
-		call error_abort(string)
+	!	call error_abort(string)
 
 	end if
 
