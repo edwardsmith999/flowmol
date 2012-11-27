@@ -9,9 +9,10 @@ nargs = len(sys.argv)
 job_name   = 'default_jobname'
 nproc_md   = 0
 nproc_cfd  = 0
-walltime   = '00:00:30'
-queue      = ''
-icib       = 'false'
+walltime   = '24:00:00'
+queue      = 'pqtzaki'
+icib       = 'true'
+outfile    = '$PBC_JOBNAME_$PBS_JOBID\n\n'
 
 # If wrong number of input arguments
 if ( nargs < 3 ): 
@@ -71,6 +72,9 @@ for arg in sys.argv[1:nargs]:
 	elif ( argname == 'queue'     or argname == 'q' ):
 		queue = arg.split('=')[1].strip()
 	
+	elif ( argname == 'outfile'     or argname == 'o' ):
+		outfile = arg.split('=')[1].strip()
+	
 	else:
 		message = ('Unrecognised argument "' + argname + '" to \n' +
 		           'create_job.py. Aborting.')
@@ -98,7 +102,7 @@ header += 'module load intel-suite\n'
 header += 'module load mpi\n'
 
 # Create script
-script  = 'outfile=$PBC_JOBNAME_$PBS_JOBID\n\n'
+script  = 'outfile=' + str(outfile) + '\n\n'
 script += 'cd $PBS_O_WORKDIR\n\n'
 script += '#Make results directory if not present\n'
 script += 'mkdir -p ./couette_data/results\n\n'
@@ -124,6 +128,7 @@ script += 'date\n'
 # Ask user if they wish to proceed with submission
 print('PBS submission header as follows:\n')
 print(header)
+print('With output piped to', str(outfile)) 
 proceed = raw_input('\nIs this the submission header you wish to proceed with? (y/n): ')
 
 if ( proceed == 'y' or proceed == 'Y' ):
