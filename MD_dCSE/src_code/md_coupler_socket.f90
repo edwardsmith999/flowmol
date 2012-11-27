@@ -1070,7 +1070,7 @@ subroutine apply_continuum_forces_flekkoy(iter)
 										   cellsidelength, halfdomain, &
 	                                       delta_rneighbr,iblock,jblock,kblock
 	use CPL, only : CPL_overlap, CPL_recv, CPL_proc_extents, & 
-					CPL_realm, CPL_get, coupler_md_get_dt_cfd
+					CPL_realm, CPL_get, coupler_md_get_dt_cfd, printf
 	use linked_list
 	implicit none
 
@@ -1128,8 +1128,8 @@ subroutine apply_continuum_forces_flekkoy(iter)
 		!endif
 		stress_cfd = reshape(recv_buf,(/ 3,3,size(recv_buf,2),size(recv_buf,3),size(recv_buf,4) /) )
 
-		!print'(a,4f9.4)', 'CFD shear stress',stress_cfd(1,2,4,:,4)
-		!print'(a,4f9.4)', 'CFD Direct stress',stress_cfd(2,2,4,:,4)
+		call printf(stress_cfd(1,2,:,4,4))
+		call printf(stress_cfd(2,2,:,4,4))
 
 		!print'(a,3f15.9)', 'CFD Stress', stress_cfd(1,2,4,jcmin_recv,4),stress_cfd(2,2,4,jcmin_recv,4),sum(stress_cfd(2,2,:,:,:))/size(stress_cfd(2,2,:,:,:))
 	else
@@ -1245,16 +1245,11 @@ subroutine average_over_bin
 			jb = ceiling((r(2,n)-CFD_box(3)   )/dy)
 			kb = ceiling((r(3,n)+halfdomain(3))/dz)
 
-			!Exclude out of domain molecules
-			if (ib.lt.1 .or. ib.gt.size(box_average,1)) then
-				print'(a,3i8,f10.5,i5)', 'Out of domain molecule in x', irank, n, ib, r(1,n),size(box_average,1)
-				cycle
-			endif
-			if (kb.lt.1 .or. kb.gt.size(box_average,3)) then
-				print'(a,3i8,f10.5,i5)', 'Out of domain molecule in z', irank, n, kb, r(3,n),size(box_average,3)
-				cycle
-			endif
+			!Add out of domain molecules to nearest cell on domain
+			if (ib.lt.1) ib = 1; if (ib.gt.size(box_average,1)) ib = size(box_average,1)
+			if (kb.lt.1) kb = 1; if (kb.gt.size(box_average,3)) kb = size(box_average,3)
 
+			!Add molecule to overlap list
 			np_overlap = np_overlap + 1
 			list(1:4, np_overlap) = (/ n, ib, jb, kb /)
 
@@ -1296,7 +1291,6 @@ subroutine apply_force
 		!									g/gsum, dA, stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb) 
 		!endif
 		if (gsum .eq. 0.d0) cycle
-
 
 		a(:,ip) = a(:,ip) + (g/gsum) * dA * stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb) 
 
@@ -2178,9 +2172,22 @@ function socket_get_dy() result(dy_)
 
 end function socket_get_dy
 
+!======================================================================
+!======================================================================
+!================================モデル=================================
+!======================================================================
+!======================================================================
+!
+!
+! TESTING ROUTINES TESTING ROUTINES TESTING ROUTINES TESTING ROUTINES
+!
+!
+!======================================================================
+!=============================モデル=======================================
+!======================================================================
+!======================================================================
 
-
-! ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬ஜ۩۞۩ஜ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
+! ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬ஜ۩۞۩ஜ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬ 
 ! Test the send and recv routines from coupler
 
 subroutine test_send_recv_MD2CFD

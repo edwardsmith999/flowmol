@@ -231,7 +231,7 @@ end subroutine socket_coupler_send_velocity
 ! Send continuum Stress in all directions to be used by MD
 
 subroutine socket_coupler_send_stress
-    use CPL, only : CPL_send,CPL_olap_extents,CPL_overlap,CPL_get,CPL_realm, printf
+    use CPL, only : CPL_send,CPL_olap_extents,CPL_overlap,CPL_get,CPL_realm, printf, rank_realm
  	use data_export, only : uc,vc,wc,P,i1_u,i2_u,ngz,nlx,nlxb, &
 							ibmin_1,ibmax_1,iblock,jblock,kblock
     implicit none
@@ -266,22 +266,13 @@ subroutine socket_coupler_send_stress
 	call Evaluate_stress(uc,vc,wc,P,stress)
 	sendbuf = 0.d0
 	do i=1,nclx
-	ii = i + i1_u - 1
 	do j=jcmin_send,jcmax_send
 	do k=1,nclz
-		sendbuf(:,i,j,k) = reshape(stress(:,:,k,ii,j),(/ 9 /))
-	!	print'(a,4i4,9f7.4)', 'packing',i,j,k,ii,sendbuf(:,i,j,k)
+		sendbuf(:,i,j,k) = reshape(stress(:,:,k,i,j),(/ 9 /))
+	!	print'(a,5i4,9f9.4)', 'packing',rank_realm,i,j,k,ii,sendbuf(:,i,j,k)
 	enddo
 	enddo
 	enddo
-
-	!print'(a,3i5,14f7.4)', 'shear stress', jcmin_send,jcmax_send, stress(1,2,4,4,:)
-	!print'(a,14f7.4)', 'Direct stress', stress(2,2,4,4,:)
-
-!	print'(a,14f7.4)', 'packed Direct stress', sendbuf(5,4,4,:)
-
-	!call printf(stress(1,2,4,4,:))
-	!call printf(sendbuf(2,4,:,4))
 
 	!Send stress tensor to MD code
 	call CPL_send(sendbuf,jcmax_send=jcmax_send, & 
