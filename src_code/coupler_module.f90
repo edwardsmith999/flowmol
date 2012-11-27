@@ -336,6 +336,8 @@ subroutine test_realms
 	if (rank_world .eq. root) then
 		call MPI_comm_size(MPI_comm_world, nproc, ierr)
 		allocate(realm_list(nproc))
+	else
+		allocate(realm_list(0))
 	endif
 	call MPI_gather(callingrealm,1,MPI_INTEGER,realm_list,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 
@@ -521,9 +523,9 @@ end subroutine read_coupler_input
 !!  - density
 !!   - Density of the CFD simulation (dp_real)
 !!  - ijkcmax
-!!   - Global minimum cell in each cartesian dimension (integer array 3)
-!!  - ijkcmin
 !!   - Global maximum cell in each cartesian dimension (integer array 3)
+!!  - ijkcmin
+!!   - Global minimum cell in each cartesian dimension (integer array 3)
 !!  - iTmin
 !!   - Local minimum cell for each rank (integer array no. procs in x)
 !!  - iTmax
@@ -720,7 +722,10 @@ subroutine coupler_cfd_init(nsteps,dt,icomm_grid,icoord,npxyz_cfd,xyzL,ncxyz, &
 	! Store & send CFD grid extents
 	icmin = ijkcmin(1); jcmin = ijkcmin(2); kcmin = ijkcmin(3)
 	icmax = ijkcmax(1); jcmax = ijkcmax(2); kcmax = ijkcmax(3)
-    call MPI_bcast((/ icmin,icmax,jcmin,jcmax,kcmin,kcmax /),6,MPI_INTEGER,source,CPL_INTER_COMM,ierr) !Send
+	allocate(buf(6))
+	buf = (/ icmin,icmax,jcmin,jcmax,kcmin,kcmax /)
+    call MPI_bcast(buf,6,MPI_INTEGER,source,CPL_INTER_COMM,ierr) !Send
+	deallocate(buf)
 
 	! Store & send global number of cells in CFD
 	ncx = ncxyz(1); ncy = ncxyz(2); ncz = ncxyz(3)
@@ -1218,7 +1223,12 @@ subroutine check_config_feasibility
 	if (kcmin_olap.lt.kcmin) ival = ival + 1		
 	if (kcmax_olap.gt.kcmax) ival = ival + 1		
 	if (ival.ne.0) then
-		string = "Overlap region has been specified outisde of the "  // &
+		print*, 'icmin, icmax = ', icmin, icmax
+		print*, 'jcmin, jcmax = ', jcmin, jcmax
+		print*, 'kcmin, kcmax = ', kcmin, kcmax
+		print*, 'olap extents = ', icmin_olap, icmax_olap, jcmin_olap, &
+		                           jcmax_olap, kcmin_olap, kcmax_olap
+		string = "Overlap region has been specified outside of the "  // &
 		         "CFD region. Aborting simulation."
 		call error_abort(string)
 	end if

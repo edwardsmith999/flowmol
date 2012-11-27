@@ -1,0 +1,15 @@
+2			!npx_md 
+2			!npy_md 
+2			!npz_md 
+1			!npx_cfd 
+1			!npy_cfd 
+1			!npz_cfd 
+128			!ncx
+128	  		!ncy
+8	  		!ncz
+12.8	   	!xL_md
+6.4	    	!yL_md
+0.8 		!zL_md
+12.8   		!xL_cfd
+12.8		!yL_cfd
+0.8 		!zL_cfd
