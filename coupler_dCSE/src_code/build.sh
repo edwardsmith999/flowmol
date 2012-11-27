@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-BUILDtype=debug
+BUILDtype=opt
 if [ $# -lt 1 ]; then
 	cd ./../../;  make BUILD=$BUILDtype couette_md  ;cd ./coupler_dCSE/src_code/;
 else

@@ -170,7 +170,6 @@ subroutine setup_initialise_parallel_position
 	use module_initialise_microstate
 	use messenger
 #if USE_COUPLER
-	use coupler
 	use md_coupler_socket, only: socket_get_domain_top
 #endif
 
