@@ -259,8 +259,8 @@ subroutine socket_coupler_send_stress
 
 	!Number of cells to package and send
 	cnstnd_cells = 1
-	jcmin_send = jcmax_olap-1-cnstnd_cells
-	jcmax_send = jcmax_olap-1-cnstnd_cells
+	jcmin_send = jcmax_olap+1-cnstnd_cells
+	jcmax_send = jcmax_olap+1-cnstnd_cells
 
 	!Get stress tensor at cell centers and store in buffer
 	call Evaluate_stress(uc,vc,wc,P,stress)
@@ -270,16 +270,22 @@ subroutine socket_coupler_send_stress
 	do j=jcmin_send,jcmax_send
 	do k=1,nclz
 		sendbuf(:,i,j,k) = reshape(stress(:,:,k,ii,j),(/ 9 /))
+	!	print'(a,4i4,9f7.4)', 'packing',i,j,k,ii,sendbuf(:,i,j,k)
 	enddo
 	enddo
 	enddo
+
+	!print'(a,3i5,14f7.4)', 'shear stress', jcmin_send,jcmax_send, stress(1,2,4,4,:)
+	!print'(a,14f7.4)', 'Direct stress', stress(2,2,4,4,:)
+
+!	print'(a,14f7.4)', 'packed Direct stress', sendbuf(5,4,4,:)
 
 	!call printf(stress(1,2,4,4,:))
 	!call printf(sendbuf(2,4,:,4))
 
 	!Send stress tensor to MD code
-	call CPL_send(sendbuf,jcmax_send=jcmax_olap-1, & 
-					      jcmin_send=jcmax_olap-1,send_flag=send_flag)
+	call CPL_send(sendbuf,jcmax_send=jcmax_send, & 
+					      jcmin_send=jcmin_send,send_flag=send_flag)
 
 end subroutine socket_coupler_send_stress
 
@@ -298,6 +304,7 @@ subroutine Evaluate_stress(uc,vc,wc,P,stress)
 	real(kind(0.d0)),intent(out),dimension(:,:,:,:,:),allocatable	:: stress
 
 	integer												:: i,j,k,ib,jb,i1,i2,j1,j2
+	real(kind(0.d0))									:: P_guage
 	real(kind(0.d0)),dimension(:,:,:,:,:),allocatable	:: dUidxj
 
 	call Evaluate_strain(uc,vc,wc,dUidxj)
@@ -308,21 +315,20 @@ subroutine Evaluate_stress(uc,vc,wc,P,stress)
 	j2 = jbmax ; if (jblock == npy) j2 = ngy-1; j2 = jmap_1(j2)
 
 	!Allocate array to store stress tensor
+	P_guage = 4.d0
 	if (allocated(stress)) deallocate(stress)
 	allocate(stress(3,3,0:ngz,0:nlx,0:nly)); stress = 0.d0
 
 	do j=j1,j2
 	do i=i1,i2
 	do k=1,ngzm
-		stress(:,:,k,i,j) = - P(k,i,j) * IDM(3) & 
+		stress(:,:,k,i,j) = -(P(k,i,j) + P_guage) * IDM(3) & 
 							-(2.d0/3.d0)*visc*trace(dUidxj(:,:,k,i,j)) * IDM(3) &
 						    +visc*(dUidxj(:,:,k,i,j)+transpose(dUidxj(:,:,k,i,j)))
 
 	enddo
 	enddo
 	enddo
-
-	print'(a,i5,14f7.4)', 'shear stress', nly, stress(1,2,4,4,:)
 
 end subroutine Evaluate_stress
 
