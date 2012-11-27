@@ -412,7 +412,7 @@ subroutine setup_inputs
 	!Assign seed to random number generator
 	call random_seed(put=seed(1:n))
 
-	elapsedtime = 1.d0*delta_t*Nsteps !Set elapsed time to end of simualtion
+	elapsedtime = delta_t*Nsteps !Set elapsed time to end of simualtion
 
 end subroutine setup_inputs
 
@@ -643,9 +643,9 @@ subroutine setup_restart_inputs
 	call MPI_BCAST(eps_ps,            1,MPI_double_precision,iroot-1,MD_COMM,ierr)
 	call MPI_BCAST(eps_ss,            1,MPI_double_precision,iroot-1,MD_COMM,ierr)
 
-	elapsedtime = elapsedtime + delta_t*extrasteps !Set elapsed time to end of simualtion
-	initialstep = Nsteps         !Set plot count to final plot of last
-	Nsteps = Nsteps + extrasteps !Establish final iteration step based on previous
+	elapsedtime = elapsedtime + delta_t*extrasteps 	!Set elapsed time to end of simualtion
+	initialstep = Nsteps         					!Set plot count to final plot of last
+	Nsteps = Nsteps + extrasteps 					!Establish final iteration step based on previous
 
 end subroutine setup_restart_inputs
 

@@ -88,8 +88,11 @@ subroutine socket_coupler_init
 	enddo
 
 	! If coupled calculation prepare exchange layout
-	call coupler_md_init(nsteps,initialstep,elapsedtime,delta_t,icomm_grid,icoord, &
+	call coupler_md_init(Nsteps,initialstep,delta_t,icomm_grid,icoord, &
 	                     (/ npx,npy,npz /),globaldomain,density)
+
+	!update elapsedtime using new 
+	elapsedtime = Nsteps * delta_t
 
 	! Setup the domain and cells in the MD based on coupled data
 	call set_params_globdomain_cpld
@@ -700,7 +703,7 @@ subroutine average_over_bin
 				cycle
 			endif
 			if (kb.lt.1 .or. kb.gt.size(box_average,3)) then
-				print'(a,3i8,f10.5,i5)', 'Out of domain molecule in z', irank, n, ib, r(1,n),size(box_average,1)
+				print'(a,3i8,f10.5,i5)', 'Out of domain molecule in z', irank, n, kb, r(3,n),size(box_average,3)
 				cycle
 			endif
 
@@ -1100,21 +1103,35 @@ subroutine apply_continuum_forces_flekkoy(iter)
 	                 timestep_ratio=timestep_ratio)
 		!Number of cells to receive
 		cnstnd_cells = 1	!~10% of the total domain
-		jcmin_recv = jcmax_olap-1-cnstnd_cells
-		jcmax_recv = jcmax_olap-1-cnstnd_cells
+		jcmin_recv = jcmax_olap+1-cnstnd_cells
+		jcmax_recv = jcmax_olap+1-cnstnd_cells
 		limits = (/ icmin_olap,icmax_olap, jcmin_recv,jcmax_recv, kcmin_olap,kcmax_olap  /)
 		call setup_CFD_box(limits,CFD_box,recv_flag)
+
 	endif
 	iter_average = mod(iter-1, timestep_ratio)+1
 
 	! Receive value of CFD velocities at first timestep of timestep_ratio
 	if (iter_average .eq. 1) then
 		allocate(recv_buf(9,size(stress_cfd,3),size(stress_cfd,4),size(stress_cfd,5)))
+		recv_buf = -666
 		call CPL_recv(recv_buf,jcmax_recv=jcmax_recv, & 
 						       jcmin_recv=jcmin_recv,recv_flag=recv_flag)
+		!if (recv_flag .eqv. .true.) then
+		!	do i=extents(1),extents(2)
+		!	do j=jcmin_recv,jcmax_recv
+		!	do k=extents(5),extents(6)
+		!		print'(a,3i4,9f12.4)', 'unpacking',i,j,k,recv_buf(:,i,j,k)
+		!	enddo
+		!	enddo
+		!	enddo
+		!endif
 		stress_cfd = reshape(recv_buf,(/ 3,3,size(recv_buf,2),size(recv_buf,3),size(recv_buf,4) /) )
 
-		print'(a,3f15.9)', 'CFD Stress', maxval(stress_cfd), minval(stress_cfd), sum(stress_cfd)
+		!print'(a,4f9.4)', 'CFD shear stress',stress_cfd(1,2,4,:,4)
+		!print'(a,4f9.4)', 'CFD Direct stress',stress_cfd(2,2,4,:,4)
+
+		!print'(a,3f15.9)', 'CFD Stress', stress_cfd(1,2,4,jcmin_recv,4),stress_cfd(2,2,4,jcmin_recv,4),sum(stress_cfd(2,2,:,:,:))/size(stress_cfd(2,2,:,:,:))
 	else
 		!Linear extrapolation between velocity at t and t+1
 	endif
@@ -1273,8 +1290,13 @@ subroutine apply_force
 		g = flekkoy_gweight(r(2,ip),CFD_box(3),CFD_box(4))
 		gsum = box_average(ib,jb,kb)%a(2)
 		dA = dx*dz
+		!if (i .eq. 15) then
+		!	print'(a,i5,i7,3i3,13f8.3)', 'qqq applied const', iter,ip,jb,jb+jcmin_recv-extents(3),  & 
+		!							 		irank,CFD_box(3),r(2,ip),CFD_box(4), a(:,ip), g, gsum,  & 
+		!									g/gsum, dA, stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb) 
+		!endif
+		if (gsum .eq. 0.d0) cycle
 
-		!print'(a,i5,i7,i3,13f8.3)', 'qqq applied const', iter,ip, irank,CFD_box(3),r(2,ip),CFD_box(4), a(:,ip), g, gsum, g/gsum, dA, stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb) 
 
 		a(:,ip) = a(:,ip) + (g/gsum) * dA * stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb) 
 
@@ -1293,7 +1315,7 @@ function flekkoy_gweight(y,ymin,ymax) result (g)
 	yhat = y - ymin - 0.5*L
 
     !Sanity Check and exceptions
-    if (yhat .lt. ymin) then
+    if (yhat .lt. 0.d0) then
         g = 0
         return
     elseif (yhat .gt. 0.5*L) then
@@ -1301,7 +1323,9 @@ function flekkoy_gweight(y,ymin,ymax) result (g)
     endif
 
 	!Calculate weighting function
-	g = 2*( 1/(L-2*yhat) - 1/L - 2*y/(L**2))
+	g = 2*( 1/(L-2*yhat) - 1/L - 2*yhat/(L**2))
+
+	!print'(a,6f10.5,l)', 'Flekkoy weight', y,ymin,ymax,yhat,L,g,yhat .lt. ymin
 
 end function
 
