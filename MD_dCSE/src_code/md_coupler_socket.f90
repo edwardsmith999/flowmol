@@ -35,7 +35,7 @@ module md_coupler_socket
 	end type cfd_box_sum
 
 
-	type(cfd_box_sum),allocatable :: box_average(:,:,:)
+	type(cfd_box_sum),dimension(:,:,:),allocatable :: box_average
 
 	integer			, dimension(:,:,:,:), allocatable :: mflux
 	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: uvw_md, uvw_cfd
@@ -581,8 +581,8 @@ subroutine socket_apply_continuum_forces(iter)
 
 	! Receive value of CFD velocities at first timestep of timestep_ratio
 	if (iter_average .eq. 1) then
-			call CPL_recv(uvw_cfd,jcmax_recv=jcmax_recv, & 
-						          jcmin_recv=jcmin_recv,recv_flag=recv_flag)
+		call CPL_recv(uvw_cfd,jcmax_recv=jcmax_recv, & 
+							  jcmin_recv=jcmin_recv,recv_flag=recv_flag)
 	else
 		!Linear extrapolation between velocity at t and t+1
 	endif
@@ -670,7 +670,7 @@ subroutine average_over_bin
 	use CPL, only : CPL_get
 	implicit none
 
-	integer				:: ib,jb,kb,n
+	integer				:: ib,jb,kb,n,ixyz
 	real(kind(0.d0))	:: dx,dy,dz
 
 	!Zero box averages
@@ -697,15 +697,9 @@ subroutine average_over_bin
 			jb = ceiling((r(2,n)-CFD_box(3)   )/dy)
 			kb = ceiling((r(3,n)+halfdomain(3))/dz)
 
-			!Exclude out of domain molecules
-			if (ib.lt.1 .or. ib.gt.size(box_average,1)) then
-				print'(a,3i8,f10.5,i5)', 'Out of domain molecule in x', irank, n, ib, r(1,n),size(box_average,1)
-				cycle
-			endif
-			if (kb.lt.1 .or. kb.gt.size(box_average,3)) then
-				print'(a,3i8,f10.5,i5)', 'Out of domain molecule in z', irank, n, kb, r(3,n),size(box_average,3)
-				cycle
-			endif
+			!Add out of domain molecules to nearest cell on domain
+			if (ib.lt.1) ib = 1; if (ib.gt.size(box_average,1)) ib = size(box_average,1)
+			if (kb.lt.1) kb = 1; if (kb.gt.size(box_average,3)) kb = size(box_average,3)
 
 			np_overlap = np_overlap + 1
 			list(1:4, np_overlap) = (/ n, ib, jb, kb /)
@@ -713,8 +707,19 @@ subroutine average_over_bin
 			box_average(ib,jb,kb)%np   =  box_average(ib,jb,kb)%np   + 1
 			box_average(ib,jb,kb)%v(:) =  box_average(ib,jb,kb)%v(:) + v(:,n)
 			box_average(ib,jb,kb)%a(:) =  box_average(ib,jb,kb)%a(:) + a(:,n)
+
 		endif
+
 	enddo
+
+    !Get single average value for slice and store in slice
+    do jb = 1,size(box_average,2)
+		box_average(:,jb,:)%np  =  sum(box_average(:,jb,:)%np)
+		do ixyz =1,3
+			box_average(:,jb,:)%v(ixyz)   =  sum(box_average(:,jb,:)%v(ixyz))
+			box_average(:,jb,:)%a(ixyz)   =  sum(box_average(:,jb,:)%a(ixyz))
+		enddo
+    enddo
 
 end subroutine average_over_bin
 
@@ -1117,21 +1122,7 @@ subroutine apply_continuum_forces_flekkoy(iter)
 		recv_buf = -666
 		call CPL_recv(recv_buf,jcmax_recv=jcmax_recv, & 
 						       jcmin_recv=jcmin_recv,recv_flag=recv_flag)
-		!if (recv_flag .eqv. .true.) then
-		!	do i=extents(1),extents(2)
-		!	do j=jcmin_recv,jcmax_recv
-		!	do k=extents(5),extents(6)
-		!		print'(a,3i4,9f12.4)', 'unpacking',i,j,k,recv_buf(:,i,j,k)
-		!	enddo
-		!	enddo
-		!	enddo
-		!endif
 		stress_cfd = reshape(recv_buf,(/ 3,3,size(recv_buf,2),size(recv_buf,3),size(recv_buf,4) /) )
-
-		call printf(stress_cfd(1,2,:,4,4))
-		call printf(stress_cfd(2,2,:,4,4))
-
-		!print'(a,3f15.9)', 'CFD Stress', stress_cfd(1,2,4,jcmin_recv,4),stress_cfd(2,2,4,jcmin_recv,4),sum(stress_cfd(2,2,:,:,:))/size(stress_cfd(2,2,:,:,:))
 	else
 		!Linear extrapolation between velocity at t and t+1
 	endif
@@ -1227,7 +1218,7 @@ subroutine average_over_bin
 	do jb = 1, ubound(box_average,dim=2)
 	do ib = 1, ubound(box_average,dim=1)
 		box_average(ib,jb,kb)%np = 0
-		box_average(ib,jb,kb)%a	 = 0
+		box_average(ib,jb,kb)%a	 = 0.d0
 	enddo
 	enddo
 	enddo
@@ -1252,9 +1243,9 @@ subroutine average_over_bin
 			!Add molecule to overlap list
 			np_overlap = np_overlap + 1
 			list(1:4, np_overlap) = (/ n, ib, jb, kb /)
-
 			box_average(ib,jb,kb)%np   =  box_average(ib,jb,kb)%np   + 1
 			box_average(ib,jb,kb)%a(2) =  box_average(ib,jb,kb)%a(2)  + flekkoy_gweight(r(2,n),CFD_box(3),CFD_box(4))
+
 		endif
 	enddo
 
@@ -1267,13 +1258,18 @@ end subroutine average_over_bin
 subroutine apply_force
 	use arrays_MD, only : r,a
 	use computational_constants_MD, only : irank
+	use CPL, only :  rank_world
 	implicit none
 
 	integer					:: ib, jb, kb, i, ip, n
 	real(kind=kind(0.d0)) 	:: alpha(3), u_cfd_t_plus_dt(3), g, gsum, dx, dz, dA
 
-	call CPL_get(dx=dx,dz=dz)
+	real(kind=kind(0.d0)) 	:: 	gsumcheck,gratio, ave_a(3), ave_a_consrnt(3)
 
+
+	call CPL_get(dx=dx,dz=dz)
+	dA = dx*dz
+	gsumcheck = 0.d0; gratio = 0.d0; ave_a=0.d0; ave_a_consrnt = 0.d0
 	!Loop over all molecules and apply constraint
 	do i = 1, np_overlap
 		ip = list(1,i)
@@ -1284,17 +1280,28 @@ subroutine apply_force
 		n = box_average(ib,jb,kb)%np
 		g = flekkoy_gweight(r(2,ip),CFD_box(3),CFD_box(4))
 		gsum = box_average(ib,jb,kb)%a(2)
-		dA = dx*dz
+
+		gsumcheck = gsumcheck + g
+
 		!if (i .eq. 15) then
 		!	print'(a,i5,i7,3i3,13f8.3)', 'qqq applied const', iter,ip,jb,jb+jcmin_recv-extents(3),  & 
 		!							 		irank,CFD_box(3),r(2,ip),CFD_box(4), a(:,ip), g, gsum,  & 
 		!									g/gsum, dA, stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb) 
 		!endif
-		if (gsum .eq. 0.d0) cycle
-
+		if (gsum .eq. 0.d0) then
+			print*, 'gsum is zero, molecules in box ', ib,jb,kb, ' = ', n, ' stress =', stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb) 
+			cycle
+		endif
+		gratio = gratio + g/gsum
+		ave_a = ave_a + a(:,ip)
 		a(:,ip) = a(:,ip) + (g/gsum) * dA * stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb) 
-
+		ave_a_consrnt = ave_a_consrnt + a(:,ip)
 	enddo
+
+	write(99999,'(2i4,3(a,f12.5),3(a,3f12.4))'), rank_world, iter,  ' gsum= ', gsum,  & 
+											 ' gsumcheck= ', gsumcheck, ' gratio= ',gratio, & 
+							     			 ' applied force= ', dA * stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb) , &
+						    	 			 ' average acc = ', ave_a ,' average acc constrained = ', ave_a_consrnt
 
 end subroutine apply_force
 
