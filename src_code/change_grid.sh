@@ -39,6 +39,7 @@ awk '/ngy/  {print $1}' ./main_code/param.inc
 #awk '/ngx/ { ngx = $1}' ./DNS_grid_generation_Couette/input.file
 #awk '/ngy/ { ngy = $1}' ./DNS_grid_generation_Couette/input.file
 
+rm ./grid_generation/grid.data ./setup/grid.data
 cd ./grid_generation
 touch ./Gen_grid.data.exe
 rm ./Gen_grid.data.exe

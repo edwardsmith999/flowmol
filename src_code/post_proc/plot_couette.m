@@ -88,6 +88,8 @@ for ntime=1:30%size(files,1)
     %dlmwrite(strcat(resultfile_dir,'../analystress'),analy', 'delimiter', ' ','-append')
     plot(xaxis_analy,analy/Re,'k','LineWidth',5);
 
+    const(ntime) = analy(3);
+
     %Make plot look nice
     %legend ('MD','CFD','CFD_{halo}','location','NorthEast'); legend('boxoff')
     set(gca,'FontSize',20)

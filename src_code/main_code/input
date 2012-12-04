@@ -48,7 +48,7 @@
 
 ! Animation
 12        ianim
-15.0     save_dt
+7.5     save_dt
 
 ! Quick parameters
 0.00       x_QUICK       Pre-multiply the Quadratic Upstream Interpolation by (x_QUICK)
