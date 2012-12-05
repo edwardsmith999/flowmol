@@ -548,7 +548,7 @@ subroutine socket_apply_continuum_forces(iter)
 	integer,allocatable 	:: list(:,:)
 	real(kind=kind(0.d0))	:: inv_dtCFD,t_fract,CFD_box(6)
 
-	integer,save			:: cnstnd_cells,jcmin_recv,jcmax_recv	!to do - SHOULD NOT BE HARDWIRED
+	integer,save			:: cnstnd_cells,jcmin_recv,jcmax_recv	!todo - SHOULD NOT BE HARDWIRED
 	integer,save			:: pcoords(3),extents(6),timestep_ratio
 	logical,save			:: recv_flag, first_time=.true.
 	save CFD_box
@@ -568,8 +568,8 @@ subroutine socket_apply_continuum_forces(iter)
 	                 timestep_ratio=timestep_ratio)
 		!Number of cells to receive
 		cnstnd_cells = 1	!~10% of the total domain
-		jcmin_recv = jcmax_olap-1-cnstnd_cells
-		jcmax_recv = jcmax_olap-1-cnstnd_cells
+		jcmin_recv = jcmax_olap-cnstnd_cells
+		jcmax_recv = jcmax_olap-cnstnd_cells
 		limits = (/ icmin_olap,icmax_olap, jcmin_recv,jcmax_recv, kcmin_olap,kcmax_olap  /)
 		call setup_CFD_box(limits,CFD_box,recv_flag)
 		!At first CFD step we don't have two values to extrapolate CFD velocities, set inv_dtCFD=0

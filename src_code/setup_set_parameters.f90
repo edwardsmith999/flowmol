@@ -339,12 +339,6 @@ subroutine set_parameters_cells
 	rneighbr = rcutoff + delta_rneighbr
 	rneighbr2 = (rcutoff + delta_rneighbr)**2
 
-	!Calculate number of cells based on domain size and rcutoff rounding
-	!down to give fewer cells but to ensure cells are all at least rcutoff
-	do ixyz=1,nd
-		ncells(ixyz)=floor(domain(ixyz)/(rcutoff+delta_rneighbr))
-	enddo
-
 	select case(potential_flag)
 	case(1)
 		select case(solvent_flag)
@@ -367,6 +361,12 @@ subroutine set_parameters_cells
 		end select
 	case default
 	end select
+
+	!Calculate number of cells based on domain size and rcutoff rounding
+	!down to give fewer cells but to ensure cells are all at least rcutoff
+	do ixyz=1,nd
+		ncells(ixyz)=floor(domain(ixyz)/(rcutoff+delta_rneighbr))
+	enddo
 
 	if (ncells(1)<3 .or. ncells(2)<3 .or. ncells(3)<3) then
 		print*, ncells(1),'    in x and ', ncells(2), '    in y' , ncells(3), '    in z' 
