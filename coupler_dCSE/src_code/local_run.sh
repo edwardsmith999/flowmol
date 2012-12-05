@@ -13,7 +13,7 @@ CFD_DIR=../../CFD_dCSE/src_code
 mkdir -p ./couette_data/results
 
 # Clean up old data files
-old_files= ./couette_data/data ./couette_data/ucvcwc.dble.* ./couette_data/uuvvww.dble.* ./couette_data/conold.dble.* ./couette_data/pressure_ph.* ./couette_md/pres_p* ./couette_data/archive* ./couette_data/report ./couette_data/SubDom_dble*
+old_files= ./couette_data/data ./couette_data/ucvcwc.dble.* ./couette_data/uuvvww.dble.* ./couette_data/conold.dble.* ./couette_data/pressure_ph.* ./couette_md/pres_p* ./couette_data/archive* ./couette_data/report ./couette_data/SubDom_dble* ./couette_data/parallel_couette.exe
 rm $old_files
 
 # If sanity check succeeds and returns 0, run simulation

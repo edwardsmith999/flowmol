@@ -35,7 +35,7 @@ subroutine simulation_apply_boundary_forces
 	implicit none
 
 !	call coupler_md_boundary_forces(np,pressure,r,a)
-    !call top_boundary_constraint_force
+!    call top_boundary_constraint_force
     call simulation_apply_boundary_forces_NCER
 
 contains
@@ -155,7 +155,7 @@ subroutine simulation_apply_boundary_forces_NCER
 
 		delta_y = socket_get_dy()
 
-		y3 = globaldomain(2)/2.d0
+		y3 = domain(2)/2.d0
 		y2 = y3 - delta_y
 		y1 = y2 - delta_y
 		y0 = y1 - delta_y
@@ -171,7 +171,7 @@ subroutine simulation_apply_boundary_forces_NCER
 		enddo
 
 	endif
-	
+
 end subroutine simulation_apply_boundary_forces_NCER
 
 

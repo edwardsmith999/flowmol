@@ -13,8 +13,9 @@ savepic = 0;
 %resultfile_dir = './../results/';
 %resultfile_dir = '/home/es205/results/CX1_data/CPL_testing/slice/';
 %resultfile_dir = '/home/es205/codes/coupled/coupler_dCSE/src_code/';
-resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/50CFDMDratio/';
-%resultfile_dir = '/home/es205/results/MD_continuum_results/code/coupled_couette/varying_processor_study/coupler_dCSE/src_code/';
+%resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/50CFDMDratio/';
+resultfile_dir = '/home/es205/results/MD_continuum_results/code/coupled_couette/varying_processor_study/coupler_dCSE/src_code/';
+%resultfile_dir = '/home/djt06/Documents/Academia/PhD/Code/Development/branch/coupler_dCSE/src_code/';
 resultfile_dir_md = strcat(resultfile_dir,'md_data/results/');
 resultfile_dir_cfd = strcat(resultfile_dir,'couette_data/');
 
@@ -65,7 +66,7 @@ Domain_setup
 %plot_domain
 
 
-MD_cells_per_CFD = 4;
+MD_cells_per_CFD = 2;
 
 %Calculate properties
 if (CFD == 0)
@@ -85,7 +86,7 @@ elseif(CFD == 1)
         disp('CFD and MD cells do not agree')
     end
     wallsize = zeros(1,3);
-    wallsize(2) = 2*MD_cells_per_CFD*binsize(2);
+    wallsize(2) = tethdistbot(2); %2*MD_cells_per_CFD*binsize(2);
     MD_domain = globaldomain - wallsize;
     CFD_domain = [Lx,Ly,Lz];
     overlap = 4*MD_cells_per_CFD*binsize;
@@ -105,11 +106,12 @@ end
 %Analytical Solution
 u_0 = 1; t_0 = 160;
 spectral_res = 6;
-viscosity = 1.6;
+viscosity = 2.14;
 Re = density*u_0*1/viscosity;
 analy_points = 20; % Number of spectral points
 
 xaxis_md  = linspace(-1.5*cfd_binsize(ixyz),MD_domain(ixyz)-0.5*cfd_binsize(ixyz),gnbins(ixyz)/MD_cells_per_CFD)/coupleddomain(ixyz);
+%xaxis_md  = linspace(0,MD_domain(ixyz),gnbins(ixyz)/MD_cells_per_CFD)/coupleddomain(ixyz);
 xaxis_cfd = linspace(MD_domain(ixyz)-overlap(ixyz)-0.5*cfd_binsize(ixyz),coupleddomain(ixyz)+0.5*cfd_binsize(ixyz),ngy-1)/coupleddomain(ixyz);
 xaxis_analy = 0:1/20:1.00; %As the liquid solid interaction is still 1, the domain is moved in slightly due to molecular sticking at the wall
 
@@ -236,7 +238,7 @@ for i = 1:Nvel_records
 
     %plot molecular velocity profile
     plot(xaxis_md(1:end),ave_vel_slice(1:end,1),'x','LineWidth',3,'Color',[.2 .2 .2],'MarkerSize',10);
-    plot(xaxis_md2,vel_slice(:,1),'^-')
+    %plot(xaxis_md2,vel_slice(:,1),'^-')
     
     %Plot anayltical solution
     analy = couette_analytical_fn(t,Re,[1,0],coupleddomain(ixyz),analy_points,'top');

@@ -258,7 +258,10 @@ subroutine write_overlap_comms_md
 end subroutine write_overlap_comms_md
 
 subroutine test_gather_scatter
-	use CPL
+	use CPL, only: CPL_overlap,realm,md_realm,cfd_realm,ncx,ncy,ncz, &
+	               CPL_CART_COMM,jcmax_olap,rank_cart,ierr,olap_mask, &
+	               rank_world,myid_world, &
+	               CPL_Cart_coords, CPL_proc_extents, CPL_gather, CPL_scatter
 	implicit none
 
 	double precision,dimension(:,:,:,:),allocatable	:: u,stress,gatheru,scatterstress

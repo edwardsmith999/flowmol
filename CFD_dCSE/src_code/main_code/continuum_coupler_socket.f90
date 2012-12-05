@@ -207,8 +207,8 @@ subroutine socket_coupler_send_velocity
  
 	!Number of cells to package and send
 	cnstnd_cells = 1
-	jcmin_send = jcmax_olap-1-cnstnd_cells
-	jcmax_send = jcmax_olap-1-cnstnd_cells
+	jcmin_send = jcmax_olap-cnstnd_cells
+	jcmax_send = jcmax_olap-cnstnd_cells ! -1 for applying two below bottom (arbitrary?) TODO input file
 
 	!Interpolate cell centres using surfaces
 	sendbuf = 0.d0
