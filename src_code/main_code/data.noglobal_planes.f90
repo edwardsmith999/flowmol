@@ -30,8 +30,10 @@ subroutine data_init()
 	call readInt("nx", ni)
 	call readInt("ny", nj)
 	call readInt("nz", nk)
-	if (ni .ne. nx .or. nj .ne. ny .or. nk .ne. nz) &
+	if (ni .ne. nx .or. nj .ne. ny .or. nk .ne. nz) then
+		print*, "ni,nx,nj,ny,nk,nz", ni,nx,nj,ny,nk,nz 
 		stop "Dimensions in archive and export file do not match"
+	end if
 
 
 	!  if (niz .ne. 1 .and. mod(niz,2) .ne. 0) &
