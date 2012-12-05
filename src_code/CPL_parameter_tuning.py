@@ -5,26 +5,34 @@ import math
 density = 0.8
 rcutoff = 2.2
 dr_nbr  = 0.29
-d_xL    = 52.1
-d_zL    = 52.1 
+d_xL    = 41.1
+d_zL    = 41.1 
 d_yL_md = 31.3
-d_yL_cfd = 52.1 - 15.6
+d_yL_cfd = 41.0 
+wall_layers = 2
 cellsize_ratio = 2.0 # must be a float representation of an integer
+eps = 0.01
 
 # Calculate number of initial units required to get close to desired yL_md
 a = 1.0 / (math.pow((density/4.0),(1.0/3.0)))    # lattice parameter a
-nunits_x_md = int(round(d_xL/a))                 # best number of units
-nunits_y_md = int(round(d_yL_md/a))              # best number of units
-nunits_z_md = int(round(d_zL/a))                 # best number of units
+d_yL_md_pluswall = (d_yL_md + 0.25*a + 
+                    0.5*(wall_layers - 1))       # account for wall
+
+nunits_x_md = int(math.floor(d_xL/a))            # best number of units
+nunits_y_md = int(math.floor(d_yL_md_pluswall/a))# best number of units
+nunits_z_md = int(math.floor(d_zL/a))            # best number of units
 xL_md = nunits_x_md*a                            # new xL_md
 yL_md = nunits_y_md*a                            # new yL_md
 zL_md = nunits_z_md*a                            # new zL_md
 
+teth_dist = a * (0.25 + 0.5*(wall_layers - 1))
+teth_dist = round(teth_dist,2) + eps
+
 # Calculate computational cell size from rcutoff and yL_md (floor to be
 # conservative)
-ncells_x_md = int(math.floor(xL_md / (rcutoff + dr_nbr)))
-ncells_y_md = int(math.floor(yL_md / (rcutoff + dr_nbr)))
-ncells_z_md = int(math.floor(zL_md / (rcutoff + dr_nbr)))
+ncells_x_md = int(round(xL_md / (rcutoff + dr_nbr)))
+ncells_y_md = int(round(yL_md / (rcutoff + dr_nbr)))
+ncells_z_md = int(round(zL_md / (rcutoff + dr_nbr)))
 dx_md = xL_md / float(ncells_x_md)
 dy_md = yL_md / float(ncells_y_md)
 dz_md = zL_md / float(ncells_z_md)
@@ -52,6 +60,7 @@ message = (
            "\tDesired xL:        \t" + str(d_xL)           + "\n" + 
            "\tDesired zL:        \t" + str(d_zL)           + "\n" + 
            "\tDesired MD yL:     \t" + str(d_yL_md)        + "\n" + 
+           "\tHCP wall layers:   \t" + str(wall_layers)    + "\n" + 
            "\tDesired CFD yL:    \t" + str(d_yL_cfd)       + "\n" + 
            "\tCellsize ratio:    \t" + str(cellsize_ratio) + "\n" + 
 
@@ -59,6 +68,8 @@ message = (
            "\tMD FCC units(x):   \t" + str(nunits_x_md)    + "\n" + 
            "\tMD FCC units(y):   \t" + str(nunits_y_md)    + "\n" + 
            "\tMD FCC units(z):   \t" + str(nunits_z_md)    + "\n" + 
+           "\tFCC lattice param: \t" + str(a)              + "\n" + 
+           "\tMD tether dist:    \t" + str(teth_dist)      + "\n" + 
            "\tMD ncells(x):      \t" + str(ncells_x_md)    + "\n" +  
            "\tMD ncells(y):      \t" + str(ncells_y_md)    + "\n" +  
            "\tMD ncells(z):      \t" + str(ncells_z_md)    + "\n\n" +  

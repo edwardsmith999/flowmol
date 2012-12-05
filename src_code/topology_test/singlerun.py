@@ -2,7 +2,7 @@
 from os import system 
 import check
 
-fobj    = open('input','r')
+fobj    = open('TOPOL.in','r')
 
 npx_md  = int(fobj.readline()[0:4])
 npy_md  = int(fobj.readline()[0:4])

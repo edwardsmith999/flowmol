@@ -13,6 +13,7 @@
 		RunClass  (class)     -   Everything required for a job object.
 
 """
+infile = 'TOPOL.in'
 prevjobID = 0
 
 npx_md = 8
@@ -57,11 +58,11 @@ class RunClass:
 		prevjobID  = self.jobID
 
 		# Read and store input file in "lines"
-		with open('input','r') as source:
+		with open(infile,'r') as source:
 			lines = source.readlines()
 
 		# Clean input file and rewrite with new procs
-		with open('input','w') as output:
+		with open(infile,'w') as output:
 			# Store inputs in an array for loop below
 			inputs = ([ npx_md,  npy_md,  npz_md,  
 						npx_cfd, npy_cfd, npz_cfd,
@@ -90,7 +91,7 @@ class RunClass:
 		string += '-----------------------------------------'
 
 		# Add input file contents
-		#with open( 'input', 'r' ) as source:
+		#with open(infile, 'r' ) as source:
 		#	lines = source.readlines()
 		#for line in lines:
 		#	string += line
