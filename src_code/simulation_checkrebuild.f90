@@ -14,14 +14,15 @@ end module module_checkrebuild
 !----------------------------------------------------------------------------------
 
 subroutine simulation_checkrebuild(rebuild)
-use module_checkrebuild
-implicit none
+	use module_checkrebuild
+	implicit none
 	
+	logical,save		   :: just_written_snapshot=.true.
 	integer                :: n, ixyz
 	integer, save		   :: rb_count, total_rb=0
 	integer, intent(out)   :: rebuild
-	double precision       :: vmax
-	double precision, save :: rmax = 0.d0
+	double precision       :: vmax, t2
+	double precision, save :: rmax = 0.d0, t1
 
 	double precision, save :: average_rb_count
 
@@ -30,10 +31,29 @@ implicit none
 	!Trigger rebuild if record to be taken on next timestep
 	if (mod(iter+1,tplot) .eq. 0) rebuild = 1
 
-	!Trigger rebuild if FIXED REBUILD specified in inpuy
-	!if (fixed_rebuild_flag .eq. 1) then
-	!	if (mod(iter,fixed_rebuild) .eq. 0) rebuild = 1
-	!endif
+	!Check if backup file should be saved based on elapsed time
+	!since last backup has been saved
+	if (just_written_snapshot .eqv. .true.) then
+		just_written_snapshot = .false.
+		call cpu_time(t1)  !Get start cpu time
+	endif
+	call cpu_time(t2)  !Get current cpu time
+	if (t2-t1 .gt. rescue_snapshot_freq) then
+		just_written_snapshot = .true.
+		call messenger_syncall
+		call parallel_io_final_state
+		if (irank.eq.iroot) then
+			print('(2(a,f10.5))'), ' It`s been ', t2-t1, & 
+				' seconds since last rescue and freq is ', rescue_snapshot_freq
+			print('(a,i8)'), ' Rescue microstate written to ./results/final_state at iter ', iter
+		end if
+	endif
+
+	!Trigger rebuild if FIXED REBUILD specified in input
+	if (fixed_rebuild_flag .eq. 1) then
+		if (mod(iter,fixed_rebuild) .eq. 0) rebuild = 1
+		return
+	endif
 
 	!Evaluate velocity magnitude
 	do n = 1, np    ! Loop over all molecules

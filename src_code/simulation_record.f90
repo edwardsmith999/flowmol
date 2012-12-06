@@ -195,17 +195,6 @@ subroutine simulation_record
 	if (pressure_outflag .ne. 0) then
 		call pressure_averaging(pressure_outflag)
 	end if
-	!Check if backup file should be saved based on elapsed iterations
-	!and average size of current system per processor
-!	if (mod((iter*globalnp/nproc),1000000).eq.0) then
-!		call messenger_syncall
-!		call parallel_io_final_state
-!		if (irank.eq.iroot) then
-!			write(iterchar, '(i8)') iter
-!			iterchar = adjustl(iterchar)
-!			print('(2a)'), ' Microstate written to ./results/final_state at iter ', iterchar 
-!		end if
-!	endif
 
 	call update_simulation_progress_file
 

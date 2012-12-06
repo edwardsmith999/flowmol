@@ -83,7 +83,9 @@ module computational_constants_MD
 		vflux_outflag, &
 		eflux_outflag, &
 		proc_reorder, &				!Reorder processors at restart
-		pass_vhalo = 0
+		pass_vhalo = 0, &
+		fixed_rebuild_flag 	!Fixed rebuild flag
+
 	integer, dimension(3)	:: periodic
 
 
@@ -105,6 +107,7 @@ module computational_constants_MD
 		finalstep,              &   !Final step of simulation
 		Nsteps, 				&	!Total number of computational steps
 		initialise_steps, 		&	!Initialisation steps to run before simulation start
+		fixed_rebuild,          &   !Fixed rebuild frequency
 		extralloc, 				&	!Extra allocation space to include copied halos
 		overlap, 				&	!Size of overlap region used to apply force to molecular region
 		Nvmd_intervals,         &
@@ -112,6 +115,7 @@ module computational_constants_MD
 		ssf_ax1,                &   !1st projection axis for static structure factor
 		ssf_ax2,                &
 		ssf_nmax                    !Maximum wavenumber for S(k) calculation
+
 	integer,dimension(:,:),allocatable	:: vmd_intervals			!Multiple intervals for vmd record
 
 	double precision 	:: delta_t           !Size of timestep for each computational step
@@ -120,6 +124,7 @@ module computational_constants_MD
 	double precision 	:: rneighbr2         !Square of rcuttoff+delta_rneighbr
 	double precision 	:: delta_rneighbr    !Radius used for neighbour list construction
 	double precision    :: rdf_rmax          !Maximum radius for radial distribution function
+	double precision	:: rescue_snapshot_freq	!Rescue snapshot output frequency in seconds
 	
 	!Store surface bins of processes subdomain for outputs over periodic boundaries
 	integer									:: nsurfacebins     !Number of surface bins

@@ -137,8 +137,13 @@ subroutine setup_initial_record
 		print*, 'Generate output file every: ',  tplot, 'steps'
 		print*, 'Density: ',              density
 		print*, 'Initial Temperature: ',  inputtemperature
-		print'(a,f19.15,a,f10.5)', ' Cut off distance:  ', rcutoff, &
+		if (fixed_rebuild_flag .eq. 0) then
+			print'(a,f19.15,a,f10.5)', ' Cut off distance:  ', rcutoff, &
 				    '  Neighbour List Delta r:  ', delta_rneighbr
+		else
+			print'(a,f19.15a,f8.4,a,i5,a)', ' Cut off ', rcutoff, ' nbr: ', delta_rneighbr, &
+				    ' & fixed rebuild every ', fixed_rebuild, ' steps'
+		endif
 		print*, 'Initial unit size (FCC unit) in x,y and z:'
 		print*,	initialunitsize(1), initialunitsize(2), initialunitsize(3)
 		print*, 'Domain in x,y and z: '
@@ -171,6 +176,8 @@ subroutine setup_initial_record
 		print*, 'Cells per Processor:', ncells(1), ncells(2), ncells(3)
 		print*, 'Cells per Processor including Halos: ', ncells(1)+2*nh, ncells(2)+2*nh, ncells(3)+2*nh
 		print*, 'Random seed used for initial velocity generation:', seed
+		print'(a,3(i4,a))', ' Rescue backup file saved every ', floor(rescue_snapshot_freq/3600.d0), ' hours ', &
+				 floor(mod(rescue_snapshot_freq,3600.d0)/60.d0), ' minutes and ', floor(mod(rescue_snapshot_freq,60.d0)), ' seconds'
 		print*, '======================== Output Parameters ============================'
 	
 		select case(vmd_outflag)

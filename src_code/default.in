@@ -107,6 +107,22 @@ FORCE_LIST
 DELTA_RNEIGHBR
 0.3
 
+
+#########################################################################
+# Frequency (in seconds) to write rescue snapshot 'final_state' file
+# -----------------------------------------------------------------------
+RESCUE_SNAPSHOT_FREQ
+21600
+
+#########################################################################
+# Fixed rebuild flag
+# 0: off - use delta_rneighbr to calculate rebuild
+# 1: on using frequency specifed on next line
+# -----------------------------------------------------------------------
+FIXED_REBUILD_FLAG
+0
+20
+
 #########################################################################
 # Sorting parameters - sorts molecules every rebuild*sort_freq
 # Sort_Flag:  		0 - No sorting
