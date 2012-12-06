@@ -13,7 +13,7 @@
 % read_grid([],[2 2 2])
 % read_grid('',[2 2 2])
 %
-% similarly if no skip is specified the efault of [2 2 2] is used
+% similarly if no skip is specified the default of [2 2 2] is used
 % read_grid; with no inputs will read the file grid.data with skip [2 2 2]
 
 function read_grid(filename,skip,varargin)
