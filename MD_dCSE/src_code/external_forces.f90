@@ -112,24 +112,27 @@ end subroutine simulation_apply_boundary_forces
 !and Thompson (1995)
 subroutine simulation_apply_boundary_forces_OT
 	use module_external_forces
+	use md_coupler_socket, only: socket_get_dy
 	implicit none
 
 	integer				:: n
 	double precision 	:: alpha
-	double precision 	:: y, y0
+	double precision 	:: y, y2, delta_y
+
+	delta_y = socket_get_dy()
 
 	if (jblock .eq. npy) then
 
-		y0 = globaldomain(2)/2.d0 - 2.34d0
+		y2 = halfdomain(2) - delta_y
 	
 		!Set alpha and pressure to fixed value in O'Connell and Thompson
 		alpha = 2
 		pressure = 3.d0
 
 		do n = 1, np
-			if (r(n,2) .gt. y0) then
+			if (r(n,2) .gt. y2) then
 				y = r(n,2)
-				a(n,2)= a(n,2) - alpha * pressure * density**(-2.d0/3.d0)*(y-y0)
+				a(n,2)= a(n,2) - alpha * pressure * density**(-2.d0/3.d0)*(y-y2)
 			endif
 		enddo
 
@@ -149,16 +152,14 @@ subroutine simulation_apply_boundary_forces_NCER
 
 	integer	:: n
 	double precision 	:: delta_y
-	double precision 	:: y, y0, y1, y2, y3
+	double precision 	:: y, y2, y3
 
 	if (jblock .eq. npy) then
 
 		delta_y = socket_get_dy()
 
-		y3 = domain(2)/2.d0
+		y3 = halfdomain(2)
 		y2 = y3 - delta_y
-		y1 = y2 - delta_y
-		y0 = y1 - delta_y
 	
 		!Prevents negative pressure (during initialisation) from releasing molecules
         pressure = max(pressure,1.d0)
@@ -174,6 +175,63 @@ subroutine simulation_apply_boundary_forces_NCER
 
 end subroutine simulation_apply_boundary_forces_NCER
 
+!-------------------------------------------------------------------
+! Apply boundary forces based on RDF from T. Werder et al. J Comp. 
+! Phys 205 (2005) 373–390. NOTE molecules will still escape
+
+subroutine simulation_apply_boundary_forces_Werder
+	use module_external_forces
+	use md_coupler_socket, only: socket_get_dy
+	implicit none
+
+	integer	:: n
+	double precision 	:: delta_y
+	double precision 	:: y, y2, y3
+
+	if (jblock .eq. npy) then
+
+		delta_y = socket_get_dy()
+
+		y3 = halfdomain(2)
+		y2 = y3 - delta_y
+	
+		do n = 1, np
+			if (r(2,n) .gt. y2) then
+				y = r(2,n)
+				a(2,n)= a(2,n) + approx_RDF(y,y2)
+			endif
+		enddo
+
+	endif
+
+contains
+	
+	!Obtain an approximation for the Radial Distribution Function using the
+	!expression from Appendix A of T. Werder et al. J Comp. Phys 205 (2005) 373–390
+	function approx_RDF(r,rmin) result(F)
+		use librarymod, only : heaviside 
+
+		real(kind=kind(0.d0)), intent(in)	:: r,rmin
+		real(kind=kind(0.d0))				:: F, rhat
+
+		!Define local coordinate 
+		rhat = r - rmin
+
+		F = ( 10.8007 + 0.860717*rhat    - 172.468* rhat**2 					& 
+					  + 86.9134* rhat**3 - 140.214* rhat**4	 ) 					& 
+					 *(heaviside(rhat-0.2975)-heaviside(rhat)		) 			&
+		   +(-3621.30 + 44657.4* rhat    - 204844.0*rhat**2 					&
+					  + 414123.0*rhat**3 - 311674.0*rhat**4  ) 					& 
+					 *(heaviside(rhat-0.3475)-heaviside(rhat-0.2975)) 			&
+		   +( 4331.63 - 45188.5* rhat    + 176236.0*rhat**2 					&
+					  - 305157.0*rhat**3 + 198111.0*rhat**4	) 					&
+					 *(heaviside(rhat-0.3975)-heaviside(rhat-0.3475)) 			&
+		   +(-94.4796 + 576.282* rhat    - 1436.11* rhat**2 					&
+					  + 1804.53* rhat**3 - 1133.47* rhat**4 + 283.244*rhat**5) 	& 
+					 *(heaviside(rhat-1.0000)-heaviside(rhat-0.3975))
+	end function
+
+end subroutine simulation_apply_boundary_forces_Werder
 
 #endif
 

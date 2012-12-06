@@ -41,10 +41,6 @@ subroutine simulation_move_particles_lfv
 	integer :: n
 	double precision :: ascale, bscale
 	double precision, save :: zeta=0.d0
-
-	!DO NOT ALLOCATE ARRAYS LIKE THIS - IT USES THE STACK WHICH FOR LARGE SYSTEM
-	!SIZES WILL BE EXCEEDED AND CAUSE AN INEXPLICABLE SEG FAULT!!
-	!double precision, dimension(nd,np):: U
 	double precision, dimension(:,:),allocatable :: U
 
 	select case(ensemble)

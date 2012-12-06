@@ -252,6 +252,7 @@ subroutine WriteSubDomain_cc(FNAME, istart,iend,iskip, jstart,jend,jskip, kstart
 	! (OutBuffer) is allocated of exact size as input data.
 	! It circumvents a bug in ALC MPI-IO
 	!----------------------------------------------------
+	logical 						:: stress_outflag=.false.
 	CHARACTER(LEN=12),intent(in)	:: FNAME
 	integer,intent(in)				:: istart, iend, iskip
 	integer,intent(in)				:: jstart, jend, jskip
@@ -432,33 +433,35 @@ subroutine WriteSubDomain_cc(FNAME, istart,iend,iskip, jstart,jend,jskip, kstart
 		offset = global_cnt * FloatSize
 
 		!---------------------- Stress -------------------------
-		call Evaluate_stress(uc,vc,wc,P,stress)
-		! Write all nine components of stress
-		do jxyz = 1,3
-		do ixyz = 1,3
+		if (stress_outflag .eqv. .true.) then
+			call Evaluate_stress(uc,vc,wc,P,stress)
+			! Write all nine components of stress
+			do jxyz = 1,3
+			do ixyz = 1,3
 
-			do j = loc_jstart, loc_jend, jskip
-			do i = loc_istart, loc_iend, iskip
-			do k =     kstart,     kend, kskip
-				jj = (j-loc_jstart)/jskip + 1
-				ii = (i-loc_istart)/iskip + 1
-				kk = (k-    kstart)/kskip + 1
+				do j = loc_jstart, loc_jend, jskip
+				do i = loc_istart, loc_iend, iskip
+				do k =     kstart,     kend, kskip
+					jj = (j-loc_jstart)/jskip + 1
+					ii = (i-loc_istart)/iskip + 1
+					kk = (k-    kstart)/kskip + 1
 
-				OutBuffer (kk,ii,jj)= stress(ixyz,jxyz,k,i,j)
+					OutBuffer (kk,ii,jj)= stress(ixyz,jxyz,k,i,j)
 
-			end do
-			end do
-			end do
+				end do
+				end do
+				end do
 
-			CALL Create_commit_SubDomain_fileview()
-			CALL Create_commit_SubDomain_subarray() 
-			CALL MPI_FILE_WRITE_ALL(fh, OutBuffer, 1, memtype, status, ierr)
-			
-			global_cnt = global_cnt + gsizes(1)*gsizes(2)*gsizes(3)
-			offset = global_cnt * FloatSize
+				CALL Create_commit_SubDomain_fileview()
+				CALL Create_commit_SubDomain_subarray() 
+				CALL MPI_FILE_WRITE_ALL(fh, OutBuffer, 1, memtype, status, ierr)
+				
+				global_cnt = global_cnt + gsizes(1)*gsizes(2)*gsizes(3)
+				offset = global_cnt * FloatSize
 
-		enddo
-		enddo
+			enddo
+			enddo
+		endif
 
 		!------ close file and clean up -----
 	

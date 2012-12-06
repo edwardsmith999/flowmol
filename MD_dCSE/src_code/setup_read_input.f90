@@ -99,6 +99,21 @@ subroutine setup_read_input
 	call locate(1,'DELTA_RNEIGHBR',.true.) 
 	read(1,*) delta_rneighbr 	!Extra distance used for neighbour cell
 
+	call locate(1,'FIXED_REBUILD_FLAG',.false.,found_in_input) 
+	if (found_in_input) then
+		read(1,*) fixed_rebuild_flag 	!Fixed rebuild flag
+		read(1,*) fixed_rebuild 		!Fixed rebuild frequency
+	else
+		fixed_rebuild_flag = 0			!Rebuild uses neighbourcell
+	endif
+
+	call locate(1,'RESCUE_SNAPSHOT_FREQ',.false.,found_in_input) 
+	if (found_in_input) then
+		read(1,*) rescue_snapshot_freq 	!Rescue snapshot frequency in seconds
+	else
+		rescue_snapshot_freq = 21600	!Every 6 hours
+	endif
+
 	call locate(1,'SORT_FLAG',.false.,found_in_input) 
 	if (found_in_input) then
 		read(1,*) sort_flag

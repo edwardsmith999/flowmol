@@ -35,10 +35,10 @@ module md_coupler_socket
 	end type cfd_box_sum
 
 
-	type(cfd_box_sum),dimension(:,:,:),allocatable :: box_average
+	type(cfd_box_sum),dimension(:,:,:),allocatable 		:: box_average
 
-	integer			, dimension(:,:,:,:), allocatable :: mflux
-	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: uvw_md, uvw_cfd
+	integer			, dimension(:,:,:,:), allocatable 	:: mflux
+	real(kind(0.d0)), dimension(:,:,:,:), allocatable 	:: uvw_md, uvw_cfd
 	real(kind(0.d0)), dimension(:,:,:,:,:), allocatable :: stress_cfd
 
 contains
@@ -329,8 +329,8 @@ subroutine average_and_send_MD_to_CFD(iter)
 	logical, save :: first_time=.true.,staggered_averages(3)
 	integer, save :: ncx, ncy, ncz, average_period, jcmin_olap,timestep_ratio
 	real(kind(0.d0)),save :: dx, dy, dz
-	real(kind(0.d0)),dimension(:),allocatable,save :: zg
-	real(kind(0.d0)),dimension(:,:),allocatable,save :: xg, yg
+	real(kind(0.d0)),dimension(:),allocatable,save 		:: zg
+real(kind(0.d0)),dimension(:,:),allocatable,save 	:: xg, yg
 
 	!Setup arrays on first call
     if (first_time) then 
@@ -356,7 +356,10 @@ subroutine average_and_send_MD_to_CFD(iter)
 
 contains
 
-	!THIS SHOULD BE DONE IN THE SETUP!!!!
+!=============================================================================
+! Setup arrays and constants used in average
+!-----------------------------------------------------------------------------
+
 	subroutine setup_velocity_average
 		use CPL, only : CPL_proc_extents
 		use computational_constants_MD, only : iblock,jblock,kblock 
@@ -383,7 +386,10 @@ contains
 		end select
 	end subroutine setup_velocity_average
 
-!------------------------------------------
+!=============================================================================
+! Cumulativly average velocity 
+!-----------------------------------------------------------------------------
+
 	subroutine cumulative_velocity_average
 		use CPL, only : CPL_Cart_coords, CPL_proc_extents, CPL_realm, VOID, &
 						map_md2cfd_global,map_cfd2md_global,globalise,localise	
@@ -421,8 +427,6 @@ contains
 
 		minbin = ceiling((avrg_bot+halfdomain(:))/dxyz(:)) + nhb
 		maxbin = ceiling((avrg_top+halfdomain(:))/dxyz(:)) + nhb
-
-		!print'(a,16i5)','extents',rank_world, ceiling(map_cfd2md_global(rd)/dy), minbin,extents(1),extents(3),extents(5),maxbin,extents(2),extents(4),extents(6)
 
 		select case(staggered_averages(1))	
 		!- - - - - - - - - - - - - - - - - - - -
@@ -475,15 +479,11 @@ contains
 				if (ibin(1).lt.1 .or. ibin(1).gt.extents(2)-extents(1)+1) cycle
 				if (ibin(3).lt.1 .or. ibin(3).gt.extents(6)-extents(5)+1) cycle
 
-				!print'(a,7i4,4f9.5)', 'binning',rank_world,ibin(1),ibin(2),ibin(3),minbin(2), & 
-				!						extents(2),extents(6), r(2,n),avrg_bot(2),avrg_top(2)
-
 				!Add velocity and molecular count to bin
 				uvw_md(1:3,ibin(1),ibin(2)-minbin(2)+1,ibin(3)) = &
 					uvw_md(1:3,ibin(1),ibin(2)-minbin(2)+1,ibin(3)) + v(:,n)
 				uvw_md(4,  ibin(1),ibin(2)-minbin(2)+1,ibin(3)) = & 	
 					uvw_md(4,  ibin(1),ibin(2)-minbin(2)+1,ibin(3)) + 1.d0
-
 
 			enddo
 		case default
@@ -492,7 +492,10 @@ contains
 
 	end subroutine cumulative_velocity_average
 
-!------------------------------------------
+!=============================================================================
+! Send cumulativly average velocity to CFD code
+!-----------------------------------------------------------------------------
+
 	subroutine send_velocity_average
 		use CPL, only : CPL_send
 		use computational_constants_MD, only : iblock,jblock,kblock
@@ -512,12 +515,8 @@ contains
 			mflux = 0
 		! Send velocity in cell centre
 		case(.false.)
-			!limits = (/ icmin_olap,icmax_olap,jcmin_send,jcmax_send,kcmin_olap,kcmax_olap /)
-			!call CPL_gather(uvw_md,limits)
-
             call CPL_send(uvw_md,jcmax_send=jcmax_send,jcmin_send=jcmin_send,send_flag=send_flag)
 			uvw_md = 0.d0
-
 		end select
 
 	end subroutine send_velocity_average
@@ -530,6 +529,7 @@ end subroutine average_and_send_MD_to_CFD
 ! Force from Nie et al (2004) paper to fix molecular velocity to
 ! continuum value inside the overlap region. 
 !-----------------------------------------------------------------------------
+
 subroutine socket_apply_continuum_forces(iter)
 	use physical_constants_MD, only : np
 	use computational_constants_MD, only : delta_t, nh, ncells, & 
@@ -598,6 +598,7 @@ contains
 !===================================================================================
 ! Run through the particle, check if they are in the overlap region and
 ! find the CFD box to which the particle belongs		 
+!-----------------------------------------------------------------------------------
 
 subroutine setup_CFD_box(limits,CFD_box,recv_flag)
 	use CPL, only : CPL_recv,CPL_proc_portion,localise,map_cfd2md_global,CPL_get,VOID
@@ -755,314 +756,7 @@ subroutine apply_force
 
 end subroutine apply_force
 
-
-!=============================================================================
-! Average molecules using cell lists in overlap region to obtain values for 
-! constrained dynamics algorithms
-!**************************************
-!The cell based version does not work 
-!*************************************
-!-----------------------------------------------------------------------------
-
-subroutine average_over_bin_cells
-	use arrays_MD, only : r, v, a
-	implicit none
-
-	integer		:: n,icell,jcell,kcell,js,je
-	integer		:: cellnp, molno
-	type(node), pointer :: current => null(),old => null()
-
-	!Zero box averages
-	do kcell = 1, ubound(box_average,dim=3)
-	do jcell = 1, ubound(box_average,dim=2)
-	do icell = 1, ubound(box_average,dim=1)
-		box_average(icell,jcell,kcell)%np   = 0
-		box_average(icell,jcell,kcell)%v(:) = 0.0d0
-		box_average(icell,jcell,kcell)%a(:) = 0.0d0
-	enddo
-	enddo
-	enddo
-
-	! get the range of j cell index in y direction
-	js = min(ncells(2),ceiling((CFD_box(3)+halfdomain(2))/cellsidelength(2))) + nh
-	je = min(ncells(2),ceiling((CFD_box(4)+halfdomain(2))/cellsidelength(2))) + nh
-
-	!find the maximum number of molecules and allocate a list array	   
-	np_overlap = 0 ! number of particles in overlapping reg
-    allocate(list(4,np))
-
-	do kcell = nh+1,ncells(3)+1+nh
-	do jcell = js  ,   je
-	do icell = nh+1,ncells(1)+1+nh
-
-		cellnp = cell%cellnp(icell,jcell,kcell)
-		old => cell%head(icell,jcell,kcell)%point 	!Set old to first molecule in list
-
-		!Calculate averages for bin
-		do n = 1, cellnp    ! Loop over all particles
-			molno = old%molno 	 !Number of molecule
-			!Add streamwise velocity & acceleration to current bin
-			box_average(icell,jcell,kcell)%np   = box_average(icell,jcell,kcell)%np   + 1
-			box_average(icell,jcell,kcell)%v(:) = box_average(icell,jcell,kcell)%v(:) + v(molno,1)
-			box_average(icell,jcell,kcell)%a(:) = box_average(icell,jcell,kcell)%a(:) + a(molno,1) 
-
-			box_average(icell,jcell,kcell)%np   =  & 
-							box_average(icell,jcell,kcell)%np   + 1
-			box_average(icell,jcell,kcell)%v(:) =  & 
-							box_average(icell,jcell,kcell)%v(:) + v(1,molno) !Add streamwise velocity to current bin
-			box_average(icell,jcell,kcell)%a(:) =  & 
-							box_average(icell,jcell,kcell)%a(:) + a(1,molno) !Add acceleration to current bin
-
-			current => old
-			old => current%next 
-		enddo
-
-	enddo
-	enddo
-	enddo
-
-end subroutine average_over_bin_cells
-
 end subroutine socket_apply_continuum_forces
-
-!=============================================================================
-! Apply force from Nie et al (2004) paper to fix molecular velocity to
-! continuum value inside the overlap region. 
-! Adapted serial version written by ES including cells and (originally) fully verified
-!-----------------------------------------------------------------------------
-
-subroutine socket_CPL_apply_continuum_forces(iter)
-	use CPL, only : CPL_get,coupler_md_get_average_period
-	implicit none
-	
-	integer, intent(in) :: iter
-
-	integer :: iter_average
-	real(kind(0.d0)) :: delta_t_CFD
-
-	logical, save :: first_time=.true.
-	integer,save :: timestep_ratio,  average_period
-
-	!Setup arrays on first call
-    if (first_time) then 
-	    first_time	= .false.
-		call CPL_get(timestep_ratio=timestep_ratio)
-	    average_period = coupler_md_get_average_period() 	! collection interval in the average cycle
-    endif
-    iter_average = mod(iter-1, timestep_ratio)+1			! current step
-
-	!Receive results from CFD at exchange times
-    if  (iter_average .eq. timestep_ratio) then
-	    call receive_CFD_velocity
-	else
-		call interpolate_CFD_velocity
-	endif
-
-	!Apply the force to the molecular dynamics region
-    if ( mod(iter_average,average_period) .eq. 0 ) then
-		call average_over_bin
-	    call apply_force
-	endif
-
-
-contains
-!------------------------------------------
-subroutine CFD_cells_to_MD_compute_cells(cfdis,cfdie,cfdjs,cfdje,cfdks,cfdke, & 
-											  mdis, mdie, mdjs, mdje, mdks, mdke)
-	implicit none
-	integer,intent(in)		:: cfdis,cfdie,cfdjs,cfdje,cfdks,cfdke
-	integer,intent(out)		:: mdis,mdie,mdjs,mdje,mdks,mdke
-
-	mdis = cfdis
-	mdie = cfdie
-	mdjs = cfdjs 
-	mdje = cfdje
-	mdks = cfdks 
-	mdke = cfdke 
-
-end subroutine CFD_cells_to_MD_compute_cells
-!-----------------------------------------------
-subroutine receive_CFD_velocity
-	implicit none
-end subroutine receive_CFD_velocity
-!-----------------------------------------------
-subroutine interpolate_CFD_velocity
-	implicit none
-end subroutine interpolate_CFD_velocity
-!-----------------------------------------------
-subroutine average_over_bin
-	implicit none
-end subroutine average_over_bin
-!-----------------------------------------------
-subroutine apply_force
-	implicit none
-end subroutine apply_force
-!-----------------------------------------------
-end subroutine socket_CPL_apply_continuum_forces
-
-
-
-
-subroutine socket_apply_continuum_forces_ES(iter)
-	use computational_constants_MD, only : delta_t,nh,halfdomain,ncells, & 
-											cellsidelength,initialstep,Nsteps, & 
-											npx,npy,npz,iblock,jblock,kblock
-	use arrays_MD, only : r, v, a
-	use linked_list, only : node, cell
-	use coupler_module, only : icPmin_md,icPmax_md,jcPmin_md,jcPmax_md,kcPmin_md,kcPmax_md
-								
-	implicit none
-
-	integer, intent(in) 				:: iter ! iteration step, it assumes that each MD average starts from iter = 1
-
-	integer         					:: n, molno, ixyz, cellnp
-	integer								:: ii,jj,kk,icell,jcell,kcell
-	integer								:: ibmin_md,ibmax_md,jbmin_md,jbmax_md,kbmin_md,kbmax_md
-	integer								:: isummol
-	double precision					:: inv_dtCFD
-	double precision					:: isumvel, isumacc
-	double precision, dimension(:,:,:),allocatable	:: u_continuum
-	type(node), pointer 	        	:: old, current
-
-	integer         					:: averagecount
-	double precision					:: average
-
-	!allocate(u_continuum(icPmin_md(iblock):icPmax_md(iblock), & 
-	!					 jcPmin_md(jblock):jcPmax_md(jblock), & 
-	!					 kcPmin_md(kblock):kcPmax_md(kblock)))
-
-	!	print'(a,6i8)', 'limits', icPmin_md(iblock),icPmax_md(iblock),jcPmin_md(jblock),jcPmax_md(jblock),kcPmin_md(kblock),kcPmax_md(kblock)
-
-	allocate(u_continuum(icPmin_md(iblock):icPmax_md(iblock), & 
-						 jcPmin_md(jblock):jcPmax_md(jblock), & 
-						 kcPmin_md(kblock):kcPmax_md(kblock)))
-	u_continuum = 1.d0
-
-	do ii=icPmin_md(iblock),icPmax_md(iblock)
-	do jj=jcPmin_md(jblock),jcPmax_md(jblock)
-	do kk=kcPmin_md(kblock),kcPmax_md(kblock)
-
-		! For each continuum cell get MD cells to average over
-		call CFD_cells_to_MD_compute_cells(ii,jj,kk,ibmin_md,ibmax_md,jbmin_md,jbmax_md,kbmin_md,kbmax_md)
-
-		!call CFD_cells_to_MD_compute_cells(ii,jj,kk,ibmin_md,ibmax_md,jbmin_md,jbmax_md,kbmin_md,kbmax_md)
-		!Choose a cube in the centre of the domain
-		!ibmin_md=ceiling(ncells(1)/2.d0)-1; ibmax_md=ceiling(ncells(1)/2.d0)+1
-		!jbmin_md=ceiling(ncells(2)/2.d0)-1; jbmax_md=ceiling(ncells(2)/2.d0)+1
-		!kbmin_md=ceiling(ncells(3)/2.d0)-1; kbmax_md=ceiling(ncells(3)/2.d0)+1
-
-		!Reset acceleration and velocity sums
-		isummol = 0
-		isumvel = 0.d0
-		isumacc = 0.d0
-
-		do icell = ibmin_md+nh, ibmax_md+nh
-		do jcell = jbmin_md+nh, jbmax_md+nh
-		do kcell = kbmin_md+nh, kbmax_md+nh
-	 
-			cellnp = cell%cellnp(icell,jcell,kcell)
-			old => cell%head(icell,jcell,kcell)%point 	!Set old to first molecule in list
-
-			!Calculate averages for bin
-			do n = 1, cellnp    ! Loop over all particles
-				molno = old%molno 	 !Number of molecule
-
-				isumvel = isumvel + v(1,molno) 	!Add streamwise velocity to current bin
-				isumacc = isumacc + a(1,molno) 	!Add acceleration to current bin
-				isummol = isummol + 1
-				current => old
-				old => current%next 
-			enddo
-
-		enddo
-		enddo
-		enddo
-
-		!Get average velocity and acceleration in bin
-		if (isummol .ne. 0) then
-			isumacc = isumacc/real(isummol,kind(0.d0))
-		 	isumvel = isumvel/real(isummol,kind(0.d0))
-		endif
-
-		inv_dtCFD = 1/delta_t
-
-		!Reset force averages
-		average = 0.d0
-		averagecount = 0
-
-		do icell = ibmin_md+nh, ibmax_md+nh
-		do jcell = jbmin_md+nh, jbmax_md+nh
-		do kcell = kbmin_md+nh, kbmax_md+nh
-
-			cellnp = cell%cellnp(icell,jcell,kcell)
-			old => cell%head(icell,jcell,kcell)%point 	!Set old to first molecule in list
-			
-			!Apply coupling force as Nie, Chen and Robbins (2004), using
-			!Linear extrapolation of velocity
-			do n = 1, cellnp    ! Loop over all particles
-				molno = old%molno !Number of molecule
-
-				a(1,molno)= a(1,molno) - isumacc   &
-					    -(isumvel-u_continuum(ii,jj,kk))*inv_dtCFD
-
-				current => old
-				old => current%next 
-
-				!average = average - isumacc   &
-				!	    -(isumvel-continuum_u(cbin))/delta_t
-				!averagecount = averagecount + 1
-			enddo
-
-		enddo
-		enddo
-		enddo
-
-		!print'(a,f10.5,a,f18.9)', 'MD_velocity ',sum(continuum_u(:))/3 , & 
-		!			' average force applied to MD molecules ', average/(averagecount)
-
-		nullify(current)        !Nullify current as no longer required
-		nullify(old)            !Nullify old as no longer required
-
-	enddo
-	enddo
-	enddo
-
-end subroutine socket_apply_continuum_forces_ES
-
-subroutine CFD_cells_to_MD_compute_cells(ii_cfd,jj_cfd,kk_cfd, & 
-										  ibmin_md, ibmax_md, jbmin_md, & 
-										  jbmax_md, kbmin_md, kbmax_md)
-	use coupler_module, only : xg, yg, zg, xL_md,yL_md,zL_md
-	use computational_constants_MD, only : cellsidelength, iblock,jblock,kblock
-	implicit none
-
-	integer,intent(in)		:: ii_cfd,jj_cfd,kk_cfd
-	integer,intent(out)		:: ibmin_md,ibmax_md,jbmin_md,jbmax_md,kbmin_md,kbmax_md
-	
-	double precision		:: xL_min,xL_max,yL_min,yL_max,zL_min,zL_max
-
-	! Get minimum point in processors domain
-	xL_min = xL_md*(iblock-1); xL_max = xL_md*(iblock)
-	yL_min = yL_md*(jblock-1); yL_max = yL_md*(jblock)
-	zL_min = zL_md*(kblock-1); zL_max = zL_md*(kblock)
-
-	! Get range of cells to check so that top and bottom of current CFD cell are covered
-	ibmin_md = (xg(ii_cfd  ,jj_cfd  )-xL_min)/cellsidelength(1)+1
-	ibmax_md = (xg(ii_cfd+1,jj_cfd  )-xL_min)/cellsidelength(1)+1
-	jbmin_md = (yg(ii_cfd  ,jj_cfd  )-yL_min)/cellsidelength(2)+1
-	jbmax_md = (yg(ii_cfd  ,jj_cfd+1)-yL_min)/cellsidelength(2)+1
-	kbmin_md = (zg(     kk_cfd      )-zL_min)/cellsidelength(3)+1
-	kbmax_md = (zg(     kk_cfd+1    )-zL_min)/cellsidelength(3)+1
-
-	print'(a,9i8)','indices', ii_cfd,ibmin_md,ibmax_md,jj_cfd,jbmin_md,jbmax_md,kk_cfd,kbmin_md,kbmax_md
-	print*,'xcells', xg(ii_cfd  ,jj_cfd  ),(xg(ii_cfd  ,jj_cfd  )-xL_min)/cellsidelength(1)+1, (xg(ii_cfd+1,jj_cfd  )-xL_min)/cellsidelength(1)+1
-	print*,'ycells', yg(ii_cfd  ,jj_cfd  ),(yg(ii_cfd  ,jj_cfd  )-yL_min)/cellsidelength(2)+1, (yg(ii_cfd+1,jj_cfd  )-yL_min)/cellsidelength(2)+1
-	print*,'zcells', zg(kk_cfd  ),(zg(kk_cfd)-zL_min)/cellsidelength(3)+1, (zg(kk_cfd+1)-zL_min)/cellsidelength(3)+1
-
-end subroutine CFD_cells_to_MD_compute_cells
-
-
-
 
 !=============================================================================
 ! Apply coupling forces so MD => CFD
@@ -1247,6 +941,7 @@ subroutine average_over_bin
 			box_average(ib,jb,kb)%a(2) =  box_average(ib,jb,kb)%a(2)  + flekkoy_gweight(r(2,n),CFD_box(3),CFD_box(4))
 
 		endif
+
 	enddo
 
 end subroutine average_over_bin
@@ -1283,11 +978,6 @@ subroutine apply_force
 
 		gsumcheck = gsumcheck + g
 
-		!if (i .eq. 15) then
-		!	print'(a,i5,i7,3i3,13f8.3)', 'qqq applied const', iter,ip,jb,jb+jcmin_recv-extents(3),  & 
-		!							 		irank,CFD_box(3),r(2,ip),CFD_box(4), a(:,ip), g, gsum,  & 
-		!									g/gsum, dA, stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb) 
-		!endif
 		if (gsum .eq. 0.d0) then
 			print*, 'gsum is zero, molecules in box ', ib,jb,kb, ' = ', n, ' stress =', stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb) 
 			cycle
@@ -1298,12 +988,15 @@ subroutine apply_force
 		ave_a_consrnt = ave_a_consrnt + a(:,ip)
 	enddo
 
-	write(99999,'(2i4,3(a,f12.5),3(a,3f12.4))'), rank_world, iter,  ' gsum= ', gsum,  & 
-											 ' gsumcheck= ', gsumcheck, ' gratio= ',gratio, & 
-							     			 ' applied force= ', dA * stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb) , &
-						    	 			 ' average acc = ', ave_a ,' average acc constrained = ', ave_a_consrnt
+	write(99999,'(i2,i6,3(a,f10.4),3(a,3f10.4))'), rank_world, iter,  ',', gsum,  & 
+											 ',', gsumcheck, ',',gratio, & 
+							     			 ',', dA * stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb) , &
+						    	 			 ',', ave_a ,',', ave_a_consrnt
 
 end subroutine apply_force
+
+! -----------------------------------------------------------
+! Function returns Flekkoy weighting for given y and max/min
 
 function flekkoy_gweight(y,ymin,ymax) result (g)
 	use CPL, only : error_abort
@@ -1326,813 +1019,9 @@ function flekkoy_gweight(y,ymin,ymax) result (g)
 	!Calculate weighting function
 	g = 2*( 1/(L-2*yhat) - 1/L - 2*yhat/(L**2))
 
-	!print'(a,6f10.5,l)', 'Flekkoy weight', y,ymin,ymax,yhat,L,g,yhat .lt. ymin
-
 end function
 
 end subroutine apply_continuum_forces_flekkoy
-
-!=================================================================================================
-
-subroutine apply_continuum_forces_ES(iter)
-	use computational_constants_MD, only : delta_t,nh,halfdomain,ncells,cellsidelength,initialstep,Nsteps
-	use arrays_MD, only : r, v, a
-	use linked_list, only : node, cell
-	implicit none
-
-	integer, intent(in) 				:: iter ! iteration step, it assumes that each MD average starts from iter = 1
-
-	integer								:: i,j,k,js,je,ib,jb,kb,nib,njb,nkb,ip,m,np_overlap
-	integer         					:: n, molno, ixyz, cellnp
-	integer         					:: cbin, averagecount
-	integer								:: icell, jcell, kcell
-	integer								:: isummol
-	double precision					:: inv_dtCFD,ymin,ymax,xmin,xmax,zmin,zmax,dx_cfd,dy_cfd,dz_cfd
-	double precision					:: isumvel, isumacc
-	double precision					:: t_fract, average
-	double precision, dimension(4)		:: continuum_u
-    integer, save                       :: ncalls = 0, itm1=1, itm2=2
-	logical, save						:: firsttime, overlap
-	type(node), pointer 	        	:: old, current
-
-	! run through the particle, check if they are in the overlap region
-	! find the CFD box to which the particle belongs		  
-	! attention to the particle that have left the domain boundaries 
-	!call setup_CFD_box(iter,xmin,xmax,ymin,ymax,zmin,zmax,dx_cfd,dz_cfd,inv_dtCFD,itm1,itm2)
-
-	! get the range of j cell index in y direction
-	js = min(ncells(2),ceiling(ymin/cellsidelength(2))) + nh
-	je = min(ncells(2),ceiling(ymax/cellsidelength(2))) + nh
-
-	!Fraction of continuum timestep which has passed
-	t_fract = dble((iter - initialstep)) / dble((Nsteps-initialstep))
-
-	!Linear extrapolation between velocity at t and t+1 and save in continuum_u
-	!Taken for cell at nx/2 and top domain cell (ny + 1) to (ny + 1) - overlap
-	!N.B. domain runs from 2 to ny + 1 due to halos
-	!continuum_u(1) = uc_t_minus_1(nint(nx/2.d0),3)*(1.d0-t_fract)  &
-	!	 	         + uc(nint(nx/2.d0),3)*      t_fract
-	!continuum_u(2) = uc_t_minus_1(nint(nx/2.d0),3)*(1.d0-t_fract)  &
-	!	 	         + uc(nint(nx/2.d0),3)*      t_fract
-	!continuum_u(3) = uc_t_minus_1(nint(nx/2.d0),4)*(1.d0-t_fract)  &
-	!	 	         + uc(nint(nx/2.d0),4)*      t_fract
-	!continuum_u(4) = uc_t_minus_1(nint(nx/2.d0),4)*(1.d0-t_fract)  &
-	!	 	         + uc(nint(nx/2.d0),4)*      t_fract
-
-	average = 0.d0
-	averagecount = 0
-
-	!Apply force to top three bins in y
-	!ASSUME Cell same size as bins and one continuum cell is two MD cells
-	!do jcell= (ncells(2)+1)-3,(ncells(2)+1)			!Loop through 4 y cells in controlled region
-	do jcell= js,je
- 		cbin = jcell - js+1					!Local no. of overlap cell from 1 to overlap
- 		!cbin = jcell - (ncells(2)+1)+4		!Local no. of overlap cell from 1 to overlap
-
-		!print'(3i8,4f20.7)', iter, jcell, cbin, continuum_u
-
-		!Reset acceleration and velocity sums
-		isummol = 0
-		isumvel = 0.d0
-		isumacc = 0.d0
-
-		!do icell=2 , ncells(1)+1	!Loop through all x cells
-		!do kcell=2 , ncells(3)+1	!Loop through all z cells
-    	do kcell = nh+1,ncells(3)+1+nh
-		do icell = nh+1,ncells(1)+1+nh
-
-			cellnp = cell%cellnp(icell,jcell,kcell)
-			old => cell%head(icell,jcell,kcell)%point 	!Set old to first molecule in list
-
-			!Calculate averages for bin
-			do n = 1, cellnp    ! Loop over all particles
-				molno = old%molno 	 !Number of molecule
-
-				isumvel = isumvel + v(1,molno) 	!Add streamwise velocity to current bin
-				isumacc = isumacc + a(1,molno) 	!Add acceleration to current bin
-				isummol = isummol + 1
-				current => old
-				old => current%next 
-			enddo
-
-		enddo
-		enddo
-
-		!Get average velocity and acceleration in bin
-		if (isummol .ne. 0) then
-			isumacc = isumacc/real(isummol,kind(0.d0))
-		 	isumvel = isumvel/real(isummol,kind(0.d0))
-		endif
-
-		!print*, isumacc, isumvel, isummol
-
-		!do icell=2 , ncells(1)+1	!Loop through all x cells
-		!do kcell=2 , ncells(3)+1	!Loop through all z cells
-    	do kcell = nh+1,ncells(3)+1+nh
-		do icell = nh+1,ncells(1)+1+nh
-
-			cellnp = cell%cellnp(icell,jcell,kcell)
-			old => cell%head(icell,jcell,kcell)%point 	!Set old to first molecule in list
-			
-			!Apply coupling force as Nie, Chen and Robbins (2004), using
-			!Linear extrapolation of velocity
-			do n = 1, cellnp    ! Loop over all particles
-				molno = old%molno !Number of molecule
-
-				a(1,molno)= a(1,molno) - isumacc   &
-					    -(isumvel-uvw_cfd(1,icell,1,kcell))/delta_t
-
-				current => old
-				old => current%next 
-
-				!if (molno .gt. np) stop "Force applied to halo molecules"
-
-				!average = average - isumacc   &
-				!	    -(isumvel-continuum_u(cbin))/delta_t
-				!averagecount = averagecount + 1
-
-			enddo
-
-		enddo
-		enddo
-	enddo
-
-	!print'(a,f10.5,a,f18.9)', 'MD_velocity ',sum(continuum_u(:))/3 , & 
-	!			' average force applied to MD molecules ', average/(averagecount)
-
-	nullify(current)        !Nullify current as no longer required
-	nullify(old)            !Nullify old as no longer required
-
-end subroutine apply_continuum_forces_ES
-
-!--------------------------------------------------------------------------------------
-! Apply force to match velocity to continuum using CV formulation of Nie et al 2004
-! which results in matching of force and flux on a CV.
-
-subroutine simulation_apply_continuum_forces_CV(iter)
-	use computational_constants_MD, only : delta_t,nh,domain,halfdomain,ncells,cellsidelength,initialstep,Nsteps
-	use calculated_properties_MD, only : nbins
-	use arrays_MD, only : r, v, a
-	use linked_list, only : node, cell
-	implicit none
-
-	integer, intent(in) 				:: iter ! iteration step, it assumes that each MD average starts from iter = 1
-
-	integer								:: i,j,k,js,je,ib,jb,kb,nib,njb,nkb,ip,m,np_overlap
-	integer         					:: n, molno, ixyz, cellnp
-	integer         					:: cbin, averagecount
-	integer								:: icell, jcell, kcell
-	integer								:: isummol
-	integer, save 						:: ncalls = 0, itm1=1, itm2=2
-	logical, save						:: firsttime, overlap
-	double precision					:: inv_dtCFD,ymin,ymax,xmin,xmax,zmin,zmax,dx_cfd,dy_cfd,dz_cfd
-	double precision					:: isumflux, isumforce, isumvel
-	double precision					:: t_fract, average
-	double precision, dimension(3)		:: ri
-	double precision, dimension(4)		:: continuum_res, continuum_Fs
-	double precision, dimension(4)		:: continuum_u
-	double precision, dimension(:,:,:,:,:),allocatable 	:: uvw_cfd
-
-	!logical								:: overlap
-	type(node), pointer 	        	:: old, current
-    save nib,njb,nkb,xmin,xmax,ymin,ymax,zmin,zmax,dx_cfd,dz_cfd,inv_dtCFD
-
-	! run through the particle, check if they are in the overlap region
-	! find the CFD box to which the particle belongs		  
-	! attention to the particle that have left the domain boundaries 
-	!call setup_CFD_box(iter,xmin,xmax,ymin,ymax,zmin,zmax,inv_dtCFD,itm1,itm2)
-
-	! get the range of j cell index in y direction
-	js = min(ncells(2),ceiling(ymin/cellsidelength(2))) + nh
-	je = min(ncells(2),ceiling(ymax/cellsidelength(2))) + nh
-
-	!Linear extrapolation between force at t and t+1 and save in continuum_F
-	!Taken for cell at nx/2 and top domain cell (ny + 1) to (ny + 1)-overlap
-	!N.B. domain runs from 2 to ny + 1 due to halos
-	!continuum_res(1) = xresidual_t_minus_1(nint(nx/2.d0),3)*(1.d0-t_fract)  &
-	!	 	           + xresidual(nint(nx/2.d0),3)*      t_fract
-	!continuum_res(2) = xresidual_t_minus_1(nint(nx/2.d0),3)*(1.d0-t_fract)  &
-	!	 	           + xresidual(nint(nx/2.d0),3)*      t_fract
-	!continuum_res(3) = xresidual_t_minus_1(nint(nx/2.d0),4)*(1.d0-t_fract)  &
-	!	 	           + xresidual(nint(nx/2.d0),4)*      t_fract
-	!continuum_res(4) = xresidual_t_minus_1(nint(nx/2.d0),4)*(1.d0-t_fract)  &
-	!	 	           + xresidual(nint(nx/2.d0),4)*      t_fract
-
-	!Fraction of continuum timestep which has passed
-	t_fract = dble((iter - initialstep)) / dble((Nsteps-initialstep))
-
-	!Apply force to top three bins in y
-	!ASSUME Cell same size as bins and one continuum cell is two MD cells
-	do jcell= js , je				!Loop through y cells in controlled region
- 	cbin = jcell - je					!Local no. of overlap cell from 1 to overlap
-	!cbin = jcell - (ncells(2)+1)+4		!Local no. of overlap cell from 1 to overlap
-	do icell=2 , ncells(1)+1		!Loop through all x cells
-	do kcell=2 , ncells(3)+1		!Loop through all z cells
-
-		!Reset flux and force sums
-		isummol   = 0
-
-		!Calculate flux and force averages for bin
-		call compute_bin_surface_flux(icell,jcell,kcell,isumflux)
-		call compute_force_surrounding_bins(icell,jcell,kcell,isumforce)
-
-		cellnp = cell%cellnp(icell,jcell,kcell)
-		old => cell%head(icell,jcell,kcell)%point 	!Set old to first molecule in list
-
-		isumvel = 0.d0
-
-		!Calculate velocity and molecular averages for bin
-		do n = 1, cellnp    ! Loop over all particles
-
-			molno = old%molno	!Number of molecule
-			isumvel = isumvel + v(1,molno) 	!Add streamwise velocity to current bin
-			isummol = isummol + 1
-
-			current => old
-			old => current%next !Use pointer in datatype to obtain next item in list
-		enddo
-
-		!All constraint terms are multiplied by { (m_j \theta_j)/(\sum_i^N m_i^2 \theta_i^2) }
-		!Which for unit mass reduces to { 1/(sum inside volume) }
-		if (isummol .ne. 0) then
-			isumflux     = isumflux     / real(isummol,kind(0.d0))
-		 	isumforce    = isumforce    / real(isummol,kind(0.d0))
-			continuum_Fs = continuum_res/ real(isummol,kind(0.d0))
-			if(icell .eq. 5 .and. kcell .eq. 5 .and. jcell .eq. 11 ) then 
-				!print'(a,i8,4f10.5)','bin and forces',cbin,continuum_Fs
-				!write(99,'(3i8,4f18.9)')iter,jcell,isummol, isumflux, isumforce, isumvel,continuum_Fs(cbin)
-			endif
-		endif
-
-		old => cell%head(icell,jcell,kcell)%point 	!Reset old to first molecule in list
-		
-		!Apply coupling force for CV form of Nie, Chen and Robbins (2004)
-		do n = 1, cellnp    ! Loop over all particles
-			molno = old%molno !Number of molecule
-
-			a(1,molno) = a(1,molno) + ((isumflux - isumforce) + continuum_Fs(cbin))
-
-			current => old
-			old => current%next 
-
-			!if (molno .gt. np) stop "Force applied to halo molecules"
-		enddo
-
-	enddo
-	enddo
-	enddo
-
-	nullify(current)        !Nullify current as no longer required
-	nullify(old)            !Nullify old as no longer required
-
-end subroutine simulation_apply_continuum_forces_CV
-
-!===================================================================================
-! Flux of molecules over bin surface requires all molecules in current cell and 
-! surrounding cells to be checked
-
-subroutine compute_bin_surface_flux(icell,jcell,kcell,isumflux)
-	use computational_constants_MD, only : delta_t,nh,domain,halfdomain,ncells,cellsidelength,initialstep,Nsteps
-	use calculated_properties_MD, only : nbins
-	use arrays_MD, only : r, v, a
-	use linked_list, only : node, cell
-	implicit none
-
-	integer,intent(in)					:: icell,jcell,kcell
-	double precision,intent(out)		:: isumflux
-
-	integer								:: n,molno
-	integer								:: icellshift,jcellshift,kcellshift,adjacentcellnp
-	integer,dimension(3)				:: ibin1, ibin2
-	double precision,dimension(3)		:: Fbinsize,ri1,ri2,ri12,Fsurface,velvec
-	type(node), pointer		 	        :: old, current
-
-	isumflux = 0.d0
-
-	!Determine bin size
-	Fbinsize(:) = domain(:) / nbins(:)
-
-	!Calculate bin surface Forces
-	do kcellshift = -1,1
-	do jcellshift = -1,1
-	do icellshift = -1,1
-		old =>  cell%head(icell+icellshift, & 
-				  jcell+jcellshift, & 
-				  kcell+kcellshift)%point
-		adjacentcellnp = cell%cellnp(icell+icellshift, & 
-					     jcell+jcellshift, & 
-					     kcell+kcellshift)
-
-		do n = 1,adjacentcellnp          !Step through all adjacent cells' molecules
-
-			molno = old%molno			!Number of molecule
-
-			velvec(:) = v(:,molno) + delta_t *a(:,molno) 	!Velocity at t calculated from acceleration
-			ri1(:)    = r(:,molno) + delta_t * velvec(:)	!Position at t calculated from velocity
-			ri2(:)    = r(:,molno)				!Molecule i at time t-dt
-
-			current => old
-			old => current%next    !Use pointer in datatype to obtain next item in list
-
-			!Check if molecule crosses surface, if it has, 
-			!add to surface flux bin total
-
-			Fsurface = 0.d0
-			! *********************************************************************************
-			!Calculate flux over surface only if molecule is entering/leaving bin of interest
-			!ibin1(:) = ceiling((ri1(:)+halfdomain(:))/Fbinsize(:))+1	!Establish current bin
-			!ibin2(:) = ceiling((ri2(:)+halfdomain(:))/Fbinsize(:))+1 !Establish current bin
-
-			!if (icell.eq.ibin1(1).and.jcell.eq.ibin1(2).and.kcell.eq.ibin1(3).or.&
-			!    icell.eq.ibin2(1).and.jcell.eq.ibin2(2).and.kcell.eq.ibin2(3)) then
-			!	call get_Fsurface(icell,jcell,kcell,molno,molno,velvec,ri1,ri2,Fsurface)
-			!	if(icell .eq. 5 .and. kcell .eq. 5 .and. jcell .eq. 11 ) then 
-			!!		if (any(Fsurface .ne. 0.d0)) print'(2i8,6f10.5)', iter,molno, & 
-			!!			dble(ibin1(:)-ibin2(:)),velvec
-			!!	endif
-			!endif
-			! *********************************************************************************
-			call get_Flux(icell,jcell,kcell,molno,molno,velvec,ri1,ri2,Fsurface)
-
-			!if(icell .eq. 5 .and. kcell .eq. 5 ) then 
-			!	if (any(Fsurface .ne. 0.d0)) print'(5i8,6f10.5)', iter,icell,jcell,kcell,molno,velvec,Fsurface
-			!endif
-			isumflux = isumflux + Fsurface(1)
-
-		enddo
-	enddo
-	enddo
-	enddo
-
-contains
-
-	!===================================================================================
-	!Flux over the surface of a bin
-
-	subroutine get_Flux(icell,jcell,kcell,molnoi,molnoj,velvect,ri1,ri2,Fsurface)
-		use librarymod, only : heaviside
-		implicit none
-
-		integer,intent(in)							:: icell,jcell,kcell,molnoi,molnoj
-		double precision,dimension(3),intent(in)	:: ri1, ri2, velvect
-		double precision,dimension(3),intent(out)	:: Fsurface
-
-		integer										:: ixyz,jxyz,kxyz,i,j,k,n
-		integer										:: planeno
-		integer										:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
-		integer		,dimension(1)					:: imaxloc
-		integer		,dimension(3)					:: ibin1,ibin2,cbin
-		double precision							:: crosstime,crossplane,rplane,shift
-		double precision,dimension(3)				:: mbinsize,crossface
-		double precision,dimension(3)				:: ri12,bintop,binbot,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
-		double precision,dimension(3,3,3,3)			:: Fsurfacebins
-
-		!CV momentum flux
-		!Determine bin size
-		mbinsize(:) = domain(:) / nbins(:)
-
-		ri12   = ri1 - ri2		!Molecule i trajectory between t-dt and t
-		where (ri12 .eq. 0.d0) ri12 = 0.000001d0
-
-		!Assign to bins before and after using integer division
-		ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:))+1
-		ibin2(:) = ceiling((ri2+halfdomain(:))/mbinsize(:))+1
-
-		!Replace Signum function with this functions which gives a
-		!check for plane crossing and the correct sign 
-		crossface(:) =  ibin1(:) - ibin2(:)
-
-		!if(icell .eq. 5 .and. kcell .eq. 5 ) then 
-		!	if (any(crossface .eq. 1)) print*, ibin1(:),ibin2(:)
-		!endif
-
-		if (sum(abs(crossface(:))) .ne. 0) then
-
-			Fsurfacebins = 0.d0
-
-			do i = ibin1(1),ibin2(1),sign(1,ibin2(1)-ibin1(1))
-			do j = ibin1(2),ibin2(2),sign(1,ibin2(2)-ibin1(2))
-			do k = ibin1(3),ibin2(3),sign(1,ibin2(3)-ibin1(3))
-
-				cbin(1) = i; cbin(2) = j; cbin(3) = k
-
-				bintop(:) = (cbin(:)-1)*mbinsize(:)-halfdomain(:)
-				binbot(:) = (cbin(:)-2)*mbinsize(:)-halfdomain(:)
-
-				!Calculate the plane intersect of trajectory with surfaces of the cube
-				Pxt=(/ 							  bintop(1),		 & 
-						ri1(2)+(ri12(2)/ri12(1))*(bintop(1)-ri1(1)), & 
-						ri1(3)+(ri12(3)/ri12(1))*(bintop(1)-ri1(1))  	/)
-				Pxb=(/ 							  binbot(1),		 & 
-						ri1(2)+(ri12(2)/ri12(1))*(binbot(1)-ri1(1)), & 
-						ri1(3)+(ri12(3)/ri12(1))*(binbot(1)-ri1(1))  	/)
-				Pyt=(/	ri1(1)+(ri12(1)/ri12(2))*(bintop(2)-ri1(2)), & 
-												  bintop(2),		 & 
-						ri1(3)+(ri12(3)/ri12(2))*(bintop(2)-ri1(2))  	/)
-				Pyb=(/	ri1(1)+(ri12(1)/ri12(2))*(binbot(2)-ri1(2)), &
-												  binbot(2),		 & 
-						ri1(3)+(ri12(3)/ri12(2))*(binbot(2)-ri1(2))  	/)
-				Pzt=(/	ri1(1)+(ri12(1)/ri12(3))*(bintop(3)-ri1(3)), & 
-						ri1(2)+(ri12(2)/ri12(3))*(bintop(3)-ri1(3)), &
-											 	  bintop(3) 			/)
-				Pzb=(/	ri1(1)+(ri12(1)/ri12(3))*(binbot(3)-ri1(3)), &
-						ri1(2)+(ri12(2)/ri12(3))*(binbot(3)-ri1(3)), & 
-												  binbot(3) 			/)
-
-				onfacexb =0.5d0*(sign(1.d0,binbot(1) - ri2(1)) 	 & 
-					       - sign(1.d0,binbot(1) - ri1(1)))* &
-							(heaviside(bintop(2) - Pxb(2)) 	 &
-					       - heaviside(binbot(2) - Pxb(2)))* &
-							(heaviside(bintop(3) - Pxb(3)) 	 &
-					       - heaviside(binbot(3) - Pxb(3)))
-				onfaceyb =0.5d0*(sign(1.d0,binbot(2) - ri2(2))   &
-					       - sign(1.d0,binbot(2) - ri1(2)))* &
-							(heaviside(bintop(1) - Pyb(1))   &
-					       - heaviside(binbot(1) - Pyb(1)))* &
-							(heaviside(bintop(3) - Pyb(3))   &
-					       - heaviside(binbot(3) - Pyb(3)))
-				onfacezb =0.5d0*(sign(1.d0,binbot(3) - ri2(3))   &
-					       - sign(1.d0,binbot(3) - ri1(3)))* &
-							(heaviside(bintop(1) - Pzb(1))   &
-					       - heaviside(binbot(1) - Pzb(1)))* &
-							(heaviside(bintop(2) - Pzb(2))   &
-					       - heaviside(binbot(2) - Pzb(2)))
-
-				onfacext =0.5d0*(sign(1.d0,bintop(1) - ri2(1))   &
-					       - sign(1.d0,bintop(1) - ri1(1)))* &
-							(heaviside(bintop(2) - Pxt(2))   &
-					       - heaviside(binbot(2) - Pxt(2)))* &
-			            	(heaviside(bintop(3) - Pxt(3))   &
-					       - heaviside(binbot(3) - Pxt(3)))
-				onfaceyt =0.5d0*(sign(1.d0,bintop(2) - ri2(2))   &
-					       - sign(1.d0,bintop(2) - ri1(2)))* &
-							(heaviside(bintop(1) - Pyt(1))   &
-					       - heaviside(binbot(1) - Pyt(1)))* &
-							(heaviside(bintop(3) - Pyt(3))   &
-					       - heaviside(binbot(3) - Pyt(3)))
-				onfacezt =0.5d0*(sign(1.d0,bintop(3) - ri2(3))   &
-					       - sign(1.d0,bintop(3) - ri1(3)))* &
-							(heaviside(bintop(1) - Pzt(1))   &
-					       - heaviside(binbot(1) - Pzt(1)))* &
-							(heaviside(bintop(2) - Pzt(2))   &
-					       - heaviside(binbot(2) - Pzt(2)))
-
-
-				!Add Momentum flux over face
-				Fsurfacebins(modulo(cbin(1),3)+1, 	& 
-					     modulo(cbin(2),3)+1, 	& 
-					     modulo(cbin(3),3)+1,:) = 	& 
-						 Fsurfacebins(modulo(cbin(1),3)+1, 	& 
-							      modulo(cbin(2),3)+1, 	& 
-							      modulo(cbin(3),3)+1,:) 	& 
-							 		- velvect(:)*dble(onfacexb - onfacext) & 
-							 		- velvect(:)*dble(onfaceyb - onfaceyt) & 
-							 		- velvect(:)*dble(onfacezb - onfacezt)
-
-				!if(icell .eq. 5 .and. kcell .eq. 5 ) then 
-				!	print'(12i8)', cbin, ibin1,ibin2,icell,jcell,kcell
-				!	print'(12i8)', modulo(cbin(:),3)+1,modulo(ibin1(:),3)+1,modulo(ibin2(:),3)+1 & 
-				!	      	      ,modulo(icell,3)+1,modulo(jcell,3)+1,modulo(kcell,3)+1
-				!	print'(6f10.5,6i8)', velvect(:),Fsurface,onfacexb,onfacext,onfaceyb,onfaceyt,onfacezb,onfacezt
-				!endif
-
-			enddo
-			enddo
-			enddo
-
-			!if(icell .eq. 5 .and. kcell .eq. 5 ) then 
-			!	print'(6f10.5,6i8)', velvect(:),Fsurface,onfacexb,onfacext,onfaceyb,onfaceyt,onfacezb,onfacezt
-			!endif
-			
-
-			Fsurface(:) = Fsurfacebins( modulo(icell,3)+1, 	& 
-										modulo(jcell,3)+1, 	& 
-										modulo(kcell,3)+1,:)
-
-		endif
-
-	end subroutine get_Flux
-
-end subroutine compute_bin_surface_flux
-
-!===================================================================================
-! Forces between current bin and surrounding bins
-
-subroutine compute_force_surrounding_bins(icell,jcell,kcell,isumforce,Traction)
-	use physical_constants_MD, only : nd, np, rcutoff2
-	use computational_constants_MD, only : domain,halfdomain
-	use calculated_properties_MD, only : nbins
-	use arrays_MD, only : r, v, a
-	use linked_list, only : node, cell
-	use librarymod, only : heaviside
-	implicit none
-
-	integer,intent(in)					:: icell,jcell,kcell
-	double precision,intent(out)		:: isumforce
-	double precision,dimension(3,6),optional,intent(inout)	:: Traction
-
-	integer								:: n,j,ixyz,molnoi,molnoj
-	integer								:: icellshift,jcellshift,kcellshift,cellnp,adjacentcellnp
-	integer,dimension(3)				:: ibin, jbin
-	double precision					:: rij2, invrij2, accijmag
-	double precision,dimension(3)		:: ri,rj,rij,fij,Fsurface
-	type(node), pointer		 	        :: oldi, currenti, oldj, currentj
-
-	!print'(a,4i8,4f10.5)', 'Before input', icell,jcell,kcell,molnoi,ri(:),isumforce
-
-	isumforce = 0.d0
-
-	cellnp = cell%cellnp(icell,jcell,kcell)
-	oldi => cell%head(icell,jcell,kcell)%point 	!Set old to first molecule in list
-
-	!Calculate averages for bin
-	do n = 1, cellnp    ! Loop over all particles
-
-		molnoi = oldi%molno	!Number of molecule
-		ri = r(:,molnoi)	!Retrieve ri
-
-		!Calculate bin surface Forces
-		do kcellshift = -1,1
-		do jcellshift = -1,1
-		do icellshift = -1,1
-			oldj => cell%head(icell+icellshift, & 
-					  jcell+jcellshift, & 
-					  kcell+kcellshift)%point
-			adjacentcellnp = cell%cellnp(icell+icellshift, & 
-						     jcell+jcellshift, & 
-						     kcell+kcellshift)
-
-			do j = 1,adjacentcellnp          !Step through all j for each i
-
-				molnoj = oldj%molno 	 !Number of molecule
-				rj = r(:,molnoj)         !Retrieve rj
-
-				currentj => oldj
-				oldj => currentj%next    !Use pointer in datatype to obtain next item in list
-
-				if(molnoi==molnoj) cycle !Check to prevent interaction with self
-
-				rij2=0                   !Set rij^2 to zero
-				rij(:) = ri(:) - rj(:)   !Evaluate distance between particle i and j
-
-				!rij2 = dot_product(rij)
-				do ixyz=1,nd
-					rij2 = rij2+rij(ixyz)*rij(ixyz) !Square of vector calculated
-				enddo
-
-				if (rij2 < rcutoff2) then
-
-					invrij2 = 1.d0/rij2                 !Invert value
-
-					!Linear magnitude of acceleration for each molecule
-					accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
-
-					!Get force and add to bin total
-					fij = accijmag*rij(:)
-					Fsurface = 0.d0
-					!print*, 'FORCE', fij
-					if (present(Traction)) then
-						call get_Traction(icell,jcell,kcell,molnoi,molnoj,fij,ri,rj,Fsurface,Traction)
-					else
-						call get_Fsurface(icell,jcell,kcell,molnoi,molnoj,fij,ri,rj,Fsurface)
-					endif
-					isumforce = isumforce +  Fsurface(1)
-					call get_Fsurface(icell,jcell,kcell,molnoi,molnoj,fij,ri,rj,Fsurface)
-					isumforce = isumforce +  Fsurface(1)
-
-				endif
-			enddo
-		enddo
-		enddo
-		enddo
-
-		currenti => oldi
-		oldi => currenti%next !Use pointer in datatype to obtain next item in list
-	enddo
-
-contains
-
-	!===================================================================================
-	!Forces over the surface of a bin
-
-	subroutine get_Fsurface(icell,jcell,kcell,molnoi,molnoj,fij,ri,rj,Fsurface)
-		implicit none
-
-		integer,intent(in)							:: icell,jcell,kcell,molnoi,molnoj
-		double precision,dimension(3),intent(in)	:: ri, rj, fij
-		double precision,dimension(3),intent(out)	:: Fsurface
-
-		integer										:: ixyz
-		integer,dimension(3)						:: ibin, jbin
-		double precision,dimension(3)				:: Fbinsize, bintopi, binboti, bintopj, binbotj, crossplane
-	
-		!Determine bin size
-		Fbinsize(:) = domain(:) / nbins(:)
-
-		!Assign to bins using integer division
-		ibin(:) = ceiling((ri(:)+halfdomain(:))/Fbinsize(:))+1	!Establish current bin
-		jbin(:) = ceiling((rj(:)+halfdomain(:))/Fbinsize(:))+1 	!Establish current bin
-
-		bintopi(:) = (ibin(:)-1)*Fbinsize(:)-halfdomain(:)
-		binboti(:) = (ibin(:)-2)*Fbinsize(:)-halfdomain(:)
-		bintopj(:) = (jbin(:)-1)*Fbinsize(:)-halfdomain(:)
-		binbotj(:) = (jbin(:)-2)*Fbinsize(:)-halfdomain(:)
-
-		!Add for molecule i
-		if(molnoi .le. np) then
-			Fsurface = fij(:)* dble((heaviside(bintopi(1)-ri(1))-heaviside(binboti(1)-ri(1)))* & 
-							  		(heaviside(bintopi(2)-ri(2))-heaviside(binboti(2)-ri(2)))* & 
-							  		(heaviside(bintopi(3)-ri(3))-heaviside(binboti(3)-ri(3)))- & 
-							  		(heaviside(bintopi(1)-rj(1))-heaviside(binboti(1)-rj(1)))* & 
-							  		(heaviside(bintopi(2)-rj(2))-heaviside(binboti(2)-rj(2)))* & 
-							  		(heaviside(bintopi(3)-rj(3))-heaviside(binboti(3)-rj(3))))
-		endif
-
-		!Add for molecule j
-		if(molnoj .le. np) then
-			Fsurface = fij(:)* dble((heaviside(bintopj(1)-ri(1))-heaviside(binbotj(1)-ri(1)))* & 
-							  		(heaviside(bintopj(2)-ri(2))-heaviside(binbotj(2)-ri(2)))* & 
-							  		(heaviside(bintopj(3)-ri(3))-heaviside(binbotj(3)-ri(3)))- & 
-							  		(heaviside(bintopj(1)-rj(1))-heaviside(binbotj(1)-rj(1)))* & 
-							  		(heaviside(bintopj(2)-rj(2))-heaviside(binbotj(2)-rj(2)))* & 
-							  		(heaviside(bintopj(3)-rj(3))-heaviside(binbotj(3)-rj(3))))
-		endif
-
-	end subroutine get_Fsurface
-
-
-
-!-----------------------------------------------------------------------------------
-! Tractions on one surface of a bin
-
-	subroutine get_Traction(icell,jcell,kcell,molnoi,molnoj,fij,ri,rj,Fsurface,Traction)
-		implicit none
-
-		integer,intent(in)										:: molnoi,molnoj
-		double precision,dimension(3),intent(in)				:: ri,rj,fij
-		double precision,dimension(3),intent(out)				:: Fsurface
-		double precision,dimension(3,6),intent(inout),optional	:: Traction
-
-		integer									:: i,j,k,ixyz,n,tempi
-		integer									:: icell,jcell,kcell
-		integer									:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
-		integer,dimension(3)					:: cbin, ibin, jbin
-		double precision						:: binforce
-		double precision,dimension(3)			:: rij,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
-		double precision,dimension(3)			:: Fbinsize, bintop, binbot
-		double precision,dimension(3,3,3,3,6)	:: Tractionbins
-		!Calculate rij
-		rij = ri - rj
-		!Prevent Division by zero
-		do ixyz = 1,3
-			if (abs(rij(ixyz)) .lt. 0.000001d0) rij(ixyz) = sign(0.000001d0,rij(ixyz))
-		enddo
-
-		!Determine bin size
-		Fbinsize(:) = domain(:) / nbins(:)
-
-		!Assign to bins using integer division
-		ibin(:) = ceiling((ri(:)+halfdomain(:))/Fbinsize(:))+1	!Establish current bin
-		jbin(:) = ceiling((rj(:)+halfdomain(:))/Fbinsize(:))+1 	!Establish current bin
-
-		do i = ibin(1),jbin(1),sign(1,jbin(1)-ibin(1))
-		do j = ibin(2),jbin(2),sign(1,jbin(2)-ibin(2))
-		do k = ibin(3),jbin(3),sign(1,jbin(3)-ibin(3))
-
-			cbin(1) = i; cbin(2) = j; cbin(3) = k
-
-			bintop(:) = (ibin(:)-1)*Fbinsize(:)-halfdomain(:)
-			binbot(:) = (ibin(:)-2)*Fbinsize(:)-halfdomain(:)
-
-			if(present(Traction)) then
-
-				!Calculate the plane intersect of line with surfaces of the cube
-				Pxt=(/ bintop(1),ri(2)+(rij(2)/rij(1))*(bintop(1)-ri(1)),ri(3)+(rij(3)/rij(1))*(bintop(1)-ri(1))  /)
-				Pxb=(/ binbot(1),ri(2)+(rij(2)/rij(1))*(binbot(1)-ri(1)),ri(3)+(rij(3)/rij(1))*(binbot(1)-ri(1))  /)
-				Pyt=(/ri(1)+(rij(1)/rij(2))*(bintop(2)-ri(2)), bintop(2),ri(3)+(rij(3)/rij(2))*(bintop(2)-ri(2))  /)
-				Pyb=(/ri(1)+(rij(1)/rij(2))*(binbot(2)-ri(2)), binbot(2),ri(3)+(rij(3)/rij(2))*(binbot(2)-ri(2))  /)
-				Pzt=(/ri(1)+(rij(1)/rij(3))*(bintop(3)-ri(3)), ri(2)+(rij(2)/rij(3))*(bintop(3)-ri(3)), bintop(3) /)
-				Pzb=(/ri(1)+(rij(1)/rij(3))*(binbot(3)-ri(3)), ri(2)+(rij(2)/rij(3))*(binbot(3)-ri(3)), binbot(3) /)
-
-				onfacexb =   (sign(1.d0,binbot(1)- rj(1))   &
-							- sign(1.d0,binbot(1)- ri(1)))* &
-							 (heaviside(bintop(2)-Pxb(2))   &
-							- heaviside(binbot(2)-Pxb(2)))* &
-							 (heaviside(bintop(3)-Pxb(3))   & 
-							- heaviside(binbot(3)-Pxb(3)))
-				onfaceyb =	 (sign(1.d0,binbot(2)- rj(2))	&
-							- sign(1.d0,binbot(2)- ri(2)))* &
-							 (heaviside(bintop(1)-Pyb(1))	& 
-							- heaviside(binbot(1)-Pyb(1)))* &
-							 (heaviside(bintop(3)-Pyb(3))	&
-							- heaviside(binbot(3)-Pyb(3)))
-				onfacezb =	 (sign(1.d0,binbot(3)- rj(3)) 	&
-							- sign(1.d0,binbot(3)- ri(3)))* &
-							 (heaviside(bintop(1)-Pzb(1))	&
-							- heaviside(binbot(1)-Pzb(1)))* &
-							 (heaviside(bintop(2)-Pzb(2))	&
-							- heaviside(binbot(2)-Pzb(2)))
-
-				onfacext =	 (sign(1.d0,bintop(1)- rj(1))	&
-							- sign(1.d0,bintop(1)- ri(1)))* &
-							 (heaviside(bintop(2)-Pxt(2))	&
-							- heaviside(binbot(2)-Pxt(2)))* &
-			            	 (heaviside(bintop(3)-Pxt(3))	&
-							- heaviside(binbot(3)-Pxt(3)))
-				onfaceyt =	 (sign(1.d0,bintop(2)- rj(2))	&
-							- sign(1.d0,bintop(2)- ri(2)))* &
-							 (heaviside(bintop(1)-Pyt(1))	&
-							- heaviside(binbot(1)-Pyt(1)))* &
-							 (heaviside(bintop(3)-Pyt(3))	&
-							- heaviside(binbot(3)-Pyt(3)))
-				onfacezt =	 (sign(1.d0,bintop(3)- rj(3))	&
-							- sign(1.d0,bintop(3)- ri(3)))* &
-							 (heaviside(bintop(1)-Pzt(1))	&
-							- heaviside(binbot(1)-Pzt(1)))* &
-							 (heaviside(bintop(2)-Pzt(2))	&
-							- heaviside(binbot(2)-Pzt(2)))
-
-				!Prevent halo molecules from being included but include molecule which have left domain 
-				!before rebuild has been triggered.
-				if (molnoi .gt. np .or. molnoj .gt. np) then
-					if (cbin(1) .lt. 2 .or. cbin(1) .gt. nbins(1)+1) cycle
-					if (cbin(2) .lt. 2 .or. cbin(2) .gt. nbins(2)+1) cycle
-					if (cbin(3) .lt. 2 .or. cbin(3) .gt. nbins(3)+1) cycle
-				endif
-
-				!Stress acting on face over volume
-				Tractionbins(modulo(i,3)+1,modulo(j,3)+1,modulo(k,3)+1,:,1) = & 
-					Tractionbins(modulo(i,3)+1,modulo(j,3)+1,modulo(k,3)+1,:,1) + fij(:)*dble(onfacexb)
-				Tractionbins(modulo(i,3)+1,modulo(j,3)+1,modulo(k,3)+1,:,2) = & 
-					Tractionbins(modulo(i,3)+1,modulo(j,3)+1,modulo(k,3)+1,:,2) + fij(:)*dble(onfaceyb)
-				Tractionbins(modulo(i,3)+1,modulo(j,3)+1,modulo(k,3)+1,:,3) = & 
-					Tractionbins(modulo(i,3)+1,modulo(j,3)+1,modulo(k,3)+1,:,3) + fij(:)*dble(onfacezb)
-				Tractionbins(modulo(i,3)+1,modulo(j,3)+1,modulo(k,3)+1,:,4) = & 
-					Tractionbins(modulo(i,3)+1,modulo(j,3)+1,modulo(k,3)+1,:,4) + fij(:)*dble(onfacext)
-				Tractionbins(modulo(i,3)+1,modulo(j,3)+1,modulo(k,3)+1,:,5) = & 
-					Tractionbins(modulo(i,3)+1,modulo(j,3)+1,modulo(k,3)+1,:,5) + fij(:)*dble(onfaceyt)
-				Tractionbins(modulo(i,3)+1,modulo(j,3)+1,modulo(k,3)+1,:,6) = & 
-					Tractionbins(modulo(i,3)+1,modulo(j,3)+1,modulo(k,3)+1,:,6) + fij(:)*dble(onfacezt)	
-
-
-				!Force applied to volume
-				!fsurface(:) = 0.25d0*fij(:)*dble(onfacexb - onfacext)
-				!fsurface(:) = 0.25d0*fij(:)*dble(onfaceyb - onfaceyt)
-				!fsurface(:) = 0.25d0*fij(:)*dble(onfacezb - onfacezt)
-
-				!Add surface force to current bin
-				!Traction(:,1) = Traction(:,1) + 0.25d0*fij(:)*dble(onfacexb)
-				!Traction(:,2) = Traction(:,2) + 0.25d0*fij(:)*dble(onfaceyb)
-				!Traction(:,3) = Traction(:,3) + 0.25d0*fij(:)*dble(onfacezb)
-				!Traction(:,4) = Traction(:,4) + 0.25d0*fij(:)*dble(onfacext)
-				!Traction(:,5) = Traction(:,5) + 0.25d0*fij(:)*dble(onfaceyt)
-				!Traction(:,6) = Traction(:,6) + 0.25d0*fij(:)*dble(onfacezt)
-
-				!Add for molecule i
-				Fsurface = fij(:)* dble((heaviside(bintop(1)-ri(1))-heaviside(binbot(1)-ri(1)))* & 
-					  					(heaviside(bintop(2)-ri(2))-heaviside(binbot(2)-ri(2)))* & 
-					  					(heaviside(bintop(3)-ri(3))-heaviside(binbot(3)-ri(3)))- & 
-					  					(heaviside(bintop(1)-rj(1))-heaviside(binbot(1)-rj(1)))* & 
-					  					(heaviside(bintop(2)-rj(2))-heaviside(binbot(2)-rj(2)))* & 
-					  					(heaviside(bintop(3)-rj(3))-heaviside(binbot(3)-rj(3))))
-
-				!if (onfaceyb.ne.0.or.onfaceyt.ne.0) print'(9i8)', iter, molnoi, molnoj,np, ibin,onfaceyb,onfaceyt
-
-			else
-				!Add for molecule i
-				Fsurface = fij(:)* dble((heaviside(bintop(1)-ri(1))-heaviside(binbot(1)-ri(1)))* & 
-					  					(heaviside(bintop(2)-ri(2))-heaviside(binbot(2)-ri(2)))* & 
-					  					(heaviside(bintop(3)-ri(3))-heaviside(binbot(3)-ri(3)))- & 
-					  					(heaviside(bintop(1)-rj(1))-heaviside(binbot(1)-rj(1)))* & 
-					  					(heaviside(bintop(2)-rj(2))-heaviside(binbot(2)-rj(2)))* & 
-					  					(heaviside(bintop(3)-rj(3))-heaviside(binbot(3)-rj(3))))
-			endif
-
-		enddo
-		enddo
-		enddo
-
-		!Take flux from central bin only
-		if (present(Traction))then
-			Traction(:,:) = Traction(:,:) +  Tractionbins(modulo(icell,3)+1, 	& 
-							     		     			  modulo(jcell,3)+1, 	& 
-			    						     			  modulo(kcell,3)+1,:,:)
-
-
-			if (icell .eq. 5 .and. kcell .eq. 3) then
-				print'(3i8,2f10.5)',icell,jcell,kcell, Tractionbins(modulo(icell,3)+1, 	& 
-							     		     			  modulo(jcell,3)+1, 	& 
-			    						     			  modulo(kcell,3)+1,1,2),& 
-											 Tractionbins(modulo(icell,3)+1, 	& 
-							     		     			  modulo(jcell,3)+1, 	& 
-			    						     			  modulo(kcell,3)+1,1,5)
-			endif
-		endif
-			
-	end subroutine get_Traction
-
-
-end subroutine compute_force_surrounding_bins
 
 
 !=============================================================================

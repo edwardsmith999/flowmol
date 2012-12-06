@@ -885,6 +885,7 @@ subroutine parallel_io_final_state
 	!Rebuild simulation before recording final state
 	call linklist_deallocateall	   		!Deallocate all linklist components
 	call sendmols			   			!Exchange particles between processors
+	call sort_mols						!Improved spatial locality helps restart on different proc topology
 	call assign_to_cell	  	   			!Re-build linklist every timestep
 	call messenger_updateborders(1)	   	!Update borders between processors
 	call assign_to_neighbourlist	   	!Setup neighbourlist
@@ -1006,6 +1007,11 @@ subroutine parallel_io_final_state
 
         call MPI_File_write(restartfileid,sum(procnp)   ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,initialnunits ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+		if (iter .lt. Nsteps ) then
+	        call MPI_File_write(restartfileid,iter      ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+		else
+	        call MPI_File_write(restartfileid,Nsteps    ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+		endif
         call MPI_File_write(restartfileid,Nsteps        ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,tplot         ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,seed          ,2,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)

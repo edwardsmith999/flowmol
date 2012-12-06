@@ -84,6 +84,7 @@ for n = 1:length(filenames)
    
     %Read from DNS files
     V = read_sub(filenames(n).name,ngz,ngx,ngy,pz,px,py,skipk,skipi,skipj,nvar);
+
     u(:,n) = squeeze(mean(mean(V{1}(1:end-nn,1:end-nn,:),1),2));
     v(:,n) = squeeze(mean(mean(V{2}(1:end-nn,1:end-nn,:),1),2));
     w(:,n) = squeeze(mean(mean(V{3}(1:end-nn,1:end-nn,:),1),2));
