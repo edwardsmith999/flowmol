@@ -1266,13 +1266,14 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 	use polymer_info_MD
 	use arrays_MD
 	use linked_list
+	use interfaces, only: error_abort
 	implicit none
 
 	integer, intent(inout) :: new_np
 	integer, intent(in)    :: ixyz
 	integer, intent(in)    :: sendnp
 	integer, intent(in)    :: dir
-
+	
 	integer :: i, n
 	integer :: molno,sendsize,recvnp,recvsize
 	integer :: pos,length,datasize,buffsize
@@ -1282,6 +1283,7 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 	double precision, dimension(nsdmi)  :: FENEpack
 	double precision, dimension(:), allocatable :: sendbuffer
 	type(passnode), pointer :: old, current
+	character(len=1024) :: string
 
 	!Obtain processor ID of lower neighbour
 	call MPI_Cart_shift(icomm_grid, ixyz-1, dir, isource, idest, ierr)
@@ -1351,6 +1353,11 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 		length = recvsize*datasize
 		allocate(recvbuffer(recvsize))
 		recvbuffer = sendbuffer
+	else if (idest .eq. MPI_PROC_NULL .and. sendnp .ne. 0) then
+		write(string,'(a,i6,a,i6,2a)') "Processor rank ", irank, &
+		" is attempting to send ", sendnp, " molecules to MPI_PROC_NULL.", &
+		" This probably means a molecule has escaped the domain."
+		call error_abort(string)
 	else
 		!Send, probe for size and then receive data
 		call NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest)
