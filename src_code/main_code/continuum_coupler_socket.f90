@@ -259,8 +259,8 @@ subroutine socket_coupler_send_stress
 
 	!Number of cells to package and send
 	cnstnd_cells = 1
-	jcmin_send = jcmax_olap+1-cnstnd_cells
-	jcmax_send = jcmax_olap+1-cnstnd_cells
+	jcmin_send = jcmax_olap-cnstnd_cells
+	jcmax_send = jcmax_olap-cnstnd_cells
 
 	!Get stress tensor at cell centers and store in buffer
 	call Evaluate_stress(uc,vc,wc,P,stress)
@@ -273,6 +273,8 @@ subroutine socket_coupler_send_stress
 	enddo
 	enddo
 	enddo
+
+	!print*, 'sent stress cfd',iblock,jblock,kblock,stress(2,2,4,:,4)
 
 	!Send stress tensor to MD code
 	call CPL_send(sendbuf,jcmax_send=jcmax_send, & 
