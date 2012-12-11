@@ -1,7 +1,8 @@
 !-----------------------------------------------------------------------------
 !
-!                            Check_Rebuild                               
+!                 Check_Rebuild and write rescue files                               
 ! Check to see if neighbourlist needs to be rebuit and returns flag true
+! Also check if rescue file needs to be written
 !
 !-----------------------------------------------------------------------------
 module module_checkrebuild

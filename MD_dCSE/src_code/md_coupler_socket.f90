@@ -802,27 +802,41 @@ subroutine apply_continuum_forces_flekkoy(iter)
 	                 timestep_ratio=timestep_ratio)
 		!Number of cells to receive
 		cnstnd_cells = 1	!~10% of the total domain
-		jcmin_recv = jcmax_olap+1-cnstnd_cells
-		jcmax_recv = jcmax_olap+1-cnstnd_cells
+		jcmin_recv = jcmax_olap-cnstnd_cells
+		jcmax_recv = jcmax_olap-cnstnd_cells
 		limits = (/ icmin_olap,icmax_olap, jcmin_recv,jcmax_recv, kcmin_olap,kcmax_olap  /)
 		call setup_CFD_box(limits,CFD_box,recv_flag)
 
+		write(99999,'(a)')	'    1         2      3               4              5         6        7  8  9      10 11 12      13 14 15   '
+		write(99999,'(a)')	'rank_world  iter  olapnp  sum(box_average%a(2))  gsumcheck  gratio  dA*stress_cfd     ave_a     ave_a_consrnt'
+
 	endif
+
 	iter_average = mod(iter-1, timestep_ratio)+1
 
 	! Receive value of CFD velocities at first timestep of timestep_ratio
-	if (iter_average .eq. 1) then
+	if (iter_average .eq. 1 .or. first_time) then
 		allocate(recv_buf(9,size(stress_cfd,3),size(stress_cfd,4),size(stress_cfd,5)))
 		recv_buf = -666
 		call CPL_recv(recv_buf,jcmax_recv=jcmax_recv, & 
 						       jcmin_recv=jcmin_recv,recv_flag=recv_flag)
 		stress_cfd = reshape(recv_buf,(/ 3,3,size(recv_buf,2),size(recv_buf,3),size(recv_buf,4) /) )
+		!print*, 'recvd stress cfd',iblock,jblock,kblock,stress_cfd(2,2,:,:,:)
 	else
 		!Linear extrapolation between velocity at t and t+1
 	endif
 
+	!call printf(stress_cfd(2,2,:,3,1))
+	!call printf(stress_cfd(2,2,:,3,2))
+	!call printf(stress_cfd(2,2,:,3,3))
+	!call printf(stress_cfd(2,2,:,3,4))
+	!call printf(stress_cfd(2,2,:,3,5))
+	!call printf(stress_cfd(2,2,:,3,6))
+	!call printf(stress_cfd(2,2,:,3,7))
+	!call printf(stress_cfd(2,2,:,3,8))
+
 	!Get average over current cell and apply constraint forces
-	if (recv_flag .eq. .true.) then
+	if (recv_flag .eqv. .true.) then
 		call average_over_bin
 		call apply_force
 	endif
@@ -979,7 +993,7 @@ subroutine apply_force
 		gsumcheck = gsumcheck + g
 
 		if (gsum .eq. 0.d0) then
-			print*, 'gsum is zero, molecules in box ', ib,jb,kb, ' = ', n, ' stress =', stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb) 
+			print'(a,3i7,a,i7,a,3f10.5)', 'gsum is zero, molecules in box ', ib,jb,kb, ' = ', n, ' stress =', stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb) 
 			cycle
 		endif
 		gratio = gratio + g/gsum
@@ -988,10 +1002,8 @@ subroutine apply_force
 		ave_a_consrnt = ave_a_consrnt + a(:,ip)
 	enddo
 
-	write(99999,'(i2,i6,3(a,f10.4),3(a,3f10.4))'), rank_world, iter,  ',', gsum,  & 
-											 ',', gsumcheck, ',',gratio, & 
-							     			 ',', dA * stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb) , &
-						    	 			 ',', ave_a ,',', ave_a_consrnt
+    write(99999,'(i2,i7,i7,2f10.2,f6.1,3f9.3,6f12.4)'), rank_world,iter,np_overlap,sum(box_average(:,:,:)%a(2)),  &
+                    gsumcheck, gratio, stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb), ave_a,ave_a_consrnt
 
 end subroutine apply_force
 
@@ -1038,12 +1050,13 @@ function socket_get_overlap_status result(olap)
 end function socket_get_overlap_status
 
 function socket_get_domain_top() result(top)
-	use coupler_module, only: yL_md, dy
+	use CPL, only: CPL_get
 	implicit none
 
-	real(kind(0.d0)) :: top
+	real(kind(0.d0)) :: yL_md, dy, top
 
-	top = yL_md/2.d0 - dy
+	call CPL_get(dy=dy,yL_md=yL_md)
+	top = yL_md/2.d0 - dy/2.d0
 
 end function socket_get_domain_top
 
