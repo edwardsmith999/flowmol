@@ -114,7 +114,7 @@ contains
 
 #if USE_COUPLER
 
-		!call socket_apply_boundary_forces               ! Apply boundary force to prevent molecules leaving domain
+		!call simulation_apply_boundary_forces               ! Apply boundary force to prevent molecules leaving domain
 		!call socket_apply_continuum_forces(iter)			! CFD=> MD Apply CFD based coupling forces on MD
 		call apply_continuum_forces_flekkoy(iter)			! CFD=> MD Apply CFD based coupling forces on MD
 		call average_and_send_MD_to_CFD(iter)				! MD=>CFD Calculate averages of MD to pass to CFD
@@ -132,7 +132,14 @@ contains
 		call simulation_move_particles_lfv                  !Move particles as a result of forces
 		call messenger_updateborders(0)                     !Update borders between processors
 		call simulation_checkrebuild(rebuild)
-		if (rebuild .eq. 1) call rebuild_all
+		if (rebuild .eq. 1) then
+			call linklist_deallocateall             		!Deallocate all linklist components
+			call sendmols                           		!Exchange particles between processors
+			call sort_mols									!Reorder molecules to improve cache efficency
+			call assign_to_cell                     		!Re-build linklist for domain cells
+			call messenger_updateborders(1)         		!Update borders between processors
+			call assign_to_neighbourlist		    		!Setup neighbourlist
+		endif
 
 		end subroutine md_advance_lfv
 
@@ -147,7 +154,14 @@ contains
 		call messenger_updateborders(0)             !Update borders between processors
 
 		call simulation_checkrebuild(rebuild)
-		if (rebuild .eq. 1) call rebuild_all
+		if (rebuild .eq. 1) then
+			call linklist_deallocateall             !Deallocate all linklist components
+			call sendmols                           !Exchange particles between processors
+			call sort_mols							!Reorder molecules to improve cache efficency
+			call assign_to_cell                     !Re-build linklist for domain cells
+			call messenger_updateborders(1)         !Update borders between processors
+			call assign_to_neighbourlist		    !Setup neighbourlist
+		endif
 
 		call simulation_compute_forces              !Calculate forces on all particles
 		call simulation_move_particles_vv(2)        !Find v(t+dt)
@@ -156,21 +170,6 @@ contains
 	end subroutine md_advance_vv
 
 end subroutine simulation_MD
-
-!--------------------------------------------
-!Rebuild lists routine
-subroutine rebuild_all
-	use computational_constants_MD
-	implicit none
-
-	call linklist_deallocateall             !Deallocate all linklist components
-	call sendmols                           !Exchange particles between processors
-	call sort_mols							!Reorder molecules to improve cache efficency
-	call assign_to_cell                     !Re-build linklist for domain cells
-	call messenger_updateborders(1)         !Update borders between processors
-	call assign_to_neighbourlist		    !Setup neighbourlist
-
-end subroutine rebuild_all
 
 !=============================================================================
 !

@@ -255,8 +255,8 @@ subroutine setup_initialise_parallel_position
 		print*, '*********************************************************************'
 		print*, '*WARNING - TOP LAYER OF DOMAIN REMOVED IN LINE WITH CONSTRAINT FORCE*'
 		print*, 'Removed from', domain_top, 'to Domain top', globaldomain(2)/2.d0
-		print*, 'Number of molecules reduced from',  & 
-			 4*initialnunits(1)*initialnunits(2)*initialnunits(3), 'to', np
+		print*, 'Number of molecules reduced from this',  & 
+			 4*initialnunits(1)*initialnunits(2)*initialnunits(3), 'to', globalnp
 		print*, '*********************************************************************'
 
                 !print*, 'microstate ', minval(r(1,:)), maxval(r(1,:)),minval(r(2,:)), maxval(r(2,:)),minval(r(3,:)), maxval(r(3,:))
@@ -306,11 +306,11 @@ subroutine setup_initialise_lattice
 
 	!Inner loop in y (useful for setting connectivity)
 	do nz=p_units_lb(3),p_units_ub(3)
-	c(3) = (nz - 0.75d0)*initialunitsize(3) - halfdomain(3) 
+	c(3) = (nz - 0.75d0)*initialunitsize(3) !- halfdomain(3) 
 	do nx=p_units_lb(1),p_units_ub(1)
-	c(1) = (nx - 0.75d0)*initialunitsize(1) - halfdomain(1)
+	c(1) = (nx - 0.75d0)*initialunitsize(1) !- halfdomain(1)
 	do ny=p_units_lb(2),p_units_ub(2)
-	c(2) = (ny - 0.75d0)*initialunitsize(2) - halfdomain(2) 
+	c(2) = (ny - 0.75d0)*initialunitsize(2) !- halfdomain(2) 
 
 		do j=1,4	!4 Molecules per cell
 
@@ -331,23 +331,25 @@ subroutine setup_initialise_lattice
 			n = n + 1	!Move to next particle
 			
 			!Remove molecules from top of domain if constraint applied
-			if (rc(2)-domain(2)*(jblock-1) .gt.  domain_top) cycle 
+			if (jblock .eq. npy) then
+				if (rc(2)-globaldomain(2)/2.d0 .gt.  domain_top) cycle 
+			endif
 
 			!Check if molecule is in domain of processor
-			if(rc(1).lt.-halfdomain(1)+domain(1)*(iblock-1)) cycle
-			if(rc(1).ge. halfdomain(1)+domain(1)*(iblock-1)) cycle
-			if(rc(2).lt.-halfdomain(2)+domain(2)*(jblock-1)) cycle
-			if(rc(2).ge. halfdomain(2)+domain(2)*(jblock-1)) cycle
-			if(rc(3).lt.-halfdomain(3)+domain(3)*(kblock-1)) cycle
-			if(rc(3).ge. halfdomain(3)+domain(3)*(kblock-1)) cycle
+			if(rc(1).lt. domain(1)*(iblock-1)) cycle
+			if(rc(1).ge. domain(1)*(iblock  )) cycle
+			if(rc(2).lt. domain(2)*(jblock-1)) cycle
+			if(rc(2).ge. domain(2)*(jblock  )) cycle
+			if(rc(3).lt. domain(3)*(kblock-1)) cycle
+			if(rc(3).ge. domain(3)*(kblock  )) cycle
 
 			!If molecules is in the domain then add to total
 			nl = nl + 1 !Local molecule count
 
 			!Correct to local coordinates
-			r(1,nl) = rc(1)-domain(1)*(iblock-1)
-			r(2,nl) = rc(2)-domain(2)*(jblock-1)
-			r(3,nl) = rc(3)-domain(3)*(kblock-1)
+			r(1,nl) = rc(1)-domain(1)*(iblock-1)-halfdomain(1)
+			r(2,nl) = rc(2)-domain(2)*(jblock-1)-halfdomain(2)
+			r(3,nl) = rc(3)-domain(3)*(kblock-1)-halfdomain(3)
 
 		enddo
 
@@ -368,12 +370,12 @@ subroutine setup_initialise_lattice
 
 #if USE_COUPLER
 
-	if (myid .eq. 0) then
+	if (jblock .eq. npy .and. iblock .eq. 1 .and. kblock .eq. 1) then
 		print*, '*********************************************************************'
 		print*, '*WARNING - TOP LAYER OF DOMAIN REMOVED IN LINE WITH CONSTRAINT FORCE*'
 		print*, 'Removed from', domain_top, 'to Domain top', globaldomain(2)/2.d0
 		print*, 'Number of molecules reduced from',  & 
-		         4*initialnunits(1)*initialnunits(2)*initialnunits(3), 'to', np
+		         4*initialnunits(1)*initialnunits(2)*initialnunits(3), 'to', globalnp
 		print*, '*********************************************************************'
 		!print*, 'microstate ', minval(r(1,:)), maxval(r(1,:)),minval(r(2,:)),  &
 		!         maxval(r(2,:)),minval(r(3,:)), maxval(r(3,:))

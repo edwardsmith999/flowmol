@@ -1818,7 +1818,7 @@ subroutine NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest
 
 	!Send data to neighbour
 	call MPI_isend(sendbuffer, pos, MPI_PACKED, &
-	idest,0,icomm_grid,request,ierr)
+					idest,0,icomm_grid,request,ierr)
 
 	!Find out how many particles are being recieved
 	call MPI_probe(isource,0,icomm_grid,status(:),ierr)
