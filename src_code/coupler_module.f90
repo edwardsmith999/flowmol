@@ -1167,16 +1167,20 @@ subroutine check_config_feasibility
 	    string = "This coupler will not work if there is more than one "// &
 		         "CFD (y-coordinate) in the overlapping region. "       // &
 		         "Aborting simulation."
-	!	call error_abort(string)
+		call error_abort(string)
 
 	end if
 
 	! Check that MD processor size is an integer multiple of CFD cell size
+	! This test doesn't work if xL_xyz is slightly less than a multiple of dxyz
+	! We avoid this by adding the required tolerence to the mod and taking away after
 	rtoler = 1.d-4
 	rval = 0.d0
-	rval = rval + mod( xL_md , dx )
-	rval = rval + mod( yL_md , dy )
-	rval = rval + mod( zL_md , dz )
+	rval = rval + abs(mod( xL_md+rtoler, dx )-rtoler)
+	rval = rval + abs(mod( yL_md+rtoler, dy )-rtoler)
+	rval = rval + abs(mod( zL_md+rtoler, dz )-rtoler)
+
+	print*, rval, mod( xL_md , dx ), mod( yL_md , dy ), mod( zL_md , dz ),zL_md,dz,zL_md/dz
 	if (rval .gt. rtoler) then
 		print'(3(a,f10.5))', ' xL_md/dx = ',xL_md/dx,' yL_md/dy = ', yL_md/dy,' zL_md/dz = ',zL_md/dz
 		string = "MD region lengths must be an integer number of CFD " // &
