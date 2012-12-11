@@ -313,10 +313,56 @@ implicit none
 	end if
 
 end subroutine print_macroscopic_properties
+
+subroutine print_mol_escape_error(n)
+	use arrays_MD, only: r,v
+	use computational_constants_MD, only: irank, iblock, jblock, kblock, iter
+	implicit none
+
+	integer, intent(in) :: n
+	character(len=19)   :: filename
+	character(len=4)    :: ranknum
+	integer             :: fileunit
+	logical             :: op
+
+	! Store processor-specific filename
+	write(ranknum, '(i4)'), irank	
+	write(filename,'(a15,a)'), "mol_escape_err.", trim(adjustl(ranknum))
+
+	! Warn user of escape
+	print('(a,i8,a,i4,3a)'),' Molecule ',n,' on process ', &
+		  irank, ' is outside the domain and halo cells. Inspect ', &
+		  filename, 'for more information.'
+
+	! Find unused file unit number
+	do fileunit = 1,1000
+		inquire(fileunit,opened=op)
+		if (op .eqv. .false.) exit
+	enddo
+
+	! Open file and write escape info
+	open(unit=fileunit,file=filename,access='append')
+
+		write(fileunit,'(a,i6,a,i4,a)'),' Molecule ',n,' on process ', &
+			  irank, ' is outside the domain and halo cells.'
+		write(fileunit,'(a,i8,a)'),' At iteration ',iter,' it is located at: '
+		write(fileunit,'(a,e20.5)'),   '    rx: ', r(1,n)
+		write(fileunit,'(a,e20.5)'),   '    ry: ', r(2,n)
+		write(fileunit,'(a,e20.5,a)'), '    rz: ', r(3,n), ','
+		write(fileunit,'(a)'),         ' with velocity: '
+		write(fileunit,'(a,e20.5)'),   '    vx: ', v(1,n)
+		write(fileunit,'(a,e20.5)'),   '    vy: ', v(2,n)
+		write(fileunit,'(a,e20.5)'),   '    vz: ', v(3,n)
+		write(fileunit,'(a,3i4)'),' Processor coords: ',iblock,jblock,kblock
+
+	close(fileunit,status='keep')
+
+end subroutine print_mol_escape_error
+
+
 !===================================================================================
 !Molecules grouped into velocity ranges to give vel frequency distribution graph
 !and calculate Boltzmann H function
-
 subroutine evaluate_properties_vdistribution
 	use module_record
 	implicit none
