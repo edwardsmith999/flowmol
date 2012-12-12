@@ -332,7 +332,7 @@ subroutine setup_initialise_lattice
 			
 			!Remove molecules from top of domain if constraint applied
 			if (jblock .eq. npy) then
-				if (rc(2)-globaldomain(2)/2.d0 .gt.  domain_top) cycle 
+				if (rc(2)-domain(2)*(jblock-1)-halfdomain(2) .gt.  domain_top) cycle 
 			endif
 
 			!Check if molecule is in domain of processor

@@ -958,6 +958,12 @@ subroutine average_over_bin
 
 	enddo
 
+    !Get single average value for slice and store in slice
+    do jb = 1,size(box_average,2)
+		box_average(:,jb,:)%np  =  sum(box_average(:,jb,:)%np)
+		box_average(:,jb,:)%a(2)   =  sum(box_average(:,jb,:)%a(2))
+    enddo
+
 end subroutine average_over_bin
 
 !=============================================================================
@@ -992,10 +998,10 @@ subroutine apply_force
 
 		gsumcheck = gsumcheck + g
 
-		if (gsum .eq. 0.d0) then
-			print'(a,3i7,a,i7,a,3f10.5)', 'gsum is zero, molecules in box ', ib,jb,kb, ' = ', n, ' stress =', stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb) 
-			cycle
-		endif
+		if (gsum .eq. 0.d0) cycle
+		!print'(a,3i7,a,i7,a,3f10.5)', 'gsum is zero, molecules in box ', ib,jb,kb, & 
+		!						    ' = ', n, ' stress =', stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb) 
+
 		gratio = gratio + g/gsum
 		ave_a = ave_a + a(:,ip)
 		a(:,ip) = a(:,ip) + (g/gsum) * dA * stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb) 
