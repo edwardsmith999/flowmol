@@ -1354,9 +1354,15 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 		allocate(recvbuffer(recvsize))
 		recvbuffer = sendbuffer
 	else if (idest .eq. MPI_PROC_NULL .and. sendnp .ne. 0) then
-		write(string,'(a,i6,a,i6,2a)') "Processor rank ", irank, &
-		" is attempting to send ", sendnp, " molecules to MPI_PROC_NULL.", &
-		" This probably means a molecule has escaped the domain."
+		write(string,'(a,i6,a,i6,a)') "sendrecvface Error: Processor rank ", irank, &
+		" is attempting to send ", sendnp, " molecules to MPI_PROC_NULL."
+		old => pass%head 
+		current => old     !make current point to head of list
+		do i=1,sendnp
+			call print_mol_escape_error(old%molno)
+			old => current%next	!make old point to next node of current
+			current => old		!Set current item to old ready for next loop
+		enddo
 		call error_abort(string)
 	else
 		!Send, probe for size and then receive data
