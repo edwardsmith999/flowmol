@@ -1847,19 +1847,21 @@ end function CPL_overlap
 !!
 !! @author Edward Smith
 
-
 subroutine CPL_get(icmax_olap,icmin_olap,jcmax_olap,jcmin_olap,  & 
                    kcmax_olap,kcmin_olap,density_cfd,density_md, &
                    dt_cfd,dt_MD,dx,dy,dz,ncx,ncy,ncz,xg,yg,zg,	 &
                    xL_md,xL_cfd,yL_md,yL_cfd,zL_md,zL_cfd,       &
+                   constraint_algo,constraint_CVflag,            &
+                   constraint_OT,constraint_NCER,                &
+                   constraint_Flekkoy,constraint_off,            &
                    md_cfd_match_cellsize,staggered_averages,timestep_ratio	)
 	use coupler_module, only : 	icmax_olap_=>icmax_olap,         &
 	                            icmin_olap_=>icmin_olap,         &
 	                            jcmax_olap_=>jcmax_olap,         &
-	                            kcmax_olap_=>kcmax_olap,         &
-	                            density_cfd_=>density_cfd,       &             
 	                            jcmin_olap_=>jcmin_olap,         &
+	                            kcmax_olap_=>kcmax_olap,         &
 	                            kcmin_olap_=>kcmin_olap,         &
+	                            density_cfd_=>density_cfd,       &             
 	                            density_md_=>density_md,         &
 	                            dt_cfd_=>dt_cfd,dt_MD_=>dt_MD,   &
 	                            dx_=>dx,dy_=>dy,dz_=>dz,         &
@@ -1873,7 +1875,13 @@ subroutine CPL_get(icmax_olap,icmin_olap,jcmax_olap,jcmin_olap,  &
 	                            xg_=>xg, yg_=> yg, zg_=> zg,     &
 								timestep_ratio_ => timestep_ratio, &
 	                            md_cfd_match_cellsize_ => md_cfd_match_cellsize, &
-								staggered_averages_ => staggered_averages
+								staggered_averages_ => staggered_averages, &
+                                constraint_algo_ => constraint_algo, &
+	                            constraint_CVflag_ => constraint_CVflag, &
+	                            constraint_OT_ => constraint_OT, &
+	                            constraint_NCER_ => constraint_NCER, & 
+	                            constraint_Flekkoy_ => constraint_Flekkoy, &
+	                            constraint_off_ => constraint_off
 
 	implicit none
 
@@ -1884,6 +1892,13 @@ subroutine CPL_get(icmax_olap,icmin_olap,jcmax_olap,jcmin_olap,  &
 	integer, optional, intent(out)			:: kcmax_olap ,kcmin_olap
 	integer, optional, intent(out)			:: ncx,ncy,ncz
 	integer, optional, intent(out)			:: md_cfd_match_cellsize,timestep_ratio
+
+	integer, optional, intent(out)          :: constraint_algo
+	integer, optional, intent(out)          :: constraint_CVflag
+	integer, optional, intent(out)          :: constraint_OT
+	integer, optional, intent(out)          :: constraint_NCER
+	integer, optional, intent(out)          :: constraint_Flekkoy
+	integer, optional, intent(out)          :: constraint_off
 
 	real(kind(0.d0)), optional, intent(out)	:: density_cfd,density_md
 	real(kind(0.d0)), optional, intent(out) :: dt_cfd,dt_MD
@@ -1947,6 +1962,14 @@ subroutine CPL_get(icmax_olap,icmin_olap,jcmax_olap,jcmin_olap,  &
 	if (present(md_cfd_match_cellsize)) then
 		md_cfd_match_cellsize = md_cfd_match_cellsize_
 	end if
+
+	! Constraint information
+	if (present(constraint_algo)) constraint_algo = constraint_algo_
+	if (present(constraint_CVflag)) constraint_CVflag = constraint_CVflag_
+	if (present(constraint_OT)) constraint_OT = constraint_OT_
+	if (present(constraint_NCER)) constraint_NCER = constraint_NCER_
+	if (present(constraint_Flekkoy)) constraint_Flekkoy = constraint_Flekkoy_
+	if (present(constraint_off)) constraint_off = constraint_off_
 
 end subroutine CPL_get
 
