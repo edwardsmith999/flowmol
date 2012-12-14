@@ -70,8 +70,6 @@ implicit none
 		end select 
 	endif
 
-	if (vmd_outflag.ne.0 .and. potential_flag.eq.1) call build_psf
-
 	!Close all output files
 	if (irank .eq. iroot) then   !Close Pressure tensor and viscosity output file
 		if (pressure_outflag .ne. 0) close(2,status='keep')   !Close Pressure tensor and viscosity output file
@@ -702,7 +700,7 @@ subroutine build_psf
 
 	if (irank.eq.iroot) then
 		
-		open(unit=1, file='results/polymer_topol.psf', status='replace', form='formatted')
+		open(unit=1, file=trim(prefix_dir)//"results/polymer_topol.psf", status='replace', form='formatted')
 
 		! Header
 		write(1,'(a3)') 'PSF'

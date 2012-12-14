@@ -22,6 +22,159 @@ module module_external_forces
 
 end module module_external_forces
 
+subroutine apply_boundary_force
+	use computational_constants_MD, only: bforce_flag, bforce_dxyz, &
+	                                      bforce_off, bforce_NCER, bforce_OT, &
+	                                      bforce_Flekkoy, bforce_rdf
+	use interfaces, only: error_abort
+	use computational_constants_MD, only: periodic
+	use md_coupler_socket, only: socket_get_constraint_info
+	implicit none
+
+	integer :: constraint_algorithm
+	integer :: OT, NCER, Flekkoy, off
+
+#if USE_COUPLER
+
+		call socket_get_constraint_info(constraint_algorithm,OT=OT, &
+                                        NCER=NCER,Flekkoy=Flekkoy,off=off)
+		
+		if ( constraint_algorithm .eq. off ) then
+
+			return
+
+		else if ( constraint_algorithm .eq. OT ) then
+
+			call error_abort("OT boundary force not yet implemented")
+
+		else if ( constraint_algorithm .eq. NCER ) then
+
+			call coupled_apply_boundary_force_NCER
+!			call coupled_apply_boundary_force(bforce_flag,bforce_dxyz)
+
+		else if ( constraint_algorithm .eq. Flekkoy ) then
+
+			call error_abort("Flekkoy boundary force not yet implemented")	
+
+		else
+
+			call error_abort("Unrecognised constraint algorithm flag")
+
+		end if	
+	
+#else
+
+		if (all(periodic.ne.0)) then
+			return
+		else
+			call simulation_apply_boundary_force(bforce_flag,bforce_dxyz) 
+		end if
+
+#endif	
+
+end subroutine apply_boundary_force
+
+subroutine simulation_apply_boundary_force(flags,dists)
+	use arrays_MD,  only: r,a
+	use computational_constants_MD, only: iblock,jblock,kblock,npx,npy,npz, &
+	                                      domain,irank
+	use physical_constants_MD, only: np, procnp
+	use calculated_properties_MD, only: pressure
+	use interfaces, only: error_abort
+	implicit none
+
+	integer,          dimension(6), intent(in) :: flags
+	real(kind(0.d0)), dimension(6), intent(in) :: dists 
+
+	integer :: n,ixyz,dir,flag,block(3),npxyz(3)
+	real(kind(0.d0)) :: xyz,thresh,hdom
+	real(kind(0.d0)), dimension(3) :: tops,bottoms
+
+	tops    = (/domain(1)/2.d0 - dists(2), &
+				domain(2)/2.d0 - dists(4), &
+				domain(3)/2.d0 - dists(6)  /)
+
+	bottoms = (/dists(1) - domain(1)/2.d0, &
+				dists(3) - domain(2)/2.d0, &
+				dists(5) - domain(3)/2.d0  /)
+
+	block  = (/iblock,jblock,kblock/)
+	npxyz  = (/npx,npy,npz/)
+
+	do n = 1, np
+	do ixyz = 1, 3
+			
+		if ( r(ixyz,n)   .gt. tops(ixyz)  .and. &
+		     block(ixyz) .eq. npxyz(ixyz)       ) then
+			
+			xyz    = r(ixyz,n)
+			thresh = tops(ixyz)
+			hdom   = domain(ixyz)/2.d0
+			dir    = -1	
+			flag   = flags(2*ixyz)
+
+		else if ( r(ixyz,n)   .lt. bottoms(ixyz) .and. &
+		          block(ixyz) .eq. 1                   ) then
+				
+			xyz    = r(ixyz,n)
+			thresh = bottoms(ixyz)
+			hdom   = -domain(ixyz)/2.d0
+			dir    = +1	
+			flag   = flags(2*ixyz - 1)
+		
+		else
+
+			cycle
+
+		end if
+
+		call apply_bforce(a(ixyz,n),xyz,thresh,hdom,dir,flag)
+
+	end do
+	end do
+
+end subroutine simulation_apply_boundary_force
+
+subroutine apply_bforce(a_in,xyz,thresh,hdom,dir,flag)
+	use computational_constants_MD, only: bforce_NCER,bforce_off
+	use calculated_properties_MD,   only: pressure
+	use interfaces,                 only: error_abort
+	implicit none
+
+	real(kind(0.d0)), intent(inout) :: a_in	  !Accel of which to add bforce
+	real(kind(0.d0)), intent(in) :: xyz       !Position, 1D
+	real(kind(0.d0)), intent(in) :: thresh    !Threshold for bforce, 1D
+	real(kind(0.d0)), intent(in) :: hdom      !Domain edge
+	integer, intent(in) :: dir                !a in +ve or -ve direc, 1 or -1
+	integer, intent(in) :: flag               !Type of bforce 
+
+	real(kind(0.d0)) :: numer,denom,ratio, a_ext, P
+	character(128)   :: string
+
+	select case ( flag )
+	case ( bforce_off  )
+
+		return
+
+	case ( bforce_NCER )
+
+		P     = max(pressure,1.d0)                !Account for negative pressure
+		numer = xyz - thresh                      !+ve or -ve dependent on pos in domain
+		denom = 1.d0 - (xyz-thresh)/(hdom-thresh) !denom always +ve	
+		ratio = numer / denom	
+
+		a_in  = a_in - ratio*P	
+
+	case default
+
+		string="MD uncoupled boundary force only developed for NCER case"
+		call error_abort(string)
+
+	end select
+
+end subroutine apply_bforce
+
+
 #if USE_COUPLER
 
 !--------------------------------------------------------------------------------------
@@ -31,12 +184,11 @@ end module module_external_forces
 subroutine simulation_apply_boundary_forces
 !	use module_external_forces
 !	use coupler, only : coupler_md_boundary_forces
-
 	implicit none
 
-!	call coupler_md_boundary_forces(np,pressure,r,a)
-!    call top_boundary_constraint_force
-    call simulation_apply_boundary_forces_NCER
+	!call coupler_md_boundary_forces(np,pressure,r,a)
+	!call top_boundary_constraint_force
+	!call simulation_apply_boundary_forces_NCER
 
 contains
 
@@ -105,8 +257,6 @@ contains
 
 end subroutine simulation_apply_boundary_forces
 
-
-
 !--------------------------------------------------------------------------------------
 !Apply force to prevent molecules leaving domain using form suggested by O'Connell
 !and Thompson (1995)
@@ -145,7 +295,7 @@ end subroutine simulation_apply_boundary_forces_OT
 !Apply force to prevent molecules leaving domain using form suggested by Nie, Chen and
 !Robbins (2004)
 
-subroutine simulation_apply_boundary_forces_NCER
+subroutine coupled_apply_boundary_force_NCER
 	use module_external_forces
 	use md_coupler_socket, only: socket_get_dy
 	implicit none
@@ -173,7 +323,7 @@ subroutine simulation_apply_boundary_forces_NCER
 
 	endif
 
-end subroutine simulation_apply_boundary_forces_NCER
+end subroutine coupled_apply_boundary_force_NCER 
 
 !-------------------------------------------------------------------
 ! Apply boundary forces based on RDF from T. Werder et al. J Comp. 

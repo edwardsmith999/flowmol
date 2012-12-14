@@ -70,8 +70,9 @@ subroutine setup_initial_record
 		case default
 		end select
 	end if
-	
 
+	if (vmd_outflag.ne.0 .and. potential_flag.eq.1) call build_psf
+	
 	!Calculate Control Volume starting state
 	call initial_control_volume
 

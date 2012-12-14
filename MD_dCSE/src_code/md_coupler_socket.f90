@@ -308,6 +308,24 @@ end subroutine socket_check_cell_sizes
 !=============================================================================
 
 !=============================================================================
+! Get constraint info from CPL module
+!
+!-----------------------------------------------------------------------------
+subroutine socket_get_constraint_info(algorithm,OT,NCER,Flekkoy,off)
+	use CPL, only: CPL_get
+	implicit none
+
+	integer, intent(out) :: algorithm
+	integer, intent(out), optional :: OT,NCER,Flekkoy,off
+	
+	call CPL_get(constraint_algo=algorithm,constraint_OT=OT,constraint_NCER=NCER,constraint_Flekkoy=Flekkoy,constraint_off=off)
+
+
+end subroutine socket_get_constraint_info
+
+
+
+!=============================================================================
 ! Take average of x,y and z components of MD velocity to 
 ! calculate all components of velocity to pass to contiunuum region 
 !

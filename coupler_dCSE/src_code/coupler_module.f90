@@ -182,25 +182,43 @@ module coupler_module
 
 	! Global cell grid parameters
 	integer,protected :: &
-		ncx,              &
+		ncx,              &    ! Number of cells in domain
 		ncy,              &
 		ncz,              &
-		icmin,            &
+		icmin,            &    ! Domain cell extents
 		icmax,            &
 		jcmin,            &
 		jcmax,            &
 		kcmin,            &
 		kcmax,            &
-		icmin_olap,       &
+		icmin_olap,       &    ! Overlap region cell extents
 		icmax_olap,       &
 		jcmin_olap,       &
 		jcmax_olap,       &
 		kcmin_olap,       &
 		kcmax_olap,		  &
-		ncx_olap,         &
+		ncx_olap,         &    ! Number of cells in overlap region
 		ncy_olap,         &
 		ncz_olap
-	
+
+	! Constrained dynamics region flags and params
+	integer, protected :: &
+		constraint_algo,  &
+		constraint_CVflag,&
+		icmin_cnst,       &    ! Constrained dynamics region cell extents
+		icmax_cnst,       &
+		jcmin_cnst,       &
+		jcmax_cnst,       &
+		kcmin_cnst,       &
+		kcmax_cnst
+
+	! Constraint parameters	
+	integer, parameter :: &
+		constraint_off = 0,          &
+		constraint_OT = 1,           &
+		constraint_NCER = 2,         &
+		constraint_Flekkoy = 3
+		
 	! Processor cell ranges 
 	integer,protected, dimension(:), allocatable :: &
 		icPmin_md,        &
@@ -460,6 +478,20 @@ subroutine read_coupler_input
 		call error_abort("Density not specified in coupler input file.")
 	end if
 	
+	call locate(infileid,'CONSTRAINT_INFO',found)
+	if (found) then
+		read(infileid,*) constraint_algo
+		read(infileid,*) constraint_CVflag 
+		read(infileid,*) icmin_cnst
+		read(infileid,*) icmax_cnst
+		read(infileid,*) jcmin_cnst
+		read(infileid,*) jcmax_cnst
+		read(infileid,*) kcmin_cnst
+		read(infileid,*) kcmax_cnst
+	else
+		call error_abort("")
+	end if
+
 	call locate(infileid,'OVERLAP_EXTENTS',found)
 	if (found) then
 		read(infileid,*) icmin_olap
@@ -1323,48 +1355,48 @@ subroutine get_md_cell_ranges
 
 
 
-	if (myid_world.eq.0) then
-
-		write(6000+myid_world,*), ''
-		write(6000+myid_world,*), '==========================================='
-		write(6000+myid_world,*), '------------ M D   M A P ------------------'
-		write(6000+myid_world,*), '==========================================='
-		write(6000+myid_world,*), 'npx_md = ', npx_md
-		write(6000+myid_world,*), 'ncx    = ', ncx
-		write(6000+myid_world,*), 'ncxl   = ', ncxl
-		write(6000+myid_world,*), '-------------------------------------------'
-		write(6000+myid_world,*), '  icoord_md     icPmin_md     icPmax_md    '
-		write(6000+myid_world,*), '-------------------------------------------'
-		do n=1,npx_md
-			write(6000+myid_world,'(1x,3i11)'), n, icPmin_md(n), icPmax_md(n)
-		end do	
-		write(6000+myid_world,*), '-------------------------------------------'
-		write(6000+myid_world,*), 'npy_md     = ', npy_md
-		write(6000+myid_world,*), 'ncy_md     = ', ncy_md
-		write(6000+myid_world,*), 'ncyP_md    = ', ncyP_md 
-		write(6000+myid_world,*), 'ncy_olap   = ', ncy_olap
-		write(6000+myid_world,*), 'ncy_mdonly = ', ncy_mdonly
-		write(6000+myid_world,*), 'olap_jmin_mdcoord = ', olap_jmin_mdcoord
-		write(6000+myid_world,*), 'dy         = ', dy
-		write(6000+myid_world,*), '-------------------------------------------'
-		write(6000+myid_world,*), '  jcoord_md     jcPmin_md       jcPmax_md  '
-		write(6000+myid_world,*), '-------------------------------------------'
-		do n = 1,npy_md	
-			write(6000+myid_world,'(1x,3i11)'), n, jcPmin_md(n), jcPmax_md(n)
-		end do
-		write(6000+myid_world,*), '-------------------------------------------'
-		write(6000+myid_world,*), 'npz_md = ', npz_md
-		write(6000+myid_world,*), 'ncz    = ', ncz
-		write(6000+myid_world,*), 'nczl   = ', nczl
-		write(6000+myid_world,*), '-------------------------------------------'
-		write(6000+myid_world,*), '  kcoord_md     kcPmin_md       kcPmax_md  '
-		write(6000+myid_world,*), '-------------------------------------------'
-		do n=1,npz_md
-			write(6000+myid_world,'(1x,3i11)'), n, kcPmin_md(n), kcPmax_md(n)
-		end do
-		write(6000+myid_world,*), '-------------------------------------------'
-
-	endif
+!	if (myid_world.eq.0) then
+!
+!		write(6000+myid_world,*), ''
+!		write(6000+myid_world,*), '==========================================='
+!		write(6000+myid_world,*), '------------ M D   M A P ------------------'
+!		write(6000+myid_world,*), '==========================================='
+!		write(6000+myid_world,*), 'npx_md = ', npx_md
+!		write(6000+myid_world,*), 'ncx    = ', ncx
+!		write(6000+myid_world,*), 'ncxl   = ', ncxl
+!		write(6000+myid_world,*), '-------------------------------------------'
+!		write(6000+myid_world,*), '  icoord_md     icPmin_md     icPmax_md    '
+!		write(6000+myid_world,*), '-------------------------------------------'
+!		do n=1,npx_md
+!			write(6000+myid_world,'(1x,3i11)'), n, icPmin_md(n), icPmax_md(n)
+!		end do	
+!		write(6000+myid_world,*), '-------------------------------------------'
+!		write(6000+myid_world,*), 'npy_md     = ', npy_md
+!		write(6000+myid_world,*), 'ncy_md     = ', ncy_md
+!		write(6000+myid_world,*), 'ncyP_md    = ', ncyP_md 
+!		write(6000+myid_world,*), 'ncy_olap   = ', ncy_olap
+!		write(6000+myid_world,*), 'ncy_mdonly = ', ncy_mdonly
+!		write(6000+myid_world,*), 'olap_jmin_mdcoord = ', olap_jmin_mdcoord
+!		write(6000+myid_world,*), 'dy         = ', dy
+!		write(6000+myid_world,*), '-------------------------------------------'
+!		write(6000+myid_world,*), '  jcoord_md     jcPmin_md       jcPmax_md  '
+!		write(6000+myid_world,*), '-------------------------------------------'
+!		do n = 1,npy_md	
+!			write(6000+myid_world,'(1x,3i11)'), n, jcPmin_md(n), jcPmax_md(n)
+!		end do
+!		write(6000+myid_world,*), '-------------------------------------------'
+!		write(6000+myid_world,*), 'npz_md = ', npz_md
+!		write(6000+myid_world,*), 'ncz    = ', ncz
+!		write(6000+myid_world,*), 'nczl   = ', nczl
+!		write(6000+myid_world,*), '-------------------------------------------'
+!		write(6000+myid_world,*), '  kcoord_md     kcPmin_md       kcPmax_md  '
+!		write(6000+myid_world,*), '-------------------------------------------'
+!		do n=1,npz_md
+!			write(6000+myid_world,'(1x,3i11)'), n, kcPmin_md(n), kcPmax_md(n)
+!		end do
+!		write(6000+myid_world,*), '-------------------------------------------'
+!
+!	endif
 
 end subroutine get_md_cell_ranges
 
