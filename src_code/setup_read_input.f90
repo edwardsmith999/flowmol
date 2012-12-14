@@ -40,15 +40,61 @@ subroutine setup_read_input
 	read(1,*) initial_config_flag 
 	select case (initial_config_flag)
 	case(0)
+
 		call locate(1,'INITIALNUNITS',.true.)
 		read(1,*) initialnunits(1)		!x dimension split into number of cells
 		read(1,*) initialnunits(2)		!y dimension split into number of cells
 		read(1,*) initialnunits(3)		!z dimension split into number of cells
+
 	case(1)	
+
 		read(1,*) config_special_case	
+		select case (trim(config_special_case))
+		case('fene_melt')	
+	
+			potential_flag = 1
+
+			call locate(1,'FENE_MELT',.true.)
+			read(1,*) nmonomers
+			read(1,*) k_c
+			read(1,*) R_0
+			read(1,*) initialnunits(1)		!x dimension split into number of cells
+			read(1,*) initialnunits(2)		!y dimension split into number of cells
+			read(1,*) initialnunits(3)		!z dimension split into number of cells
+
+			call locate(1,'SOLVENT_INFO',.true.)
+			read(1,*) solvent_flag
+			select case(solvent_flag)
+			case(0)
+			case(1)
+				read(1,*) solvent_ratio
+			case(2)
+				read(1,*) solvent_ratio
+				read(1,*) eps_pp
+				read(1,*) eps_ps
+				read(1,*) eps_ss
+			case default
+				call error_abort('Unrecognised solvent flag!')
+			end select
+
+		!case('liquid_solid')
+		!	call locate(1,'LIQ_SOL_INFO',.true.)
+		!	read(1,*) liquid_density
+		!	read(1,*) solid_density
+		!	read(1,*) initialnunits(1)		!x dimension split into number of cells
+		!	read(1,*) initialnunits(2)		!y dimension split into number of cells
+		!	read(1,*) initialnunits(3)		!z dimension split into number of cells
+
+		case default
+			stop "Unrecognised special case string"
+		end select
+
 	case(2)
+
 	case default
+
 	end select 
+
 	call locate(1,'INTEGRATION_ALGORITHM',.true.)
 	read(1,*) integration_algorithm
 	call locate(1,'ENSEMBLE',.true.)
@@ -59,30 +105,6 @@ subroutine setup_read_input
 		call error_abort("Half int neighbour list only is compatible with pwa_terms_pwaNH thermostat")
 	if (force_list .ne. 3 .and. ensemble .eq. 5) & 
 		call error_abort("Half int neighbour list only is compatible with DPD thermostat")
-	call locate(1,'POTENTIAL_FLAG',.true.)	!LJ or FENE potential
-	read(1,*) potential_flag
-	if (potential_flag.eq.1) then
-		call locate(1,'FENE_INFO',.true.)
-		read(1,*) nmonomers
-		read(1,*) k_c
-		read(1,*) R_0
-
-		call locate(1,'SOLVENT_INFO',.true.)
-		read(1,*) solvent_flag
-		select case(solvent_flag)
-		case(0)
-		case(1)
-			read(1,*) solvent_ratio
-		case(2)
-			read(1,*) solvent_ratio
-			read(1,*) eps_pp
-			read(1,*) eps_ps
-			read(1,*) eps_ss
-		case default
-			call error_abort('Unrecognised solvent flag!')
-		end select
-
-	end if	
 	!Input computational co-efficients
 	call locate(1,'NSTEPS',.true.)
 	read(1,*) Nsteps 		!Number of computational steps
@@ -139,6 +161,41 @@ subroutine setup_read_input
 	read(1,*) periodic(1)
 	read(1,*) periodic(2)
 	read(1,*) periodic(3)
+
+	if (any(periodic.eq.0)) then
+
+		call locate(1,'BFORCE',.true.)
+		read(1,*) bforce_flag(1)			
+		read(1,*) bforce_flag(2)			
+		read(1,*) bforce_flag(3)
+		read(1,*) bforce_flag(4)			
+		read(1,*) bforce_flag(5)			
+		read(1,*) bforce_flag(6)
+		read(1,*) bforce_dxyz(1)
+		read(1,*) bforce_dxyz(2)
+		read(1,*) bforce_dxyz(3)
+		read(1,*) bforce_dxyz(4)
+		read(1,*) bforce_dxyz(5)
+		read(1,*) bforce_dxyz(6)
+
+		! Correct any bforce_flags if periodic boundaries on
+		if (periodic(1).ne.0) then
+			if (irank.eq.iroot) print*, 'Warning, resetting bforce_flag(1:2)' , &
+			' because periodic boundaries are on in the x-direction'
+			bforce_flag(1:2) = 0
+		end if
+		if (periodic(2).ne.0) then 
+			if (irank.eq.iroot) print*, 'Warning, resetting bforce_flag(1:2)' , &
+			' because periodic boundaries are on in the x-direction'
+			bforce_flag(3:4) = 0
+		end if
+		if (periodic(3).ne.0) then 
+			if (irank.eq.iroot) print*, 'Warning, resetting bforce_flag(1:2)' , &
+			' because periodic boundaries are on in the x-direction'
+			bforce_flag(5:6) = 0
+		end if
+
+	end if
 
 	call locate(1,'DEFINE_SHEAR',.false.,found_in_input)
 	if (found_in_input) then

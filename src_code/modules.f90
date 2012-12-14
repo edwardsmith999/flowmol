@@ -88,6 +88,15 @@ module computational_constants_MD
 
 	integer, dimension(3)	:: periodic
 
+	!Boundary force flag and parameters
+	integer,          dimension(6) :: bforce_flag
+	real(kind(0.d0)), dimension(6) :: bforce_dxyz
+	integer,          parameter    :: &
+		bforce_off = 0,         &
+		bforce_OT = 1,          &
+		bforce_NCER = 2,        &
+		bforce_Flekkoy = 3,     &
+		bforce_rdf = 4
 
 	!Parameters
 	integer	:: & 
@@ -435,7 +444,7 @@ contains
 		expo  = mod(scID,intbits) - 1
 		if (expo .eq. -1) expo = intbits - 1
 		
-		get_bondflag  = 0
+		get_bondflag  = 0	
 		if (btest(monomer(molno)%bin_bflag(group),expo)) get_bondflag = 1
 
 	end function get_bondflag

@@ -114,18 +114,17 @@ contains
 
 #if USE_COUPLER
 
-		!call simulation_apply_boundary_forces               ! Apply boundary force to prevent molecules leaving domain
-		!call socket_apply_continuum_forces(iter)			! CFD=> MD Apply CFD based coupling forces on MD
-		call apply_continuum_forces_flekkoy(iter)			! CFD=> MD Apply CFD based coupling forces on MD
-		call average_and_send_MD_to_CFD(iter)				! MD=>CFD Calculate averages of MD to pass to CFD
+		call apply_boundary_force
+		!call apply_constraint_force(iter)
+		!call send_boundary_condition(iter)
 
-		!Testing exchange codes
-		!call test_send_recv_MD2CFD
-		!call test_send_recv_CFD2MD
-		!call test_gather_scatter
+		!call simulation_apply_boundary_forces           ! Apply boundary force to prevent molecules leaving domain
+		call socket_apply_continuum_forces(iter)		! CFD=> MD Apply CFD based coupling forces on MD
+		!call apply_continuum_forces_flekkoy(iter)	  	! CFD=> MD Apply CFD based coupling forces on MD
+		call average_and_send_MD_to_CFD(iter)			! MD=>CFD Calculate averages of MD to pass to CFD
 #else
 
-		!call simulation_apply_boundary_forces               ! Apply boundary force to prevent molecules leaving domain
+		call apply_boundary_force
 
 #endif
 

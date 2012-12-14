@@ -54,6 +54,7 @@ end module module_linklist
 
 subroutine assign_to_cell
 	use module_linklist
+	use interfaces, only: error_abort
 	implicit none
 
 	integer		:: n
@@ -71,31 +72,12 @@ subroutine assign_to_cell
 		    icell.gt.ncells(1)+2            .or. &
 			jcell.gt.ncells(2)+2            .or. &
 			kcell.gt.ncells(3)+2          ) then
-			call mol_escape_error
+			call print_mol_escape_error(n)
+			call error_abort("Aborting due to escaped mol.")
 		end if
 !#endif
 		call linklist_checkpush(icell, jcell, kcell, n)
 	enddo
-
-contains
-
-	subroutine mol_escape_error
-	use interfaces, only: error_abort 
-	implicit none
-	
-		print('(a,i6,a,i4,a)'),' Molecule ',n,' on process ', &
-		      irank, ' is outside the domain and halo cells.'
-		print('(a,i8,a)'),' At iteration ',iter,' it is located at: '
-		print('(a,e20.5)'),   '    rx: ', r(1,n)
-		print('(a,e20.5)'),   '    ry: ', r(2,n)
-		print('(a,e20.5,a)'), '    rz: ', r(3,n), ','
-		print('(a)'),         ' with velocity: '
-		print('(a,e20.5)'),   '    vx: ', v(1,n)
-		print('(a,e20.5)'),   '    vy: ', v(2,n)
-		print('(a,e20.5)'),   '    vz: ', v(3,n)
-		call error_abort("Aborting simulation.")
-
-	end subroutine mol_escape_error
 
 end subroutine assign_to_cell
 

@@ -44,12 +44,40 @@ INPUTTEMPERATURE
 # Initial configuration
 #
 #    0 - FCC Lattice
-#    1 - Special case, must be followed by string on next line 
-#    2 - Configuration file
+#
+#    1 - Special case, must be followed by string on next line. This
+#        string must be lower case, so the same string in capitals is
+#        reserved as an input flag for information about the special
+#        case. Options:
+#
+#            - fene_melt      connect monomers on an FCC lattice
+#                             with a specified chain length and 
+#                             FENE potential parameters. 
+#
+#    2 - Configuration file, like a *.pdb. To be developed.
+#
 # -----------------------------------------------------------------------
 INITIAL_CONFIG_FLAG
 0
 special_case_name
+
+#########################################################################
+# FENE melt special case info
+#
+#	- number of LJ beads for each polymer chain
+#	- spring constant, k_c
+#	- maximum spring elongation
+#   - initialnunits for lattice (to be changed) in x
+#   - initialnunits for lattice (to be changed) in y
+#   - initialnunits for lattice (to be changed) in z
+# -----------------------------------------------------------------------
+FENE_MELT
+8
+30.0
+1.5
+8
+8
+8
 
 #########################################################################
 # Number of unit cells in the x,y,z directions, formatted:
@@ -172,6 +200,50 @@ PERIODIC
 1
 1
 1
+
+#########################################################################
+# Boundary force flag and distances, formatted:
+#   bforce_flag(1) (x direction, bottom)           (integer)
+#   bforce_flag(2) (x direction, top)              (integer)
+#   bforce_flag(3) (y direction, bottom)           (integer)
+#   bforce_flag(4) (y direction, top)              (integer)
+#   bforce_flag(5) (z direction, bottom)           (integer)
+#   bforce_flag(6) (z direction, top)              (integer)
+#   bforce_dxyz(1) (x distance, bottom)            (real)
+#   bforce_dxyz(2) (x distance, top)               (real)
+#   bforce_dxyz(3) (y distance, bottom)            (real)
+#   bforce_dxyz(4) (y distance, top)               (real)
+#   bforce_dxyz(5) (z distance, bottom)            (real)
+#   bforce_dxyz(6) (z distance, top)               (real)
+#
+# If periodic boundaries in x, y or z directions are turned off, the
+# option to apply a boundary force to keep molecules within the domain
+# is provided via the bforce flag. Choose from the following in each
+# direction:
+#
+#    0 = off 
+#    1 = O'Connell & Thompson     1995  (Phys. Rev. E 52, 5792)
+#    2 = Nie, Chen, E & Robbins   2003  (JFM 500 pp. 55-64)
+#    3 = Flekkøy, Wagner & Feder  2000  (Europhys. Lett. 52 3, p271)
+#
+# bforce_dxyz defines the distance from each edge of the domain beyond 
+# which any particle will no longer feel the effect of the boundary 
+# force. Low values correspond to hard walls, while larger values will
+# make the boundaries softer.
+# -----------------------------------------------------------------------
+BFORCE
+0
+0
+0
+0
+0
+0
+0.0
+0.0
+0.0
+0.0
+0.0
+0.0
 
 #########################################################################
 # Shear definition, formatted:
