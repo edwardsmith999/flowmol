@@ -32,6 +32,11 @@ implicit none
 		case('fene_melt')
 			call setup_initialise_lattice    !Numbering for FENE bonds
 			call setup_initialise_polyinfo   !Chain IDs, etc
+		case('solid_liquid')
+			call setup_initialise_solid_liquid
+		case('rubber_liquid')
+			call setup_initialise_solid_liquid
+			call setup_initialise_polyinfo   !Chain IDs, etc
 		case default
 			call error_abort('Unidentified configuration special case')
 		end select
@@ -72,202 +77,6 @@ end subroutine setup_initialise_microstate
 !Initialise Positions
 !Set up the intial position of the particles in an FCC lattice
 
-subroutine setup_initialise_position
-	use module_initialise_microstate
-	implicit none
-
-	integer :: j, ixyz, n, nx, ny, nz
-	double precision, dimension (nd) :: c !Temporary variable
-
-	do ixyz=1,nd
-		initialunitsize(ixyz) = domain(ixyz) / initialnunits(ixyz)
-	enddo
-
-	!Molecules per unit FCC structure (3D)
-	n=1  		!Reset n for start of loop
-	do nz=1,initialnunits(3)	!Loop over z column
-	c(3) = (nz - 0.75d0)*initialunitsize(3) - halfdomain(3) 
-		do ny=1,initialnunits(2)	!Loop over y column
-		c(2) = (ny - 0.75d0)*initialunitsize(2) - halfdomain(2) 
-			do nx=1,initialnunits(1)	!Loop over all x elements of y column
-			c(1) = (nx - 0.75d0)*initialunitsize(1) - halfdomain(1)
-				do j=1,4	!4 Molecules per cell
-				do ixyz=1,nd	!For all dimensions
-					if(j.eq.ixyz .or. j.eq.4) then
-						r(ixyz,n)=c(ixyz)
-					else
-						r(ixyz,n)=c(ixyz)+0.5d0*initialunitsize(ixyz)
-					endif
-				enddo
-				n = n + 1   !Move to next molecule
-				enddo
-			enddo
-		enddo
-	enddo
-
-	!rinitial = r !Record initial position of all molecules
-
-end subroutine setup_initialise_position
-
-subroutine setup_initialise_position_FENE
-    use interfaces
-	use module_initialise_microstate
-	use polymer_info_MD
-	implicit none
-
-	integer :: j, ixyz, n, nx, ny, nz
-	integer	:: modcheck
-	integer	:: chainID, subchainID
-	double precision, dimension (nd) :: c !Temporary variable
-
-	do ixyz=1,nd
-		initialunitsize(ixyz) = domain(ixyz) / initialnunits(ixyz)
-	enddo
-
-	modcheck = 0 + mod(np,nmonomers) + mod(4*initialnunits(1),nmonomers)
-	if (modcheck.ne.0) call error_abort('Number of molecules must be exactly divisible by &
-	& the polymer chain length. Please change the chain length in the input file. &
-	& A chain length of 4 should (hopefully) always work.')
-	
-	!Molecules per unit FCC structure (3D)
-	n=1  !Reset n for start of loop
-	do nz=1,initialnunits(3) !Loop over z column
-	c(3) = (nz - 0.75d0)*initialunitsize(3) - halfdomain(3) 
-		do ny=1,initialnunits(2) !Loop over y column
-		c(2) = (ny - 0.75d0)*initialunitsize(2) - halfdomain(2) 
-			do nx=1,initialnunits(1) !Loop over all x elements of y column
-			c(1) = (nx - 0.75d0)*initialunitsize(1) - halfdomain(1)
-				do j=1,4 !4 Molecules per cell
-					r(:,n) = c(:)
-
-					if (j.eq.2) then
-						r(1,n) = c(1) + 0.5d0*initialunitsize(1)
-						r(3,n) = c(3) + 0.5d0*initialunitsize(3)
-					else if (j.eq.3) then
-						r(2,n) = c(2) + 0.5d0*initialunitsize(2)
-						r(3,n) = c(3) + 0.5d0*initialunitsize(3)
-					else if (j.eq.4) then
-						r(1,n) = c(1) + 0.5d0*initialunitsize(1)
-						r(2,n) = c(2) + 0.5d0*initialunitsize(2)
-					end if
-
-					n = n + 1  !Move to next molecule
-
-				enddo
-			enddo
-		enddo
-	enddo
-
-	!rinitial = r !Record initial position of all molecules
-
-end subroutine setup_initialise_position_FENE
-
-!----------------------------------------------------------------------------------
-!Initialise Positions
-!Set up the intial position of the particles
-
-subroutine setup_initialise_parallel_position
-	use module_initialise_microstate
-	use messenger
-#if USE_COUPLER
-	use md_coupler_socket, only: socket_get_domain_top
-#endif
-
-	implicit none
-
-	integer 						:: j, ixyz, n, nl, nx, ny, nz
-	integer,dimension(nd) 			:: p_units_lb, p_units_ub, nfcc_max
-	double precision 				:: domain_top, removed_height
-	double precision, dimension (nd):: rc, c !Temporary variable
-
-    p_units_lb(1) = (iblock-1)*floor(initialnunits(1)/real((npx),kind(0.d0)))
-    p_units_ub(1) =  iblock *ceiling(initialnunits(1)/real((npx),kind(0.d0)))
-    p_units_lb(2) = (jblock-1)*floor(initialnunits(2)/real((npy),kind(0.d0)))
-    p_units_ub(2) =  jblock *ceiling(initialnunits(2)/real((npy),kind(0.d0)))
-    p_units_lb(3) = (kblock-1)*floor(initialnunits(3)/real((npz),kind(0.d0)))
-    p_units_ub(3) =  kblock *ceiling(initialnunits(3)/real((npz),kind(0.d0)))
-
-	!Set CFD region to top of domain initially
-	domain_top = domain(2)/2.d0
-
-#if USE_COUPLER
-	if (jblock .eq. npy) then
-		domain_top = socket_get_domain_top()
-	end if
-#endif
-
-	!Molecules per unit FCC structure (3D)
-	n  = 0  	!Reset n
-	nl = 0		!Reset nl
-	do nz=p_units_lb(3),p_units_ub(3)	!Loop over z column
-	c(3) = (nz - 0.75d0)*initialunitsize(3) - halfdomain(3) 
-	do ny=p_units_lb(2),p_units_ub(2)	!Loop over y column
-	c(2) = (ny - 0.75d0)*initialunitsize(2) - halfdomain(2) 
-	do nx=p_units_lb(1),p_units_ub(1)	!Loop over all x elements of y column
-	c(1) = (nx - 0.75d0)*initialunitsize(1) - halfdomain(1)
-		do j=1,4	!4 Molecules per cell
-			do ixyz=1,nd	!For all dimensions
-				if(j.eq.ixyz .or. j.eq.4) then
-					rc(ixyz)=c(ixyz)
-				else
-					rc(ixyz)=c(ixyz)+0.5d0*initialunitsize(ixyz)
-				endif
-			enddo
-
-			n = n + 1	!Move to next molecule
-
-			!Remove molecules from top of domain if constraint applied
-			if (rc(2)-domain(2)*(jblock-1) .gt. domain_top) cycle 
-
-			!Check if molecule is in domain of processor
-			if(rc(1).lt.-halfdomain(1)+domain(1)*(iblock-1)) cycle
-			if(rc(1).ge. halfdomain(1)+domain(1)*(iblock-1)) cycle
-			if(rc(2).lt.-halfdomain(2)+domain(2)*(jblock-1)) cycle
-			if(rc(2).ge. halfdomain(2)+domain(2)*(jblock-1)) cycle
-			if(rc(3).lt.-halfdomain(3)+domain(3)*(kblock-1)) cycle
-			if(rc(3).ge. halfdomain(3)+domain(3)*(kblock-1)) cycle
-
-			!If molecules is in the domain then add to total
-			nl = nl + 1 !Local molecule count
-
-			!Correct to local coordinates
-			r(1,nl) = rc(1)-domain(1)*(iblock-1)
-			r(2,nl) = rc(2)-domain(2)*(jblock-1)
-			r(3,nl) = rc(3)-domain(3)*(kblock-1)
-		enddo
-	enddo
-	enddo
-	enddo
-
-	np = nl			 !Correct local number of particles on processor
-	!rinitial = rtrue !Record initial position of all molecules
-
-	!Establish global number of particles on current process
-	globalnp = np
-	call globalSumInt(globalnp)
-
-	!Build array of number of particles on neighbouring
-	!processe's subdomain on current proccess
-	call globalGathernp
-
-#if USE_COUPLER
-	if (myid .eq. 0) then
-		print*, '*********************************************************************'
-		print*, '*WARNING - TOP LAYER OF DOMAIN REMOVED IN LINE WITH CONSTRAINT FORCE*'
-		print*, 'Removed from', domain_top, 'to Domain top', globaldomain(2)/2.d0
-		print*, 'Number of molecules reduced from this',  & 
-			 4*initialnunits(1)*initialnunits(2)*initialnunits(3), 'to', globalnp
-		print*, '*********************************************************************'
-
-                !print*, 'microstate ', minval(r(1,:)), maxval(r(1,:)),minval(r(2,:)), maxval(r(2,:)),minval(r(3,:)), maxval(r(3,:))
-	endif
-#endif
-
-
-end subroutine setup_initialise_parallel_position
-
-!--------------------------------------------------------------------------------
-!FENE equivalent
 subroutine setup_initialise_lattice
 	use module_initialise_microstate
 	use messenger
@@ -332,7 +141,7 @@ subroutine setup_initialise_lattice
 			
 			!Remove molecules from top of domain if constraint applied
 			if (jblock .eq. npy) then
-				if (rc(2)-domain(2)*(jblock-1)-halfdomain(2) .gt. domain_top) cycle 
+				if (rc(2)-domain(2)*(jblock-1)-halfdomain(2) .gt.  domain_top) cycle 
 			endif
 
 			!Check if molecule is in domain of processor
@@ -384,6 +193,143 @@ subroutine setup_initialise_lattice
 #endif
 
 end subroutine setup_initialise_lattice
+
+
+
+!--------------------------------------------------------------------------------
+! Make a solid lattice and liquid region
+
+subroutine setup_initialise_solid_liquid
+	use physical_constants_MD, only : fixdistbottom
+	use module_initialise_microstate
+	use messenger
+#if USE_COUPLER
+	use coupler
+	use md_coupler_socket, only: socket_get_domain_top
+#endif
+	implicit none
+
+	integer	:: j, n, nl, nx, ny, nz
+	integer, dimension(nd) :: p_units_lb, p_units_ub 
+	double precision :: domain_top, solid_region, solid_density, liquid_density, density_ratio
+	double precision, dimension (nd):: rc, c !Temporary variable
+
+	p_units_lb(1) = (iblock-1)*floor(initialnunits(1)/real((npx),kind(0.d0)))
+	p_units_ub(1) =  iblock *ceiling(initialnunits(1)/real((npx),kind(0.d0)))
+	p_units_lb(2) = (jblock-1)*floor(initialnunits(2)/real((npy),kind(0.d0)))
+	p_units_ub(2) =  jblock *ceiling(initialnunits(2)/real((npy),kind(0.d0)))
+	p_units_lb(3) = (kblock-1)*floor(initialnunits(3)/real((npz),kind(0.d0)))
+	p_units_ub(3) =  kblock *ceiling(initialnunits(3)/real((npz),kind(0.d0)))
+
+	!Set top of domain initially
+	domain_top = domain(2)/2.d0
+
+
+	!Setup solid/liquid properties
+	solid_density = 1.2
+	liquid_density = 0.8
+	density_ratio = liquid_density/solid_density
+	solid_region = domain(1)/2.d0
+
+#if USE_COUPLER
+
+	if (jblock .eq. npy) then
+		domain_top = socket_get_domain_top()
+	endif
+
+#endif
+
+	!Molecules per unit FCC structure (3D)
+	n  = 0  	!Initialise global np counter n
+	nl = 0		!Initialise local np counter nl
+
+	!Inner loop in y (useful for setting connectivity)
+	do nz=p_units_lb(3),p_units_ub(3)
+	c(3) = (nz - 0.75d0)*initialunitsize(3) !- halfdomain(3) 
+	do nx=p_units_lb(1),p_units_ub(1)
+	c(1) = (nx - 0.75d0)*initialunitsize(1) !- halfdomain(1)
+	do ny=p_units_lb(2),p_units_ub(2)
+	c(2) = (ny - 0.75d0)*initialunitsize(2) !- halfdomain(2) 
+
+		do j=1,4	!4 Molecules per cell
+
+			rc(:) = c(:)
+			select case(j)
+			case(2)
+				rc(1) = c(1) + 0.5d0*initialunitsize(1)
+				rc(3) = c(3) + 0.5d0*initialunitsize(3)
+			case(3)
+				rc(2) = c(2) + 0.5d0*initialunitsize(1)
+				rc(3) = c(3) + 0.5d0*initialunitsize(3)
+			case(4)
+				rc(1) = c(1) + 0.5d0*initialunitsize(1)
+				rc(2) = c(2) + 0.5d0*initialunitsize(3)
+			case default
+			end select
+
+			n = n + 1	!Move to next particle
+			
+			!Remove molecules from top of domain if constraint applied
+			if (jblock .eq. npy) then
+				if (rc(2)-domain(2)*(jblock-1)-halfdomain(2) .gt. domain_top) cycle 
+			endif
+
+			!Check if molecule is in domain of processor
+			if(rc(1).lt. domain(1)*(iblock-1)) cycle
+			if(rc(1).ge. domain(1)*(iblock  )) cycle
+			if(rc(2).lt. domain(2)*(jblock-1)) cycle
+			if(rc(2).ge. domain(2)*(jblock  )) cycle
+			if(rc(3).lt. domain(3)*(kblock-1)) cycle
+			if(rc(3).ge. domain(3)*(kblock  )) cycle
+
+			!If outside solid region, randomly remove molecules from lattice
+			if (rc(1) .lt. solid_region .and. rc(1) .gt. fixdistbottom(1) ) then
+				call random_number(rand)
+				if (rand .gt. density_ratio) cycle
+			endif
+
+
+			!If molecules is in the domain then add to total
+			nl = nl + 1 !Local molecule count
+
+			!Correct to local coordinates
+			r(1,nl) = rc(1)-domain(1)*(iblock-1)-halfdomain(1)
+			r(2,nl) = rc(2)-domain(2)*(jblock-1)-halfdomain(2)
+			r(3,nl) = rc(3)-domain(3)*(kblock-1)-halfdomain(3)
+
+		enddo
+
+	enddo
+	enddo
+	enddo
+
+	!Correct local number of particles on processor
+	np = nl
+
+	!Establish global number of particles on current process
+	globalnp = np
+	call globalSumInt(globalnp)
+
+	!Build array of number of particles on neighbouring
+	!processe's subdomain on current proccess
+	call globalGathernp
+
+#if USE_COUPLER
+
+	if (jblock .eq. npy .and. iblock .eq. 1 .and. kblock .eq. 1) then
+		print*, '*********************************************************************'
+		print*, '*WARNING - TOP LAYER OF DOMAIN REMOVED IN LINE WITH CONSTRAINT FORCE*'
+		print*, 'Removed from', domain_top, 'to Domain top', globaldomain(2)/2.d0
+		print*, 'Number of molecules reduced from',  & 
+		         4*initialnunits(1)*initialnunits(2)*initialnunits(3), 'to', globalnp
+		print*, '*********************************************************************'
+		!print*, 'microstate ', minval(r(1,:)), maxval(r(1,:)),minval(r(2,:)),  &
+		!         maxval(r(2,:)),minval(r(3,:)), maxval(r(3,:))
+	endif
+
+#endif
+
+end subroutine setup_initialise_solid_liquid
 !-------------------------------------------------------------------------------
 !Assign chainIDs, subchainIDs, global molecule numbers, etc...
 
@@ -406,7 +352,7 @@ subroutine setup_initialise_polyinfo
 
 	intbits = bit_size(monomer(1)%bin_bflag(1))
 	
-	modcheck = 0 + mod(np,nmonomers) + mod(4*initialnunits(1),nmonomers)
+	modcheck = 0 + mod(np,nmonomers) + mod(4*initialnunits(2),nmonomers)
 	if (modcheck.ne.0) call error_abort('Number of molecules must be exactly divisible by &
 	& the polymer chain length. Please change the chain length in the input file. &
 	& A chain length of 4 should (hopefully) always work.')
@@ -430,7 +376,13 @@ subroutine setup_initialise_polyinfo
 			solvent_selector = mod((n-1)/nmonomers,solvent_ratio)
 		case default
 		end select
-	
+
+		!if (foam_tag(n).eq.foam) then
+		!	solvent_selector = 0
+		!else
+		!	solvent_selector = 1
+		!end if
+		
 		select case (solvent_selector)
 		case(0) !POLYMER
 			
@@ -444,6 +396,7 @@ subroutine setup_initialise_polyinfo
 			monomer(n)%subchainID = subchainID
 			monomer(n)%glob_no    = n	
 			
+			
 			if (subchainID.eq.1) then
 				call connect_to_monomer(subchainID+1,n)
 			else if (subchainID.eq.nmonomers) then
@@ -452,6 +405,7 @@ subroutine setup_initialise_polyinfo
 				call connect_to_monomer(subchainID+1,n)
 				call connect_to_monomer(subchainID-1,n)
 			end if
+
 			
 		case(1:) !SOLVENT
 

@@ -84,7 +84,11 @@ subroutine setup_read_input
 		!	read(1,*) initialnunits(1)		!x dimension split into number of cells
 		!	read(1,*) initialnunits(2)		!y dimension split into number of cells
 		!	read(1,*) initialnunits(3)		!z dimension split into number of cells
-
+		case('solid_liquid')
+			call locate(1,'INITIALNUNITS',.true.)
+			read(1,*) initialnunits(1)		!x dimension split into number of cells
+			read(1,*) initialnunits(2)		!y dimension split into number of cells
+			read(1,*) initialnunits(3)		!z dimension split into number of cells
 		case default
 			stop "Unrecognised special case string"
 		end select
@@ -164,19 +168,22 @@ subroutine setup_read_input
 
 	if (any(periodic.eq.0)) then
 
-		call locate(1,'BFORCE',.true.)
-		read(1,*) bforce_flag(1)			
-		read(1,*) bforce_flag(2)			
-		read(1,*) bforce_flag(3)
-		read(1,*) bforce_flag(4)			
-		read(1,*) bforce_flag(5)			
-		read(1,*) bforce_flag(6)
-		read(1,*) bforce_dxyz(1)
-		read(1,*) bforce_dxyz(2)
-		read(1,*) bforce_dxyz(3)
-		read(1,*) bforce_dxyz(4)
-		read(1,*) bforce_dxyz(5)
-		read(1,*) bforce_dxyz(6)
+		call locate(1,'BFORCE',.false.,found_in_input)
+
+		if (found_in_input) then
+			read(1,*) bforce_flag(1)			
+			read(1,*) bforce_flag(2)			
+			read(1,*) bforce_flag(3)
+			read(1,*) bforce_flag(4)			
+			read(1,*) bforce_flag(5)			
+			read(1,*) bforce_flag(6)
+			read(1,*) bforce_dxyz(1)
+			read(1,*) bforce_dxyz(2)
+			read(1,*) bforce_dxyz(3)
+			read(1,*) bforce_dxyz(4)
+			read(1,*) bforce_dxyz(5)
+			read(1,*) bforce_dxyz(6)
+		endif
 
 		! Correct any bforce_flags if periodic boundaries on
 		if (periodic(1).ne.0) then

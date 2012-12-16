@@ -28,7 +28,9 @@ subroutine apply_boundary_force
 	                                      bforce_Flekkoy, bforce_rdf
 	use interfaces, only: error_abort
 	use computational_constants_MD, only: periodic
+#if USE_COUPLER
 	use md_coupler_socket, only: socket_get_constraint_info
+#endif
 	implicit none
 
 	integer :: constraint_algorithm
@@ -771,3 +773,51 @@ subroutine CFD_cells_to_MD_compute_cells(ii_cfd,jj_cfd,kk_cfd, &
 end subroutine CFD_cells_to_MD_compute_cells
 
 #endif
+
+
+
+subroutine pointsphere(centre,targetradius,start_iter)
+	use arrays_MD, only : r,a
+	use physical_constants_MD, only : np, pi
+	use computational_constants_MD, only : iter
+	implicit none
+
+	integer,optional,intent(in)					:: start_iter
+	double precision, intent(in)				:: targetradius
+	double precision, dimension(3), intent(in)	:: centre
+
+	integer							:: n, start
+	double precision 				:: radius, radius2, Fapplied, magnitude
+	double precision 				:: rspherical,rspherical2, theta, phi
+	double precision, dimension(3)	:: rmapped
+
+	!Grow pore slowly
+	if (present(start_iter)) then
+		start = start_iter
+	else
+		start = 1
+	endif
+	radius = min((iter-start)/1000.d0,targetradius)
+	magnitude = 100.d0
+
+	!Define square of radius
+	radius2 = radius**2
+
+	! Loop through all molecules
+	do n=1,np
+		rmapped = r(:,n)-centre						!Map to origin of sphere
+		rspherical2 = dot_product(rmapped,rmapped)	!Get position in spherical coordinates
+		rspherical = sqrt(rspherical2)
+    	!theta 	   = acos(rmapped(3)/rspherical)
+    	!phi 	   = atan(rmapped(2)/rmapped(1))
+		if (rspherical .lt. radius2) then			!Check if inside sphere
+			!if (rspherical .lt. 1.d0) rspherical = 1.d0			!Bounded force
+			Fapplied = magnitude *(1.d0 + 1.d0/exp(rspherical))			!Apply force which diverges at centre
+			!print'(i8,13f10.5)', n,rmapped,rmapped(3)/rspherical,rspherical,theta,phi, Fapplied*sin(theta)*cos(phi), Fapplied*sin(theta)*sin(phi),Fapplied*cos(theta),a(:,n)
+    		a(1,n)= a(1,n) + Fapplied * rmapped(1)!*sin(theta)*cos(phi)
+			a(2,n)= a(2,n) + Fapplied * rmapped(2)!*sin(theta)*sin(phi)
+    		a(3,n)= a(3,n) + Fapplied * rmapped(3)!*cos(theta)
+		endif
+	enddo
+
+end subroutine pointsphere
