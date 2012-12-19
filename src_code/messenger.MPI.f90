@@ -213,9 +213,9 @@ subroutine messenger_proc_topology()
 
 		!Adjust for periodic boundaries (works using -ve numbers and periodic 
 		!topology but causes problems with some mpi flags and compilers)
-		pshiftcoords(1)=modulo(pshiftcoords(1),npy)
+		pshiftcoords(1)=modulo(pshiftcoords(1),npx)
 		if (Lperiodic(2)) pshiftcoords(2)=modulo(pshiftcoords(2),npy)
-		pshiftcoords(3)=modulo(pshiftcoords(3),npy)
+		pshiftcoords(3)=modulo(pshiftcoords(3),npz)
 
 		!Obtain destination processor id
 		if (pshiftcoords(2) < 0 .or. pshiftcoords(2) >= npy )then

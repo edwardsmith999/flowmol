@@ -307,29 +307,17 @@ end subroutine socket_check_cell_sizes
 ! Simulation  Simulation  Simulation  Simulation  Simulation  Simulation  
 !=============================================================================
 
+
 !=============================================================================
-! Get constraint info from CPL module
+!  __  __  ____     ___      ___  ____  ____     ____   ___ 
+! (  \/  )(  _ \   (__ \    / __)( ___)(  _ \   (  _ \ / __)
+!  )    (  )(_) )   / _/   ( (__  )__)  )(_) )   ) _ <( (__ 
+! (_/\/\_)(____/   (____)   \___)(__)  (____/   (____/ \___)
 !
-!-----------------------------------------------------------------------------
-subroutine socket_get_constraint_info(algorithm,OT,NCER,Flekkoy,off)
-	use CPL, only: CPL_get
-	implicit none
-
-	integer, intent(out) :: algorithm
-	integer, intent(out), optional :: OT,NCER,Flekkoy,off
-	
-	call CPL_get(constraint_algo=algorithm,constraint_OT=OT,constraint_NCER=NCER,constraint_Flekkoy=Flekkoy,constraint_off=off)
-
-
-end subroutine socket_get_constraint_info
-
-
-
-!=============================================================================
 ! Take average of x,y and z components of MD velocity to 
 ! calculate all components of velocity to pass to contiunuum region 
-!
 !-----------------------------------------------------------------------------
+
 subroutine average_and_send_MD_to_CFD(iter)
 	use computational_constants_MD, only : initialstep, delta_t, nhb
 	use calculated_properties_MD, only : nbins
@@ -348,7 +336,7 @@ subroutine average_and_send_MD_to_CFD(iter)
 	integer, save :: ncx, ncy, ncz, average_period, jcmin_olap,timestep_ratio
 	real(kind(0.d0)),save :: dx, dy, dz
 	real(kind(0.d0)),dimension(:),allocatable,save 		:: zg
-real(kind(0.d0)),dimension(:,:),allocatable,save 	:: xg, yg
+	real(kind(0.d0)),dimension(:,:),allocatable,save 	:: xg, yg
 
 	!Setup arrays on first call
     if (first_time) then 
@@ -543,22 +531,59 @@ end subroutine average_and_send_MD_to_CFD
 
 
 !=============================================================================
+!   ___  _____  _  _  ___  ____  ____    __    ____  _  _  ____ 
+!  / __)(  _  )( \( )/ __)(_  _)(  _ \  /__\  (_  _)( \( )(_  _)
+! ( (__  )(_)(  )  ( \__ \  )(   )   / /(__)\  _)(_  )  (   )(  
+!  \___)(_____)(_)\_)(___/ (__) (_)\_)(__)(__)(____)(_)\_) (__) 
+!
+! Apply coupling forces so MD => CFD
+! Uses value from input flag to choose appropriate routine
+!-----------------------------------------------------------------------------
+
+subroutine socket_apply_continuum_forces
+	use interfaces, only: error_abort
+	use CPL, only: CPL_get
+	implicit none
+
+	integer :: constraint_algorithm
+	integer :: OT, NCER, Flekkoy, off
+
+	call CPL_get(	constraint_algo	      = constraint_algorithm, & 
+					constraint_OT         = OT,        & 
+					constraint_NCER       = NCER,      &
+					constraint_Flekkoy    = Flekkoy,   &
+					constraint_off        = off          )
+	
+		if ( constraint_algorithm .eq. off ) then
+			return
+		else if ( constraint_algorithm .eq. OT ) then
+			call error_abort("OT boundary force not yet implemented")
+		else if ( constraint_algorithm .eq. NCER ) then
+			call apply_continuum_forces_NCER
+		else if ( constraint_algorithm .eq. Flekkoy ) then
+			call apply_continuum_forces_flekkoy
+		else
+			call error_abort("Unrecognised constraint algorithm flag")
+		end if	
+
+end subroutine socket_apply_continuum_forces
+
+
+!=============================================================================
 ! Apply coupling forces so MD => CFD
 ! Force from Nie et al (2004) paper to fix molecular velocity to
 ! continuum value inside the overlap region. 
 !-----------------------------------------------------------------------------
 
-subroutine socket_apply_continuum_forces(iter)
+subroutine apply_continuum_forces_NCER
 	use physical_constants_MD, only : np
-	use computational_constants_MD, only : delta_t, nh, ncells, & 
+	use computational_constants_MD, only : delta_t, nh, ncells, iter, & 
 										   cellsidelength, halfdomain, &
 	                                       delta_rneighbr,iblock,jblock,kblock
 	use CPL, only : CPL_overlap, CPL_recv, CPL_proc_extents, & 
 					CPL_realm, CPL_get, coupler_md_get_dt_cfd
 	use linked_list
 	implicit none
-
-	integer, intent(in) 	:: iter ! iteration step, it assumes that each MD average starts from iter = 1
 
 	integer 				:: iter_average, limits(6)
 	integer					:: i,j,k,n,np_overlap
@@ -774,24 +799,22 @@ subroutine apply_force
 
 end subroutine apply_force
 
-end subroutine socket_apply_continuum_forces
+end subroutine apply_continuum_forces_NCER
 
 !=============================================================================
 ! Apply coupling forces so MD => CFD
 ! Force from Flekkøy (2004) paper to apply continuum stress to molecular region
 ! inside the overlap region. 
 !-----------------------------------------------------------------------------
-subroutine apply_continuum_forces_flekkoy(iter)
+subroutine apply_continuum_forces_flekkoy
 	use physical_constants_MD, only : np
-	use computational_constants_MD, only : delta_t, nh, ncells, & 
+	use computational_constants_MD, only : delta_t, nh, ncells,iter, & 
 										   cellsidelength, halfdomain, &
 	                                       delta_rneighbr,iblock,jblock,kblock
 	use CPL, only : CPL_overlap, CPL_recv, CPL_proc_extents, & 
 					CPL_realm, CPL_get, coupler_md_get_dt_cfd, printf
 	use linked_list
 	implicit none
-
-	integer, intent(in) 	:: iter ! iteration step, it assumes that each MD average starts from iter = 1
 
 	integer 				:: iter_average, limits(6)
 	integer					:: i,j,k,n,np_overlap
@@ -989,19 +1012,21 @@ end subroutine average_over_bin
 !-----------------------------------------------------------------------------
 
 subroutine apply_force
-	use arrays_MD, only : r,a
+	use arrays_MD, only : r,v,a
+	use physical_constants_MD, only : density
 	use computational_constants_MD, only : irank
 	use CPL, only :  rank_world
 	implicit none
 
 	integer					:: ib, jb, kb, i, ip, n
-	real(kind=kind(0.d0)) 	:: alpha(3), u_cfd_t_plus_dt(3), g, gsum, dx, dz, dA
+	real(kind=kind(0.d0)) 	:: alpha(3), u_cfd_t_plus_dt(3), g, gsum, dx, dy, dz, dA, dV
 
 	real(kind=kind(0.d0)) 	:: 	gsumcheck,gratio, ave_a(3), ave_a_consrnt(3)
 
 
-	call CPL_get(dx=dx,dz=dz)
+	call CPL_get(dx=dx,dy=dy,dz=dz)
 	dA = dx*dz
+	dV = dx*dy*dz
 	gsumcheck = 0.d0; gratio = 0.d0; ave_a=0.d0; ave_a_consrnt = 0.d0
 	!Loop over all molecules and apply constraint
 	do i = 1, np_overlap
@@ -1012,6 +1037,9 @@ subroutine apply_force
 
 		n = box_average(ib,jb,kb)%np
 		g = flekkoy_gweight(r(2,ip),CFD_box(3),CFD_box(4))
+
+		!Gsum is replaced with the fixed value based on density and volume
+		!gsum = density*dV
 		gsum = box_average(ib,jb,kb)%a(2)
 
 		gsumcheck = gsumcheck + g
@@ -1024,10 +1052,16 @@ subroutine apply_force
 		ave_a = ave_a + a(:,ip)
 		a(:,ip) = a(:,ip) + (g/gsum) * dA * stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb) 
 		ave_a_consrnt = ave_a_consrnt + a(:,ip)
+
+        if (g .ne. 0.d0) then
+                write(1234,'(i3,2i7,3i4,5f12.6)'),rank_world,iter,ip,ib,jb,kb, &
+                            r(2,ip),v(2,ip),a(2,ip),g,(g/gsum) * dA * stress_cfd(2,2,ib,jb+jcmin_recv-extents(3),kb)
+        endif
 	enddo
 
-    write(99999,'(i2,i7,i7,2f10.2,f6.1,3f9.3,6f12.4)'), rank_world,iter,np_overlap,sum(box_average(:,:,:)%a(2)),  &
-                    gsumcheck, gratio, stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb), ave_a,ave_a_consrnt
+    !write(99999,'(i2,i7,i7,2f10.2,f6.1,3f9.3,6f12.4)'), rank_world,iter,np_overlap,sum(box_average(:,:,:)%a(2)),  &
+    !                gsumcheck, gratio, stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb), ave_a,ave_a_consrnt
+
 
 end subroutine apply_force
 
@@ -1063,6 +1097,26 @@ end subroutine apply_continuum_forces_flekkoy
 !=============================================================================
 ! 					INQUIRY ROUTINES
 !
+!=============================================================================
+
+! Get constraint info from CPL module
+subroutine socket_get_constraint_info(algorithm,OT,NCER,Flekkoy,off)
+	use CPL, only: CPL_get
+	implicit none
+
+	integer, intent(out) :: algorithm
+	integer, intent(out), optional :: OT,NCER,Flekkoy,off
+	
+	call CPL_get(	constraint_algo    = algorithm, & 
+					constraint_OT      = OT,        & 
+					constraint_NCER    = NCER,      &
+					constraint_Flekkoy = Flekkoy,   &
+					constraint_off     = off          )
+
+end subroutine socket_get_constraint_info
+
+
+! Get overlap status
 function socket_get_overlap_status result(olap)
 	use coupler, only: CPL_overlap
 	implicit none
@@ -1073,6 +1127,7 @@ function socket_get_overlap_status result(olap)
 	
 end function socket_get_overlap_status
 
+! Get domain top minus dy/2
 function socket_get_domain_top() result(top)
 	use CPL, only: CPL_get
 	implicit none
@@ -1084,6 +1139,7 @@ function socket_get_domain_top() result(top)
 
 end function socket_get_domain_top
 
+! Get domain top minus dy
 function socket_get_bottom_of_top_boundary() result(bottom)
 	use computational_constants_MD, only: halfdomain
 	use coupler_module, only: dy
@@ -1095,6 +1151,7 @@ function socket_get_bottom_of_top_boundary() result(bottom)
 
 end function socket_get_bottom_of_top_boundary
 
+! Get dy
 function socket_get_dy() result(dy_)
 	use coupler_module, only: dy
 	implicit none

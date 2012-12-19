@@ -30,13 +30,10 @@ subroutine apply_boundary_force
 	use computational_constants_MD, only: periodic
 #if USE_COUPLER
 	use md_coupler_socket, only: socket_get_constraint_info
-#endif
 	implicit none
 
 	integer :: constraint_algorithm
 	integer :: OT, NCER, Flekkoy, off
-
-#if USE_COUPLER
 
 		call socket_get_constraint_info(constraint_algorithm,OT=OT, &
                                         NCER=NCER,Flekkoy=Flekkoy,off=off)
@@ -56,7 +53,9 @@ subroutine apply_boundary_force
 
 		else if ( constraint_algorithm .eq. Flekkoy ) then
 
-			call error_abort("Flekkoy boundary force not yet implemented")	
+			!Flekkoy boundary force applied by constraint
+			return
+			!call error_abort("Flekkoy boundary force not yet implemented")	
 
 		else
 
@@ -65,6 +64,7 @@ subroutine apply_boundary_force
 		end if	
 	
 #else
+	implicit none
 
 		if (all(periodic.ne.0)) then
 			return
