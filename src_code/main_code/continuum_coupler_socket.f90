@@ -82,7 +82,12 @@ end subroutine socket_coupler_init
 ! Simulation  Simulation  Simulation  Simulation  Simulation  Simulation  
 !=============================================================================
 
-!---------------------------------------------------------------------
+!=============================================================================
+!  __  __  ____     ___      ___  ____  ____     ____   ___ 
+! (  \/  )(  _ \   (__ \    / __)( ___)(  _ \   (  _ \ / __)
+!  )    (  )(_) )   / _/   ( (__  )__)  )(_) )   ) _ <( (__ 
+! (_/\/\_)(____/   (____)   \___)(__)  (____/   (____/ \___)
+!
 ! Get Boundary condition for continuum from average of MD 
 
 subroutine  socket_coupler_get_md_BC(uc,vc,wc)
@@ -175,6 +180,39 @@ subroutine  socket_coupler_get_md_BC(uc,vc,wc)
 
 
 end subroutine socket_coupler_get_md_BC
+
+!=============================================================================
+!   ___  _____  _  _  ___  ____  ____    __    ____  _  _  ____ 
+!  / __)(  _  )( \( )/ __)(_  _)(  _ \  /__\  (_  _)( \( )(_  _)
+! ( (__  )(_)(  )  ( \__ \  )(   )   / /(__)\  _)(_  )  (   )(  
+!  \___)(_____)(_)\_)(___/ (__) (_)\_)(__)(__)(____)(_)\_) (__) 
+!
+
+subroutine  socket_coupler_send
+    implicit none
+
+	integer :: constraint_algorithm
+	integer :: OT, NCER, Flekkoy, off
+
+	call CPL_get(	constraint_algo	      = constraint_algorithm, & 
+					constraint_OT         = OT,        & 
+					constraint_NCER       = NCER,      &
+					constraint_Flekkoy    = Flekkoy,   &
+					constraint_off        = off          )
+	
+	if ( constraint_algorithm .eq. off ) then
+		return
+	else if ( constraint_algorithm .eq. OT ) then
+		call error_abort("OT constraint force not yet implemented")
+	else if ( constraint_algorithm .eq. NCER ) then
+		call socket_coupler_send_velocity
+	else if ( constraint_algorithm .eq. Flekkoy ) then
+		call socket_coupler_send_stress
+	else
+		call error_abort("Unrecognised constraint algorithm flag")
+	end if	
+
+end subroutine socket_coupler_send
 
 
 !---------------------------------------------------------------------
