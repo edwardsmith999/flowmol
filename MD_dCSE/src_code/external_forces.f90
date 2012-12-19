@@ -55,8 +55,6 @@ subroutine apply_boundary_force
 
 			!Flekkoy boundary force applied by constraint
 			return
-			!call error_abort("Flekkoy boundary force not yet implemented")	
-
 		else
 
 			call error_abort("Unrecognised constraint algorithm flag")
