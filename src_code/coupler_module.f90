@@ -1214,7 +1214,6 @@ subroutine check_config_feasibility
 	rval = rval + abs(mod( yL_md+rtoler, dy )-rtoler)
 	rval = rval + abs(mod( zL_md+rtoler, dz )-rtoler)
 
-	print*, rval, mod( xL_md , dx ), mod( yL_md , dy ), mod( zL_md , dz ),zL_md,dz,zL_md/dz
 	if (rval .gt. rtoler) then
 		print'(3(a,f10.5))', ' xL_md/dx = ',xL_md/dx,' yL_md/dy = ', yL_md/dy,' zL_md/dz = ',zL_md/dz
 		string = "MD region lengths must be an integer number of CFD " // &
