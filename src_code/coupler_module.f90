@@ -481,15 +481,17 @@ subroutine read_coupler_input
 	call locate(infileid,'CONSTRAINT_INFO',found)
 	if (found) then
 		read(infileid,*) constraint_algo
-		read(infileid,*) constraint_CVflag 
-		read(infileid,*) icmin_cnst
-		read(infileid,*) icmax_cnst
-		read(infileid,*) jcmin_cnst
-		read(infileid,*) jcmax_cnst
-		read(infileid,*) kcmin_cnst
-		read(infileid,*) kcmax_cnst
+		if (constraint_algo .ne. 0) then
+			read(infileid,*) constraint_CVflag
+			read(infileid,*) icmin_cnst
+			read(infileid,*) icmax_cnst
+			read(infileid,*) jcmin_cnst
+			read(infileid,*) jcmax_cnst
+			read(infileid,*) kcmin_cnst
+			read(infileid,*) kcmax_cnst
+		endif
 	else
-		call error_abort("")
+		call error_abort("CONSTRAINT_INFO not specified in coupler input file")
 	end if
 
 	call locate(infileid,'OVERLAP_EXTENTS',found)
