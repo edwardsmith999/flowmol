@@ -29,14 +29,16 @@ implicit none
 		call setup_initialise_lattice        !Setup FCC lattice
 	case(1)
 		select case (config_special_case)
-		case('fene_melt')
+		case('sparse_fene')
+			call setup_initialise_FENE_melt
+		case('dense_fene')
 			call setup_initialise_lattice    !Numbering for FENE bonds
-			call setup_initialise_polyinfo   !Chain IDs, etc
+			call setup_lattice_FENE_info      !Chain IDs, etc
 		case('solid_liquid')
 			call setup_initialise_solid_liquid
 		case('rubber_liquid')
 			call setup_initialise_solid_liquid
-			call setup_initialise_polyinfo   !Chain IDs, etc
+			call setup_lattice_FENE_info      !Chain IDs, etc
 		case default
 			call error_abort('Unidentified configuration special case')
 		end select
@@ -45,16 +47,6 @@ implicit none
 	case default
 		call error_abort('Unidentified initial configuration flag')	
 	end select
-
-!	select case(potential_flag)
-!	case(0)	
-!		call setup_initialise_parallel_position       !Setup initial pos
-!	case(1) 
-!		call setup_initialise_parallel_position_FENE  !Numbering for FENE bonds
-!		call setup_initialise_polyinfo                !Chain IDs, etc
-!	case default
-!		call error_abort('Potential flag not recognised!')
-!	end select
 
 	do n=1,np    !Initialise global true positions
 		rtrue(1,n) = r(1,n)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
@@ -68,15 +60,14 @@ implicit none
 	do n = 1,np
 		call read_tag(n)                              !Read tag, assign props
 	enddo
-	call setup_initialise_velocities				  !Setup initial velocities
-
+	call setup_initialise_velocities                  !Setup initial velocities
+	
 end subroutine setup_initialise_microstate
 
 !==================================================================================
 !----------------------------------------------------------------------------------
 !Initialise Positions
 !Set up the intial position of the particles in an FCC lattice
-
 subroutine setup_initialise_lattice
 	use module_initialise_microstate
 	use messenger
@@ -141,7 +132,7 @@ subroutine setup_initialise_lattice
 			
 			!Remove molecules from top of domain if constraint applied
 			if (jblock .eq. npy) then
-				if (rc(2)-domain(2)*(jblock-1)-halfdomain(2) .gt.  domain_top) cycle 
+				if (rc(2)-domain(2)*(jblock-1)-halfdomain(2) .gt. domain_top) cycle 
 			endif
 
 			!Check if molecule is in domain of processor
@@ -193,12 +184,327 @@ subroutine setup_initialise_lattice
 #endif
 
 end subroutine setup_initialise_lattice
-
-
-
 !--------------------------------------------------------------------------------
-! Make a solid lattice and liquid region
+!FENE info
+!-------------------------------------------------------------------------------
+!Assign chainIDs, subchainIDs, global molecule numbers, etc...
+subroutine setup_lattice_FENE_info
+	use interfaces
+	use polymer_info_MD
+	use messenger
+	use physical_constants_MD, only: np
+	implicit none
 
+	integer :: n
+	integer :: chainID
+	integer :: subchainID
+	integer :: modcheck
+	integer :: solvent_selector
+	integer, dimension(nproc) :: proc_chains, proc_nps
+	
+	proc_chains(:)         = 0
+	proc_nps(:)            = 0
+
+	intbits = bit_size(monomer(1)%bin_bflag(1))
+	
+	modcheck = 0 + mod(np,nmonomers) + mod(4*initialnunits(2),nmonomers)
+	if (modcheck.ne.0) call error_abort('Number of molecules must be exactly divisible by &
+	& the polymer chain length. Please change the chain length in the input file. &
+	& A chain length of 4 should (hopefully) always work.')
+
+	do n=1,np+extralloc
+		monomer(n)%chainID      = 0
+		monomer(n)%subchainID   = 0
+		monomer(n)%funcy        = 0
+		monomer(n)%glob_no      = 0
+		monomer(n)%bin_bflag(:) = 0
+	end do	
+
+	chainID    = 1
+	subchainID = 0
+	do n=1,np
+
+		select case (solvent_flag)
+		case (0)
+			solvent_selector = 0
+		case (1,2)
+			solvent_selector = mod((n-1)/nmonomers,solvent_ratio)
+		case default
+		end select
+
+		!if (foam_tag(n).eq.foam) then
+		!	solvent_selector = 0
+		!else
+		!	solvent_selector = 1
+		!end if
+		
+		select case (solvent_selector)
+		case(0) !POLYMER
+			
+			subchainID = subchainID + 1
+			if (subchainID .gt. nmonomers) then
+				subchainID = 1
+				chainID    = chainID + 1
+			end if
+	
+			monomer(n)%chainID    = chainID
+			monomer(n)%subchainID = subchainID
+			monomer(n)%glob_no    = n	
+			
+			
+			if (subchainID.eq.1) then
+				call connect_to_monomer(subchainID+1,n)
+			else if (subchainID.eq.nmonomers) then
+				call connect_to_monomer(subchainID-1,n)				
+			else
+				call connect_to_monomer(subchainID+1,n)
+				call connect_to_monomer(subchainID-1,n)
+			end if
+
+			
+		case(1:) !SOLVENT
+
+			!SET MOLECULES TO BE ATHERMAL SOLVENT MOLECULES
+			monomer(n)%chainID     = 0
+			monomer(n)%subchainID  = 1
+			monomer(n)%glob_no     = n
+			monomer(n)%funcy       = 0
+			bond(:,n)              = 0
+		
+		case default
+		end select
+			
+		!print*, '-n,c,sc,f,g------------------------------------------------'
+		!print*, n, monomer(n)%chainID,monomer(n)%subchainID,monomer(n)%funcy,monomer(n)%glob_no
+		!print*, 'bin_bflag -', monomer(n)%bin_bflag
+		!print*, '==========================================================='
+
+	end do
+
+	proc_chains(irank) = chainID
+	proc_nps(irank)    = np
+	call globalSumIntVect(proc_chains,nproc)
+	call globalSumIntVect(proc_nps,nproc)
+	
+	do n=1,np
+		if (monomer(n)%chainID.ne.0) then
+			monomer(n)%chainID     = monomer(n)%chainID + sum(proc_chains(1:irank)) - proc_chains(irank)
+		end if
+		monomer(n)%glob_no     = monomer(n)%glob_no + sum(proc_nps(1:irank))    - proc_nps(irank)
+	end do
+
+	nchains = sum(proc_chains)
+
+#if USE_COUPLER
+
+	if (jblock .eq. npy .and. iblock .eq. 1 .and. kblock .eq. 1) then
+		print*, '*********************************************************************'
+		print*, '*WARNING - TOP LAYER OF DOMAIN REMOVED IN LINE WITH CONSTRAINT FORCE*'
+		print*, 'Removed from', domain_top, 'to Domain top', globaldomain(2)/2.d0
+		print*, '*********************************************************************'
+	endif
+
+#endif
+
+end subroutine setup_lattice_FENE_info
+
+subroutine setup_initialise_FENE_melt
+	use computational_constants_MD, only: domain,globaldomain,halfdomain,    &
+	                                      irank,iroot,potential_flag,jblock, &
+	                                      extralloc, nproc
+	use polymer_info_MD, only: nchains, nmonomers,monomer,intbits
+	use physical_constants_MD, only: np,globalnp,rcutoff
+	use interfaces, only: error_abort
+	use arrays_MD, only: r
+#if USE_COUPLER
+	use coupler
+	use md_coupler_socket, only: socket_get_domain_top
+#endif
+	implicit none
+
+	integer :: maxmonx, maxmony, maxmonz, maxmonxyz
+	integer :: n, chainID, subchainID
+	integer, dimension(:), allocatable :: proc_chains, proc_nps
+	real(kind(0.d0)) :: rc(3)
+	real(kind(0.d0)) :: equil_sep
+	real(kind(0.d0)) :: dir(3)
+	real(kind(0.d0)) :: xL,yL,zL,domain_top
+	character(len=200) :: string
+
+	intbits = bit_size(monomer(1)%bin_bflag(1))
+
+	!Set top of domain initially
+	domain_top = domain(2)/2.d0
+
+#if USE_COUPLER
+
+	if (jblock .eq. npy) then
+		domain_top = socket_get_domain_top()
+	endif
+
+#endif
+
+	! Allocate arrays to store np and nchains per proc
+	allocate(proc_chains(nproc))
+	allocate(proc_nps(nproc))
+	proc_chains(:) = 0
+	proc_nps(:) = 0
+
+	! Initialise monomer data
+	do n=1,np+extralloc
+		monomer(n)%chainID      = 0
+		monomer(n)%subchainID   = 0
+		monomer(n)%glob_no      = 0
+		monomer(n)%funcy        = 0
+		monomer(n)%bin_bflag(:) = 0
+	end do	
+
+	! Use equil sep as cubic lattice parameter
+	equil_sep = 0.9608971929802091
+	if (irank.eq.iroot) then
+		print*, "Warning: equilibrium separation distance of FENE chain set to", &
+	    equil_sep, ", based on R_0 = 1.5 and k = 30, with LJ cutoff 2^1/6"
+	end if
+
+	! Max num of monomers separated by equil_sep in x,y,z	
+	xL = domain(1)
+	yL = domain(2) - (halfdomain(2) - domain_top) 
+	zL = domain(3)
+	maxmonx = xL / equil_sep 		
+	maxmony = yL / equil_sep 		
+	maxmonz = zL / equil_sep 
+
+	! Max monomers in proc volume
+	maxmonxyz = maxmonx * maxmony * maxmonz	
+	! Set number of particles per processor
+	np = floor(real(nchains)/real(nproc))*nmonomers
+
+	if (maxmonxyz .lt. np) then
+		string = "Domain is incorrectly sized for the specified number " &
+		          // "of chains and monomers per chain."
+		call error_abort(string)
+	end if
+
+	! Start in bottom corner and walk on cubic lattice, turning
+	! at the walls like a snake!
+	rc(:) = 0.5*equil_sep 
+	dir(:) = 1.d0
+	chainID = 1
+	subchainID = 0
+	do n=1,np
+	
+		subchainID = subchainID + 1
+		!Correct to -halfdomain to halfdomain coords
+		r(:,n) = rc(:) - halfdomain(:)
+		if (subchainID .gt. nmonomers) then
+			subchainID = 1
+			chainID    = chainID + 1
+		end if
+		monomer(n)%chainID      = chainID 
+		monomer(n)%subchainID   = subchainID
+		monomer(n)%glob_no      = n
+		if (subchainID.eq.1) then
+			call connect_to_monomer(subchainID+1,n)
+		else if (subchainID.eq.nmonomers) then
+			call connect_to_monomer(subchainID-1,n)				
+		else
+			call connect_to_monomer(subchainID+1,n)
+			call connect_to_monomer(subchainID-1,n)
+		end if
+
+		!Walk rc
+		rc(2)  = rc(2) + dir(2)*equil_sep
+		! Check if turn needed in y direction
+		if ( dir(2) .gt. 0 ) then
+			if ( rc(2) .ge. domain_top - 0.5*equil_sep) then 
+				rc(2)  = rc(2) - equil_sep
+				rc(1)  = rc(1) + dir(1)*equil_sep
+				dir(2) = dir(2) * -1.d0
+			end if
+		else 
+			if ( rc(2) .lt. 0.5*equil_sep) then 
+				rc(2) = rc(2) + equil_sep
+				rc(1) = rc(1) + dir(1)*equil_sep
+				dir(2) = dir(2) * -1.d0
+			end if
+		end if
+		! Check if turn needed in x direction
+		if ( dir(1) .gt. 0 ) then
+			if ( rc(1) .ge. domain(1)-0.5*equil_sep) then
+				rc(1) = rc(1) - equil_sep
+				rc(3) = rc(3) + equil_sep
+				dir(1) = dir(1) * -1.d0
+			end if
+		else
+			if ( rc(1) .lt. 0.5*equil_sep) then
+				rc(1) = rc(1) + equil_sep
+				rc(3) = rc(3) + equil_sep
+				dir(1) = dir(1) * -1.d0
+			end if
+		end if				
+
+		!!if (irank.eq.2) then
+		!print*, '-n,c,sc,f,g------------------------------------------------'
+		!print*, n, monomer(n)%chainID,monomer(n)%subchainID,monomer(n)%funcy,monomer(n)%glob_no
+		!print*, 'bin_bflag -', monomer(n)%bin_bflag
+		!print*, '==========================================================='
+		!!end if
+
+	end do
+
+	!Establish global number of particles on current process
+	globalnp = np
+	call globalSumInt(globalnp)
+
+	!Build array of number of particles on neighbouring
+	!processe's subdomain on current proccess
+	call globalGathernp
+
+	proc_chains(irank) = chainID
+	proc_nps(irank)    = np
+
+	call globalSumIntVect(proc_chains,nproc)
+	call globalSumIntVect(proc_nps,nproc)
+	
+	do n=1,np
+		if (monomer(n)%chainID.ne.0) then
+			monomer(n)%chainID = monomer(n)%chainID + sum(proc_chains(1:irank)) - proc_chains(irank)
+		end if
+		monomer(n)%glob_no = monomer(n)%glob_no + sum(proc_nps(1:irank))    - proc_nps(irank)
+	end do
+
+#if USE_COUPLER
+
+	if (jblock .eq. npy .and. iblock .eq. 1 .and. kblock .eq. 1) then
+		print*, '*********************************************************************'
+		print*, '*WARNING - TOP LAYER OF DOMAIN REMOVED IN LINE WITH CONSTRAINT FORCE*'
+		print*, 'Removed from', domain_top, 'to Domain top', globaldomain(2)/2.d0
+		print*, '*********************************************************************'
+	endif
+
+#endif
+
+end subroutine setup_initialise_FENE_melt
+
+!-----------------------------------------------------------------------------
+!Connect monomer to subchainID bscID
+subroutine connect_to_monomer(bscID,n)
+use polymer_info_MD
+implicit none
+
+	integer, intent(in) :: bscID,n
+	integer :: group, expo
+	
+	intbits = bit_size(monomer(1)%bin_bflag(1))
+	group = ceiling(real(bscID)/real(intbits))
+	expo  = mod(bscID,intbits) - 1
+	if(expo.eq.-1) expo = intbits - 1
+	monomer(n)%funcy            = monomer(n)%funcy + 1
+	monomer(n)%bin_bflag(group) = monomer(n)%bin_bflag(group) + 2**(expo)
+	
+end subroutine connect_to_monomer
+
+!-----------------------------------------------------------------------------
 subroutine setup_initialise_solid_liquid
 	use physical_constants_MD, only : fixdistbottom
 	use module_initialise_microstate
@@ -330,118 +636,6 @@ subroutine setup_initialise_solid_liquid
 #endif
 
 end subroutine setup_initialise_solid_liquid
-!-------------------------------------------------------------------------------
-!Assign chainIDs, subchainIDs, global molecule numbers, etc...
-
-subroutine setup_initialise_polyinfo
-	use interfaces
-	use polymer_info_MD
-	use messenger
-	use physical_constants_MD, only: np
-	implicit none
-
-	integer :: i,n
-	integer :: chainID
-	integer :: subchainID
-	integer :: modcheck
-	integer :: solvent_selector
-	integer, dimension(nproc) :: proc_chains, proc_nps
-	
-	proc_chains(:)         = 0
-	proc_nps(:)            = 0
-
-	intbits = bit_size(monomer(1)%bin_bflag(1))
-	
-	modcheck = 0 + mod(np,nmonomers) + mod(4*initialnunits(2),nmonomers)
-	if (modcheck.ne.0) call error_abort('Number of molecules must be exactly divisible by &
-	& the polymer chain length. Please change the chain length in the input file. &
-	& A chain length of 4 should (hopefully) always work.')
-
-	do n=1,np+extralloc
-		monomer(n)%chainID      = 0
-		monomer(n)%subchainID   = 0
-		monomer(n)%funcy        = 0
-		monomer(n)%glob_no      = 0
-		monomer(n)%bin_bflag(:) = 0
-	end do	
-
-	chainID    = 1
-	subchainID = 0
-	do n=1,np
-
-		select case (solvent_flag)
-		case (0)
-			solvent_selector = 0
-		case (1,2)
-			solvent_selector = mod((n-1)/nmonomers,solvent_ratio)
-		case default
-		end select
-
-		!if (foam_tag(n).eq.foam) then
-		!	solvent_selector = 0
-		!else
-		!	solvent_selector = 1
-		!end if
-		
-		select case (solvent_selector)
-		case(0) !POLYMER
-			
-			subchainID = subchainID + 1
-			if (subchainID .gt. nmonomers) then
-				subchainID = 1
-				chainID    = chainID + 1
-			end if
-	
-			monomer(n)%chainID    = chainID
-			monomer(n)%subchainID = subchainID
-			monomer(n)%glob_no    = n	
-			
-			
-			if (subchainID.eq.1) then
-				call connect_to_monomer(subchainID+1,n)
-			else if (subchainID.eq.nmonomers) then
-				call connect_to_monomer(subchainID-1,n)				
-			else
-				call connect_to_monomer(subchainID+1,n)
-				call connect_to_monomer(subchainID-1,n)
-			end if
-
-			
-		case(1:) !SOLVENT
-
-			!SET MOLECULES TO BE ATHERMAL SOLVENT MOLECULES
-			monomer(n)%chainID     = 0
-			monomer(n)%subchainID  = 1
-			monomer(n)%glob_no     = n
-			monomer(n)%funcy       = 0
-			bond(:,n)              = 0
-		
-		case default
-		end select
-			
-	!	print*, '-n,c,sc,f,g------------------------------------------------'
-	!	print*, n, monomer(n)%chainID,monomer(n)%subchainID,monomer(n)%funcy,monomer(n)%glob_no
-	!	print*, 'bin_bflag -', monomer(n)%bin_bflag
-	!	print*, '==========================================================='
-
-	end do
-
-	proc_chains(irank) = chainID
-	proc_nps(irank)    = np
-	call globalSumIntVect(proc_chains,nproc)
-	call globalSumIntVect(proc_nps,nproc)
-	
-	do n=1,np
-		if (monomer(n)%chainID.ne.0) then
-			monomer(n)%chainID     = monomer(n)%chainID + sum(proc_chains(1:irank)) - proc_chains(irank)
-		end if
-		monomer(n)%glob_no     = monomer(n)%glob_no + sum(proc_nps(1:irank))    - proc_nps(irank)
-	end do
-
-	nchains = sum(proc_chains)
-
-end subroutine setup_initialise_polyinfo
-
 !=============================================================================
 !Initialise branched polymer simulation
 subroutine setup_initialise_polyinfo_singlebranched
@@ -452,11 +646,10 @@ subroutine setup_initialise_polyinfo_singlebranched
 	use arrays_MD, only:r
 	implicit none
 
-	integer :: i,n
+	integer :: n
 	integer :: chainID
 	integer :: subchainID
 	integer :: modcheck
-	integer :: solvent_selector
 	integer :: scIDbranch, glob_n_branch, nbranch, branchmonomers
 	integer, dimension(nproc) :: proc_chains, proc_nps
 	double precision, dimension(3) :: rij
@@ -557,25 +750,6 @@ subroutine setup_initialise_polyinfo_singlebranched
 	nchains = sum(proc_chains)
 
 end subroutine setup_initialise_polyinfo_singlebranched
-
-!-----------------------------------------------------------------------------
-!Connect monomer to subchainID bscID
-subroutine connect_to_monomer(bscID,n)
-use polymer_info_MD
-implicit none
-
-	integer, intent(in) :: bscID,n
-	integer :: group, expo
-	integer :: otherglob
-	
-	intbits = bit_size(monomer(1)%bin_bflag(1))
-	group = ceiling(real(bscID)/real(intbits))
-	expo  = mod(bscID,intbits) - 1
-	if(expo.eq.-1) expo = intbits - 1
-	monomer(n)%funcy            = monomer(n)%funcy + 1
-	monomer(n)%bin_bflag(group) = monomer(n)%bin_bflag(group) + 2**(expo)
-	
-end subroutine connect_to_monomer
 !----------------------------------------------------------------------------------
 !----------------------------------------------------------------------------------
 !Initialise Velocities
@@ -717,8 +891,8 @@ subroutine setup_initialise_velocities_test
 	use module_initialise_microstate
 	implicit none
 
-	integer                            :: i, n
-	double precision, dimension (nd)   :: netv   !Overall momentum of system
+	!integer                            :: i, n
+	!double precision, dimension (nd)   :: netv   !Overall momentum of system
 
 	!Use definition of temperature and re-arrange to define an average velocity
 	!initialvel = sqrt(nd * (1.d0 - 1.d0/np)*inputtemperature)
@@ -748,4 +922,3 @@ subroutine setup_initialise_velocities_test
 !	v(4,3) = 0.5d0
 
 end subroutine setup_initialise_velocities_test
-

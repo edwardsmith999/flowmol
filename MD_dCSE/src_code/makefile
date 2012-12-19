@@ -97,9 +97,9 @@ debug_s:
 debug_p:
 	@make parallel_md.exe "BUILD=debug"
 full_debug_s:
-	@make serial_md.exe "FFLAGS = -O0 -traceback -CB -check all -warn all,nodec,interfaces -gen_interfaces"
+	@make serial_md.exe "FFLAGS = -g -O0 -traceback -CB -check all -warn all,nodec,interfaces -gen_interfaces"
 full_debug_p:
-	@make parallel_md.exe "FFLAGS = -O0 -traceback -CB -check all -warn all,nodec,interfaces -gen_interfaces"
+	@make parallel_md.exe "FFLAGS = -g -O0 -traceback -CB -check all -warn all,nodec,interfaces -gen_interfaces"
 profile_s:
 	@make serial_md.exe "FFLAGS = -O3 -funroll-loops -pg -g "
 memprofile_s:

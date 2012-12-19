@@ -455,7 +455,7 @@ subroutine get_file_size(filename,file_size)
 
 	integer							:: unit_no
 	integer,intent(out)				:: file_size
-	integer,dimension(13)			:: SArray(13)
+	!integer,dimension(13)			:: SArray(13)
 	logical							:: op
 	character(len=*), intent(in)	:: filename
 
@@ -686,12 +686,12 @@ subroutine check
 	use librarymod
 	implicit none
 
-	integer						:: i,j,np
+	integer						:: i,j
 	integer						:: n,npoints
-	integer,dimension(3)				:: indx
-	double precision				:: d
-	double precision				:: integral
-	double precision				:: rand, x_interval, intercept, gradient
+	integer,dimension(3)		:: indx
+	double precision			:: d
+	double precision			:: integral
+	double precision			:: rand, x_interval, intercept, gradient
 	double precision,dimension(3)			:: b
 	double precision,dimension(3,3)			:: a
 	double precision, dimension(:), allocatable	:: y

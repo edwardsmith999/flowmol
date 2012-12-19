@@ -150,7 +150,7 @@ subroutine assign_to_neighbourlist_allint
 	use module_linklist
 	implicit none
 
-	integer                         :: i, j, ixyz   !Define dummy index
+	integer                         :: i, j !Define dummy index
 	integer							:: icell, jcell, kcell
 	integer                         :: icellshift, jcellshift, kcellshift
 	integer                         :: cellnp, adjacentcellnp
@@ -237,7 +237,7 @@ subroutine assign_to_neighbourlist_halfint
 	use module_linklist
 	implicit none
 
-	integer                         :: i, j,k, ixyz   !Define dummy index
+	integer                         :: i, j,k !Define dummy index
 	integer							:: icell, jcell, kcell
 	integer                         :: cellnp, adjacentcellnp
 	integer							:: molnoi, molnoj
@@ -595,7 +595,7 @@ subroutine assign_to_neighbourlist_halfint_opt
 	use module_linklist
 	implicit none
 
-	integer                         :: i, j,k, ixyz   !Define dummy index
+	integer                         :: i, j,k !Define dummy index
 	integer							:: icell, jcell, kcell
 	integer                         :: cellnp, adjacentcellnp
 	integer							:: molnoi, molnoj
@@ -896,7 +896,7 @@ subroutine assign_to_neighbourlist_allint_halo
 	use module_linklist
 	implicit none
 
-	integer                         :: i, j, ixyz   !Define dummy index
+	integer                         :: i, j !Define dummy index
 	integer							:: icell, jcell, kcell
 	integer                         :: icellshift, jcellshift, kcellshift
 	integer                         :: cellnp, adjacentcellnp
@@ -995,7 +995,7 @@ subroutine assign_to_neighbourlist_halfint_halo
 	use module_linklist
 	implicit none
 
-	integer                         :: i, j,k, ixyz   !Define dummy index
+	integer                         :: i,j,k !Define dummy index
 	integer							:: icell, jcell, kcell
 	integer                         :: cellnp, adjacentcellnp
 	integer							:: molnoi, molnoj
@@ -1126,7 +1126,7 @@ subroutine calculate_cell_interactions(icell, jcell, kcell, k)
 	use module_linklist
 	implicit none
 
-	integer							:: i, j, ixyz
+	integer							:: i,j
 	integer							:: icell, jcell, kcell, k
 	integer                         :: cellnp, adjacentcellnp
 	integer							:: molnoi, molnoj
@@ -1191,7 +1191,7 @@ subroutine calculate_cell_interactions_opt(istart,iend,ishift,jstart,jend,jshift
 	use module_linklist
 	implicit none
 
-	integer							:: i, j, ixyz
+	integer							:: i,j
 	integer,intent(in)				:: istart,iend,ishift,jstart,jend,jshift,kstart,kend,kshift
 	integer							:: icell, jcell, kcell
 	integer                         :: cellnp, adjacentcellnp

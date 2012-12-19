@@ -371,12 +371,10 @@ contains
 		use linked_list
 		implicit none
 	
-		integer :: noneighbrs
 		integer :: i,j
-		double precision :: rij2,wsq,vr,Q,tmp
+		double precision :: rij2,wsq,vr,Q
 		double precision, dimension(nd) :: ri,rj,rij,rijhat
 		double precision, dimension(nd) :: vi,vj,vij
-		type(neighbrnode), pointer :: old, current
 
 		vrelsum = 0.d0
 		dzeta_dt = 0.d0
@@ -418,7 +416,7 @@ contains
 	
 		integer :: noneighbrs
 		integer :: j,molnoi,molnoj
-		double precision :: rij2,wsq,vr,Q,tmp
+		double precision :: rij2,wsq,vr,Q
 		double precision, dimension(nd) :: ri,rj,rij,rijhat
 		double precision, dimension(nd) :: vi,vj,vij
 		type(neighbrnode), pointer :: old, current
@@ -476,14 +474,14 @@ contains
 		use linked_list
 		implicit none
 	
-		integer,intent(in)							:: flag
-		integer 									:: noneighbrs, ixyz, tempi
-		integer 									:: j,molnoi,molnoj
-		double precision 							:: rij2,vr,wR,wD,sigma, temp, temp2
-		double precision, dimension(nd) 			:: ri,rj,rij,rijhat, randseed
-		double precision, dimension(nd) 			:: randi,randj,theta_ij,meantheta,vartheta
-		double precision, dimension(nd) 			:: vi,vj,vij
-		type(neighbrnode), pointer 					:: old, current
+		integer,intent(in)				:: flag
+		integer 						:: noneighbrs
+		integer 						:: j,molnoi,molnoj
+		double precision 				:: rij2,vr,wR,wD,sigma
+		double precision, dimension(nd) :: ri,rj,rij,rijhat
+		double precision, dimension(nd)	:: randi,randj,theta_ij
+		double precision, dimension(nd)	:: vi,vj,vij
+		type(neighbrnode), pointer 		:: old, current
 
 		zeta = 10.d0; sigma = sqrt(2.d0*inputtemperature*zeta)
 
@@ -599,13 +597,13 @@ contains
 		use linked_list
 		implicit none
 	
-		integer,intent(in)							:: flag
-		integer 									:: noneighbrs, ixyz, tempi
-		integer 									:: j,molnoi,molnoj
-		double precision 							:: rij2,vr,wR,wD,sigma, temp, temp2
-		double precision, dimension(nd) 			:: ri,rj,rij,rijhat, randseed
-		double precision, dimension(nd) 			:: rand,randi,randj,theta_ij,meantheta,vartheta
-		double precision, dimension(nd) 			:: vi,vj,vij
+		integer,intent(in)				:: flag
+		integer 						:: ixyz, tempi
+		integer 						:: molnoi,molnoj
+		double precision 				:: rij2,vr,wR,wD,sigma, temp, temp2
+		double precision, dimension(nd)	:: ri,rj,rij,rijhat
+		double precision, dimension(nd)	:: rand,randi,randj,theta_ij,meantheta,vartheta
+		double precision, dimension(nd)	:: vi,vj,vij
 
 		zeta = 10.d0; sigma = sqrt(2.d0*inputtemperature*zeta)
 		select case(flag)

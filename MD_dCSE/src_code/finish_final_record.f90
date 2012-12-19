@@ -21,8 +21,6 @@ use module_final_record
 use interfaces, only: error_abort
 implicit none
 
-	integer :: n !todo
-
 	call simulation_compute_forces
 	call evaluate_macroscopic_properties
 	if (irank .eq. iroot) then
@@ -109,7 +107,7 @@ subroutine reformat_dcd
 	use computational_constants_MD
 	implicit none
 
-	integer							:: n, i			!--Dummy variables
+	integer							:: i			!--Dummy variables
 	integer                         :: plot_mod
 	integer							:: NSET,vmd_sets!--Number of frames
 	integer							:: ISTRT		!--Starting frame
@@ -250,7 +248,7 @@ subroutine reformat_dcd_true
 	use computational_constants_MD
 	implicit none
 
-	integer							:: n, i			!--Dummy variables
+	integer							:: i			!--Dummy variables
 	integer                         :: plot_mod
 	integer							:: NSET,vmd_sets!--Number of frames
 	integer							:: ISTRT		!--Starting frame

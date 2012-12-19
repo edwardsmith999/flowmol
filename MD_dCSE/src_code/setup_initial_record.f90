@@ -22,7 +22,7 @@ subroutine setup_initial_record
 	use shear_info_MD
 	implicit none
 
-	integer					:: i,n!todo
+	integer					:: i
 	logical 				:: file_exist
 	character				:: ixyz_char
 	character(8)			:: the_date
@@ -714,10 +714,6 @@ end subroutine initial_macroscopic_properties
 subroutine initial_control_volume
 use module_initial_record
 implicit none
-
-	integer							:: n
-	integer, dimension(3)			:: ibin
-	double precision, dimension(3)	:: mbinsize
 
 	!Obtain and record velocity and mass
 	if (velocity_outflag .ne. 0) then

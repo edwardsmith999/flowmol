@@ -19,7 +19,7 @@ subroutine simulation_checkrebuild(rebuild)
 	implicit none
 	
 	logical,save		   :: just_written_snapshot=.true.
-	integer                :: n, ixyz
+	integer                :: n
 	integer, save		   :: rb_count, total_rb=0
 	integer, intent(out)   :: rebuild
 	double precision       :: vmax, t2

@@ -139,8 +139,6 @@ contains
 	subroutine md_advance_vv
 		implicit none
 
-		integer	n, ixyz
-
 		call simulation_move_particles_vv(1)        !Find r(t+dt) and v(t+dt/2)
 		call messenger_updateborders(0)             !Update borders between processors
 
