@@ -39,9 +39,15 @@ subroutine setup_set_parameters
 	implicit none
 
 	integer							:: iblk,jblk,kblk
-	integer							:: cellsperblock
 	integer,dimension(3)			:: nblocks
 	double precision,dimension(3)	:: blocksidelength
+
+	!This has alreay been done in initialise for a coupled run
+#if (USE_COUPLER == 0)	
+   	call set_parameters_global_domain
+	call set_parameters_cells
+#endif
+	!call set_parameters_setlimits
 
 	!Calculate shift in lennard-Jones potential based on cutoff
 	potshift = 4.d0*(1.d0/rcutoff**12 - 1.d0/rcutoff**6)
@@ -54,13 +60,6 @@ subroutine setup_set_parameters
 		potential_sLRC = 0.d0; Pressure_sLRC = 0.d0;
 	endif
 
-!This has alreay been done in initialise for a coupled run
-#if (USE_COUPLER == 0)	
-	!call set_parameters_domain
-   	call set_parameters_global_domain
-	call set_parameters_cells
-#endif
-	!call set_parameters_setlimits
 
 	!Allocate array sizes for position, velocity and acceleration
 	call set_parameters_allocate
@@ -186,8 +185,6 @@ subroutine setup_polymer_info
 	use polymer_info_MD
     use interfaces
 	implicit none
-
-	integer :: n
 	
 	!Allocate polymer arrays
 	allocate(bond(max_funcy,np+extralloc))
@@ -257,70 +254,99 @@ implicit none
 end subroutine setup_shear_parameters
 
 !-----------------------------------------------------------------------------
-
-subroutine set_parameters_domain
-	use module_set_parameters
-	implicit none
-
-	integer                :: ixyz
-
-	np=1      !Set number of particles to unity for loop below
-	volume=1  !Set domain size to unity for loop below
-	do ixyz=1,nd
-		domain(ixyz) = initialnunits(ixyz) &       !Size domain based on required density
-		/((density/4)**(1.d0/nd)) 
-		halfdomain(ixyz) = 0.5d0*domain(ixyz)      !Useful defintion used later
-		np = np*initialnunits(ixyz)                !One particle per unit cell
-		volume = volume*domain(ixyz)		   !Volume based on size of domain
-	enddo
-	if (nd .eq. 3) np=4*np   !FCC structure in 3D had 4 molecules per unit cell
-
-	!Global number of particles
-	globalnp = np
-	call globalSumInt(globalnp)
-
-end subroutine set_parameters_domain
-
-!-----------------------------------------------------------------------------
 !Setup domain based on density and number of initial units specified
 
 subroutine set_parameters_global_domain
 	use module_set_parameters
+	use interfaces, only: error_abort
 	implicit none
 
 	integer                :: ixyz
 
-	volume=1	!Set domain size to unity for loop below
-	do ixyz=1,nd
-		globaldomain(ixyz) = initialnunits(ixyz) & 	!Size domain based on required density
-		/((density/4.d0)**(1.d0/nd))
-		volume = volume*globaldomain(ixyz)		!Volume based on size of domain
-	enddo
+	select case (initial_config_flag)
+	case (0)
 
-    ! no need to fix globalnp if we have it already
-    if(.not. restart) then
-		globalnp=1      !Set number of particles to unity for loop below
+		volume=1	!Set domain size to unity for loop below
 		do ixyz=1,nd
-			globalnp = globalnp*initialnunits(ixyz)		!One particle per unit cell
+			globaldomain(ixyz) = initialnunits(ixyz) & 	!Size domain based on required density
+			/((density/4.d0)**(1.d0/nd))
+			volume = volume*globaldomain(ixyz)		!Volume based on size of domain
 		enddo
-		globalnp=4*globalnp   !FCC structure in 3D had 4 molecules per unit cell
-    endif
 
-	!Initially assume molecules per processor are evenly split  - corrected after position setup
-	np = globalnp / nproc					
+		! no need to fix globalnp if we have it already
+		if(.not. restart) then
+			globalnp=1      !Set number of particles to unity for loop below
+			do ixyz=1,nd
+				globalnp = globalnp*initialnunits(ixyz)		!One particle per unit cell
+			enddo
+			globalnp=4*globalnp   !FCC structure in 3D had 4 molecules per unit cell
+		endif
 
-	domain(1) = globaldomain(1) / real(npx, kind(0.d0))			!determine domain size per processor
-	domain(2) = globaldomain(2) / real(npy, kind(0.d0))			!determine domain size per processor
-	domain(3) = globaldomain(3) / real(npz, kind(0.d0))			!determine domain size per processor
+		!Initially assume molecules per processor are evenly split  - corrected after position setup
+		np = globalnp / nproc					
 
-	do ixyz=1,nd
-		halfdomain(ixyz) = 0.5d0*domain(ixyz)			!Useful definition
-	enddo
+		domain(1) = globaldomain(1) / real(npx, kind(0.d0))			!determine domain size per processor
+		domain(2) = globaldomain(2) / real(npy, kind(0.d0))			!determine domain size per processor
+		domain(3) = globaldomain(3) / real(npz, kind(0.d0))			!determine domain size per processor
 
-	!Establish initial size of single unit to initialise microstate
-	do ixyz=1,nd
-		initialunitsize(ixyz) = globaldomain(ixyz) / initialnunits(ixyz)
-	enddo
+		do ixyz=1,nd
+			halfdomain(ixyz) = 0.5d0*domain(ixyz)			!Useful definition
+		enddo
+
+		!Establish initial size of single unit to initialise microstate
+		do ixyz=1,nd
+			initialunitsize(ixyz) = globaldomain(ixyz) / initialnunits(ixyz)
+		enddo
+
+	case (1)
+
+		select case (config_special_case)
+		case ('sparse_fene')
+
+			volume = product(globaldomain(1:3))
+			if (.not.restart) then
+				globalnp = nmonomers*nchains
+			end if
+			domain(1) = globaldomain(1) / real(npx, kind(0.d0))
+			domain(2) = globaldomain(2) / real(npy, kind(0.d0))
+			domain(3) = globaldomain(3) / real(npz, kind(0.d0))
+			halfdomain(:) = 0.5d0*domain(:)
+
+			!Initially assume molecules per processor are evenly split 
+			! - corrected after position setup
+			np = globalnp / nproc
+		
+		case ('dense_fene')
+			
+			globaldomain(:) = initialnunits(:)/((density/4.d0)**(1.d0/nd))
+			initialunitsize(:) = globaldomain(:) / initialnunits(:)
+			volume = product(globaldomain(1:3))
+
+			! no need to fix globalnp if we have it already
+			if(.not. restart) then
+				globalnp = 4*product(initialnunits(1:3))
+			endif
+
+			domain(1) = globaldomain(1) / real(npx, kind(0.d0))
+			domain(2) = globaldomain(2) / real(npy, kind(0.d0))
+			domain(3) = globaldomain(3) / real(npz, kind(0.d0))
+			halfdomain(:) = 0.5d0*domain(:)
+
+			!Initially assume molecules per processor are evenly split 
+			! - corrected after position setup
+			np = globalnp / nproc
+			
+		case default
+
+			call error_abort("set_parameters_global_domain must be corrected for this special case")	
+
+		end select
+
+	case default
+
+		call error_abort("Unrecognised initial_config_flag in set_parameters_global_domain")
+
+	end select
 
 end subroutine set_parameters_global_domain
 
@@ -346,7 +372,7 @@ subroutine set_parameters_cells
 			if (rneighbr < R_0) then
 				rneighbr = R_0 
 				rneighbr2 = R_0**2
-				print*, 'Neighbour list distance rneighbr set to &
+				if(irank.eq.iroot) print*, 'Neighbour list distance rneighbr set to &
 						& maximum elongation of polymer spring, ',R_0
 			end if
 		case(2)
@@ -404,7 +430,6 @@ subroutine setup_linklist
 use module_set_parameters 
 implicit none
 
-	integer :: i
 	integer :: icell, jcell, kcell
 	integer :: ibin, jbin, kbin
 

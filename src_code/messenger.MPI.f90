@@ -186,7 +186,7 @@ subroutine messenger_proc_topology()
 	implicit none
 	!include "mpif.h"
 
-	integer						:: i, ixyz,n, idest, isource
+	integer						:: i, idest, isource
 	integer, dimension(3)  		:: pcoords, pshiftcoords
 	integer, dimension(8)   	:: icornercell, jcornercell, kcornercell
 	integer, dimension(3,4)  	:: edge1, edge2
@@ -642,7 +642,6 @@ subroutine prepare_FENEbuffer(molno,FENEpack)
 	use polymer_info_MD, only: monomer,nmonomers
 	implicit none
 	
-	integer :: i
 	integer, intent(in) :: molno
 	double precision, dimension(*), intent(out) :: FENEpack
 		
@@ -659,7 +658,6 @@ subroutine assign_FENEbuffer(molno,FENEpack)
 	use polymer_info_MD, only: monomer,nmonomers
 	implicit none
 
-	integer :: i
 	integer, intent(in) :: molno
 	double precision, dimension(*), intent(in) :: FENEpack
 	
@@ -687,14 +685,12 @@ subroutine updatefacedown(ixyz)
 	implicit none
 	!include "mpif.h"
 
-	integer :: i, n, ixyz
+	integer :: n, ixyz
 	integer :: icell,jcell,kcell
-	integer :: molno,cellnp,sendnp,sendsize,recvnp,recvsize,pos,length,datasize,buffsize
+	integer :: cellnp,sendnp,sendsize,recvnp,recvsize,pos,length,datasize,buffsize
 	integer :: isource,idest
-	double precision, dimension(nd) :: rpack	!Temporary array used to pack position
-	double precision, dimension(nsdmi)  :: FENEpack
 	double precision, dimension(:), allocatable :: sendbuffer
-	type(node), pointer 	        :: old, current
+	type(node), pointer :: old, current
 
 	!Obtain processor ID of lower neighbour
 	call MPI_Cart_shift(icomm_grid, ixyz-1, -1, isource, idest, ierr)
@@ -823,12 +819,10 @@ subroutine updatefaceup(ixyz)
 	implicit none
 	!include "mpif.h"
 
-	integer :: i, n, ixyz
+	integer :: n, ixyz
 	integer :: icell,jcell,kcell
-	integer :: molno,cellnp,sendnp,sendsize,recvnp,recvsize,pos,length,datasize,buffsize
+	integer :: cellnp,sendnp,sendsize,recvnp,recvsize,pos,length,datasize,buffsize
 	integer :: isource,idest
-	double precision, dimension(nd) :: rpack	!Temporary array used to pack/unpack position
-	double precision, dimension(nsdmi)  :: FENEpack
 	double precision, dimension(:), allocatable :: sendbuffer
 	type(node), pointer 	        :: old, current
 
@@ -958,11 +952,9 @@ subroutine updateedge(face1,face2)
 
 	integer :: i, n, ixyz,face1,face2
 	integer :: icell,jcell,kcell
-	integer :: molno,cellnp,sendnp,sendsize,recvnp,recvsize,pos,length,datasize,buffsize
+	integer :: cellnp,sendnp,sendsize,recvnp,recvsize,pos,length,datasize,buffsize
 	integer :: isource,idest
 	integer, dimension(3,4)   :: edge1, edge2
-	double precision, dimension(nd) :: rpack	!Temporary array used to pack position
-	double precision, dimension(nsdmi)  :: FENEpack
 	double precision, dimension(:), allocatable :: sendbuffer
 	type(node), pointer 	        :: old, current
 
@@ -978,7 +970,7 @@ subroutine updateedge(face1,face2)
 	ixyz = 6 - face1 - face2 !Determine coordinate along edge
 
 	do i = 1,4 !Counter for each of the 4 edges
-
+	
 		!Obtain rank of diagonal processor
 		idest = proc_topology_edge(i,ixyz,1)
 		isource = proc_topology_edge(i,ixyz,2)
@@ -1084,12 +1076,15 @@ subroutine updateedge(face1,face2)
 
 		deallocate(recvbuffer)
 		deallocate(sendbuffer)
+
+		
 	enddo
 
 	nullify(current)        !Nullify current as no longer required
 	nullify(old)            !Nullify old as no longer required
 
 	return
+
 end subroutine updateedge
 
 
@@ -1104,11 +1099,9 @@ subroutine updatecorners()
 	!include "mpif.h"
 
 	integer :: i, n
-	integer :: molno,cellnp,sendnp,sendsize,recvnp,recvsize,pos,length,buffsize
+	integer :: cellnp,sendnp,sendsize,recvnp,recvsize,pos,length,buffsize
 	integer :: isource,idest
 	integer, dimension(8)   :: icornercell, jcornercell, kcornercell
-	double precision, dimension(nd) :: rpack	!Temporary array used to pack position
-	double precision, dimension(nsdmi)  :: FENEpack
 	double precision, dimension(:), allocatable :: sendbuffer
 	type(node), pointer 	        :: old, current
 
@@ -1189,7 +1182,6 @@ subroutine sendmols()
 	implicit none
 
 	integer		:: i,ixyz,dir,maxnew_np,sendnp,new_np
-	integer     :: sendtethernp, new_tethernp
 
 	pass%sendnp = 0
 
@@ -1219,6 +1211,7 @@ subroutine sendmols()
 	enddo
 
 	return
+
 end
 
 !-----------------------------------------------------------------------
@@ -1842,14 +1835,11 @@ subroutine NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest
  	call MPI_wait(request, status(:), ierr)
 
 	return
+
 end
-
-
 !======================================================================
 !			Bin averaged handling subroutines        	              =
 !======================================================================
-
-
 !Swap halos of bins between processors
 module pack_unpack_bins
 	implicit none

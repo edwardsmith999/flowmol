@@ -50,9 +50,12 @@ INPUTTEMPERATURE
 #        reserved as an input flag for information about the special
 #        case. Options:
 #
-#            - fene_melt      connect monomers on an FCC lattice
+#            - dense_fene     connect monomers on an FCC lattice
 #                             with a specified chain length and 
 #                             FENE potential parameters. 
+#
+#            - sparse_fene    connect monomers on a cubic lattice
+#                             separated by FENE equilibrium distance.    
 #
 #    2 - Configuration file, like a *.pdb. To be developed.
 #
@@ -62,19 +65,44 @@ INITIAL_CONFIG_FLAG
 special_case_name
 
 #########################################################################
-# FENE melt special case info
+# Sparse FENE special case info: designed for cases where the density
+# is lower than the density at which the average separation between
+# monomers on an FCC lattice is greater than the FENE maximum bond 
+# elongation.
 #
-#	- number of LJ beads for each polymer chain
+#	- number of LJ beads for each polymer chain (nmonomers)
 #	- spring constant, k_c
 #	- maximum spring elongation
-#   - initialnunits for lattice (to be changed) in x
-#   - initialnunits for lattice (to be changed) in y
-#   - initialnunits for lattice (to be changed) in z
+#   - domain length in x
+#   - domain length in y
+#   - domain length in z
+#   - nchains
 # -----------------------------------------------------------------------
-FENE_MELT
+SPARSE_FENE
+20
+30.0
+1.5
+15.0
+10.0
+10.0
+4
+
+#########################################################################
+# Dense FENE special case information
+#
+#	- number of LJ beads for each polymer chain (nmonomers)
+#	- spring constant, k_c
+#	- maximum spring elongation
+#   - monomer density
+#   - FCC (4 monomer) units in x
+#   - FCC (4 monomer) units in y
+#   - FCC (4 monomer) units in z
+# -----------------------------------------------------------------------
+DENSE_FENE
 8
 30.0
 1.5
+1.1
 8
 8
 8

@@ -23,24 +23,24 @@ subroutine setup_read_input
 	implicit none
 
 	logical					:: found_in_input
-	integer 				:: i, n , ios
-	integer,dimension(8)	:: tvalue
-	character(20)			:: readin_format
+	integer 				:: ios
 
 	open(1,file=input_file)
 
 	!Input physical co-efficients
-	call locate(1,'DENSITY',.true.)
-	read(1,*) density
-	call locate(1,'RCUTOFF',.true.)
-	read(1,*) rcutoff
 	call locate(1,'INPUTTEMPERATURE',.true.)
 	read(1,*) inputtemperature
 	call locate(1,'INITIAL_CONFIG_FLAG',.true.)
 	read(1,*) initial_config_flag 
 	select case (initial_config_flag)
 	case(0)
+	
+		potential_flag = 0
 
+		call locate(1,'DENSITY',.true.)
+		read(1,*) density
+		call locate(1,'RCUTOFF',.true.)
+		read(1,*) rcutoff
 		call locate(1,'INITIALNUNITS',.true.)
 		read(1,*) initialnunits(1)		!x dimension split into number of cells
 		read(1,*) initialnunits(2)		!y dimension split into number of cells
@@ -50,17 +50,21 @@ subroutine setup_read_input
 
 		read(1,*) config_special_case	
 		select case (trim(config_special_case))
-		case('fene_melt')	
-	
-			potential_flag = 1
+		case('sparse_fene')	
 
-			call locate(1,'FENE_MELT',.true.)
+			potential_flag = 1	
+			rcutoff = 2.d0**(1.d0/6.d0)
+
+			call locate(1,'SPARSE_FENE',.true.)
 			read(1,*) nmonomers
 			read(1,*) k_c
 			read(1,*) R_0
-			read(1,*) initialnunits(1)		!x dimension split into number of cells
-			read(1,*) initialnunits(2)		!y dimension split into number of cells
-			read(1,*) initialnunits(3)		!z dimension split into number of cells
+			read(1,*) globaldomain(1)
+			read(1,*) globaldomain(2)
+			read(1,*) globaldomain(3)
+			read(1,*) nchains
+
+			density = nmonomers * nchains / product(globaldomain(1:3))	
 
 			call locate(1,'SOLVENT_INFO',.true.)
 			read(1,*) solvent_flag
@@ -77,20 +81,39 @@ subroutine setup_read_input
 				call error_abort('Unrecognised solvent flag!')
 			end select
 
-		!case('liquid_solid')
-		!	call locate(1,'LIQ_SOL_INFO',.true.)
-		!	read(1,*) liquid_density
-		!	read(1,*) solid_density
-		!	read(1,*) initialnunits(1)		!x dimension split into number of cells
-		!	read(1,*) initialnunits(2)		!y dimension split into number of cells
-		!	read(1,*) initialnunits(3)		!z dimension split into number of cells
-		case('solid_liquid')
-			call locate(1,'INITIALNUNITS',.true.)
-			read(1,*) initialnunits(1)		!x dimension split into number of cells
-			read(1,*) initialnunits(2)		!y dimension split into number of cells
-			read(1,*) initialnunits(3)		!z dimension split into number of cells
+		case('dense_fene')	
+
+			potential_flag = 1	
+			rcutoff = 2.d0**(1.d0/6.d0)
+
+			call locate(1,'DENSE_FENE',.true.)
+			read(1,*) nmonomers
+			read(1,*) k_c
+			read(1,*) R_0
+			read(1,*) density
+			read(1,*) initialnunits(1)
+			read(1,*) initialnunits(2)
+			read(1,*) initialnunits(3)	
+
+			call locate(1,'SOLVENT_INFO',.true.)
+			read(1,*) solvent_flag
+			select case(solvent_flag)
+			case(0)
+			case(1)
+				read(1,*) solvent_ratio
+			case(2)
+				read(1,*) solvent_ratio
+				read(1,*) eps_pp
+				read(1,*) eps_ps
+				read(1,*) eps_ss
+			case default
+				call error_abort('Unrecognised solvent flag!')
+			end select
+
 		case default
+
 			stop "Unrecognised special case string"
+
 		end select
 
 	case(2)
@@ -168,9 +191,12 @@ subroutine setup_read_input
 
 	if (any(periodic.eq.0)) then
 
+		bforce_flag(:) = 0
+		bforce_dxyz(:) = 0.0
+	
 		call locate(1,'BFORCE',.false.,found_in_input)
-
 		if (found_in_input) then
+
 			read(1,*) bforce_flag(1)			
 			read(1,*) bforce_flag(2)			
 			read(1,*) bforce_flag(3)
@@ -183,23 +209,24 @@ subroutine setup_read_input
 			read(1,*) bforce_dxyz(4)
 			read(1,*) bforce_dxyz(5)
 			read(1,*) bforce_dxyz(6)
-		endif
 
-		! Correct any bforce_flags if periodic boundaries on
-		if (periodic(1).ne.0) then
-			if (irank.eq.iroot) print*, 'Warning, resetting bforce_flag(1:2)' , &
-			' because periodic boundaries are on in the x-direction'
-			bforce_flag(1:2) = 0
-		end if
-		if (periodic(2).ne.0) then 
-			if (irank.eq.iroot) print*, 'Warning, resetting bforce_flag(1:2)' , &
-			' because periodic boundaries are on in the x-direction'
-			bforce_flag(3:4) = 0
-		end if
-		if (periodic(3).ne.0) then 
-			if (irank.eq.iroot) print*, 'Warning, resetting bforce_flag(1:2)' , &
-			' because periodic boundaries are on in the x-direction'
-			bforce_flag(5:6) = 0
+			! Correct any bforce_flags if periodic boundaries on
+			if (periodic(1).ne.0) then
+				if (irank.eq.iroot) print*, 'Warning, resetting bforce_flag(1:2)' , &
+				' because periodic boundaries are on in the x-direction'
+				bforce_flag(1:2) = 0
+			end if
+			if (periodic(2).ne.0) then 
+				if (irank.eq.iroot) print*, 'Warning, resetting bforce_flag(3:4)' , &
+				' because periodic boundaries are on in the y-direction'
+				bforce_flag(3:4) = 0
+			end if
+			if (periodic(3).ne.0) then 
+				if (irank.eq.iroot) print*, 'Warning, resetting bforce_flag(5:6)' , &
+				' because periodic boundaries are on in the z-direction'
+				bforce_flag(5:6) = 0
+			end if
+
 		end if
 
 	end if

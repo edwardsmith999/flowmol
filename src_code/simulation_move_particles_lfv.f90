@@ -204,7 +204,7 @@ contains
 		implicit none
 				
 		integer 			:: maxtag, n, thermostatnp 
-		double precision 	:: t,freq, dzeta_dt, pec_v2sum, v2sum,Q
+		double precision 	:: freq, dzeta_dt, pec_v2sum, v2sum,Q
 		double precision 	:: ascale, bscale
 		double precision, dimension(nd)	:: vel
 		logical :: PUT

@@ -32,9 +32,6 @@ subroutine apply_boundary_force
 	use md_coupler_socket, only: socket_get_constraint_info
 	implicit none
 
-	integer :: constraint_algorithm
-	integer :: OT, NCER, Flekkoy, off
-
 		call socket_get_constraint_info(constraint_algorithm,OT=OT, &
                                         NCER=NCER,Flekkoy=Flekkoy,off=off)
 		
@@ -86,7 +83,7 @@ subroutine simulation_apply_boundary_force(flags,dists)
 	integer,          dimension(6), intent(in) :: flags
 	real(kind(0.d0)), dimension(6), intent(in) :: dists 
 
-	integer :: n,ixyz,dir,flag,block(3),npxyz(3)
+	integer :: n,ixyz,flag,block(3),npxyz(3)
 	real(kind(0.d0)) :: xyz,thresh,hdom
 	real(kind(0.d0)), dimension(3) :: tops,bottoms
 
@@ -110,7 +107,6 @@ subroutine simulation_apply_boundary_force(flags,dists)
 			xyz    = r(ixyz,n)
 			thresh = tops(ixyz)
 			hdom   = domain(ixyz)/2.d0
-			dir    = -1	
 			flag   = flags(2*ixyz)
 
 		else if ( r(ixyz,n)   .lt. bottoms(ixyz) .and. &
@@ -119,7 +115,6 @@ subroutine simulation_apply_boundary_force(flags,dists)
 			xyz    = r(ixyz,n)
 			thresh = bottoms(ixyz)
 			hdom   = -domain(ixyz)/2.d0
-			dir    = +1	
 			flag   = flags(2*ixyz - 1)
 		
 		else
@@ -128,14 +123,14 @@ subroutine simulation_apply_boundary_force(flags,dists)
 
 		end if
 
-		call apply_bforce(a(ixyz,n),xyz,thresh,hdom,dir,flag)
+		call apply_bforce(a(ixyz,n),xyz,thresh,hdom,flag)
 
 	end do
 	end do
 
 end subroutine simulation_apply_boundary_force
 
-subroutine apply_bforce(a_in,xyz,thresh,hdom,dir,flag)
+subroutine apply_bforce(a_in,xyz,thresh,hdom,flag)
 	use computational_constants_MD, only: bforce_NCER,bforce_off
 	use calculated_properties_MD,   only: pressure
 	use interfaces,                 only: error_abort
@@ -145,10 +140,9 @@ subroutine apply_bforce(a_in,xyz,thresh,hdom,dir,flag)
 	real(kind(0.d0)), intent(in) :: xyz       !Position, 1D
 	real(kind(0.d0)), intent(in) :: thresh    !Threshold for bforce, 1D
 	real(kind(0.d0)), intent(in) :: hdom      !Domain edge
-	integer, intent(in) :: dir                !a in +ve or -ve direc, 1 or -1
 	integer, intent(in) :: flag               !Type of bforce 
 
-	real(kind(0.d0)) :: numer,denom,ratio, a_ext, P
+	real(kind(0.d0)) :: numer,denom,ratio,P
 	character(128)   :: string
 
 	select case ( flag )
@@ -393,11 +387,10 @@ subroutine simulation_apply_linear_forces
 	implicit none
 
 	!double precision :: y, y0, y1, y2, y3
-	integer         			:: n, molno, ixyz
+	integer         			:: n, molno
 	integer         			:: cbin, binnp
 	integer						:: ibin, jbin, kbin
-	integer						:: averagecount
-	double precision 			:: F, fixdist, slicebinsize
+	double precision 			:: F
 	double precision			:: isumvel, isumacc
 	double precision, dimension(overlap)	:: continuum_u
 	type(node), pointer			:: old, current
@@ -786,7 +779,7 @@ subroutine pointsphere(centre,targetradius,start_iter)
 
 	integer							:: n, start
 	double precision 				:: radius, radius2, Fapplied, magnitude
-	double precision 				:: rspherical,rspherical2, theta, phi
+	double precision 				:: rspherical,rspherical2
 	double precision, dimension(3)	:: rmapped
 
 	!Grow pore slowly

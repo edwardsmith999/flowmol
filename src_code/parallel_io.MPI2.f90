@@ -386,9 +386,7 @@ subroutine setup_inputs
 	use librarymod, only : locate
 	implicit none
 	
-	integer 			:: k, n, tvalue(8), ios
-	logical 			:: found_in_input
-	character(20)		:: readin_format
+	integer 			:: n, tvalue(8)
 
 	call random_seed(size=n)
 	allocate(seed(n))
@@ -426,15 +424,13 @@ subroutine setup_restart_inputs
 	use librarymod, only : locate
 	implicit none
 
-	logical							:: found_in_input
-	integer							:: n, k
+	integer							:: n
 	integer							:: prev_nproc
 	integer 						:: extrasteps
 	integer 						:: checkint
     integer(MPI_OFFSET_KIND)        :: ofs, header_ofs
     integer(selected_int_kind(18))  :: header_pos
 	double precision 				:: checkdp
-	character(20)					:: readin_format
 	character(400)					:: error_message
 
 	!Allocate random number seed
@@ -876,7 +872,6 @@ subroutine parallel_io_final_state
 	integer(kind=MPI_OFFSET_KIND)      				:: disp, procdisp, filesize
     integer(kind=selected_int_kind(18))     		:: header_pos
 	double precision, dimension(:,:), allocatable 	:: rglobal,rtetherglobal
-	double precision, dimension(:,:), allocatable   :: monomerbuf
 	double precision, dimension(:)  , allocatable   :: buf
 
 	allocate(bufsize(nproc))
@@ -1735,11 +1730,12 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 	use calculated_properties_MD
 	implicit none
 
-	integer,intent(in)						:: CV_mass_out(nbinso(1),nbinso(2),nbinso(3))
-	character(4),intent(in)					:: io_type
+	integer,intent(in)	:: CV_mass_out(nbinso(1),nbinso(2),nbinso(3))
+	character(4),intent(in)	:: io_type
 
-	integer									:: m,nresults,icell,jcell,kcell,ibin,jbin,kbin,n
-	character(30)							:: filename, outfile
+	integer	:: CVmasscopy(nbinso(1),nbinso(2),nbinso(3))
+	integer :: m,nresults
+	character(30) :: filename, outfile
 
 	!Work out correct filename for i/o type
 	write(filename, '(a9,a4)' ) 'results/m', io_type
@@ -1747,7 +1743,11 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 
 	!Swap halo surface fluxes to get correct values for all cells
 	nresults = 1
-	call iswaphalos(CV_mass_out,nbinso(1),nbinso(2),nbinso(3),nresults)
+
+	!This is done to satisfy pedantic compiler, i.e. CV_mass_out must not be changed
+	CVmasscopy = CV_mass_out
+!	call iswaphalos(CV_mass_out,nbinso(1),nbinso(2),nbinso(3),nresults)
+	call iswaphalos(CVmasscopy,nbinso(1),nbinso(2),nbinso(3),nresults)
 
 	!Calculate record number timestep
 	if (io_type .eq. 'snap') then
@@ -1901,7 +1901,11 @@ use calculated_properties_MD
 implicit none
 
 	integer		:: ixyz
-
+	
+	! Remove the following lines when parallelising, they are only here
+	! to satisfy the compiler in pedantic mode
+	integer :: dummy
+	dummy = ixyz
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 end subroutine temperature_slice_io
@@ -2122,8 +2126,14 @@ subroutine viscosity_io
 
 end subroutine viscosity_io
 
-subroutine viscometrics_io
+subroutine viscometrics_io(eta,N1,N2,P)
 implicit none
+
+	real(kind(0.d0)), intent(in) :: eta, N1, N2, P
+
+	!Remove all these lines, they are only here to satisfy pedantic compiler	
+	real(kind(0.d0)) :: dummy
+	dummy = eta + N1 + N2 + P
 
 	print*, 'Viscometrics_io not developed in parallel'
 
@@ -2143,7 +2153,7 @@ subroutine mass_flux_io
 	use calculated_properties_MD
 	implicit none
 
-	integer				:: i,j,k,n,m,nresults
+	integer				:: m,nresults
 	character(30)		:: filename, outfile
 
 	!Work out correct filename for i/o type
@@ -2178,7 +2188,7 @@ subroutine momentum_flux_io
 	use calculated_properties_MD
 	implicit none
 
-	integer											:: ixyz,i,j,k,n,m,nresults
+	integer											:: ixyz,m,nresults
 	double precision								:: binface
 	double precision,allocatable,dimension(:,:,:,:)	:: temp
 
@@ -2217,16 +2227,21 @@ end subroutine momentum_flux_io
 !---------------------------------------------------------------------------------
 ! Record stress accross plane
 
-subroutine MOP_stress_io
+subroutine MOP_stress_io(ixyz_in)
 	use module_parallel_io
 	use calculated_properties_MD
 	use messenger
 	implicit none
 
+	integer, intent(in) :: ixyz_in
+
 	integer							:: m, ixyz, jxyz, kxyz
 	integer							:: slicefileid, dp_datasize
 	integer,dimension(3)			:: idims
 	integer(kind=MPI_OFFSET_KIND)   :: disp
+
+	!This line added to satisfy pedantic compiler. Remove if you want.
+	ixyz = ixyz_in
 
 	ixyz = vflux_outflag
 
@@ -2305,7 +2320,7 @@ subroutine surface_stress_io
 	use calculated_properties_MD
 	implicit none
 
-	integer												:: ixyz,m,nresults,n,i,j,k
+	integer												:: ixyz,m,nresults
 	double precision									:: binface
 	double precision,dimension(:,:,:,:),allocatable		:: temp
 
@@ -2428,6 +2443,10 @@ subroutine MOP_energy_io(ixyz)
 	implicit none
 
 	integer		:: ixyz
+
+	! Remove when parallelising, only here to satisfy pedantic compiler
+	integer :: dummy
+	dummy = ixyz
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 

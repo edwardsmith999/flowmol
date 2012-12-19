@@ -81,7 +81,6 @@ subroutine simulation_record
 
 	integer			:: vmd_iter
 	integer,save	:: i = 1
-	character*8     :: iterchar
 
 	if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
 		call mass_flux_averaging(mflux_outflag)				!Average mass flux before movement of particles
@@ -89,9 +88,9 @@ subroutine simulation_record
 		call energy_flux_averaging(eflux_outflag)			!Average energy flux after movement of particles
 	endif
 
-	!-------------------------------Only record every tplot iterations------------------------
+	!---------------Only record every tplot iterations------------------------
 	if (mod(iter,tplot) .ne. 0) return
-	!-------------------------------Only record every tplot iterations------------------------
+	!---------------Only record every tplot iterations------------------------
 
 	!Parallel output for molecular positions
 	if (vmd_outflag.ne.0 .and. size(vmd_intervals,2).ge.i) then
@@ -100,14 +99,19 @@ subroutine simulation_record
 			!print*, iter,vmd_iter,i,vmd_count,vmd_intervals(1,i),vmd_intervals(2,i)
 			select case(vmd_outflag)
 			case(1)
-				call parallel_io_vmd(vmd_intervals(1,i),vmd_intervals(2,i),i)
+				!call parallel_io_vmd(vmd_intervals(1,i),vmd_intervals(2,i),i)
+				call parallel_io_vmd
 			case(2)
-				call parallel_io_vmd_sl(vmd_intervals(1,i),vmd_intervals(2,i),i)
+				!call parallel_io_vmd_sl(vmd_intervals(1,i),vmd_intervals(2,i),i)
+				call parallel_io_vmd_sl
 			case(3)
-				call parallel_io_vmd(vmd_intervals(1,i),vmd_intervals(2,i),i)
-				call parallel_io_vmd_halo(vmd_intervals(1,i),vmd_intervals(2,i),i)
+				!call parallel_io_vmd(vmd_intervals(1,i),vmd_intervals(2,i),i)
+				call parallel_io_vmd
+				!call parallel_io_vmd_halo(vmd_intervals(1,i),vmd_intervals(2,i),i)
+				call parallel_io_vmd_halo
 			case(4)
-				call parallel_io_vmd_true(vmd_intervals(1,i),vmd_intervals(2,i),i)
+				!call parallel_io_vmd_true(vmd_intervals(1,i),vmd_intervals(2,i),i)
+				call parallel_io_vmd_true
 			case default
 				call error_abort('Unrecognised vmd_outflag in simulation_record')
 			end select
@@ -207,7 +211,7 @@ subroutine evaluate_macroscopic_properties
 	use module_record
 	implicit none
 
-	integer :: n,m, ixyz
+	integer :: n,ixyz
 
 	vsum  = 0.d0                                                ! Reset all sums
 	v2sum = 0.d0                                                ! Reset all sums
@@ -612,11 +616,6 @@ implicit none
 	N2  = -1.d0*N2
 	P   = -1.d0*P
 
-!	print('(a8,f10.4)'), adjustr('eta: '), eta
-!	print('(a8,f10.4)'), adjustr('N1: '),  N1
-!	print('(a8,f10.4)'), adjustr('N2: '),  N2
-!	print('(a8,f10.4)'), adjustr('P: '),   P
-
 	call viscometrics_io(eta,N1,N2,P)
 
 end subroutine evaluate_viscometrics
@@ -652,6 +651,7 @@ subroutine etevtcf_calculate_parallel
 			end do
 		end do
 		call globalSumTwoDim(etev_0,nchains,nd)
+
 	end if
 
 	!--------------------------------------------------------------------
@@ -748,10 +748,8 @@ subroutine mass_averaging(ixyz)
 	use module_record
 	implicit none
 
-	integer							:: ixyz, n,i,j,k
+	integer							:: ixyz
 	integer, save					:: average_count=-1
-	integer		,dimension(3)		:: ibin
-	double precision,dimension(3)	:: ri, mbinsize
 
 	average_count = average_count + 1
 	call cumulative_mass(ixyz)
@@ -836,7 +834,7 @@ subroutine velocity_averaging(ixyz)
 	use linked_list
 	implicit none
 
-	integer				:: ixyz, icell,jcell,kcell
+	integer				:: ixyz
 	integer, save		:: average_count=-1
 	
 	average_count = average_count + 1
@@ -876,7 +874,7 @@ subroutine cumulative_velocity(ixyz)
 	use linked_list
 	implicit none
 
-	integer							:: n,m,i,j,k,ixyz
+	integer							:: n,ixyz
 	integer         				:: cbin
 	integer		,dimension(3)		:: ibin
 	double precision				:: slicebinsize
@@ -972,7 +970,7 @@ subroutine cumulative_temperature(ixyz)
 	use linked_list
 	implicit none
 
-	integer							:: n,m,i,j,k,ixyz
+	integer							:: n,ixyz
 	integer         				:: cbin
 	integer		,dimension(3)		:: ibin
 	double precision				:: slicebinsize
@@ -1065,8 +1063,7 @@ subroutine cumulative_pressure(ixyz,sample_count)
 	use shear_info_MD, only: le_sp, le_sr, le_sd
 	implicit none
 
-	integer								:: sample_count,i,n,ixyz,jxyz,kxyz
-	integer								:: imin, jmin, kmin, imax, jmax, kmax
+	integer								:: sample_count,n,ixyz,jxyz,kxyz
 	double precision, dimension(3)		:: velvect
 	double precision, dimension(3)      :: rglob
 	double precision, dimension(3,3)	:: Pxytemp
@@ -1251,8 +1248,7 @@ subroutine simulation_compute_kinetic_VA_cells(imin,imax,jmin,jmax,kmin,kmax)
 	implicit none
 
 	integer,intent(in)				:: imin, jmin, kmin, imax, jmax, kmax
-
-	integer                         :: i, j, ixyz, jxyz   !Define dummy index
+	integer                         :: i, ixyz, jxyz   !Define dummy index
 	integer 						:: ibin, jbin, kbin,icell, jcell, kcell
 	integer                         :: cellnp, molnoi
 	double precision, dimension(3)	:: velvect
@@ -1435,9 +1431,8 @@ subroutine momentum_flux_averaging(ixyz)
 	use module_record
 	implicit none
 
-	integer				:: ixyz, i
+	integer				:: ixyz
 	integer, save		:: sample_count
-	double precision	:: binface
 
 	if (vflux_outflag .eq. 0) return
 
@@ -1479,11 +1474,11 @@ subroutine cumulative_momentum_flux(ixyz)
 	use module_record
 	implicit none
 
-	integer							:: ixyz,jxyz,kxyz,i,j,k,n
+	integer							:: ixyz,jxyz,i,j,k,n
 	integer							:: planeno
 	integer							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
 	integer		,dimension(3)		:: ibin1,ibin2,cbin
-	double precision				:: crosstime,crossplane,rplane,shift
+	double precision				:: crossplane,rplane,shift
 	double precision,dimension(3)	:: mbinsize,velvect,crossface
 	double precision,dimension(3)	:: ri1,ri2,ri12,bintop,binbot,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
 
@@ -1670,11 +1665,11 @@ subroutine momentum_snapshot
 	use module_record
 	implicit none
 
-	integer											:: n,i,j,k,ixyz,m
+	integer											:: n
 	integer		,dimension(3)						:: ibin
 	integer		,dimension(:,:,:)  ,allocatable		:: volume_mass_temp
 	double precision								:: binvolume
-	double precision,dimension(3)					:: ri, mbinsize, bincentre
+	double precision,dimension(3)					:: mbinsize
 	double precision,dimension(:,:,:,:),allocatable :: volume_momentum_temp
 
 	mbinsize(:) = domain(:) / nbins(:)
@@ -1713,9 +1708,8 @@ subroutine energy_flux_averaging(ixyz)
 	use module_record
 	implicit none
 
-	integer				:: ixyz, i
+	integer				:: ixyz
 	integer, save		:: sample_count
-	double precision	:: binface
 
 	if (eflux_outflag .eq. 0) return
 
@@ -1752,7 +1746,7 @@ subroutine cumulative_energy_flux(ixyz)
 	use module_record
 	implicit none
 
-	integer							:: ixyz,jxyz,kxyz,i,j,k,n
+	integer							:: ixyz,jxyz,i,j,k,n
 	integer							:: planeno,onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
 	integer		,dimension(3)		:: ibin1,ibin2,cbin
 	double precision				:: crosstime,crossplane,rplane,shift,energy
@@ -1935,10 +1929,10 @@ subroutine energy_snapshot
 	use module_record
 	implicit none
 
-	integer											:: n,i,j,k,ixyz,m
+	integer											:: n
 	integer		,dimension(3)						:: ibin
 	double precision								:: binvolume, energy
-	double precision,dimension(3)					:: ri, mbinsize, bincentre,velvect
+	double precision,dimension(3)					:: mbinsize,velvect
 	double precision,dimension(:,:,:),allocatable 	:: volume_energy_temp
 
 	mbinsize(:) = domain(:) / nbins(:)
@@ -1977,7 +1971,7 @@ subroutine pressure_tensor_forces(molno, rij, accijmag)
 	use module_record
 	implicit none
 
-	integer										:: ixyz, jxyz, i
+	integer										:: ixyz, jxyz
 	integer,intent(in)							:: molno
 	double precision,intent(in)     			:: accijmag    !Non directional component of acceleration
 	double precision,dimension(3),intent(in)   	:: rij         !vector between particles i and j
@@ -2002,18 +1996,12 @@ subroutine pressure_tensor_forces_H(ri,rj,rij,accijmag)
 	use module_record
 	implicit none
 
-	integer											:: ixyz, jxyz,i,j,k,l,n
+	integer											:: ixyz, jxyz
 	integer											:: diff
 	integer,dimension(3)							:: ibin, jbin, bindiff 
-	integer,dimension(:,:)		   ,allocatable		:: interbin, interbindiff
 	double precision,intent(in)            			:: accijmag    !Non directional component of acceleration
-	double precision								:: shift
 	double precision,dimension(3), intent(in)		:: rij, ri, rj
-	double precision,dimension(3)					:: VAbinsize, normal, p
-	double precision,dimension(:,:)	   ,allocatable	:: intersection
-	double precision,dimension(:,:,:)  ,allocatable	:: MLfrac !Magnitude of fraction of stress
-	double precision,dimension(:,:,:,:),allocatable	:: Lfrac  !Fraction of stress in a given cell
-
+	double precision,dimension(3)					:: VAbinsize
 
 	!================================================================
 	!= Establish bins for molecules & check number of required bins	=
@@ -2108,7 +2096,6 @@ subroutine pressure_tensor_forces_VA(ri,rj,rij,accijmag)
 	integer,dimension(3)							:: ibin, jbin, bindiff 
 	integer,dimension(:,:)		   ,allocatable		:: interbin, interbindiff
 	double precision,intent(in)            			:: accijmag    !Non directional component of acceleration
-	double precision								:: shift
 	double precision,dimension(3), intent(in)		:: rij, ri, rj
 	double precision,dimension(3)					:: VAbinsize, normal, p,temp1,temp2,temp3
 	double precision,dimension(:,:)	   ,allocatable	:: intersection
@@ -2559,9 +2546,8 @@ subroutine control_volume_forces(fij,ri,rj,molnoi,molnoj)
 use module_record
 implicit none
 
-	integer							:: ixyz, n, molnoi, molnoj
+	integer							:: molnoi, molnoj
 	integer,dimension(3)			:: ibin, jbin
-	double precision				:: binforce
 	double precision,dimension(3)	:: ri, rj, fij,crossplane,fsurface
 	double precision,dimension(3)	:: Fbinsize, bintopi, binboti, bintopj, binbotj
 
@@ -2610,12 +2596,14 @@ subroutine control_volume_stresses(fij,ri,rj,molnoi,molnoj)
 use module_record
 implicit none
 
-	integer							:: i,j,k,ixyz,n,molnoi,molnoj,tempi
+	integer							:: i,j,k,ixyz,molnoi,molnoj
 	integer							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
 	integer,dimension(3)			:: cbin, ibin, jbin
-	double precision				:: binforce
 	double precision,dimension(3)	:: ri,rj,rij,fij,fsurface,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb,velvect
-	double precision,dimension(3)	:: Fbinsize, bintop, binbot, temp
+	double precision,dimension(3)	:: Fbinsize, bintop, binbot
+
+	!This line is only here to satisfy pedantic compiler, remove if you want!
+	molnoj = molnoj
 
 	!Calculate rij
 	rij = ri - rj
@@ -2727,10 +2715,13 @@ subroutine control_volume_stresses_opt(fij,ri,rj,molnoi,molnoj)
 	use module_record
 	implicit none
 
-	integer							:: i,j,k,ixyz,n,molnoi,molnoj,tempi
+	integer							:: i,j,k,ixyz,molnoi,molnoj
 	integer,dimension(3)			:: cbin, ibin, jbin, Si
 	double precision,dimension(3)	:: ri,rj,rij,fij,fsurface,Px,Py,Pz,sgnjit,sgnjib,onfaceb,onfacet,velvect
-	double precision,dimension(3)	:: Fbinsize, bintop, binbot, temp
+	double precision,dimension(3)	:: Fbinsize, bintop, binbot
+
+	!This line is only here to satisfy pedantic compiler, remove if you want!
+	molnoj = molnoj
 
 	!Calculate rij
 	rij = ri - rj
@@ -2816,14 +2807,16 @@ subroutine control_volume_stresses_opt_2(fij,ri,rj,molnoi,molnoj)
 use module_record
 implicit none
 
-	integer							:: i,j,k,ixyz,n,molnoi,molnoj,tempi
+	integer							:: i,j,k,ixyz,molnoi,molnoj
 	!integer							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
 	integer,dimension(3)			:: cbin, ibin, jbin
 	integer,dimension(18)			:: hfacelimits
-	double precision				:: binforce
 	double precision,dimension(3)	:: ri,rj,rij,fij,fsurface,Px,Py,Pz,Si,sgnjit,sgnjib,onfaceb,onfacet,velvect
-	double precision,dimension(3)	:: Fbinsize, bintop, binbot, temp
+	double precision,dimension(3)	:: Fbinsize, bintop, binbot
 	double precision,dimension(18)	:: facelimits
+
+	!This line is only here to satisfy pedantic compiler, remove if you want!
+	molnoj = molnoj
 
 	!Calculate rij
 	rij = ri - rj
@@ -2917,10 +2910,9 @@ subroutine pressure_tensor_forces_MOP(pnxyz,ri,rj,rij,accijmag)
 	use module_record
 	implicit none
 
-	integer,save					:: i,j,k
 	integer							:: n
 	integer							:: pnxyz	 !Plane normal direction
-	integer							:: molno, planenoi,planenoj
+	integer							:: planenoi,planenoj
 	double precision                :: shift, plane !Plane normal components i and j
 	double precision                :: accijmag      !Non directional component of acceleration
 	double precision,dimension(3)   :: ri, rj, rij   !Vector between particles i and j

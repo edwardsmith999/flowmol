@@ -167,7 +167,7 @@ use module_compute_forces
 use polymer_info_MD
 implicit none
 
-	integer                         :: n,i,j,ixyz
+	integer                         :: i,j
 	integer                         :: p_i, p_j, ptot
 	double precision, parameter     :: sod_a    = 3.1730728678
 	double precision, parameter     :: sod_b    = -0.85622864544
@@ -260,11 +260,11 @@ subroutine simulation_compute_forces_LJ_cells
 	use module_compute_forces
 	implicit none
 
-	integer                         :: i,j,n, ixyz   	!Define dummy index
+	integer                         :: i,j !Define dummy index
 	integer							:: icell, jcell, kcell
 	integer                         :: icellshift, jcellshift, kcellshift
 	integer                         :: cellnp, adjacentcellnp
-	integer							:: molnoi, molnoj, memloc
+	integer							:: molnoi, molnoj
 	type(node), pointer 	        :: oldi, currenti, oldj, currentj
 
 
@@ -383,7 +383,7 @@ subroutine simulation_compute_forces_LJ_neigbr
 	use module_compute_forces
 	implicit none
 
-	integer                         :: i, j, ixyz   !Define dummy index
+	integer                         :: j  !Define dummy index
 	integer							:: molnoi, molnoj
 	integer							:: noneighbrs
 	type(neighbrnode), pointer		:: old, current
@@ -460,7 +460,7 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 	use module_compute_forces
 	implicit none
 
-	integer                         :: n, j, ixyz   !Define dummy index
+	integer                         :: j  !Define dummy index
 	integer							:: molnoi, molnoj
 	integer							:: noneighbrs
 	type(neighbrnode), pointer		:: old, current
@@ -741,12 +741,12 @@ subroutine simulation_compute_rfbins(imin, imax, jmin, jmax, kmin, kmax)
 use module_compute_forces
 implicit none
 
-	integer                         :: i, j, ixyz ,jxyz  !Define dummy index
+	integer                         :: i, j, ixyz !Define dummy index
 	integer							:: icell, jcell, kcell
 	integer                         :: icellshift, jcellshift, kcellshift
 	integer                         :: cellnp, adjacentcellnp, cellsperbin
-	integer							:: molnoi, molnoj, memloc
-	integer							:: minbin, maxbin, imin, jmin, kmin, imax, jmax, kmax
+	integer							:: molnoi, molnoj
+	integer							:: imin, jmin, kmin, imax, jmax, kmax
 	type(node), pointer 	        :: oldi, currenti, oldj, currentj
 
 	!rfbin = 0.d0

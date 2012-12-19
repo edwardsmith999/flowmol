@@ -179,7 +179,7 @@ subroutine wall_textures(texture_type)
 	use module_molecule_properties
 	implicit none
 
-	integer 				:: n, mol_layers, icell,jcell,kcell
+	integer 				:: n, icell,jcell
 	character				:: texture_type
 	double precision		:: xlocation,zlocation
 
@@ -240,8 +240,7 @@ subroutine decode_tag(molno)
 
 	integer			:: l,n,m
 	integer 		:: molno, no_2_decode
-	integer			:: fixed, forced, thermostated
-	integer,dimension(5)	:: check, place_value
+	integer,dimension(5) :: check, place_value
 
 	no_2_decode = tag(molno)
 	m = 1
@@ -322,7 +321,7 @@ subroutine tether_force(molno)
 	use arrays_MD
 	implicit none
 
-	integer                        :: molno, ixyz
+	integer                        :: molno
 	double precision               :: acctmag
 	double precision, dimension(3) :: at, rio
 	double precision, parameter    :: k4=5000.d0    !Force constants from...
