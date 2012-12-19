@@ -493,6 +493,15 @@ VISCOSITY_OUTFLAG
 0
 100
 
+#########################################################################
+# Control Volume Conservation Averaging
+#	CV Conservation averaging (0=off 1=on) - take mass, momentum or 
+#	energy flux measure every step to ensureflux will be equal to change 
+#	in snapshots. Note, this increases computational cost somewhat
+#
+# -----------------------------------------------------------------------
+CV_CONSERVE
+1
 
 #########################################################################
 # Output flag for mass flux:

@@ -471,7 +471,7 @@ subroutine set_parameters_outputs
 	call SubcommSum(gnbins(3),3)	!Sum up over all z processes
 
 	!Calculate number of halo bins from ratio of cells to bins
-	nhb = nbins/ncells
+	nhb = ceiling(dble(nbins)/dble(ncells))
 	nbinso = nbins+2*nhb
 
 	!nbins(1) = ceiling(np/10.d0)    	!Set number of equal sized velocity ranges based on 1/10 number of molecules
@@ -736,14 +736,19 @@ end subroutine establish_halo_cells
 
 subroutine establish_surface_bins
 	use module_set_parameters
+	use interfaces, only : error_abort
 	implicit none
 
 	integer		:: n
 	integer		:: ibin, jbin, kbin
 
-	nsurfacebins=	2*( nbins(1)   * nbins(2) &
-					+  (nbins(3)-2)* nbins(2) &
-		        	+  (nbins(3)-2)*(nbins(1)-2))
+	if (any(nbins(:) .eq. 1)) then
+		call error_abort("Error in surface bins -- nbins must be greater than 1")
+	else
+		nsurfacebins=	2*( nbins(1)   * nbins(2) &
+						+  (nbins(3)-2)* nbins(2) &
+			        	+  (nbins(3)-2)*(nbins(1)-2))
+	endif
 
 	allocate(surfacebins(nsurfacebins,3))
 

@@ -109,23 +109,15 @@ contains
 	subroutine md_advance_lfv
 		implicit none
 		
-		call simulation_compute_forces 	                    !Calculate forces on particles	
-		call simulation_record                              !Evaluate & write properties
+		call simulation_compute_forces         !Calculate forces on particles	
+		call simulation_record                 !Evaluate & write properties
 
 #if USE_COUPLER
-
-		call apply_boundary_force
-		!call apply_constraint_force(iter)
-		!call send_boundary_condition(iter)
-
-		!call simulation_apply_boundary_forces           ! Apply boundary force to prevent molecules leaving domain
-		call socket_apply_continuum_forces(iter)		! CFD=> MD Apply CFD based coupling forces on MD
-		!call apply_continuum_forces_flekkoy(iter)	  	! CFD=> MD Apply CFD based coupling forces on MD
-		call average_and_send_MD_to_CFD(iter)			! MD=>CFD Calculate averages of MD to pass to CFD
+		call apply_boundary_force              ! Apply boundary force to prevent molecules leaving domain     
+		call socket_apply_continuum_forces     ! CFD=> MD Apply CFD based coupling forces on MD
+		call average_and_send_MD_to_CFD(iter)  ! MD=>CFD Calculate averages of MD to pass to CFD
 #else
-
 		call apply_boundary_force
-
 #endif
 
 		call simulation_move_particles_lfv                  !Move particles as a result of forces
