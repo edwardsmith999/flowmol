@@ -554,17 +554,17 @@ subroutine socket_apply_continuum_forces
 					constraint_Flekkoy    = Flekkoy,   &
 					constraint_off        = off          )
 	
-		if ( constraint_algorithm .eq. off ) then
-			return
-		else if ( constraint_algorithm .eq. OT ) then
-			call error_abort("OT boundary force not yet implemented")
-		else if ( constraint_algorithm .eq. NCER ) then
-			call apply_continuum_forces_NCER
-		else if ( constraint_algorithm .eq. Flekkoy ) then
-			call apply_continuum_forces_flekkoy
-		else
-			call error_abort("Unrecognised constraint algorithm flag")
-		end if	
+	if ( constraint_algorithm .eq. off ) then
+		return
+	else if ( constraint_algorithm .eq. OT ) then
+		call error_abort("OT constraint force not yet implemented")
+	else if ( constraint_algorithm .eq. NCER ) then
+		call apply_continuum_forces_NCER
+	else if ( constraint_algorithm .eq. Flekkoy ) then
+		call apply_continuum_forces_flekkoy
+	else
+		call error_abort("Unrecognised constraint algorithm flag")
+	end if	
 
 end subroutine socket_apply_continuum_forces
 
@@ -1027,7 +1027,7 @@ subroutine apply_force
 	call CPL_get(dx=dx,dy=dy,dz=dz)
 	dA = dx*dz
 	dV = dx*dy*dz
-	gsumcheck = 0.d0; gratio = 0.d0; ave_a=0.d0; ave_a_consrnt = 0.d0
+
 	!Loop over all molecules and apply constraint
 	do i = 1, np_overlap
 		ip = list(1,i)
@@ -1042,26 +1042,19 @@ subroutine apply_force
 		!gsum = density*dV
 		gsum = box_average(ib,jb,kb)%a(2)
 
-		gsumcheck = gsumcheck + g
-
 		if (gsum .eq. 0.d0) cycle
-		!print'(a,3i7,a,i7,a,3f10.5)', 'gsum is zero, molecules in box ', ib,jb,kb, & 
-		!						    ' = ', n, ' stress =', stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb) 
 
-		gratio = gratio + g/gsum
-		ave_a = ave_a + a(:,ip)
 		a(:,ip) = a(:,ip) + (g/gsum) * dA * stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb) 
-		ave_a_consrnt = ave_a_consrnt + a(:,ip)
 
         if (g .ne. 0.d0) then
-                write(1234,'(i3,2i7,3i4,5f12.6)'),rank_world,iter,ip,ib,jb,kb, &
-                            r(2,ip),v(2,ip),a(2,ip),g,(g/gsum) * dA * stress_cfd(2,2,ib,jb+jcmin_recv-extents(3),kb)
+			write(1234,'(i3,2i7,3i4,5f12.6)'),rank_world,iter,ip,ib,jb,kb, &
+						 					  r(2,ip),v(2,ip),a(2,ip),g, & 
+											 (g/gsum)*dA*stress_cfd(2,2,ib,jb+jcmin_recv-extents(3),kb)
         endif
 	enddo
 
     !write(99999,'(i2,i7,i7,2f10.2,f6.1,3f9.3,6f12.4)'), rank_world,iter,np_overlap,sum(box_average(:,:,:)%a(2)),  &
     !                gsumcheck, gratio, stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb), ave_a,ave_a_consrnt
-
 
 end subroutine apply_force
 
