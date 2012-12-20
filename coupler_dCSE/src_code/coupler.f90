@@ -1851,9 +1851,12 @@ subroutine CPL_get(icmax_olap,icmin_olap,jcmax_olap,jcmin_olap,  &
                    kcmax_olap,kcmin_olap,density_cfd,density_md, &
                    dt_cfd,dt_MD,dx,dy,dz,ncx,ncy,ncz,xg,yg,zg,	 &
                    xL_md,xL_cfd,yL_md,yL_cfd,zL_md,zL_cfd,       &
-                   constraint_algo,constraint_CVflag,            &
-                   constraint_OT,constraint_NCER,                &
-                   constraint_Flekkoy,constraint_off,            &
+                   constraint_algo, constraint_CVflag,           &
+                   constraint_OT, constraint_NCER,               &
+                   constraint_Flekkoy, constraint_off,           &
+                   icmin_cnst, icmax_cnst,                       &
+                   jcmin_cnst, jcmax_cnst,                       &
+                   kcmin_cnst, kcmax_cnst,                       &
                    md_cfd_match_cellsize,staggered_averages,timestep_ratio	)
 	use coupler_module, only : 	icmax_olap_=>icmax_olap,         &
 	                            icmin_olap_=>icmin_olap,         &
@@ -1876,13 +1879,18 @@ subroutine CPL_get(icmax_olap,icmin_olap,jcmax_olap,jcmin_olap,  &
 								timestep_ratio_ => timestep_ratio, &
 	                            md_cfd_match_cellsize_ => md_cfd_match_cellsize, &
 								staggered_averages_ => staggered_averages, &
-                                constraint_algo_ => constraint_algo, &
-	                            constraint_CVflag_ => constraint_CVflag, &
-	                            constraint_OT_ => constraint_OT, &
-	                            constraint_NCER_ => constraint_NCER, & 
+                                constraint_algo_ => constraint_algo,       &
+	                            constraint_CVflag_ => constraint_CVflag,   &
+	                            constraint_OT_ => constraint_OT,           &
+	                            constraint_NCER_ => constraint_NCER,       & 
 	                            constraint_Flekkoy_ => constraint_Flekkoy, &
-	                            constraint_off_ => constraint_off
-
+	                            constraint_off_ => constraint_off,         &
+	                            icmin_cnst_ => icmin_cnst, &
+	                            icmax_cnst_ => icmax_cnst, &
+	                            jcmin_cnst_ => jcmin_cnst, &
+	                            jcmax_cnst_ => jcmax_cnst, &
+	                            kcmin_cnst_ => kcmin_cnst, &
+	                            kcmax_cnst_ => kcmax_cnst
 	implicit none
 
 	logical,dimension(3),optional,intent(out) :: staggered_averages
@@ -1899,6 +1907,9 @@ subroutine CPL_get(icmax_olap,icmin_olap,jcmax_olap,jcmin_olap,  &
 	integer, optional, intent(out)          :: constraint_NCER
 	integer, optional, intent(out)          :: constraint_Flekkoy
 	integer, optional, intent(out)          :: constraint_off
+	integer, optional, intent(out)			:: icmax_cnst, icmin_cnst
+	integer, optional, intent(out)			:: jcmax_cnst, jcmin_cnst
+	integer, optional, intent(out)			:: kcmax_cnst, kcmin_cnst
 
 	real(kind(0.d0)), optional, intent(out)	:: density_cfd,density_md
 	real(kind(0.d0)), optional, intent(out) :: dt_cfd,dt_MD
@@ -1970,6 +1981,12 @@ subroutine CPL_get(icmax_olap,icmin_olap,jcmax_olap,jcmin_olap,  &
 	if (present(constraint_NCER)) constraint_NCER = constraint_NCER_
 	if (present(constraint_Flekkoy)) constraint_Flekkoy = constraint_Flekkoy_
 	if (present(constraint_off)) constraint_off = constraint_off_
+	if (present(icmin_cnst)) icmin_cnst = icmin_cnst_
+	if (present(icmax_cnst)) icmax_cnst = icmax_cnst_
+	if (present(jcmin_cnst)) jcmin_cnst = jcmin_cnst_
+	if (present(jcmax_cnst)) jcmax_cnst = jcmax_cnst_
+	if (present(kcmin_cnst)) kcmin_cnst = kcmin_cnst_
+	if (present(kcmax_cnst)) kcmax_cnst = kcmax_cnst_
 
 end subroutine CPL_get
 

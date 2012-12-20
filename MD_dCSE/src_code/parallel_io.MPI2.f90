@@ -863,7 +863,6 @@ subroutine parallel_io_final_state
 	use module_parallel_io
 	use polymer_info_MD
 	implicit none
-	!include 'mpif.h'
 
 	integer				   							:: n, i
 	integer                                         :: pos

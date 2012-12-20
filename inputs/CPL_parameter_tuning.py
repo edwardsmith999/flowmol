@@ -2,7 +2,7 @@
 import math
 
 # "Inputs"
-density = 0.8
+density = 0.78
 rcutoff = 2.0**(1.0/6.0) 
 dr_nbr  = 0.29
 d_xL    = 45.1
@@ -53,7 +53,7 @@ ncells_z_cfd = int(round(zL_cfd/dz_cfd))
 yL_cfd = ncells_y_cfd*dy_cfd
 
 message = (
-           "Inputs: \n" + 
+           "CPL_parameter_tuning inputs: \n" + 
            "\tdensity:           \t" + str(density)        + "\n" + 
            "\trcutoff:           \t" + str(rcutoff)        + "\n" + 
            "\tdr_nbr:            \t" + str(dr_nbr)         + "\n" + 
@@ -62,8 +62,9 @@ message = (
            "\tDesired MD yL:     \t" + str(d_yL_md)        + "\n" + 
            "\tHCP wall layers:   \t" + str(wall_layers)    + "\n" + 
            "\tDesired CFD yL:    \t" + str(d_yL_cfd)       + "\n" + 
-           "\tCellsize ratio:    \t" + str(cellsize_ratio) + "\n" + 
+           "\tCellsize ratio:    \t" + str(cellsize_ratio) + "\n\n" + 
 
+           "---------- TUNING CALCULATIONS RESULTS ---------- \n\n" +
            "Results: \n" + 
            "\tMD FCC units(x):   \t" + str(nunits_x_md)    + "\n" + 
            "\tMD FCC units(y):   \t" + str(nunits_y_md)    + "\n" + 
@@ -89,7 +90,48 @@ message = (
            "\tMD cell length(z): \t" + str(dz_md)          + "\n" +  
            "\tCFD cell length(x):\t" + str(dx_cfd)         + "\n" +  
            "\tCFD cell length(y):\t" + str(dy_cfd)         + "\n" +  
-           "\tCFD cell length(z):\t" + str(dz_cfd)
+           "\tCFD cell length(z):\t" + str(dz_cfd)         + "\n\n\n" + 
+
+           "----------- SUGGESTED INPUT PARAMETERS ---------- \n\n" +
+           "MD.in: \n\n" +
+           "\tDENSITY:           \t" + str(density) + "\n" +
+		   "\tINITIALNUNITS(x):  \t" + str(nunits_x_md) + "\n" +
+           "\tINITIALNUNITS(y):  \t" + str(nunits_y_md) + "\n" +
+           "\tINITIALNUNITS(z):  \t" + str(nunits_z_md) + "\n" +
+           "\tDELTA_RNEIGHBR:    \t" + str(dr_nbr) + "\n" +
+           "\tTETHERDISTBOTTOM:  \t" + str(teth_dist) + "\n" +
+           "\tTHERMSTATBOTTOM:   \t" + "don't forget it!" + "\n" +
+           "\tPROCESSORS:        \t" + "don't forget it!" + "\n\n" +
+           
+          "param.inc: \n\n" +
+          "\tngx:                \t" + str(ncells_x_cfd) + "+1\n" +
+          "\tngy:                \t" + str(ncells_y_cfd) + "+1\n" +
+          "\tngz:                \t" + str(ncells_z_cfd) + "+1\n" +
+          "\tnpx,npy,npz:        \t" + "don't forget it!" + "\n\n" +
+
+          "input: \n\n" 
+          "\tRe:                 \t" + "don't forget it!" + "\n" +
+          "\tnsteps:             \t" + "don't forget it!" + "\n\n" +
+
+          "input.file: \n\n" +
+          "\tLx:                 \t" + str(xL_cfd) + "\n" +
+          "\tLy:                 \t" + str(yL_cfd) + "\n" +
+          "\tngx:                \t" + str(ncells_x_cfd+1) + "\n" +
+          "\tngy:                \t" + str(ncells_y_cfd+1) + "\n\n" +
+
+          "input.setup: \n\n" +
+          "\tnix:                \t" + str(ncells_x_cfd+1) + "\n" +
+          "\tniy:                \t" + str(ncells_y_cfd+1) + "\n" +
+          "\tniz:                \t" + str(ncells_z_cfd+1) + "\n" +
+          "\txL:                 \t" + str(xL_cfd) + "\n" +
+          "\tyL:                 \t" + str(yL_cfd) + "\n" +
+          "\tzL:                 \t" + str(zL_cfd) + "\n\n" +
+
+          "COUPLER.in: \n\n" +
+          "\tDENSITY_CFD:        \t" + str(density) + "\n" +
+          "\tCONSTRAINT_INFO:    \t" + "don't forget to set the cells correctly!" + "\n" +
+          "\tOVERLAP_EXTENTS:    \t" + "don't forget to set the cells correctly! \n\n\n"
+
           )
 
 print(message)

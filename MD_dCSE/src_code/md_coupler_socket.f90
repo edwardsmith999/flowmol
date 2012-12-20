@@ -585,14 +585,11 @@ subroutine apply_continuum_forces_NCER
 	use linked_list
 	implicit none
 
-	integer 				:: iter_average, limits(6)
+	integer 				:: iter_average
 	integer					:: i,j,k,n,np_overlap
-	integer					:: icmin_olap,icmax_olap,jcmin_olap,jcmax_olap,kcmin_olap,kcmax_olap
 	integer,allocatable 	:: list(:,:)
 	real(kind=kind(0.d0))	:: inv_dtCFD,t_fract,CFD_box(6)
-
-	integer,save			:: cnstnd_cells,jcmin_recv,jcmax_recv	!todo - SHOULD NOT BE HARDWIRED
-	integer,save			:: pcoords(3),extents(6),timestep_ratio
+	integer,save			:: cnstd(6),pcoords(3),extents(6),timestep_ratio
 	logical,save			:: recv_flag, first_time=.true.
 	save CFD_box
 
@@ -604,19 +601,17 @@ subroutine apply_continuum_forces_NCER
 		!Save extents of current processor
 		pcoords= (/ iblock,jblock,kblock   /)
 		call CPL_proc_extents(pcoords,CPL_realm(),extents)
+
 		!Get local copies of required simulation parameters
-		call CPL_get(icmin_olap=icmin_olap,icmax_olap=icmax_olap, & 
-	                 jcmin_olap=jcmin_olap,jcmax_olap=jcmax_olap, & 
-					 kcmin_olap=kcmin_olap,kcmax_olap=kcmax_olap, &
-	                 timestep_ratio=timestep_ratio)
-		!Number of cells to receive
-		cnstnd_cells = 1	!~10% of the total domain
-		jcmin_recv = jcmax_olap-cnstnd_cells
-		jcmax_recv = jcmax_olap-cnstnd_cells
-		limits = (/ icmin_olap,icmax_olap, jcmin_recv,jcmax_recv, kcmin_olap,kcmax_olap  /)
-		call setup_CFD_box(limits,CFD_box,recv_flag)
+		call CPL_get(icmin_cnst=cnstd(1),icmax_cnst=cnstd(2), & 
+	                 jcmin_cnst=cnstd(3),jcmax_cnst=cnstd(4), & 
+					 kcmin_cnst=cnstd(5),kcmax_cnst=cnstd(6), &
+	                 timestep_ratio=timestep_ratio              )
+
+		call setup_CFD_box(cnstd,CFD_box,recv_flag)
 		!At first CFD step we don't have two values to extrapolate CFD velocities, set inv_dtCFD=0
 		inv_dtCFD = 0.0
+
 	else
 		inv_dtCFD = 1.0/coupler_md_get_dt_cfd()
 	endif
@@ -624,8 +619,11 @@ subroutine apply_continuum_forces_NCER
 
 	! Receive value of CFD velocities at first timestep of timestep_ratio
 	if (iter_average .eq. 1) then
-		call CPL_recv(uvw_cfd,jcmax_recv=jcmax_recv, & 
-							  jcmin_recv=jcmin_recv,recv_flag=recv_flag)
+		call CPL_recv(uvw_cfd,                                 & 
+		              icmin_recv=cnstd(1),icmax_recv=cnstd(2), &
+		              jcmin_recv=cnstd(3),jcmax_recv=cnstd(4), &
+		              kcmin_recv=cnstd(5),kcmax_recv=cnstd(6), &
+		              recv_flag=recv_flag                       )
 	else
 		!Linear extrapolation between velocity at t and t+1
 	endif
@@ -642,7 +640,6 @@ contains
 ! Run through the particle, check if they are in the overlap region and
 ! find the CFD box to which the particle belongs		 
 !-----------------------------------------------------------------------------------
-
 subroutine setup_CFD_box(limits,CFD_box,recv_flag)
 	use CPL, only : CPL_recv,CPL_proc_portion,localise,map_cfd2md_global,CPL_get,VOID
 	implicit none
@@ -652,7 +649,7 @@ subroutine setup_CFD_box(limits,CFD_box,recv_flag)
 	!Flag to check if limits cover current processor
 	logical				 ,intent(out)	:: recv_flag
 	!Returned spacial limits of CFD box to receive data
-	real(kind=kind(0.d0)),dimension(6) :: CFD_box
+	real(kind=kind(0.d0)),dimension(6)  :: CFD_box
 
 	integer 	  		  :: portion(6)
 	integer		  		  :: nclx,ncly,nclz,ncbax,ncbay,ncbaz,ierr
@@ -737,9 +734,9 @@ subroutine average_over_bin
 
 		if ( r(2,n) .gt. CFD_box(3) .and. r(2,n) .lt. CFD_box(4)) then
 
-			ib = ceiling((r(1,n)+halfdomain(1))/dx)
-			jb = ceiling((r(2,n)-CFD_box(3)   )/dy)
-			kb = ceiling((r(3,n)+halfdomain(3))/dz)
+			ib = ceiling((r(1,n)-CFD_box(1))/dx)
+			jb = ceiling((r(2,n)-CFD_box(3))/dy) !CFD_box already in -halfdom -> +halfdom system 
+			kb = ceiling((r(3,n)-CFD_box(5))/dz)
 
 			!Add out of domain molecules to nearest cell on domain
 			if (ib.lt.1) ib = 1; if (ib.gt.size(box_average,1)) ib = size(box_average,1)
@@ -748,9 +745,9 @@ subroutine average_over_bin
 			np_overlap = np_overlap + 1
 			list(1:4, np_overlap) = (/ n, ib, jb, kb /)
 
-			box_average(ib,jb,kb)%np   =  box_average(ib,jb,kb)%np   + 1
-			box_average(ib,jb,kb)%v(:) =  box_average(ib,jb,kb)%v(:) + v(:,n)
-			box_average(ib,jb,kb)%a(:) =  box_average(ib,jb,kb)%a(:) + a(:,n)
+			box_average(ib,jb,kb)%np   = box_average(ib,jb,kb)%np   + 1
+			box_average(ib,jb,kb)%v(:) = box_average(ib,jb,kb)%v(:) + v(:,n)
+			box_average(ib,jb,kb)%a(:) = box_average(ib,jb,kb)%a(:) + a(:,n)
 
 		endif
 
@@ -760,8 +757,8 @@ subroutine average_over_bin
     do jb = 1,size(box_average,2)
 		box_average(:,jb,:)%np  =  sum(box_average(:,jb,:)%np)
 		do ixyz =1,3
-			box_average(:,jb,:)%v(ixyz)   =  sum(box_average(:,jb,:)%v(ixyz))
-			box_average(:,jb,:)%a(ixyz)   =  sum(box_average(:,jb,:)%a(ixyz))
+			box_average(:,jb,:)%v(ixyz) = sum(box_average(:,jb,:)%v(ixyz))
+			box_average(:,jb,:)%a(ixyz) = sum(box_average(:,jb,:)%a(ixyz))
 		enddo
     enddo
 
@@ -790,8 +787,12 @@ subroutine apply_force
 		kb = list(4,i)
 
 		n = box_average(ib,jb,kb)%np
+
 		acfd =	- box_average(ib,jb,kb)%a(1) / n - inv_dtMD * & 
-				( box_average(ib,jb,kb)%v(1) / n - uvw_cfd(1,ib,jb+jcmin_recv-extents(3),kb) )
+				( box_average(ib,jb,kb)%v(1) / n - uvw_cfd(1,ib,jb+cnstd(3)-extents(3),kb) )
+		! ib,jb,kb are indicators of which CFD cell in !!!constrained!!! region
+		! uvw_cfd is allocated by number of CFD cells on !!!MD!!! processor
+		! box_avg is allocated by number of CFD cells in !!!constrained!!! region
 
 		a(1,ip) = a(1,ip) + acfd
 
@@ -816,15 +817,13 @@ subroutine apply_continuum_forces_flekkoy
 	use linked_list
 	implicit none
 
-	integer 				:: iter_average, limits(6)
+	integer 				:: iter_average
 	integer					:: i,j,k,n,np_overlap
 	integer					:: icmin_olap,icmax_olap,jcmin_olap,jcmax_olap,kcmin_olap,kcmax_olap
 	integer,allocatable 	:: list(:,:)
 	real(kind=kind(0.d0))	:: inv_dtCFD,t_fract,CFD_box(6)
 	real(kind=kind(0.d0)),allocatable,dimension(:,:,:,:)	:: recv_buf
-
-	integer,save			:: cnstnd_cells,jcmin_recv,jcmax_recv	!to do - SHOULD NOT BE HARDWIRED
-	integer,save			:: pcoords(3),extents(6),timestep_ratio
+	integer,save			:: cnstd(6),pcoords(3),extents(6),timestep_ratio
 	logical,save			:: recv_flag, first_time=.true.
 	save CFD_box
 
@@ -837,16 +836,12 @@ subroutine apply_continuum_forces_flekkoy
 		pcoords= (/ iblock,jblock,kblock   /)
 		call CPL_proc_extents(pcoords,CPL_realm(),extents)
 		!Get local copies of required simulation parameters
-		call CPL_get(icmin_olap=icmin_olap,icmax_olap=icmax_olap, & 
-	                 jcmin_olap=jcmin_olap,jcmax_olap=jcmax_olap, & 
-					 kcmin_olap=kcmin_olap,kcmax_olap=kcmax_olap, &
-	                 timestep_ratio=timestep_ratio)
-		!Number of cells to receive
-		cnstnd_cells = 1	!~10% of the total domain
-		jcmin_recv = jcmax_olap-cnstnd_cells
-		jcmax_recv = jcmax_olap-cnstnd_cells
-		limits = (/ icmin_olap,icmax_olap, jcmin_recv,jcmax_recv, kcmin_olap,kcmax_olap  /)
-		call setup_CFD_box(limits,CFD_box,recv_flag)
+		call CPL_get(icmin_cnst=cnstd(1),icmax_cnst=cnstd(2), & 
+	                 jcmin_cnst=cnstd(3),jcmax_cnst=cnstd(4), & 
+					 kcmin_cnst=cnstd(5),kcmax_cnst=cnstd(6), &
+	                 timestep_ratio=timestep_ratio              )
+
+		call setup_CFD_box(cnstd,CFD_box,recv_flag)
 
 	endif
 
@@ -856,8 +851,11 @@ subroutine apply_continuum_forces_flekkoy
 	if (iter_average .eq. 1 .or. first_time) then
 		allocate(recv_buf(9,size(stress_cfd,3),size(stress_cfd,4),size(stress_cfd,5)))
 		recv_buf = -666
-		call CPL_recv(recv_buf,jcmax_recv=jcmax_recv, & 
-						       jcmin_recv=jcmin_recv,recv_flag=recv_flag)
+		call CPL_recv(recv_buf,                                 & 
+		              icmin_recv=cnstd(1),icmax_recv=cnstd(2), &
+		              jcmin_recv=cnstd(3),jcmax_recv=cnstd(4), &
+		              kcmin_recv=cnstd(5),kcmax_recv=cnstd(6), &
+		              recv_flag=recv_flag                       )
 		stress_cfd = reshape(recv_buf,(/ 3,3,size(recv_buf,2),size(recv_buf,3),size(recv_buf,4) /) )
 		!print*, 'recvd stress cfd',iblock,jblock,kblock,stress_cfd(2,2,:,:,:)
 	else
@@ -978,9 +976,9 @@ subroutine average_over_bin
 
 		if ( r(2,n) .gt. CFD_box(3) .and. r(2,n) .lt. CFD_box(4)) then
 
-			ib = ceiling((r(1,n)+halfdomain(1))/dx)
-			jb = ceiling((r(2,n)-CFD_box(3)   )/dy)
-			kb = ceiling((r(3,n)+halfdomain(3))/dz)
+			ib = ceiling((r(1,n)-CFD_box(1))/dx)
+			jb = ceiling((r(2,n)-CFD_box(3))/dy)
+			kb = ceiling((r(3,n)-CFD_box(5))/dz)
 
 			!Add out of domain molecules to nearest cell on domain
 			if (ib.lt.1) ib = 1; if (ib.gt.size(box_average,1)) ib = size(box_average,1)
@@ -1041,12 +1039,12 @@ subroutine apply_force
 
 		if (gsum .eq. 0.d0) cycle
 
-		a(:,ip) = a(:,ip) + (g/gsum) * dA * stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb) 
+		a(:,ip) = a(:,ip) + (g/gsum) * dA * stress_cfd(:,2,ib,jb+cnstd(3)-extents(3),kb) 
 
         if (g .ne. 0.d0) then
 			write(1234,'(i3,2i7,3i4,5f12.6)'),rank_world,iter,ip,ib,jb,kb, &
 						 					  r(2,ip),v(2,ip),a(2,ip),g, & 
-											 (g/gsum)*dA*stress_cfd(2,2,ib,jb+jcmin_recv-extents(3),kb)
+											 (g/gsum)*dA*stress_cfd(2,2,ib,jb+cnstd(3)-extents(3),kb)
         endif
 	enddo
 
