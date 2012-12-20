@@ -200,7 +200,7 @@ subroutine  socket_coupler_send
 					constraint_NCER       = NCER,      &
 					constraint_Flekkoy    = Flekkoy,   &
 					constraint_off        = off          )
-	
+
 	if ( constraint_algorithm .eq. off ) then
 		return
 	else if ( constraint_algorithm .eq. OT ) then
@@ -226,12 +226,16 @@ subroutine socket_coupler_send_velocity
 
 	logical	:: send_flag
     integer	:: i,j,ii,ixyz,icell,jcell,kcell,npercell,nclx,ncly,nclz
-    integer	:: coord(3),extents(6),cnstnd_cells,jcmin_send,jcmax_send,jcmax_olap
-    real(kind(0.d0)),dimension(:,:,:,:), allocatable 	:: sendbuf
+    integer	:: coord(3),extents(6),cnstd(6)
+    real(kind(0.d0)),dimension(:,:,:,:), allocatable :: sendbuf
 
 	! Check processor is inside MD/CFD overlap zone 
 	if (.not.(CPL_overlap())) return
-	call CPL_get(jcmax_olap=jcmax_olap)
+
+	!Number of cells to package and send
+	call CPL_get( icmin_cnst=cnstd(1),icmax_cnst=cnstd(2), &
+	              jcmin_cnst=cnstd(3),jcmax_cnst=cnstd(4), &
+	              kcmin_cnst=cnstd(5),kcmax_cnst=cnstd(6)  )
 
 	!Three velocity components
 	npercell = 3
@@ -243,15 +247,10 @@ subroutine socket_coupler_send_velocity
 	ncly = extents(4)-extents(3)+1
 	nclz = extents(6)-extents(5)+1
 	allocate(sendbuf(npercell,nclx,ncly,nclz))
- 
-	!Number of cells to package and send
-	cnstnd_cells = 1
-	jcmin_send = jcmax_olap-cnstnd_cells
-	jcmax_send = jcmax_olap-cnstnd_cells ! -1 for applying two below bottom (arbitrary?) TODO input file
 
 	!Interpolate cell centres using surfaces
-	sendbuf = 0.d0
-	do j=jcmin_send,jcmax_send
+	sendbuf(:,:,:,:) = 0.d0
+	do j=cnstd(3),cnstd(4)
 	do i=1,nclx
 		ii = i + i1_u - 1
 		sendbuf(1,i,j,:) = 0.5d0*(uc(:,ii,j) + uc(:,ii+1,j))
@@ -259,9 +258,11 @@ subroutine socket_coupler_send_velocity
 	!call printf(sendbuf(1,40,j,:))
 	enddo
 
-	!Send data to MD
-	call CPL_send(sendbuf,jcmax_send=jcmax_send, & 
-					      jcmin_send=jcmin_send,send_flag=send_flag)
+	call CPL_send( sendbuf,                                 &
+	               icmin_send=cnstd(1),icmax_send=cnstd(2), &
+	               jcmin_send=cnstd(3),jcmax_send=cnstd(4), &
+	               kcmin_send=cnstd(5),kcmax_send=cnstd(6), &
+	               send_flag=send_flag                        )
 
 end subroutine socket_coupler_send_velocity
 
@@ -277,13 +278,16 @@ subroutine socket_coupler_send_stress
 
 	logical	:: send_flag
     integer	:: i,j,k,ii,ixyz,icell,jcell,kcell,npercell,nclx,ncly,nclz
-    integer	:: coord(3),extents(6),cnstnd_cells,jcmin_send,jcmax_send,jcmax_olap
+    integer	:: coord(3),extents(6),cnstd(6)
     real(kind(0.d0)),dimension(:,:,:,:), allocatable 	:: sendbuf
 	real(kind(0.d0)),dimension(:,:,:,:,:), allocatable 	:: stress
 
 	! Check processor is inside MD/CFD overlap zone 
 	if (.not.(CPL_overlap())) return
-	call CPL_get(jcmax_olap=jcmax_olap)
+	!Number of cells to package and send
+	call CPL_get( icmin_cnst=cnstd(1),icmax_cnst=cnstd(2), &
+	              jcmin_cnst=cnstd(3),jcmax_cnst=cnstd(4), &
+	              kcmin_cnst=cnstd(5),kcmax_cnst=cnstd(6)  )
 
 	!Three by three stress tensor components
 	npercell = 9
@@ -296,16 +300,11 @@ subroutine socket_coupler_send_stress
 	nclz = extents(6)-extents(5)+1
 	allocate(sendbuf(npercell,nclx,ncly,nclz))
 
-	!Number of cells to package and send
-	cnstnd_cells = 1
-	jcmin_send = jcmax_olap-cnstnd_cells
-	jcmax_send = jcmax_olap-cnstnd_cells
-
 	!Get stress tensor at cell centers and store in buffer
 	call Evaluate_stress(uc,vc,wc,P,stress)
 	sendbuf = 0.d0
 	do i=1,nclx
-	do j=jcmin_send,jcmax_send
+	do j=cnstd(3),cnstd(4)
 	do k=1,nclz
 		sendbuf(:,i,j,k) = reshape(stress(:,:,k,i,j),(/ 9 /))
 	!	print'(a,5i4,9f9.4)', 'packing',rank_realm,i,j,k,ii,sendbuf(:,i,j,k)
@@ -316,8 +315,11 @@ subroutine socket_coupler_send_stress
 	!print*, 'sent stress cfd',iblock,jblock,kblock,stress(2,2,4,:,4)
 
 	!Send stress tensor to MD code
-	call CPL_send(sendbuf,jcmax_send=jcmax_send, & 
-					      jcmin_send=jcmin_send,send_flag=send_flag)
+	call CPL_send( sendbuf,                                 &
+	               icmin_send=cnstd(1),icmax_send=cnstd(2), &
+	               jcmin_send=cnstd(3),jcmax_send=cnstd(4), &
+	               kcmin_send=cnstd(5),kcmax_send=cnstd(6), &
+	               send_flag=send_flag                        )
 
 end subroutine socket_coupler_send_stress
 
