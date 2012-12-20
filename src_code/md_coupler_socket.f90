@@ -517,7 +517,7 @@ contains
 		select case(staggered_averages(1))	
 		! Send velocity flux over surface
 		case(.true.)
-            call CPL_send(dble(mflux))!,index_transpose=(/2,3,1/))
+            call CPL_send(dble(mflux),jcmax_send=jcmax_send,jcmin_send=jcmin_send,send_flag=send_flag)
 			mflux = 0
 		! Send velocity in cell centre
 		case(.false.)
@@ -847,9 +847,6 @@ subroutine apply_continuum_forces_flekkoy
 		jcmax_recv = jcmax_olap-cnstnd_cells
 		limits = (/ icmin_olap,icmax_olap, jcmin_recv,jcmax_recv, kcmin_olap,kcmax_olap  /)
 		call setup_CFD_box(limits,CFD_box,recv_flag)
-
-		write(99999,'(a)')	'    1         2      3               4              5         6        7  8  9      10 11 12      13 14 15   '
-		write(99999,'(a)')	'rank_world  iter  olapnp  sum(box_average%a(2))  gsumcheck  gratio  dA*stress_cfd     ave_a     ave_a_consrnt'
 
 	endif
 

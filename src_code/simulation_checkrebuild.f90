@@ -22,7 +22,7 @@ subroutine simulation_checkrebuild(rebuild)
 	integer                :: n
 	integer, save		   :: rb_count, total_rb=0
 	integer, intent(out)   :: rebuild
-	double precision       :: vmax, t2
+	double precision       :: vmax, t2, dt
 	double precision, save :: rmax = 0.d0, t1
 
 	double precision, save :: average_rb_count
@@ -39,15 +39,18 @@ subroutine simulation_checkrebuild(rebuild)
 		call cpu_time(t1)  !Get start cpu time
 	endif
 	call cpu_time(t2)  !Get current cpu time
-	if (t2-t1 .gt. rescue_snapshot_freq) then
-		just_written_snapshot = .true.
-		call messenger_syncall
-		call parallel_io_final_state
+	dt = t2-t1		   !Difference in times
+	!Ensure that all processors use the same time
+	call globalMax(dt)
+	if (dt .gt. rescue_snapshot_freq) then
 		if (irank.eq.iroot) then
 			print('(2(a,f10.5))'), ' It`s been ', t2-t1, & 
 				' seconds since last rescue and freq is ', rescue_snapshot_freq
 			print('(a,i8)'), ' Rescue microstate written to ./results/final_state at iter ', iter
 		end if
+		just_written_snapshot = .true.
+		call messenger_syncall
+		call parallel_io_final_state
 	endif
 
 	!Trigger rebuild if FIXED REBUILD specified in input

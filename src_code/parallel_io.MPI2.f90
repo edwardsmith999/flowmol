@@ -1744,9 +1744,8 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 	!Swap halo surface fluxes to get correct values for all cells
 	nresults = 1
 
-	!This is done to satisfy pedantic compiler, i.e. CV_mass_out must not be changed
+	!Copy CV_mass_out so it is not changed
 	CVmasscopy = CV_mass_out
-!	call iswaphalos(CV_mass_out,nbinso(1),nbinso(2),nbinso(3),nresults)
 	call iswaphalos(CVmasscopy,nbinso(1),nbinso(2),nbinso(3),nresults)
 
 	!Calculate record number timestep
@@ -1764,7 +1763,7 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 	endif
 
 	!Write mass to file
-	call write_arrays(CV_mass_out,nresults,outfile,m)
+	call write_arrays(CVmasscopy,nresults,outfile,m)
 
 end subroutine mass_bin_io
 

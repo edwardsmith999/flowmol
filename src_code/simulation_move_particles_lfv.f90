@@ -263,26 +263,26 @@ contains
 				!Fixed Molecules - no movement r(n+1) = r(n)
 			case (2)
 				!Fixed with constant sliding speed
-				!r(:,n) = r(:,n) + delta_t*slidev(:,n)	!Position calculated from velocity
+				r(:,n) = r(:,n) + delta_t*slidev(:,n)	!Position calculated from velocity
 
 				!Moving piston for shock wave with 1000 equilibrate, 100 piston moving and 
 				!no moving wall for next 2000*0.005 time units taken for wave to cover whole domain 
 				!at which point the simulation blows up!
-				if (iter .lt. 6000) then !Initialisation
-					!Fixed Molecules - no movement r(n+1) = r(n)
-				elseif (iter .ge. 6000 .and. iter .lt. 8000) then
-					if (irank .eq. iroot) then
-						delta_t = 0.0005 !Reduce timestep
-						call globalbroadcast(delta_t,1,irank)
-					endif
-					freq = 10
+				!if (iter .lt. 6000) then !Initialisation
+				!	!Fixed Molecules - no movement r(n+1) = r(n)
+				!elseif (iter .ge. 6000 .and. iter .lt. 8000) then
+				!	if (irank .eq. iroot) then
+				!		delta_t = 0.0005 !Reduce timestep
+				!		call globalbroadcast(delta_t,1,irank)
+				!	endif
+				!	freq = 10
 					!t = freq*iter*delta_t
-					r(:,n) = r(:,n) + delta_t*slidev(:,n)!*sin(t)	!Position calculated from velocity
-				elseif (iter .ge. 8000) then
+				!	r(:,n) = r(:,n) + delta_t*slidev(:,n)!*sin(t)	!Position calculated from velocity
+				!elseif (iter .ge. 8000) then
 					!Fixed Molecules - no movement r(n+1) = r(n)
-				else
+				!else
 					!Fixed Molecules - no movement r(n+1) = r(n)
-				endif
+				!endif
 
 			case (3)
 				!Tethered molecules

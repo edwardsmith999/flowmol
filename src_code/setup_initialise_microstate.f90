@@ -192,7 +192,7 @@ subroutine setup_lattice_FENE_info
 	use interfaces
 	use polymer_info_MD
 	use messenger
-	use physical_constants_MD, only: np
+	use physical_constants_MD, only: np 
 	implicit none
 
 	integer :: n

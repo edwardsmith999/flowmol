@@ -2592,18 +2592,15 @@ end subroutine control_volume_forces
 !===================================================================================
 !Forces over the surface of a Volume
 
-subroutine control_volume_stresses(fij,ri,rj,molnoi,molnoj)
+subroutine control_volume_stresses(fij,ri,rj,molnoi)
 use module_record
 implicit none
 
-	integer							:: i,j,k,ixyz,molnoi,molnoj
+	integer							:: i,j,k,ixyz,molnoi
 	integer							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
 	integer,dimension(3)			:: cbin, ibin, jbin
 	double precision,dimension(3)	:: ri,rj,rij,fij,fsurface,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb,velvect
 	double precision,dimension(3)	:: Fbinsize, bintop, binbot
-
-	!This line is only here to satisfy pedantic compiler, remove if you want!
-	molnoj = molnoj
 
 	!Calculate rij
 	rij = ri - rj
@@ -2658,21 +2655,6 @@ implicit none
 						(heaviside(bintop(1)-Pzt(1)) - heaviside(binbot(1)-Pzt(1)))* &
 						(heaviside(bintop(2)-Pzt(2)) - heaviside(binbot(2)-Pzt(2)))
 
-		!if (ibin(1) .eq. jbin(1) .and. ibin(2) .eq. jbin(2) .and. ibin(3) .eq. jbin(3)) then
-		!	if (onfacexb .ne. 0 .or. onfaceyb .ne. 0 .or. onfacezb .ne. 0 .or. &
-		!		onfacext .ne. 0 .or. onfaceyt .ne. 0 .or. onfacezt .ne. 0 ) cycle
-!				print'(6I8)',onfacexb, onfaceyb, onfacezb, onfacext, onfaceyt, onfacezt
-			!endif
-		!endif
-
-		!Prevent halo molecules from being included but include molecule which have left domain 
-		!before rebuild has been triggered.
-		!if (molnoi .gt. np .or. molnoj .gt. np) then
-		!	if (cbin(1) .lt. 2 .or. cbin(1) .gt. nbins(1)+1) cycle
-		!	if (cbin(2) .lt. 2 .or. cbin(2) .gt. nbins(2)+1) cycle
-		!	if (cbin(3) .lt. 2 .or. cbin(3) .gt. nbins(3)+1) cycle
-		!endif
-
 		!Stress acting on face over volume
 		Pxyface(cbin(1),cbin(2),cbin(3),:,1) = Pxyface(cbin(1),cbin(2),cbin(3),:,1) + fij(:)*dble(onfacexb)
 		Pxyface(cbin(1),cbin(2),cbin(3),:,2) = Pxyface(cbin(1),cbin(2),cbin(3),:,2) + fij(:)*dble(onfaceyb)
@@ -2684,7 +2666,6 @@ implicit none
 		!Stress acting on face over volume
 		if (eflux_outflag .ne. 0) then
 			velvect(:) = v(:,molnoi) 
-			!if (molnoi .gt. np) print*, velvect(1)
 			!velvect(:) = v(:,molnoi) + 0.5d0*delta_t*a(:,molnoi)
 			Pxyvface(cbin(1),cbin(2),cbin(3),1) = Pxyvface(cbin(1),cbin(2),cbin(3),1) + dot_product(fij,velvect)*dble(onfacexb)
 			Pxyvface(cbin(1),cbin(2),cbin(3),2) = Pxyvface(cbin(1),cbin(2),cbin(3),2) + dot_product(fij,velvect)*dble(onfaceyb)
@@ -2711,7 +2692,7 @@ end subroutine control_volume_stresses
 !===================================================================================
 !Forces over the surface of a Volume optmised for computational efficiency
 
-subroutine control_volume_stresses_opt(fij,ri,rj,molnoi,molnoj)
+subroutine control_volume_stresses_opt(fij,ri,rj,molnoi)
 	use module_record
 	implicit none
 
@@ -2719,9 +2700,6 @@ subroutine control_volume_stresses_opt(fij,ri,rj,molnoi,molnoj)
 	integer,dimension(3)			:: cbin, ibin, jbin, Si
 	double precision,dimension(3)	:: ri,rj,rij,fij,fsurface,Px,Py,Pz,sgnjit,sgnjib,onfaceb,onfacet,velvect
 	double precision,dimension(3)	:: Fbinsize, bintop, binbot
-
-	!This line is only here to satisfy pedantic compiler, remove if you want!
-	molnoj = molnoj
 
 	!Calculate rij
 	rij = ri - rj
@@ -2803,20 +2781,17 @@ end subroutine control_volume_stresses_opt
 
 
 
-subroutine control_volume_stresses_opt_2(fij,ri,rj,molnoi,molnoj)
+subroutine control_volume_stresses_opt_2(fij,ri,rj,molnoi)
 use module_record
 implicit none
 
-	integer							:: i,j,k,ixyz,molnoi,molnoj
+	integer							:: i,j,k,ixyz,molnoi
 	!integer							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
 	integer,dimension(3)			:: cbin, ibin, jbin
 	integer,dimension(18)			:: hfacelimits
 	double precision,dimension(3)	:: ri,rj,rij,fij,fsurface,Px,Py,Pz,Si,sgnjit,sgnjib,onfaceb,onfacet,velvect
 	double precision,dimension(3)	:: Fbinsize, bintop, binbot
 	double precision,dimension(18)	:: facelimits
-
-	!This line is only here to satisfy pedantic compiler, remove if you want!
-	molnoj = molnoj
 
 	!Calculate rij
 	rij = ri - rj
