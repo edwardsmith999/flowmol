@@ -74,7 +74,7 @@ subroutine messenger_invoke()
 #if (USE_COUPLER == 0)
     MD_COMM = MPI_COMM_WORLD 
 #endif
-         
+        
 end subroutine messenger_invoke
 
 
@@ -1345,16 +1345,42 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 		allocate(recvbuffer(recvsize))
 		recvbuffer = sendbuffer
 	else if (idest .eq. MPI_PROC_NULL .and. sendnp .ne. 0) then
-		write(string,'(a,i6,a,i6,a)') "sendrecvface Error: Processor rank ", irank, &
-		" is attempting to send ", sendnp, " molecules to MPI_PROC_NULL."
-		old => pass%head 
-		current => old     !make current point to head of list
-		do i=1,sendnp
-			call print_mol_escape_error(old%molno)
-			old => current%next	!make old point to next node of current
-			current => old		!Set current item to old ready for next loop
-		enddo
-		call error_abort(string)
+
+		!Only implemented in the y direction
+		!if (specular_walls(2) .eq. .true.) then
+		!if (.true.) then
+		!	old => pass%head 
+		!	current => old     !make current point to head of list
+		!	do i=1,sendnp
+				!Reverse velocity in y direction and move molecule again
+		!		n = old%molno
+		!		v(2,n) = -v(2,n)
+		!		r(:,n) = r(:,n) + dir * domain(:) !Counter shift later in recv buffer
+		!		r(:,n) = r(:,n) + v(:,n)*delta_t
+
+		!		old => current%next	!make old point to next node of current
+		!		current => old		!Set current item to old ready for next loop
+		!	enddo
+			!Sent to itself - no passing required
+		!	recvsize = sendsize
+		!	call MPI_type_size(MPI_DOUBLE_PRECISION,datasize,ierr)
+		!	length = recvsize*datasize
+		!	allocate(recvbuffer(recvsize))
+		!	recvbuffer = sendbuffer
+		!else
+			write(string,'(a,i6,a,i6,a)') "sendrecvface Error: Processor rank ", irank, &
+			" is attempting to send ", sendnp, " molecules to MPI_PROC_NULL."
+			old => pass%head 
+			current => old     !make current point to head of list
+			do i=1,sendnp
+				call print_mol_escape_error(old%molno)
+				old => current%next	!make old point to next node of current
+				current => old		!Set current item to old ready for next loop
+			enddo
+			call error_abort(string)
+
+		!endif
+
 	else
 		!Send, probe for size and then receive data
 		call NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest)
@@ -2296,6 +2322,18 @@ subroutine globalSum(A)
 
 	call MPI_AllReduce (A, buf, 1, MPI_DOUBLE_PRECISION, &
 	                    MPI_SUM, MD_COMM, ierr)
+	A = buf
+
+	return
+end
+
+subroutine globalMax(A)
+	use messenger
+
+	double precision :: A, buf
+
+	call MPI_AllReduce (A, buf, 1, MPI_DOUBLE_PRECISION, &
+	                    MPI_MAX, MD_COMM, ierr)
 	A = buf
 
 	return

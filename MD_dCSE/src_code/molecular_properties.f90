@@ -32,9 +32,10 @@ subroutine setup_tag
 	implicit none
 
 	integer 				:: ixyz, n, mol_layers
-	integer,dimension(3)	:: block
+	integer,dimension(3)	:: block, npxyz
 
 	block = (/ iblock, jblock, kblock /)
+	npxyz = (/  npx  ,  npy  ,  npz   /)
 	mol_layers = 2
 
 	!Initialise
@@ -60,7 +61,7 @@ subroutine setup_tag
 				endif
 
 				!Top	
-				if (block(ixyz) .eq. npx) then
+				if (block(ixyz) .eq. npxyz(ixyz)) then
 					if(r(ixyz,n).ge. halfdomain(ixyz)-thermstattop(ixyz)) 		tag(n) = 4
 					if(r(ixyz,n).ge. halfdomain(ixyz)-tethereddisttop(ixyz)) 	tag(n) = 3
 					if(r(ixyz,n).gt. halfdomain(ixyz)-tethereddisttop(ixyz) 	& 
