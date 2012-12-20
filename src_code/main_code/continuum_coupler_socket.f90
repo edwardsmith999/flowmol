@@ -189,6 +189,7 @@ end subroutine socket_coupler_get_md_BC
 !
 
 subroutine  socket_coupler_send
+	use CPL, only: CPL_get, error_abort
     implicit none
 
 	integer :: constraint_algorithm
