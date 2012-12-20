@@ -295,23 +295,13 @@ subroutine setup_lattice_FENE_info
 
 	nchains = sum(proc_chains)
 
-#if USE_COUPLER
-
-	if (jblock .eq. npy .and. iblock .eq. 1 .and. kblock .eq. 1) then
-		print*, '*********************************************************************'
-		print*, '*WARNING - TOP LAYER OF DOMAIN REMOVED IN LINE WITH CONSTRAINT FORCE*'
-		print*, 'Removed from', domain_top, 'to Domain top', globaldomain(2)/2.d0
-		print*, '*********************************************************************'
-	endif
-
-#endif
-
 end subroutine setup_lattice_FENE_info
 
 subroutine setup_initialise_FENE_melt
-	use computational_constants_MD, only: domain,globaldomain,halfdomain,    &
-	                                      irank,iroot,potential_flag,jblock, &
-	                                      extralloc, nproc
+	use computational_constants_MD, only: domain,globaldomain,halfdomain,  &
+	                                      irank,iroot,potential_flag,      &
+	                                      iblock,jblock,kblock, extralloc, &
+	                                      nproc, npy
 	use polymer_info_MD, only: nchains, nmonomers,monomer,intbits
 	use physical_constants_MD, only: np,globalnp,rcutoff
 	use interfaces, only: error_abort
