@@ -3,12 +3,12 @@ import math
 
 # "Inputs"
 density = 0.8
-rcutoff = 2.2
+rcutoff = 2.0**(1.0/6.0) 
 dr_nbr  = 0.29
-d_xL    = 41.1
-d_zL    = 41.1 
-d_yL_md = 31.3
-d_yL_cfd = 41.0 
+d_xL    = 45.1
+d_zL    = 45.1 
+d_yL_md = 30.3
+d_yL_cfd = 45.0 
 wall_layers = 2
 cellsize_ratio = 2.0 # must be a float representation of an integer
 eps = 0.01
@@ -91,4 +91,5 @@ message = (
            "\tCFD cell length(y):\t" + str(dy_cfd)         + "\n" +  
            "\tCFD cell length(z):\t" + str(dz_cfd)
           )
+
 print(message)

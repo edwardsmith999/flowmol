@@ -30,7 +30,12 @@ subroutine apply_boundary_force
 	use computational_constants_MD, only: periodic
 #if USE_COUPLER
 	use md_coupler_socket, only: socket_get_constraint_info
+#endif
 	implicit none
+
+#if USE_COUPLER
+
+		integer :: constraint_algorithm,OT,NCER,Flekkoy,off
 
 		call socket_get_constraint_info(constraint_algorithm,OT=OT, &
                                         NCER=NCER,Flekkoy=Flekkoy,off=off)
@@ -59,7 +64,6 @@ subroutine apply_boundary_force
 		end if	
 	
 #else
-	implicit none
 
 		if (all(periodic.ne.0)) then
 			return
