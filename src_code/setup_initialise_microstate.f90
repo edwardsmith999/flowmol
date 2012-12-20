@@ -30,15 +30,15 @@ implicit none
 	case(1)
 		select case (config_special_case)
 		case('sparse_fene')
-			call setup_initialise_FENE_melt
+			call setup_initialise_sparse_FENE
 		case('dense_fene')
 			call setup_initialise_lattice    !Numbering for FENE bonds
-			call setup_lattice_FENE_info      !Chain IDs, etc
+			call setup_lattice_dense_FENE_info!Chain IDs, etc
 		case('solid_liquid')
 			call setup_initialise_solid_liquid
 		case('rubber_liquid')
 			call setup_initialise_solid_liquid
-			call setup_lattice_FENE_info      !Chain IDs, etc
+			call setup_lattice_dense_FENE_info      !Chain IDs, etc
 		case default
 			call error_abort('Unidentified configuration special case')
 		end select
@@ -188,7 +188,7 @@ end subroutine setup_initialise_lattice
 !FENE info
 !-------------------------------------------------------------------------------
 !Assign chainIDs, subchainIDs, global molecule numbers, etc...
-subroutine setup_lattice_FENE_info
+subroutine setup_lattice_dense_FENE_info
 	use interfaces
 	use polymer_info_MD
 	use messenger
@@ -295,9 +295,9 @@ subroutine setup_lattice_FENE_info
 
 	nchains = sum(proc_chains)
 
-end subroutine setup_lattice_FENE_info
+end subroutine setup_lattice_dense_FENE_info
 
-subroutine setup_initialise_FENE_melt
+subroutine setup_initialise_sparse_FENE
 	use computational_constants_MD, only: domain,globaldomain,halfdomain,  &
 	                                      irank,iroot,potential_flag,      &
 	                                      iblock,jblock,kblock, extralloc, &
@@ -474,7 +474,7 @@ subroutine setup_initialise_FENE_melt
 
 #endif
 
-end subroutine setup_initialise_FENE_melt
+end subroutine setup_initialise_sparse_FENE
 
 !-----------------------------------------------------------------------------
 !Connect monomer to subchainID bscID
