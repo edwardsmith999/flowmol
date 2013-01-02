@@ -2,11 +2,11 @@
 close all
 clear all
 
+%Find results files
+resultfile_dir = '/home/es205/codes/coupled/MD_dCSE/src_code/results/';
+
 %Read Header file
 read_header
-
-%Find results files
-resultfile_dir = './../../results';
 
 %Check output flags and read data accordingly
 if (velocity_outflag == 4)

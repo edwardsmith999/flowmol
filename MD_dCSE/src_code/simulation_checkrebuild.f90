@@ -40,12 +40,11 @@ subroutine simulation_checkrebuild(rebuild)
 	endif
 	call cpu_time(t2)  !Get current cpu time
 	dt = t2-t1		   !Difference in times
-	!Ensure that all processors use the same time
-	call globalMax(dt)
+	call globalMax(dt) !Ensure that all processors use the same time
 	if (dt .gt. rescue_snapshot_freq) then
 		if (irank.eq.iroot) then
-			print('(2(a,f10.5))'), ' It`s been ', t2-t1, & 
-				' seconds since last rescue and freq is ', rescue_snapshot_freq
+			print('(2(a,f10.5))'), ' It`s been ', dt, & 
+				' seconds since last rescue and requested freq is ', rescue_snapshot_freq
 			print('(a,i8)'), ' Rescue microstate written to ./results/final_state at iter ', iter
 		end if
 		just_written_snapshot = .true.
