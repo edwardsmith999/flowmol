@@ -101,7 +101,10 @@ message = (
            "\tDELTA_RNEIGHBR:    \t" + str(dr_nbr) + "\n" +
            "\tTETHERDISTBOTTOM:  \t" + str(teth_dist) + "\n" +
            "\tTHERMSTATBOTTOM:   \t" + "don't forget it!" + "\n" +
-           "\tPROCESSORS:        \t" + "don't forget it!" + "\n\n" +
+           "\tPROCESSORS:        \t" + "don't forget it!" + "\n" +
+           "\tVELOCITY_OUTFLAG:  \t" + "match timing with CFD save_dt!" + "\n" +
+           "\tMASS_OUTFLAG:      \t" + "match timing with CFD save_dt!" + "\n" +
+           "\tPRESSURE_OUTFLAG:  \t" + "match timing with CFD save_dt!" + "\n\n" +
            
           "param.inc: \n\n" +
           "\tngx:                \t" + str(ncells_x_cfd) + "+1\n" +
@@ -111,7 +114,8 @@ message = (
 
           "input: \n\n" 
           "\tRe:                 \t" + "don't forget it!" + "\n" +
-          "\tnsteps:             \t" + "don't forget it!" + "\n\n" +
+          "\tnsteps:             \t" + "don't forget it!" + "\n" +
+          "\tsave dt:            \t" + "match timing with MD outputs" + "\n\n" +
 
           "input.file: \n\n" +
           "\tLx:                 \t" + str(xL_cfd) + "\n" +
@@ -129,6 +133,7 @@ message = (
 
           "COUPLER.in: \n\n" +
           "\tDENSITY_CFD:        \t" + str(density) + "\n" +
+          "\tTIMESTEP_RATIO:     \t" + "match with MD and CFD dts" + "\n" +
           "\tCONSTRAINT_INFO:    \t" + "don't forget to set the cells correctly!" + "\n" +
           "\tOVERLAP_EXTENTS:    \t" + "don't forget to set the cells correctly! \n\n\n"
 

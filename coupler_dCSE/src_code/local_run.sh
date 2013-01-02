@@ -3,7 +3,7 @@
 # Command line args
 nproc_md=$1
 nproc_cfd=$2
-md_extra_args=$3
+md_extra_args=$3 $4  
 
 # Useful variables
 MD_DIR=../../MD_dCSE/src_code

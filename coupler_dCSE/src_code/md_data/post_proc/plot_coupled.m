@@ -7,15 +7,15 @@ CFD = 1;
 
 %Turn on/off video and picture output
 savevid = 0;
-savepic = 0;
+savepic = 1;
 
 %Find results files
 %resultfile_dir = './../results/';
 %resultfile_dir = '/home/es205/results/CX1_data/CPL_testing/slice/';
 %resultfile_dir = '/home/es205/codes/coupled/coupler_dCSE/src_code/';
 %resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/50CFDMDratio/';
-resultfile_dir = '/home/es205/results/MD_continuum_results/code/coupled_couette/varying_processor_study/coupler_dCSE/src_code/';
-%resultfile_dir = '/home/djt06/Documents/Academia/PhD/Code/Development/branch/coupler_dCSE/src_code/';
+%resultfile_dir = '/home/es205/results/MD_continuum_results/code/coupled_couette/varying_processor_study/coupler_dCSE/src_code/';
+resultfile_dir = '/home/djt06/Documents/Academia/PhD/Code/Development/branch/coupler_dCSE/src_code/';
 resultfile_dir_md = strcat(resultfile_dir,'md_data/results/');
 resultfile_dir_cfd = strcat(resultfile_dir,'couette_data/');
 
@@ -50,7 +50,7 @@ if (CFD == 0)
         read_continuum_vslice
     end
 elseif(CFD == 1)
-    [u,v,w,p,stress] = Read_DNS('grid.data',resultfile_dir_cfd,ngx-2,ngy-1,ngz-2,Lx,Ly,Lz,13,true);
+    [u,v,w] = Read_DNS('grid.data',resultfile_dir_cfd,ngx-2,ngy-1,ngz-2,Lx,Ly,Lz,3,true);
     continuum_velslice = u;
 end
 
