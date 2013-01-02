@@ -594,7 +594,16 @@ contains
 		use interfaces
 		implicit none
 
-		integer :: molnoX
+		integer, intent(in) :: molnoX
+		real(kind(0.d0)) :: rglobi(3),rglobX(3)
+
+		rglobi(1) = r(1,molnoi) - halfdomain(1)*(npx-1) + domain(1)*(iblock - 1)   
+		rglobi(2) = r(2,molnoi) - halfdomain(2)*(npy-1) + domain(2)*(jblock - 1)   
+		rglobi(3) = r(3,molnoi) - halfdomain(3)*(npz-1) + domain(3)*(kblock - 1)   
+
+		rglobX(1) = r(1,molnoX) - halfdomain(1)*(npx-1) + domain(1)*(iblock - 1)   
+		rglobX(2) = r(2,molnoX) - halfdomain(2)*(npy-1) + domain(2)*(jblock - 1)   
+		rglobX(3) = r(3,molnoX) - halfdomain(3)*(npz-1) + domain(3)*(kblock - 1)   
 
 		print*, 'irank: ', irank
 		print '(a,i6,a,i4,a,i4,a,f8.5,a,f8.5,a,f12.5)', & 
@@ -602,8 +611,10 @@ contains
 					rij2**0.5,', which is greater than the allowed limit of ', R_0, &
 					'. Stopping simulation, total time elapsed = ', iter*delta_t
 		print '(a)', 'Atomic positions:'
-		print '(a,i4,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoi,' is located at ',r(1,molnoi),' ',r(2,molnoi),' ',r(3,molnoi) 
-		print '(a,i4,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoX,' is located at ',r(1,molnoX),' ',r(2,molnoX),' ',r(3,molnoX) 
+		print '(a,i4,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoi,' is located at global position', &
+		                                        rglobi(1),' ',rglobi(2),' ',rglobi(3) 
+		print '(a,i4,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoX,' is located at global position', &
+		                                        rglobX(1),' ',rglobX(2),' ',rglobX(3) 
 
 		print '(a,i4,a)', 'Monomer information for atom ', molnoi,':'
 		print '(a,i8)', 'ChainID: '   , monomer(molnoi)%chainID

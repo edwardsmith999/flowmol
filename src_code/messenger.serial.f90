@@ -989,6 +989,15 @@ subroutine globalSumInt(A)
 	return
 end
 
+subroutine globalMax(A)
+	use messenger
+
+	double precision :: A
+
+	A = A
+
+	return
+end
 
 subroutine globalMaxInt(A)
 	use messenger

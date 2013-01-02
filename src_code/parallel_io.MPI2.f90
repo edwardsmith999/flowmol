@@ -1682,12 +1682,15 @@ subroutine mass_slice_io(ixyz)
 	implicit none
 
 	integer							:: ixyz,jxyz,kxyz
+	integer                         :: ijkblock(3)
 	integer							:: slicefileid, int_datasize
 	integer(kind=MPI_OFFSET_KIND)   :: disp
 
 	!Get two directions orthogonal to slice direction
 	kxyz = mod(ixyz,3)+1
 	jxyz = mod(ixyz+1,3)+1
+
+	ijkblock = (/iblock,jblock,kblock/)
 
 	!Sum over all bins using directional sub communicators and gather on {ijk}block=1
 	call SubcommSum(slice_mass, nbins(ixyz), jxyz)
@@ -1706,8 +1709,8 @@ subroutine mass_slice_io(ixyz)
 
 		!Obtain displacement of current record
 		disp =   ((iter-initialstep+1)/(tplot*Nmass_ave) - 1) 	  	&		!Current iteration
-		       * gnbins(ixyz)*int_datasize 	&		!Record size
-		       + nbins(ixyz)*int_datasize*(jblock-1)		!Processor location
+		       * gnbins(ixyz)*int_datasize 	&		!Global record size
+		       + nbins(ixyz)*int_datasize*(ijkblock(ixyz)-1)		!Processor location
 
 		call MPI_FILE_SET_VIEW(slicefileid, disp, MPI_INTEGER, & 
 	 				MPI_INTEGER, 'native', MPI_INFO_NULL, ierr)
@@ -1775,7 +1778,7 @@ subroutine velocity_slice_io(ixyz)
 	use messenger
 	implicit none
 
-	integer							:: ixyz,jxyz,kxyz
+	integer							:: ixyz,jxyz,kxyz,ijkblock(3)
 	integer							:: slicefileid, dp_datasize
 	integer,dimension(3)			:: idims
 	integer(kind=MPI_OFFSET_KIND)   :: disp
@@ -1787,6 +1790,8 @@ subroutine velocity_slice_io(ixyz)
 	kxyz = mod(ixyz,3)+1
 	jxyz = mod(ixyz+1,3)+1
 	idims(1) = npx; idims(2) = npy; idims(3) = npz
+
+	ijkblock = (/iblock,jblock,kblock/)
 
 	!Sum over all bins using directional sub communicators and gather on root
 	call SubcommSum(slice_momentum(:,1), nbins(ixyz), jxyz)
@@ -1809,7 +1814,7 @@ subroutine velocity_slice_io(ixyz)
 		!Obtain displacement of x record
 		disp =   ((iter-initialstep+1)/(tplot*Nmass_ave) - 1) 	  	&	!Current iteration
 		       * nd*gnbins(ixyz)*dp_datasize 	&	!times record size
-		       + nbins(ixyz)*dp_datasize*(jblock-1)		!Processor location
+		       + nbins(ixyz)*dp_datasize*(ijkblock(ixyz)-1)		!Processor location
 
 		call MPI_FILE_SET_VIEW(slicefileid, disp, MPI_DOUBLE_PRECISION, & 
 	 				MPI_DOUBLE_PRECISION, 'native', MPI_INFO_NULL, ierr)
@@ -1819,7 +1824,7 @@ subroutine velocity_slice_io(ixyz)
 		!Obtain displacement of y record
 		disp =   ((iter-initialstep+1)/(tplot*Nmass_ave) - 1) 	  	&	!Current iteration
 		       * nd*gnbins(ixyz)*dp_datasize 	&	!Record size
-		       + nbins(ixyz)*dp_datasize*(jblock-1)	&	!Processor location
+		       + nbins(ixyz)*dp_datasize*(ijkblock(ixyz)-1)	&	!Processor location
 		       + nbins(ixyz)*dp_datasize*idims(ixyz)		!after x data 
 
 		call MPI_FILE_SET_VIEW(slicefileid, disp, MPI_DOUBLE_PRECISION, & 
@@ -1830,7 +1835,7 @@ subroutine velocity_slice_io(ixyz)
 		!Obtain displacement of z record
 		disp =   ((iter-initialstep+1)/(tplot*Nmass_ave) - 1) 	  	&	!Current iteration
 		       * nd*gnbins(ixyz)*dp_datasize 	&	!Record size
-		       + nbins(ixyz)*dp_datasize*(jblock-1)	&	!Processor location
+		       + nbins(ixyz)*dp_datasize*(ijkblock(ixyz)-1)	&	!Processor location
 		       + 2*nbins(ixyz)*dp_datasize*idims(ixyz)		!after x & y data 
 
 		call MPI_FILE_SET_VIEW(slicefileid, disp, MPI_DOUBLE_PRECISION, & 
