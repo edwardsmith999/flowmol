@@ -458,6 +458,8 @@ subroutine read_coupler_input
 
 	integer :: infileid
 	logical :: found
+	Character(8)  		:: the_date
+	Character(10)  		:: the_time
 
 	!Check all file ids until an unused one is found
 	infileid = 100000
@@ -521,6 +523,44 @@ subroutine read_coupler_input
 	end if
 
 	close(infileid,status="keep")
+
+	! Write Simulation Parameter File contain all data required to completely recreate
+	! simulation and to be used for post processing
+	call date_and_time(the_date, the_time)
+
+	!Open and write input file on all processes
+	if (rank_world .eq. rootid_world+1) then
+		open(infileid,file='./results/coupler_header', & 
+										action="write",form="formatted")
+
+		write(infileid,*) 'Simulation run on Date;  sim_date ;', the_date
+		write(infileid,*) 'Simulation start time ;  sim_start_time ;', the_time
+		call locate(infileid,'DENSITY_CFD',found)
+		write(infileid,*) 'CFD density;  density_cfd ;', density_cfd
+		write(infileid,*) 'choice of constraint algorithm;  constraint_algo ;', constraint_algo
+		if (constraint_algo .ne. 0) then
+			write(infileid,*) 'CV form of constraint;  constraint_CVflag ;', constraint_CVflag
+			write(infileid,*) 'minimum x cell of constrained region;  icmin_cnst ;', icmin_cnst
+			write(infileid,*) 'maximum x cell of constrained region;  icmax_cnst ;', icmax_cnst
+			write(infileid,*) 'minimum y cell of constrained region;  jcmin_cnst ;', jcmin_cnst
+			write(infileid,*) 'maximum y cell of constrained region;  jcmax_cnst ;', jcmax_cnst
+			write(infileid,*) 'minimum z cell of constrained region;  kcmin_cnst ;', kcmin_cnst
+			write(infileid,*) 'maximum z cell of constrained region;  kcmax_cnst ;', kcmax_cnst
+		endif
+
+		write(infileid,*) 'minimum x cell of overlap region;  icmin_olap ;', icmin_olap
+		write(infileid,*) 'maximum x cell of overlap region;  icmax_olap ;', icmax_olap
+		write(infileid,*) 'minimum y cell of overlap region;  jcmin_olap ;', jcmin_olap
+		write(infileid,*) 'maximum y cell of overlap region;  jcmax_olap ;', jcmax_olap
+		write(infileid,*) 'minimum z cell of overlap region;  kcmin_olap ;', kcmin_olap
+		write(infileid,*) 'maximum z cell of overlap region;  kcmax_olap ;', kcmax_olap
+
+		write(infileid,*) 'MD timesteps per CFD timestep;  timestep_ratio ;', timestep_ratio !TODO name change
+		write(infileid,*) 'Enforce cellsize matching;  md_cfd_match_cellsize ;', md_cfd_match_cellsize
+
+		close(infileid,status='keep')
+
+	endif
 
 end subroutine read_coupler_input
 
