@@ -86,6 +86,7 @@ subroutine messenger_init()
 	implicit none
 	!include "mpif.h"
 
+	logical					:: found_in_input
 	integer 				:: ndims, ip, ixyz
 	integer,dimension(3)	:: idims
 	logical,dimension(3)	:: Lremain_dims
@@ -103,10 +104,39 @@ subroutine messenger_init()
 	read(1,*) periodic(2)
 	read(1,*) periodic(3)
 
-    call locate(1,'PROCESSORS',.true.)
-    read(1,*) npx
-    read(1,*) npy
-    read(1,*) npz
+    call locate(1,'PROCESSORS',.false.,found_in_input)
+	if (found_in_input) then
+	    read(1,*) npx
+   		read(1,*) npy
+	    read(1,*) npz
+	    !check if npx*npy*npz=nproc
+	    if (npx * npy * npz .ne. nproc ) then
+			print*, npx, npy, npz , nproc
+			call error_abort(' Wrong specification for processor topology, nproc not equal to npx*npy*npz')
+	    endif
+	else
+		!Assign arbitrarily to each dimension if not specified
+		npx = ceiling(dble(nproc)**(1.d0/3.d0))
+		npy = ceiling((dble(nproc)/dble(npx))**(1.d0/2.d0))
+		npz = ceiling(dble(nproc)/(dble(npx)*dble(npy)))
+	    !check if npx*npy*npz=nproc and correct
+		do while (npx * npy * npz .ne. nproc )
+			if (npz .eq. 1 .and. npy .eq. 1) then
+				npx = npx + 1
+			endif
+			if (npz .eq. 1 .and. npy .ne. 1) then
+				npx = npx + 1
+				npy = npy - 1
+			endif
+			if (npz .ne. 1) then
+				npy = npy + 1
+				npz = npz - 1
+			endif
+		end do
+		print*, 'WARNING - Number of processors not specified - Arbitrarily assigned as follows:'
+		print*, 'npx = ', npx, 'npy = ', npy, 'npz = ', npz
+
+	endif
 
 	close(1,status='keep')      !Close input file
 
@@ -115,18 +145,6 @@ subroutine messenger_init()
     where(periodic(1:nd) .eq. 0) Lperiodic(1:nd) =.false.  
  
 	! ==== Grid topology ====
-
-    ! if npz == 0 in MD.in it means that npz = nproc/(npx*npy)
-    if (npz .eq. 0) then 
-		npz = nproc/(npx*npy)
-    endif
-
-    !check if npx*npy*npz=nproc
-    if (npx * npy * npz .ne. nproc ) then
-		print*, npx, npy, npz , nproc
-		call error_abort(' Wrong specification for processor topology, nproc not equal to npx*npy*npz')
-    endif
-
     allocate(icoord(3,nproc),stat=ierr)
     if (ierr .ne. 0) then 
 		call error_abort('Error allocating icoord in messenger_init')

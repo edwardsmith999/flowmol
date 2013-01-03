@@ -1006,7 +1006,6 @@ subroutine parallel_io_final_state
 		else
 	        call MPI_File_write(restartfileid,Nsteps    ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 		endif
-        call MPI_File_write(restartfileid,Nsteps        ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,tplot         ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,seed          ,2,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,periodic      ,3,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)

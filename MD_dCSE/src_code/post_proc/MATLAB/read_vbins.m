@@ -4,7 +4,6 @@ function[vel_bins]=read_vbins(filename,resultfile_dir,read_time)
 if (exist('filename') == 0)
     filename = './vbins';
 end
-%clear all
 
 %Store Present Working directory
 pwdir = pwd;
