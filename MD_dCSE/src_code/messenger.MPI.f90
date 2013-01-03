@@ -81,7 +81,7 @@ end subroutine messenger_invoke
 subroutine messenger_init()
 	use messenger
 	use physical_constants_MD
-	use librarymod, only : locate
+	use librarymod, only : locate, find3factors
 	use interfaces, only : error_abort
 	implicit none
 	!include "mpif.h"
@@ -115,24 +115,8 @@ subroutine messenger_init()
 			call error_abort(' Wrong specification for processor topology, nproc not equal to npx*npy*npz')
 	    endif
 	else
-		!Assign arbitrarily to each dimension if not specified
-		npx = ceiling(dble(nproc)**(1.d0/3.d0))
-		npy = ceiling((dble(nproc)/dble(npx))**(1.d0/2.d0))
-		npz = ceiling(dble(nproc)/(dble(npx)*dble(npy)))
-	    !check if npx*npy*npz=nproc and correct
-		do while (npx * npy * npz .ne. nproc )
-			if (npz .eq. 1 .and. npy .eq. 1) then
-				npx = npx + 1
-			endif
-			if (npz .eq. 1 .and. npy .ne. 1) then
-				npx = npx + 1
-				npy = npy - 1
-			endif
-			if (npz .ne. 1) then
-				npy = npy + 1
-				npz = npz - 1
-			endif
-		end do
+		!Assign (using prime factors) to each dimension if not specified
+		call find3factors(nproc,npx,npy,npz)
 		print*, 'WARNING - Number of processors not specified - Arbitrarily assigned as follows:'
 		print*, 'npx = ', npx, 'npy = ', npy, 'npz = ', npz
 

@@ -568,6 +568,144 @@ contains
 
 end subroutine build_hilbert
 
+
+
+!--------------------------------------------------------------------------------------
+! Split an integer into three factors minimising value of each
+
+subroutine find3factors(n,nx,ny,nz)
+	implicit none
+
+	integer, intent(in)		:: n
+	integer, intent(out)	:: nx,ny,nz
+
+	integer :: nfactors,  minval1, minval2
+	integer :: i, f
+	integer,dimension(1)	:: minlocation
+	integer, allocatable, dimension(:) :: factors, nonzerof
+	integer,parameter :: large=99999999
+
+	!Check for sensible configuration
+	nx = ceiling( dble(n)**(1.d0/3.d0))
+	ny = ceiling((dble(n)/dble(nx))**(1.d0/2.d0))
+	nz = ceiling( dble(n)/(dble(nx)*dble(ny)))
+	if (nx * ny * nz .eq. n) return
+
+	!Otherwise find it out the hard way
+	if (n .ge. 4) then
+		! Find all prime factors
+		allocate(factors(n/2))
+		factors = 0
+		call primefactors(n,factors,nfactors)
+	else
+		! First 3 numbers are primes
+		allocate(factors(1))
+		factors = n
+		nfactors = 1
+	endif
+
+	! Reduce/increase number of factors to three
+	if (nfactors .eq. 1) then
+		nx = factors(1); ny = 1         ; nz = 1
+	elseif (nfactors .eq. 2) then
+		nx = factors(1); ny = factors(2); nz = 1
+	elseif (nfactors .eq. 3) then
+		nx = factors(1); ny = factors(2); nz = factors(3)		
+	elseif (nfactors .gt. 3) then
+		allocate(nonzerof(nfactors))
+		nonzerof = factors(1:nfactors)
+
+		do while (nfactors .gt. 3)
+			!Multiple two minimum values and store in 
+			minlocation = minloc(nonzerof)
+			minval1 = nonzerof(minlocation(1))
+			nonzerof(minlocation(1)) = LARGE
+			minlocation = minloc(nonzerof)
+			minval2 = nonzerof(minlocation(1))
+			nonzerof(minlocation(1)) = LARGE
+
+			nonzerof(minlocation(1))=minval1*minval2
+			nfactors = nfactors - 1
+		enddo
+
+		minlocation = minloc(nonzerof)
+		nz = nonzerof(minlocation(1)); nonzerof(minlocation(1))=LARGE
+		minlocation = minloc(nonzerof)
+		ny = nonzerof(minlocation(1)); nonzerof(minlocation(1))=LARGE
+		minlocation = minloc(nonzerof)
+		nx = nonzerof(minlocation(1)); nonzerof(minlocation(1))=LARGE
+ 		
+	endif
+
+	if (n - nx*ny*nz .ne. 0) stop "ERROR in find3factors"
+
+end subroutine find3factors
+
+!--------------------------------------------------------------------------------------
+!		SUBROUTINE TO FIND THE PRIME FACTORS OF A NUMBER
+! Start with 2, check whether 2 is a factor by seeing if MOD(<input_number>,2)
+! is zero. If it is zero, then 2 becomes a factor. If not, check with the next number.
+! When a factor is found, divide the given number with the factor found. However,
+! do not move to the next possible factor - a number can occur more than once as a factor
+
+subroutine primefactors(num, factors, f)
+	implicit none
+
+	integer, intent(in) :: num  !input number
+	integer,intent(out), dimension((num/2))::factors !array to store factors
+	integer, intent(inout) :: f
+	integer :: i, n
+
+	i = 2  !eligible factor
+	f = 1  !number of factors
+	n = num !store input number into a temporary variable
+	do
+		if (mod(n,i) == 0) then !if i divides 2, it is a factor
+			factors(f) = i
+			f = f+1
+			n = n/i
+		else
+			i = i+1     !not a factor. move to next number
+		end if
+		if (n == 1) then		
+			f = f-1		!its value will be one more than the number of factors
+			exit
+		end if
+	end do
+
+end subroutine primefactors
+
+!--------------------------------------------------------------------------------------
+! Split an integer into three factors (works well for some but not as robust as
+! prime based version above
+
+subroutine find3factors_old(n,nx,ny,nz)
+	implicit none
+
+	integer, intent(in)		:: n
+	integer, intent(out)	:: nx,ny,nz
+
+	nx = ceiling( dble(n)**(1.d0/3.d0))
+	ny = ceiling((dble(n)/dble(nx))**(1.d0/2.d0))
+	nz = ceiling( dble(n)/(dble(nx)*dble(ny)))
+
+    !check if npx*npy*npz=nproc and correct
+	do while (nx * ny * nz .ne. n )
+		if (nz .eq. 1 .and. ny .eq. 1) then
+			nx = nx + 1
+		endif
+		if (nz .eq. 1 .and. ny .ne. 1) then
+			nx = nx + 1
+			ny = ny - 1
+		endif
+		if (nz .ne. 1) then
+			ny = ny + 1
+			nz = nz - 1
+		endif
+	end do
+
+end subroutine find3factors_old
+
 !--------------------------------------------------------------------------------------
 !Write matrix in correct format
 subroutine write_matrix(a)
@@ -583,53 +721,53 @@ subroutine write_matrix(a)
 
 end subroutine write_matrix
 
-	!--------------------------------------------------------------------------------------
-	! Prints formatted debug statements
-	subroutine printf(buf,dplaces_in)
-		implicit none
+!--------------------------------------------------------------------------------------
+! Prints formatted debug statements
+subroutine printf(buf,dplaces_in)
+	implicit none
 
-		double precision,dimension(:),intent(in):: buf
-		integer, intent(in), optional			:: dplaces_in
+	double precision,dimension(:),intent(in):: buf
+	integer, intent(in), optional			:: dplaces_in
 
-		integer				:: n,dplaces
-		double precision	:: maxbuf,minbuf,order
-		character*10	 	:: string
-		character*42	 	:: buf_precision
+	integer				:: n,dplaces
+	double precision	:: maxbuf,minbuf,order
+	character*10	 	:: string
+	character*42	 	:: buf_precision
 
-		!Default number of decimal places if not supplied
-		if (present(dplaces_in)) then
-			if (dplaces_in .le. 9) then
-				dplaces = dplaces_in
-			else
-				print*, 'Number of decimal places in printf if limited to 9'
-				dplaces = 9 !Maximum
-			endif
+	!Default number of decimal places if not supplied
+	if (present(dplaces_in)) then
+		if (dplaces_in .le. 9) then
+			dplaces = dplaces_in
 		else
-			dplaces = 4
+			print*, 'Number of decimal places in printf if limited to 9'
+			dplaces = 9 !Maximum
 		endif
+	else
+		dplaces = 4
+	endif
 
-		!Find out required format to display maximum element in buffer
-		maxbuf = maxval(buf); minbuf = minval(buf)
-		maxbuf = max(maxbuf,10*abs(minbuf))	!10*Ensures extra space for minus sign
-		order = 1.d0; n =1
-		do while (max(maxbuf,order) .ne. order)
-			order = order*10.d0
-			n = n + 1
-		enddo
-		if (n+dplaces+2 .le. 9) then
-			write(buf_precision,'(a,i1,a,i1)'), 'f',n+dplaces+2,'.', dplaces
-		else
-			write(buf_precision,'(a,i2,a,i1)'), 'f',n+dplaces+2,'.', dplaces
-		endif
+	!Find out required format to display maximum element in buffer
+	maxbuf = maxval(buf); minbuf = minval(buf)
+	maxbuf = max(maxbuf,10*abs(minbuf))	!10*Ensures extra space for minus sign
+	order = 1.d0; n =1
+	do while (max(maxbuf,order) .ne. order)
+		order = order*10.d0
+		n = n + 1
+	enddo
+	if (n+dplaces+2 .le. 9) then
+		write(buf_precision,'(a,i1,a,i1)'), 'f',n+dplaces+2,'.', dplaces
+	else
+		write(buf_precision,'(a,i2,a,i1)'), 'f',n+dplaces+2,'.', dplaces
+	endif
 
-		! Build up format specifier string based on size of passed array
-		string='(   ' // trim(buf_precision) // ')'
-		write(string(2:4),'(i3)'), size(buf) 
+	! Build up format specifier string based on size of passed array
+	string='(   ' // trim(buf_precision) // ')'
+	write(string(2:4),'(i3)'), size(buf) 
 
-		!Write formatted data 
-		print(string), buf
+	!Write formatted data 
+	print(string), buf
 
-	end subroutine printf
+end subroutine printf
 
 !--------------------------------------------------------------------------------------
 REAL FUNCTION random_normal()
