@@ -69,7 +69,7 @@ end subroutine socket_coupler_invoke
 !-----------------------------------------------------------------------------
 subroutine socket_coupler_init
     use interfaces
-	use CPL, only : coupler_md_init, CPL_create_map, set_coupled_timing, CPL_get
+	use CPL, only : coupler_md_init, CPL_create_map, set_coupled_timing, CPL_get,CPL_write_header
 	use computational_constants_MD, only : npx,npy,npz,delta_t,elapsedtime, & 
 										   Nsteps,initialstep,delta_t, & 
 										   globaldomain,initialnunits
@@ -102,6 +102,9 @@ subroutine socket_coupler_init
  	else
 		call set_parameters_cells_coupled
 	endif
+
+	!Write coupler information to header file
+	call CPL_write_header('./results/coupler_header')
 
 end subroutine socket_coupler_init
 

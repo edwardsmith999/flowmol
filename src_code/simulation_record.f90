@@ -96,21 +96,15 @@ subroutine simulation_record
 	if (vmd_outflag.ne.0 .and. size(vmd_intervals,2).ge.i) then
 		vmd_iter = iter-initialstep+1
 		if (vmd_iter.ge.vmd_intervals(1,i).and.vmd_iter.lt.vmd_intervals(2,i)) then
-			!print*, iter,vmd_iter,i,vmd_count,vmd_intervals(1,i),vmd_intervals(2,i)
 			select case(vmd_outflag)
 			case(1)
-				!call parallel_io_vmd(vmd_intervals(1,i),vmd_intervals(2,i),i)
 				call parallel_io_vmd
 			case(2)
-				!call parallel_io_vmd_sl(vmd_intervals(1,i),vmd_intervals(2,i),i)
 				call parallel_io_vmd_sl
 			case(3)
-				!call parallel_io_vmd(vmd_intervals(1,i),vmd_intervals(2,i),i)
 				call parallel_io_vmd
-				!call parallel_io_vmd_halo(vmd_intervals(1,i),vmd_intervals(2,i),i)
 				call parallel_io_vmd_halo
 			case(4)
-				!call parallel_io_vmd_true(vmd_intervals(1,i),vmd_intervals(2,i),i)
 				call parallel_io_vmd_true
 			case default
 				call error_abort('Unrecognised vmd_outflag in simulation_record')
@@ -216,6 +210,7 @@ subroutine evaluate_macroscopic_properties
 	vsum  = 0.d0                                                ! Reset all sums
 	v2sum = 0.d0                                                ! Reset all sums
 
+	! Potential Component
 	select case(potential_flag)
 	case(0)
 		potenergysum = sum(potenergymol(1:np))
@@ -224,16 +219,14 @@ subroutine evaluate_macroscopic_properties
 		potenergysum_LJ = sum(potenergymol_LJ(1:np))
 		potenergysum_FENE = sum(potenergymol_FENE(1:np))
 		potenergysum = sum(potenergymol_LJ(1:np) + potenergymol_FENE(1:np))
-		call globalSum(potenergysum_FENE)
 		call globalSum(potenergysum_LJ)
+		call globalSum(potenergysum_FENE)
 		call globalSum(potenergysum)
 	case default
 		call error_abort("Unrecognised potential flag in simulation_record")
 	end select
 
-
-	virial = sum(virialmol(1:np))
-	
+	! Kinetic Component
 	select case(integration_algorithm)
 	case(leap_frog_verlet)
 		do n = 1, np 									! Loop over all particles
@@ -256,26 +249,19 @@ subroutine evaluate_macroscopic_properties
 	!Obtain global sums for all parameters
 	call globalSum(vsum)
 	call globalSum(v2sum)
+	virial = sum(virialmol(1:np))
 	call globalSum(virial)
 
-	!Root processes prints results
-	if (irank .eq. iroot) then
-
-		kinenergy   = (0.5d0 * v2sum) / real(globalnp,kind(0.d0))
-		potenergy   = potenergysum /(2.d0*real(globalnp,kind(0.d0))) + Potential_sLRC !N.B. extra 1/2 as all interactions calculated
-		if (potential_flag.eq.1) then
-			potenergy_LJ= potenergysum_LJ/(2.d0*real(globalnp,kind(0.d0))) + Potential_sLRC
-			potenergy_FENE= potenergysum_FENE/(2.d0*real(globalnp,kind(0.d0)))
-		end if
-		totenergy   = kinenergy + potenergy
-		temperature = v2sum / real(nd*globalnp,kind(0.d0))
-		if (any(periodic.gt.1)) temperature = get_temperature_PUT()
-		pressure    = (density/(globalnp*nd))*(v2sum+virial/2.d0) + Pressure_sLRC !N.B. virial/2 as all interactions calculated
-
+	kinenergy   = (0.5d0 * v2sum) / real(globalnp,kind(0.d0))
+	potenergy   = potenergysum /(2.d0*real(globalnp,kind(0.d0))) + Potential_sLRC !N.B. extra 1/2 as all interactions calculated
+	if (potential_flag.eq.1) then
+		potenergy_LJ= potenergysum_LJ/(2.d0*real(globalnp,kind(0.d0))) + Potential_sLRC
+		potenergy_FENE= potenergysum_FENE/(2.d0*real(globalnp,kind(0.d0)))
 	end if
-
-	!Broacast pressure to all processes for constraint force
-	call globalbroadcast(pressure,1,iroot)
+	totenergy   = kinenergy + potenergy
+	temperature = v2sum / real(nd*globalnp,kind(0.d0))
+	if (any(periodic.gt.1)) temperature = get_temperature_PUT()
+	pressure    = (density/(globalnp*nd))*(v2sum+virial/2.d0) + Pressure_sLRC !N.B. virial/2 as all interactions calculated
 
 end subroutine evaluate_macroscopic_properties
 

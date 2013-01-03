@@ -524,10 +524,12 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 						call pressure_tensor_forces(molnoi,rij,accijmag)
 						if (molnoj .le. np) call pressure_tensor_forces(molnoj,rij,accijmag)
 					endif
-					!if (pressure_outflag .eq. 2) call pressure_tensor_forces_VA(ri,rj,rij,accijmag)
-					if (vflux_outflag.eq.1)	call pressure_tensor_forces_MOP(1,ri(:),rj(:),rij(:),accijmag)
-					if (vflux_outflag.eq.2)	call pressure_tensor_forces_MOP(2,ri(:),rj(:),rij(:),accijmag)
-					if (vflux_outflag.eq.3)	call pressure_tensor_forces_MOP(3,ri(:),rj(:),rij(:),accijmag)
+					if (vflux_outflag.ne.0 .or. vflux_outflag.ne.4)	then
+						call pressure_tensor_forces_MOP(vflux_outflag,ri(:),rj(:),rij(:),accijmag)
+					endif
+					!if (vflux_outflag.eq.1)	call pressure_tensor_forces_MOP(1,ri(:),rj(:),rij(:),accijmag)
+					!if (vflux_outflag.eq.2)	call pressure_tensor_forces_MOP(2,ri(:),rj(:),rij(:),accijmag)
+					!if (vflux_outflag.eq.3)	call pressure_tensor_forces_MOP(3,ri(:),rj(:),rij(:),accijmag)
 				endif
 			endif
 			current => old
