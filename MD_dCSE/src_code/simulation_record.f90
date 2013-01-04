@@ -89,7 +89,16 @@ subroutine simulation_record
 	endif
 
 	!---------------Only record every tplot iterations------------------------
-	if (mod(iter,tplot) .ne. 0) return
+	!--------------Only evaluate every teval iterations-----------------------
+	if (mod(iter,tplot) .eq. 0) then
+		!Do nothing	
+	else if (mod(iter,teval) .eq. 0) then
+		call evaluate_microstate_pressure
+		return
+	else
+		return	
+	end if 
+	!--------------Only evaluate every teval iterations-----------------------
 	!---------------Only record every tplot iterations------------------------
 
 	!Parallel output for molecular positions
@@ -138,20 +147,22 @@ subroutine simulation_record
 	!Obtain each processe's subdomain's macroscopic 
 	!properties; gather on root process and record
 	if (macro_outflag .ne. 0) then
+
 		call evaluate_macroscopic_properties
 
-       select case(integration_algorithm)
-       case(leap_frog_verlet)
-           call print_macroscopic_properties(iter-1)   
-       case(velocity_verlet)
-           call print_macroscopic_properties(iter) 
-       end select
+		select case(integration_algorithm)
+		case(leap_frog_verlet)
+		   call print_macroscopic_properties(iter-1)   
+		case(velocity_verlet)
+		   call print_macroscopic_properties(iter) 
+		end select
 
 		select case(macro_outflag)
 		case(2,4)
 			call macroscopic_properties_record
 		case default
 		end select
+
 	endif
 
 	!Obtain and record velocity distributions
@@ -264,6 +275,42 @@ subroutine evaluate_macroscopic_properties
 	pressure    = (density/(globalnp*nd))*(v2sum+virial/2.d0) + Pressure_sLRC !N.B. virial/2 as all interactions calculated
 
 end subroutine evaluate_macroscopic_properties
+
+subroutine evaluate_microstate_pressure
+	use module_record
+	implicit none
+
+	integer :: n
+	real(kind(0.d0)) :: vtemp(nd)
+
+	v2sum = 0.d0
+
+	! Kinetic part of Virial
+	select case(integration_algorithm)
+	case(leap_frog_verlet)
+
+		do n = 1, np
+			vtemp(:) = v(:,n) + 0.5d0*a(:,n)*delta_t ! Velocity must shifted half a timestep
+			v2sum = v2sum + dot_product(vtemp,vtemp)
+		enddo
+
+	case(velocity_verlet)
+
+		do n = 1, np
+			v2sum = v2sum + dot_product(v(:,n),v(:,n))
+		enddo
+
+	end select
+
+	! Configurational part of Virial
+	virial = sum(virialmol(1:np))
+	call globalSum(virial)
+
+	! Instantaneous pressure 
+	pressure = (density/(globalnp*nd))*(v2sum+virial/2.d0) + Pressure_sLRC !N.B. virial/2 as all interactions calculated
+
+end subroutine evaluate_microstate_pressure
+
 
 subroutine print_macroscopic_properties(it)
 use module_record

@@ -60,7 +60,6 @@ subroutine setup_set_parameters
 		potential_sLRC = 0.d0; Pressure_sLRC = 0.d0;
 	endif
 
-
 	!Allocate array sizes for position, velocity and acceleration
 	call set_parameters_allocate
 
@@ -121,6 +120,15 @@ subroutine setup_set_parameters
 	case(1)
 		call setup_polymer_info
 	end select
+
+	if (any(bforce_flag.ne.0)) then
+		teval = 1
+	else
+		teval = tplot
+	end if
+#if USE_COUPLER
+	teval = 1
+#endif
 
 end subroutine setup_set_parameters
 

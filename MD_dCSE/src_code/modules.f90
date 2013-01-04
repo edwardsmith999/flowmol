@@ -103,6 +103,7 @@ module computational_constants_MD
 		nproc, npx, npy, npz, 	&	!Number of MPI ranks and cartesian topology sizes
 		iter, 					&	!Global simulation iteration count
 		tplot, 					&	!Frequency at which to record results
+		teval, 					&	!Frequency at which to evaluate results
 		Nmass_ave, 				&	!Number of averages for each mass average
 		Nvel_ave, 				&	!Number of averages for each velocity average
 		NTemp_ave, 				&	!Number of averages for each temperature measurement

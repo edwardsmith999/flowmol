@@ -201,16 +201,21 @@ subroutine setup_lattice_dense_FENE_info
 	integer :: modcheck
 	integer :: solvent_selector
 	integer, dimension(nproc) :: proc_chains, proc_nps
+	character(256) :: string
 	
 	proc_chains(:)         = 0
 	proc_nps(:)            = 0
 
 	intbits = bit_size(monomer(1)%bin_bflag(1))
 	
-	modcheck = 0 + mod(np,nmonomers) + mod(4*initialnunits(2),nmonomers)
-	if (modcheck.ne.0) call error_abort('Number of molecules must be exactly divisible by &
-	& the polymer chain length. Please change the chain length in the input file. &
-	& A chain length of 4 should (hopefully) always work.')
+	modcheck = 0 + mod(np,nmonomers) + mod(4*initialnunits(2)/npy,nmonomers)
+	if (modcheck.ne.0) then
+		string = 'Number of molecules in the y direction on each processor      &
+    	          must be exactly divisible by the polymer chain length. Please & 
+		          change the chain length in the input file. A chain length of  &
+		          4 should (hopefully) always work.'
+		call error_abort(string)
+	end if
 
 	do n=1,np+extralloc
 		monomer(n)%chainID      = 0

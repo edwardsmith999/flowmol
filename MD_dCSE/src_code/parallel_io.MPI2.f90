@@ -561,6 +561,8 @@ subroutine setup_restart_inputs
 				call MPI_File_read(restartfileid,proctethernp(n),1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 			enddo
 		endif
+
+	
 	    call MPI_File_read(restartfileid,checkdp         ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 		if (checkdp .ne. density) then
 			print*, 'Discrepancy between system density', &
