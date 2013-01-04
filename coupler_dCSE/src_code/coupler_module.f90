@@ -458,8 +458,6 @@ subroutine read_coupler_input
 
 	integer :: infileid
 	logical :: found
-	Character(8)  		:: the_date
-	Character(10)  		:: the_time
 
 	!Check all file ids until an unused one is found
 	infileid = 100000
@@ -524,18 +522,62 @@ subroutine read_coupler_input
 
 	close(infileid,status="keep")
 
+end subroutine read_coupler_input
+
+!------------------------------------------------------------------------------
+!                              CPL_write_header                               -
+!------------------------------------------------------------------------------
+!!
+!! Writes header information to specified filename in the format
+!! Variable description ; variable name ; variable
+!!
+!! - Synopsis
+!!
+!!  - CPL_write_header (header_filename)
+!!
+!! - Input
+!!
+!!  - header_filename
+!!   - File name to write header to
+!!
+!! - Input/Output
+!!  - NONE
+!!
+!! - Output
+!!  - NONE
+!! 
+!! @author Edward Smith
+!
+! ----------------------------------------------------------------------------
+
+subroutine CPL_write_header(header_filename)
+	implicit none
+
+	character(*),intent(in) :: header_filename
+
+	logical 			:: found
+	integer 			:: infileid
+	Character(8)  		:: the_date
+	Character(10)  		:: the_time
+
+	!Check all file ids until an unused one is found
+	infileid = 100000
+	do 
+		inquire(unit=infileid,opened=found)
+		if (.not.(found)) exit
+		infileid = infileid + 1
+	enddo
+
 	! Write Simulation Parameter File contain all data required to completely recreate
 	! simulation and to be used for post processing
 	call date_and_time(the_date, the_time)
 
 	!Open and write input file on all processes
 	if (rank_world .eq. rootid_world+1) then
-		open(infileid,file='./results/coupler_header', & 
-										action="write",form="formatted")
+		open(infileid,file=trim(header_filename),action="write",form="formatted")
 
 		write(infileid,*) 'Simulation run on Date;  sim_date ;', the_date
 		write(infileid,*) 'Simulation start time ;  sim_start_time ;', the_time
-		call locate(infileid,'DENSITY_CFD',found)
 		write(infileid,*) 'CFD density;  density_cfd ;', density_cfd
 		write(infileid,*) 'choice of constraint algorithm;  constraint_algo ;', constraint_algo
 		if (constraint_algo .ne. 0) then
@@ -562,7 +604,9 @@ subroutine read_coupler_input
 
 	endif
 
-end subroutine read_coupler_input
+end subroutine  CPL_write_header
+
+
 
 !------------------------------------------------------------------------------
 !                              coupler_cfd_init                               -
