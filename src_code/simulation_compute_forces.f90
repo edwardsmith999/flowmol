@@ -151,6 +151,10 @@ subroutine simulation_compute_forces_LJ_AP
 					!Virial expression used to obtain pressure
 					virialmol(i) = virialmol(i) + accijmag*rij2
 					virialmol(j) = virialmol(j) + accijmag*rij2
+				else if (mod(iter,teval) .eq. 0) then
+					!Virial expression used to obtain pressure
+					virialmol(i) = virialmol(i) + accijmag*rij2
+					virialmol(j) = virialmol(j) + accijmag*rij2
 				endif
 			endif
 		enddo
@@ -240,6 +244,10 @@ implicit none
 						potenergymol_LJ(j) = potenergymol_LJ(j)   &
 						+ 0.5d0*eps*(cos(sod_a*rij2 + sod_b) - 1.d0)
 					end if
+					!Virial expression used to obtain pressure
+					virialmol(i) = virialmol(i) + accijmag*rij2
+					virialmol(j) = virialmol(j) + accijmag*rij2
+				else if (mod(iter,teval) .eq. 0) then
 					!Virial expression used to obtain pressure
 					virialmol(i) = virialmol(i) + accijmag*rij2
 					virialmol(j) = virialmol(j) + accijmag*rij2
@@ -354,6 +362,9 @@ subroutine simulation_compute_forces_LJ_cells
 							if (vflux_outflag.eq.1)	call pressure_tensor_forces_MOP(1,ri(:),rj(:),rij(:),accijmag)
 							if (vflux_outflag.eq.2)	call pressure_tensor_forces_MOP(2,ri(:),rj(:),rij(:),accijmag)
 							if (vflux_outflag.eq.3)	call pressure_tensor_forces_MOP(3,ri(:),rj(:),rij(:),accijmag)
+						else if (mod(iter,teval) .eq. 0) then
+							!Virial expression used to obtain pressure
+							virialmol(molnoi) = virialmol(molnoi) + accijmag*rij2
 						endif
 					endif
 				enddo
@@ -438,6 +449,9 @@ subroutine simulation_compute_forces_LJ_neigbr
 					if (vflux_outflag.eq.1)	call pressure_tensor_forces_MOP(1,ri(:),rj(:),rij(:),accijmag)
 					if (vflux_outflag.eq.2)	call pressure_tensor_forces_MOP(2,ri(:),rj(:),rij(:),accijmag)
 					if (vflux_outflag.eq.3)	call pressure_tensor_forces_MOP(3,ri(:),rj(:),rij(:),accijmag)
+				else if (mod(iter,teval) .eq. 0) then
+					!Virial expression used to obtain pressure
+					virialmol(molnoi) = virialmol(molnoi) + accijmag*rij2
 				endif
 			endif
 			current => old
@@ -508,7 +522,7 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 					endif
 				endif
 
-				!Only calculate properties when required for output
+								!Only calculate properties when required for output
 				if (mod(iter,tplot) .eq. 0) then
 
 					!Record potential energy total to use for output later (potshift=-1 for WCA)
@@ -530,7 +544,15 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 					!if (vflux_outflag.eq.1)	call pressure_tensor_forces_MOP(1,ri(:),rj(:),rij(:),accijmag)
 					!if (vflux_outflag.eq.2)	call pressure_tensor_forces_MOP(2,ri(:),rj(:),rij(:),accijmag)
 					!if (vflux_outflag.eq.3)	call pressure_tensor_forces_MOP(3,ri(:),rj(:),rij(:),accijmag)
+
+				else if (mod(iter,teval) .eq. 0) then
+
+					!Virial expression used to obtain pressure
+					virialmol(molnoi) = virialmol(molnoi) + accijmag*rij2
+					virialmol(molnoj) = virialmol(molnoj) + accijmag*rij2
+
 				endif
+
 			endif
 			current => old
 			old => current%next !Use pointer in datatype to obtain next item in list
@@ -584,6 +606,11 @@ subroutine simulation_compute_forces_FENE
 				potenergymol_FENE(molnoi) = potenergymol_FENE(molnoi) - 0.5d0*k_c*R_0*R_0*dlog(1.d0-(rij2/(R_0**2)))
 				potenergymol(molnoi)      = potenergymol(molnoi)      + potenergymol_FENE(molnoi)
 				virialmol(molnoi)         = virialmol(molnoi)         + accijmag*rij2
+
+			else if (mod(iter,teval) .eq. 0) then
+			
+				virialmol(molnoi) = virialmol(molnoi) + accijmag*rij2
+
 			endif
 
 		end do	
@@ -731,7 +758,15 @@ implicit none
 					!Virial expression used to obtain pressure
 					virialmol(molnoi) = virialmol(molnoi) + accijmag*rij2
 					virialmol(molnoj) = virialmol(molnoj) + accijmag*rij2
+
+				else if (mod(iter,teval) .eq. 0 ) then
+				
+					!Virial expression used to obtain pressure
+					virialmol(molnoi) = virialmol(molnoi) + accijmag*rij2
+					virialmol(molnoj) = virialmol(molnoj) + accijmag*rij2
+
 				endif
+
 			endif
 			current => old
 			old => current%next                  !obtain next item in list
