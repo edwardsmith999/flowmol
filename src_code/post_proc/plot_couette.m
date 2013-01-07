@@ -34,7 +34,7 @@ fig2 = figure('Position',[scrsz(3)/6 scrsz(4)/4 scrsz(3)/5 scrsz(4)/2]);
 files = dir('Sub*');
 
 %Load DNS data
-[u,v,w,p,stress] = Read_DNS('grid.data',resultfile_dir,ngx-2,ngy-1,ngz-2,Lx,Ly,Lz,13,true);
+[u,v,w,p,stress] = Read_DNS_slice('grid.data',resultfile_dir,ngx-2,ngy-1,ngz-2,Lx,Ly,Lz,13,true);
 xaxis = linspace(-dy/2,Ly+dy/2,ngy-1)/Ly;
 dlmwrite(strcat(resultfile_dir,'../analystress'),zeros(1,analy_points), 'delimiter', ' ')
 for ntime=1:30%size(files,1)
