@@ -39,7 +39,7 @@ subroutine setup_tag
 	mol_layers = 2
 
 	!Initialise
-	tag = 0	
+	tag(:) = free 
 
 	if (ensemble .eq. tag_move) then
 		!Setup fixed wall and location dependent thermostat tags
@@ -47,32 +47,32 @@ subroutine setup_tag
 			do ixyz = 1,3
 				!Bottom
 				if (block(ixyz) .eq. 1) then
-					if(r(ixyz,n).lt.-halfdomain(ixyz)+thermstatbottom(ixyz)) 	tag(n) = 4
-					if(r(ixyz,n).lt.-halfdomain(ixyz)+tethereddistbottom(ixyz))	tag(n) = 3
+					if(r(ixyz,n).lt.-halfdomain(ixyz)+thermstatbottom(ixyz)) 	tag(n) = thermo 
+					if(r(ixyz,n).lt.-halfdomain(ixyz)+tethereddistbottom(ixyz))	tag(n) = teth
 					if(r(ixyz,n).lt.-halfdomain(ixyz)+tethereddistbottom(ixyz) 		& 
-				 .and. r(ixyz,n).lt.-halfdomain(ixyz)+thermstatbottom(ixyz)) 	tag(n) = 5
-					if(r(ixyz,n).lt.-halfdomain(ixyz)+fixdistbottom(ixyz))		tag(n) = 1
-					if(r(ixyz,n).lt.-halfdomain(ixyz)+slidedistbottom(ixyz)) 	tag(n) = 2
+				 .and. r(ixyz,n).lt.-halfdomain(ixyz)+thermstatbottom(ixyz)) 	tag(n) = teth_thermo 
+					if(r(ixyz,n).lt.-halfdomain(ixyz)+fixdistbottom(ixyz))		tag(n) = fixed 
+					if(r(ixyz,n).lt.-halfdomain(ixyz)+slidedistbottom(ixyz)) 	tag(n) = fixed_slide 
 					if(r(ixyz,n).lt.-halfdomain(ixyz)+tethereddistbottom(ixyz) 		& 
-				 .and. r(ixyz,n).lt.-halfdomain(ixyz)+slidedistbottom(ixyz))	tag(n) = 6
+				 .and. r(ixyz,n).lt.-halfdomain(ixyz)+slidedistbottom(ixyz))	tag(n) = teth_slide 
 					if(r(ixyz,n).lt.-halfdomain(ixyz)+tethereddistbottom(ixyz) 		& 
 				 .and. r(ixyz,n).lt.-halfdomain(ixyz)+thermstatbottom(ixyz)	&
-				 .and. r(ixyz,n).lt.-halfdomain(ixyz)+slidedistbottom(ixyz))	tag(n) = 7
+				 .and. r(ixyz,n).lt.-halfdomain(ixyz)+slidedistbottom(ixyz))	tag(n) = teth_thermo_slide
 				endif
 
 				!Top	
 				if (block(ixyz) .eq. npxyz(ixyz)) then
-					if(r(ixyz,n).ge. halfdomain(ixyz)-thermstattop(ixyz)) 		tag(n) = 4
-					if(r(ixyz,n).ge. halfdomain(ixyz)-tethereddisttop(ixyz)) 	tag(n) = 3
+					if(r(ixyz,n).ge. halfdomain(ixyz)-thermstattop(ixyz)) 		tag(n) = thermo 
+					if(r(ixyz,n).ge. halfdomain(ixyz)-tethereddisttop(ixyz)) 	tag(n) = teth 
 					if(r(ixyz,n).gt. halfdomain(ixyz)-tethereddisttop(ixyz) 	& 
-					 .and. r(ixyz,n).gt. halfdomain(ixyz)-thermstattop(ixyz)) 	tag(n) = 5
-					if(r(ixyz,n).ge. halfdomain(ixyz)-fixdisttop(ixyz)) 		tag(n) = 1
-					if(r(ixyz,n).ge. halfdomain(ixyz)-slidedisttop(ixyz)) 		tag(n) = 2
+					 .and. r(ixyz,n).gt. halfdomain(ixyz)-thermstattop(ixyz)) 	tag(n) = teth_thermo 
+					if(r(ixyz,n).ge. halfdomain(ixyz)-fixdisttop(ixyz)) 		tag(n) = fixed 
+					if(r(ixyz,n).ge. halfdomain(ixyz)-slidedisttop(ixyz)) 		tag(n) = fixed_slide 
 					if(r(ixyz,n).gt. halfdomain(ixyz)-tethereddisttop(ixyz)		& 
-					 .and. r(ixyz,n).gt. halfdomain(ixyz)-slidedisttop(ixyz))	tag(n) = 6
+					 .and. r(ixyz,n).gt. halfdomain(ixyz)-slidedisttop(ixyz))	tag(n) = teth_slide 
 					if(r(ixyz,n).gt. halfdomain(ixyz)-tethereddisttop(ixyz)		& 
 					 .and. r(ixyz,n).gt. halfdomain(ixyz)-thermstattop(ixyz)   	&
-					 .and. r(ixyz,n).gt. halfdomain(ixyz)-slidedisttop(ixyz))	tag(n) = 7
+					 .and. r(ixyz,n).gt. halfdomain(ixyz)-slidedisttop(ixyz))	tag(n) = teth_thermo_slide
 				endif
 			enddo
 		enddo
@@ -196,7 +196,7 @@ subroutine wall_textures(texture_type)
 					if(r(1,n) .gt. (icell*cellsidelength(1)-halfdomain(1))) then
 					if(r(1,n) .lt. ((icell+1)*cellsidelength(1)-halfdomain(1))) then
 					!print*, n
-						tag(n) = 0
+						tag(n) = free
 					endif
 					endif
 				endif
@@ -211,21 +211,21 @@ subroutine wall_textures(texture_type)
 			if (r(2,n) .gt. cellsidelength(2)-halfdomain(2)) then
 				!--x direction--
 				if (r(2,n) .gt. (0.3d0+sin(5*xlocation)*heaviside(sin(5*xlocation))) & 
-						 *5.d0*cellsidelength(2)-halfdomain(2)) tag(n) = 0
+						 *5.d0*cellsidelength(2)-halfdomain(2)) tag(n) = free
 				if (r(2,n) .gt. (3.d0+sin(10*xlocation)) & 
-						 *2.5d0*cellsidelength(2)-halfdomain(2)) tag(n) = 0
+						 *2.5d0*cellsidelength(2)-halfdomain(2)) tag(n) = free 
 				!Add Noise
 				if (r(2,n) .gt. (0.3d0+sin(5*xlocation)*heaviside(sin(5*xlocation))+0.3*sin(100*xlocation)) & 
-						 *4.d0*cellsidelength(2)-halfdomain(2)) tag(n) = 0
+						 *4.d0*cellsidelength(2)-halfdomain(2)) tag(n) = free
 
 				!--z direction--
 				if (r(2,n) .gt. (0.3d0+sin(5*zlocation)*heaviside(sin(5*zlocation))) & 
-						 *5.d0*cellsidelength(2)-halfdomain(2)) tag(n) = 0
+						 *5.d0*cellsidelength(2)-halfdomain(2)) tag(n) = free
 				if (r(2,n) .gt. (3.d0+sin(10*zlocation)) & 
-						 *2.5d0*cellsidelength(2)-halfdomain(2)) tag(n) = 0
+						 *2.5d0*cellsidelength(2)-halfdomain(2)) tag(n) = free
 				!Add Noise
 				if (r(2,n) .gt. (0.3d0+sin(5*zlocation)*heaviside(sin(5*zlocation))+0.3*sin(100*zlocation)) & 
-						 *4.d0*cellsidelength(2)-halfdomain(2)) tag(n) = 0
+						 *4.d0*cellsidelength(2)-halfdomain(2)) tag(n) = free
 			endif
 		enddo
 	end select
@@ -270,43 +270,43 @@ subroutine read_tag(molno)
 
 	!Check tag and assign properties accordingly
 	select case (tag(molno))
-	case (0)
+	case (free)
 		!Set molecules to unfixed with no sliding velocity
 		fix(:,molno) = 1
 		slidev(:,molno) = 0.d0
-	case (1)
+	case (fixed)
 		!Fixed Molecules
 		fix(:,molno) = 0
 		slidev(:,molno) = 0.d0
-	case (2)
+	case (fixed_slide)
 		!Fixed with constant sliding speed
 		fix(:,molno) = 0
 		slidev(:,molno) = wallslidev
-	case (3)
+	case (teth)
 		!Tethered molecules unfixed with no sliding velocity
 		fix(:,molno) = 1
 		slidev(:,molno) = 0.d0
-	case (4)
+	case (thermo)
 		!Thermostatted molecules 
 		fix(:,molno) = 1
 		slidev(:,molno) = 0.d0
-	case (5)
+	case (teth_thermo)
 		!Thermostatted Tethered molecules unfixed with no sliding velocity
 		fix(:,molno) = 1
 		slidev(:,molno) = 0.d0
-	case (6)
+	case (teth_slide)
 		!Tethered molecules with sliding velocity
 		fix(:,molno) = 1
 		slidev(:,molno) = wallslidev
-	case (7)
+	case (teth_thermo_slide)
 		!Thermostatted Tethered molecules unfixed with sliding velocity
 		fix(:,molno) = 1
 		slidev(:,molno) = wallslidev
-	case (8)
+	case (PUT_thermo)
 		!Profile unbiased thermostat (Nose-Hoover)
 		fix(:,molno) = 1
 		slidev(:,molno) = 0.d0
-	case (9)
+	case (z_thermo)
 		!Thermostat in the z direction only (Nose-Hoover) 
 		fix(:,molno) = 1
 		slidev(:,molno) = 0.d0

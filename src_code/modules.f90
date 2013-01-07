@@ -43,7 +43,19 @@ module computational_constants_MD
 	!Force and Potential flags
 	integer							 :: force_list		!flag for neighbr/cell list
 	integer							 :: potential_flag	!Choose LJ or Polymer potential
-	integer                 		 :: tether_flag      !True if there exists 
+	integer                 		 :: tether_flag     !True if there exists 
+
+	! Move particle tags
+	integer, parameter :: free = 0
+	integer, parameter :: fixed = 1
+	integer, parameter :: fixed_slide = 2
+	integer, parameter :: teth = 3
+	integer, parameter :: thermo = 4
+	integer, parameter :: teth_thermo = 5
+	integer, parameter :: teth_slide = 6
+	integer, parameter :: teth_thermo_slide = 7
+	integer, parameter :: PUT_thermo = 8
+	integer, parameter :: z_thermo = 9
 	integer, dimension(4), parameter :: tether_tags=(/3,5,6,7/)
 
 	!Integration algorithm

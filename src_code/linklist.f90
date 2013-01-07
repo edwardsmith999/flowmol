@@ -1347,9 +1347,11 @@ subroutine sort_mols
 	case(1)
 		!Use ordered array generated during setup
 		if (potential_flag .eq. 1) call error_abort("Sort should be turned off - Not developed for polymers")
+		if (any(tag.ne.0)) call error_abort("Sort should be turned off - Not developed for tagged move system")
 	case(2)
 		!Use Hilbert curve generated during setup
 		if (potential_flag .eq. 1) call error_abort("Sort should be turned off - Not developed for polymers")
+		if (any(tag.ne.0)) call error_abort("Sort should be turned off - Not developed for tagged move system")
 	case default
 		call error_abort('Incorrect value of sort_flag')
 	end select
