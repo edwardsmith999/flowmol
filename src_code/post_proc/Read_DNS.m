@@ -86,8 +86,8 @@ for n = 1:length(filenames)
     V = read_sub(filenames(n).name,ngz,ngx,ngy,pz,px,py,skipk,skipi,skipj,nvar);
 
     u(:,n) = squeeze(mean(mean(V{1}(1:end-nn,1:end-nn,:),1),2));
-    G3DtoDX(xpg(1:end,1),ypg(1,1:end),z(1:end), ... 
-             permute(V{1}(:,:,2:end-1),[2 3 1]),strcat('./vmd_volumes/DNS',num2str(n),'.dx'),-Lx/2,2.8499,-Lz/2)
+%    G3DtoDX(xpg(1:end,1),ypg(1,1:end),z(1:end), ... 
+%            permute(V{1}(:,:,2:end-1),[2 3 1]),strcat('./vmd_volumes/DNS',num2str(n),'.dx'),-Lx/2,2.8499,-Lz/2)
     v(:,n) = squeeze(mean(mean(V{2}(1:end-nn,1:end-nn,:),1),2));
     w(:,n) = squeeze(mean(mean(V{3}(1:end-nn,1:end-nn,:),1),2));
     if (nvar >= 4)
