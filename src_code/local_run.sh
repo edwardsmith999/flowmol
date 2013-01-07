@@ -3,7 +3,7 @@
 # Command line args
 nproc_md=$1
 nproc_cfd=$2
-md_extra_args=$3 $4  
+md_extra_args="$3 $4" 
 
 # Useful variables
 MD_DIR=../../MD_dCSE/src_code
@@ -34,6 +34,6 @@ if ./checksims.py $nproc_md $nproc_cfd; then
 	cp ./couette_data/archive ./couette_data/archive.000000
 
 	#Run Coupled code
-	mpirun -n $nproc_md $MD_DIR/md.exe -i ./md_data/MD.in $md_extra_args : -n $nproc_cfd ./couette_data/parallel_couette.exe 
+	mpirun -n $nproc_md $MD_DIR/md.exe -i ./md_data/MD.in $md_extra_args : -n $nproc_cfd ./couette_data/parallel_couette.exe
 
 fi
