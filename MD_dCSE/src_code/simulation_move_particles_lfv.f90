@@ -176,18 +176,18 @@ contains
 		allocate(m_slice(nbins(le_sp)))                                   ! PUT: Allocate instantaneous mass slices
 		allocate(v_slice(nbins(le_sp),nd))                                ! PUT: Allocate instantaneous velocity slices
 		allocate(v_avg(nbins(le_sp),nd))                                  ! PUT: Allocate instantaneous velocity averages
-		slicebinsize(:) = domain(:)/nbins(:)                                    ! PUT: Get bin size for PUT
+		slicebinsize(:) = domain(:)/nbins(:)                              ! PUT: Get bin size for PUT
 		m_slice = get_mass_slices(le_sp)                                  ! PUT: Get total mass in all slices
 		v_slice = get_velo_slices(le_sp)                                  ! PUT: Get total velocity in all slices
 		do slicebin=1,nbins(le_sp)                                        ! PUT: Loop through all slices
-			v_avg(slicebin,:) = v_slice(slicebin,:)/m_slice(slicebin)           ! PUT: average velocity
+			v_avg(slicebin,:) = v_slice(slicebin,:)/m_slice(slicebin)     ! PUT: average velocity
 		end do
 		
 		do n=1,np
 			slicebin = ceiling((r(le_sp,n)+halfdomain(le_sp))/&
 			                    slicebinsize(le_sp))
-			if (slicebin > nbins(le_sp)) slicebin = nbins(le_sp)    ! PUT: Prevent out-of-range values
-			if (slicebin < 1) slicebin = 1                                      ! PUT: Prevent out-of-range values
+			if (slicebin > nbins(le_sp)) slicebin = nbins(le_sp)          ! PUT: Prevent out-of-range values
+			if (slicebin < 1) slicebin = 1                                ! PUT: Prevent out-of-range values
 			U(:,n) = v_avg(slicebin,:)
 		end do
 
@@ -209,7 +209,7 @@ contains
 		double precision, dimension(nd)	:: vel
 		logical :: PUT
 
-		if (all(tag.eq.8)) then		
+		if (all(tag.eq.PUT_thermo)) then		
 			PUT = .true.
 			call evaluate_U_PUT										! Only works for serial code.
 			pec_v2sum = 0.d0
@@ -254,14 +254,14 @@ contains
 		!Step through each particle n
 		do n = 1,np        
 			select case (tag(n))
-			case (0)
+			case (free)
 				!Leapfrog mean velocity calculated here at v(t+0.5delta_t) = v(t-0.5delta_t) + a*delta_t 
 				!Leapfrog mean position calculated here at r(t+delta_t) = r(t) + v(t+0.5delta_t)*delta_t
 				v(:,n) = v(:,n) + delta_t * a(:,n) 	!Velocity calculated from acceleration
 				r(:,n) = r(:,n) + delta_t * v(:,n)	!Position calculated from velocity
-			case (1)
+			case (fixed)
 				!Fixed Molecules - no movement r(n+1) = r(n)
-			case (2)
+			case (fixed_slide)
 				!Fixed with constant sliding speed
 				r(:,n) = r(:,n) + delta_t*slidev(:,n)	!Position calculated from velocity
 
@@ -284,12 +284,12 @@ contains
 					!Fixed Molecules - no movement r(n+1) = r(n)
 				!endif
 
-			case (3)
+			case (teth)
 				!Tethered molecules
 				call tether_force(n)
 				v(:,n) = v(:,n) + delta_t * a(:,n) 	!Velocity calculated from acceleration
 				r(:,n) = r(:,n) + delta_t * v(:,n)	!Position calculated from velocity
-			case (4)
+			case (thermo)
 				!Nose Hoover Thermostatted Molecule
 				v(1,n) = v(1,n)*ascale + a(1,n)*delta_t*bscale
 				r(1,n) = r(1,n)    +     v(1,n)*delta_t			
@@ -297,7 +297,7 @@ contains
 				r(2,n) = r(2,n)    + 	 v(2,n)*delta_t				
 				v(3,n) = v(3,n)*ascale + a(3,n)*delta_t*bscale
 				r(3,n) = r(3,n)    +     v(3,n)*delta_t	
-			case (5)
+			case (teth_thermo)
 				!Thermostatted Tethered molecules unfixed with no sliding velocity
 				call tether_force(n)
 				v(1,n) = v(1,n)*ascale + a(1,n)*delta_t*bscale
@@ -306,12 +306,12 @@ contains
 				r(2,n) = r(2,n)    + 	 v(2,n)*delta_t				
 				v(3,n) = v(3,n)*ascale + a(3,n)*delta_t*bscale
 				r(3,n) = r(3,n)    +     v(3,n)*delta_t	
-			case (6)
+			case (teth_slide)
 				!Tethered molecules with sliding velocity
 				call tether_force(n)
 				v(:,n) = v(:,n) + delta_t * a(:,n) 							!Velocity calculated from acceleration
 				r(:,n) = r(:,n) + delta_t * v(:,n) + delta_t*slidev(:,n)	!Position calculated from velocity+slidevel
-			case (7)
+			case (teth_thermo_slide)
 				!Thermostatted Tethered molecules unfixed with sliding velocity
 				call tether_force(n)
 				v(1,n) = v(1,n)*ascale + a(1,n)*delta_t*bscale
@@ -320,11 +320,11 @@ contains
 				r(2,n) = r(2,n)    + 	 v(2,n)*delta_t	+ slidev(2,n)*delta_t			
 				v(3,n) = v(3,n)*ascale + a(3,n)*delta_t*bscale
 				r(3,n) = r(3,n)    +     v(3,n)*delta_t	+ slidev(3,n)*delta_t
-			case (8)
+			case (PUT_thermo)
 				!Profile unbiased thermostat (Nose-Hoover)
 	        	v(:,n) = v(:,n)*ascale + (a(:,n)+zeta*U(:,n))*delta_t*bscale
 				r(:,n) = r(:,n)        + v(:,n)*delta_t			
-			case (9)
+			case (z_thermo)
 				!Thermostat in the z direction only (Nose-Hoover)
 				v(1,n) = v(1,n) + delta_t * a(1,n) 	
 				r(1,n) = r(1,n) + delta_t * v(1,n)	

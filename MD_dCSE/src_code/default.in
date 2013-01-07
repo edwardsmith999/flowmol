@@ -191,7 +191,7 @@ FIXED_REBUILD_FLAG
 # sorting algorithm - use script based tuning for your case
 # -----------------------------------------------------------------------
 SORT_FLAG
-2
+0
 1
 3
 
