@@ -56,6 +56,18 @@ module messenger
 	integer, allocatable :: icoord(:,:)     ! proc grid coordinates
 	integer				 :: icomm_xyz(3)	! Directional subcomms
 
+contains
+
+	function globalise(rloc) result(rglob)
+		implicit none
+		
+		real(kind(0.d0)), intent(in)  :: rloc(3)
+		real(kind(0.d0))              :: rglob(3)
+
+		rglob = rloc
+
+	end function globalise
+
 end module
 
 !======================================================================
@@ -1195,3 +1207,4 @@ subroutine error_abort_si(msg,i)
         stop
 
 end subroutine error_abort_si
+
