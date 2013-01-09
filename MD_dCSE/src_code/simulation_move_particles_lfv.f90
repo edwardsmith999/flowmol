@@ -146,6 +146,8 @@ contains
 		double precision :: dzeta_dt
 		double precision, dimension(nd) :: pec_v
 
+		print*, 'Warning: PUT evaluation only applicable to Lees-Edwards systems'
+
 		pec_v2sum = 0.d0
 		do n=1,np
 			pec_v(:)  = v(:,n) - U(:,n) - 0.5d0*a(:,n)*delta_t      ! PUT: Find peculiar velocity
@@ -172,6 +174,8 @@ contains
 		double precision, dimension(nd) :: slicebinsize
 		double precision, dimension(:,:), allocatable :: v_slice
 		double precision, dimension(:,:), allocatable :: v_avg
+
+		print*, 'Warning: PUT evaluation only applicable to Lees-Edwards systems'
 	
 		allocate(m_slice(nbins(le_sp)))                                   ! PUT: Allocate instantaneous mass slices
 		allocate(v_slice(nbins(le_sp),nd))                                ! PUT: Allocate instantaneous velocity slices
@@ -203,38 +207,60 @@ contains
 		use interfaces
 		implicit none
 				
-		integer 			:: maxtag, n, thermostatnp 
-		double precision 	:: freq, dzeta_dt, pec_v2sum, v2sum,Q
-		double precision 	:: ascale, bscale
+		integer	:: n, thermostatnp
+		double precision :: freq, dzeta_dt, v2sum, Q
+		double precision :: ascale, bscale
 		double precision, dimension(nd)	:: vel
-		logical :: PUT
 
-		if (all(tag.eq.PUT_thermo)) then		
-			PUT = .true.
-			call evaluate_U_PUT										! Only works for serial code.
-			pec_v2sum = 0.d0
-		else 
-			PUT = .false.
-		end if
+		if (tag_thermostat_active) then
+		
+			! -------------   W  A  R  N  I  N  G  -------------------------	
+			! --------------------------------------------------------------
+			! 
+			!  This is only applicable for systems under a homogeneous
+			!  temperature field. It is NOT intended to be used as a tool
+			!  for applying temperature gradients or "regional" thermostats. 
+			!  If this functionality is desired, the routine will need to 
+			!  be redeveloped with multiple "v2sum"s for each region that 
+			!  is thermostatted separately.
+			! 
+			! --------------------------------------------------------------
 
-		!Check if any molecules are thermostatted and calculate appropriate coefficients
-		maxtag = maxval(tag)
-		call globalMaxInt(maxtag)
-		if (maxtag .ge. 4) then
+			! PUT only works for serial code.
+			if ( any(tag(:).eq.PUT_thermo) ) call evaluate_U_PUT  
 
-			v2sum = 0.d0    									  	! Reset total v2sum
-			thermostatnp = 0										! Reset count of thermostatted mols
-			do n = 1, np   											! Loop all molecules
-				if (tag(n) .lt. 4) cycle							! Only include thermostatted molecules 
-				if (PUT) then										! PUT: If using PUT find peculiar v2sum
-					vel(:) = v(:,n) - U(:,n) - 0.5d0*a(:,n)*delta_t	! PUT: Find peculiar velocity
-					pec_v2sum = pec_v2sum + dot_product(vel,vel)	! PUT: Sum peculiar velocities squared
-				else
-					vel(:) = v(:,n) - 0.5d0*a(:,n)*delta_t	
-					v2sum = v2sum + dot_product(vel,vel)
+			! Warn user of lack of development
+			if ( any(tag(:).eq.z_thermo) ) then
+				if (mod(iter,tplot).eq.0 .and. irank .eq. iroot) then
+				print*, 'Warning: thermostatting only in z direction. This &
+				       & has not been fully developed and requires checking.'
 				end if
+			end if
+
+			v2sum = 0.d0
+			thermostatnp = 0
+			do n = 1, np
+
+				select case ( tag(n) )
+				case ( thermo, teth_thermo, teth_thermo_slide )
+					vel(:) = v(:,n) - 0.5d0*a(:,n)*delta_t
+
+				case ( PUT_thermo )
+					vel(:) = v(:,n) - U(:,n) - 0.5d0*a(:,n)*delta_t
+
+				case ( z_thermo )
+					vel(:) = v(:,n) - 0.5d0*a(:,n)*delta_t
+
+				case default
+					cycle ! Don't include non-thermostatted molecules
+
+				end select
+
+				v2sum = v2sum + dot_product(vel,vel)
 				thermostatnp = thermostatnp + 1
+
 			enddo
+
 
 			!Obtain global sums for all parameters
 			call globalSumInt(thermostatnp)
@@ -242,7 +268,6 @@ contains
 
 			Q        = thermostatnp * delta_t
 			dzeta_dt = (v2sum - (nd*thermostatnp + 1)*inputtemperature) / Q
-			if (PUT) dzeta_dt = (pec_v2sum - (nd*thermostatnp + 1)*inputtemperature) / Q
 			zeta 	 = zeta + delta_t*dzeta_dt
 			bscale	 = 1.0/(1.0+0.5*delta_t*zeta)
 			ascale	 = (1-0.5*delta_t*zeta)*bscale

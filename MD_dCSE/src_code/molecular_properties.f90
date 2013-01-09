@@ -29,152 +29,139 @@ end module module_molecule_properties
 
 subroutine setup_tag
 	use module_molecule_properties
+	use interfaces, only: error_abort
+	use messenger, only: globalise
 	implicit none
 
-	integer 				:: ixyz, n, mol_layers
-	integer,dimension(3)	:: block, npxyz
+	integer :: n
+	real(kind(0.d0)) :: rglob(3)
+	logical :: l_thermo
+	logical :: l_teth
+	logical :: l_fixed
+	logical :: l_slide
 
-	block = (/ iblock, jblock, kblock /)
-	npxyz = (/  npx  ,  npy  ,  npz   /)
-	mol_layers = 2
-
-	!Initialise
+	!Initialise all molecules free of thermostats, etc (i.e. tag free=0)
 	tag(:) = free 
 
 	if (ensemble .eq. tag_move) then
+
 		!Setup fixed wall and location dependent thermostat tags
 		do n = 1,np
-			do ixyz = 1,3
-				!Bottom
-				if (block(ixyz) .eq. 1) then
-					if(r(ixyz,n).lt.-halfdomain(ixyz)+thermstatbottom(ixyz)) 	tag(n) = thermo 
-					if(r(ixyz,n).lt.-halfdomain(ixyz)+tethereddistbottom(ixyz))	tag(n) = teth
-					if(r(ixyz,n).lt.-halfdomain(ixyz)+tethereddistbottom(ixyz) 		& 
-				 .and. r(ixyz,n).lt.-halfdomain(ixyz)+thermstatbottom(ixyz)) 	tag(n) = teth_thermo 
-					if(r(ixyz,n).lt.-halfdomain(ixyz)+fixdistbottom(ixyz))		tag(n) = fixed 
-					if(r(ixyz,n).lt.-halfdomain(ixyz)+slidedistbottom(ixyz)) 	tag(n) = fixed_slide 
-					if(r(ixyz,n).lt.-halfdomain(ixyz)+tethereddistbottom(ixyz) 		& 
-				 .and. r(ixyz,n).lt.-halfdomain(ixyz)+slidedistbottom(ixyz))	tag(n) = teth_slide 
-					if(r(ixyz,n).lt.-halfdomain(ixyz)+tethereddistbottom(ixyz) 		& 
-				 .and. r(ixyz,n).lt.-halfdomain(ixyz)+thermstatbottom(ixyz)	&
-				 .and. r(ixyz,n).lt.-halfdomain(ixyz)+slidedistbottom(ixyz))	tag(n) = teth_thermo_slide
-				endif
 
-				!Top	
-				if (block(ixyz) .eq. npxyz(ixyz)) then
-					if(r(ixyz,n).ge. halfdomain(ixyz)-thermstattop(ixyz)) 		tag(n) = thermo 
-					if(r(ixyz,n).ge. halfdomain(ixyz)-tethereddisttop(ixyz)) 	tag(n) = teth 
-					if(r(ixyz,n).gt. halfdomain(ixyz)-tethereddisttop(ixyz) 	& 
-					 .and. r(ixyz,n).gt. halfdomain(ixyz)-thermstattop(ixyz)) 	tag(n) = teth_thermo 
-					if(r(ixyz,n).ge. halfdomain(ixyz)-fixdisttop(ixyz)) 		tag(n) = fixed 
-					if(r(ixyz,n).ge. halfdomain(ixyz)-slidedisttop(ixyz)) 		tag(n) = fixed_slide 
-					if(r(ixyz,n).gt. halfdomain(ixyz)-tethereddisttop(ixyz)		& 
-					 .and. r(ixyz,n).gt. halfdomain(ixyz)-slidedisttop(ixyz))	tag(n) = teth_slide 
-					if(r(ixyz,n).gt. halfdomain(ixyz)-tethereddisttop(ixyz)		& 
-					 .and. r(ixyz,n).gt. halfdomain(ixyz)-thermstattop(ixyz)   	&
-					 .and. r(ixyz,n).gt. halfdomain(ixyz)-slidedisttop(ixyz))	tag(n) = teth_thermo_slide
-				endif
-			enddo
+			rglob(:) = globalise(r(:,n))
+
+			l_thermo = get_tag_status(rglob,'thermo') 
+			l_teth   = get_tag_status(rglob,'teth') 
+			l_fixed  = get_tag_status(rglob,'fixed')
+			l_slide  = get_tag_status(rglob,'slide')
+
+			! Checks
+			if ( l_teth .and. l_fixed ) then
+				call error_abort("User attempted to fix AND tether a molecule. Aborting.")
+			end if
+			if ( l_thermo .and. l_fixed ) then
+				call error_abort("User attempted to fix AND thermostat a molecule. Aborting.")
+			end if
+
+			! Teth
+			if ( l_teth .and. .not. l_thermo .and. .not. l_slide  ) tag(n) = teth
+			if ( l_teth .and. .not. l_thermo .and.       l_slide  ) tag(n) = teth_slide
+			if ( l_teth .and.       l_thermo .and. .not. l_slide  ) tag(n) = teth_thermo
+			if ( l_teth .and.       l_thermo .and.       l_slide  ) tag(n) = teth_thermo_slide
+
+			! Fixed 
+			if ( l_fixed .and. .not. l_slide ) tag(n) = fixed
+			if ( l_fixed .and.       l_slide ) tag(n) = fixed_slide
+
+			! Thermo only
+			if ( l_thermo .and. .not. l_teth .and. .not. l_slide ) tag(n) = thermo
+
 		enddo
+
 	end if
 
-!	do n = 1,np
-		!x bottom
-!		if (iblock .eq. 1) then
-!			if(r(1,n).lt.-halfdomain(1)+   thermstatbottom(1)) 	tag(n) = 4
-!			if(r(1,n).lt.-halfdomain(1)+tethereddistbottom(1)) 	tag(n) = 3
-!			if(r(1,n).lt.-halfdomain(1)+tethereddistbottom(1) & 
-!		     .and. r(1,n).lt.-halfdomain(1)+   thermstatbottom(1)) 	tag(n) = 5
-!			if(r(1,n).lt.-halfdomain(1)+     fixdistbottom(1))	tag(n) = 1
-!			if(r(1,n).lt.-halfdomain(1)+   slidedistbottom(1)) 	tag(n) = 2
-!			if(r(1,n).lt.-halfdomain(1)+tethereddistbottom(1) & 
-!		     .and. r(1,n).lt.-halfdomain(1)+   slidedistbottom(1))	tag(n) = 6
-!			if(r(1,n).lt.-halfdomain(1)+tethereddistbottom(1) & 
-!		     .and. r(1,n).lt.-halfdomain(1)+   thermstatbottom(1)    &
-!		     .and. r(1,n).lt.-halfdomain(1)+   slidedistbottom(1))	tag(n) = 7
-!		endif
+contains
 
-!		!x top	
-!		if (iblock .eq. npx) then
-!			if(r(1,n).ge. halfdomain(1)-thermstattop(1)) 		tag(n) = 4
-!			if(r(1,n).ge. halfdomain(1)-tethereddisttop(1)) 	tag(n) = 3
-!			if(r(1,n).gt. halfdomain(1)-tethereddisttop(1) 	& 
-!		     .and. r(1,n).gt. halfdomain(1)-thermstattop(1)) 		tag(n) = 5
-!			if(r(1,n).ge. halfdomain(1)-fixdisttop(1)) 		tag(n) = 1
-!			if(r(1,n).ge. halfdomain(1)-slidedisttop(1)) 		tag(n) = 2
-!			if(r(1,n).gt. halfdomain(1)-tethereddisttop(1)	& 
-!		     .and. r(1,n).gt. halfdomain(1)-slidedisttop(1))		tag(n) = 6
-!			if(r(1,n).gt. halfdomain(1)-tethereddisttop(1)	& 
-!		     .and. r(1,n).gt. halfdomain(1)-thermstattop(1)   	&
-!		     .and. r(1,n).gt. halfdomain(1)-slidedisttop(1))		tag(n) = 7
-!		endif
+	function get_tag_status(rg,status_type) result(tag_status)
+		implicit none
 
-		!y bottom
-!		if (jblock .eq. 1) then
-!			if(r(2,n).lt.-halfdomain(2)+thermstatbottom(2)) 	tag(n) = 4
-!			if(r(2,n).lt.-halfdomain(2)+tethereddistbottom(2)) 	tag(n) = 3
-!			if(r(2,n).lt.-halfdomain(2)+tethereddistbottom(2) & 
-!		     .and. r(2,n).lt.-halfdomain(2)+thermstatbottom(2) ) 	tag(n) = 5
-!			if(r(2,n).lt.-halfdomain(2)+fixdistbottom(2))		tag(n) = 1
-!			if(r(2,n).lt.-halfdomain(2)+slidedistbottom(2)) 	tag(n) = 2
-!			if(r(2,n).lt.-halfdomain(2)+tethereddistbottom(2) & 
-!		     .and. r(2,n).lt.-halfdomain(2)+slidedistbottom(2))		tag(n) = 6
-!			if(r(2,n).lt.-halfdomain(2)+tethereddistbottom(2) & 
-!		     .and. r(2,n).lt.-halfdomain(2)+thermstatbottom(2)    &
-!		     .and. r(2,n).lt.-halfdomain(2)+slidedistbottom(2))		tag(n) = 7
-	!	endif
-	
-		!y top
-	!	if (jblock .eq. npy) then
-	!		if(r(2,n).ge. halfdomain(2)-thermstattop(2)) 		tag(n) = 4
-	!		if(r(2,n).ge. halfdomain(2)-tethereddisttop(2)) 	tag(n) = 3
-	!		if(r(2,n).gt. halfdomain(2)-tethereddisttop(2) 	& 
-	!	     .and. r(2,n).gt. halfdomain(2)-thermstattop(2) ) 	tag(n) = 5
-	!		if(r(2,n).ge. halfdomain(2)-fixdisttop(2)) 			tag(n) = 1
-	!		if(r(2,n).ge. halfdomain(2)-slidedisttop(2)) 		tag(n) = 2
-!!			if(r(2,n).gt. halfdomain(2)-tethereddisttop(2) 	& 
-!		     .and. r(2,n).gt. halfdomain(2)-slidedisttop(2))	tag(n) = 6 
-!			if(r(2,n).gt. halfdomain(2)-tethereddisttop(2) 	& 
-!		     .and. r(2,n).gt. halfdomain(2)-thermstattop(2) &
-!		     .and. r(2,n).gt. halfdomain(2)-slidedisttop(2))	tag(n) = 7 
-!		endif
+		real(kind(0.d0)) :: rg(3)   ! Global position
+		character(*) :: status_type ! Specifies thermo, tethered, fixed, etc
 
-		!z bottom
-!		if (kblock .eq. 1) then
-!			if(r(3,n).lt.-halfdomain(3)+thermstatbottom(3)) 	tag(n) = 4
-!			if(r(3,n).lt.-halfdomain(3)+tethereddistbottom(3)) 	tag(n) = 3
-!			if(r(3,n).lt.-halfdomain(3)+tethereddistbottom(3) & 
-!		     .and. r(3,n).lt.-halfdomain(3)+thermstatbottom(3) ) 	tag(n) = 5
-!			if(r(3,n).lt.-halfdomain(3)+fixdistbottom(3))		tag(n) = 1
-!			if(r(3,n).lt.-halfdomain(3)+slidedistbottom(3)) 	tag(n) = 2
-!			if(r(3,n).lt.-halfdomain(3)+tethereddistbottom(3) & 
-!		     .and. r(3,n).lt.-halfdomain(3)+slidedistbottom(3))		tag(n) = 6
-!			if(r(3,n).lt.-halfdomain(3)+tethereddistbottom(3) & 
-!		     .and. r(3,n).lt.-halfdomain(3)+thermstatbottom(3)    &
-!		     .and. r(3,n).lt.-halfdomain(3)+slidedistbottom(3))		tag(n) = 7
-!		endif
+		integer :: ixyz
+		real(kind(0.d0)) :: bottom(3) ! Global position of bottom of domain
+		real(kind(0.d0)) :: top(3)
+		real(kind(0.d0)) :: tagdistbottom(3) ! Distance specified by user
+		real(kind(0.d0)) :: tagdisttop(3)
+		logical :: tag_status 
 
-		!z top
-!		if (kblock .eq. npz) then
-!			if(r(3,n).ge. halfdomain(3)-thermstattop(3)) 		tag(n) = 4
-!			if(r(3,n).ge. halfdomain(3)-tethereddisttop(3)) 	tag(n) = 3
-!			if(r(3,n).gt. halfdomain(3)-tethereddisttop(3) & 
-!		     .and. r(3,n).gt. halfdomain(3)-thermstattop(3) ) 		tag(n) = 5
-!			if(r(3,n).ge. halfdomain(3)-fixdisttop(3)) 		tag(n) = 1
-!			if(r(3,n).ge. halfdomain(3)-slidedisttop(3)) 		tag(n) = 2
-!			if(r(3,n).gt. halfdomain(3)-tethereddisttop(3) & 
-!		     .and. r(3,n).gt. halfdomain(3)-slidedisttop(3))		tag(n) = 6
-!			if(r(3,n).gt. halfdomain(3)-tethereddisttop(3) & 
-!		     .and. r(3,n).gt. halfdomain(3)-thermstattop(3)    &
-!		     .and. r(3,n).gt. halfdomain(3)-slidedisttop(3))		tag(n) = 7
-!		endif
-!
-!	enddo
+		bottom = (/ -globaldomain(1)/2.d0, -globaldomain(2)/2.d0, -globaldomain(3)/2.d0 /)
+		top    = (/  globaldomain(1)/2.d0,  globaldomain(2)/2.d0,  globaldomain(3)/2.d0 /)
+
+		select case (status_type)
+		case ('thermo')
+			tagdistbottom(:) = thermstatbottom(:)
+			tagdisttop(:)    = thermstattop(:)
+		case ('teth')
+			tagdistbottom(:) = tethereddistbottom(:)
+			tagdisttop(:)    = tethereddisttop(:)
+		case ('fixed')
+			tagdistbottom(:) = fixdistbottom(:)
+			tagdisttop(:)    = fixdisttop(:)
+		case ('slide')
+			tagdistbottom(:) = slidedistbottom(:)
+			tagdisttop(:)    = slidedisttop(:)
+		case default
+			call error_abort("Unrecognised tag status type")
+		end select
+
+		tag_status = .false.
+		! If within a tagged region then mark tag status as true and return
+		do ixyz = 1,3
+			if (rg(ixyz) .le. bottom(ixyz) + tagdistbottom(ixyz) .or. &
+				rg(ixyz) .ge. top(ixyz)    - tagdisttop(ixyz)) then
+
+				tag_status = .true.
+				if ( status_type .eq. 'thermo' ) tag_thermostat_active = .true.
+
+				return	
+
+			end if	
+		end do
+
+	end function get_tag_status
 
 end subroutine setup_tag
 
 !----------------------------------------------------------------------------------
+! Check if thermostat is active anywhere in world
+subroutine get_tag_thermostat_activity(active)
+	use physical_constants_MD, only: np
+	use computational_constants_MD, only: thermo_tags
+	use arrays_MD, only: tag
+	implicit none
 
+	logical, intent(out) :: active
+	integer :: i, n
+
+	i = 0
+	do n = 1, np
+		if (any(tag(n).eq.thermo_tags)) then
+			i = 1	
+			exit
+		end if
+	end do
+	call globalMaxInt(i)
+
+	if (i.eq.1) then
+		active = .true.
+	else
+		active = .false.
+	end if
+	
+end subroutine get_tag_thermostat_activity
+
+!----------------------------------------------------------------------------------
 
 subroutine wall_textures(texture_type)
 	use module_molecule_properties

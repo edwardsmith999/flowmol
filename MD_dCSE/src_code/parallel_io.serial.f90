@@ -380,6 +380,7 @@ subroutine setup_restart_microstate
 !	end select
 
 	print*, 'Molecular tags have been obtained from the restart file.'
+	call get_tag_thermostat_activity(tag_thermostat_active)
 	do n = 1,np
 		call read_tag(n)		!Read tag and assign properties
 	enddo

@@ -46,6 +46,7 @@ module computational_constants_MD
 	integer                 		 :: tether_flag     !True if there exists 
 
 	! Move particle tags
+	logical :: tag_thermostat_active
 	integer, parameter :: free = 0
 	integer, parameter :: fixed = 1
 	integer, parameter :: fixed_slide = 2
@@ -56,7 +57,8 @@ module computational_constants_MD
 	integer, parameter :: teth_thermo_slide = 7
 	integer, parameter :: PUT_thermo = 8
 	integer, parameter :: z_thermo = 9
-	integer, dimension(4), parameter :: tether_tags=(/3,5,6,7/)
+	integer, dimension(4), parameter :: tether_tags=(/teth,teth_thermo,teth_slide,teth_thermo_slide/)
+	integer, dimension(5), parameter :: thermo_tags=(/thermo,teth_thermo,teth_thermo_slide,PUT_thermo,z_thermo/)
 
 	!Integration algorithm
 	integer                 :: integration_algorithm
