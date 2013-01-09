@@ -39,28 +39,19 @@ subroutine apply_boundary_force
 
 		call socket_get_constraint_info(constraint_algorithm,OT=OT, &
                                         NCER=NCER,Flekkoy=Flekkoy,off=off)
-		
 		if ( constraint_algorithm .eq. off ) then
-
 			return
-
 		else if ( constraint_algorithm .eq. OT ) then
-
 			call error_abort("OT boundary force not yet implemented")
-
 		else if ( constraint_algorithm .eq. NCER ) then
-
 			call coupled_apply_boundary_force_NCER
-!			call coupled_apply_boundary_force(bforce_flag,bforce_dxyz)
-
+			!call coupled_apply_boundary_force(bforce_flag,bforce_dxyz)
 		else if ( constraint_algorithm .eq. Flekkoy ) then
-
+			!call simulation_apply_boundary_force(bforce_flag,(/ 0 0 0 2.d0 0 0 /)) 
 			!Flekkoy boundary force applied by constraint
 			return
 		else
-
 			call error_abort("Unrecognised constraint algorithm flag")
-
 		end if	
 	
 #else
@@ -382,6 +373,152 @@ contains
 end subroutine simulation_apply_boundary_forces_Werder
 
 #endif
+
+
+
+
+!=============================================================================
+! Testing routine to apply a generic Flekkøy (2004) force 
+!-----------------------------------------------------------------------------
+subroutine apply_flekkoy_test
+	use physical_constants_MD, only : np
+	use computational_constants_MD, only : globaldomain,halfdomain, irank, iter
+	use linked_list
+	use librarymod, only : get_new_fileunit
+	implicit none
+
+	integer					:: box_np,length, fileunit
+	integer,allocatable 	:: list(:)
+	real(kind(0.d0))		:: dx,dy,dz, box_average
+	real(kind(0.d0))		:: shear_flekkoy,pressure_flekkoy
+
+	dx = globaldomain(1);	dy = 4.d0; dz = globaldomain(3)
+
+	!Read Shear pressure from file...
+	fileunit = get_new_fileunit()
+	inquire(iolength=length) shear_flekkoy
+	open(unit=fileunit,file='./couette_stress_analy',form='unformatted', access='direct',recl=length)
+	read(fileunit,rec=iter) shear_flekkoy !Divided by the Reynolds number
+	close(fileunit,status='keep')
+	pressure_flekkoy = 4.d0
+	
+	!Get average over current cell and apply constraint forces
+	call average_over_bin
+	call apply_force
+
+contains
+
+!=============================================================================
+! Average molecules in overlap region to obtain values for 
+! constrained dynamics algorithms
+!-----------------------------------------------------------------------------
+
+subroutine average_over_bin
+	use computational_constants_MD, only : nhb
+	use arrays_MD, only : r, v, a
+	implicit none
+
+	integer				:: n
+	double precision	:: g
+
+
+	!Zero box averages
+	box_np = 0
+	box_average = 0.d0
+
+	!find the maximum number of molecules and allocate a list array	   
+    allocate(list(np))
+
+	do n = 1,np
+
+		if ( r(2,n) .gt. halfdomain(2)-dy .and. r(2,n) .lt. halfdomain(2)) then
+
+			!Add molecule to overlap list
+			box_np   =  box_np   + 1
+			list(box_np) =  n
+			g = flekkoy_gweight(r(2,n),halfdomain(2)-dy,halfdomain(2))
+			box_average =  box_average  + g
+
+			!write(8888,'(4i8,5f15.9)'), irank,iter,n,box_np,g,box_average,halfdomain(2)-dy,r(2,n),halfdomain(2)
+			
+		endif
+
+	enddo
+
+end subroutine average_over_bin
+
+!=============================================================================
+! Apply force to molecules in overlap region
+!-----------------------------------------------------------------------------
+
+subroutine apply_force
+	use arrays_MD, only : r,v,a
+	use physical_constants_MD, only : density
+	implicit none
+
+	integer					:: i, n
+	real(kind=kind(0.d0)) 	:: g, gsum, dA, dV
+
+	dA = dx*dz
+	dV = dx*dy*dz
+
+	!Loop over all molecules and apply constraint
+	do i = 1, box_np
+
+		n = list(i)
+		g = flekkoy_gweight(r(2,n),halfdomain(2)-dy,halfdomain(2))
+
+		!Gsum is replaced with the fixed value based on density and volume
+		gsum = box_average
+		if (gsum .eq. 0.d0) cycle
+
+		a(1,n) = a(1,n) + (g/gsum) * dA * shear_flekkoy
+		a(2,n) = a(2,n) + (g/gsum) * dA * pressure_flekkoy
+
+		!write(7777,'(4i8,2f10.5,f18.12,5f10.5)'), irank, iter,n,box_np, shear_flekkoy, dA, g, gsum, halfdomain(2)-dy,r(2,n),halfdomain(2), a(1,n)
+
+        if (g .ne. 0.d0) then
+
+			write(1234,'(i3,2i7,5f12.6)'),irank,iter,n, &
+						 					  r(2,n),v(2,n),a(2,n),g, & 
+											 (g/gsum) * dA * pressure_flekkoy
+        endif
+	enddo
+
+    !write(99999,'(i2,i7,i7,2f10.2,f6.1,3f9.3,6f12.4)'), rank_world,iter,np_overlap,sum(box_average(:,:,:)%a(2)),  &
+    !                gsumcheck, gratio, stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb), ave_a,ave_a_consrnt
+
+end subroutine apply_force
+
+! -----------------------------------------------------------
+! Function returns Flekkoy weighting for given y and max/min
+
+function flekkoy_gweight(y,ymin,ymax) result (g)
+
+	real(kind=kind(0.d0)), intent(in)	:: y, ymin, ymax
+	real(kind=kind(0.d0))				:: g, L, yhat
+
+	!Define local coordinate as const runs from 0 < y < L/2
+	L = ymax - ymin
+	yhat = y - ymin - 0.5*L
+
+    !Sanity Check and exceptions
+    if (yhat .lt. 0.d0) then
+        g = 0
+        return
+    elseif (yhat .gt. 0.5*L) then
+		stop " flekkoy_gweight error - input y cannot be greater than ymax"
+    endif
+
+	!Calculate weighting function
+	g = 2*( 1/(L-2*yhat) - 1/L - 2*yhat/(L**2))
+
+end function
+
+end subroutine apply_flekkoy_test
+
+
+
 
 !--------------------------------------------------------------------------------------
 !Apply force to give linear profile
@@ -807,7 +944,7 @@ subroutine pointsphere(centre,targetradius,start_iter)
     	!phi 	   = atan(rmapped(2)/rmapped(1))
 		if (rspherical .lt. radius2) then			!Check if inside sphere
 			!if (rspherical .lt. 1.d0) rspherical = 1.d0			!Bounded force
-			Fapplied = magnitude *(1.d0 + 1.d0/exp(rspherical))			!Apply force which diverges at centre
+			Fapplied = magnitude *(1.d0 + 1.d0/exp(rspherical)**2.d0)			!Apply force which diverges at centre
 			!print'(i8,13f10.5)', n,rmapped,rmapped(3)/rspherical,rspherical,theta,phi, Fapplied*sin(theta)*cos(phi), Fapplied*sin(theta)*sin(phi),Fapplied*cos(theta),a(:,n)
     		a(1,n)= a(1,n) + Fapplied * rmapped(1)!*sin(theta)*cos(phi)
 			a(2,n)= a(2,n) + Fapplied * rmapped(2)!*sin(theta)*sin(phi)

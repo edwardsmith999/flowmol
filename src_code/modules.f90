@@ -103,6 +103,7 @@ module computational_constants_MD
 	!Boundary force flag and parameters
 	integer,          dimension(6) :: bforce_flag
 	real(kind(0.d0)), dimension(6) :: bforce_dxyz
+	real(kind(0.d0)), dimension(3) :: specular_wall
 	integer,          parameter    :: &
 		bforce_off = 0,         &
 		bforce_OT = 1,          &

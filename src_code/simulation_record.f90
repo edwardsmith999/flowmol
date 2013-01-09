@@ -354,6 +354,7 @@ end subroutine print_macroscopic_properties
 subroutine print_mol_escape_error(n)
 	use arrays_MD, only: r,v
 	use computational_constants_MD, only: irank, iblock, jblock, kblock, iter
+	use librarymod, only : get_new_fileunit
 	implicit none
 
 	integer, intent(in) :: n
@@ -372,10 +373,7 @@ subroutine print_mol_escape_error(n)
 		  filename, 'for more information.'
 
 	! Find unused file unit number
-	do fileunit = 1,1000
-		inquire(fileunit,opened=op)
-		if (op .eqv. .false.) exit
-	enddo
+	fileunit = get_new_fileunit()
 
 	! Open file and write escape info
 	open(unit=fileunit,file=filename,access='append')

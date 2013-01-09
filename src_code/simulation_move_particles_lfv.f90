@@ -247,6 +247,10 @@ contains
 			bscale	 = 1.0/(1.0+0.5*delta_t*zeta)
 			ascale	 = (1-0.5*delta_t*zeta)*bscale
 
+		else
+			!Reduces to the un-thermostatted equations
+			ascale = 1
+			bscale = 1
 		endif
 
 		!call pointsphere((/ 0.0, 0.0, -6.34 /),2.d0)
@@ -332,10 +336,19 @@ contains
 				r(2,n) = r(2,n) + delta_t * v(2,n)	
 				v(3,n) = v(3,n)*ascale + a(3,n)*delta_t*bscale
 				r(3,n) = r(3,n)    +     v(3,n)*delta_t	
+			case (10)
+
 			case default
 				call error_abort("Invalid molecular Tag")
 			end select
+
+			!Specular walls
+			if (specular_wall(1) .ne. 0.0) call specular_flat_wall(n, ascale, bscale, 1, globaldomain(1)/2.d0-specular_wall(1))
+			if (specular_wall(2) .ne. 0.0) call specular_flat_wall(n, ascale, bscale, 2, globaldomain(2)/2.d0-specular_wall(2))
+			if (specular_wall(3) .ne. 0.0) call specular_flat_wall(n, ascale, bscale, 3, globaldomain(3)/2.d0-specular_wall(3))
 		enddo
+
+
 
 	end subroutine simulation_move_particles_lfv_tag
 
@@ -367,5 +380,50 @@ subroutine simulation_move_particles_lfv_basic
 
 end subroutine simulation_move_particles_lfv_basic
 !======================================================================================
+
+
+
 !--------------------------------------------------------------------------------------
 
+subroutine specular_flat_wall(molno, ascale, bscale, dir, spec_pos)
+	use module_molecule_properties
+	use arrays_MD
+	use interfaces
+	implicit none
+
+	integer,intent(in)			   :: molno, dir
+	double precision,intent(in)	   :: ascale, bscale, spec_pos
+
+	double precision, dimension(3) :: r_glob
+	integer                        :: normal
+	double precision               :: newxd
+
+	!Get position in global co-ordinates
+	r_glob(1) = r(1,molno) - (halfdomain(1)*(npx-1)) + domain(1)*(iblock-1)
+	r_glob(2) = r(2,molno) - (halfdomain(2)*(npy-1)) + domain(2)*(jblock-1)
+	r_glob(3) = r(3,molno) - (halfdomain(3)*(npz-1)) + domain(3)*(kblock-1)
+
+	if (abs(r_glob(dir)) .gt. spec_pos) then
+
+		!print'(a,i8,4f10.5)', 'Greater than spec_pos', molno,r_glob(dir),abs(r_glob(dir)),spec_pos,r(dir,molno)
+
+		!Get normal direction of molecule by checking if top or bottom
+		if ( r_glob(dir) .lt. 0) then
+			normal = 1   !normal should point outwards
+	 	else
+			normal = -1  !normal should point inwards
+		endif
+
+		! Reflect normal velocity.
+		v(dir,molno) = normal*abs(v(dir,molno))
+		!Calculate distance over the spectral barrier
+		newxd = abs(r_glob(dir)) - spec_pos
+		!Move molecule same distance back into the domain on other side of spectral barrier
+		r(dir, molno) = r(dir, molno) + normal*2.d0*newxd
+
+		!write(7777,'(4i8,4f10.5)'), irank,dir,normal, molno,newxd,r_glob(dir), r(dir,molno),spec_pos
+
+	endif
+
+
+end subroutine specular_flat_wall 

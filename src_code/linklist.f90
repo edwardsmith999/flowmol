@@ -1184,7 +1184,11 @@ subroutine calculate_cell_interactions(icell, jcell, kcell, k)
 
 end subroutine calculate_cell_interactions
 
-
+!------------------------------------------------------------------------------
+! * * * Optimised by performing loop inside routine * * *
+!Routine to calculate all molecular interactions between two specified cells
+!Used only for halo cell so works out interaction of j with i but adds to
+!molecule i's neighbourlist
 
 
 subroutine calculate_cell_interactions_opt(istart,iend,ishift,jstart,jend,jshift,kstart,kend,kshift)
@@ -1243,71 +1247,6 @@ subroutine calculate_cell_interactions_opt(istart,iend,ishift,jstart,jend,jshift
 	enddo
 
 end subroutine calculate_cell_interactions_opt
-
-
-
-!Sort molecular locations to improve cache efficiecy
-!subroutine sort_mols
-!	use module_linklist
-!	implicit none
-
-!	integer											:: icell,jcell,kcell,start,finish
-!	integer											:: n,i,cells,ave_molpercell
-!	integer,allocatable,dimension(:)				:: molpercell
-!	integer,allocatable,dimension(:,:)				:: tagtemp
-!	double precision,allocatable,dimension(:,:,:)	:: rtemp,vtemp
-
-	!Average number of molecules per cell
-!	cells = product(ncells)	
-!	ave_molpercell = np/cells
-	!Add safety factor
-!	ave_molpercell = ceiling(ave_molpercell*1.3d0+5)
-!
-!	allocate(rtemp(nd,ave_molpercell,cells))
-!	allocate(vtemp(nd,ave_molpercell,cells))
-!	allocate(tagtemp(ave_molpercell,cells))
-!	allocate(molpercell(cells))
-!	rtemp=0.d0;vtemp=0.d0;tagtemp=0; molpercell = 0
-
-	!Copy all molecules to temp arrays in order of cells
-!	do n = 1,np
-!		icell = ceiling((r(1,n)+halfdomain(1)) &
-!		/cellsidelength(1))+nh !Add 1 due to halo
-!		jcell = ceiling((r(2,n)+halfdomain(2)) &
-!		/cellsidelength(2))+nh !Add 1 due to halo
-!		kcell = ceiling((r(3,n)+halfdomain(3)) &
-!		/cellsidelength(3))+nh !Add 1 due to halo
-
-		!i = icell-1 + ncells(1)*(jcell-2) + ncells(1)*ncells(2)*(kcell-2)
-!		i = Hcurve(icell-nh,jcell-nh,kcell-nh) !Use Hilbert curve
-!		!print*, i, icell,jcell,kcell
-!		molpercell(i) = molpercell(i) + 1
-		!print*, n,icell,jcell,kcell,i, molpercell(i), ave_molpercell
-!		rtemp(:,molpercell(i),i) = r(:,n)
-!		vtemp(:,molpercell(i),i) = v(:,n)
-!		tagtemp(molpercell(i),i) = tag(n)
-
-		!print*, 'b4',n, r(:,n)
-!	enddo
-
-	!Copy back sorted molecles
-!	start = 1
-!	do i=1,cells
-!		finish = start + molpercell(i)-1
-		!print*, i, molpercell(i), start, finish!, rtemp(:,i,start:finish)
-!		r(:,start:finish) = rtemp(:,1:molpercell(i),i)
-!		v(:,start:finish) = vtemp(:,1:molpercell(i),i)
-!		tag(start:finish) = tagtemp(1:molpercell(i),i)
-		!do n =start,finish
-		!	print*, 'af',n, r(:,n)
-		!enddo
-!		start = start + molpercell(i)
-	
-!	enddo
-
-!end subroutine sort_mols
-
-
 
 !Sort molecular locations to improve cache efficiecy using
 !blocks of multiple cells
@@ -1622,7 +1561,7 @@ subroutine linklist_checkpush(icell, jcell, kcell, molnopush)
 	integer	            :: molnopush
 	type(node), pointer :: old, current
 
-	cellnp = cell%cellnp(icell,jcell, kcell)
+	cellnp = cell%cellnp(icell,jcell,kcell)
 	allocate(current) 		!Allocate type to add to stack
 	current%molno = molnopush 	!Build type from inputs
 	current%rp => r(:,molnopush)   	!Build type from inputs
