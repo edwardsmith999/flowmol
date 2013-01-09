@@ -231,6 +231,15 @@ subroutine setup_read_input
 
 	end if
 
+	!Define specular wall location (if any)
+	specular_wall = 0.d0
+	call locate(1,'SPECULAR_WALL',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) specular_wall(1)			
+		read(1,*) specular_wall(2)			
+		read(1,*) specular_wall(3)
+	endif
+
 	call locate(1,'DEFINE_SHEAR',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) le_sd

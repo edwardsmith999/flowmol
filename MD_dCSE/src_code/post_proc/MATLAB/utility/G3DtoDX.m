@@ -30,9 +30,23 @@ if (exist('originz') == 0)
     originz = GZ(1);
 end
 fprintf(f,'origin%16g%16g%16g\n',originx,originy,originz);
-fprintf(f,'delta%16g 0 0\n',GX(2)-GX(1));
-fprintf(f,'delta 0 %16g 0\n',mean(diff(GY(:))));
-fprintf(f,'delta 0 0 %16g\n',GZ(2)-GZ(1));
+if (size(GX) == 1)
+    fprintf(f,'delta%16g 0 0\n' ,GX(1));
+else
+    fprintf(f,'delta%16g 0 0\n' ,mean(diff(GX(:))));
+end
+
+if (size(GY) == 1)
+    fprintf(f,'delta 0 %16g 0\n',GY(1));
+else
+    fprintf(f,'delta 0 %16g 0\n',mean(diff(GY(:))));
+end
+
+if (size(GZ) == 1)
+    fprintf(f,'delta 0 0 %16g\n',GZ(1));
+else
+    fprintf(f,'delta 0 0 %16g\n',mean(diff(GZ(:))));
+end
 fprintf(f,'object 2 class gridconnections counts%8.0f%8.0f%8.0f\n',Nx,Ny,Nz);
 fprintf(f,'object 3 class array type double rank 0 items%8.0f follows\n',Nx*Ny*Nz);
 

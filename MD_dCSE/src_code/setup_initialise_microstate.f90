@@ -90,7 +90,8 @@ subroutine setup_initialise_lattice
 	p_units_ub(3) =  kblock *ceiling(initialnunits(3)/real((npz),kind(0.d0)))
 
 	!Set top of domain initially
-	domain_top = domain(2)/2.d0
+	domain_top = globaldomain(2)/2.d0
+
 
 #if USE_COUPLER
 
@@ -132,7 +133,10 @@ subroutine setup_initialise_lattice
 			
 			!Remove molecules from top of domain if constraint applied
 			if (jblock .eq. npy) then
-				if (rc(2)-domain(2)*(jblock-1)-halfdomain(2) .gt. domain_top) cycle 
+				! Note rc is in global coordinates from 0 to globaldomain while Domaintop
+				! is given in global coordinates from -halfglobaldomain to halfglobaldomain
+				!print*, "MOLECULAR REMOVAL TURNED OFF IN setup_initialise_lattice"
+				if (rc(2)-globaldomain(2)/2.d0 .gt. domain_top) cycle 
 			endif
 
 			!Check if molecule is in domain of processor
@@ -177,8 +181,6 @@ subroutine setup_initialise_lattice
 		print*, 'Number of molecules reduced from',  & 
 		         4*initialnunits(1)*initialnunits(2)*initialnunits(3), 'to', globalnp
 		print*, '*********************************************************************'
-		!print*, 'microstate ', minval(r(1,:)), maxval(r(1,:)),minval(r(2,:)),  &
-		!         maxval(r(2,:)),minval(r(3,:)), maxval(r(3,:))
 	endif
 
 #endif
@@ -571,8 +573,11 @@ subroutine setup_initialise_solid_liquid
 			n = n + 1	!Move to next particle
 			
 			!Remove molecules from top of domain if constraint applied
+
 			if (jblock .eq. npy) then
-				if (rc(2)-domain(2)*(jblock-1)-halfdomain(2) .gt. domain_top) cycle 
+				! Note rc is in global coordinates from 0 to globaldomain while Domaintop
+				! is given in global coordinates from -halfglobaldomain to halfglobaldomain
+				if (rc(2)-globaldomain(2)/2.d0 .gt. domain_top) cycle 
 			endif
 
 			!Check if molecule is in domain of processor

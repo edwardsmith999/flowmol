@@ -448,6 +448,24 @@ subroutine LUbksb(A,indx,b)
 	enddo
 
 end subroutine LUbksb
+
+!--------------------------------------------------------------------------------------
+! Return unused fileunit by checking all exisiting
+function get_new_fileunit() result (f)
+	implicit none
+
+	logical	:: op
+	integer	:: f
+
+	f = 1
+	do 
+		inquire(f,opened=op)
+		if (op .eqv. .false.) exit
+		f = f + 1
+	enddo
+
+end function
+
 !--------------------------------------------------------------------------------------
 !Subroutine used to get size of file
 subroutine get_file_size(filename,file_size)
@@ -477,7 +495,6 @@ subroutine get_file_size(filename,file_size)
 	!file_size = SArray(8)
 
 end subroutine get_file_size
-
 
  
 !-----------------------------------------------------
@@ -567,8 +584,6 @@ contains
 	end subroutine hilbert3
 
 end subroutine build_hilbert
-
-
 
 !--------------------------------------------------------------------------------------
 ! Split an integer into three factors minimising value of each

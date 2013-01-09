@@ -1053,16 +1053,10 @@ subroutine parallel_io_vmd
 
 	integer							:: procdisp
 	integer							:: i, datasize
-	real,dimension(np)				:: Xbuf, Ybuf, Zbuf
-	real,dimension(globalnp)        :: Xbufglob
-	real,dimension(globalnp)        :: Ybufglob
-	real,dimension(globalnp)        :: Zbufglob
+	real,dimension(:),allocatable	:: Xbuf, Ybuf, Zbuf
+	real,dimension(:),allocatable   :: Xbufglob,Ybufglob,Zbufglob
 	integer                         :: n,globmolno
 	integer(kind=MPI_OFFSET_KIND)   :: disp!, resultsize
-
-	Xbufglob = 0.0           !Initialise to zero so that global array...
-	Ybufglob = 0.0           !...may be found by summation in parallel
-	Zbufglob = 0.0           !------------------------------------------
 
 	!Build array of number of particles on neighbouring
 	!processe's subdomain on current proccess
@@ -1075,6 +1069,10 @@ subroutine parallel_io_vmd
 	!to processor topology with r = 0 at centre
 	select case(potential_flag)
 	case(0)
+
+		!Allocate buffers
+		allocate(Xbuf(np),Ybuf(np),Zbuf(np))
+
 		Xbuf(:) = r(1,1:np)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
 		Ybuf(:) = r(2,1:np)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
 		Zbuf(:) = r(3,1:np)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
@@ -1159,6 +1157,12 @@ subroutine parallel_io_vmd
 	
 	case(1)
 
+		allocate(Xbufglob(globalnp),Ybufglob(globalnp),Zbufglob(globalnp))
+
+		Xbufglob = 0.0           !Initialise to zero so that global array...
+		Ybufglob = 0.0           !...may be found by summation in parallel
+		Zbufglob = 0.0           !------------------------------------------
+
 		!Build sparse individual "global" buffers according to global molecular ID of each monomer
 		do n=1,np
 			globmolno           = monomer(n)%glob_no
@@ -1216,16 +1220,10 @@ subroutine parallel_io_vmd_true
 
 	integer							:: procdisp
 	integer							:: i, datasize
-	real,dimension(np)				:: Xbuf, Ybuf, Zbuf
-	real,dimension(globalnp)        :: Xbufglob
-	real,dimension(globalnp)        :: Ybufglob
-	real,dimension(globalnp)        :: Zbufglob
+	real,dimension(:),allocatable	:: Xbuf, Ybuf, Zbuf
+	real,dimension(:),allocatable   :: Xbufglob,Ybufglob,Zbufglob
 	integer                         :: n,globmolno
 	integer(kind=MPI_OFFSET_KIND)   :: disp!, resultsize
-
-	Xbufglob = 0.0           !Initialise to zero so that global array...
-	Ybufglob = 0.0           !...may be found by summation in parallel
-	Zbufglob = 0.0           !------------------------------------------
 
 	!Build array of number of particles on neighbouring
 	!processe's subdomain on current proccess
@@ -1238,6 +1236,10 @@ subroutine parallel_io_vmd_true
 	!to processor topology with r = 0 at centre
 	select case(potential_flag)
 	case(0)
+
+		!Allocate buffers
+		allocate(Xbuf(np),Ybuf(np),Zbuf(np))
+
 		Xbuf(:) = rtrue(1,1:np)
 		Ybuf(:) = rtrue(2,1:np)
 		Zbuf(:) = rtrue(3,1:np)
@@ -1320,6 +1322,13 @@ subroutine parallel_io_vmd_true
 	
 	case(1)
 
+		!Allocate buffers
+		allocate(Xbufglob(globalnp),Ybufglob(globalnp),Zbufglob(globalnp))
+
+		Xbufglob = 0.0           !Initialise to zero so that global array...
+		Ybufglob = 0.0           !...may be found by summation in parallel
+		Zbufglob = 0.0           !------------------------------------------
+
 		!Build sparse individual "global" buffers according to global molecular ID of each monomer
 		do n=1,np
 			globmolno           = monomer(n)%glob_no
@@ -1377,8 +1386,11 @@ subroutine parallel_io_vmd_sl
 
 	integer							:: procdisp
 	integer							:: i,n, datasize
-	real,dimension(np)				:: Xbuf, Ybuf, Zbuf
+	real,dimension(:),allocatable	:: Xbuf, Ybuf, Zbuf
 	integer(kind=MPI_OFFSET_KIND)   :: disp!, resultsize
+
+	!Allocate buffers
+	allocate(Xbuf(np),Ybuf(np),Zbuf(np))
 
 	!Build array of number of particles on neighbouring
 	!processe's subdomain on current proccess
@@ -1591,8 +1603,10 @@ subroutine parallel_io_vmd_optimised
 
 	integer							:: procdisp
 	integer							:: i, datasize
-	real,dimension(np*3)			:: buf
+	real,dimension(:),allocatable	:: buf
 	integer(kind=MPI_OFFSET_KIND)   :: disp!, resultsize
+
+	allocate(buf(np*3))
 
 	!Build array of number of particles on neighbouring
 	!processe's subdomain on current proccess

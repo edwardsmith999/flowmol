@@ -843,7 +843,6 @@ subroutine apply_continuum_forces_flekkoy
 	                 jcmin_cnst=cnstd(3),jcmax_cnst=cnstd(4), & 
 					 kcmin_cnst=cnstd(5),kcmax_cnst=cnstd(6), &
 	                 timestep_ratio=timestep_ratio              )
-
 		call setup_CFD_box(cnstd,CFD_box,recv_flag)
 
 	endif
@@ -887,7 +886,8 @@ contains
 ! find the CFD box to which the particle belongs		 
 
 subroutine setup_CFD_box(limits,CFD_box,recv_flag)
-	use CPL, only : CPL_recv,CPL_proc_portion,localise,map_cfd2md_global,CPL_get,VOID, rank_world, CPL_WORLD_COMM !2xTEMPS
+	use CPL, only : CPL_recv,CPL_proc_portion,localise,map_cfd2md_global, & 
+					CPL_get,VOID, rank_world, CPL_WORLD_COMM !2xTEMPS
 	implicit none
 
 	!Limits of CFD box to receive data in

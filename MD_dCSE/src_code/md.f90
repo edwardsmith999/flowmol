@@ -117,6 +117,7 @@ contains
 		call socket_apply_continuum_forces     ! CFD=> MD Apply CFD based coupling forces on MD
 		call average_and_send_MD_to_CFD(iter)  ! MD=>CFD Calculate averages of MD to pass to CFD
 #else
+		!call apply_flekkoy_test
 		call apply_boundary_force
 #endif
 
