@@ -382,7 +382,8 @@ end subroutine simulation_apply_boundary_forces_Werder
 !-----------------------------------------------------------------------------
 subroutine apply_flekkoy_test
 	use physical_constants_MD, only : np
-	use computational_constants_MD, only : globaldomain,halfdomain, irank, iter
+	use computational_constants_MD, only : globaldomain,halfdomain, iter, &
+											irank, jblock, npy
 	use linked_list
 	use librarymod, only : get_new_fileunit
 	implicit none
@@ -392,13 +393,16 @@ subroutine apply_flekkoy_test
 	real(kind(0.d0))		:: dx,dy,dz, box_average
 	real(kind(0.d0))		:: shear_flekkoy,pressure_flekkoy
 
+	!Only apply force on top processor
+	if (jblock .ne. npy) return
+
 	dx = globaldomain(1);	dy = 4.d0; dz = globaldomain(3)
 
 	!Read Shear pressure from file...
 	fileunit = get_new_fileunit()
 	inquire(iolength=length) shear_flekkoy
 	open(unit=fileunit,file='./couette_stress_analy',form='unformatted', access='direct',recl=length)
-	read(fileunit,rec=iter) shear_flekkoy !Divided by the Reynolds number
+	read(fileunit,rec=iter+10000) shear_flekkoy !Divided by the Reynolds number
 	close(fileunit,status='keep')
 	pressure_flekkoy = 4.d0
 	
