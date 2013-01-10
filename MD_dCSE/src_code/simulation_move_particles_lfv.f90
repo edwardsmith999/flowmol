@@ -261,7 +261,6 @@ contains
 
 			enddo
 
-
 			!Obtain global sums for all parameters
 			call globalSumInt(thermostatnp)
 			call globalSum(v2sum)	
@@ -273,9 +272,11 @@ contains
 			ascale	 = (1-0.5*delta_t*zeta)*bscale
 
 		else
+
 			!Reduces to the un-thermostatted equations
 			ascale = 1
 			bscale = 1
+
 		endif
 
 		!call pointsphere((/ 0.0, 0.0, -6.34 /),2.d0)
@@ -289,7 +290,7 @@ contains
 				v(:,n) = v(:,n) + delta_t * a(:,n) 	!Velocity calculated from acceleration
 				r(:,n) = r(:,n) + delta_t * v(:,n)	!Position calculated from velocity
 			case (fixed)
-				!Fixed Molecules - no movement r(n+1) = r(n)
+				!Fixed Molecules - no movement r(t+dt) = r(t)
 			case (fixed_slide)
 				!Fixed with constant sliding speed
 				r(:,n) = r(:,n) + delta_t*slidev(:,n)	!Position calculated from velocity
