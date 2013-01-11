@@ -1,18 +1,17 @@
 #! /usr/bin/env bash
-EXPECTED_ARGS=2
+EXPECTED_ARGS=1
 if [ $# -ne $EXPECTED_ARGS ]
 then
 	echo ""
-	echo " ./test_restart.sh requires 2 arguments: "
+	echo " ./test_restart.sh requires 1 argument: "
 	echo ""
 	echo "    1) INFILE: input file name (string)"
-	echo "    2) N1:     number of iterations to test (integer)"
 	echo ""
 	exit
 fi
 
 INFILE=$1
-N1=$2
+N1=1000
 N2=`echo "${N1}*2" | bc`
 
 # Make sure VMD output is on
@@ -29,22 +28,22 @@ make debug_s
 # First run
 sed -i '/NSTEPS/{n; s/.*/'$N1'/}' $INFILE
 ./md.exe -i $INFILE
-mv results/final_state ./${N1}_s.state
-mv results/macroscopic_properties ./${N1}_s.macro
-mv results/vmd_out.dcd ./${N1}_s.dcd
+mv results/final_state ./start_s.state
+mv results/macroscopic_properties ./start_s.macro
+mv results/vmd_out.dcd ./start_s.dcd
 
 # Restart from first run 
-./md.exe -i $INFILE -r ${N1}_s.state
-mv results/final_state ./${N1}-${N2}_s2s.state
-mv results/macroscopic_properties ./${N1}-${N2}_s2s.macro
-mv results/vmd_out.dcd ./${N1}-${N2}_s2s.dcd
+./md.exe -i $INFILE -r start_s.state
+mv results/final_state ./restart_s2s.state
+mv results/macroscopic_properties ./restart_s2s.macro
+mv results/vmd_out.dcd ./restart_s2s.dcd
 
 # Run complete simulation without restart
 sed -i '/NSTEPS/{n; s/.*/'$N2'/}' $INFILE
 ./md.exe -i $INFILE
-mv results/final_state ./${N2}_s.state
-mv results/macroscopic_properties ./${N2}_s.macro
-mv results/vmd_out.dcd ./${N2}_s.dcd
+mv results/final_state ./full_s.state
+mv results/macroscopic_properties ./full_s.macro
+mv results/vmd_out.dcd ./full_s.dcd
 
 ################################################################
 #    P A R A L L E L   O N L Y    R E S T A R T 
@@ -59,22 +58,22 @@ sed -i '/NSTEPS/{n; s/.*/'$N1'/}' $INFILE
 
 # First run 
 mpiexec -n 4 ./parallel_md.exe -i $INFILE
-mv results/final_state ./${N1}_p.state
-mv results/macroscopic_properties ./${N1}_p.macro
-mv results/vmd_out.dcd ./${N1}_p.dcd
+mv results/final_state ./start_p.state
+mv results/macroscopic_properties ./start_p.macro
+mv results/vmd_out.dcd ./start_p.dcd
 
 # Restart from first run 
-mpiexec -n 4 ./parallel_md.exe -i $INFILE -r ${N1}_p.state
-mv results/final_state ./${N1}-${N2}_p2p.state
-mv results/macroscopic_properties ./${N1}-${N2}_p2p.macro
-mv results/vmd_out.dcd ./${N1}-${N2}_p2p.dcd
+mpiexec -n 4 ./parallel_md.exe -i $INFILE -r start_p.state
+mv results/final_state ./restart_p2p.state
+mv results/macroscopic_properties ./restart_p2p.macro
+mv results/vmd_out.dcd ./restart_p2p.dcd
 
 # Run complete simulation without restart
 sed -i '/NSTEPS/{n; s/.*/'$N2'/}' $INFILE
 mpiexec -n 4 ./parallel_md.exe -i $INFILE
-mv results/final_state ./${N2}_p.state
-mv results/macroscopic_properties ./${N2}_p.macro
-mv results/vmd_out.dcd ./${N2}_p.dcd
+mv results/final_state ./full_p.state
+mv results/macroscopic_properties ./full_p.macro
+mv results/vmd_out.dcd ./full_p.dcd
 
 
 ################################################################
@@ -82,18 +81,18 @@ mv results/vmd_out.dcd ./${N2}_p.dcd
 
 sed -i '/NSTEPS/{n; s/.*/'$N1'/}' $INFILE
 
-mpiexec -n 4 ./parallel_md.exe -i $INFILE -r ${N1}_s.state
-mv results/final_state ./${N1}-${N2}_s2p.state
-mv results/macroscopic_properties ./${N1}-${N2}_s2p.macro
-mv results/vmd_out.dcd ./${N1}-${N2}_s2p.dcd
+mpiexec -n 4 ./parallel_md.exe -i $INFILE -r start_s.state
+mv results/final_state ./restart_s2p.state
+mv results/macroscopic_properties ./restart_s2p.macro
+mv results/vmd_out.dcd ./restart_s2p.dcd
 
 make clean
 make debug_s
 
-./md.exe -i $INFILE -r ${N1}_p.state
-mv results/final_state ./${N1}-${N2}_p2s.state
-mv results/macroscopic_properties ./${N1}-${N2}_p2s.macro
-mv results/vmd_out.dcd ./${N1}-${N2}_p2s.dcd
+./md.exe -i $INFILE -r start_p.state
+mv results/final_state ./restart_p2s.state
+mv results/macroscopic_properties ./restart_p2s.macro
+mv results/vmd_out.dcd ./restart_p2s.dcd
 
 #################################################################
 ## P L O T T I N G
