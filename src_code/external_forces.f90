@@ -345,8 +345,9 @@ subroutine simulation_apply_boundary_forces_Werder
 
 contains
 	
-	!Obtain an approximation for the Radial Distribution Function using the
-	!expression from Appendix A of T. Werder et al. J Comp. Phys 205 (2005) 373–390
+	! An approximation for the Radial Distribution Function given by curve 
+	! fitting to simulation data at density = 0.6 and tempterature=1.8 given in
+	! Appendix A of T. Werder et al. J Comp. Phys 205 (2005) 373–390
 	function approx_RDF(r,rmin) result(F)
 		use librarymod, only : heaviside 
 
@@ -402,7 +403,7 @@ subroutine apply_flekkoy_test
 	fileunit = get_new_fileunit()
 	inquire(iolength=length) shear_flekkoy
 	open(unit=fileunit,file='./couette_stress_analy',form='unformatted', access='direct',recl=length)
-	read(fileunit,rec=iter+10000) shear_flekkoy !Divided by the Reynolds number
+	read(fileunit,rec=iter) shear_flekkoy !Divided by the Reynolds number
 	close(fileunit,status='keep')
 	pressure_flekkoy = 4.d0
 	
@@ -448,6 +449,9 @@ subroutine average_over_bin
 		endif
 
 	enddo
+
+	call SubcommSumVect(box_average,1,1)
+	call SubcommSumVect(box_average,1,3)
 
 end subroutine average_over_bin
 

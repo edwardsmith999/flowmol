@@ -40,7 +40,7 @@ else
     %Read data at specified time
     datasize = gnbins(mass_outflag);
     bytes = 4;
-    bytes*datasize*(read_time-1)
+    bytes*datasize*(read_time-1);
     fseek(fid, bytes*datasize*(read_time-1), 'bof');
     m_slice = fread(fid,datasize,'int32');
 end

@@ -17,7 +17,7 @@ nbins = int(read_header.rdf_nbins)
 rmax  = float(read_header.rdf_rmax)
 dr    = rmax/float(nbins)
 
-fname = '../results/rdf'
+fname = './../../results/rdf'
 f = open(fname,'rb')
 
 for i in range(nbins):

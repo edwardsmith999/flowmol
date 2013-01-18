@@ -8,7 +8,7 @@
 #
 # -----------------------------------------------------------------------------
 
-f = open('../results/simulation_header','r')    # Create ascii file object
+f = open('./../../results/simulation_header','r')    # Create ascii file object
 headerdata = f.readlines()                      # Read all lines into list
 for i in range(len(headerdata)):                # Loop all lines 
 	headerdata[i] = headerdata[i].split(';')    # Split list elements into
@@ -23,6 +23,6 @@ for i in range(len(headerdata)):                # Loop all lines
 	                                            # headerdata[i][2]
 f.close()
 
-f = open('../results/simulation_progress','r')  # Create ascii file object
+f = open('./../../results/simulation_progress','r')  # Create ascii file object
 Nsteps = f.read().strip()                       # Read number of timesteps 
 f.close()
