@@ -78,6 +78,8 @@ subroutine setup_tag
 
 		enddo
 
+		call get_tag_thermostat_activity(tag_thermostat_active)
+
 	end if
 
 contains
@@ -122,9 +124,7 @@ contains
 				rg(ixyz) .ge. top(ixyz)    - tagdisttop(ixyz)) then
 
 				tag_status = .true.
-				if ( status_type .eq. 'thermo' ) tag_thermostat_active = .true.
-
-				return	
+				return
 
 			end if	
 		end do
