@@ -505,7 +505,7 @@ subroutine simulation_header
 	use librarymod, only : get_new_fileunit
 	implicit none
 
-	integer				:: fileunit
+	integer				:: fileunit, i
 	Character(8)  		:: the_date
 	Character(10)  		:: the_time
 
@@ -592,6 +592,15 @@ subroutine simulation_header
 	write(fileunit,*) '1st Random seed ;  seed_1 ;', seed(1)
 	write(fileunit,*) '2nd Random seed ;  seed_2 ;', seed(2)
 	write(fileunit,*)  'VMD flag ;  vmd_outflag ;', vmd_outflag
+	do i=1,Nvmd_intervals
+		if (i .lt. 10) then
+			write(fileunit,'(a,i1,a,i1,a,i8)')  'VMD interval ',i,' start ;  vmd_start_0',i,' ;', vmd_intervals(1,i)
+			write(fileunit,'(a,i1,a,i1,a,i8)')  'VMD interval ',i,' end   ;    vmd_end_0',i,' ;', vmd_intervals(2,i)
+		else
+			write(fileunit,'(a,i2,a,i2,a,i8)')  'VMD interval ',i,' start ;  vmd_start_',i,' ;', vmd_intervals(1,i)
+			write(fileunit,'(a,i2,a,i2,a,i8)')  'VMD interval ',i,' end   ;    vmd_end_',i,' ;', vmd_intervals(2,i)
+		endif
+	enddo
 	write(fileunit,*)  'macro flag ;  macro_outflag	 ;', macro_outflag
 	write(fileunit,*)  'mass flag ;  mass_outflag ;', mass_outflag	
 	write(fileunit,*)  'velocity flag ;  velocity_outflag ;', velocity_outflag

@@ -2,12 +2,13 @@
 
 # Gets number of molecules from header file and 
 # calls fortran routine vmd_reformat.exe to convert 
-# vmd.temp into readbale files
+# vmd.temp into readable files
 # Written by David Trevelyan
 
 import os
 
-headerfile = './../results/simulation_header'
+filepath = './../results/'
+headerfile = filepath + 'simulation_header'
 # Extract np from header
 fobj = open(headerfile,'r')
 np = 0
@@ -17,5 +18,7 @@ while np==0:
 		np   = int(line[2].strip())
 	
 # Either call VMD_reformat with np
+os.system('ifort -o vmd_reformat.exe vmd_reformat.f90')
 cmd = './vmd_reformat.exe ' + str(np)
 os.system(cmd)
+os.system('vmd ' + filepath + '/vmd_out.dcd')
