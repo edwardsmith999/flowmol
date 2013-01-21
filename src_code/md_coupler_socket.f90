@@ -999,8 +999,8 @@ subroutine average_over_bin
 
     !Get single average value for slice and store in slice
     do jb = 1,size(box_average,2)
-		box_average(:,jb,:)%np  =  sum(box_average(:,jb,:)%np)
-		box_average(:,jb,:)%a(2)   =  sum(box_average(:,jb,:)%a(2))
+		box_average(:,jb,:)%np   =  sum(box_average(:,jb,:)%np)
+		box_average(:,jb,:)%a(2) =  sum(box_average(:,jb,:)%a(2))
     enddo
 
 end subroutine average_over_bin
@@ -1045,9 +1045,11 @@ subroutine apply_force
 		a(:,ip) = a(:,ip) + (g/gsum) * dA * stress_cfd(:,2,ib,jb+cnstd(3)-extents(3),kb) 
 
         if (g .ne. 0.d0) then
-			write(1234,'(i3,2i7,3i4,5f12.6)'),rank_world,iter,ip,ib,jb,kb, &
+			if (iter .lt. 1000) then
+				write(1234,'(i3,2i7,3i4,5f12.6)'),rank_world,iter,ip,ib,jb,kb, &
 						 					  r(2,ip),v(2,ip),a(2,ip),g, & 
 											 (g/gsum)*dA*stress_cfd(2,2,ib,jb+cnstd(3)-extents(3),kb)
+			endif
         endif
 	enddo
 
