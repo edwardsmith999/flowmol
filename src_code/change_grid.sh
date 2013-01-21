@@ -54,5 +54,6 @@ if [ $# -eq 1 ]; then
 fi
 cp grid.data ./../setup/
 cd ./../setup
+make simple
 ./a.out
 cd ./../
