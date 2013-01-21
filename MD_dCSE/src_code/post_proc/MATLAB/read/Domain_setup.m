@@ -15,7 +15,7 @@ else
 end
 
 %Establish size of liquid region
-nbinsliquid = nbins-nbinswalltop - nbinswallbot;
+gnbinsliquid = gnbins-nbinswalltop - nbinswallbot;
 liquiddomain = globaldomain-walltop - wallbot;
     
 
