@@ -133,6 +133,21 @@ PERIODIC
 1
 
 #########################################################################
+# Specular walls
+# Specifiy the distance from the top and bottom of the domain of the 
+# specular wall. Molecules are reflected if they pass this wall
+#   specular_wall(1) (x direction, top & bottom)	(dp real)
+#   specular_wall(2) (y direction, top & bottom)	(dp real)
+#   specular_wall(3) (z direction, top & bottom)	(dp real)
+#
+# -----------------------------------------------------------------------
+SPECULAR_WALL
+0.0
+0.1
+0.0
+
+
+#########################################################################
 # Shear definition, formatted:
 #	shear direction (i.e. 1 for x direction, -2 for negative y direction)
 #	shear iter0
