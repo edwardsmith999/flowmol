@@ -511,10 +511,10 @@ contains
 		implicit none
 
 		logical :: send_flag,ovr_box_x
-		integer :: limits(6), jcmin_send,jcmax_send
+		integer :: jcmin_send,jcmax_send, i,k
 
 		!Define arbitary range to send -- TODO move to input file --
-		jcmin_send = 1; jcmax_send = 1
+		jcmin_send = jcmin_olap; jcmax_send = jcmin_olap
 
 		!Send data to CFD if send_data flag is set
 		select case(staggered_averages(1))	
@@ -525,6 +525,11 @@ contains
 		! Send velocity in cell centre
 		case(.false.)
             call CPL_send(uvw_md,jcmax_send=jcmax_send,jcmin_send=jcmin_send,send_flag=send_flag)
+			!do i=1,size(uvw_md,2)
+			!do k=1,size(uvw_md,4)
+			!	print'(a,l,5i5,4f14.5)','send',send_flag,iblock,jblock,kblock,i,k,uvw_md(:,i,1,k)
+			!enddo
+			!enddo
 			uvw_md = 0.d0
 		end select
 
@@ -536,7 +541,7 @@ end subroutine average_and_send_MD_to_CFD
 !=============================================================================
 !   ___  _____  _  _  ___  ____  ____    __    ____  _  _  ____ 
 !  / __)(  _  )( \( )/ __)(_  _)(  _ \  /__\  (_  _)( \( )(_  _)
-! ( (__  )(_)(  )  ( \__ \  )(   )   / /(__)\  _)(_  )  (   )(  
+! ( (__  )(_)(  )  ( \__ \  )(   )   / /(__)\  _)(_  )  (   )(   S
 !  \___)(_____)(_)\_)(___/ (__) (_)\_)(__)(__)(____)(_)\_) (__) 
 !
 ! Apply coupling forces so MD => CFD

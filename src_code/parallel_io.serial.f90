@@ -1082,16 +1082,13 @@ subroutine viscosity_io
 	use module_parallel_io
 	use physical_constants_MD
 	use calculated_properties_MD
-	use librarymod, only : integrate_trap
+	use librarymod, only : integrate_trap, printf
 	implicit none
 
 	integer				:: m, length
 	double precision	:: viscosity
 
-	print*, Pxycorrel
-
 	call integrate_trap(Pxycorrel,tplot*delta_t,Nstress_ave,viscosity)
-
 	viscosity = (viscosity*volume)/(3.0*Nstress_ave*Nvisc_ave*inputtemperature)
 
 	!Write viscosity to file
