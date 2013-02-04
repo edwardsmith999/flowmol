@@ -94,7 +94,7 @@ end subroutine socket_coupler_init
 ! Get Boundary condition for continuum from average of MD 
 
 subroutine  socket_coupler_get_md_BC(uc,vc,wc)
-    use CPL, only : CPL_recv,CPL_realm,error_abort,cpl_proc_extents,VOID
+    use CPL, only : CPL_get,CPL_recv,CPL_realm,error_abort,cpl_proc_extents,VOID
 	use data_export, only : nixb, niyb, nizb,iblock,jblock,kblock, & 
 							i1_u,i2_u,j1_u,j2_u, & 
 							i1_v,i2_v,j1_v,j2_v, & 
@@ -111,10 +111,12 @@ subroutine  socket_coupler_get_md_BC(uc,vc,wc)
     real(kind(0.d0)), allocatable, dimension(:,:,:,:) :: uvw_md
 	real											  :: uvw_BC(4)
 
-	integer		:: bufsize
+	integer		:: bufsize, jcmin_olap
 	character	:: str_bufsize
 
-	jcmin_recv = 1; jcmax_recv = 1
+	call CPL_get(jcmin_olap=jcmin_olap)
+
+	jcmin_recv = jcmin_olap; jcmax_recv = jcmin_olap
 
 	!Allocate array to CFD number of cells ready to receive data
 	pcoords = (/ iblock,jblock,kblock /)
@@ -125,20 +127,28 @@ subroutine  socket_coupler_get_md_BC(uc,vc,wc)
 	allocate(uvw_md(4,nclx,ncly,nclz)); uvw_md = VOID
 
 	call CPL_recv(uvw_md,jcmax_recv=jcmax_recv,jcmin_recv=jcmin_recv,recv_flag=recv_flag)
-	!call CPL_gather(uvw_md,3)
 
-	!Set full extent of halos to zero and set domain portion to MD values
-	uc(:,:,0) = 0.d0; vc(:,:,1) = 0.d0; wc(:,:,0) = 0.d0
+	!do i=1,size(uvw_md,2)
+	!do k=1,size(uvw_md,4)
+	!	print'(a,l,5i5,4f14.5)','recv',recv_flag,iblock,jblock,kblock,i,k,uvw_md(:,i,1,k)
+	!enddo
+	!enddo
+	if (any(uvw_md(:,:,jcmin_recv:jcmax_recv,:) .eq. VOID)) & 
+		call error_abort("socket_coupler_get_md_BC error - VOID value copied to uc,vc or wc")
 
 	!Average all cells on a CFD processor to give a single BC
-	uvw_BC(1) = sum(uvw_md(1,:,1,:)) 
-	uvw_BC(2) = sum(uvw_md(2,:,1,:))
-	uvw_BC(3) = sum(uvw_md(3,:,1,:))
-	uvw_BC(4) = sum(uvw_md(4,:,1,:)) 
+	uvw_BC(1) = sum(uvw_md(1,:,jcmin_recv,:)) 
+	uvw_BC(2) = sum(uvw_md(2,:,jcmin_recv,:))
+	uvw_BC(3) = sum(uvw_md(3,:,jcmin_recv,:))
+	uvw_BC(4) = sum(uvw_md(4,:,jcmin_recv,:)) 
+
+	!print'(11f12.3)', uvw_md(:,4,1,3), uvw_BC(:), uvw_BC(1:3)/uvw_BC(4)
 
 	!Average in x so all processor have same global average BC
 	call globalDirSum(uvw_BC,4,1)
 
+	!Set full extent of halos to zero and set domain portion to MD values
+	uc(:,:,0) = 0.d0; vc(:,:,1) = 0.d0; wc(:,:,0) = 0.d0
 	uc(:,:,0) = uvw_BC(1)/uvw_BC(4)
 	vc(:,:,1) = uvw_BC(2)/uvw_BC(4)
 	wc(:,:,0) = uvw_BC(3)/uvw_BC(4)
@@ -146,10 +156,6 @@ subroutine  socket_coupler_get_md_BC(uc,vc,wc)
 	!if (rank_realm .eq. 1) then
 	!	print'(i4,a,7f10.3)', rank_world,'global average BC',uc(5,10,0),vc(5,10,1),wc(5,10,0),uvw_BC
 	!endif
-
-	if (any(uc .eq. VOID) .or. &
-		any(uc .eq. VOID) .or. &
-		any(uc .eq. VOID)) call error_abort("socket_coupler_get_md_BC error - VOID value copied to uc,vc or wc")
 
 	!print'(a,26i5)', 'array extents',rank_world,shape(uvw_md),nixb, niyb, nizb, & 
 	!														   i1_u,i2_u,j1_u,j2_u, & 
@@ -453,9 +459,9 @@ subroutine Evaluate_strain(uc,vc,wc,dUidxj)
 		dwdz= voli  *	spz(ib,jb)*(wc(k+1,i,j)-wc(k,i,j))
 
 		!--------------------- Store strain rate tensor ----------------------
-		dUidxj(1,:,k,ib,jb) = (/dudx,dudy,dudz/)
-		dUidxj(2,:,k,ib,jb) = (/dvdx,dvdy,dvdz/)
-		dUidxj(3,:,k,ib,jb) = (/dwdx,dwdy,dwdz/)
+		dUidxj(1,:,k,i,j) = (/dudx,dudy,dudz/)
+		dUidxj(2,:,k,i,j) = (/dvdx,dvdy,dvdz/)
+		dUidxj(3,:,k,i,j) = (/dwdx,dwdy,dwdz/)
 
 	end do
 	end do
