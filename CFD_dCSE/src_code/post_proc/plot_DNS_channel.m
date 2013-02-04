@@ -9,13 +9,19 @@ clear all
 close all
 
 %Optional outputs
-contourplots = 0; sliceplane = 1;
-channel_profile = 0;
-spectrum = 0;
+contourplots = 4; sliceplane = 1;
+channel_profile = 1;
+spectrum = 1;
+
+%Parameters
+Re_b = 4.0;
+visc = 1/Re_b;
+spectrum_yloc = 16;
 
 %Directory names
 %resultfile_dir = '/home/es205/results/CFD_results/results/Transflow/minimal_channel_laminar/';
-resultfile_dir = '/home/es205/results/CFD_results/results/Transflow/minimal_channel_turbulent_scaled/'
+%resultfile_dir = '/home/es205/results/CFD_results/results/Transflow/minimal_channel_turbulent_scaled/'
+resultfile_dir = '/home/es205/results/CFD_results/results/Transflow/turbulent_couette/couette_scaled/CFD_dCSE/src_code/results/'
 
 %---Get CFD grid size ----
 read_grid(strcat(resultfile_dir,'grid.data'),[1 1 1])
@@ -26,9 +32,7 @@ z = linspace(0,Lz,ngz-2);
 [ugx,ugy,ugz]=meshgrid(linspace(0,Lx,ngx-3),linspace(0,Lz,ngz-3),linspace(0,Ly,ngy-1));
 
 
-%Parameters
-Re_b = 3000;
-visc = 1/Re_b;
+
 
 %Setup figures
 scrsz = get(0,'ScreenSize');
@@ -61,7 +65,7 @@ for n=50:size(files,1)
     disp(strcat('Iter_', int2str(n), '_of_', int2str(size(files,1))))
     
     %Read domain
-    [u,v,w,p] =  Read_DNS_Subdomain(n,resultfile_dir,ngx-2,ngy-1,ngz-2,1,1,1,4,true);
+    [u,v,w,p] =  Read_DNS_Subdomain(n,'grid.data',resultfile_dir,ngx-2,ngy-1,ngz-2,1,1,1,4,true);
 
     %Write velocity field to .dx format which can be read by VMD
     %G3DtoDX(xpg(1:end-1,1),ypg(1,1:end-1),z(1:end-1), permute(u(:,:,2:end-1),[2 3 1]),strcat('./vmd_volumes/DNS',num2str(n),'.dx'),-Lx/2,-Ly/2,-Lz/2)
@@ -183,7 +187,7 @@ for n=50:size(files,1)
             plot(ypg(1,:),squeeze(v_fluct(4,4,1:end-1)),'k--')
             plot(ypg(1,:),squeeze(w_fluct(4,4,1:end-1)),'k:')
             hold off
-            axis([-0.1 2.1 -0.4 1.5])
+            %axis([-0.1 2.1 -0.4 1.5])
             drawnow
             %savefig('channel','png')
         	if (channel_profile == 2)
@@ -208,9 +212,9 @@ for n=50:size(files,1)
         end
     
         %Collect spectrum information
-        uhatx = fft(squeeze(mean(u_fluct(:,:,68),1)));
-        vhatx = fft(squeeze(mean(v_fluct(:,:,68),1)));
-        whatx = fft(squeeze(mean(w_fluct(:,:,68),1)));
+        uhatx = fft(squeeze(mean(u_fluct(:,:,spectrum_yloc),1)));
+        vhatx = fft(squeeze(mean(v_fluct(:,:,spectrum_yloc),1)));
+        whatx = fft(squeeze(mean(w_fluct(:,:,spectrum_yloc),1)));
         Exu(:,n-50) =  0.5*uhatx.*conj(uhatx);
         Exv(:,n-50) =  0.5*vhatx.*conj(vhatx);
         Exw(:,n-50) =  0.5*whatx.*conj(whatx);
@@ -226,8 +230,8 @@ for n=50:size(files,1)
         % Calculate autocorrelation using FFT
         len = size(u_fluct,2);
         nfft = 2^nextpow2(2*len-1);
-        Rxu_fft(:) = Rxu_fft(:) + ifft(     fft(squeeze(mean(u_fluct(:,:,68),1)),nfft) .* ...
-                                       conj(fft(squeeze(mean(u_fluct(:,:,68),1)),nfft)) )';
+        Rxu_fft(:) = Rxu_fft(:) + ifft(     fft(squeeze(mean(u_fluct(:,:,spectrum_yloc),1)),nfft) .* ...
+                                       conj(fft(squeeze(mean(u_fluct(:,:,spectrum_yloc),1)),nfft)) )';
 
         % z autocorrelation
         for i=1:size(u_fluct,1)
@@ -244,7 +248,7 @@ for n=50:size(files,1)
             loglog(xpg(1:end/2,1),Exw(1:end/2,n-50),'k:')  
             hold off
             %axis([100 10000 10^-7 10^-2  ])
-            %uhatz = fft(u(:,:,68),1);
+            %uhatz = fft(u(:,:,spectrum_yloc),1);
             %Ez = Ez + 0.5*uhatz.*conj(uhatz);
         elseif (spectrum == 2)
             %Plot spatial autocorrelation functions ay yplus ~7.2 (7.335294532208900) 
@@ -310,7 +314,7 @@ hold on
 loglog(xpg(1:end/2,1)/delta_tau,mean(Exv(1:end/2,1:end).^0.5,2),'k--')   
 loglog(xpg(1:end/2,1)/delta_tau,mean(Exw(1:end/2,1:end).^0.5,2),'k:') 
 loglog(xpg(1:end/2,1)/delta_tau,C*(xpg(1:end/2,1)/delta_tau).^(-5/3),'k.-')
-axis([7 400 1e-6 5 ]); set(gca,'FontSize',20)
+%axis([7 400 1e-6 5 ]); set(gca,'FontSize',20)
 savefig('x_energy_spectra','eps')
 
 % Plot correlations
@@ -322,7 +326,7 @@ hold on
 plot(xpg(1:(end-1)/2,1)/delta_tau,(Rxv(1:end/2)/(n-50))/(Rxv(1)/(n-50)),'k--')
 plot(xpg(1:(end-1)/2,1)/delta_tau,(Rxw(1:end/2)/(n-50))/(Rxw(1)/(n-50)),'k:')
 plot(xpg(1:(end-1)/2)/delta_tau,zeros(size(xpg(1:(end-1)/2),2),1),'k-.')
-axis([0 300 -0.5 1.1]); set(gca,'FontSize',20)
+%axis([0 300 -0.5 1.1]); set(gca,'FontSize',20)
 drawnow; pause(0.0001)
 hold off
 savefig('x_correlation','eps')
@@ -334,7 +338,7 @@ hold on
 plot(z(1:(end-1)/2)/delta_tau,(Rzv(1:end/2)/(n-50))/(Rzv(1)/(n-50)),'k--')
 plot(z(1:(end-1)/2)/delta_tau,(Rzw(1:end/2)/(n-50))/(Rzw(1)/(n-50)),'k:')
 plot(z(1:(end-1)/2)/delta_tau,zeros(size(z(1:(end-1)/2),2),1),'k-.')
-axis([0 85 -1 1.1]); set(gca,'FontSize',20)
+%axis([0 85 -1 1.1]); set(gca,'FontSize',20)
 drawnow; pause(0.0001)
 hold off
 savefig('z_correlation','eps')

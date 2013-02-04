@@ -205,8 +205,8 @@ subroutine CartesianBC(deltaT)
 		! MD=>CFD Receive averages of MD
 		call socket_coupler_get_md_BC(uc,vc,wc) 
 
-		!print'(a,4f10.5)', 'CFD Bottom BC', maxval(uc(:, :, 0)),minval(uc(:, :, 0)),sum(uc(:, :, 0)),uc(5, 60, 0)
-
+		print'(a,4f10.5)', 'CFD Bottom BC', maxval(uc(:, :, 0)),minval(uc(:, :, 0)),sum(uc(:, :, 0)),uc(5, 7, 0)
+		!print*, uc(:,:,0)
 		!Testing exchange codes
 		!call test_send_recv_MD2CFD
 		!call test_send_recv_CFD2MD

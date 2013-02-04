@@ -5,13 +5,15 @@ resolution = (2*nbins);
 [x,y,z] = meshgrid(-0.6*globaldomain:globaldomain/resolution:0.6*globaldomain);
 
 scrsz = get(0,'ScreenSize');
-%fig_cube = figure('Position',[2000 scrsz(4)/4 scrsz(3)/6 scrsz(4)/2]);
+fig1 = figure('Position',[2000 scrsz(4)/4 scrsz(3)/6 scrsz(4)/2]);
 %Plot grid of bins size
-%plot_cube(x,y,z,0.5*binsize,-0.5*binsize,'red',fig_cube)
+plot_cube(x,y,z,-0.5*MD_binsize,0.5*MD_binsize,'red',fig1)
 grid on;
-set(gca,'xtick',[-0.5*globaldomain(1):binsize(1):0.5*globaldomain(1)]);
-set(gca,'ytick',[-0.5*globaldomain(2):binsize(2):0.5*globaldomain(2)]);
-set(gca,'ztick',[-0.5*globaldomain(3):binsize(3):0.5*globaldomain(3)]);
+plot_cube(x,y,z,-0.5*globaldomain,0.5*globaldomain,[0, 0, 0],fig1)
+
+set(gca,'xtick',linspace(-0.5*globaldomain(1),0.5*globaldomain(1),10));%[-0.5*globaldomain(1):binsize(1):0.5*globaldomain(1)]);
+set(gca,'ytick',linspace(-0.5*globaldomain(2),0.5*globaldomain(2),10));
+set(gca,'ztick',linspace(-0.5*globaldomain(3),0.5*globaldomain(3),10));
 
 %Plot wall regions
 for ixyz = 1:3

@@ -68,8 +68,10 @@ end subroutine read_final_state
 subroutine get_file_size(filename,file_size)
 	implicit none
 
+	integer, parameter :: LongInt = selected_int_kind (8)
+	integer(kind=LongInt),intent(out) :: file_size
+
 	integer							:: unit_no
-	integer,intent(out)				:: file_size
 	integer,dimension(13)			:: SArray(13)
 	logical							:: op
 	character(len=*), intent(in)	:: filename
@@ -255,8 +257,10 @@ program vmd_reformat
 	use reformat_mod
 	implicit none
 
-	integer			:: np, vmd_outflag,file_size,vmd_steps,datasize
-	character(40) 	:: filename,folder,npstring
+	integer, parameter 		:: LongInt = selected_int_kind (8)
+	integer(kind=LongInt) 	:: file_size
+	integer					:: np, vmd_outflag,vmd_steps,datasize
+	character(40) 			:: filename,folder,npstring
 
 	!Set Constants
 	folder = "./../results/"

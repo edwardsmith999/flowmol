@@ -537,6 +537,7 @@ subroutine set_parameters_outputs
 
 	!Allocate pressure tensor correlation record length
 	allocate(Pxycorrel(Nstress_ave))
+	Pxycorrel = 0.d0
 
 	!Allocated arrays for velocity slice
 	if (velocity_outflag.ne.0 .and. velocity_outflag.lt.4) then

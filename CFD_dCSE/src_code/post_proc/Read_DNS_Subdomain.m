@@ -10,7 +10,7 @@
 % cc - cell centred data logical flag (true or flase)
 %==========================================================================
 
-function[u,v,w,p,stress] = Read_DNS_Subdomain(n,resultfile_dir,ngx,ngy,ngz,skipk,skipi,skipj,nvar,cc)
+function[u,v,w,p,stress] = Read_DNS_Subdomain(n,filename,resultfile_dir,ngx,ngy,ngz,skipk,skipi,skipj,nvar,cc)
 
 spwd = pwd;
 
@@ -54,7 +54,6 @@ end
  
 %Read from DNS files
 V = read_sub(filenames(n).name,ngz,ngx,ngy,pz,px,py,skipk,skipi,skipj,nvar);
-
 u = V{1}(1:end-nn,1:end-nn,:);
 v = V{2}(1:end-nn,1:end-nn,:);
 w = V{3}(1:end-nn,1:end-nn,:);

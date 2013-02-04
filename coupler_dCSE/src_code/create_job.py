@@ -92,8 +92,12 @@ else:
 
 # Create header information
 nproc = nproc_md + nproc_cfd
+ncpus_per_node = 8
 header  = '#!/bin/bash\n' 
-header += '#PBS -l select='   + str(nproc) + ':icib=' + icib + '\n'
+if (nproc%ncpus_per_node == 0):
+	header += '#PBS -l select='   + str(nproc/ncpus_per_node) + ':ncpus=' + str(ncpus_per_node)+ ':icib=' + icib + '\n'
+else:
+	header += '#PBS -l select='   + str(nproc) + ':icib=' + icib + '\n'
 header += '#PBS -l walltime=' + walltime   + '\n'
 header += '#PBS -N '          + job_name   + '\n'
 if ( queue != '' ):

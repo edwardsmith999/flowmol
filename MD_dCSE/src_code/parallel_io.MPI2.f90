@@ -1050,14 +1050,12 @@ end subroutine parallel_io_final_state
 subroutine parallel_io_vmd
 	use module_parallel_io
 	implicit none
-	!include 'mpif.h' 
 
-	integer							:: procdisp
 	integer							:: i, datasize
 	real,dimension(:),allocatable	:: Xbuf, Ybuf, Zbuf
 	real,dimension(:),allocatable   :: Xbufglob,Ybufglob,Zbufglob
 	integer                         :: n,globmolno
-	integer(kind=MPI_OFFSET_KIND)   :: disp!, resultsize
+	integer(kind=MPI_OFFSET_KIND)   :: disp, procdisp
 
 	!Build array of number of particles on neighbouring
 	!processe's subdomain on current proccess
@@ -1154,7 +1152,6 @@ subroutine parallel_io_vmd
 
 		!-------------- CLOSE -------------------------------	
 		call MPI_FILE_CLOSE(fileid, ierr) 
-		call MPI_FILE_CLOSE(fileidtrue, ierr) 
 	
 	case(1)
 

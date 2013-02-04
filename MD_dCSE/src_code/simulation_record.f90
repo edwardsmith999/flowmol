@@ -1206,6 +1206,7 @@ subroutine cumulative_pressure(ixyz,sample_count)
 
 	!Calculate correrlation between current value of Pxy and intial value of sample
 	!Average 3 components of Pxycorrel to improve statistics
+	!write(123456789,'(i8,3f20.15)') iter, Pxytemp(1,2),Pxytemp(1,3),Pxytemp(2,3)
 	if(viscosity_outflag .eq. 1) then
 		if(sample_count .ne. 0) then
 			Pxycorrel(sample_count) = Pxycorrel(sample_count) + Pxytemp(2,3)*Pxyzero(2,3)
@@ -2940,12 +2941,12 @@ subroutine pressure_tensor_forces_MOP(pnxyz,ri,rj,rij,accijmag)
 	do n = planenoi,planenoj,sign(1,planenoj-planenoi)
 		plane = planes(n)
 
-		!Caluclate intersection with plane to check if interaction is within domain
+		!Calculate intersection with plane to check if interaction is within domain
 		Pyb=(/ri(1)+(rij(1)/rij(2))*(plane-ri(2)), plane,ri(3)+(rij(3)/rij(2))*(plane-ri(2)) /)
 
 		!Using sign function (Heaviside function is less efficient as no inbuilt Fortran Heaviside)
 		Pxy_plane(:,n) =  Pxy_plane(:,n) + accijmag * rij(:) * & 
-				( sign(1.d0,ri(2)-plane)-sign(1.d0,rj(2)-plane) )* &
+				( sign(1.d0,ri(2)   -    plane ) -      sign(1.d0,rj(2)  -  plane) )* &
 				(heaviside(halfdomain(1)-Pyb(1)) - heaviside(-halfdomain(1)-Pyb(1)))* &
 				(heaviside(halfdomain(3)-Pyb(3)) - heaviside(-halfdomain(3)-Pyb(3)))
 

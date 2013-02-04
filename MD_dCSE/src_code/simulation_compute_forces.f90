@@ -329,7 +329,7 @@ subroutine simulation_compute_forces_LJ_cells
 						a(2,molnoi)= a(2,molnoi) + accijmag*rij(2)
 						a(3,molnoi)= a(3,molnoi) + accijmag*rij(3)
 
-						!CV stress an force calculations
+						!CV stress and force calculations
 !TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
 					!if (n .eq. 2) then
 !TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
@@ -415,7 +415,7 @@ subroutine simulation_compute_forces_LJ_neigbr
 			if (rij2 < rcutoff2) then
 				invrij2  = 1.d0/rij2                !Invert value
 				accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4) ! (-dU/dr)*(1/|r|)
-!				if (molnoi.eq.1) print*, accijmag
+
 				!Sum of forces on particle i added for each j
 				a(1,molnoi)= a(1,molnoi) + accijmag*rij(1)
 				a(2,molnoi)= a(2,molnoi) + accijmag*rij(2)
@@ -522,7 +522,7 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 					endif
 				endif
 
-								!Only calculate properties when required for output
+				!Only calculate properties when required for output
 				if (mod(iter,tplot) .eq. 0) then
 
 					!Record potential energy total to use for output later (potshift=-1 for WCA)

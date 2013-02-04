@@ -17,5 +17,11 @@ else
 		cp ./$1/COUPLER.in  ./../coupler_dCSE/src_code/
 		cp ./$1/MD.in  ./../coupler_dCSE/src_code/md_data/
 		echo "Case" $1 "unpacked in input folder"
+
+		#Attempt to rebuild grid in DNS code
+		echo "Attempting to build grid and run setup files"
+		cd ./../CFD_dCSE/src_code/
+		./change_grid.sh
+
 	fi
 fi

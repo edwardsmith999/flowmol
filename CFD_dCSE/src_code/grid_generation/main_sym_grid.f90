@@ -85,8 +85,9 @@ program main
 	write(iunit, rec=2) ypg2
 	close(iunit)
 
-	print*,'New y - mesh'
+	print*,'Mirrored y mesh y(j=1,ngy)'
 	do j=1,ngy2
-		print*,ypg2(1,j)
+		print'(a,i4,a,f10.5)', 'Cell ', j, ' in y is ', ypg2(1,j)
 	end do
+
 end program

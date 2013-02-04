@@ -27,6 +27,8 @@
 !
 ! --Check Routines--
 ! check()
+!
+! Written by E d W a R d S m i t h unless otherwise specified
 
 !------------------------------------------------------------------------------
 
@@ -198,11 +200,12 @@ end subroutine least_squares
 subroutine integrate_trap(y,x_interval,npoints,s)
 implicit none
 
-	integer											:: n
 	integer		, intent(in)						:: npoints
 	double precision, intent(in)					:: x_interval
 	double precision, intent(out)					:: s
 	double precision, dimension(npoints), intent(in):: y
+
+	integer											:: n
 
 	!Zero integral before
 	s = 0.d0
