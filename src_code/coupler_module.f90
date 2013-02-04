@@ -1438,50 +1438,56 @@ subroutine get_md_cell_ranges
 		kcPmin_md(n) = kcPmax_md(n) - nczl + 1
 	end do
 
+	if (myid_world.eq.0) then
 
+		write(6000+myid_world,*), ''
+		write(6000+myid_world,*), '==========================================='
+		write(6000+myid_world,*), '------------ M D   M A P ------------------'
+		write(6000+myid_world,*), '==========================================='
+		write(6000+myid_world,*), 'npx_md = ', npx_md
+		write(6000+myid_world,*), 'ncx    = ', ncx
+		write(6000+myid_world,*), 'ncxl   = ', ncxl
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), '  icoord_md     icPmin_md     icPmax_md    '
+		write(6000+myid_world,*), '-------------------------------------------'
+		do n=1,npx_md
+			write(6000+myid_world,'(1x,3i11)'), n, icPmin_md(n), icPmax_md(n)
+		end do	
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), 'npy_md     = ', npy_md
+		write(6000+myid_world,*), 'ncy_md     = ', ncy_md
+		write(6000+myid_world,*), 'ncyP_md    = ', ncyP_md 
+		write(6000+myid_world,*), 'ncy_olap   = ', ncy_olap
+		write(6000+myid_world,*), 'ncy_mdonly = ', ncy_mdonly
+		write(6000+myid_world,*), 'olap_jmin_mdcoord = ', olap_jmin_mdcoord
+		write(6000+myid_world,*), 'dy         = ', dy
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), '  jcoord_md     jcPmin_md       jcPmax_md  '
+		write(6000+myid_world,*), '-------------------------------------------'
+		do n = 1,npy_md	
+			write(6000+myid_world,'(1x,3i11)'), n, jcPmin_md(n), jcPmax_md(n)
+		end do
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), 'npz_md = ', npz_md
+		write(6000+myid_world,*), 'ncz    = ', ncz
+		write(6000+myid_world,*), 'nczl   = ', nczl
+		write(6000+myid_world,*), '-------------------------------------------'
+		write(6000+myid_world,*), '  kcoord_md     kcPmin_md       kcPmax_md  '
+		write(6000+myid_world,*), '-------------------------------------------'
+		do n=1,npz_md
+			write(6000+myid_world,'(1x,3i11)'), n, kcPmin_md(n), kcPmax_md(n)
+		end do
+		write(6000+myid_world,*), '-------------------------------------------'
 
-!	if (myid_world.eq.0) then
-!
-!		write(6000+myid_world,*), ''
-!		write(6000+myid_world,*), '==========================================='
-!		write(6000+myid_world,*), '------------ M D   M A P ------------------'
-!		write(6000+myid_world,*), '==========================================='
-!		write(6000+myid_world,*), 'npx_md = ', npx_md
-!		write(6000+myid_world,*), 'ncx    = ', ncx
-!		write(6000+myid_world,*), 'ncxl   = ', ncxl
-!		write(6000+myid_world,*), '-------------------------------------------'
-!		write(6000+myid_world,*), '  icoord_md     icPmin_md     icPmax_md    '
-!		write(6000+myid_world,*), '-------------------------------------------'
-!		do n=1,npx_md
-!			write(6000+myid_world,'(1x,3i11)'), n, icPmin_md(n), icPmax_md(n)
-!		end do	
-!		write(6000+myid_world,*), '-------------------------------------------'
-!		write(6000+myid_world,*), 'npy_md     = ', npy_md
-!		write(6000+myid_world,*), 'ncy_md     = ', ncy_md
-!		write(6000+myid_world,*), 'ncyP_md    = ', ncyP_md 
-!		write(6000+myid_world,*), 'ncy_olap   = ', ncy_olap
-!		write(6000+myid_world,*), 'ncy_mdonly = ', ncy_mdonly
-!		write(6000+myid_world,*), 'olap_jmin_mdcoord = ', olap_jmin_mdcoord
-!		write(6000+myid_world,*), 'dy         = ', dy
-!		write(6000+myid_world,*), '-------------------------------------------'
-!		write(6000+myid_world,*), '  jcoord_md     jcPmin_md       jcPmax_md  '
-!		write(6000+myid_world,*), '-------------------------------------------'
-!		do n = 1,npy_md	
-!			write(6000+myid_world,'(1x,3i11)'), n, jcPmin_md(n), jcPmax_md(n)
-!		end do
-!		write(6000+myid_world,*), '-------------------------------------------'
-!		write(6000+myid_world,*), 'npz_md = ', npz_md
-!		write(6000+myid_world,*), 'ncz    = ', ncz
-!		write(6000+myid_world,*), 'nczl   = ', nczl
-!		write(6000+myid_world,*), '-------------------------------------------'
-!		write(6000+myid_world,*), '  kcoord_md     kcPmin_md       kcPmax_md  '
-!		write(6000+myid_world,*), '-------------------------------------------'
-!		do n=1,npz_md
-!			write(6000+myid_world,'(1x,3i11)'), n, kcPmin_md(n), kcPmax_md(n)
-!		end do
-!		write(6000+myid_world,*), '-------------------------------------------'
-!
-!	endif
+	endif
+
+	!Sanity Check min not less than max
+	if (icPmin_md(iblock_realm) .gt. icPmax_md(iblock_realm)) & 
+		call error_abort("Error in get_md_cell_ranges - mapping failure imin greater than imax")
+	if (jcPmin_md(jblock_realm) .gt. jcPmax_md(jblock_realm)) &
+		call error_abort("Error in get_md_cell_ranges - mapping failure jmin greater than jmax")
+	if (kcPmin_md(kblock_realm) .gt. kcPmax_md(kblock_realm)) & 
+		call error_abort("Error in get_md_cell_ranges - mapping failure kmin greater than kmax")
 
 end subroutine get_md_cell_ranges
 

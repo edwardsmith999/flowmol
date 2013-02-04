@@ -6,7 +6,7 @@ clear all
 CFD = 1;
 
 %Turn on/off video and picture output
-savevid = 1;
+savevid = 0;
 savepic = 0;
 
 %Analytical Solution parameters
@@ -19,14 +19,14 @@ analy_points = 20; % Number of spectral points
 %Find results files
 %resultfile_dir = './../results/';
 %resultfile_dir = '/home/es205/results/CX1_data/CPL_testing/slice/';
-resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/Inc_specular_walls/';
+resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/Inc_specular_walls_large/';
 %resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/50CFDMDratio/';
 %resultfile_dir = '/home/djt06/Documents/Academia/PhD/Code/Development/branch/coupler_dCSE/src_code/';
 resultfile_dir_MD = strcat(resultfile_dir,'md_data/results/');
 resultfile_dir_CFD = strcat(resultfile_dir,'couette_data/');
 resultfile_dir_CPL = strcat(resultfile_dir,'results/');
 
-%Read MD Header fimatlab.matle
+%Read MD Header
 resultfile_dir = resultfile_dir_MD;
 read_header
 
@@ -48,7 +48,7 @@ MD_liquiddomain = liquiddomain;
 MD_gnbins = gnbins;
 MD_binsize = binsize;
 clear liquiddomain gnbins binsize
-%plot_domain
+
 
 if (CFD == 0)
     read_continuum_header
@@ -104,7 +104,8 @@ end
 if (velocity_outflag < 4)
     ixyz = velocity_outflag;
 else
-    [null,ixyz]=min(domainratio);
+    %[null,ixyz]=max(domainratio);
+    ixyz = 2;
     jxyz = mod(ixyz+1,3)+1;
     kxyz = mod(ixyz,3)+1;
 end
@@ -122,6 +123,11 @@ scrsz = get(0,'ScreenSize');
 fig1 = figure('Position',[1 scrsz(4)/4 scrsz(3)/4 scrsz(4)/2]);
 fig2 = figure('Position',[scrsz(3)/4 scrsz(4)/4 scrsz(3)/4 scrsz(4)/2]);
 gax = axes('Position', [0.1, 0.1, 0.8, 0.8]);
+
+%Plot overlap domain schematic
+%plot_domain
+%read_grid(strcat(resultfile_dir_CFD,'grid.data'),[1 1 1],'plot')
+
 %hax = axes('Position', [.18, .48, .23, .35]);
 
 %Check if stress is avilable to plot
@@ -255,9 +261,9 @@ for i = 1:Nvel_records
 
     %Store pictures and videos
     if (savepic == 1)
-        if (mod(m,Nvel_records/10) == 0)
+        %if (mod(m,Nvel_records/10) == 0)
             savefig(strcat('Velocity_',num2str(m)),'png')
-        end
+        %end
     elseif (savevid == 1)
         currFrame = getframe(gcf);
         writeVideo(vidObj,currFrame);
@@ -290,7 +296,7 @@ for i = 1:Nvel_records
              ixyz = 2;
              jxyz = mod(ixyz+1,3)+1;
              kxyz = mod(ixyz,3)+1;
-             P_slice =  squeeze(sum(sum(pressure_VA(:,:,:,:,:),jxyz),kxyz)/(nbins(jxyz)*nbins(kxyz)));
+             P_slice =  squeeze(sum(sum(pressure_VA(:,:,:,:,:),jxyz),kxyz)/(MD_gnbins(jxyz)*MD_gnbins(kxyz)));
          end
 
         %Average velocity per molecule
@@ -310,8 +316,8 @@ for i = 1:Nvel_records
  
          %Plot MD shear stress
          plot(xaxis_MD,-squeeze(density*ave_vel_slice(2:end,1).*ave_vel_slice(2:end,2)),'o','LineWidth',3,'Color',[.2 .2 .2],'MarkerSize',10)
-         plot(xaxis_MD,-0.5*squeeze(ave_P_slice(2:end,1,2)),'x','LineWidth',3,'Color',[.2 .2 .2],'MarkerSize',10)
-         plot(xaxis_MD2,-0.5*squeeze(P_slice(5:end,1,2)),'^-')
+         plot(xaxis_MD,-squeeze(ave_P_slice(2:end,1,2)),'x','LineWidth',3,'Color',[.2 .2 .2],'MarkerSize',10)
+         plot(xaxis_MD2,-squeeze(P_slice(5:end,1,2)),'^-')
  
          %Plot anayltical solution
          clear analy
@@ -331,9 +337,9 @@ for i = 1:Nvel_records
 
          %Store pictures and videos
          if (savepic == 1)
-             if (mod(m,Nvel_records/10) == 0)
+             %if (mod(m,Nvel_records/10) == 0)
                  savefig(strcat('Stress_',num2str(m)),'png')
-             end
+             %end
          elseif (savevid == 1)
              currFrame = getframe(gcf);
              writeVideo(vidObj2,currFrame);
@@ -349,7 +355,7 @@ for i = 1:Nvel_records
     if (last_record == 1)
         break
     end
-    m = m + 1 %snaps(i)
+    m = m + 10 %snaps(i)
     %m = t_array(i)
     if (m > Nvel_records-ceil(t_ave/2)-2)
         m = Nvel_records-ceil(t_ave/2)-1
