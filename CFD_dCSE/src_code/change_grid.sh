@@ -47,6 +47,7 @@ rm ./Gen_grid.data.exe
 ifort        -r8 -o Gen_grid.data.exe  main.f90 mesh_tanh_stretch.f90
 ./Gen_grid.data.exe
 if [ $# -eq 1 ]; then
+	touch ./Gen_sym_grid.exe
 	rm 	./Gen_sym_grid.exe
 	ifort        -r8 -o Gen_sym_grid.exe main_sym_grid.f90
 	./Gen_sym_grid.exe

@@ -53,6 +53,8 @@ subroutine initialField_define()
 		call initialField_dummy()
 	case(5)
 		call initialField_read_uy()
+	case(6)
+		call initialField_linear()
  	end select
 
 	!---- Fluctuations ----
@@ -92,6 +94,11 @@ subroutine initialField_define()
 	if (iPeriodic.ne.0) then
 		call FFT_check
 	end if
+
+	! Create streamwise baseflow on collocated grid    
+	do j=jmin,jmax
+		print'(a,i8,2(a,f10.5))', 'Init Vel field ux(y) for cell ', j, ' at ', ypg(1,j), ' is' , U(5,5,j)
+	enddo
 
 	return
 end
@@ -136,7 +143,8 @@ subroutine initialField_parabolic()
 
 	! Create streamwise baseflow on collocated grid    
 	do j=jmin,jmax
-			U(:,:,j) = 1.5*ubulk*(1.0 - (ypg(1,j)-yc)**2)
+		U(:,:,j) = 1.5*ubulk*(1.0 - (ypg(1,j)-yc)**2)
+		!print'(a,i8,a,f10.5)', 'Initial Velcity field ux(y) for cell ', j, ' is' , U(5,5,j)
 	enddo
 
 	! Wall-normal flow
@@ -155,38 +163,6 @@ subroutine initialField_parabolic()
 
 	return
 end
-
-
-!=======================================================================
-subroutine initialField_read_uy()
-	use initialField
-
-	integer				:: j, ilength
-	double precision	:: read_Uanaly
-
-	iunit = iopen()
-	inquire(iolength=ilength) read_Uanaly
-	open(iunit, file='uy_input', status='old',form='unformatted',access="direct",recl=ilength, iostat=ierr)
-
-	! Read Couette profile from input file    
-	
-	do j=jmin,jmax
-		read(iunit,rec=j) read_Uanaly
-		U(:,:,j) = read_Uanaly
-		print'(a,i8,a,f10.5)', 'Initial Velcity field ux(y) for cell ', j, ' is' , U(5,5,j)
-	enddo
-
-	close(iunit)
-
-	! Wall-normal flow
-	V = 0.
-
-	! Spanwise flow
-	W = 0.
-
-	return
-end
-
 
 !==========================================================================
 subroutine initialField_dummy()
@@ -214,6 +190,72 @@ subroutine initialField_dummy()
 
 	return
 end
+
+
+!=======================================================================
+subroutine initialField_read_uy()
+	use initialField
+
+	integer				:: j, ilength
+	double precision	:: read_Uanaly
+
+	iunit = iopen()
+	inquire(iolength=ilength) read_Uanaly
+	open(iunit, file='uy_input', status='old',form='unformatted',access="direct",recl=ilength, iostat=ierr)
+
+	! Read Couette profile from input file    
+	
+	do j=jmin,jmax
+		read(iunit,rec=j) read_Uanaly
+		U(:,:,j) = read_Uanaly
+		!print'(a,i8,a,f10.5)', 'Initial Velcity field ux(y) for cell ', j, ' is' , U(5,5,j)
+	enddo
+
+	close(iunit)
+
+	! Wall-normal flow
+	V = 0.
+
+	! Spanwise flow
+	W = 0.
+
+	return
+end
+
+
+
+!=======================================================================
+subroutine initialField_linear()
+	use initialField
+
+	double precision :: deltay
+
+	call readFloat("uwall_top",    uwall_top)
+	call readFloat("uwall_bottom", uwall_bottom)
+
+	! Streamwise flow
+	y1 = y(jmin)		!lower wall
+	y2 = y(jmax)		!upper wall
+	L  = y2-y1			!Channel height
+	yd = 0.5*(y2-y1)	!domain half-height
+	uwall_diff = uwall_top - uwall_bottom
+
+	! Create streamwise baseflow on collocated grid    
+	do j=jmin,jmax
+		U(:,:,j) = uwall_diff*ypg(1,j)/L - uwall_top
+		!print'(a,i8,a,f10.5)', 'Initial Velcity field ux(y) for cell ', j, ' is' , U(5,5,j)
+	enddo
+
+	! Wall-normal flow
+	V = 0.d0
+
+	! Spanwise baseflow on collocated grid
+	W = 0.d0
+
+	return
+end
+
+
 
 !=======================================================================
 subroutine initialField_OSSfluct()
@@ -567,16 +609,16 @@ subroutine initialField_fluct_v3()
 	        ! Add random fluctuations
 
         ! Initialize random generator
-        iseed = 7
+        iseed = 25
         call randomSeed(iseed)
 
         ! Fluctuation amplitude is typically 30%
-        amplitude = 0.6
+        amplitude = 0.8
 
         do j=jmin,jmax
         do k=kmin,kmax
         do i=imin,imax
-                umean = max(U(k,i,j), V(k,i,j), W(k,i,j))
+                umean = max(abs(U(k,i,j)), abs(V(k,i,j)), abs(W(k,i,j)))
                 fluct1 = umean*amplitude*2.*(random()-0.5)
                 fluct2 = umean*amplitude*2.*(random()-0.5)
                 fluct3 = umean*amplitude*2.*(random()-0.5)
