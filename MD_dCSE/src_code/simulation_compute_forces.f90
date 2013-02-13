@@ -479,11 +479,20 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 	integer							:: noneighbrs
 	type(neighbrnode), pointer		:: old, current
 
+	!real(kind(0.d0)) :: b,bax, bay, baz ! TEMP Boundary force components
+	!logical :: baxflag
+
 	do molnoi = 1, np
 
 	    noneighbrs = neighbour%noneighbrs(molnoi)	!Determine number of elements in neighbourlist
 		old => neighbour%head(molnoi)%point			!Set old to head of neighbour list
 		ri(:) = r(:,molnoi)							!Retrieve ri
+
+		! TEMPORARY
+		!bax = 0.d0
+		!bay = 0.d0
+		!baz = 0.d0
+		!baxflag = .false.
 
 		do j = 1,noneighbrs							!Step through all pairs of neighbours i and j
 
@@ -507,6 +516,14 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 				a(1,molnoj)= a(1,molnoj) - accijmag*rij(1)
 				a(2,molnoj)= a(2,molnoj) - accijmag*rij(2)
 				a(3,molnoj)= a(3,molnoj) - accijmag*rij(3) 
+
+				! Distribution of boundary forces (TEMPORARY)
+				!if ( rj(2) .gt. halfdomain(2) ) then              !!!!!! TEMP !!!
+				!	baxflag = .true.
+				!	bax = bax + accijmag*rij(1)                   !!!!!! TEMP !!!
+				!	bay = bay + accijmag*rij(2)                   !!!!!! TEMP !!!
+				!	baz = baz + accijmag*rij(3)                   !!!!!! TEMP !!!
+				!end if                                            !!!!!! TEMP !!!
 
 				if (vflux_outflag.eq.4) then
 					if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
@@ -557,6 +574,10 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 			current => old
 			old => current%next !Use pointer in datatype to obtain next item in list
 		enddo
+	
+		!if (baxflag) then
+		!	write(7654,'(f18.4,a,f18.4,a,f18.4,a,f18.4)') halfdomain(2) - ri(2),'  ',bax,'  ',bay,'  ',baz       !!!!!!! TEMP !!!!!!
+		!end if
 	enddo
 
 	!Total used with other potentials (e.g. FENE)
