@@ -1453,7 +1453,7 @@ subroutine macroscopic_properties_header
 	if (potential_flag.eq.0) then
 		write(10,'(2a)') &
 		' iter; simtime; VSum; V^2Sum; Temp;', &
-		' KE; PE; TE; Pressure;'
+		' KE; PE; TE; Pressure'
 	else if (potential_flag.eq.1) then
 		write(10,'(2a)') &
 		' iter; simtime; VSum; V^2Sum; Temp;', &
