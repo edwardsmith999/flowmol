@@ -1,20 +1,21 @@
 % General purpose routine to plot various statistics from output of
-% Transflow DNS code. Optional out flags can be tuned to output
+% Trannyflow DNS code for channel flow. Optional out flags can be tuned to output
 % slices, (velcoity/vorticity) isosurface, energy spectra, velocity profiles
 % autocorrelations and wall region plots. Also allows output as .dx files
-
-
 
 clear all
 close all
 
 %Optional outputs
-contourplots = 4; sliceplane = 1;
-channel_profile = 1;
-spectrum = 1;
+contourplots = 0; sliceplane = 0;
+channel_profile = 0;
+spectrum = 0;
+
+%Turn on/off video and picture output
+savevid = 0;
 
 %Parameters
-Re_b = 4.0;
+Re_b = 1.0;
 visc = 1/Re_b;
 spectrum_yloc = 16;
 
@@ -30,9 +31,6 @@ z = linspace(0,Lz,ngz-2);
 [Yz Zz] = meshgrid(ypg(1,:),z);
 [Xx Zx] = meshgrid(xpg(:,1),z);
 [ugx,ugy,ugz]=meshgrid(linspace(0,Lx,ngx-3),linspace(0,Lz,ngz-3),linspace(0,Ly,ngy-1));
-
-
-
 
 %Setup figures
 scrsz = get(0,'ScreenSize');
@@ -53,6 +51,14 @@ elseif (spectrum == 2)
     fig6=figure('Position',[ scrsz(3)*2/6     1        scrsz(3)/6 scrsz(4)/2.6]);
 end
 
+%Write a sequence of frames to a compressed AVI file, couette.avi:
+% Prepare the new file.
+if (savevid == 1)
+    vidObj = VideoWriter('CFD.avi');
+    vidObj.FrameRate = 10;
+    open(vidObj);
+end
+
 
 %Main loop
 u_sum = 0; v_sum = 0; w_sum = 0; uv_fluct_sum=0; dudy_sum=0;
@@ -60,7 +66,8 @@ u_fluct_rmsum=0; v_fluct_rmsum=0; Rxu_fft = zeros(2*(ngx-3),1);
 Rxu = zeros(ngx-3,1); Rxv = zeros(ngx-3,1); Rxw = zeros(ngx-3,1);
 Rzu = zeros(ngz-3,1); Rzv = zeros(ngz-3,1); Rzw = zeros(ngz-3,1);
 cd(resultfile_dir); files = dir('Sub*');
-for n=50:size(files,1)
+tstart = 1;
+for n=tstart:size(files,1)
 
     disp(strcat('Iter_', int2str(n), '_of_', int2str(size(files,1))))
     
@@ -68,7 +75,7 @@ for n=50:size(files,1)
     [u,v,w,p] =  Read_DNS_Subdomain(n,'grid.data',resultfile_dir,ngx-2,ngy-1,ngz-2,1,1,1,4,true);
 
     %Write velocity field to .dx format which can be read by VMD
-    %G3DtoDX(xpg(1:end-1,1),ypg(1,1:end-1),z(1:end-1), permute(u(:,:,2:end-1),[2 3 1]),strcat('./vmd_volumes/DNS',num2str(n),'.dx'),-Lx/2,-Ly/2,-Lz/2)
+    G3DtoDX(xpg(1:end-1,1),ypg(1,1:end-1),z(1:end-1), permute(u(:,:,2:end-1),[2 3 1]),strcat('./vmd_volumes/DNS',num2str(n),'.dx'),-Lx/2,-17.09975947,-Lz/2)
 
     %sliceomatic(cav,linspace(0,Lx,ngx-3),linspace(0,Lz,ngz-3),linspace(0,Ly,ngy-1))
 
@@ -132,15 +139,21 @@ for n=50:size(files,1)
         camlight 
         lighting gouraud
         hold off
+
+        %Write video file
+        if (savevid == 1)
+            currFrame = getframe(gcf);
+            writeVideo(vidObj,currFrame);
+        end
     end
 
 
     %Energy spectrum at centreline
-    if (n>50)
+    if (n>tstart)
 
         % Get u fluctuations
         u_sum = u_sum + mean(mean(u,1),2);
-        u_mean = u_sum / (n-50) ;
+        u_mean = u_sum / (n-tstart) ;
         dudy_sum = dudy_sum + diff(squeeze(mean(mean(u(:,:,1:end-1),1),2)))./diff(ypg(1,1:end))';
         for i=1:size(u,1)
         for j=1:size(u,2)
@@ -150,7 +163,7 @@ for n=50:size(files,1)
 
         % Get v fluctuations
         v_sum = v_sum + mean(mean(v,1),2);
-        v_mean = v_sum / (n-50) ;
+        v_mean = v_sum / (n-tstart) ;
         for i=1:size(v,1)
         for j=1:size(v,2)
             v_fluct(i,j,:) = squeeze(v(i,j,:)) - squeeze(v_mean(:));
@@ -159,7 +172,7 @@ for n=50:size(files,1)
 
         %Get w fluctuations
         w_sum = w_sum + mean(mean(w,1),2);
-        w_mean = w_sum / (n-50) ;
+        w_mean = w_sum / (n-tstart) ;
         for i=1:size(w,1)
         for j=1:size(w,2)
             w_fluct(i,j,:) = squeeze(w(i,j,:)) - squeeze(w_mean(:));
@@ -172,7 +185,7 @@ for n=50:size(files,1)
         uv_fluct_sum  = uv_fluct_sum + u_fluct.*v_fluct;
 
         %Calculate scaling parameter
-        dudy = dudy_sum / (n-50);
+        dudy = dudy_sum / (n-tstart);
         dudy_top =  max(dudy); dudy_bot = -min(dudy);
         dudy_ave = 0.5*(dudy_top + dudy_bot);
         u_tau = (dudy_ave*visc)^0.5;
@@ -192,7 +205,7 @@ for n=50:size(files,1)
             %savefig('channel','png')
         	if (channel_profile == 2)
                 figure(fig4);
-                uv_fluct = uv_fluct_sum / (n-50);
+                uv_fluct = uv_fluct_sum / (n-tstart);
                 plot(ypg(1,:),-squeeze(uv_fluct(4,4,1:end-1))./u_tau^2,'-')
                 hold all
                 plot(ypg(1,1:end-1),visc*dudy(1:end)./u_tau^2,'o')
@@ -201,8 +214,8 @@ for n=50:size(files,1)
                 hold off
                 drawnow
             elseif (channel_profile == 3)
-                u_fluct_rms = u_fluct_rmsum / (n-50);
-                v_fluct_rms = v_fluct_rmsum / (n-50);
+                u_fluct_rms = u_fluct_rmsum / (n-tstart);
+                v_fluct_rms = v_fluct_rmsum / (n-tstart);
                 plot(ypg(1,:),squeeze(u_fluct_rms(4,4,1:end-1)),'x')
                 hold all
                 plot(ypg(1,:),squeeze(v_fluct_rms(4,4,1:end-1)),'s')
@@ -212,12 +225,12 @@ for n=50:size(files,1)
         end
     
         %Collect spectrum information
-        uhatx = fft(squeeze(mean(u_fluct(:,:,spectrum_yloc),1)));
-        vhatx = fft(squeeze(mean(v_fluct(:,:,spectrum_yloc),1)));
-        whatx = fft(squeeze(mean(w_fluct(:,:,spectrum_yloc),1)));
-        Exu(:,n-50) =  0.5*uhatx.*conj(uhatx);
-        Exv(:,n-50) =  0.5*vhatx.*conj(vhatx);
-        Exw(:,n-50) =  0.5*whatx.*conj(whatx);
+        uhatx = fft(squeeze(mean(u_fluct(:,:,spectrum_yloc),1)))./size(u_fluct,2);
+        vhatx = fft(squeeze(mean(v_fluct(:,:,spectrum_yloc),1)))./size(u_fluct,2);
+        whatx = fft(squeeze(mean(w_fluct(:,:,spectrum_yloc),1)))./size(u_fluct,2);
+        Exu(:,n-tstart) =  0.5*uhatx.*conj(uhatx);
+        Exv(:,n-tstart) =  0.5*vhatx.*conj(vhatx);
+        Exw(:,n-tstart) =  0.5*whatx.*conj(whatx);
 
         %Collect spatial autocorrelation functions at yplus ~7.2 (7.335294532208900) 
         % x autocorrelation
@@ -242,10 +255,10 @@ for n=50:size(files,1)
 
         if (spectrum == 1)
             figure(fig3);
-            loglog(xpg(1:end/2,1),Exu(1:end/2,n-50),'k')    
+            loglog(xpg(1:end/2,1),Exu(1:end/2,n-tstart),'k')    
             hold on
-            loglog(xpg(1:end/2,1),Exv(1:end/2,n-50),'k--')    
-            loglog(xpg(1:end/2,1),Exw(1:end/2,n-50),'k:')  
+            loglog(xpg(1:end/2,1),Exv(1:end/2,n-tstart),'k--')    
+            loglog(xpg(1:end/2,1),Exw(1:end/2,n-tstart),'k:')  
             hold off
             %axis([100 10000 10^-7 10^-2  ])
             %uhatz = fft(u(:,:,spectrum_yloc),1);
@@ -253,20 +266,20 @@ for n=50:size(files,1)
         elseif (spectrum == 2)
             %Plot spatial autocorrelation functions ay yplus ~7.2 (7.335294532208900) 
             figure(fig3);
-            plot(xpg(1:(end-1)/2,1)/delta_tau,(Rxu(1:end/2)/(n-50))/(Rxu(1)/(n-50)),'k')
+            plot(xpg(1:(end-1)/2,1)/delta_tau,(Rxu(1:end/2)/(n-tstart))/(Rxu(1)/(n-tstart)),'k')
             hold on
-            plot(xpg(1:(end-1)/2,1)/delta_tau,(Rxu_fft(1:end/4)/(n-50))/(Rxu_fft(1)/(n-50)),'r')
-            plot(xpg(1:(end-1)/2,1)/delta_tau,(Rxv(1:end/2)/(n-50))/(Rxv(1)/(n-50)),'k--')
-            plot(xpg(1:(end-1)/2,1)/delta_tau,(Rxw(1:end/2)/(n-50))/(Rxw(1)/(n-50)),'k:')
+            plot(xpg(1:(end-1)/2,1)/delta_tau,(Rxu_fft(1:end/4)/(n-tstart))/(Rxu_fft(1)/(n-tstart)),'r')
+            plot(xpg(1:(end-1)/2,1)/delta_tau,(Rxv(1:end/2)/(n-tstart))/(Rxv(1)/(n-tstart)),'k--')
+            plot(xpg(1:(end-1)/2,1)/delta_tau,(Rxw(1:end/2)/(n-tstart))/(Rxw(1)/(n-tstart)),'k:')
             plot(xpg(1:(end-1)/2)/delta_tau,zeros(size(xpg(1:(end-1)/2),2),1),'k-.')
             axis([0 300 -0.5 1.1])
             drawnow; pause(0.0001)
             hold off
             figure(fig6);
-            plot(z(1:(end-1)/2)/delta_tau,(Rzu(1:end/2)/(n-50))/(Rzu(1)/(n-50)),'k')
+            plot(z(1:(end-1)/2)/delta_tau,(Rzu(1:end/2)/(n-tstart))/(Rzu(1)/(n-tstart)),'k')
             hold on
-            plot(z(1:(end-1)/2)/delta_tau,(Rzv(1:end/2)/(n-50))/(Rzv(1)/(n-50)),'k--')
-            plot(z(1:(end-1)/2)/delta_tau,(Rzw(1:end/2)/(n-50))/(Rzw(1)/(n-50)),'k:')
+            plot(z(1:(end-1)/2)/delta_tau,(Rzv(1:end/2)/(n-tstart))/(Rzv(1)/(n-tstart)),'k--')
+            plot(z(1:(end-1)/2)/delta_tau,(Rzw(1:end/2)/(n-tstart))/(Rzw(1)/(n-tstart)),'k:')
             plot(z(1:(end-1)/2)/delta_tau,zeros(size(z(1:(end-1)/2),2),1),'k-.')
             axis([0 85 -1 1.1])
             drawnow; pause(0.0001)
@@ -276,11 +289,17 @@ for n=50:size(files,1)
     end
 end
 
+
+% Close the Video file.
+if (savevid == 1)
+	close(vidObj)
+end
+
 close all
 scrsz = get(0,'ScreenSize');
 
 %Scaling parameters
-dudy = dudy_sum / (n-50) ;
+dudy = dudy_sum / (n-tstart) ;
 dudy_top =  max(dudy); dudy_bot = -min(dudy);
 dudy_ave = 0.5*(dudy_top + dudy_bot);
 u_tau = (dudy_ave*visc)^0.5;
@@ -290,9 +309,9 @@ y_plus = ypg/delta_tau;
 u_plus = u_mean/u_tau;
 
 %Plot time averaged Reynolds shear stress
-u_fluct_rms = u_fluct_rmsum / (n-50);
-v_fluct_rms = v_fluct_rmsum / (n-50);
-uv_fluct    = uv_fluct_sum  / (n-50);
+u_fluct_rms = u_fluct_rmsum / (n-tstart);
+v_fluct_rms = v_fluct_rmsum / (n-tstart);
+uv_fluct    = uv_fluct_sum  / (n-tstart);
 figure('Position',[     1     scrsz(4)/4 scrsz(3)/6 scrsz(4)/2]);
 plot(ypg(1,:),-squeeze(uv_fluct(4,4,1:end-1))/u_tau^2,'ks')
 hold all
@@ -320,11 +339,11 @@ savefig('x_energy_spectra','eps')
 % Plot correlations
 % x correlation
 figure('Position',[     1     scrsz(4)/4 scrsz(3)/6 scrsz(4)/2]);
-plot(xpg(1:(end-1)/2,1)/delta_tau,(Rxu(1:end/2)/(n-50))/(Rxu(1)/(n-50)),'k')
+plot(xpg(1:(end-1)/2,1)/delta_tau,(Rxu(1:end/2)/(n-tstart))/(Rxu(1)/(n-tstart)),'k')
 hold on
-%plot(xpg(1:(end-1)/2,1)/delta_tau,(Rxu_fft(1:end/4)/(n-50))/(Rxu_fft(1)/(n-50)),'r')
-plot(xpg(1:(end-1)/2,1)/delta_tau,(Rxv(1:end/2)/(n-50))/(Rxv(1)/(n-50)),'k--')
-plot(xpg(1:(end-1)/2,1)/delta_tau,(Rxw(1:end/2)/(n-50))/(Rxw(1)/(n-50)),'k:')
+%plot(xpg(1:(end-1)/2,1)/delta_tau,(Rxu_fft(1:end/4)/(n-tstart))/(Rxu_fft(1)/(n-tstart)),'r')
+plot(xpg(1:(end-1)/2,1)/delta_tau,(Rxv(1:end/2)/(n-tstart))/(Rxv(1)/(n-tstart)),'k--')
+plot(xpg(1:(end-1)/2,1)/delta_tau,(Rxw(1:end/2)/(n-tstart))/(Rxw(1)/(n-tstart)),'k:')
 plot(xpg(1:(end-1)/2)/delta_tau,zeros(size(xpg(1:(end-1)/2),2),1),'k-.')
 %axis([0 300 -0.5 1.1]); set(gca,'FontSize',20)
 drawnow; pause(0.0001)
@@ -333,10 +352,10 @@ savefig('x_correlation','eps')
 
 %z correlation
 figure('Position',[     1     scrsz(4)/4 scrsz(3)/6 scrsz(4)/2]);;
-plot(z(1:(end-1)/2)/delta_tau,(Rzu(1:end/2)/(n-50))/(Rzu(1)/(n-50)),'k')
+plot(z(1:(end-1)/2)/delta_tau,(Rzu(1:end/2)/(n-tstart))/(Rzu(1)/(n-tstart)),'k')
 hold on
-plot(z(1:(end-1)/2)/delta_tau,(Rzv(1:end/2)/(n-50))/(Rzv(1)/(n-50)),'k--')
-plot(z(1:(end-1)/2)/delta_tau,(Rzw(1:end/2)/(n-50))/(Rzw(1)/(n-50)),'k:')
+plot(z(1:(end-1)/2)/delta_tau,(Rzv(1:end/2)/(n-tstart))/(Rzv(1)/(n-tstart)),'k--')
+plot(z(1:(end-1)/2)/delta_tau,(Rzw(1:end/2)/(n-tstart))/(Rzw(1)/(n-tstart)),'k:')
 plot(z(1:(end-1)/2)/delta_tau,zeros(size(z(1:(end-1)/2),2),1),'k-.')
 %axis([0 85 -1 1.1]); set(gca,'FontSize',20)
 drawnow; pause(0.0001)

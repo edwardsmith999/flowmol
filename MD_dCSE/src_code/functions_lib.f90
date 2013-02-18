@@ -772,6 +772,7 @@ subroutine printf(buf,dplaces_in)
 		order = order*10.d0
 		n = n + 1
 	enddo
+	if (maxbuf .lt. 0.d0 .and. maxbuf .gt. -1.d0) n = n + 1 !For the case of -0.something
 	if (n+dplaces+2 .le. 9) then
 		write(buf_precision,'(a,i1,a,i1)'), 'f',n+dplaces+2,'.', dplaces
 	else

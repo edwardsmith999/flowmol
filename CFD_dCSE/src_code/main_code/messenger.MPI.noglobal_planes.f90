@@ -1629,6 +1629,18 @@ subroutine updateBorder(A, n1,n2,n3, ixyz, ijk)
 end
 
 !=======================================================================
+! Border exchange between adjacent processor
+! Prototype
+! 	updateBorder_lim(A, n1,n2,n3, ixyz, ijk, ia, ib, no)
+! Inputs
+!	A 			- array to exchange
+!   n1,n2,n3 	- size of array A  (starting from 0 to n1,n2 or n3)
+!	ixyz 		- direction of exchange
+!	ijk  		- array indice to exchange (Note required due to k,i,j ordering)
+!	ia 			- minimum value to send (subsection of A - 0 to n1,n2 or n3)
+!	ib 			- maximum value to send (subsection of A - 0 to n1,n2 or n3)
+!	no 			- number of halos
+!
 subroutine updateBorder_lim(A, n1,n2,n3, ixyz, ijk, ia, ib, no)
 	use messenger
 	use mpi
@@ -1824,8 +1836,8 @@ subroutine updateBorder_xperiodic(flag)
 			buf1(:,:,4) = w(1:ngzm,nlxb-1,0:nly)
 
 		   call MPI_sendrecv(buf1, icount, MPI_REAL8, src_dst, 0, &
-				     buf2, icount, MPI_REAL8, src_dst, 0, &
-				     icomm_grid, istatus, ierr)
+				     		 buf2, icount, MPI_REAL8, src_dst, 0, &
+				     						icomm_grid, istatus, ierr)
 
 			uleftbc_temp(1:ngzm,0:nly,1) = buf2(:,:,1)
 			uleftbc_temp(1:ngzm,0:nly,2) = buf2(:,:,2)
@@ -1845,8 +1857,8 @@ subroutine updateBorder_xperiodic(flag)
 			buf1(:,:,1) = ust(1:ngzm,2,0:nly)	!this can arbitrary
 
 		   call MPI_sendrecv(buf1, icount, MPI_REAL8, src_dst, 0, &
-				     buf2, icount, MPI_REAL8, src_dst, 0, &
-				     icomm_grid, istatus, ierr)
+				     		 buf2, icount, MPI_REAL8, src_dst, 0, &
+				     						icomm_grid, istatus, ierr)
 
 			urightbc_temp(1:ngzm,0:nly,1) = buf2(:,:,1)
 		end if
@@ -1856,8 +1868,8 @@ subroutine updateBorder_xperiodic(flag)
 			buf1(:,:,1) = ust(1:ngzm,nlxb,0:nly)
 
 		   call MPI_sendrecv(buf1, icount, MPI_REAL8, src_dst, 0, &
-				     buf2, icount, MPI_REAL8, src_dst, 0, &
-				     icomm_grid, istatus, ierr)
+				     		 buf2, icount, MPI_REAL8, src_dst, 0, &
+				     						icomm_grid, istatus, ierr)
 		
 			uleftbc_temp(1:ngzm,0:nly,1) = buf2(:,:,1)	
 	
@@ -1874,8 +1886,8 @@ subroutine updateBorder_xperiodic(flag)
 			buf1(:,:,1) = p(1:ngzm,1,0:nly)	
 
 		   call MPI_sendrecv(buf1, icount, MPI_REAL8, src_dst, 0, &
-				     buf2, icount, MPI_REAL8, src_dst, 0, &
-				     icomm_grid, istatus, ierr)
+				     		 buf2, icount, MPI_REAL8, src_dst, 0, &
+				     						icomm_grid, istatus, ierr)
 
 			urightbc_temp(1:ngzm,0:nly,1) = buf2(:,:,1)
 		end if

@@ -2171,10 +2171,12 @@ subroutine printf(buf,dplaces_in)
 	double precision,dimension(:),intent(in):: buf
 	integer, intent(in), optional			:: dplaces_in
 
-	integer				:: n,dplaces
+	integer				:: n,dplaces, space
 	double precision	:: maxbuf,minbuf,order
-	character*13	 	:: string
+	character*19	 	:: string
 	character*42	 	:: buf_precision
+
+	space = 2
 
 	!Default number of decimal places if not supplied
 	if (present(dplaces_in)) then
@@ -2191,23 +2193,26 @@ subroutine printf(buf,dplaces_in)
 	!Find out required format to display maximum element in buffer
 	maxbuf = maxval(buf); minbuf = minval(buf)
 	maxbuf = max(maxbuf,10*abs(minbuf))	!10*Ensures extra space for minus sign
-	order = 1.d0; n =1
+	order = 1.d0; n = 1
 	do while (max(maxbuf,order) .ne. order)
 		order = order*10.d0
 		n = n + 1
 	enddo
-	if (n+dplaces+2 .le. 9) then
-		write(buf_precision,'(a,i1,a,i1)'), 'f',n+dplaces+2,'.', dplaces
+	if (maxbuf .lt. 0.d0 .and. maxbuf .gt. -1.d0) then
+		n = n + 1 !For the case of -0.something
+	endif
+	if (n+dplaces+space .le. 9) then
+		write(buf_precision,'(a,i1,a,i1)'), 'f',n+dplaces+space,'.', dplaces
 	else
-		write(buf_precision,'(a,i2,a,i1)'), 'f',n+dplaces+2,'.', dplaces
+		write(buf_precision,'(a,i2,a,i1)'), 'f',n+dplaces+space,'.', dplaces
 	endif
 
 	! Build up format specifier string based on size of passed array
-	string='(i3,   ' // trim(buf_precision) // ')'
-	write(string(5:7),'(i3)'), size(buf) 
+	string='(a6,i3,   ' // trim(buf_precision) // ')'
+	write(string(8:10),'(i3)'), size(buf) 
 
 	!Write formatted data 
-	print(string), rank_world,buf
+	print(string),'printf',rank_world,buf
 
 end subroutine printf
 

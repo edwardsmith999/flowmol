@@ -80,38 +80,38 @@ subroutine Update_Flux()
                 !      			+suxiy(i,j)*0.5*(suxiy(i,j)+suxiy(i-1,j)))*p(ka:kb,ii-1,jj)) &
                 !     			/((vp(i,j)+vp(i-1,j))/2.)
 		! end if
-                u(ka:kb,ii,jj)= (1-jflag_start-jflag_end) * ((   ust(ka:kb,ii,jj) -           &
-                                                                ( ( suxix(i,j)*0.5*(suxix(i,j)+suxix(i+1,j))                      &
-                                                                   +suxiy(i,j)*0.5*(suxiy(i,j)+suxiy(i+1,j)) )*p(ka:kb,ii  ,jj)   &
-                                                                 -( suxix(i,j)*0.5*(suxix(i,j)+suxix(i-1,j))                      &
-                                                                   +suxiy(i,j)*0.5*(suxiy(i,j)+suxiy(i-1,j)) )*p(ka:kb,ii-1,jj) ) &
-                                                                /( (vp(i,j)+vp(i-1,j))/2. ) - &
-                                                                ( ( suxix(i,j)*(svetax(i,j+1)+svetax(i-1,j+1))/2.                 &
-                                                                   +suxiy(i,j)*(svetay(i,j+1)+svetay(i-1,j+1))/2. )               &
-                                                                  *( p(ka:kb,ii,jj  )+p(ka:kb,ii-1,jj  )                          &
-                                                                    +p(ka:kb,ii,jj+1)+p(ka:kb,ii-1,jj+1) )/4.                     &
-                                                                 -( suxix(i,j)*(svetax(i,j  )+svetax(i-1,j  ))/2.                 &
-                                                                   +suxiy(i,j)*(svetay(i,j  )+svetay(i-1,j  ))/2. )               &
-                                                                  *( p(ka:kb,ii,jj  )+p(ka:kb,ii-1,jj  )                          &
-                                                                    +p(ka:kb,ii,jj-1)+p(ka:kb,ii-1,jj-1) )/4.         )           &
-                                                                /( (vp(i,j)+vp(i-1,j))/2. )) 					  &
-                                                                          - GPxi*( suxix(i,j) ) 				  )
+		u(ka:kb,ii,jj)= (1-jflag_start-jflag_end) * ((   ust(ka:kb,ii,jj) -           &
+		                                                ( ( suxix(i,j)*0.5*(suxix(i,j)+suxix(i+1,j))                      &
+		                                                    +suxiy(i,j)*0.5*(suxiy(i,j)+suxiy(i+1,j)) )*p(ka:kb,ii  ,jj)   &
+		                                                    -( suxix(i,j)*0.5*(suxix(i,j)+suxix(i-1,j))                      &
+		                                                    +suxiy(i,j)*0.5*(suxiy(i,j)+suxiy(i-1,j)) )*p(ka:kb,ii-1,jj) ) &
+		                                                /( (vp(i,j)+vp(i-1,j))/2. ) - &
+		                                                ( ( suxix(i,j)*(svetax(i,j+1)+svetax(i-1,j+1))/2.                 &
+		                                                    +suxiy(i,j)*(svetay(i,j+1)+svetay(i-1,j+1))/2. )               &
+		                                                    *( p(ka:kb,ii,jj  )+p(ka:kb,ii-1,jj  )                          &
+		                                                    +p(ka:kb,ii,jj+1)+p(ka:kb,ii-1,jj+1) )/4.                     &
+		                                                    -( suxix(i,j)*(svetax(i,j  )+svetax(i-1,j  ))/2.                 &
+		                                                    +suxiy(i,j)*(svetay(i,j  )+svetay(i-1,j  ))/2. )               &
+		                                                    *( p(ka:kb,ii,jj  )+p(ka:kb,ii-1,jj  )                          &
+		                                                    +p(ka:kb,ii,jj-1)+p(ka:kb,ii-1,jj-1) )/4.         )           &
+		                                                /( (vp(i,j)+vp(i-1,j))/2. )) 					  &
+		                                                            - GPxi*( suxix(i,j) ) 				  )
 
-                u(ka:kb,ii,jj)=u(ka:kb,ii,jj) + jflag_end * ((    ust(ka:kb,ii,jj) -           &
-                                                                ( ( suxix(i,j)*0.5*(suxix(i,j)+suxix(i+1,j))                      &
-                                                                   +suxiy(i,j)*0.5*(suxiy(i,j)+suxiy(i+1,j)) )*p(ka:kb,ii  ,jj)   &
-                                                                 -( suxix(i,j)*0.5*(suxix(i,j)+suxix(i-1,j))                      &
-                                                                   +suxiy(i,j)*0.5*(suxiy(i,j)+suxiy(i-1,j)) )*p(ka:kb,ii-1,jj) ) &
-                                                                /( (vp(i,j)+vp(i-1,j))/2. ))                                      &
-                                                                          - GPxi*( suxix(i,j) ) 				  )
+		u(ka:kb,ii,jj)=u(ka:kb,ii,jj) + jflag_end * ((    ust(ka:kb,ii,jj) -           &
+		                                                ( ( suxix(i,j)*0.5*(suxix(i,j)+suxix(i+1,j))                      &
+		                                                    +suxiy(i,j)*0.5*(suxiy(i,j)+suxiy(i+1,j)) )*p(ka:kb,ii  ,jj)   &
+		                                                    -( suxix(i,j)*0.5*(suxix(i,j)+suxix(i-1,j))                      &
+		                                                    +suxiy(i,j)*0.5*(suxiy(i,j)+suxiy(i-1,j)) )*p(ka:kb,ii-1,jj) ) &
+		                                                /( (vp(i,j)+vp(i-1,j))/2. ))                                      &
+		                                                            - GPxi*( suxix(i,j) ) 				  )
 
-                u(ka:kb,ii,jj)=u(ka:kb,ii,jj) + jflag_start * ((  ust(ka:kb,ii,jj) -           &
-                                                                ( ( suxix(i,j)*0.5*(suxix(i,j)+suxix(i+1,j))                      &
-                                                                   +suxiy(i,j)*0.5*(suxiy(i,j)+suxiy(i+1,j)) )*p(ka:kb,ii  ,jj)   &
-                                                                - ( suxix(i,j)*0.5*(suxix(i,j)+suxix(i-1,j))                      &
-                                                                   +suxiy(i,j)*0.5*(suxiy(i,j)+suxiy(i-1,j)) )*p(ka:kb,ii-1,jj) ) &
-                                                                /( (vp(i,j)+vp(i-1,j))/2. ))                                      &
-                                                                          - GPxi*( suxix(i,j) ) 				  )
+		u(ka:kb,ii,jj)=u(ka:kb,ii,jj) + jflag_start * ((  ust(ka:kb,ii,jj) -           &
+		                                                ( ( suxix(i,j)*0.5*(suxix(i,j)+suxix(i+1,j))                      &
+		                                                    +suxiy(i,j)*0.5*(suxiy(i,j)+suxiy(i+1,j)) )*p(ka:kb,ii  ,jj)   &
+		                                                - ( suxix(i,j)*0.5*(suxix(i,j)+suxix(i-1,j))                      &
+		                                                    +suxiy(i,j)*0.5*(suxiy(i,j)+suxiy(i-1,j)) )*p(ka:kb,ii-1,jj) ) &
+		                                                /( (vp(i,j)+vp(i-1,j))/2. ))                                      &
+		                                                            - GPxi*( suxix(i,j) ) 				  )
 
 	end do
 	end do
@@ -369,11 +369,11 @@ subroutine calculate_GPxi(GPxi)
         GPxi = 0.0
         volume  = 0.0
 
-        !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-        ! TJ: Start integration here
+	!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+	! TJ: Start integration here
 	!	- integrate w.r.t. xi direction
 	!	- summation in eta and z directions
-        !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+	!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 	ka = 1
 	kb = ngzm
 
@@ -531,7 +531,7 @@ subroutine Cart_to_Flux()
 		a1=suxix(ii,jj)
 		a2=suxiy(ii,jj)
 		vtemp(:)=( vc(1:ngz-1,i-1,j+1)+vc(1:ngz-1,i,j+1)   &
-          		+vc(1:ngz-1,i-1,j  )+vc(1:ngz-1,i,j  ) )/4.
+          		  +vc(1:ngz-1,i-1,j  )+vc(1:ngz-1,i,j  ) )/4.
 		u(1:ngz-1,i,j)=a1*uc(1:ngz-1,i,j)+a2*vtemp(:)
 	end do
 	end do
@@ -708,8 +708,8 @@ subroutine Flux_to_Cart
 		!-----------------------------------------------------------
 		!    interpolate U^{eta} to get U^{eta} at u locations
 		!-----------------------------------------------------------
-		vtemp(1:ngz-1)=(v(1:ngz-1, ii-1, jj)+v(1:ngz-1, ii-1, jj+1)    &
-               			+v(1:ngz-1, ii  , jj)+v(1:ngz-1, ii  , jj+1))/4.
+		vtemp(1:ngz-1)=( v(1:ngz-1, ii-1, jj)+v(1:ngz-1, ii-1, jj+1)    &
+						+v(1:ngz-1, ii  , jj)+v(1:ngz-1, ii  , jj+1))/4.
 		uc(1:ngz-1, ii,jj)=a1*u(1:ngz-1,ii,jj)+b1*vtemp(1:ngz-1)
 	end do
 	end do

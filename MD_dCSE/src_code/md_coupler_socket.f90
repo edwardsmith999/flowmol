@@ -401,15 +401,15 @@ contains
 
 	subroutine cumulative_velocity_average
 		use CPL, only : CPL_Cart_coords, CPL_proc_extents, CPL_realm, VOID, &
-						map_md2cfd_global,map_cfd2md_global,globalise,localise	
+						map_md2cfd_global,map_cfd2md_global,globalise,localise,CPL_CART_COMM
 		use computational_constants_MD, only : iter,ncells,domain,halfdomain, & 
-												globaldomain,iblock,jblock,kblock
+												globaldomain,iblock,jblock,kblock,irank
 		use librarymod, only : heaviside, imaxloc
 		implicit none
 
 		!Limits of cells to average
 
-		integer							:: n, ixyz,extents(6),pcoords(3)
+		integer							:: i,j,k,n, ixyz,extents(6),pcoords(3)
 		integer,dimension(3)			:: ibin,ibin1,ibin2,minbin,maxbin,crossplane,cfdbins
 		double precision	 			:: xbcmin,xbcmax, ybcmin,ybcmax, zbcmin,zbcmax
 		double precision,dimension(3) 	:: cfd_cellsidelength
@@ -478,7 +478,7 @@ contains
 		case(.false.)
 			do n = 1,np
 				!Get bin containing molecule
-				ibin(:) = ceiling((r(:,n)+halfdomain(:))/dxyz(:)) + nhb
+				ibin(:) = ceiling((r(:,n)+halfdomain(:))/dxyz(:)) !+ nhb
 
 				!Exclude molecules outside of averaging region
 				!if (any(ibin(:).lt.minbin(:)) .or. any(ibin(:).ge.maxbin(:))) cycle
@@ -489,12 +489,16 @@ contains
 				if (ibin(3).lt.1 .or. ibin(3).gt.extents(6)-extents(5)+1) cycle
 
 				!Add velocity and molecular count to bin
-				uvw_md(1:3,ibin(1),ibin(2)-minbin(2)+1,ibin(3)) = &
-					uvw_md(1:3,ibin(1),ibin(2)-minbin(2)+1,ibin(3)) + v(:,n)
-				uvw_md(4,  ibin(1),ibin(2)-minbin(2)+1,ibin(3)) = & 	
-					uvw_md(4,  ibin(1),ibin(2)-minbin(2)+1,ibin(3)) + 1.d0
+				uvw_md(1:3,ibin(1),ibin(2)-minbin(2)+2,ibin(3)) = &
+					uvw_md(1:3,ibin(1),ibin(2)-minbin(2)+2,ibin(3)) + v(:,n)
+				uvw_md(4,  ibin(1),ibin(2)-minbin(2)+2,ibin(3)) = & 	
+					uvw_md(4,  ibin(1),ibin(2)-minbin(2)+2,ibin(3)) + 1.d0
 
+				!DEBUG - each cell is loaded with its physical location in space
+				!uvw_md(1:3,ibin(1),ibin(2)-minbin(2)+2,ibin(3)) = globalise(ibin(:)*dxyz(:)-halfdomain(:)-0.5*dxyz(:))
+				!uvw_md(4,  ibin(1),ibin(2)-minbin(2)+2,ibin(3)) = 1.d0
 			enddo
+
 		case default
 			call error_abort('Unknown case in staggered_averages')
 		end select
@@ -506,7 +510,7 @@ contains
 !-----------------------------------------------------------------------------
 
 	subroutine send_velocity_average
-		use CPL, only : CPL_send
+		use CPL, only : CPL_send, printf
 		use computational_constants_MD, only : iblock,jblock,kblock
 		implicit none
 
@@ -524,7 +528,13 @@ contains
 			mflux = 0
 		! Send velocity in cell centre
 		case(.false.)
+
+
+
             call CPL_send(uvw_md,jcmax_send=jcmax_send,jcmin_send=jcmin_send,send_flag=send_flag)
+			!do k=1, size(uvw_md,4)
+			!	call printf(uvw_md(1,:,jcmin_send,k))
+			!enddo
 			!do i=1,size(uvw_md,2)
 			!do k=1,size(uvw_md,4)
 			!	print'(a,l,5i5,4f14.5)','send',send_flag,iblock,jblock,kblock,i,k,uvw_md(:,i,1,k)
@@ -819,7 +829,7 @@ subroutine apply_continuum_forces_flekkoy
 	use physical_constants_MD, only : np
 	use computational_constants_MD, only : delta_t, nh, ncells,iter, & 
 										   cellsidelength, halfdomain, &
-	                                       delta_rneighbr,iblock,jblock,kblock
+	                                       delta_rneighbr,iblock,jblock,kblock,irank
 	use CPL, only : CPL_overlap, CPL_recv, CPL_proc_extents, & 
 					CPL_realm, CPL_get, coupler_md_get_dt_cfd, printf
 	use linked_list
@@ -864,19 +874,15 @@ subroutine apply_continuum_forces_flekkoy
 		              kcmin_recv=cnstd(5),kcmax_recv=cnstd(6), &
 		              recv_flag=recv_flag                       )
 		stress_cfd = reshape(recv_buf,(/ 3,3,size(recv_buf,2),size(recv_buf,3),size(recv_buf,4) /) )
+
+		!do i=1,size(recv_buf,4)
+    	!    call printf(stress_cfd(2,2,:,3,i))
+		!enddo
+
 		!print*, 'recvd stress cfd',iblock,jblock,kblock,stress_cfd(2,2,:,:,:)
 	else
 		!Linear extrapolation between velocity at t and t+1
 	endif
-
-	!call printf(stress_cfd(2,2,:,3,1))
-	!call printf(stress_cfd(2,2,:,3,2))
-	!call printf(stress_cfd(2,2,:,3,3))
-	!call printf(stress_cfd(2,2,:,3,4))
-	!call printf(stress_cfd(2,2,:,3,5))
-	!call printf(stress_cfd(2,2,:,3,6))
-	!call printf(stress_cfd(2,2,:,3,7))
-	!call printf(stress_cfd(2,2,:,3,8))
 
 	!Get average over current cell and apply constraint forces
 	if (recv_flag .eqv. .true.) then
@@ -1125,15 +1131,36 @@ function socket_get_overlap_status result(olap)
 	
 end function socket_get_overlap_status
 
-! Get domain top minus dy/2
+! Get domain top minus removed molecules (if appropriate for choice of coupling scheme) 
 function socket_get_domain_top() result(top)
-	use CPL, only: CPL_get
+	use CPL, only: CPL_get, error_abort
 	implicit none
 
-	real(kind(0.d0)) :: yL_md, dy, top
+	real(kind(0.d0)) :: yL_md, dy, top, removed_dist
+	integer :: algorithm
+	integer :: OT,NCER,Flekkoy,off
 
-	call CPL_get(dy=dy,yL_md=yL_md)
-	top = yL_md/2.d0 - dy/2.d0
+	call CPL_get(dy=dy,yL_md=yL_md, &
+				 constraint_algo    = algorithm, & 
+				 constraint_OT      = OT,        & 
+				 constraint_NCER    = NCER,      &
+				 constraint_Flekkoy = Flekkoy,   &
+				 constraint_off     = off          )
+
+	!Specifiy size of removed distance as half a cell
+	removed_dist = dy/2.d0
+
+	if ( algorithm .eq. off ) then
+		top = yL_md/2.d0
+	else if ( algorithm .eq. OT ) then
+		top = yL_md/2.d0 - dy/2.d0
+	else if ( algorithm .eq. NCER ) then
+		top = yL_md/2.d0 - dy/2.d0
+	else if ( algorithm .eq. Flekkoy ) then
+		top = yL_md/2.d0
+	else
+		call error_abort("Unrecognised constraint algorithm flag")
+	end if	
 
 end function socket_get_domain_top
 
