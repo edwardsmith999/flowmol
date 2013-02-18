@@ -7,7 +7,7 @@ CFD = 1;
 
 %Turn on/off video and picture output
 savevid = 0;
-savepic = 0;
+savepic = 1;
 
 %Analytical Solution parameters
 u_0 = 1; t_0 = 160;
@@ -355,7 +355,7 @@ for i = 1:Nvel_records
     if (last_record == 1)
         break
     end
-    m = m + 10 %snaps(i)
+    m = m + 30 %snaps(i)
     %m = t_array(i)
     if (m > Nvel_records-ceil(t_ave/2)-2)
         m = Nvel_records-ceil(t_ave/2)-1

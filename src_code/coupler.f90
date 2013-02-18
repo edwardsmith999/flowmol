@@ -2013,11 +2013,11 @@ function globalise(r) result(rg)
 	implicit none
 
 	real(kind(0.d0)),intent(in) :: r(3)
-	real(kind(0.d0)) rg(3)
+	real(kind(0.d0))			:: rg(3)
 
-	rg(1) = r(1) - xLl*(iblock_realm-1)+0.5d0*xLl*(npx_md-1)
-	rg(2) = r(2) - yLl*(jblock_realm-1)+0.5d0*yLl*(npy_md-1)
-	rg(3) = r(3) - zLl*(kblock_realm-1)+0.5d0*zLl*(npz_md-1)
+	rg(1) = r(1) - 0.5d0*xLl*(npx_md-1) + xLl*(iblock_realm-1)
+	rg(2) = r(2) - 0.5d0*yLl*(npy_md-1) + yLl*(jblock_realm-1)
+	rg(3) = r(3) - 0.5d0*zLl*(npz_md-1) + zLl*(kblock_realm-1)
 
 end function globalise
 
