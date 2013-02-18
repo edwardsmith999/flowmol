@@ -185,11 +185,12 @@ subroutine CartesianBC(deltaT)
 										 test_send_recv_MD2CFD,    &
 										 test_send_recv_CFD2MD,    &
 										 test_gather_scatter
+	use messenger, only :  CFD_COMM
 #endif 
 	use boundaries
 	implicit none
 
-	integer				:: icell
+	integer				:: icell, i,j,k
 	real, intent(in)	:: deltaT
 
 	!real 				:: rand
@@ -205,8 +206,8 @@ subroutine CartesianBC(deltaT)
 		! MD=>CFD Receive averages of MD
 		call socket_coupler_get_md_BC(uc,vc,wc) 
 
-		print'(a,4f10.5)', 'CFD Bottom BC', maxval(uc(:, :, 0)),minval(uc(:, :, 0)),sum(uc(:, :, 0)),uc(5, 7, 0)
-		!print*, uc(:,:,0)
+		!print'(a,4f10.5)', 'CFD Bottom BC', maxval(uc(:, :, 0)),minval(uc(:, :, 0)),sum(uc(:, :, 0)),uc(5, 7, 0)
+
 		!Testing exchange codes
 		!call test_send_recv_MD2CFD
 		!call test_send_recv_CFD2MD
@@ -430,6 +431,21 @@ subroutine CartesianBC(deltaT)
 	!	print'(a,2i8,10f10.5)', 'Aftr_excng CFD Bottom BC',irank,icell,uc(:, icell, 0)
 		!print'(a,2i8,6f10.5)', 'CFD grid location',irank,icell,xpg(icell,5),xpu(icell,5),x(icell),ypg(icell,5),ypu(icell,5),y(icell)
 	!enddo
+
+
+	do i=i1_u-1, i2_u+1
+	do j=1,1
+	do k=1,ngzm
+		write(*,'(a,8i5,f14.6)'), 'uc', iblock,jblock,kblock,i1_u,i2_u,i,j,k,uc(k,i,j-1)
+		!write(*,'(a,10i5,2f14.6)'), 'uc', iblock,jblock,kblock,i1_u,i2_u,i,j,k,imap_1(i),ibmap_1(i), & 
+		!				      uc(k,i,j-1),xpg(ibmap_1(i),1)-0.5d0*xL
+	enddo
+	enddo
+	enddo
+
+	!print*, "WARNING WARNING ** *** **TEST VALUES PASSED FROM MD - cell centers WARNING WARNING ** *** **** *** **!"
+	!call MPI_Barrier(CFD_COMM,iblock)
+	!stop "STOPPING CODE AS TEST VALUES PASSED FROM MD - cell centers"
       	
 	return
 end

@@ -94,28 +94,34 @@ end subroutine socket_coupler_init
 ! Get Boundary condition for continuum from average of MD 
 
 subroutine  socket_coupler_get_md_BC(uc,vc,wc)
-    use CPL, only : CPL_get,CPL_recv,CPL_realm,error_abort,cpl_proc_extents,VOID
-	use data_export, only : nixb, niyb, nizb,iblock,jblock,kblock, & 
+    use CPL, only : CPL_get,CPL_recv,CPL_realm,error_abort,cpl_proc_extents,VOID, & 
+					printf,CPL_OLAP_COMM,xg,xL_cfd,yg,yL_cfd,zg,zL_cfd !DEBUG DEBUG
+	use data_export, only : nixb,niyb,nlx,ngz,nizb,iblock,jblock,kblock, & 
 							i1_u,i2_u,j1_u,j2_u, & 
 							i1_v,i2_v,j1_v,j2_v, & 
 							i1_w,i2_w,j1_w,j2_w, & 
-							i1_T,i2_T,j1_T,j2_T,k1_T,k2_T
+							i1_T,i2_T,j1_T,j2_T,k1_T,k2_T, &
+							ibmin,jbmin,ibmax,jbmax, &
+							imap_1,jmap_1,ibmap_1,jbmap_1, &
+							npx, npy, ngx, ngy, ngzm
     implicit none
 
     real(kind(0.d0)),dimension(0:,0:,0:),intent(out)  :: uc,vc,wc 
 
-	logical		  								      :: recv_flag
+	logical		  								      :: recv_flag, MD_BC_SLICE_average
     logical, save 								      :: firsttime = .true.
-	integer											  :: i,j,k,nclx,ncly,nclz,pcoords(3),extents(6)
+	integer											  :: i,j,k,ii,ib,jb
+	integer											  :: nclx,ncly,nclz,pcoords(3),extents(6)
+	integer											  :: i1,i2,j1,j2,k1,k2
 	integer											  :: jcmin_recv,jcmax_recv
-    real(kind(0.d0)), allocatable, dimension(:,:,:,:) :: uvw_md
+    real(kind(0.d0)), allocatable, dimension(:,:,:,:) :: uvw_md, ucvcwc_md
 	real											  :: uvw_BC(4)
 
 	integer		:: bufsize, jcmin_olap
 	character	:: str_bufsize
 
+	!Setup extents
 	call CPL_get(jcmin_olap=jcmin_olap)
-
 	jcmin_recv = jcmin_olap; jcmax_recv = jcmin_olap
 
 	!Allocate array to CFD number of cells ready to receive data
@@ -126,68 +132,157 @@ subroutine  socket_coupler_get_md_BC(uc,vc,wc)
 	nclz = extents(6)-extents(5)+1
 	allocate(uvw_md(4,nclx,ncly,nclz)); uvw_md = VOID
 
+	!Receive data
 	call CPL_recv(uvw_md,jcmax_recv=jcmax_recv,jcmin_recv=jcmin_recv,recv_flag=recv_flag)
-
-	!do i=1,size(uvw_md,2)
-	!do k=1,size(uvw_md,4)
-	!	print'(a,l,5i5,4f14.5)','recv',recv_flag,iblock,jblock,kblock,i,k,uvw_md(:,i,1,k)
-	!enddo
-	!enddo
 	if (any(uvw_md(:,:,jcmin_recv:jcmax_recv,:) .eq. VOID)) & 
 		call error_abort("socket_coupler_get_md_BC error - VOID value copied to uc,vc or wc")
 
-	!Average all cells on a CFD processor to give a single BC
-	uvw_BC(1) = sum(uvw_md(1,:,jcmin_recv,:)) 
-	uvw_BC(2) = sum(uvw_md(2,:,jcmin_recv,:))
-	uvw_BC(3) = sum(uvw_md(3,:,jcmin_recv,:))
-	uvw_BC(4) = sum(uvw_md(4,:,jcmin_recv,:)) 
+	!Copy recieved data into Boundary cells
+	MD_BC_SLICE_average = .false.
+	if (MD_BC_SLICE_average) then
+		!Average all cells on a CFD processor to give a single BC
+		uvw_BC(1) = sum(uvw_md(1,:,jcmin_recv,:)) 
+		uvw_BC(2) = sum(uvw_md(2,:,jcmin_recv,:))
+		uvw_BC(3) = sum(uvw_md(3,:,jcmin_recv,:))
+		uvw_BC(4) = sum(uvw_md(4,:,jcmin_recv,:)) 
 
-	!print'(11f12.3)', uvw_md(:,4,1,3), uvw_BC(:), uvw_BC(1:3)/uvw_BC(4)
+		!Average in x so all processor have same global average BC
+		call globalDirSum(uvw_BC,4,1)
 
-	!Average in x so all processor have same global average BC
-	call globalDirSum(uvw_BC,4,1)
+		!Set full extent of halos to zero and set domain portion to MD values
+		uc(:,:,0) = 0.d0; vc(:,:,1) = 0.d0; wc(:,:,0) = 0.d0
+		uc(:,:,0) = uvw_BC(1)/uvw_BC(4)
+		vc(:,:,1) = uvw_BC(2)/uvw_BC(4)
+		wc(:,:,0) = uvw_BC(3)/uvw_BC(4)
+	else
+		! u interval [i1_u, i2_u], or [2,  ngx ] ??? 4 Procs = [2 32][3 34][3 34][3 35] ??? 30 31 32
+		! v interval [i1_v, i2_v], or [1, ngx-1] ??? 4 Procs = [1 32][3 34][3 34][3 34] ???
+		! w interval [i1_w, i2_w], or [1, ngx-1] ??? 4 Procs = [1 32][3 34][3 34][3 34] ???
+		!uc(ngz  ,nlx+1,nly  )    vc(ngz  ,nlx  ,nly+1)   wc(ngz+1,nlx  ,nly  )
 
-	!Set full extent of halos to zero and set domain portion to MD values
-	uc(:,:,0) = 0.d0; vc(:,:,1) = 0.d0; wc(:,:,0) = 0.d0
-	uc(:,:,0) = uvw_BC(1)/uvw_BC(4)
-	vc(:,:,1) = uvw_BC(2)/uvw_BC(4)
-	wc(:,:,0) = uvw_BC(3)/uvw_BC(4)
+		!print'(a,28i3)', 'array extents',iblock,jblock,kblock,shape(uvw_md),nixb, niyb, nizb, & 
+		!														   i1_u,i2_u,j1_u,j2_u, & 
+		!														   i1_v,i2_v,j1_v,j2_v, & 
+		!														   i1_w,i2_w,j1_w,j2_w, & 
+		!														   i1_T,i2_T,j1_T,j2_T,k1_T,k2_T
 
-	!if (rank_realm .eq. 1) then
-	!	print'(i4,a,7f10.3)', rank_world,'global average BC',uc(5,10,0),vc(5,10,1),wc(5,10,0),uvw_BC
-	!endif
+		!Allocate cell surface velocities
+		allocate(ucvcwc_md(3,nclx+1,ncly,nclz+1))
+		ucvcwc_md = 0.d0
 
-	!print'(a,26i5)', 'array extents',rank_world,shape(uvw_md),nixb, niyb, nizb, & 
-	!														   i1_u,i2_u,j1_u,j2_u, & 
-	!														   i1_v,i2_v,j1_v,j2_v, & 
-	!														   i1_w,i2_w,j1_w,j2_w, & 
-	!														   i1_T,i2_T,j1_T,j2_T,k1_T,k2_T
+		! - - - Interpolate cell surfaces - - -
+		! X direction
+		do i=1, nclx-1
+		do j=jcmin_recv,jcmax_recv
+		do k=1, nclz
+			ucvcwc_md(1,i+1,j,k) = 0.5d0*(uvw_md(1,i,j,k)/uvw_md(4,i,j,k) + uvw_md(1,i+1,j,k)/uvw_md(4,i+1,j,k))
+		enddo
+		enddo
+		enddo
+		! Y direction
+		do i=1, nclx
+		do j=jcmin_recv,jcmax_recv
+		do k=1, nclz
+			ucvcwc_md(2,i,j,k) =          uvw_md(2,i,j,k)/uvw_md(4,i,j,k)
+		enddo
+		enddo
+		enddo
+		! Z direction
+		do i=1, nclx
+		do j=jcmin_recv,jcmax_recv
+		do k=1, nclz-1
+			ucvcwc_md(3,i,j,k+1) = 0.5d0*(uvw_md(3,i,j,k)/uvw_md(4,i,j,k) + uvw_md(3,i,j,k+1)/uvw_md(4,i,j,k+1))
+		enddo
+		enddo
+		enddo
 
-	! u interval [i1_u, i2_u], or [2,  ngx ] ??? 4 Procs = [2 32][3 34][3 34][3 35] ???
-	! v interval [i1_v, i2_v], or [1, ngx-1] ??? 4 Procs = [1 32][3 34][3 34][3 34] ???
-	! w interval [i1_w, i2_w], or [1, ngx-1] ??? 4 Procs = [1 32][3 34][3 34][3 34] ???
-	!uc(ngz  ,nlx+1,nly  )  
-	!vc(ngz  ,nlx  ,nly+1)
-	!wc(ngz+1,nlx  ,nly  )
+		! - - - Extrapolate bottom surface - - -
+		! X direction
+		ucvcwc_md(1,  1   ,jcmin_recv,1:nclz)= 1.5d0*uvw_md(1,1,jcmin_recv,1:nclz)/uvw_md(4,1,jcmin_recv,1:nclz) & 
+											  -0.5d0*uvw_md(1,2,jcmin_recv,1:nclz)/uvw_md(4,2,jcmin_recv,1:nclz)
+		! Z direction
+		ucvcwc_md(3,1:nclx,jcmin_recv,  1   )= 1.5d0*uvw_md(3,1:nclx,jcmin_recv,1)/uvw_md(4,1:nclx,jcmin_recv,1) & 
+											  -0.5d0*uvw_md(3,1:nclx,jcmin_recv,2)/uvw_md(4,1:nclx,jcmin_recv,2)
+		!Extrapolate top surface
+		! X direction
+		ucvcwc_md(1,nclx+1,jcmin_recv,1:nclz)= 1.5d0*uvw_md(1,nclx  ,jcmin_recv,1:nclz)/uvw_md(4,nclx  ,jcmin_recv,1:nclz) & 
+											  -0.5d0*uvw_md(1,nclx-1,jcmin_recv,1:nclz)/uvw_md(4,nclx-1,jcmin_recv,1:nclz)
+		! Z direction
+		ucvcwc_md(3,1:nclx,jcmin_recv,nclz+1)= 1.5d0*uvw_md(3,1:nclx,jcmin_recv,nclz  )/uvw_md(4,1:nclx,jcmin_recv,nclz-1) & 
+											  -0.5d0*uvw_md(3,1:nclx,jcmin_recv,nclz-1)/uvw_md(4,1:nclx,jcmin_recv,nclz-1)
 
-	!call printf(uc(:,jcmax_recv,4))
-	!call printf(vc(:,jcmax_recv,4))
-	!call printf(wc(:,jcmax_recv,4))
+		! ************** DEBUG ***************
+		!do i=1, nclx+1
+		!	if (i .le. nclx ) then
+		!		print'(a,4i6,3f14.5)','qqqq',iblock,jblock,kblock,i, ucvcwc_md(1,i,jcmin_recv,4), & 
+		!																uvw_md(1,i,jcmin_recv,4)/uvw_md(4,i,jcmin_recv,4), &
+		!																uvw_md(1,i,jcmin_recv,4)
+		!	else
+		!		print'(a,4i6,3f14.5)','qqqq',iblock,jblock,kblock,i, ucvcwc_md(1,i,jcmin_recv,4), 0.d0, 0.d0
+		!	endif
+		!enddo
 
-	!Transposed indices
-	!ix = 2; iy = 3; iz = 1
+		!do k=1, nclz+1
+		!	if (k .le. nclz ) then
+		!		print'(a,4i6,3f14.5)','qqqq',iblock,jblock,kblock,k, ucvcwc_md(3,4,jcmin_recv,k), & 
+		!																uvw_md(3,4,jcmin_recv,k)/uvw_md(4,4,jcmin_recv,k), &
+		!																uvw_md(3,4,jcmin_recv,k)
+		!	else
+		!		print'(a,4i6,3f14.5)','qqqq',iblock,jblock,kblock,k, ucvcwc_md(3,4,jcmin_recv,k), 0.d0, 0.d0
+		!	endif
+		!enddo
+		!print'(a,13i7)', 'cells per proc', iblock,jblock,kblock,nixb, nizb,nlx,ngz, i2_u,i1_u, i2_w,i1_w, i1_T,i2_T
+		! ************** DEBUG ***************
 
-	!Coupler passes cell centered values so set CFD halo directly
-	!do i=0,size(uc,2)-1
-	!do j=jcmin_recv-1,jcmax_recv-1
-	!do k=0,size(uc,1)-1
-	!	uc(k,i,j) = uvw_md(1,i+1,j+1,k+1)
-	!	print'(3i8,2f20.8)', i,j,k,uc(k,i,j),uvw_md(1,i+1,j+1,k+1)
-	!enddo
-	!enddo
-	!enddo
+		!Set CFD halo - internal cell surfaces from 2 to nclx
+		! X direction
+		uc(:,:,0) = 0.d0; 
+		do i=1, nclx +1
+			if (iblock .eq. 1) then
+				ii = i + i1_u - 2
+			else
+				ii = i + i1_u - 1
+			endif
+			if (ii .gt. i2_u) cycle
+		do j=jcmin_recv,jcmax_recv
+		do k=1, nclz
+			uc(k,ii,j-1) = ucvcwc_md(1,i,j,k)
+			!print'(a,11i5,3f14.6)', 'uc', iblock,jblock,kblock,i1_u,i2_u,i,j,k,ii,imap_1(ii),ibmap_1(ii), & 
+			!				      ucvcwc_md(1,i,j,k),uc(k,ii,j-1),xg(ibmap_1(ii),1)-0.5d0*xL_cfd!!,uvw_md(1,i,j,k)!,vc(k,ii,j ),wc(k,ii,j-1)
+		enddo
+		enddo
+		enddo
+		! Y direction
+		vc(:,:,1) = 0.d0; vc(:,:,0) = 0.d0
+		do i=1, nclx
+			ii = i + i1_v - 1
+			if (ii .gt. i2_v) cycle
+		do j=jcmin_recv,jcmax_recv
+		do k=1, nclz
+			vc(k,ii,j  ) = ucvcwc_md(2,i,j,k)
+			!print'(a,11i5,3f14.6)', 'vc', iblock,jblock,kblock,i1_v,i2_v,i,j,k,ii,imap_1(ii),ibmap_1(ii), & 
+			!				      ucvcwc_md(2,i,j,k),vc(k,ii,j  ),yg(1,j)-0.5d0*yL_cfd
+		enddo
+		enddo
+		enddo
+		! Z direction
+		wc(:,:,0) = 0.d0
+		do i=1, nclx
+			ii = i + i1_w - 1
+			if (ii .gt. i2_w) cycle
+		do j=jcmin_recv,jcmax_recv
+		do k=1, nclz + 1
+			wc(k,ii,j-1) = ucvcwc_md(3,i,j,k)
+			!print'(a,11i5,3f14.6)', 'wc', iblock,jblock,kblock,i1_w,i2_w,i,j,k,ii,imap_1(ii),ibmap_1(ii), & 
+			!				      ucvcwc_md(3,i,j,k),wc(k,ii,j-1),zg(k)-0.5d0*zL_cfd
+		enddo
+		enddo
+		enddo
 
 
+
+	endif
+	
 end subroutine socket_coupler_get_md_BC
 
 !=============================================================================
@@ -315,13 +410,18 @@ subroutine socket_coupler_send_stress
 	do i=1,nclx
 	do j=cnstd(3),cnstd(4)
 	do k=1,nclz
-		sendbuf(:,i,j,k) = reshape(stress(:,:,k,i,j),(/ 9 /))
-	!	print'(a,5i4,9f9.4)', 'packing',rank_realm,i,j,k,ii,sendbuf(:,i,j,k)
+		ii = i + i1_u - 1
+		sendbuf(:,i,j,k) = reshape(stress(:,:,k,ii,j),(/ npercell /))
+		!print'(a,5i4,9f9.4)', 'packing',rank_realm,i,j,k,ii,sendbuf(:,i,j,k)
+		!print'(a,4i4,9f9.4)', 'packing',rank_realm,i,j,k,stress(:,:,k,i,j)
 	enddo
 	enddo
 	enddo
 
-	!print*, 'sent stress cfd',iblock,jblock,kblock,stress(2,2,4,:,4)
+	!print*, 'sent stress cfd',iblock,jblock,kblock,nclz,size(sendbuf(:,i-1,j-1,k-1))
+	!do k=1,nclz
+	!    call printf(stress(2,2,k,3,:))
+	!enddo
 
 	!Send stress tensor to MD code
 	call CPL_send( sendbuf,                                 &
