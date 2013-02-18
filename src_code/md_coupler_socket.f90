@@ -1159,7 +1159,7 @@ function socket_get_domain_top() result(top)
 	else if ( algorithm .eq. Flekkoy ) then
 		top = yL_md/2.d0
 	else
-		call error_abort("Unrecognised constraint algorithm flag")
+		call error_abort("Error in socket_get_domain_top - Unrecognised constraint algorithm flag")
 	end if	
 
 end function socket_get_domain_top
