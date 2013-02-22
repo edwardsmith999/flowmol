@@ -433,15 +433,16 @@ subroutine CartesianBC(deltaT)
 	!enddo
 
 
-	do i=i1_u-1, i2_u+1
-	do j=1,1
-	do k=1,ngzm
-		write(*,'(a,8i5,f14.6)'), 'uc', iblock,jblock,kblock,i1_u,i2_u,i,j,k,uc(k,i,j-1)
+	!do i=i1_u-1, i2_u+1
+	!do j=1,1
+	!do k=1,ngzm
+	!j=1; k = 4
+	!	write(*,'(a,8i5,f14.6)'), 'uc', iblock,jblock,kblock,i1_u,i2_u,i,j,k,uc(k,i,j-1)
 		!write(*,'(a,10i5,2f14.6)'), 'uc', iblock,jblock,kblock,i1_u,i2_u,i,j,k,imap_1(i),ibmap_1(i), & 
 		!				      uc(k,i,j-1),xpg(ibmap_1(i),1)-0.5d0*xL
-	enddo
-	enddo
-	enddo
+	!enddo
+	!enddo
+	!enddo
 
 	!print*, "WARNING WARNING ** *** **TEST VALUES PASSED FROM MD - cell centers WARNING WARNING ** *** **** *** **!"
 	!call MPI_Barrier(CFD_COMM,iblock)

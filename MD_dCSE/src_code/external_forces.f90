@@ -486,10 +486,11 @@ subroutine apply_force
 		!write(7777,'(4i8,2f10.5,f18.12,5f10.5)'), irank, iter,n,box_np, shear_flekkoy, dA, g, gsum, halfdomain(2)-dy,r(2,n),halfdomain(2), a(1,n)
 
         if (g .ne. 0.d0) then
-
-			write(1234,'(i3,2i7,5f12.6)'),irank,iter,n, &
+			if (iter .lt. 1000) then
+				write(1234,'(i3,2i7,5f12.6)'),irank,iter,n, &
 						 					  r(2,n),v(2,n),a(2,n),g, & 
 											 (g/gsum) * dA * pressure_flekkoy
+			endif
         endif
 	enddo
 
