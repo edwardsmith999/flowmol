@@ -115,6 +115,8 @@ subroutine reformat_dcd
 	integer							:: NATOMNFREAT		!--Number of fixed atoms
 	integer							:: NTITLE		!--Number of 80-character strings in title (set as 2)
 	integer							:: NATOM		!--Number of atoms
+	integer, parameter 				:: LongInt = selected_int_kind (8)
+	integer(kind=LongInt)			:: bufsize, starti, endi
 	integer, dimension (5)			:: FIVEZ		!--According to documentation, five zeros, but first is actually NSET
 	integer, dimension (9)			:: NINEZ		!--Nine zeros
 	character(len=4)				:: HDR			!--Header string, value 'CORD'
@@ -155,57 +157,76 @@ subroutine reformat_dcd
 	TITLE(2)    =	'   Written in serial or parallel   '	!
 	NATOM		=	globalnp			!number of particles
 
-	allocate(Xbuf(NSET*globalnp))
-	allocate(Ybuf(NSET*globalnp))
-	allocate(Zbuf(NSET*globalnp))
+	!Get size of arrays required to store data
+	bufsize = NSET*globalnp
 
-	!Read position information from file
-	!RECORD LENGTH IS 1 WHICH IN FORTRAN IS A 4 BYTE BLOCKS (REAL, INT BUT NOT DP) 	
-	open (unit=17, file=trim(prefix_dir)//"results/vmd_temp.dcd",access='stream')
-    
-	!Open unit 6 (stdout) with fortran carriage control 
-	open (unit=6, carriagecontrol='fortran')  
-	plot_mod = max(1,NSET/100)
-	write(*,'(a)') ' VMD reformat read completion:  '
+	!Avoid reformat if filesize is too large
+	if (bufsize .gt. 2147483647) then
+		print*, 'File size too large for VMD reformat - reformat vmd_temp.dcd locally"
+		return
+	else
+		
+		allocate(Xbuf(bufsize))
+		allocate(Ybuf(bufsize))
+		allocate(Zbuf(bufsize))
 
-	!Read temp trajectory file
-	do i=1,NSET
-		read(17) Xbuf(globalnp*(i-1)+1:globalnp*i)
-		read(17) Ybuf(globalnp*(i-1)+1:globalnp*i)
-		read(17) Zbuf(globalnp*(i-1)+1:globalnp*i)
-		if (mod(i,plot_mod) .eq. 0) then
-			call progress(100*i/NSET)
-		end if
-	enddo
+		!Read position information from file
+		!RECORD LENGTH IS 1 WHICH IN FORTRAN IS A 4 BYTE BLOCKS (REAL, INT BUT NOT DP) 	
+		open (unit=17, file=trim(prefix_dir)//"results/vmd_temp.dcd",access='stream')
+	    
+		!Open unit 6 (stdout) with fortran carriage control 
+		open (unit=6, carriagecontrol='fortran')  
+		plot_mod = max(1,NSET/100)
+		write(*,'(a)') ' VMD reformat read completion:  '
 
-	close(17,status='delete')
+		!Read temp trajectory file
+		do i=1,NSET
+			starti = globalnp*(i-1)+1
+			endi   = globalnp*i
+			read(18) Xbuf(starti:endi)
+			read(18) Ybuf(starti:endi)
+			read(18) Zbuf(starti:endi)
+			!read(18) Xbuf(globalnp*(i-1)+1:globalnp*i)
+			!read(18) Ybuf(globalnp*(i-1)+1:globalnp*i)
+			!read(18) Zbuf(globalnp*(i-1)+1:globalnp*i)
+			if (mod(i,plot_mod) .eq. 0) then
+				call progress(100*i/NSET)
+			end if
+		enddo
+		close(17,status='delete')
 
-	!Open binary .dcd file and write header information	
-	open(unit=3, file=trim(prefix_dir)//"results/vmd_out.dcd",status='replace', form="unformatted")
-	
-	write(3) HDR, NSET, ISTRT, NSAVC, FIVEZ, NATOMNFREAT, DELTA, NINEZ
-	write(3) NTITLE, TITLE(1), TITLE(2)
-	write(3) NATOM
+		!Open binary .dcd file and write header information	
+		open(unit=3, file=trim(prefix_dir)//"results/vmd_out.dcd",status='replace', form="unformatted")
+		
+		write(3) HDR, NSET, ISTRT, NSAVC, FIVEZ, NATOMNFREAT, DELTA, NINEZ
+		write(3) NTITLE, TITLE(1), TITLE(2)
+		write(3) NATOM
 
-	write(*,'(a)') ' VMD reformat write completion: '
-	do i=1,NSET
-		write(3) Xbuf((i-1)*globalnp+1:i*globalnp)
-		write(3) Ybuf((i-1)*globalnp+1:i*globalnp)
-		write(3) Zbuf((i-1)*globalnp+1:i*globalnp)
-		if (mod(i,plot_mod) .eq. 0) then
-			call progress(100*i/NSET)
-		end if
-	enddo
+		write(*,'(a)') ' VMD reformat write completion: '
+		do i=1,NSET
+			starti = (i-1)*globalnp+1
+			endi   = i*globalnp
+			write(4) Xbuf(starti:endi)
+			write(4) Ybuf(starti:endi)
+			write(4) Zbuf(starti:endi)
+			!write(4) Xbuf((i-1)*globalnp+1:i*globalnp)
+			!write(4) Ybuf((i-1)*globalnp+1:i*globalnp)
+			!write(4) Zbuf((i-1)*globalnp+1:i*globalnp)
+			if (mod(i,plot_mod) .eq. 0) then
+				call progress(100*i/NSET)
+			end if
+		enddo
 
-	close(3,status='keep')
+		close(3,status='keep')
 
-	deallocate(Xbuf)
-	deallocate(Ybuf)
-	deallocate(Zbuf)
+		deallocate(Xbuf)
+		deallocate(Ybuf)
+		deallocate(Zbuf)
 
-	call cpu_time(time_end)
+		call cpu_time(time_end)
 
- 	print '(a,g10.2,a)', ' Reformatted to *.dcd in', time_end - time_start, ' seconds.'
+	 	print '(a,g10.2,a)', ' Reformatted to *.dcd in', time_end - time_start, ' seconds.'
+	endif
 
 end subroutine reformat_dcd
 
@@ -254,9 +275,11 @@ subroutine reformat_dcd_true
 	integer							:: NSET,vmd_sets!--Number of frames
 	integer							:: ISTRT		!--Starting frame
 	integer							:: NSAVC		!--Number of frames per coordinate save
-	integer							:: NATOMNFREAT		!--Number of fixed atoms
+	integer							:: NATOMNFREAT	!--Number of fixed atoms
 	integer							:: NTITLE		!--Number of 80-character strings in title (set as 2)
 	integer							:: NATOM		!--Number of atoms
+	integer, parameter 				:: LongInt = selected_int_kind (8)
+	integer(kind=LongInt)			:: bufsize, starti, endi
 	integer, dimension (5)			:: FIVEZ		!--According to documentation, five zeros, but first is actually NSET
 	integer, dimension (9)			:: NINEZ		!--Nine zeros
 	character(len=4)				:: HDR			!--Header string, value 'CORD'
@@ -301,9 +324,10 @@ subroutine reformat_dcd_true
 	TITLE(2)    =	'   Written in serial or parallel   '	!
 	NATOM		=	globalnp			!number of particles
 
-	allocate(Xbuf(NSET*globalnp))
-	allocate(Ybuf(NSET*globalnp))
-	allocate(Zbuf(NSET*globalnp))
+	bufsize = NSET*globalnp
+	allocate(Xbuf(bufsize))
+	allocate(Ybuf(bufsize))
+	allocate(Zbuf(bufsize))
 
 	!Read position information from file
 	!RECORD LENGTH IS 1 WHICH IN FORTRAN IS A 4 BYTE BLOCKS (REAL, INT BUT NOT DP) 	
@@ -316,9 +340,14 @@ subroutine reformat_dcd_true
 
 	!Read temp trajectory file
 	do i=1,NSET
-		read(18) Xbuf(globalnp*(i-1)+1:globalnp*i)
-		read(18) Ybuf(globalnp*(i-1)+1:globalnp*i)
-		read(18) Zbuf(globalnp*(i-1)+1:globalnp*i)
+		starti = globalnp*(i-1)+1
+		endi   = globalnp*i
+		read(18) Xbuf(starti:endi)
+		read(18) Ybuf(starti:endi)
+		read(18) Zbuf(starti:endi)
+		!read(18) Xbuf(globalnp*(i-1)+1:globalnp*i)
+		!read(18) Ybuf(globalnp*(i-1)+1:globalnp*i)
+		!read(18) Zbuf(globalnp*(i-1)+1:globalnp*i)
 		if (mod(i,plot_mod) .eq. 0) then
 			call progress(100*i/NSET)
 		end if
@@ -335,9 +364,14 @@ subroutine reformat_dcd_true
 
 	write(*,'(a)') ' VMD reformat write completion: '
 	do i=1,NSET
-		write(4) Xbuf((i-1)*globalnp+1:i*globalnp)
-		write(4) Ybuf((i-1)*globalnp+1:i*globalnp)
-		write(4) Zbuf((i-1)*globalnp+1:i*globalnp)
+		starti = (i-1)*globalnp+1
+		endi   = i*globalnp
+		write(4) Xbuf(starti:endi)
+		write(4) Ybuf(starti:endi)
+		write(4) Zbuf(starti:endi)
+		!write(4) Xbuf((i-1)*globalnp+1:i*globalnp)
+		!write(4) Ybuf((i-1)*globalnp+1:i*globalnp)
+		!write(4) Zbuf((i-1)*globalnp+1:i*globalnp)
 		if (mod(i,plot_mod) .eq. 0) then
 			call progress(100*i/NSET)
 		end if

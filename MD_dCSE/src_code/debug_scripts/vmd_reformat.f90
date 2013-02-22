@@ -128,7 +128,7 @@ subroutine reformat_dcd(folder,filename,vmd_sets,np,delta_t_in,initialstep_in,tp
 	double precision				:: DELTA		!--Timestep between frames
 	character(40)					:: filename_out
 
-	!Set defaults - I'm not convinces these do anything anyway
+	!Set defaults - I'm not convinced these do anything anyway
 	if (.not. present(delta_t_in)) then
 		delta_t = 0.005d0
 	else 
