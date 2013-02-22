@@ -119,6 +119,8 @@ subroutine reformat_dcd(folder,filename,vmd_sets,np,delta_t_in,initialstep_in,tp
 	integer							:: NATOMNFREAT		!--Number of fixed atoms
 	integer							:: NTITLE		!--Number of 80-character strings in title (set as 2)
 	integer							:: NATOM		!--Number of atoms
+	integer, parameter 				:: LongInt = selected_int_kind (8)
+	integer(kind=LongInt)			:: bufsize, starti, endi
 	integer, dimension (5)			:: FIVEZ		!--According to documentation, five zeros, but first is actually NSET
 	integer, dimension (9)			:: NINEZ		!--Nine zeros
 	character(len=4)				:: HDR			!--Header string, value 'CORD'
@@ -165,9 +167,11 @@ subroutine reformat_dcd(folder,filename,vmd_sets,np,delta_t_in,initialstep_in,tp
 	TITLE(2)    =	'   Written in serial or parallel   '	!
 	NATOM		=	np			!number of particles
 
-	allocate(Xbuf(NSET*np))
-	allocate(Ybuf(NSET*np))
-	allocate(Zbuf(NSET*np))
+	!Get size of arrays required to store data
+	bufsize = NSET*globalnp
+	allocate(Xbuf(bufsize))
+	allocate(Ybuf(bufsize))
+	allocate(Zbuf(bufsize))
 
 	!Read position information from file
 	!RECORD LENGTH IS 1 WHICH IN FORTRAN IS A 4 BYTE BLOCKS (REAL, INT BUT NOT DP) 	
@@ -180,9 +184,11 @@ subroutine reformat_dcd(folder,filename,vmd_sets,np,delta_t_in,initialstep_in,tp
 
 	!Read temp trajectory file
 	do i=1,NSET
-		read(17) Xbuf(np*(i-1)+1:np*i)
-		read(17) Ybuf(np*(i-1)+1:np*i)
-		read(17) Zbuf(np*(i-1)+1:np*i)
+		starti = np*(i-1)+1
+		endi   = np*i
+		read(17) Xbuf(starti:endi)
+		read(17) Ybuf(starti:endi)
+		read(17) Zbuf(starti:endi)
 		if (mod(i,plot_mod) .eq. 0) then
 			call progress(100*i/NSET)
 		end if
@@ -200,9 +206,11 @@ subroutine reformat_dcd(folder,filename,vmd_sets,np,delta_t_in,initialstep_in,tp
 
 	write(*,'(a)') ' VMD reformat write completion: '
 	do i=1,NSET
-		write(3) Xbuf((i-1)*np+1:i*np)
-		write(3) Ybuf((i-1)*np+1:i*np)
-		write(3) Zbuf((i-1)*np+1:i*np)
+		starti = (i-1)*np+1
+		endi   = i*np
+		write(3) Xbuf(starti:endi)
+		write(3) Ybuf(starti:endi)
+		write(3) Zbuf(starti:endi)
 		if (mod(i,plot_mod) .eq. 0) then
 			call progress(100*i/NSET)
 		end if

@@ -162,7 +162,7 @@ subroutine reformat_dcd
 
 	!Avoid reformat if filesize is too large
 	if (bufsize .gt. 2147483647) then
-		print*, 'File size too large for VMD reformat - reformat vmd_temp.dcd locally"
+		print*, "File size too large for VMD reformat - reformat vmd_temp.dcd locally"
 		return
 	else
 		
