@@ -401,10 +401,11 @@ contains
 
 	subroutine cumulative_velocity_average
 		use CPL, only : CPL_Cart_coords, CPL_proc_extents, CPL_realm, VOID, &
-						map_md2cfd_global,map_cfd2md_global,globalise,localise,CPL_CART_COMM
+						map_md2cfd_global,map_cfd2md_global,globalise,localise
 		use computational_constants_MD, only : iter,ncells,domain,halfdomain, & 
 												globaldomain,iblock,jblock,kblock,irank
 		use librarymod, only : heaviside, imaxloc
+		use physical_constants_MD, only : pi
 		implicit none
 
 		!Limits of cells to average
@@ -496,6 +497,7 @@ contains
 
 				!DEBUG - each cell is loaded with its physical location in space
 				!uvw_md(1:3,ibin(1),ibin(2)-minbin(2)+2,ibin(3)) = globalise(ibin(:)*dxyz(:)-halfdomain(:)-0.5*dxyz(:))
+				!uvw_md(1:3,ibin(1),ibin(2)-minbin(2)+2,ibin(3)) = sin(2*pi*(globalise(ibin(:)*dxyz(:)-halfdomain(:)-0.5*dxyz(:)))/globaldomain(:))
 				!uvw_md(4,  ibin(1),ibin(2)-minbin(2)+2,ibin(3)) = 1.d0
 			enddo
 
@@ -510,7 +512,7 @@ contains
 !-----------------------------------------------------------------------------
 
 	subroutine send_velocity_average
-		use CPL, only : CPL_send, printf
+		use CPL, only : CPL_send
 		use computational_constants_MD, only : iblock,jblock,kblock
 		implicit none
 
@@ -528,18 +530,7 @@ contains
 			mflux = 0
 		! Send velocity in cell centre
 		case(.false.)
-
-
-
             call CPL_send(uvw_md,jcmax_send=jcmax_send,jcmin_send=jcmin_send,send_flag=send_flag)
-			!do k=1, size(uvw_md,4)
-			!	call printf(uvw_md(1,:,jcmin_send,k))
-			!enddo
-			!do i=1,size(uvw_md,2)
-			!do k=1,size(uvw_md,4)
-			!	print'(a,l,5i5,4f14.5)','send',send_flag,iblock,jblock,kblock,i,k,uvw_md(:,i,1,k)
-			!enddo
-			!enddo
 			uvw_md = 0.d0
 		end select
 
@@ -772,13 +763,13 @@ subroutine average_over_bin
 	enddo
 
     !Get single average value for slice and store in slice
-    do jb = 1,size(box_average,2)
-		box_average(:,jb,:)%np  =  sum(box_average(:,jb,:)%np)
-		do ixyz =1,3
-			box_average(:,jb,:)%v(ixyz) = sum(box_average(:,jb,:)%v(ixyz))
-			box_average(:,jb,:)%a(ixyz) = sum(box_average(:,jb,:)%a(ixyz))
-		enddo
-    enddo
+    !do jb = 1,size(box_average,2)
+	!	box_average(:,jb,:)%np  =  sum(box_average(:,jb,:)%np)
+	!	do ixyz =1,3
+	!		box_average(:,jb,:)%v(ixyz) = sum(box_average(:,jb,:)%v(ixyz))
+	!		box_average(:,jb,:)%a(ixyz) = sum(box_average(:,jb,:)%a(ixyz))
+	!	enddo
+	!enddo
 
 end subroutine average_over_bin
 
@@ -830,8 +821,8 @@ subroutine apply_continuum_forces_flekkoy
 	use computational_constants_MD, only : delta_t, nh, ncells,iter, & 
 										   cellsidelength, halfdomain, &
 	                                       delta_rneighbr,iblock,jblock,kblock,irank
-	use CPL, only : CPL_overlap, CPL_recv, CPL_proc_extents, & 
-					CPL_realm, CPL_get, coupler_md_get_dt_cfd, printf
+	use CPL, only : CPL_overlap, CPL_recv, CPL_proc_extents,globalise, & 
+					CPL_realm, CPL_get, coupler_md_get_dt_cfd
 	use linked_list
 	implicit none
 
@@ -874,12 +865,15 @@ subroutine apply_continuum_forces_flekkoy
 		              kcmin_recv=cnstd(5),kcmax_recv=cnstd(6), &
 		              recv_flag=recv_flag                       )
 		stress_cfd = reshape(recv_buf,(/ 3,3,size(recv_buf,2),size(recv_buf,3),size(recv_buf,4) /) )
+		deallocate(recv_buf)
 
-		!do i=1,size(recv_buf,4)
-    	!    call printf(stress_cfd(2,2,:,3,i))
-		!enddo
-
-		!print*, 'recvd stress cfd',iblock,jblock,kblock,stress_cfd(2,2,:,:,:)
+		!do i=1,size(stress_cfd,3)
+		!do j=1,size(stress_cfd,4)
+		!do k=1,size(stress_cfd,5)
+		!	write(100+irank,'(a,7i5,4f16.8)'),'recving', iter,iblock,jblock,kblock,i,j,k,stress_cfd(1,1,i,j,k),globalise(i*dx-halfdomain(1)-0.5d0*dx)
+		!enddo	
+		!enddo	
+		!enddo		
 	else
 		!Linear extrapolation between velocity at t and t+1
 	endif
@@ -898,7 +892,7 @@ contains
 
 subroutine setup_CFD_box(limits,CFD_box,recv_flag)
 	use CPL, only : CPL_recv,CPL_proc_portion,localise,map_cfd2md_global, & 
-					CPL_get,VOID, rank_world, CPL_WORLD_COMM !2xTEMPS
+					CPL_get,VOID
 	implicit none
 
 	!Limits of CFD box to receive data in
@@ -1009,10 +1003,10 @@ subroutine average_over_bin
 	enddo
 
     !Get single average value for slice and store in slice
-    do jb = 1,size(box_average,2)
-		box_average(:,jb,:)%np   =  sum(box_average(:,jb,:)%np)
-		box_average(:,jb,:)%a(2) =  sum(box_average(:,jb,:)%a(2))
-    enddo
+    !do jb = 1,size(box_average,2)
+	!	box_average(:,jb,:)%np   =  sum(box_average(:,jb,:)%np)
+	!	box_average(:,jb,:)%a(2) =  sum(box_average(:,jb,:)%a(2))
+    !enddo
 
 end subroutine average_over_bin
 
