@@ -3,12 +3,13 @@ import numpy as np
 
 class CouetteAnalytical:
 	
-	def __init__(self,Re,U,L):
+	def __init__(self,Re,U,L,lwall):
 		self.nmodes = 1000	
 		self.npoints = 20
 		self.Re = Re
 		self.U = U
 		self.L = L
+		self.lwall = lwall
 		
 	def get_vprofile(self,t):	
 		# Get velocity profile at time tfor start-up Couette flow where 
@@ -31,7 +32,8 @@ class CouetteAnalytical:
 		vprofile[-1] = self.U # set top value to BC
 
 		# Normalise
-		yspace = yspace / self.L
-		vprofile = vprofile / self.U
+		yspace = yspace + self.lwall
+		yspace = yspace / yspace[-1] 
+		vprofile = vprofile / vprofile[-1] 
 
 		return yspace, vprofile

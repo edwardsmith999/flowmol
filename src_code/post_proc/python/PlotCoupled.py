@@ -41,16 +41,47 @@ class PlotCoupled():
 		self.ax.set_ylim([-0.1,1.1])
 
 		# Initialise MD points object (no data yet)
-		self.MDpts = self.ax.plot([],'ro', label='MD')[0] 
+		self.MDpts = self.ax.plot(
+		                          [], 
+		                          'ro', 
+		                          mec='none', 
+		                          label='MD'
+		                          )[0] 
+		self.MDcon = self.ax.plot(
+		                          [],
+		                          'mo', 
+		                          mec='none',
+		                          label='Constrained MD'
+		                          )[0] 
 		self.MDpts.set_data([],[])
+		self.MDcon.set_data([],[])
 
 		# Initialise empty line object for analytical soln
-		self.an_sol = self.ax.plot([],'b', label='Analytical')[0]
+		self.an_sol = self.ax.plot(
+		                           [],
+		                           'b--', 
+		                           label='Analytical'
+		                          )[0]
 		self.an_sol.set_data([],[])
 
-		# Initialise CFD points object (no data yet)
-		self.CFDpts = self.ax.plot([],'gx',label='CFD')[0]
+		# Initialise CFD points objects (no data yet)
+		self.CFDpts = self.ax.plot(
+		                           [],
+		                           'gx',
+		                           mew=2.0,
+		                           label='CFD'
+		                          )[0]
+		self.CFDhal = self.ax.plot(
+		                           [],
+		                           'o',
+		                           mew=2.0, 
+		                           mec='g',
+		                           ms=10.0,
+		                           mfc='none',
+		                           label='CFD Halo'
+		                          )[0]
 		self.CFDpts.set_data([],[])
+		self.CFDhal.set_data([],[])
 
 		# Set legend and axes labels	
 		self.ax.legend(loc='lower right')
@@ -77,6 +108,12 @@ class PlotCoupled():
 				self.MDpts.set_xdata(vprofile)
 				self.MDpts.set_ydata(yspace)
 
+				# Update constrained cell highlighters
+				botcon = self.CPL.MDcnstbins[0]
+				topcon = self.CPL.MDcnstbins[-1]+1 # To be inclusive
+				self.MDcon.set_xdata(vprofile[botcon:topcon])
+				self.MDcon.set_ydata(yspace[botcon:topcon])
+
 			def update_an_sol():
 				# Update the analytical solution: find time, then get start-up
 				# Couette flow solution based on that time and a previously 
@@ -84,6 +121,9 @@ class PlotCoupled():
 				# CouetteAnalytical.py).	
 				t = self.CPL.get_rectime(self.rec)
 				yspace, vprofile = self.CPL.analytical.get_vprofile(t)
+			
+				# Map normalised Couette solution to fluid region (i.e.
+				# considering the MD wall)
 				self.an_sol.set_xdata(vprofile)
 				self.an_sol.set_ydata(yspace)
 
@@ -93,8 +133,16 @@ class PlotCoupled():
 					vprofile = self.CPL.CFD.get_vprofile(last=lastrec)
 				except:
 					vprofile = self.CPL.CFD.get_vprofile(last=True)
+				yspace = self.CPL.CFDyspace / self.CPL.yL 
 				self.CFDpts.set_xdata(vprofile)
-				self.CFDpts.set_ydata(self.CPL.CFDyspace)
+				self.CFDpts.set_ydata(yspace)
+
+				halos = np.array( 
+				                  [ [vprofile[0], vprofile[-1] ],
+				                    [ yspace[0] ,  yspace[-1]  ] ]
+				                ) 
+				self.CFDhal.set_xdata(halos[0])
+				self.CFDhal.set_ydata(halos[1])
 
 			# Perform update
 			if (lastrec == False): self.rec += 1
@@ -107,25 +155,29 @@ class PlotCoupled():
 		                               self.fig,
 		                               update_animation,
 		                               fargs=[lastrec],
-		                               interval=100
+		                               interval=40
 		                             )
 
 	def plot_singlerec(self,rec):
 		# Plot a single record chosen by the user
-		
+
 		# MD	
 		bincenters,vprofile = self.CPL.MD.get_vprofile(rec=rec)
 		yspace = bincenters/self.CPL.yL
-		self.ax.plot(vprofile,yspace,'ro')
+		self.ax.plot(vprofile,yspace,'ro', mec='none',label='MD') 
+
+		botcon = self.CPL.MDcnstbins[0]
+		topcon = self.CPL.MDcnstbins[-1]+1 # To be inclusive
+		self.ax.plot(vprofile[botcon:topcon],yspace[botcon:topcon],
+		             'mo',mec='none', label='Constrained MD')
 
 		# Analytical
 		t = self.CPL.get_rectime(rec)
 		yspace, vprofile = self.CPL.analytical.get_vprofile(t)
-		self.ax.plot(vprofile,yspace,'b')
+		self.ax.plot(vprofile,yspace)
 
 		# CFD
 		vprofile = self.CPL.CFD.get_vprofile(rec=rec)
-		yspace = self.CPL.CFDyspace
-		self.ax.plot(vprofile,yspace,'gx') 
-
+		yspace = self.CPL.CFDyspace / self.CPL.yL
+		self.ax.plot(vprofile,yspace) 
 
