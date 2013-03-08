@@ -9,6 +9,7 @@ class MDData:
 		self.header = HeaderData(fobj)
 		self.mbins  = open(fdir+'mbins','rb')
 		self.vbins  = open(fdir+'vbins','rb')
+		#self.Pbins  = open(fdir+'pVA','rb')
 		self.bincenters = self.get_bincenters()
 
 	def read_bins(self,fobj,dtype,nperbin,lastrec=False,seekrec=0,whence=1):
@@ -64,6 +65,15 @@ class MDData:
 		yspace = self.bincenters
 
 		return yspace, vprofile	
+	
+	def get_Pprofile(self,last=False,rec=-1):	
+		yspace = np.linspace(0.0,1.0,num=100)
+		Pprofile = np.power(yspace,2.0)
+
+		#Pbins = self.read_bins(self.Pbins,'d',9)
+		#print(Pbins)
+		
+		return yspace,Pprofile
 		
 	def get_bincenters(self):
 		nbins   =   int(self.header.gnbins2)
