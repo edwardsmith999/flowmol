@@ -322,21 +322,21 @@ end subroutine socket_check_cell_sizes
 !-----------------------------------------------------------------------------
 
 subroutine average_and_send_MD_to_CFD(iter)
-	use computational_constants_MD, only : initialstep, delta_t, nhb
+	use computational_constants_MD, only : initialstep, delta_t, nhb,iblock,jblock,kblock
 	use calculated_properties_MD, only : nbins
 	use physical_constants_MD, only : np
 	use arrays_MD, only :r,v
-   	use CPL, only : CPL_get, CPL_realm,coupler_md_get_average_period
+   	use CPL, only : CPL_get, CPL_realm,coupler_md_get_average_period,CPL_proc_extents
 	implicit none
 
 	integer, intent(in) :: iter
 	
-	integer :: ixyz,icell,jcell,kcell,pcoords(3),extents(6)
+	integer :: ixyz,icell,jcell,kcell,pcoords(3)
 	integer :: iter_cfd, iter_average, save_period 
 	integer	:: ierr
 
 	logical, save :: first_time=.true.,staggered_averages(3)
-	integer, save :: ncx, ncy, ncz, average_period, jcmin_olap,timestep_ratio
+	integer, save :: ncx, ncy, ncz, average_period, jcmin_olap,timestep_ratio, extents(6)
 	real(kind(0.d0)),save :: dx, dy, dz
 	real(kind(0.d0)),dimension(:),allocatable,save 		:: zg
 	real(kind(0.d0)),dimension(:,:),allocatable,save 	:: xg, yg
@@ -344,6 +344,10 @@ subroutine average_and_send_MD_to_CFD(iter)
 	!Setup arrays on first call
     if (first_time) then 
 	    first_time	= .false.
+
+		!Get processor extents
+		pcoords=(/ iblock,jblock,kblock /)
+		call CPL_proc_extents(pcoords,CPL_realm(),extents)
 		call setup_velocity_average
 		call CPL_get(ncx=ncx,ncy=ncy,ncz=ncz,dx=dx,dy=dy,dz=dz,xg=xg,yg=yg,zg=zg, & 
 						staggered_averages=staggered_averages,timestep_ratio=timestep_ratio, &
@@ -375,11 +379,8 @@ contains
 		implicit none
 
 		integer		:: nclx,ncly,nclz
-		integer		:: pcoords(3),extents(6)
 
 		!Allocate array to size of cells in current processor
-		pcoords = (/ iblock,jblock,kblock /)
-		call CPL_proc_extents(pcoords,CPL_realm(),extents)
 		nclx = extents(2)-extents(1)+1
 		ncly = extents(4)-extents(3)+1
 		nclz = extents(6)-extents(5)+1
@@ -400,7 +401,7 @@ contains
 !-----------------------------------------------------------------------------
 
 	subroutine cumulative_velocity_average
-		use CPL, only : CPL_Cart_coords, CPL_proc_extents, CPL_realm, VOID, &
+		use CPL, only : CPL_Cart_coords, CPL_realm, VOID, &
 						map_md2cfd_global,map_cfd2md_global,globalise,localise
 		use computational_constants_MD, only : iter,ncells,domain,halfdomain, & 
 												globaldomain,iblock,jblock,kblock,irank
@@ -410,7 +411,7 @@ contains
 
 		!Limits of cells to average
 
-		integer							:: i,j,k,n, ixyz,extents(6),pcoords(3)
+		integer							:: i,j,k,n, ixyz
 		integer,dimension(3)			:: ibin,ibin1,ibin2,minbin,maxbin,crossplane,cfdbins
 		double precision	 			:: xbcmin,xbcmax, ybcmin,ybcmax, zbcmin,zbcmax
 		double precision,dimension(3) 	:: cfd_cellsidelength
@@ -424,8 +425,7 @@ contains
 		dxyz = (/ dx, dy, dz /)
 
 		!Eliminate processors outside of passing region
-		pcoords=(/ iblock,jblock,kblock /)
-		call CPL_proc_extents(pcoords,CPL_realm(),extents)
+
 		if (any(extents .eq. VOID)) return
 		if ((yg(1,extents(3)) .gt. ybcmax) .or. (yg(1,extents(4)+1) .lt. ybcmin)) return
 
@@ -486,8 +486,8 @@ contains
 				if (r(2,n).lt.avrg_bot(2) .or. r(2,n).gt.avrg_top(2) ) cycle
 
 				!Exclude molecules which leave processor between rebuilds
-				if (ibin(1).lt.1 .or. ibin(1).gt.extents(2)-extents(1)+1) cycle
-				if (ibin(3).lt.1 .or. ibin(3).gt.extents(6)-extents(5)+1) cycle
+				if (ibin(1).lt.1) ibin(1) = 1; if (ibin(1).gt.extents(2)-extents(1)+1) ibin(1) = extents(2)-extents(1)+1
+				if (ibin(3).lt.1) ibin(3) = 1; if (ibin(3).gt.extents(6)-extents(5)+1) ibin(3) = extents(6)-extents(5)+1
 
 				!Add velocity and molecular count to bin
 				uvw_md(1:3,ibin(1),ibin(2)-minbin(2)+2,ibin(3)) = &
@@ -858,7 +858,7 @@ subroutine apply_continuum_forces_flekkoy
 	! Receive value of CFD velocities at first timestep of timestep_ratio
 	if (iter_average .eq. 1 .or. first_time) then
 		allocate(recv_buf(9,size(stress_cfd,3),size(stress_cfd,4),size(stress_cfd,5)))
-		recv_buf = -666
+		recv_buf = -666.d0
 		call CPL_recv(recv_buf,                                 & 
 		              icmin_recv=cnstd(1),icmax_recv=cnstd(2), &
 		              jcmin_recv=cnstd(3),jcmax_recv=cnstd(4), &
@@ -1042,20 +1042,20 @@ subroutine apply_force
 		g = flekkoy_gweight(r(2,ip),CFD_box(3),CFD_box(4))
 
 		!Gsum is replaced with the fixed value based on density and volume
-		!gsum = density*dV
-		gsum = box_average(ib,jb,kb)%a(2)
+		gsum = density*dV
+		!gsum = box_average(ib,jb,kb)%a(2)
 
 		if (gsum .eq. 0.d0) cycle
 
 		a(:,ip) = a(:,ip) + (g/gsum) * dA * stress_cfd(:,2,ib,jb+cnstd(3)-extents(3),kb) 
 
-        if (g .ne. 0.d0) then
-			if (iter .lt. 1000) then
-				write(1234,'(i3,2i7,3i4,5f12.6)'),rank_world,iter,ip,ib,jb,kb, &
-						 					  r(2,ip),v(2,ip),a(2,ip),g, & 
-											 (g/gsum)*dA*stress_cfd(2,2,ib,jb+cnstd(3)-extents(3),kb)
-			endif
-        endif
+        !if (g .ne. 0.d0) then
+		!	if (iter .lt. 1000) then
+		!		write(1234,'(i3,2i7,3i4,5f12.6)'),rank_world,iter,ip,ib,jb,kb, &
+		!				 					  r(2,ip),v(2,ip),a(2,ip),g, & 
+		!									 (g/gsum)*dA*stress_cfd(2,2,ib,jb+cnstd(3)-extents(3),kb)
+		!	endif
+        !endif
 	enddo
 
     !write(99999,'(i2,i7,i7,2f10.2,f6.1,3f9.3,6f12.4)'), rank_world,iter,np_overlap,sum(box_average(:,:,:)%a(2)),  &
