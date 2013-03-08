@@ -8,10 +8,10 @@ from CouetteAnalytical import *
 class CPLData:
 
 	def __init__(self,fdir):
-		fobj            = open(fdir+'/results/coupler_header','r')
+		fobj            = open(fdir+'results/coupler_header','r')
 		self.header     = HeaderData(fobj)
-		self.MD         = MDData(fdir+'/md_data/results/')
-		self.CFD        = CFDData(fdir+'/couette_data/')
+		self.MD         = MDData(fdir+'md_data/results/')
+		self.CFD        = CFDData(fdir+'couette_data/')
 		self.yL         = self.get_coupleddomain()
 		self.CFDyspace  = self.get_CFDyspace()
 		self.MDcnstbins = self.get_constrainedMDbins()
@@ -44,7 +44,7 @@ class CPLData:
 		return Re, U, L, wall
 
 	def get_rectime(self,rec):
-		initial_offset = -1 
+		initial_offset = -1
 		tplot = float(self.MD.header.tplot)
 		delta_t = float(self.MD.header.delta_t)
 		Nmass_ave = float(self.MD.header.Nmass_ave)
