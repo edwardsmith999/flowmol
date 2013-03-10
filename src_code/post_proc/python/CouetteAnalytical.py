@@ -37,3 +37,7 @@ class CouetteAnalytical:
 		vprofile = vprofile / vprofile[-1] 
 
 		return yspace, vprofile
+	
+	def get_Pprofile(self,t):
+		
+		return 0,0

@@ -39,20 +39,16 @@ class MDData:
 		bindata  = np.reshape(bindata,[nbins[0],nbins[1],nbins[2],nperbin],order='F')
 		return bindata
 
-	def get_vprofile(self,last=False,rec=-1):
+	def get_vprofile(self,rec,last=False):
 
 		# If user wants "final" profile
 		if (last == True):
 			massbins = self.read_bins(self.mbins,'i',1,lastrec=True)
 			velobins = self.read_bins(self.vbins,'d',3,lastrec=True)
 		# Else if rec is (not stupidly) specified
-		elif (rec > -1):
+		else:
 			massbins = self.read_bins(self.mbins,'i',1,seekrec=rec,whence=0)
 			velobins = self.read_bins(self.vbins,'d',3,seekrec=rec,whence=0)
-		# Otherwise just work through file continuing from current pos
-		else:
-			massbins = self.read_bins(self.mbins,'i',1)
-			velobins = self.read_bins(self.vbins,'d',3)
 
 		# Old version of np.sum (axis doesn't accept tuple)
 		summ  = massbins.sum(axis=0).sum(axis=1)
@@ -66,7 +62,7 @@ class MDData:
 
 		return yspace, vprofile	
 	
-	def get_Pprofile(self,last=False,rec=-1):	
+	def get_Pprofile(self,rec,last=False):	
 		yspace = np.linspace(0.0,1.0,num=100)
 		Pprofile = np.power(yspace,2.0)
 
@@ -74,11 +70,8 @@ class MDData:
 		if (last == True):
 			Pbins = self.read_bins(self.Pbins,'d',9,lastrec=True)
 		# Else if rec is (not stupidly) specified
-		elif (rec > -1):
-			Pbins = self.read_bins(self.Pbins,'d',9,seekrec=rec,whence=0)
-		# Otherwise just work through file continuing from current pos
 		else:
-			Pbins = self.read_bins(self.Pbins,'d',9)
+			Pbins = self.read_bins(self.Pbins,'d',9,seekrec=rec,whence=0)
 
 		Pslice = Pbins.mean(axis=0).mean(axis=1)
 
