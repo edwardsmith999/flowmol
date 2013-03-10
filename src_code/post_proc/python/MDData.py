@@ -9,7 +9,7 @@ class MDData:
 		self.header = HeaderData(fobj)
 		self.mbins  = open(fdir+'mbins','rb')
 		self.vbins  = open(fdir+'vbins','rb')
-		#self.Pbins  = open(fdir+'pVA','rb')
+		self.Pbins  = open(fdir+'pVA','rb')
 		self.bincenters = self.get_bincenters()
 
 	def read_bins(self,fobj,dtype,nperbin,lastrec=False,seekrec=0,whence=1):
@@ -70,8 +70,23 @@ class MDData:
 		yspace = np.linspace(0.0,1.0,num=100)
 		Pprofile = np.power(yspace,2.0)
 
-		#Pbins = self.read_bins(self.Pbins,'d',9)
-		#print(Pbins)
+		# If user wants "final" profile
+		if (last == True):
+			Pbins = self.read_bins(self.Pbins,'d',9,lastrec=True)
+		# Else if rec is (not stupidly) specified
+		elif (rec > -1):
+			Pbins = self.read_bins(self.Pbins,'d',9,seekrec=rec,whence=0)
+		# Otherwise just work through file continuing from current pos
+		else:
+			Pbins = self.read_bins(self.Pbins,'d',9)
+
+		Pslice = Pbins.mean(axis=0).mean(axis=1)
+
+		Pprofile = []
+		for ybin in range(int(self.header.gnbins2)):
+			Pxybin = Pslice[ybin][1]
+			Pprofile.append(Pxybin)
+		yspace = self.bincenters
 		
 		return yspace,Pprofile
 		
