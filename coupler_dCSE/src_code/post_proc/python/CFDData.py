@@ -43,27 +43,40 @@ class CFDData:
 		subdoms = sorted(subdoms,key=get_int)
 		return subdoms
 
-	def get_vprofile(self,last=False,rec=-1):
+	def get_subdata(self,rec,last=False):
 
 		if (last==True):
 			# Get SubDom list again and pop last value
 			fpath = self.fdir + self.get_subdomlist().pop()
-		elif (rec > -1):
-			# If specific record is specified by the user	
-			fpath = self.fdir + self.get_subdomlist().pop(rec)
 		else:
-			# Pop first value from current SubDom list
-			fpath = self.fdir + self.subdoms.pop(0)
+			fpath = self.fdir + self.get_subdomlist().pop(rec)
 	
 		fobj = open(fpath,'rb')
 		subdata = self.read_subfile(fobj,self.nrx,self.nry,self.nrz)
-		vx = subdata.mean(axis=0).mean(axis=0) # Avg over x and z dirs
+		fobj.close()
+		return subdata
+
+	def get_vprofile(self,rec,last=False):
+
+		subdata = self.get_subdata(rec,last=last)
+		yfield = subdata.mean(axis=0).mean(axis=0) # Avg over x and z dirs
 
 		vprofile = []
 		for y in range(self.nry):
-			vprofile.append(vx[y][0])
+			vprofile.append(yfield[y][0])
 
 		return vprofile
+
+	def get_Pprofile(self,rec,last=False):
+
+		subdata = self.get_subdata(rec,last=last)
+		yfield = subdata.mean(axis=0).mean(axis=0) # Avg over x and z dirs
+
+		Pprofile = []
+		for y in range(self.nry):
+			Pprofile.append(yfield[y][3])
+	
+		return Pprofile 
 
 	def read_subfile(self,fobj,nrx,nry,nrz):
 		subdata = np.fromfile(fobj,dtype='d')
