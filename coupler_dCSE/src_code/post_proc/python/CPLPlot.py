@@ -26,11 +26,11 @@ from CPLData import *
 
 class CPL_subplot:
 
-	def __init__(self,figobj,gridx,gridy,gridID,xlabel='',ylabel=''):
+	def __init__(self,figobj,gridx,gridy,gridID,xlabel='',ylabel='',xlim=[-0.1,1.1],ylim=[-0.1,1.1]):
 
 		self.ax = figobj.add_subplot(gridx,gridy,gridID)
-		self.ax.set_xlim([-0.1,1.1])
-		self.ax.set_ylim([-0.1,1.1])
+		self.ax.set_xlim(xlim)
+		self.ax.set_ylim(ylim)
 
 		# Initialise MD points object (no data yet)
 		self.MDpts = self.ax.plot(
@@ -97,7 +97,7 @@ class PlotCoupled(CPL_subplot):
 		# Initialise figure axes for velocity profiles
 		self.fig = plt.figure(figsize=[14.,6.])
 		self.v = CPL_subplot(self.fig,1,2,1,xlabel='u/U_wall',ylabel='y/y_L')
-		self.P = CPL_subplot(self.fig,1,2,2,xlabel='P_xy/P_0',ylabel='y/y_L')
+		self.P = CPL_subplot(self.fig,1,2,2,xlabel='P_xy/P_0',ylabel='y/y_L',xlim=[-0.01,0.11])
 
 	def start_animation(self,lastrec=False):
 		# Create animated figure when called. The optional input lastrec,
