@@ -9,7 +9,8 @@ CFD = 1;
 wall_normal = 2;
 
 %Find results files
-resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/Inc_specular_walls_large/';
+resultfile_dir = '/home/es205/results/CX1_data/';
+%resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/Inc_specular_walls_large/';
 resultfile_dir_MD = strcat(resultfile_dir,'md_data/results/');
 resultfile_dir_CFD = strcat(resultfile_dir,'couette_data/');
 resultfile_dir_CPL = strcat(resultfile_dir,'results/');

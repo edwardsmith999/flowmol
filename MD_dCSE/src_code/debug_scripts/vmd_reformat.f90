@@ -68,7 +68,7 @@ end subroutine read_final_state
 subroutine get_file_size(filename,file_size)
 	implicit none
 
-	integer, parameter :: LongInt = selected_int_kind (8)
+	integer, parameter :: LongInt = selected_int_kind (18)
 	integer(kind=LongInt),intent(out) :: file_size
 
 	integer							:: unit_no
@@ -119,7 +119,7 @@ subroutine reformat_dcd(folder,filename,vmd_sets,np,delta_t_in,initialstep_in,tp
 	integer							:: NATOMNFREAT		!--Number of fixed atoms
 	integer							:: NTITLE		!--Number of 80-character strings in title (set as 2)
 	integer							:: NATOM		!--Number of atoms
-	integer, parameter 				:: LongInt = selected_int_kind (8)
+	integer, parameter 				:: LongInt = selected_int_kind (18)
 	integer(kind=LongInt)			:: bufsize, starti, endi
 	integer, dimension (5)			:: FIVEZ		!--According to documentation, five zeros, but first is actually NSET
 	integer, dimension (9)			:: NINEZ		!--Nine zeros
@@ -168,7 +168,7 @@ subroutine reformat_dcd(folder,filename,vmd_sets,np,delta_t_in,initialstep_in,tp
 	NATOM		=	np			!number of particles
 
 	!Get size of arrays required to store data
-	bufsize = NSET*globalnp
+	bufsize = NSET*np
 	allocate(Xbuf(bufsize))
 	allocate(Ybuf(bufsize))
 	allocate(Zbuf(bufsize))
@@ -265,7 +265,7 @@ program vmd_reformat
 	use reformat_mod
 	implicit none
 
-	integer, parameter 		:: LongInt = selected_int_kind (8)
+	integer, parameter 		:: LongInt = selected_int_kind (18)
 	integer(kind=LongInt) 	:: file_size
 	integer					:: np, vmd_outflag,vmd_steps,datasize
 	character(40) 			:: filename,folder,npstring

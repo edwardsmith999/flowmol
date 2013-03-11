@@ -12,14 +12,14 @@ savepic = 1;
 %Analytical Solution parameters
 u_0 = 1; t_0 = 160;
 spectral_res = 6;
-viscosity = 1.6; density = 0.8;
+viscosity = 10.0; density = 0.8;
 Re = density*u_0*1/viscosity;
 analy_points = 20; % Number of spectral points
 
 %Find results files
 %resultfile_dir = './../results/';
-%resultfile_dir = '/home/es205/results/CX1_data/CPL_testing/slice/';
-resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/Inc_specular_walls_large/';
+resultfile_dir = '/home/es205/results/CX1_data/Flekkoy_meu10/';
+%resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/Inc_specular_walls_large/';
 %resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/50CFDMDratio/';
 %resultfile_dir = '/home/djt06/Documents/Academia/PhD/Code/Development/branch/coupler_dCSE/src_code/';
 resultfile_dir_MD = strcat(resultfile_dir,'md_data/results/');
@@ -173,9 +173,9 @@ for i = 1:Nvel_records
     % =================================
     %Read velocity
     filename = strcat(resultfile_dir_MD,'/mbins');
-    mass_bins = read_mbins(filename,resultfile_dir_MD,m); %NOTE WE NEED minus 2 here not sure why yet!
+    mass_bins = read_mbins(filename,resultfile_dir_MD,m); 
     filename = strcat(resultfile_dir_MD,'/vbins');
-    vel_bins = read_vbins(filename,resultfile_dir_MD,m); %NOTE WE NEED minus 2 here not sure why yet!
+    vel_bins = read_vbins(filename,resultfile_dir_MD,m); 
     
     %Calculate spanwise direction
     if (velocity_outflag == 4)
@@ -211,26 +211,28 @@ for i = 1:Nvel_records
     % =================================
     set(0,'currentfigure',fig2)
     set(fig2,'CurrentAxes',gax)
-    
-    %Plot CFD velocity profile
-    plot(xaxis_CFD,continuum_velslice(:,m)/u_0,'s','Color',[.5 .5 .5],'MarkerSize',8,'LineWidth',5);
-    hold on
 
-    %plot molecular velocity profile
-    plot(xaxis_MD(:),ave_vel_slice(2:end,1),'x','LineWidth',3,'Color',[.2 .2 .2],'MarkerSize',10);
-    plot(xaxis_MD2,vel_slice(5:end,1),'^-')
     
     %Plot anayltical solution
     analy = couette_analytical_fn(t,Re,[1,0],coupleddomain(ixyz),analy_points,'top');
-    plot(xaxis_analy,analy/u_0,'k','LineWidth',5);
+    %plot(xaxis_analy,analy/u_0,'r','LineWidth',5);
+
+    %Plot CFD velocity profile
+    plot(xaxis_CFD,continuum_velslice(:,m)/u_0,'s','Color',[.5 .5 .5],'MarkerSize',14,'LineWidth',2.5);
+	hold on
+
+    %plot molecular velocity profile
+    plot(xaxis_MD(:),ave_vel_slice(2:end,1),'x','LineWidth',2.5,'Color',[.5 .5 .5],'MarkerSize',14);
+    %plot(xaxis_MD2,vel_slice(5:end,1),'^-')
+
     
     %Make plot look nice
     legend ('CFD','MD','location','NorthWest'); legend('boxoff')
-    set(gca,'FontSize',20)
-    axis([-0.1 1.1 -0.1 1.1]);
+    set(gca,'FontSize',16)
+    axis([-0.1 1.1 -0.1 1.5]);
     xlabel('y/H'); ylabel('U_x/U')
     plottitle=num2str(t,'%10.6f');
-    title(strcat('Plot after  ',plottitle,' time units'));
+    %title(strcat('Plot after  ',plottitle,' time units'));
     hold off
     
     % =================================
@@ -309,28 +311,32 @@ for i = 1:Nvel_records
          end
  
  
-         %Plot CFD shear stress
+         %Stress figure
          figure(fig1)
-         plot(xaxis_CFD(2:end-1),squeeze(stress(1,2,:,m)),'s','Color',[.5 .5 .5],'MarkerSize',8,'LineWidth',5)
-         hold on
- 
-         %Plot MD shear stress
-         plot(xaxis_MD,-squeeze(density*ave_vel_slice(2:end,1).*ave_vel_slice(2:end,2)),'o','LineWidth',3,'Color',[.2 .2 .2],'MarkerSize',10)
-         plot(xaxis_MD,-squeeze(ave_P_slice(2:end,1,2)),'x','LineWidth',3,'Color',[.2 .2 .2],'MarkerSize',10)
-         plot(xaxis_MD2,-squeeze(P_slice(5:end,1,2)),'^-')
- 
+
          %Plot anayltical solution
          clear analy
          analy = couette_analytical_stress_fn(t,Re,1,coupleddomain(ixyz),analy_points);
-         plot(xaxis_analy,analy,'k','LineWidth',5);
+         %plot(xaxis_analy,analy,'r','LineWidth',5);
+
+         %Plot CFD shear stress
+         plot(xaxis_CFD(2:end-1),squeeze(stress(1,2,:,m)),'s','Color',[.5 .5 .5],'MarkerSize',14,'LineWidth',2.5)
+         hold on
+
+         %Plot MD shear stress
+         %plot(xaxis_MD,-squeeze(density*ave_vel_slice(2:end,1).*ave_vel_slice(2:end,2)),'o','LineWidth',3,'Color',[.2 .2 .2],'MarkerSize',10)
+         plot(xaxis_MD,-squeeze(ave_P_slice(2:end,1,2)),'x','LineWidth',2.5,'Color',[.5 .5 .5],'MarkerSize',14)
+         %plot(xaxis_MD2,-squeeze(P_slice(5:end,1,2)),'^-')
+
+
  
          %Make plot look nice
          legend ('CFD','MD','location','NorthWest'); legend('boxoff')
-         set(gca,'FontSize',20)
-         axis([-0.1 1.1 -0.01 0.11]);
-         xlabel('y/H'); ylabel('\Pi')
+         set(gca,'FontSize',16)
+         axis([-0.1 1.1 -0.01 0.4]);
+         xlabel('y/H'); ylabel('P_{xy}')
          plottitle=num2str(t,'%10.6f');
-         title(strcat('Plot after  ',plottitle,' time units'));
+         %title(strcat('Plot after  ',plottitle,' time units'));
          hold off
  
          drawnow

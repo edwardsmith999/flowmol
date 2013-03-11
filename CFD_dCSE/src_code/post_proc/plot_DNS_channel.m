@@ -7,12 +7,12 @@ clear all
 close all
 
 %Optional outputs
-contourplots = 0; sliceplane = 0;
+contourplots = 4; sliceplane = 10;
 channel_profile = 0;
 spectrum = 0;
 
 %Turn on/off video and picture output
-savevid = 0;
+savevid = 1;
 
 %Parameters
 Re_b = 1.0;
@@ -22,8 +22,8 @@ spectrum_yloc = 16;
 %Directory names
 %resultfile_dir = '/home/es205/results/CFD_results/results/Transflow/minimal_channel_laminar/';
 %resultfile_dir = '/home/es205/results/CFD_results/results/Transflow/minimal_channel_turbulent_scaled/'
-resultfile_dir = '/home/es205/results/CFD_results/results/Transflow/turbulent_couette/couette_scaled/CFD_dCSE/src_code/results/'
-
+%resultfile_dir = '/home/es205/results/CFD_results/results/Transflow/turbulent_couette/couette_scaled/results/'
+resultfile_dir = '/home/es205/results/CFD_results/codes/Transflow/turbulent_couette/couette_scaled/CFD_dCSE/src_code/results/'
 %---Get CFD grid size ----
 read_grid(strcat(resultfile_dir,'grid.data'),[1 1 1])
 [ngx, ngy, ngz, Lx, Ly, Lz, dx, dy, dz] = read_report(strcat(resultfile_dir,'report'));
@@ -75,7 +75,7 @@ for n=tstart:size(files,1)
     [u,v,w,p] =  Read_DNS_Subdomain(n,'grid.data',resultfile_dir,ngx-2,ngy-1,ngz-2,1,1,1,4,true);
 
     %Write velocity field to .dx format which can be read by VMD
-    G3DtoDX(xpg(1:end-1,1),ypg(1,1:end-1),z(1:end-1), permute(u(:,:,2:end-1),[2 3 1]),strcat('./vmd_volumes/DNS',num2str(n),'.dx'),-Lx/2,-17.09975947,-Lz/2)
+    %G3DtoDX(xpg(1:end-1,1),ypg(1,1:end-1),z(1:end-1), permute(u(:,:,2:end-1),[2 3 1]),strcat('./vmd_volumes/DNS',num2str(n),'.dx'),-Lx/2,-17.09975947,-Lz/2)
 
     %sliceomatic(cav,linspace(0,Lx,ngx-3),linspace(0,Lz,ngz-3),linspace(0,Ly,ngy-1))
 
