@@ -77,7 +77,7 @@ class MDData:
 
 		Pprofile = []
 		for ybin in range(int(self.header.gnbins2)):
-			Pxybin = Pslice[ybin][1]
+			Pxybin = -Pslice[ybin][1]
 			Pprofile.append(Pxybin)
 		yspace = self.bincenters
 		

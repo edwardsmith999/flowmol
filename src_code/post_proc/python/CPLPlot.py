@@ -41,7 +41,7 @@ class CPL_Subplot():
 		elif (ptype=='pressure'):
 			xlab = 'P_xy/P_0'
 			ylab = 'y/y_L'
-			xlim = [-0.1,0.1]
+			xlim = [-0.05,0.2]
 			ylim = [-0.1,1.1]
 
 		# Initialise axes
@@ -86,14 +86,15 @@ class CPL_Subplot():
 		if (self.ptype=='velocity'):
 			return self.CPLobj.analytical.get_vprofile(t)
 		elif (self.ptype=='pressure'):
-			return self.CPLobj.analytical.get_Pprofile(t)
+			return self.CPLobj.analytical.get_Pprofile(t,self.CPLobj.viscosity)
 	
 	def get_CFD_profile(self,rec,last=False):
 		# Return the CFD velocity or pressure profile 
 		if (self.ptype=='velocity'):
-			return self.CPLobj.CFD.get_vprofile(rec,last=last)	
+			return self.CPLobj.CFD.get_vprofile(rec+1,last=last)	
 		elif (self.ptype=='pressure'):
-			return self.CPLobj.CFD.get_Pprofile(rec,last=last)	
+			return self.CPLobj.CFD.get_Pprofile(rec+1,self.CPLobj.viscosity,
+			                                    last=last)	
 	
 	def update(self,rec,lastrec=False):
 		# Update plot data to the next, last or specified record
@@ -175,7 +176,7 @@ class CPL_Plot(CPL_Subplot):
 		if (self.v==True): self.vplot.update(self.rec,lastrec)
 		if (self.P==True): self.Pplot.update(self.rec,lastrec)
 
-	def start_animation(self,lastrec=False):
+	def start_animation(self,lastrec=False,frames=100):
 		# Create animated figure when called. The optional input lastrec,
 		# when True, will watch only the very last records of each sim. This
 		# is useful when attempting to "watch" the progress of a coupled run.
@@ -183,7 +184,8 @@ class CPL_Plot(CPL_Subplot):
 		                               self.fig,
 		                               self.update_animation,
 		                               fargs=[lastrec],
-		                               interval=100
+		                               interval=50,
+		                               frames=frames
 		                             )
 	
 	def plot_singlerec(self,rec):
@@ -212,5 +214,25 @@ class CPL_Plot(CPL_Subplot):
 			self.vplot.ax.plot(halos[0],halos[1],'o',mew=2.0,mec='g',ms=10.0,mfc='none')
 
 		if (self.P==True):
-			pass
+			# MD	
+			bincenters,Pprofile = self.Pplot.get_MD_profile(rec)
+			yspace = bincenters/self.CPL.yL
+			self.Pplot.ax.plot(Pprofile,yspace,'ro', mec='none') 
+			bot = self.CPL.MDcnstbins[0]
+			top = self.CPL.MDcnstbins[-1]+1 # To be inclusive
+			self.Pplot.ax.plot(Pprofile[bot:top],yspace[bot:top],'mo',mec='none')
+
+			# Analytical
+			yspace, Pprofile = self.Pplot.get_analytical(rec)
+			self.Pplot.ax.plot(Pprofile,yspace,'b--')
+
+			# CFD
+			Pprofile = self.Pplot.get_CFD_profile(rec)
+			yspace   = self.CPL.CFDyspace / self.CPL.yL
+			self.Pplot.ax.plot(Pprofile,yspace,'gx',mew=2.0) 
+			halos = np.array( 
+							  [ [Pprofile[0], Pprofile[-1] ],
+								[ yspace[0] ,  yspace[-1]  ] ]
+							)
+			self.Pplot.ax.plot(halos[0],halos[1],'o',mew=2.0,mec='g',ms=10.0,mfc='none')
 		

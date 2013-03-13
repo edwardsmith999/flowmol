@@ -67,14 +67,22 @@ class CFDData:
 
 		return vprofile
 
-	def get_Pprofile(self,rec,last=False):
+	def get_Pprofile(self,rec,mu,last=False):
 
 		subdata = self.get_subdata(rec,last=last)
 		yfield = subdata.mean(axis=0).mean(axis=0) # Avg over x and z dirs
 
-		Pprofile = []
-		for y in range(self.nry):
-			Pprofile.append(yfield[y][3])
+		# Forward diff
+		du_dy = (yfield[1][0]-yfield[0][0])/self.dy
+		Pprofile = [mu*du_dy]
+		for y in range(1,self.nry-1):
+			# Central diff
+			du_dy = (yfield[y+1][0] - yfield[y-1][0])/(2.0*self.dy)
+			tau   = mu*du_dy
+			Pprofile.append(tau)
+		# Backwards diff
+		du_dy = (yfield[self.nry-1][0]-yfield[self.nry-2][0])/self.dy
+		Pprofile.append(mu*du_dy)
 	
 		return Pprofile 
 

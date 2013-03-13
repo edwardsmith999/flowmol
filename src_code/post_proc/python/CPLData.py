@@ -15,8 +15,9 @@ class CPLData:
 		self.yL         = self.get_coupleddomain()
 		self.CFDyspace  = self.get_CFDyspace()
 		self.MDcnstbins = self.get_constrainedMDbins()
-
-		Re,U,L,wall     = self.get_Couetteparams()
+		self.viscosity  = 1.6
+		self.density    = float(self.header.density_cfd)
+		Re,U,L,wall     = self.get_Couetteparams(self.density,self.viscosity)
 		self.analytical = CouetteAnalytical(Re,U,L,wall)
 
 	def get_coupleddomain(self):
@@ -34,13 +35,12 @@ class CPLData:
 		yspace = np.linspace(CFDbot,CFDtop,num=self.CFD.nry)
 		return yspace	
 
-	def get_Couetteparams(self):
-		viscosity = 1.6	
+	def get_Couetteparams(self,density,viscosity):
 		U = 1.0 
 		wall = float(self.MD.header.tethdistbot2)
 		L = self.yL - wall
 		Ln = (self.yL - wall) / self.yL
-		Re = float(self.header.density_cfd) * U * Ln / viscosity
+		Re = density * U * Ln / viscosity
 		return Re, U, L, wall
 
 	def get_rectime(self,rec):
