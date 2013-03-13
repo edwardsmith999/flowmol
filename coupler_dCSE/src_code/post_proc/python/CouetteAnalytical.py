@@ -38,6 +38,27 @@ class CouetteAnalytical:
 
 		return yspace, vprofile
 	
-	def get_Pprofile(self,t):
-		
-		return 0,0
+	def get_Pprofile(self,t,viscosity):
+
+		yspace = np.linspace(0.0,self.L,num=self.npoints)
+		tau = np.zeros(self.npoints)	
+		pi = np.pi
+		k = 1./self.Re
+
+		# Add zeroth mode
+		tau = tau + 0.5*self.U*2./self.L
+
+		# Higher frequency modes 
+		for n in range(1,self.nmodes):
+			l = (n*pi/self.L)**2.
+			tau = tau + (
+			              (2./self.L)*((-1.)**(n*self.U))*(np.exp(-l*k*t)) *
+			              np.cos(n*pi*yspace/self.L)
+			            )
+
+		# Normalise yspace
+		yspace = yspace + self.lwall
+		yspace = yspace / yspace[-1] 
+		tau = viscosity * tau
+	
+		return yspace,tau 
