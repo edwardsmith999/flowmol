@@ -149,9 +149,9 @@ subroutine advancex
 		phi_p2=u(k,ii+2,jj)
 		
 		a1=a1+(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*a3
+			   -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*a3
 		a2=a2+(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-	 		-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b1 
+	 		   -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b1 
 
 		phi_m1=(v(k,ii-1,jj)+v(k,ii-2,jj)+v(k,ii-1,jj+1)+v(k,ii-2,jj+1))/4.0 
 		phi_  =(v(k,ii  ,jj)+v(k,ii-1,jj)+v(k,ii  ,jj+1)+v(k,ii-1,jj+1))/4.0
@@ -164,9 +164,9 @@ subroutine advancex
 		end if 
 
 		a1=a1+(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b2
+			   -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b2
 		a2=a2+(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b3
+			   -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b3
 
 		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 		! -U^{xi}_{w}U^{m}_{w}S_{m,w}
@@ -190,9 +190,9 @@ subroutine advancex
 		phi_p2=u(k,ii+1,jj)
 
 		a1=a1-(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*a3
+			   -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*a3
 		a2=a2-(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b1
+			   -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b1
 
 		if(ii.gt.2) then
 		phi_m1=(v(k,ii-2,jj)+v(k,ii-3,jj)+v(k,ii-2,jj+1)+v(k,ii-3,jj+1))/4.0
@@ -205,9 +205,9 @@ subroutine advancex
 		phi_p2=(v(k,ii  ,jj)+v(k,ii+1,jj)+v(k,ii  ,jj+1)+v(k,ii+1,jj+1))/4.0
 
 		a1=a1-(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b2
+			   -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b2
 		a2=a2-(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b3
+			   -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b3
 
 		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 		! U^{eta}_{n}U^{m}_{n}S_{m,n}
@@ -235,9 +235,9 @@ subroutine advancex
 		end if
 
 		a1=a1+(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*a3
+			   -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*a3
 		a2=a2+(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b1
+			   -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b1
 
 		phi_m1=(v(k,ii-1,jj  )+v(k,ii,jj  )+v(k,ii-1,jj-1)+v(k,ii,jj-1))/4.0
 		phi_  =(v(k,ii-1,jj+1)+v(k,ii,jj+1)+v(k,ii-1,jj  )+v(k,ii,jj  ))/4.0
@@ -250,9 +250,9 @@ subroutine advancex
 		end if
 
 		a1=a1+(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b2
+			   -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b2
 		a2=a2+(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b3
+			   -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b3
 
 		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 		! -U^{eta}_{s}U^{m}_{s}S_{m,s}
@@ -281,9 +281,9 @@ subroutine advancex
 		phi_p2=u(k,ii,jj+1)
 
 		a1=a1-(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*a3
+			   -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*a3
 		a2=a2-(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b1
+			   -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b1
 		
 		if(jj.ne.1) then
 			phi_m1=(v(k,ii-1,jj-1)+v(k,ii,jj-1)+v(k,ii-1,jj-2)+v(k,ii,jj-2))/4.0
@@ -296,9 +296,9 @@ subroutine advancex
 		phi_p2=(v(k,ii-1,jj+2)+v(k,ii,jj+2)+v(k,ii-1,jj+1)+v(k,ii,jj+1))/4.0
 		
 		a1=a1-(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b2
+			   -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b2
 		a2=a2-(-(1.0+sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_m1-2.0*phi_  +phi_p1) &
-			-(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b3
+			   -(1.0-sign(1.0,tta))/2.0*x_QUICK*1.0/8.0*tta*(phi_  -2.0*phi_p1+phi_p2))*b3
 		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 		! U^{z}_{f}U^{m}_{f}S_{m,f}
 		!     (5th terms in RHS brakets of eq 3.30)
@@ -319,7 +319,7 @@ subroutine advancex
 		!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 		tta=(u(k,ii,jj)+u(k-1,ii,jj))/2.
 		ttb=((v(k  ,ii-1,jj)+v(k  ,ii-1,jj+1)+v(k  ,ii,jj)+v(k  ,ii,jj+1))/4.  &
-    			+(v(k-1,ii-1,jj)+v(k-1,ii-1,jj+1)+v(k-1,ii,jj)+v(k-1,ii,jj+1))/4.)/2.
+    		+(v(k-1,ii-1,jj)+v(k-1,ii-1,jj+1)+v(k-1,ii,jj)+v(k-1,ii,jj+1))/4.)/2.
 		a3=surxix(i,j)
 		b1=surxiy(i,j)
 		b2=(svretax(i,j)+svretax(i,j+1)+svretax(i-1,j)+svretax(i-1,j+1))/4.
@@ -995,7 +995,7 @@ subroutine advancex
 		c4=(a2*b1)*tta
 		c5=(a2*b2)*tta
 		!---------------------------------------------------
-		!       (2nd elament in 4th line     eq 3.34)
+		!       (2nd element in 4th line     eq 3.34)
 		!---------------------------------------------------
 		a1=(svetax(i,j)+svetax(i,j-1)+svetax(i-1,j)+svetax(i-1,j-1))/4.
 		a2=(svetay(i,j)+svetay(i,j-1)+svetay(i-1,j)+svetay(i-1,j-1))/4.
