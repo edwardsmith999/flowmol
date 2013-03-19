@@ -819,7 +819,8 @@ implicit none
 	type(node), pointer 	        :: oldi, currenti, oldj, currentj
 
 	!rfbin = 0.d0
-	rijsum = 0.d0
+	!allocate(rijsum(nd,np+extralloc)) !Sum of rij for each i, used for SLLOD algorithm
+	!rijsum = 0.d0
 
 	!Calculate bin to cell ratio
 	cellsperbin = ceiling(ncells(1)/dble(nbins(1)))
@@ -871,8 +872,8 @@ implicit none
 
 					if (rij2 < rcutoff2) then
 						!Add current distance to rijsum for molecules i and j
-						rijsum(:,molnoi) = rijsum(:,molnoi) + 0.5d0*rij(:)
-						rijsum(:,molnoj) = rijsum(:,molnoj) + 0.5d0*rij(:)
+						!rijsum(:,molnoi) = rijsum(:,molnoi) + 0.5d0*rij(:)
+						!rijsum(:,molnoj) = rijsum(:,molnoj) + 0.5d0*rij(:)
 						!Linear magnitude of acceleration for each molecule
 						invrij2 = 1.d0/rij2                 !Invert value
 						accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)

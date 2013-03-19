@@ -48,18 +48,22 @@ implicit none
 		call error_abort('Unidentified initial configuration flag')	
 	end select
 
-	do n=1,np    !Initialise global true positions
-		rtrue(1,n) = r(1,n)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
-		rtrue(2,n) = r(2,n)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
-		rtrue(3,n) = r(3,n)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
-	end do
+	if (rtrue_flag.eq.1) then
+		do n=1,np    !Initialise global true positions
+			rtrue(1,n) = r(1,n)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
+			rtrue(2,n) = r(2,n)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
+			rtrue(3,n) = r(3,n)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
+		end do
+	endif
 	!rinitial = rtrue                                 !Store initial true pos
 
-	call setup_tag                                    !Setup locn of fixed mols
-	rtether = r                                       !Init tether pos
-	do n = 1,np
-		call read_tag(n)                              !Read tag, assign props
-	enddo
+	if (ensemble .eq. tag_move) then
+		call setup_tag                                    !Setup locn of fixed mols
+		rtether = r                                       !Init tether pos
+		do n = 1,np
+			call read_tag(n)                              !Read tag, assign props
+		enddo
+	endif
 	call setup_initialise_velocities                  !Setup initial velocities
 	
 end subroutine setup_initialise_microstate
@@ -763,6 +767,11 @@ subroutine setup_initialise_velocities
 	integer                            :: n,i 
 	double precision, dimension (nd)   :: netv   !Overall momentum of system
 
+	!If ensemble is not tag based, set all molecules to unfixed
+	if (ensemble .ne. tag_move) then
+		allocate(fix(3,np)); fix = 1
+	endif
+
 	!Use definition of temperature and re-arrange to define an average velocity
 	initialvel = sqrt(nd * (1.d0 - 1.d0/globalnp)*inputtemperature)
 
@@ -797,6 +806,11 @@ subroutine setup_initialise_velocities
 		if (fix(1,n) .eq. 1) v(:,n)= v(:,n)-netv(:) 
 			       
 	enddo
+
+	!If ensemble is not tag based, set all molecules to unfixed
+	if (ensemble .ne. tag_move) then
+		deallocate(fix)
+	endif
 
 end subroutine setup_initialise_velocities
 

@@ -92,6 +92,7 @@ module computational_constants_MD
 		rtrue_flag, &
 		prev_rtrue_flag, &
 		ssf_outflag, &
+		vdist_flag, & 
 		cv_conserve,	&
 		mflux_outflag, &
 		vflux_outflag, &
@@ -236,7 +237,6 @@ module arrays_MD
 		potenergymol_LJ, 	&		!LJ Potential energy of each molecule
 		potenergymol_FENE,	&		!FENE Potential energy of each molecule
 		virialmol,			&		!Virial of each molecule
-		vmagnitude, 		&
 		recvbuffer
 	double precision, dimension(:,:),   allocatable			:: &
 		rtrue, 		&      			!Positions with no period BC

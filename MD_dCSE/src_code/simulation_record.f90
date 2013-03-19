@@ -166,7 +166,9 @@ subroutine simulation_record
 	endif
 
 	!Obtain and record velocity distributions
-	!call evaluate_properties_vdistribution
+	if (vdist_flag .eq. 1) then
+		call evaluate_properties_vdistribution
+	endif
 
 	!Obtain and record radial distributions
 	select case (rdf_outflag)
@@ -405,15 +407,19 @@ subroutine evaluate_properties_vdistribution
 	integer          :: n
 	integer          :: cbin
 	double precision :: Hfunction
+	double precision,dimension(:),allocatable :: vmagnitude
 
-	!Calculate matrix of velocity magnitudes
+	!Calculate matrix of velocity magnitudes and bin in histogram
+	allocate(vmagnitude(np))
 	do n = 1, np    ! Loop over all particles
+		vmagnitude(n) = dot_product(v(:,n),v(:,n)) 
 		!Assign to bins using integer division
  		cbin = ceiling(vmagnitude(n)/binsize)   !Establish current bin
 		if (cbin > nbins(1)) cbin = nbins(1) 		!Prevents out of range values
 		if (cbin < 1 ) cbin = 1        		!Prevents out of range values
 		vfd_bin(cbin) = vfd_bin(cbin)+1		!Add one to current bin
 	enddo
+	deallocate(vmagnitude)
 
 	!Normalise bins to use for output and H function - so all bins add up to one
 	!Total stored molecules must be equal to number of molecules (np) times the
@@ -911,6 +917,11 @@ subroutine cumulative_velocity(ixyz)
 	double precision				:: slicebinsize
 	double precision,dimension(3) 	:: Vbinsize 
 
+	!In case someone wants to record velocity in a simulation without sliding walls!?!?
+	if (ensemble .ne. tag_move) then
+		allocate(slidev(3,np)); slidev = 0.d0
+	endif
+
 	select case(ixyz)
 	!Velocity measurement is a number of 2D slices through the domain
 	case(1:3)
@@ -943,6 +954,11 @@ subroutine cumulative_velocity(ixyz)
 	case default 
 		call error_abort("Velocity Binning Error")
 	end select
+
+	if (ensemble .ne. tag_move) then
+		deallocate(slidev)
+	endif
+
 	 
 end subroutine cumulative_velocity
 
@@ -1098,6 +1114,7 @@ subroutine cumulative_pressure(ixyz,sample_count)
 	double precision, dimension(3)		:: velvect
 	double precision, dimension(3)      :: rglob
 	double precision, dimension(3,3)	:: Pxytemp
+
 
 	Pxytemp = 0.d0
 	Pxymol = 0.d0

@@ -67,11 +67,10 @@ subroutine setup_set_parameters
 	r = 0.d0
 	v = 0.d0
 	a = 0.d0
-	fix = 1		!Set fix to one (unfixed)
+
 	zeta= 0.d0	!Set Nose Hoover thermostat scaling property to zero
 	rfmol = 0.d0
 	halo_np = 0
-	vmagnitude = 0.d0
 
 	call set_parameters_outputs
 	call setup_linklist
@@ -155,35 +154,50 @@ subroutine set_parameters_allocate
 
 	!Allocate array sizes for position, velocity and acceleration
 	allocate(r(nd,np+extralloc))
-	allocate(rtrue(nd,np+extralloc)) !Used to establish diffusion - r with no periodic BC
-	allocate(vtrue(nd,np+extralloc)) !Used to establish diffusion - r with no periodic BC
-	allocate(rtether(nd,np+extralloc))
-	allocate(rijsum(nd,np+extralloc)) !Sum of rij for each i, used for SLLOD algorithm
 	allocate(v(nd,np+extralloc))
-	allocate(vmagnitude(np+extralloc))
 	allocate(a(nd,np+extralloc))
-	allocate(theta(nd,np+extralloc))
-	allocate(aD(nd,np+extralloc))
-	allocate(aR(nd,np+extralloc))
-	call random_number(theta)
-
-	!Allocate arrays use to fix molecules and allow sliding
-	allocate(tag(np+extralloc))
-	allocate(fix(nd,np+extralloc))
-	allocate(slidev(nd,np+extralloc))
 
 	!Allocate potential energy and virial per molecule array
 	allocate(potenergymol(np+extralloc))
 	allocate(potenergymol_LJ(np+extralloc))
 	allocate(virialmol(np+extralloc))
 
+	!Check if rtrue required
+	if (r_gyration_outflag .eq. 1 .or. vmd_outflag       .eq. 4) rtrue_flag = 1
+	if (rtrue_flag.eq.1) then
+		allocate(rtrue(nd,np+extralloc)) !Used to establish diffusion - r with no periodic BC
+		allocate(vtrue(nd,np+extralloc)) !Used to establish diffusion - r with no periodic BC
+	endif
+
+	!allocate(rijsum(nd,np+extralloc)) !Sum of rij for each i, used for SLLOD algorithm
+	!allocate(vmagnitude(np+extralloc))
+
+	if (ensemble .eq. nvt_DPD) then
+		allocate(theta(nd,np+extralloc))
+		allocate(aD(nd,np+extralloc))
+		allocate(aR(nd,np+extralloc))
+		call random_number(theta)
+	endif
+
+	!Allocate arrays use to fix molecules and allow sliding
+	if (ensemble .eq. tag_move) then
+		allocate(tag(np+extralloc))
+		allocate(fix(nd,np+extralloc))
+		fix = 1		!Set fix to one (unfixed)
+		allocate(rtether(nd,np+extralloc))
+		allocate(slidev(nd,np+extralloc))
+	endif
+
 	!Allocate pressure tensors
-	allocate(rfmol(np+extralloc,nd,nd))
-	allocate(Pxymol(np+extralloc,nd,nd))
+	if (pressure_outflag .eq. 1) then
+		allocate(rfmol(np+extralloc,nd,nd))
+		allocate(Pxymol(np+extralloc,nd,nd))
+	endif
 
 	!Allocate bulk shear array
-	allocate(mol_wrap_integer(np))
-
+	if (any(periodic.eq.2)) then
+		allocate(mol_wrap_integer(np))
+	endif
 
 end subroutine set_parameters_allocate
 
@@ -507,37 +521,48 @@ subroutine set_parameters_outputs
 	nhb = ceiling(dble(nbins)/dble(ncells))
 	nbinso = nbins+2*nhb
 
+	!Velocity binning routines
 	!nbins(1) = ceiling(np/10.d0)    	!Set number of equal sized velocity ranges based on 1/10 number of molecules
-	allocate(vfd_bin(nbins(1)))           	!Allocate storage space for frequency tally over time
-	allocate(normalisedvfd_bin(nbins(1))) 	!Allocate storage space for normalised frequency tally over time
-	vfd_bin = 0 		       		!Set initial molecular frequency count to zero
+	if (vdist_flag .eq. 1) then
+		allocate(vfd_bin(nbins(1)))           	!Allocate storage space for frequency tally over time
+		allocate(normalisedvfd_bin(nbins(1))) 	!Allocate storage space for normalised frequency tally over time
+		vfd_bin = 0 		       		!Set initial molecular frequency count to zero
 
-	!Define maximum possible velocity of a given molecule to determine size of each bin
-	maxv=initialvel*3.0            		!Assume molecule will not have more than 3 time its initial velocity 
-	binsize = maxv/nbins(1)
+		!Define maximum possible velocity of a given molecule to determine size of each bin
+		maxv=initialvel*3.0            		!Assume molecule will not have more than 3 time its initial velocity 
+		binsize = maxv/nbins(1)
+	endif
 
 	!Allocate and define number of shells used for Radial distribution function (rdf)
-	allocate(rdf_hist(rdf_nbins))                   !Allocate array to tally positions
-	allocate(rdf3d_hist(rdf_nbins,nd))                   !Allocate array to tally positions
-	allocate(rdf(rdf_nbins))                        !Allocate array for radial distribution function
-	allocate(rdf3d(rdf_nbins,nd))                        !Allocate array for radial distribution function
-	allocate(ssf_hist(2*ssf_nmax+1,2*ssf_nmax+1))   !Allocate array to tally positions
-	allocate(ssf(2*ssf_nmax+1,2*ssf_nmax+1))        !Allocate array for radial distribution function
-	rdf_hist= 0
-	rdf3d_hist= 0
-	rdf= 0.d0
-	rdf3d= 0.d0
-	ssf= 0.d0
-	ssf_hist= 0.d0
+	if (rdf_outflag .eq. 1) then
+		allocate(rdf(rdf_nbins))                        !Allocate array for radial distribution function
+		allocate(rdf_hist(rdf_nbins))                   !Allocate array to tally positions
+		rdf= 0.d0
+		rdf_hist= 0
+	elseif(rdf_outflag .eq. 2) then
+		allocate(rdf3d(rdf_nbins,nd))                   !Allocate array for radial distribution function
+		allocate(rdf3d_hist(rdf_nbins,nd))              !Allocate array to tally positions
+		rdf3d_hist= 0
+		rdf3d= 0.d0
+	endif
+	!Allocate and define arrays for static structure factor
+	if (ssf_outflag .eq. 1) then
+		allocate(ssf_hist(2*ssf_nmax+1,2*ssf_nmax+1))   !Allocate array to tally positions
+		allocate(ssf(2*ssf_nmax+1,2*ssf_nmax+1))        !Allocate array for radial distribution function
+		ssf= 0.d0
+		ssf_hist= 0.d0
+	endif
 
 	!Allocate array for diffusion to number of dimensions
-	allocate(diffusion(nd))
-	allocate(meandiffusion(nd))
-	diffusion = 0 !diffusion set to zero before sum over all molecules
+	!allocate(diffusion(nd))
+	!allocate(meandiffusion(nd))
+	!diffusion = 0 !diffusion set to zero before sum over all molecules
 
 	!Allocate pressure tensor correlation record length
-	allocate(Pxycorrel(Nstress_ave))
-	Pxycorrel = 0.d0
+	if(viscosity_outflag .eq. 1) then
+		allocate(Pxycorrel(Nstress_ave))
+		Pxycorrel = 0.d0
+	endif
 
 	!Allocated arrays for velocity slice
 	if (velocity_outflag.ne.0 .and. velocity_outflag.lt.4) then
@@ -566,8 +591,8 @@ subroutine set_parameters_outputs
 	endif
 
 	!Allocated Nose Hoover local PUT thermstat bins
-	allocate(zeta_array(nbins(1),nbins(2),nbins(3)))
-	zeta_array = 0.d0
+	!allocate(zeta_array(nbins(1),nbins(2),nbins(3)))
+	!zeta_array = 0.d0
 	!call local_temperature_header
 
 	!Pressure tensor
@@ -575,13 +600,14 @@ subroutine set_parameters_outputs
 	allocate(Pxyzero(nd,nd))
 	Pxy = 0.d0
 	Pxyzero = 0.d0
-
-	!Allocate pressure bin for Stress volume averaging
-	allocate( rfbin(nbinso(1),nbinso(2),nbinso(3),3,3))
-	allocate( vvbin(nbins(1),  nbins(2),  nbins(3),3,3  ))
-	allocate( Pxybin(nbins(1),  nbins(2),  nbins(3),3,3  ))
-	rfbin  = 0.d0
-	Pxybin = 0.d0
+	if (pressure_outflag .eq. 2) then
+		!Allocate pressure bin for Stress volume averaging
+		allocate( rfbin(nbinso(1),nbinso(2),nbinso(3),3,3))
+		allocate( vvbin(nbins(1),  nbins(2),  nbins(3),3,3  ))
+		allocate( Pxybin(nbins(1),  nbins(2),  nbins(3),3,3  ))
+		rfbin  = 0.d0
+		Pxybin = 0.d0
+	endif
 
 	if (temperature_outflag .eq. 4) then
 		allocate(volume_temperature(nbinso(1),nbinso(2),nbinso(3)))
@@ -589,8 +615,8 @@ subroutine set_parameters_outputs
 	endif
 
 	!Allocated Bins for Nose Hoover Stress Control
-	allocate(Gxybins(nbins(1),nbins(2),nbins(3),3,3))
-	Gxybins = 0.d0
+	!allocate(Gxybins(nbins(1),nbins(2),nbins(3),3,3))
+	!Gxybins = 0.d0
 
 	!Allocate array for Stress Method of Planes and/or 
 	!allocate bins for control volume momentum fluxes and forces
@@ -681,9 +707,6 @@ subroutine set_parameters_outputs
 		endif
 	endif
 #endif
-
-	if (r_gyration_outflag .eq. 1 .or. &
-	    vmd_outflag       .eq. 4) rtrue_flag = 1
 
 end subroutine set_parameters_outputs
 

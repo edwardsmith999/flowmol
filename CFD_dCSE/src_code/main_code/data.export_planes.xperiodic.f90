@@ -285,13 +285,14 @@ module data_export
 			ires_mt (nglevel_max),irhs_mt (nglevel_max),   &
 			ip_mt   (nglevel_max)
 
-!===============================================================
-!     for grid turbulence 
-!--------------------------------------------------------------
-!TAZ  take to (boundaries.f90) or some other routine.
-!--------------------------------------------------------------
-      parameter (nxalan=256/4 ,nyalan=640/4 ,nzalan=128/16+1)
-      ! integer nxalan,nyalan,nzalan
+	!===============================================================
+	!     for grid turbulence 
+	!--------------------------------------------------------------
+	!TAZ  take to (boundaries.f90) or some other routine.
+	!--------------------------------------------------------------
+	parameter (nxalan=256/4 ,nyalan=640/4 ,nzalan=128/16+1)
+	! integer nxalan,nyalan,nzalan
+
     !===============================================================
     !     for grid turbulence 
     !---------------------------------------------------------------

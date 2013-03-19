@@ -23,9 +23,8 @@ subroutine simulation_checkrebuild(rebuild)
 	integer, save		   :: rb_count, total_rb=0
 	integer, intent(out)   :: rebuild
 	double precision       :: vmax, t2, dt
-	double precision, save :: rmax = 0.d0, t1
-
-	double precision, save :: average_rb_count
+	double precision, save :: rmax = 0.d0, t1, average_rb_count
+	double precision,dimension(:),allocatable :: vmagnitude
 
 	rebuild = 0
 
@@ -59,12 +58,14 @@ subroutine simulation_checkrebuild(rebuild)
 	endif
 
 	!Evaluate velocity magnitude
+	allocate(vmagnitude(np))
 	do n = 1, np    ! Loop over all molecules
 		vmagnitude(n) = dot_product(v(:,n),v(:,n)) 
 	enddo
 	!Obtain maximum velocity
 	vmax = maxval(vmagnitude)
 	vmax = sqrt(vmax)
+	deallocate(vmagnitude)
 
 	!Calculate maximum possible displacement based on maximum velocity
 	rmax = rmax + vmax * delta_t

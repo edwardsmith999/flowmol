@@ -183,9 +183,9 @@ subroutine reformat_dcd
 		do i=1,NSET
 			starti = globalnp*(i-1)+1
 			endi   = globalnp*i
-			read(18) Xbuf(starti:endi)
-			read(18) Ybuf(starti:endi)
-			read(18) Zbuf(starti:endi)
+			read(17) Xbuf(starti:endi)
+			read(17) Ybuf(starti:endi)
+			read(17) Zbuf(starti:endi)
 			!read(18) Xbuf(globalnp*(i-1)+1:globalnp*i)
 			!read(18) Ybuf(globalnp*(i-1)+1:globalnp*i)
 			!read(18) Zbuf(globalnp*(i-1)+1:globalnp*i)
@@ -206,9 +206,9 @@ subroutine reformat_dcd
 		do i=1,NSET
 			starti = (i-1)*globalnp+1
 			endi   = i*globalnp
-			write(4) Xbuf(starti:endi)
-			write(4) Ybuf(starti:endi)
-			write(4) Zbuf(starti:endi)
+			write(3) Xbuf(starti:endi)
+			write(3) Ybuf(starti:endi)
+			write(3) Zbuf(starti:endi)
 			!write(4) Xbuf((i-1)*globalnp+1:i*globalnp)
 			!write(4) Ybuf((i-1)*globalnp+1:i*globalnp)
 			!write(4) Zbuf((i-1)*globalnp+1:i*globalnp)
