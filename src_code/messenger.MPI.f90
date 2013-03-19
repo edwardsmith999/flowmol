@@ -1343,9 +1343,11 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 
 		molno = old%molno!Number of molecule
 
-		dppack = real(tag(molno),kind(0.d0))
-		call MPI_Pack(dppack,1,MPI_DOUBLE_PRECISION, &
+		if (ensemble.eq.tag_move) then
+			dppack = real(tag(molno),kind(0.d0))
+			call MPI_Pack(dppack,1,MPI_DOUBLE_PRECISION, &
 		              sendbuffer,buffsize,pos,icomm_grid,ierr)
+		endif
 
 		Xpack(:) = r(:,molno)
 		call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
@@ -1361,11 +1363,13 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 			              sendbuffer,buffsize,pos,icomm_grid,ierr)
 		end if
 
-		if (any(tag(molno).eq.tether_tags)) then
-			Xpack(:) = rtether(:,molno)
-			call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
+		if (ensemble.eq.tag_move) then
+			if (any(tag(molno).eq.tether_tags)) then
+				Xpack(:) = rtether(:,molno)
+				call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
 			              sendbuffer,buffsize,pos,icomm_grid,ierr)
-		end if
+			end if
+		endif
 
 		if (potential_flag .eq. 1) then
 			call prepare_FENEbuffer(molno,FENEpack)
@@ -1414,9 +1418,11 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 		!Unpack rest of data into correct arrays --------------------!
 		do n=new_np+1,new_np+recvnp
 
-			call MPI_Unpack(recvbuffer,length,pos,dppack, &
+			if (ensemble.eq.tag_move) then
+				call MPI_Unpack(recvbuffer,length,pos,dppack, &
 							1,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-			tag(np+n)     = nint(dppack)
+				tag(np+n)     = nint(dppack)
+			endif
 
 			call MPI_Unpack(recvbuffer,length,pos,Xpack, &
 							nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
@@ -1432,11 +1438,13 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 				rtrue(:,np+n) = Xpack
 			end if
 			
-			if (any(tag(np+n).eq.tether_tags)) then
-				call MPI_Unpack(recvbuffer,length,pos,Xpack, &
-								nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
-				rtether(:,np+n) = Xpack
-			end if
+			if (ensemble.eq.tag_move) then
+				if (any(tag(np+n).eq.tether_tags)) then
+					call MPI_Unpack(recvbuffer,length,pos,Xpack, &
+									nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+					rtether(:,np+n) = Xpack
+				end if
+			endif
 
 			if (potential_flag .eq. 1 ) then
 				call MPI_Unpack(recvbuffer,length,pos,FENEpack, &
@@ -1450,7 +1458,11 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 		!Correct positions in new processor
 		do n=new_np+1,new_np+recvnp
 			r(ixyz,np+n) = r(ixyz,np+n) - dir * domain(ixyz)
-			rtether(ixyz,np+n) = rtether(ixyz,np+n) - dir * domain(ixyz)
+			if (ensemble.eq.tag_move) then
+				if (any(tag(np+n).eq.tether_tags)) then
+					rtether(ixyz,np+n) = rtether(ixyz,np+n) - dir * domain(ixyz)
+				endif
+			endif
 		enddo
 
 	end if
@@ -1477,7 +1489,11 @@ contains
 		sendsize = 1
 
 		!Add 2*nd for r, v and 1 for tag
-		sendsize = sendsize + 2*nd*sendnp + 1*sendnp
+		if (ensemble.eq.tag_move) then
+			sendsize = sendsize + 2*nd*sendnp + 1*sendnp
+		else
+			sendsize = sendsize + 2*nd*sendnp
+		endif
 	
 		!Add rtrue if necessary	
 		if (rtrue_flag.eq.1) then
@@ -1485,16 +1501,18 @@ contains
 		end if
 
 		!Check if any molecules are tethered
-		old => pass%head
-		current => old
-		do i=1,sendnp 
-			molno = old%molno
-			if (any(tag(molno).eq.tether_tags)) then
-				sendsize = sendsize + nd
-			end if
-			old => current%next
-			current => old	
-		end do
+		if (ensemble.eq.tag_move) then
+			old => pass%head
+			current => old
+			do i=1,sendnp 
+				molno = old%molno
+				if (any(tag(molno).eq.tether_tags)) then
+					sendsize = sendsize + nd
+				end if
+				old => current%next
+				current => old	
+			end do
+		endif
 
 		!Add space for polymer info if required
 		if (potential_flag.eq.1) then
@@ -1532,18 +1550,26 @@ subroutine reorderdata(new_np)
 
 		molno = old%molno	!Position of empty location 
 
-		tag(molno)       = tag(np+new_np)
+		if (ensemble.eq.tag_move) then
+			tag(molno)       = tag(np+new_np)
+		endif
 		r(:,molno)       = r(:,np+new_np)
 		v(:,molno)       = v(:,np+new_np)
-		rtrue(:,molno)   = rtrue(:,np+new_np)
-		rtether(:,molno) = rtether(:,np+new_np)
+		if (rtrue_flag.eq.1) then
+			rtrue(:,molno) = rtrue(:,np+new_np)
+		endif
+		if (ensemble.eq.tag_move) then
+			if (any(tag(molno).eq.tether_tags)) then
+				rtether(:,molno) = rtether(:,np+new_np)
+			endif
+		endif
 		
 		if (potential_flag .eq. 1) then	
 			monomer(molno) = monomer(np+new_np)
 		end if
 
 		!Read molecular tag and assign correct properties to reordered molecules
-		call read_tag(molno)
+		if (ensemble.eq.tag_move) call read_tag(molno)
 
 		!Update number of new molecules
 		new_np = new_np - 1
@@ -1554,9 +1580,11 @@ subroutine reorderdata(new_np)
 	enddo
 
 	!Read molecular tag and assign correct properties to new molecules
-	do i=np+1, np+new_np
-		call read_tag(i)
-	enddo
+	if (ensemble.eq.tag_move) then
+		do i=np+1, np+new_np
+			call read_tag(i)
+		enddo
+	endif
 
 	!Adjust total number of molecules to reflect difference between
 	!recieved molecules and passed molecules

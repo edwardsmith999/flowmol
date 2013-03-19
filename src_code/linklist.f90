@@ -1263,7 +1263,7 @@ subroutine sort_mols
 	integer,allocatable,dimension(:,:)				:: tagtemp
 	double precision,dimension(3)					:: blocksidelength
 	double precision,allocatable,dimension(:,:,:)	:: rtemp,vtemp
-	double precision,allocatable,dimension(:,:,:)	:: rtemp2,rtemp3
+	double precision,allocatable,dimension(:,:,:)	:: rtethertemp
 	!Safety factors in allocations
 	integer,save									:: sf2=5
 	double precision,save							:: sf1=1.5d0
@@ -1278,7 +1278,6 @@ subroutine sort_mols
 		nrebuilds = 1
 	endif
 
-
 	!Choose between the various sorting methodolgies
 	select case(sort_flag)
 	case(0)
@@ -1286,11 +1285,11 @@ subroutine sort_mols
 	case(1)
 		!Use ordered array generated during setup
 		if (potential_flag .eq. 1) call error_abort("Sort should be turned off - Not developed for polymers")
-		if (any(tag.ne.0)) call error_abort("Sort should be turned off - Not developed for tagged move system")
+		!if (any(tag.ne.0)) call error_abort("Sort should be turned off - Not developed for tagged move system")
 	case(2)
 		!Use Hilbert curve generated during setup
 		if (potential_flag .eq. 1) call error_abort("Sort should be turned off - Not developed for polymers")
-		if (any(tag.ne.0)) call error_abort("Sort should be turned off - Not developed for tagged move system")
+		!if (any(tag.ne.0)) call error_abort("Sort should be turned off - Not developed for tagged move system")
 	case default
 		call error_abort('Incorrect value of sort_flag')
 	end select
@@ -1304,15 +1303,20 @@ subroutine sort_mols
 	ave_molperblock = np/blocks
 	ave_molperblock = ceiling(ave_molperblock*sf1+sf2) 	!Add safety factor
 
+	!All variables associated with molecules
+	if (ensemble.eq.tag_move) then
+		allocate(tagtemp( ave_molperblock,blocks))
+		allocate(rtethertemp(nd,ave_molperblock,blocks))
+		tagtemp=0; rtethertemp=0.d0
+	endif
 	allocate(rtemp(nd,ave_molperblock,blocks))
 	allocate(vtemp(nd,ave_molperblock,blocks))
-	allocate(tagtemp( ave_molperblock,blocks))
-	allocate(molperblock(blocks))
-	rtemp=0.d0; vtemp=0.d0; tagtemp=0; molperblock = 0
-	if (rtrue_flag .eq. 1) allocate(rtemp2(nd,ave_molperblock,blocks))
-	if (allocated(tag)) then
-		allocate(rtemp3(nd,ave_molperblock,blocks))
-	endif
+	rtemp=0.d0; vtemp=0.d0
+	!if (rtrue_flag.eq.1) then
+	!	allocate(rtruetemp(nd,ave_molperblock,blocks))
+	!	rtruetemp=0.d0
+	!endif
+	allocate(molperblock(blocks)); molperblock = 0
 
 	!Copy all molecules to temp arrays in order of blocks
 	do n = 1,np
@@ -1325,20 +1329,22 @@ subroutine sort_mols
 		molperblock(i) = molperblock(i) + 1
 		! Error handeling
 		if (molperblock(i) .gt. ave_molperblock) then
-			print*, 'Warning - abnormal clustering of molecules in cell-block', iblk,jblk,kblk
-			print*, 'Average molecule allocation in sort is being increase from ',ave_molperblock*sf1+sf2
 			sf1 = sf1 + 0.1d0; sf2 = sf2 + 5;
-			print*, 'to',ave_molperblock*sf1+sf2
+			print'(a,i8,a,3i4,a,i4,2(a,i10))', 'There are ',molperblock(i), ' Mols in block  ', & 
+							 iblk,jblk,kblk, ' on proc ', irank, & 
+							' which is greater than the expected', ave_molperblock,' increased to ',nint(ave_molperblock*sf1+sf2)
 			return	!Miss this round of sorting 
 		endif
 		!print'(7i8)', n,iblk,jblk,kblk,i, molperblock(i), ave_molperblock
+		if (ensemble.eq.tag_move) then
+			tagtemp(molperblock(i),i) = tag(n)
+			rtethertemp(:,molperblock(i),i) = rtether(:,n)
+		endif
 		rtemp(:,molperblock(i),i) = r(:,n)
 		vtemp(:,molperblock(i),i) = v(:,n)
-		tagtemp(molperblock(i),i) = tag(n)
-		if (rtrue_flag.eq.1) rtemp2(:,molperblock(i),i) = rtrue(:,n)
-		if (allocated(tag)) then
-			if (any(tag(n).eq.tether_tags)) rtemp3(:,molperblock(i),i) = rtether(:,n)
-		endif
+		!if (rtrue_flag.eq.1) then
+		!	rtruetemp(:,n) = rtrue(:,n)
+		!endif
 
 		!print*, 'b4',n, r(:,n)
 	enddo
@@ -1348,9 +1354,22 @@ subroutine sort_mols
 	do i=1,blocks
 		finish = start + molperblock(i)-1
 		!print*, i, molperblock(i), start, finish!, rtemp(:,i,start:finish)
+		if (ensemble.eq.tag_move) then
+			tag(start:finish) = tagtemp(1:molperblock(i),i)
+			rtether(:,start:finish) = rtethertemp(:,1:molperblock(i),i)
+		endif
 		r(:,start:finish) = rtemp(:,1:molperblock(i),i)
 		v(:,start:finish) = vtemp(:,1:molperblock(i),i)
-		tag(start:finish) = tagtemp(1:molperblock(i),i)
+
+		!Read molecular tag and assign correct properties to reordered molecules
+		if (ensemble.eq.tag_move) then
+			do n=start,finish
+				call read_tag(n)
+			enddo
+		endif
+		!if (rtrue_flag.eq.1) then
+		!	rtrue(:,start:finish) = rtruetemp(:,start:finish,i)
+		!endif
 		!do n =start,finish
 		!	print*, 'af',n, r(:,n)
 		!enddo

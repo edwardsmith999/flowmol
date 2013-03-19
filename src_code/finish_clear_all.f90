@@ -27,32 +27,62 @@ implicit none
 	
 	!Deallocate all allocated arrays
 	deallocate(r)
-	deallocate(rtrue)
-	deallocate(rijsum)
 	deallocate(v)
-	deallocate(vmagnitude)
 	deallocate(a)
-	deallocate(theta)
-	deallocate(aD)
-	deallocate(aR)
-	deallocate(vfd_bin)
-	deallocate(normalisedvfd_bin)
+
+	deallocate(potenergymol)
+	deallocate(potenergymol_LJ)
+	deallocate(virialmol)
+
 	deallocate(seed)
 	deallocate(cell%head)
 	deallocate(cell%cellnp)
 	deallocate(bin%head)
 	deallocate(bin%cellnp)
-	deallocate(diffusion)
-	deallocate(meandiffusion)
-	deallocate(tag)
-	deallocate(fix)
-	deallocate(slidev)
-	deallocate(rfmol)
-	deallocate(rfbin)
+
+	if (rtrue_flag.eq.1) then
+		deallocate(rtrue)
+		deallocate(vtrue)
+	endif
+
+	!deallocate(rijsum)
+	!deallocate(vmagnitude)
+
+	if (ensemble .eq. nvt_DPD) then
+		deallocate(theta)
+		deallocate(aD)
+		deallocate(aR)
+	endif
+
+	if (ensemble .eq. tag_move) then
+		deallocate(tag)
+		deallocate(fix)
+		deallocate(rtether)
+		deallocate(slidev)
+	endif
+
+	if (vdist_flag .eq. 1) then
+		deallocate(vfd_bin)
+		deallocate(normalisedvfd_bin)
+	endif
+
+	!deallocate(diffusion)
+	!deallocate(meandiffusion)
+
 	deallocate(Pxy)
-	deallocate(Pxymol)
 	deallocate(Pxyzero)
-	deallocate(Pxycorrel)
+	if (pressure_outflag .eq. 1) then
+		deallocate(rfmol)
+		deallocate(Pxymol)
+	endif
+	if (pressure_outflag .eq. 2) then
+		deallocate(rfbin)
+		deallocate(vvbin)
+		deallocate(Pxybin)
+	endif
+	if(viscosity_outflag .eq. 1) then
+		deallocate(Pxycorrel)
+	endif
 
 	if (allocated(rdf))             deallocate(rdf)	
 	if (allocated(rdf3d))           deallocate(rdf3d)	
@@ -72,10 +102,10 @@ implicit none
 	if (allocated(energy_flux))     deallocate(energy_flux)
 	if (allocated(Pxyvface))     	deallocate(Pxyvface)
 
-	deallocate(potenergymol)
-	deallocate(potenergymol_LJ)
-	deallocate(virialmol)
-	deallocate(mol_wrap_integer)
+
+	if (any(periodic.eq.2)) then
+		deallocate(mol_wrap_integer)
+	endif
 
 	select case (potential_flag)
 	case(0)

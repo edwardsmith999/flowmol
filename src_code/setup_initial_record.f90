@@ -168,7 +168,6 @@ subroutine setup_initial_record
 		print'(a,3f10.5)', ' Velocity of Sliding Molecules in x,y and z:', 	wallslidev
 		print'(a,3f10.5)', ' Distance from bottom of NH Themostatted Molecules in x,y and z:', 	thermstatbottom
 		print'(a,3f10.5)', ' Distance from top of NH Themostatted Molecules in x,y and z:', 	thermstattop
-		print*, 'Molecular Reynolds number = ', (density * maxval(slidev(1,1:np)) * domain(2))/1.d0
 		print*, '==================== Computational Parameters ========================='
 		print'(a,3i8)', ' Domain split into computational cells in x,y and z:', & 
 					 ncells(1)*npx, ncells(2)*npy, ncells(3)*npz

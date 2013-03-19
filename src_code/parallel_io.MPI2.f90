@@ -901,10 +901,16 @@ subroutine parallel_io_final_state
 	rglobal(2,:) = r(2,1:np)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
 	rglobal(3,:) = r(3,1:np)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
 
-	allocate(rtetherglobal(3,np))
-	rtetherglobal(1,:) = rtether(1,1:np)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
-	rtetherglobal(2,:) = rtether(2,1:np)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
-	rtetherglobal(3,:) = rtether(3,1:np)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
+	!Allocate tag array to write for restart so as to maximise compatibility
+	if (ensemble.ne.tag_move) then
+		allocate(tag(np)); 	tag(:) = free 
+	else
+		!Convert any tehtered molecules to global coordinates ready to write out
+		allocate(rtetherglobal(3,np))
+		rtetherglobal(1,:) = rtether(1,1:np)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
+		rtetherglobal(2,:) = rtether(2,1:np)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
+		rtetherglobal(3,:) = rtether(3,1:np)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
+	endif
 
 	!Remove previous final state file
 	call MPI_FILE_DELETE(trim(prefix_dir)//'results/final_state', MPI_INFO_NULL, ierr)
