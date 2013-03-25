@@ -34,6 +34,8 @@ subroutine simulation_compute_forces
 	use module_compute_forces
 	use polymer_info_MD, only: solvent_flag
 	implicit none
+
+	integer	:: i
 	
 	a					= 0.d0	!Reset acceleration matrix before force calculations
 	potenergymol		= 0.d0	!Reset potential energy per molecule before calculation
@@ -96,6 +98,21 @@ subroutine simulation_compute_forces
 			call error_abort('Potential flag not recognised!')
 		end select
 	case default
+	end select
+
+	!Apply external force field to regions of spaces
+	select case(external_force_flag)
+	case(0)
+		!Do nothing - no force applied
+	case(1)
+		call simulation_apply_global_force(F_ext_ixyz,F_ext)
+	case(2)
+		call simulation_apply_local_force(F_ext_ixyz,F_ext, & 
+										  F_ext_limits(1),F_ext_limits(2), & 
+										  F_ext_limits(3),F_ext_limits(4), & 
+										  F_ext_limits(5),F_ext_limits(6))
+	case default
+		stop "Error - incorrectly specified external_force_flag"
 	end select
 
 end subroutine simulation_compute_forces

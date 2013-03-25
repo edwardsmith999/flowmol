@@ -62,17 +62,36 @@ module messenger
 
 contains
 
+	!=============================================================================
+	! Get molecule's global position from position local to processor.
+	!-----------------------------------------------------------------------------
 	function globalise(rloc) result(rglob)
 		implicit none
 		
 		real(kind(0.d0)), intent(in)  :: rloc(3)
 		real(kind(0.d0))              :: rglob(3)
 
-		rglob(1) = rloc(1)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
-		rglob(2) = rloc(2)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
-		rglob(3) = rloc(3)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
+		rglob(1) = rloc(1)-halfdomain(1)*(npx-1)+domain(1)*(iblock-1)
+		rglob(2) = rloc(2)-halfdomain(2)*(npy-1)+domain(2)*(jblock-1)
+		rglob(3) = rloc(3)-halfdomain(3)*(npz-1)+domain(3)*(kblock-1)
 
 	end function globalise
+
+	!=============================================================================
+	! Get local position on processor from molecule's global position.
+	!-----------------------------------------------------------------------------
+	function localise(rloc) result(rglob)
+		implicit none
+
+		double precision,intent(in) :: rloc(3)
+		double precision 			:: rglob(3)
+
+		!Global domain has origin at centre
+		rglob(1) = rloc(1)+halfdomain(1)*(npx-1)-domain(1)*(iblock-1)
+		rglob(2) = rloc(2)+halfdomain(2)*(npy-1)-domain(2)*(jblock-1)
+		rglob(3) = rloc(3)+halfdomain(3)*(npz-1)-domain(3)*(kblock-1)
+
+	end function localise
 
 end module messenger
 

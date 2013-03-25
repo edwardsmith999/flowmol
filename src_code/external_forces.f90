@@ -22,6 +22,67 @@ module module_external_forces
 
 end module module_external_forces
 
+
+!--------------------------------------------------------------------------------------
+!Apply a force with the same value to all molecules
+! ixyz - direction of force
+! F_const - force magnitude
+
+subroutine simulation_apply_global_force(ixyz,F_const)
+	use module_external_forces
+	implicit none
+
+	integer         			:: ixyz
+	double precision 			:: F_const
+
+	a(ixyz,:) = a(ixyz,:) + F_const
+
+end subroutine simulation_apply_global_force
+
+!--------------------------------------------------------------------------------------
+! Apply a localised force at a specified location
+! ixyz - direction of force
+! F_const - force magnitude
+! xmin,xmax,ymin,ymax,zmin,zmax - extents of forced region in global coordinates
+
+subroutine simulation_apply_local_force(ixyz,F_const,xmin,xmax,ymin,ymax,zmin,zmax)
+	use module_external_forces
+	use messenger, only : localise
+	implicit none
+
+	integer, intent(in) 		 :: ixyz
+	double precision, intent(in) :: F_const
+	double precision, intent(in) ::  xmin, xmax, ymin, ymax, zmin, zmax
+
+	integer				 		 :: n
+	double precision,dimension(3):: lmin,lmax
+
+	!Get local coordinates
+	lmin = (/ xmin, ymin, zmin /)
+	lmax = (/ xmax, ymax, zmax /)
+	lmin = localise(lmin); lmax = localise(lmax)
+
+	print'(15f7.3)', xmin,ymin,zmin,lmin,xmax,ymax,zmax,lmax,maxval(a(1,:)),maxval(a(2,:)),maxval(a(3,:))
+
+	do n=1,np
+		if (r(1,n) .lt. lmin(1)) cycle
+		if (r(1,n) .gt. lmax(1)) cycle
+		if (r(2,n) .lt. lmin(2)) cycle
+		if (r(2,n) .gt. lmax(2)) cycle
+		if (r(3,n) .lt. lmin(3)) cycle
+		if (r(3,n) .gt. lmax(3)) cycle
+
+		a(ixyz,n) = a(ixyz,n) + F_const
+
+	enddo
+
+	print'(15f7.3)', xmin,ymin,zmin,lmin,xmax,ymax,zmax,lmax,maxval(a(1,:)),maxval(a(2,:)),maxval(a(3,:))
+
+end subroutine simulation_apply_local_force
+
+!--------------------------------------------------------------------------------------
+!Apply a force to prevent molecules from escaping the domain
+
 subroutine apply_boundary_force
 	use computational_constants_MD, only: bforce_flag, bforce_dxyz, &
 	                                      bforce_off, bforce_NCER, bforce_OT, &

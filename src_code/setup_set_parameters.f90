@@ -38,7 +38,7 @@ subroutine setup_set_parameters
 	use librarymod, only : build_hilbert
 	implicit none
 
-	integer							:: iblk,jblk,kblk
+	integer							:: i,iblk,jblk,kblk
 	integer,dimension(3)			:: nblocks
 	double precision,dimension(3)	:: blocksidelength
 
@@ -120,6 +120,7 @@ subroutine setup_set_parameters
 		call setup_polymer_info
 	end select
 
+	!Setup boundary forces to prevent molecular escape
 	if (any(bforce_flag.ne.0)) then
 		teval = 1
 	else
@@ -128,6 +129,14 @@ subroutine setup_set_parameters
 #if USE_COUPLER
 	teval = 1
 #endif
+
+	!Setup external forces applied to regions of the domain
+	do i = 1,6
+		!If F_ext_limits > domain extents set to domain extents
+		if(abs(F_ext_limits(i)) .gt. globaldomain(ceiling(real(i)/2.d0))) then
+			F_ext_limits(i) = ((-1)**i)*globaldomain(ceiling(real(i)/2.d0))
+		endif
+	enddo
 
 end subroutine setup_set_parameters
 

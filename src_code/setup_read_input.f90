@@ -231,6 +231,27 @@ subroutine setup_read_input
 
 	end if
 
+	!Apply force to region in space
+	call locate(1,'EXTERNAL_FORCE',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) external_force_flag
+		if (external_force_flag .eq. 1) then
+			read(1,*) F_ext_ixyz
+			read(1,*) F_ext
+		elseif (external_force_flag .eq. 2) then
+			read(1,*) F_ext_ixyz
+			read(1,*) F_ext
+			read(1,*) F_ext_limits(1)
+			read(1,*) F_ext_limits(2)
+			read(1,*) F_ext_limits(3)
+			read(1,*) F_ext_limits(4)
+			read(1,*) F_ext_limits(5)
+			read(1,*) F_ext_limits(6)
+		endif
+	else
+		external_force_flag = 0
+	endif
+
 	!Define specular wall location (if any)
 	specular_wall = 0.d0
 	call locate(1,'SPECULAR_WALL',.false.,found_in_input)
