@@ -321,6 +321,12 @@ subroutine setup_read_input
 	else
 		tether_flag = 0
 	end if
+	call locate(1,'WALL_TEXTURE',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) texture_type
+	else
+		texture_type = 0
+	endif
 	call locate(1,'THERMSTATBOTTOM',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) thermstatbottom(1)

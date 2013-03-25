@@ -525,6 +525,9 @@ subroutine pack_cell(icell,jcell,kcell,sendbuffer,buffsize,pos)
 	cellnp = cell%cellnp(icell,jcell,kcell)
 	old => cell%head(icell,jcell,kcell)%point
 
+	!print*, associated(cell%head(icell,jcell, kcell)%point),cellnp
+	!call linklist_print(icell, jcell, kcell)
+
 	do i = 1,cellnp    !Step through each molecule in list 
 		molno = old%molno !Number of molecule
 		select case (potential_flag)

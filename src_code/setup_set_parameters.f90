@@ -182,8 +182,7 @@ subroutine set_parameters_allocate
 	!Allocate arrays use to fix molecules and allow sliding
 	if (ensemble .eq. tag_move) then
 		allocate(tag(np+extralloc))
-		allocate(fix(nd,np+extralloc))
-		fix = 1		!Set fix to one (unfixed)
+		allocate(fix(nd,np+extralloc)); fix = 1	!default - set fix to one (unfixed)
 		allocate(rtether(nd,np+extralloc))
 		allocate(slidev(nd,np+extralloc))
 	endif

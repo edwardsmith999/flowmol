@@ -219,7 +219,7 @@ implicit none
 end subroutine integrate_trap
 
 !-------------------------------------------------------------------------------------
-!Returns the heaviside function for input x
+!Returns the heaviside function for input x -- interface at top
 
 function int_heaviside(x)
 	implicit none
@@ -261,6 +261,10 @@ function dp_array_heaviside(x)
 	dp_array_heaviside = ceiling(sign(0.5d0,x(:)))
 
 end function dp_array_heaviside
+
+!Returns the heaviside function for input x -- interface at top
+!------------------------------------------------------------------------------
+
 
 !------------------------------------------------------------------------------
 ! Subroutine computes the intersection of a plane and a straight line
@@ -587,6 +591,103 @@ contains
 	end subroutine hilbert3
 
 end subroutine build_hilbert
+
+
+!-----------------------------------------------------
+! Return random numbers from distributions
+
+! Normal distribtion
+function normal_dist
+	use physical_constants_MD, only : pi
+	implicit none
+
+	double precision			  :: normal_dist
+	double precision,dimension(2) :: rand, randn
+
+	!Use box-muller to get normally distributed random numbers
+	call random_number(rand)
+	randn(1) = sqrt(-2*log(rand(1)))*cos(2*pi*rand(2))
+	randn(2) = sqrt(-2*log(rand(1)))*sin(2*pi*rand(2))
+
+	normal_dist = randn(1)
+
+end function normal_dist
+
+! Number picked from Rayleigh velocity distribution 
+! m*vi/(kb*T) * exp(-m(vi - u)**2/(2*kb*T))
+function Rayleigh_vel(T,u)
+	implicit none
+
+	double precision			:: T, u, Rayleigh_vel
+	double precision			:: rand
+	double precision,parameter 	:: kB = 1	!Boltzmann's constant
+
+	! Rayleigh distributed number about 0 generated and added to
+	! mean u to give required velocity
+	call random_number(rand)
+	Rayleigh_vel = u + sqrt(-2.d0 * kB*T * log(rand))
+
+end function Rayleigh_vel
+
+! Number picked from Maxwell Boltzmann velocity distribution 
+! N.B. One component of a molecules velocity vector 
+! so this is just the normal distribution
+! m/(kb*T) * exp(-m(vi - u)**2/(2*kb*T))
+function Maxwell_Boltzmann_vel(T,u)
+	use physical_constants_MD, only : pi
+	implicit none
+
+	double precision			 :: T, u, Maxwell_Boltzmann_vel
+	double precision			 :: randn
+	double precision,dimension(2):: rand
+
+	!Use box-muller to get normally distributed random numbers for 1D Maxwell Boltzmann
+	call random_number(rand)
+	Maxwell_Boltzmann_vel = u + sqrt(-2*T*log(rand(1)))*cos(2*pi*rand(2))
+
+end function Maxwell_Boltzmann_vel
+
+! Number picked from Maxwell Boltzmann speed distribution 
+! N.B. This is the magnitude of all three velocity vectors
+! [m/(kb*T)]^(3/2) * 4 * pi * (vi-u)^2 * exp(-m(vi - u)**2/(2*kb*T))
+function Maxwell_Boltzmann_speed(T,u)
+	use physical_constants_MD, only : pi
+	implicit none
+
+	double precision			 :: T, u, Maxwell_Boltzmann_speed
+	double precision,dimension(3):: randn
+	double precision,dimension(4):: rand
+	double precision,parameter 	 :: kB = 1	!Boltzmann's constant
+
+	!Use box-muller to get normally distributed random numbers
+	call random_number(rand)
+	randn(1) = sqrt(-2*log(rand(1)))*cos(2*pi*rand(2))
+	randn(2) = sqrt(-2*log(rand(1)))*sin(2*pi*rand(2))
+	randn(3) = sqrt(-2*log(rand(3)))*cos(2*pi*rand(4))
+
+	!Convert to Maxwell Boltzmann
+	Maxwell_Boltzmann_speed = u + sqrt(kB*T*dot_product(randn,randn))
+
+end function Maxwell_Boltzmann_speed
+
+!Use Maxwell Boltzmann distribution to pick a 3 component velocity vector
+! m/(kb*T) * exp(-m(vi - u)**2/(2*kb*T))
+function Maxwell_Boltzmann_vel3(T,u)
+	use physical_constants_MD, only : pi
+	implicit none
+
+	double precision			 :: T
+	double precision,dimension(3):: Maxwell_Boltzmann_vel3, u 
+	double precision,dimension(4):: rand
+	double precision,parameter 	 :: kB = 1	!Boltzmann's constant
+
+	!Use box-muller to get normally distributed random numbers
+	call random_number(rand)
+	Maxwell_Boltzmann_vel3(1) = u(1) + sqrt(-2*kB*T*log(rand(1)))*cos(2*pi*rand(2))
+	Maxwell_Boltzmann_vel3(2) = u(2) + sqrt(-2*kB*T*log(rand(1)))*sin(2*pi*rand(2))
+	Maxwell_Boltzmann_vel3(3) = u(3) + sqrt(-2*kB*T*log(rand(3)))*cos(2*pi*rand(4))
+
+end function Maxwell_Boltzmann_vel3
 
 !--------------------------------------------------------------------------------------
 ! Split an integer into three factors minimising value of each
