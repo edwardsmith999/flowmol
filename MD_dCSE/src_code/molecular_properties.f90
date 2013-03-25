@@ -176,7 +176,7 @@ subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 	double precision,dimension(3),intent(out):: tagdistbottom,tagdisttop
 
 	integer 				:: n,icell,jcell
-	double precision		:: xlocation,zlocation
+	double precision		:: xlocation,zlocation,rand
 
 	select case (texture_type)
 	case(posts)
@@ -199,29 +199,43 @@ subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 	!	enddo
 
 	case(roughness)
-		!Spikes ----- NOTE THESE HAVE NOT BEEN TESTED AND SHOULD BE USED WITH CAUTION
-	!	do n = 1, np
-	!		xlocation = pi*(r(1,n)+halfdomain(1))/domain(1)
-	!		if (r(2,n) .gt. cellsidelength(2)-halfdomain(2)) then
-	!			!--x direction--
-	!			if (r(2,n) .gt. (0.3d0+sin(5*xlocation)*heaviside(sin(5*xlocation))) & 
-	!					 *5.d0*cellsidelength(2)-halfdomain(2)) tag(n) = free
-	!			if (r(2,n) .gt. (3.d0+sin(10*xlocation)) & 
-	!					 *2.5d0*cellsidelength(2)-halfdomain(2)) tag(n) = free 
-				!Add Noise
-	!			if (r(2,n) .gt. (0.3d0+sin(5*xlocation)*heaviside(sin(5*xlocation))+0.3*sin(100*xlocation)) & 
-	!					 *4.d0*cellsidelength(2)-halfdomain(2)) tag(n) = free
 
-				!--z direction--
-	!			if (r(2,n) .gt. (0.3d0+sin(5*zlocation)*heaviside(sin(5*zlocation))) & 
-	!					 *5.d0*cellsidelength(2)-halfdomain(2)) tag(n) = free
-	!			if (r(2,n) .gt. (3.d0+sin(10*zlocation)) & 
-	!					 *2.5d0*cellsidelength(2)-halfdomain(2)) tag(n) = free
-				!Add Noise
-	!			if (r(2,n) .gt. (0.3d0+sin(5*zlocation)*heaviside(sin(5*zlocation))+0.3*sin(100*zlocation)) & 
-	!					 *4.d0*cellsidelength(2)-halfdomain(2)) tag(n) = free
-	!		endif
-	!	enddo
+		!rough wall
+		call random_number(rand)
+		tagdistbottom = 0.d0; tagdisttop=0.d0
+		xlocation = rg(1)/globaldomain(1) + 0.5
+		zlocation = rg(3)/globaldomain(3) + 0.5
+		!X roughness
+		tagdistbottom(2) =   0.2d0*globaldomain(2) &  
+  						   + 0.1d0*globaldomain(2)*sin(2*pi*xlocation) + &
+						   + 0.1d0*globaldomain(2)*sin(5*pi*xlocation) + &
+						   + 0.1d0*globaldomain(2)*sin(20*pi*xlocation) + &
+						   + 0.1d0*globaldomain(2)*2.d0*(rand-1)
+		tagdisttop(2)    =   0.2d0*globaldomain(2) &  !Minimum height
+  						   + 0.1d0*globaldomain(2)*sin(2*pi*xlocation) + &
+						   + 0.1d0*globaldomain(2)*sin(5*pi*xlocation) + &
+						   + 0.1d0*globaldomain(2)*sin(20*pi*xlocation) + &
+						   + 0.1d0*globaldomain(2)*2.d0*(rand-1)
+		!Z roughness
+		!tagdistbottom(2) = tagdistbottom(2)  &
+  		!				   + 0.1d0*globaldomain(2)*sin(2*pi*zlocation) + &
+		!				   + 0.1d0*globaldomain(2)*sin(5*pi*zlocation) + &
+		!				   + 0.1d0*globaldomain(2)*sin(20*pi*zlocation) + &
+		!				   + 0.1d0*globaldomain(2)*2.d0*(rand-1)
+		!tagdisttop(2)    =   tagdisttop(2)   &
+  		!				   + 0.1d0*globaldomain(2)*sin(2*pi*zlocation) + &
+		!				   + 0.1d0*globaldomain(2)*sin(5*pi*zlocation) + &
+		!				   + 0.1d0*globaldomain(2)*sin(20*pi*zlocation) + &
+		!				   + 0.1d0*globaldomain(2)*2.d0*(rand-1)
+
+		!Ensure Minimum height
+		if (tagdistbottom(2) .lt. 0.05d0*globaldomain(2)) then
+			tagdistbottom(2) = 0.05d0*globaldomain(2)
+		endif
+	
+		if (tagdisttop(2) .lt. 0.05d0*globaldomain(2)) then
+			tagdisttop(2) = 0.05d0*globaldomain(2)
+		endif
 
 	case(converge_diverge)
 		!A converging diverging channel
@@ -229,7 +243,6 @@ subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 		xlocation = rg(1)/globaldomain(1) + 0.5
 		tagdistbottom(2) = 0.2d0*globaldomain(2)*sin(pi*xlocation) + cellsidelength(2)
 		tagdisttop       = tagdistbottom
-		print*, rg(1),xlocation,tagdistbottom(2),cellsidelength(2)
 	end select
 
 end subroutine wall_textures

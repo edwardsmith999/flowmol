@@ -41,12 +41,17 @@ module computational_constants_MD
 	character(len=200) 		:: input_file, initial_microstate_file
 
 	!Force and Potential flags
-	integer							 :: force_list		!flag for neighbr/cell list
-	integer							 :: potential_flag	!Choose LJ or Polymer potential
-	integer                 		 :: tether_flag     !True if there exists 
+	integer						  :: force_list	   		 !flag for neighbr/cell list
+	integer						  :: potential_flag  	 !Choose LJ or Polymer potential
+	integer                 	  :: tether_flag     	 !True if there exists 
+	integer                 	  :: external_force_flag !Apply external forces?
+	integer                 	  :: F_ext_ixyz			 !Direction of external forces
+	double precision        	  :: F_ext				 !Magnitude of external forces
+	double precision,dimension(6) :: F_ext_limits		 !Limits of region external forces applied to
+
 
 	! Move particle tags
-	logical :: tag_thermostat_active
+	logical 		   :: tag_thermostat_active
 	integer, parameter :: free = 0
 	integer, parameter :: fixed = 1
 	integer, parameter :: fixed_slide = 2
