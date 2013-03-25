@@ -538,6 +538,142 @@ contains
 
 end subroutine average_and_send_MD_to_CFD
 
+!==============================================================================
+!  ____  _  _  ___  ____  ____  ____    __  __  _____  __    ___
+! (_  _)( \( )/ __)( ___)(  _ \(_  _)  (  \/  )(  _  )(  )  / __)
+!  _)(_  )  ( \__ \ )__)  )   /  )(     )    (  )(_)(  )(__ \__ \
+! (____)(_)\_)(___/(____)(_)\_) (__)   (_/\/\_)(_____)(____)(___/
+! 
+! Receive mass flux from CFD and create or remove molecules as required
+!-----------------------------------------------------------------------------
+
+subroutine insert_remove_molecules
+	use physical_constants_MD, only : np
+	use computational_constants_MD, only : delta_t, nh, ncells, iter, & 
+										   cellsidelength, halfdomain, &
+	                                       delta_rneighbr,iblock,jblock,kblock
+	use CPL, only : CPL_overlap, CPL_recv, CPL_proc_extents, & 
+					CPL_realm, CPL_get, coupler_md_get_dt_cfd
+	use linked_list
+	implicit none
+
+	logical,save			:: recv_flag, first_time=.true.
+	integer 				:: iter_average
+	integer					:: icell,jcell,kcell
+	integer,save			:: cnstd(6),pcoords(3),extents(6),timestep_ratio,nclx,ncly,nclz
+	integer,dimension(:,:,:),allocatable	:: mols_change
+	integer,dimension(:,:,:),allocatable,save :: total_mols_change
+	double precision,dimension(:,:,:),allocatable	:: mass_cfd
+	double precision,dimension(:,:,:),allocatable,save	:: mass_change
+
+	! Check processor is inside MD/CFD overlap zone 
+	if (.not.(CPL_overlap())) return
+
+	if (first_time) then
+		first_time = .false.
+		!Save extents of current processor
+		pcoords= (/ iblock,jblock,kblock   /)
+		call CPL_proc_extents(pcoords,CPL_realm(),extents)
+
+		! Get total number of CFD cells on each processor
+		nclx = extents(2)-extents(1)+1
+		ncly = extents(4)-extents(3)+1
+		nclz = extents(6)-extents(5)+1
+
+		!Allocate array to keep track of running total of mass change
+		allocate(mass_change((nclx,ncly,nclz))
+		uvw_cfd = 0.d0
+
+		!Get local copies of required simulation parameters
+		call CPL_get(icmin_cnst=cnstd(1),icmax_cnst=cnstd(2), & 
+	                 jcmin_cnst=cnstd(3),jcmax_cnst=cnstd(4), & 
+					 kcmin_cnst=cnstd(5),kcmax_cnst=cnstd(6), &
+	                 timestep_ratio=timestep_ratio 				)
+
+	endif
+
+	iter_average = mod(iter-1, timestep_ratio)+1
+
+	! Receive value of CFD mass fluxes at first timestep of timestep_ratio
+	if (iter_average .eq. 1) then
+		allocate(mass_cfd(nclx,ncly,nclz))
+		call CPL_recv(mass_cfd,                                 & 
+		              icmin_recv=cnstd(1),icmax_recv=cnstd(2), &
+		              jcmin_recv=cnstd(3),jcmax_recv=cnstd(4), &
+		              kcmin_recv=cnstd(5),kcmax_recv=cnstd(6), &
+		              recv_flag=recv_flag                       )
+
+		!Get total number of molecules to insert before next exchange
+		total_mols_change = floor(mass_change)
+	endif
+
+	!Get number of molecules per cell to insert/remove
+	allocate(mols_change(nclx,ncly,nclz))
+	call get_no_mols_to_append(mass_cfd,mass_change,mols_change)
+
+	!Loop through all cells inserting/removing molecules
+	jcell = cnstd(4)
+	do icell=cnstd(1),cnstd(2)
+	do kcell=cnstd(5),cnstd(6)
+		do n=1,abs(mass_cfd(icell,jcell,kcell))
+			!Check if molecule is to insert or remove
+			if (mass_cfd(icell,jcell,kcell) .gt. 0) then
+				!Create molecule and insert
+				call create_position(icell,jcell,kcell,rin)
+				call create_velocity(vin)
+				call insert_molecule(rin,vin)
+			else
+				!Choose molecule to remove and then remove it
+				call choose_molecule(icell,jcell,kcell,molno)
+				call remove_molecule(molno)
+			endif
+		enddo
+	enddo
+	enddo
+
+contains
+
+	subroutine get_no_mols_to_append(mass_change,mols_change,new_mass_cfd)
+	implicit none
+
+	!Default is to not insert/remove anything
+	mols_change = 0
+
+	!Add any new mass to cumulative mass change
+	if (present(new_mass_cfd)) then
+		mass_change = mass_change + new_mass_cfd
+	endif
+
+
+
+	!Check if multiple molecules are to be inserted each timestep
+	!if(any(total_mols_change .gt. timestep_ratio)) then
+		
+	!endif
+
+	!Loop over all cells
+	jcell = cnstd(4)
+	do icell=cnstd(1),cnstd(2)
+	do kcell=cnstd(5),cnstd(6)
+
+		!Space out insertion of molecules over the time interval
+		insert_time = mod(iter-1, (timestep_ratio/total_mols_change(icell,jcell,kcell)))+1
+
+		if (insert_time .eq. 1) then
+			mols_change(icell,jcell,kcell) = ceiling(total_mols_change(icell,jcell,kcell)/timestep_ratio)
+			mass_change(icell,jcell,kcell) = mass_change(icell,jcell,kcell) - mols_change(icell,jcell,kcell)
+		endif
+
+	enddo
+	enddo
+	
+
+
+
+	end subroutine get_no_mols_to_append
+
+end subroutine insert_remove_molecules
+
 
 !=============================================================================
 !   ___  _____  _  _  ___  ____  ____    __    ____  _  _  ____ 

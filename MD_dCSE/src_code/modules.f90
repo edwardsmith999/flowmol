@@ -60,6 +60,12 @@ module computational_constants_MD
 	integer, dimension(4), parameter :: tether_tags=(/teth,teth_thermo,teth_slide,teth_thermo_slide/)
 	integer, dimension(5), parameter :: thermo_tags=(/thermo,teth_thermo,teth_thermo_slide,PUT_thermo,z_thermo/)
 
+	! Wall texture flags
+	integer			   :: texture_type
+	integer, parameter :: posts = 1
+	integer, parameter :: roughness = 2
+	integer, parameter :: converge_diverge = 3
+
 	!Integration algorithm
 	integer                 :: integration_algorithm
 	integer                 :: ensemble

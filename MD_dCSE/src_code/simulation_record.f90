@@ -271,6 +271,16 @@ subroutine evaluate_macroscopic_properties
 		potenergy_LJ= potenergysum_LJ/(2.d0*real(globalnp,kind(0.d0))) + Potential_sLRC
 		potenergy_FENE= potenergysum_FENE/(2.d0*real(globalnp,kind(0.d0)))
 	end if
+	!print'(4(a,f18.8))', ' <PE>= ',potenergy, & 
+	!						 ' std(PE) = ',sqrt(sum((potenergymol(1:np)-potenergy)**2)/(2.d0*real(globalnp,kind(0.d0)))), & 
+	!						 ' max= ',maxval(potenergymol(1:np)),' min= ',minval(potenergymol(1:np))
+	if (maxval(potenergymol(1:np)) .gt. 100) then
+		print*, np, maxval(potenergymol(1:np))
+		do n=1,np
+			print'(i10,4f18.8)', n , potenergymol(n), r(:,n)
+		enddo
+		stop
+	endif
 	totenergy   = kinenergy + potenergy
 	temperature = v2sum / real(nd*globalnp,kind(0.d0))
 	if (any(periodic.gt.1)) temperature = get_temperature_PUT()
@@ -553,6 +563,40 @@ implicit none
 	hist_count = hist_count + 1
 
 end subroutine evaluate_properties_rdf3d
+
+!Use a test particle to plot the potential field
+subroutine simulation_write_potential_field(xmin,xmax,ymin,ymax,z,res,filenum)
+	implicit none
+
+	integer, intent(in) :: res, filenum	
+	real(kind(0.d0)), intent(in) :: xmin, xmax, ymin, ymax, z
+
+	integer :: i,j
+	real(kind(0.d0)) :: x, y, dx, dy
+	real(kind(0.d0)) :: U
+	real(kind(0.d0)) :: dummy(3)
+
+	dx = (xmax - xmin)/real(res)
+	dy = (ymax - ymin)/real(res)
+
+	do i = 0,res
+
+		do j = 0,res
+
+				x  = xmin + i*dx
+				y  = ymin + j*dy 
+
+				call compute_force_and_potential_at((/x,y,z/),U,dummy)
+
+				write(filenum,*) x, y, U
+
+		end do
+
+		write(filenum,*) ' ' 
+
+	end do
+
+end subroutine simulation_write_potential_field
 
 !============================================================================!
 ! Evaluate static structure factor S(k) in three dimensions
