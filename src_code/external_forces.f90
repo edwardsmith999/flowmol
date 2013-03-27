@@ -62,7 +62,7 @@ subroutine simulation_apply_local_force(ixyz,F_const,xmin,xmax,ymin,ymax,zmin,zm
 	lmax = (/ xmax, ymax, zmax /)
 	lmin = localise(lmin); lmax = localise(lmax)
 
-	print'(15f7.3)', xmin,ymin,zmin,lmin,xmax,ymax,zmax,lmax,maxval(a(1,:)),maxval(a(2,:)),maxval(a(3,:))
+	!print'(3i4,12f10.4)',iblock,jblock,kblock,xmin,ymin,zmin,lmin,xmax,ymax,zmax,lmax!,maxval(a(1,:)),maxval(a(2,:)),maxval(a(3,:))
 
 	do n=1,np
 		if (r(1,n) .lt. lmin(1)) cycle
@@ -71,12 +71,12 @@ subroutine simulation_apply_local_force(ixyz,F_const,xmin,xmax,ymin,ymax,zmin,zm
 		if (r(2,n) .gt. lmax(2)) cycle
 		if (r(3,n) .lt. lmin(3)) cycle
 		if (r(3,n) .gt. lmax(3)) cycle
+	
+		!print'(3i4,5f14.8)',iblock,jblock,kblock,xmin,lmin(1),xmax,lmax(1), r(1,n)
 
 		a(ixyz,n) = a(ixyz,n) + F_const
 
 	enddo
-
-	print'(15f7.3)', xmin,ymin,zmin,lmin,xmax,ymax,zmax,lmax,maxval(a(1,:)),maxval(a(2,:)),maxval(a(3,:))
 
 end subroutine simulation_apply_local_force
 
