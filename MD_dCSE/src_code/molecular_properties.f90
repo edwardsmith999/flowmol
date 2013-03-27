@@ -241,7 +241,7 @@ subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 		!A converging diverging channel
 		tagdistbottom = 0.d0; tagdisttop=0.d0
 		xlocation = rg(1)/globaldomain(1) + 0.5
-		tagdistbottom(2) = 0.2d0*globaldomain(2)*sin(pi*xlocation) + cellsidelength(2)
+		tagdistbottom(2) = 0.3d0*globaldomain(2)*sin(pi*xlocation) + cellsidelength(2)
 		tagdisttop       = tagdistbottom
 	end select
 
