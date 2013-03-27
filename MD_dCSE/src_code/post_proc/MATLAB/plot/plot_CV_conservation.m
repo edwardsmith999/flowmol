@@ -2,49 +2,82 @@
 close all
 clear all
 
-pwdir = '/home/es205/codes/coupled/MD_dCSE/src_code/post_proc/MATLAB';
-ibin = 4; jbin = 4; kbin=4;
-resultfile_dir = './../../results/';
-%========CV Mass Conservation=======
-%Spacial evolution of domain at time half way from start to finish
-[mass_flux,mass_snapshot,Nmflux_records] = read_mflux('./mflux','./msnap',resultfile_dir);
-%Calculate total CV flux and change in mass
-totalmflux = squeeze(sum(mass_flux,4));
-for i =1:Nmflux_records
-    dmassdt(:,:,:,i) = mass_snapshot(:,:,:,i+1) - mass_snapshot(:,:,:,i);
-end
-%Verify that CV mass is exactly conservative
-display(strcat('Maximum error in CV mass conservation =', ... 
-   num2str(max(max(max(max(squeeze(totalmflux(:,:,:,:)) - squeeze(dmassdt(:,:,:,:))))))*...
-           min(min(min(min(squeeze(totalmflux(:,:,:,:)) - squeeze(dmassdt(:,:,:,:))))))*100),'%'));
-
-
-
-%Temporal evolution of bin in centre of domain
-start = 2;
-finish = 40;
+set(0,'DefaultFigureRenderer','OpenGL')
+%pwdir = '/home/es205/codes/coupled/MD_dCSE/src_code/post_proc/MATLAB';
+%resultfile_dir = './../../results/';
+%pwdir='/home/es205/results/md_results/fortran/3D_code/parallel/results/converge_diverge';
+%resultfile_dir = '/home/es205/results/md_results/fortran/3D_code/parallel/results/converge_diverge/';
+pwdir='/home/es205/codes/coupled/MD_dCSE/src_code/';
+resultfile_dir = '/home/es205/codes/coupled/MD_dCSE/src_code/results/';
+%Read Header
 read_header
-ibin = floor(gnbins(1)/2);
-jbin = floor(gnbins(2)/2);
-kbin = floor(gnbins(3)/2);
-plot(squeeze(totalmflux(ibin,jbin,kbin,start:finish)),'r-')
-hold all
-plot(squeeze(dmassdt(ibin,jbin,kbin,start:finish)),'b--')
+
+%ibin = floor(gnbins(1)/2.0); jbin = floor(gnbins(2)/2.0); kbin=floor(gnbins(3)/2.0);
+ibin = gnbins(1)-4; jbin = floor(gnbins(2)/2.0); kbin=floor(gnbins(3)/2.0);
+
+%Check if cv conservation is employed - exit if not
+if (exist('cv_conserve'))
+    cv_conserve = cv_conserve;
+else
+    cv_conserve = 0;
+end
+if (cv_conserve == 1)
+    Nmflux_records = (Nsteps-initialstep) / (Nmflux_ave);
+else
+    error('CV used for averages only so not conserved')
+end
+
+%========CV Mass Conservation=======
+n = 1;
+skip = 10;
+for m =1:skip:Nmflux_records-2
+    m
+    %Spacial evolution of domain at time half way from start to finish
+    [mass_flux,mass_snapshot] = read_mflux('./mflux','./msnap',resultfile_dir,m);
+
+    %Calculate total CV flux and change in mass
+    totalmflux = squeeze(sum(mass_flux,4));
+
+	%Spacial evolution of domain between time m and m+1
+    [mass_flux_tp1,mass_snapshot_tp1] = read_mflux('./mflux','./msnap',resultfile_dir,m+1);
+    dmassdt(:,:,:) = mass_snapshot_tp1 - mass_snapshot;
 
 
+    
+    %Verify that CV mass is exactly conservative
+    conserved = (squeeze(totalmflux(:,:,:)) - squeeze(dmassdt(:,:,:)));
+    if (max(conserved(:)) > 0.0 || min(conserved(:)) < 0.0)
+        %Display message
+        display(strcat('Error in CV mass conservation =', ... 
+            num2str(max(conserved(:))+abs(min(conserved(:))))*100),'% - beginning debug');
+        
+        %Plot slice of regions where not conserved
+        h=slice(conserved,[],[],[10]); 
+        view([10,20,5]); axis 'equal'; 
+        set(h,'FaceColor','interp','EdgeColor','none','DiffuseStrength',.8)
+        colorbar; drawnow; pause()
+
+        %Log temporal evolution over 100 timesteps
+        skip = 1;   
+        %Save conservation time plot for a cell
+        dt(n) = squeeze(dmassdt(ibin,jbin,kbin));
+        dm(n) = squeeze(totalmflux(ibin,jbin,kbin));
+        n = n + 1;
+        if (n == 100)
+            %Plot 100 steps of a single cell
+            plot(dt)
+            hold all
+            plot(dm,'r--')
+            break
+        end
+    else
+        display(strcat('CV mass conservation OK'));
+    end
+
+end 
 
 %========CV Momementum Conservation=======         
-%Find results files
-resultfile_dir = './../../results/';
-
-%Check CV momentum has been recorded
-cd(resultfile_dir);
-fid = fopen('./vflux','r','ieee-le');
-cd (pwdir);
-%Check file exists
-if (fid == -1)
-    return % stop rest if not...
-end
+clear mass_flux mass_snapshot mass_flux_tp1 mass_snapshot_tp1 conserved
 
 %Read Header file
 read_header
@@ -54,8 +87,9 @@ Domain_setup
 ixyz = 1;
 jxyz = 2;
 Nvflux_records = Nsteps / (Nvflux_ave);
+skip =1
 %Check CV are satisfied
-for m =1:1:Nvflux_records-3
+for m =1:skip:Nvflux_records-3
     m
     %Load momentum flux values for current timestep
     [velocity_snapshot(:,:,:,:), ...
@@ -74,122 +108,143 @@ for m =1:1:Nvflux_records-3
                    +((pressure_surface(:,:,:,:,3)-pressure_surface(:,:,:,:,6)))/(binsize(3));
                   
      %totalpressure = totalpressure*delta_t
-     dvelocitydt(:,:,:,:) =  (velocity_snapshot_tplus2(:,:,:,:) - velocity_snapshot_tplus1(:,:,:,:))/(delta_t*Nvflux_ave);
+     dvelocitydt(:,:,:,:) =  (velocity_snapshot_tplus2(:,:,:,:)  ...
+                            - velocity_snapshot_tplus1(:,:,:,:))/(delta_t*Nvflux_ave);
      
      
-     domain_ave_pressure_tensor(:,1,m) = mean(mean(mean((pressure_surface(:,:,:,:,1)+pressure_surface(:,:,:,:,4)),1),2),3)/2;
-     domain_ave_pressure_tensor(:,2,m) = mean(mean(mean((pressure_surface(:,:,:,:,2)+pressure_surface(:,:,:,:,5)),1),2),3)/2; 
-     domain_ave_pressure_tensor(:,3,m) = mean(mean(mean((pressure_surface(:,:,:,:,3)+pressure_surface(:,:,:,:,6)),1),2),3)/2;
+     %domain_ave_pressure_tensor(:,1,m) = mean(mean(mean((pressure_surface(:,:,:,:,1)+pressure_surface(:,:,:,:,4)),1),2),3)/2;
+     %domain_ave_pressure_tensor(:,2,m) = mean(mean(mean((pressure_surface(:,:,:,:,2)+pressure_surface(:,:,:,:,5)),1),2),3)/2; 
+     %domain_ave_pressure_tensor(:,3,m) = mean(mean(mean((pressure_surface(:,:,:,:,3)+pressure_surface(:,:,:,:,6)),1),2),3)/2;
 
-     a(m,1,:) =totalpressure(ibin,jbin,kbin,:);
-     a(m,2,:) =dvelocitydt(ibin,jbin,kbin,:);
-     a(m,3,:) =totalflux(ibin,jbin,kbin,:);
+     a(m,1,:) = totalpressure(ibin,jbin,kbin,:);
+     a(m,2,:) = dvelocitydt(ibin,jbin,kbin,:);
+     a(m,3,:) = totalflux(ibin,jbin,kbin,:);
      
      Error(m) =  max(max(max(((squeeze(totalpressure(:,:,:,ixyz)) ...
                              -squeeze(totalflux(:,:,:,ixyz)) )    ...
-                             -squeeze(dvelocitydt(:,:,:,ixyz)))*10000))) ...
+                             -squeeze(dvelocitydt(:,:,:,ixyz)))))) ...
                + min(min(min(((squeeze(totalpressure(:,:,:,ixyz)) ...
                              -squeeze(totalflux(:,:,:,ixyz)))     ...
-                             -squeeze(dvelocitydt(:,:,:,ixyz)))*10000)));
-     
-     %sliceomatic(( squeeze(totalpressure(:,:,:,ixyz)) ...
-     %             -squeeze(totalflux(:,:,:,ixyz))     ...
-     %             -squeeze(dvelocitydt(:,:,:,ixyz)))*10000)
-    % pause()
-    
+                             -squeeze(dvelocitydt(:,:,:,ixyz))))));
+
+            temp = ( squeeze(sum(totalpressure(:,:,:,:),4)) ...
+                    -squeeze(sum(totalflux(:,:,:,:),4))     ...
+                    -squeeze(sum(dvelocitydt(:,:,:,:),4)));
+
+            %[x,y,z] = ind2sub(size(temp),find(temp ~= 0.000000));
+            %[x,y,z] = find(temp ~= 0);
+
+            h=slice(temp(:,:,:),[],[],[5]);
+            view([2]); axis 'tight'; 
+            set(h,'FaceColor','interp','EdgeColor','none','DiffuseStrength',.8)
+            colorbar; caxis([-1 1]); drawnow; pause(0.1)
+     %sliceomatic(( squeeze(sum(totalpressure(:,:,:,:),4)) ...
+     %             -squeeze(sum(totalflux(:,:,:,:),4))     ...
+     %             -squeeze(sum(dvelocitydt(:,:,:,:),4)))*10000)    
     
 end
 %Adjust as multiplied by delta_t before write out
 a = a*delta_t;
 
-pause()
+%Plot evolution in a single cell
+plot(sum(a(1:end,2,:),3))   %du/dt =
+hold all
+plot(-sum(a(1:end,3,:),3) + sum(a(1:end,1,:),3),'r--') % - d\rho uu/dr - dP/dr + dsigma/dr
 
-%========CV Energy Conservation=======  
-for m =1:1:Nvflux_records-2
-    m
-    %Load energy flux values for current timestep
-    [energy_snapshot,energy_flux,energy_surfaces]= read_eflux(m,resultfile_dir,gnbins);
-       
-    [energy_snapshot_tplus1(:,:,:,:)] = read_eflux(m,resultfile_dir,gnbins);
-    [energy_snapshot_tplus2(:,:,:,:)] = read_eflux(m+1,resultfile_dir,gnbins);
-     
-     % %Calculate total CV flux and change in mass
-	totalflux =((energy_flux(:,:,:,1)+energy_flux(:,:,:,4)))/(binsize(1)) ...
-               +((energy_flux(:,:,:,2)+energy_flux(:,:,:,5)))/(binsize(2)) ...
-               +((energy_flux(:,:,:,3)+energy_flux(:,:,:,6)))/(binsize(3));
-    totalpower    =((energy_surfaces(:,:,:,1)-energy_surfaces(:,:,:,4)))/(binsize(1)) ...
-                   +((energy_surfaces(:,:,:,2)-energy_surfaces(:,:,:,5)))/(binsize(2)) ...
-                   +((energy_surfaces(:,:,:,3)-energy_surfaces(:,:,:,6)))/(binsize(3));
-    
-     denergydt(:,:,:,:) =  (energy_snapshot_tplus2(:,:,:,:) - energy_snapshot_tplus1(:,:,:,:))/(delta_t*Nvflux_ave);
-     
-     Error(m) =  max(max(max(((squeeze(totalpower(:,:,:,ixyz)) ...
-                             -squeeze(totalflux(:,:,:,ixyz)) )    ...
-                             -squeeze(denergydt(:,:,:,ixyz)))*10000))) ...
-               + min(min(min(((squeeze(totalpower(:,:,:,ixyz)) ...
-                             -squeeze(totalflux(:,:,:,ixyz)))     ...
-                             -squeeze(denergydt(:,:,:,ixyz)))*10000)));
-                         
-     b(m,1) =totalpower(ibin,jbin,kbin);
-     b(m,2) =totalflux(ibin,jbin,kbin);
-     b(m,3) =denergydt(ibin,jbin,kbin);             
-end
-%Adjust as multiplied by delta_t before write out
-b = b*delta_t;
+%Plot error
+figure
+plot(Error)
+hold all
+plot(0:size(Error,2),ones(1,size(Error,2)+1)*eps('double'))
+
+%pause()
+% 
+% %========CV Energy Conservation=======  
+% for m =1:1:Nvflux_records-2
+%     m
+%     %Load energy flux values for current timestep
+%     [energy_snapshot,energy_flux,energy_surfaces]= read_eflux(m,resultfile_dir,gnbins);
+%        
+%     [energy_snapshot_tplus1(:,:,:,:)] = read_eflux(m,resultfile_dir,gnbins);
+%     [energy_snapshot_tplus2(:,:,:,:)] = read_eflux(m+1,resultfile_dir,gnbins);
+%      
+%      % %Calculate total CV flux and change in mass
+% 	totalflux =((energy_flux(:,:,:,1)+energy_flux(:,:,:,4)))/(binsize(1)) ...
+%                +((energy_flux(:,:,:,2)+energy_flux(:,:,:,5)))/(binsize(2)) ...
+%                +((energy_flux(:,:,:,3)+energy_flux(:,:,:,6)))/(binsize(3));
+%     totalpower    =((energy_surfaces(:,:,:,1)-energy_surfaces(:,:,:,4)))/(binsize(1)) ...
+%                    +((energy_surfaces(:,:,:,2)-energy_surfaces(:,:,:,5)))/(binsize(2)) ...
+%                    +((energy_surfaces(:,:,:,3)-energy_surfaces(:,:,:,6)))/(binsize(3));
+%     
+%      denergydt(:,:,:,:) =  (energy_snapshot_tplus2(:,:,:,:) - energy_snapshot_tplus1(:,:,:,:))/(delta_t*Nvflux_ave);
+%      
+%      Error(m) =  max(max(max(((squeeze(totalpower(:,:,:,ixyz)) ...
+%                              -squeeze(totalflux(:,:,:,ixyz)) )    ...
+%                              -squeeze(denergydt(:,:,:,ixyz)))*10000))) ...
+%                + min(min(min(((squeeze(totalpower(:,:,:,ixyz)) ...
+%                              -squeeze(totalflux(:,:,:,ixyz)))     ...
+%                              -squeeze(denergydt(:,:,:,ixyz)))*10000)));
+%                          
+%      b(m,1) =totalpower(ibin,jbin,kbin);
+%      b(m,2) =totalflux(ibin,jbin,kbin);
+%      b(m,3) =denergydt(ibin,jbin,kbin);             
+% end
+% %Adjust as multiplied by delta_t before write out
+% b = b*delta_t;
 
 %Plot time evolution graphs
-h = tight_subplot(3,1);
-%======Mass=======
-xaxis = [0:0.005:0.005*(size(dmassdt(ibin,jbin,kbin,:),4)-1)]; 
-subplot(h(1)),
-plot(xaxis,squeeze(totalmflux(ibin,jbin,kbin,:)),'k--', 'markersize', 5,'lineWidth', 3);
-hold on
-plot(xaxis,-squeeze(dmassdt(ibin,jbin,kbin,:)),'--','Color',[.6 .6 .6],'lineWidth', 5);
-Residual = totalmflux(ibin,jbin,kbin,:) - dmassdt(ibin,jbin,kbin,:);
-plot(xaxis,squeeze(Residual),'k-','lineWidth', 2);
-set(gca,'FontSize',16)
-%xlabel('Time'); 
-ylabel('|Mass|')
-set(gca,'xtick',[])
-axis([1.2 1.6 -1.1 1.1])
-%legend ('MdS','\Delta M','Residual','location','BestOutside')
-%legend('boxoff')
-hold off
-
-%======Momentum=======
-subplot(h(2)),
-xaxis = [0:0.005:0.005*(size(dmassdt(ibin,jbin,kbin,:),4)-1)]; 
-plot(xaxis(3:size(a,1)+2),a(:,1,1), 'k-','lineWidth', 7);
-hold on
-plot(xaxis(3:size(a,1)+2),a(:,3,1),'k--', 'markersize', 5,'lineWidth', 3);
-plot(xaxis(3:size(a,1)+2),a(:,2,1),'--','Color',[.6 .6 .6],'lineWidth', 5);
-Residual = squeeze(a(:,1,:))-squeeze(a(:,2,:))-squeeze(a(:,3,:));
-plot(xaxis(1:size(a,1)),squeeze(Residual),'k-','lineWidth', 2);
-set(gca,'FontSize',16)
-%xlabel('Time');
-ylabel('|Momentum|')
-set(gca,'xtick',[])
-axis([1.2 2.0 -0.3 0.3])
-%legend ('\Delta F','MdS','\Delta M','Residual','location','BestOutside')
-%legend('boxoff')
-hold off
-
-%======Energy=======
-subplot(h(3)),
-plot(xaxis(2:size(b,1)+1)+0.5*delta_t,b(:,1), 'k-','lineWidth', 7)
-hold on
-%plot(xaxis(2:size(b,1)+1),0.5*(squeeze(b(:,1))+circshift(squeeze(b(:,1)),-1)), 'b-','lineWidth', 7)
-plot(xaxis(2:size(b,1)+1),b(:,2)','k--', 'markersize', 5,'lineWidth', 3)
-plot(xaxis(2:size(b,1)+1),b(:,3)','--','Color',[.6 .6 .6],'lineWidth', 5)
-Residual = squeeze(b(:,3)) - 0.5*(squeeze(b(:,1))+circshift(squeeze(b(:,1)),1)) + squeeze(b(:,2));
-plot(xaxis(2:size(b,1)+1),squeeze(Residual),'-k','lineWidth', 2);
-xaxis = [0:0.005:0.005*(size(dmassdt(ibin,jbin,kbin,:),4)-1)]; 
-set(gca,'FontSize',16)
-xlabel('Time'); ylabel('|Energy|')
-%legend('\Delta Fv','EdS','\Delta E','Residual','location','BestOutside')
-%legend('boxoff')
-hold off
-axis([1.2 2.0 -0.2 0.4])
+% h = tight_subplot(3,1);
+% %======Mass=======
+% xaxis = [0:0.005:0.005*(size(dmassdt(ibin,jbin,kbin,:),4)-1)]; 
+% subplot(h(1)),
+% plot(xaxis,squeeze(totalmflux(ibin,jbin,kbin,:)),'k--', 'markersize', 5,'lineWidth', 3);
+% hold on
+% plot(xaxis,-squeeze(dmassdt(ibin,jbin,kbin,:)),'--','Color',[.6 .6 .6],'lineWidth', 5);
+% Residual = totalmflux(ibin,jbin,kbin,:) - dmassdt(ibin,jbin,kbin,:);
+% plot(xaxis,squeeze(Residual),'k-','lineWidth', 2);
+% set(gca,'FontSize',16)
+% %xlabel('Time'); 
+% ylabel('|Mass|')
+% set(gca,'xtick',[])
+% axis([1.2 1.6 -1.1 1.1])
+% %legend ('MdS','\Delta M','Residual','location','BestOutside')
+% %legend('boxoff')
+% hold off
+% 
+% %======Momentum=======
+% subplot(h(2)),
+% xaxis = [0:0.005:0.005*(size(dmassdt(ibin,jbin,kbin,:),4)-1)]; 
+% plot(xaxis(3:size(a,1)+2),a(:,1,1), 'k-','lineWidth', 7);
+% hold on
+% plot(xaxis(3:size(a,1)+2),a(:,3,1),'k--', 'markersize', 5,'lineWidth', 3);
+% plot(xaxis(3:size(a,1)+2),a(:,2,1),'--','Color',[.6 .6 .6],'lineWidth', 5);
+% Residual = squeeze(a(:,1,:))-squeeze(a(:,2,:))-squeeze(a(:,3,:));
+% plot(xaxis(1:size(a,1)),squeeze(Residual),'k-','lineWidth', 2);
+% set(gca,'FontSize',16)
+% %xlabel('Time');
+% ylabel('|Momentum|')
+% set(gca,'xtick',[])
+% axis([1.2 2.0 -0.3 0.3])
+% %legend ('\Delta F','MdS','\Delta M','Residual','location','BestOutside')
+% %legend('boxoff')
+% hold off
+% 
+% %======Energy=======
+% subplot(h(3)),
+% plot(xaxis(2:size(b,1)+1)+0.5*delta_t,b(:,1), 'k-','lineWidth', 7)
+% hold on
+% %plot(xaxis(2:size(b,1)+1),0.5*(squeeze(b(:,1))+circshift(squeeze(b(:,1)),-1)), 'b-','lineWidth', 7)
+% plot(xaxis(2:size(b,1)+1),b(:,2)','k--', 'markersize', 5,'lineWidth', 3)
+% plot(xaxis(2:size(b,1)+1),b(:,3)','--','Color',[.6 .6 .6],'lineWidth', 5)
+% Residual = squeeze(b(:,3)) - 0.5*(squeeze(b(:,1))+circshift(squeeze(b(:,1)),1)) + squeeze(b(:,2));
+% plot(xaxis(2:size(b,1)+1),squeeze(Residual),'-k','lineWidth', 2);
+% xaxis = [0:0.005:0.005*(size(dmassdt(ibin,jbin,kbin,:),4)-1)]; 
+% set(gca,'FontSize',16)
+% xlabel('Time'); ylabel('|Energy|')
+% %legend('\Delta Fv','EdS','\Delta E','Residual','location','BestOutside')
+% %legend('boxoff')
+% hold off
+% axis([1.2 2.0 -0.2 0.4])
 
 %Adjust overall suplot spacing
 % p = get(h(2), 'pos');
@@ -200,8 +255,8 @@ axis([1.2 2.0 -0.2 0.4])
 % p(2) = p(2) + 0.108;
 % set(h(3), 'pos', p);
 
-minx = 0;
-maxx = 200;
+%minx = 0;
+%maxx = 200;
 %subplot(3,1,1), axis([minx maxx -1 1])
 
 %subplot(3,1,2), axis([minx maxx -20 20])

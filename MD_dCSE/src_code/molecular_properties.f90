@@ -356,6 +356,13 @@ subroutine tether_force(molno)
 	!Adjust initial postion if molecule is sliding
 	rtether(:,molno) = rtether(:,molno) + slidev(:,molno)*delta_t
 
+	!Add tethered force to stress calculation
+	!if (vflux_outflag .eq. 4) then
+	!	if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
+	!		call control_volume_stresses(2.d0*at,r(:,molno),rtether(:,molno),molno)
+	!	endif
+	!endif
+
 end subroutine tether_force
 
 
@@ -369,6 +376,7 @@ module particle_insertion
 contains
 
 	!Inserts molecule with specified positions, velocity and optionally tag
+	! Code Author: Edward Smith 2013
 	subroutine insert_molecule(rin,vin,tagin)
 		use arrays_MD, only : r, v, tag
 		use physical_constants_MD, only : np
@@ -410,7 +418,7 @@ contains
 
 
 	!Remove molecules from the array and reorder to fill the gap
-
+	! Code Author: Edward Smith 2013
 	subroutine remove_molecule(molno)
 		use arrays_MD, only : r, v, tag, rtrue, rtether
 		use physical_constants_MD, only : np
@@ -691,6 +699,8 @@ contains
 
 end module particle_insertion
 
+!Insert Molecules and call USHER algorithm
+! Code Author: Edward Smith 2013
 subroutine usher_insert(nparticles)
 	use particle_insertion
 	use computational_constants_MD, only: iter, halfdomain,ncells

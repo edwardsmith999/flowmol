@@ -23,7 +23,7 @@ bytes = 8;
 cd(resultfile_dir);
 fid = fopen(filename1,'r','n');
 %Check file exists and if not then check for 2 k/c files
-if (fid == -1)
+if (filename1 == strcat(resultfile_dir,'/pVA_k'))
     filename = filename1;
     if (exist('filename1') == 0)
         filename1 = './pVA_k'
@@ -33,13 +33,14 @@ if (fid == -1)
         filename2 = './pVA_c'
     end
     %Read volume averaged kinetic file
-    fid = fopen(filename1,'r','n');
-    if (fid == -1)
-        error(strcat('neither ',filename,' or ', filename1,' file exists in results'))
-    end
+    %fid = fopen(filename1,'r','n');
+    %if (fid == -1)
+    %    error(strcat('neither ',filename,' or ', filename1,' file exists in results'))
+    %end
     fseek(fid, bytes*datasize*read_time, 'bof');
     pVA_k = fread(fid,datasize,'double');
     pressure_VA_k = reshape(pVA_k,gnbins(1),gnbins(2),gnbins(3),nd,nd);
+    fclose(fid);
     %Read volume averaged configurational file
     fid = fopen(filename2,'r','n');
     if (fid == -1)
