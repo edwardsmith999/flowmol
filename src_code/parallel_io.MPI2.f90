@@ -2099,6 +2099,7 @@ subroutine VA_stress_io
 		buf(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1:9) = &
 			reshape(vvbin,(/nbins(1),nbins(2),nbins(3),nresults/))
 		call write_arrays(buf,nresults,trim(prefix_dir)//'results/pVA_k',m)
+		deallocate(buf)
 		!Configurational
 		!Allocate buf with halo padding and 3x3 stresses reordered as 9 vector.
 		allocate(buf(nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults))
@@ -2106,6 +2107,7 @@ subroutine VA_stress_io
 		buf(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1:9) = &
 			reshape(rfbin,(/nbins(1),nbins(2),nbins(3),nresults/))
 		call write_arrays(buf,nresults,trim(prefix_dir)//'results/pVA_c',m)
+		deallocate(buf)
 	case default
 		stop 'Error in VA/virial extra flag to split_kinetic_& configuartional parts'
 	end select

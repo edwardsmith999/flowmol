@@ -67,7 +67,7 @@ fclose(fid);
 
 
 %Load momentum snapshot CV data
-snap_read_time = read_time + 1;
+snap_read_time = read_time - 1;
 fid = fopen(filename3,'r','ieee-le');
 cd (pwdir);
 %Check file exists
