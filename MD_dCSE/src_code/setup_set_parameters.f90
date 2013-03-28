@@ -689,6 +689,10 @@ subroutine set_parameters_outputs
 			allocate( Pxyface(nbinso(1),nbinso(2),nbinso(3),3,6))
 			allocate(  momentum_flux(nbinso(1),nbinso(2),nbinso(3),3,6))
 			allocate(   volume_force(nbinso(1),nbinso(2),nbinso(3),3,2))
+			if (external_force_flag .ne. 0 .or. ensemble .eq. tag_move) then
+				allocate(F_ext_bin(nbinso(1),nbinso(2),nbinso(3),3))
+				F_ext_bin = 0.d0
+			endif
 			momentum_flux 	= 0.d0
 			volume_momentum = 0.d0
 			volume_force 	= 0.d0

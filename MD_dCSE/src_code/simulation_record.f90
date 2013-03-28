@@ -1543,6 +1543,10 @@ subroutine momentum_flux_averaging(ixyz)
 			call momentum_flux_io
 			momentum_flux = 0.d0
 			call momentum_snapshot
+			if (external_force_flag .ne. 0 .or. ensemble .eq. tag_move) then
+				call external_force_io
+				F_ext_bin = 0.d0
+			endif
 		case default 
 			call error_abort("Momentum flux and pressure averaging Error")
 		end select
@@ -3015,6 +3019,25 @@ subroutine pressure_tensor_forces_MOP(pnxyz,ri,rj,rij,accijmag)
 
 end subroutine pressure_tensor_forces_MOP
 
+!===================================================================================
+! Record external forces applied to molecules inside a volume
+
+subroutine record_external_forces(F,ri)
+	use module_record, only : domain,halfdomain, nbins, nhb, F_ext_bin
+	implicit none
+
+	double precision,dimension(3),intent(in) :: F,ri
+
+	double precision,dimension(3)			 :: mbinsize,ibin
+
+	!Determine bin size and bin
+	mbinsize(:) = domain(:) / nbins(:)
+	ibin(:) = ceiling((ri+halfdomain(:))/mbinsize(:)) + nhb(:)
+
+	!Add external force to bin
+	F_ext_bin(ibin(1),ibin(2),ibin(3),:) = F_ext_bin(ibin(1),ibin(2),ibin(3),:) + F(:)
+
+end subroutine record_external_forces
 
 !===================================================================================
 !Calculate Radial distribution function (RDF) using cell method

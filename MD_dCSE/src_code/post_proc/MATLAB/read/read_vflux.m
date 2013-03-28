@@ -13,7 +13,7 @@
 %[velocity_snapshot_t,velocity_flux_t,pressure_surface_t]
 
 
-function[velocity_snapshot_t,velocity_flux_t,pressure_surface_t] = read_vflux(read_time,resultfile_dir,gnbins,nd,filename1,filename2,filename3)
+function[velocity_snapshot_t,velocity_flux_t,pressure_surface_t,F_ext_t] = read_vflux(read_time,resultfile_dir,gnbins,nd,filename1,filename2,filename3,filename4)
 
 if (exist('filename1') == 0)
     filename1 = './vflux';
@@ -24,6 +24,10 @@ end
 
 if (exist('filename3') == 0)
     filename3 = './vsnap';
+end
+
+if (exist('filename4') == 0)
+    filename4 = './Fext';
 end
 
 %Store Present Working directory
@@ -67,7 +71,7 @@ fclose(fid);
 
 
 %Load momentum snapshot CV data
-snap_read_time = read_time - 1;
+snap_read_time = read_time ;
 fid = fopen(filename3,'r','ieee-le');
 cd (pwdir);
 %Check file exists
@@ -78,3 +82,17 @@ fseek(fid, bytes*datasize*snap_read_time/Ncubeface, 'bof');
 vsnap = fread(fid,datasize/Ncubeface,'double');
 velocity_snapshot_t = reshape(vsnap,gnbins(1),gnbins(2),gnbins(3),nd);
 fclose(fid);
+
+%Load External force CV data (if it is requested)
+if (nargout == 4)
+    force_read_time = read_time ;
+    fid = fopen(filename4,'r','ieee-le');
+    %Check file exists
+    if (fid == -1)
+        error(strcat(filename4,' does not exist in results'))
+    end
+    fseek(fid, bytes*datasize*force_read_time/Ncubeface, 'bof');
+    F_ext = fread(fid,datasize/Ncubeface,'double');
+    F_ext_t = reshape(F_ext,gnbins(1),gnbins(2),gnbins(3),nd);
+    fclose(fid);
+end

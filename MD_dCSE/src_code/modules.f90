@@ -566,7 +566,8 @@ module calculated_properties_MD
 		slice_momentumbin,	&		!Mean velocity in a bin
 		volume_momentum,	& 		!Momentum in a control volume at time t
 		energy_flux,		&		!Flow of energy over a control volume surface
-		Pxyvface					!Stress tensor on bin face
+		Pxyvface,			&		!Stress tensor on bin face
+		F_ext_bin					!External Force per bin
 
 	double precision, dimension(:,:,:,:,:), allocatable :: & 
 		volume_force,  		& 		!Force acting over control volume surface 
