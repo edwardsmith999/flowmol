@@ -32,10 +32,19 @@ subroutine simulation_apply_global_force(ixyz,F_const)
 	use module_external_forces
 	implicit none
 
-	integer         			:: ixyz
+	integer         			:: ixyz, n
 	double precision 			:: F_const
 
 	a(ixyz,:) = a(ixyz,:) + F_const
+
+	if (vflux_outflag .eq. 4) then
+		if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
+			!Add constant force to cells based on number of molecules in each
+			do n=1,np
+				call record_external_forces(F_const,r(:,n))
+			enddo
+		endif
+	endif
 
 end subroutine simulation_apply_global_force
 
@@ -73,6 +82,12 @@ subroutine simulation_apply_local_force(ixyz,F_const,xmin,xmax,ymin,ymax,zmin,zm
 		!print'(3i4,6f10.5)',iblock,jblock,kblock, xmin,lmin(1),r(1,n),lmax(1),xmax, F_const
 
 		a(ixyz,n) = a(ixyz,n) + F_const
+
+		if (vflux_outflag .eq. 4) then
+			if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
+				call record_external_forces(F_const,r(:,n))
+			endif
+		endif
 
 	enddo
 

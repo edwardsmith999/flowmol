@@ -43,8 +43,24 @@ subroutine simulation_move_particles_lfv
 	double precision, save :: zeta=0.d0
 	double precision, dimension(:,:),allocatable :: U
 
-	select case(ensemble)
+	!Apply external force field to regions of spaces
+	select case(external_force_flag)
+	case(0)
+		!Do nothing - no force applied
+	case(1)
+		call simulation_apply_global_force(F_ext_ixyz,F_ext)
+	case(2)
+		call simulation_apply_local_force(F_ext_ixyz,F_ext, & 
+										  F_ext_limits(1),F_ext_limits(2), & 
+										  F_ext_limits(3),F_ext_limits(4), & 
+										  F_ext_limits(5),F_ext_limits(6))
+	case default
+		stop "Error - incorrectly specified external_force_flag"
+	end select
 
+
+	!Select case and evolve system in time
+	select case(ensemble)
 	case(nve)
 		do n=1,np
 
@@ -373,8 +389,6 @@ contains
 			if (specular_wall(2) .ne. 0.0) call specular_flat_wall(n, ascale, bscale, 2, globaldomain(2)/2.d0-specular_wall(2))
 			if (specular_wall(3) .ne. 0.0) call specular_flat_wall(n, ascale, bscale, 3, globaldomain(3)/2.d0-specular_wall(3))
 		enddo
-
-
 
 	end subroutine simulation_move_particles_lfv_tag
 

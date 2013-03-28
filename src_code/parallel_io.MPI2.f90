@@ -2242,8 +2242,8 @@ subroutine momentum_flux_io
 		call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
 	end select
 
-	allocate(temp(size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),18))
-	temp = reshape(momentum_flux,(/ size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),18 /))
+	allocate(temp(size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),nresults))
+	temp = reshape(momentum_flux,(/ size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),nresults /))
 	call write_arrays(temp,nresults,trim(prefix_dir)//'results/vflux',m)
 
 end subroutine momentum_flux_io
@@ -2374,11 +2374,52 @@ subroutine surface_stress_io
 	end select
 
 	!Write surface pressures to file
-	allocate(temp(size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),18))
-	temp = reshape(Pxyface,(/ size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),18 /))
+	allocate(temp(size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),nresults))
+	temp = reshape(Pxyface,(/ size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),nresults /))
 	call write_arrays(temp,nresults,trim(prefix_dir)//'results/psurface',m)
 
 end subroutine surface_stress_io
+
+
+
+
+!---------------------------------------------------------------------------------
+! Record external forces applied to molecules inside a volume
+
+subroutine external_force_io
+	use module_parallel_io
+	use calculated_properties_MD
+	implicit none
+
+	integer												:: ixyz,m,nresults
+	double precision									:: binface
+	double precision,dimension(:,:,:,:),allocatable		:: temp
+
+	! Swap Halos
+	nresults = 3
+	call rswaphalos(F_ext_bin,nbinso(1),nbinso(2),nbinso(3),nresults)
+
+	!Integration of force using trapizium rule requires multiplication by timestep
+	!so delta_t cancels upon division by tau=delta_t*Nvflux_ave resulting in division by Nvflux_ave
+	F_ext_bin = F_ext_bin/Nvflux_ave
+
+	!Write surface pressures to file
+	select case(CV_conserve)
+	case(0)
+		m = (iter-initialstep+1)/(Nvflux_ave*tplot)
+	case(1)
+		m = (iter-initialstep+1)/(Nvflux_ave)
+	case default
+		call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
+	end select
+
+	!Write surface pressures to file
+	allocate(temp(size(F_ext_bin,1),size(F_ext_bin,2),size(F_ext_bin,3),nresults))
+	temp = reshape(F_ext_bin,(/ size(F_ext_bin,1),size(F_ext_bin,2),size(F_ext_bin,3),nresults /))
+	call write_arrays(temp,nresults,trim(prefix_dir)//'results/Fext',m)
+
+end subroutine external_force_io
+
 
 !---------------------------------------------------------------------------------
 ! Record energy fluxes accross surfaces of Control Volumes

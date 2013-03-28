@@ -27,7 +27,7 @@ subroutine setup_initial_record
 	character				:: ixyz_char
 	character(8)			:: the_date
 	character(10)			:: the_time
-	character(23),parameter :: file_names(23) = &
+	character(23),parameter :: file_names(24) = &
 								(/ "mslice      ", "mbins       ", "msnap   ",&
 								   "vslice      ", "vbins       ", "vsnap   ",&
 								   "pvirial     ", "pVA         ", "pVA_k   ",& 
@@ -35,7 +35,10 @@ subroutine setup_initial_record
 								   "vflux       ", "pplane      ", "psurface",&
 								   "esnap       ", "eflux       ", "eplane  ",&
 								   "esurface    ", "viscometrics", "rdf     ",&
-	                               "rdf3d       ", "ssf         "            /) 
+	                               "rdf3d       ", "ssf         ", "Fext    "/) 
+
+
+	!Delete all files from previous run
 	if (irank.eq.iroot) then
 		do i=1,size(file_names)
 			inquire(file=trim(prefix_dir)//'results/'//file_names(i),exist=file_exist)

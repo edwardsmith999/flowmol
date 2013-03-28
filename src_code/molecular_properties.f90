@@ -357,11 +357,12 @@ subroutine tether_force(molno)
 	rtether(:,molno) = rtether(:,molno) + slidev(:,molno)*delta_t
 
 	!Add tethered force to stress calculation
-	!if (vflux_outflag .eq. 4) then
-	!	if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
-	!		call control_volume_stresses(2.d0*at,r(:,molno),rtether(:,molno),molno)
-	!	endif
-	!endif
+	if (vflux_outflag .eq. 4) then
+		if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
+			call record_external_forces(at(:),r(:,molno))
+			!call control_volume_stresses(at(:),r(:,molno),rtether(:,molno),molno)
+		endif
+	endif
 
 end subroutine tether_force
 
