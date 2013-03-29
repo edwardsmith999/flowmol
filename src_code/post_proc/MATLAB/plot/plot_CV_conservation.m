@@ -92,7 +92,7 @@ ixyz = 1;
 jxyz = 2;
 Nvflux_records = Nsteps / (Nvflux_ave);
 skip =1; n = 1; tol = 10*eps;
-external_force_flag = 1
+external_force_flag = 1;
 %Check CV are satisfied
 for m =1:skip:Nvflux_records-3
     m
@@ -114,11 +114,11 @@ for m =1:skip:Nvflux_records-3
    
     % Calculate total CV flux and change in mass
     totalflux =((velocity_flux(:,:,:,:,1)+velocity_flux(:,:,:,:,4)))/(binsize(1)) ...
-        +((velocity_flux(:,:,:,:,2)+velocity_flux(:,:,:,:,5)))/(binsize(2)) ...
-        +((velocity_flux(:,:,:,:,3)+velocity_flux(:,:,:,:,6)))/(binsize(3));
+              +((velocity_flux(:,:,:,:,2)+velocity_flux(:,:,:,:,5)))/(binsize(2)) ...
+              +((velocity_flux(:,:,:,:,3)+velocity_flux(:,:,:,:,6)))/(binsize(3));
     totalpressure =((pressure_surface(:,:,:,:,1)-pressure_surface(:,:,:,:,4)))/(binsize(1)) ...
-        +((pressure_surface(:,:,:,:,2)-pressure_surface(:,:,:,:,5)))/(binsize(2)) ...
-        +((pressure_surface(:,:,:,:,3)-pressure_surface(:,:,:,:,6)))/(binsize(3));
+                  +((pressure_surface(:,:,:,:,2)-pressure_surface(:,:,:,:,5)))/(binsize(2)) ...
+                  +((pressure_surface(:,:,:,:,3)-pressure_surface(:,:,:,:,6)))/(binsize(3));
     
     %totalpressure = totalpressure*delta_t
     dvelocitydt(:,:,:,:) =  (velocity_snapshot_tplus1(:,:,:,:)  ...
@@ -144,8 +144,10 @@ for m =1:skip:Nvflux_records-3
         h=slice(conserved(:,:,:),[],[],[5]);
         view([2]); axis 'tight';
         set(h,'FaceColor','interp','EdgeColor','none','DiffuseStrength',.8)
+        title(['d\rhou/dt - \nabla \cdot \Pi',num2str(ibin),',',num2str(jbin),',',num2str(kbin)])
         colorbar;  drawnow; pause(0.1)
         
+
         %Log temporal evolution over 100 timesteps
         skip = 1;
         %Save conservation time plot for a cell
