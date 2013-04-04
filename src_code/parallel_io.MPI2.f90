@@ -2403,7 +2403,7 @@ subroutine external_force_io
 	!so delta_t cancels upon division by tau=delta_t*Nvflux_ave resulting in division by Nvflux_ave
 	F_ext_bin = F_ext_bin/Nvflux_ave
 
-	!Write surface pressures to file
+	!Write external forces pressures to file
 	select case(CV_conserve)
 	case(0)
 		m = (iter-initialstep+1)/(Nvflux_ave*tplot)
@@ -2413,7 +2413,7 @@ subroutine external_force_io
 		call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
 	end select
 
-	!Write surface pressures to file
+	!Write external forces to file
 	allocate(temp(size(F_ext_bin,1),size(F_ext_bin,2),size(F_ext_bin,3),nresults))
 	temp = reshape(F_ext_bin,(/ size(F_ext_bin,1),size(F_ext_bin,2),size(F_ext_bin,3),nresults /))
 	call write_arrays(temp,nresults,trim(prefix_dir)//'results/Fext',m)

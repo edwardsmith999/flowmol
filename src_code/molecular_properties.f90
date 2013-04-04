@@ -360,7 +360,7 @@ subroutine tether_force(molno)
 	if (vflux_outflag .eq. 4) then
 		if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
 			call record_external_forces(at(:),r(:,molno))
-			!call control_volume_stresses(at(:),r(:,molno),rtether(:,molno),molno)
+			call control_volume_stresses(at(:),r(:,molno),rtether(:,molno),molno)
 		endif
 	endif
 
@@ -744,7 +744,7 @@ subroutine usher_insert(nparticles)
 				!                                    ' attempts , new np', np
 				!write(40000+iter,*) insertpos
 				call insert_molecule(insertpos,vnew)	
-				call messenger_updateborders(0)
+				call messenger_updateborders(1) !Update borders ready for next insertion - halo rebuilt
 
 				!Write local xy field @ z
 				!call simulation_write_potential_field(max(-halfdomain(1),insertpos(1)-3.0), &

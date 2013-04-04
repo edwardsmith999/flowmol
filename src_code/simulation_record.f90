@@ -1465,7 +1465,7 @@ subroutine cumulative_mass_flux
 
 			!Find which direction the surface is crossed
 			!For simplicity, if more than one surface has been crossed surface fluxes of intermediate cells
-			!are not included. This assumption => more reasonable as Delta_t => 0
+			!are not included. This assumption => more reasonable as Delta_t => 0 or Delta_r => ∞
 			!imaxloc = maxloc(abs(crossplane))
 			ixyz = imaxloc(abs(crossplane))
 

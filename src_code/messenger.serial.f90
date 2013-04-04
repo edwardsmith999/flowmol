@@ -58,6 +58,10 @@ module messenger
 
 contains
 
+	!=============================================================================
+	! DUMMY local position on processor from molecule's global position.
+	!-----------------------------------------------------------------------------
+
 	function globalise(rloc) result(rglob)
 		implicit none
 		
@@ -67,6 +71,20 @@ contains
 		rglob = rloc
 
 	end function globalise
+
+	!=============================================================================
+	! DUMMY local position on processor from molecule's global position.
+	!-----------------------------------------------------------------------------
+	function localise(rglob) result(rloc)
+		implicit none
+
+		double precision,intent(in) :: rglob(3)
+		double precision 			:: rloc(3)
+
+		rloc = rglob
+
+	end function localise
+
 
 end module
 
@@ -844,31 +862,55 @@ subroutine sendmols_quiescent()
 		!Domain goes from -halfdomain to +halfdomain
 		if (r(1,n) >= halfdomain(1)) then   !Above +halfdomain
 			r(1,n) = r(1,n) - domain(1) !Move to other side of domain
-			rtether(1,n) = rtether(1,n) - domain(1)
+			if (ensemble.eq.tag_move) then
+			if (any(tag(np+n).eq.tether_tags)) then
+				rtether(1,n) = rtether(1,n) - domain(1)
+			endif
+			endif
 		end if
 		if (r(1,n) < -halfdomain(1)) then   !Below -halfdomain
 			r(1,n) = r(1,n) + domain(1) !Move to other side of domain
-			rtether(1,n) = rtether(1,n) + domain(1)
+			if (ensemble.eq.tag_move) then
+			if (any(tag(np+n).eq.tether_tags)) then
+				rtether(1,n) = rtether(1,n) + domain(1)
+			endif
+			endif
 		endif
  
 		!Domain goes from -halfdomain to +halfdomain
 		if (r(2,n) >= halfdomain(2)) then   !Above +halfdomain
 			r(2,n) = r(2,n) - domain(2) !Move to other side of domain
-			rtether(2,n) = rtether(2,n) - domain(2)
+			if (ensemble.eq.tag_move) then
+			if (any(tag(np+n).eq.tether_tags)) then
+				rtether(2,n) = rtether(2,n) - domain(2)
+			endif
+			endif
 		end if
 		if (r(2,n) < -halfdomain(2)) then   !Below -halfdomain
 			r(2,n) = r(2,n) + domain(2) !Move to other side of domain
-			rtether(2,n) = rtether(2,n) + domain(2)
+			if (ensemble.eq.tag_move) then
+			if (any(tag(np+n).eq.tether_tags)) then
+				rtether(2,n) = rtether(2,n) + domain(2)
+			endif
+			endif
 		endif
 
 		!Domain goes from -halfdomain to +halfdomain
 		if (r(3,n) >= halfdomain(3)) then   !Above +halfdomain
 			r(3,n) = r(3,n) - domain(3) !Move to other side of domain
-			rtether(3,n) = rtether(3,n) - domain(3)
+			if (ensemble.eq.tag_move) then
+			if (any(tag(np+n).eq.tether_tags)) then
+				rtether(3,n) = rtether(3,n) - domain(3)
+			endif
+			endif
 		end if
 		if (r(3,n) < -halfdomain(3)) then   !Below -halfdomain
 			r(3,n) = r(3,n) + domain(3) !Move to other side of domain
-			rtether(3,n) = rtether(3,n) + domain(3)
+			if (ensemble.eq.tag_move) then
+			if (any(tag(np+n).eq.tether_tags)) then
+				rtether(3,n) = rtether(3,n) + domain(3)
+			endif
+			endif
 		endif
 
 	end do

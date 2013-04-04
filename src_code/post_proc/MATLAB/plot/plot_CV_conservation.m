@@ -9,10 +9,10 @@ fig2 = figure('Position',[scrsz(3)/4 scrsz(4)/4 scrsz(3)/4 scrsz(4)/2]);
 
 %pwdir = '/home/es205/codes/coupled/MD_dCSE/src_code/post_proc/MATLAB';
 %resultfile_dir = './../../results/';
-%pwdir='/home/es205/results/md_results/fortran/3D_code/parallel/results/converge_diverge';
-%resultfile_dir = '/home/es205/results/md_results/fortran/3D_code/parallel/results/converge_diverge/';
-pwdir='/home/es205/codes/coupled/MD_dCSE/src_code/';
-resultfile_dir = '/home/es205/codes/coupled/MD_dCSE/src_code/results/';
+pwdir='/home/es205/results/md_results/fortran/3D_code/parallel/results/converge_diverge';
+resultfile_dir = '/home/es205/results/md_results/fortran/3D_code/parallel/results/converge_diverge/';
+%pwdir='/home/es205/codes/coupled/MD_dCSE/src_code/';
+%resultfile_dir = '/home/es205/codes/coupled/MD_dCSE/src_code/results/';
 %Read Header
 read_header
 
