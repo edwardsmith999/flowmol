@@ -22,9 +22,9 @@ bytes = 8;
 %Load mass CV data
 cd(resultfile_dir);
 fid = fopen(filename1,'r','n');
+fclose(fid);
 %Check file exists and if not then check for 2 k/c files
-if (filename1 == strcat(resultfile_dir,'/pVA_k'))
-    filename = filename1;
+if (fid == -1 || all(filename1 == strcat(resultfile_dir,'/pVA_k')))
     if (exist('filename1') == 0)
         filename1 = './pVA_k'
         filename2 = './pVA_c'
@@ -33,10 +33,10 @@ if (filename1 == strcat(resultfile_dir,'/pVA_k'))
         filename2 = './pVA_c'
     end
     %Read volume averaged kinetic file
-    %fid = fopen(filename1,'r','n');
-    %if (fid == -1)
-    %    error(strcat('neither ',filename,' or ', filename1,' file exists in results'))
-    %end
+    fid = fopen(filename1,'r','n');
+    if (fid == -1)
+        error([filename1,' doesnt file exists in results'])
+    end
     fseek(fid, bytes*datasize*read_time, 'bof');
     pVA_k = fread(fid,datasize,'double');
     pressure_VA_k = reshape(pVA_k,gnbins(1),gnbins(2),gnbins(3),nd,nd);
@@ -55,6 +55,7 @@ if (filename1 == strcat(resultfile_dir,'/pVA_k'))
     pressure_VA = pressure_VA_k + pressure_VA_c;
 else
     %Read pressure_VA from file
+    fid = fopen(filename1,'r','n');
     fseek(fid, bytes*datasize*read_time, 'bof');
     pVA = fread(fid,datasize,'double');
     pressure_VA = reshape(pVA,gnbins(1),gnbins(2),gnbins(3),nd,nd);

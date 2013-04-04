@@ -80,16 +80,16 @@ contains
 	!=============================================================================
 	! Get local position on processor from molecule's global position.
 	!-----------------------------------------------------------------------------
-	function localise(rloc) result(rglob)
+	function localise(rglob) result(rloc)
 		implicit none
 
-		double precision,intent(in) :: rloc(3)
-		double precision 			:: rglob(3)
+		double precision,intent(in) :: rglob(3)
+		double precision 			:: rloc(3)
 
 		!Global domain has origin at centre
-		rglob(1) = rloc(1)+halfdomain(1)*(npx-1)-domain(1)*(iblock-1)
-		rglob(2) = rloc(2)+halfdomain(2)*(npy-1)-domain(2)*(jblock-1)
-		rglob(3) = rloc(3)+halfdomain(3)*(npz-1)-domain(3)*(kblock-1)
+		rloc(1) = rglob(1)+halfdomain(1)*(npx-1)-domain(1)*(iblock-1)
+		rloc(2) = rglob(2)+halfdomain(2)*(npy-1)-domain(2)*(jblock-1)
+		rloc(3) = rglob(3)+halfdomain(3)*(npz-1)-domain(3)*(kblock-1)
 
 	end function localise
 
@@ -466,28 +466,29 @@ end subroutine messenger_free
 !======================================================================
 
 subroutine messenger_updateborders(rebuild)
-use interfaces
-use messenger
-implicit none
-
-	integer				 	:: rebuild
-	
-	if (all(periodic.lt.2)) then
-	 	call messenger_updateborders_quiescent(rebuild)
-	else
-		call error_abort( "CANNOT USE LEES EDWARDS IN PARALLEL (YET!!)")
-	end if
-
-end subroutine messenger_updateborders
-
-
-subroutine messenger_updateborders_quiescent(rebuild)
+	use interfaces
 	use messenger
-	use physical_constants_MD
 	use arrays_MD
 	implicit none
 
 	integer				 	:: rebuild
+	
+	if (all(periodic.lt.2)) then
+	! 	call messenger_updateborders_quiescent(rebuild)
+	else
+		call error_abort( "CANNOT USE LEES EDWARDS IN PARALLEL (YET!!)")
+	end if
+
+!end subroutine messenger_updateborders
+
+
+!subroutine messenger_updateborders_quiescent(rebuild)
+	!use messenger
+	!use physical_constants_MD
+	!use arrays_MD
+	!implicit none
+
+	!integer				 	:: rebuild
 
 	halo_np = 0
 
@@ -510,7 +511,7 @@ subroutine messenger_updateborders_quiescent(rebuild)
 
 	if (rebuild.eq.1) call assign_to_halocell(np+1,np+halo_np)
 
-end subroutine messenger_updateborders_quiescent
+end subroutine messenger_updateborders!_quiescent
 
 
 !=======================================================================

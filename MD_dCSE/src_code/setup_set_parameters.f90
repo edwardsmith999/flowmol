@@ -134,13 +134,13 @@ subroutine setup_set_parameters
 	do i = 1,6
 		!If F_ext_limits > domain extents set to domain extents
 		if(F_ext_limits(i) .gt. 0.5d0*globaldomain(ceiling(real(i)/2.d0))) then
-			print*, 'b4', i,F_ext_limits(i)
+			!print*, 'b4', i,F_ext_limits(i)
 			F_ext_limits(i) =  0.5d0*globaldomain(ceiling(real(i)/2.d0))
-			print*, 'at', i,F_ext_limits(i)
+			!print*, 'at', i,F_ext_limits(i)
 		elseif (F_ext_limits(i) .lt. -0.5d0*globaldomain(ceiling(real(i)/2.d0))) then
-			print*, 'b4', i,F_ext_limits(i)
+			!print*, 'b4', i,F_ext_limits(i)
 			F_ext_limits(i) = -0.5d0*globaldomain(ceiling(real(i)/2.d0))
-			print*, 'at', i,F_ext_limits(i)
+			!print*, 'at', i,F_ext_limits(i)
 		endif
 
 		!if(abs(F_ext_limits(i)) .gt. 0.5d0*globaldomain(ceiling(real(i)/2.d0))) then

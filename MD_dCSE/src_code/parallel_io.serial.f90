@@ -436,7 +436,9 @@ subroutine parallel_io_final_state
 
 	do n=1,np
 		
-		dpbuf = real(tag(n),kind(0.d0)); write(2) dpbuf !Write n's tag
+		if (ensemble.eq.tag_move) then
+			dpbuf = real(tag(n),kind(0.d0)); write(2) dpbuf !Write n's tag
+		endif
 		buf = r(:,n);           write(2) buf   !Write particle n's position
 		buf = v(:,n);           write(2) buf   !Write n's velocities
 
@@ -444,9 +446,11 @@ subroutine parallel_io_final_state
 			buf = rtrue(:,n);   write(2) buf   !Write n's unwrapped position
 		end if
 
+		if (ensemble.eq.tag_move) then
 		if (any(tag(n).eq.tether_tags)) then
 			buf = rtether(:,n); write(2) buf   !Write n's tether site
 		end if
+		endif
 		
 		if (potential_flag .eq. 1) then
 			monomerbuf(1)   = real(monomer(n)%chainID,kind(0.d0))
@@ -1305,6 +1309,57 @@ subroutine surface_stress_io
 	close(9,status='keep')
 
 end subroutine surface_stress_io
+
+
+!---------------------------------------------------------------------------------
+! Record external forces applied to molecules inside a volume
+
+subroutine external_force_io
+	use module_parallel_io
+	use calculated_properties_MD
+	implicit none
+
+	integer							:: i,j,k,n,m,length
+	double precision				:: buf(nbins(1),nbins(2),nbins(3),1:3)
+
+	!---------------Correct for surface fluxes on halo cells---------------
+	!Include halo surface fluxes to get correct values for all cells
+	do n = 1, nhalocells
+		i = halocells(n,1); j = halocells(n,2); k = halocells(n,3)  
+
+		!Change in Momentum in halo cells
+		F_ext_bin(  modulo((i-2),nbins(1))+2, & 
+			      	modulo((j-2),nbins(2))+2, & 
+			      	modulo((k-2),nbins(3))+2,:) = & 
+				F_ext_bin(modulo((i-2),nbins(1))+2,& 
+						  modulo((j-2),nbins(2))+2,&
+						  modulo((k-2),nbins(3))+2,:) & 
+							+ F_ext_bin(i,j,k,:)
+	enddo
+
+	!Integration of force using trapizium rule requires multiplication by timestep
+	!so delta_t cancels upon division by tau=delta_t*Nvflux_ave resulting in division by Nvflux_ave
+	F_ext_bin = F_ext_bin/Nvflux_ave
+
+	!Write external forces pressures to file
+	select case(CV_conserve)
+	case(0)
+		m = (iter-initialstep+1)/(Nvflux_ave*tplot)
+	case(1)
+		m = (iter-initialstep+1)/(Nvflux_ave)
+	case default
+		call error_abort('CV_conserve value used for F external is incorrectly defined - should be 0=off or 1=on')
+	end select
+
+	!Write velocity to file
+	buf = F_ext_bin(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
+	inquire(iolength=length) buf
+	open (unit=12, file=trim(prefix_dir)//'results/Fext',form='unformatted',access='direct',recl=length)
+	write(12,rec=m) buf
+	close(12,status='keep')
+
+end subroutine external_force_io
+
 
 !---------------------------------------------------------------------------------
 ! Record energy fluxes accross surfaces of Control Volumes

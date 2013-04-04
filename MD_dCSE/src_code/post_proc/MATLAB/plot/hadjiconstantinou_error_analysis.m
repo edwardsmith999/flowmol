@@ -17,7 +17,7 @@ jbin1 = floor(size(vel_bins,2)/2); jbin2 = jbin1;
 kbin1 = floor(size(vel_bins,3)/2); kbin2 = kbin1;
 
 m = 1;
-for iter=1:10
+for iter=1:3
     if (iter ==1)
         %Do nothing first time
         disp([num2str(ibin1) ' to ' num2str(ibin2) ' in x and ' ...
@@ -50,13 +50,13 @@ for iter=1:10
     end
 
     % One cell - volume = prod(binsize)
-    V(m) = ((ibin2- ibin1) * binsize(1)) *((jbin2- jbin1) * binsize(2)) *((kbin2- kbin1) * binsize(3)) ;
+    V(m) = ((ibin2- ibin1+1) * binsize(1)) *((jbin2- jbin1+1) * binsize(2)) *((kbin2- kbin1+1) * binsize(3)) ;
 
     %Mass
     massV = squeeze(mean(mean(mean(mass_bins(ibin1:ibin2,jbin1:jbin2,kbin1:kbin2,:)/(prod(binsize)*Nmass_ave),1),2),3));
     mn_rho(m) = mean(massV);
     sd_rho(m) = std(massV);
-    Erho(m) = sd_rho(m)/mn_rho(m);
+    Erho(m) = sd_rho(m)/(sqrt(size(massV,1))*mn_rho(m));
     %Velocity
     velV = squeeze(vel_bins(ibin1:ibin2,jbin1:jbin2,kbin1:kbin2,1,:))./squeeze(mass_bins(ibin1:ibin2,jbin1:jbin2,kbin1:kbin2,:));
     velV(isnan(velV)) = 0 ;
@@ -80,6 +80,8 @@ for iter=1:10
     sd_Pc(m) = std(pVA_ct);
     EPc(m)= sd_Pc(m)/mn_Pc(m);
 
+    fclose('all')
+
 end
 
 %Plot means vs volume
@@ -92,9 +94,10 @@ legend('Kinetic pressure','config pressure', 'velocity', 'density')
 
 %Plot errors
 figure
-plot(V,EPk)
+loglog(V,abs(EPk))
 hold all
-plot(V,EPc)
-plot(V,Eu)
-plot(V,Erho)
-legend('Kinetic pressure','config pressure', 'velocity', 'density','location','NorthEastOutside')
+loglog(V,abs(EPc))
+loglog(V,abs(Eu))
+loglog(V,abs(Erho))
+plot(V,10./sqrt(V),'k')
+legend('Kinetic pressure','config pressure', 'velocity', 'density','location','Best')
