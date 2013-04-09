@@ -24,39 +24,7 @@ function[LV_mass_snapshot, ...
                                        ,1),2),3));
 
     %============== surface flux==============
-%     LV_mass_flux = zeros(6,1);
-%     for p = LV_botx:LV_topx
-%     for q = LV_boty:LV_topy
-%     for r = LV_botz:LV_topz
-%         LV_mass_flux(:) = LV_mass_flux(:) + squeeze(mass_flux(p,q,r,:));
-%     end
-%     end
-%     end
-% 
-%     LV_mass_flux = zeros(6,1);
-%     LV_mass_flux(1) =  sum(sum(sum(mass_flux(   LV_botx, ...
-%                                                 LV_boty:LV_topy, ...
-%                                                 LV_botz:LV_topz,1) ...
-%                          ,1),2),3);
-%     LV_mass_flux(4) = sum(sum(sum(mass_flux(	LV_topx, ...
-%                                                 LV_boty:LV_topy, ...
-%                                                 LV_botz:LV_topz,4) ...
-%                                  ,1),2),3);
-%     %Molecules can cross more than one surface -- check when this happen
-%     for p = LV_botx+1:LV_topx-1
-%     for q = LV_boty+1:LV_topy-1
-%     for r = LV_botz+1:LV_topz-1
-%         if (squeeze(mass_flux(p,q,r,1))==squeeze(mass_flux(p-1,q-1,r-1,4)))
-%             
-%         end
-%         LV_mass_flux(1) = LV_mass_flux(1) + squeeze(mass_flux(p,q,r,1))+squeeze(mass_flux(p-1,q-1,r-1,4))
-%         LV_mass_flux(4) = LV_mass_flux(4) + squeeze(mass_flux(p,q,r,4))+squeeze(mass_flux(p+1,q+1,r+1,1))
-%     end
-%     end
-%     end
-
-
-
+    % X Surfaces
     LV_mass_flux(1) =  sum(sum(sum(mass_flux(   LV_botx, ...
                                                 LV_boty:LV_topy, ...
                                                 LV_botz:LV_topz,1) ...

@@ -7,12 +7,14 @@ set(0,'DefaultFigureRenderer','OpenGL')
 fig1 = figure('Position',[1 scrsz(4)/4 scrsz(3)/4 scrsz(4)/2]);
 fig2 = figure('Position',[scrsz(3)/4 scrsz(4)/4 scrsz(3)/4 scrsz(4)/2]);
 
+external_force_flag = 0;
+
 %pwdir = '/home/es205/codes/coupled/MD_dCSE/src_code/post_proc/MATLAB';
 %resultfile_dir = './../../results/';
-pwdir='/home/es205/results/md_results/fortran/3D_code/parallel/results/converge_diverge';
-resultfile_dir = '/home/es205/results/md_results/fortran/3D_code/parallel/results/converge_diverge/';
-%pwdir='/home/es205/codes/coupled/MD_dCSE/src_code/';
-%resultfile_dir = '/home/es205/codes/coupled/MD_dCSE/src_code/results/';
+%pwdir='/home/es205/results/md_results/fortran/3D_code/parallel/results/converge_diverge';
+%resultfile_dir = '/home/es205/results/md_results/fortran/3D_code/parallel/results/converge_diverge/';
+pwdir='/home/es205/codes/coupled/MD_dCSE/src_code/';
+resultfile_dir = '/home/es205/codes/coupled/MD_dCSE/src_code/results/';
 %Read Header
 read_header
 
@@ -53,13 +55,13 @@ for m =1:skip:Nmflux_records-2
     if (max(conserved(:)) > 0.0 || min(conserved(:)) < 0.0)
         %Display message
         display(strcat('Error in CV mass conservation =', ...
-            num2str(max(conserved(:))+abs(min(conserved(:))))*100),'% - beginning debug');
+            num2str(max(conserved(:))+abs(min(conserved(:)))*100),'% - beginning debug'));
         
         %Plot slice of regions where not conserved
-        h=slice(conserved,[],[],[10]);
-        view([10,20,5]); axis 'equal';
+        h=slice(conserved,[],[],[5]);
+        view([90,90]); axis 'equal';
         set(h,'FaceColor','interp','EdgeColor','none','DiffuseStrength',.8)
-        colorbar; drawnow; pause()
+        colorbar; drawnow; pause(0.1)
         
         %Log temporal evolution over 100 timesteps
         skip = 1;
@@ -67,7 +69,7 @@ for m =1:skip:Nmflux_records-2
         dt(n) = squeeze(dmassdt(ibin,jbin,kbin));
         dm(n) = squeeze(totalmflux(ibin,jbin,kbin));
         n = n + 1;
-        if (n == 100)
+        if (n == 100 || m == Nmflux_records-2)
             %Plot 100 steps of a single cell
             plot(dt)
             hold all
@@ -92,7 +94,6 @@ ixyz = 1;
 jxyz = 2;
 Nvflux_records = Nsteps / (Nvflux_ave);
 skip =1; n = 1; tol = 10*eps;
-external_force_flag = 1;
 %Check CV are satisfied
 for m =1:skip:Nvflux_records-3
     m
@@ -138,7 +139,7 @@ for m =1:skip:Nvflux_records-3
     if (max(conserved(:)) > tol || min(conserved(:)) < -tol)
         Error(n) =  max(conserved(:))+abs(min(conserved(:)));
         
-        display(strcat('Error in CV mass conservation =', ...
+        display(strcat('Error in CV momentum conservation =', ...
             num2str(Error(n)*100),'% - beginning debug'));
         
         h=slice(conserved(:,:,:),[],[],[5]);

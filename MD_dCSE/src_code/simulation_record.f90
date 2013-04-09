@@ -1423,7 +1423,7 @@ subroutine mass_flux_averaging(ixyz)
 	!Only average if mass averaging turned on
 	if (ixyz .eq. 0) return
 
-	call cumulative_mass_flux
+	call cumulative_mass_flux_many
 	sample_count = sample_count + 1
 	if (sample_count .eq. Nmflux_ave) then
 		call mass_flux_io
@@ -1434,8 +1434,9 @@ subroutine mass_flux_averaging(ixyz)
 
 end subroutine mass_flux_averaging
 
+
 !===================================================================================
-! Mass Flux over a surface of a bin
+! Mass Flux over a surface of a bin -- onyl single crossings assumed
 
 subroutine cumulative_mass_flux
 	use module_record
@@ -1481,6 +1482,163 @@ subroutine cumulative_mass_flux
 	enddo
 
 end subroutine cumulative_mass_flux
+
+!===================================================================================
+! Mass Flux over a surface of a bin
+! Includes all intermediate bins
+
+subroutine cumulative_mass_flux_many
+	use module_record
+	implicit none
+
+	integer							:: ixyz,jxyz,i,j,k,n
+	integer							:: planeno
+	integer							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
+	integer		,dimension(3)		:: ibin1,ibin2,cbin
+	double precision				:: crossplane,rplane,shift
+	double precision,dimension(3)	:: mbinsize,velvect,crossface
+	double precision,dimension(3)	:: ri1,ri2,ri12,bintop,binbot,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
+
+	!Determine bin size
+	mbinsize(:) = domain(:) / nbins(:)
+
+	do n = 1,np
+
+		ri1(:) = r(:,n) 							!Molecule i at time t
+		ri2(:) = r(:,n)	- delta_t*v(:,n)			!Molecule i at time t-dt
+		ri12   = ri1 - ri2							!Molecule i trajectory between t-dt and t
+		where (ri12 .eq. 0.d0) ri12 = 0.000001d0
+
+		!Assign to bins before and after using integer division
+		ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:)) + nhb(:)
+		ibin2(:) = ceiling((ri2+halfdomain(:))/mbinsize(:)) + nhb(:)
+
+		!Replace Signum function with this functions which gives a
+		!check for plane crossing and the correct sign 
+		crossface(:) =  ibin1(:) - ibin2(:)
+
+		if (sum(abs(crossface(:))) .ne. 0) then
+
+			do i = ibin1(1),ibin2(1),sign(1,ibin2(1)-ibin1(1))
+			do j = ibin1(2),ibin2(2),sign(1,ibin2(2)-ibin1(2))
+			do k = ibin1(3),ibin2(3),sign(1,ibin2(3)-ibin1(3))
+
+				cbin(1) = i; cbin(2) = j; cbin(3) = k
+
+				bintop(:) = (cbin(:)-1*nhb(:)  )*mbinsize(:)-halfdomain(:)
+				binbot(:) = (cbin(:)-1*nhb(:)-1)*mbinsize(:)-halfdomain(:)
+
+				!Calculate the plane intersect of trajectory with surfaces of the cube
+				Pxt=(/ 			bintop(1), 		     & 
+						ri1(2)+(ri12(2)/ri12(1))*(bintop(1)-ri1(1)), & 
+						ri1(3)+(ri12(3)/ri12(1))*(bintop(1)-ri1(1))  	/)
+				Pxb=(/ 			binbot(1), 		     & 
+						ri1(2)+(ri12(2)/ri12(1))*(binbot(1)-ri1(1)), & 
+						ri1(3)+(ri12(3)/ri12(1))*(binbot(1)-ri1(1))  	/)
+				Pyt=(/	ri1(1)+(ri12(1)/ri12(2))*(bintop(2)-ri1(2)), & 
+							bintop(2), 		     & 
+						ri1(3)+(ri12(3)/ri12(2))*(bintop(2)-ri1(2))  	/)
+				Pyb=(/	ri1(1)+(ri12(1)/ri12(2))*(binbot(2)-ri1(2)), &
+							binbot(2), 		     & 
+						ri1(3)+(ri12(3)/ri12(2))*(binbot(2)-ri1(2))  	/)
+				Pzt=(/	ri1(1)+(ri12(1)/ri12(3))*(bintop(3)-ri1(3)), & 
+						ri1(2)+(ri12(2)/ri12(3))*(bintop(3)-ri1(3)), &
+							bintop(3) 			/)
+				Pzb=(/	ri1(1)+(ri12(1)/ri12(3))*(binbot(3)-ri1(3)), &
+						ri1(2)+(ri12(2)/ri12(3))*(binbot(3)-ri1(3)), & 
+							binbot(3) 			/)
+
+				onfacexb =0.5d0*(sign(1.d0,binbot(1) - ri2(1)) 	 & 
+						       - sign(1.d0,binbot(1) - ri1(1)))* &
+								(heaviside(bintop(2) - Pxb(2)) 	 &
+						       - heaviside(binbot(2) - Pxb(2)))* &
+								(heaviside(bintop(3) - Pxb(3)) 	 &
+						       - heaviside(binbot(3) - Pxb(3)))
+				onfaceyb =0.5d0*(sign(1.d0,binbot(2) - ri2(2))   &
+						       - sign(1.d0,binbot(2) - ri1(2)))* &
+								(heaviside(bintop(1) - Pyb(1))   &
+						       - heaviside(binbot(1) - Pyb(1)))* &
+								(heaviside(bintop(3) - Pyb(3))   &
+						       - heaviside(binbot(3) - Pyb(3)))
+				onfacezb =0.5d0*(sign(1.d0,binbot(3) - ri2(3))   &
+						       - sign(1.d0,binbot(3) - ri1(3)))* &
+								(heaviside(bintop(1) - Pzb(1))   &
+						       - heaviside(binbot(1) - Pzb(1)))* &
+								(heaviside(bintop(2) - Pzb(2))   &
+						       - heaviside(binbot(2) - Pzb(2)))
+
+				onfacext =0.5d0*(sign(1.d0,bintop(1) - ri2(1))   &
+						       - sign(1.d0,bintop(1) - ri1(1)))* &
+								(heaviside(bintop(2) - Pxt(2))   &
+						       - heaviside(binbot(2) - Pxt(2)))* &
+								(heaviside(bintop(3) - Pxt(3))   &
+						       - heaviside(binbot(3) - Pxt(3)))
+				onfaceyt =0.5d0*(sign(1.d0,bintop(2) - ri2(2))   &
+						       - sign(1.d0,bintop(2) - ri1(2)))* &
+								(heaviside(bintop(1) - Pyt(1))   &
+						       - heaviside(binbot(1) - Pyt(1)))* &
+								(heaviside(bintop(3) - Pyt(3))   &
+						       - heaviside(binbot(3) - Pyt(3)))
+				onfacezt =0.5d0*(sign(1.d0,bintop(3) - ri2(3))   &
+						       - sign(1.d0,bintop(3) - ri1(3)))* &
+								(heaviside(bintop(1) - Pzt(1))   &
+							   - heaviside(binbot(1) - Pzt(1)))* &
+								(heaviside(bintop(2) - Pzt(2))   &
+						       - heaviside(binbot(2) - Pzt(2)))
+
+				jxyz = imaxloc(abs(crossface))	!Integer array of size 1 copied to integer
+
+				!Add Mass flux over face
+				mass_flux(cbin(1),cbin(2),cbin(3),1) = & 
+					mass_flux(cbin(1),cbin(2),cbin(3),1) & 
+				      + nint(dble(onfacexb)*abs(crossface(jxyz)))
+				mass_flux(cbin(1),cbin(2),cbin(3),2) = & 
+					mass_flux(cbin(1),cbin(2),cbin(3),2) & 
+				      + nint(dble(onfaceyb)*abs(crossface(jxyz)))
+				mass_flux(cbin(1),cbin(2),cbin(3),3) = & 
+					mass_flux(cbin(1),cbin(2),cbin(3),3) &
+				      + nint(dble(onfacezb)*abs(crossface(jxyz)))
+				mass_flux(cbin(1),cbin(2),cbin(3),4) = & 
+					mass_flux(cbin(1),cbin(2),cbin(3),4) &
+				      - nint(dble(onfacext)*abs(crossface(jxyz)))
+				mass_flux(cbin(1),cbin(2),cbin(3),5) = & 
+					mass_flux(cbin(1),cbin(2),cbin(3),5) &
+				      - nint(dble(onfaceyt)*abs(crossface(jxyz)))
+				mass_flux(cbin(1),cbin(2),cbin(3),6) = & 
+					mass_flux(cbin(1),cbin(2),cbin(3),6) &
+				      - nint(dble(onfacezt)*abs(crossface(jxyz)))
+
+				!if (onfacexb .ne. 0) print*, n, i,j,k,ibin1,ibin2,bintop,halfdomain
+
+				!if (cbin(1) .ge. nbins(1)+1 .or. cbin(1) .le. 2) then
+				!	print'(4i8,6f10.5)',iter, cbin, momentum_flux(cbin(1),cbin(2),cbin(3),:,1),momentum_flux(cbin(1),cbin(2),cbin(3),:,4)
+				!endif
+
+			enddo
+			enddo
+			enddo
+
+		endif
+
+	enddo
+
+	!do i = 1,size(mass_flux,1)
+	!do j = 1,size(mass_flux,2)
+	!do k = 1,size(mass_flux,3)
+	!	if (mass_flux(i+1,j,k,1) .ne. -mass_flux(i,j,k,4)) then
+	!		print'(5i6)', i,j,k,mass_flux(i,j,k,4),mass_flux(i+1,j,k,1)
+	!	endif
+	!	if (mass_flux(i,j+1,k,2) .ne. -mass_flux(i,j,k,5)) then
+	!		print'(5i6)', i,j,k,mass_flux(i,j,k,5),mass_flux(i,j+1,k,2)
+	!	endif
+	!	if (mass_flux(i,j,k+1,3) .ne. -mass_flux(i,j,k,6)) then
+	!		print'(5i6)', i,j,k,mass_flux(i,j,k,6),mass_flux(i,j,k+1,3)
+	!	endif
+	!enddo
+	!enddo
+	!enddo
+
+end subroutine cumulative_mass_flux_many
 
 !===================================================================================
 ! Control Volume snapshot of the mass in a given bin

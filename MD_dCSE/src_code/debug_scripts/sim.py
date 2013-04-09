@@ -137,7 +137,7 @@ def sigma(array, mu='', pick= ''):
 #       e.g.    >>  sim1.post = True
 #     This will effectively ignore any sim.run() commands. 
 
-class Simulation():
+class Simulation:
   def __init__(self, sourceDir='./..'):
     # Initialise directories and files
     self.initDir = os.getcwd()
@@ -1208,7 +1208,7 @@ class Simulation():
 #     the gnuplot script.
 #   e.g.    >>  vslice_analysis.plot()
 
-class Analysis():
+class Analysis:
   def __init__(self, array, labels=[], legends=[], plotfile='analysis.pdf', rangeX=[], rangeY=[], log=''):
     # fn plot() to accept this.
     self.array = array
