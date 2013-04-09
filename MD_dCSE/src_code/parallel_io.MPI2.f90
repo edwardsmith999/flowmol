@@ -2220,6 +2220,7 @@ subroutine momentum_flux_io
 	nresults = 18
 	call rswaphalos(momentum_flux,nbinso(1),nbinso(2),nbinso(3),nresults)
 
+	!Divide by size of bin face to give flux per unit area
 	do ixyz = 1,3
 		binface	      = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
 			     		(domain(modulo(ixyz+1,3)+1)/nbins(modulo(ixyz+1,3)+1))
@@ -2373,15 +2374,14 @@ subroutine surface_stress_io
 		call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
 	end select
 
+	if (m .eq. 0) return
+
 	!Write surface pressures to file
 	allocate(temp(size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),nresults))
 	temp = reshape(Pxyface,(/ size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),nresults /))
 	call write_arrays(temp,nresults,trim(prefix_dir)//'results/psurface',m)
 
 end subroutine surface_stress_io
-
-
-
 
 !---------------------------------------------------------------------------------
 ! Record external forces applied to molecules inside a volume

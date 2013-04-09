@@ -2326,7 +2326,7 @@ end subroutine rupdatefaces
 
 
 !======================================================================
-!			Data gathering subroutines                    =
+!					Data gathering subroutines	                      =
 !======================================================================
 
 subroutine globalbroadcast(A,na,broadprocid)
