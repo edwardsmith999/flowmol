@@ -469,26 +469,14 @@ subroutine messenger_updateborders(rebuild)
 	use interfaces
 	use messenger
 	use arrays_MD
+	use physical_constants_MD, only :np,halo_np
 	implicit none
 
 	integer				 	:: rebuild
 	
-	if (all(periodic.lt.2)) then
-	! 	call messenger_updateborders_quiescent(rebuild)
-	else
-		call error_abort( "CANNOT USE LEES EDWARDS IN PARALLEL (YET!!)")
+	if (all(periodic.ge.2)) then
+		call error_abort( "CANNOT USE LEES EDWARDS IN PARALLEL")
 	end if
-
-!end subroutine messenger_updateborders
-
-
-!subroutine messenger_updateborders_quiescent(rebuild)
-	!use messenger
-	!use physical_constants_MD
-	!use arrays_MD
-	!implicit none
-
-	!integer				 	:: rebuild
 
 	halo_np = 0
 
@@ -511,7 +499,7 @@ subroutine messenger_updateborders(rebuild)
 
 	if (rebuild.eq.1) call assign_to_halocell(np+1,np+halo_np)
 
-end subroutine messenger_updateborders!_quiescent
+end subroutine messenger_updateborders
 
 
 !=======================================================================
