@@ -339,15 +339,21 @@ subroutine setup_restart_microstate
 	!Open file at first recorded value
 	open(2,file=initial_microstate_file, form='unformatted', access='stream',position='rewind')
 	do n=1,globalnp
-		read(2) dpbuf; tag(n) = nint(dpbuf) !Read particle n's tag
+		if (ensemble .eq. tag_move) then
+		if (any(tag(n).eq.tether_tags)) then
+			read(2) dpbuf; tag(n) = nint(dpbuf) !Read particle n's tag
+		endif
+		endif
 		read(2) buf;   r(:,n) = buf   !Read particle n's positions
 		read(2) buf;   v(:,n) = buf   !Read particle n's velocities
 		if (prev_rtrue_flag.eq.1) then
 			read(2) buf; rtrue(:,n) = buf   !Read particle n's unwrapped positions
 		end if
+		if (ensemble .eq. tag_move) then
 		if (any(tag(n).eq.tether_tags)) then
 			read(2) buf; rtether(:,n) = buf
 		end if
+		endif
 		if (potential_flag.eq.1) then
 			read(2) monomerbuf
 			monomer(n)%chainID        = nint(monomerbuf(1))
@@ -379,11 +385,13 @@ subroutine setup_restart_microstate
 !			!Nothing
 !	end select
 
-	print*, 'Molecular tags have been obtained from the restart file.'
-	call get_tag_thermostat_activity(tag_thermostat_active)
-	do n = 1,np
-		call read_tag(n)		!Read tag and assign properties
-	enddo
+	if (ensemble .eq. tag_move) then
+		print*, 'Molecular tags have been obtained from the restart file.'
+		call get_tag_thermostat_activity(tag_thermostat_active)
+		do n = 1,np
+			call read_tag(n)		!Read tag and assign properties
+		enddo
+	endif
 
 	close(2,status='keep') 		!Close final state file
 
@@ -776,11 +784,20 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 									+ CV_mass_out(i,j,k)
 	enddo
 
+	!Calculate record number timestep
 	if (io_type .eq. 'snap') then
-		m = (iter-initialstep+1)/(Nmflux_ave) + 1 !Initial snapshot taken
+		select case(CV_conserve)
+		case(0)
+			m = (iter-initialstep+1)/(tplot*Nmflux_ave) + 1 !Initial snapshot taken
+		case(1)
+			m = (iter-initialstep+1)/(Nmflux_ave) + 1 !Initial snapshot taken
+		case default
+			call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')	
+		end select
 	else
 		m = (iter-initialstep+1)/(tplot*Nmass_ave)
 	endif
+
 	!Write mass to file
 	buf = CV_mass_out(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1)
 	inquire(iolength=length) buf
@@ -850,13 +867,24 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 							+ CV_momentum_out(i,j,k,:)
 	enddo
 
+	!Setup arrays
 	if (io_type .eq. 'snap') then
 		!CV_momentum_out = CV_momentum_out / (tplot*Nvflux_ave)
-		m = (iter-initialstep+1)/(Nvflux_ave) + 1 !Initial snapshot taken
+		select case(CV_conserve)
+		case(0)
+			m = (iter-initialstep+1)/(tplot*Nvflux_ave) + 1 !Initial snapshot taken
+		case(1)
+			m = (iter-initialstep+1)/(Nvflux_ave) + 1 !Initial snapshot taken
+		case default
+			call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')	
+		end select
 	else
 		!CV_momentum_out = CV_momentum_out / (tplot*Nvel_ave)
 		m = (iter-initialstep+1)/(tplot*Nvel_ave)
 	endif
+
+	print*, 'velbin m = ', m
+
 	!Write velocity to file
 	buf = CV_momentum_out(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
 	inquire(iolength=length) buf
@@ -1169,6 +1197,7 @@ subroutine mass_flux_io
 	case default
 		call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
 	end select
+
 	!Write six CV surface mass fluxes to file
 	buf = mass_flux(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
 	inquire(iolength=length) buf
@@ -1224,6 +1253,7 @@ subroutine momentum_flux_io
 	case default
 		call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
 	end select
+
 	buf = momentum_flux(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:,:)
 	inquire(iolength=length) buf
 	open (unit=9, file=trim(prefix_dir)//'results/vflux',form='unformatted',access='direct',recl=length)
@@ -1296,12 +1326,15 @@ subroutine surface_stress_io
 	!Write surface pressures to file
 	select case(CV_conserve)
 	case(0)
-		m = (iter-initialstep+1)/(Nvflux_ave*tplot) + 1
+		m = (iter-initialstep+1)/(Nvflux_ave*tplot)
 	case(1)
-		m = (iter-initialstep+1)/(Nvflux_ave) + 1
+		m = (iter-initialstep+1)/(Nvflux_ave)
 	case default
 		call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
 	end select
+
+	if (m .eq. 0) return
+
 	buf = Pxyface(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:,:)
 	inquire(iolength=length) buf
 	open (unit=9, file=trim(prefix_dir)//'results/psurface',form='unformatted',access='direct',recl=length)

@@ -73,7 +73,6 @@ fclose(fid);
 %Load momentum snapshot CV data
 snap_read_time = read_time ;
 fid = fopen(filename3,'r','ieee-le');
-cd (pwdir);
 %Check file exists
 if (fid == -1)
     error(strcat(filename3,' does not exist in results'))

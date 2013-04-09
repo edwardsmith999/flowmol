@@ -39,10 +39,10 @@ subroutine setup_tag
 	logical :: l_fixed
 	logical :: l_slide
 
-	!Initialise all molecules free of thermostats, etc (i.e. tag free=0)
-	tag(:) = free 
-
 	if (ensemble .eq. tag_move) then
+
+		!Initialise all molecules free of thermostats, etc (i.e. tag free=0)
+		tag(:) = free 
 
 		!Setup fixed wall and location dependent thermostat tags
 		do n = 1,np

@@ -92,7 +92,7 @@ Domain_setup
 %setup stress direction and face
 ixyz = 1;
 jxyz = 2;
-Nvflux_records = Nsteps / (Nvflux_ave);
+Nvflux_records = (Nsteps-initialstep) / (Nvflux_ave);
 skip =1; n = 1; tol = 10*eps;
 %Check CV are satisfied
 for m =1:skip:Nvflux_records-3
@@ -114,9 +114,9 @@ for m =1:skip:Nvflux_records-3
     [velocity_snapshot_tplus1(:,:,:,:)] = read_vflux(m+1,resultfile_dir,gnbins,nd);
    
     % Calculate total CV flux and change in mass
-    totalflux =((velocity_flux(:,:,:,:,1)+velocity_flux(:,:,:,:,4)))/(binsize(1)) ...
-              +((velocity_flux(:,:,:,:,2)+velocity_flux(:,:,:,:,5)))/(binsize(2)) ...
-              +((velocity_flux(:,:,:,:,3)+velocity_flux(:,:,:,:,6)))/(binsize(3));
+    totalflux =(velocity_flux(:,:,:,:,1)+velocity_flux(:,:,:,:,4))/binsize(1) ...
+              +(velocity_flux(:,:,:,:,2)+velocity_flux(:,:,:,:,5))/binsize(2) ...
+              +(velocity_flux(:,:,:,:,3)+velocity_flux(:,:,:,:,6))/binsize(3);
     totalpressure =((pressure_surface(:,:,:,:,1)-pressure_surface(:,:,:,:,4)))/(binsize(1)) ...
                   +((pressure_surface(:,:,:,:,2)-pressure_surface(:,:,:,:,5)))/(binsize(2)) ...
                   +((pressure_surface(:,:,:,:,3)-pressure_surface(:,:,:,:,6)))/(binsize(3));
