@@ -653,6 +653,7 @@ subroutine setup_restart_microstate
 	use module_parallel_io
 	implicit none
 
+	logical										 :: tag_off=.false.
 	integer                                      :: i,n,nl,procassign
 	integer                                      :: pos
 	integer                                      :: dp_datasize
@@ -665,6 +666,12 @@ subroutine setup_restart_microstate
 
 	allocate(bufsize(nproc))
 	bufsize = 0
+
+	!Allocate temporary tag array
+	if (allocated(tag) .ne. .true.) then
+		allocate(tag(np+extralloc)); tag = free
+		tag_off = .true.
+	endif
 	
 	!Determine size of datatypes
   	call MPI_type_size(MPI_double_precision,dp_datasize,ierr)
@@ -852,6 +859,7 @@ subroutine setup_restart_microstate
 
 	!call setup_initialise_velocities_TG_parallel
 	deallocate(bufsize)
+	if (tag_off) deallocate(tag)	!Tags off so tag info not necessary
 
 end subroutine setup_restart_microstate
 
@@ -905,7 +913,7 @@ subroutine parallel_io_final_state
 	if (ensemble.ne.tag_move) then
 		allocate(tag(np)); 	tag(:) = free 
 	else
-		!Convert any tehtered molecules to global coordinates ready to write out
+		!Convert any tethered molecules to global coordinates ready to write out
 		allocate(rtetherglobal(3,np))
 		rtetherglobal(1,:) = rtether(1,1:np)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
 		rtetherglobal(2,:) = rtether(2,1:np)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)

@@ -125,7 +125,18 @@ subroutine setup_initial_record
 		case(4)
 			print*, 'NVT (Pairwise additive Nosé-Hoover thermostat by Allen & Schmid)'
 		case(5)
-			print*, 'NVT (DPD thermostat by Soddemann)' 	
+			print*, 'NVT (DPD thermostat by Soddemann)' 
+		case(6)
+			print*, 'Tagged molecule system:' 
+			print'(a,3f10.5)', ' Distance from bottom of Fixed Molecules in x,y and z:', 	fixdistbottom
+			print'(a,3f10.5)', ' Distance from top of Fixed Molecules in x,y and z:', 	fixdisttop
+			print'(a,3f10.5)', ' Distance from bottom of Tethered Molecules in x,y and z:', tethereddistbottom
+			print'(a,3f10.5)', ' Distance from top of Tethered Molecules in x,y and z:', 	tethereddisttop
+			print'(a,3f10.5)', ' Distance from bottom of Sliding Molecules in x,y and z:', 	slidedistbottom
+			print'(a,3f10.5)', ' Distance from top of Sliding Molecules in x,y and z:', 	slidedisttop
+			print'(a,3f10.5)', ' Velocity of Sliding Molecules in x,y and z:', 	wallslidev
+			print'(a,3f10.5)', ' Distance from bottom of NH Themostatted Molecules in x,y and z:', 	thermstatbottom
+			print'(a,3f10.5)', ' Distance from top of NH Themostatted Molecules in x,y and z:', 	thermstattop
 		end select
  		select case(force_list) 
 		case(0)
@@ -162,15 +173,7 @@ subroutine setup_initial_record
 			print*, 'Shear direction: ', le_sd
 			print*, 'Shear iter0: ', le_i0
 		end if
-		print'(a,3f10.5)', ' Distance from bottom of Fixed Molecules in x,y and z:', 	fixdistbottom
-		print'(a,3f10.5)', ' Distance from top of Fixed Molecules in x,y and z:', 	fixdisttop
-		print'(a,3f10.5)', ' Distance from bottom of Tethered Molecules in x,y and z:', tethereddistbottom
-		print'(a,3f10.5)', ' Distance from top of Tethered Molecules in x,y and z:', 	tethereddisttop
-		print'(a,3f10.5)', ' Distance from bottom of Sliding Molecules in x,y and z:', 	slidedistbottom
-		print'(a,3f10.5)', ' Distance from top of Sliding Molecules in x,y and z:', 	slidedisttop
-		print'(a,3f10.5)', ' Velocity of Sliding Molecules in x,y and z:', 	wallslidev
-		print'(a,3f10.5)', ' Distance from bottom of NH Themostatted Molecules in x,y and z:', 	thermstatbottom
-		print'(a,3f10.5)', ' Distance from top of NH Themostatted Molecules in x,y and z:', 	thermstattop
+
 		print*, '==================== Computational Parameters ========================='
 		print'(a,3i8)', ' Domain split into computational cells in x,y and z:', & 
 					 ncells(1)*npx, ncells(2)*npy, ncells(3)*npz
