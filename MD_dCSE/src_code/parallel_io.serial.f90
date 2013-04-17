@@ -331,19 +331,22 @@ subroutine setup_restart_microstate
 	use module_parallel_io
 	implicit none
 
+	logical								:: tag_off=.false.
 	integer 							:: ixyz, n
 	double precision                    :: dpbuf
 	double precision,dimension(nd)		:: buf
 	double precision,dimension(8)       :: monomerbuf
 
+	!Allocate temporary tag array
+	if (allocated(tag) .ne. .true.) then
+		allocate(tag(np+extralloc)); tag = free
+		tag_off = .true.
+	endif
+
 	!Open file at first recorded value
 	open(2,file=initial_microstate_file, form='unformatted', access='stream',position='rewind')
 	do n=1,globalnp
-		if (ensemble .eq. tag_move) then
-		if (any(tag(n).eq.tether_tags)) then
-			read(2) dpbuf; tag(n) = nint(dpbuf) !Read particle n's tag
-		endif
-		endif
+		read(2) dpbuf; tag(n) = nint(dpbuf) !Read particle n's tag
 		read(2) buf;   r(:,n) = buf   !Read particle n's positions
 		read(2) buf;   v(:,n) = buf   !Read particle n's velocities
 		if (prev_rtrue_flag.eq.1) then
@@ -395,6 +398,7 @@ subroutine setup_restart_microstate
 
 	close(2,status='keep') 		!Close final state file
 
+	if (tag_off) deallocate(tag)	!Tags off so tag info not necessary
 	!call setup_initialise_velocities_TG
 
 end subroutine setup_restart_microstate
@@ -444,9 +448,9 @@ subroutine parallel_io_final_state
 
 	do n=1,np
 		
-		if (ensemble.eq.tag_move) then
-			dpbuf = real(tag(n),kind(0.d0)); write(2) dpbuf !Write n's tag
-		endif
+		!Allocate tag array to write for restart so as to maximise compatibility
+		if (allocated(tag) .eq. .false.) allocate(tag(np)); tag(:) = free 
+		dpbuf = real(tag(n),kind(0.d0)); write(2) dpbuf !Write n's tag
 		buf = r(:,n);           write(2) buf   !Write particle n's position
 		buf = v(:,n);           write(2) buf   !Write n's velocities
 
@@ -454,11 +458,9 @@ subroutine parallel_io_final_state
 			buf = rtrue(:,n);   write(2) buf   !Write n's unwrapped position
 		end if
 
-		if (ensemble.eq.tag_move) then
 		if (any(tag(n).eq.tether_tags)) then
 			buf = rtether(:,n); write(2) buf   !Write n's tether site
 		end if
-		endif
 		
 		if (potential_flag .eq. 1) then
 			monomerbuf(1)   = real(monomer(n)%chainID,kind(0.d0))
@@ -882,8 +884,6 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 		!CV_momentum_out = CV_momentum_out / (tplot*Nvel_ave)
 		m = (iter-initialstep+1)/(tplot*Nvel_ave)
 	endif
-
-	print*, 'velbin m = ', m
 
 	!Write velocity to file
 	buf = CV_momentum_out(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)
