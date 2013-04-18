@@ -18,7 +18,8 @@ class MD_RawData:
 		             int(self.header.gnbins3) ])
 
 		if (self.cpol_bins == True):
-			domain = ([ float(self.header.r_oo), 2.0*np.pi,
+			domain = ([ float(self.header.r_oo) - float(self.header.r_ii), 
+			            2.0*np.pi,
 			            float(self.header.globaldomain3) ])
 		else:
 			domain = ([ float(self.header.globaldomain1),
