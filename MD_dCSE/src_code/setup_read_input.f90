@@ -12,6 +12,7 @@ module module_read_input
 	use physical_constants_MD
 	use arrays_MD
 	use polymer_info_MD
+	use concentric_cylinders
 	use shear_info_MD
 
 end module module_read_input
@@ -25,11 +26,12 @@ subroutine setup_read_input
 	logical					:: found_in_input
 	integer 				:: ios
 
+
+	! Open input file
 	open(1,file=input_file)
 
-	!Input physical co-efficients
-	call locate(1,'INPUTTEMPERATURE',.true.)
-	read(1,*) inputtemperature
+	call locate(1,'ENSEMBLE',.true.)
+	read(1,*) ensemble
 	call locate(1,'INITIAL_CONFIG_FLAG',.true.)
 	read(1,*) initial_config_flag 
 	select case (initial_config_flag)
@@ -110,6 +112,43 @@ subroutine setup_read_input
 				call error_abort('Unrecognised solvent flag!')
 			end select
 
+		case('concentric_cylinders')
+			
+			potential_flag = 0
+			rcutoff = 2.d0**(1.d0/6.d0)
+
+			call locate(1,'CONCENTRIC_CYLINDERS',.true.)
+			read(1,*) cyl_density
+			read(1,*) cyl_units_oo 
+			read(1,*) cyl_units_io 
+			read(1,*) cyl_units_oi 
+			read(1,*) cyl_units_ii 
+			read(1,*) cyl_units_z 
+		
+			initialnunits(1) = cyl_units_oo	+ 1 !To leave a gap
+			initialnunits(2) = cyl_units_oo	+ 1 !To leave a gap
+			initialnunits(3) = cyl_units_z
+
+		case('fill_cylinders')
+			
+			potential_flag = 0
+			ensemble = tag_move
+
+			call locate(1,'DENSITY',.true.)
+			read(1,*) density
+			call locate(1,'RCUTOFF',.true.)
+			read(1,*) rcutoff
+
+		case('rotate_cylinders')
+			
+			ensemble = tag_move
+
+			!call locate(1,'RCUTOFF',.true.)
+			!read(1,*) rcutoff
+			potential_flag = 0
+			call locate(1,'ROTATE_CYLINDERS',.true.)
+			read(1,*) omega
+
 		case default
 
 			stop "Unrecognised special case string"
@@ -122,10 +161,10 @@ subroutine setup_read_input
 
 	end select 
 
+	call locate(1,'INPUTTEMPERATURE',.true.)
+	read(1,*) inputtemperature
 	call locate(1,'INTEGRATION_ALGORITHM',.true.)
 	read(1,*) integration_algorithm
-	call locate(1,'ENSEMBLE',.true.)
-	read(1,*) ensemble
 	call locate(1,'FORCE_LIST',.true.)	!LJ or FENE potential
 	read(1,*) force_list
 	if (force_list .ne. 3 .and. ensemble .eq. 4) &
@@ -256,6 +295,7 @@ subroutine setup_read_input
 	specular_wall = 0.d0
 	call locate(1,'SPECULAR_WALL',.false.,found_in_input)
 	if (found_in_input) then
+		specular_flag = specular_flat
 		read(1,*) specular_wall(1)			
 		read(1,*) specular_wall(2)			
 		read(1,*) specular_wall(3)
@@ -410,12 +450,18 @@ subroutine setup_read_input
 	call locate(1,'MASS_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) mass_outflag
-		if (mass_outflag .ne. 0) 	read(1,*) Nmass_ave
+		if (mass_outflag .ne. 0) read(1,*) Nmass_ave
 	endif
 	call locate(1,'VELOCITY_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,* ) velocity_outflag
-		if (velocity_outflag .ne. 0)	read(1,* ) Nvel_ave
+		if (velocity_outflag .ne. 0) read(1,* ) Nvel_ave
+		if (velocity_outflag .eq. 5) then
+			call locate(1,'CPOL_BINS',.true.)
+			read(1,*) gcpol_bins(1)	
+			read(1,*) gcpol_bins(2)	
+			read(1,*) gcpol_bins(3)	
+		end if
 	endif
 	call locate(1,'TEMPERATURE_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then

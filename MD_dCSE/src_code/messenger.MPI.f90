@@ -52,9 +52,13 @@ module messenger
 	! Grid topology
 	integer 					:: icomm_grid	! comm for grid topology
 	integer, allocatable 		:: icoord(:,:)  ! proc grid coordinates
-	integer						:: icomm_xyz(3)	! Directional subcomms
+	integer						:: icomm_xyz(3)	! Directional "line" subcomms
+	integer						:: plane_comm(3)! Directional "plane" subcomms
 	integer, dimension(8,2) 	:: proc_topology_corners
 	integer, dimension(4,3,2) 	:: proc_topology_edge
+
+	integer :: planerankx, planeranky, planerankz
+
 
 	logical :: Lperiodic(3)
 
@@ -77,21 +81,17 @@ contains
 
 	end function globalise
 
-	!=============================================================================
-	! Get local position on processor from molecule's global position.
-	!-----------------------------------------------------------------------------
 	function localise(rglob) result(rloc)
 		implicit none
+		
+		real(kind(0.d0)), intent(in)  :: rglob(3)
+		real(kind(0.d0))              :: rloc(3)
 
-		double precision,intent(in) :: rglob(3)
-		double precision 			:: rloc(3)
+		rloc(1) = rglob(1)+(halfdomain(1)*(npx-1))-domain(1)*(iblock-1)
+		rloc(2) = rglob(2)+(halfdomain(2)*(npy-1))-domain(2)*(jblock-1)
+		rloc(3) = rglob(3)+(halfdomain(3)*(npz-1))-domain(3)*(kblock-1)
 
-		!Global domain has origin at centre
-		rloc(1) = rglob(1)+halfdomain(1)*(npx-1)-domain(1)*(iblock-1)
-		rloc(2) = rglob(2)+halfdomain(2)*(npy-1)-domain(2)*(jblock-1)
-		rloc(3) = rglob(3)+halfdomain(3)*(npz-1)-domain(3)*(kblock-1)
-
-	end function localise
+	end function localise 
 
 end module messenger
 
@@ -186,7 +186,7 @@ subroutine messenger_init()
 	jblock = icoord(2, irank)
 	kblock = icoord(3, irank)
 
-	! Directional subcomms
+	! Directional line subcomms
 	do ixyz=1,3
 		Lremain_dims(:) = .false.
 		Lremain_dims(ixyz) = .true.
@@ -200,6 +200,19 @@ subroutine messenger_init()
 	call MPI_comm_rank (icomm_xyz(1), irankx, ierr)
 	call MPI_comm_rank (icomm_xyz(2), iranky, ierr)
 	call MPI_comm_rank (icomm_xyz(3), irankz, ierr)
+
+	! Directional plane subcomms
+	call MPI_Cart_sub(icomm_grid,(/.false.,.true.,.true./),plane_comm(1),ierr)
+	call MPI_Cart_sub(icomm_grid,(/.true.,.false.,.true./),plane_comm(2),ierr)
+	call MPI_Cart_sub(icomm_grid,(/.true.,.true.,.false./),plane_comm(3),ierr)
+	
+	call MPI_comm_rank (plane_comm(1), planerankx, ierr)
+	call MPI_comm_rank (plane_comm(2), planeranky, ierr)
+	call MPI_comm_rank (plane_comm(3), planerankz, ierr)
+
+!	call MPI_comm_size (plane_comm(1), planenprocx, ierr)
+!	call MPI_comm_size (plane_comm(2), planenprocy, ierr)
+!	call MPI_comm_size (plane_comm(3), planenprocz, ierr)
 
 	! Root process at coordinates (0,0,0)
 	idims = 0
@@ -469,7 +482,7 @@ subroutine messenger_updateborders(rebuild)
 	use interfaces
 	use messenger
 	use arrays_MD
-	use physical_constants_MD, only :np,halo_np
+	use physical_constants_MD, only: halo_np, np
 	implicit none
 
 	integer				 	:: rebuild
@@ -2461,6 +2474,36 @@ subroutine globalSumIntVect(A, na)
 	return
 end
 
+subroutine PlaneSumIntVect(PLANE_COMM_IN, A, na)
+	use messenger
+
+    integer, intent(in) :: na
+	integer, intent(in) :: PLANE_COMM_IN
+	integer A(na)
+	integer buf(na)
+
+	call MPI_AllReduce (A, buf, na, MPI_INTEGER, &
+	                    MPI_SUM, PLANE_COMM_IN, ierr)
+	A = buf
+
+	return
+end
+
+subroutine PlaneSumVect(PLANE_COMM_IN, A, na)
+	use messenger
+
+    integer, intent(in) :: na
+	integer, intent(in) :: PLANE_COMM_IN
+	real(kind(0.d0)) :: A(na)
+	real(kind(0.d0)) :: buf(na)
+
+	call MPI_AllReduce (A, buf, na, MPI_DOUBLE_PRECISION, &
+	                    MPI_SUM, PLANE_COMM_IN, ierr)
+	A = buf
+
+	return
+end
+
 subroutine globalMaxVect(A, na)
 	use messenger
 
@@ -2578,6 +2621,18 @@ end
 
 
 !----Sum routines over global sub communitcators
+subroutine SubcommGather(A,B,na,ixyz,npixyz)
+	use messenger
+	implicit none
+
+	integer, intent(in) :: na, ixyz, npixyz
+	integer, intent(in) :: A(na)
+	integer, intent(out):: B(na,npixyz)
+
+	call MPI_Allgather (A, na, MPI_INTEGER, B, na, &
+			    MPI_INTEGER,icomm_xyz(ixyz), ierr)
+	
+end subroutine
 
 subroutine SubcommSumInt(A, ixyz)
 	use messenger

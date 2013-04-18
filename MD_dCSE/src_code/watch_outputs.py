@@ -19,7 +19,7 @@ class WatchOutput:
 		for i in range(len(self.vaxis)):
 			self.lines.append(self.ax.plot([])[0]) # First item of ax.plot
 			self.lines[i].set_data([],[])
-	
+
 		self.setup_anim()
 
 	def setup_anim(self):
@@ -28,7 +28,8 @@ class WatchOutput:
 		                                    self.update,
 		                                    self.data_gen,
 		                                    interval=50
-		                                  )
+	   	                                  )
+
 	def update(self,data):
 		self.ax.relim()
 		self.ax.autoscale_view(True,True,True)

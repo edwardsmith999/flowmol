@@ -38,6 +38,7 @@ module module_parallel_io
 	use physical_constants_MD
 	use arrays_MD
 	use polymer_info_MD
+	use concentric_cylinders, only: cyl_file
 	use shear_info_MD
 	use calculated_properties_MD
 	use messenger, only : MD_COMM
@@ -152,7 +153,6 @@ subroutine iwrite_arrays(some_array,nresults,outfile,outstep)
 	!==========================================================
 	!     FREE DATA TYPES
 	!----------------------------------------------------------
-	CALL MPI_BARRIER(icomm_grid,IERR)
 	call MPI_TYPE_FREE(memtype,ierr) ; MEM_FLAG = 0
 	call MPI_TYPE_FREE(filetype,ierr); FILE_FLAG = 0
 
@@ -209,23 +209,23 @@ subroutine rwrite_arrays(some_array,nresults,outfile,outstep)
 	!  Note:  MPI assumes here that numbering starts from zero
 	!  Since numbering starts from (one), subtract (one) from every index
 	!-------------------------------------------------------
-	global_cnt 	= (outstep-1)*gnbins(1)*gnbins(2)*gnbins(3)*nresults
-	offset		= global_cnt * dp_size
-	gsizes 		= gnbins
-	lsizes		= nbins
-	local_indices(:) = (/  0  , 0 , 0 /)
+	global_cnt 	= (outstep-1)*gnbins(1)*gnbins(2)*gnbins(3)*nresults !Global number of items written so far
+	offset		= global_cnt * dp_size                               !Bytes written already 
+	gsizes 		= gnbins                                             !Global "sizes", i.e. bins (need a better name for this)
+	lsizes		= nbins                                              !Local "sizes", i.e. bins (need a better name for this)
+	local_indices(:) = (/  0  , 0 , 0 /)                             !Not sure, goes into MPI_TYPE_CREATE_SUBARRAY !todo
 	!Calculate global_indices
-	global_indices(:)= (/  0  , 0 , 0 /)
-	allocate(proc_lsizes(3,nproc))
-	call globalGather(lsizes,proc_lsizes,3)
-	global_indices(1) = sum(proc_lsizes(1,1:iblock-1))
+	global_indices(:)= (/  0  , 0 , 0 /)                             !Same, goes into MPI_TYPE_CREATE_SUBARRAY
+	allocate(proc_lsizes(3,nproc))                                   !Number of bins on each processor 
+	call globalGather(lsizes,proc_lsizes,3)                          !(populated)
+	global_indices(1) = sum(proc_lsizes(1,1:iblock-1))               !Seems to be a set of offsets in x,y,z
 	global_indices(2) = sum(proc_lsizes(2,1:jblock-1))
 	global_indices(3) = sum(proc_lsizes(3,1:kblock-1))
 	deallocate(proc_lsizes)
 
 	!Allocate ouput buffer
-	allocate(OutBuffer(lsizes(1),lsizes(2),lsizes(3)))
-	memsizes = lsizes
+	allocate(OutBuffer(lsizes(1),lsizes(2),lsizes(3)))               !Buffer that's written
+	memsizes = lsizes                                                !Not sure why redefining?
 
 	do n =1,nresults
 		!Copy to outbuffer
@@ -326,6 +326,7 @@ implicit none
 	restart_file_exists = .false.
 	input_file = trim(prefix_dir)//'MD.in'
 	initial_microstate_file = trim(prefix_dir)//'final_state'
+	cyl_file = trim(prefix_dir)//'cylinders'
 
 	argcount = command_argument_count()
 
@@ -352,6 +353,10 @@ implicit none
 
 			if (trim(arg).eq.'-i' .and. nextarg(1:1).ne.'-') then
 				input_file = trim(nextarg)
+			end if
+
+			if (trim(arg).eq.'-c' .and. nextarg(1:1).ne.'-') then
+				cyl_file = trim(nextarg)
 			end if
 
 		end do
@@ -428,7 +433,7 @@ subroutine setup_restart_inputs
 	integer							:: prev_nproc
 	integer 						:: extrasteps
 	integer 						:: checkint
-    integer(MPI_OFFSET_KIND)        :: ofs, header_ofs
+    integer(kind=MPI_OFFSET_KIND)   :: ofs, header_ofs
     integer(selected_int_kind(18))  :: header_pos
 	double precision 				:: checkdp
 	character(400)					:: error_message
@@ -463,20 +468,23 @@ subroutine setup_restart_inputs
 	    call MPI_File_read(restartfileid,globalnp        ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 	    call MPI_File_read(restartfileid,checkint   	 ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 		if (checkint .ne. initialnunits(1)) then
-			print*, 'Discrepancy between x domain size', &
-					'in input & restart file - restart file will be used', checkint, initialnunits(1)
+			print*, 'Discrepancy between x initialnunits in input and restart file:', &
+			        'restart file will be used. Resetting initialnunits(1) from', initialnunits(1), &
+			        'to', checkint 
 			initialnunits(1) = checkint
 		endif
 	    call MPI_File_read(restartfileid,checkint   	 ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 		if (checkint .ne. initialnunits(2)) then
-			print*, 'Discrepancy between y domain size', &
-					'in input & restart file - restart file will be used', checkint, initialnunits(2)
+			print*, 'Discrepancy between y initialnunits in input and restart file:', &
+			        'restart file will be used. Resetting initialnunits(2) from', initialnunits(2), &
+			        'to', checkint 
 			initialnunits(2) = checkint
 		endif
 	    call MPI_File_read(restartfileid,checkint   	 ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 		if (checkint .ne. initialnunits(3)) then
-			print*, 'Discrepancy between z domain size', &
-					'in input & restart file - restart file will be used', checkint, initialnunits(3)
+			print*, 'Discrepancy between z initialnunits in input and restart file:', &
+			        'restart file will be used. Resetting initialnunits(3) from', initialnunits(3), &
+			        'to', checkint 
 			initialnunits(3) = checkint
 		endif
 	    call MPI_File_read(restartfileid,Nsteps          ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
@@ -648,7 +656,6 @@ subroutine setup_restart_inputs
 end subroutine setup_restart_inputs
 
 !------------------------------------------------------------------------------
-
 subroutine setup_restart_microstate
 	use module_parallel_io
 	implicit none
@@ -678,7 +685,7 @@ subroutine setup_restart_microstate
 
 	!Open restart file on all processor
 	call MPI_FILE_OPEN(MD_COMM, initial_microstate_file, & 
-		MPI_MODE_RDONLY , MPI_INFO_NULL, restartfileid, ierr)
+	                   MPI_MODE_RDONLY , MPI_INFO_NULL, restartfileid, ierr)
 
 	select case(proc_reorder)
 	case(0)
@@ -853,15 +860,123 @@ subroutine setup_restart_microstate
 
 	if (irank.eq.iroot) print*, 'Molecular tags have been read from restart file.'
 	call get_tag_thermostat_activity(tag_thermostat_active)
+	if (irank.eq.iroot) print*, 'Thermostat thermostat activity = ', tag_thermostat_active
 	do n = 1,np
 		call read_tag(n)		!Read tag and assign properties
 	enddo
+	if (irank.eq.iroot) print*, 'Molecular tags have been imported and processed.'
 
 	!call setup_initialise_velocities_TG_parallel
 	deallocate(bufsize)
 	if (tag_off) deallocate(tag)	!Tags off so tag info not necessary
 
 end subroutine setup_restart_microstate
+
+!=============================================================================
+! Import cylinders to be filled 
+subroutine parallel_io_cyl_footer(infile)
+	use mpi
+	use computational_constants_MD, only: globaldomain
+	use physical_constants_MD, only: globalnp
+	use concentric_cylinders, only: cyl_file, r_oo, r_io, r_oi, r_ii, cyl_np
+	implicit none
+
+	character(*), intent(in) :: infile
+
+	integer :: ierr, fileid
+	integer(kind=MPI_OFFSET_KIND) :: ofs, header_ofs
+	integer(selected_int_kind(18)) :: header_pos
+
+	call MPI_FILE_OPEN(MPI_COMM_SELF, infile, MPI_MODE_RDONLY, &
+					   MPI_INFO_NULL, fileid, ierr)
+
+	if (ierr .ne. 0) stop 'Error opening cylinder file'
+
+	! Read size of offset, in case we hit a system that uses 32 bit
+	! addresses
+	ofs = -8 ! Read an 8-bit integer
+	call MPI_FILE_SEEK(fileid, ofs, MPI_SEEK_END, ierr)
+	call MPI_FILE_READ(fileid, header_pos, 1, MPI_INTEGER8, &
+					   MPI_STATUS_IGNORE,ierr)
+	header_ofs = header_pos
+	call MPI_FILE_SEEK(fileid,header_ofs,MPI_SEEK_SET,ierr)
+
+	call MPI_FILE_READ(fileid,cyl_np,1,MPI_INTEGER, &
+					   MPI_STATUS_IGNORE,ierr)
+
+	call MPI_FILE_READ(fileid,globaldomain,3,MPI_DOUBLE_PRECISION, &
+					   MPI_STATUS_IGNORE,ierr)
+	call MPI_FILE_READ(fileid,r_oo,1,MPI_DOUBLE_PRECISION, &
+					   MPI_STATUS_IGNORE,ierr)
+	call MPI_FILE_READ(fileid,r_io,1,MPI_DOUBLE_PRECISION, &
+					   MPI_STATUS_IGNORE,ierr)
+	call MPI_FILE_READ(fileid,r_oi,1,MPI_DOUBLE_PRECISION, &
+					   MPI_STATUS_IGNORE,ierr)
+	call MPI_FILE_READ(fileid,r_ii,1,MPI_DOUBLE_PRECISION, &
+					   MPI_STATUS_IGNORE,ierr)
+
+	call MPI_FILE_CLOSE(fileid,ierr)
+	!print*, 'Read cylinder footer information:'
+	!print*, 'globalnp:', globalnp
+	!print*, 'globaldomain:', globaldomain
+	!print*, 'r_oo:', r_oo
+	!print*, 'r_io:', r_io 
+	!print*, 'r_oi:', r_oi 
+	!print*, 'r_ii:', r_ii 
+
+end subroutine parallel_io_cyl_footer
+
+subroutine parallel_io_import_cylinders
+	use mpi
+	use concentric_cylinders, only: cyl_file, cyl_np
+	use physical_constants_MD, only: globalnp, np
+	use computational_constants_MD, only: iblock, jblock, kblock, irank,&
+	                                      globaldomain, domain, teth
+	use arrays_MD, only: r, tag
+	use messenger, only: localise, MD_COMM
+	implicit none
+
+	integer :: fileid, ierr
+	integer :: nl, n, procassign
+	real    :: rtemp(3)
+
+	!Open restart file on all processor
+	call MPI_FILE_OPEN(MD_COMM, cyl_file, & 
+	                   MPI_MODE_RDONLY , MPI_INFO_NULL, fileid, ierr)
+
+	nl = 0		!Reset local molecules count nl
+	!---------- For all molecule positions ------------
+	!Move through location of position co-ordinates
+	do n=1,cyl_np
+
+		!Read global position	
+		call MPI_FILE_READ_ALL(fileid, rtemp, 3, MPI_REAL, &
+							   MPI_STATUS_IGNORE, ierr)
+
+		!Use integer division to determine which processor to assign molecule to
+		procassign = ceiling((rtemp(1)+globaldomain(1)/2.d0)/domain(1))
+		if (procassign .ne. iblock) cycle
+		procassign = ceiling((rtemp(2)+globaldomain(2)/2.d0)/domain(2))
+		if (procassign .ne. jblock) cycle
+		procassign = ceiling((rtemp(3)+globaldomain(3)/2.d0)/domain(3))
+		if (procassign .ne. kblock) cycle
+
+		!If molecules is in the domain then add to processor's total
+		nl = nl + 1 !Local molecule count
+
+		!Correct to local coordinates
+		r(:,nl) = localise(real(rtemp(:),kind(0.d0)))
+
+		if (mod(n,1000) .eq. 0) print'(a,f10.2)', & 
+			' Redistributing cylinder molecules to input processor topology - % complete =', (100.d0*n/globalnp)
+
+	enddo
+
+	np = nl
+
+	call MPI_FILE_CLOSE(fileid, ierr)
+
+end subroutine parallel_io_import_cylinders
 
 !======================================================================
 !=	        							OUTPUTS			              =
@@ -911,7 +1026,7 @@ subroutine parallel_io_final_state
 
 	!Allocate tag array to write for restart so as to maximise compatibility
 	if (ensemble.ne.tag_move) then
-		allocate(tag(np)); 	tag(:) = free 
+		!allocate(tag(np)); 	tag(:) = free 
 	else
 		!Convert any tethered molecules to global coordinates ready to write out
 		allocate(rtetherglobal(3,np))
@@ -997,7 +1112,7 @@ subroutine parallel_io_final_state
 	call MPI_BARRIER(MD_COMM, ierr)	
  
 
-	!----------------Write header------------------------
+	!----------------Write header-----------------------
 	!Written at the end for performance and simplicity reasons 
 	!(See Gropp, lusk & Thakur Using MPI-2)
 
@@ -1222,6 +1337,7 @@ subroutine parallel_io_vmd
 
 
 end subroutine parallel_io_vmd
+
 
 !------------------------------------------------------------------------
 !Write positions of molecules to a file
@@ -1682,7 +1798,100 @@ subroutine parallel_io_vmd_halo
 
 end subroutine parallel_io_vmd_halo
 
-!---------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------
+! Write cylinder molecules and properties to a file
+subroutine parallel_io_write_cylinders
+	use concentric_cylinders, only: r_oo, r_io, r_oi, r_ii, cyl_file
+	use module_parallel_io
+	use messenger, only: globalise
+	implicit none
+
+	integer :: filesize
+	integer	:: i, datasize
+	integer :: n, pos
+    integer(selected_int_kind(18))  :: header_pos
+	real :: rglob(3)
+	real, dimension(:), allocatable :: buf
+	integer(kind=MPI_OFFSET_KIND) :: disp, procdisp
+
+	!Build array of number of particles on neighbouring
+	!processe's subdomain on current proccess
+	call globalGathernp
+
+	!Determine size of real datatype
+ 	call MPI_type_size(MPI_real,datasize,ierr)
+
+	!Load buffers with single precision r and adjust according
+	!to processor topology with r = 0 at centre
+	!Allocate buffers
+	allocate(buf(3*np))
+
+	pos = 1
+	do n = 1,np
+		rglob(:) = real(globalise(r(:,n)))
+		buf(pos) = rglob(1)
+		buf(pos+1) = rglob(2)
+		buf(pos+2) = rglob(3)
+		pos = pos + 3
+	end do
+
+	procdisp = 0
+	!Obtain displacement of each processor using all other procs' np
+	do i = 1, irank -1
+		procdisp = procdisp + procnp(i)*3*datasize
+	enddo
+
+	!Open file on all processors
+	call MPI_FILE_OPEN(MD_COMM, trim(prefix_dir)//'results/cylinders', & 
+					   MPI_MODE_RDWR + MPI_MODE_CREATE, MPI_INFO_NULL, &
+	                   fileid, ierr)
+
+	!-------------Write X coordinates--------------------
+	!Obtain location to write in file
+	disp = procdisp
+	call MPI_FILE_SET_VIEW(fileid, disp, MPI_REAL, MPI_REAL, 'native', & 
+	                       MPI_INFO_NULL, ierr)
+	!Write information to file
+	call MPI_FILE_WRITE_ALL(fileid, buf, 3*np, MPI_REAL, MPI_STATUS_IGNORE, &
+	                        ierr) 
+	!-------------- CLOSE -------------------------------	
+	call MPI_FILE_CLOSE(fileid, ierr) 
+	!Barrier required to get the correct file size for next write
+	call MPI_BARRIER(MD_COMM, ierr)	
+
+	!----------------Write header-----------------------
+	!Written at the end for performance and simplicity reasons 
+	!(See Gropp, lusk & Thakur Using MPI-2)
+
+	!Write the header with one processor only
+	if (irank .eq. iroot) then
+
+        call MPI_file_open(MPI_COMM_SELF,trim(prefix_dir)//'results/cylinders', &
+		                   MPI_MODE_WRONLY, MPI_INFO_NULL, fileid, ierr)
+                
+        if (ierr .ne. 0) then 
+			write(0,*) "MD parallel_io: error in MPI_File open"
+        endif
+        call MPI_FILE_GET_SIZE(fileid,filesize,ierr)
+        disp = filesize
+        call MPI_FILE_SET_VIEW(fileid,disp,MPI_BYTE,MPI_BYTE,'native',MPI_INFO_NULL,ierr)
+
+		! Write integers first
+        call MPI_FILE_WRITE(fileid,globalnp,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+		call MPI_FILE_WRITE(fileid,globaldomain,3,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+		call MPI_FILE_WRITE(fileid,r_oo,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+		call MPI_FILE_WRITE(fileid,r_io,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+		call MPI_FILE_WRITE(fileid,r_oi,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+		call MPI_FILE_WRITE(fileid,r_ii,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+	
+        header_pos = filesize ! just in case offset kind is 32 bit, rather improbable these days  !!!
+        call MPI_File_write(fileid,header_pos,1,MPI_INTEGER8,MPI_STATUS_IGNORE,ierr)
+        call MPI_file_close(fileid,ierr)
+
+	endif
+
+end subroutine parallel_io_write_cylinders
+!-----------------------------------------------------------------------------
 ! Write value of last output iteration
 
 subroutine update_simulation_progress_file
@@ -1698,7 +1907,7 @@ subroutine update_simulation_progress_file
 end subroutine update_simulation_progress_file
 
 
-!---------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------
 ! Record mass in a slice through the domain
 
 subroutine mass_slice_io(ixyz)
@@ -1921,6 +2130,252 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 	call write_arrays(CV_momentum_out,nresults,outfile,m)
 
 end subroutine velocity_bin_io
+
+! ---------------------------------------------------------------------------
+! Cylindrical polar version of output
+subroutine velocity_bin_cpol_io(mass_out,mom_out)
+	use concentric_cylinders, only: cpol_binso
+	use physical_constants_MD, only: nd
+	use computational_constants_MD, only: iter, initialstep, tplot, &
+	                                      Nmass_ave, prefix_dir
+	use messenger, only: icomm_grid,iblock,jblock,plane_comm
+	implicit none
+
+	! z-plane mass and momentum for all_reduce on zplane subcomms.
+	! The mass and mom arrays on each processor are global in
+	! r and theta, but local in z.  
+	integer, intent(inout) :: mass_out(cpol_binso(1), &
+	                                   cpol_binso(2), &
+	                                   cpol_binso(3))
+	real(kind(0.d0)), intent(inout) :: mom_out (cpol_binso(1), &
+	                                            cpol_binso(2), &
+	                                            cpol_binso(3), &
+	                                            nd)
+
+	character(200) :: mfile, vfile
+	integer :: m, ierr
+
+	! Z-Plane global sums of r/theta bins, everyone has a copy of
+	! r/theta bins in their own z-plane
+	call ZPlaneReduceMass
+	call ZPlaneReduceMom
+
+	! Bottom corner z-line of processors write to file	
+	if (iblock .eq. 1 .and. jblock .eq. 1) then
+
+		! Record number
+		m = (iter-initialstep+1)/(tplot*Nmass_ave)
+
+		! Filenames
+		mfile = trim(prefix_dir)//'results/mbins'
+		vfile = trim(prefix_dir)//'results/vbins'
+
+		! Write arrays
+		call iwrite_zplane_1 (mass_out,  mfile,m)
+		call rwrite_zplane   (mom_out, 3,vfile,m)
+
+	end if
+
+	! Barrier needed to ensure correct offsets calculated next
+	CALL MPI_BARRIER(icomm_grid,ierr)
+	
+contains
+
+	subroutine ZPlaneReduceMass
+	implicit none
+
+		integer :: nbins
+		integer, allocatable :: buf(:)
+
+		nbins = cpol_binso(1) * cpol_binso(2) * cpol_binso(3)
+
+		allocate( buf(nbins) )
+
+		buf = reshape( mass_out, (/nbins/) )
+		call PlaneSumIntVect(plane_comm(3),buf,nbins)
+		mass_out = reshape(buf,(/cpol_binso(1), cpol_binso(2), cpol_binso(3)/))
+
+		deallocate( buf )
+
+	end subroutine ZPlaneReduceMass
+
+	subroutine ZPlaneReduceMom
+	implicit none
+
+		integer :: nbins
+		real(kind(0.d0)), allocatable :: buf(:)
+
+		nbins = cpol_binso(1) * cpol_binso(2) * cpol_binso(3)
+
+		allocate( buf(nd*nbins) )
+
+		buf = reshape( mom_out, (/nd*nbins/) )
+		call PlaneSumVect( plane_comm(3), buf, nd*nbins )
+		mom_out = reshape(buf,(/cpol_binso(1),cpol_binso(2),cpol_binso(3),nd/))
+
+		deallocate(buf)
+
+	end subroutine ZPlaneReduceMom
+
+	subroutine rwrite_zplane(cpol_array,nresults,outfile,outstep)
+		use mpi
+		use module_parallel_io, only: Create_commit_fileview, &
+		                              Create_commit_subarray
+		use messenger, only : icomm_xyz, kblock
+		use concentric_cylinders, only: gcpol_bins, cpol_bins, cpol_nhbz
+		use computational_constants_MD, only: npz
+		implicit none
+
+		integer, intent(in) :: nresults,outstep
+		double precision, dimension(:,:,:,:),intent(in) :: cpol_array
+		character(*),intent(in) :: outfile
+
+		integer :: n, fh, ierr
+		integer :: MEM_FLAG = 0
+		integer :: FILE_FLAG = 0
+		integer :: global_cnt,dp_size,datatype
+		integer :: status(mpi_status_size)
+		integer :: filetype, memtype
+		integer (kind=MPI_offset_kind) :: offset
+		integer, dimension(3) :: gsizes, lsizes, memsizes
+		integer, dimension(3) :: global_indices, local_indices
+		integer, dimension(:,:),allocatable :: kblock_lsizes 
+		double precision, allocatable,dimension(:,:,:) :: OutBuffer
+
+		datatype = MPI_DOUBLE_PRECISION
+		call MPI_TYPE_SIZE(datatype, dp_size, ierr)
+
+		call MPI_file_open(icomm_xyz(3), outfile, &
+		                   MPI_MODE_WRONLY+MPI_MODE_CREATE, &
+		                   MPI_INFO_NULL, fh, ierr)
+
+		! Define offsets, etc. Remember MPI is written in C so indices are
+		! counted from 0, rather than 1 as in Fortran.
+		global_cnt 	= (outstep-1)*product(gcpol_bins(:))*nresults 
+		offset		= global_cnt * dp_size
+		gsizes 		= gcpol_bins
+		lsizes		= cpol_bins
+		local_indices(:) = (/ 0 , 0 , 0 /)
+		global_indices(:)= (/ 0 , 0 , 0 /)
+
+		! Number of bins on each kblock	
+		allocate(kblock_lsizes(3,npz))
+		call SubcommGather(lsizes,kblock_lsizes,3,3,npz)
+		global_indices(1) = 0
+		global_indices(2) = 0 
+		global_indices(3) = sum(kblock_lsizes(3,1:kblock-1))
+		deallocate(kblock_lsizes)
+
+		!Allocate ouput buffer
+		allocate(OutBuffer(lsizes(1),lsizes(2),lsizes(3)))
+		memsizes = lsizes
+
+		do n =1,nresults
+
+			OutBuffer = cpol_array(:,:,cpol_nhbz+1:cpol_bins(3)+cpol_nhbz,n)
+
+			call Create_commit_fileview(gsizes, lsizes, global_indices, &
+			                            offset,datatype,FILE_FLAG,filetype,fh)
+
+			!Update local array datatype to ignore halo cells
+			call Create_commit_subarray(memsizes, lsizes, local_indices, &
+			                            datatype,MEM_FLAG,memtype)
+
+			call MPI_FILE_WRITE_ALL(fh, OutBuffer, 1, memtype, status, ierr)
+
+			!Calculate global count offset
+			global_cnt = global_cnt + product(gcpol_bins(:))
+			offset = global_cnt * dp_size
+		
+		enddo
+
+		deallocate(OutBuffer)
+		CALL MPI_FILE_CLOSE(fh, ierr)
+
+		! Free data types
+		call MPI_TYPE_FREE(memtype,ierr) ; MEM_FLAG = 0
+		call MPI_TYPE_FREE(filetype,ierr); FILE_FLAG = 0
+
+	end subroutine rwrite_zplane
+
+	subroutine iwrite_zplane_1(cpol_array,outfile,outstep)
+		use mpi
+		use module_parallel_io, only: Create_commit_fileview, Create_commit_subarray
+		use messenger, only : icomm_xyz, kblock
+		use concentric_cylinders, only: gcpol_bins, cpol_bins, cpol_nhbz
+		use computational_constants_MD, only: npz
+		implicit none
+
+		integer, intent(in) :: outstep
+		integer, dimension(:,:,:),intent(in) :: cpol_array
+		character(*),intent(in) :: outfile
+
+		integer :: n, fh, ierr
+		integer :: MEM_FLAG = 0
+		integer :: FILE_FLAG = 0
+		integer :: global_cnt,int_size,datatype
+		integer :: status(mpi_status_size)
+		integer :: filetype, memtype
+		integer (kind=MPI_offset_kind) :: offset
+		integer, dimension(3) :: gsizes, lsizes, memsizes
+		integer, dimension(3) :: global_indices, local_indices
+		integer, dimension(:,:),allocatable :: kblock_lsizes 
+		integer, allocatable,dimension(:,:,:) :: OutBuffer
+
+		datatype = MPI_INTEGER
+		call MPI_TYPE_SIZE(datatype, int_size, ierr)
+
+		call MPI_file_open(icomm_xyz(3), outfile, &
+		                   MPI_MODE_WRONLY+MPI_MODE_CREATE, &
+		                   MPI_INFO_NULL, fh, ierr)
+
+		! Define offsets, etc. Remember MPI is written in C so indices are
+		! counted from 0, rather than 1 as in Fortran.
+		global_cnt 	= (outstep-1)*product(gcpol_bins(:))
+		offset		= global_cnt * int_size
+		gsizes 		= gcpol_bins
+		lsizes		= cpol_bins
+		local_indices(:) = (/ 0 , 0 , 0 /)
+		global_indices(:)= (/ 0 , 0 , 0 /)
+
+		!Number of bins on each kblock processor group 
+		allocate(kblock_lsizes(3,npz))
+		call SubcommGather(lsizes,kblock_lsizes,3,3,npz)
+		global_indices(1) = 0
+		global_indices(2) = 0 
+		global_indices(3) = sum(kblock_lsizes(3,1:kblock-1))
+		deallocate(kblock_lsizes)
+
+		allocate(OutBuffer(lsizes(1),lsizes(2),lsizes(3)))
+		memsizes = lsizes
+
+		! Copy to outbuffer, not including halo cells
+		OutBuffer =  cpol_array(:,:,cpol_nhbz+1:cpol_bins(3)+cpol_nhbz)
+
+		! Create fileview and subarray to be written
+		call Create_commit_fileview(gsizes, lsizes, global_indices, &
+		                            offset, datatype, FILE_FLAG, filetype, fh)
+		call Create_commit_subarray(memsizes, lsizes, local_indices, &
+		                            datatype, MEM_FLAG, memtype)
+
+		! Write to file
+		call MPI_FILE_WRITE_ALL(fh, OutBuffer, 1, memtype, status, ierr)
+
+		!Calculate global count offset
+		global_cnt = global_cnt + product(gcpol_bins(:))
+		offset = global_cnt * int_size
+
+		deallocate(OutBuffer)
+		CALL MPI_FILE_CLOSE(fh, ierr)
+
+		! Free data types
+		CALL MPI_BARRIER(icomm_xyz(3),IERR)
+		call MPI_TYPE_FREE(memtype,ierr) ; MEM_FLAG = 0
+		call MPI_TYPE_FREE(filetype,ierr); FILE_FLAG = 0
+
+	end subroutine iwrite_zplane_1
+	
+end subroutine velocity_bin_cpol_io
 
 !---------------------------------------------------------------------------------
 ! Record temperature in a slice through the domain

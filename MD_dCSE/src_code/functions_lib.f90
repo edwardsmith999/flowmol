@@ -71,41 +71,50 @@ subroutine locate(fileid,keyword,required,input_present)
 use interfaces
 implicit none
 	
-	character*(*),intent(in)	:: keyword		! Input keyword	
-	integer,intent(in)		:: fileid		! File unit number
-	logical,intent(in)		:: required		! Flag to check if input is required
-	logical,intent(out),optional	:: input_present	! Optional flag passed back if present in intput
+	character*(*),intent(in) :: keyword             ! Input keyword	
+	integer, intent(in) :: fileid                   ! File unit number
+	logical, intent(in) :: required                 ! Flag check if input reqd
+	logical, intent(out), optional :: input_present ! Optl return flag 
 
-	character*(100)			:: linestring		! First 100 characters in a line
-	integer				:: keyword_length	! Length of input keyword
-	integer				:: io			! File status flag
+	character*(100) :: linestring                   ! First 100 chars in a line
+	integer :: keyword_length                       ! Length of input keyword
+	integer :: io                                   ! File status flag
 
-	!Check if required, if not then check if input check variable is include
-	!and terminate if missing
+	! Terminate if input_present flag is missing for non-required input 
 	if (.not. required) then
+
 		if(present(input_present)) then
-			input_present = .true.	!Assume true until not found
+	
+			!Assume true until not found
+			input_present = .true.
+
 		else
-			call error_abort( "ERROR IN LOCATE - If input not required, extra logical argument&
-				& must be included to check if variable is specified in input file") 
+
+			call error_abort( "ERROR IN LOCATE - If input not required, &
+			                  &extra logical argument must be included to &
+			                  &check if variable is specified in input file") 
 			
 		endif
+
 	endif
 
+	! Bulk of the locate routine
 	keyword_length = len(keyword)
-	rewind(fileid)	! Go to beginning of input file
+	rewind(fileid)
 	do
-		read (fileid,*,iostat=io) linestring			! Read first 100 characters
-		if (linestring(1:keyword_length).eq.keyword) exit	! If the first characters match keyword then exit loop
 
-		if (io.ne.0) then	! If end of file is reached
-			if (.not. required) then
-				!print*, keyword, ' - Not specified in input file - default value taken'
+		read (fileid,*,iostat=io) linestring
+		if (linestring(1:keyword_length).eq.keyword) exit
+
+		! If EOF reached, return or abort depending on required flag
+		if ( io .ne. 0 ) then
+			if ( .not. required ) then
 				input_present = .false.
 				return
 			else
-				call error_abort("ERROR IN LOCATE -  Required input "//trim(keyword)//"& 
-					& not found in input file. Stopping simulation.")
+				call error_abort("ERROR IN LOCATE -  &
+				                 &Required input "//trim(keyword)//"not &
+				                 &found in input file. Stopping simulation.")
 			endif
 		end if
 
@@ -113,7 +122,7 @@ implicit none
 
 end subroutine locate
 
-!--------------------------------------------------------------------------------------
+!------------------------------------------------------------------------------
 !Returns the magnitude of an 3 dimensional vector
 
 function magnitude3(a)
@@ -152,7 +161,82 @@ function magnitudeN(a,n)
 
 end function  magnitudeN
 
-!--------------------------------------------------------------------------------------
+!------------------------------------------------------------------------------
+! Functions to switch between cartesian and cylindrical polar coords
+
+function cpolariser(rin) result(rcp)
+implicit none
+
+	real(kind(0.d0)), intent(in)  :: rin(3)
+	real(kind(0.d0))              :: rcp(3)
+
+	real(kind(0.d0)) :: x,y,z
+	real(kind(0.d0)) :: pi=4.d0*atan(1.d0)
+
+	x = rin(1)
+	y = rin(2)
+	z = rin(3)
+
+	rcp(1) = sqrt(x*x + y*y)
+	rcp(2) = modulo(atan2(y,x),2.d0*pi)
+	rcp(3) = z	
+
+end function cpolariser
+
+function cpolarisev(vcart,theta) result(vpol)
+implicit none
+
+	real(kind(0.d0)), intent(in) :: vcart(3), theta
+	real(kind(0.d0)) :: vpol(3)
+
+	real(kind(0.d0)) :: vx,vy,vz,r,t,z
+
+	vx = vcart(1)
+	vy = vcart(2)
+	vz = vcart(3)
+
+	vpol(1) =  vx*cos(theta) + vy*sin(theta) 
+	vpol(2) = -vx*sin(theta) + vy*cos(theta)
+	vpol(3) =  vz	
+
+end function cpolarisev
+
+function cartesianiser(rin) result(rca)
+implicit none
+	
+	real(kind(0.d0)), intent(in) :: rin(3)
+	real(kind(0.d0))             :: rca(3)
+
+	real(kind(0.d0)) :: r,t,z
+
+	r = rin(1)
+	t = rin(2)
+	z = rin(3)
+
+	rca(1) = r*cos(t) 
+	rca(2) = r*sin(t)
+	rca(3) = z
+
+end function cartesianiser
+
+function cartesianisev(vpol,theta) result(vcart)
+implicit none
+
+	real(kind(0.d0)), intent(in) :: vpol(3),theta 
+	real(kind(0.d0)) :: vcart(3)
+
+	real(kind(0.d0)) :: vr,vt,vz
+
+	vr = vpol(1)
+	vt = vpol(2)
+	vz = vpol(3)
+
+	vcart(1) =  vr*cos(theta) - vt*sin(theta)
+	vcart(2) =  vr*sin(theta) + vt*cos(theta)
+	vcart(3) =  vz	
+
+end function cartesianisev
+!------------------------------------------------------------------------------
 !Subroutine for calculating least squares straight line with a uniform interval between x values
 
 subroutine least_squares(y,x_interval,npoints,lstsqrsinter, lstsqrsgrad)

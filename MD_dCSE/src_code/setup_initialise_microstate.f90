@@ -26,19 +26,31 @@ implicit none
 
 	select case(initial_config_flag)
 	case(0)
-		call setup_initialise_lattice        !Setup FCC lattice
+		call setup_initialise_lattice          !Setup FCC lattice
+		call setup_location_tags               !Setup locn of fixed mols
 	case(1)
 		select case (config_special_case)
 		case('sparse_fene')
 			call setup_initialise_sparse_FENE
+			call setup_location_tags           !Setup locn of fixed mols
 		case('dense_fene')
-			call setup_initialise_lattice    !Numbering for FENE bonds
-			call setup_lattice_dense_FENE_info!Chain IDs, etc
+			call setup_initialise_lattice      !Numbering for FENE bonds
+			call setup_lattice_dense_FENE_info !Chain IDs, etc
+			call setup_location_tags           !Setup locn of fixed mols
 		case('solid_liquid')
 			call setup_initialise_solid_liquid
 		case('rubber_liquid')
 			call setup_initialise_solid_liquid
-			call setup_lattice_dense_FENE_info      !Chain IDs, etc
+			call setup_lattice_dense_FENE_info !Chain IDs, etc
+		case('concentric_cylinders')
+			call setup_initialise_concentric_cylinders
+			tag = free 
+		case('fill_cylinders')
+			call parallel_io_import_cylinders
+			call setup_initialise_fill_cylinders
+			call setup_cylinder_tags
+		case('rotate_cylinders')
+			call setup_cylinder_tags
 		case default
 			call error_abort('Unidentified configuration special case')
 		end select
@@ -55,17 +67,16 @@ implicit none
 			rtrue(3,n) = r(3,n)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
 		end do
 	endif
-	!rinitial = rtrue                                 !Store initial true pos
 
 	if (ensemble .eq. tag_move) then
-		call setup_tag                                    !Setup locn of fixed mols
-		rtether = r                                       !Init tether pos
+		rtether = r                                   !Init tether pos
 		do n = 1,np
-			call read_tag(n)                              !Read tag, assign props
+			call read_tag(n)                          !Read tag, assign props
 		enddo
-	endif
+	end if
+
 	call setup_initialise_velocities                  !Setup initial velocities
-	
+
 end subroutine setup_initialise_microstate
 
 !==================================================================================
@@ -95,7 +106,6 @@ subroutine setup_initialise_lattice
 
 	!Set top of domain initially
 	domain_top = globaldomain(2)/2.d0
-
 
 #if USE_COUPLER
 
@@ -640,6 +650,196 @@ subroutine setup_initialise_solid_liquid
 #endif
 
 end subroutine setup_initialise_solid_liquid
+
+!=============================================================================
+!Initialise "solid" concentric cylinders
+subroutine setup_initialise_concentric_cylinders
+	use module_initialise_microstate
+	use concentric_cylinders
+	use messenger
+	use interfaces, only: error_abort
+	implicit none
+
+	integer	:: j, n, nl, nx, ny, nz
+	integer :: p_units_lb(nd), p_units_ub(nd)
+	real(kind(0.d0)) :: rr,rx,ry             !Radial pos (cylindrical polar)
+	double precision, dimension (nd):: rc, c !Temporary variable
+
+	p_units_lb(1) = (iblock-1)*floor(initialnunits(1)/real((npx),kind(0.d0)))
+	p_units_ub(1) =  iblock *ceiling(initialnunits(1)/real((npx),kind(0.d0)))
+	p_units_lb(2) = (jblock-1)*floor(initialnunits(2)/real((npy),kind(0.d0)))
+	p_units_ub(2) =  jblock *ceiling(initialnunits(2)/real((npy),kind(0.d0)))
+	p_units_lb(3) = (kblock-1)*floor(initialnunits(3)/real((npz),kind(0.d0)))
+	p_units_ub(3) =  kblock *ceiling(initialnunits(3)/real((npz),kind(0.d0)))
+
+	!Molecules per unit FCC structure (3D)
+	n  = 0  	!Initialise global np counter n
+	nl = 0		!Initialise local np counter nl
+
+	!Inner loop in y (useful for setting connectivity)
+	do nz=p_units_lb(3),p_units_ub(3)
+	c(3) = (nz - 0.75d0)*initialunitsize(3) !- halfdomain(3) 
+	do nx=p_units_lb(1),p_units_ub(1)
+	c(1) = (nx - 0.75d0)*initialunitsize(1) !- halfdomain(1)
+	do ny=p_units_lb(2),p_units_ub(2)
+	c(2) = (ny - 0.75d0)*initialunitsize(2) !- halfdomain(2) 
+
+		do j=1,4	!4 Molecules per cell
+
+			rc(:) = c(:)
+			select case(j)
+			case(2)
+				rc(1) = c(1) + 0.5d0*initialunitsize(1)
+				rc(3) = c(3) + 0.5d0*initialunitsize(3)
+			case(3)
+				rc(2) = c(2) + 0.5d0*initialunitsize(1)
+				rc(3) = c(3) + 0.5d0*initialunitsize(3)
+			case(4)
+				rc(1) = c(1) + 0.5d0*initialunitsize(1)
+				rc(2) = c(2) + 0.5d0*initialunitsize(3)
+			case default
+			end select
+
+			n = n + 1	!Move to next particle
+
+			!Check if molecule is in domain of processor
+			if(rc(1).lt. domain(1)*(iblock-1)) cycle
+			if(rc(1).ge. domain(1)*(iblock  )) cycle
+			if(rc(2).lt. domain(2)*(jblock-1)) cycle
+			if(rc(2).ge. domain(2)*(jblock  )) cycle
+			if(rc(3).lt. domain(3)*(kblock-1)) cycle
+			if(rc(3).ge. domain(3)*(kblock  )) cycle
+			 
+			rx = rc(1) - globaldomain(1)/2.d0 !rc between 0->domain, 
+			ry = rc(2) - globaldomain(2)/2.d0 !r between -half->half
+
+			! Cylindrical polar radial position
+			rr = sqrt(rx*rx + ry*ry)
+
+			! Cycle if not in cylinder walls
+			if (rr .lt. r_ii) cycle
+			if (rr .gt. r_oo) cycle
+			if (rr .gt. r_oi .and. rr .lt. r_io) cycle
+
+			!If molecules is in the domain then add to total
+			nl = nl + 1 !Local molecule count
+			!Correct to local coordinates
+			r(1,nl) = rc(1)-domain(1)*(iblock-1)-halfdomain(1)
+			r(2,nl) = rc(2)-domain(2)*(jblock-1)-halfdomain(2)
+			r(3,nl) = rc(3)-domain(3)*(kblock-1)-halfdomain(3)
+
+		enddo
+
+	enddo
+	enddo
+	enddo
+
+	!Correct local number of particles on processor
+	np = nl
+
+	!Establish global number of particles on current process
+	globalnp = np
+	call globalSumInt(globalnp)
+
+	!Build array of number of particles on neighbouring
+	!processe's subdomain on current proccess
+	call globalGathernp
+
+end subroutine setup_initialise_concentric_cylinders
+
+subroutine setup_initialise_fill_cylinders
+	use module_initialise_microstate
+	use concentric_cylinders
+	use messenger
+	use interfaces, only: error_abort
+	implicit none
+
+	integer	:: j, nl, nx, ny, nz
+	integer :: p_units_lb(nd), p_units_ub(nd)
+	real(kind(0.d0)) :: rr,rx,ry,dr          !Radial pos (cylindrical polar)
+	double precision, dimension (nd):: rc, c !Temporary variable
+
+	dr = 0.8 ! no-overlap tolerance
+
+	p_units_lb(1) = (iblock-1)*floor(initialnunits(1)/real((npx),kind(0.d0)))
+	p_units_ub(1) =  iblock *ceiling(initialnunits(1)/real((npx),kind(0.d0)))
+	p_units_lb(2) = (jblock-1)*floor(initialnunits(2)/real((npy),kind(0.d0)))
+	p_units_ub(2) =  jblock *ceiling(initialnunits(2)/real((npy),kind(0.d0)))
+	p_units_lb(3) = (kblock-1)*floor(initialnunits(3)/real((npz),kind(0.d0)))
+	p_units_ub(3) =  kblock *ceiling(initialnunits(3)/real((npz),kind(0.d0)))
+
+	!Molecules per unit FCC structure (3D)
+	nl = 0		!Initialise local np counter nl
+
+	!Inner loop in y (useful for setting connectivity)
+	do nz=p_units_lb(3),p_units_ub(3)
+	c(3) = (nz - 0.75d0)*initialunitsize(3) !- halfdomain(3) 
+	do nx=p_units_lb(1),p_units_ub(1)
+	c(1) = (nx - 0.75d0)*initialunitsize(1) !- halfdomain(1)
+	do ny=p_units_lb(2),p_units_ub(2)
+	c(2) = (ny - 0.75d0)*initialunitsize(2) !- halfdomain(2) 
+
+		do j=1,4	!4 Molecules per cell
+
+			rc(:) = c(:)
+			select case(j)
+			case(2)
+				rc(1) = c(1) + 0.5d0*initialunitsize(1)
+				rc(3) = c(3) + 0.5d0*initialunitsize(3)
+			case(3)
+				rc(2) = c(2) + 0.5d0*initialunitsize(1)
+				rc(3) = c(3) + 0.5d0*initialunitsize(3)
+			case(4)
+				rc(1) = c(1) + 0.5d0*initialunitsize(1)
+				rc(2) = c(2) + 0.5d0*initialunitsize(3)
+			case default
+			end select
+
+			!Check if molecule is in domain of processor
+			if(rc(1).lt. domain(1)*(iblock-1)) cycle
+			if(rc(1).ge. domain(1)*(iblock  )) cycle
+			if(rc(2).lt. domain(2)*(jblock-1)) cycle
+			if(rc(2).ge. domain(2)*(jblock  )) cycle
+			if(rc(3).lt. domain(3)*(kblock-1)) cycle
+			if(rc(3).ge. domain(3)*(kblock  )) cycle
+	
+			rx = rc(1) - globaldomain(1)/2.d0 !rc between 0->domain, 
+			ry = rc(2) - globaldomain(2)/2.d0 !r between -half->half
+
+			! Cylindrical polar radial position
+			rr = sqrt(rx*rx + ry*ry)
+
+			! Cycle if not between cylinders
+			if (rr .lt. r_oi + dr) cycle
+			if (rr .gt. r_io - dr) cycle
+
+			!If molecules is in the domain then add to total
+			nl = nl + 1 !Local molecule count
+			!Correct to local coordinates
+			r(1,np+nl) = rc(1)-domain(1)*(iblock-1)-halfdomain(1)
+			r(2,np+nl) = rc(2)-domain(2)*(jblock-1)-halfdomain(2)
+			r(3,np+nl) = rc(3)-domain(3)*(kblock-1)-halfdomain(3)
+
+		enddo
+
+	enddo
+	enddo
+	enddo
+
+	! Correct local number of particles on processor to now include
+	! inner fluid molecules
+	np = np + nl
+
+	!Establish global number of particles on current process
+	globalnp = np
+	call globalSumInt(globalnp)
+
+	!Build array of number of particles on neighbouring
+	!processe's subdomain on current proccess
+	call globalGathernp
+
+end subroutine setup_initialise_fill_cylinders
+
 !=============================================================================
 !Initialise branched polymer simulation
 subroutine setup_initialise_polyinfo_singlebranched

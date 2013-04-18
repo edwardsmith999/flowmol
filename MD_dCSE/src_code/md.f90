@@ -37,7 +37,7 @@ subroutine setup_MD
 	call socket_coupler_invoke				!INITIALISES COUPLER INTERCOMMUNICATOR
 #endif
 
-	call setup_command_arguments            !Process command line arguments specifying restart and input files
+	call setup_command_arguments            !Process command line args specifying restart and input files
 	call messenger_init						!Establish processor topology
 
 	!Check to see if simulation is a restart of a previous simualtion
@@ -108,7 +108,7 @@ contains
 	! 		Leapfrom integration routines
 	subroutine md_advance_lfv
 		implicit none
-		
+	
 		call simulation_compute_forces         !Calculate forces on particles	
 		call simulation_record                 !Evaluate & write properties
 

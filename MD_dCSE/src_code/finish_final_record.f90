@@ -92,6 +92,12 @@ implicit none
 
 	!Write config to be used in DL_POLY input
 	!call write_DL_POLY_config
+
+	!Write cylinder file
+	if (initial_config_flag .eq. 1 .and. &
+	    config_special_case .eq. 'concentric_cylinders') then
+		call parallel_io_write_cylinders 
+	end if
 	
 end subroutine finish_final_record
 

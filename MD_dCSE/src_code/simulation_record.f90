@@ -275,10 +275,13 @@ subroutine evaluate_macroscopic_properties
 	!						 ' std(PE) = ',sqrt(sum((potenergymol(1:np)-potenergy)**2)/(2.d0*real(globalnp,kind(0.d0)))), & 
 	!						 ' max= ',maxval(potenergymol(1:np)),' min= ',minval(potenergymol(1:np))
 	if (maxval(potenergymol(1:np)) .gt. 100) then
-		print*, np, maxval(potenergymol(1:np))
+		print*, 'np = ', np
+		print*, 'max(potenergymol) = ', maxval(potenergymol(1:np))
 		do n=1,np
-			print'(i10,4f18.8)', n , potenergymol(n), r(:,n)
+			write(3000+irank,'(i10,f28.4,3f10.4)'), n , potenergymol(n), r(:,n)
 		enddo
+		print*, 'Simulation aborted because max PE has reached an unreasonably high value.'
+		print*, 'Inspect fort.(3000+irank) for n, potenergymol, r.'
 		stop
 	endif
 	totenergy   = kinenergy + potenergy
@@ -364,16 +367,21 @@ implicit none
 end subroutine print_macroscopic_properties
 
 subroutine print_mol_escape_error(n)
-	use arrays_MD, only: r,v
-	use computational_constants_MD, only: irank, iblock, jblock, kblock, iter
+	use arrays_MD, only: r,v,a,tag
+	use computational_constants_MD, only: irank, iblock, jblock, kblock, iter, ensemble, tag_move
+	use messenger, only: globalise
 	use librarymod, only : get_new_fileunit
 	implicit none
 
 	integer, intent(in) :: n
+	real(kind(0.d0)) :: rglob(3)
 	character(len=19)   :: filename
 	character(len=4)    :: ranknum
 	integer             :: fileunit
 	logical             :: op
+
+
+	rglob = globalise(r(:,n))
 
 	! Store processor-specific filename
 	write(ranknum, '(i4)'), irank	
@@ -396,10 +404,21 @@ subroutine print_mol_escape_error(n)
 		write(fileunit,'(a,e20.5)'),   '    rx: ', r(1,n)
 		write(fileunit,'(a,e20.5)'),   '    ry: ', r(2,n)
 		write(fileunit,'(a,e20.5,a)'), '    rz: ', r(3,n), ','
+		write(fileunit,'(a,e20.5)'),   '    globalrx: ', rglob(1) 
+		write(fileunit,'(a,e20.5)'),   '    globalry: ', rglob(2) 
+		write(fileunit,'(a,e20.5,a)'), '    globalrz: ', rglob(3), ','
 		write(fileunit,'(a)'),         ' with velocity: '
 		write(fileunit,'(a,e20.5)'),   '    vx: ', v(1,n)
 		write(fileunit,'(a,e20.5)'),   '    vy: ', v(2,n)
 		write(fileunit,'(a,e20.5)'),   '    vz: ', v(3,n)
+		write(fileunit,'(a)'),         ' and acceleration: '
+		write(fileunit,'(a,e20.5)'),   '    ax: ', a(1,n)
+		write(fileunit,'(a,e20.5)'),   '    ay: ', a(2,n)
+		write(fileunit,'(a,e20.5)'),   '    az: ', a(3,n)
+		if (ensemble.eq.tag_move) then
+			write(fileunit,'(a)'),         ' Molecular tag: '
+			write(fileunit,'(a,i4)'),   '    tag: ', tag(n)
+		end if
 		write(fileunit,'(a,3i4)'),' Processor coords: ',iblock,jblock,kblock
 
 	close(fileunit,status='keep')
@@ -912,6 +931,7 @@ end subroutine cumulative_mass
 
 subroutine velocity_averaging(ixyz)
 	use module_record
+	use concentric_cylinders, only: cyl_mass, cyl_mom
 	use linked_list
 	implicit none
 
@@ -934,6 +954,10 @@ subroutine velocity_averaging(ixyz)
 			!Reset velocity bins
 			volume_mass = 0
 			volume_momentum = 0.d0
+		case(5)
+			call velocity_bin_cpol_io(cyl_mass,cyl_mom)
+			cyl_mass = 0
+			cyl_mom = 0.d0
 		case default
 			call error_abort("Error input for velocity averaging incorrect")
 		end select
@@ -952,6 +976,8 @@ end subroutine velocity_averaging
 
 subroutine cumulative_velocity(ixyz)
 	use module_record
+	use concentric_cylinders
+	use messenger, only: globalise, localise
 	use linked_list
 	implicit none
 
@@ -960,6 +986,9 @@ subroutine cumulative_velocity(ixyz)
 	integer		,dimension(3)		:: ibin
 	double precision				:: slicebinsize
 	double precision,dimension(3) 	:: Vbinsize 
+	
+	integer :: br, bt, bz
+	real(kind(0.d0)) :: fluiddomain_cyl(3), rglob(3), rpol(3), vpol(3)
 
 	!In case someone wants to record velocity in a simulation without sliding walls!?!?
 	if (ensemble .ne. tag_move) then
@@ -995,6 +1024,42 @@ subroutine cumulative_velocity(ixyz)
 										+ v(:,n) + slidev(:,n)
 		enddo
 
+	case(5)
+
+		! Cylindrical polar coordinates                                       -
+		fluiddomain_cyl(1) = r_oo - r_ii
+		fluiddomain_cyl(2) = 2.d0 * pi 
+		fluiddomain_cyl(3) = domain(3) 
+		Vbinsize(:) = fluiddomain_cyl(:)/cpol_bins(:)				
+
+		do n = 1,np
+
+			!Find cyl pol coords, rr=0 at inner cylinder
+			rglob    = globalise(r(:,n))
+			rpol     = cpolariser(rglob)
+			vpol     = cpolarisev(v(:,n),rpol(2))
+
+			!Reset z component to be between 0 < r_z < domain(3), and
+			!shift theta to 0 < theta < 2*pi (i.e. not -pi to pi)
+			rpol(3)  = r(3,n) + halfdomain(3) 
+			rpol(2)  = modulo(rpol(2),2.d0*pi)
+ 			rpol(1)  = rpol(1) - r_ii
+
+			!Add to cylindrical bins
+			br = ceiling(rpol(1)/Vbinsize(1)) 
+			bt = ceiling(rpol(2)/Vbinsize(2)) 
+			bz = ceiling(rpol(3)/Vbinsize(3)) + cpol_nhbz
+
+			!Account for stray cylinder molecule
+			!if ( br .gt. cpol_bins(1) ) br = cpol_bins(1)
+			if ( br .gt. cpol_bins(1) ) cycle
+ 			if ( br .lt. 1 ) cycle
+
+			cyl_mass(br,bt,bz)  = cyl_mass(br,bt,bz)  + 1
+			cyl_mom(br,bt,bz,:) = cyl_mom(br,bt,bz,:) + vpol
+
+		enddo
+	
 	case default 
 		call error_abort("Velocity Binning Error")
 	end select

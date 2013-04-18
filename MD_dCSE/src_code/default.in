@@ -50,12 +50,27 @@ INPUTTEMPERATURE
 #        reserved as an input flag for information about the special
 #        case. Options:
 #
-#            - dense_fene     connect monomers on an FCC lattice
-#                             with a specified chain length and 
-#                             FENE potential parameters. 
+#            - dense_fene     
+#                 connect monomers on an FCC lattice with a specified 
+#                 chain length and FENE potential parameters. 
 #
-#            - sparse_fene    connect monomers on a cubic lattice
-#                             separated by FENE equilibrium distance.    
+#            - sparse_fene    
+#                 connect monomers on a cubic lattice
+#                 separated by FENE equilibrium distance
+#
+#            - concentric_cylinders
+#                 build concentric cylinders from an FCC lattice
+#                 and melt them between specular walls
+#
+#            - fill_cylinders 
+#                 tether concentric cylinders from previous
+#                 simulation to their initial sites, and fill them
+#                 with fluid 
+#
+#            - rotate_cylinders
+#                 restart from filled cylinder restart file and
+#                 rotate the inner cylinder with specified
+#                 angular velocity 
 #
 #    2 - Configuration file, like a *.pdb. To be developed.
 #
@@ -78,14 +93,14 @@ special_case_name
 #   - domain length in z
 #   - nchains
 # -----------------------------------------------------------------------
-SPARSE_FENE
-20
-30.0
-1.5
-15.0
-10.0
-10.0
-4
+#SPARSE_FENE
+#20
+#30.0
+#1.5
+#15.0
+#10.0
+#10.0
+#4
 
 #########################################################################
 # Dense FENE special case information
@@ -98,14 +113,50 @@ SPARSE_FENE
 #   - FCC (4 monomer) units in y
 #   - FCC (4 monomer) units in z
 # -----------------------------------------------------------------------
-DENSE_FENE
-8
-30.0
-1.5
-1.1
-8
-8
-8
+#DENSE_FENE
+#8
+#30.0
+#1.5
+#1.1
+#8
+#8
+#8
+
+#########################################################################
+# Concentric cylinders special case definition
+#
+#	- Cylinder density
+#	- Outer diameter of outer cylinder in FCC UNITS
+#	- Inner diameter of outer cylinder in FCC UNITS
+#	- Outer diameter of inner cylinder in FCC UNITS
+#	- Inner diameter of inner cylinder in FCC UNITS
+#	- Length of cylinder in z-direction in FCC UNITS 
+# -----------------------------------------------------------------------
+#CONCENTRIC_CYLINDERS
+#1.0
+#30
+#25
+#10
+#5
+#30
+
+#########################################################################
+# Rotate cylinders special case definition
+#
+#	- Angular velocity of inner cylinder
+# -----------------------------------------------------------------------
+#ROTATE_CYLINDERS
+#0.1
+
+#########################################################################
+# Cylinderical polar bins for averaging 
+#
+#	- 
+# -----------------------------------------------------------------------
+#CPOL_BINS
+#20
+#40
+#40
 
 #########################################################################
 # Number of unit cells in the x,y,z directions, formatted:
@@ -485,7 +536,7 @@ MACRO_OUTFLAG
 
 #########################################################################
 # Output flag for mass record:
-#	output_flag (0=off 1,2,3=x,y,z slice 4=3D bins)
+#	output_flag (0=off 1,2,3=x,y,z slice 4=3D bins, 5=3D cylindrical)
 #	No. of samples for mass average
 # -----------------------------------------------------------------------
 MASS_OUTFLAG
@@ -494,7 +545,7 @@ MASS_OUTFLAG
 
 #########################################################################
 # Output flag for Velocity record:
-#	output_flag (0=off 1,2,3=x,y,z slice 4=3D bins)
+#	output_flag (0=off 1,2,3=x,y,z slice 4=3D bins, 5=3D cylindrical)
 #	No. of samples for velocity average
 # -----------------------------------------------------------------------
 VELOCITY_OUTFLAG

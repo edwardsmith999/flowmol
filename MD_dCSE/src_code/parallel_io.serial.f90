@@ -352,11 +352,9 @@ subroutine setup_restart_microstate
 		if (prev_rtrue_flag.eq.1) then
 			read(2) buf; rtrue(:,n) = buf   !Read particle n's unwrapped positions
 		end if
-		if (ensemble .eq. tag_move) then
 		if (any(tag(n).eq.tether_tags)) then
 			read(2) buf; rtether(:,n) = buf
 		end if
-		endif
 		if (potential_flag.eq.1) then
 			read(2) monomerbuf
 			monomer(n)%chainID        = nint(monomerbuf(1))
@@ -403,6 +401,54 @@ subroutine setup_restart_microstate
 
 end subroutine setup_restart_microstate
 
+
+subroutine parallel_io_cyl_footer(infile)
+	implicit none
+
+	character(*), intent(in) :: infile
+
+	print*, 'parallel_io_cyl_footer only developed for parallel code'
+	print*, 'Aborting simulation.'
+	stop
+
+end subroutine parallel_io_cyl_footer
+
+subroutine parallel_io_import_cylinders
+	implicit none
+
+	print*, 'parallel_io_import_cylinders only developed for parallel code'
+	print*, 'Aborting simulation.'
+	stop
+
+end subroutine parallel_io_import_cylinders
+
+subroutine velocity_bin_cpol_io(mass_out,mom_out)
+	use concentric_cylinders, only: cpol_binso
+	use physical_constants_MD, only: nd
+	implicit none
+
+	integer, intent(inout) :: mass_out(cpol_binso(1), &
+	                                   cpol_binso(2), &
+	                                   cpol_binso(3))
+	real(kind(0.d0)), intent(inout) :: mom_out (cpol_binso(1), &
+	                                            cpol_binso(2), &
+	                                            cpol_binso(3), &
+	                                            nd)
+
+	print*, 'velocity_bin_cpol_io only developed for parallel code'
+	print*, 'Aborting simulation.'
+	stop
+	
+end subroutine velocity_bin_cpol_io
+
+subroutine parallel_io_write_cylinders
+	implicit none
+
+	print*, 'parallel_io_write_cylinders only developed for parallel code'
+	print*, 'Aborting simulation.'
+	stop
+
+end subroutine parallel_io_write_cylinders
 !======================================================================
 !	        		OUTPUTS			              =
 !======================================================================
@@ -451,6 +497,7 @@ subroutine parallel_io_final_state
 		!Allocate tag array to write for restart so as to maximise compatibility
 		if (allocated(tag) .eq. .false.) allocate(tag(np)); tag(:) = free 
 		dpbuf = real(tag(n),kind(0.d0)); write(2) dpbuf !Write n's tag
+
 		buf = r(:,n);           write(2) buf   !Write particle n's position
 		buf = v(:,n);           write(2) buf   !Write n's velocities
 

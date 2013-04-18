@@ -28,6 +28,7 @@ module module_set_parameters
 	use calculated_properties_MD
 	use linked_list
 	use polymer_info_MD
+	use concentric_cylinders
 
 end module module_set_parameters 
 !------------------------------------------------------------------------------
@@ -201,8 +202,8 @@ subroutine set_parameters_allocate
 	endif
 
 	!Allocate arrays use to fix molecules and allow sliding
+	allocate(tag(np+extralloc)); tag = free
 	if (ensemble .eq. tag_move) then
-		allocate(tag(np+extralloc))
 		allocate(fix(nd,np+extralloc)); fix = 1	!default - set fix to one (unfixed)
 		allocate(rtether(nd,np+extralloc))
 		allocate(slidev(nd,np+extralloc))
@@ -303,7 +304,8 @@ subroutine set_parameters_global_domain
 	use interfaces, only: error_abort
 	implicit none
 
-	integer                :: ixyz
+	integer                :: ixyz, extranp
+	real(kind(0.d0))       :: lat
 
 	select case (initial_config_flag)
 	case (0)
@@ -378,6 +380,106 @@ subroutine set_parameters_global_domain
 			! - corrected after position setup
 			np = globalnp / nproc
 			
+		case ('concentric_cylinders')
+
+			globaldomain(:) = initialnunits(:)/((cyl_density/4.d0)**(1.d0/nd))
+			volume = product(globaldomain(1:3))
+
+			!Initially assume molecules per processor are evenly split 
+			! - corrected after position setup
+			globalnp = 4*product(initialnunits(1:3))
+			np = globalnp / nproc					
+
+			domain(1) = globaldomain(1) / real(npx, kind(0.d0))	
+			domain(2) = globaldomain(2) / real(npy, kind(0.d0))
+			domain(3) = globaldomain(3) / real(npz, kind(0.d0))
+			halfdomain(:) = 0.5d0*domain(:)
+
+			!Establish initial size of single unit to initialise microstate
+			initialunitsize(:) = globaldomain(:) / initialnunits(:)
+	
+			specular_flag = specular_radial	
+
+			r_oo = 0.5*initialunitsize(1)*cyl_units_oo
+			r_io = 0.5*initialunitsize(1)*cyl_units_io
+			r_oi = 0.5*initialunitsize(1)*cyl_units_oi
+			r_ii = 0.5*initialunitsize(1)*cyl_units_ii
+
+			! turn off periodicity in x and y direction
+			periodic(1) = 0
+			periodic(2) = 0
+			periodic(3) = 1
+		
+		case ('fill_cylinders')
+
+			!Read globalnp, globaldomain and r_oo etc
+			call parallel_io_cyl_footer(cyl_file)
+
+
+			volume = product(globaldomain(1:3))
+			! Get closest number of FCC units in global domain from input
+			initialnunits(:) = floor(globaldomain(:)*((density/4.d0)**(1.d0/nd)))
+			! Get actual density with this integer number of FCC units
+			density = product(initialnunits(1:3))*4 / volume
+			! Guess how many extra molecules will fill the cylinder volume
+			! so that arrays are allocated with enough space to add fluid
+			extranp = int(ceiling(density * &
+			                      globaldomain(3)*pi*(r_io**2.0-r_oi**2.0)))
+			initialunitsize(:) = globaldomain(:) / initialnunits(:)
+
+			domain(1) = globaldomain(1) / real(npx, kind(0.d0))	
+			domain(2) = globaldomain(2) / real(npy, kind(0.d0))
+			domain(3) = globaldomain(3) / real(npz, kind(0.d0))
+			halfdomain(:) = 0.5d0*domain(:)
+
+			!Initially assume molecules per processor are evenly split 
+			! - corrected after position setup
+			globalnp = cyl_np + extranp
+			np = globalnp / nproc
+
+			! turn off periodicity in x and y direction
+			periodic(1) = 0
+			periodic(2) = 0
+			periodic(3) = 1
+
+			! Ensure no rotation on setup	
+			omega = 0.d0
+		
+			!print('(a,3f12.3,a,3f12.3,a,i10,a,i4,a,3l4,a,f12.3,a,f12.3)'), &
+			!'globaldomain',globaldomain,' domain',domain,'np', np, 'nproc',&
+			! nproc, 'periodic', periodic, 'density', density, 'volume', volume
+
+		case ('rotate_cylinders')
+
+			if (.not.restart) then
+				stop 'Rotate cylinders requires a restart file.'
+			end if
+
+			!Read globalnp, globaldomain and r_oo etc
+			call parallel_io_cyl_footer(cyl_file)
+
+			volume = product(globaldomain(1:3))
+			initialnunits(:) = globaldomain(:)*((density/4.d0)**(1.d0/nd))
+			initialunitsize(:) = globaldomain(:) / initialnunits(:)
+
+			domain(1) = globaldomain(1) / real(npx, kind(0.d0))
+			domain(2) = globaldomain(2) / real(npy, kind(0.d0))
+			domain(3) = globaldomain(3) / real(npz, kind(0.d0))
+			halfdomain(:) = 0.5d0*domain(:)
+
+			!Initially assume molecules per processor are evenly split 
+			! - corrected after position setup
+			np = globalnp / nproc
+
+			! turn off periodicity in x and y direction
+			periodic(1) = 0
+			periodic(2) = 0
+			periodic(3) = 1
+
+			!print('(a,3f12.3,a,3f12.3,a,i10,a,i4,a,3l4,a,f12.3,a,f12.3)'), &
+			!'globaldomain',globaldomain,' domain',domain,'np', np, 'nproc',&
+			! nproc, 'periodic', periodic, 'density', density, 'volume', volume
+
 		case default
 
 			call error_abort("set_parameters_global_domain must be corrected for this special case")	
@@ -432,11 +534,13 @@ subroutine set_parameters_cells
 
 	!Calculate number of cells based on domain size and rcutoff rounding
 	!down to give fewer cells but to ensure cells are all at least rcutoff
+
 	do ixyz=1,nd
 		ncells(ixyz)=floor(domain(ixyz)/(rcutoff+delta_rneighbr))
 	enddo
 
 	if (ncells(1)<3 .or. ncells(2)<3 .or. ncells(3)<3) then
+		print*, 'NCELLS:'
 		print*, ncells(1),'    in x and ', ncells(2), '    in y' , ncells(3), '    in z' 
 		call  error_abort( "ERROR - DOMAIN SHOULD HAVE AT LEAST 3 CELLS, &
 		 					& IN X, Y AND Z - INCREASE NUMBER OF UNITS IN INPUT")
@@ -609,6 +713,36 @@ subroutine set_parameters_outputs
 			volume_mass = 0
 		endif
 	endif
+
+	! Allocate cylindrical polar bins
+
+	if (config_special_case.eq.'rotate_cylinders') then
+
+		! No halos in r or theta
+		cpol_bins(1) = gcpol_bins(1) ! r and theta bins are stored globally...
+		cpol_bins(2) = gcpol_bins(2) ! on all processors in a z-plane
+		cpol_bins(3) = nint(gcpol_bins(3)/dble(npz))
+
+		!Obtain global number of bins after rounding to given same number per process
+		gcpol_bins(3) = cpol_bins(3)
+		call SubcommSum(gcpol_bins(3),3) !Sum up over all z processes
+
+		! Only add halos to allocation in z direction	
+		cpol_binso = cpol_bins
+		cpol_nhbz = ceiling(dble(cpol_bins(3))/dble(ncells(3)))
+		cpol_binso(3) = cpol_bins(3) + 2*cpol_nhbz
+
+		if (velocity_outflag.eq.5) then
+			allocate(cyl_mom(cpol_binso(1),cpol_binso(2),cpol_binso(3),3))
+			allocate(cyl_mass(cpol_binso(1),cpol_binso(2),cpol_binso(3)))
+			cyl_mom  = 0.d0
+			cyl_mass = 0
+		else if (mass_outflag.eq.5) then
+			allocate(cyl_mass(cpol_binso(1),cpol_binso(2),cpol_binso(3)))
+			cyl_mass = 0
+		end if
+	
+	end if
 
 	!Allocated Nose Hoover local PUT thermstat bins
 	!allocate(zeta_array(nbins(1),nbins(2),nbins(3)))

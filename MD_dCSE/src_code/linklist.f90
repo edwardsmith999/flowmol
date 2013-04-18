@@ -653,6 +653,7 @@ subroutine assign_to_neighbourlist_halfint_opt
 	double precision,dimension(3)   :: rij    !vector between particles i and j
 	type(node), pointer 	        :: oldihead, oldi, currenti, oldjhead, oldj, currentj
 
+
 	!Create Neighbourlist array based on current np
 	allocate(neighbour%noneighbrs(np))
 	allocate(neighbour%head(np))
@@ -674,6 +675,8 @@ subroutine assign_to_neighbourlist_halfint_opt
 		!Retrieve cell np and set old to first molecule in list
 		cellnp = cell%cellnp(icell,jcell,kcell)
 		oldi => cell%head(icell,jcell,kcell)%point 
+		
+		!print('(a,3i6,3i6,i6)'), 'ncells, icell, jcell, kcell, cellnp', ncells, icell, jcell, kcell, cellnp
 
 		!Check interaction within own cell once
 		do i = 1,cellnp                 !Step through each particle in list 
@@ -737,7 +740,6 @@ subroutine assign_to_neighbourlist_halfint_opt
 				oldi => currenti%next !Use pointer in datatype to obtain next item in list
 
 			enddo
-
 
 		enddo
 	enddo
