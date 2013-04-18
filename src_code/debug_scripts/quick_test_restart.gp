@@ -2,7 +2,7 @@ tcol = 2
 KEcol = 6
 PEcol = 7
 
-set terminal wxt 0 size 1400,800
+set size 1400,800
 set datafile separator ";"
 set multiplot layout 2,2 columnsfirst title "Kinetic Energies vs. Time (Restarts)"
 
@@ -33,7 +33,7 @@ plot [2:] "./start_p.macro" u (column(tcol)):(column(KEcol)) w p pt 4 lc 3 not,\
 
 unset multiplot
 
-set terminal wxt 1 size 1400,800
+set size 1400,800
 set datafile separator ";"
 set multiplot layout 2,2 columnsfirst title "Potential Energies vs. Time (Restarts)"
   

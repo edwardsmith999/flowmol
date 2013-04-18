@@ -20,6 +20,7 @@ subroutine setup_initial_record
 	use module_initial_record
 	use polymer_info_MD
 	use shear_info_MD
+	use concentric_cylinders, only: gcpol_bins
 	implicit none
 
 	integer					:: i
@@ -268,6 +269,10 @@ subroutine setup_initial_record
 			print'(a,3i8)', ' Domain split into Velocity Averaging Bins in x,y and z:', gnbins
 			print'(a,3f10.5)', ' Each of size:', & 
 			globaldomain(1)/gnbins(1), globaldomain(2)/gnbins(2),globaldomain(3)/gnbins(3)
+		case(5)
+			print'(3(a,i8),a)', ' Velocity 3D Cylindrical Polar bins recorded every:', &
+					tplot,' x ',Nvel_ave,' = ',tplot*Nvel_ave,' iterations'
+			print'(a,3i8)', ' Domain split into Velocity Averaging Bins in r,theta and z:', gcpol_bins
 		case default
 			call error_abort("Invalid Velocity output flag in input file")
 		end select
@@ -507,6 +512,7 @@ end subroutine setup_initial_record
 subroutine simulation_header
 	use module_parallel_io
 	use calculated_properties_MD
+	use concentric_cylinders
 	use librarymod, only : get_new_fileunit
 	implicit none
 
@@ -624,17 +630,27 @@ subroutine simulation_header
 	write(fileunit,*)  'mass flux average steps ;  Nmflux_ave ;', Nmflux_ave
 	write(fileunit,*)  'velocity flux average steps ;  Nvflux_ave ;', Nvflux_ave
 	write(fileunit,*)  'energy flux average steps ;  Neflux_ave ;', Neflux_ave
-	write(fileunit,*)  'Velocity/stress Averaging Bins in x ;  gnbins(1) ;', gnbins(1)
-	write(fileunit,*)  'Velocity/stress Averaging Bins in y ;  gnbins(2) ;', gnbins(2)
-	write(fileunit,*)  'Velocity/stress Averaging Bins in z ;  gnbins(3) ;', gnbins(3)
-	write(fileunit,*)  'Of size in x ;  binsize(1)  ;', globaldomain(1)/gnbins(1) 
-	write(fileunit,*)  'Of size in y ;  binsize(2)  ;', globaldomain(2)/gnbins(2) 
-	write(fileunit,*)  'Of size in z ;  binsize(3)  ;', globaldomain(3)/gnbins(3) 
-	write(fileunit,*)  'Bins per Processor in x ;  nbins(1) ;', nbins(1)
-	write(fileunit,*)  'Bins per Processor in y ;  nbins(2) ;', nbins(2)
-	write(fileunit,*)  'Bins per Processor in z ;  nbins(3) ;', nbins(3)
-	write(fileunit,*)  'Number of Bins on outer Surface of each processor ;  nsurfacebins ;', nsurfacebins
-	write(fileunit,*)  'Number of Bins in halo of each processor ;  nhalobins ;', nhalobins
+	if (velocity_outflag .eq. 5 .or. mass_outflag .eq. 5 ) then
+		write(fileunit,*)  'Velocity/stress Averaging Bins in r ;      gnbins(1) ;', gcpol_bins(1)
+		write(fileunit,*)  'Velocity/stress Averaging Bins in theta ;  gnbins(2) ;', gcpol_bins(2)
+		write(fileunit,*)  'Velocity/stress Averaging Bins in z ;      gnbins(3) ;', gcpol_bins(3)
+		write(fileunit,*)  'Outer radius of outer cylinder ;   r_oo   ;', r_oo
+		write(fileunit,*)  'Inner radius of outer cylinder ;   r_io   ;', r_io
+		write(fileunit,*)  'Outer radius of inner cylinder ;   r_oi   ;', r_oi
+		write(fileunit,*)  'Inner radius of inner cylinder ;   r_ii   ;', r_ii
+	else
+		write(fileunit,*)  'Velocity/stress Averaging Bins in x ;  gnbins(1) ;', gnbins(1)
+		write(fileunit,*)  'Velocity/stress Averaging Bins in y ;  gnbins(2) ;', gnbins(2)
+		write(fileunit,*)  'Velocity/stress Averaging Bins in z ;  gnbins(3) ;', gnbins(3)
+		write(fileunit,*)  'Of size in x ;  binsize(1)  ;', globaldomain(1)/gnbins(1) 
+		write(fileunit,*)  'Of size in y ;  binsize(2)  ;', globaldomain(2)/gnbins(2) 
+		write(fileunit,*)  'Of size in z ;  binsize(3)  ;', globaldomain(3)/gnbins(3) 
+		write(fileunit,*)  'Bins per Processor in x ;  nbins(1) ;', nbins(1)
+		write(fileunit,*)  'Bins per Processor in y ;  nbins(2) ;', nbins(2)
+		write(fileunit,*)  'Bins per Processor in z ;  nbins(3) ;', nbins(3)
+		write(fileunit,*)  'Number of Bins on outer Surface of each processor ;  nsurfacebins ;', nsurfacebins
+		write(fileunit,*)  'Number of Bins in halo of each processor ;  nhalobins ;', nhalobins
+	end if
 	if (vflux_outflag .gt.0 .and. vflux_outflag  .lt. 3) then
 		write(fileunit,*)  'Domain split into Planes for Pressure Averaging ; nplanes  ;',nplanes 
 		write(fileunit,*)  'Separated by distance ;  planespacing  ;', planespacing 

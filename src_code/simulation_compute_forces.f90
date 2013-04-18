@@ -265,7 +265,6 @@ end subroutine simulation_compute_forces_Soddemann_AP
 
 !========================================================================
 !Compute forces using cells instead of neighbourlist
-
 subroutine simulation_compute_forces_LJ_cells
 	use module_compute_forces
 	implicit none
@@ -502,6 +501,7 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 			rj(:) = r(:,molnoj)			!Retrieve rj
 			rij(:)= ri(:) - rj(:)   	!Evaluate distance between particle i and j
 			rij2  = dot_product(rij,rij)!Square of vector calculated
+			!write(8000+irank,*), molnoi, molnoj, rij2
 	
 			if (rij2 .lt. rcutoff2) then
 

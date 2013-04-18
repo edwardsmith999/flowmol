@@ -62,8 +62,9 @@ module computational_constants_MD
 	integer, parameter :: teth_thermo_slide = 7
 	integer, parameter :: PUT_thermo = 8
 	integer, parameter :: z_thermo = 9
-	integer, dimension(4), parameter :: tether_tags=(/teth,teth_thermo,teth_slide,teth_thermo_slide/)
-	integer, dimension(5), parameter :: thermo_tags=(/thermo,teth_thermo,teth_thermo_slide,PUT_thermo,z_thermo/)
+	integer, parameter :: cyl_teth_thermo_rotate = 10
+	integer, dimension(5), parameter :: tether_tags=(/teth,teth_thermo,teth_slide,teth_thermo_slide,cyl_teth_thermo_rotate/)
+	integer, dimension(6), parameter :: thermo_tags=(/thermo,teth_thermo,teth_thermo_slide,PUT_thermo,z_thermo,cyl_teth_thermo_rotate/)
 
 	! Wall texture flags
 	integer			   :: texture_type
@@ -118,6 +119,13 @@ module computational_constants_MD
 	integer,          dimension(6) :: bforce_flag
 	real(kind(0.d0)), dimension(6) :: bforce_dxyz
 	real(kind(0.d0)), dimension(3) :: specular_wall
+
+	integer :: specular_flag
+	integer, parameter ::       &
+		specular_off = 0,       &
+		specular_flat = 1,      &
+		specular_radial = 2
+
 	integer,          parameter    :: &
 		bforce_off = 0,         &
 		bforce_OT = 1,          &
@@ -334,6 +342,41 @@ module linked_list
 	type(passinfo)    	:: pass
 
 end module linked_list
+
+!------------------------------------------------------------------------------
+!-------------------------------Taylor-Couette---------------------------------
+module concentric_cylinders 
+
+	real(kind(0.d0)) :: r_oo,r_oi,r_io,r_ii  !Outer and inner radii of cylinders
+	                                         !r_ab - a=face, b=cyl
+
+	integer :: cyl_units_oo                  !FCC units outer face of outer cyl
+	integer :: cyl_units_io
+	integer :: cyl_units_oi
+	integer :: cyl_units_ii
+	integer :: cyl_units_z
+
+	integer :: cyl_np
+
+	integer :: cyltag
+	integer, parameter :: cyl_outer = 2, cyl_inner = 1, cyl_off = 0
+	
+	real(kind(0.d0)) :: cyl_density          !Density of cylinder walls
+
+	real(kind(0.d0)) :: omega, omega_max     !Actual and target angular vels
+	real(kind(0.d0)) :: omega_ramp           !d(omega)/dt
+
+	character(len=200) :: cyl_file           !Output/input file
+	
+	integer :: cpol_bins(3)                  !Number of averaging bins in cpol
+	integer :: cpol_binso(3)                 !Including halos
+	integer :: gcpol_bins(3)                 !Glob averaging bins in cpol
+	integer :: cpol_nhbz                     !Number of halo bins in z direction
+
+	integer, dimension(:,:,:),   allocatable :: cyl_mass
+	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: cyl_mom
+
+end module concentric_cylinders 
 
 !-------------------------------------------------------------------------------------
 !----------------------------------Polymer--------------------------------------------

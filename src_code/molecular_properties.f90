@@ -24,8 +24,29 @@ end module module_molecule_properties
 	!                 __________]  a/4 (distance from bottom of domain)
 	!
 	!So use (0.20+0.5d0*mol_layers)*initialunitsize(ixyz)
+subroutine setup_cylinder_tags
+	use module_molecule_properties
+	use concentric_cylinders
+	use interfaces, only: error_abort
+	use messenger, only: globalise
+	implicit none
 
-subroutine setup_tag
+	integer :: n
+	real(kind(0.d0)) :: rglob(3), rpol(3)
+
+	do n = 1,np
+		
+		rglob = globalise(r(:,n))
+		rpol  = cpolariser(rglob)
+		
+		if (rpol(1) .lt. r_oi) tag(n) = cyl_teth_thermo_rotate
+		if (rpol(1) .gt. r_io) tag(n) = teth_thermo
+
+	end do	
+
+end subroutine setup_cylinder_tags
+
+subroutine setup_location_tags
 	use module_molecule_properties
 	use interfaces, only: error_abort
 	use messenger, only: globalise
@@ -39,10 +60,10 @@ subroutine setup_tag
 	logical :: l_fixed
 	logical :: l_slide
 
-	if (ensemble .eq. tag_move) then
+	!Initialise all molecules free of thermostats, etc (i.e. tag free=0)
+	tag(:) = free 
 
-		!Initialise all molecules free of thermostats, etc (i.e. tag free=0)
-		tag(:) = free 
+	if (ensemble .eq. tag_move) then
 
 		!Setup fixed wall and location dependent thermostat tags
 		do n = 1,np
@@ -133,18 +154,20 @@ contains
 
 	end function get_tag_status
 
-end subroutine setup_tag
+end subroutine setup_location_tags
 
 !----------------------------------------------------------------------------------
 ! Check if thermostat is active anywhere in world
 subroutine get_tag_thermostat_activity(active)
 	use physical_constants_MD, only: np
-	use computational_constants_MD, only: thermo_tags
+	use computational_constants_MD, only: thermo_tags, ensemble, tag_move
 	use arrays_MD, only: tag
 	implicit none
 
 	logical, intent(out) :: active
 	integer :: i, n
+
+	if (ensemble.ne.tag_move) return 
 
 	i = 0
 	do n = 1, np
@@ -283,51 +306,58 @@ subroutine read_tag(molno)
 
 	integer :: molno
 
-	!Check tag and assign properties accordingly
-	select case (tag(molno))
-	case (free)
-		!Set molecules to unfixed with no sliding velocity
-		fix(:,molno) = 1
-		slidev(:,molno) = 0.d0
-	case (fixed)
-		!Fixed Molecules
-		fix(:,molno) = 0
-		slidev(:,molno) = 0.d0
-	case (fixed_slide)
-		!Fixed with constant sliding speed
-		fix(:,molno) = 0
-		slidev(:,molno) = wallslidev
-	case (teth)
-		!Tethered molecules unfixed with no sliding velocity
-		fix(:,molno) = 1
-		slidev(:,molno) = 0.d0
-	case (thermo)
-		!Thermostatted molecules 
-		fix(:,molno) = 1
-		slidev(:,molno) = 0.d0
-	case (teth_thermo)
-		!Thermostatted Tethered molecules unfixed with no sliding velocity
-		fix(:,molno) = 1
-		slidev(:,molno) = 0.d0
-	case (teth_slide)
-		!Tethered molecules with sliding velocity
-		fix(:,molno) = 1
-		slidev(:,molno) = wallslidev
-	case (teth_thermo_slide)
-		!Thermostatted Tethered molecules unfixed with sliding velocity
-		fix(:,molno) = 1
-		slidev(:,molno) = wallslidev
-	case (PUT_thermo)
-		!Profile unbiased thermostat (Nose-Hoover)
-		fix(:,molno) = 1
-		slidev(:,molno) = 0.d0
-	case (z_thermo)
-		!Thermostat in the z direction only (Nose-Hoover) 
-		fix(:,molno) = 1
-		slidev(:,molno) = 0.d0
-	case default
-		call error_abort("Invalid molecular Tag")
-	end select
+	if (ensemble .eq. tag_move) then
+
+		!Check tag and assign properties accordingly
+		select case (tag(molno))
+		case (free)
+			!Set molecules to unfixed with no sliding velocity
+			fix(:,molno) = 1
+			slidev(:,molno) = 0.d0
+		case (fixed)
+			!Fixed Molecules
+			fix(:,molno) = 0
+			slidev(:,molno) = 0.d0
+		case (fixed_slide)
+			!Fixed with constant sliding speed
+			fix(:,molno) = 0
+			slidev(:,molno) = wallslidev
+		case (teth)
+			!Tethered molecules unfixed with no sliding velocity
+			fix(:,molno) = 1
+			slidev(:,molno) = 0.d0
+		case (thermo)
+			!Thermostatted molecules 
+			fix(:,molno) = 1
+			slidev(:,molno) = 0.d0
+		case (teth_thermo)
+			!Thermostatted Tethered molecules unfixed with no sliding velocity
+			fix(:,molno) = 1
+			slidev(:,molno) = 0.d0
+		case (teth_slide)
+			!Tethered molecules with sliding velocity
+			fix(:,molno) = 1
+			slidev(:,molno) = wallslidev
+		case (teth_thermo_slide)
+			!Thermostatted Tethered molecules unfixed with sliding velocity
+			fix(:,molno) = 1
+			slidev(:,molno) = wallslidev
+		case (PUT_thermo)
+			!Profile unbiased thermostat (Nose-Hoover)
+			fix(:,molno) = 1
+			slidev(:,molno) = 0.d0
+		case (z_thermo)
+			!Thermostat in the z direction only (Nose-Hoover) 
+			fix(:,molno) = 1
+			slidev(:,molno) = 0.d0
+		case (cyl_teth_thermo_rotate)
+			fix(:,molno) = 1
+			slidev(:,molno) = 0.d0
+		case default
+			call error_abort("Invalid molecular Tag")
+		end select
+
+	end if
 
 end subroutine read_tag
 

@@ -104,7 +104,19 @@ subroutine simulation_move_particles_lfv
 		call error_abort('Unrecognised move option in simulation_move_particles_lfv.f90')
 
 	end select
+
+	if (specular_flag .eq. specular_flat) then
+		
+		if (specular_wall(1) .ne. 0.0) call specular_flat_wall(1, globaldomain(1)/2.d0-specular_wall(1))
+		if (specular_wall(2) .ne. 0.0) call specular_flat_wall(2, globaldomain(2)/2.d0-specular_wall(2))
+		if (specular_wall(3) .ne. 0.0) call specular_flat_wall(3, globaldomain(3)/2.d0-specular_wall(3))
+
+	else if (specular_flag .eq. specular_radial) then
 	
+		call specular_walls_cylinders
+
+	end if
+		
 	if (rtrue_flag .eq. 1) then
 		call simulation_move_particles_true_lfv
 	endif
@@ -221,12 +233,18 @@ contains
 	!Tag move routine
 	subroutine simulation_move_particles_lfv_tag
 		use interfaces
+		use librarymod, only: cartesianiser, cartesianisev, &
+		                      cpolariser, cpolarisev
+		use messenger, only: localise, globalise
+		use concentric_cylinders, only: omega
 		implicit none
 				
 		integer	:: n, thermostatnp
 		double precision :: freq, dzeta_dt, v2sum, Q
-		double precision :: ascale, bscale
+		double precision :: ascale, bscale, dtheta
 		double precision, dimension(nd)	:: vel
+		double precision, dimension(nd)	:: rpol, rglob
+		
 
 		if (tag_thermostat_active) then
 		
@@ -378,16 +396,35 @@ contains
 				r(2,n) = r(2,n) + delta_t * v(2,n)	
 				v(3,n) = v(3,n)*ascale + a(3,n)*delta_t*bscale
 				r(3,n) = r(3,n)    +     v(3,n)*delta_t	
-			case (10)
+			case (cyl_teth_thermo_rotate)
+				!Tether force
+				call tether_force(n)
+				! Leapfrog 
+				!v(:,n)  = v(:,n) + delta_t * a(:,n) 	!Velocity calculated from acceleration
+				!r(:,n)  = r(:,n) + delta_t * v(:,n)	!Position calculated from velocity
+				v(1,n) = v(1,n)*ascale + a(1,n)*delta_t*bscale
+				r(1,n) = r(1,n)    +     v(1,n)*delta_t			
+				v(2,n) = v(2,n)*ascale + a(2,n)*delta_t*bscale
+				r(2,n) = r(2,n)    + 	 v(2,n)*delta_t				
+				v(3,n) = v(3,n)*ascale + a(3,n)*delta_t*bscale
+				r(3,n) = r(3,n)    +     v(3,n)*delta_t	
+				! Ad-hoc rotate cylinder molecules
+				rglob(:) = globalise(r(:,n))
+				rpol(:)  = cpolariser(rglob(:))
+				rpol(2)  = rpol(2) + omega*delta_t
+				rglob(:) = cartesianiser(rpol(:))
+				r(:,n)   = localise(rglob(:))
+				! Ad-hoc rotate cylinder tether sites
+				rglob(:) = globalise(rtether(:,n))
+				rpol(:)  = cpolariser(rglob(:))
+				rpol(2)  = rpol(2) + omega*delta_t
+				rglob(:) = cartesianiser(rpol(:))
+				rtether(:,n) = localise(rglob(:))
 
 			case default
 				call error_abort("Invalid molecular Tag")
 			end select
 
-			!Specular walls
-			if (specular_wall(1) .ne. 0.0) call specular_flat_wall(n, ascale, bscale, 1, globaldomain(1)/2.d0-specular_wall(1))
-			if (specular_wall(2) .ne. 0.0) call specular_flat_wall(n, ascale, bscale, 2, globaldomain(2)/2.d0-specular_wall(2))
-			if (specular_wall(3) .ne. 0.0) call specular_flat_wall(n, ascale, bscale, 3, globaldomain(3)/2.d0-specular_wall(3))
 		enddo
 
 	end subroutine simulation_move_particles_lfv_tag
@@ -420,50 +457,188 @@ subroutine simulation_move_particles_lfv_basic
 
 end subroutine simulation_move_particles_lfv_basic
 !======================================================================================
+! Specular walls for cylinder setup
+! Author: David Trevelyan 2013
+subroutine specular_walls_cylinders
+	use concentric_cylinders
+	use computational_constants_MD, only: delta_rneighbr 
+	use physical_constants_MD, only: np
+	use arrays_MD, only: r, v
+	use messenger, only: localise, globalise
+	use librarymod, only: cpolariser, cartesianiser, cpolarisev, cartesianisev
+	implicit none
 
+	real(kind(0.d0)) :: rcpol(3), vcpol(3), rglob(3)
+	real(kind(0.d0)) :: tol, rr
+	integer :: n,cyl
+		
+	tol = delta_rneighbr
+
+	do n=1,np
+
+		rglob(:) = globalise(r(:,n))
+		rcpol(:) = cpolariser(rglob(:))
+		vcpol(:) = cpolarisev(v(:,n),rcpol(2))
+		rr = rcpol(1)
+
+		if ( rr .lt. r_oi + tol) cyl = cyl_inner
+		if ( rr .gt. r_io - tol) cyl = cyl_outer
+
+		if ( cyl .eq. cyl_outer ) then
+	
+			call speculate(rcpol,vcpol,r_oo,r_io)
+	
+		else if ( cyl .eq. cyl_inner ) then
+
+			call speculate(rcpol,vcpol,r_oi,r_ii)
+		
+		end if 
+	
+		rglob(:) = cartesianiser(rcpol(:))
+		r(:,n) = localise(rglob(:))
+		v(:,n) = cartesianisev(vcpol(:),rcpol(2))
+
+	end do
+
+contains
+
+	subroutine speculate(rcpol,vcpol,r_o,r_i)
+
+		real(kind(0.d0)), intent(in)    :: r_o, r_i
+		real(kind(0.d0)), intent(inout) :: rcpol(3),vcpol(3)
+
+		real(kind(0.d0)) :: dr
+
+		if ( rcpol(1) .gt. r_o ) then
+
+			dr = rcpol(1) - r_o	
+			rcpol(1) = rcpol(1) - 2.0*dr
+			vcpol(1) = -vcpol(1)
+
+		else if ( rcpol(1) .lt. r_i ) then
+
+			dr = r_i - rcpol(1)	
+			rcpol(1) = rcpol(1) + 2.0*dr
+			vcpol(1) = -vcpol(1)
+
+		end if			
+
+	end subroutine speculate
+
+end subroutine specular_walls_cylinders
+
+!subroutine specular_radial_wall(molno, r_prev, r_in, r_out) 
+!Author: Musab Khawaja 2012
+!	use module_molecule_properties
+!	use arrays_MD
+!    use interfaces
+!	implicit none
+!
+!	integer                        :: molno, normal_dirn
+!	double precision               :: r_in, r_out, wall, perp_dist, vr_mag, tol
+!    double precision, dimension(3) :: r_prev, r_prev_pol, r_prev_glob, r_pol, &
+!                                      r_glob, z_hat, theta_hat, normal, r2_X, &
+!                                      rX, vr, vtheta, perp_vec
+!
+!    z_hat = (/ 0.d0, 0.d0, 1.d0 /)
+!    tol = 0.0000001d0
+!
+!    r_prev_glob = globalize(r_prev)
+!    r_prev_pol = cpolarize(r_prev_glob)
+!    r_glob = globalize(r(:,molno))
+!    r_pol = cpolarize(r_glob)
+!	
+!    !check if molecule will leave cell: 
+!    if (r_pol(1) < r_in .or. r_pol(1) > r_out) then
+!      !print*, 'specular collision'
+!      if (r_prev_pol(1) < r_in .or. r_prev_pol(1) > r_out) print*, 'Already out'
+!      
+!      if (r_pol(1) < r_in) then 
+!		  wall = r_in         !inner wall:
+!          normal_dirn = 1   !  normal should point outwards
+!	  else
+!		  wall = r_out      !outer wall:
+!          normal_dirn = -1  !  normal should point inwards
+!	  endif
+!
+!      rX = find_cylinder_intersection(r_prev_glob,r_glob,wall,tol)
+!      normal(:) = normal_dirn*normalise(rX(:))
+!
+!      ! Resolve velocity relative to normal and tangent
+!!      theta_hat(:) = crossprod(z_hat(:), normal(:))
+!      vr_mag = dot_product(v(:,molno), normal(:))
+!      vtheta(:) = dot_product(v(:,molno), theta_hat(:))*theta_hat(:)
+!      ! Force vr to point in normal direction
+!      vr(1) = abs(vr_mag)*normal(1)
+!      vr(2) = abs(vr_mag)*normal(2)
+!
+!      ! Reflect normal velocity.
+!      v(1,molno) = vr(1) + vtheta(1)
+!      v(2,molno) = vr(2) + vtheta(2)
+!
+!      ! Relative displacement vector of new point r2 from intersection
+!      r2_X(1) = r_glob(1) - rX(1)
+!      r2_X(2) = r_glob(2) - rX(2)
+!      r2_X(3) = 0.d0
+!      
+!      ! Shortest perpendicular distance of r2_X from tangent
+!      perp_vec(:) = crossprod(r2_X(:), theta_hat(:))
+!      perp_dist = magnitude3(perp_vec(:))
+!
+!      !reflected new position 
+!      r_glob(1) = r_glob(1) + 2.d0*perp_dist*normal(1)
+!      r_glob(2) = r_glob(2) + 2.d0*perp_dist*normal(2)
+!
+!      !convert back to local processor co-ordinates.
+!      r(:,molno) = localize(r_glob)	
+!
+!	endif
+!
+!end subroutine specular_radial_wall
 
 
 !--------------------------------------------------------------------------------------
-
-subroutine specular_flat_wall(molno, ascale, bscale, dir, spec_pos)
+subroutine specular_flat_wall(dir, spec_pos)
 	use module_molecule_properties
 	use arrays_MD
 	use interfaces
 	implicit none
 
-	integer,intent(in)			   :: molno, dir
-	double precision,intent(in)	   :: ascale, bscale, spec_pos
+	integer,intent(in)			   :: dir
+	double precision,intent(in)	   :: spec_pos
 
 	double precision, dimension(3) :: r_glob
+	integer                        :: n
 	integer                        :: normal
 	double precision               :: newxd
 
-	!Get position in global co-ordinates
-	r_glob(1) = r(1,molno) - (halfdomain(1)*(npx-1)) + domain(1)*(iblock-1)
-	r_glob(2) = r(2,molno) - (halfdomain(2)*(npy-1)) + domain(2)*(jblock-1)
-	r_glob(3) = r(3,molno) - (halfdomain(3)*(npz-1)) + domain(3)*(kblock-1)
+	do n = 1,np
+		!Get position in global co-ordinates
+		r_glob(1) = r(1,n) - (halfdomain(1)*(npx-1)) + domain(1)*(iblock-1)
+		r_glob(2) = r(2,n) - (halfdomain(2)*(npy-1)) + domain(2)*(jblock-1)
+		r_glob(3) = r(3,n) - (halfdomain(3)*(npz-1)) + domain(3)*(kblock-1)
 
-	if (abs(r_glob(dir)) .gt. spec_pos) then
+		if (abs(r_glob(dir)) .gt. spec_pos) then
 
-		!print'(a,i8,4f10.5)', 'Greater than spec_pos', molno,r_glob(dir),abs(r_glob(dir)),spec_pos,r(dir,molno)
+			!print'(a,i8,4f10.5)', 'Greater than spec_pos', n,r_glob(dir),abs(r_glob(dir)),spec_pos,r(dir,n)
 
-		!Get normal direction of molecule by checking if top or bottom
-		if ( r_glob(dir) .lt. 0) then
-			normal = 1   !normal should point outwards
-	 	else
-			normal = -1  !normal should point inwards
+			!Get normal direction of molecule by checking if top or bottom
+			if ( r_glob(dir) .lt. 0) then
+				normal = 1   !normal should point outwards
+			else
+				normal = -1  !normal should point inwards
+			endif
+
+			! Reflect normal velocity.
+			v(dir,n) = normal*abs(v(dir,n))
+			!Calculate distance over the spectral barrier
+			newxd = abs(r_glob(dir)) - spec_pos
+			!Move molecule same distance back into the domain on other side of spectral barrier
+			r(dir,n) = r(dir,n) + normal*2.d0*newxd
+
+			!write(7777,'(4i8,4f10.5)'), irank,dir,normal, n,newxd,r_glob(dir), r(dir,n),spec_pos
+
 		endif
-
-		! Reflect normal velocity.
-		v(dir,molno) = normal*abs(v(dir,molno))
-		!Calculate distance over the spectral barrier
-		newxd = abs(r_glob(dir)) - spec_pos
-		!Move molecule same distance back into the domain on other side of spectral barrier
-		r(dir, molno) = r(dir, molno) + normal*2.d0*newxd
-
-		!write(7777,'(4i8,4f10.5)'), irank,dir,normal, molno,newxd,r_glob(dir), r(dir,molno),spec_pos
-
-	endif
-
+	end do
 
 end subroutine specular_flat_wall 

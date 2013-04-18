@@ -72,19 +72,15 @@ contains
 
 	end function globalise
 
-	!=============================================================================
-	! DUMMY local position on processor from molecule's global position.
-	!-----------------------------------------------------------------------------
 	function localise(rglob) result(rloc)
 		implicit none
-
-		double precision,intent(in) :: rglob(3)
-		double precision 			:: rloc(3)
+		
+		real(kind(0.d0)), intent(in)  :: rglob(3)
+		real(kind(0.d0))              :: rloc(3)
 
 		rloc = rglob
 
-	end function localise
-
+	end function localise 
 
 end module
 
