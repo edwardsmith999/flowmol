@@ -1027,7 +1027,7 @@ subroutine cumulative_velocity(ixyz)
 	case(5)
 
 		! Cylindrical polar coordinates                                       -
-		fluiddomain_cyl(1) = r_oo - r_ii
+		fluiddomain_cyl(1) = r_io - r_oi
 		fluiddomain_cyl(2) = 2.d0 * pi 
 		fluiddomain_cyl(3) = domain(3) 
 		Vbinsize(:) = fluiddomain_cyl(:)/cpol_bins(:)				
@@ -1039,21 +1039,22 @@ subroutine cumulative_velocity(ixyz)
 			rpol     = cpolariser(rglob)
 			vpol     = cpolarisev(v(:,n),rpol(2))
 
-			!Reset z component to be between 0 < r_z < domain(3), and
-			!shift theta to 0 < theta < 2*pi (i.e. not -pi to pi)
-			rpol(3)  = r(3,n) + halfdomain(3) 
+			!Shift z component to be between 0 < r_z < domain(3),
+			!      theta to 0 < theta < 2*pi (i.e. not -pi to pi),
+			!      r to r_oi < r (< r_io) 
+ 			rpol(1)  = rpol(1) - r_oi
 			rpol(2)  = modulo(rpol(2),2.d0*pi)
- 			rpol(1)  = rpol(1) - r_ii
+			rpol(3)  = r(3,n) + halfdomain(3) 
 
 			!Add to cylindrical bins
 			br = ceiling(rpol(1)/Vbinsize(1)) 
 			bt = ceiling(rpol(2)/Vbinsize(2)) 
 			bz = ceiling(rpol(3)/Vbinsize(3)) + cpol_nhbz
 
-			!Account for stray cylinder molecule
-			!if ( br .gt. cpol_bins(1) ) br = cpol_bins(1)
+			!Ignore cylinder molecules and stray liquid mols
 			if ( br .gt. cpol_bins(1) ) cycle
  			if ( br .lt. 1 ) cycle
+			if ( tag(n) .eq. cyl_teth_thermo_rotate ) cycle
 
 			cyl_mass(br,bt,bz)  = cyl_mass(br,bt,bz)  + 1
 			cyl_mom(br,bt,bz,:) = cyl_mom(br,bt,bz,:) + vpol
