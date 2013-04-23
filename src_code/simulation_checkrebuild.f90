@@ -16,9 +16,11 @@ end module module_checkrebuild
 
 subroutine simulation_checkrebuild(rebuild)
 	use module_checkrebuild
+	use interfaces, only: error_abort
 	implicit none
 	
 	logical,save		   :: just_written_snapshot=.true.
+	logical                :: abort
 	integer                :: n
 	integer, save		   :: rb_count, total_rb=0
 	integer, intent(out)   :: rebuild
@@ -50,6 +52,14 @@ subroutine simulation_checkrebuild(rebuild)
 		call messenger_syncall
 		call parallel_io_final_state
 	endif
+
+	inquire(file=trim(prefix_dir)//'ABORTABORT',exist=abort)
+	if (abort) then
+		print*, 'File ABORTABORT detected. Writing final_state file...'
+		call messenger_syncall
+		call parallel_io_final_state	
+		call error_abort('Restart file written. Simulation aborted.')
+	end if
 
 	!Trigger rebuild if FIXED REBUILD specified in input
 	if (fixed_rebuild_flag .eq. 1) then
