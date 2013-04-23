@@ -92,10 +92,10 @@ subroutine iwrite_arrays(some_array,nresults,outfile,outstep)
 	integer									:: n, fh
 	integer 								:: MEM_FLAG = 0
 	integer 								:: FILE_FLAG = 0
-	integer									:: global_cnt,int_size,datatype
+	integer									:: int_size,datatype
 	integer									:: status(mpi_status_size)
 	integer			   						:: filetype, memtype
-	integer (kind=MPI_offset_kind)			:: offset
+	integer (kind=MPI_offset_kind)			:: offset, global_cnt
 	integer, dimension(3)					:: gsizes, lsizes, memsizes
 	integer, dimension(3)					:: global_indices, local_indices
 	integer, dimension(:,:),allocatable 	:: proc_lsizes 
@@ -189,10 +189,10 @@ subroutine rwrite_arrays(some_array,nresults,outfile,outstep)
 	integer								:: n, fh
 	integer 							:: MEM_FLAG = 0
 	integer 							:: FILE_FLAG = 0
-	integer								:: global_cnt,dp_size,datatype
+	integer								:: dp_size,datatype
 	integer								:: status(mpi_status_size)
 	integer			   					:: filetype, memtype
-	integer (kind=MPI_offset_kind)		:: offset
+	integer (kind=MPI_offset_kind)		:: offset, global_cnt
 	integer, dimension(3)				:: gsizes, lsizes, memsizes
 	integer, dimension(3)				:: global_indices, local_indices
 	integer, dimension(:,:),allocatable :: proc_lsizes 
@@ -2233,10 +2233,10 @@ contains
 		integer :: n, fh, ierr
 		integer :: MEM_FLAG = 0
 		integer :: FILE_FLAG = 0
-		integer :: global_cnt,dp_size,datatype
+		integer :: dp_size,datatype
 		integer :: status(mpi_status_size)
 		integer :: filetype, memtype
-		integer (kind=MPI_offset_kind) :: offset
+		integer (kind=MPI_offset_kind) :: offset, global_cnt
 		integer, dimension(3) :: gsizes, lsizes, memsizes
 		integer, dimension(3) :: global_indices, local_indices
 		integer, dimension(:,:),allocatable :: kblock_lsizes 
@@ -2313,10 +2313,10 @@ contains
 		integer :: n, fh, ierr
 		integer :: MEM_FLAG = 0
 		integer :: FILE_FLAG = 0
-		integer :: global_cnt,int_size,datatype
+		integer :: int_size,datatype
 		integer :: status(mpi_status_size)
 		integer :: filetype, memtype
-		integer (kind=MPI_offset_kind) :: offset
+		integer (kind=MPI_offset_kind) :: offset,global_cnt
 		integer, dimension(3) :: gsizes, lsizes, memsizes
 		integer, dimension(3) :: global_indices, local_indices
 		integer, dimension(:,:),allocatable :: kblock_lsizes 
