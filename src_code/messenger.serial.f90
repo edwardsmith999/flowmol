@@ -859,7 +859,7 @@ subroutine sendmols_quiescent()
 		if (r(1,n) >= halfdomain(1)) then   !Above +halfdomain
 			r(1,n) = r(1,n) - domain(1) !Move to other side of domain
 			if (ensemble.eq.tag_move) then
-			if (any(tag(np+n).eq.tether_tags)) then
+			if (any(tag(n).eq.tether_tags)) then
 				rtether(1,n) = rtether(1,n) - domain(1)
 			endif
 			endif
@@ -867,7 +867,7 @@ subroutine sendmols_quiescent()
 		if (r(1,n) < -halfdomain(1)) then   !Below -halfdomain
 			r(1,n) = r(1,n) + domain(1) !Move to other side of domain
 			if (ensemble.eq.tag_move) then
-			if (any(tag(np+n).eq.tether_tags)) then
+			if (any(tag(n).eq.tether_tags)) then
 				rtether(1,n) = rtether(1,n) + domain(1)
 			endif
 			endif
@@ -877,7 +877,7 @@ subroutine sendmols_quiescent()
 		if (r(2,n) >= halfdomain(2)) then   !Above +halfdomain
 			r(2,n) = r(2,n) - domain(2) !Move to other side of domain
 			if (ensemble.eq.tag_move) then
-			if (any(tag(np+n).eq.tether_tags)) then
+			if (any(tag(n).eq.tether_tags)) then
 				rtether(2,n) = rtether(2,n) - domain(2)
 			endif
 			endif
@@ -885,7 +885,7 @@ subroutine sendmols_quiescent()
 		if (r(2,n) < -halfdomain(2)) then   !Below -halfdomain
 			r(2,n) = r(2,n) + domain(2) !Move to other side of domain
 			if (ensemble.eq.tag_move) then
-			if (any(tag(np+n).eq.tether_tags)) then
+			if (any(tag(n).eq.tether_tags)) then
 				rtether(2,n) = rtether(2,n) + domain(2)
 			endif
 			endif
@@ -895,7 +895,7 @@ subroutine sendmols_quiescent()
 		if (r(3,n) >= halfdomain(3)) then   !Above +halfdomain
 			r(3,n) = r(3,n) - domain(3) !Move to other side of domain
 			if (ensemble.eq.tag_move) then
-			if (any(tag(np+n).eq.tether_tags)) then
+			if (any(tag(n).eq.tether_tags)) then
 				rtether(3,n) = rtether(3,n) - domain(3)
 			endif
 			endif
@@ -903,7 +903,7 @@ subroutine sendmols_quiescent()
 		if (r(3,n) < -halfdomain(3)) then   !Below -halfdomain
 			r(3,n) = r(3,n) + domain(3) !Move to other side of domain
 			if (ensemble.eq.tag_move) then
-			if (any(tag(np+n).eq.tether_tags)) then
+			if (any(tag(n).eq.tether_tags)) then
 				rtether(3,n) = rtether(3,n) + domain(3)
 			endif
 			endif

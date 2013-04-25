@@ -199,7 +199,7 @@ subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 	double precision,dimension(3),intent(out):: tagdistbottom,tagdisttop
 
 	integer 				:: n,icell,jcell
-	double precision		:: xlocation,zlocation,rand
+	double precision		:: xlocation,zlocation,rand,fraction_domain
 
 	select case (texture_type)
 	case(posts)
@@ -264,7 +264,10 @@ subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 		!A converging diverging channel
 		tagdistbottom = 0.d0; tagdisttop=0.d0
 		xlocation = rg(1)/globaldomain(1) + 0.5
-		tagdistbottom(2) = 0.3d0*globaldomain(2)*sin(pi*xlocation) + cellsidelength(2)
+		fraction_domain =  0.3d0
+		!one minus cosine is periodic and has a periodic derivative while sin does not
+		!tagdistbottom(2) = fraction_domain*globaldomain(2)*sin(pi*xlocation) + cellsidelength(2)
+		tagdistbottom(2) =0.5d0*fraction_domain*globaldomain(2)*(1-cos(2*pi*xlocation)) + cellsidelength(2)
 		tagdisttop       = tagdistbottom
 	end select
 
