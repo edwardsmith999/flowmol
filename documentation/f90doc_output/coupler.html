@@ -6,18 +6,13 @@
 <PRE>module coupler
 
         ! Uses
-    use <A HREF="coupler_parameters.html">coupler_parameters</A>
+    use <A HREF="iso_c_binding.html">ISO_C_BINDING</A>
 
         ! Interfaces
     public interface <A HREF="coupler.html#interface_cpl_send">CPL_send</A>
     public interface <A HREF="coupler.html#interface_cpl_recv">CPL_recv</A>
-    public interface <A HREF="coupler.html#interface_coupler_send_data">coupler_send_data</A>
-    public interface <A HREF="coupler.html#interface_coupler_recv_data">coupler_recv_data</A>
 
         ! Subroutines and functions
-    public subroutine <A HREF="coupler.html#subroutine_cpl_create_comm">CPL_create_comm</A> (callingrealm, RETURNED_REALM_COMM, ierror)
-    public subroutine <A HREF="coupler.html#subroutine_cpl_create_map">CPL_create_map</A> ()
-    public subroutine <A HREF="coupler.html#subroutine_cpl_cfd_adjust_domain">CPL_cfd_adjust_domain</A> (xL, yL, zL, nx, ny, nz, density_cfd)
     public subroutine <A HREF="coupler.html#subroutine_cpl_gather">CPL_gather</A> (gatherarray, npercell, limits, recvarray)
     public subroutine <A HREF="coupler.html#subroutine_cpl_scatter">CPL_scatter</A> (scatterarray, npercell, limits, recvarray)
     private subroutine <A HREF="coupler.html#subroutine_cpl_send_3d">CPL_send_3d</A> (temp, icmin_send, icmax_send, jcmin_send, jcmax_send, kcmin_send, kcmax_send, send_flag)
@@ -26,28 +21,25 @@
     private subroutine <A HREF="coupler.html#subroutine_cpl_recv_3d">CPL_recv_3d</A> (temp, icmin_recv, icmax_recv, jcmin_recv, jcmax_recv, kcmin_recv, kcmax_recv, recv_flag)
     private subroutine <A HREF="coupler.html#subroutine_cpl_recv_4d">CPL_recv_4d</A> (arecv, icmin_recv, icmax_recv, jcmin_recv, jcmax_recv, kcmin_recv, kcmax_recv, recv_flag)
     private subroutine <A HREF="coupler.html#subroutine_cpl_recv_xd">CPL_recv_xd</A> (arecv, icmin_recv, icmax_recv, jcmin_recv, jcmax_recv, kcmin_recv, kcmax_recv, recv_flag)
-    public subroutine <A HREF="coupler.html#subroutine_cpl_rank_map">CPL_rank_map</A> (COMM, rank, nproc, comm2world, world2comm, ierr)
     public subroutine <A HREF="coupler.html#subroutine_cpl_pack">CPL_pack</A> (unpacked, packed, realm, icmax_pack, icmin_pack, jcmax_pack, jcmin_pack, kcmax_pack, kcmin_pack)
     public subroutine <A HREF="coupler.html#subroutine_cpl_unpack">CPL_unpack</A> (packed, unpacked, realm)
     public subroutine <A HREF="coupler.html#subroutine_cpl_proc_extents">CPL_proc_extents</A> (coord, realm, extents, ncells)
     public subroutine <A HREF="coupler.html#subroutine_cpl_olap_extents">CPL_olap_extents</A> (coord, realm, extents, ncells)
     public subroutine <A HREF="coupler.html#subroutine_cpl_proc_portion">CPL_proc_portion</A> (coord, realm, limits, portion, ncells)
     public subroutine <A HREF="coupler.html#subroutine_cpl_cart_coords">CPL_Cart_coords</A> (COMM, rank, realm, maxdims, coords, ierr)
-    private subroutine <A HREF="coupler.html#subroutine_coupler_send_data_3d">coupler_send_data_3d</A> (temp, index_transpose, asend_lbound, asend_grid_start, asend_grid_end, glower, gupper, use_overlap_box)
-    private subroutine <A HREF="coupler.html#subroutine_coupler_send_data_4d">coupler_send_data_4d</A> (asend, index_transpose, asend_lbound, asend_grid_start, asend_grid_end, glower, gupper, use_overlap_box)
-    private subroutine <A HREF="coupler.html#subroutine_coupler_send_data_xd">coupler_send_data_xd</A> (asend, index_transpose, asend_lbound, asend_grid_start, asend_grid_end, glower, gupper, use_overlap_box)
-    private subroutine <A HREF="coupler.html#subroutine_coupler_recv_data_3d">coupler_recv_data_3d</A> (temp, index_transpose, asend_lbound, asend_grid_start, asend_grid_end, glower, gupper, accumulate, pbc)
-    private subroutine <A HREF="coupler.html#subroutine_coupler_recv_data_4d">coupler_recv_data_4d</A> (arecv, index_transpose, asend_lbound, asend_grid_start, asend_grid_end, glower, gupper, accumulate, pbc)
-    private subroutine <A HREF="coupler.html#subroutine_coupler_recv_data_xd">coupler_recv_data_xd</A> (arecv, index_transpose, a_lbound, a_grid_start, a_grid_end, glower, gupper, accumulate, pbc)
-    public subroutine <A HREF="coupler.html#subroutine_coupler_cfd_get">coupler_cfd_get</A> (jcmax_overlap, jcmin)
-    public subroutine <A HREF="coupler.html#subroutine_coupler_md_get">coupler_md_get</A> (xL_md, yL_md, zL_md, MD_initial_cellsize, top_dy, overlap_with_top_cfd)
+    public subroutine <A HREF="coupler.html#subroutine_cpl_get_rank">CPL_get_rank</A> (COMM, rank)
+    public function <A HREF="coupler.html#function_cpl_overlap">CPL_overlap</A> () result (p)
+    public subroutine <A HREF="coupler.html#subroutine_cpl_get">CPL_get</A> (icmax_olap, icmin_olap, jcmax_olap, jcmin_olap, kcmax_olap, kcmin_olap, density_cfd, density_md, dt_cfd, dt_MD, dx, dy, dz, ncx, ncy, ncz, xg, yg, zg, xL_md, xL_cfd, yL_md, yL_cfd, zL_md, zL_cfd, constraint_algo, constraint_CVflag, constraint_OT, constraint_NCER, constraint_Flekkoy, constraint_off, icmin_cnst, icmax_cnst, jcmin_cnst, jcmax_cnst, kcmin_cnst, kcmax_cnst, md_cfd_match_cellsize, staggered_averages, timestep_ratio)
+    public function <A HREF="coupler.html#function_cpl_realm">CPL_realm</A> ()
+    public function <A HREF="coupler.html#function_globalise">globalise</A> (r) result (rg)
+    public function <A HREF="coupler.html#function_localise">localise</A> (r) result (rg)
+    public function <A HREF="coupler.html#function_map_md2cfd_global">map_md2cfd_global</A> (r) result (rg)
+    public function <A HREF="coupler.html#function_map_cfd2md_global">map_cfd2md_global</A> (r) result (rg)
     public function <A HREF="coupler.html#function_coupler_md_get_save_period">coupler_md_get_save_period</A> () result (p)
     public function <A HREF="coupler.html#function_coupler_md_get_average_period">coupler_md_get_average_period</A> () result (p)
     public function <A HREF="coupler.html#function_coupler_md_get_md_steps_per_cfd_dt">coupler_md_get_md_steps_per_cfd_dt</A> () result (p)
-    public function <A HREF="coupler.html#function_coupler_md_get_nsteps">coupler_md_get_nsteps</A> () result (n)
-    public function <A HREF="coupler.html#function_coupler_md_get_dt_cfd">coupler_md_get_dt_cfd</A> () result (t)
-    public function <A HREF="coupler.html#function_coupler_md_get_density">coupler_md_get_density</A> () result (r)
-    public function <A HREF="coupler.html#function_coupler_md_get_cfd_id">coupler_md_get_cfd_id</A> () result (r)
+    public function <A HREF="coupler.html#function_coupler_md_get_nsteps">coupler_md_get_nsteps</A> () result (p)
+    public function <A HREF="coupler.html#function_coupler_md_get_dt_cfd">coupler_md_get_dt_cfd</A> () result (p)
 
 end module coupler
 </PRE>
@@ -55,15 +47,6 @@ end module coupler
  the name, in parenthesis, is the realm in which each routine must be called
 <P>
  <UL>
- <LI>  CPL_create_comm	      (cfd+md)   splits MPI_COMM_WORLD, create inter - 
-                                   communicator between CFD and MD
-<P>
- <LI>  CPL_create_map	      (cfd+md)   creates correspondence maps between 
-                                      the CFD grid and MD domains
-<P>
- <LI>  CPL_cfd_adjust_domain     (cfd)    adjust CFD tomain to an integer number 
-                                      FCC or similar MD initial layout
-<P>
  <LI>  CPL_send_data        	  (cfd+md)   sends grid data exchanged between 
                                       realms ( generic interface)
 <P>
@@ -98,7 +81,7 @@ end module coupler
 <P>
 <STRONG>Author:</STRONG> Lucian Anton, November 2011, Edward Smith, Dave Trevelyan September 2012
 <P>
-<STRONG>See also:</STRONG> module <A HREF="coupler_module.html">coupler_module</A>, module <A HREF="coupler_internal_cfd.html">coupler_internal_cfd</A>, module <A HREF="coupler_internal_md.html">coupler_internal_md</A>, module <A HREF="coupler_parameters.html">coupler_parameters</A>
+<STRONG>See also:</STRONG> module <A HREF="coupler_module.html">coupler_module</A>
 
 <HR><H2> Description of Interfaces </H2>
 <A NAME="interface_cpl_send"><H3>CPL_send</H3></A>
@@ -113,49 +96,8 @@ end interface CPL_send
     module procedure <A HREF="#subroutine_cpl_recv_4d">CPL_recv_4d</A>
 end interface CPL_recv
 </PRE>
-<A NAME="interface_coupler_send_data"><H3>coupler_send_data</H3></A>
-<PRE>public interface coupler_send_data
-    module procedure <A HREF="#subroutine_coupler_send_data_3d">coupler_send_data_3d</A>
-    module procedure <A HREF="#subroutine_coupler_send_data_4d">coupler_send_data_4d</A>
-end interface coupler_send_data
-</PRE>
-<A NAME="interface_coupler_recv_data"><H3>coupler_recv_data</H3></A>
-<PRE>public interface coupler_recv_data
-    module procedure <A HREF="#subroutine_coupler_recv_data_3d">coupler_recv_data_3d</A>
-    module procedure <A HREF="#subroutine_coupler_recv_data_4d">coupler_recv_data_4d</A>
-end interface coupler_recv_data
-</PRE>
 
 <HR><H2> Description of Subroutines and Functions </H2>
-<A NAME="subroutine_cpl_create_comm"><H3>CPL_create_comm</H3></A>
-<PRE>public subroutine CPL_create_comm (callingrealm, RETURNED_REALM_COMM, ierror)
-    integer, intent(in) :: callingrealm
-    integer, intent(out) :: RETURNED_REALM_COMM
-    integer, intent(out) :: ierror
-    ! Calls: MPI_comm_rank, MPI_comm_size, create_comm, test_realms
-end subroutine CPL_create_comm
-</PRE>
- (cfd+md) Splits MPI_COMM_WORLD in both the CFD and MD code respectively
- 		   and create intercommunicator between CFD and MD
-<A NAME="subroutine_cpl_create_map"><H3>CPL_create_map</H3></A>
-<PRE>public subroutine CPL_create_map ()
-    ! Calls: CPL_overlap_topology, check_config_feasibility, get_md_cell_ranges, get_overlap_blocks, prepare_overlap_comms
-end subroutine CPL_create_map
-</PRE>
- Establish for all MD processors the mapping (if any) 
- to coupled CFD processors
-<A NAME="subroutine_cpl_cfd_adjust_domain"><H3>CPL_cfd_adjust_domain</H3></A>
-<PRE>public subroutine CPL_cfd_adjust_domain (xL, yL, zL, nx, ny, nz, density_cfd)
-    real (kind=kind (0.d0)), optional, intent(inout) :: xL
-    real (kind=kind (0.d0)), optional, intent(inout) :: yL
-    real (kind=kind (0.d0)), optional, intent(inout) :: zL
-    integer, optional, intent(inout) :: nx
-    integer, optional, intent(inout) :: ny
-    integer, optional, intent(inout) :: nz
-    real (kind=kind (0.d0)), optional, intent(inout) :: density_cfd
-    ! Calls: MPI_Abort, init_length, test_cfd_cell_sizes
-end subroutine CPL_cfd_adjust_domain
-</PRE>
 <A NAME="subroutine_cpl_gather"><H3>CPL_gather</H3></A>
 <PRE>public subroutine CPL_gather (gatherarray, npercell, limits, recvarray)
     real (kind=kind (0.d0)), dimension(:,:,:,:), intent(in) :: gatherarray
@@ -165,6 +107,60 @@ end subroutine CPL_cfd_adjust_domain
     ! Calls: MPI_gatherv, deallocate_gather_u, pack_sendbuf, prepare_gatherv_parameters, unpack_recvbuf
 end subroutine CPL_gather
 </PRE>
+ Perform gather operation on CPL_OLAP_COMM communicator. The CFD processor
+ is the root process. The gathered data is effectively "slotted" into the
+ correct part of the recvarray, and is intented for use in providing the
+ CFD simulation boundary conditions with data obtained from the MD
+ simulation.   
+<P>
+ <UL>
+ <LI>  Synopsis
+<P>
+  <UL>
+  <LI>  CPL_gather(gatherarray,npercell,limits,recvarray)
+<P>
+  </UL>
+ <LI>  Input
+<P>
+  <UL>
+  <LI>  gatherarray
+   <UL>
+   <LI>  Assumed shape array of data to be gathered from each MD processor
+     in the overlap communicator.
+<P>
+   </UL>
+  <LI>  limits
+   <UL>
+   <LI>  Integer array of length 6, specifying the global cell extents of the
+     region to be gathered, is the same on ALL processors.
+<P>
+   </UL>
+  <LI>  npercell
+   <UL>
+   <LI>  number of data points per cell to be gathered (integer)
+     Note: should be the same as size(gatherarray(1)) for MD
+     processor. E.G. npercell = 3 for gathering 3D velocities.
+<P>
+   </UL>
+  </UL>
+ <LI>  Input/Output
+  <UL>
+  <LI>  recvarray
+   <UL>
+   <LI>  The array in which the gathered values are to be stored on the CFD
+     processor. The only values to be changed in recvarray are:
+     recvarray(limits(1):limits(2),limits(3):limits(4),limits(5):limits(6))
+<P>
+   </UL>
+  </UL>
+ <LI>  Output Parameters
+  <UL>
+  <LI>  NONE
+<P>
+  </UL>
+ </UL>
+<P>
+<STRONG>Author:</STRONG> David Trevelyan
 <A NAME="subroutine_cpl_scatter"><H3>CPL_scatter</H3></A>
 <PRE>public subroutine CPL_scatter (scatterarray, npercell, limits, recvarray)
     real (kind=kind (0.d0)), dimension(:,:,:,:), intent(in) :: scatterarray
@@ -174,6 +170,54 @@ end subroutine CPL_gather
     ! Calls: MPI_scatterv, deallocate_scatter_s, pack_scatterbuf, prepare_scatterv_parameters, unpack_scatterbuf
 end subroutine CPL_scatter
 </PRE>
+ Scatter cell-wise data from CFD processor to corresponding MD processors
+ on the overlap communicator CPL_OLAP_COMM.
+<P>
+ <UL>
+ <LI>  Synopsis
+<P>
+  <UL>
+  <LI>  CPL_scatter(scatterarray,npercell,limits,recvarray)
+<P>
+  </UL>
+ <LI>  Input
+<P>
+  <UL>
+  <LI>  scatterarray
+   <UL>
+   <LI>  assumed shape array of data to be scattered (double precision)
+<P>
+   </UL>
+  <LI>  limits
+   <UL>
+   <LI>  integer array of length 6, specifying the global cell extents of the
+     region to be scattered, is the same on all processors.
+<P>
+   </UL>
+  <LI>  npercell
+   <UL>
+   <LI>  number of data points per cell to be scattered (integer).
+     Note: should be the same as size(scatterarray(1)) for CFD proc
+<P>
+   </UL>
+  </UL>
+ <LI>  Input/Output
+  <UL>
+  <LI>  recvarray
+   <UL>
+   <LI>  the array in which the scattered values are stored on the MD
+     processors.
+<P>
+   </UL>
+  </UL>
+ <LI>  Output
+  <UL>
+  <LI>  NONE
+<P>
+  </UL>
+ </UL>
+<P>
+<STRONG>Author:</STRONG> David Trevelyan
 <A NAME="subroutine_cpl_send_3d"><H3>CPL_send_3d</H3></A>
 <PRE>private subroutine CPL_send_3d (temp, icmin_send, icmax_send, jcmin_send, jcmax_send, kcmin_send, kcmax_send, send_flag)
     real (kind=kind (0.d0)), dimension(:,:,:), intent(in) :: temp
@@ -334,17 +378,6 @@ end subroutine CPL_recv_xd
  </UL>
 <P>
 <STRONG>Author:</STRONG> Edward Smith
-<A NAME="subroutine_cpl_rank_map"><H3>CPL_rank_map</H3></A>
-<PRE>public subroutine CPL_rank_map (COMM, rank, nproc, comm2world, world2comm, ierr)
-    integer, intent(in) :: COMM
-    integer, intent(out) :: rank
-    integer, intent(out) :: nproc
-    integer, dimension(:), allocatable, intent(out) :: comm2world
-    integer, dimension(:), allocatable, intent(out) :: world2comm
-    integer, intent(out) :: ierr
-    ! Calls: MPI_allgather, MPI_comm_rank, MPI_comm_size
-end subroutine CPL_rank_map
-</PRE>
 <A NAME="subroutine_cpl_pack"><H3>CPL_pack</H3></A>
 <PRE>public subroutine CPL_pack (unpacked, packed, realm, icmax_pack, icmin_pack, jcmax_pack, jcmin_pack, kcmax_pack, kcmin_pack)
     real (kind=kind (0.d0)), dimension(:,:,:,:), intent(in) :: unpacked
@@ -376,6 +409,52 @@ end subroutine CPL_unpack
     ! Calls: error_abort
 end subroutine CPL_proc_extents
 </PRE>
+ Gets maximum and minimum cells for processor coordinates
+<P>
+ <UL>
+ <LI>  Synopsis
+<P>
+  <UL>
+  <LI>  CPL_proc_extents(coord,realm,extents,ncells)
+<P>
+  </UL>
+ <LI>  Input
+<P>
+  <UL>
+  <LI>  coord
+   <UL>
+   <LI>  processor cartesian coordinate (3 x integer) 
+<P>
+   </UL>
+  <LI>  realm
+   <UL>
+   <LI>  cfd_realm (1) or md_realm (2) (integer) 
+<P>
+   </UL>
+  </UL>
+ <LI>  Input/Output
+  <UL>
+  <LI>  NONE
+<P>
+  </UL>
+ <LI>  Output
+<P>
+  <UL>
+  <LI>  extents
+   <UL>
+   <LI>  Six components array which defines processor extents
+     xmin,xmax,ymin,ymax,zmin,zmax (6 x integer) 
+<P>
+   </UL>
+  <LI>  ncells (optional)
+   <UL>
+   <LI>  number of cells on processor (integer) 
+<P>
+   </UL>
+  </UL>
+ </UL>
+<P>
+<STRONG>Author:</STRONG> David Trevelyan
 <A NAME="subroutine_cpl_olap_extents"><H3>CPL_olap_extents</H3></A>
 <PRE>public subroutine CPL_olap_extents (coord, realm, extents, ncells)
     integer, intent(in), dimension (3) :: coord
@@ -389,18 +468,19 @@ end subroutine CPL_olap_extents
  the overlapping region only
 <P>
  <UL>
- <LI>  Synopsis
+ <LI>  Synopsis 
 <P>
   <UL>
   <LI>  CPL_olap_extents(coord,realm,extents,ncells)
 <P>
   </UL>
- <LI>  Input
+ <LI>  Input 
 <P>
   <UL>
   <LI>  coord
    <UL>
    <LI>  processor cartesian coordinate (3 x integer) 
+<P>
    </UL>
   <LI>  realm
    <UL>
@@ -408,16 +488,24 @@ end subroutine CPL_olap_extents
 <P>
    </UL>
   </UL>
- <LI>  Output
+ <LI>  Input/Output
+  <UL>
+  <LI>  NONE
+<P>
+  </UL>
+ <LI>  Output 
+<P>
   <UL>
   <LI>  extents
    <UL>
    <LI>  Six components array which defines processor extents within
-     the overlap region only xmin,xmax,ymin,ymax,zmin,zmax (6 x integer) 
+     the overlap region only: xmin,xmax,ymin,ymax,zmin,zmax (6 x integer) 
+<P>
    </UL>
   <LI>  ncells (optional)
    <UL>
-   <LI>  number of cells on processor (integer)
+   <LI>  number of cells on processor (integer) 
+<P>
    </UL>
   </UL>
  </UL>
@@ -433,6 +521,60 @@ end subroutine CPL_olap_extents
     ! Calls: CPL_proc_extents
 end subroutine CPL_proc_portion
 </PRE>
+ Get maximum and minimum cell indices, i.e. the 'portion', of the
+ input cell extents 'limits' that is contributed by the current
+ overlapping processor. 
+<P>
+ <UL>
+ <LI>  Synopsis
+  <UL>
+  <LI>  CPL_proc_portion(coord,realm,limits,portion,ncells)
+<P>
+  </UL>
+ <LI>  Input
+<P>
+  <UL>
+  <LI>  coord
+   <UL>
+   <LI>  processor cartesian coordinate (3 x integer) 
+<P>
+   </UL>
+  <LI>  realm
+   <UL>
+   <LI>  cfd_realm (1) or md_realm (2) (integer) 
+<P>
+   </UL>
+  <LI>  limits(6)
+   <UL>
+   <LI>  Array of cell extents that specify the input region. 
+<P>
+   </UL>
+  </UL>
+ <LI>  Input/Output
+  <UL>
+  <LI>  NONE
+<P>
+  </UL>
+ <LI>  Output
+<P>
+  <UL>
+  <LI>  portion(6) 
+   <UL>
+   <LI>  Array of cell extents that define the local processor's
+     contribution to the input region 'limits'.
+<P>
+   <LI>  ncells (optional)
+    <UL>
+    <LI>  number of cells in portion (integer) 
+<P>
+    </UL>
+   </UL>
+  </UL>
+ <LI>  Note: limits(6) and portion(6) are of the form:
+   (xmin,xmax,ymin,ymax,zmin,zmax)
+ </UL>
+<P>
+<STRONG>Author:</STRONG> David Trevelyan
 <A NAME="subroutine_cpl_cart_coords"><H3>CPL_Cart_coords</H3></A>
 <PRE>public subroutine CPL_Cart_coords (COMM, rank, realm, maxdims, coords, ierr)
     integer, intent(in) :: COMM
@@ -496,102 +638,172 @@ end subroutine CPL_Cart_coords
  </UL>
 <P>
 <STRONG>Author:</STRONG> Edward Smith
-<A NAME="subroutine_coupler_send_data_3d"><H3>coupler_send_data_3d</H3></A>
-<PRE>private subroutine coupler_send_data_3d (temp, index_transpose, asend_lbound, asend_grid_start, asend_grid_end, glower, gupper, use_overlap_box)
-    real (kind=kind (0.d0)), dimension(:,:,:), intent(in) :: temp
-    integer, optional, intent(in), dimension (3) :: index_transpose
-    integer, optional, intent(in), dimension (3) :: asend_lbound
-    integer, optional, intent(in), dimension (3) :: asend_grid_start
-    integer, optional, intent(in), dimension (3) :: asend_grid_end
-    integer, optional, intent(in), dimension (3) :: glower
-    integer, optional, intent(in), dimension (3) :: gupper
-    logical, optional, intent(in), dimension (3) :: use_overlap_box
-    ! Calls: coupler_send_data_xd
-end subroutine coupler_send_data_3d
+<A NAME="subroutine_cpl_get_rank"><H3>CPL_get_rank</H3></A>
+<PRE>public subroutine CPL_get_rank (COMM, rank)
+    integer, intent(in) :: COMM
+    integer, intent(out) :: rank
+    ! Calls: error_abort
+end subroutine CPL_get_rank
 </PRE>
-<A NAME="subroutine_coupler_send_data_4d"><H3>coupler_send_data_4d</H3></A>
-<PRE>private subroutine coupler_send_data_4d (asend, index_transpose, asend_lbound, asend_grid_start, asend_grid_end, glower, gupper, use_overlap_box)
-    real (kind=kind (0.d0)), dimension(:,:,:,:), intent(in) :: asend
-    integer, optional, intent(in), dimension (3) :: index_transpose
-    integer, optional, intent(in), dimension (3) :: asend_lbound
-    integer, optional, intent(in), dimension (3) :: asend_grid_start
-    integer, optional, intent(in), dimension (3) :: asend_grid_end
-    integer, optional, intent(in), dimension (3) :: glower
-    integer, optional, intent(in), dimension (3) :: gupper
-    logical, optional, intent(in), dimension (3) :: use_overlap_box
-    ! Calls: coupler_send_data_xd
-end subroutine coupler_send_data_4d
+ Return rank of current processor in specified COMM 
+<P>
+ <UL>
+ <LI>  Synopsis
+<P>
+  <UL>
+  <LI>  CPL_get_rank(COMM, rank)
+<P>
+  </UL>
+ <LI>  Input Parameters
+<P>
+  <UL>
+  <LI>  comm
+   <UL>
+   <LI>  communicator with cartesian structure (handle) 
+<P>
+   </UL>
+  </UL>
+ <LI>  Output Parameter
+<P>
+  <UL>
+  <LI>  rank
+   <UL>
+   <LI>  rank of a process within group of comm (integer) 
+      NOTE fortran convention rank=1 to nproc
+<P>
+   </UL>
+  </UL>
+ </UL>
+<P>
+<STRONG>Author:</STRONG> Edward Smith
+<A NAME="function_cpl_overlap"><H3>CPL_overlap</H3></A>
+<PRE>public function CPL_overlap () result (p)
+    logical :: p
+end function CPL_overlap
 </PRE>
-<A NAME="subroutine_coupler_send_data_xd"><H3>coupler_send_data_xd</H3></A>
-<PRE>private subroutine coupler_send_data_xd (asend, index_transpose, asend_lbound, asend_grid_start, asend_grid_end, glower, gupper, use_overlap_box)
-    real (kind=kind (0.d0)), dimension(:,:,:,:), intent(in) :: asend
-    integer, optional, intent(in), dimension (3) :: index_transpose
-    integer, optional, intent(in), dimension (3) :: asend_lbound
-    integer, optional, intent(in), dimension (3) :: asend_grid_start
-    integer, optional, intent(in), dimension (3) :: asend_grid_end
-    integer, optional, intent(in), dimension (3) :: glower
-    integer, optional, intent(in), dimension (3) :: gupper
-    logical, optional, intent(in), dimension (3) :: use_overlap_box
-    ! Calls: MPI_Abort, MPI_send
-end subroutine coupler_send_data_xd
-</PRE>
-<A NAME="subroutine_coupler_recv_data_3d"><H3>coupler_recv_data_3d</H3></A>
-<PRE>private subroutine coupler_recv_data_3d (temp, index_transpose, asend_lbound, asend_grid_start, asend_grid_end, glower, gupper, accumulate, pbc)
-    real (kind=kind (0.d0)), dimension(:,:,:), intent(inout) :: temp
-    integer, optional, intent(in), dimension (3) :: index_transpose
-    integer, optional, intent(in), dimension (3) :: asend_lbound
-    integer, optional, intent(in), dimension (3) :: asend_grid_start
-    integer, optional, intent(in), dimension (3) :: asend_grid_end
-    integer, optional, intent(in), dimension (3) :: glower
-    integer, optional, intent(in), dimension (3) :: gupper
-    logical, optional, intent(in) :: accumulate
-    integer, optional, intent(in) :: pbc
-    ! Calls: coupler_recv_data_xd
-end subroutine coupler_recv_data_3d
-</PRE>
-<A NAME="subroutine_coupler_recv_data_4d"><H3>coupler_recv_data_4d</H3></A>
-<PRE>private subroutine coupler_recv_data_4d (arecv, index_transpose, asend_lbound, asend_grid_start, asend_grid_end, glower, gupper, accumulate, pbc)
-    real (kind=kind (0.d0)), dimension(:,:,:,:), intent(inout) :: arecv
-    integer, optional, intent(in), dimension (3) :: index_transpose
-    integer, optional, intent(in), dimension (3) :: asend_lbound
-    integer, optional, intent(in), dimension (3) :: asend_grid_start
-    integer, optional, intent(in), dimension (3) :: asend_grid_end
-    integer, optional, intent(in), dimension (3) :: glower
-    integer, optional, intent(in), dimension (3) :: gupper
-    logical, optional, intent(in) :: accumulate
-    integer, optional, intent(in) :: pbc
-    ! Calls: coupler_recv_data_xd
-end subroutine coupler_recv_data_4d
-</PRE>
-<A NAME="subroutine_coupler_recv_data_xd"><H3>coupler_recv_data_xd</H3></A>
-<PRE>private subroutine coupler_recv_data_xd (arecv, index_transpose, a_lbound, a_grid_start, a_grid_end, glower, gupper, accumulate, pbc)
-    real (kind=kind (0.d0)), dimension(:,:,:,:), intent(inout) :: arecv
-    integer, optional, intent(in), dimension (3) :: index_transpose
-    integer, optional, intent(in), dimension (3) :: a_lbound
-    integer, optional, intent(in), dimension (3) :: a_grid_start
-    integer, optional, intent(in), dimension (3) :: a_grid_end
-    integer, optional, intent(in), dimension (3) :: glower
-    integer, optional, intent(in), dimension (3) :: gupper
-    logical, optional, intent(in) :: accumulate
-    integer, optional, intent(in) :: pbc
-    ! Calls: MPI_Abort, MPI_irecv, MPI_waitall, halos
-end subroutine coupler_recv_data_xd
-</PRE>
-<A NAME="subroutine_coupler_cfd_get"><H3>coupler_cfd_get</H3></A>
-<PRE>public subroutine coupler_cfd_get (jcmax_overlap, jcmin)
-    integer, optional, intent(out) :: jcmax_overlap
-    integer, optional, intent(out) :: jcmin
-end subroutine coupler_cfd_get
-</PRE>
-<A NAME="subroutine_coupler_md_get"><H3>coupler_md_get</H3></A>
-<PRE>public subroutine coupler_md_get (xL_md, yL_md, zL_md, MD_initial_cellsize, top_dy, overlap_with_top_cfd)
+ Check if current processor is in the overlap region
+<P>
+ <UL>
+ <LI>  Synopsis
+<P>
+  <UL>
+  <LI>  CPL_olap_check()
+<P>
+  </UL>
+ <LI>  Input Parameters
+<P>
+  <UL>
+  <LI>  NONE
+<P>
+  </UL>
+ <LI>  Returns
+<P>
+  <UL>
+  <LI>  CPL_olap_check
+  </UL>
+ </UL>
+	 - True if calling processor is in the overlap region
+     and false otherwise
+<P>
+<STRONG>Author:</STRONG> Edward Smith
+<A NAME="subroutine_cpl_get"><H3>CPL_get</H3></A>
+<PRE>public subroutine CPL_get (icmax_olap, icmin_olap, jcmax_olap, jcmin_olap, kcmax_olap, kcmin_olap, density_cfd, density_md, dt_cfd, dt_MD, dx, dy, dz, ncx, ncy, ncz, xg, yg, zg, xL_md, xL_cfd, yL_md, yL_cfd, zL_md, zL_cfd, constraint_algo, constraint_CVflag, constraint_OT, constraint_NCER, constraint_Flekkoy, constraint_off, icmin_cnst, icmax_cnst, jcmin_cnst, jcmax_cnst, kcmin_cnst, kcmax_cnst, md_cfd_match_cellsize, staggered_averages, timestep_ratio)
+    integer, optional, intent(out) :: icmax_olap
+    integer, optional, intent(out) :: icmin_olap
+    integer, optional, intent(out) :: jcmax_olap
+    integer, optional, intent(out) :: jcmin_olap
+    integer, optional, intent(out) :: kcmax_olap
+    integer, optional, intent(out) :: kcmin_olap
+    real (kind=kind (0.d0)), optional, intent(out) :: density_cfd
+    real (kind=kind (0.d0)), optional, intent(out) :: density_md
+    real (kind=kind (0.d0)), optional, intent(out) :: dt_cfd
+    real (kind=kind (0.d0)), optional, intent(out) :: dt_MD
+    real (kind=kind (0.d0)), optional, intent(out) :: dx
+    real (kind=kind (0.d0)), optional, intent(out) :: dy
+    real (kind=kind (0.d0)), optional, intent(out) :: dz
+    integer, optional, intent(out) :: ncx
+    integer, optional, intent(out) :: ncy
+    integer, optional, intent(out) :: ncz
+    real (kind=kind (0.d0)), optional, dimension(:,:), allocatable, intent(out) :: xg
+    real (kind=kind (0.d0)), optional, dimension(:,:), allocatable, intent(out) :: yg
+    real (kind=kind (0.d0)), optional, dimension(:), allocatable, intent(out) :: zg
     real (kind=kind (0.d0)), optional, intent(out) :: xL_md
+    real (kind=kind (0.d0)), optional, intent(out) :: xL_cfd
     real (kind=kind (0.d0)), optional, intent(out) :: yL_md
+    real (kind=kind (0.d0)), optional, intent(out) :: yL_cfd
     real (kind=kind (0.d0)), optional, intent(out) :: zL_md
-    real (kind=kind (0.d0)), optional, intent(out) :: MD_initial_cellsize
-    real (kind=kind (0.d0)), optional, intent(out) :: top_dy
-    logical, optional, intent(out) :: overlap_with_top_cfd
-end subroutine coupler_md_get
+    real (kind=kind (0.d0)), optional, intent(out) :: zL_cfd
+    integer, optional, intent(out) :: constraint_algo
+    integer, optional, intent(out) :: constraint_CVflag
+    integer, optional, intent(out) :: constraint_OT
+    integer, optional, intent(out) :: constraint_NCER
+    integer, optional, intent(out) :: constraint_Flekkoy
+    integer, optional, intent(out) :: constraint_off
+    integer, optional, intent(out) :: icmin_cnst
+    integer, optional, intent(out) :: icmax_cnst
+    integer, optional, intent(out) :: jcmin_cnst
+    integer, optional, intent(out) :: jcmax_cnst
+    integer, optional, intent(out) :: kcmin_cnst
+    integer, optional, intent(out) :: kcmax_cnst
+    integer, optional, intent(out) :: md_cfd_match_cellsize
+    logical, optional, dimension(3), intent(out) :: staggered_averages
+    integer, optional, intent(out) :: timestep_ratio
+end subroutine CPL_get
+</PRE>
+ Wrapper to retrieve (read only) parameters from the coupler_module 
+ Note - this ensures all variable in the coupler are protected
+ from corruption by either CFD or MD codes
+<P>
+ <UL>
+ <LI>  Synopsis
+<P>
+  <UL>
+  <LI>  CPL_get([see coupler_module])
+<P>
+  </UL>
+ <LI>  Input Parameters
+<P>
+  <UL>
+  <LI>  NONE
+<P>
+  </UL>
+ <LI>  Output Parameter
+<P>
+  <UL>
+  <LI>  @see coupler_module
+<P>
+  </UL>
+ </UL>
+<P>
+<STRONG>Author:</STRONG> Edward Smith
+<A NAME="function_cpl_realm"><H3>CPL_realm</H3></A>
+<PRE>public function CPL_realm ()
+    integer :: CPL_realm
+end function CPL_realm
+</PRE>
+<A NAME="function_globalise"><H3>globalise</H3></A>
+<PRE>public function globalise (r) result (rg)
+    real (kind=kind (0.d0)), intent(in), dimension (3) :: r
+    real (kind=kind (0.d0)), dimension (3) :: rg
+end function globalise
+</PRE>
+<A NAME="function_localise"><H3>localise</H3></A>
+<PRE>public function localise (r) result (rg)
+    real (kind=kind (0.d0)), intent(in), dimension (3) :: r
+    real (kind=kind (0.d0)), dimension (3) :: rg
+end function localise
+</PRE>
+<A NAME="function_map_md2cfd_global"><H3>map_md2cfd_global</H3></A>
+<PRE>public function map_md2cfd_global (r) result (rg)
+    real (kind=kind (0.d0)), intent(in), dimension (3) :: r
+    real (kind=kind (0.d0)), dimension (3) :: rg
+end function map_md2cfd_global
+</PRE>
+<A NAME="function_map_cfd2md_global"><H3>map_cfd2md_global</H3></A>
+<PRE>public function map_cfd2md_global (r) result (rg)
+    real (kind=kind (0.d0)), intent(in), dimension (3) :: r
+    real (kind=kind (0.d0)), dimension (3) :: rg
+end function map_cfd2md_global
 </PRE>
 <A NAME="function_coupler_md_get_save_period"><H3>coupler_md_get_save_period</H3></A>
 <PRE>public function coupler_md_get_save_period () result (p)
@@ -609,23 +821,13 @@ end function coupler_md_get_average_period
 end function coupler_md_get_md_steps_per_cfd_dt
 </PRE>
 <A NAME="function_coupler_md_get_nsteps"><H3>coupler_md_get_nsteps</H3></A>
-<PRE>public function coupler_md_get_nsteps () result (n)
-    integer :: n
+<PRE>public function coupler_md_get_nsteps () result (p)
+    integer :: p
 end function coupler_md_get_nsteps
 </PRE>
 <A NAME="function_coupler_md_get_dt_cfd"><H3>coupler_md_get_dt_cfd</H3></A>
-<PRE>public function coupler_md_get_dt_cfd () result (t)
-    real (kind=kind (0.d0)) :: t
+<PRE>public function coupler_md_get_dt_cfd () result (p)
+    real (kind=kind (0.d0)) :: p
 end function coupler_md_get_dt_cfd
-</PRE>
-<A NAME="function_coupler_md_get_density"><H3>coupler_md_get_density</H3></A>
-<PRE>public function coupler_md_get_density () result (r)
-    real (kind=kind (0.d0)) :: r
-end function coupler_md_get_density
-</PRE>
-<A NAME="function_coupler_md_get_cfd_id"><H3>coupler_md_get_cfd_id</H3></A>
-<PRE>public function coupler_md_get_cfd_id () result (r)
-    integer :: r
-end function coupler_md_get_cfd_id
 </PRE>
 </HTML>

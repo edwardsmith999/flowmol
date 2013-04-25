@@ -1,4 +1,3 @@
-#! /usr/bin/env python
 import numpy as np 
 from HeaderData import *
 
@@ -96,6 +95,48 @@ class MD_PlotData:
 		self.Raw = MD_RawData(fdir)
 		self.Raw.cpol_bins = cpol_bins
 
+	def get_vbins(self,rec,last=False):
+
+		# Inputs:
+		# 	rec       - record to retrieve from raw data
+		# 	last      - flag to override rec and get final record if True
+	
+		# File objects to be passed to self.get_field
+		mobj  = open(self.Raw.fdir+'mbins','rb')
+		vobj  = open(self.Raw.fdir+'vbins','rb')
+
+		# Get 3D momentum and mass fields
+		mbins, binmesh = self.Raw.get_field(mobj,'i',1,rec,last=last)
+		vbins, binmesh = self.Raw.get_field(vobj,'d',3,rec,last=last)
+
+		# Calculate velocity field and patch any NaNs
+		vbins = np.divide(vbins,mbins)
+		vbins[np.isnan(vbins)] = 0.0
+
+		# Get bin center positions on both axes for every field point
+		ax1, ax2, ax3 = np.meshgrid(binmesh[0],binmesh[1],binmesh[2])		
+
+		return ax1, ax2, ax3, vbins
+
+	def get_avgd_vbins(self,minrec,maxrec):
+
+		if ( minrec >= maxrec ):
+			print('Min/Max records incorrect in get_avgd_vplane')
+			quit()
+
+		ax1, ax2, ax3, vbins  = self.get_vbins(0)
+		ax1 *= 0.0
+		ax2 *= 0.0
+		ax3 *= 0.0
+		vbins *= 0.0
+
+		for i in range(minrec,maxrec):
+			ax1, ax2, ax3, _vbins = self.get_vbins(i)
+			vbins += _vbins
+		vbins = vbins / (maxrec - minrec) 
+
+		return ax1, ax2, ax3, vbins
+
 	def get_vplane(self,plane,haxis,vaxis,rec,last=False):
 
 		# Inputs:
@@ -153,6 +194,7 @@ class MD_PlotData:
 
 	def get_vprofile(self,axis,rec,last=False):
 
+		# Work out which axes to sum over
 		sumaxes = []	
 		for ax in range(3):
 			if (ax != axis): sumaxes.append(ax)
@@ -190,12 +232,55 @@ class MD_PlotData:
 			print('Min/Max records incorrect in get_avgd_vprofile')
 			quit()
 
+		# Set the size of ax and vprof correctly and zero them
 		ax, vprof = self.get_vprofile(axis=axis,rec=0)
 		ax *= 0.0
 		vprof *= 0.0
+
+		# Sum a range of records
 		for i in range(minrec,maxrec):
 			ax, v = self.get_vprofile(axis=axis,rec=i)
 			vprof += v
+
+		# Divide by number of records in range
 		vprof = vprof / (maxrec - minrec) 
 	
 		return ax, vprof
+
+
+	def get_VAbins(self,rec,last=False):
+	#def get_vbins(self,rec,corsegrn,last=False):
+
+		# Inputs:
+		# 	rec       - record to retrieve from raw data
+		# 	last      - flag to override rec and get final record if True
+	
+		# File objects to be passed to self.get_field
+		obj  = open(self.Raw.fdir+'pVA','rb')
+
+		# Get 3D momentum and mass fields
+		VAbins, binmesh = self.Raw.get_field(obj,'d',9,rec,last=last)
+
+		# Get bin center positions on both axes for every field point
+		ax1, ax2, ax3 = np.meshgrid(binmesh[0],binmesh[1],binmesh[2])		
+
+		return ax1, ax2, ax3, VAbins
+
+	def get_avgd_VAbins(self,minrec,maxrec):
+
+		if ( minrec >= maxrec ):
+			print('Min/Max records incorrect in get_avgd_vplane')
+			quit()
+
+		ax1, ax2, ax3, VAbins  = self.get_VAbins(0)
+		ax1 *= 0.0
+		ax2 *= 0.0
+		ax3 *= 0.0
+		VAbins *= 0.0
+
+		for i in range(minrec,maxrec):
+			ax1, ax2, ax3, _VAbins = self.get_VAbins(i)
+			VAbins += _VAbins
+		VAbins = VAbins / (maxrec - minrec) 
+
+		return ax1, ax2, ax3, VAbins

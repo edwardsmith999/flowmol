@@ -409,6 +409,7 @@ subroutine  socket_coupler_send
 	else if ( constraint_algorithm .eq. OT ) then
 		call error_abort("OT constraint force not yet implemented")
 	else if ( constraint_algorithm .eq. NCER ) then
+		call socket_coupler_send_mass
 		call socket_coupler_send_velocity
 	else if ( constraint_algorithm .eq. Flekkoy ) then
 		call socket_coupler_send_stress
@@ -417,6 +418,56 @@ subroutine  socket_coupler_send
 	end if	
 
 end subroutine socket_coupler_send
+
+!---------------------------------------------------------------------
+! Send continuum velocity in x direction to be used by MD
+
+subroutine socket_coupler_send_mass
+    use CPL, only : CPL_send,CPL_olap_extents,CPL_overlap,CPL_get,CPL_realm
+ 	use data_export, only : uc,i1_u,i2_u,ngz,nlx,nlxb,ibmin_1,ibmax_1,iblock,jblock,kblock
+    implicit none
+
+	logical	:: send_flag
+    integer	:: i,j,ii,ixyz,icell,jcell,kcell,npercell,nclx,ncly,nclz
+    integer	:: coord(3),extents(6),cnstd(6)
+    real(kind(0.d0)),dimension(:,:,:,:), allocatable :: sendbuf
+
+	! Check processor is inside MD/CFD overlap zone 
+	if (.not.(CPL_overlap())) return
+
+	!Number of cells to package and send
+	call CPL_get( icmin_cnst=cnstd(1),icmax_cnst=cnstd(2), &
+	              jcmin_cnst=cnstd(3),jcmax_cnst=cnstd(4), &
+	              kcmin_cnst=cnstd(5),kcmax_cnst=cnstd(6)  )
+
+	!One mass component
+	npercell = 1
+
+	!Allocate array for size of data on local processor
+	coord = (/iblock,jblock,kblock /)
+	call CPL_olap_extents(coord,CPL_realm(),extents)
+	nclx = extents(2)-extents(1)+1
+	ncly = extents(4)-extents(3)+1
+	nclz = extents(6)-extents(5)+1
+	allocate(sendbuf(npercell,nclx,ncly,nclz))
+
+	!Interpolate cell centres using surfaces
+	sendbuf(:,:,:,:) = 0.d0
+	do j=cnstd(4),cnstd(4)
+	do i=1,nclx
+		ii = i + i1_v - 1
+		sendbuf(1,i,j,:) = vc(:,ii,j)
+	enddo
+	!call printf(sendbuf(1,40,j,:))
+	enddo
+
+	call CPL_send( sendbuf,                                 &
+	               icmin_send=cnstd(1),icmax_send=cnstd(2), &
+	               jcmin_send=cnstd(4),jcmax_send=cnstd(4), &
+	               kcmin_send=cnstd(5),kcmax_send=cnstd(6), &
+	               send_flag=send_flag                        )
+
+end subroutine socket_coupler_send_mass
 
 
 !---------------------------------------------------------------------
