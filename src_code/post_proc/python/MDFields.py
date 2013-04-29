@@ -4,12 +4,80 @@ from MDData import MD_RawData
 # Abstract Field Class
 class Field():
 
+	"""
+		Field:   An abstract data averaging base class to be inherited by 
+		         derived bins/slices classes.
+		Authors: David Trevelyan & Ed Smith, April 2013
+
+		Field contains the information necessary to read a binary data file
+		using the MD_RawData class, and average the information spatially
+		and temporally.
+
+		The following attributes are required by MD_RawData and should be 
+		specified by the derived classes:
+			
+			fname   - file name of binary data file of interest, 
+			dtype   - binary data type string, 'i'/'d' for int/float, and
+			nperbin - number of values per bin. 
+		
+		The important functions are get_bins and get_slices. For ease of use,
+		they SHOULD BE APPROPRIATELY ALIASED AS get_field IN THE DERIVED 
+		CLASSES (so the user only has to remember one function name, regardless
+		of whether the data output is in slices or bins). 
+		
+		Functionality:
+
+			minrec, maxrec - specify a minimum and maximum record in time
+			                 over which to average the data.
+
+			sumaxes        - specify axes over which to sum the data in the
+			                 4D array.
+			
+			meanaxes       - specify axes over which to average the data in 
+			                 the 4D array.
+
+		EXAMPLE USE OF GET_BINS:
+				
+		Read data and average over records 100 to 199:
+	
+			get_bins(100,200) 
+				
+		Read data, average over recs 100 to 199, and sum values in x-z plane
+		to get the TOTAL in a y-slice:
+	
+			get_bins(100,200,sumaxes=(0,2)) 
+
+		Read data, average over recs 100 to 199, and average values over the 
+		z-direction to get an x/y field:
+
+			get_bins(100,200,meanaxes=(2)) 
+
+	"""
+
 	def __init__(self,fdir,cpol_bins=False): 
 
 		self.fdir = fdir
 		self.cpol_bins = cpol_bins	
 
 	def get_bins(self,minrec,maxrec,sumaxes=(),meanaxes=()):
+		
+		"""
+			Read data file using MD_RawData class, average over time record
+			range specified by minrec to maxrec. Sum over sumaxes (tuple), or
+			average in directions specified by meanaxes (tuple).
+
+			CURRENTLY CANNOT DO BOTH SUM AND MEAN BECAUSE THE SHAPE OF THE 
+			ARRAY CHANGES AFTER YOU DO ONE OR THE OTHER.
+
+		"""
+
+		if ( (len(sumaxes) != 0 ) and ( len(meanaxes) != 0 ) ):
+			print('Currently cannot specify both sumaxes() and meanaxes()
+			       because the shape of the array of interest changes once
+			       it is summed/averaged for the first time. It is possible
+			       to determine how meanaxes should be changed based on the
+			       specification of sumaxes, but this just hasn\'t been
+			       done yet.')
 
 		Raw = MD_RawData(self.fdir,self.fname,self.dtype,self.nperbin,self.cpol_bins)
 		nbins, binspaces = Raw.get_bintopology()
@@ -21,12 +89,18 @@ class Field():
 
 		if (sumaxes != ()):
 			bins = bins.sum(axis=sumaxes)
+			#meanaxes = meanaxes - len(sumaxes)
 
 		if (meanaxes != ()):
 			bins = bins.mean(axis=meanaxes)
 		
 		return bins, binspaces
 
+	def get_slices(self,minrec,maxrec,sumaxes=(),meanaxes=()):
+	
+		print('get_slices has not yet been developed in the Field class.
+		       Aborting post-processing.') 	
+		quit()
 
 # Mass field	
 class MassBins(Field):
