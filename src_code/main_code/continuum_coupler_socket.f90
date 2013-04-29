@@ -424,7 +424,7 @@ end subroutine socket_coupler_send
 
 subroutine socket_coupler_send_mass
     use CPL, only : CPL_send,CPL_olap_extents,CPL_overlap,CPL_get,CPL_realm
- 	use data_export, only : uc,i1_u,i2_u,ngz,nlx,nlxb,ibmin_1,ibmax_1,iblock,jblock,kblock
+ 	use data_export, only : uc,i1_v,ngz,vc,nlx,nlxb,ibmin_1,ibmax_1,iblock,jblock,kblock
     implicit none
 
 	logical	:: send_flag
