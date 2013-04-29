@@ -2,6 +2,8 @@
 close all
 clear all
 
+set(0,'DefaultAxesFontName', 'Times')
+
 %Select diffusive solver (0) or full DNS (1)
 CFD = 1;
 
@@ -12,13 +14,13 @@ savepic = 1;
 %Analytical Solution parameters
 u_0 = 1; t_0 = 160;
 spectral_res = 6;
-viscosity = 10.0; density = 0.8;
+viscosity = 10; density = 0.8;
 Re = density*u_0*1/viscosity;
 analy_points = 20; % Number of spectral points
 
 %Find results files
 %resultfile_dir = './../results/';
-resultfile_dir = '/home/es205/results/CX1_data/Flekkoy_meu10/';
+resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/Flekkoy_meu10/';
 %resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/Inc_specular_walls_large/';
 %resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/50CFDMDratio/';
 %resultfile_dir = '/home/djt06/Documents/Academia/PhD/Code/Development/branch/coupler_dCSE/src_code/';
@@ -215,14 +217,14 @@ for i = 1:Nvel_records
     
     %Plot anayltical solution
     analy = couette_analytical_fn(t,Re,[1,0],coupleddomain(ixyz),analy_points,'top');
-    %plot(xaxis_analy,analy/u_0,'r','LineWidth',5);
-
-    %Plot CFD velocity profile
-    plot(xaxis_CFD,continuum_velslice(:,m)/u_0,'s','Color',[.5 .5 .5],'MarkerSize',14,'LineWidth',2.5);
+    plot(xaxis_analy,analy/u_0,'k','LineWidth',5);
 	hold on
 
+    %Plot CFD velocity profile
+    plot(xaxis_CFD,continuum_velslice(:,m)/u_0,'s','Color',[.5 .5 .5],'MarkerSize',12,'LineWidth',3);
+
     %plot molecular velocity profile
-    plot(xaxis_MD(:),ave_vel_slice(2:end,1),'x','LineWidth',2.5,'Color',[.5 .5 .5],'MarkerSize',14);
+    plot(xaxis_MD(:),ave_vel_slice(2:end,1),'x','LineWidth',3,'Color',[.5 .5 .5],'MarkerSize',14);
     %plot(xaxis_MD2,vel_slice(5:end,1),'^-')
 
     
@@ -317,18 +319,16 @@ for i = 1:Nvel_records
          %Plot anayltical solution
          clear analy
          analy = couette_analytical_stress_fn(t,Re,1,coupleddomain(ixyz),analy_points);
-         %plot(xaxis_analy,analy,'r','LineWidth',5);
+         plot(xaxis_analy,analy,'k','LineWidth',5);
+         hold on
 
          %Plot CFD shear stress
-         plot(xaxis_CFD(2:end-1),squeeze(stress(1,2,:,m)),'s','Color',[.5 .5 .5],'MarkerSize',14,'LineWidth',2.5)
-         hold on
+         plot(xaxis_CFD(2:end-1),squeeze(stress(1,2,:,m)),'s','Color',[.5 .5 .5],'MarkerSize',12,'LineWidth',3)
 
          %Plot MD shear stress
          %plot(xaxis_MD,-squeeze(density*ave_vel_slice(2:end,1).*ave_vel_slice(2:end,2)),'o','LineWidth',3,'Color',[.2 .2 .2],'MarkerSize',10)
-         plot(xaxis_MD,-squeeze(ave_P_slice(2:end,1,2)),'x','LineWidth',2.5,'Color',[.5 .5 .5],'MarkerSize',14)
+         plot(xaxis_MD,-squeeze(ave_P_slice(2:end,1,2)),'x','LineWidth',3,'Color',[.5 .5 .5],'MarkerSize',10)
          %plot(xaxis_MD2,-squeeze(P_slice(5:end,1,2)),'^-')
-
-
  
          %Make plot look nice
          legend ('CFD','MD','location','NorthWest'); legend('boxoff')
@@ -361,7 +361,7 @@ for i = 1:Nvel_records
     if (last_record == 1)
         break
     end
-    m = m + 30 %snaps(i)
+    m = m + 1 %snaps(i)
     %m = t_array(i)
     if (m > Nvel_records-ceil(t_ave/2)-2)
         m = Nvel_records-ceil(t_ave/2)-1
