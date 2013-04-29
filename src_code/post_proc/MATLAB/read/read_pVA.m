@@ -24,7 +24,7 @@ cd(resultfile_dir);
 fid = fopen(filename1,'r','n');
 fclose(fid);
 %Check file exists and if not then check for 2 k/c files
-if (fid == -1 || all(filename1 == strcat(resultfile_dir,'/pVA_k')))
+if (fid == -1 || strcmp(filename1,strcat(resultfile_dir,'/pVA_k')))
     if (exist('filename1') == 0)
         filename1 = './pVA_k'
         filename2 = './pVA_c'
