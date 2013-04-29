@@ -1,5 +1,5 @@
 import numpy as np
-from MDData import MD_RawData
+from MDRawData import MD_RawData
 
 # Abstract Field Class
 class Field():
@@ -72,12 +72,12 @@ class Field():
 		"""
 
 		if ( (len(sumaxes) != 0 ) and ( len(meanaxes) != 0 ) ):
-			print('Currently cannot specify both sumaxes() and meanaxes()
+			print("""Currently cannot specify both sumaxes and meanaxes
 			       because the shape of the array of interest changes once
 			       it is summed/averaged for the first time. It is possible
 			       to determine how meanaxes should be changed based on the
 			       specification of sumaxes, but this just hasn\'t been
-			       done yet.')
+			       done yet.""")
 
 		Raw = MD_RawData(self.fdir,self.fname,self.dtype,self.nperbin,self.cpol_bins)
 		nbins, binspaces = Raw.get_bintopology()
@@ -98,8 +98,8 @@ class Field():
 
 	def get_slices(self,minrec,maxrec,sumaxes=(),meanaxes=()):
 	
-		print('get_slices has not yet been developed in the Field class.
-		       Aborting post-processing.') 	
+		print("""get_slices has not yet been developed in the Field class.
+		       Aborting post-processing.""") 	
 		quit()
 
 # Mass field	
