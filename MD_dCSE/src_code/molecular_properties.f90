@@ -511,7 +511,9 @@ contains
 	!Create molecular position randomly in specified cell
 	subroutine create_position(icell,jcell,kcell,rout,dir,u,check)
 		use librarymod, only : Maxwell_Boltzmann_vel
-		!use CPL, only : CPL_get
+#if USE_COUPLER
+		use CPL, only : CPL_get
+#endif
 		use computational_constants_MD, only : halfdomain,globaldomain,domain,delta_t,cellsidelength,nhb, &
 											   iblock,jblock,kblock,npx,npy,npz
 		use physical_constants_MD, only : density,np

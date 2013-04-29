@@ -555,15 +555,17 @@ subroutine insert_remove_molecules
 	use CPL, only : CPL_overlap, CPL_recv, CPL_proc_extents, & 
 					CPL_realm, CPL_get, coupler_md_get_dt_cfd
 	use linked_list
+	use particle_insertion
 	implicit none
 
 	logical,save			:: recv_flag, first_time=.true.
 	integer 				:: iter_average
-	integer					:: icell,jcell,kcell
+	integer					:: icell,jcell,kcell,n,molno, dir
 	integer,save			:: cnstd(6),pcoords(3),extents(6),timestep_ratio,nclx,ncly,nclz
-	integer,dimension(:,:,:),allocatable	:: mols_change
-	integer,dimension(:,:,:),allocatable,save :: total_mols_change
-	double precision,dimension(:,:,:),allocatable	:: mass_cfd
+	integer,dimension(:,:,:),allocatable				:: mols_change
+	integer,dimension(:,:,:),allocatable,save 			:: total_mols_change
+	double precision,dimension(3)						:: rin, vin, u
+	double precision,dimension(:,:,:),allocatable		:: mass_cfd
 	double precision,dimension(:,:,:),allocatable,save	:: mass_change
 
 	! Check processor is inside MD/CFD overlap zone 
@@ -581,7 +583,7 @@ subroutine insert_remove_molecules
 		nclz = extents(6)-extents(5)+1
 
 		!Allocate array to keep track of running total of mass change
-		allocate(mass_change((nclx,ncly,nclz))
+		allocate(mass_change(nclx,ncly,nclz))
 		uvw_cfd = 0.d0
 
 		!Get local copies of required simulation parameters
@@ -609,9 +611,10 @@ subroutine insert_remove_molecules
 
 	!Get number of molecules per cell to insert/remove
 	allocate(mols_change(nclx,ncly,nclz))
-	call get_no_mols_to_append(mass_cfd,mass_change,mols_change)
+	!call get_no_mols_to_append(mass_cfd,mass_change,mols_change)
 
 	!Loop through all cells inserting/removing molecules
+	dir = 4; u=(/0.d0,0.d0,0.d0 /)
 	jcell = cnstd(4)
 	do icell=cnstd(1),cnstd(2)
 	do kcell=cnstd(5),cnstd(6)
@@ -619,32 +622,30 @@ subroutine insert_remove_molecules
 			!Check if molecule is to insert or remove
 			if (mass_cfd(icell,jcell,kcell) .gt. 0) then
 				!Create molecule and insert
-				call create_position(icell,jcell,kcell,rin)
-				call create_velocity(vin)
+				call create_position(icell,jcell,kcell,rin,dir,u)
+				call create_velocity(u,vin)
 				call insert_molecule(rin,vin)
 			else
 				!Choose molecule to remove and then remove it
-				call choose_molecule(icell,jcell,kcell,molno)
+				!call choose_molecule(icell,jcell,kcell,molno)
 				call remove_molecule(molno)
 			endif
 		enddo
 	enddo
 	enddo
 
-contains
+!contains
 
-	subroutine get_no_mols_to_append(mass_change,mols_change,new_mass_cfd)
-	implicit none
+	!subroutine get_no_mols_to_append(mass_change,mols_change,new_mass_cfd)
+	!implicit none
 
 	!Default is to not insert/remove anything
-	mols_change = 0
+	!mols_change = 0
 
 	!Add any new mass to cumulative mass change
-	if (present(new_mass_cfd)) then
-		mass_change = mass_change + new_mass_cfd
-	endif
-
-
+	!if (present(new_mass_cfd)) then
+	!	mass_change = mass_change + new_mass_cfd
+	!endif
 
 	!Check if multiple molecules are to be inserted each timestep
 	!if(any(total_mols_change .gt. timestep_ratio)) then
@@ -652,25 +653,22 @@ contains
 	!endif
 
 	!Loop over all cells
-	jcell = cnstd(4)
-	do icell=cnstd(1),cnstd(2)
-	do kcell=cnstd(5),cnstd(6)
+	!jcell = cnstd(4)
+	!do icell=cnstd(1),cnstd(2)
+	!do kcell=cnstd(5),cnstd(6)
 
 		!Space out insertion of molecules over the time interval
-		insert_time = mod(iter-1, (timestep_ratio/total_mols_change(icell,jcell,kcell)))+1
+	!	insert_time = mod(iter-1, (timestep_ratio/total_mols_change(icell,jcell,kcell)))+1
 
-		if (insert_time .eq. 1) then
-			mols_change(icell,jcell,kcell) = ceiling(total_mols_change(icell,jcell,kcell)/timestep_ratio)
-			mass_change(icell,jcell,kcell) = mass_change(icell,jcell,kcell) - mols_change(icell,jcell,kcell)
-		endif
+	!	if (insert_time .eq. 1) then
+	!		mols_change(icell,jcell,kcell) = ceiling(total_mols_change(icell,jcell,kcell)/timestep_ratio)
+	!		mass_change(icell,jcell,kcell) = mass_change(icell,jcell,kcell) - mols_change(icell,jcell,kcell)
+	!	endif
 
-	enddo
-	enddo
+	!enddo
+	!enddo
 	
-
-
-
-	end subroutine get_no_mols_to_append
+	!end subroutine get_no_mols_to_append
 
 end subroutine insert_remove_molecules
 
