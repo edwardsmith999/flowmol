@@ -2,6 +2,28 @@ from MDFields import *
 
 class MD_PlotData():
 
+	"""
+		MD_PlotData: Return the arguments required by matplotlib's plotting
+		             functions for a specific figure type.
+
+		Author: David Trevelyan, April 2013
+
+		Each class method should return arguments required by a single 
+		matplotlib plotting function for a single figure. Each time you need
+		a new figure, please save a minimal method in this class so that
+		similar figures can be (hopefully!) trivially plotted in future.
+
+		IMPORTANT: It should be possible to get all the information from the
+		classes in MDFields.py. If the functionality you need is not there, 
+		please add it to those classes rather than changing the MD_RawData 
+		class or cluttering this MD_PlotData class. 
+
+		This class will likely get quite long, so it may be sensible to 
+		break it up into categories. It's not necessary just yet, though,
+		as of April 2013.
+
+	"""
+
 	def __init__(self,fdir,cpol_bins=False):
 		self.fdir = fdir
 		self.cpol_bins = cpol_bins
