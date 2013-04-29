@@ -91,3 +91,16 @@ class MD_PlotData():
 		mslice, binspaces = mData.get_bins(minrec,maxrec,meanaxes=(avgaxes))
 
 		return binspaces[axis], mslice
+
+	def get_pVA_prof_args(self,axis,component,minrec,maxrec):
+		
+		# Get which axes to average over
+		avgaxes = []	
+		for ax in range(3):
+			if (ax != axis): avgaxes.append(ax)
+		avgaxes = tuple(avgaxes)
+		
+		pVA_obj = PBins(self.fdir,cpol_bins=self.cpol_bins)
+		pslice, binspaces = pVA_obj.get_field(minrec,maxrec,meanaxes=(avgaxes))
+	
+		return binspaces[axis], pslice[:,component]
