@@ -125,6 +125,8 @@ contains
 		case ('thermo')
 			tagdistbottom(:) = thermstatbottom(:)
 			tagdisttop(:)    = thermstattop(:)
+			!Apply a complicated wall texture if specified
+			if (texture_type .ne. 0) call wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 		case ('teth')
 			tagdistbottom(:) = tethereddistbottom(:)
 			tagdisttop(:)    = tethereddisttop(:)

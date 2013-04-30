@@ -31,6 +31,8 @@ for i in range(0, 10):
 
 		Pressure = sim1.macrolist('Pressure')
 		print Pressure
+		vs = sim1.vslice()
+		print vs
 		#f.writelines(["%s\n" % Pressure])
 		#f = open('./output', "w+b")
 		#pickle.dump(Pressure, f)
