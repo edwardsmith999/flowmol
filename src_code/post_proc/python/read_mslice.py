@@ -26,7 +26,7 @@ gnbins        =[int(read_header.gnbins1),
 Nmass_records = int(math.floor((Nsteps-initialstep)/(tplot*Nmass_ave)))
 nbins         = int(gnbins[m_outflag-1])
 
-f = open('../results/mslice','rb')             # Create binary file object
+f = open('../../results/mslice','rb')             # Create binary file object
 mslice = array('i')                            # Initialise array of integers
 mslice.fromfile(f,nbins*Nmass_records)         # Read binary file into array
 mslice = reshape(mslice,(Nmass_records,nbins)) # Reshape array into 3D

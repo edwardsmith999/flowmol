@@ -1099,18 +1099,18 @@ subroutine temperature_averaging(ixyz)
 		case(1:3)
 			call temperature_slice_io(ixyz)
 			!Reset temperature slice
-			slice_mass = 0
+			if (velocity_outflag .ne. ixyz) slice_mass = 0
 			slice_temperature  = 0.d0
 		case(4)
-			call temperature_bin_io(volume_mass,volume_momentum,'bins')
+			call temperature_bin_io(volume_mass,volume_temperature,'bins')
 			!Reset temperature bins
-			volume_mass = 0
+			if (velocity_outflag .ne. 4) volume_mass = 0
 			volume_temperature = 0.d0
 		case default
 			stop "Error input for temperature averaging incorrect"
 		end select
 
-		!Collect velocities for next step
+		!Collect temperature for next step
 		!call cumulative_temperature(ixyz)
 
 	endif
@@ -1142,6 +1142,7 @@ subroutine cumulative_temperature(ixyz)
 			cbin = ceiling((r(ixyz,n)+halfdomain(ixyz))/slicebinsize)!Establish current bin
 			if (cbin > nbins(ixyz)) cbin = nbins(ixyz) 		 !Prevents out of range values
 			if (cbin < 1 ) cbin = 1        				 !Prevents out of range values
+			if (velocity_outflag .ne. ixyz) & 
 			slice_mass(cbin)= slice_mass(cbin)+1      			 !Add one to current bin
 			slice_temperature(cbin) = slice_temperature(cbin) & 
 					+ dot_product((v(:,n)+slidev(:,n)),(v(:,n)+slidev(:,n))) 	 !Add streamwise temperature to current bin
@@ -1156,9 +1157,10 @@ subroutine cumulative_temperature(ixyz)
 		do n = 1,np
 			!Add up current volume mass and temperature densities
 			ibin(:) = ceiling((r(:,n)+halfdomain(:))/Tbinsize(:)) + nhb
+			if (velocity_outflag .ne. 4) & 
 			volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + 1
 			volume_temperature(ibin(1),ibin(2),ibin(3)) = volume_temperature(ibin(1),ibin(2),ibin(3)) & 
-										+ dot_product((v(:,n)+slidev(:,n)),(v(:,n)+slidev(:,n)))
+										+ dot_product(v(:,n),v(:,n))
 		enddo
 
 	case default 

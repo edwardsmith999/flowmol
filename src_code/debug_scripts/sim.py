@@ -200,7 +200,7 @@ class Simulation:
     self.input['CYLINDERS'] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0]
     self.input['FILL_CYLINDER'] = [0, 0.0, 0, 0, 0]
     self.input['FREEZE'] = [0.0, 0.0, 10000]
-    self.input['PROCESSORS'] = [1, 1, 1]
+    self.input['PROCESSORS'] = [2, 1, 1]
     self.input['VMD_OUTFLAG'] = [0, 0, "0, 100, 200, 300, 310, 431, 600, 700, 900, 970, 980, 1000"]
     self.input['MACRO_OUTFLAG'] = 1
     self.input['MASS_OUTFLAG'] = [0, 100]

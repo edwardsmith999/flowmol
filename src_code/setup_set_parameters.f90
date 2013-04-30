@@ -704,12 +704,21 @@ subroutine set_parameters_outputs
 	!Allocated bins for velocity averaging
 	if (velocity_outflag.eq.4) then
 		allocate(volume_momentum(nbinso(1),nbinso(2),nbinso(3),3  ))
-		allocate(volume_mass(nbinso(1),nbinso(2),nbinso(3)))
 		volume_momentum = 0.d0
-		volume_mass = 0
-	else
-		if (mass_outflag.eq.4) then
-			allocate(volume_mass(nbinso(1),nbinso(2),nbinso(3)  ))
+		mass_outflag = 4	!Mass binning required too
+	endif
+
+	!Allocated bins for temperature averaging
+	if (temperature_outflag.eq.4) then
+		allocate(volume_temperature(nbinso(1),nbinso(2),nbinso(3)))
+		volume_temperature = 0.d0
+		mass_outflag = 4	!Mass binning required too
+	endif
+
+	!Allocate mass bins if they haven't been already allocated (and they are needed)
+	if (mass_outflag.eq.4) then
+		if (.not. allocated(volume_mass)) then
+			allocate(volume_mass(nbinso(1),nbinso(2),nbinso(3)))
 			volume_mass = 0
 		endif
 	endif
@@ -761,11 +770,6 @@ subroutine set_parameters_outputs
 		allocate( Pxybin(nbins(1),  nbins(2),  nbins(3),3,3  ))
 		rfbin  = 0.d0
 		Pxybin = 0.d0
-	endif
-
-	if (temperature_outflag .eq. 4) then
-		allocate(volume_temperature(nbinso(1),nbinso(2),nbinso(3)))
-		volume_temperature = 0.d0
 	endif
 
 	!Allocated Bins for Nose Hoover Stress Control

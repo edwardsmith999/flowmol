@@ -304,6 +304,9 @@ contains
 			zeta 	 = zeta + delta_t*dzeta_dt
 			bscale	 = 1.0/(1.0+0.5*delta_t*zeta)
 			ascale	 = (1-0.5*delta_t*zeta)*bscale
+			if (iter .eq. 1) write(9999,'(4a)'), 'iter; dzeta_dt; zeta; inputtemperature; temperature; themostatnp'
+			write(9999,'(i7,a,4(f10.5,a),i10)'),iter,';', dzeta_dt,';', zeta,';', & 
+					 inputtemperature,';', v2sum/(nd*thermostatnp + 1), ';',thermostatnp
 
 		else
 
@@ -353,6 +356,7 @@ contains
 				call tether_force(n)
 				v(:,n) = v(:,n) + delta_t * a(:,n) 	!Velocity calculated from acceleration
 				r(:,n) = r(:,n) + delta_t * v(:,n)	!Position calculated from velocity
+				if (iter .eq. 2) write(99989,*), globalise(r(:,n))
 			case (thermo)
 				!Nose Hoover Thermostatted Molecule
 				v(1,n) = v(1,n)*ascale + a(1,n)*delta_t*bscale
