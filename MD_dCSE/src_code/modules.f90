@@ -111,7 +111,8 @@ module computational_constants_MD
 		eflux_outflag, &
 		proc_reorder, &				!Reorder processors at restart
 		pass_vhalo = 0, &
-		fixed_rebuild_flag 	!Fixed rebuild flag
+		fixed_rebuild_flag, &		!Fixed rebuild flag
+		peculiar_flag	 			!Take streaming velocity away from temperature 	
 
 	integer, dimension(3)	:: periodic
 
@@ -268,7 +269,8 @@ module arrays_MD
 		r, 		&        		  	!Positions
 		v, 		&        		  	!Velocity
 		a, 		&					!Accelerations
-		slidev						!Speed for sliding molecules
+		slidev, &					!Speed for sliding molecules
+		U							!Streaming velocity of molecules
 
 end module arrays_MD
 

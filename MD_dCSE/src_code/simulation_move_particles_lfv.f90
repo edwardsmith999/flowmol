@@ -41,7 +41,6 @@ subroutine simulation_move_particles_lfv
 	integer :: n
 	double precision :: ascale, bscale
 	double precision, save :: zeta=0.d0
-	double precision, dimension(:,:),allocatable :: U
 
 	!Apply external force field to regions of spaces
 	select case(external_force_flag)
@@ -319,7 +318,8 @@ contains
 		!call pointsphere((/ 0.0, 0.0, -6.34 /),2.d0)
 
 		!Step through each particle n
-		do n = 1,np        
+		do n = 1,np
+
 			select case (tag(n))
 			case (free)
 				!Leapfrog mean velocity calculated here at v(t+0.5delta_t) = v(t-0.5delta_t) + a*delta_t 

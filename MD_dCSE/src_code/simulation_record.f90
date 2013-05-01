@@ -935,13 +935,25 @@ subroutine velocity_averaging(ixyz)
 	use linked_list
 	implicit none
 
-	integer				:: ixyz
+	integer				:: ixyz, n
+	integer,dimension(3):: ib
 	integer, save		:: average_count=-1
-	
+	double precision,dimension(3) 	:: Vbinsize 
+
 	average_count = average_count + 1
 	call cumulative_velocity(ixyz)
 	if (average_count .eq. Nvel_ave) then
 		average_count = 0
+
+		!Save streaming velocity for temperature averages
+		if (temperature_outflag .ne. 0 .and. peculiar_flag .ne. 0) then
+			!Determine bin size
+			Vbinsize(:) = domain(:) / nbins(:)
+			do n=1,np
+				ib(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
+				U(:,n) =  volume_momentum(ib(1),ib(2),ib(3),:) / volume_mass(ib(1),ib(2),ib(3))
+			enddo
+		endif
 
 		select case(ixyz)
 		case(1:3)
@@ -1021,7 +1033,7 @@ subroutine cumulative_velocity(ixyz)
 			ibin(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
 			volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + 1
 			volume_momentum(ibin(1),ibin(2),ibin(3),:) = volume_momentum(ibin(1),ibin(2),ibin(3),:) & 
-										+ v(:,n) + slidev(:,n)
+														+ v(:,n) + slidev(:,n)
 		enddo
 
 	case(5)
@@ -1133,6 +1145,11 @@ subroutine cumulative_temperature(ixyz)
 	double precision				:: slicebinsize
 	double precision,dimension(3) 	:: Tbinsize 
 
+	!In case someone wants to record velocity in a simulation without sliding walls!?!?
+	if (ensemble .ne. tag_move) then
+		allocate(slidev(3,np)); slidev = 0.d0
+	endif
+
 	select case(ixyz)
 	!temperature measurement is a number of 2D slices through the domain
 	case(1:3)
@@ -1150,6 +1167,7 @@ subroutine cumulative_temperature(ixyz)
 
 	!Temperature measurement for 3D bins throughout the domain
 	case(4)
+
 		!Determine bin size
 		Tbinsize(:) = domain(:) / nbins(:)
 
@@ -1159,13 +1177,25 @@ subroutine cumulative_temperature(ixyz)
 			ibin(:) = ceiling((r(:,n)+halfdomain(:))/Tbinsize(:)) + nhb
 			if (velocity_outflag .ne. 4) & 
 			volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + 1
-			volume_temperature(ibin(1),ibin(2),ibin(3)) = volume_temperature(ibin(1),ibin(2),ibin(3)) & 
+			!Note - the streaming term is removed but includes sliding so this must be added back on
+			if (peculiar_flag .eq. 0) then
+				volume_temperature(ibin(1),ibin(2),ibin(3)) = volume_temperature(ibin(1),ibin(2),ibin(3)) & 
 										+ dot_product(v(:,n),v(:,n))
+			else	
+				volume_temperature(ibin(1),ibin(2),ibin(3)) = volume_temperature(ibin(1),ibin(2),ibin(3)) & 
+										+ dot_product((v(:,n)-U(:,n)+slidev(:,n)), & 
+													  (v(:,n)-U(:,n)+slidev(:,n)))
+			endif
+
 		enddo
 
 	case default 
 		stop "temperature Binning Error"
 	end select
+
+	if (ensemble .ne. tag_move) then
+		deallocate(slidev)
+	endif
 	 
 end subroutine cumulative_temperature
 
@@ -1491,7 +1521,7 @@ subroutine mass_flux_averaging(ixyz)
 	!Only average if mass averaging turned on
 	if (ixyz .eq. 0) return
 
-	call cumulative_mass_flux_many
+	call cumulative_mass_flux
 	sample_count = sample_count + 1
 	if (sample_count .eq. Nmflux_ave) then
 		call mass_flux_io
@@ -1504,58 +1534,58 @@ end subroutine mass_flux_averaging
 
 
 !===================================================================================
-! Mass Flux over a surface of a bin -- onyl single crossings assumed
+! Mass Flux over a surface of a bin -- only single crossings assumed
 
-subroutine cumulative_mass_flux
-	use module_record
-	implicit none
+!subroutine cumulative_mass_flux
+!	use module_record
+!	implicit none
 
-	integer							:: ixyz, n
-	integer		,dimension(3)		:: ibin1,ibin2,crossplane
-	double precision,dimension(3)	:: mbinsize, ri1, ri2
+!	integer							:: ixyz, n
+!	integer		,dimension(3)		:: ibin1,ibin2,crossplane
+!	double precision,dimension(3)	:: mbinsize, ri1, ri2
 
 	!Determine bin size
-	mbinsize(:) = domain(:) / nbins(:)
+!	mbinsize(:) = domain(:) / nbins(:)
 
-	do n = 1,np
+!	do n = 1,np
 
-		ri1(:) = r(:,n) 							!Molecule i at time t
-		ri2(:) = r(:,n)	-delta_t*v(:,n)				!Molecule i at time t-dt
+!		ri1(:) = r(:,n) 							!Molecule i at time t
+!		ri2(:) = r(:,n)	-delta_t*v(:,n)				!Molecule i at time t-dt
 
 		!Assign to bins before and after using integer division
-		ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:)) + nhb
-		ibin2(:) = ceiling((ri2+halfdomain(:))/mbinsize(:)) + nhb
+!		ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:)) + nhb
+!		ibin2(:) = ceiling((ri2+halfdomain(:))/mbinsize(:)) + nhb
 
 		!Replace Signum function with this functions which gives a
 		!check for plane crossing and the correct sign 
-		crossplane(:) =  ibin1(:) - ibin2(:)
+!		crossplane(:) =  ibin1(:) - ibin2(:)
 
-		if (sum(abs(crossplane(:))) .ne. 0) then
+!		if (sum(abs(crossplane(:))) .ne. 0) then
 
 			!Find which direction the surface is crossed
 			!For simplicity, if more than one surface has been crossed surface fluxes of intermediate cells
 			!are not included. This assumption => more reasonable as Delta_t => 0 or Delta_r => ∞
 			!imaxloc = maxloc(abs(crossplane))
-			ixyz = imaxloc(abs(crossplane))
+!			ixyz = imaxloc(abs(crossplane))
 
 			!Add mass flux to the new bin surface count and take from the old
-			mass_flux(ibin1(1),ibin1(2),ibin1(3),ixyz+3*heaviside(-dble(crossplane(ixyz)))) = & 
-				mass_flux(ibin1(1),ibin1(2),ibin1(3),ixyz+3*heaviside(-dble(crossplane(ixyz)))) & 
-					+ abs(crossplane(ixyz))
-			mass_flux(ibin2(1),ibin2(2),ibin2(3),ixyz+3*heaviside(dble(crossplane(ixyz)))) = & 
-				mass_flux(ibin2(1),ibin2(2),ibin2(3),ixyz+3*heaviside(dble(crossplane(ixyz)))) &
-					- abs(crossplane(ixyz))
-		endif
+!			mass_flux(ibin1(1),ibin1(2),ibin1(3),ixyz+3*heaviside(-dble(crossplane(ixyz)))) = & 
+!				mass_flux(ibin1(1),ibin1(2),ibin1(3),ixyz+3*heaviside(-dble(crossplane(ixyz)))) & 
+!					+ abs(crossplane(ixyz))
+!			mass_flux(ibin2(1),ibin2(2),ibin2(3),ixyz+3*heaviside(dble(crossplane(ixyz)))) = & 
+!				mass_flux(ibin2(1),ibin2(2),ibin2(3),ixyz+3*heaviside(dble(crossplane(ixyz)))) &
+!					- abs(crossplane(ixyz))
+!		endif
 
-	enddo
+!	enddo
 
-end subroutine cumulative_mass_flux
+!end subroutine cumulative_mass_flux
 
 !===================================================================================
 ! Mass Flux over a surface of a bin
 ! Includes all intermediate bins
 
-subroutine cumulative_mass_flux_many
+subroutine cumulative_mass_flux
 	use module_record
 	implicit none
 
@@ -1706,7 +1736,7 @@ subroutine cumulative_mass_flux_many
 	!enddo
 	!enddo
 
-end subroutine cumulative_mass_flux_many
+end subroutine cumulative_mass_flux
 
 !===================================================================================
 ! Control Volume snapshot of the mass in a given bin
