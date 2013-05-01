@@ -194,6 +194,7 @@ subroutine set_parameters_allocate
 	!allocate(rijsum(nd,np+extralloc)) !Sum of rij for each i, used for SLLOD algorithm
 	!allocate(vmagnitude(np+extralloc))
 
+	!Arrays used for DPD thermostat
 	if (ensemble .eq. nvt_DPD) then
 		allocate(theta(nd,np+extralloc))
 		allocate(aD(nd,np+extralloc))
@@ -713,6 +714,15 @@ subroutine set_parameters_outputs
 		allocate(volume_temperature(nbinso(1),nbinso(2),nbinso(3)))
 		volume_temperature = 0.d0
 		mass_outflag = 4	!Mass binning required too
+		!Allocate and zero peculiar momentum binning array
+		if (peculiar_flag .ne. 0) then
+			allocate(u(nd,np+extralloc)); u = 0.d0
+			if (velocity_outflag.ne.4) then
+				call error_abort("set_parameters_outputs Error -- Temperature outflag on with &
+								 &perculiar momentum but velocity binning is off. Please switch &
+								 &VELOCITY_OUTFLAG 1st option to 4 or TEMPERATURE_OUTFLAG 3rd option to 0")
+			endif
+		endif
 	endif
 
 	!Allocate mass bins if they haven't been already allocated (and they are needed)
@@ -765,9 +775,9 @@ subroutine set_parameters_outputs
 	Pxyzero = 0.d0
 	if (pressure_outflag .eq. 2) then
 		!Allocate pressure bin for Stress volume averaging
-		allocate( rfbin(nbinso(1),nbinso(2),nbinso(3),3,3))
-		allocate( vvbin(nbins(1),  nbins(2),  nbins(3),3,3  ))
-		allocate( Pxybin(nbins(1),  nbins(2),  nbins(3),3,3  ))
+		allocate( rfbin( nbinso(1), nbinso(2),nbinso(3),3,3))
+		allocate( vvbin( nbins (1),  nbins(2),  nbins(3),3,3  ))
+		allocate( Pxybin(nbins (1),  nbins(2),  nbins(3),3,3  ))
 		rfbin  = 0.d0
 		Pxybin = 0.d0
 	endif

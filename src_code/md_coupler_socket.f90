@@ -931,11 +931,11 @@ subroutine apply_force
 
 		n = box_average(ib,jb,kb)%np
 
-		acfd =	- box_average(ib,jb,kb)%a(1) / n - inv_dtMD * & 
-				( box_average(ib,jb,kb)%v(1) / n - uvw_cfd(1,ib,jb+cnstd(3)-extents(3),kb) )
 		! ib,jb,kb are indicators of which CFD cell in !!!constrained!!! region
 		! uvw_cfd is allocated by number of CFD cells on !!!MD!!! processor
 		! box_avg is allocated by number of CFD cells in !!!constrained!!! region
+		acfd =	- box_average(ib,jb,kb)%a(1) / n - inv_dtMD * & 
+				( box_average(ib,jb,kb)%v(1) / n - uvw_cfd(1,ib,jb+cnstd(3)-extents(3),kb) )
 
 		a(1,ip) = a(1,ip) + acfd
 

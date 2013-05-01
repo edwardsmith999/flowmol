@@ -2410,7 +2410,9 @@ subroutine temperature_bin_io(CV_mass_out,CV_temperature_out,io_type)
 	character(30)		:: filename, outfile
 
 	!Write mass bins
-	call mass_bin_io(CV_mass_out,io_type)
+	if (velocity_outflag .ne. 4) then
+		call mass_bin_io(CV_mass_out,io_type)
+	endif
 
 	!Work out correct filename for i/o type
 	write(filename, '(a9,a4)' ) 'results/T', io_type

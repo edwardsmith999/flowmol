@@ -26,7 +26,7 @@ end
 % read simulation properties from header file, calculate 
 % datasize to read and read required data
 read_header;
-if (exist('read_time') == 0)
+if (exist('read_time','var') == 0)
     Nmass_records = floor((Nsteps-initialstep) / (tplot * Nmass_ave));
     mbins = fread(fid,'int32');
     mass_bins = reshape(mbins,gnbins(1),gnbins(2),gnbins(3),Nmass_records);

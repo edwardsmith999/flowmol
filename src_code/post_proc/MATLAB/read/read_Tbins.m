@@ -11,8 +11,6 @@ end
 %%Read mass ouput incluing simulation properties from header file and calculate simulation
 %properties
 read_header
-mass_bins = read_mbins(strcat(resultfile_dir,'/mbins'));
-NTemp_records = (Nsteps-initialstep) / (tplot * NTemp_ave);
 
 %Load mass CV data
 cd(resultfile_dir);
@@ -22,8 +20,9 @@ cd (pwdir);
 if (fid == -1)
     error('Tbins file does not exist in results')
 end
+NTemp_records = floor((Nsteps-initialstep) / (tplot * NTemp_ave));
 Tempbins = fread(fid,'double');
-Temp_bins = reshape(Tempbins,gnbins(1),gnbins(2),gnbins(3),NTemp_records-1);
+Temp_bins = reshape(Tempbins,gnbins(1),gnbins(2),gnbins(3),NTemp_records);
 fclose(fid);
 
 end

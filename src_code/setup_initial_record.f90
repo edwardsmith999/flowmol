@@ -28,7 +28,7 @@ subroutine setup_initial_record
 	character				:: ixyz_char
 	character(8)			:: the_date
 	character(10)			:: the_time
-	character(23),parameter :: file_names(24) = &
+	character(23),parameter :: file_names(25) = &
 								(/ "mslice      ", "mbins       ", "msnap   ",&
 								   "vslice      ", "vbins       ", "vsnap   ",&
 								   "pvirial     ", "pVA         ", "pVA_k   ",& 
@@ -36,7 +36,8 @@ subroutine setup_initial_record
 								   "vflux       ", "pplane      ", "psurface",&
 								   "esnap       ", "eflux       ", "eplane  ",&
 								   "esurface    ", "viscometrics", "rdf     ",&
-	                               "rdf3d       ", "ssf         ", "Fext    "/) 
+	                               "rdf3d       ", "ssf         ", "Fext    ",&
+								   "Tbins       " /) 
 
 
 	!Delete all files from previous run
@@ -273,6 +274,42 @@ subroutine setup_initial_record
 			print'(3(a,i8),a)', ' Velocity 3D Cylindrical Polar bins recorded every:', &
 					tplot,' x ',Nvel_ave,' = ',tplot*Nvel_ave,' iterations'
 			print'(a,3i8)', ' Domain split into Velocity Averaging Bins in r,theta and z:', gcpol_bins
+		case default
+			call error_abort("Invalid Velocity output flag in input file")
+		end select
+
+		select case(Temperature_outflag)
+		case(0)
+			print*, 'Temperature record off'
+			print*, ''
+			print*, ''
+		case(1:3)
+			if (Temperature_outflag .eq. 1) then
+				ixyz_char = 'x'
+			elseif (Temperature_outflag .eq. 2) then 
+				ixyz_char = 'y'
+			else 
+				ixyz_char = 'z'
+			endif
+
+			print'(3(a,i8),a)', ' Temperature slice recorded every:', & 
+					tplot,' x ',Nvel_ave,' = ',tplot*Nvel_ave,' iterations'
+			print'(a,i8,2a)', ' Domain split into',gnbins(Temperature_outflag) , & 
+					  ' Temperature Averaging Slices in  ', ixyz_char  
+			print'(a,f10.5)', ' With each averaging slice of width:', & 
+						globaldomain(Temperature_outflag)/gnbins(Temperature_outflag)
+		case(4)
+			print'(3(a,i8),a)', ' Temperature 3D bins recorded every:', &
+					tplot,' x ',Nvel_ave,' = ',tplot*NTemp_ave,' iterations'
+			print'(a,3i8)', ' Domain split into Temperature Averaging Bins in x,y and z:', gnbins
+			if (peculiar_flag .eq. 1) then
+				print'(a,3f10.5,a)', ' Each of size:', & 
+				globaldomain(1)/gnbins(1), globaldomain(2)/gnbins(2),globaldomain(3)/gnbins(3), &
+				' and peculiar mometum is used '
+			else
+				print'(a,3f10.5)', ' Each of size:', & 
+				globaldomain(1)/gnbins(1), globaldomain(2)/gnbins(2),globaldomain(3)/gnbins(3)
+			endif
 		case default
 			call error_abort("Invalid Velocity output flag in input file")
 		end select
@@ -616,6 +653,7 @@ subroutine simulation_header
 	write(fileunit,*)  'mass flag ;  mass_outflag ;', mass_outflag	
 	write(fileunit,*)  'velocity flag ;  velocity_outflag ;', velocity_outflag
 	write(fileunit,*)  'temperature flag ;  temperature_outflag ;', temperature_outflag
+	write(fileunit,*)  'Peculiar flag ;  peculiar_flag ;', peculiar_flag
 	write(fileunit,*)  'Pressure flag ;  pressure_outflag ;', pressure_outflag
 	write(fileunit,*)  'viscosity flag ;  viscosity_outflag ;', viscosity_outflag
 	write(fileunit,*)  'cv conservation flag ;  cv_conserve ;', cv_conserve
@@ -773,6 +811,11 @@ implicit none
 		call mass_averaging(mass_outflag)
 	endif
 
+	if (temperature_outflag .ne. 0) then
+		!Call first record
+		call temperature_averaging(temperature_outflag)
+	endif
+
 	if (mflux_outflag .ne. 0) call mass_snapshot
 	if (vflux_outflag .eq. 4) call momentum_snapshot
 
@@ -782,6 +825,8 @@ implicit none
 
 end subroutine initial_control_volume
 
+!----------------------------------------------------------------------------------
+! TODO -- COMMENT
 subroutine build_psf
 	use module_initial_record
 	use polymer_info_MD

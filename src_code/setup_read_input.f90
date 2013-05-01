@@ -466,7 +466,11 @@ subroutine setup_read_input
 	call locate(1,'TEMPERATURE_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,* ) temperature_outflag
-		if (temperature_outflag .ne. 0)	read(1,* ) NTemp_ave
+		if (temperature_outflag .ne. 0)	then
+			read(1,* ) NTemp_ave
+			read(1,*,iostat=ios) peculiar_flag
+			if (ios .ne. 0) peculiar_flag = 0 !default to zero if value not found
+		endif
 	endif
 	call locate(1,'PRESSURE_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
