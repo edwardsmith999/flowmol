@@ -274,21 +274,20 @@ contains
 			thermostatnp = 0
 			do n = 1, np
 
-				select case ( tag(n) )
-				case ( thermo, teth_thermo, teth_thermo_slide )
-					vel(:) = v(:,n) - 0.5d0*a(:,n)*delta_t
+				if ( tag(n) .eq. PUT_thermo ) then
 					!if (mod(iter,1000) .eq. 0) &
 					!write(5000+irank,'(i8,4f10.5)'), iter, globalise(r(:,n)),dot_product(vel,vel)
-				case ( PUT_thermo )
 					vel(:) = v(:,n) - U(:,n) - 0.5d0*a(:,n)*delta_t
 
-				case ( z_thermo )
+				else if ( any( thermo_tags .eq. tag(n) ) ) then
+
 					vel(:) = v(:,n) - 0.5d0*a(:,n)*delta_t
 
-				case default
-					cycle ! Don't include non-thermostatted molecules
+				else
+					! Don't include non-thermostatted molecules in calculation
+					cycle
 
-				end select
+				end if
 
 				v2sum = v2sum + dot_product(vel,vel)
 				thermostatnp = thermostatnp + 1
@@ -404,23 +403,21 @@ contains
 				v(3,n) = v(3,n)*ascale + a(3,n)*delta_t*bscale
 				r(3,n) = r(3,n)    +     v(3,n)*delta_t	
 			case (cyl_teth_thermo_rotate)
-				!Tether force
+
+				! Tether force
 				call tether_force(n)
-				! Leapfrog 
-				!v(:,n)  = v(:,n) + delta_t * a(:,n) 	!Velocity calculated from acceleration
-				!r(:,n)  = r(:,n) + delta_t * v(:,n)	!Position calculated from velocity
-				v(1,n) = v(1,n)*ascale + a(1,n)*delta_t*bscale
-				r(1,n) = r(1,n)    +     v(1,n)*delta_t			
-				v(2,n) = v(2,n)*ascale + a(2,n)*delta_t*bscale
-				r(2,n) = r(2,n)    + 	 v(2,n)*delta_t				
-				v(3,n) = v(3,n)*ascale + a(3,n)*delta_t*bscale
-				r(3,n) = r(3,n)    +     v(3,n)*delta_t	
+
+				! Thermostatted move of peculiar vel/pos
+				v(:,n) = v(:,n)*ascale + a(:,n)*delta_t*bscale
+				r(:,n) = r(:,n)        + v(:,n)*delta_t			
+	
 				! Ad-hoc rotate cylinder molecules
 				rglob(:) = globalise(r(:,n))
 				rpol(:)  = cpolariser(rglob(:))
 				rpol(2)  = rpol(2) + omega*delta_t
 				rglob(:) = cartesianiser(rpol(:))
 				r(:,n)   = localise(rglob(:))
+
 				! Ad-hoc rotate cylinder tether sites
 				rglob(:) = globalise(rtether(:,n))
 				rpol(:)  = cpolariser(rglob(:))
