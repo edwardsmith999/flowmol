@@ -53,7 +53,7 @@ subroutine simulation_move_particles_vv(pass_num)
 	double precision, save :: zeta=0.d0
 	double precision, dimension(nd,np) :: v_old
 	double precision, dimension(nd,np) :: vrelsum
-	double precision, dimension(nd,np) :: U, Utrue
+	double precision, dimension(nd,np) :: Utrue
 
 
 	!--------First half of velocity-Verlet algorithm. Finds r(t+dt) and v(t+dt/2).--------!

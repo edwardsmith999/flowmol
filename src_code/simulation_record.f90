@@ -1179,9 +1179,15 @@ subroutine cumulative_temperature(ixyz)
 			volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + 1
 			!Note - the streaming term is removed but includes sliding so this must be added back on
 			if (peculiar_flag .eq. 0) then
+				!if (mod(iter,1000) .eq. 0 	.and. &
+				!	ibin(1) .eq. 4 			.and. &
+				!	ibin(2) .eq. 2 			.and. &
+				!	ibin(3) .eq. 4				) then
+				!	print*, iter, ibin, dot_product(v(:,n),v(:,n)), v(:,n)
+				!endif
 				volume_temperature(ibin(1),ibin(2),ibin(3)) = volume_temperature(ibin(1),ibin(2),ibin(3)) & 
 										+ dot_product(v(:,n),v(:,n))
-			else	
+			else
 				volume_temperature(ibin(1),ibin(2),ibin(3)) = volume_temperature(ibin(1),ibin(2),ibin(3)) & 
 										+ dot_product((v(:,n)-U(:,n)+slidev(:,n)), & 
 													  (v(:,n)-U(:,n)+slidev(:,n)))
