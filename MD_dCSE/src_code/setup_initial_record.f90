@@ -140,6 +140,24 @@ subroutine setup_initial_record
 			print'(a,3f10.5)', ' Distance from bottom of NH Themostatted Molecules in x,y and z:', 	thermstatbottom
 			print'(a,3f10.5)', ' Distance from top of NH Themostatted Molecules in x,y and z:', 	thermstattop
 		end select
+
+		if (external_force_flag .ne. 0) then
+			if ( F_ext_ixyz .eq. 1) then
+				ixyz_char = 'x'
+			elseif (F_ext_ixyz .eq. 2) then 
+				ixyz_char = 'y'
+			else 
+				ixyz_char = 'z'
+			endif
+			if (external_force_flag .eq. 1) then
+				print'(a,f10.5,3a)', ' External force of magnitude ', F_ext, ' applied in the ', ixyz_char, ' direction to all molecules'
+			elseif (external_force_flag .eq. 2) then
+				print'(a,f10.5,3a)', ' External force of magnitude ', F_ext, ' applied in the ', ixyz_char, ' direction to '
+				print'(a,6f10.5)', ' molecules between ', F_ext_limits
+			endif
+
+		endif
+
  		select case(force_list) 
 		case(0)
 			print*,'All pairs force calculation (using Newton`s 3rd law)'
