@@ -64,12 +64,16 @@ subroutine simulation_apply_local_force(ixyz,F_const,xmin,xmax,ymin,ymax,zmin,zm
 	double precision, intent(in) :: xmin, xmax, ymin, ymax, zmin, zmax
 
 	integer				 		 :: n
-	double precision,dimension(3):: lmin,lmax
+	double precision,dimension(3):: lmin,lmax, F_vector
 
 	!Get local coordinates
 	lmin = (/ xmin, ymin, zmin /)
 	lmax = (/ xmax, ymax, zmax /)
 	lmin = localise(lmin); lmax = localise(lmax)
+
+	!Put directional results into a vector 
+	F_vector = 0.d0
+	F_vector(ixyz) = F_const
 
 	do n=1,np
 		if (r(1,n) .lt. lmin(1)) cycle
@@ -81,11 +85,11 @@ subroutine simulation_apply_local_force(ixyz,F_const,xmin,xmax,ymin,ymax,zmin,zm
 
 		!print'(3i4,6f10.5)',iblock,jblock,kblock, xmin,lmin(1),r(1,n),lmax(1),xmax, F_const
 
-		a(ixyz,n) = a(ixyz,n) + F_const
+		a(ixyz,n) = a(ixyz,n) + F_vector(ixyz)
 
 		if (vflux_outflag .eq. 4) then
 			if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
-				call record_external_forces(F_const,r(:,n))
+				call record_external_forces(F_vector(:),r(:,n))
 			endif
 		endif
 
