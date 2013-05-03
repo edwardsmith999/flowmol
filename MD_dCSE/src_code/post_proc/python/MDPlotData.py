@@ -54,15 +54,15 @@ class MD_PlotData():
 	def get_vslice_plot_args(self,axis,minrec,maxrec):
 
 		# Get which axes to average over
-		avgaxes = []	
+		sumaxes = []	
 		for ax in range(3):
-			if (ax != axis): avgaxes.append(ax)
-		avgaxes = tuple(avgaxes)
+			if (ax != axis): sumaxes.append(ax)
+		sumaxes = tuple(sumaxes)
 
 		# Instantiate velocity data object
 		vData = VBins(self.fdir,cpol_bins=self.cpol_bins)
 		# Get 3D velocity field in 3D bins
-		vslice, binspaces = vData.get_field(minrec,maxrec,meanaxes=avgaxes)
+		vslice, binspaces = vData.get_field(minrec,maxrec,sumaxes=sumaxes)
 	
 		return binspaces[axis], vslice
 
