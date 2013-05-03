@@ -274,7 +274,7 @@ subroutine evaluate_macroscopic_properties
 	!print'(4(a,f18.8))', ' <PE>= ',potenergy, & 
 	!						 ' std(PE) = ',sqrt(sum((potenergymol(1:np)-potenergy)**2)/(2.d0*real(globalnp,kind(0.d0)))), & 
 	!						 ' max= ',maxval(potenergymol(1:np)),' min= ',minval(potenergymol(1:np))
-	if (maxval(potenergymol(1:np)) .gt. 100) then
+	if (maxval(potenergymol(1:np)) .gt. 10000) then
 		print*, 'np = ', np
 		print*, 'max(potenergymol) = ', maxval(potenergymol(1:np))
 		do n=1,np
