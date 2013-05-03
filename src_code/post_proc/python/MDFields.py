@@ -71,7 +71,7 @@ class Field():
 
 		"""
 
-		if ( (len(sumaxes) != 0 ) and ( len(meanaxes) != 0 ) ):
+		if ( sumaxes != () ) and ( meanaxes != () ) ):
 			print("""Currently cannot specify both sumaxes and meanaxes
 			       because the shape of the array of interest changes once
 			       it is summed/averaged for the first time. It is possible

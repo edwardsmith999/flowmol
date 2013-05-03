@@ -129,6 +129,7 @@ class MD_RawData:
 		else:
 			quit('Unrecognised data type in read_bins')
 
+
 		# Seek to correct point in the file
 		# seekrec=0 and whence=0 (i.e. start) by default
 		seekbyte = seekrec*recbytes
