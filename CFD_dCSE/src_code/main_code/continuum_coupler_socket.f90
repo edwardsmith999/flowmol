@@ -9,7 +9,6 @@
 !
 !=============================================================================
 
-
 module continuum_coupler_socket
 
 #if USE_COUPLER
@@ -409,7 +408,7 @@ subroutine  socket_coupler_send
 	else if ( constraint_algorithm .eq. OT ) then
 		call error_abort("OT constraint force not yet implemented")
 	else if ( constraint_algorithm .eq. NCER ) then
-		call socket_coupler_send_mass
+		!call socket_coupler_send_mass
 		call socket_coupler_send_velocity
 	else if ( constraint_algorithm .eq. Flekkoy ) then
 		call socket_coupler_send_stress
