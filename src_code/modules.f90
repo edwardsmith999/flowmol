@@ -67,10 +67,12 @@ module computational_constants_MD
 	integer, dimension(6), parameter :: thermo_tags=(/thermo,teth_thermo,teth_thermo_slide,PUT_thermo,z_thermo,cyl_teth_thermo_rotate/)
 
 	! Wall texture flags
-	integer			   :: texture_type
+	integer			   :: texture_type, texture_therm
 	integer, parameter :: posts = 1
 	integer, parameter :: roughness = 2
 	integer, parameter :: converge_diverge = 3
+	double precision   :: texture_intensity
+	
 
 	!Integration algorithm
 	integer                 :: integration_algorithm

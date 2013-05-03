@@ -125,8 +125,11 @@ contains
 		case ('thermo')
 			tagdistbottom(:) = thermstatbottom(:)
 			tagdisttop(:)    = thermstattop(:)
-			!Apply a complicated wall texture if specified
-			if (texture_type .ne. 0) call wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
+			!Thermostat complicated wall texture if specified, otherwise thermostat
+			!is based on thermstatbottom/thermstattop
+			if (texture_type .ne. 0 .and. texture_therm .eq. 1) then
+				call wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
+			endif
 		case ('teth')
 			tagdistbottom(:) = tethereddistbottom(:)
 			tagdisttop(:)    = tethereddisttop(:)
@@ -191,9 +194,9 @@ end subroutine get_tag_thermostat_activity
 !----------------------------------------------------------------------------------
 
 subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
-	use physical_constants_MD, only : pi
-	use computational_constants_MD, only : posts,roughness,converge_diverge, &
-										   globaldomain, cellsidelength
+	use physical_constants_MD, only : pi,tethereddistbottom,tethereddisttop
+	use computational_constants_MD, only : posts,roughness,converge_diverge,texture_intensity, &
+										   globaldomain, cellsidelength,texture_therm
 	implicit none
 
 	integer,intent(in)		:: texture_type
@@ -231,16 +234,16 @@ subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 		xlocation = rg(1)/globaldomain(1) + 0.5
 		zlocation = rg(3)/globaldomain(3) + 0.5
 		!X roughness
-		tagdistbottom(2) =   0.2d0*globaldomain(2) &  
-  						   + 0.1d0*globaldomain(2)*sin(2*pi*xlocation) + &
-						   + 0.1d0*globaldomain(2)*sin(5*pi*xlocation) + &
-						   + 0.1d0*globaldomain(2)*sin(20*pi*xlocation) + &
-						   + 0.1d0*globaldomain(2)*2.d0*(rand-1)
-		tagdisttop(2)    =   0.2d0*globaldomain(2) &  !Minimum height
-  						   + 0.1d0*globaldomain(2)*sin(2*pi*xlocation) + &
-						   + 0.1d0*globaldomain(2)*sin(5*pi*xlocation) + &
-						   + 0.1d0*globaldomain(2)*sin(20*pi*xlocation) + &
-						   + 0.1d0*globaldomain(2)*2.d0*(rand-1)
+		tagdistbottom(2) =   0.5d0*texture_intensity *globaldomain(2) &  
+  						   + 0.25d0*texture_intensity*globaldomain(2)*sin(2*pi*xlocation) + &
+						   + 0.25d0*texture_intensity*globaldomain(2)*sin(5*pi*xlocation) + &
+						   + 0.25d0*texture_intensity*globaldomain(2)*sin(20*pi*xlocation) + &
+						   + 0.25d0*texture_intensity*globaldomain(2)*2.d0*(rand-1)
+		tagdisttop(2)    =   0.5d0*texture_intensity*globaldomain(2) &  !Minimum height
+  						   + 0.25d0*texture_intensity*globaldomain(2)*sin(2*pi*xlocation) + &
+						   + 0.25d0*texture_intensity*globaldomain(2)*sin(5*pi*xlocation) + &
+						   + 0.25d0*texture_intensity*globaldomain(2)*sin(20*pi*xlocation) + &
+						   + 0.25d0*texture_intensity*globaldomain(2)*2.d0*(rand-1)
 		!Z roughness
 		!tagdistbottom(2) = tagdistbottom(2)  &
   		!				   + 0.1d0*globaldomain(2)*sin(2*pi*zlocation) + &
@@ -266,11 +269,21 @@ subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 		!A converging diverging channel
 		tagdistbottom = 0.d0; tagdisttop=0.d0
 		xlocation = rg(1)/globaldomain(1) + 0.5
-		fraction_domain =  0.3d0
-		!one minus cosine is periodic and has a periodic derivative while sin does not
-		!tagdistbottom(2) = fraction_domain*globaldomain(2)*sin(pi*xlocation) + cellsidelength(2)
-		tagdistbottom(2) =0.5d0*fraction_domain*globaldomain(2)*(1-cos(2*pi*xlocation)) + cellsidelength(2)
-		tagdisttop       = tagdistbottom
+		fraction_domain =  0.5d0*texture_intensity
+		!Ensure Minimum height
+		if (tethereddistbottom(2) .lt. 0.05d0*globaldomain(2)) then
+			tethereddistbottom(2) = 0.05d0*globaldomain(2)
+		endif
+		if (tethereddisttop(2) .lt. 0.05d0*globaldomain(2)) then
+			tethereddisttop(2) = 0.05d0*globaldomain(2)
+		endif
+		!N.B. One minus cosine used as periodic and has a periodic derivative (sin does not)
+		tagdistbottom(2) =  0.5d0*fraction_domain*globaldomain(2) & 
+								 *(1-cos(2*pi*xlocation)) & 
+						  	+ tethereddistbottom(2) + 0.5d0*cellsidelength(2)
+		tagdisttop(2)    =  0.5d0*fraction_domain*globaldomain(2)   & 
+								 *(1-cos(2*pi*xlocation)) & 
+							+ tethereddisttop(2)    + 0.5d0*cellsidelength(2)
 	end select
 
 end subroutine wall_textures
