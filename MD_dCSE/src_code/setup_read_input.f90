@@ -385,6 +385,14 @@ subroutine setup_read_input
 	call locate(1,'WALL_TEXTURE',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) texture_type
+		read(1,*,iostat=ios) texture_intensity
+		if (ios .ne. 0) then
+			texture_intensity = 0.5d0
+		endif
+		read(1,*,iostat=ios) texture_therm
+		if (ios .ne. 0) then
+			texture_therm = 0
+		endif
 	else
 		texture_type = 0
 	endif
