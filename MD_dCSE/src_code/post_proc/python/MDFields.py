@@ -78,19 +78,20 @@ class Field():
 			       to determine how meanaxes should be changed based on the
 			       specification of sumaxes, but this just hasn\'t been
 			       done yet.""")
+			quit()
 
+		# Create raw data reading object and get the topology of the bins
 		Raw = MD_RawData(self.fdir,self.fname,self.dtype,self.nperbin,self.cpol_bins)
 		nbins, binspaces = Raw.get_bintopology()
 
-		bins = Raw.get_bindata(seekrec=minrec)
-		for rec in range(minrec+1,maxrec):
-			bins += Raw.get_bindata(seekrec=rec)
-		bins = bins/float(maxrec - minrec)
+		# Get bin data from file and get the mean over time records (axis 4)
+		bins = Raw.get_bindata(minrec,nrecs=maxrec-minrec)
+		bins = bins.mean(axis=4) 
 
+		# Sum or mean as appropriate
 		if (sumaxes != ()):
 			bins = bins.sum(axis=sumaxes)
 			#meanaxes = meanaxes - len(sumaxes)
-
 		if (meanaxes != ()):
 			bins = bins.mean(axis=meanaxes)
 		
@@ -153,6 +154,9 @@ class VBins():
 			maxrec    - *int*
 
 		"""
+	
+		print('Getting velocity field from records ' + str(minrec) + ' to ' 
+		      + str(maxrec) + ', averaging over axes ' + str(sumaxes) + '.')
 	
 		msum, binspaces = self.mdata.get_bins(minrec,maxrec,sumaxes=sumaxes)
 		psum, binspaces = self.pdata.get_bins(minrec,maxrec,sumaxes=sumaxes)
