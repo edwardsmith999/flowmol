@@ -394,8 +394,7 @@ subroutine setup_restart_microstate
 		enddo
 	endif
 
-		close(2,status='keep') 		!Close final state file
-	endif
+	close(2,status='keep') 		!Close final state file
 
 	if (tag_off) deallocate(tag)	!Tags off so tag info not necessary
 	!call setup_initialise_velocities_TG

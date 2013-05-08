@@ -7,14 +7,14 @@ set(0,'DefaultFigureRenderer','OpenGL')
 fig1 = figure('Position',[1 scrsz(4)/4 scrsz(3)/4 scrsz(4)/2]);
 fig2 = figure('Position',[scrsz(3)/4 scrsz(4)/4 scrsz(3)/4 scrsz(4)/2]);
 
-external_force_flag = 0;
+external_force_flag = 1;
 
 %pwdir = '/home/es205/codes/coupled/MD_dCSE/src_code/post_proc/MATLAB';
 %resultfile_dir = './../../results/';
-%pwdir='/home/es205/results/md_results/fortran/3D_code/parallel/results/converge_diverge';
-%resultfile_dir = '/home/es205/results/md_results/fortran/3D_code/parallel/results/converge_diverge/';
-pwdir='/home/es205/codes/coupled/MD_dCSE/src_code/';
-resultfile_dir = '/home/es205/codes/coupled/MD_dCSE/src_code/results/';
+pwdir='/home/es205/results/md_results/fortran/3D_code/parallel/results/converge_diverge';
+resultfile_dir = '/home/es205/results/md_results/fortran/3D_code/parallel/results/converge_diverge/';
+%pwdir='/home/es205/codes/coupled/MD_dCSE/src_code/';
+%resultfile_dir = '/home/es205/codes/coupled/MD_dCSE/src_code/results/';
 %Read Header
 read_header
 
@@ -129,7 +129,7 @@ for m =1:skip:Nvflux_records-3
     %domain_ave_pressure_tensor(:,1,m) = mean(mean(mean((pressure_surface(:,:,:,:,1)+pressure_surface(:,:,:,:,4)),1),2),3)/2;
     %domain_ave_pressure_tensor(:,2,m) = mean(mean(mean((pressure_surface(:,:,:,:,2)+pressure_surface(:,:,:,:,5)),1),2),3)/2;
     %domain_ave_pressure_tensor(:,3,m) = mean(mean(mean((pressure_surface(:,:,:,:,3)+pressure_surface(:,:,:,:,6)),1),2),3)/2;
-    
+    F_ext(:,:,:,3) = 0;
     %Verify that CV momentum is exactly conservative
     conserved = ( squeeze(sum(totalpressure(:,:,:,:),4)) ...
                  -squeeze(sum(totalflux(:,:,:,:),4))     ...
@@ -166,7 +166,17 @@ for m =1:skip:Nvflux_records-3
             plot(sum(a(1:end,2,:),3))   %du/dt =
             hold all
             plot(-sum(a(1:end,3,:),3) + sum(a(1:end,1,:),3)+sum(a(1:end,4,:),3)/prod(binsize),'r--') % - d\rho uu/dr - dP/dr + dsigma/dr
-            title(['d\rhou/dt and \nabla \cdot \Pi vs time in CV ',num2str(ibin),',',num2str(jbin),',',num2str(kbin)])
+            title(['d\rhou/dt and \nabla \cdot \Pi + F_{ext} vs time in CV ',num2str(ibin),',',num2str(jbin),',',num2str(kbin)])
+
+            figure
+            plot(sum(a(1:end,2,:),3),'-k')   %du/dt =
+            hold all
+            plot(-sum(a(1:end,3,:),3),'--k')
+            plot(sum(a(1:end,1,:),3),'-b')
+            plot(sum(a(1:end,4,:),3)/prod(binsize),'r--') % - d\rho uu/dr - dP/dr + dsigma/dr
+            title(['d\rhou/dt , \nabla \cdot (\rho u u) , \nabla \cdot \sigma and F_{ext}  vs time in CV ',num2str(ibin),',',num2str(jbin),',',num2str(kbin)])
+
+
             %Plot error
             figure
             plot(Error)

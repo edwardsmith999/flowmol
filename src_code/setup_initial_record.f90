@@ -21,6 +21,7 @@ subroutine setup_initial_record
 	use polymer_info_MD
 	use shear_info_MD
 	use concentric_cylinders, only: gcpol_bins
+	use librarymod, only : get_version_number
 	implicit none
 
 	integer					:: i
@@ -98,6 +99,7 @@ subroutine setup_initial_record
 		!Display all parameters required to describe simulation
 		print*, 'Simulation run on Date: ', the_date
 		print*, 'Simulation start time: ', the_time
+		print*, 'Subversion revision number: ', get_version_number()
 		print*, '================= Molecular Simulation Parameters ===================='
 		print*, 'Number of Dimensions: ', nd
 		print*, 'Number of Particles: ', globalnp
@@ -568,20 +570,22 @@ subroutine simulation_header
 	use module_parallel_io
 	use calculated_properties_MD
 	use concentric_cylinders
-	use librarymod, only : get_new_fileunit
+	use librarymod, only : get_new_fileunit,get_version_number
 	implicit none
 
 	integer				:: fileunit, i
 	Character(8)  		:: the_date
-	Character(10)  		:: the_time
+	Character(10)  		:: the_time, version_no
 
 	call date_and_time(the_date, the_time)
+	version_no = get_version_number()
 	fileunit = get_new_fileunit()
 
 	open(fileunit,file=trim(prefix_dir)//'results/simulation_header')
 
 	write(fileunit,*) 'Simulation run on Date;  sim_date ;', the_date
 	write(fileunit,*) 'Simulation start time ;  sim_start_time ;', the_time
+	write(fileunit,*) 'Subversion revision number ;  svn_version_number ;', version_no
 	write(fileunit,*) 'Number of Dimensions ;  nd ;', nd
 	write(fileunit,*) 'Number of Particles ;  globalnp ;', globalnp
 	write(fileunit,*) 'Time Step - delta t ;   delta_t ;',  delta_t

@@ -569,14 +569,14 @@ subroutine get_file_size(filename,file_size)
 	character(len=*), intent(in)	:: filename
 
 	!Check if unit number is used and assign unique number
-	do unit_no = 1,1000
-		inquire(unit_no,opened=op)
-		if (op .eqv. .false.) exit
-	enddo
+	!do unit_no = 1,1000
+	!	inquire(unit_no,opened=op)
+	!	if (op .eqv. .false.) exit
+	!enddo
+	unit_no = get_new_fileunit()
 
 	! simpler version using inquire
 	inquire(file=filename,size=file_size)
-
 
 	!Use Fstat to obtain size of file ## MAY BE COMPATABILITY ISSUE ##
 	!open (unit=unit_no, file=filename)
@@ -587,6 +587,29 @@ subroutine get_file_size(filename,file_size)
 
 end subroutine get_file_size
 
+
+!------------------------------------------------------------------------------
+! Returns the version number of the current code from the version control
+! system -- in this case subversion
+
+function get_version_number()
+	
+	logical					:: op
+	integer					:: unit_no
+	character(30)			:: get_version_number
+
+	! External system call -- this is almost certain not to
+	! work in general (e.g. not intel and not linux)
+	call system("svnversion > subversion_no_temp")
+
+	!Read file and store unit number
+	!Check if unit number is used and assign unique number
+	unit_no = get_new_fileunit()
+	open(unit=unit_no, file='./subversion_no_temp')
+	read(unit_no,*) get_version_number
+	close(unit_no,status='delete')
+
+end function get_version_number
  
 !-----------------------------------------------------
 ! Build array of dimension ncells which maps to 3D Hilbert curve.
