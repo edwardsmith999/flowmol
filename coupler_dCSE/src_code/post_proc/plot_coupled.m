@@ -9,18 +9,19 @@ CFD = 1;
 
 %Turn on/off video and picture output
 savevid = 0;
-savepic = 1;
+savepic = 0;
 
 %Analytical Solution parameters
 u_0 = 1; t_0 = 160;
 spectral_res = 6;
-viscosity = 10; density = 0.8;
+viscosity = 2.14; density = 0.8;
 Re = density*u_0*1/viscosity;
 analy_points = 20; % Number of spectral points
 
 %Find results files
 %resultfile_dir = './../results/';
-resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/Flekkoy_meu10/';
+resultfile_dir = '/home/es205/results/MD_continuum_results/results/CPL_testing/130430_NCER_mdws/';
+%resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/Flekkoy_meu10/';
 %resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/Inc_specular_walls_large/';
 %resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/50CFDMDratio/';
 %resultfile_dir = '/home/djt06/Documents/Academia/PhD/Code/Development/branch/coupler_dCSE/src_code/';
@@ -207,7 +208,7 @@ for i = 1:Nvel_records
     %else
         t =(intial_offset+m-0.5)*delta_t*Nmass_ave*tplot;
     %end
-    
+    disp(['step number ', num2str(m*Nmass_ave*tplot)])
     % =================================
     %    Plot MD region on full axis
     % =================================
@@ -217,21 +218,21 @@ for i = 1:Nvel_records
     
     %Plot anayltical solution
     analy = couette_analytical_fn(t,Re,[1,0],coupleddomain(ixyz),analy_points,'top');
-    plot(xaxis_analy,analy/u_0,'k','LineWidth',5);
+    plot(xaxis_analy,analy,'k','LineWidth',5);
 	hold on
 
     %Plot CFD velocity profile
-    plot(xaxis_CFD,continuum_velslice(:,m)/u_0,'s','Color',[.5 .5 .5],'MarkerSize',12,'LineWidth',3);
+    plot(xaxis_CFD,continuum_velslice(:,m),'s','Color',[.5 .5 .5],'MarkerSize',12,'LineWidth',3);
 
     %plot molecular velocity profile
-    plot(xaxis_MD(:),ave_vel_slice(2:end,1),'x','LineWidth',3,'Color',[.5 .5 .5],'MarkerSize',14);
+    plot(xaxis_MD(:),ave_vel_slice(3:end,1),'x','LineWidth',3,'Color',[.5 .5 .5],'MarkerSize',14);
     %plot(xaxis_MD2,vel_slice(5:end,1),'^-')
 
     
     %Make plot look nice
     legend ('CFD','MD','location','NorthWest'); legend('boxoff')
     set(gca,'FontSize',16)
-    axis([-0.1 1.1 -0.1 1.5]);
+    axis([-0.1 1.1 -0.1 1.1]);
     xlabel('y/H'); ylabel('U_x/U')
     plottitle=num2str(t,'%10.6f');
     %title(strcat('Plot after  ',plottitle,' time units'));
