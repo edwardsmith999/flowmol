@@ -55,7 +55,6 @@ class MD_RawData:
 
 		try: 
 			self.fobj = open(fdir+fname,'rb')
-			print('Detected file ' + fname )
 		except:
 			print('Unable to find file ' + fname )
 			quit()
@@ -102,14 +101,18 @@ class MD_RawData:
 		return gnbins, binspaces
 
 
-	def get_bindata(self, seekrec=0, whence=0):
+	def get_bindata(self, seekrec, nrecs=1, whence=0):
 
 		"""
-			Inputs:
+			Required inputs:
 
 				seekrec - seek a specific record with this integer
+
+			Keyword args:
+
+				nrecs   - number of records to read (default = 1)
 				whence  - specify where to start seeking and which 
-			              direction
+			              direction (default = start)
 
 			Return:
 				
@@ -120,7 +123,7 @@ class MD_RawData:
 				
 		"""
 
-		recitems = np.product(self.nbins)*self.nperbin 
+		recitems = np.product(self.nbins)*self.nperbin
 
 		if (self.dtype == 'i'):
 			recbytes = 4*recitems
@@ -136,11 +139,12 @@ class MD_RawData:
 		self.fobj.seek(seekbyte,whence)
 
 		# Get data and reshape with fortran array ordering
-		bindata = np.fromfile(self.fobj,dtype=self.dtype,count=recitems)	
+		bindata = np.fromfile(self.fobj,dtype=self.dtype,count=nrecs*recitems)	
 		bindata = np.reshape( bindata,
 		                      [ self.nbins[0],
 		                        self.nbins[1],
 		                        self.nbins[2],
-		                        self.nperbin ],
+		                        self.nperbin ,
+		                        nrecs ],
 		                      order='F' )
 		return bindata
