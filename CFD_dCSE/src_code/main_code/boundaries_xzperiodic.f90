@@ -457,12 +457,14 @@ subroutine FluxBC
 	!Determine the BCs in terms of flux.     
 
 	use boundaries
+
+	integer	:: i,j,k
 	!real*8  :: vtempb(ngz+1), vtempe(ngz+1)
 	!real*8  :: utempb(ngz+1), utempe(ngz+1)
 	real*8  :: vtempb(ngz-1), vtempe(ngz-1)
 	real*8  :: utempb(ngz-1), utempe(ngz-1)
 	real*8, dimension(2) :: Atmp
-
+	real*8 :: vtemp(1:ngz-1), utemp(1:ngz-1)
 	!=======================================================================
 	!       NO SLIP B.C.  
 	!=======================================================================
@@ -486,8 +488,24 @@ subroutine FluxBC
 		end do
 #if USE_COUPLER
 		! Stress is no longer zero i.e. v(:, :, 0) .ne. v(:, :, 2) and
-		! v(:,:,1) is set by the coupler, use same value for v(:,:,0)
-		v(:, :, 0) = v(:, :, 1)
+		! vc(:,:,1) is set by the coupler in socket so instead, 
+		! convert this cartesian set by coupler to fluxes
+	    do i=0,nlxb
+	        ii = ibmap_1(i) 
+	        jj = jbmap_1(1)
+	        a1=svetax(ii,jj)
+	        a2=svetay(ii,jj)  
+	        utemp(:)=0.25d0*( uc(1:ngz-1,i+1,0)+uc(1:ngz-1,i+1,1) &
+	                  	     +uc(1:ngz-1,i  ,0)+uc(1:ngz-1,i  ,1))
+	        v(1:ngz-1,i,1)=a1*utemp(:)+a2*vc(1:ngz-1,i,1) 
+	    end do
+	    v(1:ngz-1,:,0)=2.0*v(1:ngz-1,:,1)-v(1:ngz-1,:,2)
+
+	    !do i=0,nlxb
+	    !do k=1,ngz-1
+		!	print'(5i7,3f10.5)',iblock,jblock,kblock,i,k,v(k,i,0),v(k,i,1),v(k,i,2)
+		!enddo
+		!enddo
 
 #else
 		v(:, :, 1) =  0.0
