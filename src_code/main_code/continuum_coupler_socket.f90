@@ -116,6 +116,7 @@ subroutine  socket_coupler_get_md_BC(uc,vc,wc)
 	integer											  :: nclx,ncly,nclz,pcoords(3),extents(6)
 	integer											  :: i1,i2,j1,j2,k1,k2
 	integer											  :: jcmin_recv,jcmax_recv
+    real(kind(0.d0))								  :: dy, dvdy
     real(kind(0.d0)), allocatable, dimension(:,:,:,:) :: uvw_md, ucvcwc_md
     real(kind(0.d0)), allocatable, dimension(:,:,:,:) :: buf1, buf2
 	real											  :: uvw_BC(4)
@@ -358,17 +359,31 @@ subroutine  socket_coupler_get_md_BC(uc,vc,wc)
 		enddo
 		! Y direction
 		vc(:,:,1) = 0.d0; vc(:,:,0) = 0.d0
+
+		!Ensure latest fluxes are stored as cartesian
+		call Flux_to_Cart
+
+		!Set value of vc
+		dy = yg(1,j+1) - yg(1,j)
 		do i=1, nclx
 			ii = i + i1_v - 1
 			if (ii .gt. i2_v) cycle
 		do j=jcmin_recv,jcmax_recv
 		do k=1, nclz
-			vc(k,ii,j  ) = ucvcwc_md(2,i,j,k)
-			!print'(a,11i5,3f14.6)', 'vc', iblock,jblock,kblock,i1_v,i2_v,i,j,k,ii,imap_1(ii),ibmap_1(ii), & 
-			!				      ucvcwc_md(2,i,j,k),vc(k,ii,j  ),yg(1,j)-0.5d0*yL_cfd
+
+			! MD value is cell centred so Interpolate/Extrapolate using known points 
+			! from the domain to get surface values of vc
+			dvdy = (vc(k,ii,j+1) - ucvcwc_md(2,i,j,k))/(dy * 3.d0/2.d0)
+			vc(k,ii,j-1) = -0.5d0 * dvdy * dy +  ucvcwc_md(2,i,j,k)
+			vc(k,ii,j  ) =  0.5d0 * dvdy * dy +  ucvcwc_md(2,i,j,k)
+
+ 			!vc(k,ii,j  ) = ucvcwc_md(2,i,j,k)
+			!print'(a,11i5,6f14.6)', 'vc', iblock,jblock,kblock,i1_v,i2_v,i,j,k,ii,imap_1(ii),ibmap_1(ii), & 
+			!				      ucvcwc_md(2,i,j,k),vc(k,ii,j-1),vc(k,ii,j  ),vc(k,ii,j+1),yg(1,j)-0.5d0*yL_cfd
 		enddo
 		enddo
 		enddo
+
 		! Z direction
 		wc(:,:,0) = 0.d0
 		do i=1, nclx
