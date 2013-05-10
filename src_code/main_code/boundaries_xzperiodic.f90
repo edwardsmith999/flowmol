@@ -484,12 +484,19 @@ subroutine FluxBC
 						+vc(1:ngz-1, i-1,0)+vc(1:ngz-1, i,0))/4.
 			u(1:ngz-1,i,0)=suxix(ii,0)*uc(1:ngz-1,i,0)+suxiy(ii,0)*vtempe(:)
 		end do
+#if USE_COUPLER
+		! Stress is no longer zero i.e. v(:, :, 0) .ne. v(:, :, 2) and
+		! v(:,:,1) is set by the coupler, use same value for v(:,:,0)
+		v(:, :, 0) = v(:, :, 1)
 
+#else
 		v(:, :, 1) =  0.0
+		!Extend -- ensures dv/dy = 0 provided v = 0
+		v(:, :, 0) = v(:, :, 2)	
+#endif
 		w(:, :, 0) = -w(:, :, 1)
 
-		!Extend
-		v(:, :, 0) = v(:, :, 2)	
+
 		!----------- End of Sec C ---------------
 	 	
 	end if
