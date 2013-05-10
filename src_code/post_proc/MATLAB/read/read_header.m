@@ -16,9 +16,13 @@ cd (pwdir);
 %Loop through all elements and extract variables
 for i = 1:size(simulation_header.data,1)
     varname =  simulation_header.textdata{i,2};
-    evalc([varname '= simulation_header.data(i)']);
+    if (isnan(simulation_header.data(i)) == 0)
+        evalc([varname '= simulation_header.data(i)']);
+    else
+        disp(['Warning: header variable <', varname, '> is corrupted or not a number. Skipping']);
+        %Skip this variable (may be a result of character in
+    end
 end
-
 %If simulation is not finished, set number of steps to last
 %output step of the simulation
 cd(resultfile_dir); 
