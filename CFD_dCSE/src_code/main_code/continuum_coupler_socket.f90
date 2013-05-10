@@ -123,6 +123,15 @@ subroutine  socket_coupler_get_md_BC(uc,vc,wc)
 	integer		:: bufsize, jcmin_olap
 	character	:: str_bufsize
 
+	! - - Some tuneable parameters - -
+	! Average all MD BC into single halo value
+	! or apply the cell by cell values
+	MD_BC_SLICE_average = .false.
+	! Each CFD processor only recieves its part of the domain 
+	! and not the halos to the next processor. They can either
+	! exchange these or extrapolate to obtain them...
+	exchangehalo = .true.
+
 	!Setup extents
 	call CPL_get(jcmin_olap=jcmin_olap)
 	jcmin_recv = jcmin_olap; jcmax_recv = jcmin_olap
@@ -135,11 +144,8 @@ subroutine  socket_coupler_get_md_BC(uc,vc,wc)
 	nclz = extents(6)-extents(5)+1
 
 	!Copy recieved data into appropriate cells
-	MD_BC_SLICE_average = .false. 	!Average or cell by cell values
-	if (MD_BC_SLICE_average) then
-
-		! Use a single averaged value for the BC
-
+	if (MD_BC_SLICE_average) then 	! Use a single averaged value for the BC
+	
 		!Allocate array to CFD number of cells ready to receive data
 		allocate(uvw_md(4,nclx,ncly,nclz)); uvw_md = VOID
 
@@ -162,9 +168,7 @@ subroutine  socket_coupler_get_md_BC(uc,vc,wc)
 		uc(:,:,0) = uvw_BC(1)/uvw_BC(4)
 		vc(:,:,1) = uvw_BC(2)/uvw_BC(4)
 		wc(:,:,0) = uvw_BC(3)/uvw_BC(4)
-	else
-
-		! Use cell by cell value as BC
+	else ! Use cell by cell value as BC
 
 		! u interval [i1_u, i2_u], or [2,  ngx ] ??? 4 Procs = [2 32][3 34][3 34][3 35] ??? 30 31 32
 		! v interval [i1_v, i2_v], or [1, ngx-1] ??? 4 Procs = [1 32][3 34][3 34][3 34] ???
@@ -178,7 +182,7 @@ subroutine  socket_coupler_get_md_BC(uc,vc,wc)
 		!														   i1_T,i2_T,j1_T,j2_T,k1_T,k2_T
 
 		!Interpolate internal points and extrapolate halos OR use MPI to exchange halos?
-		exchangehalo = .true. 
+
 		if (exchangehalo) then
 
 			!Allocate array to CFD number of cells ready to receive data including halos

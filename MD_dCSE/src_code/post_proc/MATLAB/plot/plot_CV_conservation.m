@@ -48,8 +48,6 @@ for m =1:skip:Nmflux_records-2
     [mass_flux_tp1,mass_snapshot_tp1] = read_mflux('./mflux','./msnap',resultfile_dir,m+1);
     dmassdt(:,:,:) = mass_snapshot_tp1 - mass_snapshot;
     
-    
-    
     %Verify that CV mass is exactly conservative
     conserved = (squeeze(totalmflux(:,:,:)) - squeeze(dmassdt(:,:,:)));
     if (max(conserved(:)) > 0.0 || min(conserved(:)) < 0.0)
@@ -129,7 +127,7 @@ for m =1:skip:Nvflux_records-3
     %domain_ave_pressure_tensor(:,1,m) = mean(mean(mean((pressure_surface(:,:,:,:,1)+pressure_surface(:,:,:,:,4)),1),2),3)/2;
     %domain_ave_pressure_tensor(:,2,m) = mean(mean(mean((pressure_surface(:,:,:,:,2)+pressure_surface(:,:,:,:,5)),1),2),3)/2;
     %domain_ave_pressure_tensor(:,3,m) = mean(mean(mean((pressure_surface(:,:,:,:,3)+pressure_surface(:,:,:,:,6)),1),2),3)/2;
-    F_ext(:,:,:,3) = 0;
+
     %Verify that CV momentum is exactly conservative
     conserved = ( squeeze(sum(totalpressure(:,:,:,:),4)) ...
                  -squeeze(sum(totalflux(:,:,:,:),4))     ...
@@ -147,7 +145,6 @@ for m =1:skip:Nvflux_records-3
         set(h,'FaceColor','interp','EdgeColor','none','DiffuseStrength',.8)
         title(['d\rhou/dt - \nabla \cdot \Pi',num2str(ibin),',',num2str(jbin),',',num2str(kbin)])
         colorbar;  drawnow; pause(0.1)
-        
 
         %Log temporal evolution over 100 timesteps
         skip = 1;
@@ -175,7 +172,6 @@ for m =1:skip:Nvflux_records-3
             plot(sum(a(1:end,1,:),3),'-b')
             plot(sum(a(1:end,4,:),3)/prod(binsize),'r--') % - d\rho uu/dr - dP/dr + dsigma/dr
             title(['d\rhou/dt , \nabla \cdot (\rho u u) , \nabla \cdot \sigma and F_{ext}  vs time in CV ',num2str(ibin),',',num2str(jbin),',',num2str(kbin)])
-
 
             %Plot error
             figure
