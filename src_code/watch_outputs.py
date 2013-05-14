@@ -51,7 +51,7 @@ class OutputFigure:
 		                                    self.update_axis,
 		                                    interval=50
 	   	                                  )
-		self.ax.legend()
+		self.ax.legend(loc=0)
 
 	def update_axis(self,dummy):
 
@@ -75,20 +75,20 @@ def ParseArguments():
 
 	arguments = sys.argv[1:]
 
-	if (sys.argv[2] == 'help'):
+	if (sys.argv[1] == 'help'):
 
 		message = (
-					". Watch_outputs.py requires arguments that \n" +
+					"Watch_outputs.py requires arguments that \n" +
 					"specify which figures you would like to watch during \n"+
 					"the simulation. They take the form: \n\n"+
 					"  ./watch_outputs.py filename1 horizontal_axis1 \n" +
-					"                     {vertical_axes1} + filename2 \n "+
-					"                     horizontal_axis2 {vertical_axes2}\n" +
+					"                     vertical_axis1 + filename2 \n "+
+					"                     horizontal_axis2 vertical_axis2\n" +
 					"                     ++ new figure arguments... \n" +
 					"\n\n " +
 					"Any number of extra figures may be generated simply by \n"+
 					"separating arguments with TWO + signs (++). The arguments \n" +
-					"horizontal_axis and vertical_axes must be EXACT \n" +
+					"horizontal_axis and vertical_axis must be EXACT \n" +
 					"matches to the first-line header of the columns in \n" +
 					"the output file you are trying to follow. Let's say, \n"+
 					"for example, you'd like to follow two figures. One for \n"+
