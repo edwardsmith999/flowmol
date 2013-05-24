@@ -387,14 +387,23 @@ subroutine tether_force(molno)
 	integer                        :: molno
 	double precision               :: acctmag
 	double precision, dimension(3) :: at, rio
-	double precision, parameter    :: k4=5000.d0    !Force constants from...
-	double precision, parameter    :: k6=5000000.d0 !...Petravich and Harrowell
+
+	!COEFFICIENTS MOVED TO INPUT FILE
+	!Define strength of tethering potential ~ phi= k2*rio^2 
+	!Force constants (k2 = 0.5*57.15) from Liem Brown and Clarke via B. D. Todd, Peter J. Daivis, and Denis J. Evans (1995) PRE. 52, 5
+	!double precision, parameter    :: teth_k2=28.575
+	!Define strength of tethering potential ~ phi= -k4*rio^4 - k6*rio^6
+	!Force constants (k4 = 5,000, k6 = 5,000,000) from Petravich and Harrowell (2006) J. Chem. Phys.124, 014103.
+	!double precision, parameter    :: teth_k4=5000.d0    
+	!double precision, parameter    :: teth_k6=5000000.d0
 
 	!Obtain displacement from initial position
 	rio(:) = r(:,molno) - rtether(:,molno)
 
-	!Calculate applied tethering force
-	acctmag = -4.d0*k4*magnitude(rio)**2 - 6.d0*k6*magnitude(rio)**4.d0
+	!Apply tethering forces
+	acctmag = -2.d0*teth_k2*magnitude(rio) 		 & 
+			  -4.d0*teth_k4*magnitude(rio)**2.d0 & 
+			  -6.d0*teth_k6*magnitude(rio)**4.d0
 	at(:) = acctmag * rio(:)
 
 	!Adjust molecular acceleration accordingly

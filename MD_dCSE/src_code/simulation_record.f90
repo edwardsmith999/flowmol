@@ -938,7 +938,7 @@ subroutine velocity_averaging(ixyz)
 	integer				:: ixyz, n
 	integer,dimension(3):: ib
 	integer, save		:: average_count=-1
-	double precision,dimension(3) 	:: Vbinsize 
+	double precision,dimension(3) 	:: Vbinsize, temp
 
 	average_count = average_count + 1
 	call cumulative_velocity(ixyz)
@@ -951,7 +951,13 @@ subroutine velocity_averaging(ixyz)
 			Vbinsize(:) = domain(:) / nbins(:)
 			do n=1,np
 				ib(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
+				!temp = volume_momentum(ib(1),ib(2),ib(3),:) / volume_mass(ib(1),ib(2),ib(3))
 				U(:,n) =  volume_momentum(ib(1),ib(2),ib(3),:) / volume_mass(ib(1),ib(2),ib(3))
+				!Fix value based on Poiseuille profile
+				!U(:,n) = 0.d0
+				!U(1,n) = 2.10*(1-(r(2,n)/(0.5*globaldomain(2))) ** 2)
+
+				!U(:,n) =  volume_momentum(ib(1),ib(2),ib(3),:) / volume_mass(ib(1),ib(2),ib(3))
 			enddo
 		endif
 
@@ -1191,6 +1197,8 @@ subroutine cumulative_temperature(ixyz)
 				volume_temperature(ibin(1),ibin(2),ibin(3)) = volume_temperature(ibin(1),ibin(2),ibin(3)) & 
 										+ dot_product((v(:,n)-U(:,n)+slidev(:,n)), & 
 													  (v(:,n)-U(:,n)+slidev(:,n)))
+				!write(958,'(2i8,5f10.5)'),iter,n,r(2,n),U(1,n),v(1,n),dot_product(v(:,n),v(:,n)),dot_product((v(:,n)-U(:,n)+slidev(:,n)), & 
+				!									  (v(:,n)-U(:,n)+slidev(:,n)))
 			endif
 
 		enddo

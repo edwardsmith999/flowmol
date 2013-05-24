@@ -29,7 +29,15 @@ read_header;
 if (exist('read_time','var') == 0)
     Nmass_records = floor((Nsteps-initialstep) / (tplot * Nmass_ave));
     mbins = fread(fid,'int32');
+    %Check that data is expected size 
+    if (size(mbins,1)/prod(gnbins) ~= Nmass_records)
+        disp(['Expected Records = ', num2str(Nmass_records), ...
+              '. Actual Records = ', num2str(size(mbins,1)/prod(gnbins)), ...
+              '. Using Actual Records for Mass bins'])
+        Nmass_records = size(mbins,1)/prod(gnbins);
+    end
     mass_bins = reshape(mbins,gnbins(1),gnbins(2),gnbins(3),Nmass_records);
+
 else
     datasize = gnbins(1)*gnbins(2)*gnbins(3);
     bytes = 4;

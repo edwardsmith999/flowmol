@@ -29,6 +29,13 @@ function[vel_bins]=read_vbins(filename,resultfile_dir,read_time)
     if (exist('read_time') == 0)
         Nvel_records = floor((Nsteps-initialstep) / (tplot * Nvel_ave));
         velbins = fread(fid,'double');
+        % Check that data is expected size 
+        if (size(velbins,1)/(nd*prod(gnbins)) ~= Nvel_records)
+            disp(['Expected Records = ', num2str(Nvel_records), ...
+              '. Actual Records = ', num2str(size(velbins,1)/(nd*prod(gnbins))), ...
+              '. Using Actual Records for Velocity bins'])
+            Nvel_records = size(velbins,1)/(nd*prod(gnbins));
+        end
         vel_bins = reshape(velbins,gnbins(1),gnbins(2),gnbins(3),nd,Nvel_records);
     else
         datasize = gnbins(1)*gnbins(2)*gnbins(3)*nd;

@@ -398,6 +398,22 @@ subroutine setup_read_input
 	else
 		tether_flag = 0
 	end if
+
+	call locate(1,'TETHERCOEFFICIENTS',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) teth_k2
+		read(1,*) teth_k4
+		read(1,*) teth_k6
+	else
+		!Define default strength of tethering potential
+		! phi = - k2*rio^2 - k4*rio^4 - k6*rio^6
+		!Default Force constants (k2 = 0, k4 = 5,000, k6 = 5,000,000)  
+		!from Petravich and Harrowell (2006) J. Chem. Phys.124, 014103.
+		teth_k2=0.d0
+		teth_k4=5000.d0
+		teth_k6=5000000.d0
+	endif
+
 	call locate(1,'WALL_TEXTURE',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) texture_type

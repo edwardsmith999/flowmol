@@ -136,6 +136,7 @@ subroutine setup_initial_record
 			print'(a,3f10.5)', ' Distance from top of Fixed Molecules in x,y and z:', 	fixdisttop
 			print'(a,3f10.5)', ' Distance from bottom of Tethered Molecules in x,y and z:', tethereddistbottom
 			print'(a,3f10.5)', ' Distance from top of Tethered Molecules in x,y and z:', 	tethereddisttop
+			print'(3(a,f10.5),a)', ' Tethered potential phi = ',teth_k2 ,'x^2 +',teth_k4 ,'x^4 +',teth_k6, 'x^6' 
 			print'(a,3f10.5)', ' Distance from bottom of Sliding Molecules in x,y and z:', 	slidedistbottom
 			print'(a,3f10.5)', ' Distance from top of Sliding Molecules in x,y and z:', 	slidedisttop
 			print'(a,3f10.5)', ' Velocity of Sliding Molecules in x,y and z:', 	wallslidev
@@ -644,6 +645,20 @@ subroutine simulation_header
 	write(fileunit,*) 'Dist frm top NH Thermstat Mol in x; thermstattop(1);', thermstattop(1)
 	write(fileunit,*) 'Dist frm top NH Thermstat Mol in y; thermstattop(2);', thermstattop(2)
 	write(fileunit,*) 'Dist frm top NH Thermstat Mol in z; thermstattop(3);', thermstattop(3)
+	write(fileunit,*) 'External force flag; external_force_flag;', external_force_flag
+	write(fileunit,*) 'External force; F_ext;', F_ext
+	write(fileunit,*) 'External force direction; F_ext_ixyz;',F_ext_ixyz
+	if (external_force_flag .eq. 2) then
+		write(fileunit,*) 'External force limits xmin; F_ext_limits(1);', F_ext_limits(1)
+		write(fileunit,*) 'External force limits xmax; F_ext_limits(2);', F_ext_limits(2)
+		write(fileunit,*) 'External force limits ymin; F_ext_limits(3);', F_ext_limits(3)
+		write(fileunit,*) 'External force limits ymax; F_ext_limits(4);', F_ext_limits(4)
+		write(fileunit,*) 'External force limits zmin; F_ext_limits(5);', F_ext_limits(5)
+		write(fileunit,*) 'External force limits zmax; F_ext_limits(6);', F_ext_limits(6)
+	endif
+	write(fileunit,*) 'Thethered potential 2 coefficient; teth_k2;',teth_k2
+	write(fileunit,*) 'Thethered potential 4 coefficient; teth_k4;',teth_k4
+	write(fileunit,*) 'Thethered potential 6 coefficient; teth_k6;',teth_k6
 	write(fileunit,*) 'Computational cells in x ;  globalncells(1) ;',  ncells(1)*npx
 	write(fileunit,*) 'Computational cells in y ;  globalncells(2)  ;', ncells(2)*npy 
 	write(fileunit,*) 'Computational cells in z ;  globalncells(3)  ;', ncells(3)*npz 

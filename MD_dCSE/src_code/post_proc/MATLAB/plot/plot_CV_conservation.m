@@ -11,15 +11,17 @@ external_force_flag = 1;
 
 %pwdir = '/home/es205/codes/coupled/MD_dCSE/src_code/post_proc/MATLAB';
 %resultfile_dir = './../../results/';
-pwdir='/home/es205/results/md_results/fortran/3D_code/parallel/results/converge_diverge';
-resultfile_dir = '/home/es205/results/md_results/fortran/3D_code/parallel/results/converge_diverge/';
-%pwdir='/home/es205/codes/coupled/MD_dCSE/src_code/';
+%resultfile_dir = '/home/es205/results/md_results/fortran/3D_code/parallel/results/converge_diverge/';
+%pwdir=resultfile_dir;
+resultfile_dir='/home/es205/results/MD_continuum_results/results/coupled_couette/NCER_wall_bump/md_data/results';
+pwdir = resultfile_dir;
 %resultfile_dir = '/home/es205/codes/coupled/MD_dCSE/src_code/results/';
+%pwdir='/home/es205/codes/coupled/MD_dCSE/src_code/';
 %Read Header
 read_header
 
 %ibin = floor(gnbins(1)/2.0); jbin = floor(gnbins(2)/2.0); kbin=floor(gnbins(3)/2.0);
-ibin = floor(gnbins(2)/2.0); jbin = 2 ; kbin=floor(gnbins(3)/2.0);
+ibin = floor(gnbins(2)/2.0); jbin = 10 ; kbin=floor(gnbins(3)/2.0);
 
 %Check if cv conservation is employed - exit if not
 if (exist('cv_conserve'))
