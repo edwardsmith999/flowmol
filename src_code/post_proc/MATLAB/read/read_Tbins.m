@@ -29,6 +29,13 @@ function[Temp_bins]=read_Tbins(filename,resultfile_dir,read_time)
     if (exist('read_time','var') == 0)
         NTemp_records = floor((Nsteps-initialstep) / (tplot * NTemp_ave));
         Tempbins = fread(fid,'double');
+        % Check that data is expected size 
+        if (size(Tempbins,1)/prod(gnbins) ~= NTemp_records)
+            disp(['Expected Records = ', num2str(NTemp_records), ...
+              '. Actual Records = ', num2str(size(Tempbins,1)/prod(gnbins)), ...
+              '. Using Actual Records for Temperature bins'])
+            NTemp_records = size(Tempbins,1)/(prod(gnbins));
+        end
         Temp_bins = reshape(Tempbins,gnbins(1),gnbins(2),gnbins(3),NTemp_records);
     else
         datasize = gnbins(1)*gnbins(2)*gnbins(3);

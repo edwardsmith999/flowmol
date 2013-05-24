@@ -298,16 +298,27 @@ contains
 			call globalSumInt(thermostatnp)
 			call globalSum(v2sum)	
 
+			!Nose Hoover thermostat coefficients
 			Q        = thermostatnp * delta_t
 			dzeta_dt = (v2sum - (nd*thermostatnp + 1)*inputtemperature) / Q
 			zeta 	 = zeta + delta_t*dzeta_dt
-
 			bscale	 = 1.0/(1.0+0.5*delta_t*zeta)
 			ascale	 = (1-0.5*delta_t*zeta)*bscale
 
 			!if (iter .eq. 1) write(9999,'(4a)'), 'iter; dzeta_dt; zeta; inputtemperature; temperature; themostatnp'
 			!write(9999,'(i10,a,f14.6,a,3(f10.5,a),i10)'),iter,';', dzeta_dt,';', zeta,';', & 
 			!		 inputtemperature,';', v2sum/(nd*thermostatnp + 1), ';',thermostatnp
+
+			!Velocity rescaling (Gaussian?) thermostat
+			!bscale = sqrt(inputtemperature/(v2sum/(nd*thermostatnp + 1)))
+			!ascale = 2.d0*bscale - 1.d0
+
+
+			!if (iter .eq. 1) write(9999,'(4a)'), 'iter; bscale; ascale; inputtemperature; temperature; themostatnp'
+			!write(9999,'(i10,a,f14.6,a,3(f10.5,a),i10)'),iter,';', bscale,';', ascale,';', & 
+			!		 inputtemperature,';', v2sum/(nd*thermostatnp + 1), ';',thermostatnp
+	
+
 
 		else
 

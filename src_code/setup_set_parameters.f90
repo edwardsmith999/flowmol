@@ -665,7 +665,7 @@ subroutine set_parameters_outputs
 	gnbins(3) = npz*ncells(3) !Total number of domain bins
 
 	nbins(1) = nint(gnbins(1)/dble(npx))	!Share global evenly between processes
-	nbins(2) = nint(gnbins(2)/dble(npy))	!Share global evenly between processes
+	nbins(2) = 6*nint(gnbins(2)/dble(npy))	!Share global evenly between processes
 	nbins(3) = nint(gnbins(3)/dble(npz))	!Share global evenly between processes
 
 	!Obtain global number of bins after rounding to given same number per process
@@ -809,7 +809,7 @@ subroutine set_parameters_outputs
 	Pxyzero = 0.d0
 	if (pressure_outflag .eq. 2) then
 		!Allocate pressure bin for Stress volume averaging
-		allocate( rfbin( nbinso(1), nbinso(2),nbinso(3),3,3))
+		allocate( rfbin( nbinso(1), nbinso(2), nbinso(3),3,3  ))
 		allocate( vvbin( nbins (1),  nbins(2),  nbins(3),3,3  ))
 		allocate( Pxybin(nbins (1),  nbins(2),  nbins(3),3,3  ))
 		rfbin  = 0.d0

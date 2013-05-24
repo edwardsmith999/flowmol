@@ -138,6 +138,9 @@ module computational_constants_MD
 		bforce_Flekkoy = 3,     &
 		bforce_rdf = 4
 
+	!Tethered molecules spring potential coefficients
+	double precision    :: teth_k2,teth_k4,teth_k6
+
 	!Parameters
 	integer	:: & 
 		nproc, npx, npy, npz, 	&	!Number of MPI ranks and cartesian topology sizes

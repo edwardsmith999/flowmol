@@ -32,7 +32,7 @@ for n = 1:nmodes
 
 end
 
-% Shear stress is strain times viscosity
+% Shear stress is strain times viscosity (NOTE THIS ASSUMES UNIT DENSITY)
 tau = k * tau ;
 
 %calculate wall shear

@@ -1334,32 +1334,6 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 	call MPI_Pack(dppack,1,MPI_DOUBLE_PRECISION,sendbuffer,&
 	              buffsize,pos,icomm_grid,ierr)
 
-
-	!SPECULAR WALLS -- Only implemented in the y direction
-	!if (specular_walls(2) .eq. .true.) then
-!	if (.false.) then
-!		if (idest .eq. MPI_PROC_NULL .and. sendnp .ne. 0) then
-
-!			old => pass%head 
-!			current => old     !make current point to head of list
-!			do i=1,sendnp
-				!Reverse velocity in y direction and move molecule again
-!				n = old%molno
-				!print'(a,3i8,3f10.5)', 'mol b4   ',irank,idest+1, n, r(2,n),v(2,n),halfdomain(2)
-!				v(2,n) = -v(2,n)
-!				r(2,n) = dir*halfdomain(2)*0.999d0 ! Move molecule back inside domain 
-!				r(2,n) = r(2,n) + dir * domain(2) !Counter shift later in recv buffer
-!				print'(a,3i8,4f10.5)', 'mol after',irank,idest+1, n, r(2,n),v(2,n),halfdomain(2),r(ixyz,n)-dir*domain(ixyz) 
-!				if (r(ixyz,n) - dir * domain(ixyz) .gt. halfdomain(ixyz)) stop
-!				old => current%next	!make old point to next node of current
-!				current => old		!Set current item to old ready for next loop
-!			enddo
-			!Sent to itself - no passing required & prevent molecules escaping
-!			idest = irank-1
-!			print'(2(a,i8),a)', 'Applying specular walls in direction',ixyz, ' to ',sendnp, ' molecules'
-!		endif
-	!endif
-
 	!Pack rest of data -----------------------------------------!
 	old => pass%head 
 	current => old     !make current point to head of list

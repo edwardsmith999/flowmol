@@ -36,23 +36,19 @@ subroutine simulation_apply_global_force(ixyz,F_const)
 	integer,intent(in)     			:: ixyz
 	double precision,intent(in)		:: F_const
 
-	integer					:: n
-	double precision,dimension(3)		:: F_vector
+	do n=1,np
 
-	!Put directional results into a vector 
-	F_vector = 0.d0
-	F_vector(ixyz) = F_const
+		if (any(tag(n) .eq. tether_tags)) cycle
+		a(ixyz,n) = a(ixyz,n) + F_const
 
-	a(ixyz,:) = a(ixyz,:) + F_vector(ixyz)
-
-	if (vflux_outflag .eq. 4) then
-		if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
-			!Add constant force to cells based on number of molecules in each
-			do n=1,np
-				call record_external_forces(F_const,r(:,n))
-			enddo
+		if (vflux_outflag .eq. 4) then
+			if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
+				!Add constant force to cells based on number of molecules in each
+					call record_external_forces(F_const,r(:,n))
+			endif
 		endif
-	endif
+
+	enddo
 
 end subroutine simulation_apply_global_force
 
@@ -90,6 +86,7 @@ subroutine simulation_apply_local_force(ixyz,F_const,xmin,xmax,ymin,ymax,zmin,zm
 		if (r(2,n) .gt. lmax(2)) cycle
 		if (r(3,n) .lt. lmin(3)) cycle
 		if (r(3,n) .gt. lmax(3)) cycle
+		if (any(tag(n) .eq. tether_tags)) cycle
 
 		!print'(3i4,6f10.5)',iblock,jblock,kblock, xmin,lmin(1),r(1,n),lmax(1),xmax, F_const
 
