@@ -21,10 +21,30 @@
 #------------------------------------------------------------------------
 
 #########################################################################
+# Total number of timesteps:
+# -----------------------------------------------------------------------
+NSTEPS
+1000
+
+#########################################################################
+# Results are recorded periodically every TPLOT timesteps:
+#	(subroutine simulation_record is called)
+# -----------------------------------------------------------------------
+TPLOT
+100
+
+#########################################################################
 # Number density of the particles in the system:
 # -----------------------------------------------------------------------
 DENSITY
 0.8
+
+#########################################################################
+# Define initial temperature of the system:
+#	- determines magnitude of initial random velocities
+# -----------------------------------------------------------------------
+INPUTTEMPERATURE
+1.0
 
 #########################################################################
 # Cut-off distance for particle interaction:
@@ -34,11 +54,78 @@ RCUTOFF
 1.12246204830937
 
 #########################################################################
-# Define initial temperature of the system:
-#	- determines magnitude of initial random velocities
+# Timestep interval:
 # -----------------------------------------------------------------------
-INPUTTEMPERATURE
-1.0
+DELTA_T
+0.005
+
+#########################################################################
+# Integration algorithm
+# 0: Leap-frog Verlet
+# 1: Velocity Verlet
+# 2: Other
+# -----------------------------------------------------------------------
+INTEGRATION_ALGORITHM
+0
+
+#########################################################################
+# Force list used
+# 0: All Pairs
+# 1: Cell List
+# 2: Neighbour list with all interactions
+# 3: Neighbour list using 3rd law optimisation (half interactions)
+# -----------------------------------------------------------------------
+FORCE_LIST
+3
+
+#########################################################################
+# Extra distance added to r_cutoff to determine neighbour cell size
+# -----------------------------------------------------------------------
+DELTA_RNEIGHBR
+0.3
+
+#########################################################################
+# Periodic boundary flags, formatted:
+#	x
+#	y
+#	z
+#
+#	Constraint must be put in place before periodic BC are turned off!
+#	
+#	0 - off
+#	1 - periodic
+#	2 - Lees-Edwards shearing BC
+#
+#	Note: currently, only the boundary in the y direction may be sheared.
+# -----------------------------------------------------------------------
+PERIODIC
+1
+1
+1
+
+#########################################################################
+# MPI topology
+#   npx 
+#   npy
+#   npz
+#
+# if npz = 0 it will be set to nproc/(npx*npy)
+#
+# constrain: npx*npy*npz = nproc 
+# nproc is set by the argument of mpirun
+#-----------------------------------------------------------------------
+PROCESSORS
+1 
+1
+1
+
+#########################################################################
+# Potential flag:
+#	0 - Lennard-Jones
+#	1 - FENE spring polymer potentials
+# -----------------------------------------------------------------------
+POTENTIAL_FLAG
+0
 
 #########################################################################
 # Initial configuration
@@ -78,6 +165,300 @@ INPUTTEMPERATURE
 INITIAL_CONFIG_FLAG
 0
 special_case_name
+
+#########################################################################
+# Number of unit cells in the x,y,z directions, formatted:
+#	x
+#	y
+#	z	
+# -----------------------------------------------------------------------
+INITIALNUNITS
+8
+8
+8
+
+#########################################################################
+# Ensemble selector
+# 0 - NVE
+# 1 - NVT (Nosé-Hoover thermostat)
+# 2 - NVT (Gaussian iso-kinetic thermostat) - only availble with VV
+# 3 - NVT (Profile unbiased Nosé-Hoover thermostat)
+# 4 - NVT (Pairwise additive Nosé-Hoover thermostat by Allen & Schmid)
+# 5 - NVT (DPD thermostat by Soddemann)
+# 6 - Tagged Move System
+# -----------------------------------------------------------------------
+ENSEMBLE
+0
+
+########################################################################
+# Velocity of sliding molecules in wall
+# ----------------------------------------------------------------------
+WALLSLIDEV
+0.0
+0.0
+0.0
+
+########################################################################
+# Distance from domain bottom to apply sliding velocity to molecules 
+# where applied velocity v=WALLSLIDEV
+# ----------------------------------------------------------------------
+SLIDEDISTBOTTOM
+0.0
+0.0
+0.0
+
+########################################################################
+# Distance from domain top to apply sliding velocity to molecules 
+# where applied velocity v=WALLSLIDEV
+# ----------------------------------------------------------------------
+SLIDEDISTTOP
+0.0
+0.0
+0.0
+
+########################################################################
+# Distance from domain bottom to Fix molecules, i.e. v=0 unless sliding
+# ----------------------------------------------------------------------
+FIXDISTBOTTOM
+0.0
+0.0
+0.0
+
+########################################################################
+# Distance from domain top to Fix molecules, i.e. v=0 unless sliding
+# ----------------------------------------------------------------------
+FIXDISTTOP
+0.0
+0.0
+0.0
+
+#######################################################################
+# Specifiy cooefficients of potential equation 
+# phi= - k2*rio^2 - k4*rio^4 - k6*rio^6 in format
+#   - k2
+#   - k4
+#   - k6
+#
+# Possible known combinations include:
+#
+# 	a)	Default from Petravich and Harrowell (2006) J. Chem. Phys.124, 014103. 
+# 		with constants  ( k2 = 0, k4 = 5,000, k6 = 5,000,000)
+# 	b)	B. D. Todd, Peter J. Daivis, and Denis J. Evans (1995) 
+#		Phys. Rev. E. 52, 5 with constants  (k2 = 28.575, k4 = 0, k6 = 0)
+#   c)  S. Y. Liem, D. Brown, and J. H. R. Clarke (1992) 
+#		Phys. Rev. A. 45, 6 with constants  (k2 = 36.0,   k4 = 0, k6 = 0)
+# ---------------------------------------------------------------------
+TETHERCOEFFICIENTS
+0.0
+5000.0
+5000000.0
+
+########################################################################
+# Distance from domain bottom to tethered molecules using spring like
+# restoring forces
+# ----------------------------------------------------------------------
+TETHEREDDISTBOTTOM
+0.0
+0.0
+0.0
+
+########################################################################
+# Distance from domain top to tethered molecules using spring like
+# restoring forces
+# ----------------------------------------------------------------------
+TETHEREDDISTTOP
+0.0
+0.0
+0.0
+
+#########################################################################
+# Thermostat flag:
+# 0 - off, 1 - all, 2 - all (PUT), 3 - selection (must also specify 
+#													THERMSTATTOP and/or
+#												 	 THERMSTATBOTTOM)
+# -----------------------------------------------------------------------
+THERMSTAT_FLAG
+0
+
+########################################################################
+# Distance from domain bottom to apply thermostat 
+# ----------------------------------------------------------------------
+THERMSTATBOTTOM
+0.0
+0.0
+0.0
+
+########################################################################
+# Distance from domain top to apply thermostat 
+# ----------------------------------------------------------------------
+THERMSTATTOP
+0.0
+0.0
+0.0
+
+#########################################################################
+# Boundary force flag and distances, formatted:
+#   bforce_flag(1) (x direction, bottom)           (integer)
+#   bforce_flag(2) (x direction, top)              (integer)
+#   bforce_flag(3) (y direction, bottom)           (integer)
+#   bforce_flag(4) (y direction, top)              (integer)
+#   bforce_flag(5) (z direction, bottom)           (integer)
+#   bforce_flag(6) (z direction, top)              (integer)
+#   bforce_dxyz(1) (x distance, bottom)            (real)
+#   bforce_dxyz(2) (x distance, top)               (real)
+#   bforce_dxyz(3) (y distance, bottom)            (real)
+#   bforce_dxyz(4) (y distance, top)               (real)
+#   bforce_dxyz(5) (z distance, bottom)            (real)
+#   bforce_dxyz(6) (z distance, top)               (real)
+#
+# If periodic boundaries in x, y or z directions are turned off, the
+# option to apply a boundary force to keep molecules within the domain
+# is provided via the bforce flag. Choose from the following in each
+# direction:
+#
+#    0 = off 
+#    1 = O'Connell & Thompson     1995  (Phys. Rev. E 52, 5792)
+#    2 = Nie, Chen, E & Robbins   2003  (JFM 500 pp. 55-64)
+#    3 = Flekkøy, Wagner & Feder  2000  (Europhys. Lett. 52 3, p271)
+#
+# bforce_dxyz defines the distance from each edge of the domain beyond 
+# which any particle will no longer feel the effect of the boundary 
+# force. Low values correspond to hard walls, while larger values will
+# make the boundaries softer.
+# -----------------------------------------------------------------------
+BFORCE
+0
+0
+0
+0
+0
+0
+0.0
+0.0
+0.0
+0.0
+0.0
+0.0
+
+
+#########################################################################
+# Apply external force to region of space
+# 0 - off
+# 1 - apply to all molecules, requires
+# 		- F_ext direction x=1,y=2,z=3
+#		- F_ext magnitude
+# 2 - apply only to specified region
+# 		- F_ext direction x=1,y=2,z=3
+#		- F_ext magnitude
+#		- xmin - minimum x coordinate in global system 
+#		- xmax - maximum x coordinate in global system 
+#		- ymin - minimum y coordinate in global system 
+#		- ymax - maximum y coordinate in global system 
+#		- zmin - minimum z coordinate in global system 
+#		- zmax - maximum z coordinate in global system 
+#		NOTE : min/max of globaldomain and specified extent is used
+# 			   so simply specifiy large numbers if you want
+#			   region to extend to edge of globaldomain
+# -----------------------------------------------------------------------
+EXTERNAL_FORCE
+0
+1
+0.01
+-100000000000
+-2.839
+-100000000000
+100000000000
+-100000000000
+100000000000
+
+
+#########################################################################
+# Shear definition, formatted:
+#	shear direction (i.e. 1 for x direction, -2 for negative y direction)
+#	shear iter0
+#	velocity or rate flag: 0-velocity, 1-rate
+#	velocity or rate numerical value
+# -----------------------------------------------------------------------
+DEFINE_SHEAR
+1
+0
+0
+1.0
+
+#########################################################################
+# Parameters of the FENE potential, formatted:
+#	number of LJ beads for each polymer chain
+#	spring constant, k_c
+#	maximum spring elongation
+# -----------------------------------------------------------------------
+FENE_INFO
+8
+30.0
+1.5
+
+#########################################################################
+# Solvent information:
+#	- flag
+#		> 0 - Polymer only
+#		> 1 - Polymer in theta solvent
+#		> 2 - Solvent of variable quality (Soddemann)
+#	- solvent ratio (integer): number of solvent molecules per FENE
+#                              monomer.
+#	- solvent energy parameter eps_pp (polymer-polymer)
+#	- solvent energy parameter eps_ps (polymer-solvent)
+#	- solvent energy parameter eps_ss (solvent-solvent)
+# -----------------------------------------------------------------------
+SOLVENT_INFO
+0
+0
+0.0
+0.0
+0.0
+
+#########################################################################
+# Frequency (in seconds) to write rescue snapshot 'final_state' file
+# -----------------------------------------------------------------------
+RESCUE_SNAPSHOT_FREQ
+21600
+
+#########################################################################
+# Fixed rebuild flag
+# 0: off - use delta_rneighbr to calculate rebuild
+# 1: on using frequency specifed on next line
+# 2: mixed - don't rebuild before frequency specifed on next line then
+#			 use delta_rneighbr to calculate rebuild (NOT AVAILABLE YET!!)
+# -----------------------------------------------------------------------
+FIXED_REBUILD_FLAG
+0
+20
+
+#########################################################################
+# Sorting parameters - sorts molecules every rebuild*sort_freq
+# Sort_Flag:  		0 - No sorting
+# 		 	  		1 - Sequential cell-block based Sorting
+# 		 	  		2 - 3D Hilbert Curve cell-block based sorting
+# sort_freq:		1 sorts every rebuild 
+# cell-block size:	1 is sort cell by cell, 3 uses the 27 block used in
+#					force calculation and seems to give good performance
+# Notes: large systems and long times will generally benifit most from
+# sorting algorithm - use script based tuning for your case
+# -----------------------------------------------------------------------
+SORT_FLAG
+0
+1
+3
+
+#########################################################################
+# Random number seeds, formattted:
+#	seed1
+#	seed2
+#	
+# If seed1 and seed2 are the same, the seed generation will be
+# automatically randomised by the main program.
+# -----------------------------------------------------------------------
+SEED
+1
+2
 
 #########################################################################
 # Sparse FENE special case info: designed for cases where the density
@@ -158,340 +539,6 @@ special_case_name
 #40
 #40
 
-#########################################################################
-# Number of unit cells in the x,y,z directions, formatted:
-#	x
-#	y
-#	z	
-# -----------------------------------------------------------------------
-INITIALNUNITS
-8
-8
-8
-
-#########################################################################
-# Total number of timesteps:
-# -----------------------------------------------------------------------
-NSTEPS
-1000
-
-
-#########################################################################
-# Results are recorded periodically every TPLOT timesteps:
-#	(subroutine simulation_record is called)
-# -----------------------------------------------------------------------
-TPLOT
-100
-
-#########################################################################
-# Timestep interval:
-# -----------------------------------------------------------------------
-DELTA_T
-0.005
-
-#########################################################################
-# Integration algorithm
-# 0: Leap-frog Verlet
-# 1: Velocity Verlet
-# 2: Other
-# -----------------------------------------------------------------------
-INTEGRATION_ALGORITHM
-0
-
-#########################################################################
-# Force list used
-# 0: All Pairs
-# 1: Cell List
-# 2: Neighbour list with all interactions
-# 3: Neighbour list using 3rd law optimisation (half interactions)
-# -----------------------------------------------------------------------
-FORCE_LIST
-3
-
-#########################################################################
-# Extra distance added to r_cutoff to determine neighbour cell size
-# -----------------------------------------------------------------------
-DELTA_RNEIGHBR
-0.3
-
-
-#########################################################################
-# Frequency (in seconds) to write rescue snapshot 'final_state' file
-# -----------------------------------------------------------------------
-RESCUE_SNAPSHOT_FREQ
-21600
-
-#########################################################################
-# Fixed rebuild flag
-# 0: off - use delta_rneighbr to calculate rebuild
-# 1: on using frequency specifed on next line
-# -----------------------------------------------------------------------
-FIXED_REBUILD_FLAG
-0
-20
-
-#########################################################################
-# Sorting parameters - sorts molecules every rebuild*sort_freq
-# Sort_Flag:  		0 - No sorting
-# 		 	  		1 - Sequential cell-block based Sorting
-# 		 	  		2 - 3D Hilbert Curve cell-block based sorting
-# sort_freq:		1 sorts every rebuild 
-# cell-block size:	1 is sort cell by cell, 3 uses the 27 block used in
-#					force calculation and seems to give good performance
-# Notes: large systems and long times will generally benifit most from
-# sorting algorithm - use script based tuning for your case
-# -----------------------------------------------------------------------
-SORT_FLAG
-0
-1
-3
-
-
-#########################################################################
-# Ensemble selector: case sensitive! (currently only developed for VV)
-# 0 - NVE
-# 1 - NVT (Nosé-Hoover thermostat)
-# 2 - NVT (Gaussian iso-kinetic thermostat) - only availble with VV
-# 3 - NVT (Profile unbiased Nosé-Hoover thermostat)
-# 4 - NVT (Pairwise additive Nosé-Hoover thermostat 
-#                   by Allen & Schmid)
-# 5 - NVT (DPD thermostat by Soddemann)
-# 6 - Tagged Move System
-# -----------------------------------------------------------------------
-ENSEMBLE
-0
-
-#########################################################################
-# Periodic boundary flags, formatted:
-#	x
-#	y
-#	z
-#
-#	Constraint must be put in place before periodic BC are turned off!
-#	
-#	0 - off
-#	1 - periodic
-#	2 - Lees-Edwards shearing BC
-#
-#	Note: currently, only the boundary in the y direction may be sheared.
-# -----------------------------------------------------------------------
-PERIODIC
-1
-1
-1
-
-#########################################################################
-# Boundary force flag and distances, formatted:
-#   bforce_flag(1) (x direction, bottom)           (integer)
-#   bforce_flag(2) (x direction, top)              (integer)
-#   bforce_flag(3) (y direction, bottom)           (integer)
-#   bforce_flag(4) (y direction, top)              (integer)
-#   bforce_flag(5) (z direction, bottom)           (integer)
-#   bforce_flag(6) (z direction, top)              (integer)
-#   bforce_dxyz(1) (x distance, bottom)            (real)
-#   bforce_dxyz(2) (x distance, top)               (real)
-#   bforce_dxyz(3) (y distance, bottom)            (real)
-#   bforce_dxyz(4) (y distance, top)               (real)
-#   bforce_dxyz(5) (z distance, bottom)            (real)
-#   bforce_dxyz(6) (z distance, top)               (real)
-#
-# If periodic boundaries in x, y or z directions are turned off, the
-# option to apply a boundary force to keep molecules within the domain
-# is provided via the bforce flag. Choose from the following in each
-# direction:
-#
-#    0 = off 
-#    1 = O'Connell & Thompson     1995  (Phys. Rev. E 52, 5792)
-#    2 = Nie, Chen, E & Robbins   2003  (JFM 500 pp. 55-64)
-#    3 = Flekkøy, Wagner & Feder  2000  (Europhys. Lett. 52 3, p271)
-#
-# bforce_dxyz defines the distance from each edge of the domain beyond 
-# which any particle will no longer feel the effect of the boundary 
-# force. Low values correspond to hard walls, while larger values will
-# make the boundaries softer.
-# -----------------------------------------------------------------------
-BFORCE
-0
-0
-0
-0
-0
-0
-0.0
-0.0
-0.0
-0.0
-0.0
-0.0
-
-#########################################################################
-# Shear definition, formatted:
-#	shear direction (i.e. 1 for x direction, -2 for negative y direction)
-#	shear iter0
-#	velocity or rate flag: 0-velocity, 1-rate
-#	velocity or rate numerical value
-# -----------------------------------------------------------------------
-DEFINE_SHEAR
-1
-0
-0
-1.0
-
-#########################################################################
-# Potential flag:
-#	0 - Lennard-Jones
-#	1 - FENE spring polymer potentials
-# -----------------------------------------------------------------------
-POTENTIAL_FLAG
-0
-
-#########################################################################
-# Parameters of the FENE potential, formatted:
-#	number of LJ beads for each polymer chain
-#	spring constant, k_c
-#	maximum spring elongation
-# -----------------------------------------------------------------------
-FENE_INFO
-8
-30.0
-1.5
-
-#########################################################################
-# Solvent information:
-#	- flag
-#		> 0 - Polymer only
-#		> 1 - Polymer in theta solvent
-#		> 2 - Solvent of variable quality (Soddemann)
-#	- solvent ratio (integer): number of solvent molecules per FENE
-#                              monomer.
-#	- solvent energy parameter eps_pp (polymer-polymer)
-#	- solvent energy parameter eps_ps (polymer-solvent)
-#	- solvent energy parameter eps_ss (solvent-solvent)
-# -----------------------------------------------------------------------
-SOLVENT_INFO
-0
-0
-0.0
-0.0
-0.0
-
-#########################################################################
-# Random number seeds, formattted:
-#	seed1
-#	seed2
-#	
-# If seed1 and seed2 are the same, the seed generation will be
-# automatically randomised by the main program.
-# -----------------------------------------------------------------------
-SEED
-1
-2
-
-########################################################################
-# Velocity of sliding molecules in wall
-# ----------------------------------------------------------------------
-WALLSLIDEV
-0.0
-0.0
-0.0
-
-########################################################################
-# Distance from domain bottom to apply sliding velocity to molecules 
-# where applied velocity v=WALLSLIDEV
-# ----------------------------------------------------------------------
-SLIDEDISTBOTTOM
-0.0
-0.0
-0.0
-
-########################################################################
-# Distance from domain top to apply sliding velocity to molecules 
-# where applied velocity v=WALLSLIDEV
-# ----------------------------------------------------------------------
-SLIDEDISTTOP
-0.0
-0.0
-0.0
-
-########################################################################
-# Distance from domain bottom to Fix molecules, i.e. v=0 unless sliding
-# ----------------------------------------------------------------------
-FIXDISTBOTTOM
-0.0
-0.0
-0.0
-
-########################################################################
-# Distance from domain top to Fix molecules, i.e. v=0 unless sliding
-# ----------------------------------------------------------------------
-FIXDISTTOP
-0.0
-0.0
-0.0
-
-########################################################################
-# Distance from domain bottom to tethered molecules using spring like
-# restoring forces with potential equation phi= -k4*rio^4 - k6*rio^6
-# strength of tethering potential from Petravic and Harrowell 
-# with constants (k4 = 5,000, k6 = 5,000,000)
-# ----------------------------------------------------------------------
-TETHEREDDISTBOTTOM
-0.0
-0.0
-0.0
-
-########################################################################
-# Distance from domain top to tethered molecules using spring like
-# restoring forces with potential equation phi= -k4*rio^4 - k6*rio^6
-# strength of tethering potential from Petravic and Harrowell 
-# with constants (k4 = 5,000, k6 = 5,000,000)
-# ----------------------------------------------------------------------
-TETHEREDDISTTOP
-0.0
-0.0
-0.0
-
-#########################################################################
-# Thermostat flag:
-# 0 - off, 1 - all, 2 - all (PUT), 3 - selection (must also specify 
-#													THERMSTATTOP and/or
-#												 	 THERMSTATBOTTOM)
-# -----------------------------------------------------------------------
-THERMSTAT_FLAG
-0
-
-########################################################################
-# Distance from domain bottom to apply thermostat 
-# ----------------------------------------------------------------------
-THERMSTATBOTTOM
-0.0
-0.0
-0.0
-
-########################################################################
-# Distance from domain top to apply thermostat 
-# ----------------------------------------------------------------------
-THERMSTATTOP
-0.0
-0.0
-0.0
-
-#########################################################################
-# MPI topology
-#   npx 
-#   npy
-#   npz
-#
-# if npz = 0 it will be set to nproc/(npx*npy)
-#
-# constrain: npx*npy*npz = nproc 
-# nproc is set by the argument of mpirun
-#-----------------------------------------------------------------------
-PROCESSORS
-1 
-1
-1
-
 #------------------------------------------------------------------------
 #########################################################################
 
@@ -553,6 +600,18 @@ VELOCITY_OUTFLAG
 100
 
 #########################################################################
+# Output flag for Temperature record:
+#	output_flag (0=off 1,2,3=x,y,z slice 4=3D bins)
+#	No. of samples for Temperature average
+#   peculiar momentum used (i.e. remove streaming velocity)
+# -----------------------------------------------------------------------
+TEMPERATURE_OUTFLAG
+4
+100
+1
+
+
+#########################################################################
 # Output flag for Pressure binning:
 #	output_flag (0=off 1=virial 2=Volume Averaged)
 #	No. of samples for pressure average (number of viscosity bins)
@@ -572,6 +631,7 @@ PRESSURE_OUTFLAG
 VISCOSITY_OUTFLAG
 0
 100
+
 
 #########################################################################
 # Control Volume Conservation Averaging
@@ -656,6 +716,15 @@ RDF_OUTFLAG
 0
 3.5
 100
+
+#########################################################################
+# Velocity distribution binning routine
+#	- flag: 
+#		> 0 - off
+#		> 1 - on
+# -----------------------------------------------------------------------
+VDIST
+0
 
 #########################################################################
 # Static structure factor output flag
