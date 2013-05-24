@@ -112,6 +112,22 @@ subroutine setup_read_input
 				call error_abort('Unrecognised solvent flag!')
 			end select
 
+		case('solid_liquid')
+
+			potential_flag = 0
+
+			call locate(1,'DENSITY',.true.)
+			read(1,*) density
+			call locate(1,'LIQUIDDENSITY',.true.)
+			read(1,*) liquid_density
+			call locate(1,'RCUTOFF',.true.)
+			read(1,*) rcutoff
+			call locate(1,'INITIALNUNITS',.true.)
+			read(1,*) initialnunits(1)		!x dimension split into number of cells
+			read(1,*) initialnunits(2)		!y dimension split into number of cells
+			read(1,*) initialnunits(3)		!z dimension split into number of cells
+
+
 		case('concentric_cylinders')
 			
 			potential_flag = 0

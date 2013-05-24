@@ -380,7 +380,41 @@ subroutine set_parameters_global_domain
 			!Initially assume molecules per processor are evenly split 
 			! - corrected after position setup
 			np = globalnp / nproc
-			
+
+		case('solid_liquid')
+
+			volume=1	!Set domain size to unity for loop below
+			do ixyz=1,nd
+				globaldomain(ixyz) = initialnunits(ixyz) & 	!Size domain based on required density
+				/((density/4.d0)**(1.d0/nd))
+				volume = volume*globaldomain(ixyz)		!Volume based on size of domain
+			enddo
+
+			! no need to fix globalnp if we have it already
+			if(.not. restart) then
+				globalnp=1      !Set number of particles to unity for loop below
+				do ixyz=1,nd
+					globalnp = globalnp*initialnunits(ixyz)		!One particle per unit cell
+				enddo
+				globalnp=4*globalnp   !FCC structure in 3D had 4 molecules per unit cell
+			endif
+
+			!Initially assume molecules per processor are evenly split  - corrected after position setup
+			np = globalnp / nproc					
+
+			domain(1) = globaldomain(1) / real(npx, kind(0.d0))			!determine domain size per processor
+			domain(2) = globaldomain(2) / real(npy, kind(0.d0))			!determine domain size per processor
+			domain(3) = globaldomain(3) / real(npz, kind(0.d0))			!determine domain size per processor
+
+			do ixyz=1,nd
+				halfdomain(ixyz) = 0.5d0*domain(ixyz)			!Useful definition
+			enddo
+
+			!Establish initial size of single unit to initialise microstate
+			do ixyz=1,nd
+				initialunitsize(ixyz) = globaldomain(ixyz) / initialnunits(ixyz)
+			enddo
+				
 		case ('concentric_cylinders')
 
 			globaldomain(:) = initialnunits(:)/((cyl_density/4.d0)**(1.d0/nd))

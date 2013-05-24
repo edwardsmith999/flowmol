@@ -20,7 +20,7 @@ class DataLine:
 		color = next(DataLine.colors)
 
 		self.line2D = matplotlib.lines.Line2D([],[],color=color,label=label)
-	
+		
 	def update_linedata(self):
 
 		filedata = np.genfromtxt(self.filename,delimiter=';',names=True)
@@ -52,6 +52,7 @@ class OutputFigure:
 		                                    interval=50
 	   	                                  )
 		self.ax.legend(loc=0)
+
 
 	def update_axis(self,dummy):
 
