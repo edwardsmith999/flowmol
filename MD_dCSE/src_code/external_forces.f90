@@ -32,9 +32,10 @@ subroutine simulation_apply_global_force(ixyz,F_const)
 	use module_external_forces
 	implicit none
 
-	integer				 		 :: n
 	integer,intent(in)     			:: ixyz
 	double precision,intent(in)		:: F_const
+
+	integer				 		 :: n
 
 	do n=1,np
 
