@@ -136,7 +136,7 @@ subroutine setup_initial_record
 			print'(a,3f10.5)', ' Distance from top of Fixed Molecules in x,y and z:', 	fixdisttop
 			print'(a,3f10.5)', ' Distance from bottom of Tethered Molecules in x,y and z:', tethereddistbottom
 			print'(a,3f10.5)', ' Distance from top of Tethered Molecules in x,y and z:', 	tethereddisttop
-			print'(3(a,f10.5),a)', ' Tethered potential phi = ',teth_k2 ,'x^2 +',teth_k4 ,'x^4 +',teth_k6, 'x^6' 
+			print'(3(a,f18.5),a)', ' Tethered potential phi = ',teth_k2 ,'x^2 +',teth_k4 ,'x^4 +',teth_k6, 'x^6' 
 			print'(a,3f10.5)', ' Distance from bottom of Sliding Molecules in x,y and z:', 	slidedistbottom
 			print'(a,3f10.5)', ' Distance from top of Sliding Molecules in x,y and z:', 	slidedisttop
 			print'(a,3f10.5)', ' Velocity of Sliding Molecules in x,y and z:', 	wallslidev
