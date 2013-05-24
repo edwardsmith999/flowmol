@@ -59,7 +59,7 @@ class Field():
 		self.fdir = fdir
 		self.cpol_bins = cpol_bins	
 
-	def get_bins(self,minrec,maxrec,sumaxes=(),meanaxes=()):
+	def get_bins(self,minrec,maxrec,sumaxes=(),meanaxes=(),meantime=True,sumtime=False):
 		
 		"""
 			Read data file using MD_RawData class, average over time record
@@ -86,7 +86,10 @@ class Field():
 
 		# Get bin data from file and get the mean over time records (axis 4)
 		bins = Raw.get_bindata(minrec,nrecs=maxrec-minrec)
-		bins = bins.mean(axis=4) 
+		if (meantime==True):
+			bins = bins.mean(axis=4) 
+		elif (sumtime==True):
+			bins = bins.sum(axis=4) 
 
 		# Sum or mean as appropriate
 		if (sumaxes != ()):
@@ -142,7 +145,7 @@ class VBins():
 		self.mdata = MassBins(fdir,cpol_bins)
 		self.pdata = MomBins(fdir,cpol_bins)
 
-	def get_field(self,minrec,maxrec,sumaxes=()):	
+	def get_field(self,minrec,maxrec,sumaxes=(),sumtime=True):	
 
 		"""
 		    Get the velocity field from file vbins averaged over
@@ -158,8 +161,10 @@ class VBins():
 		print('Getting velocity field from records ' + str(minrec) + ' to ' 
 		      + str(maxrec) + ', averaging over axes ' + str(sumaxes) + '.')
 	
-		msum, binspaces = self.mdata.get_bins(minrec,maxrec,sumaxes=sumaxes)
-		psum, binspaces = self.pdata.get_bins(minrec,maxrec,sumaxes=sumaxes)
+		msum, binspaces = self.mdata.get_bins(minrec,maxrec,sumaxes=sumaxes,
+		                                      meantime=False,sumtime=sumtime)
+		psum, binspaces = self.pdata.get_bins(minrec,maxrec,sumaxes=sumaxes,
+		                                      meantime=False,sumtime=sumtime)
 
 		# Divide and patch any NaNs
 		vfield = np.divide(psum,msum) 
