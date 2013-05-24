@@ -39,6 +39,7 @@ implicit none
 			call setup_location_tags           !Setup locn of fixed mols
 		case('solid_liquid')
 			call setup_initialise_solid_liquid
+			call setup_location_tags               !Setup locn of fixed mols
 		case('rubber_liquid')
 			call setup_initialise_solid_liquid
 			call setup_lattice_dense_FENE_info !Chain IDs, etc
@@ -528,8 +529,8 @@ subroutine setup_initialise_solid_liquid
 
 	integer	:: j, n, nl, nx, ny, nz
 	integer, dimension(nd) :: p_units_lb, p_units_ub 
-	double precision :: domain_top, solid_region, solid_density, liquid_density, density_ratio
-	double precision, dimension (nd):: rc, c !Temporary variable
+	double precision :: domain_top, solid_density, density_ratio
+	double precision, dimension (nd):: solid_bottom,solid_top, rc, c
 
 	p_units_lb(1) = (iblock-1)*floor(initialnunits(1)/real((npx),kind(0.d0)))
 	p_units_ub(1) =  iblock *ceiling(initialnunits(1)/real((npx),kind(0.d0)))
@@ -539,14 +540,11 @@ subroutine setup_initialise_solid_liquid
 	p_units_ub(3) =  kblock *ceiling(initialnunits(3)/real((npz),kind(0.d0)))
 
 	!Set top of domain initially
-	domain_top = domain(2)/2.d0
-
+	domain_top = globaldomain(2)/2.d0
 
 	!Setup solid/liquid properties
-	solid_density = 1.2
-	liquid_density = 0.8
+	solid_density = density
 	density_ratio = liquid_density/solid_density
-	solid_region = domain(1)/2.d0
 
 #if USE_COUPLER
 
@@ -587,7 +585,6 @@ subroutine setup_initialise_solid_liquid
 			n = n + 1	!Move to next particle
 			
 			!Remove molecules from top of domain if constraint applied
-
 			if (jblock .eq. npy) then
 				! Note rc is in global coordinates from 0 to globaldomain while Domaintop
 				! is given in global coordinates from -halfglobaldomain to halfglobaldomain
@@ -602,12 +599,16 @@ subroutine setup_initialise_solid_liquid
 			if(rc(3).lt. domain(3)*(kblock-1)) cycle
 			if(rc(3).ge. domain(3)*(kblock  )) cycle
 
+			!Solid region given by wall textures
+			call wall_textures(texture_type,(rc(:)-globaldomain(:)/2.d0),solid_bottom,solid_top)
+
 			!If outside solid region, randomly remove molecules from lattice
-			if (rc(1) .lt. solid_region .and. rc(1) .gt. fixdistbottom(1) ) then
+			if (rc(2)-globaldomain(2)/2.d0 .gt. (solid_bottom(2) - globaldomain(2)/2.d0) .and. & 
+				rc(2)-globaldomain(2)/2.d0 .lt. (globaldomain(2)/2.d0  -  solid_top(2))) then
+				!cycle
 				call random_number(rand)
 				if (rand .gt. density_ratio) cycle
 			endif
-
 
 			!If molecules is in the domain then add to total
 			nl = nl + 1 !Local molecule count
@@ -1097,9 +1098,8 @@ end subroutine setup_initialise_velocities_TG_parallel
 
 !----------------------------------------------------------------------------------
 !----------------------------------------------------------------------------------
-!Initialise Velocities
-! Set up the intial velocities of the particles using velocity magnitude calcualted
-! from intitial temperature and giving random vectorial components
+!Initialise Velocities TEST
+! Set up the intial velocities to test values for debugging
 
 subroutine setup_initialise_velocities_test
 	use module_initialise_microstate

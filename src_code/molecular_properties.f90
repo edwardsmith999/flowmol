@@ -150,7 +150,6 @@ contains
 		do ixyz = 1,3
 			if (rg(ixyz) .le. bottom(ixyz) + tagdistbottom(ixyz) .or. &
 				rg(ixyz) .ge. top(ixyz)    - tagdisttop(ixyz)) then
-
 				tag_status = .true.
 				return
 
@@ -277,7 +276,7 @@ subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 		if (tethereddisttop(2) .lt. 0.05d0*globaldomain(2)) then
 			tethereddisttop(2) = 0.05d0*globaldomain(2)
 		endif
-		!N.B. One minus cosine used as periodic and has a periodic derivative (sin does not)
+		!N.B. One minus cosine used as periodic and has a periodic derivative (sine does not)
 		tagdistbottom(2) =  0.5d0*fraction_domain*globaldomain(2) & 
 								 *(1-cos(2*pi*xlocation)) & 
 						  	+ tethereddistbottom(2) + 0.5d0*cellsidelength(2)
@@ -408,7 +407,7 @@ subroutine tether_force(molno)
 	if (vflux_outflag .eq. 4) then
 		if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
 			call record_external_forces(at(:),r(:,molno))
-			call control_volume_stresses(at(:),r(:,molno),rtether(:,molno),molno)
+			!call control_volume_stresses(at(:),r(:,molno),rtether(:,molno),molno)
 		endif
 	endif
 

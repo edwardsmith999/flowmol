@@ -358,7 +358,7 @@ contains
 				call tether_force(n)
 				v(:,n) = v(:,n) + delta_t * a(:,n) 	!Velocity calculated from acceleration
 				r(:,n) = r(:,n) + delta_t * v(:,n)	!Position calculated from velocity
-				!if (iter .eq. 2) write(99989,*), globalise(r(:,n))
+				!if (iter .eq. 2) write(600+irank,*), globalise(r(:,n))
 			case (thermo)
 				!Nose Hoover Thermostatted Molecule
 				v(1,n) = v(1,n)*ascale + a(1,n)*delta_t*bscale
@@ -376,6 +376,7 @@ contains
 				r(2,n) = r(2,n)    + 	 v(2,n)*delta_t				
 				v(3,n) = v(3,n)*ascale + a(3,n)*delta_t*bscale
 				r(3,n) = r(3,n)    +     v(3,n)*delta_t	
+				!if (iter .eq. 2) write(500+irank,*), globalise(r(:,n))
 			case (teth_slide)
 				!Tethered molecules with sliding velocity
 				call tether_force(n)

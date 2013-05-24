@@ -32,10 +32,18 @@ subroutine simulation_apply_global_force(ixyz,F_const)
 	use module_external_forces
 	implicit none
 
-	integer         			:: ixyz, n
-	double precision 			:: F_const
+	
+	integer,intent(in)     			:: ixyz
+	double precision,intent(in)		:: F_const
 
-	a(ixyz,:) = a(ixyz,:) + F_const
+	integer					:: n
+	double precision,dimension(3)		:: F_vector
+
+	!Put directional results into a vector 
+	F_vector = 0.d0
+	F_vector(ixyz) = F_const
+
+	a(ixyz,:) = a(ixyz,:) + F_vector(ixyz)
 
 	if (vflux_outflag .eq. 4) then
 		if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then

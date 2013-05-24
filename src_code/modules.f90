@@ -92,6 +92,8 @@ module computational_constants_MD
 	integer            :: initial_config_flag
 	character(len=128) :: config_special_case
 
+	double precision	:: liquid_density	!Density of liquid if solid/liquid case used
+
 	!Input (on or off) flags
 	integer	:: & 
 		vmd_outflag, vmd_start, vmd_finish, vmd_count=1, &
