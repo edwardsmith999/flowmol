@@ -163,7 +163,9 @@ subroutine setup_read_input
 			!read(1,*) rcutoff
 			potential_flag = 0
 			call locate(1,'ROTATE_CYLINDERS',.true.)
-			read(1,*) omega
+			read(1,*) omega_i
+			read(1,*) omega_f 
+			read(1,*) omega_ramplength
 
 		case default
 

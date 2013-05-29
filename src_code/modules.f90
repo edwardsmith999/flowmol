@@ -372,8 +372,11 @@ module concentric_cylinders
 	
 	real(kind(0.d0)) :: cyl_density          !Density of cylinder walls
 
-	real(kind(0.d0)) :: omega, omega_max     !Actual and target angular vels
-	real(kind(0.d0)) :: omega_ramp           !d(omega)/dt
+	real(kind(0.d0)) :: omega                !Actual angular vel
+	real(kind(0.d0)) :: omega_i, omega_f     !Initial and final angular vel
+	real(kind(0.d0)) :: omega_ramplength     !Time over which to ramp omega
+	real(kind(0.d0)) :: domega_dt            !Ramp gradient
+	integer :: omega_rampiters               !Iterations over which to ramp omega
 
 	character(len=200) :: cyl_file           !Output/input file
 	

@@ -515,6 +515,12 @@ subroutine set_parameters_global_domain
 			!'globaldomain',globaldomain,' domain',domain,'np', np, 'nproc',&
 			! nproc, 'periodic', periodic, 'density', density, 'volume', volume
 
+			! Calculate omega ramping parameters
+			omega = omega_i
+			omega_rampiters = nint(omega_ramplength/delta_t)
+			omega_ramplength = real(omega_rampiters,kind(0.d0))*delta_t
+			domega_dt = (omega_f - omega_i)/omega_ramplength
+
 		case default
 
 			call error_abort("set_parameters_global_domain must be corrected for this special case")	
