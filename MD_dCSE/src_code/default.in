@@ -524,10 +524,15 @@ SEED
 #########################################################################
 # Rotate cylinders special case definition
 #
-#	- Angular velocity of inner cylinder
+#	- Initial angular velocity of inner cylinder
+#	- Final "target" angular velocity of inner cylinder
+#	- Length of time over which to ramp from initial to final
+#
 # -----------------------------------------------------------------------
 #ROTATE_CYLINDERS
-#0.1
+#0.0
+#1.0
+#1.0
 
 #########################################################################
 # Cylinderical polar bins for averaging 

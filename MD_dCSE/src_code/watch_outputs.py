@@ -97,7 +97,7 @@ def ParseArguments():
 					"pressure. The appropriate call would look like: \n\n" +
 					"  ./watch_outputs.py results/macroscopic_properties \n" +
 					"                     simtime KE + \n" +
-					"                     results/macroscipic_properties \n" +
+					"                     results/macroscopic_properties \n" +
 					"                     simtime PE + \n" +
 					"                     results/macroscopic_properties \n" +
 					"                     simtime TE     ++ \n" +
