@@ -7,15 +7,25 @@ import numpy as np
 
 PlotObj = MD_PlotData('./../../results/')
 
-di = 2
+di = 3
 cnt = 0
+
+
+#X,Y,U,V = PlotObj.get_vplane_quiver_args(2,0,1,5,5)
+
+#print(U)
+
+#plt.contourf(X, Y, U)
+#plt.show()
+
 for i in range(di/2,1000,1):
 	minrec = i - di/2 
-	maxrec = i #+ di/2 
+	maxrec = i + di/2 
 	print(minrec,maxrec)
 	#X,Y,U,V = PlotObj.get_vplane_streamplot_args(2,0,1,minrec,maxrec)
 	X,Y,U,V = PlotObj.get_vplane_quiver_args(2,0,1,minrec,maxrec)
 	plt.contourf(X, Y, U)
+	#plt.show()
 	#plt.pcolormesh(X,Y,U)
 	#speed = np.sqrt(U*U + V*V)
 	#lw = 5*speed/speed.max()
