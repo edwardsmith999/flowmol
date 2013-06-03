@@ -611,7 +611,7 @@ VELOCITY_OUTFLAG
 #   peculiar momentum used (i.e. remove streaming velocity)
 # -----------------------------------------------------------------------
 TEMPERATURE_OUTFLAG
-4
+0
 100
 1
 
