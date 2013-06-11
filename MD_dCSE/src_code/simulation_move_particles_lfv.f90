@@ -448,14 +448,13 @@ contains
 	end subroutine simulation_move_particles_lfv_tag
 
 	subroutine update_omega
-		use concentric_cylinders, only: omega_f, omega_i, omega, domega_dt, &
+		use concentric_cylinders, only: omega_f, omega_i, omega, &
 		                                omega_rampiters
 		use computational_constants_MD, only: iter, initialstep, delta_t
 		implicit none
 
 		if ( iter - initialstep .lt. omega_rampiters ) then
 			
-			!omega = omega + delta_t * domega_dt
 			omega = omega_i + (omega_f-omega_i)*0.5* &
 			                  (1 - cos(pi*(iter-initialstep)/omega_rampiters))
 		
@@ -464,6 +463,8 @@ contains
 			omega = omega_f
 		
 		end if
+
+		write(9000,*), omega
 
 	end subroutine update_omega
 
