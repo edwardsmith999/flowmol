@@ -464,8 +464,6 @@ contains
 		
 		end if
 
-		write(9000,*), omega
-
 	end subroutine update_omega
 
 end subroutine simulation_move_particles_lfv
