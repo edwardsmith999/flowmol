@@ -7,10 +7,14 @@ class MD_PlotData():
 		             functions for a specific figure type.  
 		Author: David Trevelyan, April 2013
 
-		Each class method should return arguments required by a single matplotlib plotting function for a single figure. Each time you need a new figure, please save a minimal method in this class so that similar figures can be (hopefully!) trivially plotted in future.
+		Each class method should return arguments required by a single 
+		matplotlib plotting function for a single figure. Each time you need 
+		a new figure, please save a minimal method in this class so that 
+		similar figures can be (hopefully!) trivially plotted in future.
 
 		IMPORTANT: It should be possible to get all the information from the
-		classes in MDFields.py. If the functionality you need is not there, please add it to those classes rather than changing the MD_RawData 
+		classes in MDFields.py. If the functionality you need is not there, 
+		please add it to those classes rather than changing the MD_RawData 
 		class or cluttering this MD_PlotData class. 
 
 		This class will likely get quite long, so it may be sensible to 
@@ -114,7 +118,8 @@ class MD_PlotData():
 		return binspaces[axis], pslice[:,component]
 
 
-	def get_vfield_energy_spectra(self,plane,component,minrec,maxrec,tavg_rec,fftaxis=None,ffttime=False):
+	def get_vfield_energy_spectra(self,plane,component,minrec,maxrec,tavg_rec,
+	                              fftaxis=None,ffttime=False):
 
 		class vfield_spectra:
 

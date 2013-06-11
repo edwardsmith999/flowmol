@@ -59,7 +59,8 @@ class Field():
 		self.fdir = fdir
 		self.cpol_bins = cpol_bins	
 
-	def get_bins(self,minrec,maxrec,sumaxes=(),meanaxes=(),meantime=True,sumtime=False):
+	def get_bins(self,minrec,maxrec,sumaxes=(),meanaxes=(),meantime=True,
+	             sumtime=False):
 		
 		"""
 			Read data file using MD_RawData class, average over time record
@@ -94,8 +95,7 @@ class Field():
 		# Sum or mean as appropriate
 		if (sumaxes != ()):
 			bins = bins.sum(axis=sumaxes)
-			#meanaxes = meanaxes - len(sumaxes)
-		if (meanaxes != ()):
+		elif (meanaxes != ()):
 			bins = bins.mean(axis=meanaxes)
 		
 		return bins, binspaces
