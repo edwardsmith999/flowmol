@@ -7,14 +7,12 @@ set(0,'DefaultFigureRenderer','OpenGL')
 fig1 = figure('Position',[1 scrsz(4)/4 scrsz(3)/4 scrsz(4)/2]);
 fig2 = figure('Position',[scrsz(3)/4 scrsz(4)/4 scrsz(3)/4 scrsz(4)/2]);
 
-external_force_flag = 1;
-
 %pwdir = '/home/es205/codes/coupled/MD_dCSE/src_code/post_proc/MATLAB';
-%resultfile_dir = './../../results/';
-%resultfile_dir = '/home/es205/results/md_results/fortran/3D_code/parallel/results/converge_diverge/';
+resultfile_dir = './../../results/';
+resultfile_dir = '/home/es205/results/md_results/fortran/3D_code/parallel/results/converge_diverge/';
 %pwdir=resultfile_dir;
-resultfile_dir='/home/es205/results/MD_continuum_results/results/coupled_couette/NCER_wall_bump/md_data/results';
-pwdir = resultfile_dir;
+%resultfile_dir='/home/es205/results/MD_continuum_results/results/coupled_couette/NCER_wall_bump/md_data/results';
+%pwdir = resultfile_dir;
 %resultfile_dir = '/home/es205/codes/coupled/MD_dCSE/src_code/results/';
 %pwdir='/home/es205/codes/coupled/MD_dCSE/src_code/';
 %Read Header
@@ -59,7 +57,7 @@ for m =1:skip:Nmflux_records-2
         
         %Plot slice of regions where not conserved
         h=slice(conserved,[],[],[5]);
-        view([90,90]); axis 'equal';
+        view([90,90]); axis 'equal'; caxis([-0.01,0.01])
         set(h,'FaceColor','interp','EdgeColor','none','DiffuseStrength',.8)
         colorbar; drawnow; pause(0.1)
         
@@ -97,20 +95,28 @@ skip =1; n = 1; tol = 10*eps;
 %Check CV are satisfied
 for m =1:skip:Nvflux_records-3
     m
+
+    %Overide header value as tethering counted as external force
+    %THIS IS A HACK - NEED A BETTER WAY TO DO THIS
+    external_force_flag = 1;
+
     %Load momentum flux values for current timestep -- include external
     %forces if relevant
     if (external_force_flag)
-        [velocity_snapshot(:,:,:,:), ...
-            velocity_flux(:,:,:,:,:),   ...
-            pressure_surface(:,:,:,:,:) ...
-            F_ext(:,:,:,:)                  ] = read_vflux(m,resultfile_dir,gnbins,nd);
+        [   velocity_snapshot, ...
+            velocity_flux,   ...
+            pressure_surface ...
+            F_ext                  ] = read_vflux(m,resultfile_dir,gnbins,nd);
     else
-        [velocity_snapshot(:,:,:,:), ...
-            velocity_flux(:,:,:,:,:),   ...
-            pressure_surface(:,:,:,:,:) ] = read_vflux(m,resultfile_dir,gnbins,nd);
-        F_ext = zeros(size(velocity_snapshot));
+        [   velocity_snapshot, ...
+            velocity_flux,   ...
+            pressure_surface ] = read_vflux(m,resultfile_dir,gnbins,nd);
+            F_ext = zeros(size(velocity_snapshot));
     end
-    
+
+
+    max(F_ext(:))
+
     [velocity_snapshot_tplus1(:,:,:,:)] = read_vflux(m+1,resultfile_dir,gnbins,nd);
    
     % Calculate total CV flux and change in mass
@@ -143,7 +149,7 @@ for m =1:skip:Nvflux_records-3
             num2str(Error(n)*100),'% - beginning debug'));
         
         h=slice(conserved(:,:,:),[],[],[5]);
-        view([2]); axis 'tight';
+        view([2]); axis 'tight'; caxis([-0.01,0.01])
         set(h,'FaceColor','interp','EdgeColor','none','DiffuseStrength',.8)
         title(['d\rhou/dt - \nabla \cdot \Pi',num2str(ibin),',',num2str(jbin),',',num2str(kbin)])
         colorbar;  drawnow; pause(0.1)
