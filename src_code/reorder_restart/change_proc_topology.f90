@@ -6,30 +6,30 @@
 program change_proc_topology
 	implicit none
 
-	logical										:: found_in_input
-	integer										:: i,j,k,l,m,n,nl,writefreq
-	integer										:: globalnp,Nsteps,tplot,potential_flag,nmonomers
-	integer 									:: checkint, file_size
-	integer 									:: prev_nproc,npx,npy,npz,prev_npx,prev_npy,prev_npz
-	integer,parameter							:: nd = 3
-    integer(selected_int_kind(18))  			:: ofs,header_ofs,header_pos,end_pos ! 8 byte integer for header address
-	integer,dimension(2)						:: seed
-	integer,dimension(3)						:: initialnunits, pa,periodic
-	integer,dimension(:)	,allocatable		:: procnp
-	integer,dimension(:,:,:),allocatable		:: npcount
-	double precision 									:: density,checkdp,rcutoff,delta_t,elapsedtime,k_c,R_0,delta_rneighbr
-	double precision,dimension(3)						:: domain,halfdomain,globaldomain
-	double precision,dimension(6)						:: buf
-	double precision,dimension(:),allocatable			:: rv
-	double precision,dimension(:,:,:,:,:),allocatable	:: rv_buf
-	character(30)										:: readin_format,filename,input_file,initial_microstate_file
-	character(400)										:: error_message
+	logical :: molecules_outside=.false.
+	integer :: i,j,k,m,n,pos,endpos
+	integer :: globalnp,Nsteps,tplot,potential_flag,nmonomers
+	integer :: checkint 
+	integer :: prev_nproc,npx,npy,npz,prev_npx,prev_npy,prev_npz
+	integer :: npxyz(3)
+	integer :: rtrue_flag, solvent_flag
+	integer :: tag
+	integer,parameter :: nd = 3
+    integer(selected_int_kind(18)) :: header_pos,end_pos ! 8 byte integer for header address
+	integer,dimension(2) :: seed
+	integer,dimension(3) :: initialnunits, pa,periodic
+	integer,dimension(:),allocatable :: procnp, proctethernp
+	integer,dimension(:,:,:),allocatable :: npcount, tethernpcount,fileunit
+	double precision :: density,rcutoff,delta_t,elapsedtime,k_c,R_0,delta_rneighbr
+	double precision :: simtime, eps_pp, eps_ps, eps_ss, dpbuf
+	double precision,dimension(3) :: domain,halfdomain,globaldomain
+	double precision,dimension(3) :: rbuf, vbuf, rtruebuf, rtetherbuf
+	double precision,dimension(13) :: rv_buf
+	character(30) :: input_file,initial_microstate_file
+	integer, dimension(5), parameter :: tether_tags = (/3,5,6,7,10/)
 
 	call setup_command_arguments
 
-	!Freqency at which to write out buffer to files
-	writefreq = 100
-	
     ! Get the periodic constrains form MD.in
     ! and the processor topology description
     open(1,file=trim(input_file))
@@ -38,10 +38,13 @@ program change_proc_topology
     read(1,*) npy
     read(1,*) npz
 	close(1,status='keep')      !Close input file
+	npxyz = (/npx,npy,npz/)
 
 	allocate(procnp(npx*npy*npz))
+	allocate(proctethernp(npx*npy*npz))
 	allocate(npcount(npx,npy,npz))
-	allocate(rv_buf(npx,npy,npz,writefreq,2*nd))
+	allocate(tethernpcount(npx,npy,npz))
+	allocate(fileunit(npx,npy,npz))
 	
 	open(2,file=initial_microstate_file,form='unformatted',action='read',access='stream',position='append')
     inquire(2,POS=end_pos) 				! go the end of file
@@ -62,6 +65,8 @@ program change_proc_topology
 	read(2) periodic(2)
 	read(2) periodic(3)
 	read(2) potential_flag
+	read(2) rtrue_flag 
+	read(2) solvent_flag 
 	read(2) nmonomers
 	read(2) prev_npx !npx
 	read(2) prev_npy !npy
@@ -70,14 +75,21 @@ program change_proc_topology
 	if (prev_npx .eq. npx .and. prev_npy.eq.npy.and.prev_npz .eq. npz) 	stop "No re-order needed"
 	prev_nproc = prev_npx*prev_npy*prev_npz	
 	do n=1,prev_nproc			!Loop through all processors and discard information
-		read(2) checkint
+		read(2) checkint        !procnp
+	enddo
+	do n=1,prev_nproc			!Loop through all processors and discard information
+		read(2) checkint        !proctethernp
 	enddo
 	read(2) density 
 	read(2) rcutoff
 	read(2) delta_t
 	read(2) elapsedtime	
+	read(2) simtime 
 	read(2) k_c
 	read(2) R_0
+	read(2) eps_pp 
+	read(2) eps_ps 
+	read(2) eps_ss 
 	read(2) delta_rneighbr
 	close(2,status='keep')
 
@@ -88,77 +100,106 @@ program change_proc_topology
 	domain(3) = 	globaldomain(3)/npz
 	halfdomain(:) = 0.5d0*domain(:)      !Useful defintion used later
 
-	nl = 0; npcount = 0; procnp=0	!Reset local molecules count nl
+	npcount = 0; tethernpcount = 0; procnp=0; proctethernp=0	!Reset local molecules count 
 	open(2,file=initial_microstate_file, form='unformatted',action='read', access='stream',position='rewind')
+
+	m = 99
+	do i = 1,npx
+	do j = 1,npy
+	do k = 1,npz
+		m = m+1
+		fileunit(i,j,k) = m
+		open(m,form='unformatted',action='write',access='stream',status='replace',position='append')
+	end do
+	end do
+	end do
+
+	open (unit=6,form='formatted',carriagecontrol='fortran')
+
+	print*, 'Reformatting restart file:'
 	!---------- For all molecule positions ------------
 	!Move through location of position co-ordinates
 	do n=1,globalnp
 
-		read(2) buf		!Read position to buffer
+		read(2) dpbuf; tag = nint(dpbuf)		!Read position to buffer
+		read(2) rbuf
+		read(2) vbuf
+		if (rtrue_flag.eq.1) then
+			read(2) rtruebuf
+		end if
+		if (any(tag.eq.tether_tags)) then
+			read(2) rtetherbuf  
+		end if
+		if (potential_flag.eq.1) stop 'Not yet developed for polymers'
 
 		!Use integer division to determine which processor to assign molecule to
-		pa(1) = ceiling((buf(1)+globaldomain(1)/2.d0)/domain(1))
-		pa(2) = ceiling((buf(2)+globaldomain(2)/2.d0)/domain(2))
-		pa(3) = ceiling((buf(3)+globaldomain(3)/2.d0)/domain(3))
+		pa(1) = ceiling((rbuf(1)+globaldomain(1)/2.d0)/domain(1))
+		pa(2) = ceiling((rbuf(2)+globaldomain(2)/2.d0)/domain(2))
+		pa(3) = ceiling((rbuf(3)+globaldomain(3)/2.d0)/domain(3))
 
-		!If molecules is in the domain then add to processor's total
-		npcount(pa(1),pa(2),pa(3)) = npcount(pa(1),pa(2),pa(3)) + 1 !Local molecule count
-		nl = npcount(pa(1),pa(2),pa(3))
+		!Capture molecules that are slightly outside the domain and print a warning
+		if (any(pa.eq.0) .or. any(pa.gt.npxyz)) then
+			where (pa .eq. 0) pa = 1
+			where (pa .gt. npxyz) pa = npxyz
+			molecules_outside = .true.
+		end if
+
 		!Read position and velocity
-		rv_buf(pa(1),pa(2),pa(3),nl,1:6) = buf(1:6)
+		pos = 1	
+		rv_buf(pos) = dble(tag); pos = pos + 1
+		rv_buf(pos:pos+2) = rbuf; pos = pos + 3
+		rv_buf(pos:pos+2) = vbuf; pos = pos + 3
+		if (rtrue_flag.eq.1) then
+			rv_buf(pos:pos+2) = rtruebuf; pos = pos + 3
+		end if
+		if (any(tag.eq.tether_tags)) then
+			rv_buf(pos:pos+2) = rtetherbuf; pos = pos + 3
+		end if
+		endpos = pos - 1
 
-		!print'(7i8,6f10.5)', n, nl,pa,npcount, rv_buf(pa(1),pa(2),pa(3),nl,1:6)
+		write(fileunit(pa(1),pa(2),pa(3))) rv_buf(1:endpos)
 
-		if (nl .eq. writefreq .or. n .eq. globalnp) then
-			m = 0
-			do i=1,npx
-			do j=1,npy
-			do k=1,npz
-				write(filename,'(i3,a,i3,a,i3,a)'),i,'x',j,'x',k,'.temp'
-				open(3,file=trim(filename), form='unformatted', action='write',access='stream',position='append')
-				do l = 1,npcount(i,j,k)
-					buf(1:3) = rv_buf(i,j,k,l,1:3); buf(4:6)= rv_buf(i,j,k,l,4:6)
-					write(3) buf
-				enddo
-				close(3,status='keep')
-				m = m + 1
-				procnp(m) = procnp(m) + npcount(i,j,k)
-			enddo
-			enddo
-			enddo
-			!Reset write frequency counter
-			nl = 0; npcount=0; rv_buf = 0.d0
-			print'(a,f10.2)', & 
-				'Redistributing molecules to new processor topology - % complete =', (100.d0*n/globalnp)
-		endif
-	enddo
+		npcount(pa(1),pa(2),pa(3)) = npcount(pa(1),pa(2),pa(3)) + 1
+		if (any(tag.eq.tether_tags)) then
+			tethernpcount(pa(1),pa(2),pa(3)) = tethernpcount(pa(1),pa(2),pa(3)) + 1
+		end if
 
-	close(2,status='keep')
-	deallocate(rv_buf)
-	
-	!Write to single file
-	m = 0
-	open(2,file='./final_state2', form='unformatted',action='write', access='stream',position='rewind',status='replace')
-	do i=1,npx
-	do j=1,npy
-	do k=1,npz
-		write(filename,'(i3,a,i3,a,i3,a)'),i,'x',j,'x',k,'.temp'
+		call progress(nint(100.d0*n/globalnp))
+
+	end do
+
+	m = 1
+	do i = 1,npx
+	do j = 1,npy
+	do k = 1,npz
+
+		procnp(m) = npcount(i,j,k)
+		proctethernp(m) = tethernpcount(i,j,k)
 		m = m + 1
-		! simpler version using inquire
-		!inquire(file=filename,size=file_size)
-		!PRINT*, PROCNP,2*ND*PROCNP(M)*8, file_size
-		allocate(rv(2*nd*procnp(m)))
-		open(3,file=trim(filename), form='unformatted',action='read', access='stream',position='rewind')
-		read(3) rv(:)
-		close(3,status='delete')
-		!open(2,file='./final_state2', form='unformatted',action='write', access='stream',position='append')
-		write(2) rv(:)
-		deallocate(rv)
-	enddo
-	enddo
-	enddo
-	close(2,status='keep')
 
+		close(fileunit(i,j,k),status='keep')
+
+	end do
+	end do
+	end do
+
+	if (molecules_outside .eq. .true.) then
+		print*, ''
+		print*, ''
+		print*, ''
+		print*, '       *****************************     '
+		print*, 'WARNING: At least one molecule was found outside the domain, '
+		print*, 'so was/were assigned to the nearest processor(s).'
+		print*, '       *****************************     '
+		print*, ''
+		print*, ''
+		print*, ''
+	end if
+
+	call system('cat fort.* > final_state2')
+	call system('rm fort.*')
+
+	close(2,status='keep')	
 	!Write integer data at end of file	
 	open(2,file='./final_state2', form='unformatted',access='stream',position='append')
 
@@ -177,18 +218,25 @@ program change_proc_topology
 	write(2) periodic(2)   		!Boundary condition flags
 	write(2) periodic(3)	   	!Boundary condition flags
 	write(2) potential_flag   	!Polymer/LJ potential flag
+	write(2) rtrue_flag         !
+	write(2) solvent_flag       !Solvent on/off flag
 	write(2) nmonomers		   	!Polymer chain length
 	write(2) npx                !Processors (npx) for new topology
 	write(2) npy                !Processors (npy) for new topology
 	write(2) npz                !Processors (npz) for new topology
 	write(2) procnp				!Number of molecules per processors
+	write(2) proctethernp				!Number of molecules per processors
 
 	write(2) density          !Density of system
 	write(2) rcutoff          !Cut off distance for particle interaction
 	write(2) delta_t          !Size of time step
 	write(2) elapsedtime      !Total elapsed time of all restarted simulations
+	write(2) simtime          !Total elapsed time of all restarted simulations
 	write(2) k_c		   	  !FENE spring constant
 	write(2) R_0		      !FENE spring max elongation
+	write(2) eps_pp           !Soddemann potential parameter
+	write(2) eps_ps           !Soddemann potential parameter
+	write(2) eps_ss           !Soddemann potential parameter
 	write(2) delta_rneighbr	  !Extra distance used for neighbour list cell size
     write(2) header_pos-1     ! -1 for MPI IO compatibility
 	close(2,status='keep') 	  !Close final_state file
@@ -196,7 +244,9 @@ program change_proc_topology
 	close(2,status='keep')
 
 	deallocate(procnp)
+	deallocate(proctethernp)
 	deallocate(npcount)
+	deallocate(tethernpcount)
 
 contains
 
@@ -319,5 +369,32 @@ subroutine locate(fileid,keyword,required,input_present)
 
 end subroutine locate
 
+subroutine progress(j)  
+implicit none  
+
+	integer(kind=4)   :: j,k,bark
+	character(len=78) :: bar
+
+	bar(1:7) = " ???% |"
+	do k=8,77
+		bar(k:k) = " "
+	end do
+	bar(78:78) = "|"
+
+	write(unit=bar(2:4),fmt="(i3)") j
+
+	bark = int(dble(j)*70.d0/100.d0)
+
+	do k=1,bark
+		!bar(7+k:7+k)=char(2) 
+		bar(7+k:7+k)="="
+	enddo  
+
+	! print the progress bar.  
+	write(unit=6,fmt="(a1,a1,a78)") '+',char(13),bar  
+
+	return  
+
+end subroutine progress 
 
 end program change_proc_topology
