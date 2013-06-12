@@ -66,7 +66,7 @@ cp ./../../CFD_dCSE/src_code/setup/report ./couette_data/
 cp ./couette_data/archive ./couette_data/archive.000000
 
 #Run Coupled code
-mpirun -n $1 ./../../MD_dCSE/src_code/md.exe -i ./md_data/MD.in $2 : -n 8 ./couette_data/parallel_couette.exe 
+mpirun -n $1 ./../../MD_dCSE/src_code/md.exe -i ./md_data/MD.in $2 : -n 1 ./couette_data/parallel_couette.exe 
 #mpiexec -n $1 xterm -geometry 150x20+1000+0 -hold -e  ./../../MD_dCSE/src_code/md.exe -i ./md_data/MD_coupled.in $2 : -n 4 xterm -geometry 150x20+1000+220 -hold -e ./couette_data/parallel_couette.exe 
 #mpiexec -n 1 ./couette_data/parallel_couette.exe  : -n $1 ./../../MD_dCSE/src_code/md.exe -i ./md_data/MD_coupled.in $2 # -r ./md_data/results/r0
 #mpiexec -n 1 xterm -geometry 150x20+1000+0 -hold -e gdb ./couette_data/parallel_couette.exe :  -n $1 xterm -geometry 150x20+1000+220 -hold -e gdb ./../../MD_dCSE/src_code/md.exe -i /md_data/MD_coupled.in : -n 1 xterm -geometry 150x20+100+240 -hold -e gdb ./../../MD_dCSE/src_code/md.exe -i /md_data/MD_coupled.in
