@@ -65,7 +65,6 @@ subroutine continuum_mesh_gen
 
 	do i = 1, nx+2
 	do j = 1, ny+2
-
 		vcell(i,j) = (delta_x(i) * delta_y(j))
 	enddo
 	enddo

@@ -111,9 +111,11 @@ subroutine continuum_record
 
 		if (continuum_vflag .eq. 1) then
 			allocate(uslice(nx+2))
+			!uslice = uc(1:nx+2,floor(dble(ny)/2.d0))
 			uslice = sum(uc(1:nx+2,2:ny+1),dim=ixyz)/(ny)
-		else 
+		elseif (continuum_vflag .eq. 2) then
 			allocate(uslice(ny+2))
+			!uslice = uc(floor(dble(nx)/2.d0),1:ny+2)
 			uslice = sum(uc(2:nx+1,1:ny+2),dim=ixyz)/(nx)
 		endif
 
@@ -139,7 +141,7 @@ subroutine continuum_record
         case(4)  ! ASCII output
                 call text_output
 	case default
-		stop "Error input for continuum velocity incorrect"
+		stop "Error incorrect input for continuum velocity "
 	end select
 
 	!Output simulation progress and residual
