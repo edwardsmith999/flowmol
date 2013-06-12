@@ -1,6 +1,6 @@
 module continuum_coupler_socket
         implicit none
-if USE_COUPLER
+#if USE_COUPLER
 contains
 
     subroutine continuum_coupler_adjust_domain

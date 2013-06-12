@@ -29,19 +29,24 @@ subroutine continuum_advance_time
 	!Store previous timesteps
 	uc_t_minus_1 = uc
 
-	!Advance Time
-	do i = 2, nx+1
-	do j = 2, ny+1
-
-		!Finite difference
-		!uc(i,j) = uc(i,j) + continuum_delta_t * xresidual(i,j)
-
-		!Finite volume
-		uc(i,j) = uc(i,j) + continuum_delta_t * xresidual(i,j) / vcell(i,j)
-		vc(i,j) = vc(i,j) + continuum_delta_t * yresidual(i,j) / vcell(i,j)
-	
-	enddo
-	enddo
+	select case(solver)
+	case(FD)
+		!Advance Time
+		do i = 2, nx+1
+		do j = 2, ny+1
+			!Finite difference
+			uc(i,j) = uc(i,j) + continuum_delta_t * xresidual(i,j)
+		enddo
+		enddo
+	case(FV)
+		do i = 2, nx+1
+		do j = 2, ny+1
+			!Finite volume
+			uc(i,j) = uc(i,j) + continuum_delta_t * xresidual(i,j) / vcell(i,j)
+			vc(i,j) = vc(i,j) + continuum_delta_t * yresidual(i,j) / vcell(i,j)
+		enddo
+		enddo
+	end select
 
 end subroutine continuum_advance_time
 

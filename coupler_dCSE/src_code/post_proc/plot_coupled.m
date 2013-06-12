@@ -29,13 +29,13 @@ analy_points = 20; % Number of spectral points
 %Find results files
 %resultfile_dir = './../results/';
 %resultfile_dir = '/home/es205/results/MD_continuum_results/results/CPL_testing/130430_NCER_mdws/';
-%resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/NCER_wall_bump/basecase_no_bump/';
+resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/NCER_wall_bump/basecase_no_bump/';
 %resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/Flekkoy_meu10/';
 %resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/Inc_specular_walls_large/';
 %resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/50CFDMDratio/';
 %resultfile_dir = '/home/djt06/Documents/Academia/PhD/Code/Development/branch/coupler_dCSE/src_code/';
 %resultfile_dir='/home/es205/results/CPL_runs/1NCER_bump_allzthermostat/results/'
-resultfile_dir='/home/es205/results/CPL_runs/2NCER_bump_wallthermostat/results/'
+%resultfile_dir='/home/es205/results/CPL_runs/2NCER_bump_wallthermostat/results/'
 %resultfile_dir='/home/es205/results/CPL_runs/4Flekkoy_basecase/results/'
 %resultfile_dir='/home/es205/results/CPL_runs/5Flekkoy_bump_wallthermostat/results/'
 resultfile_dir_MD = strcat(resultfile_dir,'md_data/results/');

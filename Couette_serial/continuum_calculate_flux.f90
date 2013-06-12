@@ -109,7 +109,12 @@ implicit none
 	!Store previous timesteps
 	xresidual_t_minus_1 = xresidual
 
-	call continuum_calculate_residual_FV(uc, vc, xresidual, yresidual)
+	select case(solver)
+	case(FD)
+		call continuum_calculate_residual(uc, vc, xresidual, yresidual)
+	case(FV)
+		call continuum_calculate_residual_FV(uc, vc, xresidual, yresidual)
+	end select
 
 end subroutine continuum_calculate_diffusion
 
