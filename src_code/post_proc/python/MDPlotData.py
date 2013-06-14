@@ -87,7 +87,9 @@ class MD_PlotData():
 		avgaxes = tuple(avgaxes)
 
 		mData = MassBins(self.fdir,cpol_bins=self.cpol_bins)
-		mslice, binspaces = mData.get_bins(minrec,maxrec,meanaxes=(avgaxes))
+		mslice, binspaces = mData.get_bins(minrec,maxrec,sumaxes=(avgaxes))
+		#Take zeroth component to 'Squeeze' array to lower dimensionality
+		mslice = mslice[:,0] 
 
 		return binspaces[axis], mslice
 
