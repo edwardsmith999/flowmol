@@ -25,6 +25,8 @@ subroutine setup_initial_record
 	implicit none
 
 	integer					:: i
+	integer, parameter 		:: LongInt = selected_int_kind (8)
+	integer(kind=LongInt)	:: est_filesize,output_steps
 	logical 				:: file_exist
 	character				:: ixyz_char
 	character(8)			:: the_date
@@ -257,10 +259,14 @@ subroutine setup_initial_record
 						globaldomain(mass_outflag)/gnbins(mass_outflag)
 		case(4)
 			print'(3(a,i8),a)', ' mass 3D bins recorded every:', &
-					tplot,' x ',Nvel_ave,' = ',tplot*Nvel_ave,' iterations'
+					tplot,' x ',Nmass_ave,' = ',tplot*Nmass_ave,' iterations'
 			print'(a,3i8)', ' Domain split into mass Averaging Bins in x,y and z:', gnbins
 			print'(a,3f10.5)', ' Each of size:', & 
 			globaldomain(1)/gnbins(1), globaldomain(2)/gnbins(2),globaldomain(3)/gnbins(3)
+			output_steps = ceiling((Nsteps-initialstep)/dble(tplot*Nmass_ave))
+			est_filesize = 4*output_steps*gnbins(1)*gnbins(2)*gnbins(3)
+			print'(a,i14,a,i14,a)', ' Number of records ', output_steps,  & 
+							 ' Estimated File Size:', ceiling(est_filesize/dble(1024**2)), ' MB '
 		case default
 			call error_abort("Invalid Mass output flag in input file")
 		end select
@@ -291,6 +297,10 @@ subroutine setup_initial_record
 			print'(a,3i8)', ' Domain split into Velocity Averaging Bins in x,y and z:', gnbins
 			print'(a,3f10.5)', ' Each of size:', & 
 			globaldomain(1)/gnbins(1), globaldomain(2)/gnbins(2),globaldomain(3)/gnbins(3)
+			output_steps = ceiling((Nsteps-initialstep)/dble(tplot*Nvel_ave))
+			est_filesize = 3*8*output_steps*gnbins(1)*gnbins(2)*gnbins(3)
+			print'(a,i14,a,i14,a)', ' Number of records ', output_steps,  & 
+							 ' Estimated File Size:', ceiling(est_filesize/dble(1024**2)), ' MB '
 		case(5)
 			print'(3(a,i8),a)', ' Velocity 3D Cylindrical Polar bins recorded every:', &
 					tplot,' x ',Nvel_ave,' = ',tplot*Nvel_ave,' iterations'
@@ -331,6 +341,10 @@ subroutine setup_initial_record
 				print'(a,3f10.5)', ' Each of size:', & 
 				globaldomain(1)/gnbins(1), globaldomain(2)/gnbins(2),globaldomain(3)/gnbins(3)
 			endif
+			output_steps = ceiling((Nsteps-initialstep)/dble(tplot*NTemp_ave))
+			est_filesize = 8*output_steps*gnbins(1)*gnbins(2)*gnbins(3)
+			print'(a,i14,a,i14,a)', ' Number of records ', output_steps,  & 
+							 ' Estimated File Size:', ceiling(est_filesize/dble(1024**2)), ' MB '
 		case default
 			call error_abort("Invalid Velocity output flag in input file")
 		end select
@@ -352,6 +366,8 @@ subroutine setup_initial_record
 				print'(a,3i8)', ' Domain split into Pressure Volume Averaging Bins in x,y and z:', gnbins
 				print'(a,3f10.5)', ' Each of size:', & 
 				globaldomain(1)/gnbins(1), globaldomain(2)/gnbins(2),globaldomain(3)/gnbins(3)
+				est_filesize = 9*8*ceiling((Nsteps-initialstep)/dble(tplot*Nvel_ave))*gnbins(1)*gnbins(2)*gnbins(3)
+				print'(a,i14,a)', ' Estimated File Size:', ceiling(est_filesize/dble(1024**2)), ' MB '
 			else
 				print'(3(a,i8),a)', ' Seperate Kinetic/Configurational Pressure tensor Volume Averaged recorded every', & 
 						tplot,' x ',Nstress_ave,' = ',tplot*Nstress_ave,' iterations'
@@ -393,6 +409,10 @@ subroutine setup_initial_record
 			print'(a,3i8)', ' Domain split into bins in x,y and z:', gnbins
 			print'(a,3f10.5)', ' Each of size:', & 
 			globaldomain(1)/gnbins(1), globaldomain(2)/gnbins(2),globaldomain(3)/gnbins(3)
+			output_steps = ceiling((Nsteps-initialstep)/dble(Nmflux_ave))
+			est_filesize = 18*4*output_steps*gnbins(1)*gnbins(2)*gnbins(3)
+			print'(a,i14,a,i14,a)', ' Number of records ', output_steps,  & 
+							 ' Estimated File Size:', ceiling(est_filesize/dble(1024**2)), ' MB '
 		case default
 			call error_abort("Invalid mass flux output flag in input file")
 		end select
@@ -426,6 +446,10 @@ subroutine setup_initial_record
 			print'(a,3i8)', ' Domain split into bins in x,y and z:', gnbins
 			print'(a,3f10.5)', ' Each of size:', & 
 			globaldomain(1)/gnbins(1), globaldomain(2)/gnbins(2),globaldomain(3)/gnbins(3)
+			output_steps = ceiling((Nsteps-initialstep)/dble(Nvflux_ave))
+			est_filesize = 18*8*output_steps*gnbins(1)*gnbins(2)*gnbins(3)
+			print'(a,i14,a,i14,a)', ' Number of records ', output_steps,  & 
+							 ' Estimated File Size:', ceiling(est_filesize/dble(1024**2)), ' MB '
 		case default
 			call error_abort("Invalid velocity flux output flag in input file")
 		end select

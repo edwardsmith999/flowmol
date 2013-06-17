@@ -195,35 +195,35 @@ end subroutine get_tag_thermostat_activity
 subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 	use physical_constants_MD, only : pi,tethereddistbottom,tethereddisttop
 	use computational_constants_MD, only : posts,roughness,converge_diverge,texture_intensity, &
-										   globaldomain, cellsidelength,texture_therm
+										   globaldomain, cellsidelength,texture_therm,nh,halfdomain,ncells
 	implicit none
 
 	integer,intent(in)		:: texture_type
 	double precision,dimension(3),intent(in) :: rg
 	double precision,dimension(3),intent(out):: tagdistbottom,tagdisttop
 
-	integer 				:: n,icell,jcell
-	double precision		:: xlocation,zlocation,rand,fraction_domain
+	integer 				:: n,icell,jcell,kcell
+	double precision		:: xlocation,ylocation,zlocation,rand,fraction_domain,postheight
 
 	select case (texture_type)
 	case(posts)
-	!Square ridges ---- NOTE THESE HAVE NOT BEEN TESTED AND SHOULD BE USED WITH CAUTION
-	!	jcell = 1
-	!	do icell=1,ncells(1),3
-			!print*, 'lb=',icell*cellsidelength(1)-halfdomain(1) ,'ub=',(icell+1)*cellsidelength(1)-halfdomain(1)
-	!		do n = 1, np
-	!			if(r(2,n) .gt. (jcell*cellsidelength(2)-halfdomain(2))) then
-	!			if(r(2,n) .lt. ((jcell+1)*cellsidelength(2)-halfdomain(2))) then
-	!				if(r(1,n) .gt. (icell*cellsidelength(1)-halfdomain(1))) then
-	!				if(r(1,n) .lt. ((icell+1)*cellsidelength(1)-halfdomain(1))) then
-					!print*, n
-	!					tag(n) = free
-	!				endif
-	!				endif
-	!			endif
-	!			endif
-	!		enddo
-	!	enddo
+
+		postheight = 5.12d0
+		tagdistbottom = tethereddistbottom
+		ylocation = rg(2) + 0.5*globaldomain(2)
+
+		! Post is above wall
+		if ((ylocation .gt. tethereddistbottom(2) ) .and. & 
+			(ylocation .lt. tethereddistbottom(2) + postheight)) then
+
+			!Single strip in the middle of the domain
+			if (rg(1) .gt. -postheight/2.d0 .and. &
+				rg(1) .lt.  postheight/2.d0) then
+				tagdistbottom(2) = tethereddistbottom(2) + postheight 
+			else
+				tagdistbottom(2) = tethereddistbottom(2)
+			endif
+		endif
 
 	case(roughness)
 
