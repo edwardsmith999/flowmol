@@ -95,7 +95,7 @@ class MD_PlotData():
 
 	def get_mplane_splot_args(self,plane,haxis,vaxis,minrec,maxrec):
 
-		# Instantiate velocity data object
+		# Instantiate mass data object
 		mData = MassBins(self.fdir,cpol_bins=self.cpol_bins)
 		# Extract 3D velocity field averaged over 1D of bins
 		mplane, binspaces = mData.get_field(minrec,maxrec,sumaxes=(plane))
@@ -119,6 +119,18 @@ class MD_PlotData():
 	
 		return binspaces[axis], pslice[:,component]
 
+	def get_Tplane_splot_args(self,plane,haxis,vaxis,minrec,maxrec):
+
+		# Instantiate temperature data object
+		TData = TBins(self.fdir,cpol_bins=self.cpol_bins)
+		# Extract 3D velocity field averaged over 1D of bins
+		Tplane, binspaces = TData.get_field(minrec,maxrec,meanaxes=(plane))
+		# Get bin center positions on both axes for every field point
+		X, Y = np.meshgrid(binspaces[haxis],binspaces[vaxis],indexing='ij')
+		#Take zeroth component to 'Squeeze' array to lower dimensionality
+		T = Tplane[:,:,0] 
+
+		return X, Y, T		
 
 	def get_vfield_energy_spectra(self,plane,component,minrec,maxrec,tavg_rec,
 	                              fftaxis=None,ffttime=False):
