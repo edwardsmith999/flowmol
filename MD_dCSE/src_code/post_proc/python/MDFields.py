@@ -130,6 +130,13 @@ class PBins(Field):
 	nperbin = 9
 	get_field = Field.get_bins
 
+class TBins(Field):
+	
+	fname = 'Tbins'
+	dtype = 'd'
+	nperbin = 1
+	get_field = Field.get_bins
+
 # Mass slice?
 #class MassSlice(Field):
 #	
