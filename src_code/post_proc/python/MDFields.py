@@ -130,7 +130,7 @@ class PBins(Field):
 	nperbin = 9
 	get_field = Field.get_bins
 
-class TBins(Field):
+class KEBins(Field):
 	
 	fname = 'Tbins'
 	dtype = 'd'
@@ -155,7 +155,7 @@ class VBins():
 	def get_field(self,minrec,maxrec,sumaxes=(),sumtime=True):	
 
 		"""
-		    Get the velocity field from file vbins averaged over
+		    Get the velocity field from files vbins/mbins averaged over
 		    time records minrec->maxrec, AND averaged over 
 		    spatial directions specified by sumaxes.
 			
@@ -179,4 +179,36 @@ class VBins():
 		
 		return vfield, binspaces
 
+# Velocity field
+class TBins():
 
+	def __init__(self,fdir,cpol_bins):
+		self.mdata = MassBins(fdir,cpol_bins)
+		self.KEdata = KEBins(fdir,cpol_bins)
+
+	def get_field(self,minrec,maxrec,sumaxes=(),sumtime=True):	
+
+		"""
+		    Get the temperature field from files Tbins/mbins averaged over
+		    time records minrec->maxrec, AND averaged over 
+		    spatial directions specified by sumaxes.
+			
+			sumaxes   - *tuple* of *int* between 0-2.
+		    minrec    - *int*
+			maxrec    - *int*
+
+		"""
+	
+		print('Getting temperature field from records ' + str(minrec) + ' to ' 
+		      + str(maxrec) + ', averaging over axes ' + str(sumaxes) + '.')
+	
+		msum, binspaces = self.mdata.get_bins(minrec,maxrec,sumaxes=sumaxes,
+		                                      meantime=False,sumtime=sumtime)
+		KEsum, binspaces = self.KEdata.get_bins(minrec,maxrec,sumaxes=sumaxes,
+		                                      meantime=False,sumtime=sumtime)
+
+		# Divide and patch any NaNs
+		Tfield = np.divide(KEsum,3.0*msum) 
+		Tfield[np.isnan(Tfield)] = 0.0
+		
+		return Tfield, binspaces
