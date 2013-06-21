@@ -124,7 +124,7 @@ class MD_PlotData():
 		# Instantiate temperature data object
 		TData = TBins(self.fdir,cpol_bins=self.cpol_bins)
 		# Extract 3D velocity field averaged over 1D of bins
-		Tplane, binspaces = TData.get_field(minrec,maxrec,meanaxes=(plane))
+		Tplane, binspaces = TData.get_field(minrec,maxrec,sumaxes=(plane))
 		# Get bin center positions on both axes for every field point
 		X, Y = np.meshgrid(binspaces[haxis],binspaces[vaxis],indexing='ij')
 		#Take zeroth component to 'Squeeze' array to lower dimensionality
