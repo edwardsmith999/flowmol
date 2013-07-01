@@ -939,6 +939,7 @@ subroutine velocity_averaging(ixyz)
 	integer,dimension(3):: ib
 	integer, save		:: average_count=-1
 	double precision,dimension(3) 	:: Vbinsize, temp
+	double precision	:: streaming_velocity(nbinso(1),nbinso(2),nbinso(3),3)
 
 	average_count = average_count + 1
 	call cumulative_velocity(ixyz)
@@ -949,10 +950,18 @@ subroutine velocity_averaging(ixyz)
 		if (temperature_outflag .ne. 0 .and. peculiar_flag .ne. 0) then
 			!Determine bin size
 			Vbinsize(:) = domain(:) / nbins(:)
+
+			!Get instantanous temperature field included swapped halos
+			streaming_velocity(:,:,:,1) = volume_momentum(:,:,:,1) / volume_mass
+			streaming_velocity(:,:,:,2) = volume_momentum(:,:,:,2) / volume_mass
+			streaming_velocity(:,:,:,3) = volume_momentum(:,:,:,3) / volume_mass
+			call rswaphalos(streaming_velocity,nbinso(1),nbinso(2),nbinso(3),3)
+
 			do n=1,np
 				ib(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
 				!temp = volume_momentum(ib(1),ib(2),ib(3),:) / volume_mass(ib(1),ib(2),ib(3))
-				U(:,n) =  volume_momentum(ib(1),ib(2),ib(3),:) / volume_mass(ib(1),ib(2),ib(3))
+				!U(:,n) =  volume_momentum(ib(1),ib(2),ib(3),:) / volume_mass(ib(1),ib(2),ib(3))
+				U(:,n) =  streaming_velocity(ib(1),ib(2),ib(3),:)
 				!Fix value based on Poiseuille profile
 				!U(:,n) = 0.d0
 				!U(1,n) = 2.10*(1-(r(2,n)/(0.5*globaldomain(2))) ** 2)
