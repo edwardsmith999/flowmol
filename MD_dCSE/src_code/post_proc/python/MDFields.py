@@ -220,6 +220,7 @@ class TBins():
 		# Remove average of streaming component
 		if (peculiar==True):
 			vfield = np.divide(pfield,mfield)
+			vfield[np.isnan(vfield)] = 0.0
 			v2field = np.sum((vfield**2.0),3)
 			Tfield = Tfield - (1./3.)*v2field
 
