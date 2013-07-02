@@ -184,31 +184,49 @@ class TBins():
 
 	def __init__(self,fdir,cpol_bins):
 		self.mdata = MassBins(fdir,cpol_bins)
+		self.pdata = MomBins(fdir,cpol_bins)
 		self.KEdata = KEBins(fdir,cpol_bins)
 
-	def get_field(self,minrec,maxrec,sumaxes=(),sumtime=True):	
+	def get_field(self,minrec,maxrec,sumaxes=(),peculiar=True):	
 
 		"""
-		    Get the temperature field from files Tbins/mbins averaged over
-		    time records minrec->maxrec, AND averaged over 
+		    Get the temperature field from files Tbins, mbins and vbins 
+			averaged over time records minrec->maxrec, AND averaged over 
 		    spatial directions specified by sumaxes.
 			
 			sumaxes   - *tuple* of *int* between 0-2.
 		    minrec    - *int*
 			maxrec    - *int*
+			peculiar  - take into account streaming velocity
 
 		"""
 	
 		print('Getting temperature field from records ' + str(minrec) + ' to ' 
 		      + str(maxrec) + ', averaging over axes ' + str(sumaxes) + '.')
 	
-		msum, binspaces = self.mdata.get_bins(minrec,maxrec,sumaxes=sumaxes,
-		                                      meantime=False,sumtime=sumtime)
-		KEsum, binspaces = self.KEdata.get_bins(minrec,maxrec,sumaxes=sumaxes,
-		                                      meantime=False,sumtime=sumtime)
+		mfield, binspaces = self.mdata.get_bins(minrec,maxrec,meantime=False,
+		                                      sumtime=False)
+		pfield, binspaces = self.pdata.get_bins(minrec,maxrec,meantime=False,
+		                                      sumtime=False)
+		KEfield, binspaces = self.KEdata.get_bins(minrec,maxrec,meantime=False,
+		                                        sumtime=False)
 
-		# Divide and patch any NaNs
-		Tfield = np.divide(KEsum,3.0*msum) 
+
+		# Temperature (no streaming consideration)
+		Tfield = np.divide(KEfield,(3.0*mfield))
 		Tfield[np.isnan(Tfield)] = 0.0
+		Tfield = Tfield[:,:,:,0,:]
+
+		# Remove average of streaming component
+		if (peculiar==True):
+			vfield = np.divide(pfield,mfield)
+			v2field = np.sum((vfield**2.0),3)
+			Tfield = Tfield - (1./3.)*v2field
+
+		# Avg time
+		Tfield = np.mean(Tfield,3)
+
+		# Avg space
+		Tfield = np.mean(Tfield,sumaxes)
 		
 		return Tfield, binspaces
