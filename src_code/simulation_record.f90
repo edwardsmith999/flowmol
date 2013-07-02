@@ -939,58 +939,64 @@ subroutine velocity_averaging(ixyz)
 	integer,dimension(3):: ib
 	integer, save		:: average_count=-1
 	double precision,dimension(3) 	:: Vbinsize, temp
-	double precision	:: streaming_velocity(nbinso(1),nbinso(2),nbinso(3),3)
+	!double precision	:: sv(nbinso(1),nbinso(2),nbinso(3),3)
+	!double precision	:: sm(nbinso(1),nbinso(2),nbinso(3))
 
 	average_count = average_count + 1
 	call cumulative_velocity(ixyz)
+
+	!Save streaming velocity for temperature averages
+	if (temperature_outflag .ne. 0 .and. peculiar_flag .ne. 0) then
+
+		! NOTE THE peculiar_flag CAN BE SET TO 0 AND
+		! THE UNBIAS TEMPERATURE USUALLY CALCULATED FROM
+		! T_{unbias} = (1/3N) * \sum_i^N m_i * (vi - u)*(vi - u)
+		! CAN INSTEAD BE CALCULATED FROM:
+		! T_{unbias} = (1/3N) * \sum_i^N m_i * vi*vi - u^2/3
+		stop "Peculiar momentum functionality removed -- please calculate using T_{unbias} = (1/3N) * \sum_i^N m_i*vi*vi - u^2/3"
+
+		!Determine bin size
+		!Vbinsize(:) = domain(:) / nbins(:)
+
+		!Get instantanous temperature field included swapped halos
+		!sm = volume_mass
+		!sv = volume_momentum
+		!call rswaphalos(sm,nbinso(1),nbinso(2),nbinso(3),1)
+		!call rswaphalos(sv,nbinso(1),nbinso(2),nbinso(3),3)
+
+		do n=1,np
+			!Save streaming velocity per molecule
+			ib(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
+			!U(:,n) =  sv(ib(1),ib(2),ib(3),:) / sm(ib(1),ib(2),ib(3))
+			U(:,n) =  volume_momentum(ib(1),ib(2),ib(3),:) / volume_mass(ib(1),ib(2),ib(3))
+		enddo
+
+	endif
+
 	if (average_count .eq. Nvel_ave) then
 		average_count = 0
 
-		!Save streaming velocity for temperature averages
-		if (temperature_outflag .ne. 0 .and. peculiar_flag .ne. 0) then
-			!Determine bin size
-			Vbinsize(:) = domain(:) / nbins(:)
-
-			!Get instantanous temperature field included swapped halos
-			streaming_velocity(:,:,:,1) = volume_momentum(:,:,:,1) / volume_mass
-			streaming_velocity(:,:,:,2) = volume_momentum(:,:,:,2) / volume_mass
-			streaming_velocity(:,:,:,3) = volume_momentum(:,:,:,3) / volume_mass
-			call rswaphalos(streaming_velocity,nbinso(1),nbinso(2),nbinso(3),3)
-
-			do n=1,np
-				ib(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
-				!temp = volume_momentum(ib(1),ib(2),ib(3),:) / volume_mass(ib(1),ib(2),ib(3))
-				!U(:,n) =  volume_momentum(ib(1),ib(2),ib(3),:) / volume_mass(ib(1),ib(2),ib(3))
-				U(:,n) =  streaming_velocity(ib(1),ib(2),ib(3),:)
-				!Fix value based on Poiseuille profile
-				!U(:,n) = 0.d0
-				!U(1,n) = 2.10*(1-(r(2,n)/(0.5*globaldomain(2))) ** 2)
-
-				!U(:,n) =  volume_momentum(ib(1),ib(2),ib(3),:) / volume_mass(ib(1),ib(2),ib(3))
-			enddo
-		endif
-
 		select case(ixyz)
-		case(1:3)
-			call velocity_slice_io(ixyz)
-			!Reset velocity slice
-			slice_mass = 0
-			slice_momentum  = 0.d0
-		case(4)
-			call velocity_bin_io(volume_mass,volume_momentum,'bins')
-			!Reset velocity bins
-			volume_mass = 0
-			volume_momentum = 0.d0
-		case(5)
-			call velocity_bin_cpol_io(cyl_mass,cyl_mom)
-			cyl_mass = 0
-			cyl_mom = 0.d0
-		case default
-			call error_abort("Error input for velocity averaging incorrect")
-		end select
+			case(1:3)
+				call velocity_slice_io(ixyz)
+				!Reset velocity slice
+				slice_mass = 0
+				slice_momentum  = 0.d0
+			case(4)
+				call velocity_bin_io(volume_mass,volume_momentum,'bins')
+				!Reset velocity bins
+				volume_mass = 0
+				volume_momentum = 0.d0
+			case(5)
+				call velocity_bin_cpol_io(cyl_mass,cyl_mom)
+				cyl_mass = 0
+				cyl_mom = 0.d0
+			case default
+				call error_abort("Error input for velocity averaging incorrect")
+			end select
 
-		!Collect velocities for next step
-		!call cumulative_velocity(ixyz)
+			!Collect velocities for next step
+			!call cumulative_velocity(ixyz)
 
 	endif
 
@@ -1201,7 +1207,7 @@ subroutine cumulative_temperature(ixyz)
 				!	print*, iter, ibin, dot_product(v(:,n),v(:,n)), v(:,n)
 				!endif
 				volume_temperature(ibin(1),ibin(2),ibin(3)) = volume_temperature(ibin(1),ibin(2),ibin(3)) & 
-										+ dot_product(v(:,n),v(:,n))
+										+ dot_product((v(:,n)+slidev(:,n)),(v(:,n)+slidev(:,n)))
 			else
 				volume_temperature(ibin(1),ibin(2),ibin(3)) = volume_temperature(ibin(1),ibin(2),ibin(3)) & 
 										+ dot_product((v(:,n)-U(:,n)+slidev(:,n)), & 
