@@ -87,7 +87,7 @@ class MD_PlotData():
 		avgaxes = tuple(avgaxes)
 
 		mData = MassBins(self.fdir,cpol_bins=self.cpol_bins)
-		mslice, binspaces = mData.get_bins(minrec,maxrec,sumaxes=(avgaxes))
+		mslice, binspaces = mData.get_field(minrec,maxrec,sumaxes=(avgaxes))
 		#Take zeroth component to 'Squeeze' array to lower dimensionality
 		mslice = mslice[:,0] 
 
@@ -119,18 +119,29 @@ class MD_PlotData():
 	
 		return binspaces[axis], pslice[:,component]
 
-	def get_Tplane_splot_args(self,plane,haxis,vaxis,minrec,maxrec):
+	def get_Tplane_splot_args(self,plane,haxis,vaxis,minrec,maxrec,peculiar=True):
 
 		# Instantiate temperature data object
 		TData = TBins(self.fdir,cpol_bins=self.cpol_bins)
 		# Extract 3D velocity field averaged over 1D of bins
-		Tplane, binspaces = TData.get_field(minrec,maxrec,sumaxes=(plane))
+		Tplane, binspaces = TData.get_field(minrec,maxrec,sumaxes=(plane),peculiar=peculiar)
 		# Get bin center positions on both axes for every field point
 		X, Y = np.meshgrid(binspaces[haxis],binspaces[vaxis],indexing='ij')
-		#Take zeroth component to 'Squeeze' array to lower dimensionality
-		T = Tplane[:,:,0] 
 
-		return X, Y, T		
+		return X, Y, Tplane
+
+	def get_Tslice_plot_args(self,axis,minrec,maxrec,peculiar=True):
+
+		# Get which axes to average over
+		avgaxes = []	
+		for ax in range(3):
+			if (ax != axis): avgaxes.append(ax)
+		avgaxes = tuple(avgaxes)
+
+		TData = TBins(self.fdir,cpol_bins=self.cpol_bins)
+		Tslice, binspaces = TData.get_field(minrec,maxrec,sumaxes=(avgaxes),peculiar=peculiar)
+
+		return binspaces[axis], Tslice
 
 	def get_vfield_energy_spectra(self,plane,component,minrec,maxrec,tavg_rec,
 	                              fftaxis=None,ffttime=False):
