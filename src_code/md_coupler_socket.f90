@@ -717,7 +717,6 @@ end subroutine socket_apply_continuum_forces
 ! Force from Nie et al (2004) paper to fix molecular velocity to
 ! continuum value inside the overlap region. 
 !-----------------------------------------------------------------------------
-
 subroutine apply_continuum_forces_NCER
 	use physical_constants_MD, only : np
 	use computational_constants_MD, only : delta_t, nh, ncells, iter, & 
@@ -752,6 +751,7 @@ subroutine apply_continuum_forces_NCER
 	                 timestep_ratio=timestep_ratio              )
 
 		call setup_CFD_box(cnstd,CFD_box,recv_flag)
+
 		!At first CFD step we don't have two values to extrapolate CFD velocities, set inv_dtCFD=0
 		inv_dtCFD = 0.0
 
@@ -761,7 +761,7 @@ subroutine apply_continuum_forces_NCER
 	iter_average = mod(iter-1, timestep_ratio)+1
 
 	! Receive value of CFD velocities at first timestep of timestep_ratio
-	if (iter_average .eq. 1) then
+	if (iter_average .eq. 1 .or. first_time) then
 		call CPL_recv(uvw_cfd,                                 & 
 		              icmin_recv=cnstd(1),icmax_recv=cnstd(2), &
 		              jcmin_recv=cnstd(3),jcmax_recv=cnstd(4), &
@@ -772,7 +772,7 @@ subroutine apply_continuum_forces_NCER
 	endif
 
 	!Get average over current cell and apply constraint forces
-	if (recv_flag .eq. .true.) then
+	if (recv_flag .eqv. .true.) then
 		call average_over_bin
 		call apply_force
 	endif
@@ -877,14 +877,16 @@ subroutine average_over_bin
 
 		if ( r(2,n) .gt. CFD_box(3) .and. r(2,n) .lt. CFD_box(4)) then
 
+			!Get cell -- N.B. CFD_box already in -halfdom -> +halfdom system 
 			ib = ceiling((r(1,n)-CFD_box(1))/dx)
-			jb = ceiling((r(2,n)-CFD_box(3))/dy) !CFD_box already in -halfdom -> +halfdom system 
+			jb = ceiling((r(2,n)-CFD_box(3))/dy) 
 			kb = ceiling((r(3,n)-CFD_box(5))/dz)
 
 			!Add out of domain molecules to nearest cell on domain
 			if (ib.lt.1) ib = 1; if (ib.gt.size(box_average,1)) ib = size(box_average,1)
 			if (kb.lt.1) kb = 1; if (kb.gt.size(box_average,3)) kb = size(box_average,3)
 
+			!Add molecule to overlap list
 			np_overlap = np_overlap + 1
 			list(1:4, np_overlap) = (/ n, ib, jb, kb /)
 
@@ -896,8 +898,8 @@ subroutine average_over_bin
 
 	enddo
 
-    !Get single average value for slice and store in slice
-    !do jb = 1,size(box_average,2)
+	!Get single average value for slice and store in slice
+	!do jb = 1,size(box_average,2)
 	!	box_average(:,jb,:)%np  =  sum(box_average(:,jb,:)%np)
 	!	do ixyz =1,3
 	!		box_average(:,jb,:)%v(ixyz) = sum(box_average(:,jb,:)%v(ixyz))
@@ -912,11 +914,12 @@ end subroutine average_over_bin
 !-----------------------------------------------------------------------------
 
 subroutine apply_force
-	use arrays_MD, only : a
+	use arrays_MD, only : r, a
+	use computational_constants_MD, only : irank, vflux_outflag, CV_conserve, tplot
 	implicit none
 
-	integer ib, jb, kb, i, ip, n
-	real(kind=kind(0.d0)) alpha(3), u_cfd_t_plus_dt(3), inv_dtMD, acfd
+	integer ib, jb, kb, i, molno, n
+	real(kind=kind(0.d0)) alpha(3), u_cfd_t_plus_dt(3), inv_dtMD, acfd(3)
 
 	! set the continnum constraints for the particle in the bin
 	! speed extrapolation add all up
@@ -924,7 +927,7 @@ subroutine apply_force
 
 	!Loop over all molecules and apply constraint
 	do i = 1, np_overlap
-		ip = list(1,i)
+		molno = list(1,i)
 		ib = list(2,i)
 		jb = list(3,i)
 		kb = list(4,i)
@@ -934,10 +937,24 @@ subroutine apply_force
 		! ib,jb,kb are indicators of which CFD cell in !!!constrained!!! region
 		! uvw_cfd is allocated by number of CFD cells on !!!MD!!! processor
 		! box_avg is allocated by number of CFD cells in !!!constrained!!! region
-		acfd =	- box_average(ib,jb,kb)%a(1) / n - inv_dtMD * & 
-				( box_average(ib,jb,kb)%v(1) / n - uvw_cfd(1,ib,jb+cnstd(3)-extents(3),kb) )
+		acfd(:) =	- box_average(ib,jb,kb)%a(:) / n - inv_dtMD * & 
+					( box_average(ib,jb,kb)%v(:) / n - uvw_cfd(:,ib,jb+cnstd(3)-extents(3),kb) )
 
-		a(1,ip) = a(1,ip) + acfd
+
+		if (vflux_outflag .eq. 4) then
+			if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
+				call record_external_forces( acfd(:) , r(:,molno))
+			endif
+		endif
+
+		!if (mod(iter,200) .eq. 0) then
+		!	write(9999+irank,'(a,6i6,f18.8, 2f10.6)'), 'Cnstrnt force  ', iter,irank,n,ib,jb,kb,  & 
+		!															box_average(ib,jb,kb)%a(1), & 
+		!															box_average(ib,jb,kb)%v(1), &
+		!														    uvw_cfd(1,ib,jb+cnstd(3)-extents(3),kb) 
+		!endif
+
+		a(:,molno) = a(:,molno) + acfd(:)
 
 	enddo
 
@@ -1023,6 +1040,7 @@ contains
 !===================================================================================
 ! Run through the particle, check if they are in the overlap region and
 ! find the CFD box to which the particle belongs		 
+!-----------------------------------------------------------------------------------
 
 subroutine setup_CFD_box(limits,CFD_box,recv_flag)
 	use CPL, only : CPL_recv,CPL_proc_portion,localise,map_cfd2md_global, & 
@@ -1155,7 +1173,7 @@ subroutine apply_force
 	use CPL, only :  rank_world
 	implicit none
 
-	integer					:: ib, jb, kb, i, ip, n
+	integer					:: ib, jb, kb, i, molno, n
 	real(kind=kind(0.d0)) 	:: alpha(3), u_cfd_t_plus_dt(3), g, gsum, dx, dy, dz, dA, dV
 
 	real(kind=kind(0.d0)) 	:: 	gsumcheck,gratio, ave_a(3), ave_a_consrnt(3)
@@ -1167,13 +1185,13 @@ subroutine apply_force
 
 	!Loop over all molecules and apply constraint
 	do i = 1, np_overlap
-		ip = list(1,i)
+		molno = list(1,i)
 		ib = list(2,i)
 		jb = list(3,i)
 		kb = list(4,i)
 
 		n = box_average(ib,jb,kb)%np
-		g = flekkoy_gweight(r(2,ip),CFD_box(3),CFD_box(4))
+		g = flekkoy_gweight(r(2,molno),CFD_box(3),CFD_box(4))
 
 		!Gsum is replaced with the fixed value based on density and volume
 		gsum = density*dV
@@ -1181,12 +1199,12 @@ subroutine apply_force
 
 		if (gsum .eq. 0.d0) cycle
 
-		a(:,ip) = a(:,ip) + (g/gsum) * dA * stress_cfd(:,2,ib,jb+cnstd(3)-extents(3),kb) 
+		a(:,molno) = a(:,molno) + (g/gsum) * dA * stress_cfd(:,2,ib,jb+cnstd(3)-extents(3),kb) 
 
         !if (g .ne. 0.d0) then
 		!	if (iter .lt. 1000) then
-		!		write(1234,'(i3,2i7,3i4,5f12.6)'),rank_world,iter,ip,ib,jb,kb, &
-		!				 					  r(2,ip),v(2,ip),a(2,ip),g, & 
+		!		write(1234,'(i3,2i7,3i4,5f12.6)'),rank_world,iter,molno,ib,jb,kb, &
+		!				 					  r(2,molno),v(2,molno),a(2,molno),g, & 
 		!									 (g/gsum)*dA*stress_cfd(2,2,ib,jb+cnstd(3)-extents(3),kb)
 		!	endif
         !endif
