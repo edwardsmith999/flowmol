@@ -3,12 +3,12 @@ close all
 
 %Turn on/off video and picture output
 savevid = 0;
-savepic = 0;
+savepic = 1;
 
 %Plot type
 % 1 = mass/velocity/temperature in bins
 % 2 = CV analysis
-plot_type = 2;
+plot_type = 1;
 
 %Plot options
 mass_splines = 0; %Add splines to mass results
@@ -18,7 +18,7 @@ mass_splines = 0; %Add splines to mass results
 % 1 = slice
 % 2 = contourf
 slicetype = 2;
-cres = 100; %Contour resolution
+cres = 4; %Contour resolution
 
 %Shitfting cooefficients - may need some tuning to give correct colorbar
 %placements
@@ -33,7 +33,8 @@ nozzle_mask = 20;
 %Starting time for steady state averages
 start = 1;
 
-resultfile_dir_MD = '/home/es205/results/md_results/fortran/3D_code/parallel/results/converge_diverge/high_temporal_resolution/'
+%resultfile_dir_MD = '/home/es205/results/md_results/fortran/3D_code/parallel/results/converge_diverge/high_temporal_resolution/'
+resultfile_dir_MD = '/home/es205//results/MD_nozzle_case/results/5000000_iter/results/'
 %resultfile_dir_MD = '/home/es205/codes/coupled/MD_dCSE/src_code/results/'
 cd(resultfile_dir_MD)
 
@@ -74,18 +75,26 @@ if (plot_type == 1)
     minlt_t = zeros(gnbins(2),tend-start+1);
     mqrtr_t = zeros(gnbins(2),tend-start+1);
     mhalf_t = zeros(gnbins(2),tend-start+1);
+    m3qrt_t = zeros(gnbins(2),tend-start+1);
 
     %Velocity
     uinlt_t = zeros(gnbins(2),tend-start+1);
     uqrtr_t = zeros(gnbins(2),tend-start+1);
     uhalf_t = zeros(gnbins(2),tend-start+1);
+    u3qrt_t = zeros(gnbins(2),tend-start+1);
 
     %Temperature
     Tinlt_t = zeros(gnbins(2),tend-start+1);
     Tqrtr_t = zeros(gnbins(2),tend-start+1);
     Thalf_t = zeros(gnbins(2),tend-start+1);
-    
+    T3qrt_t = zeros(gnbins(2),tend-start+1);
+  
 
+    %Record of contour average
+    meancontourm = zeros(gnbins(2),gnbins(1),N_records-3);
+    meancontourU = zeros(gnbins(2),gnbins(1),N_records-3);
+    meancontourT = zeros(gnbins(2),gnbins(1),N_records-3);
+    
     for i=tstart:tskip:tend
         i
 
@@ -95,13 +104,13 @@ if (plot_type == 1)
         vel_bins = read_vbins(filename,resultfile_dir_MD,i);
         filename = strcat(resultfile_dir,'/Tbins');
         T_bins = read_Tbins(filename,resultfile_dir,i); 
-
+        
         %Mass
         if (slicetype == 0)
             %Do nothing
         elseif (slicetype == 1)
             figure(fig1); clf
-            h=slice(mass_bins(:,:,:)/(prod(binsize)*Nmass_ave),[],[],[10]);
+            h=slice(mass_bins(:,:,:)/(prod(binsize)*Nmass_ave),[],[],[5]);
             axis 'equal';  view([90,90]);
             set(h,'FaceColor','interp','EdgeColor','none','DiffuseStrength',.8)
             caxis([0.6 1.2])
@@ -111,8 +120,11 @@ if (plot_type == 1)
             xaxis = linspace(0,globaldomain(1),gnbins(1));
             yaxis = linspace(0,globaldomain(2),gnbins(2));
             [X,Y] = meshgrid(xaxis,yaxis);
-            contourf(X,Y,(squeeze(mean(mass_bins(:,:,:,1),3))./(prod(binsize)*Nmass_ave))',cres,'LineStyle','None')
+            mass = (squeeze(mean(mass_bins(:,:,:,1),3))./(prod(binsize)*Nmass_ave))';
+            contourf(X,Y,mass,cres,'LineStyle','None')          
             axis equal; axis 'tight';  caxis([0.4 0.8]); 
+            
+            meancontourm(:,:,i) = meancontourm(:,:,i) + mass;
 
             %Include colourbar and shift down slightly
             colorbar('delete'); c = colorbar('location','southoutside');
@@ -154,7 +166,7 @@ if (plot_type == 1)
             %Do nothing
         elseif (slicetype == 1)
             figure(fig2);  clf
-            h=slice(vel_bins(:,:,:,1)./mass_bins(:,:,:),[],[],[10]);
+            h=slice(vel_bins(:,:,:,1)./mass_bins(:,:,:),[],[],[5]);
             axis 'equal'; view([90,90]);
             set(h,'FaceColor','interp','EdgeColor','none','DiffuseStrength',.8)
             caxis([-0.2 0.51])
@@ -167,6 +179,9 @@ if (plot_type == 1)
             U = (squeeze(mean(vel_bins(:,:,:,1),3))./squeeze(mean(mass_bins(:,:,:),3)))';
             V = (squeeze(mean(vel_bins(:,:,:,2),3))./squeeze(mean(mass_bins(:,:,:),3)))';
             contourf(X,Y,U,cres,'LineStyle','None')
+            
+            meancontourU(:,:,i) = meancontourU(:,:,i) + U;
+
             %hold on
             %qs = 4
             %quiver(X(1:qs:end,1:qs:end,1:qs:end), ...
@@ -213,9 +228,11 @@ if (plot_type == 1)
             %Do nothing
         elseif (slicetype == 1)
             figure(fig3);  clf
-            h=slice(T_bins(:,:,:)./(3*mass_bins(:,:,:)),[],[],[10]);
+            h=slice(T_bins(:,:,:)./(3*mass_bins(:,:,:)),[],[],[5]);
             axis 'equal'; view([90,90]);
-            set(h,'FaceColor','interp','EdgeColor','none','DiffuseStrength',.8)
+            %h=slice(T_bins(:,:,:)./(3*mass_bins(:,:,:)),[13],[],[]);
+            %axis 'equal'; view([90,0]);
+            set(h,'FaceColor','interp','EdgeColor','none','DiffuseStrength',0.8)
             caxis([-0.2 2.01])
             colorbar('location','southoutside'); 
         elseif (slicetype == 2)
@@ -223,9 +240,24 @@ if (plot_type == 1)
             xaxis = linspace(0,globaldomain(1),gnbins(1));
             yaxis = linspace(0,globaldomain(2),gnbins(2));
             [X,Y] = meshgrid(xaxis,yaxis);
-            contourf(X,Y,(squeeze(mean(T_bins(:,:,:,1),3))./squeeze(3*mean(mass_bins(:,:,:),3)))',cres,'LineStyle','None')
-            axis equal; axis 'tight';  caxis([0.8 2.0]); 
-
+            
+            %Remove streaming component
+            if (peculiar_flag == 0)
+                Tdash = T_bins./(3*mass_bins);
+                u2 =(  (squeeze(vel_bins(:,:,:,1,:))./mass_bins).^2 ...
+                     + (squeeze(vel_bins(:,:,:,2,:))./mass_bins).^2 ...
+                     + (squeeze(vel_bins(:,:,:,3,:))./mass_bins).^2);
+                T = Tdash - u2/3;
+            else
+                T = (squeeze(mean(T_bins(:,:,:,1),3))./squeeze(3*mean(mass_bins(:,:,:),3)))';
+            end
+            
+            %Average contour values
+            meancontourT(:,:,i) = meancontourT(:,:,i) + squeeze(mean(T,3))';
+            
+            contourf(X,Y,mean(T,3)',cres,'LineStyle','None')
+            axis equal; axis 'tight';  caxis([0.8 1.8]); 
+            
             %Include colourbar and shift down slightly
             colorbar('delete'); c = colorbar('location','southoutside');
             posc=get(c,'Position'); posf=get(gca,'Position');
@@ -276,25 +308,32 @@ if (plot_type == 1)
             minlt_t(:,i) = mean(mean(squeeze(mass_bins(  1  ,:,:)/(prod(binsize)*Nmass_ave)),2),3);
             mqrtr_t(:,i) = mean(mean(squeeze(mass_bins(end/4,:,:)/(prod(binsize)*Nmass_ave)),2),3);
             mhalf_t(:,i) = mean(mean(squeeze(mass_bins(end/2,:,:)/(prod(binsize)*Nmass_ave)),2),3);
+            m3qrt_t(:,i) = mean(mean(squeeze(mass_bins(3*end/4,:,:)/(prod(binsize)*Nmass_ave)),2),3);
 
             %Velocity
             uinlt_t(:,i) = mean(mean(squeeze(vel_bins(  1  ,:,:,1))./squeeze(mass_bins(  1  ,:,:)),2),3);
             uqrtr_t(:,i) = mean(mean(squeeze(vel_bins(end/4,:,:,1))./squeeze(mass_bins(end/4,:,:)),2),3);
             uhalf_t(:,i) = mean(mean(squeeze(vel_bins(end/2,:,:,1))./squeeze(mass_bins(end/2,:,:)),2),3);
+            u3qrt_t(:,i) = mean(mean(squeeze(vel_bins(3*end/4,:,:,1))./squeeze(mass_bins(end/2,:,:)),2),3);
 
             %Temperature
-            Tinlt_t(:,i) = mean(mean(squeeze(T_bins(  1  ,:,:))./squeeze(3*mass_bins(  1  ,:,:)),2),3);
-            Tqrtr_t(:,i) = mean(mean(squeeze(T_bins(end/4,:,:))./squeeze(3*mass_bins(end/4,:,:)),2),3);
-            Thalf_t(:,i) = mean(mean(squeeze(T_bins(end/2,:,:))./squeeze(3*mass_bins(end/2,:,:)),2),3);
-
+%             Tinlt_t(:,i) = mean(mean(squeeze(T_bins(  1  ,:,:))./squeeze(3*mass_bins(  1  ,:,:)),2),3);
+%             Tqrtr_t(:,i) = mean(mean(squeeze(T_bins(end/4,:,:))./squeeze(3*mass_bins(end/4,:,:)),2),3);
+%             Thalf_t(:,i) = mean(mean(squeeze(T_bins(end/2,:,:))./squeeze(3*mass_bins(end/2,:,:)),2),3);
+            Tinlt_t(:,i) = mean(mean(squeeze(T(  1  ,:,:)),2),3);
+            Tqrtr_t(:,i) = mean(mean(squeeze(T(end/4,:,:)),2),3);
+            Thalf_t(:,i) = mean(mean(squeeze(T(end/2,:,:)),2),3);
+            T3qrt_t(:,i) = mean(mean(squeeze(T(3*end/4,:,:)),2),3);
 
             %Centreline values
             centreline = round(size(vel_bins,2)/2);
             vcl(i) =   squeeze(mean(mean(squeeze(vel_bins(:,centreline,:,1,:)) ...
                      ./squeeze(mass_bins(:,centreline,:,:)),1),2));
 
-            Tcl(i) =   squeeze(mean(mean(squeeze(T_bins(:,centreline,:,:)) ...
-                     ./squeeze(3*mass_bins(:,centreline,:,:)),1),2));
+%             Tcl(i) =   squeeze(mean(mean(squeeze(T_bins(:,centreline,:,:)) ...
+%                      ./squeeze(3*mass_bins(:,centreline,:,:)),1),2));
+                 
+            Tcl(i) =   squeeze(mean(mean(squeeze(T(:,centreline,:,:)),1),2));
         end
 
     end
@@ -313,6 +352,7 @@ if (plot_type == 1)
     minlt = mean(minlt_t(:,start:end),2); %mean(mean(squeeze(mass_bins(  1  ,:,:,start:end)/(prod(binsize)*Nmass_ave)),2),3);
     mqrtr = mean(mqrtr_t(:,start:end),2); %mean(mean(squeeze(mass_bins(end/4,:,:,start:end)/(prod(binsize)*Nmass_ave)),2),3);
     mhalf = mean(mhalf_t(:,start:end),2); %mean(mean(squeeze(mass_bins(end/2,:,:,start:end)/(prod(binsize)*Nmass_ave)),2),3);
+	m3qrt = mean(m3qrt_t(:,start:end),2); %mean(mean(squeeze(mass_bins(end/2,:,:,start:end)/(prod(binsize)*Nmass_ave)),2),3);
 	hold all
 
     %Fit interplolated splines to density data
@@ -340,6 +380,7 @@ if (plot_type == 1)
 	plot(mhalf,y,'-x','color', [0.7,0.7,0.7],'MarkerSize',8) %Plot data
     plot(mqrtr,y,'-s','color', [0.3,0.3,0.3],'MarkerSize',10) %Plot data
     plot(minlt,y,'-o','color', [0.0,0.0,0.0],'MarkerSize',6) %Plot data
+    plot(m3qrt,y,'-^','color', [0.5,0.5,0.5],'MarkerSize',10) %Plot data
 
     %labels etc
     axis([0.4 1.55  -2.0 58.0 ])
@@ -357,11 +398,13 @@ if (plot_type == 1)
     uinlt = mean(uinlt_t(:,start:end),2); %mean(mean(squeeze(vel_bins(  1  ,:,:,1,start:end))./squeeze(mass_bins(  1  ,:,:,start:end)),2),3);
     uqrtr = mean(uqrtr_t(:,start:end),2); %mean(mean(squeeze(vel_bins(end/4,:,:,1,start:end))./squeeze(mass_bins(end/4,:,:,start:end)),2),3);
     uhalf = mean(uhalf_t(:,start:end),2); %mean(mean(squeeze(vel_bins(end/2,:,:,1,start:end))./squeeze(mass_bins(end/2,:,:,start:end)),2),3);
+    u3qrt = mean(u3qrt_t(:,start:end),2); %mean(mean(squeeze(vel_bins(end/2,:,:,1,start:end))./squeeze(mass_bins(end/2,:,:,start:end)),2),3);
 
     plot(uhalf,y,'color', [0.7,0.7,0.7],'LineWidth',2)
     hold all
     plot(uqrtr,y,'--','color', [0.3,0.3,0.3],'LineWidth',2)
     plot(uinlt,y,'-','color', [0.0,0.0,0.0],'LineWidth',2)
+    plot(u3qrt,y,'-.','color', [0.5,0.5,0.5],'LineWidth',2) %Plot data
 
     %labels etc
     axis([-0.1 1.8  -2.0 58.0 ])
@@ -398,12 +441,14 @@ if (plot_type == 1)
     Tinlt = mean(Tinlt_t(:,start:end),2); %mean(mean(squeeze(T_bins(  1  ,:,:,start:end))./squeeze(3*mass_bins(  1  ,:,:,start:end)),2),3);
     Tqrtr = mean(Tqrtr_t(:,start:end),2); %mean(mean(squeeze(T_bins(end/4,:,:,start:end))./squeeze(3*mass_bins(end/4,:,:,start:end)),2),3);
     Thalf = mean(Thalf_t(:,start:end),2); %mean(mean(squeeze(T_bins(end/2,:,:,start:end))./squeeze(3*mass_bins(end/2,:,:,start:end)),2),3);
-    
+	T3qrt = mean(T3qrt_t(:,start:end),2); %mean(mean(squeeze(T_bins(end/2,:,:,start:end))./squeeze(3*mass_bins(end/2,:,:,start:end)),2),3);
+   
     figure
     plot(Thalf,y,'color', [0.7,0.7,0.7],'LineWidth',2)
     hold all
     plot(Tqrtr,y,'--','color', [0.3,0.3,0.3],'LineWidth',2)
     plot(Tinlt,y,'-','color', [0.0,0.0,0.0],'LineWidth',2)
+    plot(T3qrt,y,'-.','color', [0.5,0.5,0.5],'LineWidth',2) %Plot data
 
     %labels etc
     axis([0.85 1.75  -2.0 58.0 ])
@@ -429,8 +474,128 @@ if (plot_type == 1)
     if (savepic == 1)
         savefig('./Tcl_tevo','png','eps')
     end
+    
+    
+	figure(fig1)
+    meancontourm(isnan(meancontourm))=0;
+    contourf(X,Y,mean(meancontourm,3),300,'LineStyle','None')
+    axis equal; axis 'tight';  caxis([0.4 0.8]); 
 
-% 	figure
+    %Include colourbar and shift down slightly
+    colorbar('delete'); c = colorbar('location','southoutside');
+    posc=get(c,'Position'); posf=get(gca,'Position');
+    set(gca,'position',[posf(1),posf(2)+figup,posf(3),posf(4)]);
+    set(c,'Position',[posc(1),posc(2)-clrbardown,posc(3),posc(4)]);
+
+    %Plot nozzzle bounding lines
+    hold all
+    a = 0.25*globaldomain(2)/2;
+    b = tethdistbot(2) + 0.5*binsize(2);
+    plot(xaxis, a*(1-cos(2*(pi*xaxis/globaldomain(1))))+ b      ,'k','LineWidth', 2)
+    plot(xaxis,-a*(1-cos(2*(pi*xaxis/globaldomain(1))))+globaldomain(2)-b,'k','LineWidth', 2)
+    plot(xaxis, a*(1-cos(2*(pi*xaxis/globaldomain(1))))+ b      ,'w:','LineWidth', 2)
+    plot(xaxis,-a*(1-cos(2*(pi*xaxis/globaldomain(1))))+globaldomain(2)-b,'w:','LineWidth', 2)
+
+    %labels etc
+    xlabel('x','FontSize',16); ylabel('y','FontSize',16)
+    set(gca,'FontSize',16);  colormap('hot')
+    set(gca,'FontName','Times'); box on;    
+    
+    if (savepic == 1)
+        savefig('./nozzle_mcontour','png','eps')
+    end
+    
+	figure(fig2)
+    meancontourU(isnan(meancontourU))=0;
+    contourf(X,Y,mean(meancontourU,3),300,'LineStyle','None')
+    axis equal; axis 'tight';  caxis([0.0 1.8]); 
+
+    %Include colourbar and shift down slightly
+    colorbar('delete'); c = colorbar('location','southoutside');
+    posc=get(c,'Position'); posf=get(gca,'Position');
+    set(gca,'position',[posf(1),posf(2)+figup,posf(3),posf(4)]);
+    set(c,'Position',[posc(1),posc(2)-clrbardown,posc(3),posc(4)]);
+
+    %Plot nozzzle bounding lines
+    hold all
+    a = 0.25*globaldomain(2)/2;
+    b = tethdistbot(2) + 0.5*binsize(2);
+    plot(xaxis, a*(1-cos(2*(pi*xaxis/globaldomain(1))))+ b      ,'k','LineWidth', 2)
+    plot(xaxis,-a*(1-cos(2*(pi*xaxis/globaldomain(1))))+globaldomain(2)-b,'k','LineWidth', 2)
+    plot(xaxis, a*(1-cos(2*(pi*xaxis/globaldomain(1))))+ b      ,'w:','LineWidth', 2)
+    plot(xaxis,-a*(1-cos(2*(pi*xaxis/globaldomain(1))))+globaldomain(2)-b,'w:','LineWidth', 2)
+
+    %labels etc
+    xlabel('x','FontSize',16); ylabel('y','FontSize',16)
+    set(gca,'FontSize',16);  colormap('hot')
+    set(gca,'FontName','Times'); box on;    
+    
+    if (savepic == 1)
+        savefig('./nozzle_vcontour','png','eps')
+    end
+    
+    figure(fig3)
+	meancontourT(isnan(meancontourT))=0;
+    contourf(X,Y,mean(meancontourT,3),300,'LineStyle','None')
+    axis equal; axis 'tight';  caxis([0.8 1.8]); 
+
+    %Include colourbar and shift down slightly
+    colorbar('delete'); c = colorbar('location','southoutside');
+    posc=get(c,'Position'); posf=get(gca,'Position');
+    set(gca,'position',[posf(1),posf(2)+figup,posf(3),posf(4)]);
+    set(c,'Position',[posc(1),posc(2)-clrbardown,posc(3),posc(4)]);
+
+    %Plot nozzzle bounding lines
+    hold all
+    a = 0.25*globaldomain(2)/2;
+    b = tethdistbot(2) + 0.5*binsize(2);
+    plot(xaxis, a*(1-cos(2*(pi*xaxis/globaldomain(1))))+ b      ,'k','LineWidth', 2)
+    plot(xaxis,-a*(1-cos(2*(pi*xaxis/globaldomain(1))))+globaldomain(2)-b,'k','LineWidth', 2)
+    plot(xaxis, a*(1-cos(2*(pi*xaxis/globaldomain(1))))+ b      ,'w:','LineWidth', 2)
+    plot(xaxis,-a*(1-cos(2*(pi*xaxis/globaldomain(1))))+globaldomain(2)-b,'w:','LineWidth', 2)
+
+    %labels etc
+    xlabel('x','FontSize',16); ylabel('y','FontSize',16)
+    set(gca,'FontSize',16);  colormap('hot')
+    set(gca,'FontName','Times'); box on;
+
+    if (savepic == 1)
+        savefig('./nozzle_Tcontour','png','eps')
+    end
+
+    %Plot density ratio along domain
+    figure
+    rho = mean(mean(meancontourm(end/2-3:end/2+3,:,:),3),1);
+    rho_d_rho0 =  rho/max(rho);
+    plot(linspace(0,globaldomain(1),size(rho_d_rho0,2)),rho_d_rho0,'color',[0.8,0.8,0.8],'LineWidth',2)
+    hold all
+    
+    %Speed of sound in LJ fluid from Yigzawe & Sadus J. Chem. Phys. 138,
+    %194502 (2013)
+    cs = 2.75;
+    u = mean(meancontourU(end/2,:,:),3);
+    u_d_u0 = u/max(u);
+    plot(linspace(0,globaldomain(1),size(u_d_u0,2)),rho.*u/max(rho.*u),'--','color',[0.5,0.5,0.5],'LineWidth',2);
+    plot(linspace(0,globaldomain(1),size(u_d_u0,2)),u_d_u0,'color',[0.5,0.5,0.5],'LineWidth',2)
+
+    %Temperature
+    T_plt = mean(mean(meancontourT(end/2:end/2,:,:),3),1);
+    T_d_T0 = T_plt/max(T_plt);
+    plot(linspace(0,globaldomain(1),size(T_d_T0,2)),T_d_T0,'color',[0.0,0.0,0.0],'LineWidth',2)
+
+    %Min max plotted value and throat line
+    ymin = 0.3; ymax = 1.05;
+    plot((ones(100)*globaldomain(1)/2),linspace(ymin,ymax,100),'k','LineWidth',0.1)
+    legend('\rho/\rho_0','u/u_0','\rho u / [\rho_0 u_0]','T/T_0')
+    axis([0 globaldomain(1) ymin ymax])
+    %labels etc
+    xlabel('x','FontSize',16); ylabel('y','FontSize',16)
+    set(gca,'FontSize',16);  
+    set(gca,'FontName','Times'); box on;    
+	if (savepic == 1)
+        savefig('./xprofiles','png','eps')
+    end
+    % 	figure
 % 	plot(y,mqrtr.*uqrtr)
 % 	hold all
 % 	plot(y,mhalf.*uhalf)
