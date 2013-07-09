@@ -214,8 +214,8 @@ hold on
 figure(fig1);
 yaxis   = linspace(0,coupleddomain(2),2*size(u_MD,2));
 [sx,sy] = meshgrid(0,yaxis(8:end));
-h = streamline(x_CPL,y_CPL,U,V,sx,sy);
-set(h,'Color','k','LineWidth',0.01);  hold off
+h = streamline(x_CPL/globaldomain(1),y_CPL/globaldomain(2),U,V,sx/globaldomain(1),sy/globaldomain(2));
+set(h,'Color','k','LineStyle','x','LineWidth',0.01);  hold off
 
 
 %MD DOMAIN
@@ -236,9 +236,14 @@ V = squeeze(mean(v_MD,3))';
 figure(fig1); hold on
 yaxis   = linspace(0,globaldomain(2),2*size(u_MD,2));
 [sx,sy] = meshgrid(0,yaxis(8:end));
-h = streamline(x_MD,y_MD,U,V,sx,sy);
-set(h,'Color','r','LineStyle','--','LineWidth',0.01);  hold off
-
+h = streamline(x_MD/globaldomain(1),y_MD/globaldomain(2),U,V,sx/globaldomain(1),sy/globaldomain(2));
+set(h,'Color','k','LineStyle','-','LineWidth',0.2);  hold off
+axis([-0.03 1.03 0.24 0.5 ])
+xlabel('x/L','FontSize',16); ylabel('y/H','FontSize',16)
+set(gca,'FontSize',16);
+set(gca,'FontName','Times'); box on;
+%legend('Coupled','All MD','orientation','horizontal','location','South'); box on
+savefig('./CPL_vs_allMD_streamlines','png','eps')
 
 % = = = Get plot of v profiles per cell = = =
 
@@ -271,7 +276,7 @@ xlabel('y/H','FontSize',16); ylabel('v/U','FontSize',16)
 set(gca,'FontSize',16);
 set(gca,'FontName','Times'); box on;
 legend(lgnd,'orientation','verticle','location','EastOutside')
-savefig('./v_velocity','png','eps')
+savefig('./CPL_vs_allMD_streamlines_v_velocity','png','eps')
 
 
 
