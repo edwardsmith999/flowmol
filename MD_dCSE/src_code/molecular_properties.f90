@@ -416,6 +416,8 @@ subroutine tether_force(molno)
 	if (vflux_outflag .eq. 4) then
 		if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
 			call record_external_forces(at(:),r(:,molno))
+			! There was a time when I though that the CV conservation would require interactions
+			! which cross the surface. However, it appears this is not the case...
 			!call control_volume_stresses(at(:),r(:,molno),rtether(:,molno),molno)
 		endif
 	endif
@@ -869,6 +871,7 @@ subroutine remove_mols(nmols)
 		call random_number(rand)
 		molno = ceiling(rand * np)
 		call remove_molecule(molno)
+		call messenger_updateborders(1) !Update borders ready for next insertion - halo rebuilt
 	enddo
 
 end subroutine remove_mols
