@@ -680,9 +680,17 @@ end subroutine CPL_send_4d
 !!
 !!   - asend
 !!
-!!   - jcmax_recv
+!!   - icmin_send
 !!
-!!   - jcmin_recv
+!!   - icmax_send
+!!
+!!   - jcmin_send
+!!
+!!   - jcmax_send
+!!
+!!   - kcmin_send
+!!
+!!   - kcmax_send
 !!
 !! - Output Parameter
 !!
@@ -764,7 +772,7 @@ subroutine CPL_send_xd(asend,icmin_send,icmax_send,jcmin_send, &
 			!Get extents of nbr MD processor to send to
 			call CPL_Cart_coords(CPL_GRAPH_COMM, destid+1,  md_realm, 3, pcoords, ierr) 
 		elseif (realm .eq. md_realm) then
-			!Data to send is based on current processor
+			!Data to send is based on current processor as MD proc size < CFD proc size
 			pcoords = (/iblock_realm,jblock_realm,kblock_realm /)
 			!Get extents of current processor
 			call CPL_proc_extents(pcoords,md_realm,extents)
@@ -962,18 +970,24 @@ end subroutine CPL_recv_4d
 !!
 !! - Synopsis
 !!
-!!  - CPL_recv_xdarecv,icmin_recv,icmax_recv,jcmin_recv,  
+!!  - CPL_recv_xd(arecv,icmin_recv,icmax_recv,jcmin_recv,  
 !!						     jcmax_recv,kcmin_recv,kcmax_recv,recv_flag)
 !!
 !! - Input Parameters
 !!
 !!   - arecv
 !!
-!!   - jcmax_recv
+!!   - icmin_recv
+!!
+!!   - icmax_recv
 !!
 !!   - jcmin_recv
 !!
-!!   - index_transpose
+!!   - jcmax_recv
+!!
+!!   - kcmin_recv
+!!
+!!   - kcmax_recv
 !!
 !! - Output Parameter
 !!

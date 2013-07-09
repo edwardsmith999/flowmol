@@ -21,7 +21,7 @@ tstep = 1;
 % 1 = lines
 % 2 = contours
 % 3 = 3D isosurfaces and stuff
-plot_level = 2;
+plot_level = 1;
 cres = 2;
 fixaxis = 0;
 
@@ -39,6 +39,7 @@ analy_points = 20; % Number of spectral points
 
 %Find results files
 %resultfile_dir = './../results/';
+resultfile_dir = '/home/es205/codes/coupled/coupler_dCSE/src_code/';
 %resultfile_dir = '/home/es205/results/MD_continuum_results/results/CPL_testing/130430_NCER_mdws/';
 %resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/NCER_wall_bump/basecase_no_bump/';
 %resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/Flekkoy_meu10/';

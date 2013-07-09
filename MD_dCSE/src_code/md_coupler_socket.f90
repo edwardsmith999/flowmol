@@ -38,7 +38,7 @@ module md_coupler_socket
 	type(cfd_box_sum),dimension(:,:,:),allocatable 		:: box_average
 
 	integer			, dimension(:,:,:,:), allocatable 	:: mflux
-	real(kind(0.d0)), dimension(:,:,:,:), allocatable 	:: uvw_md, uvw_cfd
+	real(kind(0.d0)), dimension(:,:,:,:), allocatable 	:: uvw_md, uvw_cfd,uvw_cfdt_m_dt
 	real(kind(0.d0)), dimension(:,:,:,:,:), allocatable :: stress_cfd
 
 contains
@@ -762,6 +762,7 @@ subroutine apply_continuum_forces_NCER
 
 	! Receive value of CFD velocities at first timestep of timestep_ratio
 	if (iter_average .eq. 1 .or. first_time) then
+		uvw_cfdt_m_dt = uvw_cfd	!Store previous timestep velocity
 		call CPL_recv(uvw_cfd,                                 & 
 		              icmin_recv=cnstd(1),icmax_recv=cnstd(2), &
 		              jcmin_recv=cnstd(3),jcmax_recv=cnstd(4), &
@@ -809,6 +810,8 @@ subroutine setup_CFD_box(limits,CFD_box,recv_flag)
 	!Allocate CFD received box
 	allocate(uvw_cfd(3,nclx,ncly,nclz))
 	uvw_cfd = 0.d0
+	allocate(uvw_cfdt_m_dt(3,nclx,ncly,nclz))
+	uvw_cfdt_m_dt = 0.d0
 
 	!Get limits of constraint region in which to receive data
 	call CPL_proc_portion(pcoords,CPL_realm(),limits,portion)
@@ -918,6 +921,7 @@ subroutine apply_force
 	use computational_constants_MD, only : irank, vflux_outflag, CV_conserve, tplot
 	implicit none
 
+	integer	:: NCER_type
 	integer ib, jb, kb, i, molno, n
 	real(kind=kind(0.d0)) alpha(3), u_cfd_t_plus_dt(3), inv_dtMD, acfd(3)
 
@@ -937,22 +941,33 @@ subroutine apply_force
 		! ib,jb,kb are indicators of which CFD cell in !!!constrained!!! region
 		! uvw_cfd is allocated by number of CFD cells on !!!MD!!! processor
 		! box_avg is allocated by number of CFD cells in !!!constrained!!! region
-		acfd(:) =	- box_average(ib,jb,kb)%a(:) / n - inv_dtMD * & 
-					( box_average(ib,jb,kb)%v(:) / n - uvw_cfd(:,ib,jb+cnstd(3)-extents(3),kb) )
-
+		NCER_type = 2
+		select case(NCER_type)
+		case(0)
+			! Difference in velocity in continuum (with no average force term from constrained dynamics)
+			acfd(:) = - box_average(ib,jb,kb)%a(:) / n  &
+				      - inv_dtMD * (   uvw_cfdt_m_dt(:,ib,jb+cnstd(3)-extents(3),kb) & 
+					  	   	   	   	 - uvw_cfd      (:,ib,jb+cnstd(3)-extents(3),kb) )
+		case(1)
+			! NCER with no force term but including correct special "discretisation" to apply propertional
+			! constraint to equations of motion (This is same as control scheme use by 
+			! Borg, M. K. and Macpherson, G. and Reese, J. (2010) Mol. Sim., 36 (10). pp. 745-757.) 
+			acfd(:) =	- inv_dtMD * ( box_average(ib,jb,kb)%v(:) / n - uvw_cfd(:,ib,jb+cnstd(3)-extents(3),kb) )
+		case(2)
+			! Full NCER including correct special "discretisation" to apply proportional
+			! constraint to equations of motion
+			acfd(:) =	- box_average(ib,jb,kb)%a(:) / n & 
+						- inv_dtMD * (    box_average(ib,jb,kb)%v(:) / n & 
+										- uvw_cfd(:,ib,jb+cnstd(3)-extents(3),kb) )
+		case default 
+			call error_abort("Incorrect case in apply_continuum_forces_NCER")
+		end select
 
 		if (vflux_outflag .eq. 4) then
 			if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
 				call record_external_forces( acfd(:) , r(:,molno))
 			endif
 		endif
-
-		!if (mod(iter,200) .eq. 0) then
-		!	write(9999+irank,'(a,6i6,f18.8, 2f10.6)'), 'Cnstrnt force  ', iter,irank,n,ib,jb,kb,  & 
-		!															box_average(ib,jb,kb)%a(1), & 
-		!															box_average(ib,jb,kb)%v(1), &
-		!														    uvw_cfd(1,ib,jb+cnstd(3)-extents(3),kb) 
-		!endif
 
 		a(:,molno) = a(:,molno) + acfd(:)
 
