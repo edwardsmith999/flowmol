@@ -11,13 +11,24 @@ CFD = 1;
 savevid = 0;
 savepic = 0;
 
+% Time period of interest
+tstart = 1;
+tstep = 1;
+
+
 %Include line plots from MD data
 % 0 = off
 % 1 = lines
 % 2 = contours
 % 3 = 3D isosurfaces and stuff
 plot_level = 2;
-cres = 10;
+cres = 2;
+fixaxis = 0;
+
+%-Direct or shear stress plotted
+% 1 -- direct stress
+% 2 -- shear stress
+pressure_plot = 2;
 
 %Analytical Solution parameters
 u_0 = 1; t_0 = 160;
@@ -29,14 +40,17 @@ analy_points = 20; % Number of spectral points
 %Find results files
 %resultfile_dir = './../results/';
 %resultfile_dir = '/home/es205/results/MD_continuum_results/results/CPL_testing/130430_NCER_mdws/';
-resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/NCER_wall_bump/basecase_no_bump/';
+%resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/NCER_wall_bump/basecase_no_bump/';
 %resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/Flekkoy_meu10/';
 %resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/Inc_specular_walls_large/';
 %resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/50CFDMDratio/';
 %resultfile_dir = '/home/djt06/Documents/Academia/PhD/Code/Development/branch/coupler_dCSE/src_code/';
-%resultfile_dir='/home/es205/results/CPL_runs/1NCER_bump_allzthermostat/results/'
+%resultfile_dir = '/home/es205/results/CPL_runs/1NCER_bump_allzthermostat/results/no_bottom_thermostat/'
+%resultfile_dir = '/home/es205/results/CPL_runs/1NCER_bump_allzthermostat/results/51p2_totaldomain/'
+resultfile_dir = '/home/es205/results/CPL_runs/1NCER_bump_allzthermostat/results/51p2_totaldomain_inc_CV_fluxes/'
 %resultfile_dir='/home/es205/results/CPL_runs/2NCER_bump_wallthermostat/results/'
-%resultfile_dir='/home/es205/results/CPL_runs/4Flekkoy_basecase/results/'
+%resultfile_dir='/home/es205/results/CPL_runs/4Flekkoy_basecase/results/Flekkoy_rc2p2/'
+%resultfile_dir='/home/es205/results/CPL_runs/4Flekkoy_basecase/results/Flekkoy_from_standard_input/'
 %resultfile_dir='/home/es205/results/CPL_runs/5Flekkoy_bump_wallthermostat/results/'
 resultfile_dir_MD = strcat(resultfile_dir,'md_data/results/');
 resultfile_dir_CFD = strcat(resultfile_dir,'couette_data/');
@@ -209,8 +223,8 @@ yaxis = linspace(0,globaldomain(2),globalncells(2));
 
 last_record = 0;
 intial_offset = -1; %53.33;
-t_ave = 10;  %Average over timesteps
-m = 0+ceil(t_ave/2); %Initial Timestep
+t_ave = 1;  %Average over timesteps
+m = tstart+ceil(t_ave/2); %Initial Timestep
 snaps = [2,4,8, 16, 700];
 for i = 1:Nvel_records
     i
@@ -270,7 +284,7 @@ for i = 1:Nvel_records
         plot(xaxis_CFD,continuum_velslice(:,m),'s','Color',[.5 .5 .5],'MarkerSize',12,'LineWidth',3);
         
         %plot molecular velocity profile
-        plot(xaxis_MD(:),ave_vel_slice(3:end,1),'x','LineWidth',3,'Color',[.5 .5 .5],'MarkerSize',14);
+        plot(xaxis_MD(:),ave_vel_slice(1:end,1),'x','LineWidth',3,'Color',[.5 .5 .5],'MarkerSize',14);
         %plot(xaxis_MD2,vel_slice(5:end,1),'^-')
         
         
@@ -383,7 +397,7 @@ for i = 1:Nvel_records
             
             %Plot MD shear stress
             %plot(xaxis_MD,-squeeze(density*ave_vel_slice(2:end,1).*ave_vel_slice(2:end,2)),'o','LineWidth',3,'Color',[.2 .2 .2],'MarkerSize',10)
-            plot(xaxis_MD,-squeeze(ave_P_slice(3:end,1,2)),'x','LineWidth',3,'Color',[.5 .5 .5],'MarkerSize',10)
+            plot(xaxis_MD,-squeeze(ave_P_slice(1:end,1,2)),'x','LineWidth',3,'Color',[.5 .5 .5],'MarkerSize',10)
             %plot(xaxis_MD2,-squeeze(P_slice(5:end,1,2)),'^-')
             
             %Make plot look nice
@@ -410,7 +424,7 @@ for i = 1:Nvel_records
         end
         
     elseif(plot_level == 2)
-        
+               
         % ---------- 2 D Plots --------------------
         %Contour Plots
         figure(fig1)
@@ -424,23 +438,71 @@ for i = 1:Nvel_records
         contourf(X,Y,mean(mass_bins,3)'/(prod(MD_binsize)*Nmass_ave),cres,'LineStyle','None')
         axis equal; axis 'tight';  colorbar; title('density','FontSize',16)
         xlabel('x','FontSize',16); ylabel('y','FontSize',16)
-        set(gca,'FontName','Times'); box on; %caxis([0.4 0.85])
+        set(gca,'FontName','Times'); box on; caxis([0.4 0.9])
         set(gca,'FontSize',16);  colormap('hot')
+
+        % ====== COUPLED VELOCITY ======
+        %Load CFD data
+        [xi,yi,zi] = meshgrid(1:size(vel_bins,2), ...
+                              1:size(vel_bins,1), ...
+                              1:size(vel_bins,3));
+        [xrange,yrange,zrange] = meshgrid(1:MD_cells_per_CFD(2):size(vel_bins,2), ...
+                                          1:MD_cells_per_CFD(1):size(vel_bins,1), ... 
+                                          1:MD_cells_per_CFD(3):size(vel_bins,3));
+        [ngx, ngy, ngz, Lx, Ly, Lz, dx, dy, dz] = read_report(strcat(resultfile_dir_CFD,'report'));
+        [u,v,w,P] = Read_DNS_Subdomain(m,'grid.data',resultfile_dir_CFD,ngx-2,ngy-1,ngz-2,1,1,1,4,true);
         
+        %Coarse grain MD data and combine with CFD grid
+        u_MD = interp3(xi,yi,zi,vel_bins(:,:,:,1)./mass_bins(:,:,:),xrange,yrange,zrange); 
+        u_CPL = cat(2,u_MD(:,1:end-CPL_olap_nbins(2)/2,:),permute(u(:,:,(CPL_olap_nbins(2)/2+1):end),[2,3,1]));
+        v_MD = interp3(xi,yi,zi,vel_bins(:,:,:,2)./mass_bins(:,:,:),xrange,yrange,zrange); 
+        v_CPL = cat(2,v_MD(:,1:end-CPL_olap_nbins(2)/2,:),permute(v(:,:,(CPL_olap_nbins(2)/2+1):end),[2,3,1]));
+        w_MD = interp3(xi,yi,zi,vel_bins(:,:,:,3)./mass_bins(:,:,:),xrange,yrange,zrange); 
+        w_CPL = cat(2,w_MD(:,1:end-CPL_olap_nbins(2)/2,:),permute(w(:,:,(CPL_olap_nbins(2)/2+1):end),[2,3,1]));
         
-        % ====== VELOCITY ======
+        xaxis   = linspace(0,coupleddomain(1),size(u_CPL,1));
+        yaxis   = linspace(0,coupleddomain(2),size(u_CPL,2));
+        [x_CPL,y_CPL]   = meshgrid(xaxis,yaxis);
+        
+        %contourf(x_CPL,y_CPL,mean(u_CPL,3)',cres,'LineStyle','None')
         subplot(2,8,3:4)
-        vmagnitude = sqrt(vel_bins(:,:,:,1).^2+vel_bins(:,:,:,2).^2+vel_bins(:,:,:,3).^2);
-        contourf(X,Y,squeeze(mean(vmagnitude(:,:,:),3)./mean(mass_bins(:,:,:),3))',cres,'LineStyle','None')
+        vmagnitude = sqrt(u_CPL.^2+v_CPL.^2+w_CPL.^2);
+        contourf(x_CPL,y_CPL,squeeze(mean(vmagnitude(:,:,:),3))',cres,'LineStyle','None')
+        U = squeeze(mean(u_CPL,3))';
+        V = squeeze(mean(v_CPL,3))';
+        %Store history of snapshots
+        U_hist(:,:,m) = U;
+        V_hist(:,:,m) = V;
+        
+        hold on
+        h = quiver(x_CPL,y_CPL,U,V);
+        set(h,'Color','w'); hold off
+        
         axis equal; axis 'tight';  colorbar; title('velocity','FontSize',16)
         xlabel('x','FontSize',16); ylabel('y','FontSize',16)
         set(gca,'FontName','Times'); box on;
         set(gca,'FontSize',16);  colormap('hot')
-        U = squeeze(mean(vel_bins(:,:,:,1),3)./mean(mass_bins(:,:,:),3))';
-        V = squeeze(mean(vel_bins(:,:,:,2),3)./mean(mass_bins(:,:,:),3))';
-        hold on
-        h = quiver(X,Y,U,V);
-        set(h,'Color','w'); hold off
+        
+        cumulative_vel_CPL(:,:,:,1,m) = u_CPL;
+        cumulative_vel_CPL(:,:,:,2,m) = v_CPL;
+        cumulative_vel_CPL(:,:,:,3,m) = w_CPL;
+
+        % ====== VELOCITY ======
+        %subplot(2,8,3:4)
+
+        %vmagnitude = sqrt(vel_bins(:,:,:,1).^2+vel_bins(:,:,:,2).^2+vel_bins(:,:,:,3).^2);
+        %contourf(X,Y,squeeze(mean(vmagnitude(:,:,:),3)./mean(mass_bins(:,:,:),3))',cres,'LineStyle','None')
+        
+        %axis equal; axis 'tight';  colorbar; title('velocity','FontSize',16)
+        %xlabel('x','FontSize',16); ylabel('y','FontSize',16)
+        %set(gca,'FontName','Times'); box on;
+        %set(gca,'FontSize',16);  colormap('hot')
+        %U = squeeze(mean(vel_bins(:,:,:,1),3)./mean(mass_bins(:,:,:),3))';
+        %V = squeeze(mean(vel_bins(:,:,:,2),3)./mean(mass_bins(:,:,:),3))';
+        
+        %hold on
+        %h = quiver(X,Y,U,V);
+        %set(h,'Color','w'); hold off
         %             hold on
         %             [sx,sy] = meshgrid(0,linspace(tethdistbot(2)+0.5,globaldomain(2),20));
         %             h = streamline(X,Y,U,V,sx,sy);
@@ -449,33 +511,85 @@ for i = 1:Nvel_records
         %              h = streamline(X,Y,U,V,sx,sy);
         %              set(h,'Color','w','LineWidth',0.01);  hold off
         %vf_slice_hist(i,:,:,:,:) = velocity_flux(:,6,:,:,:);
-        
+       
         
         % ====== TEMPERATURE ======  
         if ( plot_T == 1)        
             filename = strcat(resultfile_dir_MD,'/Tbins');
             T_bins = read_Tbins(filename,resultfile_dir_MD,m);
             subplot(2,8,5:6)
-            contourf(X,Y,(mean(T_bins,3)./(3*mean(mass_bins,3)))',cres,'LineStyle','None')
+            %Remove streamin component of temperature
+            if (peculiar_flag == 0)
+                T = (mean(T_bins,3)./(3*mean(mass_bins,3)))' - (mean(vel_bins(:,:,:,1),3)./(3*mean(mass_bins,3)))';
+            else
+                T = (mean(T_bins,3)./(3*mean(mass_bins,3)))';
+            end
+            contourf(X,Y,T,cres,'LineStyle','None')
             axis equal; axis 'tight';  colorbar; title('Temperature','FontSize',16)
             xlabel('x','FontSize',16); ylabel('y','FontSize',16)
             set(gca,'FontName','Times'); box on; %caxis([0.0 1.1])
             set(gca,'FontSize',16);  colormap('hot')
         end
         
-        % ====== PRESSURE ======
-        if ( plot_pVA == 1)        
+        % ====== COUPLED PRESSURE ======
+        if ( plot_pVA == 1)
             filename = strcat(resultfile_dir_MD,'/pVA');
             [pressure_VA]=read_pVA(m,resultfile_dir_MD,filename);
-            pVA = -squeeze(pressure_VA(:,:,:,1,1) + pressure_VA(:,:,:,2,2)+pressure_VA(:,:,:,3,3))/3;
+            
+            if (pressure_plot == 1)
+                
+                %Plot direct pressure
+                pVA = -squeeze(pressure_VA(:,:,:,1,1) + pressure_VA(:,:,:,2,2)+pressure_VA(:,:,:,3,3))/3;
+                P_gauge = mean(mean(mean(pVA(:,nbinswallbot(2)+3:end-2*CPL_olap_nbins(2),:))));
+                P_MD = interp3(xi,yi,zi,pVA(:,:,:),xrange,yrange,zrange)-P_gauge; 
+                P_CPL = cat(2,P_MD(:,1:end-CPL_olap_nbins(2)/2,:),permute(P(:,:,(CPL_olap_nbins(2)/2+1):end),[2,3,1]));
+                
+            elseif(pressure_plot ==2)
+                
+                %Plot Shear Pressure
+                %If MD stress is plotted, ensure CFD stress is available
+                for icell =1:size(u,2)
+                for kcell =1:size(u,1)
+                    shear_CFD(kcell,icell,:) = -(1/Re) * cdiff(u(kcell,icell,:),CFD_binsize(ixyz));
+                end
+                end
+                %Coarse grain MD data and combine with CFD grid
+                shear_MD = interp3(xi,yi,zi,pressure_VA(:,:,:,1,2),xrange,yrange,zrange); 
+                shear_CPL = cat(2,shear_MD(:,1:end-CPL_olap_nbins(2)/2,:),permute(shear_CFD(:,:,(CPL_olap_nbins(2)/2+1):end),[2,3,1]));
+                subplot(2,8,7:8)
+                contourf(x_CPL(2:end-1,:),y_CPL(2:end-1,:),squeeze(mean(shear_CPL(:,:,:),3))',cres,'LineStyle','None');
+                axis equal; axis 'tight';  colorbar; title('Pressure','FontSize',16)
+                xlabel('x','FontSize',16); ylabel('y','FontSize',16)
+                set(gca,'FontName','Times'); box on; 
+                set(gca,'FontSize',16);  colormap('hot')    
 
-            subplot(2,8,7:8)
-            contourf(X,Y,squeeze(mean(pVA(:,:,:),3))',cres,'LineStyle','None');
-            axis equal; axis 'tight';  colorbar; title('Pressure','FontSize',16)
-            xlabel('x','FontSize',16); ylabel('y','FontSize',16)
-            set(gca,'FontName','Times'); box on; %caxis([0.0 2.0])
-            set(gca,'FontSize',16);  colormap('hot')
+                shear_stress_hist(:,:,m) = mean(shear_CPL,3);
+                
+            end
+            
+
+%             subplot(2,8,7:8)
+%             contourf(x_CPL,y_CPL,squeeze(mean(P_CPL(:,:,:),3))',cres,'LineStyle','None');
+%             axis equal; axis 'tight';  colorbar; title('Pressure','FontSize',16)
+%             xlabel('x','FontSize',16); ylabel('y','FontSize',16)
+%             set(gca,'FontName','Times'); box on; caxis([-0.25 1.0])
+%             set(gca,'FontSize',16);  colormap('hot')
         end
+              
+        
+        % ====== PRESSURE ======
+%         if ( plot_pVA == 1)        
+%             filename = strcat(resultfile_dir_MD,'/pVA');
+%             [pressure_VA]=read_pVA(m,resultfile_dir_MD,filename);
+%             pVA = -squeeze(pressure_VA(:,:,:,1,1) + pressure_VA(:,:,:,2,2)+pressure_VA(:,:,:,3,3))/3;
+% 
+%             subplot(2,8,7:8)
+%             contourf(X,Y,squeeze(mean(pVA(:,:,:),3))',cres,'LineStyle','None');
+%             axis equal; axis 'tight';  colorbar; title('Pressure','FontSize',16)
+%             xlabel('x','FontSize',16); ylabel('y','FontSize',16)
+%             set(gca,'FontName','Times'); box on; %caxis([0.0 2.0])
+%             set(gca,'FontSize',16);  colormap('hot')
+%         end
         
         %CV fluxes
         if (plot_CV == 1)
@@ -494,38 +608,59 @@ for i = 1:Nvel_records
             %
             
             totalflux =(velocity_flux(:,:,:,:,1)+velocity_flux(:,:,:,:,4))/MD_binsize(1) ...
-                +(velocity_flux(:,:,:,:,2)+velocity_flux(:,:,:,:,5))/MD_binsize(2) ...
-                +(velocity_flux(:,:,:,:,3)+velocity_flux(:,:,:,:,6))/MD_binsize(3);
-            
+                      +(velocity_flux(:,:,:,:,2)+velocity_flux(:,:,:,:,5))/MD_binsize(2) ...
+                      +(velocity_flux(:,:,:,:,3)+velocity_flux(:,:,:,:,6))/MD_binsize(3);
+                  
+            totalflux_record(:,:,:,i) = mean(totalflux(:,:,:,:),3);
+
             rhouu = zeros(size(velocity_flux));
             rhouu(:,:,:,1,1) = (velocity_flux(:,:,:,1,1)-Pk_CV);
             rhouu(:,:,:,2,2) = (velocity_flux(:,:,:,2,2)-Pk_CV);
             rhouu(:,:,:,3,3) = (velocity_flux(:,:,:,3,3)-Pk_CV);        
             
+      
             %figure(fig5)
             subplot(2,8,9:10)
-            contourf(X,Y,-squeeze(mean(rhouu(:,:,:,1,1),3))',cres,'LineStyle','None');
-            axis equal; axis 'tight';  colorbar; title('\int_S_x ( \rho u_x u_x )  dS_x','FontSize',16)
+            contourf(X,Y,mean(totalflux(:,:,:,1),3)',cres,'LineStyle','None')
+            %contourf(X,Y,-squeeze(mean(rhouu(:,:,:,1,1),3))',cres,'LineStyle','None');
+            axis equal; axis 'tight';  colorbar; 
+            title('\int_S ( \rho u_x u ) \cdot  dS','FontSize',16)
+            
             %contourf(X,Y,-squeeze(mean(velocity_flux(:,:,:,1,1),3))',cres,'LineStyle','None');
             %axis equal; axis 'tight';  colorbar; title('\int_S_x ( \rho u_x u_x + P ) dS_x','FontSize',16)
             xlabel('x','FontSize',16); ylabel('y','FontSize',16)
-            set(gca,'FontName','Times'); box on; caxis([-0.2 0.25])
+            set(gca,'FontName','Times'); box on;
+            if (fixaxis ==1)
+                caxis([-0.2 0.25])
+            end
             set(gca,'FontSize',16);  colormap('hot')
             
             %figure(fig6)
             subplot(2,8,11:12)
-            contourf(X,Y,-squeeze(mean(rhouu(:,:,:,2,2),3))',cres,'LineStyle','None');
-            axis equal; axis 'tight';  colorbar; title('\int_S_y ( \rho u_y u_y )  dS_y','FontSize',16)
+            contourf(X,Y,mean(totalflux(:,:,:,2),3)',cres,'LineStyle','None')
+            
+            %contourf(X,Y,-squeeze(mean(rhouu(:,:,:,2,2),3))',cres,'LineStyle','None');
+            axis equal; axis 'tight';  colorbar; %title('\int_S_y ( \rho u_y u_y )  dS_y','FontSize',16)
+            title('\int_S ( \rho u_y u ) \cdot  dS','FontSize',16)
+
+            
             %contourf(X,Y,-squeeze(mean(velocity_flux(:,:,:,2,2),3))',cres,'LineStyle','None');
             %axis equal; axis 'tight';  colorbar; title('\int_S_y ( \rho u_y u_y + P )  dS_y','FontSize',16)
             xlabel('x','FontSize',16); ylabel('y','FontSize',16)
-            set(gca,'FontName','Times'); box on; caxis([-0.2 0.25])
+            set(gca,'FontName','Times'); box on;
+            if (fixaxis ==1)
+                caxis([-0.2 0.25])
+            end
             set(gca,'FontSize',16);  colormap('hot')
+            
             
             %figure(fig7)
             subplot(2,8,13:14)
-            contourf(X,Y,mean(sum(totalflux(:,:,:,:),4),3)',cres,'LineStyle','None')
-            axis equal; axis 'tight';  colorbar; title('\int_S ( \rho u u + P ) \cdot dS','FontSize',16)
+            contourf(X,Y,mean(totalflux(:,:,:,3),3)',cres,'LineStyle','None')
+            %contourf(X,Y,mean(sum(totalflux(:,:,:,:),4),3)',cres,'LineStyle','None')
+            
+            axis equal; axis 'tight';  colorbar; %title('\int_S ( \rho u u + P ) \cdot dS','FontSize',16)
+            title('\int_S ( \rho u_z u ) \cdot  dS','FontSize',16)
             xlabel('x','FontSize',16); ylabel('y','FontSize',16)
             set(gca,'FontName','Times'); box on; %caxis([0.0 1.1])
             set(gca,'FontSize',16);  colormap('hot')
@@ -581,16 +716,13 @@ for i = 1:Nvel_records
     if (last_record == 1)
         break
     end
-    m = m + 10 %snaps(i)
+    m = m + tstep %snaps(i)
     %m = t_array(i)
     if (m > Nvel_records-ceil(t_ave/2)-2)
         m = Nvel_records-ceil(t_ave/2)-1
         last_record = 1;
     end
-    
-    
-    
-    
+      
 end
 
 % Close the Video file.
@@ -603,6 +735,62 @@ if (savevid == 1)
         close(vidObj3);
     end
 end
+
+%Plot averaged contours
+tsteady = 30; %Steady state
+xaxis = [linspace(0,globaldomain(1)/2-MD_binsize(1),2*MD_gnbins(1)),globaldomain(1)/2-MD_binsize(1), ...
+           globaldomain(1)/2+MD_binsize(1),linspace(globaldomain(1)/2+MD_binsize(1),globaldomain(1),2*MD_gnbins(1))];
+bump = zeros( size(xaxis,2),1);
+bump(end/2:end/2+1,1) = 5.12;
+%Contour plot axis
+x = linspace(0,coupleddomain(1),size(U_hist,2));
+y = linspace(0,coupleddomain(2),size(U_hist,1));
+[X,Y] = meshgrid(x,y);
+
+%Velocity
+figure
+contourf(X,Y,mean(U_hist(:,:,tsteady:end),3),1000,'LineStyle','none'); caxis([0 1.0])
+%hold on
+%contour(X(4:end,:),Y(4:end,:),squeeze(mean(U_hist(4:end,:,tsteady:end),3)),30,'w'); 
+
+%Plot walls 
+hold all
+%bottom
+plot(xaxis,ones(size(xaxis,1),1)*(wallbot(2))+bump,'k','LineWidth', 2)
+plot(xaxis,ones(size(xaxis,1),1)*(wallbot(2))+bump,'w:','LineWidth', 2)
+
+axis equal; axis 'tight';  %colorbar;
+xlabel('x','FontSize',16); ylabel('y','FontSize',16)
+set(gca,'FontName','Times'); box on;
+set(gca,'FontSize',16);  colormap('hot')
+ caxis([0 1.0]);  ylim([0 71.8190])
+savefig('./CPL_bump_velocity_contour','png','eps')
+
+%Shear Stress
+figure
+x = linspace(0,coupleddomain(1),size(shear_stress_hist,1));
+y = linspace(0,coupleddomain(2),size(shear_stress_hist,2));
+[X,Y] = meshgrid(x,y);
+contourf(X,Y,mean(shear_stress_hist(:,:,tsteady:end),3)',1000,'LineStyle','none'); caxis([0 1.0])
+%Plot walls 
+hold all
+%bottom
+plot(xaxis,ones(size(xaxis,1),1)*(wallbot(2))+bump,'k','LineWidth', 2)
+plot(xaxis,ones(size(xaxis,1),1)*(wallbot(2))+bump,'w:','LineWidth', 2)
+
+set(gca,'FontSize',16);  colormap('hot')
+axis equal; axis 'tight';  %colorbar; 
+xlabel('x','FontSize',16); ylabel('y','FontSize',16)
+set(gca,'FontName','Times'); box on;
+set(gca,'FontSize',16);  colormap('hot')
+caxis([-0.21 0.09]);  ylim([0 71.8190])
+savefig('./CPL_bump_stress_contour','png','eps')
+
+%Plot final fluxes
+figure
+U = mean(totalflux_record(:,:,1,:),4)';
+V = mean(totalflux_record(:,:,2,:),4)';
+h = quiver(X,Y,U,V);
 
 %movefile ./couette.avi ./../results
 

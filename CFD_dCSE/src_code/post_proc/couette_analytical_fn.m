@@ -10,11 +10,11 @@ function[u]=couette_analytical_fn(t,Re,U_wall,L,npoints,slidingwall)
 
     nmodes = 1000;
     k = 1/Re;
-    y = 0:L/npoints:L;
+    y = linspace(0,L,npoints);
     y = y'; 
     C = 0;  %Initial condition
 
-    u=zeros(npoints+1,1);
+    u=zeros(npoints,1);
 
     switch slidingwall
         case 'top' 
