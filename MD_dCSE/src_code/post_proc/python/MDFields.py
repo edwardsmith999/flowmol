@@ -179,7 +179,7 @@ class VBins():
 		
 		return vfield, binspaces
 
-# Velocity field
+# Temperature field
 class TBins():
 
 	def __init__(self,fdir,cpol_bins):

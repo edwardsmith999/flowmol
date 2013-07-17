@@ -453,7 +453,7 @@ subroutine set_parameters_global_domain
 
 			volume = product(globaldomain(1:3))
 			! Get closest number of FCC units in global domain from input
-			initialnunits(:) = floor(globaldomain(:)*((density/4.d0)**(1.d0/nd)))
+			initialnunits(:) = ceiling(globaldomain(:)*((density/4.d0)**(1.d0/nd)))
 			! Get actual density with this integer number of FCC units
 			density = product(initialnunits(1:3))*4 / volume
 			! Guess how many extra molecules will fill the cylinder volume
