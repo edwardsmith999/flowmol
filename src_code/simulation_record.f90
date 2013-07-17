@@ -939,8 +939,6 @@ subroutine velocity_averaging(ixyz)
 	integer,dimension(3):: ib
 	integer, save		:: average_count=-1
 	double precision,dimension(3) 	:: Vbinsize, temp
-	!double precision	:: sv(nbinso(1),nbinso(2),nbinso(3),3)
-	!double precision	:: sm(nbinso(1),nbinso(2),nbinso(3))
 
 	average_count = average_count + 1
 	call cumulative_velocity(ixyz)
@@ -1002,6 +1000,57 @@ subroutine velocity_averaging(ixyz)
 
 end subroutine velocity_averaging
 
+subroutine evaluate_U
+	use module_record
+	use linked_list
+	implicit none
+
+	integer				:: n
+	integer,dimension(3):: ib
+	double precision,dimension(3) 	:: Vbinsize
+
+	integer, dimension(:,:,:), allocatable :: mbin
+	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: vbin
+
+	integer :: x,y,z,c
+
+	Vbinsize(:) = domain(:) / nbins(:)
+	
+	x = nbins(1) + 2*nhb(1)
+	y = nbins(2) + 2*nhb(2)
+	z = nbins(3) + 2*nhb(3)
+	c = 3
+	
+	allocate(vbin(x,y,z,c))
+	allocate(mbin(x,y,z))
+	
+	vbin = 0.d0
+	mbin = 0
+		
+	do n = 1, np
+
+		! Get bin
+		ib(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
+		! Add v, m to bin
+		vbin(ib(1),ib(2),ib(3),:) = vbin(ib(1),ib(2),ib(3),:) + v(:,n)
+		mbin(ib(1),ib(2),ib(3)) = mbin(ib(1),ib(2),ib(3)) + 1 
+
+	end do
+
+	do n = 1, np
+
+		! Get bin
+		ib(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
+		! Get U from vbin / mbin
+		U(:,n) = vbin(ib(1),ib(2),ib(3),:)/real(mbin(ib(1),ib(2),ib(3)),kind(0.d0))
+	
+	end do
+	
+	deallocate(vbin)
+	deallocate(mbin)
+
+end subroutine evaluate_U
+
 !-----------------------------------------------------------------------------------
 !Add velocities to running total, with 2D slice in ixyz = 1,2,3 or
 !in 3D bins when ixyz =4
@@ -1045,6 +1094,7 @@ subroutine cumulative_velocity(ixyz)
 
 	!Velocity measurement for 3D bins throughout the domain
 	case(4)
+
 		!Determine bin size
 		Vbinsize(:) = domain(:) / nbins(:)
 
@@ -1191,6 +1241,8 @@ subroutine cumulative_temperature(ixyz)
 
 		!Determine bin size
 		Tbinsize(:) = domain(:) / nbins(:)
+		
+		!call evaluate_U 
 
 		!Reset Control Volume momentum 
 		do n = 1,np
