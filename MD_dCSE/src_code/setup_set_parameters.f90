@@ -818,6 +818,15 @@ subroutine set_parameters_outputs
 		allocate( vvbin( nbins (1),  nbins(2),  nbins(3),3,3  ))
 		allocate( Pxybin(nbins (1),  nbins(2),  nbins(3),3,3  ))
 		rfbin  = 0.d0
+		vvbin = 0.d0
+		Pxybin = 0.d0
+	else if (pressure_outflag .eq. 3) then
+		!Allocate pressure bin for Stress volume averaging in polar coords
+		allocate( rfbin(  cpol_binso(1), cpol_binso(2), cpol_binso(3) ,3,3 ))
+		allocate( vvbin(  cpol_binso(1), cpol_binso(2), cpol_binso(3) ,3,3 ))
+		allocate( Pxybin( cpol_binso(1), cpol_binso(2), cpol_binso(3) ,3,3 ))
+		rfbin  = 0.d0
+		vvbin = 0.d0
 		Pxybin = 0.d0
 	endif
 

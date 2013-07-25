@@ -125,12 +125,14 @@ module computational_constants_MD
 	real(kind(0.d0)), dimension(6) :: bforce_dxyz
 	real(kind(0.d0)), dimension(3) :: specular_wall
 
+	! Specular wall easy-read parameters
 	integer :: specular_flag
 	integer, parameter ::       &
 		specular_off = 0,       &
 		specular_flat = 1,      &
 		specular_radial = 2
 
+	! Boundary force easy-read parameters
 	integer,          parameter    :: &
 		bforce_off = 0,         &
 		bforce_OT = 1,          &

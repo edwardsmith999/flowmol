@@ -846,6 +846,7 @@ end subroutine r_gyration_calculate_parallel
 
 subroutine mass_averaging(ixyz)
 	use module_record
+	use concentric_cylinders, only: cyl_mass
 	implicit none
 
 	integer							:: ixyz
@@ -866,6 +867,9 @@ subroutine mass_averaging(ixyz)
 			call mass_bin_io(volume_mass,'bins')
 			!Reset mass slice
 			volume_mass = 0
+		case(5)
+			call mass_bin_cpol_io(cyl_mass)
+			cyl_mass = 0
 		case default
 			call error_abort("Error input for velocity averaging incorrect")
 		end select
@@ -1311,6 +1315,11 @@ subroutine pressure_averaging(ixyz)
 			Pxybin = 0.d0
 			vvbin  = 0.d0
 			rfbin  = 0.d0
+		case(3)
+			call VA_stress_cpol_io
+			Pxybin = 0.d0
+			vvbin  = 0.d0
+			rfbin  = 0.d0
 		case default 
 			call error_abort("Average Pressure Binning Error")
 		end select
@@ -1439,6 +1448,11 @@ subroutine cumulative_pressure(ixyz,sample_count)
 		!										    sum(vvbin(:,:,:,2,2)) + & 
 		!											sum(vvbin(:,:,:,3,3)))/ (3.d0 * volume*Nstress_ave), & 
 		!											(Pxy(1,1) + Pxy(2,2) + Pxy(3,3))/3.d0
+	case(3)
+
+		call simulation_compute_rfbins_cpol(1,nbins(1)+2,1,nbins(2)+2,1,nbins(3)+2)
+		!call simulation_compute_kinetic_VA(2,nbins(1)+1,2,nbins(2)+1,2,nbins(3)+1)
+		Pxybin = vvbin + rfbin/2.d0
 
 	case default 
 		call error_abort("Cumulative Pressure Averaging Error")
@@ -2513,6 +2527,120 @@ end subroutine pressure_tensor_forces_H
 
 !====================================================================================
 ! VOLUME AVERAGE CONFIGURATIONAL EXPRESSION
+! Author: David Trevelyan, July 2013
+! Linear trajectory path sampled to find approximate values of l_ij (less accurate, 
+! but much easier to understand, and no problems with polar coordinates)
+subroutine pressure_tensor_forces_VA_trap(ri,rj,rij,accijmag)
+	use computational_constants_MD, only: domain, halfdomain
+	use calculated_properties_MD, only: nbins, rfbin
+	use librarymod, only: outerprod
+	
+	implicit none
+
+	real(kind(0.d0)), intent(in) :: accijmag
+	real(kind(0.d0)), dimension(3), intent(in) :: ri, rj, rij
+
+	integer :: ss
+	integer, parameter :: Ns=20
+	real(kind(0.d0)) :: s, ds, rs(3), VAbinsize(3), bin(3), rF(3,3)
+
+	VAbinsize(:) = domain(:) / nbins(:)
+	rF = outerprod(rij, accijmag*rij)		
+
+	! Split line l_ij into segments of size ds
+	ds = 1.d0 / real(Ns, kind(0.d0))
+	! First sample at midpoint of first segment 
+	s = 0.5d0*ds 
+
+	! Loop over all samples, s varies from 0 to 1
+	do ss = 1, Ns
+
+		! Position of sample on line
+		rs(:) = ri(:) + s*rij(:)	
+
+		! Don't count if sample is outside the domain (will be picked up
+		! by neighbouring processors)
+		if ( .not. any( abs(rs(:)) .gt. halfdomain(:) ) ) then
+
+			bin(:) = ceiling((rs(:)+halfdomain(:))/VAbinsize(:)) + 1
+			rfbin(bin(1),bin(2),bin(3),:,:) =  &
+			rfbin(bin(1),bin(2),bin(3),:,:) + rF(:,:)/real(Ns,kind(0.d0))
+
+		end if
+
+		s = s + ds	
+
+	end do	
+	
+end subroutine pressure_tensor_forces_VA_trap
+
+subroutine pressure_tensor_forces_VA_trap_cpol(ripol,rjpol,rijpol,accijmag)
+	use concentric_cylinders
+	use computational_constants_MD, only: domain, halfdomain
+	use physical_constants_MD, only: pi
+	use calculated_properties_MD, only: rfbin
+	use librarymod, only: outerprod, cartesianiser
+	use messenger, only: localise
+	implicit none
+
+	real(kind(0.d0)), intent(in) :: accijmag
+	real(kind(0.d0)), dimension(3), intent(in) :: ripol, rjpol, rijpol
+
+	integer :: ss
+	integer :: br, bt, bz
+	integer, parameter :: Ns=20
+	real(kind(0.d0)) :: s, ds, rs(3), rs_cart(3), VAbinsize(3), rF(3,3)
+
+	! Bin sizes
+	VAbinsize(1) = (r_io - r_oi) / cpol_bins(1)
+	VAbinsize(2) = 2.d0*pi       / cpol_bins(2)
+	VAbinsize(3) = domain(3)     / cpol_bins(3)
+
+	! Store rij * Fij outer product
+	rF = outerprod(rijpol, accijmag*rijpol)
+
+	! First sample at midpoint of first segment 
+	ds = 1.d0 / real(Ns, kind(0.d0))
+	s = 0.5d0*ds 
+
+	! Loop over all samples, s varies from 0 to 1
+	do ss = 1, Ns
+
+		! Position of sample on line
+		rs(:) = ripol(:) + s*rijpol(:)	
+		rs_cart = localise(cartesianiser(rs))
+
+		! Don't count if sample is outside the domain (will be picked up
+		! by neighbouring processors)
+		if (  .not. any(abs(rs_cart(:)).gt.halfdomain(:))  ) then
+
+			! Constrain samples to within boundaries
+ 			rs(1)  = rs(1) - r_oi
+			rs(2)  = modulo(rs(2),2.d0*pi)
+			rs(3)  = rs_cart(3) + halfdomain(3) 
+
+			!Add to cylindrical bins
+			br = ceiling(rs(1)/VAbinsize(1)) 
+			bt = ceiling(rs(2)/VAbinsize(2)) 
+			bz = ceiling(rs(3)/VAbinsize(3)) + cpol_nhbz
+
+			!Ignore molecules in cylinder region
+			if ( br .ge. 1 .and. br .le. cpol_bins(1) ) then
+				rfbin(br,bt,bz,:,:) =  &
+				rfbin(br,bt,bz,:,:) + rF(:,:)/real(Ns,kind(0.d0))
+			end if
+
+		end if
+
+		s = s + ds	
+
+	end do	
+	
+end subroutine pressure_tensor_forces_VA_trap_cpol
+
+
+!===============================================================================
+! VOLUME AVERAGE CONFIGURATIONAL EXPRESSION
 ! Use a configurational expression, similar to the virial with interaction partitioned 
 ! between bins based on the share of the interaction between two molecules in a given bin
 ! N.B. Assume no more than 1 bin between bins containing the molecules
@@ -2520,7 +2648,6 @@ end subroutine pressure_tensor_forces_H
 ! Irving Kirkwood contour in NAMD (MD package) and the paper it references
 ! Jacob Sonne,a Flemming Y. Hansen, and Günther H. Peters J.CHEM.PHYS. 122, 124903 (2005)
 ! 								╭∩╮（︶︿︶）╭∩╮﻿
-
 subroutine pressure_tensor_forces_VA(ri,rj,rij,accijmag)
 	use module_record
 	implicit none

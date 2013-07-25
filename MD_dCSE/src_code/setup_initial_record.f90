@@ -375,6 +375,10 @@ subroutine setup_initial_record
 				print'(a,3f10.5)', ' Each of size:', & 
 				globaldomain(1)/gnbins(1), globaldomain(2)/gnbins(2),globaldomain(3)/gnbins(3)
 			endif
+		case(3)
+			print'(3(a,i8),a)', ' Volume Averaged Pressure Tensor, 3D Cylindrical Polar bins recorded every:', &
+					tplot,' x ',Nstress_ave,' = ',tplot*Nstress_ave,' iterations'
+			print'(a,3i8)', ' Domain split into stress averaging bins in r,theta and z:', gcpol_bins
 		case default
 			call error_abort("Invalid Pressure tensor output flag in input file")
 		end select

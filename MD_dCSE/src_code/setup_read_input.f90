@@ -522,6 +522,12 @@ subroutine setup_read_input
 			read(1,*,iostat=ios) 	split_kin_config
 			if (ios .ne. 0) split_kin_config = 0 !default to zero if value not found
 		endif
+		if (pressure_outflag .eq. 3) then
+			call locate(1,'CPOL_BINS',.true.)
+			read(1,*) gcpol_bins(1)	
+			read(1,*) gcpol_bins(2)	
+			read(1,*) gcpol_bins(3)	
+		end if
 	endif
 	call locate(1,'VISCOSITY_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then

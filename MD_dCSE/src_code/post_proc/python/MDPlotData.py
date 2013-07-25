@@ -115,9 +115,19 @@ class MD_PlotData():
 		avgaxes = tuple(avgaxes)
 		
 		pVA_obj = PBins(self.fdir,cpol_bins=self.cpol_bins)
+
+		# Extract 3D pressure tensor field averaged over 1D of bins
 		pslice, binspaces = pVA_obj.get_field(minrec,maxrec,meanaxes=(avgaxes))
 	
 		return binspaces[axis], pslice[:,component]
+
+	def get_pVA_splot_args(self,plane,haxis,vaxis,component,minrec,maxrec):
+		
+		pVA_obj = PBins(self.fdir,cpol_bins=self.cpol_bins)
+		Pplane, binspaces = pVA_obj.get_field(minrec,maxrec,meanaxes=(plane))
+		X, Y = np.meshgrid(binspaces[haxis],binspaces[vaxis],indexing='ij')
+		P = Pplane[:,:,component]
+		return X, Y, P
 
 	def get_Tplane_splot_args(self,plane,haxis,vaxis,minrec,maxrec,peculiar=True):
 
