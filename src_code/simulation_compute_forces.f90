@@ -879,7 +879,8 @@ implicit none
 						!Linear magnitude of acceleration for each molecule
 						invrij2 = 1.d0/rij2                 !Invert value
 						accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
-						call pressure_tensor_forces_VA(ri,rj,rij,accijmag)
+						!call pressure_tensor_forces_VA(ri,rj,rij,accijmag)
+						call pressure_tensor_forces_VA_trap(ri,rj,rij,accijmag)
 						!call pressure_tensor_forces_H(ri,rj,rij,accijmag)
 						!if (vflux_outflag.eq.4) then
 						!	fij = accijmag*rij(:)
@@ -905,6 +906,112 @@ implicit none
 
 end subroutine simulation_compute_rfbins
 
+!Cylindrical polar version
+subroutine simulation_compute_rfbins_cpol(imin, imax, jmin, jmax, kmin, kmax)
+	use module_compute_forces
+	use librarymod, only: cpolariser
+	use messenger, only: globalise
+	implicit none
+
+	integer, intent(in) :: imin, jmin, kmin, imax, jmax, kmax
+
+	integer :: i, j, ixyz
+	integer	:: icell, jcell, kcell
+	integer :: icellshift, jcellshift, kcellshift
+	integer :: cellnp, adjacentcellnp, cellsperbin
+	integer	:: molnoi, molnoj
+	type(node), pointer :: oldi, currenti, oldj, currentj
+	real(kind(0.d0)) :: ripol(3), rjpol(3), rijpol(3)
+
+	!Calculate bin to cell ratio
+	cellsperbin = ceiling(ncells(1)/dble(nbins(1)))
+
+	do kcell=(kmin-1)*cellsperbin+1, kmax*cellsperbin
+	do jcell=(jmin-1)*cellsperbin+1, jmax*cellsperbin
+	do icell=(imin-1)*cellsperbin+1, imax*cellsperbin
+	
+		cellnp = cell%cellnp(icell,jcell,kcell)
+		oldi => cell%head(icell,jcell,kcell)%point
+
+		do i = 1,cellnp
+
+			molnoi = oldi%molno
+			ri = r(:,molnoi)
+
+			do kcellshift = -1,1
+			do jcellshift = -1,1
+			do icellshift = -1,1
+
+				!Prevents out of range values in i
+				if (icell+icellshift .lt. imin) cycle
+				if (icell+icellshift .gt. imax) cycle
+				!Prevents out of range values in j
+				if (jcell+jcellshift .lt. jmin) cycle
+				if (jcell+jcellshift .gt. jmax) cycle
+				!Prevents out of range values in k
+				if (kcell+kcellshift .lt. kmin) cycle
+				if (kcell+kcellshift .gt. kmax) cycle
+
+				oldj => cell%head(icell+icellshift, &
+				                  jcell+jcellshift, &
+				                  kcell+kcellshift) % point
+
+				adjacentcellnp = cell%cellnp(icell+icellshift, &
+				                             jcell+jcellshift, &
+				                             kcell+kcellshift)
+
+				do j = 1,adjacentcellnp
+
+					molnoj = oldj%molno
+					rj = r(:,molnoj)
+
+					currentj => oldj
+					oldj => currentj%next 
+
+					! Prevent interaction with self
+					if ( molnoi == molnoj ) cycle 
+
+					rij(:) = ri(:) - rj(:)
+					rij2 = dot_product(rij,rij)
+
+					if (rij2 < rcutoff2) then
+
+						invrij2 = 1.d0/rij2
+						accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
+
+						ripol  = cpolariser(globalise(ri))
+						rjpol  = cpolariser(globalise(rj))
+						rijpol = rjpol - ripol
+
+						! Take shortest linear trajectory
+						rijpol(2) = rijpol(2) - nint(rijpol(2)/(2.d0*pi))*2.d0*pi
+
+						call pressure_tensor_forces_VA_trap_cpol( &
+						     ripol, rjpol, rijpol, accijmag )
+
+					endif
+
+				enddo
+
+			enddo
+			enddo
+			enddo
+
+			currenti => oldi
+			oldi => currenti%next
+
+		enddo
+
+	enddo
+	enddo
+	enddo
+
+	nullify(oldi)
+	nullify(oldj)
+	nullify(currenti)
+	nullify(currentj)
+
+end subroutine simulation_compute_rfbins_cpol
 
 
 !========================================================================

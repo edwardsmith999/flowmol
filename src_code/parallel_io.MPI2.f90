@@ -51,8 +51,12 @@ module module_parallel_io
 	interface write_arrays
 		module procedure iwrite_arrays_1, rwrite_arrays_1, iwrite_arrays, rwrite_arrays 
 	end interface write_arrays
-
 	private  iwrite_arrays_1, rwrite_arrays_1, iwrite_arrays, rwrite_arrays
+	
+	interface write_zplane 
+		module procedure iwrite_zplane_1, iwrite_zplane, rwrite_zplane
+	end interface write_zplane
+	private iwrite_zplane_1, iwrite_zplane, rwrite_zplane
 
 contains
 
@@ -255,6 +259,180 @@ subroutine rwrite_arrays(some_array,nresults,outfile,outstep)
 	call MPI_TYPE_FREE(filetype,ierr); FILE_FLAG = 0
 
 end subroutine rwrite_arrays
+
+subroutine rwrite_zplane(cpol_array,nresults,outfile,outstep)
+	use mpi
+	use messenger, only : icomm_xyz, kblock
+	use concentric_cylinders, only: gcpol_bins, cpol_bins, cpol_nhbz
+	use computational_constants_MD, only: npz
+	implicit none
+
+	integer, intent(in) :: nresults,outstep
+	double precision, dimension(:,:,:,:),intent(in) :: cpol_array
+	character(*),intent(in) :: outfile
+
+	integer :: n, fh, ierr
+	integer :: MEM_FLAG = 0
+	integer :: FILE_FLAG = 0
+	integer :: dp_size,datatype
+	integer :: status(mpi_status_size)
+	integer :: filetype, memtype
+	integer (kind=MPI_offset_kind) :: offset, global_cnt
+	integer, dimension(3) :: gsizes, lsizes, memsizes
+	integer, dimension(3) :: global_indices, local_indices
+	integer, dimension(:,:),allocatable :: kblock_lsizes 
+	double precision, allocatable,dimension(:,:,:) :: OutBuffer
+
+	datatype = MPI_DOUBLE_PRECISION
+	call MPI_TYPE_SIZE(datatype, dp_size, ierr)
+
+	call MPI_file_open(icomm_xyz(3), outfile, &
+					   MPI_MODE_WRONLY+MPI_MODE_CREATE, &
+					   MPI_INFO_NULL, fh, ierr)
+
+	! Define offsets, etc. Remember MPI is written in C so indices are
+	! counted from 0, rather than 1 as in Fortran.
+	global_cnt 	= (outstep-1)*product(gcpol_bins(:))*nresults 
+	offset		= global_cnt * dp_size
+	gsizes 		= gcpol_bins
+	lsizes		= cpol_bins
+	local_indices(:) = (/ 0 , 0 , 0 /)
+	global_indices(:)= (/ 0 , 0 , 0 /)
+
+	! Number of bins on each kblock	
+	allocate(kblock_lsizes(3,npz))
+	call SubcommGather(lsizes,kblock_lsizes,3,3,npz)
+	global_indices(1) = 0
+	global_indices(2) = 0 
+	global_indices(3) = sum(kblock_lsizes(3,1:kblock-1))
+	deallocate(kblock_lsizes)
+
+	!Allocate ouput buffer
+	allocate(OutBuffer(lsizes(1),lsizes(2),lsizes(3)))
+	memsizes = lsizes
+
+	do n =1,nresults
+
+		OutBuffer = cpol_array(:,:,cpol_nhbz+1:cpol_bins(3)+cpol_nhbz,n)
+
+		call Create_commit_fileview(gsizes, lsizes, global_indices, &
+									offset,datatype,FILE_FLAG,filetype,fh)
+
+		!Update local array datatype to ignore halo cells
+		call Create_commit_subarray(memsizes, lsizes, local_indices, &
+									datatype,MEM_FLAG,memtype)
+
+		call MPI_FILE_WRITE_ALL(fh, OutBuffer, 1, memtype, status, ierr)
+
+		!Calculate global count offset
+		global_cnt = global_cnt + product(gcpol_bins(:))
+		offset = global_cnt * dp_size
+	
+	enddo
+
+	deallocate(OutBuffer)
+	CALL MPI_FILE_CLOSE(fh, ierr)
+
+	! Free data types
+	call MPI_TYPE_FREE(memtype,ierr) ; MEM_FLAG = 0
+	call MPI_TYPE_FREE(filetype,ierr); FILE_FLAG = 0
+
+end subroutine rwrite_zplane
+
+subroutine iwrite_zplane_1(temp,nresults,outfile,outstep)
+
+	integer, intent(in) :: nresults,outstep
+	integer, dimension(:,:,:), intent(in) :: temp 
+	character(*),intent(in) :: outfile
+
+	integer, dimension(:,:,:,:), allocatable :: cpol_array
+
+	allocate(cpol_array(size(temp,1),size(temp,2),size(temp,3),1))
+	cpol_array(:,:,:,1) = temp(:,:,:)
+	call iwrite_zplane(cpol_array,nresults,outfile,outstep)
+	deallocate(cpol_array)
+
+end subroutine iwrite_zplane_1
+
+subroutine iwrite_zplane(cpol_array,nresults,outfile,outstep)
+	use mpi
+	use messenger, only : icomm_xyz, kblock
+	use concentric_cylinders, only: gcpol_bins, cpol_bins, cpol_nhbz
+	use computational_constants_MD, only: npz
+	implicit none
+
+	integer, intent(in) :: outstep
+	integer, intent(in) :: nresults 
+	integer, dimension(:,:,:,:),intent(in) :: cpol_array
+	character(*),intent(in) :: outfile
+
+	integer :: n, fh, ierr
+	integer :: MEM_FLAG = 0
+	integer :: FILE_FLAG = 0
+	integer :: int_size,datatype
+	integer :: status(mpi_status_size)
+	integer :: filetype, memtype
+	integer (kind=MPI_offset_kind) :: offset,global_cnt
+	integer, dimension(3) :: gsizes, lsizes, memsizes
+	integer, dimension(3) :: global_indices, local_indices
+	integer, dimension(:,:),allocatable :: kblock_lsizes 
+	integer, allocatable,dimension(:,:,:) :: OutBuffer
+
+	datatype = MPI_INTEGER
+	call MPI_TYPE_SIZE(datatype, int_size, ierr)
+
+	call MPI_file_open(icomm_xyz(3), outfile, &
+					   MPI_MODE_WRONLY+MPI_MODE_CREATE, &
+					   MPI_INFO_NULL, fh, ierr)
+
+	! Define offsets, etc. Remember MPI is written in C so indices are
+	! counted from 0, rather than 1 as in Fortran.
+	global_cnt 	= (outstep-1)*product(gcpol_bins(:))*nresults
+	offset		= global_cnt * int_size
+	gsizes 		= gcpol_bins
+	lsizes		= cpol_bins
+	local_indices(:) = (/ 0 , 0 , 0 /)
+	global_indices(:)= (/ 0 , 0 , 0 /)
+
+	!Number of bins on each kblock processor group 
+	allocate(kblock_lsizes(3,npz))
+	call SubcommGather(lsizes,kblock_lsizes,3,3,npz)
+	global_indices(1) = 0
+	global_indices(2) = 0 
+	global_indices(3) = sum(kblock_lsizes(3,1:kblock-1))
+	deallocate(kblock_lsizes)
+
+	allocate(OutBuffer(lsizes(1),lsizes(2),lsizes(3)))
+	memsizes = lsizes
+
+	do n =1,nresults
+
+		OutBuffer = cpol_array(:,:,cpol_nhbz+1:cpol_bins(3)+cpol_nhbz,n)
+
+		call Create_commit_fileview(gsizes, lsizes, global_indices, &
+									offset,datatype,FILE_FLAG,filetype,fh)
+
+		!Update local array datatype to ignore halo cells
+		call Create_commit_subarray(memsizes, lsizes, local_indices, &
+									datatype,MEM_FLAG,memtype)
+
+		call MPI_FILE_WRITE_ALL(fh, OutBuffer, 1, memtype, status, ierr)
+
+		!Calculate global count offset
+		global_cnt = global_cnt + product(gcpol_bins(:))
+		offset = global_cnt * int_size
+	
+	enddo
+
+	deallocate(OutBuffer)
+	CALL MPI_FILE_CLOSE(fh, ierr)
+
+	! Free data types
+	CALL MPI_BARRIER(icomm_xyz(3),IERR)
+	call MPI_TYPE_FREE(memtype,ierr) ; MEM_FLAG = 0
+	call MPI_TYPE_FREE(filetype,ierr); FILE_FLAG = 0
+
+end subroutine iwrite_zplane
 
 subroutine Create_commit_fileview(gsizes,lsizes,global_indices,offset,datatype,FILE_FLAG,filetype,fh)
 	implicit none
@@ -2131,9 +2309,10 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 
 end subroutine velocity_bin_io
 
-! ---------------------------------------------------------------------------
-! Cylindrical polar version of output
-subroutine velocity_bin_cpol_io(mass_out,mom_out)
+!------------------------------------------------------------------------------
+! Cylindrical polar mass bins
+subroutine mass_bin_cpol_io(mass_out)
+	use module_parallel_io, only: write_zplane
 	use concentric_cylinders, only: cpol_binso
 	use physical_constants_MD, only: nd
 	use computational_constants_MD, only: iter, initialstep, tplot, &
@@ -2141,44 +2320,30 @@ subroutine velocity_bin_cpol_io(mass_out,mom_out)
 	use messenger, only: icomm_grid,iblock,jblock,plane_comm
 	implicit none
 
-	! z-plane mass and momentum for all_reduce on zplane subcomms.
-	! The mass and mom arrays on each processor are global in
-	! r and theta, but local in z.  
 	integer, intent(inout) :: mass_out(cpol_binso(1), &
 	                                   cpol_binso(2), &
 	                                   cpol_binso(3))
-	real(kind(0.d0)), intent(inout) :: mom_out (cpol_binso(1), &
-	                                            cpol_binso(2), &
-	                                            cpol_binso(3), &
-	                                            nd)
 
-	character(200) :: mfile, vfile
+	character(200) :: mfile!, vfile
 	integer :: m, ierr
 
 	! Z-Plane global sums of r/theta bins, everyone has a copy of
 	! r/theta bins in their own z-plane
 	call ZPlaneReduceMass
-	call ZPlaneReduceMom
 
 	! Bottom corner z-line of processors write to file	
 	if (iblock .eq. 1 .and. jblock .eq. 1) then
 
-		! Record number
 		m = (iter-initialstep+1)/(tplot*Nmass_ave)
-
-		! Filenames
 		mfile = trim(prefix_dir)//'results/mbins'
-		vfile = trim(prefix_dir)//'results/vbins'
 
-		! Write arrays
-		call iwrite_zplane_1 (mass_out,  mfile,m)
-		call rwrite_zplane   (mom_out, 3,vfile,m)
+		call write_zplane(mass_out,1,mfile,m)
 
 	end if
 
 	! Barrier needed to ensure correct offsets calculated next
-	CALL MPI_BARRIER(icomm_grid,ierr)
-	
+	call MPI_Barrier(icomm_grid,ierr)
+
 contains
 
 	subroutine ZPlaneReduceMass
@@ -2199,6 +2364,55 @@ contains
 
 	end subroutine ZPlaneReduceMass
 
+end subroutine mass_bin_cpol_io
+
+!------------------------------------------------------------------------------
+! Cylindrical polar velocity bins
+subroutine velocity_bin_cpol_io(mass_out,mom_out)
+	use module_parallel_io, only: write_zplane
+	use concentric_cylinders, only: cpol_binso
+	use physical_constants_MD, only: nd
+	use computational_constants_MD, only: iter, initialstep, tplot, &
+	                                      Nvel_ave, prefix_dir
+	use messenger, only: icomm_grid,iblock,jblock,plane_comm
+	implicit none
+
+	! z-plane mass and momentum for all_reduce on zplane subcomms.
+	! The mass and mom arrays on each processor are global in
+	! r and theta, but local in z.  
+	integer, intent(in) :: mass_out(cpol_binso(1), &
+	                                   cpol_binso(2), &
+	                                   cpol_binso(3))
+	real(kind(0.d0)), intent(inout) :: mom_out (cpol_binso(1), &
+	                                            cpol_binso(2), &
+	                                            cpol_binso(3), &
+	                                            nd)
+
+	character(200) :: mfile, vfile
+	integer :: m, ierr
+
+	! Make sure mass is written out
+	call mass_bin_cpol_io(mass_out)
+
+	! Z-Plane global sums of r/theta bins, everyone has a copy of
+	! r/theta bins in their own z-plane
+	call ZPlaneReduceMom
+
+	! Bottom corner z-line of processors write to file	
+	if (iblock .eq. 1 .and. jblock .eq. 1) then
+
+		m = (iter-initialstep+1)/(tplot*Nvel_ave)
+		vfile = trim(prefix_dir)//'results/vbins'
+
+		call write_zplane(mom_out, 3,vfile,m)
+
+	end if
+
+	! Barrier needed to ensure correct offsets calculated next
+	call MPI_Barrier(icomm_grid,ierr)
+	
+contains
+
 	subroutine ZPlaneReduceMom
 	implicit none
 
@@ -2217,165 +2431,97 @@ contains
 
 	end subroutine ZPlaneReduceMom
 
-	subroutine rwrite_zplane(cpol_array,nresults,outfile,outstep)
-		use mpi
-		use module_parallel_io, only: Create_commit_fileview, &
-		                              Create_commit_subarray
-		use messenger, only : icomm_xyz, kblock
-		use concentric_cylinders, only: gcpol_bins, cpol_bins, cpol_nhbz
-		use computational_constants_MD, only: npz
-		implicit none
-
-		integer, intent(in) :: nresults,outstep
-		double precision, dimension(:,:,:,:),intent(in) :: cpol_array
-		character(*),intent(in) :: outfile
-
-		integer :: n, fh, ierr
-		integer :: MEM_FLAG = 0
-		integer :: FILE_FLAG = 0
-		integer :: dp_size,datatype
-		integer :: status(mpi_status_size)
-		integer :: filetype, memtype
-		integer (kind=MPI_offset_kind) :: offset, global_cnt
-		integer, dimension(3) :: gsizes, lsizes, memsizes
-		integer, dimension(3) :: global_indices, local_indices
-		integer, dimension(:,:),allocatable :: kblock_lsizes 
-		double precision, allocatable,dimension(:,:,:) :: OutBuffer
-
-		datatype = MPI_DOUBLE_PRECISION
-		call MPI_TYPE_SIZE(datatype, dp_size, ierr)
-
-		call MPI_file_open(icomm_xyz(3), outfile, &
-		                   MPI_MODE_WRONLY+MPI_MODE_CREATE, &
-		                   MPI_INFO_NULL, fh, ierr)
-
-		! Define offsets, etc. Remember MPI is written in C so indices are
-		! counted from 0, rather than 1 as in Fortran.
-		global_cnt 	= (outstep-1)*product(gcpol_bins(:))*nresults 
-		offset		= global_cnt * dp_size
-		gsizes 		= gcpol_bins
-		lsizes		= cpol_bins
-		local_indices(:) = (/ 0 , 0 , 0 /)
-		global_indices(:)= (/ 0 , 0 , 0 /)
-
-		! Number of bins on each kblock	
-		allocate(kblock_lsizes(3,npz))
-		call SubcommGather(lsizes,kblock_lsizes,3,3,npz)
-		global_indices(1) = 0
-		global_indices(2) = 0 
-		global_indices(3) = sum(kblock_lsizes(3,1:kblock-1))
-		deallocate(kblock_lsizes)
-
-		!Allocate ouput buffer
-		allocate(OutBuffer(lsizes(1),lsizes(2),lsizes(3)))
-		memsizes = lsizes
-
-		do n =1,nresults
-
-			OutBuffer = cpol_array(:,:,cpol_nhbz+1:cpol_bins(3)+cpol_nhbz,n)
-
-			call Create_commit_fileview(gsizes, lsizes, global_indices, &
-			                            offset,datatype,FILE_FLAG,filetype,fh)
-
-			!Update local array datatype to ignore halo cells
-			call Create_commit_subarray(memsizes, lsizes, local_indices, &
-			                            datatype,MEM_FLAG,memtype)
-
-			call MPI_FILE_WRITE_ALL(fh, OutBuffer, 1, memtype, status, ierr)
-
-			!Calculate global count offset
-			global_cnt = global_cnt + product(gcpol_bins(:))
-			offset = global_cnt * dp_size
-		
-		enddo
-
-		deallocate(OutBuffer)
-		CALL MPI_FILE_CLOSE(fh, ierr)
-
-		! Free data types
-		call MPI_TYPE_FREE(memtype,ierr) ; MEM_FLAG = 0
-		call MPI_TYPE_FREE(filetype,ierr); FILE_FLAG = 0
-
-	end subroutine rwrite_zplane
-
-	subroutine iwrite_zplane_1(cpol_array,outfile,outstep)
-		use mpi
-		use module_parallel_io, only: Create_commit_fileview, Create_commit_subarray
-		use messenger, only : icomm_xyz, kblock
-		use concentric_cylinders, only: gcpol_bins, cpol_bins, cpol_nhbz
-		use computational_constants_MD, only: npz
-		implicit none
-
-		integer, intent(in) :: outstep
-		integer, dimension(:,:,:),intent(in) :: cpol_array
-		character(*),intent(in) :: outfile
-
-		integer :: n, fh, ierr
-		integer :: MEM_FLAG = 0
-		integer :: FILE_FLAG = 0
-		integer :: int_size,datatype
-		integer :: status(mpi_status_size)
-		integer :: filetype, memtype
-		integer (kind=MPI_offset_kind) :: offset,global_cnt
-		integer, dimension(3) :: gsizes, lsizes, memsizes
-		integer, dimension(3) :: global_indices, local_indices
-		integer, dimension(:,:),allocatable :: kblock_lsizes 
-		integer, allocatable,dimension(:,:,:) :: OutBuffer
-
-		datatype = MPI_INTEGER
-		call MPI_TYPE_SIZE(datatype, int_size, ierr)
-
-		call MPI_file_open(icomm_xyz(3), outfile, &
-		                   MPI_MODE_WRONLY+MPI_MODE_CREATE, &
-		                   MPI_INFO_NULL, fh, ierr)
-
-		! Define offsets, etc. Remember MPI is written in C so indices are
-		! counted from 0, rather than 1 as in Fortran.
-		global_cnt 	= (outstep-1)*product(gcpol_bins(:))
-		offset		= global_cnt * int_size
-		gsizes 		= gcpol_bins
-		lsizes		= cpol_bins
-		local_indices(:) = (/ 0 , 0 , 0 /)
-		global_indices(:)= (/ 0 , 0 , 0 /)
-
-		!Number of bins on each kblock processor group 
-		allocate(kblock_lsizes(3,npz))
-		call SubcommGather(lsizes,kblock_lsizes,3,3,npz)
-		global_indices(1) = 0
-		global_indices(2) = 0 
-		global_indices(3) = sum(kblock_lsizes(3,1:kblock-1))
-		deallocate(kblock_lsizes)
-
-		allocate(OutBuffer(lsizes(1),lsizes(2),lsizes(3)))
-		memsizes = lsizes
-
-		! Copy to outbuffer, not including halo cells
-		OutBuffer =  cpol_array(:,:,cpol_nhbz+1:cpol_bins(3)+cpol_nhbz)
-
-		! Create fileview and subarray to be written
-		call Create_commit_fileview(gsizes, lsizes, global_indices, &
-		                            offset, datatype, FILE_FLAG, filetype, fh)
-		call Create_commit_subarray(memsizes, lsizes, local_indices, &
-		                            datatype, MEM_FLAG, memtype)
-
-		! Write to file
-		call MPI_FILE_WRITE_ALL(fh, OutBuffer, 1, memtype, status, ierr)
-
-		!Calculate global count offset
-		global_cnt = global_cnt + product(gcpol_bins(:))
-		offset = global_cnt * int_size
-
-		deallocate(OutBuffer)
-		CALL MPI_FILE_CLOSE(fh, ierr)
-
-		! Free data types
-		CALL MPI_BARRIER(icomm_xyz(3),IERR)
-		call MPI_TYPE_FREE(memtype,ierr) ; MEM_FLAG = 0
-		call MPI_TYPE_FREE(filetype,ierr); FILE_FLAG = 0
-
-	end subroutine iwrite_zplane_1
-	
 end subroutine velocity_bin_cpol_io
+
+!------------------------------------------------------------------------------
+! Cylindrical polar velocity bins
+subroutine VA_stress_cpol_io
+	use module_parallel_io, only: write_zplane
+	use concentric_cylinders, only: cpol_binso, r_oi, r_io, cpol_bins
+	use computational_constants_MD, only: iter, initialstep, tplot, &
+	                                      Nstress_ave, prefix_dir, domain, &
+	                                      globaldomain
+	use physical_constants_MD, only: pi
+	use messenger, only: icomm_grid,iblock,jblock,plane_comm
+	use calculated_properties_MD, only: rfbin, vvbin, Pxybin
+	implicit none
+
+	integer :: m, ierr
+	integer :: rbin, tbin, zbin 
+	character(200) :: pVAfile
+	real(kind(0.d0)) :: buf9(cpol_binso(1),cpol_binso(2),cpol_binso(3),9)
+	real(kind(0.d0)) :: rp, rm, dtheta, dz
+	real(kind(0.d0)) :: binvolume
+
+	! Average over samples
+	vvbin  = 0.d0
+	print*, 'Set vvbin to zero for now'
+	vvbin  = vvbin  / Nstress_ave 
+	rfbin  = rfbin  / Nstress_ave 
+
+	!Bins have different volumes
+	do rbin = 1, cpol_binso(1)
+	do tbin = 1, cpol_binso(2)
+	do zbin = 1, cpol_binso(3)
+
+		rp = r_oi  +       rbin*(r_io - r_oi)/cpol_bins(1)
+		rm = r_oi  + (rbin - 1)*(r_io - r_oi)/cpol_bins(1)
+
+		dtheta = (2.d0*pi)/cpol_bins(2)
+		dz = domain(3)/cpol_bins(3)
+
+		binvolume = (1.d0/2.d0)*(rp**2.d0 - rm**2.d0)*dtheta*dz
+
+		vvbin(rbin,tbin,zbin,:,:) = vvbin(rbin,tbin,zbin,:,:)/binvolume
+		rfbin(rbin,tbin,zbin,:,:) = rfbin(rbin,tbin,zbin,:,:)/binvolume
+
+	end do
+	end do
+	end do
+
+	! Sum kinetic and configurational contributions
+	Pxybin = vvbin + rfbin/2.d0
+
+	! The stress arrays on each processor are global in r and theta, 
+	! but local in z. Z-Plane global sums of r/theta bins are performed
+	! so everyone has a copy of global r/theta bins in their own z-plane
+	call ZPlaneReduceStress
+
+	! Only bottom corner z-line of processors write to file	
+	if (iblock .eq. 1 .and. jblock .eq. 1) then
+
+		m = (iter-initialstep+1)/(tplot*Nstress_ave)
+		pVAfile = trim(prefix_dir)//'results/pVA'
+
+		buf9 = reshape(Pxybin,(/cpol_binso(1),cpol_binso(2),cpol_binso(3),9/))
+		call write_zplane(buf9,9,pVAfile,m)
+
+	end if
+
+	! Barrier needed to ensure correct offsets calculated next
+	call MPI_Barrier(icomm_grid,ierr)
+	
+contains
+
+	subroutine ZPlaneReduceStress
+	implicit none
+
+		integer :: nbins
+		real(kind(0.d0)), allocatable :: buf(:)
+
+		nbins = cpol_binso(1) * cpol_binso(2) * cpol_binso(3)
+
+		allocate( buf(9*nbins) )
+
+		buf = reshape(Pxybin,(/9*nbins/))
+		call PlaneSumVect( plane_comm(3), buf, 9*nbins )
+		Pxybin = reshape(buf,(/cpol_binso(1),cpol_binso(2),cpol_binso(3),3,3/))
+
+		deallocate(buf)
+
+	end subroutine ZPlaneReduceStress
+
+end subroutine VA_stress_cpol_io 
 
 !---------------------------------------------------------------------------------
 ! Record temperature in a slice through the domain
@@ -2532,6 +2678,7 @@ subroutine VA_stress_io
 	!Write out Virial stress
 	call virial_stress_io
 
+		vvbin = 0.d0
 	!VA pressure per bin
 	binvolume = (domain(1)/nbins(1))*(domain(2)/nbins(2))*(domain(3)/nbins(3))
 	Pxybin = Pxybin / binvolume
