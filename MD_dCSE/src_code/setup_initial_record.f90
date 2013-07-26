@@ -733,7 +733,7 @@ subroutine simulation_header
 	write(fileunit,*)  'mass flux average steps ;  Nmflux_ave ;', Nmflux_ave
 	write(fileunit,*)  'velocity flux average steps ;  Nvflux_ave ;', Nvflux_ave
 	write(fileunit,*)  'energy flux average steps ;  Neflux_ave ;', Neflux_ave
-	if (velocity_outflag .eq. 5 .or. mass_outflag .eq. 5 ) then
+	if (velocity_outflag .eq. 5 .or. mass_outflag .eq. 5 .or. pressure_outflag .eq. 3) then
 		write(fileunit,*)  'Velocity/stress Averaging Bins in r ;      gnbins(1) ;', gcpol_bins(1)
 		write(fileunit,*)  'Velocity/stress Averaging Bins in theta ;  gnbins(2) ;', gcpol_bins(2)
 		write(fileunit,*)  'Velocity/stress Averaging Bins in z ;      gnbins(3) ;', gcpol_bins(3)
