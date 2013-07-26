@@ -528,6 +528,13 @@ subroutine setup_read_input
 			read(1,*) gcpol_bins(2)	
 			read(1,*) gcpol_bins(3)	
 		end if
+		if (pressure_outflag .eq. 2 .or. pressure_outflag .eq. 3) then
+			VA_line_samples = 20
+			call locate(1,'VA_LINE_SAMPLES',.false.,found_in_input)
+			if (found_in_input) then
+				read(1,*) VA_line_samples	
+			end if
+		end if
 	endif
 	call locate(1,'VISCOSITY_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then

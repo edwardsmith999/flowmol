@@ -231,6 +231,9 @@ module computational_constants_MD
 	!Directory that holds input/output files, useful in coupling mode
  	character(len=128) :: prefix_dir = "./"	
 
+	!Number of samples used to calculate l_ij in VA stress calculation
+	integer :: VA_line_samples
+
 end module computational_constants_MD
 
 
@@ -633,6 +636,7 @@ module calculated_properties_MD
 		Pxybin, 			&		!Stress tensor per bin
 		Pxyface, 			&		!Stress tensor on bin face
 		Gxybins	    				!Parameter used in Nose Hoover stressostat
+	
 
 
 	!double precision,dimension(2,3,44)	:: shiftVAstress

@@ -2531,7 +2531,7 @@ end subroutine pressure_tensor_forces_H
 ! Linear trajectory path sampled to find approximate values of l_ij (less accurate, 
 ! but much easier to understand, and no problems with polar coordinates)
 subroutine pressure_tensor_forces_VA_trap(ri,rj,rij,accijmag)
-	use computational_constants_MD, only: domain, halfdomain
+	use computational_constants_MD, only: domain, halfdomain, VA_line_samples
 	use calculated_properties_MD, only: nbins, rfbin
 	use librarymod, only: outerprod
 	
@@ -2541,13 +2541,14 @@ subroutine pressure_tensor_forces_VA_trap(ri,rj,rij,accijmag)
 	real(kind(0.d0)), dimension(3), intent(in) :: ri, rj, rij
 
 	integer :: ss
-	integer, parameter :: Ns=20
+	integer :: Ns
 	real(kind(0.d0)) :: s, ds, rs(3), VAbinsize(3), bin(3), rF(3,3)
 
 	VAbinsize(:) = domain(:) / nbins(:)
 	rF = outerprod(rij, accijmag*rij)		
 
 	! Split line l_ij into segments of size ds
+	Ns = VA_line_samples
 	ds = 1.d0 / real(Ns, kind(0.d0))
 	! First sample at midpoint of first segment 
 	s = 0.5d0*ds 
@@ -2576,7 +2577,7 @@ end subroutine pressure_tensor_forces_VA_trap
 
 subroutine pressure_tensor_forces_VA_trap_cpol(ripol,rjpol,rijpol,accijmag)
 	use concentric_cylinders
-	use computational_constants_MD, only: domain, halfdomain
+	use computational_constants_MD, only: domain, halfdomain, VA_line_samples
 	use physical_constants_MD, only: pi
 	use calculated_properties_MD, only: rfbin
 	use librarymod, only: outerprod, cartesianiser
@@ -2588,7 +2589,7 @@ subroutine pressure_tensor_forces_VA_trap_cpol(ripol,rjpol,rijpol,accijmag)
 
 	integer :: ss
 	integer :: br, bt, bz
-	integer, parameter :: Ns=20
+	integer :: Ns
 	real(kind(0.d0)) :: s, ds, rs(3), rs_cart(3), VAbinsize(3), rF(3,3)
 
 	! Bin sizes
@@ -2600,6 +2601,7 @@ subroutine pressure_tensor_forces_VA_trap_cpol(ripol,rjpol,rijpol,accijmag)
 	rF = outerprod(rijpol, accijmag*rijpol)
 
 	! First sample at midpoint of first segment 
+	Ns = VA_line_samples
 	ds = 1.d0 / real(Ns, kind(0.d0))
 	s = 0.5d0*ds 
 
