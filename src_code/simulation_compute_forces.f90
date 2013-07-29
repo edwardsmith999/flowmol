@@ -979,15 +979,17 @@ subroutine simulation_compute_rfbins_cpol(imin, imax, jmin, jmax, kmin, kmax)
 						invrij2 = 1.d0/rij2
 						accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
 
-						ripol  = cpolariser(globalise(ri))
-						rjpol  = cpolariser(globalise(rj))
-						rijpol = rjpol - ripol
+						!ripol  = cpolariser(globalise(ri))
+						!rjpol  = cpolariser(globalise(rj))
+						!rijpol = rjpol - ripol
 
-						! Take shortest linear trajectory
-						rijpol(2) = rijpol(2) - nint(rijpol(2)/(2.d0*pi))*2.d0*pi
+						!! Take shortest linear trajectory
+						!rijpol(2) = rijpol(2) - nint(rijpol(2)/(2.d0*pi))*2.d0*pi
 
-						call pressure_tensor_forces_VA_trap_cpol( &
-						     ripol, rjpol, rijpol, accijmag )
+						!call pressure_tensor_forces_VA_trap_cpol( &
+						!     ripol, rjpol, rijpol, accijmag )
+
+						call pressure_tensor_forces_VA_trap_cpol(ri,rj,rij,accijmag)
 
 					endif
 

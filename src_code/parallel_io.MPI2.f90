@@ -2450,7 +2450,7 @@ subroutine VA_stress_cpol_io
 	integer :: rbin, tbin, zbin 
 	character(200) :: pVAfile
 	real(kind(0.d0)) :: buf9(cpol_binso(1),cpol_binso(2),cpol_binso(3),9)
-	real(kind(0.d0)) :: rp, rm, dtheta, dz
+	real(kind(0.d0)) :: rplus, rminus, dr, dtheta, dz
 	real(kind(0.d0)) :: binvolume
 
 	! Average over samples
@@ -2459,18 +2459,19 @@ subroutine VA_stress_cpol_io
 	vvbin  = vvbin  / Nstress_ave 
 	rfbin  = rfbin  / Nstress_ave 
 
+	dr     = (r_io - r_oi) / cpol_bins(1)
+	dtheta = (2.d0*pi)     / cpol_bins(2)
+	dz     = domain(3)     / cpol_bins(3)
+
 	!Bins have different volumes
 	do rbin = 1, cpol_binso(1)
 	do tbin = 1, cpol_binso(2)
 	do zbin = 1, cpol_binso(3)
 
-		rp = r_oi  +       rbin*(r_io - r_oi)/cpol_bins(1)
-		rm = r_oi  + (rbin - 1)*(r_io - r_oi)/cpol_bins(1)
+		rplus  = r_oi  +       rbin*dr
+		rminus = r_oi  + (rbin - 1)*dr
 
-		dtheta = (2.d0*pi)/cpol_bins(2)
-		dz = domain(3)/cpol_bins(3)
-
-		binvolume = (1.d0/2.d0)*(rp**2.d0 - rm**2.d0)*dtheta*dz
+		binvolume = (1.d0/2.d0)*(rplus**2.d0 - rminus**2.d0)*dtheta*dz
 
 		vvbin(rbin,tbin,zbin,:,:) = vvbin(rbin,tbin,zbin,:,:)/binvolume
 		rfbin(rbin,tbin,zbin,:,:) = rfbin(rbin,tbin,zbin,:,:)/binvolume
