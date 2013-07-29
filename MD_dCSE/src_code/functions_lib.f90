@@ -184,7 +184,7 @@ implicit none
 end function cpolariser
 
 function cpolarisev(vcart,theta) result(vpol)
-implicit none
+	implicit none
 
 	real(kind(0.d0)), intent(in) :: vcart(3), theta
 	real(kind(0.d0)) :: vpol(3)
@@ -201,8 +201,26 @@ implicit none
 
 end function cpolarisev
 
+function cpolariseT(Tcart,theta) result(Tpol)
+	implicit none
+
+	real(kind(0.d0)), intent(in) :: Tcart(3,3), theta
+	real(kind(0.d0)) :: R(3,3), Tpol(3,3)
+
+	! Rotation matrix for cylindrical polar. Fortran has column-major
+	! ordering so we need to transpose what we "see" below.
+	R = transpose(reshape((/cos(theta),sin(theta),0.d0,&
+	                       -sin(theta),cos(theta),0.d0,&
+	                        0.d0,      0.d0,      1.d0/), (/3,3/)))
+
+	! Tpol = R * Tcart * transpose(R)
+	Tpol = matmul(R, Tcart)
+	Tpol = matmul(Tpol, transpose(R))
+	
+end function cpolariseT
+
 function cartesianiser(rin) result(rca)
-implicit none
+	implicit none
 	
 	real(kind(0.d0)), intent(in) :: rin(3)
 	real(kind(0.d0))             :: rca(3)

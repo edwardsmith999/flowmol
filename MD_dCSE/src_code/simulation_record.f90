@@ -2575,30 +2575,40 @@ subroutine pressure_tensor_forces_VA_trap(ri,rj,rij,accijmag)
 	
 end subroutine pressure_tensor_forces_VA_trap
 
-subroutine pressure_tensor_forces_VA_trap_cpol(ripol,rjpol,rijpol,accijmag)
+subroutine pressure_tensor_forces_VA_trap_cpol(ri,rj,rij,accijmag)
 	use concentric_cylinders
 	use computational_constants_MD, only: domain, halfdomain, VA_line_samples
 	use physical_constants_MD, only: pi
 	use calculated_properties_MD, only: rfbin
-	use librarymod, only: outerprod, cartesianiser
-	use messenger, only: localise
+	use librarymod, only: outerprod, cartesianiser, cpolariser, cpolariseT
+	use messenger, only: localise, globalise
 	implicit none
 
 	real(kind(0.d0)), intent(in) :: accijmag
-	real(kind(0.d0)), dimension(3), intent(in) :: ripol, rjpol, rijpol
+	real(kind(0.d0)), intent(in) :: ri(3), rj(3), rij(3)
 
 	integer :: ss
 	integer :: br, bt, bz
 	integer :: Ns
 	real(kind(0.d0)) :: s, ds, rs(3), rs_cart(3), VAbinsize(3), rF(3,3)
+	real(kind(0.d0)) :: ripol(3), rjpol(3), rijpol(3)
+
+	! Calculate relevant polar quantities
+	ripol = cpolariser(globalise(ri)) 
+	rjpol = cpolariser(globalise(rj))
+	rijpol = rjpol - ripol 
+	! Periodic in theta so take minimum image
+	rijpol(2) = rijpol(2) - nint(rijpol(2)/(2.d0*pi))*2.d0*pi
+
+	! Store rij * Fij outer product tensor (cartesian)
+	rF = outerprod(rij, accijmag*rij)
+	! Transform to polar coordinates
+	rF = cpolariseT(rF,ripol(2)) 
 
 	! Bin sizes
 	VAbinsize(1) = (r_io - r_oi) / cpol_bins(1)
 	VAbinsize(2) = 2.d0*pi       / cpol_bins(2)
 	VAbinsize(3) = domain(3)     / cpol_bins(3)
-
-	! Store rij * Fij outer product
-	rF = outerprod(rijpol, accijmag*rijpol)
 
 	! First sample at midpoint of first segment 
 	Ns = VA_line_samples
@@ -2616,7 +2626,7 @@ subroutine pressure_tensor_forces_VA_trap_cpol(ripol,rjpol,rijpol,accijmag)
 		! by neighbouring processors)
 		if (  .not. any(abs(rs_cart(:)).gt.halfdomain(:))  ) then
 
-			! Constrain samples to within boundaries
+			! Binning conventions 
  			rs(1)  = rs(1) - r_oi
 			rs(2)  = modulo(rs(2),2.d0*pi)
 			rs(3)  = rs_cart(3) + halfdomain(3) 
