@@ -106,7 +106,7 @@ class MD_PlotData():
 
 		return X, Y, m		
 
-	def get_pVA_prof_args(self,axis,minrec,maxrec):
+	def get_pVA_prof_args(self,axis,minrec,maxrec,k=True,c=True):
 		
 		# Get which axes to average over
 		avgaxes = []	
@@ -114,16 +114,16 @@ class MD_PlotData():
 			if (ax != axis): avgaxes.append(ax)
 		avgaxes = tuple(avgaxes)
 		
-		pVA_obj = PBins(self.fdir,cpol_bins=self.cpol_bins)
+		pVA_obj = PBins(self.fdir,cpol_bins=self.cpol_bins,k=k,c=c)
 
 		# Extract 3D pressure tensor field averaged over 1D of bins
 		pslice, binspaces = pVA_obj.get_field(minrec,maxrec,meanaxes=(avgaxes))
 	
 		return binspaces[axis], pslice
 
-	def get_pVA_splot_args(self,plane,haxis,vaxis,minrec,maxrec):
+	def get_pVA_splot_args(self,plane,haxis,vaxis,minrec,maxrec,k=True,c=True):
 		
-		pVA_obj = PBins(self.fdir,cpol_bins=self.cpol_bins)
+		pVA_obj = PBins(self.fdir,cpol_bins=self.cpol_bins,k=k,c=c)
 		Pplane, binspaces = pVA_obj.get_field(minrec,maxrec,meanaxes=(plane))
 		X, Y = np.meshgrid(binspaces[haxis],binspaces[vaxis],indexing='ij')
 		return X, Y, Pplane

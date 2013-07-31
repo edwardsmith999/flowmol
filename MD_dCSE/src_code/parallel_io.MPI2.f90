@@ -2440,7 +2440,7 @@ subroutine VA_stress_cpol_io
 	use concentric_cylinders, only: cpol_binso, r_oi, r_io, cpol_bins
 	use computational_constants_MD, only: iter, initialstep, tplot, &
 	                                      Nstress_ave, prefix_dir, domain, &
-	                                      globaldomain
+	                                      globaldomain, split_kin_config
 	use physical_constants_MD, only: pi
 	use messenger, only: icomm_grid,iblock,jblock,plane_comm
 	use calculated_properties_MD, only: rfbin, vvbin, Pxybin
@@ -2453,11 +2453,6 @@ subroutine VA_stress_cpol_io
 	real(kind(0.d0)) :: rplus, rminus, dr, dtheta, dz
 	real(kind(0.d0)) :: binvolume
 
-	! Average over samples
-	vvbin  = 0.d0
-	print*, 'Set vvbin to zero for now'
-	vvbin  = vvbin  / Nstress_ave 
-	rfbin  = rfbin  / Nstress_ave 
 
 	dr     = (r_io - r_oi) / cpol_bins(1)
 	dtheta = (2.d0*pi)     / cpol_bins(2)
@@ -2480,8 +2475,15 @@ subroutine VA_stress_cpol_io
 	end do
 	end do
 
+	! Average over samples
+	vvbin  = vvbin  / Nstress_ave 
+	rfbin  = rfbin  / Nstress_ave 
+	
+	! Double counted so divide by 2
+	rfbin  = rfbin/2.d0
+
 	! Sum kinetic and configurational contributions
-	Pxybin = vvbin + rfbin/2.d0
+	Pxybin = vvbin + rfbin
 
 	! The stress arrays on each processor are global in r and theta, 
 	! but local in z. Z-Plane global sums of r/theta bins are performed
@@ -2492,10 +2494,24 @@ subroutine VA_stress_cpol_io
 	if (iblock .eq. 1 .and. jblock .eq. 1) then
 
 		m = (iter-initialstep+1)/(tplot*Nstress_ave)
-		pVAfile = trim(prefix_dir)//'results/pVA'
+	
+		select case (split_kin_config)
+		case(0)
+			!Together
+			pVAfile = trim(prefix_dir)//'results/pVA'
+			buf9 = reshape(Pxybin,(/cpol_binso(1),cpol_binso(2),cpol_binso(3),9/))
+			call write_zplane(buf9,9,pVAfile,m)
+		case(1)
+			!Separate
+			pVAfile = trim(prefix_dir)//'results/pVA_k'
+			buf9 = reshape(vvbin,(/cpol_binso(1),cpol_binso(2),cpol_binso(3),9/))
+			call write_zplane(buf9,9,pVAfile,m)
+			pVAfile = trim(prefix_dir)//'results/pVA_c'
+			buf9 = reshape(rfbin,(/cpol_binso(1),cpol_binso(2),cpol_binso(3),9/))
+			call write_zplane(buf9,9,pVAfile,m)
+		case default
+		end select
 
-		buf9 = reshape(Pxybin,(/cpol_binso(1),cpol_binso(2),cpol_binso(3),9/))
-		call write_zplane(buf9,9,pVAfile,m)
 
 	end if
 
@@ -2512,13 +2528,33 @@ contains
 
 		nbins = cpol_binso(1) * cpol_binso(2) * cpol_binso(3)
 
-		allocate( buf(9*nbins) )
+		select case (split_kin_config)
+		case(0)
 
-		buf = reshape(Pxybin,(/9*nbins/))
-		call PlaneSumVect( plane_comm(3), buf, 9*nbins )
-		Pxybin = reshape(buf,(/cpol_binso(1),cpol_binso(2),cpol_binso(3),3,3/))
+			!Together
+			allocate( buf(9*nbins) )
+			buf = reshape(Pxybin,(/9*nbins/))
+			call PlaneSumVect( plane_comm(3), buf, 9*nbins )
+			Pxybin = reshape(buf,(/cpol_binso(1),cpol_binso(2),cpol_binso(3),3,3/))
+			deallocate(buf)
 
-		deallocate(buf)
+		case(1)
+
+			!Separate
+			allocate( buf(9*nbins) )
+
+			buf = reshape(vvbin,(/9*nbins/))
+			call PlaneSumVect( plane_comm(3), buf, 9*nbins )
+			vvbin = reshape(buf,(/cpol_binso(1),cpol_binso(2),cpol_binso(3),3,3/))
+
+			buf = reshape(rfbin,(/9*nbins/))
+			call PlaneSumVect( plane_comm(3), buf, 9*nbins )
+			rfbin = reshape(buf,(/cpol_binso(1),cpol_binso(2),cpol_binso(3),3,3/))
+
+			deallocate(buf)
+
+		case default
+		end select
 
 	end subroutine ZPlaneReduceStress
 

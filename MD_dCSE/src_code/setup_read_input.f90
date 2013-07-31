@@ -519,7 +519,7 @@ subroutine setup_read_input
 		read(1,* ) pressure_outflag
 		if (pressure_outflag .ne. 0) then
 			read(1,* ) Nstress_ave
-			read(1,*,iostat=ios) 	split_kin_config
+			read(1,*,iostat=ios) split_kin_config
 			if (ios .ne. 0) split_kin_config = 0 !default to zero if value not found
 		endif
 		if (pressure_outflag .eq. 3) then

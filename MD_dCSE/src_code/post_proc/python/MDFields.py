@@ -122,13 +122,25 @@ class MomBins(Field):
 	nperbin = 3
 	get_field = Field.get_bins
 
-# Pressure field
+# Pressure fields
 class PBins(Field):
 
-	fname = 'pVA'
 	dtype = 'd'
 	nperbin = 9
 	get_field = Field.get_bins
+
+	def __init__(self,fdir,cpol_bins=False,k=True,c=True):
+		Field.__init__(self,fdir,cpol_bins=cpol_bins)
+	
+		if (k==True and c==True):	
+			self.fname = 'pVA'
+		elif (k==True and c==False):
+			self.fname = 'pVA_k'
+		elif (k==False and c==True):
+			self.fname = 'pVA_c'
+		else:
+			quit('Invalid specification of k and c in PBins class')
+	
 
 class KEBins(Field):
 	

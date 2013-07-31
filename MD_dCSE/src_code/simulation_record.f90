@@ -1451,7 +1451,7 @@ subroutine cumulative_pressure(ixyz,sample_count)
 	case(3)
 
 		call simulation_compute_rfbins_cpol(1,nbins(1)+2,1,nbins(2)+2,1,nbins(3)+2)
-		!call simulation_compute_kinetic_VA(2,nbins(1)+1,2,nbins(2)+1,2,nbins(3)+1)
+		call simulation_compute_kinetic_VA_cpol(2,nbins(1)+1,2,nbins(2)+1,2,nbins(3)+1)
 		Pxybin = vvbin + rfbin/2.d0
 
 	case default 
@@ -1523,6 +1523,69 @@ subroutine simulation_compute_kinetic_VA(imin,imax,jmin,jmax,kmin,kmax)
 	enddo
 
 end subroutine simulation_compute_kinetic_VA
+
+subroutine simulation_compute_kinetic_VA_cpol(imin,imax,jmin,jmax,kmin,kmax)
+	use module_record
+	use physical_constants_MD
+	use concentric_cylinders
+	use messenger, only: globalise
+	use librarymod, only: cpolariser, cpolariseT, outerprod
+	implicit none
+
+	integer, intent(in) :: imin, jmin, kmin, imax, jmax, kmax
+	integer :: n, ixyz,jxyz
+	integer :: br, bt, bz
+	real(kind(0.d0)) :: VAbinsize(3), velvect(3)
+	real(kind(0.d0)) :: ripol(3), vvpol(3,3)
+
+	!Determine bin sizes
+	VAbinsize(1) = (r_io - r_oi) / cpol_bins(1)
+	VAbinsize(2) = 2.d0*pi       / cpol_bins(2)
+	VAbinsize(3) = domain(3)     / cpol_bins(3)
+
+	! Add kinetic part of pressure tensor for all molecules
+	do n = 1, np
+
+		!Assign to bins using integer division
+		br = ceiling((r(1,n)+halfdomain(1))/VAbinsize(1))	!Establish current bin
+		bt = ceiling((r(2,n)+halfdomain(2))/VAbinsize(2)) 	!Establish current bin
+		bz = ceiling((r(3,n)+halfdomain(3))/VAbinsize(3)) 	!Establish current bin
+
+		select case(integration_algorithm)
+		case(leap_frog_verlet)
+			!Calculate velocity at time t (v is at t+0.5delta_t due to use of verlet algorithm)
+			velvect(:) = v(:,n) + 0.5d0 * a(:,n) * delta_t
+			!Velocity is already at time t for Velocity Verlet algorithm
+		case(velocity_verlet)                                   
+			velvect(:) = v(:,n)
+		end select
+
+		ripol = cpolariser(globalise(r(:,n)))
+		vvpol = cpolariseT(outerprod(velvect,velvect),ripol(2))
+
+		! Binning conventions 
+		ripol(1) = ripol(1) - r_oi
+		ripol(2) = modulo(ripol(2),2.d0*pi)
+		ripol(3) = r(3,n) + halfdomain(3) 
+
+		! Cylindrical bins
+		br = ceiling(ripol(1)/VAbinsize(1)) 
+		bt = ceiling(ripol(2)/VAbinsize(2)) 
+		bz = ceiling(ripol(3)/VAbinsize(3)) + cpol_nhbz
+
+		!Ignore molecules not in fluid region
+		if (br .gt. cpol_bins(1)) cycle
+		if (br .lt. 1)            cycle
+		if (bt .gt. cpol_bins(2)) cycle
+		if (bt .lt. 1)            cycle
+		if (bz .gt. cpol_bins(3)) cycle
+		if (bz .lt. 1)            cycle
+		
+		vvbin(br,bt,bz,:,:) = vvbin(br,bt,bz,:,:) + vvpol(:,:)
+
+	enddo
+
+end subroutine simulation_compute_kinetic_VA_cpol
 
 !----------------------------------------------------------------------------------
 !Compute kinetic part of stress tensor ONLY IF BINSIZE = CELLSIZE
