@@ -129,18 +129,9 @@ class PBins(Field):
 	nperbin = 9
 	get_field = Field.get_bins
 
-	def __init__(self,fdir,cpol_bins=False,k=True,c=True):
+	def __init__(self,fdir,fname,cpol_bins=False):
 		Field.__init__(self,fdir,cpol_bins=cpol_bins)
-	
-		if (k==True and c==True):	
-			self.fname = 'pVA'
-		elif (k==True and c==False):
-			self.fname = 'pVA_k'
-		elif (k==False and c==True):
-			self.fname = 'pVA_c'
-		else:
-			quit('Invalid specification of k and c in PBins class')
-	
+		self.fname = fname	
 
 class KEBins(Field):
 	
@@ -243,3 +234,56 @@ class TBins():
 		Tfield = np.mean(Tfield,sumaxes)
 		
 		return Tfield, binspaces
+
+# Pressure fields
+class pVABins():
+
+	def __init__(self,fdir,fname,cpol_bins=False):
+		self.fdir = fdir
+		self.fname = fname
+		self.cpol_bins = cpol_bins
+		self.Pobj = PBins(fdir,fname,cpol_bins)
+
+	def get_field(self,minrec,maxrec,meanaxes,peculiar=False):
+
+		print('Getting '+self.fname+' field from recs ' + str(minrec) + ' to ' 
+		      + str(maxrec) + ', meanaxes = ' + str(meanaxes) + ', peculiar = ' 
+		      + str(peculiar) )
+
+		# Read raw data file	
+		#Pfield, binspaces = self.Pobj.get_field(minrec,maxrec)	
+		Pfield, binspaces = self.Pobj.get_field(minrec,maxrec,meanaxes=meanaxes)	
+
+		# Take off square of peculiar momenta if specified
+		if (peculiar==True):
+
+			if (self.fname=='pVA_c'):
+				message = ('\n *** \n Removing the peculiar velocity from '
+				+' the configurational part \n of the stress tensor is '
+				+' entirely nonsensical! I will ignore this instruction.\n'
+				+' ***\n')
+				print(message)
+		
+			else:	
+
+				# Get mean velocity field
+				vData = VBins(self.fdir,cpol_bins=self.cpol_bins)
+				#vfield, binspaces = vData.get_field(minrec,maxrec)
+				vfield, binspaces = vData.get_field(minrec,maxrec,sumaxes=meanaxes)
+
+				# Find outer product of v*v
+				vvfield = np.einsum('...j,...k->...jk',vfield,vfield)
+
+				# Reshape final two axes to 1x9 rather than 3x3
+				vvshapelist = list(vvfield.shape)
+				newshape = tuple(vvshapelist[0:-2]+[9])
+				vvfield  = np.reshape(vvfield,newshape)
+			
+				# Remove square of streaming velocity
+				Pfield = Pfield - vvfield
+
+		# Find the mean over the axes specified by the user
+		#Pfield = np.mean(Pfield,axis=meanaxes)
+
+		return Pfield, binspaces
+

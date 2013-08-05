@@ -106,25 +106,29 @@ class MD_PlotData():
 
 		return X, Y, m		
 
-	def get_pVA_prof_args(self,axis,minrec,maxrec,k=True,c=True):
+	def get_pVA_prof_args(self,filename,axis,minrec,maxrec,peculiar=False):
 		
 		# Get which axes to average over
 		avgaxes = []	
 		for ax in range(3):
 			if (ax != axis): avgaxes.append(ax)
 		avgaxes = tuple(avgaxes)
-		
-		pVA_obj = PBins(self.fdir,cpol_bins=self.cpol_bins,k=k,c=c)
+	
+		# Open pVA Field object	
+		pVA_obj = pVABins(self.fdir,filename,cpol_bins=self.cpol_bins)
 
 		# Extract 3D pressure tensor field averaged over 1D of bins
-		pslice, binspaces = pVA_obj.get_field(minrec,maxrec,meanaxes=(avgaxes))
+		Pslices, binspaces = pVA_obj.get_field(minrec,maxrec,
+		                     meanaxes=(avgaxes),peculiar=peculiar)
 	
-		return binspaces[axis], pslice
+		return binspaces[axis], Pslices
 
-	def get_pVA_splot_args(self,plane,haxis,vaxis,minrec,maxrec,k=True,c=True):
+	def get_pVA_splot_args(self,filename,plane,haxis,vaxis,minrec,maxrec,
+		                   peculiar=False):
 		
-		pVA_obj = PBins(self.fdir,cpol_bins=self.cpol_bins,k=k,c=c)
-		Pplane, binspaces = pVA_obj.get_field(minrec,maxrec,meanaxes=(plane))
+		pVA_obj = pVABins(self.fdir,filename,cpol_bins=self.cpol_bins)
+		Pplane, binspaces = pVA_obj.get_field(minrec,maxrec,meanaxes=(plane),
+		                                      peculiar=peculiar)
 		X, Y = np.meshgrid(binspaces[haxis],binspaces[vaxis],indexing='ij')
 		return X, Y, Pplane
 
@@ -132,8 +136,10 @@ class MD_PlotData():
 
 		# Instantiate temperature data object
 		TData = TBins(self.fdir,cpol_bins=self.cpol_bins)
+
 		# Extract 3D velocity field averaged over 1D of bins
 		Tplane, binspaces = TData.get_field(minrec,maxrec,sumaxes=(plane),peculiar=peculiar)
+
 		# Get bin center positions on both axes for every field point
 		X, Y = np.meshgrid(binspaces[haxis],binspaces[vaxis],indexing='ij')
 
