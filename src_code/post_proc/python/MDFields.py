@@ -100,6 +100,44 @@ class Field():
 		
 		return bins, binspaces
 
+	def get_binvolumes(self):
+
+		# Create raw data reading object and get the topology of the bins
+		Raw = MD_RawData(self.fdir,self.fname,self.dtype,self.nperbin,self.cpol_bins)
+		nbins, binspaces = Raw.get_bintopology()
+	
+		if (self.cpol_bins == True):	
+
+			r_oi = float(Raw.header.r_oi)
+			r, theta, z = np.meshgrid((binspaces[0]+r_oi),
+			                           binspaces[1],
+			                           binspaces[2],
+			                           indexing='ij')
+
+			dr     = binspaces[0][1] - binspaces[0][0]
+			dtheta = binspaces[1][1] - binspaces[1][0]
+			dz     = binspaces[2][1] - binspaces[2][0]
+
+			binvolumes = r*dr*dtheta*dz
+
+			return binvolumes
+
+		else:
+
+			print('Warning: binvolumes not tested for Cartesian peculiar '+
+			      'velocity calculation')
+
+			x, y, z = np.meshgrid(binspaces[0],binspaces[1],binspaces[2],
+			                      indexing='ij')
+
+			dx = binspaces[0][1] - binspaces[0][0]
+			dy = binspaces[1][1] - binspaces[1][0]
+			dz = binspaces[2][1] - binspaces[2][0]
+
+			binvolumes = dx*dy*dz
+
+			return binvolumes
+
 	def get_slices(self,minrec,maxrec,sumaxes=(),meanaxes=()):
 	
 		print("""get_slices has not yet been developed in the Field class.
@@ -130,6 +168,7 @@ class PBins(Field):
 	get_field = Field.get_bins
 
 	def __init__(self,fdir,fname,cpol_bins=False):
+
 		Field.__init__(self,fdir,cpol_bins=cpol_bins)
 		self.fname = fname	
 
@@ -269,7 +308,8 @@ class pVABins():
 				# Get mean velocity field
 				vData = VBins(self.fdir,cpol_bins=self.cpol_bins)
 				#vfield, binspaces = vData.get_field(minrec,maxrec)
-				vfield, binspaces = vData.get_field(minrec,maxrec,sumaxes=meanaxes)
+				vfield, binspaces = vData.get_field(minrec,maxrec,
+					                                sumaxes=meanaxes)
 
 				# Find outer product of v*v
 				vvfield = np.einsum('...j,...k->...jk',vfield,vfield)
@@ -278,6 +318,16 @@ class pVABins():
 				vvshapelist = list(vvfield.shape)
 				newshape = tuple(vvshapelist[0:-2]+[9])
 				vvfield  = np.reshape(vvfield,newshape)
+
+				# Calculate size of volumes, mean over averaging axes because
+				# the velocities have already been averaged over meanaxes
+				binvolumes = self.Pobj.get_binvolumes()
+				binvolumes = np.mean(binvolumes,axis=meanaxes)
+
+				# Ensure binvolumes is the right shape for numpy broadcasting
+				# when dividing vvfield/binvolumes
+				binvolumes = np.expand_dims(binvolumes,-1)
+				vvfield = np.divide(vvfield,binvolumes)
 			
 				# Remove square of streaming velocity
 				Pfield = Pfield - vvfield
@@ -286,4 +336,5 @@ class pVABins():
 		#Pfield = np.mean(Pfield,axis=meanaxes)
 
 		return Pfield, binspaces
+
 
