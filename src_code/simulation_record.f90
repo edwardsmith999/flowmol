@@ -2593,7 +2593,7 @@ end subroutine pressure_tensor_forces_H
 ! Author: David Trevelyan, July 2013
 ! Linear trajectory path sampled to find approximate values of l_ij (less accurate, 
 ! but much easier to understand, and no problems with polar coordinates)
-subroutine pressure_tensor_forces_VA_trap(ri,rj,rij,accijmag)
+subroutine pressure_tensor_forces_VA_trap(ri,rj,accijmag)
 	use computational_constants_MD, only: domain, halfdomain, VA_line_samples
 	use calculated_properties_MD, only: nbins, rfbin
 	use librarymod, only: outerprod
@@ -2601,13 +2601,14 @@ subroutine pressure_tensor_forces_VA_trap(ri,rj,rij,accijmag)
 	implicit none
 
 	real(kind(0.d0)), intent(in) :: accijmag
-	real(kind(0.d0)), dimension(3), intent(in) :: ri, rj, rij
+	real(kind(0.d0)), dimension(3), intent(in) :: ri, rj
 
 	integer :: ss
 	integer :: Ns
-	real(kind(0.d0)) :: s, ds, rs(3), VAbinsize(3), bin(3), rF(3,3)
+	real(kind(0.d0)) :: s, ds, rs(3), rij(3), VAbinsize(3), bin(3), rF(3,3)
 
 	VAbinsize(:) = domain(:) / nbins(:)
+	rij = rj - ri
 	rF = outerprod(rij, accijmag*rij)		
 
 	! Split line l_ij into segments of size ds
@@ -2638,7 +2639,7 @@ subroutine pressure_tensor_forces_VA_trap(ri,rj,rij,accijmag)
 	
 end subroutine pressure_tensor_forces_VA_trap
 
-subroutine pressure_tensor_forces_VA_trap_cpol(ri,rj,rij,accijmag)
+subroutine pressure_tensor_forces_VA_trap_cpol(ri,rj,accijmag)
 	use concentric_cylinders
 	use computational_constants_MD, only: domain, halfdomain, VA_line_samples
 	use physical_constants_MD, only: pi
@@ -2648,12 +2649,12 @@ subroutine pressure_tensor_forces_VA_trap_cpol(ri,rj,rij,accijmag)
 	implicit none
 
 	real(kind(0.d0)), intent(in) :: accijmag
-	real(kind(0.d0)), intent(in) :: ri(3), rj(3), rij(3)
+	real(kind(0.d0)), intent(in) :: ri(3), rj(3)
 
 	integer :: ss
 	integer :: br, bt, bz
 	integer :: Ns
-	real(kind(0.d0)) :: s, ds, rs(3), rs_cart(3), VAbinsize(3), rF(3,3)
+	real(kind(0.d0)) :: s, ds, rs(3), rij(3), Fij(3), rs_cart(3), VAbinsize(3), rF(3,3)
 	real(kind(0.d0)) :: ripol(3), rjpol(3), rijpol(3)
 
 	! Calculate relevant polar quantities
@@ -2664,7 +2665,9 @@ subroutine pressure_tensor_forces_VA_trap_cpol(ri,rj,rij,accijmag)
 	rijpol(2) = rijpol(2) - nint(rijpol(2)/(2.d0*pi))*2.d0*pi
 
 	! Store rij * Fij outer product tensor (cartesian)
-	rF = outerprod(rij, accijmag*rij)
+	rij = rj - ri
+	Fij = -accijmag*rij
+	rF = outerprod(rij, Fij)
 	! Transform to polar coordinates
 	rF = cpolariseT(rF,ripol(2)) 
 
