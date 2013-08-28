@@ -2605,11 +2605,12 @@ subroutine pressure_tensor_forces_VA_trap(ri,rj,accijmag)
 
 	integer :: ss
 	integer :: Ns
-	real(kind(0.d0)) :: s, ds, rs(3), rij(3), VAbinsize(3), bin(3), rF(3,3)
+	real(kind(0.d0)) :: s, ds, rs(3), rij(3), Fij(3), VAbinsize(3), bin(3), rF(3,3)
 
 	VAbinsize(:) = domain(:) / nbins(:)
 	rij = rj - ri
-	rF = outerprod(rij, accijmag*rij)		
+	Fij = -accijmag*rij
+	rF = outerprod(rij, Fij)
 
 	! Split line l_ij into segments of size ds
 	Ns = VA_line_samples
