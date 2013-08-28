@@ -2715,7 +2715,7 @@ subroutine VA_stress_io
 	!Write out Virial stress
 	call virial_stress_io
 
-		vvbin = 0.d0
+!		vvbin = 0.d0
 	!VA pressure per bin
 	binvolume = (domain(1)/nbins(1))*(domain(2)/nbins(2))*(domain(3)/nbins(3))
 	Pxybin = Pxybin / binvolume
@@ -2754,7 +2754,8 @@ subroutine VA_stress_io
 		allocate(buf(nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults))
 		buf = 0.d0; 
 		buf(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1:9) = &
-			reshape(rfbin,(/nbins(1),nbins(2),nbins(3),nresults/))
+			reshape(rfbin(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:,:),(/nbins(1),nbins(2),nbins(3),nresults/))
+			!reshape(rfbin,(/nbins(1),nbins(2),nbins(3),nresults/))
 		call write_arrays(buf,nresults,trim(prefix_dir)//'results/pVA_c',m)
 		deallocate(buf)
 	case default
