@@ -2609,8 +2609,9 @@ subroutine pressure_tensor_forces_VA_trap(ri,rj,accijmag)
 
 	VAbinsize(:) = domain(:) / nbins(:)
 	rij = rj - ri
-	Fij = -accijmag*rij
-	rF = outerprod(rij, Fij)
+	!Fij = -accijmag*rij
+	!rF = outerprod(rij, Fij)
+	rF = outerprod(rij, accijmag*rij)
 
 	! Split line l_ij into segments of size ds
 	Ns = VA_line_samples
