@@ -6,7 +6,7 @@ class Field():
 
 	"""
 		Field:   An abstract data averaging base class to be inherited by 
-		         derived bins/slices classes.
+		         derived field classes.
 		Authors: David Trevelyan & Ed Smith, April 2013
 
 		Field contains the information necessary to read a binary data file
@@ -19,11 +19,6 @@ class Field():
 			fname   - file name of binary data file of interest, 
 			dtype   - binary data type string, 'i'/'d' for int/float, and
 			nperbin - number of values per bin. 
-		
-		The important functions are get_bins and get_slices. For ease of use,
-		they SHOULD BE APPROPRIATELY ALIASED AS get_field IN THE DERIVED 
-		CLASSES (so the user only has to remember one function name, regardless
-		of whether the data output is in slices or bins). 
 		
 		Functionality:
 
@@ -124,9 +119,6 @@ class Field():
 
 		else:
 
-			print('Warning: binvolumes not tested for Cartesian peculiar '+
-			      'velocity calculation')
-
 			x, y, z = np.meshgrid(binspaces[0],binspaces[1],binspaces[2],
 			                      indexing='ij')
 
@@ -134,15 +126,10 @@ class Field():
 			dy = binspaces[1][1] - binspaces[1][0]
 			dz = binspaces[2][1] - binspaces[2][0]
 
-			binvolumes = dx*dy*dz
+			binvolumes = np.ones(x.shape)*dx*dy*dz
 
 			return binvolumes
 
-	def get_slices(self,minrec,maxrec,sumaxes=(),meanaxes=()):
-	
-		print("""get_slices has not yet been developed in the Field class.
-		       Aborting post-processing.""") 	
-		quit()
 
 # Mass field	
 class MassBins(Field):
@@ -169,23 +156,24 @@ class PBins(Field):
 
 	def __init__(self,fdir,fname,cpol_bins=False):
 
+		"""
+			PBins requires the specification of a filename by the
+			user, allowing any of pVA, virial, or separate kinetic
+			and configurational parts to be plotted with the same
+			field class functionality.
+
+		"""
+
 		Field.__init__(self,fdir,cpol_bins=cpol_bins)
 		self.fname = fname	
 
+# Kinetic energy field
 class KEBins(Field):
 	
 	fname = 'Tbins'
 	dtype = 'd'
 	nperbin = 1
 	get_field = Field.get_bins
-
-# Mass slice?
-#class MassSlice(Field):
-#	
-#	fname = 'mslice'
-#	dtype = 'i'
-#	nperbin = 1
-#	get_field = Field.get_slice
 
 # Velocity field
 class VBins():
@@ -283,15 +271,15 @@ class pVABins():
 		self.cpol_bins = cpol_bins
 		self.Pobj = PBins(fdir,fname,cpol_bins)
 
-	def get_field(self,minrec,maxrec,meanaxes,peculiar=False):
+	def get_field(self,minrec,maxrec,meanaxes=(),peculiar=False):
 
 		print('Getting '+self.fname+' field from recs ' + str(minrec) + ' to ' 
 		      + str(maxrec) + ', meanaxes = ' + str(meanaxes) + ', peculiar = ' 
 		      + str(peculiar) )
 
 		# Read raw data file	
-		#Pfield, binspaces = self.Pobj.get_field(minrec,maxrec)	
-		Pfield, binspaces = self.Pobj.get_field(minrec,maxrec,meanaxes=meanaxes)	
+		Pfield, binspaces = self.Pobj.get_field(minrec,maxrec)	
+		#Pfield, binspaces = self.Pobj.get_field(minrec,maxrec,meanaxes=meanaxes)	
 
 		# Take off square of peculiar momenta if specified
 		if (peculiar==True):
@@ -307,9 +295,9 @@ class pVABins():
 
 				# Get mean velocity field
 				vData = VBins(self.fdir,cpol_bins=self.cpol_bins)
-				#vfield, binspaces = vData.get_field(minrec,maxrec)
-				vfield, binspaces = vData.get_field(minrec,maxrec,
-					                                sumaxes=meanaxes)
+				vfield, binspaces = vData.get_field(minrec,maxrec)
+				#vfield, binspaces = vData.get_field(minrec,maxrec,
+				#	                                sumaxes=meanaxes)
 
 				# Find outer product of v*v
 				vvfield = np.einsum('...j,...k->...jk',vfield,vfield)
@@ -333,7 +321,7 @@ class pVABins():
 				Pfield = Pfield - vvfield
 
 		# Find the mean over the axes specified by the user
-		#Pfield = np.mean(Pfield,axis=meanaxes)
+		Pfield = np.mean(Pfield,axis=meanaxes)
 
 		return Pfield, binspaces
 
