@@ -880,7 +880,7 @@ implicit none
 						invrij2 = 1.d0/rij2                 !Invert value
 						accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
 						!call pressure_tensor_forces_VA(ri,rj,rij,accijmag)
-						call pressure_tensor_forces_VA_trap(ri,rj,rij,accijmag)
+						call pressure_tensor_forces_VA_trap(ri,rj,accijmag)
 						!call pressure_tensor_forces_H(ri,rj,rij,accijmag)
 						!if (vflux_outflag.eq.4) then
 						!	fij = accijmag*rij(:)
@@ -989,7 +989,7 @@ subroutine simulation_compute_rfbins_cpol(imin, imax, jmin, jmax, kmin, kmax)
 						!call pressure_tensor_forces_VA_trap_cpol( &
 						!     ripol, rjpol, rijpol, accijmag )
 
-						call pressure_tensor_forces_VA_trap_cpol(ri,rj,rij,accijmag)
+						call pressure_tensor_forces_VA_trap_cpol(ri,rj,accijmag)
 
 					endif
 
