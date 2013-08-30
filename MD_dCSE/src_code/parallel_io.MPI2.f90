@@ -2144,6 +2144,7 @@ end subroutine mass_slice_io
 subroutine mass_bin_io(CV_mass_out,io_type)
 	use module_parallel_io
 	use calculated_properties_MD
+	use CV_objects, only : CVcheck_mass, CV_debug
 	implicit none
 
 	integer,intent(in)	:: CV_mass_out(nbinso(1),nbinso(2),nbinso(3))
@@ -2171,6 +2172,10 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 			m = (iter-initialstep+1)/(tplot*Nmflux_ave) + 1 !Initial snapshot taken
 		case(1)
 			m = (iter-initialstep+1)/(Nmflux_ave) + 1 !Initial snapshot taken
+			!Create copy of previous timestep Control Volume mass and calculate time evolution
+			if (CV_debug) then
+				call CVcheck_mass%update_dXdt(CVmasscopy(:,:,:))
+			endif
 		case default
 			call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')	
 		end select
@@ -2269,6 +2274,7 @@ end subroutine velocity_slice_io
 subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 	use module_parallel_io
 	use calculated_properties_MD
+	use CV_objects, only : CVcheck_momentum,CV_debug
 	implicit none
 
 	integer					:: m,nresults
@@ -2296,6 +2302,10 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 			m = (iter-initialstep+1)/(tplot*Nvflux_ave) + 1 !Initial snapshot taken
 		case(1)
 			m = (iter-initialstep+1)/(Nvflux_ave) + 1 !Initial snapshot taken
+			!Create copy of previous timestep Control Volume mass and calculate time evolution
+			if (CV_debug) then
+				call CVcheck_momentum%update_dXdt(CV_momentum_out(:,:,:,:))
+			endif
 		case default
 			call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')	
 		end select
@@ -2825,6 +2835,7 @@ end subroutine viscometrics_io
 subroutine mass_flux_io
 	use module_parallel_io
 	use calculated_properties_MD
+	use CV_objects, only : CVcheck_mass, CV_debug
 	implicit none
 
 	integer				:: m,nresults
@@ -2837,6 +2848,10 @@ subroutine mass_flux_io
 	!Include halo surface fluxes to get correct values for all cells
 	nresults = 6
 	call iswaphalos(mass_flux,nbinso(1),nbinso(2),nbinso(3),nresults)
+
+	if (CV_debug) then
+		CVcheck_mass%flux = mass_flux
+	endif
 
 	!Calculate record number timestep
 	select case(CV_conserve)
@@ -2860,6 +2875,7 @@ end subroutine mass_flux_io
 subroutine momentum_flux_io
 	use module_parallel_io
 	use calculated_properties_MD
+	use CV_objects, only : CVcheck_momentum, CV_debug
 	implicit none
 
 	integer											:: ixyz,m,nresults
@@ -2882,6 +2898,11 @@ subroutine momentum_flux_io
 	!or Divide momentum flux by sum of the Nvflux_ave times delta_t averaging periods 
 	!as sample is taken every tplot steps. The output is then a representaive momentum flux.
 	momentum_flux = momentum_flux/(delta_t*Nvflux_ave)
+
+	if (CV_debug) then
+		CVcheck_momentum%flux = 0.d0
+		call CVcheck_momentum%update_flux(momentum_flux)
+	endif
 
 	!Write momentum to file
 	select case(CV_conserve)
@@ -2993,6 +3014,7 @@ end subroutine MOP_stress_io
 subroutine surface_stress_io
 	use module_parallel_io
 	use calculated_properties_MD
+	use CV_objects, only : CVcheck_momentum,CV_debug
 	implicit none
 
 	integer												:: ixyz,m,nresults
@@ -3013,6 +3035,10 @@ subroutine surface_stress_io
 	!Integration of stress using trapizium rule requires multiplication by timestep
 	!so delta_t cancels upon division by tau=delta_t*Nvflux_ave resulting in division by Nvflux_ave
 	Pxyface = Pxyface/Nvflux_ave
+
+	if (CV_debug) then
+		call CVcheck_momentum%update_Pxy(Pxyface)
+	endif
 
 	!Write surface pressures to file
 	select case(CV_conserve)
