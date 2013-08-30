@@ -9,11 +9,11 @@ fig2 = figure('Position',[scrsz(3)/4 scrsz(4)/4 scrsz(3)/4 scrsz(4)/2]);
 
 %pwdir = '/home/es205/codes/coupled/MD_dCSE/src_code/post_proc/MATLAB';
 resultfile_dir = './../../results/';
-resultfile_dir = '/home/es205/results/md_results/fortran/3D_code/parallel/results/converge_diverge/';
+%resultfile_dir = '/home/es205/results/md_results/fortran/3D_code/parallel/results/converge_diverge/';
 %pwdir=resultfile_dir;
 %resultfile_dir='/home/es205/results/MD_continuum_results/results/coupled_couette/NCER_wall_bump/md_data/results';
 %pwdir = resultfile_dir;
-%resultfile_dir = '/home/es205/codes/coupled/MD_dCSE/src_code/results/';
+resultfile_dir = '/home/es205/codes/coupled/MD_dCSE/src_code/results/';
 %pwdir='/home/es205/codes/coupled/MD_dCSE/src_code/';
 %Read Header
 read_header
@@ -35,7 +35,7 @@ end
 
 %========CV Mass Conservation=======
 n = 1;
-skip = 10;
+skip = 1;
 for m =1:skip:Nmflux_records-2
     m
     %Spacial evolution of domain at time half way from start to finish
@@ -98,7 +98,7 @@ for m =1:skip:Nvflux_records-3
 
     %Overide header value as tethering counted as external force
     %THIS IS A HACK - NEED A BETTER WAY TO DO THIS
-    external_force_flag = 1;
+    external_force_flag = 0;
 
     %Load momentum flux values for current timestep -- include external
     %forces if relevant
@@ -148,10 +148,10 @@ for m =1:skip:Nvflux_records-3
         display(strcat('Error in CV momentum conservation =', ...
             num2str(Error(n)*100),'% - beginning debug'));
         
-        h=slice(conserved(:,:,:),[],[],[5]);
+        h=slice(conserved(:,:,:),[],[],[kbin]);
         view([2]); axis 'tight'; caxis([-0.01,0.01])
         set(h,'FaceColor','interp','EdgeColor','none','DiffuseStrength',.8)
-        title(['d\rhou/dt - \nabla \cdot \Pi',num2str(ibin),',',num2str(jbin),',',num2str(kbin)])
+        title(['d\rhou/dt - \nabla \cdot \Pi with slice taken at bin ',num2str(kbin), ' in z'])
         colorbar;  drawnow; pause(0.1)
 
         %Log temporal evolution over 100 timesteps
@@ -168,10 +168,11 @@ for m =1:skip:Nvflux_records-3
             a = a*delta_t;
 
             %Plot 100 steps of a single cell
-            plot(sum(a(1:end,2,:),3))   %du/dt =
+            plot(sum(a(1:end,2,:),3),'-b')   %du/dt =
             hold all
             plot(-sum(a(1:end,3,:),3) + sum(a(1:end,1,:),3)+sum(a(1:end,4,:),3)/prod(binsize),'r--') % - d\rho uu/dr - dP/dr + dsigma/dr
             title(['d\rhou/dt and \nabla \cdot \Pi + F_{ext} vs time in CV ',num2str(ibin),',',num2str(jbin),',',num2str(kbin)])
+            legend('d\rhou/dt' , '\nabla \cdot \Pi + F_{ext}','location','best')
 
             figure
             plot(sum(a(1:end,2,:),3),'-k')   %du/dt =
@@ -180,7 +181,7 @@ for m =1:skip:Nvflux_records-3
             plot(sum(a(1:end,1,:),3),'-b')
             plot(sum(a(1:end,4,:),3)/prod(binsize),'r--') % - d\rho uu/dr - dP/dr + dsigma/dr
             title(['d\rhou/dt , \nabla \cdot (\rho u u) , \nabla \cdot \sigma and F_{ext}  vs time in CV ',num2str(ibin),',',num2str(jbin),',',num2str(kbin)])
-
+            legend('d\rhou/dt' , '\nabla \cdot (\rho u u)' , '\nabla \cdot \sigma' ,' F_{ext}','location','best')
             %Plot error
             figure
             plot(Error)

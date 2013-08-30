@@ -77,6 +77,7 @@ end module module_record
 
 subroutine simulation_record
 	use module_record
+	use CV_objects, only : CVcheck_mass, CV_debug
 	implicit none
 
 	integer			:: vmd_iter
@@ -1671,6 +1672,7 @@ end subroutine simulation_compute_kinetic_VA_cells
 
 subroutine mass_flux_averaging(ixyz)
 	use module_record
+	use CV_objects, only : CVcheck_mass, CV_debug
 	implicit none
 
 	integer			:: ixyz
@@ -1682,6 +1684,7 @@ subroutine mass_flux_averaging(ixyz)
 	call cumulative_mass_flux
 	sample_count = sample_count + 1
 	if (sample_count .eq. Nmflux_ave) then
+		if (CV_debug) call CVcheck_mass%check_error(2,nbins(1)+1,2,nbins(2)+1,2,nbins(3)+1,iter,irank)
 		call mass_flux_io
 		sample_count = 0
 		mass_flux = 0
@@ -1936,9 +1939,11 @@ end subroutine mass_snapshot
 
 subroutine momentum_flux_averaging(ixyz)
 	use module_record
+	use control_volume, only : check_CV_conservation
+	use CV_objects, only : CV_debug, CVcheck_momentum
 	implicit none
 
-	integer				:: ixyz
+	integer				:: ixyz,icell,jcell,kcell
 	integer, save		:: sample_count
 
 	if (vflux_outflag .eq. 0) return
@@ -1974,6 +1979,8 @@ subroutine momentum_flux_averaging(ixyz)
 	if (sample_count .eq. Nvflux_ave-1) then
 		call surface_stress_io
 		Pxyface = 0.d0
+		!Debug flag to check CV conservation in code
+		if (CV_debug) call CVcheck_momentum%check_error(2,nbins(1)+1,2,nbins(2)+1,2,nbins(3)+1,iter,irank)
 	endif
 
 end subroutine momentum_flux_averaging
@@ -2152,6 +2159,11 @@ subroutine cumulative_momentum_flux(ixyz)
 
 					!if (onfacexb .ne. 0) print*, n, i,j,k,ibin1,ibin2,bintop,halfdomain
 
+					!if ((ibin1(1) .eq. 4 .and. ibin1(2) .eq. 4 .and. ibin1(3) .eq. 4) .or. &
+					!	(ibin2(1) .eq. 4 .and. ibin2(2) .eq. 4 .and. ibin2(3) .eq. 4)) then
+					!	print'(a,8i4,18f7.3)', 'mo2',iter,ibin1,ibin2, n,momentum_flux(4,4,4,:,:)
+					!endif
+
 					!if (cbin(1) .ge. nbins(1)+1 .or. cbin(1) .le. 2) then
 					!	print'(4i8,6f10.5)',iter, cbin, momentum_flux(cbin(1),cbin(2),cbin(3),:,1),momentum_flux(cbin(1),cbin(2),cbin(3),:,4)
 					!endif
@@ -2198,6 +2210,10 @@ subroutine momentum_snapshot
 		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = volume_mass_temp(ibin(1),ibin(2),ibin(3)) + 1
 		volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) = volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) + v(:,n)
 	enddo
+
+	!Create copy of previous timestep Control Volume momentum and time evolution
+	dmvdt = volume_momentum_temp - volume_momentum_pdt
+	volume_momentum_pdt = volume_momentum_temp
 
 	binvolume = (domain(1)/nbins(1))*(domain(2)/nbins(2))*(domain(3)/nbins(3))
 	volume_momentum_temp = volume_momentum_temp/binvolume
@@ -3420,105 +3436,106 @@ subroutine control_volume_stresses_opt(fij,ri,rj,molnoi)
 end subroutine control_volume_stresses_opt
 
 
+!===================================================================================
+!Forces over the surface of a Volume further optmised for computational efficiency
 
+!subroutine control_volume_stresses_opt_2(fij,ri,rj,molnoi)
+!use module_record
+!implicit none
 
-subroutine control_volume_stresses_opt_2(fij,ri,rj,molnoi)
-use module_record
-implicit none
-
-	integer							:: i,j,k,ixyz,molnoi
+!	integer							:: i,j,k,ixyz,molnoi
 	!integer							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
-	integer,dimension(3)			:: cbin, ibin, jbin
-	integer,dimension(18)			:: hfacelimits
-	double precision,dimension(3)	:: ri,rj,rij,fij,fsurface,Px,Py,Pz,Si,sgnjit,sgnjib,onfaceb,onfacet,velvect
-	double precision,dimension(3)	:: Fbinsize, bintop, binbot
-	double precision,dimension(18)	:: facelimits
+!	integer,dimension(3)			:: cbin, ibin, jbin
+!	integer,dimension(18)			:: hfacelimits
+!	double precision,dimension(3)	:: ri,rj,rij,fij,fsurface,Px,Py,Pz,Si,sgnjit,sgnjib,onfaceb,onfacet,velvect
+!	double precision,dimension(3)	:: Fbinsize, bintop, binbot
+!	double precision,dimension(18)	:: facelimits
 
 	!Calculate rij
-	rij = ri - rj
+!	rij = ri - rj
 	!Prevent Division by zero
-	do ixyz = 1,3
-		if (abs(rij(ixyz)) .lt. 0.000001d0) rij(ixyz) = sign(0.000001d0,rij(ixyz))
-	enddo
+!	do ixyz = 1,3
+!		if (abs(rij(ixyz)) .lt. 0.000001d0) rij(ixyz) = sign(0.000001d0,rij(ixyz))
+!	enddo
 
 	!Determine bin size
-	Fbinsize(:) = domain(:) / nbins(:)
+!	Fbinsize(:) = domain(:) / nbins(:)
 
 	!Assign to bins using integer division
-	ibin(:) = ceiling((ri(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
-	jbin(:) = ceiling((rj(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
-
-	if (ibin(1) .eq. jbin(1) .and. ibin(2) .eq. jbin(2) .and. ibin(3) .eq. jbin(3)) return
+!	ibin(:) = ceiling((ri(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
+!	jbin(:) = ceiling((rj(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
+!
+!	if (ibin(1) .eq. jbin(1) .and. ibin(2) .eq. jbin(2) .and. ibin(3) .eq. jbin(3)) return
 		
-	do i = ibin(1),jbin(1),sign(1,jbin(1)-ibin(1))
-	do j = ibin(2),jbin(2),sign(1,jbin(2)-ibin(2))
-	do k = ibin(3),jbin(3),sign(1,jbin(3)-ibin(3))
+!	do i = ibin(1),jbin(1),sign(1,jbin(1)-ibin(1))
+!	do j = ibin(2),jbin(2),sign(1,jbin(2)-ibin(2))
+!	do k = ibin(3),jbin(3),sign(1,jbin(3)-ibin(3))
 
-		cbin(1) = i; cbin(2) = j; cbin(3) = k
+!		cbin(1) = i; cbin(2) = j; cbin(3) = k
 
-		bintop(:) = (cbin(:)-1*nhb(:)  )*Fbinsize(:)-halfdomain(:)
-		binbot(:) = (cbin(:)-1*nhb(:)-1)*Fbinsize(:)-halfdomain(:)
+!		bintop(:) = (cbin(:)-1*nhb(:)  )*Fbinsize(:)-halfdomain(:)
+!		binbot(:) = (cbin(:)-1*nhb(:)-1)*Fbinsize(:)-halfdomain(:)
 
 		!Calculate the plane intersect of line with surfaces of the cube
-		Px=(/ bintop(1),ri(2)+(rij(2)/rij(1))*(bintop(1)-ri(1)),ri(3)+(rij(3)/rij(1))*(bintop(1)-ri(1))  /)
-		Py=(/ri(1)+(rij(1)/rij(2))*(bintop(2)-ri(2)), bintop(2),ri(3)+(rij(3)/rij(2))*(bintop(2)-ri(2))  /)
-		Pz=(/ri(1)+(rij(1)/rij(3))*(bintop(3)-ri(3)), ri(2)+(rij(2)/rij(3))*(bintop(3)-ri(3)), bintop(3) /)
+!		Px=(/ bintop(1),ri(2)+(rij(2)/rij(1))*(bintop(1)-ri(1)),ri(3)+(rij(3)/rij(1))*(bintop(1)-ri(1))  /)
+!		Py=(/ri(1)+(rij(1)/rij(2))*(bintop(2)-ri(2)), bintop(2),ri(3)+(rij(3)/rij(2))*(bintop(2)-ri(2))  /)
+!		Pz=(/ri(1)+(rij(1)/rij(3))*(bintop(3)-ri(3)), ri(2)+(rij(2)/rij(3))*(bintop(3)-ri(3)), bintop(3) /)
 
-		facelimits(1 :3 ) = bintop-Px	
-		facelimits(4 :6 ) = bintop-Py 		
-		facelimits(7 :9 ) = bintop-Pz
-		facelimits(10:12) = binbot-Px	
-		facelimits(13:15) = binbot-Py 		
-		facelimits(16:18) = binbot-Pz
+!		facelimits(1 :3 ) = bintop-Px	
+!		facelimits(4 :6 ) = bintop-Py 		
+!		facelimits(7 :9 ) = bintop-Pz
+!		facelimits(10:12) = binbot-Px	
+!		facelimits(13:15) = binbot-Py 		
+!		facelimits(16:18) = binbot-Pz
 
-		hfacelimits = heaviside(facelimits)
+!		hfacelimits = heaviside(facelimits)
 
-		Si(1) =	(hfacelimits(2) - hfacelimits(11))* &
-				(hfacelimits(3) - hfacelimits(12))
-		Si(2) =	(hfacelimits(4) - hfacelimits(13))* &
-				(hfacelimits(6) - hfacelimits(15))
-		Si(3) =	(hfacelimits(7) - hfacelimits(16))* &
-				(hfacelimits(8) - hfacelimits(17))
+!		Si(1) =	(hfacelimits(2) - hfacelimits(11))* &
+!				(hfacelimits(3) - hfacelimits(12))
+!		Si(2) =	(hfacelimits(4) - hfacelimits(13))* &
+!				(hfacelimits(6) - hfacelimits(15))
+!		Si(3) =	(hfacelimits(7) - hfacelimits(16))* &
+!				(hfacelimits(8) - hfacelimits(17))
 
-		sgnjit(:)= sign(1.d0,bintop(:)- rj(:)) - sign(1.d0,bintop(:)- ri(:))
-		sgnjib(:)= sign(1.d0,binbot(:)- rj(:)) - sign(1.d0,binbot(:)- ri(:))
+!		sgnjit(:)= sign(1.d0,bintop(:)- rj(:)) - sign(1.d0,bintop(:)- ri(:))
+!		sgnjib(:)= sign(1.d0,binbot(:)- rj(:)) - sign(1.d0,binbot(:)- ri(:))
 
-		onfaceb =  	sgnjib*Si
-		onfacet =  	sgnjit*Si
-
-		!Stress acting on face over volume
-		Pxyface(cbin(1),cbin(2),cbin(3),:,1) = Pxyface(cbin(1),cbin(2),cbin(3),:,1) + fij(:)*dble(onfaceb(1))
-		Pxyface(cbin(1),cbin(2),cbin(3),:,2) = Pxyface(cbin(1),cbin(2),cbin(3),:,2) + fij(:)*dble(onfaceb(2))
-		Pxyface(cbin(1),cbin(2),cbin(3),:,3) = Pxyface(cbin(1),cbin(2),cbin(3),:,3) + fij(:)*dble(onfaceb(3))
-		Pxyface(cbin(1),cbin(2),cbin(3),:,4) = Pxyface(cbin(1),cbin(2),cbin(3),:,4) + fij(:)*dble(onfacet(1))
-		Pxyface(cbin(1),cbin(2),cbin(3),:,5) = Pxyface(cbin(1),cbin(2),cbin(3),:,5) + fij(:)*dble(onfacet(2))
-		Pxyface(cbin(1),cbin(2),cbin(3),:,6) = Pxyface(cbin(1),cbin(2),cbin(3),:,6) + fij(:)*dble(onfacet(3))
+!		onfaceb =  	sgnjib*Si
+!		onfacet =  	sgnjit*Si
 
 		!Stress acting on face over volume
-		if (eflux_outflag .ne. 0) then
-			velvect(:) = v(:,molnoi) 
+!		Pxyface(cbin(1),cbin(2),cbin(3),:,1) = Pxyface(cbin(1),cbin(2),cbin(3),:,1) + fij(:)*dble(onfaceb(1))
+!		Pxyface(cbin(1),cbin(2),cbin(3),:,2) = Pxyface(cbin(1),cbin(2),cbin(3),:,2) + fij(:)*dble(onfaceb(2))
+!		Pxyface(cbin(1),cbin(2),cbin(3),:,3) = Pxyface(cbin(1),cbin(2),cbin(3),:,3) + fij(:)*dble(onfaceb(3))
+!		Pxyface(cbin(1),cbin(2),cbin(3),:,4) = Pxyface(cbin(1),cbin(2),cbin(3),:,4) + fij(:)*dble(onfacet(1))
+!		Pxyface(cbin(1),cbin(2),cbin(3),:,5) = Pxyface(cbin(1),cbin(2),cbin(3),:,5) + fij(:)*dble(onfacet(2))
+!		Pxyface(cbin(1),cbin(2),cbin(3),:,6) = Pxyface(cbin(1),cbin(2),cbin(3),:,6) + fij(:)*dble(onfacet(3))
+
+!		!Stress acting on face over volume
+!		if (eflux_outflag .ne. 0) then
+!			velvect(:) = v(:,molnoi) 
 			!if (molnoi .gt. np) print*, velvect(1)
 			!velvect(:) = v(:,molnoi) + 0.5d0*delta_t*a(:,molnoi)
-			Pxyvface(cbin(1),cbin(2),cbin(3),1) = Pxyvface(cbin(1),cbin(2),cbin(3),1) + dot_product(fij,velvect)*dble(onfaceb(1))
-			Pxyvface(cbin(1),cbin(2),cbin(3),2) = Pxyvface(cbin(1),cbin(2),cbin(3),2) + dot_product(fij,velvect)*dble(onfaceb(2))
-			Pxyvface(cbin(1),cbin(2),cbin(3),3) = Pxyvface(cbin(1),cbin(2),cbin(3),3) + dot_product(fij,velvect)*dble(onfaceb(3))
-			Pxyvface(cbin(1),cbin(2),cbin(3),4) = Pxyvface(cbin(1),cbin(2),cbin(3),4) + dot_product(fij,velvect)*dble(onfacet(1))
-			Pxyvface(cbin(1),cbin(2),cbin(3),5) = Pxyvface(cbin(1),cbin(2),cbin(3),5) + dot_product(fij,velvect)*dble(onfacet(2))
-			Pxyvface(cbin(1),cbin(2),cbin(3),6) = Pxyvface(cbin(1),cbin(2),cbin(3),6) + dot_product(fij,velvect)*dble(onfacet(3))
-		endif
+!			Pxyvface(cbin(1),cbin(2),cbin(3),1) = Pxyvface(cbin(1),cbin(2),cbin(3),1) + dot_product(fij,velvect)*dble(onfaceb(1))
+!			Pxyvface(cbin(1),cbin(2),cbin(3),2) = Pxyvface(cbin(1),cbin(2),cbin(3),2) + dot_product(fij,velvect)*dble(onfaceb(2))
+!			Pxyvface(cbin(1),cbin(2),cbin(3),3) = Pxyvface(cbin(1),cbin(2),cbin(3),3) + dot_product(fij,velvect)*dble(onfaceb(3))
+!			Pxyvface(cbin(1),cbin(2),cbin(3),4) = Pxyvface(cbin(1),cbin(2),cbin(3),4) + dot_product(fij,velvect)*dble(onfacet(1))
+!			Pxyvface(cbin(1),cbin(2),cbin(3),5) = Pxyvface(cbin(1),cbin(2),cbin(3),5) + dot_product(fij,velvect)*dble(onfacet(2))
+!			Pxyvface(cbin(1),cbin(2),cbin(3),6) = Pxyvface(cbin(1),cbin(2),cbin(3),6) + dot_product(fij,velvect)*dble(onfacet(3))
+!		endif
 
 		!Force applied to volume
-		fsurface(:) = 0.d0
-		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*dble(onfaceb(1) - onfacet(1))
-		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*dble(onfaceb(2) - onfacet(2))
-		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*dble(onfaceb(3) - onfacet(3))
-		volume_force(cbin(1),cbin(2),cbin(3),:,1) = volume_force(cbin(1),cbin(2),cbin(3),:,1) + fsurface*delta_t
+!		fsurface(:) = 0.d0
+!		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*dble(onfaceb(1) - onfacet(1))
+!		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*dble(onfaceb(2) - onfacet(2))
+!		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*dble(onfaceb(3) - onfacet(3))
+!		volume_force(cbin(1),cbin(2),cbin(3),:,1) = volume_force(cbin(1),cbin(2),cbin(3),:,1) + fsurface*delta_t
 
-	enddo
-	enddo
-	enddo
+!	enddo
+!	enddo
+!	enddo
 
-end subroutine control_volume_stresses_opt_2
+!end subroutine control_volume_stresses_opt_2
 
 !====================================================================================
 

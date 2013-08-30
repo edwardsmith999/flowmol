@@ -701,6 +701,99 @@ subroutine simulation_apply_constant_force(ixyz,F_const)
 
 end subroutine simulation_apply_constant_force
 
+!=========================================================================
+! Routine to test flux calculations agree by various methods
+
+subroutine test_CV(iter)
+	use control_volume
+	use module_external_forces, only : np, momentum_flux, irank,nbins, nbinso,domain,delta_t,Nvflux_ave
+	implicit none
+	
+	integer,intent(in)	:: iter
+
+	integer							:: icell,jcell,kcell,n,nresults,ixyz
+	double precision				:: isumflux, binface
+	double precision,dimension(3,6)	:: Flux
+
+	!momentum_flux = 0.d0
+	!do n=1,np
+	!	call get_molecule_CV_momentum_flux(n)
+	!enddo
+	! Swap Halos
+	!nresults = 18
+	!call rswaphalos(momentum_flux,nbinso(1),nbinso(2),nbinso(3),nresults)
+
+	!Divide by size of bin face to give flux per unit area
+	!do ixyz = 1,3
+	!	binface	      = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
+	!		     		(domain(modulo(ixyz+1,3)+1)/nbins(modulo(ixyz+1,3)+1))
+	!	momentum_flux(:,:,:,:,ixyz  )=momentum_flux(:,:,:,:,ixyz  )/(binface) !Bottom
+	!	momentum_flux(:,:,:,:,ixyz+3)=momentum_flux(:,:,:,:,ixyz+3)/(binface) !Top
+	!enddo
+
+	!Divide momentum flux by averaing period tau=delta_t*Nvflux_ave if CV_conserve=1
+	!or Divide momentum flux by sum of the Nvflux_ave times delta_t averaging periods 
+	!as sample is taken every tplot steps. The output is then a representaive momentum flux.
+	!momentum_flux = momentum_flux/(delta_t*Nvflux_ave)
+
+	!if (irank .eq. 1) then
+	!	write(100+irank,'(i4,4i2,18f7.3)'),iter,irank,icell,jcell,kcell,momentum_flux(icell,jcell,kcell,:,:)
+	!endif
+
+	!if (irank .eq. 1) then
+	!	write(200+irank,'(i4,4i2,18f7.3)'),iter,irank,icell,jcell,kcell,Flux(:,:)
+	!endif
+
+	!do icell=3,nbins(1)
+	!do jcell=3,nbins(2)
+	!do kcell=3,nbins(3)
+!
+		!if (irank .eq. 1) then
+			!write(100+irank,'(i4,4i2)'),iter,irank,icell,jcell,kcell
+		!	if (any(momentum_flux(icell,jcell,kcell,:,:) .ne. 0)) &
+		!		write(100+irank,'(i4,4i2,18f7.3)'),iter,irank,icell,jcell,kcell,momentum_flux(icell,jcell,kcell,:,:)
+		!endif
+
+		!Flux = 0.d0
+		!call get_CV_momentum_flux(icell,jcell,kcell,isumflux,Flux)
+
+		!if (irank .eq. 1) then
+			!write(200+irank,'(i4,4i2)'),iter,irank,icell,jcell,kcell
+		!	if (any(Flux(:,:) .ne. 0)) &
+		!	write(200+irank,'(i4,4i2,18f7.3)'),iter,irank,icell,jcell,kcell,Flux(:,:)
+		!endif
+
+		!Divide by size of bin face to give flux per unit area
+		!do ixyz = 1,3
+		!	binface	      = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
+		!		     		(domain(modulo(ixyz+1,3)+1)/nbins(modulo(ixyz+1,3)+1))
+		!	Flux(:,ixyz  )=Flux(:,ixyz  )/(binface) !Bottom
+		!	Flux(:,ixyz+3)=Flux(:,ixyz+3)/(binface) !Top
+		!enddo
+
+		!Divide momentum flux by averaing period tau=delta_t*Nvflux_ave if CV_conserve=1
+		!or Divide momentum flux by sum of the Nvflux_ave times delta_t averaging periods 
+		!as sample is taken every tplot steps. The output is then a representaive momentum flux.
+		!Flux = Flux/(delta_t*Nvflux_ave)
+
+		!print*,icell,jcell,kcell,sum(momentum_flux(icell,jcell,kcell,:,:)-Flux(:,:))
+		!if (abs(sum(momentum_flux(icell,jcell,kcell,:,:)-Flux(:,:))) .gt. 0.00000001d0) then
+			!if (abs(sum(Flux)) .gt.  0.00000001d0) then
+			!print'(5i5,f10.5,2(/,18f7.1))', iter,irank,icell,jcell,kcell, sum(momentum_flux(icell,jcell,kcell,:,:)-Flux(:,:)),momentum_flux(icell,jcell,kcell,:,:),Flux(:,:)
+			!endif
+		!endif
+
+	!enddo
+	!enddo
+	!enddo
+
+	!nresults = 18
+	!call rswaphalos(Flux,nbinso(1),nbinso(2),nbinso(3),nresults)
+
+end subroutine test_CV
+
+
+
 #if USE_COUPLER
 
 !=============================================================================

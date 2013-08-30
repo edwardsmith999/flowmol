@@ -574,6 +574,8 @@ module calculated_properties_MD
 	integer,dimension(:), allocatable 		:: slice_mass	    	!Array to keep tally of molecules in slice
 	integer,dimension(:,:,:), allocatable 	:: slice_massbin 		!Recorded molecules in a bin
 	integer,dimension(:,:,:), allocatable	:: volume_mass			!Mass in a control volume at time t
+	integer,dimension(:,:,:), allocatable	:: volume_mass_pdt		!Mass in a control volume at time t - dt
+	integer,dimension(:,:,:), allocatable	:: dmdt					!Mass change in control volume from t-dt to t
 	integer,dimension(:,:,:,:), allocatable	:: mass_flux  			!Flow of mass over a control volume surface
 
 	double precision :: 	&
@@ -622,8 +624,9 @@ module calculated_properties_MD
 		volume_temperature			!Temperature in a control volume at time t
 
 	double precision, dimension(:,:,:,:), allocatable	:: &
-		slice_momentumbin,	&		!Mean velocity in a bin
 		volume_momentum,	& 		!Momentum in a control volume at time t
+		volume_momentum_pdt,& 		!Momentum in a control volume at time t-dt
+		dmvdt,				&		!Momentum change in control volume from t-dt to t
 		energy_flux,		&		!Flow of energy over a control volume surface
 		Pxyvface,			&		!Stress tensor on bin face
 		F_ext_bin					!External Force per bin
@@ -736,3 +739,235 @@ contains
 	end function get_temperature_PUT
 
 end module calculated_properties_MD
+
+
+
+!Fortran object oriented solution to CV conservation checking
+module CV_objects
+	implicit none
+
+type :: check_CV_mass
+	integer,dimension(:,:,:,:),allocatable 	:: flux
+	integer,dimension(:,:,:),allocatable	:: dXdt, X, X_minus_t, X_minus_2t
+	contains
+		procedure :: initialise  => initialise_mass
+		procedure :: update_dXdt => update_dXdt_mass
+		procedure :: check_error => check_error_mass
+end type check_CV_mass
+
+type :: check_CV_momentum
+	double precision,dimension(:,:,:,:,:),allocatable 	:: flux, Pxy,  Pxy_minus_t
+	double precision,dimension(:,:,:,:),allocatable		:: dXdt, X, X_minus_t, X_minus_2t
+	contains
+		procedure :: initialise  => initialise_momentum
+		procedure :: update_dXdt => update_dXdt_momentum
+		procedure :: update_flux => update_flux_momentum
+		procedure :: update_Pxy  => update_Pxy
+		procedure :: check_error => check_error_momentum
+end type check_CV_momentum
+
+	!Check CV conservation
+	logical	:: CV_debug=.false.
+	type(check_CV_mass)		:: CVcheck_mass		! declare an instance of CV checker
+	type(check_CV_momentum)	:: CVcheck_momentum		! declare an instance of CV checker
+
+contains
+
+	!Constructor for object
+	subroutine initialise_mass(self, nb)
+		implicit none
+
+		! initialize shape objects
+		class(check_CV_mass) 		:: self
+
+		integer, dimension(3),intent(in) :: nb
+
+		allocate(self%flux(nb(1),nb(2),nb(3),6))
+		allocate(self%dXdt(nb(1),nb(2),nb(3)))
+		allocate(self%X(nb(1),nb(2),nb(3)))
+		allocate(self%X_minus_t(nb(1),nb(2),nb(3)))
+		allocate(self%X_minus_2t(nb(1),nb(2),nb(3)))
+
+		self%flux = 0.d0
+		self%dXdt = 0.d0
+		self%X = 0.d0
+		self%X_minus_t = 0.d0
+		self%X_minus_2t = 0.d0
+
+	end subroutine initialise_mass
+
+	!Update time evolution and store previous two values
+	subroutine update_dXdt_mass(self, X)
+		implicit none
+
+		! initialize shape objects
+		class(check_CV_mass) :: self
+
+		integer,dimension(:,:,:),intent(in) :: X
+
+		self%X_minus_2t = self%X_minus_t
+		self%X_minus_t  = self%X
+		self%X 		  = X
+
+		self%dXdt = self%X_minus_t - self%X_minus_2t
+
+	end subroutine update_dXdt_mass
+
+	!Check error for specified range of bins
+	subroutine check_error_mass(self,imin,imax,jmin,jmax,kmin,kmax,iter,irank)
+		implicit none
+
+		! initialize shape objects
+		class(check_CV_mass) :: self
+
+		integer,intent(in) :: iter,irank,imin,imax,jmin,jmax,kmin,kmax
+		integer :: i,j,k
+
+		logical,save :: first_time = .true.
+
+		!First measure seems to be wrong
+		if (first_time) first_time = .false.
+
+		do i = imin,imax
+		do j = jmin,jmax
+		do k = kmin,kmax
+
+			if(sum(self%flux(i,j,k,:))-self%dXdt(i,j,k) .ne. 0) then
+				print'(a,i8,4i4,5i8)','Error in mass flux', iter,irank,i,j,k, & 
+					sum(self%flux(i,j,k,:)),self%dXdt(i,j,k),self%X_minus_2t(i,j,k),self%X_minus_t(i,j,k),self%X(i,j,k)
+			endif
+
+		enddo
+		enddo
+		enddo
+
+	end subroutine check_error_mass
+
+	!Constructor for object
+	subroutine initialise_momentum(self, nb)
+		implicit none
+
+		! initialize shape objects
+		class(check_CV_momentum) 		:: self
+
+		integer, dimension(3),intent(in) :: nb
+
+		allocate(self%flux(nb(1),nb(2),nb(3),3,6))
+		allocate(self%Pxy(nb(1),nb(2),nb(3),3,6))
+		allocate(self%Pxy_minus_t(nb(1),nb(2),nb(3),3,6))
+		allocate(self%dXdt(nb(1),nb(2),nb(3),3))
+		allocate(self%X(nb(1),nb(2),nb(3),3))
+		allocate(self%X_minus_t(nb(1),nb(2),nb(3),3))
+		allocate(self%X_minus_2t(nb(1),nb(2),nb(3),3))
+
+		self%flux 		= 0.d0
+		self%Pxy  		= 0.d0
+		self%Pxy_minus_t= 0.d0
+		self%dXdt 		= 0.d0
+		self%X 			= 0.d0
+		self%X_minus_t 	= 0.d0
+		self%X_minus_2t = 0.d0
+
+	end subroutine initialise_momentum
+
+	!Update time evolution and store previous two values
+	subroutine update_dXdt_momentum(self, X)
+		implicit none
+		! initialize shape objects
+		class(check_CV_momentum) :: self
+
+		double precision,dimension(:,:,:,:),intent(in) :: X
+
+		self%X_minus_2t = self%X_minus_t
+		self%X_minus_t  = self%X
+		self%X 		  = X
+
+		self%dXdt = self%X - self%X_minus_t
+
+	end subroutine update_dXdt_momentum
+
+	!Update time evolution and store previous two values
+	subroutine update_flux_momentum(self, X)
+		implicit none
+		! initialize shape objects
+		class(check_CV_momentum) :: self
+
+		double precision,dimension(:,:,:,:,:),intent(in) :: X
+
+		self%flux = X
+
+	end subroutine update_flux_momentum
+
+	!Update time evolution and store previous two values
+	subroutine update_Pxy(self, X)
+		implicit none
+		! initialize shape objects
+		class(check_CV_momentum) :: self
+
+		double precision,dimension(:,:,:,:,:),intent(in) :: X
+
+		self%Pxy_minus_t = self%Pxy
+		self%Pxy = X
+
+	end subroutine update_Pxy
+
+
+	!Check error for specified range of bins
+	subroutine check_error_momentum(self,imin,imax,jmin,jmax,kmin,kmax,iter,irank)
+		! initialize shape objects
+		use computational_constants_MD, only : domain,delta_t,Nvflux_ave
+		use calculated_properties_MD, only : nbins
+		implicit none
+
+		class(check_CV_momentum) :: self
+
+		integer,intent(in) :: iter,irank,imin,imax,jmin,jmax,kmin,kmax
+
+		integer :: i,j,k
+		logical,save :: first_time = .true.
+		double precision				:: conserved
+		double precision,dimension(3)	:: binsize,totalpressure,totalflux,F_ext,dvelocitydt
+
+		!First measure seems to be wrong
+		if (first_time) first_time = .false.
+
+		binsize = domain/nbins
+
+		do i = imin,imax
+		do j = jmin,jmax
+		do k = kmin,kmax
+
+		    !Calculate total CV flux and change in mass
+		    totalflux =(self%flux(i,j,k,:,1)+self%flux(i,j,k,:,4))/binsize(1) &
+		              +(self%flux(i,j,k,:,2)+self%flux(i,j,k,:,5))/binsize(2) &
+		              +(self%flux(i,j,k,:,3)+self%flux(i,j,k,:,6))/binsize(3)
+
+		    !Totalpressure = totalpressure*delta_t
+		    totalpressure =(self%Pxy_minus_t(i,j,k,:,1)-self%Pxy_minus_t(i,j,k,:,4))/binsize(1) &
+		                  +(self%Pxy_minus_t(i,j,k,:,2)-self%Pxy_minus_t(i,j,k,:,5))/binsize(2) &
+		                  +(self%Pxy_minus_t(i,j,k,:,3)-self%Pxy_minus_t(i,j,k,:,6))/binsize(3)
+			F_ext = 0.d0	    
+
+			!drhou/dt
+		    dvelocitydt =  self%dxdt(i,j,k,:)/(delta_t*Nvflux_ave)
+
+		    !Verify that CV momentum is exactly conservative
+		    conserved = sum(totalpressure)-sum(totalflux)-sum(dvelocitydt)+sum(F_ext)/product(binsize)
+			if(conserved .gt. 0.000000001d0) then
+				print'(a,i8,4i4,7f13.5)','Error in momentum flux', iter,irank,i,j,k, & 
+					 sum(totalpressure),-sum(totalflux),sum(dvelocitydt), & 
+					+sum(F_ext)/product(binsize), sum(self%X(i,j,k,:)),   & 
+					 sum(self%X_minus_t(i,j,k,:)),sum(self%X_minus_2t(i,j,k,:))
+			endif
+
+		enddo
+		enddo
+		enddo
+
+	end subroutine check_error_momentum
+
+end module CV_objects
+
+
+
+
