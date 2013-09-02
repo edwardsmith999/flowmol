@@ -121,8 +121,7 @@ subroutine messenger_init()
 
 	logical					:: found_in_input
 	integer 				:: ndims, ip, ixyz
-	integer,dimension(3)	:: idims
-	logical,dimension(3)	:: Lremain_dims
+	integer,dimension(3)	:: idims, Lremain_dims
 
 	! Initialize MPI
 	call MPI_comm_size (MD_COMM, nproc, ierr)
@@ -188,8 +187,8 @@ subroutine messenger_init()
 
 	! Directional line subcomms
 	do ixyz=1,3
-		Lremain_dims(:) = .false.
-		Lremain_dims(ixyz) = .true.
+		Lremain_dims(:) = 0
+		Lremain_dims(ixyz) = 1
 		call MPI_Cart_sub(icomm_grid, Lremain_dims, icomm_xyz(ixyz), ierr)
 	end do
 	if (npx .lt. 2) icomm_xyz(1) = MPI_COMM_SELF
@@ -202,9 +201,12 @@ subroutine messenger_init()
 	call MPI_comm_rank (icomm_xyz(3), irankz, ierr)
 
 	! Directional plane subcomms
-	call MPI_Cart_sub(icomm_grid,(/.false.,.true.,.true./),plane_comm(1),ierr)
-	call MPI_Cart_sub(icomm_grid,(/.true.,.false.,.true./),plane_comm(2),ierr)
-	call MPI_Cart_sub(icomm_grid,(/.true.,.true.,.false./),plane_comm(3),ierr)
+	Lremain_dims = (/0,1,1/)
+	call MPI_Cart_sub(icomm_grid,Lremain_dims,plane_comm(1),ierr)
+	Lremain_dims = (/1,0,1/)
+	call MPI_Cart_sub(icomm_grid,Lremain_dims,plane_comm(2),ierr)
+	Lremain_dims = (/1,1,0/)
+	call MPI_Cart_sub(icomm_grid,Lremain_dims,plane_comm(3),ierr)
 	
 	call MPI_comm_rank (plane_comm(1), planerankx, ierr)
 	call MPI_comm_rank (plane_comm(2), planeranky, ierr)

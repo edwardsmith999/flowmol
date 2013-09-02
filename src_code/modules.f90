@@ -767,7 +767,7 @@ type :: check_CV_momentum
 end type check_CV_momentum
 
 	!Check CV conservation
-	logical	:: CV_debug=.false.
+	logical	:: CV_debug=.true.
 	type(check_CV_mass)		:: CVcheck_mass		! declare an instance of CV checker
 	type(check_CV_momentum)	:: CVcheck_momentum		! declare an instance of CV checker
 
@@ -788,11 +788,11 @@ contains
 		allocate(self%X_minus_t(nb(1),nb(2),nb(3)))
 		allocate(self%X_minus_2t(nb(1),nb(2),nb(3)))
 
-		self%flux = 0.d0
-		self%dXdt = 0.d0
-		self%X = 0.d0
-		self%X_minus_t = 0.d0
-		self%X_minus_2t = 0.d0
+		self%flux 		= 0
+		self%dXdt 		= 0
+		self%X 			= 0
+		self%X_minus_t 	= 0
+		self%X_minus_2t = 0
 
 	end subroutine initialise_mass
 
@@ -809,7 +809,7 @@ contains
 		self%X_minus_t  = self%X
 		self%X 		  = X
 
-		self%dXdt = self%X_minus_t - self%X_minus_2t
+		self%dXdt = self%X - self%X_minus_t
 
 	end subroutine update_dXdt_mass
 
@@ -823,10 +823,15 @@ contains
 		integer,intent(in) :: iter,irank,imin,imax,jmin,jmax,kmin,kmax
 		integer :: i,j,k
 
-		logical,save :: first_time = .true.
+		logical,save :: first_time = .true., check_ok = .false.
 
-		!First measure seems to be wrong
-		if (first_time) first_time = .false.
+		!First call doesn't have difference in time yet so skip
+		if (first_time) then
+			first_time = .false.
+			return
+		endif
+
+		check_ok = .true.
 
 		do i = imin,imax
 		do j = jmin,jmax
@@ -835,11 +840,16 @@ contains
 			if(sum(self%flux(i,j,k,:))-self%dXdt(i,j,k) .ne. 0) then
 				print'(a,i8,4i4,5i8)','Error in mass flux', iter,irank,i,j,k, & 
 					sum(self%flux(i,j,k,:)),self%dXdt(i,j,k),self%X_minus_2t(i,j,k),self%X_minus_t(i,j,k),self%X(i,j,k)
+				check_ok = .false.
 			endif
 
 		enddo
 		enddo
 		enddo
+
+		if (check_ok .eq. .false.) then
+			stop "Error in mass flux"
+		endif
 
 	end subroutine check_error_mass
 
@@ -858,7 +868,7 @@ contains
 		allocate(self%dXdt(nb(1),nb(2),nb(3),3))
 		allocate(self%X(nb(1),nb(2),nb(3),3))
 		allocate(self%X_minus_t(nb(1),nb(2),nb(3),3))
-		allocate(self%X_minus_2t(nb(1),nb(2),nb(3),3))
+		!allocate(self%X_minus_2t(nb(1),nb(2),nb(3),3))
 
 		self%flux 		= 0.d0
 		self%Pxy  		= 0.d0
@@ -866,7 +876,7 @@ contains
 		self%dXdt 		= 0.d0
 		self%X 			= 0.d0
 		self%X_minus_t 	= 0.d0
-		self%X_minus_2t = 0.d0
+		!self%X_minus_2t = 0.d0
 
 	end subroutine initialise_momentum
 
@@ -878,7 +888,7 @@ contains
 
 		double precision,dimension(:,:,:,:),intent(in) :: X
 
-		self%X_minus_2t = self%X_minus_t
+		!self%X_minus_2t = self%X_minus_t
 		self%X_minus_t  = self%X
 		self%X 		  = X
 
@@ -928,8 +938,11 @@ contains
 		double precision				:: conserved
 		double precision,dimension(3)	:: binsize,totalpressure,totalflux,F_ext,dvelocitydt
 
-		!First measure seems to be wrong
-		if (first_time) first_time = .false.
+		!First call doesn't have difference in time yet so skip
+		if (first_time) then
+			first_time = .false.
+			return
+		endif
 
 		binsize = domain/nbins
 
