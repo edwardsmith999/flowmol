@@ -2284,7 +2284,9 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 	character(30)			:: filename,outfile
 
 	!Write mass bins
-	call mass_bin_io(CV_mass_out,io_type)
+	if (io_type .ne. 'snap') then
+		call mass_bin_io(CV_mass_out,io_type)
+	endif
 
 	!Work out correct filename for i/o type
 	write(filename, '(a9,a4)' ) 'results/v', io_type
@@ -2849,6 +2851,7 @@ subroutine mass_flux_io
 	nresults = 6
 	call iswaphalos(mass_flux,nbinso(1),nbinso(2),nbinso(3),nresults)
 
+	!Store mass flux value in CV data object
 	if (CV_debug) then
 		CVcheck_mass%flux = mass_flux
 	endif
@@ -2899,6 +2902,7 @@ subroutine momentum_flux_io
 	!as sample is taken every tplot steps. The output is then a representaive momentum flux.
 	momentum_flux = momentum_flux/(delta_t*Nvflux_ave)
 
+	!Store momentum flux value in CV data object
 	if (CV_debug) then
 		CVcheck_momentum%flux = 0.d0
 		call CVcheck_momentum%update_flux(momentum_flux)
@@ -3036,6 +3040,7 @@ subroutine surface_stress_io
 	!so delta_t cancels upon division by tau=delta_t*Nvflux_ave resulting in division by Nvflux_ave
 	Pxyface = Pxyface/Nvflux_ave
 
+	!Store surface stress value in CV data object
 	if (CV_debug) then
 		call CVcheck_momentum%update_Pxy(Pxyface)
 	endif

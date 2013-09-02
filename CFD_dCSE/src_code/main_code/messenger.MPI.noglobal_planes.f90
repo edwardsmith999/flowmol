@@ -71,10 +71,10 @@ subroutine messenger_init()
 	use messenger
 	use mpi
 
-	integer idims(3)
-	logical Lperiodic(3)
-	logical Lremain_dims(3)
-	integer np, ndims, ip, ixyz
+	integer	:: idims(3)
+	logical	:: Lperiodic(3)
+	integer	:: Lremain_dims(3)
+	integer	:: np, ndims, ip, ixyz
 
 	! Initialize MPI
 	call MPI_comm_size (CFD_COMM, np, ierr)
@@ -101,8 +101,8 @@ subroutine messenger_init()
 
 	! Directional subcomms
 	do ixyz=1,3
-		Lremain_dims(:) = .false.
-		Lremain_dims(ixyz) = .true.
+		Lremain_dims(:) = 0
+		Lremain_dims(ixyz) = 1
 		call MPI_Cart_sub (icomm_grid, Lremain_dims, icomm_xyz(ixyz), ierr)
 	end do
 	call MPI_comm_rank (icomm_xyz(1), irankx, ierr)
@@ -921,7 +921,7 @@ subroutine transpose_qr_qT_gbl(R1, R2)
             j1(nby_1), j2(nby_1), &
             k1(nbz_2), k2(nbz_2)
     integer isendcount, irecvcount
-    logical Lremain_dims(3)
+    integer Lremain_dims(3)
     integer, save :: icomm = 0
 
     ! Transpose for the poisson equation
@@ -940,9 +940,9 @@ subroutine transpose_qr_qT_gbl(R1, R2)
     !     called icomm in a 2D (npx,npy) cartesian topology
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     if (icomm == 0) then
-        Lremain_dims(1) = .true.
-        Lremain_dims(2) = .true.
-        Lremain_dims(3) = .false.
+        Lremain_dims(1) = 1
+        Lremain_dims(2) = 1
+        Lremain_dims(3) = 0
         call MPI_Cart_sub (icomm_grid, Lremain_dims, icomm, ierr)
     end if
     
@@ -1116,7 +1116,7 @@ subroutine transpose_phat_p(R1, R2)
             j1(nby_1), j2(nby_1), &
             k1(nbz_2), k2(nbz_2)
     integer isendcount, irecvcount
-    logical Lremain_dims(3)
+    integer Lremain_dims(3)
     integer, save :: icomm = 0
 
     ! Transpose for the poisson equation
@@ -1124,9 +1124,9 @@ subroutine transpose_phat_p(R1, R2)
 
     ! Obtain icomm
     if (icomm == 0) then
-        Lremain_dims(1) = .true.
-        Lremain_dims(2) = .true.
-        Lremain_dims(3) = .false.
+        Lremain_dims(1) = 1
+        Lremain_dims(2) = 1
+        Lremain_dims(3) = 0
         call MPI_Cart_sub (icomm_grid, Lremain_dims, icomm, ierr)
     end if
 
@@ -1207,7 +1207,7 @@ subroutine transpose_uvwp(R1, n1,n2,n3 , R2, m1,m2,m3, iuvwp, isign)
                j1(nby_1), j2(nby_1), &
                k1(nbz_2), k2(nbz_2)
     integer :: isendcount, irecvcount
-    logical :: Lremain_dims(3)
+    integer :: Lremain_dims(3)
     integer, save :: icomm = 0
 
     ! Transpose for I/O
@@ -1215,9 +1215,9 @@ subroutine transpose_uvwp(R1, n1,n2,n3 , R2, m1,m2,m3, iuvwp, isign)
 
     ! Obtain icomm
     if (icomm == 0) then
-        Lremain_dims(1) = .true.
-        Lremain_dims(2) = .true.
-        Lremain_dims(3) = .false.
+        Lremain_dims(1) = 1
+        Lremain_dims(2) = 1
+        Lremain_dims(3) = 0
         call MPI_Cart_sub (icomm_grid, Lremain_dims, icomm, ierr)
     end if
 
@@ -1375,7 +1375,7 @@ subroutine transpose_con(R1, n1,n2,n3 , R2, m1,m2,m3, ixyz, isign)
                j1(nby_1), j2(nby_1), &
                k1(nbz_2), k2(nbz_2)
     integer :: isendcount, irecvcount
-    logical :: Lremain_dims(3)
+    integer :: Lremain_dims(3)
     integer, save :: icomm = 0
 
     ! Transpose for the poisson equation
@@ -1383,9 +1383,9 @@ subroutine transpose_con(R1, n1,n2,n3 , R2, m1,m2,m3, ixyz, isign)
 
     ! Obtain icomm
     if (icomm == 0) then
-        Lremain_dims(1) = .true.
-        Lremain_dims(2) = .true.
-        Lremain_dims(3) = .false.
+        Lremain_dims(1) = 1
+        Lremain_dims(2) = 1
+        Lremain_dims(3) = 0
         call MPI_Cart_sub (icomm_grid, Lremain_dims, icomm, ierr)
     end if
 
