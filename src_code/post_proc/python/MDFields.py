@@ -1,5 +1,6 @@
 import numpy as np
 from MDRawData import MD_RawData
+from HeaderData import HeaderData
 
 # Abstract Field Class
 class Field():
@@ -113,9 +114,8 @@ class Field():
 			dtheta = binspaces[1][1] - binspaces[1][0]
 			dz     = binspaces[2][1] - binspaces[2][0]
 
+			r = r + 0.5*dr
 			binvolumes = r*dr*dtheta*dz
-
-			return binvolumes
 
 		else:
 
@@ -128,7 +128,10 @@ class Field():
 
 			binvolumes = np.ones(x.shape)*dx*dy*dz
 
-			return binvolumes
+		# Ensure binvolumes is the right shape for subsequent
+		# broadcasting with other fields
+		binvolumes = np.expand_dims(binvolumes,-1)
+		return binvolumes
 
 
 # Mass field	
@@ -279,7 +282,6 @@ class pVABins():
 
 		# Read raw data file	
 		Pfield, binspaces = self.Pobj.get_field(minrec,maxrec)	
-		#Pfield, binspaces = self.Pobj.get_field(minrec,maxrec,meanaxes=meanaxes)	
 
 		# Take off square of peculiar momenta if specified
 		if (peculiar==True):
@@ -293,36 +295,45 @@ class pVABins():
 		
 			else:	
 
-				# Get mean velocity field
+				# Get mean velocity and density field
 				vData = VBins(self.fdir,cpol_bins=self.cpol_bins)
+				dData = DensityBins(self.fdir,cpol_bins=self.cpol_bins)
 				vfield, binspaces = vData.get_field(minrec,maxrec)
-				#vfield, binspaces = vData.get_field(minrec,maxrec,
-				#	                                sumaxes=meanaxes)
+				dfield, binspaces = dData.get_field(minrec,maxrec)
 
-				# Find outer product of v*v
+				# Find outer product of v*v and reshape to 1x9 rather than 3x3
 				vvfield = np.einsum('...j,...k->...jk',vfield,vfield)
-
-				# Reshape final two axes to 1x9 rather than 3x3
 				vvshapelist = list(vvfield.shape)
 				newshape = tuple(vvshapelist[0:-2]+[9])
 				vvfield  = np.reshape(vvfield,newshape)
-
-				# Calculate size of volumes, mean over averaging axes because
-				# the velocities have already been averaged over meanaxes
-				binvolumes = self.Pobj.get_binvolumes()
-				binvolumes = np.mean(binvolumes,axis=meanaxes)
-
-				# Ensure binvolumes is the right shape for numpy broadcasting
-				# when dividing vvfield/binvolumes
-				binvolumes = np.expand_dims(binvolumes,-1)
-				vvfield = np.divide(vvfield,binvolumes)
-			
+	
 				# Remove square of streaming velocity
-				Pfield = Pfield - vvfield
+				Pfield = Pfield - dfield*vvfield
 
 		# Find the mean over the axes specified by the user
 		Pfield = np.mean(Pfield,axis=meanaxes)
 
 		return Pfield, binspaces
 
+class DensityBins():
 
+	def __init__(self,fdir,cpol_bins):
+		self.mdata = MassBins(fdir,cpol_bins)
+		self.header = HeaderData(open(fdir+'simulation_header','r'))
+		self.Nmass_ave = int(self.header.Nmass_ave)
+
+	def get_field(self,minrec,maxrec,meanaxes=()):
+
+		print('Getting density field from recs ' + str(minrec) + ' to ' 
+		      + str(maxrec) + ', meanaxes = ' + str(meanaxes))
+
+		msum, binspaces = self.mdata.get_bins(minrec,maxrec,meantime=True,
+		                                      sumtime=False)
+		mfield  = np.divide(msum,self.Nmass_ave)
+
+		binvolumes = self.mdata.get_binvolumes()
+		density = np.divide(mfield,binvolumes)
+		
+		density = np.mean(density,axis=meanaxes)
+		
+		return density, binspaces

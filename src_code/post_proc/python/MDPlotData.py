@@ -106,6 +106,20 @@ class MD_PlotData():
 
 		return X, Y, m		
 
+	def get_density_prof_args(self,axis,minrec,maxrec):
+
+		# Get which axes to average over
+		avgaxes = []	
+		for ax in range(3):
+			if (ax != axis): avgaxes.append(ax)
+		avgaxes = tuple(avgaxes)
+	
+		ddata = DensityBins(self.fdir,cpol_bins=self.cpol_bins)
+		density, binspaces = ddata.get_field(minrec,maxrec,meanaxes=(avgaxes))
+		density = density[:,0]
+
+		return binspaces[axis], density
+
 	def get_pVA_prof_args(self,filename,axis,minrec,maxrec,peculiar=False):
 		
 		# Get which axes to average over
