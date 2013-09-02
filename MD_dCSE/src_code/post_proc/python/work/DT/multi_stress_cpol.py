@@ -5,8 +5,8 @@ from MDPlotData import MD_PlotData
 from HeaderData import *
 
 # Objects
-Header = HeaderData(open('../../214990.results/simulation_header','r'))
-Getter = MD_PlotData('../../214990.results/',cpol_bins=True)
+Header = HeaderData(open('../../results/simulation_header','r'))
+Getter = MD_PlotData('../../results/',cpol_bins=True)
 
 # Parameters
 nbins = int(Header.gnbins1)*int(Header.gnbins2)*int(Header.gnbins3)
@@ -14,8 +14,9 @@ r_ii = float(Header.r_ii)
 r_oi = float(Header.r_oi)
 r_io = float(Header.r_io)
 r_oo = float(Header.r_oo)
-filebytes = os.path.getsize('../../214990.results/pVA_k')
+filebytes = os.path.getsize('../../results/pVA_k')
 maxrec = filebytes / (9*8*nbins) # 8 is the size of 1 double precision 
+print('Maxrec = '+str(maxrec))
 
 # PLOTS
 fig = plt.figure(figsize=(18.,15.))
