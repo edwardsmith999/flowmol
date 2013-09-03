@@ -267,6 +267,10 @@ subroutine setup_initial_record
 			est_filesize = 4*output_steps*gnbins(1)*gnbins(2)*gnbins(3)
 			print'(a,i14,a,i14,a)', ' Number of records ', output_steps,  & 
 							 ' Estimated File Size:', ceiling(est_filesize/dble(1024**2)), ' MB '
+		case(5)
+			print'(3(a,i8),a)', ' Mass 3D Cylindrical Polar bins recorded every:', &
+					tplot,' x ',Nmass_ave,' = ',tplot*Nmass_ave,' iterations'
+			print'(a,3i8)', ' Domain split into Velocity Averaging Bins in r,theta and z:', gcpol_bins
 		case default
 			call error_abort("Invalid Mass output flag in input file")
 		end select

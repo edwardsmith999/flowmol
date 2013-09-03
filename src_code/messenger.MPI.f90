@@ -2456,14 +2456,19 @@ subroutine PlaneSumIntVect(PLANE_COMM_IN, A, na)
 
     integer, intent(in) :: na
 	integer, intent(in) :: PLANE_COMM_IN
-	integer A(na)
-	integer buf(na)
+	integer, intent(inout) :: A(na)
+	integer, allocatable :: buf(:)
+
+	allocate(buf(na))
 
 	call MPI_AllReduce (A, buf, na, MPI_INTEGER, &
 	                    MPI_SUM, PLANE_COMM_IN, ierr)
 	A = buf
 
+	deallocate(buf)
+
 	return
+
 end
 
 subroutine PlaneSumVect(PLANE_COMM_IN, A, na)

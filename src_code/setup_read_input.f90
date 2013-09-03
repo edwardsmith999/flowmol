@@ -493,6 +493,12 @@ subroutine setup_read_input
 	if (found_in_input) then
 		read(1,*) mass_outflag
 		if (mass_outflag .ne. 0) read(1,*) Nmass_ave
+		if (mass_outflag .eq. 5) then
+			call locate(1,'CPOL_BINS',.true.)
+			read(1,*) gcpol_bins(1)	
+			read(1,*) gcpol_bins(2)	
+			read(1,*) gcpol_bins(3)	
+		end if
 	endif
 	call locate(1,'VELOCITY_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
