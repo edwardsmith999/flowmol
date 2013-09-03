@@ -1,5 +1,4 @@
 !======================================================================
-!	        	Parallel Read Write Subroutines               
 
 ! Parallel i/o
 
@@ -2098,9 +2097,12 @@ subroutine update_simulation_progress_file
 end subroutine update_simulation_progress_file
 
 
+module field_io
+
+contains
+
 !-----------------------------------------------------------------------------
 ! Record mass in a slice through the domain
-
 subroutine mass_slice_io(ixyz)
 	use module_parallel_io
 	use calculated_properties_MD
@@ -2153,17 +2155,18 @@ end subroutine mass_slice_io
 
 !---------------------------------------------------------------------------------
 ! Record mass in 3D bins throughout domain
-
 subroutine mass_bin_io(CV_mass_out,io_type)
 	use module_parallel_io
 	use calculated_properties_MD
 	use CV_objects, only : CVcheck_mass, CV_debug
 	implicit none
 
-	integer,intent(in)	:: CV_mass_out(nbinso(1),nbinso(2),nbinso(3))
+	integer, dimension(:,:,:), intent(in) :: CV_mass_out
+	!integer, intent(in)	:: CV_mass_out(nbinso(1),nbinso(2),nbinso(3))
 	character(4),intent(in)	:: io_type
 
-	integer	:: CVmasscopy(nbinso(1),nbinso(2),nbinso(3))
+	integer, dimension(:,:,:), allocatable :: CVmasscopy
+	!integer :: CVmasscopy(nbinso(1),nbinso(2),nbinso(3))
 	integer :: m,nresults
 	character(30) :: filename, outfile
 
@@ -2175,6 +2178,7 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 	nresults = 1
 
 	!Copy CV_mass_out so it is not changed
+	allocate(CVmasscopy(nbinso(1),nbinso(2),nbinso(3)))
 	CVmasscopy = CV_mass_out
 	call iswaphalos(CVmasscopy,nbinso(1),nbinso(2),nbinso(3),nresults)
 
@@ -2198,12 +2202,14 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 
 	!Write mass to file
 	call write_arrays(CVmasscopy,nresults,outfile,m)
+	
+	deallocate(CVmasscopy)
 
 end subroutine mass_bin_io
 
+
 !---------------------------------------------------------------------------------
 ! Record velocity in a slice through the domain
-
 subroutine velocity_slice_io(ixyz)
 	use module_parallel_io
 	use calculated_properties_MD
@@ -2291,13 +2297,19 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 	implicit none
 
 	integer					:: m,nresults
-	integer					:: CV_mass_out(nbinso(1),nbinso(2),nbinso(3))
-	double precision		:: CV_momentum_out(nbinso(1),nbinso(2),nbinso(3),nd)
+	integer, intent(in)		:: CV_mass_out(nbinso(1),nbinso(2),nbinso(3))
+	double precision, intent(in) :: CV_momentum_out(nbinso(1),nbinso(2),nbinso(3),nd)
+!	integer, dimension(:,:,:), intent(in) :: CV_mass_out
+!	double precision, dimension(:,:,:,:), intent(in) :: CV_momentum_out
 	character(4)			:: io_type
 	character(30)			:: filename,outfile
+	integer, dimension(:,:,:), allocatable :: CVmasscopy
+
+	!allocate(CVmasscopy(nbinso(1),nbinso(2),nbinso(3)))
 
 	!Write mass bins
 	if (io_type .ne. 'snap') then
+		!call mass_bin_io(CVmasscopy,io_type)
 		call mass_bin_io(CV_mass_out,io_type)
 	endif
 
@@ -2332,6 +2344,8 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 	!Write out arrays
 	call write_arrays(CV_momentum_out,nresults,outfile,m)
 
+	!deallocate(CVmasscopy)
+
 end subroutine velocity_bin_io
 
 !------------------------------------------------------------------------------
@@ -2345,9 +2359,11 @@ subroutine mass_bin_cpol_io(mass_out)
 	use messenger, only: icomm_grid,iblock,jblock,plane_comm
 	implicit none
 
-	integer, intent(inout) :: mass_out(cpol_binso(1), &
-	                                   cpol_binso(2), &
-	                                   cpol_binso(3))
+	!integer, intent(inout) :: mass_out(cpol_binso(1), &
+	!                                   cpol_binso(2), &
+	!                                   cpol_binso(3))
+	
+	integer, dimension(:,:,:), intent(inout) :: mass_out
 
 	character(200) :: mfile!, vfile
 	integer :: m, ierr
@@ -2405,13 +2421,15 @@ subroutine velocity_bin_cpol_io(mass_out,mom_out)
 	! z-plane mass and momentum for all_reduce on zplane subcomms.
 	! The mass and mom arrays on each processor are global in
 	! r and theta, but local in z.  
-	integer, intent(in) :: mass_out(cpol_binso(1), &
-	                                   cpol_binso(2), &
-	                                   cpol_binso(3))
-	real(kind(0.d0)), intent(inout) :: mom_out (cpol_binso(1), &
-	                                            cpol_binso(2), &
-	                                            cpol_binso(3), &
-	                                            nd)
+	!integer, intent(inout) :: mass_out(cpol_binso(1), &
+	!                                   cpol_binso(2), &
+	!                                   cpol_binso(3))
+	!real(kind(0.d0)), intent(inout) :: mom_out (cpol_binso(1), &
+	!                                            cpol_binso(2), &
+	!                                            cpol_binso(3), &
+	!                                            nd)
+	integer, dimension(:,:,:), intent(inout) :: mass_out
+	real(kind(0.d0)), dimension(:,:,:,:), intent(inout) :: mom_out
 
 	character(200) :: mfile, vfile
 	integer :: m, ierr
@@ -2794,52 +2812,6 @@ subroutine VA_stress_io
 
 end subroutine VA_stress_io
 
-!===================================================================================
-!Integrate virial pressure to get autocorrelations (Green Kubo) viscosity
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-subroutine viscosity_io
-	use module_parallel_io
-	use physical_constants_MD
-	use calculated_properties_MD
-	use librarymod, only : integrate_trap
-	implicit none
-
-	integer				:: m, length
-	double precision	:: viscosity
-
-	!call globalAverage(Pxycorrel, Nvisc_ave)
-
-	if (irank .eq. iroot) then
-		call integrate_trap(Pxycorrel,tplot*delta_t,Nstress_ave,viscosity)
-
-		viscosity = (viscosity*volume)/(3.0*Nstress_ave*Nvisc_ave*inputtemperature)
-
-		!Write viscosity to file
-		m = (iter-initialstep+1)/(tplot*Nstress_ave*Nvisc_ave)
-		inquire(iolength=length) viscosity
-		open (unit=7, file=trim(prefix_dir)//'results/visc',form='unformatted',access='direct',recl=length)
-		write(7,rec=m) viscosity
-		close(7,status='keep')
-	endif
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-end subroutine viscosity_io
-
-subroutine viscometrics_io(eta,N1,N2,P)
-implicit none
-
-	real(kind(0.d0)), intent(in) :: eta, N1, N2, P
-
-	!Remove all these lines, they are only here to satisfy pedantic compiler	
-	real(kind(0.d0)) :: dummy
-	dummy = eta + N1 + N2 + P
-
-	print*, 'Viscometrics_io not developed in parallel'
-
-end subroutine viscometrics_io
 
 !=================================================================================
 ! CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV
@@ -3217,6 +3189,7 @@ subroutine MOP_energy_io(ixyz)
 
 end subroutine MOP_energy_io
 
+end module field_io
 
 !-----------------------------------------------------------------------------
 ! Write macroscopic properties to file
@@ -3262,6 +3235,52 @@ implicit none
 
 end subroutine macroscopic_properties_record
 
+!===================================================================================
+!Integrate virial pressure to get autocorrelations (Green Kubo) viscosity
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+subroutine viscosity_io
+	use module_parallel_io
+	use physical_constants_MD
+	use calculated_properties_MD
+	use librarymod, only : integrate_trap
+	implicit none
+
+	integer				:: m, length
+	double precision	:: viscosity
+
+	!call globalAverage(Pxycorrel, Nvisc_ave)
+
+	if (irank .eq. iroot) then
+		call integrate_trap(Pxycorrel,tplot*delta_t,Nstress_ave,viscosity)
+
+		viscosity = (viscosity*volume)/(3.0*Nstress_ave*Nvisc_ave*inputtemperature)
+
+		!Write viscosity to file
+		m = (iter-initialstep+1)/(tplot*Nstress_ave*Nvisc_ave)
+		inquire(iolength=length) viscosity
+		open (unit=7, file=trim(prefix_dir)//'results/visc',form='unformatted',access='direct',recl=length)
+		write(7,rec=m) viscosity
+		close(7,status='keep')
+	endif
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+end subroutine viscosity_io
+
+subroutine viscometrics_io(eta,N1,N2,P)
+implicit none
+
+	real(kind(0.d0)), intent(in) :: eta, N1, N2, P
+
+	!Remove all these lines, they are only here to satisfy pedantic compiler	
+	real(kind(0.d0)) :: dummy
+	dummy = eta + N1 + N2 + P
+
+	print*, 'Viscometrics_io not developed in parallel'
+
+end subroutine viscometrics_io
 !-----------------------------------------------------------------------------
 ! Write end-to-end vector time correlation function
 !-----------------------------------------------------------------------------

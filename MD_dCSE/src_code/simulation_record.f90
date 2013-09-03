@@ -847,6 +847,7 @@ end subroutine r_gyration_calculate_parallel
 
 subroutine mass_averaging(ixyz)
 	use module_record
+	use field_io 
 	use concentric_cylinders, only: cyl_mass
 	implicit none
 
@@ -891,6 +892,8 @@ end subroutine mass_averaging
 subroutine cumulative_mass(ixyz)
 	use module_record
 	use linked_list
+	use messenger, only: globalise
+	use concentric_cylinders
 	implicit none
 
 	integer         				:: n, ixyz
@@ -898,6 +901,9 @@ subroutine cumulative_mass(ixyz)
 	integer,dimension(3)			:: ibin
 	double precision				:: slicebinsize
 	double precision,dimension(3) 	:: mbinsize 
+
+	integer :: br, bt, bz
+	real(kind(0.d0)) :: fluiddomain_cyl(3), rglob(3), rpol(3)
 
 	select case(ixyz)
 	!Mass measurement is a number of 2D slices through the domain
@@ -918,6 +924,41 @@ subroutine cumulative_mass(ixyz)
 			ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
 			volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + 1
 		enddo
+	case(5)
+
+		! Cylindrical polar coordinates                                       -
+		fluiddomain_cyl(1) = r_io - r_oi
+		fluiddomain_cyl(2) = 2.d0 * pi 
+		fluiddomain_cyl(3) = domain(3) 
+		mbinsize(:) = fluiddomain_cyl(:)/cpol_bins(:)				
+
+		do n = 1,np
+
+			!Find cyl pol coords, rr=0 at inner cylinder
+			rglob    = globalise(r(:,n))
+			rpol     = cpolariser(rglob)
+
+			!Shift z component to be between 0 < r_z < domain(3),
+			!      theta to 0 < theta < 2*pi (i.e. not -pi to pi),
+			!      r to r_oi < r (< r_io) 
+ 			rpol(1)  = rpol(1) - r_oi
+			rpol(2)  = modulo(rpol(2),2.d0*pi)
+			rpol(3)  = r(3,n) + halfdomain(3) 
+
+			!Add to cylindrical bins
+			br = ceiling(rpol(1)/mbinsize(1)) 
+			bt = ceiling(rpol(2)/mbinsize(2)) 
+			bz = ceiling(rpol(3)/mbinsize(3)) + cpol_nhbz
+
+			!Ignore cylinder molecules and stray liquid mols
+			if ( br .gt. cpol_bins(1) ) cycle
+ 			if ( br .lt. 1 ) cycle
+			if ( tag(n) .eq. cyl_teth_thermo_rotate ) cycle
+
+			cyl_mass(br,bt,bz)  = cyl_mass(br,bt,bz)  + 1
+
+		end do
+
 	case default 
 		call error_abort("Mass Binning Error")
 	end select
@@ -936,6 +977,7 @@ end subroutine cumulative_mass
 
 subroutine velocity_averaging(ixyz)
 	use module_record
+	use field_io 
 	use concentric_cylinders, only: cyl_mass, cyl_mom
 	use linked_list
 	implicit none
@@ -1172,6 +1214,7 @@ end subroutine cumulative_velocity
 
 subroutine temperature_averaging(ixyz)
 	use module_record
+	use field_io
 	use linked_list
 	implicit none
 
@@ -1291,6 +1334,7 @@ end subroutine cumulative_temperature
 !===================================================================================
 
 subroutine pressure_averaging(ixyz)
+	use field_io
 	use module_record
 	implicit none
 
@@ -1671,6 +1715,7 @@ end subroutine simulation_compute_kinetic_VA_cells
 !-----------------------------------------------------------------------------------
 
 subroutine mass_flux_averaging(ixyz)
+	use field_io
 	use module_record
 	use CV_objects, only : CVcheck_mass, CV_debug
 	implicit none
@@ -1904,6 +1949,7 @@ end subroutine cumulative_mass_flux
 
 subroutine mass_snapshot
 	use module_record
+	use field_io 
 	implicit none
 
 	integer										:: n
@@ -1938,6 +1984,7 @@ end subroutine mass_snapshot
 !===================================================================================
 
 subroutine momentum_flux_averaging(ixyz)
+	use field_io
 	use module_record
 	use control_volume, only : check_CV_conservation
 	use CV_objects, only : CV_debug, CVcheck_momentum
@@ -2185,6 +2232,7 @@ end subroutine cumulative_momentum_flux
 ! Control Volume snapshot of momentum in a given bin
 
 subroutine momentum_snapshot
+	use field_io
 	use module_record
 	implicit none
 
@@ -2232,6 +2280,7 @@ end subroutine momentum_snapshot
 !===================================================================================
 
 subroutine energy_flux_averaging(ixyz)
+	use field_io
 	use module_record
 	implicit none
 
@@ -2452,6 +2501,7 @@ end subroutine cumulative_energy_flux
 ! Control Volume snapshot of momentum in a given bin
 
 subroutine energy_snapshot
+	use field_io
 	use librarymod
 	use module_record
 	implicit none
