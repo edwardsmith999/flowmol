@@ -121,7 +121,8 @@ subroutine messenger_init()
 
 	logical					:: found_in_input
 	integer 				:: ndims, ip, ixyz
-	integer,dimension(3)	:: idims, Lremain_dims
+	integer,dimension(3)	:: idims
+	logical,dimension(3)    :: Lremain_dims
 
 	! Initialize MPI
 	call MPI_comm_size (MD_COMM, nproc, ierr)
@@ -158,7 +159,7 @@ subroutine messenger_init()
 
     ! set Lperiodic
     Lperiodic(1:nd) = .true.
-    where(periodic(1:nd) .eq. 0) Lperiodic(1:nd) =.false.  
+    where(periodic(1:nd) .eq. 0) Lperiodic(1:nd) = .false.
  
 	! ==== Grid topology ====
     allocate(icoord(3,nproc),stat=ierr)
@@ -187,25 +188,25 @@ subroutine messenger_init()
 
 	! Directional line subcomms
 	do ixyz=1,3
-		Lremain_dims(:) = 0
-		Lremain_dims(ixyz) = 1
+		Lremain_dims(:) = .false.
+		Lremain_dims(ixyz) = .true.
 		call MPI_Cart_sub(icomm_grid, Lremain_dims, icomm_xyz(ixyz), ierr)
 	end do
 	if (npx .lt. 2) icomm_xyz(1) = MPI_COMM_SELF
 	if (npy .lt. 2) icomm_xyz(2) = MPI_COMM_SELF
 	if (npz .lt. 2) icomm_xyz(3) = MPI_COMM_SELF
 	!if (any(icomm_xyz .eq. MPI_COMM_NULL)) icomm_xyz(:)=MPI_COMM_SELF
-	
+
 	call MPI_comm_rank (icomm_xyz(1), irankx, ierr)
 	call MPI_comm_rank (icomm_xyz(2), iranky, ierr)
 	call MPI_comm_rank (icomm_xyz(3), irankz, ierr)
 
 	! Directional plane subcomms
-	Lremain_dims = (/0,1,1/)
+	Lremain_dims = (/.false.,.true.,.true./)
 	call MPI_Cart_sub(icomm_grid,Lremain_dims,plane_comm(1),ierr)
-	Lremain_dims = (/1,0,1/)
+	Lremain_dims = (/.true.,.false.,.true./)
 	call MPI_Cart_sub(icomm_grid,Lremain_dims,plane_comm(2),ierr)
-	Lremain_dims = (/1,1,0/)
+	Lremain_dims = (/.true.,.true.,.false./)
 	call MPI_Cart_sub(icomm_grid,Lremain_dims,plane_comm(3),ierr)
 	
 	call MPI_comm_rank (plane_comm(1), planerankx, ierr)
@@ -2470,12 +2471,16 @@ subroutine PlaneSumVect(PLANE_COMM_IN, A, na)
 
     integer, intent(in) :: na
 	integer, intent(in) :: PLANE_COMM_IN
-	real(kind(0.d0)) :: A(na)
-	real(kind(0.d0)) :: buf(na)
+	real(kind(0.d0)), intent(inout) :: A(na)
+	real(kind(0.d0)), allocatable :: buf(:)
+
+	allocate(buf(na))
 
 	call MPI_AllReduce (A, buf, na, MPI_DOUBLE_PRECISION, &
 	                    MPI_SUM, PLANE_COMM_IN, ierr)
 	A = buf
+
+	deallocate(buf)
 
 	return
 end
