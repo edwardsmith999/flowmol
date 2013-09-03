@@ -2625,8 +2625,6 @@ subroutine pressure_tensor_forces_VA_trap(ri,rj,accijmag)
 
 	VAbinsize(:) = domain(:) / nbins(:)
 	rij = rj - ri
-	!Fij = -accijmag*rij
-	!rF = outerprod(rij, Fij)
 	rF = outerprod(rij, accijmag*rij)
 
 	! Split line l_ij into segments of size ds
@@ -2684,8 +2682,7 @@ subroutine pressure_tensor_forces_VA_trap_cpol(ri,rj,accijmag)
 
 	! Store rij * Fij outer product tensor (cartesian)
 	rij = rj - ri
-	Fij = -accijmag*rij
-	rF = outerprod(rij, Fij)
+	rF = outerprod(rij, accijmag*rij)
 	! Transform to polar coordinates
 	rF = cpolariseT(rF,ripol(2)) 
 

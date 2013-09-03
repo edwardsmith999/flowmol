@@ -334,6 +334,7 @@ subroutine rwrite_zplane(cpol_array,nresults,outfile,outstep)
 	CALL MPI_FILE_CLOSE(fh, ierr)
 
 	! Free data types
+	CALL MPI_BARRIER(icomm_xyz(3),ierr)
 	call MPI_TYPE_FREE(memtype,ierr) ; MEM_FLAG = 0
 	call MPI_TYPE_FREE(filetype,ierr); FILE_FLAG = 0
 
@@ -1346,8 +1347,10 @@ subroutine parallel_io_final_state
 
 	endif
 
-	deallocate(rglobal)	
-	deallocate(buf)
+	if (allocated(rglobal)) deallocate(rglobal)	
+	if (allocated(rtetherglobal)) deallocate(rtetherglobal)	
+	if (allocated(buf)) deallocate(buf)
+	if (allocated(bufsize)) deallocate(bufsize)
 
 end subroutine parallel_io_final_state
 
@@ -1513,6 +1516,12 @@ subroutine parallel_io_vmd
 	case default
 	end select
 
+	if (allocated(Xbuf)) deallocate(Xbuf)
+	if (allocated(Ybuf)) deallocate(Ybuf)
+	if (allocated(Zbuf)) deallocate(Zbuf)
+	if (allocated(Xbufglob)) deallocate(Xbufglob)
+	if (allocated(Ybufglob)) deallocate(Ybufglob)
+	if (allocated(Zbufglob)) deallocate(Zbufglob)
 
 end subroutine parallel_io_vmd
 
@@ -1896,6 +1905,10 @@ subroutine parallel_io_vmd_sl
 
 	!Close file on all processors
 	call MPI_FILE_CLOSE(fileid, ierr) 
+
+	if (allocated(Xbuf)) deallocate(Xbuf)
+	if (allocated(Ybuf)) deallocate(Ybuf)
+	if (allocated(Zbuf)) deallocate(Zbuf)
 
 end subroutine parallel_io_vmd_sl
 
@@ -2461,7 +2474,7 @@ subroutine VA_stress_cpol_io
 	integer :: m, ierr
 	integer :: rbin, tbin, zbin 
 	character(200) :: pVAfile
-	real(kind(0.d0)) :: buf9(cpol_binso(1),cpol_binso(2),cpol_binso(3),9)
+	real(kind(0.d0)), allocatable :: buf9(:,:,:,:)
 	real(kind(0.d0)) :: rplus, rminus, dr, dtheta, dz
 	real(kind(0.d0)) :: binvolume
 
@@ -2505,6 +2518,8 @@ subroutine VA_stress_cpol_io
 	! Only bottom corner z-line of processors write to file	
 	if (iblock .eq. 1 .and. jblock .eq. 1) then
 
+		allocate(buf9(cpol_binso(1),cpol_binso(2),cpol_binso(3),9))
+
 		m = (iter-initialstep+1)/(tplot*Nstress_ave)
 	
 		select case (split_kin_config)
@@ -2524,6 +2539,7 @@ subroutine VA_stress_cpol_io
 		case default
 		end select
 
+		deallocate(buf9)
 
 	end if
 
@@ -2752,6 +2768,7 @@ subroutine VA_stress_io
 		buf(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1:9) = &
 			reshape(Pxybin,(/nbins(1),nbins(2),nbins(3),nresults/))
 		call write_arrays(buf,nresults,trim(prefix_dir)//'results/pVA',m)
+		deallocate(buf)
 	case(1)
 		!Kinetic
 		!Allocate buf with halo padding and 3x3 stresses reordered as 9 vector.
@@ -2774,7 +2791,6 @@ subroutine VA_stress_io
 		stop 'Error in VA/virial extra flag to split_kinetic_& configuartional parts'
 	end select
 
-	!deallocate(buf)
 
 end subroutine VA_stress_io
 
@@ -2921,6 +2937,7 @@ subroutine momentum_flux_io
 	allocate(temp(size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),nresults))
 	temp = reshape(momentum_flux,(/ size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),nresults /))
 	call write_arrays(temp,nresults,trim(prefix_dir)//'results/vflux',m)
+	deallocate(temp)
 
 end subroutine momentum_flux_io
 
@@ -3061,6 +3078,7 @@ subroutine surface_stress_io
 	allocate(temp(size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),nresults))
 	temp = reshape(Pxyface,(/ size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),nresults /))
 	call write_arrays(temp,nresults,trim(prefix_dir)//'results/psurface',m)
+	deallocate(temp)
 
 end subroutine surface_stress_io
 
@@ -3098,6 +3116,7 @@ subroutine external_force_io
 	allocate(temp(size(F_ext_bin,1),size(F_ext_bin,2),size(F_ext_bin,3),nresults))
 	temp = reshape(F_ext_bin,(/ size(F_ext_bin,1),size(F_ext_bin,2),size(F_ext_bin,3),nresults /))
 	call write_arrays(temp,nresults,trim(prefix_dir)//'results/Fext',m)
+	deallocate(temp)
 
 end subroutine external_force_io
 
