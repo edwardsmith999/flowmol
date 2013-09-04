@@ -238,27 +238,32 @@ class TBins():
 		      + str(maxrec) + ', averaging over axes ' + str(sumaxes) + '.')
 	
 		mfield, binspaces = self.mdata.get_bins(minrec,maxrec,meantime=False,
-		                                      sumtime=False)
+		                                        sumtime=True)
 		pfield, binspaces = self.pdata.get_bins(minrec,maxrec,meantime=False,
-		                                      sumtime=False)
+		                                        sumtime=True)
 		KEfield, binspaces = self.KEdata.get_bins(minrec,maxrec,meantime=False,
-		                                        sumtime=False)
+		                                          sumtime=True)
 
 
 		# Temperature (no streaming consideration)
 		Tfield = np.divide(KEfield,(3.0*mfield))
 		Tfield[np.isnan(Tfield)] = 0.0
-		Tfield = Tfield[:,:,:,0,:]
+		#Tfield = Tfield[:,:,:,0,:]
+		Tfield = Tfield[:,:,:,0]
 
 		# Remove average of streaming component
 		if (peculiar==True):
+
+			print('Average samples for streaming velocity: ' 
+			       + str(np.mean(mfield)) )
+
 			vfield = np.divide(pfield,mfield)
 			vfield[np.isnan(vfield)] = 0.0
 			v2field = np.sum((vfield**2.0),3)
 			Tfield = Tfield - (1./3.)*v2field
 
 		# Avg time
-		Tfield = np.mean(Tfield,3)
+		#Tfield = np.mean(Tfield,3)
 
 		# Avg space
 		Tfield = np.mean(Tfield,sumaxes)
