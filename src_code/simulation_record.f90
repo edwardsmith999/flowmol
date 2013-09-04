@@ -1216,6 +1216,7 @@ subroutine temperature_averaging(ixyz)
 	use module_record
 	use field_io
 	use linked_list
+	use concentric_cylinders
 	implicit none
 
 	integer				:: ixyz
@@ -1237,6 +1238,10 @@ subroutine temperature_averaging(ixyz)
 			!Reset temperature bins
 			if (velocity_outflag .ne. 4) volume_mass = 0
 			volume_temperature = 0.d0
+		case(5)
+			call temperature_bin_cpol_io(cyl_mass,cyl_KE)
+			if (velocity_outflag .ne. 5) cyl_mass = 0
+			cyl_KE = 0.d0
 		case default
 			stop "Error input for temperature averaging incorrect"
 		end select
@@ -1255,6 +1260,8 @@ end subroutine temperature_averaging
 
 subroutine cumulative_temperature(ixyz)
 	use module_record
+	use concentric_cylinders
+	use messenger, only: globalise, localise
 	use linked_list
 	implicit none
 
@@ -1263,6 +1270,9 @@ subroutine cumulative_temperature(ixyz)
 	integer		,dimension(3)		:: ibin
 	double precision				:: slicebinsize
 	double precision,dimension(3) 	:: Tbinsize 
+
+	integer :: br, bt, bz
+	real(kind(0.d0)) :: fluiddomain_cyl(3), rglob(3), rpol(3), vpol(3)
 
 	!In case someone wants to record velocity in a simulation without sliding walls!?!?
 	if (ensemble .ne. tag_move) then
@@ -1318,8 +1328,46 @@ subroutine cumulative_temperature(ixyz)
 
 		enddo
 
+	case(5)
+	
+		! Cylindrical polar coordinates                                       -
+		fluiddomain_cyl(1) = r_io - r_oi
+		fluiddomain_cyl(2) = 2.d0 * pi 
+		fluiddomain_cyl(3) = domain(3) 
+		Tbinsize(:) = fluiddomain_cyl(:)/cpol_bins(:)				
+
+		do n = 1,np
+
+			!Find cyl pol coords, rr=0 at inner cylinder
+			rglob    = globalise(r(:,n))
+			rpol     = cpolariser(rglob)
+			!v^2 is independent of coordinate system
+			!vpol     = cpolarisev(v(:,n),rpol(2))
+
+			!Shift z component to be between 0 < r_z < domain(3),
+			!      theta to 0 < theta < 2*pi (i.e. not -pi to pi),
+			!      r to r_oi < r (< r_io) 
+ 			rpol(1)  = rpol(1) - r_oi
+			rpol(2)  = modulo(rpol(2),2.d0*pi)
+			rpol(3)  = r(3,n) + halfdomain(3) 
+
+			!Add to cylindrical bins
+			br = ceiling(rpol(1)/Tbinsize(1)) 
+			bt = ceiling(rpol(2)/Tbinsize(2)) 
+			bz = ceiling(rpol(3)/Tbinsize(3)) + cpol_nhbz
+
+			!Ignore cylinder molecules and stray liquid mols
+			if ( br .gt. cpol_bins(1) ) cycle
+ 			if ( br .lt. 1 ) cycle
+			if ( tag(n) .eq. cyl_teth_thermo_rotate ) cycle
+
+			cyl_mass(br,bt,bz) = cyl_mass(br,bt,bz) + 1
+			cyl_KE(br,bt,bz) = cyl_KE(br,bt,bz) + dot_product(v(:,n),v(:,n))
+
+		enddo
+
 	case default 
-		stop "temperature Binning Error"
+		stop "Temperature Binning Error"
 	end select
 
 	if (ensemble .ne. tag_move) then
