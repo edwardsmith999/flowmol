@@ -168,7 +168,8 @@ class MD_PlotData():
 		avgaxes = tuple(avgaxes)
 
 		TData = TBins(self.fdir,cpol_bins=self.cpol_bins)
-		Tslice, binspaces = TData.get_field(minrec,maxrec,sumaxes=(avgaxes),peculiar=peculiar)
+		Tslice, binspaces = TData.get_field(minrec,maxrec,sumaxes=(avgaxes),
+		                                    peculiar=peculiar)
 
 		return binspaces[axis], Tslice
 
