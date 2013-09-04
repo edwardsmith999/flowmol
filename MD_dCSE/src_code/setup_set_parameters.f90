@@ -791,14 +791,42 @@ subroutine set_parameters_outputs
 		cpol_nhbz = ceiling(dble(cpol_bins(3))/dble(ncells(3)))
 		cpol_binso(3) = cpol_bins(3) + 2*cpol_nhbz
 
-		if (velocity_outflag.eq.5) then
+		! Allocate bins for field io
+		if (temperature_outflag .eq. 5) then
+
+			allocate(cyl_KE(cpol_binso(1),cpol_binso(2),cpol_binso(3)))
+			cyl_KE = 0.d0
+
+			if ( .not. allocated(cyl_mass) ) then
+
+				allocate(cyl_mass(cpol_binso(1),cpol_binso(2),cpol_binso(3)))
+				cyl_mass = 0
+
+			end if
+
+		endif
+
+		if ( velocity_outflag .eq. 5 ) then
+
 			allocate(cyl_mom(cpol_binso(1),cpol_binso(2),cpol_binso(3),3))
-			allocate(cyl_mass(cpol_binso(1),cpol_binso(2),cpol_binso(3)))
 			cyl_mom  = 0.d0
-			cyl_mass = 0
-		else if (mass_outflag.eq.5) then
-			allocate(cyl_mass(cpol_binso(1),cpol_binso(2),cpol_binso(3)))
-			cyl_mass = 0
+
+			if ( .not. allocated(cyl_mass) ) then
+				allocate(cyl_mass(cpol_binso(1),cpol_binso(2),cpol_binso(3)))
+				cyl_mass = 0
+			end if
+
+		end if
+
+		if ( mass_outflag .eq. 5 ) then
+
+			if ( .not. allocated(cyl_mass) ) then
+
+				allocate(cyl_mass(cpol_binso(1),cpol_binso(2),cpol_binso(3)))
+				cyl_mass = 0
+
+			end if
+
 		end if
 	
 	end if

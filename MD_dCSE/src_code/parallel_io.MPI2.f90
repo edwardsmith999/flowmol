@@ -53,9 +53,9 @@ module module_parallel_io
 	private  iwrite_arrays_1, rwrite_arrays_1, iwrite_arrays, rwrite_arrays
 	
 	interface write_zplane 
-		module procedure iwrite_zplane_1, iwrite_zplane, rwrite_zplane
+		module procedure iwrite_zplane_1, iwrite_zplane, rwrite_zplane_1, rwrite_zplane
 	end interface write_zplane
-	private iwrite_zplane_1, iwrite_zplane, rwrite_zplane
+	private iwrite_zplane_1, iwrite_zplane, rwrite_zplane_1, rwrite_zplane
 
 contains
 
@@ -258,6 +258,21 @@ subroutine rwrite_arrays(some_array,nresults,outfile,outstep)
 	call MPI_TYPE_FREE(filetype,ierr); FILE_FLAG = 0
 
 end subroutine rwrite_arrays
+
+subroutine rwrite_zplane_1(temp,nresults,outfile,outstep)
+
+	integer, intent(in) :: nresults,outstep
+	real(kind(0.d0)), dimension(:,:,:), intent(in) :: temp 
+	character(*),intent(in) :: outfile
+
+	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: cpol_array
+
+	allocate(cpol_array(size(temp,1),size(temp,2),size(temp,3),1))
+	cpol_array(:,:,:,1) = temp(:,:,:)
+	call rwrite_zplane(cpol_array,nresults,outfile,outstep)
+	deallocate(cpol_array)
+
+end subroutine rwrite_zplane_1
 
 subroutine rwrite_zplane(cpol_array,nresults,outfile,outstep)
 	use mpi
@@ -2475,6 +2490,68 @@ contains
 	end subroutine ZPlaneReduceMom
 
 end subroutine velocity_bin_cpol_io
+
+!------------------------------------------------------------------------------
+! Cylindrical polar KE bins
+subroutine temperature_bin_cpol_io(mass_out,KE_out)
+	use module_parallel_io, only: write_zplane
+	use concentric_cylinders, only: cpol_binso
+	use physical_constants_MD, only: nd
+	use computational_constants_MD, only: iter, initialstep, tplot, &
+	                                      NTemp_ave, prefix_dir
+	use messenger, only: icomm_grid,iblock,jblock,plane_comm
+	implicit none
+
+	! z-plane mass and KE for all_reduce on zplane subcomms.
+	! The mass and KE arrays on each processor are global in
+	! r and theta, but local in z.  
+	integer, dimension(:,:,:), intent(inout) :: mass_out
+	real(kind(0.d0)), dimension(:,:,:), intent(inout) :: KE_out
+
+	character(200) :: mfile, Tfile
+	integer :: m, ierr
+
+	! Make sure mass is written out
+	call mass_bin_cpol_io(mass_out)
+
+	! Z-Plane global sums of r/theta bins, everyone has a copy of
+	! r/theta bins in their own z-plane
+	call ZPlaneReduceKE
+
+	! Bottom corner z-line of processors write to file	
+	if (iblock .eq. 1 .and. jblock .eq. 1) then
+
+		m = (iter-initialstep+1)/(tplot*NTemp_ave)
+		Tfile = trim(prefix_dir)//'results/Tbins'
+
+		call write_zplane(KE_out,1,Tfile,m)
+
+	end if
+
+	! Barrier needed to ensure correct offsets calculated next
+	call MPI_Barrier(icomm_grid,ierr)
+	
+contains
+
+	subroutine ZPlaneReduceKE
+	implicit none
+
+		integer :: nbins
+		real(kind(0.d0)), allocatable :: buf(:)
+
+		nbins = cpol_binso(1) * cpol_binso(2) * cpol_binso(3)
+
+		allocate( buf(nbins) )
+
+		buf = reshape( KE_out, (/nbins/) )
+		call PlaneSumVect( plane_comm(3), buf, nbins )
+		KE_out = reshape(buf,(/cpol_binso(1),cpol_binso(2),cpol_binso(3)/))
+
+		deallocate(buf)
+
+	end subroutine ZPlaneReduceKE
+
+end subroutine temperature_bin_cpol_io
 
 !------------------------------------------------------------------------------
 ! Cylindrical polar velocity bins

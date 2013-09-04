@@ -349,8 +349,12 @@ subroutine setup_initial_record
 			est_filesize = 8*output_steps*gnbins(1)*gnbins(2)*gnbins(3)
 			print'(a,i14,a,i14,a)', ' Number of records ', output_steps,  & 
 							 ' Estimated File Size:', ceiling(est_filesize/dble(1024**2)), ' MB '
+		case(5)
+			print'(3(a,i8),a)', ' Temperature 3D Cylindrical Polar bins recorded every:', &
+					tplot,' x ',NTemp_ave,' = ',tplot*NTemp_ave,' iterations'
+			print'(a,3i8)', ' Domain split into Velocity Averaging Bins in r,theta and z:', gcpol_bins
 		case default
-			call error_abort("Invalid Velocity output flag in input file")
+			call error_abort("Invalid Temperature output flag in input file")
 		end select
 
 		select case(pressure_outflag)

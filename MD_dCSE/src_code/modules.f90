@@ -391,6 +391,7 @@ module concentric_cylinders
 
 	integer, dimension(:,:,:),   allocatable :: cyl_mass
 	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: cyl_mom
+	real(kind(0.d0)), dimension(:,:,:), allocatable :: cyl_KE
 
 end module concentric_cylinders 
 
