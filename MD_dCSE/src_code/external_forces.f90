@@ -704,93 +704,263 @@ end subroutine simulation_apply_constant_force
 !=========================================================================
 ! Routine to test flux calculations agree by various methods
 
-subroutine test_CV(iter)
+subroutine apply_CV_force(iter)
 	use control_volume
+	use computational_constants_MD, only : irank, jblock, npy, globaldomain
+	use calculated_properties_MD, only : pressure
+	use librarymod, only : get_new_fileunit
 	use module_external_forces, only : np, momentum_flux, irank,nbins, nbinso,domain,delta_t,Nvflux_ave
 	implicit none
 	
-	integer,intent(in)	:: iter
+	integer,intent(in)				:: iter
 
-	integer							:: icell,jcell,kcell,n,nresults,ixyz
-	double precision				:: isumflux, binface
-	double precision,dimension(3,6)	:: Flux
+	integer							:: M, box_np, m_bin1, m_bin2
+	integer,allocatable 			:: list(:)
+	!real(kind(0.d0))				:: dx,dy,dz
+	real(kind(0.d0)),dimension(3)	:: binsize,MD_Pi_dS,MD_rhouu_dS,F_constraint
+	real(kind(0.d0)),dimension(3)	:: u_bin,F_bin,u_bin1, u_bin2, F_bin1, F_bin2
+	real(kind(0.d0)),dimension(3)	:: CFD_Pi_dS,CFD_rhouu_dS
 
-	!momentum_flux = 0.d0
-	!do n=1,np
-	!	call get_molecule_CV_momentum_flux(n)
+	binsize = domain/nbins
+	!Only apply force on top processor
+	if (jblock .ne. npy) return
+	!dx = globaldomain(1);	dy = 4.d0; dz = globaldomain(3)
+
+	!Get average over current cell and apply constraint forces
+	call get_continuum_values
+	call average_over_bin
+	!call apply_force
+	call apply_force_tests
+
+contains
+
+! Get continuum values of surface stresses, etc
+subroutine get_continuum_values
+
+	integer		:: length,fileunit
+
+	!Read Shear pressure from file...
+	fileunit = get_new_fileunit()
+	inquire(iolength=length) CFD_Pi_dS
+	open(unit=fileunit,file='./couette_stress_analy',form='unformatted', access='direct',recl=length)
+	read(fileunit,rec=iter) CFD_Pi_dS !Divided by the Reynolds number
+	close(fileunit,status='keep')
+	pressure = 4.d0
+
+end subroutine get_continuum_values
+
+! Dummy test values
+subroutine get_test_values
+
+	!Hello, I'm a routine which currently does nothing
+
+
+end subroutine get_test_values
+
+!=============================================================================
+! Average molecules in overlap region to obtain values for 
+! constrained dynamics algorithms
+!-----------------------------------------------------------------------------
+
+subroutine average_over_bin
+	use physical_constants_MD, only : pi
+	use computational_constants_MD, only : nhb
+	use arrays_MD, only : r, v, a
+	use linked_list, only : node, cell
+	use CV_objects, only : CVcheck_mass, CV => CVcheck_momentum 
+	implicit none
+
+	integer					:: n,i,j,k,molno,cellnp
+	integer,dimension(3)	:: ibin
+	type(node), pointer		:: old, current
+	real(kind(0.d0))		:: dx,dy,dz
+
+	!Test case focuses on a single CV
+	i = 5; j = 5; k = 5
+
+	!Find the molecules in constraint region and add to list array	   
+	!Zero box averages
+	box_np = 0
+	allocate(list(np))
+	do n = 1,np
+		ibin(:) = ceiling((r(:,n)+0.5d0*domain(:))/binsize(:))+1
+		if (ibin(1) .eq. i .and. ibin(2) .eq. j .and. ibin(3) .eq. k) then
+			!Add molecule to overlap list
+			box_np   =  box_np   + 1
+			list(box_np) =  n
+		endif
+	enddo
+
+	!Retrieve values from CV objects
+	!Mass
+	M = box_np !CVcheck_mass%X(i,j,k)
+
+	!cellnp = cell%cellnp(i,j,k)
+	!old => cell%head(i,j,k)%point !Set old to first molecule in list
+    !allocate(list(cellnp))
+
+	!Step through each particle in cell list and store in array
+	!do n = 1,cellnp					
+	!	molno = old%molno 	 	
+	!	box_np   =  box_np   + 1
+	!	list(box_np) =  molno
+	!	current => old
+	!	old => current%next !Use pointer in datatype to obtain next item in list
 	!enddo
-	! Swap Halos
-	!nresults = 18
-	!call rswaphalos(momentum_flux,nbinso(1),nbinso(2),nbinso(3),nresults)
 
-	!Divide by size of bin face to give flux per unit area
-	!do ixyz = 1,3
-	!	binface	      = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
-	!		     		(domain(modulo(ixyz+1,3)+1)/nbins(modulo(ixyz+1,3)+1))
-	!	momentum_flux(:,:,:,:,ixyz  )=momentum_flux(:,:,:,:,ixyz  )/(binface) !Bottom
-	!	momentum_flux(:,:,:,:,ixyz+3)=momentum_flux(:,:,:,:,ixyz+3)/(binface) !Top
+
+    !Total CV flux
+	dx = binsize(2)*binsize(3)
+	dy = binsize(1)*binsize(3)
+	dz = binsize(1)*binsize(2)
+	!MD_rhouu_dS  =(CV%flux(i,j,k,:,1)+CV%flux(i,j,k,:,4))/binsize(1) &
+	!          	 +(CV%flux(i,j,k,:,2)+CV%flux(i,j,k,:,5))/binsize(2) &
+	!          	 +(CV%flux(i,j,k,:,3)+CV%flux(i,j,k,:,6))/binsize(3)
+
+	MD_rhouu_dS  =(CV%flux(i,j,k,:,1)+CV%flux(i,j,k,:,4))*dx &
+	          	 +(CV%flux(i,j,k,:,2)+CV%flux(i,j,k,:,5))*dy &
+	          	 +(CV%flux(i,j,k,:,3)+CV%flux(i,j,k,:,6))*dz
+	!Total surface stresses
+	!MD_Pi_dS  =	   (CV%Pxy_minus_t(i,j,k,:,1)-CV%Pxy_minus_t(i,j,k,:,4))/binsize(1) &
+	!              +(CV%Pxy_minus_t(i,j,k,:,2)-CV%Pxy_minus_t(i,j,k,:,5))/binsize(2) &
+	!              +(CV%Pxy_minus_t(i,j,k,:,3)-CV%Pxy_minus_t(i,j,k,:,6))/binsize(3)
+	!Total surface stresses
+	MD_Pi_dS  =	   (CV%Pxy(i,j,k,:,1)-CV%Pxy(i,j,k,:,4))*dx &
+	              +(CV%Pxy(i,j,k,:,2)-CV%Pxy(i,j,k,:,5))*dy &
+	              +(CV%Pxy(i,j,k,:,3)-CV%Pxy(i,j,k,:,6))*dz
+
+	if (M .ne. 0) then	
+		!F_constraint = (delta_t)*(MD_Pi_dS-MD_rhouu_dS)
+		F_constraint = MD_Pi_dS-MD_rhouu_dS + sin(2*pi*iter/100)*10.0
+	else
+		F_constraint = 0.d0
+	endif
+	!print'(a,i8,a,4f10.5)', 'molecules in box = ', M, 'force', F_constraint/product(binsize), sum(F_constraint/product(binsize))
+	!allocate(F_ext(1:nbins(1)+2,1:nbins(2)+2,1:nbins(3)+2,3))
+	!F_ext(i,j,k,:) = F_constraint(:)/product(binsize)
+	!call CV%update_F_ext(F_ext)
+
+	CV%F_ext = 0.d0
+	CV%F_ext(i,j,k,:) = F_constraint(:)
+
+	!Debugging plots of applied and remaining force
+	!u_bin=0.d0; F_bin = 0.d0; F_bin2 = 0.d0
+	!do i = 1, box_np
+	!	n = list(i)
+	!	u_bin  = u_bin  + v(:,n)
+	!	F_bin  = F_bin  + a(:,n)
+	!	F_bin2 = F_bin2 + a(:,n) - F_constraint(:)/(dble(M))
 	!enddo
 
-	!Divide momentum flux by averaing period tau=delta_t*Nvflux_ave if CV_conserve=1
-	!or Divide momentum flux by sum of the Nvflux_ave times delta_t averaging periods 
-	!as sample is taken every tplot steps. The output is then a representaive momentum flux.
-	!momentum_flux = momentum_flux/(delta_t*Nvflux_ave)
-
-	!if (irank .eq. 1) then
-	!	write(100+irank,'(i4,4i2,18f7.3)'),iter,irank,icell,jcell,kcell,momentum_flux(icell,jcell,kcell,:,:)
+	!u_bin1 = CV%dXdt(i,j,k,:)
+	!u_bin2 = CV%X(3,3,3,:)
+	!if (M .ne. 0) then
+	!	print'(2i4,15f8.5)', iter,box_np, u_bin,u_bin1, F_bin, F_bin2, F_constraint(:)/(dble(M))
+	!else
+	!	print'(2i4,12f10.5)', iter,box_np, u_bin, F_bin, F_bin2, (/ 0.d0, 0.d0, 0.d0 /)
 	!endif
 
-	!if (irank .eq. 1) then
-	!	write(200+irank,'(i4,4i2,18f7.3)'),iter,irank,icell,jcell,kcell,Flux(:,:)
-	!endif
+end subroutine average_over_bin
 
-	!do icell=3,nbins(1)
-	!do jcell=3,nbins(2)
-	!do kcell=3,nbins(3)
-!
-		!if (irank .eq. 1) then
-			!write(100+irank,'(i4,4i2)'),iter,irank,icell,jcell,kcell
-		!	if (any(momentum_flux(icell,jcell,kcell,:,:) .ne. 0)) &
-		!		write(100+irank,'(i4,4i2,18f7.3)'),iter,irank,icell,jcell,kcell,momentum_flux(icell,jcell,kcell,:,:)
-		!endif
+!=============================================================================
+! Apply force to molecules in overlap region
+!-----------------------------------------------------------------------------
 
-		!Flux = 0.d0
-		!call get_CV_momentum_flux(icell,jcell,kcell,isumflux,Flux)
+subroutine apply_force
+	use arrays_MD, only : r,v,a
+	use physical_constants_MD, only : density
+	implicit none
 
-		!if (irank .eq. 1) then
-			!write(200+irank,'(i4,4i2)'),iter,irank,icell,jcell,kcell
-		!	if (any(Flux(:,:) .ne. 0)) &
-		!	write(200+irank,'(i4,4i2,18f7.3)'),iter,irank,icell,jcell,kcell,Flux(:,:)
-		!endif
+	integer								:: i, n
 
-		!Divide by size of bin face to give flux per unit area
-		!do ixyz = 1,3
-		!	binface	      = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
-		!		     		(domain(modulo(ixyz+1,3)+1)/nbins(modulo(ixyz+1,3)+1))
-		!	Flux(:,ixyz  )=Flux(:,ixyz  )/(binface) !Bottom
-		!	Flux(:,ixyz+3)=Flux(:,ixyz+3)/(binface) !Top
-		!enddo
+	!Loop over all molecules and apply constraint
+	do i = 1, box_np
+		n = list(i)
 
-		!Divide momentum flux by averaing period tau=delta_t*Nvflux_ave if CV_conserve=1
-		!or Divide momentum flux by sum of the Nvflux_ave times delta_t averaging periods 
-		!as sample is taken every tplot steps. The output is then a representaive momentum flux.
-		!Flux = Flux/(delta_t*Nvflux_ave)
+		a(:,n) = a(:,n) - F_constraint/dble(M)
+        !if (any(F_constraint .ne. 0.d0)) then
+			if (iter .lt. 1000) then
+				write(1200+irank,'(i3,3i7,11f12.6)'),irank,iter,m_bin1,m_bin2, &
+						 					  delta_t*F_constraint,u_bin1,u_bin2
+			endif
+        !endif
+	enddo
 
-		!print*,icell,jcell,kcell,sum(momentum_flux(icell,jcell,kcell,:,:)-Flux(:,:))
-		!if (abs(sum(momentum_flux(icell,jcell,kcell,:,:)-Flux(:,:))) .gt. 0.00000001d0) then
-			!if (abs(sum(Flux)) .gt.  0.00000001d0) then
-			!print'(5i5,f10.5,2(/,18f7.1))', iter,irank,icell,jcell,kcell, sum(momentum_flux(icell,jcell,kcell,:,:)-Flux(:,:)),momentum_flux(icell,jcell,kcell,:,:),Flux(:,:)
-			!endif
-		!endif
+end subroutine apply_force
 
-	!enddo
-	!enddo
-	!enddo
 
-	!nresults = 18
-	!call rswaphalos(Flux,nbinso(1),nbinso(2),nbinso(3),nresults)
 
-end subroutine test_CV
+
+
+
+subroutine apply_force_tests
+	use arrays_MD, only : r,v,a
+	use physical_constants_MD, only : density
+	implicit none
+
+	integer										:: i, n
+	double precision,dimension(:,:),allocatable	:: v_temp,a_temp
+
+	!Check evolution without constraint
+	allocate(v_temp(3,np),a_temp(3,np))
+	v_temp = 0.d0
+	do n = 1,np
+		v_temp(:,n) = v(:,n) + delta_t * a(:,n) 	!Velocity calculated from acceleration
+	enddo
+	m_bin2 = box_np
+	u_bin2(:) = 0.d0
+	F_bin2(:) = 0.d0
+	do i = 1, box_np
+		n = list(i)
+		u_bin2(:) = u_bin2(:) + v_temp(:,n)
+		F_bin2(:) = F_bin2(:) + a(:,n)
+	enddo
+
+	!Loop over all molecules and apply constraint
+	a_temp(:,1:np) = a(:,1:np)
+	do i = 1, box_np
+		n = list(i)
+		!print'(2(a,i4),2i6,9f10.5)', 'acceleration mol',i,'of',box_np, iter,n, a(:,n),a(:,n) - F_constraint/dble(M),F_constraint/dble(M)
+		a_temp(:,n) = a(:,n) - F_constraint/dble(M)
+		a(:,n) = a(:,n) - F_constraint/dble(M)
+	enddo
+	v_temp = 0.d0
+	do n = 1,np
+		v_temp(:,n) = v(:,n) + delta_t * a_temp(:,n) 	!Velocity calculated from acceleration
+	enddo
+	m_bin1 = box_np
+	u_bin1(:) = 0.d0
+	F_bin1(:) = 0.d0
+	do i = 1, box_np
+		n = list(i)
+		u_bin1(:) = u_bin1(:) + v_temp(:,n)
+		F_bin1(:) = F_bin1(:) + a_temp(:,n)
+	enddo
+	deallocate(v_temp)
+	deallocate(a_temp)
+
+	if (M .ne. 0) then
+		!print'(2i4,15f8.3)', iter,m_bin1,u_bin1,u_bin2,F_bin1,F_bin2,F_constraint/dble(M)
+		if (iter .lt. 1000) then
+			write(1200+irank,'(i3,3i7,11f12.6)'),irank,iter,m_bin1,m_bin2, &
+					 					  delta_t*F_constraint/dble(M),u_bin1,u_bin2
+										
+		endif
+	else
+		!print'(2i4,12f10.5)', iter,m_bin1,u_bin1,u_bin2,F_bin1,F_bin2, (/ 0.d0, 0.d0, 0.d0 /)
+		if (iter .lt. 1000) then
+			write(1200+irank,'(i3,3i7,11f12.6)'),irank,iter,m_bin1,m_bin2, &
+					 					 (/ 0.d0, 0.d0, 0.d0 /),u_bin1,u_bin2
+		endif
+	endif
+
+
+
+end subroutine apply_force_tests
+
+
+
+end subroutine apply_CV_force
 
 
 

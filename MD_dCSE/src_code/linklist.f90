@@ -1380,9 +1380,9 @@ subroutine sort_mols
 		! Error handeling
 		if (molperblock(i) .gt. ave_molperblock) then
 			sf1 = sf1 + 0.1d0; sf2 = sf2 + 5;
-			print'(a,i8,a,3i4,a,i4,2(a,i10))', 'Sort_mols Warning -- There are ',molperblock(i), ' Mols in block  ', & 
-							 iblk,jblk,kblk, ' on proc ', irank, & 
-							' which is greater than the expected', ave_molperblock,' increased to ',nint(ave_molperblock*sf1+sf2)
+			!print'(a,i6,a,3i4,a,i4,2(a,i6))', 'Sort_mols Warning -- There are ',molperblock(i), ' Mols in block  ', & 
+			!				 iblk,jblk,kblk, ' on proc ', irank, & 
+			!				' which is greater than the expected', ave_molperblock,' increased to ',nint(ave_molperblock*sf1+sf2)
 			return	!Miss this round of sorting 
 		endif
 		!print'(7i8)', n,iblk,jblk,kblk,i, molperblock(i), ave_molperblock

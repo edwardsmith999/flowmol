@@ -2172,14 +2172,15 @@ end subroutine mass_slice_io
 subroutine mass_bin_io(CV_mass_out,io_type)
 	use module_parallel_io
 	use calculated_properties_MD
-	use CV_objects, only : CVcheck_mass, CV_debug
+	use messenger_bin_handler, only : swaphalos
+	!use CV_objects, only : CVcheck_mass, CV_debug
 	implicit none
 
-	integer, dimension(:,:,:), intent(in) :: CV_mass_out
+	integer, dimension(:,:,:), intent(inout) :: CV_mass_out
 	!integer, intent(in)	:: CV_mass_out(nbinso(1),nbinso(2),nbinso(3))
 	character(4),intent(in)	:: io_type
 
-	integer, dimension(:,:,:), allocatable :: CVmasscopy
+	integer, dimension(:,:,:,:), allocatable :: CVmasscopy
 	!integer :: CVmasscopy(nbinso(1),nbinso(2),nbinso(3))
 	integer :: m,nresults
 	character(30) :: filename, outfile
@@ -2192,9 +2193,11 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 	nresults = 1
 
 	!Copy CV_mass_out so it is not changed
-	allocate(CVmasscopy(nbinso(1),nbinso(2),nbinso(3)))
-	CVmasscopy = CV_mass_out
-	call iswaphalos(CVmasscopy,nbinso(1),nbinso(2),nbinso(3),nresults)
+	allocate(CVmasscopy(nbinso(1),nbinso(2),nbinso(3),1))
+	CVmasscopy(:,:,:,1) = CV_mass_out
+	call swaphalos(CVmasscopy,nbinso(1),nbinso(2),nbinso(3),nresults)
+	CV_mass_out = CVmasscopy(:,:,:,1)
+	!deallocate(CVmasscopy)
 
 	!Calculate record number timestep
 	if (io_type .eq. 'snap') then
@@ -2203,10 +2206,6 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 			m = (iter-initialstep+1)/(tplot*Nmflux_ave) + 1 !Initial snapshot taken
 		case(1)
 			m = (iter-initialstep+1)/(Nmflux_ave) + 1 !Initial snapshot taken
-			!Create copy of previous timestep Control Volume mass and calculate time evolution
-			if (CV_debug) then
-				call CVcheck_mass%update_dXdt(CVmasscopy(:,:,:))
-			endif
 		case default
 			call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')	
 		end select
@@ -2216,7 +2215,6 @@ subroutine mass_bin_io(CV_mass_out,io_type)
 
 	!Write mass to file
 	call write_arrays(CVmasscopy,nresults,outfile,m)
-	
 	deallocate(CVmasscopy)
 
 end subroutine mass_bin_io
@@ -2308,22 +2306,20 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 	use module_parallel_io
 	use calculated_properties_MD
 	use CV_objects, only : CVcheck_momentum,CV_debug
+	use messenger_bin_handler, only : swaphalos
 	implicit none
 
 	integer					:: m,nresults
-	integer, intent(in)		:: CV_mass_out(nbinso(1),nbinso(2),nbinso(3))
-	double precision, intent(in) :: CV_momentum_out(nbinso(1),nbinso(2),nbinso(3),nd)
-!	integer, dimension(:,:,:), intent(in) :: CV_mass_out
-!	double precision, dimension(:,:,:,:), intent(in) :: CV_momentum_out
+	!integer, intent(in)		:: CV_mass_out(nbinso(1),nbinso(2),nbinso(3))
+	!double precision, intent(in) :: CV_momentum_out(nbinso(1),nbinso(2),nbinso(3),nd)
+	integer, dimension(:,:,:), intent(inout) :: CV_mass_out
+	double precision, dimension(:,:,:,:), intent(inout) :: CV_momentum_out
+
 	character(4)			:: io_type
 	character(30)			:: filename,outfile
-	integer, dimension(:,:,:), allocatable :: CVmasscopy
-
-	!allocate(CVmasscopy(nbinso(1),nbinso(2),nbinso(3)))
 
 	!Write mass bins
 	if (io_type .ne. 'snap') then
-		!call mass_bin_io(CVmasscopy,io_type)
 		call mass_bin_io(CV_mass_out,io_type)
 	endif
 
@@ -2333,7 +2329,7 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 
 	! Swap Halos
 	nresults = nd
-	call rswaphalos(CV_momentum_out,nbinso(1),nbinso(2),nbinso(3),nresults)
+	call swaphalos(CV_momentum_out,nbinso(1),nbinso(2),nbinso(3),nresults)
 
 	!Setup arrays
 	if (io_type .eq. 'snap') then
@@ -2357,8 +2353,6 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 
 	!Write out arrays
 	call write_arrays(CV_momentum_out,nresults,outfile,m)
-
-	!deallocate(CVmasscopy)
 
 end subroutine velocity_bin_io
 
@@ -2706,13 +2700,18 @@ end subroutine temperature_slice_io
 subroutine temperature_bin_io(CV_mass_out,CV_temperature_out,io_type)
 	use module_parallel_io
 	use calculated_properties_MD
+	use messenger_bin_handler, only : swaphalos
 	implicit none
 
 	integer				:: m,nresults
-	integer				:: CV_mass_out(nbinso(1),nbinso(2),nbinso(3))
-	double precision	:: CV_temperature_out(nbinso(1),nbinso(2),nbinso(3))
+	!integer				:: CV_mass_out(nbinso(1),nbinso(2),nbinso(3))
+	!double precision	:: CV_temperature_out(nbinso(1),nbinso(2),nbinso(3))
+	integer,intent(inout)			:: CV_mass_out(:,:,:)
+	double precision,intent(inout)	:: CV_temperature_out(:,:,:)
+
 	character(4)		:: io_type
 	character(30)		:: filename, outfile
+	double precision,allocatable,dimension(:,:,:,:)	:: CV_temperature_temp
 
 	!Write mass bins
 	if (velocity_outflag .ne. 4) then
@@ -2726,7 +2725,11 @@ subroutine temperature_bin_io(CV_mass_out,CV_temperature_out,io_type)
 	nresults = 1
 
 	! Swap Halos
-	call rswaphalos(CV_temperature_out,nbinso(1),nbinso(2),nbinso(3),nresults)
+	allocate(CV_temperature_temp(nbinso(1),nbinso(2),nbinso(3),nresults))
+	CV_temperature_temp(:,:,:,1) = CV_temperature_out
+	call swaphalos(CV_temperature_temp,nbinso(1),nbinso(2),nbinso(3),nresults)
+	CV_temperature_out = CV_temperature_temp(:,:,:,1)
+	deallocate(CV_temperature_temp)
 
 	if (io_type .eq. 'snap') then
 		!CV_temperature_out = CV_temperature_out / (tplot*Nvflux_ave)
@@ -2747,10 +2750,13 @@ end subroutine temperature_bin_io
 subroutine energy_bin_io(CV_energy_out,io_type)
 	use module_parallel_io
 	use calculated_properties_MD
+	use messenger_bin_handler, only : swaphalos
 	implicit none
 
-	integer				:: m,nresults
-	double precision	:: CV_energy_out(nbinso(1),nbinso(2),nbinso(3))
+	integer							:: m,nresults
+	double precision,intent(inout)	:: CV_energy_out(:,:,:)
+
+	double precision,allocatable,dimension(:,:,:,:)	:: CV_energy_temp
 	character(4)		:: io_type
 	character(30)		:: filename, outfile
 
@@ -2761,7 +2767,11 @@ subroutine energy_bin_io(CV_energy_out,io_type)
 	nresults = 1
 	!---------------Correct for surface fluxes on halo cells---------------
 	! Swap Halos
-	call rswaphalos(CV_energy_out,nbinso(1),nbinso(2),nbinso(3),nresults)
+	allocate(CV_energy_temp(nbinso(1),nbinso(2),nbinso(3),nresults))
+	CV_energy_temp(:,:,:,1) = CV_energy_out
+	call swaphalos(CV_energy_temp,nbinso(1),nbinso(2),nbinso(3),nresults)
+	CV_energy_out = CV_energy_temp(:,:,:,1)
+	deallocate(CV_energy_temp)
 
 	if (io_type .eq. 'snap') then
 		!CV_energy_out = CV_energy_out / (tplot*Nvflux_ave)
@@ -2888,6 +2898,8 @@ subroutine VA_stress_io
 
 end subroutine VA_stress_io
 
+end module field_io
+
 
 !=================================================================================
 ! CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV
@@ -2902,6 +2914,7 @@ subroutine mass_flux_io
 	use module_parallel_io
 	use calculated_properties_MD
 	use CV_objects, only : CVcheck_mass, CV_debug
+	use messenger_bin_handler, only : swaphalos
 	implicit none
 
 	integer				:: m,nresults
@@ -2913,7 +2926,7 @@ subroutine mass_flux_io
 
 	!Include halo surface fluxes to get correct values for all cells
 	nresults = 6
-	call iswaphalos(mass_flux,nbinso(1),nbinso(2),nbinso(3),nresults)
+	call swaphalos(mass_flux,nbinso(1),nbinso(2),nbinso(3),nresults)
 
 	!Store mass flux value in CV data object
 	if (CV_debug) then
@@ -2943,15 +2956,20 @@ subroutine momentum_flux_io
 	use module_parallel_io
 	use calculated_properties_MD
 	use CV_objects, only : CVcheck_momentum, CV_debug
+	use messenger_bin_handler, only : swaphalos
 	implicit none
 
 	integer											:: ixyz,m,nresults
 	double precision								:: binface
-	double precision,allocatable,dimension(:,:,:,:)	:: temp
+	double precision,allocatable,dimension(:,:,:,:)	:: momentum_flux_temp
 
 	! Swap Halos
 	nresults = 18
-	call rswaphalos(momentum_flux,nbinso(1),nbinso(2),nbinso(3),nresults)
+	allocate(momentum_flux_temp(size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),nresults))
+	momentum_flux_temp = reshape(momentum_flux,(/ size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),nresults /))
+	call swaphalos(momentum_flux_temp,nbinso(1),nbinso(2),nbinso(3),nresults)
+	momentum_flux = reshape(momentum_flux_temp,(/ size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),3,6 /))
+	!deallocate(momentum_flux_temp)
 
 	!Divide by size of bin face to give flux per unit area
 	do ixyz = 1,3
@@ -2982,10 +3000,10 @@ subroutine momentum_flux_io
 		call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
 	end select
 
-	allocate(temp(size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),nresults))
-	temp = reshape(momentum_flux,(/ size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),nresults /))
-	call write_arrays(temp,nresults,trim(prefix_dir)//'results/vflux',m)
-	deallocate(temp)
+	!allocate(momentum_flux_temp(size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),nresults))
+	momentum_flux_temp = reshape(momentum_flux,(/ size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),nresults /))
+	call write_arrays(momentum_flux_temp,nresults,trim(prefix_dir)//'results/vflux',m)
+	deallocate(momentum_flux_temp)
 
 end subroutine momentum_flux_io
 
@@ -2996,6 +3014,7 @@ subroutine MOP_stress_io(ixyz_in)
 	use module_parallel_io
 	use calculated_properties_MD
 	use messenger
+	use field_io, only : mass_slice_io
 	implicit none
 
 	integer, intent(in) :: ixyz_in
@@ -3084,15 +3103,20 @@ subroutine surface_stress_io
 	use module_parallel_io
 	use calculated_properties_MD
 	use CV_objects, only : CVcheck_momentum,CV_debug
+	use messenger_bin_handler, only : swaphalos
 	implicit none
 
 	integer												:: ixyz,m,nresults
 	double precision									:: binface
-	double precision,dimension(:,:,:,:),allocatable		:: temp
+	double precision,dimension(:,:,:,:),allocatable		:: Pxyface_temp
 
 	! Swap Halos
 	nresults = 18
-	call rswaphalos(Pxyface,nbinso(1),nbinso(2),nbinso(3),nresults)
+	allocate(Pxyface_temp(size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),nresults))
+	Pxyface_temp = reshape(Pxyface,(/ size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),nresults /))
+	call swaphalos(Pxyface_temp,nbinso(1),nbinso(2),nbinso(3),nresults)
+	Pxyface = reshape(Pxyface_temp,(/ size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),3,6 /))
+	!deallocate(Pxyface_temp)
 
 	do ixyz = 1,3
 		binface		  = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
@@ -3123,10 +3147,10 @@ subroutine surface_stress_io
 	if (m .eq. 0) return
 
 	!Write surface pressures to file
-	allocate(temp(size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),nresults))
-	temp = reshape(Pxyface,(/ size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),nresults /))
-	call write_arrays(temp,nresults,trim(prefix_dir)//'results/psurface',m)
-	deallocate(temp)
+	!allocate(Pxyface_temp(size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),nresults))
+	Pxyface_temp = reshape(Pxyface,(/ size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),nresults /))
+	call write_arrays(Pxyface_temp,nresults,trim(prefix_dir)//'results/psurface',m)
+	deallocate(Pxyface_temp)
 
 end subroutine surface_stress_io
 
@@ -3136,6 +3160,7 @@ end subroutine surface_stress_io
 subroutine external_force_io
 	use module_parallel_io
 	use calculated_properties_MD
+	use messenger_bin_handler, only : swaphalos
 	implicit none
 
 	integer												:: ixyz,m,nresults
@@ -3144,7 +3169,7 @@ subroutine external_force_io
 
 	! Swap Halos
 	nresults = 3
-	call rswaphalos(F_ext_bin,nbinso(1),nbinso(2),nbinso(3),nresults)
+	call swaphalos(F_ext_bin,nbinso(1),nbinso(2),nbinso(3),nresults)
 
 	!Integration of force using trapizium rule requires multiplication by timestep
 	!so delta_t cancels upon division by tau=delta_t*Nvflux_ave resulting in division by Nvflux_ave
@@ -3175,6 +3200,7 @@ end subroutine external_force_io
 subroutine energy_flux_io
 	use module_parallel_io
 	use calculated_properties_MD
+	use messenger_bin_handler, only : swaphalos
 	implicit none
 
 	integer					:: ixyz,m,nresults
@@ -3182,7 +3208,7 @@ subroutine energy_flux_io
 
 	!Include halo surface fluxes to get correct values for all cells
 	nresults = 6
-	call rswaphalos(energy_flux,nbinso(1),nbinso(2),nbinso(3),nresults)
+	call swaphalos(energy_flux,nbinso(1),nbinso(2),nbinso(3),nresults)
 
 	do ixyz = 1,3
 		binface	      = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
@@ -3215,6 +3241,7 @@ end subroutine energy_flux_io
 subroutine surface_power_io
 	use module_parallel_io
 	use calculated_properties_MD
+	use messenger_bin_handler, only : swaphalos
 	implicit none
 
 	integer					:: ixyz,m,nresults
@@ -3222,7 +3249,7 @@ subroutine surface_power_io
 
 	!Include halo surface stresses to get correct values for all cells
 	nresults = 6
-	call rswaphalos(Pxyvface,nbinso(1),nbinso(2),nbinso(3),nresults)
+	call swaphalos(Pxyvface,nbinso(1),nbinso(2),nbinso(3),nresults)
 
 	do ixyz = 1,3
 		binface		  = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
@@ -3264,8 +3291,6 @@ subroutine MOP_energy_io(ixyz)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!NEED TO PARALLELISE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 end subroutine MOP_energy_io
-
-end module field_io
 
 !-----------------------------------------------------------------------------
 ! Write macroscopic properties to file

@@ -758,21 +758,26 @@ end type check_CV_mass
 
 type :: check_CV_momentum
 	double precision,dimension(:,:,:,:,:),allocatable 	:: flux, Pxy,  Pxy_minus_t
-	double precision,dimension(:,:,:,:),allocatable		:: dXdt, X, X_minus_t, X_minus_2t
+	double precision,dimension(:,:,:,:),allocatable		:: dXdt, X, X_minus_t, X_minus_2t, F_ext
 	contains
 		procedure :: initialise  => initialise_momentum
 		procedure :: update_dXdt => update_dXdt_momentum
 		procedure :: update_flux => update_flux_momentum
 		procedure :: update_Pxy  => update_Pxy
+		procedure :: update_F_ext=> update_F_ext
 		procedure :: check_error => check_error_momentum
 end type check_CV_momentum
 
 	!Check CV conservation
-	logical	:: CV_debug=.true.
+	logical	:: CV_debug=.false.
 	type(check_CV_mass)		:: CVcheck_mass		! declare an instance of CV checker
 	type(check_CV_momentum)	:: CVcheck_momentum		! declare an instance of CV checker
 
 contains
+
+!===================================================
+!	   M a s s   C o n t r o l   V o l u m e
+!===================================================
 
 	!Constructor for object
 	subroutine initialise_mass(self, nb)
@@ -806,13 +811,14 @@ contains
 
 		integer,dimension(:,:,:),intent(in) :: X
 
-		self%X_minus_2t = self%X_minus_t
+		!self%X_minus_2t = self%X_minus_t
 		self%X_minus_t  = self%X
 		self%X 		  = X
 
 		self%dXdt = self%X - self%X_minus_t
 
 	end subroutine update_dXdt_mass
+
 
 	!Check error for specified range of bins
 	subroutine check_error_mass(self,imin,imax,jmin,jmax,kmin,kmax,iter,irank)
@@ -839,8 +845,8 @@ contains
 		do k = kmin,kmax
 
 			if(sum(self%flux(i,j,k,:))-self%dXdt(i,j,k) .ne. 0) then
-				print'(a,i8,4i4,5i8)','Error in mass flux', iter,irank,i,j,k, & 
-					sum(self%flux(i,j,k,:)),self%dXdt(i,j,k),self%X_minus_2t(i,j,k),self%X_minus_t(i,j,k),self%X(i,j,k)
+				print'(a,i8,4i4,4i8)','Error in mass flux', iter,irank,i,j,k, & 
+					sum(self%flux(i,j,k,:)),self%dXdt(i,j,k),self%X_minus_t(i,j,k),self%X(i,j,k)
 				check_ok = .false.
 			endif
 
@@ -853,6 +859,22 @@ contains
 		endif
 
 	end subroutine check_error_mass
+
+	!Returns a CV which is the size of the specified range of CV
+	!subroutine coarse_grain_CV_mass(self,imin,imax,jmin,jmax,kmin,kmax,iter,irank)
+	!	implicit none
+
+	!	class(check_CV_mass) :: self
+	!	integer,intent(in) :: iter,irank,imin,imax,jmin,jmax,kmin,kmax
+
+
+
+	!end subroutine coarse_grain_CV_mass
+
+
+!===================================================
+!	M o m e n t u m   C o n t r o l   V o l u m e
+!===================================================
 
 	!Constructor for object
 	subroutine initialise_momentum(self, nb)
@@ -869,6 +891,7 @@ contains
 		allocate(self%dXdt(nb(1),nb(2),nb(3),3))
 		allocate(self%X(nb(1),nb(2),nb(3),3))
 		allocate(self%X_minus_t(nb(1),nb(2),nb(3),3))
+		allocate(self%F_ext(nb(1),nb(2),nb(3),3))
 		!allocate(self%X_minus_2t(nb(1),nb(2),nb(3),3))
 
 		self%flux 		= 0.d0
@@ -877,6 +900,7 @@ contains
 		self%dXdt 		= 0.d0
 		self%X 			= 0.d0
 		self%X_minus_t 	= 0.d0
+		self%F_ext		= 0.d0
 		!self%X_minus_2t = 0.d0
 
 	end subroutine initialise_momentum
@@ -896,6 +920,18 @@ contains
 		self%dXdt = self%X - self%X_minus_t
 
 	end subroutine update_dXdt_momentum
+
+	!Update time evolution and store previous two values
+	subroutine update_F_ext(self, X)
+		implicit none
+		! initialize shape objects
+		class(check_CV_momentum) :: self
+
+		double precision,dimension(:,:,:,:),intent(in) :: X
+
+		self%F_ext = X
+
+	end subroutine update_F_ext
 
 	!Update time evolution and store previous two values
 	subroutine update_flux_momentum(self, X)
@@ -947,9 +983,13 @@ contains
 
 		binsize = domain/nbins
 
+		!print'(2i4,f13.5,3i8)', iter, irank, maxval(self%F_ext), maxloc(self%F_ext)
+		!print'(a,4i8,4f13.8)', 'Inside  object', irank,6,6,6, self%F_ext(6,6,6,:),sum(self%F_ext(6,6,6,:))
+
 		do i = imin,imax
 		do j = jmin,jmax
 		do k = kmin,kmax
+
 
 		    !Calculate total CV flux and change in mass
 		    totalflux =(self%flux(i,j,k,:,1)+self%flux(i,j,k,:,4))/binsize(1) &
@@ -960,18 +1000,25 @@ contains
 		    totalpressure =(self%Pxy_minus_t(i,j,k,:,1)-self%Pxy_minus_t(i,j,k,:,4))/binsize(1) &
 		                  +(self%Pxy_minus_t(i,j,k,:,2)-self%Pxy_minus_t(i,j,k,:,5))/binsize(2) &
 		                  +(self%Pxy_minus_t(i,j,k,:,3)-self%Pxy_minus_t(i,j,k,:,6))/binsize(3)
-			F_ext = 0.d0	    
+			F_ext = self%F_ext(i,j,k,:)/product(binsize)
 
 			!drhou/dt
 		    dvelocitydt =  self%dxdt(i,j,k,:)/(delta_t*Nvflux_ave)
 
 		    !Verify that CV momentum is exactly conservative
-		    conserved = sum(totalpressure)-sum(totalflux)-sum(dvelocitydt)+sum(F_ext)/product(binsize)
+		    conserved = sum(totalpressure-totalflux-dvelocitydt-F_ext)
 			if(conserved .gt. 0.000000001d0) then
-				print'(a,i8,4i4,7f13.5)','Error in momentum flux', iter,irank,i,j,k, & 
-					 sum(totalpressure),-sum(totalflux),sum(dvelocitydt), & 
-					+sum(F_ext)/product(binsize), sum(self%X(i,j,k,:)),   & 
-					 sum(self%X_minus_t(i,j,k,:)),sum(self%X_minus_2t(i,j,k,:))
+				!print'(a,i8,3f13.8)', 'Inside  object', irank, self%F_ext(i+1,j+1,k+1,:)
+				!if (maxval(abs(self%F_ext(i-1:i+1,j-1:j+1,k-1:k+1,:))) .ne. 0.0000000001) &
+				!print'(a,i8,4f13.8,3i8)', 'Inside  object', irank, maxval(abs(self%F_ext(i-1:i+1,j-1:j+1,k-1:k+1,1))), & 
+				!							    maxval(abs(self%F_ext(i-1:i+1,j-1:j+1,k-1:k+1,2))), & 
+				!							    maxval(abs(self%F_ext(i-1:i+1,j-1:j+1,k-1:k+1,3))), &
+				!								   sum(self%F_ext(i-1:i+1,j-1:j+1,k-1:k+1,:)), &
+				!								maxloc(abs(self%F_ext(i-1:i+1,j-1:j+1,k-1:k+1,1)))
+				print'(a,i8,4i4,7f10.5)','Error in momentum flux', iter,irank,i,j,k, & 
+					 conserved, sum(totalpressure),-sum(totalflux),sum(dvelocitydt), & 
+					+sum(F_ext), sum(self%X(i,j,k,:)),   & 
+					 sum(self%X_minus_t(i,j,k,:))
 			endif
 
 		enddo
@@ -980,8 +1027,21 @@ contains
 
 	end subroutine check_error_momentum
 
+
+	!Returns a CV which is the size of the specified range of CV
+    ! Calculate total CV flux and change in momentum - NOTE binsize used
+    ! as during sum all dx/dy/dz are identical and cancel leaving
+    ! a single dx,dy or dz
+	!subroutine coarse_grain_CV_momentum(self,imin,imax,jmin,jmax,kmin,kmax,iter,irank)
+	!	implicit none
+
+	!	class(check_CV_momentum) :: self
+	!	integer,intent(in) :: iter,irank,imin,imax,jmin,jmax,kmin,kmax
+
+
+		
+
+	!end subroutine coarse_grain_CV_momentum
+
+
 end module CV_objects
-
-
-
-

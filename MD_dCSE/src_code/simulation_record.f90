@@ -847,7 +847,7 @@ end subroutine r_gyration_calculate_parallel
 
 subroutine mass_averaging(ixyz)
 	use module_record
-	use field_io 
+	use field_io, only : mass_slice_io,mass_bin_io,mass_bin_cpol_io
 	use concentric_cylinders, only: cyl_mass
 	implicit none
 
@@ -977,7 +977,7 @@ end subroutine cumulative_mass
 
 subroutine velocity_averaging(ixyz)
 	use module_record
-	use field_io 
+	use field_io , only : velocity_slice_io,velocity_bin_io,velocity_bin_cpol_io
 	use concentric_cylinders, only: cyl_mass, cyl_mom
 	use linked_list
 	implicit none
@@ -1214,7 +1214,7 @@ end subroutine cumulative_velocity
 
 subroutine temperature_averaging(ixyz)
 	use module_record
-	use field_io
+	use field_io, only : temperature_slice_io,temperature_bin_io
 	use linked_list
 	use concentric_cylinders
 	implicit none
@@ -1382,7 +1382,7 @@ end subroutine cumulative_temperature
 !===================================================================================
 
 subroutine pressure_averaging(ixyz)
-	use field_io
+	use field_io, only : virial_stress_io,VA_stress_io,VA_stress_cpol_io
 	use module_record
 	implicit none
 
@@ -1763,7 +1763,7 @@ end subroutine simulation_compute_kinetic_VA_cells
 !-----------------------------------------------------------------------------------
 
 subroutine mass_flux_averaging(ixyz)
-	use field_io
+	!use field_io, only : mass_flux_io
 	use module_record
 	use CV_objects, only : CVcheck_mass, CV_debug
 	implicit none
@@ -1997,7 +1997,8 @@ end subroutine cumulative_mass_flux
 
 subroutine mass_snapshot
 	use module_record
-	use field_io 
+	use field_io, only : mass_bin_io
+	use CV_objects, only : CVcheck_mass, CV_debug
 	implicit none
 
 	integer										:: n
@@ -2021,6 +2022,10 @@ subroutine mass_snapshot
 
 	!Output Control Volume momentum change and fluxes
 	call mass_bin_io(volume_mass_temp,'snap')
+	!Create copy of previous timestep Control Volume mass and calculate time evolution
+	if (CV_debug) then
+		call CVcheck_mass%update_dXdt(volume_mass_temp(:,:,:))
+	endif
 
 	deallocate(volume_mass_temp)
 
@@ -2032,7 +2037,8 @@ end subroutine mass_snapshot
 !===================================================================================
 
 subroutine momentum_flux_averaging(ixyz)
-	use field_io
+	!use field_io, only :  momentum_flux_io,surface_stress_io, & 
+	!					  external_force_io,MOP_stress_io
 	use module_record
 	use control_volume, only : check_CV_conservation
 	use CV_objects, only : CV_debug, CVcheck_momentum
@@ -2280,7 +2286,7 @@ end subroutine cumulative_momentum_flux
 ! Control Volume snapshot of momentum in a given bin
 
 subroutine momentum_snapshot
-	use field_io
+	use field_io, only : velocity_bin_io
 	use module_record
 	implicit none
 
@@ -2328,7 +2334,7 @@ end subroutine momentum_snapshot
 !===================================================================================
 
 subroutine energy_flux_averaging(ixyz)
-	use field_io
+	!use field_io, only : energy_flux_io,surface_power_io,MOP_energy_io
 	use module_record
 	implicit none
 
@@ -2549,7 +2555,7 @@ end subroutine cumulative_energy_flux
 ! Control Volume snapshot of momentum in a given bin
 
 subroutine energy_snapshot
-	use field_io
+	use field_io, only : energy_bin_io
 	use librarymod
 	use module_record
 	implicit none

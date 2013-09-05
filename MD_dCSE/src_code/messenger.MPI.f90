@@ -1803,7 +1803,7 @@ subroutine sendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest)
 	isource,0,icomm_grid,status,ierr)
 
 	return
-end
+end subroutine sendproberecv
 
 !Send packaged data using paired send and receive to prevent dependance on buffering;
 !test for size of package; receive data
@@ -1864,7 +1864,7 @@ subroutine pairedsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,i
 	endif
 
 	return
-end
+end subroutine pairedsendproberecv
 
 !Non-blocking Send of packaged data; test for size of package; receive data 
 
@@ -1907,41 +1907,135 @@ subroutine NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest
 
 	return
 
-end
+end subroutine NBsendproberecv
+
 !======================================================================
 !			Bin averaged handling subroutines        	              =
 !======================================================================
+! Contains routines:
+! swaphalos				--   TOP LEVEL Swap halos with adjacent processors
+!							 calls updatefaces, pack and unpack routines
+! pack_bins_into_cells  --   For multiple bin per computational cell pack
+! 					         into cell ready to exchange with adjacent procs
+! unpack_cells_into_bins --  Unpack bin data from cells received from 
+!							 adjacent processors
+! updatefaces			 --  Facilitate the MPI based exchange of data
+
 !Swap halos of bins between processors
-module pack_unpack_bins
+module messenger_bin_handler
 	implicit none
 
-	!Packs bins into cells to be used with both integers and reals
-	!interface pack_bins_into_cells
-	!	subroutine ipack_bins_into_cells(bins,cells)
-	!		integer,dimension(:,:,:)	:: bins
-	!		integer,dimension(:,:,:,:)	:: cells
-	!	end subroutine ipack_bins_into_cells
+	!Generic interface so pack/unpack can be used with both integers and reals
+	interface swaphalos
+		module procedure iswaphalos, rswaphalos
+	end interface swaphalos
+	private iswaphalos, rswaphalos
 
-	!	subroutine rpack_bins_into_cells(bins,cells)
-	!		double precision,dimension(:,:,:),  intent(in)	:: bins
-	!		double precision,dimension(:,:,:,:),intent(out)	:: cells
-	!	end subroutine rpack_bins_into_cells
-	!end interface pack_bins_into_cells
+	interface updatefaces
+		module procedure iupdatefaces, rupdatefaces
+	end interface updatefaces
+	private  iupdatefaces, rupdatefaces
 
-	!Unpacks cells into bins to be used with both integers and reals
-	!interface unpack_cells_into_bins
-	!	subroutine iunpack_cells_into_bins(cells,bins)
-	!		integer,dimension(:,:,:)	:: bins
-	!		integer,dimension(:,:,:,:)	:: cells
-	!	end subroutine iunpack_cells_into_bins
+	interface pack_bins_into_cells
+		module procedure ipack_bins_into_cells, rpack_bins_into_cells
+	end interface pack_bins_into_cells
+	private  ipack_bins_into_cells, rpack_bins_into_cells
 
-	!	subroutine runpack_cells_into_bins(cells,bins)
-	!		double precision,dimension(:,:,:),  intent(out)	:: bins
-	!		double precision,dimension(:,:,:,:),intent(in)	:: cells
-	!	end subroutine runpack_cells_into_bins
-	!end interface unpack_cells_into_bins
+	interface unpack_cells_into_bins
+		module procedure iunpack_cells_into_bins, runpack_cells_into_bins
+	end interface unpack_cells_into_bins
+	private  iunpack_cells_into_bins, runpack_cells_into_bins
 
 contains
+
+
+!Update face halo cells by passing integers to neighbours 
+subroutine iswaphalos(A,n1,n2,n3,nresults)
+	use messenger
+	use calculated_properties_MD
+	use librarymod, only : heaviside
+	implicit none
+
+	integer,intent(in)			:: n1,n2,n3,nresults
+	!integer,intent(inout)		:: A(n1,n2,n3,nresults)
+	integer,intent(inout)		:: A(:,:,:,:)
+
+	integer									:: n,i,j,k,ic,jc,kc,nresultscell
+	integer,dimension(:,:,:,:),allocatable	:: buf
+
+	!print'(a,6i8)','min and max bins in x,y and z', 1+nhb(1),nbins(1)+nhb(1),1+nhb(2),nbins(2)+nhb(2),1+nhb(3),nbins(3)+nhb(3)
+	!print'(2i10)','sum of all array and inner array only', & 
+	!		sum(A),sum(A(1+nhb(1):nbins(1)+nhb(1),1+nhb(2):nbins(2)+nhb(2),1+nhb(3):nbins(3)+nhb(3),1)) 
+
+	!Pack bins into array of cells
+	nresultscell = nresults * nhb(1) * nhb(2) * nhb(3) 
+	allocate(buf(ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell)); buf = 0
+	call pack_bins_into_cells(buf,A,nresults)
+
+	!Exchange faces with adjacent processors
+	call iupdatefaces(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell,1)
+	call iupdatefaces(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell,2)
+	call iupdatefaces(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell,3)
+
+	!halo values to correct cells in array
+	do n = 1, nhalocells
+		i = halocells(n,1); j = halocells(n,2); k = halocells(n,3)
+
+		!Change in number of Molecules in halo cells
+		ic = i + heaviside(ncells(1)+1-i)-heaviside(i-2)
+		jc = j + heaviside(ncells(2)+1-j)-heaviside(j-2)
+		kc = k + heaviside(ncells(3)+1-k)-heaviside(k-2)
+
+		buf(ic,jc,kc,:) = buf(ic,jc,kc,:) + buf(i,j,k,:)
+
+	enddo
+
+	!Unpack array of cells into bins
+	call unpack_cells_into_bins(A,buf,nresults)
+	deallocate(buf)
+
+end subroutine iswaphalos
+
+!Update face halo cells by passing to neighbours (double precision version)
+subroutine rswaphalos(A,n1,n2,n3,nresults)
+	use messenger
+	use calculated_properties_MD
+	use librarymod, only : heaviside
+	implicit none
+
+	integer,intent(in)								:: n1,n2,n3,nresults
+	double precision,intent(inout)					:: A(:,:,:,:)
+
+	integer											:: n,i,j,k,ic,jc,kc,nresultscell
+	double precision,dimension(:,:,:,:),allocatable	:: buf
+
+	!Pack bins into array of cells
+	nresultscell = nresults * nhb(1) * nhb(2) * nhb(3) 
+	allocate(buf(ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell)); buf = 0.d0
+	call pack_bins_into_cells(buf,A,nresults)
+
+	call rupdatefaces(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell,1)
+	call rupdatefaces(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell,2)
+	call rupdatefaces(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell,3)
+
+	!halo values to correct cells in array
+	do n = 1, nhalocells
+		i = halocells(n,1); j = halocells(n,2); k = halocells(n,3)
+
+		!Change in number of Molecules in halo cells
+		ic = i + heaviside(ncells(1)+1-i)-heaviside(i-2)
+		jc = j + heaviside(ncells(2)+1-j)-heaviside(j-2)
+		kc = k + heaviside(ncells(3)+1-k)-heaviside(k-2)
+
+		buf(ic,jc,kc,:) = buf(ic,jc,kc,:) + buf(i,j,k,:)
+
+	enddo
+
+	!Unpack array of cells into bins
+	call unpack_cells_into_bins(A,buf,nresults)
+	deallocate(buf)
+
+end subroutine rswaphalos
 
 !Pack bin data into array of sizes ncells to pass efficiently
 subroutine ipack_bins_into_cells(cells,bins,nresults)
@@ -2072,56 +2166,7 @@ subroutine runpack_cells_into_bins(bins,cells,nresults)
 
 end subroutine runpack_cells_into_bins
 
-end module pack_unpack_bins
-
-!Update face halo cells by passing integers to neighbours 
-subroutine iswaphalos(A,n1,n2,n3,nresults)
-	use messenger
-	use calculated_properties_MD
-	use librarymod, only : heaviside
-	use pack_unpack_bins
-	implicit none
-
-	integer,intent(in)			:: n1,n2,n3,nresults
-	integer,intent(inout)		:: A(n1,n2,n3,nresults)
-
-	integer									:: n,i,j,k,ic,jc,kc,nresultscell
-	integer,dimension(:,:,:,:),allocatable	:: buf
-
-	!print'(a,6i8)','min and max bins in x,y and z', 1+nhb(1),nbins(1)+nhb(1),1+nhb(2),nbins(2)+nhb(2),1+nhb(3),nbins(3)+nhb(3)
-	!print'(2i10)','sum of all array and inner array only', & 
-	!		sum(A),sum(A(1+nhb(1):nbins(1)+nhb(1),1+nhb(2):nbins(2)+nhb(2),1+nhb(3):nbins(3)+nhb(3),1)) 
-
-	!Pack bins into array of cells
-	nresultscell = nresults * nhb(1) * nhb(2) * nhb(3) 
-	allocate(buf(ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell)); buf = 0
-	call ipack_bins_into_cells(buf,A,nresults)
-
-	!Exchange faces with adjacent processors
-	call iupdatefaces(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell,1)
-	call iupdatefaces(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell,2)
-	call iupdatefaces(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell,3)
-
-	!halo values to correct cells in array
-	do n = 1, nhalocells
-		i = halocells(n,1); j = halocells(n,2); k = halocells(n,3)
-
-		!Change in number of Molecules in halo cells
-		ic = i + heaviside(ncells(1)+1-i)-heaviside(i-2)
-		jc = j + heaviside(ncells(2)+1-j)-heaviside(j-2)
-		kc = k + heaviside(ncells(3)+1-k)-heaviside(k-2)
-
-		buf(ic,jc,kc,:) = buf(ic,jc,kc,:) + buf(i,j,k,:)
-
-	enddo
-
-	!Unpack array of cells into bins
-	call iunpack_cells_into_bins(A,buf,nresults)
-	deallocate(buf)
-
-end subroutine iswaphalos
-
-!Update face halo cells by passing to neighbours
+!Update face halo cells by passing to neighbours (integer version)
 subroutine iupdatefaces(A,n1,n2,n3,nresults,ixyz)
 	use messenger
 	use mpi
@@ -2196,47 +2241,6 @@ subroutine iupdatefaces(A,n1,n2,n3,nresults,ixyz)
 
 end subroutine iupdatefaces
 
-!double precision
-subroutine rswaphalos(A,n1,n2,n3,nresults)
-	use messenger
-	use calculated_properties_MD
-	use librarymod, only : heaviside
-	use pack_unpack_bins
-	implicit none
-
-	integer,intent(in)								:: n1,n2,n3,nresults
-	double precision,intent(inout)					:: A(n1,n2,n3,nresults)
-
-	integer											:: n,i,j,k,ic,jc,kc,nresultscell
-	double precision,dimension(:,:,:,:),allocatable	:: buf
-
-	!Pack bins into array of cells
-	nresultscell = nresults * nhb(1) * nhb(2) * nhb(3) 
-	allocate(buf(ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell)); buf = 0.d0
-	call rpack_bins_into_cells(buf,A,nresults)
-
-	call rupdatefaces(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell,1)
-	call rupdatefaces(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell,2)
-	call rupdatefaces(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell,3)
-
-	!halo values to correct cells in array
-	do n = 1, nhalocells
-		i = halocells(n,1); j = halocells(n,2); k = halocells(n,3)
-
-		!Change in number of Molecules in halo cells
-		ic = i + heaviside(ncells(1)+1-i)-heaviside(i-2)
-		jc = j + heaviside(ncells(2)+1-j)-heaviside(j-2)
-		kc = k + heaviside(ncells(3)+1-k)-heaviside(k-2)
-
-		buf(ic,jc,kc,:) = buf(ic,jc,kc,:) + buf(i,j,k,:)
-
-	enddo
-
-	!Unpack array of cells into bins
-	call runpack_cells_into_bins(A,buf,nresults)
-	deallocate(buf)
-
-end subroutine rswaphalos
 
 !Update face halo cells by passing to neighbours
 subroutine rupdatefaces(A,n1,n2,n3,nresults,ixyz)
@@ -2246,7 +2250,8 @@ subroutine rupdatefaces(A,n1,n2,n3,nresults,ixyz)
 	!include "mpif.h"
 
 	integer,intent(in)								:: n1,n2,n3,nresults
-	double precision,intent(inout)					:: A(n1,n2,n3,nresults)
+	double precision,intent(inout)					:: A(:,:,:,:)
+	!double precision,intent(inout)					:: A(n1,n2,n3,nresults)
 
 	integer 										:: ixyz
 	integer 										:: icount,isource,idest
@@ -2314,6 +2319,8 @@ subroutine rupdatefaces(A,n1,n2,n3,nresults,ixyz)
 
 end subroutine rupdatefaces
 
+end module messenger_bin_handler
+
 
 !======================================================================
 !					Data gathering subroutines	                      =
@@ -2362,6 +2369,7 @@ end
 
 subroutine globalSum(A)
 	use messenger
+	implicit none
 
 	double precision :: A, buf
 
@@ -2374,6 +2382,7 @@ end
 
 subroutine globalMax(A)
 	use messenger
+	implicit none
 
 	double precision :: A, buf
 
@@ -2386,6 +2395,7 @@ end
 
 subroutine globalSumInt(A)
 	use messenger
+	implicit none
 
 	integer :: A, buf
 
@@ -2398,6 +2408,7 @@ end
 
 subroutine globalMaxInt(A)
 	use messenger
+	implicit none
 
 	integer :: A, buf
 
@@ -2410,6 +2421,7 @@ end
 
 subroutine globalSumVectReal(A, na)
 	use messenger
+	implicit none
 
 	integer, intent(in) :: na
 	real A(na)
@@ -2424,6 +2436,7 @@ end
 subroutine globalSumVect(A, na)
 	use messenger
 	!include "mpif.h"
+	implicit none
 
 	integer, intent(in) :: na
 	double precision A(na)
@@ -2439,6 +2452,7 @@ end
 
 subroutine globalSumIntVect(A, na)
 	use messenger
+	implicit none
 
     integer, intent(in) :: na
 	integer A(na)
@@ -2453,6 +2467,7 @@ end
 
 subroutine PlaneSumIntVect(PLANE_COMM_IN, A, na)
 	use messenger
+	implicit none
 
     integer, intent(in) :: na
 	integer, intent(in) :: PLANE_COMM_IN
@@ -2473,6 +2488,7 @@ end
 
 subroutine PlaneSumVect(PLANE_COMM_IN, A, na)
 	use messenger
+	implicit none
 
     integer, intent(in) :: na
 	integer, intent(in) :: PLANE_COMM_IN
@@ -2492,6 +2508,7 @@ end
 
 subroutine globalMaxVect(A, na)
 	use messenger
+	implicit none
 
     integer, intent(in) :: na
 	double precision A(na)
@@ -2506,6 +2523,7 @@ end
 
 subroutine globalMaxIntVect(A, na)
 	use messenger
+	implicit none
 
 	integer, intent(in) :: na
 	integer A(na)
@@ -2520,6 +2538,7 @@ end
 
 subroutine globalMinVect(A, na)
 	use messenger
+	implicit none
 
 	integer, intent(in) :: na
 	double precision A(na)
@@ -2534,6 +2553,7 @@ end
 
 subroutine globalSumTwoDim(A,na1,na2)
 	use messenger
+	implicit none
 
 	integer, intent(in) :: na1,na2
 	double precision 	:: A(na1,na2)
@@ -2549,6 +2569,7 @@ end
 
 subroutine globalSumIntTwoDim(A,na1,na2)
 	use messenger
+	implicit none
 
 	integer, intent(in) :: na1,na2
 	integer A(na1,na2)
@@ -2564,16 +2585,19 @@ end
 
 subroutine globalAverage(A, na)
 	use messenger
+	implicit none
 
 	integer, intent(in) :: na
+
+	integer	:: nprocs
 	double precision A(na)
 	double precision buf(na)
 
 	call MPI_AllReduce (A, buf, na, MPI_DOUBLE_PRECISION, &
 	                    MPI_SUM, MD_COMM, ierr)
-	call MPI_comm_size (MD_COMM, np, ierr)
+	call MPI_comm_size (MD_COMM, nprocs, ierr)
 
-	buf = buf / np
+	buf = buf / nprocs
 	
 	A = buf
 
@@ -2597,6 +2621,7 @@ end subroutine
 subroutine globalGathernp()
 	use physical_constants_MD
 	use messenger
+	implicit none
 	!include "mpif.h"
 
 	call MPI_Allgather (np, 1, MPI_INTEGER, procnp, 1, &
@@ -2622,6 +2647,7 @@ end subroutine
 
 subroutine SubcommSumInt(A, ixyz)
 	use messenger
+	implicit none
 
 	integer, intent(in) :: ixyz !Direction of sub-comm
 	integer	A
@@ -2636,6 +2662,7 @@ end
 
 subroutine SubcommSumVect(A, na, ixyz)
 	use messenger
+	implicit none
 
 	integer, intent(in) :: na, ixyz !Direction of sub-comm
 
@@ -2651,6 +2678,7 @@ end
 
 subroutine SubcommSumIntVect(A, na, ixyz)
 	use messenger
+	implicit none
 
     integer, intent(in) :: na, ixyz !Direction of sub-comm
 

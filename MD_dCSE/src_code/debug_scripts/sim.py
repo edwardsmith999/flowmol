@@ -591,12 +591,17 @@ class Simulation:
      
 
   # Run simulation
-  def run(self, restartFile=''):
+  def run(self, restartFile='',procs=0):
     if self.post:
       return
    
     self.compile()
 
+    if procs==0:
+        procstring = str(self.calcNproc())
+    else:
+        procstring = str(procs)
+	
     if self.runDir:
       self.setupRunDir()
       os.chdir(self.runDir)
@@ -607,12 +612,7 @@ class Simulation:
       self.restartFile = restartFile
       self.restart = True
     
-    outf = ' 2>&1 | tee ' + self.simOutFile
-    #outf = ' > ' + self.simOutFile
-    
- #   if self.runBG:
- #     outf += ' &'
-    
+    outf = ' 2>&1 | tee -a ' + self.simOutFile
     ctime = time.time()
     
     if self.isSerial():
@@ -627,12 +627,12 @@ class Simulation:
     else:
       if not self.restart:
         #os.system('mpiexec ./md-p.exe -n ' + self.nproc + outf)
-        exstring = 'mpiexec -n ' + str(self.calcNproc()) + ' ./' + self.exeFile() + outf
+        exstring = 'mpiexec -n ' + procstring + ' ./' + self.exeFile() + outf
       else:
         # Keep track of total steps following restart. 
         self.finalStep += self.input['NSTEPS']
         #os.system('mpiexec ./md-p.exe -n ' + self.nproc + ' -r ' + self.restartFile + outf)
-        exstring = 'mpiexec -n ' + str(self.calcNproc()) + ' ./' + self.exeFile() + ' -r ' + self.restartFile + outf
+        exstring = 'mpiexec -n ' + procstring + ' ./' + self.exeFile() + ' -r ' + self.restartFile + outf
    
     os.system(exstring)
     self.simTime = time.time() - ctime
