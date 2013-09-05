@@ -2011,13 +2011,12 @@ subroutine parallel_io_write_cylinders
 	use messenger, only: globalise
 	implicit none
 
-	integer :: filesize
 	integer	:: i, datasize
 	integer :: n, pos
     integer(selected_int_kind(18))  :: header_pos
 	real :: rglob(3)
 	real, dimension(:), allocatable :: buf
-	integer(kind=MPI_OFFSET_KIND) :: disp, procdisp
+	integer(kind=MPI_OFFSET_KIND) :: disp, procdisp, filesize
 
 	!Build array of number of particles on neighbouring
 	!processe's subdomain on current proccess
