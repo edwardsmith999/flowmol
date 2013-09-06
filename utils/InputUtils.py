@@ -6,7 +6,13 @@ class InputMod:
 	def __init__(self,filename):
 		self.filename = filename
 	
-	def replaceInput(self,keyword,keyvals):	
+	def replace_input(self,keyword,keyvals):	
+
+		""" 
+			Replace N values underneath the first appearance of
+		    keyword with keyvals (length N)
+
+		"""
 
 		found = False
 		key_lno = 0 # Keyword linenumber
