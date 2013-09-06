@@ -1214,7 +1214,7 @@ end subroutine cumulative_velocity
 
 subroutine temperature_averaging(ixyz)
 	use module_record
-	use field_io, only : temperature_slice_io,temperature_bin_io
+	use field_io, only : temperature_slice_io,temperature_bin_io,temperature_bin_cpol_io
 	use linked_list
 	use concentric_cylinders
 	implicit none
