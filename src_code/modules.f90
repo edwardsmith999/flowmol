@@ -971,13 +971,13 @@ contains
 		integer,intent(in) :: iter,irank,imin,imax,jmin,jmax,kmin,kmax
 
 		integer :: i,j,k
-		logical,save :: first_time = .true.
+		logical,save 					:: first_time = 0
 		double precision				:: conserved
 		double precision,dimension(3)	:: binsize,totalpressure,totalflux,F_ext,dvelocitydt
 
 		!First call doesn't have difference in time yet so skip
-		if (first_time) then
-			first_time = .false.
+		if (first_time .lt. 2) then
+			first_time = first_time + 1
 			return
 		endif
 

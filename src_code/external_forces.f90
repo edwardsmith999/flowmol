@@ -727,10 +727,11 @@ subroutine apply_CV_force(iter)
 	!dx = globaldomain(1);	dy = 4.d0; dz = globaldomain(3)
 
 	!Get average over current cell and apply constraint forces
-	call get_continuum_values
+	!call get_continuum_values
+	call get_test_values
 	call average_over_bin
 	!call apply_force
-	call apply_force_tests
+	call apply_force_tests(.true.)
 
 contains
 
@@ -751,9 +752,13 @@ end subroutine get_continuum_values
 
 ! Dummy test values
 subroutine get_test_values
+	use physical_constants_MD, only : pi
+	implicit none
 
 	!Hello, I'm a routine which currently does nothing
-
+	!CFD_Pi_dS = sin(2*pi*iter/100)*10.0
+	CFD_Pi_dS = 10.d0
+	CFD_rhouu_dS = 0.d0
 
 end subroutine get_test_values
 
@@ -763,7 +768,6 @@ end subroutine get_test_values
 !-----------------------------------------------------------------------------
 
 subroutine average_over_bin
-	use physical_constants_MD, only : pi
 	use computational_constants_MD, only : nhb
 	use arrays_MD, only : r, v, a
 	use linked_list, only : node, cell
@@ -829,9 +833,10 @@ subroutine average_over_bin
 	              +(CV%Pxy(i,j,k,:,2)-CV%Pxy(i,j,k,:,5))*dy &
 	              +(CV%Pxy(i,j,k,:,3)-CV%Pxy(i,j,k,:,6))*dz
 
-	if (M .ne. 0) then	
+	if (M .ne. 0 .and. iter .gt. 100) then	
 		!F_constraint = (delta_t)*(MD_Pi_dS-MD_rhouu_dS)
-		F_constraint = MD_Pi_dS-MD_rhouu_dS + sin(2*pi*iter/100)*10.0
+		!print*, CFD_rhouu_dS,CFD_Pi_dS
+		F_constraint = MD_Pi_dS-MD_rhouu_dS + 	CFD_rhouu_dS-CFD_Pi_dS
 	else
 		F_constraint = 0.d0
 	endif
@@ -893,10 +898,12 @@ end subroutine apply_force
 
 
 
-subroutine apply_force_tests
+subroutine apply_force_tests(apply_force)
 	use arrays_MD, only : r,v,a
 	use physical_constants_MD, only : density
 	implicit none
+
+	logical, intent(in) :: apply_force
 
 	integer										:: i, n
 	double precision,dimension(:,:),allocatable	:: v_temp,a_temp
