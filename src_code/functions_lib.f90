@@ -611,21 +611,36 @@ end subroutine get_file_size
 ! system -- in this case subversion
 
 function get_version_number()
-	
-	logical					:: op
-	integer					:: unit_no
-	character(30)			:: get_version_number
+        
+        logical        :: op, file_exists
+        integer        :: unit_no, statusno
+        character(30)  :: get_version_number
 
-	! External system call -- this is almost certain not to
-	! work in general (e.g. not intel and not linux)
-	call system("svnversion > subversion_no_temp")
+        ! External system call -- this is almost certain not to
+        ! work in general (e.g. not intel and not linux)
+		statusno = system("svnversion > ./subversion_no_temp")
 
-	!Read file and store unit number
-	!Check if unit number is used and assign unique number
-	unit_no = get_new_fileunit()
-	open(unit=unit_no, file='./subversion_no_temp')
-	read(unit_no,*) get_version_number
-	close(unit_no,status='delete')
+        !Check if system call has worked and file exists
+        inquire(file='./subversion_no_temp', exist=file_exists)
+
+		!Read file and store unit number if it exists, otherwise N/A
+        if (file_exists .and. statusno .eq. 0) then
+
+            !Check if unit number is used and assign unique number
+            unit_no = get_new_fileunit()
+            open(unit=unit_no, file='./subversion_no_temp')
+            read(unit_no,*,IOSTAT=statusno) get_version_number
+
+			!If nothing is written in file, set to N/A
+			if (statusno .ne. 0)  then
+				close(unit_no,status='delete')
+				get_version_number = 'N/A'
+			else
+				close(unit_no,status='delete')
+			endif
+		else
+			get_version_number = 'N/A'
+		endif
 
 end function get_version_number
  
