@@ -1,11 +1,9 @@
 #! /usr/bin/env python
 import os
 import errno
-import tarfile
+import shlex
 import subprocess as sp
 import shutil as sh
-import shlex
-
 import userconfirm as uc
 from InputUtils import InputMod
 
@@ -15,9 +13,28 @@ svn_post_proc = ('http://svn.ma.ic.ac.uk/subversion/edward/MDNS_repo/' +
 class MDRun:
         
     """ 
-        When instatiated, MDRun will create a new folder as a run 
+        When instatiated, MDRun will create a new folder as a "run" 
         directory (if it doesn't already exist) and copy the necessary files 
-        into it. 
+        from a "base" directory into it. 
+
+            Directories:
+
+                srcdir  - path to source code folder
+                basedir - path from which input/restart/etc files are copied
+                rundir  - path in which the run will take place, files are 
+                          copied from basedir to here.
+
+            Copied files:
+
+                executable   - name of executable (e.g. parallel_md.exe)
+                inputfile    - input file name (contents of copied file may
+                               be changed with the change_inputs() function.)
+                restartfile  - initial state "restart" file
+                cylinderfile - cylinder restart info file
+   
+            New files: 
+
+                outputfile - output file name
 
         Example usage from a higher level:
 
@@ -27,7 +44,6 @@ class MDRun:
             run.execute()
 
     """
-    
 
     def __init__(self, 
                  srcdir,
@@ -39,8 +55,8 @@ class MDRun:
                  restartfile=None,
                  cylinderfile=None):
 
-        self.srcdir = srcdir    
-        self.basedir = basedir    
+        self.srcdir = srcdir
+        self.basedir = basedir
         self.rundir = rundir  
         self.executable = executable
         self.inputfile = inputfile
@@ -57,6 +73,7 @@ class MDRun:
         self.files = [executable, inputfile]
         if (restartfile): self.files.append(restartfile)
         if (cylinderfile): self.files.append(cylinderfile)
+
 
     def change_inputs(self,changes):
 
@@ -90,11 +107,10 @@ class MDRun:
 
             os.makedirs(self.rundir+'/results')
 
-            # Check out post_proc folder (if not there already)
-            cmd = ('svn co ' + svn_post_proc + ' ' + self.rundir +'post_proc')
-            log = sp.check_output(cmd.split())    
+            # Copy post_proc folder from base directory (if not there already)
+            sh.copytree(self.basedir+'post_proc/',self.rundir+'post_proc/')
             # Make a snapshot of the source code and store in a tarball
-            cmd = 'tar -cPf ' +  self.rundir+'src.tar '  +  self.srcdir+'*.f90'
+            cmd = 'tar -cPf ' + self.rundir+'src.tar ' + self.srcdir+'*.f90'
             sp.Popen(cmd,shell=True)
 
             print('Created '+self.rundir)
@@ -102,15 +118,18 @@ class MDRun:
         except OSError as e:
 
             if existscheck:
+
                 if (e.errno == errno.EEXIST):
                     message = ('Directory ' + self.rundir + ' already exists.\n' +
                                'Continue anyway? (files could be overwritten)')
+                    print(message)
                     go = uc.confirm(prompt=message,resp='y')
                     if (not go):
                         quit('Stopping.')
                 else:
                     quit('Error creating directory.')
             else:
+
                 pass
 
         # Copy files and save new locations to instance variables
@@ -123,16 +142,21 @@ class MDRun:
                 sh.copy(self.basedir+f, self.rundir+f)
 
 
-    def execute(self,blocking=False):
+    def execute(self,blocking=False,nprocs=0):
 
         """
             Runs an executable from the directory specified  
             during instatiation of the object. 
 
-        """    
+        """ 
+
+        # Store the number of processors required
+        if (nprocs == 0):
+            nprocs = self.get_nprocs()
 
         #Build runstring
-        cmdstg = self.executable + ' -i ' + self.inputfile 
+        cmdstg = 'mpiexec -n ' + str(nprocs) + ' ' + self.executable 
+        cmdstg += ' -i ' + self.inputfile 
         if self.restartfile != None:
             cmdstg += ' -r ' + self.restartfile 
         if self.cylinderfile != None:
@@ -144,8 +168,28 @@ class MDRun:
         split_cmdstg = shlex.split(cmdstg)
 
         #Execute subprocess and create subprocess object
-        self.proc = sp.Popen(split_cmdstg, cwd=self.rundir, stdin=None, stdout=fstout, stderr=fsterr)
+        self.proc = sp.Popen(split_cmdstg, cwd=self.rundir, stdin=None, 
+                             stdout=fstout, stderr=fsterr)
 
         #If blocking, wait here
         if blocking:
             self.proc.wait()
+    
+    def get_nprocs(self):
+    
+        """
+            Reads the input file and returns the total number of processors
+
+        """
+
+        with open(self.rundir+self.inputfile,'r') as f:
+
+            for line in f:
+                if ('PROCESSORS' in line):
+                    npx = int(f.next()) 
+                    npy = int(f.next()) 
+                    npz = int(f.next()) 
+                    break
+
+        return npx*npy*npz
+
