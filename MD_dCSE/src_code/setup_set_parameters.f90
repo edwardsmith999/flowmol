@@ -654,7 +654,7 @@ end subroutine setup_linklist
 subroutine set_parameters_outputs
 	use module_set_parameters
 	use interfaces
-	use CV_objects, only : CVcheck_mass,CVcheck_momentum,CV_debug
+	use CV_objects, only : CVcheck_mass,CVcheck_momentum,CVcheck_momentum2,CV_debug
 	implicit none
 
 	integer					:: n
@@ -924,6 +924,7 @@ subroutine set_parameters_outputs
 			if (CV_debug) then
 				call CVcheck_mass%initialise(nbinso)   ! initialize CVcheck
 				call CVcheck_momentum%initialise(nbinso)   ! initialize CVcheck
+				call CVcheck_momentum2%initialise(nbinso)   ! initialize CVcheck
 			endif
 			!Allocate bins for control volume mass fluxes
 			if (.not.(allocated(volume_mass)))  allocate(volume_mass(nbinso(1),nbinso(2),nbinso(3)))

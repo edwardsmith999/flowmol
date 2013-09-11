@@ -1,34 +1,34 @@
 hold on
-xaxis = 0:1/7:1;
+xaxis = 0:1/20:1;
 
-a = couette_analytical_fn(0.01,1,1,1,7,'top');
+a = couette_analytical_fn(0.01,1,1,1,size(xaxis,2),'top');
 plot(xaxis,a,'k','linewidth',4);
-a = couette_analytical_fn(0.1,1,1,1,7,'top');
+a = couette_analytical_fn(0.1,1,1,1,size(xaxis,2),'top');
 plot(xaxis,a,'k','linewidth',4);
-a = couette_analytical_fn(0.25,1,1,1,7,'top');
+a = couette_analytical_fn(0.25,1,1,1,size(xaxis,2),'top');
 plot(xaxis,a,'k','linewidth',4);
-a = couette_analytical_fn(0.5,1,1,1,7,'top');
+a = couette_analytical_fn(0.5,1,1,1,size(xaxis,2),'top');
 plot(xaxis,a,'k','linewidth',4);
-a = couette_analytical_fn(1,1,1,1,7,'top');
+a = couette_analytical_fn(1,1,1,1,size(xaxis,2),'top');
 plot(xaxis,a,'k','linewidth',4);
-a = couette_analytical_fn(10,1,1,1,7,'top');
+a = couette_analytical_fn(10,1,1,1,size(xaxis,2),'top');
 plot(xaxis,a,'k','linewidth',4);
 ylabel('U_x/U'); xlabel('y/H')
 
 figure
 hold on
 xaxis = 0:0.01:1;
-a = couette_analytical_stress_fn(0.01,5,1,1,100);
+a = couette_analytical_stress_fn(0.01,5,1,1,size(xaxis,2));
 plot(xaxis,a,'r');
-a = couette_analytical_stress_fn(0.1,5,1,1,100);
+a = couette_analytical_stress_fn(0.1,5,1,1,size(xaxis,2));
 plot(xaxis,a,'r');
-a = couette_analytical_stress_fn(0.25,5,1,1,100);
+a = couette_analytical_stress_fn(0.25,5,1,1,size(xaxis,2));
 plot(xaxis,a,'r');
-a = couette_analytical_stress_fn(0.5,5,1,1,100);
+a = couette_analytical_stress_fn(0.5,5,1,1,size(xaxis,2));
 plot(xaxis,a,'r');
-a = couette_analytical_stress_fn(1,5,1,1,100);
+a = couette_analytical_stress_fn(1,5,1,1,size(xaxis,2));
 plot(xaxis,a,'r');
-a = couette_analytical_stress_fn(10,5,1,1,100);
+a = couette_analytical_stress_fn(10,5,1,1,size(xaxis,2));
 plot(xaxis,a,'r');
 ylabel('Stress'); xlabel('y/H')
 

@@ -3160,6 +3160,7 @@ end subroutine surface_stress_io
 subroutine external_force_io
 	use module_parallel_io
 	use calculated_properties_MD
+	use CV_objects, only : CVcheck_momentum,CV_debug
 	use messenger_bin_handler, only : swaphalos
 	implicit none
 
@@ -3174,6 +3175,11 @@ subroutine external_force_io
 	!Integration of force using trapizium rule requires multiplication by timestep
 	!so delta_t cancels upon division by tau=delta_t*Nvflux_ave resulting in division by Nvflux_ave
 	F_ext_bin = F_ext_bin/Nvflux_ave
+
+	!Store surface stress value in CV data object
+	if (CV_debug) then
+		CVcheck_momentum%F_ext = F_ext_bin
+	endif
 
 	!Write external forces pressures to file
 	select case(CV_conserve)

@@ -1490,11 +1490,9 @@ subroutine cumulative_pressure(ixyz,sample_count)
 
 		!Divide sum of stress by volume -- Should this include sample_count - divide by Nstress above??
 		Pxytemp = Pxytemp / volume
-		!print'(a,10f12.4)', 'snapshot stress', Pxytemp, (Pxytemp(1,1)+Pxytemp(2,2)+Pxytemp(3,3))/3.d0
 
 		!Add current pressure to cumulative average
 		Pxy = Pxy + Pxytemp
-		!print*, (Pxy(1,1)+Pxy(2,2)+Pxy(3,3))/3.d0
 
 		!Reset position force tensor before calculation
 		rfmol = 0.d0
@@ -1553,7 +1551,6 @@ subroutine cumulative_pressure(ixyz,sample_count)
 
 	!Calculate correrlation between current value of Pxy and intial value of sample
 	!Average 3 components of Pxycorrel to improve statistics
-	!write(123456789,'(i8,3f20.15)') iter, Pxytemp(1,2),Pxytemp(1,3),Pxytemp(2,3)
 	if(viscosity_outflag .eq. 1) then
 		if(sample_count .ne. 0) then
 			Pxycorrel(sample_count) = Pxycorrel(sample_count) + Pxytemp(2,3)*Pxyzero(2,3)
@@ -1974,22 +1971,6 @@ subroutine cumulative_mass_flux
 
 	enddo
 
-	!do i = 1,size(mass_flux,1)
-	!do j = 1,size(mass_flux,2)
-	!do k = 1,size(mass_flux,3)
-	!	if (mass_flux(i+1,j,k,1) .ne. -mass_flux(i,j,k,4)) then
-	!		print'(5i6)', i,j,k,mass_flux(i,j,k,4),mass_flux(i+1,j,k,1)
-	!	endif
-	!	if (mass_flux(i,j+1,k,2) .ne. -mass_flux(i,j,k,5)) then
-	!		print'(5i6)', i,j,k,mass_flux(i,j,k,5),mass_flux(i,j+1,k,2)
-	!	endif
-	!	if (mass_flux(i,j,k+1,3) .ne. -mass_flux(i,j,k,6)) then
-	!		print'(5i6)', i,j,k,mass_flux(i,j,k,6),mass_flux(i,j,k+1,3)
-	!	endif
-	!enddo
-	!enddo
-	!enddo
-
 end subroutine cumulative_mass_flux
 
 !===================================================================================
@@ -2091,6 +2072,7 @@ end subroutine momentum_flux_averaging
 
 subroutine cumulative_momentum_flux(ixyz)
 	use module_record
+	use CV_objects, only : CV_debug, CVcheck_momentum2
 	implicit none
 
 	integer							:: ixyz,jxyz,i,j,k,n
@@ -2258,16 +2240,27 @@ subroutine cumulative_momentum_flux(ixyz)
 						momentum_flux(cbin(1),cbin(2),cbin(3),:,6) &
 					      + velvect(:)*dble(onfacezt)*abs(crossface(jxyz))
 
-					!if (onfacexb .ne. 0) print*, n, i,j,k,ibin1,ibin2,bintop,halfdomain
-
-					!if ((ibin1(1) .eq. 4 .and. ibin1(2) .eq. 4 .and. ibin1(3) .eq. 4) .or. &
-					!	(ibin2(1) .eq. 4 .and. ibin2(2) .eq. 4 .and. ibin2(3) .eq. 4)) then
-					!	print'(a,8i4,18f7.3)', 'mo2',iter,ibin1,ibin2, n,momentum_flux(4,4,4,:,:)
-					!endif
-
-					!if (cbin(1) .ge. nbins(1)+1 .or. cbin(1) .le. 2) then
-					!	print'(4i8,6f10.5)',iter, cbin, momentum_flux(cbin(1),cbin(2),cbin(3),:,1),momentum_flux(cbin(1),cbin(2),cbin(3),:,4)
-					!endif
+					!Add instantanous Momentum flux to CV record
+					if (CV_debug) then
+    					CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,1) = & 
+    						CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,1) &
+							   - velvect(:)*dble(onfacexb)*abs(crossface(jxyz))
+    					CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,2) = & 
+    						CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,2)  & 
+    					      - velvect(:)*dble(onfaceyb)*abs(crossface(jxyz))
+    					CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,3) = & 
+    						CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,3)  & 
+    					      - velvect(:)*dble(onfacezb)*abs(crossface(jxyz))
+    					CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,4) = & 
+    						CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,4)  & 
+    					      + velvect(:)*dble(onfacext)*abs(crossface(jxyz))
+    					CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,5) = & 
+    						CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,5)  & 
+    					      + velvect(:)*dble(onfaceyt)*abs(crossface(jxyz))
+    					CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,6) = & 
+    						CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,6)  & 
+    					      + velvect(:)*dble(onfacezt)*abs(crossface(jxyz))			
+					endif
 
 				enddo
 				enddo
@@ -3351,8 +3344,9 @@ end subroutine control_volume_forces
 !Forces over the surface of a Volume
 
 subroutine control_volume_stresses(fij,ri,rj,molnoi)
-use module_record
-implicit none
+    use module_record
+	use CV_objects, only : CV_debug,CVcheck_momentum2
+    implicit none
 
 	integer							:: i,j,k,ixyz,molnoi
 	integer							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
@@ -3420,6 +3414,22 @@ implicit none
 		Pxyface(cbin(1),cbin(2),cbin(3),:,4) = Pxyface(cbin(1),cbin(2),cbin(3),:,4) + fij(:)*dble(onfacext)
 		Pxyface(cbin(1),cbin(2),cbin(3),:,5) = Pxyface(cbin(1),cbin(2),cbin(3),:,5) + fij(:)*dble(onfaceyt)
 		Pxyface(cbin(1),cbin(2),cbin(3),:,6) = Pxyface(cbin(1),cbin(2),cbin(3),:,6) + fij(:)*dble(onfacezt)
+
+		!Add instantanous stress to CV record
+		if (CV_debug) then
+    		CVcheck_momentum2%Pxy(cbin(1),cbin(2),cbin(3),:,1) = & 
+				CVcheck_momentum2%Pxy(cbin(1),cbin(2),cbin(3),:,1) + fij(:)*dble(onfacexb)
+    		CVcheck_momentum2%Pxy(cbin(1),cbin(2),cbin(3),:,2) = & 
+				CVcheck_momentum2%Pxy(cbin(1),cbin(2),cbin(3),:,2) + fij(:)*dble(onfaceyb)
+    		CVcheck_momentum2%Pxy(cbin(1),cbin(2),cbin(3),:,3) = & 
+				CVcheck_momentum2%Pxy(cbin(1),cbin(2),cbin(3),:,3) + fij(:)*dble(onfacezb)
+    		CVcheck_momentum2%Pxy(cbin(1),cbin(2),cbin(3),:,4) = & 
+				CVcheck_momentum2%Pxy(cbin(1),cbin(2),cbin(3),:,4) + fij(:)*dble(onfacext)
+    		CVcheck_momentum2%Pxy(cbin(1),cbin(2),cbin(3),:,5) = & 
+				CVcheck_momentum2%Pxy(cbin(1),cbin(2),cbin(3),:,5) + fij(:)*dble(onfaceyt)
+    		CVcheck_momentum2%Pxy(cbin(1),cbin(2),cbin(3),:,6) = & 
+				CVcheck_momentum2%Pxy(cbin(1),cbin(2),cbin(3),:,6) + fij(:)*dble(onfacezt)
+		endif
 
 		!Stress acting on face over volume
 		if (eflux_outflag .ne. 0) then
