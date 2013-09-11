@@ -900,20 +900,22 @@ subroutine apply_force
 	implicit none
 
 	integer								:: i, n
+	double precision,dimension(3):: F_vector
 
 	!Loop over all molecules and apply constraint
+	F_vector = F_constraint/dble(M)
 	do i = 1, box_np
 		n = list(i)
 
-		a(:,n) = a(:,n) - F_constraint/dble(M)
+		a(:,n) = a(:,n) - F_vector
 
 		!Add external force to CV total
-		call record_external_forces(-F_constraint(:)/dble(M),r(:,n))
+		call record_external_forces(F_vector,r(:,n))
 
         !if (any(F_constraint .ne. 0.d0)) then
 			if (iter .lt. 1000) then
 				write(1200+irank,'(i3,3i7,11f12.6)'),irank,iter,m_bin1,m_bin2, &
-						 					  delta_t*F_constraint,u_bin1,u_bin2
+						 					  delta_t*F_vector,u_bin1,u_bin2
 			endif
         !endif
 	enddo
@@ -929,6 +931,7 @@ subroutine apply_force_tests(apply_the_force)
 	logical, intent(in) :: apply_the_force
 
 	integer										:: i, n
+	double precision,dimension(3):: F_vector
 	double precision,dimension(:,:),allocatable	:: v_temp,a_temp
 
 	!Check evolution without constraint
@@ -948,15 +951,16 @@ subroutine apply_force_tests(apply_the_force)
 
 	!Loop over all molecules and apply constraint
 	a_temp(:,1:np) = a(:,1:np)
+	F_vector = F_constraint/dble(M)
 	do i = 1, box_np
 		n = list(i)
 		!print'(2(a,i4),2i6,9f10.5)', 'acceleration mol',i,'of',box_np, iter,n, a(:,n),a(:,n) - F_constraint/dble(M),F_constraint/dble(M)
-		a_temp(:,n) = a(:,n) - F_constraint/dble(M)
+		a_temp(:,n) = a(:,n) - F_vector
 
 		!if (apply_the_force) then
-			a(:,n) = a(:,n) - F_constraint/dble(M)
+			a(:,n) = a(:,n) - F_vector
 			!Add external force to CV total
-			call record_external_forces(F_constraint(:)/dble(M),r(:,n))
+			call record_external_forces(F_vector,r(:,n))
 		!endif
 	enddo
 	v_temp = 0.d0
@@ -978,7 +982,7 @@ subroutine apply_force_tests(apply_the_force)
 		!print'(2i4,15f8.3)', iter,m_bin1,u_bin1,u_bin2,F_bin1,F_bin2,F_constraint/dble(M)
 		!if (iter .lt. 1000) then
 			write(1200+irank,'(i3,3i7,11f12.6)'),irank,iter,m_bin1,m_bin2, &
-					 					  delta_t*F_constraint/dble(M),u_bin1,u_bin2
+					 					  delta_t*F_vector,u_bin1,u_bin2
 										
 		!endif
 	else
