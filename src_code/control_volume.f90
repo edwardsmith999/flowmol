@@ -5,6 +5,378 @@
 !
 !===================================================================================
 
+
+
+!Fortran object oriented solution to CV conservation checking
+module CV_objects
+	implicit none
+
+type :: check_CV_mass
+	integer,dimension(:,:,:,:),allocatable 	:: flux
+	integer,dimension(:,:,:),allocatable	:: dXdt, X, X_minus_t, X_minus_2t
+	contains
+		procedure :: initialise  => initialise_mass
+		procedure :: update_dXdt => update_dXdt_mass
+		procedure :: check_error => check_error_mass
+		procedure :: swap_halos  => swap_halos_mass
+end type check_CV_mass
+
+type :: check_CV_momentum
+	double precision,dimension(:,:,:,:,:),allocatable 	:: flux, Pxy,  Pxy_minus_t
+	double precision,dimension(:,:,:,:),allocatable		:: dXdt, X, X_minus_t, X_minus_2t, F_ext
+	contains
+		procedure :: initialise  => initialise_momentum
+		procedure :: update_dXdt => update_dXdt_momentum
+		procedure :: update_flux => update_flux_momentum
+		procedure :: update_Pxy  => update_Pxy
+		procedure :: update_F_ext=> update_F_ext
+		procedure :: check_error => check_error_momentum
+		procedure :: swap_halos  => swap_halos_momentum
+end type check_CV_momentum
+
+	!Check CV conservation
+	logical	:: CV_debug=.true.
+	type(check_CV_mass)		:: CVcheck_mass		! declare an instance of CV checker
+	type(check_CV_momentum)	:: CVcheck_momentum, CVcheck_momentum2		! declare an instance of CV checker
+
+contains
+
+!===================================================
+!	   M a s s   C o n t r o l   V o l u m e
+!===================================================
+
+	!Constructor for object
+	subroutine initialise_mass(self, nb)
+		implicit none
+
+		! initialize shape objects
+		class(check_CV_mass) 		:: self
+
+		integer, dimension(3),intent(in) :: nb
+
+		allocate(self%flux(nb(1),nb(2),nb(3),6))
+		allocate(self%dXdt(nb(1),nb(2),nb(3)))
+		allocate(self%X(nb(1),nb(2),nb(3)))
+		allocate(self%X_minus_t(nb(1),nb(2),nb(3)))
+		allocate(self%X_minus_2t(nb(1),nb(2),nb(3)))
+
+		self%flux 		= 0
+		self%dXdt 		= 0
+		self%X 			= 0
+		self%X_minus_t 	= 0
+		self%X_minus_2t = 0
+
+	end subroutine initialise_mass
+
+	!Update time evolution and store previous two values
+	subroutine update_dXdt_mass(self, X)
+		implicit none
+
+		! initialize shape objects
+		class(check_CV_mass) :: self
+
+		integer,dimension(:,:,:),intent(in) :: X
+
+		!self%X_minus_2t = self%X_minus_t
+		self%X_minus_t  = self%X
+		self%X 		  = X
+
+		self%dXdt = self%X - self%X_minus_t
+
+	end subroutine update_dXdt_mass
+
+
+	!Swap halos on edges of processor boundaries
+	subroutine swap_halos_mass(self,nb)
+		implicit none
+
+		integer							 :: nresults
+		integer, dimension(3),intent(in) :: nb
+
+		! initialize shape objects
+		class(check_CV_mass) :: self
+
+    	!Include halo surface fluxes to get correct values for all cells
+    	nresults = 6
+    	!call swaphalos(self%flux,nb(1),nb(2),nb(3),nresults)
+
+	end subroutine swap_halos_mass
+
+
+	!Check error for specified range of bins
+	subroutine check_error_mass(self,imin,imax,jmin,jmax,kmin,kmax,iter,irank)
+		implicit none
+
+		! initialize shape objects
+		class(check_CV_mass) :: self
+
+		integer,intent(in) :: iter,irank,imin,imax,jmin,jmax,kmin,kmax
+		integer :: i,j,k
+
+		logical,save :: first_time = .true., check_ok = .false.
+
+		!First call doesn't have difference in time yet so skip
+		if (first_time) then
+			first_time = .false.
+			return
+		endif
+
+		check_ok = .true.
+
+		do i = imin,imax
+		do j = jmin,jmax
+		do k = kmin,kmax
+
+			if(sum(self%flux(i,j,k,:))-self%dXdt(i,j,k) .ne. 0) then
+				print'(a,i8,4i4,4i8)','Error in mass flux', iter,irank,i,j,k, & 
+					sum(self%flux(i,j,k,:)),self%dXdt(i,j,k),self%X_minus_t(i,j,k),self%X(i,j,k)
+				check_ok = .false.
+			endif
+
+		enddo
+		enddo
+		enddo
+
+		if (check_ok .eq. .false.) then
+			stop "Error in mass flux"
+		endif
+
+	end subroutine check_error_mass
+
+	!Returns a CV which is the size of the specified range of CV
+	!subroutine coarse_grain_CV_mass(self,imin,imax,jmin,jmax,kmin,kmax,iter,irank)
+	!	implicit none
+
+	!	class(check_CV_mass) :: self
+	!	integer,intent(in) :: iter,irank,imin,imax,jmin,jmax,kmin,kmax
+
+
+
+	!end subroutine coarse_grain_CV_mass
+
+
+	!Check mass flux on top surfaces is equal to bottom surfaces
+	!do i = 1,size(mass_flux,1)
+	!do j = 1,size(mass_flux,2)
+	!do k = 1,size(mass_flux,3)
+	!	if (mass_flux(i+1,j,k,1) .ne. -mass_flux(i,j,k,4)) then
+	!		print'(5i6)', i,j,k,mass_flux(i,j,k,4),mass_flux(i+1,j,k,1)
+	!	endif
+	!	if (mass_flux(i,j+1,k,2) .ne. -mass_flux(i,j,k,5)) then
+	!		print'(5i6)', i,j,k,mass_flux(i,j,k,5),mass_flux(i,j+1,k,2)
+	!	endif
+	!	if (mass_flux(i,j,k+1,3) .ne. -mass_flux(i,j,k,6)) then
+	!		print'(5i6)', i,j,k,mass_flux(i,j,k,6),mass_flux(i,j,k+1,3)
+	!	endif
+	!enddo
+	!enddo
+	!enddo
+
+
+!===================================================
+!	M o m e n t u m   C o n t r o l   V o l u m e
+!===================================================
+
+	!Constructor for object
+	subroutine initialise_momentum(self, nb)
+		implicit none
+
+		! initialize shape objects
+		class(check_CV_momentum) 		:: self
+
+		integer, dimension(3),intent(in) :: nb
+
+		allocate(self%flux(nb(1),nb(2),nb(3),3,6))
+		allocate(self%Pxy(nb(1),nb(2),nb(3),3,6))
+		allocate(self%Pxy_minus_t(nb(1),nb(2),nb(3),3,6))
+		allocate(self%dXdt(nb(1),nb(2),nb(3),3))
+		allocate(self%X(nb(1),nb(2),nb(3),3))
+		allocate(self%X_minus_t(nb(1),nb(2),nb(3),3))
+		allocate(self%F_ext(nb(1),nb(2),nb(3),3))
+		!allocate(self%X_minus_2t(nb(1),nb(2),nb(3),3))
+
+		self%flux 		= 0.d0
+		self%Pxy  		= 0.d0
+		self%Pxy_minus_t= 0.d0
+		self%dXdt 		= 0.d0
+		self%X 			= 0.d0
+		self%X_minus_t 	= 0.d0
+		self%F_ext		= 0.d0
+		!self%X_minus_2t = 0.d0
+
+	end subroutine initialise_momentum
+
+	!Update time evolution and store previous two values
+	subroutine update_dXdt_momentum(self, X)
+		implicit none
+		! initialize shape objects
+		class(check_CV_momentum) :: self
+
+		double precision,dimension(:,:,:,:),intent(in) :: X
+
+		!self%X_minus_2t = self%X_minus_t
+		self%X_minus_t  = self%X
+		self%X 		  = X
+
+		self%dXdt = self%X - self%X_minus_t
+
+	end subroutine update_dXdt_momentum
+
+	!Update time evolution and store previous two values
+	subroutine update_F_ext(self, X)
+		implicit none
+		! initialize shape objects
+		class(check_CV_momentum) :: self
+
+		double precision,dimension(:,:,:,:),intent(in) :: X
+
+		self%F_ext = X
+
+	end subroutine update_F_ext
+
+	!Update time evolution and store previous two values
+	subroutine update_flux_momentum(self, X)
+		implicit none
+		! initialize shape objects
+		class(check_CV_momentum) :: self
+
+		double precision,dimension(:,:,:,:,:),intent(in) :: X
+
+		self%flux = X
+
+	end subroutine update_flux_momentum
+
+	!Update time evolution and store previous two values
+	subroutine update_Pxy(self, X)
+		implicit none
+		! initialize shape objects
+		class(check_CV_momentum) :: self
+
+		double precision,dimension(:,:,:,:,:),intent(in) :: X
+
+		self%Pxy_minus_t = self%Pxy
+		self%Pxy = X
+
+	end subroutine update_Pxy
+
+	!Swap halos on edges of processor boundaries
+	subroutine swap_halos_momentum(self,nb)
+		use messenger_bin_handler, only : swaphalos
+		implicit none
+
+		integer							 :: nresults
+		integer, dimension(3),intent(in) :: nb
+		double precision,dimension(:,:,:,:),allocatable :: temp
+
+		! initialize shape objects
+		class(check_CV_momentum) :: self
+
+    	! Include halo surface fluxes, stress and external forces 
+		! to get correct values for all cells
+    	nresults = 18 + 18 + 3
+		allocate(temp(nb(1),nb(2),nb(3),nresults))
+		temp(:,:,:,1 :18) = reshape(self%flux,(/ nb(1),nb(2),nb(3),18 /))
+		temp(:,:,:,19:36) = reshape(self%Pxy ,(/ nb(1),nb(2),nb(3),18 /))
+		temp(:,:,:,37:39) = self%F_ext
+    	call swaphalos(temp,nb(1),nb(2),nb(3),nresults)
+		self%flux = reshape(temp(:,:,:,1 :18),(/ nb(1),nb(2),nb(3),3,6 /))
+		self%Pxy  = reshape(temp(:,:,:,19:36),(/ nb(1),nb(2),nb(3),3,6 /))
+		self%F_ext = temp(:,:,:,37:39)
+		deallocate(temp)
+
+	end subroutine swap_halos_momentum
+
+
+	!Check error for specified range of bins
+	subroutine check_error_momentum(self,imin,imax,jmin,jmax,kmin,kmax,iter,irank)
+		! initialize shape objects
+		use computational_constants_MD, only : domain,delta_t,Nvflux_ave
+		use calculated_properties_MD, only : nbins
+		implicit none
+
+		class(check_CV_momentum) :: self
+
+		integer,intent(in) :: iter,irank,imin,imax,jmin,jmax,kmin,kmax
+
+		integer :: i,j,k
+		logical,save 					:: first_time = 0
+		double precision				:: conserved
+		double precision,dimension(3)	:: binsize,totalpressure,totalflux,F_ext,dvelocitydt
+
+		!First call doesn't have difference in time yet so skip
+		if (first_time .lt. 2) then
+			first_time = first_time + 1
+			return
+		endif
+
+		binsize = domain/nbins
+
+		!print'(2i4,f13.5,3i8)', iter, irank, maxval(self%F_ext), maxloc(self%F_ext)
+		!print'(a,4i8,4f13.8)', 'Inside  object', irank,6,6,6, self%F_ext(6,6,6,:),sum(self%F_ext(6,6,6,:))
+
+		do i = imin,imax
+		do j = jmin,jmax
+		do k = kmin,kmax
+
+
+		    !Calculate total CV flux and change in mass
+		    totalflux =(self%flux(i,j,k,:,1)+self%flux(i,j,k,:,4))/binsize(1) &
+		              +(self%flux(i,j,k,:,2)+self%flux(i,j,k,:,5))/binsize(2) &
+		              +(self%flux(i,j,k,:,3)+self%flux(i,j,k,:,6))/binsize(3)
+
+		    !Totalpressure = totalpressure*delta_t
+		    totalpressure =(self%Pxy_minus_t(i,j,k,:,1)-self%Pxy_minus_t(i,j,k,:,4))/binsize(1) &
+		                  +(self%Pxy_minus_t(i,j,k,:,2)-self%Pxy_minus_t(i,j,k,:,5))/binsize(2) &
+		                  +(self%Pxy_minus_t(i,j,k,:,3)-self%Pxy_minus_t(i,j,k,:,6))/binsize(3)
+			F_ext = self%F_ext(i,j,k,:)/product(binsize)
+
+			!drhou/dt
+		    dvelocitydt =  self%dxdt(i,j,k,:)/(delta_t*Nvflux_ave)
+
+		    !Verify that CV momentum is exactly conservative
+		    conserved = sum(totalpressure-totalflux-dvelocitydt-F_ext)
+			if(conserved .gt. 0.000000001d0) then
+				!print'(a,i8,3f13.8)', 'Inside  object', irank, self%F_ext(i+1,j+1,k+1,:)
+				!if (maxval(abs(self%F_ext(i-1:i+1,j-1:j+1,k-1:k+1,:))) .ne. 0.0000000001) &
+				!print'(a,i8,4f13.8,3i8)', 'Inside  object', irank, maxval(abs(self%F_ext(i-1:i+1,j-1:j+1,k-1:k+1,1))), & 
+				!							    maxval(abs(self%F_ext(i-1:i+1,j-1:j+1,k-1:k+1,2))), & 
+				!							    maxval(abs(self%F_ext(i-1:i+1,j-1:j+1,k-1:k+1,3))), &
+				!								   sum(self%F_ext(i-1:i+1,j-1:j+1,k-1:k+1,:)), &
+				!								maxloc(abs(self%F_ext(i-1:i+1,j-1:j+1,k-1:k+1,1)))
+				print'(a,i8,4i4,7f10.5)','Error in momentum flux', iter,irank,i,j,k, & 
+					 conserved, sum(totalpressure),-sum(totalflux),sum(dvelocitydt), & 
+					+sum(F_ext), sum(self%X(i,j,k,:)),   & 
+					 sum(self%X_minus_t(i,j,k,:))
+			endif
+
+		enddo
+		enddo
+		enddo
+
+	end subroutine check_error_momentum
+
+
+	!Returns a CV which is the size of the specified range of CV
+    ! Calculate total CV flux and change in momentum - NOTE binsize used
+    ! as during sum all dx/dy/dz are identical and cancel leaving
+    ! a single dx,dy or dz
+	!subroutine coarse_grain_CV_momentum(self,imin,imax,jmin,jmax,kmin,kmax,iter,irank)
+	!	implicit none
+
+	!	class(check_CV_momentum) :: self
+	!	integer,intent(in) :: iter,irank,imin,imax,jmin,jmax,kmin,kmax
+
+
+		
+
+	!end subroutine coarse_grain_CV_momentum
+
+
+end module CV_objects
+
+
+
+
 module control_volume
 	implicit none
 

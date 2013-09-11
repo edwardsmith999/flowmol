@@ -1951,21 +1951,15 @@ contains
 
 !Update face halo cells by passing integers to neighbours 
 subroutine iswaphalos(A,n1,n2,n3,nresults)
-	use messenger
-	use calculated_properties_MD
+	use computational_constants_MD, only : ncells,nhb,nhalocells,halocells
 	use librarymod, only : heaviside
 	implicit none
 
 	integer,intent(in)			:: n1,n2,n3,nresults
-	!integer,intent(inout)		:: A(n1,n2,n3,nresults)
 	integer,intent(inout)		:: A(:,:,:,:)
 
 	integer									:: n,i,j,k,ic,jc,kc,nresultscell
 	integer,dimension(:,:,:,:),allocatable	:: buf
-
-	!print'(a,6i8)','min and max bins in x,y and z', 1+nhb(1),nbins(1)+nhb(1),1+nhb(2),nbins(2)+nhb(2),1+nhb(3),nbins(3)+nhb(3)
-	!print'(2i10)','sum of all array and inner array only', & 
-	!		sum(A),sum(A(1+nhb(1):nbins(1)+nhb(1),1+nhb(2):nbins(2)+nhb(2),1+nhb(3):nbins(3)+nhb(3),1)) 
 
 	!Pack bins into array of cells
 	nresultscell = nresults * nhb(1) * nhb(2) * nhb(3) 
@@ -1998,8 +1992,7 @@ end subroutine iswaphalos
 
 !Update face halo cells by passing to neighbours (double precision version)
 subroutine rswaphalos(A,n1,n2,n3,nresults)
-	use messenger
-	use calculated_properties_MD
+	use computational_constants_MD, only : ncells,nhb,nhalocells,halocells
 	use librarymod, only : heaviside
 	implicit none
 
@@ -2117,12 +2110,7 @@ subroutine rpack_bins_into_cells(cells,bins,nresults)
 		do jbin = 1,nhb(2)
 		do kbin = 1,nhb(3)
 			do result = 1,nresults
-				!n = ibin + (jbin-1)*nhb(1) + (kbin-1)*nhb(1)*nhb(2)
-				!n = result + ((ibin-1) + ((jbin-1) + (kbin-1)*nhb(2))*nhb(1))*nresults
 				n = result + (ibin-1)*nresults + (jbin-1)*nhb(1)*nresults + (kbin-1)*nhb(1)*nhb(2)*nresults
-				!print'(12i8)', result,icell,jcell,kcell,ibin,jbin,kbin, & 
-				!			   (icell-1)*nhb(1)+ibin,(jcell-1)*nhb(2)+jbin,(kcell-1)*nhb(3)+kbin,n, & 
-				!				ibin + (jbin-1)*nhb(1) + (kbin-1)*nhb(1)*nhb(2)
 				cells(icell,jcell,kcell,n) = bins((icell-1)*nhb(1)+ibin,(jcell-1)*nhb(2)+jbin,(kcell-1)*nhb(3)+kbin,result)
 			enddo
 
@@ -2153,7 +2141,6 @@ subroutine runpack_cells_into_bins(bins,cells,nresults)
 		do jbin = 1,nhb(2)
 		do kbin = 1,nhb(3)
 			do result = 1,nresults
-				!n = ibin + (jbin-1)*nhb(1) + (kbin-1)*nhb(1)*nhb(2)
 				n = result + (ibin-1)*nresults + (jbin-1)*nhb(1)*nresults + (kbin-1)*nhb(1)*nhb(2)*nresults
 				bins((icell-1)*nhb(1)+ibin,(jcell-1)*nhb(2)+jbin,(kcell-1)*nhb(3)+kbin,result) = cells(icell,jcell,kcell,n) 
 			enddo
@@ -2168,13 +2155,12 @@ end subroutine runpack_cells_into_bins
 
 !Update face halo cells by passing to neighbours (integer version)
 subroutine iupdatefaces(A,n1,n2,n3,nresults,ixyz)
-	use messenger
+	use messenger, only : icomm_grid, ierr
 	use mpi
 	implicit none
-	!include "mpif.h"
 
 	integer,intent(in)						:: n1,n2,n3,nresults
-	integer,intent(inout)					:: A(n1,n2,n3,nresults)
+	integer,intent(inout)					:: A(:,:,:,:)
 
 	integer 								:: ixyz
 	integer 								:: icount,isource,idest
@@ -2244,14 +2230,12 @@ end subroutine iupdatefaces
 
 !Update face halo cells by passing to neighbours
 subroutine rupdatefaces(A,n1,n2,n3,nresults,ixyz)
-	use messenger
+	use messenger, only : icomm_grid, ierr
 	use mpi
 	implicit none
-	!include "mpif.h"
 
 	integer,intent(in)								:: n1,n2,n3,nresults
 	double precision,intent(inout)					:: A(:,:,:,:)
-	!double precision,intent(inout)					:: A(n1,n2,n3,nresults)
 
 	integer 										:: ixyz
 	integer 										:: icount,isource,idest
@@ -2644,6 +2628,21 @@ subroutine SubcommGather(A,B,na,ixyz,npixyz)
 			    MPI_INTEGER,icomm_xyz(ixyz), ierr)
 	
 end subroutine
+
+subroutine SubcommSum(A, ixyz)
+	use messenger
+	implicit none
+
+	integer, intent(in) :: ixyz !Direction of sub-comm
+	double precision	A
+	double precision buf
+
+	call MPI_AllReduce (A, buf, 1, MPI_DOUBLE_PRECISION, &
+	                    MPI_SUM, icomm_xyz(ixyz), ierr)
+	A = buf
+
+	return
+end
 
 subroutine SubcommSumInt(A, ixyz)
 	use messenger
