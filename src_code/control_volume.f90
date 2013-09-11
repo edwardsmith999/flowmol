@@ -35,7 +35,7 @@ type :: check_CV_momentum
 end type check_CV_momentum
 
 	!Check CV conservation
-	logical	:: CV_debug=.true.
+	logical	:: CV_debug=.false.
 	type(check_CV_mass)		:: CVcheck_mass		! declare an instance of CV checker
 	type(check_CV_momentum)	:: CVcheck_momentum, CVcheck_momentum2		! declare an instance of CV checker
 
