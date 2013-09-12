@@ -192,7 +192,7 @@ function cpolarisev(vcart,theta) result(vpol)
 	real(kind(0.d0)), intent(in) :: vcart(3), theta
 	real(kind(0.d0)) :: vpol(3)
 
-	real(kind(0.d0)) :: vx,vy,vz,r,t,z
+	real(kind(0.d0)) :: vx,vy,vz
 
 	vx = vcart(1)
 	vy = vcart(2)
@@ -586,7 +586,6 @@ subroutine get_file_size(filename,file_size)
 	integer							:: unit_no
 	integer,intent(out)				:: file_size
 	!integer,dimension(13)			:: SArray(13)
-	logical							:: op
 	character(len=*), intent(in)	:: filename
 
 	!Check if unit number is used and assign unique number
@@ -615,7 +614,7 @@ end subroutine get_file_size
 
 function get_version_number()
         
-        logical        :: op, file_exists
+        logical        ::  file_exists
         integer        :: unit_no, statusno
         character(30)  :: get_version_number
 
@@ -783,7 +782,6 @@ function Maxwell_Boltzmann_vel(T,u)
 	implicit none
 
 	double precision			 :: T, u, Maxwell_Boltzmann_vel
-	double precision			 :: randn
 	double precision,dimension(2):: rand
 
 	!Use box-muller to get normally distributed random numbers for 1D Maxwell Boltzmann
@@ -844,7 +842,6 @@ subroutine find3factors(n,nx,ny,nz)
 	integer, intent(out)	:: nx,ny,nz
 
 	integer :: nfactors,  minval1, minval2
-	integer :: i, f
 	integer,dimension(1)	:: minlocation
 	integer, allocatable, dimension(:) :: factors, nonzerof
 	integer,parameter :: large=99999999

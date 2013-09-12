@@ -617,6 +617,12 @@ subroutine setup_read_input
 		read(1,*) ssf_nmax 
 	endif
 
+	call locate(1,'CV_FORCES',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) CV_debug
+		read(1,*) CVforce_flag
+	endif
+
 	close(1,status='keep')      !Close input file
 
 end subroutine setup_read_input

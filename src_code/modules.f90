@@ -116,7 +116,11 @@ module computational_constants_MD
 		proc_reorder, &				!Reorder processors at restart
 		pass_vhalo = 0, &
 		fixed_rebuild_flag, &		!Fixed rebuild flag
-		peculiar_flag	 			!Take streaming velocity away from temperature 	
+		peculiar_flag, &	 			!Take streaming velocity away from temperature 	
+		CVforce_flag = 0
+
+	!Add debugging CV flags
+	logical	:: CV_debug=.false.
 
 	integer, dimension(3)	:: periodic
 
