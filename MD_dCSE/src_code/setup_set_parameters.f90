@@ -13,7 +13,7 @@
 ! setup_linklist
 
 ! *********CUDA ROUTINES - WILL BE IN SEPERATE FILE SOON************
-! establish_surface_cells2(CPU_buffer_region_size)a
+! establish_surface_cells2(CPU_buffer_region_size)
 ! establish_gpusurface_cells2(CPU_buffer_region_size-1)
 ! CUDA_setup
 !
@@ -70,7 +70,6 @@ subroutine setup_set_parameters
 	a = 0.d0
 
 	zeta= 0.d0	!Set Nose Hoover thermostat scaling property to zero
-	rfmol = 0.d0
 	halo_np = 0
 
 	call set_parameters_outputs
@@ -306,7 +305,6 @@ subroutine set_parameters_global_domain
 	implicit none
 
 	integer                :: ixyz, extranp
-	real(kind(0.d0))       :: lat
 
 	select case (initial_config_flag)
 	case (0)

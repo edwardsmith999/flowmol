@@ -126,9 +126,9 @@ end subroutine locate
 !Returns the magnitude of an 3 dimensional vector
 
 function magnitude3(a)
-
+	implicit none
 	
-	double precision			:: magnitude3
+	double precision						:: magnitude3
 	double precision,dimension(3),intent(in):: a
 
     ! this should use BLAS library 
@@ -142,11 +142,14 @@ end function magnitude3
 !Returns the magnitude of an N dimensional vector
 
 function magnitudeN(a,n)
-
+	implicit none
 	
 	integer,intent(in)			:: n
+	double precision,intent(in)	:: a(:)
+
+	integer						:: i
 	double precision			:: magnitudeN
-	double precision,intent(in)	:: a(n)
+
 
     ! simpler with a BLAS call
     ! magnituneN = dnorm2(n,a,1)
@@ -618,13 +621,15 @@ function get_version_number()
 
         ! External system call -- this is almost certain not to
         ! work in general (e.g. not intel and not linux)
-		statusno = system("svnversion > ./subversion_no_temp")
+		call system("svnversion > ./subversion_no_temp")
+		!statusno = system("svnversion > ./subversion_no_temp")
 
         !Check if system call has worked and file exists
         inquire(file='./subversion_no_temp', exist=file_exists)
 
 		!Read file and store unit number if it exists, otherwise N/A
-        if (file_exists .and. statusno .eq. 0) then
+        !if (file_exists .and. statusno .eq. 0) then
+        if (file_exists) then
 
             !Check if unit number is used and assign unique number
             unit_no = get_new_fileunit()

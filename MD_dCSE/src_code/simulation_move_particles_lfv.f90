@@ -57,7 +57,6 @@ subroutine simulation_move_particles_lfv
 		stop "Error - incorrectly specified external_force_flag"
 	end select
 
-
 	!Select case and evolve system in time
 	select case(ensemble)
 	case(nve)
