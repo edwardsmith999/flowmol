@@ -852,7 +852,7 @@ subroutine average_over_bin
 	CV2%flux = 0.d0; CV2%Pxy = 0.d0
 
 
-	if (M .ne. 0 .and. apply_force ) then
+	if (M .ne. 0 .and. apply_CVforce) then
 		F_constraint = MD_Pi_dS-MD_rhouu_dS + CFD_rhouu_dS-CFD_Pi_dS
 	else
 		F_constraint = 0.d0
@@ -944,11 +944,11 @@ subroutine apply_force_tests(apply_the_force)
 		!print'(2(a,i4),2i6,9f10.5)', 'acceleration mol',i,'of',box_np, iter,n, a(:,n),a(:,n) - F_constraint/dble(M),F_constraint/dble(M)
 		a_temp(:,n) = a(:,n) - F_vector
 
-		if (apply_the_force) then
+		!if (apply_the_force) then
 			a(:,n) = a(:,n) - F_vector
 			!Add external force to CV total
 			call record_external_forces(F_vector,r(:,n))
-		endif
+		!endif
 	enddo
 	v_temp = 0.d0
 	do n = 1,np
@@ -968,14 +968,14 @@ subroutine apply_force_tests(apply_the_force)
 	if (M .ne. 0) then
 		!print'(2i4,15f8.3)', iter,m_bin1,u_bin1,u_bin2,F_bin1,F_bin2,F_constraint/dble(M)
 		!if (iter .lt. 1000) then
-			write(1200+irank,'(i3,3i7,11f12.6)'),irank,iter,m_bin1,m_bin2, &
+			write(1200+irank,'(i3,3i7,9f12.6)'),irank,iter,m_bin1,m_bin2, &
 					 					  delta_t*F_vector,u_bin1,u_bin2
 										
 		!endif
 	else
 		!print'(2i4,12f10.5)', iter,m_bin1,u_bin1,u_bin2,F_bin1,F_bin2, (/ 0.d0, 0.d0, 0.d0 /)
 		!if (iter .lt. 1000) then
-			write(1200+irank,'(i3,3i7,11f12.6)'),irank,iter,m_bin1,m_bin2, &
+			write(1200+irank,'(i3,3i7,9f12.6)'),irank,iter,m_bin1,m_bin2, &
 					 					 (/ 0.d0, 0.d0, 0.d0 /),u_bin1,u_bin2
 		!endif
 	endif
