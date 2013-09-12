@@ -5,16 +5,22 @@ from MDStudy import MDStudy
 
 # Number of threads and runs per thread
 ncpus = 8
-nproc = 2
+ncpusperrun = 2
 nthreads = 15
 nrunsperthread = 3
-maxlicenses = ncpus / nproc
+maxlicenses = ncpus / ncpusperrun
 
 # Inputs that are the same for every thread
 srcdir =  './../MD_dCSE/src_code/'
 basedir = 'base'
 executable = './creamsoda'
 cylinderfile = None
+
+#inputfiles = ['']*nrunsperthread
+#outputfiles = ['']*nrunsperthread
+#finish = [{}]*nrunsperthread
+#initstates = [None]*nrunsperthread
+#restartfiles = [None]*nrunsperthread
 
 # Specify information needed for each run
 inputfiles = ['ramp.in',
@@ -37,28 +43,42 @@ restartfiles = [None,
                 'ramp.state',
                 'equil.state']
 
-# Specify file changes for the run
-nsteps = [100,200,3000]
-# Specify input file changes for each thread 
+runchanges = [{'NSTEPS':100},
+              {'NSTEPS':200},
+              {'NSTEPS':400}]
+
+# Specify variables for each thread 
 temperatures = np.linspace(0.5,2.0,num=nthreads)
+temperatures = np.around(temperatures,decimals=2)
 
-# Build up the lists of changes
-
-threadlist = []
+threadchanges = []
+rundirs = []
 
 for iThread in range(nthreads):
 
-    change_by_thread = {}
-    change_by_thread['INPUTTEMPERATURE'] = str(temperatures[iThread])
+    T = str(temperatures[iThread])
+    threadchanges.append({'INPUTTEMPERATURE':T})
+    rundirs.append('TEMP_'+T)
 
-    rundir = 'run' + str(iThread)
+#
+#
+#
+#
+
+# Build up lists of MDRun objects
+threadlist = []
+for iThread in range(nthreads):
+
+    change_by_thread = threadchanges[iThread]
+    rundir = rundirs[iThread] 
 
     runlist = []
     for iRun in range(nrunsperthread):
 
-        change_by_run = {}
-        change_by_run['NSTEPS'] = str(nsteps[iRun]) 
-        combined_changes = dict(change_by_thread.items() + change_by_run.items())
+        change_by_run = runchanges[iRun]
+
+        combined_changes = dict(change_by_thread.items() + 
+                                change_by_run.items())
 
         run = MDRun(
                     srcdir,
@@ -78,6 +98,11 @@ for iThread in range(nthreads):
     
     threadlist.append(runlist)
 
-
+#
+#
+#
+#
+#
 # Run the study
+
 study = MDStudy(threadlist,maxlicenses)

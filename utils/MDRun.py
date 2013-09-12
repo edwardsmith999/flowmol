@@ -172,6 +172,20 @@ class MDRun:
 
         return
 
+    def get_platform(self):
+        
+        string = sp.check_output('hostname')
+        string += sp.check_output('domainname')
+        string += sp.check_output('dnsdomainname')
+      
+        if ('meflow' in string): self.platform = 'meflow'
+        if ('cx1' in string): self.platform = 'cx1'
+        if ('cx2' in string): self.platform = 'cx2'
+
+        print('Platform is: ' + self.platform)
+
+        return
+
     def execute(self,blocking=False,nprocs=0):
 
         """
