@@ -202,7 +202,6 @@ subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 	double precision,dimension(3),intent(in) :: rg
 	double precision,dimension(3),intent(out):: tagdistbottom,tagdisttop
 
-	integer 				:: n,icell,jcell,kcell
 	double precision		:: xlocation,ylocation,zlocation,rand,fraction_domain,postheight
 
 	select case (texture_type)
@@ -557,7 +556,7 @@ contains
 		integer							:: ixyz,i,j,k,cellnp,molnoi
 		integer,dimension(3)			:: cells,block,procs
 		double precision,dimension(3)	:: rand,dxyz,ri,rij
-		double precision				:: rtest,dx,dy,dz
+		double precision				:: dx,dy,dz
 		type(node), pointer 	        :: oldi, currenti
 
 #if USE_COUPLER

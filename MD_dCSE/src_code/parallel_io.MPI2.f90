@@ -2439,7 +2439,7 @@ subroutine velocity_bin_cpol_io(mass_out,mom_out)
 	integer, dimension(:,:,:), intent(inout) :: mass_out
 	real(kind(0.d0)), dimension(:,:,:,:), intent(inout) :: mom_out
 
-	character(200) :: mfile, vfile
+	character(200) :: vfile
 	integer :: m, ierr
 
 	! Make sure mass is written out
@@ -2501,7 +2501,7 @@ subroutine temperature_bin_cpol_io(mass_out,KE_out)
 	integer, dimension(:,:,:), intent(inout) :: mass_out
 	real(kind(0.d0)), dimension(:,:,:), intent(inout) :: KE_out
 
-	character(200) :: mfile, Tfile
+	character(200) :: Tfile
 	integer :: m, ierr
 
 	! Make sure mass is written out
@@ -3164,8 +3164,7 @@ subroutine external_force_io
 	use messenger_bin_handler, only : swaphalos
 	implicit none
 
-	integer												:: ixyz,m,nresults
-	double precision									:: binface
+	integer												:: m,nresults
 	double precision,dimension(:,:,:,:),allocatable		:: temp
 
 	! Swap Halos

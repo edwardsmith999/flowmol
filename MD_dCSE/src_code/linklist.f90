@@ -1527,7 +1527,7 @@ subroutine linklist_pop(icell, jcell, kcell, molnopop)
 	use module_linklist
 	implicit none
 
-	integer            	           :: cellnp, flag
+	integer            	           :: cellnp
 	integer, intent(in)    	       :: icell, jcell, kcell
 	integer, intent(in)    	       :: molnopop
 	type(node), pointer 	       :: old, current

@@ -35,8 +35,6 @@ subroutine simulation_compute_forces
 	use polymer_info_MD, only: solvent_flag
 	implicit none
 
-	integer	:: i
-	
 	a					= 0.d0	!Reset acceleration matrix before force calculations
 	potenergymol		= 0.d0	!Reset potential energy per molecule before calculation
 	potenergymol_LJ		= 0.d0	!Reset LJ energy per molecule before calculation
@@ -343,7 +341,7 @@ subroutine simulation_compute_forces_LJ_cells
 								!else
 									fij = accijmag*rij(:)
 									!call Control_Volume_Forces(fij,ri,rj,molnoi,molnoj)
-									call Control_Volume_stresses(fij,ri,rj,molnoi,molnoj)
+									call Control_Volume_stresses(fij,ri,rj,molnoi)
 								!endif
 							endif
 						endif
@@ -432,7 +430,7 @@ subroutine simulation_compute_forces_LJ_neigbr
 					!else
 						fij(:) = accijmag*rij(:)
 						!call Control_Volume_Forces(fij,ri,rj,molnoi,molnoj)
-						call control_volume_stresses(fij,ri,rj,molnoi,molnoj)
+						call control_volume_stresses(fij,ri,rj,molnoi)
 					endif
 				endif
 
@@ -532,11 +530,11 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 						if (molnoj .gt. np .or. molnoi .gt. np) then
 							fij = accijmag*rij(:)
 							!call Control_Volume_Forces(fij,ri,rj,molnoi,molnoj)
-							call control_volume_stresses(fij,ri,rj,molnoi,molnoj)
+							call control_volume_stresses(fij,ri,rj,molnoi)
 						else
 							fij = 2.d0*accijmag*rij(:)
 							!call Control_Volume_Forces(fij,ri,rj,molnoi,molnoj)
-							call control_volume_stresses(fij,ri,rj,molnoi,molnoj)
+							call control_volume_stresses(fij,ri,rj,molnoi)
 						endif
 					endif
 				endif
@@ -915,13 +913,12 @@ subroutine simulation_compute_rfbins_cpol(imin, imax, jmin, jmax, kmin, kmax)
 
 	integer, intent(in) :: imin, jmin, kmin, imax, jmax, kmax
 
-	integer :: i, j, ixyz
+	integer :: i, j
 	integer	:: icell, jcell, kcell
 	integer :: icellshift, jcellshift, kcellshift
 	integer :: cellnp, adjacentcellnp, cellsperbin
 	integer	:: molnoi, molnoj
 	type(node), pointer :: oldi, currenti, oldj, currentj
-	real(kind(0.d0)) :: ripol(3), rjpol(3), rijpol(3)
 
 	!Calculate bin to cell ratio
 	cellsperbin = ceiling(ncells(1)/dble(nbins(1)))

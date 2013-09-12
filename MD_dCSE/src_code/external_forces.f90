@@ -711,7 +711,7 @@ end subroutine simulation_apply_constant_force
 
 subroutine apply_CV_force(iter)
 	use control_volume
-	use computational_constants_MD, only : irank, jblock, npy, globaldomain
+	use computational_constants_MD, only : irank, jblock, npy, globaldomain, CVforce_flag
 	use calculated_properties_MD, only : pressure
 	use librarymod, only : get_new_fileunit
 	use module_external_forces, only : np, momentum_flux, irank,nbins, nbinso,domain,delta_t,Nvflux_ave
@@ -719,6 +719,7 @@ subroutine apply_CV_force(iter)
 	
 	integer,intent(in)				:: iter
 
+	logical							:: apply_CVforce
 	integer							:: M, box_np, m_bin1, m_bin2
 	integer,allocatable 			:: list(:)
 	!real(kind(0.d0))				:: dx,dy,dz
@@ -732,12 +733,12 @@ subroutine apply_CV_force(iter)
 	!dx = globaldomain(1);	dy = 4.d0; dz = globaldomain(3)
 
 	!Get average over current cell and apply constraint forces
-	call get_continuum_values
-	!call get_test_values
+	!call get_continuum_values
+	call get_test_values(CVforce_flag)
 	call update_CV_halos
 	call average_over_bin
 	!call apply_force
-	call apply_force_tests(.true.)
+	call apply_force_tests(apply_CVforce)
 
 contains
 
@@ -751,35 +752,49 @@ subroutine update_CV_halos
 
 end subroutine update_CV_halos
 
-! Get continuum values of surface stresses, etc
-subroutine get_continuum_values
-	implicit none
-
-	integer				:: i,length,fileunit
-	real(kind(0.d0))	:: u_tm1, dudt
-
-	!Read Shear pressure from file...
-	CFD_Pi_dS(:) = 0.d0
-	fileunit = get_new_fileunit()
-	inquire(iolength=length) CFD_Pi_dS(1)
-	open(unit=fileunit,file='./F_hist',form='unformatted', access='direct',recl=length)
-	read(fileunit,rec=iter) CFD_Pi_dS(1)
-	close(fileunit,status='keep')
-	CFD_rhouu_dS = 0.d0
-
-end subroutine get_continuum_values
-
 ! Apply arbitary forces for testing purposes
-subroutine get_test_values(CVforce_flag)
+subroutine get_test_values(flag)
 	use physical_constants_MD, only : pi
 	implicit none
 
-	integer,intent(in) :: CVforce_flag
+	integer,intent(in)	:: flag
 
-	!Sin function is a good test!
-	CFD_Pi_dS = sin(2*pi*iter/100)*10.0
-	CFD_rhouu_dS = 0.d0
+	integer				:: i,length,fileunit
 
+	!When velocity is near zero, apply force from then on...
+	!if (abs(CV%X(i,j,k,1)) .lt. 0.001) then
+	if (iter .gt. 111) then !111 is the time force is close to zero
+		apply_CVforce = .true.
+	endif
+
+	select case(flag)
+	case(0)
+		!No Force applied
+		apply_CVforce = .false.
+	case(1)
+		!Zero Force applied
+		CFD_Pi_dS = 0.d0
+		CFD_rhouu_dS = 0.d0	
+	case(2)
+		!Constant function 
+		CFD_Pi_dS = 1.d0
+		CFD_rhouu_dS = 0.d0
+	case(3)
+		!Sin function 
+		CFD_Pi_dS = sin(2*pi*iter/100)*10.0
+		CFD_rhouu_dS = 0.d0
+	case(4)
+		! Get continuum values of surface stresses, etc
+		!Read Shear pressure from file...
+		CFD_Pi_dS(:) = 0.d0
+		fileunit = get_new_fileunit()
+		inquire(iolength=length) CFD_Pi_dS(1)
+		open(unit=fileunit,file='./F_hist',form='unformatted', access='direct',recl=length)
+		read(fileunit,rec=iter) CFD_Pi_dS(1)
+		close(fileunit,status='keep')
+		CFD_rhouu_dS = 0.d0
+	end select
+	
 end subroutine get_test_values
 
 !=============================================================================
@@ -821,70 +836,27 @@ subroutine average_over_bin
 		endif
 	enddo
 
-	! - - Mass  - -
-	M = box_np !CVcheck_mass%X(i,j,k)
+	! 						- - Mass  - -
+	M = box_np
 
-	! - - Momentum - -
-	!Obtain the difference in the CV fluxes and stresses
+	! 					- - Momentum - -
 
     !Total CV flux
 	MD_rhouu_dS  =		((CV2%flux(i,j,k,:,1)+CV2%flux(i,j,k,:,4)) &
 	          	 		+(CV2%flux(i,j,k,:,2)+CV2%flux(i,j,k,:,5)) &
 	          	 		+(CV2%flux(i,j,k,:,3)+CV2%flux(i,j,k,:,6)))/delta_t
-
 	!Total surface stresses
 	MD_Pi_dS  =	0.25d0 *((CV2%Pxy(i,j,k,:,1)-CV2%Pxy(i,j,k,:,4)) &
 	              		+(CV2%Pxy(i,j,k,:,2)-CV2%Pxy(i,j,k,:,5)) &
 	              		+(CV2%Pxy(i,j,k,:,3)-CV2%Pxy(i,j,k,:,6)))
-
-	!print'(a,i5,6f14.4)', 'Single step', iter, MD_rhouu_dS, MD_Pi_dS
 	CV2%flux = 0.d0; CV2%Pxy = 0.d0
 
-	!Retrieve values from CV objects
-	!dx = binsize(2)*binsize(3)
-	!dy = binsize(1)*binsize(3)
-	!dz = binsize(1)*binsize(2)
 
-
-
-	!if (any(MD_rhouu_dS -	( (CV%flux(i,j,k,:,1)+CV%flux(i,j,k,:,4))*dx &
-	!			          	 +(CV%flux(i,j,k,:,2)+CV%flux(i,j,k,:,5))*dy &
-	!			          	 +(CV%flux(i,j,k,:,3)+CV%flux(i,j,k,:,6))*dz) .gt. 0.000000001)) then
-	!	stop "Error in CV flux measurements"
-	!endif
-
-	!if (any(MD_Pi_dS -	(  (CV%Pxy(i,j,k,:,1)-CV%Pxy(i,j,k,:,4))*dx &
-	!		              +(CV%Pxy(i,j,k,:,2)-CV%Pxy(i,j,k,:,5))*dy &
-	!		              +(CV%Pxy(i,j,k,:,3)-CV%Pxy(i,j,k,:,6))*dz) .gt. 0.000000001)) then
-	!	stop "Error in CV stress measurements"
-	!endif
-
-
-    !Total CV flux
-	!MD_rhouu_dS  =(CV%flux(i,j,k,:,1)+CV%flux(i,j,k,:,4))*dx &
-	!          	 +(CV%flux(i,j,k,:,2)+CV%flux(i,j,k,:,5))*dy &
-	!          	 +(CV%flux(i,j,k,:,3)+CV%flux(i,j,k,:,6))*dz
-
-	!Total surface stresses
-	!MD_Pi_dS  =	   (CV%Pxy(i,j,k,:,1)-CV%Pxy(i,j,k,:,4))*dx &
-	!              +(CV%Pxy(i,j,k,:,2)-CV%Pxy(i,j,k,:,5))*dy &
-	!              +(CV%Pxy(i,j,k,:,3)-CV%Pxy(i,j,k,:,6))*dz
-
-	!print'(a,2i5,6f14.4)', 'Multiple step', iter, M, MD_rhouu_dS, MD_Pi_dS
-
-	!When velocity is near zero, apply force from then on...
-	!if (abs(CV%X(i,j,k,1)) .lt. 0.001) then
-	if (iter .gt. 111) then
-		apply_force = .true.
-	endif
-
-	!print*, CFD_rhouu_dS-CFD_Pi_dS
 	if (M .ne. 0 .and. apply_force ) then
 		F_constraint = MD_Pi_dS-MD_rhouu_dS + CFD_rhouu_dS-CFD_Pi_dS
 	else
 		F_constraint = 0.d0
 	endif
-
 
 	!Debugging plots of applied and remaining force
 	!u_bin=0.d0; F_bin = 0.d0; F_bin2 = 0.d0
