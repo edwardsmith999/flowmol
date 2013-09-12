@@ -743,6 +743,7 @@ contains
 
 ! Get continuum values of surface stresses, etc
 subroutine update_CV_halos
+	use arrays_MD, only : r,v,a
 	use CV_objects, only :  CV2 => CVcheck_momentum2
 	implicit none
 
@@ -764,13 +765,16 @@ subroutine get_continuum_values
 	open(unit=fileunit,file='./F_hist',form='unformatted', access='direct',recl=length)
 	read(fileunit,rec=iter) CFD_Pi_dS(1)
 	close(fileunit,status='keep')
+	CFD_rhouu_dS = 0.d0
 
 end subroutine get_continuum_values
 
 ! Apply arbitary forces for testing purposes
-subroutine get_test_values
+subroutine get_test_values(CVforce_flag)
 	use physical_constants_MD, only : pi
 	implicit none
+
+	integer,intent(in) :: CVforce_flag
 
 	!Sin function is a good test!
 	CFD_Pi_dS = sin(2*pi*iter/100)*10.0
@@ -870,12 +874,12 @@ subroutine average_over_bin
 
 	!When velocity is near zero, apply force from then on...
 	!if (abs(CV%X(i,j,k,1)) .lt. 0.001) then
-	if (iter .gt. 1) then
+	if (iter .gt. 111) then
 		apply_force = .true.
 	endif
 
 	!print*, CFD_rhouu_dS-CFD_Pi_dS
-	if (M .ne. 0 .and. apply_force ) then	
+	if (M .ne. 0 .and. apply_force ) then
 		F_constraint = MD_Pi_dS-MD_rhouu_dS + CFD_rhouu_dS-CFD_Pi_dS
 	else
 		F_constraint = 0.d0

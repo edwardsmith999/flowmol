@@ -35,7 +35,7 @@ type :: check_CV_momentum
 end type check_CV_momentum
 
 	!Check CV conservation
-	logical	:: CV_debug=.false.
+	logical	:: CV_debug=.true.
 	type(check_CV_mass)		:: CVcheck_mass		! declare an instance of CV checker
 	type(check_CV_momentum)	:: CVcheck_momentum, CVcheck_momentum2		! declare an instance of CV checker
 
@@ -88,6 +88,7 @@ contains
 
 	!Swap halos on edges of processor boundaries
 	subroutine swap_halos_mass(self,nb)
+		use messenger_bin_handler, only : swaphalos
 		implicit none
 
 		integer							 :: nresults
@@ -98,7 +99,7 @@ contains
 
     	!Include halo surface fluxes to get correct values for all cells
     	nresults = 6
-    	!call swaphalos(self%flux,nb(1),nb(2),nb(3),nresults)
+    	call swaphalos(self%flux,nb(1),nb(2),nb(3),nresults)
 
 	end subroutine swap_halos_mass
 
@@ -137,6 +138,23 @@ contains
 		enddo
 		enddo
 
+		!Check mass flux on top surfaces is equal to bottom surfaces
+		!do i = 1,size(mass_flux,1)
+		!do j = 1,size(mass_flux,2)
+		!do k = 1,size(mass_flux,3)
+		!	if (mass_flux(i+1,j,k,1) .ne. -mass_flux(i,j,k,4)) then
+		!		print'(5i6)', i,j,k,mass_flux(i,j,k,4),mass_flux(i+1,j,k,1)
+		!	endif
+		!	if (mass_flux(i,j+1,k,2) .ne. -mass_flux(i,j,k,5)) then
+		!		print'(5i6)', i,j,k,mass_flux(i,j,k,5),mass_flux(i,j+1,k,2)
+		!	endif
+		!	if (mass_flux(i,j,k+1,3) .ne. -mass_flux(i,j,k,6)) then
+		!		print'(5i6)', i,j,k,mass_flux(i,j,k,6),mass_flux(i,j,k+1,3)
+		!	endif
+		!enddo
+		!enddo
+		!enddo
+
 		if (check_ok .eq. .false.) then
 			stop "Error in mass flux"
 		endif
@@ -154,23 +172,6 @@ contains
 
 	!end subroutine coarse_grain_CV_mass
 
-
-	!Check mass flux on top surfaces is equal to bottom surfaces
-	!do i = 1,size(mass_flux,1)
-	!do j = 1,size(mass_flux,2)
-	!do k = 1,size(mass_flux,3)
-	!	if (mass_flux(i+1,j,k,1) .ne. -mass_flux(i,j,k,4)) then
-	!		print'(5i6)', i,j,k,mass_flux(i,j,k,4),mass_flux(i+1,j,k,1)
-	!	endif
-	!	if (mass_flux(i,j+1,k,2) .ne. -mass_flux(i,j,k,5)) then
-	!		print'(5i6)', i,j,k,mass_flux(i,j,k,5),mass_flux(i,j+1,k,2)
-	!	endif
-	!	if (mass_flux(i,j,k+1,3) .ne. -mass_flux(i,j,k,6)) then
-	!		print'(5i6)', i,j,k,mass_flux(i,j,k,6),mass_flux(i,j,k+1,3)
-	!	endif
-	!enddo
-	!enddo
-	!enddo
 
 
 !===================================================
@@ -348,6 +349,8 @@ contains
 					 conserved, sum(totalpressure),-sum(totalflux),sum(dvelocitydt), & 
 					+sum(F_ext), sum(self%X(i,j,k,:)),   & 
 					 sum(self%X_minus_t(i,j,k,:))
+			else
+				if (mod(iter,100) .eq. 0) print*, 'CV momentum conserved correctly'
 			endif
 
 		enddo
@@ -383,22 +386,6 @@ module control_volume
 
 contains
 
-subroutine check_CV_conservation(mflux_outflag,vflux_outflag,eflux_outflag)
-	use calculated_properties_MD, only : dmdt,mass_flux,momentum_flux,Pxyface,nbins, & 
-										 volume_mass_pdt, binsize
-	use computational_constants_MD, only : iter, irank, tplot,delta_t,Nvflux_ave
-	use CV_objects, only : CVcheck_mass, CVcheck_momentum
-	implicit none
-
-	integer,intent(in)	:: mflux_outflag,vflux_outflag,eflux_outflag
-
-	integer				:: i,j,k
-
-	call CVcheck_mass%check_error(2,nbins(1)+1,2,nbins(2)+1,2,nbins(3)+1,iter,irank)
-	call CVcheck_momentum%check_error(2,nbins(1)+1,2,nbins(2)+1,2,nbins(3)+1,iter,irank)
-
-end subroutine check_CV_conservation
-
 
 !===================================================================================
 ! Momentum Flux over a surface of a bin including all intermediate bins
@@ -412,11 +399,9 @@ subroutine get_molecule_CV_momentum_flux(molno)
 
 	integer,intent(in)				:: molno
 
-	integer							:: jxyz,i,j,k
-	integer							:: planeno
+	integer							:: i,j,k,jxyz
 	integer							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
 	integer		,dimension(3)		:: ibin1,ibin2,cbin
-	double precision				:: crossplane,rplane,shift
 	double precision,dimension(3)	:: mbinsize,velvect,crossface
 	double precision,dimension(3)	:: ri1,ri2,ri12,bintop,binbot,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
 
@@ -736,10 +721,9 @@ subroutine get_CV_momentum_flux(icell,jcell,kcell,isumflux,Flux)
 	double precision,intent(inout)							:: isumflux
 	double precision,optional,dimension(3,6),intent(out)	:: Flux
 
-	integer								:: n,molno, jxyz
+	integer								:: n,molno
 	integer								:: icellshift,jcellshift,kcellshift,adjacentcellnp
-	integer,dimension(3)				:: ibin1, ibin2, crossface
-	double precision,dimension(3)		:: mbinsize,ri1,ri2,ri12,Fsurface,velvect
+	double precision,dimension(3)		:: mbinsize,ri1,ri2,Fsurface,velvect
 	type(node), pointer		 	        :: old, current
 
 
@@ -961,7 +945,6 @@ subroutine get_CV_force(icell,jcell,kcell,isumforce,Traction)
 
 	integer							:: n,j,ixyz,molnoi,molnoj
 	integer							:: icellshift,jcellshift,kcellshift,cellnp,adjacentcellnp
-	integer,dimension(3)			:: ibin, jbin
 	double precision				:: rij2, invrij2, accijmag
 	double precision,dimension(3)	:: ri,rj,rij,fij,Fsurface
 	type(node), pointer		 	 	:: oldi, currenti, oldj, currentj

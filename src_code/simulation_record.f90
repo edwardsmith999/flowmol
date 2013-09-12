@@ -379,8 +379,6 @@ subroutine print_mol_escape_error(n)
 	character(len=19)   :: filename
 	character(len=4)    :: ranknum
 	integer             :: fileunit
-	logical             :: op
-
 
 	rglob = globalise(r(:,n))
 
@@ -985,7 +983,7 @@ subroutine velocity_averaging(ixyz)
 	integer				:: ixyz, n
 	integer,dimension(3):: ib
 	integer, save		:: average_count=-1
-	double precision,dimension(3) 	:: Vbinsize, temp
+	double precision,dimension(3) 	:: Vbinsize
 
 	average_count = average_count + 1
 	call cumulative_velocity(ixyz)
@@ -1272,7 +1270,7 @@ subroutine cumulative_temperature(ixyz)
 	double precision,dimension(3) 	:: Tbinsize 
 
 	integer :: br, bt, bz
-	real(kind(0.d0)) :: fluiddomain_cyl(3), rglob(3), rpol(3), vpol(3)
+	real(kind(0.d0)) :: fluiddomain_cyl(3), rglob(3), rpol(3)
 
 	!In case someone wants to record velocity in a simulation without sliding walls!?!?
 	if (ensemble .ne. tag_move) then
@@ -1623,7 +1621,7 @@ subroutine simulation_compute_kinetic_VA_cpol(imin,imax,jmin,jmax,kmin,kmax)
 	implicit none
 
 	integer, intent(in) :: imin, jmin, kmin, imax, jmax, kmax
-	integer :: n, ixyz,jxyz
+	integer :: n
 	integer :: br, bt, bz
 	real(kind(0.d0)) :: VAbinsize(3), velvect(3)
 	real(kind(0.d0)) :: ripol(3), vvpol(3,3)
@@ -1840,12 +1838,10 @@ subroutine cumulative_mass_flux
 	use module_record
 	implicit none
 
-	integer							:: ixyz,jxyz,i,j,k,n
-	integer							:: planeno
+	integer							:: jxyz,i,j,k,n
 	integer							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
 	integer		,dimension(3)		:: ibin1,ibin2,cbin
-	double precision				:: crossplane,rplane,shift
-	double precision,dimension(3)	:: mbinsize,velvect,crossface
+	double precision,dimension(3)	:: mbinsize,crossface
 	double precision,dimension(3)	:: ri1,ri2,ri12,bintop,binbot,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
 
 	!Determine bin size
@@ -2021,7 +2017,6 @@ subroutine momentum_flux_averaging(ixyz)
 	!use field_io, only :  momentum_flux_io,surface_stress_io, & 
 	!					  external_force_io,MOP_stress_io
 	use module_record
-	use control_volume, only : check_CV_conservation
 	use CV_objects, only : CV_debug, CVcheck_momentum
 	implicit none
 
@@ -3703,7 +3698,6 @@ subroutine record_external_forces(F,ri)
 	ibin(:) = ceiling((ri(:)+halfdomain(:))/mbinsize(:)) + nhb(:)
 
 	!Add external force to bin
-	print'(7i9,6f10.5)', shape(F_ext_bin), ibin, F, ri
 	F_ext_bin(ibin(1),ibin(2),ibin(3),:) = & 
 		F_ext_bin(ibin(1),ibin(2),ibin(3),:) + F(:)
 
