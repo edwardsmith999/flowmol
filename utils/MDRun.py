@@ -7,15 +7,14 @@ import shutil as sh
 import userconfirm as uc
 from InputUtils import InputMod
 
-svn_post_proc = ('http://svn.ma.ic.ac.uk/subversion/edward/MDNS_repo/' +
-                 'branch/MD_dCSE/src_code/post_proc/')
-
 class MDRun:
         
     """ 
         When instatiated, MDRun will create a new folder as a "run" 
         directory (if it doesn't already exist) and copy the necessary files 
-        from a "base" directory into it. 
+        from a "base" directory into it. All the information necessary for
+        execution of the run is stored from the following inputs to the
+        constructor: 
 
             Directories:
 
@@ -27,21 +26,36 @@ class MDRun:
             Copied files:
 
                 executable   - name of executable (e.g. parallel_md.exe)
-                inputfile    - input file name (contents of copied file may
-                               be changed with the change_inputs() function.)
-                restartfile  - initial state "restart" file
+                inputfile    - input file name 
+                initstate    - initial state file that is TO BE COPIED 
+                               FROM THE BASE DIRECTORY
+                restartfile  - initial state "restart" file, assumed to be
+                               already located at the given path that is
+                               RELATIVE TO THE RUN DIRECTORY
                 cylinderfile - cylinder restart info file
    
             New files: 
 
                 outputfile - output file name
 
+            Other:
+
+                inputchanges - dictionary of changes to make to the inputfile
+                               once copied from the base directory
+                finishargs   - dictionary of keywords and associated objects
+                               that specify a range of actions to perform
+                               when the execution of the run has finished. See
+                               the comments at the top of finish() for more
+                               info. 
+                
+
+
         Example usage from a higher level:
 
-            run = MDRun('../MD_dCSE/src_code/',...)
-            run.change_inputs(changes)
+            run = MDRun('../MD_dCSE/src_code/', etc.)
             run.setup_directory()
             run.execute()
+            run.finish()
 
     """
 
@@ -52,8 +66,11 @@ class MDRun:
                  executable,
                  inputfile,
                  outputfile, 
+                 inputchanges={},
+                 initstate=None,
                  restartfile=None,
-                 cylinderfile=None):
+                 cylinderfile=None,
+                 finishargs={}):
 
         self.srcdir = srcdir
         self.basedir = basedir
@@ -61,21 +78,28 @@ class MDRun:
         self.executable = executable
         self.inputfile = inputfile
         self.outputfile = outputfile
+        self.inputchanges = inputchanges
+        self.initstate = initstate
         self.restartfile = restartfile
         self.cylinderfile = cylinderfile 
+        self.finishargs = finishargs
 
         # Add slashes to end of folders if they aren't already there
         if (self.srcdir[-1] != '/'): self.srcdir += '/'
         if (self.rundir[-1] != '/'): self.rundir += '/'
         if (self.basedir[-1] != '/'): self.basedir += '/'
 
+        # Check initstate and restartfile are not both specified
+        if (initstate != None and restartfile != None):
+            quit('Error: both initial state and restart files are not None')
+
         # Keep a list of files to iterate over later
-        self.files = [executable, inputfile]
-        if (restartfile): self.files.append(restartfile)
-        if (cylinderfile): self.files.append(cylinderfile)
+        self.copyfiles = [executable, inputfile]
+        if (initstate): self.copyfiles.append(initstate)
+        if (cylinderfile): self.copyfiles.append(cylinderfile)
 
 
-    def change_inputs(self,changes):
+    def change_inputs(self):
 
         """
             Make alterations to the base input file (specified on 
@@ -89,9 +113,11 @@ class MDRun:
 
         mod = InputMod(self.rundir+self.inputfile)
         
-        for key in changes:
-            values = changes[key]
+        for key in self.inputchanges:
+            values = self.inputchanges[key]
             mod.replace_input(key,values)    
+        
+        return
 
     def setup_directory(self,existscheck=True):
 
@@ -133,7 +159,7 @@ class MDRun:
                 pass
 
         # Copy files and save new locations to instance variables
-        for f in self.files:
+        for f in self.copyfiles:
 
             # Do nothing if the files are the same
             if (self.basedir+f == self.rundir+f):
@@ -141,6 +167,10 @@ class MDRun:
             else:
                 sh.copy(self.basedir+f, self.rundir+f)
 
+        # Make changes to the input file once it has been copied
+        self.change_inputs()
+
+        return
 
     def execute(self,blocking=False,nprocs=0):
 
@@ -152,15 +182,31 @@ class MDRun:
 
         # Store the number of processors required
         if (nprocs == 0):
-            nprocs = self.get_nprocs()
+
+            with open(self.rundir+self.inputfile,'r') as f:
+
+                for line in f:
+                    if ('PROCESSORS' in line):
+                        npx = int(f.next()) 
+                        npy = int(f.next()) 
+                        npz = int(f.next()) 
+                        break
+            
+            nprocs = npx*npy*npz
 
         #Build runstring
         cmdstg = 'mpiexec -n ' + str(nprocs) + ' ' + self.executable 
         cmdstg += ' -i ' + self.inputfile 
-        if self.restartfile != None:
+
+        if self.initstate != None:
+            cmdstg += ' -r ' + self.initstate
+        elif self.restartfile != None:
             cmdstg += ' -r ' + self.restartfile 
+
         if self.cylinderfile != None:
             cmdstg += ' -c ' + self.cylinderfile 
+
+        print(self.rundir + ':\t' + cmdstg)
 
         #Setup standard out and standard error files
         fstout = open(self.rundir+self.outputfile,'w')
@@ -174,22 +220,32 @@ class MDRun:
         #If blocking, wait here
         if blocking:
             self.proc.wait()
-    
-    def get_nprocs(self):
-    
+
+        return
+
+    def finish(self):
+        
         """
-            Reads the input file and returns the total number of processors
+            Perform a selection of actions once the simulation has finished.
+   
+            self.finishargs must be a dictionary of the form:
+            
+                {'keyword': object}
+ 
+            Keyword options:
+        
+                final_state - when not None, move the results/final_state
+                              file to a specified string (object) location.
 
         """
 
-        with open(self.rundir+self.inputfile,'r') as f:
+        for key,value in self.finishargs.iteritems():
 
-            for line in f:
-                if ('PROCESSORS' in line):
-                    npx = int(f.next()) 
-                    npy = int(f.next()) 
-                    npz = int(f.next()) 
-                    break
+            if key == 'final_state':
+                
+                src = self.rundir + 'results/final_state'
+                dst = self.rundir + value 
+                print('Moving ' + src + ' to ' + dst)
+                sh.move(src,dst)
 
-        return npx*npy*npz
-
+        return

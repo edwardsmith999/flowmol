@@ -14,59 +14,42 @@ class MDThread(multiprocessing.Process):
             semaphore - semaphore object from which MDThread will
                         request a license during execution in run()
             
-            info - placeholder
+            runlist - list of MDRun objects to be executed sequentially
 
         Example usage from a higher level:
 
-            semaphore = multiprocessing.Semaphore(nprocs)
-            threads = []
-            for info in range(infolist):
-                thread = MDThread(semaphore,info)
-                threads.append(thread)
-                thread.start()
+            semaphore = multiprocessing.Semaphore(maxlicenses)
 
-            for thread in threads:
-                thread.join()
+            jobs = []
+            for runlist in list_of_runlists:
+                job = MDThread(semaphore,runlist)
+                jobs.append(job)
+                job.start()
+
+            for job in jobs:
+                job.join()
 
     """
 
 
-    def __init__(self,semaphore,howtosetuprunlist):
+    def __init__(self,semaphore,runlist):
 
         multiprocessing.Process.__init__(self)
-
-        srcdir='./../MD_dCSE/src_code'
-        basedir='base'
-        rundir='run'+str(howtosetuprunlist)
-        executable='./creamsoda'
-        inputfile='./rootbeer.in'
-        outputfile='./rootbeer.out'
-        restartfile=None #'./r0'
-        cylinderfile=None
-        appendoutput = False
         self.sema = semaphore
-
-        run1 = MDRun(srcdir,basedir,rundir,executable,inputfile,'out1')
-        run2 = MDRun(srcdir,rundir,rundir,executable,inputfile,'out2',
-                     restartfile='results/final_state')
-
-        self.runlist = [run1,run2]
-
-    	#self.runlist = []
-    	#for info in howtosetuprunlist:
-    	#	self.runlist.append(extractedinfo)
+        self.runlist = runlist
 
     def run(self):
 
         # Get license from semaphore       
         self.sema.acquire()
 
+        # Perform runs sequetially
         for run in self.runlist:
 
             run.setup_directory(existscheck=False)
-            run.change_inputs({})
             run.execute(blocking=True)
-            #Run.post_process()
+            run.finish()
+            #run.post_process()
 
         # Release license from semaphore       
         self.sema.release()
