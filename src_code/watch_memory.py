@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 processname = sys.argv[1]
-outfile = sys.argv[2]
 
 class WatchFigure:
 
@@ -37,8 +36,6 @@ class WatchFigure:
 		try:
 
 			# Get total memory usage tmem
-			cmd = ['tail','-1',outfile]
-			iter = int(sp.check_output(cmd).split(';')[0])
 			cmd = ('ps -eo comm,vsz').split()
 			processes = [p for p in sp.check_output(cmd).split('\n') if processname in p]
 			tmem = 0
@@ -56,7 +53,7 @@ class WatchFigure:
 			
 
 		# Plot, relimit, autoscale	
-		self.line2D.set_xdata(xrange(len(self.iter_history)))
+		self.line2D.set_xdata(xrange(len(self.tmem_history)))
 		self.line2D.set_ydata(self.tmem_history)
 		self.ax.relim()
 		self.ax.autoscale_view(True,True,True)

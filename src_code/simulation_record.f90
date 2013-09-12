@@ -2305,11 +2305,6 @@ subroutine momentum_snapshot
 		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = volume_mass_temp(ibin(1),ibin(2),ibin(3)) + 1
 		volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) = volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) + v(:,n)
 	enddo
-
-	!Create copy of previous timestep Control Volume momentum and time evolution
-	dmvdt = volume_momentum_temp - volume_momentum_pdt
-	volume_momentum_pdt = volume_momentum_temp
-
 	binvolume = (domain(1)/nbins(1))*(domain(2)/nbins(2))*(domain(3)/nbins(3))
 	volume_momentum_temp = volume_momentum_temp/binvolume
 
@@ -3698,16 +3693,19 @@ subroutine record_external_forces(F,ri)
 	use module_record, only : domain,halfdomain, nbins, nhb, F_ext_bin
 	implicit none
 
-	double precision,dimension(3),intent(in) :: F,ri
+	double precision,dimension(3),intent(in):: F,ri
 
-	double precision,dimension(3)			 :: mbinsize,ibin
+	integer	,dimension(3)					:: ibin
+	double precision,dimension(3)			:: mbinsize
 
 	!Determine bin size and bin
 	mbinsize(:) = domain(:) / nbins(:)
-	ibin(:) = ceiling((ri+halfdomain(:))/mbinsize(:)) + nhb(:)
+	ibin(:) = ceiling((ri(:)+halfdomain(:))/mbinsize(:)) + nhb(:)
 
 	!Add external force to bin
-	F_ext_bin(ibin(1),ibin(2),ibin(3),:) = F_ext_bin(ibin(1),ibin(2),ibin(3),:) + F(:)
+	print'(7i9,6f10.5)', shape(F_ext_bin), ibin, F, ri
+	F_ext_bin(ibin(1),ibin(2),ibin(3),:) = & 
+		F_ext_bin(ibin(1),ibin(2),ibin(3),:) + F(:)
 
 end subroutine record_external_forces
 

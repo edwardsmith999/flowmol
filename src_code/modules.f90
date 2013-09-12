@@ -626,8 +626,6 @@ module calculated_properties_MD
 
 	double precision, dimension(:,:,:,:), allocatable	:: &
 		volume_momentum,	& 		!Momentum in a control volume at time t
-		volume_momentum_pdt,& 		!Momentum in a control volume at time t-dt
-		dmvdt,				&		!Momentum change in control volume from t-dt to t
 		energy_flux,		&		!Flow of energy over a control volume surface
 		Pxyvface,			&		!Stress tensor on bin face
 		F_ext_bin					!External Force per bin

@@ -37,8 +37,6 @@ subroutine simulation_apply_global_force(ixyz,F_const)
 
 	integer				 		 :: n
 	double precision,dimension(3):: F_vector
-
-
 	
 	!Put directional results into a vector 
 	F_vector = 0.d0
@@ -51,7 +49,7 @@ subroutine simulation_apply_global_force(ixyz,F_const)
 
 		if (vflux_outflag .eq. 4) then
 			if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
-				!Add constant force to cells based on number of molecules in each
+					!Add constant force to cells based on number of molecules in each
 					call record_external_forces(F_vector(:),r(:,n))
 			endif
 		endif
@@ -736,6 +734,7 @@ subroutine apply_CV_force(iter)
 	!Get average over current cell and apply constraint forces
 	call get_continuum_values
 	!call get_test_values
+	call update_CV_halos
 	call average_over_bin
 	!call apply_force
 	call apply_force_tests(.true.)
@@ -743,7 +742,17 @@ subroutine apply_CV_force(iter)
 contains
 
 ! Get continuum values of surface stresses, etc
+subroutine update_CV_halos
+	use CV_objects, only :  CV2 => CVcheck_momentum2
+	implicit none
+
+	call CV2%swap_halos(nbinso)
+
+end subroutine update_CV_halos
+
+! Get continuum values of surface stresses, etc
 subroutine get_continuum_values
+	implicit none
 
 	integer				:: i,length,fileunit
 	real(kind(0.d0))	:: u_tm1, dudt
@@ -778,7 +787,8 @@ subroutine average_over_bin
 	use computational_constants_MD, only : nhb, iblock
 	use arrays_MD, only : r, v, a
 	use linked_list, only : node, cell
-	use CV_objects, only : CVcheck_mass, CV => CVcheck_momentum, CV2 => CVcheck_momentum2
+	use CV_objects, only : CVcheck_mass, CV  => CVcheck_momentum, & 
+										 CV2 => CVcheck_momentum2
 	implicit none
 
 	integer					:: n,i,j,k,molno,cellnp
@@ -807,13 +817,13 @@ subroutine average_over_bin
 		endif
 	enddo
 
-	!Mass
+	! - - Mass  - -
 	M = box_np !CVcheck_mass%X(i,j,k)
 
+	! - - Momentum - -
 	!Obtain the difference in the CV fluxes and stresses
 
     !Total CV flux
-	call CV2%swap_halos(nbinso)
 	MD_rhouu_dS  =		((CV2%flux(i,j,k,:,1)+CV2%flux(i,j,k,:,4)) &
 	          	 		+(CV2%flux(i,j,k,:,2)+CV2%flux(i,j,k,:,5)) &
 	          	 		+(CV2%flux(i,j,k,:,3)+CV2%flux(i,j,k,:,6)))/delta_t
@@ -860,10 +870,11 @@ subroutine average_over_bin
 
 	!When velocity is near zero, apply force from then on...
 	!if (abs(CV%X(i,j,k,1)) .lt. 0.001) then
-	if (iter .gt. 111) then
+	if (iter .gt. 1) then
 		apply_force = .true.
 	endif
 
+	!print*, CFD_rhouu_dS-CFD_Pi_dS
 	if (M .ne. 0 .and. apply_force ) then	
 		F_constraint = MD_Pi_dS-MD_rhouu_dS + CFD_rhouu_dS-CFD_Pi_dS
 	else
@@ -957,11 +968,11 @@ subroutine apply_force_tests(apply_the_force)
 		!print'(2(a,i4),2i6,9f10.5)', 'acceleration mol',i,'of',box_np, iter,n, a(:,n),a(:,n) - F_constraint/dble(M),F_constraint/dble(M)
 		a_temp(:,n) = a(:,n) - F_vector
 
-		!if (apply_the_force) then
+		if (apply_the_force) then
 			a(:,n) = a(:,n) - F_vector
 			!Add external force to CV total
 			call record_external_forces(F_vector,r(:,n))
-		!endif
+		endif
 	enddo
 	v_temp = 0.d0
 	do n = 1,np

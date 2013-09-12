@@ -264,8 +264,9 @@ contains
 		use messenger_bin_handler, only : swaphalos
 		implicit none
 
-		integer							 :: nresults
 		integer, dimension(3),intent(in) :: nb
+
+		integer							 :: nresults
 		double precision,dimension(:,:,:,:),allocatable :: temp
 
 		! initialize shape objects
@@ -277,7 +278,7 @@ contains
 		allocate(temp(nb(1),nb(2),nb(3),nresults))
 		temp(:,:,:,1 :18) = reshape(self%flux,(/ nb(1),nb(2),nb(3),18 /))
 		temp(:,:,:,19:36) = reshape(self%Pxy ,(/ nb(1),nb(2),nb(3),18 /))
-		temp(:,:,:,37:39) = self%F_ext
+		temp(:,:,:,37:39) = self%F_ext(:,:,:,:)
     	call swaphalos(temp,nb(1),nb(2),nb(3),nresults)
 		self%flux = reshape(temp(:,:,:,1 :18),(/ nb(1),nb(2),nb(3),3,6 /))
 		self%Pxy  = reshape(temp(:,:,:,19:36),(/ nb(1),nb(2),nb(3),3,6 /))
@@ -383,8 +384,8 @@ module control_volume
 contains
 
 subroutine check_CV_conservation(mflux_outflag,vflux_outflag,eflux_outflag)
-	use calculated_properties_MD, only : dmdt,mass_flux,momentum_flux,Pxyface,dmvdt,nbins, & 
-										 volume_mass_pdt, volume_momentum_pdt,binsize
+	use calculated_properties_MD, only : dmdt,mass_flux,momentum_flux,Pxyface,nbins, & 
+										 volume_mass_pdt, binsize
 	use computational_constants_MD, only : iter, irank, tplot,delta_t,Nvflux_ave
 	use CV_objects, only : CVcheck_mass, CVcheck_momentum
 	implicit none
@@ -395,42 +396,6 @@ subroutine check_CV_conservation(mflux_outflag,vflux_outflag,eflux_outflag)
 
 	call CVcheck_mass%check_error(2,nbins(1)+1,2,nbins(2)+1,2,nbins(3)+1,iter,irank)
 	call CVcheck_momentum%check_error(2,nbins(1)+1,2,nbins(2)+1,2,nbins(3)+1,iter,irank)
-
-	!call CVcheck_mass%check_error(8,8,11,11,8,8,iter,irank)
-
-
-	!CV snapshots taken every tplot 
-	!if (mod(iter,tplot) .ne. 0) return
-
-
-
-!	do i = 2,nbins(1)+1
-!	do j = 2,nbins(2)+1
-!	do k = 2,nbins(3)+1
-
-		!if (mflux_outflag .eq. 1) then
-			!if(sum(mass_flux(i,j,k,:))-dmdt(i,j,k) .ne. 0) then
-		!		 print'(a,i8,4i4,3i8)', & 
-		!			'Error in mass flux', iter,irank,i,j,k,sum(mass_flux(i,j,k,:)),volume_mass_pdt(i,j,k),dmdt(i,j,k)
-			!endif
-		!endif
-
-		!if (vflux_outflag .eq. 4) then
-		!	if (abs(sum(sum(momentum_flux(i,j,k,:,:))+sum(Pxyface(i,j,k,:,:))-dmvdt(i,j,k,:))) .gt. 0.0001d0) then
-		!		print'(a,5i5,9f10.5)','Error in momentum flux ', &
-		!			    iter,i,j,k,irank,sum(momentum_flux(i,j,k,1,:)),sum(Pxyface(i,j,k,1,:)),volume_momentum_pdt(i,j,k,1) & 
-		!				       	   		,sum(momentum_flux(i,j,k,2,:)),sum(Pxyface(i,j,k,2,:)),volume_momentum_pdt(i,j,k,2) & 
-		!				     			,sum(momentum_flux(i,j,k,3,:)),sum(Pxyface(i,j,k,3,:)),volume_momentum_pdt(i,j,k,3)
-		!	endif
-		!endif
-
-		!if (eflux_outflag .eq. 4) then
-		!	stop "CV Energy debug is not developed"
-		!endif
-
-!	enddo
-!	enddo
-!	enddo
 
 end subroutine check_CV_conservation
 
