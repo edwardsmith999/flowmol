@@ -1,7 +1,7 @@
+#! /usr/bin/env python
 from MDRun import MDRun
 import multiprocessing
 import subprocess as sp
-#import time
 
 class MDThread(multiprocessing.Process):
 

@@ -8,6 +8,7 @@ import string
 
 import userconfirm as uc
 from InputUtils import InputMod
+from CX1Job import CX1Job
 from GnuplotUtils import GnuplotUtils
 
 class MDRun:
@@ -74,6 +75,10 @@ class MDRun:
                  initstate=None,
                  restartfile=None,
                  cylinderfile=None,
+                 jobname='default_jobname',
+                 walltime='24:00:00',
+                 icib='true',
+                 queue='pqtzaki',
                  extrafiles=None, 
                  finishargs={},
                  dryrun=False):
@@ -109,6 +114,15 @@ class MDRun:
             for f in extrafiles:
                 self.copyfiles.append(f)
 
+        # Work out what machine we're on
+        self.platform = self.get_platform()
+        # Store more values if cx1
+        if (self.platform == 'cx1'):
+            self.jobname = jobname
+            self.walltime = walltime 
+            self.icib = icib 
+            self.queue = queue 
+
     def change_inputs(self,extrachanges=None):
 
         """
@@ -122,6 +136,7 @@ class MDRun:
         """
 
         mod = InputMod(self.rundir+self.inputfile)
+
         #If additional changes, add these to the input changes
         if (extrachanges):
             self.inputchanges.update(extrachanges)
@@ -132,7 +147,7 @@ class MDRun:
         
         return
 
-    def setup_directory(self,existscheck=True):
+    def setup_directory(self, existscheck=True):
 
         """
             Create a new run directory and copy the relevant files into
@@ -186,20 +201,78 @@ class MDRun:
         return
 
     def get_platform(self):
-        
-        string = sp.check_output('hostname')
-        string += sp.check_output('domainname')
-        string += sp.check_output('dnsdomainname')
+
+        # All require different commands to find their name!        
+        s = sp.Popen(['hostname'],stdout=sp.PIPE).communicate()[0]
+        s += sp.Popen(['domainname'],stdout=sp.PIPE).communicate()[0]
+        s += sp.Popen(['dnsdomainname'],stdout=sp.PIPE).communicate()[0]
       
-        if ('meflow' in string): self.platform = 'meflow'
-        if ('cx1' in string): self.platform = 'cx1'
-        if ('cx2' in string): self.platform = 'cx2'
+        if ('meflow' in s): 
+            platform = 'local'
+        elif ('cx1' in s):
+            platform = 'cx1'
+        elif ('cx2' in s): 
+            platform = 'cx2'
+        else:
+            platform = 'local'
 
-        print('Platform is: ' + self.platform)
+        return platform
 
-        return
+    def get_nprocs(self):
 
-    def execute(self,blocking=False,nprocs=0):
+        with open(self.rundir+self.inputfile,'r') as f:
+
+            for line in f:
+                if ('PROCESSORS' in line):
+                    npx = int(f.next()) 
+                    npy = int(f.next()) 
+                    npz = int(f.next()) 
+                    break
+        
+        return npx*npy*npz
+
+    def execute(self, blocking=False, nprocs=0):
+
+        """
+            Wrapper for execute_cx1, execute_local, and eventually others.
+
+        """
+        
+        if (self.platform == 'cx1'):
+            self.execute_cx1(blocking=blocking)
+        else:
+            self.execute_local(blocking=blocking, nprocs=nprocs)
+
+    def execute_cx1(self, blocking=False):
+
+        """
+            Runs an executable from the directory specified  
+            during instatiation of the object. 
+
+        """ 
+
+        cpuspernode = 8
+        nprocs = self.get_nprocs()
+        
+        cmd = 'mpiexec ' + self.executable 
+        cmd += ' -i ' + self.inputfile 
+
+        if self.initstate != None:
+            cmd += ' -r ' + self.initstate
+        elif self.restartfile != None:
+            cmd += ' -r ' + self.restartfile 
+
+        if self.cylinderfile != None:
+            cmd += ' -c ' + self.cylinderfile 
+
+        nodes = nprocs / cpuspernode
+
+        job = CX1Job(self.rundir, self.jobname, nprocs, self.walltime,
+                     self.queue, self.icib, cmd)
+
+        job.submit(blocking=blocking)
+        
+    def execute_local(self, blocking=False, nprocs=0):
 
         """
             Runs an executable from the directory specified  
@@ -213,17 +286,7 @@ class MDRun:
 
         # Store the number of processors required
         if (nprocs == 0):
-
-            with open(self.rundir+self.inputfile,'r') as f:
-
-                for line in f:
-                    if ('PROCESSORS' in line):
-                        npx = int(f.next()) 
-                        npy = int(f.next()) 
-                        npz = int(f.next()) 
-                        break
-            
-            nprocs = npx*npy*npz
+            nprocs = self.get_nprocs()
 
         #Build runstring
         cmdstg = 'mpiexec -n ' + str(nprocs) + ' ' + self.executable 
@@ -270,7 +333,7 @@ class MDRun:
 
         """
 
-        print('Simuation in directory ' + self.rundir + 'has finished')
+        print('Simulation in directory ' + self.rundir + 'has finished')
 
         for key,value in self.finishargs.iteritems():
 
@@ -301,3 +364,4 @@ class MDRun:
                 os.rename(outfile, newname)
 
         return
+

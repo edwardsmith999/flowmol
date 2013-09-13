@@ -1,5 +1,7 @@
-from MDThread import MDThread
 import multiprocessing
+
+from MDThread import MDThread
+from Dummy import DummySemaphore
 
 class MDStudy:
 
@@ -22,7 +24,11 @@ class MDStudy:
 
         """
 
-        self.semaphore = multiprocessing.Semaphore(maxlicenses)
+        try:
+            self.semaphore = multiprocessing.Semaphore(sema)
+        except:
+            print('Semaphore not available, creating dummy instead.')
+            self.semaphore = DummySemaphore()
 
         jobs = []
         for runlist in threadlist:
