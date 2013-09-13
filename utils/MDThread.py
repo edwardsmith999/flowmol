@@ -37,6 +37,7 @@ class MDThread(multiprocessing.Process):
         multiprocessing.Process.__init__(self)
         self.sema = semaphore
         self.runlist = runlist
+        self.dryrun = dryrun
 
     def run(self):
 
@@ -47,7 +48,7 @@ class MDThread(multiprocessing.Process):
         for run in self.runlist:
 
             run.setup_directory(existscheck=False)
-            if(not dryrun):
+            if(not self.dryrun):
                 run.execute(blocking=True)
             run.finish()
             #run.post_process()
