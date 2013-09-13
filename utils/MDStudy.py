@@ -3,7 +3,7 @@ import multiprocessing
 
 class MDStudy:
 
-    def __init__(self,threadlist,maxlicenses,dryrun=False):
+    def __init__(self,threadlist,maxlicenses):
 
         """
             A single study of multiple MDThreads, each carrying
@@ -26,7 +26,7 @@ class MDStudy:
 
         jobs = []
         for runlist in threadlist:
-            job = MDThread(self.semaphore,runlist,dryrun)
+            job = MDThread(self.semaphore,runlist)
             jobs.append(job)
             job.start()
 

@@ -75,7 +75,8 @@ class MDRun:
                  restartfile=None,
                  cylinderfile=None,
                  extrafiles=None, 
-                 finishargs={}):
+                 finishargs={},
+                 dryrun=False):
 
         self.srcdir = srcdir
         self.basedir = basedir
@@ -89,6 +90,7 @@ class MDRun:
         self.cylinderfile = cylinderfile 
         self.extrafiles = extrafiles
         self.finishargs = finishargs
+        self.dryrun = dryrun
 
         # Add slashes to end of folders if they aren't already there
         if (self.srcdir[-1] != '/'): self.srcdir += '/'
@@ -204,6 +206,10 @@ class MDRun:
             during instatiation of the object. 
 
         """ 
+
+        if (self.dryrun):
+            print('DRYRUN -- no execution in ' + self.rundir)
+            return
 
         # Store the number of processors required
         if (nprocs == 0):
