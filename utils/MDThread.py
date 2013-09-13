@@ -37,7 +37,6 @@ class MDThread(multiprocessing.Process):
         multiprocessing.Process.__init__(self)
         self.sema = semaphore
         self.runlist = runlist
-        self.dryrun = dryrun
 
     def run(self):
 
