@@ -4,8 +4,11 @@ import errno
 import shlex
 import subprocess as sp
 import shutil as sh
+import string
+
 import userconfirm as uc
 from InputUtils import InputMod
+from GnuplotUtils import GnuplotUtils
 
 class MDRun:
         
@@ -26,7 +29,8 @@ class MDRun:
             Copied files:
 
                 executable   - name of executable (e.g. parallel_md.exe)
-                inputfile    - input file name 
+                inputfile    - input file name
+                extrafiles   - a List of additional files copied to rundir
                 initstate    - initial state file that is TO BE COPIED 
                                FROM THE BASE DIRECTORY
                 restartfile  - initial state "restart" file, assumed to be
@@ -65,11 +69,12 @@ class MDRun:
                  rundir,
                  executable,
                  inputfile,
-                 outputfile, 
+                 outputfile,
                  inputchanges={},
                  initstate=None,
                  restartfile=None,
                  cylinderfile=None,
+                 extrafiles=None, 
                  finishargs={}):
 
         self.srcdir = srcdir
@@ -82,6 +87,7 @@ class MDRun:
         self.initstate = initstate
         self.restartfile = restartfile
         self.cylinderfile = cylinderfile 
+        self.extrafiles = extrafiles
         self.finishargs = finishargs
 
         # Add slashes to end of folders if they aren't already there
@@ -97,9 +103,11 @@ class MDRun:
         self.copyfiles = [executable, inputfile]
         if (initstate): self.copyfiles.append(initstate)
         if (cylinderfile): self.copyfiles.append(cylinderfile)
+        if (extrafiles): 
+            for f in extrafiles:
+                self.copyfiles.append(f)
 
-
-    def change_inputs(self):
+    def change_inputs(self,extrachanges=None):
 
         """
             Make alterations to the base input file (specified on 
@@ -112,7 +120,10 @@ class MDRun:
         """
 
         mod = InputMod(self.rundir+self.inputfile)
-        
+        #If additional changes, add these to the input changes
+        if (extrachanges):
+            self.inputchanges.update(extrachanges)
+
         for key in self.inputchanges:
             values = self.inputchanges[key]
             mod.replace_input(key,values)    
@@ -253,13 +264,34 @@ class MDRun:
 
         """
 
+        print('Simuation in directory ' + self.rundir + 'has finished')
+
         for key,value in self.finishargs.iteritems():
 
             if key == 'final_state':
                 
                 src = self.rundir + 'results/final_state'
-                dst = self.rundir + value 
+                dst = self.rundir + value
                 print('Moving ' + src + ' to ' + dst)
                 sh.move(src,dst)
+
+            if key == 'gnuplot_script':
+
+                outfile = 'tempout'
+                gnufile = GnuplotUtils(value)
+                gnufile.specify_outputfile(rundir=self.rundir,
+                                           outfilename=outfile)
+   
+                #Run gnuplot and generate outputs
+                cmdstr = ' gnuplot ' + value
+                gnurun = sp.Popen(shlex.split(cmdstr),cwd=self.rundir)
+                print('Running gnuplot script ' + value + ' with output ' + outfile)
+                gnurun.wait()
+
+                #Copy results back to calling directory and name based on rundir
+                sh.copy(self.rundir+outfile, outfile)
+                valid_chars = "-_.() %s%s" % (string.ascii_letters, string.digits)
+                newname = ''.join(c for c in outfile+self.rundir if c in valid_chars[6:])
+                os.rename(outfile, newname)
 
         return

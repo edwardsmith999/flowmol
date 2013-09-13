@@ -32,7 +32,7 @@ class MDThread(multiprocessing.Process):
     """
 
 
-    def __init__(self,semaphore,runlist):
+    def __init__(self,semaphore,runlist,dryrun=False):
 
         multiprocessing.Process.__init__(self)
         self.sema = semaphore
@@ -47,7 +47,8 @@ class MDThread(multiprocessing.Process):
         for run in self.runlist:
 
             run.setup_directory(existscheck=False)
-            run.execute(blocking=True)
+            if(not dryrun):
+                run.execute(blocking=True)
             run.finish()
             #run.post_process()
 
