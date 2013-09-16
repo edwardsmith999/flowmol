@@ -2491,7 +2491,8 @@ subroutine temperature_bin_cpol_io(mass_out,KE_out)
 	use concentric_cylinders, only: cpol_binso
 	use physical_constants_MD, only: nd
 	use computational_constants_MD, only: iter, initialstep, tplot, &
-	                                      NTemp_ave, prefix_dir
+	                                      NTemp_ave, prefix_dir, &
+                                          velocity_outflag
 	use messenger, only: icomm_grid,iblock,jblock,plane_comm
 	implicit none
 
@@ -2505,7 +2506,9 @@ subroutine temperature_bin_cpol_io(mass_out,KE_out)
 	integer :: m, ierr
 
 	! Make sure mass is written out
-	call mass_bin_cpol_io(mass_out)
+	if (velocity_outflag .ne. 5) then
+        call mass_bin_cpol_io(mass_out)
+    end if
 
 	! Z-Plane global sums of r/theta bins, everyone has a copy of
 	! r/theta bins in their own z-plane
