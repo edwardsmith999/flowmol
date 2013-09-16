@@ -1359,7 +1359,10 @@ subroutine cumulative_temperature(ixyz)
  			if ( br .lt. 1 ) cycle
 			if ( tag(n) .eq. cyl_teth_thermo_rotate ) cycle
 
-			cyl_mass(br,bt,bz) = cyl_mass(br,bt,bz) + 1
+			if (velocity_outflag .ne. 5) then
+                cyl_mass(br,bt,bz) = cyl_mass(br,bt,bz) + 1
+            end if
+
 			cyl_KE(br,bt,bz) = cyl_KE(br,bt,bz) + dot_product(v(:,n),v(:,n))
 
 		enddo
