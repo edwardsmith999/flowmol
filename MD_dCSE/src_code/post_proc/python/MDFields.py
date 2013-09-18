@@ -207,7 +207,6 @@ class VBins():
         psum, binspaces = self.pdata.get_bins(minrec,maxrec,sumaxes=sumaxes,
                                               meantime=False,sumtime=sumtime)
 
-        print(np.sum(psum),np.sum(msum))
         # Divide and patch any NaNs
         vfield = np.divide(psum,msum) 
         vfield[np.isnan(vfield)] = 0.0
