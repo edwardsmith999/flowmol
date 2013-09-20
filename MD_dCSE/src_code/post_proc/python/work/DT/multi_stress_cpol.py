@@ -1,12 +1,14 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+import sys
+sys.path.insert(0,'../../')
 from MDPlotData import MD_PlotData
 from HeaderData import *
 
 # Objects
-Header = HeaderData(open('../../results/simulation_header','r'))
-Getter = MD_PlotData('../../results/',cpol_bins=True)
+Header = HeaderData(open('../../../../results/simulation_header','r'))
+Getter = MD_PlotData('../../../../results/',cpol_bins=True)
 
 # Parameters
 nbins = int(Header.gnbins1)*int(Header.gnbins2)*int(Header.gnbins3)
@@ -14,18 +16,18 @@ r_ii = float(Header.r_ii)
 r_oi = float(Header.r_oi)
 r_io = float(Header.r_io)
 r_oo = float(Header.r_oo)
-filebytes = os.path.getsize('../../results/pVA_k')
+filebytes = os.path.getsize('../../../../results/pVA')
 maxrec = filebytes / (9*8*nbins) # 8 is the size of 1 double precision 
 print('Maxrec = '+str(maxrec))
 
 # PLOTS
 fig = plt.figure(figsize=(18.,15.))
 
-drec = 40
+drec = 2 
 maxrec = maxrec - maxrec%drec
 cnt = 0
 
-subrows = 4
+subrows = 3
 subcols = 3
 
 for rec in range(drec/2,maxrec,drec):
@@ -36,10 +38,11 @@ for rec in range(drec/2,maxrec,drec):
 
 	def plot_pressure_tensor():
 		
-		r, P_k = Getter.get_pVA_prof_args('pVA_k',0,minr,maxr,peculiar=True)
-		r, P_kt = Getter.get_pVA_prof_args('pVA_k',0,minr,maxr,peculiar=False)
-		r, P_c = Getter.get_pVA_prof_args('pVA_c',0,minr,maxr)
-		P = P_k + P_c
+#		r, P_k = Getter.get_pVA_prof_args('pVA_k',0,minr,maxr,peculiar=True)
+#		r, P_kt = Getter.get_pVA_prof_args('pVA_k',0,minr,maxr,peculiar=False)
+#		r, P_c = Getter.get_pVA_prof_args('pVA_c',0,minr,maxr)
+#		P = P_k + P_c
+		r, P = Getter.get_pVA_prof_args('pVA',0,minr,maxr,peculiar=False)
 
 		names = ['$P_{rr}$'       ,'$P_{r\\theta}$'      ,'$P_{rz}$'       ,
 		         '$P_{\\theta r}$','$P_{\\theta\\theta}$','$P_{\\theta z}$',
@@ -68,13 +71,13 @@ for rec in range(drec/2,maxrec,drec):
 				color = 'y'
 
 			ax = fig.add_subplot(subrows,subcols,subcnt)
-			ax.locator_params(tight=True, nbins=4)	
-			ax.set_xlim(limits)
+			#ax.locator_params(tight=True, nbins=4)	
+			#ax.set_xlim(limits)
 			ax.set_xlabel(name)
 			ax.set_ylabel('$r$')
-			ax.plot(P_k[:,component],r,'o',mfc='none',mec=color)
-			ax.plot(P_kt[:,component],r,'1',mfc='none',mec=color)
-			ax.plot(P_c[:,component],r,'x',color=color)
+			#ax.plot(P_k[:,component],r,'o',mfc='none',mec=color)
+			#ax.plot(P_kt[:,component],r,'1',mfc='none',mec=color)
+			#ax.plot(P_c[:,component],r,'x',color=color)
 			ax.plot(  P[:,component],r,'o',color=color)
 
 	def plot_velocity_fields():
@@ -134,7 +137,7 @@ for rec in range(drec/2,maxrec,drec):
 		plt.clf()
 
 	plot_pressure_tensor()
-	plot_velocity_fields()
+	#plot_velocity_fields()
 	#plot_other()
 	save_and_clear()
 	cnt += 1
