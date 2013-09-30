@@ -257,6 +257,7 @@ class MDRun:
             cmd += ' -c ' + self.cylinderfile 
 
         cmd += ' > ' + self.outputfile
+        cmd += ' 2> ' + self.outputfile + '.err'
 
         # Create CXJob object based on the platform
         if (self.platform == 'cx1'):
