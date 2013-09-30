@@ -3,39 +3,54 @@ import time
 import os
 import subprocess as sp
 
-class CX1Job:
+class CXJob:
 
     def __init__(self,
+                 platform,
                  rundir,
                  jobname,
                  nproc,
                  walltime,
-                 queue,
-                 icib,
-                 exec_cmd):
+                 exec_cmd,
+                 queue='pqtzaki',
+                 icib='true'):
 
         # Store absolute run directory so we can move around
         # after submission
         absrundir = os.path.abspath(rundir)
 
         # Calculate number of nodes required
-        if (nproc <= 8):
-            select = 1
-            ncpus = 1
+        if (nproc%8 != 0):
+            quit('nprocs not a factor of 8. Aborting.')
         else:
             ncpus = 8
             select = nproc / ncpus
             
         # Create script
-        script = ("#!/bin/bash \n"+
-        "#PBS -N %s \n"+
-        "#PBS -l walltime=%s \n"+
-        "#PBS -l select=%s:ncpus=%s:icib=%s \n"+
-        "#PBS -q %s \n"
-        ) % (jobname, walltime, select, ncpus, icib, queue)
+        if (platform == 'cx1'):
+
+            script = ("#!/bin/bash \n"+
+            "#PBS -N %s \n"+
+            "#PBS -l walltime=%s \n"+
+            "#PBS -l select=%s:ncpus=%s:icib=%s \n"+
+            "#PBS -q %s \n"
+            ) % (jobname, walltime, select, ncpus, icib, queue)
+
+        elif (platform == 'cx2'):
+
+            script = ("#!/bin/bash \n"+
+            "#PBS -N %s \n"+
+            "#PBS -l walltime=%s \n"+
+            "#PBS -l select=%s:ncpus=%s:mpiprocs=8:ompthreads=1:mem=23500mb \n"
+            ) % (jobname, walltime, select, ncpus)
+
+        else:
+
+            quit('Unrecognised platform in CXJob')
+
         script += 'module load intel-suite\n'
         script += 'module load mpi\n\n\n'
-        script += 'cd ' + absrundir + '\n\n'#$PBS_O_WORKDIR\n\n'
+        script += 'cd ' + absrundir + '\n\n'
         script += 'date\n\n'
         script += exec_cmd + '\n\n'
         script += 'date\n'
@@ -77,3 +92,4 @@ class CX1Job:
                 time.sleep(10)
 
         return
+

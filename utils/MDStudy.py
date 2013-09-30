@@ -1,5 +1,7 @@
 import multiprocessing
+import subprocess as sp
 
+from Platform import get_platform
 from MDThread import MDThread
 from Dummy import DummySemaphore
 
@@ -24,9 +26,9 @@ class MDStudy:
 
         """
 
-        try:
-            self.semaphore = multiprocessing.Semaphore(sema)
-        except:
+        if (get_platform() == 'local'):
+            self.semaphore = multiprocessing.Semaphore(maxlicenses)
+        else:
             print('Semaphore not available, creating dummy instead.')
             self.semaphore = DummySemaphore()
 

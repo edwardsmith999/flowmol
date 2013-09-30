@@ -7,8 +7,9 @@ import shutil as sh
 import string
 
 import userconfirm as uc
+from Platform import get_platform
 from InputUtils import InputMod
-from CX1Job import CX1Job
+from CXJob import CXJob
 from GnuplotUtils import GnuplotUtils
 
 class MDRun:
@@ -115,13 +116,16 @@ class MDRun:
                 self.copyfiles.append(f)
 
         # Work out what machine we're on
-        self.platform = self.get_platform()
+        self.platform = get_platform()
         # Store more values if cx1
         if (self.platform == 'cx1'):
             self.jobname = jobname
             self.walltime = walltime 
             self.icib = icib 
             self.queue = queue 
+        elif (self.platform == 'cx2'):
+            self.jobname = jobname
+            self.walltime = walltime 
 
     def change_inputs(self,extrachanges=None):
 
@@ -200,24 +204,6 @@ class MDRun:
 
         return
 
-    def get_platform(self):
-
-        # All require different commands to find their name!        
-        s = sp.Popen(['hostname'],stdout=sp.PIPE).communicate()[0]
-        s += sp.Popen(['domainname'],stdout=sp.PIPE).communicate()[0]
-        s += sp.Popen(['dnsdomainname'],stdout=sp.PIPE).communicate()[0]
-      
-        if ('meflow' in s): 
-            platform = 'local'
-        elif ('cx1' in s):
-            platform = 'cx1'
-        elif ('cx2' in s): 
-            platform = 'cx2'
-        else:
-            platform = 'local'
-
-        return platform
-
     def get_nprocs(self):
 
         with open(self.rundir+self.inputfile,'r') as f:
@@ -237,13 +223,18 @@ class MDRun:
             Wrapper for execute_cx1, execute_local, and eventually others.
 
         """
+
+        if (self.dryrun):
+            print('DRYRUN -- no execution in ' + self.rundir)
+            return
         
-        if (self.platform == 'cx1'):
-            self.execute_cx1(blocking=blocking)
+        if (self.platform == 'cx1' or
+            self.platform == 'cx2' ):
+            self.execute_cx(blocking=blocking)
         else:
             self.execute_local(blocking=blocking, nprocs=nprocs)
 
-    def execute_cx1(self, blocking=False):
+    def execute_cx(self, blocking=False):
 
         """
             Runs an executable from the directory specified  
@@ -265,12 +256,26 @@ class MDRun:
         if self.cylinderfile != None:
             cmd += ' -c ' + self.cylinderfile 
 
-        nodes = nprocs / cpuspernode
+        cmd += ' > ' + self.outputfile
 
-        job = CX1Job(self.rundir, self.jobname, nprocs, self.walltime,
-                     self.queue, self.icib, cmd)
+        # Create CXJob object based on the platform
+        if (self.platform == 'cx1'):
 
+            job = CXJob(self.platform, self.rundir, self.jobname, nprocs, 
+                        self.walltime, cmd, queue=self.queue, icib=self.icib)
+
+        elif (self.platform == 'cx2'):
+
+            job = CXJob(self.platform, self.rundir, self.jobname, nprocs, 
+                        self.walltime, cmd) 
+
+        else:
+
+            quit('Unrecognised platform in execute_cx')
+
+        # Submit the job
         job.submit(blocking=blocking)
+    
         
     def execute_local(self, blocking=False, nprocs=0):
 
@@ -279,10 +284,6 @@ class MDRun:
             during instatiation of the object. 
 
         """ 
-
-        if (self.dryrun):
-            print('DRYRUN -- no execution in ' + self.rundir)
-            return
 
         # Store the number of processors required
         if (nprocs == 0):
