@@ -11,15 +11,15 @@ class MultiPhore():
 
     """
 
-    def __init__(self,maxlicenses):
+    def __init__(self,maxprocs):
 
-        self.maxlicenses = maxlicenses
-        self.sema = BoundedSemaphore(maxlicenses)
+        self.maxprocs = maxprocs
+        self.sema = BoundedSemaphore(maxprocs)
 
     def acquire(self,nproc,blocking=True,wait=5.0):
 
         #Check requested processes not greater than maximum
-        if nproc > self.maxlicenses:
+        if nproc > self.maxprocs:
             raise ValueError("Requested acquire greater than semaphore maximum")
 
         #Priority for larger runs

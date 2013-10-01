@@ -261,7 +261,7 @@ class MDRun:
     def execute_cx(self, blocking=False):
 
         """
-            Runs an executable from the directory specified  
+            Submits a job from the directory specified  
             during instatiation of the object. 
 
         """ 
@@ -427,14 +427,26 @@ class MDRun:
                 #Run gnuplot and generate outputs
                 cmdstr = ' gnuplot ' + value
                 gnurun = sp.Popen(shlex.split(cmdstr),cwd=self.rundir)
-                print('Running gnuplot script ' + value + ' with output ' + outfile)
+                print('Running gnuplot script ' + value + ' with output ' + 
+                       outfile)
                 gnurun.wait()
 
-                #Copy results back to calling directory and name based on rundir
+                #Copy results back to calling directory and name by rundir
                 sh.copy(self.rundir+outfile, outfile)
-                valid_chars = "-_.() %s%s" % (string.ascii_letters, string.digits)
-                newname = ''.join(c for c in outfile+self.rundir if c in valid_chars[6:])
+                valid_chars = "-_.() %s%s" % (string.ascii_letters, 
+                                              string.digits)
+                newname = ''.join((c for c in outfile+self.rundir 
+                                   if c in valid_chars[6:]))
                 os.rename(outfile, newname)
+            
+            if key == 'copy_resultsdir':
+               
+                src = self.rundir + 'results/'
+                dst = self.rundir + value 
+                print('Copying ' + src + ' to ' + dst) 
+                if os.path.exists(dst):
+                    sh.rmtree(dst)
+                sh.copytree(src,dst)
 
         if self.deleteoutput:
              remove_directory(confirm=False)

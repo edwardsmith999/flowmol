@@ -8,7 +8,7 @@ from MultiPhore import MultiPhore
 
 class MDStudy:
 
-    def __init__(self,threadlist,maxlicenses=None):
+    def __init__(self,threadlist,maxproc=None):
 
         """
             A single study of multiple MDThreads, each carrying
@@ -21,27 +21,27 @@ class MDStudy:
                              series of MDRun objects to be executed 
                              sequentially
                 
-                maxlicenses - maximum number of licenses the semaphore may
-                              release at once. This is likely to be best 
-                              set equal to ncpus / nprocsperrun.
+                maxproc - maximum number of licenses the semaphore may
+                          release at once. 
 
         """
 
         #Get semaphore is possible, otherwise use dummy routine
         if (get_platform() == 'local'):
+
             # Get number of cpus on computer if not specified
-            if maxlicenses == None:
-                print("Maximum number concurrent jobs not specified, attempting " +
-                      "to use number of cpus")
+            if maxproc == None:
+                print("Maximum number concurrent processors not specified, " +
+                      "attempting to use total number of CPUs...")
                 try:
                     ncpus = multiprocessing.cpu_count()
                 except NotImplementedError:
                     raise
 
-            #self.semaphore = multiprocessing.Semaphore(maxlicenses)
-            self.semaphore = MultiPhore(maxlicenses)
+            self.semaphore = MultiPhore(maxproc)
 
         else:
+
             print('Semaphore not available, creating dummy instead.')
             self.semaphore = DummySemaphore()
 

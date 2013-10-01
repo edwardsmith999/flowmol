@@ -49,35 +49,14 @@ class MDThread(multiprocessing.Process):
 
             # Check number of processors required for this run
             # and wait until all are avialable using Multiphore  
-            nproc = run.get_nprocs()
-            self.sema.acquire(nproc)
+            runprocs = run.get_nprocs()
+            self.sema.acquire(runprocs)
 
-#             time.sleep(10.0/nproc) #Priority for larger runs
-#             acquired = [False for n in range(0,nproc)]
-
-#             while False in acquired:
-#                 # Attempt to get all licenses from semaphore      
-#                 for n in range(0,len(acquired)):
-#                     avail = self.sema.acquire(False)
-#                     acquired[n] = avail
-#                     #print(nproc,acquired,False in acquired)
-
-#                 #If all licenses not available, release and wait
-#                 if False in acquired:
-#                     for n in acquired:
-#                         if n == True:
-#                             self.sema.release()
-#                     acquired = [False for n in range(0,nproc)]
-#                     time.sleep(5.0)
-
+            # Execute and finish the run once license acquired
             run.execute(blocking=True)
             run.finish()
-            #run.post_process()
-
-#             for n in range(0,nproc): 
-#                 self.sema.release()
 
             # Release all licenses from MultiPhore
-            self.sema.release(nproc)
+            self.sema.release(runprocs)
 
         return
