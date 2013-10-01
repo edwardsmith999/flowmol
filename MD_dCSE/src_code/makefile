@@ -21,6 +21,8 @@ F90_MD_FILES_P = $(patsubst parallel_io.serial.f90,parallel_io.MPI2.f90,$(patsub
 F90_CUDA_MD_FILES = $(F90_MD_FILES:simulation_compute_forces.f90=simulation_compute_forces_CUDA.f90) 
 CU_CUDA_MD_FILES = inter.cu inter2.cu
 
+ASSEMBLY_FILES = Assembly_Heaviside_fn.s
+
 # object files directory
 OBJ_DIR := obj
 
@@ -53,11 +55,12 @@ LDFLAGS := $(FFLAGS)
 #Executable name
 MD_EXE = md.exe
 
-#Re-use f90 file names with .o instead of .f90
+#Re-use .f90/.cu/.s file names with .o instead of .f90
 O_MD = $(addprefix obj/, $(F90_MD_FILES:.f90=.o))
 O_CUDA = $(CU_CUDA_MD_FILES:.cu=.o) $(F90_CUDA_MD_FILES:.f90=.o)
 O_CONTINUUM = $(F90_CONTINUUM:.f90=.o)
 O_MD_P = $(addprefix obj/,$(F90_MD_FILES_P:.f90=.o))
+O_ASSEMBLY_FILES = $(addprefix obj/,$(ASSEMBLY_FILES:.s=.o))
 CPL_LIB = 
 
 # If coupled, link to static library coupler.a
@@ -110,9 +113,9 @@ profile_p:
 md.exe: obj $(O_MD_P) $(CPL_LIB)
 	@echo "MD executable is being relinked"
 	@$(F90) -o $@ $(O_MD_P) $(LDFLAGS)
-parallel_md.exe: obj $(O_MD_P) $(CPL_LIB)
+parallel_md.exe: obj $(O_ASSEMBLY_FILES) $(O_MD_P) $(CPL_LIB)
 	@echo "MD executable is being relinked"
-	@$(F90) -o $@ $(O_MD_P) $(LDFLAGS)
+	@$(F90) -o $@ $(O_ASSEMBLY_FILES) $(O_MD_P) $(LDFLAGS)
 serial_md.exe: obj $(O_MD) 
 	@$(F90) -o $(MD_EXE) $(O_MD) $(LDFLAGS)  
 md_CUDA.exe: obj $(O_CUDA)
@@ -151,6 +154,8 @@ obj/%.o: %.f90
 	$(F90) $(FPP_FLAGS) $(FFLAGS) -c $< -o $@
 .cu.o:
 	$(CU) $(FLAGS_CUDA) -c $*.cu -o obj/$*.o
+obj/%.o: %.s
+	$(F90) $(FPP_FLAGS) $(FFLAGS) -c $< -o $@
 #
 # Dependecies
 #

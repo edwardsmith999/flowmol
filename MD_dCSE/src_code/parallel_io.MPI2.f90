@@ -3111,7 +3111,7 @@ subroutine surface_stress_io
 
 	integer												:: ixyz,m,nresults
 	double precision									:: binface
-	double precision,dimension(:,:,:,:),allocatable		:: Pxyface_temp
+	double precision,allocatable,dimension(:,:,:,:)		:: Pxyface_temp
 
 	! Swap Halos
 	nresults = 18
@@ -3121,6 +3121,7 @@ subroutine surface_stress_io
 	Pxyface = reshape(Pxyface_temp,(/ size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),3,6 /))
 	!deallocate(Pxyface_temp)
 
+	!Divide by size of bin face to give flux per unit area
 	do ixyz = 1,3
 		binface		  = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
 			     		(domain(modulo(ixyz+1,3)+1)/nbins(modulo(ixyz+1,3)+1))
@@ -3140,7 +3141,7 @@ subroutine surface_stress_io
 	!Write surface pressures to file
 	select case(CV_conserve)
 	case(0)
-		m = (iter-initialstep+1)/(Nvflux_ave*tplot)
+		m = (iter-initialstep+1)/(tplot*Nvflux_ave)
 	case(1)
 		m = (iter-initialstep+1)/(Nvflux_ave)
 	case default
@@ -3150,7 +3151,6 @@ subroutine surface_stress_io
 	if (m .eq. 0) return
 
 	!Write surface pressures to file
-	!allocate(Pxyface_temp(size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),nresults))
 	Pxyface_temp = reshape(Pxyface,(/ size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),nresults /))
 	call write_arrays(Pxyface_temp,nresults,trim(prefix_dir)//'results/psurface',m)
 	deallocate(Pxyface_temp)

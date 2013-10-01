@@ -164,7 +164,7 @@ subroutine set_parameters_allocate
 	integer :: ixyz
 
 	!Calculate required extra allocation of molecules to allow copied Halos
-	!using ratio of halo to domain volume with safety factor
+	!using ratio of halo to domain volume (with safety factor)
 	extralloc = 0
 	do ixyz =1,nd
 		extralloc = extralloc + &
@@ -664,9 +664,9 @@ subroutine set_parameters_outputs
 	initialvel = sqrt(nd * (1.d0 - 1.d0/np)*inputtemperature)
 
 	!Allocate bins used for calculating simulation properties
-	gnbins(1) = npx*ncells(1) !Total number of domain bins
- 	gnbins(2) = npy*ncells(2) !Total number of domain bins
-	gnbins(3) = npz*ncells(3) !Total number of domain bins
+	gnbins(1) = binspercell(1)*npx*ncells(1) !Total number of domain bins
+ 	gnbins(2) = binspercell(2)*npy*ncells(2) !Total number of domain bins
+	gnbins(3) = binspercell(3)*npz*ncells(3) !Total number of domain bins
 
 	nbins(1) = nint(gnbins(1)/dble(npx))	!Share global evenly between processes
 	nbins(2) = nint(gnbins(2)/dble(npy))	!Share global evenly between processes

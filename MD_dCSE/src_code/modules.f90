@@ -184,6 +184,9 @@ module computational_constants_MD
 	double precision 	:: delta_rneighbr    !Radius used for neighbour list construction
 	double precision    :: rdf_rmax          !Maximum radius for radial distribution function
 	double precision	:: rescue_snapshot_freq	!Rescue snapshot output frequency in seconds
+
+
+	double precision, dimension(3)			:: binspercell     !Number of avergaing bins per computational cell
 	
 	!Store surface bins of processes subdomain for outputs over periodic boundaries
 	integer									:: nsurfacebins     !Number of surface bins
@@ -192,11 +195,11 @@ module computational_constants_MD
 	integer									:: nsurfacecells     !Number of surface bins
 	integer,allocatable,dimension(:,:)	    :: surfacecells		!Surface Bins
 
-	integer		 							:: nhalobins 	!Number of halo bins
-	integer,allocatable,dimension(:,:)	    :: halobins		!halo Bins
+	integer		 								:: nhalobins 	!Number of halo bins
+	integer,allocatable,dimension(:,:),target	:: halobins		!halo Bins
 
-	integer		 							:: nhalocells 	!Number of halo bins
-	integer,allocatable,dimension(:,:)	    :: halocells		!halo Bins
+	integer		 								:: nhalocells 	!Number of halo bins
+	integer,allocatable,dimension(:,:),target	:: halocells		!halo Bins
 
 	!Number and size of unit used for initial setup of molecules (i.e. FCC unit)
 	integer,          dimension(3)		:: initialnunits
@@ -234,6 +237,10 @@ module computational_constants_MD
 
 	!Directory that holds input/output files, useful in coupling mode
  	character(len=128) :: prefix_dir = "./"	
+
+	!Calcultion, 0 -- Harasima contour (half per bin), 1 -- Line length per bin trapizium rule
+	! and 2 -- Line length per bin explicit calculation 
+	integer	:: VA_calcmethod
 
 	!Number of samples used to calculate l_ij in VA stress calculation
 	integer :: VA_line_samples

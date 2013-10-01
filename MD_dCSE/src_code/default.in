@@ -618,20 +618,24 @@ TEMPERATURE_OUTFLAG
 
 #########################################################################
 # Output flag for Pressure binning:
-#	output_flag (0=off 1=virial 2=Volume Averaged)
-#	No. of samples for pressure average (number of viscosity bins)
+#   output_flag (0=off 1=virial 2=Volume Averaged)
+#   No. of samples for pressure average (also number of viscosity bins)
 #   Seperate kinetic and configurational 0 = together 1=seperate
+#   Configurational Stress VA Splitting method
+#       0 -- Harasima contour (half per bin)
+#       1 -- Line length per bin trapizium rule
+#            (less accurate but more robust, requires number of segments
+#             specified on next line)
+#       2 -- Line length per bin explicit calculation 
+#            (Perfectly accurate but horribly complicated and limited to
+#             cases where binsize > cellsize)
 # -----------------------------------------------------------------------
 PRESSURE_OUTFLAG
+2
+1
 0
-100
-
-#########################################################################
-# Number of segments to split the line l_ij into when calculating 
-# VA pressure tensor.
-# -----------------------------------------------------------------------
-#VA_LINE_SAMPLES
-#10
+1
+20
 
 #########################################################################
 # Output flag for viscosity:

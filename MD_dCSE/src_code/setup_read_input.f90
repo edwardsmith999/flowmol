@@ -478,6 +478,21 @@ subroutine setup_read_input
 		vmd_outflag = 0
 	endif
 
+	call locate(1,'BIN2CELLRATIO',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) binspercell(1)
+		read(1,*) binspercell(2)
+		read(1,*) binspercell(3)
+		if (any(binspercell .gt. 1.d0) .and. & 
+			any(binspercell .lt. 1.d0)) then
+			print*, "WARNING -- BIN2CELLRATIO input - cannot specify multiple ", &
+					"bins per cell in one direction and multiple cells per bin ", &
+					"in the other -- setting minimum binspercell to 1"
+			where(binspercell .gt. 1.d0) binspercell = 1.d0
+		endif
+	else
+		binspercell = 1.d0
+	endif
 	call locate(1,'MACRO_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) read(1,*) macro_outflag
 	call locate(1,'SLRC_FLAG',.false.,found_in_input)
@@ -524,9 +539,25 @@ subroutine setup_read_input
 	if (found_in_input) then
 		read(1,* ) pressure_outflag
 		if (pressure_outflag .ne. 0) then
-			read(1,* ) Nstress_ave
+			!Stress averaging
+			read(1,*) Nstress_ave
+			!Split kinetic/config
 			read(1,*,iostat=ios) split_kin_config
 			if (ios .ne. 0) split_kin_config = 0 !default to zero if value not found
+			!Check other options such as calculation method and 
+			if (pressure_outflag .eq. 2 .or. pressure_outflag .eq. 3) then
+    			read(1,*,iostat=ios) VA_calcmethod
+				if (ios .ne. 0) VA_calcmethod = 1
+    			if (any(binspercell .gt. 1.d0) .and. VA_calcmethod .eq. 2) then
+    				print*, "WARNING -- Cannot specify multiple bins per cell with exact VA "
+    				print*, "   calculation (method 2), switching to trapizium (method 1)   "
+					VA_calcmethod = 1
+    			endif
+				if (VA_calcmethod .eq. 1) then
+					read(1,*,iostat=ios) VA_line_samples
+    				if (ios .ne. 0)	VA_line_samples = 20
+				endif
+			endif
 		endif
 		if (pressure_outflag .eq. 3) then
 			call locate(1,'CPOL_BINS',.true.)
@@ -534,13 +565,13 @@ subroutine setup_read_input
 			read(1,*) gcpol_bins(2)	
 			read(1,*) gcpol_bins(3)	
 		end if
-		if (pressure_outflag .eq. 2 .or. pressure_outflag .eq. 3) then
-			VA_line_samples = 20
-			call locate(1,'VA_LINE_SAMPLES',.false.,found_in_input)
-			if (found_in_input) then
-				read(1,*) VA_line_samples	
-			end if
-		end if
+		!if (pressure_outflag .eq. 2 .or. pressure_outflag .eq. 3) then
+		!	VA_line_samples = 20
+		!	call locate(1,'VA_LINE_SAMPLES',.false.,found_in_input)
+		!	if (found_in_input) then
+		!		read(1,*) VA_line_samples	
+		!	end if
+		!end if
 	endif
 	call locate(1,'VISCOSITY_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
@@ -621,6 +652,9 @@ subroutine setup_read_input
 	if (found_in_input) then
 		read(1,*) CV_debug
 		read(1,*) CVforce_flag
+		if (CV_debug) then
+			if (vflux_outflag .ne. 4) call error_abort("Input ERROR -- CV_FORCES .true. but VFLUX_OUTFLAG not set to 4 (CV averages)")
+		endif
 	endif
 
 	close(1,status='keep')      !Close input file

@@ -34,6 +34,8 @@
 
 module librarymod
 
+	double precision,parameter :: const0 = 0.d0, const1 = 1.d0
+
 	! use same name for integer or double precision args versions of imaxloc
 	interface imaxloc
 		module procedure imaxloc_int, imaxloc_dp
@@ -52,6 +54,22 @@ module librarymod
 
     private int_heaviside, int_array_heaviside, dp_heaviside, &
 	        dp_array_heaviside
+
+	!Assembly language interface to Heaviside function
+    interface
+        real(c_double) function heaviside_a1(x)
+    		!DEC$ ATTRIBUTES STDCALL :: heaviside_a1
+            use iso_c_binding, only: c_double
+            real(c_double), VALUE :: x
+        end function heaviside_a1
+
+        real(c_double) function heaviside_a2(arg,const0,const1)
+    		!DEC$ ATTRIBUTES STDCALL :: heaviside_a2
+            use iso_c_binding, only: c_double
+            real(c_double), VALUE :: arg,const0,const1
+        end function heaviside_a2
+
+    end interface
 	
 contains
 

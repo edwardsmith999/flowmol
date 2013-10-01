@@ -1951,81 +1951,148 @@ contains
 
 !Update face halo cells by passing integers to neighbours 
 subroutine iswaphalos(A,n1,n2,n3,nresults)
-	use computational_constants_MD, only : ncells,nhb,nhalocells,halocells
+	use computational_constants_MD, only : ncells,nhalocells,halocells,nhb, nhalobins,halobins
+	use calculated_properties_MD, only :   nbins
 	use librarymod, only : heaviside
 	implicit none
 
-	integer,intent(in)			:: n1,n2,n3,nresults
-	integer,intent(inout)		:: A(:,:,:,:)
+	integer,intent(in)						:: n1,n2,n3,nresults
+	integer,intent(inout)					:: A(:,:,:,:)
 
-	integer									:: n,i,j,k,ic,jc,kc,nresultscell
+	logical									:: packbinsincells
+	integer									:: ixyz,n,i,j,k,ic,jc,kc,nresultscell
 	integer,dimension(:,:,:,:),allocatable	:: buf
+
+	integer									:: nhalo, nx, ny, nz
+	integer,dimension(:,:),pointer			:: halo
+
+
+	!We want to define ncells/nhalocells if nbin   >= ncells
+	!ncells always has 1 halo and if nbins>ncell then nbins always has 1 halo
+	!We want to define nbins/nhalobins  if ncells >  nbin
+	!Nbins doesn't need to be packed into cells if ncells >  nbin
+	do ixyz = 1,3
+    	if (ncells(ixyz) .gt. nbins(ixyz)) then
+    		nhalo = nhalobins; halo => halobins
+    		nx = n1; ny = n2; nz = n3
+			packbinsincells = .false.
+    	elseif(nbins(ixyz) .ge. ncells(ixyz)) then
+    		nhalo = nhalocells; halo => halocells
+    		nx = ncells(1)+2; ny = ncells(2)+2; nz = ncells(3)+2
+			packbinsincells = .true.
+    	else
+    		stop "Error -- bins/cells incorrectly specified in swaphalos"
+    	endif
+	enddo
 
 	!Pack bins into array of cells
 	nresultscell = nresults * nhb(1) * nhb(2) * nhb(3) 
-	allocate(buf(ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell)); buf = 0
-	call pack_bins_into_cells(buf,A,nresults)
+	if (packbinsincells) then
+		allocate(buf(nx,ny,nz,nresultscell)); buf = 0.d0
+		call pack_bins_into_cells(buf,A,nresults)
+	else
+		allocate(buf(nx,ny,nz,nresultscell)); buf = A
+	endif
 
 	!Exchange faces with adjacent processors
-	call iupdatefaces(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell,1)
-	call iupdatefaces(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell,2)
-	call iupdatefaces(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell,3)
+	call updatefaces(buf,nx,ny,nz,nresultscell,1)
+	call updatefaces(buf,nx,ny,nz,nresultscell,2)
+	call updatefaces(buf,nx,ny,nz,nresultscell,3)
 
 	!halo values to correct cells in array
-	do n = 1, nhalocells
-		i = halocells(n,1); j = halocells(n,2); k = halocells(n,3)
+	do n = 1, nhalo
+		i = halo(n,1); j = halo(n,2); k = halo(n,3)
 
 		!Change in number of Molecules in halo cells
-		ic = i + heaviside(ncells(1)+1-i)-heaviside(i-2)
-		jc = j + heaviside(ncells(2)+1-j)-heaviside(j-2)
-		kc = k + heaviside(ncells(3)+1-k)-heaviside(k-2)
+		ic = i + heaviside(nx-1-i)-heaviside(i-2)
+		jc = j + heaviside(ny-1-j)-heaviside(j-2)
+		kc = k + heaviside(nz-1-k)-heaviside(k-2)
 
 		buf(ic,jc,kc,:) = buf(ic,jc,kc,:) + buf(i,j,k,:)
 
 	enddo
+	nullify(halo)
 
 	!Unpack array of cells into bins
-	call unpack_cells_into_bins(A,buf,nresults)
+	if (packbinsincells) then
+		call unpack_cells_into_bins(A,buf,nresults)
+	else
+		A = buf
+	endif
 	deallocate(buf)
 
 end subroutine iswaphalos
 
 !Update face halo cells by passing to neighbours (double precision version)
 subroutine rswaphalos(A,n1,n2,n3,nresults)
-	use computational_constants_MD, only : ncells,nhb,nhalocells,halocells
+	use computational_constants_MD, only : ncells,nhalocells,halocells,nhb, nhalobins,halobins
+	use calculated_properties_MD, only :   nbins
 	use librarymod, only : heaviside
 	implicit none
 
 	integer,intent(in)								:: n1,n2,n3,nresults
 	double precision,intent(inout)					:: A(:,:,:,:)
 
-	integer											:: n,i,j,k,ic,jc,kc,nresultscell
+	logical											:: packbinsincells
+	integer											:: ixyz,n,i,j,k,ic,jc,kc,nresultscell
 	double precision,dimension(:,:,:,:),allocatable	:: buf
 
-	!Pack bins into array of cells
-	nresultscell = nresults * nhb(1) * nhb(2) * nhb(3) 
-	allocate(buf(ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell)); buf = 0.d0
-	call pack_bins_into_cells(buf,A,nresults)
+	integer											:: nhalo, nx, ny, nz
+	integer,dimension(:,:),pointer					:: halo
 
-	call rupdatefaces(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell,1)
-	call rupdatefaces(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell,2)
-	call rupdatefaces(buf,ncells(1)+2,ncells(2)+2,ncells(3)+2,nresultscell,3)
+
+	!We want to define ncells/nhalocells if nbin   >= ncells
+	!ncells always has 1 halo and if nbins>ncell then nbins always has 1 halo
+	!We want to define nbins  /nhalobins  if ncells >  nbin
+	!Nbins doesn't need to be packed into cells if ncells >  nbin
+	do ixyz = 1,3
+    	if (ncells(ixyz) .gt. nbins(ixyz)) then
+    		nhalo = nhalobins; halo => halobins
+    		nx = n1; ny = n2; nz = n3
+			packbinsincells = .false.
+    	elseif(nbins(ixyz) .ge. ncells(ixyz)) then
+    		nhalo = nhalocells; halo => halocells
+    		nx = ncells(1)+2; ny = ncells(2)+2; nz = ncells(3)+2
+			packbinsincells = .true.
+    	else
+    		stop "Error -- bins/cells incorrectly specified in swaphalos"
+    	endif
+	enddo
+
+	!Pack bins into array of cells
+	nresultscell = nresults * nhb(1) * nhb(2) * nhb(3)
+	if (packbinsincells) then
+		allocate(buf(nx,ny,nz,nresultscell)); buf = 0.d0
+		call pack_bins_into_cells(buf,A,nresults)
+	else
+		allocate(buf(nx,ny,nz,nresultscell)); buf = A
+	endif
+
+	!Exchange faces with adjacent processors
+	call updatefaces(buf,nx,ny,nz,nresultscell,1)
+	call updatefaces(buf,nx,ny,nz,nresultscell,2)
+	call updatefaces(buf,nx,ny,nz,nresultscell,3)
 
 	!halo values to correct cells in array
-	do n = 1, nhalocells
-		i = halocells(n,1); j = halocells(n,2); k = halocells(n,3)
+	do n = 1, nhalo
+		i = halo(n,1); j = halo(n,2); k = halo(n,3)
 
 		!Change in number of Molecules in halo cells
-		ic = i + heaviside(ncells(1)+1-i)-heaviside(i-2)
-		jc = j + heaviside(ncells(2)+1-j)-heaviside(j-2)
-		kc = k + heaviside(ncells(3)+1-k)-heaviside(k-2)
+		ic = i + heaviside(nx-1-i)-heaviside(i-2)
+		jc = j + heaviside(ny-1-j)-heaviside(j-2)
+		kc = k + heaviside(nz-1-k)-heaviside(k-2)
 
 		buf(ic,jc,kc,:) = buf(ic,jc,kc,:) + buf(i,j,k,:)
 
 	enddo
+	nullify(halo)
 
 	!Unpack array of cells into bins
-	call unpack_cells_into_bins(A,buf,nresults)
+	if (packbinsincells) then
+		call unpack_cells_into_bins(A,buf,nresults)
+	else
+		A = buf
+	endif
 	deallocate(buf)
 
 end subroutine rswaphalos
@@ -2048,8 +2115,12 @@ subroutine ipack_bins_into_cells(cells,bins,nresults)
 		do jbin = 1,nhb(2)
 		do kbin = 1,nhb(3)
 			do result = 1,nresults
-				n = result + (ibin-1)*nresults + (jbin-1)*nhb(1)*nresults + (kbin-1)*nhb(1)*nhb(2)*nresults
-				cells(icell,jcell,kcell,n) = bins((icell-1)*nhb(1)+ibin,(jcell-1)*nhb(2)+jbin,(kcell-1)*nhb(3)+kbin,result)
+				n = result 	+ (ibin-1)*nresults & 
+						   	+ (jbin-1)*nhb(1)*nresults & 
+						   	+ (kbin-1)*nhb(1)*nhb(2)*nresults
+				cells(icell,jcell,kcell,n) = bins(	(icell-1)*nhb(1)+ibin, & 
+													(jcell-1)*nhb(2)+jbin, & 
+													(kcell-1)*nhb(3)+kbin,result)
 			enddo
 
 		enddo
@@ -2079,8 +2150,12 @@ subroutine iunpack_cells_into_bins(bins,cells,nresults)
 		do jbin = 1,nhb(2)
 		do kbin = 1,nhb(3)
 			do result = 1,nresults
-				n = result + (ibin-1)*nresults + (jbin-1)*nhb(1)*nresults + (kbin-1)*nhb(1)*nhb(2)*nresults
-				bins((icell-1)*nhb(1)+ibin,(jcell-1)*nhb(2)+jbin,(kcell-1)*nhb(3)+kbin,result) = cells(icell,jcell,kcell,n) 
+				n = result 	+ (ibin-1)*nresults & 
+							+ (jbin-1)*nhb(1)*nresults & 
+							+ (kbin-1)*nhb(1)*nhb(2)*nresults
+				bins(	(icell-1)*nhb(1)+ibin, & 
+						(jcell-1)*nhb(2)+jbin, & 
+						(kcell-1)*nhb(3)+kbin,result) = cells(icell,jcell,kcell,n) 
 			enddo
 		enddo
 		enddo
@@ -2110,8 +2185,12 @@ subroutine rpack_bins_into_cells(cells,bins,nresults)
 		do jbin = 1,nhb(2)
 		do kbin = 1,nhb(3)
 			do result = 1,nresults
-				n = result + (ibin-1)*nresults + (jbin-1)*nhb(1)*nresults + (kbin-1)*nhb(1)*nhb(2)*nresults
-				cells(icell,jcell,kcell,n) = bins((icell-1)*nhb(1)+ibin,(jcell-1)*nhb(2)+jbin,(kcell-1)*nhb(3)+kbin,result)
+				n = result 	+ (ibin-1)*nresults & 
+							+ (jbin-1)*nhb(1)*nresults & 
+							+ (kbin-1)*nhb(1)*nhb(2)*nresults
+				cells(icell,jcell,kcell,n) = bins(	(icell-1)*nhb(1)+ibin, &
+													(jcell-1)*nhb(2)+jbin, & 
+													(kcell-1)*nhb(3)+kbin,result)
 			enddo
 
 		enddo
@@ -2141,8 +2220,12 @@ subroutine runpack_cells_into_bins(bins,cells,nresults)
 		do jbin = 1,nhb(2)
 		do kbin = 1,nhb(3)
 			do result = 1,nresults
-				n = result + (ibin-1)*nresults + (jbin-1)*nhb(1)*nresults + (kbin-1)*nhb(1)*nhb(2)*nresults
-				bins((icell-1)*nhb(1)+ibin,(jcell-1)*nhb(2)+jbin,(kcell-1)*nhb(3)+kbin,result) = cells(icell,jcell,kcell,n) 
+				n = result 	+ (ibin-1)*nresults & 
+							+ (jbin-1)*nhb(1)*nresults & 
+							+ (kbin-1)*nhb(1)*nhb(2)*nresults
+				bins(	(icell-1)*nhb(1)+ibin, & 
+						(jcell-1)*nhb(2)+jbin, &
+						(kcell-1)*nhb(3)+kbin,result) = cells(icell,jcell,kcell,n) 
 			enddo
 		enddo
 		enddo
