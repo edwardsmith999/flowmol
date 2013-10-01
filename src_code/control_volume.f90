@@ -111,13 +111,14 @@ contains
 		class(check_CV_mass) :: self
 
 		integer,intent(in) :: iter,irank,imin,imax,jmin,jmax,kmin,kmax
-		integer :: i,j,k
 
-		logical,save :: first_time = .true., check_ok = .false.
+		integer 		:: i,j,k
+		integer,save 	:: first_time = 0
+		logical		 	:: check_ok
 
 		!First call doesn't have difference in time yet so skip
-		if (first_time) then
-			first_time = .false.
+		if (first_time .lt. 2) then
+			first_time = first_time + 1
 			return
 		endif
 
@@ -154,9 +155,9 @@ contains
 		!enddo
 		!enddo
 
-		if (check_ok .eq. .false.) then
-			stop "Error in mass flux"
-		endif
+		!if (check_ok .eq. .false.) then
+		!	stop "Error in mass flux"
+		!endif
 
 	end subroutine check_error_mass
 
@@ -299,8 +300,9 @@ contains
 
 		integer,intent(in) :: iter,irank,imin,imax,jmin,jmax,kmin,kmax
 
-		integer :: i,j,k
-		logical,save 					:: first_time = 0
+		logical							:: check_ok
+		integer 						:: i,j,k
+		integer,save 					:: first_time = 0
 		double precision				:: conserved
 		double precision,dimension(3)	:: binsize,totalpressure,totalflux,F_ext,dvelocitydt
 
@@ -314,6 +316,8 @@ contains
 
 		!print'(2i4,f13.5,3i8)', iter, irank, maxval(self%F_ext), maxloc(self%F_ext)
 		!print'(a,4i8,4f13.8)', 'Inside  object', irank,6,6,6, self%F_ext(6,6,6,:),sum(self%F_ext(6,6,6,:))
+
+		check_ok = .true.
 
 		do i = imin,imax
 		do j = jmin,jmax
@@ -348,13 +352,16 @@ contains
 					 conserved, sum(totalpressure),-sum(totalflux),sum(dvelocitydt), & 
 					+sum(F_ext), sum(self%X(i,j,k,:)),   & 
 					 sum(self%X_minus_t(i,j,k,:))
-			else
-				if (mod(iter,100) .eq. 0) print*, 'CV momentum conserved correctly'
+				check_ok = .false.
 			endif
 
 		enddo
 		enddo
 		enddo
+
+		!if (check_ok .eq. .false.) then
+		!	stop "Error in momentum flux"
+		!endif
 
 	end subroutine check_error_momentum
 

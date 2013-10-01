@@ -1775,7 +1775,9 @@ subroutine mass_flux_averaging(ixyz)
 	call cumulative_mass_flux
 	sample_count = sample_count + 1
 	if (sample_count .eq. Nmflux_ave) then
-		if (CV_debug) call CVcheck_mass%check_error(2,nbins(1)+1,2,nbins(2)+1,2,nbins(3)+1,iter,irank)
+		if (CV_debug) call CVcheck_mass%check_error(1+nhb(1),nbins(1)+nhb(1), & 
+													1+nhb(2),nbins(2)+nhb(2), & 
+													1+nhb(3),nbins(3)+nhb(3),iter,irank)
 		call mass_flux_io
 		sample_count = 0
 		mass_flux = 0
@@ -2060,7 +2062,9 @@ subroutine momentum_flux_averaging(ixyz)
 		call surface_stress_io
 		Pxyface = 0.d0
 		!Debug flag to check CV conservation in code
-		if (CV_debug) call CVcheck_momentum%check_error(2,nbins(1)+1,2,nbins(2)+1,2,nbins(3)+1,iter,irank)
+		if (CV_debug) call CVcheck_momentum%check_error(1+nhb(1),nbins(1)+nhb(1), & 
+														1+nhb(2),nbins(2)+nhb(2), & 
+														1+nhb(3),nbins(3)+nhb(3),iter,irank)
 	endif
 
 end subroutine momentum_flux_averaging

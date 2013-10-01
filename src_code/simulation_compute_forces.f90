@@ -807,27 +807,30 @@ end subroutine simulation_compute_forces_Soddemann_neigbr_halfint
 !Compute Volume Averaged stress using all cells including halos
 
 subroutine simulation_compute_rfbins(imin, imax, jmin, jmax, kmin, kmax)
-use module_compute_forces
-implicit none
+	use module_compute_forces
+	implicit none
 
 	integer                         :: i, j, ixyz !Define dummy index
 	integer							:: icell, jcell, kcell
 	integer                         :: icellshift, jcellshift, kcellshift
-	integer                         :: cellnp, adjacentcellnp, cellsperbin
+	integer                         :: cellnp, adjacentcellnp 
 	integer							:: molnoi, molnoj
 	integer							:: imin, jmin, kmin, imax, jmax, kmax
 	type(node), pointer 	        :: oldi, currenti, oldj, currentj
+
+	double precision,dimension(3)	:: cellsperbin
 
 	!rfbin = 0.d0
 	!allocate(rijsum(nd,np+extralloc)) !Sum of rij for each i, used for SLLOD algorithm
 	!rijsum = 0.d0
 
 	!Calculate bin to cell ratio
-	cellsperbin = ceiling(ncells(1)/dble(nbins(1)))
+	cellsperbin = 1.d0/binspercell !ceiling(ncells(1)/dble(nbins(1)))
+	where (cellsperbin .gt. 1.d0) cellsperbin = 1.d0
 
-	do kcell=(kmin-1)*cellsperbin+1, kmax*cellsperbin
-	do jcell=(jmin-1)*cellsperbin+1, jmax*cellsperbin
-	do icell=(imin-1)*cellsperbin+1, imax*cellsperbin
+	do kcell=(kmin-1)*cellsperbin(3)+1, kmax*cellsperbin(3)
+	do jcell=(jmin-1)*cellsperbin(2)+1, jmax*cellsperbin(2)
+	do icell=(imin-1)*cellsperbin(1)+1, imax*cellsperbin(1)
 	
 		cellnp = cell%cellnp(icell,jcell,kcell)
 		oldi => cell%head(icell,jcell,kcell)%point !Set old to first molecule in list
@@ -877,14 +880,19 @@ implicit none
 						!Linear magnitude of acceleration for each molecule
 						invrij2 = 1.d0/rij2                 !Invert value
 						accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
-						!call pressure_tensor_forces_VA(ri,rj,rij,accijmag)
-						call pressure_tensor_forces_VA_trap(ri,rj,accijmag)
-						!call pressure_tensor_forces_H(ri,rj,rij,accijmag)
-						!if (vflux_outflag.eq.4) then
-						!	fij = accijmag*rij(:)
-							!call Control_Volume_Forces(fij,ri,rj,molnoi,molnoj)
-						!	call control_volume_stresses(fij,ri,rj,molnoi,molnoj)
-						!endif
+
+						!Select requested configurational line partition methodology
+						select case(VA_calcmethod)
+						case(0)
+							call pressure_tensor_forces_H(ri,rj,rij,accijmag)
+						case(1)
+							call pressure_tensor_forces_VA_trap(ri,rj,accijmag)
+						case(2)
+							call pressure_tensor_forces_VA(ri,rj,rij,accijmag)
+						case default
+							stop "Error - VA_calcmethod incorrect"
+						end select 
+
 					endif
 				enddo
 			enddo
@@ -916,16 +924,19 @@ subroutine simulation_compute_rfbins_cpol(imin, imax, jmin, jmax, kmin, kmax)
 	integer :: i, j
 	integer	:: icell, jcell, kcell
 	integer :: icellshift, jcellshift, kcellshift
-	integer :: cellnp, adjacentcellnp, cellsperbin
+	integer :: cellnp, adjacentcellnp
 	integer	:: molnoi, molnoj
 	type(node), pointer :: oldi, currenti, oldj, currentj
 
-	!Calculate bin to cell ratio
-	cellsperbin = ceiling(ncells(1)/dble(nbins(1)))
+	double precision,dimension(3)	:: cellsperbin
 
-	do kcell=(kmin-1)*cellsperbin+1, kmax*cellsperbin
-	do jcell=(jmin-1)*cellsperbin+1, jmax*cellsperbin
-	do icell=(imin-1)*cellsperbin+1, imax*cellsperbin
+	!Calculate bin to cell ratio
+	cellsperbin = 1.d0/binspercell !ceiling(ncells(1)/dble(nbins(1)))
+	where (cellsperbin .gt. 1.d0) cellsperbin = 1.d0
+
+	do kcell=(kmin-1)*cellsperbin(3)+1, kmax*cellsperbin(3)
+	do jcell=(jmin-1)*cellsperbin(2)+1, jmax*cellsperbin(2)
+	do icell=(imin-1)*cellsperbin(1)+1, imax*cellsperbin(1)
 	
 		cellnp = cell%cellnp(icell,jcell,kcell)
 		oldi => cell%head(icell,jcell,kcell)%point

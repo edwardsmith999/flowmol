@@ -727,6 +727,8 @@ subroutine apply_CV_force(iter)
 	real(kind(0.d0)),dimension(3)	:: u_bin,F_bin,u_bin1, u_bin2, F_bin1, F_bin2
 	real(kind(0.d0)),dimension(3)	:: CFD_Pi_dS,CFD_rhouu_dS
 
+	if (CVforce_flag .eq. 0) return
+
 	binsize = domain/nbins
 	!Only apply force on top processor
 	if (jblock .ne. npy) return
@@ -763,8 +765,9 @@ subroutine get_test_values(flag)
 
 	!When velocity is near zero, apply force from then on...
 	!if (abs(CV%X(i,j,k,1)) .lt. 0.001) then
-	if (iter .gt. 111) then !111 is the time force is close to zero
+	if (iter .gt. 100) then !111 is the time force is close to zero
 		apply_CVforce = .true.
+		F_constraint = 0.d0
 	endif
 
 	select case(flag)
@@ -859,21 +862,21 @@ subroutine average_over_bin
 	endif
 
 	!Debugging plots of applied and remaining force
-	!u_bin=0.d0; F_bin = 0.d0; F_bin2 = 0.d0
-	!do i = 1, box_np
-	!	n = list(i)
-	!	u_bin  = u_bin  + v(:,n)
-	!	F_bin  = F_bin  + a(:,n)
-	!	F_bin2 = F_bin2 + a(:,n) - F_constraint(:)/(dble(M))
-	!enddo
+	u_bin=0.d0; F_bin = 0.d0; F_bin2 = 0.d0
+	do i = 1, box_np
+		n = list(i)
+		u_bin  = u_bin  + v(:,n)
+		F_bin  = F_bin  + a(:,n)
+		F_bin2 = F_bin2 + a(:,n) - F_constraint(:)/(dble(M))
+	enddo
 
-	!u_bin1 = CV%dXdt(5,5,5,:)
-	!u_bin2 = CV%X(3,3,3,:)
-	!if (M .ne. 0) then
-	!	print'(2i4,12f10.4)', iter,M, u_bin, F_bin, F_bin2, F_constraint(:)/(dble(M))
-	!else
-	!	print'(2i4,12f10.5)', iter,M, u_bin, F_bin, F_bin2, (/ 0.d0, 0.d0, 0.d0 /)
-	!endif
+	u_bin1 = CV%dXdt(5,5,5,:)
+	u_bin2 = CV%X(3,3,3,:)
+	if (M .ne. 0) then
+		print'(2i4,12f10.4)', iter,M, u_bin, F_bin, F_bin2, F_constraint(:)/(dble(M))
+	else
+		print'(2i4,12f10.5)', iter,M, u_bin, F_bin, F_bin2, (/ 0.d0, 0.d0, 0.d0 /)
+	endif
 
 end subroutine average_over_bin
 
@@ -890,7 +893,7 @@ subroutine apply_force
 	double precision,dimension(3):: F_vector
 
 	!Loop over all molecules and apply constraint
-	F_vector = F_constraint/dble(M)
+	if (M .ne. 0) F_vector = F_constraint/dble(M)
 	do i = 1, box_np
 		n = list(i)
 
@@ -938,7 +941,7 @@ subroutine apply_force_tests(apply_the_force)
 
 	!Loop over all molecules and apply constraint
 	a_temp(:,1:np) = a(:,1:np)
-	F_vector = F_constraint/dble(M)
+	if (M .ne. 0) F_vector = F_constraint/dble(M)
 	do i = 1, box_np
 		n = list(i)
 		!print'(2(a,i4),2i6,9f10.5)', 'acceleration mol',i,'of',box_np, iter,n, a(:,n),a(:,n) - F_constraint/dble(M),F_constraint/dble(M)
