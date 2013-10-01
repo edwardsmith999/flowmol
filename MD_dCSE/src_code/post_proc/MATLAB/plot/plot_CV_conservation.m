@@ -19,7 +19,7 @@ resultfile_dir = '/home/es205/codes/coupled/MD_dCSE/src_code/results/';
 read_header
 
 %ibin = floor(gnbins(1)/2.0); jbin = floor(gnbins(2)/2.0); kbin=floor(gnbins(3)/2.0);
-ibin = floor(gnbins(2)/2.0); jbin = 10 ; kbin=floor(gnbins(3)/2.0);
+ibin = floor(gnbins(1)/2.0); jbin = floor(gnbins(2)/2.0) ; kbin=floor(gnbins(3)/2.0);
 
 %Check if cv conservation is employed - exit if not
 if (exist('cv_conserve'))
