@@ -1,4 +1,6 @@
 import numpy as np
+import os
+
 from MDRawData import MD_RawData
 from HeaderData import HeaderData
 
@@ -53,7 +55,28 @@ class Field():
     def __init__(self,fdir,cpol_bins=False): 
 
         self.fdir = fdir
-        self.cpol_bins = cpol_bins  
+        self.cpol_bins = cpol_bins
+        self.potentialfiles = ( "mslice", "mbins", "msnap","vslice", "vbins", 
+                                "vsnap","pvirial", "pVA", "pVA_k","pVA_c", 
+                                "visc", "mflux","vflux", "pplane", "psurface",
+                                "esnap", "eflux", "eplane","esurface", 
+                                "viscometrics", "rdf", "rdf3d", "ssf", "Fext ",
+                                "Tbins" )
+
+        self.plotablefiles = list( self.potentialfiles[i] for i in 
+                                   [1,2,4,5,6,7,8,9,12,14] )
+         
+		#Check directory exists before instantiating object and check if file
+        #associated with plot is in directory
+        if os.path.isdir(fdir):
+            self.fieldfiles = list(set(os.listdir(fdir)) & set(self.potentialfiles))
+            #if list(set(os.listdir(fdir)) & set(self.fname )) == None:
+                #print("File " + self.fname + " not in directory "+ self.fdir + "\n"
+                #      "Plotable contents of directory " + fdir  + "\ninclude: " +
+                #      ', '.join(self.fieldfiles))
+        else:
+            print("Filepath " + self.fdir + " does not exist, aborting")
+            quit()
 
     def get_bins(self,minrec,maxrec,sumaxes=(),meanaxes=(),meantime=True,
                  sumtime=False):
@@ -62,12 +85,10 @@ class Field():
             Read data file using MD_RawData class, average over time record
             range specified by minrec to maxrec. Sum over sumaxes (tuple), or
             average in directions specified by meanaxes (tuple).
-
             CURRENTLY CANNOT DO BOTH SUM AND MEAN BECAUSE THE SHAPE OF THE 
             ARRAY CHANGES AFTER YOU DO ONE OR THE OTHER.
 
         """
-
         if ( sumaxes != () ) and ( meanaxes != () ):
             print("""Currently cannot specify both sumaxes and meanaxes
                    because the shape of the array of interest changes once
@@ -78,7 +99,8 @@ class Field():
             quit()
 
         # Create raw data reading object and get the topology of the bins
-        Raw = MD_RawData(self.fdir,self.fname,self.dtype,self.nperbin,self.cpol_bins)
+        Raw = MD_RawData(self.fdir,self.fname,self.dtype,self.nperbin,
+                         self.cpol_bins)
         nbins, binspaces = Raw.get_bintopology()
 
         # Get bin data from file and get the mean over time records (axis 4)
@@ -111,6 +133,7 @@ class Field():
                                        binspaces[2],
                                        indexing='ij')
 
+
             dr     = binspaces[0][1] - binspaces[0][0]
             dtheta = binspaces[1][1] - binspaces[1][0]
             dz     = binspaces[2][1] - binspaces[2][0]
@@ -122,6 +145,7 @@ class Field():
 
             x, y, z = np.meshgrid(binspaces[0],binspaces[1],binspaces[2],
                                   indexing='ij')
+
 
             dx = binspaces[0][1] - binspaces[0][0]
             dy = binspaces[1][1] - binspaces[1][0]
@@ -158,7 +182,7 @@ class PBins(Field):
     nperbin = 9
     get_field = Field.get_bins
 
-    def __init__(self,fdir,fname,cpol_bins=False):
+    def __init__(self,fdir,fname='pVA',cpol_bins=False):
 
         """
             PBins requires the specification of a filename by the
@@ -170,6 +194,27 @@ class PBins(Field):
 
         Field.__init__(self,fdir,cpol_bins=cpol_bins)
         self.fname = fname  
+
+
+# CV fields
+class CV(Field):
+
+    dtype = 'd'
+    nperbin = 18
+    get_field = Field.get_bins
+
+    def __init__(self,fdir,fname,cpol_bins=False):
+
+        """
+            CV requires the specification of a filename by the
+            user, allowing any of vfluxes, psurface, vsnap or F_ext
+            to be plotted correctly
+
+        """
+
+        Field.__init__(self,fdir,cpol_bins=cpol_bins)
+        self.fname = fname    
+
 
 # Kinetic energy field
 class KEBins(Field):
@@ -186,7 +231,7 @@ class VBins():
         self.mdata = MassBins(fdir,cpol_bins)
         self.pdata = MomBins(fdir,cpol_bins)
 
-    def get_field(self,minrec,maxrec,sumaxes=(),sumtime=True):  
+    def get_field(self,minrec,maxrec,sumaxes=(),sumtime=True):
 
         """
             Get the velocity field from files vbins/mbins averaged over
@@ -222,6 +267,7 @@ class TBins():
         self.KEdata = KEBins(fdir,cpol_bins)
 
     def get_field(self,minrec,maxrec,sumaxes=(),peculiar=True): 
+
 
         """
             Get the temperature field from files Tbins, mbins and vbins 
@@ -292,6 +338,7 @@ class pVABins():
         # Take off square of peculiar momenta if specified
         if (peculiar==True):
 
+
             if (self.fname=='pVA_c'):
                 message = ('\n *** \n Removing the peculiar velocity from '
                 +' the configurational part \n of the stress tensor is '
@@ -320,6 +367,30 @@ class pVABins():
         Pfield = np.mean(Pfield,axis=meanaxes)
 
         return Pfield, binspaces
+
+
+
+
+# Pressure fields
+class CV_data():
+
+    def __init__(self,fdir,cpol_bins=False):
+        self.fdir = fdir
+        self.cpol_bins = cpol_bins
+        self.fluxobj   = CV(fdir,'vflux',cpol_bins)
+        self.stressobj = CV(fdir,'psurface',cpol_bins)
+
+    def get_field(self,minrec,maxrec,meanaxes=(),peculiar=False):
+
+        print('Getting '+'vflux & stress'+' fields from recs ' + str(minrec) + ' to ' 
+              + str(maxrec) + ', meanaxes = ' + str(meanaxes))
+
+        # Read raw data file    
+        flux, binspaces = self.fluxobj.get_field(minrec,maxrec)  
+        stress, binspaces = self.stressobj.get_field(minrec,maxrec)     
+
+        return flux, stress, binspaces
+
 
 class DensityBins():
 
