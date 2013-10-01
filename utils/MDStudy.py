@@ -4,7 +4,7 @@ import subprocess as sp
 from Platform import get_platform
 from MDThread import MDThread
 from Dummy import DummySemaphore
-from MultiPhore import MultiPhore
+from Multiphore import Multiphore
 
 class MDStudy:
 
@@ -38,7 +38,7 @@ class MDStudy:
                 except NotImplementedError:
                     raise
 
-            self.semaphore = MultiPhore(maxproc)
+            self.semaphore = Multiphore(maxproc)
 
         else:
 

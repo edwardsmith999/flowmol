@@ -2,7 +2,7 @@
 from multiprocessing import BoundedSemaphore
 import time 
 
-class MultiPhore():
+class Multiphore():
 
     """ 
         Generalisation of the Semaphore to ensure threads calling multiple cpus
@@ -16,7 +16,7 @@ class MultiPhore():
         self.maxprocs = maxprocs
         self.sema = BoundedSemaphore(maxprocs)
 
-    def acquire(self,nproc,blocking=True,wait=5.0):
+    def acquire(self,nproc=1,blocking=True,wait=5.0):
 
         #Check requested processes not greater than maximum
         if nproc > self.maxprocs:
@@ -47,7 +47,7 @@ class MultiPhore():
                 time.sleep(wait)
 
 
-    def release(self,nproc):
+    def release(self,nproc=1):
 
         # Release all licenses from semaphore
         for n in range(0,nproc): 

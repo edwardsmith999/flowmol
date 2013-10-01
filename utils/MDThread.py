@@ -36,7 +36,7 @@ class MDThread(multiprocessing.Process):
     def __init__(self,semaphore,runlist):
 
         multiprocessing.Process.__init__(self)
-        self.sema = semaphore
+        self.semaphore = semaphore
         self.runlist = runlist
 
     def run(self):
@@ -50,13 +50,13 @@ class MDThread(multiprocessing.Process):
             # Check number of processors required for this run
             # and wait until all are avialable using Multiphore  
             runprocs = run.get_nprocs()
-            self.sema.acquire(runprocs)
+            self.semaphore.acquire(runprocs)
 
             # Execute and finish the run once license acquired
             run.execute(blocking=True)
             run.finish()
 
-            # Release all licenses from MultiPhore
-            self.sema.release(runprocs)
+            # Release all licenses from Multiphore
+            self.semaphore.release(runprocs)
 
         return
