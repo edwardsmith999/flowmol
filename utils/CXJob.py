@@ -6,18 +6,22 @@ import subprocess as sp
 class CXJob:
 
     def __init__(self,
-                 platform,
                  rundir,
                  jobname,
                  nproc,
                  walltime,
                  exec_cmd,
+                 platform=None,
                  queue='pqtzaki',
                  icib='true'):
 
         # Store absolute run directory so we can move around
         # after submission
         absrundir = os.path.abspath(rundir)
+
+        # Get platform if not specified
+        if (platform == None):
+            platform = get_platform()
 
         # Calculate number of nodes required
         if (nproc%8 != 0):
@@ -88,7 +92,7 @@ class CXJob:
                 if (sub_id not in qstat):
                     break 
 
-                # Don't flood cx1 with qstat requests
+                # Don't flood cx1/2 with qstat requests
                 time.sleep(10)
 
         return

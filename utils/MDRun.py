@@ -82,7 +82,8 @@ class MDRun:
                  queue='pqtzaki',
                  extrafiles=None, 
                  finishargs={},
-                 dryrun=False):
+                 dryrun=False,
+                 deleteoutput=False):
 
         self.srcdir = srcdir
         self.basedir = basedir
@@ -97,6 +98,7 @@ class MDRun:
         self.extrafiles = extrafiles
         self.finishargs = finishargs
         self.dryrun = dryrun
+        self.deleteoutput = deleteoutput
 
         # Add slashes to end of folders if they aren't already there
         if (self.srcdir[-1] != '/'): self.srcdir += '/'
@@ -204,6 +206,28 @@ class MDRun:
 
         return
 
+    def remove_directory(self,confirm=True):
+
+        """
+            Remove all directory files created as part of this run instance
+
+        """
+
+        if confirm:
+            message = ('Are you sure you want to remove ' + self.rundir + '\n' +
+                        'and all sub folders and files (Ensure you have \n'
+                        'copied all the data you need before deleting)' )
+            print(message)
+            go = uc.confirm(prompt=message,resp='y')
+            if (not go):
+                quit('Stopping.')
+
+        #Remove directory
+        print('Removing ' + self.rundir)
+        #sh.rmtree(self.rundir)
+
+        return
+
     def get_nprocs(self):
 
         with open(self.rundir+self.inputfile,'r') as f:
@@ -262,13 +286,12 @@ class MDRun:
         # Create CXJob object based on the platform
         if (self.platform == 'cx1'):
 
-            job = CXJob(self.platform, self.rundir, self.jobname, nprocs, 
-                        self.walltime, cmd, queue=self.queue, icib=self.icib)
+            job = CXJob(self.rundir, self.jobname, nprocs, self.walltime, 
+                        cmd, queue=self.queue, icib=self.icib)
 
         elif (self.platform == 'cx2'):
 
-            job = CXJob(self.platform, self.rundir, self.jobname, nprocs, 
-                        self.walltime, cmd) 
+            job = CXJob(self.rundir, self.jobname, nprocs, self.walltime, cmd) 
 
         else:
 
@@ -305,8 +328,10 @@ class MDRun:
         print(self.rundir + ':\t' + cmdstg)
 
         #Setup standard out and standard error files
-        fstout = open(self.rundir+self.outputfile,'w')
-        fsterr = open(self.rundir+self.outputfile+'_err','w')
+        stdoutfile = self.rundir+self.outputfile
+        stderrfile = self.rundir+self.outputfile+'_err'
+        fstout = open(stdoutfile,'w')
+        fsterr = open(stderrfile,'w')
         split_cmdstg = shlex.split(cmdstg)
 
         #Execute subprocess and create subprocess object
@@ -326,17 +351,51 @@ class MDRun:
    
             self.finishargs must be a dictionary of the form:
             
-                {'keyword': object}
+                {'keyword': [objects]}
  
             Keyword options:
         
                 final_state - when not None, move the results/final_state
                               file to a specified string (object) location.
 
+				python_script - with object specifying pythonscriptdir, 
+                                pyscriptname and [arg1,arg2,etc...] 
+
         """
 
-        print('Simulation in directory ' + self.rundir + 'has finished')
+        # Check if run has finished correctly, otherwise try to print 
+        # error messages and standard out to allow debugging
+        #Setup standard out and standard error files
+        stdoutfile = self.rundir+self.outputfile
+        stderrfile = self.rundir+self.outputfile+'_err'
+        #Look for time taken output written at end of run in last 10 lines
+        try:
+            with open(stdoutfile,'r') as fileObj:
+                lastlines = fileObj.readlines()[-10:]
+                finished_correctly = False
+                for line in lastlines:
+                    if "Time taken by code" in line:
+                        timetaken = line.split(';')[1]
+                        finished_correctly = True
+            if finished_correctly==False:
+                raise IOError('Output file suggests run did not finish correctly')
+            else:
+                print('Simulation in directory ' + self.rundir + ' appears ' + 
+                      'to have finished correctly in ' + timetaken + ' seconds')
+        #If time taken output is not found, display the last 10 lines of error and output info 
+        except IOError:
+            with open(stderrfile,'r') as fileObj:
+                print(' ==== Standard Error File for rundir ' + self.rundir + ' ==== ')
+                lastlines = fileObj.readlines()[-10:]
+                for line in lastlines:
+                    print(line)
+            with open(stdoutfile,'r') as fileObj:
+                print(' ==== Standard output File ' + self.rundir + ' ==== ')
+                lastlines = fileObj.readlines()[-10:]
+                for line in lastlines:
+                    print(line)
 
+        # Run requested post processing scripts
         for key,value in self.finishargs.iteritems():
 
             if key == 'final_state':
@@ -345,6 +404,18 @@ class MDRun:
                 dst = self.rundir + value
                 print('Moving ' + src + ' to ' + dst)
                 sh.move(src,dst)
+
+            if key == 'python_script':
+                 pass
+                 #Go to directory, import function and call
+#                  sys.path.append(value[0])
+#                  try:
+#                      import value[1] as pp_fn
+#                  except: ImportError
+#                      raise
+#                  print('Calling post processing function ' + value[1] + 
+#                        'in directory '+ value[0]+ 'with arguments ' + value[2])
+#                  pp_fn(value[2])
 
             if key == 'gnuplot_script':
 
@@ -364,6 +435,10 @@ class MDRun:
                 valid_chars = "-_.() %s%s" % (string.ascii_letters, string.digits)
                 newname = ''.join(c for c in outfile+self.rundir if c in valid_chars[6:])
                 os.rename(outfile, newname)
+
+        if self.deleteoutput:
+             remove_directory(confirm=False)
+
 
         return
 
