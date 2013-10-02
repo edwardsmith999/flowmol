@@ -101,22 +101,29 @@ subroutine iwrite_arrays(some_array,nresults,outfile,outstep)
 	integer (kind=MPI_offset_kind)			:: offset, global_cnt
 	integer, dimension(3)					:: gsizes, lsizes, memsizes
 	integer, dimension(3)					:: global_indices, local_indices
-	integer, dimension(:,:),allocatable 	:: proc_lsizes 
-
+	integer, allocatable,dimension(:,:) 	:: proc_lsizes 
 	integer, allocatable,dimension(:,:,:)	:: OutBuffer
+	character(200)							:: outfile_t
+
+	logical ::	seperate_outfiles = .false.
 
 	datatype = MPI_INTEGER
 	call MPI_TYPE_SIZE(datatype, int_size, ierr)
-
-	call MPI_file_open(icomm_grid, outfile, MPI_MODE_WRONLY+MPI_MODE_CREATE, &
-			   					MPI_INFO_NULL, fh, ierr)
 
 	!--------- DEFINE LIMITS (FILE & LOCAL SUBARRAY) -------
 	!  Note:  MPI assumes here that numbering starts from zero
 	!  Since numbering starts from (one), subtract (one) from every index
 	!-------------------------------------------------------
-	global_cnt 	= (outstep-1)*gnbins(1)*gnbins(2)*gnbins(3)*nresults
-	offset		= global_cnt * int_size
+	if (seperate_outfiles) then
+		!Either write a seperate output files for each timestep
+		call get_Timestep_FileName(outstep,outfile,outfile_t)
+		global_cnt = 0; offset = 0
+	else
+		!or a single file for whole run
+		outfile_t = outfile
+		global_cnt 	= (outstep-1)*gnbins(1)*gnbins(2)*gnbins(3)*nresults
+		offset		= global_cnt * int_size
+	endif
 	gsizes 		= gnbins
 	lsizes		= nbins
 	local_indices(:) = (/  0  , 0 , 0 /)
@@ -132,6 +139,10 @@ subroutine iwrite_arrays(some_array,nresults,outfile,outstep)
 	!Allocate ouput buffer
 	allocate(OutBuffer(lsizes(1),lsizes(2),lsizes(3)))
 	memsizes = lsizes
+
+	!Open file to write
+	call MPI_file_open(icomm_grid, outfile_t, MPI_MODE_WRONLY+MPI_MODE_CREATE, &
+			   					MPI_INFO_NULL, fh, ierr)
 
 	do n =1,nresults
 		!Copy to outbuffer
@@ -186,7 +197,7 @@ subroutine rwrite_arrays(some_array,nresults,outfile,outstep)
 	implicit none
 
 	integer, intent(in)								:: nresults,outstep
-	double precision, dimension(:,:,:,:),intent(in)	:: some_array!(nx,ny,nz,nresults)
+	double precision, dimension(:,:,:,:),intent(in)	:: some_array
 	character(*),intent(in) 						:: outfile
 
 	integer								:: n, fh
@@ -200,20 +211,27 @@ subroutine rwrite_arrays(some_array,nresults,outfile,outstep)
 	integer, dimension(3)				:: global_indices, local_indices
 	integer, dimension(:,:),allocatable :: proc_lsizes 
 	double precision, allocatable,dimension(:,:,:) 		:: OutBuffer
-	!print'(a,3i8,9f10.5)','somearray', iter,irank,size(some_array),some_array(6,6,6,:)
+	character(200)						:: outfile_t
+
+	logical ::	seperate_outfiles = .false.
 
 	datatype = MPI_DOUBLE_PRECISION
 	call MPI_TYPE_SIZE(datatype, dp_size, ierr)
-
-	call MPI_file_open(icomm_grid, outfile, MPI_MODE_WRONLY+MPI_MODE_CREATE, &
-			   					MPI_INFO_NULL, fh, ierr)
 
 	!--------- DEFINE LIMITS (FILE & LOCAL SUBARRAY) -------
 	!  Note:  MPI assumes here that numbering starts from zero
 	!  Since numbering starts from (one), subtract (one) from every index
 	!-------------------------------------------------------
-	global_cnt 	= (outstep-1)*gnbins(1)*gnbins(2)*gnbins(3)*nresults !Global number of items written so far
-	offset		= global_cnt * dp_size                               !Bytes written already 
+	if (seperate_outfiles) then
+		!Either write a seperate output files for each timestep
+		call get_Timestep_FileName(outstep,outfile,outfile_t)
+		global_cnt = 0; offset = 0
+	else
+		!or a single file for the whole run
+		outfile_t = outfile
+		global_cnt 	= (outstep-1)*gnbins(1)*gnbins(2)*gnbins(3)*nresults !Global number of items written so far
+		offset		= global_cnt * dp_size                               !Bytes written already 
+	endif
 	gsizes 		= gnbins                                             !Global "sizes", i.e. bins (need a better name for this)
 	lsizes		= nbins                                              !Local "sizes", i.e. bins (need a better name for this)
 	local_indices(:) = (/  0  , 0 , 0 /)                             !Not sure, goes into MPI_TYPE_CREATE_SUBARRAY !todo
@@ -229,6 +247,10 @@ subroutine rwrite_arrays(some_array,nresults,outfile,outstep)
 	!Allocate ouput buffer
 	allocate(OutBuffer(lsizes(1),lsizes(2),lsizes(3)))               !Buffer that's written
 	memsizes = lsizes                                                !Not sure why redefining?
+
+	!Open file to write
+	call MPI_file_open(icomm_grid, outfile_t, MPI_MODE_WRONLY+MPI_MODE_CREATE, &
+			   					MPI_INFO_NULL, fh, ierr)
 
 	do n =1,nresults
 		!Copy to outbuffer
@@ -491,6 +513,35 @@ subroutine Create_commit_subarray(memsizes,lsizes,local_indices,datatype,MEM_FLA
 	MEM_FLAG = 1
 	
 end subroutine
+
+
+subroutine get_Timestep_FileName(i,basename,filename)
+		implicit none
+
+		integer,intent(in) 			:: i
+		character(*),intent(in) 	:: basename
+		character(*),intent(out)	:: filename
+
+        if(i.le.9                         ) &
+        write(filename,'(a,a6,i1)') trim(basename),'000000',i
+        if(i.ge.10      .and. i.le.99     ) &
+        write(filename,'(a,a5,i2)') trim(basename),'00000' ,i
+        if(i.ge.100     .and. i.le.999    ) &
+        write(filename,'(a,a4,i3)') trim(basename),'0000'  ,i
+        if(i.ge.1000    .and. i.le.9999   ) &
+        write(filename,'(a,a3,i4)') trim(basename),'000'   ,i
+        if(i.ge.10000   .and. i.le.99999  ) &
+        write(filename,'(a,a2,i5)') trim(basename),'00'    ,i
+        if(i.ge.100000  .and. i.le.999999 ) &
+        write(filename,'(a,a1,i6)') trim(basename),'0'     ,i
+        if(i.ge.1000000 .and. i.le.9999999) &
+        write(filename,'(a,   i7)') trim(basename)	  	   ,i
+
+		!Remove any surplus blanks
+		filename = trim(filename)
+
+end subroutine get_Timestep_FileName
+
 
 end module module_parallel_io
 
