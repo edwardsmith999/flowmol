@@ -86,8 +86,8 @@ end subroutine iwrite_arrays_1
 !	Main iwrite Routine
 subroutine iwrite_arrays(some_array,nresults,outfile,outstep)
 	use messenger, only : icomm_grid
+	use computational_constants_MD, only : seperate_outfiles
 	use librarymod, only : get_Timestep_FileName
-	implicit none
 
 	integer, intent(in)						:: nresults,outstep
 	integer, dimension(:,:,:,:),intent(in)	:: some_array!(nx,ny,nz,nresults)
@@ -105,8 +105,6 @@ subroutine iwrite_arrays(some_array,nresults,outfile,outstep)
 	integer, allocatable,dimension(:,:) 	:: proc_lsizes 
 	integer, allocatable,dimension(:,:,:)	:: OutBuffer
 	character(200)							:: outfile_t
-
-	logical ::	seperate_outfiles = .false.
 
 	datatype = MPI_INTEGER
 	call MPI_TYPE_SIZE(datatype, int_size, ierr)
@@ -195,8 +193,8 @@ end subroutine rwrite_arrays_1
 !	Main rwrite Routine
 subroutine rwrite_arrays(some_array,nresults,outfile,outstep)
 	use messenger, only : icomm_grid
+	use computational_constants_MD, only : seperate_outfiles
 	use librarymod, only : get_Timestep_FileName
-	implicit none
 
 	integer, intent(in)								:: nresults,outstep
 	double precision, dimension(:,:,:,:),intent(in)	:: some_array
@@ -214,8 +212,6 @@ subroutine rwrite_arrays(some_array,nresults,outfile,outstep)
 	integer, dimension(:,:),allocatable :: proc_lsizes 
 	double precision, allocatable,dimension(:,:,:) 		:: OutBuffer
 	character(200)						:: outfile_t
-
-	logical ::	seperate_outfiles = .false.
 
 	datatype = MPI_DOUBLE_PRECISION
 	call MPI_TYPE_SIZE(datatype, dp_size, ierr)

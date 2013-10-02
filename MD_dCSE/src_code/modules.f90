@@ -94,6 +94,9 @@ module computational_constants_MD
 
 	double precision	:: liquid_density	!Density of liquid if solid/liquid case used
 
+	!Write a seperate file for each timestep
+	logical ::	seperate_outfiles = .false.
+
 	!Input (on or off) flags
 	integer	:: & 
 		vmd_outflag, vmd_start, vmd_finish, vmd_count=1, &
