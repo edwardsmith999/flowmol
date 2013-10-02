@@ -1875,21 +1875,24 @@ subroutine NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest
 	implicit none
 	!include "mpif.h"
 
-	integer	:: datasize, request
+	integer	:: datasize, request, sendrecv_tag
 	integer,intent(in) :: pos,isource,idest
 	integer,intent(in) :: sendsize
 	integer,intent(out):: recvsize, length
 	integer, dimension(:), allocatable :: status
 	double precision,intent(in) :: sendbuffer(sendsize)
 
+	!Choose a unique sendrecv_tag for this operation
+	sendrecv_tag = 101
+
 	allocate(status(MPI_STATUS_SIZE))
 
 	!Send data to neighbour
 	call MPI_isend(sendbuffer, pos, MPI_PACKED, &
-					idest,0,icomm_grid,request,ierr)
+					idest,sendrecv_tag,icomm_grid,request,ierr)
 
 	!Find out how many particles are being recieved
-	call MPI_probe(isource,0,icomm_grid,status(:),ierr)
+	call MPI_probe(isource,sendrecv_tag,icomm_grid,status(:),ierr)
 	call MPI_Get_count(status(:),MPI_PACKED,length,ierr)
 	call MPI_type_size(MPI_DOUBLE_PRECISION,datasize,ierr)
 
@@ -1901,7 +1904,7 @@ subroutine NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest
 
 	!Receive particles
 	call MPI_Recv(recvbuffer,length,MPI_PACKED, &
-	isource,0,icomm_grid,status(:),ierr)
+	isource,sendrecv_tag,icomm_grid,status(:),ierr)
 
  	call MPI_wait(request, status(:), ierr)
 
@@ -2039,7 +2042,6 @@ subroutine rswaphalos(A,n1,n2,n3,nresults)
 
 	integer											:: nhalo, nx, ny, nz
 	integer,dimension(:,:),pointer					:: halo
-
 
 	!We want to define ncells/nhalocells if nbin   >= ncells
 	!ncells always has 1 halo and if nbins>ncell then nbins always has 1 halo
@@ -2245,9 +2247,12 @@ subroutine iupdatefaces(A,n1,n2,n3,nresults,ixyz)
 	integer,intent(in)						:: n1,n2,n3,nresults
 	integer,intent(inout)					:: A(:,:,:,:)
 
-	integer 								:: ixyz
+	integer 								:: ixyz, sendrecv_tag
 	integer 								:: icount,isource,idest
 	integer,dimension(:,:,:,:),allocatable	:: buf1, buf2
+
+	!Choose a unique sendrecv_tag for this operation
+	sendrecv_tag = 1001
 
 	!Determine size of send buffer and copy to buffer data to pass to lower neighbour
 	select case (ixyz)
@@ -2272,8 +2277,8 @@ subroutine iupdatefaces(A,n1,n2,n3,nresults,ixyz)
 
 	! Send to lower neighbor
 	call MPI_Cart_shift(icomm_grid, ixyz-1, -1, isource, idest, ierr)
-	call MPI_sendrecv(buf1, icount, MPI_integer, idest, 0, &
-	                  buf2, icount, MPI_integer, isource, 0, &
+	call MPI_sendrecv(buf1, icount, MPI_integer, idest,   sendrecv_tag, &
+	                  buf2, icount, MPI_integer, isource, sendrecv_tag, &
 	                  icomm_grid, MPI_STATUS_IGNORE, ierr)
 
 	!Save recieved data from upper neighbour and copy to buffer data to pass to upper neighbour
@@ -2291,8 +2296,8 @@ subroutine iupdatefaces(A,n1,n2,n3,nresults,ixyz)
 
 	! Send to upper neighbor
 	call MPI_Cart_shift(icomm_grid, ixyz-1, +1, isource, idest, ierr)
-	call MPI_sendrecv(buf1, icount, MPI_integer, idest, 0, &
-	                  buf2, icount, MPI_integer, isource, 0, &
+	call MPI_sendrecv(buf1, icount, MPI_integer, idest,   sendrecv_tag, &
+	                  buf2, icount, MPI_integer, isource, sendrecv_tag, &
 	                  icomm_grid, MPI_STATUS_IGNORE, ierr)
 
 
@@ -2320,9 +2325,12 @@ subroutine rupdatefaces(A,n1,n2,n3,nresults,ixyz)
 	integer,intent(in)								:: n1,n2,n3,nresults
 	double precision,intent(inout)					:: A(:,:,:,:)
 
-	integer 										:: ixyz
+	integer 										:: ixyz, sendrecv_tag
 	integer 										:: icount,isource,idest
 	double precision,dimension(:,:,:,:),allocatable	:: buf1, buf2
+
+	!Choose a unique sendrecv_tag for this operation
+	sendrecv_tag = 1002
 
 	!Determine size of send buffer and copy to buffer data to pass to lower neighbour
 	select case (ixyz)
@@ -2347,8 +2355,8 @@ subroutine rupdatefaces(A,n1,n2,n3,nresults,ixyz)
 
 	! Send to lower neighbor
 	call MPI_Cart_shift(icomm_grid, ixyz-1, -1, isource, idest, ierr)
-	call MPI_sendrecv(buf1, icount, MPI_double_precision, idest, 0, &
-	                  buf2, icount, MPI_double_precision, isource, 0, &
+	call MPI_sendrecv(buf1, icount, MPI_double_precision, idest,   sendrecv_tag, &
+	                  buf2, icount, MPI_double_precision, isource, sendrecv_tag, &
 	                  icomm_grid, MPI_STATUS_IGNORE, ierr)
 
 	!Save recieved data from upper neighbour and copy to buffer data to pass to upper neighbour
@@ -2367,8 +2375,8 @@ subroutine rupdatefaces(A,n1,n2,n3,nresults,ixyz)
 
 	! Send to upper neighbor
 	call MPI_Cart_shift(icomm_grid, ixyz-1, +1, isource, idest, ierr)
-	call MPI_sendrecv(buf1, icount, MPI_double_precision, idest, 0, &
-	                  buf2, icount, MPI_double_precision, isource, 0, &
+	call MPI_sendrecv(buf1, icount, MPI_double_precision, idest,   sendrecv_tag, &
+	                  buf2, icount, MPI_double_precision, isource, sendrecv_tag, &
 	                  icomm_grid, MPI_STATUS_IGNORE, ierr)
 
 

@@ -730,29 +730,27 @@ subroutine apply_CV_force(iter)
 	if (CVforce_flag .eq. 0) return
 
 	binsize = domain/nbins
-	!Only apply force on top processor
-	if (jblock .ne. npy) return
+
 	!dx = globaldomain(1);	dy = 4.d0; dz = globaldomain(3)
 
 	!Get average over current cell and apply constraint forces
 	!call get_continuum_values
 	call get_test_values(CVforce_flag)
+
+	!Exchange CV data ready to apply force
 	call update_CV_halos
+
+	!Only apply force on top processor
+	if (jblock .ne. npy) return
+
+	!Retreive CV data and calculate force to apply
 	call average_over_bin
+
+	!Apply the force
 	!call apply_force
 	call apply_force_tests(apply_CVforce)
 
 contains
-
-! Get continuum values of surface stresses, etc
-subroutine update_CV_halos
-	use arrays_MD, only : r,v,a
-	use CV_objects, only :  CV2 => CVcheck_momentum2
-	implicit none
-
-	call CV2%swap_halos(nbinso)
-
-end subroutine update_CV_halos
 
 ! Apply arbitary forces for testing purposes
 subroutine get_test_values(flag)
@@ -800,6 +798,16 @@ subroutine get_test_values(flag)
 	
 end subroutine get_test_values
 
+! Exchange all halo values for CV values ready to apply forces
+subroutine update_CV_halos
+	use CV_objects, only :  CV2 => CVcheck_momentum2
+	use mpi
+	implicit none
+
+	call CV2%swap_halos(nbinso)
+
+end subroutine update_CV_halos
+
 !=============================================================================
 ! Average molecules in overlap region to obtain values for 
 ! constrained dynamics algorithms
@@ -824,7 +832,7 @@ subroutine average_over_bin
 	!if (iblock .ne. 1) return
 
 	!Test case focuses on a single CV
-	i = 5; j = 5; k = 5
+	i = 3; j = 3; k = 3
 
 	!Find the molecules in constraint region and add to list array	   
 	!Zero box averages
@@ -839,11 +847,10 @@ subroutine average_over_bin
 		endif
 	enddo
 
-	! 						- - Mass  - -
+	! - - - - - - - - - - Mass  - - - - - - - - - - - - 
 	M = box_np
 
-	! 					- - Momentum - -
-
+	! - - - - - - - - - Momentum  - - - - - - - - - - - 
     !Total CV flux
 	MD_rhouu_dS  =		((CV2%flux(i,j,k,:,1)+CV2%flux(i,j,k,:,4)) &
 	          	 		+(CV2%flux(i,j,k,:,2)+CV2%flux(i,j,k,:,5)) &
@@ -862,21 +869,21 @@ subroutine average_over_bin
 	endif
 
 	!Debugging plots of applied and remaining force
-	u_bin=0.d0; F_bin = 0.d0; F_bin2 = 0.d0
-	do i = 1, box_np
-		n = list(i)
-		u_bin  = u_bin  + v(:,n)
-		F_bin  = F_bin  + a(:,n)
-		F_bin2 = F_bin2 + a(:,n) - F_constraint(:)/(dble(M))
-	enddo
+	!u_bin=0.d0; F_bin = 0.d0; F_bin2 = 0.d0
+	!do i = 1, box_np
+	!	n = list(i)
+	!	u_bin  = u_bin  + v(:,n)
+	!	F_bin  = F_bin  + a(:,n)
+	!	F_bin2 = F_bin2 + a(:,n) - F_constraint(:)/(dble(M))
+	!enddo
 
-	u_bin1 = CV%dXdt(5,5,5,:)
-	u_bin2 = CV%X(3,3,3,:)
-	if (M .ne. 0) then
-		print'(2i4,12f10.4)', iter,M, u_bin, F_bin, F_bin2, F_constraint(:)/(dble(M))
-	else
-		print'(2i4,12f10.5)', iter,M, u_bin, F_bin, F_bin2, (/ 0.d0, 0.d0, 0.d0 /)
-	endif
+	!u_bin1 = CV%dXdt(5,5,5,:)
+	!u_bin2 = CV%X(3,3,3,:)
+	!if (M .ne. 0) then
+	!	print'(2i4,12f10.4)', iter,M, u_bin, F_bin, F_bin2, F_constraint(:)/(dble(M))
+	!else
+	!	print'(2i4,12f10.5)', iter,M, u_bin, F_bin, F_bin2, (/ 0.d0, 0.d0, 0.d0 /)
+	!endif
 
 end subroutine average_over_bin
 
@@ -890,7 +897,7 @@ subroutine apply_force
 	implicit none
 
 	integer								:: i, n
-	double precision,dimension(3):: F_vector
+	double precision,dimension(3)		:: F_vector
 
 	!Loop over all molecules and apply constraint
 	if (M .ne. 0) F_vector = F_constraint/dble(M)
@@ -918,10 +925,10 @@ subroutine apply_force_tests(apply_the_force)
 	use physical_constants_MD, only : density
 	implicit none
 
-	logical, intent(in) :: apply_the_force
+	logical, intent(in) 						:: apply_the_force
 
 	integer										:: i, n
-	double precision,dimension(3):: F_vector
+	double precision,dimension(3)				:: F_vector
 	double precision,dimension(:,:),allocatable	:: v_temp,a_temp
 
 	!Check evolution without constraint
