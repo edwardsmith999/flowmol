@@ -625,6 +625,36 @@ subroutine get_file_size(filename,file_size)
 
 end subroutine get_file_size
 
+!------------------------------------------------------------------------------
+!Pure fortran subroutine to return an updated filename by appending
+!the current timestep to that file
+subroutine get_Timestep_FileName(timestep,basename,filename)
+		implicit none
+
+		integer,intent(in) 			:: timestep
+		character(*),intent(in) 	:: basename
+		character(*),intent(out)	:: filename
+
+        if(timestep.le.9                         		) &
+        write(filename,'(a,a7,i1)') trim(basename),'.000000',timestep
+        if(timestep.ge.10      .and. timestep.le.99     ) &
+        write(filename,'(a,a6,i2)') trim(basename),'.00000' ,timestep
+        if(timestep.ge.100     .and. timestep.le.999    ) &
+        write(filename,'(a,a5,i3)') trim(basename),'.0000'  ,timestep
+        if(timestep.ge.1000    .and. timestep.le.9999   ) &
+        write(filename,'(a,a4,i4)') trim(basename),'.000'   ,timestep
+        if(timestep.ge.10000   .and. timestep.le.99999  ) &
+        write(filename,'(a,a3,i5)') trim(basename),'.00'    ,timestep
+        if(timestep.ge.100000  .and. timestep.le.999999 ) &
+        write(filename,'(a,a2,i6)') trim(basename),'.0'     ,timestep
+        if(timestep.ge.1000000 .and. timestep.le.9999999) &
+        write(filename,'(a,a1,i7)') trim(basename),'.'      ,timestep
+
+		!Remove any surplus blanks
+		filename = trim(filename)
+
+end subroutine get_Timestep_FileName
+
 
 !------------------------------------------------------------------------------
 ! Returns the version number of the current code from the version control

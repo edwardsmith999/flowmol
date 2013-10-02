@@ -86,6 +86,7 @@ end subroutine iwrite_arrays_1
 !	Main iwrite Routine
 subroutine iwrite_arrays(some_array,nresults,outfile,outstep)
 	use messenger, only : icomm_grid
+	use librarymod, only : get_Timestep_FileName
 	implicit none
 
 	integer, intent(in)						:: nresults,outstep
@@ -194,6 +195,7 @@ end subroutine rwrite_arrays_1
 !	Main rwrite Routine
 subroutine rwrite_arrays(some_array,nresults,outfile,outstep)
 	use messenger, only : icomm_grid
+	use librarymod, only : get_Timestep_FileName
 	implicit none
 
 	integer, intent(in)								:: nresults,outstep
@@ -513,35 +515,6 @@ subroutine Create_commit_subarray(memsizes,lsizes,local_indices,datatype,MEM_FLA
 	MEM_FLAG = 1
 	
 end subroutine
-
-
-subroutine get_Timestep_FileName(i,basename,filename)
-		implicit none
-
-		integer,intent(in) 			:: i
-		character(*),intent(in) 	:: basename
-		character(*),intent(out)	:: filename
-
-        if(i.le.9                         ) &
-        write(filename,'(a,a6,i1)') trim(basename),'000000',i
-        if(i.ge.10      .and. i.le.99     ) &
-        write(filename,'(a,a5,i2)') trim(basename),'00000' ,i
-        if(i.ge.100     .and. i.le.999    ) &
-        write(filename,'(a,a4,i3)') trim(basename),'0000'  ,i
-        if(i.ge.1000    .and. i.le.9999   ) &
-        write(filename,'(a,a3,i4)') trim(basename),'000'   ,i
-        if(i.ge.10000   .and. i.le.99999  ) &
-        write(filename,'(a,a2,i5)') trim(basename),'00'    ,i
-        if(i.ge.100000  .and. i.le.999999 ) &
-        write(filename,'(a,a1,i6)') trim(basename),'0'     ,i
-        if(i.ge.1000000 .and. i.le.9999999) &
-        write(filename,'(a,   i7)') trim(basename)	  	   ,i
-
-		!Remove any surplus blanks
-		filename = trim(filename)
-
-end subroutine get_Timestep_FileName
-
 
 end module module_parallel_io
 

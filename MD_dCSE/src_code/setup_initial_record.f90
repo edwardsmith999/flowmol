@@ -21,16 +21,17 @@ subroutine setup_initial_record
 	use polymer_info_MD
 	use shear_info_MD
 	use concentric_cylinders, only: gcpol_bins
-	use librarymod, only : get_version_number
+	use librarymod, only : get_version_number, get_Timestep_FileName
 	implicit none
 
-	integer					:: i
+	integer					:: i,n,missing_file_tolerance=5
 	integer, parameter 		:: LongInt = selected_int_kind (8)
 	integer(kind=LongInt)	:: est_filesize,output_steps
 	logical 				:: file_exist
 	character				:: ixyz_char
 	character(8)			:: the_date
 	character(10)			:: the_time
+	character(23)			:: file_names_t
 	character(23),parameter :: file_names(25) = &
 								(/ "mslice      ", "mbins       ", "msnap   ",&
 								   "vslice      ", "vbins       ", "vsnap   ",&
@@ -42,7 +43,6 @@ subroutine setup_initial_record
 	                               "rdf3d       ", "ssf         ", "Fext    ",&
 								   "Tbins       " /) 
 
-
 	!Delete all files from previous run
 	if (irank.eq.iroot) then
 		do i=1,size(file_names)
@@ -51,6 +51,19 @@ subroutine setup_initial_record
 				open (unit=23, file=trim(prefix_dir)//'results/'//file_names(i))
 				close(23,status='delete')
 			endif
+			!Remove indivdual files -- Keep looping until no further increase in number
+			do n = 1,9999999
+				call get_Timestep_FileName(n,file_names(i),file_names_t)
+				inquire(file=trim(prefix_dir)//'results/'//file_names_t,exist=file_exist)
+				if(file_exist) then
+					open (unit=23, file=trim(prefix_dir)//'results/'//file_names_t)
+					close(23,status='delete')
+				elseif(missing_file_tolerance .eq. 0) then
+					exit !Exit loop if max file reached 
+				else
+					missing_file_tolerance = missing_file_tolerance - 1
+				endif
+			enddo
 		enddo
 	endif
 	call messenger_syncall()

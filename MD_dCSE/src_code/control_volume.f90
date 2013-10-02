@@ -341,13 +341,6 @@ contains
 		    !Verify that CV momentum is exactly conservative
 		    conserved = sum(totalpressure-totalflux-dvelocitydt-F_ext)
 			if(conserved .gt. 0.000000001d0) then
-				!print'(a,i8,3f13.8)', 'Inside  object', irank, self%F_ext(i+1,j+1,k+1,:)
-				!if (maxval(abs(self%F_ext(i-1:i+1,j-1:j+1,k-1:k+1,:))) .ne. 0.0000000001) &
-				!print'(a,i8,4f13.8,3i8)', 'Inside  object', irank, maxval(abs(self%F_ext(i-1:i+1,j-1:j+1,k-1:k+1,1))), & 
-				!							    maxval(abs(self%F_ext(i-1:i+1,j-1:j+1,k-1:k+1,2))), & 
-				!							    maxval(abs(self%F_ext(i-1:i+1,j-1:j+1,k-1:k+1,3))), &
-				!								   sum(self%F_ext(i-1:i+1,j-1:j+1,k-1:k+1,:)), &
-				!								maxloc(abs(self%F_ext(i-1:i+1,j-1:j+1,k-1:k+1,1)))
 				print'(a,i8,4i4,7f10.5)','Error in momentum flux', iter,irank,i,j,k, & 
 					 conserved, sum(totalpressure),-sum(totalflux),sum(dvelocitydt), & 
 					+sum(F_ext), sum(self%X(i,j,k,:)),   & 

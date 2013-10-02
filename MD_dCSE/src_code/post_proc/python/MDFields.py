@@ -70,10 +70,6 @@ class Field():
         #associated with plot is in directory
         if os.path.isdir(fdir):
             self.fieldfiles = list(set(os.listdir(fdir)) & set(self.potentialfiles))
-            #if list(set(os.listdir(fdir)) & set(self.fname )) == None:
-                #print("File " + self.fname + " not in directory "+ self.fdir + "\n"
-                #      "Plotable contents of directory " + fdir  + "\ninclude: " +
-                #      ', '.join(self.fieldfiles))
         else:
             print("Filepath " + self.fdir + " does not exist, aborting")
             quit()
