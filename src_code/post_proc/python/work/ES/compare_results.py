@@ -25,7 +25,7 @@ class CompareResults():
         # New axes on cleared figure
         if outputaxis_handle == None:
             fig = plt.figure()
-            ax = fig.add_subplot(111, frame_on=False)
+            ax = fig.add_subplot(221, frame_on=False)
 
         #Plot all possible comparisons
         error_found = False
@@ -36,34 +36,64 @@ class CompareResults():
                 if (totalerror > 1e-5):
                     print("At record number " + str(rmin) + " Error in " + key + " = " + str(totalerror))
                     error_found = True
+
+                    #Attempt to Plot slices of the errors
+                    #CONTOUR
+                    #x = np.arange(-2.0, 2.0, 4.0/error.shape[0])
+                    #y = np.arange(-2.0, 2.0, 4.0/error.shape[1])
+                    #X, Y = np.meshgrid(x, y)
+                    #CS = ax.contourf(X, Y, Z/Z.max())
+                    figname = self.name + key
+
+                    #Attempt to Plot slices of the errors in 3D
+                    ax = fig.add_subplot(221, frame_on=False)
+                    Z = error[:,:,error.shape[0]/4.0,1]
+                    CS = ax.imshow(Z, extent=[0, 1, 0, 1])
+                    plt.colorbar(CS); CS.set_clim(-1.0,1.0)
+                    plt.title('xy slice')
+
+                    ax = fig.add_subplot(222, frame_on=False)
+                    Z = error[:,error.shape[0]/4.0,:,1]
+                    CS = ax.imshow(Z, extent=[0, 1, 0, 1])
+                    plt.colorbar(CS); CS.set_clim(-1.0,1.0)
+                    plt.title('xz slice')
+
+                    ax = fig.add_subplot(223, frame_on=False)
+                    Z = error[error.shape[0]/4.0,:,:,1]
+                    CS = ax.imshow(Z, extent=[0, 1, 0, 1])
+                    plt.colorbar(CS); CS.set_clim(-1.0,1.0)
+                    plt.title('yz slice')
+
+                    ax = fig.add_subplot(224, frame_on=False)
+                    Z = error.mean((1,2))[:,:]
+                    CS = ax.imshow(Z, extent=[0, 1, 0, 1])
+                    plt.colorbar(CS); CS.set_clim(-1.0,1.0)
+                    plt.title('sum over x and y with z vs 4th index')
+
+                    # Save figure and clear
+                    plt.savefig(figname+'.'+"%05d"%rmin+'.png')
+                    plt.clf()
             else:
                 #print("At record number " + str(rmin) + " Array sizes differ for " + key)
                 error_found = True
 
         return error_found
 
-            #figname = key + name
-            #ax.plot(error.mean(axis=(1,2)),label=figname)
-            #ax.legend(loc=0)
-            #self.error.update({key:[rmin,error]})
 
-            # Save and clear
-            #plt.savefig(figname+'.'+"%05d"%rmin+'.png')
-            #plt.clf()
 
 
     def run(self,run1,run2):
 
         self.files1 = run1.rundir
         self.files2 = run2.rundir
-        name = self.files2.split('/')[-2]
+        self.name = self.files2.split('/')[-2]
         print("Comparing results in directory " +  self.files1 + " \n"
               " with results in directory " +  self.files2 )
 
         self.files1 = self.files1 + '/results/'
         self.files2 = self.files2 + '/results/'
 
-		# Check directory exists before instantiating object and check 
+        # Check directory exists before instantiating object and check 
         # which files associated with plots are in directory
         self.potentialfiles = ( "mslice", "mbins", "msnap","vslice", "vbins", 
                                 "vsnap","pvirial", "pVA", "pVA_k","pVA_c", 
@@ -138,3 +168,7 @@ class CompareResults():
             if error_found == False:
                 print("No Error in " + ' '.join(self.plotlist.keys()) + 
                       " between " + str(rmin) + ' and ' +  str(rmax))
+            #else:
+                #print("********* Error in " + ' '.join(self.plotlist.keys()) + 
+                #      " between " + str(rmin) + ' and ' +  str(rmax)+ " **********")
+               # print("This may be a result of different numbers of bins between cases!")
