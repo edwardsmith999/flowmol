@@ -559,6 +559,12 @@ SEED
 #------------------------------------------------------------------------
 
 #########################################################################
+# Save output files as a single file or seperate file at each timestep
+# Logical true or false
+SEPERATE_OUTFILES
+.false.
+
+#########################################################################
 # Output flag for visualisation in VMD:
 #	Flag: 	0-off, 
 #			1-homogeneous, 

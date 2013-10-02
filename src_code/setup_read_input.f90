@@ -478,6 +478,12 @@ subroutine setup_read_input
 		vmd_outflag = 0
 	endif
 
+	call locate(1,'SEPERATE_OUTFILES',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) seperate_outfiles
+	endif
+
+
 	call locate(1,'BIN2CELLRATIO',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) binspercell(1)
