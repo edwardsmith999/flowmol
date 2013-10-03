@@ -720,18 +720,17 @@ subroutine apply_CV_force(iter)
 	integer,intent(in)				:: iter
 
 	logical							:: apply_CVforce
+	integer							:: i,j,k
 	integer							:: M, box_np, m_bin1, m_bin2
 	integer,allocatable 			:: list(:)
-	!real(kind(0.d0))				:: dx,dy,dz
+
 	real(kind(0.d0)),dimension(3)	:: binsize,MD_Pi_dS,MD_rhouu_dS,F_constraint
 	real(kind(0.d0)),dimension(3)	:: u_bin,F_bin,u_bin1, u_bin2, F_bin1, F_bin2
 	real(kind(0.d0)),dimension(3)	:: CFD_Pi_dS,CFD_rhouu_dS
 
-	if (CVforce_flag .eq. 0) return
-
+	!Test case focuses on a single CV
 	binsize = domain/nbins
-
-	!dx = globaldomain(1);	dy = 4.d0; dz = globaldomain(3)
+	i = 3; j = 3; k = 3
 
 	!Get average over current cell and apply constraint forces
 	!call get_continuum_values
@@ -744,7 +743,7 @@ subroutine apply_CV_force(iter)
 	if (jblock .ne. npy) return
 
 	!Retreive CV data and calculate force to apply
-	call average_over_bin
+	call average_over_bin(i,j,k)
 
 	!Apply the force
 	!call apply_force
@@ -763,7 +762,7 @@ subroutine get_test_values(flag)
 
 	!When velocity is near zero, apply force from then on...
 	!if (abs(CV%X(i,j,k,1)) .lt. 0.001) then
-	if (iter .gt. 100) then !111 is the time force is close to zero
+	if (iter .gt. 100) then
 		apply_CVforce = .true.
 		F_constraint = 0.d0
 	endif
@@ -813,7 +812,7 @@ end subroutine update_CV_halos
 ! constrained dynamics algorithms
 !-----------------------------------------------------------------------------
 
-subroutine average_over_bin
+subroutine average_over_bin(i,j,k)
 	use computational_constants_MD, only : nhb, iblock
 	use arrays_MD, only : r, v, a
 	use linked_list, only : node, cell
@@ -821,20 +820,16 @@ subroutine average_over_bin
 										 CV2 => CVcheck_momentum2
 	implicit none
 
-	integer					:: n,i,j,k,molno,cellnp
+	integer,intent(in)		:: i,j,k
+
+	integer					:: n,molno,cellnp
 	integer,dimension(3)	:: ibin
 	type(node), pointer		:: old, current
 	real(kind(0.d0))		:: dx,dy,dz
 
 	logical,save			:: apply_force = .false.
 
-	!Only apply force on processor 1 in x
-	!if (iblock .ne. 1) return
-
-	!Test case focuses on a single CV
-	i = 3; j = 3; k = 3
-
-	!Find the molecules in constraint region and add to list array	   
+	!Find the molecules in constraint region and add to list array
 	!Zero box averages
 	box_np = 0
 	allocate(list(np))
@@ -851,7 +846,7 @@ subroutine average_over_bin
 	M = box_np
 
 	! - - - - - - - - - Momentum  - - - - - - - - - - - 
-    !Total CV flux
+	!Total CV flux
 	MD_rhouu_dS  =		((CV2%flux(i,j,k,:,1)+CV2%flux(i,j,k,:,4)) &
 	          	 		+(CV2%flux(i,j,k,:,2)+CV2%flux(i,j,k,:,5)) &
 	          	 		+(CV2%flux(i,j,k,:,3)+CV2%flux(i,j,k,:,6)))/delta_t
@@ -861,29 +856,11 @@ subroutine average_over_bin
 	              		+(CV2%Pxy(i,j,k,:,3)-CV2%Pxy(i,j,k,:,6)))
 	CV2%flux = 0.d0; CV2%Pxy = 0.d0
 
-
 	if (M .ne. 0 .and. apply_CVforce) then
 		F_constraint = MD_Pi_dS-MD_rhouu_dS + CFD_rhouu_dS-CFD_Pi_dS
 	else
 		F_constraint = 0.d0
 	endif
-
-	!Debugging plots of applied and remaining force
-	!u_bin=0.d0; F_bin = 0.d0; F_bin2 = 0.d0
-	!do i = 1, box_np
-	!	n = list(i)
-	!	u_bin  = u_bin  + v(:,n)
-	!	F_bin  = F_bin  + a(:,n)
-	!	F_bin2 = F_bin2 + a(:,n) - F_constraint(:)/(dble(M))
-	!enddo
-
-	!u_bin1 = CV%dXdt(5,5,5,:)
-	!u_bin2 = CV%X(3,3,3,:)
-	!if (M .ne. 0) then
-	!	print'(2i4,12f10.4)', iter,M, u_bin, F_bin, F_bin2, F_constraint(:)/(dble(M))
-	!else
-	!	print'(2i4,12f10.5)', iter,M, u_bin, F_bin, F_bin2, (/ 0.d0, 0.d0, 0.d0 /)
-	!endif
 
 end subroutine average_over_bin
 
@@ -909,17 +886,12 @@ subroutine apply_force
 		!Add external force to CV total
 		call record_external_forces(F_vector,r(:,n))
 
-        !if (any(F_constraint .ne. 0.d0)) then
-			if (iter .lt. 1000) then
-				write(1200+irank,'(i3,3i7,11f12.6)'),irank,iter,m_bin1,m_bin2, &
-						 					  delta_t*F_vector,u_bin1,u_bin2
-			endif
-        !endif
 	enddo
 
 end subroutine apply_force
 
-
+! Testing routine to apply the force and compare evolution with the case
+! which doesn't evolve in time
 subroutine apply_force_tests(apply_the_force)
 	use arrays_MD, only : r,v,a
 	use physical_constants_MD, only : density
@@ -954,11 +926,11 @@ subroutine apply_force_tests(apply_the_force)
 		!print'(2(a,i4),2i6,9f10.5)', 'acceleration mol',i,'of',box_np, iter,n, a(:,n),a(:,n) - F_constraint/dble(M),F_constraint/dble(M)
 		a_temp(:,n) = a(:,n) - F_vector
 
-		!if (apply_the_force) then
+		if (apply_the_force) then
 			a(:,n) = a(:,n) - F_vector
 			!Add external force to CV total
 			call record_external_forces(F_vector,r(:,n))
-		!endif
+		endif
 	enddo
 	v_temp = 0.d0
 	do n = 1,np
