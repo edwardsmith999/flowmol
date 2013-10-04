@@ -2,8 +2,8 @@
 
 class DummySemaphore:
     
-    def acquire(self):
+    def acquire(self, nprocs):
         return 
     
-    def release(self):
+    def release(self, nprocs):
         return
