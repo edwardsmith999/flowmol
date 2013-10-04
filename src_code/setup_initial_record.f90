@@ -223,7 +223,12 @@ subroutine setup_initial_record
 		print'(a,3(i4,a))', ' Rescue backup file saved every ', floor(rescue_snapshot_freq/3600.d0), ' hours ', &
 				 floor(mod(rescue_snapshot_freq,3600.d0)/60.d0), ' minutes and ', floor(mod(rescue_snapshot_freq,60.d0)), ' seconds'
 		print*, '======================== Output Parameters ============================'
-	
+
+        if (separate_outfiles) then
+            print*, 'Output fields dumped to separate output files.'
+        else
+            print*, 'Output fields dumped to single output files.'
+        end if
 		select case(vmd_outflag)
 		case(0)
 			print*, 'VMD output off'
@@ -725,6 +730,7 @@ subroutine simulation_header
 	write(fileunit,*) 'Cells per Processor including Halos in z ;  ncellzl ;', ncellzl
 	write(fileunit,*) '1st Random seed ;  seed_1 ;', seed(1)
 	write(fileunit,*) '2nd Random seed ;  seed_2 ;', seed(2)
+	write(fileunit,*)  'Separate output file flag;  separate_outfiles;', separate_outfiles 
 	write(fileunit,*)  'VMD flag ;  vmd_outflag ;', vmd_outflag
 	do i=1,Nvmd_intervals
 		if (i .lt. 10) then
