@@ -15,7 +15,8 @@ class InputList(list):
         elif (type(x) == InputList):
             Listx = x
         else:
-            raise TypeError("Unsupported type " + str(type(x))  + " for input addition" + 
+            raise TypeError("Unsupported type " + str(type(x))  
+                            + " for input addition" + 
                             " -- must be InputList or InputDict type")
 
         returnlist = InputList()
@@ -38,7 +39,8 @@ class InputList(list):
         elif (type(x) == InputList):
             Listx = x
         else:
-            raise TypeError("Unsupported type " + str(type(x))  + " for input multiplication" + 
+            raise TypeError("Unsupported type " + str(type(x))  
+                            + " for input multiplication" + 
                             " -- must be InputList or InputDict type")
 
         returnlist = InputList()
@@ -81,7 +83,7 @@ class InputDict(dict):
     def __init__(self,*arg,**kw):
         super(InputDict, self).__init__(*arg, **kw)
 
-    #Expand Dictonary with multiple values per entry into many dictonary elements
+    #Expand InputDict with multiple values per entry into InputList
     def expand(self):
 
         expansion = self.values()[0]
@@ -89,7 +91,7 @@ class InputDict(dict):
         
         return returnlist       
 
-    #Define Addition operation as elementwise addition
+    #Wrapper to convert InputDict to InputList then add
     def __add__(self, x):
 
         # Convert to lists
@@ -100,7 +102,7 @@ class InputDict(dict):
 
     __radd__=__add__
 
-    #Define multiplication operation as all permutations of inputs
+    #Wrapper to convert InputDict to InputList then multiply
     def __mul__(self,x):
 
         # Convert to lists
