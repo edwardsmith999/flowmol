@@ -94,8 +94,8 @@ module computational_constants_MD
 
 	double precision	:: liquid_density	!Density of liquid if solid/liquid case used
 
-	!Write a seperate file for each timestep
-	logical ::	seperate_outfiles = .false.
+	!Write a separate file for each timestep
+	logical ::	separate_outfiles = .false.
 
 	!Input (on or off) flags
 	integer	:: & 
@@ -160,7 +160,7 @@ module computational_constants_MD
 		Nvel_ave, 				&	!Number of averages for each velocity average
 		NTemp_ave, 				&	!Number of averages for each temperature measurement
 		Nstress_ave, 			&	!Number of bins for stress calculation
-		split_kin_config, 		&	!Flag to determine if kinetic and configurational stress seperated
+		split_kin_config, 		&	!Flag to determine if kinetic and configurational stress separated
 		Nvisc_ave, 				&	!Number of samples for viscosity measurement
 		Nmflux_ave, 			&	!Number of averages for each mass flux
 		Nvflux_ave, 			&	!Number of averages for each velocity flux

@@ -56,21 +56,23 @@ class Field():
 
         self.fdir = fdir
         self.cpol_bins = cpol_bins
-        self.potentialfiles = ( "mslice", "mbins", "msnap","vslice", "vbins", 
-                                "vsnap","pvirial", "pVA", "pVA_k","pVA_c", 
-                                "visc", "mflux","vflux", "pplane", "psurface",
-                                "esnap", "eflux", "eplane","esurface", 
-                                "viscometrics", "rdf", "rdf3d", "ssf", "Fext ",
-                                "Tbins" )
-
-        self.plotablefiles = list( self.potentialfiles[i] for i in 
-                                   [1,2,4,5,6,7,8,9,12,14] )
+        potentialfiles = ( "mslice", "mbins", "msnap","vslice", "vbins", 
+                           "vsnap","pvirial", "pVA", "pVA_k","pVA_c", 
+                           "visc", "mflux","vflux", "pplane", "psurface",
+                           "esnap", "eflux", "eplane","esurface", 
+                           "viscometrics", "rdf", "rdf3d", "ssf", "Fext ",
+                           "Tbins" )
+        self.plottablefiles = list( potentialfiles[i] for i in 
+                                    [1,2,4,5,6,7,8,9,12,14] )
          
-		#Check directory exists before instantiating object and check if file
-        #associated with plot is in directory
+		# Check directory exists 
         if os.path.isdir(fdir):
-            self.fieldfiles = list(set(os.listdir(fdir)) & set(self.potentialfiles))
+            
+            self.fieldfiles = list(set(os.listdir(fdir)) & set(potentialfiles))
+
+        # Otherwise quit
         else:
+
             print("Filepath " + self.fdir + " does not exist, aborting")
             quit()
 
@@ -100,7 +102,7 @@ class Field():
         nbins, binspaces = Raw.get_bintopology()
 
         # Get bin data from file and get the mean over time records (axis 4)
-        bins = Raw.get_bindata(minrec,nrecs=maxrec-minrec)
+        bins = Raw.get_bindata(minrec,nrecs=maxrec-minrec+1)
 
         if (meantime==True):
             bins = bins.mean(axis=4) 

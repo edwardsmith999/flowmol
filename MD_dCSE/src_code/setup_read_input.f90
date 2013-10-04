@@ -478,9 +478,9 @@ subroutine setup_read_input
 		vmd_outflag = 0
 	endif
 
-	call locate(1,'SEPERATE_OUTFILES',.false.,found_in_input)
+	call locate(1,'SEPARATE_OUTFILES',.false.,found_in_input)
 	if (found_in_input) then
-		read(1,*) seperate_outfiles
+		read(1,*) separate_outfiles
 	endif
 
 

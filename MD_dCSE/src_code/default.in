@@ -561,7 +561,7 @@ SEED
 #########################################################################
 # Save output files as a single file or seperate file at each timestep
 # Logical true or false
-SEPERATE_OUTFILES
+SEPARATE_OUTFILES
 .false.
 
 #########################################################################
@@ -612,7 +612,7 @@ VELOCITY_OUTFLAG
 
 #########################################################################
 # Output flag for Temperature record:
-#	output_flag (0=off 1,2,3=x,y,z slice 4=3D bins)
+#	output_flag (0=off 1,2,3=x,y,z slice 4=3D bins, 5=3D cylindrical)
 #	No. of samples for Temperature average
 #   peculiar momentum used (i.e. remove streaming velocity)
 # -----------------------------------------------------------------------
@@ -624,7 +624,8 @@ TEMPERATURE_OUTFLAG
 
 #########################################################################
 # Output flag for Pressure binning:
-#   output_flag (0=off 1=virial 2=Volume Averaged)
+#   output_flag (0=off 1=virial 2=Volume Averaged 3=cylindrical, 
+#                which requires input CPOL_BINS to be on)
 #   No. of samples for pressure average (also number of viscosity bins)
 #   Seperate kinetic and configurational 0 = together 1=seperate
 #   Configurational Stress VA Splitting method
@@ -635,6 +636,7 @@ TEMPERATURE_OUTFLAG
 #       2 -- Line length per bin explicit calculation 
 #            (Perfectly accurate but horribly complicated and limited to
 #             cases where binsize > cellsize)
+#   Number of line samples for trapezium rule calculation
 # -----------------------------------------------------------------------
 PRESSURE_OUTFLAG
 2

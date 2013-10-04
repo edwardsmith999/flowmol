@@ -10,7 +10,7 @@
 ! --- OUTPUT ROUTINES ---
 ! parallel_io_final_state 	Write final configuration and simulation details for restart
 ! parallel_io_vmd			Output for VMD
-! parallel_io_vmd_sl		Output for VMD with seperate solid/lquid regions
+! parallel_io_vmd_sl		Output for VMD with separate solid/lquid regions
 ! parallel_io_vmd_halo		Output Halos
 ! CV AVERAGING
 ! mass_averaging			slice/CV
@@ -86,7 +86,7 @@ end subroutine iwrite_arrays_1
 !	Main iwrite Routine
 subroutine iwrite_arrays(some_array,nresults,outfile,outstep)
 	use messenger, only : icomm_grid
-	use computational_constants_MD, only : seperate_outfiles
+	use computational_constants_MD, only : separate_outfiles
 	use librarymod, only : get_Timestep_FileName
 
 	integer, intent(in)						:: nresults,outstep
@@ -113,9 +113,9 @@ subroutine iwrite_arrays(some_array,nresults,outfile,outstep)
 	!  Note:  MPI assumes here that numbering starts from zero
 	!  Since numbering starts from (one), subtract (one) from every index
 	!-------------------------------------------------------
-	if (seperate_outfiles) then
-		!Either write a seperate output files for each timestep
-		call get_Timestep_FileName(outstep,outfile,outfile_t)
+	if (separate_outfiles) then
+		!Either write a separate output files for each timestep
+		call get_Timestep_FileName(outstep-1,outfile,outfile_t)
 		global_cnt = 0; offset = 0
 	else
 		!or a single file for whole run
@@ -193,7 +193,7 @@ end subroutine rwrite_arrays_1
 !	Main rwrite Routine
 subroutine rwrite_arrays(some_array,nresults,outfile,outstep)
 	use messenger, only : icomm_grid
-	use computational_constants_MD, only : seperate_outfiles
+	use computational_constants_MD, only : separate_outfiles
 	use librarymod, only : get_Timestep_FileName
 
 	integer, intent(in)								:: nresults,outstep
@@ -220,9 +220,9 @@ subroutine rwrite_arrays(some_array,nresults,outfile,outstep)
 	!  Note:  MPI assumes here that numbering starts from zero
 	!  Since numbering starts from (one), subtract (one) from every index
 	!-------------------------------------------------------
-	if (seperate_outfiles) then
-		!Either write a seperate output files for each timestep
-		call get_Timestep_FileName(outstep,outfile,outfile_t)
+	if (separate_outfiles) then
+		!Either write a separate output files for each timestep
+		call get_Timestep_FileName(outstep-1,outfile,outfile_t)
 		global_cnt = 0; offset = 0
 	else
 		!or a single file for the whole run
@@ -294,83 +294,99 @@ subroutine rwrite_zplane_1(temp,nresults,outfile,outstep)
 
 end subroutine rwrite_zplane_1
 
+! Write array to file
 subroutine rwrite_zplane(cpol_array,nresults,outfile,outstep)
-	use mpi
+    use mpi
 	use messenger, only : icomm_xyz, kblock
 	use concentric_cylinders, only: gcpol_bins, cpol_bins, cpol_nhbz
-	use computational_constants_MD, only: npz
-	implicit none
+	use computational_constants_MD, only: npz, separate_outfiles
+	use librarymod, only : get_Timestep_FileName
+    implicit none
 
-	integer, intent(in) :: nresults,outstep
-	double precision, dimension(:,:,:,:),intent(in) :: cpol_array
-	character(*),intent(in) :: outfile
+    integer, intent(in) :: nresults,outstep
+    double precision, dimension(:,:,:,:),intent(in) :: cpol_array
+    character(*),intent(in) :: outfile
 
-	integer :: n, fh, ierr
-	integer :: MEM_FLAG = 0
-	integer :: FILE_FLAG = 0
-	integer :: dp_size,datatype
-	integer :: status(mpi_status_size)
-	integer :: filetype, memtype
-	integer (kind=MPI_offset_kind) :: offset, global_cnt
-	integer, dimension(3) :: gsizes, lsizes, memsizes
-	integer, dimension(3) :: global_indices, local_indices
-	integer, dimension(:,:),allocatable :: kblock_lsizes 
-	double precision, allocatable,dimension(:,:,:) :: OutBuffer
+    integer :: n, fh
+    integer :: i, j, k, l
+    integer :: dp_size,datatype
+    integer :: status(mpi_status_size)
+    integer :: filetype, memtype
+    integer (kind=MPI_offset_kind) :: offset, global_cnt
+    integer, dimension(3) :: gsizes, lsizes, memsizes
+    integer, dimension(3) :: global_indices, local_indices
+    integer, dimension(:,:),allocatable :: kblock_lsizes 
+    double precision, allocatable,dimension(:,:,:) :: OutBuffer
+    character(200) :: outfile_t
 
-	datatype = MPI_DOUBLE_PRECISION
-	call MPI_TYPE_SIZE(datatype, dp_size, ierr)
+    datatype = MPI_DOUBLE_PRECISION
+    call MPI_Type_size(datatype, dp_size, ierr)
 
-	call MPI_file_open(icomm_xyz(3), outfile, &
-					   MPI_MODE_WRONLY+MPI_MODE_CREATE, &
-					   MPI_INFO_NULL, fh, ierr)
+	if (separate_outfiles) then
+		!Either write a separate output files for each timestep
+		call get_Timestep_FileName(outstep-1, outfile, outfile_t)
+		global_cnt = 0; offset = 0
+	else
+		!or a single file for the whole run
+		outfile_t = outfile
+        ! Define offsets, etc. Remember MPI is written in C so indices are
+        ! counted from 0, rather than 1 as in Fortran.
+        global_cnt  = int8(int8((outstep-1))*&
+                      int8(product(int8(gcpol_bins(:))))*int8(nresults))
+        offset      = int8(global_cnt) * int8(dp_size)
+	endif
 
-	! Define offsets, etc. Remember MPI is written in C so indices are
-	! counted from 0, rather than 1 as in Fortran.
-	global_cnt 	= (outstep-1)*product(gcpol_bins(:))*nresults 
-	offset		= global_cnt * dp_size
-	gsizes 		= gcpol_bins
-	lsizes		= cpol_bins
-	local_indices(:) = (/ 0 , 0 , 0 /)
-	global_indices(:)= (/ 0 , 0 , 0 /)
+    gsizes      = gcpol_bins
+    lsizes      = cpol_bins
+    local_indices(:) = (/ 0 , 0 , 0 /)
+    global_indices(:)= (/ 0 , 0 , 0 /)
 
-	! Number of bins on each kblock	
-	allocate(kblock_lsizes(3,npz))
-	call SubcommGather(lsizes,kblock_lsizes,3,3,npz)
-	global_indices(1) = 0
-	global_indices(2) = 0 
-	global_indices(3) = sum(kblock_lsizes(3,1:kblock-1))
-	deallocate(kblock_lsizes)
+    ! Number of bins on each kblock 
+    allocate(kblock_lsizes(3,npz))
+    call SubcommGather(lsizes,kblock_lsizes,3,3,npz)
+    global_indices(1) = 0
+    global_indices(2) = 0 
+    global_indices(3) = sum(kblock_lsizes(3,1:kblock-1))
+    deallocate(kblock_lsizes)
 
-	!Allocate ouput buffer
-	allocate(OutBuffer(lsizes(1),lsizes(2),lsizes(3)))
-	memsizes = lsizes
+    !Allocate ouput buffer
+    allocate(OutBuffer(lsizes(1),lsizes(2),lsizes(3)))
+    memsizes = lsizes
 
-	do n =1,nresults
+    ! Open file, create and commit MPI subarray and datatype 
+    call MPI_File_open(icomm_xyz(3), outfile_t, &
+                       MPI_MODE_WRONLY+MPI_MODE_CREATE, &
+                       MPI_INFO_NULL, fh, ierr)
+    call MPI_Type_create_subarray(3, gsizes, lsizes, global_indices, &
+                                  MPI_ORDER_FORTRAN, datatype, &
+                                  filetype, ierr)
+    call MPI_Type_commit(filetype, ierr)
+    call MPI_Type_create_subarray(3, memsizes, lsizes, local_indices,&
+                                  MPI_ORDER_FORTRAN, datatype, memtype,&
+                                  ierr)
+    call MPI_Type_commit(memtype, ierr)
 
-		OutBuffer = cpol_array(:,:,cpol_nhbz+1:cpol_bins(3)+cpol_nhbz,n)
+    do n =1,nresults
 
-		call Create_commit_fileview(gsizes, lsizes, global_indices, &
-									offset,datatype,FILE_FLAG,filetype,fh)
+        OutBuffer = cpol_array(:,:,cpol_nhbz+1:cpol_bins(3)+cpol_nhbz,n)
+        
+        call MPI_File_set_view(fh, offset, datatype, filetype, &
+                               'native', MPI_INFO_NULL, ierr)
+        call MPI_File_write_all(fh, OutBuffer, 1, memtype, status, ierr)
 
-		!Update local array datatype to ignore halo cells
-		call Create_commit_subarray(memsizes, lsizes, local_indices, &
-									datatype,MEM_FLAG,memtype)
+        !Calculate global count offset
+        global_cnt = int8(global_cnt) + int8(product(int8(gcpol_bins(:))))
+        offset = int8(global_cnt) * int8(dp_size)
+    
+    enddo
 
-		call MPI_FILE_WRITE_ALL(fh, OutBuffer, 1, memtype, status, ierr)
+    deallocate(OutBuffer)
+    call MPI_File_close(fh, ierr)
 
-		!Calculate global count offset
-		global_cnt = global_cnt + product(gcpol_bins(:))
-		offset = global_cnt * dp_size
-	
-	enddo
-
-	deallocate(OutBuffer)
-	CALL MPI_FILE_CLOSE(fh, ierr)
-
-	! Free data types
-	CALL MPI_BARRIER(icomm_xyz(3),ierr)
-	call MPI_TYPE_FREE(memtype,ierr) ; MEM_FLAG = 0
-	call MPI_TYPE_FREE(filetype,ierr); FILE_FLAG = 0
+    ! Free data types
+    call MPI_Barrier(icomm_xyz(3),ierr)
+    call MPI_Type_free(memtype,ierr)
+    call MPI_Type_free(filetype,ierr)
 
 end subroutine rwrite_zplane
 
@@ -393,7 +409,8 @@ subroutine iwrite_zplane(cpol_array,nresults,outfile,outstep)
 	use mpi
 	use messenger, only : icomm_xyz, kblock
 	use concentric_cylinders, only: gcpol_bins, cpol_bins, cpol_nhbz
-	use computational_constants_MD, only: npz
+	use computational_constants_MD, only: npz, separate_outfiles
+	use librarymod, only : get_Timestep_FileName
 	implicit none
 
 	integer, intent(in) :: outstep
@@ -412,18 +429,25 @@ subroutine iwrite_zplane(cpol_array,nresults,outfile,outstep)
 	integer, dimension(3) :: global_indices, local_indices
 	integer, dimension(:,:),allocatable :: kblock_lsizes 
 	integer, allocatable,dimension(:,:,:) :: OutBuffer
+    character(200) :: outfile_t
 
 	datatype = MPI_INTEGER
 	call MPI_TYPE_SIZE(datatype, int_size, ierr)
 
-	call MPI_file_open(icomm_xyz(3), outfile, &
-					   MPI_MODE_WRONLY+MPI_MODE_CREATE, &
-					   MPI_INFO_NULL, fh, ierr)
+	if (separate_outfiles) then
+		!Either write a separate output files for each timestep
+		call get_Timestep_FileName(outstep-1, outfile, outfile_t)
+		global_cnt = 0; offset = 0
+	else
+		!or a single file for the whole run
+		outfile_t = outfile
+        ! Define offsets, etc. Remember MPI is written in C so indices are
+        ! counted from 0, rather than 1 as in Fortran.
+        global_cnt  = int8(int8((outstep-1))*&
+                      int8(product(int8(gcpol_bins(:))))*int8(nresults))
+        offset      = int8(global_cnt) * int8(int_size)
+	endif
 
-	! Define offsets, etc. Remember MPI is written in C so indices are
-	! counted from 0, rather than 1 as in Fortran.
-	global_cnt 	= (outstep-1)*product(gcpol_bins(:))*nresults
-	offset		= global_cnt * int_size
 	gsizes 		= gcpol_bins
 	lsizes		= cpol_bins
 	local_indices(:) = (/ 0 , 0 , 0 /)
@@ -440,22 +464,31 @@ subroutine iwrite_zplane(cpol_array,nresults,outfile,outstep)
 	allocate(OutBuffer(lsizes(1),lsizes(2),lsizes(3)))
 	memsizes = lsizes
 
+    ! Open file, create and commit MPI subarray and datatype 
+	call MPI_file_open(icomm_xyz(3), outfile_t, &
+					   MPI_MODE_WRONLY+MPI_MODE_CREATE, &
+					   MPI_INFO_NULL, fh, ierr)
+
+    call MPI_Type_create_subarray(3, gsizes, lsizes, global_indices, &
+                                  MPI_ORDER_FORTRAN, datatype, &
+                                  filetype, ierr)
+    call MPI_Type_commit(filetype, ierr)
+    call MPI_Type_create_subarray(3, memsizes, lsizes, local_indices,&
+                                  MPI_ORDER_FORTRAN, datatype, memtype,&
+                                  ierr)
+    call MPI_Type_commit(memtype, ierr)
+
 	do n =1,nresults
 
 		OutBuffer = cpol_array(:,:,cpol_nhbz+1:cpol_bins(3)+cpol_nhbz,n)
 
-		call Create_commit_fileview(gsizes, lsizes, global_indices, &
-									offset,datatype,FILE_FLAG,filetype,fh)
+        call MPI_File_set_view(fh, offset, datatype, filetype, &
+                               'native', MPI_INFO_NULL, ierr)
+        call MPI_File_write_all(fh, OutBuffer, 1, memtype, status, ierr)
 
-		!Update local array datatype to ignore halo cells
-		call Create_commit_subarray(memsizes, lsizes, local_indices, &
-									datatype,MEM_FLAG,memtype)
-
-		call MPI_FILE_WRITE_ALL(fh, OutBuffer, 1, memtype, status, ierr)
-
-		!Calculate global count offset
-		global_cnt = global_cnt + product(gcpol_bins(:))
-		offset = global_cnt * int_size
+        !Calculate global count offset
+        global_cnt = int8(global_cnt) + int8(product(int8(gnbins(:))))
+        offset = int8(global_cnt) * int8(int_size)
 	
 	enddo
 
@@ -2460,7 +2493,7 @@ subroutine velocity_bin_cpol_io(mass_out,mom_out)
 	real(kind(0.d0)), dimension(:,:,:,:), intent(inout) :: mom_out
 
 	character(200) :: vfile
-	integer :: m, ierr
+	integer :: m, ierr, nresults
 
 	! Make sure mass is written out
 	call mass_bin_cpol_io(mass_out)
@@ -2472,10 +2505,11 @@ subroutine velocity_bin_cpol_io(mass_out,mom_out)
 	! Bottom corner z-line of processors write to file	
 	if (iblock .eq. 1 .and. jblock .eq. 1) then
 
-		m = (iter-initialstep+1)/(tplot*Nvel_ave)
+        nresults = 3
 		vfile = trim(prefix_dir)//'results/vbins'
+		m = (iter-initialstep+1)/(tplot*Nvel_ave)
 
-		call write_zplane(mom_out, 3,vfile,m)
+		call write_zplane(mom_out,nresults,vfile,m)
 
 	end if
 
@@ -2582,7 +2616,7 @@ subroutine VA_stress_cpol_io
 	use calculated_properties_MD, only: rfbin, vvbin, Pxybin
 	implicit none
 
-	integer :: m, ierr
+	integer :: m, ierr, nresults
 	integer :: rbin, tbin, zbin 
 	character(200) :: pVAfile
 	real(kind(0.d0)), allocatable :: buf9(:,:,:,:)
@@ -2632,21 +2666,22 @@ subroutine VA_stress_cpol_io
 		allocate(buf9(cpol_binso(1),cpol_binso(2),cpol_binso(3),9))
 
 		m = (iter-initialstep+1)/(tplot*Nstress_ave)
+        nresults = 9
 	
 		select case (split_kin_config)
 		case(0)
 			!Together
 			pVAfile = trim(prefix_dir)//'results/pVA'
 			buf9 = reshape(Pxybin,(/cpol_binso(1),cpol_binso(2),cpol_binso(3),9/))
-			call write_zplane(buf9,9,pVAfile,m)
+			call write_zplane(buf9,nresults,pVAfile,m)
 		case(1)
 			!Separate
 			pVAfile = trim(prefix_dir)//'results/pVA_k'
 			buf9 = reshape(vvbin,(/cpol_binso(1),cpol_binso(2),cpol_binso(3),9/))
-			call write_zplane(buf9,9,pVAfile,m)
+			call write_zplane(buf9,nresults,pVAfile,m)
 			pVAfile = trim(prefix_dir)//'results/pVA_c'
 			buf9 = reshape(rfbin,(/cpol_binso(1),cpol_binso(2),cpol_binso(3),9/))
-			call write_zplane(buf9,9,pVAfile,m)
+			call write_zplane(buf9,nresults,pVAfile,m)
 		case default
 		end select
 

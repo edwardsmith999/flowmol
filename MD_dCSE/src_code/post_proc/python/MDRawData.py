@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 import numpy as np 
-from HeaderData import *
+import glob
+from HeaderData import * 
 
 """
 
@@ -50,18 +51,19 @@ class MD_RawData:
         """
 
         self.fdir = fdir
+        self.fname = fname
         self.cpol_bins = cpol_bins
         self.header = HeaderData(open(fdir+'simulation_header','r'))
-
-        try: 
-            self.fobj = open(fdir+fname,'rb')
-        except:
-            print('Unable to find file ' + fname )
-            quit()
-        
         self.dtype = dtype
         self.nperbin = nperbin
         self.nbins, self.binspaces = self.get_bintopology()
+        if (glob.glob(fdir+fname)):
+            self.separate_outfiles = False
+        elif (glob.glob(fdir+fname+'.*')):
+            self.separate_outfiles = True 
+        else:
+            print('Neither ' + fname + ' nor ' + fname + '.* exist.')
+            quit()
 
     def get_bintopology(self):
 
@@ -123,28 +125,66 @@ class MD_RawData:
                 
         """
 
+        # Allocate enough memory in the C library to efficiently insert
+        # into bindata
         recitems = np.product(self.nbins)*self.nperbin
+        bindata  = np.empty(nrecs*recitems)
 
-        if (self.dtype == 'i'):
-            recbytes = 4*recitems
-        elif (self.dtype == 'd'):
-            recbytes = 8*recitems
+        # Check whether the records are written separately
+        # If so
+        if (self.separate_outfiles):
+
+            # Loop through files and append data
+            for plusrec in range(0,nrecs):
+
+                filepath = self.fdir+self.fname+'.'+"%07d"%(seekrec+plusrec)
+                try: 
+                    fobj = open(filepath,'rb')
+                except:
+                    quit('Unable to find file ' + filepath)    
+
+                start = plusrec*recitems
+                end = start + recitems
+                bindata[start:end] = np.fromfile(fobj,dtype=self.dtype)
+                fobj.close()
+
+       # Else
         else:
-            quit('Unrecognised data type in read_bins')
 
+            try: 
+                fobj = open(self.fdir+self.fname,'rb')
+            except:
+                print('Unable to find file ' + self.fname )
+                quit()
 
-        # Seek to correct point in the file
-        # seekrec=0 and whence=0 (i.e. start) by default
-        seekbyte = seekrec*recbytes
-        self.fobj.seek(seekbyte,whence)
+            # Seek to correct point in the file
+            # seekrec=0 and whence=0 (i.e. start) by default
+            if (self.dtype == 'i'):
+                recbytes = 4*recitems
+            elif (self.dtype == 'd'):
+                recbytes = 8*recitems
+            else:
+                quit('Unrecognised data type in read_bins')
+            seekbyte = seekrec*recbytes
+            fobj.seek(seekbyte,whence)
 
-        # Get data and reshape with fortran array ordering
-        bindata = np.fromfile(self.fobj,dtype=self.dtype,count=nrecs*recitems)  
+            # Get data and reshape with fortran array ordering
+            bindata = np.fromfile(fobj, dtype=self.dtype,
+                                  count=nrecs*recitems)  
+
+            fobj.close()
+
+        fobj = open('bindata','wb')
+        fobj.write(bindata)
+
+        # Reshape bindata
         bindata = np.reshape( bindata,
-                              [ self.nbins[0],
-                                self.nbins[1],
-                                self.nbins[2],
-                                self.nperbin ,
-                                nrecs ],
-                              order='F' )
+                             [ self.nbins[0],
+                               self.nbins[1],
+                               self.nbins[2],
+                               self.nperbin ,
+                               nrecs ],
+                              order='F')
+
         return bindata
+        

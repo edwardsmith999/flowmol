@@ -2802,7 +2802,7 @@ subroutine pressure_tensor_forces_VA_trap_cpol(ri,rj,accijmag)
 		if (  .not. any(abs(rs_cart(:)).gt.halfdomain(:))  ) then
 
 			! Binning conventions 
- 			rs(1)  = rs(1) - r_oi
+			rs(1)  = rs(1) - r_oi
 			rs(2)  = modulo(rs(2),2.d0*pi)
 			rs(3)  = rs_cart(3) + halfdomain(3) 
 
@@ -2820,6 +2820,33 @@ subroutine pressure_tensor_forces_VA_trap_cpol(ri,rj,accijmag)
 		end if
 
 		s = s + ds	
+
+        ! Straight line calculation (DT thinks this is not the correct
+        ! way to do it)
+!       rs_cart = ri + s*rij 
+!
+!		if (  .not. any(abs(rs_cart(:)).gt.halfdomain(:))  ) then
+!
+!			! Binning conventions 
+!           rs = cpolariser(globalise(rs_cart))
+!			rs(1)  = rs(1) - r_oi
+!			rs(2)  = modulo(rs(2),2.d0*pi)
+!			rs(3)  = rs_cart(3) + halfdomain(3) 
+!
+!			!Add to cylindrical bins
+!			br = ceiling(rs(1)/VAbinsize(1)) 
+!			bt = ceiling(rs(2)/VAbinsize(2)) 
+!			bz = ceiling(rs(3)/VAbinsize(3)) + cpol_nhbz
+!
+!			!Ignore molecules in cylinder region
+!			if ( br .ge. 1 .and. br .le. cpol_bins(1) ) then
+!				rfbin(br,bt,bz,:,:) =  &
+!				rfbin(br,bt,bz,:,:) + rF(:,:)/real(Ns,kind(0.d0))
+!			end if
+!
+!       end if
+!		s = s + ds	
+
 
 	end do	
 	
