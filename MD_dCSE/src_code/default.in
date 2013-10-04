@@ -639,11 +639,11 @@ TEMPERATURE_OUTFLAG
 #   Number of line samples for trapezium rule calculation
 # -----------------------------------------------------------------------
 PRESSURE_OUTFLAG
-2
+0
 1
 0
 1
-20
+10
 
 #########################################################################
 # Output flag for viscosity:
