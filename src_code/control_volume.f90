@@ -368,7 +368,6 @@ contains
 
 		    !Verify that CV momentum is exactly conservative
 		    conserved = sum(totalpressure-totalflux-dvelocitydt-F_ext)
-		    conserved = sum(totalpressure-totalflux-dvelocitydt-F_ext)
 			if(conserved .gt. 0.000000001d0) then
 				print'(a,i8,4i4,7f10.5)','Error in momentum flux', iter,irank,i,j,k, & 
 					 conserved, sum(totalpressure),-sum(totalflux),sum(dvelocitydt), & 

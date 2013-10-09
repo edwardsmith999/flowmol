@@ -719,18 +719,20 @@ subroutine apply_CV_force(iter)
 	
 	integer,intent(in)				:: iter
 
-	logical							:: apply_CVforce
-	integer							:: i,j,k
+	logical							:: apply_CVforce = .false.
+	integer							:: ibin,jbin,kbin
 	integer							:: M, box_np, m_bin1, m_bin2
 	integer,allocatable 			:: list(:)
 
+	real(kind(0.d0))				:: volume
 	real(kind(0.d0)),dimension(3)	:: binsize,MD_Pi_dS,MD_rhouu_dS,F_constraint
 	real(kind(0.d0)),dimension(3)	:: u_bin,F_bin,u_bin1, u_bin2, F_bin1, F_bin2
 	real(kind(0.d0)),dimension(3)	:: CFD_Pi_dS,CFD_rhouu_dS
 
 	!Test case focuses on a single CV
 	binsize = domain/nbins
-	i = 3; j = 3; k = 3
+	volume = product(binsize)
+	ibin = 3; jbin = 3; kbin = 3
 
 	!Get average over current cell and apply constraint forces
 	!call get_continuum_values
@@ -743,7 +745,7 @@ subroutine apply_CV_force(iter)
 	if (jblock .ne. npy) return
 
 	!Retreive CV data and calculate force to apply
-	call average_over_bin(i,j,k)
+	call average_over_bin(ibin,jbin,kbin)
 
 	!Apply the force
 	!call apply_force
@@ -758,13 +760,19 @@ subroutine get_test_values(flag)
 
 	integer,intent(in)	:: flag
 
-	integer				:: i,length,fileunit
+	integer				:: length,fileunit,starttime
+	double precision	:: sin_mag, sin_period
 
 	!When velocity is near zero, apply force from then on...
-	!if (abs(CV%X(i,j,k,1)) .lt. 0.001) then
-	if (iter .gt. 100) then
+	starttime = 1000
+	if (iter .gt. starttime .and. .not. apply_CVforce) then
 		apply_CVforce = .true.
 		F_constraint = 0.d0
+		call set_bin_velocity(ibin, ibin, jbin, jbin, kbin, kbin, (/ 0.0d0,0.d0,0.d0 /))
+	elseif (iter .le. starttime) then
+		apply_CVforce = .false.
+	else
+		!Do nothing
 	endif
 
 	select case(flag)
@@ -780,8 +788,10 @@ subroutine get_test_values(flag)
 		CFD_Pi_dS = 1.d0
 		CFD_rhouu_dS = 0.d0
 	case(3)
-		!Sin function 
-		CFD_Pi_dS = sin(2*pi*iter/100)*10.0
+		!Sin function shifted by pi/2 so velocity which is given
+		!by the integral (cos) alternates around zero
+		sin_mag = 0.1d0;  sin_period = 100.d0
+		CFD_Pi_dS = sin_mag * sin(2.d0*pi*((iter-starttime)/sin_period)+0.5d0*pi)
 		CFD_rhouu_dS = 0.d0
 	case(4)
 		! Get continuum values of surface stresses, etc
@@ -823,9 +833,8 @@ subroutine average_over_bin(i,j,k)
 	integer,intent(in)		:: i,j,k
 
 	integer					:: n,molno,cellnp
-	integer,dimension(3)	:: ibin
+	integer,dimension(3)	:: bin
 	type(node), pointer		:: old, current
-	real(kind(0.d0))		:: dx,dy,dz
 
 	logical,save			:: apply_force = .false.
 
@@ -834,8 +843,8 @@ subroutine average_over_bin(i,j,k)
 	box_np = 0
 	allocate(list(np))
 	do n = 1,np
-		ibin(:) = ceiling((r(:,n)+0.5d0*domain(:))/binsize(:))+1
-		if (ibin(1) .eq. i .and. ibin(2) .eq. j .and. ibin(3) .eq. k) then
+		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/binsize(:))+1
+		if (bin(1) .eq. i .and. bin(2) .eq. j .and. bin(3) .eq. k) then
 			!Add molecule to overlap list
 			box_np   =  box_np   + 1
 			list(box_np) =  n
@@ -857,7 +866,7 @@ subroutine average_over_bin(i,j,k)
 	CV2%flux = 0.d0; CV2%Pxy = 0.d0
 
 	if (M .ne. 0 .and. apply_CVforce) then
-		F_constraint = MD_Pi_dS-MD_rhouu_dS + CFD_rhouu_dS-CFD_Pi_dS
+		F_constraint = MD_Pi_dS-MD_rhouu_dS + (CFD_rhouu_dS-CFD_Pi_dS)*volume
 	else
 		F_constraint = 0.d0
 	endif
@@ -873,16 +882,16 @@ subroutine apply_force
 	use physical_constants_MD, only : density
 	implicit none
 
-	integer								:: i, n
+	integer								:: n, molno
 	double precision,dimension(3)		:: F_vector
 
 	!Loop over all molecules and apply constraint
 	if (M .ne. 0) F_vector = F_constraint/dble(M)
-	do i = 1, box_np
-		n = list(i)
-
-		a(:,n) = a(:,n) - F_vector
-
+	do n = 1, box_np
+		!Get molecule number
+		molno = list(n)
+		!Apply force
+		a(:,molno) = a(:,molno) - F_vector
 		!Add external force to CV total
 		call record_external_forces(F_vector,r(:,n))
 
@@ -923,7 +932,6 @@ subroutine apply_force_tests(apply_the_force)
 	if (M .ne. 0) F_vector = F_constraint/dble(M)
 	do i = 1, box_np
 		n = list(i)
-		!print'(2(a,i4),2i6,9f10.5)', 'acceleration mol',i,'of',box_np, iter,n, a(:,n),a(:,n) - F_constraint/dble(M),F_constraint/dble(M)
 		a_temp(:,n) = a(:,n) - F_vector
 
 		if (apply_the_force) then
@@ -948,18 +956,12 @@ subroutine apply_force_tests(apply_the_force)
 	deallocate(a_temp)
 
 	if (M .ne. 0) then
-		!print'(2i4,15f8.3)', iter,m_bin1,u_bin1,u_bin2,F_bin1,F_bin2,F_constraint/dble(M)
-		!if (iter .lt. 1000) then
-			write(1200+irank,'(i3,3i7,9f12.6)'),irank,iter,m_bin1,m_bin2, &
-					 					  delta_t*F_vector,u_bin1,u_bin2
+		write(1200+irank,'(i3,3i7,9f12.6)'),irank,iter,m_bin1,m_bin2, &
+					 					  delta_t*F_vector,u_bin1/volume,u_bin2/volume
 										
-		!endif
 	else
-		!print'(2i4,12f10.5)', iter,m_bin1,u_bin1,u_bin2,F_bin1,F_bin2, (/ 0.d0, 0.d0, 0.d0 /)
-		!if (iter .lt. 1000) then
-			write(1200+irank,'(i3,3i7,9f12.6)'),irank,iter,m_bin1,m_bin2, &
-					 					 (/ 0.d0, 0.d0, 0.d0 /),u_bin1,u_bin2
-		!endif
+		write(1200+irank,'(i3,3i7,9f12.6)'),irank,iter,m_bin1,m_bin2, &
+					 					 (/ 0.d0, 0.d0, 0.d0 /),u_bin1/volume,u_bin2/volume
 	endif
 
 
@@ -969,6 +971,87 @@ end subroutine apply_force_tests
 
 
 end subroutine apply_CV_force
+
+
+
+!----------------------------------------------------------------------------------
+! Set velocity of a reange of bins to prescribed value
+
+subroutine set_bin_velocity(imin, imax, jmin, jmax, kmin, kmax, velocity)
+	use linked_list, only : cell, node
+	use arrays_MD, only : v
+	use computational_constants_MD, only : binspercell
+	implicit none
+
+	integer, intent(in)                			:: imin, imax, jmin, jmax, kmin, kmax
+	double precision,dimension(3),intent(in)	:: velocity   !Overall momentum of system
+
+	integer										:: i,icell,jcell,kcell,molno,binNsum,cellnp
+	double precision,dimension(3)				:: binvsum, vcorrection,cellsperbin
+	type(node), pointer 	        			:: old, current
+
+	!Calculate bin to cell ratio
+	cellsperbin = 1.d0/binspercell !ceiling(ncells(1)/dble(nbins(1)))
+	where (cellsperbin .gt. 1.d0) cellsperbin = 1.d0
+
+	!Calculate velocity in bin
+	binNsum = 0; binvsum = 0.d0
+	do kcell=(kmin-1)*cellsperbin(3)+1, kmax*cellsperbin(3)
+	do jcell=(jmin-1)*cellsperbin(2)+1, jmax*cellsperbin(2)
+	do icell=(imin-1)*cellsperbin(1)+1, imax*cellsperbin(1)
+	
+		cellnp = cell%cellnp(icell,jcell,kcell)
+		old => cell%head(icell,jcell,kcell)%point !Set old to first molecule in list
+
+		do i = 1,cellnp					!Step through each particle in list 
+			molno = old%molno 	 	!Number of molecule
+			binNsum = binNsum + 1    
+			binvsum(:) = binvsum(:) + v(:,molno)
+
+			print'(a,2i8,6f10.5)', 'velocities',i,molno, binvsum, v(:,molno)
+
+			current => old
+			old => current%next !Use pointer in datatype to obtain next item in list
+		enddo
+
+	enddo
+	enddo
+	enddo
+	
+	!Calculate velocity correction per molecule
+	vcorrection(:) = binvsum(:)/binNsum - velocity(:)
+
+	print'(3(a,3f10.5))', 'applyed v ', velocity, ' bin v ', binvsum(:)/binNsum, ' v correct ', vcorrection
+
+	!Apply velocity correction per molecule to bin
+	binNsum = 0; binvsum = 0.d0
+	do kcell=(kmin-1)*cellsperbin(3)+1, kmax*cellsperbin(3)
+	do jcell=(jmin-1)*cellsperbin(2)+1, jmax*cellsperbin(2)
+	do icell=(imin-1)*cellsperbin(1)+1, imax*cellsperbin(1)
+	
+		cellnp = cell%cellnp(icell,jcell,kcell)
+		old => cell%head(icell,jcell,kcell)%point !Set old to first molecule in list
+
+		do i = 1,cellnp					!Step through each particle in list 
+			molno = old%molno 	 	!Number of molecule
+			v(:,molno) =  v(:,molno) - vcorrection
+
+			print'(a,2i8,6f10.5)', 'velocities after correct',i,molno, binvsum, v(:,molno)
+
+			binNsum = binNsum + 1    
+			binvsum(:) = binvsum(:) + v(:,molno)
+
+			current => old
+			old => current%next !Use pointer in datatype to obtain next item in list
+		enddo
+
+	enddo
+	enddo
+	enddo
+
+	print'(a,3f10.5)', 'Corrected velocity is then ',  binvsum(:)/binNsum
+
+end subroutine set_bin_velocity
 
 
 

@@ -958,7 +958,7 @@ end subroutine setup_initialise_polyinfo_singlebranched
 !----------------------------------------------------------------------------------
 !----------------------------------------------------------------------------------
 !Initialise Velocities
-! Set up the intial velocities of the particles using velocity magnitude calcualted
+! Set up the intial velocities of the particles using velocity magnitude calculated
 ! from intitial temperature and giving random vectorial components
 
 subroutine setup_initialise_velocities
