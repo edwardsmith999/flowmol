@@ -427,8 +427,8 @@ class MDRun:
                 #Run gnuplot and generate outputs
                 cmdstr = ' gnuplot ' + value
                 gnurun = sp.Popen(shlex.split(cmdstr),cwd=self.rundir)
-                print('Running gnuplot script ' + value + ' with output ' + 
-                       outfile)
+                print('Running gnuplot script ' + value +
+                      ' with output ' + outfile)
                 gnurun.wait()
 
                 #Copy results back to calling directory and name by rundir

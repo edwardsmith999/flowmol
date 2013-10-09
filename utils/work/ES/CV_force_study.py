@@ -55,3 +55,5 @@ for thread in range(0,len(changes)):
 
 # Run the study
 study = MDStudy(threadlist,ncpus)
+
+finishargs = {'gnuplot_script':'./gnuplot_script.plt'}

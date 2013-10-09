@@ -240,6 +240,8 @@ subroutine initialField_linear()
 	yd = 0.5*(y2-y1)	!domain half-height
 	uwall_diff = uwall_top - uwall_bottom
 
+    print*, 'topwall = ',uwall_top ,'bottomwall = ',uwall_bottom
+
 	! Create streamwise baseflow on collocated grid    
 	do j=jmin,jmax
 		U(:,:,j) = uwall_diff*ypg(1,j)/L - uwall_top
