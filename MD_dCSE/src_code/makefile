@@ -53,7 +53,7 @@ endif
 LDFLAGS := $(FFLAGS)
 
 #Executable name
-MD_EXE = md.exe
+MD_EXE = parallel_md.exe
 
 #Re-use .f90/.cu/.s file names with .o instead of .f90
 O_MD = $(addprefix obj/, $(F90_MD_FILES:.f90=.o))
@@ -84,7 +84,7 @@ s:
 s_continuum:
 	@make continuum.exe
 p:
-	@make parallel_md.exe
+	@make $(MD_EXE)
 s_cuda:
 	@make md_CUDA.exe
 s_cuda_emulate:
@@ -94,26 +94,26 @@ debug_s_cuda:
 optimised_s:
 	@make serial_md.exe "FFLAGS = -O3"
 optimised_p:
-	@make parallel_md.exe "BUILD=opt"
+	@make $(MD_EXE) "BUILD=opt"
 debug_s:
 	@make serial_md.exe "BUILD=debug"
 debug_p:
-	@make parallel_md.exe "BUILD=debug"
+	@make $(MD_EXE) "BUILD=debug"
 full_debug_s:
 	@make serial_md.exe "FFLAGS = -g -O0 -traceback -CB -check all -warn all,nodec,interfaces -gen_interfaces"
 full_debug_p:
-	@make parallel_md.exe "FFLAGS = -g -O0 -traceback -CB -check all -warn all,nodec,interfaces -gen_interfaces"
+	@make $(MD_EXE) "FFLAGS = -g -O0 -traceback -CB -check all -warn all,nodec,interfaces -gen_interfaces"
 profile_s:
 	@make serial_md.exe "FFLAGS = -O3 -funroll-loops -pg -g "
 memprofile_s:
 	@make serial_md.exe "FFLAGS = -O3 -g"; valgrind --tool=cachegrind ./md.exe
 profile_p:
-	@make parallel_md.exe "FFLAGS = -mpe=mpilog "
+	@make $(MD_EXE) "FFLAGS = -mpe=mpilog "
 #Make executables
 md.exe: obj $(O_MD_P) $(CPL_LIB)
 	@echo "MD executable is being relinked"
 	@$(F90) -o $@ $(O_MD_P) $(LDFLAGS)
-parallel_md.exe: obj $(O_ASSEMBLY_FILES) $(O_MD_P) $(CPL_LIB)
+$(MD_EXE): obj $(O_ASSEMBLY_FILES) $(O_MD_P) $(CPL_LIB)
 	@echo "MD executable is being relinked"
 	@$(F90) -o $@ $(O_ASSEMBLY_FILES) $(O_MD_P) $(LDFLAGS)
 serial_md.exe: obj $(O_MD) 
