@@ -7,12 +7,12 @@ clear all
 close all
 
 %Optional outputs
-contourplots = 4; sliceplane = 10;
+contourplots =0; sliceplane = 10;
 channel_profile = 0;
 spectrum = 0;
 
 %Turn on/off video and picture output
-savevid = 1;
+savevid = 0;
 
 %Parameters
 Re_b = 1.0;
@@ -20,10 +20,12 @@ visc = 1/Re_b;
 spectrum_yloc = 16;
 
 %Directory names
+%resultfile_dir = '/home/es205/codes/coupled/CFD_dCSE/src_code/results/'
+resultfile_dir = '/home/es205/results/CFD_results/codes/Transflow/turbulent_couette/Minimum_study_couette_scaled/CFD_dCSE/runs/Re400/'
 %resultfile_dir = '/home/es205/results/CFD_results/results/Transflow/minimal_channel_laminar/';
 %resultfile_dir = '/home/es205/results/CFD_results/results/Transflow/minimal_channel_turbulent_scaled/'
 %resultfile_dir = '/home/es205/results/CFD_results/results/Transflow/turbulent_couette/couette_scaled/results/'
-resultfile_dir = '/home/es205/results/CFD_results/codes/Transflow/turbulent_couette/couette_scaled/CFD_dCSE/src_code/results/'
+%resultfile_dir = '/home/es205/results/CFD_results/codes/Transflow/turbulent_couette/couette_scaled/CFD_dCSE/src_code/results/'
 %---Get CFD grid size ----
 read_grid(strcat(resultfile_dir,'grid.data'),[1 1 1])
 [ngx, ngy, ngz, Lx, Ly, Lz, dx, dy, dz] = read_report(strcat(resultfile_dir,'report'));
@@ -66,8 +68,8 @@ u_fluct_rmsum=0; v_fluct_rmsum=0; Rxu_fft = zeros(2*(ngx-3),1);
 Rxu = zeros(ngx-3,1); Rxv = zeros(ngx-3,1); Rxw = zeros(ngx-3,1);
 Rzu = zeros(ngz-3,1); Rzv = zeros(ngz-3,1); Rzw = zeros(ngz-3,1);
 cd(resultfile_dir); files = dir('Sub*');
-tstart = 1;
-for n=tstart:size(files,1)
+tstart = 1; step = 1;
+for n=tstart:step:size(files,1)
 
     disp(strcat('Iter_', int2str(n), '_of_', int2str(size(files,1))))
     
@@ -309,20 +311,24 @@ y_plus = ypg/delta_tau;
 u_plus = u_mean/u_tau;
 
 %Plot time averaged Reynolds shear stress
-u_fluct_rms = u_fluct_rmsum / (n-tstart);
-v_fluct_rms = v_fluct_rmsum / (n-tstart);
 uv_fluct    = uv_fluct_sum  / (n-tstart);
 figure('Position',[     1     scrsz(4)/4 scrsz(3)/6 scrsz(4)/2]);
 plot(ypg(1,:),-squeeze(uv_fluct(4,4,1:end-1))/u_tau^2,'ks')
 hold all
 plot(ypg(1,1:end-1),(-squeeze(uv_fluct(4,4,2:end-1))+visc*dudy(1:end))./u_tau^2,'k--','LineWidth',5)
+title('stresses')
 set(gca,'FontSize',20)
 savefig('stresses','eps')
+
+%Plot time averaged RMS velocities
+u_fluct_rms = u_fluct_rmsum / (n-tstart);
+v_fluct_rms = v_fluct_rmsum / (n-tstart);
 figure('Position',[     1     scrsz(4)/4 scrsz(3)/6 scrsz(4)/2]);
 plot(ypg(1,:),squeeze(u_fluct_rms(4,4,1:end-1))/u_tau,'kx')
 hold all
 plot(ypg(1,:),squeeze(v_fluct_rms(4,4,1:end-1))/u_tau,'ko')
 set(gca,'FontSize',20)
+title('RMS vel')
 savefig('RMS_vel','eps')
 
 %Plot time average energy spectra
@@ -334,6 +340,7 @@ loglog(xpg(1:end/2,1)/delta_tau,mean(Exv(1:end/2,1:end).^0.5,2),'k--')
 loglog(xpg(1:end/2,1)/delta_tau,mean(Exw(1:end/2,1:end).^0.5,2),'k:') 
 loglog(xpg(1:end/2,1)/delta_tau,C*(xpg(1:end/2,1)/delta_tau).^(-5/3),'k.-')
 %axis([7 400 1e-6 5 ]); set(gca,'FontSize',20)
+title('x energy spectra')
 savefig('x_energy_spectra','eps')
 
 % Plot correlations
@@ -346,6 +353,7 @@ plot(xpg(1:(end-1)/2,1)/delta_tau,(Rxv(1:end/2)/(n-tstart))/(Rxv(1)/(n-tstart)),
 plot(xpg(1:(end-1)/2,1)/delta_tau,(Rxw(1:end/2)/(n-tstart))/(Rxw(1)/(n-tstart)),'k:')
 plot(xpg(1:(end-1)/2)/delta_tau,zeros(size(xpg(1:(end-1)/2),2),1),'k-.')
 %axis([0 300 -0.5 1.1]); set(gca,'FontSize',20)
+title('x correlation')
 drawnow; pause(0.0001)
 hold off
 savefig('x_correlation','eps')
@@ -358,6 +366,7 @@ plot(z(1:(end-1)/2)/delta_tau,(Rzv(1:end/2)/(n-tstart))/(Rzv(1)/(n-tstart)),'k--
 plot(z(1:(end-1)/2)/delta_tau,(Rzw(1:end/2)/(n-tstart))/(Rzw(1)/(n-tstart)),'k:')
 plot(z(1:(end-1)/2)/delta_tau,zeros(size(z(1:(end-1)/2),2),1),'k-.')
 %axis([0 85 -1 1.1]); set(gca,'FontSize',20)
+title('z correlation')
 drawnow; pause(0.0001)
 hold off
 savefig('z_correlation','eps')
@@ -370,5 +379,6 @@ semilogx(y_plus(1,1:end-1),squeeze(mean(mean(u_plus(:,:,2:end-1),1),2)),'ko')
 hold all
 semilogx(y_plus(1,1:end-1),visc_sublayer,'k-')
 semilogx(y_plus(1,1:end-1),loglaw,'k--')
+title('wall layer')
 axis([ 0 200 0 25 ]); set(gca,'FontSize',20)
 savefig('wall_layer','eps')
