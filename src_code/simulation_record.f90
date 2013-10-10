@@ -432,18 +432,20 @@ subroutine evaluate_properties_vdistribution
 	use module_record
 	implicit none
 
-	integer          :: n
-	integer          :: cbin
-	double precision :: Hfunction
+	integer          :: n, cbin, nvbins
+	double precision :: Hfunction,vfactor
 	double precision,dimension(:),allocatable :: vmagnitude
+
+	vfactor = 8.d0
 
 	!Calculate matrix of velocity magnitudes and bin in histogram
 	allocate(vmagnitude(np))
+	nvbins = nbins(1)*vfactor
 	do n = 1, np    ! Loop over all particles
 		vmagnitude(n) = dot_product(v(:,n),v(:,n)) 
 		!Assign to bins using integer division
  		cbin = ceiling(vmagnitude(n)/binsize)   !Establish current bin
-		if (cbin > nbins(1)) cbin = nbins(1) 		!Prevents out of range values
+		if (cbin > nvbins) cbin = nvbins 		!Prevents out of range values
 		if (cbin < 1 ) cbin = 1        		!Prevents out of range values
 		vfd_bin(cbin) = vfd_bin(cbin)+1		!Add one to current bin
 	enddo
@@ -454,14 +456,14 @@ subroutine evaluate_properties_vdistribution
 	!number of times bins have been assigned (iter/tplot) with the 1.d0 to avoid integer
 	!division
 	normalisedvfd_bin=0
-	do n=1,nbins(1)
+	do n=1,nvbins
 		normalisedvfd_bin(n) = vfd_bin(n)/((np*iter)*1.d0/tplot) 
 	enddo
 
 	!Calculate Boltzmann H function using discrete defintion as in
 	!Rapaport p37. N.B. velocity at middle or range is used for vn
 	Hfunction = 0.d0 !Reset H function before re-calculating
-	do n=1,nbins(1)
+	do n=1,nvbins
 		if (normalisedvfd_bin(n) .ne. 0) then
 			Hfunction=Hfunction+normalisedvfd_bin(n)*log(normalisedvfd_bin(n)/(((n-0.5d0)*binsize)**(nd-1)))
 		endif
@@ -470,7 +472,7 @@ subroutine evaluate_properties_vdistribution
 
 	!Write values of bin to file to follow evolution of distribution function
 	write(12,'(a)') 'Velocity frequency distribution'
-	do n=1,nbins(1) 
+	do n=1,nvbins 
 		write(12,'(2(f10.5))') (n-0.5d0)*binsize, normalisedvfd_bin(n) 
 	enddo
 

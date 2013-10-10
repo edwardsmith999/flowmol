@@ -70,6 +70,23 @@ module librarymod
         end function heaviside_a2
 
     end interface
+
+	type :: PDF
+
+		integer								:: nbins
+		integer,dimension(:),allocatable 	:: hist
+		double precision					:: minvalue,maxvalue,binsize
+
+	contains
+
+		procedure :: initialise  => PDF_initialise
+		procedure :: update      => PDF_update
+		procedure :: binvalues   => PDF_binvalues
+		procedure :: normalise   => PDF_normalise
+		procedure :: GNUplot     => PDF_GNUplot
+		procedure :: destroy     => PDF_destroy
+
+	end type PDF
 	
 contains
 
@@ -1125,6 +1142,144 @@ REAL FUNCTION random_normal()
 
 END FUNCTION random_normal
 
+
+subroutine GNUplot(x,y)
+	use interfaces
+	implicit none
+
+	integer										:: i,unitno1,unitno2
+	double precision,dimension(:),intent(in)	:: x,y
+
+	if (size(x,1) .ne. size(y,1)) call error_abort("Error in GNUplot - array sizes differ")
+
+	unitno1 = get_new_fileunit()
+	unitno2 = get_new_fileunit()
+
+	!Generate temp file of results
+	open(unitno1,FILE='./tempout')
+	do i =1,size(x,1)
+		write(unitno1,*) x(i),y(i)
+	enddo
+
+	!Write file to output this
+	open(unitno2,FILE='./plot_tempout')
+	write(unitno2,*) "plot 'tempout' u 1:2 w l"
+
+	!Close all previous gnuplot windows and create new
+	call system("killall gnuplot_x11")
+	call system('gnuplot --persist plot_tempout')
+
+	!Clean up all temp files
+	close(unitno1,status='delete')
+	close(unitno2,status='delete')
+
+end subroutine GNUplot
+
+
+!Constructor for PDF object
+subroutine PDF_initialise(self, nbins_in,minvalue_in, maxvalue_in)
+	implicit none
+
+	integer, intent(in)			 :: nbins_in
+	double precision, intent(in) :: minvalue_in,maxvalue_in
+
+	! initialize shape objects
+	class(PDF) 		:: self
+
+	self%nbins = nbins_in
+	self%minvalue  = minvalue_in
+	self%maxvalue  = maxvalue_in
+	self%binsize = (maxvalue_in-minvalue_in)/nbins_in
+
+	allocate(self%hist(nbins_in))
+	self%hist = 0
+
+end subroutine PDF_initialise
+
+!Update cumulative PDF count with contents of array
+subroutine PDF_update(self, array)
+	implicit none
+
+	double precision, intent(in), dimension(:) :: array
+
+	integer										:: i, bin
+
+	! initialize shape objects
+	class(PDF) 		:: self
+
+	!Assign array values to bins
+	do i = 1,size(array,1)
+
+		bin = ceiling((array(i)-self%minvalue)/self%binsize)
+		if (bin .gt. self%nbins	) bin = self%nbins
+		if (bin .lt. 1			) bin = 1
+		self%hist(bin) = self%hist(bin) + 1
+
+	enddo
+
+end subroutine PDF_update
+
+!Return location of bins in space
+function PDF_binvalues(self)
+	implicit none
+
+	integer										:: i
+	double precision,dimension(:),allocatable	:: PDF_binvalues 
+
+	! initialize shape objects
+	class(PDF) 		:: self
+
+	allocate(PDF_binvalues(self%nbins))
+
+	do i =1, self%nbins
+		PDF_binvalues(i) = self%minvalue + (i-0.5d0)*self%binsize
+	enddo
+
+end function PDF_binvalues
+
+!Return normaised PDF function
+function PDF_normalise(self)
+	implicit none
+
+	double precision,dimension(:),allocatable	:: PDF_normalise 
+
+	! initialize shape objects
+	class(PDF) 		:: self
+
+	allocate(PDF_normalise (self%nbins))
+
+	PDF_normalise  = dble(self%hist)/dble(sum(self%hist))
+
+end function PDF_normalise
+
+!Plot histogram using gnuplot
+subroutine PDF_GNUplot(self)
+	implicit none
+
+	integer										:: i
+	double precision,allocatable,dimension(:)	:: binloc,out
+
+	! initialize shape objects
+	class(PDF) 		:: self
+
+	allocate(binloc(self%nbins),out(self%nbins))
+	binloc = self%binvalues()
+	out = self%normalise()
+
+	call GNUplot(binloc,out)
+
+end subroutine PDF_GNUplot
+
+!Object destructor
+subroutine PDF_destroy(self)
+	implicit none
+
+	! initialize shape objects
+	class(PDF) 		:: self
+
+	deallocate(self%hist)
+
+end subroutine PDF_destroy
 
 end module librarymod
 

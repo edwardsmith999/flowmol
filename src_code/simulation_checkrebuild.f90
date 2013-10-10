@@ -101,7 +101,7 @@ subroutine simulation_checkrebuild(rebuild)
 				!	' On average, rebuild happened every ', average_rb_count/total_rb, ' steps'
 				!close(30,status='keep')
 				print('(a,i7,a,f10.5,a)'), 'Up to iteration ', iter, & 
-					' On average, rebuild happened every ', average_rb_count/total_rb, ' steps'
+					' On average, rebuild happened every ', average_rb_count/dble(total_rb), ' steps'
 			endif
 		endif
 	else
