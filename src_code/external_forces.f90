@@ -765,10 +765,10 @@ subroutine get_test_values(flag)
 
 	!When velocity is near zero, apply force from then on...
 	starttime = 1000
-	if (iter .gt. starttime .and. .not. apply_CVforce) then
+	if (iter .gt. starttime .and. .not. apply_CVforce .and. flag .ne. 0) then
 		apply_CVforce = .true.
 		F_constraint = 0.d0
-		call set_bin_velocity(ibin, ibin, jbin, jbin, kbin, kbin, (/ 0.0d0,0.d0,0.d0 /))
+		call set_bin_velocity(ibin, ibin, jbin, jbin, kbin, kbin, (/ 0.d0,0.d0,0.d0 /))
 	elseif (iter .le. starttime) then
 		apply_CVforce = .false.
 	else
@@ -848,6 +848,7 @@ subroutine average_over_bin(i,j,k)
 			!Add molecule to overlap list
 			box_np   =  box_np   + 1
 			list(box_np) =  n
+			!if (iter .eq. 1001) print'(i5,a,3i8,a,i8,3f10.5)', iter, ' bin ',i,j,k,' molno ', n, r(:,n)
 		endif
 	enddo
 
@@ -933,7 +934,6 @@ subroutine apply_force_tests(apply_the_force)
 	do i = 1, box_np
 		n = list(i)
 		a_temp(:,n) = a(:,n) - F_vector
-
 		if (apply_the_force) then
 			a(:,n) = a(:,n) - F_vector
 			!Add external force to CV total
@@ -979,26 +979,36 @@ end subroutine apply_CV_force
 
 subroutine set_bin_velocity(imin, imax, jmin, jmax, kmin, kmax, velocity)
 	use linked_list, only : cell, node
-	use arrays_MD, only : v
-	use computational_constants_MD, only : binspercell
+	use arrays_MD, only : v, r  !TEMP remove r here
+	use computational_constants_MD, only : binspercell,nhb,iter  !TEMP remove nhb,iter here
 	implicit none
 
 	integer, intent(in)                			:: imin, imax, jmin, jmax, kmin, kmax
 	double precision,dimension(3),intent(in)	:: velocity   !Overall momentum of system
 
+	integer										:: ibinmin,jbinmin,kbinmin,ibinmax,jbinmax,kbinmax
 	integer										:: i,icell,jcell,kcell,molno,binNsum,cellnp
 	double precision,dimension(3)				:: binvsum, vcorrection,cellsperbin
 	type(node), pointer 	        			:: old, current
 
 	!Calculate bin to cell ratio
 	cellsperbin = 1.d0/binspercell !ceiling(ncells(1)/dble(nbins(1)))
-	where (cellsperbin .gt. 1.d0) cellsperbin = 1.d0
+	where (cellsperbin .lt. 1.d0) cellsperbin = 1.d0
+
+	ibinmin = (imin-1)*cellsperbin(1)+1+(1-cellsperbin(1))
+	ibinmax =  imax   *cellsperbin(1)  +(1-cellsperbin(1))
+	jbinmin = (jmin-1)*cellsperbin(2)+1+(1-cellsperbin(2))
+	jbinmax = jmax    *cellsperbin(2)  +(1-cellsperbin(2))
+	kbinmin = (kmin-1)*cellsperbin(3)+1+(1-cellsperbin(3))
+	kbinmax = kmax    *cellsperbin(3)  +(1-cellsperbin(3))
+
 
 	!Calculate velocity in bin
+	!print'(i5,a,3i6,a,3i6,a,3f10.6)', iter, ' Cells =', icell,jcell,kcell,' Bins= ',imin,jmin,kmin,' cellperbin= ',cellsperbin
 	binNsum = 0; binvsum = 0.d0
-	do kcell=(kmin-1)*cellsperbin(3)+1, kmax*cellsperbin(3)
-	do jcell=(jmin-1)*cellsperbin(2)+1, jmax*cellsperbin(2)
-	do icell=(imin-1)*cellsperbin(1)+1, imax*cellsperbin(1)
+	do kcell=kbinmin, kbinmax
+	do jcell=jbinmin, jbinmax 
+	do icell=ibinmin, ibinmax 
 	
 		cellnp = cell%cellnp(icell,jcell,kcell)
 		old => cell%head(icell,jcell,kcell)%point !Set old to first molecule in list
@@ -1008,7 +1018,7 @@ subroutine set_bin_velocity(imin, imax, jmin, jmax, kmin, kmax, velocity)
 			binNsum = binNsum + 1    
 			binvsum(:) = binvsum(:) + v(:,molno)
 
-			print'(a,2i8,6f10.5)', 'velocities',i,molno, binvsum, v(:,molno)
+			!print'(i5,a,7i6,6f10.5)',iter,' velocities ',i,cellnp,molno,binNsum,icell,jcell,kcell, r(:,molno), v(:,molno)
 
 			current => old
 			old => current%next !Use pointer in datatype to obtain next item in list
@@ -1021,13 +1031,13 @@ subroutine set_bin_velocity(imin, imax, jmin, jmax, kmin, kmax, velocity)
 	!Calculate velocity correction per molecule
 	vcorrection(:) = binvsum(:)/binNsum - velocity(:)
 
-	print'(3(a,3f10.5))', 'applyed v ', velocity, ' bin v ', binvsum(:)/binNsum, ' v correct ', vcorrection
+	!print'(3(a,3f10.5))', 'applied v ', velocity, ' bin v ', binvsum(:)/binNsum, ' v correct ', vcorrection
 
 	!Apply velocity correction per molecule to bin
 	binNsum = 0; binvsum = 0.d0
-	do kcell=(kmin-1)*cellsperbin(3)+1, kmax*cellsperbin(3)
-	do jcell=(jmin-1)*cellsperbin(2)+1, jmax*cellsperbin(2)
-	do icell=(imin-1)*cellsperbin(1)+1, imax*cellsperbin(1)
+	do kcell=kbinmin, kbinmax
+	do jcell=jbinmin, jbinmax 
+	do icell=ibinmin, ibinmax 
 	
 		cellnp = cell%cellnp(icell,jcell,kcell)
 		old => cell%head(icell,jcell,kcell)%point !Set old to first molecule in list
@@ -1036,7 +1046,7 @@ subroutine set_bin_velocity(imin, imax, jmin, jmax, kmin, kmax, velocity)
 			molno = old%molno 	 	!Number of molecule
 			v(:,molno) =  v(:,molno) - vcorrection
 
-			print'(a,2i8,6f10.5)', 'velocities after correct',i,molno, binvsum, v(:,molno)
+			!print'(i5,a,7i6,6f10.5)',iter, ' corrected_vel ',i,cellnp,molno,binNsum,icell,jcell,kcell,r(:,molno),v(:,molno)
 
 			binNsum = binNsum + 1    
 			binvsum(:) = binvsum(:) + v(:,molno)
@@ -1049,7 +1059,7 @@ subroutine set_bin_velocity(imin, imax, jmin, jmax, kmin, kmax, velocity)
 	enddo
 	enddo
 
-	print'(a,3f10.5)', 'Corrected velocity is then ',  binvsum(:)/binNsum
+	!print'(a,3f10.5,a,3i8)', 'Corrected velocity is then ',  binvsum(:)/binNsum,'in Bin= ',imin,jmin,kmin
 
 end subroutine set_bin_velocity
 

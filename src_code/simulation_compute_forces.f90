@@ -828,7 +828,7 @@ subroutine simulation_compute_rfbins(imin, imax, jmin, jmax, kmin, kmax)
 	cellsperbin = 1.d0/binspercell !ceiling(ncells(1)/dble(nbins(1)))
     ! Still need to loop over every cell (i.e. get all interactions) if
     ! bins are bigger than cells
-	where (cellsperbin .gt. 1.d0) cellsperbin = 1.d0
+	where (cellsperbin .lt. 1.d0) cellsperbin = 1.d0
 
 	do kcell=(kmin-1)*cellsperbin(3)+1, kmax*cellsperbin(3)
 	do jcell=(jmin-1)*cellsperbin(2)+1, jmax*cellsperbin(2)
