@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import sys
 #sys.path.insert(0, './../../')
 sys.path.insert(0,'/home/es205/codes/coupled/MD_dCSE/src_code/post_proc/python')
+import math as maths
 
 from MDFields import *
 from MDPlotData import MD_PlotData
@@ -38,28 +39,27 @@ class CompareResults():
                     error_found = True
 
                     #Attempt to Plot slices of the errors
-                    #CONTOUR
-                    #x = np.arange(-2.0, 2.0, 4.0/error.shape[0])
-                    #y = np.arange(-2.0, 2.0, 4.0/error.shape[1])
-                    #X, Y = np.meshgrid(x, y)
-                    #CS = ax.contourf(X, Y, Z/Z.max())
                     figname = self.name + key
-
+                    sliceloc=np.zeros(3)
+                    sliceloc[0] = maths.ceil(error.shape[0]/4.0)
+                    sliceloc[1] = maths.ceil(error.shape[1]/4.0)
+                    sliceloc[2] = maths.ceil(error.shape[2]/4.0)
+                    print(sliceloc)
                     #Attempt to Plot slices of the errors in 3D
                     ax = fig.add_subplot(221, frame_on=False)
-                    Z = error[:,:,error.shape[0]/4.0,1]
+                    Z = error[:,:,sliceloc[0],1]
                     CS = ax.imshow(Z, extent=[0, 1, 0, 1])
                     plt.colorbar(CS); CS.set_clim(-1.0,1.0)
                     plt.title('xy slice')
 
                     ax = fig.add_subplot(222, frame_on=False)
-                    Z = error[:,error.shape[0]/4.0,:,1]
+                    Z = error[:,sliceloc[1],:,1]
                     CS = ax.imshow(Z, extent=[0, 1, 0, 1])
                     plt.colorbar(CS); CS.set_clim(-1.0,1.0)
                     plt.title('xz slice')
 
                     ax = fig.add_subplot(223, frame_on=False)
-                    Z = error[error.shape[0]/4.0,:,:,1]
+                    Z = error[sliceloc[2],:,:,1]
                     CS = ax.imshow(Z, extent=[0, 1, 0, 1])
                     plt.colorbar(CS); CS.set_clim(-1.0,1.0)
                     plt.title('yz slice')
@@ -133,6 +133,15 @@ class CompareResults():
             P1 = PBins(self.files1)
             P2 = PBins(self.files2)
             self.plotlist.update({'pVA':[P1,P2]})
+        elif 'pVA_k' in (self.fieldfiles1 and self.fieldfiles2):
+            P1 = PBins(self.files1,fname='pVA_k')
+            P2 = PBins(self.files2,fname='pVA_k')
+            self.plotlist.update({'pVA_k':[P1,P2]})
+
+            P1 = PBins(self.files1,fname='pVA_c')
+            P2 = PBins(self.files2,fname='pVA_c')
+            self.plotlist.update({'pVA_c':[P1,P2]})
+
 
         #CV fluxes
         if 'vflux' in (self.fieldfiles1 and self.fieldfiles2):
@@ -160,7 +169,7 @@ class CompareResults():
         drec = 1
         cnt = 0
         error_found = False
-        for rec in range(0,maxrec-1,drec):
+        for rec in range(0,maxrec-2,drec):
             rmin = rec
             rmax = rec + drec
             error_found = self.plot_and_save(rmin,rmax,cnt)
