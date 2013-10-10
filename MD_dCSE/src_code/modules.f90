@@ -582,7 +582,7 @@ module calculated_properties_MD
 
 	integer	:: nplanes,gnplanes     !Number of planes used for MOP
 
-	integer,dimension(3) :: nbins,nbinso,gnbins	                    !Number of bins to store molecular properties
+	integer,dimension(3) 					:: nbins,nbinso,gnbins  !Number of bins to store molecular properties
 	integer,dimension(:), allocatable 		:: vfd_bin        		!Array to keep tally of molecular velocity distribution
 	integer,dimension(:), allocatable       :: rdf_hist             !Array to keep tally of radial distribution
 	integer,dimension(:,:), allocatable	    :: rdf3d_hist           !Array to keep tally of radial distribution
