@@ -177,7 +177,7 @@ contains
 
 		pec_v2sum = 0.d0
 		do n=1,np
-			pec_v(:)  = v(:,n) - U(:,n) - 0.5d0*a(:,n)*delta_t      ! PUT: Find peculiar velocity
+			!pec_v(:)  = v(:,n) - U(:,n) - 0.5d0*a(:,n)*delta_t      ! PUT: Find peculiar velocity
 			pec_v2sum = pec_v2sum + dot_product(pec_v,pec_v)        ! PUT: Sum peculiar velocities squared
 		end do
 		call globalSum(pec_v2sum)
@@ -219,7 +219,7 @@ contains
 			                    slicebinsize(le_sp))
 			if (slicebin > nbins(le_sp)) slicebin = nbins(le_sp)          ! PUT: Prevent out-of-range values
 			if (slicebin < 1) slicebin = 1                                ! PUT: Prevent out-of-range values
-			U(:,n) = v_avg(slicebin,:)
+			!U(:,n) = v_avg(slicebin,:)
 		end do
 
 		deallocate(m_slice)
@@ -328,7 +328,7 @@ contains
 
 		endif
 
-		!call pointsphere((/ 0.0, 0.0, -6.34 /),2.d0)
+		!call pointsphere((/ 0.0, 0.0, 0.0 /),8.d0)
 
 		!Step through each particle n
 		do n = 1,np

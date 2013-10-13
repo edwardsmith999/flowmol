@@ -66,7 +66,7 @@ module module_record
 	use arrays_MD
 	use calculated_properties_MD
 	use polymer_info_MD
-	use librarymod
+	!use librarymod
 
 	double precision :: vel
 
@@ -894,6 +894,7 @@ subroutine cumulative_mass(ixyz)
 	use linked_list
 	use messenger, only: globalise
 	use concentric_cylinders
+	use librarymod, only : cpolariser
 	implicit none
 
 	integer         				:: n, ixyz
@@ -1108,6 +1109,7 @@ subroutine cumulative_velocity(ixyz)
 	use concentric_cylinders
 	use messenger, only: globalise, localise
 	use linked_list
+    use librarymod, only : cpolariser, cpolarisev
 	implicit none
 
 	integer							:: n,ixyz
@@ -1263,6 +1265,7 @@ subroutine cumulative_temperature(ixyz)
 	use concentric_cylinders
 	use messenger, only: globalise, localise
 	use linked_list
+    use librarymod, only : cpolariser
 	implicit none
 
 	integer							:: n,ixyz
@@ -1843,11 +1846,12 @@ end subroutine mass_flux_averaging
 
 subroutine cumulative_mass_flux
 	use module_record
-	implicit none
+    use librarymod, only : imaxloc, heaviside => heaviside_a1
+    implicit none
 
 	integer							:: jxyz,i,j,k,n
-	integer							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
 	integer		,dimension(3)		:: ibin1,ibin2,cbin
+	double precision				:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
 	double precision,dimension(3)	:: mbinsize,crossface
 	double precision,dimension(3)	:: ri1,ri2,ri12,bintop,binbot,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
 
@@ -2077,12 +2081,13 @@ end subroutine momentum_flux_averaging
 subroutine cumulative_momentum_flux(ixyz)
 	use module_record
 	use CV_objects, only : CV_debug, CVcheck_momentum2
+    use librarymod, only : imaxloc, heaviside => heaviside_a1
 	implicit none
 
 	integer							:: ixyz,jxyz,i,j,k,n
 	integer							:: planeno
-	integer							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
 	integer		,dimension(3)		:: ibin1,ibin2,cbin
+    double precision				:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
 	double precision				:: crossplane,rplane,shift
 	double precision,dimension(3)	:: mbinsize,velvect,crossface
 	double precision,dimension(3)	:: ri1,ri2,ri12,bintop,binbot,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
@@ -2366,10 +2371,11 @@ end subroutine energy_flux_averaging
 
 subroutine cumulative_energy_flux(ixyz)
 	use module_record
+    use librarymod, only : imaxloc, heaviside => heaviside_a1
 	implicit none
 
-	integer							:: ixyz,jxyz,i,j,k,n
-	integer							:: planeno,onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
+	integer							:: ixyz,jxyz,i,j,k,n,planeno
+	double precision				:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
 	integer		,dimension(3)		:: ibin1,ibin2,cbin
 	double precision				:: crosstime,crossplane,rplane,shift,energy
 	double precision,dimension(3)	:: mbinsize,velvect,crossface
@@ -2866,6 +2872,7 @@ end subroutine pressure_tensor_forces_VA_trap_cpol
 ! 								╭∩╮（︶︿︶）╭∩╮﻿
 subroutine pressure_tensor_forces_VA(ri,rj,rij,accijmag)
 	use module_record
+	use librarymod, only : magnitude, plane_line_intersect
 	implicit none
 
 	integer											:: ixyz, jxyz,i,j,k,l,n
@@ -3320,8 +3327,9 @@ end subroutine pressure_tensor_forces_VA
 !Forces over the surface of a Volume
 
 subroutine control_volume_forces(fij,ri,rj,molnoi,molnoj)
-use module_record
-implicit none
+    use module_record
+    use librarymod, only : heaviside => heaviside_a1
+    implicit none
 
 	integer							:: molnoi, molnoj
 	integer,dimension(3)			:: ibin, jbin
@@ -3372,11 +3380,12 @@ end subroutine control_volume_forces
 subroutine control_volume_stresses(fij,ri,rj,molnoi)
     use module_record
 	use CV_objects, only : CV_debug,CVcheck_momentum2
+    use librarymod, only : heaviside => heaviside_a1
     implicit none
 
 	integer							:: i,j,k,ixyz,molnoi
-	integer							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
 	integer,dimension(3)			:: cbin, ibin, jbin
+    double precision				:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
 	double precision,dimension(3)	:: ri,rj,rij,fij,fsurface,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb,velvect
 	double precision,dimension(3)	:: Fbinsize, bintop, binbot
 
@@ -3488,6 +3497,7 @@ end subroutine control_volume_stresses
 
 subroutine control_volume_stresses_opt(fij,ri,rj,molnoi)
 	use module_record
+    use librarymod, only : heaviside => heaviside_a1
 	implicit none
 
 	integer							:: i,j,k,ixyz,molnoi,molnoj
@@ -3678,6 +3688,7 @@ end subroutine control_volume_stresses_opt
 
 subroutine pressure_tensor_forces_MOP(pnxyz,ri,rj,rij,accijmag)
 	use module_record
+    use librarymod, only : heaviside => heaviside_a1
 	implicit none
 
 	integer							:: n

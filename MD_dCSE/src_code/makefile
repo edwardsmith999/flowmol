@@ -108,7 +108,7 @@ profile_s:
 memprofile_s:
 	@make serial_md.exe "FFLAGS = -O3 -g"; valgrind --tool=cachegrind ./md.exe
 profile_p:
-	@make $(MD_EXE) "FFLAGS = -mpe=mpilog "
+	@make $(MD_EXE) "FFLAGS = -g -pg -mpe=mpilog "
 #Make executables
 md.exe: obj $(O_MD_P) $(CPL_LIB)
 	@echo "MD executable is being relinked"
