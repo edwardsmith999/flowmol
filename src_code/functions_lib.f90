@@ -364,27 +364,27 @@ end subroutine integrate_trap
 function int_heaviside(x)
 	implicit none
 
-	integer							:: int_heaviside
+	double precision				:: int_heaviside
 	integer	,intent(in)				:: x
 
-	int_heaviside = 0.5*sign(1,x)+1
+	int_heaviside = nint(0.5*sign(1,x)+1)
 
 end function
 
 function int_array_heaviside(x)
 	implicit none
 
-	integer,dimension(:),intent(in)	:: x
-	integer,dimension(size(x))		:: int_array_heaviside
+	integer,dimension(:),intent(in)	    :: x
+	double precision,dimension(size(x))	:: int_array_heaviside
 
-	int_array_heaviside = 0.5*sign(1,x(:))+1
+	int_array_heaviside = nint(0.5*sign(1,x(:))+1)
 
 end function int_array_heaviside
 
 function dp_heaviside(x)
 	implicit none
 
-	integer						:: dp_heaviside
+	double precision			:: dp_heaviside
 	double precision,intent(in)	:: x
 
 	dp_heaviside = ceiling(sign(0.5d0,x))
@@ -396,7 +396,7 @@ function dp_array_heaviside(x)
 	implicit none
 
 	double precision,dimension(:),intent(in)	:: x
-	integer,dimension(size(x))					:: dp_array_heaviside
+	double precision,dimension(size(x))			:: dp_array_heaviside
 
 	dp_array_heaviside = ceiling(sign(0.5d0,x(:)))
 

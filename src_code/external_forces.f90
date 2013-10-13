@@ -532,7 +532,7 @@ subroutine average_over_bin
 			!Add molecule to overlap list
 			box_np   =  box_np   + 1
 			list(box_np) =  n
-			g = flekkoy_gweight(r(2,n),halfdomain(2)-dy,halfdomain(2))
+			g = approx_RDF(r(2,n),halfdomain(2)-dy,halfdomain(2))
 			box_average =  box_average  + g
 
 			!write(8888,'(4i8,5f15.9)'), irank,iter,n,box_np,g,box_average,halfdomain(2)-dy,r(2,n),halfdomain(2)
@@ -565,7 +565,7 @@ subroutine apply_force
 	do i = 1, box_np
 
 		n = list(i)
-		g = flekkoy_gweight(r(2,n),halfdomain(2)-dy,halfdomain(2))
+		g = approx_RDF(r(2,n),halfdomain(2)-dy,halfdomain(2))
 
 		!Gsum is replaced with the fixed value based on density and volume
 		gsum = box_average
@@ -612,6 +612,57 @@ function flekkoy_gweight(y,ymin,ymax) result (g)
 
 	!Calculate weighting function
 	g = 2*( 1/(L-2*yhat) - 1/L - 2*yhat/(L**2))
+
+end function
+
+!Obtain an approximation for the Radial Distribution Function using the
+!expression from Appendix A of T. Werder et al. J Comp. Phys 205 (2005) 373–390
+! NOTE - this assumes a density of 0.6 and temp of 1.7
+! also, the units are in nano-meters so a conversion is required
+function approx_RDF(r,rmin,rmax) result(g)
+	use librarymod, only : heaviside 
+
+	real(kind=kind(0.d0)), intent(in)	:: r,rmin,rmax
+	real(kind=kind(0.d0))				:: g, rhat, L
+	real(kind=kind(0.d0))				:: LJunits2nm
+
+	!Define local coordinate as const runs from 0 < y < L/2
+	L = rmax - rmin
+	rhat = (r - rmin - 0.5*L)
+
+    !Sanity Check and exceptions
+    if (rhat .lt. 0.d0) then
+        g = 0
+        return
+    elseif (rhat .gt. 0.5*L) then
+		stop " Werder et al RDF error - input y cannot be greater than rmax"
+    endif
+
+	!Conversion factors
+	LJunits2nm = 2.94d0
+	rhat = rhat/LJunits2nm
+
+	g = ( 10.8007 + 0.860717*rhat    - 172.468* rhat**2 					& 
+				  + 86.9134* rhat**3 - 140.214* rhat**4	 ) 					& 
+				 *(heaviside(rhat-0.2975)-heaviside(rhat)		) 			&
+	   +(-3621.30 + 44657.4* rhat    - 204844.0*rhat**2 					&
+				  + 414123.0*rhat**3 - 311674.0*rhat**4  ) 					& 
+				 *(heaviside(rhat-0.3475)-heaviside(rhat-0.2975)) 			&
+	   +( 4331.63 - 45188.5* rhat    + 176236.0*rhat**2 					&
+				  - 305157.0*rhat**3 + 198111.0*rhat**4	) 					&
+				 *(heaviside(rhat-0.3975)-heaviside(rhat-0.3475)) 			&
+	   +(-94.4796 + 576.282* rhat    - 1436.11* rhat**2 					&
+				  + 1804.53* rhat**3 - 1133.47* rhat**4 + 283.244*rhat**5) 	& 
+				 *(heaviside(rhat-1.0000)-heaviside(rhat-0.3975))
+
+	g = -g
+
+	if (g .ne. 0.d0) print'(5f10.5,5i5)',  rhat, g, rmin ,r, rmax, & 
+							(heaviside(rhat-0.2975)-heaviside(rhat)		)   , & 
+							(heaviside(rhat-0.3475)-heaviside(rhat-0.2975)) , &
+							(heaviside(rhat-0.3475)-heaviside(rhat-0.2975)) , &
+							(heaviside(rhat-0.3975)-heaviside(rhat-0.3475)) , &
+							(heaviside(rhat-1.0000)-heaviside(rhat-0.3975))
 
 end function
 
@@ -1373,11 +1424,11 @@ subroutine pointsphere(centre,targetradius,start_iter)
 	use computational_constants_MD, only : iter
 	implicit none
 
-	integer,optional,intent(in)					:: start_iter
-	double precision, intent(in)				:: targetradius
+	integer,optional,intent(in)			:: start_iter
+	double precision, intent(in)			:: targetradius
 	double precision, dimension(3), intent(in)	:: centre
 
-	integer							:: n, start
+	integer						:: n, start
 	double precision 				:: radius, radius2, Fapplied, magnitude
 	double precision 				:: rspherical,rspherical2
 	double precision, dimension(3)	:: rmapped
