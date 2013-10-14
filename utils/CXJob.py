@@ -62,7 +62,13 @@ class CXJob:
 
         # Store variables
         self.script = script
-        self.jobname = jobname
+
+        # CX systems return error if jobname longer than 13 characters
+        if (len(jobname) > 13):
+            self.jobname = jobname[:13]
+        else:
+            self.jobname = jobname 
+
         self.rundir = rundir
 
         return
