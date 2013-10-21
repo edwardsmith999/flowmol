@@ -45,6 +45,7 @@ class MDThread(multiprocessing.Process):
         for run in self.runlist:
 
             #Setup run directory
+            #run.build_executable()
             run.setup_directory(existscheck=False)
 
             # Check number of processors required for this run

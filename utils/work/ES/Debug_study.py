@@ -1,8 +1,9 @@
 #! /usr/bin/env python2.7
 import numpy as np
 import string
-import itertools
 import sys
+import itertools
+sys.path.insert(0, './../../')
 import multiprocessing
 
 from MDRun import MDRun

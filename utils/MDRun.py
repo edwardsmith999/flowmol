@@ -66,12 +66,12 @@ class MDRun:
     """
 
     def __init__(self, 
-                 srcdir,
-                 basedir,
-                 rundir,
-                 executable,
-                 inputfile,
-                 outputfile,
+                 srcdir='../MD_dCSE/src_code/',
+                 basedir='../MD_dCSE/src_code/',
+                 rundir='../MD_dCSE/runs/',
+                 executable='./parallel_md.exe',
+                 inputfile='MD.in',
+                 outputfile='MD.out',
                  inputchanges={},
                  initstate=None,
                  restartfile=None,
@@ -127,7 +127,37 @@ class MDRun:
             self.queue = queue 
         elif (self.platform == 'cx2'):
             self.jobname = jobname
-            self.walltime = walltime 
+            self.walltime = walltime
+
+    def build_executable(self,debug=False):
+
+        """
+           Trigger a (re)build of specified executable from
+           the source code directory
+                
+        """
+
+        if debug:
+            cmdstg = 'make debug_p ' + self.executable
+        else:
+            cmdstg = 'make p ' + self.executable
+
+        #Call build and wait until build has finished 
+        #before returning control to caller
+        split_cmdstg = shlex.split(cmdstg)
+        self.build = sp.Popen(split_cmdstg, cwd=self.srcdir)      
+        self.build.wait()
+
+        #Check source code executable against run directory executable
+        if self.basedir != self.srcdir:
+            cmdstr = 'diff '
+            cmdstr += self.basedir + self.executable
+            cmdstr += self.srcdir  + self.executable
+            split_cmdstg = shlex.split(cmdstg)
+            diffexec = sp.check_output(split_cmdstg)
+            print(diffexec)
+
+        return
 
     def change_inputs(self,extrachanges=None):
 
@@ -358,7 +388,7 @@ class MDRun:
                 final_state - when not None, move the results/final_state
                               file to a specified string (object) location.
 
-				python_script - with object specifying pythonscriptdir, 
+                python_script - with object specifying pythonscriptdir, 
                                 pyscriptname and [arg1,arg2,etc...] 
 
         """

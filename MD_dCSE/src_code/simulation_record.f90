@@ -67,6 +67,7 @@ module module_record
 	use calculated_properties_MD
 	use polymer_info_MD
 	!use librarymod
+	use module_set_parameters, only : velPDF, velPDFMB
 
 	double precision :: vel
 
@@ -88,6 +89,12 @@ subroutine simulation_record
 		call momentum_flux_averaging(vflux_outflag)         !Average momnetum flux after movement of particles
 		call energy_flux_averaging(eflux_outflag)			!Average energy flux after movement of particles
 	endif
+
+	!Obtain and record velocity distributions
+	if (vdist_flag .eq. 1) then
+		call evaluate_properties_vdistribution
+	endif
+
 
 	!---------------Only record every tplot iterations------------------------
 	!--------------Only evaluate every teval iterations-----------------------
@@ -164,11 +171,6 @@ subroutine simulation_record
 		case default
 		end select
 
-	endif
-
-	!Obtain and record velocity distributions
-	if (vdist_flag .eq. 1) then
-		call evaluate_properties_vdistribution
 	endif
 
 	!Obtain and record radial distributions
@@ -430,51 +432,72 @@ end subroutine print_mol_escape_error
 !and calculate Boltzmann H function
 subroutine evaluate_properties_vdistribution
 	use module_record
+	use librarymod, only : Maxwell_Boltzmann_vel,Maxwell_Boltzmann_speed
 	implicit none
 
 	integer          :: n, cbin, nvbins
-	double precision :: Hfunction,vfactor
-	double precision,dimension(:),allocatable :: vmagnitude
-
-	vfactor = 8.d0
+	double precision :: Hfunction,vfactor,const,streamvel
+	double precision,save :: meanstream, meannp
+	double precision,dimension(3)		:: peculiarv
+	double precision,dimension(:),allocatable :: vmagnitude,normalisedvfd_bin,normalisedvfdMB_bin,binloc
 
 	!Calculate matrix of velocity magnitudes and bin in histogram
 	allocate(vmagnitude(np))
-	nvbins = nbins(1)*vfactor
-	do n = 1, np    ! Loop over all particles
-		vmagnitude(n) = dot_product(v(:,n),v(:,n)) 
-		!Assign to bins using integer division
- 		cbin = ceiling(vmagnitude(n)/binsize)   !Establish current bin
-		if (cbin > nvbins) cbin = nvbins 		!Prevents out of range values
-		if (cbin < 1 ) cbin = 1        		!Prevents out of range values
-		vfd_bin(cbin) = vfd_bin(cbin)+1		!Add one to current bin
-	enddo
-	deallocate(vmagnitude)
 
-	!Normalise bins to use for output and H function - so all bins add up to one
-	!Total stored molecules must be equal to number of molecules (np) times the
-	!number of times bins have been assigned (iter/tplot) with the 1.d0 to avoid integer
-	!division
-	normalisedvfd_bin=0
-	do n=1,nvbins
-		normalisedvfd_bin(n) = vfd_bin(n)/((np*iter)*1.d0/tplot) 
+	!Calculate streaming velocity
+	streamvel = 0.d0
+	do n = 1, np    ! Loop over all particles
+		streamvel = streamvel + v(1,n)
 	enddo
+
+	!Add vmagnitude to PDF histogram
+	do n = 1, np    ! Loop over all particles
+		peculiarv = (/ v(1,n)-streamvel/np, v(2,n), v(3,n) /)
+		vmagnitude(n) = sqrt(dot_product(peculiarv,peculiarv))
+		!vmagnitude(n) = v(1,n)
+	enddo
+	call velPDF%update(vmagnitude)
+
+	!Keep cumulative velocity over ae=veraging period (for analytical comparison)
+	meanstream = meanstream + streamvel
+	meannp     = meannp     + np
+
+	!Calculate maxwell boltzmann distribution for comparison
+	do n = 1, np    ! Loop over all particles
+		vmagnitude(n) = Maxwell_Boltzmann_speed(T=temperature,u=streamvel/np)
+		!vmagnitude(n) = Maxwell_Boltzmann_vel(T=temperature,u=streamvel/np)
+	enddo
+	call velPDFMB%update(vmagnitude)
+	deallocate(vmagnitude)
 
 	!Calculate Boltzmann H function using discrete defintion as in
 	!Rapaport p37. N.B. velocity at middle or range is used for vn
-	Hfunction = 0.d0 !Reset H function before re-calculating
-	do n=1,nvbins
-		if (normalisedvfd_bin(n) .ne. 0) then
-			Hfunction=Hfunction+normalisedvfd_bin(n)*log(normalisedvfd_bin(n)/(((n-0.5d0)*binsize)**(nd-1)))
-		endif
-	enddo
-	write(12,'(a,i5, a, f20.10)') 'Boltzmann H function at iteration ', iter , ' is ', Hfunction
+	Hfunction = velPDF%Hfunction()
 
-	!Write values of bin to file to follow evolution of distribution function
-	write(12,'(a)') 'Velocity frequency distribution'
-	do n=1,nvbins 
-		write(12,'(2(f10.5))') (n-0.5d0)*binsize, normalisedvfd_bin(n) 
-	enddo
+	!Write and reset RDF after a number of stored records
+	const = sqrt(temperature)
+	if (mod(iter,1000) .eq. 0) then
+		!Normalise bins to use for output and H function - so all bins add up to one
+		allocate(normalisedvfd_bin,source=velPDF%normalise())
+		allocate(normalisedvfdMB_bin,source=velPDFMB%normalise())
+		allocate(binloc,source=velPDF%binvalues())
+		do n=1,size(normalisedvfd_bin,1) 
+			write(12,'(5(f10.5))') binloc(n), normalisedvfd_bin(n),normalisedvfdMB_bin(n), & 
+									sqrt(2/pi)*((binloc(n)**2)*exp((-binloc(n)**2)/(2*const**2))/(const**3)), & 
+								    (1.d0/(const*sqrt(2.d0*pi)))*exp( -((binloc(n)-meanstream/meannp)**2.d0)/(2.d0*const**2.d0) ) 
+		enddo
+		velPDF%hist = 0
+		velPDFMB%hist = 0
+		meanstream = 0.d0
+		meannp = 0.d0
+	endif
+
+	!Write values of bin to file to follow evolution of moments
+	write(14,'(8f17.10)') velPDF%moments(0),  velPDF%moments(1),  velPDF%moments(2),  velPDF%moments(3), & 
+					      velPDFMB%moments(0),velPDFMB%moments(1),velPDFMB%moments(2),  velPDFMB%moments(3)
+
+	!Write values of bin to file to follow evolution of H-function
+	write(13,'(a,i5, a, f20.10)') 'Boltzmann H function at iteration ', iter , ' is ', Hfunction
 
 end subroutine evaluate_properties_vdistribution
 

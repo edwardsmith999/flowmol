@@ -14,6 +14,7 @@ module module_clear_all
 	use calculated_properties_MD
 	use shear_info_MD
 	use polymer_info_MD
+	use module_set_parameters, only : velPDF
 
 end module module_clear_all
 !----------------------------------------------------------------------------------
@@ -62,8 +63,9 @@ implicit none
 	endif
 
 	if (vdist_flag .eq. 1) then
-		deallocate(vfd_bin)
-		deallocate(normalisedvfd_bin)
+		call velPDF%destroy
+		!deallocate(vfd_bin)
+		!deallocate(normalisedvfd_bin)
 	endif
 
 	!deallocate(diffusion)

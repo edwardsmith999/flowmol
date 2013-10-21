@@ -29,6 +29,9 @@ module module_set_parameters
 	use linked_list
 	use polymer_info_MD
 	use concentric_cylinders
+	use librarymod, only : PDF
+
+	type(PDF) :: velPDF, velPDFMB
 
 end module module_set_parameters 
 !------------------------------------------------------------------------------
@@ -648,6 +651,7 @@ implicit none
 end subroutine setup_linklist
 
 !-----------------------------------------------------------------------------------------
+!Setup all paramters for all output parameters
 
 subroutine set_parameters_outputs
 	use module_set_parameters
@@ -686,15 +690,25 @@ subroutine set_parameters_outputs
 
 	!Velocity binning routines
 	!nbins(1) = ceiling(np/10.d0)    	!Set number of equal sized velocity ranges based on 1/10 number of molecules
-	if (vdist_flag .eq. 1) then
-		allocate(vfd_bin(8*nbins(1)))           	!Allocate storage space for frequency tally over time
-		allocate(normalisedvfd_bin(8*nbins(1))) 	!Allocate storage space for normalised frequency tally over time
-		vfd_bin = 0 		       		!Set initial molecular frequency count to zero
 
-		!Define maximum possible velocity of a given molecule to determine size of each bin
-		maxv=initialvel*5.0            		!Assume molecule will not have more than 3 time its initial velocity 
-		binsize = maxv/(8*nbins(1))
+	if (vdist_flag .eq. 1) then
+
+		!Instantiate PDF object
+		maxv=initialvel*7.0 
+		velPDF   = PDF(16*nbins(1),-3.d0,10.d0)
+		velPDFMB = PDF(16*nbins(1),-3.d0,10.d0)
+! 		allocate(vfd_bin(8*nbins(1)))           	!Allocate storage space for frequency tally over time
+! 		allocate(normalisedvfd_bin(8*nbins(1))) 	!Allocate storage space for normalised frequency tally over time
+! 		vfd_bin = 0 		       		!Set initial molecular frequency count to zero
+
+! 		!Define maximum possible velocity of a given molecule to determine size of each bin
+! 		           		!Assume molecule will not have more than 3 time its initial velocity 
+! 		binsize = maxv/(8*nbins(1))
+	else
+		velPDF   = PDF(22*nbins(1),-3.0d0,3.6d0)
 	endif
+
+
 
 	!Allocate and define number of shells used for Radial distribution function (rdf)
 	if (rdf_outflag .eq. 1) then
