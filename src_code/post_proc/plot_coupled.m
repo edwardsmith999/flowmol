@@ -8,7 +8,7 @@ set(0,'DefaultAxesFontName', 'Times')
 CFD = 1;
 
 %Turn on/off video and picture output
-savevid = 0;
+savevid = 1;
 savepic = 0;
 
 % Time period of interest
@@ -42,13 +42,13 @@ analy_points = 20; % Number of spectral points
 %resultfile_dir = '/home/es205/codes/coupled/coupler_dCSE/src_code/';
 %resultfile_dir = '/home/es205/results/MD_continuum_results/results/CPL_testing/130430_NCER_mdws/';
 %resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/NCER_wall_bump/basecase_no_bump/';
-%resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/Flekkoy_meu10/';
+resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/NCER_basecase_constraint_test/Full_NCER/';
 %resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/Inc_specular_walls_large/';
 %resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/flekkoy/50CFDMDratio/';
 %resultfile_dir = '/home/djt06/Documents/Academia/PhD/Code/Development/branch/coupler_dCSE/src_code/';
 %resultfile_dir = '/home/es205/results/CPL_runs/1NCER_bump_allzthermostat/results/no_bottom_thermostat/'
 %resultfile_dir = '/home/es205/results/CPL_runs/1NCER_bump_allzthermostat/results/51p2_totaldomain/'
-resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/NCER_wall_bump/1NCER_bump_allzthermostat/51p2_totaldomain_inc_CV_fluxes/'
+%resultfile_dir = '/home/es205/results/MD_continuum_results/results/coupled_couette/NCER_wall_bump/1NCER_bump_allzthermostat/51p2_totaldomain_inc_CV_fluxes/'
 %resultfile_dir='/home/es205/results/CPL_runs/2NCER_bump_wallthermostat/results/'
 %resultfile_dir='/home/es205/results/CPL_runs/4Flekkoy_basecase/results/Flekkoy_rc2p2/'
 %resultfile_dir='/home/es205/results/CPL_runs/4Flekkoy_basecase/results/Flekkoy_from_standard_input/'
@@ -155,7 +155,7 @@ else
     kxyz = mod(ixyz,3)+1;
 end
 
-xaxis_MD  = linspace(0.5*CFD_binsize(ixyz)-tethdistbot(2),MD_liquiddomain(ixyz)-0.5*CFD_binsize(ixyz), ...
+xaxis_MD  = linspace(0.5*CFD_binsize(ixyz)-tethdistbot(2)/2,MD_liquiddomain(ixyz)-0.5*CFD_binsize(ixyz), ...
     (ceil(gnbinsliquid(ixyz)/MD_cells_per_CFD(ixyz)))) ...
     /coupleddomain(ixyz);
 xaxis_MD2  = linspace(0,MD_liquiddomain(ixyz),gnbinsliquid(ixyz))/coupleddomain(ixyz);
@@ -203,7 +203,7 @@ end
 % Prepare the new file.
 if (savevid == 1)
     vidObj = VideoWriter('velocity.avi');
-    vidObj.FrameRate = 10;
+    vidObj.FrameRate = 4;
     open(vidObj);
     if (plot_pVA == 1)
         vidObj2 = VideoWriter('stress.avi');
@@ -227,7 +227,7 @@ intial_offset = -1; %53.33;
 t_ave = 1;  %Average over timesteps
 m = tstart+ceil(t_ave/2); %Initial Timestep
 snaps = [2,4,8, 16, 700];
-for i = 1:Nvel_records
+for i = 1:30%Nvel_records
     i
     
     % =================================
@@ -235,9 +235,9 @@ for i = 1:Nvel_records
     % =================================
     %Read velocity
     filename = strcat(resultfile_dir_MD,'/mbins');
-    mass_bins = read_mbins(filename,resultfile_dir_MD,m);
+    mass_bins = read_mbins(filename,resultfile_dir_MD,m-2);
     filename = strcat(resultfile_dir_MD,'/vbins');
-    vel_bins = read_vbins(filename,resultfile_dir_MD,m);
+    vel_bins = read_vbins(filename,resultfile_dir_MD,m-2);
     
     if (plot_level == 1)
         
@@ -285,12 +285,12 @@ for i = 1:Nvel_records
         plot(xaxis_CFD,continuum_velslice(:,m),'s','Color',[.5 .5 .5],'MarkerSize',12,'LineWidth',3);
         
         %plot molecular velocity profile
-        plot(xaxis_MD(:),ave_vel_slice(1:end,1),'x','LineWidth',3,'Color',[.5 .5 .5],'MarkerSize',14);
+        plot(xaxis_MD(:),ave_vel_slice(2:end,1),'x','LineWidth',3,'Color',[.5 .5 .5],'MarkerSize',14);
         %plot(xaxis_MD2,vel_slice(5:end,1),'^-')
         
         
         %Make plot look nice
-        legend ('CFD','MD','location','NorthWest'); legend('boxoff')
+        legend ('Analytical','CFD','MD','location','NorthWest'); legend('boxoff')
         set(gca,'FontSize',16)
         axis([-0.1 1.1 -0.1 1.1]);
         xlabel('y/H'); ylabel('U_x/U')
@@ -398,11 +398,11 @@ for i = 1:Nvel_records
             
             %Plot MD shear stress
             %plot(xaxis_MD,-squeeze(density*ave_vel_slice(2:end,1).*ave_vel_slice(2:end,2)),'o','LineWidth',3,'Color',[.2 .2 .2],'MarkerSize',10)
-            plot(xaxis_MD,-squeeze(ave_P_slice(1:end,1,2)),'x','LineWidth',3,'Color',[.5 .5 .5],'MarkerSize',10)
+            plot(xaxis_MD,-squeeze(ave_P_slice(2:end,1,2)),'x','LineWidth',3,'Color',[.5 .5 .5],'MarkerSize',10)
             %plot(xaxis_MD2,-squeeze(P_slice(5:end,1,2)),'^-')
             
             %Make plot look nice
-            legend ('CFD','MD','location','NorthWest'); legend('boxoff')
+            legend ('Analytical','CFD','MD','location','NorthWest'); legend('boxoff')
             set(gca,'FontSize',16)
             axis([-0.1 1.1 -0.01 0.1]);
             xlabel('y/H'); ylabel('P_{xy}')
