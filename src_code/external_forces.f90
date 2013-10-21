@@ -762,7 +762,7 @@ end subroutine simulation_apply_constant_force
 
 subroutine apply_CV_force(iter)
 	use control_volume
-	use computational_constants_MD, only : irank, jblock, npy, globaldomain, CVforce_flag
+	use computational_constants_MD, only : irank, jblock, npy, globaldomain, CVforce_flag, Nsteps
 	use calculated_properties_MD, only : pressure
 	use librarymod, only : get_new_fileunit
 	use module_external_forces, only : np, momentum_flux, irank,nbins, nbinso,domain,delta_t,Nvflux_ave
@@ -771,7 +771,7 @@ subroutine apply_CV_force(iter)
 	integer,intent(in)				:: iter
 
 	logical							:: apply_CVforce = .false.
-	integer							:: ibin,jbin,kbin
+	integer							:: ibin,jbin,kbin,starttime
 	integer							:: M, box_np, m_bin1, m_bin2
 	integer,allocatable 			:: list(:)
 
@@ -784,6 +784,7 @@ subroutine apply_CV_force(iter)
 	binsize = domain/nbins
 	volume = product(binsize)
 	ibin = 3; jbin = 3; kbin = 3
+	starttime = Nsteps/2.d0
 
 	!Get average over current cell and apply constraint forces
 	!call get_continuum_values
@@ -811,11 +812,10 @@ subroutine get_test_values(flag)
 
 	integer,intent(in)	:: flag
 
-	integer				:: length,fileunit,starttime
+	integer				:: length,fileunit
 	double precision	:: sin_mag, sin_period
 
 	!When velocity is near zero, apply force from then on...
-	starttime = 1000
 	if (iter .gt. starttime .and. .not. apply_CVforce .and. flag .ne. 0) then
 		apply_CVforce = .true.
 		F_constraint = 0.d0
@@ -955,7 +955,9 @@ end subroutine apply_force
 ! which doesn't evolve in time
 subroutine apply_force_tests(apply_the_force)
 	use arrays_MD, only : r,v,a
-	use physical_constants_MD, only : density
+	use physical_constants_MD, only : density, pi
+	use calculated_properties_MD, only : temperature
+	use module_set_parameters, only : velPDF
 	implicit none
 
 	logical, intent(in) 						:: apply_the_force
@@ -963,7 +965,7 @@ subroutine apply_force_tests(apply_the_force)
 	integer										:: i, n
 	double precision,dimension(3)				:: F_vector
 	double precision,dimension(:,:),allocatable	:: v_temp,a_temp
-
+	double precision,dimension(:),allocatable 	:: vmagnitude,normalisedvfd_bin,binloc
 	!Check evolution without constraint
 	allocate(v_temp(3,np),a_temp(3,np))
 	v_temp = 0.d0
@@ -998,13 +1000,30 @@ subroutine apply_force_tests(apply_the_force)
 	m_bin1 = box_np
 	u_bin1(:) = 0.d0
 	F_bin1(:) = 0.d0
+	allocate(vmagnitude(box_np))
 	do i = 1, box_np
 		n = list(i)
 		u_bin1(:) = u_bin1(:) + v_temp(:,n)
 		F_bin1(:) = F_bin1(:) + a_temp(:,n)
+		vmagnitude(i) = v_temp(1,n)
 	enddo
 	deallocate(v_temp)
 	deallocate(a_temp)
+	call velPDF%update(vmagnitude(:))
+	deallocate(vmagnitude)
+
+	!Normalise bins to use for output and H function - so all bins add up to one
+	if (mod(iter,starttime) .eq. 0) then
+		allocate(normalisedvfd_bin,source=velPDF%normalise())
+		allocate(binloc,source=velPDF%binvalues())
+		do n=1,size(normalisedvfd_bin,1) 
+			write(12,'(4(f10.5))') binloc(n), normalisedvfd_bin(n), &
+									sqrt(2/pi)*((binloc(n)**2)*exp((-binloc(n)**2)/(2*temperature))/(temperature**(3.d0/2.d0))), & 
+								    (1.d0/(sqrt(temperature)*sqrt(2.d0*pi)))*exp( -((binloc(n))**2.d0-u_bin1(1)/volume)/(2.d0*temperature) ) 
+		enddo
+		velPDF%hist = 0
+	endif
+
 
 	if (M .ne. 0) then
 		write(1200+irank,'(i3,3i7,9f12.6)'),irank,iter,m_bin1,m_bin2, &

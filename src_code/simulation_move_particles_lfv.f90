@@ -47,7 +47,7 @@ subroutine simulation_move_particles_lfv
 	case(0)
 		!Do nothing - no force applied
 	case(1)
-		!F_ext =  0.1d0 * sin(2.d0*pi*((iter)/100.d0)+0.5d0*pi)
+		!F_ext =  0.1d0 !* sin(2.d0*pi*((iter)/100.d0)+0.5d0*pi)
 		call simulation_apply_global_force(F_ext_ixyz,F_ext)
 	case(2)
 		call simulation_apply_local_force(F_ext_ixyz,F_ext, & 

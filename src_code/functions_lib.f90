@@ -83,10 +83,17 @@ module librarymod
 		procedure :: update      => PDF_update
 		procedure :: binvalues   => PDF_binvalues
 		procedure :: normalise   => PDF_normalise
+		procedure :: Hfunction   => PDF_Hfunction
+		procedure :: moments     => PDF_moments
 		procedure :: GNUplot     => PDF_GNUplot
+		procedure :: PYplot      => PDF_PYplot
 		procedure :: destroy     => PDF_destroy
 
 	end type PDF
+
+	interface PDF
+		module procedure PDF_constructor
+	end interface PDF
 	
 contains
 
@@ -829,7 +836,7 @@ function Rayleigh_vel(T,u)
 
 	double precision			:: T, u, Rayleigh_vel
 	double precision			:: rand
-	double precision,parameter 	:: kB = 1	!Boltzmann's constant
+	double precision,parameter 	:: kB = 1.d0	!Boltzmann's constant
 
 	! Rayleigh distributed number about 0 generated and added to
 	! mean u to give required velocity
@@ -865,7 +872,7 @@ function Maxwell_Boltzmann_speed(T,u)
 	double precision			 :: T, u, Maxwell_Boltzmann_speed
 	double precision,dimension(3):: randn
 	double precision,dimension(4):: rand
-	double precision,parameter 	 :: kB = 1	!Boltzmann's constant
+	double precision,parameter 	 :: kB = 1.d0	!Boltzmann's constant
 
 	!Use box-muller to get normally distributed random numbers
 	call random_number(rand)
@@ -887,7 +894,7 @@ function Maxwell_Boltzmann_vel3(T,u)
 	double precision			 :: T
 	double precision,dimension(3):: Maxwell_Boltzmann_vel3, u 
 	double precision,dimension(4):: rand
-	double precision,parameter 	 :: kB = 1	!Boltzmann's constant
+	double precision,parameter 	 :: kB = 1.d0	!Boltzmann's constant
 
 	!Use box-muller to get normally distributed random numbers
 	call random_number(rand)
@@ -1176,14 +1183,65 @@ subroutine GNUplot(x,y)
 end subroutine GNUplot
 
 
+subroutine PYplot(x,y,routine)
+	use interfaces
+	implicit none
+
+	integer										:: i,unitno1
+	double precision,dimension(:),intent(in)	:: x,y
+	character(*)								:: routine
+	character(100)								:: callpython
+
+	if (size(x,1) .ne. size(y,1)) call error_abort("Error in GNUplot - array sizes differ")
+
+	unitno1 = get_new_fileunit()
+
+	!Generate temp file of results
+	open(unitno1,FILE='./tempout')
+	do i =1,size(x,1)
+		write(unitno1,*) x(i),y(i)
+	enddo
+
+	!Close all previous gnuplot windows and create new
+	call system("killall eog")
+	write(callpython,*) "python2.7 ", routine, " ; eog hist.png &"
+	call system(trim(callpython))
+
+	!Clean up all temp files
+	close(unitno1,status='delete')
+
+end subroutine PYplot
+
+
 !Constructor for PDF object
+function PDF_constructor(nbins_in,minvalue_in, maxvalue_in)
+	implicit none
+
+	! initialize objects
+	type(PDF) 		:: PDF_constructor
+
+	integer, intent(in)			 :: nbins_in
+	double precision, intent(in) :: minvalue_in,maxvalue_in
+
+	PDF_constructor%nbins     = nbins_in
+	PDF_constructor%minvalue  = minvalue_in
+	PDF_constructor%maxvalue  = maxvalue_in
+	PDF_constructor%binsize   = (maxvalue_in-minvalue_in)/nbins_in
+
+	allocate(PDF_constructor%hist(nbins_in))
+	PDF_constructor%hist = 0
+
+end function PDF_constructor
+
+
+!Initialise for PDF object -- subroutine alternative to constructor 
 subroutine PDF_initialise(self, nbins_in,minvalue_in, maxvalue_in)
 	implicit none
 
 	integer, intent(in)			 :: nbins_in
 	double precision, intent(in) :: minvalue_in,maxvalue_in
 
-	! initialize shape objects
+	! initialize objects
 	class(PDF) 		:: self
 
 	self%nbins = nbins_in
@@ -1197,25 +1255,39 @@ subroutine PDF_initialise(self, nbins_in,minvalue_in, maxvalue_in)
 end subroutine PDF_initialise
 
 !Update cumulative PDF count with contents of array
-subroutine PDF_update(self, array)
+subroutine PDF_update(self, array, checkrange)
 	implicit none
 
-	double precision, intent(in), dimension(:) :: array
+	double precision, intent(in), dimension(:) 	:: array
+	logical,intent(in),optional					:: checkrange
 
+	logical										:: check
 	integer										:: i, bin
 
-	! initialize shape objects
+	! initialize objects
 	class(PDF) 		:: self
 
 	!Assign array values to bins
 	do i = 1,size(array,1)
-
 		bin = ceiling((array(i)-self%minvalue)/self%binsize)
 		if (bin .gt. self%nbins	) bin = self%nbins
 		if (bin .lt. 1			) bin = 1
 		self%hist(bin) = self%hist(bin) + 1
 
 	enddo
+
+	!Check if range is large enough and extend if not
+	if (present(checkrange)) then
+		check = checkrange
+	else
+		check = .false.
+	endif
+	if (check .and. self%hist(self%nbins) .gt. self%hist(self%nbins-1)) then
+		print*, "Warning, maximum specified for PDF is too small - extending",self%maxvalue, 'by', self%binsize
+		self%maxvalue = self%maxvalue + self%binsize
+		print*, "Current PDF will be reset"
+		self%hist = 1
+	endif
 
 end subroutine PDF_update
 
@@ -1226,31 +1298,118 @@ function PDF_binvalues(self)
 	integer										:: i
 	double precision,dimension(:),allocatable	:: PDF_binvalues 
 
-	! initialize shape objects
+	! initialize objects
 	class(PDF) 		:: self
 
 	allocate(PDF_binvalues(self%nbins))
-
 	do i =1, self%nbins
 		PDF_binvalues(i) = self%minvalue + (i-0.5d0)*self%binsize
 	enddo
 
 end function PDF_binvalues
 
-!Return normaised PDF function
+! !Return normaised PDF function
+! function PDF_normalise(self)
+! 	implicit none
+
+! 	double precision,dimension(:),allocatable	:: PDF_normalise 
+
+! 	! initialize shape objects
+! 	class(PDF) 		:: self
+
+! 	allocate(PDF_normalise(self%nbins))
+! 	PDF_normalise  = dble(self%hist)/dble(sum(self%hist))
+
+! end function PDF_normalise
+
+
+!Return normaised PDF function using area under pdf...
 function PDF_normalise(self)
 	implicit none
 
-	double precision,dimension(:),allocatable	:: PDF_normalise 
+	integer										:: n
+
+	double precision,dimension(:),allocatable	:: PDF_normalise
+	double precision							:: normalise_factor
+	!initialize objects
+	class(PDF) 		:: self
+
+	allocate(PDF_normalise(self%nbins))
+	PDF_normalise = dble(self%hist)
+
+	!Get total area under curve
+	normalise_factor = 0.d0
+	call integrate_trap(PDF_normalise,self%binsize,self%nbins,normalise_factor)
+
+	!Normalise PDF by area
+	PDF_normalise  = PDF_normalise/normalise_factor
+
+end function PDF_normalise
+
+
+
+!Return normaised PDF function
+function PDF_moments(self,momentno)
+	implicit none
+
+	integer,intent(in)							:: momentno
+
+	integer										:: n
+	double precision							:: PDF_moments , zeromoment
+	double precision,dimension(:),allocatable	:: binslocs, normalisedPDF
 
 	! initialize shape objects
 	class(PDF) 		:: self
 
-	allocate(PDF_normalise (self%nbins))
+	!Get bin values and normalised PDF
+	allocate(binslocs(self%nbins),normalisedPDF(self%nbins))
+	binslocs = self%binvalues()
+	normalisedPDF = self%normalise()
 
-	PDF_normalise  = dble(self%hist)/dble(sum(self%hist))
+	!Get zeroth moment (mean) to use as centre
+	zeromoment = 0.d0
+	do n=1,self%nbins
+		zeromoment = zeromoment + normalisedPDF(n)*binslocs(n)
+	enddo
+	zeromoment = zeromoment / sum(normalisedPDF)
 
-end function PDF_normalise
+	!Get required mean
+	PDF_moments = 0.d0
+	if (momentno .eq. 1) then
+		PDF_moments = zeromoment
+	else
+		do n=1,self%nbins
+			PDF_moments = PDF_moments + normalisedPDF(n)*(binslocs(n)-zeromoment)**dble(momentno)
+		enddo
+		PDF_moments = PDF_moments / sum(normalisedPDF)
+	endif
+
+end function PDF_moments
+
+!Calculate Boltzmann H function using discrete defintion as in
+!Rapaport p37. N.B. velocity at middle or range is used for vn
+function PDF_Hfunction(self)
+	implicit none
+
+	integer										:: n
+	double precision							:: PDF_Hfunction
+	double precision,dimension(:),allocatable	:: normalisedPDF 
+
+	! initialize shape objects
+	class(PDF) 		:: self
+
+	PDF_Hfunction = 0.d0
+	normalisedPDF = self%normalise()
+	allocate(normalisedPDF(self%nbins))
+
+	do n=1,size(normalisedPDF,1)
+		if (normalisedPDF(n) .ne. 0) then
+			PDF_Hfunction = PDF_Hfunction + normalisedPDF(n) & 
+							* log(normalisedPDF(n)/(((n-0.5d0)*self%binsize)**2))
+		endif
+	enddo
+
+end function PDF_Hfunction
 
 !Plot histogram using gnuplot
 subroutine PDF_GNUplot(self)
@@ -1269,6 +1428,26 @@ subroutine PDF_GNUplot(self)
 	call GNUplot(binloc,out)
 
 end subroutine PDF_GNUplot
+
+!Plot histogram using python
+subroutine PDF_PYplot(self)
+	implicit none
+
+	integer										:: i
+	double precision,allocatable,dimension(:)	:: binloc,out
+	character(11)								:: routine
+
+	! initialize shape objects
+	class(PDF) 		:: self
+
+	allocate(binloc(self%nbins),out(self%nbins))
+	binloc = self%binvalues()
+	out = self%normalise()
+
+	routine = "histplot.py"
+	call PYplot(binloc,out,routine)
+
+end subroutine PDF_PYplot
 
 !Object destructor
 subroutine PDF_destroy(self)
