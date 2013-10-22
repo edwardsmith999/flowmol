@@ -5,8 +5,7 @@ class MD_PlotData():
     """
         MD_PlotData: Return the arguments required by matplotlib's plotting
                      functions for a specific figure type.  
-        Author: David Trevelyan, April 2013
-
+        Author: David Trevelyan, April 2013 
         Each class method should return arguments required by a single 
         matplotlib plotting function for a single figure. Each time you need 
         a new figure, please save a minimal method in this class so that 
@@ -159,13 +158,15 @@ class MD_PlotData():
         X, Y = np.meshgrid(binspaces[haxis],binspaces[vaxis],indexing='ij')
         return X, Y, Pplane
 
-    def get_Tplane_splot_args(self,plane,haxis,vaxis,minrec,maxrec,peculiar=True):
+    def get_Tplane_splot_args(self,plane,haxis,vaxis,minrec,maxrec,
+                              peculiar=True):
 
         # Instantiate temperature data object
         TData = TBins(self.fdir,cpol_bins=self.cpol_bins)
 
         # Extract 3D velocity field averaged over 1D of bins
-        Tplane, binspaces = TData.get_field(minrec,maxrec,sumaxes=(plane),peculiar=peculiar)
+        Tplane, binspaces = TData.get_field(minrec,maxrec,sumaxes=(plane),
+                                            peculiar=peculiar)
 
         # Get bin center positions on both axes for every field point
         X, Y = np.meshgrid(binspaces[haxis],binspaces[vaxis],indexing='ij')
@@ -187,7 +188,8 @@ class MD_PlotData():
         return binspaces[axis], Tslice
 
     def get_vfield_energy_spectra(self,plane,component,minrec,maxrec,tavg_rec,
-                                  fftaxis=None,ffttime=False):
+                                  fftaxis=None,ffttime=False,savefile=None,
+                                  readfile=None):
 
         class vfield_spectra:
 
@@ -211,9 +213,11 @@ class MD_PlotData():
                 # length "drec" before storing in array and summing mass/mom
                 # bins in direction "sumplane" so velocity field is averaged
                 # in that direction.
-                for rec in range(minrec,maxrec,drec):
+                # maxrec+1 in range to catch actual maxrec, drec-1 in call to 
+                # get the right number of records (consider drec=1) 
+                for rec in range(minrec,maxrec+1,drec):
                     temp_vfield, binspaces = self.vDataObj.get_field(rec,
-                                             rec+drec,sumaxes=(sumplane))
+                                             rec+drec-1,sumaxes=(sumplane))
                     self.v_ts.append(temp_vfield)
                 self.v_ts = np.array(self.v_ts)
 
@@ -231,8 +235,12 @@ class MD_PlotData():
             def extract_component(self,component):
                 self.v_ts = self.v_ts[:,:,:,component]
                 # 4 for pre sumaxes in populate_timeseries     
+                # (not sure what the comment above is about, I think I meant
+                # 4 for original component axis before sumplane reduction)
                 self.axesreduced[4] = True 
                 # 3 for post sumaxes in populate_timeseries
+                # (not sure what the comment above is about, I think I meant
+                # sumplane already reduced and popped, so 4-1 = 3)
                 self.realspacepopped.pop(3)
 
             def fft(self,fftaxis,window=False):
@@ -276,9 +284,12 @@ class MD_PlotData():
 
                 # Delete duplicate parts of the energy spectrum and double
                 # energy contributions of middle wavenumbers
-                n = len(self.E)/2 + 1
-                self.E = self.E[:n]
-                self.E[1:-1] = self.E[1:-1] * 2.0
+                cutout = [np.s_[0:i/2+1:1] for i in self.E.shape] 
+                double = [np.s_[1:i/2  :1] for i in self.E.shape] 
+                self.E = self.E[cutout]
+                self.E[double] = self.E[double] * 2.0
+                #n = len(self.E)/2 + 1
+                #self.E[1:-1] = self.E[1:-1] * 2.0
 
         # Create field reading object
         self.vDataObj = VBins(self.fdir,cpol_bins=self.cpol_bins)    
@@ -294,11 +305,22 @@ class MD_PlotData():
         # calculate power spectra.
         if (fftaxis != None):
             VField.fft(fftaxis)
-            VField.set_energyfield()
 
         if (ffttime != False):
+            window = True
             VField.fft(3,window=True)
-            VField.set_energyfield(window=True)
+        else:
+            window = False
+
+        # Set the energy field
+        VField.set_energyfield(window=window)
+
+        # Store number of spectral points
+        N = np.product(VField.E.shape)
+        
+        if (savefile):
+           with open(savefile,'w') as f:
+                f.write(VField.E/N)
     
-        # Return energy normalised by N    
-        return VField.E/len(VField.E)
+        # Return energy field (don't normalise yet)
+        return VField.E/N
