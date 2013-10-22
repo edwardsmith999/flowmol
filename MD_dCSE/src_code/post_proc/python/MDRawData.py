@@ -174,9 +174,6 @@ class MD_RawData:
 
             fobj.close()
 
-        fobj = open('bindata','wb')
-        fobj.write(bindata)
-
         # Reshape bindata
         bindata = np.reshape( bindata,
                              [ self.nbins[0],
