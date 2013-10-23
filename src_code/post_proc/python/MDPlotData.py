@@ -105,7 +105,7 @@ class MD_PlotData():
 
         return X, Y, m        
 
-    def get_density_prof_args(self,axis,minrec,maxrec):
+    def get_density_prof_args(self,axis,minrec,maxrec,binlimits=None):
 
         # Get which axes to average over
         avgaxes = []    
@@ -114,7 +114,8 @@ class MD_PlotData():
         avgaxes = tuple(avgaxes)
     
         ddata = DensityBins(self.fdir,cpol_bins=self.cpol_bins)
-        density, binspaces = ddata.get_field(minrec,maxrec,meanaxes=(avgaxes))
+        density, binspaces = ddata.get_field(minrec,maxrec,meanaxes=(avgaxes),
+                                             binlimits=binlimits)
         density = density[:,0]
 
         return binspaces[axis], density
@@ -187,9 +188,10 @@ class MD_PlotData():
 
         return binspaces[axis], Tslice
 
-    def get_vfield_energy_spectra(self,plane,component,minrec,maxrec,tavg_rec,
-                                  fftaxis=None,ffttime=False,savefile=None,
-                                  readfile=None):
+
+    def get_vfield_energy_spectra(self, meanaxes, component, minrec, maxrec,
+                                  tavg_rec, binlimits=None, fftaxes=None,
+                                  ffttime=False, savefile=None):
 
         class vfield_spectra:
 
@@ -206,42 +208,72 @@ class MD_PlotData():
                 # Local copy of which axes represent real space (each entry is
                 # "popped" out when reduced (see self.axesreduced)
                 self.realspacepopped = [True]*5
-            
-            def populate_timeseries(self,minrec,maxrec,drec,sumplane=None):
+
+            def markaxisfourierspace(self,axis):
+                newaxis = int(axis - np.sum(self.axesreduced[:axis]))
+                self.realspacepopped[newaxis] = False
+
+            def markaxisreduced(self,axis):
+                newaxis = int(axis - np.sum(self.axesreduced[:axis]))
+                self.axesreduced[axis] = True
+                self.realspacepopped.pop(newaxis)
+
+            def populate_timeseries(self,minrec,maxrec,drec,meanaxes):
+
+                # Override meanaxes to be a tuple if possible
+                if (not isinstance(meanaxes,tuple)):
+                    try:
+                        meanaxes = tuple([meanaxes,]) 
+                    except:
+                        print('Failed to make meanaxes a tuple')
 
                 # Read time series of velocity field records, averaging over
-                # length "drec" before storing in array and summing mass/mom
-                # bins in direction "sumplane" so velocity field is averaged
-                # in that direction.
+                # length "drec" before storing in array.
                 # maxrec+1 in range to catch actual maxrec, drec-1 in call to 
                 # get the right number of records (consider drec=1) 
+
+                # Loop over records and append to time series 
                 for rec in range(minrec,maxrec+1,drec):
-                    temp_vfield, binspaces = self.vDataObj.get_field(rec,
-                                             rec+drec-1,sumaxes=(sumplane))
-                    self.v_ts.append(temp_vfield)
+                    v, binspaces = self.vDataObj.get_field(rec,rec+drec-1,
+                                                 binlimits=binlimits,
+                                                 sumaxes=(meanaxes))
+                    self.v_ts.append(v)
+
+                # Turn list into array
                 self.v_ts = np.array(self.v_ts)
 
-                # Mark "reduction" of sumplane axis
-                self.axesreduced[sumplane] = True
-                # Remove sumplane from realspace list
-                self.realspacepopped.pop(sumplane)
+                # Put time axis in penultimate position, component in last, 
+                # remaining spatial coordinates at start, so e.g. for single 
+                # meanaxis we get u(axis1,axis2,time,component)
 
-                # Put time axis in third position, component in 4th, remaining
-                # spatial coordinates in 1st and 2nd (i.e. 0th and 1st),
-                # so now we have u(axis1,axis2,time,component), reduced over 
-                # the sumplane axis
-                self.v_ts = np.transpose(self.v_ts,axes=(1,2,0,3))
+                if (len(meanaxes) == 0):
+                    self.v_ts = np.transpose(self.v_ts,axes=(1,2,3,0,4))
+                elif (len(meanaxes) == 1):
+                    self.v_ts = np.transpose(self.v_ts,axes=(1,2,0,3))
+                elif (len(meanaxes) == 2):
+                    self.v_ts = np.transpose(self.v_ts,axes=(1,0,2))
+                elif (len(meanaxes) == 3):
+                    # Array will already be in the correct order
+                    pass
+
+                for axis in meanaxes:
+                    self.markaxisreduced(axis)
 
             def extract_component(self,component):
-                self.v_ts = self.v_ts[:,:,:,component]
-                # 4 for pre sumaxes in populate_timeseries     
-                # (not sure what the comment above is about, I think I meant
-                # 4 for original component axis before sumplane reduction)
-                self.axesreduced[4] = True 
-                # 3 for post sumaxes in populate_timeseries
-                # (not sure what the comment above is about, I think I meant
-                # sumplane already reduced and popped, so 4-1 = 3)
-                self.realspacepopped.pop(3)
+
+                # Get index array for all elements
+                slicer = [np.arange(i) for i in self.v_ts.shape]
+                # Set only desired component (final position)
+                slicer[-1] = np.array([component])
+                slicer = np.ix_(*slicer)
+                
+                # Component extraction
+                self.v_ts = self.v_ts[slicer]
+
+                # Collapse final dimension (which is only of length 1 anyway)
+                self.v_ts = np.reshape(self.v_ts,self.v_ts.shape[:-1])
+
+                self.markaxisreduced(4)
 
             def fft(self,fftaxis,window=False):
 
@@ -265,7 +297,7 @@ class MD_PlotData():
                 # Perform FFT
                 self.v_ts = np.fft.fft(self.v_ts,axis=newaxis)
                 # Mark axis as no longer representing real space
-                self.realspacepopped[newaxis] = False
+                self.markaxisfourierspace(fftaxis) 
 
             def set_energyfield(self,window=False):
 
@@ -288,8 +320,6 @@ class MD_PlotData():
                 double = [np.s_[1:i/2  :1] for i in self.E.shape] 
                 self.E = self.E[cutout]
                 self.E[double] = self.E[double] * 2.0
-                #n = len(self.E)/2 + 1
-                #self.E[1:-1] = self.E[1:-1] * 2.0
 
         # Create field reading object
         self.vDataObj = VBins(self.fdir,cpol_bins=self.cpol_bins)    
@@ -297,14 +327,14 @@ class MD_PlotData():
         VField = vfield_spectra(self.vDataObj)
 
         # Read the time series of the velocity field desired
-        VField.populate_timeseries(minrec,maxrec,tavg_rec,sumplane=plane)
+        VField.populate_timeseries(minrec,maxrec,tavg_rec,meanaxes)
         # Extract the cartesian component we are interested in
         VField.extract_component(component)
 
         # FFT in space or time depending on input to function, and 
         # calculate power spectra.
-        if (fftaxis != None):
-            VField.fft(fftaxis)
+        if (fftaxes != None):
+            VField.fft(fftaxes)
 
         if (ffttime != False):
             window = True

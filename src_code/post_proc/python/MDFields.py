@@ -64,7 +64,8 @@ class Field():
                            "Tbins" )
         self.plottablefiles = list( potentialfiles[i] for i in 
                                     [1,2,4,5,6,7,8,9,12,14] )
-         
+
+        
 		# Check directory exists 
         if os.path.isdir(fdir):
             
@@ -76,8 +77,8 @@ class Field():
             print("Filepath " + self.fdir + " does not exist, aborting")
             quit()
 
-    def get_bins(self,minrec,maxrec,sumaxes=(),meanaxes=(),meantime=True,
-                 sumtime=False):
+    def get_bins(self, minrec, maxrec, sumaxes=(), meanaxes=(), meantime=True,
+                 sumtime=False, binlimits=None):
         
         """
             Read data file using MD_RawData class, average over time record
@@ -104,6 +105,24 @@ class Field():
         # Get bin data from file and get the mean over time records (axis 4)
         bins = Raw.get_bindata(minrec,nrecs=maxrec-minrec+1)
 
+        # If bin limits are specified, return only those within range
+        if (binlimits):
+            # Initialise slice list as every index in bins
+            s = [np.arange(i) for i in bins.shape]
+            # Loop over axes and change slicer limits (and binspaces)
+            for axis in np.arange(3):
+                if (binlimits[axis]):
+                    # Prepare slice array (+1 for python slicing convention)
+                    s[axis] = np.arange(binlimits[axis][0],
+                                        binlimits[axis][1]+1) 
+                    # Chop out unwanted binspace entries (+1 for python slice)
+                    binspaces[axis] = binspaces[axis][binlimits[axis][0]:
+                                                      binlimits[axis][1]+1] 
+            # Convert slice list to proper shape for numpy fancy indexing
+            slicer = np.ix_(*s) 
+            # Delete entries not in slicer
+            bins = bins[slicer]
+
         if (meantime==True):
             bins = bins.mean(axis=4) 
         elif (sumtime==True):
@@ -117,11 +136,13 @@ class Field():
         
         return bins, binspaces
 
-    def get_binvolumes(self):
+    def get_binvolumes(self,binlimits=None):
 
         # Create raw data reading object and get the topology of the bins
-        Raw = MD_RawData(self.fdir,self.fname,self.dtype,self.nperbin,self.cpol_bins)
+        Raw = MD_RawData(self.fdir, self.fname, self.dtype, self.nperbin,
+                         self.cpol_bins)
         nbins, binspaces = Raw.get_bintopology()
+
     
         if (self.cpol_bins == True):    
 
@@ -150,6 +171,22 @@ class Field():
             dz = binspaces[2][1] - binspaces[2][0]
 
             binvolumes = np.ones(x.shape)*dx*dy*dz
+
+        # If bin limits are specified, return only those within range
+        if (binlimits):
+
+            # Initialise slice list as every index in bins
+            s = [np.arange(i) for i in binvolumes.shape]
+            # Loop over axes and change slicer limits
+            for axis in np.arange(len(binvolumes.shape)):
+                if (binlimits[axis]):
+                    # (+1 for python slicing convention) 
+                    s[axis] = np.arange(binlimits[axis][0],
+                                        binlimits[axis][1]+1) 
+            # Convert slice list to proper shape for numpy fancy indexing
+            slicer = np.ix_(*s) 
+            # Delete entries not in slicer
+            binvolumes = binvolumes[slicer]
 
         # Ensure binvolumes is the right shape for subsequent
         # broadcasting with other fields
@@ -229,7 +266,8 @@ class VBins():
         self.mdata = MassBins(fdir,cpol_bins)
         self.pdata = MomBins(fdir,cpol_bins)
 
-    def get_field(self,minrec,maxrec,sumaxes=(),sumtime=True):
+    def get_field(self, minrec, maxrec, sumaxes=(), sumtime=True,
+                  binlimits=None):
 
         """
             Get the velocity field from files vbins/mbins averaged over
@@ -246,9 +284,11 @@ class VBins():
               + str(maxrec) + ', averaging over axes ' + str(sumaxes) + '.')
     
         msum, binspaces = self.mdata.get_bins(minrec,maxrec,sumaxes=sumaxes,
-                                              meantime=False,sumtime=sumtime)
+                                              meantime=False,sumtime=sumtime,
+                                              binlimits=binlimits)
         psum, binspaces = self.pdata.get_bins(minrec,maxrec,sumaxes=sumaxes,
-                                              meantime=False,sumtime=sumtime)
+                                              meantime=False,sumtime=sumtime,
+                                              binlimits=binlimits)
 
         # Divide and patch any NaNs
         vfield = np.divide(psum,msum) 
@@ -264,7 +304,8 @@ class TBins():
         self.pdata = MomBins(fdir,cpol_bins)
         self.KEdata = KEBins(fdir,cpol_bins)
 
-    def get_field(self,minrec,maxrec,sumaxes=(),peculiar=True): 
+    def get_field(self, minrec, maxrec, sumaxes=(), peculiar=True,
+                  binlimits=None): 
 
 
         """
@@ -282,12 +323,15 @@ class TBins():
         print('Getting temperature field from records ' + str(minrec) + ' to ' 
               + str(maxrec) + ', averaging over axes ' + str(sumaxes) + '.')
     
-        mfield, binspaces = self.mdata.get_bins(minrec,maxrec,meantime=False,
-                                                sumtime=True)
-        pfield, binspaces = self.pdata.get_bins(minrec,maxrec,meantime=False,
-                                                sumtime=True)
-        KEfield, binspaces = self.KEdata.get_bins(minrec,maxrec,meantime=False,
-                                                  sumtime=True)
+        mfield, binspaces = self.mdata.get_bins(minrec, maxrec, meantime=False,
+                                                sumtime=True,
+                                                binlimits=binlimits)
+        pfield, binspaces = self.pdata.get_bins(minrec, maxrec, meantime=False,
+                                                sumtime=True,
+                                                binlimits=binlimits)
+        KEfield, binspaces = self.KEdata.get_bins(minrec, maxrec,
+                                                  meantime=False, sumtime=True,
+                                                  binlimits=binlimits)
 
 
         # Temperature (no streaming consideration)
@@ -318,20 +362,22 @@ class TBins():
 # Pressure fields
 class pVABins():
 
-    def __init__(self,fdir,fname,cpol_bins=False):
+    def __init__(self, fdir, fname, cpol_bins=False):
         self.fdir = fdir
         self.fname = fname
         self.cpol_bins = cpol_bins
         self.Pobj = PBins(fdir,fname,cpol_bins)
 
-    def get_field(self,minrec,maxrec,meanaxes=(),peculiar=False):
+    def get_field(self, minrec, maxrec, meanaxes=(), peculiar=False,
+                  binlimits=None):
 
         print('Getting '+self.fname+' field from recs ' + str(minrec) + ' to ' 
               + str(maxrec) + ', meanaxes = ' + str(meanaxes) + ', peculiar = ' 
               + str(peculiar) )
 
         # Read raw data file    
-        Pfield, binspaces = self.Pobj.get_field(minrec,maxrec)  
+        Pfield, binspaces = self.Pobj.get_field(minrec, maxrec,
+                                                binlimits=binlimits)  
 
         # Take off square of peculiar momenta if specified
         if (peculiar==True):
@@ -349,8 +395,10 @@ class pVABins():
                 # Get mean velocity and density field
                 vData = VBins(self.fdir,cpol_bins=self.cpol_bins)
                 dData = DensityBins(self.fdir,cpol_bins=self.cpol_bins)
-                vfield, binspaces = vData.get_field(minrec,maxrec)
-                dfield, binspaces = dData.get_field(minrec,maxrec)
+                vfield, binspaces = vData.get_field(minrec,maxrec,
+                                                    binlimits=binlimits)
+                dfield, binspaces = dData.get_field(minrec,maxrec,
+                                                    binlimits=binlimits)
 
                 # Find outer product of v*v and reshape to 1x9 rather than 3x3
                 vvfield = np.einsum('...j,...k->...jk',vfield,vfield)
@@ -368,7 +416,6 @@ class pVABins():
 
 
 
-
 # Pressure fields
 class CV_data():
 
@@ -378,14 +425,17 @@ class CV_data():
         self.fluxobj   = CV(fdir,'vflux',cpol_bins)
         self.stressobj = CV(fdir,'psurface',cpol_bins)
 
-    def get_field(self,minrec,maxrec,meanaxes=(),peculiar=False):
+    def get_field(self,minrec,maxrec,meanaxes=(),peculiar=False,    
+                  binlimits=None):
 
-        print('Getting '+'vflux & stress'+' fields from recs ' + str(minrec) + ' to ' 
-              + str(maxrec) + ', meanaxes = ' + str(meanaxes))
+        print('Getting '+'vflux & stress'+' fields from recs ' + str(minrec) +
+              ' to ' + str(maxrec) + ', meanaxes = ' + str(meanaxes))
 
         # Read raw data file    
-        flux, binspaces = self.fluxobj.get_field(minrec,maxrec)  
-        stress, binspaces = self.stressobj.get_field(minrec,maxrec)     
+        flux, binspaces = self.fluxobj.get_field(minrec,maxrec,
+                                                 binlimits=binlimits)  
+        stress, binspaces = self.stressobj.get_field(minrec,maxrec,
+                                                     binlimits=binlimits)     
 
         return flux, stress, binspaces
 
@@ -397,18 +447,20 @@ class DensityBins():
         self.header = HeaderData(open(fdir+'simulation_header','r'))
         self.Nmass_ave = int(self.header.Nmass_ave)
 
-    def get_field(self,minrec,maxrec,meanaxes=()):
+    def get_field(self, minrec, maxrec, meanaxes=(), binlimits=None):
 
         print('Getting density field from recs ' + str(minrec) + ' to ' 
               + str(maxrec) + ', meanaxes = ' + str(meanaxes))
 
-        msum, binspaces = self.mdata.get_bins(minrec,maxrec,meantime=True,
-                                              sumtime=False)
+        msum, binspaces = self.mdata.get_bins(minrec, maxrec, meantime=True,
+                                              sumtime=False, 
+                                              binlimits=binlimits)
         mfield  = np.divide(msum,self.Nmass_ave)
 
-        binvolumes = self.mdata.get_binvolumes()
+        binvolumes = self.mdata.get_binvolumes(binlimits=binlimits)
         density = np.divide(mfield,binvolumes)
-        
+
+        # Take an average over the meanaxes if specified
         density = np.mean(density,axis=meanaxes)
         
         return density, binspaces
