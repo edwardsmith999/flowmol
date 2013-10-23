@@ -299,6 +299,45 @@ implicit none
 	vcart(3) =  vz	
 
 end function cartesianisev
+
+!------------------------------------------------------------------------------
+! Functions to switch between cartesian and spherical coords
+
+! function sphereiser(rin) result(rcp)
+! implicit none
+
+! 	real(kind(0.d0)), intent(in)  :: rin(3)
+! 	real(kind(0.d0))              :: rcp(3)
+
+! 	real(kind(0.d0)) :: x,y,z
+! 	real(kind(0.d0)) :: pi=4.d0*atan(1.d0)
+
+! 	x = rin(1); y = rin(2); z = rin(3)
+
+! 	rcp(1) = sqrt(x*x + y*y + z*z)
+! 	rcp(2) = modulo(acos(z,rcp(1)),2.d0*pi)
+! 	rcp(3) = modulo(atan2(y,x),2.d0*pi)	
+
+! end function sphereiser
+
+! function sphere2cart(rin) result(rcp)
+! implicit none
+
+! 	real(kind(0.d0)), intent(in)  :: rin(3)
+! 	real(kind(0.d0))              :: rcp(3)
+
+! 	real(kind(0.d0)) :: x,y,z
+
+! 	x = rin(1); y = rin(2);	z = rin(3)
+
+! 	rcp(1) = x*sin(y)*cos(z)
+! 	rcp(2) = x*sin(y)*sin(z)
+! 	rcp(3) = x*cos(y)
+
+! end function sphere2cart
+
+
+
 !------------------------------------------------------------------------------
 !Subroutine for calculating least squares straight line with a uniform interval between x values
 

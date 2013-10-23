@@ -599,7 +599,7 @@ subroutine setup_initialise_solid_liquid
 			if(rc(3).lt. domain(3)*(kblock-1)) cycle
 			if(rc(3).ge. domain(3)*(kblock  )) cycle
 
-			!Solid region given by wall textures
+			!Solid region given by wall textures or tethered region
 			call wall_textures(texture_type,(rc(:)-globaldomain(:)/2.d0),solid_bottom,solid_top)
 
 			!If outside solid region, randomly remove molecules from lattice
