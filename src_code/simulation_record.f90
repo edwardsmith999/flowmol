@@ -453,8 +453,8 @@ subroutine evaluate_properties_vdistribution
 	!Add vmagnitude to PDF histogram
 	do n = 1, np    ! Loop over all particles
 		peculiarv = (/ v(1,n)-streamvel/np, v(2,n), v(3,n) /)
-		vmagnitude(n) = sqrt(dot_product(peculiarv,peculiarv))
-		!vmagnitude(n) = v(1,n)
+		!vmagnitude(n) = sqrt(dot_product(peculiarv,peculiarv))
+		vmagnitude(n) = v(1,n)
 	enddo
 	call velPDF%update(vmagnitude)
 
@@ -464,8 +464,8 @@ subroutine evaluate_properties_vdistribution
 
 	!Calculate maxwell boltzmann distribution for comparison
 	do n = 1, np    ! Loop over all particles
-		vmagnitude(n) = Maxwell_Boltzmann_speed(T=temperature,u=streamvel/np)
-		!vmagnitude(n) = Maxwell_Boltzmann_vel(T=temperature,u=streamvel/np)
+		!vmagnitude(n) = Maxwell_Boltzmann_speed(T=temperature,u=streamvel/np)
+		vmagnitude(n) = Maxwell_Boltzmann_vel(T=temperature,u=streamvel/np)
 	enddo
 	call velPDFMB%update(vmagnitude)
 	deallocate(vmagnitude)
@@ -486,18 +486,19 @@ subroutine evaluate_properties_vdistribution
 									sqrt(2/pi)*((binloc(n)**2)*exp((-binloc(n)**2)/(2*const**2))/(const**3)), & 
 								    (1.d0/(const*sqrt(2.d0*pi)))*exp( -((binloc(n)-meanstream/meannp)**2.d0)/(2.d0*const**2.d0) ) 
 		enddo
+
+    	!Write values of bin to file to follow evolution of moments
+    	write(14,'(8f17.10)') velPDF%moments(0),  velPDF%moments(1),  velPDF%moments(2),  velPDF%moments(3), & 
+    					      velPDFMB%moments(0),velPDFMB%moments(1),velPDFMB%moments(2),  velPDFMB%moments(3)
+
+    	!Write values of bin to file to follow evolution of H-function
+    	write(13,'(a,i5, a, f20.10)') 'Boltzmann H function at iteration ', iter , ' is ', Hfunction
+
 		velPDF%hist = 0
 		velPDFMB%hist = 0
 		meanstream = 0.d0
 		meannp = 0.d0
 	endif
-
-	!Write values of bin to file to follow evolution of moments
-	write(14,'(8f17.10)') velPDF%moments(0),  velPDF%moments(1),  velPDF%moments(2),  velPDF%moments(3), & 
-					      velPDFMB%moments(0),velPDFMB%moments(1),velPDFMB%moments(2),  velPDFMB%moments(3)
-
-	!Write values of bin to file to follow evolution of H-function
-	write(13,'(a,i5, a, f20.10)') 'Boltzmann H function at iteration ', iter , ' is ', Hfunction
 
 end subroutine evaluate_properties_vdistribution
 

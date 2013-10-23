@@ -56,6 +56,8 @@ class Field():
 
         self.fdir = fdir
         self.cpol_bins = cpol_bins
+
+        #Get all details about files in specified directory
         potentialfiles = ( "mslice", "mbins", "msnap","vslice", "vbins", 
                            "vsnap","pvirial", "pVA", "pVA_k","pVA_c", 
                            "visc", "mflux","vflux", "pplane", "psurface",
@@ -66,14 +68,16 @@ class Field():
                                     [1,2,4,5,6,7,8,9,12,14] )
 
         
-		# Check directory exists 
+        # Check directory exists 
         if os.path.isdir(fdir):
-            
+            #Get list of all possible files to plot and sizes
             self.fieldfiles = list(set(os.listdir(fdir)) & set(potentialfiles))
+            self.fieldfilesize = {}
+            for filename in self.fieldfiles:
+                self.fieldfilesize.update({filename: os.path.getsize(fdir + filename)})       
 
         # Otherwise quit
         else:
-
             print("Filepath " + self.fdir + " does not exist, aborting")
             quit()
 
@@ -100,40 +104,55 @@ class Field():
         # Create raw data reading object and get the topology of the bins
         Raw = MD_RawData(self.fdir,self.fname,self.dtype,self.nperbin,
                          self.cpol_bins)
-        nbins, binspaces = Raw.get_bintopology()
+        self.nbins, binspaces = Raw.get_bintopology()
 
-        # Get bin data from file and get the mean over time records (axis 4)
-        bins = Raw.get_bindata(minrec,nrecs=maxrec-minrec+1)
+        #Calculate maximum record avialable        
+        if self.dtype == 'i':
+            self.dsize = 4
+        elif self.dtype == 'd':
+            self.dsize = 8
+        self.nrecs =  (self.fieldfilesize[self.fname]
+                     /(self.dsize*self.nperbin*np.prod(self.nbins)))
 
-        # If bin limits are specified, return only those within range
-        if (binlimits):
-            # Initialise slice list as every index in bins
-            s = [np.arange(i) for i in bins.shape]
-            # Loop over axes and change slicer limits (and binspaces)
-            for axis in np.arange(3):
-                if (binlimits[axis]):
-                    # Prepare slice array (+1 for python slicing convention)
-                    s[axis] = np.arange(binlimits[axis][0],
-                                        binlimits[axis][1]+1) 
-                    # Chop out unwanted binspace entries (+1 for python slice)
-                    binspaces[axis] = binspaces[axis][binlimits[axis][0]:
-                                                      binlimits[axis][1]+1] 
-            # Convert slice list to proper shape for numpy fancy indexing
-            slicer = np.ix_(*s) 
-            # Delete entries not in slicer
-            bins = bins[slicer]
+        if (maxrec >= self.nrecs):
+            print(  "WARNING -- There are " + str(self.nrecs) + " in file " + self.fname 
+                  + " but record " + str(maxrec) + " requested -- Returning None")
+            bins = None
+ 
+        else:
 
-        if (meantime==True):
-            bins = bins.mean(axis=4) 
-        elif (sumtime==True):
-            bins = bins.sum(axis=4) 
+            # Get bin data from file and get the mean/sum over time records (axis 4)
+            bins = Raw.get_bindata(minrec,nrecs=maxrec-minrec+1)
 
-        # Sum or mean as appropriate
-        if (sumaxes != ()):
-            bins = bins.sum(axis=sumaxes)
-        elif (meanaxes != ()):
-            bins = bins.mean(axis=meanaxes)
-        
+            # If bin limits are specified, return only those within range
+            if (binlimits):
+                # Initialise slice list as every index in bins
+                s = [np.arange(i) for i in bins.shape]
+                # Loop over axes and change slicer limits (and binspaces)
+                for axis in np.arange(3):
+                    if (binlimits[axis]):
+                        # Prepare slice array (+1 for python slicing convention)
+                        s[axis] = np.arange(binlimits[axis][0],
+                                            binlimits[axis][1]+1) 
+                        # Chop out unwanted binspace entries (+1 for python slice)
+                        binspaces[axis] = binspaces[axis][binlimits[axis][0]:
+                                                          binlimits[axis][1]+1] 
+                # Convert slice list to proper shape for numpy fancy indexing
+                slicer = np.ix_(*s) 
+                # Delete entries not in slicer
+                bins = bins[slicer]
+
+            if (meantime==True):
+                bins = bins.mean(axis=4) 
+            elif (sumtime==True):
+                bins = bins.sum(axis=4) 
+
+            # Sum or mean as appropriate
+            if (sumaxes != ()):
+                bins = bins.sum(axis=sumaxes)
+            elif (meanaxes != ()):
+                bins = bins.mean(axis=meanaxes)
+       
         return bins, binspaces
 
     def get_binvolumes(self,binlimits=None):
@@ -141,7 +160,7 @@ class Field():
         # Create raw data reading object and get the topology of the bins
         Raw = MD_RawData(self.fdir, self.fname, self.dtype, self.nperbin,
                          self.cpol_bins)
-        nbins, binspaces = Raw.get_bintopology()
+        self.nbins, binspaces = Raw.get_bintopology()
 
     
         if (self.cpol_bins == True):    
@@ -192,7 +211,6 @@ class Field():
         # broadcasting with other fields
         binvolumes = np.expand_dims(binvolumes,-1)
         return binvolumes
-
 
 # Mass field    
 class MassBins(Field):
@@ -262,7 +280,7 @@ class KEBins(Field):
 # Velocity field
 class VBins():
 
-    def __init__(self,fdir,cpol_bins):
+    def __init__(self,fdir,cpol_bins=False):
         self.mdata = MassBins(fdir,cpol_bins)
         self.pdata = MomBins(fdir,cpol_bins)
 

@@ -205,6 +205,10 @@ subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 	double precision		:: xlocation,ylocation,zlocation,rand,fraction_domain,postheight
 
 	select case (texture_type)
+	case(0)
+		!Case of simply tethered walls
+		tagdistbottom = tethereddistbottom
+		tagdisttop    = tethereddisttop
 	case(posts)
 
 		postheight = 5.12d0
@@ -414,7 +418,7 @@ subroutine tether_force(molno)
 	!Add tethered force to stress calculation
 	if (vflux_outflag .eq. 4) then
 		if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
-			call record_external_forces(at(:),r(:,molno))
+			call record_external_forces(-at(:),r(:,molno))
 			! There was a time when I though that the CV conservation would require interactions
 			! which cross the surface. However, it appears this is not the case...
 			!call control_volume_stresses(at(:),r(:,molno),rtether(:,molno),molno)

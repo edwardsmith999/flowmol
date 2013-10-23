@@ -169,14 +169,14 @@ subroutine setup_read_input
 
 		case default
 
-			stop "Unrecognised special case string"
+			call error_abort("ERROR -- Unrecognised special case string")
 
 		end select
 
 	case(2)
-
+		call error_abort("ERROR -- Generic input file read in is not developed yet")
 	case default
-
+		call error_abort("ERROR -- Unrecognised initial_config_flag")
 	end select 
 
 	call locate(1,'INPUTTEMPERATURE',.true.)
