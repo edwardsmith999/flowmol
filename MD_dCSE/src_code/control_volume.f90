@@ -35,9 +35,39 @@ type :: check_CV_momentum
 		procedure :: swap_halos  => swap_halos_momentum
 end type check_CV_momentum
 
+type, extends(check_CV_mass) :: sphereObj_mass
+
+    double precision                        :: radius = 3.d0
+    integer,dimension(:,:,:),allocatable	:: Xtemp
+contains
+	procedure :: Add_spherical_CV_fluxes => Add_spherical_CV_mass_fluxes
+    procedure :: Add_spherical_CV_mass   => Add_spherical_CV_mass
+    procedure :: check_error             => check_error_sphere_mass
+	procedure :: update_dXdt             => update_dXdt_sphere_mass
+				
+end type sphereObj_mass
+
+type, extends(check_CV_momentum) :: sphereObj_mom
+
+    double precision    :: radius = 3.d0
+    double precision,dimension(:,:,:,:),allocatable		:: Xtemp
+contains
+	procedure :: Add_spherical_CV_forces   => Add_spherical_CV_forces
+	procedure :: Add_spherical_CV_fluxes   => Add_spherical_CV_fluxes
+    procedure :: Add_spherical_CV_velocity => Add_spherical_CV_velocity
+    procedure :: check_error        => check_error_sphere_momentum
+	!procedure :: update_dXdt =>    update_dXdt_sphere_momentum
+				
+end type sphereObj_mom
+
 	!Check CV conservation
 	type(check_CV_mass)		:: CVcheck_mass		! declare an instance of CV checker
 	type(check_CV_momentum)	:: CVcheck_momentum, CVcheck_momentum2		! declare an instance of CV checker
+	
+    !CV spherical object
+    type(sphereObj_mass) :: CV_sphere_mass
+    type(sphereObj_mom) :: CV_sphere_momentum
+
 
 contains
 
@@ -75,7 +105,7 @@ contains
 		! initialize shape objects
 		class(check_CV_mass) :: self
 
-		integer,dimension(:,:,:),intent(in) :: X
+		integer,dimension(:,:,:),allocatable,intent(in) :: X
 
 		!self%X_minus_2t = self%X_minus_t
 		self%X_minus_t  = self%X
@@ -139,41 +169,7 @@ contains
 		enddo
 		enddo
 
-		!Check mass flux on top surfaces is equal to bottom surfaces
-		!do i = 1,size(mass_flux,1)
-		!do j = 1,size(mass_flux,2)
-		!do k = 1,size(mass_flux,3)
-		!	if (mass_flux(i+1,j,k,1) .ne. -mass_flux(i,j,k,4)) then
-		!		print'(5i6)', i,j,k,mass_flux(i,j,k,4),mass_flux(i+1,j,k,1)
-		!	endif
-		!	if (mass_flux(i,j+1,k,2) .ne. -mass_flux(i,j,k,5)) then
-		!		print'(5i6)', i,j,k,mass_flux(i,j,k,5),mass_flux(i,j+1,k,2)
-		!	endif
-		!	if (mass_flux(i,j,k+1,3) .ne. -mass_flux(i,j,k,6)) then
-		!		print'(5i6)', i,j,k,mass_flux(i,j,k,6),mass_flux(i,j,k+1,3)
-		!	endif
-		!enddo
-		!enddo
-		!enddo
-
-		!if (check_ok .eq. .false.) then
-		!	stop "Error in mass flux"
-		!endif
-
 	end subroutine check_error_mass
-
-	!Returns a CV which is the size of the specified range of CV
-	!subroutine coarse_grain_CV_mass(self,imin,imax,jmin,jmax,kmin,kmax,iter,irank)
-	!	implicit none
-
-	!	class(check_CV_mass) :: self
-	!	integer,intent(in) :: iter,irank,imin,imax,jmin,jmax,kmin,kmax
-
-
-
-	!end subroutine coarse_grain_CV_mass
-
-
 
 !===================================================
 !	M o m e n t u m   C o n t r o l   V o l u m e
@@ -234,7 +230,7 @@ contains
 		! initialize shape objects
 		class(check_CV_momentum) :: self
 
-		double precision,dimension(:,:,:,:),intent(in) :: X
+		double precision,dimension(:,:,:,:),allocatable,intent(in) :: X
 
 		self%F_ext = X
 
@@ -246,7 +242,7 @@ contains
 		! initialize shape objects
 		class(check_CV_momentum) :: self
 
-		double precision,dimension(:,:,:,:,:),intent(in) :: X
+		double precision,dimension(:,:,:,:,:),allocatable,intent(in) :: X
 
 		self%flux = X
 
@@ -258,7 +254,7 @@ contains
 		! initialize shape objects
 		class(check_CV_momentum) :: self
 
-		double precision,dimension(:,:,:,:,:),intent(in) :: X
+		double precision,dimension(:,:,:,:,:),allocatable,intent(in) :: X
 
 		self%Pxy_minus_t = self%Pxy
 		self%Pxy = X
@@ -386,25 +382,237 @@ contains
 
 	end subroutine check_error_momentum
 
-
-	!Returns a CV which is the size of the specified range of CV
-    ! Calculate total CV flux and change in momentum - NOTE binsize used
-    ! as during sum all dx/dy/dz are identical and cancel leaving
-    ! a single dx,dy or dz
-	!subroutine coarse_grain_CV_momentum(self,imin,imax,jmin,jmax,kmin,kmax,iter,irank)
-	!	implicit none
-
-	!	class(check_CV_momentum) :: self
-	!	integer,intent(in) :: iter,irank,imin,imax,jmin,jmax,kmin,kmax
+!===================================================
+!	S p h e r i c a l   C o n t r o l   V o l u m e
+!===================================================
 
 
+
+! - - - - MASS - - - -
+
+!Check if molecule has crossed surface of CV
+subroutine Add_spherical_CV_mass_fluxes(self,ri,ri_tp1)
+    use librarymod, only : sphereCV
+	implicit none
+	
+    class(sphereObj_mass) :: self
+
+	real(kind(0.d0)),dimension(3),intent(in)	:: ri,ri_tp1
+
+	!Add for molecule i
+	self%flux(1,1,1,1) = self%flux(1,1,1,1) + (sphereCV(ri_tp1,self%radius)-sphereCV(ri,self%radius))
+
+end subroutine Add_spherical_CV_mass_fluxes
+
+!Check if molecule is inside volume
+subroutine Add_spherical_CV_mass(self,ri)
+    use librarymod, only : sphereCV
+	implicit none
+	
+    class(sphereObj_mass) :: self
+
+	real(kind(0.d0)),dimension(3),intent(in)	:: ri
+
+	!Add for molecule i
+	if (.not. allocated(self%Xtemp)) then
+	    allocate(self%Xtemp(1,1,1))
+	    self%Xtemp = 0.d0
+    endif
+    
+    !if ( sphereCV(ri,self%radius) .gt. 0.00000001) print'(3f10.5,i5,f10.5)', ri, self%Xtemp(1,1,1), sphereCV(ri,self%radius)
+	self%Xtemp(1,1,1) = self%Xtemp(1,1,1) + sphereCV(ri,self%radius)
+
+end subroutine Add_spherical_CV_mass
+
+!Update time evolution and store previous two values
+subroutine update_dXdt_sphere_mass(self, X)
+	implicit none
+
+	! initialize shape objects
+	class(sphereObj_mass) :: self
+
+	integer,dimension(:,:,:),allocatable,intent(in) :: X
+
+	!self%X_minus_2t = self%X_minus_t
+	self%X_minus_t  = self%X
+	self%X 		  = X
+
+	self%dXdt = self%X - self%X_minus_t
+
+end subroutine update_dXdt_sphere_mass
+
+
+
+!Check error for specified range of bins
+subroutine check_error_sphere_mass(self,imin,imax,jmin,jmax,kmin,kmax,iter,irank)
+	! initialize shape objects
+	use computational_constants_MD, only : domain,delta_t,Nmflux_ave
+	use calculated_properties_MD, only : nbins
+	implicit none
+
+	class(sphereObj_mass) :: self
+
+	integer,intent(in) :: iter,irank,imin,imax,jmin,jmax,kmin,kmax
+
+	logical							:: check_ok
+	integer 						:: i,j,k
+	integer,save 					:: first_time = 0
+	integer         				:: conserved, dmdt, totalflux
+	double precision,dimension(3)	:: binsize
+	
+	!First call doesn't have difference in time yet so skip
+	if (first_time .lt. 2) then
+		first_time = first_time + 1
+		print'(a)', '                iter irank  i  j  k   conserved     fluxes      dmdt       m        mt-dt'
+		return
+	endif
+
+	check_ok = .true.
+
+	!Calculate total CV flux and change in mass
+	totalflux =sum(self%flux(1,1,1,:))
+
+    call self%update_dXdt(self%Xtemp)
+
+    
+	!drhou/dt
+    dmdt =  self%dxdt(1,1,1) !(delta_t*Nvflux_ave)
+
+    !Verify that CV momentum is exactly conservative
+    conserved = totalflux-dmdt
+    
+	print'(a,11i8)','Error_sphere_mass', iter,irank,1,1,1, & 
+			 conserved, totalflux,dmdt,self%X(1,1,1)-self%X_minus_t(1,1,1), self%X(1,1,1),   & 
+			 self%X_minus_t(1,1,1)
+	check_ok = .false.
+    self%flux = 0
+    self%Xtemp = 0.d0
+    
+end subroutine check_error_sphere_mass
+
+
+
+
+! - - - - MOMENTUM - - - -
+
+
+!Check if interaction between molecules crosses CV
+subroutine Add_spherical_CV_forces(self,fij,ri,rj)
+    use librarymod, only : sphereCV
+	implicit none
+	
+    class(sphereObj_mom) :: self
+
+	real(kind(0.d0)),dimension(3),intent(in)	:: ri,rj,fij
+
+	!Add for molecule i
+	self%Pxy(1,1,1,1,:) = self%Pxy(1,1,1,1,:) + fij(:)*(sphereCV(rj,self%radius)-sphereCV(ri,self%radius))
+
+end subroutine Add_spherical_CV_forces
+
+!Check if molecule has crossed surface of CV
+subroutine Add_spherical_CV_fluxes(self,vi,ri,ri_tp1)
+    use librarymod, only : sphereCV
+	implicit none
+	
+    class(sphereObj_mom) :: self
+
+	real(kind(0.d0)),dimension(3),intent(in)	:: vi,ri,ri_tp1
+
+	!Add for molecule i
+	self%flux(1,1,1,1,:) = self%flux(1,1,1,1,:) + vi(:)*(sphereCV(ri_tp1,self%radius)-sphereCV(ri,self%radius))
+	
+	if (sphereCV(ri_tp1,self%radius)-sphereCV(ri,self%radius) .ne. 0.000) then
+	    print'(5f10.5)', sphereCV(ri_tp1,self%radius), sphereCV(ri,self%radius), vi(:)
+    endif
+
+end subroutine Add_spherical_CV_fluxes
+
+!Check if molecule is inside volume
+subroutine Add_spherical_CV_velocity(self,ri,vi)
+    use librarymod, only : sphereCV
+	implicit none
+	
+    class(sphereObj_mom) :: self
+
+	real(kind(0.d0)),dimension(3),intent(in)	:: ri,vi
+
+	!Add for molecule i
+	if (.not. allocated(self%Xtemp)) then
+	    allocate(self%Xtemp(1,1,1,3))
+	    self%Xtemp = 0.d0
+    endif
+	self%Xtemp(1,1,1,:) = self%Xtemp(1,1,1,:) + vi(:)*sphereCV(ri,self%radius)
+
+end subroutine Add_spherical_CV_velocity
+
+
+!Update time evolution and store previous two values
+subroutine update_dXdt_sphere_momentum(self, X)
+	implicit none
+	! initialize shape objects
+	class(sphereObj_mom) :: self
+
+	double precision,dimension(:,:,:,:),allocatable,intent(in) :: X
+
+	self%X_minus_t  = self%X
+	self%X 		  = X
 		
+	self%dXdt = self%X - self%X_minus_t
 
-	!end subroutine coarse_grain_CV_momentum
+end subroutine update_dXdt_sphere_momentum
+
+!Check error for specified range of bins
+subroutine check_error_sphere_momentum(self,imin,imax,jmin,jmax,kmin,kmax,iter,irank)
+	! initialize shape objects
+	use computational_constants_MD, only : domain,delta_t,Nvflux_ave
+	use calculated_properties_MD, only : nbins
+	implicit none
+
+	class(sphereObj_mom) :: self
+
+	integer,intent(in) :: iter,irank,imin,imax,jmin,jmax,kmin,kmax
+
+	logical							:: check_ok
+	integer 						:: i,j,k
+	integer,save 					:: first_time = 0
+	double precision				:: conserved
+	double precision,dimension(3)	:: binsize,totalpressure,totalflux,F_ext,dvelocitydt
+
+	!First call doesn't have difference in time yet so skip
+	if (first_time .lt. 2) then
+		first_time = first_time + 1
+		print'(a)', '                iter irank  i  j  k   conserved    Forces     fluxes      dvdt      Fext       v        vt-dt'
+		return
+	endif
+
+	check_ok = .true.
+
+    !Calculate total CV flux and change in mass
+    totalflux =self%flux(1,1,1,1,:)
+
+    !Totalpressure = totalpressure*delta_t
+    totalpressure =self%Pxy(1,1,1,1,:)
+	    
+    call self%update_dXdt(self%Xtemp)
+    self%Xtemp = 0.d0
+
+	!drhou/dt
+    dvelocitydt =  self%dxdt(1,1,1,:)/Nvflux_ave !(delta_t*Nvflux_ave)
+
+    !Verify that CV momentum is exactly conservative
+    conserved = sum(totalpressure-totalflux-dvelocitydt-F_ext)
+
+	print'(a,i8,4i4,7f11.5)','Error_sphere_mom', iter,irank,1,1,1, & 
+				 conserved, sum(totalpressure),-sum(totalflux),sum(dvelocitydt), & 
+			+sum(F_ext), sum(self%X(1,1,1,:)),   & 
+			 sum(self%X_minus_t(1,1,1,:))
+		check_ok = .false.
+
+end subroutine check_error_sphere_momentum
 
 
 end module CV_objects
-
 
 
 

@@ -95,7 +95,7 @@ subroutine simulation_checkrebuild(rebuild)
 		average_rb_count = average_rb_count + dble(rb_count)
 		rb_count = 0; total_rb = total_rb + 1
 		if (irank .eq. iroot) then
-			if (mod(total_rb,1000) .eq. 0) then	!Print rebuild stats every 1000 rebuilds
+			if (mod(total_rb,100) .eq. 0) then	!Print rebuild stats every 1000 rebuilds
 		   		!open(30,file=trim(prefix_dir)//'/results/rebuild_stats',access='append')
 				!write(30,'(a,i7,a,f10.5,a)'), 'Up to iteration ', iter, & 
 				!	' On average, rebuild happened every ', average_rb_count/total_rb, ' steps'

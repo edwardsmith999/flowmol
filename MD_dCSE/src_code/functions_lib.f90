@@ -303,22 +303,22 @@ end function cartesianisev
 !------------------------------------------------------------------------------
 ! Functions to switch between cartesian and spherical coords
 
-! function sphereiser(rin) result(rcp)
-! implicit none
+function sphereiser(rin) result(rcp)
+implicit none
 
-! 	real(kind(0.d0)), intent(in)  :: rin(3)
-! 	real(kind(0.d0))              :: rcp(3)
+    real(kind(0.d0)), intent(in)  :: rin(3)
+    real(kind(0.d0))              :: rcp(3)
 
-! 	real(kind(0.d0)) :: x,y,z
-! 	real(kind(0.d0)) :: pi=4.d0*atan(1.d0)
+    real(kind(0.d0)) :: x,y,z
+    real(kind(0.d0)) :: pi=4.d0*atan(1.d0)
 
-! 	x = rin(1); y = rin(2); z = rin(3)
+    x = rin(1); y = rin(2); z = rin(3)
 
-! 	rcp(1) = sqrt(x*x + y*y + z*z)
-! 	rcp(2) = modulo(acos(z,rcp(1)),2.d0*pi)
-! 	rcp(3) = modulo(atan2(y,x),2.d0*pi)	
+    rcp(1) = sqrt(x*x + y*y + z*z)
+    rcp(2) = modulo(acos(z/rcp(1)),2.d0*pi)
+    rcp(3) = atan2(y,x)
 
-! end function sphereiser
+end function sphereiser
 
 ! function sphere2cart(rin) result(rcp)
 ! implicit none
@@ -448,9 +448,22 @@ function dp_array_heaviside(x)
 
 end function dp_array_heaviside
 
-!Returns the heaviside function for input x -- interface at top
-!------------------------------------------------------------------------------
 
+function sphereCV(r,radius)
+
+	double precision,intent(in)					:: radius
+	double precision,dimension(3),intent(in)	:: r
+
+	double precision							:: sphereCV
+	double precision,dimension(3)				:: rs
+
+	!Convert to spherical coordinates
+	rs = sphereiser(r)
+
+	!Check vs spherical CV function
+	sphereCV = heaviside_a1(radius-rs(1))
+
+end function sphereCV
 
 !------------------------------------------------------------------------------
 ! Subroutine computes the intersection of a plane and a straight line
