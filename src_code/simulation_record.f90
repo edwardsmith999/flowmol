@@ -1792,7 +1792,7 @@ end subroutine simulation_compute_kinetic_VA_cells
 subroutine mass_flux_averaging(ixyz)
 	!use field_io, only : mass_flux_io
 	use module_record
-	use CV_objects, only : CVcheck_mass, CV_debug
+	use CV_objects, only : CVcheck_mass, CV_debug,CV_sphere_mass
 	implicit none
 
 	integer			:: ixyz
@@ -1804,9 +1804,12 @@ subroutine mass_flux_averaging(ixyz)
 	call cumulative_mass_flux
 	sample_count = sample_count + 1
 	if (sample_count .eq. Nmflux_ave) then
-		if (CV_debug) call CVcheck_mass%check_error(1+nhb(1),nbins(1)+nhb(1), & 
+		if (CV_debug) then
+		    call CVcheck_mass%check_error(1+nhb(1),nbins(1)+nhb(1), & 
 													1+nhb(2),nbins(2)+nhb(2), & 
 													1+nhb(3),nbins(3)+nhb(3),iter,irank)
+			call CV_sphere_mass%check_error(1,1,1,1,1,1,iter,irank)
+	    endif
 		call mass_flux_io
 		sample_count = 0
 		mass_flux = 0
@@ -1815,55 +1818,6 @@ subroutine mass_flux_averaging(ixyz)
 
 end subroutine mass_flux_averaging
 
-
-!===================================================================================
-! Mass Flux over a surface of a bin -- only single crossings assumed
-
-!subroutine cumulative_mass_flux
-!	use module_record
-!	implicit none
-
-!	integer							:: ixyz, n
-!	integer		,dimension(3)		:: ibin1,ibin2,crossplane
-!	double precision,dimension(3)	:: mbinsize, ri1, ri2
-
-	!Determine bin size
-!	mbinsize(:) = domain(:) / nbins(:)
-
-!	do n = 1,np
-
-!		ri1(:) = r(:,n) 							!Molecule i at time t
-!		ri2(:) = r(:,n)	-delta_t*v(:,n)				!Molecule i at time t-dt
-
-		!Assign to bins before and after using integer division
-!		ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:)) + nhb
-!		ibin2(:) = ceiling((ri2+halfdomain(:))/mbinsize(:)) + nhb
-
-		!Replace Signum function with this functions which gives a
-		!check for plane crossing and the correct sign 
-!		crossplane(:) =  ibin1(:) - ibin2(:)
-
-!		if (sum(abs(crossplane(:))) .ne. 0) then
-
-			!Find which direction the surface is crossed
-			!For simplicity, if more than one surface has been crossed surface fluxes of intermediate cells
-			!are not included. This assumption => more reasonable as Delta_t => 0 or Delta_r => ∞
-			!imaxloc = maxloc(abs(crossplane))
-!			ixyz = imaxloc(abs(crossplane))
-
-			!Add mass flux to the new bin surface count and take from the old
-!			mass_flux(ibin1(1),ibin1(2),ibin1(3),ixyz+3*heaviside(-dble(crossplane(ixyz)))) = & 
-!				mass_flux(ibin1(1),ibin1(2),ibin1(3),ixyz+3*heaviside(-dble(crossplane(ixyz)))) & 
-!					+ abs(crossplane(ixyz))
-!			mass_flux(ibin2(1),ibin2(2),ibin2(3),ixyz+3*heaviside(dble(crossplane(ixyz)))) = & 
-!				mass_flux(ibin2(1),ibin2(2),ibin2(3),ixyz+3*heaviside(dble(crossplane(ixyz)))) &
-!					- abs(crossplane(ixyz))
-!		endif
-
-!	enddo
-
-!end subroutine cumulative_mass_flux
-
 !===================================================================================
 ! Mass Flux over a surface of a bin
 ! Includes all intermediate bins
@@ -1871,6 +1825,7 @@ end subroutine mass_flux_averaging
 subroutine cumulative_mass_flux
 	use module_record
     use librarymod, only : imaxloc, heaviside => heaviside_a1
+    use CV_objects, only : CV_sphere_mass
     implicit none
 
 	integer							:: jxyz,i,j,k,n
@@ -1888,6 +1843,8 @@ subroutine cumulative_mass_flux
 		ri2(:) = r(:,n)	- delta_t*v(:,n)			!Molecule i at time t-dt
 		ri12   = ri1 - ri2							!Molecule i trajectory between t-dt and t
 		where (ri12 .eq. 0.d0) ri12 = 0.000001d0
+		
+		call CV_sphere_mass%Add_spherical_CV_fluxes(ri1,ri2)
 
 		!Assign to bins before and after using integer division
 		ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:)) + nhb(:)
@@ -1987,6 +1944,7 @@ subroutine cumulative_mass_flux
 				mass_flux(cbin(1),cbin(2),cbin(3),6) = & 
 					mass_flux(cbin(1),cbin(2),cbin(3),6) &
 				      - nint(dble(onfacezt)*abs(crossface(jxyz)))
+				      
 
 				!if (onfacexb .ne. 0) print*, n, i,j,k,ibin1,ibin2,bintop,halfdomain
 
@@ -2010,7 +1968,7 @@ end subroutine cumulative_mass_flux
 subroutine mass_snapshot
 	use module_record
 	use field_io, only : mass_bin_io
-	use CV_objects, only : CVcheck_mass, CV_debug
+	use CV_objects, only : CVcheck_mass, CV_debug, CV_sphere_mass
 	implicit none
 
 	integer										:: n
@@ -2030,13 +1988,15 @@ subroutine mass_snapshot
 		!Add up current volume momentum densities
 		ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
 		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = volume_mass_temp(ibin(1),ibin(2),ibin(3)) + 1
+		call  CV_sphere_mass%Add_spherical_CV_mass(r(:,n))
 	enddo
 
 	!Output Control Volume momentum change and fluxes
 	call mass_bin_io(volume_mass_temp,'snap')
 	!Create copy of previous timestep Control Volume mass and calculate time evolution
 	if (CV_debug) then
-		call CVcheck_mass%update_dXdt(volume_mass_temp(:,:,:))
+		call CVcheck_mass%update_dXdt(volume_mass_temp)
+		call CV_sphere_mass%update_dXdt(CV_sphere_mass%Xtemp)
 	endif
 
 	deallocate(volume_mass_temp)
@@ -2052,7 +2012,7 @@ subroutine momentum_flux_averaging(ixyz)
 	!use field_io, only :  momentum_flux_io,surface_stress_io, & 
 	!					  external_force_io,MOP_stress_io
 	use module_record
-	use CV_objects, only : CV_debug, CVcheck_momentum
+	use CV_objects, only : CV_debug, CVcheck_momentum, CV_sphere_momentum
 	implicit none
 
 	integer				:: ixyz,icell,jcell,kcell
@@ -2092,9 +2052,13 @@ subroutine momentum_flux_averaging(ixyz)
 		call surface_stress_io
 		Pxyface = 0.d0
 		!Debug flag to check CV conservation in code
-		if (CV_debug) call CVcheck_momentum%check_error(1+nhb(1),nbins(1)+nhb(1), & 
-														1+nhb(2),nbins(2)+nhb(2), & 
-														1+nhb(3),nbins(3)+nhb(3),iter,irank)
+		if (CV_debug) then
+		    call CVcheck_momentum%check_error(1+nhb(1),nbins(1)+nhb(1), & 
+											  1+nhb(2),nbins(2)+nhb(2), & 
+											  1+nhb(3),nbins(3)+nhb(3),iter,irank)
+	        !call CV_sphere_momentum%check_error(1,1,1,1,1,1,iter,irank)
+	        CV_sphere_momentum%flux = 0.d0; CV_sphere_momentum%Pxy = 0.d0;
+	   endif
 	endif
 
 end subroutine momentum_flux_averaging
@@ -2104,7 +2068,7 @@ end subroutine momentum_flux_averaging
 
 subroutine cumulative_momentum_flux(ixyz)
 	use module_record
-	use CV_objects, only : CV_debug, CVcheck_momentum2
+	use CV_objects, only : CV_debug, CVcheck_momentum2, CV_sphere_momentum
     use librarymod, only : imaxloc, heaviside => heaviside_a1
 	implicit none
 
@@ -2292,7 +2256,9 @@ subroutine cumulative_momentum_flux(ixyz)
     					      + velvect(:)*dble(onfaceyt)*abs(crossface(jxyz))
     					CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,6) = & 
     						CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,6)  & 
-    					      + velvect(:)*dble(onfacezt)*abs(crossface(jxyz))			
+    					      + velvect(:)*dble(onfacezt)*abs(crossface(jxyz))
+    					      
+    					call CV_sphere_momentum%Add_spherical_CV_fluxes(velvect,ri1,ri2)
 					endif
 
 				enddo
@@ -2314,6 +2280,7 @@ end subroutine cumulative_momentum_flux
 subroutine momentum_snapshot
 	use field_io, only : velocity_bin_io
 	use module_record
+	use CV_objects, only : CV_sphere_momentum
 	implicit none
 
 	integer											:: n
@@ -2337,6 +2304,8 @@ subroutine momentum_snapshot
 		ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
 		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = volume_mass_temp(ibin(1),ibin(2),ibin(3)) + 1
 		volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) = volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) + v(:,n)
+		
+		call CV_sphere_momentum%Add_spherical_CV_velocity(r(:,n),v(:,n))
 	enddo
 	binvolume = (domain(1)/nbins(1))*(domain(2)/nbins(2))*(domain(3)/nbins(3))
 	volume_momentum_temp = volume_momentum_temp/binvolume
