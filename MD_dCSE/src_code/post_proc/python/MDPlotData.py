@@ -190,8 +190,9 @@ class MD_PlotData():
 
 
     def get_vfield_energy_spectra(self, meanaxes, component, minrec, maxrec,
-                                  tavg_rec, binlimits=None, fftaxes=None,
-                                  ffttime=False, savefile=None):
+                                  tavg_rec, binlimits=None, fftaxis=None,
+                                  ffttime=False, savefile=None, 
+                                  verify_Parseval=False):
 
         class vfield_spectra:
 
@@ -208,6 +209,10 @@ class MD_PlotData():
                 # Local copy of which axes represent real space (each entry is
                 # "popped" out when reduced (see self.axesreduced)
                 self.realspacepopped = [True]*5
+                # Normalisation factor, initialise to one
+                self.N = 1.0
+                # Initialise windowed to be False
+                self.windowed = False
 
             def markaxisfourierspace(self,axis):
                 newaxis = int(axis - np.sum(self.axesreduced[:axis]))
@@ -275,11 +280,23 @@ class MD_PlotData():
 
                 self.markaxisreduced(4)
 
-            def fft(self,fftaxis,window=False):
+            def apply_time_window(self):
 
-                def apply_window(a):
+                def window_axis_function(a):
                     a = a * self.window
                     return a
+
+                timeaxis = 3
+                newaxis = timeaxis - np.sum(self.axesreduced[:timeaxis])
+
+                N = self.v_ts.shape[newaxis]
+                self.window = np.hanning(N)
+                self.wss = np.sum(self.window**2.0)/N
+                np.apply_along_axis(window_axis_function,newaxis,self.v_ts)        
+
+                self.windowed = True
+
+            def fft(self,fftaxis,window=False):
 
                 if (self.axesreduced[fftaxis]):
                     print('You\'re trying to FFT over an axis that is ' +
@@ -288,18 +305,14 @@ class MD_PlotData():
 
                 newaxis = fftaxis - np.sum(self.axesreduced[:fftaxis])
 
-                if (window == True):
-                    N = self.v_ts.shape[newaxis]
-                    self.window = np.hanning(N)
-                    self.wss = np.sum(self.window**2.0)/N
-                    np.apply_along_axis(apply_window,newaxis,self.v_ts)        
-
                 # Perform FFT
                 self.v_ts = np.fft.fft(self.v_ts,axis=newaxis)
+                self.N = self.N * self.v_ts.shape[newaxis]
+
                 # Mark axis as no longer representing real space
                 self.markaxisfourierspace(fftaxis) 
 
-            def set_energyfield(self,window=False):
+            def set_energyfield(self):
 
                 # Work out which axes we can average over (i.e. any that we
                 # haven't Fourier transformed)
@@ -307,12 +320,13 @@ class MD_PlotData():
 
                 # Energy field
                 self.E = np.abs(self.v_ts)**2.0
-        
-                if (window == True):
+
+                if (self.windowed == True):
                     self.E = self.E / self.wss 
 
                 # Average remaining dimensions
-                self.E = np.mean(self.E,axis=tuple(axes))
+                #self.E = np.mean(self.E,axis=tuple(axes))
+                self.E = np.sum(self.E,axis=tuple(axes))
 
                 # Delete duplicate parts of the energy spectrum and double
                 # energy contributions of middle wavenumbers
@@ -325,32 +339,40 @@ class MD_PlotData():
         self.vDataObj = VBins(self.fdir,cpol_bins=self.cpol_bins)    
         # Create spectra calculating object
         VField = vfield_spectra(self.vDataObj)
-
         # Read the time series of the velocity field desired
         VField.populate_timeseries(minrec,maxrec,tavg_rec,meanaxes)
         # Extract the cartesian component we are interested in
         VField.extract_component(component)
+        # Apply window if we're going to fft over time axis
+        if (ffttime):
+            VField.apply_time_window()
+
+        # If we want to verify P's thm, store real space energy
+        if (verify_Parseval):
+            Esumreal = np.sum(np.abs(VField.v_ts)**2.0)
 
         # FFT in space or time depending on input to function, and 
         # calculate power spectra.
-        if (fftaxes != None):
-            VField.fft(fftaxes)
+        if (fftaxis):
+            VField.fft(fftaxis)
+        if (ffttime):
+            timeaxis = 3
+            VField.fft(timeaxis)
 
-        if (ffttime != False):
-            window = True
-            VField.fft(3,window=True)
-        else:
-            window = False
+        # If we want to verify P's thm, store Fourier space energy
+        # (before we undo the window)
+        if (verify_Parseval):
+            Esumfft = np.sum(np.abs(VField.v_ts)**2.0)/VField.N
+            ratio = abs(Esumreal - Esumfft)/Esumreal 
+            perc = (1. - ratio)*100.
+            print('Parseval thm (discounting window): ' + "%5.2f"%perc + '%')
 
         # Set the energy field
-        VField.set_energyfield(window=window)
+        VField.set_energyfield()
 
-        # Store number of spectral points
-        N = np.product(VField.E.shape)
-        
         if (savefile):
            with open(savefile,'w') as f:
-                f.write(VField.E/N)
+                f.write(VField.E/VField.N)
     
         # Return energy field (don't normalise yet)
-        return VField.E/N
+        return VField.E/VField.N
