@@ -1,6 +1,7 @@
 #! /usr/bin/env/ python
 import os
 import re
+import sys
 import shutil as sh
 
 def ConcatenateResults(fdir,cleanup=False):
@@ -45,7 +46,8 @@ def ConcatenateResults(fdir,cleanup=False):
             recf.close()
 
             # Delete record file
-            if (cleanup) os.remove(fdir+filename)
+            if (cleanup):
+                os.remove(fdir+filename)
 
         catf.close()
 
@@ -64,3 +66,25 @@ def DismemberResults(filepath, recbytes):
   
     victim.close() 
     os.remove(filepath)
+
+
+##################
+
+
+for arg in sys.argv[1:]:
+
+    if (arg == '-c'):
+        ix = sys.argv.index(arg)
+        fdir = sys.argv[ix+1]
+        if ('--cleanup' in sys.argv
+            or '-cleanup' in sys.argv):
+            cleanup = True
+        else:
+            cleanup = False
+        ConcatenateResults(fdir,cleanup=cleanup)
+
+    elif (arg == '-d'):
+        ix = sys.argv.index(arg)
+        fdir = sys.argv[ix+1]
+        recbytes = sys.argv[ix+2]
+        DismemberResults(fdir,recbytes)
