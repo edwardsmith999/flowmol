@@ -49,7 +49,7 @@ class MD_PlotData():
         V = V.transpose()
         return X, Y, U, V
 
-    def get_vslice_plot_args(self,axis,minrec,maxrec):
+    def get_vslice_plot_args(self,axis,minrec,maxrec,binlimits=None):
 
         # Get which axes to average over
         sumaxes = []    
@@ -60,7 +60,8 @@ class MD_PlotData():
         # Instantiate velocity data object
         vData = VBins(self.fdir,cpol_bins=self.cpol_bins)
         # Get 3D velocity field in 3D bins
-        vslice, binspaces = vData.get_field(minrec,maxrec,sumaxes=sumaxes)
+        vslice, binspaces = vData.get_field(minrec,maxrec,sumaxes=sumaxes,
+                                            binlimits=binlimits)
     
         return binspaces[axis], vslice
 
@@ -194,6 +195,20 @@ class MD_PlotData():
                                   ffttime=False, savefile=None, 
                                   verify_Parseval=False):
 
+        """
+            meanaxes - tuple (pre-fft avg axes)
+            component - integer (velocity component/direction)
+            minrec - integer
+            maxrec - integer
+            tavg_rec - integer (running average width in records)
+            binlimits - [(min,max),(),()] (only pull data from certain bins
+            fftaxis - integer
+            ffttime - bool
+            savefile - string
+            verify_Parseval - bool
+
+        """
+
         class vfield_spectra:
 
             def __init__(self,DataObj):
@@ -209,7 +224,7 @@ class MD_PlotData():
                 # Local copy of which axes represent real space (each entry is
                 # "popped" out when reduced (see self.axesreduced)
                 self.realspacepopped = [True]*5
-                # Normalisation factor, initialise to one
+                # Energy normalisation factor, initialise to one
                 self.N = 1.0
                 # Initialise windowed to be False
                 self.windowed = False
@@ -277,7 +292,6 @@ class MD_PlotData():
 
                 # Collapse final dimension (which is only of length 1 anyway)
                 self.v_ts = np.reshape(self.v_ts,self.v_ts.shape[:-1])
-
                 self.markaxisreduced(4)
 
             def apply_time_window(self):
@@ -291,9 +305,12 @@ class MD_PlotData():
 
                 N = self.v_ts.shape[newaxis]
                 self.window = np.hanning(N)
-                self.wss = np.sum(self.window**2.0)/N
-                np.apply_along_axis(window_axis_function,newaxis,self.v_ts)        
 
+                # Save "window summed and squared" (see Numerical Recipes)
+                self.wss = np.sum(self.window**2.0)/N
+
+                # Apply window
+                np.apply_along_axis(window_axis_function,newaxis,self.v_ts)        
                 self.windowed = True
 
             def fft(self,fftaxis,window=False):
@@ -354,7 +371,15 @@ class MD_PlotData():
         # FFT in space or time depending on input to function, and 
         # calculate power spectra.
         if (fftaxis):
-            VField.fft(fftaxis)
+            # Override fftaxis to be a tuple if possible
+            if (not isinstance(fftaxis,tuple)):
+                try:
+                    fftaxis = tuple([fftaxis,]) 
+                except:
+                    print('Failed to make fftaxis a tuple')
+            for axis in fftaxis:
+                VField.fft(axis)
+
         if (ffttime):
             timeaxis = 3
             VField.fft(timeaxis)
