@@ -761,8 +761,7 @@ end subroutine simulation_apply_constant_force
 ! Routine to test flux calculations agree by various methods
 
 subroutine apply_CV_force(iter)
-	use control_volume
-	use computational_constants_MD, only : irank, jblock, npy, globaldomain, CVforce_flag, Nsteps
+	use computational_constants_MD, only : irank, jblock, npy, globaldomain, CVforce_flag, VOID,  Nsteps
 	use calculated_properties_MD, only : pressure, nbins
 	use librarymod, only : get_new_fileunit
 	use module_external_forces, only : np, momentum_flux, irank,nbins, nbinso,domain,delta_t,Nvflux_ave
@@ -780,6 +779,8 @@ subroutine apply_CV_force(iter)
 	real(kind(0.d0)),dimension(3)	:: binsize,MD_Pi_dS,MD_rhouu_dS,F_constraint
 	real(kind(0.d0)),dimension(3)	:: u_bin,F_bin,u_bin1, u_bin2, F_bin1, F_bin2
 	real(kind(0.d0)),dimension(3)	:: CFD_Pi_dS,CFD_rhouu_dS
+
+	if (CVforce_flag .eq. VOID) return
 
 	!Test case focuses on a single CV
 	binsize = domain/nbins
@@ -1062,7 +1063,7 @@ end subroutine apply_CV_force
 
 
 !----------------------------------------------------------------------------------
-! Set velocity of a reange of bins to prescribed value
+! Set velocity of a range of bins to prescribed value
 
 subroutine set_bin_velocity(imin, imax, jmin, jmax, kmin, kmax, velocity)
 	use linked_list, only : cell, node

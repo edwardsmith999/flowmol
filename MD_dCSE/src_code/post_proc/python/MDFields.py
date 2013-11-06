@@ -313,7 +313,7 @@ class VBins():
 # Temperature field
 class TBins():
 
-    def __init__(self,fdir,cpol_bins):
+    def __init__(self,fdir,cpol_bins=False):
         self.mdata = MassBins(fdir,cpol_bins)
         self.pdata = MomBins(fdir,cpol_bins)
         self.KEdata = KEBins(fdir,cpol_bins)

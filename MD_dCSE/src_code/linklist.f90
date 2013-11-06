@@ -1417,12 +1417,6 @@ subroutine sort_mols
 				call read_tag(n)
 			enddo
 		endif
-		!if (rtrue_flag.eq.1) then
-		!	rtrue(:,start:finish) = rtruetemp(:,start:finish,i)
-		!endif
-		!do n =start,finish
-		!	print*, 'af',n, r(:,n)
-		!enddo
 		start = start + molperblock(i)
 	enddo
 

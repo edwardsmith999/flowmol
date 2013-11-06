@@ -389,7 +389,7 @@ subroutine tether_force(molno)
 
 	integer                        :: molno
 	double precision               :: acctmag
-	double precision, dimension(3) :: at, rio
+	double precision, dimension(3) :: at,mat, rio
 
 	!COEFFICIENTS MOVED TO INPUT FILE
 	!Define strength of tethering potential ~ phi= k2*rio^2 
@@ -418,7 +418,8 @@ subroutine tether_force(molno)
 	!Add tethered force to stress calculation
 	if (vflux_outflag .eq. 4) then
 		if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
-			call record_external_forces(-at(:),r(:,molno))
+ 			mat = -at
+			call record_external_forces(mat(:),r(:,molno))
 			! There was a time when I though that the CV conservation would require interactions
 			! which cross the surface. However, it appears this is not the case...
 			!call control_volume_stresses(at(:),r(:,molno),rtether(:,molno),molno)
