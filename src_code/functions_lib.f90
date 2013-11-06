@@ -315,10 +315,69 @@ implicit none
     x = rin(1); y = rin(2); z = rin(3)
 
     rcp(1) = sqrt(x*x + y*y + z*z)
-    rcp(2) = modulo(acos(z/rcp(1)),2.d0*pi)
-    rcp(3) = atan2(y,x)
+	if (rcp(1) .lt. 0.00000001d0) then 
+		rcp = 0.d0
+		return
+	endif
+    rcp(2) = modulo(atan2(y,x),2.d0*pi)
+	if (z/rcp(1) .eq. -1.d0) then
+		rcp(3) = pi
+	else
+    	rcp(3) = modulo(acos(z/rcp(1)),pi)
+	end if
 
 end function sphereiser
+
+function sphereisev(vcart,theta,phi) result(vpol)
+	implicit none
+
+	real(kind(0.d0)), intent(in) :: vcart(3), theta, phi
+	real(kind(0.d0)) :: R(3,3), vpol(3)
+
+	! Rotation matrix for cylindrical polar. Fortran has column-major
+	! ordering so we need to transpose what we "see" below.
+	R = transpose(reshape((/cos(theta)*sin(phi), sin(theta)*sin(phi), cos(phi), &
+	                       -sin(theta)         , cos(theta)	        , 0.d0,		&
+	                       cos(theta)*cos(phi) , sin(theta)*cos(phi), -sin(phi)/), (/3,3/)))
+
+
+	! vpol = R * Tcart * transpose(R)
+	vpol = matmul(R, vcart)
+	
+end function sphereisev
+
+! function sphereisev(rin,vin) result(vs)
+! 	implicit none
+
+! 	real(kind(0.d0)), intent(in) :: rin(3),vin(3)
+! 	real(kind(0.d0)) :: vs(3), x2y2, x2y2z2
+
+! 	x2y2 = rin(1)*vin(1) + rin(2)*vin(2) 
+! 	x2y2z2 = x2y2 + rin(3)*vin(3)
+
+! 	vs(1) = (rin(1)*vin(1) + rin(2)*vin(2) + rin(3)*vin(3))/sqrt(x2y2z2)
+! 	vs(2) = (rin(1)*vin(2) - rin(2)*vin(1))/x2y2
+! 	vs(3) = (rin(3)*(rin(1)*vin(1) + rin(2)*vin(2))-x2y2*vin(3))/ &
+! 			x2y2z2*sqrt(x2y2)
+
+! end function sphereisev
+
+
+
+
+! function jacobian(theta,phi) result(vs)
+! 	implicit none
+
+! 	real(kind(0.d0)), intent(in) :: theta, phi
+! 	real(kind(0.d0)) 			 :: vs(3,3)
+
+! 	vs(1,:) = (/ sin(theta)*cos(phi), + sin(theta)*sin(phi), + cos(theta) /)
+! 	vs(2,:) = (/ cos(theta)*sin(phi), + cos(theta)*sin(phi), - sin(theta) /)
+! 	vs(3,:) = (/      -sin(phi),            + cos(phi),          0.d0     /)
+
+! end function jacobian
+
+
 
 ! function sphere2cart(rin) result(rcp)
 ! implicit none
@@ -1394,7 +1453,12 @@ function PDF_normalise(self)
 	call integrate_trap(PDF_normalise,self%binsize,self%nbins,normalise_factor)
 
 	!Normalise PDF by area
-	PDF_normalise  = PDF_normalise/normalise_factor
+	if (normalise_factor .gt. 0.00000001d0) then
+		PDF_normalise  = PDF_normalise/normalise_factor
+	else
+		print*, 'Warning - PDF_normalise: area under PDF is zero'
+		PDF_normalise  = 0.d0
+	endif
 
 end function PDF_normalise
 

@@ -108,7 +108,7 @@ contains
 	! 		Leapfrom integration routines
 	subroutine md_advance_lfv
 		implicit none
-	
+
 		call simulation_compute_forces         !Calculate forces on particles	
 		call simulation_record                 !Evaluate & write properties
 
@@ -118,7 +118,7 @@ contains
 		call average_and_send_MD_to_CFD(iter)  ! MD=>CFD Calculate averages of MD to pass to CFD
 #else
 		!call apply_flekkoy_test
-		if (CV_debug) call apply_CV_force(iter)
+		call apply_CV_force(iter)
 		call apply_boundary_force
 #endif
 

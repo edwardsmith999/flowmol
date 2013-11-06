@@ -938,7 +938,7 @@ subroutine set_parameters_outputs
 				call CVcheck_momentum%initialise(nbinso)   ! initialize CVcheck
 				call CVcheck_momentum2%initialise(nbinso)   ! initialize CVcheck
 				call CV_sphere_mass%initialise((/1,1,1/))	
-				call CV_sphere_momentum%initialise((/1,1,1/))	
+				call CV_sphere_momentum%initialise_sphere((/1,1,1/),collect_spherical=.false.)	
 			endif
 			!Allocate bins for control volume mass fluxes
 			if (.not.(allocated(volume_mass)))  allocate(volume_mass(nbinso(1),nbinso(2),nbinso(3)))

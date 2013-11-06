@@ -1806,8 +1806,8 @@ subroutine mass_flux_averaging(ixyz)
 	if (sample_count .eq. Nmflux_ave) then
 		if (CV_debug) then
 		    call CVcheck_mass%check_error(1+nhb(1),nbins(1)+nhb(1), & 
-													1+nhb(2),nbins(2)+nhb(2), & 
-													1+nhb(3),nbins(3)+nhb(3),iter,irank)
+										  1+nhb(2),nbins(2)+nhb(2), & 
+										  1+nhb(3),nbins(3)+nhb(3),iter,irank)
 			call CV_sphere_mass%check_error(1,1,1,1,1,1,iter,irank)
 	    endif
 		call mass_flux_io
@@ -1844,7 +1844,7 @@ subroutine cumulative_mass_flux
 		ri12   = ri1 - ri2							!Molecule i trajectory between t-dt and t
 		where (ri12 .eq. 0.d0) ri12 = 0.000001d0
 		
-		call CV_sphere_mass%Add_spherical_CV_fluxes(ri1,ri2)
+		call CV_sphere_mass%Add_spherical_CV_fluxes(ri2,ri1)
 
 		!Assign to bins before and after using integer division
 		ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:)) + nhb(:)
@@ -2056,8 +2056,7 @@ subroutine momentum_flux_averaging(ixyz)
 		    call CVcheck_momentum%check_error(1+nhb(1),nbins(1)+nhb(1), & 
 											  1+nhb(2),nbins(2)+nhb(2), & 
 											  1+nhb(3),nbins(3)+nhb(3),iter,irank)
-	        !call CV_sphere_momentum%check_error(1,1,1,1,1,1,iter,irank)
-	        CV_sphere_momentum%flux = 0.d0; CV_sphere_momentum%Pxy = 0.d0;
+	        call CV_sphere_momentum%check_error(1,1,1,1,1,1,iter,irank)
 	   endif
 	endif
 
@@ -2131,6 +2130,8 @@ subroutine cumulative_momentum_flux(ixyz)
 			ri2(:) = r(:,n)	- delta_t*velvect			!Molecule i at time t-dt
 			ri12   = ri1 - ri2							!Molecule i trajectory between t-dt and t
 			where (ri12 .eq. 0.d0) ri12 = 0.000001d0
+
+			call CV_sphere_momentum%Add_spherical_CV_fluxes(velvect,ri2,ri1)
 
 			!Assign to bins before and after using integer division
 			ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:)) + nhb(:)
@@ -2257,8 +2258,7 @@ subroutine cumulative_momentum_flux(ixyz)
     					CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,6) = & 
     						CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,6)  & 
     					      + velvect(:)*dble(onfacezt)*abs(crossface(jxyz))
-    					      
-    					call CV_sphere_momentum%Add_spherical_CV_fluxes(velvect,ri1,ri2)
+    					    
 					endif
 
 				enddo
@@ -2304,7 +2304,6 @@ subroutine momentum_snapshot
 		ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
 		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = volume_mass_temp(ibin(1),ibin(2),ibin(3)) + 1
 		volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) = volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) + v(:,n)
-		
 		call CV_sphere_momentum%Add_spherical_CV_velocity(r(:,n),v(:,n))
 	enddo
 	binvolume = (domain(1)/nbins(1))*(domain(2)/nbins(2))*(domain(3)/nbins(3))

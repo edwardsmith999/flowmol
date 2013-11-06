@@ -30,8 +30,11 @@ subroutine setup_read_input
 	! Open input file
 	open(1,file=input_file)
 
+	!Simulation ensemble choice
 	call locate(1,'ENSEMBLE',.true.)
 	read(1,*) ensemble
+
+	!Setup initial configuration
 	call locate(1,'INITIAL_CONFIG_FLAG',.true.)
 	read(1,*) initial_config_flag 
 	select case (initial_config_flag)
@@ -179,8 +182,32 @@ subroutine setup_read_input
 		call error_abort("ERROR -- Unrecognised initial_config_flag")
 	end select 
 
+	!Read in initial temperature
 	call locate(1,'INPUTTEMPERATURE',.true.)
 	read(1,*) inputtemperature
+
+	!Setup velocity initial condition
+	call locate(1,'INITIAL_VELOCITY_FLAG',.false.,found_in_input) 
+	if (found_in_input) then
+		read(1,*) initial_velocity_flag 
+   		read(1,*) velocity_special_case	
+   		select case (trim(velocity_special_case	))
+   		case('debug')
+   			call setup_initialise_velocities_test
+   		case('taylor_green')
+   			call setup_initialise_velocities_TG
+   		case('dns')
+	   		read(1,*) DNS_filename
+	   		read(1,*) DNS_ngx
+	   		read(1,*) DNS_ngy
+	   		read(1,*) DNS_ngz
+   		case default
+   			call error_abort('Unidentified initial velocities_special_case')	
+   		end select
+	else
+		initial_velocity_flag = 0
+	endif
+
 	call locate(1,'INTEGRATION_ALGORITHM',.true.)
 	read(1,*) integration_algorithm
 	call locate(1,'FORCE_LIST',.true.)	!LJ or FENE potential
@@ -588,6 +615,8 @@ subroutine setup_read_input
 	cv_conserve = 0
 	if (found_in_input) then
 		read(1,* ) cv_conserve
+		read(1,*,iostat=ios) CV_debug
+		if (ios .ne. 0) VA_calcmethod = .false.
 	endif
 	call locate(1,'MFLUX_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
@@ -656,9 +685,9 @@ subroutine setup_read_input
 
 	call locate(1,'CV_FORCES',.false.,found_in_input)
 	if (found_in_input) then
-		read(1,*) CV_debug
 		read(1,*) CVforce_flag
-		if (CV_debug) then
+		if (CVforce_flag .ne. VOID) then
+			if (CV_debug) call error_abort("Input ERROR -- CV_FORCES true so CV_debug should be set to true")
 			if (vflux_outflag .ne. 4) call error_abort("Input ERROR -- CV_FORCES .true. but VFLUX_OUTFLAG not set to 4 (CV averages)")
 		endif
 	endif

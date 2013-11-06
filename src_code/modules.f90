@@ -36,6 +36,9 @@ end module physical_constants_MD
 ! Constants used to determine the computational parameters of the simulation
 module computational_constants_MD
 
+	!VOID value for data initialisation
+ 	integer, parameter :: VOID=-666			
+
 	!Command-line arguments
 	logical					:: restart
 	character(len=200) 		:: input_file, initial_microstate_file
@@ -89,10 +92,15 @@ module computational_constants_MD
 		tag_move    = 6
 
 	!Initial configuration selection
-	integer            :: initial_config_flag
-	character(len=128) :: config_special_case
-
+	integer           	:: initial_config_flag
+	character(len=128)	:: config_special_case
 	double precision	:: liquid_density	!Density of liquid if solid/liquid case used
+
+	!Initial velocity selection
+	integer           	:: initial_velocity_flag
+	character(len=128)	:: velocity_special_case
+	character(len=128)	:: DNS_filename
+	integer           	:: DNS_ngx,DNS_ngy,DNS_ngz
 
 	!Write a separate file for each timestep
 	logical ::	separate_outfiles = .false.
@@ -120,7 +128,7 @@ module computational_constants_MD
 		pass_vhalo = 0, &
 		fixed_rebuild_flag, &		!Fixed rebuild flag
 		peculiar_flag, &	 			!Take streaming velocity away from temperature 	
-		CVforce_flag = 0
+		CVforce_flag = VOID
 
 	!Add debugging CV flags
 	logical	:: CV_debug=.false.

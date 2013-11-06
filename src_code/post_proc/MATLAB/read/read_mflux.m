@@ -50,6 +50,9 @@ bytes = 4; %Integers
 if (exist('read_time'))     % - - Read single time- -
 
     %Load read_time mass flux CV data
+    if (exist('gnbins','var') == 0)
+        gnbins = nbins;
+    end
     datasize = gnbins(1)*gnbins(2)*gnbins(3)*Ncubeface;
     fseek(fid_mflux, bytes*datasize*read_time, 'bof');
     mflux = fread(fid_mflux,datasize,'int32');
