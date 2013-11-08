@@ -322,9 +322,11 @@ end subroutine decode_tag
 subroutine read_tag(molno)
 	use interfaces
 	use module_molecule_properties
+    use messenger, only : globalise
 	implicit none
 
 	integer :: molno
+    !real(kind(0.d0))   :: r_global(3)
 
 	if (ensemble .eq. tag_move) then
 
@@ -341,7 +343,8 @@ subroutine read_tag(molno)
 		case (fixed_slide)
 			!Fixed with constant sliding speed
 			fix(:,molno) = 0
-			slidev(:,molno) = wallslidev
+			!r_global = globalise(r(:,molno))
+			slidev(:,molno) = wallslidev!*sign(1.d0,r_global(2))
 		case (teth)
 			!Tethered molecules unfixed with no sliding velocity
 			fix(:,molno) = 1
@@ -357,11 +360,13 @@ subroutine read_tag(molno)
 		case (teth_slide)
 			!Tethered molecules with sliding velocity
 			fix(:,molno) = 1
-			slidev(:,molno) = wallslidev
+			!r_global = globalise(r(:,molno))
+			slidev(:,molno) = wallslidev!*sign(1.d0,r_global(2))
 		case (teth_thermo_slide)
 			!Thermostatted Tethered molecules unfixed with sliding velocity
 			fix(:,molno) = 1
-			slidev(:,molno) = wallslidev
+			!r_global = globalise(r(:,molno))
+			slidev(:,molno) = wallslidev!*sign(1.d0,r_global(2))
 		case (PUT_thermo)
 			!Profile unbiased thermostat (Nose-Hoover)
 			fix(:,molno) = 1

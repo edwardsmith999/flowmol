@@ -1576,6 +1576,48 @@ subroutine PDF_destroy(self)
 
 end subroutine PDF_destroy
 
+
+!Read input file from the DNS codes
+
+subroutine read_DNS_velocity_files(filename,ngx,ngy,ngz,uc,vc,wc)
+    use interfaces, only : error_abort
+	implicit none
+
+	integer,intent(in)		:: ngx, ngy, ngz
+	character(*),intent(in)	:: filename
+	double precision, dimension(:,:,:),allocatable, intent(out)	:: uc, vc, wc
+
+	integer					::  ifieldlength, file_size, unitno
+
+	allocate(uc(ngz+1,ngx+2,ngy+1))
+	allocate(vc(ngz+1,ngx+1,ngy+2))
+	allocate(wc(ngz+2,ngx+1,ngy+1))
+
+	!Get size of data unit
+	inquire(iolength=ifieldlength) uc(1,1,1)
+	ifieldlength = 4*ifieldlength*(  (ngz+1)*(ngx+2)*(ngy+1) &
+									+(ngz+1)*(ngx+1)*(ngy+2) &
+									+(ngz+2)*(ngx+1)*(ngy+1)  )
+
+	!Get size of file and check
+	call get_file_size(filename,file_size)
+	if (ifieldlength .ne. file_size) then
+		print'(5(a,i8))', 'File size = ', file_size, & 
+						  ' ngx = ', ngx, ' ngy = ', ngy, ' ngz = ', ngz,  & 
+						' Size based on 4*dble*ngx*ngy*ngz ', ifieldlength
+		call error_abort("Error in read_DNS_velocity_files --  Filesize not equal to specified data to read in")
+	endif
+
+	!---------------------------------------------------------
+	!	   Read in velocity field
+	!---------------------------------------------------------
+	unitno = get_new_fileunit()
+	open (unitno,file=filename,form="unformatted",access="direct",recl=ifieldlength)
+	read (unitno,rec=1) uc, vc, wc
+	close(unitno)
+
+end subroutine read_DNS_velocity_files
+
 end module librarymod
 
 !======================================================================

@@ -1112,9 +1112,29 @@ subroutine setup_restart_microstate
 	enddo
 	if (irank.eq.iroot) print*, 'Molecular tags have been imported and processed.'
 
-	!call setup_initialise_velocities_TG_parallel
 	deallocate(bufsize)
 	if (tag_off) deallocate(tag)	!Tags off so tag info not necessary
+
+
+	
+	!Choose initial molecular velocities using velocity flag
+	select case(initial_velocity_flag)
+	case(0)
+		!Do nothing and use restart file velocities
+	case(1)
+		select case (trim(velocity_special_case))
+		case('debug')
+			call setup_initialise_velocities_test
+		case('taylor_green')
+			call setup_initialise_velocities_TG_parallel
+		case('dns')
+			call set_velocity_field_from_DNS_restart(trim(DNS_filename),DNS_ngx,DNS_ngy,DNS_ngz)
+		case default
+			call error_abort('Unidentified initial velocities_special_case')	
+		end select
+	case default
+		call error_abort('Unidentified initial velocity flag')	
+	end select
 
 end subroutine setup_restart_microstate
 

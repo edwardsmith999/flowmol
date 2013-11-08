@@ -1064,39 +1064,76 @@ end subroutine apply_CV_force
 
 !----------------------------------------------------------------------------------
 ! Set velocity of a range of bins to prescribed value
+! note that i,j and k bin values are in the global bin coordinate system
+! which runs from 1 to gnbins. The local nbins include halos!
 
 subroutine set_bin_velocity(imin, imax, jmin, jmax, kmin, kmax, velocity)
 	use linked_list, only : cell, node
-	use arrays_MD, only : v, r  !TEMP remove r here
-	use computational_constants_MD, only : binspercell,nhb,iter  !TEMP remove nhb,iter here
+	use arrays_MD, only : v, r
+	use computational_constants_MD, only : binspercell, iblock, jblock, kblock, npx, npy, npz, iter, irank
+	use calculated_properties_MD, only : gnbins, nbins
 	implicit none
 
 	integer, intent(in)                			:: imin, imax, jmin, jmax, kmin, kmax
 	double precision,dimension(3),intent(in)	:: velocity   !Overall momentum of system
 
+	integer			                			:: iminl, imaxl, jminl, jmaxl, kminl, kmaxl
 	integer										:: ibinmin,jbinmin,kbinmin,ibinmax,jbinmax,kbinmax
 	integer										:: i,icell,jcell,kcell,molno,binNsum,cellnp
+	integer	,dimension(3)						:: p_lb, p_ub
 	double precision,dimension(3)				:: binvsum, vcorrection,cellsperbin
 	type(node), pointer 	        			:: old, current
+
+	if (imin .ne. imax) stop "Error set_bin_velocity -- bin indices imin and imax currently must be the same"
+	if (jmin .ne. jmax) stop "Error set_bin_velocity -- bin indices jmin and jmax currently must be the same"
+	if (kmin .ne. kmax) stop "Error set_bin_velocity -- bin indices kmin and kmax currently must be the same"
+
+	p_lb(1) = (iblock-1)*floor(gnbins(1)/real((npx),kind(0.d0)))
+	p_ub(1) =  iblock *ceiling(gnbins(1)/real((npx),kind(0.d0)))
+	p_lb(2) = (jblock-1)*floor(gnbins(2)/real((npy),kind(0.d0)))
+	p_ub(2) =  jblock *ceiling(gnbins(2)/real((npy),kind(0.d0)))
+	p_lb(3) = (kblock-1)*floor(gnbins(3)/real((npz),kind(0.d0)))
+	p_ub(3) =  kblock *ceiling(gnbins(3)/real((npz),kind(0.d0)))
+
+	!print('(12i8)'), iblock,jblock,kblock, p_lb, p_ub, imin, jmin, kmin
+
+	if (imin .gt. p_lb(1) .and. imax .le. p_ub(1)) then 
+		iminl = imin - p_lb(1)+1
+		imaxl = imax - p_lb(1)+1
+	else
+		return
+	endif
+	if (jmin .gt. p_lb(2) .and. jmax .le. p_ub(2)) then 
+		jminl = jmin - p_lb(2)+1
+		jmaxl = jmax - p_lb(2)+1
+	else
+		return
+	endif
+	if (kmin .gt. p_lb(3) .and. kmax .le. p_ub(3)) then 
+		kminl = kmin - p_lb(3)+1
+		kmaxl = kmax - p_lb(3)+1
+	else
+		return
+	endif
 
 	!Calculate bin to cell ratio
 	cellsperbin = 1.d0/binspercell !ceiling(ncells(1)/dble(nbins(1)))
 	where (cellsperbin .lt. 1.d0) cellsperbin = 1.d0
 
-	ibinmin = (imin-1)*cellsperbin(1)+1+(1-cellsperbin(1))
-	ibinmax =  imax   *cellsperbin(1)  +(1-cellsperbin(1))
-	jbinmin = (jmin-1)*cellsperbin(2)+1+(1-cellsperbin(2))
-	jbinmax = jmax    *cellsperbin(2)  +(1-cellsperbin(2))
-	kbinmin = (kmin-1)*cellsperbin(3)+1+(1-cellsperbin(3))
-	kbinmax = kmax    *cellsperbin(3)  +(1-cellsperbin(3))
-
+	ibinmin = (iminl-1)*cellsperbin(1)+1+(1-cellsperbin(1))
+	ibinmax =  imaxl   *cellsperbin(1)  +(1-cellsperbin(1))
+	jbinmin = (jminl-1)*cellsperbin(2)+1+(1-cellsperbin(2))
+	jbinmax = jmaxl    *cellsperbin(2)  +(1-cellsperbin(2))
+	kbinmin = (kminl-1)*cellsperbin(3)+1+(1-cellsperbin(3))
+	kbinmax = kmaxl    *cellsperbin(3)  +(1-cellsperbin(3))
 
 	!Calculate velocity in bin
-	!print'(i5,a,3i6,a,3i6,a,3f10.6)', iter, ' Cells =', icell,jcell,kcell,' Bins= ',imin,jmin,kmin,' cellperbin= ',cellsperbin
 	binNsum = 0; binvsum = 0.d0
 	do kcell=kbinmin, kbinmax
 	do jcell=jbinmin, jbinmax 
 	do icell=ibinmin, ibinmax 
+
+		!print'(2i5,a,3i4,2(a,3i4),a,3f10.6,2(a,3i4))', iter, iblock,' Cells =', icell,jcell,kcell,' Bins= ',imin,jmin,kmin,' Binsl= ',iminl,jminl,kminl,' cellperbin= ',cellsperbin, 'nbins =', nbins , ' gnbins =', gnbins
 	
 		cellnp = cell%cellnp(icell,jcell,kcell)
 		old => cell%head(icell,jcell,kcell)%point !Set old to first molecule in list
@@ -1148,7 +1185,7 @@ subroutine set_bin_velocity(imin, imax, jmin, jmax, kmin, kmax, velocity)
 	enddo
 	enddo
 
-	print'(a,3f10.5,a,3i8)', 'Corrected velocity is then ',  binvsum(:)/binNsum,'in Bin= ',imin,jmin,kmin
+	!print'(i8,a,3f10.5,a,3i8)', jblock, ' Corrected velocity is then ',  binvsum(:)/binNsum,'in Bin= ',imin,jmin,kmin
 
 end subroutine set_bin_velocity
 

@@ -2145,6 +2145,50 @@ end subroutine linklist_deallocatepasslist
 !===================================================================================
 !Deallocate all linklists
 
+subroutine linklist_deallocate_cells
+	use module_linklist
+	use polymer_info_MD, only: bond, bondcount
+	implicit none
+
+	integer            			:: i, j
+	integer           			:: cellnp, noneighbrs, np_neigbrs
+	integer            			:: icell, jcell, kcell
+	type(node), pointer			:: old, current
+	type(neighbrnode), pointer 	:: oldn, currentn
+
+	do icell=1,ncells(1)+2
+	do jcell=1,ncells(2)+2
+	do kcell=1,ncells(3)+2
+
+		if (associated(cell%head(icell,jcell,kcell)%point) .eqv. .true. ) then !Exit if null
+			old => cell%head(icell,jcell,kcell)%point
+			cellnp = cell%cellnp(icell,jcell, kcell)
+			current => old ! make current point to head of list
+			do j=1,cellnp-1
+				if (associated(old%next) .eqv. .true. ) then !Exit if null
+					old => current%next       !Make list point to next node of old
+					nullify(current%next)     !Remove pointer to next
+					nullify(current%previous) !Remove pointer to previous
+					deallocate(current)       !Deallocate current entry
+					current => old            !Make current point to new previous
+				endif
+			enddo
+
+			nullify(old%next)     !Remove pointer to next
+			nullify(old%previous) !Remove pointer to previous
+			deallocate(old)       !Deallocate final entry
+			nullify(cell%head(icell,jcell,kcell)%point) !Set cell head pointer to null
+			cell%cellnp(icell,jcell, kcell) = 0         !Zero cell molecule number
+		endif
+	enddo
+	enddo
+	enddo
+
+end subroutine linklist_deallocate_cells
+
+!===================================================================================
+!Deallocate all linklists
+
 subroutine linklist_deallocateall
 	use module_linklist
 	use polymer_info_MD, only: bond, bondcount
