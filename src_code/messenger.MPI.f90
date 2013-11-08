@@ -1969,7 +1969,6 @@ subroutine iswaphalos(A,n1,n2,n3,nresults)
 	integer									:: nhalo, nx, ny, nz
 	integer,dimension(:,:),pointer			:: halo
 
-
 	!We want to define ncells/nhalocells if nbin   >= ncells
 	!ncells always has 1 halo and if nbins>ncell then nbins always has 1 halo
 	!We want to define nbins/nhalobins  if ncells >  nbin
@@ -1979,11 +1978,15 @@ subroutine iswaphalos(A,n1,n2,n3,nresults)
     		nhalo = nhalobins; halo => halobins
     		nx = n1; ny = n2; nz = n3
 			packbinsincells = .false.
-    	elseif(nbins(ixyz) .ge. ncells(ixyz)) then
+    	elseif(nbins(ixyz) .gt. ncells(ixyz)) then
     		nhalo = nhalocells; halo => halocells
     		nx = ncells(1)+2; ny = ncells(2)+2; nz = ncells(3)+2
 			packbinsincells = .true.
-    	else
+    	elseif (nbins(ixyz) .eq. ncells(ixyz)) then
+			nhalo = nhalocells; halo => halocells
+    		nx = ncells(1)+2; ny = ncells(2)+2; nz = ncells(3)+2
+			packbinsincells = .false.
+		else
     		stop "Error -- bins/cells incorrectly specified in swaphalos"
     	endif
 	enddo
@@ -2052,10 +2055,14 @@ subroutine rswaphalos(A,n1,n2,n3,nresults)
     		nhalo = nhalobins; halo => halobins
     		nx = n1; ny = n2; nz = n3
 			packbinsincells = .false.
-    	elseif(nbins(ixyz) .ge. ncells(ixyz)) then
+    	elseif(nbins(ixyz) .gt. ncells(ixyz)) then
     		nhalo = nhalocells; halo => halocells
     		nx = ncells(1)+2; ny = ncells(2)+2; nz = ncells(3)+2
 			packbinsincells = .true.
+    	elseif (nbins(ixyz) .eq. ncells(ixyz)) then
+			nhalo = nhalocells; halo => halocells
+    		nx = ncells(1)+2; ny = ncells(2)+2; nz = ncells(3)+2
+			packbinsincells = .false.
     	else
     		stop "Error -- bins/cells incorrectly specified in swaphalos"
     	endif

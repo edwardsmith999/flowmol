@@ -17,109 +17,9 @@ module module_initialise_microstate
 end module module_initialise_microstate
 !------------------------------------------------------------------------------
 
-
-module read_dns
-
-contains
-
-subroutine set_velocity_field_from_DNS_restart(filename,ngx,ngy,ngz)
-    use interfaces, only : error_abort
-	use calculated_properties_MD, only : nbins
-	implicit none
-
-	integer,intent(in)		:: ngx, ngy, ngz
-	character(*),intent(in):: filename
-
-	integer		:: i,j,k
-	logical, dimension(3)		:: bin_error
-	double precision, dimension(3)	:: binvel
-	double precision, dimension(:,:,:),allocatable	:: uc, vc, wc
-
-	!Read DNS data into arrays
-	call read_DNS_velocity_files(filename,ngx,ngy,ngz,uc,vc,wc)
-
-	!Check DNS size vs number of bins
-	bin_error = .false.
-	if (nbins(1) .ne. ngx-1) then
-		bin_error(1) = .true.
-		print'(2(a,i8))', ' nbinsx = ',nbins(1),' DNS restart file bins = ', ngx-1
-	endif
-	if (nbins(2) .ne. ngy-1) then
-		bin_error(2) = .true.
-		print'(2(a,i8))', ' nbinsy = ',nbins(2),' DNS restart file bins = ', ngy-1
-	endif
-	if (nbins(3) .ne. ngz-1) then
-		bin_error(3) = .true.
-		print'(2(a,i8))', ' nbinsz = ',nbins(2),' DNS restart file bins = ', ngz-1
-	endif
-	if (any(bin_error)) then
-		print'(3(a,l))', ' Error in x ', bin_error(1),' Error in y ', bin_error(2),' Error in z ', bin_error(3)
-		call error_abort("Error -- number of bins disagrees with DNS initial velocity file")
-	endif
-
-	!Set MD velocity
-	do k=1,size(wc,1)-2
-	do i=1,size(uc,2)-2
-	do j=1,size(vc,3)-2
-		binvel(1) =  0.5d0*(uc(k,i,j)+ uc(k,i+1,j))
-		binvel(2) =  0.5d0*(vc(k,i,j)+ vc(k,i,j+1))
-		binvel(3) =  0.5d0*(wc(k,i,j)+ wc(k+1,i,j))
-		call set_bin_velocity(i, i, j, j, k, k, binvel)
-	enddo
-	enddo
-	enddo
-
-	deallocate(uc,vc,wc)
-
-end subroutine set_velocity_field_from_DNS_restart
-
-subroutine read_DNS_velocity_files(filename,ngx,ngy,ngz,uc,vc,wc)
-	use librarymod, only : get_new_fileunit, get_file_size
-    use interfaces, only : error_abort
-	implicit none
-
-	integer,intent(in)		:: ngx, ngy, ngz
-	character(*),intent(in)	:: filename
-	double precision, dimension(:,:,:),allocatable, intent(out)	:: uc, vc, wc
-
-	integer					::  ifieldlength, file_size, unitno
-
-	allocate(uc(ngz+1,ngx+2,ngy+1))
-	allocate(vc(ngz+1,ngx+1,ngy+2))
-	allocate(wc(ngz+2,ngx+1,ngy+1))
-
-	!Get size of data unit
-	inquire(iolength=ifieldlength) uc(1,1,1)
-	ifieldlength = 4*ifieldlength*(  (ngz+1)*(ngx+2)*(ngy+1) &
-									+(ngz+1)*(ngx+1)*(ngy+2) &
-									+(ngz+2)*(ngx+1)*(ngy+1)  )
-
-	!Get size of file and check
-	call get_file_size(filename,file_size)
-	if (ifieldlength .ne. file_size) then
-		print'(5(a,i8))', 'File size = ', file_size, & 
-						  ' ngx = ', ngx, ' ngy = ', ngy, ' ngz = ', ngz,  & 
-						' Size based on 4*dble*ngx*ngy*ngz ', ifieldlength
-		call error_abort("Error in read_DNS_velocity_files --  Filesize not equal to specified data to read in")
-	endif
-
-	!---------------------------------------------------------
-	!	   Read in velocity field
-	!---------------------------------------------------------
-	unitno = get_new_fileunit()
-	open (unitno,file=filename,form="unformatted",access="direct",recl=ifieldlength)
-	read (unitno,rec=1) uc, vc, wc
-	close(unitno)
-
-end subroutine read_DNS_velocity_files
-
-end module read_dns
-
-
 subroutine setup_initialise_microstate
     use interfaces
     use module_initialise_microstate
-	use read_dns
     implicit none
 
 	integer		::	n
@@ -188,6 +88,7 @@ subroutine setup_initialise_microstate
 		case('taylor_green')
 			call setup_initialise_velocities_TG_parallel
 		case('dns')
+			call setup_initialise_velocities                 !Setup initial velocities
 			call set_velocity_field_from_DNS_restart(trim(DNS_filename),DNS_ngx,DNS_ngy,DNS_ngz)
 		case default
 			call error_abort('Unidentified initial velocities_special_case')	
@@ -1262,4 +1163,63 @@ subroutine setup_initialise_velocities_test
 !	v(4,3) = 0.5d0
 
 end subroutine setup_initialise_velocities_test
+
+
+
+subroutine set_velocity_field_from_DNS_restart(filename,ngx,ngy,ngz)
+    use interfaces, only : error_abort
+	use calculated_properties_MD, only : gnbins
+	use librarymod, only : read_DNS_velocity_files
+	implicit none
+
+	integer,intent(in)		:: ngx, ngy, ngz
+	character(*),intent(in):: filename
+
+	integer		:: i,j,k,ibin,jbin,kbin
+	logical, dimension(3)		:: bin_error
+	double precision, dimension(3)	:: binvel
+	double precision, dimension(:,:,:),allocatable	:: uc, vc, wc
+
+	!Read DNS data into arrays
+	call read_DNS_velocity_files(trim(filename),ngx,ngy,ngz,uc,vc,wc)
+
+	!Check DNS size vs number of bins
+	bin_error = .false.
+	if (gnbins(1) .ne. ngx-1) then
+		bin_error(1) = .true.
+		print'(2(a,i8))', ' gnbinsx = ',gnbins(1),' DNS restart file bins = ', ngx-1
+	endif
+	if (gnbins(2) .ne. ngy-1) then
+		bin_error(2) = .true.
+		print'(2(a,i8))', ' gnbinsy = ',gnbins(2),' DNS restart file bins = ', ngy-1
+	endif
+	if (gnbins(3) .ne. ngz-1) then
+		bin_error(3) = .true.
+		print'(2(a,i8))', ' gnbinsz = ',gnbins(3),' DNS restart file bins = ', ngz-1
+	endif
+	if (any(bin_error)) then
+		print'(3(a,l))', ' Error in x ', bin_error(1),' Error in y ', bin_error(2),' Error in z ', bin_error(3)
+		call error_abort("Error -- number of bins disagrees with DNS initial velocity file")
+	endif
+
+	call assign_to_cell
+
+	!Set MD velocity
+	do k=2,size(wc,1)-2
+	do i=2,size(uc,2)-2
+	do j=2,size(vc,3)-2
+		binvel(1) =  0.5d0*(uc(k,i,j)+ uc(k,i+1,j))
+		binvel(2) =  0.5d0*(vc(k,i,j)+ vc(k,i,j+1))
+		binvel(3) =  0.5d0*(wc(k,i,j)+ wc(k+1,i,j))
+		ibin = i - 1; jbin = j - 1; kbin = k - 1
+		!print'(a,3i8,4f10.5)', 'BIN NUMBER & VEL = ', i,j,k,binvel,uc(k,i,j)
+		call set_bin_velocity(ibin, ibin, jbin, jbin, kbin, kbin, binvel)
+	enddo
+	enddo
+	enddo
+
+    call linklist_deallocate_cells            !Deallocate all linklist components
+	deallocate(uc,vc,wc)
+
+end subroutine set_velocity_field_from_DNS_restart
 
