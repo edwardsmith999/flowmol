@@ -61,7 +61,7 @@ class Field():
 
         # Create raw data reading object and get the topology of the bins
         self.Raw = MD_RawData(self.fdir,self.fname,self.dtype,self.nperbin,
-                         self.cpol_bins)
+                              self.cpol_bins)
         self.nbins, self.binspaces = self.Raw.get_bintopology()
 
         # Store maximum possible record index
@@ -238,8 +238,8 @@ class PBins(Field):
 
         """
 
-        Field.__init__(self,fdir,cpol_bins=cpol_bins)
         self.fname = fname  
+        Field.__init__(self,fdir,cpol_bins=cpol_bins)
 
 
 # CV fields
@@ -258,8 +258,8 @@ class CV(Field):
 
         """
 
-        Field.__init__(self,fdir,cpol_bins=cpol_bins)
         self.fname = fname    
+        Field.__init__(self,fdir,cpol_bins=cpol_bins)
 
 
 # Kinetic energy field
