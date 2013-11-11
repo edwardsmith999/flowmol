@@ -65,12 +65,14 @@ class MD_PlotData():
     
         return binspaces[axis], vslice
 
-    def get_vplane_splot_args(self,plane,haxis,vaxis,minrec,maxrec):
+    def get_vplane_splot_args(self,plane,haxis,vaxis,minrec,maxrec,
+                              binlimits=None):
 
         # Instantiate velocity data object
         vData = VBins(self.fdir,cpol_bins=self.cpol_bins)
         # Extract 3D velocity field averaged over 1D of bins
-        vplane, binspaces = vData.get_field(minrec,maxrec,sumaxes=(plane))
+        vplane, binspaces = vData.get_field(minrec,maxrec,sumaxes=(plane),
+                                            binlimits=binlimits)
         # Get bin center positions on both axes for every field point
         X, Y = np.meshgrid(binspaces[haxis],binspaces[vaxis],indexing='ij')
         # Return all components of velocity for each bin
@@ -120,6 +122,17 @@ class MD_PlotData():
         density = density[:,0]
 
         return binspaces[axis], density
+
+    def get_density_splot_args(self,plane,haxis,vaxis,minrec,maxrec,
+                               binlimits=None):
+    
+        ddata = DensityBins(self.fdir,cpol_bins=self.cpol_bins)
+        density, binspaces = ddata.get_field(minrec,maxrec,meanaxes=(plane),
+                                             binlimits=binlimits)
+        X, Y = np.meshgrid(binspaces[haxis],binspaces[vaxis],indexing='ij')
+        density = density[:,:,0]
+
+        return X, Y, density
 
     def get_pVA_prof_args(self,filename,axis,minrec,maxrec,peculiar=False):
         
@@ -305,12 +318,15 @@ class MD_PlotData():
 
                 N = self.v_ts.shape[newaxis]
                 self.window = np.hanning(N)
+                #self.window = np.ones(N)
+                #self.window[-1] = 0.0
+                #self.window[0] = 0.0
 
                 # Save "window summed and squared" (see Numerical Recipes)
                 self.wss = np.sum(self.window**2.0)/N
 
                 # Apply window
-                np.apply_along_axis(window_axis_function,newaxis,self.v_ts)        
+                self.v_ts = np.apply_along_axis(window_axis_function,newaxis,self.v_ts)        
                 self.windowed = True
 
             def fft(self,fftaxis,window=False):
