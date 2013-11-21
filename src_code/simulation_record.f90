@@ -1644,7 +1644,7 @@ subroutine simulation_compute_kinetic_VA(imin,imax,jmin,jmax,kmin,kmax)
 
 end subroutine simulation_compute_kinetic_VA
 
-subroutine simulation_compute_kinetic_VA_cpol(imin,imax,jmin,jmax,kmin,kmax)
+subroutine simulation_compute_kinetic_VA_cpol()
 	use module_record
 	use physical_constants_MD
 	use concentric_cylinders
@@ -1652,7 +1652,6 @@ subroutine simulation_compute_kinetic_VA_cpol(imin,imax,jmin,jmax,kmin,kmax)
 	use librarymod, only: cpolariser, cpolariseT, outerprod
 	implicit none
 
-	integer, intent(in) :: imin, jmin, kmin, imax, jmax, kmax
 	integer :: n
 	integer :: br, bt, bz
 	real(kind(0.d0)) :: VAbinsize(3), velvect(3)
@@ -1665,11 +1664,6 @@ subroutine simulation_compute_kinetic_VA_cpol(imin,imax,jmin,jmax,kmin,kmax)
 
 	! Add kinetic part of pressure tensor for all molecules
 	do n = 1, np
-
-		!Assign to bins using integer division
-		br = ceiling((r(1,n)+halfdomain(1))/VAbinsize(1))	!Establish current bin
-		bt = ceiling((r(2,n)+halfdomain(2))/VAbinsize(2)) 	!Establish current bin
-		bz = ceiling((r(3,n)+halfdomain(3))/VAbinsize(3)) 	!Establish current bin
 
 		select case(integration_algorithm)
 		case(leap_frog_verlet)
@@ -1696,11 +1690,8 @@ subroutine simulation_compute_kinetic_VA_cpol(imin,imax,jmin,jmax,kmin,kmax)
 		!Ignore molecules not in fluid region
 		if (br .gt. cpol_bins(1)) cycle
 		if (br .lt. 1)            cycle
-		if (bt .gt. cpol_bins(2)) cycle
-		if (bt .lt. 1)            cycle
-		if (bz .gt. cpol_bins(3)) cycle
-		if (bz .lt. 1)            cycle
-		
+        if (tag(n) .eq. cyl_teth_thermo_rotate) cycle
+	
 		vvbin(br,bt,bz,:,:) = vvbin(br,bt,bz,:,:) + vvpol(:,:)
 
 	enddo
