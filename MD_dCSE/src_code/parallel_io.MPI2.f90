@@ -2647,7 +2647,7 @@ subroutine VA_stress_cpol_io
 	dr     = (r_io - r_oi) / cpol_bins(1)
 	dtheta = (2.d0*pi)     / cpol_bins(2)
 	dz     = domain(3)     / cpol_bins(3)
-
+    
 	!Bins have different volumes
 	do rbin = 1, cpol_binso(1)
 	do tbin = 1, cpol_binso(2)
