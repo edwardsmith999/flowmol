@@ -942,7 +942,7 @@ subroutine transpose_qr_qT_gbl(R1, R2)
     if (icomm == 0) then
         Lremain_dims(1) = .true.
         Lremain_dims(2) = .true.
-        Lremain_dims(2) = .false.
+        Lremain_dims(3) = .false.
         call MPI_Cart_sub (icomm_grid, Lremain_dims, icomm, ierr)
     end if
     
@@ -1126,7 +1126,7 @@ subroutine transpose_phat_p(R1, R2)
     if (icomm == 0) then
         Lremain_dims(1) = .true.
         Lremain_dims(2) = .true.
-        Lremain_dims(2) = .false.
+        Lremain_dims(3) = .false.
         call MPI_Cart_sub (icomm_grid, Lremain_dims, icomm, ierr)
     end if
 
@@ -1217,7 +1217,7 @@ subroutine transpose_uvwp(R1, n1,n2,n3 , R2, m1,m2,m3, iuvwp, isign)
     if (icomm == 0) then
         Lremain_dims(1) = .true.
         Lremain_dims(2) = .true.
-        Lremain_dims(2) = .false.
+        Lremain_dims(3) = .false.
         call MPI_Cart_sub (icomm_grid, Lremain_dims, icomm, ierr)
     end if
 
@@ -1385,7 +1385,7 @@ subroutine transpose_con(R1, n1,n2,n3 , R2, m1,m2,m3, ixyz, isign)
     if (icomm == 0) then
         Lremain_dims(1) = .true.
         Lremain_dims(2) = .true.
-        Lremain_dims(2) = .false.
+        Lremain_dims(3) = .false.
         call MPI_Cart_sub (icomm_grid, Lremain_dims, icomm, ierr)
     end if
 
