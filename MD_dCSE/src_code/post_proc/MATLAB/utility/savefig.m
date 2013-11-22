@@ -236,8 +236,10 @@ function savefig(fname, varargin)
 		end
 		cmp=	lossless;
 		if (strcmp(types{n}, 'pdf')),	cmp= gsCompr;		end			% Lossy compr only for pdf.
-		if (strcmp(types{n}, 'eps')),	cmp= '';			end			% eps can't use lossless.
 		cmd=	sprintf('%s %s %s -f "%s-temp.eps"', gs, cmd, cmp, fname);% Add up.
+		if (strcmp(types{n}, 'eps'))
+            cmd=	sprintf('%s "%s-temp.eps" %s.eps ', 'cp ', fname , fname);% Add up.
+        end
 			status= system(cmd);										% Run Ghostscript.
 			if (op_dbg || status), 		display (cmd),		end
 	end
