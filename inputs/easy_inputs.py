@@ -2,21 +2,21 @@
 import math
 
 # Desired "Inputs" 
-density = 0.8
+density = 1.0
 rcutoff = 2.0**(1.0/6.0) 
 dr_nbr  = 0.3
-D_xL    = 164.2                                  # Prefix "D_" for "desired"
-D_zL    = 41.2 
-D_yL_md = 50.0
-D_yL_cfd = 82.0 
-wall_layers = 6 
+D_xL    = 1562.0                                  # Prefix "D_" for "desired"
+D_zL    = 1071.0 
+D_yL_md = 568.0
+D_yL_cfd = 568.0 
+wall_layers = 0 
 eps = 0.01
 npx_md = 8
 npy_md = 4
-npz_md = 2
-cfd_cells_per_md_proc_x = 4 
-cfd_cells_per_md_proc_y = 4
-cfd_cells_per_md_proc_z = 4
+npz_md = 8
+cfd_cells_per_md_proc_x = 8 
+cfd_cells_per_md_proc_y = 64
+cfd_cells_per_md_proc_z = 8
 ncy_olap = 4
 
 # Calculate lattice properties and size 
@@ -114,9 +114,12 @@ message = (
            "\tCFD cell length(y):\t" + str(dy_cfd)         + "\n" +  
            "\tCFD cell length(z):\t" + str(dz_cfd)         + "\n\n" + 
 
-           "\tcellsize_ratios:   \t" + str(dx_cfd/dx_md)   + "\t" +
-                                       str(dy_cfd/dy_md)   + "\t" +
-                                       str(dz_cfd/dz_md)   + "\n" +
+           "\tcell2bin_ratio (x):\t" + str(dx_cfd/dx_md)   + "\n" +
+           "\tcell2bin_ratio (y):\t" + str(dy_cfd/dy_md)   + "\n" +
+           "\tcell2bin_ratio (z):\t" + str(dz_cfd/dz_md)   + "\n" +
+           "\tbin2cell_ratio (x):\t" + str(dx_md/dx_cfd)   + "\n" +
+           "\tbin2cell_ratio (y):\t" + str(dy_md/dy_cfd)   + "\n" +
+           "\tbin2cell_ratio (z):\t" + str(dz_md/dz_cfd)   + "\n" +
            "\tMD proc domain(y): \t" + str(yL_md_l)        + "\n" +           
            "\tO'lap size (y):    \t" + str(yL_olap)        + "\n\n\n" + 
 
