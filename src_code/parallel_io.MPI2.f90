@@ -3255,6 +3255,7 @@ subroutine external_force_io
 
 	!Store surface stress value in CV data object
 	if (CV_debug) then
+		!call CVcheck_momentum%update_F_ext(F_ext_bin)
 		CVcheck_momentum%F_ext = F_ext_bin
 	endif
 

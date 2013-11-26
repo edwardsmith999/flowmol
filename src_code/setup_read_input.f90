@@ -687,7 +687,7 @@ subroutine setup_read_input
 	if (found_in_input) then
 		read(1,*) CVforce_flag
 		if (CVforce_flag .ne. VOID) then
-			if (CV_debug) call error_abort("Input ERROR -- CV_FORCES true so CV_debug should be set to true")
+			if (.not. CV_debug) call error_abort("Input ERROR -- CV_FORCES true so CV_debug should be set to true")
 			if (vflux_outflag .ne. 4) call error_abort("Input ERROR -- CV_FORCES .true. but VFLUX_OUTFLAG not set to 4 (CV averages)")
 		endif
 	endif
