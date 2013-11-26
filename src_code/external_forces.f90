@@ -1188,7 +1188,7 @@ subroutine set_bin_velocity(imin, imax, jmin, jmax, kmin, kmax, velocity)
 			!BIN VELOCITY
 			if (r_temp(1)  .lt. binmin(1) .or. & 
 			    r_temp(1)  .gt. binmax(1) .or. & 
-			   (r(1,molno) .lt. binmin(1) .or. & 
+			    r(1,molno) .lt. binmin(1) .or. & 
 			    r(1,molno) .gt. binmax(1)) print'(a,i4,6(a,f9.4))', "set_bin_vel -- Mol Outside x bin ", iminl, & 
 															 " min ", binmin(1), &
 															 " r before = ", r(1,molno), " r after = ", r_temp(1), & 
@@ -1196,7 +1196,7 @@ subroutine set_bin_velocity(imin, imax, jmin, jmax, kmin, kmax, velocity)
 															 " v before = ", v(1,molno), " v after = ", v_temp(1)
 			if (r_temp(2)  .lt. binmin(2) .or. & 
 			    r_temp(2)  .gt. binmax(2) .or. & 
-			   (r(2,molno) .lt. binmin(2) .or. & 
+			    r(2,molno) .lt. binmin(2) .or. & 
 			    r(2,molno) .gt. binmax(2)) print'(a,i4,6(a,f9.4))', "set_bin_vel -- Mol Outside y bin ", jminl, & 
 															 " min ", binmin(2), &
 															 " r before = ", r(2,molno), " r after = ", r_temp(2), & 
@@ -1204,7 +1204,7 @@ subroutine set_bin_velocity(imin, imax, jmin, jmax, kmin, kmax, velocity)
 															 " v before = ", v(2,molno), " v after = ", v_temp(2)
 			if (r_temp(3)  .lt. binmin(3) .or. & 
 			    r_temp(3)  .gt. binmax(3) .or. & 
-			   (r(3,molno) .lt. binmin(3) .or. & 
+			    r(3,molno) .lt. binmin(3) .or. & 
 			    r(3,molno) .gt. binmax(3)) print'(a,i4,6(a,f9.4))', "set_bin_vel -- Mol Outside z bin ", kminl, & 
 															 " min ", binmin(3), &
 															 " r before = ", r(3,molno), " r after = ", r_temp(3), & 
