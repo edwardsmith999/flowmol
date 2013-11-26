@@ -1232,7 +1232,7 @@ subroutine calculate_cell_interactions(icell, jcell, kcell, k)
 			oldi => currenti%next !Use pointer in datatype to obtain next item in list
 		enddo
 
-end subroutine calculate_cell_interactions
+    end subroutine calculate_cell_interactions
 
 !------------------------------------------------------------------------------
 ! * * * Optimised by performing loop inside routine * * *

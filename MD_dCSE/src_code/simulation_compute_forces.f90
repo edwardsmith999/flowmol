@@ -471,7 +471,7 @@ end subroutine simulation_compute_forces_LJ_neigbr
 
 subroutine simulation_compute_forces_LJ_neigbr_halfint
 	use module_compute_forces
-	use CV_objects, only : CV_sphere_momentum
+	!use CV_objects, only : CV_sphere_momentum
 	implicit none
 
 	integer                         :: j  !Define dummy index
@@ -532,12 +532,12 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 							fij = accijmag*rij(:)
 							!call Control_Volume_Forces(fij,ri,rj,molnoi,molnoj)
 							call control_volume_stresses(fij,ri,rj,molnoi)
-						    call CV_sphere_momentum%Add_spherical_CV_forces(fij,ri,rj)
+						    !call CV_sphere_momentum%Add_spherical_CV_forces(fij,ri,rj)
 						else
 							fij = 2.d0*accijmag*rij(:)
 							!call Control_Volume_Forces(fij,ri,rj,molnoi,molnoj)
 							call control_volume_stresses(fij,ri,rj,molnoi)
-							call CV_sphere_momentum%Add_spherical_CV_forces(fij,ri,rj)
+							!call CV_sphere_momentum%Add_spherical_CV_forces(fij,ri,rj)
 						endif
 					endif
 				endif

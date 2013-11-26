@@ -772,13 +772,13 @@ subroutine apply_CV_force(iter)
 
 	logical							:: apply_CVforce = .false.
 	integer							:: ibin,jbin,kbin,starttime
-	integer							:: M, box_np, m_bin1, m_bin2
+	integer							:: box_np
 	integer,allocatable 			:: list(:)
 
 	real(kind(0.d0))				:: volume
 	real(kind(0.d0)),dimension(3)	:: binsize,MD_Pi_dS,MD_rhouu_dS,F_constraint
 	real(kind(0.d0)),dimension(3)	:: u_bin,F_bin,u_bin1, u_bin2, F_bin1, F_bin2
-	real(kind(0.d0)),dimension(3)	:: CFD_Pi_dS,CFD_rhouu_dS
+	real(kind(0.d0)),dimension(3)	:: CFD_Pi_dS,CFD_rhouu_dS,CFD_u_cnst
 
 	if (CVforce_flag .eq. VOID) return
 
@@ -794,9 +794,9 @@ subroutine apply_CV_force(iter)
 	!Only apply force on top processor
 	if (jblock .ne. npy) return
 
-	do ibin = 3,nbins(1)
-	do jbin = ceiling(nbins(2)/2.d0),ceiling(nbins(2)/2.d0)
-	do kbin = 3,nbins(3)
+	do ibin = 3,3 !nbins(1)
+	do jbin = 3,3 !ceiling(nbins(2)/2.d0),ceiling(nbins(2)/2.d0)
+	do kbin = 3,3 !nbins(3)
 
 		!Get average over current cell and apply constraint forces
 		!call get_continuum_values
@@ -812,7 +812,12 @@ subroutine apply_CV_force(iter)
 		!Set velocity to required value and then apply constraint 
 		!force to adjust its evolution from then on...
 		if (iter .eq. starttime .and. apply_CVforce .ne. 0) then
-			call set_bin_velocity(ibin, ibin, jbin, jbin, kbin, kbin, (/ 0.d0,0.d0,0.d0 /))
+			!This routine takes the global bin number which is one less than the local 
+			!used in other routines as these include halos
+			call set_bin_velocity(ibin-1, ibin-1, & 
+								  jbin-1, jbin-1, & 
+								  kbin-1, kbin-1, & 
+								  (/ 0.d0,0.d0,0.d0 /))
 		endif
 	enddo
 	enddo
@@ -859,8 +864,13 @@ subroutine get_test_values(flag,ibin_,jbin_,kbin_)
 		!Sin function shifted by pi/2 so velocity which is given
 		!by the integral (cos) alternates around zero
 		sin_mag = 0.1d0;  sin_period = 100.d0
-		CFD_Pi_dS = sin_mag * sin(2.d0*pi*((iter-starttime)/sin_period)+0.5d0*pi)
+		CFD_Pi_dS = sin_mag * cos(2.d0*pi*((iter-starttime)/sin_period))
 		CFD_rhouu_dS = 0.d0
+
+		! - - - - -  Sinusoid of velocity with NCER special discretisation - - - - - - - - - 
+		CFD_u_cnst = 0.d0
+		CFD_u_cnst(1) = -( (sin_mag/(2.d0*pi))* sin(2.d0*pi*((iter+1-starttime)/sin_period)) & 
+				                      -u_bin2(1)/dble(box_np) )/delta_t
 	case(4)
 		! Get continuum values of surface stresses, etc
 		!Read Shear pressure from file...
@@ -894,6 +904,7 @@ subroutine average_over_bin(flag,i,j,k)
 	use computational_constants_MD, only : nhb, iblock
 	use arrays_MD, only : r, v, a
 	use linked_list, only : node, cell
+	use physical_constants_MD, only : pi
 	use CV_objects, only :  CV2 => CVcheck_momentum2
 	implicit none
 
@@ -902,27 +913,36 @@ subroutine average_over_bin(flag,i,j,k)
 	integer					:: n,molno,cellnp
 	integer,dimension(3)	:: bin
 	type(node), pointer		:: old, current
-
+	double precision,dimension(:,:),allocatable	:: v_temp
 	logical,save			:: apply_force = .false.
+
+	!Get velocity at next timestep without constraint
+	allocate(v_temp(3,np))
+	v_temp = 0.d0
+	do n = 1,np
+		v_temp(:,n) = v(:,n) + delta_t * a(:,n) 	!Velocity calculated from acceleration
+	enddo
 
 	!Find the molecules in constraint region and add to list array
 	!Zero box averages
 	box_np = 0
 	allocate(list(np))
+	u_bin2(:) = 0.d0
+	F_bin2(:) = 0.d0
 	do n = 1,np
 		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/binsize(:))+1
 		if (bin(1) .eq. i .and. bin(2) .eq. j .and. bin(3) .eq. k) then
 			!Add molecule to overlap list
 			box_np   =  box_np   + 1
 			list(box_np) =  n
+			!Save sum of velocity and forces without constraint
+			u_bin2(:) = u_bin2(:) + v_temp(:,n)
+			F_bin2(:) = F_bin2(:) + a(:,n)
 			!if (iter .eq. 1001) print'(i5,a,3i8,a,i8,3f10.5)', iter, ' bin ',i,j,k,' molno ', n, r(:,n)
 		endif
 	enddo
 
-	! - - - - - - - - - - Mass  - - - - - - - - - - - - 
-	M = box_np
-
-	! - - - - - - - - - Momentum  - - - - - - - - - - - 
+	! - - - - -  Get CV Momentum Totals - - - - - - - - - 
 	!Total CV flux
 	MD_rhouu_dS  =		((CV2%flux(i,j,k,:,1)+CV2%flux(i,j,k,:,4)) &
 	          	 		+(CV2%flux(i,j,k,:,2)+CV2%flux(i,j,k,:,5)) &
@@ -932,8 +952,28 @@ subroutine average_over_bin(flag,i,j,k)
 	              		+(CV2%Pxy(i,j,k,:,2)-CV2%Pxy(i,j,k,:,5)) &
 	              		+(CV2%Pxy(i,j,k,:,3)-CV2%Pxy(i,j,k,:,6)))
 
-	if (M .ne. 0 .and. apply_CVforce) then
+	if (box_np .ne. 0 .and. apply_CVforce) then
+		!Apply proportional velocity constraint 
+		!F_constraint = CFD_u_cnst
+		!NCER special discretisation -- proportional including forces
+		!F_constraint = MD_Pi_dS + CFD_u_cnst
+		!NCER special discretisation with convective fluxes too
+		!F_constraint = MD_Pi_dS-MD_rhouu_dS + CFD_u_cnst
+
+		!Apply differential CV flux constraint
 		F_constraint = MD_Pi_dS-MD_rhouu_dS + (CFD_rhouu_dS-CFD_Pi_dS)*volume
+
+		!DEBUG CASES WITH TERMS MISSING
+		!F_constraint = MD_Pi_dS + (CFD_rhouu_dS-CFD_Pi_dS)*volume
+		!F_constraint = (CFD_rhouu_dS-CFD_Pi_dS)*volume 
+		!F_constraint = 0.d0
+	else
+		F_constraint = 0.d0
+	endif
+
+	!Divide constraint per molecules
+	if (box_np .ne. 0) then
+		F_constraint = F_constraint/dble(box_np)
 	else
 		F_constraint = 0.d0
 	endif
@@ -950,17 +990,15 @@ subroutine apply_force
 	implicit none
 
 	integer								:: n, molno
-	double precision,dimension(3)		:: F_vector
 
 	!Loop over all molecules and apply constraint
-	if (M .ne. 0) F_vector = F_constraint/dble(M)
 	do n = 1, box_np
 		!Get molecule number
 		molno = list(n)
 		!Apply force
-		a(:,molno) = a(:,molno) - F_vector
+		a(:,molno) = a(:,molno) - F_constraint
 		!Add external force to CV total
-		call record_external_forces(F_vector,r(:,n))
+		call record_external_forces(F_constraint,r(:,n))
 
 	enddo
 	deallocate(list)
@@ -979,41 +1017,27 @@ subroutine apply_force_tests(apply_the_force)
 	logical, intent(in) 						:: apply_the_force
 
 	integer										:: i, n, unitno
-	double precision,dimension(3)				:: F_vector
 	double precision,dimension(:,:),allocatable	:: v_temp,a_temp
 	double precision,dimension(:),allocatable 	:: vmagnitude,normalisedvfd_bin,binloc
-	!Check evolution without constraint
-	allocate(v_temp(3,np),a_temp(3,np))
-	v_temp = 0.d0
-	do n = 1,np
-		v_temp(:,n) = v(:,n) + delta_t * a(:,n) 	!Velocity calculated from acceleration
-	enddo
-	m_bin2 = box_np
-	u_bin2(:) = 0.d0
-	F_bin2(:) = 0.d0
-	do i = 1, box_np
-		n = list(i)
-		u_bin2(:) = u_bin2(:) + v_temp(:,n)
-		F_bin2(:) = F_bin2(:) + a(:,n)
-	enddo
 
-	!Loop over all molecules and apply constraint
+	!Calculate acceleration with constraint
+	allocate(v_temp(3,np),a_temp(3,np))
 	a_temp(:,1:np) = a(:,1:np)
-	if (M .ne. 0) F_vector = F_constraint/dble(M)
 	do i = 1, box_np
 		n = list(i)
-		a_temp(:,n) = a(:,n) - F_vector
+		a_temp(:,n) = a(:,n) - F_constraint
 		if (apply_the_force) then
-			a(:,n) = a(:,n) - F_vector
+			a(:,n) = a(:,n) - F_constraint
 			!Add external force to CV total
-			call record_external_forces(F_vector,r(:,n))
+			call record_external_forces(F_constraint(:),r(:,n))
 		endif
 	enddo
 	v_temp = 0.d0
 	do n = 1,np
 		v_temp(:,n) = v(:,n) + delta_t * a_temp(:,n) 	!Velocity calculated from acceleration
 	enddo
-	m_bin1 = box_np
+
+	!Next save evolution with constraint applied (and PDF function)
 	u_bin1(:) = 0.d0
 	F_bin1(:) = 0.d0
 	allocate(vmagnitude(box_np))
@@ -1028,7 +1052,7 @@ subroutine apply_force_tests(apply_the_force)
 	call velPDF%update(vmagnitude(:))
 	deallocate(vmagnitude)
 
-	!Normalise bins to use for output and H function - so all bins add up to one
+	!Normalise PDF bins and write out
 	if (mod(iter,starttime) .eq. 0) then
 		allocate(normalisedvfd_bin,source=velPDF%normalise())
 		allocate(binloc,source=velPDF%binvalues())
@@ -1041,18 +1065,18 @@ subroutine apply_force_tests(apply_the_force)
 	endif
 
 
-	if (M .ne. 0) then
+	!Write values of constrained and unconstrained velocity
+	if (box_np .ne. 0) then
 		unitno = irank*1000000+ibin*10000+jbin*100+kbin
-		write(unitno,'(i3,6i5,9f11.6)'),irank,iter,ibin,jbin,kbin,m_bin1,m_bin2, &
-					 					  delta_t*F_vector,u_bin1/volume,u_bin2/volume
+		write(unitno,'(i3,6i5,9f11.6)'),irank,iter,ibin,jbin,kbin,box_np,box_np, &
+					 					  delta_t*F_constraint,u_bin1/volume,u_bin2/volume
 										
 	else
 		unitno = irank*1000000+ibin*10000+jbin*100+kbin
-		write(unitno,'(i3,6i5,9f11.6)'),irank,iter,ibin,jbin,kbin,m_bin1,m_bin2, &
+		write(unitno,'(i3,6i5,9f11.6)'),irank,iter,ibin,jbin,kbin,box_np,box_np, &
 					 					 (/ 0.d0, 0.d0, 0.d0 /),u_bin1/volume,u_bin2/volume
 	endif
 	deallocate(list)
-
 
 end subroutine apply_force_tests
 
@@ -1069,8 +1093,9 @@ end subroutine apply_CV_force
 
 subroutine set_bin_velocity(imin, imax, jmin, jmax, kmin, kmax, velocity)
 	use linked_list, only : cell, node
-	use arrays_MD, only : v, r
-	use computational_constants_MD, only : binspercell, iblock, jblock, kblock, npx, npy, npz, iter, irank
+	use arrays_MD, only : r,v,a
+	use computational_constants_MD, only : binspercell, iblock, jblock, kblock, globaldomain, halfdomain, & 
+										   npx, npy, npz, iter, irank, ncells, delta_t
 	use calculated_properties_MD, only : gnbins, nbins
 	implicit none
 
@@ -1082,6 +1107,7 @@ subroutine set_bin_velocity(imin, imax, jmin, jmax, kmin, kmax, velocity)
 	integer										:: i,icell,jcell,kcell,molno,binNsum,cellnp
 	integer	,dimension(3)						:: p_lb, p_ub
 	double precision,dimension(3)				:: binvsum, vcorrection,cellsperbin
+	double precision,dimension(3)				:: r_temp,v_temp,binsize,binmin,binmax
 	type(node), pointer 	        			:: old, current
 
 	if (imin .ne. imax) stop "Error set_bin_velocity -- bin indices imin and imax currently must be the same"
@@ -1095,8 +1121,7 @@ subroutine set_bin_velocity(imin, imax, jmin, jmax, kmin, kmax, velocity)
 	p_lb(3) = (kblock-1)*floor(gnbins(3)/real((npz),kind(0.d0)))
 	p_ub(3) =  kblock *ceiling(gnbins(3)/real((npz),kind(0.d0)))
 
-	!print('(12i8)'), iblock,jblock,kblock, p_lb, p_ub, imin, jmin, kmin
-
+	!Convert to local bin number from input which is global bin number
 	if (imin .gt. p_lb(1) .and. imax .le. p_ub(1)) then 
 		iminl = imin - p_lb(1)+1
 		imaxl = imax - p_lb(1)+1
@@ -1119,7 +1144,20 @@ subroutine set_bin_velocity(imin, imax, jmin, jmax, kmin, kmax, velocity)
 	!Calculate bin to cell ratio
 	cellsperbin = 1.d0/binspercell !ceiling(ncells(1)/dble(nbins(1)))
 	where (cellsperbin .lt. 1.d0) cellsperbin = 1.d0
+	!Safety check for non-integer cell ratios
+	if (any(abs(ncells/nbins - dble(ncells)/dble(nbins)) .gt. 0.000000000001d0)) then
+		stop "ERROR in set_bin_velocity -- Specified bin/cell ratio results in non-integer number of cells!"
+	endif
+	binsize = globaldomain/gnbins
+	!Get bin extents -- minus one due to halo bins
+	binmin(1) = (iminl-2) * binsize(1) - halfdomain(1)
+	binmax(1) = (imaxl-1) * binsize(1) - halfdomain(1)
+ 	binmin(2) = (jminl-2) * binsize(2) - halfdomain(2)
+	binmax(2) = (jmaxl-1) * binsize(2) - halfdomain(2)	
+	binmin(3) = (kminl-2) * binsize(3) - halfdomain(3)
+	binmax(3) = (kmaxl-1) * binsize(3) - halfdomain(3)
 
+	!Get cell number from bin numbers
 	ibinmin = (iminl-1)*cellsperbin(1)+1+(1-cellsperbin(1))
 	ibinmax =  imaxl   *cellsperbin(1)  +(1-cellsperbin(1))
 	jbinmin = (jminl-1)*cellsperbin(2)+1+(1-cellsperbin(2))
@@ -1142,6 +1180,36 @@ subroutine set_bin_velocity(imin, imax, jmin, jmax, kmin, kmax, velocity)
 			molno = old%molno 	 	!Number of molecule
 			binNsum = binNsum + 1    
 			binvsum(:) = binvsum(:) + v(:,molno)
+
+			!GET VELOCITY AT NEXT TIMESTEP
+			v_temp(:) = v(:,molno) + delta_t * a(:,molno) 	
+			r_temp(:) = r(:,molno) + delta_t * v_temp(:) 
+
+			!BIN VELOCITY
+			if (r_temp(1)  .lt. binmin(1) .or. & 
+			    r_temp(1)  .gt. binmax(1) .or. & 
+			   (r(1,molno) .lt. binmin(1) .or. & 
+			    r(1,molno) .gt. binmax(1)) print'(a,i4,6(a,f9.4))', "set_bin_vel -- Mol Outside x bin ", iminl, & 
+															 " min ", binmin(1), &
+															 " r before = ", r(1,molno), " r after = ", r_temp(1), & 
+															 " max ", binmax(1), & 
+															 " v before = ", v(1,molno), " v after = ", v_temp(1)
+			if (r_temp(2)  .lt. binmin(2) .or. & 
+			    r_temp(2)  .gt. binmax(2) .or. & 
+			   (r(2,molno) .lt. binmin(2) .or. & 
+			    r(2,molno) .gt. binmax(2)) print'(a,i4,6(a,f9.4))', "set_bin_vel -- Mol Outside y bin ", jminl, & 
+															 " min ", binmin(2), &
+															 " r before = ", r(2,molno), " r after = ", r_temp(2), & 
+															 " max ", binmax(2), & 
+															 " v before = ", v(2,molno), " v after = ", v_temp(2)
+			if (r_temp(3)  .lt. binmin(3) .or. & 
+			    r_temp(3)  .gt. binmax(3) .or. & 
+			   (r(3,molno) .lt. binmin(3) .or. & 
+			    r(3,molno) .gt. binmax(3)) print'(a,i4,6(a,f9.4))', "set_bin_vel -- Mol Outside z bin ", kminl, & 
+															 " min ", binmin(3), &
+															 " r before = ", r(3,molno), " r after = ", r_temp(3), & 
+															 " max ", binmax(3), & 
+															 " v before = ", v(3,molno), " v after = ", v_temp(3)
 
 			!print'(i5,a,7i6,6f10.5)',iter,' velocities ',i,cellnp,molno,binNsum,icell,jcell,kcell, r(:,molno), v(:,molno)
 
