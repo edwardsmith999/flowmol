@@ -20,8 +20,8 @@ subroutine simulation_checkrebuild(rebuild)
 	implicit none
 	
 	logical,save		   :: just_written_snapshot=.true.
-	logical                :: abort
-	integer                :: n
+    logical                :: abort
+	integer                :: n, proc_abort
 	integer, save		   :: rb_count, total_rb=0
 	integer, intent(out)   :: rebuild
 	double precision       :: vmax, t2, dt
@@ -53,7 +53,15 @@ subroutine simulation_checkrebuild(rebuild)
 		call parallel_io_final_state
 	endif
 
+    !Abort can be forced by creating file -- global check required to ensure all abort together
 	inquire(file=trim(prefix_dir)//'ABORTABORT',exist=abort)
+    if (abort) then
+        proc_abort = 1
+    else
+        proc_abort = 0
+    endif
+	call globalMaxInt(proc_abort)
+    if (proc_abort .eq. 1) abort = .true.
 	if (abort) then
 		print*, 'File ABORTABORT detected. Writing final_state file...'
 		call messenger_syncall
