@@ -274,18 +274,6 @@ subroutine simulation_compute_forces_LJ_cells
 	integer							:: molnoi, molnoj
 	type(node), pointer 	        :: oldi, currenti, oldj, currentj
 
-
-!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
-!	do n = 1,2
-!	 	a = 0.d0
-!		potenergymol		= 0.d0	!Reset potential energy per molecule before calculation
-!		potenergymol_LJ		= 0.d0	!Reset LJ energy per molecule before calculation
-!		potenergysum		= 0.d0  !Reset total potential energy sum before calculation
-!		potenergysum_LJ		= 0.d0  !Reset LJ potential energy sum before calculation
-!		virial				= 0.d0	!Reset virial sum before calculation
-!		virialmol			= 0.d0	!Reset virial sum per molecule before calculation
-!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
-
 	do kcell=2, ncells(3)+1
 	do jcell=2, ncells(2)+1
 	do icell=2, ncells(1)+1
@@ -329,25 +317,13 @@ subroutine simulation_compute_forces_LJ_cells
 						a(3,molnoi)= a(3,molnoi) + accijmag*rij(3)
 
 						!CV stress and force calculations
-!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
-					!if (n .eq. 2) then
-!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
 						if (vflux_outflag .eq. 4) then
 							if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
-								!if (molnoj .gt. np .or. molnoi .gt. np) then
-								!	fij = 2.d0*accijmag*rij(:)
-									!call Control_Volume_Forces(fij,ri,rj,molnoi,molnoj)
-								!	call Control_Volume_stresses(fij,ri,rj,molnoi,molnoj)
-								!else
 									fij = accijmag*rij(:)
-									!call Control_Volume_Forces(fij,ri,rj,molnoi,molnoj)
 									call Control_Volume_stresses(fij,ri,rj,molnoi)
 								!endif
 							endif
 						endif
-!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
-					!endif
-!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
 
 						!Only calculate properties when required for output
 						if (mod(iter,tplot) .eq. 0) then
@@ -423,13 +399,7 @@ subroutine simulation_compute_forces_LJ_neigbr
 				!CV stress an force calculations
 				if (vflux_outflag .eq. 4) then
 					if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
-					!if (molnoj .gt. np .or. molnoi .gt. np) then
-					!	fij = 2.d0*accijmag*rij(:)
-						!call Control_Volume_Forces(fij,ri,rj,molnoi,molnoj)	
-					!	call control_volume_stresses(fij,ri,rj,molnoi,molnoj)
-					!else
 						fij(:) = accijmag*rij(:)
-						!call Control_Volume_Forces(fij,ri,rj,molnoi,molnoj)
 						call control_volume_stresses(fij,ri,rj,molnoi)
 					endif
 				endif
@@ -479,20 +449,11 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 	integer							:: noneighbrs
 	type(neighbrnode), pointer		:: old, current
 
-	!real(kind(0.d0)) :: b,bax, bay, baz ! TEMP Boundary force components
-	!logical :: baxflag
-
 	do molnoi = 1, np
 
 	    noneighbrs = neighbour%noneighbrs(molnoi)	!Determine number of elements in neighbourlist
 		old => neighbour%head(molnoi)%point			!Set old to head of neighbour list
 		ri(:) = r(:,molnoi)							!Retrieve ri
-
-		! TEMPORARY
-		!bax = 0.d0
-		!bay = 0.d0
-		!baz = 0.d0
-		!baxflag = .false.
 
 		do j = 1,noneighbrs							!Step through all pairs of neighbours i and j
 
@@ -518,24 +479,14 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 				a(2,molnoj)= a(2,molnoj) - accijmag*rij(2)
 				a(3,molnoj)= a(3,molnoj) - accijmag*rij(3) 
 
-				! Distribution of boundary forces (TEMPORARY)
-				!if ( rj(2) .gt. halfdomain(2) ) then              !!!!!! TEMP !!!
-				!	baxflag = .true.
-				!	bax = bax + accijmag*rij(1)                   !!!!!! TEMP !!!
-				!	bay = bay + accijmag*rij(2)                   !!!!!! TEMP !!!
-				!	baz = baz + accijmag*rij(3)                   !!!!!! TEMP !!!
-				!end if                                            !!!!!! TEMP !!!
-
 				if (vflux_outflag.eq.4 .or. eflux_outflag.eq.4) then
 					if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
 						if (molnoj .gt. np .or. molnoi .gt. np) then
 							fij = accijmag*rij(:)
-							!call Control_Volume_Forces(fij,ri,rj,molnoi,molnoj)
 							call control_volume_stresses(fij,ri,rj,molnoi)
 						    !call CV_sphere_momentum%Add_spherical_CV_forces(fij,ri,rj)
 						else
 							fij = 2.d0*accijmag*rij(:)
-							!call Control_Volume_Forces(fij,ri,rj,molnoi,molnoj)
 							call control_volume_stresses(fij,ri,rj,molnoi)
 							!call CV_sphere_momentum%Add_spherical_CV_forces(fij,ri,rj)
 						endif
@@ -561,9 +512,6 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 					if (vflux_outflag.ne.0 .and. vflux_outflag.ne.4)	then
 						call pressure_tensor_forces_MOP(vflux_outflag,ri(:),rj(:),rij(:),accijmag)
 					endif
-					!if (vflux_outflag.eq.1)	call pressure_tensor_forces_MOP(1,ri(:),rj(:),rij(:),accijmag)
-					!if (vflux_outflag.eq.2)	call pressure_tensor_forces_MOP(2,ri(:),rj(:),rij(:),accijmag)
-					!if (vflux_outflag.eq.3)	call pressure_tensor_forces_MOP(3,ri(:),rj(:),rij(:),accijmag)
 
 				else if (mod(iter,teval) .eq. 0) then
 
@@ -578,9 +526,6 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 			old => current%next !Use pointer in datatype to obtain next item in list
 		enddo
 	
-		!if (baxflag) then
-		!	write(7654,'(f18.4,a,f18.4,a,f18.4,a,f18.4)') halfdomain(2) - ri(2),'  ',bax,'  ',bay,'  ',baz       !!!!!!! TEMP !!!!!!
-		!end if
 	enddo
 
 	!Total used with other potentials (e.g. FENE)

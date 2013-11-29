@@ -381,8 +381,8 @@ contains
 
 		    !Verify that CV momentum is exactly conservative
 		    conserved = sum(totalpressure-totalflux-dvelocitydt-F_ext)
-			if(abs(conserved) .gt. 0.000000001d0) then
-			!if (i .eq. 3 .and. j .eq. 3 .and. k .eq. 3) then
+			!if(abs(conserved) .gt. 0.000000001d0) then
+			if (i .eq. 3 .and. j .eq. 3 .and. k .eq. 3) then
 				print'(a,i8,4i4,7f10.5)','Error_in_momentum_flux', iter,irank,i,j,k, & 
 					 conserved, sum(totalpressure),-sum(totalflux),sum(dvelocitydt), & 
 					+sum(F_ext), sum(self%X(i,j,k,:)),   & 
