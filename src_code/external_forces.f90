@@ -786,7 +786,7 @@ subroutine apply_CV_force(iter)
 	binsize = domain/nbins
 	volume = product(binsize)
 	!ibin = 3; jbin = 3; kbin = 3
-	starttime = Nsteps/2.d0
+	starttime = 400 !Nsteps/2.d0
 
 	!Exchange CV data ready to apply force
 	call update_CV_halos
@@ -819,6 +819,7 @@ subroutine apply_CV_force(iter)
 								  kbin-1, kbin-1, & 
 								  (/ 0.d0,0.d0,0.d0 /))
 		endif
+
 	enddo
 	enddo
 	enddo
@@ -856,21 +857,26 @@ subroutine get_test_values(flag,ibin_,jbin_,kbin_)
 		!Zero Force applied
 		CFD_Pi_dS = 0.d0
 		CFD_rhouu_dS = 0.d0	
+		!Velocity is a constant (assumed zero)
+		CFD_u_cnst = 0.d0
 	case(2)
 		!Constant function 
 		CFD_Pi_dS = 1.d0
 		CFD_rhouu_dS = 0.d0
+		!Velocity is a linear fn of time
+		CFD_u_cnst = iter
 	case(3)
+		CFD_Pi_dS(:) = 0.d0
 		!Sin function shifted by pi/2 so velocity which is given
 		!by the integral (cos) alternates around zero
 		sin_mag = 0.1d0;  sin_period = 100.d0
-		CFD_Pi_dS = sin_mag * cos(2.d0*pi*((iter-starttime)/sin_period))
+		CFD_Pi_dS(1) = sin_mag * cos(2.d0*pi*((iter-starttime)/sin_period))! - 0.505*pi)
 		CFD_rhouu_dS = 0.d0
 
 		! - - - - -  Sinusoid of velocity with NCER special discretisation - - - - - - - - - 
 		CFD_u_cnst = 0.d0
-		CFD_u_cnst(1) = -( (sin_mag/(2.d0*pi))* sin(2.d0*pi*((iter+1-starttime)/sin_period)) & 
-				                      -u_bin2(1)/dble(box_np) )/delta_t
+		CFD_u_cnst(1) = 1.25d0*delta_t*(sin_mag*sin_period/(2.d0*pi))* sin(2.d0*pi*((iter-starttime)/sin_period))
+
 	case(4)
 		! Get continuum values of surface stresses, etc
 		!Read Shear pressure from file...
@@ -881,6 +887,12 @@ subroutine get_test_values(flag,ibin_,jbin_,kbin_)
 		read(fileunit,rec=iter) CFD_Pi_dS(1)
 		close(fileunit,status='keep')
 		CFD_rhouu_dS = 0.d0
+		! Read velocity too for NCER style proportional constraint
+		fileunit = get_new_fileunit()
+		inquire(iolength=length) CFD_u_cnst(1)
+		open(unit=fileunit,file='./u_hist',form='unformatted', access='direct',recl=length)
+		read(fileunit,rec=iter) CFD_u_cnst(1)
+		close(fileunit,status='keep')
 	end select
 	
 end subroutine get_test_values
@@ -901,7 +913,7 @@ end subroutine update_CV_halos
 !-----------------------------------------------------------------------------
 
 subroutine average_over_bin(flag,i,j,k)
-	use computational_constants_MD, only : nhb, iblock
+	use computational_constants_MD, only : nhb, iblock,CVforce_testcaseflag
 	use arrays_MD, only : r, v, a
 	use linked_list, only : node, cell
 	use physical_constants_MD, only : pi
@@ -914,7 +926,7 @@ subroutine average_over_bin(flag,i,j,k)
 	integer,dimension(3)	:: bin
 	type(node), pointer		:: old, current
 	double precision,dimension(:,:),allocatable	:: v_temp
-	logical,save			:: apply_force = .false.
+	logical,save			:: apply_force = .false., first_time = .true.
 
 	!Get velocity at next timestep without constraint
 	allocate(v_temp(3,np))
@@ -953,20 +965,38 @@ subroutine average_over_bin(flag,i,j,k)
 	              		+(CV2%Pxy(i,j,k,:,3)-CV2%Pxy(i,j,k,:,6)))
 
 	if (box_np .ne. 0 .and. apply_CVforce) then
-		!Apply proportional velocity constraint 
-		!F_constraint = CFD_u_cnst
-		!NCER special discretisation -- proportional including forces
-		!F_constraint = MD_Pi_dS + CFD_u_cnst
-		!NCER special discretisation with convective fluxes too
-		!F_constraint = MD_Pi_dS-MD_rhouu_dS + CFD_u_cnst
 
-		!Apply differential CV flux constraint
-		F_constraint = MD_Pi_dS-MD_rhouu_dS + (CFD_rhouu_dS-CFD_Pi_dS)*volume
+		select case (CVforce_testcaseflag)
+		case(1)
+			!Apply differential CV flux constraint
+			F_constraint = MD_Pi_dS-MD_rhouu_dS + (CFD_rhouu_dS-CFD_Pi_dS)*volume
+		!DEBUG CASES WITH TERMS MISSING 
+		case(2)
+			!No molecular convective fluxes
+			F_constraint = MD_Pi_dS + (CFD_rhouu_dS-CFD_Pi_dS)*volume
+		case(3)
+			!CFD fluxes only (no MD convective or stresses)
+			F_constraint = (CFD_rhouu_dS-CFD_Pi_dS)*volume 
+		case(4)
+			!No force at all (debug case)
+			F_constraint = 0.d0
+		!NCER SPECIAL DISCRETISE
+		case(5)
+			!Apply proportional velocity constraint (Borg et al)
+			F_constraint = - (CFD_u_cnst*dble(box_np) - u_bin2)/delta_t
+			if (first_time) then 
+				first_time = .false.
+				F_constraint = 0.d0	
+			endif
+		case(6)
+			!NCER special discretisation -- proportional 
+			!velocity constraint including forces
+			F_constraint = MD_Pi_dS - (CFD_u_cnst*dble(box_np) - u_bin2)/delta_t
+		case(7)
+			!NCER special discretisation with convective fluxes too
+			F_constraint = MD_Pi_dS-MD_rhouu_dS - (CFD_u_cnst*dble(box_np) - u_bin2)/delta_t
+		end select
 
-		!DEBUG CASES WITH TERMS MISSING
-		!F_constraint = MD_Pi_dS + (CFD_rhouu_dS-CFD_Pi_dS)*volume
-		!F_constraint = (CFD_rhouu_dS-CFD_Pi_dS)*volume 
-		!F_constraint = 0.d0
 	else
 		F_constraint = 0.d0
 	endif
@@ -987,6 +1017,7 @@ end subroutine average_over_bin
 subroutine apply_force
 	use arrays_MD, only : r,v,a
 	use physical_constants_MD, only : density
+	use computational_constants_MD, only : eflux_outflag
 	implicit none
 
 	integer								:: n, molno
@@ -998,7 +1029,11 @@ subroutine apply_force
 		!Apply force
 		a(:,molno) = a(:,molno) - F_constraint
 		!Add external force to CV total
-		call record_external_forces(F_constraint,r(:,n))
+		if (eflux_outflag .eq. 4) then
+			call record_external_forces(F_constraint(:),r(:,n),v(:,n))
+		else
+			call record_external_forces(F_constraint(:),r(:,n))
+		endif
 
 	enddo
 	deallocate(list)
@@ -1012,6 +1047,7 @@ subroutine apply_force_tests(apply_the_force)
 	use physical_constants_MD, only : density, pi
 	use calculated_properties_MD, only : temperature
 	use module_set_parameters, only : velPDF
+	use computational_constants_MD, only : eflux_outflag
 	implicit none
 
 	logical, intent(in) 						:: apply_the_force
@@ -1029,7 +1065,11 @@ subroutine apply_force_tests(apply_the_force)
 		if (apply_the_force) then
 			a(:,n) = a(:,n) - F_constraint
 			!Add external force to CV total
-			call record_external_forces(F_constraint(:),r(:,n))
+			if (eflux_outflag .eq. 4) then
+				call record_external_forces(F_constraint(:),r(:,n),v(:,n))
+			else
+				call record_external_forces(F_constraint(:),r(:,n))
+			endif
 		endif
 	enddo
 	v_temp = 0.d0
@@ -1053,7 +1093,7 @@ subroutine apply_force_tests(apply_the_force)
 	deallocate(vmagnitude)
 
 	!Normalise PDF bins and write out
-	if (mod(iter,starttime) .eq. 0) then
+	if (mod(iter,nint(0.25*Nsteps)) .eq. 0) then
 		allocate(normalisedvfd_bin,source=velPDF%normalise())
 		allocate(binloc,source=velPDF%binvalues())
 		do n=1,size(normalisedvfd_bin,1) 
@@ -1302,7 +1342,7 @@ subroutine set_mol_velocity(mol_list, listnp, velocity)
 		binvsum(:) = binvsum(:) + v(:,molno)
 	enddo
 
-	print'(a,3f10.5)', 'Corrected velocity is then ',  binvsum(:)/binNsum
+	!print'(a,3f10.5)', 'Corrected velocity is then ',  binvsum(:)/binNsum
 
 end subroutine set_mol_velocity
 

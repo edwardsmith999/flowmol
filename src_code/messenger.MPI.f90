@@ -1930,9 +1930,9 @@ module messenger_bin_handler
 
 	!Generic interface so pack/unpack can be used with both integers and reals
 	interface swaphalos
-		module procedure iswaphalos, rswaphalos
+		module procedure iswaphalos, rswaphalos, iswaphalos3D, rswaphalos3D , iswaphalos5D, rswaphalos5D
 	end interface swaphalos
-	private iswaphalos, rswaphalos
+	private iswaphalos, rswaphalos, iswaphalos3D, rswaphalos3D, iswaphalos5D, rswaphalos5D
 
 	interface updatefaces
 		module procedure iupdatefaces, rupdatefaces
@@ -2185,7 +2185,7 @@ subroutine rpack_bins_into_cells(cells,bins,nresults)
 	double precision,dimension(:,:,:,:),intent(in)	:: bins
 	double precision,dimension(:,:,:,:),intent(out)	:: cells
 
-	integer									:: result,icell,jcell,kcell,ibin,jbin,kbin,n
+	integer	:: result,icell,jcell,kcell,ibin,jbin,kbin,n
 
 	do icell = 1,ncells(1)+2
 	do jcell = 1,ncells(2)+2
@@ -2400,6 +2400,68 @@ subroutine rupdatefaces(A,n1,n2,n3,nresults,ixyz)
 	deallocate(buf1, buf2)
 
 end subroutine rupdatefaces
+
+!Wrappers for 3D cases
+subroutine iswaphalos3D(A,n1,n2,n3)
+
+	integer,intent(in)			:: n1,n2,n3
+	integer,intent(inout)		:: A(:,:,:)
+
+	integer, dimension(:,:,:,:), allocatable :: TEMP
+
+	allocate(TEMP(size(A,1),size(A,2),size(A,3),1))
+	TEMP(:,:,:,1) = A(:,:,:)
+	call iswaphalos(TEMP,size(A,1),size(A,2),size(A,3),1)
+	A = TEMP(:,:,:,1)
+
+end subroutine iswaphalos3D
+
+subroutine rswaphalos3D(A,n1,n2,n3)
+
+	integer,intent(in)				:: n1,n2,n3
+	double precision,intent(inout)	:: A(:,:,:)
+
+	double precision, dimension(:,:,:,:), allocatable :: TEMP
+
+	allocate(TEMP(size(A,1),size(A,2),size(A,3),1))
+	TEMP(:,:,:,1) = A(:,:,:)
+	call rswaphalos(TEMP,size(A,1),size(A,2),size(A,3),1)
+	A = TEMP(:,:,:,1)
+
+end subroutine rswaphalos3D
+
+!Wrappers for 5D cases
+subroutine iswaphalos5D(A,n1,n2,n3)
+
+	integer,intent(in)			:: n1,n2,n3
+	integer,intent(inout)		:: A(:,:,:,:,:)
+
+	integer									 :: nresults
+	integer, dimension(:,:,:,:), allocatable :: TEMP
+
+	nresults = size(A,4)*size(A,5)
+	allocate(TEMP(size(A,1),size(A,2),size(A,3),nresults))
+	TEMP = reshape(A,(/  size(A,1),size(A,2),size(A,3),nresults /))
+	call iswaphalos(TEMP,size(A,1),size(A,2),size(A,3),nresults)
+	A = reshape(TEMP,(/  size(A,1),size(A,2),size(A,3),size(A,4),size(A,5) /))
+
+end subroutine iswaphalos5D
+
+subroutine rswaphalos5D(A,n1,n2,n3)
+
+	integer,intent(in)				:: n1,n2,n3
+	double precision,intent(inout)	:: A(:,:,:,:,:)
+
+	integer									 :: nresults
+	double precision, dimension(:,:,:,:), allocatable :: TEMP
+
+	nresults = size(A,4)*size(A,5)
+	allocate(TEMP(size(A,1),size(A,2),size(A,3),nresults))
+	TEMP = reshape(A,(/ size(A,1),size(A,2),size(A,3),nresults /))
+	call rswaphalos(TEMP,size(A,1),size(A,2),size(A,3),nresults)
+	A = reshape(TEMP,(/ size(A,1),size(A,2),size(A,3),size(A,4),size(A,5) /))
+
+end subroutine rswaphalos5D
 
 end module messenger_bin_handler
 

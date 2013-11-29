@@ -35,6 +35,21 @@ type :: check_CV_momentum
 		procedure :: swap_halos  => swap_halos_momentum
 end type check_CV_momentum
 
+type :: check_CV_energy
+	double precision,dimension(:,:,:,:),allocatable 	:: flux, Pxyv,  Pxyv_minus_t
+	double precision,dimension(:,:,:),allocatable		:: dXdt, X, X_minus_t, X_minus_2t, & 
+														   Fv_ext, totalflux, totalpower
+	contains
+		procedure :: initialise  => initialise_energy
+		procedure :: update_dXdt => update_dXdt_energy
+		procedure :: update_flux => update_flux_energy
+		procedure :: update_Pxy  => update_Pxyv
+		procedure :: update_F_ext=> update_Fv_ext
+		procedure :: check_error => check_error_energy
+		procedure :: swap_halos  => swap_halos_energy
+
+end type check_CV_energy
+
 type, extends(check_CV_mass) :: sphereObj_mass
 
     double precision                        :: radius = 2.d0
@@ -64,9 +79,10 @@ contains
 end type sphereObj_mom
 
 	!Check CV conservation
-	type(check_CV_mass)		:: CVcheck_mass		! declare an instance of CV checker
-	type(check_CV_momentum)	:: CVcheck_momentum, CVcheck_momentum2		! declare an instance of CV checker
-	
+	type(check_CV_mass)		:: CVcheck_mass							! declare an instance of CV checker
+	type(check_CV_momentum)	:: CVcheck_momentum, CVcheck_momentum2	! declare an instance of CV checker
+	type(check_CV_energy)	:: CVcheck_energy						! declare an instance of CV checker
+
     !CV spherical object
     type(sphereObj_mass) :: CV_sphere_mass
     type(sphereObj_mom) :: CV_sphere_momentum
@@ -365,8 +381,8 @@ contains
 
 		    !Verify that CV momentum is exactly conservative
 		    conserved = sum(totalpressure-totalflux-dvelocitydt-F_ext)
-			if(conserved .gt. 0.000000001d0) then
-
+			if(abs(conserved) .gt. 0.000000001d0) then
+			!if (i .eq. 3 .and. j .eq. 3 .and. k .eq. 3) then
 				print'(a,i8,4i4,7f10.5)','Error_in_momentum_flux', iter,irank,i,j,k, & 
 					 conserved, sum(totalpressure),-sum(totalflux),sum(dvelocitydt), & 
 					+sum(F_ext), sum(self%X(i,j,k,:)),   & 
@@ -384,10 +400,199 @@ contains
 
 	end subroutine check_error_momentum
 
+
+
+!===================================================
+!	E n e r g y   C o n t r o l   V o l u m e
+!===================================================
+
+	!Constructor for object
+	subroutine initialise_energy(self, nb)
+		implicit none
+
+		! initialize shape objects
+		class(check_CV_energy) 		:: self
+
+		integer, dimension(3),intent(in) :: nb
+
+		allocate(self%flux(nb(1),nb(2),nb(3),6))
+		allocate(self%Pxyv(nb(1),nb(2),nb(3),6))
+		allocate(self%Pxyv_minus_t(nb(1),nb(2),nb(3),6))
+		allocate(self%dXdt(nb(1),nb(2),nb(3)))
+		allocate(self%X(nb(1),nb(2),nb(3)))
+		allocate(self%X_minus_t(nb(1),nb(2),nb(3)))
+		allocate(self%Fv_ext(nb(1),nb(2),nb(3)))
+		allocate(self%totalflux(nb(1),nb(2),nb(3)))
+		allocate(self%totalpower(nb(1),nb(2),nb(3)))
+		!allocate(self%X_minus_2t(nb(1),nb(2),nb(3),3))
+
+		self%flux 		= 0.d0
+		self%Pxyv  		= 0.d0
+		self%Pxyv_minus_t= 0.d0
+		self%dXdt 		= 0.d0
+		self%X 			= 0.d0
+		self%X_minus_t 	= 0.d0
+		self%Fv_ext		= 0.d0
+		self%totalflux  = 0.d0
+		self%totalpower = 0.d0
+		!self%X_minus_2t = 0.d0
+
+	end subroutine initialise_energy
+
+	!Update time evolution and store previous two values
+	subroutine update_dXdt_energy(self, X)
+		implicit none
+		! initialize shape objects
+		class(check_CV_energy) :: self
+
+		double precision,dimension(:,:,:),intent(in) :: X
+
+		self%X_minus_t  = self%X
+		self%X 		  = X
+
+		self%dXdt = self%X - self%X_minus_t
+
+	end subroutine update_dXdt_energy
+
+	!Update time evolution and store previous two values
+	subroutine update_Fv_ext(self, X)
+		implicit none
+		! initialize shape objects
+		class(check_CV_energy) :: self
+
+		double precision,dimension(:,:,:),allocatable,intent(in) :: X
+
+		self%Fv_ext = X
+
+	end subroutine update_Fv_ext
+
+	!Update time evolution and store previous two values
+	subroutine update_flux_energy(self, X)
+		implicit none
+		! initialize shape objects
+		class(check_CV_energy) :: self
+
+		double precision,dimension(:,:,:,:),allocatable,intent(in) :: X
+
+		self%flux = X
+
+	end subroutine update_flux_energy
+
+	!Update time evolution and store previous two values
+	subroutine update_Pxyv(self, X)
+		implicit none
+		! initialize shape objects
+		class(check_CV_energy) :: self
+
+		double precision,dimension(:,:,:,:),allocatable,intent(in) :: X
+
+		self%Pxyv_minus_t = self%Pxyv
+		self%Pxyv = X
+
+	end subroutine update_Pxyv
+
+	!Swap halos on edges of processor boundaries
+	subroutine swap_halos_energy(self,nb)
+		use messenger_bin_handler, only : swaphalos
+		implicit none
+
+		integer, dimension(3),intent(in) 				:: nb
+
+		integer							 				:: nresults
+		double precision,dimension(:,:,:,:),allocatable :: temp
+
+		! initialize shape objects
+		class(check_CV_energy) :: self
+
+    	! Include halo surface fluxes, stress and external forces 
+		! to get correct values for all cells
+    	nresults = 6 + 6 + 1
+		allocate(temp(nb(1),nb(2),nb(3),nresults))
+		temp(:,:,:,1 :6) = self%flux
+		temp(:,:,:,7:12) = self%Pxyv
+		temp(:,:,:,13  ) = self%Fv_ext
+    	call swaphalos(temp,nb(1),nb(2),nb(3),nresults)
+		self%flux  = temp(:,:,:,1 :6)
+		self%Pxyv   = temp(:,:,:,7:12)
+		self%Fv_ext = temp(:,:,:,13)
+		deallocate(temp)
+
+	end subroutine swap_halos_energy
+
+	!Check error for specified range of bins
+	subroutine check_error_energy(self,imin,imax,jmin,jmax,kmin,kmax,iter,irank)
+		! initialize shape objects
+		use computational_constants_MD, only : domain,delta_t,Neflux_ave
+		use calculated_properties_MD, only : nbins
+		implicit none
+
+		class(check_CV_energy) :: self
+
+		integer,intent(in) :: iter,irank,imin,imax,jmin,jmax,kmin,kmax
+
+		logical							:: check_ok
+		integer 						:: i,j,k
+		integer,save 					:: first_time = 0
+		double precision				:: conserved,totalpower,totalflux,Fv_ext,denergydt
+		double precision,dimension(3)	:: binsize
+
+		!First call doesn't have difference in time yet so skip
+		if (first_time .lt. 2) then
+			first_time = first_time + 1
+			return
+		endif
+
+		binsize = domain/nbins
+
+		!print'(2i4,f13.5,3i8)', iter, irank, maxval(self%Fv_ext), maxloc(self%Fv_ext)
+		!print'(a,4i8,4f13.8)', 'Inside  object', irank,6,6,6, self%Fv_ext(6,6,6,:),sum(self%Fv_ext(6,6,6,:))
+
+		check_ok = .true.
+
+		do i = imin,imax
+		do j = jmin,jmax
+		do k = kmin,kmax
+
+		    !Calculate total CV flux and change in mass
+		    totalflux =(self%flux(i,j,k,1)+self%flux(i,j,k,4))/binsize(1) &
+		              +(self%flux(i,j,k,2)+self%flux(i,j,k,5))/binsize(2) &
+		              +(self%flux(i,j,k,3)+self%flux(i,j,k,6))/binsize(3)
+
+		    !totalpower = totalpower*delta_t
+		    totalpower = (self%Pxyv_minus_t(i,j,k,1)-self%Pxyv_minus_t(i,j,k,4))/binsize(1) &
+		                +(self%Pxyv_minus_t(i,j,k,2)-self%Pxyv_minus_t(i,j,k,5))/binsize(2) &
+		                +(self%Pxyv_minus_t(i,j,k,3)-self%Pxyv_minus_t(i,j,k,6))/binsize(3)
+			Fv_ext = self%Fv_ext(i,j,k)/product(binsize)
+
+			!drhou/dt
+		    denergydt =  self%dxdt(i,j,k)/(delta_t*Neflux_ave)
+
+		    !Verify that CV momentum is exactly conservative
+		    conserved = totalpower-totalflux-denergydt-Fv_ext
+			!if(conserved .gt. 0.000000001d0) then
+			!if (abs(Fv_ext) .gt. 0.000001) then
+			if (i .eq. 3 .and. j .eq. 3 .and. k .eq. 3) then
+				print'(a,i8,4i4,9f10.5)','Error_in_energy_flux', iter,irank,i,j,k, & 
+					 conserved, totalpower,-totalflux,denergydt, & 
+					+Fv_ext, self%X(i,j,k),self%X_minus_t(i,j,k)
+				check_ok = .false.
+			endif
+
+		enddo
+		enddo
+		enddo
+
+		!if (check_ok .eq. .false.) then
+		!	stop "Error in energy flux"
+		!endif
+
+	end subroutine check_error_energy
+
+
+
 !===================================================
 !	S p h e r i c a l   C o n t r o l   V o l u m e
 !===================================================
-
 
 
 ! - - - - MASS - - - -

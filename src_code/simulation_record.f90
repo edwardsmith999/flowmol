@@ -2318,6 +2318,7 @@ end subroutine momentum_snapshot
 subroutine energy_flux_averaging(ixyz)
 	!use field_io, only : energy_flux_io,surface_power_io,MOP_energy_io
 	use module_record
+	use CV_objects, only :  CVcheck_energy
 	implicit none
 
 	integer				:: ixyz
@@ -2337,10 +2338,14 @@ subroutine energy_flux_averaging(ixyz)
 		case(4)
 			!CV energy flux and Power (stresses*velocity)
 			call energy_flux_io
-			call surface_power_io
 			energy_flux = 0.d0
-			Pxyvface = 0.d0
 			call energy_snapshot
+			if (external_force_flag .ne. 0 .or. & 
+				ensemble .eq. tag_move     .or. & 
+				CVforce_flag .ne. VOID) then
+				call external_forcev_io
+				Fv_ext_bin = 0.d0
+			endif
 		case default 
 			call error_abort("Energy flux averaging Error")
 		end select
@@ -2349,7 +2354,21 @@ subroutine energy_flux_averaging(ixyz)
 
 	endif
 
+	!Write forces out at time t before snapshot/final fluxes
+	!as both use velocity at v(t-dt/2)
+	if (sample_count .eq. Neflux_ave-1) then
+		call surface_power_io
+		Pxyvface = 0.d0
+		!Debug flag to check CV conservation in code
+		if (CV_debug) then
+		    call CVcheck_energy%check_error(1+nhb(1),nbins(1)+nhb(1), & 
+											1+nhb(2),nbins(2)+nhb(2), & 
+											1+nhb(3),nbins(3)+nhb(3),iter,irank)
+	   endif
+	endif
+
 end subroutine energy_flux_averaging
+
 
 !===================================================================================
 ! Energy Flux over a surface of a bin including all intermediate bins
@@ -3716,12 +3735,14 @@ end subroutine pressure_tensor_forces_MOP
 !===================================================================================
 ! Record external forces applied to molecules inside a volume
 
-subroutine record_external_forces(F,ri)
+subroutine record_external_forces(F,ri,vi)
 	use module_record, only : domain,halfdomain, nbins, nhb
-	use calculated_properties_MD, only :  F_ext_bin
+	use calculated_properties_MD, only :  F_ext_bin,Fv_ext_bin
+	use computational_constants_MD, only : eflux_outflag
 	implicit none
 
 	double precision,dimension(3),intent(in):: F,ri
+	double precision,dimension(3),intent(in),optional :: vi
 
 	integer	,dimension(3)					:: ibin
 	double precision,dimension(3)			:: mbinsize
@@ -3733,6 +3754,15 @@ subroutine record_external_forces(F,ri)
 	!Add external force to bin
 	F_ext_bin(ibin(1),ibin(2),ibin(3),:) = & 
 		F_ext_bin(ibin(1),ibin(2),ibin(3),:) + F(:)
+
+	if (eflux_outflag .eq. 4) then
+		if ( present(vi)) then
+			Fv_ext_bin(ibin(1),ibin(2),ibin(3)) = & 
+				Fv_ext_bin(ibin(1),ibin(2),ibin(3)) + dot_product(F(:),vi(:))
+		else
+			!Velocity assumed to be zero if not supplied
+		endif
+	endif
 
 end subroutine record_external_forces
 
