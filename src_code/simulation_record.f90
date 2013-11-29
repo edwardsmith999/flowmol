@@ -3474,12 +3474,18 @@ subroutine control_volume_stresses(fij,ri,rj,molnoi)
 		if (eflux_outflag .ne. 0) then
 			velvect(:) = v(:,molnoi) 
 			!velvect(:) = v(:,molnoi) + 0.5d0*delta_t*a(:,molnoi)
-			Pxyvface(cbin(1),cbin(2),cbin(3),1) = Pxyvface(cbin(1),cbin(2),cbin(3),1) + dot_product(fij,velvect)*dble(onfacexb)
-			Pxyvface(cbin(1),cbin(2),cbin(3),2) = Pxyvface(cbin(1),cbin(2),cbin(3),2) + dot_product(fij,velvect)*dble(onfaceyb)
-			Pxyvface(cbin(1),cbin(2),cbin(3),3) = Pxyvface(cbin(1),cbin(2),cbin(3),3) + dot_product(fij,velvect)*dble(onfacezb)
-			Pxyvface(cbin(1),cbin(2),cbin(3),4) = Pxyvface(cbin(1),cbin(2),cbin(3),4) + dot_product(fij,velvect)*dble(onfacext)
-			Pxyvface(cbin(1),cbin(2),cbin(3),5) = Pxyvface(cbin(1),cbin(2),cbin(3),5) + dot_product(fij,velvect)*dble(onfaceyt)
-			Pxyvface(cbin(1),cbin(2),cbin(3),6) = Pxyvface(cbin(1),cbin(2),cbin(3),6) + dot_product(fij,velvect)*dble(onfacezt)
+			Pxyvface(cbin(1),cbin(2),cbin(3),1) = & 
+				Pxyvface(cbin(1),cbin(2),cbin(3),1) + dot_product(fij,velvect)*dble(onfacexb)
+			Pxyvface(cbin(1),cbin(2),cbin(3),2) = & 
+				Pxyvface(cbin(1),cbin(2),cbin(3),2) + dot_product(fij,velvect)*dble(onfaceyb)
+			Pxyvface(cbin(1),cbin(2),cbin(3),3) = &
+				Pxyvface(cbin(1),cbin(2),cbin(3),3) + dot_product(fij,velvect)*dble(onfacezb)
+			Pxyvface(cbin(1),cbin(2),cbin(3),4) = &
+				Pxyvface(cbin(1),cbin(2),cbin(3),4) + dot_product(fij,velvect)*dble(onfacext)
+			Pxyvface(cbin(1),cbin(2),cbin(3),5) = &
+				Pxyvface(cbin(1),cbin(2),cbin(3),5) + dot_product(fij,velvect)*dble(onfaceyt)
+			Pxyvface(cbin(1),cbin(2),cbin(3),6) = &
+				Pxyvface(cbin(1),cbin(2),cbin(3),6) + dot_product(fij,velvect)*dble(onfacezt)
 		endif
 
 		!Force applied to volume

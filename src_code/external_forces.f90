@@ -786,7 +786,7 @@ subroutine apply_CV_force(iter)
 	binsize = domain/nbins
 	volume = product(binsize)
 	!ibin = 3; jbin = 3; kbin = 3
-	starttime = 400 !Nsteps/2.d0
+	starttime = 200 !Nsteps/2.d0
 
 	!Exchange CV data ready to apply force
 	call update_CV_halos
