@@ -505,8 +505,14 @@ subroutine setup_initial_record
 			!print'(2(a,f10.5))', ' Seperated by distance:', planespacing, ' with first plane at ', & 
 			!			 planes(1)
 		case(4)
-			print'(3(a,i8),a)', ' Energy flux over surface of 3D bins and snapshots recorded every:', &
-					tplot,' x ',Neflux_ave,' = ',tplot*Neflux_ave,' iterations'
+			if (cv_conserve .eq. 0) then
+				print'(3(a,i8),a)', ' Energy flux over surface of 3D bins and snapshots recorded every:', &
+						tplot,' x ',Neflux_ave,' = ',tplot*Neflux_ave,' iterations'
+			else
+				print'(a,i8,a)', ' Energy flux over surface of 3D bins and snapshots recorded every:', &
+						Neflux_ave,' iterations'
+			endif
+
 			print'(a,3i8)', ' Domain split into bins in x,y and z:', gnbins
 			print'(a,3f10.5)', ' Each of size:', & 
 			globaldomain(1)/gnbins(1), globaldomain(2)/gnbins(2),globaldomain(3)/gnbins(3)

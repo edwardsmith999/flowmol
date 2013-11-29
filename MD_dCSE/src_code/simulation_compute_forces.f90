@@ -526,7 +526,7 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 				!	baz = baz + accijmag*rij(3)                   !!!!!! TEMP !!!
 				!end if                                            !!!!!! TEMP !!!
 
-				if (vflux_outflag.eq.4) then
+				if (vflux_outflag.eq.4 .or. eflux_outflag.eq.4) then
 					if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
 						if (molnoj .gt. np .or. molnoi .gt. np) then
 							fij = accijmag*rij(:)

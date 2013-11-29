@@ -128,7 +128,8 @@ module computational_constants_MD
 		pass_vhalo = 0, &
 		fixed_rebuild_flag, &		!Fixed rebuild flag
 		peculiar_flag, &	 			!Take streaming velocity away from temperature 	
-		CVforce_flag = VOID
+		CVforce_flag = VOID, & 			!Type of CV force to apply
+		CVforce_testcaseflag = 1		!Variety of test cases using CV forces
 
 	!Add debugging CV flags
 	logical	:: CV_debug=.false.
@@ -642,7 +643,8 @@ module calculated_properties_MD
 		rfmol,				&  		!Position(x)Force tensor per molecule
 		Pxymol,				&  		!Stress tensor per molecule
 		zeta_array,			&		!Local Nose Hoover Thermostat strength
-		volume_temperature			!Temperature in a control volume at time t
+		volume_temperature, &		!Temperature in a control volume at time t
+		Fv_ext_bin					!Power due to external forces in bins
 
 	double precision, dimension(:,:,:,:), allocatable	:: &
 		volume_momentum,	& 		!Momentum in a control volume at time t

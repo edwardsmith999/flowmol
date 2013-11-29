@@ -656,7 +656,8 @@ end subroutine setup_linklist
 subroutine set_parameters_outputs
 	use module_set_parameters
 	use interfaces
-	use CV_objects, only : CVcheck_mass,CVcheck_momentum,CVcheck_momentum2,CV_debug,CV_sphere_momentum,CV_sphere_mass
+	use CV_objects, only : CVcheck_mass,CVcheck_momentum, & 
+						   CVcheck_momentum2,CVcheck_energy, CV_debug!,CV_sphere_momentum,CV_sphere_mass
 	implicit none
 
 	integer					:: n
@@ -939,8 +940,9 @@ subroutine set_parameters_outputs
 				call CVcheck_mass%initialise(nbinso)   ! initialize CVcheck
 				call CVcheck_momentum%initialise(nbinso)   ! initialize CVcheck
 				call CVcheck_momentum2%initialise(nbinso)   ! initialize CVcheck
-				call CV_sphere_mass%initialise((/1,1,1/))	
-				call CV_sphere_momentum%initialise_sphere((/1,1,1/),collect_spherical=.false.)	
+				call CVcheck_energy%initialise(nbinso)   ! initialize CVcheck
+				!call CV_sphere_mass%initialise((/1,1,1/))	
+				!call CV_sphere_momentum%initialise_sphere((/1,1,1/),collect_spherical=.false.)	
 			endif
 			!Allocate bins for control volume mass fluxes
 			if (.not.(allocated(volume_mass)))  allocate(volume_mass(nbinso(1),nbinso(2),nbinso(3)))
@@ -966,6 +968,14 @@ subroutine set_parameters_outputs
 		allocate(  energy_flux(nbinso(1),nbinso(2),nbinso(3),6))
 		allocate( Pxyvface(nbinso(1),nbinso(2),nbinso(3),6))
 		energy_flux 	= 0.d0; Pxyvface = 0.d0
+		if (external_force_flag .ne. 0 .or. & 
+			ensemble .eq. tag_move .or.     & 
+			CVforce_flag .ne. VOID) then
+			allocate(Fv_ext_bin(nbinso(1),nbinso(2),nbinso(3)))
+			Fv_ext_bin = 0.d0
+		endif
+	elseif (eflux_outflag .eq. 1 .or. eflux_outflag .eq. 2 .or. eflux_outflag .eq. 3) then
+		stop "Error - eflux MOP is not coded!"
 	endif
 
 #if USE_COUPLER

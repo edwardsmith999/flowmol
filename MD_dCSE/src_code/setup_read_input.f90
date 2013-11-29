@@ -616,7 +616,7 @@ subroutine setup_read_input
 	if (found_in_input) then
 		read(1,* ) cv_conserve
 		read(1,*,iostat=ios) CV_debug
-		if (ios .ne. 0) VA_calcmethod = .false.
+		if (ios .ne. 0) CV_debug = .false.
 	endif
 	call locate(1,'MFLUX_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
@@ -690,6 +690,8 @@ subroutine setup_read_input
 			if (.not. CV_debug) call error_abort("Input ERROR -- CV_FORCES true so CV_debug should be set to true")
 			if (vflux_outflag .ne. 4) call error_abort("Input ERROR -- CV_FORCES .true. but VFLUX_OUTFLAG not set to 4 (CV averages)")
 		endif
+		read(1,*,iostat=ios) CVforce_testcaseflag
+		if (ios .ne. 0) CVforce_testcaseflag = 1
 	endif
 
 	close(1,status='keep')      !Close input file

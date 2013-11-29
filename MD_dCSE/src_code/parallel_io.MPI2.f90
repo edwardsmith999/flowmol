@@ -2829,6 +2829,7 @@ subroutine energy_bin_io(CV_energy_out,io_type)
 	use module_parallel_io
 	use calculated_properties_MD
 	use messenger_bin_handler, only : swaphalos
+	use CV_objects, only : CVcheck_energy
 	implicit none
 
 	integer							:: m,nresults
@@ -2842,9 +2843,9 @@ subroutine energy_bin_io(CV_energy_out,io_type)
 	write(filename, '(a9,a4)' ) 'results/e', io_type
 	outfile = trim(prefix_dir)//filename
 
-	nresults = 1
 	!---------------Correct for surface fluxes on halo cells---------------
 	! Swap Halos
+	nresults = 1
 	allocate(CV_energy_temp(nbinso(1),nbinso(2),nbinso(3),nresults))
 	CV_energy_temp(:,:,:,1) = CV_energy_out
 	call swaphalos(CV_energy_temp,nbinso(1),nbinso(2),nbinso(3),nresults)
@@ -2858,6 +2859,10 @@ subroutine energy_bin_io(CV_energy_out,io_type)
 			m = (iter-initialstep+1)/(tplot*Neflux_ave) + 1 !Initial snapshot taken
 		case(1)
 			m = (iter-initialstep+1)/(Neflux_ave) + 1 !Initial snapshot taken
+			!Create copy of previous timestep Control Volume energy to calculate time evolution
+			if (CV_debug) then
+				call CVcheck_energy%update_dXdt(CV_energy_out(:,:,:))
+			endif
 		case default
 			call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')	
 		end select
@@ -3255,8 +3260,8 @@ subroutine external_force_io
 
 	!Store surface stress value in CV data object
 	if (CV_debug) then
-		!call CVcheck_momentum%update_F_ext(F_ext_bin)
-		CVcheck_momentum%F_ext = F_ext_bin
+		call CVcheck_momentum%update_F_ext(F_ext_bin)
+		!CVcheck_momentum%F_ext = F_ext_bin
 	endif
 
 	!Write external forces pressures to file
@@ -3270,10 +3275,10 @@ subroutine external_force_io
 	end select
 
 	!Write external forces to file
-	allocate(temp(size(F_ext_bin,1),size(F_ext_bin,2),size(F_ext_bin,3),nresults))
-	temp = reshape(F_ext_bin,(/ size(F_ext_bin,1),size(F_ext_bin,2),size(F_ext_bin,3),nresults /))
-	call write_arrays(temp,nresults,trim(prefix_dir)//'results/Fext',m)
-	deallocate(temp)
+	!allocate(temp(size(F_ext_bin,1),size(F_ext_bin,2),size(F_ext_bin,3),nresults))
+	!temp = reshape(F_ext_bin,(/ size(F_ext_bin,1),size(F_ext_bin,2),size(F_ext_bin,3),nresults /))
+	call write_arrays(F_ext_bin,nresults,trim(prefix_dir)//'results/Fext',m)
+	!deallocate(temp)
 
 end subroutine external_force_io
 
@@ -3285,6 +3290,7 @@ subroutine energy_flux_io
 	use module_parallel_io
 	use calculated_properties_MD
 	use messenger_bin_handler, only : swaphalos
+	use CV_objects, only : CVcheck_energy
 	implicit none
 
 	integer					:: ixyz,m,nresults
@@ -3304,6 +3310,12 @@ subroutine energy_flux_io
 	!Divide energy flux by averaing period tau=delta_t*Neflux_ave if CV_conserve=1
 	!or Divide sample energy flux by equivalent averaging period delta_t*Neflux_ave
 	energy_flux = energy_flux/(delta_t*Neflux_ave)
+
+	!Store momentum flux value in CV data object
+	if (CV_debug) then
+		CVcheck_energy%flux = 0.d0
+		call CVcheck_energy%update_flux(energy_flux)
+	endif
 
 	!Write energy flux to file
 	select case(CV_conserve)
@@ -3326,6 +3338,7 @@ subroutine surface_power_io
 	use module_parallel_io
 	use calculated_properties_MD
 	use messenger_bin_handler, only : swaphalos
+	use CV_objects, only : CVcheck_energy
 	implicit none
 
 	integer					:: ixyz,m,nresults
@@ -3345,6 +3358,11 @@ subroutine surface_power_io
 	!Integration of stress using trapizium rule requires multiplication by timestep
 	Pxyvface = Pxyvface/Neflux_ave
 
+	!Store surface stress value in CV data object
+	if (CV_debug) then
+		call CVcheck_energy%update_Pxy(Pxyvface)
+	endif
+
 	!Write surface pressures * velocity to file
 	select case(CV_conserve)
 	case(0)
@@ -3357,6 +3375,53 @@ subroutine surface_power_io
 	call write_arrays(Pxyvface,nresults,trim(prefix_dir)//'results/esurface',m)
 
 end subroutine surface_power_io
+
+
+!---------------------------------------------------------------------------------
+! Record external forces times velocity applied to molecules inside a volume
+
+subroutine external_forcev_io
+	use module_parallel_io
+	use calculated_properties_MD
+	use CV_objects, only : CVcheck_energy
+	use messenger_bin_handler, only : swaphalos
+	implicit none
+
+	integer									 :: m,nresults
+	integer, dimension(:,:,:,:), allocatable :: Fv_ext_copy
+
+	!Copy CV_energy_out so it is not changed
+	nresults = 1
+	allocate(Fv_ext_copy(nbinso(1),nbinso(2),nbinso(3),nresults))
+	Fv_ext_copy(:,:,:,1) = Fv_ext_bin(:,:,:)
+	call swaphalos(Fv_ext_copy,nbinso(1),nbinso(2),nbinso(3),nresults)
+	Fv_ext_bin = Fv_ext_copy(:,:,:,1)
+	deallocate(Fv_ext_copy)
+
+	!Integration of force using trapizium rule requires multiplication by timestep
+	!so delta_t cancels upon division by tau=delta_t*Nvflux_ave resulting in division by Nvflux_ave
+	Fv_ext_bin = Fv_ext_bin/Neflux_ave
+
+	!Store surface stress value in CV data object
+	if (CV_debug) then
+		call CVcheck_energy%update_F_ext(Fv_ext_bin)
+		!CVcheck_energy%F_ext = Fv_ext_bin
+	endif
+
+	!Write external forces pressures to file
+	select case(CV_conserve)
+	case(0)
+		m = (iter-initialstep+1)/(Neflux_ave*tplot)
+	case(1)
+		m = (iter-initialstep+1)/(Neflux_ave)
+	case default
+		call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
+	end select
+
+	!Write external forces to file
+	call write_arrays(Fv_ext_bin,nresults,trim(prefix_dir)//'results/Fvext',m)
+
+end subroutine external_forcev_io
 
 !---------------------------------------------------------------------------------
 ! Record  energy accross plane
