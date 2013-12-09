@@ -572,7 +572,7 @@ contains
 			!if(conserved .gt. 0.000000001d0) then
 			!if (abs(Fv_ext) .gt. 0.000001) then
 			if (i .eq. 3 .and. j .eq. 3 .and. k .eq. 3) then
-				print'(a,i8,4i4,9f10.5)','Error_in_energy_flux', iter,irank,i,j,k, & 
+				print'(a,i8,4i4,9f10.5)','Error_in_energy_flux  ', iter,irank,i,j,k, & 
 					 conserved, totalpower,-totalflux,denergydt, & 
 					+Fv_ext, self%X(i,j,k),self%X_minus_t(i,j,k)
 				check_ok = .false.

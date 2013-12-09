@@ -1723,7 +1723,7 @@ subroutine simulation_compute_kinetic_VA_cells(imin,imax,jmin,jmax,kmin,kmax)
 
 		!ASSUME Cell same size as bins
 		cellnp = cell%cellnp(icell,jcell,kcell)
-		oldi => cell%head(icell,jcell,kcell)%point 	!Set old to first molecule in list
+		oldi  =>  cell%head(icell,jcell,kcell)%point 	!Set old to first molecule in list
 		ibin = icell-1; jbin = jcell-1; kbin = kcell-1	
 
 		do i = 1,cellnp					!Step through each particle in list 
@@ -1745,8 +1745,8 @@ subroutine simulation_compute_kinetic_VA_cells(imin,imax,jmin,jmax,kmin,kmax)
 			enddo
 			enddo
 
-			currenti => oldi
-			oldi => currenti%next !Use pointer in datatype to obtain next item in list
+			currenti  =>  oldi
+			oldi  =>  currenti%next !Use pointer in datatype to obtain next item in list
 		enddo
 	enddo
 	enddo
@@ -1815,7 +1815,7 @@ end subroutine mass_flux_averaging
 
 subroutine cumulative_mass_flux
 	use module_record
-    use librarymod, only : imaxloc, heaviside => heaviside_a1
+    use librarymod, only : imaxloc, heaviside  =>  heaviside_a1
     !use CV_objects, only : CV_sphere_mass
     implicit none
 
@@ -1999,70 +1999,24 @@ end subroutine mass_snapshot
 ! Control Volume Momentum continuity
 !===================================================================================
 
-subroutine momentum_flux_averaging(ixyz)
-	!use field_io, only :  momentum_flux_io,surface_stress_io, & 
-	!					  external_force_io,MOP_stress_io
-	use module_record
-	use CV_objects, only : CV_debug, CVcheck_momentum!, CV_sphere_momentum
-	implicit none
-
-	integer				:: ixyz,icell,jcell,kcell
-	integer, save		:: sample_count
-
-	if (vflux_outflag .eq. 0) return
-
-	call cumulative_momentum_flux(ixyz)
-	sample_count = sample_count + 1
-	if (sample_count .eq. Nvflux_ave) then
-
-		select case(ixyz)
-		case(1:3)
-			!MOP momentum flux and stresses
-			call MOP_stress_io(ixyz)
-			Pxy_plane = 0.d0
-		case(4)
-			!CV momentum flux and stress
-			call momentum_flux_io
-			momentum_flux = 0.d0
-			call momentum_snapshot
-			if (external_force_flag .ne. 0 .or. & 
-				ensemble .eq. tag_move     .or. & 
-				CVforce_flag .ne. VOID) then
-				call external_force_io
-				F_ext_bin = 0.d0
-			endif
-		case default 
-			call error_abort("Momentum flux and pressure averaging Error")
-		end select
-
-		sample_count = 0
-
-	endif
-
-	!Write forces out at time t before snapshot/final fluxes
-	!as both use velocity at v(t-dt/2)
-	if (sample_count .eq. Nvflux_ave-1) then
-		call surface_stress_io
-		Pxyface = 0.d0
-		!Debug flag to check CV conservation in code
-		if (CV_debug) then
-		    call CVcheck_momentum%check_error(1+nhb(1),nbins(1)+nhb(1), & 
-											  1+nhb(2),nbins(2)+nhb(2), & 
-											  1+nhb(3),nbins(3)+nhb(3),iter,irank)
-	        !call CV_sphere_momentum%check_error(1,1,1,1,1,1,iter,irank)
-	   endif
-	endif
-
-end subroutine momentum_flux_averaging
 
 !===================================================================================
 ! Momentum Flux over a surface of a bin including all intermediate bins
 
-subroutine cumulative_momentum_flux(ixyz)
-	use module_record
-	use CV_objects, only : CV_debug, CVcheck_momentum2!, CV_sphere_momentum
-    use librarymod, only : imaxloc, heaviside => heaviside_a1
+module cumulative_momentum_flux_mod
+
+contains
+
+subroutine cumulative_momentum_flux(r_,v_,momentum_flux_)
+	use module_record, only : vflux_outflag, domain, halfdomain, planespacing, CV_debug, & 
+							  delta_t, planes, Pxy_plane, nplanes, np, nbins, nhb
+	use CV_objects, only : CVcheck_momentum2!, CV_sphere_momentum
+    use librarymod, only : imaxloc, heaviside  =>  heaviside_a1
+	use interfaces, only : error_abort
 	implicit none
+
+	double precision,dimension(:,:),allocatable,intent(in) 			:: r_,v_
+	double precision,dimension(:,:,:,:,:),allocatable,intent(inout) :: momentum_flux_
 
 	integer							:: ixyz,jxyz,i,j,k,n
 	integer							:: planeno
@@ -2072,7 +2026,9 @@ subroutine cumulative_momentum_flux(ixyz)
 	double precision,dimension(3)	:: mbinsize,velvect,crossface
 	double precision,dimension(3)	:: ri1,ri2,ri12,bintop,binbot,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
 
-	select case(ixyz)
+	ixyz = vflux_outflag
+
+	select case(vflux_outflag)
 	case(1:3)
 		!MOP momentum flux
 		!Shift by half difference between value rounded down and actual value
@@ -2084,22 +2040,22 @@ subroutine cumulative_momentum_flux(ixyz)
 
 			!Replace Signum function with this functions which gives a
 			!check for plane crossing and the correct sign 
-			crossplane = ceiling((r(ixyz,n)+halfdomain(ixyz)-shift)/planespacing) & 
-				    	-ceiling((r(ixyz,n)-delta_t*v(ixyz,n)+halfdomain(ixyz)-shift)/planespacing)
+			crossplane = ceiling((r_(ixyz,n)+halfdomain(ixyz)-shift)/planespacing) & 
+				    	-ceiling((r_(ixyz,n)-delta_t*v_(ixyz,n)+halfdomain(ixyz)-shift)/planespacing)
 
 			if (crossplane .ne. 0) then
 
 				!Obtain nearest plane number by integer division 
 				!and retrieve location of plane from array
-				planeno = ceiling((r(ixyz,n)+halfdomain(ixyz)-shift) 	& 
+				planeno = ceiling((r_(ixyz,n)+halfdomain(ixyz)-shift) 	& 
 					  /planespacing)-heaviside(dble(crossplane))+1
 				if (planeno .lt. 1) planeno = 1
 				if (planeno .gt. nplanes) planeno = nplanes
 				rplane = planes(planeno)
 
 				!Calculate velocity at time of intersection
-				!crosstime = (r(ixyz,n) - rplane)/v(ixyz,n)
-				velvect(:) = v(:,n) !- a(:,n) * crosstime
+				!crosstime = (r_(ixyz,n) - rplane)/v_(ixyz,n)
+				velvect(:) = v_(:,n) !- a(:,n) * crosstime
 
 				!if (crosstime/delta_t .gt. 1.d0)&
                 !                    call error_abort("error in kinetic MOP")
@@ -2117,10 +2073,10 @@ subroutine cumulative_momentum_flux(ixyz)
 
 		do n = 1,np	
 
-			!Get velocity at v(t+dt/2) from v(t-dt/2)
-			velvect(:) = v(:,n)
-			ri1(:) = r(:,n) 							!Molecule i at time t
-			ri2(:) = r(:,n)	- delta_t*velvect			!Molecule i at time t-dt
+			!Get velocity at v_(t+dt/2) from v_(t-dt/2)
+			velvect(:) = v_(:,n)
+			ri1(:) = r_(:,n) 							!Molecule i at time t
+			ri2(:) = r_(:,n)	- delta_t*velvect			!Molecule i at time t-dt
 			ri12   = ri1 - ri2							!Molecule i trajectory between t-dt and t
 			where (ri12 .eq. 0.d0) ri12 = 0.000001d0
 
@@ -2206,53 +2162,44 @@ subroutine cumulative_momentum_flux(ixyz)
 					jxyz = imaxloc(abs(crossface))	!Integer array of size 1 copied to integer
 
 					!Calculate velocity at time of intersection
-					!crosstime = (r(jxyz,n) - rplane)/v(jxyz,n)
-					!velvect(:) = v(:,n) !- a(:,n) * crosstime
+					!crosstime = (r_(jxyz,n) - rplane)/v_(jxyz,n)
+					!velvect(:) = v_(:,n) !- a(:,n) * crosstime
 					!Change in velocity at time of crossing is not needed as velocity assumed constant 
 					!for timestep and changes when forces are applied.
+! 					if (cbin(1) .eq. 3 .and. cbin(2) .eq. 3 .and. cbin(3) .eq. 3) then
+! 						if (abs(onfacexb) .gt. 0.000001) print'(a,i8,f16.10,a,f16.10,a,f16.10,a,2f16.10)', & 
+! 							'Flux botx', n, ri2(1), ' => ', binbot(1), ' => ', ri1(1), ' v= ', velvect(1),sign(1.d0,onfacexb)
+! 						if (abs(onfaceyb) .gt. 0.000001) print'(a,i8,f16.10,a,f16.10,a,f16.10,a,2f16.10)', & 
+! 							'Flux boty', n, ri2(2), ' => ', binbot(2), ' => ', ri1(2), ' v= ', velvect(2),sign(1.d0,onfaceyb)
+! 						if (abs(onfacezb) .gt. 0.000001) print'(a,i8,f16.10,a,f16.10,a,f16.10,a,2f16.10)', & 
+! 							'Flux botz', n, ri2(3), ' => ', binbot(3), ' => ', ri1(3), ' v= ', velvect(3),sign(1.d0,onfacezb)
+! 						if (abs(onfacext) .gt. 0.000001) print'(a,i8,f16.10,a,f16.10,a,f16.10,a,2f16.10)', & 
+! 							'Flux topx', n, ri2(1), ' => ', bintop(1), ' => ', ri1(1), ' v= ', velvect(1),sign(1.d0,onfacext)
+! 						if (abs(onfaceyt) .gt. 0.000001) print'(a,i8,f16.10,a,f16.10,a,f16.10,a,2f16.10)', & 
+! 							'Flux topy', n, ri2(2), ' => ', bintop(2), ' => ', ri1(2), ' v= ', velvect(2),sign(1.d0,onfaceyt)
+! 						if (abs(onfacezt) .gt. 0.000001) print'(a,i8,f16.10,a,f16.10,a,f16.10,a,2f16.10)', & 
+! 							'Flux topz', n, ri2(3), ' => ', bintop(3), ' => ', ri1(3), ' v= ', velvect(3),sign(1.d0,onfacezt)
+! 					endif
 
 					!Add Momentum flux over face
-					momentum_flux(cbin(1),cbin(2),cbin(3),:,1) = & 
-						momentum_flux(cbin(1),cbin(2),cbin(3),:,1) & 
+					momentum_flux_(cbin(1),cbin(2),cbin(3),:,1) = & 
+						momentum_flux_(cbin(1),cbin(2),cbin(3),:,1) & 
 					      - velvect(:)*dble(onfacexb)*abs(crossface(jxyz))
-					momentum_flux(cbin(1),cbin(2),cbin(3),:,2) = & 
-						momentum_flux(cbin(1),cbin(2),cbin(3),:,2) & 
+					momentum_flux_(cbin(1),cbin(2),cbin(3),:,2) = & 
+						momentum_flux_(cbin(1),cbin(2),cbin(3),:,2) & 
 					      - velvect(:)*dble(onfaceyb)*abs(crossface(jxyz))
-					momentum_flux(cbin(1),cbin(2),cbin(3),:,3) = & 
-						momentum_flux(cbin(1),cbin(2),cbin(3),:,3) &
+					momentum_flux_(cbin(1),cbin(2),cbin(3),:,3) = & 
+						momentum_flux_(cbin(1),cbin(2),cbin(3),:,3) &
 					      - velvect(:)*dble(onfacezb)*abs(crossface(jxyz))
-					momentum_flux(cbin(1),cbin(2),cbin(3),:,4) = & 
-						momentum_flux(cbin(1),cbin(2),cbin(3),:,4) &
+					momentum_flux_(cbin(1),cbin(2),cbin(3),:,4) = & 
+						momentum_flux_(cbin(1),cbin(2),cbin(3),:,4) &
 					      + velvect(:)*dble(onfacext)*abs(crossface(jxyz))
-					momentum_flux(cbin(1),cbin(2),cbin(3),:,5) = & 
-						momentum_flux(cbin(1),cbin(2),cbin(3),:,5) &
+					momentum_flux_(cbin(1),cbin(2),cbin(3),:,5) = & 
+						momentum_flux_(cbin(1),cbin(2),cbin(3),:,5) &
 					      + velvect(:)*dble(onfaceyt)*abs(crossface(jxyz))
-					momentum_flux(cbin(1),cbin(2),cbin(3),:,6) = & 
-						momentum_flux(cbin(1),cbin(2),cbin(3),:,6) &
+					momentum_flux_(cbin(1),cbin(2),cbin(3),:,6) = & 
+						momentum_flux_(cbin(1),cbin(2),cbin(3),:,6) &
 					      + velvect(:)*dble(onfacezt)*abs(crossface(jxyz))
-
-					!Add instantanous Momentum flux to CV record
-					if (CV_debug) then
-    					CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,1) = & 
-    						CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,1) &
-							   - velvect(:)*dble(onfacexb)*abs(crossface(jxyz))
-    					CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,2) = & 
-    						CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,2)  & 
-    					      - velvect(:)*dble(onfaceyb)*abs(crossface(jxyz))
-    					CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,3) = & 
-    						CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,3)  & 
-    					      - velvect(:)*dble(onfacezb)*abs(crossface(jxyz))
-    					CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,4) = & 
-    						CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,4)  & 
-    					      + velvect(:)*dble(onfacext)*abs(crossface(jxyz))
-    					CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,5) = & 
-    						CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,5)  & 
-    					      + velvect(:)*dble(onfaceyt)*abs(crossface(jxyz))
-    					CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,6) = & 
-    						CVcheck_momentum2%flux(cbin(1),cbin(2),cbin(3),:,6)  & 
-    					      + velvect(:)*dble(onfacezt)*abs(crossface(jxyz))
-    					    
-					endif
 
 				enddo
 				enddo
@@ -2266,6 +2213,78 @@ subroutine cumulative_momentum_flux(ixyz)
 	end select
 
 end subroutine cumulative_momentum_flux
+
+end module cumulative_momentum_flux_mod
+
+subroutine momentum_flux_averaging(ixyz)
+	!use field_io, only :  momentum_flux_io,surface_stress_io, & 
+	!					  external_force_io,MOP_stress_io
+	use module_record
+	use cumulative_momentum_flux_mod, only : cumulative_momentum_flux
+	use CV_objects, only : CV_debug, CVcheck_momentum!, CVcheck_momentum2!, CV_sphere_momentum
+	implicit none
+
+	integer				:: ixyz,icell,jcell,kcell,n
+	integer, save		:: sample_count
+
+!	double precision,dimension(:,:),allocatable 		:: r_,v_
+
+	if (vflux_outflag .eq. 0) return
+
+	call cumulative_momentum_flux(r,v,momentum_flux)
+! 	if (CV_debug) then
+! 		allocate(r_(3,np),v_(3,np))
+! 		do n = 1,np
+! 			v_(:,n) = v(:,n) + delta_t * a(:,n) !Velocity calculated from acceleration
+! 			r_(:,n) = r(:,n) + delta_t * v(:,n)	!Position calculated from velocity
+! 		enddo
+! 		call cumulative_momentum_flux(r_,v_,CVcheck_momentum2%flux)
+! 		deallocate(r_,v_)
+! 	endif
+
+
+	sample_count = sample_count + 1
+	if (sample_count .eq. Nvflux_ave) then
+
+		select case(vflux_outflag)
+		case(1:3)
+			!MOP momentum flux and stresses
+			call MOP_stress_io(ixyz)
+			Pxy_plane = 0.d0
+		case(4)
+			!CV momentum flux and stress
+			call momentum_flux_io
+			momentum_flux = 0.d0
+			call momentum_snapshot
+			if (external_force_flag .ne. 0 .or. & 
+				ensemble .eq. tag_move     .or. & 
+				CVforce_flag .ne. VOID) then
+				call external_force_io
+				F_ext_bin = 0.d0
+			endif
+		case default 
+			call error_abort("Momentum flux and pressure averaging Error")
+		end select
+
+		sample_count = 0
+
+	endif
+
+	!Write forces out at time t before snapshot/final fluxes
+	!as both use velocity at v(t-dt/2)
+	if (sample_count .eq. Nvflux_ave-1) then
+		call surface_stress_io
+		Pxyface = 0.d0
+		!Debug flag to check CV conservation in code
+		if (CV_debug) then
+		    call CVcheck_momentum%check_error(1+nhb(1),nbins(1)+nhb(1), & 
+											  1+nhb(2),nbins(2)+nhb(2), & 
+											  1+nhb(3),nbins(3)+nhb(3),iter,irank)
+	        !call CV_sphere_momentum%check_error(1,1,1,1,1,1,iter,irank)
+	   endif
+	endif
+
+end subroutine momentum_flux_averaging
 
 !===================================================================================
 ! Control Volume snapshot of momentum in a given bin
@@ -2375,7 +2394,7 @@ end subroutine energy_flux_averaging
 
 subroutine cumulative_energy_flux(ixyz)
 	use module_record
-    use librarymod, only : imaxloc, heaviside => heaviside_a1
+    use librarymod, only : imaxloc, heaviside  =>  heaviside_a1
 	implicit none
 
 	integer							:: ixyz,jxyz,i,j,k,n,planeno
@@ -3332,7 +3351,7 @@ end subroutine pressure_tensor_forces_VA
 
 subroutine control_volume_forces(fij,ri,rj,molnoi,molnoj)
     use module_record
-    use librarymod, only : heaviside => heaviside_a1
+    use librarymod, only : heaviside  =>  heaviside_a1
     implicit none
 
 	integer							:: molnoi, molnoj
@@ -3384,7 +3403,7 @@ end subroutine control_volume_forces
 subroutine control_volume_stresses(fij,ri,rj,molnoi)
     use module_record
 	use CV_objects, only : CV_debug,CVcheck_momentum2
-    use librarymod, only : heaviside => heaviside_a1
+    use librarymod, only : heaviside  =>  heaviside_a1
     implicit none
 
 	integer							:: i,j,k,ixyz,molnoi
@@ -3507,7 +3526,7 @@ end subroutine control_volume_stresses
 
 subroutine control_volume_stresses_opt(fij,ri,rj,molnoi)
 	use module_record
-    use librarymod, only : heaviside => heaviside_a1
+    use librarymod, only : heaviside  =>  heaviside_a1
 	implicit none
 
 	integer							:: i,j,k,ixyz,molnoi,molnoj
@@ -3698,7 +3717,7 @@ end subroutine control_volume_stresses_opt
 
 subroutine pressure_tensor_forces_MOP(pnxyz,ri,rj,rij,accijmag)
 	use module_record
-    use librarymod, only : heaviside => heaviside_a1
+    use librarymod, only : heaviside  =>  heaviside_a1
 	implicit none
 
 	integer							:: n
@@ -3765,6 +3784,8 @@ subroutine record_external_forces(F,ri,vi)
 		if ( present(vi)) then
 			Fv_ext_bin(ibin(1),ibin(2),ibin(3)) = & 
 				Fv_ext_bin(ibin(1),ibin(2),ibin(3)) + dot_product(F(:),vi(:))
+			!if (abs(dot_product(F(:),vi(:))) .gt. 0.00000001) & 
+			!	print'(8f10.5)', F(:),vi(:),dot_product(F(:),vi(:)),Fv_ext_bin(ibin(1),ibin(2),ibin(3))
 		else
 			!Velocity assumed to be zero if not supplied
 		endif
@@ -3793,7 +3814,7 @@ end subroutine record_external_forces
 
 !	do jcellshift = -1,1
 !	do icellshift = -1,1
-!		oldj => cell%head(icell+icellshift,jcell+jcellshift)%point
+!		oldj  =>  cell%head(icell+icellshift,jcell+jcellshift)%point
 !		adjacentcellnp = cell%cellnp(icell+icellshift,jcell+jcellshift)
 !
 !		do j = 1,adjacentcellnp          !Step through all j for each i
@@ -3801,8 +3822,8 @@ end subroutine record_external_forces
 !			molnoj = oldj%molno !Number of molecule
 !			rj = r(:,molnoj)         !Retrieve rj
 !					
-!			currentj => oldj
-!			oldj => currentj%next    !Use pointer in datatype to obtain next item in list
+!			currentj  =>  oldj
+!			oldj  =>  currentj%next    !Use pointer in datatype to obtain next item in list
 
 !			if(molnoi==molnoj) cycle !Check to prevent interaction with self
 
