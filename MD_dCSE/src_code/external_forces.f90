@@ -772,12 +772,13 @@ subroutine apply_CV_force(iter)
 
 	logical							:: apply_CVforce = .false.
 	integer							:: ibin,jbin,kbin,starttime
-	integer							:: box_np
-	integer,allocatable 			:: list(:)
+	integer							:: box_np_bfr,box_np_afr
+	integer,allocatable 			:: list_bfr(:),list_afr(:)
 
 	real(kind(0.d0))				:: volume
 	real(kind(0.d0)),dimension(3)	:: binsize,MD_Pi_dS,MD_rhouu_dS,F_constraint
-	real(kind(0.d0)),dimension(3)	:: u_bin,F_bin,u_bin1, u_bin2, F_bin1, F_bin2
+	real(kind(0.d0)),dimension(3)	:: MD_rhouu_dS_afr, MD_rhouu_dS_prev
+	real(kind(0.d0)),dimension(3)	:: u_bin,F_bin,u_bin_afr, u_bin_bfr, F_bin1, F_bin2
 	real(kind(0.d0)),dimension(3)	:: CFD_Pi_dS,CFD_rhouu_dS,CFD_u_cnst
 
 	if (CVforce_flag .eq. VOID) return
@@ -786,7 +787,7 @@ subroutine apply_CV_force(iter)
 	binsize = domain/nbins
 	volume = product(binsize)
 	!ibin = 3; jbin = 3; kbin = 3
-	starttime = 200 !Nsteps/2.d0
+	starttime = 100 !Nsteps/2.d0
 
 	!Exchange CV data ready to apply force
 	call update_CV_halos
@@ -803,7 +804,7 @@ subroutine apply_CV_force(iter)
 		call get_test_values(CVforce_flag,ibin,jbin,kbin)
 
 		!Retreive CV data and calculate force to apply
-		call average_over_bin(CVforce_flag,ibin,jbin,kbin)
+		call average_over_bin_iter(CVforce_flag,ibin,jbin,kbin)
 
 		!Apply the force
 		!call apply_force
@@ -826,6 +827,8 @@ subroutine apply_CV_force(iter)
 
 	!Reset CV force values
 	CV2%flux = 0.d0; CV2%Pxy = 0.d0
+
+	!Recalculate flux values in line with applied force constraint
 
 contains
 
@@ -912,59 +915,68 @@ end subroutine update_CV_halos
 ! constrained dynamics algorithms
 !-----------------------------------------------------------------------------
 
-subroutine average_over_bin(flag,i,j,k)
+subroutine average_over_bin(flag,ib,jb,kb)
 	use computational_constants_MD, only : nhb, iblock,CVforce_testcaseflag
 	use arrays_MD, only : r, v, a
 	use linked_list, only : node, cell
 	use physical_constants_MD, only : pi
 	use CV_objects, only :  CV2 => CVcheck_momentum2
+	use cumulative_momentum_flux_mod, only : cumulative_momentum_flux
 	implicit none
 
-	integer,intent(in)		:: flag,i,j,k
+	integer,intent(in)		:: flag,ib,jb,kb
 
-	integer					:: n,molno,cellnp
+	integer					:: n,i,molno,cellnp
 	integer,dimension(3)	:: bin
 	type(node), pointer		:: old, current
-	double precision,dimension(:,:),allocatable	:: v_temp
+	!double precision,dimension(:,:),allocatable	:: v_temp
+	double precision,dimension(:,:),allocatable :: r_temp,v_temp
 	logical,save			:: apply_force = .false., first_time = .true.
 
 	!Get velocity at next timestep without constraint
-	allocate(v_temp(3,np))
-	v_temp = 0.d0
+	!Zero box averages and add to list array
+	box_np_bfr = 0
+	allocate(list_bfr(np))
+	allocate(r_temp(3,np),v_temp(3,np))
+	r_temp = 0.d0; v_temp = 0.d0
 	do n = 1,np
-		v_temp(:,n) = v(:,n) + delta_t * a(:,n) 	!Velocity calculated from acceleration
-	enddo
-
-	!Find the molecules in constraint region and add to list array
-	!Zero box averages
-	box_np = 0
-	allocate(list(np))
-	u_bin2(:) = 0.d0
-	F_bin2(:) = 0.d0
-	do n = 1,np
-		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/binsize(:))+1
-		if (bin(1) .eq. i .and. bin(2) .eq. j .and. bin(3) .eq. k) then
+		v_temp(:,n) = v(:,n) + delta_t * a(:,n) 		!Velocity calculated from acceleration
+		r_temp(:,n) = r(:,n) + delta_t * v_temp(:,n)	!Position calculated from velocity
+		bin(:) = ceiling((r_temp(:,n)+0.5d0*domain(:))/binsize(:))+1
+		if (bin(1) .eq. ib .and. bin(2) .eq. jb .and. bin(3) .eq. kb) then
 			!Add molecule to overlap list
-			box_np   =  box_np   + 1
-			list(box_np) =  n
-			!Save sum of velocity and forces without constraint
-			u_bin2(:) = u_bin2(:) + v_temp(:,n)
-			F_bin2(:) = F_bin2(:) + a(:,n)
-			!if (iter .eq. 1001) print'(i5,a,3i8,a,i8,3f10.5)', iter, ' bin ',i,j,k,' molno ', n, r(:,n)
+			box_np_bfr   =  box_np_bfr + 1
+			list_bfr(box_np_bfr) =  n
 		endif
 	enddo
 
+	!Find the molecules in constraint region
+	u_bin_bfr(:) = 0.d0
+	F_bin2(:) = 0.d0
+	do i = 1,box_np_bfr
+		n = list_bfr(i)
+		!Save sum of velocity and forces without constraint
+		u_bin_bfr(:) = u_bin_bfr(:) + v_temp(:,n)
+		F_bin2(:)    = F_bin2(:) + a(:,n)
+		!if (iter .eq. 1001) print'(i5,a,3i8,a,i8,3f10.5)', iter, ' bin ',ib,jb,kb,' molno ', n, r(:,n)
+	enddo
+
+	!Update momentum flux using velocity at next timestep
+	CV2%flux = 0.d0
+	call cumulative_momentum_flux(r_temp,v_temp,CV2%flux)
+	!deallocate(r_temp,v_temp)
+
 	! - - - - -  Get CV Momentum Totals - - - - - - - - - 
 	!Total CV flux
-	MD_rhouu_dS  =		((CV2%flux(i,j,k,:,1)+CV2%flux(i,j,k,:,4)) &
-	          	 		+(CV2%flux(i,j,k,:,2)+CV2%flux(i,j,k,:,5)) &
-	          	 		+(CV2%flux(i,j,k,:,3)+CV2%flux(i,j,k,:,6)))/delta_t
+	MD_rhouu_dS  =		((CV2%flux(ib,jb,kb,:,1)+CV2%flux(ib,jb,kb,:,4)) &
+	          	 		+(CV2%flux(ib,jb,kb,:,2)+CV2%flux(ib,jb,kb,:,5)) &
+	          	 		+(CV2%flux(ib,jb,kb,:,3)+CV2%flux(ib,jb,kb,:,6)))/delta_t
 	!Total surface stresses
-	MD_Pi_dS  =	0.25d0 *((CV2%Pxy(i,j,k,:,1)-CV2%Pxy(i,j,k,:,4)) &
-	              		+(CV2%Pxy(i,j,k,:,2)-CV2%Pxy(i,j,k,:,5)) &
-	              		+(CV2%Pxy(i,j,k,:,3)-CV2%Pxy(i,j,k,:,6)))
+	MD_Pi_dS  =	0.25d0 *((CV2%Pxy(ib,jb,kb,:,1)-CV2%Pxy(ib,jb,kb,:,4)) &
+	              		+(CV2%Pxy(ib,jb,kb,:,2)-CV2%Pxy(ib,jb,kb,:,5)) &
+	              		+(CV2%Pxy(ib,jb,kb,:,3)-CV2%Pxy(ib,jb,kb,:,6)))
 
-	if (box_np .ne. 0 .and. apply_CVforce) then
+	if (box_np_bfr .ne. 0 .and. apply_CVforce) then
 
 		select case (CVforce_testcaseflag)
 		case(1)
@@ -983,7 +995,7 @@ subroutine average_over_bin(flag,i,j,k)
 		!NCER SPECIAL DISCRETISE
 		case(5)
 			!Apply proportional velocity constraint (Borg et al)
-			F_constraint = - (CFD_u_cnst*dble(box_np) - u_bin2)/delta_t
+			F_constraint = - (CFD_u_cnst*dble(box_np_bfr) - u_bin_bfr)/delta_t
 			if (first_time) then 
 				first_time = .false.
 				F_constraint = 0.d0	
@@ -991,24 +1003,201 @@ subroutine average_over_bin(flag,i,j,k)
 		case(6)
 			!NCER special discretisation -- proportional 
 			!velocity constraint including forces
-			F_constraint = MD_Pi_dS - (CFD_u_cnst*dble(box_np) - u_bin2)/delta_t
+			F_constraint = MD_Pi_dS - (CFD_u_cnst*dble(box_np_bfr) - u_bin_bfr)/delta_t
 		case(7)
 			!NCER special discretisation with convective fluxes too
-			F_constraint = MD_Pi_dS-MD_rhouu_dS - (CFD_u_cnst*dble(box_np) - u_bin2)/delta_t
+			F_constraint = MD_Pi_dS-MD_rhouu_dS - (CFD_u_cnst*dble(box_np_bfr) - u_bin_bfr)/delta_t
 		end select
 
-	else
-		F_constraint = 0.d0
-	endif
+		!Divide constraint per molecules
+		F_constraint = F_constraint/dble(box_np_bfr)
 
-	!Divide constraint per molecules
-	if (box_np .ne. 0) then
-		F_constraint = F_constraint/dble(box_np)
 	else
 		F_constraint = 0.d0
 	endif
 
 end subroutine average_over_bin
+
+
+
+!=============================================================================
+! Average molecules in overlap region to obtain values for 
+! constrained dynamics algorithms
+! AND iterate until constraint is consistent
+!-----------------------------------------------------------------------------
+
+subroutine average_over_bin_iter(flag,ib,jb,kb)
+	use computational_constants_MD, only : nhb, iblock,CVforce_testcaseflag
+	use arrays_MD, only : r, v, a
+	use linked_list, only : node, cell
+	use physical_constants_MD, only : pi
+	use CV_objects, only :  CV2 => CVcheck_momentum2
+	use cumulative_momentum_flux_mod, only : cumulative_momentum_flux
+	implicit none
+
+	integer,intent(in)		:: flag,ib,jb,kb
+
+	integer					:: n,i,molno,cellnp, attempt
+	integer,dimension(3)	:: bin
+	type(node), pointer		:: old, current
+	double precision,dimension(:,:),allocatable :: r_temp,v_temp
+	logical					:: converged
+	logical,save			:: apply_force = .false., first_time = .true.
+
+	!Allocate and zero arrays
+	allocate(list_bfr(np),list_afr(np)); 
+	allocate(r_temp(3,np),v_temp(3,np))
+	r_temp = 0.d0; v_temp = 0.d0
+
+	!Get velocity/positions before force applied
+	box_np_bfr = 0; u_bin_bfr = 0.d0
+	do n = 1,np
+		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/binsize(:))+1
+		if (bin(1) .eq. ib .and. bin(2) .eq. jb .and. bin(3) .eq. kb) then
+			!Add molecule to overlap list
+			box_np_bfr   =  box_np_bfr + 1
+			list_bfr(box_np_bfr) =  n
+			u_bin_bfr(:) = u_bin_bfr(:) + v_temp(:,n)
+		endif
+	enddo
+	
+	!Get velocity/positions at next timestep without constraint
+	box_np_afr = 0; u_bin_afr = 0.d0
+	do n = 1,np
+		v_temp(:,n) = v(:,n) + delta_t * a(:,n) 		!Velocity calculated from acceleration
+		r_temp(:,n) = r(:,n) + delta_t * v_temp(:,n)	!Position calculated from velocity
+		bin(:) = ceiling((r_temp(:,n)+0.5d0*domain(:))/binsize(:))+1
+		if (bin(1) .eq. ib .and. bin(2) .eq. jb .and. bin(3) .eq. kb) then
+			!Add molecule to overlap list
+			box_np_afr   =  box_np_afr + 1
+			list_afr(box_np_afr) =  n
+			u_bin_afr(:) = u_bin_afr(:) + v_temp(:,n)
+		endif
+	enddo
+
+	! - - - - -  Get CV Momentum Totals - - - - - - - - - 
+	!Total surface stresses
+	MD_Pi_dS  =	0.25d0 *((CV2%Pxy(ib,jb,kb,:,1)-CV2%Pxy(ib,jb,kb,:,4)) &
+	              		+(CV2%Pxy(ib,jb,kb,:,2)-CV2%Pxy(ib,jb,kb,:,5)) &
+	              		+(CV2%Pxy(ib,jb,kb,:,3)-CV2%Pxy(ib,jb,kb,:,6)))
+
+	!Update momentum flux using velocity at next timestep
+	CV2%flux = 0.d0
+	call cumulative_momentum_flux(r_temp,v_temp,CV2%flux)
+
+	!Total CV flux
+	MD_rhouu_dS  =	((CV2%flux(ib,jb,kb,:,1)+CV2%flux(ib,jb,kb,:,4)) &
+	          	 	+(CV2%flux(ib,jb,kb,:,2)+CV2%flux(ib,jb,kb,:,5)) &
+	          	 	+(CV2%flux(ib,jb,kb,:,3)+CV2%flux(ib,jb,kb,:,6)))/delta_t
+
+
+	!Iterate until momentum flux and applied CV force are consistent
+	converged = .false.
+	do attempt = 1,100
+
+    	if (box_np_afr .ne. 0 .and. apply_CVforce) then
+
+    		select case (CVforce_testcaseflag)
+    		case(1)
+    			!Apply differential CV flux constraint
+    			F_constraint = MD_Pi_dS-MD_rhouu_dS + (CFD_rhouu_dS-CFD_Pi_dS)*volume
+    		!DEBUG CASES WITH TERMS MISSING 
+    		case(2)
+    			!No molecular convective fluxes
+    			F_constraint = MD_Pi_dS + (CFD_rhouu_dS-CFD_Pi_dS)*volume
+				converged = .true.
+    		case(3)
+    			!CFD fluxes only (no MD convective or stresses)
+    			F_constraint = (CFD_rhouu_dS-CFD_Pi_dS)*volume 
+    		case(4)
+    			!No force at all (debug case)
+    			F_constraint = 0.d0
+				converged = .true.
+    		!NCER SPECIAL DISCRETISE
+    		case(5)
+    			!Apply proportional velocity constraint (Borg et al)
+    			F_constraint = - (CFD_u_cnst*dble(box_np_afr) - u_bin_afr)/delta_t
+    			if (first_time) then 
+    				first_time = .false.
+    				F_constraint = 0.d0	
+    			endif
+				converged = .true.
+    		case(6)
+    			!NCER special discretisation -- proportional 
+    			!velocity constraint including forces
+    			F_constraint = MD_Pi_dS - (CFD_u_cnst*dble(box_np_afr) - u_bin_afr)/delta_t
+				converged = .true.
+    		case(7)
+    			!NCER special discretisation with convective fluxes too
+    			F_constraint = MD_Pi_dS-MD_rhouu_dS - (CFD_u_cnst*dble(box_np_afr) - u_bin_afr)/delta_t
+    		end select
+
+    		!Divide constraint per molecules
+    		F_constraint = F_constraint/dble(box_np_bfr)
+
+        	!Get velocity at next timestep with constraint
+			box_np_afr = 0; u_bin_afr = 0.d0
+        	do n = 1,np
+        		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/binsize(:))+1
+        		if (bin(1) .eq. ib .and. bin(2) .eq. jb .and. bin(3) .eq. kb) then
+    				!Velocity calculated from acceleration
+        			v_temp(:,n) = v(:,n) + delta_t * (a(:,n) - F_constraint)
+        		else
+    				!Velocity calculated from acceleration
+        			v_temp(:,n) = v(:,n) + delta_t * a(:,n) 
+        		endif
+    			!Position calculated from velocity
+        		r_temp(:,n) = r(:,n) + delta_t * v_temp(:,n)
+
+				bin(:) = ceiling((r_temp(:,n)+0.5d0*domain(:))/binsize(:))+1
+        		if (bin(1) .eq. ib .and. bin(2) .eq. jb .and. bin(3) .eq. kb) then
+					box_np_afr   =  box_np_afr + 1
+        			list_afr(box_np_afr) =  n
+        			u_bin_afr(:) = u_bin_afr(:) + v_temp(:,n)
+				endif
+        	enddo
+
+! 			print'(i6,a,3i6,6f12.6)', iter, ' Attempt=', attempt,box_np_bfr,box_np_afr, sum(MD_rhouu_dS/(product(binsize))), & 
+! 									sum(MD_rhouu_dS_prev/(product(binsize))) , sum(MD_Pi_dS), &
+! 									sum(F_constraint)/product(binsize),sum(u_bin_afr),sum(u_bin_afr)
+
+
+			if (attempt == 99) stop "Error -- CV could not converge"
+
+
+			if (converged) exit
+
+        	!Update momentum flux using velocity at next timestep
+        	CV2%flux = 0.d0
+        	call cumulative_momentum_flux(r_temp,v_temp,CV2%flux)
+
+        	! - - - - -  Get CV Momentum Totals - - - - - - - - - 
+        	!Total CV flux
+    		MD_rhouu_dS_prev = MD_rhouu_dS
+        	MD_rhouu_dS  =		((CV2%flux(ib,jb,kb,:,1)+CV2%flux(ib,jb,kb,:,4)) &
+        	          	 		+(CV2%flux(ib,jb,kb,:,2)+CV2%flux(ib,jb,kb,:,5)) &
+        	          	 		+(CV2%flux(ib,jb,kb,:,3)+CV2%flux(ib,jb,kb,:,6)))/delta_t
+
+        	!if (abs(sum(MD_rhouu_dS_prev)) .ne. abs(sum(MD_rhouu_dS))) then	
+    		!	print'(a,i8,2f18.7)', 'Updated', iter, sum(MD_rhouu_dS), sum(MD_rhouu_dS_afr)
+    		!endif
+			!if (all(MD_rhouu_dS_prev .ne. MD_rhouu_dS)) then	
+
+			!endif
+
+    		!If fluxes have converged then exit
+    		if (all(MD_rhouu_dS_prev .eq. MD_rhouu_dS)) converged = .true.
+
+    	else
+    		F_constraint = 0.d0
+			!list_afr = list_bfr
+			!box_np_afr = box_np_bfr
+    	endif
+
+	enddo
+	deallocate(r_temp,v_temp)
+
+end subroutine average_over_bin_iter
 
 !=============================================================================
 ! Apply force to molecules in overlap region
@@ -1023,9 +1212,9 @@ subroutine apply_force
 	integer								:: n, molno
 
 	!Loop over all molecules and apply constraint
-	do n = 1, box_np
+	do n = 1, box_np_bfr
 		!Get molecule number
-		molno = list(n)
+		molno = list_bfr(n)
 		!Apply force
 		a(:,molno) = a(:,molno) - F_constraint
 		!Add external force to CV total
@@ -1036,7 +1225,7 @@ subroutine apply_force
 		endif
 
 	enddo
-	deallocate(list)
+	deallocate(list_bfr)
 
 end subroutine apply_force
 
@@ -1051,18 +1240,21 @@ subroutine apply_force_tests(apply_the_force)
 	implicit none
 
 	logical, intent(in) 						:: apply_the_force
-
-	integer										:: i, n, unitno
-	double precision,dimension(:,:),allocatable	:: v_temp,a_temp
+	logical										:: skip
+	integer										:: i,j, n,m, unitno
+	integer,dimension(3)	:: bin
+	double precision,dimension(:,:),allocatable	:: r_temp,v_temp,a_temp
 	double precision,dimension(:),allocatable 	:: vmagnitude,normalisedvfd_bin,binloc
 
 	!Calculate acceleration with constraint
-	allocate(v_temp(3,np),a_temp(3,np))
+	allocate(r_temp(3,np),v_temp(3,np),a_temp(3,np))
 	a_temp(:,1:np) = a(:,1:np)
-	do i = 1, box_np
-		n = list(i)
+	do i = 1, box_np_bfr
+		n = list_bfr(i)
 		a_temp(:,n) = a(:,n) - F_constraint
 		if (apply_the_force) then
+			!print'(a,i8,a,6f10.4)', 'Force2mol ', n, ' mag ', F_constraint, & 
+			!		dble(box_np_bfr)*F_constraint/product(binsize)
 			a(:,n) = a(:,n) - F_constraint
 			!Add external force to CV total
 			if (eflux_outflag .eq. 4) then
@@ -1072,18 +1264,61 @@ subroutine apply_force_tests(apply_the_force)
 			endif
 		endif
 	enddo
-	v_temp = 0.d0
+
+	box_np_afr = 0
+	if (.not. allocated(list_afr)) allocate(list_afr(np))
+
+	!Update velocity, positions and molecules in box
+	v_temp = 0.d0; r_temp = 0.d0
 	do n = 1,np
 		v_temp(:,n) = v(:,n) + delta_t * a_temp(:,n) 	!Velocity calculated from acceleration
+		r_temp(:,n) = r(:,n) + delta_t * v_temp(:,n)    !Position calculated from velocity
+
+		bin(:) = ceiling((r_temp(:,n)+0.5d0*domain(:))/binsize(:))+1
+		if (bin(1) .eq. 3 .and. bin(2) .eq. 3 .and. bin(3) .eq. 3) then
+			!Add new molecule to overlap list
+			box_np_afr   =  box_np_afr   + 1
+			list_afr(box_np_afr) =  n
+		endif
 	enddo
 
+	!Calculate acceleration on any new molecules with constraint
+! 	do i = 1, box_np_afr
+! 		n = list_afr(i)
+! 		skip = .false.
+! 		do j = 1,box_np_bfr
+! 			m = list_bfr(j)
+! 			if (m .eq. n) skip = .true.
+! 		enddo
+! 		if (skip) cycle
+! 		print'(a,4i8)', 'qqqq', iter, n, box_np_bfr, box_np_afr
+!    		!a_temp(:,n) = a(:,n) - F_constraint
+!    		!if (apply_the_force) then
+!    		!	a(:,n) = a(:,n) - F_constraint
+!    			!Add external force to CV total
+!    		!	if (eflux_outflag .eq. 4) then
+!    		!		call record_external_forces(F_constraint(:),r(:,n),v(:,n))
+!    		!	else
+!    		!		call record_external_forces(F_constraint(:),r(:,n))
+!    		!	endif
+!    		!endif
+! 	enddo
+
+
 	!Next save evolution with constraint applied (and PDF function)
-	u_bin1(:) = 0.d0
+	u_bin_afr(:) = 0.d0
 	F_bin1(:) = 0.d0
-	allocate(vmagnitude(box_np))
-	do i = 1, box_np
-		n = list(i)
-		u_bin1(:) = u_bin1(:) + v_temp(:,n)
+! 	allocate(vmagnitude(box_np_afr))
+! 	do i = 1, box_np_afr
+! 		n = list_afr(i)
+! 		u_bin_afr(:) = u_bin_afr(:) + v_temp(:,n)
+! 		F_bin1(:) = F_bin1(:) + a_temp(:,n)
+! 		vmagnitude(i) = v_temp(1,n)
+! 	enddo
+	allocate(vmagnitude(box_np_bfr))
+	do i = 1, box_np_bfr
+		n = list_bfr(i)
+		u_bin_afr(:) = u_bin_afr(:) + v_temp(:,n)
 		F_bin1(:) = F_bin1(:) + a_temp(:,n)
 		vmagnitude(i) = v_temp(1,n)
 	enddo
@@ -1098,25 +1333,28 @@ subroutine apply_force_tests(apply_the_force)
 		allocate(binloc,source=velPDF%binvalues())
 		do n=1,size(normalisedvfd_bin,1) 
 			write(12,'(4(f10.5))') binloc(n), normalisedvfd_bin(n), &
-									sqrt(2/pi)*((binloc(n)**2)*exp((-binloc(n)**2)/(2*temperature))/(temperature**(3.d0/2.d0))), & 
-								    (1.d0/(sqrt(temperature)*sqrt(2.d0*pi)))*exp( -((binloc(n))**2.d0-u_bin1(1)/volume)/(2.d0*temperature) ) 
+									sqrt(2/pi)*((binloc(n)**2)*exp((-binloc(n)**2) & 
+									/(2*temperature))/(temperature**(3.d0/2.d0))), & 
+								    (1.d0/(sqrt(temperature)*sqrt(2.d0*pi))) & 
+									*exp( -((binloc(n))**2.d0-u_bin_afr(1)/volume) & 
+									/(2.d0*temperature) ) 
 		enddo
 		velPDF%hist = 0
 	endif
 
 
 	!Write values of constrained and unconstrained velocity
-	if (box_np .ne. 0) then
+	if (box_np_afr .ne. 0) then
 		unitno = irank*1000000+ibin*10000+jbin*100+kbin
-		write(unitno,'(i3,6i5,9f11.6)'),irank,iter,ibin,jbin,kbin,box_np,box_np, &
-					 					  delta_t*F_constraint,u_bin1/volume,u_bin2/volume
+		write(unitno,'(i3,6i5,9f11.6)'),irank,iter,ibin,jbin,kbin,box_np_bfr,box_np_afr, &
+					 					  delta_t*F_constraint,u_bin_afr/volume,u_bin_bfr/volume
 										
 	else
 		unitno = irank*1000000+ibin*10000+jbin*100+kbin
-		write(unitno,'(i3,6i5,9f11.6)'),irank,iter,ibin,jbin,kbin,box_np,box_np, &
-					 					 (/ 0.d0, 0.d0, 0.d0 /),u_bin1/volume,u_bin2/volume
+		write(unitno,'(i3,6i5,9f11.6)'),irank,iter,ibin,jbin,kbin,box_np_bfr,box_np_afr, &
+					 					 (/ 0.d0, 0.d0, 0.d0 /),u_bin_afr/volume,u_bin_bfr/volume
 	endif
-	deallocate(list)
+	deallocate(list_bfr, list_afr)
 
 end subroutine apply_force_tests
 

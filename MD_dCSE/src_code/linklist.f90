@@ -165,7 +165,7 @@ implicit none
 
 	!Choose between all pairs, cell list or neighbour list
 	select case(force_list)
-	case(0:1)
+	case(-1:1)
 		!Forces calculated using all pairs or cell list so nothing to build
 		! ********* Do nothing *******
 	case(2)

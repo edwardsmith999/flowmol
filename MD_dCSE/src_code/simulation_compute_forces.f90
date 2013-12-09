@@ -95,6 +95,8 @@ subroutine simulation_compute_forces
 		case default								
 			call error_abort('Potential flag not recognised!')
 		end select
+	case(-1)
+		!Do Nothing -- don't calculate the force
 	case default
 	end select
 
