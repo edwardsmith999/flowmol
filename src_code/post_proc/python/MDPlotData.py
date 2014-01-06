@@ -317,10 +317,10 @@ class MD_PlotData():
                 newaxis = timeaxis - np.sum(self.axesreduced[:timeaxis])
 
                 N = self.v_ts.shape[newaxis]
-                self.window = np.hanning(N)
-                #self.window = np.ones(N)
-                #self.window[-1] = 0.0
-                #self.window[0] = 0.0
+                #self.window = np.hanning(N)
+                self.window = np.ones(N)
+                self.window[-1] = 0.0
+                self.window[0] = 0.0
 
                 # Save "window summed and squared" (see Numerical Recipes)
                 self.wss = np.sum(self.window**2.0)/N
@@ -358,8 +358,8 @@ class MD_PlotData():
                     self.E = self.E / self.wss 
 
                 # Average remaining dimensions
-                #self.E = np.mean(self.E,axis=tuple(axes))
-                self.E = np.sum(self.E,axis=tuple(axes))
+                self.E = np.mean(self.E,axis=tuple(axes))
+                #self.E = np.sum(self.E,axis=tuple(axes))
 
                 # Delete duplicate parts of the energy spectrum and double
                 # energy contributions of middle wavenumbers
