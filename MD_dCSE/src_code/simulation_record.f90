@@ -1472,13 +1472,15 @@ subroutine cumulative_pressure(ixyz,sample_count)
 
 
 	Pxytemp = 0.d0
-	Pxymol = 0.d0
-
-	!Factor of 2 as every interaction calculated
-	rfmol = rfmol / 2.d0
 
 	select case(ixyz)
 	case(1)
+
+		Pxymol = 0.d0
+
+		!Factor of 2 as every interaction calculated
+		rfmol = rfmol / 2.d0
+
 		!FULL DOMAIN VIRIAL STRESS CALCULATION
 		do n = 1, np    ! Calculate pressure tensor for all molecules
 
@@ -1572,7 +1574,7 @@ subroutine cumulative_pressure(ixyz,sample_count)
 	case(3)
 
 		call simulation_compute_rfbins_cpol(1,nbins(1)+2,1,nbins(2)+2,1,nbins(3)+2)
-		call simulation_compute_kinetic_VA_cpol(2,nbins(1)+1,2,nbins(2)+1,2,nbins(3)+1)
+		call simulation_compute_kinetic_VA_cpol()
 		Pxybin = vvbin + rfbin/2.d0
 
 	case default 
@@ -3760,6 +3762,10 @@ end subroutine pressure_tensor_forces_MOP
 !===================================================================================
 ! Record external forces applied to molecules inside a volume
 
+module module_record_external_forces
+
+contains
+
 subroutine record_external_forces(F,ri,vi)
 	use module_record, only : domain,halfdomain, nbins, nhb
 	use calculated_properties_MD, only :  F_ext_bin,Fv_ext_bin
@@ -3792,6 +3798,8 @@ subroutine record_external_forces(F,ri,vi)
 	endif
 
 end subroutine record_external_forces
+
+end module module_record_external_forces
 
 
 !===================================================================================

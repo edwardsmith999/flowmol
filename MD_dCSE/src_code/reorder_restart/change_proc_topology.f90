@@ -164,7 +164,7 @@ program change_proc_topology
 			tethernpcount(pa(1),pa(2),pa(3)) = tethernpcount(pa(1),pa(2),pa(3)) + 1
 		end if
 
-		call progress(nint(100.d0*n/globalnp))
+        if (mod(100*(n/globalnp),10)) call progress(nint(100.d0*n/globalnp))
 
 	end do
 

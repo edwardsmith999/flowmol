@@ -40,26 +40,29 @@ class CompareResults():
 
                     #Attempt to Plot slices of the errors
                     figname = self.name + key
-                    sliceloc=np.zeros(3)
-                    sliceloc[0] = maths.ceil(error.shape[0]/4.0)
-                    sliceloc[1] = maths.ceil(error.shape[1]/4.0)
-                    sliceloc[2] = maths.ceil(error.shape[2]/4.0)
-                    print(sliceloc)
+                    sl = np.divide(np.array(error.shape),4.0)
+                    sl[sl<1.0] = 1.0
+                    #sl =[]
+                    #for n in range(0,len(error.shape())):
+                    #    sl[n] = error.shape[n]/4.0
+                    #    if sl[n] < 1.0:
+                    #        sl[n] = 1.0
+
                     #Attempt to Plot slices of the errors in 3D
                     ax = fig.add_subplot(221, frame_on=False)
-                    Z = error[:,:,sliceloc[0],1]
+                    Z = error[:,:,sl[0],1]
                     CS = ax.imshow(Z, extent=[0, 1, 0, 1])
                     plt.colorbar(CS); CS.set_clim(-1.0,1.0)
                     plt.title('xy slice')
 
                     ax = fig.add_subplot(222, frame_on=False)
-                    Z = error[:,sliceloc[1],:,1]
+                    Z = error[:,sl[1],:,1]
                     CS = ax.imshow(Z, extent=[0, 1, 0, 1])
                     plt.colorbar(CS); CS.set_clim(-1.0,1.0)
                     plt.title('xz slice')
 
                     ax = fig.add_subplot(223, frame_on=False)
-                    Z = error[sliceloc[2],:,:,1]
+                    Z = error[sl[2],:,:,1]
                     CS = ax.imshow(Z, extent=[0, 1, 0, 1])
                     plt.colorbar(CS); CS.set_clim(-1.0,1.0)
                     plt.title('yz slice')
