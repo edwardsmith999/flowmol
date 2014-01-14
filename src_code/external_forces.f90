@@ -14,6 +14,7 @@
 
 module module_external_forces
 
+	use module_record_external_forces
 	use physical_constants_MD
 	use computational_constants_MD
 	use arrays_MD
@@ -1207,6 +1208,7 @@ subroutine apply_force
 	use arrays_MD, only : r,v,a
 	use physical_constants_MD, only : density
 	use computational_constants_MD, only : eflux_outflag
+	use module_record_external_forces
 	implicit none
 
 	integer								:: n, molno
@@ -1237,6 +1239,7 @@ subroutine apply_force_tests(apply_the_force)
 	use calculated_properties_MD, only : temperature
 	use module_set_parameters, only : velPDF
 	use computational_constants_MD, only : eflux_outflag
+	use module_record_external_forces
 	implicit none
 
 	logical, intent(in) 						:: apply_the_force

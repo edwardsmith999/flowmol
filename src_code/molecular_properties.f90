@@ -390,6 +390,7 @@ end subroutine read_tag
 subroutine tether_force(molno)
 	use module_molecule_properties
 	use arrays_MD
+	use module_record_external_forces
 	implicit none
 
 	integer                        :: molno

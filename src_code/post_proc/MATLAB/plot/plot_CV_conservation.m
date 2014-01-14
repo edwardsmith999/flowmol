@@ -14,6 +14,7 @@ resultfile_dir = './../../results/';
 %resultfile_dir='/home/es205/results/MD_continuum_results/results/coupled_couette/NCER_wall_bump/md_data/results';
 %pwdir = resultfile_dir;
 resultfile_dir = '/home/es205/codes/coupled/MD_dCSE/src_code/results/';
+resultfile_dir = '/home/es205/results/turbulent_couette_tests/coupled_code/MD_dCSE/runs/Re400/iter1590870_to_1599054_CV_and_12core_test/'
 %pwdir='/home/es205/codes/coupled/MD_dCSE/src_code/';
 %Read Header
 read_header
