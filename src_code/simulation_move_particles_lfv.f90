@@ -151,12 +151,12 @@ contains
 		
 		v2sum = 0.d0
 		do n=1,np
-			vel(:) = v(:,n) - 0.5d0*a(:,n)*delta_t	
+			vel(:) = v(:,n) + 0.5d0*a(:,n)*delta_t	
 			v2sum = v2sum + dot_product(vel,vel)
 		end do
 		call globalSum(v2sum)		
 		Q        = globalnp*delta_t
-		dzeta_dt = (v2sum - (nd*globalnp + 1)*inputtemperature)/Q
+		dzeta_dt = (v2sum - (real(nd*globalnp + 1,kind(0.d0)))*inputtemperature)/Q
 		zeta     = zeta + delta_t*dzeta_dt
 		bscale   = 1.0/(1.0+0.5*delta_t*zeta)
 		ascale   = (1-0.5*delta_t*zeta)*bscale
@@ -182,7 +182,7 @@ contains
 		end do
 		call globalSum(pec_v2sum)
 		Q        = globalnp*delta_t                                 ! PUT: Thermal inertia
-		dzeta_dt = (pec_v2sum - (globalnp*nd+1)*inputtemperature)/Q ! PUT: dzeta_dt(t-dt)
+		dzeta_dt = (pec_v2sum - (real(globalnp*nd+1,kind(0.d0)))*inputtemperature)/Q ! PUT: dzeta_dt(t-dt)
 		zeta     = zeta + delta_t*dzeta_dt                          ! PUT: zeta(t)
 		bscale   = 1.0/(1.0+0.5*zeta*delta_t)                       
 		ascale   = (1.0-0.5*zeta*delta_t)*bscale
@@ -277,11 +277,11 @@ contains
 				if ( tag(n) .eq. PUT_thermo ) then
 					!if (mod(iter,1000) .eq. 0) &
 					!write(5000+irank,'(i8,4f10.5)'), iter, globalise(r(:,n)),dot_product(vel,vel)
-					vel(:) = v(:,n) - U(:,n) - 0.5d0*a(:,n)*delta_t
+					vel(:) = v(:,n) - U(:,n) + 0.5d0*a(:,n)*delta_t
 
 				else if ( any( thermo_tags .eq. tag(n) ) ) then
 
-					vel(:) = v(:,n) - 0.5d0*a(:,n)*delta_t
+					vel(:) = v(:,n) + 0.5d0*a(:,n)*delta_t
 
 				else
 					! Don't include non-thermostatted molecules in calculation
@@ -299,7 +299,7 @@ contains
 			call globalSum(v2sum)	
 
 			!Nose Hoover thermostat coefficients
-			Q        = thermostatnp * delta_t
+			Q        = thermostatnp * delta_t 
 			dzeta_dt = (v2sum - (nd*thermostatnp + 1)*inputtemperature) / Q
 			zeta 	 = zeta + delta_t*dzeta_dt
 			bscale	 = 1.0/(1.0+0.5*delta_t*zeta)
