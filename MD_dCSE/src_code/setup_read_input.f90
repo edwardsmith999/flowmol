@@ -158,6 +158,33 @@ subroutine setup_read_input
 			call locate(1,'RCUTOFF',.true.)
 			read(1,*) rcutoff
 
+		case('fill_cylinders_dense_fene')
+
+			potential_flag = 1	    
+            ensemble = tag_move
+			rcutoff = 2.d0**(1.d0/6.d0)
+
+			call locate(1,'DENSE_FENE',.true.)
+			read(1,*) nmonomers
+			read(1,*) k_c
+			read(1,*) R_0
+			read(1,*) density
+
+			call locate(1,'SOLVENT_INFO',.true.)
+			read(1,*) solvent_flag
+			select case(solvent_flag)
+			case(0)
+			case(1)
+				read(1,*) solvent_ratio
+			case(2)
+				read(1,*) solvent_ratio
+				read(1,*) eps_pp
+				read(1,*) eps_ps
+				read(1,*) eps_ss
+			case default
+				call error_abort('Unrecognised solvent flag!')
+			end select
+
 		case('rotate_cylinders')
 			
 			ensemble = tag_move

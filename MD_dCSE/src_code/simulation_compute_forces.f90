@@ -606,29 +606,31 @@ contains
 		rglobX(3) = r(3,molnoX) - halfdomain(3)*(npz-1) + domain(3)*(kblock - 1)   
 
 		print*, 'irank: ', irank
-		print '(a,i6,a,i4,a,i4,a,f8.5,a,f8.5,a,f12.5)', & 
+		print '(a,i6,a,i8,a,i8,a,f8.5,a,f8.5,a,f12.5)', & 
 					'Bond broken at iter ',iter,': atoms ',molnoi,' and ',molnoX,' are separated by ', &
 					rij2**0.5,', which is greater than the allowed limit of ', R_0, &
 					'. Stopping simulation, total time elapsed = ', iter*delta_t
 		print '(a)', 'Atomic positions:'
-		print '(a,i4,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoi,' is located at global position', &
+		print '(a,i8,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoi,' is located at global position', &
 		                                        rglobi(1),' ',rglobi(2),' ',rglobi(3) 
-		print '(a,i4,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoX,' is located at global position', &
+		print '(a,i8,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoX,' is located at global position', &
 		                                        rglobX(1),' ',rglobX(2),' ',rglobX(3) 
 
-		print '(a,i4,a)', 'Monomer information for atom ', molnoi,':'
+		print '(a,i8,a)', 'Monomer information for atom ', molnoi,':'
 		print '(a,i8)', 'ChainID: '   , monomer(molnoi)%chainID
 		print '(a,i8)', 'SubchainID: ', monomer(molnoi)%subchainID
 		print '(a,i8)', 'Funcy: '     , monomer(molnoi)%funcy
 		print '(a,i8)', 'Glob_no: '   , monomer(molnoi)%glob_no
 		print '(a,i8)', 'Bin_bflag: ' , monomer(molnoi)%bin_bflag
+		print '(a,i8)', 'Tag: '       , tag(molnoi) 
 
-		print '(a,i4,a)', 'Monomer information for atom ', molnoX,':'
+		print '(a,i8,a)', 'Monomer information for atom ', molnoX,':'
 		print '(a,i8)', 'ChainID: '   , monomer(molnoX)%chainID
 		print '(a,i8)', 'SubchainID: ', monomer(molnoX)%subchainID
 		print '(a,i8)', 'Funcy: '     , monomer(molnoX)%funcy
 		print '(a,i8)', 'Glob_no: '   , monomer(molnoX)%glob_no
 		print '(a,i8)', 'Bin_bflag: ' , monomer(molnoX)%bin_bflag
+		print '(a,i8)', 'Tag: '       , tag(molnoX) 
 
 		if (molnoX.gt.np) then
 			call error_abort('Halo!')
