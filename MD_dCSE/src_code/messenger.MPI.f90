@@ -2568,12 +2568,14 @@ subroutine globalSumVectReal(A, na)
 	implicit none
 
 	integer, intent(in) :: na
-	real A(na)
-	real buf(na)
+	real, intent(inout) ::  A(na)
+	real, dimension(:), allocatable :: buf
 
+    allocate(buf(na))
 	call MPI_AllReduce (A, buf, na, MPI_REAL, &
 	                    MPI_SUM, MD_COMM, ierr)
 	A = buf
+    deallocate(buf)
 	return
 end
 
@@ -2583,12 +2585,14 @@ subroutine globalSumVect(A, na)
 	implicit none
 
 	integer, intent(in) :: na
-	double precision A(na)
-	double precision buf(na)
+	double precision, intent(inout) :: A(na)
+	double precision, dimension(:), allocatable :: buf
 
+    allocate(buf(na))
 	call MPI_AllReduce (A, buf, na, MPI_DOUBLE_PRECISION, &
 	                    MPI_SUM, MD_COMM, ierr)
 	A = buf
+    deallocate(buf)
 
 	return
 end
@@ -2599,12 +2603,14 @@ subroutine globalSumIntVect(A, na)
 	implicit none
 
     integer, intent(in) :: na
-	integer A(na)
-	integer buf(na)
+	integer, intent(inout) :: A(na)
+	integer, dimension(:), allocatable :: buf
 
+    allocate(buf(na))
 	call MPI_AllReduce (A, buf, na, MPI_INTEGER, &
 	                    MPI_SUM, MD_COMM, ierr)
 	A = buf
+    deallocate(buf)
 
 	return
 end
@@ -2655,12 +2661,14 @@ subroutine globalMaxVect(A, na)
 	implicit none
 
     integer, intent(in) :: na
-	double precision A(na)
-	double precision buf(na)
+	double precision, intent(inout) :: A(na)
+	double precision, allocatable :: buf(:)
 
+    allocate(buf(na))
 	call MPI_AllReduce (A, buf, na, MPI_DOUBLE_PRECISION, &
 	                    MPI_MAX, MD_COMM, ierr)
 	A = buf
+    deallocate(buf)
 
 	return
 end
@@ -2670,12 +2678,14 @@ subroutine globalMaxIntVect(A, na)
 	implicit none
 
 	integer, intent(in) :: na
-	integer A(na)
-	integer buf(na)
+	integer, intent(inout) :: A(na)
+	integer, allocatable :: buf(:)
 
+    allocate(buf(na)) 
 	call MPI_AllReduce (A, buf, na, MPI_INTEGER, &
 	                    MPI_MAX, MD_COMM, ierr)
 	A = buf
+    deallocate(buf) 
 
 	return
 end
@@ -2685,12 +2695,14 @@ subroutine globalMinVect(A, na)
 	implicit none
 
 	integer, intent(in) :: na
-	double precision A(na)
-	double precision buf(na)
+	double precision, intent(inout) :: A(na)
+	double precision, allocatable :: buf(:)
 
+    allocate(buf(na))
 	call MPI_AllReduce (A, buf, na, MPI_DOUBLE_PRECISION, &
 	                    MPI_MIN, MD_COMM, ierr)
 	A = buf
+    deallocate(buf)
 
 	return
 end
@@ -2700,13 +2712,15 @@ subroutine globalSumTwoDim(A,na1,na2)
 	implicit none
 
 	integer, intent(in) :: na1,na2
-	double precision 	:: A(na1,na2)
-	double precision 	:: buf(na1,na2)
-	
+	double precision, intent(inout) :: A(na1,na2)
+	double precision, allocatable :: buf(:,:)
+
+    allocate(buf(na1,na2))	
 	call MPI_AllReduce (A, buf, na1*na2, MPI_DOUBLE_PRECISION, &
 	                    MPI_SUM, MD_COMM, ierr)
 	
 	A = buf
+    deallocate(buf)
 
 	return
 end
@@ -2716,13 +2730,17 @@ subroutine globalSumIntTwoDim(A,na1,na2)
 	implicit none
 
 	integer, intent(in) :: na1,na2
-	integer A(na1,na2)
-	integer buf(na1,na2)
-	
+	integer, intent(inout) :: A(na1,na2)
+	integer, dimension(:,:), allocatable :: buf
+
+    allocate(buf(na1,na2))	
+
 	call MPI_AllReduce (A, buf, na1*na2, MPI_INTEGER, &
 	                    MPI_SUM, MD_COMM, ierr)
 	
 	A = buf
+
+    deallocate(buf)	
 
 	return
 end
@@ -2734,9 +2752,10 @@ subroutine globalAverage(A, na)
 	integer, intent(in) :: na
 
 	integer	:: nprocs
-	double precision A(na)
-	double precision buf(na)
+	double precision, intent(inout) :: A(na)
+	double precision, allocatable :: buf(:)
 
+    allocate(buf(na))
 	call MPI_AllReduce (A, buf, na, MPI_DOUBLE_PRECISION, &
 	                    MPI_SUM, MD_COMM, ierr)
 	call MPI_comm_size (MD_COMM, nprocs, ierr)
@@ -2744,6 +2763,8 @@ subroutine globalAverage(A, na)
 	buf = buf / nprocs
 	
 	A = buf
+
+    deallocate(buf)
 
 	return
 end
@@ -2825,12 +2846,14 @@ subroutine SubcommSumVect(A, na, ixyz)
 
 	integer, intent(in) :: na, ixyz !Direction of sub-comm
 
-	double precision A(na)
-	double precision buf(na)
+	double precision, intent(inout) :: A(na)
+	double precision, allocatable :: buf(:)
 
+    allocate(buf(na))
 	call MPI_AllReduce (A, buf, na, MPI_DOUBLE_PRECISION, &
 	                    MPI_SUM, icomm_xyz(ixyz), ierr)
 	A = buf
+    deallocate(buf)
 
 	return
 end
@@ -2841,12 +2864,14 @@ subroutine SubcommSumIntVect(A, na, ixyz)
 
     integer, intent(in) :: na, ixyz !Direction of sub-comm
 
-	integer	A(na)
-	integer buf(na)
+	integer, intent(inout) :: A(na)
+	integer, allocatable :: buf(:)
 
+    allocate(buf(na))
 	call MPI_AllReduce (A, buf, na, MPI_INTEGER, &
          MPI_SUM, icomm_xyz(ixyz), ierr)
 	A = buf
+    deallocate(buf)
 
 	return
 end subroutine SubcommSumIntVect
