@@ -232,6 +232,7 @@ subroutine reformat_dcd
 		call cpu_time(time_end)
 
 	 	print '(a,g10.2,a)', ' Reformatted to *.dcd in', time_end - time_start, ' seconds.'
+        
 	endif
 
 end subroutine reformat_dcd
