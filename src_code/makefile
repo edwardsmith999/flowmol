@@ -109,10 +109,9 @@ memprofile_s:
 	@make serial_md.exe "FFLAGS = -O3 -g"; valgrind --tool=cachegrind ./md.exe
 profile_p:
 	@make $(MD_EXE) "FFLAGS = -g -pg -mpe=mpilog "
+
 #Make executables
-md.exe: obj $(O_MD_P) $(CPL_LIB)
-	@echo "MD executable is being relinked"
-	@$(F90) -o $@ $(O_MD_P) $(LDFLAGS)
+md.exe: $(MD_EXE)
 $(MD_EXE): obj $(O_ASSEMBLY_FILES) $(O_MD_P) $(CPL_LIB)
 	@echo "MD executable is being relinked"
 	@$(F90) -o $@ $(O_ASSEMBLY_FILES) $(O_MD_P) $(LDFLAGS)

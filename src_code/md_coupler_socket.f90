@@ -919,6 +919,8 @@ end subroutine average_over_bin
 subroutine apply_force
 	use arrays_MD, only : r, a
 	use computational_constants_MD, only : irank, vflux_outflag, CV_conserve, tplot
+	use interfaces, only : error_abort
+	use module_record_external_forces, only : record_external_forces
 	implicit none
 
 	integer	:: NCER_type
