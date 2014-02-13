@@ -1,14 +1,12 @@
 #! /usr/bin/env python
 import numpy as np 
 import glob
-import os
 from HeaderData import * 
 
 """
 
     MD_RawData Class
     Author: David Trevelyan, April 2013
-    Updated: February 2014
 
     The MD_RawData class is associated with both a data file (e.g.
     mbins, pVA, etc.) and a results directory in which the 
@@ -58,8 +56,7 @@ class MD_RawData:
         self.header = HeaderData(open(fdir+'simulation_header','r'))
         self.dtype = dtype
         self.nperbin = nperbin
-        self.nbins, self.grid = self.get_bintopology()
-        self.maxrec = self.get_maxrec()
+        self.nbins, self.binspaces = self.get_bintopology()
         if (glob.glob(fdir+fname)):
             self.separate_outfiles = False
         elif (glob.glob(fdir+fname+'.*')):
@@ -73,11 +70,11 @@ class MD_RawData:
         """
             Returns:
             
-                gnbins    - A length-3 list of the number of bins in each
-                            direction, and
-                binspaces - A length-3 list of numpy linspaces specifying
-                            the locations of the center of each bin in a
-                            uniform grid (one linspace for each direction)
+                gnbins   - A length-3 list of the number of bins in each
+                           direction, and
+                binspace - A length-3 list of numpy linspaces specifying
+                           the locations of the center of each bin in a
+                           uniform grid (one linspace for each direction)
 
         """
         
@@ -105,92 +102,19 @@ class MD_RawData:
 
         return gnbins, binspaces
 
-    def get_binvolumes(self,binlimits=None):
 
-        binspaces = self.grid
-    
-        if (self.cpol_bins == True):    
-
-            r_oi = float(self.Raw.header.r_oi)
-            r, theta, z = np.meshgrid((binspaces[0]+r_oi),
-                                       binspaces[1],
-                                       binspaces[2],
-                                       indexing='ij')
-
-
-            dr     = binspaces[0][1] - binspaces[0][0]
-            dtheta = binspaces[1][1] - binspaces[1][0]
-            dz     = binspaces[2][1] - binspaces[2][0]
-
-            r = r + 0.5*dr
-            binvolumes = r*dr*dtheta*dz
-
-        else:
-
-            x, y, z = np.meshgrid(binspaces[0],binspaces[1],binspaces[2],
-                                  indexing='ij')
-
-
-            dx = binspaces[0][1] - binspaces[0][0]
-            dy = binspaces[1][1] - binspaces[1][0]
-            dz = binspaces[2][1] - binspaces[2][0]
-
-            binvolumes = np.ones(x.shape)*dx*dy*dz
-
-        # If bin limits are specified, return only those within range
-        if (binlimits):
-
-            # Initialise slice list as every index in bins
-            s = [np.arange(i) for i in binvolumes.shape]
-            # Loop over axes and change slicer limits
-            for axis in np.arange(len(binvolumes.shape)):
-                if (binlimits[axis]):
-                    # (+1 for python slicing convention) 
-                    s[axis] = np.arange(binlimits[axis][0],
-                                        binlimits[axis][1]+1) 
-            # Convert slice list to proper shape for numpy fancy indexing
-            slicer = np.ix_(*s) 
-            # Delete entries not in slicer
-            binvolumes = binvolumes[slicer]
-
-        # Ensure binvolumes is the right shape for subsequent
-        # broadcasting with other fields
-        binvolumes = np.expand_dims(binvolumes,-1)
-        return binvolumes
-
-    def get_maxrec(self):
-
-        if (glob.glob(self.fdir+self.fname)):
-
-            filesize = os.path.getsize(self.fdir+self.fname)
-            if (self.dtype == 'i'):
-                maxrec = filesize/(4*self.nperbin*np.prod(self.nbins)) - 1
-            elif (self.dtype == 'd'):
-                maxrec = filesize/(8*self.nperbin*np.prod(self.nbins)) - 1
-            else:
-                quit('Unrecognised dtype in MD_RawData.get_maxrec')
-
-        elif (glob.glob(self.fdir+self.fname+'.*')):
-
-            filelist = glob.glob(self.fdir+self.fname+'.*')
-            sortedlist = sorted(filelist)
-            maxrec = int(sortedlist[-1].split('.')[-1])
-            
-        else:
-            print('Neither ' + self.fname + ' nor ' + self.fname + '.* exist.')
-            quit()
-
-        return maxrec 
-        
-
-    def read(self, startrec, endrec):
+    def get_bindata(self, seekrec, nrecs=1, whence=0):
 
         """
             Required inputs:
 
-                startrec - seek a specific record with this integer, count
-                           from 0.
-                endrec   - record at which to finish (integer)
+                seekrec - seek a specific record with this integer
+
+            Keyword args:
+
+                nrecs   - number of records to read (default = 1)
+                whence  - specify where to start seeking and which 
+                          direction (default = start)
 
             Return:
                 
@@ -200,9 +124,7 @@ class MD_RawData:
                           the equivalent in cylindrical polar.
                 
         """
-      
-        # Store how many records are to be read
-        nrecs = endrec - startrec + 1 
+
         # Allocate enough memory in the C library to efficiently insert
         # into bindata
         recitems = np.product(self.nbins)*self.nperbin
@@ -215,15 +137,15 @@ class MD_RawData:
             # Loop through files and append data
             for plusrec in range(0,nrecs):
 
-                filepath = self.fdir+self.fname+'.'+"%07d"%(startrec+plusrec)
+                filepath = self.fdir+self.fname+'.'+"%07d"%(seekrec+plusrec)
                 try: 
                     fobj = open(filepath,'rb')
                 except:
                     quit('Unable to find file ' + filepath)    
 
-                istart = plusrec*recitems
-                iend = istart + recitems
-                bindata[istart:iend] = np.fromfile(fobj,dtype=self.dtype)
+                start = plusrec*recitems
+                end = start + recitems
+                bindata[start:end] = np.fromfile(fobj,dtype=self.dtype)
                 fobj.close()
 
        # Else
@@ -236,14 +158,15 @@ class MD_RawData:
                 quit()
 
             # Seek to correct point in the file
+            # seekrec=0 and whence=0 (i.e. start) by default
             if (self.dtype == 'i'):
                 recbytes = 4*recitems
             elif (self.dtype == 'd'):
                 recbytes = 8*recitems
             else:
                 quit('Unrecognised data type in read_bins')
-            seekbyte = startrec*recbytes
-            fobj.seek(seekbyte)
+            seekbyte = seekrec*recbytes
+            fobj.seek(seekbyte,whence)
 
             # Get data and reshape with fortran array ordering
             bindata = np.fromfile(fobj, dtype=self.dtype,
