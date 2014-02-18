@@ -302,7 +302,7 @@ subroutine simulation_run()
 					! call WriteSubDomain('SubDomZdble.', 1,ngx,1, 1,ngy,1, 1, 7 ,2)
 					! call WriteSubDomain('SubDom_dble.', 1,ngx,2, 1,ngy,2, 1,ngz,2)
 					!call WriteSubDomain('SubDom_dble.', 1,ngx,1, 1,ngy,1, 1,ngz,1)
-					call WriteSubDomain_cc('SubDom_dble.', 1,ngx,1, 0,ngy,1, 1,ngz,1) !Cell centered version
+					call WriteSubDomain_cc('SubDom_dble.', 1,ngx-1,1, 0,ngy,1, 1,ngz-1,1) !Cell centered version
 			end if
 		end if
 		!	if (ianim == 3) then
