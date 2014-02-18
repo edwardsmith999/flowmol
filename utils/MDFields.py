@@ -13,6 +13,7 @@ class MDField(Field):
                          cpol_bins)
         self.grid = self.Raw.grid
         self.maxrec = self.Raw.maxrec
+        self.header = self.Raw.header
 
 # ============================================================================
 # MDField derived classes, but calculated by the main code
@@ -80,6 +81,7 @@ class MD_vField(MDField):
         self.pField = MD_pField(fdir,cpol_bins)
         self.grid = self.mField.grid
         self.maxrec = self.mField.maxrec
+        self.header = self.mField.Raw.header
 
     def read(self,startrec,endrec):
 
@@ -124,6 +126,7 @@ class MD_pVAField(MDField):
         self.PField = MD_PField(fdir,fname,cpol_bins)
         self.grid = self.PField.grid
         self.maxrec = self.PField.maxrec
+        self.header = self.PField.Raw.header
     
     def read(self,startrec,endrec,peculiar=True):
 
@@ -168,6 +171,7 @@ class MD_TField(MDField):
         self.KEField = MD_KEField(fdir,cpol_bins)
         self.grid = self.KEField.grid
         self.maxrec = self.KEField.maxrec
+        self.header = self.KEField.Raw.header
 
     def read(self,startrec,endrec,peculiar=True):
 
@@ -236,6 +240,7 @@ class MD_dField(MDField):
         self.mField = MD_mField(fdir,cpol_bins)
         self.grid = self.mField.grid
         self.maxrec = self.mField.maxrec
+        self.header = self.mField.Raw.header
 
     def read(self, startrec, endrec):
 

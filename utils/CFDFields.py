@@ -19,7 +19,7 @@ class CFD_vField(CFDField):
     
     def read(self,startrec,endrec):
         subdata = CFDField.read(self,startrec,endrec) 
-        v = subdata[:,:,:,0:2,:]
+        v = subdata[:,:,:,0:3,:]
         return v 
 
 class CFD_PField(CFDField):
