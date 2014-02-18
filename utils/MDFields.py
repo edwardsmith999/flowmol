@@ -9,7 +9,6 @@ from MDRawData import MD_RawData
 class MDField(Field):
        
     def __init__(self,fdir,cpol_bins=False):
-        # Perform the inherited constructor with MD_RawData class
         self.Raw = MD_RawData(fdir, self.fname, self.dtype, self.nperbin,
                          cpol_bins)
         self.grid = self.Raw.grid
@@ -71,7 +70,7 @@ class MD_CVField(MDField):
         MDField.__init__(self,fdir,cpol_bins=cpol_bins)
 
 # ============================================================================
-# Complex fields that inherit Field AND contain MDField objects, require 
+# Complex fields that inherit MDField AND contain MDField objects, require 
 # extra calculations. "Read" and "average_data" routines are commonly 
 # overridden.
 class MD_vField(MDField):

@@ -47,8 +47,8 @@ LIBFILES := $(addprefix $(LIB_BASE)/, $(LIBFILES))
 # LIBS = -L/apps/intel/cmkl/9.0/lib/64/ -lmkl_em64t -lmkl_dft_cluster -lguide -lpthread
 # LIBS = -L/apps/intel/cmkl/9.0/lib/64/             -lmkl_dft_cluster -lguide -lpthread -lmkl
 # LIBS = -L/apps/intel/cmkl/9.0/lib/64/ -lmkl_em64t                   -lguide -lpthread
-LIBS := -L/opt/intel/Compiler/11.1/046/mkl/lib/em64t/dns_lib -lmkl_em64t		  -lguide -lpthread
-# LIBS := -mkl
+# LIBS := -L/opt/intel/Compiler/11.1/046/mkl/lib/em64t/dns_lib -lmkl_em64t		  -lguide -lpthread
+ LIBS := -mkl
 #LIBS = -L/apps/intel/2013/mkl/lib/64/ -mkl
 
 ifdef USE_HITACHI
