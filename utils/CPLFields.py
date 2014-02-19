@@ -1,11 +1,20 @@
 #! /usr/bin/env python
 import numpy as np
-import scipy.ndimage.interpolation as simi
+try:
+    import skimage.transform as skit
+    skit_imported=True
+except:
+    skit_imported=False
+    skit_imported_fail_message = (
+              'You have not been able to import the skimage.transform '
+            + '\npackage, which is required for MDField resampling. Try '
+            + '\nCPLField.?_both instead, where ? is profile/contour/etc, '
+            + '\nin which no resampling is performed.') 
 
-from HeaderData import HeaderData
-from Field import Field
 import CFDFields
 import MDFields
+from HeaderData import HeaderData
+from Field import Field
 
 class CPLField(Field):
     
@@ -59,6 +68,9 @@ class CPLField(Field):
         return grid
         
     def _read(self,startrec,endrec):
+        
+        if (not skit_imported):
+            quit(skit_imported_fail_message)
 
         md_data = self.md_field.read(startrec,endrec)
         cfd_data = self.cfd_field.read(startrec,endrec)
@@ -73,21 +85,16 @@ class CPLField(Field):
         #import matplotlib.pyplot as plt
         for rec in range(nrecs):
             for comp in range(ndims):
-                md_coarse[:,:,:,comp,rec] = simi.zoom(
-                            md_data[:,:,:,comp,rec], zoom, order=1)
-                #plt.plot(md_data[0,:,0,comp,rec],self.md_grid[1],'m')
-                #plt.plot(md_coarse[0,:,0,comp,rec],simi.zoom(
-                #         self.md_grid[1],zoom[1],order=1),'b')
-                #plt.show()
+                md_coarse[:,:,:,comp,rec] = skit.resize(
+                    md_data[:,:,:,comp,rec], self.md_cfdcells)
 
-        #jstart = self.olap_cells[1] - 1 + self.cfd_halos[1]
-        #cfd_data = cfd_data[:,jstart:,:,:,:]
-        #md_coarse = md_coarse[:,:-1,:,:,:]
-        jstart = self.olap_cells[1] + self.cfd_halos[1]
+        jstart = self.olap_cells[1] - 1 + self.cfd_halos[1]
         cfd_data = cfd_data[:,jstart:,:,:,:]
+        md_coarse = md_coarse[:,:-1,:,:,:]
+        #jstart = self.olap_cells[1] + self.cfd_halos[1]
+        #cfd_data = cfd_data[:,jstart:,:,:,:]
 
         cpl_data = np.concatenate((md_coarse,cfd_data),axis=1)
-
         return cpl_data
     
     def profile_both(self,axis,startrec=0,endrec=None):
