@@ -9,11 +9,9 @@ from MDRawData import MD_RawData
 class MDField(Field):
        
     def __init__(self,fdir,cpol_bins=False):
-        self.Raw = MD_RawData(fdir, self.fname, self.dtype, self.nperbin,
-                         cpol_bins)
-        self.grid = self.Raw.grid
-        self.maxrec = self.Raw.maxrec
-        self.header = self.Raw.header
+        Raw = MD_RawData(fdir, self.fname, self.dtype, 
+                         self.nperbin,cpol_bins)
+        Field.__init__(self,Raw)
 
 # ============================================================================
 # MDField derived classes, but calculated by the main code
@@ -79,9 +77,8 @@ class MD_vField(MDField):
     def __init__(self,fdir,cpol_bins=False):
         self.mField = MD_mField(fdir,cpol_bins)
         self.pField = MD_pField(fdir,cpol_bins)
-        self.grid = self.mField.grid
-        self.maxrec = self.mField.maxrec
-        self.header = self.mField.Raw.header
+
+        Field.__init__(self,self.mField.Raw)
 
     def read(self,startrec,endrec):
 
@@ -120,14 +117,11 @@ class MD_vField(MDField):
 class MD_pVAField(MDField):
 
     def __init__(self, fdir, fname, cpol_bins=False):
-        self.fdir = fdir
         self.fname = fname
         self.cpol_bins = cpol_bins
         self.PField = MD_PField(fdir,fname,cpol_bins)
-        self.grid = self.PField.grid
-        self.maxrec = self.PField.maxrec
-        self.header = self.PField.Raw.header
-    
+        Field.__init__(self,self.PField.Raw)
+
     def read(self,startrec,endrec,peculiar=True):
 
         # Read 4D time series from startrec to endrec
@@ -169,9 +163,7 @@ class MD_TField(MDField):
         self.mField = MD_mField(fdir,cpol_bins)
         self.pField = MD_pField(fdir,cpol_bins)
         self.KEField = MD_KEField(fdir,cpol_bins)
-        self.grid = self.KEField.grid
-        self.maxrec = self.KEField.maxrec
-        self.header = self.KEField.Raw.header
+        Field.__init__(self,self.KEField.Raw)
 
     def read(self,startrec,endrec,peculiar=True):
 
@@ -238,9 +230,7 @@ class MD_dField(MDField):
     
     def __init__(self,fdir,cpol_bins=False):
         self.mField = MD_mField(fdir,cpol_bins)
-        self.grid = self.mField.grid
-        self.maxrec = self.mField.maxrec
-        self.header = self.mField.Raw.header
+        Field.__init__(self,self.mField.Raw)
 
     def read(self, startrec, endrec):
 
@@ -277,6 +267,50 @@ class MD_dField(MDField):
         density = np.divide(mdata,binvolumes)
 
         return density 
+
+# Momentum density field
+class MD_momField(MDField):
+    
+    def __init__(self,fdir,cpol_bins=False):
+        self.pField = MD_pField(fdir,cpol_bins)
+        Field.__init__(self,self.pField.Raw)
+
+    def read(self, startrec, endrec):
+
+        binvolumes = self.pField.Raw.get_binvolumes()
+        binvolumes = np.expand_dims(binvolumes,axis=-1)
+        N_ave = self.pField.Raw.header.Nvel_ave
+
+        # Read 4D time series from startrec to endrec
+        pdata = self.pField.read(startrec, endrec)
+        pdata = np.divide(pdata,float(N_ave))
+
+        momdensity = np.divide(pdata,binvolumes)
+        
+        return momdensity
+
+    def averaged_data(self,startrec,endrec,avgaxes=(),avgtime=True):
+
+        binvolumes = self.pField.Raw.get_binvolumes()
+        N_ave = self.pField.Raw.header.Nvel_ave
+
+        # Read 4D time series from startrec to endrec
+        pdata = self.pField.read(startrec, endrec)
+        pdata = np.divide(mdata,float(N_ave))
+
+        # Time axis is the final (fourth) axis...
+        if (avgtime):
+            pdata = np.mean(pdata,axis=4)
+        # ... so spatial axes can be averaged here without changing their
+        # indices.
+        if (avgaxes != ()):
+            pdata = np.sum(pdata,axis=avgaxes) 
+            binvolumes = np.sum(binvolumes,axis=avgaxes) 
+        
+        momdensity = np.divide(pdata,binvolumes)
+
+        return momdensity 
+
 
 ## THIS SEEMS TO BE JUST A CONTAINER TO DO TWO AT ONCE: THIS IS MORE
 ## SUITED TO MD_PLOTDATA, I THINK. THE OTHER CONTAINER CLASSES ARE THERE

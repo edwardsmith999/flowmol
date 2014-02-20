@@ -33,8 +33,10 @@ class Field():
     
     def __init__(self, RawDataObj):
         self.Raw = RawDataObj
+        self.fdir = self.Raw.fdir
         self.grid = self.Raw.grid
         self.maxrec = self.Raw.maxrec
+        self.header = self.Raw.header
 
     def read(self,startrec,endrec):
 
@@ -116,4 +118,59 @@ class Field():
     
     def profile_timeseries(self,axis):
         pass
+
+
+    def write_dx_file(self,startrec,endrec,writedir=None):
+
+        """
+           Write MD field to dx file format which is primarily
+           useful for importing into VMD, see 
+           http://www.ks.uiuc.edu/Research/vmd/plugins/molfile/dxplugin.html
+           and format website http://www.opendx.org/index2.php
+        """
+
+        #Get field data
+        for rec in range(startrec,endrec):
+            data = self.read(startrec=rec,endrec=rec)
+
+            Nx, Ny, Nz = [len(gridxyz) for gridxyz in self.grid]
+            dx,dy,dz = [(self.grid[i][1] - self.grid[i][0]) for i in range(3)]
+            Lx = float(Nx) * dx; Ly = float(Ny) * dy; Lz = float(Nz) * dz
+            originx = -Lx/2.0
+            originy = -Ly/2.0
+            originz = -Lz/2.0
+
+            #Get file name
+            if (writedir == None):
+                writedir = self.fdir + '/vmd/vol_data/'
+
+            dxFileName = writedir + 'DATA' + str(rec) + '.dx'
+
+            #Write data
+            with open(dxFileName,'w+') as f:
+
+                # - - Write Header - -
+                f.write("object 1 class gridpositions counts%8.0f%8.0f%8.0f\n" % (Nx,Ny,Nz))
+                f.write("origin%16g%16g%16g\n" % (originx,originy,originz))
+                f.write("delta %16g 0 0\n" % dx)
+                f.write("delta 0 %16g 0\n" % dy)
+                f.write("delta 0 0 %16g\n" % dz)
+                f.write("object 2 class gridconnections counts%8.0f%8.0f%8.0f\n" % (Nx,Ny,Nz))
+                f.write("object 3 class array type double rank 0 items%8.0f follows\n" % (Nx*Ny*Nz))
+
+                # - - Write Data - -
+                col=1
+                for i in range(Nx):
+                    for j in range(Ny):
+                        for k in range(Nz):
+                            f.write("%16E" % (1.0*j + 2.0)) # data[i,j,k,0,0])
+                            col=col+1
+                            if (col>3):
+                                f.write(' \n')
+                                col=1
+
+                # - - Write Footer - - 
+                if (col != 1):
+                    f.write('           \n')
+                f.write('object "'+str(self).split('.')[1].split(' ')[0]+'" class field \n')
 

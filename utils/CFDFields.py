@@ -9,9 +9,8 @@ from CFDRawData import CFD_RawData
 class CFDField(Field):
 
     def __init__(self,fdir):
-        self.Raw = CFD_RawData(fdir)
-        self.grid = self.Raw.grid
-        self.maxrec = self.Raw.maxrec
+        Raw = CFD_RawData(fdir)
+        Field.__init__(self,Raw)
 
 # ============================================================================
 # CFDField derived classes, but calculated by the main code
