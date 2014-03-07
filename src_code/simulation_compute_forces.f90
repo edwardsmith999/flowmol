@@ -1003,6 +1003,7 @@ subroutine compute_force_and_potential_at(input_pos,Usum,f)
     icell = ceiling((input_pos(1)+halfdomain(1))/cellsidelength(1)) + nh
     jcell = ceiling((input_pos(2)+halfdomain(2))/cellsidelength(2)) + nh
     kcell = ceiling((input_pos(3)+halfdomain(3))/cellsidelength(3)) + nh
+
 	
 	!Return Usum and f zero if position is outside the domain
 	if ( icell .lt. 2 .or. icell .gt. ncells(1)+1 .or. &
