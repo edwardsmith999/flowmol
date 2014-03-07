@@ -9,6 +9,7 @@
 
 !Fortran object oriented solution to CV conservation checking
 module CV_objects
+	use computational_constants_MD, only : CV_debug
 	implicit none
 
 type :: check_CV_mass
