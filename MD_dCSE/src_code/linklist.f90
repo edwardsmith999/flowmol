@@ -1538,16 +1538,16 @@ subroutine linklist_pop(icell, jcell, kcell, molnopop)
 		!Check if popped molecule is the one head pointer is pointing to
 		if (associated(cell%head(icell,jcell, kcell)%point,pop)) then
 
-			!Set head pointer to next in list and remove top
-			cell%head(icell,jcell, kcell)%point => pop%next 
 			!Check there are other molecules in cell
 			if (associated(pop%next)) then
+                !Set head pointer to next in list and remove top
+                cell%head(icell,jcell, kcell)%point => pop%next 
 				old     => pop%next         !Set old to next item in list 
+			    nullify(old%previous)
 			else
 				!If none then cell pointer is nullified
 				nullify(cell%head(icell,jcell,kcell)%point)
 			endif
-			nullify(old%previous)
 			deallocate(pop)				!Destroy pop
 
 		else

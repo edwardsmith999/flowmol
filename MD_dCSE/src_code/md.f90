@@ -129,10 +129,13 @@ contains
 			call linklist_deallocateall             		!Deallocate all linklist components
 			call sendmols                           		!Exchange particles between processors
 			call sort_mols									!Reorder molecules to improve cache efficency
-			!call usher_insert(5)
-			!call remove_mols(5)
 			call assign_to_cell                     		!Re-build linklist for domain cells
 			call messenger_updateborders(1)         		!Update borders between processors
+            !if (mod(iter,10) .eq. 0) then
+    		!	call usher_insert(1)
+    		!	call remove_mols(1)
+            !   print*, 'globalnp = ', globalnp
+            !endif
 			call assign_to_neighbourlist		    		!Setup neighbourlist
 		endif
 
