@@ -448,7 +448,7 @@ contains
     ! Code Author: Edward Smith 2013
     subroutine insert_molecule(rin,vin,tagin)
         use arrays_MD, only : r, v, tag
-        use physical_constants_MD, only : np, halo_np
+        use physical_constants_MD, only : np, halo_np, globalnp
         use computational_constants_MD, only :halfdomain, cellsidelength, nh,ensemble,tag_move
         implicit none
 
@@ -459,7 +459,7 @@ contains
         integer :: icell_halo, jcell_halo, kcell_halo
         double precision,parameter :: tol = 0.1d0
 
- 
+        !print*, 'np = ', np 
         !Get first halo molecule's cell
         icell_halo = ceiling((r(1,np+1)+halfdomain(1)) &
         /cellsidelength(1))+nh !Add nh due to halo(s)
@@ -472,11 +472,17 @@ contains
         r(:,np+halo_np+1)  = r(:,np+1)
         v(:,np+halo_np+1)  = v(:,np+1)
 
+        !print*, 'halo before pop:'
+        !call linklist_print(icell_halo, jcell_halo, kcell_halo)
+
         !Linklist update -- pop from current, push to new
         call linklist_pop(icell_halo, jcell_halo, kcell_halo, np+1)
+        !print*, 'halo after pop and before push:'
+        !call linklist_print(icell_halo, jcell_halo, kcell_halo)
         call linklist_checkpush(icell_halo, jcell_halo, kcell_halo, np+1+halo_np)
+        !print*, 'halo after push:'
+        !call linklist_print(icell_halo, jcell_halo, kcell_halo)
    
-
         !Add new molecule position and velocity to top of array
         r(:,np+1)  = rin(:)
         v(:,np+1)  = vin(:)
@@ -484,12 +490,14 @@ contains
             tag(np+1)  = tagin
             !Read molecular tag and assign correct properties to reordered molecules
             call read_tag(np+1)
+            !todo rtether etc
         else
             if (ensemble.eq.tag_move) tag(np+1) = 0
         endif
 
         !Update processor number of molecules
         np = np + 1
+        globalnp = globalnp + 1
 
         !Get new molecule's cell
         icell = ceiling((r(1,np)+halfdomain(1)) &
@@ -499,8 +507,12 @@ contains
         kcell = ceiling((r(3,np)+halfdomain(3)) &
         /cellsidelength(3))+nh !Add nh due to halo(s)
 
+        !print*, 'cell before push:'
+        !call linklist_print(icell, jcell, kcell)
         !Add new molecule to current cell list
         call linklist_checkpush(icell, jcell, kcell, np)
+        !print*, 'cell after push:'
+        !call linklist_print(icell, jcell, kcell)
 
     end subroutine insert_molecule
 
@@ -509,15 +521,16 @@ contains
     ! Code Author: Edward Smith 2013
     subroutine remove_molecule(molno)
         use arrays_MD, only : r, v, tag, rtrue, rtether
-        use physical_constants_MD, only : np
+        use physical_constants_MD, only : np, globalnp, halo_np
         use computational_constants_MD, only : ensemble,tag_move,tether_tags,rtrue_flag, &
                                                halfdomain, cellsidelength, nh
         implicit none
 
-        integer, intent(in)     :: molno
+        integer, intent(in) :: molno
 
-        integer                 :: icell,jcell,kcell
-        integer                 :: icell_top,jcell_top,kcell_top
+        integer :: icell,jcell,kcell
+        integer :: icell_top,jcell_top,kcell_top
+        integer :: icell_halo,jcell_halo,kcell_halo
 
         !Get removed molecule's cell
         icell = ceiling((r(1,molno)+halfdomain(1)) &
@@ -535,9 +548,19 @@ contains
         kcell_top = ceiling((r(3,np)+halfdomain(3)) &
         /cellsidelength(3))+nh !Add nh due to halo(s)
 
+        !print*, 'molno cell linklist before pop:'
+        !call linklist_print(icell,jcell,kcell)
+        !print*, 'np cell linklist before pop:'
+        !call linklist_print(icell_top,jcell_top,kcell_top)
+
         !Pop removed molecule and top molecule from cell lists
         call linklist_pop(icell, jcell, kcell, molno)
         call linklist_pop(icell_top, jcell_top, kcell_top, np) 
+
+        !print*, 'molno cell linklist after pop:'
+        !call linklist_print(icell,jcell,kcell)
+        !print*, 'np cell linklist after pop:'
+        !call linklist_print(icell_top,jcell_top,kcell_top)
 
         !Replace specified molecule with top one from array
         if (ensemble.eq.tag_move) then
@@ -549,7 +572,7 @@ contains
             rtrue(:,molno) = rtrue(:,np)
         endif
         if (ensemble.eq.tag_move) then
-            if (any(tag(molno).eq.tether_tags)) then
+            if (any(tag(np).eq.tether_tags)) then
                 rtether(:,molno) = rtether(:,np)
             endif
         endif
@@ -557,10 +580,53 @@ contains
         !Add top molecule to current cell list
         call linklist_checkpush(icell_top, jcell_top, kcell_top, molno) 
 
-        !Replace void at np with top halo molecule
-        
+        !print*, 'molno cell linklist after push again:'
+        !call linklist_print(icell_top,jcell_top,kcell_top)
+
+        !Replace void at np with top halo molecule TODO
+        !Get removed molecule's cell
+        icell_halo = ceiling((r(1,np+halo_np)+halfdomain(1)) &
+        /cellsidelength(1))+nh !Add nh due to halo(s)
+        jcell_halo = ceiling((r(2,np+halo_np)+halfdomain(2)) &
+        /cellsidelength(2))+nh !Add nh due to halo(s)
+        kcell_halo = ceiling((r(3,np+halo_np)+halfdomain(3)) &
+        /cellsidelength(3))+nh !Add nh due to halo(s)
+
+        !Replace specified molecule with top one from array
+        if (ensemble.eq.tag_move) then
+            tag(np)  = tag(np+halo_np)
+        endif
+        r(:,np)       = r(:,np+halo_np)
+        v(:,np)       = v(:,np+halo_np)
+        if (rtrue_flag.eq.1) then
+            rtrue(:,np) = rtrue(:,np+halo_np)
+        endif
+        if (ensemble.eq.tag_move) then
+            if (any(tag(np+halo_np).eq.tether_tags)) then
+                rtether(:,np) = rtether(:,np+halo_np)
+            endif
+        endif
+
+        !print*, 'np+halo_np cell linklist before pop:'
+        !call linklist_print(icell_halo,jcell_halo,kcell_halo)
+
+        call linklist_pop(icell_halo, jcell_halo, kcell_halo, np+halo_np)
+
+        !print*, 'np+halo_np cell linklist after pop and before push:'
+        !call linklist_print(icell_halo,jcell_halo,kcell_halo)
+
+
+        call linklist_checkpush(icell_halo, jcell_halo, kcell_halo, np) 
+
+        !print*, 'np+halo_np cell linklist after push:'
+        !call linklist_print(icell_halo,jcell_halo,kcell_halo)
+
+        ! Update borders to be safe
+        !call messenger_updateborders(1)       
+
         !Update processor number of molecules
         np = np - 1
+        globalnp = globalnp - 1
 
     end subroutine remove_molecule
 
@@ -734,7 +800,7 @@ contains
         dSmax   = 0.1*(density**-1.5)
         dS      = dSmax
         Uovlp   = 10.0**4.0
-        tol     = 0.01 
+        tol     = 0.001 
         if (present(maxiter_op)) maxiter = maxiter_op
         if (present(dSmax_op)) dSmax = dSmax_op 
         if (present(tol_op)) tol = tol_op 
@@ -800,71 +866,97 @@ end module particle_insertion
 
 !Insert Molecules and call USHER algorithm
 ! Code Author: Edward Smith 2013
-subroutine usher_insert(nparticles)
+subroutine usher_teleport(nparticles)
     use particle_insertion
     use computational_constants_MD, only: iter, halfdomain,ncells
     use physical_constants_MD, only: Potential_sLRC, np
+    use arrays_MD, only: potenergymol_LJ, r, a, v
     implicit none
 
     integer, intent(in) :: nparticles
 
     integer :: n,i,maxattempts=10000,icell,jcell,kcell
+    integer :: molno
     logical :: pos_found 
-    real(kind(0.d0)) :: Utarget, Ufinish
+    real(kind(0.d0)) :: Utarget, Ufinish, rand1, fdummy(3)
     real(kind(0.d0)) :: startpos(3), insertpos(3)
     real(kind(0.d0)),dimension(3) :: avevel,vnew,rand
 
     avevel = 0.d0
 
-    Utarget  = get_Utarget() 
+    !Utarget  = get_Utarget() 
+
+    call simulation_compute_forces
 
     do n = 1,nparticles 
 
-        call random_number(rand)
-        icell = ceiling(rand(1) * ncells(1))
-        jcell = ceiling(rand(2) * ncells(2))
-        kcell = ceiling(rand(3) * ncells(3))
+        !Choose molecule at random and store its potential energy as target
+        call random_number(rand1)
+        molno = ceiling(rand1 * np)
+         
+        ! Test removal and insertion by using original values
+        molno = 535
+        insertpos = r(:,molno)
+        vnew = v(:,molno)
+        call compute_force_and_potential_at(insertpos,Utarget,fdummy)
+        !print('(x,a,x,3f10.4,x,a,f18.13,x,a,f18.13)'),'removepos =', insertpos,&
+        !                 ';   potenergymol(molno) = ', potenergymol_LJ(molno),&
+        !                 ';   difference = ', Utarget - potenergymol_LJ(molno)
+        !Utarget = Utarget/2.d0
+        call remove_molecule(molno)
+        call insert_molecule(insertpos,vnew)
 
-        call create_velocity(avevel,vnew)
+    
+        !call remove_molecule(molno)
+        !call messenger_updateborders(1) !Update borders ready for next insertion - halo rebuilt
 
-        do i = 1, maxattempts
+        !Choose random place to reinsert it
+        !call random_number(rand)
+        !icell = ceiling(rand(1) * ncells(1))
+        !jcell = ceiling(rand(2) * ncells(2))
+        !kcell = ceiling(rand(3) * ncells(3))
+        !call create_velocity(avevel,vnew)
 
-            call create_position(icell,jcell,kcell,startpos,4,avevel)   
+        !do i = 1, maxattempts
 
-            !startpos = get_randompos() 
-            call usher_get_insertion_pos(startpos,Utarget,insertpos,pos_found,Ufinish)
+        !    !call create_position(icell,jcell,kcell,startpos,4,avevel)   
+        !    !startpos = get_randompos() 
+        !    !call usher_get_insertion_pos(startpos,Utarget,insertpos,pos_found,Ufinish)
 
-            if (pos_found) then
 
-                print('(a,2f9.3,a,3f9.3,a,i4,a,i6)'), ' USHER SUCCEEDED: Utarget, Ufinish: ', &
-                                                    Utarget, Ufinish, ', r:',  &
-                                                    insertpos, ', after ', i,  &
-                                                    ' attempts , new np', np
-                !write(40000+iter,*) insertpos
-                call insert_molecule(insertpos,vnew)    
-                call messenger_updateborders(1) !Update borders ready for next insertion - halo rebuilt
+        !    if (pos_found) then
 
-                !Write local xy field @ z
-                !call simulation_write_potential_field(max(-halfdomain(1),insertpos(1)-3.0), &
-                !                                      min( halfdomain(1),insertpos(1)+3.0), &
-                !                                      max(-halfdomain(2),insertpos(2)-3.0), &
-                 !                                     min( halfdomain(2),insertpos(2)+3.0), &
-                !                                      insertpos(3), 300, 30000+iter)
-                !Write entire xy field @ z
-                !call simulation_write_potential_field(-halfdomain(1),halfdomain(1), &
-                !                                      -halfdomain(2),halfdomain(2), &
-                !                                       insertpos(3), 400, 30000+iter)
+        !        !write(40000+iter,*) insertpos
+        !        call insert_molecule(insertpos,vnew)    
+        !        call messenger_updateborders(1) !Update borders ready for next insertion - halo rebuilt
 
-                exit
+        !        print('(a,2f9.3,a,3f9.3,a,i4,a,i6)'), ' USHER SUCCEEDED: Utarget, Ufinish: ', &
+        !                                            Utarget, Ufinish, ', r:',  &
+        !                                            insertpos, ', after ', i,  &
+        !                                            ' attempts , new np', np
 
-            end if
+        !        !Write local xy field @ z
+        !        !call simulation_write_potential_field(max(-halfdomain(1),insertpos(1)-3.0), &
+        !        !                                      min( halfdomain(1),insertpos(1)+3.0), &
+        !        !                                      max(-halfdomain(2),insertpos(2)-3.0), &
+        !         !                                     min( halfdomain(2),insertpos(2)+3.0), &
+        !        !                                      insertpos(3), 300, 30000+iter)
+        !        !Write entire xy field @ z
+        !        !call simulation_write_potential_field(-halfdomain(1),halfdomain(1), &
+        !        !                                      -halfdomain(2),halfdomain(2), &
+        !        !                                       insertpos(3), 400, 30000+iter)
 
-        end do
+        !        exit
+
+        !    end if
+
+        !end do
 
     end do
 
     if (.not. pos_found) then 
-        print*, ' usher failed  Utarget =', Utarget
+        print*, ' Debugging...'
+        !print*, ' usher failed  Utarget =', Utarget
     end if
 
 contains
