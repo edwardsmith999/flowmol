@@ -26,6 +26,88 @@ module module_compute_forces
 end module module_compute_forces
 
 !========================================================================
+!Cell list computations of potential and force on "would-be" molecules
+subroutine compute_force_and_potential_at(input_pos,Usum,f) 
+	use module_compute_forces
+	implicit none
+
+	real(kind(0.d0)), intent(in)  :: input_pos(3)
+	real(kind(0.d0)), intent(out) :: Usum, f(3)
+
+	integer :: i,j 
+	integer :: icell, jcell, kcell
+	integer :: icellshift, jcellshift, kcellshift
+	integer :: cellnp
+	integer :: molno
+	type(node), pointer :: current, temp
+	real(kind(0.d0)) :: fmol(3), Umol
+
+	! Init	
+	Usum = 0.d0
+	f = 0.d0 
+
+	!Find cell, adding nh for halo(s)
+    icell = ceiling((input_pos(1)+halfdomain(1))/cellsidelength(1)) + nh
+    jcell = ceiling((input_pos(2)+halfdomain(2))/cellsidelength(2)) + nh
+    kcell = ceiling((input_pos(3)+halfdomain(3))/cellsidelength(3)) + nh
+
+	!Return Usum and f zero if position is outside the domain
+	if ( icell .lt. 2 .or. icell .gt. ncells(1)+1 .or. &
+	     jcell .lt. 2 .or. jcell .gt. ncells(2)+1 .or. &
+	     kcell .lt. 2 .or. kcell .gt. ncells(3)+1      ) then
+		print*, 'Warning - attempted to calculated force and potential'
+		print*, 'outside of the domain. Returning Usum=f=0.'
+		return
+	end if
+
+	do kcellshift = -1,1
+	do jcellshift = -1,1
+	do icellshift = -1,1
+
+		current => cell%head  (icell+icellshift,jcell+jcellshift,kcell+kcellshift)%point
+		cellnp  =  cell%cellnp(icell+icellshift,jcell+jcellshift,kcell+kcellshift)
+    
+		do j = 1,cellnp	
+
+			rij(:) = input_pos(:) - r(:,current%molno)
+			rij2   = dot_product(rij,rij)
+
+            if (rij2 .eq. 0.d0) then
+                !print*, 'Warning, computing potential with zero separation...', current%molno
+			    current => current%next
+                cycle
+            end if
+
+            !Linear magnitude of acceleration for each molecule
+            invrij2 = 1.d0/rij2
+
+			if (rij2 < rcutoff2) then
+
+				!Linear magnitude of acceleration for each molecule
+				invrij2 = 1.d0/rij2
+
+				!Find molecule's contribution to f and Usum
+				fmol = 48.d0*( invrij2**7 - 0.5d0*invrij2**4 )*rij
+				Umol = 4.d0*( invrij2**6 - invrij2**3 )-potshift
+
+				!Add to totals
+				f = f + fmol
+				Usum = Usum + Umol
+
+			endif
+
+			current => current%next
+
+		enddo
+
+	enddo
+	enddo
+	enddo
+
+	nullify(current)      	!Nullify as no longer required
+
+end subroutine compute_force_and_potential_at 
+!========================================================================
 ! Force calculation using the force list method and potential type
 ! specified in the input file
 
@@ -284,12 +366,14 @@ subroutine simulation_compute_forces_LJ_cells
 		oldi => cell%head(icell,jcell,kcell)%point !Set old to first molecule in list
 
 		do i = 1,cellnp					!Step through each particle in list 
+
 			molnoi = oldi%molno 	 	!Number of molecule
 			ri = r(:,molnoi)         	!Retrieve ri
-
+            
 			do kcellshift = -1,1
 			do jcellshift = -1,1
 			do icellshift = -1,1
+
 				oldj => cell%head(icell+icellshift,jcell+jcellshift,kcell+kcellshift)%point
 				adjacentcellnp = cell%cellnp(icell+icellshift,jcell+jcellshift,kcell+kcellshift)
 
@@ -323,7 +407,6 @@ subroutine simulation_compute_forces_LJ_cells
 							if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
 									fij = accijmag*rij(:)
 									call Control_Volume_stresses(fij,ri,rj,molnoi)
-								!endif
 							endif
 						endif
 
@@ -350,6 +433,8 @@ subroutine simulation_compute_forces_LJ_cells
 			enddo
 			currenti => oldi
 			oldi => currenti%next !Use pointer in datatype to obtain next item in list
+
+
 		enddo
 	enddo
 	enddo
@@ -978,77 +1063,3 @@ subroutine simulation_compute_rfbins_cpol(imin, imax, jmin, jmax, kmin, kmax)
 end subroutine simulation_compute_rfbins_cpol
 
 
-!========================================================================
-!Cell list computations of potential and force on "would-be" molecules
-subroutine compute_force_and_potential_at(input_pos,Usum,f) 
-	use module_compute_forces
-	implicit none
-
-	real(kind(0.d0)), intent(in)  :: input_pos(3)
-	real(kind(0.d0)), intent(out) :: Usum, f(3)
-
-	integer :: i,j 
-	integer :: icell, jcell, kcell
-	integer :: icellshift, jcellshift, kcellshift
-	integer :: cellnp
-	integer :: molno
-	type(node), pointer :: current
-	real(kind(0.d0)) :: fmol(3), Umol
-
-	! Init	
-	Usum = 0.d0
-	f = 0.d0 
-
-	!Find cell, adding nh for halo(s)
-    icell = ceiling((input_pos(1)+halfdomain(1))/cellsidelength(1)) + nh
-    jcell = ceiling((input_pos(2)+halfdomain(2))/cellsidelength(2)) + nh
-    kcell = ceiling((input_pos(3)+halfdomain(3))/cellsidelength(3)) + nh
-
-	
-	!Return Usum and f zero if position is outside the domain
-	if ( icell .lt. 2 .or. icell .gt. ncells(1)+1 .or. &
-	     jcell .lt. 2 .or. jcell .gt. ncells(2)+1 .or. &
-	     kcell .lt. 2 .or. kcell .gt. ncells(3)+1      ) then
-		!print*, 'Warning - attempted to calculated force and potential'
-		!print*, 'outside of the domain. Returning Usum=f=0.'
-		return
-	end if
-
-	do kcellshift = -1,1
-	do jcellshift = -1,1
-	do icellshift = -1,1
-
-		current => cell%head  (icell+icellshift,jcell+jcellshift,kcell+kcellshift)%point
-		cellnp  =  cell%cellnp(icell+icellshift,jcell+jcellshift,kcell+kcellshift)
-
-		do j = 1,cellnp	
-
-			rij(:) = input_pos(:) - r(:,current%molno)
-			rij2   = dot_product(rij,rij)
-
-			if (rij2 < rcutoff2) then
-
-				!Linear magnitude of acceleration for each molecule
-				invrij2 = 1.d0/rij2
-
-				!Find molecule's contribution to f and Usum
-				fmol = 48.d0*( invrij2**7 - 0.5d0*invrij2**4 )*rij
-				Umol = 0.5d0*4.d0*( invrij2**6 - invrij2**3 )-potshift
-
-				!Add to totals
-				f = f + fmol
-				Usum = Usum + Umol
-
-			endif
-
-			current => current%next
-
-		enddo
-
-	enddo
-	enddo
-	enddo
-
-	nullify(current)      	!Nullify as no longer required
-
-end subroutine compute_force_and_potential_at 
