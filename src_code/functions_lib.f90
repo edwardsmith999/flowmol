@@ -463,6 +463,35 @@ implicit none
 
 end subroutine integrate_trap
 
+
+!-------------------------------------------------------------------------------------
+! Very simple bubble sorting algorithm -- should only be used for small data sets
+
+subroutine bubble_sort(vec)
+	implicit none
+
+	double precision, dimension(:),allocatable,intent(inout)	:: vec 
+
+	integer 			:: bubble, vsize, j
+	double precision	:: temp
+
+	vsize = size(vec) 
+
+	do while (vsize .gt. 1)
+		bubble = 0
+		do j = 1, (vsize-1)
+			if (vec(j) .gt. vec(j+1)) then
+				temp = vec(j)
+				vec(j) = vec(j+1)
+				vec(j+1) = temp
+				bubble = j
+			endif 
+		enddo
+		vsize = bubble   
+	enddo
+
+end subroutine bubble_sort
+
 !-------------------------------------------------------------------------------------
 !Returns the heaviside function for input x -- interface at top
 
@@ -523,6 +552,19 @@ function sphereCV(r,radius)
 	sphereCV = heaviside_a1(radius-rs(1))
 
 end function sphereCV
+
+! An approximation ot the Heaviside function using tanh 
+! k adjusts how aggressive it is
+function heaviside_dp_approx(x,k)
+
+	double precision,dimension(:),intent(in)	:: x, k
+	double precision,dimension(size(x))			:: heaviside_dp_approx
+
+	heaviside_dp_approx = 0.5d0*(1.d0 + tanh(k*x))
+
+end function heaviside_dp_approx
+
+
 
 !------------------------------------------------------------------------------
 ! Subroutine computes the intersection of a plane and a straight line
