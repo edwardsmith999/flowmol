@@ -360,27 +360,6 @@ subroutine simulation_compute_forces_LJ_cells
 	integer							:: molnoi, molnoj
 	type(node), pointer 	        :: oldi, currenti, oldj, currentj
 
-	!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
-	double precision,allocatable,dimension(:,:),save :: a_temp
-	double precision,dimension(3)   :: vi,vj,ai_mdt,aj_mdt
-
- 	do repeatno = 1,2
-
- 		if (repeatno .eq. 2) then
- 			if (.not. allocated(a_temp)) allocate(a_temp(size(a,1),size(a,2)))
- 			a_temp = a
- 			a					= 0.d0	!Reset acceleration matrix before force calculations
-         	potenergymol		= 0.d0	!Reset potential energy per molecule before calculation
-         	potenergymol_LJ		= 0.d0	!Reset LJ energy per molecule before calculation
-         	potenergysum		= 0.d0  !Reset total potential energy sum before calculation
-         	potenergysum_LJ		= 0.d0  !Reset LJ potential energy sum before calculation
-         	virial				= 0.d0	!Reset virial sum before calculation
-         	virialmol			= 0.d0	!Reset virial sum per molecule before calculation	
-		else
-			if (allocated(a_temp)) deallocate(a_temp)
- 		endif
-	!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
-
 	do kcell=2, ncells(3)+1
 	do jcell=2, ncells(2)+1
 	do icell=2, ncells(1)+1
@@ -425,26 +404,13 @@ subroutine simulation_compute_forces_LJ_cells
 						a(2,molnoi)= a(2,molnoi) + accijmag*rij(2)
 						a(3,molnoi)= a(3,molnoi) + accijmag*rij(3)
 
-!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
- 						if (repeatno .eq. 2) then
-!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
-						!print'(3i5,2(a,3f16.12))', iter,molnoi,molnoj,' Fij ',accijmag*rij(:),' Vi ',v(:,molnoi)-0.5d0*delta_t*a_temp(1,molnoi)
 						!CV stress and force calculations
 						if (vflux_outflag .eq. 4 .or. eflux_outflag.eq.4) then
 							if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
 								fij = accijmag*rij(:)
-								call Control_Volume_stresses(fij,ri,rj,molnoi,molnoj, & 
-															 a_temp(:,molnoi),a_temp(:,molnoj))
-        						!vi = v(:,molnoi); vj = v(:,molnoj)
-        						!ai_mdt = a_old(:,molnoi); aj_mdt = a_old(:,molnoj)
-								!call control_volume_power(fij,ri,rj,vi,vj,ai_mdt,aj_mdt, & 
-								!						   	a_temp(:,molnoi),a_temp(:,molnoj),molnoi,molnoj)
+								call Control_Volume_stresses(fij,ri,rj)
 							endif
 						endif
-
-!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
- 						endif
-!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
 
 						!Only calculate properties when required for output
 						if (mod(iter,tplot) .eq. 0) then
@@ -475,11 +441,6 @@ subroutine simulation_compute_forces_LJ_cells
 	enddo
 	enddo
 	enddo
-
-	!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
- 	enddo
-	!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
-
 
 	nullify(oldi)      		!Nullify as no longer required
 	nullify(oldj)      		!Nullify as no longer required
@@ -1103,5 +1064,115 @@ subroutine simulation_compute_rfbins_cpol(imin, imax, jmin, jmax, kmin, kmax)
 	nullify(currentj)
 
 end subroutine simulation_compute_rfbins_cpol
+
+
+
+!========================================================================
+! Compute Energy for specified range of CV, requires current acceleration
+! to already be calculated for all molecules so must be called after
+! simulation computer forces
+
+subroutine simulation_compute_power(imin, imax, jmin, jmax, kmin, kmax)
+	use module_compute_forces
+	implicit none
+
+	integer                         :: i, j, ixyz !Define dummy index
+	integer							:: icell, jcell, kcell
+	integer                         :: icellshift, jcellshift, kcellshift
+	integer                         :: cellnp, adjacentcellnp 
+	integer							:: molnoi, molnoj
+	integer							:: imin, jmin, kmin, imax, jmax, kmax
+	type(node), pointer 	        :: oldi, currenti, oldj, currentj
+
+	double precision,dimension(3)	:: cellsperbin
+
+	!rfbin = 0.d0
+	!allocate(rijsum(nd,np+extralloc)) !Sum of rij for each i, used for SLLOD algorithm
+	!rijsum = 0.d0
+
+	!Calculate bin to cell ratio
+	cellsperbin = 1.d0/binspercell !ceiling(ncells(1)/dble(nbins(1)))
+
+    ! Still need to loop over every cell (i.e. get all interactions) if
+    ! bins are bigger than cells
+	where (cellsperbin .lt. 1.d0) cellsperbin = 1.d0
+
+	do kcell=(kmin-1)*cellsperbin(3)+1, kmax*cellsperbin(3)
+	do jcell=(jmin-1)*cellsperbin(2)+1, jmax*cellsperbin(2)
+	do icell=(imin-1)*cellsperbin(1)+1, imax*cellsperbin(1)
+	
+		cellnp = cell%cellnp(icell,jcell,kcell)
+		oldi => cell%head(icell,jcell,kcell)%point !Set old to first molecule in list
+
+		do i = 1,cellnp					!Step through each particle in list 
+			molnoi = oldi%molno 	 	!Number of molecule
+			ri = r(:,molnoi)         	!Retrieve ri
+
+			do kcellshift = -1,1
+			do jcellshift = -1,1
+			do icellshift = -1,1
+
+				!Prevents out of range values in i
+				if (icell+icellshift .lt. imin) cycle
+				if (icell+icellshift .gt. imax) cycle
+				!Prevents out of range values in j
+				if (jcell+jcellshift .lt. jmin) cycle
+				if (jcell+jcellshift .gt. jmax) cycle
+				!Prevents out of range values in k
+				if (kcell+kcellshift .lt. kmin) cycle
+				if (kcell+kcellshift .gt. kmax) cycle
+
+				oldj => cell%head(icell+icellshift,jcell+jcellshift,kcell+kcellshift)%point
+				adjacentcellnp = cell%cellnp(icell+icellshift,jcell+jcellshift,kcell+kcellshift)
+
+				do j = 1,adjacentcellnp          !Step through all j for each i
+
+					molnoj = oldj%molno 	 !Number of molecule
+					rj = r(:,molnoj)         !Retrieve rj
+
+					currentj => oldj
+					oldj => currentj%next    !Use pointer in datatype to obtain next item in list
+
+					if(molnoi==molnoj) cycle !Check to prevent interaction with self
+
+					rij2=0                   !Set rij^2 to zero
+					rij(:) = ri(:) - rj(:)   !Evaluate distance between particle i and j
+
+					do ixyz=1,nd
+						rij2 = rij2+rij(ixyz)*rij(ixyz) !Square of vector calculated
+					enddo
+
+					if (rij2 < rcutoff2) then
+
+						!Linear magnitude of acceleration for each molecule
+						invrij2 = 1.d0/rij2                 !Invert value
+						accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
+
+						!CV stress and force calculations
+						if (eflux_outflag.eq. 4) then
+							if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
+								fij = accijmag*rij(:)
+								call control_volume_power(fij,ri,rj,molnoi,a(:,molnoi))
+							endif
+						endif
+
+					endif
+				enddo
+			enddo
+			enddo
+			enddo
+			currenti => oldi
+			oldi => currenti%next !Use pointer in datatype to obtain next item in list
+		enddo
+	enddo
+	enddo
+	enddo
+
+	nullify(oldi)      	!Nullify as no longer required
+	nullify(oldj)      	!Nullify as no longer required
+	nullify(currenti)      	!Nullify as no longer required
+	nullify(currentj)      	!Nullify as no longer required
+
+end subroutine simulation_compute_power
 
 

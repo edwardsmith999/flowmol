@@ -2676,7 +2676,7 @@ subroutine energy_flux_averaging(ixyz)
 	integer, save		:: sample_count
 
 	if (eflux_outflag .eq. 0) return
-
+	call simulation_compute_power(1, nbins(1)+2, 1, nbins(2)+2, 1, nbins(3)+2)
 	call cumulative_energy_flux(r,v,energy_flux)
 	sample_count = sample_count + 1
 	if (sample_count .eq. Neflux_ave) then
@@ -3557,19 +3557,14 @@ end subroutine control_volume_forces
 !===================================================================================
 ! Stresses over each of the six surfaces of the cuboid
 
-subroutine control_volume_stresses(fij,ri,rj,molnoi,molnoj,ai_mdt,aj_mdt)
+subroutine control_volume_stresses(fij,ri,rj)
     use module_record
 	use CV_objects, only : CV_debug,CVcheck_momentum2
     use librarymod, only : heaviside  =>  heaviside_a1
     implicit none
 
 
-	integer,intent(in)							:: molnoi,molnoj
 	double precision,intent(in),dimension(3)	:: ri,rj,fij
-
-	!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
-	double precision,dimension(3),optional	:: ai_mdt,aj_mdt
-	!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
 
 	integer							:: i,j,k,ixyz,face
 	integer,dimension(3)			:: cbin, ibin, jbin
@@ -3662,41 +3657,116 @@ subroutine control_volume_stresses(fij,ri,rj,molnoi,molnoj,ai_mdt,aj_mdt)
 				CVcheck_momentum2%Pxy(cbin(1),cbin(2),cbin(3),:,6) + fij(:)*dble(onfacezt)
 		endif
 
+		!Force applied to volume
+		fsurface(:) = 0.d0
+		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*dble(onfacexb - onfacext)
+		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*dble(onfaceyb - onfaceyt)
+		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*dble(onfacezb - onfacezt)
+		volume_force(cbin(1),cbin(2),cbin(3),:,1) = volume_force(cbin(1),cbin(2),cbin(3),:,1) + fsurface*delta_t
+
+	enddo
+	enddo
+	enddo
+
+
+end subroutine control_volume_stresses
+
+
+
+!===================================================================================
+! Stresses times velocity over each of the six surfaces of the cuboid
+
+subroutine control_volume_power(fij,ri,rj,molnoi,ai_mdt)
+    use module_record
+	use CV_objects, only : CV_debug,CVcheck_momentum2
+    use librarymod, only : heaviside  =>  heaviside_a1
+    implicit none
+
+
+	integer,intent(in)							:: molnoi
+	double precision,intent(in),dimension(3)	:: ri,rj,fij
+	double precision,dimension(3),intent(in)	:: ai_mdt
+
+
+	integer							:: i,j,k,ixyz,face
+	integer,dimension(3)			:: cbin, ibin, jbin
+    double precision				:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb,fijvi,fijvj
+	double precision,dimension(3)	:: rij,fsurface,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb,velvect
+	double precision,dimension(3)	:: Fbinsize, bintop, binbot, vi_t,vj_t,vi_tmdt,vj_tmdt
+
+	!Calculate rij
+	rij = ri - rj
+	!Prevent Division by zero
+	do ixyz = 1,3
+		if (abs(rij(ixyz)) .lt. 0.000001d0) rij(ixyz) = sign(0.000001d0,rij(ixyz))
+	enddo
+
+	!Determine bin size
+	Fbinsize(:) = domain(:) / nbins(:)
+
+	!Assign to bins using integer division
+	ibin(:) = ceiling((ri(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
+	jbin(:) = ceiling((rj(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
+
+	if (ibin(1) .eq. jbin(1) .and. ibin(2) .eq. jbin(2) .and. ibin(3) .eq. jbin(3)) return
+		
+	do i = ibin(1),jbin(1),sign(1,jbin(1)-ibin(1))
+	do j = ibin(2),jbin(2),sign(1,jbin(2)-ibin(2))
+	do k = ibin(3),jbin(3),sign(1,jbin(3)-ibin(3))
+
+		cbin(1) = i; cbin(2) = j; cbin(3) = k
+
+		bintop(:) = (cbin(:)-1*nhb(:)  )*Fbinsize(:)-halfdomain(:)
+		binbot(:) = (cbin(:)-1*nhb(:)-1)*Fbinsize(:)-halfdomain(:)
+
+		!Calculate the plane intersect of line with surfaces of the cube
+		Pxt=(/ bintop(1),ri(2)+(rij(2)/rij(1))*(bintop(1)-ri(1)),ri(3)+(rij(3)/rij(1))*(bintop(1)-ri(1))  /)
+		Pxb=(/ binbot(1),ri(2)+(rij(2)/rij(1))*(binbot(1)-ri(1)),ri(3)+(rij(3)/rij(1))*(binbot(1)-ri(1))  /)
+		Pyt=(/ri(1)+(rij(1)/rij(2))*(bintop(2)-ri(2)), bintop(2),ri(3)+(rij(3)/rij(2))*(bintop(2)-ri(2))  /)
+		Pyb=(/ri(1)+(rij(1)/rij(2))*(binbot(2)-ri(2)), binbot(2),ri(3)+(rij(3)/rij(2))*(binbot(2)-ri(2))  /)
+		Pzt=(/ri(1)+(rij(1)/rij(3))*(bintop(3)-ri(3)), ri(2)+(rij(2)/rij(3))*(bintop(3)-ri(3)), bintop(3) /)
+		Pzb=(/ri(1)+(rij(1)/rij(3))*(binbot(3)-ri(3)), ri(2)+(rij(2)/rij(3))*(binbot(3)-ri(3)), binbot(3) /)
+
+		onfacexb =  	(sign(1.d0,binbot(1)- rj(1)) - sign(1.d0,binbot(1)- ri(1)))* &
+						(heaviside(bintop(2)-Pxb(2)) - heaviside(binbot(2)-Pxb(2)))* &
+						(heaviside(bintop(3)-Pxb(3)) - heaviside(binbot(3)-Pxb(3)))
+		onfaceyb =  	(sign(1.d0,binbot(2)- rj(2)) - sign(1.d0,binbot(2)- ri(2)))* &
+						(heaviside(bintop(1)-Pyb(1)) - heaviside(binbot(1)-Pyb(1)))* &
+						(heaviside(bintop(3)-Pyb(3)) - heaviside(binbot(3)-Pyb(3)))
+		onfacezb =  	(sign(1.d0,binbot(3)- rj(3)) - sign(1.d0,binbot(3)- ri(3)))* &
+						(heaviside(bintop(1)-Pzb(1)) - heaviside(binbot(1)-Pzb(1)))* &
+						(heaviside(bintop(2)-Pzb(2)) - heaviside(binbot(2)-Pzb(2)))
+
+		onfacext =  	(sign(1.d0,bintop(1)- rj(1)) - sign(1.d0,bintop(1)- ri(1)))* &
+						(heaviside(bintop(2)-Pxt(2)) - heaviside(binbot(2)-Pxt(2)))* &
+	            		(heaviside(bintop(3)-Pxt(3)) - heaviside(binbot(3)-Pxt(3)))
+		onfaceyt = 		(sign(1.d0,bintop(2)- rj(2)) - sign(1.d0,bintop(2)- ri(2)))* &
+						(heaviside(bintop(1)-Pyt(1)) - heaviside(binbot(1)-Pyt(1)))* &
+						(heaviside(bintop(3)-Pyt(3)) - heaviside(binbot(3)-Pyt(3)))
+		onfacezt =  	(sign(1.d0,bintop(3)- rj(3)) - sign(1.d0,bintop(3)- ri(3)))* &
+						(heaviside(bintop(1)-Pzt(1)) - heaviside(binbot(1)-Pzt(1)))* &
+						(heaviside(bintop(2)-Pzt(2)) - heaviside(binbot(2)-Pzt(2)))
+
 		!Stress acting on face over volume
-		if (eflux_outflag .eq. 4) then
 
-			!v at time t - dt
-			!vi_tmdt(:) = v(:,molnoi) - delta_t*ai_mdt(:)
-			!vj_tmdt(:) = v(:,molnoj) + delta_t*aj_mdt(:)
+		!v at time t 
+		vi_t(:) = v(:,molnoi) + 0.5d0*delta_t*ai_mdt(:)
 
-			!v at time t 
-			vi_t(:) = v(:,molnoi) + 0.5d0*delta_t*ai_mdt(:)
-			!vj_t(:) = v(:,molnoj) - 0.5d0*delta_t*aj_mdt(:)
+		!Midpoint rule
+		fijvi = dot_product(fij,vi_t)
 
-			!Midpoint rule
-			fijvi = dot_product(fij,vi_t)
-
-			! Trapizium rule requires 0.5 * dt * (fi(t-dt) \dot vi(t-dt) + fij(t) \dot vi(t))
-			! where dSij is assumed to be the same for t and t-dt 
-			! (N.B no dt included as the left hand side is divided by this instead)
-			!fijvi = 0.5d0 * ( dot_product(fij_dmt(:,molnoi,molnoj),vi_tmdt) + dot_product(fij,vi_t)) 
-
-			
-			!velvect(:) = v(:,molnoi)
-			!velvect(:) = v(:,molnoi) - 0.5d0*delta_t*a_temp
-			Pxyvface(cbin(1),cbin(2),cbin(3),1) = & 
-				Pxyvface(cbin(1),cbin(2),cbin(3),1) + fijvi*onfacexb
-			Pxyvface(cbin(1),cbin(2),cbin(3),2) = & 
-				Pxyvface(cbin(1),cbin(2),cbin(3),2) + fijvi*onfaceyb
-			Pxyvface(cbin(1),cbin(2),cbin(3),3) = &
-				Pxyvface(cbin(1),cbin(2),cbin(3),3) + fijvi*onfacezb
-			Pxyvface(cbin(1),cbin(2),cbin(3),4) = &
-				Pxyvface(cbin(1),cbin(2),cbin(3),4) + fijvi*onfacext
-			Pxyvface(cbin(1),cbin(2),cbin(3),5) = &
-				Pxyvface(cbin(1),cbin(2),cbin(3),5) + fijvi*onfaceyt
-			Pxyvface(cbin(1),cbin(2),cbin(3),6) = &
-				Pxyvface(cbin(1),cbin(2),cbin(3),6) + fijvi*onfacezt
-
+		Pxyvface(cbin(1),cbin(2),cbin(3),1) = & 
+			Pxyvface(cbin(1),cbin(2),cbin(3),1) + fijvi*onfacexb
+		Pxyvface(cbin(1),cbin(2),cbin(3),2) = & 
+			Pxyvface(cbin(1),cbin(2),cbin(3),2) + fijvi*onfaceyb
+		Pxyvface(cbin(1),cbin(2),cbin(3),3) = &
+			Pxyvface(cbin(1),cbin(2),cbin(3),3) + fijvi*onfacezb
+		Pxyvface(cbin(1),cbin(2),cbin(3),4) = &
+			Pxyvface(cbin(1),cbin(2),cbin(3),4) + fijvi*onfacext
+		Pxyvface(cbin(1),cbin(2),cbin(3),5) = &
+			Pxyvface(cbin(1),cbin(2),cbin(3),5) + fijvi*onfaceyt
+		Pxyvface(cbin(1),cbin(2),cbin(3),6) = &
+			Pxyvface(cbin(1),cbin(2),cbin(3),6) + fijvi*onfacezt
 
 !  			if (i .eq. 3 .and. j .eq. 3 .and. k .eq. 3) then
 !  			!print'(a,6f10.5,f6.0,5f4.0)', 'power face', Pxyvface(i,j,k,:),onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
@@ -3715,14 +3785,6 @@ subroutine control_volume_stresses(fij,ri,rj,molnoi,molnoj,ai_mdt,aj_mdt)
 ! ! 			endif
 !  			endif
 !  			endif
- 		endif
-
-		!Force applied to volume
-		fsurface(:) = 0.d0
-		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*dble(onfacexb - onfacext)
-		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*dble(onfaceyb - onfaceyt)
-		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*dble(onfacezb - onfacezt)
-		volume_force(cbin(1),cbin(2),cbin(3),:,1) = volume_force(cbin(1),cbin(2),cbin(3),:,1) + fsurface*delta_t
 
 	enddo
 	enddo
@@ -3730,9 +3792,7 @@ subroutine control_volume_stresses(fij,ri,rj,molnoi,molnoj,ai_mdt,aj_mdt)
 
 	!fij_dmt(:,molnoi,molnoj) = fij(:)
 
-end subroutine control_volume_stresses
-
-
+end subroutine control_volume_power
 
 
 
@@ -3905,7 +3965,7 @@ end subroutine get_CV_surface_contributions
 
 end module get_timesteps_module
 
-subroutine control_volume_power(fij,ri,rj,vi_mhdt,vj_mhdt,ai_mdt,aj_mdt,ai,aj,molnoi,molnoj)
+subroutine control_volume_power_partialint(fij,ri,rj,vi_mhdt,vj_mhdt,ai_mdt,aj_mdt,ai,aj,molnoi,molnoj)
     use module_record
 	use CV_objects, only : CV_debug,CVcheck_momentum2
     use librarymod, only : heaviside => heaviside_a1, bubble_sort
@@ -4109,7 +4169,7 @@ subroutine control_volume_power(fij,ri,rj,vi_mhdt,vj_mhdt,ai_mdt,aj_mdt,ai,aj,mo
 
 	enddo
 
-end subroutine control_volume_power
+end subroutine control_volume_power_partialint
 
 
 
