@@ -39,6 +39,7 @@ end
 
 %Read simulation properties from header file and calculate simulation
 %properties
+nd = 3;
 Ncubeface = 6;
 datasize = gnbins(1)*gnbins(2)*gnbins(3)*nd*Ncubeface;
 bytes = 8;

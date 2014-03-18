@@ -31,7 +31,9 @@ module module_set_parameters
 	use concentric_cylinders
 	use librarymod, only : PDF
 
-	type(PDF) :: velPDF, velPDFMB
+	type(PDF) 								:: velPDF, velPDFMB
+	type(PDF),allocatable,dimension(:,:,:) 	:: velPDF_array
+
 
 end module module_set_parameters 
 !------------------------------------------------------------------------------
@@ -137,20 +139,10 @@ subroutine setup_set_parameters
 	do i = 1,6
 		!If F_ext_limits > domain extents set to domain extents
 		if(F_ext_limits(i) .gt. 0.5d0*globaldomain(ceiling(real(i)/2.d0))) then
-			!print*, 'b4', i,F_ext_limits(i)
 			F_ext_limits(i) =  0.5d0*globaldomain(ceiling(real(i)/2.d0))
-			!print*, 'at', i,F_ext_limits(i)
 		elseif (F_ext_limits(i) .lt. -0.5d0*globaldomain(ceiling(real(i)/2.d0))) then
-			!print*, 'b4', i,F_ext_limits(i)
 			F_ext_limits(i) = -0.5d0*globaldomain(ceiling(real(i)/2.d0))
-			!print*, 'at', i,F_ext_limits(i)
 		endif
-
-		!if(abs(F_ext_limits(i)) .gt. 0.5d0*globaldomain(ceiling(real(i)/2.d0))) then
-		!	print*, 'b4', i,F_ext_limits(i)
-		!	F_ext_limits(i) = ((-1)**i)*0.5d0*globaldomain(ceiling(real(i)/2.d0))
-		!	print*, 'at', i,F_ext_limits(i)
-		!endif
 	enddo
 
 end subroutine setup_set_parameters
@@ -180,9 +172,13 @@ subroutine set_parameters_allocate
 	allocate(r(nd,np+extralloc))
 	allocate(v(nd,np+extralloc))
 	allocate(a(nd,np+extralloc))
+	if (eflux_outflag .eq. 4) then
+		allocate(a_old(nd,np+extralloc))
+	endif
 
 	!Allocate potential energy and virial per molecule array
 	allocate(potenergymol(np+extralloc))
+	allocate(potenergymol_mdt(np+extralloc))
 	allocate(potenergymol_LJ(np+extralloc))
 	allocate(virialmol(np+extralloc))
 
@@ -660,7 +656,7 @@ subroutine set_parameters_outputs
 						   CVcheck_momentum2,CVcheck_energy, CV_debug!,CV_sphere_momentum,CV_sphere_mass
 	implicit none
 
-	integer					:: n
+	integer					:: n,i,j,k
 	double precision		:: maxv !Maximum possible velocity of all molecules
 	double precision		:: shift
 
@@ -705,8 +701,16 @@ subroutine set_parameters_outputs
 ! 		!Define maximum possible velocity of a given molecule to determine size of each bin
 ! 		           		!Assume molecule will not have more than 3 time its initial velocity 
 ! 		binsize = maxv/(8*nbins(1))
-	else
-		velPDF   = PDF(22*nbins(1),-3.0d0,3.6d0)
+	elseif (vdist_flag .eq. 2) then
+		velPDFMB = PDF(50,-3.d0,3.d0)
+		allocate(velPDF_array(nbins(1)+2,nbins(2)+2,nbins(3)+2))
+		do i = 1,nbins(1)+2
+		do j = 1,nbins(2)+2
+		do k = 1,nbins(3)+2
+			velPDF_array(i,j,k) = PDF(50,-3.0d0,3.0d0)
+		enddo
+		enddo
+		enddo
 	endif
 
 
@@ -967,7 +971,9 @@ subroutine set_parameters_outputs
 	if (eflux_outflag .eq. 4) then
 		allocate(  energy_flux(nbinso(1),nbinso(2),nbinso(3),6))
 		allocate( Pxyvface(nbinso(1),nbinso(2),nbinso(3),6))
-		energy_flux 	= 0.d0; Pxyvface = 0.d0
+		allocate( Pxyvface2(nbinso(1),nbinso(2),nbinso(3),6))
+		allocate( Pxyvface_mdt(nbinso(1),nbinso(2),nbinso(3),6))
+		energy_flux 	= 0.d0; Pxyvface = 0.d0; Pxyvface_mdt=0.d0
 		if (external_force_flag .ne. 0 .or. & 
 			ensemble .eq. tag_move .or.     & 
 			CVforce_flag .ne. VOID) then

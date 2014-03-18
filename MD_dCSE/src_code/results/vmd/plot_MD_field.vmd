@@ -135,7 +135,7 @@ set dmaxz [lindex [lsort -real -decreasing $coords] 0]
 set cmin -0.5
 set cmax 0.5
 mol scaleminmax 0 1 $cmin $cmax
-color_scale_bar_v2
+color_scale_bar_v2 0.5 0.05 0 1 $cmin $cmax 5 
 
 # use the volumetric data set for the isosurface corresponding to the frame divided by the variable Nave.
 # $updmol contains the id of the molecule and $updrep the (unique) name of
@@ -171,9 +171,9 @@ proc update_iso {args} {
 	mol color Volume $volrec
 
 	# Change molecular colour to MD volumetric data
-    puts "Bin record = $binrec , vmdrec = $vmdrec, volrec = $volrec Frame = $frame "
+    #puts "Bin record = $binrec , vmdrec = $vmdrec, volrec = $volrec Frame = $frame "
 	mol modcolor 0 $updmol Volume $volrec
-    #mol scaleminmax 0 $updmol $cmin $cmax
+    mol scaleminmax 0 $updmol $cmin $cmax
 
 	# Draw Text of current iteration
 	draw delete all

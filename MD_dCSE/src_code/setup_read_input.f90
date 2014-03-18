@@ -220,9 +220,9 @@ subroutine setup_read_input
    		read(1,*) velocity_special_case	
    		select case (trim(velocity_special_case	))
    		case('debug')
-   			call setup_initialise_velocities_test
+			!Nothing must be read in
    		case('taylor_green')
-   			call setup_initialise_velocities_TG
+			!Nothing must be read in
    		case('dns')
 	   		read(1,*) DNS_filename
 	   		read(1,*) DNS_ngx

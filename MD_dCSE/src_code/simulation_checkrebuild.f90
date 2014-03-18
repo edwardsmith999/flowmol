@@ -54,6 +54,9 @@ subroutine simulation_checkrebuild(rebuild)
 	endif
 
     !Abort can be forced by creating file -- global check required to ensure all abort together
+	!NOTE - there may still be a bug in this -- is an ABORTABORT file is created but any of the
+	!processes has passed beyond this check then code could hang...
+
 	inquire(file=trim(prefix_dir)//'ABORTABORT',exist=abort)
     if (abort) then
         proc_abort = 1

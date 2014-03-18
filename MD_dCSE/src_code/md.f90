@@ -118,7 +118,8 @@ contains
 		call average_and_send_MD_to_CFD(iter)  ! MD=>CFD Calculate averages of MD to pass to CFD
 #else
 		!call apply_flekkoy_test
-		call apply_CV_force(iter)
+		!call apply_CV_force(iter)
+		call apply_CV_force_multibin(iter)
 		call apply_boundary_force
 #endif
 
@@ -129,8 +130,6 @@ contains
 			call linklist_deallocateall             		!Deallocate all linklist components
 			call sendmols                           		!Exchange particles between processors
 			call sort_mols									!Reorder molecules to improve cache efficency
-			call assign_to_cell                     		!Re-build linklist for domain cells
-			call messenger_updateborders(1)         		!Update borders between processors
             !if (mod(iter,10) .eq. 0) then
             !    print*, 'np = ', np
             !    call usher_teleport(1)

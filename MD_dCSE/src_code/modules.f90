@@ -291,6 +291,7 @@ module arrays_MD
 		potenergymol, 		&		!Potential energy of each molecule
 		potenergymol_LJ, 	&		!LJ Potential energy of each molecule
 		potenergymol_FENE,	&		!FENE Potential energy of each molecule
+		potenergymol_mdt,	&		!Potential energy of each molecule at previous timestep
 		virialmol,			&		!Virial of each molecule
 		recvbuffer
 	double precision, dimension(:,:),   allocatable			:: &
@@ -304,6 +305,7 @@ module arrays_MD
 		r, 		&        		  	!Positions
 		v, 		&        		  	!Velocity
 		a, 		&					!Accelerations
+		a_old,	&					!Accelerations at last timestep
 		slidev, &					!Speed for sliding molecules
 		U							!Streaming velocity of molecules
 
@@ -650,6 +652,8 @@ module calculated_properties_MD
 		volume_momentum,	& 		!Momentum in a control volume at time t
 		energy_flux,		&		!Flow of energy over a control volume surface
 		Pxyvface,			&		!Stress tensor on bin face
+		Pxyvface2,			&		!Stress tensor on bin face TEMP FOR DEBUG
+		Pxyvface_mdt,		&		!Stress tensor on bin face at previous timestep
 		F_ext_bin					!External Force per bin
 
 	double precision, dimension(:,:,:,:,:), allocatable :: & 

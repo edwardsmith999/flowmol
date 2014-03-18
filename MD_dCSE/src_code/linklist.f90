@@ -1521,9 +1521,10 @@ subroutine linklist_pop(icell, jcell, kcell, molnopop)
 	use module_linklist
 	implicit none
 
-	integer            	           :: cellnp
 	integer, intent(in)    	       :: icell, jcell, kcell
 	integer, intent(in)    	       :: molnopop
+
+	integer            	           :: cellnp
 	type(node), pointer 	       :: old, current
 	type(node), pointer 	       :: pop
 
@@ -1540,12 +1541,12 @@ subroutine linklist_pop(icell, jcell, kcell, molnopop)
 
 			!Check there are other molecules in cell
 			if (associated(pop%next)) then
-                !Set head pointer to next in list and remove top
-                cell%head(icell,jcell, kcell)%point => pop%next 
+				!Set head pointer to next in list and remove top
+				cell%head(icell,jcell, kcell)%point => pop%next 
 				old     => pop%next         !Set old to next item in list 
-			    nullify(old%previous)
+				nullify(old%previous)
 			else
-				!If none then cell pointer is nullified
+				!If none then cell pointer is nullified and the list is empty
 				nullify(cell%head(icell,jcell,kcell)%point)
 			endif
 			deallocate(pop)				!Destroy pop
@@ -1554,6 +1555,7 @@ subroutine linklist_pop(icell, jcell, kcell, molnopop)
 
 			!Check if popped molecule is last in list
 			if (associated(pop%next)) then
+				!If just an element in list, remove it
 				old     => pop%next         !Set old to next item in list
 				current => pop%previous     !Set current to previous item in list
 				deallocate(pop)				!Destroy pop
@@ -1562,6 +1564,7 @@ subroutine linklist_pop(icell, jcell, kcell, molnopop)
 				current%next => old     	!Next pointer connects to current (pop missed out)
 
 			else
+				!If last in list
 				current => pop%previous     !Set current to previous item in list
 				deallocate(pop)				!Destroy pop
 

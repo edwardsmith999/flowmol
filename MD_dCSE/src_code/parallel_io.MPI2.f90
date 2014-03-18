@@ -203,10 +203,10 @@ subroutine rwrite_arrays(some_array,nresults,outfile,outstep)
 	integer								:: n, fh
 	integer 							:: MEM_FLAG = 0
 	integer 							:: FILE_FLAG = 0
-	integer								:: dp_size,datatype
+	integer								:: datatype
 	integer								:: status(mpi_status_size)
-	integer			   					:: filetype, memtype
-	integer (kind=MPI_offset_kind)		:: offset, global_cnt
+	integer			   					:: filetype, memtype, dp_size_temp
+	integer (kind=MPI_offset_kind)		:: offset, global_cnt, dp_size
 	integer, dimension(3)				:: gsizes, lsizes, memsizes
 	integer, dimension(3)				:: global_indices, local_indices
 	integer, dimension(:,:),allocatable :: proc_lsizes 
@@ -214,7 +214,8 @@ subroutine rwrite_arrays(some_array,nresults,outfile,outstep)
 	character(200)						:: outfile_t
 
 	datatype = MPI_DOUBLE_PRECISION
-	call MPI_TYPE_SIZE(datatype, dp_size, ierr)
+	call MPI_TYPE_SIZE(datatype, dp_size_temp, ierr)
+	dp_size = dp_size_temp
 
 	!--------- DEFINE LIMITS (FILE & LOCAL SUBARRAY) -------
 	!  Note:  MPI assumes here that numbering starts from zero
@@ -3049,9 +3050,14 @@ subroutine momentum_flux_io
 	! Swap Halos
 	nresults = 18
 	allocate(momentum_flux_temp(size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),nresults))
-	momentum_flux_temp = reshape(momentum_flux,(/ size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),nresults /))
+	momentum_flux_temp = reshape(momentum_flux, & 
+						(/ size(momentum_flux,1), & 
+						   size(momentum_flux,2), & 
+						   size(momentum_flux,3),nresults /))
 	call swaphalos(momentum_flux_temp,nbinso(1),nbinso(2),nbinso(3),nresults)
-	momentum_flux = reshape(momentum_flux_temp,(/ size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),3,6 /))
+	momentum_flux = reshape(momentum_flux_temp,(/ size(momentum_flux,1), & 
+												  size(momentum_flux,2), & 
+												  size(momentum_flux,3),3,6 /))
 	!deallocate(momentum_flux_temp)
 
 	!Divide by size of bin face to give flux per unit area
@@ -3356,11 +3362,22 @@ subroutine surface_power_io
 	enddo
 
 	!Integration of stress using trapizium rule requires multiplication by timestep
-	Pxyvface = Pxyvface/Neflux_ave
+	Pxyvface_mdt = (0.5d0/Neflux_ave) * (Pxyvface_mdt + Pxyvface) 
+!  	print*, 'Pxyv ',(Pxyvface_mdt(3,3,3,1)-Pxyvface_mdt(3,3,3,4))/(nbins(1)/domain(1)) &
+!  		           +(Pxyvface_mdt(3,3,3,2)-Pxyvface_mdt(3,3,3,5))/(nbins(2)/domain(2)) &
+!  		           +(Pxyvface_mdt(3,3,3,3)-Pxyvface_mdt(3,3,3,6))/(nbins(3)/domain(3))
+
+!  	print*, 'Pxyv2',(Pxyvface2(3,3,3,1)-Pxyvface2(3,3,3,4))/(nbins(1)/domain(1)) &
+!  		           +(Pxyvface2(3,3,3,2)-Pxyvface2(3,3,3,5))/(nbins(2)/domain(2)) &
+!  		           +(Pxyvface2(3,3,3,3)-Pxyvface2(3,3,3,6))/(nbins(3)/domain(3))
+
+
+	!Pxyvface = Pxyvface/Neflux_ave
+	!Pxyvface_mdt = 0.25*Pxyvface2/(Neflux_ave*binface)
 
 	!Store surface stress value in CV data object
 	if (CV_debug) then
-		call CVcheck_energy%update_Pxy(Pxyvface)
+		call CVcheck_energy%update_Pxy(Pxyvface_mdt)
 	endif
 
 	!Write surface pressures * velocity to file
@@ -3372,7 +3389,7 @@ subroutine surface_power_io
 	case default
 		call error_abort('CV_conserve value used forsurface power is incorrectly defined - should be 0=off or 1=on')
 	end select
-	call write_arrays(Pxyvface,nresults,trim(prefix_dir)//'results/esurface',m)
+	call write_arrays(Pxyvface_mdt,nresults,trim(prefix_dir)//'results/esurface',m)
 
 end subroutine surface_power_io
 
