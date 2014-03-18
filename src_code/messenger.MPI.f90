@@ -2563,6 +2563,19 @@ subroutine globalMaxInt(A)
 	return
 end
 
+subroutine globalMinInt(A)
+	use messenger
+	implicit none
+
+	integer :: A, buf
+
+	call MPI_AllReduce (A, buf, 1, MPI_INTEGER, &
+	                    MPI_MIN, MD_COMM, ierr)
+	A = buf
+
+	return
+end
+
 subroutine globalSumVectReal(A, na)
 	use messenger
 	implicit none

@@ -9,7 +9,7 @@
 
 !Fortran object oriented solution to CV conservation checking
 module CV_objects
-	use computational_constants_MD, only : CV_debug
+	use computational_constants_MD , only : CV_debug
 	implicit none
 
 type :: check_CV_mass
@@ -382,15 +382,17 @@ contains
 
 		    !Verify that CV momentum is exactly conservative
 		    conserved = sum(totalpressure-totalflux-dvelocitydt-F_ext)
-			!if(abs(conserved) .gt. 0.000000001d0) then
-			if (i .eq. 3 .and. j .eq. 3 .and. k .eq. 3) then
-				print'(a,i8,4i4,7f10.5)','Error_in_momentum_flux', iter,irank,i,j,k, & 
+			if(abs(conserved) .gt. 0.000000001d0) then
+			!if (i .eq. 3 .and. j .eq. 3 .and. k .eq. 3 .or. &
+			!	i .eq. 3 .and. j .eq. 4 .and. k .eq. 3		) then
+			!if (any(abs(dvelocitydt) .lt. 0.00001d0)) then
+				print'(a,i8,4i4,7f11.5)','Error_in_momentum_flux', iter,irank,i,j,k, & 
 					 conserved, sum(totalpressure),-sum(totalflux),sum(dvelocitydt), & 
 					+sum(F_ext), sum(self%X(i,j,k,:)),   & 
 					 sum(self%X_minus_t(i,j,k,:))
 				check_ok = .false.
 			endif
-
+			!endif
 		enddo
 		enddo
 		enddo
@@ -425,7 +427,7 @@ contains
 		allocate(self%Fv_ext(nb(1),nb(2),nb(3)))
 		allocate(self%totalflux(nb(1),nb(2),nb(3)))
 		allocate(self%totalpower(nb(1),nb(2),nb(3)))
-		!allocate(self%X_minus_2t(nb(1),nb(2),nb(3),3))
+		!allocate(self%X_minus_2t(nb(1),nb(2),nb(3)))
 
 		self%flux 		= 0.d0
 		self%Pxyv  		= 0.d0
@@ -436,7 +438,7 @@ contains
 		self%Fv_ext		= 0.d0
 		self%totalflux  = 0.d0
 		self%totalpower = 0.d0
-		!self%X_minus_2t = 0.d0
+		self%X_minus_2t = 0.d0
 
 	end subroutine initialise_energy
 
@@ -448,10 +450,12 @@ contains
 
 		double precision,dimension(:,:,:),intent(in) :: X
 
-		self%X_minus_t  = self%X
-		self%X 		  = X
+		!self%X_minus_2t  = self%X_minus_t
+		self%X_minus_t   = self%X
+		self%X 		     = X
 
 		self%dXdt = self%X - self%X_minus_t
+		!self%dXdt = self%X_minus_t - self%X_minus_2t
 
 	end subroutine update_dXdt_energy
 
@@ -543,6 +547,7 @@ contains
 			return
 		endif
 
+		!Get size of bin
 		binsize = domain/nbins
 
 		!print'(2i4,f13.5,3i8)', iter, irank, maxval(self%Fv_ext), maxloc(self%Fv_ext)
@@ -560,24 +565,35 @@ contains
 		              +(self%flux(i,j,k,3)+self%flux(i,j,k,6))/binsize(3)
 
 		    !totalpower = totalpower*delta_t
-		    totalpower = (self%Pxyv_minus_t(i,j,k,1)-self%Pxyv_minus_t(i,j,k,4))/binsize(1) &
-		                +(self%Pxyv_minus_t(i,j,k,2)-self%Pxyv_minus_t(i,j,k,5))/binsize(2) &
-		                +(self%Pxyv_minus_t(i,j,k,3)-self%Pxyv_minus_t(i,j,k,6))/binsize(3)
+		    totalpower = (self%Pxyv(i,j,k,1)-self%Pxyv(i,j,k,4))/binsize(1) &
+		                +(self%Pxyv(i,j,k,2)-self%Pxyv(i,j,k,5))/binsize(2) &
+		                +(self%Pxyv(i,j,k,3)-self%Pxyv(i,j,k,6))/binsize(3)
 			Fv_ext = self%Fv_ext(i,j,k)/product(binsize)
 
 			!drhou/dt
 		    denergydt =  self%dxdt(i,j,k)/(delta_t*Neflux_ave)
 
-		    !Verify that CV momentum is exactly conservative
+			!Sanity check top minus bottom
+			!if (i+1 .le. imax .or. j+1 .le. jmax .or. k+1 .le. kmax) then
+			!	print'(3i5,9f10.5)', i,j,k,	self%Pxyv(i,j,k,1),self%Pxyv(i,j,k,2), & 
+			!								self%Pxyv(i,j,k,3),self%Pxyv(i,j,k,4), & 
+			!								self%Pxyv(i,j,k,5),self%Pxyv(i,j,k,6), &
+			!								self%Pxyv(i+1,j,k,1)-self%Pxyv(i,j,k,4),&
+			!								self%Pxyv(i,j+1,k,2)-self%Pxyv(i,j,k,5),&
+			!								self%Pxyv(i,j,k+1,3)-self%Pxyv(i,j,k,6)
+			!endif
+
+		    !Verify that CV energy is less than 10% error 
 		    conserved = totalpower-totalflux-denergydt-Fv_ext
-			!if(conserved .gt. 0.000000001d0) then
+			!if(abs(conserved/(self%X(i,j,k)-totalflux)) .gt. 0.10d0) then
 			!if (abs(Fv_ext) .gt. 0.000001) then
 			if (i .eq. 3 .and. j .eq. 3 .and. k .eq. 3) then
-				print'(a,i8,4i4,9f10.5)','Error_in_energy_flux  ', iter,irank,i,j,k, & 
-					 conserved, totalpower,-totalflux,denergydt, & 
+				print'(a22,i5,4i3,9f14.8)','Error_%age_energy_flux', iter,irank,i,j,k, & 
+					 100*conserved/(self%X(i,j,k)-totalflux), totalpower,-totalflux,denergydt, & 
 					+Fv_ext, self%X(i,j,k),self%X_minus_t(i,j,k)
 				check_ok = .false.
 			endif
+			!endif
 
 		enddo
 		enddo

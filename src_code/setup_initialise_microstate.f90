@@ -1289,6 +1289,7 @@ subroutine setup_initialise_velocities_test
     !zeta=0.d0  !Set Nose Hoover thermostat scaling property to zero
     
     !v(1,1) = 2.d0
+	!Fextbinsize = domain/nbins
 
     !do n=1,np                      !Step through each molecule
         !r(1,:) = halfdomain(:)

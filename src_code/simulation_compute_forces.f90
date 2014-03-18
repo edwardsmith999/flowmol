@@ -117,6 +117,8 @@ subroutine simulation_compute_forces
 	use polymer_info_MD, only: solvent_flag
 	implicit none
 
+	potenergymol_mdt = potenergymol	!Copy last dt's to potential energy
+	if (eflux_outflag .eq. 4) a_old  = a
 	a					= 0.d0	!Reset acceleration matrix before force calculations
 	potenergymol		= 0.d0	!Reset potential energy per molecule before calculation
 	potenergymol_LJ		= 0.d0	!Reset LJ energy per molecule before calculation
@@ -351,12 +353,33 @@ subroutine simulation_compute_forces_LJ_cells
 	use module_compute_forces
 	implicit none
 
-	integer                         :: i,j !Define dummy index
+	integer                         :: i,j,repeatno !Define dummy index
 	integer							:: icell, jcell, kcell
 	integer                         :: icellshift, jcellshift, kcellshift
 	integer                         :: cellnp, adjacentcellnp
 	integer							:: molnoi, molnoj
 	type(node), pointer 	        :: oldi, currenti, oldj, currentj
+
+	!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
+	double precision,allocatable,dimension(:,:),save :: a_temp
+	double precision,dimension(3)   :: vi,vj,ai_mdt,aj_mdt
+
+ 	do repeatno = 1,2
+
+ 		if (repeatno .eq. 2) then
+ 			if (.not. allocated(a_temp)) allocate(a_temp(size(a,1),size(a,2)))
+ 			a_temp = a
+ 			a					= 0.d0	!Reset acceleration matrix before force calculations
+         	potenergymol		= 0.d0	!Reset potential energy per molecule before calculation
+         	potenergymol_LJ		= 0.d0	!Reset LJ energy per molecule before calculation
+         	potenergysum		= 0.d0  !Reset total potential energy sum before calculation
+         	potenergysum_LJ		= 0.d0  !Reset LJ potential energy sum before calculation
+         	virial				= 0.d0	!Reset virial sum before calculation
+         	virialmol			= 0.d0	!Reset virial sum per molecule before calculation	
+		else
+			if (allocated(a_temp)) deallocate(a_temp)
+ 		endif
+	!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
 
 	do kcell=2, ncells(3)+1
 	do jcell=2, ncells(2)+1
@@ -396,19 +419,32 @@ subroutine simulation_compute_forces_LJ_cells
 						!Linear magnitude of acceleration for each molecule
 						invrij2 = 1.d0/rij2                 !Invert value
 						accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
-	
+
 						!Sum of forces on particle i added for each j
 						a(1,molnoi)= a(1,molnoi) + accijmag*rij(1)
 						a(2,molnoi)= a(2,molnoi) + accijmag*rij(2)
 						a(3,molnoi)= a(3,molnoi) + accijmag*rij(3)
 
+!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
+ 						if (repeatno .eq. 2) then
+!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
+						!print'(3i5,2(a,3f16.12))', iter,molnoi,molnoj,' Fij ',accijmag*rij(:),' Vi ',v(:,molnoi)-0.5d0*delta_t*a_temp(1,molnoi)
 						!CV stress and force calculations
-						if (vflux_outflag .eq. 4) then
+						if (vflux_outflag .eq. 4 .or. eflux_outflag.eq.4) then
 							if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
-									fij = accijmag*rij(:)
-									call Control_Volume_stresses(fij,ri,rj,molnoi)
+								fij = accijmag*rij(:)
+								call Control_Volume_stresses(fij,ri,rj,molnoi,molnoj, & 
+															 a_temp(:,molnoi),a_temp(:,molnoj))
+        						!vi = v(:,molnoi); vj = v(:,molnoj)
+        						!ai_mdt = a_old(:,molnoi); aj_mdt = a_old(:,molnoj)
+								!call control_volume_power(fij,ri,rj,vi,vj,ai_mdt,aj_mdt, & 
+								!						   	a_temp(:,molnoi),a_temp(:,molnoj),molnoi,molnoj)
 							endif
 						endif
+
+!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
+ 						endif
+!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP#
 
 						!Only calculate properties when required for output
 						if (mod(iter,tplot) .eq. 0) then
@@ -439,6 +475,11 @@ subroutine simulation_compute_forces_LJ_cells
 	enddo
 	enddo
 	enddo
+
+	!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
+ 	enddo
+	!TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
+
 
 	nullify(oldi)      		!Nullify as no longer required
 	nullify(oldj)      		!Nullify as no longer required
@@ -483,11 +524,11 @@ subroutine simulation_compute_forces_LJ_neigbr
 				a(2,molnoi)= a(2,molnoi) + accijmag*rij(2)
 				a(3,molnoi)= a(3,molnoi) + accijmag*rij(3)
 
-				!CV stress an force calculations
-				if (vflux_outflag .eq. 4) then
+				!CV stress and force calculations
+				if (vflux_outflag .eq. 4 .or. eflux_outflag.eq.4) then
 					if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
 						fij(:) = accijmag*rij(:)
-						call control_volume_stresses(fij,ri,rj,molnoi)
+						call control_volume_stresses(fij,ri,rj,molnoi,molnoj)
 					endif
 				endif
 
@@ -570,11 +611,11 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 					if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
 						if (molnoj .gt. np .or. molnoi .gt. np) then
 							fij = accijmag*rij(:)
-							call control_volume_stresses(fij,ri,rj,molnoi)
+							call control_volume_stresses(fij,ri,rj,molnoi,molnoj)
 						    !call CV_sphere_momentum%Add_spherical_CV_forces(fij,ri,rj)
 						else
 							fij = 2.d0*accijmag*rij(:)
-							call control_volume_stresses(fij,ri,rj,molnoi)
+							call control_volume_stresses(fij,ri,rj,molnoi,molnoj)
 							!call CV_sphere_momentum%Add_spherical_CV_forces(fij,ri,rj)
 						endif
 					endif
@@ -614,6 +655,7 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 		enddo
 	
 	enddo
+
 
 	!Total used with other potentials (e.g. FENE)
 	potenergymol = potenergymol + potenergymol_LJ
