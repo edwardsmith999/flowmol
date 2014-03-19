@@ -94,6 +94,8 @@ subroutine simulation_record
 		call evaluate_properties_vdistribution
 	elseif (vdist_flag .eq. 2) then
 		call evaluate_properties_vdistribution_perbin
+	else
+		!Do nothing
 	endif
 
 
