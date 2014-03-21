@@ -497,7 +497,7 @@ contains
 
         !Update processor number of molecules
         np = np + 1
-        globalnp = globalnp + 1
+        !globalnp = globalnp + 1
 
         !Get new molecule's cell
         icell = ceiling((r(1,np)+halfdomain(1)) &
@@ -626,7 +626,7 @@ contains
 
         !Update processor number of molecules
         np = np - 1
-        globalnp = globalnp - 1
+        !globalnp = globalnp - 1
 
     end subroutine remove_molecule
 
@@ -864,6 +864,14 @@ contains
 
 end module particle_insertion
 
+subroutine usher_boundary
+
+    implicit none
+
+
+end subroutine
+
+
 !Insert Molecules and call USHER algorithm
 ! Code Author: Edward Smith 2013
 subroutine usher_teleport(nparticles)
@@ -880,84 +888,61 @@ subroutine usher_teleport(nparticles)
     logical :: pos_found 
     real(kind(0.d0)) :: Utarget, Ufinish, rand1, fdummy(3)
     real(kind(0.d0)) :: startpos(3), insertpos(3)
-    real(kind(0.d0)),dimension(3) :: avevel,vnew,rand
+    real(kind(0.d0)),dimension(3) :: avevel,vnew,vold,rand
 
     avevel = 0.d0
-
-    !Utarget  = get_Utarget() 
-
-    call simulation_compute_forces
 
     do n = 1,nparticles 
 
         !Choose molecule at random and store its potential energy as target
         call random_number(rand1)
         molno = ceiling(rand1 * np)
-         
-        ! Test removal and insertion by using original values
-        molno = 535
-        insertpos = r(:,molno)
-        vnew = v(:,molno)
-        call compute_force_and_potential_at(insertpos,Utarget,fdummy)
-        !print('(x,a,x,3f10.4,x,a,f18.13,x,a,f18.13)'),'removepos =', insertpos,&
-        !                 ';   potenergymol(molno) = ', potenergymol_LJ(molno),&
-        !                 ';   difference = ', Utarget - potenergymol_LJ(molno)
-        !Utarget = Utarget/2.d0
+        startpos = r(:,molno)
+        vold = v(:,molno)
+        call compute_force_and_potential_at(startpos,Utarget,fdummy)
+
+        ! Remove the molecule 
         call remove_molecule(molno)
-        call insert_molecule(insertpos,vnew)
 
-    
-        !call remove_molecule(molno)
-        !call messenger_updateborders(1) !Update borders ready for next insertion - halo rebuilt
+        do i = 1, maxattempts
 
-        !Choose random place to reinsert it
-        !call random_number(rand)
-        !icell = ceiling(rand(1) * ncells(1))
-        !jcell = ceiling(rand(2) * ncells(2))
-        !kcell = ceiling(rand(3) * ncells(3))
-        !call create_velocity(avevel,vnew)
+            startpos = get_randompos() 
+            call usher_get_insertion_pos(startpos,Utarget,insertpos,pos_found,Ufinish)
 
-        !do i = 1, maxattempts
+            if (pos_found) then
 
-        !    !call create_position(icell,jcell,kcell,startpos,4,avevel)   
-        !    !startpos = get_randompos() 
-        !    !call usher_get_insertion_pos(startpos,Utarget,insertpos,pos_found,Ufinish)
+                call insert_molecule(insertpos,vold)    
 
+                print('(a,2f9.3,a,3f9.3,a,i4,a,i6)'), ' USHER SUCCEEDED: Utarget, Ufinish: ', &
+                                                    Utarget, Ufinish, ', r:',  &
+                                                    insertpos, ', after ', i,  &
+                                                    ' attempts , new np', np
 
-        !    if (pos_found) then
+                !Write local xy field @ z
+                !call simulation_write_potential_field(max(-halfdomain(1),insertpos(1)-3.0), &
+                !                                      min( halfdomain(1),insertpos(1)+3.0), &
+                !                                      max(-halfdomain(2),insertpos(2)-3.0), &
+                 !                                     min( halfdomain(2),insertpos(2)+3.0), &
+                !                                      insertpos(3), 300, 30000+iter)
+                !Write entire xy field @ z
+                !call simulation_write_potential_field(-halfdomain(1),halfdomain(1), &
+                !                                      -halfdomain(2),halfdomain(2), &
+                !                                       insertpos(3), 400, 30000+iter)
 
-        !        !write(40000+iter,*) insertpos
-        !        call insert_molecule(insertpos,vnew)    
-        !        call messenger_updateborders(1) !Update borders ready for next insertion - halo rebuilt
+                exit
 
-        !        print('(a,2f9.3,a,3f9.3,a,i4,a,i6)'), ' USHER SUCCEEDED: Utarget, Ufinish: ', &
-        !                                            Utarget, Ufinish, ', r:',  &
-        !                                            insertpos, ', after ', i,  &
-        !                                            ' attempts , new np', np
+            end if
 
-        !        !Write local xy field @ z
-        !        !call simulation_write_potential_field(max(-halfdomain(1),insertpos(1)-3.0), &
-        !        !                                      min( halfdomain(1),insertpos(1)+3.0), &
-        !        !                                      max(-halfdomain(2),insertpos(2)-3.0), &
-        !         !                                     min( halfdomain(2),insertpos(2)+3.0), &
-        !        !                                      insertpos(3), 300, 30000+iter)
-        !        !Write entire xy field @ z
-        !        !call simulation_write_potential_field(-halfdomain(1),halfdomain(1), &
-        !        !                                      -halfdomain(2),halfdomain(2), &
-        !        !                                       insertpos(3), 400, 30000+iter)
+        end do
 
-        !        exit
-
-        !    end if
-
-        !end do
+        if (.not. pos_found) then 
+            print*, ' usher failed  Utarget =', Utarget
+            ! Put molecule back where it was if failed
+            call insert_molecule(startpos,vold)
+        end if
 
     end do
 
-    if (.not. pos_found) then 
-        print*, ' Debugging...'
-        !print*, ' usher failed  Utarget =', Utarget
-    end if
 
 contains
 
