@@ -129,11 +129,11 @@ contains
 		call simulation_checkrebuild(rebuild)
 		if (rebuild .eq. 1) then
 
-            if (mod(iter,1) .eq. 0) then
-                call usher_teleport(10)
-            endif
-
+            !if (mod(iter,1) .eq. 0) then
+            !    call usher_teleport(10)
+            !endif
             !call usher_boundary
+
 			call linklist_deallocateall             		!Deallocate all linklist components
 			call sendmols                           		!Exchange particles between processors
 			call sort_mols									!Reorder molecules to improve cache efficency

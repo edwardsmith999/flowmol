@@ -442,7 +442,7 @@ subroutine set_parameters_global_domain
 			periodic(2) = 0
 			periodic(3) = 1
 		
-		case ('fill_cylinders','fill_cylinders_dense_fene')
+		case ('fill_cylinders','fill_cylinders_fene_solution')
 
 			!Read globalnp, globaldomain and r_oo etc
 			call parallel_io_cyl_footer(cyl_file)

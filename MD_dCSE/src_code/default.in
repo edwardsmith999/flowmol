@@ -137,6 +137,9 @@ POTENTIAL_FLAG
 #        reserved as an input flag for information about the special
 #        case. Options:
 #
+#            - solid_liquid
+#                 tethered walls of different density to fluid
+#
 #            - dense_fene     
 #                 connect monomers on an FCC lattice with a specified 
 #                 chain length and FENE potential parameters. 
@@ -153,6 +156,11 @@ POTENTIAL_FLAG
 #                 tether concentric cylinders from previous
 #                 simulation to their initial sites, and fill them
 #                 with fluid 
+#
+#            - fill_cylinders_fene_solution
+#                 tether concentric cylinders from previous
+#                 simulation to their initial sites, and fill them
+#                 with FENE solution fluid 
 #
 #            - rotate_cylinders
 #                 restart from filled cylinder restart file and
@@ -395,6 +403,22 @@ FENE_INFO
 8
 30.0
 1.5
+
+#########################################################################
+# FENE_fill special case information
+#
+#	- number of LJ beads for each polymer chain (nmonomers)
+#	- spring constant, k_c
+#	- maximum spring elongation
+#   - monomer density
+#   - target concentration
+# -----------------------------------------------------------------------
+FENE_SOLUTION
+8
+30.0
+1.5
+0.5
+0.2
 
 #########################################################################
 # Solvent information:

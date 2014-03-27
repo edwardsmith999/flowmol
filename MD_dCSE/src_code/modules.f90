@@ -433,6 +433,7 @@ module polymer_info_MD
 
 	integer             :: solvent_flag             !Solvent on/off flag
 	integer             :: solvent_ratio            !Solvent concentration
+    double precision    :: targetconc               !Solvent target concentration
 	double precision    :: eps_pp, eps_ps, eps_ss   !Solvent parameters
 	double precision, parameter :: sod_cut =1.5d0   !Soddemann potential cutoff
 	double precision, parameter :: sod_cut2=2.25d0  ! 

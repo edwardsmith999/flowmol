@@ -243,8 +243,7 @@ contains
 		double precision :: ascale, bscale, dtheta
 		double precision, dimension(nd)	:: vel
 		double precision, dimension(nd)	:: rpol, rglob
-		
-
+	
 		if (tag_thermostat_active) then
 		
 			! -------------   W  A  R  N  I  N  G  -------------------------	
