@@ -980,11 +980,15 @@ subroutine setup_restart_microstate
 			v(3,nl) = buf(pos+2)
 			pos = pos + 3
 			if (prev_rtrue_flag.eq.1) then
-				!Read true positions
-				rtrue(1,nl) = buf(pos)
-				rtrue(2,nl) = buf(pos+1)
-				rtrue(3,nl) = buf(pos+2)
-				pos = pos + 3
+
+                if (rtrue_flag .eq. 1) then
+                    !Store true positions
+                    rtrue(1,nl) = buf(pos)
+                    rtrue(2,nl) = buf(pos+1)
+                    rtrue(3,nl) = buf(pos+2)
+                end if
+                pos = pos + 3
+
 			end if
 			if (any(tag(nl).eq.tether_tags)) then
 				!Read tether position, corrected to local coords
@@ -1206,6 +1210,7 @@ subroutine parallel_io_import_cylinders
 	integer :: fileid, ierr
 	integer :: nl, n, procassign
 	real    :: rtemp(3)
+   
 
 	!Open restart file on all processor
 	call MPI_FILE_OPEN(MD_COMM, cyl_file, & 
@@ -1235,7 +1240,7 @@ subroutine parallel_io_import_cylinders
 		r(:,nl) = localise(real(rtemp(:),kind(0.d0)))
 
 		if (mod(n,1000) .eq. 0) print'(a,f10.2)', & 
-			' Redistributing cylinder molecules to input processor topology - % complete =', (100.d0*n/globalnp)
+			' Redistributing cylinder molecules to input processor topology - % complete =', (100.d0*dble(n)/dble(cyl_np))
 
 	enddo
 

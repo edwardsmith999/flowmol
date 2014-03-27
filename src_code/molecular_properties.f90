@@ -39,12 +39,46 @@ subroutine setup_cylinder_tags
         rglob = globalise(r(:,n))
         rpol  = cpolariser(rglob)
         
-        if (rpol(1) .lt. r_oi) tag(n) = cyl_teth_thermo_rotate
-        if (rpol(1) .gt. r_io) tag(n) = teth_thermo
+        if (rpol(1) .lt. r_oi) then
+            tag(n) = cyl_teth_thermo_rotate
+        else if (rpol(1) .gt. r_io) then
+            tag(n) = teth_thermo
+        else
+            tag(n) = free 
+        end if
 
     end do  
 
 end subroutine setup_cylinder_tags
+
+subroutine setup_cylinder_tags_equilibrate
+    use module_molecule_properties
+    use concentric_cylinders
+    use interfaces, only: error_abort
+    use messenger, only: globalise
+    implicit none
+
+    integer :: n
+    real(kind(0.d0)) :: rglob(3), rpol(3)
+
+    do n = 1,np
+        
+        rglob = globalise(r(:,n))
+        rpol  = cpolariser(rglob)
+        
+        if (rpol(1) .lt. r_oi) then
+            tag(n) = cyl_teth_thermo_rotate
+        else if (rpol(1) .gt. r_io) then
+            tag(n) = teth_thermo
+        else
+            tag(n) = thermo
+        end if
+
+    end do  
+
+    tag_thermostat_active = .true.
+
+end subroutine setup_cylinder_tags_equilibrate
 
 subroutine setup_location_tags
     use module_molecule_properties
