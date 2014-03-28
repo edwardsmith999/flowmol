@@ -861,10 +861,44 @@ subroutine simulation_compute_rfbins(imin, imax, jmin, jmax, kmin, kmax)
 	enddo
 	enddo
 
+    ! Add FENE contribution if it's there
+    if (potential_flag .eq. 1) then
+        call add_FENE_contribution
+    end if
+
 	nullify(oldi)      	!Nullify as no longer required
 	nullify(oldj)      	!Nullify as no longer required
 	nullify(currenti)      	!Nullify as no longer required
 	nullify(currentj)      	!Nullify as no longer required
+
+contains
+
+    subroutine add_FENE_contribution
+        use polymer_info_MD
+        implicit none
+
+        integer :: b
+
+        do molnoi=1,np
+
+            ri(:) = r(:,molnoi) !Retrieve ri(:)
+            do b=1,monomer(molnoi)%funcy
+
+                molnoj = bond(b,molnoi)
+                if (molnoj.eq.0) cycle
+
+                rj(:)  = r(:,molnoj)
+                rij(:) = ri(:) - rj(:)
+                rij2   = dot_product(rij,rij)
+                accijmag = -k_c/(1-(rij2/(R_0**2)))	!(-dU/dr)*(1/|r|)
+
+                call pressure_tensor_forces_VA_trap(ri,rj,accijmag)
+
+            end do	
+
+        end do
+
+    end subroutine
 
 end subroutine simulation_compute_rfbins
 
