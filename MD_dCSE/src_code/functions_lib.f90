@@ -396,6 +396,32 @@ end function sphereisev
 ! end function sphere2cart
 
 
+!LINSPACE Linearly spaced vector.
+!
+!   LINSPACE(X1, X2, N) generates N points between X1 and X2.
+!   For N = 1, LINSPACE returns X2.
+!   Based on the MATLAB function
+
+function linspace(d1, d2, n)
+    implicit none
+
+    integer,intent(in)              :: n
+    double precision,intent(in)     :: d1,d2
+    double precision,dimension(:),allocatable    :: linspace
+
+    integer                                     :: i, n1
+
+    n1 = n-1
+    if (n1 .eq. 0) stop "Error in linspace -- Ensure n > 1"
+    
+    allocate(linspace(n))
+    do i = 0,n1
+        linspace(i+1) = d1 + i * (d2-d1)/(n1)
+    enddo
+
+   ! print'(20f7.2)',linspace
+
+end function linspace
 
 !------------------------------------------------------------------------------
 !Subroutine for calculating least squares straight line with a uniform interval between x values
@@ -1659,6 +1685,66 @@ subroutine read_DNS_velocity_files(filename,ngx,ngy,ngz,uc,vc,wc)
 	close(unitno)
 
 end subroutine read_DNS_velocity_files
+
+
+
+! Ouput spectral solution for velocity in unsteady Couette flow u(y,t). Input in form
+! "couette_analytical_fn(time,
+!                        Reynolds_number,
+!                        wall_velocity,
+!                        Domain_height, 
+!                        required_number_of_u_points_in_y
+!                        Sliding_Wall 0=top, 1=bottom, 2=both  )"
+! N.B should be used in the syntactically salty form 
+!  allocate(ucouette, source=couette_analytical_fn(iter*delta_t,Re,wallslidev(1),globaldomain(2),gnbins(2),2))
+
+
+function couette_analytical_fn(t,Re,U_wall,L,npoints,slidingwall) result (u)
+    implicit none
+
+    integer,intent(in)             :: npoints,slidingwall
+    double precision,intent(in)    :: t,Re,U_wall,L
+    double precision,dimension(:),allocatable  :: u
+    
+    integer                        :: nmodes, n
+    double precision               :: k, uinitial, lambda
+	double precision,parameter 	   :: pi=4.d0*atan(1.d0)
+    double precision,dimension(:),allocatable :: y
+
+    nmodes = 1000
+    k = 1.d0/Re
+    allocate(y,source=linspace(0.d0,L,npoints))
+    uinitial = 0.d0  !Initial condition
+
+    allocate(u(npoints)); u = 0.d0
+    select case (slidingwall)
+    case(0)
+        !Uwall at top
+        do n = 1,nmodes
+            lambda = (n*pi/L)**2
+            u(:)=u(:)+(uinitial*exp(-lambda*k*t) - (-1)**n *(2.d0/(n*pi))*U_wall*(1.d0-exp(-lambda*k*t)))*sin(n*pi*y/L) 
+        enddo
+        u(npoints) =  U_wall
+    case(1)
+        !Uwall at bottom
+        do n = 1,nmodes
+            lambda = (n*pi/L)**2
+            u(:)=u(:)-(uinitial*exp(-lambda*k*t)     +      (2.d0/(n*pi))*U_wall*(1.d0-exp(-lambda*k*t)))*sin(n*pi*y/L)
+        enddo
+        u(1)       = -U_wall
+    case(2)
+        !Uwall at bottom and top
+        do n = 1,nmodes
+            lambda = (n*pi/L)**2
+            u(:)=u(:)+(uinitial*exp(-lambda*k*t) - (-1)**n *(2.d0/(n*pi))*U_wall*(1.d0-exp(-lambda*k*t)))*sin(n*pi*y(:)/L) &
+                     -(uinitial*exp(-lambda*k*t)     +      (2.d0/(n*pi))*U_wall*(1.d0-exp(-lambda*k*t)))*sin(n*pi*y(:)/L)
+        enddo
+        u(npoints) = U_wall
+        u(1)       = -U_wall
+    end select
+
+end function couette_analytical_fn
+
 
 end module librarymod
 
