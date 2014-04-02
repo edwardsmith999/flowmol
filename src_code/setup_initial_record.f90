@@ -991,7 +991,7 @@ subroutine build_psf
         res_ID(molno)    = monomer(n)%chainID 
         glob_sc(molno)   = monomer(n)%subchainID
         glob_bf(:,molno) = monomer(n)%bin_bflag(:)
-        write(fileunit,'(i12,a3,i12,a3,i12,a3,4i12)') molno,'   ', &
+        write(fileunit,'(i12,a3,i12,a3,i12,a3,4i)') molno,'   ', &
             res_ID(molno),'   ',glob_sc(molno),'   ',glob_bf(:,molno)
     end do
 

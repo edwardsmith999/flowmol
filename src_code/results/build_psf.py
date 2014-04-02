@@ -71,7 +71,7 @@ while True:
                 globID = monomer[0]
                 scID = monomer[2]
                 bflag = monomer[-4:]
-                bstring = "{3:032b}{2:032b}{1:032b}{0:032b}".format(
+                bstring = "{3:031b}{2:031b}{1:031b}{0:031b}".format(
                           bflag[0],bflag[1],bflag[2],bflag[3])[::-1]
                 barray = np.array(map(int,list(bstring)))
                 bscIDs = np.where(barray==1)[0] + 1

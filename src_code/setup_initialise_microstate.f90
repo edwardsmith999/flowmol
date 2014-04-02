@@ -248,7 +248,7 @@ subroutine setup_lattice_dense_FENE_info
     proc_chains(:)         = 0
     proc_nps(:)            = 0
 
-    intbits = bit_size(monomer(1)%bin_bflag(1))
+    !intbits = bit_size(monomer(1)%bin_bflag(1))
     
     modcheck = 0 + mod(np,nmonomers) + mod(4*initialnunits(2)/npy,nmonomers)
     if (modcheck.ne.0) then
@@ -430,7 +430,7 @@ contains
     subroutine initialise_info
         implicit none
 
-        integer :: intbits
+        !integer :: intbits
         real(kind(0.d0)) :: check, rpol(3)
         character(256) :: string
 
@@ -765,7 +765,7 @@ subroutine setup_initialise_sparse_FENE
     real(kind(0.d0)) :: xL,yL,zL,domain_top
     character(len=200) :: string
 
-    intbits = bit_size(monomer(1)%bin_bflag(1))
+    !intbits = bit_size(monomer(1)%bin_bflag(1))
 
     !Set top of domain initially
     domain_top = domain(2)/2.d0
@@ -930,10 +930,11 @@ implicit none
     integer, intent(in) :: bscID,n
     integer :: group, expo
 
-    intbits = bit_size(monomer(1)%bin_bflag(1))
+    !intbits = bit_size(monomer(1)%bin_bflag(1))
     group = ceiling(real(bscID)/real(intbits))
     expo  = mod(bscID,intbits) - 1
     if(expo.eq.-1) expo = intbits - 1
+
     monomer(n)%funcy            = monomer(n)%funcy + 1
     monomer(n)%bin_bflag(group) = monomer(n)%bin_bflag(group) + 2**(expo)
     

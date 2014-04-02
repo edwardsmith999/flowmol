@@ -242,7 +242,7 @@ subroutine setup_polymer_info
 	if (iter .gt. etevtcf_iter0)    etevtcf_iter0    = iter
 	if (iter .gt. r_gyration_iter0) r_gyration_iter0 = iter
 
-	intbits = bit_size(monomer(1)%bin_bflag(1))
+	!intbits = bit_size(monomer(1)%bin_bflag(1))
 
 end subroutine setup_polymer_info
 
