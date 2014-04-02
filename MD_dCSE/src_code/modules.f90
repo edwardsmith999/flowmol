@@ -459,7 +459,10 @@ module polymer_info_MD
 
 	integer, parameter :: nsdmi=8                   !Number of sent doubles for monomer_info 
 
-	integer :: intbits                              !Size in bits of integer on this machine
+	integer, parameter :: intbits=bit_size(1)-1     !Size in bits of integer on this machine
+    !-1, because 2**31 + 2**(something<31) not possible to represent with 32 bit integer
+    !See get_bondflag explanation for a better idea.
+                                                                
 
 	type(monomer_info), dimension(:), allocatable :: monomer
 	!eg. to access chainID of mol 23, call monomer(23)%chainID
@@ -545,14 +548,22 @@ contains
 	!
 	! If a 1 is found under bit test, then monomer(molno) is assumed to
 	! be connected to the monomer in the same chain with subchainID scID.
-	!
+    !
+    ! Because the maximum possible integer is 2**31 with a 32 bit 
+    ! representation (default Fortran integer), we set "intbits" to be
+    ! 31, so the maximum exponent becomes 30. This allows something to be
+    ! bonded to subchainID corresponding with exponent=intbits AND
+    ! something else. Otherwise, the integer bflag would attempt to
+    ! represent 2**31 + 2**(something less than 31), which is greater than
+    ! 2**31 and therefore not representable. 
+    !
 	!----------------------------------------------------------------------
 	integer function get_bondflag(molno,scID)
 	implicit none
 	
 		integer, intent(in)  :: molno, scID
 		integer :: group, expo
-		
+	
 		group = ceiling(real(scID)/real(intbits))
 		expo  = mod(scID,intbits) - 1
 		if (expo .eq. -1) expo = intbits - 1

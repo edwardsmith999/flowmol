@@ -27,6 +27,20 @@ program change_proc_topology
 	double precision,dimension(13) :: rv_buf
 	character(30) :: input_file,initial_microstate_file
 	integer, dimension(5), parameter :: tether_tags = (/3,5,6,7,10/)
+	type monomer_info
+		SEQUENCE !For MPI convenience
+		integer :: chainID !Integer value: chain number 
+		integer :: subchainID !Integer value: bead number
+		integer :: funcy !Functionality of the monomer
+		integer :: glob_no !Global molecule number
+		integer :: bin_bflag(4) !Integer for bit manipulation to find 
+                                !bond flags. For more info see function 
+                                !get_bondflag
+		! THE TOTAL NUMBER OF ITEMS IN THIS DATA TYPE MUST ALSO BE STORED 
+        ! IN THE VARIABLE nsdmi
+	end type monomer_info
+    type(monomer_info) :: monomerbuf
+    double precision, dimension(8) :: monomer_dpbuf
 
 	call setup_command_arguments
 
@@ -130,7 +144,10 @@ program change_proc_topology
 		if (any(tag.eq.tether_tags)) then
 			read(2) rtetherbuf  
 		end if
-		if (potential_flag.eq.1) stop 'Not yet developed for polymers'
+		if (potential_flag.eq.1) then
+            !Read monomer data
+            read(2) monomer_dpbuf
+        end if
 
 		!Use integer division to determine which processor to assign molecule to
 		pa(1) = ceiling((rbuf(1)+globaldomain(1)/2.d0)/domain(1))
@@ -158,6 +175,9 @@ program change_proc_topology
 		endpos = pos - 1
 
 		write(fileunit(pa(1),pa(2),pa(3))) rv_buf(1:endpos)
+        if (potential_flag .eq. 1) then
+            write(fileunit(pa(1),pa(2),pa(3))) monomer_dpbuf
+        end if
 
 		npcount(pa(1),pa(2),pa(3)) = npcount(pa(1),pa(2),pa(3)) + 1
 		if (any(tag.eq.tether_tags)) then
