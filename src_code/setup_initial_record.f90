@@ -21,7 +21,7 @@ subroutine setup_initial_record
     use polymer_info_MD
     use shear_info_MD
     use concentric_cylinders, only: gcpol_bins
-    use librarymod, only : get_version_number, get_Timestep_FileName
+    use librarymod, only : get_version_number, get_Timestep_FileName,couette_analytical_fn, linspace
     implicit none
 
     integer                 :: i,n,missing_file_tolerance=5
@@ -32,7 +32,7 @@ subroutine setup_initial_record
     character(8)            :: the_date
     character(10)           :: the_time
     character(23)           :: file_names_t
-    character(23),parameter :: file_names(25) = &
+    character(23),parameter :: file_names(27) = &
                                 (/ "mslice      ", "mbins       ", "msnap   ",&
                                    "vslice      ", "vbins       ", "vsnap   ",&
                                    "pvirial     ", "pVA         ", "pVA_k   ",& 
@@ -41,7 +41,20 @@ subroutine setup_initial_record
                                    "esnap       ", "eflux       ", "eplane  ",&
                                    "esurface    ", "viscometrics", "rdf     ",&
                                    "rdf3d       ", "ssf         ", "Fext    ",&
-                                   "Tbins       " /) 
+                                   "Tbins       ", "vmd_temp.dcd", "vdist   " /) 
+
+
+    !COUETTE FLOW ANALYTICAL SOLUTION
+!    double precision,dimension(:),allocatable :: ucouette,y
+!    allocate(y,source=linspace(0.d0,globaldomain(2),gnbins(2)*10))
+!    do iter =0,10000,100
+!        allocate(ucouette, source=couette_analytical_fn(iter*delta_t,0.1d0,wallslidev(1),globaldomain(2),gnbins(2)*10,2))
+!        do n =1,size(ucouette,1)
+!            write(500000+iter,'(2f18.12)'),y(n),ucouette(n)
+!        enddo
+!        deallocate(ucouette)
+!    enddo
+
 
     !Delete all files from previous run
     if (irank.eq.iroot) then

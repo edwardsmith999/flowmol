@@ -89,16 +89,6 @@ subroutine simulation_record
 		call energy_flux_averaging(eflux_outflag)			!Average energy flux after movement of particles
 	endif
 
-	!Obtain and record velocity distributions
-	if (vdist_flag .eq. 1) then
-		call evaluate_properties_vdistribution
-	elseif (vdist_flag .eq. 2) then
-		call evaluate_properties_vdistribution_perbin
-	else
-		!Do nothing
-	endif
-
-
 	!---------------Only record every tplot iterations------------------------
 	!--------------Only evaluate every teval iterations-----------------------
 	if (mod(iter,tplot) .eq. 0) then
@@ -135,6 +125,7 @@ subroutine simulation_record
 		endif
 	endif
 	
+    !Get polymer statistics
 	if (potential_flag.eq.1) then
 		select case(etevtcf_outflag)
 		case (1)
@@ -201,6 +192,13 @@ subroutine simulation_record
 	!Obtain and record mass only
 	if (velocity_outflag .eq. 0 .and. &
 		mass_outflag .ne. 0) call mass_averaging(mass_outflag)
+
+	!Obtain and record velocity distributions
+	if (vdist_flag .eq. 1) then
+		call evaluate_properties_vdistribution
+	elseif (vdist_flag .eq. 2) then
+		call evaluate_properties_vdistribution_perbin
+	endif
 
 	!Obtain and record temperature
 	if (temperature_outflag .ne. 0)	call temperature_averaging(temperature_outflag)
@@ -516,13 +514,15 @@ subroutine evaluate_properties_vdistribution_perbin
 	use librarymod, only : Maxwell_Boltzmann_vel,Maxwell_Boltzmann_speed
 	implicit none
 
-	integer  :: n, i,j,k, nvbins
+	integer  :: n, i,j,k, nvbins, outinterval!, sumhist
 	integer,dimension(3)	:: cbin
 	double precision 	:: Hfunction,vfactor,const
 	double precision,save 	:: meanstream, meannp
 	double precision,dimension(3)	:: peculiarv,binsize_
 	double precision,dimension(:),allocatable 	:: vmagnitude,normalisedvfd_bin,normalisedvfdMB_bin,binloc
 	double precision,dimension(:,:,:),allocatable 	:: streamvel
+
+    outinterval = Nvel_ave*tplot
 
 	!Calculate streaming velocity
 	binsize_ = domain/nbins
@@ -560,44 +560,86 @@ subroutine evaluate_properties_vdistribution_perbin
 	!Rapaport p37. N.B. velocity at middle or range is used for vn
 	!Hfunction = velPDF%Hfunction()
 
-	!Write and reset RDF after a number of stored records
+	!Write and reset PDF FOR EACH Y SLAB
 	const = sqrt(temperature)
-	if (mod(iter,100) .eq. 0) then
 
-		do i = 2,nbins(1)+1
+	if (mod(iter,outinterval) .eq. 0) then
+
+        !print*, "WARNING -- WRITING OUT PDF INFORMATION"
+        
+
+		!Allocate arrays based on cell 1,1,1 (assuming all identical)
+		allocate(normalisedvfd_bin(size(velPDF_array(2,2,2)%normalise(),1))); normalisedvfd_bin =0.d0
+		allocate(binloc,source=velPDF_array(2,2,2)%binvalues())
+		allocate(normalisedvfdMB_bin,source=velPDFMB%normalise())
+        !sumhist = 0
 		do j = 2,nbins(2)+1
-		do k = 2,nbins(3)+1
-
-			!Normalise bins to use for output and H function - so all bins add up to one
-			allocate(normalisedvfd_bin,source=velPDF_array(i,j,k)%normalise())
-			allocate(normalisedvfdMB_bin,source=velPDFMB%normalise())
-			allocate(binloc,source=velPDF_array(i,j,k)%binvalues())
-			do n=1,size(normalisedvfd_bin,1) 
-				write(10000,'(3i4,5(f10.5))') i,j,k, binloc(n), normalisedvfd_bin(n),normalisedvfdMB_bin(n), & 
-										sqrt(2/pi)*((binloc(n)**2)*exp((-binloc(n)**2)/(2*const**2))/(const**3)), & 
-										(1.d0/(const*sqrt(2.d0*pi)))*exp( -((binloc(n)-meanstream/meannp)**2.d0)/(2.d0*const**2.d0) ) 
-			enddo
-
-!			!Write values of bin to file to follow evolution of moments
-!			write(20000+i+(j-1)*nbins(1)+(k-1)*nbins(1)*nbins(2),'(8f17.10)') velPDF%moments(0),  velPDF%moments(1),  velPDF%moments(2),  velPDF%moments(3), & 
-!							      velPDFMB%moments(0),velPDFMB%moments(1),velPDFMB%moments(2),  velPDFMB%moments(3)
-
-!			!Write values of bin to file to follow evolution of H-function
-!			write(30000+i+(j-1)*nbins(1)+(k-1)*nbins(1)*nbins(2),'(a,i5, a, f20.10)') 'Boltzmann H function at iteration ', iter , ' is ', Hfunction
-
-			deallocate(normalisedvfd_bin)
-			deallocate(normalisedvfdMB_bin)
-			deallocate(binloc)
+    		do i = 2,nbins(1)+1
+    		do k = 2,nbins(3)+1
+                !Collect values per slice for PDF
+                normalisedvfd_bin(:) = normalisedvfd_bin(:) + velPDF_array(i,j,k)%normalise()
+                !sumhist = sumhist + sum(velPDF_array(i,j,k)%hist)
+	        enddo
+	        enddo
+            normalisedvfd_bin = normalisedvfd_bin/(nbins(1)*nbins(3))
+            !Write values per slice to file
+	        do n=1,size(normalisedvfd_bin,1) 
+		        write(10000+iter/outinterval,'(i5,5(f10.5))') j, binloc(n), normalisedvfd_bin(n),normalisedvfdMB_bin(n), & 
+								        sqrt(2/pi)*((binloc(n)**2)*exp((-binloc(n)**2)/(2*const**2))/(const**3)), & 
+								        (1.d0/(const*sqrt(2.d0*pi)))*exp( -((binloc(n)-meanstream/meannp)**2.d0)/(2.d0*const**2.d0) ) 
+	        enddo
 		enddo
-		enddo
-		enddo
+        !print*, 'SUM of HIST', sumhist,normalisedvfd_bin
+        deallocate(normalisedvfd_bin)
+        deallocate(normalisedvfdMB_bin)
+        deallocate(binloc)
 
-		velPDF%hist = 0
+		do j = 2,nbins(2)+1
+    	do i = 2,nbins(1)+1
+    	do k = 2,nbins(3)+1
+		    velPDF_array(i,j,k)%hist = 0
+        enddo
+        enddo
+        enddo
 		velPDFMB%hist = 0
 		meanstream = 0.d0
 		meannp = 0.d0
+
+        !OUTPUT A PDF FOR EVERY CELL
+!		do i = 2,nbins(1)+1
+!		do j = 2,nbins(2)+1
+!		do k = 2,nbins(3)+1
+
+!			!Normalise bins to use for output and H function - so all bins add up to one
+!			allocate(normalisedvfd_bin,source=velPDF_array(i,j,k)%normalise())
+!			allocate(normalisedvfdMB_bin,source=velPDFMB%normalise())
+!			allocate(binloc,source=velPDF_array(i,j,k)%binvalues())
+!			do n=1,size(normalisedvfd_bin,1) 
+!				write(10000+iter/100,'(3i4,5(f10.5))') i,j,k, binloc(n), normalisedvfd_bin(n),normalisedvfdMB_bin(n), & 
+!										sqrt(2/pi)*((binloc(n)**2)*exp((-binloc(n)**2)/(2*const**2))/(const**3)), & 
+!										(1.d0/(const*sqrt(2.d0*pi)))*exp( -((binloc(n)-meanstream/meannp)**2.d0)/(2.d0*const**2.d0) ) 
+!			enddo
+
+!!			!Write values of bin to file to follow evolution of moments
+!!			write(20000+i+(j-1)*nbins(1)+(k-1)*nbins(1)*nbins(2),'(8f17.10)') velPDF%moments(0),  velPDF%moments(1),  velPDF%moments(2),  velPDF%moments(3), & 
+!!							      velPDFMB%moments(0),velPDFMB%moments(1),velPDFMB%moments(2),  velPDFMB%moments(3)
+
+!!			!Write values of bin to file to follow evolution of H-function
+!!			write(30000+i+(j-1)*nbins(1)+(k-1)*nbins(1)*nbins(2),'(a,i5, a, f20.10)') 'Boltzmann H function at iteration ', iter , ' is ', Hfunction
+
+!			deallocate(normalisedvfd_bin)
+!			deallocate(normalisedvfdMB_bin)
+!			deallocate(binloc)
+!		enddo
+!		enddo
+!		enddo
+
+!		velPDF%hist = 0
+!		velPDFMB%hist = 0
+!		meanstream = 0.d0
+!		meannp = 0.d0
 	
-		stop "Stop after one write of evaluate_properties_vdistribution_perbin"
+		!stop "Stop after one write of evaluate_properties_vdistribution_perbin"
 	endif
 
 end subroutine evaluate_properties_vdistribution_perbin
@@ -1126,19 +1168,9 @@ subroutine velocity_averaging(ixyz)
 		! T_{unbias} = (1/3N) * \sum_i^N m_i * vi*vi - u^2/3
 		stop "Peculiar momentum functionality removed -- please calculate using T_{unbias} = (1/3N) * \sum_i^N m_i*vi*vi - u^2/3"
 
-		!Determine bin size
-		!Vbinsize(:) = domain(:) / nbins(:)
-
-		!Get instantanous temperature field included swapped halos
-		!sm = volume_mass
-		!sv = volume_momentum
-		!call rswaphalos(sm,nbinso(1),nbinso(2),nbinso(3),1)
-		!call rswaphalos(sv,nbinso(1),nbinso(2),nbinso(3),3)
-
 		do n=1,np
 			!Save streaming velocity per molecule
 			ib(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
-			!U(:,n) =  sv(ib(1),ib(2),ib(3),:) / sm(ib(1),ib(2),ib(3))
 			U(:,n) =  volume_momentum(ib(1),ib(2),ib(3),:) / volume_mass(ib(1),ib(2),ib(3))
 		enddo
 
@@ -1172,57 +1204,6 @@ subroutine velocity_averaging(ixyz)
 	endif
 
 end subroutine velocity_averaging
-
-subroutine evaluate_U
-	use module_record
-	use linked_list
-	implicit none
-
-	integer				:: n
-	integer,dimension(3):: ib
-	double precision,dimension(3) 	:: Vbinsize
-
-	integer, dimension(:,:,:), allocatable :: mbin
-	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: vbin
-
-	integer :: x,y,z,c
-
-	Vbinsize(:) = domain(:) / nbins(:)
-	
-	x = nbins(1) + 2*nhb(1)
-	y = nbins(2) + 2*nhb(2)
-	z = nbins(3) + 2*nhb(3)
-	c = 3
-	
-	allocate(vbin(x,y,z,c))
-	allocate(mbin(x,y,z))
-	
-	vbin = 0.d0
-	mbin = 0
-		
-	do n = 1, np
-
-		! Get bin
-		ib(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
-		! Add v, m to bin
-		vbin(ib(1),ib(2),ib(3),:) = vbin(ib(1),ib(2),ib(3),:) + v(:,n)
-		mbin(ib(1),ib(2),ib(3)) = mbin(ib(1),ib(2),ib(3)) + 1 
-
-	end do
-
-	do n = 1, np
-
-		! Get bin
-		ib(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
-		! Get U from vbin / mbin
-		U(:,n) = vbin(ib(1),ib(2),ib(3),:)/real(mbin(ib(1),ib(2),ib(3)),kind(0.d0))
-	
-	end do
-	
-	deallocate(vbin)
-	deallocate(mbin)
-
-end subroutine evaluate_U
 
 !-----------------------------------------------------------------------------------
 !Add velocities to running total, with 2D slice in ixyz = 1,2,3 or
@@ -4480,6 +4461,59 @@ subroutine record_external_forces(F,ri,vi)
 end subroutine record_external_forces
 
 end module module_record_external_forces
+
+
+subroutine evaluate_U
+	use module_record
+	use linked_list
+	implicit none
+
+	integer				:: n
+	integer,dimension(3):: ib
+	double precision,dimension(3) 	:: Vbinsize
+
+	integer, dimension(:,:,:), allocatable :: mbin
+	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: vbin
+
+	integer :: x,y,z,c
+
+	Vbinsize(:) = domain(:) / nbins(:)
+	
+	x = nbins(1) + 2*nhb(1)
+	y = nbins(2) + 2*nhb(2)
+	z = nbins(3) + 2*nhb(3)
+	c = 3
+	
+	allocate(vbin(x,y,z,c))
+	allocate(mbin(x,y,z))
+	
+	vbin = 0.d0
+	mbin = 0
+		
+	do n = 1, np
+
+		! Get bin
+		ib(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
+		! Add v, m to bin
+		vbin(ib(1),ib(2),ib(3),:) = vbin(ib(1),ib(2),ib(3),:) + v(:,n)
+		mbin(ib(1),ib(2),ib(3)) = mbin(ib(1),ib(2),ib(3)) + 1 
+
+	end do
+
+	do n = 1, np
+
+		! Get bin
+		ib(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
+		! Get U from vbin / mbin
+		U(:,n) = vbin(ib(1),ib(2),ib(3),:)/real(mbin(ib(1),ib(2),ib(3)),kind(0.d0))
+	
+	end do
+	
+	deallocate(vbin)
+	deallocate(mbin)
+
+end subroutine evaluate_U
+
 
 
 !===================================================================================

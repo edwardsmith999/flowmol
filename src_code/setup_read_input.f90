@@ -488,14 +488,15 @@ subroutine setup_read_input
 	if (found_in_input) then
 		read(1,*) vmd_outflag
 		if (vmd_outflag .ne. 0) then
-			read(1,*) Nvmd_intervals	!Number of vmd intervals
+			read(1,*,iostat=ios) Nvmd_intervals	!Number of vmd intervals
 			if (Nvmd_intervals .gt. 20) then
-				print*, "Number of VMD intervals greater than 20 or not specified, setting on for all simualtion"
+				print*, "Number of VMD intervals greater than 20 or not specified, setting on for all simulation"
 				Nvmd_intervals = 0
 			endif
-			if (Nvmd_intervals .eq. 0) then
+			if (Nvmd_intervals .eq. 0 .or. ios .ne. 0) then
 				allocate(vmd_intervals(2,1))
-				vmd_intervals(1,1) = 1; vmd_intervals(2,1) = huge(1)
+				vmd_intervals(1,1) = 1; vmd_intervals(2,1) = Nsteps
+				Nvmd_intervals = 1
 			else
 				allocate(vmd_intervals(2,Nvmd_intervals))
 				!write(readin_format,'(a,i5,a)') '(',2*Nvmd_intervals,'i)'

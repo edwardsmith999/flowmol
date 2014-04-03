@@ -32,7 +32,7 @@ function[u]=couette_analytical_fn(t,Re,U_wall,L,npoints,slidingwall)
             end
             u(1,1) = U_wall(1);
         case 'both'
-            %Uwall at bottom 
+            %Uwall at bottom and top
             for n = 1:nmodes
                 lambda = (n*pi/L)^2;
                 u(:,1)=u(:,1)+(C*exp(-lambda*k*t) - (-1)^n*(2*1/(n*pi))*U_wall(1)*(1-exp(-lambda*k*t))).*sin(n*pi*y/L)...

@@ -1355,7 +1355,6 @@ subroutine apply_force_tests(apply_the_force)
 		velPDF%hist = 0
 	endif
 
-
 	!Write values of constrained and unconstrained velocity
 	if (box_np_afr .ne. 0) then
 		unitno = irank*1000000+ibin*10000+jbin*100+kbin
@@ -1410,7 +1409,7 @@ subroutine apply_CV_force_multibin(iter)
 	binsize = domain/nbins
 	volume = product(binsize)
 
-	starttime = 1000 !Nsteps/2.d0
+	starttime = 4000 !Nsteps/2.d0
 	ibin = 3; jbin = 3; kbin = 3
 
 	!Exchange CV data ready to apply force
@@ -1433,12 +1432,12 @@ subroutine apply_CV_force_multibin(iter)
 !  							  kbin-1, kbin-1, & 
 !   							  (/ 0.0d0,0.d0,0.d0 /),0)
 
+		do jbin = 2,nbins(2)-1
     	do ibin = 1,nbins(1)
-    	do jbin = 2,nbins(2)-1
     	do kbin = 1,nbins(3)
 			y_loc = (jbin-1)*binsize(2)
 			!u_bin = (/ 0.d0,0.d0, 0.d0 /)
-			u_bin = (/ y_loc/globaldomain(2) ,0.d0, 0.d0 /)
+			u_bin = (/ (jbin-1)*2.d0/(nbins(2)-1)-1.0 ,0.d0, 0.d0 /)
 			!u_bin = (/ 0.25*sin(2.d0*3.14159*y_loc/globaldomain(2)),0.d0, 0.d0 /)
 			call set_bin_velocity(ibin, ibin, & 
 								  jbin, jbin, & 
