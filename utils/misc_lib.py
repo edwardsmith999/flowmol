@@ -15,8 +15,10 @@ class Chdir:
     def __init__( self, newPath ):  
         self.savedPath = os.getcwd()
         self.newPath = newPath
+
     def __enter__( self ):
         os.chdir(self.newPath)
 
-    def __exit__( self ):
+    def __exit__( self, etype, value, traceback):
         os.chdir( self.savedPath )
+

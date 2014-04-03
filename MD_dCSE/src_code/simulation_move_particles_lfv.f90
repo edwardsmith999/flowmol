@@ -47,7 +47,6 @@ subroutine simulation_move_particles_lfv
 	case(0)
 		!Do nothing - no force applied
 	case(1)
-		!F_ext =  0.1d0 !* sin(2.d0*pi*((iter)/100.d0)+0.5d0*pi)
 		call simulation_apply_global_force(F_ext_ixyz,F_ext)
 	case(2)
 		call simulation_apply_local_force(F_ext_ixyz,F_ext, & 
@@ -55,7 +54,7 @@ subroutine simulation_move_particles_lfv
 										  F_ext_limits(3),F_ext_limits(4), & 
 										  F_ext_limits(5),F_ext_limits(6))
 	case default
-		stop "Error - incorrectly specified external_force_flag"
+		call error_abort("Error - incorrectly specified external_force_flag")
 	end select
 
 	!Select case and evolve system in time
@@ -125,21 +124,6 @@ subroutine simulation_move_particles_lfv
 contains
 
 	!-----------------------------------------------------------------------
-	!Evaluate "true" positions and velocities without periodic wrapping
-	subroutine simulation_move_particles_true_lfv
-		use shear_info_MD, only: le_sp, le_sv, le_sd
-		implicit none
-
-		vtrue = v
-
-		do n=1,np
-			vtrue(le_sd,n) = v(le_sd,n) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
-			rtrue(:,n)     = rtrue(:,n) + delta_t*vtrue(:,n)
-		end do
-
-	end subroutine simulation_move_particles_true_lfv
-	
-	!-----------------------------------------------------------------------
 	!Evaluate Nosé-Hoover parameters
 	subroutine evaluate_NH_params
 		implicit none
@@ -175,9 +159,11 @@ contains
 
 		print*, 'Warning: PUT evaluation only applicable to Lees-Edwards systems'
 
+        call error_abort("Error -- This routine cannot work as U is not longer defined!")
+
 		pec_v2sum = 0.d0
 		do n=1,np
-			!pec_v(:)  = v(:,n) - U(:,n) - 0.5d0*a(:,n)*delta_t      ! PUT: Find peculiar velocity
+			!pec_v(:)  = v(:,n) + 0.5d0*a(:,n)*delta_t - U(:,n)      ! PUT: Find peculiar velocity
 			pec_v2sum = pec_v2sum + dot_product(pec_v,pec_v)        ! PUT: Sum peculiar velocities squared
 		end do
 		call globalSum(pec_v2sum)
@@ -246,8 +232,9 @@ contains
 	
 		if (tag_thermostat_active) then
 		
-			! -------------   W  A  R  N  I  N  G  -------------------------	
-			! --------------------------------------------------------------
+			! --------------------------------------------------------------!
+			! -------------   W  A  R  N  I  N  G  -------------------------!	
+			! --------------------------------------------------------------!
 			! 
 			!  This is only applicable for systems under a homogeneous
 			!  temperature field. It is NOT intended to be used as a tool
@@ -256,7 +243,7 @@ contains
 			!  be redeveloped with multiple "v2sum"s for each region that 
 			!  is thermostatted separately.
 			! 
-			! --------------------------------------------------------------
+			! --------------------------------------------------------------!
 
 			! PUT only works for serial code.
 			if ( any(tag(:).eq.PUT_thermo) ) call evaluate_U_PUT  
@@ -272,20 +259,13 @@ contains
 			v2sum = 0.d0
 			thermostatnp = 0
 			do n = 1, np
-
 				if ( tag(n) .eq. PUT_thermo ) then
-					!if (mod(iter,1000) .eq. 0) &
-					!write(5000+irank,'(i8,4f10.5)'), iter, globalise(r(:,n)),dot_product(vel,vel)
 					vel(:) = v(:,n) - U(:,n) + 0.5d0*a(:,n)*delta_t
-
 				else if ( any( thermo_tags .eq. tag(n) ) ) then
-
 					vel(:) = v(:,n) + 0.5d0*a(:,n)*delta_t
-
 				else
 					! Don't include non-thermostatted molecules in calculation
 					cycle
-
 				end if
 
 				v2sum = v2sum + dot_product(vel,vel)
@@ -313,12 +293,10 @@ contains
 			!ascale = 2.d0*bscale - 1.d0
 
 
-			!if (iter .eq. 1) write(9999,'(4a)'), 'iter; bscale; ascale; inputtemperature; temperature; themostatnp'
-			!write(9999,'(i10,a,f14.6,a,3(f10.5,a),i10)'),iter,';', bscale,';', ascale,';', & 
-			!		 inputtemperature,';', v2sum/(nd*thermostatnp + 1), ';',thermostatnp
-	
-
-
+!			if (iter .eq. 1) write(9999,'(4a)'), 'iter; bscale; ascale; inputtemperature; temperature; themostatnp'
+!			write(9999,'(i10,a,f14.6,a,3(f10.5,a),i10)'),iter,';', bscale,';', ascale,';', & 
+!					 inputtemperature,';', v2sum/(nd*thermostatnp + 1), ';',thermostatnp
+!	
 		else
 
 			!Reduces to the un-thermostatted equations
@@ -368,7 +346,7 @@ contains
 				call tether_force(n)
 				v(:,n) = v(:,n) + delta_t * a(:,n) 	!Velocity calculated from acceleration
 				r(:,n) = r(:,n) + delta_t * v(:,n)	!Position calculated from velocity
-				!if (iter .eq. 2) write(600+irank,*), globalise(r(:,n))
+
 			case (thermo)
 				!Nose Hoover Thermostatted Molecule
 				v(1,n) = v(1,n)*ascale + a(1,n)*delta_t*bscale
@@ -465,9 +443,23 @@ contains
 
 	end subroutine update_omega
 
+
+	!-----------------------------------------------------------------------
+	!Evaluate "true" positions and velocities without periodic wrapping
+	subroutine simulation_move_particles_true_lfv
+		use shear_info_MD, only: le_sp, le_sv, le_sd
+		implicit none
+
+		vtrue = v
+
+		do n=1,np
+			vtrue(le_sd,n) = v(le_sd,n) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
+			rtrue(:,n)     = rtrue(:,n) + delta_t*vtrue(:,n)
+		end do
+
+	end subroutine simulation_move_particles_true_lfv
+
 end subroutine simulation_move_particles_lfv
-
-
 
 !======================================================================================
 ! Minimal form of the move particles subroutine

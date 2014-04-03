@@ -1,5 +1,4 @@
 %Open simulation header file and load all simulation variables to workspace
-%clear all
 
 %Store Present Working directory
 pwdir = pwd;

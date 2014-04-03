@@ -3,21 +3,29 @@ import math
 
 # Desired "Inputs" 
 density = 1.0
-rcutoff = 2.0**(1.0/6.0) 
+rcutoff = 2.0**(1.0/6.0)
 dr_nbr  = 0.3
-D_xL    = 1562.0                                  # Prefix "D_" for "desired"
-D_zL    = 1071.0 
-D_yL_md = 568.0
-D_yL_cfd = 568.0 
-wall_layers = 0 
+D_xL    = 1562                                 # Prefix "D_" for "desired"
+D_zL    = 1071 
+D_yL_md = 568
+D_yL_cfd = 568
+wall_layers = 0
 eps = 0.01
-npx_md = 8
-npy_md = 4
-npz_md = 8
-cfd_cells_per_md_proc_x = 8 
-cfd_cells_per_md_proc_y = 64
-cfd_cells_per_md_proc_z = 8
-ncy_olap = 4
+# npx_md = 12
+# npy_md = 6
+# npz_md = 4
+# cfd_cells_per_md_proc_x = 7
+# cfd_cells_per_md_proc_y = 33
+# cfd_cells_per_md_proc_z = 17
+npx_md = 12
+npy_md = 6
+npz_md = 10
+cfd_cells_per_md_proc_x = 7
+cfd_cells_per_md_proc_y = 33
+cfd_cells_per_md_proc_z = 5
+
+ncy_olap = 0
+
 
 # Calculate lattice properties and size 
 a = 1.0 / (math.pow((density/4.0),(1.0/3.0)))    # lattice parameter a

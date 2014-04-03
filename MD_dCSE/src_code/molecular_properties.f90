@@ -394,12 +394,12 @@ subroutine read_tag(molno)
         case (teth_slide)
             !Tethered molecules with sliding velocity
             fix(:,molno) = 1
-            !r_global = globalise(r(:,molno))
+            r_global = globalise(r(:,molno))
             slidev(:,molno) = wallslidev*sign(1.d0,r_global(2))
         case (teth_thermo_slide)
             !Thermostatted Tethered molecules unfixed with sliding velocity
             fix(:,molno) = 1
-            !r_global = globalise(r(:,molno))
+            r_global = globalise(r(:,molno))
             slidev(:,molno) = wallslidev*sign(1.d0,r_global(2))
         case (PUT_thermo)
             !Profile unbiased thermostat (Nose-Hoover)

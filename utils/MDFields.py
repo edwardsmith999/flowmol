@@ -65,9 +65,27 @@ class MD_CVField(MDField):
 
         """
 
-        self.fname = fname    
-        MDField.__init__(self,fdir,cpol_bins=cpol_bins)
+        if (fname in ("psurface","vflux")):
+            self.fname = fname    
+            MDField.__init__(self,fdir,cpol_bins=cpol_bins)
+        elif (fname is "total"):
+            self.CVflux = MD_CVField(fdir,fname="vflux",cpol_bins=cpol_bins)
+            self.CVsurface = MD_CVField(fdir,fname="psurface",cpol_bins=cpol_bins)
+            self.read = self.read_both
+            Field.__init__(self,self.CVsurface.Raw)
+        else:
+            quit("Output type not recognised, should be psurface, vflux or total")
 
+    def read_both(self,startrec,endrec):
+
+        CVfluxdata = self.CVflux.read(startrec,endrec)
+        CVsurfacedata = self.CVsurface.read(startrec,endrec)
+
+        # Add together
+        vdata = CVsurfacedata + CVfluxdata
+
+        return vdata 
+            
 # ============================================================================
 # Complex fields that inherit MDField AND contain MDField objects, require 
 # extra calculations. "Read" and "average_data" routines are commonly 
