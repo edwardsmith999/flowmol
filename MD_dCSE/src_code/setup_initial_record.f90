@@ -41,7 +41,7 @@ subroutine setup_initial_record
                                    "esnap       ", "eflux       ", "eplane  ",&
                                    "esurface    ", "viscometrics", "rdf     ",&
                                    "rdf3d       ", "ssf         ", "Fext    ",&
-                                   "Tbins       ", "vmd_temp.dcd", "vdist   " /) 
+                                   "Tbins       ", "vmd_temp.dcd", "vPDF    " /) 
 
 
     !COUETTE FLOW ANALYTICAL SOLUTION
@@ -807,6 +807,10 @@ subroutine simulation_header
     endif
     write(fileunit,*)  'Leapfrog or Velocity-Verlet ; integration_algorithm ;', integration_algorithm
     write(fileunit,*)  'Force calculation list methodd ; force_list ;', force_list
+    write(fileunit,*)  'Slice or bins ; vPDF_flag ;', vPDF_flag
+    write(fileunit,*)  'Output frequency of PDF ; NvPDF_ave ;', NvPDF_ave
+    write(fileunit,*)  'Number of PDF bins ; NPDFbins  ;',NPDFbins 
+    write(fileunit,*)  'PDF range max_min ; PDFvlims  ;',PDFvlims
     !write(fileunit,*)  'Ensemble; ensemble; ', ensemble        !MATLAB input functions can't deal with words...
     write(fileunit,*)   'Shear direction ; le_sd;', le_sd
     write(fileunit,*)   'Shear plane ; le_sp;', le_sp

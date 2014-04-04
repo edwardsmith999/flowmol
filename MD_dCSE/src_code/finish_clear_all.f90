@@ -14,7 +14,7 @@ module module_clear_all
 	use calculated_properties_MD
 	use shear_info_MD
 	use polymer_info_MD
-	use module_set_parameters, only : velPDF
+	use module_set_parameters, only : velPDF,velPDF_array
 
 end module module_clear_all
 !----------------------------------------------------------------------------------
@@ -22,6 +22,8 @@ end module module_clear_all
 subroutine finish_clear_all
 use module_clear_all
 implicit none
+
+    integer :: i,j,k,n
 
 	call linklist_deallocateall !Final deallocation of all linked lists
 	call linklist_deallocate_bins
@@ -62,10 +64,19 @@ implicit none
 		deallocate(slidev)
 	endif
 
-	if (vdist_flag .eq. 1) then
+	if (vPDF_flag .eq. 5) then
 		call velPDF%destroy
-		!deallocate(vfd_bin)
-		!deallocate(normalisedvfd_bin)
+    elseif (vPDF_flag .ne. 0) then
+
+        do i =1,nbins(1)+2
+        do j =1,nbins(2)+2
+        do k =1,nbins(3)+2
+        do n =1,nd
+            call velPDF_array(i,j,k,n)%destroy
+        enddo
+        enddo
+        enddo
+        enddo
 	endif
 
 	!deallocate(diffusion)

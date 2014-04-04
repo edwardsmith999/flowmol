@@ -2435,6 +2435,80 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 
 end subroutine velocity_bin_io
 
+
+
+!---------------------------------------------------------------------------------
+! Record velocity PDF in a slice through the domain
+subroutine velocity_PDF_slice_io(ixyz,pfdx,pfdy,pfdz)
+	use module_parallel_io
+	use calculated_properties_MD
+	use messenger
+	implicit none
+
+	integer,intent(in)                	:: ixyz
+    integer,dimension(:,:),intent(in)   :: pfdx,pfdy,pfdz
+
+	integer							    :: jxyz,kxyz,ijkblock(3),nxpz(3),datasize
+	integer							    :: xmin,xmax,ymin,ymax,zmin,zmax
+	integer							    :: slicefileid, int_datasize
+	integer,dimension(3)			    :: idims
+	integer(kind=MPI_OFFSET_KIND)       :: disp
+    integer,dimension(:),allocatable    :: pdfxyz
+
+	!Get two directions orthogonal to slice direction
+	kxyz = mod(ixyz,3)+1
+	jxyz = mod(ixyz+1,3)+1
+	idims(1) = npx; idims(2) = npy; idims(3) = npz
+
+	ijkblock = (/iblock,jblock,kblock/)
+    nxpz = (/ npx, npy, npz /)
+	!Sum over all bins using directional sub communicators and gather on root
+    datasize =size(pfdx)+size(pfdy)+size(pfdz)
+    allocate(pdfxyz(datasize)); pdfxyz = 0
+
+    xmin = 1; xmax = size(pfdx)
+    ymin = xmax+1; ymax = size(pfdx)+size(pfdy)
+    zmin = ymax+1; zmax = size(pfdx)+size(pfdy)+size(pfdz)
+
+    pdfxyz(xmin:xmax) = reshape(pfdx(:,:),(/ size(pfdx) /))
+    pdfxyz(ymin:ymax) = reshape(pfdy(:,:),(/ size(pfdy) /))
+    pdfxyz(zmin:zmax) = reshape(pfdz(:,:),(/ size(pfdz) /))
+
+    !print'(a,10i10)', 'b4', iblock,jblock,kblock, sum(pdfxyz),sum(pfdx),sum(pfdy),sum(pfdz), sum(pdfxyz(xmin:xmax)),sum(pdfxyz(ymin:ymax)),sum(pdfxyz(zmin:zmax))
+	call SubcommSumIntVect(pdfxyz,datasize, jxyz)
+	call SubcommSumIntVect(pdfxyz,datasize, kxyz)
+    !print'(a,10i10)', 'after', iblock,jblock,kblock, sum(pdfxyz),sum(pfdx),sum(pfdy),sum(pfdz), sum(pdfxyz(xmin:xmax)),sum(pdfxyz(ymin:ymax)),sum(pdfxyz(zmin:zmax))
+    !print*, size(pfdx,1),size(pfdx,2),size(pfdx),size(pdfxyz)
+
+ 	!Only root processor in each directional subcomm writes data
+	if (icoord(jxyz,irank) .eq. 1 .and. icoord(kxyz,irank) .eq. 1) then
+        
+		call MPI_type_size(MPI_integer,int_datasize,ierr)
+
+		!Only processors on directional subcomm write
+		call MPI_FILE_OPEN(icomm_xyz(ixyz), trim(prefix_dir)//'./results/vPDF', & 
+				           MPI_MODE_WRONLY + MPI_MODE_CREATE , & 
+				           MPI_INFO_NULL, slicefileid, ierr)
+
+		!Obtain displacement of x record
+		disp =   ((iter-initialstep+1)/(tplot*Nvpdf_ave) - 1) 	  	&	    !Current iteration
+		            * datasize*int_datasize*nxpz(ixyz)     &	    !times record size
+		            + datasize*int_datasize*(ijkblock(ixyz)-1)              !Processor location
+
+        !print'(12i10)',iblock, jblock,kblock,nxpz(ixyz),disp,datasize,int_datasize,nbins(ixyz),gnbins(ixyz), & 
+        !               ((iter-initialstep+1)/(tplot*Nvpdf_ave)-1),datasize*int_datasize*nxpz(ixyz), datasize*int_datasize*(ijkblock(ixyz)-1) 
+
+		call MPI_FILE_SET_VIEW(slicefileid, disp, MPI_INTEGER, & 
+	 				MPI_INTEGER, 'native', MPI_INFO_NULL, ierr)
+		call MPI_FILE_WRITE_ALL(slicefileid,pdfxyz,datasize, & 
+					MPI_INTEGER,MPI_STATUS_IGNORE, ierr)
+
+		call MPI_FILE_CLOSE(slicefileid, ierr)
+
+	endif 
+
+end subroutine velocity_PDF_slice_io
+
 !------------------------------------------------------------------------------
 ! Cylindrical polar mass bins
 subroutine mass_bin_cpol_io(mass_out)

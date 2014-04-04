@@ -684,9 +684,12 @@ subroutine setup_read_input
 		read(1,*) rdf_nbins
 	endif
 
-	call locate(1,'VDIST',.false.,found_in_input)
+	call locate(1,'VPDF',.false.,found_in_input)
 	if (found_in_input) then
-		read(1,*) vdist_flag
+		read(1,*) vPDF_flag
+		read(1,*) NvPDF_ave
+		read(1,*) NPDFbins 
+		read(1,*) PDFvlims
 	endif
 	
 	call locate(1,'STRUCT_OUTFLAG',.false.,found_in_input)
