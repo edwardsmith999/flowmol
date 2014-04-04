@@ -102,7 +102,7 @@ class VMDFields:
         outdir = self.fdir+"./vmd/vol_data/"
         filelist = [ f for f in os.listdir(outdir + ".") if f.endswith(".dx") ]
         for f in filelist:
-            os.remove(f)
+            os.remove(outdir+f)
 
         #Write range of files in all intervals
         print('Writing dx files intervals data',self.vmdintervals)
@@ -120,7 +120,7 @@ class VMDFields:
 
         #Write maximum and minimum values for colourbar
         if (clims == None):
-            clims = np.mean(clims_array,axis=0)
+            clims = np.max(clims_array,axis=0)
         with open(self.vol_dir + '/colour_range','w+') as f:
             f.write(str(clims[0]) + '\n' + str(clims[1]) + '\n')
 
@@ -192,7 +192,7 @@ if __name__ == "__main__":
     vmdobj.write_vmd_header()
     vmdobj.write_vmd_intervals()
     vmdobj.write_dx_range(component=component)
-    vmdobj.writecolormap('Spectral')
+    vmdobj.writecolormap('RdYlBu')
     with Chdir(fdir + './vmd/'):
         command = "vmd -e " + "./plot_MD_field.vmd"
         os.system(command)
