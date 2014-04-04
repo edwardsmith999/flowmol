@@ -31,8 +31,8 @@ module module_set_parameters
 	use concentric_cylinders
 	use librarymod, only : PDF
 
-	type(PDF) 								:: velPDF, velPDFMB
-	type(PDF),allocatable,dimension(:,:,:) 	:: velPDF_array
+	type(PDF) 								    :: velPDF, velPDFMB
+	type(PDF),allocatable,dimension(:,:,:,:) 	:: velPDF_array
 
 
 end module module_set_parameters 
@@ -656,8 +656,7 @@ subroutine set_parameters_outputs
 						   CVcheck_momentum2,CVcheck_energy, CV_debug!,CV_sphere_momentum,CV_sphere_mass
 	implicit none
 
-	integer					:: n,i,j,k,nhistbins
-	double precision		:: maxv !Maximum possible velocity of all molecules
+	integer					:: n,i,j,k, ixyz
 	double precision		:: shift
 
 	!Use definition of temperature and re-arrange to define an average velocity minus 3 degrees of
@@ -685,35 +684,25 @@ subroutine set_parameters_outputs
 	nhb = ceiling(dble(nbins)/dble(ncells))
 	nbinso = nbins+2*nhb
 
-	!Velocity binning routines
-	!nbins(1) = ceiling(np/10.d0)    	!Set number of equal sized velocity ranges based on 1/10 number of molecules
-
-	if (vdist_flag .eq. 1) then
-
-		!Instantiate PDF object
-		maxv=initialvel*7.0 
-        nhistbins = 16*nbins(1)
-		velPDF   = PDF(nhistbins,-3.d0,10.d0)
-		velPDFMB = PDF(nhistbins,-3.d0,10.d0)
-! 		allocate(vfd_bin(8*nbins(1)))           	!Allocate storage space for frequency tally over time
-! 		allocate(normalisedvfd_bin(8*nbins(1))) 	!Allocate storage space for normalised frequency tally over time
-! 		vfd_bin = 0 		       		!Set initial molecular frequency count to zero
-
-! 		!Define maximum possible velocity of a given molecule to determine size of each bin
-! 		           		!Assume molecule will not have more than 3 time its initial velocity 
-! 		binsize = maxv/(8*nbins(1))
-	elseif (vdist_flag .eq. 2) then
-        maxv = 5.d0; nhistbins = 50
-		velPDFMB = PDF(nhistbins,-maxv,maxv)
-		allocate(velPDF_array(nbins(1)+2,nbins(2)+2,nbins(3)+2))
+	!Velocity PDF binning routines
+	select case(vPDF_flag)
+	case(1:4)
+		velPDFMB = PDF(NPDFbins,-PDFvlims,PDFvlims)
+		allocate(velPDF_array(nbins(1)+2,nbins(2)+2,nbins(3)+2,nd))
 		do i = 1,nbins(1)+2
 		do j = 1,nbins(2)+2
 		do k = 1,nbins(3)+2
-			velPDF_array(i,j,k) = PDF(nhistbins,-maxv,maxv)
+        do ixyz = 1,nd
+			velPDF_array(i,j,k,ixyz) = PDF(NPDFbins,-PDFvlims,PDFvlims)
+        enddo
 		enddo
 		enddo
 		enddo
-	endif
+	case(5)
+		!Instantiate whole domain PDF object
+		velPDF   = PDF(NPDFbins,-PDFvlims,PDFvlims)
+		velPDFMB = PDF(NPDFbins,-PDFvlims,PDFvlims)
+    end select
 
 	!Allocate and define number of shells used for Radial distribution function (rdf)
 	if (rdf_outflag .eq. 1) then

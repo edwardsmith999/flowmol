@@ -81,7 +81,7 @@ display nearclip set 0.000000
 display farclip  set 10.000000
 display depthcue   off
 #Specifiy Colorbar
-set colorfilename "./vol_data/cmap.dat"
+set colorfilename "./vol_data/cmap.dat"; puts ""
 cmapfile_color_scale $colorfilename
 #tricolor_scale 
 #color scale method BWR

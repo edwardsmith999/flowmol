@@ -194,11 +194,7 @@ subroutine simulation_record
 		mass_outflag .ne. 0) call mass_averaging(mass_outflag)
 
 	!Obtain and record velocity distributions
-	if (vdist_flag .eq. 1) then
-		call evaluate_properties_vdistribution
-	elseif (vdist_flag .eq. 2) then
-		call evaluate_properties_vdistribution_perbin
-	endif
+	if (vPDF_flag .ne. 0) call velocity_PDF_averaging(vPDF_flag)
 
 	!Obtain and record temperature
 	if (temperature_outflag .ne. 0)	call temperature_averaging(temperature_outflag)
@@ -428,80 +424,6 @@ subroutine print_mol_escape_error(n)
 end subroutine print_mol_escape_error
 
 
-!===================================================================================
-!Molecules grouped into velocity ranges to give vel frequency distribution graph
-!and calculate Boltzmann H function
-subroutine evaluate_properties_vdistribution
-	use module_record
-	use librarymod, only : Maxwell_Boltzmann_vel,Maxwell_Boltzmann_speed
-	implicit none
-
-	integer          :: n, cbin, nvbins
-	double precision :: Hfunction,vfactor,const,streamvel
-	double precision,save :: meanstream, meannp
-	double precision,dimension(3)		:: peculiarv
-	double precision,dimension(:),allocatable :: vmagnitude,normalisedvfd_bin,normalisedvfdMB_bin,binloc
-
-	!Calculate matrix of velocity magnitudes and bin in histogram
-	allocate(vmagnitude(np))
-
-	!Calculate streaming velocity
-	streamvel = 0.d0
-	do n = 1, np    ! Loop over all particles
-		streamvel = streamvel + v(1,n)
-	enddo
-
-	!Add vmagnitude to PDF histogram
-	do n = 1, np    ! Loop over all particles
-		peculiarv = (/ v(1,n)-streamvel/np, v(2,n), v(3,n) /)
-		!vmagnitude(n) = sqrt(dot_product(peculiarv,peculiarv))
-		vmagnitude(n) = v(1,n)
-	enddo
-	call velPDF%update(vmagnitude)
-
-	!Keep cumulative velocity over ae=veraging period (for analytical comparison)
-	meanstream = meanstream + streamvel
-	meannp     = meannp     + np
-
-	!Calculate maxwell boltzmann distribution for comparison
-	do n = 1, np    ! Loop over all particles
-		!vmagnitude(n) = Maxwell_Boltzmann_speed(T=temperature,u=streamvel/np)
-		vmagnitude(n) = Maxwell_Boltzmann_vel(T=temperature,u=streamvel/np)
-	enddo
-	call velPDFMB%update(vmagnitude)
-	deallocate(vmagnitude)
-
-	!Calculate Boltzmann H function using discrete defintion as in
-	!Rapaport p37. N.B. velocity at middle or range is used for vn
-	Hfunction = velPDF%Hfunction()
-
-	!Write and reset RDF after a number of stored records
-	const = sqrt(temperature)
-	if (mod(iter,1000) .eq. 0) then
-		!Normalise bins to use for output and H function - so all bins add up to one
-		allocate(normalisedvfd_bin,source=velPDF%normalise())
-		allocate(normalisedvfdMB_bin,source=velPDFMB%normalise())
-		allocate(binloc,source=velPDF%binvalues())
-		do n=1,size(normalisedvfd_bin,1) 
-			write(12,'(5(f10.5))') binloc(n), normalisedvfd_bin(n),normalisedvfdMB_bin(n), & 
-									sqrt(2/pi)*((binloc(n)**2)*exp((-binloc(n)**2)/(2*const**2))/(const**3)), & 
-								    (1.d0/(const*sqrt(2.d0*pi)))*exp( -((binloc(n)-meanstream/meannp)**2.d0)/(2.d0*const**2.d0) ) 
-		enddo
-
-    	!Write values of bin to file to follow evolution of moments
-    	write(14,'(8f17.10)') velPDF%moments(0),  velPDF%moments(1),  velPDF%moments(2),  velPDF%moments(3), & 
-    					      velPDFMB%moments(0),velPDFMB%moments(1),velPDFMB%moments(2),  velPDFMB%moments(3)
-
-    	!Write values of bin to file to follow evolution of H-function
-    	write(13,'(a,i5, a, f20.10)') 'Boltzmann H function at iteration ', iter , ' is ', Hfunction
-
-		velPDF%hist = 0
-		velPDFMB%hist = 0
-		meanstream = 0.d0
-		meannp = 0.d0
-	endif
-
-end subroutine evaluate_properties_vdistribution
 
 
 
@@ -509,95 +431,97 @@ end subroutine evaluate_properties_vdistribution
 !Molecules grouped into velocity ranges to give vel frequency distribution graph
 !and calculate Boltzmann H function on a bin by bin basis
 
-subroutine evaluate_properties_vdistribution_perbin
+
+subroutine velocity_PDF_averaging(ixyz)
 	use module_record
 	use librarymod, only : Maxwell_Boltzmann_vel,Maxwell_Boltzmann_speed
+    use field_io, only : velocity_PDF_slice_io
 	implicit none
 
-	integer  :: n, i,j,k, nvbins, outinterval!, sumhist
+    integer,intent(in)      :: ixyz
+
+	integer                 :: n, i,j,k, jxyz,kxyz
+	integer, save		    :: average_count=-1
+
 	integer,dimension(3)	:: cbin
-	double precision 	:: Hfunction,vfactor,const
-	double precision,save 	:: meanstream, meannp
-	double precision,dimension(3)	:: peculiarv,binsize_
-	double precision,dimension(:),allocatable 	:: vmagnitude,normalisedvfd_bin,normalisedvfdMB_bin,binloc
-	double precision,dimension(:,:,:),allocatable 	:: streamvel
+	integer,dimension(:,:),allocatable          :: pdfx,pdfy,pdfz
 
-    outinterval = Nvel_ave*tplot
+	double precision 	                        :: Hfunction,vfactor,const
+	double precision,save 	                    :: meanstream, meannp
+	double precision,dimension(3)	            :: peculiarv,binsize_
+	double precision,dimension(:),allocatable 	:: vmagnitude,binloc
 
-	!Calculate streaming velocity
-	binsize_ = domain/nbins
-	allocate(streamvel(nbins(1)+2,nbins(2)+2,nbins(3)+2))
-	streamvel = 0.d0
-	do n = 1, np    ! Loop over all particles
-		cbin(:) = ceiling((r(:,n)+0.5d0*domain(:))/binsize_(:))+1
-		streamvel(cbin(1),cbin(2),cbin(3)) = streamvel(cbin(1),cbin(2),cbin(3)) + v(1,n)
-	enddo
-
-	!Add vmagnitude to PDF histogram for each bin
-	allocate(vmagnitude(1))
-	do n = 1, np    ! Loop over all particles
-		cbin(:) = ceiling((r(:,n)+0.5d0*domain(:))/binsize_(:))+1
-		!peculiarv = (/ v(1,n)-streamvel/np, v(2,n), v(3,n) /)
-		!vmagnitude = sqrt(dot_product(peculiarv,peculiarv))
-		vmagnitude = v(1,n)
-		call velPDF_array(cbin(1),cbin(2),cbin(3))%update(vmagnitude)
-	enddo
-	deallocate(vmagnitude)
-
-	!Keep cumulative velocity over averaging period (for analytical comparison)
-	meanstream = meanstream + sum(streamvel)
-	meannp     = meannp     + np
-
-	!Calculate maxwell boltzmann distribution for comparison
-	allocate(vmagnitude(np))
-	do n = 1, np    ! Loop over all particles
-		!vmagnitude(n) = Maxwell_Boltzmann_speed(T=temperature,u=streamvel/np)
-		vmagnitude(n) = Maxwell_Boltzmann_vel(T=temperature,u=meanstream/meannp)
-	enddo
-	call velPDFMB%update(vmagnitude)
-
-	!Calculate Boltzmann H function using discrete defintion as in
-	!Rapaport p37. N.B. velocity at middle or range is used for vn
-	!Hfunction = velPDF%Hfunction()
+	average_count = average_count + 1
+	call cumulative_velocity_PDF
 
 	!Write and reset PDF FOR EACH Y SLAB
-	const = sqrt(temperature)
+	if (average_count .eq. Nvpdf_ave) then
+        average_count = 0
 
-	if (mod(iter,outinterval) .eq. 0) then
+		select case(ixyz)
+		case(1:3)
 
-        !print*, "WARNING -- WRITING OUT PDF INFORMATION"
-        
+           	const = sqrt(temperature)
+		    !Allocate arrays based on cell 1,1,1 (assuming all identical)
+		    allocate(pdfx(nbins(ixyz),velPDF_array(2,2,2,1)%nbins)); pdfx =0.d0
+		    allocate(pdfy(nbins(ixyz),velPDF_array(2,2,2,2)%nbins)); pdfy =0.d0
+		    allocate(pdfz(nbins(ixyz),velPDF_array(2,2,2,3)%nbins)); pdfz =0.d0
+		    allocate(binloc,source=velPDF_array(2,2,2,1)%binvalues())
 
-		!Allocate arrays based on cell 1,1,1 (assuming all identical)
-		allocate(normalisedvfd_bin(size(velPDF_array(2,2,2)%normalise(),1))); normalisedvfd_bin =0.d0
-		allocate(binloc,source=velPDF_array(2,2,2)%binvalues())
-		allocate(normalisedvfdMB_bin,source=velPDFMB%normalise())
-        !sumhist = 0
-		do j = 2,nbins(2)+1
-    		do i = 2,nbins(1)+1
-    		do k = 2,nbins(3)+1
-                !Collect values per slice for PDF
-                normalisedvfd_bin(:) = normalisedvfd_bin(:) + velPDF_array(i,j,k)%normalise()
-                !sumhist = sumhist + sum(velPDF_array(i,j,k)%hist)
-	        enddo
-	        enddo
-            normalisedvfd_bin = normalisedvfd_bin/(nbins(1)*nbins(3))
-            !Write values per slice to file
-	        do n=1,size(normalisedvfd_bin,1) 
-		        write(10000+iter/outinterval,'(i5,5(f10.5))') j, binloc(n), normalisedvfd_bin(n),normalisedvfdMB_bin(n), & 
-								        sqrt(2/pi)*((binloc(n)**2)*exp((-binloc(n)**2)/(2*const**2))/(const**3)), & 
-								        (1.d0/(const*sqrt(2.d0*pi)))*exp( -((binloc(n)-meanstream/meannp)**2.d0)/(2.d0*const**2.d0) ) 
-	        enddo
-		enddo
-        !print*, 'SUM of HIST', sumhist,normalisedvfd_bin
-        deallocate(normalisedvfd_bin)
-        deallocate(normalisedvfdMB_bin)
-        deallocate(binloc)
+	        kxyz = mod(ixyz,3)+1
+	        jxyz = mod(ixyz+1,3)+1
+		    do j = 2,nbins(ixyz)+1
+        		do i = 2,nbins(jxyz)+1
+        		do k = 2,nbins(kxyz)+1
+                    !Collect values per slice for PDF
+                    pdfx(j-1,:) = pdfx(j-1,:) + velPDF_array(i,j,k,1)%hist
+                    pdfy(j-1,:) = pdfy(j-1,:) + velPDF_array(i,j,k,2)%hist
+                    pdfz(j-1,:) = pdfz(j-1,:) + velPDF_array(i,j,k,3)%hist
+	            enddo
+	            enddo
+
+		    enddo
+            call velocity_PDF_slice_io(ixyz,pdfx(:,:),pdfy(:,:),pdfz(:,:))
+
+            deallocate(pdfx,pdfy,pdfz)
+            deallocate(binloc)
+
+        	!Write values of bin to file to follow evolution of moments
+!            write(14,'(12f12.6)') velPDF_array(5,3 ,5,1)%moments(0),  velPDF_array(5,3 ,5,1)%moments(1),  & 
+!                                  velPDF_array(5,3 ,5,1)%moments(2),  velPDF_array(5,3 ,5,1)%moments(3),  &
+!                                  velPDF_array(5,10,5,1)%moments(0),  velPDF_array(5,10,5,1)%moments(1),  & 
+!                                  velPDF_array(5,10,5,1)%moments(2),  velPDF_array(5,10,5,1)%moments(3),  &
+!                                  velPDF_array(5,18,5,1)%moments(0),  velPDF_array(5,18,5,1)%moments(1),  & 
+!                                  velPDF_array(5,18,5,1)%moments(2),  velPDF_array(5,18,5,1)%moments(3)
+
+        case(4)
+
+            !OUTPUT A PDF FOR EVERY CELL
+!		    do i = 2,nbins(1)+1
+!		    do j = 2,nbins(2)+1
+!		    do k = 2,nbins(3)+1
+
+!			    !Normalise bins to use for output and H function - so all bins add up to one
+!			    allocate(pdf,source=velPDF_array(i,j,k)%normalise())
+!			    allocate(binloc,source=velPDF_array(i,j,k)%binvalues())
+!			    do n=1,size(pdf,1) 
+!				    write(10000+iter/100,'(3i4,2(f10.5))') i,j,k, binloc(n), pdf(n)
+!			    enddo
+
+!			    deallocate(pdf)
+!			    deallocate(binloc)
+!		    enddo
+!		    enddo
+!		    enddo
+
+        end select
 
 		do j = 2,nbins(2)+1
     	do i = 2,nbins(1)+1
     	do k = 2,nbins(3)+1
-		    velPDF_array(i,j,k)%hist = 0
+        do n = 1,nd
+		    velPDF_array(i,j,k,n)%hist = 0
+        enddo
         enddo
         enddo
         enddo
@@ -605,44 +529,255 @@ subroutine evaluate_properties_vdistribution_perbin
 		meanstream = 0.d0
 		meannp = 0.d0
 
-        !OUTPUT A PDF FOR EVERY CELL
-!		do i = 2,nbins(1)+1
-!		do j = 2,nbins(2)+1
-!		do k = 2,nbins(3)+1
 
-!			!Normalise bins to use for output and H function - so all bins add up to one
-!			allocate(normalisedvfd_bin,source=velPDF_array(i,j,k)%normalise())
-!			allocate(normalisedvfdMB_bin,source=velPDFMB%normalise())
-!			allocate(binloc,source=velPDF_array(i,j,k)%binvalues())
-!			do n=1,size(normalisedvfd_bin,1) 
-!				write(10000+iter/100,'(3i4,5(f10.5))') i,j,k, binloc(n), normalisedvfd_bin(n),normalisedvfdMB_bin(n), & 
-!										sqrt(2/pi)*((binloc(n)**2)*exp((-binloc(n)**2)/(2*const**2))/(const**3)), & 
-!										(1.d0/(const*sqrt(2.d0*pi)))*exp( -((binloc(n)-meanstream/meannp)**2.d0)/(2.d0*const**2.d0) ) 
-!			enddo
+	endif
 
-!!			!Write values of bin to file to follow evolution of moments
-!!			write(20000+i+(j-1)*nbins(1)+(k-1)*nbins(1)*nbins(2),'(8f17.10)') velPDF%moments(0),  velPDF%moments(1),  velPDF%moments(2),  velPDF%moments(3), & 
-!!							      velPDFMB%moments(0),velPDFMB%moments(1),velPDFMB%moments(2),  velPDFMB%moments(3)
 
-!!			!Write values of bin to file to follow evolution of H-function
-!!			write(30000+i+(j-1)*nbins(1)+(k-1)*nbins(1)*nbins(2),'(a,i5, a, f20.10)') 'Boltzmann H function at iteration ', iter , ' is ', Hfunction
+contains
 
-!			deallocate(normalisedvfd_bin)
-!			deallocate(normalisedvfdMB_bin)
-!			deallocate(binloc)
+subroutine cumulative_velocity_PDF
+    use module_set_parameters, only : velPDF_array
+    implicit none
+
+    integer      :: ixyz
+
+	!Calculate streaming velocity
+	binsize_ = domain/nbins
+
+	!Add vmagnitude to PDF histogram for each bin
+	allocate(vmagnitude(1))
+	do n = 1, np    ! Loop over all particles
+		cbin(:) = ceiling((r(:,n)+0.5d0*domain(:))/binsize_(:))+1
+        do ixyz = 1,nd
+    		vmagnitude(1)=v(ixyz,n)
+            call velPDF_array(cbin(1),cbin(2),cbin(3),ixyz)%update(vmagnitude)
+        enddo
+	enddo
+	deallocate(vmagnitude)
+
+end subroutine
+
+end subroutine velocity_PDF_averaging
+
+
+
+
+
+!!===================================================================================
+!!Molecules grouped into velocity ranges to give vel frequency distribution graph
+!!and calculate Boltzmann H function
+!subroutine evaluate_properties_vdistribution
+!	use module_record
+!	use librarymod, only : Maxwell_Boltzmann_vel,Maxwell_Boltzmann_speed
+!	implicit none
+
+!	integer          :: n, cbin, nvbins
+!	double precision :: Hfunction,vfactor,const,streamvel
+!	double precision,save :: meanstream, meannp
+!	double precision,dimension(3)		:: peculiarv
+!	double precision,dimension(:),allocatable :: vmagnitude,normalisedvfd_bin,normalisedvfdMB_bin,binloc
+
+!	!Calculate matrix of velocity magnitudes and bin in histogram
+!	allocate(vmagnitude(np))
+
+!	!Calculate streaming velocity
+!	streamvel = 0.d0
+!	do n = 1, np    ! Loop over all particles
+!		streamvel = streamvel + v(1,n)
+!	enddo
+
+!	!Add vmagnitude to PDF histogram
+!	do n = 1, np    ! Loop over all particles
+!		peculiarv = (/ v(1,n)-streamvel/np, v(2,n), v(3,n) /)
+!		!vmagnitude(n) = sqrt(dot_product(peculiarv,peculiarv))
+!		vmagnitude(n) = v(1,n)
+!	enddo
+!	call velPDF%update(vmagnitude)
+
+!	!Keep cumulative velocity over ae=veraging period (for analytical comparison)
+!	meanstream = meanstream + streamvel
+!	meannp     = meannp     + np
+
+!	!Calculate maxwell boltzmann distribution for comparison
+!	do n = 1, np    ! Loop over all particles
+!		!vmagnitude(n) = Maxwell_Boltzmann_speed(T=temperature,u=streamvel/np)
+!		vmagnitude(n) = Maxwell_Boltzmann_vel(T=temperature,u=streamvel/np)
+!	enddo
+!	call velPDFMB%update(vmagnitude)
+!	deallocate(vmagnitude)
+
+!	!Calculate Boltzmann H function using discrete defintion as in
+!	!Rapaport p37. N.B. velocity at middle or range is used for vn
+!	Hfunction = velPDF%Hfunction()
+
+!	!Write and reset RDF after a number of stored records
+!	const = sqrt(temperature)
+!	if (mod(iter,1000) .eq. 0) then
+!		!Normalise bins to use for output and H function - so all bins add up to one
+!		allocate(normalisedvfd_bin,source=velPDF%normalise())
+!		allocate(normalisedvfdMB_bin,source=velPDFMB%normalise())
+!		allocate(binloc,source=velPDF%binvalues())
+!		do n=1,size(normalisedvfd_bin,1) 
+!			write(12,'(5(f10.5))') binloc(n), normalisedvfd_bin(n),normalisedvfdMB_bin(n), & 
+!									sqrt(2/pi)*((binloc(n)**2)*exp((-binloc(n)**2)/(2*const**2))/(const**3)), & 
+!								    (1.d0/(const*sqrt(2.d0*pi)))*exp( -((binloc(n)-meanstream/meannp)**2.d0)/(2.d0*const**2.d0) ) 
 !		enddo
-!		enddo
-!		enddo
+
+!    	!Write values of bin to file to follow evolution of moments
+!    	write(14,'(8f17.10)') velPDF%moments(0),  velPDF%moments(1),  velPDF%moments(2),  velPDF%moments(3), & 
+!    					      velPDFMB%moments(0),velPDFMB%moments(1),velPDFMB%moments(2),  velPDFMB%moments(3)
+
+!    	!Write values of bin to file to follow evolution of H-function
+!    	write(13,'(a,i5, a, f20.10)') 'Boltzmann H function at iteration ', iter , ' is ', Hfunction
 
 !		velPDF%hist = 0
 !		velPDFMB%hist = 0
 !		meanstream = 0.d0
 !		meannp = 0.d0
-	
-		!stop "Stop after one write of evaluate_properties_vdistribution_perbin"
-	endif
+!	endif
 
-end subroutine evaluate_properties_vdistribution_perbin
+!end subroutine evaluate_properties_vdistribution
+
+
+
+!!===================================================================================
+!!Molecules grouped into velocity ranges to give vel frequency distribution graph
+!!and calculate Boltzmann H function on a bin by bin basis
+
+!subroutine evaluate_properties_vdistribution_perbin
+!	use module_record
+!	use librarymod, only : Maxwell_Boltzmann_vel,Maxwell_Boltzmann_speed
+!	implicit none
+
+!	integer  :: n, i,j,k, nvbins, outinterval!, sumhist
+!	integer,dimension(3)	:: cbin
+!	double precision 	:: Hfunction,vfactor,const
+!	double precision,save 	:: meanstream, meannp
+!	double precision,dimension(3)	:: peculiarv,binsize_
+!	double precision,dimension(:),allocatable 	:: vmagnitude,normalisedvfd_bin,normalisedvfdMB_bin,binloc
+!	double precision,dimension(:,:,:),allocatable 	:: streamvel
+
+!    outinterval = Nvel_ave*tplot
+
+!	!Calculate streaming velocity
+!	binsize_ = domain/nbins
+!	allocate(streamvel(nbins(1)+2,nbins(2)+2,nbins(3)+2))
+!	streamvel = 0.d0
+!	do n = 1, np    ! Loop over all particles
+!		cbin(:) = ceiling((r(:,n)+0.5d0*domain(:))/binsize_(:))+1
+!		streamvel(cbin(1),cbin(2),cbin(3)) = streamvel(cbin(1),cbin(2),cbin(3)) + v(1,n)
+!	enddo
+
+!	!Add vmagnitude to PDF histogram for each bin
+!	allocate(vmagnitude(1))
+!	do n = 1, np    ! Loop over all particles
+!		cbin(:) = ceiling((r(:,n)+0.5d0*domain(:))/binsize_(:))+1
+!		!peculiarv = (/ v(1,n)-streamvel/np, v(2,n), v(3,n) /)
+!		!vmagnitude = sqrt(dot_product(peculiarv,peculiarv))
+!		vmagnitude = v(1,n)
+!		call velPDF_array(cbin(1),cbin(2),cbin(3))%update(vmagnitude)
+!	enddo
+!	deallocate(vmagnitude)
+
+!	!Keep cumulative velocity over averaging period (for analytical comparison)
+!	meanstream = meanstream + sum(streamvel)
+!	meannp     = meannp     + np
+
+!	!Calculate maxwell boltzmann distribution for comparison
+!	allocate(vmagnitude(np))
+!	do n = 1, np    ! Loop over all particles
+!		!vmagnitude(n) = Maxwell_Boltzmann_speed(T=temperature,u=streamvel/np)
+!		vmagnitude(n) = Maxwell_Boltzmann_vel(T=temperature,u=meanstream/meannp)
+!	enddo
+!	call velPDFMB%update(vmagnitude)
+
+!	!Calculate Boltzmann H function using discrete defintion as in
+!	!Rapaport p37. N.B. velocity at middle or range is used for vn
+!	!Hfunction = velPDF%Hfunction()
+
+!	!Write and reset PDF FOR EACH Y SLAB
+!	const = sqrt(temperature)
+
+!	if (mod(iter,outinterval) .eq. 0) then
+
+!        !print*, "WARNING -- WRITING OUT PDF INFORMATION"
+!        
+
+!		!Allocate arrays based on cell 1,1,1 (assuming all identical)
+!		allocate(normalisedvfd_bin(size(velPDF_array(2,2,2)%normalise(),1))); normalisedvfd_bin =0.d0
+!		allocate(binloc,source=velPDF_array(2,2,2)%binvalues())
+!		allocate(normalisedvfdMB_bin,source=velPDFMB%normalise())
+!        !sumhist = 0
+!		do j = 2,nbins(2)+1
+!    		do i = 2,nbins(1)+1
+!    		do k = 2,nbins(3)+1
+!                !Collect values per slice for PDF
+!                normalisedvfd_bin(:) = normalisedvfd_bin(:) + velPDF_array(i,j,k)%normalise()
+!                !sumhist = sumhist + sum(velPDF_array(i,j,k)%hist)
+!	        enddo
+!	        enddo
+!            normalisedvfd_bin = normalisedvfd_bin/(nbins(1)*nbins(3))
+!            !Write values per slice to file
+!	        do n=1,size(normalisedvfd_bin,1) 
+!		        write(10000+iter/outinterval,'(i5,5(f10.5))') j, binloc(n), normalisedvfd_bin(n),normalisedvfdMB_bin(n), & 
+!								        sqrt(2/pi)*((binloc(n)**2)*exp((-binloc(n)**2)/(2*const**2))/(const**3)), & 
+!								        (1.d0/(const*sqrt(2.d0*pi)))*exp( -((binloc(n)-meanstream/meannp)**2.d0)/(2.d0*const**2.d0) ) 
+!	        enddo
+!		enddo
+!        !print*, 'SUM of HIST', sumhist,normalisedvfd_bin
+!        deallocate(normalisedvfd_bin)
+!        deallocate(normalisedvfdMB_bin)
+!        deallocate(binloc)
+
+!		do j = 2,nbins(2)+1
+!    	do i = 2,nbins(1)+1
+!    	do k = 2,nbins(3)+1
+!		    velPDF_array(i,j,k)%hist = 0
+!        enddo
+!        enddo
+!        enddo
+!		velPDFMB%hist = 0
+!		meanstream = 0.d0
+!		meannp = 0.d0
+
+!        !OUTPUT A PDF FOR EVERY CELL
+!!		do i = 2,nbins(1)+1
+!!		do j = 2,nbins(2)+1
+!!		do k = 2,nbins(3)+1
+
+!!			!Normalise bins to use for output and H function - so all bins add up to one
+!!			allocate(normalisedvfd_bin,source=velPDF_array(i,j,k)%normalise())
+!!			allocate(normalisedvfdMB_bin,source=velPDFMB%normalise())
+!!			allocate(binloc,source=velPDF_array(i,j,k)%binvalues())
+!!			do n=1,size(normalisedvfd_bin,1) 
+!!				write(10000+iter/100,'(3i4,5(f10.5))') i,j,k, binloc(n), normalisedvfd_bin(n),normalisedvfdMB_bin(n), & 
+!!										sqrt(2/pi)*((binloc(n)**2)*exp((-binloc(n)**2)/(2*const**2))/(const**3)), & 
+!!										(1.d0/(const*sqrt(2.d0*pi)))*exp( -((binloc(n)-meanstream/meannp)**2.d0)/(2.d0*const**2.d0) ) 
+!!			enddo
+
+!!!			!Write values of bin to file to follow evolution of moments
+!!!			write(20000+i+(j-1)*nbins(1)+(k-1)*nbins(1)*nbins(2),'(8f17.10)') velPDF%moments(0),  velPDF%moments(1),  velPDF%moments(2),  velPDF%moments(3), & 
+!!!							      velPDFMB%moments(0),velPDFMB%moments(1),velPDFMB%moments(2),  velPDFMB%moments(3)
+
+!!!			!Write values of bin to file to follow evolution of H-function
+!!!			write(30000+i+(j-1)*nbins(1)+(k-1)*nbins(1)*nbins(2),'(a,i5, a, f20.10)') 'Boltzmann H function at iteration ', iter , ' is ', Hfunction
+
+!!			deallocate(normalisedvfd_bin)
+!!			deallocate(normalisedvfdMB_bin)
+!!			deallocate(binloc)
+!!		enddo
+!!		enddo
+!!		enddo
+
+!!		velPDF%hist = 0
+!!		velPDFMB%hist = 0
+!!		meanstream = 0.d0
+!!		meannp = 0.d0
+!	
+!		!stop "Stop after one write of evaluate_properties_vdistribution_perbin"
+!	endif
+
+!end subroutine evaluate_properties_vdistribution_perbin
 
 
 !==============================================================================

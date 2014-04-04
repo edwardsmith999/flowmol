@@ -119,7 +119,7 @@ module computational_constants_MD
 		rtrue_flag, &
 		prev_rtrue_flag, &
 		ssf_outflag, &
-		vdist_flag, & 
+		vPDF_flag, & 
 		cv_conserve,	&
 		mflux_outflag, &
 		vflux_outflag, &
@@ -196,6 +196,11 @@ module computational_constants_MD
 	double precision 	:: delta_rneighbr    !Radius used for neighbour list construction
 	double precision    :: rdf_rmax          !Maximum radius for radial distribution function
 	double precision	:: rescue_snapshot_freq	!Rescue snapshot output frequency in seconds
+
+    !Constants for probability density function
+	integer             :: NvPDF_ave   !Number of averages for each velocity PDF 
+	integer             :: NPDFbins    !Number of histogram bins for velocity PDF 
+	double precision	:: PDFvlims    !Velocity Probability density functions min/max value
 
 
 	double precision, dimension(3)			:: binspercell     !Number of avergaing bins per computational cell
