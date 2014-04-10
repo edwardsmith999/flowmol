@@ -1383,9 +1383,9 @@ end subroutine apply_CV_force
 ! with iteration over all bins to convergence
 
 subroutine apply_CV_force_multibin(iter)
-	use computational_constants_MD, only : irank, jblock, npy, globaldomain, CVforce_flag, VOID,  Nsteps
-	use calculated_properties_MD, only : pressure, nbins
-	use librarymod, only : get_new_fileunit
+	use computational_constants_MD, only : irank, npy, globaldomain, CVforce_flag, VOID,  Nsteps, iblock, jblock, kblock
+	use calculated_properties_MD, only : pressure, nbins, gnbins
+	use librarymod, only : get_new_fileunit, couette_analytical_fn
 	use module_external_forces, only : np, momentum_flux, irank,nbins, nbinso,domain,delta_t,Nvflux_ave
 	use CV_objects, only : 	CV2 => CVcheck_momentum2
 	implicit none
@@ -1409,7 +1409,7 @@ subroutine apply_CV_force_multibin(iter)
 	binsize = domain/nbins
 	volume = product(binsize)
 
-	starttime = 4000 !Nsteps/2.d0
+	starttime = 4 !Nsteps/2.d0
 	ibin = 3; jbin = 3; kbin = 3
 
 	!Exchange CV data ready to apply force
@@ -1420,7 +1420,8 @@ subroutine apply_CV_force_multibin(iter)
 
 	!Get average over current cell and apply constraint forces
 	!call get_continuum_values
-	call get_test_values(CVforce_flag,ibin,jbin,kbin)
+
+	call get_test_values(CVforce_flag, 1, 2, 1,gnbins(1),gnbins(2)-1,gnbins(3))
 
 	!Set velocity to required value and then apply constraint 
 	!force to adjust its evolution from then on...
@@ -1435,10 +1436,10 @@ subroutine apply_CV_force_multibin(iter)
 		do jbin = 2,nbins(2)-1
     	do ibin = 1,nbins(1)
     	do kbin = 1,nbins(3)
-			y_loc = (jbin-1)*binsize(2)
-			!u_bin = (/ 0.d0,0.d0, 0.d0 /)
-			u_bin = (/ (jbin-1)*2.d0/(nbins(2)-1)-1.0 ,0.d0, 0.d0 /)
-			!u_bin = (/ 0.25*sin(2.d0*3.14159*y_loc/globaldomain(2)),0.d0, 0.d0 /)
+!			y_loc = (jbin-1)*binsize(2)
+			u_bin = (/ 0.d0,0.d0, 0.d0 /)
+!			u_bin = (/ (jbin-1)*2.d0/(nbins(2)-1)-1.0 ,0.d0, 0.d0 /)
+!			!u_bin = (/ 0.25*sin(2.d0*3.14159*y_loc/globaldomain(2)),0.d0, 0.d0 /)
 			call set_bin_velocity(ibin, ibin, & 
 								  jbin, jbin, & 
 								  kbin, kbin, & 
@@ -1466,18 +1467,27 @@ subroutine apply_CV_force_multibin(iter)
 contains
 
 ! Apply arbitary forces for testing purposes
-subroutine get_test_values(flag,ib,jb,kb)
-	use physical_constants_MD, only : pi
+! min and max values are specified in the global bin numbering
+subroutine get_test_values(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
+    use physical_constants_MD, only : pi, tethereddisttop, tethereddistbottom, density
+    use computational_constants_MD, only : npx, npy, npz, Nvel_ave, tplot
+    use messenger, only : globalise_bin, localise_bin
 	implicit none
 
-	integer,intent(in)	:: flag,ib,jb,kb
+	integer,intent(in)	:: flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax
 
-	integer				:: length,fileunit
-	double precision	:: sin_mag, sin_period
+	integer         	:: bmin(3),bmax(3)
+	integer				:: ib,jb,kb,length,fileunit
+	double precision	:: sin_mag, sin_period, Re
+
+	double precision,dimension(:),allocatable	:: u_t,u_mdt,utemp
 
 	allocate(CFD_Pi_dS(   nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); CFD_Pi_dS=0.d0
 	allocate(CFD_rhouu_dS(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); CFD_rhouu_dS=0.d0
 	allocate(CFD_u_cnst(  nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); CFD_u_cnst=0.d0
+
+    bmin = max(localise_bin((/igmin,jgmin,kgmin/)),(/2,2,2 /))
+    bmax = min(localise_bin((/igmax,jgmax,kgmax/)),nbins(:)+1)
 
 	!Set velocity to required value and then apply constraint 
 	!force to adjust its evolution from then on...
@@ -1489,51 +1499,97 @@ subroutine get_test_values(flag,ib,jb,kb)
 		!Do nothing
 	endif
 
-	select case(flag)
-	case(0)
-		!No Force applied
-		apply_CVforce = .false.
-	case(1)
-		!Zero Force applied
-		CFD_Pi_dS(ib,jb,kb,:) = 0.d0
-		CFD_rhouu_dS(ib,jb,kb,:) = 0.d0	
-		!Velocity is a constant (assumed zero)
-		CFD_u_cnst(ib,jb,kb,:) = 0.d0
-	case(2)
-		!Constant function 
-		CFD_Pi_dS(ib,jb,kb,:) = 1.d0
-		CFD_rhouu_dS(ib,jb,kb,:) = 0.d0
-		!Velocity is a linear fn of time
-		CFD_u_cnst(ib,jb,kb,1) = iter
-	case(3)
-		CFD_Pi_dS(ib,jb,kb,:) = 0.d0
-		!Sin function shifted by pi/2 so velocity which is given
-		!by the integral (cos) alternates around zero
-		sin_mag = 0.1d0;  sin_period = 100.d0
-		CFD_Pi_dS(ib,jb,kb,1) = sin_mag * cos(2.d0*pi*((iter-starttime)/sin_period))! - 0.505*pi)
-		CFD_rhouu_dS = 0.d0
+    select case(flag)
+    case(0)
+	    !No Force applied
+	    apply_CVforce = .false.
+    case(1)
+	    !Zero Force applied
+	    CFD_Pi_dS(bmin(1):bmax(1),bmin(2):bmax(2),bmin(3):bmax(3),:) = 0.d0
+	    CFD_rhouu_dS(bmin(1):bmax(1),bmin(2):bmax(2),bmin(3):bmax(3),:) = 0.d0	
+	    !Velocity is a constant (assumed zero)
+	    CFD_u_cnst(bmin(1):bmax(1),bmin(2):bmax(2),bmin(3):bmax(3),:) = 0.d0
+    case(2)
+	    !Constant function 
+	    CFD_Pi_dS(bmin(1):bmax(1),bmin(2):bmax(2),bmin(3):bmax(3),:) = 1.d0
+	    CFD_rhouu_dS(bmin(1):bmax(1),bmin(2):bmax(2),bmin(3):bmax(3),:) = 0.d0
+	    !Velocity is a linear fn of time
+	    CFD_u_cnst(bmin(1):bmax(1),bmin(2):bmax(2),bmin(3):bmax(3),1) = iter
+    case(3)
+	    CFD_Pi_dS(bmin(1):bmax(1),bmin(2):bmax(2),bmin(3):bmax(3),:) = 0.d0
+	    !Sin function shifted by pi/2 so velocity which is given
+	    !by the integral (cos) alternates around zero
+	    sin_mag = 0.1d0;  sin_period = 100.d0
+	    CFD_Pi_dS(bmin(1):bmax(1),bmin(2):bmax(2),bmin(3):bmax(3),1) = sin_mag * cos(2.d0*pi*((iter-starttime)/sin_period))! - 0.505*pi)
+	    CFD_rhouu_dS = 0.d0
 
-		! - - - - -  Sinusoid of velocity with NCER special discretisation - - - - - - - - - 
-		CFD_u_cnst(ib,jb,kb,:) = 0.d0
-		CFD_u_cnst(ib,jb,kb,1) = 1.25d0*delta_t*(sin_mag*sin_period/(2.d0*pi))* sin(2.d0*pi*((iter-starttime)/sin_period))
+	    ! - - - - -  Sinusoid of velocity with NCER special discretisation - - - - - - - - - 
+	    CFD_u_cnst(bmin(1):bmax(1),bmin(2):bmax(2),bmin(3):bmax(3),:) = 0.d0
+	    CFD_u_cnst(bmin(1):bmax(1),bmin(2):bmax(2),bmin(3):bmax(3),1) = 1.25d0*delta_t*(sin_mag*sin_period/(2.d0*pi))* sin(2.d0*pi*((iter-starttime)/sin_period))
 
-	case(4)
-		! Get continuum values of surface stresses, etc
-		!Read Shear pressure from file...
-		CFD_Pi_dS(ib,jb,kb,:) = 0.d0
-		fileunit = get_new_fileunit()
-		inquire(iolength=length) CFD_Pi_dS(ib,jb,kb,1)
-		open(unit=fileunit,file='./F_hist',form='unformatted', access='direct',recl=length)
-		read(fileunit,rec=iter) CFD_Pi_dS(ib,jb,kb,1)
-		close(fileunit,status='keep')
-		CFD_rhouu_dS = 0.d0
-		! Read velocity too for NCER style proportional constraint
-		fileunit = get_new_fileunit()
-		inquire(iolength=length) CFD_u_cnst(ib,jb,kb,1)
-		open(unit=fileunit,file='./u_hist',form='unformatted', access='direct',recl=length)
-		read(fileunit,rec=iter) CFD_u_cnst(ib,jb,kb,1)
-		close(fileunit,status='keep')
-	end select
+    case(4)
+	    ! Get continuum values of surface stresses, etc
+	    !Read Shear pressure from file...
+	    CFD_Pi_dS(bmin(1):bmax(1),bmin(2):bmax(2),bmin(3):bmax(3),:) = 0.d0
+	    fileunit = get_new_fileunit()
+	    inquire(iolength=length) CFD_Pi_dS(bmin(1):bmax(1),bmin(2):bmax(2),bmin(3):bmax(3),1)
+	    open(unit=fileunit,file='./F_hist',form='unformatted', access='direct',recl=length)
+	    read(fileunit,rec=iter) CFD_Pi_dS(bmin(1):bmax(1),bmin(2):bmax(2),bmin(3):bmax(3),1)
+	    close(fileunit,status='keep')
+	    CFD_rhouu_dS = 0.d0
+	    ! Read velocity too for NCER style proportional constraint
+	    fileunit = get_new_fileunit()
+	    inquire(iolength=length) CFD_u_cnst(bmin(1):bmax(1),bmin(2):bmax(2),bmin(3):bmax(3),1)
+	    open(unit=fileunit,file='./u_hist',form='unformatted', access='direct',recl=length)
+	    read(fileunit,rec=iter) CFD_u_cnst(bmin(1):bmax(1),bmin(2):bmax(2),bmin(3):bmax(3),1)
+	    close(fileunit,status='keep')
+
+    case(5)
+       ! print'(16i6)', iter, iblock, jblock, kblock, igmin,jgmin,kgmin,igmax,jgmax,kgmax,bmin,bmax
+
+	    ! Couette Analytical solution
+        Re = 0.625d0
+        allocate(utemp(gnbins(2)),u_t(bmin(2):bmax(2)),u_mdt(bmin(2):bmax(2)))
+        CFD_rhouu_dS = 0.d0
+	    CFD_Pi_dS    = 0.d0
+        CFD_u_cnst   = 0.d0
+
+        ! Get velocity from analytical solution first
+
+
+        utemp(:) = couette_analytical_fn( iter   *delta_t,Re,1.d0,globaldomain(2)-tethereddistbottom(2)-tethereddisttop(2),gnbins(2),2)
+        u_t(:)   = utemp(jgmin:jgmax)*density
+        utemp(:) = couette_analytical_fn((iter-1)*delta_t,Re,1.d0,globaldomain(2)-tethereddistbottom(2)-tethereddisttop(2),gnbins(2),2)
+        u_mdt(:) = utemp(jgmin:jgmax)*density
+
+        !Differentiate w.r.t time
+        do ib = bmin(1),bmax(1)
+        do kb = bmin(3),bmax(3)
+    	    CFD_u_cnst(ib,bmin(2):bmax(2),kb,1) =  u_t(:)
+	        CFD_Pi_dS( ib,bmin(2):bmax(2),kb,1) = (u_t(:) - u_mdt(:))/delta_t
+        enddo
+        enddo
+
+
+!        do jb = 1,gnbins(2)
+!            if (jb .ge. bmin(2) .and. jb .le.bmax(2)) then
+!                print'(3i6,2f18.12)', bmin(2),jb,bmax(2), utemp(jb),u_t(jb)
+!            else
+!                print'(3i6,f18.12)', bmin(2),jb,bmax(2), utemp(jb)
+!            endif
+!        enddo
+
+        if (mod(iter,tplot*Nvel_ave) .eq. 0) then
+            do jb = bmin(2),bmax(2)
+                write(irank*10000+iter,'(5i6,4f18.12)'),iter, iblock, jblock, kblock, jb, u_t(jb), & 
+                                         minval(CFD_Pi_dS(bmin(1):bmax(1),jb,bmin(3):bmax(3),1)), & 
+                        CFD_Pi_dS(ceiling(0.5d0*(bmin(1)+bmax(1))),jb,ceiling(0.5d0*(bmin(3)+bmax(3))),1), & 
+                                         maxval(CFD_Pi_dS(:,jb,:,1))
+            enddo
+        endif
+        close(irank*10000+iter,status='keep')
+
+    end select
 	
 end subroutine get_test_values
 

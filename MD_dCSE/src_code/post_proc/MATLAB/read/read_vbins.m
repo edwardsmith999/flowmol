@@ -26,8 +26,8 @@ function[vel_bins]=read_vbins(filename,resultfile_dir,read_time)
     % read simulation properties from header file, calculate 
     % datasize to read and read required data
     read_header
+    Nvel_records = floor((Nsteps-initialstep) / (tplot * Nvel_ave));
     if (exist('read_time') == 0)
-        Nvel_records = floor((Nsteps-initialstep) / (tplot * Nvel_ave));
         velbins = fread(fid,'double');
         % Check that data is expected size 
         if (size(velbins,1)/(nd*prod(gnbins)) ~= Nvel_records)
@@ -40,9 +40,13 @@ function[vel_bins]=read_vbins(filename,resultfile_dir,read_time)
     else
         datasize = gnbins(1)*gnbins(2)*gnbins(3)*nd;
         bytes = 8;
-        fseek(fid, bytes*datasize*read_time, 'bof');
-        velbins = fread(fid,datasize,'double');
-        vel_bins = reshape(velbins,gnbins(1),gnbins(2),gnbins(3),nd);
+        status = fseek(fid, bytes*datasize*read_time, 'bof');
+        if (status ~= -1)
+            velbins = fread(fid,datasize,'double');
+            vel_bins = reshape(velbins,gnbins(1),gnbins(2),gnbins(3),nd);
+        else
+            error(['Requested record = ' num2str(read_time) ' is greater than maximum = ' num2str(Nvel_records)])
+        end
     end
     fclose(fid);
 
