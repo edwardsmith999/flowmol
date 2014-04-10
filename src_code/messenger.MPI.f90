@@ -93,6 +93,37 @@ contains
 
 	end function localise 
 
+
+	!=============================================================================
+	! Get bin's global position from local to processor.
+	!-----------------------------------------------------------------------------
+	function globalise_bin(rloc) result(rglob)
+        use calculated_properties_MD, only : nbins
+		implicit none
+		
+		integer, intent(in)  :: rloc(3)
+		integer              :: rglob(3)
+
+		rglob(1) = rloc(1)+nbins(1)*(iblock-1)-nhb(1)
+		rglob(2) = rloc(2)+nbins(2)*(jblock-1)-nhb(2)
+		rglob(3) = rloc(3)+nbins(3)*(kblock-1)-nhb(3)
+
+	end function globalise_bin
+
+	function localise_bin(rglob) result(rloc)
+        use calculated_properties_MD, only : nbins
+		implicit none
+		
+		integer, intent(in)  :: rglob(3)
+		integer              :: rloc(3)
+
+		rloc(1) = rglob(1)-nbins(1)*(iblock-1)+nhb(1)
+		rloc(2) = rglob(2)-nbins(2)*(jblock-1)+nhb(2)
+		rloc(3) = rglob(3)-nbins(3)*(kblock-1)+nhb(3)
+
+	end function localise_bin
+
+
 end module messenger
 
 !======================================================================

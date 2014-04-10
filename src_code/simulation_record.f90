@@ -2005,8 +2005,10 @@ subroutine mass_flux_averaging(ixyz)
 	use CV_objects, only : CVcheck_mass, CV_debug!,CV_sphere_mass
 	implicit none
 
-	integer			:: ixyz
-	integer, save	:: sample_count
+	integer			                :: ixyz
+    integer,dimension(3)            :: thermbinstop,thermbinsbot
+    double precision,dimension(3)   :: mbinsize
+	integer, save	                :: sample_count
 
 	!Only average if mass averaging turned on
 	if (ixyz .eq. 0) return
@@ -2015,9 +2017,13 @@ subroutine mass_flux_averaging(ixyz)
 	sample_count = sample_count + 1
 	if (sample_count .eq. Nmflux_ave) then
 		if (CV_debug) then
-		    call CVcheck_mass%check_error(1+nhb(1),nbins(1)+nhb(1), & 
-										  1+nhb(2),nbins(2)+nhb(2), & 
-										  1+nhb(3),nbins(3)+nhb(3),iter,irank)
+    		mbinsize(:) = domain(:) / nbins(:)
+            thermbinstop = ceiling(thermstattop/mbinsize)
+            thermbinsbot = ceiling(thermstatbottom/mbinsize)
+            
+		    call CVcheck_mass%check_error(1+nhb(1)+thermbinsbot(1),nbins(1)+nhb(1)-thermbinstop(1), & 
+										  1+nhb(2)+thermbinsbot(2),nbins(2)+nhb(2)-thermbinstop(2), & 
+										  1+nhb(3)+thermbinsbot(3),nbins(3)+nhb(3)-thermbinstop(3),iter,irank)
 			!call CV_sphere_mass%check_error(1,1,1,1,1,1,iter,irank)
 	    endif
 		call mass_flux_io
@@ -2459,6 +2465,8 @@ subroutine momentum_flux_averaging(ixyz)
 	implicit none
 
 	integer				:: ixyz,icell,jcell,kcell,n
+    integer,dimension(3):: thermbinstop,thermbinsbot
+	double precision,dimension(3)	:: mbinsize
 	integer, save		:: sample_count
 
 	if (vflux_outflag .eq. 0) return
@@ -2498,9 +2506,18 @@ subroutine momentum_flux_averaging(ixyz)
 		Pxyface = 0.d0
 		!Debug flag to check CV conservation in code
 		if (CV_debug) then
-		    call CVcheck_momentum%check_error(1+nhb(1),nbins(1)+nhb(1), & 
-											  1+nhb(2),nbins(2)+nhb(2), & 
-											  1+nhb(3),nbins(3)+nhb(3),iter,irank)
+
+            !Currently, CV check will not work for thermostatted molecules
+            !so exclude these from checked region
+    		mbinsize(:) = domain(:) / nbins(:)
+            thermbinstop = ceiling(thermstattop/mbinsize)
+            thermbinsbot = ceiling(thermstatbottom/mbinsize)
+            
+
+            !print'(4i5,6f7.4,18i5)',iter,iblock,jblock,kblock,thermstattop,mbinsize, thermbinstop, thermbinsbot, 1+nhb(1), nbins(1)+nhb(1),1+nhb(2),nbins(2)+nhb(2),1+nhb(3),nbins(3)+nhb(3),1+nhb+thermbinsbot,nbins+nhb-thermbinstop
+		    call CVcheck_momentum%check_error(1+nhb(1)+thermbinsbot(1),nbins(1)+nhb(1)-thermbinstop(1), & 
+											  1+nhb(2)+thermbinsbot(2),nbins(2)+nhb(2)-thermbinstop(2), & 
+											  1+nhb(3)+thermbinsbot(3),nbins(3)+nhb(3)-thermbinstop(3),iter,irank)
 	        !call CV_sphere_momentum%check_error(1,1,1,1,1,1,iter,irank)
 	   endif
 	endif
