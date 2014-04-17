@@ -676,7 +676,7 @@ subroutine setup_restart_inputs
 	use librarymod, only : locate
 	implicit none
 
-	integer							:: n
+	integer							:: n, ixyz
 	integer							:: prev_nproc
 	integer 						:: extrasteps
 	integer 						:: checkint
@@ -817,13 +817,31 @@ subroutine setup_restart_inputs
 			enddo
 		endif
 
-	
+
+        do ixyz = 1,nd	
+            call MPI_File_read(restartfileid,checkdp         ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+            if (checkdp .ne. globaldomain(ixyz)) then
+                print*, 'Discrepancy between globaldomain(', ixyz, ')', &
+                        'in input & restart file - restart file will be used'
+                globaldomain(ixyz) = checkdp
+            endif
+        end do
 	    call MPI_File_read(restartfileid,checkdp         ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 		if (checkdp .ne. density) then
 			print*, 'Discrepancy between system density', &
 					'in input & restart file - restart file will be used'
 			density = checkdp
 		endif
+
+        ! Check units match globaldomain
+		do ixyz=1,nd
+			if ( globaldomain(ixyz) .ne.  (initialnunits(ixyz)/((density/4.d0)**(1.d0/nd))) ) then
+                print('(a,i1,a,f15.5,a,f15.5)'),'Warning: globaldomain(',ixyz,') = ',globaldomain(ixyz),&
+                ' does not match initialunits and density calculation value: ', &
+                initialnunits(ixyz)/((density/4.d0)**(1.d0/nd))
+            end if
+		enddo
+
 	    call MPI_File_read(restartfileid,checkdp         ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 		if (checkdp .ne. rcutoff) then
 			print*, 'Discrepancy between cut off radius', &
@@ -886,6 +904,7 @@ subroutine setup_restart_inputs
 	call MPI_BCAST(procnp, size(procnp),MPI_integer,iroot-1,MD_COMM,ierr)
 	call MPI_BCAST(proctethernp, size(proctethernp),MPI_integer,iroot-1,MD_COMM,ierr)
 	call MPI_BCAST(nmonomers,         1,MPI_integer,iroot-1,MD_COMM,ierr)
+	call MPI_BCAST(globaldomain,      3,MPI_double_precision,iroot-1,MD_COMM,ierr)
 	call MPI_BCAST(density,           1,MPI_double_precision,iroot-1,MD_COMM,ierr)
 	call MPI_BCAST(inputtemperature,  1,MPI_double_precision,iroot-1,MD_COMM,ierr) 
 	call MPI_BCAST(elapsedtime,       1,MPI_double_precision,iroot-1,MD_COMM,ierr) 
@@ -1422,6 +1441,7 @@ subroutine parallel_io_final_state
 		call MPI_File_write(restartfileid,npz           ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 		call MPI_File_write(restartfileid,procnp,size(procnp),MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 		call MPI_File_write(restartfileid,proctethernp,size(proctethernp),MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+		call MPI_File_write(restartfileid,globaldomain  ,3,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 		call MPI_File_write(restartfileid,density       ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,rcutoff       ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,delta_t       ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)

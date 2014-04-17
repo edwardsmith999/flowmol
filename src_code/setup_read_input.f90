@@ -177,7 +177,9 @@ subroutine setup_read_input
 
 			!call locate(1,'RCUTOFF',.true.)
 			!read(1,*) rcutoff
-			potential_flag = 0
+			call locate(1,'POTENTIAL_FLAG',.true.)
+            read(1,*) potential_flag
+
 			call locate(1,'ROTATE_CYLINDERS',.true.)
 			read(1,*) omega_i
 			read(1,*) omega_f 

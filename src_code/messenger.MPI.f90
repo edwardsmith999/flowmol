@@ -519,7 +519,7 @@ subroutine messenger_updateborders(rebuild)
 	use physical_constants_MD, only: halo_np, np
 	implicit none
 
-	integer				 	:: rebuild
+	integer :: rebuild
 	
 	if (all(periodic.ge.2)) then
 		call error_abort( "CANNOT USE LEES EDWARDS IN PARALLEL")
@@ -543,7 +543,7 @@ subroutine messenger_updateborders(rebuild)
 
 	!Update Corners of domain
 	call updatecorners
-
+    
 	if (rebuild.eq.1) call assign_to_halocell(np+1,np+halo_np)
 
 end subroutine messenger_updateborders

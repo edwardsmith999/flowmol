@@ -578,6 +578,80 @@ contains
 
 	end function get_bondflag
 
+    ! Errors
+    subroutine missing_bond_error(molno, bondno)
+    use interfaces
+    use computational_constants_MD, only: irank
+    implicit none
+
+        integer, intent (in) :: molno, bondno
+        print('(a,i2,a,i10,a,i8.8,a)'), 'Bond', bondno, &
+            ' missing from the bond list of monomer with glob_no', &
+            monomer(molno)%glob_no, &
+            '. See monomer_info_', irank,' for monomer information. Aborting.'
+        call write_monomer_info(molno)
+        call error_abort()
+
+    end subroutine
+
+	subroutine write_monomer_info(molno)
+        use computational_constants_MD, only: halfdomain, npx, npy, npz, &
+        domain, iblock, jblock, kblock, irank, prefix_dir
+        use physical_constants_MD, only: np
+        use arrays_MD, only: tag, r
+!        use librarymod 
+		implicit none
+
+		integer, intent(in) :: molno
+
+        integer :: f
+		real(kind(0.d0)) :: rglob(3)
+        character(len=8) :: rankstr
+        logical	:: op
+
+        ! Get new unopened file unit
+        f = 1
+        do 
+            inquire(f,opened=op)
+            if (op .eqv. .false.) exit
+            f = f + 1
+        enddo
+
+        write(rankstr,'(i8.8)') irank 
+        open(unit=f,file=trim(prefix_dir)//"monomer_info_"//rankstr, &
+        status='replace')
+
+		rglob(1) = r(1,molno) - halfdomain(1)*(npx-1) + domain(1)*(iblock - 1)   
+		rglob(2) = r(2,molno) - halfdomain(2)*(npy-1) + domain(2)*(jblock - 1)   
+		rglob(3) = r(3,molno) - halfdomain(3)*(npz-1) + domain(3)*(kblock - 1)   
+
+        write(f,'(a)'), '-----------------------------------------------------'
+		write(f, '(a,i8,a)'), 'Monomer information for atom ', molno,':'
+        write(f,'(a)'), '-----------------------------------------------------'
+		write(f, '(a,i8)'), 'irank: ', irank
+		write(f, '(a,i8)'), 'molno:', molno
+		write(f, '(a,f10.5,a,f10.5,a,f10.5)'), 'Local position: ', &
+		                                   r(1,molno),' ',r(2,molno),' ',r(3,molno) 
+		write(f, '(a,f10.5,a,f10.5,a,f10.5)'), 'Global position: ', &
+		                                   rglob(1),' ',rglob(2),' ',rglob(3) 
+		write(f, '(a,i8)'), 'ChainID: '   , monomer(molno)%chainID
+		write(f, '(a,i8)'), 'SubchainID: ', monomer(molno)%subchainID
+		write(f, '(a,i8)'), 'Funcy: '     , monomer(molno)%funcy
+		write(f, '(a,i8)'), 'Glob_no: '   , monomer(molno)%glob_no
+		write(f, '(a,4i8)'), 'Bin_bflag: ' , monomer(molno)%bin_bflag
+		write(f, '(a,i8)'), 'Tag: '       , tag(molno) 
+
+		if (molno.gt.np) then
+		    write(f,'(a,i8,a)'), 'Atom ', molno, ' is a halo particle.'
+		end if
+
+        write(f, '(a)'), '____________________________________________________'
+        write(f, '(a)'), '____________________________________________________'
+        
+        close(f, status='keep')
+
+	end subroutine write_monomer_info
+
 end module polymer_info_MD
 
 !-------------------------------------------------------------------------------------

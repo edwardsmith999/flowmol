@@ -1046,6 +1046,9 @@ subroutine etevtcf_calculate_parallel
 			funcy = monomer(i)%funcy
 			do nbond=1,funcy
 				j      = bond(nbond,i)
+                if (j .eq. 0) then
+                    call missing_bond_error(i,nbond)
+                end if
 				j_sub  = monomer(j)%subchainID
 				if (j_sub.lt.i_sub) cycle  !Avoid counting backwards
 				rij(:) = r(:,j) - r(:,i)
