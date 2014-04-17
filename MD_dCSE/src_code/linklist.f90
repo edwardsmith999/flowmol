@@ -250,7 +250,7 @@ subroutine assign_to_neighbourlist_allint
 					rij(:) = ri(:) - rj(:)   	!Evaluate distance between particle i and j
 					rij2 = dot_product(rij,rij) !Square of rij
 					
-					if (potential_flag.eq.1) call check_update_adjacentbeadinfo(molnoi,molnoj)	
+					if (potential_flag.eq.1) call check_update_adjacentbeadinfo_allint(molnoi,molnoj)	
 
 					if (rij2 < rneighbr2) call linklist_checkpushneighbr(molnoi, molnoj)
 
@@ -696,7 +696,7 @@ subroutine assign_to_neighbourlist_halfint_opt
 				rij(:) = ri(:) - rj(:)  !Evaluate distance between particle i and j
 
 				rij2 = dot_product(rij,rij)	!Square of vector calculated
-
+                
 				if (potential_flag.eq.1) call check_update_adjacentbeadinfo(molnoi,molnoj)	
 				if (rij2 < rneighbr2) call linklist_checkpushneighbr(molnoi, molnoj)
 				!if (rij2 < rneighbr2) print*,'own_cell', molnoi, molnoj
@@ -1874,6 +1874,57 @@ subroutine linklist_printallcells
 
 end subroutine linklist_printallcells
 
+
+subroutine linklist_writeallcells
+	use module_linklist
+    use librarymod
+	implicit none
+
+	integer             :: j, f
+	integer             :: cellnp		
+	integer             :: icell, jcell, kcell
+	type(node), pointer :: old, current
+    character(len=8) :: rankstr
+
+    f = get_new_fileunit()
+    write(rankstr,'(i8.8)') irank 
+    open(unit=f,file=trim(prefix_dir)//"all_celllists_"//rankstr, &
+    status='replace')
+    
+	print('(a,3i5,a,3f10.4)'), 'linklist_writeallcells, ncells = ', ncells, ', halfdomain = ', halfdomain
+
+	do icell=1,ncells(1)+2
+	do jcell=1,ncells(2)+2
+	do kcell=1,ncells(3)+2
+
+		!Obtain molecular number and top item of link list from cell head
+		old => cell%head(icell,jcell, kcell)%point
+		cellnp = cell%cellnp(icell,jcell, kcell)
+
+		write(f, '(a,3i10)'), 'Cell', icell, jcell, kcell
+		if(cellnp == 0) write(f,'(a)'), 'linklist empty'
+
+		current => old ! make current point to head of list
+		do j=1,cellnp
+			!print*, 'more items in linked list?: ', associated(old%next)
+			write(f, '(i10, 3f15.4)'), current%molno, current%rp
+			if (associated(old%next) .eqv. .true. ) then !Exit if null
+				old => current%next ! Use pointer in datatype to obtain next item in list
+				current => old      ! make current point to old - move alone one
+			endif
+		enddo
+
+	enddo
+	enddo
+	enddo
+
+	nullify(current) !Nullify current as no longer required
+	nullify(old)     !Nullify old as no longer required
+
+    close(f,status='keep')
+
+end subroutine linklist_writeallcells
+
 !===================================================================================
 !Move through all cells linked list not including the halo cells and print out 
 !results reseting back to the top upon completion 
@@ -2498,8 +2549,8 @@ subroutine check_update_adjacentbeadinfo(molnoi,molnoj)
 			bondcount(molnoi) = bondcount(molnoi) + 1
 			bondcount(molnoj) = bondcount(molnoj) + 1
 
-			if (bondcount(molnoi).gt.monomer(molnoi)%funcy) call linklist_polymerbonderror(molnoi)
-			if (bondcount(molnoj).gt.monomer(molnoj)%funcy) call linklist_polymerbonderror(molnoj)
+			if (bondcount(molnoi).gt.monomer(molnoi)%funcy) call too_many_bonds_error(molnoi)
+			if (bondcount(molnoj).gt.monomer(molnoj)%funcy) call too_many_bonds_error(molnoj)
 
 			bond(bondcount(molnoi),molnoi) = molnoj
 			bond(bondcount(molnoj),molnoj) = molnoi
@@ -2510,13 +2561,56 @@ subroutine check_update_adjacentbeadinfo(molnoi,molnoj)
 
 contains 
 	
-	subroutine linklist_polymerbonderror(molno)
+	subroutine too_many_bonds_error(molno)
 	use interfaces
 	implicit none
 		
 		integer, intent(in) :: molno
 		call error_abort('Error: too many bonds for molno ', molno)
 	
-	end subroutine linklist_polymerbonderror
+	end subroutine too_many_bonds_error 
 
 end subroutine check_update_adjacentbeadinfo
+
+subroutine check_update_adjacentbeadinfo_allint(molnoi,molnoj)
+	use module_linklist
+	use polymer_info_MD
+	implicit none
+
+	integer              :: chaindiff
+	integer              :: jscID
+	integer, intent(in)  :: molnoi, molnoj
+	integer              :: bflag
+
+	chaindiff = monomer(molnoi)%chainID - monomer(molnoj)%chainID      !Check for same chainID
+
+    if (irank .eq. 1) then
+        if (molnoi .eq. 19118 .or. molnoj .eq. 19118) then
+            write(8001,*) molnoi, molnoj 
+        end if
+    end if
+
+	if (chaindiff.eq.0) then                                           !If same chain
+		jscID = monomer(molnoj)%subchainID                             !Get subchainID of molnoj
+		bflag = get_bondflag(molnoi,jscID)                             !Check if molnoi/j are connected
+		select case (bflag)
+		case(1)                                                        !If connected, add to bond list
+			bondcount(molnoi) = bondcount(molnoi) + 1
+			if (bondcount(molnoi).gt.monomer(molnoi)%funcy) call too_many_bonds_error(molnoi)
+			bond(bondcount(molnoi),molnoi) = molnoj
+		case default                                                   !If not connected, pass
+		end select
+	end if
+
+contains 
+	
+	subroutine too_many_bonds_error(molno)
+	use interfaces
+	implicit none
+		
+		integer, intent(in) :: molno
+		call error_abort('Error: too many bonds for molno ', molno)
+	
+	end subroutine too_many_bonds_error 
+
+end subroutine check_update_adjacentbeadinfo_allint

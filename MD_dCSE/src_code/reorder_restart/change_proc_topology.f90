@@ -94,6 +94,9 @@ program change_proc_topology
 	do n=1,prev_nproc			!Loop through all processors and discard information
 		read(2) checkint        !proctethernp
 	enddo
+    read(2) globaldomain(1)
+    read(2) globaldomain(2)
+    read(2) globaldomain(3)
 	read(2) density 
 	read(2) rcutoff
 	read(2) delta_t
@@ -107,8 +110,8 @@ program change_proc_topology
 	read(2) delta_rneighbr
 	close(2,status='keep')
 
-	globaldomain(:) = initialnunits(:) &       !Size domain based on required density
-						/((density/4)**(1.d0/nd)) 
+	!globaldomain(:) = initialnunits(:) &       !Size domain based on required density
+	!					/((density/4)**(1.d0/nd)) 
 	domain(1) = 	globaldomain(1)/npx
 	domain(2) = 	globaldomain(2)/npy
 	domain(3) = 	globaldomain(3)/npz
@@ -149,10 +152,12 @@ program change_proc_topology
             read(2) monomer_dpbuf
         end if
 
+
 		!Use integer division to determine which processor to assign molecule to
 		pa(1) = ceiling((rbuf(1)+globaldomain(1)/2.d0)/domain(1))
 		pa(2) = ceiling((rbuf(2)+globaldomain(2)/2.d0)/domain(2))
 		pa(3) = ceiling((rbuf(3)+globaldomain(3)/2.d0)/domain(3))
+
 
 		!Capture molecules that are slightly outside the domain and print a warning
 		if (any(pa.eq.0) .or. any(pa.gt.npxyz)) then
@@ -247,6 +252,9 @@ program change_proc_topology
 	write(2) procnp				!Number of molecules per processors
 	write(2) proctethernp				!Number of molecules per processors
 
+    write(2) globaldomain(1)
+    write(2) globaldomain(2)
+    write(2) globaldomain(3)
 	write(2) density          !Density of system
 	write(2) rcutoff          !Cut off distance for particle interaction
 	write(2) delta_t          !Size of time step

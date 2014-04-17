@@ -69,8 +69,9 @@ subroutine simulation_compute_forces
 		case(0)					!If simple LJ fluid
 			call simulation_compute_forces_LJ_neigbr
 		case default								
-			call error_abort("Potential flag/force_list incompatible - &
-                        &only LJ available with all interactions neighbour lists")
+			call error_abort("Potential flag/force_list incompatible - only LJ available with full interaction neighbour lists")
+			!call simulation_compute_forces_LJ_neigbr
+            !call simulation_compute_forces_FENE					!Add on FENE spring interactions
 		end select
 	case(3)
 		!Forces calculated using neighbour lists optimised using 

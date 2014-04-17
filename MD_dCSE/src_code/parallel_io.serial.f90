@@ -164,7 +164,7 @@ subroutine setup_restart_inputs
 	implicit none
 
 	logical					:: found_in_input
-	integer					:: n, k, ios
+	integer					:: n, k, ios, ixyz
 	integer 				:: extrasteps, prev_nproc
 	integer 				:: checkint
 	double precision 		:: checkdp
@@ -257,6 +257,14 @@ subroutine setup_restart_inputs
 	npy = 1 !This is a Serial Run
 	npz = 1 !This is a Serial Run
 
+    do ixyz = 1, nd
+        read(2) checkdp 					!density-Density of system
+        if (checkdp .ne. globaldomain(ixyz)) then
+            print*, 'Discrepancy between globaldomain(', ixyz, ')', &
+                    'in input & restart file - restart file will be used'
+            globaldomain(ixyz) = checkdp
+        endif
+    end do
 	read(2) checkdp 					!density-Density of system
 	if (checkdp .ne. density) then
 		print*, 'Discrepancy between system density', &
