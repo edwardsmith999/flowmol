@@ -121,6 +121,7 @@ class VMDFields:
         #Write maximum and minimum values for colourbar
         if (clims == None):
             clims = np.max(clims_array,axis=0)
+	    #clims[1] = np.min(clims_array,axis=1)
         with open(self.vol_dir + '/colour_range','w+') as f:
             f.write(str(clims[0]) + '\n' + str(clims[1]) + '\n')
 
