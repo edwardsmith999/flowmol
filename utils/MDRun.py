@@ -200,7 +200,7 @@ class MDRun:
             # Copy post_proc folder from base directory (if not there already)
             sh.copytree(self.basedir+'post_proc/',self.rundir+'post_proc/')
             # Make a snapshot of the source code and store in a tarball
-            cmd = 'tar -cPf ' + self.rundir+'src.tar ' + self.srcdir+'*.f90'
+            cmd = 'tar -cPf ' + self.rundir + 'src.tar ' + self.srcdir+'*.f90'
             sp.Popen(cmd,shell=True)
 
             print('Created '+self.rundir)
@@ -393,6 +393,9 @@ class MDRun:
 
         """
 
+        class SimIncompleteError(Exception):
+            pass
+
         # Check if run has finished correctly, otherwise try to print 
         # error messages and standard out to allow debugging
         #Setup standard out and standard error files
@@ -408,12 +411,14 @@ class MDRun:
                         timetaken = line.split(';')[1]
                         finished_correctly = True
             if finished_correctly==False:
-                raise IOError('Output file suggests run did not finish correctly')
+                raise SimIncompleteError 
             else:
                 print('Simulation in directory ' + self.rundir + ' appears ' + 
                       'to have finished correctly in ' + timetaken + ' seconds')
         #If time taken output is not found, display the last 10 lines of error and output info 
-        except IOError:
+        except SimIncompleteError:
+            print('Simulation in directory ' + self.rundir + ' appears ' + 
+                  'to have failed:')
             with open(stderrfile,'r') as fileObj:
                 print(' ==== Standard Error File for rundir ' + self.rundir + ' ==== ')
                 lastlines = fileObj.readlines()[-10:]
@@ -424,9 +429,15 @@ class MDRun:
                 lastlines = fileObj.readlines()[-10:]
                 for line in lastlines:
                     print(line)
+        except IOError:
+            print('Unable to open stdoutfile' + stdoutfile + ' and stderrfile' 
+                 + stderrfile + ' to check for simulation completion. ')
 
         # Run requested post processing scripts
-        for key,value in self.finishargs.iteritems():
+        for entry in self.finishargs:
+
+            key = entry[0]
+            value = entry[1]
 
             if key == 'final_state':
                 
@@ -477,6 +488,18 @@ class MDRun:
                 if os.path.exists(dst):
                     sh.rmtree(dst)
                 sh.copytree(src,dst)
+
+            if key == 'reorder_restart':
+           
+                statefile = value[0] 
+                inputfile = value[1]
+                sh.copy(self.basedir+'reorder_restart',
+                        self.rundir +'reorder_restart')
+                cmd = './reorder_restart -r ' + statefile + ' -i ' + inputfile
+                run = sp.Popen(shlex.split(cmd),cwd=self.rundir)
+                run.wait() 
+                sh.move(self.rundir+'final_state2',
+                        self.rundir+statefile)
 
         if self.deleteoutput:
              remove_directory(confirm=False)
