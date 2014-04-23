@@ -149,11 +149,11 @@ class MD_pVAField(MDField):
         if (peculiar==True):
 
             if (self.fname=='pVA_c'):
-                #message = ('\n *** \n Removing the peculiar velocity from '
-                #+' the configurational part \n of the stress tensor is '
-                #+' entirely nonsensical! I will ignore this instruction.\n'
-                #+' ***\n')
-                #print(message)
+                message = ('\n *** \n Removing the peculiar velocity from '
+                +' the configurational part \n of the stress tensor is '
+                +' entirely nonsensical! I will ignore this instruction.\n'
+                +' ***\n')
+                print(message)
                 pass
 
             else:   
@@ -165,9 +165,10 @@ class MD_pVAField(MDField):
                 ddata = dField.read(startrec,endrec)
 
                 # Find outer product of v*v and reshape to 1x9 rather than 3x3
-                vvdata = np.einsum('...j,...k->...jk',vdata,vdata)
-                vvshapelist = list(vvfield.shape)
-                newshape = tuple(vvshapelist[0:-2]+[9])
+                nrecs = endrec-startrec+1
+                vvdata = np.einsum('abcjd,abckd->abcjkd',vdata,vdata)
+                vvshapelist = list(vvdata.shape)
+                newshape = tuple(vvshapelist[0:3]+[9,nrecs])
                 vvdata = np.reshape(vvdata,newshape)
     
                 # Remove square of streaming velocity

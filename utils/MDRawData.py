@@ -111,7 +111,7 @@ class MD_RawData:
     
         if (self.cpol_bins == True):    
 
-            r_oi = float(self.Raw.header.r_oi)
+            r_oi = float(self.header.r_oi)
             r, theta, z = np.meshgrid((binspaces[0]+r_oi),
                                        binspaces[1],
                                        binspaces[2],

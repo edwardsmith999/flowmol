@@ -39,7 +39,7 @@ class Field():
         self.maxrec = self.Raw.maxrec
         self.header = self.Raw.header
 
-    def read(self,startrec,endrec):
+    def read(self,startrec,endrec,**kwargs):
 
         """
             TO BE OVERRIDDEN IN COMPLICATED FIELDS.
@@ -57,14 +57,15 @@ class Field():
         grid_data = self.Raw.read(startrec,endrec)
         return grid_data
     
-    def averaged_data(self,startrec,endrec,avgaxes=(),avgtime=True):
+    def averaged_data(self,startrec,endrec,avgaxes=(),avgtime=True,**kwargs):
 
         """
             TO BE OVERRIDDEN IN COMPLICATED FIELDS.
             Average the data in the user-specified way.
-        """ 
+        """
+        
         # Read 4D time series from startrec to endrec
-        grid_data = self.read(startrec,endrec)
+        grid_data = self.read(startrec,endrec,**kwargs)
 
         # Time axis is the final (fourth) axis...
         if (avgtime):
