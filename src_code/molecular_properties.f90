@@ -479,11 +479,12 @@ module particle_insertion
 contains
 
     !Inserts molecule with specified positions, velocity and optionally tag
-    ! Code Author: Edward Smith 2013
+    ! Code Author: Edward Smith & DT 2014
     subroutine insert_molecule(rin,vin,tagin)
         use arrays_MD, only : r, v, tag
         use physical_constants_MD, only : np, halo_np, globalnp
-        use computational_constants_MD, only :halfdomain, cellsidelength, nh,ensemble,tag_move
+        use computational_constants_MD, only :halfdomain,cellsidelength, nh,&
+                                              ensemble,tag_move, ncells
         implicit none
 
         integer, intent(in),optional            :: tagin
@@ -510,9 +511,16 @@ contains
         !call linklist_print(icell_halo, jcell_halo, kcell_halo)
 
         !Linklist update -- pop from current, push to new
-        call linklist_pop(icell_halo, jcell_halo, kcell_halo, np+1)
+        call linklist_findandpop(np+1)
         !print*, 'halo after pop and before push:'
         !call linklist_print(icell_halo, jcell_halo, kcell_halo)
+        ! If halo cell molecule is out of the domain 
+        if (icell_halo .gt. ncells(1)+1) icell_halo = ncells(1) + 1 
+        if (jcell_halo .gt. ncells(2)+1) jcell_halo = ncells(2) + 1 
+        if (kcell_halo .gt. ncells(3)+1) kcell_halo = ncells(3) + 1 
+        if (icell_halo .le. 0) icell_halo = 1
+        if (jcell_halo .le. 0) jcell_halo = 1
+        if (kcell_halo .le. 0) kcell_halo = 1
         call linklist_checkpush(icell_halo, jcell_halo, kcell_halo, np+1+halo_np)
         !print*, 'halo after push:'
         !call linklist_print(icell_halo, jcell_halo, kcell_halo)
@@ -552,12 +560,12 @@ contains
 
 
     !Remove molecules from the array and reorder to fill the gap
-    ! Code Author: Edward Smith 2013
+    ! Code Author: Edward Smith & DT 2014
     subroutine remove_molecule(molno)
         use arrays_MD, only : r, v, tag, rtrue, rtether
         use physical_constants_MD, only : np, globalnp, halo_np
         use computational_constants_MD, only : ensemble,tag_move,tether_tags,rtrue_flag, &
-                                               halfdomain, cellsidelength, nh
+                                               halfdomain, cellsidelength, nh, ncells
         implicit none
 
         integer, intent(in) :: molno
@@ -574,13 +582,6 @@ contains
         kcell = ceiling((r(3,molno)+halfdomain(3)) &
         /cellsidelength(3))+nh !Add nh due to halo(s)
 
-        !Get top molecule's cell
-        icell_top = ceiling((r(1,np)+halfdomain(1)) &
-        /cellsidelength(1))+nh !Add nh due to halo(s)
-        jcell_top = ceiling((r(2,np)+halfdomain(2)) &
-        /cellsidelength(2))+nh !Add nh due to halo(s)
-        kcell_top = ceiling((r(3,np)+halfdomain(3)) &
-        /cellsidelength(3))+nh !Add nh due to halo(s)
 
         !print*, 'molno cell linklist before pop:'
         !call linklist_print(icell,jcell,kcell)
@@ -588,8 +589,8 @@ contains
         !call linklist_print(icell_top,jcell_top,kcell_top)
 
         !Pop removed molecule and top molecule from cell lists
-        call linklist_pop(icell, jcell, kcell, molno)
-        call linklist_pop(icell_top, jcell_top, kcell_top, np) 
+        call linklist_findandpop(molno)
+        call linklist_findandpop(np) 
 
         !print*, 'molno cell linklist after pop:'
         !call linklist_print(icell,jcell,kcell)
@@ -612,6 +613,13 @@ contains
         endif
 
         !Add top molecule to current cell list
+        !Get top molecule's cell
+        icell_top = ceiling((r(1,np)+halfdomain(1)) &
+        /cellsidelength(1))+nh !Add nh due to halo(s)
+        jcell_top = ceiling((r(2,np)+halfdomain(2)) &
+        /cellsidelength(2))+nh !Add nh due to halo(s)
+        kcell_top = ceiling((r(3,np)+halfdomain(3)) &
+        /cellsidelength(3))+nh !Add nh due to halo(s)
         call linklist_checkpush(icell_top, jcell_top, kcell_top, molno) 
 
         !print*, 'molno cell linklist after push again:'
@@ -644,12 +652,18 @@ contains
         !print*, 'np+halo_np cell linklist before pop:'
         !call linklist_print(icell_halo,jcell_halo,kcell_halo)
 
-        call linklist_pop(icell_halo, jcell_halo, kcell_halo, np+halo_np)
+        call linklist_findandpop(np+halo_np)
 
         !print*, 'np+halo_np cell linklist after pop and before push:'
         !call linklist_print(icell_halo,jcell_halo,kcell_halo)
 
-
+        ! If halo cell molecule is out of the domain 
+        if (icell_halo .gt. ncells(1)+1) icell_halo = ncells(1) + 1 
+        if (jcell_halo .gt. ncells(2)+1) jcell_halo = ncells(2) + 1 
+        if (kcell_halo .gt. ncells(3)+1) kcell_halo = ncells(3) + 1 
+        if (icell_halo .le. 0) icell_halo = 1
+        if (jcell_halo .le. 0) jcell_halo = 1
+        if (kcell_halo .le. 0) kcell_halo = 1
         call linklist_checkpush(icell_halo, jcell_halo, kcell_halo, np) 
 
         !print*, 'np+halo_np cell linklist after push:'
@@ -898,10 +912,96 @@ contains
 
 end module particle_insertion
 
-subroutine usher_boundary
-
+subroutine reinsert_molecules_usher 
+    use particle_insertion
+    use computational_constants_MD, only: halfdomain, open_boundary
+    use physical_constants_MD, only: np, tethereddistbottom, insertnp
+    use arrays_MD, only: r, v
     implicit none
 
+    integer :: n, i, maxattempts=1000
+    real(kind(0.d0)) :: x,y,z,dx,dy,dz,vx,vy,vz
+    real(kind(0.d0)) :: Utarget, Ufinish, fdummy(3)
+    real(kind(0.d0)) :: startpos(3), insertpos(3), insertvel(3)
+    logical :: pos_found
+
+    ! If no open boundaries then return
+    if (all(open_boundary.eq.0)) then
+        return
+    end if
+
+    do n = 1, insertnp
+
+        do i = 1, maxattempts
+
+            startpos = get_randompos() 
+            Utarget = get_Utarget() 
+            insertvel = sample_MB_vel3()
+            !if (startpos(2) .lt. (-halfdomain(2) + tethereddistbottom(2) + 1.0)) then
+            !    startpos(2) = startpos(2) + tethereddistbottom(2) + 2.0
+            !end if
+            call usher_get_insertion_pos(startpos,Utarget,insertpos,pos_found,Ufinish)
+
+            if (pos_found) then
+                call insert_molecule(insertpos,insertvel)    
+                print('(a,2f9.3,a,3f9.3,a,i4,a,i6)'), ' USHER SUCCEEDED: Utarget, Ufinish: ', &
+                                                    Utarget, Ufinish, ', r:',  &
+                                                    insertpos, ', after ', i,  &
+                                                    ' attempts , new np', np
+                exit
+            end if
+
+        end do
+
+        if (.not. pos_found) then 
+            print*, ' usher failed  Utarget =', Utarget
+            !Add to origin if failed 
+            !call insert_molecule((/0.d0,0.d0,0.d0/),(/0.d0,0.d0,0.d0/))
+        end if
+
+    end do
+
+contains 
+
+    function sample_MB_vel3() result(vsample)
+        use librarymod, only : Maxwell_Boltzmann_vel3
+        use calculated_properties_MD, only : temperature
+        use physical_constants_MD, only: inputtemperature
+        implicit none
+
+        real(kind(0.d0)) :: vsample(3)
+        real(kind(0.d0)) :: zeromean(3)
+
+        zeromean(:) = 0.d0
+
+        vsample = Maxwell_Boltzmann_vel3(temperature,zeromean)
+
+    end function sample_MB_vel3 
+
+    function get_Utarget() result(U)
+        use calculated_properties_MD, only: potenergy
+        use physical_constants_MD, only: potential_sLRC
+        implicit none
+    
+        real(kind(0.d0)) :: U 
+        U = potenergy + potential_sLRC  
+    
+    end function get_Utarget
+
+    function get_randompos() result(pos)
+        use computational_constants_MD, only: domain
+        implicit none
+    
+        integer :: ixyz
+        real(kind(0.d0)) :: pos(3), rand
+        
+        do ixyz = 1,3
+            call random_number(rand)
+            rand = (rand-0.5)*domain(ixyz)
+            pos(ixyz) = rand
+        end do
+    
+    end function get_randompos
 
 end subroutine
 
@@ -917,7 +1017,7 @@ subroutine usher_teleport(nparticles)
 
     integer, intent(in) :: nparticles
 
-    integer :: n,i,maxattempts=10000,icell,jcell,kcell
+    integer :: n,i,maxattempts=1000,icell,jcell,kcell
     integer :: molno
     logical :: pos_found 
     real(kind(0.d0)) :: Utarget, Ufinish, rand1, fdummy(3)

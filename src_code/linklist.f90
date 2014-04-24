@@ -50,23 +50,41 @@ contains
 	!Finds a specified molecule and sets the cellpointer to that molecule
 	!If molecule is not found, flag is set to zero
 
-	subroutine linklist_gotomolecule(icell, jcell, kcell, n, mol)
+	subroutine linklist_gotomolecule(icell, jcell, kcell, n, mol, success)
 		implicit none
 
-		integer             			:: j
 		integer, intent(in) 			:: n
 		type(node),pointer,intent(out)  :: mol
+        logical, intent(out)            :: success
 
+		integer             			:: j
 		integer             			:: cellnp		
 		integer             			:: icell, jcell, kcell
 		type(node), pointer 			:: old, current
 
+        !Initialise success to be false
+        success = .false.
+
+        !If cells are out of range, return null and fail
+        if (icell .gt. ncells(1)+1 .or. &
+            icell .le. 0           .or. &
+            jcell .gt. ncells(2)+1 .or. &
+            jcell .le. 0           .or. &
+            kcell .gt. ncells(3)+1 .or. &
+            kcell .le. 0                 ) then
+            
+            nullify(mol)
+            return
+
+        end if 
+
+		!If celllist is empty, return null and fail
 		cellnp = cell%cellnp(icell,jcell, kcell)
-		!If celllist is empty, return null
 		if (cellnp .eq. 0) then
 			nullify(mol)	 !Nullify to indicate molecule not in list
 			return
 		endif
+
 		old => cell%head(icell,jcell, kcell)%point
 
 		!print'(a,i8,a,3i6)', 'linklist go to molecule', n, '  called in cell ', icell,jcell,kcell
@@ -78,6 +96,7 @@ contains
 				!print*, 'molecule', n, '  found'
 				mol => old
 				!cell%head(icell,jcell, kcell)%point => old
+                success = .true.
 				return
 			endif
 			current => old
@@ -1517,6 +1536,77 @@ end subroutine linklist_circbuild
 !===================================================================================
 !Remove ('pop') a molecule from the stack an return its number, position and velocity
 
+! Find which cell list molecule "molno" is associated with (it might not necessarily
+! be calculatable with integer division if it has strayed between rebuilds)
+subroutine linklist_findandpop(molno)
+    use module_linklist
+    implicit none
+
+    integer, intent(in) :: molno
+
+    integer :: icell, jcell, kcell
+    integer :: icell_guess, jcell_guess, kcell_guess
+    integer :: ishift, jshift, kshift
+	type(node), pointer :: pop
+    logical :: found
+
+    ! Guess cell by integer division first
+    icell_guess = ceiling((r(1,molno)+halfdomain(1)) &
+    /cellsidelength(1))+nh !Add nh due to halo(s)
+    jcell_guess = ceiling((r(2,molno)+halfdomain(2)) &
+    /cellsidelength(2))+nh !Add nh due to halo(s)
+    kcell_guess = ceiling((r(3,molno)+halfdomain(3)) &
+    /cellsidelength(3))+nh !Add nh due to halo(s)
+
+    icell = icell_guess
+    jcell = jcell_guess
+    kcell = kcell_guess
+
+    call linklist_gotomolecule(icell, jcell, kcell, molno, pop, found) !TODO Make this optional
+
+    ! If molecule in guessed cell (should be most of the time)
+    if (found) then
+
+        call linklist_pop(icell, jcell, kcell, molno)
+        return
+
+    ! If molecule has strayed out of the cell region it is associated with
+    ! (we don't know this yet) then search neighbouring cells to the guess.
+    else
+
+        do ishift = -1,1
+        do jshift = -1,1
+        do kshift = -1,1
+
+            icell = icell_guess + ishift
+            jcell = jcell_guess + jshift
+            kcell = kcell_guess + kshift
+
+            ! If neighbour cell is out of range ignore
+            if (icell .gt. ncells(1)+1) cycle
+            if (jcell .gt. ncells(2)+1) cycle
+            if (kcell .gt. ncells(3)+1) cycle
+            if (icell .le. 0) cycle
+            if (jcell .le. 0) cycle
+            if (kcell .le. 0) cycle
+
+            call linklist_gotomolecule(icell, jcell, kcell, molno, pop, found)
+
+            if (found) then
+
+                call linklist_pop(icell, jcell, kcell, molno)
+                return 
+
+            end if
+
+        end do
+        end do
+        end do
+
+    end if
+
+end subroutine linklist_findandpop
+
 subroutine linklist_pop(icell, jcell, kcell, molnopop)
 	use module_linklist
 	implicit none
@@ -1527,62 +1617,73 @@ subroutine linklist_pop(icell, jcell, kcell, molnopop)
 	integer            	           :: cellnp
 	type(node), pointer 	       :: old, current
 	type(node), pointer 	       :: pop
+    logical :: foundmol 
 
-	call linklist_gotomolecule(icell, jcell, kcell, molnopop, pop)
-	if (associated(pop) .eqv. .true.) then    !Exit if null
-	if (molnopop .eq. pop%molno) then !Exit if not correct molno
+	call linklist_gotomolecule(icell, jcell, kcell, molnopop, pop, foundmol)
+	if (foundmol .eqv. .true.) then    !Exit if null
 
-		!print*, 'pop', pop%molno, 'from cell', icell, jcell, kcell
+        if (molnopop .eq. pop%molno) then !Exit if not correct molno
 
-		cellnp = cell%cellnp(icell,jcell, kcell)
-		
-		!Check if popped molecule is the one head pointer is pointing to
-		if (associated(cell%head(icell,jcell, kcell)%point,pop)) then
+            !print*, 'pop', pop%molno, 'from cell', icell, jcell, kcell
 
-			!Check there are other molecules in cell
-			if (associated(pop%next)) then
-				!Set head pointer to next in list and remove top
-				cell%head(icell,jcell, kcell)%point => pop%next 
-				old     => pop%next         !Set old to next item in list 
-				nullify(old%previous)
-			else
-				!If none then cell pointer is nullified and the list is empty
-				nullify(cell%head(icell,jcell,kcell)%point)
-			endif
-			deallocate(pop)				!Destroy pop
+            cellnp = cell%cellnp(icell,jcell, kcell)
+            
+            !Check if popped molecule is the one head pointer is pointing to
+            if (associated(cell%head(icell,jcell, kcell)%point,pop)) then
 
-		else
+                !Check there are other molecules in cell
+                if (associated(pop%next)) then
+                    !Set head pointer to next in list and remove top
+                    cell%head(icell,jcell, kcell)%point => pop%next 
+                    old     => pop%next         !Set old to next item in list 
+                    nullify(old%previous)
+                else
+                    !If none then cell pointer is nullified and the list is empty
+                    nullify(cell%head(icell,jcell,kcell)%point)
+                endif
+                deallocate(pop)				!Destroy pop
 
-			!Check if popped molecule is last in list
-			if (associated(pop%next)) then
-				!If just an element in list, remove it
-				old     => pop%next         !Set old to next item in list
-				current => pop%previous     !Set current to previous item in list
-				deallocate(pop)				!Destroy pop
+            else
 
-				old%previous => current     !Previous pointer connects to old (pop missed out)
-				current%next => old     	!Next pointer connects to current (pop missed out)
+                !Check if popped molecule is last in list
+                if (associated(pop%next)) then
+                    !If just an element in list, remove it
+                    old     => pop%next         !Set old to next item in list
+                    current => pop%previous     !Set current to previous item in list
+                    deallocate(pop)				!Destroy pop
 
-			else
-				!If last in list
-				current => pop%previous     !Set current to previous item in list
-				deallocate(pop)				!Destroy pop
+                    old%previous => current     !Previous pointer connects to old (pop missed out)
+                    current%next => old     	!Next pointer connects to current (pop missed out)
 
-				nullify(current%next)		!Next pointer connects to null (now last in list)
-			endif
+                else
+                    !If last in list
+                    current => pop%previous     !Set current to previous item in list
+                    deallocate(pop)				!Destroy pop
 
-		endif
-	
-		cellnp = cellnp - 1	          !Reduce number of molecules by one
-		cell%cellnp(icell,jcell, kcell) = cellnp !Update cell molecular number
-		!print*, 'new cell np', cellnp
+                    nullify(current%next)		!Next pointer connects to null (now last in list)
+                endif
+
+            endif
+        
+            cellnp = cellnp - 1	          !Reduce number of molecules by one
+            cell%cellnp(icell,jcell, kcell) = cellnp !Update cell molecular number
+            !print*, 'new cell np', cellnp
+
+            nullify(current) !Nullify current as no longer required
+            nullify(old)     !Nullify old as no longer required
+
+        endif
+
+        nullify(pop)  	 !Nullify pop as no longer required
+        return
+
+    else
+       
+        print*, 'linklist_pop failed to pop molecule ', molnopop, 'from cell',&
+                                                        icell, jcell, kcell 
+        stop 
 
 	endif
-	endif
-
-	nullify(current) !Nullify current as no longer required
-	nullify(old)     !Nullify old as no longer required
-	nullify(pop)  	 !Nullify pop as no longer required
 
 end subroutine linklist_pop
 
@@ -1629,7 +1730,6 @@ subroutine linklist_push(icell, jcell, kcell, molnopush)
 	nullify(push)                       !Nullify old as no longer required
 
 end subroutine linklist_push
-
 
 !===================================================================================
 !Adds molecule specified by passed variables to linked list with check to see if

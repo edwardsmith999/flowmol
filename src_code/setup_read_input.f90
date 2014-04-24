@@ -328,6 +328,17 @@ subroutine setup_read_input
 
 		end if
 
+        open_boundary(:) = 0
+        call locate(1,'OPEN_BOUNDARY',.false.,found_in_input)
+        if (found_in_input) then
+            read(1,*) open_boundary(1) 
+            read(1,*) open_boundary(2) 
+            read(1,*) open_boundary(3) 
+            read(1,*) open_boundary(4) 
+            read(1,*) open_boundary(5) 
+            read(1,*) open_boundary(6) 
+        end if
+
 	end if
 
 	!Apply force to region in space
