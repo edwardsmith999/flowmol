@@ -12,6 +12,7 @@ module physical_constants_MD
 	integer		   					:: globalnp             !Global number of particles
 	integer                         :: tethernp             !Number of tethered particles
 	integer		   					:: halo_np              !Number of molecules in halo
+    integer                         :: insertnp             !Number of molecules to insert
 	integer,dimension(:),allocatable:: procnp 				!Array of all processors np
 	integer,dimension(:),allocatable:: proctethernp 		!Array of all processors np
 	double precision   				:: volume, density      !Define constant volume and density
@@ -140,6 +141,9 @@ module computational_constants_MD
 	integer,          dimension(6) :: bforce_flag
 	real(kind(0.d0)), dimension(6) :: bforce_dxyz
 	real(kind(0.d0)), dimension(3) :: specular_wall
+
+    ! Boundary
+    integer, dimension(6) :: open_boundary 
 
 	! Specular wall easy-read parameters
 	integer :: specular_flag

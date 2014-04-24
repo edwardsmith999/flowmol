@@ -112,7 +112,6 @@ contains
 		call simulation_compute_forces         !Calculate forces on particles	
 		call simulation_record                 !Evaluate & write properties
 
-
 #if USE_COUPLER
 		call apply_boundary_force              ! Apply boundary force to prevent molecules leaving domain 
 		call socket_apply_continuum_forces     ! CFD=> MD Apply CFD based coupling forces on MD
@@ -129,16 +128,12 @@ contains
 		call simulation_checkrebuild(rebuild)
 		if (rebuild .eq. 1) then
 
-            !if (mod(iter,1) .eq. 0) then
-            !    call usher_teleport(10)
-            !endif
-            !call usher_boundary
-
 			call linklist_deallocateall             		!Deallocate all linklist components
 			call sendmols                           		!Exchange particles between processors
 			call sort_mols									!Reorder molecules to improve cache efficency
 			call assign_to_cell                     		!Re-build linklist for domain cells
 			call messenger_updateborders(1)         		!Update borders between processors
+            call reinsert_molecules_usher 
 			call assign_to_neighbourlist		    		!Setup neighbourlist
 
 		endif

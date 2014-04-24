@@ -1258,6 +1258,7 @@ subroutine sendmols()
 	integer		:: i,ixyz,dir,maxnew_np,sendnp,new_np
 
 	pass%sendnp = 0
+    insertnp = 0
 
 	!Three loops to cover possibility of more than one transfer
 	do i = 1,nd
@@ -1339,7 +1340,7 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 	integer, intent(in)    :: sendnp
 	integer, intent(in)    :: dir
 	
-	integer :: i, n
+	integer :: i, n, ix
 	integer :: molno,sendsize,recvnp,recvsize
 	integer :: pos,length,datasize,buffsize
 	integer :: isource,idest
@@ -1422,18 +1423,34 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 		length = recvsize*datasize
 		allocate(recvbuffer(recvsize))
 		recvbuffer = sendbuffer
-	elseif (idest .eq. MPI_PROC_NULL .and. sendnp .ne. 0) then
-		!Loop through escaping molecules and print
-		old => pass%head 
-		current => old     !make current point to head of list
-		do i=1,sendnp
-			call print_mol_escape_error(old%molno)
-			old => current%next	!make old point to next node of current
-			current => old		!Set current item to old ready for next loop
-		enddo
-		write(string,'(a,i6,a,i6,a)') "sendrecvface Error: Processor rank ", irank, &
-		" is attempting to send ", sendnp, " molecules to MPI_PROC_NULL."
-		call error_abort(string)
+	else if (idest .eq. MPI_PROC_NULL .and. sendnp .ne. 0) then
+
+        ix = (ixyz - 1)*2 + 1
+        if (dir .eq. 1) ix = ix + 1
+        !print*, 'ix, open_boundary(ix):', ix, open_boundary(ix)
+        if (open_boundary(ix).ne.0) then
+
+            !call collect_escaped_moldata(sendnp,sendsize,sendbuffer,pos,length)
+            insertnp = insertnp + sendnp
+            print'(a,i1,a,i8,a)', ' open_boundary(',ix,') collected ',sendnp,' escaped molecules.'
+		    call NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest)
+
+        else
+
+            !Loop through escaping molecules and print
+            old => pass%head 
+            current => old     !make current point to head of list
+            do i=1,sendnp
+                call print_mol_escape_error(old%molno)
+                old => current%next	!make old point to next node of current
+                current => old		!Set current item to old ready for next loop
+            enddo
+            write(string,'(a,i6,a,i6,a)') "sendrecvface Error: Processor rank ", irank, &
+            " is attempting to send ", sendnp, " molecules to MPI_PROC_NULL."
+            call error_abort(string)
+
+        end if
+
 	else
 		!Send, probe for size and then receive data
 		call NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest)

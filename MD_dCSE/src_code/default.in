@@ -328,6 +328,7 @@ THERMSTATTOP
 #    1 = O'Connell & Thompson     1995  (Phys. Rev. E 52, 5792)
 #    2 = Nie, Chen, E & Robbins   2003  (JFM 500 pp. 55-64)
 #    3 = Flekkøy, Wagner & Feder  2000  (Europhys. Lett. 52 3, p271)
+#    4 = RDF? 
 #
 # bforce_dxyz defines the distance from each edge of the domain beyond 
 # which any particle will no longer feel the effect of the boundary 
@@ -347,6 +348,36 @@ BFORCE
 0.0
 0.0
 0.0
+
+
+#########################################################################
+# Open boundary flags, formatted:
+#   open_boundary(1) (x direction, bottom)           (integer)
+#   open_boundary(2) (x direction, top)              (integer)
+#   open_boundary(3) (y direction, bottom)           (integer)
+#   open_boundary(4) (y direction, top)              (integer)
+#   open_boundary(5) (z direction, bottom)           (integer)
+#   open_boundary(6) (z direction, top)              (integer)
+#
+# If periodic boundaries in x, y or z directions are turned off, the
+# option to catch molecules leaving the domain is provided via the 
+# open_boundary flag. Choose from the following in each
+# direction:
+#
+#    0 = off 
+#    1 = on 
+# 
+# Molecules due to be sent to MPI_PROC_NULL across the open boundary are 
+# caught and counted in the messenger. This number can then be used to
+# reinsert the same number of molecules after rebuild.
+# -----------------------------------------------------------------------
+OPEN_BOUNDARY
+0
+0
+0
+0
+0
+0
 
 
 #########################################################################
