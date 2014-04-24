@@ -23,8 +23,8 @@ subroutine setup_read_input
 	use librarymod, only : locate
 	implicit none
 
-	logical					:: found_in_input
-	integer 				:: ios
+	logical					:: found_in_input, error
+	integer 				:: ios, ixyz
 
 
 	! Open input file
@@ -328,18 +328,33 @@ subroutine setup_read_input
 
 		end if
 
-        open_boundary(:) = 0
-        call locate(1,'OPEN_BOUNDARY',.false.,found_in_input)
-        if (found_in_input) then
-            read(1,*) open_boundary(1) 
-            read(1,*) open_boundary(2) 
-            read(1,*) open_boundary(3) 
-            read(1,*) open_boundary(4) 
-            read(1,*) open_boundary(5) 
-            read(1,*) open_boundary(6) 
-        end if
-
 	end if
+
+    open_boundary(:) = 0
+    call locate(1,'OPEN_BOUNDARY',.false.,found_in_input)
+    if (found_in_input) then
+        read(1,*) open_boundary(1) 
+        read(1,*) open_boundary(2) 
+        read(1,*) open_boundary(3) 
+        read(1,*) open_boundary(4) 
+        read(1,*) open_boundary(5) 
+        read(1,*) open_boundary(6)
+    end if
+
+    error = .false.
+    do ixyz=1,3
+        if (periodic(ixyz).eq.1) then
+            if (open_boundary(2*ixyz - 1).ne.0) then
+                print'(a,i6,a,i6,a)',  'Open boundary ',  2*ixyz - 1, ' is on but periodic Boundary ', ixyz, ' is also stil on '
+                error = .true.
+            endif
+            if (open_boundary(2*ixyz).ne.0) then
+                print'(a,i6,a,i6,a)',  'Open boundary ',  2*ixyz , ' is on but periodic Boundary ', ixyz, ' is also stil on '
+                error = .true.
+            endif
+        endif
+    enddo
+    if (error) call error_abort("ERROR - Periodic Boundaries must be turned off for OPEN_BOUNDARY to be on ")
 
 	!Apply force to region in space
 	call locate(1,'EXTERNAL_FORCE',.false.,found_in_input)
