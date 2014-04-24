@@ -494,34 +494,18 @@ contains
         integer :: icell_halo, jcell_halo, kcell_halo
         double precision,parameter :: tol = 0.1d0
 
-        !print*, 'np = ', np 
-        !Get first halo molecule's cell
-        icell_halo = ceiling((r(1,np+1)+halfdomain(1)) &
-        /cellsidelength(1))+nh !Add nh due to halo(s)
-        jcell_halo = ceiling((r(2,np+1)+halfdomain(2)) &
-        /cellsidelength(2))+nh !Add nh due to halo(s)
-        kcell_halo = ceiling((r(3,np+1)+halfdomain(3)) &
-        /cellsidelength(3))+nh !Add nh due to halo(s)
-
-        !Move np + 1 halo molecule to (np + halo_np) + 1
+        !Copy np + 1 halo molecule to (np + halo_np) + 1 position
         r(:,np+halo_np+1)  = r(:,np+1)
         v(:,np+halo_np+1)  = v(:,np+1)
 
-        !print*, 'halo before pop:'
-        !call linklist_print(icell_halo, jcell_halo, kcell_halo)
+        !Linklist update -- pop np+1 from its cell
+        call linklist_findandpop(np+1, icell_halo, jcell_halo, kcell_halo)
 
-        !Linklist update -- pop from current, push to new
-        call linklist_findandpop(np+1)
         !print*, 'halo after pop and before push:'
         !call linklist_print(icell_halo, jcell_halo, kcell_halo)
-        ! If halo cell molecule is out of the domain 
-        if (icell_halo .gt. ncells(1)+1) icell_halo = ncells(1) + 1 
-        if (jcell_halo .gt. ncells(2)+1) jcell_halo = ncells(2) + 1 
-        if (kcell_halo .gt. ncells(3)+1) kcell_halo = ncells(3) + 1 
-        if (icell_halo .le. 0) icell_halo = 1
-        if (jcell_halo .le. 0) jcell_halo = 1
-        if (kcell_halo .le. 0) kcell_halo = 1
+
         call linklist_checkpush(icell_halo, jcell_halo, kcell_halo, np+1+halo_np)
+
         !print*, 'halo after push:'
         !call linklist_print(icell_halo, jcell_halo, kcell_halo)
    
@@ -539,7 +523,6 @@ contains
 
         !Update processor number of molecules
         np = np + 1
-        !globalnp = globalnp + 1
 
         !Get new molecule's cell
         icell = ceiling((r(1,np)+halfdomain(1)) &
@@ -551,8 +534,10 @@ contains
 
         !print*, 'cell before push:'
         !call linklist_print(icell, jcell, kcell)
+
         !Add new molecule to current cell list
         call linklist_checkpush(icell, jcell, kcell, np)
+
         !print*, 'cell after push:'
         !call linklist_print(icell, jcell, kcell)
 
@@ -589,8 +574,9 @@ contains
         !call linklist_print(icell_top,jcell_top,kcell_top)
 
         !Pop removed molecule and top molecule from cell lists
-        call linklist_findandpop(molno)
-        call linklist_findandpop(np) 
+        call linklist_findandpop(molno,icell,jcell,kcell)
+        call linklist_findandpop(np,icell,jcell,kcell) !TODO new cell return,
+                                                       !to be developed
 
         !print*, 'molno cell linklist after pop:'
         !call linklist_print(icell,jcell,kcell)
@@ -658,12 +644,12 @@ contains
         !call linklist_print(icell_halo,jcell_halo,kcell_halo)
 
         ! If halo cell molecule is out of the domain 
-        if (icell_halo .gt. ncells(1)+1) icell_halo = ncells(1) + 1 
-        if (jcell_halo .gt. ncells(2)+1) jcell_halo = ncells(2) + 1 
-        if (kcell_halo .gt. ncells(3)+1) kcell_halo = ncells(3) + 1 
-        if (icell_halo .le. 0) icell_halo = 1
-        if (jcell_halo .le. 0) jcell_halo = 1
-        if (kcell_halo .le. 0) kcell_halo = 1
+        if (icell_halo .gt. ncells(1)+2) stop "Error -- mol outside halo!"  ! icell_halo = ncells(1) + 2 
+        if (jcell_halo .gt. ncells(2)+2) stop "Error -- mol outside halo!"  ! jcell_halo = ncells(2) + 2 
+        if (kcell_halo .gt. ncells(3)+2) stop "Error -- mol outside halo!"  ! kcell_halo = ncells(3) + 2 
+        if (icell_halo .lt. 1) stop "Error -- mol outside halo!"  ! icell_halo = 1
+        if (jcell_halo .lt. 1) stop "Error -- mol outside halo!"  ! jcell_halo = 1
+        if (kcell_halo .lt. 1) stop "Error -- mol outside halo!"  ! kcell_halo = 1
         call linklist_checkpush(icell_halo, jcell_halo, kcell_halo, np) 
 
         !print*, 'np+halo_np cell linklist after push:'
@@ -919,10 +905,11 @@ subroutine reinsert_molecules_usher
     use arrays_MD, only: r, v
     implicit none
 
-    integer :: n, i, maxattempts=1000
+    integer :: n, i,j, maxattempts=1000
     real(kind(0.d0)) :: x,y,z,dx,dy,dz,vx,vy,vz
     real(kind(0.d0)) :: Utarget, Ufinish, fdummy(3)
-    real(kind(0.d0)) :: startpos(3), insertpos(3), insertvel(3)
+    real(kind(0.d0)) :: startpos(3), insertpos(3), insertvel(3),rij(3),rij2
+    real(kind(0.d0)),dimension(:,:),allocatable :: insert_locs
     logical :: pos_found
 
     ! If no open boundaries then return
@@ -930,6 +917,8 @@ subroutine reinsert_molecules_usher
         return
     end if
 
+    !Array to record all inserted locations
+    allocate(insert_locs(3,insertnp))
     do n = 1, insertnp
 
         do i = 1, maxattempts
@@ -958,8 +947,16 @@ subroutine reinsert_molecules_usher
             !Add to origin if failed 
             !call insert_molecule((/0.d0,0.d0,0.d0/),(/0.d0,0.d0,0.d0/))
         end if
-
+        insert_locs(:,n) = insertpos
     end do
+
+!    do i=1,insertnp
+!    do j=i+1,insertnp
+!        rij(:) = insert_locs(:,i)-insert_locs(:,j)
+!        rij2 = dot_product(rij,rij)
+!        print'(2i5,7f13.7)', i,j,sqrt(rij2),insert_locs(:,i),insert_locs(:,j)
+!    enddo
+!    enddo
 
 contains 
 
@@ -1006,7 +1003,8 @@ contains
 end subroutine
 
 
-!Insert Molecules and call USHER algorithm
+! Remove Molecules and then re-insert with same potential energy
+! using the USHER algorithm
 ! Code Author: Edward Smith 2013
 subroutine usher_teleport(nparticles)
     use particle_insertion
@@ -1019,13 +1017,14 @@ subroutine usher_teleport(nparticles)
 
     integer :: n,i,maxattempts=1000,icell,jcell,kcell
     integer :: molno
-    logical :: pos_found 
-    real(kind(0.d0)) :: Utarget, Ufinish, rand1, fdummy(3)
+    real(kind(0.d0)) :: Ufinish, rand1, fdummy(3)
     real(kind(0.d0)) :: startpos(3), insertpos(3)
     real(kind(0.d0)),dimension(3) :: avevel,vnew,vold,rand
+    real(kind(0.d0)),dimension(:),allocatable :: Utarget
+    logical :: pos_found
 
     avevel = 0.d0
-
+    allocate(Utarget(nparticles))
     do n = 1,nparticles 
 
         !Choose molecule at random and store its potential energy as target
@@ -1033,22 +1032,25 @@ subroutine usher_teleport(nparticles)
         molno = ceiling(rand1 * np)
         startpos = r(:,molno)
         vold = v(:,molno)
-        call compute_force_and_potential_at(startpos,Utarget,fdummy)
+        call compute_force_and_potential_at(startpos,Utarget(n),fdummy)
 
         ! Remove the molecule 
         call remove_molecule(molno)
 
+    !enddo
+    !do n = 1,nparticles 
+
         do i = 1, maxattempts
 
             startpos = get_randompos() 
-            call usher_get_insertion_pos(startpos,Utarget,insertpos,pos_found,Ufinish)
+            call usher_get_insertion_pos(startpos,Utarget(n),insertpos,pos_found,Ufinish)
 
             if (pos_found) then
 
                 call insert_molecule(insertpos,vold)    
 
                 print('(a,2f9.3,a,3f9.3,a,i4,a,i6)'), ' USHER SUCCEEDED: Utarget, Ufinish: ', &
-                                                    Utarget, Ufinish, ', r:',  &
+                                                    Utarget(n), Ufinish, ', r:',  &
                                                     insertpos, ', after ', i,  &
                                                     ' attempts , new np', np
 
@@ -1070,13 +1072,13 @@ subroutine usher_teleport(nparticles)
         end do
 
         if (.not. pos_found) then 
-            print*, ' usher failed  Utarget =', Utarget
+            print*, ' usher failed  Utarget =', Utarget(n)
             ! Put molecule back where it was if failed
             call insert_molecule(startpos,vold)
         end if
 
     end do
-
+    deallocate(Utarget)
 
 contains
 
@@ -1104,23 +1106,118 @@ contains
     
     end function get_randompos
 
-end subroutine
+end subroutine usher_teleport
 
-subroutine remove_mols(nmols)
-    use particle_insertion, only : remove_molecule
-    use physical_constants_MD, only: np
+
+
+
+
+
+! Remove Molecules and then re-insert with same potential energy
+! using the USHER algorithm
+! Code Author: Edward Smith 2013
+subroutine insert_mols(nparticles,Utarget,vold)
+    use particle_insertion
+    use computational_constants_MD, only: iter, halfdomain,ncells
+    use physical_constants_MD, only: Potential_sLRC, np
+    use arrays_MD, only: potenergymol_LJ, r, a, v
     implicit none
 
-    integer,intent(in)  :: nmols
+    integer, intent(in) :: nparticles
+    real(kind(0.d0)),dimension(:),allocatable,intent(in) :: Utarget,vold
 
-    integer          :: n,molno
-    double precision :: rand
+    logical  :: pos_found
+    integer :: n,i,maxattempts=10000
+    real(kind(0.d0)) :: Ufinish 
+    real(kind(0.d0)) :: startpos(3), insertpos(3)
 
-    do n=1,nmols
+    do n = 1,nparticles 
+        do i = 1, maxattempts
+
+            startpos = get_randompos() 
+            call usher_get_insertion_pos(startpos,Utarget(n),insertpos,pos_found,Ufinish)
+
+            if (pos_found) then
+
+                call insert_molecule(insertpos,vold)    
+
+                print('(a,2f9.3,a,3f9.3,a,i4,a,i6)'), ' USHER SUCCEEDED: Utarget, Ufinish: ', &
+                                                    Utarget(n), Ufinish, ', r:',  &
+                                                    insertpos, ', after ', i,  &
+                                                    ' attempts , new np', np
+                exit
+
+            end if
+        end do
+
+        if (.not. pos_found) then 
+            print*, ' usher failed  Utarget =', Utarget(n)
+            ! Put molecule back where it was if failed
+            call insert_molecule(startpos,vold)
+        end if
+
+    end do
+
+contains
+
+    function get_Utarget() result(U)
+        use calculated_properties_MD, only: potenergy
+        implicit none
+    
+        real(kind(0.d0)) :: U 
+        U = potenergy + potential_sLRC  
+    
+    end function get_Utarget
+    
+    function get_randompos() result(pos)
+        use computational_constants_MD, only: domain
+        implicit none
+    
+        integer :: ixyz
+        real(kind(0.d0)) :: pos(3), rand
+        
+        do ixyz = 1,3
+            call random_number(rand)
+            rand = (rand-0.5)*domain(ixyz)
+            pos(ixyz) = rand
+        end do
+    
+    end function get_randompos
+
+end subroutine insert_mols
+
+
+subroutine remove_mols(nparticles,vold,Utarget)
+    use particle_insertion, only : remove_molecule
+    use physical_constants_MD, only: np
+    use arrays_MD, only: r, v
+    implicit none
+
+    integer, intent(in) :: nparticles
+    real(kind(0.d0)),dimension(:),allocatable,intent(out) :: Utarget
+    real(kind(0.d0)),dimension(:,:),allocatable,intent(out) :: vold
+
+    integer :: n
+    integer :: molno
+    real(kind(0.d0)) :: fdummy(3)
+    real(kind(0.d0)) :: startpos(3)
+    real(kind(0.d0)),dimension(3) :: vnew,rand
+
+    if (allocated(Utarget)) deallocate(Utarget)
+
+    allocate(Utarget(nparticles),vold(3,nparticles))
+    do n = 1,nparticles 
+
+        !Choose molecule at random and store its potential energy as target
         call random_number(rand)
-        molno = ceiling(rand * np)
+        molno = ceiling(rand(1) * np)
+        startpos = r(:,molno)
+        vold(:,n) = v(:,molno)
+        call compute_force_and_potential_at(startpos,Utarget(n),fdummy)
+
+        ! Remove the molecule 
         call remove_molecule(molno)
-        call messenger_updateborders(1) !Update borders ready for next insertion - halo rebuilt
+
     enddo
 
 end subroutine remove_mols
