@@ -1287,7 +1287,7 @@ subroutine sendmols()
 
 	return
 
-end
+end subroutine sendmols
 
 !-----------------------------------------------------------------------
 ! Check number of molecules to send to neighbour 	        	 
@@ -1322,7 +1322,7 @@ subroutine checksendbuild(ixyz,sendnp,dir)
 		enddo
 	end select
 
-end
+end subroutine checksendbuild
 
 !-----------------------------------------------------------------------
 !Update face halo cells by passing to neighbours
@@ -1355,7 +1355,7 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 	call MPI_Cart_shift(icomm_grid, ixyz-1, dir, isource, idest, ierr)
 
 	!Calculate required buffer size and allocate enough memory
-	call get_sendmols_buffersize
+	call get_sendmols_buffersize(sendsize)
 	allocate(sendbuffer(sendsize))
 	
 	!Provide MPI with upper bound of pack size
@@ -1366,8 +1366,8 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 
 	!Pack buffer header (sendnp) first
 	dppack = real(sendnp,kind(0.d0))
-	call MPI_Pack(dppack,1,MPI_DOUBLE_PRECISION,sendbuffer,&
-	              buffsize,pos,icomm_grid,ierr)
+	call MPI_Pack(dppack,1,MPI_DOUBLE_PRECISION, &
+                  sendbuffer,buffsize,pos,icomm_grid,ierr)
 
 	!Pack rest of data -----------------------------------------!
 	old => pass%head 
@@ -1531,22 +1531,24 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 
 contains
 
-	subroutine get_sendmols_buffersize
+	subroutine get_sendmols_buffersize(sendsizeloc)
 		implicit none
 
+        integer, intent(out) :: sendsizeloc
+
 		!Include sendnp as double at head of buffer
-		sendsize = 1
+		sendsizeloc = 1
 
 		!Add 2*nd for r, v and 1 for tag
 		if (ensemble.eq.tag_move) then
-			sendsize = sendsize + 2*nd*sendnp + 1*sendnp
+			sendsizeloc = sendsizeloc + 2*nd*sendnp + 1*sendnp
 		else
-			sendsize = sendsize + 2*nd*sendnp
+			sendsizeloc = sendsizeloc + 2*nd*sendnp
 		endif
 	
 		!Add rtrue if necessary	
 		if (rtrue_flag.eq.1) then
-			sendsize = sendsize + nd*sendnp
+			sendsizeloc = sendsizeloc + nd*sendnp
 		end if
 
 		!Check if any molecules are tethered
@@ -1556,7 +1558,7 @@ contains
 			do i=1,sendnp 
 				molno = old%molno
 				if (any(tag(molno).eq.tether_tags)) then
-					sendsize = sendsize + nd
+					sendsizeloc = sendsizeloc + nd
 				end if
 				old => current%next
 				current => old	
@@ -1565,12 +1567,95 @@ contains
 
 		!Add space for polymer info if required
 		if (potential_flag.eq.1) then
-			sendsize = sendsize + nsdmi*sendnp
+			sendsizeloc = sendsizeloc + nsdmi*sendnp
 		end if
 
 	end subroutine get_sendmols_buffersize
 
-end
+
+!    subroutine pack_molecule(molno,pos)    
+
+!        integer,intent(in) :: molno
+!        integer,intent(inout) :: pos
+
+!        if (ensemble.eq.tag_move) then
+!			dppack = real(tag(molno),kind(0.d0))
+!			call MPI_Pack(dppack,1,MPI_DOUBLE_PRECISION, &
+!		              sendbuffer,buffsize,pos,icomm_grid,ierr)
+!		endif
+
+!		Xpack(:) = r(:,molno)
+!		call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
+!		              sendbuffer,buffsize,pos,icomm_grid,ierr)
+
+!		Xpack(:) = v(:,molno)
+!		call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
+!		              sendbuffer,buffsize,pos,icomm_grid,ierr)
+
+!		if (rtrue_flag .eq. 1) then
+!			Xpack(:) = rtrue(:,molno)
+!			call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
+!			              sendbuffer,buffsize,pos,icomm_grid,ierr)
+!		end if
+
+!		if (ensemble.eq.tag_move) then
+!			if (any(tag(molno).eq.tether_tags)) then
+!				Xpack(:) = rtether(:,molno)
+!				call MPI_Pack(Xpack,nd,MPI_DOUBLE_PRECISION,& 
+!			              sendbuffer,buffsize,pos,icomm_grid,ierr)
+!			end if
+!		endif
+
+!		if (potential_flag .eq. 1) then
+!			call prepare_FENEbuffer(molno,FENEpack)
+!			call MPI_Pack(FENEpack,nsdmi,MPI_DOUBLE_PRECISION,& 
+!			              sendbuffer,buffsize,pos,icomm_grid,ierr)
+!		end if	
+
+!    end subroutine pack_molecule
+
+!    subroutine unpack_molecule(molno,pos)    
+
+!        integer,intent(in) :: molno
+!        integer,intent(inout) :: pos
+
+!		if (ensemble.eq.tag_move) then
+!			call MPI_Unpack(recvbuffer,length,pos,dppack, &
+!						1,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+!			tag(np+n)     = nint(dppack)
+!		endif
+
+!		call MPI_Unpack(recvbuffer,length,pos,Xpack, &
+!						nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+!		r(:,np+n)     = Xpack
+
+!		call MPI_Unpack(recvbuffer,length,pos,Xpack, &
+!						nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+!		v(:,np+n)     = Xpack
+
+!		if (rtrue_flag.eq.1) then
+!			call MPI_Unpack(recvbuffer,length,pos,Xpack, &
+!							nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+!			rtrue(:,np+n) = Xpack
+!		end if
+!		
+!		if (ensemble.eq.tag_move) then
+!			if (any(tag(np+n).eq.tether_tags)) then
+!				call MPI_Unpack(recvbuffer,length,pos,Xpack, &
+!								nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+!				rtether(:,np+n) = Xpack
+!			end if
+!		endif
+
+!		if (potential_flag .eq. 1 ) then
+!			call MPI_Unpack(recvbuffer,length,pos,FENEpack, &
+!							nsdmi,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+!			call assign_FENEbuffer(np+n,FENEpack)
+!		end if
+
+!    end subroutine unpack_molecule
+
+end subroutine sendrecvface
 
 !------------------------------------------------------------------------------------
 !Move through molecule list of passed molecule and fill with new arrivals starting 

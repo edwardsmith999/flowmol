@@ -66,12 +66,12 @@ contains
         success = .false.
 
         !If cells are out of range, return null and fail
-        if (icell .gt. ncells(1)+1 .or. &
-            icell .le. 0           .or. &
-            jcell .gt. ncells(2)+1 .or. &
-            jcell .le. 0           .or. &
-            kcell .gt. ncells(3)+1 .or. &
-            kcell .le. 0                 ) then
+        if (icell .gt. ncells(1)+2 .or. &
+            icell .lt. 1           .or. &
+            jcell .gt. ncells(2)+2 .or. &
+            jcell .lt. 1           .or. &
+            kcell .gt. ncells(3)+2 .or. &
+            kcell .lt. 1                 ) then
             
             nullify(mol)
             return
@@ -1534,21 +1534,22 @@ subroutine linklist_circbuild(start, finish)
 end subroutine linklist_circbuild
 
 !===================================================================================
-!Remove ('pop') a molecule from the stack an return its number, position and velocity
+! Remove ('pop') a molecule from the stack and returns its cell
 
 ! Find which cell list molecule "molno" is associated with (it might not necessarily
 ! be calculatable with integer division if it has strayed between rebuilds)
-subroutine linklist_findandpop(molno)
+subroutine linklist_findandpop(molno,icell_return, jcell_return, kcell_return)
     use module_linklist
     implicit none
 
     integer, intent(in) :: molno
+    integer, intent(out) :: icell_return, jcell_return, kcell_return
 
     integer :: icell, jcell, kcell
     integer :: icell_guess, jcell_guess, kcell_guess
     integer :: ishift, jshift, kshift
 	type(node), pointer :: pop
-    logical :: found
+    logical :: found=.false.
 
     ! Guess cell by integer division first
     icell_guess = ceiling((r(1,molno)+halfdomain(1)) &
@@ -1568,6 +1569,9 @@ subroutine linklist_findandpop(molno)
     if (found) then
 
         call linklist_pop(icell, jcell, kcell, molno)
+        icell_return = icell
+        jcell_return = jcell
+        kcell_return = kcell   
         return
 
     ! If molecule has strayed out of the cell region it is associated with
@@ -1583,18 +1587,21 @@ subroutine linklist_findandpop(molno)
             kcell = kcell_guess + kshift
 
             ! If neighbour cell is out of range ignore
-            if (icell .gt. ncells(1)+1) cycle
-            if (jcell .gt. ncells(2)+1) cycle
-            if (kcell .gt. ncells(3)+1) cycle
-            if (icell .le. 0) cycle
-            if (jcell .le. 0) cycle
-            if (kcell .le. 0) cycle
+            if (icell .gt. ncells(1)+2) cycle
+            if (jcell .gt. ncells(2)+2) cycle
+            if (kcell .gt. ncells(3)+2) cycle
+            if (icell .lt. 1) cycle
+            if (jcell .lt. 1) cycle
+            if (kcell .lt. 1) cycle
 
             call linklist_gotomolecule(icell, jcell, kcell, molno, pop, found)
 
             if (found) then
 
                 call linklist_pop(icell, jcell, kcell, molno)
+                icell_return = icell
+                jcell_return = jcell
+                kcell_return = kcell   
                 return 
 
             end if
@@ -1603,7 +1610,16 @@ subroutine linklist_findandpop(molno)
         end do
         end do
 
+        if (.not. found) then
+            print'(a,i8,6(a,i6))', 'Molecule', molno, ' not found in x cells from ', icell_guess-1, ' to ', icell_guess+1, & 
+                                                                   ' y cells from ', jcell_guess-1, ' to ', jcell_guess+1, & 
+                                                                   ' z cells from ', kcell_guess-1, ' to ', kcell_guess+1
+             stop "ERROR in linklist_findandpop - molecule not found "
+        endif
+
     end if
+
+ 
 
 end subroutine linklist_findandpop
 
@@ -2074,32 +2090,29 @@ end subroutine linklist_printalldomaincells
 !===================================================================================
 !Move backwards through linked list and print out results
 	
-subroutine linklist_printneighbourlist
+subroutine linklist_printneighbourlist(molno)
 	use module_linklist
 	implicit none
 
-	integer						:: i, j
-	integer						:: noneighbrs
+	integer,intent(in)			:: molno
+
+	integer						:: noneighbrs, j
 	type(neighbrnode), pointer	:: old, current
 
-	do i = 1,np
+	!Obtain molecular number and top item of link list from cell head
+	noneighbrs = neighbour%noneighbrs(molno)  	!Determine number of elements in neighbourlist
+	old => neighbour%head(molno)%point		!Set old to head of neighbour list
 
-		!Obtain molecular number and top item of link list from cell head
- 		noneighbrs = neighbour%noneighbrs(i)  	!Determine number of elements in neighbourlist
-		old => neighbour%head(i)%point		!Set old to head of neighbour list
+	if(noneighbrs == 0) print*, molno, 'has 0 neighbours'
 
-		if(noneighbrs == 0) print*, i, 'has 0 neighbours'
-
-		current => old ! make current point to head of list
-		do j=1,noneighbrs
-			!print*, 'more items in linked list?: ', associated(old%next)
-			print'(2(a,i8),6f10.5)', 'i = ', i,' j = ', current%molnoj, r(:,i), r(current%molnoj,:)
-			if (associated(old%next) .eqv. .true. ) then !Exit if null
-				old => current%next ! Use pointer in datatype to obtain next item in list
-				current => old      ! make current point to old - move alone one
-			endif
-		enddo
-
+	current => old ! make current point to head of list
+	do j=1,noneighbrs
+		!print*, 'more items in linked list?: ', associated(old%next)
+		print'(2(a,i8),6f10.5)', ' Linklist print called for molecule i = ', molno,' j = ', current%molnoj, r(:,molno), r(:,current%molnoj)
+		if (associated(old%next) .eqv. .true. ) then !Exit if null
+			old => current%next ! Use pointer in datatype to obtain next item in list
+			current => old      ! make current point to old - move alone one
+		endif
 	enddo
 
 	nullify(current)                    !Nullify current as no longer required

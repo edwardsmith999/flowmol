@@ -117,7 +117,7 @@ subroutine simulation_move_particles_vv(pass_num)
 			theta = sqrt(3.d0)*(2.d0*theta-1.d0)
 
 		case(tag_move)
-			call error_abort('Tag mode for velocity-Verlet not yet implemented.')
+			call error_abort('Tag mode for velocity-Verlet not implemented.')
 	
 		case default
 			call error_abort('Unrecognised ensemble, stopping.')
@@ -179,7 +179,7 @@ subroutine simulation_move_particles_vv(pass_num)
 				end do
 
 			case(tag_move)
-				call error_abort('Tag mode for velocity-Verlet not yet implemented.')
+				call error_abort('Tag mode for velocity-Verlet not implemented.')
 			
 			case default
 				call error_abort('Unrecognised ensemble, stopping.')
