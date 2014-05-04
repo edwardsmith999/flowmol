@@ -1410,9 +1410,13 @@ subroutine apply_CV_force_multibin(iter)
 	Fbinsize = domain/nbins
 	volume = product(Fbinsize)
 
-	starttime = 500 !Nsteps/2.d0
+	starttime = 100 !Nsteps/2.d0
     igmin = 1; jgmin = 1; kgmin = 1;
-    igmax = gnbins(1); jgmax = nint(gnbins(2)/2.d0)+1; kgmax = gnbins(3)
+    igmax = gnbins(1); jgmax = gnbins(2); kgmax = gnbins(3)
+
+
+!    igmin = nint(gnbins(1)/2.d0); jgmin = nint(gnbins(2)/2.d0); kgmin = nint(gnbins(3)/2.d0);
+!    igmax = nint(gnbins(1)/2.d0); jgmax = nint(gnbins(2)/2.d0); kgmax = nint(gnbins(3)/2.d0)
 
 	!Exchange CV data ready to apply force
 	call update_CV_halos
@@ -1440,12 +1444,16 @@ subroutine apply_CV_force_multibin(iter)
     	do kbin = kgmin,kgmax
 
 !			y_loc = (jbin-1)*Fbinsize(2)
-            if (jbin .eq. jgmin) then
-                u_bin = (/ -1.d0*density,0.d0, 0.d0 /)
-            elseif(jbin .eq. jgmax) then
-                u_bin = (/  1.d0*density,0.d0, 0.d0 /)
+            if (CVforce_flag .eq. 5) then
+                if (jbin .eq. jgmin) then
+                    u_bin = (/ -1.d0*density,0.d0, 0.d0 /)
+                elseif(jbin .eq. jgmax) then
+                    u_bin = (/  1.d0*density,0.d0, 0.d0 /)
+                else
+	    		    u_bin = (/  0.d0,0.d0, 0.d0 /)
+                endif
             else
-			    u_bin = (/  0.d0,0.d0, 0.d0 /)
+       		    u_bin = (/  0.d0,0.d0, 0.d0 /)
             endif
 
 !			u_bin = (/ (jbin-1)*2.d0/(nbins(2)-1)-1.0 ,0.d0, 0.d0 /)
@@ -1466,13 +1474,10 @@ subroutine apply_CV_force_multibin(iter)
 
 	!Apply the force
 	call apply_force
-	!call apply_force_noFcrossing
+    !call apply_force_weighted
 
 	!Reset CV force values
 	CV2%flux = 0.d0; CV2%Pxy = 0.d0
-
-	!Recalculate flux values in line with applied force constraint
-	
 
 contains
 
@@ -1639,10 +1644,11 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 	implicit none
 
 
-	integer,intent(in)	:: flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax
+
+	integer,intent(in)	                            :: flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax
 
 	integer         	                            :: bmin(3),bmax(3)
-	integer											:: ib,jb,kb, maxiter,global_converged
+	integer											:: ib,jb,kb, maxiter,global_converged, converge_cells
 	integer											:: n,i,molno,cellnp, attempt
 	integer,dimension(3)							:: bin
 	integer,allocatable,dimension(:,:,:) 			:: box_np_bfr,box_np_afr
@@ -1712,8 +1718,8 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 	          	 			+(CV2%flux(:,:,:,:,2)+CV2%flux(:,:,:,:,5)) &
 	          	 			+(CV2%flux(:,:,:,:,3)+CV2%flux(:,:,:,:,6)))/delta_t
 
-	F_constraint = 0.d0; converged = .false.; maxiter = 50
-	allocate(converge_history(maxiter,3))
+	F_constraint = 0.d0; converged = .false.; maxiter = 100
+	!allocate(converge_history(maxiter,3))
 	!Iterate until momentum flux and applied CV force are consistent
 	do attempt = 1,maxiter
 
@@ -1805,12 +1811,12 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
     	          	 		 +(CV2%flux(:,:,:,:,2)+CV2%flux(:,:,:,:,5)) &
     	          	 		 +(CV2%flux(:,:,:,:,3)+CV2%flux(:,:,:,:,6)))/delta_t
 
-		converge_history(attempt,:) = sum(sum(sum(abs(MD_rhouu_dS_prev(2:nbins(1)+1,   &
-                                                                       2:nbins(2)+1,   &
- 																	   2:nbins(3)+1,:) &
-													  	-  MD_rhouu_dS(2:nbins(1)+1,   &
-                                                                       2:nbins(2)+1,   &
- 																       2:nbins(3)+1,:)),1),1),1)
+!		converge_history(attempt,:) = sum(sum(sum(abs(MD_rhouu_dS_prev(2:nbins(1)+1,   &
+!                                                                       2:nbins(2)+1,   &
+! 																	   2:nbins(3)+1,:) &
+!													  	-  MD_rhouu_dS(2:nbins(1)+1,   &
+!                                                                       2:nbins(2)+1,   &
+! 																       2:nbins(3)+1,:)),1),1),1)
 
 		!If fluxes have converged (exactly) then exit after calculating final force
 		if (all(MD_rhouu_dS_prev .eq. MD_rhouu_dS)) then
@@ -1820,6 +1826,7 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 			global_converged = 1
 			call globalMinInt(global_converged)
 			if (global_converged .ne. 1) converged = .false.
+            !print*, iter, 'Converged in ', attempt, ' iteration(s)'
 		else
 			!Tell other processors "I'm not converged"
 			global_converged = 0
@@ -1827,476 +1834,31 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 
 			!Ouput convergence if it looks like it's going to be a problem
 			if (attempt .gt. 25) then
-				convergence = 0.d0
+				convergence = 0.d0; converge_cells = 0
 				!if (mod(attempt,20)) delta_t = delta_t/2.d0
 
     	        do ib = bmin(1),bmax(1)
     	        do jb = bmin(2),bmax(2)
     	        do kb = bmin(3),bmax(3)
-					if (any(MD_rhouu_dS_prev(ib,jb,kb,:) .ne. MD_rhouu_dS(ib,jb,kb,:))) then
+					if (sum(MD_rhouu_dS_prev(ib,jb,kb,:)) .ne. sum(MD_rhouu_dS(ib,jb,kb,:))) then
 						convergence = convergence + sum(abs(MD_rhouu_dS_prev(ib,jb,kb,:) - MD_rhouu_dS(ib,jb,kb,:)))
-						print'(5i6,7f14.6)', iter, attempt, ib, jb, kb, sum(abs(MD_rhouu_dS_prev(ib,jb,kb,:) - MD_rhouu_dS(ib,jb,kb,:))), MD_rhouu_dS_prev(ib,jb,kb,:),MD_rhouu_dS(ib,jb,kb,:)
+                        converge_cells = converge_cells + 1
+						!print'(5i6,7f14.6)', iter, attempt, ib, jb, kb, sum(abs(MD_rhouu_dS_prev(ib,jb,kb,:) - MD_rhouu_dS(ib,jb,kb,:))), MD_rhouu_dS_prev(ib,jb,kb,:),MD_rhouu_dS(ib,jb,kb,:)
 					endif
 				enddo
 				enddo
 				enddo
 				convergence_count = convergence_count + 1
-				print'(a,2i5,i8,f28.17,4i5)', 'convergence ', iter, attempt, convergence_count, convergence
+				!print'(a,2i5,2i8,f28.17)', 'convergence ', iter, attempt, convergence_count, converge_cells, convergence
                 !print*, converge_history 
 			endif
 		endif
 
 	enddo
+
 	deallocate(r_temp,v_temp,box_np_afr,box_np_bfr,u_bin_afr,u_bin_bfr)
 
 end subroutine average_over_allbins_iter
-
-
-
-
-
-
-!=============================================================================
-! Average molecules in overlap region to obtain values for 
-! constrained dynamics algorithms with no force on molecules which cross 
-! the volume surfaces -- this prevents iteration
-!-----------------------------------------------------------------------------
-
-subroutine average_over_allbins_noFcrossing(flag)
-	use computational_constants_MD, only : nhb, iblock,CVforce_testcaseflag
-	use  calculated_properties_MD, only : nbins
-	use arrays_MD, only : r, v, a
-	use linked_list, only : node, cell
-	use physical_constants_MD, only : pi
-	use CV_objects, only :  CV2 => CVcheck_momentum2, CVE => CVcheck_energy
-	use cumulative_momentum_flux_mod, only : cumulative_momentum_flux
-	use cumulative_energy_flux_mod, only : cumulative_energy_flux
-	implicit none
-
-	integer,intent(in)								:: flag
-
-	integer											:: ib,jb,kb, maxiter,global_converged
-	integer											:: n,i,molno,cellnp, attempt
-	integer,dimension(3)							:: bin
-	integer,allocatable,dimension(:)				:: notcrossing_prev
-	integer,allocatable,dimension(:,:,:) 			:: box_np_bfr,box_np_afr
-
-
-
-	double precision								:: convergence
-	double precision,dimension(:,:),allocatable 	:: r_temp,v_temp,converge_history
-	double precision,allocatable,dimension(:,:,:,:) :: u_bin_afr,u_bin_bfr
-
-	real(kind(0.d0)),allocatable,dimension(:,:,:,:) :: MD_Pi_dS,MD_rhouu_dS,MD_rhouu_dS_prev
-
-	type(node), pointer								:: old, current
-
-	integer,save									:: convergence_count = 0
-	logical											:: converged
-	logical,save									:: apply_force = .false., first_time = .true.
-
-
-	!delta_t = 0.005
-
-	!Allocate and zero arrays
-	allocate(r_temp(3,np),v_temp(3,np))
-	r_temp = 0.d0; v_temp = 0.d0
-	allocate(notcrossing_prev(np)); notcrossing_prev = 0
-	allocate(box_np_bfr(nbins(1)+2,nbins(2)+2,nbins(3)+2))
-	allocate(box_np_afr(nbins(1)+2,nbins(2)+2,nbins(3)+2))
-	allocate(u_bin_bfr(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
-	allocate(u_bin_afr(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
-	allocate(MD_Pi_dS(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
-	allocate(MD_rhouu_dS(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
-	allocate(MD_rhouu_dS_prev(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
-	allocate(F_constraint(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); 	F_constraint = 0.d0
-
-	!Get velocity/positions before force applied
-	box_np_bfr = 0; u_bin_bfr = 0.d0
-	do n = 1,np
-		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
-		!Add molecule to overlap list
-		box_np_bfr(bin(1),bin(2),bin(3))  = box_np_bfr(bin(1),bin(2),bin(3))   + 1
-		u_bin_bfr( bin(1),bin(2),bin(3),:)= u_bin_bfr( bin(1),bin(2),bin(3),:) + v(:,n)
-	enddo
-
-	! - - - - -  Get CV Momentum Totals - - - - - - - - - 
-	!Total surface stresses
-	MD_Pi_dS(:,:,:,:)=	0.25d0 *((CV2%Pxy(:,:,:,:,1)-CV2%Pxy(:,:,:,:,4)) &
-	              				+(CV2%Pxy(:,:,:,:,2)-CV2%Pxy(:,:,:,:,5)) &
-		    	              	+(CV2%Pxy(:,:,:,:,3)-CV2%Pxy(:,:,:,:,6)))
-
-	!Get constraint force from only surface interactions (configurational) only
-	F_constraint = 0.d0
-	do ib = 2,nbins(1)+1
-	do jb = 2,nbins(2)+1
-	do kb = 2,nbins(3)+1
-
-    	if (box_np_bfr(ib,jb,kb) .ne. 0 .and. apply_CVforce) then
-
-    		select case (CVforce_testcaseflag)
-    		case(1)
-    			!Apply differential CV flux constraint
-    			F_constraint(ib,jb,kb,:)  =	     MD_Pi_dS(ib,jb,kb,:)  &
-										  + (CFD_rhouu_dS(ib,jb,kb,:) -    CFD_Pi_dS(ib,jb,kb,:) )*volume
-    		case default
-				stop "Error - Only full constraint possible with average_over_allbins_iter"
-    		end select
-
-    		!Divide constraint per molecules
-    		F_constraint(ib,jb,kb,:) = F_constraint(ib,jb,kb,:)/dble(box_np_bfr(ib,jb,kb))
-
-    	else
-    		F_constraint(ib,jb,kb,:) = 0.d0
-    	endif
-
-	enddo
-	enddo
-	enddo
-
-	!Get velocity/position at next timestep with configurational constraint only
-	do n = 1,np
-		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
-		!Velocity calculated from acceleration
-		v_temp(:,n) = v(:,n) + delta_t * (a(:,n) - F_constraint(bin(1),bin(2),bin(3),:))
-		!Position calculated from velocity
-		r_temp(:,n) = r(:,n) + delta_t * v_temp(:,n)
-
-		!print*, iter, n, r(:,n), v(:,n), a(:,n), F_constraint(bin(1),bin(2),bin(3),:)
-	enddo
-
-	!Update momentum flux using velocity at next timestep
-	CV2%flux = 0.d0
-	call cumulative_momentum_flux(r_temp,v_temp,CV2%flux,notcrossing)
-
-	! Get sum of molecules in box before move but ...
-	! exclude any molecules which will be crossing
-	box_np_bfr = 0
-	do n = 1,np
-		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
-		box_np_bfr(bin(1),bin(2),bin(3))  = box_np_bfr(bin(1),bin(2),bin(3)) + notcrossing(n)
-	enddo
-
-	!Total CV flux
-	MD_rhouu_dS(:,:,:,:)=	((CV2%flux(:,:,:,:,1)+CV2%flux(:,:,:,:,4)) &
-	          	 			+(CV2%flux(:,:,:,:,2)+CV2%flux(:,:,:,:,5)) &
-	          	 			+(CV2%flux(:,:,:,:,3)+CV2%flux(:,:,:,:,6)))/delta_t
-
-	!Get constraint force from both velocity and configurational parts
-	F_constraint = 0.d0
-	do ib = 2,nbins(1)+1
-	do jb = 2,nbins(2)+1
-	do kb = 2,nbins(3)+1
-
-    	if (box_np_bfr(ib,jb,kb) .ne. 0 .and. apply_CVforce) then
-
-    		select case (CVforce_testcaseflag)
-    		case(1)
-    			!Apply differential CV flux constraint
-    			F_constraint(ib,jb,kb,:)  =	     MD_Pi_dS(ib,jb,kb,:) -  MD_rhouu_dS(ib,jb,kb,:) &
-										  + (CFD_rhouu_dS(ib,jb,kb,:) -    CFD_Pi_dS(ib,jb,kb,:) )*volume
-    		case default
-				stop "Error - Only full constraint possible with average_over_allbins_iter"
-    		end select
-
-    		!Divide constraint per molecules
-    		F_constraint(ib,jb,kb,:) = F_constraint(ib,jb,kb,:)/dble(box_np_bfr(ib,jb,kb))
-
-    	else
-    		F_constraint(ib,jb,kb,:) = 0.d0
-    	endif
-
-	enddo
-	enddo
-	enddo
-
-	do attempt = 1,5
-		!Get velocity at next timestep with both velocity and configurational constraint applied
-		!only to molecules which are not crossing the CV surface
-		box_np_afr = 0
-		do n = 1,np
-			bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
-			!Velocity calculated from acceleration
-			if (box_np_bfr(bin(1),bin(2),bin(3)) .ne. 0) then
-				v_temp(:,n) = v(:,n) + delta_t * ( a(:,n) - notcrossing(n)*F_constraint(bin(1),bin(2),bin(3),:) )
-			else
-				!print*, 'No molecules in bin', bin, box_np_bfr(bin(1),bin(2),bin(3))
-				!stop "Error bin empty"
-			endif
-			!Position calculated from velocity
-			r_temp(:,n) = r(:,n) + delta_t * v_temp(:,n)
-			!Remove from initial count of molecules in bin any others which would leave due to constraint force
-			box_np_afr(bin(1),bin(2),bin(3))  = box_np_afr(bin(1),bin(2),bin(3)) + notcrossing(n)
-		enddo
-
-		notcrossing_prev = notcrossing
-		call cumulative_momentum_flux(r_temp,v_temp,CV2%flux,notcrossing)
-		do n =1,np
-			notcrossing(n) = min(notcrossing(n),notcrossing_prev(n))
-		enddo
-		if (any(notcrossing_prev .ne. notcrossing)) then
-			do n = 1,np
-				if (notcrossing_prev(n) .ne. notcrossing(n)) then
-					bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
-					print'(a,i5,i3,i6,3i4,7f10.5,f13.4,l,4i3)', "Change in crossing",iter,attempt, n,bin,sum(v(:,n)),sum(CV2%flux(bin(1),bin(2),bin(3),:,:),1),  & 
-													sum(F_constraint(bin(1),bin(2),bin(3),:)/dble(box_np_bfr(bin(1),bin(2),bin(3)))), apply_CVforce,notcrossing_prev(n),  & 
-													notcrossing(n),box_np_bfr(bin(1),bin(2),bin(3)),box_np_afr(bin(1),bin(2),bin(3))
-				endif
-			enddo
-			if (.not. apply_CVforce) stop "Sanity check -- no force is applied here so crossing should not change!!!"
-			!stop "Extra molecules are crossing -- this should converge by now?"
-			!box_np_bfr = box_np_afr 
-		else
-			!Exit the loop as no change in crossing
-			continue
-		endif
-
-
-		!Get constraint force from both velocity and configurational parts
-		F_constraint = 0.d0
-		box_np_bfr = box_np_afr
-		do ib = 2,nbins(1)+1
-		do jb = 2,nbins(2)+1
-		do kb = 2,nbins(3)+1
-
-			if (box_np_bfr(ib,jb,kb) .ne. 0 .and. apply_CVforce) then
-
-				select case (CVforce_testcaseflag)
-				case(1)
-					!Apply differential CV flux constraint
-					F_constraint(ib,jb,kb,:)  =	     MD_Pi_dS(ib,jb,kb,:) -  MD_rhouu_dS(ib,jb,kb,:) &
-											  + (CFD_rhouu_dS(ib,jb,kb,:) -    CFD_Pi_dS(ib,jb,kb,:) )*volume
-				case default
-					stop "Error - Only full constraint possible with average_over_allbins_iter"
-				end select
-
-				!Divide constraint per molecules
-				F_constraint(ib,jb,kb,:) = F_constraint(ib,jb,kb,:)/dble(box_np_bfr(ib,jb,kb))
-
-			else
-				F_constraint(ib,jb,kb,:) = 0.d0
-			endif
-
-		enddo
-		enddo
-		enddo
-
-
-	enddo
-
-!	F_constraint = 0.d0
-!	allocate(converge_history(maxiter,3))
-!	!Iterate until momentum flux and applied CV force are consistent
-!	do attempt = 1,10
-
-!    	do ib = 2,nbins(1)+1
-!    	do jb = 2,nbins(2)+1
-!    	do kb = 2,nbins(3)+1
-
-!        	if (box_np_bfr(ib,jb,kb) .ne. 0 .and. apply_CVforce) then
-
-!        		select case (CVforce_testcaseflag)
-!        		case(1)
-!        			!Apply differential CV flux constraint
-!        			F_constraint(ib,jb,kb,:)  =	     MD_Pi_dS(ib,jb,kb,:) -  MD_rhouu_dS(ib,jb,kb,:) &
-!    										  + (CFD_rhouu_dS(ib,jb,kb,:) -    CFD_Pi_dS(ib,jb,kb,:) )*volume
-!        		case default
-!    				stop "Error - Only full constraint possible with average_over_allbins_iter"
-!        		end select
-
-!        		!Divide constraint per molecules
-!        		F_constraint(ib,jb,kb,:) = F_constraint(ib,jb,kb,:)/dble(box_np_bfr(ib,jb,kb))
-
-!        	else
-!        		F_constraint(ib,jb,kb,:) = 0.d0
-!        	endif
-
-!    	enddo
-!    	enddo
-!    	enddo
-
-!		!if (attempt .eq. 2) exit
-
-
-!		!print'(2i7,e16.8,f16.8,2i6)', iter, attempt,sum(MD_rhouu_dS), sum(F_constraint), sum(box_np_bfr)/product(nbins), sum(notcrossing)
-
-!    	!Get velocity at next timestep with constraint
-!    	box_np_bfr = 0
-!    	do n = 1,np
-!    		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
-!    		!Velocity calculated from acceleration
-!    		v_temp(:,n) = v(:,n) + delta_t * (a(:,n) - F_constraint(bin(1),bin(2),bin(3),:)*max(notcrossing(n),notcrossing_prev(n)))
-!    		!Position calculated from velocity
-!    		r_temp(:,n) = r(:,n) + delta_t * v_temp(:,n)
-!    		bin(:) = ceiling((r_temp(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
-!    		box_np_bfr(bin(1),bin(2),bin(3))  = box_np_bfr(bin(1),bin(2),bin(3)) + max(notcrossing(n),notcrossing_prev(n))
-
-!    	enddo
-
-!		!Update momentum flux using velocity at next timestep
-!		CV2%flux = 0.d0
-!		!notcrossing_prev = notcrossing
-!		call cumulative_momentum_flux(r_temp,v_temp,CV2%flux,notcrossing)
-!		call update_CV_halos
-
-!    	! - - - - -  Get CV Momentum Totals - - - - - - - - - 
-!    	!Total CV flux
-!		!MD_rhouu_dS_prev = MD_rhouu_dS
-!    	!MD_rhouu_dS(:,:,:,:)=((CV2%flux(:,:,:,:,1)+CV2%flux(:,:,:,:,4)) &
-!    	!          	 		 +(CV2%flux(:,:,:,:,2)+CV2%flux(:,:,:,:,5)) &
-!    	!          	 		 +(CV2%flux(:,:,:,:,3)+CV2%flux(:,:,:,:,6)))/delta_t
-
-!!		converge_history(attempt,:) = sum(sum(sum(abs(MD_rhouu_dS_prev(2:nbins(1)+1,   &
-!!                                                                       2:nbins(2)+1,   &
-!! 																	   2:nbins(3)+1,:) &
-!!													  	-  MD_rhouu_dS(2:nbins(1)+1,   &
-!!                                                                       2:nbins(2)+1,   &
-!! 																       2:nbins(3)+1,:)),1),1),1)
-
-
-
-!!		!If fluxes have converged (exactly) then exit after calculating final force
-!!		if (all(MD_rhouu_dS_prev .eq. MD_rhouu_dS)) then
-!!		!if (all(MD_rhouu_dS_prev - MD_rhouu_dS .lt. 0.000001d0)) then
-!!			converged = .true.
-!!			!Wait for all processors to converge
-!!			global_converged = 1
-!!			call globalMinInt(global_converged)
-!!			if (global_converged .ne. 1) converged = .false.
-!!		else
-!!			!Tell other processors "I'm not converged"
-!!			global_converged = 0
-!!			call globalMinInt(global_converged)
-
-!!			!Ouput convergence if it looks like it's going to be a problem
-!!			if (attempt .gt. 20) then
-!!				convergence = 0.d0
-!!				!if (mod(attempt,20)) delta_t = delta_t/2.d0
-
-!!!				do ib = 2,nbins(1)+1
-!!!				do jb = 2,nbins(2)+1
-!!!				do kb = 2,nbins(3)+1
-!!!					if (any(MD_rhouu_dS_prev(ib,jb,kb,:) .ne. MD_rhouu_dS(ib,jb,kb,:))) then
-!!!						convergence = convergence + sum(abs(MD_rhouu_dS_prev(ib,jb,kb,:) - MD_rhouu_dS(ib,jb,kb,:)))
-!!!						print'(5i6,7f14.6)', iter, attempt, ib, jb, kb, sum(abs(MD_rhouu_dS_prev(ib,jb,kb,:) - MD_rhouu_dS(ib,jb,kb,:))), MD_rhouu_dS_prev(ib,jb,kb,:),MD_rhouu_dS(ib,jb,kb,:)
-!!!					endif
-!!!				enddo
-!!!				enddo
-!!!				enddo
-!!				convergence_count = convergence_count + 1
-!!				print'(a,2i5,i8,f28.17,4i5)', 'convergence ', iter, attempt, convergence_count, convergence
-!!                !print*, converge_history 
-!!			endif
-!!		endif
-
-!	enddo
-	deallocate(r_temp,v_temp,box_np_afr,box_np_bfr,u_bin_afr,u_bin_bfr)
-
-
-!	F_constraint = 0.d0; converged = .false.; maxiter = 100
-!	allocate(converge_history(maxiter,3))
-
-!	do ib = 2,nbins(1)+1
-!	do jb = 2,nbins(2)+1
-!	do kb = 2,nbins(3)+1
-
-!		if (box_np_afr(ib,jb,kb) .eq. 0) then
-!			print'(a,3i6)', "Error -- no molecules left in box after timestep", ib,jb,kb
-!			stop
-!		endif
-
-!    	if (box_np_bfr(ib,jb,kb) .ne. 0 .and. apply_CVforce) then
-
-!    		select case (CVforce_testcaseflag)
-!    		case(1)
-!    			!Apply differential CV flux constraint
-!    			F_constraint(ib,jb,kb,:)  =	     MD_Pi_dS(ib,jb,kb,:) -  MD_rhouu_dS(ib,jb,kb,:) &
-!										  + (CFD_rhouu_dS(ib,jb,kb,:) -    CFD_Pi_dS(ib,jb,kb,:) )*volume
-!    		case default
-!				stop "Error - Only full constraint possbile with average_over_allbins_iter"
-!    		end select
-
-!    		!Divide constraint per molecules
-!    		F_constraint(ib,jb,kb,:) = F_constraint(ib,jb,kb,:)/dble(box_np_bfr(ib,jb,kb))
-
-!    	else
-!    		F_constraint(ib,jb,kb,:) = 0.d0
-!    	endif
-
-!	enddo
-!	enddo
-!	enddo
-
-!	!Get velocity at next timestep subject to constraint force
-!	box_np_afr = 0; u_bin_afr = 0.d0
-!	do n = 1,np
-!		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
-!		!Velocity calculated from acceleration
-!		v_temp(:,n) = v(:,n) + delta_t * (a(:,n) - F_constraint(bin(1),bin(2),bin(3),:)*crossing(n))
-!		!Position calculated from velocity
-!		r_temp(:,n) = r(:,n) + delta_t * v_temp(:,n)
-
-!		bin(:) = ceiling((r_temp(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
-!		box_np_afr(bin(1),bin(2),bin(3))  = box_np_afr(bin(1),bin(2),bin(3))   + (1-crossing(n))
-!		u_bin_afr( bin(1),bin(2),bin(3),:)= u_bin_afr( bin(1),bin(2),bin(3),:) + v_temp(:,n)
-!	enddo
-
-!	!Update momentum flux using velocity at next timestep
-!	CV2%flux = 0.d0
-!	call cumulative_momentum_flux(r_temp,v_temp,CV2%flux,crossing)
-!	call update_CV_halos
-
-!	! - - - - -  Get CV Momentum Totals - - - - - - - - - 
-!	!Total CV flux
-!	MD_rhouu_dS(:,:,:,:)=((CV2%flux(:,:,:,:,1)+CV2%flux(:,:,:,:,4)) &
-!	          	 		 +(CV2%flux(:,:,:,:,2)+CV2%flux(:,:,:,:,5)) &
-!	          	 		 +(CV2%flux(:,:,:,:,3)+CV2%flux(:,:,:,:,6)))/delta_t
-
-!	do ib = 2,nbins(1)+1
-!	do jb = 2,nbins(2)+1
-!	do kb = 2,nbins(3)+1
-
-!		if (box_np_afr(ib,jb,kb) .eq. 0) then
-!			print'(a,3i6)', "Error -- no molecules left in box after timestep", ib,jb,kb
-!			stop
-!		endif
-
-!    	if (box_np_bfr(ib,jb,kb) .ne. 0 .and. apply_CVforce) then
-
-!    		select case (CVforce_testcaseflag)
-!    		case(1)
-!    			!Apply differential CV flux constraint
-!    			F_constraint(ib,jb,kb,:)  =	     MD_Pi_dS(ib,jb,kb,:) -  MD_rhouu_dS(ib,jb,kb,:) &
-!										  + (CFD_rhouu_dS(ib,jb,kb,:) -    CFD_Pi_dS(ib,jb,kb,:) )*volume
-!    		case default
-!				stop "Error - Only full constraint possbile with average_over_allbins_iter"
-!    		end select
-
-!    		!Divide constraint per molecules
-!    		F_constraint(ib,jb,kb,:) = F_constraint(ib,jb,kb,:)/dble(box_np_afr(ib,jb,kb))
-
-!    	else
-!    		F_constraint(ib,jb,kb,:) = 0.d0
-!    	endif
-
-!	enddo
-!	enddo
-!	enddo
-
-!	!Get velocity at next timestep subject to constraint force
-!	box_np_afr = 0; u_bin_afr = 0.d0
-!	do n = 1,np
-!		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
-!		!Velocity calculated from acceleration
-!		v_temp(:,n) = v(:,n) + delta_t * (a(:,n) - F_constraint(bin(1),bin(2),bin(3),:)*crossing(n))
-!		!Position calculated from velocity
-!		r_temp(:,n) = r(:,n) + delta_t * v_temp(:,n)
-!	enddo
-
-!	deallocate(r_temp,v_temp,box_np_afr,box_np_bfr,u_bin_afr,u_bin_bfr)
-
-end subroutine average_over_allbins_noFcrossing
-
 
 
 !=============================================================================
@@ -2333,11 +1895,12 @@ subroutine apply_force
 end subroutine apply_force
 
 
+
 !=============================================================================
 ! Apply force to molecules in overlap region
 !-----------------------------------------------------------------------------
 
-subroutine apply_force_noFcrossing
+subroutine apply_force_weighted
 	use arrays_MD, only : r,v,a
 	use physical_constants_MD, only : density
 	use computational_constants_MD, only : eflux_outflag
@@ -2346,25 +1909,54 @@ subroutine apply_force_noFcrossing
 
 	integer								:: n, molno
 	integer,dimension(3)				:: bin
-	double precision,dimension(3)		:: velvect
+	integer, allocatable, dimension(:,:,:)   :: boxnp
+	double precision,dimension(3)		:: w,velvect,Ftest,Fwtest
+	double precision, allocatable, dimension(:,:)   :: random_array
+	double precision, allocatable, dimension(:,:,:,:)   :: wsum
+
+	allocate(boxnp(nbins(1)+2,nbins(2)+2,nbins(3)+2)); 	boxnp = 0
+	allocate(wsum(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); 	wsum = 0.d0
+	allocate(random_array(3,np))
+	call random_number(random_array)
+
+    !Get weighting function -- linear across domain from -0.5 to 0.5
+	do n = 1,np
+		!Get bin
+		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
+
+		!Add molecule weighting to sum
+		w = random_array(:,n)  !(r(:,n) - (bin(1)-0.5d0) *Fbinsize(:))/Fbinsize(:)
+		boxnp(bin(1),bin(2),bin(3))  = boxnp(bin(1),bin(2),bin(3)) + 1
+		wsum(bin(1),bin(2),bin(3),:) =  wsum(bin(1),bin(2),bin(3),:) + w(:)
+
+	enddo
 
 	!Loop over all molecules and apply constraint
+	Ftest = 0.d0; Fwtest = 0.d0
 	do n = 1, np
 		!Get bin
 		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
 		!Apply force
-		a(:,n) = a(:,n) - F_constraint(bin(1),bin(2),bin(3),:)*notcrossing(n)
+		w(:) = random_array(:,n)  !(r(:,n) - (bin(:)-0.5d0) *Fbinsize(:))/Fbinsize(:)
+		a(:,n) = a(:,n) - F_constraint(bin(1),bin(2),bin(3),:) * boxnp(bin(1),bin(2),bin(3)) * w(:) / wsum(bin(1),bin(2),bin(3),:)
+        if (bin(1) .eq. 2 .and. bin(2) .eq. 2 .and. bin(3) .eq. 2) then
+            Ftest = Ftest + F_constraint(bin(1),bin(2),bin(3),:)
+            Fwtest = Fwtest + F_constraint(bin(1),bin(2),bin(3),:) * boxnp(bin(1),bin(2),bin(3)) * w(:) / wsum(bin(1),bin(2),bin(3),:)
+            print'(a,2i5,13f10.4)', 'weighting',n,boxnp(bin(1),bin(2),bin(3)),w(1), F_constraint(bin(1),bin(2),bin(3),:), & 
+                                                                               F_constraint(bin(1),bin(2),bin(3),:) * boxnp(bin(1),bin(2),bin(3)) * w(:) / wsum(bin(1),bin(2),bin(3),:), & 
+                                                                               Ftest,Fwtest
+        endif
 		!Add external force to CV total
 		if (eflux_outflag .eq. 4) then
 			velvect(:) = v(:,n) + 0.5d0*delta_t*a(:,n)
-			call record_external_forces(F_constraint(bin(1),bin(2),bin(3),:),r(:,n)*notcrossing(n),velvect)
+			call record_external_forces(F_constraint(bin(1),bin(2),bin(3),:)* boxnp(bin(1),bin(2),bin(3)) * w(:) / wsum(bin(1),bin(2),bin(3),:),r(:,n),velvect)
 		else
-			call record_external_forces(F_constraint(bin(1),bin(2),bin(3),:),r(:,n)*notcrossing(n))
+			call record_external_forces(F_constraint(bin(1),bin(2),bin(3),:)* boxnp(bin(1),bin(2),bin(3)) * w(:) / wsum(bin(1),bin(2),bin(3),:),r(:,n))
 		endif
 
 	enddo
 
-end subroutine apply_force_noFcrossing
+end subroutine apply_force_weighted
 
 
 end subroutine apply_CV_force_multibin
