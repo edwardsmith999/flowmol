@@ -781,7 +781,10 @@ subroutine set_parameters_outputs
 
 	! Allocate cylindrical polar bins
 
-	if (config_special_case.eq.'rotate_cylinders') then
+	if (config_special_case .eq. 'rotate_cylinders' .or. &
+        config_special_case .eq. 'fill_cylinders' .or. &
+        config_special_case .eq. 'fill_cylinders_fene_solution' &
+        ) then
 
 		! No halos in r or theta
 		cpol_bins(1) = gcpol_bins(1) ! r and theta bins are stored globally...
