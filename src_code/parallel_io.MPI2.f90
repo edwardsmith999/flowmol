@@ -1232,7 +1232,7 @@ subroutine parallel_io_import_cylinders
    
 
 	!Open restart file on all processor
-	call MPI_FILE_OPEN(MD_COMM, cyl_file, & 
+	call MPI_FILE_OPEN(MPI_COMM_SELF, cyl_file, & 
 	                   MPI_MODE_RDONLY , MPI_INFO_NULL, fileid, ierr)
 
 	nl = 0		!Reset local molecules count nl
@@ -1241,8 +1241,8 @@ subroutine parallel_io_import_cylinders
 	do n=1,cyl_np
 
 		!Read global position	
-		call MPI_FILE_READ_ALL(fileid, rtemp, 3, MPI_REAL, &
-							   MPI_STATUS_IGNORE, ierr)
+		call MPI_FILE_READ(fileid, rtemp, 3, MPI_REAL, &
+						   MPI_STATUS_IGNORE, ierr)
 
 		!Use integer division to determine which processor to assign molecule to
 		procassign = ceiling((rtemp(1)+globaldomain(1)/2.d0)/domain(1))
