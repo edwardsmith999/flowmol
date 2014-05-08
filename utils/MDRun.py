@@ -414,11 +414,12 @@ class MDRun:
                 raise SimIncompleteError 
             else:
                 print('Simulation in directory ' + self.rundir + ' appears ' + 
-                      'to have finished correctly in ' + timetaken + ' seconds')
+                      'to have finished correctly in ' + timetaken + ' seconds,\n'
+                       + 'the input file was ' + self.inputfile + '.')
         #If time taken output is not found, display the last 10 lines of error and output info 
         except SimIncompleteError:
-            print('Simulation in directory ' + self.rundir + ' appears ' + 
-                  'to have failed:')
+            print('Simulation in directory ' + self.rundir + ', with input file\n'
+                  + self.inputfile + ', appears to have failed:')
             with open(stderrfile,'r') as fileObj:
                 print(' ==== Standard Error File for rundir ' + self.rundir + ' ==== ')
                 lastlines = fileObj.readlines()[-10:]
