@@ -2761,6 +2761,22 @@ subroutine globalSumIntVect(A, na)
 	return
 end
 
+subroutine PlaneSum(PLANE_COMM_IN,A)
+    use messenger
+    implicit none
+
+    integer, intent(in) :: PLANE_COMM_IN
+	double precision, intent(inout) :: A
+    double precision :: buf
+
+	call MPI_AllReduce (A, buf, 1, MPI_DOUBLE_PRECISION, &
+	                    MPI_SUM, PLANE_COMM_IN, ierr)
+	A = buf
+
+	return
+
+end
+
 subroutine PlaneSumIntVect(PLANE_COMM_IN, A, na)
 	use messenger
 	implicit none
