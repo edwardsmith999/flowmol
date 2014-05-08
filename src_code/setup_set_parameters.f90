@@ -467,7 +467,9 @@ subroutine set_parameters_global_domain
 			!Initially assume molecules per processor are evenly split 
 			! - corrected after position setup
 			globalnp = cyl_np + extranp
-			np = globalnp / nproc
+
+            call guess_block_cylinder_np()
+			!np = globalnp / nproc
 
 			! turn off periodicity in x and y direction
 			periodic(1) = 0
@@ -501,7 +503,8 @@ subroutine set_parameters_global_domain
 
 			!Initially assume molecules per processor are evenly split 
 			! - corrected after position setup
-			np = globalnp / nproc
+            call guess_block_cylinder_np()
+			!np = globalnp / nproc
 
 			! turn off periodicity in x and y direction
 			periodic(1) = 0
@@ -529,7 +532,67 @@ subroutine set_parameters_global_domain
 
 	end select
 
+contains
+
+    subroutine guess_block_cylinder_np()
+        use circle_rectangle_intersection
+        use messenger
+        implicit none
+
+        real(kind(0.d0)) :: A, A_o, A_i, Atotal, ratio
+        real(kind(0.d0)) :: vx(4), vy(4) 
+
+        call block_vertices(iblock,jblock,vx,vy) 
+        call circle_rectangle_intersection_area(vx, vy, r_oo, npx, npy, A_o)
+        call circle_rectangle_intersection_area(vx, vy, r_ii, npx, npy, A_i)
+        A = A_o - A_i
+       
+        Atotal = A 
+        call PlaneSum(plane_comm(3), Atotal)
+
+        ratio = A / Atotal
+        np = globalnp * ratio 
+
+        !print*, irank, np
+        
+        !call messenger_syncall
+        !stop
+
+    end subroutine guess_block_cylinder_np
+
+    subroutine block_vertices(iblock, jblock, vx, vy)
+        implicit none
+
+        integer, intent(in) :: iblock, jblock
+        real(kind(0.d0)), intent(out) :: vx(4), vy(4)
+
+        real(kind(0.d0)) :: ivec(2), jvec(2), vertices(4,2)
+
+        ivec = (/domain(1), 0.d0/)
+        jvec = (/0.d0, domain(2)/)
+
+        !    2           
+        !    x -------- x 3
+        !    |          |
+        !    |          |
+        !    |          |
+        !    |          |
+        !  1 x -------- x
+        !               4  
+
+        vertices(1,:) = (iblock-1)*ivec + (jblock-1)*jvec
+        vertices(2,:) = vertices(1,:) + jvec 
+        vertices(3,:) = vertices(1,:) + ivec + jvec
+        vertices(4,:) = vertices(1,:) + ivec
+
+        vx(:) = vertices(:,1) - globaldomain(1)/2.0
+        vy(:) = vertices(:,2) - globaldomain(2)/2.0
+
+    end subroutine block_vertices
+
+
 end subroutine set_parameters_global_domain
+
 
 !-----------------------------------------------------------------------------------------
 

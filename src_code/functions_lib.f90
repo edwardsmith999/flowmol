@@ -1748,6 +1748,388 @@ end function couette_analytical_fn
 
 end module librarymod
 
+module circle_rectangle_intersection
+
+    real(kind(0.d0)), parameter :: pi=4.d0*atan(1.d0)
+
+contains
+
+    function segment_area(ixs,r) result (area)
+
+        real(kind(0.d0)), intent(in) :: ixs(2,2), r
+        real(kind(0.d0)) :: area
+
+        real(kind(0.d0)) :: theta
+
+        theta = acos(dot_product(ixs(1,:),ixs(2,:))/(r**2.d0))
+        area = 0.5d0*(r**2.d0)*(theta - sin(theta))
+    
+    end function segment_area
+
+    function single_triangle_area(ixs,vx,vy,vertices_in) result(area)
+
+        real(kind(0.d0)), intent(in) :: ixs(2,2)
+        real(kind(0.d0)), intent(in) :: vx(4), vy(4)
+        logical, intent(in) :: vertices_in(4)
+        real(kind(0.d0)) :: area
+
+        integer :: i
+        real(kind(0.d0)) :: px(3), py(3)
+
+        ! Store which vertex is in the radius        
+        do i = 1,4
+
+            if (vertices_in(i)) then
+
+                px = (/vx(i), ixs(1,1), ixs(2,1)/)
+                py = (/vy(i), ixs(1,2), ixs(2,2)/)
+                area = triangle_area(px,py) 
+                return
+
+            end if
+
+        end do
+
+    end function single_triangle_area
+
+    function single_triangle_outside_area(ixs,vx,vy,vertices_in) result(area)
+
+        real(kind(0.d0)), intent(in) :: ixs(2,2)
+        real(kind(0.d0)), intent(in) :: vx(4), vy(4)
+        logical, intent(in) :: vertices_in(4)
+        real(kind(0.d0)) :: area
+
+        integer :: i
+        real(kind(0.d0)) :: px(3), py(3)
+
+        ! Store which vertex is in the radius        
+        do i = 1,4
+
+            if (vertices_in(i) .eqv. .false.) then
+
+                px = (/vx(i), ixs(1,1), ixs(2,1)/)
+                py = (/vy(i), ixs(1,2), ixs(2,2)/)
+                area = triangle_area(px,py) 
+                return
+
+            end if
+
+        end do
+
+    end function single_triangle_outside_area
+
+    function double_triangle_area(ixs,vx,vy,vertices_in) result(area)
+
+        real(kind(0.d0)), intent(in) :: ixs(2,2)
+        real(kind(0.d0)), intent(in) :: vx(4), vy(4)
+        logical, intent(in) :: vertices_in(4)
+        real(kind(0.d0)) :: area
+
+        integer :: i, cnt, vertices(2)
+        real(kind(0.d0)) :: px(3), py(3)
+        real(kind(0.d0)) :: rvertex(2,2) 
+        real(kind(0.d0)) :: first(2), second(2), third(2), fourth(2), temp(2)
+
+        cnt = 0
+        do i = 1,4
+            if (vertices_in(i)) then
+                cnt = cnt + 1
+                vertices(cnt) = i 
+            end if
+        end do
+
+        do cnt=1,2
+            vertex = vertices(cnt)
+            rvertex(cnt,:) = (/vx(vertex),vy(vertex)/)
+        end do
+
+        first = rvertex(1,:)
+        second = ixs(1,:)
+        third = rvertex(2,:)
+        fourth = ixs(2,:)
+
+        ! First and second must always be opposed 
+        if ( (first(1) .eq. second(1)) .or. &
+             (first(2) .eq. second(2)) ) then
+            ! Swap second and fourth
+            temp = second
+            second = fourth 
+            fourth = temp
+        end if
+
+        px = (/first(1), second(1), third(1)/)
+        py = (/first(2), second(2), third(2)/)
+        A1 = triangle_area(px,py)
+        px = (/first(1), second(1), fourth(1)/)
+        py = (/first(2), second(2), fourth(2)/)
+        A2 = triangle_area(px,py)
+        
+        area = A1 + A2
+
+    end function double_triangle_area
+
+    function triangle_area(px, py) result(area)
+
+        real(kind(0.d0)), intent(in) :: px(3), py(3) !Input points
+        real(kind(0.d0)) :: area
+
+        real(kind(0.d0)) :: u(2), v(2)
+
+        u = (/px(2)-px(1), py(2)-py(1)/) 
+        v = (/px(3)-px(1), py(3)-py(1)/) 
+        area = 0.5*abs(u(1)*v(2) - u(2)*v(1))
+
+    end function triangle_area
+
+    subroutine circle_rectangle_intersection_area(vx, vy, r, npx, npy, A)
+        implicit none
+
+        real(kind(0.d0)), intent(in) :: vx(4), vy(4), r
+        integer, intent(in) :: npx, npy
+        real(kind(0.d0)), intent(out) :: A
+        
+        real(kind(0.d0)) :: ixs(8,2), A_seg, A_tri, A_dom
+        logical :: vertices_in(4) 
+        integer :: n_in, n_ixs
+
+        call vertices_in_radius(vx,vy,r,vertices_in, n_in)
+        call solve_block_intersections(vx,vy,r,ixs,n_ixs) 
+        A = 0.d0
+
+        if (n_in .eq. 0) then
+
+            if (n_ixs .eq. 0) then
+
+                if (npx .eq. 1 .and. npy .eq. 1) then
+                    ! Whole circle inside rectangle
+                    A = pi * r * r
+                else
+                    ! Circle not wholly contained
+                    A = 0.0
+                end if
+
+            else
+
+                stop 'Intersections appeared when n_in = 0. This is too complicated for me to calculate. '
+
+            end if
+    
+
+        else if (n_in .eq. 1) then
+
+
+            if (n_ixs .ne. 2) then
+                stop 'One vertex inside circle but n intersections not 2!'
+            else
+                ! Corner only inside circle
+                A_seg = segment_area(ixs(1:2,:),r)
+                A_tri = single_triangle_area(ixs(1:2,:),vx,vy,vertices_in)
+                A = A_seg + A_tri
+            end if
+
+
+        else if (n_in .eq. 2) then
+
+
+            if (n_ixs .ne. 2) then
+                stop 'Two vertices inside circle but n intersections not 2!'
+            else
+                ! Two vertices inside
+                A_seg = segment_area(ixs(1:2,:),r)
+                A_tri = double_triangle_area(ixs(1:2,:),vx,vy,vertices_in) 
+                A = A_seg + A_tri
+            end if
+
+
+        else if (n_in .eq. 3) then
+
+            if (n_ixs .ne. 2) then
+                stop 'Three vertices inside circle but n intersections not 2!'
+            else
+                ! Two vertices inside
+                A_seg = segment_area(ixs(1:2,:),r)
+                A_tri = single_triangle_outside_area(ixs(1:2,:),vx,vy,vertices_in) 
+                A = A_seg + A_tri
+                !A_dom = domain(1)*domain(2)
+                A_dom = (vx(3) - vx(1)) * (vy(2) - vy(1))
+                A = A_dom - A_tri + A_seg
+            end if
+    
+        else if (n_in .eq. 4) then
+            
+            A = (vx(3) - vx(1)) * (vy(2) - vy(1))
+
+        else
+            
+            stop 'Unknown number of vertices within radius'
+ 
+        end if
+
+    end subroutine circle_rectangle_intersection_area
+    
+    subroutine solve_block_intersections(vx,vy,r,ixs,n_ixs)
+        implicit none
+
+        real(kind(0.d0)), intent(in) :: vx(4), vy(4), r 
+        real(kind(0.d0)), intent(out) :: ixs(8,2)
+        integer, intent(out) :: n_ixs
+
+        real(kind(0.d0)) :: top, bottom, left, right
+        real(kind(0.d0)) :: ixs_line(2,2)
+        integer :: n_ixs_line, n
+
+        n_ixs = 0
+        ixs(:,:) = -666.d0
+
+        top = vy(2)
+        bottom = vy(1)
+        left = vx(1)
+        right = vx(3)
+
+        ! Top face
+        call solve_line_intersections(left, right, top, top, r, &
+                                     ixs_line, n_ixs_line)
+        call store_intersections
+
+        ! Bottom face
+        call solve_line_intersections(left, right, bottom, bottom, r, &
+                                     ixs_line, n_ixs_line) 
+        call store_intersections
+
+        ! Left face
+        call solve_line_intersections(left, left, bottom, top, r, &
+                                     ixs_line, n_ixs_line) 
+        call store_intersections
+
+        ! Right face
+        call solve_line_intersections(right, right, bottom, top, r, &
+                                     ixs_line, n_ixs_line) 
+        call store_intersections
+
+        !ixs = ixs_top + ixs_bottom + ixs_left + ixs_right 
+        
+    contains
+    
+        subroutine store_intersections
+            implicit none
+
+            integer :: n
+
+            if (n_ixs_line .gt. 0) then
+                n_ixs = n_ixs + n_ixs_line 
+                do n=1, n_ixs_line
+                    ixs(n_ixs,:) = ixs_line(n,:)
+                end do 
+            end if
+            
+        end subroutine store_intersections
+
+    end subroutine solve_block_intersections
+       
+    subroutine solve_line_intersections(x1, x2, y1, y2, r, line_ixs, n_ixs)
+        implicit none
+
+        real(kind(0.d0)), intent(in) :: x1, x2, y1, y2, r
+        real(kind(0.d0)), intent(out) :: line_ixs(2,2) 
+        integer, intent(out) :: n_ixs
+        
+        real(kind(0.d0)) :: dx, dy, dr, D, delta, eps
+        real(kind(0.d0)) :: xplus, xminu, yplus, yminu
+        real(kind(0.d0)) :: x, y, ix(2), xs(2), ys(2)
+        integer :: loopx, loopy, i, j
+
+        eps = 0.001 ! Small floating point error
+
+        dx = x2 - x1 
+        dy = y2 - y1 
+        dr = sqrt(dx**2.0 + dy**2.0)
+        D = x1*y2 - x2*y1 
+        delta = (r*dr)**2.0 - D**2.0
+
+        n_ixs = 0
+        line_ixs(:,:) = -666.d0
+
+        if (delta .lt. 0) then
+
+            return 
+        
+        else if (delta == 0.0) then
+
+            stop 'Incident boundary on cylinder, cannot compute.'
+
+        else
+
+            xplus = (D*dy + signum(dy)*dx*sqrt(delta)) / (dr**2.0)
+            xminu = (D*dy - signum(dy)*dx*sqrt(delta)) / (dr**2.0)
+            yplus = (-D*dx + abs(dy)*sqrt(delta)) / (dr**2.0)
+            yminu = (-D*dx - abs(dy)*sqrt(delta)) / (dr**2.0)
+
+            xs = (/xplus, xminu/)
+            ys = (/yplus, yminu/)
+
+            loopx = 2
+            loopy = 2
+            if (xs(1) .eq. xs(2)) loopx = 1
+            if (ys(1) .eq. ys(2)) loopy = 1
+
+            n_ixs = 0
+            do i = 1,loopx 
+            do j = 1,loopy
+
+                x = xs(i)
+                y = ys(j)
+                ix = (/x,y/)
+
+                if ( (x .ge. x1 - eps .and. x .le. x2 + eps) .and. &
+                     (y .ge. y1 - eps .and. y .le. y2 + eps) ) then
+                    n_ixs = n_ixs + 1
+                    line_ixs(n_ixs,:) = ix
+                end if
+
+            end do
+            end do
+
+        end if
+
+    end subroutine solve_line_intersections
+
+    function signum(a) result(sig)
+        implicit none
+       
+        real(kind(0.d0)), intent(in) :: a
+        real(kind(0.d0)) :: sig
+
+        if (a .lt. 0.d0) then
+            sig = -1.d0
+        else
+            sig = 1.d0
+        end if 
+
+    end function signum
+
+    subroutine vertices_in_radius(vx, vy, r, v_in, n_in)
+        
+        real(kind(0.d0)), intent(in) :: vx(4), vy(4), r
+        logical, intent(out) :: v_in(4)
+        integer, intent(out) :: n_in
+
+        real(kind(0.d0)) :: x, y 
+   
+        v_in(:) = .false. 
+        n_in = 0
+        do vertex = 1,4
+            x = vx(vertex)
+            y = vy(vertex)
+            if ((x**2.0 + y**2.0) .le. r**2.0) then
+                v_in(vertex) = .true.   
+                n_in = n_in + 1
+            end if
+        end do
+
+    end subroutine vertices_in_radius
+
+end module circle_rectangle_intersection
+
 !======================================================================
 !Ensures functions work correctly
 subroutine check
