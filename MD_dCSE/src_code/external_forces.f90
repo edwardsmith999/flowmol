@@ -1386,7 +1386,7 @@ subroutine apply_CV_force_multibin(iter)
     use physical_constants_MD, only : density
 	use computational_constants_MD, only : irank, npy, globaldomain, CVforce_flag, VOID,  Nsteps, iblock, jblock, kblock
 	use calculated_properties_MD, only : pressure, nbins, gnbins
-	use librarymod, only : get_new_fileunit, couette_analytical_fn
+	use librarymod, only : get_new_fileunit, couette_analytical_fn, lagrange_poly_weight_Nmol
 	use module_external_forces, only : np, momentum_flux, irank,nbins, nbinso,domain,delta_t,Nvflux_ave
 	use CV_objects, only : 	CV2 => CVcheck_momentum2
 	implicit none
@@ -1398,6 +1398,7 @@ subroutine apply_CV_force_multibin(iter)
 	integer                     	:: igmin,jgmin,kgmin,igmax,jgmax,kgmax
 	real(kind(0.d0))								:: volume, y_loc
 	real(kind(0.d0)),dimension(3)					:: Fbinsize, u_bin
+	real(kind(0.d0)),allocatable,dimension(:,:)     :: weighting_array
 	real(kind(0.d0)),allocatable,dimension(:,:,:,:) :: F_constraint
 	real(kind(0.d0)),allocatable,dimension(:,:,:,:) :: CFD_Pi_dS,CFD_rhouu_dS,CFD_u_cnst
 
@@ -1414,6 +1415,7 @@ subroutine apply_CV_force_multibin(iter)
     igmin = 1; jgmin = 1; kgmin = 1;
     igmax = gnbins(1); jgmax = gnbins(2); kgmax = gnbins(3)
 
+	!if (iter .lt. starttime) return
 
 !    igmin = nint(gnbins(1)/2.d0); jgmin = nint(gnbins(2)/2.d0); kgmin = nint(gnbins(3)/2.d0);
 !    igmax = nint(gnbins(1)/2.d0); jgmax = nint(gnbins(2)/2.d0); kgmax = nint(gnbins(3)/2.d0)
@@ -1421,12 +1423,8 @@ subroutine apply_CV_force_multibin(iter)
 	!Exchange CV data ready to apply force
 	call update_CV_halos
 
-	!Only apply force on top processor
-	!if (jblock .ne. npy) return
-
 	!Get average over current cell and apply constraint forces
 	!call get_continuum_values
-
 	call get_test_values(CVforce_flag, igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 
 	!Set velocity to required value and then apply constraint 
@@ -1468,13 +1466,17 @@ subroutine apply_CV_force_multibin(iter)
 
 	endif
 
-	!Retreive CV data and calculate force to apply
-	call average_over_allbins_iter(CVforce_flag, igmin,jgmin,kgmin,igmax,jgmax,kgmax)
-	!call average_over_allbins_noFcrossing(CVforce_flag)
+	if (iter .ge. starttime) then
 
-	!Apply the force
-	call apply_force
-    !call apply_force_weighted
+		!Retreive CV data and calculate force to apply
+		call average_over_allbins_iter(CVforce_flag, igmin,jgmin,kgmin,igmax,jgmax,kgmax)
+		!call average_over_allbins_noFcrossing(CVforce_flag)
+
+		!Apply the force
+		!call apply_force
+		call apply_force_weighted
+
+	endif
 
 	!Reset CV force values
 	CV2%flux = 0.d0; CV2%Pxy = 0.d0
@@ -1485,8 +1487,9 @@ contains
 ! min and max values are specified in the global bin numbering
 subroutine get_test_values(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
     use physical_constants_MD, only : pi, tethereddisttop, tethereddistbottom, density
-    use computational_constants_MD, only : npx, npy, npz, Nvel_ave, tplot
+    use computational_constants_MD, only : npx, npy, npz, Nvel_ave, tplot,CVweighting_flag
     use messenger, only : globalise_bin, localise_bin
+	use arrays_MD, only : r
 	implicit none
 
 	integer,intent(in)	:: flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax
@@ -1496,6 +1499,27 @@ subroutine get_test_values(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 	double precision	:: sin_mag, sin_period, Re, H
 
 	double precision,dimension(:),allocatable	:: u_t,u_mdt,utemp
+
+	if (allocated(weighting_array)) deallocate(weighting_array)
+	select case(CVweighting_flag)
+	case(0)
+		!No weighting -- apply evenly. 
+		allocate(weighting_array,source=get_uniform_weighting_array())
+	case(1)
+		!Random weighting
+		allocate(weighting_array,source=get_random_weighting_array())
+	case(2)
+		!MD stress weighting
+		allocate(weighting_array,source=get_MDstress_weighting_array(r,Fbinsize,domain))
+	case(3)
+		!MD stress and Couette flow weighting
+        Re = 0.33333d0
+        H = globaldomain(2)
+		allocate(weighting_array,source=get_Couette_stress_weighting_array(r,Re,H,bmin,bmax,Fbinsize,domain))
+	case default 
+		stop "CVweighting_flag Error -- must be 0 to 3"
+	end select
+
 
 	allocate(CFD_Pi_dS(   nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); CFD_Pi_dS=0.d0
 	allocate(CFD_rhouu_dS(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); CFD_rhouu_dS=0.d0
@@ -1562,7 +1586,7 @@ subroutine get_test_values(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
     case(5)
         !print'(19i6)', iter, iblock, jblock, kblock, igmin,jgmin,kgmin,igmax,jgmax,kgmax,bmin,bmax,gnbins
 
-	    ! Couette Analytical solution
+	    ! Couette Analytical solution applied as 2 seperate regions to top and bottom of domain...
         Re = 0.33333d0
         !Range of bins applied force is spread over
         appliedbins = nint(gnbins(2)/2.d0)+1  !Half domain
@@ -1610,11 +1634,147 @@ subroutine get_test_values(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
         close(irank*10000+iter,status='keep')
         endif
 
+	case(6)
 
+	    ! Couette Analytical solution applied to top only...
+        allocate(utemp(gnbins(2)),u_t(bmin(2):bmax(2)),u_mdt(bmin(2):bmax(2)))
+        CFD_rhouu_dS = 0.d0
+	    CFD_Pi_dS    = 0.d0
+        CFD_u_cnst   = 0.d0
+
+        ! Get velocity from analytical solution first
+        appliedbins = gnbins(2) !Whole domain
+        if (iter .gt. starttime+1) then
+            utemp(:) = couette_analytical_fn( (iter-starttime) *delta_t,Re,1.d0,H,appliedbins,2)
+            u_t(:)   = utemp(jgmin:jgmax)*density
+            utemp(:) = couette_analytical_fn((iter-starttime-1)*delta_t,Re,1.d0,H,appliedbins,2)
+            u_mdt(:) = utemp(jgmin:jgmax)*density
+
+            !Differentiate w.r.t time
+            do ib = bmin(1),bmax(1)
+            do kb = bmin(3),bmax(3)
+        	    CFD_u_cnst(ib,bmin(2):bmax(2),kb,1) =  u_t(:)
+	            CFD_Pi_dS( ib,bmin(2):bmax(2),kb,1) = (u_t(:) - u_mdt(:))/delta_t
+            enddo
+            enddo
+
+!            if (mod(iter,tplot*Nvel_ave) .eq. 0) then
+!                do jb = bmin(2),bmax(2)
+!                    write(irank*10000+iter,'(5i6,4f18.12)'),iter, iblock, jblock, kblock, jb, u_t(jb), & 
+!                                             minval(CFD_Pi_dS(bmin(1):bmax(1),jb,bmin(3):bmax(3),1)), & 
+!                            CFD_Pi_dS(ceiling(0.5d0*(bmin(1)+bmax(1))),jb,ceiling(0.5d0*(bmin(3)+bmax(3))),1), & 
+!                                             maxval(CFD_Pi_dS(:,jb,:,1))
+!                enddo
+!            endif
+!            close(irank*10000+iter,status='keep')
+
+        else
+
+!            if (mod(iter,tplot*Nvel_ave) .eq. 0) then
+!                do jb = bmin(2),bmax(2)
+!                    write(irank*10000+iter,'(5i6,4f18.12)'),iter, iblock, jblock, kblock, jb, 0.d0,0.d0,0.d0,0.d0
+!            enddo
+!        endif
+!        close(irank*10000+iter,status='keep')
+        endif
 
     end select
-	
+
 end subroutine get_test_values
+
+!Sure this is the zero order
+!Lagrange interpolant case but simpler to set to 1 throughout
+function get_uniform_weighting_array() result(w)
+	implicit none
+
+	double precision,dimension(:,:),allocatable	:: w
+
+	allocate(w(3,np))
+	w = 1.d0
+	
+end function get_uniform_weighting_array
+
+
+function get_random_weighting_array() result(w)
+	implicit none
+
+	double precision,dimension(:,:),allocatable	:: w
+
+	allocate(w(3,np))
+	call random_number(w)
+	w = w*100.d0
+	
+end function get_random_weighting_array
+
+function get_MDstress_weighting_array(r_in,binsize,domain) result(w)
+	use librarymod, only : couette_analytical_stress_fn
+	implicit none
+
+	double precision,dimension(3),intent(in)	:: binsize,domain
+	double precision,dimension(:,:),intent(in)	:: r_in
+
+	double precision,dimension(:,:),allocatable	:: w
+	double precision,allocatable,dimension(:,:,:,:,:) :: MD_stress
+
+	!Call linear lagrange polynomial to distribute forces
+	allocate(w(3,np))
+	allocate(MD_stress(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
+	MD_stress = (0.25d0 * CV2%Pxy(:,:,:,:,:) + CV2%flux(:,:,:,:,:)/delta_t)
+	w(:,:) = lagrange_poly_weight_Nmol(MD_stress,r_in,binsize,domain,(/2,2,2/))
+
+end function get_MDstress_weighting_array
+
+function get_Couette_stress_weighting_array(r_in,Re,H,bmin,bmax,binsize,domain) result(w)
+	use librarymod, only : couette_analytical_stress_fn
+	implicit none
+
+	integer,dimension(3),intent(in)	:: bmin,bmax
+	double precision,dimension(3),intent(in)	:: binsize,domain
+	double precision,intent(in)		:: Re, H
+	double precision,dimension(:,:),intent(in)	:: r_in
+
+	integer						:: appliedbins, ib,jb,kb,taumin, taumax
+
+	double precision,dimension(:),allocatable	:: tautemp
+	double precision,dimension(:,:),allocatable	:: w
+	double precision,allocatable,dimension(:,:,:,:,:) :: CFDMDstress_diff
+	real(kind(0.d0)),allocatable,dimension(:,:,:,:,:) :: CFD_Pxy,CFD_flux
+
+	allocate(CFD_Pxy( nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
+	allocate(CFD_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
+	allocate(CFDMDstress_diff(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
+	allocate(w(3,np))
+
+	!appliedbins = 2.d0*gnbins(2)+1
+	taumin = 2.d0 * (bmin(2)-1) - 1
+	taumax = 2.d0 * (bmax(2)  ) - 1
+	appliedbins = taumax-taumin+1
+    allocate(tautemp(appliedbins))	!Double resolution for surfaces
+
+    ! Couette Analytical solution
+	tautemp = 2.d0/domain(2) !couette_analytical_stress_fn((iter-starttime)*delta_t,Re,1.d0,H,appliedbins,2)
+    !Copy tau to CFD surfaces
+	CFD_flux = 0.d0
+	CFD_Pxy  = 0.d0
+    do ib = bmin(1),bmax(1)
+    do kb = bmin(3),bmax(3)
+		CFD_Pxy(ib,bmin(2):bmax(2),kb,1,2) =  tautemp(taumin:taumax-2:2)	!Top
+		CFD_Pxy(ib,bmin(2):bmax(2),kb,1,5) = -tautemp(taumin+2:taumax:2)	!Bottom
+    enddo
+    enddo
+
+	!Take difference between MD stress field and CFD stress field and use to determine weighting function
+	CFDMDstress_diff(:,:,:,:,:) =   CV2%Pxy(:,:,:,:,:)+CV2%flux(:,:,:,:,:) & 
+					   			  -(CFD_Pxy(:,:,:,:,:)+CFD_flux(:,:,:,:,:))
+
+	!Call linear lagrange polynomial to distribute forces
+	w(:,:) = lagrange_poly_weight_Nmol(CFDMDstress_diff,r_in(:,1:np),binsize,domain,(/2,2,2/))
+	!print*, 'tauminmax', taumin, taumax, appliedbins, bmin(2), bmax(2),size(tautemp),tautemp(taumin:taumax-2:2),w(:,100)
+
+	
+end function get_Couette_stress_weighting_array
+	
+
 
 ! Exchange all halo values for CV values ready to apply forces
 subroutine update_CV_halos
@@ -1653,7 +1813,7 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 	integer,dimension(3)							:: bin
 	integer,allocatable,dimension(:,:,:) 			:: box_np_bfr,box_np_afr
 
-	double precision								:: convergence
+	double precision								:: convergence,w(3),wmol(3),tol
 	double precision,dimension(:,:),allocatable 	:: r_temp,v_temp,converge_history
 	double precision,allocatable,dimension(:,:,:,:) :: u_bin_afr,u_bin_bfr
 
@@ -1664,7 +1824,7 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 	integer,save									:: convergence_count = 0
 	logical											:: converged
 	logical,save									:: apply_force = .false., first_time = .true.
-
+	double precision, allocatable, dimension(:,:,:,:)   :: wsum
 
     bmin = max(localise_bin((/igmin,jgmin,kgmin/)),(/2,2,2 /))
     bmax = min(localise_bin((/igmax,jgmax,kgmax/)),nbins(:)+1)
@@ -1682,6 +1842,7 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 	allocate(MD_rhouu_dS(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
 	allocate(MD_rhouu_dS_prev(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
 	allocate(F_constraint(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
+	allocate(wsum(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); 	wsum = 0.d0
 
 	!Get velocity/positions before force applied
 	box_np_bfr = 0; u_bin_bfr = 0.d0
@@ -1690,6 +1851,10 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 		!Add molecule to overlap list
 		box_np_bfr(bin(1),bin(2),bin(3))  = box_np_bfr(bin(1),bin(2),bin(3))   + 1
 		u_bin_bfr( bin(1),bin(2),bin(3),:)= u_bin_bfr( bin(1),bin(2),bin(3),:) + v(:,n)
+
+        !Get weighting tally
+        wsum(bin(1),bin(2),bin(3),:) = wsum(bin(1),bin(2),bin(3),:) + weighting_array(:,n)
+
 	enddo
 	
 	!Get velocity/positions at next timestep without constraint
@@ -1718,7 +1883,8 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 	          	 			+(CV2%flux(:,:,:,:,2)+CV2%flux(:,:,:,:,5)) &
 	          	 			+(CV2%flux(:,:,:,:,3)+CV2%flux(:,:,:,:,6)))/delta_t
 
-	F_constraint = 0.d0; converged = .false.; maxiter = 100
+	F_constraint = 0.d0; converged = .false.; maxiter = 100; 
+    tol = 2.2204460E-16 !Machine Precision -- ε such that 1 = 1+ε on a computer
 	!allocate(converge_history(maxiter,3))
 	!Iterate until momentum flux and applied CV force are consistent
 	do attempt = 1,maxiter
@@ -1770,8 +1936,13 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
     	box_np_afr = 0; u_bin_afr = 0.d0
     	do n = 1,np
     		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
+
     		!Velocity calculated from acceleration
-    		v_temp(:,n) = v(:,n) + delta_t * (a(:,n) - F_constraint(bin(1),bin(2),bin(3),:))
+            wmol(:) = dble(box_np_bfr(bin(1),bin(2),bin(3)))*(weighting_array(:,n)/wsum(bin(1),bin(2),bin(3),:))
+			write(5000,'(a,i6,3f10.5,6f16.5)'), 'Weighting functions', n, r(:,n), weighting_array(:,n)/wsum(bin(1),bin(2),bin(3),:), wsum(bin(1),bin(2),bin(3),:)
+
+    		v_temp(:,n) = v(:,n) + delta_t * (a(:,n) - F_constraint(bin(1),bin(2),bin(3),:)*wmol(:))
+
     		!Position calculated from velocity
     		r_temp(:,n) = r(:,n) + delta_t * v_temp(:,n)
 
@@ -1819,13 +1990,23 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 ! 																       2:nbins(3)+1,:)),1),1),1)
 
 		!If fluxes have converged (exactly) then exit after calculating final force
-		if (all(MD_rhouu_dS_prev .eq. MD_rhouu_dS)) then
-		!if (all(MD_rhouu_dS_prev - MD_rhouu_dS .lt. 0.000001d0)) then
+		!if (all(MD_rhouu_dS_prev .eq. MD_rhouu_dS)) then
+		if (all(abs(MD_rhouu_dS_prev-MD_rhouu_dS) .lt. tol)) then
 			converged = .true.
 			!Wait for all processors to converge
 			global_converged = 1
 			call globalMinInt(global_converged)
 			if (global_converged .ne. 1) converged = .false.
+            convergence = 0.d0; converge_cells = 0
+	        do ib = bmin(1),bmax(1)
+	        do jb = bmin(2),bmax(2)
+	        do kb = bmin(3),bmax(3)
+			    convergence = convergence + sum(abs(MD_rhouu_dS_prev(ib,jb,kb,:) - MD_rhouu_dS(ib,jb,kb,:)))
+                converge_cells = converge_cells + 1
+		    enddo
+		    enddo
+		    enddo
+			print'(a,2i5,2i8,f28.17)', 'convergence finished', iter, attempt, convergence_count, converge_cells, convergence
             !print*, iter, 'Converged in ', attempt, ' iteration(s)'
 		else
 			!Tell other processors "I'm not converged"
@@ -1849,7 +2030,7 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 				enddo
 				enddo
 				convergence_count = convergence_count + 1
-				!print'(a,2i5,2i8,f28.17)', 'convergence ', iter, attempt, convergence_count, converge_cells, convergence
+				print'(a,2i5,2i8,f28.17)', 'convergence ', iter, attempt, convergence_count, converge_cells, convergence
                 !print*, converge_history 
 			endif
 		endif
@@ -1907,51 +2088,45 @@ subroutine apply_force_weighted
 	use module_record_external_forces
 	implicit none
 
-	integer								:: n, molno
-	integer,dimension(3)				:: bin
-	integer, allocatable, dimension(:,:,:)   :: boxnp
-	double precision,dimension(3)		:: w,velvect,Ftest,Fwtest
-	double precision, allocatable, dimension(:,:)   :: random_array
+	integer									:: n, molno
+	integer,dimension(3)					:: bin
+	integer, allocatable, dimension(:,:,:)	:: boxnp
+	double precision,dimension(3)			:: w,wmol,velvect,Ftest,Fwtest
+
 	double precision, allocatable, dimension(:,:,:,:)   :: wsum
 
 	allocate(boxnp(nbins(1)+2,nbins(2)+2,nbins(3)+2)); 	boxnp = 0
-	allocate(wsum(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); 	wsum = 0.d0
-	allocate(random_array(3,np))
-	call random_number(random_array)
+	allocate(wsum(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); wsum = 0.d0
 
     !Get weighting function -- linear across domain from -0.5 to 0.5
 	do n = 1,np
+
 		!Get bin
 		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
 
 		!Add molecule weighting to sum
-		w = random_array(:,n)  !(r(:,n) - (bin(1)-0.5d0) *Fbinsize(:))/Fbinsize(:)
 		boxnp(bin(1),bin(2),bin(3))  = boxnp(bin(1),bin(2),bin(3)) + 1
-		wsum(bin(1),bin(2),bin(3),:) =  wsum(bin(1),bin(2),bin(3),:) + w(:)
+		wsum(bin(1),bin(2),bin(3),:) =  wsum(bin(1),bin(2),bin(3),:) + weighting_array(:,n) 
 
 	enddo
 
 	!Loop over all molecules and apply constraint
 	Ftest = 0.d0; Fwtest = 0.d0
 	do n = 1, np
+
 		!Get bin
 		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
+
 		!Apply force
-		w(:) = random_array(:,n)  !(r(:,n) - (bin(:)-0.5d0) *Fbinsize(:))/Fbinsize(:)
-		a(:,n) = a(:,n) - F_constraint(bin(1),bin(2),bin(3),:) * boxnp(bin(1),bin(2),bin(3)) * w(:) / wsum(bin(1),bin(2),bin(3),:)
-        if (bin(1) .eq. 2 .and. bin(2) .eq. 2 .and. bin(3) .eq. 2) then
-            Ftest = Ftest + F_constraint(bin(1),bin(2),bin(3),:)
-            Fwtest = Fwtest + F_constraint(bin(1),bin(2),bin(3),:) * boxnp(bin(1),bin(2),bin(3)) * w(:) / wsum(bin(1),bin(2),bin(3),:)
-            print'(a,2i5,13f10.4)', 'weighting',n,boxnp(bin(1),bin(2),bin(3)),w(1), F_constraint(bin(1),bin(2),bin(3),:), & 
-                                                                               F_constraint(bin(1),bin(2),bin(3),:) * boxnp(bin(1),bin(2),bin(3)) * w(:) / wsum(bin(1),bin(2),bin(3),:), & 
-                                                                               Ftest,Fwtest
-        endif
+        wmol(:) = dble(boxnp(bin(1),bin(2),bin(3)))*(weighting_array(:,n)/wsum(bin(1),bin(2),bin(3),:))
+		a(:,n) = a(:,n) - F_constraint(bin(1),bin(2),bin(3),:) * wmol(:)
+
 		!Add external force to CV total
 		if (eflux_outflag .eq. 4) then
 			velvect(:) = v(:,n) + 0.5d0*delta_t*a(:,n)
-			call record_external_forces(F_constraint(bin(1),bin(2),bin(3),:)* boxnp(bin(1),bin(2),bin(3)) * w(:) / wsum(bin(1),bin(2),bin(3),:),r(:,n),velvect)
+			call record_external_forces(F_constraint(bin(1),bin(2),bin(3),:)*wmol(:),r(:,n),velvect)
 		else
-			call record_external_forces(F_constraint(bin(1),bin(2),bin(3),:)* boxnp(bin(1),bin(2),bin(3)) * w(:) / wsum(bin(1),bin(2),bin(3),:),r(:,n))
+			call record_external_forces(F_constraint(bin(1),bin(2),bin(3),:)*wmol(:),r(:,n))
 		endif
 
 	enddo
