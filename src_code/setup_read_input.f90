@@ -737,6 +737,8 @@ subroutine setup_read_input
 		endif
 		read(1,*,iostat=ios) CVforce_testcaseflag
 		if (ios .ne. 0) CVforce_testcaseflag = 1
+		read(1,*,iostat=ios) CVweighting_flag
+		if (ios .ne. 0) CVweighting_flag = 0
 	endif
 
 	close(1,status='keep')      !Close input file

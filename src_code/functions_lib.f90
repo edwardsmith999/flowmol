@@ -34,6 +34,7 @@
 
 module librarymod
 
+	double precision,parameter :: pi=4.d0*atan(1.d0)
 	double precision,parameter :: const0 = 0.d0, const1 = 1.d0
 
 	! use same name for integer or double precision args versions of imaxloc
@@ -94,8 +95,45 @@ module librarymod
 	interface PDF
 		module procedure PDF_constructor
 	end interface PDF
+
+	! Define a local library version of error_abort so library
+	! exist in isolation without the main code -- the downside
+	! is that MPI_ABORT is not used 
+
+	interface error_abort
+		   module procedure error_abort_s, error_abort_si
+	end interface error_abort
 	
 contains
+
+subroutine error_abort_s(msg)
+    implicit none
+
+    character(len=*), intent(in), optional :: msg
+   
+	integer errcode,ierr
+
+    if (present(msg)) then 
+        write(*,*) msg
+    endif
+
+    stop 
+
+end subroutine error_abort_s
+
+subroutine error_abort_si(msg,i)
+    implicit none
+
+    character(len=*), intent(in) :: msg
+    integer, intent(in) :: i
+
+    integer errcode,ierr
+
+    write(*,*) msg,i
+
+    stop
+
+end subroutine error_abort_si
 
 !-----------------------------------------------------------------------------
 ! Subroutine:	locate(keyword)
@@ -110,8 +148,7 @@ contains
 !-----------------------------------------------------------------------------
 
 subroutine locate(fileid,keyword,required,input_present)
-use interfaces
-implicit none
+	implicit none
 	
 	character*(*),intent(in) :: keyword             ! Input keyword	
 	integer, intent(in) :: fileid                   ! File unit number
@@ -216,7 +253,6 @@ implicit none
 	real(kind(0.d0))              :: rcp(3)
 
 	real(kind(0.d0)) :: x,y,z
-	real(kind(0.d0)) :: pi=4.d0*atan(1.d0)
 
 	x = rin(1)
 	y = rin(2)
@@ -310,7 +346,6 @@ implicit none
     real(kind(0.d0))              :: rcp(3)
 
     real(kind(0.d0)) :: x,y,z
-    real(kind(0.d0)) :: pi=4.d0*atan(1.d0)
 
     x = rin(1); y = rin(2); z = rin(3)
 
@@ -617,7 +652,6 @@ end subroutine plane_line_intersect
 !--------------------------------------------------------------------------------------
 !Swap column a and column b
 subroutine swap(a,b)
-        use interfaces
 	implicit none
 
 	double precision,dimension(:),intent(inout)	:: a, b
@@ -646,7 +680,6 @@ end function outerprod
 !--------------------------------------------------------------------------------------
 !Calculate cross product of two 3D vectors 
 function crossprod(a,b)
-	use interfaces
 	implicit none
 
 	double precision,dimension(3),intent(in)	:: a, b
@@ -709,7 +742,6 @@ end function nonzero
 !indx - output vector storing row permutation
 
 subroutine LUdcmp(A,indx,d)
-	use interfaces
 	implicit none
 
 	double precision, dimension(:,:), intent(inout)	:: A
@@ -902,7 +934,6 @@ end function get_version_number
 !-----------------------------------------------------
 ! Build array of dimension ncells which maps to 3D Hilbert curve.
 subroutine build_hilbert(ncells,Hcurve)
-	use interfaces, only : error_abort
 	implicit none
 
 	integer,dimension(3),intent(in)					 :: ncells
@@ -993,7 +1024,6 @@ end subroutine build_hilbert
 
 ! Normal distribtion
 function normal_dist
-	use physical_constants_MD, only : pi
 	implicit none
 
 	double precision			  :: normal_dist
@@ -1029,7 +1059,6 @@ end function Rayleigh_vel
 ! so this is just the normal distribution
 ! m/(kb*T) * exp(-m(vi - u)**2/(2*kb*T))
 function Maxwell_Boltzmann_vel(T,u)
-	use physical_constants_MD, only : pi
 	implicit none
 
 	double precision			 :: T, u, Maxwell_Boltzmann_vel
@@ -1045,7 +1074,6 @@ end function Maxwell_Boltzmann_vel
 ! N.B. This is the magnitude of all three velocity vectors
 ! [m/(kb*T)]^(3/2) * 4 * pi * (vi-u)^2 * exp(-m(vi - u)**2/(2*kb*T))
 function Maxwell_Boltzmann_speed(T,u)
-	use physical_constants_MD, only : pi
 	implicit none
 
 	double precision			 :: T, u, Maxwell_Boltzmann_speed
@@ -1067,7 +1095,6 @@ end function Maxwell_Boltzmann_speed
 !Use Maxwell Boltzmann distribution to pick a 3 component velocity vector
 ! m/(kb*T) * exp(-m(vi - u)**2/(2*kb*T))
 function Maxwell_Boltzmann_vel3(T,u)
-	use physical_constants_MD, only : pi
 	implicit none
 
 	double precision			 :: T
@@ -1330,7 +1357,6 @@ END FUNCTION random_normal
 
 
 subroutine GNUplot(x,y)
-	use interfaces
 	implicit none
 
 	integer										:: i,unitno1,unitno2
@@ -1363,7 +1389,6 @@ end subroutine GNUplot
 
 
 subroutine PYplot(x,y,routine)
-	use interfaces
 	implicit none
 
 	integer										:: i,unitno1
@@ -1648,7 +1673,6 @@ end subroutine PDF_destroy
 !Read input file from the DNS codes
 
 subroutine read_DNS_velocity_files(filename,ngx,ngy,ngz,uc,vc,wc)
-    use interfaces, only : error_abort
 	implicit none
 
 	integer,intent(in)		:: ngx, ngy, ngz
@@ -1708,7 +1732,7 @@ function couette_analytical_fn(t,Re,U_wall,L,npoints,slidingwall) result (u)
     
     integer                        :: nmodes, n
     double precision               :: k, uinitial, lambda
-	double precision,parameter 	   :: pi=4.d0*atan(1.d0)
+
     double precision,dimension(:),allocatable :: y
 
     nmodes = 1000
@@ -1744,6 +1768,687 @@ function couette_analytical_fn(t,Re,U_wall,L,npoints,slidingwall) result (u)
     end select
 
 end function couette_analytical_fn
+
+! Calculate the analytical expression for stress in couette flow
+
+! Input of the form:
+! tau=couette_analytical_stress_fn(t,Re,U_wall,L,npoints)
+! t      - time
+! Re     - Reynolds number (Distance units as fraction of domain height L)
+! U_wall - wall velocity
+! L      - domain height
+! npoints- number of points required (size of returned array)
+
+
+function couette_analytical_stress_fn(t,Re,U_wall,L,npoints,slidingwall) result (tau)
+    implicit none
+
+    integer,intent(in)             :: npoints,slidingwall
+    double precision,intent(in)    :: t,Re,U_wall,L
+    double precision,dimension(:),allocatable  :: tau
+    
+    integer                        :: nmodes, n
+    double precision               :: k, uinitial, lambda
+    double precision,dimension(:),allocatable :: y
+
+    nmodes = 1000
+    k = 1.d0/Re
+    allocate(y,source=linspace(0.d0,L,npoints))
+    allocate(tau(npoints)); tau = 0.d0
+
+    ! - - - Calculate strain - - -
+    select case(slidingwall)
+    case(0)
+        !Add zero wavenumber
+        tau(:) = tau(:) + U_wall/L
+        !Add time specific modes
+        do n = 1,nmodes
+            lambda = (n*pi/L)**2
+            tau(:) = tau(:) + (2.d0/L*((-1.d0)**n*U_wall)*(exp(-lambda*k*t))) * cos(n*pi*y/L)
+        enddo
+    case(1)
+        !Add zero wavenumber
+        tau(:) = tau(:) + U_wall/L
+        !Add time specific modes
+        do n = 1,nmodes
+            lambda = (n*pi/L)**2
+            tau(:) = tau(:) + (-1.d0)**n*(2.d0/L*((-1.d0)**n*U_wall)*(exp(-lambda*k*t))) * cos(n*pi*y/L)
+        enddo
+    case(2)
+        !Add zero wavenumber
+        tau(:) = tau(:) + (U_wall)*2.d0/L
+        !Add time specific modes
+        do n = 1,nmodes
+            lambda = (n*pi/L)**2
+            tau(:) = tau(:) +            (2.d0/L*((-1.d0)**dble(n)*U_wall)*(exp(-lambda*k*t))) * cos(dble(n)*pi*y/L) &
+                            + (-1.d0)**n*(2.d0/L*((-1.d0)**dble(n)*U_wall)*(exp(-lambda*k*t))) * cos(dble(n)*pi*y/L)
+        enddo
+    case default
+        stop "Couette Stress Analytical Solution Needs either top or bottom wall to be sliding"
+    end select
+
+    ! Shear stress is strain times viscosity (NOTE THIS ASSUMES UNIT DENSITY)
+    tau = k * tau
+
+end function couette_analytical_stress_fn
+
+! Take surface forces on a cube's surfaces and return the 
+! values at the node of intersection. 
+! = = Surface data assumed to be stored as 
+! 1 = top x;  2 = top y;  3 = top z
+! 4 = bottom x;  5 = bottom y;  6 = bottom z
+! = = Node data assumed to be stored as
+! 1 = [0,0,0]; 2=[1,0,0]; 3 =[0,1,0]; 4 =[1,1,0]
+! 5 = [0,0,1]; 6=[1,0,1]; 7 =[0,1,1]; 8 =[1,1,1]
+
+function surface_array_to_nodes(surface) result(nodes)
+    implicit none
+
+    double precision,dimension(3,6),intent(in):: surface
+	double precision,dimension(3,8)			  :: nodes
+
+	nodes(:,1) = surface(:,4)+surface(:,5)+surface(:,6)
+	nodes(:,2) = surface(:,1)+surface(:,5)+surface(:,6)
+	nodes(:,3) = surface(:,2)+surface(:,4)+surface(:,6)
+	nodes(:,4) = surface(:,1)+surface(:,2)+surface(:,6)
+	nodes(:,5) = surface(:,3)+surface(:,4)+surface(:,5)
+	nodes(:,6) = surface(:,1)+surface(:,3)+surface(:,5)
+	nodes(:,7) = surface(:,2)+surface(:,3)+surface(:,4)
+	nodes(:,8) = surface(:,1)+surface(:,2)+surface(:,3)
+
+end function surface_array_to_nodes
+
+
+!===================================================
+! Function to return a polynomial weighting function
+! at a given molecular position, based on the
+! array of surface fluxes passed into the function
+
+function lagrange_poly_weight_Nmol(array,r_in,binsize,domain,order) result(weight)
+    implicit none
+
+    integer,dimension(3),intent(in)    :: order
+    double precision,dimension(3),intent(in)	:: domain,binsize
+    double precision,dimension(:,:),intent(in)	:: r_in
+    double precision,dimension(:,:,:,:,:),allocatable,intent(in)    :: array
+
+    double precision,dimension(:,:),allocatable	    :: weight
+
+	integer							:: npoints,n
+    integer,dimension(3)            :: bin, order_nd
+    double precision,dimension(3)   :: r_in_, lowerlim,upperlim
+    double precision,dimension(:,:),allocatable :: grid, rhat
+    double precision,dimension(3,8)	:: nodes,test
+
+	!Setup polynomial and other functions
+	allocate(  rhat(size(r_in,1),size(r_in,2)))
+	allocate(weight(size(r_in,1),size(r_in,2)))
+	order_nd(:) = order	!Assumed same order in all dimensions
+	lowerlim(:) = (/ 0.d0,0.d0,0.d0 /)
+	upperlim(:) = (/ 1.d0,1.d0,1.d0 /)
+
+	do n =1,size(r_in,2)
+    	! Shift to all positive, get bin
+		! and map to bin local coordinate system (0 to +1)
+		r_in_(:) = r_in(:,n)+0.5d0*domain(:)
+		bin(:) = ceiling((r_in_)/binsize(:))+1
+		rhat(:,n) = r_in_(:)/binsize(:) - dble(bin(:)-2)
+
+		!Setup polynomial
+		nodes(:,:) = surface_array_to_nodes(array(bin(1),bin(2),bin(3),:,:))
+		call lagrange_interp_nd_size ( 3, order_nd, npoints )
+		call lagrange_interp_nd_value( 3, order_nd, lowerlim, upperlim, npoints, nodes(1,:), 1, rhat(:,n), weight(1,n))
+		call lagrange_interp_nd_value( 3, order_nd, lowerlim, upperlim, npoints, nodes(2,:), 1, rhat(:,n), weight(2,n))
+		call lagrange_interp_nd_value( 3, order_nd, lowerlim, upperlim, npoints, nodes(3,:), 1, rhat(:,n), weight(3,n))
+
+!		call lagrange_interp(order_nd(:), lowerlim(:), upperlim(:), nodes(1,:), rhat(:,n), weight(1,n))
+!		call lagrange_interp(order_nd(:), lowerlim(:), upperlim(:), nodes(2,:), rhat(:,n), weight(2,n))
+!		call lagrange_interp(order_nd(:), lowerlim(:), upperlim(:), nodes(3,:), rhat(:,n), weight(3,n))
+		!print'(3i6,12f10.5,2l)', bin, dble(bin(:)-2)*(binsize(:))-0.5d0*domain(:), r_in_, rhat, weight(3,n),any(rhat-epsilon(rhat) .ge. 1.d0),any(rhat+epsilon(rhat) .le. 0.d0)
+
+		if (any(rhat(:,n)-epsilon(rhat(:,n)) .ge. 1.d0) .or. any(rhat(:,n)+epsilon(rhat(:,n)) .le. 0.d0)) then
+		    stop "Error in lagrange_poly_weight_Nmol as 0 < rhat < 1 is not true"
+		endif
+	enddo
+
+end function lagrange_poly_weight_Nmol
+
+
+!!===================================================
+!! Function to return a polynomial weighting function
+!! at a given molecular position, based on the
+!! array of surface fluxes passed into the function
+
+!function lagrange_poly_weight(array,r_in,binsize,domain,order) result(weight)
+!    implicit none
+
+!    integer,dimension(nd),intent(in)    :: order
+!    double precision,dimension(nd),intent(in)    :: r_in,domain,binsize
+!    double precision,dimension(:,:,:,:,:),allocatable,intent(in)    :: array
+
+!    double precision,dimension(nd)		    :: weight
+
+!	integer							:: npoints,i
+!    integer,dimension(3)            :: bin, order_nd
+!    double precision,dimension(3)   :: r_in_, rhat, rhat_,lowerlim,upperlim
+!    double precision,dimension(:,:),allocatable :: grid
+!    double precision,dimension(3,8)	:: nodes,test
+
+!    !Shift to all positive and get bin
+!    r_in_ = r_in(:)+0.5d0*domain(:)
+!    bin(:) = ceiling(r_in_/binsize(:))+1
+
+!    !Map to bin local coordinate system (0 to +1)
+!    rhat(:) = r_in_/binsize(:) - dble(bin(:)-2)
+!    rhat_(:) = 1.d0 - rhat(:)
+
+!	!Setup polynomial
+!	order_nd(:) = order	!Assumed same order in all dimensions
+!	lowerlim = (/ 0.d0,0.d0,0.d0 /)
+!	upperlim = (/ 1.d0,1.d0,1.d0 /)
+
+!	call lagrange_interp_nd_size ( nd, order_nd, npoints )
+!	allocate (grid(nd,npoints))
+!	call lagrange_interp_nd_grid ( nd, order_nd, lowerlim, upperlim, npoints, grid )
+!	nodes(:,:) = surface_array_to_nodes(array(bin(1),bin(2),bin(3),:,:))
+!	call lagrange_interp_nd_value( nd, order_nd, lowerlim, upperlim, npoints, nodes(1,:), 1, rhat(:), weight(1))
+!	call lagrange_interp_nd_value( nd, order_nd, lowerlim, upperlim, npoints, nodes(2,:), 1, rhat(:), weight(2))
+!	call lagrange_interp_nd_value( nd, order_nd, lowerlim, upperlim, npoints, nodes(3,:), 1, rhat(:), weight(3))
+
+!!	!TEST POLYNOMIAL FUNCTIONS
+!!	test = 0.d0
+!!	call lagrange_interp (order_nd, lowerlim, upperlim, nodes(1,:), grid, test(1,:))
+!!	call lagrange_interp (order_nd, lowerlim, upperlim, nodes(2,:), grid, test(2,:))
+!!	call lagrange_interp (order_nd, lowerlim, upperlim, nodes(3,:), grid, test(3,:))
+!!	do i =1,8
+!!		print'(i6,9f10.5)',i, grid(:,i), nodes(:,i),test(:,i)
+!!	enddo
+!!    print'(3i6,12f10.5,2l)', bin, dble(bin(:)-2)*(binsize(:))-0.5d0*domain(:), r_in, rhat, weight(:),any(rhat-epsilon(rhat) .ge. 1.d0),any(rhat+epsilon(rhat) .le. 0.d0)
+!!    if (any(rhat-epsilon(rhat) .ge. 1.d0) .or. any(rhat+epsilon(rhat) .le. 0.d0)) then
+!!        print'(3f27.15)', rhat
+!!        stop "Error in linearweight"
+!!    endif
+
+!end function lagrange_poly_weight
+
+!==============================================================================================================
+!  _                                       _               _____      _                             _       _ 
+! | |                                     (_)             |  __ \    | |                           (_)     | |
+! | |     __ _  __ _ _ __ __ _ _ __   __ _ _  __ _ _ __   | |__) |__ | |_   _ _ __   ___  _ __ ___  _  __ _| |
+! | |    / _` |/ _` | '__/ _` | '_ \ / _` | |/ _` | '_ \  |  ___/ _ \| | | | | '_ \ / _ \| '_ ` _ \| |/ _` | |
+! | |___| (_| | (_| | | | (_| | | | | (_| | | (_| | | | | | |  | (_) | | |_| | | | | (_) | | | | | | | (_| | |
+! |______\__,_|\__, |_|  \__,_|_| |_|\__, |_|\__,_|_| |_| |_|   \___/|_|\__, |_| |_|\___/|_| |_| |_|_|\__,_|_|s
+!               __/ |                 __/ |                              __/ |                                
+!              |___/                 |___/                              |___/                                 
+!
+!==============================================================================================================
+
+! Example usage of code
+!
+
+! containing the points, and the result is the vector V of dimension (N) containing the function values.
+!
+! Typical usage involves several steps: 
+!
+! 1) The size of the interpolant grid (nd) is determined by:
+!
+!        call lagrange_interp_nd_size ( M, ind, nd )
+!
+! where M is the spatial dimension and ind is an array of size M with the required order of polynomial in each dimension
+! NOTE that 2 is a straight line
+!
+! 2) The interpolant grid (xd, size M by nd) is determined by:
+!
+!        call lagrange_interp_nd_grid ( M, ind, a, b, nd, xd )
+!
+! where M is the spatial dimension and ind is an array of size M with the required order of polynomial in each dimension
+! A and B of size M with the top and bottom spatial limits and  nd is the size of the interpolant grid 
+! from lagrange_interp_nd_size
+!
+! The interpolation function needs data at the data points. It is assumed that this will be supplied 
+! by a user specified function of the form
+!
+!        v = f ( m, n, x )
+!
+! where M is the spatial dimension, N is the number of points to be evaluated, X is a vector of dimension (M,N) 
+
+!Once the interpolant has been defined, the user is free to evaluate it repeatedly, by specifying NI points XI, and requesting the interpolated values ZI by:
+!        call lagrange_interp_nd_value ( m, ind, ab, nd, zd, ni, xi, zi );
+!
+
+
+!*****************************************************************************80
+!! LAGRANGE_INTERP evaluates an ND Lagrange interpolant.
+!  Modified:
+!    8 May 2014
+!  Author:
+!    Edward Smith
+!  Parameters:
+!    Input, integer ( kind = 4 ) N_1D(M), the order of the 1D rule to be used
+!    in each dimension.
+!    Input, real ( kind = 8 ) A(M), B(M), the lower and upper limits.
+!    Input, real ( kind = 8 ) ZD(ND), the function evaluated at the points XD.
+!    Input, real ( kind = 8 ) XI(M,NI), the points at which the interpolant is 
+!    to be evaluated.
+!    Output, real ( kind = 8 ) ZI(NI), the interpolant evaluated at the 
+!    points XI.
+!	 Output, real ( kind = 8 ) XD(M,ND), the points at which data was sampled.
+!*****************************************************************************80
+
+subroutine lagrange_interp (n_1d, a, b, zd, xi, zi, xd )
+	implicit none
+
+	integer,intent(in) :: n_1d(:)
+	double precision,intent(in) :: a(:), b(:), zd(:), xi(:,:)
+
+	double precision,intent(out) :: zi(:)
+	double precision,intent(out),optional :: xd(:,:)
+
+	integer :: m, nd, ni
+	double precision, allocatable,dimension(:) :: value,x_1d
+
+	m = size(n_1d); nd = product(n_1d); ni = size(zd)
+	call lagrange_interp_nd_value( m, n_1d, a, b, nd, zd, ni, xi, zi)
+	if (present(xd)) then
+		call lagrange_interp_nd_grid ( m, n_1d, a, b, nd, xd )
+	endif
+
+end subroutine lagrange_interp
+
+
+!*****************************************************************************80
+!! LAGRANGE_INTERP_ND_SIZE sizes an M-dimensional Lagrange interpolant.
+!  Licensing:
+!    This code is distributed under the GNU LGPL license.
+!  Modified:
+!    28 September 2012
+!  Author:
+!    John Burkardt
+!  Parameters:
+!    Input, integer ( kind = 4 ) M, the spatial dimension.
+!    Input, integer ( kind = 4 ) N_1D(M), the order of the 1D rule to be used
+!    in each dimension.
+!    Output, integer ( kind = 4 ) ND, the number of points in the product grid.
+!*****************************************************************************80
+
+subroutine lagrange_interp_nd_size ( m, n_1d, nd )
+	implicit none
+
+	integer,intent(in)	::	m
+
+	integer,intent(in)	::	n_1d(m)
+	integer,intent(out) ::	nd
+
+	!Determine the number of data points.
+	nd = product ( n_1d(1:m) )
+
+end subroutine lagrange_interp_nd_size
+
+!*****************************************************************************80
+!! LAGRANGE_INTERP_ND_GRID sets an M-dimensional Lagrange interpolant grid.
+!	Licensing:
+!		This code is distributed under the GNU LGPL license.
+!	Modified:
+!		29 September 2012
+!	Author:
+!		John Burkardt
+!	Parameters:
+!		Input, integer ( kind = 4 ) M, the spatial dimension.
+!		Input, integer ( kind = 4 ) N_1D(M), the order of the 1D rule to be used
+!		in each dimension.
+!		Input, real ( kind = 8 ) A(M), B(M), the lower and upper limits.
+!		Input, integer ( kind = 4 ) ND, the number of points in the product grid.
+!		Output, real ( kind = 8 ) XD(M,ND), the points at which data was sampled.
+!*****************************************************************************80
+
+subroutine lagrange_interp_nd_grid ( m, n_1d, a, b, nd, xd )
+	implicit none
+
+	integer, intent(in) ::	m, n_1d(m),nd
+	double precision,intent(in) :: a(m), b(m)
+
+	double precision,intent(out) :: xd(m,nd)
+
+	integer ::	i, n
+	double precision, allocatable :: x_1d(:)
+
+	!Compute the data points.
+	xd(1:m,1:nd) = 0.0d0
+	do i = 1, m
+		n = n_1d(i)
+		allocate ( x_1d(1:n) )
+		call cc_compute_points ( n, x_1d )
+		x_1d(1:n) = 0.5d0 * ( ( 1.0d0 - x_1d(1:n) ) * a(i) &
+		                    + ( 1.0d0 + x_1d(1:n) ) * b(i) )
+		call r8vec_direct_product ( i, n, x_1d, m, nd, xd )
+		deallocate ( x_1d )
+	end do
+
+end subroutine lagrange_interp_nd_grid
+
+!*****************************************************************************80
+!! LAGRANGE_INTERP_ND_VALUE evaluates an ND Lagrange interpolant.
+!  Licensing:
+!    This code is distributed under the GNU LGPL license.
+!  Modified:
+!    28 September 2012
+!  Author:
+!    John Burkardt
+!  Parameters:
+!    Input, integer ( kind = 4 ) M, the spatial dimension.
+!    Input, integer ( kind = 4 ) N_1D(M), the order of the 1D rule to be used
+!    in each dimension.
+!    Input, real ( kind = 8 ) A(M), B(M), the lower and upper limits.
+!    Input, integer ( kind = 4 ) ND, the number of points in the product grid.
+!    Input, real ( kind = 8 ) ZD(ND), the function evaluated at the points XD.
+!    Input, integer ( kind = 4 ) NI, the number of points at which the 
+!    interpolant is to be evaluated.
+!    Input, real ( kind = 8 ) XI(M,NI), the points at which the interpolant is 
+!    to be evaluated.
+!    Output, real ( kind = 8 ) ZI(NI), the interpolant evaluated at the 
+!    points XI.
+!*****************************************************************************80
+
+subroutine lagrange_interp_nd_value ( m, n_1d, a, b, nd, zd, ni, xi, zi )
+	implicit none
+
+	integer,intent(in) :: m, n_1d(m), nd, ni
+	double precision,intent(in) :: a(m), b(m), zd(nd),xi(m,ni)
+	double precision,intent(out) :: zi(ni)
+
+	integer :: i,j,n
+	double precision :: w(nd)
+	double precision, allocatable,dimension(:) :: value,x_1d
+
+	do j = 1, ni
+
+		w(1:nd) = 1.0d0
+
+		do i = 1, m
+			n = n_1d(i)
+			allocate ( x_1d(1:n) )
+			allocate ( value(1:n) )
+			call cc_compute_points ( n, x_1d )
+			x_1d(1:n) = 0.5d0 * ( ( 1.0d0 - x_1d(1:n) ) * a(i) &
+			                      + ( 1.0d0 + x_1d(1:n) ) * b(i) )
+			call lagrange_basis_1d ( n, x_1d, 1, xi(i,j), value )
+			call r8vec_direct_product2 ( i, n, value, m, nd, w )
+			deallocate ( value )
+			deallocate ( x_1d )
+		end do
+
+		zi(j) = dot_product ( w, zd )
+
+	end do
+
+end subroutine lagrange_interp_nd_value
+
+!*****************************************************************************80
+!! LAGRANGE_BASIS_1D evaluates a 1D Lagrange basis.
+!  Licensing:
+!    This code is distributed under the GNU LGPL license.
+!  Modified:
+!    09 October 2012
+!  Author:
+!    John Burkardt
+!  Parameters:
+!    Input, integer ( kind = 4 ) ND, the number of data points.
+!    Input, real ( kind = 8 ) XD(ND), the interpolation nodes.
+!    Input, integer ( kind = 4 ) NI, the number of evaluation points.
+!    Input, real ( kind = 8 ) XI(NI), the evaluation points.
+!    Output, real ( kind = 8 ) LB(NI,ND), the value, at the I-th point XI, 
+!    of the Jth basis function.
+!*****************************************************************************80
+
+subroutine lagrange_basis_1d ( nd, xd, ni, xi, lb ) 
+	implicit none
+
+	integer,intent(in) ::	nd, ni
+	double precision,intent(in) :: xd(nd),xi(ni)
+
+	double precision,intent(out) :: lb(ni,nd)
+
+	integer ::	i, j
+	
+	do i = 1, ni
+		do j = 1, nd
+			lb(i,j) = product ( ( xi(i) - xd(1:j-1)	)  / ( xd(j) - xd(1:j-1)	) ) &
+			        * product ( ( xi(i) - xd(j+1:nd) ) / ( xd(j) - xd(j+1:nd) ) )
+		end do
+	end do
+
+end subroutine lagrange_basis_1d
+
+
+!*****************************************************************************80
+!! CC_COMPUTE_POINTS: abscissas of a Clenshaw Curtis rule.
+!	Discussion:
+!    Our convention is that the abscissas are numbered from left to right.
+!    The rule is defined on [-1,1].
+!  Licensing:
+!    This code is distributed under the GNU LGPL license.
+!  Modified:
+!    08 October 2008
+!  Author:
+!    John Burkardt
+!  Parameters:
+!    Input, integer ( kind = 4 ) N, the order.
+!    1 <= N.
+!    Output, real ( kind = 8 ) POINTS(N), the abscissas.
+!*****************************************************************************
+
+subroutine cc_compute_points ( n, points )
+	implicit none
+
+	integer,intent(in) ::	n
+	double precision,intent(out) :: points(n)
+
+	integer ::	i
+
+	if ( n < 1 ) then
+
+		write ( *, '(a)' ) ' '
+		write ( *, '(a)' ) 'CC_COMPUTE_POINTS - Fatal error!'
+		write ( *, '(a,i8)' ) '	Illegal value of N = ', n
+		stop
+
+	else if ( n == 1 ) then
+
+		points(1) = 0.0d0
+
+	else
+
+		do i = 1, n
+			points(i) = cos ( real ( n - i, kind = 8 ) * pi &
+			                / real ( n - 1, kind = 8 ) )
+		end do
+
+		points(1) = -1.0d0
+		if ( mod ( n, 2 ) == 1 ) then
+			points((n+1)/2) = 0.0d0
+		end if
+		points(n) = +1.0d0
+
+	end if
+
+	return
+end subroutine cc_compute_points
+
+
+!*****************************************************************************80
+!! R8VEC_DIRECT_PRODUCT2 creates a direct product of R8VEC's.
+!	Discussion:
+!    An R8VEC is a vector of R8's.
+!    To explain what is going on here, suppose we had to construct
+!    a multidimensional quadrature rule as the product of K rules
+!    for 1D quadrature.
+!    The product rule will be represented as a list of points and weights.
+!    The J-th item in the product rule will be associated with
+!      item J1 of 1D rule 1,
+!      item J2 of 1D rule 2,
+!      ...,
+!      item JK of 1D rule K.
+!    In particular,
+!      X(J) = ( X(1,J1), X(2,J2), ..., X(K,JK))
+!    and
+!      W(J) = W(1,J1) * W(2,J2) * ... * W(K,JK)
+!    So we can construct the quadrature rule if we can properly
+!    distribute the information in the 1D quadrature rules.
+!    This routine carries out the task involving the weights W.
+!    Another way to do this would be to compute, one by one, the
+!    set of all possible indices (J1,J2,...,JK), and then index
+!    the appropriate information.  An advantage of the method shown
+!    here is that you can process the K-th set of information and
+!    then discard it.
+!  Example:
+!    Rule 1:
+!      Order = 4
+!      W(1:4) = ( 2, 3, 5, 7 )
+!    Rule 2:
+!      Order = 3
+!      W(1:3) = ( 11, 13, 17 )
+!    Rule 3:
+!      Order = 2
+!      W(1:2) = ( 19, 23 )
+!    Product Rule:
+!      Order = 24
+!      W(1:24) =
+!        ( 2 * 11 * 19 )
+!        ( 3 * 11 * 19 )
+!        ( 4 * 11 * 19 )
+!        ( 7 * 11 * 19 )
+!        ( 2 * 13 * 19 )
+!        ( 3 * 13 * 19 )
+!        ( 5 * 13 * 19 )
+!        ( 7 * 13 * 19 )
+!        ( 2 * 17 * 19 )
+!        ( 3 * 17 * 19 )
+!        ( 5 * 17 * 19 )
+!        ( 7 * 17 * 19 )
+!        ( 2 * 11 * 23 )
+!        ( 3 * 11 * 23 )
+!        ( 5 * 11 * 23 )
+!        ( 7 * 11 * 23 )
+!        ( 2 * 13 * 23 )
+!        ( 3 * 13 * 23 )
+!        ( 5 * 13 * 23 )
+!        ( 7 * 13 * 23 )
+!        ( 2 * 17 * 23 )
+!        ( 3 * 17 * 23 )
+!        ( 5 * 17 * 23 )
+!        ( 7 * 17 * 23 )
+!  Licensing:
+!    This code is distributed under the GNU LGPL license.
+!  Modified:
+!    18 April 2009
+!  Author:
+!    John Burkardt
+!  Parameters:
+!    Input, integer ( kind = 4 ) FACTOR_INDEX, the index of the factor being
+!    processed.  The first factor processed must be factor 1!    Input, integer ( kind = 4 ) FACTOR_ORDER, the order of the factor.
+!    Input, real ( kind = 8 ) FACTOR_VALUE(FACTOR_ORDER), the factor values
+!    for factor FACTOR_INDEX.
+!    Input, integer ( kind = 4 ) FACTOR_NUM, the number of factors.
+!    Input, integer ( kind = 4 ) POINT_NUM, the number of elements in the
+!    direct product.
+!    Input/output, real ( kind = 8 ) W(POINT_NUM), the elements of the
+!    direct product, which are built up gradually.
+!  Local Parameters:
+!    Local, integer ( kind = 4 ) START, the first location of a block of values
+!    to set.
+!    Local, integer ( kind = 4 ) CONTIG, the number of consecutive values
+!    to set.
+!    Local, integer ( kind = 4 ) SKIP, the distance from the current value 
+!    of START to the next location of a block of values to set.
+!    Local, integer ( kind = 4 ) REP, the number of blocks of values to set.
+!*****************************************************************************80
+
+subroutine r8vec_direct_product ( factor_index, factor_order, factor_value,factor_num, point_num, x )
+	implicit none
+
+	integer ::	factor_num
+	integer ::	factor_order
+	integer ::	point_num
+
+	integer , save :: contig
+	integer ::	factor_index
+	real ( kind = 8 ) factor_value(factor_order)
+	integer ::	j
+	integer ::	k
+	integer , save :: rep
+	integer , save :: skip
+	integer ::	start
+	real ( kind = 8 ) x(factor_num,point_num)
+
+	if ( factor_index == 1 ) then
+		contig = 1
+		skip = 1
+		rep = point_num
+		x(1:factor_num,1:point_num) = 0.0d0
+	end if
+
+	rep = rep / factor_order
+	skip = skip * factor_order
+
+	do j = 1, factor_order
+
+		start = 1 + ( j - 1 ) * contig
+
+		do k = 1, rep
+			x(factor_index,start:start+contig-1) = factor_value(j)
+			start = start + skip
+		end do
+
+	end do
+
+	contig = contig * factor_order
+
+	return
+end subroutine r8vec_direct_product
+
+
+subroutine r8vec_direct_product2 ( factor_index, factor_order, factor_value,factor_num, point_num, w )
+	implicit none
+
+	integer ::	factor_num
+	integer ::	factor_order
+	integer ::	point_num
+
+	integer , save :: contig
+	integer ::	factor_index
+	real ( kind = 8 ) factor_value(factor_order)
+	integer ::	j
+	integer ::	k
+	integer , save :: rep
+	integer , save :: skip
+	integer ::	start
+	real ( kind = 8 ) w(point_num)
+
+	if ( factor_index == 1 ) then
+		contig = 1
+		skip = 1
+		rep = point_num
+		w(1:point_num) = 1.0d0
+	end if
+
+	rep = rep / factor_order
+	skip = skip * factor_order
+
+	do j = 1, factor_order
+
+		start = 1 + ( j - 1 ) * contig
+
+		do k = 1, rep
+			w(start:start+contig-1) = w(start:start+contig-1) * factor_value(j)
+			start = start + skip
+		end do
+
+	end do
+
+	contig = contig * factor_order
+
+end subroutine r8vec_direct_product2
+
 
 
 end module librarymod

@@ -10,7 +10,6 @@ module module_molecule_properties
     use computational_constants_MD
     use arrays_MD
     use calculated_properties_MD
-    use librarymod
 
 end module module_molecule_properties
 
@@ -29,6 +28,7 @@ subroutine setup_cylinder_tags
     use concentric_cylinders
     use interfaces, only: error_abort
     use messenger, only: globalise
+    use librarymod, only : cpolariser 
     implicit none
 
     integer :: n
@@ -56,6 +56,7 @@ subroutine setup_cylinder_tags_equilibrate
     use concentric_cylinders
     use interfaces, only: error_abort
     use messenger, only: globalise
+    use librarymod, only : cpolariser 
     implicit none
 
     integer :: n
@@ -425,6 +426,7 @@ subroutine tether_force(molno)
     use module_molecule_properties
     use arrays_MD
     use module_record_external_forces
+    use librarymod, only : magnitude 
     implicit none
 
     integer                        :: molno
