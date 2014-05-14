@@ -2579,7 +2579,7 @@ contains
 		allocate( buf(nbins) )
 
 		buf = reshape( mass_out, (/nbins/) )
-		call PlaneSumIntVect(plane_comm(3),buf,nbins)
+		call PlaneSumIntVect(buf,nbins,3)
 		mass_out = reshape(buf,(/cpol_binso(1), cpol_binso(2), cpol_binso(3)/))
 
 		deallocate( buf )
@@ -2649,7 +2649,7 @@ contains
 		allocate( buf(nd*nbins) )
 
 		buf = reshape( mom_out, (/nd*nbins/) )
-		call PlaneSumVect( plane_comm(3), buf, nd*nbins )
+		call PlaneSumVect(buf, nd*nbins, 3 )
 		mom_out = reshape(buf,(/cpol_binso(1),cpol_binso(2),cpol_binso(3),nd/))
 
 		deallocate(buf)
@@ -2714,7 +2714,7 @@ contains
 		allocate( buf(nbins) )
 
 		buf = reshape( KE_out, (/nbins/) )
-		call PlaneSumVect( plane_comm(3), buf, nbins )
+		call PlaneSumVect(buf, nbins, 3 )
 		KE_out = reshape(buf,(/cpol_binso(1),cpol_binso(2),cpol_binso(3)/))
 
 		deallocate(buf)
@@ -2828,7 +2828,7 @@ contains
 			!Together
 			allocate( buf(9*nbins) )
 			buf = reshape(Pxybin,(/9*nbins/))
-			call PlaneSumVect( plane_comm(3), buf, 9*nbins )
+			call PlaneSumVect( buf, 9*nbins, 3 )
 			Pxybin = reshape(buf,(/cpol_binso(1),cpol_binso(2),cpol_binso(3),3,3/))
 			deallocate(buf)
 
@@ -2838,11 +2838,11 @@ contains
 			allocate( buf(9*nbins) )
 
 			buf = reshape(vvbin,(/9*nbins/))
-			call PlaneSumVect( plane_comm(3), buf, 9*nbins )
+			call PlaneSumVect( buf, 9*nbins, 3 )
 			vvbin = reshape(buf,(/cpol_binso(1),cpol_binso(2),cpol_binso(3),3,3/))
 
 			buf = reshape(rfbin,(/9*nbins/))
-			call PlaneSumVect( plane_comm(3), buf, 9*nbins )
+			call PlaneSumVect( buf, 9*nbins, 3 )
 			rfbin = reshape(buf,(/cpol_binso(1),cpol_binso(2),cpol_binso(3),3,3/))
 
 			deallocate(buf)
