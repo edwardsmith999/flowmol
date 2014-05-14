@@ -54,44 +54,89 @@ module messenger
 	integer, allocatable 		:: icoord(:,:)  ! proc grid coordinates
 	integer						:: icomm_xyz(3)	! Directional "line" subcomms
 	integer						:: plane_comm(3)! Directional "plane" subcomms
+	integer						:: plane_nproc(3)!Number of proc in plane subcomm
 	integer, dimension(8,2) 	:: proc_topology_corners
 	integer, dimension(4,3,2) 	:: proc_topology_edge
 
 	integer :: planerankx, planeranky, planerankz
 
-
 	logical :: Lperiodic(3)
 
 	double precision wallTime
+
+
+	!Various Globalise/localise
+	interface globalise
+		module procedure globalise_single, globalise_array
+	end interface
+
+    private globalise_single, globalise_array
+
+	interface localise
+		module procedure localise_single, localise_array
+	end interface
+
+    private localise_single, localise_array
 
 contains
 
 	!=============================================================================
 	! Get molecule's global position from position local to processor.
 	!-----------------------------------------------------------------------------
-	function globalise(rloc) result(rglob)
+	function globalise_single(rloc) result(rglob)
 		implicit none
 		
-		real(kind(0.d0)), intent(in)  :: rloc(3)
-		real(kind(0.d0))              :: rglob(3)
+		double precision, intent(in)  :: rloc(3)
+		double precision              :: rglob(3)
 
 		rglob(1) = rloc(1)-halfdomain(1)*(npx-1)+domain(1)*(iblock-1)
 		rglob(2) = rloc(2)-halfdomain(2)*(npy-1)+domain(2)*(jblock-1)
 		rglob(3) = rloc(3)-halfdomain(3)*(npz-1)+domain(3)*(kblock-1)
 
-	end function globalise
+	end function globalise_single
 
-	function localise(rglob) result(rloc)
+	function localise_single(rglob) result(rloc)
 		implicit none
 		
-		real(kind(0.d0)), intent(in)  :: rglob(3)
-		real(kind(0.d0))              :: rloc(3)
+		double precision, intent(in)  :: rglob(3)
+		double precision              :: rloc(3)
 
 		rloc(1) = rglob(1)+(halfdomain(1)*(npx-1))-domain(1)*(iblock-1)
 		rloc(2) = rglob(2)+(halfdomain(2)*(npy-1))-domain(2)*(jblock-1)
 		rloc(3) = rglob(3)+(halfdomain(3)*(npz-1))-domain(3)*(kblock-1)
 
-	end function localise 
+	end function localise_single 
+
+	!=============================================================================
+	! Get array of molecules' global position from position local to processor.
+	!-----------------------------------------------------------------------------
+	function globalise_array(rloc) result(rglob)
+		implicit none
+		
+		double precision,allocatable,intent(in)  :: rloc(:,:)
+		double precision,allocatable             :: rglob(:,:)
+
+		allocate(rglob(3,size(rloc,2)))
+
+		rglob(1,:) = rloc(1,:)-halfdomain(1)*(npx-1)+domain(1)*(iblock-1)
+		rglob(2,:) = rloc(2,:)-halfdomain(2)*(npy-1)+domain(2)*(jblock-1)
+		rglob(3,:) = rloc(3,:)-halfdomain(3)*(npz-1)+domain(3)*(kblock-1)
+
+	end function globalise_array
+
+	function localise_array(rglob) result(rloc)
+		implicit none
+		
+		double precision,allocatable, intent(in)  :: rglob(:,:)
+		double precision,allocatable              :: rloc(:,:)
+
+		allocate(rloc(3,size(rglob,2)))
+
+		rloc(1,:) = rglob(1,:)+(halfdomain(1)*(npx-1))-domain(1)*(iblock-1)
+		rloc(2,:) = rglob(2,:)+(halfdomain(2)*(npy-1))-domain(2)*(jblock-1)
+		rloc(3,:) = rglob(3,:)+(halfdomain(3)*(npz-1))-domain(3)*(kblock-1)
+
+	end function localise_array 
 
 
 	!=============================================================================
@@ -243,6 +288,10 @@ subroutine messenger_init()
 	call MPI_comm_rank (plane_comm(1), planerankx, ierr)
 	call MPI_comm_rank (plane_comm(2), planeranky, ierr)
 	call MPI_comm_rank (plane_comm(3), planerankz, ierr)
+
+	call MPI_Comm_size(plane_comm(1), plane_nproc(1), ierr) 
+	call MPI_Comm_size(plane_comm(2), plane_nproc(2), ierr) 
+	call MPI_Comm_size(plane_comm(3), plane_nproc(3), ierr) 
 
 !	call MPI_comm_size (plane_comm(1), planenprocx, ierr)
 !	call MPI_comm_size (plane_comm(2), planenprocy, ierr)
@@ -1432,7 +1481,7 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 
             !call collect_escaped_moldata(sendnp,sendsize,sendbuffer,pos,length)
             insertnp = insertnp + sendnp
-            print'(a,i1,a,i8,a)', ' open_boundary(',ix,') collected ',sendnp,' escaped molecules.'
+            !print'(a,i1,a,i8,a,3i8)', ' open_boundary(',ix,') collected ',sendnp,' escaped molecules on proc.', iblock,jblock,kblock
 		    call NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest)
 
         else
@@ -2613,7 +2662,7 @@ subroutine globalbroadcast(A,na,broadprocid)
 	call MPI_BCAST(A,na,MPI_DOUBLE_PRECISION,broadprocid-1,MD_COMM,ierr)
 
 	return
-end
+end subroutine globalbroadcast
 
 subroutine globalsyncreduce(A, na, meanA, maxA, minA)
 	use messenger
@@ -2642,7 +2691,7 @@ subroutine globalsyncreduce(A, na, meanA, maxA, minA)
 	meanA = buf/nprocs
 
 	return
-end
+end subroutine globalsyncreduce
 
 subroutine globalSum(A)
 	use messenger
@@ -2655,7 +2704,7 @@ subroutine globalSum(A)
 	A = buf
 
 	return
-end
+end subroutine globalSum
 
 subroutine globalMax(A)
 	use messenger
@@ -2668,7 +2717,7 @@ subroutine globalMax(A)
 	A = buf
 
 	return
-end
+end subroutine globalMax
 
 subroutine globalSumInt(A)
 	use messenger
@@ -2681,7 +2730,7 @@ subroutine globalSumInt(A)
 	A = buf
 
 	return
-end
+end subroutine globalSumInt
 
 subroutine globalMaxInt(A)
 	use messenger
@@ -2694,7 +2743,7 @@ subroutine globalMaxInt(A)
 	A = buf
 
 	return
-end
+end subroutine globalMaxInt
 
 subroutine globalMinInt(A)
 	use messenger
@@ -2707,7 +2756,7 @@ subroutine globalMinInt(A)
 	A = buf
 
 	return
-end
+end subroutine globalMinInt
 
 subroutine globalSumVectReal(A, na)
 	use messenger
@@ -2723,7 +2772,7 @@ subroutine globalSumVectReal(A, na)
 	A = buf
     deallocate(buf)
 	return
-end
+end subroutine globalSumVectReal
 
 subroutine globalSumVect(A, na)
 	use messenger
@@ -2741,7 +2790,7 @@ subroutine globalSumVect(A, na)
     deallocate(buf)
 
 	return
-end
+end subroutine globalSumVect
 
 
 subroutine globalSumIntVect(A, na)
@@ -2759,64 +2808,8 @@ subroutine globalSumIntVect(A, na)
     deallocate(buf)
 
 	return
-end
+end subroutine globalSumIntVect
 
-subroutine PlaneSum(PLANE_COMM_IN,A)
-    use messenger
-    implicit none
-
-    integer, intent(in) :: PLANE_COMM_IN
-	double precision, intent(inout) :: A
-    double precision :: buf
-
-	call MPI_AllReduce (A, buf, 1, MPI_DOUBLE_PRECISION, &
-	                    MPI_SUM, PLANE_COMM_IN, ierr)
-	A = buf
-
-	return
-
-end
-
-subroutine PlaneSumIntVect(PLANE_COMM_IN, A, na)
-	use messenger
-	implicit none
-
-    integer, intent(in) :: na
-	integer, intent(in) :: PLANE_COMM_IN
-	integer, intent(inout) :: A(na)
-	integer, allocatable :: buf(:)
-
-	allocate(buf(na))
-
-	call MPI_AllReduce (A, buf, na, MPI_INTEGER, &
-	                    MPI_SUM, PLANE_COMM_IN, ierr)
-	A = buf
-
-	deallocate(buf)
-
-	return
-
-end
-
-subroutine PlaneSumVect(PLANE_COMM_IN, A, na)
-	use messenger
-	implicit none
-
-    integer, intent(in) :: na
-	integer, intent(in) :: PLANE_COMM_IN
-	real(kind(0.d0)), intent(inout) :: A(na)
-	real(kind(0.d0)), allocatable :: buf(:)
-
-	allocate(buf(na))
-
-	call MPI_AllReduce (A, buf, na, MPI_DOUBLE_PRECISION, &
-	                    MPI_SUM, PLANE_COMM_IN, ierr)
-	A = buf
-
-	deallocate(buf)
-
-	return
-end
 
 subroutine globalMaxVect(A, na)
 	use messenger
@@ -2833,7 +2826,7 @@ subroutine globalMaxVect(A, na)
     deallocate(buf)
 
 	return
-end
+end subroutine globalMaxVect
 
 subroutine globalMaxIntVect(A, na)
 	use messenger
@@ -2850,7 +2843,7 @@ subroutine globalMaxIntVect(A, na)
     deallocate(buf) 
 
 	return
-end
+end subroutine globalMaxIntVect
 
 subroutine globalMinVect(A, na)
 	use messenger
@@ -2867,7 +2860,7 @@ subroutine globalMinVect(A, na)
     deallocate(buf)
 
 	return
-end
+end subroutine globalMinVect
 
 subroutine globalSumTwoDim(A,na1,na2)
 	use messenger
@@ -2885,7 +2878,7 @@ subroutine globalSumTwoDim(A,na1,na2)
     deallocate(buf)
 
 	return
-end
+end subroutine globalSumTwoDim
 
 subroutine globalSumIntTwoDim(A,na1,na2)
 	use messenger
@@ -2905,7 +2898,7 @@ subroutine globalSumIntTwoDim(A,na1,na2)
     deallocate(buf)	
 
 	return
-end
+end subroutine globalSumIntTwoDim
 
 subroutine globalAverage(A, na)
 	use messenger
@@ -2929,7 +2922,7 @@ subroutine globalAverage(A, na)
     deallocate(buf)
 
 	return
-end
+end subroutine globalAverage
 
 subroutine globalGather(A,B,na)
 	use messenger
@@ -2943,19 +2936,128 @@ subroutine globalGather(A,B,na)
 	call MPI_Allgather (A, na, MPI_INTEGER, B, na, &
 			    MPI_INTEGER,icomm_grid, ierr)
 
-end subroutine
+end subroutine globalGather
+
+module mod_globalGatherv
+contains
+
+subroutine globalGatherv(A,na,B,nb,rdisps)
+	use messenger
+	implicit none
+
+    integer             :: i
+	integer, intent(in) :: na,nb(nproc),rdisps(nproc)
+
+	double precision, intent(in) :: A(na)
+	double precision, intent(out):: B(sum(nb))
+
+   	call MPI_Allgatherv (A, na,       MPI_DOUBLE_PRECISION, & 
+                         B, nb,rdisps,MPI_DOUBLE_PRECISION, & 
+                         icomm_grid, ierr)
+
+end subroutine globalGatherv
+
+subroutine planeGatherv(A,na,B,nb,rdisps,ixyz)
+	use messenger
+	implicit none
+
+    integer             :: i
+	integer, intent(in) :: na,nb(plane_nproc(ixyz)),rdisps(plane_nproc(ixyz)),ixyz
+
+	double precision, intent(in) :: A(na)
+	double precision, intent(out):: B(sum(nb))
+
+   	call MPI_Allgatherv (A, na,       MPI_DOUBLE_PRECISION, & 
+                         B, nb,rdisps,MPI_DOUBLE_PRECISION, & 
+                         plane_comm(ixyz), ierr)
+
+end subroutine planeGatherv
+
+end module  mod_globalGatherv
 
 subroutine globalGathernp()
 	use physical_constants_MD
 	use messenger
 	implicit none
-	!include "mpif.h"
 
 	call MPI_Allgather (np, 1, MPI_INTEGER, procnp, 1, &
 			    MPI_INTEGER,icomm_grid, ierr)
 
 	return
-end
+end subroutine globalGathernp
+
+!----Sum routines over global plane communitcators
+subroutine PlaneSum(A, ixyz)
+    use messenger
+    implicit none
+
+    integer, intent(in) :: ixyz
+	double precision, intent(inout) :: A
+    double precision :: buf
+
+	call MPI_AllReduce (A, buf, 1, MPI_DOUBLE_PRECISION, &
+	                    MPI_SUM, plane_comm(ixyz), ierr)
+	A = buf
+
+	return
+
+end subroutine PlaneSum
+
+subroutine PlaneSumIntVect(A, na, ixyz)
+	use messenger
+	implicit none
+
+    integer, intent(in) :: na
+	integer, intent(in) :: ixyz
+	integer, intent(inout) :: A(na)
+	integer, allocatable :: buf(:)
+
+	allocate(buf(na))
+
+	call MPI_AllReduce (A, buf, na, MPI_INTEGER, &
+	                    MPI_SUM, plane_comm(ixyz), ierr)
+	A = buf
+
+	deallocate(buf)
+
+	return
+
+end subroutine PlaneSumIntVect
+
+subroutine PlaneSumVect(A, na, ixyz)
+	use messenger
+	implicit none
+
+    integer, intent(in) :: na
+	integer, intent(in) :: ixyz
+	double precision, intent(inout) :: A(na)
+	double precision, allocatable :: buf(:)
+
+	allocate(buf(na))
+
+	call MPI_AllReduce (A, buf, na, MPI_DOUBLE_PRECISION, &
+	                    MPI_SUM, plane_comm(ixyz), ierr)
+	A = buf
+
+	deallocate(buf)
+
+	return
+end subroutine PlaneSumVect
+
+
+subroutine planeGatherInt(A,B,na,ixyz)
+	use messenger
+	implicit none
+
+	integer, intent(in) :: na
+	integer, intent(in) :: ixyz
+	integer, intent(in) :: A(na)
+	integer, intent(out):: B(na,plane_nproc(ixyz))
+
+	call MPI_Allgather (A, na, MPI_INTEGER, B, na, &
+			    MPI_INTEGER,plane_comm(ixyz), ierr)
+
+end subroutine planeGatherInt
 
 
 !----Sum routines over global sub communitcators

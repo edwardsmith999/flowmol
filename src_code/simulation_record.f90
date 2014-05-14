@@ -216,6 +216,7 @@ end subroutine simulation_record
 
 subroutine evaluate_macroscopic_properties
 	use module_record
+	use messenger, only : globalise
 	implicit none
 
 	integer :: n,ixyz
@@ -278,10 +279,10 @@ subroutine evaluate_macroscopic_properties
 		print*, 'np = ', np
 		print*, 'max(potenergymol) = ', maxval(potenergymol(1:np))
 		do n=1,np
-			write(3000+irank,'(i10,f28.4,3f10.4)'), n , potenergymol(n), r(:,n)
+			write(3000+irank,'(i10,f28.4,6f10.4)'), n , potenergymol(n), r(:,n), globalise(r(:,n))
 		enddo
 		print*, 'Simulation aborted because max PE has reached an unreasonably high value.'
-		print*, 'Inspect fort.(3000+irank) for n, potenergymol, r.'
+		print*, 'Inspect fort.(3000+irank) for n, potenergymol, r, r_global'
 		stop
 	endif
 	totenergy   = kinenergy + potenergy
@@ -888,6 +889,7 @@ end subroutine evaluate_properties_rdf3d
 
 !Use a test particle to plot the potential field
 subroutine simulation_write_potential_field(xmin,xmax,ymin,ymax,z,res,filenum)
+	use module_compute_forces, only : compute_force_and_potential_at
 	implicit none
 
 	integer, intent(in) :: res, filenum	

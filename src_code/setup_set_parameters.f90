@@ -536,7 +536,6 @@ contains
 
     subroutine guess_block_cylinder_np()
         use circle_rectangle_intersection
-        use messenger
         implicit none
 
         real(kind(0.d0)) :: A, A_o, A_i, Atotal, ratio
@@ -548,7 +547,7 @@ contains
         A = A_o - A_i
        
         Atotal = A 
-        call PlaneSum(plane_comm(3), Atotal)
+        call PlaneSum(Atotal, 3)
 
         ratio = A / Atotal
         np = globalnp * ratio 
