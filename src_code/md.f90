@@ -133,7 +133,7 @@ contains
 			call sort_mols									!Reorder molecules to improve cache efficency
 			call assign_to_cell                     		!Re-build linklist for domain cells
 			call messenger_updateborders(1)         		!Update borders between processors
-            call reinsert_molecules_usher 
+            call reinsert_molecules							!If open boundaries are used, reinsert molecules 
 			call assign_to_neighbourlist		    		!Setup neighbourlist
 
 		endif
