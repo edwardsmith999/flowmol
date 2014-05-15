@@ -58,7 +58,7 @@ module messenger
 	integer, dimension(8,2) 	:: proc_topology_corners
 	integer, dimension(4,3,2) 	:: proc_topology_edge
 
-	integer :: planerankx, planeranky, planerankz
+	integer :: planerank(3)
 
 	logical :: Lperiodic(3)
 
@@ -285,17 +285,15 @@ subroutine messenger_init()
 	Lremain_dims = (/.true.,.true.,.false./)
 	call MPI_Cart_sub(icomm_grid,Lremain_dims,plane_comm(3),ierr)
 	
-	call MPI_comm_rank (plane_comm(1), planerankx, ierr)
-	call MPI_comm_rank (plane_comm(2), planeranky, ierr)
-	call MPI_comm_rank (plane_comm(3), planerankz, ierr)
+	call MPI_comm_rank (plane_comm(1), planerank(1), ierr)
+	call MPI_comm_rank (plane_comm(2), planerank(2), ierr)
+	call MPI_comm_rank (plane_comm(3), planerank(3), ierr)
+
+	planerank = planerank + 1
 
 	call MPI_Comm_size(plane_comm(1), plane_nproc(1), ierr) 
 	call MPI_Comm_size(plane_comm(2), plane_nproc(2), ierr) 
-	call MPI_Comm_size(plane_comm(3), plane_nproc(3), ierr) 
-
-!	call MPI_comm_size (plane_comm(1), planenprocx, ierr)
-!	call MPI_comm_size (plane_comm(2), planenprocy, ierr)
-!	call MPI_comm_size (plane_comm(3), planenprocz, ierr)
+	call MPI_Comm_size(plane_comm(3), plane_nproc(3), ierr)
 
 	! Root process at coordinates (0,0,0)
 	idims = 0
@@ -1481,7 +1479,7 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 
             !call collect_escaped_moldata(sendnp,sendsize,sendbuffer,pos,length)
             insertnp = insertnp + sendnp
-            !print'(a,i1,a,i8,a,3i8)', ' open_boundary(',ix,') collected ',sendnp,' escaped molecules on proc.', iblock,jblock,kblock
+           ! print'(a,i6,a,i1,a,i8,a,3i8)', 'Iter = ', iter,' open_boundary(',ix,') collected ',sendnp,' escaped molecules on proc.', iblock,jblock,kblock
 		    call NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest)
 
         else
@@ -2945,7 +2943,6 @@ subroutine globalGatherv(A,na,B,nb,rdisps)
 	use messenger
 	implicit none
 
-    integer             :: i
 	integer, intent(in) :: na,nb(nproc),rdisps(nproc)
 
 	double precision, intent(in) :: A(na)
@@ -2961,11 +2958,12 @@ subroutine planeGatherv(A,na,B,nb,rdisps,ixyz)
 	use messenger
 	implicit none
 
-    integer             :: i
 	integer, intent(in) :: na,nb(plane_nproc(ixyz)),rdisps(plane_nproc(ixyz)),ixyz
 
 	double precision, intent(in) :: A(na)
 	double precision, intent(out):: B(sum(nb))
+
+	!print'(14i6)', irank,iblock,jblock,kblock,na,nb,ixyz,size(A),size(B),plane_nproc(ixyz),size(rdisps)
 
    	call MPI_Allgatherv (A, na,       MPI_DOUBLE_PRECISION, & 
                          B, nb,rdisps,MPI_DOUBLE_PRECISION, & 
@@ -3152,6 +3150,7 @@ subroutine error_abort_s(msg)
         write(*,*) msg
     endif
 
+	call MPI_barrier(MPI_COMM_WORLD,ierr)
     call MPI_Abort(MPI_COMM_WORLD,errcode,ierr)
 
 end subroutine error_abort_s
@@ -3168,6 +3167,7 @@ subroutine error_abort_si(msg,i)
 
     write(*,*) msg,i
 
+	call MPI_barrier(MPI_COMM_WORLD,ierr)
     call MPI_Abort(MPI_COMM_WORLD,errcode,ierr)
 
 end subroutine error_abort_si

@@ -283,7 +283,7 @@ subroutine evaluate_macroscopic_properties
 		enddo
 		print*, 'Simulation aborted because max PE has reached an unreasonably high value.'
 		print*, 'Inspect fort.(3000+irank) for n, potenergymol, r, r_global'
-		stop
+		call error_abort("STOPPING CODE")
 	endif
 	totenergy   = kinenergy + potenergy
 	temperature = v2sum / real(nd*globalnp,kind(0.d0))
@@ -2517,8 +2517,6 @@ subroutine momentum_flux_averaging(ixyz)
     		mbinsize(:) = domain(:) / nbins(:)
             thermbinstop = ceiling(thermstattop/mbinsize)
             thermbinsbot = ceiling(thermstatbottom/mbinsize)
-            
-
             !print'(4i5,6f7.4,18i5)',iter,iblock,jblock,kblock,thermstattop,mbinsize, thermbinstop, thermbinsbot, 1+nhb(1), nbins(1)+nhb(1),1+nhb(2),nbins(2)+nhb(2),1+nhb(3),nbins(3)+nhb(3),1+nhb+thermbinsbot,nbins+nhb-thermbinstop
 		    call CVcheck_momentum%check_error(1+nhb(1)+thermbinsbot(1),nbins(1)+nhb(1)-thermbinstop(1), & 
 											  1+nhb(2)+thermbinsbot(2),nbins(2)+nhb(2)-thermbinstop(2), & 

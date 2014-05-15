@@ -660,6 +660,7 @@ subroutine setup_read_input
 		read(1,*,iostat=ios) CV_debug
 		if (ios .ne. 0) CV_debug = .false.
 	endif
+
 	call locate(1,'MFLUX_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,* ) mflux_outflag
@@ -677,6 +678,13 @@ subroutine setup_read_input
 		if (eflux_outflag .ne. 0) then
 			read(1,* ) Neflux_ave
 			pass_vhalo = 1		!Turn on passing of velocities for halo images
+		endif
+	endif
+	if (CV_debug) then
+		if (mflux_outflag .eq. 0 .and. & 
+			vflux_outflag .eq. 0 .and. & 
+			eflux_outflag .eq. 0) then
+			call error_abort("If CV_debug is true, mass/momentum/energy flux must be turned on")
 		endif
 	endif
 	call locate(1,'ETEVTCF_OUTFLAG',.false.,found_in_input)
