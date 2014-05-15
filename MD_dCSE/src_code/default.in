@@ -40,6 +40,17 @@ DENSITY
 0.8
 
 #########################################################################
+# Number of unit cells in the x,y,z directions, formatted:
+#	x
+#	y
+#	z	
+# -----------------------------------------------------------------------
+INITIALNUNITS
+8
+8
+8
+
+#########################################################################
 # Define initial temperature of the system:
 #	- determines magnitude of initial random velocities
 # -----------------------------------------------------------------------
@@ -174,16 +185,39 @@ INITIAL_CONFIG_FLAG
 0
 special_case_name
 
+
 #########################################################################
-# Number of unit cells in the x,y,z directions, formatted:
-#	x
-#	y
-#	z	
+# Initial velocity
+#
+#    0 - Random based on temperature with zero net momentum
+#
+#    1 - Special case, must be followed by string on next line. This
+#        string must be lower case, so the same string in capitals is
+#        reserved as an input flag for information about the special
+#        case. Options:
+#
+#            - debug         Apply greatly simplifies velocity to test
+# 			     new features (Adjust debug code as required) 
+#
+#            - taylor_green  Counter rotating vortices in a periodic box
+#
+#            - dns           Read DNS restart file and apply as a velocity field
+#                            Requires : filename, ngx, ngy, ngz 
+#
+#    2 - Configuration file, like a *.pdb. To be developed.
+#
+#    Example dns setup with filename 'DNS_restart' with grid size nx=7,ny=12,nz=7
+#	
+#    'dns'
+#    'DNS_restart'
+#     7
+#     13
+#     7
 # -----------------------------------------------------------------------
-INITIALNUNITS
-8
-8
-8
+INITIAL_VELOCITY_FLAG
+0
+'debug'
+
 
 #########################################################################
 # Ensemble selector
@@ -240,6 +274,24 @@ FIXDISTTOP
 0.0
 0.0
 
+########################################################################
+# Distance from domain top to tethered molecules using spring like
+# restoring forces
+# ----------------------------------------------------------------------
+TETHEREDDISTTOP
+0.0
+0.0
+0.0
+
+########################################################################
+# Distance from domain bottom to tethered molecules using spring like
+# restoring forces
+# ----------------------------------------------------------------------
+TETHEREDDISTBOTTOM
+0.0
+0.0
+0.0
+
 #######################################################################
 # Specifiy cooefficients of potential equation 
 # phi= - k2*rio^2 - k4*rio^4 - k6*rio^6 in format
@@ -262,31 +314,15 @@ TETHERCOEFFICIENTS
 5000000.0
 
 ########################################################################
-# Distance from domain bottom to tethered molecules using spring like
-# restoring forces
+# Apply wall texture - note must be used with tag move system
+# and replaces all tethered wall specifications with a texture
+# 1 - posts
+# 2 - random spikes
+# 3 - converging - diverging channel
 # ----------------------------------------------------------------------
-TETHEREDDISTBOTTOM
-0.0
-0.0
-0.0
-
-########################################################################
-# Distance from domain top to tethered molecules using spring like
-# restoring forces
-# ----------------------------------------------------------------------
-TETHEREDDISTTOP
-0.0
-0.0
-0.0
-
-#########################################################################
-# Thermostat flag:
-# 0 - off, 1 - all, 2 - all (PUT), 3 - selection (must also specify 
-#													THERMSTATTOP and/or
-#												 	 THERMSTATBOTTOM)
-# -----------------------------------------------------------------------
-THERMSTAT_FLAG
+WALL_TEXTURE
 0
+
 
 ########################################################################
 # Distance from domain bottom to apply thermostat 
@@ -499,9 +535,10 @@ FIXED_REBUILD_FLAG
 # sorting algorithm - use script based tuning for your case
 # -----------------------------------------------------------------------
 SORT_FLAG
-0
+2
 1
 3
+
 
 #########################################################################
 # Random number seeds, formattted:
@@ -614,6 +651,24 @@ SEED
 #------------------------------------------------------------------------
 
 #########################################################################
+# Define the number of output bins in terms of the compuational cells
+# This constraint is useful for efficiency (cell lists) and consistency
+# while not being particularly restrictive (bins must be integer no in
+# each process and so must cells). The bin cell ratio in the x,y,z 
+# directions is specified in real format with e.g. 2.0 is 2 bins per
+# cell or 0.5 is 2 cells per bin. Care must be taken that cells is an
+# even number if splitting.
+#	x
+#	y
+#	z	
+# -----------------------------------------------------------------------
+BIN2CELLRATIO
+1.0
+1.0
+1.0
+
+
+#########################################################################
 # Save output files as a single file or seperate file at each timestep
 # Logical true or false
 SEPARATE_OUTFILES
@@ -669,12 +724,12 @@ VELOCITY_OUTFLAG
 # Output flag for Temperature record:
 #	output_flag (0=off 1,2,3=x,y,z slice 4=3D bins, 5=3D cylindrical)
 #	No. of samples for Temperature average
-#   peculiar momentum used (i.e. remove streaming velocity)
+#   	OBSOLETE - peculiar momentum used (i.e. remove streaming velocity) 
 # -----------------------------------------------------------------------
 TEMPERATURE_OUTFLAG
 0
 100
-1
+0
 
 
 #########################################################################
@@ -717,10 +772,13 @@ VISCOSITY_OUTFLAG
 #	CV Conservation averaging (0=off 1=on) - take mass, momentum or 
 #	energy flux measure every step to ensureflux will be equal to change 
 #	in snapshots. Note, this increases computational cost somewhat
+#   Debug mode .true. or .false. can be used to enforce in code CV 
+#	conservation checking
 #
 # -----------------------------------------------------------------------
 CV_CONSERVE
 1
+.true.
 
 #########################################################################
 # Output flag for mass flux:
@@ -801,9 +859,16 @@ RDF_OUTFLAG
 #	- flag: 
 #		> 0 - off
 #		> 1 - on
+#		> 2 - bin by bin
+#			Average direction 1=x,2=y,3=z
+#			number of histogram bins
+#			Minimum/maximum values of velocity
 # -----------------------------------------------------------------------
-VDIST
-0
+VPDF
+2
+5
+50
+5.0
 
 #########################################################################
 # Static structure factor output flag
