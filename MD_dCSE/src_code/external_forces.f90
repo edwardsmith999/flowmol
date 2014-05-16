@@ -766,7 +766,7 @@ subroutine apply_CV_force(iter)
 	use calculated_properties_MD, only : pressure, nbins
 	use librarymod, only : get_new_fileunit
 	use module_external_forces, only : np, momentum_flux, irank,nbins, nbinso,domain,delta_t,Nvflux_ave
-	use CV_objects, only : 	CV2 => CVcheck_momentum2
+	use CV_objects, only : 	CV_constraint
 	implicit none
 	
 	integer,intent(in)				:: iter
@@ -827,7 +827,7 @@ subroutine apply_CV_force(iter)
 	enddo
 
 	!Reset CV force values
-	CV2%flux = 0.d0; CV2%Pxy = 0.d0
+	CV_constraint%flux = 0.d0; CV_constraint%Pxy = 0.d0
 
 	!Recalculate flux values in line with applied force constraint
 	
@@ -904,11 +904,11 @@ end subroutine get_test_values
 
 ! Exchange all halo values for CV values ready to apply forces
 subroutine update_CV_halos
-	use CV_objects, only :  CV2 => CVcheck_momentum2
+	use CV_objects, only :  CV_constraint
 	use mpi
 	implicit none
 
-	call CV2%swap_halos(nbinso)
+	call CV_constraint%swap_halos(nbinso)
 
 end subroutine update_CV_halos
 
@@ -922,7 +922,7 @@ subroutine average_over_bin(flag,ib,jb,kb)
 	use arrays_MD, only : r, v, a
 	use linked_list, only : node, cell
 	use physical_constants_MD, only : pi
-	use CV_objects, only :  CV2 => CVcheck_momentum2
+	use CV_objects, only :  CV_constraint
 	use cumulative_momentum_flux_mod, only : cumulative_momentum_flux
 	implicit none
 
@@ -964,19 +964,19 @@ subroutine average_over_bin(flag,ib,jb,kb)
 	enddo
 
 	!Update momentum flux using velocity at next timestep
-	CV2%flux = 0.d0
-	call cumulative_momentum_flux(r_temp,v_temp,CV2%flux)
+	CV_constraint%flux = 0.d0
+	call cumulative_momentum_flux(r_temp,v_temp,CV_constraint%flux)
 	!deallocate(r_temp,v_temp)
 
 	! - - - - -  Get CV Momentum Totals - - - - - - - - - 
 	!Total CV flux
-	MD_rhouu_dS  =		((CV2%flux(ib,jb,kb,:,1)+CV2%flux(ib,jb,kb,:,4)) &
-	          	 		+(CV2%flux(ib,jb,kb,:,2)+CV2%flux(ib,jb,kb,:,5)) &
-	          	 		+(CV2%flux(ib,jb,kb,:,3)+CV2%flux(ib,jb,kb,:,6)))/delta_t
+	MD_rhouu_dS  =		((CV_constraint%flux(ib,jb,kb,:,1)+CV_constraint%flux(ib,jb,kb,:,4)) &
+	          	 		+(CV_constraint%flux(ib,jb,kb,:,2)+CV_constraint%flux(ib,jb,kb,:,5)) &
+	          	 		+(CV_constraint%flux(ib,jb,kb,:,3)+CV_constraint%flux(ib,jb,kb,:,6)))/delta_t
 	!Total surface stresses
-	MD_Pi_dS  =	0.25d0 *((CV2%Pxy(ib,jb,kb,:,1)-CV2%Pxy(ib,jb,kb,:,4)) &
-	              		+(CV2%Pxy(ib,jb,kb,:,2)-CV2%Pxy(ib,jb,kb,:,5)) &
-	              		+(CV2%Pxy(ib,jb,kb,:,3)-CV2%Pxy(ib,jb,kb,:,6)))
+	MD_Pi_dS  =	0.25d0 *((CV_constraint%Pxy(ib,jb,kb,:,1)-CV_constraint%Pxy(ib,jb,kb,:,4)) &
+	              		+(CV_constraint%Pxy(ib,jb,kb,:,2)-CV_constraint%Pxy(ib,jb,kb,:,5)) &
+	              		+(CV_constraint%Pxy(ib,jb,kb,:,3)-CV_constraint%Pxy(ib,jb,kb,:,6)))
 
 	if (box_np_bfr .ne. 0 .and. apply_CVforce) then
 
@@ -1032,7 +1032,7 @@ subroutine average_over_bin_iter(flag,ib,jb,kb)
 	use arrays_MD, only : r, v, a
 	use linked_list, only : node, cell
 	use physical_constants_MD, only : pi
-	use CV_objects, only :  CV2 => CVcheck_momentum2, CVE => CVcheck_energy
+	use CV_objects, only :  CV_constraint, CVE => CVcheck_energy
 	use cumulative_momentum_flux_mod, only : cumulative_momentum_flux
 	use cumulative_energy_flux_mod, only : cumulative_energy_flux
 	implicit none
@@ -1079,18 +1079,18 @@ subroutine average_over_bin_iter(flag,ib,jb,kb)
 
 	! - - - - -  Get CV Momentum Totals - - - - - - - - - 
 	!Total surface stresses
-	MD_Pi_dS  =	0.25d0 *((CV2%Pxy(ib,jb,kb,:,1)-CV2%Pxy(ib,jb,kb,:,4)) &
-	              		+(CV2%Pxy(ib,jb,kb,:,2)-CV2%Pxy(ib,jb,kb,:,5)) &
-	              		+(CV2%Pxy(ib,jb,kb,:,3)-CV2%Pxy(ib,jb,kb,:,6)))
+	MD_Pi_dS  =	0.25d0 *((CV_constraint%Pxy(ib,jb,kb,:,1)-CV_constraint%Pxy(ib,jb,kb,:,4)) &
+	              		+(CV_constraint%Pxy(ib,jb,kb,:,2)-CV_constraint%Pxy(ib,jb,kb,:,5)) &
+	              		+(CV_constraint%Pxy(ib,jb,kb,:,3)-CV_constraint%Pxy(ib,jb,kb,:,6)))
 
 	!Update momentum flux using velocity at next timestep
-	CV2%flux = 0.d0
-	call cumulative_momentum_flux(r_temp,v_temp,CV2%flux)
+	CV_constraint%flux = 0.d0
+	call cumulative_momentum_flux(r_temp,v_temp,CV_constraint%flux)
 
 	!Total CV flux
-	MD_rhouu_dS  =	((CV2%flux(ib,jb,kb,:,1)+CV2%flux(ib,jb,kb,:,4)) &
-	          	 	+(CV2%flux(ib,jb,kb,:,2)+CV2%flux(ib,jb,kb,:,5)) &
-	          	 	+(CV2%flux(ib,jb,kb,:,3)+CV2%flux(ib,jb,kb,:,6)))/delta_t
+	MD_rhouu_dS  =	((CV_constraint%flux(ib,jb,kb,:,1)+CV_constraint%flux(ib,jb,kb,:,4)) &
+	          	 	+(CV_constraint%flux(ib,jb,kb,:,2)+CV_constraint%flux(ib,jb,kb,:,5)) &
+	          	 	+(CV_constraint%flux(ib,jb,kb,:,3)+CV_constraint%flux(ib,jb,kb,:,6)))/delta_t
 
 
 	!Iterate until momentum flux and applied CV force are consistent
@@ -1172,8 +1172,8 @@ subroutine average_over_bin_iter(flag,ib,jb,kb)
 			if (converged) exit
 
         	!Update momentum flux using velocity at next timestep
-        	CV2%flux = 0.d0
-        	call cumulative_momentum_flux(r_temp,v_temp,CV2%flux)
+        	CV_constraint%flux = 0.d0
+        	call cumulative_momentum_flux(r_temp,v_temp,CV_constraint%flux)
 
 			!CVE%flux = 0.d0
 			!call cumulative_energy_flux(r_temp,v_temp,CVE%flux)
@@ -1181,9 +1181,9 @@ subroutine average_over_bin_iter(flag,ib,jb,kb)
         	! - - - - -  Get CV Momentum Totals - - - - - - - - - 
         	!Total CV flux
     		MD_rhouu_dS_prev = MD_rhouu_dS
-        	MD_rhouu_dS  =		((CV2%flux(ib,jb,kb,:,1)+CV2%flux(ib,jb,kb,:,4)) &
-        	          	 		+(CV2%flux(ib,jb,kb,:,2)+CV2%flux(ib,jb,kb,:,5)) &
-        	          	 		+(CV2%flux(ib,jb,kb,:,3)+CV2%flux(ib,jb,kb,:,6)))/delta_t
+        	MD_rhouu_dS  =		((CV_constraint%flux(ib,jb,kb,:,1)+CV_constraint%flux(ib,jb,kb,:,4)) &
+        	          	 		+(CV_constraint%flux(ib,jb,kb,:,2)+CV_constraint%flux(ib,jb,kb,:,5)) &
+        	          	 		+(CV_constraint%flux(ib,jb,kb,:,3)+CV_constraint%flux(ib,jb,kb,:,6)))/delta_t
 
         	!if (abs(sum(MD_rhouu_dS_prev)) .ne. abs(sum(MD_rhouu_dS))) then	
     		!	print'(a,i8,2f18.7)', 'Updated', iter, sum(MD_rhouu_dS), sum(MD_rhouu_dS_afr)
@@ -1388,7 +1388,7 @@ subroutine apply_CV_force_multibin(iter)
 	use calculated_properties_MD, only : pressure, nbins, gnbins
 	use librarymod, only : get_new_fileunit, couette_analytical_fn, lagrange_poly_weight_Nmol
 	use module_external_forces, only : np, momentum_flux, irank,nbins, nbinso,domain,delta_t,Nvflux_ave
-	use CV_objects, only : 	CV2 => CVcheck_momentum2
+	use CV_objects, only : 	CV_constraint
 	implicit none
 	
 	integer,intent(in)				:: iter
@@ -1479,7 +1479,7 @@ subroutine apply_CV_force_multibin(iter)
 	endif
 
 	!Reset CV force values
-	CV2%flux = 0.d0; CV2%Pxy = 0.d0
+	CV_constraint%flux = 0.d0; CV_constraint%Pxy = 0.d0
 
 contains
 
@@ -1719,7 +1719,7 @@ function get_MDstress_weighting_array(r_in,binsize,domain) result(w)
 	!Call linear lagrange polynomial to distribute forces
 	allocate(w(3,np))
 	allocate(MD_stress(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
-	MD_stress = (0.25d0 * CV2%Pxy(:,:,:,:,:) + CV2%flux(:,:,:,:,:)/delta_t)
+	MD_stress = (0.25d0 * CV_constraint%Pxy(:,:,:,:,:) + CV_constraint%flux(:,:,:,:,:)/delta_t)
 	w(:,:) = lagrange_poly_weight_Nmol(MD_stress,r_in,binsize,domain,(/2,2,2/))
 
 end function get_MDstress_weighting_array
@@ -1764,7 +1764,7 @@ function get_Couette_stress_weighting_array(r_in,Re,H,bmin,bmax,binsize,domain) 
     enddo
 
 	!Take difference between MD stress field and CFD stress field and use to determine weighting function
-	CFDMDstress_diff(:,:,:,:,:) =   CV2%Pxy(:,:,:,:,:)+CV2%flux(:,:,:,:,:) & 
+	CFDMDstress_diff(:,:,:,:,:) =   CV_constraint%Pxy(:,:,:,:,:)+CV_constraint%flux(:,:,:,:,:) & 
 					   			  -(CFD_Pxy(:,:,:,:,:)+CFD_flux(:,:,:,:,:))
 
 	!Call linear lagrange polynomial to distribute forces
@@ -1778,11 +1778,11 @@ end function get_Couette_stress_weighting_array
 
 ! Exchange all halo values for CV values ready to apply forces
 subroutine update_CV_halos
-	use CV_objects, only :  CV2 => CVcheck_momentum2
+	use CV_objects, only :  CV_constraint
 	use mpi
 	implicit none
 
-	call CV2%swap_halos(nbinso)
+	call CV_constraint%swap_halos(nbinso)
 
 end subroutine update_CV_halos
 
@@ -1797,7 +1797,7 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 	use arrays_MD, only : r, v, a
 	use linked_list, only : node, cell
 	use physical_constants_MD, only : pi
-	use CV_objects, only :  CV2 => CVcheck_momentum2, CVE => CVcheck_energy
+	use CV_objects, only :  CV_constraint, CVE => CVcheck_energy
 	use cumulative_momentum_flux_mod, only : cumulative_momentum_flux
 	use cumulative_energy_flux_mod, only : cumulative_energy_flux
     use messenger, only : globalise_bin, localise_bin
@@ -1870,18 +1870,18 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 
 	! - - - - -  Get CV Momentum Totals - - - - - - - - - 
 	!Total surface stresses
-	MD_Pi_dS(:,:,:,:)=	0.25d0 *((CV2%Pxy(:,:,:,:,1)-CV2%Pxy(:,:,:,:,4)) &
-	              				+(CV2%Pxy(:,:,:,:,2)-CV2%Pxy(:,:,:,:,5)) &
-		    	              	+(CV2%Pxy(:,:,:,:,3)-CV2%Pxy(:,:,:,:,6)))
+	MD_Pi_dS(:,:,:,:)=	0.25d0 *((CV_constraint%Pxy(:,:,:,:,1)-CV_constraint%Pxy(:,:,:,:,4)) &
+	              				+(CV_constraint%Pxy(:,:,:,:,2)-CV_constraint%Pxy(:,:,:,:,5)) &
+		    	              	+(CV_constraint%Pxy(:,:,:,:,3)-CV_constraint%Pxy(:,:,:,:,6)))
 
 	!Update momentum flux using velocity at next timestep
-	CV2%flux = 0.d0
-	call cumulative_momentum_flux(r_temp,v_temp,CV2%flux)
+	CV_constraint%flux = 0.d0
+	call cumulative_momentum_flux(r_temp,v_temp,CV_constraint%flux)
 
 	!Total CV flux
-	MD_rhouu_dS(:,:,:,:)=	((CV2%flux(:,:,:,:,1)+CV2%flux(:,:,:,:,4)) &
-	          	 			+(CV2%flux(:,:,:,:,2)+CV2%flux(:,:,:,:,5)) &
-	          	 			+(CV2%flux(:,:,:,:,3)+CV2%flux(:,:,:,:,6)))/delta_t
+	MD_rhouu_dS(:,:,:,:)=	((CV_constraint%flux(:,:,:,:,1)+CV_constraint%flux(:,:,:,:,4)) &
+	          	 			+(CV_constraint%flux(:,:,:,:,2)+CV_constraint%flux(:,:,:,:,5)) &
+	          	 			+(CV_constraint%flux(:,:,:,:,3)+CV_constraint%flux(:,:,:,:,6)))/delta_t
 
 	F_constraint = 0.d0; converged = .false.; maxiter = 100; 
     tol = 2.2204460E-16 !Machine Precision -- ε such that 1 = 1+ε on a computer
@@ -1971,16 +1971,16 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 		endif
 
 		!Update momentum flux using velocity at next timestep
-		CV2%flux = 0.d0
-		call cumulative_momentum_flux(r_temp,v_temp,CV2%flux)
+		CV_constraint%flux = 0.d0
+		call cumulative_momentum_flux(r_temp,v_temp,CV_constraint%flux)
 		call update_CV_halos
 
     	! - - - - -  Get CV Momentum Totals - - - - - - - - - 
     	!Total CV flux
 		MD_rhouu_dS_prev = MD_rhouu_dS
-    	MD_rhouu_dS(:,:,:,:)=((CV2%flux(:,:,:,:,1)+CV2%flux(:,:,:,:,4)) &
-    	          	 		 +(CV2%flux(:,:,:,:,2)+CV2%flux(:,:,:,:,5)) &
-    	          	 		 +(CV2%flux(:,:,:,:,3)+CV2%flux(:,:,:,:,6)))/delta_t
+    	MD_rhouu_dS(:,:,:,:)=((CV_constraint%flux(:,:,:,:,1)+CV_constraint%flux(:,:,:,:,4)) &
+    	          	 		 +(CV_constraint%flux(:,:,:,:,2)+CV_constraint%flux(:,:,:,:,5)) &
+    	          	 		 +(CV_constraint%flux(:,:,:,:,3)+CV_constraint%flux(:,:,:,:,6)))/delta_t
 
 !		converge_history(attempt,:) = sum(sum(sum(abs(MD_rhouu_dS_prev(2:nbins(1)+1,   &
 !                                                                       2:nbins(2)+1,   &

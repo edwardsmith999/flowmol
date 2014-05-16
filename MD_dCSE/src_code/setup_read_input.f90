@@ -558,16 +558,17 @@ subroutine setup_read_input
 		read(1,*) binspercell(1)
 		read(1,*) binspercell(2)
 		read(1,*) binspercell(3)
-		if (any(binspercell .gt. 1.d0) .and. & 
-			any(binspercell .lt. 1.d0)) then
-			print*, "WARNING -- BIN2CELLRATIO input - cannot specify multiple ", &
-					"bins per cell in one direction and multiple cells per bin ", &
-					"in the other -- setting minimum binspercell to 1"
-			where(binspercell .gt. 1.d0) binspercell = 1.d0
-		endif
+!		if (any(binspercell .gt. 1.d0) .and. & 
+!			any(binspercell .lt. 1.d0)) then
+!			print*, "WARNING -- BIN2CELLRATIO input - cannot specify multiple ", &
+!					"bins per cell in one direction and multiple cells per bin ", &
+!					"in the other -- setting minimum binspercell to 1"
+!			where(binspercell .gt. 1.d0) binspercell = 1.d0
+!		endif
 	else
 		binspercell = 1.d0
 	endif
+
 	call locate(1,'MACRO_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) read(1,*) macro_outflag
 	call locate(1,'SLRC_FLAG',.false.,found_in_input)

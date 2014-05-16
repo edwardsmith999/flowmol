@@ -1091,6 +1091,9 @@ subroutine reinsert_molecules
 
 	!Exit if nothing left to reinsert
 	if (reinsertnp .eq. 0) then
+		!do n=1,size(insert_locs,2)
+		!	write(5000+irank,'(4i6,6f14.5)'), iter, iblock,jblock,kblock,globalise(insert_locs(:,n)), insert_vels(:,n)
+		!enddo
 		call get_random_velocity(insertnp,insert_vels)
 		call insert_molecules(insert_locs,insert_vels)
 	else
@@ -1105,6 +1108,9 @@ subroutine reinsert_molecules
 			call check_insert_overlap(gnip=subcomminsertnp,inp=insertnp,gi_locs=subcomminsert_locs, & 
 							  		  gm_to_p = subcommmol_to_proc, rank_=commrank, ri_molno = reinsert_molno,rinp=reinsertnp)
 			if (reinsertnp .eq. 0) exit
+		enddo
+		do n=1,size(insert_locs,2)
+			write(5000+irank,'(4i6,6f14.5)'), iter, iblock,jblock,kblock,globalise(insert_locs(:,n)), insert_vels(:,n)
 		enddo
 		call get_random_velocity(insertnp,insert_vels)
 		call insert_molecules(insert_locs,insert_vels)
@@ -1130,7 +1136,7 @@ contains
 		!An array of extra molecular positions to include in potential calculation
 		double precision,dimension(:,:),allocatable,optional,intent(in)  :: extra_pos
 
-		integer				:: maxattempts=1000
+		integer				:: maxattempts=10000
 		double precision 	:: Utarget
 		logical 			:: pos_found
 
