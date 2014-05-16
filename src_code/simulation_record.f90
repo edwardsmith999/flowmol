@@ -2240,7 +2240,7 @@ contains
 subroutine cumulative_momentum_flux(r_,v_,momentum_flux_,notcrossing)
 	use module_record, only : vflux_outflag, domain, halfdomain, planespacing, CV_debug, & 
 							  delta_t, planes, Pxy_plane, nplanes, np, nbins, nhb, iter
-	use CV_objects, only : CVcheck_momentum2!, CV_sphere_momentum
+	use CV_objects, only : CV_constraint!, CV_sphere_momentum
     use librarymod, only : imaxloc, heaviside  =>  heaviside_a1
 	use interfaces, only : error_abort
 	implicit none
@@ -2466,7 +2466,7 @@ subroutine momentum_flux_averaging(ixyz)
 	!					  external_force_io,MOP_stress_io
 	use module_record
 	use cumulative_momentum_flux_mod, only : cumulative_momentum_flux
-	use CV_objects, only : CV_debug, CVcheck_momentum!, CVcheck_momentum2!, CV_sphere_momentum
+	use CV_objects, only : CV_debug, CVcheck_momentum!, CV_constraint!, CV_sphere_momentum
 	implicit none
 
 	integer				:: ixyz,icell,jcell,kcell,n
@@ -2518,6 +2518,9 @@ subroutine momentum_flux_averaging(ixyz)
             thermbinstop = ceiling(thermstattop/mbinsize)
             thermbinsbot = ceiling(thermstatbottom/mbinsize)
             !print'(4i5,6f7.4,18i5)',iter,iblock,jblock,kblock,thermstattop,mbinsize, thermbinstop, thermbinsbot, 1+nhb(1), nbins(1)+nhb(1),1+nhb(2),nbins(2)+nhb(2),1+nhb(3),nbins(3)+nhb(3),1+nhb+thermbinsbot,nbins+nhb-thermbinstop
+!		    call CVcheck_momentum%check_error(1+nhb(1),nbins(1)+nhb(1), & 
+!											  1+nhb(2),nbins(2)+nhb(2), & 
+!											  1+nhb(3),nbins(3)+nhb(3),iter,irank)
 		    call CVcheck_momentum%check_error(1+nhb(1)+thermbinsbot(1),nbins(1)+nhb(1)-thermbinstop(1), & 
 											  1+nhb(2)+thermbinsbot(2),nbins(2)+nhb(2)-thermbinstop(2), & 
 											  1+nhb(3)+thermbinsbot(3),nbins(3)+nhb(3)-thermbinstop(3),iter,irank)
@@ -3697,7 +3700,7 @@ end subroutine control_volume_forces
 
 subroutine control_volume_stresses(fij,ri,rj)
     use module_record
-	use CV_objects, only : CV_debug,CVcheck_momentum2
+	use CV_objects, only : CV_debug,CV_constraint
     use librarymod, only : heaviside  =>  heaviside_a1
     implicit none
 
@@ -3781,18 +3784,18 @@ subroutine control_volume_stresses(fij,ri,rj)
 
 		!Add instantanous stress to CV record
 		if (CV_debug) then
-    		CVcheck_momentum2%Pxy(cbin(1),cbin(2),cbin(3),:,1) = & 
-				CVcheck_momentum2%Pxy(cbin(1),cbin(2),cbin(3),:,1) + fij(:)*dble(onfacexb)
-    		CVcheck_momentum2%Pxy(cbin(1),cbin(2),cbin(3),:,2) = & 
-				CVcheck_momentum2%Pxy(cbin(1),cbin(2),cbin(3),:,2) + fij(:)*dble(onfaceyb)
-    		CVcheck_momentum2%Pxy(cbin(1),cbin(2),cbin(3),:,3) = & 
-				CVcheck_momentum2%Pxy(cbin(1),cbin(2),cbin(3),:,3) + fij(:)*dble(onfacezb)
-    		CVcheck_momentum2%Pxy(cbin(1),cbin(2),cbin(3),:,4) = & 
-				CVcheck_momentum2%Pxy(cbin(1),cbin(2),cbin(3),:,4) + fij(:)*dble(onfacext)
-    		CVcheck_momentum2%Pxy(cbin(1),cbin(2),cbin(3),:,5) = & 
-				CVcheck_momentum2%Pxy(cbin(1),cbin(2),cbin(3),:,5) + fij(:)*dble(onfaceyt)
-    		CVcheck_momentum2%Pxy(cbin(1),cbin(2),cbin(3),:,6) = & 
-				CVcheck_momentum2%Pxy(cbin(1),cbin(2),cbin(3),:,6) + fij(:)*dble(onfacezt)
+    		CV_constraint%Pxy(cbin(1),cbin(2),cbin(3),:,1) = & 
+				CV_constraint%Pxy(cbin(1),cbin(2),cbin(3),:,1) + fij(:)*dble(onfacexb)
+    		CV_constraint%Pxy(cbin(1),cbin(2),cbin(3),:,2) = & 
+				CV_constraint%Pxy(cbin(1),cbin(2),cbin(3),:,2) + fij(:)*dble(onfaceyb)
+    		CV_constraint%Pxy(cbin(1),cbin(2),cbin(3),:,3) = & 
+				CV_constraint%Pxy(cbin(1),cbin(2),cbin(3),:,3) + fij(:)*dble(onfacezb)
+    		CV_constraint%Pxy(cbin(1),cbin(2),cbin(3),:,4) = & 
+				CV_constraint%Pxy(cbin(1),cbin(2),cbin(3),:,4) + fij(:)*dble(onfacext)
+    		CV_constraint%Pxy(cbin(1),cbin(2),cbin(3),:,5) = & 
+				CV_constraint%Pxy(cbin(1),cbin(2),cbin(3),:,5) + fij(:)*dble(onfaceyt)
+    		CV_constraint%Pxy(cbin(1),cbin(2),cbin(3),:,6) = & 
+				CV_constraint%Pxy(cbin(1),cbin(2),cbin(3),:,6) + fij(:)*dble(onfacezt)
 		endif
 
 		!Force applied to volume
@@ -3816,7 +3819,7 @@ end subroutine control_volume_stresses
 
 subroutine control_volume_power(fij,ri,rj,molnoi,ai_mdt)
     use module_record
-	use CV_objects, only : CV_debug,CVcheck_momentum2
+	use CV_objects, only : CV_debug,CV_constraint
     use librarymod, only : heaviside  =>  heaviside_a1
     implicit none
 
@@ -4105,7 +4108,7 @@ end module get_timesteps_module
 
 subroutine control_volume_power_partialint(fij,ri,rj,vi_mhdt,vj_mhdt,ai_mdt,aj_mdt,ai,aj,molnoi,molnoj)
     use module_record
-	use CV_objects, only : CV_debug,CVcheck_momentum2
+	use CV_objects, only : CV_debug,CV_constraint
     use librarymod, only : heaviside => heaviside_a1, bubble_sort
 	use get_timesteps_module
     implicit none

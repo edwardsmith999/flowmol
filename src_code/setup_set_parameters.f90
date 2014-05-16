@@ -45,7 +45,7 @@ subroutine setup_set_parameters
 	implicit none
 
 	integer							:: i,iblk,jblk,kblk
-	integer,dimension(3)			:: nblocks
+	integer,dimension(3)			:: nblocks,nvalues
 	double precision,dimension(3)	:: blocksidelength
 
 	!This has alreay been done in initialise for a coupled run
@@ -83,6 +83,11 @@ subroutine setup_set_parameters
 	call establish_halo_bins
 	call establish_surface_cells
 	call establish_halo_cells
+
+	nvalues = (/ min(ncells(1),nbins(1)), & 
+				 min(ncells(2),nbins(2)), & 
+				 min(ncells(3),nbins(3)) /)
+	call establish_halo_cellbins(nvalues)
 
 	!Setup arrays for sorting algorithms
 	select case(sort_flag)
@@ -715,7 +720,7 @@ subroutine set_parameters_outputs
 	use module_set_parameters
 	use interfaces
 	use CV_objects, only : CVcheck_mass,CVcheck_momentum, & 
-						   CVcheck_momentum2,CVcheck_energy, CV_debug!,CV_sphere_momentum,CV_sphere_mass
+						   CV_constraint,CVcheck_energy, CV_debug!,CV_sphere_momentum,CV_sphere_mass
 	implicit none
 
 	integer					:: n,i,j,k, ixyz
@@ -997,7 +1002,7 @@ subroutine set_parameters_outputs
 			if (CV_debug) then
 				call CVcheck_mass%initialise(nbinso)   ! initialize CVcheck
 				call CVcheck_momentum%initialise(nbinso)   ! initialize CVcheck
-				call CVcheck_momentum2%initialise(nbinso)   ! initialize CVcheck
+				call CV_constraint%initialise(nbinso)   ! initialize CV constraint object
 				call CVcheck_energy%initialise(nbinso)   ! initialize CVcheck
 				!call CV_sphere_mass%initialise((/1,1,1/))	
 				!call CV_sphere_momentum%initialise_sphere((/1,1,1/),collect_spherical=.false.)	
@@ -1213,6 +1218,48 @@ subroutine establish_halo_bins
 	enddo
 
 end subroutine establish_halo_bins
+
+
+
+!-------------------------------------------------------------------
+! Establish and store indices of cells/bins which are in the halo
+! for when the bin2cell ratio is smaller/larger than unity
+
+subroutine establish_halo_cellbins(nvalues)
+	use module_set_parameters
+	implicit none
+
+	integer, intent(in)	:: nvalues(3)
+
+	integer		:: n
+	integer		:: i, j, k
+
+	nhalocellbins  =	2*((nvalues(1)+2)*(nvalues(2)+2) &
+						+  (nvalues(3)  )*(nvalues(2)+2) &
+						+  (nvalues(3)  )*(nvalues(1)  ))
+
+	allocate(halocellbins(nhalocellbins,3))
+
+	n = 1
+	do k=1, nvalues(3)+2
+	do j=1, nvalues(2)+2
+	do i=1, nvalues(1)+2
+
+		!Remove inner part of domain
+		if((i .gt. (1) .and. i .lt. (nvalues(1)+2)) .and. &
+		   (j .gt. (1) .and. j .lt. (nvalues(2)+2)) .and. &
+		   (k .gt. (1) .and. k .lt. (nvalues(3)+2))) cycle
+
+		halocellbins(n,1)=i
+		halocellbins(n,2)=j
+		halocellbins(n,3)=k
+		n = n + 1
+
+	enddo
+	enddo
+	enddo
+
+end subroutine establish_halo_cellbins
 
 !-------------------------------------------------------------------
 !Establish and store indices of cells which are on the outer domain surface specified 

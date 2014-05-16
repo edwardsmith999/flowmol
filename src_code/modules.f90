@@ -223,6 +223,9 @@ module computational_constants_MD
 	integer		 								:: nhalocells 	!Number of halo bins
 	integer,allocatable,dimension(:,:),target	:: halocells		!halo Bins
 
+	integer		 								:: nhalocellbins 	!Minimum of halo bins or cells
+	integer,allocatable,dimension(:,:),target	:: halocellbins		!Minimum values of halo bins or cells
+
 	!Number and size of unit used for initial setup of molecules (i.e. FCC unit)
 	integer,          dimension(3)		:: initialnunits
 	double precision, dimension(3) 		:: initialunitsize

@@ -81,7 +81,7 @@ end type check_CV_energy
 
 !	!Check CV conservation
 	type(check_CV_mass)		:: CVcheck_mass							! declare an instance of CV checker
-	type(check_CV_momentum)	:: CVcheck_momentum, CVcheck_momentum2	! declare an instance of CV checker
+	type(check_CV_momentum)	:: CVcheck_momentum, CV_constraint	    ! declare an instance of CV checker
 	type(check_CV_energy)	:: CVcheck_energy						! declare an instance of CV checker
 
 !    !CV spherical object
@@ -382,8 +382,8 @@ contains
 
 		    !Verify that CV momentum is exactly conservative
 		    conserved = sum(totalpressure-totalflux-dvelocitydt-F_ext)
-			!if(abs(conserved) .gt. 0.000000001d0) then
-			if (i .eq. 2 .and. j .eq. 2 .and. k .eq. 2 .and. irank .eq. 2) then
+			if(abs(conserved) .gt. 0.000000001d0) then
+			!if (i .eq. 2 .and. j .eq. 2 .and. k .eq. 2 .and. irank .eq. 2) then
 			!if (any(abs(dvelocitydt) .lt. 0.00001d0)) then
 				print'(a,i8,4i4,7f11.5)','Error_in_momentum_flux', iter,irank,i,j,k, & 
 					 conserved, sum(totalpressure),-sum(totalflux),sum(dvelocitydt), & 
