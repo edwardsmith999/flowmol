@@ -109,19 +109,11 @@ class MD_vField(MDField):
 
         return vdata 
 
-    def averaged_data(self,startrec,endrec,avgaxes=(),avgtime=True):
+    def averaged_data(self,startrec,endrec,avgaxes=()):
         
-        # Read 4D time series from startrec to endrec
         mdata = self.mField.read(startrec,endrec)
         pdata = self.pField.read(startrec,endrec)
 
-        # Time axis is the final (fourth) axis...
-        if (avgtime):
-            mdata = np.sum(mdata,axis=4)
-            pdata = np.sum(pdata,axis=4)
-           
-        # ... so spatial axes can be averaged here without changing their
-        # indices.
         if (avgaxes != ()):
             mdata = np.sum(mdata,axis=avgaxes) 
             pdata = np.sum(pdata,axis=avgaxes) 
@@ -166,9 +158,9 @@ class MD_pVAField(MDField):
 
                 # Find outer product of v*v and reshape to 1x9 rather than 3x3
                 nrecs = endrec-startrec+1
-                vvdata = np.einsum('abcjd,abckd->abcjkd',vdata,vdata)
+                vvdata = np.einsum('abcdj,abcdk->abcdjk',vdata,vdata)
                 vvshapelist = list(vvdata.shape)
-                newshape = tuple(vvshapelist[0:3]+[9,nrecs])
+                newshape = tuple(vvshapelist[0:4]+[9])
                 vvdata = np.reshape(vvdata,newshape)
     
                 # Remove square of streaming velocity
@@ -200,13 +192,12 @@ class MD_TField(MDField):
             pdata = self.pField.read(startrec,endrec)
             vdata = np.divide(pdata,mdata)
             vdata[np.isnan(vdata)] = 0.0
-            v2data= np.sum((vdata**2.0),3)
-            Tdata = Tdata - (1./3.)*v2data[:,:,:,np.newaxis]
+            v2data = np.sum((vdata**2.0),axis=4,keepdims=True)
+            Tdata = Tdata - (1./3.)*v2data
 
         return Tdata 
 
-    def averaged_data(self,startrec,endrec,peculiar=True,avgaxes=(),
-                      avgtime=True):
+    def averaged_data(self,startrec,endrec,peculiar=True,avgaxes=()):
         
         # Read 4D time series from startrec to endrec
         mdata = self.mField.read(startrec,endrec)
@@ -217,15 +208,8 @@ class MD_TField(MDField):
             pdata = self.pField.read(startrec,endrec)
             vdata = np.divide(pdata,mdata)
             vdata[np.isnan(vdata)] = 0.0
-            v2data = np.sum((vdata**2.0),3,keepdims=True)
+            v2data = np.sum((vdata**2.0),axis=4,keepdims=True)
 
-        # Time axis is the final (fourth) axis...
-        if (avgtime):
-            mdata = np.sum(mdata,axis=4)
-            KEdata = np.sum(KEdata,axis=4)
-           
-        # ... so spatial axes can be averaged here without changing their
-        # indices.
         if (avgaxes != ()):
             mdata = np.sum(mdata,axis=avgaxes) 
             KEdata = np.sum(KEdata,axis=avgaxes) 
@@ -236,8 +220,6 @@ class MD_TField(MDField):
 
         # Remove streaming velocity
         if (peculiar):
-            if (avgtime):
-                v2data = np.mean(v2data,axis=4)
             if (avgaxes != ()):
                 v2data = np.mean(v2data,axis=avgaxes) 
             Tdata = Tdata - (1./3.)*v2data
@@ -265,25 +247,23 @@ class MD_dField(MDField):
         
         return density
 
-    def averaged_data(self,startrec,endrec,avgaxes=(),avgtime=True):
+    def averaged_data(self,startrec,endrec,avgaxes=()):
 
+        nrecs = endrec - startrec + 1
         binvolumes = self.mField.Raw.get_binvolumes()
+        binvolumes = np.expand_dims(binvolumes,axis=-1)
         Nmass_ave = self.mField.Raw.header.Nmass_ave
 
         # Read 4D time series from startrec to endrec
         mdata = self.mField.read(startrec, endrec)
         mdata = np.divide(mdata,float(Nmass_ave))
 
-        # Time axis is the final (fourth) axis...
-        if (avgtime):
-            mdata = np.mean(mdata,axis=4)
-        # ... so spatial axes can be averaged here without changing their
-        # indices.
         if (avgaxes != ()):
             mdata = np.sum(mdata,axis=avgaxes) 
+            # binvolumes should only be length=1 in time & component axis
             binvolumes = np.sum(binvolumes,axis=avgaxes) 
         
-        density = np.divide(mdata,binvolumes)
+        density = np.divide(mdata,binvolumes*nrecs)
 
         return density 
 
@@ -308,22 +288,19 @@ class MD_momField(MDField):
         
         return momdensity
 
-    def averaged_data(self,startrec,endrec,avgaxes=(),avgtime=True):
+    def averaged_data(self,startrec,endrec,avgaxes=()):
 
         binvolumes = self.pField.Raw.get_binvolumes()
+        binvolumes = np.expand_dims(binvolumes,axis=-1)
         N_ave = self.pField.Raw.header.Nvel_ave
 
         # Read 4D time series from startrec to endrec
         pdata = self.pField.read(startrec, endrec)
-        pdata = np.divide(mdata,float(N_ave))
+        pdata = np.divide(pdata,float(N_ave))
 
-        # Time axis is the final (fourth) axis...
-        if (avgtime):
-            pdata = np.mean(pdata,axis=4)
-        # ... so spatial axes can be averaged here without changing their
-        # indices.
         if (avgaxes != ()):
             pdata = np.sum(pdata,axis=avgaxes) 
+            # binvolumes should only be length=1 in time & component axis 
             binvolumes = np.sum(binvolumes,axis=avgaxes) 
         
         momdensity = np.divide(pdata,binvolumes)

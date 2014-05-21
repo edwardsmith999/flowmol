@@ -69,7 +69,7 @@ class CFD_RawData:
 
         nrecs = endrec - startrec + 1
         # Efficient memory allocation
-        subdata = np.empty((self.nrx,self.nry,self.nrz,4,nrecs))
+        subdata = np.empty((self.nrx,self.nry,self.nrz,nrecs,4))
 
         # Loop through files and insert data
         for plusrec in range(0,nrecs):
@@ -83,8 +83,6 @@ class CFD_RawData:
                 # change to xyz ordering
                 data = np.transpose(data,(1,2,0,3))
                 # insert into array
-                subdata[:,:,:,:,plusrec] = data 
+                subdata[:,:,:,plusrec,:] = data 
          
         return subdata
-
-        

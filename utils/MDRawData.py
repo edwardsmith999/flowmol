@@ -259,6 +259,7 @@ class MD_RawData:
                                self.nperbin ,
                                nrecs ],
                               order='F')
+        bindata = np.transpose(bindata, (0,1,2,4,3))
 
         return bindata
         

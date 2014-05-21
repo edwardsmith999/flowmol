@@ -30,6 +30,11 @@ class Field():
         from multiple files to construct a velocity profile, and finally
         will plot the x-component of velocity against the y-axis.
 
+        In line with RawData readers, axes correspond to:
+
+            [ spatial ax1, spatial ax2, spatial ax3, record, component ] 
+            [     0      ,      1     ,      2     ,    3  , 4 (&-1)   ] 
+
     """
     
     def __init__(self, RawDataObj):
@@ -50,14 +55,10 @@ class Field():
             quit('Record ' + str(endrec) + ' is greater than the maximum '
                  'available (' + str(self.maxrec) + '). Aborting.')
 
-        grid_data = self._read(startrec,endrec)
-        return grid_data
-    
-    def _read(self,startrec,endrec):
         grid_data = self.Raw.read(startrec,endrec)
         return grid_data
     
-    def averaged_data(self,startrec,endrec,avgaxes=(),avgtime=True,**kwargs):
+    def averaged_data(self,startrec,endrec,avgaxes=(),**kwargs):
 
         """
             TO BE OVERRIDDEN IN COMPLICATED FIELDS.
@@ -66,13 +67,8 @@ class Field():
         
         # Read 4D time series from startrec to endrec
         grid_data = self.read(startrec,endrec,**kwargs)
-
-        # Time axis is the final (fourth) axis...
-        if (avgtime):
-            grid_data = np.mean(grid_data,axis=4)
            
-        # ... so spatial axes can be averaged here without changing their
-        # indices.
+        # Average over axes
         if (avgaxes != ()):
             grid_data = np.mean(grid_data,axis=avgaxes) 
 
@@ -86,7 +82,7 @@ class Field():
             Wrapper for averaged_data, returns easily plottable data 
         """
 
-        avgaxes = [0,1,2]
+        avgaxes = [0,1,2,3]
         avgaxes.remove(axes[0])
         avgaxes.remove(axes[1])
         avgaxes = tuple(avgaxes)
@@ -99,9 +95,6 @@ class Field():
         X, Y = np.meshgrid(self.grid[axes[0]],self.grid[axes[1]],indexing='ij')
         return X, Y, data 
  
-    def contour_timeseries(self,axes):
-        pass
- 
     def profile(self,axis,startrec=0,endrec=None,**kwargs):
 
         """
@@ -109,7 +102,7 @@ class Field():
             Wrapper for averaged_data, returns easily plottable data 
         """
 
-        avgaxes = [0,1,2]
+        avgaxes = [0,1,2,3]
         avgaxes.remove(axis)
         avgaxes = tuple(avgaxes)
 
@@ -118,10 +111,179 @@ class Field():
 
         data = self.averaged_data(startrec,endrec,avgaxes=avgaxes,**kwargs)
         return self.grid[axis], data
-    
-    def profile_timeseries(self,axis):
-        pass
 
+    def power_spectrum(self,startrec=0,endrec=None,preavgaxes=(),fftaxes=(),
+                       postavgaxes=(), windowaxis=None, verify_Parseval=True,
+                       savefile=None):
+
+        class AxisManager():
+
+            def __init__(self):
+                self.nreduced = 0
+                self.axisactive = [True]*5
+
+            def reduce_axes(self,axes):
+                for axis in axes:
+                    self.nreduced += 1
+                    self.axisactive[axis] = False 
+
+            def current_axis_number(self,axis_request):
+                if (not self.axisactive[axis_request]):
+                    return None
+                n = 0
+                for otheraxis in range(axis_request):
+                    if (not self.axisactive[otheraxis]):
+                        n += 1
+                return int(axis_request - n)
+            
+            def current_axes_numbers(self,axes_request):
+                newaxes = [] 
+                for axis in list(axes_request):
+                    newaxes.append(self.current_axis_number(axis))
+                return tuple(newaxes)
+
+        def managed_mean(axismanager, data, avgaxes):
+            newaxes = axismanager.current_axes_numbers(avgaxes)
+            if (None in newaxes):
+                quit("Can't average over an axis that has been reduced")
+            avgdata = np.mean(data, axis=newaxes) 
+            axismanager.reduce_axes(avgaxes)
+            return avgdata
+
+        def managed_fft(axismanager, data, fftaxes):
+            newaxes = axismanager.current_axes_numbers(fftaxes)
+            if (None in newaxes):
+                quit("Can't fft over an axis that has been reduced")
+            fftdata = np.fft.fftn(data,axes=newaxes)
+            return fftdata
+
+        def managed_energyfield(axismanager, data, fftaxes):
+            
+            def add_negatives(a):
+                b = a
+                for i in range(1,len(b)/2):
+                    b[i] += a[-i]
+                return b
+
+            newfftaxes = axismanager.current_axes_numbers(fftaxes)
+
+            # Count N
+            N = 1
+            for axis in newfftaxes:
+                N = N * data.shape[axis]
+
+            # Initial energy in every wavenumber (pos and neg)
+            E = np.abs(data)**2.0
+             
+            #Add negative contributions to positive wavenumbers
+            nd = len(E.shape)
+            slicer = [slice(None)]*nd
+            for axis in newfftaxes:
+
+                E = np.apply_along_axis(add_negatives,axis,E)
+
+                # Discard negative parts after adding to positive
+                k = E.shape[axis]
+                cutout = np.s_[0:k/2+1:1]
+                slicer[axis] = cutout
+                E = E[slicer]
+
+                # Refresh slice for new axis calculation
+                slicer[axis] = slice(None)
+
+            return E/N
+
+        def managed_window(axismanager, data, windowaxis):
+
+            def window_axis_function(a, window):
+                a = a * window
+                return a
+
+            newaxis = axismanager.current_axis_number(windowaxis)
+
+            N = data.shape[newaxis]
+            window = np.hanning(N)
+
+            # Save "window summed and squared" (see Numerical Recipes)
+            wss = np.sum(window**2.0)/float(N)
+
+            # Apply window
+            windoweddata = np.apply_along_axis(window_axis_function, 
+                                               newaxis, data, window)
+
+            return windoweddata, wss 
+
+        # ---------------------------------------------------------------- 
+        # Checks
+        if (not isinstance(preavgaxes,tuple)):
+            try:
+                preavgaxes = tuple([preavgaxes])
+            except:
+                print('Failed to make preavgaxes and fftaxes a tuple')
+        if (not isinstance(fftaxes,tuple)):
+            try:
+                fftaxes = tuple([fftaxes])
+            except:
+                print('Failed to make preavgaxes and fftaxes a tuple')
+        if (not isinstance(postavgaxes,tuple)):
+            try:
+                postavgaxes = tuple([postavgaxes])
+            except:
+                print('Failed to make preavgaxes and fftaxes a tuple')
+
+        if (4 in postavgaxes or 4 in fftaxes or 4 in preavgaxes):
+            message = "WARNING: you're asking me to average or fft over "
+            message += "each component of the field. I don't know how to "
+            message += "deal with this right now. Aborting."
+            quit(message)
+
+        if (windowaxis):
+            if (windowaxis in preavgaxes or windowaxis in postavgaxes):
+                message = "Warning: you're asking me to window over an axis "
+                message += "that you're eventually going to average over. "
+                message += "Aborting."
+                quit(message)
+            if (windowaxis not in fftaxes):
+                message = "Warning: you're asking me to window over an axis "
+                message += "that won't be Fourier transformed. This makes no "
+                message += "sense. Aborting."
+        
+        # ---------------------------------------------------------------- 
+        # Do the process 
+
+        if (endrec==None):
+            endrec = self.maxrec
+         
+        axisman = AxisManager() 
+        data = self.read(startrec, endrec)
+        data = managed_mean(axisman, data, preavgaxes)
+
+        if (windowaxis):
+            data, wss = managed_window(axisman, data, windowaxis)
+
+        if (verify_Parseval):
+            Esumreal = np.sum(np.abs(data)**2.0)
+
+        fftdata = managed_fft(axisman, data, fftaxes)
+        energy = managed_energyfield(axisman, fftdata, fftaxes)
+
+        if (verify_Parseval):
+            Esumfft = np.sum(energy)
+            ratio = abs(Esumreal - Esumfft)/Esumreal 
+            perc = (1. - ratio)*100.
+            print('Parseval thm (discounting window): ' + "%7.4f"%perc + '%')
+
+        if (windowaxis):
+            energy = energy / wss
+
+        energy = managed_mean(axisman, energy, postavgaxes)
+
+        if (savefile):
+            with open(savefile,'w') as f:
+                f.write(energy)
+        
+        return energy 
+ 
 
     def write_dx_file(self,startrec,endrec,writedir=None,component=0):
 
