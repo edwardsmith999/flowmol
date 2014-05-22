@@ -183,7 +183,7 @@ class MD_RawData:
         return maxrec 
         
 
-    def read(self, startrec, endrec):
+    def read(self, startrec, endrec,binlimits=None):
 
         """
             Required inputs:
@@ -260,6 +260,22 @@ class MD_RawData:
                                nrecs ],
                               order='F')
         bindata = np.transpose(bindata, (0,1,2,4,3))
+
+        # If bin limits are specified, return only those within range
+        if (binlimits):
+
+            # Initialise slice list as every index in bins
+            s = [np.arange(i) for i in bindata.shape]
+            # Loop over axes and change slicer limits
+            for axis in range(3):
+                if (binlimits[axis]):
+                    # (+1 for python slicing convention) 
+                    s[axis] = np.arange(binlimits[axis][0],
+                                        binlimits[axis][1]+1) 
+            # Convert slice list to proper shape for numpy fancy indexing
+            slicer = np.ix_(*s) 
+            # Delete entries not in slicer
+            bindata = bindata[slicer]
 
         return bindata
         

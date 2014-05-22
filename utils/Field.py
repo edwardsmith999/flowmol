@@ -55,7 +55,7 @@ class Field():
             quit('Record ' + str(endrec) + ' is greater than the maximum '
                  'available (' + str(self.maxrec) + '). Aborting.')
 
-        grid_data = self.Raw.read(startrec,endrec)
+        grid_data = self.Raw.read(startrec,endrec,**kwargs)
         return grid_data
     
     def averaged_data(self,startrec,endrec,avgaxes=(),**kwargs):
@@ -114,7 +114,7 @@ class Field():
 
     def power_spectrum(self,startrec=0,endrec=None,preavgaxes=(),fftaxes=(),
                        postavgaxes=(), windowaxis=None, verify_Parseval=True,
-                       savefile=None):
+                       savefile=None,**kwargs):
 
         class AxisManager():
 
@@ -255,7 +255,7 @@ class Field():
             endrec = self.maxrec
          
         axisman = AxisManager() 
-        data = self.read(startrec, endrec)
+        data = self.read(startrec, endrec,**kwargs)
         data = managed_mean(axisman, data, preavgaxes)
 
         if (windowaxis):
@@ -301,11 +301,11 @@ class Field():
         datamin = []; datamax = []
         for rec in range(startrec,endrec):
 
-            data = self.read(startrec=rec,endrec=rec)
+            data = self.read(startrec=rec,endrec=rec,**kwargs)
 
             #Return minimum and maximum values
-            datamin.append(np.min(data[:,:,:,component,:]))
-            datamax.append(np.max(data[:,:,:,component,:]))
+            datamin.append(np.min(data[:,:,:,:,component]))
+            datamax.append(np.max(data[:,:,:,:,component]))
 
             Nx, Ny, Nz = data.shape[0], data.shape[1], data.shape[2]
             dx,dy,dz = [(self.grid[i][1] - self.grid[i][0]) for i in range(3)]
@@ -314,7 +314,7 @@ class Field():
             originy = -Ly/2.0
             originz = -Lz/2.0
 
-            data = self.cellcentre2vertex(data[:,:,:,component,0])
+            data = self.cellcentre2vertex(data[:,:,:,0,component])
             Nx_v, Ny_v, Nz_v = data.shape[0], data.shape[1], data.shape[2]
 
             #Get file name
