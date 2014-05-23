@@ -105,10 +105,89 @@ class ContourSliderFrame(wx.Frame):
         would normally be called a window on a program
     """
     def __init__(self, fielddict, *args, **kwargs):
+
         #Take in field and call wx.Frame's constructor
-        self.fielddict = fielddict
         wx.Frame.__init__(self, *args, **kwargs)
 
+        #Save field dictonary
+        self.fielddict = fielddict
+
+        # Setup frame layout with sizers
+        self.sizer_1 = wx.BoxSizer(wx.VERTICAL)
+        self.sizer_2 = wx.BoxSizer(wx.HORIZONTAL)
+        self.sizer_1.Add(self.sizer_2, 1, wx.EXPAND, 0)
+
+        #Add radiobox to select fieldtype
+        self.radio_box_1 = wx.RadioBox(self, -1, "Field", choices=self.fielddict.plotlist.keys(), 
+                                        majorDimension=15, style=wx.RA_SPECIFY_ROWS)
+        self.Bind(wx.EVT_RADIOBOX, self.OnRadio,self.radio_box_1) 
+        self.radio_box_1.SetSelection(1)
+        self.field = self.fielddict.plotlist[self.radio_box_1.GetStringSelection()]
+
+        self.sizer_2.Add(self.radio_box_1, 0, wx.ALIGN_CENTER_VERTICAL, 0)
+        self.setup_panel()
+
+    def setup_panel(self):
+
+        """
+            Setup sliders and main matplotlib viewing window
+        """
+
+        #Setup main contour viewing window
+        self.ContourSliderWindow = ContourSliderWindow(self)
+        self.sizer_2.Add(self.ContourSliderWindow, 1, wx.EXPAND)
+
+        #Add Sliders
+        #Draw a component slider and add to sizer_1 if needed, otherwise don't
+        if int(self.field.nperbin)-1 > 0:
+            self.componentSliderGroup = SliderGroup(self,label='x,y,z:', \
+                                                    param=self.ContourSliderWindow.comp)
+            self.sizer_1.Add(self.componentSliderGroup.sizer, 0, \
+                wx.EXPAND | wx.ALIGN_CENTER | wx.ALL, border=5)
+        else:
+            self.componentSliderGroup = None
+
+        #Draw a bin number slider and add to sizer_1
+        self.positionSliderGroup = SliderGroup(self, label='Position: ', \
+                                                param=self.ContourSliderWindow.pos)
+        self.sizer_1.Add(self.positionSliderGroup.sizer, 0, \
+            wx.EXPAND | wx.ALIGN_CENTER | wx.ALL, border=5)
+
+        #Draw a record number slider and add to sizer_1
+        self.recordSliderGroup = SliderGroup(self,   label='Record:   ', \
+                                                param=self.ContourSliderWindow.rec)
+        self.sizer_1.Add(self.recordSliderGroup.sizer, 0, \
+            wx.EXPAND | wx.ALIGN_CENTER | wx.ALL, border=5)
+        self.SetSizer(self.sizer_1)
+
+
+    def reset_panel(self):
+
+        # Setup frame layout with sizers
+        self.sizer_1 = wx.BoxSizer(wx.VERTICAL)
+        self.sizer_2 = wx.BoxSizer(wx.HORIZONTAL)
+        self.sizer_1.Add(self.sizer_2, 1, wx.EXPAND, 0)
+
+        #Add radiobox to select fieldtype
+        self.radio_box_1 = wx.RadioBox(self, -1, "Field", choices=self.fielddict.plotlist.keys(), 
+                                        majorDimension=15, style=wx.RA_SPECIFY_ROWS)
+        self.Bind(wx.EVT_RADIOBOX, self.OnRadio,self.radio_box_1) 
+        self.radio_box_1.SetSelection(0)
+        self.sizer_2.Add(self.radio_box_1, 0, wx.ALIGN_CENTER_VERTICAL, 0)
+        
+        self.setup_panel()
+        
+    def OnRadio(self, evt): 
+        if (self.field == self.fielddict.plotlist[self.radio_box_1.GetStringSelection()]):
+            pass
+        else:
+            #Ideally we should destroy current window and replace with a new one!!
+            self.field = self.fielddict.plotlist[self.radio_box_1.GetStringSelection()]
+            print("field changed to ",self.radio_box_1.GetStringSelection(), "obj = ", self.field)
+            #self.ContourSliderWindow.Destroy()
+            #self.reset_panel()
+
+    def setup_menubar(self):
         # Menu Bar
         self.frame_2_menubar = wx.MenuBar()
         wxglade_tmp_menu = wx.Menu()
@@ -119,77 +198,25 @@ class ContourSliderFrame(wx.Frame):
         self.frame_2_menubar.Append(wxglade_tmp_menu, "Help")
         self.SetMenuBar(self.frame_2_menubar)
 
-        # Setup frame layout with sizers
-        sizer_1 = wx.BoxSizer(wx.VERTICAL)
-        sizer_2 = wx.BoxSizer(wx.HORIZONTAL)
-        sizer_1.Add(sizer_2, 1, wx.EXPAND, 0)
 
-        #Setup main contour viewing window
-        self.ContourSliderWindow = ContourSliderWindow(self)
-        sizer_2.Add(self.ContourSliderWindow, 1, wx.EXPAND)
-
-        #Add radiobox to select fieldtype
-        #self.panel = wx.Panel(self, -1)
-        self.radio_box_1 = wx.RadioBox(self, -1, "Field", choices=self.fielddict.plotlist.keys(), 
-                                        majorDimension=15, style=wx.RA_SPECIFY_ROWS)
-        self.Bind(wx.EVT_RADIOBOX,self.check_fieldtype(),self.radio_box_1)
-        self.radio_box_1.SetSelection(0)
-        #self.Bind(wx.EVT_RADIOBUTTON,self.check_fieldtype(),self.radio_box_1)   #Bind radio button to event??
-
-
-        sizer_2.Add(self.radio_box_1, 0, wx.ALIGN_CENTER_VERTICAL, 0)
-        self.field = self.fielddict.plotlist[self.radio_box_1.GetStringSelection()]
-
-        #Add Sliders
-        #Draw a component slider and add to sizer_1 if needed, otherwise don't
-        if int(self.field.nperbin)-1 > 0:
-            self.componentSliderGroup = SliderGroup(self,label='x,y,z:', \
-                                                    param=self.ContourSliderWindow.comp)
-            sizer_1.Add(self.componentSliderGroup.sizer, 0, \
-                wx.EXPAND | wx.ALIGN_CENTER | wx.ALL, border=5)
-        else:
-            self.componentSliderGroup = None
-
-        #Draw a bin number slider and add to sizer_1
-        self.positionSliderGroup = SliderGroup(self, label='Position: ', \
-                                                param=self.ContourSliderWindow.pos)
-        sizer_1.Add(self.positionSliderGroup.sizer, 0, \
-            wx.EXPAND | wx.ALIGN_CENTER | wx.ALL, border=5)
-
-        #Draw a record number slider and add to sizer_1
-        self.recordSliderGroup = SliderGroup(self,   label='Record:   ', \
-                                                param=self.ContourSliderWindow.rec)
-        sizer_1.Add(self.recordSliderGroup.sizer, 0, \
-            wx.EXPAND | wx.ALIGN_CENTER | wx.ALL, border=5)
-        self.SetSizer(sizer_1)
-
-    def check_fieldtype(self, *args, **kwargs):
-         print(self.radio_box_1.GetStringSelection())
-       
 class ContourSliderWindow(wx.Window, Knob):
 
     """
         The window is where the canvas is defined and data plotted
     """
 
-    def __init__(self,  *args, **kwargs):
+    def __init__(self, *args, **kwargs):
 
-        self.fielddict = fielddict
         wx.Window.__init__(self, *args, **kwargs)
+        self.frameimin = self.GetParent()
+        self.field = self.frameimin.field 
         self.cmap = plt.cm.RdYlBu_r
         self.colormesh = []
         self.figure = Figure()
         self.canvas = FigureCanvasWxAgg(self, -1, self.figure)
 
-        #Define field from box
-        self.radio_box_1 = wx.RadioBox(self, -1, "Field", choices=self.fielddict.plotlist.keys(), 
-                                        majorDimension=15, style=wx.RA_SPECIFY_ROWS)
-#        self.radio_box_1.Bind(wx.EVT_RADIOBOX,self.check_fieldtype())   #Bind radio button to event??
-#        self.radio_box_1.Bind(wx.EVT_RADIOBUTTON,self.check_fieldtype())   #Bind radio button to event??
-        self.radio_box_1.SetSelection(0)
-
         #Define behaviour of sliders
-        self.field = self.fielddict.plotlist[self.radio_box_1.GetStringSelection()]
+        print(self.frameimin.field)
         if int(self.field.nperbin)-1 > 0:
             self.comp = Param(0,        minimum=0, maximum=int(self.field.nperbin)-1)
         else:
@@ -209,17 +236,6 @@ class ContourSliderWindow(wx.Window, Knob):
        
     def sizeHandler(self, *args, **kwargs):
         self.canvas.SetSize(self.GetSize())
-
-    def check_fieldtype(self, *args, **kwargs):
-         print(self.radio_box_1.GetStringSelection())
-         print("Hello")
-#        self.canvas.SetSize(self.GetSize())
-#        if (self.field == self.fielddict.plotlist[self.radio_box_1.GetStringSelection()]):
-#            print(self.field,self.radio_box_1.GetStringSelection(),self.fielddict.plotlist[self.radio_box_1.GetStringSelection()])
-#            pass
-#        else:
-#            self.field = self.fielddict.plotlist[self.radio_box_1.GetStringSelection()]
-
 
     def draw_initial(self):
 
@@ -242,19 +258,35 @@ class ContourSliderWindow(wx.Window, Knob):
         self.subplot1.set_ylim([self.ax2.min(), self.ax2.max()])
         self.subplot1.set_ylabel("z", fontsize = 12)
         self.subplot1.set_xlabel("x", fontsize = 12)
+        rect = self.figure.patch
+        rect.set_facecolor((0.9,0.9,0.9))#(self.GetBackgroundColour().rgb())
 
     def setKnob(self, value):
 
         """
             Update canvas with pcolormesh and colorbar
         """
-
         component = int(self.comp.value)
         rec = int(np.rint(self.rec.value))
         pos = int(np.rint(self.pos.value))
-        ax1, ax2, data = self.field.contour(axes=naxes,startrec=rec,endrec=rec,binlimits=[None,(pos,pos),None])
-        self.colormesh.set_array(data[:,1:,component].ravel())
-        self.cbar.update_normal(self.colormesh)
+        if (self.field != self.frameimin.field):
+            self.figure.clf(keep_observers=True)
+            self.subplot1 = self.figure.add_subplot(111)
+            self.field = self.frameimin.field
+            ax1, ax2, data = self.field.contour(axes=naxes,startrec=rec,endrec=rec,binlimits=[None,(pos,pos),None])
+            self.colormesh = self.subplot1.pcolormesh(self.ax1, self.ax2, data[:,1:,component],cmap=self.cmap)
+            self.cbar = self.figure.colorbar(self.colormesh)
+            self.subplot1.set_xlim([self.ax1.min(), self.ax1.max()])
+            self.subplot1.set_ylim([self.ax2.min(), self.ax2.max()])
+            self.subplot1.set_ylabel("z", fontsize = 12)
+            self.subplot1.set_xlabel("x", fontsize = 12)
+            rect = self.figure.patch
+            rect.set_facecolor((0.9,0.9,0.9)) #(self.GetBackgroundColour().rgb())
+        else:
+            #Update the current frame
+            ax1, ax2, data = self.field.contour(axes=naxes,startrec=rec,endrec=rec,binlimits=[None,(pos,pos),None])
+            self.colormesh.set_array(data[:,1:,component].ravel())
+
         self.figure.canvas.draw_idle()
 
 class App(wx.App):
