@@ -12,6 +12,22 @@ from InputUtils import InputMod
 from CXJob import CXJob
 from GnuplotUtils import GnuplotUtils
 
+
+class cd:
+
+	"""Context manager for changing the current working directory"""
+
+	def __init__(self, newPath):
+		self.newPath = newPath
+
+	def __enter__(self):
+		self.savedPath = os.getcwd()
+		os.chdir(self.newPath)
+
+	def __exit__(self, etype, value, traceback):
+		``1`os.chdir(self.savedPath)
+
+
 class MDRun:
         
     """ 
@@ -206,6 +222,7 @@ class MDRun:
             print('Created '+self.rundir)
 
         except OSError as e:
+	
 
             if existscheck:
 

@@ -222,8 +222,11 @@ class ContourSliderWindow(wx.Window, Knob):
         else:
             self.comp = Param(0,minimum=0, maximum=1)
             self.comp.value = 0
-        self.pos  = Param(int(len(self.field.grid[1])/2.),  minimum=0, maximum=int(len(self.field.grid[1])-1))
-        self.rec  = Param(int(self.field.maxrec/2.),        minimum=0, maximum=int(self.field.Raw.maxrec))
+
+        maxpos = int(len(self.field.grid[1])-1)
+        maxrec = int(self.field.Raw.maxrec)
+        self.pos  = Param(int(maxpos/2.),  minimum=0, maximum=maxpos)
+        self.rec  = Param(int(maxrec/2.),  minimum=0, maximum=maxrec)
 
         #Bind the slider interface to sizehandler
         self.comp.attach(self)

@@ -20,6 +20,9 @@ class MD_PostProc:
         self.error = {}
         self.name = self.resultsdir.split('/')[-2]
 
+        self.cmap = plt.cm.RdYlBu_r
+
+
         # Check directory exists before instantiating object and check 
         # which files associated with plots are in directory
         self.potentialfiles = ( "mslice", "mbins", "msnap","vslice", "vbins", 

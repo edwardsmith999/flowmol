@@ -28,8 +28,10 @@ class MD_mField(MDField):
 
     def __init__(self,fdir,fname='mbins',cpol_bins=False):
 
-        self.fname = fname  
+        self.fname = fname
+        self.labels = ["magnitude"]
         MDField.__init__(self,fdir,cpol_bins=cpol_bins)
+        self.nperbin = self.Raw.nperbin
 
 class MD_pField(MDField):
 
@@ -45,8 +47,10 @@ class MD_pField(MDField):
 
     def __init__(self,fdir,fname='vbins',cpol_bins=False):
 
-        self.fname = fname  
+        self.fname = fname
+        self.labels = ["x","y","z"]
         MDField.__init__(self,fdir,cpol_bins=cpol_bins)
+        self.nperbin = self.Raw.nperbin
 
 class MD_KEField(MDField):
 
@@ -62,8 +66,10 @@ class MD_KEField(MDField):
 
     def __init__(self,fdir,fname='Tbins',cpol_bins=False):
 
-        self.fname = fname  
+        self.fname = fname
+        self.labels = ["magnitude"]
         MDField.__init__(self,fdir,cpol_bins=cpol_bins)
+        self.nperbin = self.Raw.nperbin
 
 class MD_mfluxField(MDField):
 
@@ -79,8 +85,10 @@ class MD_mfluxField(MDField):
 
     def __init__(self,fdir,fname='mflux',cpol_bins=False):
 
-        self.fname = fname  
+        self.fname = fname
+        self.labels = ["xtop","ytop","ztop","xbottom","ybottom","zbottom"]
         MDField.__init__(self,fdir,cpol_bins=cpol_bins)
+        self.nperbin = self.Raw.nperbin
 
 class MD_PField(MDField):
 
@@ -97,10 +105,12 @@ class MD_PField(MDField):
 
     def __init__(self,fdir,fname='pVA',cpol_bins=False):
         self.fname = fname
+        self.labels = ["xx","xy","xz","yx","yy","yz","zx","zy","zz"]
         if (fname in ("pVA","pVA_k","pVA_c")):
             MDField.__init__(self,fdir,cpol_bins=cpol_bins)
         else:
             quit("Output type not recognised, should be pVA, pVA_k or pVA_c")
+        self.nperbin = self.Raw.nperbin
 
 class MD_pfluxField(MDField):
 
@@ -117,7 +127,14 @@ class MD_pfluxField(MDField):
     def __init__(self,fdir,fname,cpol_bins=False):
 
         if (fname in ("psurface","vflux")):
-            self.fname = fname    
+            self.fname = fname
+            self.labels = ["xxtop","yxtop","zxtop",
+                           "xytop","yytop","zytop",
+                           "xztop","yztop","zztop",
+                           "xxbottom","yxbottom","zxbottom",
+                           "xybottom","yybottom","zybottom",
+                           "xybottom","yybottom","zzbottom"]
+            self.nperbin = self.Raw.nperbin
             MDField.__init__(self,fdir,cpol_bins=cpol_bins)
         else:
             quit("Output type not recognised, should be psurface, vflux or total")
@@ -137,6 +154,8 @@ class MD_vField(MDField):
             self.pField = MD_pField(fdir,fname='vsnap',cpol_bins=cpol_bins)
 
         Field.__init__(self,self.mField.Raw)
+
+        self.nperbin = self.pField.Raw.nperbin
 
     def read(self,startrec,endrec,**kwargs):
 
@@ -171,6 +190,8 @@ class MD_pVAField(MDField):
         self.cpol_bins = cpol_bins
         self.PField = MD_PField(fdir,fname,cpol_bins=cpol_bins)
         Field.__init__(self,self.PField.Raw)
+
+        self.nperbin = self.PField.Raw.nperbin
 
     def read(self,startrec,endrec,peculiar=True,**kwargs):
 
@@ -215,6 +236,8 @@ class MD_TField(MDField):
         self.pField = MD_pField(fdir,cpol_bins=cpol_bins)
         self.KEField = MD_KEField(fdir,cpol_bins=cpol_bins)
         Field.__init__(self,self.KEField.Raw)
+
+        self.nperbin = self.KEField.Raw.nperbin
 
     def read(self,startrec,endrec,peculiar=True,**kwargs):
 
@@ -273,6 +296,8 @@ class MD_dField(MDField):
         self.mField = MD_mField(fdir,cpol_bins=cpol_bins)
         Field.__init__(self,self.mField.Raw)
 
+        self.nperbin = self.mField.Raw.nperbin
+
     def read(self, startrec, endrec,**kwargs):
 
         binvolumes = self.mField.Raw.get_binvolumes()
@@ -313,6 +338,8 @@ class MD_momField(MDField):
     def __init__(self,fdir,cpol_bins=False):
         self.pField = MD_pField(fdir,cpol_bins=cpol_bins)
         Field.__init__(self,self.pField.Raw)
+
+        self.nperbin = self.pField.Raw.nperbin
 
     def read(self, startrec, endrec,**kwargs):
 
