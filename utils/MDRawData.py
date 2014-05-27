@@ -142,12 +142,18 @@ class MD_RawData:
 
             # Initialise slice list as every index in bins
             s = [np.arange(i) for i in binvolumes.shape]
-            # Loop over axes and change slicer limits
-            for axis in np.arange(len(binvolumes.shape)):
-                if (binlimits[axis]):
+            for axis in range(3):
+                if (binlimits[axis] == None):
+                    continue
+                else:
+                    start = binlimits[axis][0]
+                    end = binlimits[axis][1]
+                    length = bindata.shape[axis]
+                    if (start < 0): start += length
+                    if (end < 0): end += length
                     # (+1 for python slicing convention) 
-                    s[axis] = np.arange(binlimits[axis][0],
-                                        binlimits[axis][1]+1) 
+                    s[axis] = np.arange(start,end) 
+
             # Convert slice list to proper shape for numpy fancy indexing
             slicer = np.ix_(*s) 
             # Delete entries not in slicer
@@ -183,7 +189,7 @@ class MD_RawData:
         return maxrec 
         
 
-    def read(self, startrec, endrec,binlimits=None):
+    def read(self, startrec, endrec, binlimits=None, verbose=False):
 
         """
             Required inputs:
@@ -223,6 +229,9 @@ class MD_RawData:
 
                 istart = plusrec*recitems
                 iend = istart + recitems
+                if (verbose):
+                    print('Reading {0:s} rec {1:5d}'.format(
+                          self.fname,startrec+plusrec))
                 bindata[istart:iend] = np.fromfile(fobj,dtype=self.dtype)
                 fobj.close()
 
@@ -245,11 +254,18 @@ class MD_RawData:
             seekbyte = startrec*recbytes
             fobj.seek(seekbyte)
 
+            if (verbose):
+                print('Reading {0:s} recs {1:5d} to {2:5d}'.format(
+                      self.fname,startrec,endrec))
+
             # Get data and reshape with fortran array ordering
             bindata = np.fromfile(fobj, dtype=self.dtype,
                                   count=nrecs*recitems)  
 
             fobj.close()
+
+        if (verbose):
+            print('Reshaping and transposing {0:s} '.format(self.fname))
 
         # Reshape bindata
         bindata = np.reshape( bindata,
@@ -264,18 +280,33 @@ class MD_RawData:
         # If bin limits are specified, return only those within range
         if (binlimits):
 
+            if (verbose):
+                print('bindata.shape = {0:s}'.format(str(bindata.shape)))
+                print('Extracting bins {0:s} from {1:s} '.format(
+                      str(binlimits),self.fname))
+
             # Initialise slice list as every index in bins
             s = [np.arange(i) for i in bindata.shape]
             # Loop over axes and change slicer limits
             for axis in range(3):
-                if (binlimits[axis]):
+                if (binlimits[axis] == None):
+                    continue
+                else:
+                    start = binlimits[axis][0]
+                    end = binlimits[axis][1]
+                    length = bindata.shape[axis]
+                    if (start < 0): start += length
+                    if (end < 0): end += length
                     # (+1 for python slicing convention) 
-                    s[axis] = np.arange(binlimits[axis][0],
-                                        binlimits[axis][1]+1) 
+                    s[axis] = np.arange(start,end) 
+
             # Convert slice list to proper shape for numpy fancy indexing
             slicer = np.ix_(*s) 
             # Delete entries not in slicer
             bindata = bindata[slicer]
+
+            if (verbose):
+                print('new bindata.shape = {0:s}'.format(str(bindata.shape)))
 
         return bindata
         

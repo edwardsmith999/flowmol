@@ -181,10 +181,10 @@ class Field():
             for axis in newfftaxes:
 
                 E = np.apply_along_axis(add_negatives,axis,E)
-
                 # Discard negative parts after adding to positive
                 k = E.shape[axis]
-                cutout = np.s_[0:k/2+1:1]
+                mid = int(np.ceil(float(k)/2.0))
+                cutout = np.s_[0:mid+1:1]
                 slicer[axis] = cutout
                 E = E[slicer]
 
@@ -271,7 +271,7 @@ class Field():
             Esumfft = np.sum(energy)
             ratio = abs(Esumreal - Esumfft)/Esumreal 
             perc = (1. - ratio)*100.
-            print('Parseval thm (discounting window): ' + "%7.4f"%perc + '%')
+            print('Parseval thm (discounting window): ' + "%9.6f"%perc + '%')
 
         if (windowaxis):
             energy = energy / wss
