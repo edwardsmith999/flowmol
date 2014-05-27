@@ -643,14 +643,18 @@ subroutine specular_flat_wall(dir, spec_pos)
 	double precision               :: newxd
 
 	do n = 1,np
+
 		!Get position in global co-ordinates
 		r_glob(1) = r(1,n) - (halfdomain(1)*(npx-1)) + domain(1)*(iblock-1)
 		r_glob(2) = r(2,n) - (halfdomain(2)*(npy-1)) + domain(2)*(jblock-1)
 		r_glob(3) = r(3,n) - (halfdomain(3)*(npz-1)) + domain(3)*(kblock-1)
 
+        ! Skip tethered mols
+        if (any(tag(n) .eq. tether_tags)) cycle
+
 		if (abs(r_glob(dir)) .gt. spec_pos) then
 
-			!print'(a,i8,4f10.5)', 'Greater than spec_pos', n,r_glob(dir),abs(r_glob(dir)),spec_pos,r(dir,n)
+			!print'(a,i8,4f10.5,i8)', 'Greater than spec_pos', n,r_glob(dir),abs(r_glob(dir)),spec_pos,r(dir,n), periodic(dir)
 
 			!Get normal direction of molecule by checking if top or bottom
 			if ( r_glob(dir) .lt. 0) then
@@ -669,6 +673,7 @@ subroutine specular_flat_wall(dir, spec_pos)
 			!write(7777,'(4i8,4f10.5)'), irank,dir,normal, n,newxd,r_glob(dir), r(dir,n),spec_pos
 
 		endif
+
 	end do
 
 end subroutine specular_flat_wall 

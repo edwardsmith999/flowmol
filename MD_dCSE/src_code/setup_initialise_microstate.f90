@@ -1238,6 +1238,11 @@ subroutine setup_initialise_fill_cylinders
             if (rr .lt. r_oi + dr) cycle
             if (rr .gt. r_io - dr) cycle
 
+            if (specular_flag .eq. specular_flat) then
+                if (rc(3) .lt. specular_wall(3)) cycle
+                if (rc(3) .ge. globaldomain(3) - specular_wall(3)) cycle
+            end if
+
             !If molecules is in the domain then add to total
             nl = nl + 1 !Local molecule count
             !Correct to local coordinates
