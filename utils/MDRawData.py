@@ -149,10 +149,10 @@ class MD_RawData:
                 else:
                     start = binlimits[axis][0]
                     end = binlimits[axis][1]
+                    end += 1 # +1 for slicing convention
                     length = bindata.shape[axis]
                     if (start < 0): start += length
-                    if (end < 0): end += length
-                    # (+1 for python slicing convention) 
+                    if (end < 1): end += length
                     s[axis] = np.arange(start,end) 
 
             # Convert slice list to proper shape for numpy fancy indexing
@@ -321,10 +321,10 @@ class MD_RawData:
                 else:
                     start = binlimits[axis][0]
                     end = binlimits[axis][1]
+                    end += 1 # +1 for slicing convention
                     length = bindata.shape[axis]
                     if (start < 0): start += length
-                    if (end < 0): end += length
-                    # (+1 for python slicing convention) 
+                    if (end < 1): end += length
                     s[axis] = np.arange(start,end) 
 
             # Convert slice list to proper shape for numpy fancy indexing
