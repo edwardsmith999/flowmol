@@ -27,11 +27,12 @@ class MD_mField(MDField):
     nperbin = 1
 
     def __init__(self,fdir,fname='mbins',cpol_bins=False):
-
+        
         self.fname = fname
         self.labels = ["magnitude"]
         MDField.__init__(self,fdir,cpol_bins=cpol_bins)
         self.nperbin = self.Raw.nperbin
+        self.plotfreq = self.Raw.header.Nmass_ave
 
 class MD_pField(MDField):
 
@@ -51,6 +52,7 @@ class MD_pField(MDField):
         self.labels = ["x","y","z"]
         MDField.__init__(self,fdir,cpol_bins=cpol_bins)
         self.nperbin = self.Raw.nperbin
+        self.plotfreq = self.Raw.header.Nvel_ave
 
 class MD_KEField(MDField):
 
@@ -70,6 +72,7 @@ class MD_KEField(MDField):
         self.labels = ["magnitude"]
         MDField.__init__(self,fdir,cpol_bins=cpol_bins)
         self.nperbin = self.Raw.nperbin
+        self.plotfreq = self.Raw.header.NTemp_ave
 
 class MD_mfluxField(MDField):
 
@@ -89,6 +92,7 @@ class MD_mfluxField(MDField):
         self.labels = ["xtop","ytop","ztop","xbottom","ybottom","zbottom"]
         MDField.__init__(self,fdir,cpol_bins=cpol_bins)
         self.nperbin = self.Raw.nperbin
+        self.plotfreq = self.Raw.header.Nmflux_ave
 
 class MD_PField(MDField):
 
@@ -111,6 +115,7 @@ class MD_PField(MDField):
         else:
             quit("Output type not recognised, should be pVA, pVA_k or pVA_c")
         self.nperbin = self.Raw.nperbin
+        self.plotfreq = self.Raw.header.Nstress_ave
 
 class MD_pfluxField(MDField):
 
@@ -134,8 +139,9 @@ class MD_pfluxField(MDField):
                            "xxbottom","yxbottom","zxbottom",
                            "xybottom","yybottom","zybottom",
                            "xybottom","yybottom","zzbottom"]
-            self.nperbin = self.Raw.nperbin
             MDField.__init__(self,fdir,cpol_bins=cpol_bins)
+            self.nperbin = self.Raw.nperbin
+            self.plotfreq = self.Raw.header.Nvflux_ave
         else:
             quit("Output type not recognised, should be psurface, vflux or total")
 
@@ -154,8 +160,11 @@ class MD_vField(MDField):
             self.pField = MD_pField(fdir,fname='vsnap',cpol_bins=cpol_bins)
 
         Field.__init__(self,self.mField.Raw)
-
-        self.nperbin = self.pField.Raw.nperbin
+        self.nperbin = self.pField.nperbin
+        if (self.mField.plotfreq == self.pField.plotfreq):
+            self.plotfreq = self.pField.plotfreq
+        else:
+            quit("Error in MD_vfield -- Nmass_ave differs from Nvel_ave")
 
     def read(self,startrec,endrec,**kwargs):
 
@@ -190,8 +199,8 @@ class MD_pVAField(MDField):
         self.cpol_bins = cpol_bins
         self.PField = MD_PField(fdir,fname,cpol_bins=cpol_bins)
         Field.__init__(self,self.PField.Raw)
-
-        self.nperbin = self.PField.Raw.nperbin
+        self.nperbin = self.PField.nperbin
+        self.plotfreq = self.PField.plotfreq
 
     def read(self,startrec,endrec,peculiar=True,**kwargs):
 
@@ -236,8 +245,12 @@ class MD_TField(MDField):
         self.pField = MD_pField(fdir,cpol_bins=cpol_bins)
         self.KEField = MD_KEField(fdir,cpol_bins=cpol_bins)
         Field.__init__(self,self.KEField.Raw)
-
-        self.nperbin = self.KEField.Raw.nperbin
+        self.nperbin = self.KEField.nperbin
+        if ((self.mField.plotfreq == self.pField.plotfreq) &
+            (self.mField.plotfreq == self.KEField.plotfreq)):
+            self.plotfreq = self.KEField.plotfreq
+        else:
+            quit("Error in MD_Tfield -- Nmass_ave differs from Nvel_ave and/or NTemp_ave")
 
     def read(self,startrec,endrec,peculiar=True,**kwargs):
 
@@ -260,7 +273,7 @@ class MD_TField(MDField):
 
         return Tdata 
 
-    def averaged_data(self,startrec,endrec,peculiar=True,avgaxes=()):
+    def averaged_data(self,startrec,endrec,peculiar=True,avgaxes=(),**kwargs):
         
         # Read 4D time series from startrec to endrec
         mdata = self.mField.read(startrec,endrec,**kwargs)
@@ -295,8 +308,8 @@ class MD_dField(MDField):
     def __init__(self,fdir,cpol_bins=False):
         self.mField = MD_mField(fdir,cpol_bins=cpol_bins)
         Field.__init__(self,self.mField.Raw)
-
-        self.nperbin = self.mField.Raw.nperbin
+        self.nperbin = self.mField.nperbin
+        self.plotfreq = self.mField.plotfreq
 
     def read(self, startrec, endrec,**kwargs):
 
@@ -338,18 +351,17 @@ class MD_momField(MDField):
     def __init__(self,fdir,cpol_bins=False):
         self.pField = MD_pField(fdir,cpol_bins=cpol_bins)
         Field.__init__(self,self.pField.Raw)
-
-        self.nperbin = self.pField.Raw.nperbin
+        self.nperbin = self.pField.nperbin
+        self.plotfreq = self.pField.plotfreq
 
     def read(self, startrec, endrec,**kwargs):
 
         binvolumes = self.pField.Raw.get_binvolumes()
         binvolumes = np.expand_dims(binvolumes,axis=-1)
-        N_ave = self.pField.Raw.header.Nvel_ave
 
         # Read 4D time series from startrec to endrec
         pdata = self.pField.read(startrec, endrec,**kwargs)
-        pdata = np.divide(pdata,float(N_ave))
+        pdata = np.divide(pdata,float(self.plotfreq))
 
         momdensity = np.divide(pdata,binvolumes)
         
@@ -359,11 +371,10 @@ class MD_momField(MDField):
 
         binvolumes = self.pField.Raw.get_binvolumes()
         binvolumes = np.expand_dims(binvolumes,axis=-1)
-        N_ave = self.pField.Raw.header.Nvel_ave
 
         # Read 4D time series from startrec to endrec
         pdata = self.pField.read(startrec, endrec,**kwargs)
-        pdata = np.divide(pdata,float(N_ave))
+        pdata = np.divide(pdata,float(self.plotfreq))
 
         if (avgaxes != ()):
             pdata = np.sum(pdata,axis=avgaxes) 
@@ -376,7 +387,11 @@ class MD_momField(MDField):
 
 class MD_CVField(MDField):
 
-
+    def __init__(self,fdir,cpol_bins=False):
+        self.CVvfluxField = MD_pfluxField(fdir='vflux',cpol_bins=cpol_bins)
+        self.CVpsurfField = MD_pfluxField(fdir='psurface',cpol_bins=cpol_bins)
+        self.nperbin = self.CVpsurfField.nperbin
+        self.plotfreq = self.CVpsurfField.plotfreq
 
     def read_both(self,startrec,endrec,**kwargs):
 

@@ -285,7 +285,7 @@ class Field():
         return energy 
  
 
-    def write_dx_file(self,startrec,endrec,writedir=None,component=0):
+    def write_dx_file(self,startrec,endrec,writedir=None,component=0,**kwargs):
 
         """
            Write MD field to dx file format which is primarily

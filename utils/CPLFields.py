@@ -85,8 +85,8 @@ class CPLField(Field):
         #import matplotlib.pyplot as plt
         for rec in range(nrecs):
             for comp in range(ndims):
-                md_coarse[:,:,:,comp,rec] = skit.resize(
-                    md_data[:,:,:,comp,rec], self.md_cfdcells)
+                md_coarse[:,:,:,comp,rec]=skit.resize(md_data[:,:,:,comp,rec],
+                                                             self.md_cfdcells)
 
         jstart = self.olap_cells[1] - 1 + self.cfd_halos[1]
         cfd_data = cfd_data[:,jstart:,:,:,:]

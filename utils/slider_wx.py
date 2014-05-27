@@ -13,22 +13,12 @@ from MDFields import *
 from HeaderData import *
 from MD_PostProc import MD_PostProc
 
-class Knob:
-    """
-    Knob - simple class with a "setKnob" method.  
-    A Knob instance is attached to a Param instance, e.g., param.attach(knob)
-    Base class is for documentation purposes.
-    """
-    def setKnob(self, value):
-        pass
-
-
 class Param:
     """
     The idea of the "Param" class is that some parameter in the GUI may have
     several knobs that both control it and reflect the parameter's state, e.g.
     a slider, text, and dragging can all change the value of the frequency in
-    the waveform of this example.  
+    the contour.  
     The class allows a cleaner way to update/"feedback" to the other knobs when 
     one is being changed.  Also, this class handles min/max constraints for all
     the knobs.
@@ -63,7 +53,7 @@ class Param:
         return value
 
 
-class SliderGroup(Knob):
+class SliderGroup():
 
     def __init__(self, parent, label, param):
         self.sliderLabel = wx.StaticText(parent, label=label)
@@ -126,6 +116,7 @@ class ContourSliderFrame(wx.Frame):
 
         self.sizer_2.Add(self.radio_box_1, 0, wx.ALIGN_CENTER_VERTICAL, 0)
         self.setup_panel()
+        self.setup_menubar()
 
     def setup_panel(self):
 
@@ -199,7 +190,7 @@ class ContourSliderFrame(wx.Frame):
         self.SetMenuBar(self.frame_2_menubar)
 
 
-class ContourSliderWindow(wx.Window, Knob):
+class ContourSliderWindow(wx.Window):
 
     """
         The window is where the canvas is defined and data plotted
@@ -310,11 +301,11 @@ class App(wx.App):
 
 component = 0
 
-naxes = (0,2)
+naxes = (1,2)
 
 #Setup array of values to plot
-#fdir = '../MD_dCSE/src_code/results/'
-fdir = '/home/es205/scratch/Re400/iter1918000_to_2233899/'
+fdir = '../MD_dCSE/src_code/results/'
+#fdir = '/home/es205/scratch/Re400/iter0_to_90870/'
 fielddict = MD_PostProc(fdir)
 print(fielddict)
 

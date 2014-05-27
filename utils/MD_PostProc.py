@@ -92,19 +92,19 @@ class MD_PostProc:
         #Velocity
         if ('mbins' in (self.fieldfiles1) and 'vbins' in (self.fieldfiles1)):
             v1 = MD_vField(self.resultsdir)
-            self.plotlist.update({'velocity':v1})
+            self.plotlist.update({'vel':v1})
 
         #Velocity snapshot
         if ('msnap' in (self.fieldfiles1) and 'vsnap' in (self.fieldfiles1)):
             v1 = MD_vField(self.resultsdir,rectype='snap')
-            self.plotlist.update({'velocity_snapshot':v1})
+            self.plotlist.update({'vel_snap':v1})
 
         #Temperature
         if ('mbins' in (self.fieldfiles1) and 
             'vbins' in (self.fieldfiles1) and 
             'Tbins' in (self.fieldfiles1)):
             T1 = MD_TField(self.resultsdir)
-            self.plotlist.update({'Temperature':T1})
+            self.plotlist.update({'Temprt':T1})
 
         # ============================================================================
         # Useful Parameters

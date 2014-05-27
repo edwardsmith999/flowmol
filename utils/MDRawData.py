@@ -60,6 +60,7 @@ class MD_RawData:
         self.nperbin = nperbin
         self.nbins, self.grid = self.get_bintopology()
         self.maxrec = self.get_maxrec()
+        #self.plotfreq = self.get_plotfreq() #Better to define in each instance
         if (glob.glob(fdir+fname)):
             self.separate_outfiles = False
         elif (glob.glob(fdir+fname+'.*')):
@@ -186,7 +187,33 @@ class MD_RawData:
             print('Neither ' + self.fname + ' nor ' + self.fname + '.* exist.')
             quit()
 
-        return maxrec 
+        return maxrec
+
+     #This routine is replace by defining plotfreq in each MDField child that uses raw data
+#    def get_plotfreq(self):
+
+#        outdict = {'mbins': self.header.Nmass_ave,
+#                   'vbins': self.header.Nvel_ave, 
+#                   'Tbins': self.header.NTemp_ave, 
+#                   'pVA':   self.header.Nstress_ave, 
+#                   'pVA_k': self.header.Nstress_ave, 
+#                   'pVA_c': self.header.Nstress_ave, 
+#                   'msnap': self.header.Nmflux_ave, 
+#                   'mflux': self.header.Nmflux_ave, 
+#                   'vsnap':self.header.Nvflux_ave, 
+#                   'vflux':self.header.Nvflux_ave, 
+#                   'psurface':self.header.Nvflux_ave, 
+#                   'Fext':self.header.Nvflux_ave, 
+#                   'esnap':self.header.Neflux_ave,
+#                   'eflux':self.header.Neflux_ave,
+#                   'esurface':self.header.Neflux_ave,
+#                   'Fvext':self.header.Neflux_ave}
+
+#        try:
+#            plotfeq = outdict[self.fname]
+#        except:
+#            quit("Error in MDRawData -- unknown file type in get_plotfreq")
+#        return 
         
 
     def read(self, startrec, endrec, binlimits=None, verbose=False):
