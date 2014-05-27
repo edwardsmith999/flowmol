@@ -479,7 +479,12 @@ subroutine set_parameters_global_domain
 			! turn off periodicity in x and y direction
 			periodic(1) = 0
 			periodic(2) = 0
-			periodic(3) = 1
+            if (specular_flag .eq. specular_flat .and. &
+                specular_wall(3) .ne. 0.0) then
+                periodic(3) = 0
+            else
+                periodic(3) = 1
+            end if
 
 			! Ensure no rotation on setup	
 			omega = 0.d0
@@ -514,7 +519,12 @@ subroutine set_parameters_global_domain
 			! turn off periodicity in x and y direction
 			periodic(1) = 0
 			periodic(2) = 0
-			periodic(3) = 1
+            if (specular_flag .eq. specular_flat .and. &
+                specular_wall(3) .ne. 0.0) then
+                periodic(3) = 0
+            else
+                periodic(3) = 1
+            end if
 
 			!print('(a,3f12.3,a,3f12.3,a,i10,a,i4,a,3l4,a,f12.3,a,f12.3)'), &
 			!'globaldomain',globaldomain,' domain',domain,'np', np, 'nproc',&
