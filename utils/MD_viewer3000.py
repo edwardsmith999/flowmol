@@ -95,7 +95,7 @@ class MyFrame(wx.Frame):
         # begin wxGlade: MyFrame.__set_properties
         self.SetTitle("MDViewer_3000")
         _icon = wx.EmptyIcon()
-        _icon.CopyFromBitmap(wx.Bitmap("./moleculecell.png", wx.BITMAP_TYPE_ANY))
+        _icon.CopyFromBitmap(wx.Bitmap("./MD_viewer3000_logo.gif", wx.BITMAP_TYPE_ANY))
         self.SetIcon(_icon)
 
         self.radio_plotype_2.SetSelection(0)
