@@ -59,25 +59,26 @@ class ResultsUtils:
 
         return
 
-def DismemberResults(self,filename,recbytes,initialrec=0,outdir='./',cleanup=False): 
-   
-    victim = open(filename, 'rb')
-    bodybags = os.path.getsize(filename)/recbytes
-    bagfilenamelist = []
+    def DismemberResults(self,fdir,filename,recbytes,initialrec=0,outdir='./',cleanup=False): 
+       
+        filepath = fdir+filename
+        victim = open(filepath, 'rb')
+        bodybags = os.path.getsize(filepath)/recbytes
+        bagfilenamelist = []
 
-    for bagnumber in range(bodybags):
-        fileindex = bagnumber + initialrec
-        bagfilename = filename + '.' + "%07d"%bagnumber
-        tissue = victim.read(recbytes)
-        bag = open(self.outdir+bagfilename, 'wb')
-        bag.write(tissue)
-        bagfilenamelist.append(bagfilename) 
-  
-    victim.close() 
-    if (cleanup):
-        os.remove(filename)
+        for bagnumber in range(bodybags):
+            fileindex = bagnumber + initialrec
+            bagfilename = filename + '.' + "%07d"%fileindex
+            tissue = victim.read(recbytes)
+            bag = open(self.outdir+bagfilename, 'wb')
+            bag.write(tissue)
+            bagfilenamelist.append(bagfilename) 
+      
+        victim.close() 
+#        if (cleanup):
+#            os.remove(filename)
 
-    return bagfilenamelist
+        return bagfilenamelist
 
 
     ##################

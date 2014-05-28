@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 import math as maths
+import glob
 
 from MDFields import *
 from HeaderData import *
@@ -33,7 +34,11 @@ class MD_PostProc:
                                 "Tbins", "vPDF" )        
 
         if os.path.isdir(self.resultsdir):
-            self.fieldfiles1 = list(set(os.listdir(self.resultsdir)) & set(self.potentialfiles))
+            self.fields_present = []
+            for fname in self.potentialfiles:
+                if (glob.glob(self.resultsdir+fname+'*')):
+                    self.fields_present.append(fname.strip().split('.')[0])
+            self.fieldfiles1 = list(set(self.fields_present) & set(self.potentialfiles)) 
             Header1 = HeaderData(open(self.resultsdir + 'simulation_header','r'))
         else:
             print("Directory " +  self.resultsdir + " not found")
@@ -108,13 +113,13 @@ class MD_PostProc:
 
         # ============================================================================
         # Useful Parameters
-        self.nbins = int(Header1.gnbins1)*int(Header1.gnbins2)*int(Header1.gnbins3)
-        self.binsize = float(Header1.binsize1)*float(Header1.binsize2)*float(Header1.binsize3)
-        inspectfile = 'mbins'
-        figname = inspectfile
-        filebytes = os.path.getsize(self.resultsdir+inspectfile)
-        inspectbytesperbin = 4
-        self.maxrec = filebytes / (inspectbytesperbin*self.nbins) 
+#        self.nbins = int(Header1.gnbins1)*int(Header1.gnbins2)*int(Header1.gnbins3)
+#        self.binsize = float(Header1.binsize1)*float(Header1.binsize2)*float(Header1.binsize3)
+#        inspectfile = 'mbins'
+#        figname = inspectfile
+#        filebytes = os.path.getsize(self.resultsdir+inspectfile)
+#        inspectbytesperbin = 4
+#        self.maxrec = filebytes / (inspectbytesperbin*self.nbins) 
 
     def available_output_string(self):
         print('\nAvailable outputs in ' + self.resultsdir + ' include:\n')

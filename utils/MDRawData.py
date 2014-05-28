@@ -216,7 +216,7 @@ class MD_RawData:
 #        return 
         
 
-    def read(self, startrec, endrec, binlimits=None, verbose=False):
+    def read(self, startrec, endrec, binlimits=None, verbose=False, quit_on_error=True):
 
         """
             Required inputs:
@@ -233,6 +233,9 @@ class MD_RawData:
                           the equivalent in cylindrical polar.
                 
         """
+
+        #return_zeros if data cannot be obtained
+        return_zeros = False
       
         # Store how many records are to be read
         nrecs = endrec - startrec + 1 
@@ -252,15 +255,23 @@ class MD_RawData:
                 try: 
                     fobj = open(filepath,'rb')
                 except:
-                    quit('Unable to find file ' + filepath)    
+                    if quit_on_error:
+                        quit('Unable to find file ' + filepath)    
+                    else:
+                        print('Unable to find file ' + filepath)
+                        return_zeros = True
 
                 istart = plusrec*recitems
                 iend = istart + recitems
                 if (verbose):
                     print('Reading {0:s} rec {1:5d}'.format(
                           self.fname,startrec+plusrec))
-                bindata[istart:iend] = np.fromfile(fobj,dtype=self.dtype)
-                fobj.close()
+                if return_zeros:
+                    bindata = np.zeros([ self.nbins[0],self.nbins[1],
+                                         self.nbins[2],self.nperbin ,nrecs ])
+                else:
+                    bindata[istart:iend] = np.fromfile(fobj,dtype=self.dtype)
+                    fobj.close()
 
        # Else
         else:
@@ -268,8 +279,11 @@ class MD_RawData:
             try: 
                 fobj = open(self.fdir+self.fname,'rb')
             except:
-                print('Unable to find file ' + self.fname )
-                quit()
+                if quit_on_error:
+                    quit('Unable to find file ' + self.fname)    
+                else:
+                    print('Unable to find file ' + self.fname)
+                    return_zeros = True
 
             # Seek to correct point in the file
             if (self.dtype == 'i'):
@@ -277,7 +291,10 @@ class MD_RawData:
             elif (self.dtype == 'd'):
                 recbytes = 8*recitems
             else:
-                quit('Unrecognised data type in read_bins')
+                if quit_on_error:
+                    quit('Unrecognised data type in read_bins')
+                else:
+                    print('Unrecognised data type in read_bins')   
             seekbyte = startrec*recbytes
             fobj.seek(seekbyte)
 
@@ -286,8 +303,12 @@ class MD_RawData:
                       self.fname,startrec,endrec))
 
             # Get data and reshape with fortran array ordering
-            bindata = np.fromfile(fobj, dtype=self.dtype,
-                                  count=nrecs*recitems)  
+            if return_zeros:
+                bindata = np.zeros([ self.nbins[0],self.nbins[1],
+                                     self.nbins[2],self.nperbin ,nrecs ])
+            else:
+                bindata = np.fromfile(fobj, dtype=self.dtype,
+                                      count=nrecs*recitems)  
 
             fobj.close()
 

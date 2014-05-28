@@ -41,8 +41,8 @@ for fdir in fdir_list:
     #initialrec = int(finalrec)
     for keys, field in fielddict.plotlist.items():
         if keys in ['mbins','vbins','Tbins']:
-            #Get filename and recordsize
-            filename = fdir + keys
+            #Get filepath and recordsize
+            filepath = fdir + keys
             if field.Raw.dtype == 'i':
                 typesize = 4
             elif field.Raw.dtype == 'd':
@@ -50,8 +50,8 @@ for fdir in fdir_list:
             else:
                 quit("Error - datatype not recognised")
             recbytes = (typesize*field.Raw.nperbin*np.product(field.Raw.nbins))
-            if ((field.Raw.get_maxrec()+1)*recbytes != os.path.getsize(filename)):
-                print(filename,(field.Raw.get_maxrec()+1)*recbytes != os.path.getsize(filename))
+            if ((field.Raw.get_maxrec()+1)*recbytes != os.path.getsize(filepath)):
+                print(filepath,(field.Raw.get_maxrec()+1)*recbytes != os.path.getsize(filepath))
                 quit("File sizes do not match")
 
             #Get starting and final record of data in folder
@@ -61,30 +61,33 @@ for fdir in fdir_list:
                 if ( float(field.Raw.header.Nsteps)
                     -float(finalrec_progress)
                     >float(field.Raw.header.tplot)):
-                    finalstep = int(finalrec_progress)
+                    finalstep = initialstep + int(finalrec_progress)
                     finished = False
                     print("Simulation not finished! = ", finalstep)
                 elif ((int(finalrec_progress) == int(field.Raw.header.Nsteps)) |
                      ( float(field.Raw.header.Nsteps)
                       -float(finalrec_progress)
                       <float(field.Raw.header.tplot))):
-                    finalstep = int(field.Raw.header.Nsteps)
+                    finalstep = initialstep+ int(field.Raw.header.Nsteps)
                     finished = True
-                    print("Simulation finished = ", finalstep)
+                    #print("Simulation finished = ", finalstep)
                 else:
                     quit("Error -- simulation progress thinks run is longer than specified number of Nsteps!!!")
 
             plotfreq = float(field.plotfreq) * float(field.Raw.header.tplot)
 
             initialrec = np.floor( float(initialstep)/float(plotfreq) )
-            finalrec = initialrec + np.floor( float(finalstep)/float(plotfreq) )
-            #print(finished,"Writing files in ", filename, "with starting recno = ",int(initialrec), "To final recno = ",int(initialrec)+os.path.getsize(filename)/recbytes, "into folder = ", RU.outdir)
+            finalrec = np.floor( float(finalstep)/float(plotfreq) )
+            print(finished,"Writing files",keys," in ", fdir, "with starting recno = ",int(initialrec), "To final recno = ",int(initialrec)+os.path.getsize(filepath)/recbytes, "into folder = ", RU.outdir)
 
-            #print(filename,recbytes,initialstep,finalstep,int(field.Raw.header.tplot),finalrec,int(initialrec)+os.path.getsize(filename)/recbytes,RU.outdir)
+#            print("dir iter = ", initialstep, " to ",finalstep, 
+#                  "dir start rec=", int(initialrec),"predicted finish = ", int(finalrec)-1,
+#                  "dir no. records = ",os.path.getsize(filepath)/float(recbytes), 
+#                  "final record no. = ", int(initialrec)+os.path.getsize(filepath)/float(recbytes))
 
            
 
-            #RU.DismemberResults(fdir, recbytes,initialrec=finalrec)
+            #RU.DismemberResults(fdir,keys, recbytes,initialrec=int(initialrec))
     
 
 
