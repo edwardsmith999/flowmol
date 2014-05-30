@@ -2426,13 +2426,13 @@ subroutine cumulative_momentum_flux(r_,v_,momentum_flux_,notcrossing)
 					!Add Momentum flux over face
 					momentum_flux_(cbin(1),cbin(2),cbin(3),:,1) = & 
 						momentum_flux_(cbin(1),cbin(2),cbin(3),:,1) & 
-					      - velvect(:)*dble(onfacexb)*abs(crossface(jxyz))
+					      + velvect(:)*dble(onfacexb)*abs(crossface(jxyz))
 					momentum_flux_(cbin(1),cbin(2),cbin(3),:,2) = & 
 						momentum_flux_(cbin(1),cbin(2),cbin(3),:,2) & 
-					      - velvect(:)*dble(onfaceyb)*abs(crossface(jxyz))
+					      + velvect(:)*dble(onfaceyb)*abs(crossface(jxyz))
 					momentum_flux_(cbin(1),cbin(2),cbin(3),:,3) = & 
 						momentum_flux_(cbin(1),cbin(2),cbin(3),:,3) &
-					      - velvect(:)*dble(onfacezb)*abs(crossface(jxyz))
+					      + velvect(:)*dble(onfacezb)*abs(crossface(jxyz))
 					momentum_flux_(cbin(1),cbin(2),cbin(3),:,4) = & 
 						momentum_flux_(cbin(1),cbin(2),cbin(3),:,4) &
 					      + velvect(:)*dble(onfacext)*abs(crossface(jxyz))
@@ -2816,6 +2816,9 @@ subroutine energy_flux_averaging(ixyz)
 	integer				:: ixyz
 	integer, save		:: sample_count
 
+    integer,dimension(3):: thermbinstop,thermbinsbot
+	double precision,dimension(3)	:: ebinsize
+
 	if (eflux_outflag .eq. 0) return
 	call simulation_compute_power(1, nbins(1)+2, 1, nbins(2)+2, 1, nbins(3)+2)
 	call cumulative_energy_flux(r,v,energy_flux)
@@ -2855,9 +2858,12 @@ subroutine energy_flux_averaging(ixyz)
 		Pxyvface2 = 0.d0
 		!Debug flag to check CV conservation in code
 		if (CV_debug) then
-		    call CVcheck_energy%check_error(1+nhb(1),nbins(1)+nhb(1), & 
-											1+nhb(2),nbins(2)+nhb(2), & 
-											1+nhb(3),nbins(3)+nhb(3),iter,irank)
+    		ebinsize(:) = domain(:) / nbins(:)
+            thermbinstop = ceiling(thermstattop/ebinsize)
+            thermbinsbot = ceiling(thermstatbottom/ebinsize)
+		    call CVcheck_energy%check_error(1+nhb(1)+thermbinsbot(1),nbins(1)+nhb(1)-thermbinstop(1), & 
+											1+nhb(2)+thermbinsbot(2),nbins(2)+nhb(2)-thermbinstop(2), & 
+											1+nhb(3)+thermbinsbot(3),nbins(3)+nhb(3)-thermbinstop(3),iter,irank)
 	   endif
 	endif
 
@@ -3895,6 +3901,8 @@ subroutine control_volume_power(fij,ri,rj,molnoi,ai_mdt)
 
 		!Midpoint rule
 		fijvi = dot_product(fij,vi_t)
+
+        !if (iter .gt. 18)  print'(9i8)', ibin,jbin,cbin
 
 		Pxyvface(cbin(1),cbin(2),cbin(3),1) = & 
 			Pxyvface(cbin(1),cbin(2),cbin(3),1) + fijvi*onfacexb

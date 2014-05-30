@@ -896,12 +896,14 @@ subroutine simulation_compute_rfbins(imin, imax, jmin, jmax, kmin, kmax)
 	use module_compute_forces
 	implicit none
 
+	integer,intent(in)  			:: imin, jmin, kmin, imax, jmax, kmax
+
 	integer                         :: i, j, ixyz !Define dummy index
 	integer							:: icell, jcell, kcell
 	integer                         :: icellshift, jcellshift, kcellshift
 	integer                         :: cellnp, adjacentcellnp 
 	integer							:: molnoi, molnoj
-	integer							:: imin, jmin, kmin, imax, jmax, kmax
+	integer							:: ibinmin,jbinmin,kbinmin,ibinmax,jbinmax,kbinmax
 	type(node), pointer 	        :: oldi, currenti, oldj, currentj
 
 	double precision,dimension(3)	:: cellsperbin
@@ -916,9 +918,20 @@ subroutine simulation_compute_rfbins(imin, imax, jmin, jmax, kmin, kmax)
     ! bins are bigger than cells
 	where (cellsperbin .lt. 1.d0) cellsperbin = 1.d0
 
-	do kcell=(kmin-1)*cellsperbin(3)+1, kmax*cellsperbin(3)
-	do jcell=(jmin-1)*cellsperbin(2)+1, jmax*cellsperbin(2)
-	do icell=(imin-1)*cellsperbin(1)+1, imax*cellsperbin(1)
+!	do kcell=(kmin-1)*cellsperbin(3)+1, kmax*cellsperbin(3)
+!	do jcell=(jmin-1)*cellsperbin(2)+1, jmax*cellsperbin(2)
+!	do icell=(imin-1)*cellsperbin(1)+1, imax*cellsperbin(1)
+
+	ibinmin = (imin-1)*cellsperbin(1)+2+(1-cellsperbin(1))
+	ibinmax =  imax   *cellsperbin(1)-cellsperbin(1)
+	jbinmin = (jmin-1)*cellsperbin(2)+2+(1-cellsperbin(2))
+	jbinmax =  jmax   *cellsperbin(2)-cellsperbin(2)
+	kbinmin = (kmin-1)*cellsperbin(3)+2+(1-cellsperbin(3))
+	kbinmax =  kmax   *cellsperbin(3)-cellsperbin(3)
+
+	do kcell=kbinmin, kbinmax
+	do jcell=jbinmin, jbinmax 
+	do icell=ibinmin, ibinmax 
 	
 		cellnp = cell%cellnp(icell,jcell,kcell)
 		oldi => cell%head(icell,jcell,kcell)%point !Set old to first molecule in list
@@ -1180,12 +1193,15 @@ subroutine simulation_compute_power(imin, imax, jmin, jmax, kmin, kmax)
 	use module_compute_forces
 	implicit none
 
+	integer,intent(in)				:: imin, jmin, kmin, imax, jmax, kmax
+
+
 	integer                         :: i, j, ixyz !Define dummy index
 	integer							:: icell, jcell, kcell
 	integer                         :: icellshift, jcellshift, kcellshift
 	integer                         :: cellnp, adjacentcellnp 
 	integer							:: molnoi, molnoj
-	integer							:: imin, jmin, kmin, imax, jmax, kmax
+	integer							:: ibinmin,jbinmin,kbinmin,ibinmax,jbinmax,kbinmax
 	type(node), pointer 	        :: oldi, currenti, oldj, currentj
 
 	double precision,dimension(3)	:: cellsperbin
@@ -1197,10 +1213,21 @@ subroutine simulation_compute_power(imin, imax, jmin, jmax, kmin, kmax)
     ! bins are bigger than cells
 	where (cellsperbin .lt. 1.d0) cellsperbin = 1.d0
 
-	do kcell=(kmin-1)*cellsperbin(3)+1, kmax*cellsperbin(3)
-	do jcell=(jmin-1)*cellsperbin(2)+1, jmax*cellsperbin(2)
-	do icell=(imin-1)*cellsperbin(1)+1, imax*cellsperbin(1)
-	
+!	do kcell=(kmin-1)*cellsperbin(3)+1, kmax*cellsperbin(3)
+!	do jcell=(jmin-1)*cellsperbin(2)+1, jmax*cellsperbin(2)
+!	do icell=(imin-1)*cellsperbin(1)+1, imax*cellsperbin(1)
+
+	ibinmin = (imin-1)*cellsperbin(1)+2+(1-cellsperbin(1))
+	ibinmax =  imax   *cellsperbin(1)-cellsperbin(1)
+	jbinmin = (jmin-1)*cellsperbin(2)+2+(1-cellsperbin(2))
+	jbinmax =  jmax   *cellsperbin(2)-cellsperbin(2)
+	kbinmin = (kmin-1)*cellsperbin(3)+2+(1-cellsperbin(3))
+	kbinmax =  kmax   *cellsperbin(3)-cellsperbin(3)
+
+	do kcell=kbinmin, kbinmax
+	do jcell=jbinmin, jbinmax 
+	do icell=ibinmin, ibinmax 
+
 		cellnp = cell%cellnp(icell,jcell,kcell)
 		oldi => cell%head(icell,jcell,kcell)%point !Set old to first molecule in list
 

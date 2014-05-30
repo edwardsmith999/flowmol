@@ -40,6 +40,8 @@ module computational_constants_MD
 	!VOID value for data initialisation
  	integer, parameter :: VOID=-666			
 
+    integer :: finalstate_version_no = huge(0)
+
 	!Command-line arguments
 	logical					:: restart
 	character(len=200) 		:: input_file, initial_microstate_file
@@ -90,7 +92,8 @@ module computational_constants_MD
 		nvt_PUT_NH  = 3, &
 		nvt_pwa_NH  = 4, &
 		nvt_DPD     = 5, &
-		tag_move    = 6
+		tag_move    = 6, &
+		SLLOD       = 7
 
 	!Initial configuration selection
 	integer           	:: initial_config_flag

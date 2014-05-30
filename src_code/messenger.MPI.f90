@@ -67,18 +67,50 @@ module messenger
 
 	!Various Globalise/localise
 	interface globalise
-		module procedure globalise_single, globalise_array
+		module procedure globalise_component, globalise_single, globalise_array
 	end interface
 
-    private globalise_single, globalise_array
+    private globalise_component, globalise_single, globalise_array
 
 	interface localise
-		module procedure localise_single, localise_array
+		module procedure localise_component,localise_single, localise_array
 	end interface
 
-    private localise_single, localise_array
+    private localise_component, localise_single, localise_array
 
 contains
+
+	!=============================================================================
+	! Get 1 component of a molecule's global position from local processor position.
+	!-----------------------------------------------------------------------------
+	function globalise_component(rloc,ixyz) result(rglob)
+		implicit none
+		
+		integer,intent(in)			  :: ixyz
+		double precision, intent(in)  :: rloc
+
+		integer						  :: block(3), npxyz(3)
+		double precision              :: rglob
+
+		block = (/ iblock, jblock, kblock /)
+		npxyz = (/ npx, npy, npz /)
+		rglob = rloc-halfdomain(ixyz)*(npxyz(ixyz)-1)+domain(ixyz)*(block(ixyz)-1)
+
+	end function globalise_component
+
+	function localise_component(rglob,ixyz) result(rloc)
+		implicit none
+		
+		integer,intent(in)			  :: ixyz
+		double precision, intent(in)  :: rglob
+		integer						  :: block(3), npxyz(3)
+		double precision              :: rloc
+
+		block = (/ iblock, jblock, kblock /)
+		npxyz = (/ npx, npy, npz /)
+		rloc = rglob+(halfdomain(ixyz)*(npxyz(ixyz)-1))-domain(ixyz)*(block(ixyz)-1)
+
+	end function localise_component 
 
 	!=============================================================================
 	! Get molecule's global position from position local to processor.

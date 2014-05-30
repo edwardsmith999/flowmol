@@ -22,7 +22,8 @@ liquiddomain = globaldomain-walltop - wallbot;
 %Store string for sliding wall
 if ((max(slidedisttop) && max(slidedistbot)) ~= 0)
 	sliding_wall = 'both';
-	error('Output from MD codes does not allow this yet') 
+    topwallslidev = wallslidev;
+    botwallslidev = -wallslidev;
 elseif (max(slidedisttop ) ~= 0)
     sliding_wall = 'top';
     topwallslidev = wallslidev;
