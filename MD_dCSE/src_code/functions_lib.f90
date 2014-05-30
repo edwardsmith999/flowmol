@@ -47,6 +47,13 @@ module librarymod
 		module procedure magnitude3, magnitudeN
 	end interface
 
+	!Surfacewighting function
+	interface linearsurface_weight
+		module procedure linearsurface_weight_Nmol, linearsurface_weight_1mol
+	end interface
+
+    private linearsurface_weight_Nmol, linearsurface_weight_1mol
+
 	!Various Heavisides
 	interface heaviside
 		module procedure int_heaviside, int_array_heaviside, dp_heaviside, &
@@ -1860,14 +1867,83 @@ end function surface_array_to_nodes
 
 
 !===================================================
-! Function to return a polynomial weighting function
+! Functions to return a polynomial weighting function
 ! at a given molecular position, based on the
 ! array of surface fluxes passed into the function
+
+!Wrapper for single molecule
+function linearsurface_weight_1mol(array,r_in,binsize,domain) result(weight)
+
+    double precision,dimension(3),intent(in)	:: domain,binsize
+    double precision,dimension(:),intent(in)	:: r_in
+    double precision,dimension(:,:,:,:,:),allocatable,intent(in)    :: array
+
+    double precision,dimension(3,1)	    :: buf
+    double precision,dimension(:,:),allocatable	    :: weight
+    
+    buf(:,1) =  r_in(:)
+    weight = linearsurface_weight_Nmol(array,buf,binsize,domain)
+
+
+end function linearsurface_weight_1mol
+
+
+! Use linear interpolation between the surfaces of the cube 
+!(I think this is equivalent to nodes and lagrange interpolates below)
+
+function linearsurface_weight_Nmol(array,r_in,binsize,domain) result(weight)
+    implicit none
+
+    double precision,dimension(3),intent(in)	:: domain,binsize
+    double precision,dimension(:,:),intent(in)	:: r_in
+    double precision,dimension(:,:,:,:,:),allocatable,intent(in)    :: array
+
+    double precision,dimension(:,:),allocatable	    :: weight
+
+	integer							:: npoints,n
+    integer,dimension(3)            :: bin, order_nd
+    double precision,dimension(3)   :: r_in_, Na
+    double precision,dimension(:,:),allocatable :: grid, rhat
+    double precision,dimension(3,6)	:: surfaces
+    !double precision,dimension(3,8)	:: nodes,test
+
+	!Setup polynomial and other functions
+	allocate(  rhat(size(r_in,1),size(r_in,2)))
+	allocate(weight(size(r_in,1),size(r_in,2)))
+
+	do n =1,size(r_in,2)
+    	! Shift to all positive, get bin
+		! and map to bin local coordinate system (0 to +1)
+		r_in_(:) = r_in(:,n)+0.5d0*domain(:)
+		bin(:) = ceiling((r_in_)/binsize(:))+1
+		rhat(:,n) = (r_in_(:)/binsize(:) - dble(bin(:)-2))
+
+		if (any(rhat(:,n)-epsilon(rhat(:,n)) .gt. 1.d0) .or. & 
+            any(rhat(:,n)+epsilon(rhat(:,n)) .lt. 0.d0)) then
+		    stop "Error in lagrange_poly_weight_Nmol --rhat must satisfy 0 < rhat < 1"
+		endif
+
+		!Setup polynomial
+        surfaces(:,:) = array(bin(1),bin(2),bin(3),:,:)
+        Na(:) = rhat(:,n)
+        weight(:,n) = ((surfaces(:,4)*(1.d0-Na(1)) + surfaces(:,1)*Na(1))+ &
+                       (surfaces(:,5)*(1.d0-Na(2)) + surfaces(:,2)*Na(2))+ &
+                       (surfaces(:,6)*(1.d0-Na(3)) + surfaces(:,3)*Na(3)))
+
+        if (bin(1) .eq. 3 .and. bin(2) .eq. 3 .and. bin(3) .eq. 3) then
+            print'(4i6,12f10.5)', n, bin,rhat(:,n), weight(:,n),surfaces(1,:)
+        endif
+
+	enddo
+
+end function linearsurface_weight_Nmol
+
+! Use lagrange interpolation between the nodes of the cube 
 
 function lagrange_poly_weight_Nmol(array,r_in,binsize,domain,order) result(weight)
     implicit none
 
-    integer,dimension(3),intent(in)    :: order
+    integer,intent(in)    :: order
     double precision,dimension(3),intent(in)	:: domain,binsize
     double precision,dimension(:,:),intent(in)	:: r_in
     double precision,dimension(:,:,:,:,:),allocatable,intent(in)    :: array
@@ -1884,18 +1960,20 @@ function lagrange_poly_weight_Nmol(array,r_in,binsize,domain,order) result(weigh
 	allocate(  rhat(size(r_in,1),size(r_in,2)))
 	allocate(weight(size(r_in,1),size(r_in,2)))
 	order_nd(:) = order	!Assumed same order in all dimensions
-	lowerlim(:) = (/ 0.d0,0.d0,0.d0 /)
-	upperlim(:) = (/ 1.d0,1.d0,1.d0 /)
+	lowerlim(:) = (/ -1.d0,-1.d0,-1.d0 /)
+	upperlim(:) = (/  1.d0, 1.d0, 1.d0 /)
 
 	do n =1,size(r_in,2)
     	! Shift to all positive, get bin
-		! and map to bin local coordinate system (0 to +1)
+		! and map to bin local coordinate system (-1 to +1)
 		r_in_(:) = r_in(:,n)+0.5d0*domain(:)
 		bin(:) = ceiling((r_in_)/binsize(:))+1
-		rhat(:,n) = r_in_(:)/binsize(:) - dble(bin(:)-2)
+		rhat(:,n) = 2.d0*(r_in_(:)/binsize(:) - dble(bin(:)-2))-1.d0
 
 		!Setup polynomial
 		nodes(:,:) = surface_array_to_nodes(array(bin(1),bin(2),bin(3),:,:))
+		!print'(a,18f8.3)', 'surface', array(bin(1),bin(2),bin(3),:,:)
+		!print'(a,8f10.5)', 'nodes   array', nodes(1,:)
 		call lagrange_interp_nd_size ( 3, order_nd, npoints )
 		call lagrange_interp_nd_value( 3, order_nd, lowerlim, upperlim, npoints, nodes(1,:), 1, rhat(:,n), weight(1,n))
 		call lagrange_interp_nd_value( 3, order_nd, lowerlim, upperlim, npoints, nodes(2,:), 1, rhat(:,n), weight(2,n))
@@ -1906,8 +1984,8 @@ function lagrange_poly_weight_Nmol(array,r_in,binsize,domain,order) result(weigh
 !		call lagrange_interp(order_nd(:), lowerlim(:), upperlim(:), nodes(3,:), rhat(:,n), weight(3,n))
 		!print'(3i6,12f10.5,2l)', bin, dble(bin(:)-2)*(binsize(:))-0.5d0*domain(:), r_in_, rhat, weight(3,n),any(rhat-epsilon(rhat) .ge. 1.d0),any(rhat+epsilon(rhat) .le. 0.d0)
 
-		if (any(rhat(:,n)-epsilon(rhat(:,n)) .ge. 1.d0) .or. any(rhat(:,n)+epsilon(rhat(:,n)) .le. 0.d0)) then
-		    stop "Error in lagrange_poly_weight_Nmol as 0 < rhat < 1 is not true"
+		if (any(rhat(:,n)-epsilon(rhat(:,n)) .ge. 1.d0) .or. any(rhat(:,n)+epsilon(rhat(:,n)) .le. -1.d0)) then
+		    stop "Error in lagrange_poly_weight_Nmol as -1 < rhat < 1 is not true"
 		endif
 	enddo
 
@@ -2170,7 +2248,7 @@ subroutine lagrange_interp_nd_value ( m, n_1d, a, b, nd, zd, ni, xi, zi )
 			allocate ( value(1:n) )
 			call cc_compute_points ( n, x_1d )
 			x_1d(1:n) = 0.5d0 * ( ( 1.0d0 - x_1d(1:n) ) * a(i) &
-			                      + ( 1.0d0 + x_1d(1:n) ) * b(i) )
+			                    + ( 1.0d0 + x_1d(1:n) ) * b(i) )
 			call lagrange_basis_1d ( n, x_1d, 1, xi(i,j), value )
 			call r8vec_direct_product2 ( i, n, value, m, nd, w )
 			deallocate ( value )

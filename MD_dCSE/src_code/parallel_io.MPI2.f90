@@ -818,29 +818,50 @@ subroutine setup_restart_inputs
 		endif
 
 
-        do ixyz = 1,nd	
-            call MPI_File_read(restartfileid,checkdp         ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
-            if (checkdp .ne. globaldomain(ixyz)) then
-                print*, 'Discrepancy between globaldomain(', ixyz, ')', &
-                        'in input & restart file - restart file will be used'
-                globaldomain(ixyz) = checkdp
-            endif
-        end do
-	    call MPI_File_read(restartfileid,checkdp         ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
-		if (checkdp .ne. density) then
-			print*, 'Discrepancy between system density', &
-					'in input & restart file - restart file will be used'
-			density = checkdp
-		endif
+        ! - - - Check here if record is globaldomain or density- - -
+        !Included for backwards compatibility -- before revision 673 finalstate did not include globaldomain
+        !The assumption here is that globaldomain is always greater than 3.0 while density is always less than 3
+        call MPI_File_read(restartfileid,checkdp         ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+        if (checkdp .lt. 3.d0) then
+            print*,  'Warning -- Since revision 673, globaldomain included in finalstate ', &
+                     ' this appears to be an older restart file.', & 
+                      '(or globaldomain in x = ',checkdp,'). ', &
+                      'It is assumed that global domain is not specified and density = ', checkdp
 
-        ! Check units match globaldomain
-		do ixyz=1,nd
-			if ( globaldomain(ixyz) .ne.  (initialnunits(ixyz)/((density/4.d0)**(1.d0/nd))) ) then
-                print('(a,i1,a,f15.5,a,f15.5)'),'Warning: globaldomain(',ixyz,') = ',globaldomain(ixyz),&
-                ' does not match initialunits and density calculation value: ', &
-                initialnunits(ixyz)/((density/4.d0)**(1.d0/nd))
-            end if
-		enddo
+            !Read density
+		    if (checkdp .ne. density) then
+			    print*, 'Discrepancy between system density', &
+					    'in input & restart file - restart file will be used'
+			    density = checkdp
+		    endif
+            globaldomain = (initialnunits(:)/((density/4.d0)**(1.d0/nd)))
+        else
+        
+            !Read 2 other global domain values followed by density and check they match
+            do ixyz = 1,nd	
+                if (checkdp .ne. globaldomain(ixyz)) then
+                    print*, 'Discrepancy between globaldomain(', ixyz, ')', &
+                            'in input & restart file - restart file will be used'
+                    globaldomain(ixyz) = checkdp
+                endif
+                call MPI_File_read(restartfileid,checkdp         ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+            end do
+		    if (checkdp .ne. density) then
+			    print*, 'Discrepancy between system density', &
+					    'in input & restart file - restart file will be used'
+			    density = checkdp
+		    endif
+
+            ! Check units match globaldomain
+		    do ixyz=1,nd
+			    if ( globaldomain(ixyz) .ne.  (initialnunits(ixyz)/((density/4.d0)**(1.d0/nd))) ) then
+                    print('(a,i1,a,f15.5,a,f15.5)'),'Warning: globaldomain(',ixyz,') = ',globaldomain(ixyz),&
+                    ' does not match initialunits and density calculation value: ', &
+                    initialnunits(ixyz)/((density/4.d0)**(1.d0/nd))
+                end if
+		    enddo
+
+        endif
 
 	    call MPI_File_read(restartfileid,checkdp         ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 		if (checkdp .ne. rcutoff) then

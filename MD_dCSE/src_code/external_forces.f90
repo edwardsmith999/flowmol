@@ -970,9 +970,9 @@ subroutine average_over_bin(flag,ib,jb,kb)
 
 	! - - - - -  Get CV Momentum Totals - - - - - - - - - 
 	!Total CV flux
-	MD_rhouu_dS  =		((CV_constraint%flux(ib,jb,kb,:,1)+CV_constraint%flux(ib,jb,kb,:,4)) &
-	          	 		+(CV_constraint%flux(ib,jb,kb,:,2)+CV_constraint%flux(ib,jb,kb,:,5)) &
-	          	 		+(CV_constraint%flux(ib,jb,kb,:,3)+CV_constraint%flux(ib,jb,kb,:,6)))/delta_t
+	MD_rhouu_dS  =		((CV_constraint%flux(ib,jb,kb,:,1)-CV_constraint%flux(ib,jb,kb,:,4)) &
+	          	 		+(CV_constraint%flux(ib,jb,kb,:,2)-CV_constraint%flux(ib,jb,kb,:,5)) &
+	          	 		+(CV_constraint%flux(ib,jb,kb,:,3)-CV_constraint%flux(ib,jb,kb,:,6)))/delta_t
 	!Total surface stresses
 	MD_Pi_dS  =	0.25d0 *((CV_constraint%Pxy(ib,jb,kb,:,1)-CV_constraint%Pxy(ib,jb,kb,:,4)) &
 	              		+(CV_constraint%Pxy(ib,jb,kb,:,2)-CV_constraint%Pxy(ib,jb,kb,:,5)) &
@@ -983,7 +983,7 @@ subroutine average_over_bin(flag,ib,jb,kb)
 		select case (CVforce_testcaseflag)
 		case(1)
 			!Apply differential CV flux constraint
-			F_constraint = MD_Pi_dS-MD_rhouu_dS + (CFD_rhouu_dS-CFD_Pi_dS)*volume
+			F_constraint = MD_Pi_dS+MD_rhouu_dS + (CFD_rhouu_dS-CFD_Pi_dS)*volume
 		!DEBUG CASES WITH TERMS MISSING 
 		case(2)
 			!No molecular convective fluxes
@@ -1088,9 +1088,9 @@ subroutine average_over_bin_iter(flag,ib,jb,kb)
 	call cumulative_momentum_flux(r_temp,v_temp,CV_constraint%flux)
 
 	!Total CV flux
-	MD_rhouu_dS  =	((CV_constraint%flux(ib,jb,kb,:,1)+CV_constraint%flux(ib,jb,kb,:,4)) &
-	          	 	+(CV_constraint%flux(ib,jb,kb,:,2)+CV_constraint%flux(ib,jb,kb,:,5)) &
-	          	 	+(CV_constraint%flux(ib,jb,kb,:,3)+CV_constraint%flux(ib,jb,kb,:,6)))/delta_t
+	MD_rhouu_dS  =	((CV_constraint%flux(ib,jb,kb,:,1)-CV_constraint%flux(ib,jb,kb,:,4)) &
+	          	 	+(CV_constraint%flux(ib,jb,kb,:,2)-CV_constraint%flux(ib,jb,kb,:,5)) &
+	          	 	+(CV_constraint%flux(ib,jb,kb,:,3)-CV_constraint%flux(ib,jb,kb,:,6)))/delta_t
 
 
 	!Iterate until momentum flux and applied CV force are consistent
@@ -1102,7 +1102,7 @@ subroutine average_over_bin_iter(flag,ib,jb,kb)
     		select case (CVforce_testcaseflag)
     		case(1)
     			!Apply differential CV flux constraint
-    			F_constraint = MD_Pi_dS-MD_rhouu_dS + (CFD_rhouu_dS-CFD_Pi_dS)*volume
+    			F_constraint = MD_Pi_dS+MD_rhouu_dS + (CFD_rhouu_dS-CFD_Pi_dS)*volume
     		!DEBUG CASES WITH TERMS MISSING 
     		case(2)
     			!No molecular convective fluxes
@@ -1131,7 +1131,7 @@ subroutine average_over_bin_iter(flag,ib,jb,kb)
 				converged = .true.
     		case(7)
     			!NCER special discretisation with convective fluxes too
-    			F_constraint = MD_Pi_dS-MD_rhouu_dS - (CFD_u_cnst*dble(box_np_afr) - u_bin_afr)/delta_t
+    			F_constraint = MD_Pi_dS+MD_rhouu_dS - (CFD_u_cnst*dble(box_np_afr) - u_bin_afr)/delta_t
     		end select
 
     		!Divide constraint per molecules
@@ -1181,9 +1181,9 @@ subroutine average_over_bin_iter(flag,ib,jb,kb)
         	! - - - - -  Get CV Momentum Totals - - - - - - - - - 
         	!Total CV flux
     		MD_rhouu_dS_prev = MD_rhouu_dS
-        	MD_rhouu_dS  =		((CV_constraint%flux(ib,jb,kb,:,1)+CV_constraint%flux(ib,jb,kb,:,4)) &
-        	          	 		+(CV_constraint%flux(ib,jb,kb,:,2)+CV_constraint%flux(ib,jb,kb,:,5)) &
-        	          	 		+(CV_constraint%flux(ib,jb,kb,:,3)+CV_constraint%flux(ib,jb,kb,:,6)))/delta_t
+        	MD_rhouu_dS  =		((CV_constraint%flux(ib,jb,kb,:,1)-CV_constraint%flux(ib,jb,kb,:,4)) &
+        	          	 		+(CV_constraint%flux(ib,jb,kb,:,2)-CV_constraint%flux(ib,jb,kb,:,5)) &
+        	          	 		+(CV_constraint%flux(ib,jb,kb,:,3)-CV_constraint%flux(ib,jb,kb,:,6)))/delta_t
 
         	!if (abs(sum(MD_rhouu_dS_prev)) .ne. abs(sum(MD_rhouu_dS))) then	
     		!	print'(a,i8,2f18.7)', 'Updated', iter, sum(MD_rhouu_dS), sum(MD_rhouu_dS_afr)
@@ -1386,7 +1386,7 @@ subroutine apply_CV_force_multibin(iter)
     use physical_constants_MD, only : density
 	use computational_constants_MD, only : irank, npy, globaldomain, CVforce_flag, VOID,  Nsteps, iblock, jblock, kblock
 	use calculated_properties_MD, only : pressure, nbins, gnbins
-	use librarymod, only : get_new_fileunit, couette_analytical_fn, lagrange_poly_weight_Nmol
+	use librarymod, only : get_new_fileunit, couette_analytical_fn, lagrange_poly_weight_Nmol, linearsurface_weight
 	use module_external_forces, only : np, momentum_flux, irank,nbins, nbinso,domain,delta_t,Nvflux_ave
 	use CV_objects, only : 	CV_constraint
 	implicit none
@@ -1500,6 +1500,9 @@ subroutine get_test_values(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 
 	double precision,dimension(:),allocatable	:: u_t,u_mdt,utemp
 
+    bmin = max(localise_bin((/igmin,jgmin,kgmin/)),(/2,2,2 /))
+    bmax = min(localise_bin((/igmax,jgmax,kgmax/)),nbins(:)+1)
+
 	if (allocated(weighting_array)) deallocate(weighting_array)
 	select case(CVweighting_flag)
 	case(0)
@@ -1512,21 +1515,25 @@ subroutine get_test_values(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 		!MD stress weighting
 		allocate(weighting_array,source=get_MDstress_weighting_array(r,Fbinsize,domain))
 	case(3)
-		!MD stress and Couette flow weighting
+		!CFD Couette flow weighting only
         Re = 0.33333d0
         H = globaldomain(2)
 		allocate(weighting_array,source=get_Couette_stress_weighting_array(r,Re,H,bmin,bmax,Fbinsize,domain))
+	case(4)
+		!MD stress and Couette flow weighting
+        Re = 0.33333d0
+        H = globaldomain(2)
+		allocate(weighting_array,source=get_MD_and_Couette_stress_weighting_array(r,Re,H,bmin,bmax,Fbinsize,domain))
+	case(5)
+		stop "DEBUG CASE 5 -- Doesn't work at present"
+		!allocate(weighting_array,source=get_parabolic_weighting_array(r,Fbinsize,domain))
 	case default 
 		stop "CVweighting_flag Error -- must be 0 to 3"
 	end select
 
-
 	allocate(CFD_Pi_dS(   nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); CFD_Pi_dS=0.d0
 	allocate(CFD_rhouu_dS(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); CFD_rhouu_dS=0.d0
 	allocate(CFD_u_cnst(  nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); CFD_u_cnst=0.d0
-
-    bmin = max(localise_bin((/igmin,jgmin,kgmin/)),(/2,2,2 /))
-    bmax = min(localise_bin((/igmax,jgmax,kgmax/)),nbins(:)+1)
 
 	!Set velocity to required value and then apply constraint 
 	!force to adjust its evolution from then on...
@@ -1564,7 +1571,8 @@ subroutine get_test_values(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 
 	    ! - - - - -  Sinusoid of velocity with NCER special discretisation - - - - - - - - - 
 	    CFD_u_cnst(bmin(1):bmax(1),bmin(2):bmax(2),bmin(3):bmax(3),:) = 0.d0
-	    CFD_u_cnst(bmin(1):bmax(1),bmin(2):bmax(2),bmin(3):bmax(3),1) = 1.25d0*delta_t*(sin_mag*sin_period/(2.d0*pi))* sin(2.d0*pi*((iter-starttime)/sin_period))
+	    CFD_u_cnst(bmin(1):bmax(1),bmin(2):bmax(2),bmin(3):bmax(3),1) = & 
+			1.25d0*delta_t*(sin_mag*sin_period/(2.d0*pi))* sin(2.d0*pi*((iter-starttime)/sin_period))
 
     case(4)
 	    ! Get continuum values of surface stresses, etc
@@ -1702,29 +1710,182 @@ function get_random_weighting_array() result(w)
 
 	allocate(w(3,np))
 	call random_number(w)
+	!w = (w-0.5)*100.d0	!THIS WILL NOT WORK AS SUM = 0 IN SOME CASES!
 	w = w*100.d0
 	
 end function get_random_weighting_array
 
 function get_MDstress_weighting_array(r_in,binsize,domain) result(w)
-	use librarymod, only : couette_analytical_stress_fn
+    use arrays_MD, only : r,v,a
+	use cumulative_momentum_flux_mod, only : cumulative_momentum_flux
+    use computational_constants_MD, only : halfdomain
 	implicit none
 
 	double precision,dimension(3),intent(in)	:: binsize,domain
 	double precision,dimension(:,:),intent(in)	:: r_in
 
-	double precision,dimension(:,:),allocatable	:: w
+	integer	:: n,i,j,k, bin(3)
+    double precision,dimension(3)               ::    rand
+	double precision,dimension(:,:),allocatable	:: w,r_temp,v_temp
 	double precision,allocatable,dimension(:,:,:,:,:) :: MD_stress
 
+	!Allocate and zero arrays
+	allocate(r_temp(3,np),v_temp(3,np))
+	r_temp = 0.d0; v_temp = 0.d0
+	!allocate(box_np_bfr(nbins(1)+2,nbins(2)+2,nbins(3)+2)); box_np_bfr = 0
+	do n = 1,np
+		v_temp(:,n) = v(:,n) + delta_t * a(:,n) 		!Velocity calculated from acceleration
+		r_temp(:,n) = r(:,n) + delta_t * v_temp(:,n)	!Position calculated from velocity
+
+		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/binsize(:))+1
+		!Add molecule to overlap list
+		!box_np_bfr(bin(1),bin(2),bin(3))  = box_np_bfr(bin(1),bin(2),bin(3))   + 1
+	enddo
+
 	!Call linear lagrange polynomial to distribute forces
-	allocate(w(3,np))
 	allocate(MD_stress(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
-	MD_stress = (0.25d0 * CV_constraint%Pxy(:,:,:,:,:) + CV_constraint%flux(:,:,:,:,:)/delta_t)
-	w(:,:) = lagrange_poly_weight_Nmol(MD_stress,r_in,binsize,domain,(/2,2,2/))
+	!Update momentum flux using velocity at next timestep
+	CV_constraint%flux = 0.d0
+	call cumulative_momentum_flux(r_temp,v_temp,CV_constraint%flux)
+
+	MD_stress = (0.25d0*CV_constraint%Pxy(:,:,:,:,:) + CV_constraint%flux(:,:,:,:,:)/delta_t)
+
+    i = 3; j = 3; k = 3
+	print'(a,3f18.10)', 'MDStress',((MD_stress(i,j,k,:,1)-MD_stress(i,j,k,:,4)) &
+	              				   +(MD_stress(i,j,k,:,2)-MD_stress(i,j,k,:,5)) &
+		    	              	   +(MD_stress(i,j,k,:,3)-MD_stress(i,j,k,:,6)))
+
+	!Shift the entire domain by minimum stress anywhere so all stresses are 
+	!continuous and also positive
+!	MD_stress = MD_stress - minval(MD_stress)
+!	do i = 1,nbins(1)+2
+!	do j = 1,nbins(2)+2
+!	do k = 1,nbins(3)+2
+!		MD_stress(i,j,k,:,:) = MD_stress(i,j,k,:,:) - minval(MD_stress(i,j,k,:,:))
+!	enddo
+!	enddo
+!	enddo
+	allocate(w(3,np))
+	!w(:,:) = lagrange_poly_weight_Nmol(MD_stress,r_in(:,1:np),binsize,domain,2)
+	!w(:,:) = linearsurface_weight(MD_stress,r_in(:,1:np),binsize,domain)
+
+    !TEMP DEBUG TEMP DEBUG!TEMP DEBUG TEMP DEBUG!TEMP DEBUG TEMP DEBUG
+    !here we specify an input array which selects only values on surfaces (and should therefore be identical to FV form)
+    do n = 1,np
+        call random_number(rand)
+        r_temp(:,n) = (/ nint(rand(1)*(nbins(1)))*binsize(1)-halfdomain(1), & 
+                         nint(rand(2)*(nbins(2)))*binsize(2)-halfdomain(2), & 
+                         nint(rand(3)*(nbins(3)))*binsize(3)-halfdomain(3) /)
+
+    enddo
+
+    w(:,:) = linearsurface_weight(MD_stress,r_temp(:,1:np),binsize,domain)
+
+    !TEMP DEBUG TEMP DEBUG!TEMP DEBUG TEMP DEBUG!TEMP DEBUG TEMP DEBUG
+
+!	do i = 2,nbins(1)+1
+!	do j = 2,nbins(2)+1
+!	do k = 2,nbins(3)+1
+!    i = 3; j = 3; k = 3
+!	write(4000,'(a,i5,3i4,18(f8.3,a2))'), 'Total',iter,i,j,k, & 
+!            MD_stress(i,j,k,1,1),',',MD_stress(i,j,k,2,1),',',MD_stress(i,j,k,3,1),',',&
+!            MD_stress(i,j,k,1,2),',',MD_stress(i,j,k,2,2),',',MD_stress(i,j,k,3,2),',',&
+!            MD_stress(i,j,k,1,3),',',MD_stress(i,j,k,2,3),',',MD_stress(i,j,k,3,3),',',&
+!            MD_stress(i,j,k,1,4),',',MD_stress(i,j,k,2,4),',',MD_stress(i,j,k,3,4),',',&
+!            MD_stress(i,j,k,1,5),',',MD_stress(i,j,k,2,5),',',MD_stress(i,j,k,3,5),',',&
+!            MD_stress(i,j,k,1,6),',',MD_stress(i,j,k,2,6),',',MD_stress(i,j,k,3,6)
+!	write(4000,'(a,i5,3i4,18(f8.3,a2))'), 'Pxy  ',iter,i,j,k, & 
+!            0.25d0*CV_constraint%Pxy(i,j,k,1,1),',',0.25d0*CV_constraint%Pxy(i,j,k,2,1),',',0.25d0*CV_constraint%Pxy(i,j,k,3,1),',',&
+!            0.25d0*CV_constraint%Pxy(i,j,k,1,2),',',0.25d0*CV_constraint%Pxy(i,j,k,2,2),',',0.25d0*CV_constraint%Pxy(i,j,k,3,2),',',&
+!            0.25d0*CV_constraint%Pxy(i,j,k,1,3),',',0.25d0*CV_constraint%Pxy(i,j,k,2,3),',',0.25d0*CV_constraint%Pxy(i,j,k,3,3),',',&
+!            0.25d0*CV_constraint%Pxy(i,j,k,1,4),',',0.25d0*CV_constraint%Pxy(i,j,k,2,4),',',0.25d0*CV_constraint%Pxy(i,j,k,3,4),',',&
+!            0.25d0*CV_constraint%Pxy(i,j,k,1,5),',',0.25d0*CV_constraint%Pxy(i,j,k,2,5),',',0.25d0*CV_constraint%Pxy(i,j,k,3,5),',',&
+!            0.25d0*CV_constraint%Pxy(i,j,k,1,6),',',0.25d0*CV_constraint%Pxy(i,j,k,2,6),',',0.25d0*CV_constraint%Pxy(i,j,k,3,6)
+!	write(4000,'(a,i5,3i4,18(f8.3,a2))'), 'flux ',iter,i,j,k, & 
+!            CV_constraint%flux(i,j,k,1,1)/delta_t,',',CV_constraint%flux(i,j,k,2,1)/delta_t,',',CV_constraint%flux(i,j,k,3,1)/delta_t,',',&
+!            CV_constraint%flux(i,j,k,1,2)/delta_t,',',CV_constraint%flux(i,j,k,2,2)/delta_t,',',CV_constraint%flux(i,j,k,3,2)/delta_t,',',&
+!            CV_constraint%flux(i,j,k,1,3)/delta_t,',',CV_constraint%flux(i,j,k,2,3)/delta_t,',',CV_constraint%flux(i,j,k,3,3)/delta_t,',',&
+!            CV_constraint%flux(i,j,k,1,4)/delta_t,',',CV_constraint%flux(i,j,k,2,4)/delta_t,',',CV_constraint%flux(i,j,k,3,4)/delta_t,',',&
+!            CV_constraint%flux(i,j,k,1,5)/delta_t,',',CV_constraint%flux(i,j,k,2,5)/delta_t,',',CV_constraint%flux(i,j,k,3,5)/delta_t,',',&
+!            CV_constraint%flux(i,j,k,1,6)/delta_t,',',CV_constraint%flux(i,j,k,2,6)/delta_t,',',CV_constraint%flux(i,j,k,3,6)/delta_t
+!	enddo
+!	enddo
+!	enddo
 
 end function get_MDstress_weighting_array
 
 function get_Couette_stress_weighting_array(r_in,Re,H,bmin,bmax,binsize,domain) result(w)
+	use librarymod, only : couette_analytical_stress_fn
+	implicit none
+
+	integer,dimension(3),intent(in)	:: bmin,bmax
+	double precision,dimension(3),intent(in)	:: binsize,domain
+	double precision,intent(in)		:: Re, H
+	double precision,dimension(:,:),intent(in)	:: r_in
+
+	integer						:: i,j,k,appliedbins, ib,jb,kb,taumin, taumax
+
+	double precision,dimension(:),allocatable	:: tautemp
+	double precision,dimension(:,:),allocatable	:: w
+	double precision,allocatable,dimension(:,:,:,:,:) :: CFDstress
+	real(kind(0.d0)),allocatable,dimension(:,:,:,:,:) :: CFD_Pxy,CFD_flux
+
+	allocate(CFD_Pxy( nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
+	allocate(CFD_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
+	allocate(CFDstress(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
+
+	!appliedbins = 2.d0*gnbins(2)+1
+	taumin = 2.d0 * (bmin(2)-1) - 1
+	taumax = 2.d0 * (bmax(2)  ) - 1
+	appliedbins = taumax-taumin+1
+    allocate(tautemp(appliedbins))	!Double resolution for surfaces
+
+    ! Couette Analytical solution
+	! Steady state solution
+	tautemp = 2.d0/domain(2) 
+	!Time evolving solution
+	!tautemp = couette_analytical_stress_fn((iter-starttime)*delta_t,Re,1.d0,H,appliedbins,2)
+    !Copy tau to CFD surfaces
+	CFD_flux = 0.d0
+	CFD_Pxy  = 0.d0
+    do ib = bmin(1),bmax(1)
+    do kb = bmin(3),bmax(3)
+		CFD_Pxy(ib,bmin(2):bmax(2),kb,1,2) =  tautemp(taumin:taumax-2:2)	!Top
+		CFD_Pxy(ib,bmin(2):bmax(2),kb,1,5) =  tautemp(taumin+2:taumax:2)	!Bottom
+    enddo
+    enddo
+
+	!Take CFD stress field and use to determine weighting function
+	CFDstress(:,:,:,:,:) = -(CFD_Pxy(:,:,:,:,:)+CFD_flux(:,:,:,:,:))*volume
+
+!	do i = 2,nbins(1)+1
+!	do j = 2,nbins(2)+1
+!	do k = 2,nbins(3)+1
+!		!CFDstress(i,j,k,:,:) = -CFDstress(i,j,k,:,:)! - minval(CFDstress(i,j,k,:,:))
+!		CFDstress(i,j,k,:,1) = -CFDstress(i,j,k,:,1) - min(CFDstress(i,j,k,:,1),CFDstress(i,j,k,:,4)) 
+!		CFDstress(i,j,k,:,2) = -CFDstress(i,j,k,:,2) - min(CFDstress(i,j,k,:,2),CFDstress(i,j,k,:,5)) 
+!		CFDstress(i,j,k,:,3) = -CFDstress(i,j,k,:,3) - min(CFDstress(i,j,k,:,3),CFDstress(i,j,k,:,6)) 
+!		CFDstress(i,j,k,:,4) = -CFDstress(i,j,k,:,4) - min(CFDstress(i,j,k,:,4),CFDstress(i,j,k,:,1)) 
+!		CFDstress(i,j,k,:,5) = -CFDstress(i,j,k,:,5) - min(CFDstress(i,j,k,:,5),CFDstress(i,j,k,:,2)) 
+!		CFDstress(i,j,k,:,6) = -CFDstress(i,j,k,:,6) - min(CFDstress(i,j,k,:,6),CFDstress(i,j,k,:,3)) 
+
+!		!PRINT'(3i6,6f15.6)', i,j,k,CFDstress(i,j,k,1,2),CFDstress(i,j,k,1,5), min(CFDstress(i,j,k,1,1),CFDstress(i,j,k,1,4)), & 
+!		!						 min(CFDstress(i,j,k,1,2),CFDstress(i,j,k,1,5)), min(CFDstress(i,j,k,1,3),CFDstress(i,j,k,1,6)) 
+!	enddo
+!	enddo
+!	enddo
+
+	!Call linear lagrange polynomial to distribute forces
+	allocate(w(3,np))
+	w(:,:) = lagrange_poly_weight_Nmol(CFDstress,r_in(:,1:np),binsize,domain,2)
+	!w(1,:) = w(1,:) + minval(w(1,:))
+	w(2:3,:) = 1.d0
+	!print*, 'tauminmax', taumin, taumax, appliedbins, bmin(2), bmax(2),size(tautemp),tautemp(taumin:taumax-2:2),w(:,100)
+	
+end function get_Couette_stress_weighting_array
+
+
+function get_MD_and_Couette_stress_weighting_array(r_in,Re,H,bmin,bmax,binsize,domain) result(w)
 	use librarymod, only : couette_analytical_stress_fn
 	implicit none
 
@@ -1740,10 +1901,11 @@ function get_Couette_stress_weighting_array(r_in,Re,H,bmin,bmax,binsize,domain) 
 	double precision,allocatable,dimension(:,:,:,:,:) :: CFDMDstress_diff
 	real(kind(0.d0)),allocatable,dimension(:,:,:,:,:) :: CFD_Pxy,CFD_flux
 
+	stop "get_MD_and_Couette_stress_weighting_array IS NOT DEVELOPED YET"
+
 	allocate(CFD_Pxy( nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
 	allocate(CFD_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
 	allocate(CFDMDstress_diff(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
-	allocate(w(3,np))
 
 	!appliedbins = 2.d0*gnbins(2)+1
 	taumin = 2.d0 * (bmin(2)-1) - 1
@@ -1764,17 +1926,42 @@ function get_Couette_stress_weighting_array(r_in,Re,H,bmin,bmax,binsize,domain) 
     enddo
 
 	!Take difference between MD stress field and CFD stress field and use to determine weighting function
-	CFDMDstress_diff(:,:,:,:,:) =   CV_constraint%Pxy(:,:,:,:,:)+CV_constraint%flux(:,:,:,:,:) & 
-					   			  -(CFD_Pxy(:,:,:,:,:)+CFD_flux(:,:,:,:,:))
+	CFDMDstress_diff(:,:,:,:,:) =  (0.25d0*CV_constraint%Pxy(:,:,:,:,:)+CV_constraint%flux(:,:,:,:,:)/delta_t) & 
+					   			        -(CFD_Pxy(:,:,:,:,:)+CFD_flux(:,:,:,:,:))*volume
 
 	!Call linear lagrange polynomial to distribute forces
-	w(:,:) = lagrange_poly_weight_Nmol(CFDMDstress_diff,r_in(:,1:np),binsize,domain,(/2,2,2/))
+	allocate(w(3,np))
+	w(:,:) = lagrange_poly_weight_Nmol(CFDMDstress_diff,r_in(:,1:np),binsize,domain,2)
+	!w(:,:) = linearsurface_weight(CFDMDstress_diff,r_in(:,1:np),binsize,domain,2)
 	!print*, 'tauminmax', taumin, taumax, appliedbins, bmin(2), bmax(2),size(tautemp),tautemp(taumin:taumax-2:2),w(:,100)
+	
+end function get_MD_and_Couette_stress_weighting_array
+
+
+
+
+!function get_parabolic_weighting_array(r_in,binsize,domain) result(w)
+!	use librarymod, only : couette_analytical_stress_fn
+!	implicit none
+
+!	double precision,dimension(3),intent(in)	:: binsize,domain
+!	double precision,allocatable,dimension(:,:),intent(in)	:: r_in
+
+!	double precision,dimension(:,:),allocatable	:: w
+!	double precision,allocatable,dimension(:,:,:,:,:) :: CFDstress
+
+!	!Take difference between MD stress field and CFD stress field and use to determine weighting function
+!	allocate(CFDstress(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
+
+!	CFDstress(:,:,:,:,:) = 0.d0
+
+!	!Call linear lagrange polynomial to distribute forces
+!	allocate(w(3,np))
+!	w(:,:) = lagrange_poly_weight_Nmol(array=CFDstress,r_in=r_in(:,1:np),binsize=binsize,domain=domain,order=3)
+
+!end function get_parabolic_weighting_array
 
 	
-end function get_Couette_stress_weighting_array
-	
-
 
 ! Exchange all halo values for CV values ready to apply forces
 subroutine update_CV_halos
@@ -1802,8 +1989,6 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 	use cumulative_energy_flux_mod, only : cumulative_energy_flux
     use messenger, only : globalise_bin, localise_bin
 	implicit none
-
-
 
 	integer,intent(in)	                            :: flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax
 
@@ -1856,13 +2041,43 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
         wsum(bin(1),bin(2),bin(3),:) = wsum(bin(1),bin(2),bin(3),:) + weighting_array(:,n)
 
 	enddo
+
+	!TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP
+	!Write out for debugging purposes (this must be removed at some point)
+	do n=1,np
+		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
+		!if (bin(1) .eq. 2 .and. bin(2) .eq. 2 .and. bin(3) .eq. 2 ) then
+			write(5000,'(a,2i6,3f10.5,6f14.5)'), 'Weighting functions', iter,n, r(:,n), weighting_array(:,n), wsum(bin(1),bin(2),bin(3),:)
+		!endif
+!		!Set to zero if sum of values are zero
+!		if (abs(wsum(bin(1),bin(2),bin(3),1) .lt. 0.0001d0)) then
+!			weighting_array(1,n) = 1.d0; wsum(bin(1),bin(2),bin(3),1) = wsum(bin(1),bin(2),bin(3),1) + weighting_array(1,n)
+!			stop "Wsum x is too small"
+!		endif
+!		if (abs(wsum(bin(1),bin(2),bin(3),2) .lt. 0.0001d0)) then
+!			weighting_array(2,n) = 1.d0; wsum(bin(1),bin(2),bin(3),2) = wsum(bin(1),bin(2),bin(3),2) + weighting_array(2,n)
+!			stop "Wsum y is too small"
+!		endif
+!		if (abs(wsum(bin(1),bin(2),bin(3),3) .lt. 0.0001d0)) then
+!			weighting_array(3,n) = 1.d0; wsum(bin(1),bin(2),bin(3),3) = wsum(bin(1),bin(2),bin(3),3) + weighting_array(3,n)
+!			stop "Wsum z is too small"
+!		endif
+	enddo
+	!TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP
+
+	!if (any(abs(wsum(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)) .lt. 0.0001d0)) then	
+	!	print*, wsum(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:), weighting_array
+	!	stop "Wsum is too small"
+	!endif
 	
 	!Get velocity/positions at next timestep without constraint
 	box_np_afr = 0; u_bin_afr = 0.d0
 	do n = 1,np
+
 		v_temp(:,n) = v(:,n) + delta_t * a(:,n) 		!Velocity calculated from acceleration
 		r_temp(:,n) = r(:,n) + delta_t * v_temp(:,n)	!Position calculated from velocity
 		bin(:) = ceiling((r_temp(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
+
 		!Add molecule to overlap list
 		box_np_afr(bin(1),bin(2),bin(3)) =  box_np_afr(bin(1),bin(2),bin(3))  + 1
 		u_bin_afr(bin(1),bin(2),bin(3),:) = u_bin_afr(bin(1),bin(2),bin(3),:) + v_temp(:,n)
@@ -1879,9 +2094,9 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 	call cumulative_momentum_flux(r_temp,v_temp,CV_constraint%flux)
 
 	!Total CV flux
-	MD_rhouu_dS(:,:,:,:)=	((CV_constraint%flux(:,:,:,:,1)+CV_constraint%flux(:,:,:,:,4)) &
-	          	 			+(CV_constraint%flux(:,:,:,:,2)+CV_constraint%flux(:,:,:,:,5)) &
-	          	 			+(CV_constraint%flux(:,:,:,:,3)+CV_constraint%flux(:,:,:,:,6)))/delta_t
+	MD_rhouu_dS(:,:,:,:)=	((CV_constraint%flux(:,:,:,:,1)-CV_constraint%flux(:,:,:,:,4)) &
+	          	 			+(CV_constraint%flux(:,:,:,:,2)-CV_constraint%flux(:,:,:,:,5)) &
+	          	 			+(CV_constraint%flux(:,:,:,:,3)-CV_constraint%flux(:,:,:,:,6)))/delta_t
 
 	F_constraint = 0.d0; converged = .false.; maxiter = 100; 
     tol = 2.2204460E-16 !Machine Precision -- ε such that 1 = 1+ε on a computer
@@ -1907,14 +2122,20 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
         		select case (CVforce_testcaseflag)
         		case(1)
         			!Apply differential CV flux constraint
-        			F_constraint(ib,jb,kb,:)  =	     MD_Pi_dS(ib,jb,kb,:) -  MD_rhouu_dS(ib,jb,kb,:) &
+        			F_constraint(ib,jb,kb,:)  =	     MD_Pi_dS(ib,jb,kb,:) +  MD_rhouu_dS(ib,jb,kb,:) &
     										  + (CFD_rhouu_dS(ib,jb,kb,:) -    CFD_Pi_dS(ib,jb,kb,:) )*volume
+
+
+                    if (ib .eq. 3 .and. jb .eq. 3 .and. kb .eq. 3) then
+                        print'(a,i5,2(a,3f18.10))','iter = ', iter, ' L(u)= ', F_constraint(ib,jb,kb,:), ' L(û)= ', wsum(bin(1),bin(2),bin(3),:)
+                    endif
+
         		case default
     				stop "Error - Only full constraint possbile with average_over_allbins_iter"
         		end select
 
         		!Divide constraint per molecules
-        		F_constraint(ib,jb,kb,:) = F_constraint(ib,jb,kb,:)/dble(box_np_bfr(ib,jb,kb))
+        		!F_constraint(ib,jb,kb,:) = F_constraint(ib,jb,kb,:)/dble(box_np_bfr(ib,jb,kb))
 
 !				if (ib .eq. 2 .and. jb .eq. 7 .and. kb .eq. 2 .or. &
 !					ib .eq. 2 .and. jb .eq. 7 .and. kb .eq. 3 .or. &
@@ -1938,8 +2159,8 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
     		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
 
     		!Velocity calculated from acceleration
-            wmol(:) = dble(box_np_bfr(bin(1),bin(2),bin(3)))*(weighting_array(:,n)/wsum(bin(1),bin(2),bin(3),:))
-			write(5000,'(a,i6,3f10.5,6f16.5)'), 'Weighting functions', n, r(:,n), weighting_array(:,n)/wsum(bin(1),bin(2),bin(3),:), wsum(bin(1),bin(2),bin(3),:)
+            wmol(:) = weighting_array(:,n)/wsum(bin(1),bin(2),bin(3),:)
+			!write(5000,'(a,2i6,3f10.5,6f14.5)'), 'Weighting functions', iter,n, r(:,n), weighting_array(:,n)/wsum(bin(1),bin(2),bin(3),:), wsum(bin(1),bin(2),bin(3),:)
 
     		v_temp(:,n) = v(:,n) + delta_t * (a(:,n) - F_constraint(bin(1),bin(2),bin(3),:)*wmol(:))
 
@@ -1978,9 +2199,9 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
     	! - - - - -  Get CV Momentum Totals - - - - - - - - - 
     	!Total CV flux
 		MD_rhouu_dS_prev = MD_rhouu_dS
-    	MD_rhouu_dS(:,:,:,:)=((CV_constraint%flux(:,:,:,:,1)+CV_constraint%flux(:,:,:,:,4)) &
-    	          	 		 +(CV_constraint%flux(:,:,:,:,2)+CV_constraint%flux(:,:,:,:,5)) &
-    	          	 		 +(CV_constraint%flux(:,:,:,:,3)+CV_constraint%flux(:,:,:,:,6)))/delta_t
+    	MD_rhouu_dS(:,:,:,:)=((CV_constraint%flux(:,:,:,:,1)-CV_constraint%flux(:,:,:,:,4)) &
+    	          	 		 +(CV_constraint%flux(:,:,:,:,2)-CV_constraint%flux(:,:,:,:,5)) &
+    	          	 		 +(CV_constraint%flux(:,:,:,:,3)-CV_constraint%flux(:,:,:,:,6)))/delta_t
 
 !		converge_history(attempt,:) = sum(sum(sum(abs(MD_rhouu_dS_prev(2:nbins(1)+1,   &
 !                                                                       2:nbins(2)+1,   &
@@ -2006,8 +2227,8 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 		    enddo
 		    enddo
 		    enddo
-			print'(a,2i5,2i8,f28.17)', 'convergence finished', iter, attempt, convergence_count, converge_cells, convergence
-            !print*, iter, 'Converged in ', attempt, ' iteration(s)'
+			!print'(a,2i5,2i8,f28.17)', 'convergence finished', iter, attempt, convergence_count, converge_cells, convergence
+
 		else
 			!Tell other processors "I'm not converged"
 			global_converged = 0
@@ -2106,7 +2327,7 @@ subroutine apply_force_weighted
 
 		!Add molecule weighting to sum
 		boxnp(bin(1),bin(2),bin(3))  = boxnp(bin(1),bin(2),bin(3)) + 1
-		wsum(bin(1),bin(2),bin(3),:) =  wsum(bin(1),bin(2),bin(3),:) + weighting_array(:,n) 
+		wsum( bin(1),bin(2),bin(3),:)= wsum( bin(1),bin(2),bin(3),:) + weighting_array(:,n) 
 
 	enddo
 
@@ -2118,7 +2339,7 @@ subroutine apply_force_weighted
 		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
 
 		!Apply force
-        wmol(:) = dble(boxnp(bin(1),bin(2),bin(3)))*(weighting_array(:,n)/wsum(bin(1),bin(2),bin(3),:))
+        wmol(:) = weighting_array(:,n)/wsum(bin(1),bin(2),bin(3),:)
 		a(:,n) = a(:,n) - F_constraint(bin(1),bin(2),bin(3),:) * wmol(:)
 
 		!Add external force to CV total

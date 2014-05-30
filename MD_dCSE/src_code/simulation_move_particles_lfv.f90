@@ -36,10 +36,11 @@ end module module_move_particles_lfv
 
 subroutine simulation_move_particles_lfv
 	use module_move_particles_lfv
+	use messenger, only : globalise
 	implicit none
 	
 	integer :: n
-	double precision :: ascale, bscale
+	double precision :: ascale, bscale, ry_old, vy_old, shear
 	double precision, save :: zeta=0.d0
 
 	!Apply external force field to regions of spaces
@@ -97,7 +98,40 @@ subroutine simulation_move_particles_lfv
 
 	case(tag_move)
 		call simulation_move_particles_lfv_tag
-						
+
+
+	case(SLLOD)
+
+		!Designed to apply a linear x velocity profile in the y direction
+		shear  = 2.d0/globaldomain(2)
+
+		do n=1,np
+
+			vy_old = v(2,n); ry_old = r(2,n)
+			v(2,n) = v(2,n) + delta_t*a(2,n)
+			r(2,n) = r(2,n) + delta_t*v(2,n)
+
+			v(3,n) = v(3,n) + delta_t*a(3,n)
+			r(3,n) = r(3,n) + delta_t*v(3,n)
+
+			!Apply to top half of domain only
+			if (globalise(r(2,n),2) .gt. 0.d0) then
+				v(1,n) = v(1,n) + delta_t*a(1,n) - 0.5d0*shear*delta_t*(v(2,n)+vy_old)
+				r(1,n) = r(1,n) + delta_t*v(1,n) + 0.5d0*shear*delta_t*globalise(r(2,n)+ry_old,ixyz=2)
+			else
+				v(1,n) = v(1,n) + delta_t*a(1,n)
+				r(1,n) = r(1,n) + delta_t*v(1,n)
+			endif
+		end do
+
+!		shear = (/ 2.d0/globaldomain(2), 0.d0, 0.d0 /)
+!		ascale3(:) = 1.d0+0.5*delta_t*shear(:)
+!		bscale3(:) = 1.d0-0.5*delta_t*shear(:)
+!		do n=1,np
+!		    v(:,n) = (1.d0/ascale3(:))*(a(:,n)*delta_t + v(:,n)*bscale3(:))
+!			r(:,n) = (1.d0/bscale3(:))*(v(:,n)*delta_t + r(:,n)*ascale3(:))		
+!		enddo
+
 	case default
 		call error_abort('Unrecognised move option in simulation_move_particles_lfv.f90')
 
