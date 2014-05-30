@@ -1,18 +1,18 @@
 import wx
-from PyplotPanel import PyplotPanel
-from FieldChooser import FieldChooserPanel
-from SliderPanels import RecordSliderPanel
+from plot import PyplotPanel
+from choosefield import FieldChooserPanel
+from sliders import RecordSliderPanel
 
-from MD_PostProc import MD_PostProc  
+from postproclib.mdpostproc import MD_PostProc  
 
 class VisualiserPanel(wx.Panel):
  
-    def __init__(self,parent,fdir,**kwargs):
+    def __init__(self,parent,fdir,cpol_bins=False,**kwargs):
 
         wx.Panel.__init__(self,parent,**kwargs)
 
         self.fdir = fdir
-        self.MD_PP = MD_PostProc(self.fdir,cpol_bins=True)
+        self.MD_PP = MD_PostProc(self.fdir)#, cpol_bins=True)
         self.field = self.MD_PP.plotlist.values()[0]
 
         self.pyplotp = PyplotPanel(self)
@@ -34,23 +34,26 @@ class VisualiserPanel(wx.Panel):
 
         self.autoscale = False
         self.update_components()
+        self.update_normals()
         self.component = 0
         self.normal = 0
-        self.redraw = self.redraw_plot
-        self.update = self.update_plot
 
         self.maxbin = len(self.field.grid[self.normal])-1
         self.maxrec = self.field.Raw.maxrec
-        self.slidersp.recslider.SetMax(self.maxrec)
-        self.slidersp.binslider.SetMax(self.maxbin)
-
         self.bin = int(float(self.maxbin)/2.)
         self.rec = int(float(self.maxrec)/2.)
         self.recwidth = 0
         self.binwidth = 0
+
+        self.slidersp.recslider.SetMax(self.maxrec)
+        self.slidersp.binslider.SetMax(self.maxbin)
+        self.slidersp.binslider.SetValue(self.bin)
+        self.slidersp.recslider.SetValue(self.rec)
+
+        self.redraw = self.redraw_plot
+        self.update = self.update_plot
+        self.toggle_binslider("Off")
         self.redraw()
-        self.SetBin(self.bin)
-        self.SetRecord(self.rec)
 
     def set_bindings(self):
 
@@ -82,16 +85,15 @@ class VisualiserPanel(wx.Panel):
 
 
     def handle_plottype(self, event):
-        print('Plot type changed!')  
         plottype = event.GetString()
         if plottype == 'Profile':
             self.redraw = self.redraw_plot
             self.update = self.update_plot
-            #self.toggle_position_slider("Off")
+            self.toggle_binslider("Off")
         elif plottype == 'Contour':
             self.redraw = self.redraw_contour
             self.update = self.update_contour
-            #self.toggle_position_slider("On")
+            self.toggle_binslider("On")
         #else: 
             #try:
             #    from mayavi import mlab
@@ -110,6 +112,7 @@ class VisualiserPanel(wx.Panel):
         else:
             self.field = self.MD_PP.plotlist[ftype]
         self.update_components()
+        self.update_normals()
 
         self.maxbin = len(self.field.grid[self.normal]) - 1
         self.maxrec = self.field.Raw.maxrec
@@ -129,15 +132,27 @@ class VisualiserPanel(wx.Panel):
         except AttributeError:
             self.choosep.component_p.componentcombobox.AppendItems(
                 [str(x) for x in range(self.field.nperbin)])
-        self.choosep.component_p.componentcombobox.SetSelection(0)
         self.component = 0
+        self.choosep.component_p.componentcombobox.SetSelection(self.component)
+
+    def update_normals(self):
+        self.choosep.component_p.normalcombobox.Clear()
+        try:
+            self.choosep.component_p.normalcombobox.AppendItems(self.field.axislabels)
+        except AttributeError:
+            self.choosep.component_p.normalcombobox.AppendItems(['0','1','2'])
+        self.normal = 0
+        self.choosep.component_p.normalcombobox.SetSelection(self.normal)
 
     def handle_component(self, event):
         self.component = event.GetInt()
         self.redraw()
     def handle_normal(self, event):
         self.normal = event.GetInt()
-        self.slidersp.binslider.SetMax(len(self.field.grid[self.normal])-1) 
+        self.maxbin = len(self.field.grid[self.normal]) - 1
+        self.slidersp.binslider.SetMax(self.maxbin) 
+        if (self.bin > self.maxbin):
+            self.SetBin(self.maxbin)
         self.redraw()
     def handle_autoscale(self,event):
         self.autoscale = event.GetInt()
@@ -211,7 +226,8 @@ class VisualiserPanel(wx.Panel):
         naxes = [0,1,2]
         naxes.remove(self.normal)
         binlimits = [None]*3
-        binlimits[self.normal] = (self.bin-self.binwidth, self.bin+self.binwidth)
+        binlimits[self.normal] = (self.bin-self.binwidth, 
+                                  self.bin+self.binwidth)
         ax1, ax2, data = self.field.contour(axes=naxes, 
                                             startrec=self.rec-self.recwidth,
                                             endrec=self.rec+self.recwidth,
@@ -219,18 +235,21 @@ class VisualiserPanel(wx.Panel):
                                             quit_on_error=False)
         return ax1, ax2, data
 
-    def redraw_plot(self):
+    def get_plot_data(self):
         ax, data = self.field.profile(self.normal, 
                                       startrec=self.rec-self.recwidth, 
                                       endrec=self.rec+self.recwidth, 
                                       quit_on_error=False)
-        self.pyplotp.redraw_plot(ax, data[:,self.component])
+        return ax, data
+
+    def redraw_plot(self):
+        ax, data = self.get_plot_data()
+        xlabel = self.field.axislabels[self.normal] 
+        ylabel = self.field.labels[self.component] 
+        self.pyplotp.redraw_plot(ax, data[:,self.component], xlabel, ylabel)
         self.Refresh()
     def update_plot(self):
-        ax, data = self.field.profile(self.normal, 
-                                      startrec=self.rec-self.recwidth, 
-                                      endrec=self.rec+self.recwidth, 
-                                      quit_on_error=False)
+        ax, data = self.get_plot_data()
         self.pyplotp.update_plot(ax, data[:,self.component])
         self.Refresh()
 
@@ -238,25 +257,19 @@ class VisualiserPanel(wx.Panel):
         ax1, ax2, data = self.get_contour_data()
         self.pyplotp.redraw_contour(ax1, ax2, data[:,:,self.component])
         self.Refresh()
-
     def update_contour(self):
         ax1, ax2, data = self.get_contour_data()
         self.pyplotp.update_contour(data[:,:,self.component])
         self.Refresh()
 
-    def toggle_position_slider(self,switchon):
-        pass
-#        if (switchon == "On"):
-#            self.slider_pos_1.Enable(True)
-#            self.slider_pos_1.SetBackgroundColour(self.slidersp.recslider.slider.GetBackgroundColour())
-#            self.slider_pos_1.SetTransparent(255)
-#        elif(switchon == "Off"):
-#            self.slider_pos_1.SetValue(0)
-#            self.slider_pos_1.Enable(False)
-#            self.slider_pos_1.SetBackgroundColour("Black")
-#            self.slider_pos_1.SetTransparent(10)
-#            #self.slider_pos_1.SetForegroundColour("Blue")#
-#
-#        else:
-#            quit("Error - toggle_position_slider must be str On of Off")
+    def toggle_binslider(self,switchon):
+        slider = self.slidersp.binslider
+        if (switchon == "On"):
+            slider.Enable(True)
+        elif(switchon == "Off"):
+            slider.SetValue(0)
+            slider.Enable(False)
+            slider.SetTransparent(10)
+        else:
+            quit("Error - toggle_position_slider must be str On of Off")
 

@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 import numpy as np
-from Field import Field
-from CFDRawData import CFD_RawData
+from field import Field
+from cfdrawdata import CFD_RawData
 
 # ============================================================================
 # CFDField base class

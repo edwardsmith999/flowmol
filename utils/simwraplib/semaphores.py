@@ -2,6 +2,14 @@
 from multiprocessing import BoundedSemaphore
 import time 
 
+class DummySemaphore:
+    
+    def acquire(self, nprocs):
+        return 
+    
+    def release(self, nprocs):
+        return
+
 class Multiphore():
 
     """ 

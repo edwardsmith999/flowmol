@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-from MDRun import MDRun
+from mdrun import MDRun
 import multiprocessing
 import subprocess as sp
 import time

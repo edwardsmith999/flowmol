@@ -11,10 +11,10 @@ except:
             + '\nCPLField.?_both instead, where ? is profile/contour/etc, '
             + '\nin which no resampling is performed.') 
 
-import CFDFields
-import MDFields
-from HeaderData import HeaderData
-from Field import Field
+import cfdfields
+import mdfields
+from headerdata import HeaderData
+from field import Field
 
 class CPLField(Field):
     
@@ -111,9 +111,9 @@ class CPLField(Field):
         return self.md_grid[axis], md_data, self.cfd_grid[axis], cfd_data 
 
 class CPL_vField(CPLField):
-    MDFieldType = MDFields.MD_vField 
-    CFDFieldType = CFDFields.CFD_vField
+    MDFieldType = mdfields.MD_vField 
+    CFDFieldType = cfdfields.CFD_vField
 
 class CPL_PField(CPLField):
-    MDFieldType = MDFields.MD_PField 
-    CFDFieldType = CFDFields.CFD_PField
+    MDFieldType = mdfields.MD_PField 
+    CFDFieldType = cfdfields.CFD_PField

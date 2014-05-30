@@ -1,10 +1,10 @@
 # /usr/bin/env python
 import wx
 import sys
-sys.path.insert(0,'../')
-from VisualiserPanel import VisualiserPanel
-from DirectoryChooserPanel import DirectoryChooserPanel
-from MD_PostProc import NoResultsInDir
+from postproclib.mdpostproc import NoResultsInDir
+
+from visuals import VisualiserPanel
+from directory import DirectoryChooserPanel
 
 def showMessageDlg(msg, title='Information', style=wx.OK|wx.ICON_INFORMATION):
     """"""
@@ -13,12 +13,19 @@ def showMessageDlg(msg, title='Information', style=wx.OK|wx.ICON_INFORMATION):
     dlg.ShowModal()
     dlg.Destroy()
 
-class MainFrame(wx.Frame):
+class MDVisualiserFrame(wx.Frame):
 
-    def __init__(self, parent=None, fdir='../../MD_dCSE/src_code/results/',
-                 title='Field Visualiser', size=(1024,768)):
+    def __init__(self, parent=None, fdir='./', title='MDViewer 4000', 
+                 size=(800,600), **kwargs):
 
         wx.Frame.__init__(self,parent,title=title,size=size)
+        try:
+            _icon = wx.EmptyIcon()
+            _icon.CopyFromBitmap(wx.Bitmap("./postproclib/visualiser/logo.gif", 
+                                 wx.BITMAP_TYPE_ANY))
+            self.SetIcon(_icon)
+        except:
+            print('Couldn\'t load icon')
 
         self.dirchooser = DirectoryChooserPanel(self, fdir)
 
@@ -61,10 +68,12 @@ class MainFrame(wx.Frame):
             print('New visualiser file directory: ' + fdir)
     
     def handle_chdir(self, event):
+
         fdir = self.dirchooser.textctrl.GetValue()
         self.new_visualiserpanel(fdir)
 
     def fdir_dialogue(self, event):
+
         fdir = ""  # Use  folder as a flag
         dlg = wx.DirDialog(self, defaultPath ="../")
         if dlg.ShowModal() == wx.ID_OK:
@@ -77,10 +86,3 @@ class MainFrame(wx.Frame):
             event = wx.PyCommandEvent(wx.EVT_TEXT_ENTER.typeId, 
                                       self.dirchooser.textctrl.GetId())
             self.GetEventHandler().ProcessEvent(event)
-
-    
-if __name__ == "__main__":
-    app = wx.App()
-    fr = MainFrame(None,  title='Bad-Ass Field Visualiser')
-    fr.Show()
-    app.MainLoop()

@@ -7,10 +7,10 @@ import shutil as sh
 import string
 
 import userconfirm as uc
-from Platform import get_platform
-from InputUtils import InputMod
-from CXJob import CXJob
-from GnuplotUtils import GnuplotUtils
+from platform import get_platform
+from inpututils import InputMod
+from cx import CXJob
+from gnuplotutils import GnuplotUtils
 
 class MDRun:
         

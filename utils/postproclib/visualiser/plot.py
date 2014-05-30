@@ -1,8 +1,9 @@
+import wx
 import numpy as np
 import matplotlib
 matplotlib.use('WXAgg')
 import matplotlib.backends.backend_wxagg as wxaggb
-import wx
+import matplotlib.pyplot as plt
 
 class PyplotPanel(wx.Panel):
 
@@ -23,14 +24,12 @@ class PyplotPanel(wx.Panel):
         self.ax = self.figure.add_subplot(111)
         self.lines = self.ax.plot(ax, data, 'r-o', linewidth=2)
         self.ax.set_xlim(ax.min(), ax.max())
-        self.ax.set_xlabel(xlabel)
-        self.ax.set_ylabel(ylabel)
+        if (xlabel): self.ax.set_xlabel(xlabel)
+        if (ylabel): self.ax.set_ylabel(ylabel)
         self.canvas.draw()
     
-    def update_plot(self, ax, data, xlabel=None, ylabel=None):
-        matplotlib.pyplot.setp(self.lines, xdata=ax, ydata=data)
-        self.ax.set_xlabel(xlabel)
-        self.ax.set_ylabel(ylabel)
+    def update_plot(self, ax, data):
+        plt.setp(self.lines, xdata=ax, ydata=data)
         self.canvas.draw()
 
     def redraw_contour(self, ax1, ax2, data, xlabel=None, ylabel=None):
@@ -40,8 +39,8 @@ class PyplotPanel(wx.Panel):
         self.cbar = self.figure.colorbar(self.colormesh)
         self.ax.set_xlim(ax1.min(), ax1.max())
         self.ax.set_ylim(ax2.min(), ax2.max())
-        self.ax.set_xlabel(xlabel)
-        self.ax.set_ylabel(ylabel)
+        if (xlabel): self.ax.set_xlabel(xlabel)
+        if (ylabel): self.ax.set_ylabel(ylabel)
         self.canvas.draw()
 
     def update_contour(self, data):

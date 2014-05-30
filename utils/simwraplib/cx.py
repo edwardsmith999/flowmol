@@ -2,7 +2,7 @@
 import time
 import os
 import subprocess as sp
-from Platform import get_platform
+from platform import get_platform
 
 class CXJob:
 

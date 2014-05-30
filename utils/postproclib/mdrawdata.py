@@ -2,7 +2,7 @@
 import numpy as np 
 import glob
 import os
-from HeaderData import * 
+from headerdata import * 
 
 """
 

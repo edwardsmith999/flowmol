@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 import numpy as np
-from Field import Field
-from MDRawData import MD_RawData
+from field import Field
+from mdrawdata import MD_RawData
 
 # ============================================================================
 # MDField base class
@@ -12,6 +12,10 @@ class MDField(Field):
         Raw = MD_RawData(fdir, self.fname, self.dtype, 
                          self.nperbin,cpol_bins)
         Field.__init__(self,Raw)
+        if (cpol_bins):
+            self.axislabels = ['r','theta','z']
+        else:
+            self.axislabels = ['x','y','z']
 
 # ============================================================================
 # MDField derived classes, but calculated by the main code
@@ -29,8 +33,8 @@ class MD_mField(MDField):
     def __init__(self,fdir,fname='mbins',cpol_bins=False):
         
         self.fname = fname
-        self.labels = ["mag"]
         MDField.__init__(self,fdir,cpol_bins=cpol_bins)
+        self.labels = ["mag"]
         self.nperbin = self.Raw.nperbin
         self.plotfreq = self.Raw.header.Nmass_ave
 
@@ -49,8 +53,8 @@ class MD_pField(MDField):
     def __init__(self,fdir,fname='vbins',cpol_bins=False):
 
         self.fname = fname
-        self.labels = ["x","y","z"]
         MDField.__init__(self,fdir,cpol_bins=cpol_bins)
+        self.labels = self.axislabels 
         self.nperbin = self.Raw.nperbin
         self.plotfreq = self.Raw.header.Nvel_ave
 
@@ -69,8 +73,8 @@ class MD_FField(MDField):
     def __init__(self,fdir,fname='Fext',cpol_bins=False):
 
         self.fname = fname
-        self.labels = ["x","y","z"]
         MDField.__init__(self,fdir,cpol_bins=cpol_bins)
+        self.labels = self.axislabels 
         self.nperbin = self.Raw.nperbin
         self.plotfreq = self.Raw.header.Nvel_ave
 
@@ -78,7 +82,7 @@ class MD_FField(MDField):
 class MD_EField(MDField):
 
     """
-        MD_TField manages energy field data in the form of
+        MD_EField manages energy field data in the form of
         molecular velocity squared and potential energy with 1 
         double precision real data type per bin            
         e.g. fnames = [Tbins], esnap, Fvext (default in [])
@@ -90,8 +94,8 @@ class MD_EField(MDField):
     def __init__(self,fdir,fname='Tbins',cpol_bins=False):
 
         self.fname = fname
-        self.labels = ["mag"]
         MDField.__init__(self,fdir,cpol_bins=cpol_bins)
+        self.labels = ["mag"]
         self.nperbin = self.Raw.nperbin
         self.plotfreq = self.Raw.header.NTemp_ave
 
@@ -110,8 +114,8 @@ class MD_mfluxField(MDField):
     def __init__(self,fdir,fname='mflux',cpol_bins=False):
 
         self.fname = fname
-        self.labels = ["xtop","ytop","ztop","xbottom","ybottom","zbottom"]
         MDField.__init__(self,fdir,cpol_bins=cpol_bins)
+        self.labels = ["xtop","ytop","ztop","xbottom","ybottom","zbottom"]
         self.nperbin = self.Raw.nperbin
         self.plotfreq = self.Raw.header.Nmflux_ave
 
@@ -130,11 +134,14 @@ class MD_PField(MDField):
 
     def __init__(self,fdir,fname='pVA',cpol_bins=False):
         self.fname = fname
-        self.labels = ["xx","xy","xz","yx","yy","yz","zx","zy","zz"]
         if (fname in ("pVA","pVA_k","pVA_c")):
             MDField.__init__(self,fdir,cpol_bins=cpol_bins)
         else:
             quit("Output type not recognised, should be pVA, pVA_k or pVA_c")
+        x = self.axislabels[0]; y = self.axislabels[1]; z = self.axislabels[2]
+        self.labels = [x+x,x+y,x+z,
+                       y+x,y+y,y+z,
+                       z+x,z+y,z+z]
         self.nperbin = self.Raw.nperbin
         self.plotfreq = self.Raw.header.Nstress_ave
 
@@ -207,6 +214,7 @@ class MD_vField(MDField):
 
         Field.__init__(self,self.mField.Raw)
         self.nperbin = self.pField.nperbin
+        self.axislabels = self.pField.axislabels
         self.labels = self.pField.labels
         if (self.mField.plotfreq == self.pField.plotfreq):
             self.plotfreq = self.pField.plotfreq
@@ -242,11 +250,14 @@ class MD_vField(MDField):
 class MD_pVAField(MDField):
 
     def __init__(self, fdir, fname, cpol_bins=False):
+
         self.fname = fname
         self.cpol_bins = cpol_bins
         self.PField = MD_PField(fdir,fname,cpol_bins=cpol_bins)
         Field.__init__(self,self.PField.Raw)
+
         self.nperbin = self.PField.nperbin
+        self.axislabels = self.PField.axislabels
         self.labels = self.PField.labels
         self.plotfreq = self.PField.plotfreq
 
@@ -297,6 +308,7 @@ class MD_TField(MDField):
         if ((self.mField.plotfreq == self.pField.plotfreq) &
             (self.mField.plotfreq == self.KEField.plotfreq)):
             self.plotfreq = self.KEField.plotfreq
+            self.axislabels = self.KEField.axislabels
             self.labels = self.KEField.labels
         else:
             quit("Error in MD_Tfield -- Nmass_ave differs from Nvel_ave and/or NTemp_ave")
@@ -359,6 +371,7 @@ class MD_dField(MDField):
         Field.__init__(self,self.mField.Raw)
         self.nperbin = self.mField.nperbin
         self.plotfreq = self.mField.plotfreq
+        self.axislabels = self.mField.axislabels
         self.labels = self.mField.labels
     def read(self, startrec, endrec,**kwargs):
 
@@ -402,6 +415,7 @@ class MD_momField(MDField):
         Field.__init__(self,self.pField.Raw)
         self.nperbin = self.pField.nperbin
         self.plotfreq = self.pField.plotfreq
+        self.axislabels = self.pField.axislabels
         self.labels = self.pField.labels
     def read(self, startrec, endrec,**kwargs):
 

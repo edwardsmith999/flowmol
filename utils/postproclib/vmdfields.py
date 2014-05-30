@@ -7,10 +7,10 @@ import csv
 import sys
 
 from misc_lib import Chdir
-from MDFields import (MD_mField, MD_vField, MD_TField, 
+from mdfields import (MD_mField, MD_vField, MD_TField, 
                       MD_momField, MD_dField)
-from HeaderData import HeaderData
-from WriteColorMap import WriteColorMap
+from headerdata import HeaderData
+from writecolormap import WriteColorMap
 
 class VMDFields:
     
