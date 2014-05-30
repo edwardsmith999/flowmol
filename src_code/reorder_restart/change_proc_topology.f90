@@ -95,9 +95,19 @@ program change_proc_topology
 		read(2) checkint        !proctethernp
 	enddo
     read(2) globaldomain(1)
-    read(2) globaldomain(2)
-    read(2) globaldomain(3)
-	read(2) density 
+    if (globaldomain(1) .lt. 3.d0) then
+        print*,  'Warning -- Since revision 673, globaldomain included in finalstate ', &
+                 ' this appears to be an older restart file.', & 
+                  '(or globaldomain in x = ',globaldomain(1),'). ', &
+                  'It is assumed that global domain is not specified and density = ', globaldomain(1)
+        density = globaldomain(1)
+        globaldomain(:) = initialnunits(:) &       !Size domain based on required density
+        					/((density/4)**(1.d0/nd)) 
+    else
+        read(2) globaldomain(2)
+        read(2) globaldomain(3)
+	    read(2) density 
+    endif
 	read(2) rcutoff
 	read(2) delta_t
 	read(2) elapsedtime	
@@ -110,8 +120,6 @@ program change_proc_topology
 	read(2) delta_rneighbr
 	close(2,status='keep')
 
-	!globaldomain(:) = initialnunits(:) &       !Size domain based on required density
-	!					/((density/4)**(1.d0/nd)) 
 	domain(1) = 	globaldomain(1)/npx
 	domain(2) = 	globaldomain(2)/npy
 	domain(3) = 	globaldomain(3)/npz
