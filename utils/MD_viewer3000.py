@@ -58,12 +58,12 @@ class MyFrame(wx.Frame):
         self.radio_plotype_2 = wx.RadioBox(self, -1, "Plot_type", choices=["Profile", "Contour", "3D"], majorDimension=0, style=wx.RA_SPECIFY_COLS)
         self.radio_fieldtype_1 = wx.RadioBox(self, -1, "Field_type", choices=self.fielddict.plotlist.keys(), majorDimension=0, style=wx.RA_SPECIFY_ROWS)
         try:
-            self.combo_xyz = wx.ComboBox(self, -1, choices=self.field.labels, style=wx.TE_PROCESS_ENTER)
+            self.combo_xyz = wx.ComboBox(self, -1, choices=self.field.labels, style=wx.TE_PROCESS_ENTER,size=(50,-1))
         except AttributeError:
-            self.combo_xyz = wx.ComboBox(self, -1, choices=[str(x) for x in range(self.field.nperbin)], style=wx.TE_PROCESS_ENTER)
+            self.combo_xyz = wx.ComboBox(self, -1, choices=[str(x) for x in range(self.field.nperbin)], style=wx.TE_PROCESS_ENTER,size=(50,-1))
 
 
-        self.combo_norm = wx.ComboBox(self, -1, choices=["x", "y", "z"], style=wx.TE_PROCESS_ENTER)
+        self.combo_norm = wx.ComboBox(self, -1, choices=["x", "y", "z"], style=wx.TE_PROCESS_ENTER,size=(50,-1))
         self.panel_2 = MatPlotPanel(self, -1)
         self.slider_pos_1  = wx.Slider(self, -1,  self.pos, 0, maxpos)
         self.slider_time_2 = wx.Slider(self, -1,  self.rec, 0, maxrec)
@@ -90,7 +90,6 @@ class MyFrame(wx.Frame):
 
 
 
-
     def __set_properties(self):
         # begin wxGlade: MyFrame.__set_properties
         self.SetTitle("MDViewer_3000")
@@ -112,20 +111,20 @@ class MyFrame(wx.Frame):
         #sizer_6 = wx.BoxSizer(wx.HORIZONTAL)
         sizer_7 = wx.BoxSizer(wx.VERTICAL)
         sizer_8 = wx.BoxSizer(wx.HORIZONTAL)
-        sizer_8.Add(self.text_ctrl_1, 8, 0, 0)
-        sizer_8.Add(self.button_1, 1, wx.ALIGN_RIGHT, 0)
-        sizer_7.Add(sizer_8, 1, wx.EXPAND, 0)
-        sizer_3.Add(sizer_7, 1, wx.EXPAND, 0)
-        self.sizer_5.Add(self.radio_plotype_2, 1, wx.EXPAND, 0)
-        self.sizer_5.Add(self.radio_fieldtype_1, 5, wx.EXPAND, 0)
-        self.sizer_5.Add(self.combo_xyz, 1, 0)
-        self.sizer_5.Add(self.combo_norm, 1, 0)
-        self.sizer_5.Add(self.cb_autoscale_1, 1, 0)
+        sizer_8.Add(self.text_ctrl_1, 8, wx.EXPAND, 0)
+        sizer_8.Add(self.button_1, 1, 0)
+        sizer_7.Add(sizer_8, 0, 0)
+        sizer_3.Add(sizer_7, 0,0)
+        self.sizer_5.Add(self.radio_plotype_2, 0, 0)
+        self.sizer_5.Add(self.radio_fieldtype_1, 0, 0)
+        self.sizer_5.Add(self.combo_xyz, 0, 0)
+        self.sizer_5.Add(self.combo_norm, 0, 0)
+        self.sizer_5.Add(self.cb_autoscale_1, 0, 0)
 
         #sizer_5.Add(sizer_6, 1, 0, 3)
-        sizer_4.Add(self.sizer_5, 1, 0, 0)
-        sizer_4.Add(self.panel_2, 3, wx.EXPAND, 0)
-        sizer_3.Add(sizer_4, 6, wx.EXPAND, 0)
+        sizer_4.Add(self.sizer_5, 0, 0)
+        sizer_4.Add(self.panel_2, 0, wx.EXPAND, 0)
+        sizer_3.Add(sizer_4, 0, 0)
         sizer_3.Add(self.slider_pos_1, 0, wx.EXPAND, 0)
         sizer_3.Add(self.slider_time_2, 0, wx.EXPAND, 0)
         self.SetSizer(sizer_3)
@@ -301,7 +300,6 @@ class MyFrame(wx.Frame):
         except AttributeError:
             self.panel_2.subplot1.set_ylabel(self.radio_fieldtype_1.GetStringSelection() + " component " + str(self.xyz), fontsize = 12)
 
-
         self.panel_2.canvas.draw()
         self.Refresh()
 
@@ -356,7 +354,9 @@ class MyFrame(wx.Frame):
             quit("Error - toggle_position_slider must be str On of Off")
 
     def showMessageDlg(self, msg, title, style):
-        """"""
+        """
+            Open up a pop up window with some message
+        """
         dlg = wx.MessageDialog(parent=None, message=msg, 
                                caption=title, style=style)
         dlg.ShowModal()
@@ -382,8 +382,8 @@ class MatPlotPanel(wx.Panel):
         rect.set_facecolor((0.9,0.9,0.9)) #(self.GetBackgroundColour().rgb())
         self.cmap = plt.cm.RdYlBu_r
 
-    def sizeHandler(self, *args, **kwargs):
-        self.canvas.SetSize(self.GetSize())
+    #def sizeHandler(self, *args, **kwargs):
+    #    self.canvas.SetSize(self.GetSize())
 
     def debugtest(self,event):
         quit("CLICKY")
@@ -396,19 +396,6 @@ class MatPlotPanel(wx.Panel):
 #Framework for custom event, from the answer at
 # http://stackoverflow.com/questions/747781/wxpython-calling-an-event-manually
 
-#myEVT_CUSTOM = wx.NewEventType()
-#EVT_CUSTOM = wx.PyEventBinder(myEVT_CUSTOM, 1)
-
-#event = MyEvent(myEVT_CUSTOM, self.GetId())
-#event.SetMyVal('here is some custom data')
-#self.GetEventHandler().ProcessEvent(event)
-
-#self.Bind(EVT_CUSTOM, self.on_event)
-
-#def on_event(self, e):
-#    data = e.GetMyVal()
-#    print 'custom data is: {0}'.format(data)
-
 class MyEvent(wx.PyCommandEvent):
     def __init__(self, evtType, id):
         wx.PyCommandEvent.__init__(self, evtType, id)
@@ -419,6 +406,21 @@ class MyEvent(wx.PyCommandEvent):
 
     def GetMyVal(self):
         return self.myVal
+
+#Example usage
+def custom_event(self,val):
+    myEVT_CUSTOM = wx.NewEventType()
+    EVT_CUSTOM = wx.PyEventBinder(myEVT_CUSTOM, 1)
+
+    event = MyEvent(myEVT_CUSTOM, self.GetId())
+    event.SetMyVal(val)
+    self.GetEventHandler().ProcessEvent(event)
+
+    self.Bind(EVT_CUSTOM, self.on_event)
+
+    def on_event(self, event):
+        data = event.GetMyVal()
+        print 'custom data is: {0}'.format(data)
 
 
 

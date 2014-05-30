@@ -8,7 +8,7 @@ import sys
 
 from misc_lib import Chdir
 from MDFields import (MD_mField, MD_vField, MD_TField, 
-                      MD_momField, MD_dField, MD_CVField)
+                      MD_momField, MD_dField)
 from HeaderData import HeaderData
 from WriteColorMap import WriteColorMap
 
@@ -69,8 +69,8 @@ class VMDFields:
             self.Nave = self.header.Nmass_ave
         elif (isinstance(fieldobj, MD_momField)):
             self.Nave = self.header.Nvel_ave
-        elif (isinstance(fieldobj, MD_CVField)):
-            self.Nave = self.header.Nvflux_ave
+#        elif (isinstance(fieldobj, MD_CVField)):
+#            self.Nave = self.header.Nvflux_ave
 
         #Create VMD vol_data folder
         self.vol_dir = fdir + './vmd/vol_data/'

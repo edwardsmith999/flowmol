@@ -29,7 +29,7 @@ class MD_PostProc:
         self.potentialfiles = ( "mslice", "mbins", "msnap","vslice", "vbins", 
                                 "vsnap","pvirial", "pVA", "pVA_k","pVA_c", 
                                 "visc", "mflux","vflux", "pplane", "psurface",
-                                "esnap", "eflux", "eplane","esurface", 
+                                "esnap", "eflux", "eplane","esurface", "Fvext", 
                                 "viscometrics", "rdf", "rdf3d", "ssf", "Fext",
                                 "Tbins", "vPDF" )        
 
@@ -60,7 +60,7 @@ class MD_PostProc:
 
         #Kinetic energy
         if 'Tbins' in (self.fieldfiles1):
-            KE1 = MD_KEField(self.resultsdir)
+            KE1 = MD_EField(self.resultsdir)
             self.plotlist.update({'Tbins':KE1})
 
         #Mass snapshots
@@ -75,7 +75,7 @@ class MD_PostProc:
 
         #VA stress
         if 'pVA' in (self.fieldfiles1):
-            P1 = MD_pVAField(self.resultsdir)
+            P1 = MD_pVAField(self.resultsdir,fname='pVA')
             self.plotlist.update({'pVA':P1})
         elif 'pVA_k' in (self.fieldfiles1):
             P1 = MD_pVAField(self.resultsdir,fname='pVA_k')
@@ -89,10 +89,36 @@ class MD_PostProc:
             flux1 = MD_pfluxField(self.resultsdir,'vflux')
             self.plotlist.update({'vflux':flux1})
 
+        #External forces
+        if 'Fext' in (self.fieldfiles1):
+            Fext1 = MD_FField(self.resultsdir,'Fext')
+            self.plotlist.update({'Fext':Fext1})
+
+        #CV energy snapshot
+        if 'esnap' in (self.fieldfiles1):
+            esnap1 = MD_EField(self.resultsdir,'esnap')
+            self.plotlist.update({'esnap':esnap1})
+
+
         #CV stresses
         if 'psurface' in (self.fieldfiles1):
             stress1 = MD_pfluxField(self.resultsdir,'psurface')
             self.plotlist.update({'psurface':stress1})
+
+        #CV energy fluxes
+        if 'eflux' in (self.fieldfiles1):
+            eflux1 = MD_efluxField(self.resultsdir,'eflux')
+            self.plotlist.update({'eflux':eflux1})
+
+        #CV surface power
+        if 'esurface' in (self.fieldfiles1):
+            energy1 = MD_efluxField(self.resultsdir,'esurface')
+            self.plotlist.update({'esurface':energy1})
+
+        #CV Energy due to external body 
+        if 'Fvext' in (self.fieldfiles1):
+            Fvext1 = MD_EField(self.resultsdir,'Fvext')
+            self.plotlist.update({'Fvext':Fvext1})
 
         #Velocity
         if ('mbins' in (self.fieldfiles1) and 'vbins' in (self.fieldfiles1)):

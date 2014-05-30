@@ -29,7 +29,7 @@ class MD_mField(MDField):
     def __init__(self,fdir,fname='mbins',cpol_bins=False):
         
         self.fname = fname
-        self.labels = ["magnitude"]
+        self.labels = ["mag"]
         MDField.__init__(self,fdir,cpol_bins=cpol_bins)
         self.nperbin = self.Raw.nperbin
         self.plotfreq = self.Raw.header.Nmass_ave
@@ -54,13 +54,34 @@ class MD_pField(MDField):
         self.nperbin = self.Raw.nperbin
         self.plotfreq = self.Raw.header.Nvel_ave
 
-class MD_KEField(MDField):
+class MD_FField(MDField):
 
     """
-        MD_TField manages temperature field data in the form of
-        molecular velocity squared with 1 double precision 
-        real data type per bin            
-        e.g. fnames = [Tbins] (default in [])
+        MD_FField manages Body Force field data in the form of
+        applied Force per molecule summed with 3 double
+        precision real data type per bin
+        e.g. fnames = [Fext] (default in [])
+    """
+
+    dtype = 'd'
+    nperbin = 3
+
+    def __init__(self,fdir,fname='Fext',cpol_bins=False):
+
+        self.fname = fname
+        self.labels = ["x","y","z"]
+        MDField.__init__(self,fdir,cpol_bins=cpol_bins)
+        self.nperbin = self.Raw.nperbin
+        self.plotfreq = self.Raw.header.Nvel_ave
+
+
+class MD_EField(MDField):
+
+    """
+        MD_TField manages energy field data in the form of
+        molecular velocity squared and potential energy with 1 
+        double precision real data type per bin            
+        e.g. fnames = [Tbins], esnap, Fvext (default in [])
     """
     
     dtype = 'd'
@@ -69,7 +90,7 @@ class MD_KEField(MDField):
     def __init__(self,fdir,fname='Tbins',cpol_bins=False):
 
         self.fname = fname
-        self.labels = ["magnitude"]
+        self.labels = ["mag"]
         MDField.__init__(self,fdir,cpol_bins=cpol_bins)
         self.nperbin = self.Raw.nperbin
         self.plotfreq = self.Raw.header.NTemp_ave
@@ -145,6 +166,31 @@ class MD_pfluxField(MDField):
         else:
             quit("Output type not recognised, should be psurface, vflux or total")
 
+
+class MD_efluxField(MDField):
+
+    """
+        MD_efluxField manages energy flux field data in the form of
+        energy/esurface sum over 6 cubic bin surfaces with 6 double 
+        precision real data types per bin
+        e.g. fnames = totalflux, vflux, psurface (no default)
+    """
+
+    dtype = 'd'
+    nperbin = 6
+
+    def __init__(self,fdir,fname,cpol_bins=False):
+
+        if (fname in ("esurface","eflux")):
+            self.fname = fname
+            self.labels = ["xtop","ytop","ztop",
+                           "xbottom","ybottom","zbottom"]
+            MDField.__init__(self,fdir,cpol_bins=cpol_bins)
+            self.nperbin = self.Raw.nperbin
+            self.plotfreq = self.Raw.header.Neflux_ave
+        else:
+            quit("Output type not recognised, should be psurface, vflux or total")
+
 # ============================================================================
 # Complex fields that inherit MDField AND contain MDField objects, require 
 # extra calculations. "Read" and "average_data" routines are commonly 
@@ -161,6 +207,7 @@ class MD_vField(MDField):
 
         Field.__init__(self,self.mField.Raw)
         self.nperbin = self.pField.nperbin
+        self.labels = self.pField.labels
         if (self.mField.plotfreq == self.pField.plotfreq):
             self.plotfreq = self.pField.plotfreq
         else:
@@ -200,6 +247,7 @@ class MD_pVAField(MDField):
         self.PField = MD_PField(fdir,fname,cpol_bins=cpol_bins)
         Field.__init__(self,self.PField.Raw)
         self.nperbin = self.PField.nperbin
+        self.labels = self.PField.labels
         self.plotfreq = self.PField.plotfreq
 
     def read(self,startrec,endrec,peculiar=True,**kwargs):
@@ -243,12 +291,13 @@ class MD_TField(MDField):
     def __init__(self,fdir,cpol_bins=False):
         self.mField = MD_mField(fdir,cpol_bins=cpol_bins)
         self.pField = MD_pField(fdir,cpol_bins=cpol_bins)
-        self.KEField = MD_KEField(fdir,cpol_bins=cpol_bins)
+        self.KEField = MD_EField(fdir,cpol_bins=cpol_bins)
         Field.__init__(self,self.KEField.Raw)
         self.nperbin = self.KEField.nperbin
         if ((self.mField.plotfreq == self.pField.plotfreq) &
             (self.mField.plotfreq == self.KEField.plotfreq)):
             self.plotfreq = self.KEField.plotfreq
+            self.labels = self.KEField.labels
         else:
             quit("Error in MD_Tfield -- Nmass_ave differs from Nvel_ave and/or NTemp_ave")
 
@@ -310,7 +359,7 @@ class MD_dField(MDField):
         Field.__init__(self,self.mField.Raw)
         self.nperbin = self.mField.nperbin
         self.plotfreq = self.mField.plotfreq
-
+        self.labels = self.mField.labels
     def read(self, startrec, endrec,**kwargs):
 
         binvolumes = self.mField.Raw.get_binvolumes()
@@ -353,7 +402,7 @@ class MD_momField(MDField):
         Field.__init__(self,self.pField.Raw)
         self.nperbin = self.pField.nperbin
         self.plotfreq = self.pField.plotfreq
-
+        self.labels = self.pField.labels
     def read(self, startrec, endrec,**kwargs):
 
         binvolumes = self.pField.Raw.get_binvolumes()
@@ -385,20 +434,43 @@ class MD_momField(MDField):
 
         return momdensity 
 
-class MD_CVField(MDField):
+class MD_CVvField(MDField):
 
     def __init__(self,fdir,cpol_bins=False):
+        self.CVvsnapField = MD_pField(fdir='vsnap',cpol_bins=cpol_bins)
         self.CVvfluxField = MD_pfluxField(fdir='vflux',cpol_bins=cpol_bins)
         self.CVpsurfField = MD_pfluxField(fdir='psurface',cpol_bins=cpol_bins)
-        self.nperbin = self.CVpsurfField.nperbin
-        self.plotfreq = self.CVpsurfField.plotfreq
 
-    def read_both(self,startrec,endrec,**kwargs):
+    def check_conservation(self,startrec,endrec,**kwargs):
 
-        CVfluxdata = self.CVflux.read(startrec,endrec,**kwargs)
-        CVsurfacedata = self.CVsurface.read(startrec,endrec,**kwargs)
+        CVvsnap = self.CVvsnapField(startrec,endrec+1,**kwargs)
+        CVfluxdata = self.CVvfluxField.read(startrec,endrec+1,**kwargs)
+        CVsurfacedata = self.CVpsurfField.read(startrec,endrec+1,**kwargs)
+        Fext = self.MD_FField.read(startrec,endrec+1,**kwargs)
 
-        # Add together
-        vdata = CVsurfacedata + CVfluxdata
+        CVfluxdata = np.reshape(CVfluxdata,[ self.nbins[0],
+                                             self.nbins[1],
+                                             self.nbins[2],
+                                            3 , 6, self.nrecs ], order='F')
 
-        return vdata 
+        CVsurfacedata = np.reshape(CVsurfacedata,[ self.nbins[0],
+                                                   self.nbins[1],
+                                                   self.nbins[2],
+                                                  3 , 6, self.nrecs ], order='F')
+
+        dmvdt = np.zeros(self.nbins[0],self.nbins[1],self.nbins[2],3,nrecs)
+        for n in range(startrec,enrec+1):
+            dmvdt[:,:,:,n] = CVvsnap[:,:,:,:,n+1] - CVvsnap[:,:,:,:,n]
+
+        totalflux[:,:,:,:] = ( (CVfluxdata[:,:,:,:,4,:] - CVfluxdata[:,:,:,:,1,:]) 
+                              +(CVfluxdata[:,:,:,:,5,:] - CVfluxdata[:,:,:,:,2,:])
+                              +(CVfluxdata[:,:,:,:,6,:] - CVfluxdata[:,:,:,:,3,:]))
+
+        totalforce[:,:,:,:] =( (CVsurfacedata[:,:,:,:,4,:] - CVsurfacedata[:,:,:,:,1,:]) 
+                              +(CVsurfacedata[:,:,:,:,5,:] - CVsurfacedata[:,:,:,:,2,:])
+                              +(CVsurfacedata[:,:,:,:,6,:] - CVsurfacedata[:,:,:,:,3,:]))
+
+        conserved =  dmvdt + totalflux + totalforce + Fext
+
+        return conserved
+
