@@ -13,7 +13,7 @@ class VisualiserPanel(wx.Panel):
 
         self.fdir = fdir
         self.MD_PP = MD_PostProc(self.fdir)#, cpol_bins=True)
-        self.field = self.MD_PP.plotlist.values()[0]
+        self.fieldname, self.field = self.MD_PP.plotlist.items()[0]
 
         self.pyplotp = PyplotPanel(self)
         self.choosep = FieldChooserPanel(self)
@@ -111,6 +111,7 @@ class VisualiserPanel(wx.Panel):
             pass
         else:
             self.field = self.MD_PP.plotlist[ftype]
+            self.fieldname = ftype
         self.update_components()
         self.update_normals()
 
@@ -233,7 +234,7 @@ class VisualiserPanel(wx.Panel):
                                             endrec=self.rec+self.recwidth,
                                             binlimits=binlimits,
                                             quit_on_error=False)
-        return ax1, ax2, data
+        return ax1, ax2, data, naxes
 
     def get_plot_data(self):
         ax, data = self.field.profile(self.normal, 
@@ -245,7 +246,7 @@ class VisualiserPanel(wx.Panel):
     def redraw_plot(self):
         ax, data = self.get_plot_data()
         xlabel = self.field.axislabels[self.normal] 
-        ylabel = self.field.labels[self.component] 
+        ylabel = self.fieldname + "_" + self.field.labels[self.component] 
         self.pyplotp.redraw_plot(ax, data[:,self.component], xlabel, ylabel)
         self.Refresh()
     def update_plot(self):
@@ -254,11 +255,13 @@ class VisualiserPanel(wx.Panel):
         self.Refresh()
 
     def redraw_contour(self):
-        ax1, ax2, data = self.get_contour_data()
-        self.pyplotp.redraw_contour(ax1, ax2, data[:,:,self.component])
+        ax1, ax2, data, naxes = self.get_contour_data()
+        xlabel = naxes[0]
+        ylabel = naxes[1]
+        self.pyplotp.redraw_contour(ax1, ax2, data[:,:,self.component], xlabel, ylabel)
         self.Refresh()
     def update_contour(self):
-        ax1, ax2, data = self.get_contour_data()
+        ax1, ax2, data = self.get_contour_data()[0:2]
         self.pyplotp.update_contour(data[:,:,self.component])
         self.Refresh()
 
