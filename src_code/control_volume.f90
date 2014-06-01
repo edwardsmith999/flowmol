@@ -12,7 +12,23 @@ module CV_objects
 	use computational_constants_MD , only : CV_debug
 	implicit none
 
+!Parent of CV check -- this does not work as you apparently cannot call parents constructor
+!type, abstract :: check_CV
+!	integer						 	:: N_ave
+!	integer, dimension(3)		   	:: nbins
+!	double precision				:: delta_t
+!	double precision, dimension(3)  :: domain, binsize
+!	contains
+!		procedure :: initialise  => initialise_check_CV
+!end type check_CV
+
+
+!type, extends(check_CV) :: check_CV_mass
 type :: check_CV_mass
+	integer						 			:: N_ave
+	integer, dimension(3)		   			:: nbins, nhb
+	double precision						:: delta_t
+	double precision, dimension(3)  		:: domain, binsize
 	integer,dimension(:,:,:,:),allocatable 	:: flux
 	integer,dimension(:,:,:),allocatable	:: dXdt, X, X_minus_t, X_minus_2t
 	contains
@@ -22,7 +38,12 @@ type :: check_CV_mass
 		procedure :: swap_halos  => swap_halos_mass
 end type check_CV_mass
 
+!type, extends(check_CV) :: check_CV_momentum
 type :: check_CV_momentum
+	integer						 			:: N_ave
+	integer, dimension(3)		   			:: nbins, nhb
+	double precision						:: delta_t
+	double precision, dimension(3)  		:: domain, binsize
 	double precision,dimension(:,:,:,:,:),allocatable 	:: flux, Pxy,  Pxy_minus_t
 	double precision,dimension(:,:,:,:),allocatable		:: dXdt, X, X_minus_t, X_minus_2t, & 
 														   F_ext, totalflux, totalpressure
@@ -36,7 +57,12 @@ type :: check_CV_momentum
 		procedure :: swap_halos  => swap_halos_momentum
 end type check_CV_momentum
 
+!type, extends(check_CV) :: check_CV_energy
 type :: check_CV_energy
+	integer						 			:: N_ave
+	integer, dimension(3)		   			:: nbins, nhb
+	double precision						:: delta_t
+	double precision, dimension(3)  		:: domain, binsize
 	double precision,dimension(:,:,:,:),allocatable 	:: flux, Pxyv,  Pxyv_minus_t
 	double precision,dimension(:,:,:),allocatable		:: dXdt, X, X_minus_t, X_minus_2t, & 
 														   Fv_ext, totalflux, totalpower
@@ -53,56 +79,101 @@ end type check_CV_energy
 
 !type, extends(check_CV_mass) :: sphereObj_mass
 
-!    double precision                        :: radius = 2.d0
-!    integer,dimension(:,:,:),allocatable	:: Xtemp
-!    integer,dimension(:,:,:,:),allocatable	:: fluxTemp
+!	double precision						:: radius = 2.d0
+!	integer,dimension(:,:,:),allocatable	:: Xtemp
+!	integer,dimension(:,:,:,:),allocatable	:: fluxTemp
 !contains
 !	procedure :: Add_spherical_CV_fluxes => Add_spherical_CV_mass_fluxes
-!    procedure :: Add_spherical_CV_mass   => Add_spherical_CV_mass
-!    procedure :: check_error             => check_error_sphere_mass
-!	procedure :: update_dXdt             => update_dXdt_sphere_mass
+!	procedure :: Add_spherical_CV_mass   => Add_spherical_CV_mass
+!	procedure :: check_error			 => check_error_sphere_mass
+!	procedure :: update_dXdt			 => update_dXdt_sphere_mass
 !				
 !end type sphereObj_mass
 
 !type, extends(check_CV_momentum) :: sphereObj_mom
 
 !	logical											:: collect_spherical
-!    double precision    							:: radius = 2.d0
-!    double precision,dimension(:,:,:,:),allocatable	:: Xtemp,FsurfaceTemp, Fsurface
+!	double precision								:: radius = 2.d0
+!	double precision,dimension(:,:,:,:),allocatable	:: Xtemp,FsurfaceTemp, Fsurface
 !contains
 !	procedure :: initialise_sphere		   => initialise_sphere_momentum
 !	procedure :: Add_spherical_CV_forces   => Add_spherical_CV_forces
 !	procedure :: Add_spherical_CV_fluxes   => Add_spherical_CV_fluxes
-!    procedure :: Add_spherical_CV_velocity => Add_spherical_CV_velocity
-!    procedure :: check_error               => check_error_sphere_momentum
-!	!procedure :: update_dXdt =>    update_dXdt_sphere_momentum
+!	procedure :: Add_spherical_CV_velocity => Add_spherical_CV_velocity
+!	procedure :: check_error			   => check_error_sphere_momentum
+!	!procedure :: update_dXdt =>	update_dXdt_sphere_momentum
 !				
 !end type sphereObj_mom
 
 !	!Check CV conservation
 	type(check_CV_mass)		:: CVcheck_mass							! declare an instance of CV checker
-	type(check_CV_momentum)	:: CVcheck_momentum, CV_constraint	    ! declare an instance of CV checker
+	type(check_CV_momentum)	:: CVcheck_momentum, CV_constraint		! declare an instance of CV checker
 	type(check_CV_energy)	:: CVcheck_energy						! declare an instance of CV checker
 
-!    !CV spherical object
-!    type(sphereObj_mass) :: CV_sphere_mass
-!    type(sphereObj_mom) :: CV_sphere_momentum
+!	!CV spherical object
+!	type(sphereObj_mass) :: CV_sphere_mass
+!	type(sphereObj_mom) :: CV_sphere_momentum
 
 
 contains
+
+!===================================================
+!	C o n t r o l   V o l u m e   P a r e n t
+!===================================================
+
+! I cannot get this to work -- I wanted to use this as the 
+! parent constructor which all child objects call and extend.
+! Apparently it is possible to call child%parent%initialise(...), however
+! I can't get self%parent%initialise(..) to work as expected 
+! from childs over-ridden form of initialise
+
+!	subroutine initialise_check_CV(self,nbins,domain,delta_t,N_ave)
+!		implicit none
+
+!		class(check_CV) 		:: self
+
+!		integer, dimension(3),intent(in) 			:: nbins
+!		integer,intent(in)						 	:: N_ave
+!		double precision,intent(in)					:: delta_t
+!		double precision, dimension(3),intent(in)	:: domain
+
+!		self%domain  = domain
+!		self%nbins   = nbins
+!		self%delta_t = delta_t		
+!		self%N_ave   = N_ave
+!		self%binsize = domain/nbins
+
+!	end subroutine initialise_check_CV
 
 !===================================================
 !	   M a s s   C o n t r o l   V o l u m e
 !===================================================
 
 	!Constructor for object
-	subroutine initialise_mass(self, nb)
+	subroutine initialise_mass(self,nbins,nhb,domain,delta_t,N_ave)
 		implicit none
 
 		! initialize shape objects
 		class(check_CV_mass) 		:: self
 
-		integer, dimension(3),intent(in) :: nb
+		integer, dimension(3),intent(in) 			:: nbins,nhb
+		integer,intent(in)						 	:: N_ave
+		double precision,intent(in)					:: delta_t
+		double precision, dimension(3),intent(in)	:: domain
+
+		integer, dimension(3)						:: nb
+
+		!Call "parent constructor"
+		!call self%check_CV%initialise_(domain,nb,delta_t,N_ave)
+		self%domain  = domain
+		self%nbins   = nbins
+		self%nhb     = nhb
+		self%delta_t = delta_t		
+		self%N_ave   = N_ave
+		self%binsize = domain/nbins
+
+		!Add halo bins to domain bins		
+		nb = nbins + 2*nhb
 
 		allocate(self%flux(nb(1),nb(2),nb(3),6))
 		allocate(self%dXdt(nb(1),nb(2),nb(3)))
@@ -128,7 +199,7 @@ contains
 		integer,dimension(:,:,:),allocatable,intent(in) :: X
 
 		self%X_minus_t  = self%X
-		self%X 		    = X
+		self%X 			= X
 
 		self%dXdt = self%X - self%X_minus_t
 
@@ -146,9 +217,9 @@ contains
 		! initialize shape objects
 		class(check_CV_mass) :: self
 
-    	!Include halo surface fluxes to get correct values for all cells
-    	nresults = 6
-    	call swaphalos(self%flux,nb(1),nb(2),nb(3),nresults)
+		!Include halo surface fluxes to get correct values for all cells
+		nresults = 6
+		call swaphalos(self%flux,nb(1),nb(2),nb(3),nresults)
 
 	end subroutine swap_halos_mass
 
@@ -162,7 +233,7 @@ contains
 
 		integer,intent(in) :: iter,irank,imin,imax,jmin,jmax,kmin,kmax
 
-		integer 		:: i,j,k
+		integer 		:: i,j,k,totalflux
 		integer,save 	:: first_time = 0
 		logical		 	:: check_ok
 
@@ -178,9 +249,13 @@ contains
 		do j = jmin,jmax
 		do k = kmin,kmax
 
-			if(sum(self%flux(i,j,k,:))-self%dXdt(i,j,k) .ne. 0) then
+			totalflux =  (self%flux(i,j,k,1) - self%flux(i,j,k,4)) &
+						+(self%flux(i,j,k,2) - self%flux(i,j,k,5)) & 
+						+(self%flux(i,j,k,3) - self%flux(i,j,k,6))
+
+			if(totalflux-self%dXdt(i,j,k) .ne. 0) then
 				print'(a,i8,4i4,4i8)','Error_cubeCV_mass', iter,irank,i,j,k, & 
-					sum(self%flux(i,j,k,:)),self%dXdt(i,j,k),self%X_minus_t(i,j,k),self%X(i,j,k)
+					totalflux,self%dXdt(i,j,k),self%X_minus_t(i,j,k),self%X(i,j,k)
 				check_ok = .false.
 			endif
 
@@ -195,13 +270,30 @@ contains
 !===================================================
 
 	!Constructor for object
-	subroutine initialise_momentum(self, nb)
+	subroutine initialise_momentum(self,nbins,nhb,domain,delta_t,N_ave)
 		implicit none
 
 		! initialize shape objects
 		class(check_CV_momentum) 		:: self
 
-		integer, dimension(3),intent(in) :: nb
+		integer, dimension(3),intent(in) 			:: nbins, nhb
+		integer,intent(in)						 	:: N_ave
+		double precision,intent(in)					:: delta_t
+		double precision, dimension(3),intent(in)	:: domain
+
+		integer, dimension(3)						:: nb
+
+		!Call "parent constructor"
+		!call self%check_CV%initialise_(nb,domain,delta_t,N_ave)
+		self%domain  = domain
+		self%nbins   = nbins
+		self%nhb     = nhb
+		self%delta_t = delta_t		
+		self%N_ave   = N_ave
+		self%binsize = domain/nbins
+
+		!Add halo bins to domain bins		
+		nb = nbins + 2*nhb
 
 		allocate(self%flux(nb(1),nb(2),nb(3),3,6))
 		allocate(self%Pxy(nb(1),nb(2),nb(3),3,6))
@@ -292,14 +384,14 @@ contains
 		! initialize shape objects
 		class(check_CV_momentum) :: self
 
-    	! Include halo surface fluxes, stress and external forces 
+		! Include halo surface fluxes, stress and external forces 
 		! to get correct values for all cells
-    	nresults = 18 + 18 + 3
+		nresults = 18 + 18 + 3
 		allocate(temp(nb(1),nb(2),nb(3),nresults))
 		temp(:,:,:,1 :18) = reshape(self%flux,(/ nb(1),nb(2),nb(3),18 /))
 		temp(:,:,:,19:36) = reshape(self%Pxy ,(/ nb(1),nb(2),nb(3),18 /))
 		temp(:,:,:,37:39) = self%F_ext(:,:,:,:)
-    	call swaphalos(temp,nb(1),nb(2),nb(3),nresults)
+		call swaphalos(temp,nb(1),nb(2),nb(3),nresults)
 		self%flux = reshape(temp(:,:,:,1 :18),(/ nb(1),nb(2),nb(3),3,6 /))
 		self%Pxy  = reshape(temp(:,:,:,19:36),(/ nb(1),nb(2),nb(3),3,6 /))
 		self%F_ext = temp(:,:,:,37:39)
@@ -310,32 +402,25 @@ contains
 
 	!Return the total flux/stresses totals for a given CV
 	subroutine return_CV_totals(self)
-		use computational_constants_MD, only :delta_t
 		implicit none
 
 		! initialize shape objects
 		class(check_CV_momentum) :: self
 
-	    !Calculate total CV flux and change in mass
-	    self%totalflux(:,:,:,:) =((self%flux(:,:,:,:,1)+self%flux(:,:,:,:,4)) &
-	              				 +(self%flux(:,:,:,:,2)+self%flux(:,:,:,:,5)) &
-	             				 +(self%flux(:,:,:,:,3)+self%flux(:,:,:,:,6)))/delta_t
+		!Calculate total CV flux and change in mass
+		self%totalflux(:,:,:,:) =((self%flux(:,:,:,:,1)-self%flux(:,:,:,:,4)) &
+				  				 +(self%flux(:,:,:,:,2)-self%flux(:,:,:,:,5)) &
+				 				 +(self%flux(:,:,:,:,3)-self%flux(:,:,:,:,6)))/self%delta_t
 
-	    !Totalpressure = totalpressure*delta_t
-	    self%totalpressure(:,:,:,:)=0.25d0 * ( self%Pxy_minus_t(:,:,:,:,1)  & 
-											  -self%Pxy_minus_t(:,:,:,:,4)) &
-	                  					    +( self%Pxy_minus_t(:,:,:,:,2)  &
-											  -self%Pxy_minus_t(:,:,:,:,5)) &
-	                  						+( self%Pxy_minus_t(:,:,:,:,3)  &
-											  -self%Pxy_minus_t(:,:,:,:,6))
+		!Totalpressure = totalpressure*delta_t
+		self%totalpressure=0.25d0*(self%Pxy_minus_t(:,:,:,:,1)-self%Pxy_minus_t(:,:,:,:,4)) &
+					  			 +(self%Pxy_minus_t(:,:,:,:,2)-self%Pxy_minus_t(:,:,:,:,5)) &
+					  			 +(self%Pxy_minus_t(:,:,:,:,3)-self%Pxy_minus_t(:,:,:,:,6))
 
 	end subroutine return_CV_totals
 
 	!Check error for specified range of bins
 	subroutine check_error_momentum(self,imin,imax,jmin,jmax,kmin,kmax,iter,irank)
-		! initialize shape objects
-		use computational_constants_MD, only : domain,delta_t,Nvflux_ave
-		use calculated_properties_MD, only : nbins
 		implicit none
 
 		class(check_CV_momentum) :: self
@@ -346,15 +431,13 @@ contains
 		integer 						:: i,j,k
 		integer,save 					:: first_time = 0
 		double precision				:: conserved
-		double precision,dimension(3)	:: binsize,totalpressure,totalflux,F_ext,dvelocitydt
+		double precision,dimension(3)	:: totalpressure,totalflux,F_ext,dvelocitydt
 
 		!First call doesn't have difference in time yet so skip
 		if (first_time .lt. 2) then
 			first_time = first_time + 1
 			return
 		endif
-
-		binsize = domain/nbins
 
 		!print'(2i4,f13.5,3i8)', iter, irank, maxval(self%F_ext), maxloc(self%F_ext)
 		!print'(a,4i8,4f13.8)', 'Inside  object', irank,6,6,6, self%F_ext(6,6,6,:),sum(self%F_ext(6,6,6,:))
@@ -365,23 +448,23 @@ contains
 		do j = jmin,jmax
 		do k = kmin,kmax
 
+			!N.B. here self%flux has already been divided by delta_t
+			totalflux =(self%flux(i,j,k,:,1)-self%flux(i,j,k,:,4))/self%binsize(1) &
+					  +(self%flux(i,j,k,:,2)-self%flux(i,j,k,:,5))/self%binsize(2) &
+					  +(self%flux(i,j,k,:,3)-self%flux(i,j,k,:,6))/self%binsize(3)
 
-		    !Calculate total CV flux and change in mass
-		    totalflux =(self%flux(i,j,k,:,1)-self%flux(i,j,k,:,4))/binsize(1) &
-		              +(self%flux(i,j,k,:,2)-self%flux(i,j,k,:,5))/binsize(2) &
-		              +(self%flux(i,j,k,:,3)-self%flux(i,j,k,:,6))/binsize(3)
-
-		    !Totalpressure = totalpressure*delta_t
-		    totalpressure =(self%Pxy_minus_t(i,j,k,:,1)-self%Pxy_minus_t(i,j,k,:,4))/binsize(1) &
-		                  +(self%Pxy_minus_t(i,j,k,:,2)-self%Pxy_minus_t(i,j,k,:,5))/binsize(2) &
-		                  +(self%Pxy_minus_t(i,j,k,:,3)-self%Pxy_minus_t(i,j,k,:,6))/binsize(3)
-			F_ext = self%F_ext(i,j,k,:)/product(binsize)
+			!Totalpressure = totalpressure*delta_t
+			!N.B. here self%Pxy_minus_t has already been multiplied by 0.25
+			totalpressure =(self%Pxy_minus_t(i,j,k,:,1)-self%Pxy_minus_t(i,j,k,:,4))/self%binsize(1) &
+						  +(self%Pxy_minus_t(i,j,k,:,2)-self%Pxy_minus_t(i,j,k,:,5))/self%binsize(2) &
+						  +(self%Pxy_minus_t(i,j,k,:,3)-self%Pxy_minus_t(i,j,k,:,6))/self%binsize(3)
+			F_ext = self%F_ext(i,j,k,:)/product(self%binsize)
 
 			!drhou/dt
-		    dvelocitydt =  self%dxdt(i,j,k,:)/(delta_t*Nvflux_ave)
+			dvelocitydt =  self%dxdt(i,j,k,:)/(self%delta_t*self%N_ave)
 
-		    !Verify that CV momentum is exactly conservative
-		    conserved = sum(totalpressure+totalflux-dvelocitydt-F_ext)
+			!Verify that CV momentum is exactly conservative
+			conserved = sum(totalpressure+totalflux-dvelocitydt-F_ext)
 			if(abs(conserved) .gt. 0.000000001d0) then
 			!if (i .eq. 2 .and. j .eq. 2 .and. k .eq. 2 .and. irank .eq. 1) then
 			!if (any(abs(dvelocitydt) .lt. 0.00001d0)) then
@@ -409,13 +492,30 @@ contains
 !===================================================
 
 	!Constructor for object
-	subroutine initialise_energy(self, nb)
+	subroutine initialise_energy(self,nbins,nhb,domain,delta_t,N_ave)
 		implicit none
 
 		! initialize shape objects
 		class(check_CV_energy) 		:: self
 
-		integer, dimension(3),intent(in) :: nb
+		integer, dimension(3),intent(in) 			:: nbins, nhb
+		integer,intent(in)						 	:: N_ave
+		double precision,intent(in)					:: delta_t
+		double precision, dimension(3),intent(in)	:: domain
+
+		integer, dimension(3)			 			:: nb
+
+		!Call "parent constructor"
+		!call self%check_CV%initialise_(nb,domain,delta_t,N_ave)
+		self%domain  = domain
+		self%nbins   = nbins
+		self%nhb     = nhb
+		self%delta_t = delta_t		
+		self%N_ave   = N_ave
+		self%binsize = domain/nbins
+
+		!Add halo bins to domain bins		
+		nb = nbins + 2*nhb
 
 		allocate(self%flux(nb(1),nb(2),nb(3),6))
 		allocate(self%Pxyv(nb(1),nb(2),nb(3),6))
@@ -451,7 +551,7 @@ contains
 
 		!self%X_minus_2t  = self%X_minus_t
 		self%X_minus_t   = self%X
-		self%X 		     = X
+		self%X 			 = X
 
 		self%dXdt = self%X - self%X_minus_t
 		!self%dXdt = self%X_minus_t - self%X_minus_2t
@@ -508,14 +608,14 @@ contains
 		! initialize shape objects
 		class(check_CV_energy) :: self
 
-    	! Include halo surface fluxes, stress and external forces 
+		! Include halo surface fluxes, stress and external forces 
 		! to get correct values for all cells
-    	nresults = 6 + 6 + 1
+		nresults = 6 + 6 + 1
 		allocate(temp(nb(1),nb(2),nb(3),nresults))
 		temp(:,:,:,1 :6) = self%flux
 		temp(:,:,:,7:12) = self%Pxyv
 		temp(:,:,:,13  ) = self%Fv_ext
-    	call swaphalos(temp,nb(1),nb(2),nb(3),nresults)
+		call swaphalos(temp,nb(1),nb(2),nb(3),nresults)
 		self%flux  = temp(:,:,:,1 :6)
 		self%Pxyv   = temp(:,:,:,7:12)
 		self%Fv_ext = temp(:,:,:,13)
@@ -525,9 +625,6 @@ contains
 
 	!Check error for specified range of bins
 	subroutine check_error_energy(self,imin,imax,jmin,jmax,kmin,kmax,iter,irank)
-		! initialize shape objects
-		use computational_constants_MD, only : domain,delta_t,Neflux_ave
-		use calculated_properties_MD, only : nbins
 		implicit none
 
 		class(check_CV_energy) :: self
@@ -538,16 +635,12 @@ contains
 		integer 						:: i,j,k
 		integer,save 					:: first_time = 0
 		double precision				:: conserved,totalpower,totalflux,Fv_ext,denergydt
-		double precision,dimension(3)	:: binsize
 
 		!First call doesn't have difference in time yet so skip
 		if (first_time .lt. 2) then
 			first_time = first_time + 1
 			return
 		endif
-
-		!Get size of bin
-		binsize = domain/nbins
 
 		!print'(2i4,f13.5,3i8)', iter, irank, maxval(self%Fv_ext), maxloc(self%Fv_ext)
 		!print'(a,4i8,4f13.8)', 'Inside  object', irank,6,6,6, self%Fv_ext(6,6,6,:),sum(self%Fv_ext(6,6,6,:))
@@ -558,19 +651,19 @@ contains
 		do j = jmin,jmax
 		do k = kmin,kmax
 
-		    !Calculate total CV flux and change in mass
-		    totalflux =(self%flux(i,j,k,1)+self%flux(i,j,k,4))/binsize(1) &
-		              +(self%flux(i,j,k,2)+self%flux(i,j,k,5))/binsize(2) &
-		              +(self%flux(i,j,k,3)+self%flux(i,j,k,6))/binsize(3)
+			!Calculate total CV flux and change in mass
+			totalflux =(self%flux(i,j,k,1)+self%flux(i,j,k,4))/self%binsize(1) &
+					  +(self%flux(i,j,k,2)+self%flux(i,j,k,5))/self%binsize(2) &
+					  +(self%flux(i,j,k,3)+self%flux(i,j,k,6))/self%binsize(3)
 
-		    !totalpower = totalpower*delta_t
-		    totalpower = (self%Pxyv(i,j,k,1)-self%Pxyv(i,j,k,4))/binsize(1) &
-		                +(self%Pxyv(i,j,k,2)-self%Pxyv(i,j,k,5))/binsize(2) &
-		                +(self%Pxyv(i,j,k,3)-self%Pxyv(i,j,k,6))/binsize(3)
-			Fv_ext = self%Fv_ext(i,j,k)/product(binsize)
+			!totalpower = totalpower*delta_t
+			totalpower = (self%Pxyv(i,j,k,1)-self%Pxyv(i,j,k,4))/self%binsize(1) &
+						+(self%Pxyv(i,j,k,2)-self%Pxyv(i,j,k,5))/self%binsize(2) &
+						+(self%Pxyv(i,j,k,3)-self%Pxyv(i,j,k,6))/self%binsize(3)
+			Fv_ext = self%Fv_ext(i,j,k)/product(self%binsize)
 
 			!drhou/dt
-		    denergydt =  self%dxdt(i,j,k)/(delta_t*Neflux_ave)
+			denergydt =  self%dxdt(i,j,k)/(self%delta_t*self%N_ave)
 
 			!Sanity check top minus bottom
 			!if (i+1 .le. imax .or. j+1 .le. jmax .or. k+1 .le. kmax) then
@@ -582,8 +675,8 @@ contains
 			!								self%Pxyv(i,j,k+1,3)-self%Pxyv(i,j,k,6)
 			!endif
 
-		    !Verify that CV energy is less than 10% error 
-		    conserved = totalpower-totalflux-denergydt-Fv_ext
+			!Verify that CV energy is less than 10% error 
+			conserved = totalpower-totalflux-denergydt-Fv_ext
 			!if(abs(conserved/(self%X(i,j,k)-totalflux)) .gt. 0.10d0) then
 			!if (abs(Fv_ext) .gt. 0.000001) then
 			if (i .eq. 3 .and. j .eq. 3 .and. k .eq. 3 .and. irank .eq. 1) then
@@ -606,6 +699,115 @@ contains
 
 
 
+
+!subroutine get_CV_surface_contributions(r1,r2,value)
+!	use computational_constants_MD, only : halfdomain, nhb, iter
+!	use librarymod, only : heaviside => heaviside_a1
+!	implicit none
+
+!	double precision, dimension(3),intent(in)						:: r1, r2
+!	double precision, intent(in)									:: value
+
+
+!	integer, dimension(3)						:: bin1,bin2
+!	integer										:: i,j,k,ixyz, face
+!	double precision							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
+!	double precision,dimension(3)   			:: Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
+!	double precision,dimension(3)				:: rij,  bintop, binbot
+
+!	r12   = r1 - r2				!Molecule i trajectory between t-dt and t
+!	where (r12 .eq. 0.d0) r12 = 0.000001d0
+
+!	!Assign to bins before and after using integer division
+!	bin1(:) = ceiling((r1+halfdomain(:))/mbinsize(:)) + nhb(:)
+!	bin2(:) = ceiling((r2+halfdomain(:))/mbinsize(:)) + nhb(:)
+
+!	!Replace Signum function with this functions which gives a
+!	!check for plane crossing and the correct sign 
+!	crossface(:) =  bin1(:) - bin2(:)
+
+!	if (sum(abs(crossface(:))) .ne. 0) return
+
+!	!If same bin, nothing to do here
+!	if (bin1(1) .eq. bin2(1) .and. bin1(2) .eq. bin2(2) .and. bin1(3) .eq. bin2(3)) return
+
+!		
+!	!Loop through all intermediate bins, check surface to add to and then add
+!	do i = bin1(1),bin2(1),sign(1,bin2(1)-bin1(1))
+!	do j = bin1(2),bin2(2),sign(1,bin2(2)-bin1(2))
+!	do k = bin1(3),bin2(3),sign(1,bin2(3)-bin1(3))
+
+!		!Get bin top and bottom
+!		bintop(1) = (i-1*nhb(1)  )*Fbinsize(1)-halfdomain(1)
+!		bintop(2) = (j-1*nhb(2)  )*Fbinsize(2)-halfdomain(2)
+!		bintop(3) = (k-1*nhb(3)  )*Fbinsize(3)-halfdomain(3)
+!		binbot(1) = (i-1*nhb(1)-1)*Fbinsize(1)-halfdomain(1)
+!		binbot(2) = (j-1*nhb(2)-1)*Fbinsize(2)-halfdomain(2)
+!		binbot(3) = (k-1*nhb(3)-1)*Fbinsize(3)-halfdomain(3)
+
+!		!Calculate the plane intersect of line with surfaces of the cube
+!		Pxt=(/ bintop(1),ri(2)+(rij(2)/rij(1))*(bintop(1)-ri(1)),ri(3)+(rij(3)/rij(1))*(bintop(1)-ri(1))  /)
+!		Pxb=(/ binbot(1),ri(2)+(rij(2)/rij(1))*(binbot(1)-ri(1)),ri(3)+(rij(3)/rij(1))*(binbot(1)-ri(1))  /)
+!		Pyt=(/ri(1)+(rij(1)/rij(2))*(bintop(2)-ri(2)), bintop(2),ri(3)+(rij(3)/rij(2))*(bintop(2)-ri(2))  /)
+!		Pyb=(/ri(1)+(rij(1)/rij(2))*(binbot(2)-ri(2)), binbot(2),ri(3)+(rij(3)/rij(2))*(binbot(2)-ri(2))  /)
+!		Pzt=(/ri(1)+(rij(1)/rij(3))*(bintop(3)-ri(3)), ri(2)+(rij(2)/rij(3))*(bintop(3)-ri(3)), bintop(3) /)
+!		Pzb=(/ri(1)+(rij(1)/rij(3))*(binbot(3)-ri(3)), ri(2)+(rij(2)/rij(3))*(binbot(3)-ri(3)), binbot(3) /)
+
+!		onfacexb =  	(sign(1.d0,binbot(1)- rj(1)) - sign(1.d0,binbot(1)- ri(1)))* &
+!						(heaviside(bintop(2)-Pxb(2)) - heaviside(binbot(2)-Pxb(2)))* &
+!						(heaviside(bintop(3)-Pxb(3)) - heaviside(binbot(3)-Pxb(3)))
+!		onfaceyb =  	(sign(1.d0,binbot(2)- rj(2)) - sign(1.d0,binbot(2)- ri(2)))* &
+!						(heaviside(bintop(1)-Pyb(1)) - heaviside(binbot(1)-Pyb(1)))* &
+!						(heaviside(bintop(3)-Pyb(3)) - heaviside(binbot(3)-Pyb(3)))
+!		onfacezb =  	(sign(1.d0,binbot(3)- rj(3)) - sign(1.d0,binbot(3)- ri(3)))* &
+!						(heaviside(bintop(1)-Pzb(1)) - heaviside(binbot(1)-Pzb(1)))* &
+!						(heaviside(bintop(2)-Pzb(2)) - heaviside(binbot(2)-Pzb(2)))
+
+!		onfacext =  	(sign(1.d0,bintop(1)- rj(1)) - sign(1.d0,bintop(1)- ri(1)))* &
+!						(heaviside(bintop(2)-Pxt(2)) - heaviside(binbot(2)-Pxt(2)))* &
+!						(heaviside(bintop(3)-Pxt(3)) - heaviside(binbot(3)-Pxt(3)))
+!		onfaceyt = 		(sign(1.d0,bintop(2)- rj(2)) - sign(1.d0,bintop(2)- ri(2)))* &
+!						(heaviside(bintop(1)-Pyt(1)) - heaviside(binbot(1)-Pyt(1)))* &
+!						(heaviside(bintop(3)-Pyt(3)) - heaviside(binbot(3)-Pyt(3)))
+!		onfacezt =  	(sign(1.d0,bintop(3)- rj(3)) - sign(1.d0,bintop(3)- ri(3)))* &
+!						(heaviside(bintop(1)-Pzt(1)) - heaviside(binbot(1)-Pzt(1)))* &
+!						(heaviside(bintop(2)-Pzt(2)) - heaviside(binbot(2)-Pzt(2)))
+
+!		!Value acting on face
+!		CV_Face_value(i,j,k,1) = CV_Face_value(i,j,k,1) + value*onfacexb
+!		CV_Face_value(i,j,k,2) = CV_Face_value(i,j,k,2) + value*onfaceyb
+!		CV_Face_value(i,j,k,3) = CV_Face_value(i,j,k,3) + value*onfacezb
+!		CV_Face_value(i,j,k,4) = CV_Face_value(i,j,k,4) + value*onfacext
+!		CV_Face_value(i,j,k,5) = CV_Face_value(i,j,k,5) + value*onfaceyt
+!		CV_Face_value(i,j,k,6) = CV_Face_value(i,j,k,6) + value*onfacezt
+
+!!  	if (i .eq. 3 .and. j .eq. 3 .and. k .eq. 3) then
+!!   	if (any(abs((/onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb/)) .gt. 0.00001)) then
+!!   	!if (abs(onfacext+onfacexb+onfaceyt+onfaceyb+onfacezt+onfacezb) .gt. 0.00001) then
+!!   			if (abs(onfacexb) .gt. 0.000001) face = 1 
+!!   			if (abs(onfaceyb) .gt. 0.000001) face = 2 
+!!   			if (abs(onfacezb) .gt. 0.000001) face = 3 
+!!   			if (abs(onfacext) .gt. 0.000001) face = 4 
+!!   			if (abs(onfaceyt) .gt. 0.000001) face = 5 
+!!   			if (abs(onfacezt) .gt. 0.000001) face = 6 
+!!   				print'(a,6i5,2f12.4,6i3,f6.0,5f4.0)','Int pp box 3', iter,molnoi,molnoj,i,j,k,value, & 
+!!   																	CV_Face_value(i,j,k,face), & 
+!!   																	bin1,bin2,onfacext,onfacexb,onfaceyt, & 
+!!   																	onfaceyb,onfacezt,onfacezb
+!!   	!endif
+!!   	endif
+!!   	endif
+
+!		!print'(a,3i4,7f10.5)', 'IN surface cv routine ',i,j,k, CV_Face_value(i,j,k,:), value
+
+!	enddo
+!	enddo
+!	enddo
+
+!end subroutine get_CV_surface_contributions
+
+
+
 !===================================================
 !	S p h e r i c a l   C o n t r o l   V o l u m e
 !===================================================
@@ -614,132 +816,132 @@ contains
 ! - - - - MASS - - - -
 
 
-!    !Check if molecule is inside volume
-!    subroutine Add_spherical_CV_mass(self,ri)
-!        use librarymod, only : sphereCV
-!    	implicit none
-!    	
-!        class(sphereObj_mass) :: self
+!	!Check if molecule is inside volume
+!	subroutine Add_spherical_CV_mass(self,ri)
+!		use librarymod, only : sphereCV
+!		implicit none
+!		
+!		class(sphereObj_mass) :: self
 
-!    	real(kind(0.d0)),dimension(3),intent(in)	:: ri
+!		real(kind(0.d0)),dimension(3),intent(in)	:: ri
 
-!    	!Add for molecule i
-!    	if (.not. allocated(self%Xtemp)) then
-!    	    allocate(self%Xtemp(1,1,1))
-!    	    self%Xtemp = 0
-!        endif
-!        
-!        !if ( sphereCV(ri,self%radius) .gt. 0.00000001) print'(3f10.5,i5,f10.5)', ri, self%Xtemp(1,1,1), sphereCV(ri,self%radius)
-!    	self%Xtemp(1,1,1) = self%Xtemp(1,1,1) + sphereCV(ri,self%radius)
+!		!Add for molecule i
+!		if (.not. allocated(self%Xtemp)) then
+!			allocate(self%Xtemp(1,1,1))
+!			self%Xtemp = 0
+!		endif
+!		
+!		!if ( sphereCV(ri,self%radius) .gt. 0.00000001) print'(3f10.5,i5,f10.5)', ri, self%Xtemp(1,1,1), sphereCV(ri,self%radius)
+!		self%Xtemp(1,1,1) = self%Xtemp(1,1,1) + sphereCV(ri,self%radius)
 
-!    end subroutine Add_spherical_CV_mass
+!	end subroutine Add_spherical_CV_mass
 
-!    !Update time evolution and store previous two values
-!    subroutine update_dXdt_sphere_mass(self, X)
-!    	implicit none
+!	!Update time evolution and store previous two values
+!	subroutine update_dXdt_sphere_mass(self, X)
+!		implicit none
 
-!    	! initialize shape objects
-!    	class(sphereObj_mass) :: self
+!		! initialize shape objects
+!		class(sphereObj_mass) :: self
 
-!    	integer,dimension(:,:,:),allocatable,intent(in) :: X
+!		integer,dimension(:,:,:),allocatable,intent(in) :: X
 
-!    	self%X_minus_t = self%X
-!    	self%X 		   = X
+!		self%X_minus_t = self%X
+!		self%X 		   = X
 
-!    	self%dXdt = self%X - self%X_minus_t
+!		self%dXdt = self%X - self%X_minus_t
 
-!    end subroutine update_dXdt_sphere_mass
-
-
-!    !Check if molecule has crossed surface of CV
-!    subroutine Add_spherical_CV_mass_fluxes(self,ri,ri_tp1)
-!        use librarymod, only : sphereCV
-!    	implicit none
-!    	
-!        class(sphereObj_mass) :: self
-
-!    	real(kind(0.d0)),dimension(3),intent(in)	:: ri,ri_tp1
-
-!    	!Add for molecule i
-!    	if (.not. allocated(self%fluxTemp)) then
-!    	    allocate(self%fluxTemp(1,1,1,6))
-!    	    self%fluxTemp = 0
-!        endif
-
-!    	!Add for molecule i
-!    	self%fluxTemp(1,1,1,1) = self%fluxTemp(1,1,1,1) + (sphereCV(ri_tp1,self%radius)-sphereCV(ri,self%radius))
-
-!    end subroutine Add_spherical_CV_mass_fluxes
+!	end subroutine update_dXdt_sphere_mass
 
 
+!	!Check if molecule has crossed surface of CV
+!	subroutine Add_spherical_CV_mass_fluxes(self,ri,ri_tp1)
+!		use librarymod, only : sphereCV
+!		implicit none
+!		
+!		class(sphereObj_mass) :: self
 
-!    !Check error for specified range of bins
-!    subroutine check_error_sphere_mass(self,imin,imax,jmin,jmax,kmin,kmax,iter,irank)
-!    	! initialize shape objects
-!    	use computational_constants_MD, only : domain,delta_t,Nmflux_ave
-!    	use calculated_properties_MD, only : nbins
-!    	implicit none
+!		real(kind(0.d0)),dimension(3),intent(in)	:: ri,ri_tp1
 
-!    	class(sphereObj_mass) :: self
+!		!Add for molecule i
+!		if (.not. allocated(self%fluxTemp)) then
+!			allocate(self%fluxTemp(1,1,1,6))
+!			self%fluxTemp = 0
+!		endif
 
-!    	integer,intent(in) :: iter,irank,imin,imax,jmin,jmax,kmin,kmax
+!		!Add for molecule i
+!		self%fluxTemp(1,1,1,1) = self%fluxTemp(1,1,1,1) + (sphereCV(ri_tp1,self%radius)-sphereCV(ri,self%radius))
 
-!    	integer 						:: i,j,k
-!    	integer,save 					:: first_time = 0
-!    	integer         				:: conserved, dmdt, totalflux
-!    	double precision,dimension(3)	:: binsize
-!    	
-!    	!First call doesn't have difference in time yet so skip
-!    	if (first_time .lt. 2) then
-!    		first_time = first_time + 1
-!    		print'(a)', '                      iter    irank     i       j       k    cnsvd   fluxes   dmdt     m      mt-dt'
-!    		return
-!    	endif
-
-!    	!Calculate total CV flux and change in mass
-!    	totalflux =sum(self%flux(1,1,1,:))
-!        
-!    	!drhou/dt
-!        dmdt =  self%dxdt(1,1,1) !(delta_t*Nvflux_ave)
-
-!        !Verify that CV momentum is exactly conservative
-!        conserved = totalflux-dmdt
-!        
-!    	if(sum(self%flux(1,1,1,:))-self%dXdt(1,1,1) .ne. 0) then
-!    		print'(a,11i8)','Error_sphere_mass', iter,irank,1,1,1, & 
-!    				 conserved, totalflux,dmdt,self%X(1,1,1),   & 
-!    				 self%X_minus_t(1,1,1)
-!    	endif
-
-!    	self%flux = self%fluxTemp
-!        self%fluxTemp = 0
-!        self%Xtemp = 0
-!        
-!    end subroutine check_error_sphere_mass
+!	end subroutine Add_spherical_CV_mass_fluxes
 
 
 
+!	!Check error for specified range of bins
+!	subroutine check_error_sphere_mass(self,imin,imax,jmin,jmax,kmin,kmax,iter,irank)
+!		! initialize shape objects
+!		use computational_constants_MD, only : domain,delta_t,Nmflux_ave
+!		use calculated_properties_MD, only : nbins
+!		implicit none
 
-!    ! - - - - MOMENTUM - - - -
+!		class(sphereObj_mass) :: self
 
-!    !Constructor for sphere object extends momentum base object
-!    subroutine initialise_sphere_momentum(self,nb,collect_spherical)
-!    	implicit none
+!		integer,intent(in) :: iter,irank,imin,imax,jmin,jmax,kmin,kmax
 
-!    	! initialize shape objects
-!    	class(sphereObj_mom) 		:: self
+!		integer 						:: i,j,k
+!		integer,save 					:: first_time = 0
+!		integer		 				:: conserved, dmdt, totalflux
+!		double precision,dimension(3)	:: binsize
+!		
+!		!First call doesn't have difference in time yet so skip
+!		if (first_time .lt. 2) then
+!			first_time = first_time + 1
+!			print'(a)', '					  iter	irank	 i	   j	   k	cnsvd   fluxes   dmdt	 m	  mt-dt'
+!			return
+!		endif
+
+!		!Calculate total CV flux and change in mass
+!		totalflux =sum(self%flux(1,1,1,:))
+!		
+!		!drhou/dt
+!		dmdt =  self%dxdt(1,1,1) !(delta_t*Nvflux_ave)
+
+!		!Verify that CV momentum is exactly conservative
+!		conserved = totalflux-dmdt
+!		
+!		if(sum(self%flux(1,1,1,:))-self%dXdt(1,1,1) .ne. 0) then
+!			print'(a,11i8)','Error_sphere_mass', iter,irank,1,1,1, & 
+!					 conserved, totalflux,dmdt,self%X(1,1,1),   & 
+!					 self%X_minus_t(1,1,1)
+!		endif
+
+!		self%flux = self%fluxTemp
+!		self%fluxTemp = 0
+!		self%Xtemp = 0
+!		
+!	end subroutine check_error_sphere_mass
+
+
+
+
+!	! - - - - MOMENTUM - - - -
+
+!	!Constructor for sphere object extends momentum base object
+!	subroutine initialise_sphere_momentum(self,nb,collect_spherical)
+!		implicit none
+
+!		! initialize shape objects
+!		class(sphereObj_mom) 		:: self
 
 !		logical, optional, intent(in)	 :: collect_spherical
-!    	integer, dimension(3),intent(in) :: nb
+!		integer, dimension(3),intent(in) :: nb
 
-!    	!Call constructor of underlying momentum CV object
-!    	call self%initialise(nb)
+!		!Call constructor of underlying momentum CV object
+!		call self%initialise(nb)
 
-!    	!Extend to include new variables
-!    	allocate(self%Fsurface(1,1,1,3))
-!    	self%Fsurface = 0.d0
-!        allocate(self%FsurfaceTemp(1,1,1,3))
-!        self%FsurfaceTemp = 0.d0
+!		!Extend to include new variables
+!		allocate(self%Fsurface(1,1,1,3))
+!		self%Fsurface = 0.d0
+!		allocate(self%FsurfaceTemp(1,1,1,3))
+!		self%FsurfaceTemp = 0.d0
 
 !		!Set flag to convert collected values to spherical coordinates
 !		if (present(collect_spherical)) then
@@ -748,18 +950,18 @@ contains
 !			self%collect_spherical = .false.
 !		endif
 
-!    end subroutine initialise_sphere_momentum
+!	end subroutine initialise_sphere_momentum
 
 
-!    !Check if interaction between molecules crosses CV
-!    subroutine Add_spherical_CV_forces(self,fij,ri,rj)
-!        use librarymod, only : sphereCV, sphereiser, sphereisev
-!    	implicit none
-!    	
-!        class(sphereObj_mom) :: self
+!	!Check if interaction between molecules crosses CV
+!	subroutine Add_spherical_CV_forces(self,fij,ri,rj)
+!		use librarymod, only : sphereCV, sphereiser, sphereisev
+!		implicit none
+!		
+!		class(sphereObj_mom) :: self
 
-!    	real(kind(0.d0)),dimension(3),intent(in)	:: ri,rj,fij
-!    	real(kind(0.d0)),dimension(3)				:: f_vect, rs
+!		real(kind(0.d0)),dimension(3),intent(in)	:: ri,rj,fij
+!		real(kind(0.d0)),dimension(3)				:: f_vect, rs
 
 !		!Convert collected value to spherical coordinates
 !		if (self%collect_spherical) then
@@ -769,50 +971,21 @@ contains
 !			f_vect = fij
 !		endif
 
-!    	!Add for molecule i
-!    	self%FsurfaceTemp(1,1,1,:) = self%FsurfaceTemp(1,1,1,:) & 
-!    			- f_vect*(sphereCV(rj,self%radius)-sphereCV(ri,self%radius))
+!		!Add for molecule i
+!		self%FsurfaceTemp(1,1,1,:) = self%FsurfaceTemp(1,1,1,:) & 
+!				- f_vect*(sphereCV(rj,self%radius)-sphereCV(ri,self%radius))
 
-!    end subroutine Add_spherical_CV_forces
+!	end subroutine Add_spherical_CV_forces
 
-!    !Check if molecule is inside volume
-!    subroutine Add_spherical_CV_velocity(self,ri,vi)
-!        use librarymod, only : sphereCV, sphereiser, sphereisev
-!    	implicit none
-!    	
-!        class(sphereObj_mom) :: self
+!	!Check if molecule is inside volume
+!	subroutine Add_spherical_CV_velocity(self,ri,vi)
+!		use librarymod, only : sphereCV, sphereiser, sphereisev
+!		implicit none
+!		
+!		class(sphereObj_mom) :: self
 
-!    	real(kind(0.d0)),dimension(3),intent(in)	:: ri,vi
-!    	real(kind(0.d0)),dimension(3)				:: vel_vect,rs
-
-!		!Convert collected value to spherical coordinates
-!		if (self%collect_spherical) then
-!			rs	= sphereiser(ri)
-!			vel_vect = sphereisev(vi,rs(2),rs(3))
-!		else
-!			vel_vect = vi
-!		endif
-
-!    	!Add for molecule i
-!    	if (.not. allocated(self%Xtemp)) then
-!    	    allocate(self%Xtemp(1,1,1,3))
-!    	    self%Xtemp = 0.d0
-!        endif
-!    	self%Xtemp(1,1,1,:) = self%Xtemp(1,1,1,:) + vel_vect*sphereCV(ri,self%radius)
-
-!    end subroutine Add_spherical_CV_velocity
-
-
-!    !Check if molecule has crossed surface of CV
-!    subroutine Add_spherical_CV_fluxes(self,vi,ri,ri_tp1)
-!        use librarymod, only : sphereCV, sphereiser, sphereisev
-!    	implicit none
-!    	
-!        class(sphereObj_mom) :: self
-
-!    	real(kind(0.d0)),dimension(3),intent(in)	:: vi,ri,ri_tp1
-
-!    	real(kind(0.d0)),dimension(3)				:: vel_vect,rs
+!		real(kind(0.d0)),dimension(3),intent(in)	:: ri,vi
+!		real(kind(0.d0)),dimension(3)				:: vel_vect,rs
 
 !		!Convert collected value to spherical coordinates
 !		if (self%collect_spherical) then
@@ -822,76 +995,105 @@ contains
 !			vel_vect = vi
 !		endif
 
-!    	!Add for molecule i
-!    	self%flux(1,1,1,:,1) = self%flux(1,1,1,:,1) - vel_vect* & 
+!		!Add for molecule i
+!		if (.not. allocated(self%Xtemp)) then
+!			allocate(self%Xtemp(1,1,1,3))
+!			self%Xtemp = 0.d0
+!		endif
+!		self%Xtemp(1,1,1,:) = self%Xtemp(1,1,1,:) + vel_vect*sphereCV(ri,self%radius)
+
+!	end subroutine Add_spherical_CV_velocity
+
+
+!	!Check if molecule has crossed surface of CV
+!	subroutine Add_spherical_CV_fluxes(self,vi,ri,ri_tp1)
+!		use librarymod, only : sphereCV, sphereiser, sphereisev
+!		implicit none
+!		
+!		class(sphereObj_mom) :: self
+
+!		real(kind(0.d0)),dimension(3),intent(in)	:: vi,ri,ri_tp1
+
+!		real(kind(0.d0)),dimension(3)				:: vel_vect,rs
+
+!		!Convert collected value to spherical coordinates
+!		if (self%collect_spherical) then
+!			rs	= sphereiser(ri)
+!			vel_vect = sphereisev(vi,rs(2),rs(3))
+!		else
+!			vel_vect = vi
+!		endif
+
+!		!Add for molecule i
+!		self%flux(1,1,1,:,1) = self%flux(1,1,1,:,1) - vel_vect* & 
 !				(sphereCV(ri_tp1,self%radius)-sphereCV(ri,self%radius))
 
-!    end subroutine Add_spherical_CV_fluxes
+!	end subroutine Add_spherical_CV_fluxes
 
 
-!    !Update time evolution and store previous two values
-!    subroutine update_dXdt_sphere_momentum(self, X)
-!    	implicit none
+!	!Update time evolution and store previous two values
+!	subroutine update_dXdt_sphere_momentum(self, X)
+!		implicit none
 
-!    	! initialize objects
-!    	class(sphereObj_mom) :: self
+!		! initialize objects
+!		class(sphereObj_mom) :: self
 
-!    	double precision,dimension(:,:,:,:),allocatable,intent(in) :: X
+!		double precision,dimension(:,:,:,:),allocatable,intent(in) :: X
 
-!    	self%X_minus_t  = self%X
-!    	self%X 		  = X
-!    		
-!    	self%dXdt = self%X - self%X_minus_t
+!		self%X_minus_t  = self%X
+!		self%X 		  = X
+!			
+!		self%dXdt = self%X - self%X_minus_t
 
-!    end subroutine update_dXdt_sphere_momentum
+!	end subroutine update_dXdt_sphere_momentum
 
 
 
-!    !Check error for specified range of bins
-!    subroutine check_error_sphere_momentum(self,imin,imax,jmin,jmax,kmin,kmax,iter,irank)
-!    	! initialize shape objects
-!    	use computational_constants_MD, only : domain,delta_t,Nvflux_ave
-!    	use calculated_properties_MD, only : nbins
+!	!Check error for specified range of bins
+!	subroutine check_error_sphere_momentum(self,imin,imax,jmin,jmax,kmin,kmax,iter,irank)
+!		! initialize shape objects
+!		use computational_constants_MD, only : domain,delta_t,Nvflux_ave
+!		use calculated_properties_MD, only : nbins
 !		use librarymod, only : sphereiser
-!    	implicit none
+!		implicit none
 
-!    	! initialize objects
-!    	class(sphereObj_mom) :: self
+!		! initialize objects
+!		class(sphereObj_mom) :: self
 
-!    	integer,intent(in) :: iter,irank,imin,imax,jmin,jmax,kmin,kmax
+!		integer,intent(in) :: iter,irank,imin,imax,jmin,jmax,kmin,kmax
 
-!    	logical							:: check_ok
-!    	integer 						:: i,j,k
-!    	integer,save 					:: first_time = 0
-!    	double precision				:: conserved
-!    	double precision,dimension(3)	:: binsize,totalpressure,totalflux,F_ext,dvelocitydt
+!		logical							:: check_ok
+!		integer 						:: i,j,k
+!		integer,save 					:: first_time = 0
+!		double precision				:: conserved
+!		double precision,dimension(3)	:: binsize,totalpressure,totalflux,F_ext,dvelocitydt
 
-!    	!First call doesn't have difference in time yet so skip
-!    	if (first_time .lt. 2) then
-!    		first_time = first_time + 1
-!    		print'(a)', '                iter irank  i  j  k   conserved    Forces     fluxes      dvdt      Fext       v        vt-dt'
-!    		return
-!    	endif
+!		!First call doesn't have difference in time yet so skip
+!		if (first_time .lt. 2) then
+!			first_time = first_time + 1
+!			print'(a)', '				iter irank  i  j  k   conserved	Forces	 fluxes	  dvdt	  Fext	   v		vt-dt'
+!			return
+!		endif
 
-!        !Calculate total CV flux and change in mass
-!        totalflux(:) = self%flux(1,1,1,:,1)
+!		!Calculate total CV flux and change in mass
+!		totalflux(:) = self%flux(1,1,1,:,1)
 
-!        !Totalpressure = totalpressure*delta_t
-!        totalpressure(:) = 0.5d0*delta_t*self%Fsurface(1,1,1,:)
-!    	    
-!        call self%update_dXdt(self%Xtemp)
-!        self%Xtemp = 0.d0
+!		!Totalpressure = totalpressure*delta_t
+!		totalpressure(:) = 0.5d0*delta_t*self%Fsurface(1,1,1,:)
+!			
+!		call self%update_dXdt(self%Xtemp)
+!		self%Xtemp = 0.d0
 
-!    	!drhou/dt
-!        dvelocitydt =  self%dxdt(1,1,1,:)/Nvflux_ave !(delta_t*Nvflux_ave)
+!		!drhou/dt
+!		dvelocitydt =  self%dxdt(1,1,1,:)/Nvflux_ave !(delta_t*Nvflux_ave)
 
 
 !		if (self%collect_spherical) then
 !			conserved = dot_product(totalpressure,totalpressure) & 
-!						-dot_product(totalflux,totalflux)        &
-!					    -dot_product(dvelocitydt,dvelocitydt)
+!						-dot_product(totalflux,totalflux)		&
+!						-dot_product(dvelocitydt,dvelocitydt)
 
-!        	if(abs(conserved) .gt. 0.000000001d0) then
+!			if(abs(conserved) .gt. 0.000000001d0) then
 !				print'(a,i8,3f18.12)','Error_sphere_mom', iter, & 
 !					 dot_product(totalpressure,totalpressure), & 
 !					-dot_product(totalflux,totalflux), & 
@@ -901,15 +1103,15 @@ contains
 !			endif
 
 !		else
-!            !Verify that CV momentum is exactly conservative
-!            conserved = sum(totalpressure-totalflux-dvelocitydt-F_ext)
+!			!Verify that CV momentum is exactly conservative
+!			conserved = sum(totalpressure-totalflux-dvelocitydt-F_ext)
 
-!        	if(abs(conserved) .gt. 0.000000001d0) then
-!        		print'(a,i8,4i4,7f11.5)','Error_sphere_mom', iter,irank,1,1,1, & 
-!        				 conserved, sum(totalpressure),-sum(totalflux),sum(dvelocitydt), & 
-!        			+sum(F_ext), sum(self%X(1,1,1,:)),   & 
-!        			 sum(self%X_minus_t(1,1,1,:))
-!        	endif
+!			if(abs(conserved) .gt. 0.000000001d0) then
+!				print'(a,i8,4i4,7f11.5)','Error_sphere_mom', iter,irank,1,1,1, & 
+!						 conserved, sum(totalpressure),-sum(totalflux),sum(dvelocitydt), & 
+!					+sum(F_ext), sum(self%X(1,1,1,:)),   & 
+!					 sum(self%X_minus_t(1,1,1,:))
+!			endif
 !		endif
 
 !! 		if (any(sphereiser(dvelocitydt) .lt. 0.000000000001)) then
@@ -930,13 +1132,13 @@ contains
 !		endif
 
 
-!    	CV_sphere_momentum%Fsurface = CV_sphere_momentum%FsurfaceTemp
-!    	CV_sphere_momentum%flux = 0.d0; CV_sphere_momentum%FsurfaceTemp = 0.d0;
+!		CV_sphere_momentum%Fsurface = CV_sphere_momentum%FsurfaceTemp
+!		CV_sphere_momentum%flux = 0.d0; CV_sphere_momentum%FsurfaceTemp = 0.d0;
 
-!    end subroutine check_error_sphere_momentum
+!	end subroutine check_error_sphere_momentum
 
 
-    end module CV_objects
+	end module CV_objects
 
 
 
@@ -992,17 +1194,17 @@ contains
 ! 			binbot(:) = (cbin(:)-1*nhb(:)-1)*mbinsize(:)-halfdomain(:)
 
 ! 			!Calculate the plane intersect of trajectory with surfaces of the cube
-! 			Pxt=(/ 			bintop(1), 		     & 
+! 			Pxt=(/ 			bintop(1), 			 & 
 ! 					ri1(2)+(ri12(2)/ri12(1))*(bintop(1)-ri1(1)), & 
 ! 					ri1(3)+(ri12(3)/ri12(1))*(bintop(1)-ri1(1))  	/)
-! 			Pxb=(/ 			binbot(1), 		     & 
+! 			Pxb=(/ 			binbot(1), 			 & 
 ! 					ri1(2)+(ri12(2)/ri12(1))*(binbot(1)-ri1(1)), & 
 ! 					ri1(3)+(ri12(3)/ri12(1))*(binbot(1)-ri1(1))  	/)
 ! 			Pyt=(/	ri1(1)+(ri12(1)/ri12(2))*(bintop(2)-ri1(2)), & 
-! 						bintop(2), 		     & 
+! 						bintop(2), 			 & 
 ! 					ri1(3)+(ri12(3)/ri12(2))*(bintop(2)-ri1(2))  	/)
 ! 			Pyb=(/	ri1(1)+(ri12(1)/ri12(2))*(binbot(2)-ri1(2)), &
-! 						binbot(2), 		     & 
+! 						binbot(2), 			 & 
 ! 					ri1(3)+(ri12(3)/ri12(2))*(binbot(2)-ri1(2))  	/)
 ! 			Pzt=(/	ri1(1)+(ri12(1)/ri12(3))*(bintop(3)-ri1(3)), & 
 ! 					ri1(2)+(ri12(2)/ri12(3))*(bintop(3)-ri1(3)), &
@@ -1012,42 +1214,42 @@ contains
 ! 						binbot(3) 			/)
 
 ! 			onfacexb =0.5d0*(sign(1.d0,binbot(1) - ri2(1)) 	 & 
-! 					       - sign(1.d0,binbot(1) - ri1(1)))* &
+! 						   - sign(1.d0,binbot(1) - ri1(1)))* &
 ! 							(heaviside(bintop(2) - Pxb(2)) 	 &
-! 					       - heaviside(binbot(2) - Pxb(2)))* &
+! 						   - heaviside(binbot(2) - Pxb(2)))* &
 ! 							(heaviside(bintop(3) - Pxb(3)) 	 &
-! 					       - heaviside(binbot(3) - Pxb(3)))
+! 						   - heaviside(binbot(3) - Pxb(3)))
 ! 			onfaceyb =0.5d0*(sign(1.d0,binbot(2) - ri2(2))   &
-! 					       - sign(1.d0,binbot(2) - ri1(2)))* &
+! 						   - sign(1.d0,binbot(2) - ri1(2)))* &
 ! 							(heaviside(bintop(1) - Pyb(1))   &
-! 					       - heaviside(binbot(1) - Pyb(1)))* &
+! 						   - heaviside(binbot(1) - Pyb(1)))* &
 ! 							(heaviside(bintop(3) - Pyb(3))   &
-! 					       - heaviside(binbot(3) - Pyb(3)))
+! 						   - heaviside(binbot(3) - Pyb(3)))
 ! 			onfacezb =0.5d0*(sign(1.d0,binbot(3) - ri2(3))   &
-! 					       - sign(1.d0,binbot(3) - ri1(3)))* &
+! 						   - sign(1.d0,binbot(3) - ri1(3)))* &
 ! 							(heaviside(bintop(1) - Pzb(1))   &
-! 					       - heaviside(binbot(1) - Pzb(1)))* &
+! 						   - heaviside(binbot(1) - Pzb(1)))* &
 ! 							(heaviside(bintop(2) - Pzb(2))   &
-! 					       - heaviside(binbot(2) - Pzb(2)))
+! 						   - heaviside(binbot(2) - Pzb(2)))
 
 ! 			onfacext =0.5d0*(sign(1.d0,bintop(1) - ri2(1))   &
-! 					       - sign(1.d0,bintop(1) - ri1(1)))* &
+! 						   - sign(1.d0,bintop(1) - ri1(1)))* &
 ! 							(heaviside(bintop(2) - Pxt(2))   &
-! 					       - heaviside(binbot(2) - Pxt(2)))* &
+! 						   - heaviside(binbot(2) - Pxt(2)))* &
 ! 							(heaviside(bintop(3) - Pxt(3))   &
-! 					       - heaviside(binbot(3) - Pxt(3)))
+! 						   - heaviside(binbot(3) - Pxt(3)))
 ! 			onfaceyt =0.5d0*(sign(1.d0,bintop(2) - ri2(2))   &
-! 					       - sign(1.d0,bintop(2) - ri1(2)))* &
+! 						   - sign(1.d0,bintop(2) - ri1(2)))* &
 ! 							(heaviside(bintop(1) - Pyt(1))   &
-! 					       - heaviside(binbot(1) - Pyt(1)))* &
+! 						   - heaviside(binbot(1) - Pyt(1)))* &
 ! 							(heaviside(bintop(3) - Pyt(3))   &
-! 					       - heaviside(binbot(3) - Pyt(3)))
+! 						   - heaviside(binbot(3) - Pyt(3)))
 ! 			onfacezt =0.5d0*(sign(1.d0,bintop(3) - ri2(3))   &
-! 					       - sign(1.d0,bintop(3) - ri1(3)))* &
+! 						   - sign(1.d0,bintop(3) - ri1(3)))* &
 ! 							(heaviside(bintop(1) - Pzt(1))   &
 ! 						   - heaviside(binbot(1) - Pzt(1)))* &
 ! 							(heaviside(bintop(2) - Pzt(2))   &
-! 					       - heaviside(binbot(2) - Pzt(2)))
+! 						   - heaviside(binbot(2) - Pzt(2)))
 
 ! 			jxyz = imaxloc(abs(crossface))	!Integer array of size 1 copied to integer
 
@@ -1060,22 +1262,22 @@ contains
 ! 			!Add Momentum flux over face
 ! 			momentum_flux(cbin(1),cbin(2),cbin(3),:,1) = & 
 ! 				momentum_flux(cbin(1),cbin(2),cbin(3),:,1) & 
-! 			      - velvect(:)*dble(onfacexb)*abs(crossface(jxyz))
+! 				  - velvect(:)*dble(onfacexb)*abs(crossface(jxyz))
 ! 			momentum_flux(cbin(1),cbin(2),cbin(3),:,2) = & 
 ! 				momentum_flux(cbin(1),cbin(2),cbin(3),:,2) & 
-! 			      - velvect(:)*dble(onfaceyb)*abs(crossface(jxyz))
+! 				  - velvect(:)*dble(onfaceyb)*abs(crossface(jxyz))
 ! 			momentum_flux(cbin(1),cbin(2),cbin(3),:,3) = & 
 ! 				momentum_flux(cbin(1),cbin(2),cbin(3),:,3) &
-! 			      - velvect(:)*dble(onfacezb)*abs(crossface(jxyz))
+! 				  - velvect(:)*dble(onfacezb)*abs(crossface(jxyz))
 ! 			momentum_flux(cbin(1),cbin(2),cbin(3),:,4) = & 
 ! 				momentum_flux(cbin(1),cbin(2),cbin(3),:,4) &
-! 			      + velvect(:)*dble(onfacext)*abs(crossface(jxyz))
+! 				  + velvect(:)*dble(onfacext)*abs(crossface(jxyz))
 ! 			momentum_flux(cbin(1),cbin(2),cbin(3),:,5) = & 
 ! 				momentum_flux(cbin(1),cbin(2),cbin(3),:,5) &
-! 			      + velvect(:)*dble(onfaceyt)*abs(crossface(jxyz))
+! 				  + velvect(:)*dble(onfaceyt)*abs(crossface(jxyz))
 ! 			momentum_flux(cbin(1),cbin(2),cbin(3),:,6) = & 
 ! 				momentum_flux(cbin(1),cbin(2),cbin(3),:,6) &
-! 			      + velvect(:)*dble(onfacezt)*abs(crossface(jxyz))
+! 				  + velvect(:)*dble(onfacezt)*abs(crossface(jxyz))
 
 ! 		enddo
 ! 		enddo
@@ -1213,7 +1415,7 @@ contains
 
 ! 		onfacext =  	(sign(1.d0,bintop(1)- rj(1)) - sign(1.d0,bintop(1)- ri(1)))* &
 ! 						(heaviside(bintop(2)-Pxt(2)) - heaviside(binbot(2)-Pxt(2)))* &
-! 	            		(heaviside(bintop(3)-Pxt(3)) - heaviside(binbot(3)-Pxt(3)))
+! 						(heaviside(bintop(3)-Pxt(3)) - heaviside(binbot(3)-Pxt(3)))
 ! 		onfaceyt = 		(sign(1.d0,bintop(2)- rj(2)) - sign(1.d0,bintop(2)- ri(2)))* &
 ! 						(heaviside(bintop(1)-Pyt(1)) - heaviside(binbot(1)-Pyt(1)))* &
 ! 						(heaviside(bintop(3)-Pyt(3)) - heaviside(binbot(3)-Pyt(3)))
@@ -1280,7 +1482,7 @@ contains
 ! 	integer								:: n,molno
 ! 	integer								:: icellshift,jcellshift,kcellshift,adjacentcellnp
 ! 	double precision,dimension(3)		:: mbinsize,ri1,ri2,Fsurface,velvect
-! 	type(node), pointer		 	        :: old, current
+! 	type(node), pointer		 			:: old, current
 
 
 ! 	!Determine bin size
@@ -1294,10 +1496,10 @@ contains
 ! 				  		  jcell+jcellshift, & 
 ! 				  		  kcell+kcellshift)%point
 ! 		adjacentcellnp = cell%cellnp(icell+icellshift, & 
-! 					     			 jcell+jcellshift, & 
-! 					     			 kcell+kcellshift)
+! 						 			 jcell+jcellshift, & 
+! 						 			 kcell+kcellshift)
 
-! 		do n = 1,adjacentcellnp          !Step through all adjacent cells' molecules
+! 		do n = 1,adjacentcellnp		  !Step through all adjacent cells' molecules
 
 ! 			molno = old%molno			!Number of molecule
 
@@ -1320,7 +1522,7 @@ contains
 
 ! 			! *********************************************************************************
 ! 			current => old
-! 			old => current%next    !Use pointer in datatype to obtain next item in list
+! 			old => current%next	!Use pointer in datatype to obtain next item in list
 
 ! 		enddo
 ! 	enddo
@@ -1382,17 +1584,17 @@ contains
 ! 				binbot(:) = (cbin(:)-1*nhb(:)-1)*mbinsize(:)-halfdomain(:)
 
 ! 				!Calculate the plane intersect of trajectory with surfaces of the cube
-! 				Pxt=(/ 			bintop(1), 		     & 
+! 				Pxt=(/ 			bintop(1), 			 & 
 ! 						ri1(2)+(ri12(2)/ri12(1))*(bintop(1)-ri1(1)), & 
 ! 						ri1(3)+(ri12(3)/ri12(1))*(bintop(1)-ri1(1))  	/)
-! 				Pxb=(/ 			binbot(1), 		     & 
+! 				Pxb=(/ 			binbot(1), 			 & 
 ! 						ri1(2)+(ri12(2)/ri12(1))*(binbot(1)-ri1(1)), & 
 ! 						ri1(3)+(ri12(3)/ri12(1))*(binbot(1)-ri1(1))  	/)
 ! 				Pyt=(/	ri1(1)+(ri12(1)/ri12(2))*(bintop(2)-ri1(2)), & 
-! 								bintop(2), 		     & 
+! 								bintop(2), 			 & 
 ! 						ri1(3)+(ri12(3)/ri12(2))*(bintop(2)-ri1(2))  	/)
 ! 				Pyb=(/	ri1(1)+(ri12(1)/ri12(2))*(binbot(2)-ri1(2)), &
-! 								binbot(2), 		     & 
+! 								binbot(2), 			 & 
 ! 						ri1(3)+(ri12(3)/ri12(2))*(binbot(2)-ri1(2))  	/)
 ! 				Pzt=(/	ri1(1)+(ri12(1)/ri12(3))*(bintop(3)-ri1(3)), & 
 ! 						ri1(2)+(ri12(2)/ri12(3))*(bintop(3)-ri1(3)), &
@@ -1402,42 +1604,42 @@ contains
 ! 								binbot(3) 			/)
 
 ! 				onfacexb =0.5d0*(sign(1.d0,binbot(1) - ri2(1)) 	 & 
-! 						       - sign(1.d0,binbot(1) - ri1(1)))* &
+! 							   - sign(1.d0,binbot(1) - ri1(1)))* &
 ! 								(heaviside(bintop(2) - Pxb(2)) 	 &
-! 						       - heaviside(binbot(2) - Pxb(2)))* &
+! 							   - heaviside(binbot(2) - Pxb(2)))* &
 ! 								(heaviside(bintop(3) - Pxb(3)) 	 &
-! 						       - heaviside(binbot(3) - Pxb(3)))
+! 							   - heaviside(binbot(3) - Pxb(3)))
 ! 				onfaceyb =0.5d0*(sign(1.d0,binbot(2) - ri2(2))   &
-! 						       - sign(1.d0,binbot(2) - ri1(2)))* &
+! 							   - sign(1.d0,binbot(2) - ri1(2)))* &
 ! 								(heaviside(bintop(1) - Pyb(1))   &
-! 						       - heaviside(binbot(1) - Pyb(1)))* &
+! 							   - heaviside(binbot(1) - Pyb(1)))* &
 ! 								(heaviside(bintop(3) - Pyb(3))   &
-! 						       - heaviside(binbot(3) - Pyb(3)))
+! 							   - heaviside(binbot(3) - Pyb(3)))
 ! 				onfacezb =0.5d0*(sign(1.d0,binbot(3) - ri2(3))   &
-! 						       - sign(1.d0,binbot(3) - ri1(3)))* &
+! 							   - sign(1.d0,binbot(3) - ri1(3)))* &
 ! 								(heaviside(bintop(1) - Pzb(1))   &
-! 						       - heaviside(binbot(1) - Pzb(1)))* &
+! 							   - heaviside(binbot(1) - Pzb(1)))* &
 ! 								(heaviside(bintop(2) - Pzb(2))   &
-! 						       - heaviside(binbot(2) - Pzb(2)))
+! 							   - heaviside(binbot(2) - Pzb(2)))
 
 ! 				onfacext =0.5d0*(sign(1.d0,bintop(1) - ri2(1))   &
-! 						       - sign(1.d0,bintop(1) - ri1(1)))* &
+! 							   - sign(1.d0,bintop(1) - ri1(1)))* &
 ! 								(heaviside(bintop(2) - Pxt(2))   &
-! 						       - heaviside(binbot(2) - Pxt(2)))* &
-! 			            		(heaviside(bintop(3) - Pxt(3))   &
-! 						       - heaviside(binbot(3) - Pxt(3)))
+! 							   - heaviside(binbot(2) - Pxt(2)))* &
+! 								(heaviside(bintop(3) - Pxt(3))   &
+! 							   - heaviside(binbot(3) - Pxt(3)))
 ! 				onfaceyt =0.5d0*(sign(1.d0,bintop(2) - ri2(2))   &
-! 						       - sign(1.d0,bintop(2) - ri1(2)))* &
+! 							   - sign(1.d0,bintop(2) - ri1(2)))* &
 ! 								(heaviside(bintop(1) - Pyt(1))   &
-! 						       - heaviside(binbot(1) - Pyt(1)))* &
+! 							   - heaviside(binbot(1) - Pyt(1)))* &
 ! 								(heaviside(bintop(3) - Pyt(3))   &
-! 					    	   - heaviside(binbot(3) - Pyt(3)))
+! 							   - heaviside(binbot(3) - Pyt(3)))
 ! 				onfacezt =0.5d0*(sign(1.d0,bintop(3) - ri2(3))   &
-! 						       - sign(1.d0,bintop(3) - ri1(3)))* &
+! 							   - sign(1.d0,bintop(3) - ri1(3)))* &
 ! 								(heaviside(bintop(1) - Pzt(1))   &
-! 						       - heaviside(binbot(1) - Pzt(1)))* &
+! 							   - heaviside(binbot(1) - Pzt(1)))* &
 ! 								(heaviside(bintop(2) - Pzt(2))   &
-! 						       - heaviside(binbot(2) - Pzt(2)))
+! 							   - heaviside(binbot(2) - Pzt(2)))
 
 ! 				fsurface(:) = 0.d0
 ! 				fsurface(:) = fsurface(:) - 0.5d0*velvect(:)*dble(onfacexb - onfacext)
@@ -1462,14 +1664,14 @@ contains
 ! 			
 ! 			!Add surface force to current bin
 ! 			!Fsurface(:) = sum(Fluxbins(modulo(icell,3)+1, 	& 
-! 			!	     		   modulo(jcell,3)+1, 	& 
-! 			!	    		   modulo(kcell,3)+1,:,:),2)
+! 			!		 		   modulo(jcell,3)+1, 	& 
+! 			!				   modulo(kcell,3)+1,:,:),2)
 
 ! 			!Take flux from central bin only
 ! 			if (present(Flux))then
 ! 				Flux(:,:) = Flux(:,:) +  Fluxbins(modulo(icell,3)+1, 	& 
-! 				     		     	 			  modulo(jcell,3)+1, 	& 
-! 				    		     	 	          modulo(kcell,3)+1,:,:)
+! 					 			 	 			  modulo(jcell,3)+1, 	& 
+! 								 	 			  modulo(kcell,3)+1,:,:)
 ! 			endif
 
 
@@ -1509,7 +1711,7 @@ contains
 ! 	oldi => cell%head(icell,jcell,kcell)%point 	!Set old to first molecule in list
 
 ! 	!Calculate averages for bin
-! 	do n = 1, cellnp    ! Loop over all particles
+! 	do n = 1, cellnp	! Loop over all particles
 
 ! 		molnoi = oldi%molno	!Number of molecule
 ! 		ri = r(:,molnoi)	!Retrieve ri
@@ -1522,20 +1724,20 @@ contains
 ! 					  jcell+jcellshift, & 
 ! 					  kcell+kcellshift)%point
 ! 			adjacentcellnp = cell%cellnp(icell+icellshift, & 
-! 						     jcell+jcellshift, & 
-! 						     kcell+kcellshift)
+! 							 jcell+jcellshift, & 
+! 							 kcell+kcellshift)
 
-! 			do j = 1,adjacentcellnp          !Step through all j for each i
+! 			do j = 1,adjacentcellnp		  !Step through all j for each i
 
 ! 				molnoj = oldj%molno 	 !Number of molecule
-! 				rj = r(molnoj,:)         !Retrieve rj
+! 				rj = r(molnoj,:)		 !Retrieve rj
 
 ! 				currentj => oldj
-! 				oldj => currentj%next    !Use pointer in datatype to obtain next item in list
+! 				oldj => currentj%next	!Use pointer in datatype to obtain next item in list
 
 ! 				if(molnoi==molnoj) cycle !Check to prevent interaction with self
 
-! 				rij2=0                   !Set rij^2 to zero
+! 				rij2=0				   !Set rij^2 to zero
 ! 				rij(:) = ri(:) - rj(:)   !Evaluate distance between particle i and j
 
 ! 				!rij2 = dot_product(rij)
@@ -1545,7 +1747,7 @@ contains
 
 ! 				if (rij2 < rcutoff2) then
 
-! 					invrij2 = 1.d0/rij2                 !Invert value
+! 					invrij2 = 1.d0/rij2				 !Invert value
 
 ! 					!Linear magnitude of acceleration for each molecule
 ! 					accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
@@ -1687,7 +1889,7 @@ contains
 ! 							- sign(1.d0,bintop(1)- ri(1)))* &
 ! 							 (heaviside(bintop(2)-Pxt(2))	&
 ! 							- heaviside(binbot(2)-Pxt(2)))* &
-! 			            	 (heaviside(bintop(3)-Pxt(3))	&
+! 							 (heaviside(bintop(3)-Pxt(3))	&
 ! 							- heaviside(binbot(3)-Pxt(3)))
 ! 				onfaceyt =	 (sign(1.d0,bintop(2)- rj(2))	&
 ! 							- sign(1.d0,bintop(2)- ri(2)))* &
@@ -1765,17 +1967,17 @@ contains
 ! 		!Take flux from central bin only
 ! 		if (present(Traction))then
 ! 			Traction(:,:) = Traction(:,:) +  Tractionbins(modulo(icell,3)+1, 	& 
-! 							     		     			  modulo(jcell,3)+1, 	& 
-! 			    						     			  modulo(kcell,3)+1,:,:)
+! 								 			 			  modulo(jcell,3)+1, 	& 
+! 											 			  modulo(kcell,3)+1,:,:)
 
 
 ! 			if (icell .eq. 5 .and. kcell .eq. 3) then
 ! 				print'(3i8,4f10.5)',icell,jcell,kcell, Tractionbins(modulo(icell,3)+1, 	& 
-! 							     		     			  modulo(jcell,3)+1, 	& 
-! 			    						     			  modulo(kcell,3)+1,1,2),& 
+! 								 			 			  modulo(jcell,3)+1, 	& 
+! 											 			  modulo(kcell,3)+1,1,2),& 
 ! 											 Tractionbins(modulo(icell,3)+1, 	& 
-! 							     		     			  modulo(jcell,3)+1, 	& 
-! 			    						     			  modulo(kcell,3)+1,1,5) & 
+! 								 			 			  modulo(jcell,3)+1, 	& 
+! 											 			  modulo(kcell,3)+1,1,5) & 
 ! 						, Pxyface(icell,jcell,kcell,1,2),Pxyface(icell,jcell,kcell,1,5)
 ! 			endif
 ! 		endif
