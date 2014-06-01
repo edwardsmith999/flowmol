@@ -373,21 +373,22 @@ class MD_dField(MDField):
         self.plotfreq = self.mField.plotfreq
         self.axislabels = self.mField.axislabels
         self.labels = self.mField.labels
-    def read(self, startrec, endrec,**kwargs):
+
+    def read(self, startrec, endrec, **kwargs):
 
         binvolumes = self.mField.Raw.get_binvolumes()
         binvolumes = np.expand_dims(binvolumes,axis=-1)
         Nmass_ave = self.mField.Raw.header.Nmass_ave
 
         # Read 4D time series from startrec to endrec
-        mdata = self.mField.read(startrec, endrec,**kwargs)
+        mdata = self.mField.read(startrec, endrec, **kwargs)
         mdata = np.divide(mdata,float(Nmass_ave))
 
         density = np.divide(mdata,binvolumes)
         
         return density
 
-    def averaged_data(self,startrec,endrec,avgaxes=()):
+    def averaged_data(self,startrec,endrec,avgaxes=(), **kwargs):
 
         nrecs = endrec - startrec + 1
         binvolumes = self.mField.Raw.get_binvolumes()
@@ -395,7 +396,7 @@ class MD_dField(MDField):
         Nmass_ave = self.mField.Raw.header.Nmass_ave
 
         # Read 4D time series from startrec to endrec
-        mdata = self.mField.read(startrec, endrec,**kwargs)
+        mdata = self.mField.read(startrec, endrec, **kwargs)
         mdata = np.divide(mdata,float(Nmass_ave))
 
         if (avgaxes != ()):

@@ -2,4 +2,3 @@
 from mdfields import *
 from cfdfields import *
 from cplfields import *
-import visualiser 

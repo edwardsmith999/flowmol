@@ -49,6 +49,8 @@ class MD_PostProc:
         if 'mbins' in (self.fieldfiles1):
             m1 = MD_mField(self.resultsdir, **kwargs)
             self.plotlist.update({'mbins':m1})
+            d1 = MD_dField(self.resultsdir, **kwargs)
+            self.plotlist.update({'Density':d1})
 
         #Momentum
         if 'vbins' in (self.fieldfiles1):

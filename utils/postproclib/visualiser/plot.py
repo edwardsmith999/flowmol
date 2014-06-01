@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib
 matplotlib.use('WXAgg')
 import matplotlib.backends.backend_wxagg as wxaggb
+import matplotlib.backends.backend_wx as wxb
 import matplotlib.pyplot as plt
 
 class PyplotPanel(wx.Panel):
@@ -14,6 +15,11 @@ class PyplotPanel(wx.Panel):
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(self.canvas, 1, wx.LEFT | wx.TOP | wx.GROW)
         self.Bind(wx.EVT_SIZE, self.sizeHandler)
+
+        #self.toolbar = wxb.NavigationToolbar2Wx(self.canvas) 
+        #self.toolbar.Realize()
+        #self.toolbar.update()
+
         self.cmap = matplotlib.cm.RdYlBu_r
 
     def sizeHandler(self, event):
