@@ -185,6 +185,9 @@ subroutine set_parameters_allocate
 	allocate(potenergymol(np+extralloc))
 	allocate(potenergymol_mdt(np+extralloc))
 	allocate(potenergymol_LJ(np+extralloc))
+	allocate(Fivi(np+extralloc))
+	allocate(molenergy(np+extralloc))
+	allocate(molenergy_old(np+extralloc))
 	allocate(virialmol(np+extralloc))
 
 	!Check if rtrue required
@@ -1010,10 +1013,10 @@ subroutine set_parameters_outputs
 			volume_momentum = 0.d0
 			volume_force 	= 0.d0
 			if (CV_debug) then
-				call CVcheck_mass%initialise(nbinso)   ! initialize CVcheck
-				call CVcheck_momentum%initialise(nbinso)   ! initialize CVcheck
-				call CV_constraint%initialise(nbinso)   ! initialize CV constraint object
-				call CVcheck_energy%initialise(nbinso)   ! initialize CVcheck
+				call CVcheck_mass%initialise(nbins,nhb,domain,delta_t,Nmflux_ave)   ! initialize CVcheck
+				call CVcheck_momentum%initialise(nbins,nhb,domain,delta_t,Nvflux_ave)   ! initialize CVcheck
+				call CV_constraint%initialise(nbins,nhb,domain,delta_t,Nvflux_ave)   ! initialize CV constraint object
+				call CVcheck_energy%initialise(nbins,nhb,domain,delta_t,Neflux_ave)   ! initialize CVcheck
 				!call CV_sphere_mass%initialise((/1,1,1/))	
 				!call CV_sphere_momentum%initialise_sphere((/1,1,1/),collect_spherical=.false.)	
 			endif
@@ -1031,7 +1034,7 @@ subroutine set_parameters_outputs
 				volume_mass = 0
 				mass_flux   = 0
 				if (CV_debug) then
-					call CVcheck_mass%initialise(nbinso)   ! initialize CVcheck
+					call CVcheck_mass%initialise(nbins,nhb,domain,delta_t,Nmflux_ave)   ! initialize CVcheck
 				endif
 			endif
 	end select
