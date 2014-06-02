@@ -2158,13 +2158,13 @@ subroutine cumulative_mass_flux
 				      + nint(dble(onfacezb)*abs(crossface(jxyz)))
 				mass_flux(cbin(1),cbin(2),cbin(3),4) = & 
 					mass_flux(cbin(1),cbin(2),cbin(3),4) &
-				      - nint(dble(onfacext)*abs(crossface(jxyz)))
+				      + nint(dble(onfacext)*abs(crossface(jxyz)))
 				mass_flux(cbin(1),cbin(2),cbin(3),5) = & 
 					mass_flux(cbin(1),cbin(2),cbin(3),5) &
-				      - nint(dble(onfaceyt)*abs(crossface(jxyz)))
+				      + nint(dble(onfaceyt)*abs(crossface(jxyz)))
 				mass_flux(cbin(1),cbin(2),cbin(3),6) = & 
 					mass_flux(cbin(1),cbin(2),cbin(3),6) &
-				      - nint(dble(onfacezt)*abs(crossface(jxyz)))
+				      + nint(dble(onfacezt)*abs(crossface(jxyz)))
 				      
 
 				!if (onfacexb .ne. 0) print*, n, i,j,k,ibin1,ibin2,bintop,halfdomain
@@ -2770,13 +2770,13 @@ subroutine cumulative_energy_flux(r_,v_,energy_flux_)
 					!Add Energy flux over face
 					energy_flux_(cbin(1),cbin(2),cbin(3),1) = & 
 						energy_flux_(cbin(1),cbin(2),cbin(3),1) & 
-					      - energy*dble(onfacexb)*abs(crossface(jxyz))
+					      + energy*dble(onfacexb)*abs(crossface(jxyz))
 					energy_flux_(cbin(1),cbin(2),cbin(3),2) = & 
 						energy_flux_(cbin(1),cbin(2),cbin(3),2) & 
-					      - energy*dble(onfaceyb)*abs(crossface(jxyz))
+					      + energy*dble(onfaceyb)*abs(crossface(jxyz))
 					energy_flux_(cbin(1),cbin(2),cbin(3),3) = & 
 						energy_flux_(cbin(1),cbin(2),cbin(3),3) &
-					      - energy*dble(onfacezb)*abs(crossface(jxyz))
+					      + energy*dble(onfacezb)*abs(crossface(jxyz))
 					energy_flux_(cbin(1),cbin(2),cbin(3),4) = & 
 						energy_flux_(cbin(1),cbin(2),cbin(3),4) &
 					      + energy*dble(onfacext)*abs(crossface(jxyz))
