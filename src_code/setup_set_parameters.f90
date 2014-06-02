@@ -185,9 +185,6 @@ subroutine set_parameters_allocate
 	allocate(potenergymol(np+extralloc))
 	allocate(potenergymol_mdt(np+extralloc))
 	allocate(potenergymol_LJ(np+extralloc))
-	allocate(Fivi(np+extralloc))
-	allocate(molenergy(np+extralloc))
-	allocate(molenergy_old(np+extralloc))
 	allocate(virialmol(np+extralloc))
 
 	!Check if rtrue required
