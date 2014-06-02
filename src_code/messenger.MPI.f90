@@ -1408,6 +1408,7 @@ end subroutine checksendbuild
 subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 	use physical_constants_MD
 	use messenger
+    use boundary_MD
 	use polymer_info_MD
 	use arrays_MD
 	use linked_list

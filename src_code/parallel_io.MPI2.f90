@@ -1183,6 +1183,31 @@ subroutine setup_restart_microstate
 
 end subroutine setup_restart_microstate
 
+
+subroutine load_bforce_pdf
+    use boundary_MD
+    use librarymod, only: get_new_fileunit
+    implicit none
+
+    integer :: nperbin, f
+    real(kind(0.d0)) :: histbinsize
+
+    f = get_new_fileunit()
+    open(unit=f, file='bforce.input',action='read',form='unformatted',&
+         access='stream')
+    read(f) bforce_pdf_nsubcells
+    read(f) bforce_pdf_nbins
+    read(f) bforce_pdf_min
+    read(f) bforce_pdf_max
+    read(f) nperbin 
+    allocate(bforce_pdf_input_data(bforce_pdf_nsubcells, bforce_pdf_nbins, nperbin))
+    read(f) bforce_pdf_input_data 
+    close(f,status='keep')
+
+    bforce_pdf_binsize = (bforce_pdf_max - bforce_pdf_min)/real(bforce_pdf_nbins)
+
+end subroutine load_bforce_pdf
+
 !=============================================================================
 ! Import cylinders to be filled 
 subroutine parallel_io_cyl_footer(infile)
@@ -2239,7 +2264,6 @@ contains
 ! Record mass in a slice through the domain
 subroutine mass_slice_io(ixyz)
 	use module_parallel_io
-	use calculated_properties_MD
 	use messenger
 	use interfaces
 	implicit none
@@ -2291,7 +2315,6 @@ end subroutine mass_slice_io
 ! Record mass in 3D bins throughout domain
 subroutine mass_bin_io(CV_mass_out,io_type)
 	use module_parallel_io
-	use calculated_properties_MD
 	use messenger_bin_handler, only : swaphalos
 	!use CV_objects, only : CVcheck_mass, CV_debug
 	implicit none
@@ -2344,7 +2367,6 @@ end subroutine mass_bin_io
 ! Record velocity in a slice through the domain
 subroutine velocity_slice_io(ixyz)
 	use module_parallel_io
-	use calculated_properties_MD
 	use messenger
 	implicit none
 
@@ -2424,7 +2446,6 @@ end subroutine velocity_slice_io
 
 subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 	use module_parallel_io
-	use calculated_properties_MD
 	use CV_objects, only : CVcheck_momentum,CV_debug
 	use messenger_bin_handler, only : swaphalos
 	implicit none
@@ -2477,12 +2498,10 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 end subroutine velocity_bin_io
 
 
-
 !---------------------------------------------------------------------------------
 ! Record velocity PDF in a slice through the domain
 subroutine velocity_PDF_slice_io(ixyz,pfdx,pfdy,pfdz)
 	use module_parallel_io
-	use calculated_properties_MD
 	use messenger
 	implicit none
 
@@ -2880,7 +2899,6 @@ end subroutine VA_stress_cpol_io
 
 subroutine temperature_slice_io(ixyz)
 use module_parallel_io
-use calculated_properties_MD
 implicit none
 
 	integer		:: ixyz
@@ -2898,7 +2916,6 @@ end subroutine temperature_slice_io
 
 subroutine temperature_bin_io(CV_mass_out,CV_temperature_out,io_type)
 	use module_parallel_io
-	use calculated_properties_MD
 	use messenger_bin_handler, only : swaphalos
 	implicit none
 
@@ -2948,7 +2965,6 @@ end subroutine temperature_bin_io
 
 subroutine energy_bin_io(CV_energy_out,io_type)
 	use module_parallel_io
-	use calculated_properties_MD
 	use messenger_bin_handler, only : swaphalos
 	use CV_objects, only : CVcheck_energy
 	implicit none
@@ -3001,7 +3017,6 @@ end subroutine energy_bin_io
 
 subroutine virial_stress_io
 	use module_parallel_io
-	use calculated_properties_MD
 	implicit none
 	integer		:: m, length
 
@@ -3022,7 +3037,6 @@ end subroutine virial_stress_io
 
 subroutine VA_stress_io
 	use module_parallel_io
-	use calculated_properties_MD
 	implicit none
 
 	integer											:: ixyz, jxyz, m, nresults
@@ -3104,6 +3118,67 @@ end subroutine VA_stress_io
 
 end module field_io
 
+module statistics_io
+
+contains
+
+    subroutine bforce_pdf_write
+        !use mpi
+        use boundary_MD
+        use computational_constants_MD, only: separate_outfiles, irank, iroot,&
+                                              iter, initialstep, tplot, &
+                                              prefix_dir
+        use librarymod, only: get_new_fileunit, get_Timestep_FileName
+        implicit none
+
+        integer :: n, ixyz
+        integer :: funit, record, length
+
+        integer, dimension(:,:,:), allocatable :: array_out
+        integer, dimension(:), allocatable :: buf
+        character(30) :: outfile, outfile_t
+
+        allocate(array_out(bforce_pdf_nsubcells,bforce_pdf_nbins,3))
+
+        do n = 1, bforce_pdf_nsubcells  
+            do ixyz = 1,3
+                array_out(n,:,ixyz) = bforce_pdf(ixyz,n)%hist
+            end do
+        end do
+
+        outfile = 'bforce_pdf'
+        record = (iter-initialstep+1)/(tplot*bforce_pdf_Nave)
+
+        if (separate_outfiles) then
+            call get_Timestep_FileName(record-1,outfile,outfile_t)
+            record = 1
+        else
+            outfile_t = outfile 
+        endif
+
+        ! Global reduce
+        allocate(buf(bforce_pdf_nsubcells*bforce_pdf_nbins*3))
+        buf = reshape(array_out, (/bforce_pdf_nsubcells*bforce_pdf_nbins*3/))
+        call globalSumInt(buf) 
+        array_out = reshape(buf,(/bforce_pdf_nsubcells,bforce_pdf_nbins,3/))
+
+        ! PDFs are a global quantity, so only the root processor writes
+        if (irank.eq.iroot) then
+        
+            funit = get_new_fileunit()
+            inquire(iolength=length) array_out
+            open(unit=funit,file=trim(prefix_dir)//'results/'//outfile_t,&
+                 form='unformatted',access='direct',recl=length)
+            write(funit,rec=record) array_out
+            close(funit,status='keep') 
+
+        end if
+
+        deallocate(array_out)
+
+    end subroutine bforce_pdf_write
+
+end module statistics_io
 
 !=================================================================================
 ! CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV
@@ -3116,7 +3191,6 @@ end module field_io
 
 subroutine mass_flux_io
 	use module_parallel_io
-	use calculated_properties_MD
 	use CV_objects, only : CVcheck_mass, CV_debug
 	use messenger_bin_handler, only : swaphalos
 	implicit none
@@ -3158,7 +3232,6 @@ end subroutine mass_flux_io
 
 subroutine momentum_flux_io
 	use module_parallel_io
-	use calculated_properties_MD
 	use CV_objects, only : CVcheck_momentum, CV_debug
 	use messenger_bin_handler, only : swaphalos
 	implicit none
@@ -3221,7 +3294,6 @@ end subroutine momentum_flux_io
 
 subroutine MOP_stress_io(ixyz_in)
 	use module_parallel_io
-	use calculated_properties_MD
 	use messenger
 	use field_io, only : mass_slice_io
 	implicit none
@@ -3310,7 +3382,6 @@ end subroutine MOP_stress_io
 
 subroutine surface_stress_io
 	use module_parallel_io
-	use calculated_properties_MD
 	use CV_objects, only : CVcheck_momentum,CV_debug
 	use messenger_bin_handler, only : swaphalos
 	implicit none
@@ -3368,7 +3439,6 @@ end subroutine surface_stress_io
 
 subroutine external_force_io
 	use module_parallel_io
-	use calculated_properties_MD
 	use CV_objects, only : CVcheck_momentum,CV_debug
 	use messenger_bin_handler, only : swaphalos
 	implicit none
@@ -3414,7 +3484,6 @@ end subroutine external_force_io
 
 subroutine energy_flux_io
 	use module_parallel_io
-	use calculated_properties_MD
 	use messenger_bin_handler, only : swaphalos
 	use CV_objects, only : CVcheck_energy
 	implicit none
@@ -3462,7 +3531,6 @@ end subroutine energy_flux_io
 
 subroutine surface_power_io
 	use module_parallel_io
-	use calculated_properties_MD
 	use messenger_bin_handler, only : swaphalos
 	use CV_objects, only : CVcheck_energy
 	implicit none
@@ -3519,7 +3587,6 @@ end subroutine surface_power_io
 
 subroutine external_forcev_io
 	use module_parallel_io
-	use calculated_properties_MD
 	use CV_objects, only : CVcheck_energy
 	use messenger_bin_handler, only : swaphalos
 	implicit none
@@ -3565,7 +3632,6 @@ end subroutine external_forcev_io
 
 subroutine MOP_energy_io(ixyz)
 	use module_parallel_io
-	use calculated_properties_MD
 	implicit none
 
 	integer		:: ixyz
@@ -3583,7 +3649,6 @@ end subroutine MOP_energy_io
 !-----------------------------------------------------------------------------
 subroutine macroscopic_properties_header
 use module_parallel_io
-use calculated_properties_MD
 implicit none
 
 	if (irank .eq. iroot) then	
@@ -3605,7 +3670,6 @@ end subroutine macroscopic_properties_header
 
 subroutine macroscopic_properties_record
 use module_parallel_io
-use calculated_properties_MD
 implicit none
 
 	if (irank .eq. iroot) then
@@ -3630,7 +3694,6 @@ end subroutine macroscopic_properties_record
 subroutine viscosity_io
 	use module_parallel_io
 	use physical_constants_MD
-	use calculated_properties_MD
 	use librarymod, only : integrate_trap
 	implicit none
 

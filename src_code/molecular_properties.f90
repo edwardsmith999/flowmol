@@ -945,9 +945,10 @@ end module particle_insertion
 
 subroutine reinsert_molecules
 	use particle_insertion
-	use computational_constants_MD, only: halfdomain, open_boundary, nproc, VOID, & 
+	use computational_constants_MD, only: halfdomain, nproc, VOID, & 
 										  irank,iroot,iter,iblock,jblock,kblock,npx,npy,npz
 	use physical_constants_MD, only: np, tethereddistbottom, insertnp, rcutoff2
+    use boundary_MD, only: open_boundary
 	use arrays_MD, only: r, v
 	use mod_globalGatherv, only : GlobalGatherv, planeGatherv
 	use messenger, only : globalise,  plane_nproc, planerank

@@ -66,7 +66,8 @@ module module_record
 	use arrays_MD
 	use calculated_properties_MD
 	use polymer_info_MD
-	use module_set_parameters, only : velPDF, velPDFMB, velPDF_array
+    use boundary_MD, only: bforce_pdf_measure
+	!use module_set_parameters, only : velPDF, velPDFMB, velPDF_array
 
 	double precision :: vel
 
@@ -195,6 +196,9 @@ subroutine simulation_record
 
 	!Obtain and record velocity distributions
 	if (vPDF_flag .ne. 0) call velocity_PDF_averaging(vPDF_flag)
+
+	!Record boundary force PDFs
+	if (bforce_pdf_measure .ne. 0) call bforce_pdf_stats
 
 	!Obtain and record temperature
 	if (temperature_outflag .ne. 0)	call temperature_averaging(temperature_outflag)
@@ -437,6 +441,7 @@ subroutine velocity_PDF_averaging(ixyz)
 	use module_record
 	use librarymod, only : Maxwell_Boltzmann_vel,Maxwell_Boltzmann_speed
     use field_io, only : velocity_PDF_slice_io
+	use module_set_parameters, only : velPDF, velPDFMB, velPDF_array
 	implicit none
 
     integer,intent(in)      :: ixyz
@@ -1282,6 +1287,23 @@ end subroutine cumulative_mass
 !Calculate averaged velocity components of each bin or slice with 2D slice in 
 !ixyz = 1,2,3 or in 3D bins when ixyz =4
 !-----------------------------------------------------------------------------------
+
+subroutine bforce_pdf_stats
+    use boundary_MD
+    use statistics_io, only: bforce_pdf_write
+    implicit none
+
+	integer, save		:: average_count=-1
+
+    average_count = average_count + 1
+    call collect_bforce_pdf_data
+
+    if (average_count .eq. bforce_pdf_Nave) then
+        average_count = 0
+        call bforce_pdf_write
+    end if 
+
+end subroutine bforce_pdf_stats
 
 subroutine velocity_averaging(ixyz)
 	use module_record

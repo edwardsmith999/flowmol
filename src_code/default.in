@@ -364,7 +364,7 @@ THERMSTATTOP
 #    1 = O'Connell & Thompson     1995  (Phys. Rev. E 52, 5792)
 #    2 = Nie, Chen, E & Robbins   2003  (JFM 500 pp. 55-64)
 #    3 = Flekkøy, Wagner & Feder  2000  (Europhys. Lett. 52 3, p271)
-#    4 = RDF? 
+#    4 = boundary force pdf input file ./bforce.input 
 #
 # bforce_dxyz defines the distance from each edge of the domain beyond 
 # which any particle will no longer feel the effect of the boundary 
@@ -385,6 +385,27 @@ BFORCE
 0.0
 0.0
 
+
+#########################################################################
+# Measure boundary force as a set of probability density functions
+#
+#   - Flag
+#       0 = off
+#       1 = on
+#   - Number of sub-cells to split each computational cell into, each
+#     representing a distance from the boundary plane  (integer)
+#   - Number of histogram bins (integer)
+#   - Minimum force for pdf (real)
+#   - Maximum force for pdf (real)
+#   - Number of samples to take before writing to file
+# -----------------------------------------------------------------------
+MEASURE_BFORCE_PDF
+0
+10
+40
+-10.0
+10.0
+10
 
 #########################################################################
 # Open boundary flags, formatted:
