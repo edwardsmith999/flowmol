@@ -52,15 +52,10 @@ class MD_RawData:
             cpol_bins  -  boolean flag indicating cylindrical polar bins
         """
 
+        if (fdir[-1] != '/'): fdir += '/' 
         self.fdir = fdir
         self.fname = fname
-        self.cpol_bins = cpol_bins
-        self.header = HeaderData(open(fdir+'simulation_header','r'))
-        self.dtype = dtype
-        self.nperbin = nperbin
-        self.nbins, self.grid = self.get_bintopology()
-        self.maxrec = self.get_maxrec()
-        #self.plotfreq = self.get_plotfreq() #Better to define in each instance
+
         if (glob.glob(fdir+fname)):
             self.separate_outfiles = False
         elif (glob.glob(fdir+fname+'.*')):
@@ -68,6 +63,14 @@ class MD_RawData:
         else:
             print('Neither ' + fname + ' nor ' + fname + '.* exist.')
             quit()
+
+        self.cpol_bins = cpol_bins
+        self.header = HeaderData(open(fdir+'simulation_header','r'))
+        self.dtype = dtype
+        self.nperbin = nperbin
+        self.nbins, self.grid = self.get_bintopology()
+        self.maxrec = self.get_maxrec()
+        #self.plotfreq = self.get_plotfreq() #Better to define in each instance
 
     def get_bintopology(self):
 

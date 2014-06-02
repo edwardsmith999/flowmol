@@ -115,15 +115,16 @@ end subroutine simulation_apply_local_force
 !Apply a force to prevent molecules from escaping the domain
 
 subroutine apply_boundary_force
-	use computational_constants_MD, only: bforce_flag, bforce_dxyz, &
+	use boundary_MD, only: bforce_flag, bforce_dxyz, &
 	                                      bforce_off, bforce_NCER, bforce_OT, &
-	                                      bforce_Flekkoy, bforce_rdf
+	                                      bforce_Flekkoy
 	use interfaces, only: error_abort
 	use computational_constants_MD, only: periodic
 #if USE_COUPLER
 	use md_coupler_socket, only: socket_get_constraint_info
 #endif
 	implicit none
+
 
 #if USE_COUPLER
 
@@ -209,28 +210,32 @@ subroutine simulation_apply_boundary_force(flags,dists)
 			cycle
 
 		end if
-
-		call apply_bforce(a(ixyz,n),xyz,thresh,hdom,flag)
+    
+		call apply_bforce(a(ixyz,n),ixyz,xyz,thresh,hdom,flag)
 
 	end do
 	end do
 
 end subroutine simulation_apply_boundary_force
 
-subroutine apply_bforce(a_in,xyz,thresh,hdom,flag)
-	use computational_constants_MD, only: bforce_NCER,bforce_off
+subroutine apply_bforce(a_in,ixyz,xyz,thresh,hdom,flag)
+	use boundary_MD, only: bforce_NCER, bforce_off, bforce_pdf_input, &
+                           bforce_pdf_nsubcells
 	use calculated_properties_MD,   only: pressure
+    use computational_constants_MD, only: cellsidelength 
 	use interfaces,                 only: error_abort
 	implicit none
 
-	real(kind(0.d0)), intent(inout) :: a_in	  !Accel of which to add bforce
+	real(kind(0.d0)), intent(inout) :: a_in	  !Accel to which add bforce
 	real(kind(0.d0)), intent(in) :: xyz       !Position, 1D
 	real(kind(0.d0)), intent(in) :: thresh    !Threshold for bforce, 1D
 	real(kind(0.d0)), intent(in) :: hdom      !Domain edge
+	integer, intent(in) :: ixyz               !Direction 
 	integer, intent(in) :: flag               !Type of bforce 
 
-	real(kind(0.d0)) :: numer,denom,ratio,P
+	real(kind(0.d0)) :: numer,denom,ratio,P,f,dxyz
 	character(128)   :: string
+    integer :: subcell
 
 	select case ( flag )
 	case ( bforce_off  )
@@ -246,12 +251,84 @@ subroutine apply_bforce(a_in,xyz,thresh,hdom,flag)
 
 		a_in  = a_in - ratio*P	
 
+    case ( bforce_pdf_input )
+
+        dxyz = abs(hdom - xyz)
+        subcell = ceiling(dxyz/cellsidelength(ixyz))*bforce_pdf_nsubcells
+        f = pull_from_bforce_pdf(subcell,ixyz)
+        !print*, 'subcell, ixyz, f', subcell, ixyz, f
+        a_in = a_in + f
+
 	case default
 
 		string="MD uncoupled boundary force only developed for NCER case"
 		call error_abort(string)
 
 	end select
+
+contains
+
+    function pull_from_bforce_pdf(subcell, component) result(F)
+        use boundary_MD, only: bforce_pdf_min, bforce_pdf_max, &
+                               bforce_pdf_nbins, bforce_pdf_input_data, &
+                               bforce_pdf_binsize
+        implicit none
+      
+        integer, intent(in) :: subcell, component
+
+        real(kind(0.d0)) :: randu, F, PF, maxP
+        integer :: bin , n 
+        logical :: success
+        
+        real(kind(0.d0)) :: s, p, nmax
+        integer :: maxattempts
+
+        ! Choose maxattempts so that 99% of pull calls will at
+        ! least hit the 0 bin if every other bin has probability 0
+        ! This is done assuming a geometric distribution:
+        !
+        !   P(Y=k) = p(1-p)^k, 
+        ! 
+        ! where Y is the number of trials (random numbers generated)
+        ! before success (is in the 0 bin, where prob of force there
+        ! is guaranteed to be non-zero). p here is 1/histbins (uniform
+        ! sampling). We seek nmax from
+        !
+        !   s = 0.99 = \sum_{k=0}^{n-1} p(1-p)^k 
+        !            = p(1-(1-p)^n)/(1-(1-p))
+        !            = 1 - (1-p)^n
+
+        s = 0.99d0
+        p = 1.d0/real(bforce_pdf_nbins,kind(0.d0))
+        nmax = log(1.d0 - s)/log(1.d0 - p)
+        maxattempts = ceiling(nmax)
+
+        ! Maximum value of the PDF
+        maxP = maxval(bforce_pdf_input_data(subcell, :, component))
+
+        success = .false.
+        do n=1,maxattempts
+
+            call random_number(randu)
+            F = bforce_pdf_min + randu*(bforce_pdf_max-bforce_pdf_min)
+            bin = ceiling((F-bforce_pdf_min)/bforce_pdf_binsize)
+
+            call random_number(randu) 
+            PF = randu * maxP
+
+            if ( PF .le. bforce_pdf_input_data(subcell, bin, component)) then
+                success = .true.
+                exit
+            endif
+
+        end do
+       
+        if (success .eqv. .false.) then
+            print*, 'Failed to pull bforce, applying 0.d0!'
+            F = 0.d0
+        end if 
+
+    end function pull_from_bforce_pdf 
 
 end subroutine apply_bforce
 

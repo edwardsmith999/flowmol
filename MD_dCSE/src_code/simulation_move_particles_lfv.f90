@@ -36,7 +36,9 @@ end module module_move_particles_lfv
 
 subroutine simulation_move_particles_lfv
 	use module_move_particles_lfv
-	use messenger, only : globalise
+    use messenger, only: globalise
+    use boundary_MD, only: specular_flag, specular_flat, specular_wall, &
+                           specular_radial
 	implicit none
 	
 	integer :: n

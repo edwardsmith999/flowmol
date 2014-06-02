@@ -103,13 +103,13 @@ module librarymod
 		module procedure PDF_constructor
 	end interface PDF
 
-	! Define a local library version of error_abort so library
-	! exist in isolation without the main code -- the downside
-	! is that MPI_ABORT is not used 
+    ! Define a local library version of error_abort so library
+    ! exist in isolation without the main code -- the downside
+    ! is that MPI_ABORT is not used 
 
-	interface error_abort
-		   module procedure error_abort_s, error_abort_si
-	end interface error_abort
+    interface error_abort
+          module procedure error_abort_s, error_abort_si
+    end interface error_abort
 	
 contains
 

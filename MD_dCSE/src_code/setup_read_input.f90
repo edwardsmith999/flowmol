@@ -14,6 +14,8 @@ module module_read_input
 	use polymer_info_MD
 	use concentric_cylinders
 	use shear_info_MD
+    use calculated_properties_MD
+    use boundary_MD
 
 end module module_read_input
 !----------------------------------------------------------------------------------
@@ -24,8 +26,7 @@ subroutine setup_read_input
 	implicit none
 
 	logical					:: found_in_input, error
-	integer 				:: ios, ixyz
-
+	integer 				:: ios, ixyz, n
 
 	! Open input file
 	open(1,file=input_file)
@@ -255,6 +256,7 @@ subroutine setup_read_input
 		fixed_rebuild_flag = 0			!Rebuild uses neighbourcell
 	endif
 
+
 	call locate(1,'RESCUE_SNAPSHOT_FREQ',.false.,found_in_input) 
 	if (found_in_input) then
 		read(1,*) rescue_snapshot_freq 	!Rescue snapshot frequency in seconds
@@ -326,6 +328,16 @@ subroutine setup_read_input
 				bforce_flag(5:6) = 0
 			end if
 
+            if (any(bforce_flag.eq.bforce_pdf_input)) then
+                call load_bforce_pdf
+            end if
+            
+            do n=1,6
+                if (bforce_flag(n) .eq. bforce_pdf_input) then
+                    bforce_dxyz(n) = rcutoff
+                end if
+            end do
+
 		end if
 
 	end if
@@ -340,6 +352,22 @@ subroutine setup_read_input
         read(1,*) open_boundary(5) 
         read(1,*) open_boundary(6)
     end if
+
+	call locate(1,'MEASURE_BFORCE_PDF',.false.,found_in_input) 
+	if (found_in_input) then
+        read(1,*) bforce_pdf_measure
+        if (bforce_pdf_measure .ne. 0 .and. any(open_boundary.ne.0)) then
+            call error_abort('Cannot measure the PDF of the boundary '//&
+            'force if any boundaries are open or forced. Aborting.') 
+        end if
+        read(1,*) bforce_pdf_nsubcells
+        read(1,*) bforce_pdf_nbins
+        read(1,*) bforce_pdf_min
+        read(1,*) bforce_pdf_max
+        read(1,*) bforce_pdf_Nave
+	else
+        bforce_pdf_measure = 0 
+	endif
 
     error = .false.
     do ixyz=1,3

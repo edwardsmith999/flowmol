@@ -32,7 +32,7 @@ subroutine setup_initial_record
     character(8)            :: the_date
     character(10)           :: the_time
     character(23)           :: file_names_t
-    character(23),parameter :: file_names(27) = &
+    character(23),parameter :: file_names(28) = &
                                 (/ "mslice      ", "mbins       ", "msnap   ",&
                                    "vslice      ", "vbins       ", "vsnap   ",&
                                    "pvirial     ", "pVA         ", "pVA_k   ",& 
@@ -41,7 +41,8 @@ subroutine setup_initial_record
                                    "esnap       ", "eflux       ", "eplane  ",&
                                    "esurface    ", "viscometrics", "rdf     ",&
                                    "rdf3d       ", "ssf         ", "Fext    ",&
-                                   "Tbins       ", "vmd_temp.dcd", "vPDF    " /) 
+                                   "Tbins       ", "vmd_temp.dcd", "vPDF    ",&
+                                   "bforce_pdf  "/) 
 
 
     !COUETTE FLOW ANALYTICAL SOLUTION
@@ -65,7 +66,7 @@ subroutine setup_initial_record
                 close(23,status='delete')
             endif
             !Remove indivdual files -- Keep looping until no further increase in number
-            do n = 1,9999999
+            do n = 0,9999999
                 call get_Timestep_FileName(n,file_names(i),file_names_t)
                 inquire(file=trim(prefix_dir)//'results/'//file_names_t,exist=file_exist)
                 if(file_exist) then
@@ -644,6 +645,7 @@ subroutine simulation_header
     use module_parallel_io
     use calculated_properties_MD
     use concentric_cylinders
+    use boundary_MD
     use librarymod, only : get_new_fileunit,get_version_number
     implicit none
 
@@ -808,6 +810,13 @@ subroutine simulation_header
     write(fileunit,*)  'Leapfrog or Velocity-Verlet ; integration_algorithm ;', integration_algorithm
     write(fileunit,*)  'Force calculation list methodd ; force_list ;', force_list
     write(fileunit,*)  'Slice or bins ; vPDF_flag ;', vPDF_flag
+    if (bforce_pdf_measure .ne. 0) then
+        write(fileunit,*)  'Subcells for bforce PDF profile; bforce_pdf_nsubcells ;',bforce_pdf_nsubcells
+        write(fileunit,*)  'Number of histogram bins for bforce PDF; bforce_pdf_nbins ;',bforce_pdf_nbins
+        write(fileunit,*)  'Number of samples for bforce PDF histogram; bforce_pdf_Nave ;',bforce_pdf_Nave
+        write(fileunit,*)  'Bforce PDF minimum value; bforce_pdf_min ;',bforce_pdf_min
+        write(fileunit,*)  'Bforce PDF maximum value; bforce_pdf_max ;',bforce_pdf_max
+    end if
     write(fileunit,*)  'Output frequency of PDF ; NvPDF_ave ;', NvPDF_ave
     write(fileunit,*)  'Number of PDF bins ; NPDFbins  ;',NPDFbins 
     write(fileunit,*)  'PDF range max_min ; PDFvlims  ;',PDFvlims

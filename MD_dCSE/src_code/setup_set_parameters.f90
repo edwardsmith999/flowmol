@@ -34,12 +34,12 @@ module module_set_parameters
 	type(PDF) 								    :: velPDF, velPDFMB
 	type(PDF),allocatable,dimension(:,:,:,:) 	:: velPDF_array
 
-
 end module module_set_parameters 
 !------------------------------------------------------------------------------
 
 subroutine setup_set_parameters
 	use module_set_parameters
+    use boundary_MD, only: bforce_flag
 	use interfaces, only : error_abort
 	use librarymod, only : build_hilbert
 	implicit none
@@ -308,6 +308,8 @@ end subroutine setup_shear_parameters
 
 subroutine set_parameters_global_domain
 	use module_set_parameters
+    use boundary_MD, only: specular_flag, specular_flat, specular_wall, &
+                           specular_radial
 	use interfaces, only: error_abort
 	implicit none
 
@@ -732,6 +734,8 @@ end subroutine setup_linklist
 subroutine set_parameters_outputs
 	use module_set_parameters
 	use interfaces
+    use boundary_MD, only: bforce_pdf_measure, bforce_pdf, bforce_pdf_nsubcells, &
+                           bforce_pdf_nbins, bforce_pdf_min, bforce_pdf_max
 	use CV_objects, only : CVcheck_mass,CVcheck_momentum, & 
 						   CV_constraint,CVcheck_energy, CV_debug!,CV_sphere_momentum,CV_sphere_mass
 	implicit none
@@ -783,6 +787,15 @@ subroutine set_parameters_outputs
 		velPDF   = PDF(NPDFbins,-PDFvlims,PDFvlims)
 		velPDFMB = PDF(NPDFbins,-PDFvlims,PDFvlims)
     end select
+
+    if (bforce_pdf_measure.ne.0) then
+        allocate(bforce_pdf(nd,bforce_pdf_nsubcells))
+        do j=1,bforce_pdf_nsubcells
+            do i = 1,nd
+                bforce_pdf(i,j) = PDF(bforce_pdf_nbins, bforce_pdf_min, bforce_pdf_max)
+            end do
+        end do
+    end if
 
 	!Allocate and define number of shells used for Radial distribution function (rdf)
 	if (rdf_outflag .eq. 1) then

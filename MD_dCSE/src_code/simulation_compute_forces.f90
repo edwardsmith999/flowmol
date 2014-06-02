@@ -581,7 +581,7 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 	!use CV_objects, only : CV_sphere_momentum
 	implicit none
 
-	integer                         :: j  !Define dummy index
+	integer                         :: j, ixyz 
 	integer							:: molnoi, molnoj
 	integer							:: noneighbrs
 	type(neighbrnode), pointer		:: old, current
@@ -661,7 +661,7 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 			current => old
 			old => current%next !Use pointer in datatype to obtain next item in list
 		enddo
-	
+
 	enddo
 
 	!Total used with other potentials (e.g. FENE)
@@ -1302,4 +1302,263 @@ subroutine simulation_compute_power(imin, imax, jmin, jmax, kmin, kmax)
 
 end subroutine simulation_compute_power
 
+subroutine collect_bforce_pdf_data
+    use boundary_MD
+    use physical_constants_MD, only: np, rcutoff2
+    use computational_constants_MD, only: cellsidelength, nh, halfdomain, ncells
+    use linked_list, only: neighbrnode, neighbour, cell, node
+    use librarymod, only: heaviside, normal_dist
+    use arrays_MD, only: r
+	implicit none
 
+	integer :: i, j, ixyz 
+	integer :: molnoi, molnoj
+	integer :: noneighbrs
+    integer :: ycell_i, ycell_j, ysubcell
+
+    integer :: icell, jcell, kcell, icellshift, jcellshift, kcellshift
+    integer :: cellnp, adjacentcellnp
+    type(node), pointer :: oldi, oldj, currenti, currentj
+
+    real(kind(0.d0)) :: ri(3), rj(3), rij(3), rij2, invrij2, accijmag
+    real(kind(0.d0)) :: bforce(3)
+    logical :: bflag
+	type(neighbrnode), pointer :: old, current
+
+	do kcell=2, ncells(3)+1
+	do jcell=2, ncells(2)+1
+	do icell=2, ncells(1)+1
+
+		cellnp = cell%cellnp(icell,jcell,kcell)
+		oldi => cell%head(icell,jcell,kcell)%point
+
+		do i = 1,cellnp					!Step through each particle in list 
+
+            bforce = 0.d0
+            bflag = .true.
+
+			molnoi = oldi%molno 	 	!Number of molecule
+			ri = r(:,molnoi)         	!Retrieve ri
+            
+			do kcellshift = -1,1
+			do jcellshift = -1,1
+			do icellshift = -1,1
+
+				oldj => cell%head(icell+icellshift,jcell+jcellshift,kcell+kcellshift)%point
+				adjacentcellnp = cell%cellnp(icell+icellshift,jcell+jcellshift,kcell+kcellshift)
+
+				do j = 1,adjacentcellnp			!Step through all j for each i
+
+					molnoj = oldj%molno			!Number of molecule
+					rj = r(:,molnoj)			!Retrieve rj
+
+					currentj => oldj
+					oldj => currentj%next		!Use pointer in datatype to obtain next item in list
+
+					if(molnoi==molnoj) cycle	!Check to prevent interaction with self
+
+					rij2=0						!Set rij^2 to zero
+					rij(:) = ri(:) - rj(:)		!Evaluate distance between particle i and j
+					rij2 = dot_product(rij,rij)	!Square of vector calculated
+
+					if (rij2 < rcutoff2) then
+
+						!Linear magnitude of acceleration for each molecule
+						invrij2 = 1.d0/rij2                 !Invert value
+						accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
+
+                        ycell_i = ceiling((r(2,molnoi)+halfdomain(2)) &
+                        /cellsidelength(2))!+nh !Add nh due to halo(s)
+                        ycell_j = ceiling((r(2,molnoj)+halfdomain(2)) &
+                        /cellsidelength(2))!+nh !Add nh due to halo(s)
+                       
+                        if (ycell_i .lt. ycell_j) then
+                            bflag = .true.
+                            bforce(1) = bforce(1) + accijmag*rij(1)
+                            bforce(2) = bforce(2) + accijmag*rij(2)
+                            bforce(3) = bforce(3) + accijmag*rij(3)
+                        end if 
+
+					endif
+
+				enddo
+
+			enddo
+			enddo
+			enddo
+
+            if (bflag) then
+                ysubcell = ceiling((real(bforce_pdf_nsubcells,kind(0.d0))*( &
+                           r(2,molnoi) + halfdomain(2)))/cellsidelength(2))
+                ysubcell = mod(ysubcell, bforce_pdf_nsubcells)
+                if (ysubcell .eq. 0) then
+                    ysubcell = bforce_pdf_nsubcells 
+                end if
+
+                do ixyz = 1,3
+                    call bforce_pdf(ixyz, ysubcell)%update( &
+                                    (/bforce(ixyz)/))
+                end do
+
+            end if
+
+			currenti => oldi
+			oldi => currenti%next !Use pointer in datatype to obtain next item in list
+
+		enddo
+
+	enddo
+	enddo
+	enddo
+
+!	do molnoi = 1, np
+!
+!        virtual_plane_force = 0.d0
+!
+!	    noneighbrs = neighbour%noneighbrs(molnoi)	!Determine number of elements in neighbourlist
+!		old => neighbour%head(molnoi)%point			!Set old to head of neighbour list
+!		ri(:) = r(:,molnoi)							!Retrieve ri
+!
+!		do j = 1,noneighbrs							!Step through all pairs of neighbours i and j
+!
+!			molnoj = old%molnoj			!Number of molecule j
+!			rj(:) = r(:,molnoj)			!Retrieve rj
+!			rij(:)= ri(:) - rj(:)   	!Evaluate distance between particle i and j
+!			rij2  = dot_product(rij,rij)!Square of vector calculated
+!
+!			if (rij2 .lt. rcutoff2) then
+!
+!				!Linear magnitude of acceleration for each molecule
+!				invrij2  = 1.d0/rij2                 !Invert value
+!				accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
+!
+!                ycell_i = ceiling((r(2,molnoi)+halfdomain(2)) &
+!                /cellsidelength(2))!+nh !Add nh due to halo(s)
+!                ycell_j = ceiling((r(2,molnoj)+halfdomain(2)) &
+!                /cellsidelength(2))!+nh !Add nh due to halo(s)
+!               
+!                if (ycell_i .lt. ycell_j) then
+!                !if (ycell_i .ne. ycell_j) then
+!                    virtual_plane_force(:) = virtual_plane_force(:) &
+!                      + accijmag*rij(:)*heaviside(ycell_j-ycell_i)!  & 
+!                      !- accijmag*rij(:)*heaviside(ycell_i-ycell_j)
+!                end if 
+!
+!			endif
+!
+!			current => old
+!			old => current%next !Use pointer in datatype to obtain next item in list
+!
+!		enddo
+!
+!        ysubcell = ceiling((real(bforce_pdf_nsubcells,kind(0.d0))*( &
+!                   r(2,molnoi) + halfdomain(2)))/cellsidelength(2))
+!        ysubcell = mod(ysubcell, bforce_pdf_nsubcells)
+!        if (ysubcell .eq. 0) then
+!            ysubcell = bforce_pdf_nsubcells 
+!        end if
+!    
+!        !print'(a,f12.5,a,f12.5,a,f12.5, a, f12.5, a, i8, a, i8)', &
+!        !'yL/2: ', halfdomain(2), &
+!        !'  r2 + yL/2: ', r(2,molnoi) + halfdomain(2), &
+!        !'  subcellratio1: ',(real(bforce_pdf_nsubcells,kind(0.d0))*(r(2,molnoi) + halfdomain(2)))/cellsidelength(2), &
+!        !'  cellratio1: ', (r(2,molnoi) + halfdomain(2))/cellsidelength(2), &
+!        !'  ycell_i ', ycell_i, &
+!        !'  ysubcell: ', ysubcell
+!
+!        do ixyz = 1,3
+!            !print*, virtual_plane_force
+!            call bforce_pdf(ixyz, ysubcell)%update( &
+!                            (/virtual_plane_force(ixyz)/))
+!            !call bforce_pdf(ixyz,ysubcell)%update((/normal_dist()/))
+!        end do
+!
+!	enddo
+
+	nullify(current)
+	nullify(old)
+
+end subroutine collect_bforce_pdf_data 
+
+!========================================================================
+!Cell list computations of potential and force on "would-be" molecules
+subroutine compute_force_and_potential_at(input_pos,Usum,f) 
+	use module_compute_forces
+	implicit none
+
+	real(kind(0.d0)), intent(in)  :: input_pos(3)
+	real(kind(0.d0)), intent(out) :: Usum, f(3)
+
+	integer :: i,j 
+	integer :: icell, jcell, kcell
+	integer :: icellshift, jcellshift, kcellshift
+	integer :: cellnp
+	integer :: molno
+	type(node), pointer :: current, temp
+	real(kind(0.d0)) :: fmol(3), Umol
+
+	! Init	
+	Usum = 0.d0
+	f = 0.d0 
+
+	!Find cell, adding nh for halo(s)
+    icell = ceiling((input_pos(1)+halfdomain(1))/cellsidelength(1)) + nh
+    jcell = ceiling((input_pos(2)+halfdomain(2))/cellsidelength(2)) + nh
+    kcell = ceiling((input_pos(3)+halfdomain(3))/cellsidelength(3)) + nh
+
+	!Return Usum and f zero if position is outside the domain
+	if ( icell .lt. 2 .or. icell .gt. ncells(1)+1 .or. &
+	     jcell .lt. 2 .or. jcell .gt. ncells(2)+1 .or. &
+	     kcell .lt. 2 .or. kcell .gt. ncells(3)+1      ) then
+		print*, 'Warning - attempted to calculated force and potential'
+		print*, 'outside of the domain. Returning Usum=f=0.'
+		return
+	end if
+
+	do kcellshift = -1,1
+	do jcellshift = -1,1
+	do icellshift = -1,1
+
+		current => cell%head  (icell+icellshift,jcell+jcellshift,kcell+kcellshift)%point
+		cellnp  =  cell%cellnp(icell+icellshift,jcell+jcellshift,kcell+kcellshift)
+    
+		do j = 1,cellnp	
+
+			rij(:) = input_pos(:) - r(:,current%molno)
+			rij2   = dot_product(rij,rij)
+
+            if (rij2 .eq. 0.d0) then
+                !print*, 'Warning, computing potential with zero separation...', current%molno
+			    current => current%next
+                cycle
+            end if
+
+            !Linear magnitude of acceleration for each molecule
+            invrij2 = 1.d0/rij2
+
+			if (rij2 < rcutoff2) then
+
+				!Linear magnitude of acceleration for each molecule
+				invrij2 = 1.d0/rij2
+
+				!Find molecule's contribution to f and Usum
+				fmol = 48.d0*( invrij2**7 - 0.5d0*invrij2**4 )*rij
+				Umol = 4.d0*( invrij2**6 - invrij2**3 )-potshift
+
+				!Add to totals
+				f = f + fmol
+				Usum = Usum + Umol
+
+			endif
+
+			current => current%next
+
+		enddo
+
+	enddo
+	enddo
+	enddo
+
+	nullify(current)      	!Nullify as no longer required
+
+end subroutine compute_force_and_potential_at 

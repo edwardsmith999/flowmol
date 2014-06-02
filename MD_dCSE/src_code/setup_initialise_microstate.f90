@@ -1176,6 +1176,7 @@ subroutine setup_initialise_fill_cylinders
     use module_initialise_microstate
     use concentric_cylinders
     use messenger
+    use boundary_MD, only: specular_flag, specular_flat, specular_wall
     use interfaces, only: error_abort
     implicit none
 
