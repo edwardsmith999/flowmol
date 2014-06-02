@@ -261,7 +261,7 @@ class VisualiserPanel(wx.Panel):
         self.pyplotp.redraw_contour(ax1, ax2, data[:,:,self.component], xlabel, ylabel)
         self.Refresh()
     def update_contour(self):
-        ax1, ax2, data = self.get_contour_data()[0:2]
+        ax1, ax2, data, naxes = self.get_contour_data()
         self.pyplotp.update_contour(data[:,:,self.component])
         self.Refresh()
 
