@@ -945,6 +945,7 @@ end subroutine setup_restart_inputs
 !------------------------------------------------------------------------------
 subroutine setup_restart_microstate
 	use module_parallel_io
+    use messenger_data_exchange, only : globalSum
 	implicit none
 
 	logical										 :: tag_off=.false.
@@ -985,7 +986,7 @@ subroutine setup_restart_microstate
 		if (potential_flag .eq. 1) then
 			bufsize(irank) = bufsize(irank) + nsdmi*procnp(irank)
 		end if
-		call globalSumIntVect(bufsize,nproc)
+		call globalSum(bufsize,nproc)
 
 		!Obtain displacement of each processor using procs' np from restart file
 		!with 6 position (3 wrapped, 3 unwrapped) and 3 velocity components
@@ -1325,6 +1326,7 @@ end subroutine parallel_io_import_cylinders
 subroutine parallel_io_final_state
 	use module_parallel_io
 	use polymer_info_MD
+    use messenger_data_exchange, only : globalSum
 	implicit none
 
 	integer				   							:: n, i
@@ -1403,8 +1405,8 @@ subroutine parallel_io_final_state
 	!--------------------------------------------------------------!
 
 	!Collect all bufsizes and proctethernps
-	call globalSumIntVect(bufsize,nproc)
-	call globalSumIntVect(proctethernp,nproc)
+	call globalSum(bufsize,nproc)
+	call globalSum(proctethernp,nproc)
 
 	! Allocate buffer to be written to final_state file
 	allocate(buf(bufsize(irank)))
@@ -1518,6 +1520,7 @@ end subroutine parallel_io_final_state
 
 subroutine parallel_io_vmd
 	use module_parallel_io
+    use messenger_data_exchange, only : globalSum
 	implicit none
 
 	integer							:: i, datasize
@@ -1638,9 +1641,9 @@ subroutine parallel_io_vmd
 			Zbufglob(globmolno) = r(3,n)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
 		end do
 
-		call globalSumVectReal(Xbufglob,globalnp)  !Global summation to complete global buffer
-		call globalSumVectReal(Ybufglob,globalnp)
-		call globalSumVectReal(Zbufglob,globalnp)
+		call globalSum(Xbufglob,globalnp)  !Global summation to complete global buffer
+		call globalSum(Ybufglob,globalnp)
+		call globalSum(Zbufglob,globalnp)
 	
 		call MPI_FILE_OPEN(MD_COMM,trim(prefix_dir)//'results/vmd_temp.dcd', & 
 		                   MPI_MODE_RDWR + MPI_MODE_CREATE,       & 
@@ -1690,6 +1693,7 @@ end subroutine parallel_io_vmd
 
 subroutine parallel_io_vmd_true
 	use module_parallel_io
+    use messenger_data_exchange, only : globalSum
 	implicit none
 
 	integer							:: procdisp
@@ -1811,9 +1815,9 @@ subroutine parallel_io_vmd_true
 			Zbufglob(globmolno) = rtrue(3,n)
 		end do
 
-		call globalSumVectReal(Xbufglob,globalnp)  !Global summation to complete global buffer
-		call globalSumVectReal(Ybufglob,globalnp)
-		call globalSumVectReal(Zbufglob,globalnp)
+		call globalSum(Xbufglob,globalnp)  !Global summation to complete global buffer
+		call globalSum(Ybufglob,globalnp)
+		call globalSum(Zbufglob,globalnp)
 	
 		call MPI_FILE_OPEN(MD_COMM,trim(prefix_dir)//'results/vmd_temp_true.dcd', & 
 		                   MPI_MODE_RDWR + MPI_MODE_CREATE,       & 
@@ -2609,6 +2613,7 @@ subroutine mass_bin_cpol_io(mass_out)
 contains
 
 	subroutine ZPlaneReduceMass
+	use messenger_data_exchange, only : PlaneSum
 	implicit none
 
 		integer :: nbins
@@ -2619,7 +2624,7 @@ contains
 		allocate( buf(nbins) )
 
 		buf = reshape( mass_out, (/nbins/) )
-		call PlaneSumIntVect(buf,nbins,3)
+		call PlaneSum(buf,nbins,3)
 		mass_out = reshape(buf,(/cpol_binso(1), cpol_binso(2), cpol_binso(3)/))
 
 		deallocate( buf )
@@ -2679,6 +2684,7 @@ subroutine velocity_bin_cpol_io(mass_out,mom_out)
 contains
 
 	subroutine ZPlaneReduceMom
+	use messenger_data_exchange, only : PlaneSum
 	implicit none
 
 		integer :: nbins
@@ -2689,7 +2695,7 @@ contains
 		allocate( buf(nd*nbins) )
 
 		buf = reshape( mom_out, (/nd*nbins/) )
-		call PlaneSumVect(buf, nd*nbins, 3 )
+		call PlaneSum(buf, nd*nbins, 3 )
 		mom_out = reshape(buf,(/cpol_binso(1),cpol_binso(2),cpol_binso(3),nd/))
 
 		deallocate(buf)
@@ -2744,6 +2750,7 @@ subroutine temperature_bin_cpol_io(mass_out,KE_out)
 contains
 
 	subroutine ZPlaneReduceKE
+	use messenger_data_exchange, only : PlaneSum
 	implicit none
 
 		integer :: nbins
@@ -2754,7 +2761,7 @@ contains
 		allocate( buf(nbins) )
 
 		buf = reshape( KE_out, (/nbins/) )
-		call PlaneSumVect(buf, nbins, 3 )
+		call PlaneSum(buf, nbins, 3 )
 		KE_out = reshape(buf,(/cpol_binso(1),cpol_binso(2),cpol_binso(3)/))
 
 		deallocate(buf)
@@ -2855,6 +2862,7 @@ subroutine VA_stress_cpol_io
 contains
 
 	subroutine ZPlaneReduceStress
+	use messenger_data_exchange, only : PlaneSum
 	implicit none
 
 		integer :: nbins
@@ -2868,7 +2876,7 @@ contains
 			!Together
 			allocate( buf(9*nbins) )
 			buf = reshape(Pxybin,(/9*nbins/))
-			call PlaneSumVect( buf, 9*nbins, 3 )
+			call PlaneSum( buf, 9*nbins, 3 )
 			Pxybin = reshape(buf,(/cpol_binso(1),cpol_binso(2),cpol_binso(3),3,3/))
 			deallocate(buf)
 
@@ -2878,11 +2886,11 @@ contains
 			allocate( buf(9*nbins) )
 
 			buf = reshape(vvbin,(/9*nbins/))
-			call PlaneSumVect( buf, 9*nbins, 3 )
+			call PlaneSum( buf, 9*nbins, 3 )
 			vvbin = reshape(buf,(/cpol_binso(1),cpol_binso(2),cpol_binso(3),3,3/))
 
 			buf = reshape(rfbin,(/9*nbins/))
-			call PlaneSumVect( buf, 9*nbins, 3 )
+			call PlaneSum( buf, 9*nbins, 3 )
 			rfbin = reshape(buf,(/cpol_binso(1),cpol_binso(2),cpol_binso(3),3,3/))
 
 			deallocate(buf)
@@ -3551,17 +3559,6 @@ subroutine surface_power_io
 
 	!Integration of stress using trapizium rule requires multiplication by timestep
 	Pxyvface_mdt = (0.5d0/Neflux_ave) * (Pxyvface_mdt + Pxyvface) 
-!  	print*, 'Pxyv ',(Pxyvface_mdt(3,3,3,1)-Pxyvface_mdt(3,3,3,4))/(nbins(1)/domain(1)) &
-!  		           +(Pxyvface_mdt(3,3,3,2)-Pxyvface_mdt(3,3,3,5))/(nbins(2)/domain(2)) &
-!  		           +(Pxyvface_mdt(3,3,3,3)-Pxyvface_mdt(3,3,3,6))/(nbins(3)/domain(3))
-
-!  	print*, 'Pxyv2',(Pxyvface2(3,3,3,1)-Pxyvface2(3,3,3,4))/(nbins(1)/domain(1)) &
-!  		           +(Pxyvface2(3,3,3,2)-Pxyvface2(3,3,3,5))/(nbins(2)/domain(2)) &
-!  		           +(Pxyvface2(3,3,3,3)-Pxyvface2(3,3,3,6))/(nbins(3)/domain(3))
-
-
-	!Pxyvface = Pxyvface/Neflux_ave
-	!Pxyvface_mdt = 0.25*Pxyvface2/(Neflux_ave*binface)
 
 	!Store surface stress value in CV data object
 	if (CV_debug) then

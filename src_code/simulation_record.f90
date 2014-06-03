@@ -221,6 +221,7 @@ end subroutine simulation_record
 subroutine evaluate_macroscopic_properties
 	use module_record
 	use messenger, only : globalise
+    use messenger_data_exchange, only : globalSum
 	implicit none
 
 	integer :: n,ixyz
@@ -298,6 +299,7 @@ end subroutine evaluate_macroscopic_properties
 
 subroutine evaluate_microstate_pressure
 	use module_record
+    use messenger_data_exchange, only : globalSum
 	implicit none
 
 	integer :: n
@@ -1034,6 +1036,7 @@ end subroutine evaluate_viscometrics
 !Calculate end-to-end time correlation function of FENE chain
 subroutine etevtcf_calculate_parallel
 	use module_record
+    use messenger_data_exchange, only : globalSum
 	implicit none
 	
 	integer :: nbond,i,j
@@ -1063,7 +1066,7 @@ subroutine etevtcf_calculate_parallel
 				etev_0(chain,:) = etev_0(chain,:) + rij(:)
 			end do
 		end do
-		call globalSumTwoDim(etev_0,nchains,nd)
+		call globalSum(etev_0,nchains,nd)
 
 	end if
 
@@ -1083,7 +1086,7 @@ subroutine etevtcf_calculate_parallel
 			etev(chain,:) = etev(chain,:) + rij(:)
 		end do
 	end do
-	call globalSumTwoDim(etev,nchains,nd)
+	call globalSum(etev,nchains,nd)
 	!--------------------------------------------------------------------
 
 	!--------------------------------------------------------------------
@@ -1104,9 +1107,10 @@ end subroutine etevtcf_calculate_parallel
 !=============================================================================
 !Calculate radius of gyration
 subroutine r_gyration_calculate_parallel
-use module_record
-use linked_list
-implicit none
+	use module_record
+	use linked_list
+    use messenger_data_exchange, only : globalSum
+	implicit none
 
 	integer :: i,chainID
 	double precision :: R_g2
@@ -1124,7 +1128,7 @@ implicit none
 		r_cm(chainID,:) = r_cm(chainID,:) + rtrue(:,i) 
 	end do
 
-	call globalSumTwoDim(r_cm,nchains,nd)
+	call globalSum(r_cm,nchains,nd)
 
 	do chainID = 1,nchains
 		r_cm(chainID,:) = r_cm(chainID,:)/nmonomers
@@ -1707,6 +1711,7 @@ end subroutine pressure_averaging
 subroutine cumulative_pressure(ixyz,sample_count)
 	use module_record
 	use shear_info_MD, only: le_sp, le_sr, le_sd
+    use messenger_data_exchange, only : globalSum
 	implicit none
 
 	integer								:: sample_count,n,ixyz,jxyz,kxyz
@@ -1760,9 +1765,9 @@ subroutine cumulative_pressure(ixyz,sample_count)
 		enddo
 
 		!Sum pressure tensor over all processors -- Should this be Pxytemp???
-		call globalSumVect(Pxytemp(:,1), nd)	
-		call globalSumVect(Pxytemp(:,2), nd) 	
-		call globalSumVect(Pxytemp(:,3), nd)
+		call globalSum(Pxytemp(:,1), nd)	
+		call globalSum(Pxytemp(:,2), nd) 	
+		call globalSum(Pxytemp(:,3), nd)
 
 		!Divide sum of stress by volume -- Should this include sample_count - divide by Nstress above??
 		Pxytemp = Pxytemp / volume

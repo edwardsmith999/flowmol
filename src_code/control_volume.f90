@@ -465,8 +465,8 @@ contains
 
 			!Verify that CV momentum is exactly conservative
 			conserved = sum(totalpressure+totalflux-dvelocitydt-F_ext)
-			if(abs(conserved) .gt. 0.000000001d0) then
-			!if (i .eq. 2 .and. j .eq. 2 .and. k .eq. 2 .and. irank .eq. 1) then
+			!if(abs(conserved) .gt. 0.000000001d0) then
+			if (i .eq. 3 .and. j .eq. 3 .and. k .eq. 3 .and. irank .eq. 1) then
 			!if (any(abs(dvelocitydt) .lt. 0.00001d0)) then
 				print'(a,i8,4i4,7f11.5)','Error_in_momentum_flux', iter,irank,i,j,k, & 
 					 conserved, sum(totalpressure),-sum(totalflux),sum(dvelocitydt), & 
@@ -651,10 +651,11 @@ contains
 		do j = jmin,jmax
 		do k = kmin,kmax
 
-			!Calculate total CV flux and change in mass
-			totalflux =(self%flux(i,j,k,1)+self%flux(i,j,k,4))/self%binsize(1) &
-					  +(self%flux(i,j,k,2)+self%flux(i,j,k,5))/self%binsize(2) &
-					  +(self%flux(i,j,k,3)+self%flux(i,j,k,6))/self%binsize(3)
+
+			totalflux =(self%flux(i,j,k,1)-self%flux(i,j,k,4))/self%binsize(1) &
+					  +(self%flux(i,j,k,2)-self%flux(i,j,k,5))/self%binsize(2) &
+					  +(self%flux(i,j,k,3)-self%flux(i,j,k,6))/self%binsize(3)
+
 
 			!totalpower = totalpower*delta_t
 			totalpower = (self%Pxyv(i,j,k,1)-self%Pxyv(i,j,k,4))/self%binsize(1) &
@@ -675,8 +676,9 @@ contains
 			!								self%Pxyv(i,j,k+1,3)-self%Pxyv(i,j,k,6)
 			!endif
 
-			!Verify that CV energy is less than 10% error 
-			conserved = totalpower-totalflux-denergydt-Fv_ext
+		    !Verify that CV energy is less than 10% error 
+		    conserved = totalpower+totalflux-denergydt-Fv_ext
+
 			!if(abs(conserved/(self%X(i,j,k)-totalflux)) .gt. 0.10d0) then
 			!if (abs(Fv_ext) .gt. 0.000001) then
 			if (i .eq. 3 .and. j .eq. 3 .and. k .eq. 3 .and. irank .eq. 1) then

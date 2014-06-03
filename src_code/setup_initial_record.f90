@@ -841,9 +841,10 @@ end subroutine simulation_header
 !Calculate Initial kinetic and potential energy as well as temperature and pressure
 
 subroutine initial_macroscopic_properties
-use module_initial_record
-use interfaces
-implicit none
+    use module_initial_record
+    use interfaces
+    use messenger_data_exchange, only : globalSum
+    implicit none
 
     integer          :: n, ixyz
     double precision :: vel
@@ -956,6 +957,7 @@ subroutine build_psf
     use interfaces, only: error_abort
     use librarymod, only: get_new_fileunit
     use polymer_info_MD
+    use messenger_data_exchange, only : globalSum
     implicit none
 
     integer :: i,j,n,item,molno,sc
@@ -991,7 +993,7 @@ subroutine build_psf
         end do
 
     end do
-    call globalSumInt(NBONDS)
+    call globalSum(NBONDS)
     NBONDS = int(NBONDS/2)
 
     allocate(seg_name(NATOM)) ! Determine segment names for each atom
@@ -1021,9 +1023,9 @@ subroutine build_psf
             res_ID(molno),'   ',glob_sc(molno),'   ',glob_bf(:,molno)
     end do
 
-    call globalSumIntVect(res_ID,globalnp)
-    call globalSumIntVect(glob_sc,globalnp)
-    call globalSumIntTwoDim(glob_bf,4,globalnp)
+    call globalSum(res_ID,globalnp)
+    call globalSum(glob_sc,globalnp)
+    call globalSum(glob_bf,4,globalnp)
 
     do n=1,globalnp
         select case (res_ID(n))

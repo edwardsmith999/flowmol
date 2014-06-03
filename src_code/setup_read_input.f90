@@ -22,7 +22,7 @@ end module module_read_input
 
 subroutine setup_read_input
 	use module_read_input
-	use librarymod, only : locate
+	use librarymod, only :locate
 	implicit none
 
 	logical					:: found_in_input, error
@@ -621,8 +621,8 @@ subroutine setup_read_input
 	endif
 	call locate(1,'VELOCITY_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
-		read(1,* ) velocity_outflag
-		if (velocity_outflag .ne. 0) read(1,* ) Nvel_ave
+		read(1,*) velocity_outflag
+		if (velocity_outflag .ne. 0) read(1,*) Nvel_ave
 		if (velocity_outflag .eq. 5) then
 			call locate(1,'CPOL_BINS',.true.)
 			read(1,*) gcpol_bins(1)	
@@ -632,16 +632,16 @@ subroutine setup_read_input
 	endif
 	call locate(1,'TEMPERATURE_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
-		read(1,* ) temperature_outflag
+		read(1,*) temperature_outflag
 		if (temperature_outflag .ne. 0)	then
-			read(1,* ) NTemp_ave
+			read(1,*) NTemp_ave
 			read(1,*,iostat=ios) peculiar_flag
 			if (ios .ne. 0) peculiar_flag = 0 !default to zero if value not found
 		endif
 	endif
 	call locate(1,'PRESSURE_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
-		read(1,* ) pressure_outflag
+		read(1,*) pressure_outflag
 		if (pressure_outflag .ne. 0) then
 			!Stress averaging
 			read(1,*) Nstress_ave
@@ -679,33 +679,33 @@ subroutine setup_read_input
 	endif
 	call locate(1,'VISCOSITY_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
-		read(1,* ) viscosity_outflag
-		if ( viscosity_outflag .ne. 0)	read(1,* ) Nvisc_ave
+		read(1,*) viscosity_outflag
+		if ( viscosity_outflag .ne. 0)	read(1,*) Nvisc_ave
 	endif
 	call locate(1,'CV_CONSERVE',.false.,found_in_input)
 	cv_conserve = 0
 	if (found_in_input) then
-		read(1,* ) cv_conserve
+		read(1,*) cv_conserve
 		read(1,*,iostat=ios) CV_debug
 		if (ios .ne. 0) CV_debug = .false.
 	endif
 
 	call locate(1,'MFLUX_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
-		read(1,* ) mflux_outflag
-		if (mflux_outflag .ne. 0)	read(1,* ) Nmflux_ave
+		read(1,*) mflux_outflag
+		if (mflux_outflag .ne. 0)	read(1,*) Nmflux_ave
 	endif
 	call locate(1,'VFLUX_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
-		read(1,* ) vflux_outflag
-		if (vflux_outflag .ne. 0)	read(1,* ) Nvflux_ave
+		read(1,*) vflux_outflag
+		if (vflux_outflag .ne. 0)	read(1,*) Nvflux_ave
 		if (mflux_outflag .eq. 0) Nmflux_ave = Nvflux_ave !Mass set to same as velocity
 	endif
 	call locate(1,'EFLUX_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
-		read(1,* ) eflux_outflag
+		read(1,*) eflux_outflag
 		if (eflux_outflag .ne. 0) then
-			read(1,* ) Neflux_ave
+			read(1,*) Neflux_ave
 			pass_vhalo = 1		!Turn on passing of velocities for halo images
 		endif
 	endif
@@ -776,6 +776,8 @@ subroutine setup_read_input
 		if (ios .ne. 0) CVforce_testcaseflag = 1
 		read(1,*,iostat=ios) CVweighting_flag
 		if (ios .ne. 0) CVweighting_flag = 0
+		read(1,*,iostat=ios) CVforce_starttime
+		if (ios .ne. 0) CVforce_starttime = 200
 	endif
 
 	close(1,status='keep')      !Close input file

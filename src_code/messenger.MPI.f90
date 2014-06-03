@@ -201,6 +201,11 @@ contains
 	end function localise_bin
 
 
+
+
+
+
+
 end module messenger
 
 !======================================================================
@@ -2702,48 +2707,32 @@ end module messenger_bin_handler
 !					Data gathering subroutines	                      =
 !======================================================================
 
-subroutine globalbroadcast(A,na,broadprocid)
-	use messenger
-	implicit none
+! E.S. Note as of 02/06/14,  I've started putting these routines into
+! a module with a combined interface. Only sum and planesum so far..
 
-	integer				:: na, broadprocid
-	double precision	:: A
+module messenger_data_exchange
 
-	call MPI_BCAST(A,na,MPI_DOUBLE_PRECISION,broadprocid-1,MD_COMM,ierr)
+	interface globalSum
+		module procedure globalSumdp, globalSumInt, globalSumVectReal, &
+                         globalSumdpVect, globalSumIntVect, globalSumTwoDim, &
+                         globalSumIntTwoDim
+	end interface
 
-	return
-end subroutine globalbroadcast
+    private globalSumdp, globalSumInt, globalSumVectReal, &
+            globalSumdpVect, globalSumIntVect, globalSumTwoDim, &
+            globalSumIntTwoDim
 
-subroutine globalsyncreduce(A, na, meanA, maxA, minA)
-	use messenger
-	implicit none
-	!include "mpif.h"
+	interface PlaneSum
+		module procedure PlaneSumdp, PlaneSumIntVect, PlaneSumVect
+	end interface
 
- 	integer						  :: na, nprocs
-	double precision, intent(in)  :: A(na)
-	double precision, intent(out) :: meanA(na), maxA(na), minA(na)
-	double precision buf(na)
+    private PlaneSumdp, PlaneSumIntVect, PlaneSumVect
 
-	call MPI_Reduce(A, buf, na, MPI_DOUBLE_PRECISION, &
-	                    MPI_MAX, iroot-1, MD_COMM, ierr)
 
-	maxA = buf
 
-	call MPI_Reduce(A, buf, na, MPI_DOUBLE_PRECISION, &
-	                    MPI_MIN, iroot-1, MD_COMM, ierr)
+contains
 
-	minA = buf
-
-	call MPI_Reduce(A, buf, na, MPI_DOUBLE_PRECISION, &
-	                    MPI_SUM, iroot-1, MD_COMM, ierr)
-	call MPI_comm_size (MD_COMM, nprocs, ierr)
-
-	meanA = buf/nprocs
-
-	return
-end subroutine globalsyncreduce
-
-subroutine globalSum(A)
+subroutine globalSumdp(A)
 	use messenger
 	implicit none
 
@@ -2754,20 +2743,7 @@ subroutine globalSum(A)
 	A = buf
 
 	return
-end subroutine globalSum
-
-subroutine globalMax(A)
-	use messenger
-	implicit none
-
-	double precision :: A, buf
-
-	call MPI_AllReduce (A, buf, 1, MPI_DOUBLE_PRECISION, &
-	                    MPI_MAX, MD_COMM, ierr)
-	A = buf
-
-	return
-end subroutine globalMax
+end subroutine globalSumdp
 
 subroutine globalSumInt(A)
 	use messenger
@@ -2781,32 +2757,6 @@ subroutine globalSumInt(A)
 
 	return
 end subroutine globalSumInt
-
-subroutine globalMaxInt(A)
-	use messenger
-	implicit none
-
-	integer :: A, buf
-
-	call MPI_AllReduce (A, buf, 1, MPI_INTEGER, &
-	                    MPI_MAX, MD_COMM, ierr)
-	A = buf
-
-	return
-end subroutine globalMaxInt
-
-subroutine globalMinInt(A)
-	use messenger
-	implicit none
-
-	integer :: A, buf
-
-	call MPI_AllReduce (A, buf, 1, MPI_INTEGER, &
-	                    MPI_MIN, MD_COMM, ierr)
-	A = buf
-
-	return
-end subroutine globalMinInt
 
 subroutine globalSumVectReal(A, na)
 	use messenger
@@ -2824,7 +2774,7 @@ subroutine globalSumVectReal(A, na)
 	return
 end subroutine globalSumVectReal
 
-subroutine globalSumVect(A, na)
+subroutine globalSumdpVect(A, na)
 	use messenger
 	!include "mpif.h"
 	implicit none
@@ -2840,7 +2790,7 @@ subroutine globalSumVect(A, na)
     deallocate(buf)
 
 	return
-end subroutine globalSumVect
+end subroutine globalSumdpVect
 
 
 subroutine globalSumIntVect(A, na)
@@ -2860,57 +2810,6 @@ subroutine globalSumIntVect(A, na)
 	return
 end subroutine globalSumIntVect
 
-
-subroutine globalMaxVect(A, na)
-	use messenger
-	implicit none
-
-    integer, intent(in) :: na
-	double precision, intent(inout) :: A(na)
-	double precision, allocatable :: buf(:)
-
-    allocate(buf(na))
-	call MPI_AllReduce (A, buf, na, MPI_DOUBLE_PRECISION, &
-	                    MPI_MAX, MD_COMM, ierr)
-	A = buf
-    deallocate(buf)
-
-	return
-end subroutine globalMaxVect
-
-subroutine globalMaxIntVect(A, na)
-	use messenger
-	implicit none
-
-	integer, intent(in) :: na
-	integer, intent(inout) :: A(na)
-	integer, allocatable :: buf(:)
-
-    allocate(buf(na)) 
-	call MPI_AllReduce (A, buf, na, MPI_INTEGER, &
-	                    MPI_MAX, MD_COMM, ierr)
-	A = buf
-    deallocate(buf) 
-
-	return
-end subroutine globalMaxIntVect
-
-subroutine globalMinVect(A, na)
-	use messenger
-	implicit none
-
-	integer, intent(in) :: na
-	double precision, intent(inout) :: A(na)
-	double precision, allocatable :: buf(:)
-
-    allocate(buf(na))
-	call MPI_AllReduce (A, buf, na, MPI_DOUBLE_PRECISION, &
-	                    MPI_MIN, MD_COMM, ierr)
-	A = buf
-    deallocate(buf)
-
-	return
-end subroutine globalMinVect
 
 subroutine globalSumTwoDim(A,na1,na2)
 	use messenger
@@ -2950,94 +2849,8 @@ subroutine globalSumIntTwoDim(A,na1,na2)
 	return
 end subroutine globalSumIntTwoDim
 
-subroutine globalAverage(A, na)
-	use messenger
-	implicit none
-
-	integer, intent(in) :: na
-
-	integer	:: nprocs
-	double precision, intent(inout) :: A(na)
-	double precision, allocatable :: buf(:)
-
-    allocate(buf(na))
-	call MPI_AllReduce (A, buf, na, MPI_DOUBLE_PRECISION, &
-	                    MPI_SUM, MD_COMM, ierr)
-	call MPI_comm_size (MD_COMM, nprocs, ierr)
-
-	buf = buf / nprocs
-	
-	A = buf
-
-    deallocate(buf)
-
-	return
-end subroutine globalAverage
-
-subroutine globalGather(A,B,na)
-	use messenger
-	implicit none
-
-	integer, intent(in) :: na
-
-	integer, intent(in) :: A(na)
-	integer, intent(out):: B(na,nproc)
-
-	call MPI_Allgather (A, na, MPI_INTEGER, B, na, &
-			    MPI_INTEGER,icomm_grid, ierr)
-
-end subroutine globalGather
-
-module mod_globalGatherv
-contains
-
-subroutine globalGatherv(A,na,B,nb,rdisps)
-	use messenger
-	implicit none
-
-	integer, intent(in) :: na,nb(nproc),rdisps(nproc)
-
-	double precision, intent(in) :: A(na)
-	double precision, intent(out):: B(sum(nb))
-
-   	call MPI_Allgatherv (A, na,       MPI_DOUBLE_PRECISION, & 
-                         B, nb,rdisps,MPI_DOUBLE_PRECISION, & 
-                         icomm_grid, ierr)
-
-end subroutine globalGatherv
-
-subroutine planeGatherv(A,na,B,nb,rdisps,ixyz)
-	use messenger
-	implicit none
-
-	integer, intent(in) :: na,nb(plane_nproc(ixyz)),rdisps(plane_nproc(ixyz)),ixyz
-
-	double precision, intent(in) :: A(na)
-	double precision, intent(out):: B(sum(nb))
-
-	!print'(14i6)', irank,iblock,jblock,kblock,na,nb,ixyz,size(A),size(B),plane_nproc(ixyz),size(rdisps)
-
-   	call MPI_Allgatherv (A, na,       MPI_DOUBLE_PRECISION, & 
-                         B, nb,rdisps,MPI_DOUBLE_PRECISION, & 
-                         plane_comm(ixyz), ierr)
-
-end subroutine planeGatherv
-
-end module  mod_globalGatherv
-
-subroutine globalGathernp()
-	use physical_constants_MD
-	use messenger
-	implicit none
-
-	call MPI_Allgather (np, 1, MPI_INTEGER, procnp, 1, &
-			    MPI_INTEGER,icomm_grid, ierr)
-
-	return
-end subroutine globalGathernp
-
 !----Sum routines over global plane communitcators
-subroutine PlaneSum(A, ixyz)
+subroutine PlaneSumdp(A, ixyz)
     use messenger
     implicit none
 
@@ -3051,7 +2864,7 @@ subroutine PlaneSum(A, ixyz)
 
 	return
 
-end subroutine PlaneSum
+end subroutine PlaneSumdp
 
 subroutine PlaneSumIntVect(A, na, ixyz)
 	use messenger
@@ -3095,6 +2908,239 @@ subroutine PlaneSumVect(A, na, ixyz)
 end subroutine PlaneSumVect
 
 
+subroutine globalGatherv(A,na,B,nb,rdisps)
+	use messenger
+	implicit none
+
+	integer, intent(in) :: na,nb(nproc),rdisps(nproc)
+
+	double precision, intent(in) :: A(na)
+	double precision, intent(out):: B(sum(nb))
+
+   	call MPI_Allgatherv (A, na,       MPI_DOUBLE_PRECISION, & 
+                         B, nb,rdisps,MPI_DOUBLE_PRECISION, & 
+                         icomm_grid, ierr)
+
+end subroutine globalGatherv
+
+subroutine planeGatherv(A,na,B,nb,rdisps,ixyz)
+	use messenger
+	implicit none
+
+	integer, intent(in) :: na,nb(plane_nproc(ixyz)),rdisps(plane_nproc(ixyz)),ixyz
+
+	double precision, intent(in) :: A(na)
+	double precision, intent(out):: B(sum(nb))
+
+	!print'(14i6)', irank,iblock,jblock,kblock,na,nb,ixyz,size(A),size(B),plane_nproc(ixyz),size(rdisps)
+
+   	call MPI_Allgatherv (A, na,       MPI_DOUBLE_PRECISION, & 
+                         B, nb,rdisps,MPI_DOUBLE_PRECISION, & 
+                         plane_comm(ixyz), ierr)
+
+end subroutine planeGatherv
+
+end module messenger_data_exchange
+
+
+
+subroutine globalSum_(A)
+	use messenger
+	implicit none
+
+	double precision :: A, buf
+
+	call MPI_AllReduce (A, buf, 1, MPI_DOUBLE_PRECISION, &
+	                    MPI_SUM, MD_COMM, ierr)
+	A = buf
+
+	return
+end subroutine globalSum_
+
+
+subroutine globalMax(A)
+	use messenger
+	implicit none
+
+	double precision :: A, buf
+
+	call MPI_AllReduce (A, buf, 1, MPI_DOUBLE_PRECISION, &
+	                    MPI_MAX, MD_COMM, ierr)
+	A = buf
+
+	return
+end subroutine globalMax
+
+subroutine globalMaxInt(A)
+	use messenger
+	implicit none
+
+	integer :: A, buf
+
+	call MPI_AllReduce (A, buf, 1, MPI_INTEGER, &
+	                    MPI_MAX, MD_COMM, ierr)
+	A = buf
+
+	return
+end subroutine globalMaxInt
+
+subroutine globalMaxVect(A, na)
+	use messenger
+	implicit none
+
+    integer, intent(in) :: na
+	double precision, intent(inout) :: A(na)
+	double precision, allocatable :: buf(:)
+
+    allocate(buf(na))
+	call MPI_AllReduce (A, buf, na, MPI_DOUBLE_PRECISION, &
+	                    MPI_MAX, MD_COMM, ierr)
+	A = buf
+    deallocate(buf)
+
+	return
+end subroutine globalMaxVect
+
+subroutine globalMaxIntVect(A, na)
+	use messenger
+	implicit none
+
+	integer, intent(in) :: na
+	integer, intent(inout) :: A(na)
+	integer, allocatable :: buf(:)
+
+    allocate(buf(na)) 
+	call MPI_AllReduce (A, buf, na, MPI_INTEGER, &
+	                    MPI_MAX, MD_COMM, ierr)
+	A = buf
+    deallocate(buf) 
+
+	return
+end subroutine globalMaxIntVect
+
+
+subroutine globalMinInt(A)
+	use messenger
+	implicit none
+
+	integer :: A, buf
+
+	call MPI_AllReduce (A, buf, 1, MPI_INTEGER, &
+	                    MPI_MIN, MD_COMM, ierr)
+	A = buf
+
+	return
+end subroutine globalMinInt
+
+
+subroutine globalMinVect(A, na)
+	use messenger
+	implicit none
+
+	integer, intent(in) :: na
+	double precision, intent(inout) :: A(na)
+	double precision, allocatable :: buf(:)
+
+    allocate(buf(na))
+	call MPI_AllReduce (A, buf, na, MPI_DOUBLE_PRECISION, &
+	                    MPI_MIN, MD_COMM, ierr)
+	A = buf
+    deallocate(buf)
+
+	return
+end subroutine globalMinVect
+
+subroutine globalAverage(A, na)
+	use messenger
+	implicit none
+
+	integer, intent(in) :: na
+
+	integer	:: nprocs
+	double precision, intent(inout) :: A(na)
+	double precision, allocatable :: buf(:)
+
+    allocate(buf(na))
+	call MPI_AllReduce (A, buf, na, MPI_DOUBLE_PRECISION, &
+	                    MPI_SUM, MD_COMM, ierr)
+	call MPI_comm_size (MD_COMM, nprocs, ierr)
+
+	buf = buf / nprocs
+	
+	A = buf
+
+    deallocate(buf)
+
+	return
+end subroutine globalAverage
+
+subroutine globalbroadcast(A,na,broadprocid)
+	use messenger
+	implicit none
+
+	integer				:: na, broadprocid
+	double precision	:: A
+
+	call MPI_BCAST(A,na,MPI_DOUBLE_PRECISION,broadprocid-1,MD_COMM,ierr)
+
+	return
+end subroutine globalbroadcast
+
+subroutine globalsyncreduce(A, na, meanA, maxA, minA)
+	use messenger
+	implicit none
+	!include "mpif.h"
+
+ 	integer						  :: na, nprocs
+	double precision, intent(in)  :: A(na)
+	double precision, intent(out) :: meanA(na), maxA(na), minA(na)
+	double precision buf(na)
+
+	call MPI_Reduce(A, buf, na, MPI_DOUBLE_PRECISION, &
+	                    MPI_MAX, iroot-1, MD_COMM, ierr)
+
+	maxA = buf
+
+	call MPI_Reduce(A, buf, na, MPI_DOUBLE_PRECISION, &
+	                    MPI_MIN, iroot-1, MD_COMM, ierr)
+
+	minA = buf
+
+	call MPI_Reduce(A, buf, na, MPI_DOUBLE_PRECISION, &
+	                    MPI_SUM, iroot-1, MD_COMM, ierr)
+	call MPI_comm_size (MD_COMM, nprocs, ierr)
+
+	meanA = buf/nprocs
+
+	return
+end subroutine globalsyncreduce
+
+subroutine globalGather(A,B,na)
+	use messenger
+	implicit none
+
+	integer, intent(in) :: na
+
+	integer, intent(in) :: A(na)
+	integer, intent(out):: B(na,nproc)
+
+	call MPI_Allgather (A, na, MPI_INTEGER, B, na, &
+			    MPI_INTEGER,icomm_grid, ierr)
+
+end subroutine globalGather
+
+
+subroutine globalGathernp()
+	use physical_constants_MD
+	use messenger
+	implicit none
+
+	call MPI_Allgather (np, 1, MPI_INTEGER, procnp, 1, &
+			    MPI_INTEGER,icomm_grid, ierr)
+
+	return
+end subroutine globalGathernp
+
 subroutine planeGatherInt(A,B,na,ixyz)
 	use messenger
 	implicit none
@@ -3122,7 +3168,7 @@ subroutine SubcommGather(A,B,na,ixyz,npixyz)
 	call MPI_Allgather (A, na, MPI_INTEGER, B, na, &
 			    MPI_INTEGER,icomm_xyz(ixyz), ierr)
 	
-end subroutine
+end subroutine SubcommGather
 
 subroutine SubcommSum(A, ixyz)
 	use messenger
@@ -3137,7 +3183,7 @@ subroutine SubcommSum(A, ixyz)
 	A = buf
 
 	return
-end
+end subroutine SubcommSum
 
 subroutine SubcommSumInt(A, ixyz)
 	use messenger
@@ -3152,7 +3198,7 @@ subroutine SubcommSumInt(A, ixyz)
 	A = buf
 
 	return
-end
+end subroutine SubcommSumInt
 
 subroutine SubcommSumVect(A, na, ixyz)
 	use messenger
@@ -3170,7 +3216,7 @@ subroutine SubcommSumVect(A, na, ixyz)
     deallocate(buf)
 
 	return
-end
+end subroutine SubcommSumVect 
 
 subroutine SubcommSumIntVect(A, na, ixyz)
 	use messenger
@@ -3223,4 +3269,5 @@ subroutine error_abort_si(msg,i)
     call MPI_Abort(MPI_COMM_WORLD,errcode,ierr)
 
 end subroutine error_abort_si
+
 

@@ -162,6 +162,7 @@ contains
 	!-----------------------------------------------------------------------
 	!Evaluate Nosé-Hoover parameters
 	subroutine evaluate_NH_params
+    	use messenger_data_exchange, only : globalSum
 		implicit none
 	
 		double precision, dimension (nd) :: vel
@@ -186,6 +187,7 @@ contains
 	!-----------------------------------------------------------------------
 	!Evaluate N-H parameters for profile unbiased thermostat
 	subroutine evaluate_NH_params_PUT
+	    use messenger_data_exchange, only : globalSum
 		implicit none
 		
 		double precision :: pec_v2sum
@@ -257,6 +259,7 @@ contains
 		use librarymod, only: cartesianiser, cartesianisev, &
 		                      cpolariser, cpolarisev
 		use messenger, only: localise, globalise
+	    use messenger_data_exchange, only : globalSum
 		use concentric_cylinders, only: omega
 		implicit none
 				
@@ -310,7 +313,7 @@ contains
 			enddo
 
 			!Obtain global sums for all parameters
-			call globalSumInt(thermostatnp)
+			call globalSum(thermostatnp)
 			call globalSum(v2sum)	
 
 			!Nose Hoover thermostat coefficients

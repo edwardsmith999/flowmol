@@ -839,7 +839,8 @@ end subroutine simulation_apply_constant_force
 ! Routine to test flux calculations by various methods
 
 subroutine apply_CV_force(iter)
-	use computational_constants_MD, only : irank, jblock, npy, globaldomain, CVforce_flag, VOID,  Nsteps
+	use computational_constants_MD, only : irank, jblock, npy, globaldomain, CVforce_flag, & 
+										   CVforce_starttime, VOID,  Nsteps
 	use calculated_properties_MD, only : pressure, nbins
 	use librarymod, only : get_new_fileunit
 	use module_external_forces, only : np, momentum_flux, irank,nbins, nbinso,domain,delta_t,Nvflux_ave
@@ -849,7 +850,7 @@ subroutine apply_CV_force(iter)
 	integer,intent(in)				:: iter
 
 	logical							:: apply_CVforce = .false.
-	integer							:: ibin,jbin,kbin,starttime
+	integer							:: ibin,jbin,kbin
 	integer							:: box_np_bfr,box_np_afr
 	integer,allocatable 			:: list_bfr(:),list_afr(:)
 
@@ -865,7 +866,6 @@ subroutine apply_CV_force(iter)
 	binsize = domain/nbins
 	volume = product(binsize)
 	!ibin = 3; jbin = 3; kbin = 3
-	starttime = 100 !Nsteps/2.d0
 
 	!Exchange CV data ready to apply force
 	call update_CV_halos
@@ -890,7 +890,7 @@ subroutine apply_CV_force(iter)
 
 		!Set velocity to required value and then apply constraint 
 		!force to adjust its evolution from then on...
-		if (iter .eq. starttime .and. apply_CVforce .ne. 0) then
+		if (iter .eq. CVforce_starttime .and. apply_CVforce .ne. 0) then
 			!This routine takes the global bin number which is one less than the local 
 			!used in other routines as these include halos
  			call set_bin_velocity(ibin-1, ibin-1, & 
@@ -923,9 +923,9 @@ subroutine get_test_values(flag,ibin_,jbin_,kbin_)
 
 	!Set velocity to required value and then apply constraint 
 	!force to adjust its evolution from then on...
-	if (iter .eq. starttime .and. flag .ne. 0) then
+	if (iter .eq. CVforce_starttime .and. flag .ne. 0) then
 		apply_CVforce = .true.
-	elseif (iter .le. starttime) then
+	elseif (iter .le. CVforce_starttime) then
 		apply_CVforce = .false.
 	else
 		!Do nothing
@@ -952,12 +952,12 @@ subroutine get_test_values(flag,ibin_,jbin_,kbin_)
 		!Sin function shifted by pi/2 so velocity which is given
 		!by the integral (cos) alternates around zero
 		sin_mag = 0.1d0;  sin_period = 100.d0
-		CFD_Pi_dS(1) = sin_mag * cos(2.d0*pi*((iter-starttime)/sin_period))! - 0.505*pi)
+		CFD_Pi_dS(1) = sin_mag * cos(2.d0*pi*((iter-CVforce_starttime)/sin_period))! - 0.505*pi)
 		CFD_rhouu_dS = 0.d0
 
 		! - - - - -  Sinusoid of velocity with NCER special discretisation - - - - - - - - - 
 		CFD_u_cnst = 0.d0
-		CFD_u_cnst(1) = 1.25d0*delta_t*(sin_mag*sin_period/(2.d0*pi))* sin(2.d0*pi*((iter-starttime)/sin_period))
+		CFD_u_cnst(1) = 1.25d0*delta_t*(sin_mag*sin_period/(2.d0*pi))* sin(2.d0*pi*((iter-CVforce_starttime)/sin_period))
 
 	case(4)
 		! Get continuum values of surface stresses, etc
@@ -1461,7 +1461,8 @@ end subroutine apply_CV_force
 
 subroutine apply_CV_force_multibin(iter)
     use physical_constants_MD, only : density
-	use computational_constants_MD, only : irank, npy, globaldomain, CVforce_flag, VOID,  Nsteps, iblock, jblock, kblock
+	use computational_constants_MD, only : irank, npy, globaldomain, CVforce_flag,CVforce_starttime, & 
+										   VOID,  Nsteps, iblock, jblock, kblock
 	use calculated_properties_MD, only : pressure, nbins, gnbins
 	use librarymod, only : get_new_fileunit, couette_analytical_fn, lagrange_poly_weight_Nmol, linearsurface_weight
 	use module_external_forces, only : np, momentum_flux, irank,nbins, nbinso,domain,delta_t,Nvflux_ave
@@ -1488,7 +1489,7 @@ subroutine apply_CV_force_multibin(iter)
 	Fbinsize = domain/nbins
 	volume = product(Fbinsize)
 
-	starttime = 100 !Nsteps/2.d0
+	starttime = CVforce_starttime  !Nsteps/2.d0
     igmin = 1; jgmin = 1; kgmin = 1;
     igmax = gnbins(1); jgmax = gnbins(2); kgmax = gnbins(3)
 
@@ -1506,7 +1507,7 @@ subroutine apply_CV_force_multibin(iter)
 
 	!Set velocity to required value and then apply constraint 
 	!force to adjust its evolution from then on...
-	if (iter .eq. starttime .and. apply_CVforce .ne. .false.) then
+	if (iter .eq. CVforce_starttime .and. apply_CVforce .ne. .false.) then
 		!This routine takes the global bin number which is one less than the local 
 		!used in other routines as these include halos
 !  		call set_bin_velocity(ibin-1, ibin-1, & 
@@ -1543,7 +1544,7 @@ subroutine apply_CV_force_multibin(iter)
 
 	endif
 
-	if (iter .ge. starttime) then
+	if (iter .ge. CVforce_starttime) then
 
 		!Retreive CV data and calculate force to apply
 		call average_over_allbins_iter(CVforce_flag, igmin,jgmin,kgmin,igmax,jgmax,kgmax)
@@ -1614,9 +1615,9 @@ subroutine get_test_values(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 
 	!Set velocity to required value and then apply constraint 
 	!force to adjust its evolution from then on...
-	if (iter .eq. starttime .and. flag .ne. 0) then
+	if (iter .eq. CVforce_starttime .and. flag .ne. 0) then
 		apply_CVforce = .true.
-	elseif (iter .le. starttime) then
+	elseif (iter .le. CVforce_starttime) then
 		apply_CVforce = .false.
 	else
 		!Do nothing
@@ -1643,13 +1644,13 @@ subroutine get_test_values(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 	    !Sin function shifted by pi/2 so velocity which is given
 	    !by the integral (cos) alternates around zero
 	    sin_mag = 0.1d0;  sin_period = 100.d0
-	    CFD_Pi_dS(bmin(1):bmax(1),bmin(2):bmax(2),bmin(3):bmax(3),1) = sin_mag * cos(2.d0*pi*((iter-starttime)/sin_period))! - 0.505*pi)
+	    CFD_Pi_dS(bmin(1):bmax(1),bmin(2):bmax(2),bmin(3):bmax(3),1) = sin_mag * cos(2.d0*pi*((iter-CVforce_starttime)/sin_period))! - 0.505*pi)
 	    CFD_rhouu_dS = 0.d0
 
 	    ! - - - - -  Sinusoid of velocity with NCER special discretisation - - - - - - - - - 
 	    CFD_u_cnst(bmin(1):bmax(1),bmin(2):bmax(2),bmin(3):bmax(3),:) = 0.d0
 	    CFD_u_cnst(bmin(1):bmax(1),bmin(2):bmax(2),bmin(3):bmax(3),1) = & 
-			1.25d0*delta_t*(sin_mag*sin_period/(2.d0*pi))* sin(2.d0*pi*((iter-starttime)/sin_period))
+			1.25d0*delta_t*(sin_mag*sin_period/(2.d0*pi))* sin(2.d0*pi*((iter-CVforce_starttime)/sin_period))
 
     case(4)
 	    ! Get continuum values of surface stresses, etc
@@ -1685,10 +1686,10 @@ subroutine get_test_values(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
         CFD_u_cnst   = 0.d0
 
         ! Get velocity from analytical solution first
-        if (iter .gt. starttime+1) then
-            utemp(:) = couette_analytical_fn( (iter-starttime) *delta_t,Re,1.d0,H,appliedbins,2)
+        if (iter .gt. CVforce_starttime+1) then
+            utemp(:) = couette_analytical_fn( (iter-CVforce_starttime) *delta_t,Re,1.d0,H,appliedbins,2)
             u_t(:)   = utemp(jgmin:jgmax)*density
-            utemp(:) = couette_analytical_fn((iter-starttime-1)*delta_t,Re,1.d0,H,appliedbins,2)
+            utemp(:) = couette_analytical_fn((iter-CVforce_starttime-1)*delta_t,Re,1.d0,H,appliedbins,2)
             u_mdt(:) = utemp(jgmin:jgmax)*density
 
             !Differentiate w.r.t time
@@ -1729,10 +1730,10 @@ subroutine get_test_values(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 
         ! Get velocity from analytical solution first
         appliedbins = gnbins(2) !Whole domain
-        if (iter .gt. starttime+1) then
-            utemp(:) = couette_analytical_fn( (iter-starttime) *delta_t,Re,1.d0,H,appliedbins,2)
+        if (iter .gt. CVforce_starttime+1) then
+            utemp(:) = couette_analytical_fn( (iter-CVforce_starttime) *delta_t,Re,1.d0,H,appliedbins,2)
             u_t(:)   = utemp(jgmin:jgmax)*density
-            utemp(:) = couette_analytical_fn((iter-starttime-1)*delta_t,Re,1.d0,H,appliedbins,2)
+            utemp(:) = couette_analytical_fn((iter-CVforce_starttime-1)*delta_t,Re,1.d0,H,appliedbins,2)
             u_mdt(:) = utemp(jgmin:jgmax)*density
 
             !Differentiate w.r.t time
@@ -1802,8 +1803,9 @@ function get_MDstress_weighting_array(r_in,binsize,domain) result(w)
 	double precision,dimension(:,:),intent(in)	:: r_in
 
 	integer	:: n,i,j,k, bin(3)
-    double precision,dimension(3)               ::    rand
+    double precision,dimension(3)               ::    rand, w_ave
 	double precision,dimension(:,:),allocatable	:: w,r_temp,v_temp
+	double precision,allocatable,dimension(:,:,:,:) :: wsum
 	double precision,allocatable,dimension(:,:,:,:,:) :: MD_stress
 
 	!Allocate and zero arrays
@@ -1827,38 +1829,29 @@ function get_MDstress_weighting_array(r_in,binsize,domain) result(w)
 
 	MD_stress = (0.25d0*CV_constraint%Pxy(:,:,:,:,:) + CV_constraint%flux(:,:,:,:,:)/delta_t)
 
-    i = 3; j = 3; k = 3
-	print'(a,3f18.10)', 'MDStress',((MD_stress(i,j,k,:,1)-MD_stress(i,j,k,:,4)) &
-	              				   +(MD_stress(i,j,k,:,2)-MD_stress(i,j,k,:,5)) &
-		    	              	   +(MD_stress(i,j,k,:,3)-MD_stress(i,j,k,:,6)))
-
-	!Shift the entire domain by minimum stress anywhere so all stresses are 
-	!continuous and also positive
-!	MD_stress = MD_stress - minval(MD_stress)
-!	do i = 1,nbins(1)+2
-!	do j = 1,nbins(2)+2
-!	do k = 1,nbins(3)+2
-!		MD_stress(i,j,k,:,:) = MD_stress(i,j,k,:,:) - minval(MD_stress(i,j,k,:,:))
-!	enddo
-!	enddo
-!	enddo
 	allocate(w(3,np))
-	!w(:,:) = lagrange_poly_weight_Nmol(MD_stress,r_in(:,1:np),binsize,domain,2)
-	!w(:,:) = linearsurface_weight(MD_stress,r_in(:,1:np),binsize,domain)
+	w(:,:) = linearsurface_weight(MD_stress,r_in(:,1:np),binsize,domain,zeromean=.true.)
+	!w(:,:) = lagrange_poly_weight(MD_stress,r_in(:,1:np),binsize,domain,2)
 
-    !TEMP DEBUG TEMP DEBUG!TEMP DEBUG TEMP DEBUG!TEMP DEBUG TEMP DEBUG
-    !here we specify an input array which selects only values on surfaces (and should therefore be identical to FV form)
-    do n = 1,np
-        call random_number(rand)
-        r_temp(:,n) = (/ nint(rand(1)*(nbins(1)))*binsize(1)-halfdomain(1), & 
-                         nint(rand(2)*(nbins(2)))*binsize(2)-halfdomain(2), & 
-                         nint(rand(3)*(nbins(3)))*binsize(3)-halfdomain(3) /)
+	allocate(wsum(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); wsum=0.d0
+	do n = 1,np
+		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/binsize(:))+1
 
-    enddo
+        !Get weighting tally
+        wsum(bin(1),bin(2),bin(3),:) = wsum(bin(1),bin(2),bin(3),:) + w(:,n)
 
-    w(:,:) = linearsurface_weight(MD_stress,r_temp(:,1:np),binsize,domain)
+	enddo
 
-    !TEMP DEBUG TEMP DEBUG!TEMP DEBUG TEMP DEBUG!TEMP DEBUG TEMP DEBUG
+!	do i=1,size(wsum,1)
+!	do j=1,size(wsum,2)
+!	do k=1,size(wsum,3)
+!		print'(a,3i7,6f12.6)','binsum =', i,j,k,wsum(i,j,k,:),((MD_stress(i,j,k,:,1)-MD_stress(i,j,k,:,4)) &
+!	              				   							  +(MD_stress(i,j,k,:,2)-MD_stress(i,j,k,:,5)) &
+!		    	              	   							  +(MD_stress(i,j,k,:,3)-MD_stress(i,j,k,:,6)))
+!	enddo
+!	enddo
+!	enddo
+
 
 !	do i = 2,nbins(1)+1
 !	do j = 2,nbins(2)+1
@@ -1921,7 +1914,7 @@ function get_Couette_stress_weighting_array(r_in,Re,H,bmin,bmax,binsize,domain) 
 	! Steady state solution
 	tautemp = 2.d0/domain(2) 
 	!Time evolving solution
-	!tautemp = couette_analytical_stress_fn((iter-starttime)*delta_t,Re,1.d0,H,appliedbins,2)
+	!tautemp = couette_analytical_stress_fn((iter-CVforce_starttime)*delta_t,Re,1.d0,H,appliedbins,2)
     !Copy tau to CFD surfaces
 	CFD_flux = 0.d0
 	CFD_Pxy  = 0.d0
@@ -1991,7 +1984,7 @@ function get_MD_and_Couette_stress_weighting_array(r_in,Re,H,bmin,bmax,binsize,d
     allocate(tautemp(appliedbins))	!Double resolution for surfaces
 
     ! Couette Analytical solution
-	tautemp = 2.d0/domain(2) !couette_analytical_stress_fn((iter-starttime)*delta_t,Re,1.d0,H,appliedbins,2)
+	tautemp = 2.d0/domain(2) !couette_analytical_stress_fn((iter-CVforce_starttime)*delta_t,Re,1.d0,H,appliedbins,2)
     !Copy tau to CFD surfaces
 	CFD_flux = 0.d0
 	CFD_Pxy  = 0.d0
@@ -2121,11 +2114,11 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 
 	!TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP
 	!Write out for debugging purposes (this must be removed at some point)
-	do n=1,np
-		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
-		!if (bin(1) .eq. 2 .and. bin(2) .eq. 2 .and. bin(3) .eq. 2 ) then
-			write(5000,'(a,2i6,3f10.5,6f14.5)'), 'Weighting functions', iter,n, r(:,n), weighting_array(:,n), wsum(bin(1),bin(2),bin(3),:)
-		!endif
+	!do n=1,np
+	!	bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
+	!	if (bin(1) .eq. 2 .and. bin(2) .eq. 2 .and. bin(3) .eq. 2 ) then
+	!		write(5000,'(a,2i6,3f10.5,6f14.5)'), 'Weighting functions', iter,n, r(:,n), weighting_array(:,n), wsum(bin(1),bin(2),bin(3),:)
+	!	endif
 !		!Set to zero if sum of values are zero
 !		if (abs(wsum(bin(1),bin(2),bin(3),1) .lt. 0.0001d0)) then
 !			weighting_array(1,n) = 1.d0; wsum(bin(1),bin(2),bin(3),1) = wsum(bin(1),bin(2),bin(3),1) + weighting_array(1,n)
@@ -2139,7 +2132,7 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 !			weighting_array(3,n) = 1.d0; wsum(bin(1),bin(2),bin(3),3) = wsum(bin(1),bin(2),bin(3),3) + weighting_array(3,n)
 !			stop "Wsum z is too small"
 !		endif
-	enddo
+	!enddo
 	!TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP
 
 	!if (any(abs(wsum(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)) .lt. 0.0001d0)) then	
@@ -2203,9 +2196,9 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
     										  + (CFD_rhouu_dS(ib,jb,kb,:) -    CFD_Pi_dS(ib,jb,kb,:) )*volume
 
 
-                    if (ib .eq. 3 .and. jb .eq. 3 .and. kb .eq. 3) then
-                        print'(a,i5,2(a,3f18.10))','iter = ', iter, ' L(u)= ', F_constraint(ib,jb,kb,:), ' L(û)= ', wsum(bin(1),bin(2),bin(3),:)
-                    endif
+                    !if (ib .eq. 3 .and. jb .eq. 3 .and. kb .eq. 3) then
+                    !    print'(a,i5,2(a,3f18.10))','iter = ', iter, ' L(u)= ', F_constraint(ib,jb,kb,:), ' L(û)= ', wsum(bin(1),bin(2),bin(3),:)
+                   ! endif
 
         		case default
     				stop "Error - Only full constraint possbile with average_over_allbins_iter"
@@ -2236,10 +2229,12 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
     		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
 
     		!Velocity calculated from acceleration
-            wmol(:) = weighting_array(:,n)/wsum(bin(1),bin(2),bin(3),:)
-			!write(5000,'(a,2i6,3f10.5,6f14.5)'), 'Weighting functions', iter,n, r(:,n), weighting_array(:,n)/wsum(bin(1),bin(2),bin(3),:), wsum(bin(1),bin(2),bin(3),:)
+            !wmol(:) = weighting_array(:,n)/wsum(bin(1),bin(2),bin(3),:)
+			!write(5000,'(a,2i6,3f10.5,6f14.5)'), 'Weighting functions', iter,n, r(:,n), weighting_array(:,n), F_constraint(bin(1),bin(2),bin(3),:)
 
-    		v_temp(:,n) = v(:,n) + delta_t * (a(:,n) - F_constraint(bin(1),bin(2),bin(3),:)*wmol(:))
+    		!v_temp(:,n) = v(:,n) + delta_t * (a(:,n) - F_constraint(bin(1),bin(2),bin(3),:)*wmol(:))
+		
+    		v_temp(:,n) = v(:,n) + delta_t * (a(:,n) - (F_constraint(bin(1),bin(2),bin(3),:)+weighting_array(:,n))/dble(box_np_bfr(bin(1),bin(2),bin(3))))
 
     		!Position calculated from velocity
     		r_temp(:,n) = r(:,n) + delta_t * v_temp(:,n)
@@ -2389,6 +2384,7 @@ subroutine apply_force_weighted
 	integer									:: n, molno
 	integer,dimension(3)					:: bin
 	integer, allocatable, dimension(:,:,:)	:: boxnp
+	double precision	:: rand
 	double precision,dimension(3)			:: w,wmol,velvect,Ftest,Fwtest
 
 	double precision, allocatable, dimension(:,:,:,:)   :: wsum
@@ -2399,12 +2395,12 @@ subroutine apply_force_weighted
     !Get weighting function -- linear across domain from -0.5 to 0.5
 	do n = 1,np
 
-		!Get bin
+!		!Get bin
 		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
 
-		!Add molecule weighting to sum
+!		!Add molecule weighting to sum
 		boxnp(bin(1),bin(2),bin(3))  = boxnp(bin(1),bin(2),bin(3)) + 1
-		wsum( bin(1),bin(2),bin(3),:)= wsum( bin(1),bin(2),bin(3),:) + weighting_array(:,n) 
+!		!wsum( bin(1),bin(2),bin(3),:)= wsum( bin(1),bin(2),bin(3),:) + weighting_array(:,n) 
 
 	enddo
 
@@ -2416,15 +2412,22 @@ subroutine apply_force_weighted
 		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
 
 		!Apply force
-        wmol(:) = weighting_array(:,n)/wsum(bin(1),bin(2),bin(3),:)
-		a(:,n) = a(:,n) - F_constraint(bin(1),bin(2),bin(3),:) * wmol(:)
+        !wmol(:) = weighting_array(:,n)/wsum(bin(1),bin(2),bin(3),:)
+		!a(:,n) = a(:,n) - F_constraint(bin(1),bin(2),bin(3),:) * wmol(:)
+		a(:,n) = a(:,n) - (F_constraint(bin(1),bin(2),bin(3),:)+weighting_array(:,n))/dble(boxnp(bin(1),bin(2),bin(3)))
+
+
+		call random_number(rand)
+		if (iter .eq. 150 ) then
+			write(5000,'(a,2i6,3f10.5,6f14.5)'), 'Weight', iter,n, r(:,n), weighting_array(:,n), (F_constraint(bin(1),bin(2),bin(3),:)+weighting_array(:,n))/dble(boxnp(bin(1),bin(2),bin(3)))
+		endif
 
 		!Add external force to CV total
 		if (eflux_outflag .eq. 4) then
 			velvect(:) = v(:,n) + 0.5d0*delta_t*a(:,n)
-			call record_external_forces(F_constraint(bin(1),bin(2),bin(3),:)*wmol(:),r(:,n),velvect)
+			call record_external_forces((F_constraint(bin(1),bin(2),bin(3),:)+weighting_array(:,n))/dble(boxnp(bin(1),bin(2),bin(3))),r(:,n),velvect)
 		else
-			call record_external_forces(F_constraint(bin(1),bin(2),bin(3),:)*wmol(:),r(:,n))
+			call record_external_forces((F_constraint(bin(1),bin(2),bin(3),:)+weighting_array(:,n))/dble(boxnp(bin(1),bin(2),bin(3))),r(:,n))
 		endif
 
 	enddo

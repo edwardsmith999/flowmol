@@ -1872,17 +1872,22 @@ end function surface_array_to_nodes
 ! array of surface fluxes passed into the function
 
 !Wrapper for single molecule
-function linearsurface_weight_1mol(array,r_in,binsize,domain) result(weight)
+function linearsurface_weight_1mol(array,r_in,binsize,domain,zeromean) result(weight)
 
     double precision,dimension(3),intent(in)	:: domain,binsize
     double precision,dimension(:),intent(in)	:: r_in
     double precision,dimension(:,:,:,:,:),allocatable,intent(in)    :: array
+	logical,intent(in),optional	:: zeromean
 
     double precision,dimension(3,1)	    :: buf
     double precision,dimension(:,:),allocatable	    :: weight
     
     buf(:,1) =  r_in(:)
-    weight = linearsurface_weight_Nmol(array,buf,binsize,domain)
+	if (present(zeromean)) then
+	    weight = linearsurface_weight_Nmol(array,buf,binsize,domain,zeromean)
+	else
+		weight = linearsurface_weight_Nmol(array,buf,binsize,domain)
+	endif
 
 
 end function linearsurface_weight_1mol
@@ -1891,21 +1896,31 @@ end function linearsurface_weight_1mol
 ! Use linear interpolation between the surfaces of the cube 
 !(I think this is equivalent to nodes and lagrange interpolates below)
 
-function linearsurface_weight_Nmol(array,r_in,binsize,domain) result(weight)
+function linearsurface_weight_Nmol(array,r_in,binsize,domain,zeromean) result(weight)
     implicit none
 
     double precision,dimension(3),intent(in)	:: domain,binsize
     double precision,dimension(:,:),intent(in)	:: r_in
     double precision,dimension(:,:,:,:,:),allocatable,intent(in)    :: array
+	logical,intent(in),optional	:: zeromean
 
+    integer,dimension(:,:,:),allocatable :: nperbin
     double precision,dimension(:,:),allocatable	    :: weight
+    double precision,dimension(:,:,:,:),allocatable :: wsum_bin
 
 	integer							:: npoints,n
-    integer,dimension(3)            :: bin, order_nd
+    integer,dimension(3)            :: bin, order_nd, nbins
     double precision,dimension(3)   :: r_in_, Na
     double precision,dimension(:,:),allocatable :: grid, rhat
     double precision,dimension(3,6)	:: surfaces
-    !double precision,dimension(3,8)	:: nodes,test
+
+	nbins = nint(domain/binsize)
+
+	if (present(zeromean)) then
+		allocate(wsum_bin(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
+		allocate(nperbin(nbins(1)+2,nbins(2)+2,nbins(3)+2))
+		wsum_bin = 0.d0; nperbin = 0
+	endif
 
 	!Setup polynomial and other functions
 	allocate(  rhat(size(r_in,1),size(r_in,2)))
@@ -1917,6 +1932,8 @@ function linearsurface_weight_Nmol(array,r_in,binsize,domain) result(weight)
 		r_in_(:) = r_in(:,n)+0.5d0*domain(:)
 		bin(:) = ceiling((r_in_)/binsize(:))+1
 		rhat(:,n) = (r_in_(:)/binsize(:) - dble(bin(:)-2))
+
+		!print'(a,4i6,12f10.5)', 'WE', n, bin,rhat(:,n), r_in(:,n),surfaces(1,:)
 
 		if (any(rhat(:,n)-epsilon(rhat(:,n)) .gt. 1.d0) .or. & 
             any(rhat(:,n)+epsilon(rhat(:,n)) .lt. 0.d0)) then
@@ -1930,11 +1947,34 @@ function linearsurface_weight_Nmol(array,r_in,binsize,domain) result(weight)
                        (surfaces(:,5)*(1.d0-Na(2)) + surfaces(:,2)*Na(2))+ &
                        (surfaces(:,6)*(1.d0-Na(3)) + surfaces(:,3)*Na(3)))
 
-        if (bin(1) .eq. 3 .and. bin(2) .eq. 3 .and. bin(3) .eq. 3) then
-            print'(4i6,12f10.5)', n, bin,rhat(:,n), weight(:,n),surfaces(1,:)
-        endif
+
+		if (present(zeromean)) then
+			wsum_bin(bin(1),bin(2),bin(3),:) = wsum_bin(bin(1),bin(2),bin(3),:) + weight(:,n)
+			nperbin(bin(1),bin(2),bin(3)) 	 = nperbin(bin(1),bin(2),bin(3)) + 1
+		endif
+       ! if (bin(1) .eq. 3 .and. bin(2) .eq. 3 .and. bin(3) .eq. 3) then
+        !    print'(4i6,12f10.5)', n, bin,rhat(:,n), weight(:,n),surfaces(1,:)
+        !endif
 
 	enddo
+
+	if (present(zeromean)) then
+		if (zeromean) then
+			!wsum_bin(:,:,:,1) = wsum_bin(:,:,:,1)/nperbin(:,:,:)
+			!wsum_bin(:,:,:,2) = wsum_bin(:,:,:,2)/nperbin(:,:,:)
+			!wsum_bin(:,:,:,3) = wsum_bin(:,:,:,3)/nperbin(:,:,:)
+			do n =1,size(r_in,2)
+				r_in_(:) = r_in(:,n)+0.5d0*domain(:)
+				bin(:) = ceiling((r_in_)/binsize(:))+1
+				!print*, 'before loop', wsum_bin(bin(1),bin(2),bin(3),:), nperbin(bin(1),bin(2),bin(3))
+			    !if (bin(1) .eq. 3 .and. bin(2) .eq. 3 .and. bin(3) .eq. 3) then
+				!   print'(4i4,15f8.3)', n,bin, rhat(:,n),weight(:,n),wsum_bin(bin(1),bin(2),bin(3),:),surfaces(1,:)
+				!endif
+				weight(:,n) = weight(:,n) - wsum_bin(bin(1),bin(2),bin(3),:)/nperbin(bin(1),bin(2),bin(3))
+
+			enddo
+		endif
+	endif
 
 end function linearsurface_weight_Nmol
 

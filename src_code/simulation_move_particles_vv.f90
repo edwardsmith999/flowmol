@@ -268,6 +268,7 @@ contains
 	!---------------------------------------------------------------------------
 	!Evaluate dzeta_dt for global Nose-Hoover equations of motion
 	subroutine evaluate_dzeta_dt	
+	    use messenger_data_exchange, only : globalSum
 		implicit none
 
 		double precision :: v2sum
@@ -287,6 +288,7 @@ contains
 	!---------------------------------------------------------------------------
 	!Evaluate zeta for global Gaussian isokinetic thermostat
 	subroutine evaluate_zeta_GIK
+	    use messenger_data_exchange, only : globalSum
 		implicit none
 
 		double precision :: avsum
@@ -310,6 +312,7 @@ contains
 	subroutine evaluate_dzeta_dt_PUT
 		use calculated_properties_MD,  only: nbins, get_mass_slices, get_velo_slices
 		use shear_info_MD,             only: le_sp	
+	    use messenger_data_exchange, only : globalSum
 		implicit none
 		
 		double precision :: pec_v2sum

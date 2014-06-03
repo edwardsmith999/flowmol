@@ -111,6 +111,7 @@ end subroutine setup_initialise_microstate
 subroutine setup_initialise_lattice
     use module_initialise_microstate
     use messenger
+    use messenger_data_exchange, only : globalSum
 #if USE_COUPLER
     use coupler
     use md_coupler_socket, only: socket_get_domain_top
@@ -206,7 +207,7 @@ subroutine setup_initialise_lattice
 
     !Establish global number of particles on current process
     globalnp = np
-    call globalSumInt(globalnp)
+    call globalSum(globalnp)
 
     !Build array of number of particles on neighbouring
     !processe's subdomain on current proccess
@@ -234,6 +235,7 @@ subroutine setup_lattice_dense_FENE_info
     use interfaces
     use polymer_info_MD
     use messenger
+    use messenger_data_exchange, only : globalSum
     use physical_constants_MD, only: np 
     implicit none
 
@@ -330,8 +332,8 @@ subroutine setup_lattice_dense_FENE_info
 
     proc_chains(irank) = chainID
     proc_nps(irank)    = np
-    call globalSumIntVect(proc_chains,nproc)
-    call globalSumIntVect(proc_nps,nproc)
+    call globalSum(proc_chains,nproc)
+    call globalSum(proc_nps,nproc)
     
     do n=1,np
         if (monomer(n)%chainID.ne.0) then
@@ -352,6 +354,7 @@ subroutine setup_cylinder_FENE_solution
     use interfaces
     use polymer_info_MD
     use messenger
+    use messenger_data_exchange, only : globalSum
     use arrays_MD, only: r
     use physical_constants_MD, only: np, density
     use concentric_cylinders, only: r_oi, r_io
@@ -405,8 +408,8 @@ subroutine setup_cylinder_FENE_solution
     call contract_chains_to_equil_sep
 
     ! Relabel chainIDs globally
-    call globalSumIntVect(proc_chains,nproc)
-    call globalSumIntVect(proc_nps,nproc)
+    call globalSum(proc_chains,nproc)
+    call globalSum(proc_nps,nproc)
     do n=1,np
         if (monomer(n)%chainID.ne.0) then
             monomer(n)%chainID = monomer(n)%chainID + sum(proc_chains(1:irank)) - proc_chains(irank)
@@ -750,6 +753,7 @@ subroutine setup_initialise_sparse_FENE
     use physical_constants_MD, only: np,globalnp,rcutoff
     use interfaces, only: error_abort
     use arrays_MD, only: r
+    use messenger_data_exchange, only : globalSum
 #if USE_COUPLER
     use coupler
     use md_coupler_socket, only: socket_get_domain_top
@@ -888,7 +892,7 @@ subroutine setup_initialise_sparse_FENE
 
     !Establish global number of particles on current process
     globalnp = np
-    call globalSumInt(globalnp)
+    call globalSum(globalnp)
 
     !Build array of number of particles on neighbouring
     !processe's subdomain on current proccess
@@ -897,8 +901,8 @@ subroutine setup_initialise_sparse_FENE
     proc_chains(irank) = chainID
     proc_nps(irank)    = np
 
-    call globalSumIntVect(proc_chains,nproc)
-    call globalSumIntVect(proc_nps,nproc)
+    call globalSum(proc_chains,nproc)
+    call globalSum(proc_nps,nproc)
     
     do n=1,np
         if (monomer(n)%chainID.ne.0) then
@@ -945,6 +949,7 @@ subroutine setup_initialise_solid_liquid
     use physical_constants_MD, only : fixdistbottom
     use module_initialise_microstate
     use messenger
+    use messenger_data_exchange, only : globalSum
 #if USE_COUPLER
     use coupler
     use md_coupler_socket, only: socket_get_domain_top
@@ -1053,7 +1058,7 @@ subroutine setup_initialise_solid_liquid
 
     !Establish global number of particles on current process
     globalnp = np
-    call globalSumInt(globalnp)
+    call globalSum(globalnp)
 
     !Build array of number of particles on neighbouring
     !processe's subdomain on current proccess
@@ -1082,6 +1087,7 @@ subroutine setup_initialise_concentric_cylinders
     use module_initialise_microstate
     use concentric_cylinders
     use messenger
+    use messenger_data_exchange, only : globalSum
     use interfaces, only: error_abort
     implicit none
 
@@ -1164,7 +1170,7 @@ subroutine setup_initialise_concentric_cylinders
 
     !Establish global number of particles on current process
     globalnp = np
-    call globalSumInt(globalnp)
+    call globalSum(globalnp)
 
     !Build array of number of particles on neighbouring
     !processe's subdomain on current proccess
@@ -1176,6 +1182,7 @@ subroutine setup_initialise_fill_cylinders
     use module_initialise_microstate
     use concentric_cylinders
     use messenger
+    use messenger_data_exchange, only : globalSum
     use boundary_MD, only: specular_flag, specular_flat, specular_wall
     use interfaces, only: error_abort
     implicit none
@@ -1263,7 +1270,7 @@ subroutine setup_initialise_fill_cylinders
 
     !Establish global number of particles on current process
     globalnp = np
-    call globalSumInt(globalnp)
+    call globalSum(globalnp)
 
     !Build array of number of particles on neighbouring
     !processe's subdomain on current proccess
@@ -1277,6 +1284,7 @@ subroutine setup_initialise_polyinfo_singlebranched
     use interfaces
     use polymer_info_MD
     use messenger
+    use messenger_data_exchange, only : globalSum
     use physical_constants_MD, only: np
     use arrays_MD, only:r
     implicit none
@@ -1370,8 +1378,8 @@ subroutine setup_initialise_polyinfo_singlebranched
 
     proc_chains(irank) = chainID
     proc_nps(irank)    = np
-    call globalSumIntVect(proc_chains,nproc)
-    call globalSumIntVect(proc_nps,nproc)
+    call globalSum(proc_chains,nproc)
+    call globalSum(proc_nps,nproc)
     
     do n=1,np
         if (monomer(n)%chainID.ne.0) then
@@ -1393,6 +1401,7 @@ end subroutine setup_initialise_polyinfo_singlebranched
 
 subroutine setup_initialise_velocities
     use module_initialise_microstate
+    use messenger_data_exchange, only : globalSum
     implicit none
 
     integer                            :: n,i 
@@ -1427,8 +1436,8 @@ subroutine setup_initialise_velocities
         netv(:)= netv(:) + v(:,n)           !Sum up overall momentum of system due to random movement
     enddo
 
-    call globalSumVect(netv, nd)            !Sum net velocity on all processors
-    call globalSumInt(i)                    !Sum number of molecules assigned velocity on all processors
+    call globalSum(netv, nd)            !Sum net velocity on all processors
+    call globalSum(i)                    !Sum number of molecules assigned velocity on all processors
 
     if(i .ne. 0) netv(:) = netv(:)/i        !Divide overall momentum by number of particles
 
@@ -1451,6 +1460,7 @@ end subroutine setup_initialise_velocities
 
 subroutine setup_initialise_velocities_TG
     use module_initialise_microstate
+    use messenger_data_exchange, only : globalSum
     implicit none
 
     integer                            :: n,i 
@@ -1473,7 +1483,7 @@ subroutine setup_initialise_velocities_TG
         netv(:)= netv(:) + v(:,n)           !Sum up overall momentum of system due to random movement
     enddo
 
-    call globalSumVect(netv, nd)            !Sum net velocity on all processors
+    call globalSum(netv, nd)            !Sum net velocity on all processors
     netv(:) = netv(:)/np        !Divide overall momentum by number of particles
 
     do n=1,np
@@ -1487,6 +1497,7 @@ end subroutine setup_initialise_velocities_TG
 
 subroutine setup_initialise_velocities_TG_parallel
     use module_initialise_microstate
+    use messenger_data_exchange, only : globalSum
     implicit none
 
     integer                            :: n,i 
@@ -1513,7 +1524,7 @@ subroutine setup_initialise_velocities_TG_parallel
 
     print*, 'before sum', irank, netv, nd
 
-    call globalSumVect(netv, nd)            !Sum net velocity on all processors
+    call globalSum(netv, nd)            !Sum net velocity on all processors
     netv(:) = netv(:)/np        !Divide overall momentum by number of particles
 
     print*, 'after sum', irank, netv, nd
