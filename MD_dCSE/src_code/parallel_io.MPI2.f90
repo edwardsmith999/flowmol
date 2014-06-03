@@ -3136,6 +3136,7 @@ contains
         use computational_constants_MD, only: separate_outfiles, irank, iroot,&
                                               iter, initialstep, tplot, &
                                               prefix_dir
+	    use messenger_data_exchange, only : globalSum
         use librarymod, only: get_new_fileunit, get_Timestep_FileName
         implicit none
 
@@ -3167,7 +3168,7 @@ contains
         ! Global reduce
         allocate(buf(bforce_pdf_nsubcells*bforce_pdf_nbins*3))
         buf = reshape(array_out, (/bforce_pdf_nsubcells*bforce_pdf_nbins*3/))
-        call globalSumInt(buf) 
+        call globalSum(buf,size(buf,1)) 
         array_out = reshape(buf,(/bforce_pdf_nsubcells,bforce_pdf_nbins,3/))
 
         ! PDFs are a global quantity, so only the root processor writes

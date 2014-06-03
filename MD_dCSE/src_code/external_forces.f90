@@ -1476,7 +1476,7 @@ subroutine apply_CV_force_multibin(iter)
 	integer                     	:: igmin,jgmin,kgmin,igmax,jgmax,kgmax
 	real(kind(0.d0))								:: volume, y_loc
 	real(kind(0.d0)),dimension(3)					:: Fbinsize, u_bin
-	real(kind(0.d0)),allocatable,dimension(:,:)     :: weighting_array
+	real(kind(0.d0)),allocatable,dimension(:,:)     :: F_dist
 	real(kind(0.d0)),allocatable,dimension(:,:,:,:) :: F_constraint
 	real(kind(0.d0)),allocatable,dimension(:,:,:,:) :: CFD_Pi_dS,CFD_rhouu_dS,CFD_u_cnst
 
@@ -1581,30 +1581,30 @@ subroutine get_test_values(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
     bmin = max(localise_bin((/igmin,jgmin,kgmin/)),(/2,2,2 /))
     bmax = min(localise_bin((/igmax,jgmax,kgmax/)),nbins(:)+1)
 
-	if (allocated(weighting_array)) deallocate(weighting_array)
+	if (allocated(F_dist)) deallocate(F_dist)
 	select case(CVweighting_flag)
 	case(0)
 		!No weighting -- apply evenly. 
-		allocate(weighting_array,source=get_uniform_weighting_array())
+		allocate(F_dist,source=get_uniform_F_dist())
 	case(1)
 		!Random weighting
-		allocate(weighting_array,source=get_random_weighting_array())
+		allocate(F_dist,source=get_random_F_dist())
 	case(2)
 		!MD stress weighting
-		allocate(weighting_array,source=get_MDstress_weighting_array(r,Fbinsize,domain))
+		allocate(F_dist,source=get_MDstress_F_dist(r,Fbinsize,domain))
 	case(3)
 		!CFD Couette flow weighting only
         Re = 0.33333d0
         H = globaldomain(2)
-		allocate(weighting_array,source=get_Couette_stress_weighting_array(r,Re,H,bmin,bmax,Fbinsize,domain))
+		allocate(F_dist,source=get_Couette_stress_F_dist(r,Re,H,bmin,bmax,Fbinsize,domain,timeevolve=.false.))
 	case(4)
 		!MD stress and Couette flow weighting
         Re = 0.33333d0
         H = globaldomain(2)
-		allocate(weighting_array,source=get_MD_and_Couette_stress_weighting_array(r,Re,H,bmin,bmax,Fbinsize,domain))
+		allocate(F_dist,source=get_MD_and_Couette_stress_F_dist(r,Re,H,bmin,bmax,Fbinsize,domain))
 	case(5)
 		stop "DEBUG CASE 5 -- Doesn't work at present"
-		!allocate(weighting_array,source=get_parabolic_weighting_array(r,Fbinsize,domain))
+		!allocate(F_dist,source=get_parabolic_F_dist(r,Fbinsize,domain))
 	case default 
 		stop "CVweighting_flag Error -- must be 0 to 3"
 	end select
@@ -1768,32 +1768,36 @@ subroutine get_test_values(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 
 end subroutine get_test_values
 
-!Sure this is the zero order
-!Lagrange interpolant case but simpler to set to 1 throughout
-function get_uniform_weighting_array() result(w)
+
+!No distribution added to the uniform F_constraint
+function get_uniform_F_dist() result(w)
 	implicit none
 
 	double precision,dimension(:,:),allocatable	:: w
 
 	allocate(w(3,np))
-	w = 1.d0
+	w = 0.d0
 	
-end function get_uniform_weighting_array
+end function get_uniform_F_dist
 
-
-function get_random_weighting_array() result(w)
+!Random distribution added to the uniform F_constraint
+function get_random_F_dist() result(w)
 	implicit none
 
 	double precision,dimension(:,:),allocatable	:: w
 
 	allocate(w(3,np))
 	call random_number(w)
-	!w = (w-0.5)*100.d0	!THIS WILL NOT WORK AS SUM = 0 IN SOME CASES!
-	w = w*100.d0
-	
-end function get_random_weighting_array
 
-function get_MDstress_weighting_array(r_in,binsize,domain) result(w)
+	!Normalise total contribution to zero
+	w(1,:) = w(1,:) - w(1,:)/sum(w(1,:))
+	w(2,:) = w(2,:) - w(2,:)/sum(w(2,:))
+	w(3,:) = w(3,:) - w(3,:)/sum(w(3,:))
+	
+end function get_random_F_dist
+
+!MD stress based distribution added to the uniform F_constraint
+function get_MDstress_F_dist(r_in,binsize,domain) result(w)
     use arrays_MD, only : r,v,a
 	use cumulative_momentum_flux_mod, only : cumulative_momentum_flux
     use computational_constants_MD, only : halfdomain
@@ -1809,38 +1813,47 @@ function get_MDstress_weighting_array(r_in,binsize,domain) result(w)
 	double precision,allocatable,dimension(:,:,:,:,:) :: MD_stress
 
 	!Allocate and zero arrays
-	allocate(r_temp(3,np),v_temp(3,np))
-	r_temp = 0.d0; v_temp = 0.d0
+	!allocate(r_temp(3,np),v_temp(3,np))
+	!r_temp = 0.d0; v_temp = 0.d0
 	!allocate(box_np_bfr(nbins(1)+2,nbins(2)+2,nbins(3)+2)); box_np_bfr = 0
-	do n = 1,np
-		v_temp(:,n) = v(:,n) + delta_t * a(:,n) 		!Velocity calculated from acceleration
-		r_temp(:,n) = r(:,n) + delta_t * v_temp(:,n)	!Position calculated from velocity
+	!do n = 1,np
+	!	v_temp(:,n) = v(:,n) + delta_t * a(:,n) 		!Velocity calculated from acceleration
+	!	r_temp(:,n) = r(:,n) + delta_t * v_temp(:,n)	!Position calculated from velocity
 
-		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/binsize(:))+1
+	!	bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/binsize(:))+1
 		!Add molecule to overlap list
 		!box_np_bfr(bin(1),bin(2),bin(3))  = box_np_bfr(bin(1),bin(2),bin(3))   + 1
-	enddo
+	!enddo
 
 	!Call linear lagrange polynomial to distribute forces
-	allocate(MD_stress(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
+	!allocate(MD_stress(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
 	!Update momentum flux using velocity at next timestep
-	CV_constraint%flux = 0.d0
-	call cumulative_momentum_flux(r_temp,v_temp,CV_constraint%flux)
+	!CV_constraint%flux = 0.d0
+	!call cumulative_momentum_flux(r_temp,v_temp,CV_constraint%flux)
+	!MD_stress = (0.25d0*CV_constraint%Pxy(:,:,:,:,:) + CV_constraint%flux(:,:,:,:,:)/delta_t)
+	
 
-	MD_stress = (0.25d0*CV_constraint%Pxy(:,:,:,:,:) + CV_constraint%flux(:,:,:,:,:)/delta_t)
+	! N.B. Only the configurational stress is used to determine the distribution of forces as
+	! application of forces to compensate for instantanous molecules crossings 
+	! doesn't make physical sense (I believe)
 
 	allocate(w(3,np))
+	allocate(MD_stress(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
+	MD_stress = 0.25d0*CV_constraint%Pxy
 	w(:,:) = linearsurface_weight(MD_stress,r_in(:,1:np),binsize,domain,zeromean=.true.)
+
+	!Call linear lagrange polynomial to distribute forces
 	!w(:,:) = lagrange_poly_weight(MD_stress,r_in(:,1:np),binsize,domain,2)
 
-	allocate(wsum(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); wsum=0.d0
-	do n = 1,np
-		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/binsize(:))+1
 
-        !Get weighting tally
-        wsum(bin(1),bin(2),bin(3),:) = wsum(bin(1),bin(2),bin(3),:) + w(:,n)
+	! ************* Test values here ***************
+!	allocate(wsum(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); wsum=0.d0
+!	do n = 1,np
+!		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/binsize(:))+1
 
-	enddo
+!        !Get weighting tally
+!        wsum(bin(1),bin(2),bin(3),:) = wsum(bin(1),bin(2),bin(3),:) + w(:,n)
+!	enddo
 
 !	do i=1,size(wsum,1)
 !	do j=1,size(wsum,2)
@@ -1882,9 +1895,9 @@ function get_MDstress_weighting_array(r_in,binsize,domain) result(w)
 !	enddo
 !	enddo
 
-end function get_MDstress_weighting_array
+end function get_MDstress_F_dist
 
-function get_Couette_stress_weighting_array(r_in,Re,H,bmin,bmax,binsize,domain) result(w)
+function get_Couette_stress_F_dist(r_in,Re,H,bmin,bmax,binsize,domain,timeevolve) result(w)
 	use librarymod, only : couette_analytical_stress_fn
 	implicit none
 
@@ -1892,6 +1905,7 @@ function get_Couette_stress_weighting_array(r_in,Re,H,bmin,bmax,binsize,domain) 
 	double precision,dimension(3),intent(in)	:: binsize,domain
 	double precision,intent(in)		:: Re, H
 	double precision,dimension(:,:),intent(in)	:: r_in
+	logical,optional							:: timeevolve
 
 	integer						:: i,j,k,appliedbins, ib,jb,kb,taumin, taumax
 
@@ -1899,6 +1913,10 @@ function get_Couette_stress_weighting_array(r_in,Re,H,bmin,bmax,binsize,domain) 
 	double precision,dimension(:,:),allocatable	:: w
 	double precision,allocatable,dimension(:,:,:,:,:) :: CFDstress
 	real(kind(0.d0)),allocatable,dimension(:,:,:,:,:) :: CFD_Pxy,CFD_flux
+
+	if (.not. present(timeevolve)) then
+		timeevolve = .false.
+	endif
 
 	allocate(CFD_Pxy( nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
 	allocate(CFD_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
@@ -1911,10 +1929,14 @@ function get_Couette_stress_weighting_array(r_in,Re,H,bmin,bmax,binsize,domain) 
     allocate(tautemp(appliedbins))	!Double resolution for surfaces
 
     ! Couette Analytical solution
-	! Steady state solution
-	tautemp = 2.d0/domain(2) 
-	!Time evolving solution
-	!tautemp = couette_analytical_stress_fn((iter-CVforce_starttime)*delta_t,Re,1.d0,H,appliedbins,2)
+	if (timeevolve) then
+		!Time evolving solution
+		tautemp = couette_analytical_stress_fn((iter-CVforce_starttime)*delta_t,Re,1.d0,H,appliedbins,2)
+	else
+		! Steady state solution
+		tautemp = 2.d0/domain(2) 
+	endif
+
     !Copy tau to CFD surfaces
 	CFD_flux = 0.d0
 	CFD_Pxy  = 0.d0
@@ -1928,34 +1950,16 @@ function get_Couette_stress_weighting_array(r_in,Re,H,bmin,bmax,binsize,domain) 
 	!Take CFD stress field and use to determine weighting function
 	CFDstress(:,:,:,:,:) = -(CFD_Pxy(:,:,:,:,:)+CFD_flux(:,:,:,:,:))*volume
 
-!	do i = 2,nbins(1)+1
-!	do j = 2,nbins(2)+1
-!	do k = 2,nbins(3)+1
-!		!CFDstress(i,j,k,:,:) = -CFDstress(i,j,k,:,:)! - minval(CFDstress(i,j,k,:,:))
-!		CFDstress(i,j,k,:,1) = -CFDstress(i,j,k,:,1) - min(CFDstress(i,j,k,:,1),CFDstress(i,j,k,:,4)) 
-!		CFDstress(i,j,k,:,2) = -CFDstress(i,j,k,:,2) - min(CFDstress(i,j,k,:,2),CFDstress(i,j,k,:,5)) 
-!		CFDstress(i,j,k,:,3) = -CFDstress(i,j,k,:,3) - min(CFDstress(i,j,k,:,3),CFDstress(i,j,k,:,6)) 
-!		CFDstress(i,j,k,:,4) = -CFDstress(i,j,k,:,4) - min(CFDstress(i,j,k,:,4),CFDstress(i,j,k,:,1)) 
-!		CFDstress(i,j,k,:,5) = -CFDstress(i,j,k,:,5) - min(CFDstress(i,j,k,:,5),CFDstress(i,j,k,:,2)) 
-!		CFDstress(i,j,k,:,6) = -CFDstress(i,j,k,:,6) - min(CFDstress(i,j,k,:,6),CFDstress(i,j,k,:,3)) 
-
-!		!PRINT'(3i6,6f15.6)', i,j,k,CFDstress(i,j,k,1,2),CFDstress(i,j,k,1,5), min(CFDstress(i,j,k,1,1),CFDstress(i,j,k,1,4)), & 
-!		!						 min(CFDstress(i,j,k,1,2),CFDstress(i,j,k,1,5)), min(CFDstress(i,j,k,1,3),CFDstress(i,j,k,1,6)) 
-!	enddo
-!	enddo
-!	enddo
-
 	!Call linear lagrange polynomial to distribute forces
 	allocate(w(3,np))
-	w(:,:) = lagrange_poly_weight_Nmol(CFDstress,r_in(:,1:np),binsize,domain,2)
-	!w(1,:) = w(1,:) + minval(w(1,:))
-	w(2:3,:) = 1.d0
-	!print*, 'tauminmax', taumin, taumax, appliedbins, bmin(2), bmax(2),size(tautemp),tautemp(taumin:taumax-2:2),w(:,100)
+	w(:,:) = linearsurface_weight(CFDstress,r_in(:,1:np),binsize,domain,zeromean=.true.)
+	!w(:,:) = lagrange_poly_weight_Nmol(CFDstress,r_in(:,1:np),binsize,domain,2,zeromean=.true.)
+	w(2:3,:) = 0.d0
 	
-end function get_Couette_stress_weighting_array
+end function get_Couette_stress_F_dist
 
 
-function get_MD_and_Couette_stress_weighting_array(r_in,Re,H,bmin,bmax,binsize,domain) result(w)
+function get_MD_and_Couette_stress_F_dist(r_in,Re,H,bmin,bmax,binsize,domain) result(w)
 	use librarymod, only : couette_analytical_stress_fn
 	implicit none
 
@@ -1963,74 +1967,10 @@ function get_MD_and_Couette_stress_weighting_array(r_in,Re,H,bmin,bmax,binsize,d
 	double precision,dimension(3),intent(in)	:: binsize,domain
 	double precision,intent(in)		:: Re, H
 	double precision,dimension(:,:),intent(in)	:: r_in
-
-	integer						:: appliedbins, ib,jb,kb,taumin, taumax
-
-	double precision,dimension(:),allocatable	:: tautemp
 	double precision,dimension(:,:),allocatable	:: w
-	double precision,allocatable,dimension(:,:,:,:,:) :: CFDMDstress_diff
-	real(kind(0.d0)),allocatable,dimension(:,:,:,:,:) :: CFD_Pxy,CFD_flux
-
-	stop "get_MD_and_Couette_stress_weighting_array IS NOT DEVELOPED YET"
-
-	allocate(CFD_Pxy( nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
-	allocate(CFD_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
-	allocate(CFDMDstress_diff(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
-
-	!appliedbins = 2.d0*gnbins(2)+1
-	taumin = 2.d0 * (bmin(2)-1) - 1
-	taumax = 2.d0 * (bmax(2)  ) - 1
-	appliedbins = taumax-taumin+1
-    allocate(tautemp(appliedbins))	!Double resolution for surfaces
-
-    ! Couette Analytical solution
-	tautemp = 2.d0/domain(2) !couette_analytical_stress_fn((iter-CVforce_starttime)*delta_t,Re,1.d0,H,appliedbins,2)
-    !Copy tau to CFD surfaces
-	CFD_flux = 0.d0
-	CFD_Pxy  = 0.d0
-    do ib = bmin(1),bmax(1)
-    do kb = bmin(3),bmax(3)
-		CFD_Pxy(ib,bmin(2):bmax(2),kb,1,2) =  tautemp(taumin:taumax-2:2)	!Top
-		CFD_Pxy(ib,bmin(2):bmax(2),kb,1,5) = -tautemp(taumin+2:taumax:2)	!Bottom
-    enddo
-    enddo
-
-	!Take difference between MD stress field and CFD stress field and use to determine weighting function
-	CFDMDstress_diff(:,:,:,:,:) =  (0.25d0*CV_constraint%Pxy(:,:,:,:,:)+CV_constraint%flux(:,:,:,:,:)/delta_t) & 
-					   			        -(CFD_Pxy(:,:,:,:,:)+CFD_flux(:,:,:,:,:))*volume
-
-	!Call linear lagrange polynomial to distribute forces
-	allocate(w(3,np))
-	w(:,:) = lagrange_poly_weight_Nmol(CFDMDstress_diff,r_in(:,1:np),binsize,domain,2)
-	!w(:,:) = linearsurface_weight(CFDMDstress_diff,r_in(:,1:np),binsize,domain,2)
-	!print*, 'tauminmax', taumin, taumax, appliedbins, bmin(2), bmax(2),size(tautemp),tautemp(taumin:taumax-2:2),w(:,100)
+	stop "get_MD_and_Couette_stress_F_dist IS NOT DEVELOPED YET"
 	
-end function get_MD_and_Couette_stress_weighting_array
-
-
-
-
-!function get_parabolic_weighting_array(r_in,binsize,domain) result(w)
-!	use librarymod, only : couette_analytical_stress_fn
-!	implicit none
-
-!	double precision,dimension(3),intent(in)	:: binsize,domain
-!	double precision,allocatable,dimension(:,:),intent(in)	:: r_in
-
-!	double precision,dimension(:,:),allocatable	:: w
-!	double precision,allocatable,dimension(:,:,:,:,:) :: CFDstress
-
-!	!Take difference between MD stress field and CFD stress field and use to determine weighting function
-!	allocate(CFDstress(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
-
-!	CFDstress(:,:,:,:,:) = 0.d0
-
-!	!Call linear lagrange polynomial to distribute forces
-!	allocate(w(3,np))
-!	w(:,:) = lagrange_poly_weight_Nmol(array=CFDstress,r_in=r_in(:,1:np),binsize=binsize,domain=domain,order=3)
-
-!end function get_parabolic_weighting_array
-
+end function get_MD_and_Couette_stress_F_dist
 	
 
 ! Exchange all halo values for CV values ready to apply forces
@@ -2108,7 +2048,7 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 		u_bin_bfr( bin(1),bin(2),bin(3),:)= u_bin_bfr( bin(1),bin(2),bin(3),:) + v(:,n)
 
         !Get weighting tally
-        wsum(bin(1),bin(2),bin(3),:) = wsum(bin(1),bin(2),bin(3),:) + weighting_array(:,n)
+        wsum(bin(1),bin(2),bin(3),:) = wsum(bin(1),bin(2),bin(3),:) + F_dist(:,n)
 
 	enddo
 
@@ -2117,26 +2057,26 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 	!do n=1,np
 	!	bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
 	!	if (bin(1) .eq. 2 .and. bin(2) .eq. 2 .and. bin(3) .eq. 2 ) then
-	!		write(5000,'(a,2i6,3f10.5,6f14.5)'), 'Weighting functions', iter,n, r(:,n), weighting_array(:,n), wsum(bin(1),bin(2),bin(3),:)
+	!		write(5000,'(a,2i6,3f10.5,6f14.5)'), 'Weighting functions', iter,n, r(:,n), F_dist(:,n), wsum(bin(1),bin(2),bin(3),:)
 	!	endif
 !		!Set to zero if sum of values are zero
 !		if (abs(wsum(bin(1),bin(2),bin(3),1) .lt. 0.0001d0)) then
-!			weighting_array(1,n) = 1.d0; wsum(bin(1),bin(2),bin(3),1) = wsum(bin(1),bin(2),bin(3),1) + weighting_array(1,n)
+!			F_dist(1,n) = 1.d0; wsum(bin(1),bin(2),bin(3),1) = wsum(bin(1),bin(2),bin(3),1) + F_dist(1,n)
 !			stop "Wsum x is too small"
 !		endif
 !		if (abs(wsum(bin(1),bin(2),bin(3),2) .lt. 0.0001d0)) then
-!			weighting_array(2,n) = 1.d0; wsum(bin(1),bin(2),bin(3),2) = wsum(bin(1),bin(2),bin(3),2) + weighting_array(2,n)
+!			F_dist(2,n) = 1.d0; wsum(bin(1),bin(2),bin(3),2) = wsum(bin(1),bin(2),bin(3),2) + F_dist(2,n)
 !			stop "Wsum y is too small"
 !		endif
 !		if (abs(wsum(bin(1),bin(2),bin(3),3) .lt. 0.0001d0)) then
-!			weighting_array(3,n) = 1.d0; wsum(bin(1),bin(2),bin(3),3) = wsum(bin(1),bin(2),bin(3),3) + weighting_array(3,n)
+!			F_dist(3,n) = 1.d0; wsum(bin(1),bin(2),bin(3),3) = wsum(bin(1),bin(2),bin(3),3) + F_dist(3,n)
 !			stop "Wsum z is too small"
 !		endif
 	!enddo
 	!TEMP TEMP TEMP TEMP TEMP TEMP TEMP TEMP
 
 	!if (any(abs(wsum(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:)) .lt. 0.0001d0)) then	
-	!	print*, wsum(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:), weighting_array
+	!	print*, wsum(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:), F_dist
 	!	stop "Wsum is too small"
 	!endif
 	
@@ -2229,12 +2169,12 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
     		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
 
     		!Velocity calculated from acceleration
-            !wmol(:) = weighting_array(:,n)/wsum(bin(1),bin(2),bin(3),:)
-			!write(5000,'(a,2i6,3f10.5,6f14.5)'), 'Weighting functions', iter,n, r(:,n), weighting_array(:,n), F_constraint(bin(1),bin(2),bin(3),:)
+            !wmol(:) = F_dist(:,n)/wsum(bin(1),bin(2),bin(3),:)
+			!write(5000,'(a,2i6,3f10.5,6f14.5)'), 'Weighting functions', iter,n, r(:,n), F_dist(:,n), F_constraint(bin(1),bin(2),bin(3),:)
 
     		!v_temp(:,n) = v(:,n) + delta_t * (a(:,n) - F_constraint(bin(1),bin(2),bin(3),:)*wmol(:))
 		
-    		v_temp(:,n) = v(:,n) + delta_t * (a(:,n) - (F_constraint(bin(1),bin(2),bin(3),:)+weighting_array(:,n))/dble(box_np_bfr(bin(1),bin(2),bin(3))))
+    		v_temp(:,n) = v(:,n) + delta_t * (a(:,n) - (F_constraint(bin(1),bin(2),bin(3),:)+F_dist(:,n))/dble(box_np_bfr(bin(1),bin(2),bin(3))))
 
     		!Position calculated from velocity
     		r_temp(:,n) = r(:,n) + delta_t * v_temp(:,n)
@@ -2400,7 +2340,7 @@ subroutine apply_force_weighted
 
 !		!Add molecule weighting to sum
 		boxnp(bin(1),bin(2),bin(3))  = boxnp(bin(1),bin(2),bin(3)) + 1
-!		!wsum( bin(1),bin(2),bin(3),:)= wsum( bin(1),bin(2),bin(3),:) + weighting_array(:,n) 
+!		!wsum( bin(1),bin(2),bin(3),:)= wsum( bin(1),bin(2),bin(3),:) + F_dist(:,n) 
 
 	enddo
 
@@ -2412,22 +2352,22 @@ subroutine apply_force_weighted
 		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
 
 		!Apply force
-        !wmol(:) = weighting_array(:,n)/wsum(bin(1),bin(2),bin(3),:)
+        !wmol(:) = F_dist(:,n)/wsum(bin(1),bin(2),bin(3),:)
 		!a(:,n) = a(:,n) - F_constraint(bin(1),bin(2),bin(3),:) * wmol(:)
-		a(:,n) = a(:,n) - (F_constraint(bin(1),bin(2),bin(3),:)+weighting_array(:,n))/dble(boxnp(bin(1),bin(2),bin(3)))
+		a(:,n) = a(:,n) - (F_constraint(bin(1),bin(2),bin(3),:)+F_dist(:,n))/dble(boxnp(bin(1),bin(2),bin(3)))
 
 
 		call random_number(rand)
 		if (iter .eq. 150 ) then
-			write(5000,'(a,2i6,3f10.5,6f14.5)'), 'Weight', iter,n, r(:,n), weighting_array(:,n), (F_constraint(bin(1),bin(2),bin(3),:)+weighting_array(:,n))/dble(boxnp(bin(1),bin(2),bin(3)))
+			write(5000,'(a,2i6,3f10.5,6f14.5)'), 'Weight', iter,n, r(:,n), F_dist(:,n), (F_constraint(bin(1),bin(2),bin(3),:)+F_dist(:,n))/dble(boxnp(bin(1),bin(2),bin(3)))
 		endif
 
 		!Add external force to CV total
 		if (eflux_outflag .eq. 4) then
 			velvect(:) = v(:,n) + 0.5d0*delta_t*a(:,n)
-			call record_external_forces((F_constraint(bin(1),bin(2),bin(3),:)+weighting_array(:,n))/dble(boxnp(bin(1),bin(2),bin(3))),r(:,n),velvect)
+			call record_external_forces((F_constraint(bin(1),bin(2),bin(3),:)+F_dist(:,n))/dble(boxnp(bin(1),bin(2),bin(3))),r(:,n),velvect)
 		else
-			call record_external_forces((F_constraint(bin(1),bin(2),bin(3),:)+weighting_array(:,n))/dble(boxnp(bin(1),bin(2),bin(3))),r(:,n))
+			call record_external_forces((F_constraint(bin(1),bin(2),bin(3),:)+F_dist(:,n))/dble(boxnp(bin(1),bin(2),bin(3))),r(:,n))
 		endif
 
 	enddo
