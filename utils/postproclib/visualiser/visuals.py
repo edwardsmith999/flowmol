@@ -113,7 +113,7 @@ class VisualiserPanel(wx.Panel):
             self.field = self.MD_PP.plotlist[ftype]
             self.fieldname = ftype
         self.update_components()
-        self.update_normals()
+        self.update_normals(self.normal)
 
         self.maxbin = len(self.field.grid[self.normal]) - 1
         self.maxrec = self.field.Raw.maxrec
@@ -136,13 +136,13 @@ class VisualiserPanel(wx.Panel):
         self.component = 0
         self.choosep.component_p.componentcombobox.SetSelection(self.component)
 
-    def update_normals(self):
+    def update_normals(self,normal=0):
         self.choosep.component_p.normalcombobox.Clear()
         try:
             self.choosep.component_p.normalcombobox.AppendItems(self.field.axislabels)
         except AttributeError:
             self.choosep.component_p.normalcombobox.AppendItems(['0','1','2'])
-        self.normal = 0
+        self.normal = normal
         self.choosep.component_p.normalcombobox.SetSelection(self.normal)
 
     def handle_component(self, event):
