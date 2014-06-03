@@ -133,7 +133,8 @@ module computational_constants_MD
 		peculiar_flag, &	 			!Take streaming velocity away from temperature 	
 		CVforce_flag = VOID, & 			!Type of CV force to apply
 		CVforce_testcaseflag = 1, &		!Variety of test cases using CV forces
-		CVweighting_flag = 0			!Distribution of CV forces
+		CVweighting_flag = 0, &			!Distribution of CV forces
+		CVforce_starttime				!Start time of applied force
 
 	!Add debugging CV flags
 	logical	:: CV_debug=.false.
@@ -863,7 +864,7 @@ contains
 			pec_v2sum 			= pec_v2sum + dot_product(vel,vel)
 		end do
 
-		call globalSum(pec_v2sum)
+		call globalSum_(pec_v2sum)
 	
 		get_temperature_PUT = pec_v2sum / real(nd*globalnp,kind(0.d0))
 

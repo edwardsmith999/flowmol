@@ -950,7 +950,7 @@ subroutine reinsert_molecules
 	use physical_constants_MD, only: np, tethereddistbottom, insertnp, rcutoff2
     use boundary_MD, only: open_boundary
 	use arrays_MD, only: r, v
-	use mod_globalGatherv, only : GlobalGatherv, planeGatherv
+	use  messenger_data_exchange, only : GlobalGatherv, planeGatherv
 	use messenger, only : globalise,  plane_nproc, planerank
 	implicit none
 

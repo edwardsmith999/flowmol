@@ -553,6 +553,7 @@ contains
 
     subroutine guess_block_cylinder_np()
         use circle_rectangle_intersection
+		use messenger_data_exchange, only : PlaneSum
         implicit none
 
         real(kind(0.d0)) :: A, A_o, A_i, Atotal, ratio
