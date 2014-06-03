@@ -2943,7 +2943,8 @@ end subroutine planeGatherv
 end module messenger_data_exchange
 
 
-
+!This is currently included as a hack because routines
+!in the module file need it and are built first
 subroutine globalSum_(A)
 	use messenger
 	implicit none

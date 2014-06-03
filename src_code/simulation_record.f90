@@ -4618,34 +4618,10 @@ subroutine record_external_forces(F,ri,vi)
 
 	if (eflux_outflag .eq. 4) then
 		if ( present(vi)) then
-! 			!Check for crossing
-! 			ri_pt = ri + delta_t * vi
-! 			ibin_pt(:) = ceiling((ri_pt(:)+halfdomain(:))/mbinsize(:)) + nhb(:)
-! 			crossface(:) =  ibin(:) - ibin_pt(:)
-! 			if (sum(abs(crossface(:))) .ne. 0) then
-! 				jxyz = imaxloc(abs(crossface))	!Integer array of size 1 copied to integer
-! 				bintop(:) = (ibin(:)-1*nhb(:)  )*mbinsize(:)-halfdomain(:)
-! 				binbot(:) = (ibin(:)-1*nhb(:)-1)*mbinsize(:)-halfdomain(:)
-! 				!Calculate velocity at time of intersection
-! 				crosstimetop = (bintop(jxyz) - ri(jxyz))/ vi(jxyz)
-! 				crosstimebot = (binbot(jxyz) - ri(jxyz))/ vi(jxyz)
-! 				if (crosstimetop .gt. 0.d0 .and. crosstimetop .lt. delta_t) then
-! 					delta_t_cross = crosstimetop
-! 				elseif (crosstimebot .gt. 0.d0 .and. crosstimebot .lt. delta_t) then
-! 					delta_t_cross = crosstimebot
-! 				else
-! 					stop "Error - delta_t cross error in record_external_forces"
-! 				endif
-! 				Fiextvi = dot_product(F(:),vi(:))*(delta_t_cross/delta_t)
-! 				print'(a,i5,9f14.9,3i4)', 'Molecule_crossing',iter,dot_product(F(:),vi(:)),(delta_t_cross/delta_t),crosstimetop, crosstimebot, ri(jxyz), vi(jxyz),ri_pt(jxyz), bintop(jxyz), binbot(jxyz), crossface
-! 			else
-				Fiextvi = dot_product(F(:),vi(:))
-!			endif
-
+			Fiextvi = dot_product(F(:),vi(:))
 			Fv_ext_bin(ibin(1),ibin(2),ibin(3)) = & 
 				Fv_ext_bin(ibin(1),ibin(2),ibin(3)) + Fiextvi
-			!if (abs(dot_product(F(:),vi(:))) .gt. 0.00000001) & 
-			!	print'(8f10.5)', F(:),vi(:),dot_product(F(:),vi(:)),Fv_ext_bin(ibin(1),ibin(2),ibin(3))
+			print'(7f10.5)', F(:),vi(:),Fiextvi
 		else
 			!Velocity assumed to be zero if not supplied
 		endif
