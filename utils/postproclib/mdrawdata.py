@@ -2,7 +2,7 @@
 import numpy as np 
 import glob
 import os
-from headerdata import * 
+from headerdata import MDHeaderData
 
 """
 
@@ -65,7 +65,7 @@ class MD_RawData:
             quit()
 
         self.cpol_bins = cpol_bins
-        self.header = HeaderData(open(fdir+'simulation_header','r'))
+        self.header = MDHeaderData(fdir)
         self.dtype = dtype
         self.nperbin = nperbin
         self.nbins, self.grid = self.get_bintopology()

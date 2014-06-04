@@ -18,3 +18,10 @@ class HeaderData:
 			varname=line.split(';')[1].strip().replace('(','').replace(')','')
 			varval =line.split(';')[2].strip()
 			vars(self)[varname] = varval
+
+class MDHeaderData(HeaderData):
+
+    def __init__(self, fdir):
+        if (fdir[-1] != '/'): fdir += '/'
+        fobj = open(fdir+'simulation_header','r')
+        HeaderData.__init__(self,fobj)

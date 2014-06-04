@@ -41,7 +41,7 @@ class MD_PostProc:
                 self.fields_present.append(fname.strip().split('.')[0])
         self.fieldfiles1 = list(set(self.fields_present) & set(self.potentialfiles)) 
         try:
-            Header1 = HeaderData(open(self.resultsdir + 'simulation_header','r'))
+            Header1 = MDHeaderData(self.resultsdir)
         except IOError:
             raise NoResultsInDir
 
@@ -136,18 +136,8 @@ class MD_PostProc:
             T1 = MD_TField(self.resultsdir, **kwargs)
             self.plotlist.update({'Temperature':T1})
 
-    
         if (len(self.plotlist) == 0):
             raise NoResultsInDir 
-        # ============================================================================
-        # Useful Parameters
-#        self.nbins = int(Header1.gnbins1)*int(Header1.gnbins2)*int(Header1.gnbins3)
-#        self.binsize = float(Header1.binsize1)*float(Header1.binsize2)*float(Header1.binsize3)
-#        inspectfile = 'mbins'
-#        figname = inspectfile
-#        filebytes = os.path.getsize(self.resultsdir+inspectfile)
-#        inspectbytesperbin = 4
-#        self.maxrec = filebytes / (inspectbytesperbin*self.nbins) 
 
     def available_output_string(self):
         print('\nAvailable outputs in ' + self.resultsdir + ' include:\n')
@@ -212,66 +202,3 @@ class MD_PostProc:
             return i + 1
         except:
             return 0
-
-
-if __name__ == "__main__":
-    import matplotlib
-    import matplotlib.pyplot as plt
-
-    fdir = '/home/es205/scratch/Re400/iter390870_to_667054/'
-    #fdir = '../MD_dCSE/src_code/results/'
-    PP_fielddict = MD_PostProc(fdir)
-    print(PP_fielddict)
-
-    #plot data
-    #var = raw_input("Please enter choice of field: ")
-    var = 'velocity'
-    field = PP_fielddict.plotlist[var]
-    startrec = 5
-
-    #nrecs = 1
-    #spectrum = field.power_spectrum(startrec=startrec,endrec=startrec+nrecs-1,preavgaxes=(3),fftaxes=(0),postavgaxes=(1,2))
-    #plt.plot(spectrum[:,0],'-o',label=str(nrecs))
-
-    var = 'velocity'
-    field = PP_fielddict.plotlist[var]
-
-    x, z, v = field.contour(axes=(0,2),startrec=startrec,endrec=startrec+80,binlimits=[None,(128,128),None])
-    cmap = plt.cm.RdYlBu_r
-    contour = plt.contourf(x,z,v[:,:,0],40,cmap=cmap)
-    print(v.shape)
-    plt.colorbar(contour)
-    plt.show()
-    #quit()
-
-    #setup figure
-    #fig = plt.figure()
-    #ax = fig.add_subplot(111)
-
-
-    #for nrecs in [20,100]:
-    spectrum = field.power_spectrum(startrec=startrec,endrec=startrec+1-1,preavgaxes=(1,3),fftaxes=(0),postavgaxes=(0),binlimits=[None,(128,128),None])
-    #plt.plot(spectrum[:,0],'-o',label=str(nrecs*1600))
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    ax.set_yscale('log')
-    ax.set_xscale('log')
-    plt.plot(spectrum[:,0])
-    spectrum = field.power_spectrum(startrec=startrec,endrec=startrec+1-1,preavgaxes=(1,3),fftaxes=(0),postavgaxes=(2),binlimits=[None,(128,128),None])
-    plt.plot(spectrum[:,0])
-    #contour = ax.pcolormesh(spectrum[:,:,0],cmap=cmap,norm=matplotlib.colors.LogNorm())
-
-#    spectrum = field.power_spectrum(startrec=startrec,endrec=startrec+100-1,preavgaxes=(1,3),fftaxes=(0,2),postavgaxes=(),binlimits=[None,(128,128),None])
-#    #plt.plot(spectrum[:,0],'-o',label=str(nrecs*1600))
-#    #fig = plt.figure()
-#    #ax = fig.add_subplot(111)
-#    contour = ax.contour(spectrum[:,:,0],color='k',norm=matplotlib.colors.LogNorm())
-
-#    plt.colorbar(contour)
-    plt.show()
-    plt.clf()
-
-    #plt.legend()
-    #plt.show()
-
-

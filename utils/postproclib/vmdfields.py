@@ -9,7 +9,7 @@ import sys
 from misc_lib import Chdir
 from mdfields import (MD_mField, MD_vField, MD_TField, 
                       MD_momField, MD_dField)
-from headerdata import HeaderData
+from headerdata import MDHeaderData
 from writecolormap import WriteColorMap
 
 class VMDFields:
@@ -24,8 +24,7 @@ class VMDFields:
         self.fieldobj = fieldobj
 
         #Read Header
-        with open(fdir + 'simulation_header','r') as f:
-            self.header = HeaderData(f)
+        self.header = MDHeaderData(fdir)
 
         #Check simulation progress file to check if run 
         #is still going or has finished prematurely (crashed)
