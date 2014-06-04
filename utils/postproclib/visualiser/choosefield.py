@@ -1,4 +1,5 @@
 import wx
+import wx.lib.scrolledpanel as scrolled
 
 class PlotTypePanel(wx.Panel):
 
@@ -12,17 +13,19 @@ class PlotTypePanel(wx.Panel):
         vbox.Add(self.fieldradiobox, 0, wx.EXPAND)
         self.SetSizer(vbox)
 
-class FieldTypePanel(wx.Panel):
+class FieldTypePanel(scrolled.ScrolledPanel):
 
     def __init__(self,parent,**kwargs):
-        wx.Panel.__init__(self,parent,**kwargs)
+        scrolled.ScrolledPanel.__init__(self, parent,**kwargs)
         choices = parent.parent.MD_PP.plotlist.keys()   
         self.fieldradiobox = wx.RadioBox(self,label='Field',    
                                     style=wx.RA_SPECIFY_ROWS,
                                     choices=choices)
         vbox = wx.BoxSizer(wx.VERTICAL)
-        vbox.Add(self.fieldradiobox, 0, wx.EXPAND, 0)
+        vbox.Add(self.fieldradiobox, 0, wx.EXPAND|wx.ALL, 10)
         self.SetSizer(vbox)
+        self.SetAutoLayout(1)
+        self.SetupScrolling()
 
 class FieldComponentPanel(wx.Panel):
     
@@ -54,7 +57,7 @@ class FieldChooserPanel(wx.Panel):
         # Plot type chooser box
         self.plottype_p = PlotTypePanel(self)    
         # Field type chooser box
-        self.fieldtype_p = FieldTypePanel(self)
+        self.fieldtype_p = FieldTypePanel(self, size = (-1, 400))
         # Component chooser combo box
         self.component_p = FieldComponentPanel(self)
         # Autoscale button

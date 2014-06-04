@@ -36,7 +36,11 @@ class MD_mField(MDField):
         MDField.__init__(self,fdir,cpol_bins=cpol_bins)
         self.labels = ["mag"]
         self.nperbin = self.Raw.nperbin
-        self.plotfreq = self.Raw.header.Nmass_ave
+        if fname == 'mbins':
+            self.plotfreq = self.Raw.header.Nmass_ave
+        elif fname == 'msnap':
+            self.plotfreq = self.Raw.header.Nmflux_ave
+
 
 class MD_pField(MDField):
 
@@ -54,9 +58,12 @@ class MD_pField(MDField):
 
         self.fname = fname
         MDField.__init__(self,fdir,cpol_bins=cpol_bins)
-        self.labels = self.axislabels 
+        self.labels = self.axislabels
         self.nperbin = self.Raw.nperbin
-        self.plotfreq = self.Raw.header.Nvel_ave
+        if fname == 'vbins':
+            self.plotfreq = self.Raw.header.Nvel_ave
+        elif fname == 'vsnap':
+            self.plotfreq = self.Raw.header.Nvflux_ave
 
 class MD_FField(MDField):
 
@@ -97,7 +104,11 @@ class MD_EField(MDField):
         MDField.__init__(self,fdir,cpol_bins=cpol_bins)
         self.labels = ["mag"]
         self.nperbin = self.Raw.nperbin
-        self.plotfreq = self.Raw.header.NTemp_ave
+        if fname == 'Tbins':
+            self.plotfreq = self.Raw.header.NTemp_ave
+        elif fname == 'esnap':
+            self.plotfreq = self.Raw.header.Neflux_ave
+
 
 class MD_mfluxField(MDField):
 
@@ -366,8 +377,8 @@ class MD_TField(MDField):
 # Density field
 class MD_dField(MDField):
     
-    def __init__(self,fdir,cpol_bins=False):
-        self.mField = MD_mField(fdir,cpol_bins=cpol_bins)
+    def __init__(self,fdir,fname='mbins',cpol_bins=False):
+        self.mField = MD_mField(fdir,fname,cpol_bins=cpol_bins)
         Field.__init__(self,self.mField.Raw)
         self.nperbin = self.mField.nperbin
         self.plotfreq = self.mField.plotfreq
@@ -378,11 +389,11 @@ class MD_dField(MDField):
 
         binvolumes = self.mField.Raw.get_binvolumes()
         binvolumes = np.expand_dims(binvolumes,axis=-1)
-        Nmass_ave = self.mField.Raw.header.Nmass_ave
+        #Nmass_ave = self.mField.Raw.header.Nmass_ave
 
         # Read 4D time series from startrec to endrec
         mdata = self.mField.read(startrec, endrec, **kwargs)
-        mdata = np.divide(mdata,float(Nmass_ave))
+        mdata = np.divide(mdata,float(self.plotfreq))
 
         density = np.divide(mdata,binvolumes)
         
@@ -393,11 +404,11 @@ class MD_dField(MDField):
         nrecs = endrec - startrec + 1
         binvolumes = self.mField.Raw.get_binvolumes()
         binvolumes = np.expand_dims(binvolumes,axis=-1)
-        Nmass_ave = self.mField.Raw.header.Nmass_ave
+        #Nmass_ave = self.mField.Raw.header.Nmass_ave
 
         # Read 4D time series from startrec to endrec
         mdata = self.mField.read(startrec, endrec, **kwargs)
-        mdata = np.divide(mdata,float(Nmass_ave))
+        mdata = np.divide(mdata,float(self.plotfreq))
 
         if (avgaxes != ()):
             mdata = np.sum(mdata,axis=avgaxes) 
@@ -411,13 +422,14 @@ class MD_dField(MDField):
 # Momentum density field
 class MD_momField(MDField):
     
-    def __init__(self,fdir,cpol_bins=False):
-        self.pField = MD_pField(fdir,cpol_bins=cpol_bins)
+    def __init__(self,fdir,fname='vbins',cpol_bins=False):
+        self.pField = MD_pField(fdir,fname,cpol_bins=cpol_bins)
         Field.__init__(self,self.pField.Raw)
         self.nperbin = self.pField.nperbin
         self.plotfreq = self.pField.plotfreq
         self.axislabels = self.pField.axislabels
         self.labels = self.pField.labels
+
     def read(self, startrec, endrec,**kwargs):
 
         binvolumes = self.pField.Raw.get_binvolumes()

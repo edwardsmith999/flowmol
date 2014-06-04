@@ -3,6 +3,7 @@ import numpy as np
 import sys
 import math as maths
 import glob
+#import collections
 
 from mdfields import *
 from headerdata import *
@@ -18,7 +19,7 @@ class MD_PostProc:
 
     def __init__(self,resultsdir,**kwargs):
         self.resultsdir = resultsdir
-        self.plotlist = {}
+        self.plotlist = {} #collections.OrderedDict
         self.error = {}
         self.name = self.resultsdir.split('/')[-2]
 
@@ -37,7 +38,9 @@ class MD_PostProc:
             
         self.fields_present = []
         for fname in self.potentialfiles:
-            if (glob.glob(self.resultsdir+fname+'*')):
+            if (glob.glob(self.resultsdir+fname)):
+                self.fields_present.append(fname)
+            elif (glob.glob(self.resultsdir+fname+'.*')):
                 self.fields_present.append(fname.strip().split('.')[0])
         self.fieldfiles1 = list(set(self.fields_present) & set(self.potentialfiles)) 
         try:
@@ -50,12 +53,14 @@ class MD_PostProc:
             m1 = MD_mField(self.resultsdir, **kwargs)
             self.plotlist.update({'mbins':m1})
             d1 = MD_dField(self.resultsdir, **kwargs)
-            self.plotlist.update({'Density':d1})
+            self.plotlist.update({'\\rho':d1})
 
         #Momentum
         if 'vbins' in (self.fieldfiles1):
             M1 = MD_pField(self.resultsdir, **kwargs)
             self.plotlist.update({'vbins':M1})
+            M1 = MD_momField(self.resultsdir, **kwargs)
+            self.plotlist.update({'\\rho u':M1})
 
         #Kinetic energy
         if 'Tbins' in (self.fieldfiles1):
@@ -66,20 +71,24 @@ class MD_PostProc:
         if 'msnap' in (self.fieldfiles1):
             m1 = MD_mField(self.resultsdir,fname='msnap', **kwargs)
             self.plotlist.update({'msnap':m1})
+            m1 = MD_dField(self.resultsdir,fname='msnap', **kwargs)
+            self.plotlist.update({'\\rho_{snap}':m1})
 
         #Velocity snapshots
         if 'vsnap' in (self.fieldfiles1):
             v1 = MD_pField(self.resultsdir,fname='vsnap', **kwargs)
             self.plotlist.update({'vsnap':v1})
+            v1 = MD_momField(self.resultsdir,fname='vsnap', **kwargs)
+            self.plotlist.update({'\\rhou_{snap}':v1})
 
         #VA stress
         if 'pVA' in (self.fieldfiles1):
             P1 = MD_pVAField(self.resultsdir,fname='pVA', **kwargs)
             self.plotlist.update({'pVA':P1})
-        elif 'pVA_k' in (self.fieldfiles1):
+        if 'pVA_k' in (self.fieldfiles1):
             P1 = MD_pVAField(self.resultsdir,fname='pVA_k', **kwargs)
             self.plotlist.update({'pVA_k':P1})
-
+        if 'pVA_c' in (self.fieldfiles1):
             P1 = MD_pVAField(self.resultsdir,fname='pVA_c', **kwargs)
             self.plotlist.update({'pVA_c':P1})
 
@@ -122,19 +131,19 @@ class MD_PostProc:
         #Velocity
         if ('mbins' in (self.fieldfiles1) and 'vbins' in (self.fieldfiles1)):
             v1 = MD_vField(self.resultsdir, **kwargs)
-            self.plotlist.update({'Velocity':v1})
+            self.plotlist.update({'u':v1})
 
         #Velocity snapshot
         if ('msnap' in (self.fieldfiles1) and 'vsnap' in (self.fieldfiles1)):
             v1 = MD_vField(self.resultsdir,rectype='snap', **kwargs)
-            self.plotlist.update({'vel_snap':v1})
+            self.plotlist.update({'u_{snap}':v1})
 
         #Temperature
         if ('mbins' in (self.fieldfiles1) and 
             'vbins' in (self.fieldfiles1) and 
             'Tbins' in (self.fieldfiles1)):
             T1 = MD_TField(self.resultsdir, **kwargs)
-            self.plotlist.update({'Temperature':T1})
+            self.plotlist.update({'T':T1})
 
         if (len(self.plotlist) == 0):
             raise NoResultsInDir 
