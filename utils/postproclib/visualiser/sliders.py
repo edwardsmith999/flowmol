@@ -2,13 +2,14 @@ import wx
 
 class SliderPlusWidth(wx.Panel):
     
-    def __init__(self,parent,slidername,minval=0,maxval=100,**kwargs):
+    def __init__(self,parent,slidername,**kwargs):
 
         wx.Panel.__init__(self,parent,**kwargs)
         sliderlabel = wx.StaticText(self,-1,label=slidername+':',size=(50,-1))
-        self.slidertext = wx.TextCtrl(self,-1,style=wx.TE_PROCESS_ENTER,size=(50,-1))
-        self.slider = wx.Slider(self, minValue=minval,maxValue=maxval)
-        spintext = wx.StaticText(self,-1,label=u"\u00B1",size=(10,-1),)
+        self.slidertext = wx.TextCtrl(self,-1,style=wx.TE_PROCESS_ENTER,
+                                      size=(50,-1))
+        self.slider = wx.Slider(self)
+        spintext = wx.StaticText(self,-1,label=u"\u00B1",size=(10,-1))
         self.spin = wx.SpinCtrl(self,value='0',initial=0,size=(50,-1))
 
         hbox = wx.BoxSizer(wx.HORIZONTAL)
@@ -32,6 +33,7 @@ class SliderPlusWidth(wx.Panel):
 
     def SetMax(self,maximum):
         self.slider.SetMax(maximum)
+        self.spin.SetRange(0,maximum/2)
 
 class RecordSliderPanel(wx.Panel):
 
