@@ -186,6 +186,27 @@ subroutine setup_read_input
 			read(1,*) omega_f 
 			read(1,*) omega_ramplength
 
+		case('polymer_brush')
+
+            potential_flag = 1
+            ensemble = tag_move
+            rcutoff = 2.d0**(1.d0/6.d0)
+
+            call locate(1,'POLYMER_BRUSH',.true.)
+            read(1,*) nmonomers
+            read(1,*) k_c
+            read(1,*) R_0
+            read(1,*) grafting_density
+
+            call locate(1,'DENSITY',.true.)
+            read(1,*) density
+            call locate(1,'LIQUIDDENSITY',.true.)
+            read(1,*) liquid_density
+            call locate(1,'INITIALNUNITS',.true.)
+            read(1,*) initialnunits(1)		!x dimension split into number of cells
+            read(1,*) initialnunits(2)		!y dimension split into number of cells
+            read(1,*) initialnunits(3)		!z dimension split into number of cells
+
 		case default
 
 			call error_abort("ERROR -- Unrecognised special case string")

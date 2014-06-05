@@ -617,6 +617,20 @@ SEED
 #8
 
 #########################################################################
+# Polymer brush special case
+# 
+#   - N                       Number of LJ beads for each chain
+#   - k                       Spring constant
+#   - R_0                     Maximum bond elongation
+#   - Grafting density        Grafting density
+# -----------------------------------------------------------------------
+#POLYMER_BRUSH
+#20
+#30.0
+#1.5
+#0.1
+
+#########################################################################
 # Concentric cylinders special case definition
 #
 #	- Cylinder density
@@ -798,8 +812,8 @@ VISCOSITY_OUTFLAG
 #
 # -----------------------------------------------------------------------
 CV_CONSERVE
-1
-.true.
+0
+.false.
 
 #########################################################################
 # Output flag for mass flux:
