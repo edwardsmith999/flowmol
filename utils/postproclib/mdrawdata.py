@@ -70,7 +70,6 @@ class MD_RawData:
         self.nperbin = nperbin
         self.nbins, self.grid = self.get_bintopology()
         self.maxrec = self.get_maxrec()
-        #self.plotfreq = self.get_plotfreq() #Better to define in each instance
 
     def get_bintopology(self):
 
@@ -144,25 +143,21 @@ class MD_RawData:
         # If bin limits are specified, return only those within range
         if (binlimits):
 
-            # Initialise slice list as every index in bins
-            s = [np.arange(i) for i in binvolumes.shape]
+            # Defaults
+            lower = [0]*3
+            upper = [i for i in bindata.shape] 
+    
             for axis in range(3):
                 if (binlimits[axis] == None):
                     continue
                 else:
-                    start = binlimits[axis][0]
-                    end = binlimits[axis][1]
-                    end += 1 # +1 for slicing convention
-                    length = bindata.shape[axis]
-                    if (start < 0): start += length
-                    if (end < 1): end += length
-                    s[axis] = np.arange(start,end) 
+                    lower[axis] = binlimits[axis][0] 
+                    upper[axis] = binlimits[axis][1] 
 
-            # Convert slice list to proper shape for numpy fancy indexing
-            slicer = np.ix_(*s) 
-            # Delete entries not in slicer
-            binvolumes = binvolumes[slicer]
-
+            binvolumes = binvolumes[lower[0]:upper[0],
+                                    lower[1]:upper[1],
+                                    lower[2]:upper[2], :, :]
+                
         # Ensure binvolumes is the right shape for subsequent
         # broadcasting with other fields
         binvolumes = np.expand_dims(binvolumes,-1)
@@ -192,32 +187,6 @@ class MD_RawData:
 
         return maxrec
 
-     #This routine is replace by defining plotfreq in each MDField child that uses raw data
-#    def get_plotfreq(self):
-
-#        outdict = {'mbins': self.header.Nmass_ave,
-#                   'vbins': self.header.Nvel_ave, 
-#                   'Tbins': self.header.NTemp_ave, 
-#                   'pVA':   self.header.Nstress_ave, 
-#                   'pVA_k': self.header.Nstress_ave, 
-#                   'pVA_c': self.header.Nstress_ave, 
-#                   'msnap': self.header.Nmflux_ave, 
-#                   'mflux': self.header.Nmflux_ave, 
-#                   'vsnap':self.header.Nvflux_ave, 
-#                   'vflux':self.header.Nvflux_ave, 
-#                   'psurface':self.header.Nvflux_ave, 
-#                   'Fext':self.header.Nvflux_ave, 
-#                   'esnap':self.header.Neflux_ave,
-#                   'eflux':self.header.Neflux_ave,
-#                   'esurface':self.header.Neflux_ave,
-#                   'Fvext':self.header.Neflux_ave}
-
-#        try:
-#            plotfeq = outdict[self.fname]
-#        except:
-#            quit("Error in MDRawData -- unknown file type in get_plotfreq")
-#        return 
-        
 
     def read(self, startrec, endrec, binlimits=None, verbose=False, quit_on_error=True):
 
@@ -335,26 +304,21 @@ class MD_RawData:
                 print('bindata.shape = {0:s}'.format(str(bindata.shape)))
                 print('Extracting bins {0:s} from {1:s} '.format(
                       str(binlimits),self.fname))
-
-            # Initialise slice list as every index in bins
-            s = [np.arange(i) for i in bindata.shape]
-            # Loop over axes and change slicer limits
+            # Defaults
+            lower = [0]*3
+            upper = [i for i in bindata.shape] 
+    
             for axis in range(3):
                 if (binlimits[axis] == None):
                     continue
                 else:
-                    start = binlimits[axis][0]
-                    end = binlimits[axis][1]
-                    end += 1 # +1 for slicing convention
-                    length = bindata.shape[axis]
-                    if (start < 0): start += length
-                    if (end < 1): end += length
-                    s[axis] = np.arange(start,end) 
+                    lower[axis] = binlimits[axis][0] 
+                    upper[axis] = binlimits[axis][1] 
 
-            # Convert slice list to proper shape for numpy fancy indexing
-            slicer = np.ix_(*s) 
-            # Delete entries not in slicer
-            bindata = bindata[slicer]
+            bindata = bindata[lower[0]:upper[0],
+                              lower[1]:upper[1],
+                              lower[2]:upper[2], :, :]
+
 
             if (verbose):
                 print('new bindata.shape = {0:s}'.format(str(bindata.shape)))

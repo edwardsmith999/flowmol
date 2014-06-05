@@ -40,9 +40,11 @@ class MD_PostProc:
         for fname in self.potentialfiles:
             if (glob.glob(self.resultsdir+fname)):
                 self.fields_present.append(fname)
-            elif (glob.glob(self.resultsdir+fname+'.*')):
+            if (glob.glob(self.resultsdir+fname+'.*')):
                 self.fields_present.append(fname.strip().split('.')[0])
+
         self.fieldfiles1 = list(set(self.fields_present) & set(self.potentialfiles)) 
+
         try:
             Header1 = MDHeaderData(self.resultsdir)
         except IOError:

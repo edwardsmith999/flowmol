@@ -228,7 +228,7 @@ class VisualiserPanel(wx.Panel):
         naxes.remove(self.normal)
         binlimits = [None]*3
         binlimits[self.normal] = (self.bin-self.binwidth, 
-                                  self.bin+self.binwidth)
+                                  self.bin+self.binwidth+1)#Python +1 slicing
         ax1, ax2, data = self.field.contour(axes=naxes, 
                                             startrec=self.rec-self.recwidth,
                                             endrec=self.rec+self.recwidth,
