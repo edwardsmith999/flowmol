@@ -6,12 +6,12 @@ import numpy as np
 import csv
 import sys
 
-from misc_lib import Chdir
 from mdfields import (MD_mField, MD_vField, MD_TField, 
                       MD_momField, MD_dField)
 from headerdata import MDHeaderData
 from writecolormap import WriteColorMap
-
+sys.path.insert(0,'../')
+from misclib import Chdir
 class VMDFields:
     
     """
@@ -150,7 +150,7 @@ class VMDFields:
 
 if __name__ == "__main__":
 
-    fdir='../MD_dCSE/src_code/results/'
+    fdir='../../MD_dCSE/src_code/results/'
 
     fieldtypes = {'mbins','vbins','Tbins',
                   'density','momentum','CV_config',

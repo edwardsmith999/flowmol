@@ -385,7 +385,7 @@ subroutine set_parameters_global_domain
 			! - corrected after position setup
 			np = globalnp / nproc
 
-		case('solid_liquid')
+		case('solid_liquid','polymer_brush')
 
 			volume=1	!Set domain size to unity for loop below
 			do ixyz=1,nd

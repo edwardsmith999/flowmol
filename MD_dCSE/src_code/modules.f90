@@ -468,7 +468,7 @@ module polymer_info_MD
 	double precision    :: eps_pp, eps_ps, eps_ss   !Solvent parameters
 	double precision, parameter :: sod_cut =1.5d0   !Soddemann potential cutoff
 	double precision, parameter :: sod_cut2=2.25d0  ! 
-	
+
 	double precision 	:: k_c, R_0					!Spring constant and max elongation of bonds	
 	double precision 	:: etevtcf                  !End-to-end vector time correlation function
 	double precision    :: R_g                      !Radius of gyration
@@ -493,7 +493,8 @@ module polymer_info_MD
 	integer, parameter :: intbits=bit_size(1)-1     !Size in bits of integer on this machine
     !-1, because 2**31 + 2**(something<31) not possible to represent with 32 bit integer
     !See get_bondflag explanation for a better idea.
-                                                                
+    
+    double precision :: grafting_density                                                            
 
 	type(monomer_info), dimension(:), allocatable :: monomer
 	!eg. to access chainID of mol 23, call monomer(23)%chainID

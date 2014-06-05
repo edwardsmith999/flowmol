@@ -55,37 +55,34 @@ while True:
     chain = data[np.where(data[:,1]==chainID)]
     # keep track of where we are in the data
     lastindex = np.where(data[:,1]==chainID)[0][-1]
-
-    if (lastindex >= len(data)-1):
-        print('')
-        break
-
-    else:
     
-        if (chainID%100 == 0): 
-            progress_bar(float(chainID)/float(maxchainID))
+    if (chainID%100 == 0): 
+        progress_bar(float(chainID)/float(maxchainID))
 
-        if (chainID != 0):
+    if (chainID != 0):
 
-            for monomer in chain:
-                globID = monomer[0]
-                scID = monomer[2]
-                bflag = monomer[-4:]
-                bstring = "{3:031b}{2:031b}{1:031b}{0:031b}".format(
-                          bflag[0],bflag[1],bflag[2],bflag[3])[::-1]
-                barray = np.array(map(int,list(bstring)))
-                bscIDs = np.where(barray==1)[0] + 1
-                try:
-                    bglobIDs = ([chain[np.where(chain[:,2]==b)][0][0] 
-                                 for b in bscIDs])
-                    for ID in bglobIDs:
-                        pairs.append(sorted([globID,ID]))
-                except:
-                    print('Failed to find all subchainIDs ' + str(bscIDs) + 
-                          ' for chain ID ' + str(chainID))
-                    quit()
+        for monomer in chain:
+            globID = monomer[0]
+            scID = monomer[2]
+            bflag = monomer[-4:]
+            bstring = "{3:031b}{2:031b}{1:031b}{0:031b}".format(
+                      bflag[0],bflag[1],bflag[2],bflag[3])[::-1]
+            barray = np.array(map(int,list(bstring)))
+            bscIDs = np.where(barray==1)[0] + 1
+            try:
+                bglobIDs = ([chain[np.where(chain[:,2]==b)][0][0] 
+                             for b in bscIDs])
+                for ID in bglobIDs:
+                    pairs.append(sorted([globID,ID]))
+            except:
+                print('Failed to find all subchainIDs ' + str(bscIDs) + 
+                      ' for chain ID ' + str(chainID))
+                quit()
 
-    chainID = data[lastindex+1][1]
+    try:
+        chainID = data[lastindex+1][1]
+    except IndexError:
+        break
 
 # Remove duplicate entries by converting to a set and then back to a list
 pairs_set = set(tuple(p) for p in pairs)   

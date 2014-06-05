@@ -41,6 +41,9 @@ subroutine setup_initialise_microstate
         case('solid_liquid')
             call setup_initialise_solid_liquid
             call setup_location_tags               !Setup locn of fixed mols
+        case('polymer_brush')
+            call setup_initialise_polymer_brush
+            call setup_location_tags
         case('rubber_liquid')
             call setup_initialise_solid_liquid
             call setup_lattice_dense_FENE_info !Chain IDs, etc
@@ -161,11 +164,11 @@ subroutine setup_initialise_lattice
                 rc(1) = c(1) + 0.5d0*initialunitsize(1)
                 rc(3) = c(3) + 0.5d0*initialunitsize(3)
             case(3)
-                rc(2) = c(2) + 0.5d0*initialunitsize(1)
+                rc(2) = c(2) + 0.5d0*initialunitsize(2)
                 rc(3) = c(3) + 0.5d0*initialunitsize(3)
             case(4)
                 rc(1) = c(1) + 0.5d0*initialunitsize(1)
-                rc(2) = c(2) + 0.5d0*initialunitsize(3)
+                rc(2) = c(2) + 0.5d0*initialunitsize(2)
             case default
             end select
 
@@ -702,46 +705,10 @@ contains
 
         end do
 
+
     end subroutine test_for_connectability
 
-    !-----------------------------------------------------------------------------
-    !Connect monomer to subchainID bscID
-    !subroutine attempt_connection_to_next(scID,n)
-    !    use arrays_MD, only: r
-    !    implicit none
-
-    !    integer, intent(in) :: n, scID
-    !    real(kind(0.d0)), dimension(3) :: rn, rm, rnm
-    !    real(kind(0.d0)) :: rnmmag
-    !    logical :: success
-
-    !    success = .true. 
-    !    rn = r(:,n) 
-    !    rm = r(:,n+1)
-
-    !    !Check if molecule is in domain of processor
-    !    if(abs(rm(1)) .ge.  halfdomain(1)) success = .false. 
-    !    if(abs(rm(2)) .ge.  halfdomain(2)) success = .false. 
-    !    if(abs(rm(3)) .ge.  halfdomain(3)) success = .false. 
-
-    !    rnm = rm - rn 
-    !    rnmmag = sqrt(dot_product(rnm,rnm))
-    !    if (rnmmag .ge. R_0) success = .false. 
-
-    !    !print('(a, 3f10.4, 4x, 3f10.4, 4x, f10.4, 4x, 3f10.4, 4x, l)'), 'rn, rm, rnmmag, halfdomain, success: ' , rn, rm, rnmmag, halfdomain, success
-
-    !    if (success) then
-    !        call connect_to_monomer(scID,n)
-    !    else
-    !        skipnext = .true.
-    !        subchainID = 0
-    !        chainID = chainID + 1
-    !    end if
-
-    !end subroutine attempt_connection_to_next
-
 end subroutine setup_cylinder_FENE_solution
-
 
 
 subroutine setup_initialise_sparse_FENE
@@ -944,6 +911,532 @@ implicit none
     
 end subroutine connect_to_monomer
 
+subroutine setup_initialise_polymer_brush
+    use module_initialise_microstate
+    use polymer_info_MD
+    use messenger
+    use interfaces, only: error_abort
+    use messenger_data_exchange, only : globalSum
+
+    double precision :: solid_bottom(3), solid_top(3)
+    double precision :: grafting_density_real, density_ratio
+    integer :: nchainsremove, proc_units_xz
+    integer :: wall_np, fluid_np, maxchainID
+    integer, dimension(nproc) :: proc_chains, proc_nps
+
+    ! Set positions on a lattice, connectable increasing pos in y
+    ! Checks and intialisations
+    ! Connect all the chains we can, bonds to be removed later 
+    ! Store maximum number of chains
+    solid_density = density
+    call initialise_lattice_positions
+    call initialise_info
+    call connect_all_possible_chains(maxchainID)
+    proc_chains(irank) = maxchainID
+
+
+
+    ! Remove chains to get target grafting density (as close as possible) 
+    if (irank.eq.1) then
+        print('(a,f10.5)'), 'Target grafting density: ', grafting_density
+    end if
+    grafting_density_real = 1.d0 
+    nchainsremove = nint((grafting_density_real - grafting_density) &
+                          *real(proc_chains(irank)))
+    if (nchainsremove .gt. 0) then
+        call remove_chains_random(nchainsremove)
+        proc_chains(irank) = proc_chains(irank) - nchainsremove 
+    else if (nchainsremove .eq. 0) then
+        print*, "Don't need to remove any chains."
+    else
+        print*, 'Grafting density before chain removal:', grafting_density_real 
+        print*, 'Target grafting density, nchains connectable: ', &
+                 grafting_density, proc_chains(irank) 
+        print*, 'The target grafting density is not obtainable by removing &
+                 existing chains.'
+        call error_abort('Aborting') 
+    end if
+    proc_units_xz = initialnunits(1)*initialnunits(3)/(npx*npz) 
+    grafting_density = real(proc_chains(irank))/real(proc_units_xz)
+    if (irank .eq. 1) then
+        print('(a,f10.5)'), 'Actual grafting density: ', grafting_density 
+    end if
+
+
+
+
+    ! Shift the y-positions of chain monomers so that they are all separated
+    ! by their equilibrium distance.
+    call contract_chains_to_equil_sep
+
+    ! Remove solvent molecules so that target density is acquired, store 
+    ! new number of particles
+    density_ratio = liquid_density/solid_density
+    nmolsremove = nint(real(np)*(1.d0 - density_ratio))
+    call remove_solvent_mols(nmolsremove)
+    proc_nps(irank) = np
+
+    ! Relabel chainIDs globally
+    call globalSum(proc_chains,nproc)
+    call globalSum(proc_nps,nproc)
+    do n=1,np
+        if (monomer(n)%chainID.ne.0) then
+            monomer(n)%chainID = monomer(n)%chainID + sum(proc_chains(1:irank)) - proc_chains(irank)
+        end if
+        monomer(n)%glob_no = monomer(n)%glob_no + sum(proc_nps(1:irank)) - proc_nps(irank)
+    end do
+    nchains = sum(proc_chains)
+
+    !Establish global number of particles on current process
+    globalnp = np
+    call globalSum(globalnp)
+
+    !Build array of number of particles on neighbouring
+    !processe's subdomain on current proccess
+    call globalGathernp
+
+#if USE_COUPLER
+
+    if (jblock .eq. npy .and. iblock .eq. 1 .and. kblock .eq. 1) then
+        print*, '*********************************************************************'
+        print*, '*WARNING - TOP LAYER OF DOMAIN REMOVED IN LINE WITH CONSTRAINT FORCE*'
+        print*, 'Removed from', domain_top, 'to Domain top', globaldomain(2)/2.d0
+        print*, 'Number of molecules reduced from',  & 
+                 4*initialnunits(1)*initialnunits(2)*initialnunits(3), 'to', globalnp
+        print*, '*********************************************************************'
+        !print*, 'microstate ', minval(r(1,:)), maxval(r(1,:)),minval(r(2,:)),  &
+        !         maxval(r(2,:)),minval(r(3,:)), maxval(r(3,:))
+    endif
+
+#endif
+
+contains
+
+    subroutine initialise_lattice_positions
+#if USE_COUPLER
+        use coupler
+        use md_coupler_socket, only: socket_get_domain_top
+#endif
+        implicit none
+
+        integer :: j, n, nl, nx, ny, nz
+        integer, dimension(nd) :: p_units_lb, p_units_ub 
+        double precision :: domain_top, solid_density, density_ratio
+        double precision, dimension (nd):: rc, c
+
+        p_units_lb(1) = (iblock-1)*floor(initialnunits(1)/real((npx),kind(0.d0)))
+        p_units_ub(1) =  iblock *ceiling(initialnunits(1)/real((npx),kind(0.d0)))
+        p_units_lb(2) = (jblock-1)*floor(initialnunits(2)/real((npy),kind(0.d0)))
+        p_units_ub(2) =  jblock *ceiling(initialnunits(2)/real((npy),kind(0.d0)))
+        p_units_lb(3) = (kblock-1)*floor(initialnunits(3)/real((npz),kind(0.d0)))
+        p_units_ub(3) =  kblock *ceiling(initialnunits(3)/real((npz),kind(0.d0)))
+
+        !Set top of domain initially
+        domain_top = globaldomain(2)/2.d0
+
+        !Setup solid/liquid properties
+        solid_density = density
+        density_ratio = liquid_density/solid_density
+
+#if USE_COUPLER
+
+        if (jblock .eq. npy) then
+            domain_top = socket_get_domain_top()
+        endif
+
+#endif
+
+        !Molecules per unit FCC structure (3D)
+        n  = 0      !Initialise global np counter n
+        nl = 0      !Initialise local np counter nl
+
+        !Inner loop in y (useful for setting connectivity)
+        do nz=p_units_lb(3),p_units_ub(3)
+        c(3) = (nz - 0.75d0)*initialunitsize(3) !- halfdomain(3) 
+        do nx=p_units_lb(1),p_units_ub(1)
+        c(1) = (nx - 0.75d0)*initialunitsize(1) !- halfdomain(1)
+        do ny=p_units_lb(2),p_units_ub(2)
+        c(2) = (ny - 0.75d0)*initialunitsize(2) !- halfdomain(2) 
+
+            do j=1,4    !4 Molecules per cell
+
+                rc(:) = c(:)
+                select case(j)
+                case(2)
+                    rc(1) = c(1) + 0.5d0*initialunitsize(1)
+                    rc(3) = c(3) + 0.5d0*initialunitsize(3)
+                case(3)
+                    rc(2) = c(2) + 0.5d0*initialunitsize(2)
+                    rc(3) = c(3) + 0.5d0*initialunitsize(3)
+                case(4)
+                    rc(1) = c(1) + 0.5d0*initialunitsize(1)
+                    rc(2) = c(2) + 0.5d0*initialunitsize(2)
+                case default
+                end select
+
+                n = n + 1   !Move to next particle
+                
+                !Remove molecules from top of domain if constraint applied
+                if (jblock .eq. npy) then
+                    ! Note rc is in global coordinates from 0 to globaldomain while Domaintop
+                    ! is given in global coordinates from -halfglobaldomain to halfglobaldomain
+                    if (rc(2)-globaldomain(2)/2.d0 .gt. domain_top) cycle 
+                endif
+
+                !Check if molecule is in domain of processor
+                if(rc(1).lt. domain(1)*(iblock-1)) cycle
+                if(rc(1).ge. domain(1)*(iblock  )) cycle
+                if(rc(2).lt. domain(2)*(jblock-1)) cycle
+                if(rc(2).ge. domain(2)*(jblock  )) cycle
+                if(rc(3).lt. domain(3)*(kblock-1)) cycle
+                if(rc(3).ge. domain(3)*(kblock  )) cycle
+
+                !Solid region given by wall textures or tethered region
+                call wall_textures(texture_type,(rc(:)-globaldomain(:)/2.d0),solid_bottom,solid_top)
+
+                !If molecules is in the domain then add to total
+                nl = nl + 1 !Local molecule count
+
+                !Correct to local coordinates
+                r(1,nl) = rc(1)-domain(1)*(iblock-1)-halfdomain(1)
+                r(2,nl) = rc(2)-domain(2)*(jblock-1)-halfdomain(2)
+                r(3,nl) = rc(3)-domain(3)*(kblock-1)-halfdomain(3)
+
+            enddo
+
+        enddo
+        enddo
+        enddo
+
+        !Correct local number of particles on processor
+        np = nl
+
+    end subroutine initialise_lattice_positions
+
+    subroutine initialise_info
+        implicit none
+
+        integer :: n
+        real(kind(0.d0)) :: check 
+        character(256) :: string
+
+        proc_chains(:)         = 0
+        proc_nps(:)            = 0
+
+        ! Check chains will fit
+        check = (4.0*real(initialnunits(2))/real(npy))/real(nmonomers)
+        if (check.lt.1.d0) then
+            print*, 'np, nmonomers, nmols in y direction =  ', np, &
+                     nmonomers, 4*initialnunits(2)/npy
+            string = 'Number of molecules in the y direction on each processor &
+                      must not be more than 4*ncells(2). Please & 
+                      change the chain length in the input file.'
+            call error_abort(string)
+        end if
+
+        ! Count cylinder mols and initialise monomer info
+        fluid_np = 0
+        wall_np = 0 
+        do n=1,np+extralloc
+
+            ! Count cylinder and fluid nps
+            if (n .le. np) then
+
+                if (any(r(:,n) .lt. solid_bottom(:)) &
+                    .or. any(r(:,n) .gt. solid_top(:))) then
+
+                    wall_np = wall_np + 1 
+
+                else
+
+                    fluid_np = fluid_np + 1
+
+                end if 
+
+            end if 
+
+            ! Initialise monomerinfo
+            monomer(n)%chainID      = 0
+            monomer(n)%subchainID   = 1
+            monomer(n)%funcy        = 0
+            monomer(n)%glob_no      = n
+            monomer(n)%bin_bflag(:) = 0
+
+        end do  
+
+    end subroutine 
+
+    subroutine connect_all_possible_chains(maxchainID)
+        implicit none
+
+        integer, intent(out) :: maxchainID
+        integer :: subchainID, chainID, n, molno
+        logical :: connectable
+
+        chainID = 1
+        n = 1
+        do
+           ! Exit if past np 
+            if ( n .gt. np ) exit
+
+            ! Test to see if we can build a whole chain
+            call test_for_connectability(n, nmonomers, connectable)
+
+            ! If possible, build whole chain, otherwise mark as solvent and move on 
+            if (connectable) then
+
+                ! Connect 1 to 2
+                monomer(n)%chainID    = chainID
+                monomer(n)%subchainID = 1 
+                monomer(n)%glob_no    = n   
+                call connect_to_monomer(2,n)
+
+                ! Connect middles
+                do subchainID = 2, nmonomers-1
+                    molno = n+subchainID-1
+                    monomer(molno)%chainID    = chainID
+                    monomer(molno)%subchainID = subchainID 
+                    monomer(molno)%glob_no    = molno !corrected at bottom
+                    call connect_to_monomer(subchainID-1,molno) 
+                    call connect_to_monomer(subchainID+1,molno)             
+                end do
+
+                ! Connect end-1 to end
+                molno = n+nmonomers-1
+                monomer(molno)%chainID    = chainID
+                monomer(molno)%subchainID = subchainID 
+                monomer(molno)%glob_no    = molno !corrected at bottom
+                call connect_to_monomer(nmonomers-1,molno)
+
+                chainID = chainID + 1
+                n = n + nmonomers
+
+            else
+
+                monomer(n)%chainID     = 0
+                monomer(n)%subchainID  = 1
+                monomer(n)%glob_no     = n
+                monomer(n)%funcy       = 0
+                bond(:,n)              = 0
+
+                n = n + 1
+
+            end if
+
+        end do
+
+        maxchainID = chainID - 1
+
+    end subroutine
+
+    subroutine remove_chains_random(nremove)
+        implicit none
+
+        integer, intent(in) :: nremove
+
+        integer :: m, cnt, chainID
+        integer, dimension(:), allocatable :: removeIDs, removeflags
+        double precision :: random
+
+        allocate(removeIDs(nremove))
+        allocate(removeflags(proc_chains(irank)))
+        removeflags(:) = 0
+        cnt = 0
+        do 
+            call random_number(random)
+            chainID = ceiling(random*proc_chains(irank))
+            if (removeflags(chainID) .eq. 0) then
+                cnt = cnt + 1
+                removeflags(chainID) = 1
+                removeIDs(cnt) = chainID 
+            end if
+
+            if (cnt .eq. nremove) then
+                exit
+            end if  
+
+        end do 
+
+        ! Remove chains labelled with removeIDs      
+        do n = 1,nremove
+            call mark_chain_as_solvent(removeIDs(n)) 
+        end do
+
+        ! Relabel remaining chains
+        cnt = 0
+        n = 1
+        do 
+
+            if (monomer(n)%chainID .gt. cnt) then
+
+                do m = 0, nmonomers-1
+                    monomer(n+m)%chainID = cnt + 1
+                end do
+
+                n = n + nmonomers
+                cnt = cnt + 1
+
+            else
+                
+                n = n + 1
+
+            end if
+            
+            if (n .gt. np) exit
+
+        end do
+
+        deallocate(removeIDs)
+
+    end subroutine
+
+    subroutine contract_chains_to_equil_sep 
+       implicit none
+
+        integer :: m
+        real(kind(0.d0)) :: rscale
+        real(kind(0.d0)) :: rfirst(3)
+        real(kind(0.d0)) :: oldsep, equil_sep
+
+        equil_sep = 0.9608971929802091
+        if (irank.eq.iroot) then
+            print*, "Warning: equilibrium separation distance of FENE chain "&
+            "set to ", equil_sep, ", based on R_0 = 1.5 and k = 30, with LJ "&
+            "cutoff 2^1/6"
+        end if
+
+        n = 1
+        do 
+
+            if (n .gt. np) exit
+
+            if (monomer(n)%chainID .ne. 0) then
+
+                oldsep = sqrt(dot_product(r(:,n+1) - r(:,n),r(:,n+1) - r(:,n)))
+                rfirst(:) = r(:,n)
+                rscale = equil_sep / oldsep 
+                do m = 0, nmonomers-1
+                    r(:,n+m) = rfirst(:) + rscale*(r(:,n+m) - rfirst(:)) 
+                end do
+
+                n = n + nmonomers
+
+            else
+                
+                n = n + 1
+
+            end if
+
+        end do
+
+
+    end subroutine
+
+    subroutine mark_chain_as_solvent(ID)
+        implicit none
+
+        integer, intent(in) :: ID
+
+        integer :: molno
+
+        do molno = 1, np
+
+            if (monomer(molno)%chainID .eq. ID) then
+                monomer(molno)%chainID = 0
+                monomer(molno)%subchainID = 1
+                monomer(molno)%funcy = 0
+                monomer(molno)%bin_bflag(:) = 0
+                bond(:,molno) = 0
+            end if
+
+        end do
+
+    end subroutine mark_chain_as_solvent
+
+    subroutine test_for_connectability(molno, seekahead, success)
+        implicit none
+        
+        integer, intent(in) :: molno, seekahead
+        logical, intent(out) :: success
+
+        integer :: m
+        real(kind(0.d0)) :: rn(3), rm(3), rnm(3), rnmmag
+
+        success = .true.
+
+        ! If first molecule is in fluid region, don't connect
+        rn = r(:,molno)
+        if (all(globalise(rn) .ge. solid_bottom-globaldomain/2.d0) .and. & 
+            all(globalise(rn) .le. (globaldomain/2.d0)-solid_top)) then
+            success = .false.
+        end if
+
+        if (molno + seekahead - 1 .gt. np) then
+            success = .false. 
+        end if
+
+        do m = 0,seekahead-1
+            
+            rn = r(:,molno+m) 
+            rm = r(:,molno+m+1)
+            rnm = rm - rn 
+            rnmmag = sqrt(dot_product(rnm,rnm))
+
+            ! Check that the molecule isn't a cylinder one
+            if (any(globalise(rm) .lt. solid_bottom-globaldomain/2.d0)) success = .false.! ; return
+            if (any(globalise(rm) .gt. (globaldomain/2.d0)-solid_top)) success = .false.! ; return 
+
+            ! Check if molecule is in domain of processor
+            if (abs(rm(1)) .ge.  halfdomain(1) .or. &
+                abs(rm(2)) .ge.  halfdomain(2) .or. &
+                abs(rm(3)) .ge.  halfdomain(3)) then
+                success = .false. 
+            end if
+
+            ! Check if molecule pair is in bond range
+            if (rnmmag .ge. R_0) success = .false. !; return
+
+        end do
+        
+    end subroutine test_for_connectability
+
+
+    subroutine remove_solvent_mols(nremove)
+        implicit none
+   
+        integer, intent(in) :: nremove
+        
+        integer :: n, molno
+        double precision :: random
+
+        n = 0
+        do 
+
+            call random_number(random)
+            molno = ceiling(random*real(np))
+
+            if (any(globalise(r(:,molno)) .lt. solid_bottom-globaldomain/2.d0)) cycle
+            if (any(globalise(r(:,molno)) .gt. (globaldomain/2.d0)-solid_top)) cycle
+
+            if (monomer(molno)%chainID .eq. 0) then 
+
+                n = n + 1
+                r(:,molno) = r(:,np)
+                monomer(molno) = monomer(np)
+                monomer(molno)%glob_no = molno
+                tag(molno) = tag(np)
+                np = np - 1 
+            
+            end if
+
+            if (n .eq. nremove) exit
+        
+        end do 
+
+    end subroutine remove_solvent_mols
+
+end subroutine setup_initialise_polymer_brush
+
 !-----------------------------------------------------------------------------
 subroutine setup_initialise_solid_liquid
     use physical_constants_MD, only : fixdistbottom
@@ -1003,11 +1496,11 @@ subroutine setup_initialise_solid_liquid
                 rc(1) = c(1) + 0.5d0*initialunitsize(1)
                 rc(3) = c(3) + 0.5d0*initialunitsize(3)
             case(3)
-                rc(2) = c(2) + 0.5d0*initialunitsize(1)
+                rc(2) = c(2) + 0.5d0*initialunitsize(2)
                 rc(3) = c(3) + 0.5d0*initialunitsize(3)
             case(4)
                 rc(1) = c(1) + 0.5d0*initialunitsize(1)
-                rc(2) = c(2) + 0.5d0*initialunitsize(3)
+                rc(2) = c(2) + 0.5d0*initialunitsize(2)
             case default
             end select
 
@@ -1123,11 +1616,11 @@ subroutine setup_initialise_concentric_cylinders
                 rc(1) = c(1) + 0.5d0*initialunitsize(1)
                 rc(3) = c(3) + 0.5d0*initialunitsize(3)
             case(3)
-                rc(2) = c(2) + 0.5d0*initialunitsize(1)
+                rc(2) = c(2) + 0.5d0*initialunitsize(2)
                 rc(3) = c(3) + 0.5d0*initialunitsize(3)
             case(4)
                 rc(1) = c(1) + 0.5d0*initialunitsize(1)
-                rc(2) = c(2) + 0.5d0*initialunitsize(3)
+                rc(2) = c(2) + 0.5d0*initialunitsize(2)
             case default
             end select
 
