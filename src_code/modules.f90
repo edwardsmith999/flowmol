@@ -57,6 +57,7 @@ module computational_constants_MD
 
 	! Move particle tags
 	logical 		   :: tag_thermostat_active
+	logical 		   :: dynamically_update_tags = .false. !Tags are always reset based on position each timestep
 	integer, parameter :: free = 0
 	integer, parameter :: fixed = 1
 	integer, parameter :: fixed_slide = 2

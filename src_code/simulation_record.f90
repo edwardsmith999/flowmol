@@ -4621,7 +4621,6 @@ subroutine record_external_forces(F,ri,vi)
 			Fiextvi = dot_product(F(:),vi(:))
 			Fv_ext_bin(ibin(1),ibin(2),ibin(3)) = & 
 				Fv_ext_bin(ibin(1),ibin(2),ibin(3)) + Fiextvi
-			print'(7f10.5)', F(:),vi(:),Fiextvi
 		else
 			!Velocity assumed to be zero if not supplied
 		endif

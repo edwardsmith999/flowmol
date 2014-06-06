@@ -34,6 +34,10 @@ subroutine setup_read_input
 	!Simulation ensemble choice
 	call locate(1,'ENSEMBLE',.true.)
 	read(1,*) ensemble
+	if (ensemble .eq. 6) then
+		read(1,*,iostat=ios) dynamically_update_tags
+		if (ios .ne. 0) dynamically_update_tags  = .false.
+	endif
 
 	!Setup initial configuration
 	call locate(1,'INITIAL_CONFIG_FLAG',.true.)

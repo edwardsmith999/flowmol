@@ -116,8 +116,8 @@ subroutine simulation_move_particles_lfv
 			v(3,n) = v(3,n) + delta_t*a(3,n)
 			r(3,n) = r(3,n) + delta_t*v(3,n)
 
-			!Apply to top half of domain only
-			if (globalise(r(2,n),2) .gt. 0.d0) then
+			!Apply to bottom half of domain only
+			if (globalise(r(2,n),2) .lt. 0.d0) then
 				v(1,n) = v(1,n) + delta_t*a(1,n) - 0.5d0*shear*delta_t*(v(2,n)+vy_old)
 				r(1,n) = r(1,n) + delta_t*v(1,n) + 0.5d0*shear*delta_t*globalise(r(2,n)+ry_old,ixyz=2)
 			else
@@ -268,6 +268,11 @@ contains
 		double precision :: ascale, bscale, dtheta
 		double precision, dimension(nd)	:: vel
 		double precision, dimension(nd)	:: rpol, rglob
+
+		!Dynamically reassign tags based on spatial location
+		if (dynamically_update_tags) then
+			call reset_location_tags
+		endif
 	
 		if (tag_thermostat_active) then
 		
