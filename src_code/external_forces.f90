@@ -2413,7 +2413,7 @@ subroutine set_bin_velocity(imin, imax, jmin, jmax, kmin, kmax, velocity,veltype
 	do jcell=jbinmin, jbinmax 
 	do icell=ibinmin, ibinmax 
 
-		!print'(2i5,a,3i4,2(a,3i4),a,3f10.6,2(a,3i4))', iter, iblock,' Cells =', icell,jcell,kcell,' Bins= ',imin,jmin,kmin,' Binsl= ',iminl,jminl,kminl,' cellperbin= ',cellsperbin, 'nbins =', nbins , ' gnbins =', gnbins
+		!print'(2i5,a,3i4,2(a,3i4),a,3f10.6,2(a,3i4),i5)', iter, iblock,' Cells =', icell,jcell,kcell,' Bins= ',imin,jmin,kmin,' Binsl= ',iminl,jminl,kminl,' cellperbin= ',cellsperbin, 'nbins =', nbins , ' gnbins =', gnbins
 	
 		cellnp = cell%cellnp(icell,jcell,kcell)
 		old => cell%head(icell,jcell,kcell)%point !Set old to first molecule in list
@@ -2427,31 +2427,31 @@ subroutine set_bin_velocity(imin, imax, jmin, jmax, kmin, kmax, velocity,veltype
 			v_temp(:) = v(:,molno) + delta_t * a(:,molno) 	
 			r_temp(:) = r(:,molno) + delta_t * v_temp(:) 
 
-!			!BIN VELOCITY
-!			if (r_temp(1)  .lt. binmin(1) .or. & 
-!			    r_temp(1)  .gt. binmax(1) .or. & 
-!			    r(1,molno) .lt. binmin(1) .or. & 
-!			    r(1,molno) .gt. binmax(1)) print'(a,i4,6(a,f9.4))', "set_bin_vel -- Mol Outside x bin ", iminl, & 
-!															 " min ", binmin(1), &
-!															 " r before = ", r(1,molno), " r after = ", r_temp(1), & 
-!															 " max ", binmax(1), & 
-!															 " v before = ", v(1,molno), " v after = ", v_temp(1)
-!			if (r_temp(2)  .lt. binmin(2) .or. & 
-!			    r_temp(2)  .gt. binmax(2) .or. & 
-!			    r(2,molno) .lt. binmin(2) .or. & 
-!			    r(2,molno) .gt. binmax(2)) print'(a,i4,6(a,f9.4))', "set_bin_vel -- Mol Outside y bin ", jminl, & 
-!															 " min ", binmin(2), &
-!															 " r before = ", r(2,molno), " r after = ", r_temp(2), & 
-!															 " max ", binmax(2), & 
-!															 " v before = ", v(2,molno), " v after = ", v_temp(2)
-!			if (r_temp(3)  .lt. binmin(3) .or. & 
-!			    r_temp(3)  .gt. binmax(3) .or. & 
-!			    r(3,molno) .lt. binmin(3) .or. & 
-!			    r(3,molno) .gt. binmax(3)) print'(a,i4,6(a,f9.4))', "set_bin_vel -- Mol Outside z bin ", kminl, & 
-!															 " min ", binmin(3), &
-!															 " r before = ", r(3,molno), " r after = ", r_temp(3), & 
-!															 " max ", binmax(3), & 
-!															 " v before = ", v(3,molno), " v after = ", v_temp(3)
+			!BIN VELOCITY
+			if (r_temp(1)  .lt. binmin(1) .or. & 
+			    r_temp(1)  .gt. binmax(1) .or. & 
+			    r(1,molno) .lt. binmin(1) .or. & 
+			    r(1,molno) .gt. binmax(1)) print'(a,i4,6(a,f9.4))', "set_bin_vel -- Mol Outside x bin ", iminl, & 
+															 " min ", binmin(1), &
+															 " r before = ", r(1,molno), " r after = ", r_temp(1), & 
+															 " max ", binmax(1), & 
+															 " v before = ", v(1,molno), " v after = ", v_temp(1)
+			if (r_temp(2)  .lt. binmin(2) .or. & 
+			    r_temp(2)  .gt. binmax(2) .or. & 
+			    r(2,molno) .lt. binmin(2) .or. & 
+			    r(2,molno) .gt. binmax(2)) print'(a,i4,6(a,f9.4))', "set_bin_vel -- Mol Outside y bin ", jminl, & 
+															 " min ", binmin(2), &
+															 " r before = ", r(2,molno), " r after = ", r_temp(2), & 
+															 " max ", binmax(2), & 
+															 " v before = ", v(2,molno), " v after = ", v_temp(2)
+			if (r_temp(3)  .lt. binmin(3) .or. & 
+			    r_temp(3)  .gt. binmax(3) .or. & 
+			    r(3,molno) .lt. binmin(3) .or. & 
+			    r(3,molno) .gt. binmax(3)) print'(a,i4,6(a,f9.4))', "set_bin_vel -- Mol Outside z bin ", kminl, & 
+															 " min ", binmin(3), &
+															 " r before = ", r(3,molno), " r after = ", r_temp(3), & 
+															 " max ", binmax(3), & 
+															 " v before = ", v(3,molno), " v after = ", v_temp(3)
 
 			!print'(i5,a,7i6,6f10.5)',iter,' velocities ',i,cellnp,molno,binNsum,icell,jcell,kcell, r(:,molno), v(:,molno)
 
@@ -2462,7 +2462,7 @@ subroutine set_bin_velocity(imin, imax, jmin, jmax, kmin, kmax, velocity,veltype
 	enddo
 	enddo
 	enddo
-	
+
 	!Calculate velocity correction per molecule
 	if (binNsum .eq. 0) return
 
@@ -2496,7 +2496,7 @@ subroutine set_bin_velocity(imin, imax, jmin, jmax, kmin, kmax, velocity,veltype
 			molno = old%molno 	 	!Number of molecule
 			v(:,molno) =  v(:,molno) - vcorrection
 
-            ! print'(i5,a,7i6,6f10.5)',iter, ' corrected_vel ',i,cellnp,molno,binNsum,icell,jcell,kcell,r(:,molno),v(:,molno)
+            !print'(i5,a,7i6,6f10.5)',iter, ' corrected_vel ',i,cellnp,molno,binNsum,icell,jcell,kcell,r(:,molno),v(:,molno)
 
 			binNsum = binNsum + 1    
 			binvsum(:) = binvsum(:) + v(:,molno)

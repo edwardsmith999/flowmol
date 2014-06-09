@@ -2108,17 +2108,17 @@ subroutine set_velocity_field_from_couette_analytical(t,Re,Uwall,H,slidewall,ixy
 	allocate(utemp(gnbins(ixyz))); utemp = 0.d0
 	utemp = couette_analytical_fn(t,Re,Uwall,H,appliedbins,slidewall)
 
-	print*, 'inputs to couette analytical initial', t,Re,Uwall,H,appliedbins,slidewall
+	!Create cell lists to be used in specifying velocity!
+    call assign_to_cell
 
     !Set MD velocity
     do jbin=2,gnbins(2)+1
-        write(irank+100,'(a,2i8,f26.12)'), 'initial_vel = ', irank, jbin, utemp(jbin-1)
     do ibin=2,gnbins(1)+1
     do kbin=2,gnbins(3)+1
         binvel(1) =  utemp(jbin-1)
         binvel(2) =  0.d0
         binvel(3) =  0.d0
-        call set_bin_velocity(ibin, ibin, jbin, jbin, kbin, kbin, binvel)
+        call set_bin_velocity(ibin, ibin, jbin, jbin, kbin, kbin, binvel,0)
     enddo
     enddo
     enddo
@@ -2165,6 +2165,7 @@ subroutine set_velocity_field_from_DNS_restart(filename,ngx,ngy,ngz)
         call error_abort("Error -- number of bins disagrees with DNS initial velocity file")
     endif
 
+	!Create cell lists to be used in specifying velocity!
     call assign_to_cell
 
     !Set MD velocity
