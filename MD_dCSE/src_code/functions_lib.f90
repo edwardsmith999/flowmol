@@ -1737,6 +1737,7 @@ function couette_analytical_fn(t,Re,U_wall,L,npoints,slidingwall) result (u)
     double precision,intent(in)    :: t,Re,U_wall,L
     double precision,dimension(:),allocatable  :: u
     
+	integer,parameter				:: top=0, bottom=1,both=2
     integer                        :: nmodes, n
     double precision               :: k, uinitial, lambda
 
@@ -1749,21 +1750,21 @@ function couette_analytical_fn(t,Re,U_wall,L,npoints,slidingwall) result (u)
 
     allocate(u(npoints)); u = 0.d0
     select case (slidingwall)
-    case(0)
+    case(top)
         !Uwall at top
         do n = 1,nmodes
             lambda = (n*pi/L)**2
             u(:)=u(:)+(uinitial*exp(-lambda*k*t) - (-1)**n *(2.d0/(n*pi))*U_wall*(1.d0-exp(-lambda*k*t)))*sin(n*pi*y/L) 
         enddo
         u(npoints) =  U_wall
-    case(1)
+    case(bottom)
         !Uwall at bottom
         do n = 1,nmodes
             lambda = (n*pi/L)**2
             u(:)=u(:)-(uinitial*exp(-lambda*k*t)     +      (2.d0/(n*pi))*U_wall*(1.d0-exp(-lambda*k*t)))*sin(n*pi*y/L)
         enddo
         u(1)       = -U_wall
-    case(2)
+    case(both)
         !Uwall at bottom and top
         do n = 1,nmodes
             lambda = (n*pi/L)**2
