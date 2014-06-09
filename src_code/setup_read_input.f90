@@ -17,6 +17,12 @@ module module_read_input
     use calculated_properties_MD
     use boundary_MD
 
+	! These variables are put here as a test -- The plan is to put EVERYTHING here
+	! that could possibily be read in from the input file and proctect it! 
+	! It is then called throughout the code by using this module...
+	integer			 :: COUETTE_slidewall,  COUETTE_ixyz
+	double precision :: COUETTE_t, COUETTE_Re, COUETTE_Uwall, COUETTE_H
+
 end module module_read_input
 !----------------------------------------------------------------------------------
 
@@ -231,20 +237,29 @@ subroutine setup_read_input
 	call locate(1,'INITIAL_VELOCITY_FLAG',.false.,found_in_input) 
 	if (found_in_input) then
 		read(1,*) initial_velocity_flag 
-   		read(1,*) velocity_special_case	
-   		select case (trim(velocity_special_case	))
-   		case('debug')
-			!Nothing must be read in
-   		case('taylor_green')
-			!Nothing must be read in
-   		case('dns')
-	   		read(1,*) DNS_filename
-	   		read(1,*) DNS_ngx
-	   		read(1,*) DNS_ngy
-	   		read(1,*) DNS_ngz
-   		case default
-   			call error_abort('Unidentified initial velocities_special_case')	
-   		end select
+		if (initial_velocity_flag .ne. 0) then
+	   		read(1,*) velocity_special_case	
+	   		select case (trim(velocity_special_case	))
+	   		case('debug')
+				!Nothing must be read in
+	   		case('taylor_green')
+				!Nothing must be read in
+	   		case('couette_analytical')
+		   		read(1,*) COUETTE_t
+		   		read(1,*) COUETTE_Re
+		   		read(1,*) COUETTE_Uwall
+		   		read(1,*) COUETTE_H
+		   		read(1,*) COUETTE_slidewall
+		   		read(1,*) COUETTE_ixyz
+	   		case('dns')
+		   		read(1,*) DNS_filename
+		   		read(1,*) DNS_ngx
+		   		read(1,*) DNS_ngy
+		   		read(1,*) DNS_ngz
+	   		case default
+	   			call error_abort('Unidentified initial velocities_special_case')	
+	   		end select
+		endif
 	else
 		initial_velocity_flag = 0
 	endif

@@ -20,6 +20,8 @@ end module module_initialise_microstate
 subroutine setup_initialise_microstate
     use interfaces
     use module_initialise_microstate
+	use module_read_input, only : COUETTE_t,COUETTE_Re,COUETTE_Uwall, & 
+								  COUETTE_H,COUETTE_slidewall,COUETTE_ixyz
     implicit none
 
     integer     ::  n
@@ -95,6 +97,11 @@ subroutine setup_initialise_microstate
             call setup_initialise_velocities_test
         case('taylor_green')
             call setup_initialise_velocities_TG_parallel
+        case('couette_analytical')
+            call setup_initialise_velocities                 !Setup initial velocities
+            call set_velocity_field_from_couette_analytical(COUETTE_t,COUETTE_Re, & 
+															COUETTE_Uwall,COUETTE_H, &
+															COUETTE_slidewall,COUETTE_ixyz)
         case('dns')
             call setup_initialise_velocities                 !Setup initial velocities
             call set_velocity_field_from_DNS_restart(trim(DNS_filename),DNS_ngx,DNS_ngy,DNS_ngz)
@@ -2078,6 +2085,47 @@ subroutine setup_initialise_velocities_test
 !   v(4,3) = 0.5d0
 
 end subroutine setup_initialise_velocities_test
+
+
+
+
+subroutine set_velocity_field_from_couette_analytical(t,Re,Uwall,H,slidewall,ixyz)
+    use interfaces, only : error_abort
+    use calculated_properties_MD, only : gnbins
+	use computational_constants_MD, only : irank
+	use librarymod, only : couette_analytical_fn
+    implicit none
+
+	integer, intent(in)				:: ixyz, slidewall
+	double precision, intent(in)	:: t, Re, Uwall, H
+
+
+	integer										:: ibin, jbin, kbin,appliedbins
+	double precision,dimension(3)				:: binvel
+	double precision,dimension(:),allocatable	:: utemp
+
+	appliedbins = gnbins(ixyz)
+	allocate(utemp(gnbins(ixyz))); utemp = 0.d0
+	utemp = couette_analytical_fn(t,Re,Uwall,H,appliedbins,slidewall)
+
+	print*, 'inputs to couette analytical initial', t,Re,Uwall,H,appliedbins,slidewall
+
+    !Set MD velocity
+    do jbin=2,gnbins(2)+1
+        write(irank+100,'(a,2i8,f26.12)'), 'initial_vel = ', irank, jbin, utemp(jbin-1)
+    do ibin=2,gnbins(1)+1
+    do kbin=2,gnbins(3)+1
+        binvel(1) =  utemp(jbin-1)
+        binvel(2) =  0.d0
+        binvel(3) =  0.d0
+        call set_bin_velocity(ibin, ibin, jbin, jbin, kbin, kbin, binvel)
+    enddo
+    enddo
+    enddo
+
+
+end subroutine set_velocity_field_from_couette_analytical
+
 
 
 
