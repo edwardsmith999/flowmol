@@ -1896,6 +1896,231 @@ end subroutine setup_initialise_polyinfo_singlebranched
 !----------------------------------------------------------------------------------
 !----------------------------------------------------------------------------------
 !Initialise Velocities
+
+
+
+
+!----------------------------------------------------------------------------------
+! Set velocity of a range of bins to prescribed value
+! note that i,j and k bin values are in the global bin coordinate system
+! which runs from 1 to gnbins. The local nbins include halos!
+
+module set_bin_velocity_mod
+
+contains
+
+
+! 15/04/14 -- THERE APPEARS TO BE A BUG IN THIS ROUTINE WHICH OCCURS WHEN
+!             CERTAIN CONFIGURATIONS OF CELLS PER BIN ARE USED. IT MAY BE 
+!             WHEN NON-EVEN NUMBERS OF CELLS PER BIN ARE APPLIED... ALWAYS
+!             CHECK THE CORRECT VELOCITY IS OBTAINED
+
+subroutine set_bin_velocity(imin, imax, jmin, jmax, kmin, kmax, velocity,veltype)
+	use linked_list, only : cell, node
+	use arrays_MD, only : r,v,a
+	use computational_constants_MD, only : binspercell, iblock, jblock, kblock, globaldomain, halfdomain, & 
+										   npx, npy, npz, iter, irank, ncells, delta_t
+	use calculated_properties_MD, only : gnbins, nbins
+	implicit none
+
+	integer, intent(in)                			:: veltype ! 0 = vbin/Nbin, 1 = vbin/binvolume
+	integer, intent(in)                			:: imin, imax, jmin, jmax, kmin, kmax
+	double precision,dimension(3),intent(in)	:: velocity   !Overall momentum of system
+
+	integer			                			:: iminl, imaxl, jminl, jmaxl, kminl, kmaxl
+	integer										:: ibinmin,jbinmin,kbinmin,ibinmax,jbinmax,kbinmax
+	integer										:: i,icell,jcell,kcell,molno,binNsum,cellnp
+	integer	,dimension(3)						:: p_lb, p_ub
+	double precision,dimension(3)				:: binvsum, vcorrection,cellsperbin
+	double precision,dimension(3)				:: r_temp,v_temp,binsize,binmin,binmax
+	type(node), pointer 	        			:: old, current
+
+	if (imin .ne. imax) stop "Error set_bin_velocity -- bin indices imin and imax currently must be the same"
+	if (jmin .ne. jmax) stop "Error set_bin_velocity -- bin indices jmin and jmax currently must be the same"
+	if (kmin .ne. kmax) stop "Error set_bin_velocity -- bin indices kmin and kmax currently must be the same"
+
+	p_lb(1) = (iblock-1)*floor(gnbins(1)/real((npx),kind(0.d0)))
+	p_ub(1) =  iblock *ceiling(gnbins(1)/real((npx),kind(0.d0)))
+	p_lb(2) = (jblock-1)*floor(gnbins(2)/real((npy),kind(0.d0)))
+	p_ub(2) =  jblock *ceiling(gnbins(2)/real((npy),kind(0.d0)))
+	p_lb(3) = (kblock-1)*floor(gnbins(3)/real((npz),kind(0.d0)))
+	p_ub(3) =  kblock *ceiling(gnbins(3)/real((npz),kind(0.d0)))
+
+	!Convert to local bin number from input which is global bin number
+	if (imin .gt. p_lb(1) .and. imax .le. p_ub(1)) then 
+		iminl = imin - p_lb(1)+1
+		imaxl = imax - p_lb(1)+1
+	else
+		return
+	endif
+	if (jmin .gt. p_lb(2) .and. jmax .le. p_ub(2)) then 
+		jminl = jmin - p_lb(2)+1
+		jmaxl = jmax - p_lb(2)+1
+	else
+		return
+	endif
+	if (kmin .gt. p_lb(3) .and. kmax .le. p_ub(3)) then 
+		kminl = kmin - p_lb(3)+1
+		kmaxl = kmax - p_lb(3)+1
+	else
+		return
+	endif
+
+	!Calculate bin to cell ratio
+	cellsperbin = 1.d0/binspercell !ceiling(ncells(1)/dble(nbins(1)))
+	where (cellsperbin .lt. 1.d0) cellsperbin = 1.d0
+	!Safety check for non-integer cell ratios
+	if (any(abs(ncells/nbins - dble(ncells)/dble(nbins)) .gt. 0.000000000001d0)) then
+		stop "ERROR in set_bin_velocity -- Specified bin/cell ratio results in non-integer number of cells!"
+	endif
+	binsize = globaldomain/gnbins
+	!Get bin extents -- minus one due to halo bins
+	binmin(1) = (iminl-2) * binsize(1) - halfdomain(1)
+	binmax(1) = (imaxl-1) * binsize(1) - halfdomain(1)
+ 	binmin(2) = (jminl-2) * binsize(2) - halfdomain(2)
+	binmax(2) = (jmaxl-1) * binsize(2) - halfdomain(2)	
+	binmin(3) = (kminl-2) * binsize(3) - halfdomain(3)
+	binmax(3) = (kmaxl-1) * binsize(3) - halfdomain(3)
+
+	!Get cell number from bin numbers
+	ibinmin = (iminl-1)*cellsperbin(1)+1+(1-cellsperbin(1))
+	ibinmax =  imaxl   *cellsperbin(1)  +(1-cellsperbin(1))
+	jbinmin = (jminl-1)*cellsperbin(2)+1+(1-cellsperbin(2))
+	jbinmax = jmaxl    *cellsperbin(2)  +(1-cellsperbin(2))
+	kbinmin = (kminl-1)*cellsperbin(3)+1+(1-cellsperbin(3))
+	kbinmax = kmaxl    *cellsperbin(3)  +(1-cellsperbin(3))
+
+    !print'(18i4,6f9.4)', imin, imax, jmin, jmax, kmin, kmax,iminl, imaxl, jminl, jmaxl, kminl, kmaxl, ibinmin,jbinmin,kbinmin,ibinmax,jbinmax,kbinmax, binmin, binmax
+
+	!Calculate velocity in bin
+	binNsum = 0; binvsum = 0.d0
+	do kcell=kbinmin, kbinmax
+	do jcell=jbinmin, jbinmax 
+	do icell=ibinmin, ibinmax 
+
+		!print'(2i5,a,3i4,2(a,3i4),a,3f10.6,2(a,3i4),i5)', iter, iblock,' Cells =', icell,jcell,kcell,' Bins= ',imin,jmin,kmin,' Binsl= ',iminl,jminl,kminl,' cellperbin= ',cellsperbin, 'nbins =', nbins , ' gnbins =', gnbins
+	
+		cellnp = cell%cellnp(icell,jcell,kcell)
+		old => cell%head(icell,jcell,kcell)%point !Set old to first molecule in list
+
+		do i = 1,cellnp					!Step through each particle in list 
+			molno = old%molno 	 	!Number of molecule
+			binNsum = binNsum + 1    
+			binvsum(:) = binvsum(:) + v(:,molno)
+
+			!GET VELOCITY AT NEXT TIMESTEP
+			v_temp(:) = v(:,molno) + delta_t * a(:,molno) 	
+			r_temp(:) = r(:,molno) + delta_t * v_temp(:) 
+
+			!BIN VELOCITY
+!			if (r_temp(1)  .lt. binmin(1) .or. & 
+!			    r_temp(1)  .gt. binmax(1) .or. & 
+!			    r(1,molno) .lt. binmin(1) .or. & 
+!			    r(1,molno) .gt. binmax(1)) print'(a,i4,6(a,f9.4))', "set_bin_vel -- Mol Outside x bin ", iminl, & 
+!															 " min ", binmin(1), &
+!															 " r before = ", r(1,molno), " r after = ", r_temp(1), & 
+!															 " max ", binmax(1), & 
+!															 " v before = ", v(1,molno), " v after = ", v_temp(1)
+!			if (r_temp(2)  .lt. binmin(2) .or. & 
+!			    r_temp(2)  .gt. binmax(2) .or. & 
+!			    r(2,molno) .lt. binmin(2) .or. & 
+!			    r(2,molno) .gt. binmax(2)) print'(a,i4,6(a,f9.4))', "set_bin_vel -- Mol Outside y bin ", jminl, & 
+!															 " min ", binmin(2), &
+!															 " r before = ", r(2,molno), " r after = ", r_temp(2), & 
+!															 " max ", binmax(2), & 
+!															 " v before = ", v(2,molno), " v after = ", v_temp(2)
+!			if (r_temp(3)  .lt. binmin(3) .or. & 
+!			    r_temp(3)  .gt. binmax(3) .or. & 
+!			    r(3,molno) .lt. binmin(3) .or. & 
+!			    r(3,molno) .gt. binmax(3)) print'(a,i4,6(a,f9.4))', "set_bin_vel -- Mol Outside z bin ", kminl, & 
+!															 " min ", binmin(3), &
+!															 " r before = ", r(3,molno), " r after = ", r_temp(3), & 
+!															 " max ", binmax(3), & 
+!															 " v before = ", v(3,molno), " v after = ", v_temp(3)
+
+			!print'(i5,a,7i6,6f10.5)',iter,' velocities ',i,cellnp,molno,binNsum,icell,jcell,kcell, r(:,molno), v(:,molno)
+
+			current => old
+			old => current%next !Use pointer in datatype to obtain next item in list
+		enddo
+
+	enddo
+	enddo
+	enddo
+
+	!Calculate velocity correction per molecule
+	if (binNsum .eq. 0) then
+		print*, "No molecules in bin ", imin, jmin, kmin
+		return
+	endif
+
+	if (veltype .eq. 0) then
+		vcorrection(:) = binvsum(:)/binNsum - velocity(:)
+		!print'(3(a,3f10.5))', 'applied vel ', velocity, ' bin v ', binvsum(:)/binNsum, ' v correct ', vcorrection
+	elseif (veltype .eq. 1) then
+		vcorrection(:) = binvsum(:) - velocity(:)*product(binsize)
+		vcorrection = vcorrection/binNsum
+		!print'(3(a,3f10.5))', 'applied mom ', velocity, ' bin v ', binvsum(:)/product(binsize), ' v correct ', vcorrection
+	else
+		stop "Error in set_bin_velocity -- velocity type not correctly specifiy (must be 0 or 1)"
+	endif
+
+
+
+	!Apply velocity correction per molecule to bin
+	binNsum = 0; binvsum = 0.d0
+	do kcell=kbinmin, kbinmax
+	do jcell=jbinmin, jbinmax 
+	do icell=ibinmin, ibinmax 
+	
+		cellnp = cell%cellnp(icell,jcell,kcell)
+		old => cell%head(icell,jcell,kcell)%point !Set old to first molecule in list
+!        print*, icell,jcell,kcell,cell%cellnp(icell,jcell,kcell)
+!        if (jmax .eq. nint(gnbins(2)/2.d0) + 1) then
+!            print'(i5,a,7i6)',iter, ' corrected_vel ',i,cellnp,molno,binNsum,icell,jcell,kcell
+!        endif
+
+		do i = 1,cellnp					!Step through each particle in list 
+			molno = old%molno 	 	!Number of molecule
+			v(:,molno) =  v(:,molno) - vcorrection
+
+            !print'(i5,a,7i6,6f10.5)',iter, ' corrected_vel ',i,cellnp,molno,binNsum,icell,jcell,kcell,r(:,molno),v(:,molno)
+
+			binNsum = binNsum + 1    
+			binvsum(:) = binvsum(:) + v(:,molno)
+
+			current => old
+			old => current%next !Use pointer in datatype to obtain next item in list
+		enddo
+
+	enddo
+	enddo
+	enddo
+
+ 	if (veltype .eq. 0) then
+        if (any(abs(binvsum(:)/binNsum-velocity) .gt. 0.000000001d0)) then
+         	print'(i8,a,3f20.16,a,3i4,a,3f10.5)', jblock, ' Corrected velocity is then ',  binvsum(:)/binNsum, & 
+ 	    										 ' in Bin= ',imin,jmin,kmin, ' should be ', velocity
+        endif
+ 	elseif (veltype .eq. 1) then
+        if (any(abs(binvsum(:)/product(binsize)-velocity) .gt. 0.000000001d0)) then
+     	    print'(i8,a,3f20.16,a,3i4,a,3f10.5)', jblock, ' Corrected momentum : ',  binvsum(:)/product(binsize), & 
+ 											 ' in Bin= ',imin,jmin,kmin, ' should be ', velocity
+        endif
+ 	else
+ 		stop "Error in set_bin_velocity -- velocity type not correctly specifiy (must be 0 or 1)"
+ 	endif
+
+end subroutine set_bin_velocity
+
+
+end module set_bin_velocity_mod
+
+
+
+
+
+
 ! Set up the intial velocities of the particles using velocity magnitude calculated
 ! from intitial temperature and giving random vectorial components
 
@@ -2094,6 +2319,7 @@ subroutine set_velocity_field_from_couette_analytical(t,Re,Uwall,H,slidewall,ixy
     use calculated_properties_MD, only : gnbins
 	use computational_constants_MD, only : irank
 	use librarymod, only : couette_analytical_fn
+	use set_bin_velocity_mod
     implicit none
 
 	integer, intent(in)				:: ixyz, slidewall
@@ -2118,7 +2344,9 @@ subroutine set_velocity_field_from_couette_analytical(t,Re,Uwall,H,slidewall,ixy
         binvel(1) =  utemp(jbin-1)
         binvel(2) =  0.d0
         binvel(3) =  0.d0
-        call set_bin_velocity(ibin, ibin, jbin, jbin, kbin, kbin, binvel,0)
+        call set_bin_velocity(ibin-1, ibin-1, & 
+							  jbin-1, jbin-1, & 
+							  kbin-1, kbin-1, binvel,0)
     enddo
     enddo
     enddo
@@ -2133,6 +2361,7 @@ subroutine set_velocity_field_from_DNS_restart(filename,ngx,ngy,ngz)
     use interfaces, only : error_abort
     use calculated_properties_MD, only : gnbins
     use librarymod, only : read_DNS_velocity_files
+	use set_bin_velocity_mod
     implicit none
 
     integer,intent(in)      :: ngx, ngy, ngz
@@ -2177,7 +2406,7 @@ subroutine set_velocity_field_from_DNS_restart(filename,ngx,ngy,ngz)
         binvel(3) =  0.5d0*(wc(k,i,j)+ wc(k+1,i,j))
         ibin = i - 1; jbin = j - 1; kbin = k - 1
         !print'(a,3i8,4f10.5)', 'BIN NUMBER & VEL = ', i,j,k,binvel,uc(k,i,j)
-        call set_bin_velocity(ibin, ibin, jbin, jbin, kbin, kbin, binvel)
+        call set_bin_velocity(ibin, ibin, jbin, jbin, kbin, kbin, binvel,0)
     enddo
     enddo
     enddo
