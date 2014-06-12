@@ -67,25 +67,25 @@ class CPLField(Field):
         grid = [gridx,gridy,gridz]
         return grid
         
-    def _read(self,startrec,endrec):
+    def read(self,startrec,endrec):
         
         if (not skit_imported):
             quit(skit_imported_fail_message)
 
         md_data = self.md_field.read(startrec,endrec)
         cfd_data = self.cfd_field.read(startrec,endrec)
-        ndims =  md_data.shape[3]
+        ndims =  md_data.shape[-1]
         nrecs = endrec - startrec + 1
 
         md_coarse = np.empty([self.md_cfdcells[0],self.md_cfdcells[1],
-                              self.md_cfdcells[2],ndims,nrecs])
+                              self.md_cfdcells[2],nrecs,ndims])
         zoom = np.divide(self.md_cfdcells.astype(float),
                          self.md_cells.astype(float))
 
         #import matplotlib.pyplot as plt
         for rec in range(nrecs):
             for comp in range(ndims):
-                md_coarse[:,:,:,comp,rec]=skit.resize(md_data[:,:,:,comp,rec],
+                md_coarse[:,:,:,rec,comp]=skit.resize(md_data[:,:,:,rec,comp],
                                                              self.md_cfdcells)
 
         jstart = self.olap_cells[1] - 1 + self.cfd_halos[1]
@@ -97,17 +97,19 @@ class CPLField(Field):
         cpl_data = np.concatenate((md_coarse,cfd_data),axis=1)
         return cpl_data
     
-    def profile_both(self,axis,startrec=0,endrec=None):
+    def profile_both(self,axis,startrec=0,endrec=None,**kwargs):
          
-        avgaxes = [0,1,2]
+        avgaxes = [0,1,2,3]
         avgaxes.remove(axis)
         avgaxes = tuple(avgaxes)
 
         if (endrec==None): 
             endrec = self.maxrec
 
-        md_data = self.md_field.averaged_data(startrec,endrec,avgaxes=avgaxes)
-        cfd_data = self.cfd_field.averaged_data(startrec,endrec,avgaxes=avgaxes)
+        md_data = self.md_field.averaged_data(startrec,endrec,avgaxes=avgaxes,
+                                              **kwargs)
+        cfd_data = self.cfd_field.averaged_data(startrec,endrec,
+                                                avgaxes=avgaxes, **kwargs)
         return self.md_grid[axis], md_data, self.cfd_grid[axis], cfd_data 
 
 class CPL_vField(CPLField):

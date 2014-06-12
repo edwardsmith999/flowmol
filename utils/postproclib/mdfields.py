@@ -12,6 +12,7 @@ class MDField(Field):
         Raw = MD_RawData(fdir, self.fname, self.dtype, 
                          self.nperbin,cpol_bins)
         Field.__init__(self,Raw)
+        self.header = self.Raw.header
         if (cpol_bins):
             self.axislabels = ['r','theta','z']
         else:
@@ -224,6 +225,7 @@ class MD_vField(MDField):
             self.pField = MD_pField(fdir,fname='vsnap',cpol_bins=cpol_bins)
 
         Field.__init__(self,self.mField.Raw)
+        self.header = self.pField.Raw.header
         self.nperbin = self.pField.nperbin
         self.axislabels = self.pField.axislabels
         self.labels = self.pField.labels
@@ -267,6 +269,7 @@ class MD_pVAField(MDField):
         self.PField = MD_PField(fdir,fname,cpol_bins=cpol_bins)
         Field.__init__(self,self.PField.Raw)
 
+        self.header = self.PField.Raw.header
         self.nperbin = self.PField.nperbin
         self.axislabels = self.PField.axislabels
         self.labels = self.PField.labels
@@ -315,6 +318,7 @@ class MD_TField(MDField):
         self.pField = MD_pField(fdir,cpol_bins=cpol_bins)
         self.KEField = MD_EField(fdir,cpol_bins=cpol_bins)
         Field.__init__(self,self.KEField.Raw)
+        self.header = self.KEField.Raw.header
         self.nperbin = self.KEField.nperbin
         if ((self.mField.plotfreq == self.pField.plotfreq) &
             (self.mField.plotfreq == self.KEField.plotfreq)):
@@ -380,6 +384,7 @@ class MD_dField(MDField):
     def __init__(self,fdir,fname='mbins',cpol_bins=False):
         self.mField = MD_mField(fdir,fname,cpol_bins=cpol_bins)
         Field.__init__(self,self.mField.Raw)
+        self.header = self.mField.Raw.header
         self.nperbin = self.mField.nperbin
         self.plotfreq = self.mField.plotfreq
         self.axislabels = self.mField.axislabels
@@ -425,6 +430,7 @@ class MD_momField(MDField):
     def __init__(self,fdir,fname='vbins',cpol_bins=False):
         self.pField = MD_pField(fdir,fname,cpol_bins=cpol_bins)
         Field.__init__(self,self.pField.Raw)
+        self.header = self.pField.Raw.header
         self.nperbin = self.pField.nperbin
         self.plotfreq = self.pField.plotfreq
         self.axislabels = self.pField.axislabels

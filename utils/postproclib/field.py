@@ -42,7 +42,6 @@ class Field():
         self.fdir = self.Raw.fdir
         self.grid = self.Raw.grid
         self.maxrec = self.Raw.maxrec
-        self.header = self.Raw.header
 
     def read(self,startrec,endrec,**kwargs):
 
