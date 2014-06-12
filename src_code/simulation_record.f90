@@ -1780,7 +1780,7 @@ subroutine cumulative_pressure(ixyz,sample_count)
 	case(2)
 		!VOLUME AVERAGE STRESS CALCULATION
 		!Calculate Position (x) force for configurational part of stress tensor
-		call  simulation_compute_rfbins(1,nbins(1)+2,1,nbins(2)+2,1,nbins(3)+2)
+		call  simulation_compute_rfbins(2,nbins(1)+1,2,nbins(2)+1,2,nbins(3)+1)
 		!Calculate velocity (x) velocity for kinetic part of stress tensor
 		if (nbins(1) .eq. ncells(1) .and. & 
 		    nbins(2) .eq. ncells(2) .and. & 
@@ -2847,7 +2847,7 @@ subroutine energy_flux_averaging(ixyz)
 	double precision,dimension(3)	:: ebinsize
 
 	if (eflux_outflag .eq. 0) return
-	call simulation_compute_power(1, nbins(1)+2, 1, nbins(2)+2, 1, nbins(3)+2)
+	call simulation_compute_power(2, nbins(1)+1, 2, nbins(2)+1, 2, nbins(3)+1)
 	call cumulative_energy_flux(r,v,energy_flux)
 	sample_count = sample_count + 1
 	if (sample_count .eq. Neflux_ave) then
