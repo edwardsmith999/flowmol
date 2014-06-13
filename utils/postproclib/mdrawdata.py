@@ -145,7 +145,7 @@ class MD_RawData:
 
             # Defaults
             lower = [0]*3
-            upper = [i for i in bindata.shape] 
+            upper = [i for i in binvolumes.shape] 
     
             for axis in range(3):
                 if (binlimits[axis] == None):
@@ -156,7 +156,7 @@ class MD_RawData:
 
             binvolumes = binvolumes[lower[0]:upper[0],
                                     lower[1]:upper[1],
-                                    lower[2]:upper[2], :, :]
+                                    lower[2]:upper[2]]
                 
         # Ensure binvolumes is the right shape for subsequent
         # broadcasting with other fields

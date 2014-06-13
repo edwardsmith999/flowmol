@@ -390,14 +390,14 @@ class MD_dField(MDField):
         self.axislabels = self.mField.axislabels
         self.labels = self.mField.labels
 
-    def read(self, startrec, endrec, **kwargs):
+    def read(self, startrec, endrec, binlimits=None, **kwargs):
 
-        binvolumes = self.mField.Raw.get_binvolumes()
+        binvolumes = self.mField.Raw.get_binvolumes(binlimits=binlimits)
         binvolumes = np.expand_dims(binvolumes,axis=-1)
         #Nmass_ave = self.mField.Raw.header.Nmass_ave
 
         # Read 4D time series from startrec to endrec
-        mdata = self.mField.read(startrec, endrec, **kwargs)
+        mdata = self.mField.read(startrec, endrec, binlimits=binlimits)
         mdata = np.divide(mdata,float(self.plotfreq))
 
         density = np.divide(mdata,binvolumes)
