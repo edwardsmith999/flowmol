@@ -1,6 +1,6 @@
 !-----------------------------------------------------------------------------
 !
-!                               Set Parameters
+!							   Set Parameters
 ! Set up domain size and cut off regions; allocate space for arrays
 ! and calculate initial velocity magnitudes based on temperature
 !
@@ -31,7 +31,7 @@ module module_set_parameters
 	use concentric_cylinders
 	use librarymod, only : PDF
 
-	type(PDF) 								    :: velPDF, velPDFMB
+	type(PDF) 									:: velPDF, velPDFMB
 	type(PDF),allocatable,dimension(:,:,:,:) 	:: velPDF_array
 
 end module module_set_parameters 
@@ -39,7 +39,7 @@ end module module_set_parameters
 
 subroutine setup_set_parameters
 	use module_set_parameters
-    use boundary_MD, only: bforce_flag
+	use boundary_MD, only: bforce_flag
 	use interfaces, only : error_abort
 	use librarymod, only : build_hilbert
 	implicit none
@@ -60,7 +60,7 @@ subroutine setup_set_parameters
 
 	!Calculate correction to lennard-Jones potential/pressure based on cutoff
 	if (sLRC_flag .ne. 0) then
-		potential_sLRC = 8.d0*pi*density      *(1.d0/(9.d0*rcutoff**9) - 1.d0/(3.d0*rcutoff**3))
+		potential_sLRC = 8.d0*pi*density	  *(1.d0/(9.d0*rcutoff**9) - 1.d0/(3.d0*rcutoff**3))
 		Pressure_sLRC  = 8.d0*pi*density**2.d0*(4.d0/(9.d0*rcutoff**9) - 2.d0/(3.d0*rcutoff**3))
 	else
 		potential_sLRC = 0.d0; Pressure_sLRC = 0.d0;
@@ -102,7 +102,7 @@ subroutine setup_set_parameters
 		do jblk=1,nblocks(2)
 		do kblk=1,nblocks(3)
 			Hcurve(iblk,jblk,kblk) = iblk + nblocks(1)*(jblk-1) & 
-									      + nblocks(1)*nblocks(2)*(kblk-1)
+										  + nblocks(1)*nblocks(2)*(kblk-1)
 		enddo
 		enddo
 		enddo
@@ -188,7 +188,7 @@ subroutine set_parameters_allocate
 	allocate(virialmol(np+extralloc))
 
 	!Check if rtrue required
-	if (r_gyration_outflag .eq. 1 .or. vmd_outflag       .eq. 4) rtrue_flag = 1
+	if (r_gyration_outflag .eq. 1 .or. vmd_outflag	   .eq. 4) rtrue_flag = 1
 	if (rtrue_flag.eq.1) then
 		allocate(rtrue(nd,np+extralloc)) !Used to establish diffusion - r with no periodic BC
 		allocate(vtrue(nd,np+extralloc)) !Used to establish diffusion - r with no periodic BC
@@ -230,7 +230,7 @@ end subroutine set_parameters_allocate
 subroutine setup_polymer_info
 	use module_set_parameters
 	use polymer_info_MD
-    use interfaces
+	use interfaces
 	implicit none
 	
 	!Allocate polymer arrays
@@ -242,9 +242,9 @@ subroutine setup_polymer_info
 	allocate(potenergymol_FENE(np+extralloc))
 
 	etevtcf = 0.d0
-	R_g     = 0.d0
+	R_g	 = 0.d0
 	
-	if (iter .gt. etevtcf_iter0)    etevtcf_iter0    = iter
+	if (iter .gt. etevtcf_iter0)	etevtcf_iter0	= iter
 	if (iter .gt. r_gyration_iter0) r_gyration_iter0 = iter
 
 	!intbits = bit_size(monomer(1)%bin_bflag(1))
@@ -305,12 +305,12 @@ end subroutine setup_shear_parameters
 
 subroutine set_parameters_global_domain
 	use module_set_parameters
-    use boundary_MD, only: specular_flag, specular_flat, specular_wall, &
-                           specular_radial
+	use boundary_MD, only: specular_flag, specular_flat, specular_wall, &
+						   specular_radial
 	use interfaces, only: error_abort
 	implicit none
 
-	integer                :: ixyz, extranp
+	integer				:: ixyz, extranp
 
 	select case (initial_config_flag)
 	case (0)
@@ -324,7 +324,7 @@ subroutine set_parameters_global_domain
 
 		! no need to fix globalnp if we have it already
 		if(.not. restart) then
-			globalnp=1      !Set number of particles to unity for loop below
+			globalnp=1	  !Set number of particles to unity for loop below
 			do ixyz=1,nd
 				globalnp = globalnp*initialnunits(ixyz)		!One particle per unit cell
 			enddo
@@ -396,7 +396,7 @@ subroutine set_parameters_global_domain
 
 			! no need to fix globalnp if we have it already
 			if(.not. restart) then
-				globalnp=1      !Set number of particles to unity for loop below
+				globalnp=1	  !Set number of particles to unity for loop below
 				do ixyz=1,nd
 					globalnp = globalnp*initialnunits(ixyz)		!One particle per unit cell
 				enddo
@@ -463,7 +463,7 @@ subroutine set_parameters_global_domain
 			! Guess how many extra molecules will fill the cylinder volume
 			! so that arrays are allocated with enough space to add fluid
 			extranp = int(ceiling(density * &
-			                      globaldomain(3)*pi*(r_io**2.0-r_oi**2.0)))
+								  globaldomain(3)*pi*(r_io**2.0-r_oi**2.0)))
 			initialunitsize(:) = globaldomain(:) / initialnunits(:)
 
 			domain(1) = globaldomain(1) / real(npx, kind(0.d0))	
@@ -475,18 +475,18 @@ subroutine set_parameters_global_domain
 			! - corrected after position setup
 			globalnp = cyl_np + extranp
 
-            call guess_block_cylinder_np()
+			call guess_block_cylinder_np()
 			!np = globalnp / nproc
 
 			! turn off periodicity in x and y direction
 			periodic(1) = 0
 			periodic(2) = 0
-            if (specular_flag .eq. specular_flat .and. &
-                specular_wall(3) .ne. 0.0) then
-                periodic(3) = 0
-            else
-                periodic(3) = 1
-            end if
+			if (specular_flag .eq. specular_flat .and. &
+				specular_wall(3) .ne. 0.0) then
+				periodic(3) = 0
+			else
+				periodic(3) = 1
+			end if
 
 			! Ensure no rotation on setup	
 			omega = 0.d0
@@ -515,18 +515,18 @@ subroutine set_parameters_global_domain
 
 			!Initially assume molecules per processor are evenly split 
 			! - corrected after position setup
-            call guess_block_cylinder_np()
+			call guess_block_cylinder_np()
 			!np = globalnp / nproc
 
 			! turn off periodicity in x and y direction
 			periodic(1) = 0
 			periodic(2) = 0
-            if (specular_flag .eq. specular_flat .and. &
-                specular_wall(3) .ne. 0.0) then
-                periodic(3) = 0
-            else
-                periodic(3) = 1
-            end if
+			if (specular_flag .eq. specular_flat .and. &
+				specular_wall(3) .ne. 0.0) then
+				periodic(3) = 0
+			else
+				periodic(3) = 1
+			end if
 
 			!print('(a,3f12.3,a,3f12.3,a,i10,a,i4,a,3l4,a,f12.3,a,f12.3)'), &
 			!'globaldomain',globaldomain,' domain',domain,'np', np, 'nproc',&
@@ -551,61 +551,61 @@ subroutine set_parameters_global_domain
 
 contains
 
-    subroutine guess_block_cylinder_np()
-        use circle_rectangle_intersection
+	subroutine guess_block_cylinder_np()
+		use circle_rectangle_intersection
 		use messenger_data_exchange, only : PlaneSum
-        implicit none
+		implicit none
 
-        real(kind(0.d0)) :: A, A_o, A_i, Atotal, ratio
-        real(kind(0.d0)) :: vx(4), vy(4) 
+		real(kind(0.d0)) :: A, A_o, A_i, Atotal, ratio
+		real(kind(0.d0)) :: vx(4), vy(4) 
 
-        call block_vertices(iblock,jblock,vx,vy) 
-        call circle_rectangle_intersection_area(vx, vy, r_oo, npx, npy, A_o)
-        call circle_rectangle_intersection_area(vx, vy, r_ii, npx, npy, A_i)
-        A = A_o - A_i
-       
-        Atotal = A 
-        call PlaneSum(Atotal, 3)
+		call block_vertices(iblock,jblock,vx,vy) 
+		call circle_rectangle_intersection_area(vx, vy, r_oo, npx, npy, A_o)
+		call circle_rectangle_intersection_area(vx, vy, r_ii, npx, npy, A_i)
+		A = A_o - A_i
+	   
+		Atotal = A 
+		call PlaneSum(Atotal, 3)
 
-        ratio = A / Atotal
-        np = globalnp * ratio 
+		ratio = A / Atotal
+		np = globalnp * ratio 
 
-        !print*, irank, np
-        
-        !call messenger_syncall
-        !stop
+		!print*, irank, np
+		
+		!call messenger_syncall
+		!stop
 
-    end subroutine guess_block_cylinder_np
+	end subroutine guess_block_cylinder_np
 
-    subroutine block_vertices(iblock, jblock, vx, vy)
-        implicit none
+	subroutine block_vertices(iblock, jblock, vx, vy)
+		implicit none
 
-        integer, intent(in) :: iblock, jblock
-        real(kind(0.d0)), intent(out) :: vx(4), vy(4)
+		integer, intent(in) :: iblock, jblock
+		real(kind(0.d0)), intent(out) :: vx(4), vy(4)
 
-        real(kind(0.d0)) :: ivec(2), jvec(2), vertices(4,2)
+		real(kind(0.d0)) :: ivec(2), jvec(2), vertices(4,2)
 
-        ivec = (/domain(1), 0.d0/)
-        jvec = (/0.d0, domain(2)/)
+		ivec = (/domain(1), 0.d0/)
+		jvec = (/0.d0, domain(2)/)
 
-        !    2           
-        !    x -------- x 3
-        !    |          |
-        !    |          |
-        !    |          |
-        !    |          |
-        !  1 x -------- x
-        !               4  
+		!	2		   
+		!	x -------- x 3
+		!	|		  |
+		!	|		  |
+		!	|		  |
+		!	|		  |
+		!  1 x -------- x
+		!			   4  
 
-        vertices(1,:) = (iblock-1)*ivec + (jblock-1)*jvec
-        vertices(2,:) = vertices(1,:) + jvec 
-        vertices(3,:) = vertices(1,:) + ivec + jvec
-        vertices(4,:) = vertices(1,:) + ivec
+		vertices(1,:) = (iblock-1)*ivec + (jblock-1)*jvec
+		vertices(2,:) = vertices(1,:) + jvec 
+		vertices(3,:) = vertices(1,:) + ivec + jvec
+		vertices(4,:) = vertices(1,:) + ivec
 
-        vx(:) = vertices(:,1) - globaldomain(1)/2.0
-        vy(:) = vertices(:,2) - globaldomain(2)/2.0
+		vx(:) = vertices(:,1) - globaldomain(1)/2.0
+		vy(:) = vertices(:,2) - globaldomain(2)/2.0
 
-    end subroutine block_vertices
+	end subroutine block_vertices
 
 
 end subroutine set_parameters_global_domain
@@ -658,7 +658,7 @@ subroutine set_parameters_cells
 
 	if (ncells(1)<3 .or. ncells(2)<3 .or. ncells(3)<3) then
 		print*, 'NCELLS:'
-		print*, ncells(1),'    in x and ', ncells(2), '    in y' , ncells(3), '    in z' 
+		print*, ncells(1),'	in x and ', ncells(2), '	in y' , ncells(3), '	in z' 
 		call  error_abort( "ERROR - DOMAIN SHOULD HAVE AT LEAST 3 CELLS, &
 		 					& IN X, Y AND Z - INCREASE NUMBER OF UNITS IN INPUT")
 	endif
@@ -732,8 +732,8 @@ end subroutine setup_linklist
 subroutine set_parameters_outputs
 	use module_set_parameters
 	use interfaces
-    use boundary_MD, only: bforce_pdf_measure, bforce_pdf, bforce_pdf_nsubcells, &
-                           bforce_pdf_nbins, bforce_pdf_min, bforce_pdf_max
+	use boundary_MD, only: bforce_pdf_measure, bforce_pdf, bforce_pdf_nsubcells, &
+						   bforce_pdf_nbins, bforce_pdf_min, bforce_pdf_max
 	use CV_objects, only : CVcheck_mass,CVcheck_momentum, & 
 						   CV_constraint,CVcheck_energy, CV_debug!,CV_sphere_momentum,CV_sphere_mass
 	implicit none
@@ -774,9 +774,9 @@ subroutine set_parameters_outputs
 		do i = 1,nbins(1)+2
 		do j = 1,nbins(2)+2
 		do k = 1,nbins(3)+2
-        do ixyz = 1,nd
+		do ixyz = 1,nd
 			velPDF_array(i,j,k,ixyz) = PDF(NPDFbins,-PDFvlims,PDFvlims)
-        enddo
+		enddo
 		enddo
 		enddo
 		enddo
@@ -784,33 +784,33 @@ subroutine set_parameters_outputs
 		!Instantiate whole domain PDF object
 		velPDF   = PDF(NPDFbins,-PDFvlims,PDFvlims)
 		velPDFMB = PDF(NPDFbins,-PDFvlims,PDFvlims)
-    end select
+	end select
 
-    if (bforce_pdf_measure.ne.0) then
-        allocate(bforce_pdf(nd,bforce_pdf_nsubcells))
-        do j=1,bforce_pdf_nsubcells
-            do i = 1,nd
-                bforce_pdf(i,j) = PDF(bforce_pdf_nbins, bforce_pdf_min, bforce_pdf_max)
-            end do
-        end do
-    end if
+	if (bforce_pdf_measure.ne.0) then
+		allocate(bforce_pdf(nd,bforce_pdf_nsubcells))
+		do j=1,bforce_pdf_nsubcells
+			do i = 1,nd
+				bforce_pdf(i,j) = PDF(bforce_pdf_nbins, bforce_pdf_min, bforce_pdf_max)
+			end do
+		end do
+	end if
 
 	!Allocate and define number of shells used for Radial distribution function (rdf)
 	if (rdf_outflag .eq. 1) then
-		allocate(rdf(rdf_nbins))                        !Allocate array for radial distribution function
-		allocate(rdf_hist(rdf_nbins))                   !Allocate array to tally positions
+		allocate(rdf(rdf_nbins))						!Allocate array for radial distribution function
+		allocate(rdf_hist(rdf_nbins))				   !Allocate array to tally positions
 		rdf= 0.d0
 		rdf_hist= 0
 	elseif(rdf_outflag .eq. 2) then
-		allocate(rdf3d(rdf_nbins,nd))                   !Allocate array for radial distribution function
-		allocate(rdf3d_hist(rdf_nbins,nd))              !Allocate array to tally positions
+		allocate(rdf3d(rdf_nbins,nd))				   !Allocate array for radial distribution function
+		allocate(rdf3d_hist(rdf_nbins,nd))			  !Allocate array to tally positions
 		rdf3d_hist= 0
 		rdf3d= 0.d0
 	endif
 	!Allocate and define arrays for static structure factor
 	if (ssf_outflag .eq. 1) then
 		allocate(ssf_hist(2*ssf_nmax+1,2*ssf_nmax+1))   !Allocate array to tally positions
-		allocate(ssf(2*ssf_nmax+1,2*ssf_nmax+1))        !Allocate array for radial distribution function
+		allocate(ssf(2*ssf_nmax+1,2*ssf_nmax+1))		!Allocate array for radial distribution function
 		ssf= 0.d0
 		ssf_hist= 0.d0
 	endif
@@ -873,9 +873,9 @@ subroutine set_parameters_outputs
 	! Allocate cylindrical polar bins
 
 	if (config_special_case .eq. 'rotate_cylinders' .or. &
-        config_special_case .eq. 'fill_cylinders' .or. &
-        config_special_case .eq. 'fill_cylinders_fene_solution' &
-        ) then
+		config_special_case .eq. 'fill_cylinders' .or. &
+		config_special_case .eq. 'fill_cylinders_fene_solution' &
+		) then
 
 		! No halos in r or theta
 		cpol_bins(1) = gcpol_bins(1) ! r and theta bins are stored globally...
@@ -1014,8 +1014,8 @@ subroutine set_parameters_outputs
 			allocate( Pxyface(nbinso(1),nbinso(2),nbinso(3),3,6))
 			allocate(  momentum_flux(nbinso(1),nbinso(2),nbinso(3),3,6))
 			allocate(   volume_force(nbinso(1),nbinso(2),nbinso(3),3,2))
-			if (external_force_flag .ne. 0 .or. & 
-				ensemble .eq. tag_move .or.     & 
+			if (external_force_flag .ne. 0 .or. &
+				ensemble .eq. tag_move .or.	 &
 				CVforce_flag .ne. VOID) then
 				allocate(F_ext_bin(nbinso(1),nbinso(2),nbinso(3),3))
 				F_ext_bin = 0.d0
@@ -1054,11 +1054,12 @@ subroutine set_parameters_outputs
 	if (eflux_outflag .eq. 4) then
 		allocate(  energy_flux(nbinso(1),nbinso(2),nbinso(3),6))
 		allocate( Pxyvface(nbinso(1),nbinso(2),nbinso(3),6))
-		allocate( Pxyvface2(nbinso(1),nbinso(2),nbinso(3),6))
 		allocate( Pxyvface_mdt(nbinso(1),nbinso(2),nbinso(3),6))
-		energy_flux 	= 0.d0; Pxyvface = 0.d0; Pxyvface_mdt=0.d0
+		allocate( Pxyvface_integrated(nbinso(1),nbinso(2),nbinso(3),6))
+		energy_flux 	= 0.d0; Pxyvface = 0.d0; 
+		Pxyvface_mdt=0.d0; Pxyvface_integrated = 0.d0
 		if (external_force_flag .ne. 0 .or. & 
-			ensemble .eq. tag_move .or.     & 
+			ensemble .eq. tag_move .or.	 & 
 			CVforce_flag .ne. VOID) then
 			allocate(Fv_ext_bin(nbinso(1),nbinso(2),nbinso(3)))
 			Fv_ext_bin = 0.d0
@@ -1094,7 +1095,7 @@ subroutine establish_surface_cells
 
 	nsurfacecells=	2*( ncells(1)   * ncells(2) &
 					+  (ncells(3)-2)* ncells(2) &
-		        	+  (ncells(3)-2)*(ncells(1)-2))
+					+  (ncells(3)-2)*(ncells(1)-2))
 
 	allocate(surfacecells(nsurfacecells,3))
 
@@ -1176,7 +1177,7 @@ subroutine establish_surface_bins
 	else
 		nsurfacebins=	2*( nbins(1)   * nbins(2) &
 						+  (nbins(3)-2)* nbins(2) &
-			        	+  (nbins(3)-2)*(nbins(1)-2))
+						+  (nbins(3)-2)*(nbins(1)-2))
 	endif
 
 	allocate(surfacebins(nsurfacebins,3))
@@ -1302,7 +1303,7 @@ end subroutine establish_halo_cellbins
 
 !	nsurfacecells =	2*((ncells(1)-2*buf)*(ncells(2)-2*buf) &
 !					+  (ncells(1)-2-2*buf)*(ncells(3)-2*buf) &
-!		        	+  (ncells(2)-2-2*buf)*(ncells(3)-2-2*buf))
+!					+  (ncells(2)-2-2*buf)*(ncells(3)-2-2*buf))
 
 !	allocate(surfacecell(nsurfacecells,3))
 	

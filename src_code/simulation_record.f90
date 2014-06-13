@@ -345,11 +345,11 @@ implicit none
 		case(0)
 			select case(macro_outflag)
 			case(1:2)
-				print '(1x,i8,a,f10.3,a,e12.2,a,f10.2,a,f7.3,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
+				print '(1x,i8,a,f10.3,a,e12.2,a,e10.2,a,f7.3,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
 				it,';', simtime,';',vsum,';', v2sum,';', temperature,';', &
 				kinenergy,';',potenergy,';',totenergy,';',pressure
 			case(3:4)
-				print '(1x,i7,a,f9.3,a,e9.2,a,f7.3,a,f8.4,a,f8.4,a,f8.4,a,f8.4)', &
+				print '(1x,i7,a,f9.3,a,e9.2,a,e8.1,a,f8.4,a,f8.4,a,f8.4,a,f8.4)', &
 				it,';', simtime,';',vsum,';', temperature,';', &
 				kinenergy,';',potenergy,';',totenergy,';',pressure
 			case default
@@ -357,11 +357,11 @@ implicit none
 		case(1)
 			select case(macro_outflag)
 			case(1:2)
-				print '(1x,i8,a,f10.3,a,e10.3,a,f10.2,a,f7.3,a,f15.11,a,f15.11,a,f15.11,a,f10.4,a,f7.4,a,f9.3)', &
+				print '(1x,i8,a,f10.3,a,e10.3,a,e10.2,a,f7.3,a,f15.11,a,f15.11,a,f15.11,a,f10.4,a,f7.4,a,f9.3)', &
 				it,';',simtime,';',vsum,';', v2sum,';', temperature,';', &
 				kinenergy,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
 			case(3:4)
-				print '(1x,i7,a,f8.3,a,e8.1,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f6.3,a,f5.1)', &
+				print '(1x,i7,a,f8.3,a,e8.1,a,e8.1,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f6.3,a,f5.1)', &
 				it,';', simtime,';',vsum,';', temperature,';', &
 				kinenergy,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
 			case default
@@ -1780,7 +1780,7 @@ subroutine cumulative_pressure(ixyz,sample_count)
 	case(2)
 		!VOLUME AVERAGE STRESS CALCULATION
 		!Calculate Position (x) force for configurational part of stress tensor
-		call  simulation_compute_rfbins(2,nbins(1)+1,2,nbins(2)+1,2,nbins(3)+1)
+		call  simulation_compute_rfbins(1,nbins(1)+2,1,nbins(2)+2,1,nbins(3)+2)
 		!Calculate velocity (x) velocity for kinetic part of stress tensor
 		if (nbins(1) .eq. ncells(1) .and. & 
 		    nbins(2) .eq. ncells(2) .and. & 
@@ -2847,7 +2847,12 @@ subroutine energy_flux_averaging(ixyz)
 	double precision,dimension(3)	:: ebinsize
 
 	if (eflux_outflag .eq. 0) return
+	!Integration of surface power using trapizium rule, get current value and
+    !add to segment to running total using previous value
 	call simulation_compute_power(2, nbins(1)+1, 2, nbins(2)+1, 2, nbins(3)+1)
+	Pxyvface_integrated = Pxyvface_integrated + 0.5d0 * (Pxyvface_mdt + Pxyvface) 
+	Pxyvface_mdt = Pxyvface
+
 	call cumulative_energy_flux(r,v,energy_flux)
 	sample_count = sample_count + 1
 	if (sample_count .eq. Neflux_ave) then
@@ -2880,9 +2885,10 @@ subroutine energy_flux_averaging(ixyz)
 	!as both use velocity at v(t-dt/2)
 	if (sample_count .eq. Neflux_ave-1) then
 		call surface_power_io
-		Pxyvface_mdt = Pxyvface
-		Pxyvface = 0.d0
-		Pxyvface2 = 0.d0
+        Pxyvface_integrated = 0.d0
+		!Pxyvface_mdt = Pxyvface
+		!Pxyvface = 0.d0
+		!Pxyvface2 = 0.d0
 		!Debug flag to check CV conservation in code
 		if (CV_debug) then
     		ebinsize(:) = domain(:) / nbins(:)
@@ -4141,211 +4147,211 @@ end subroutine get_CV_surface_contributions
 
 end module get_timesteps_module
 
-subroutine control_volume_power_partialint(fij,ri,rj,vi_mhdt,vj_mhdt,ai_mdt,aj_mdt,ai,aj,molnoi,molnoj)
-    use module_record
-	use CV_objects, only : CV_debug,CV_constraint
-    use librarymod, only : heaviside => heaviside_a1, bubble_sort
-	use get_timesteps_module
-    implicit none
+!subroutine control_volume_power_partialint(fij,ri,rj,vi_mhdt,vj_mhdt,ai_mdt,aj_mdt,ai,aj,molnoi,molnoj)
+!    use module_record
+!	use CV_objects, only : CV_debug,CV_constraint
+!    use librarymod, only : heaviside => heaviside_a1, bubble_sort
+!	use get_timesteps_module
+!    implicit none
 
-	integer,intent(in)						 	:: molnoi, molnoj
-	double precision,dimension(3),intent(in) 	:: fij,ri,rj,vi_mhdt,vj_mhdt,ai_mdt,aj_mdt,ai,aj
+!	integer,intent(in)						 	:: molnoi, molnoj
+!	double precision,dimension(3),intent(in) 	:: fij,ri,rj,vi_mhdt,vj_mhdt,ai_mdt,aj_mdt,ai,aj
 
 
-	integer										:: i,j,k,m,n,ixyz,ncrossings,ncrossingsi,ncrossingsj,count_t
-	integer,dimension(3)						:: cbin, ibin, jbin, ibin_mdt, jbin_mdt
-    double precision							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
-    double precision							:: invrij2,rij2_mdt,fijvi,fijvi_mdt,fijvi_trapz,delta_t_portion,eps = 0.0001d0
-	double precision,dimension(3)   			:: fsurface,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb,velvect
-	double precision,dimension(3)   			:: vi,vj,vi_mdt,vj_mdt
-	double precision,dimension(3)   			:: ri_mdt,rj_mdt,rij_mdt,fij_mdt,ri_p,rj_p
-	double precision,dimension(3)				:: Fbinsize, bintop, binbot
-	double precision,dimension(6)				:: crosstime
-	double precision,dimension(:),allocatable	:: delta_t_list,delta_t_array
+!	integer										:: i,j,k,m,n,ixyz,ncrossings,ncrossingsi,ncrossingsj,count_t
+!	integer,dimension(3)						:: cbin, ibin, jbin, ibin_mdt, jbin_mdt
+!    double precision							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
+!    double precision							:: invrij2,rij2_mdt,fijvi,fijvi_mdt,fijvi_trapz,delta_t_portion,eps = 0.0001d0
+!	double precision,dimension(3)   			:: fsurface,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb,velvect
+!	double precision,dimension(3)   			:: vi,vj,vi_mdt,vj_mdt
+!	double precision,dimension(3)   			:: ri_mdt,rj_mdt,rij_mdt,fij_mdt,ri_p,rj_p
+!	double precision,dimension(3)				:: Fbinsize, bintop, binbot
+!	double precision,dimension(6)				:: crosstime
+!	double precision,dimension(:),allocatable	:: delta_t_list,delta_t_array
 
-	character(30)	:: frmtstr
+!	character(30)	:: frmtstr
 
-	!Determine bin size
-	Fbinsize(:) = domain(:) / nbins(:)
+!	!Determine bin size
+!	Fbinsize(:) = domain(:) / nbins(:)
 
-! 	!Old velocities
-! 	vi_mhdt = vi_hdt - ai_mdt*delta_t
-! 	vj_mhdt = vj_hdt - aj_mdt*delta_t
-! 	
-! 	!Old positions
-! 	ri_mdt = ri - vi_mhdt*delta_t
-! 	rj_mdt = rj - vj_mhdt*delta_t
+!! 	!Old velocities
+!! 	vi_mhdt = vi_hdt - ai_mdt*delta_t
+!! 	vj_mhdt = vj_hdt - aj_mdt*delta_t
+!! 	
+!! 	!Old positions
+!! 	ri_mdt = ri - vi_mhdt*delta_t
+!! 	rj_mdt = rj - vj_mhdt*delta_t
 
-! 	!Get fij, vi and vj
-! 	vi = vi_hdt + 0.5*ai_mdt*delta_t		!This is not okay -- ai_pdt should be used...
-! 	vj = vi_hdt + 0.5*ai_mdt*delta_t		!This is not okay -- ai_pdt should be used...
+!! 	!Get fij, vi and vj
+!! 	vi = vi_hdt + 0.5*ai_mdt*delta_t		!This is not okay -- ai_pdt should be used...
+!! 	vj = vi_hdt + 0.5*ai_mdt*delta_t		!This is not okay -- ai_pdt should be used...
+
+!! 	!Get fij_mdt, vi_mdt and vj_mdt
+!! 	rij_mdt(:)= ri_mdt(:) - rj_mdt(:)   					!Evaluate distance between particle i and j
+!! 	invrij2  = 1.d0/(dot_product(rij_mdt,rij_mdt))					!Invert value
+!! 	fij_mdt = 48.d0*(invrij2**7-0.5d0*invrij2**4)*rij_mdt
+!! 	vi_mdt = vi_hdt - 0.5*ai_mdt*delta_t
+!! 	vj_mdt = vi_hdt - 0.5*ai_mdt*delta_t
+
+
+!	!Assuming acceleration passed in are at time t-dt/2
+
+!	!Velocities for dot product @ t and t-dt
+!	vi(:) 	  = vi_mhdt + 0.5d0*delta_t*ai(:)
+!	vj(:) 	  = vj_mhdt + 0.5d0*delta_t*aj(:)
+
+!	vi_mdt(:) = vi_mhdt - 0.5d0*delta_t*ai_mdt(:)
+!	vj_mdt(:) = vj_mhdt - 0.5d0*delta_t*aj_mdt(:)
+
+!	!Velocity=>Positions=>fij at t-dt
+!	!vi_mhdt(:) = vi_hdt - delta_t*ai_mdt(:)
+!	!vj_mhdt(:) = vj_hdt - delta_t*aj_mdt(:)
+
+! 	ri_mdt(:) = ri - delta_t*vi_mhdt(:)
+! 	rj_mdt(:) = rj - delta_t*vj_mhdt(:)
+
+! 	rij_mdt(:)= ri_mdt(:) - rj_mdt(:)   					!Evaluate distance between particle i and j
+!	rij2_mdt = dot_product(rij_mdt,rij_mdt)
+!	if (rij2_mdt < rcutoff2) then
+!	 	invrij2  = 1.d0/rij2_mdt
+! 		fij_mdt = 48.d0*(invrij2**7-0.5d0*invrij2**4)*rij_mdt
+!	else
+!		fij_mdt = 0.d0
+!	endif
+
+!	!Trapizium rule calculation of power to add during portion of timestep
+!	fijvi 	  = dot_product(fij    ,  vi  )
+!	fijvi_mdt = dot_product(fij_mdt,vi_mdt)
+
+
+!! 	vi_phdt(:) = vi_hdt + delta_t*ai(:)
+!! 	vj_phdt(:) = vj_hdt + delta_t*aj(:)
+
+!! 	ri_pdt(:) = ri + delta_t*vi_phdt(:)
+!! 	rj_pdt(:) = rj + delta_t*vj_phdt(:)
 
 ! 	!Get fij_mdt, vi_mdt and vj_mdt
-! 	rij_mdt(:)= ri_mdt(:) - rj_mdt(:)   					!Evaluate distance between particle i and j
-! 	invrij2  = 1.d0/(dot_product(rij_mdt,rij_mdt))					!Invert value
-! 	fij_mdt = 48.d0*(invrij2**7-0.5d0*invrij2**4)*rij_mdt
-! 	vi_mdt = vi_hdt - 0.5*ai_mdt*delta_t
-! 	vj_mdt = vi_hdt - 0.5*ai_mdt*delta_t
-
-
-	!Assuming acceleration passed in are at time t-dt/2
-
-	!Velocities for dot product @ t and t-dt
-	vi(:) 	  = vi_mhdt + 0.5d0*delta_t*ai(:)
-	vj(:) 	  = vj_mhdt + 0.5d0*delta_t*aj(:)
-
-	vi_mdt(:) = vi_mhdt - 0.5d0*delta_t*ai_mdt(:)
-	vj_mdt(:) = vj_mhdt - 0.5d0*delta_t*aj_mdt(:)
-
-	!Velocity=>Positions=>fij at t-dt
-	!vi_mhdt(:) = vi_hdt - delta_t*ai_mdt(:)
-	!vj_mhdt(:) = vj_hdt - delta_t*aj_mdt(:)
-
- 	ri_mdt(:) = ri - delta_t*vi_mhdt(:)
- 	rj_mdt(:) = rj - delta_t*vj_mhdt(:)
-
- 	rij_mdt(:)= ri_mdt(:) - rj_mdt(:)   					!Evaluate distance between particle i and j
-	rij2_mdt = dot_product(rij_mdt,rij_mdt)
-	if (rij2_mdt < rcutoff2) then
-	 	invrij2  = 1.d0/rij2_mdt
- 		fij_mdt = 48.d0*(invrij2**7-0.5d0*invrij2**4)*rij_mdt
-	else
-		fij_mdt = 0.d0
-	endif
-
-	!Trapizium rule calculation of power to add during portion of timestep
-	fijvi 	  = dot_product(fij    ,  vi  )
-	fijvi_mdt = dot_product(fij_mdt,vi_mdt)
-
-
-! 	vi_phdt(:) = vi_hdt + delta_t*ai(:)
-! 	vj_phdt(:) = vj_hdt + delta_t*aj(:)
-
-! 	ri_pdt(:) = ri + delta_t*vi_phdt(:)
-! 	rj_pdt(:) = rj + delta_t*vj_phdt(:)
-
- 	!Get fij_mdt, vi_mdt and vj_mdt
-!  	rij_pdt(:)= ri_pdt(:) - rj_pdt(:)   					!Evaluate distance between particle i and j
-!  	invrij2  = 1.d0/(dot_product(rij_pdt,rij_pdt))					!Invert value
-!  	fij_pdt = 48.d0*(invrij2**7-0.5d0*invrij2**4)*rij_pdt
+!!  	rij_pdt(:)= ri_pdt(:) - rj_pdt(:)   					!Evaluate distance between particle i and j
+!!  	invrij2  = 1.d0/(dot_product(rij_pdt,rij_pdt))					!Invert value
+!!  	fij_pdt = 48.d0*(invrij2**7-0.5d0*invrij2**4)*rij_pdt
 
 
 
-	!Assign to bins using integer division
-	ibin(:) 	= ceiling((ri(:)	+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
-	jbin(:) 	= ceiling((rj(:)	+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
-	ibin_mdt(:) = ceiling((ri_mdt(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish previous bin
-	jbin_mdt(:) = ceiling((rj_mdt(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish previous bin
+!	!Assign to bins using integer division
+!	ibin(:) 	= ceiling((ri(:)	+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
+!	jbin(:) 	= ceiling((rj(:)	+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
+!	ibin_mdt(:) = ceiling((ri_mdt(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish previous bin
+!	jbin_mdt(:) = ceiling((rj_mdt(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish previous bin
 
-	!Get number of crossings
-	ncrossingsi =  abs(ibin(1) - ibin_mdt(1)) + abs(ibin(2) - ibin_mdt(2)) + abs(ibin(3) - ibin_mdt(3))
-	ncrossingsj =  abs(jbin(1) - jbin_mdt(1)) + abs(jbin(2) - jbin_mdt(2)) + abs(jbin(3) - jbin_mdt(3)) 
-	ncrossings = ncrossingsi+ncrossingsj
+!	!Get number of crossings
+!	ncrossingsi =  abs(ibin(1) - ibin_mdt(1)) + abs(ibin(2) - ibin_mdt(2)) + abs(ibin(3) - ibin_mdt(3))
+!	ncrossingsj =  abs(jbin(1) - jbin_mdt(1)) + abs(jbin(2) - jbin_mdt(2)) + abs(jbin(3) - jbin_mdt(3)) 
+!	ncrossings = ncrossingsi+ncrossingsj
 
-	!Get portion of timestep in each cell
-	count_t = 0
-	if (ncrossings .eq. 0) then
-		allocate(delta_t_array(2))
-		delta_t_array(1) = 0.d0
-		delta_t_array(2) = delta_t
-	else
-		! Each molecular crossing time is counted twice -- once for the cell it's 
-		! leaving and once for the cell it's moving into
-		allocate(delta_t_list(2*ncrossings))
-		if (ncrossingsi .ne. 0) print'(a,2i4,6f12.8,6i4)', 'Molecule i',iter, molnoi, ri,ri_mdt,ibin,ibin_mdt
-		if (ncrossingsj .ne. 0) print'(a,2i4,6f12.8,6i4)', 'Molecule j',iter, molnoj, rj,rj_mdt,jbin,jbin_mdt
+!	!Get portion of timestep in each cell
+!	count_t = 0
+!	if (ncrossings .eq. 0) then
+!		allocate(delta_t_array(2))
+!		delta_t_array(1) = 0.d0
+!		delta_t_array(2) = delta_t
+!	else
+!		! Each molecular crossing time is counted twice -- once for the cell it's 
+!		! leaving and once for the cell it's moving into
+!		allocate(delta_t_list(2*ncrossings))
+!		if (ncrossingsi .ne. 0) print'(a,2i4,6f12.8,6i4)', 'Molecule i',iter, molnoi, ri,ri_mdt,ibin,ibin_mdt
+!		if (ncrossingsj .ne. 0) print'(a,2i4,6f12.8,6i4)', 'Molecule j',iter, molnoj, rj,rj_mdt,jbin,jbin_mdt
 
-    	!Check if molecule i has changed bin
-		call  get_timesteps(ncrossingsi,ibin,ibin_mdt,Fbinsize,ri,vi_mhdt,delta_t,delta_t_list,count_t)
+!    	!Check if molecule i has changed bin
+!		call  get_timesteps(ncrossingsi,ibin,ibin_mdt,Fbinsize,ri,vi_mhdt,delta_t,delta_t_list,count_t)
 
-    	!Check if molecule j has changed bin
-		call  get_timesteps(ncrossingsj,jbin,jbin_mdt,Fbinsize,rj,vj_mhdt,delta_t,delta_t_list,count_t)
+!    	!Check if molecule j has changed bin
+!		call  get_timesteps(ncrossingsj,jbin,jbin_mdt,Fbinsize,rj,vj_mhdt,delta_t,delta_t_list,count_t)
 
-		!Get crossing times in chronological order
-		call bubble_sort(delta_t_list)
+!		!Get crossing times in chronological order
+!		call bubble_sort(delta_t_list)
 
-		!Sanity checks -- count_t == ncrossings & sum(delta_t_list) == delta_t
-		if (ncrossings .ne. 0.5*count_t) then
-			print'(a,2i12)', ' count_t == ncrossings ',count_t/2,ncrossings
-			stop "Error - crossing values not equal"
-		endif
-		if (any(delta_t_list .gt. delta_t)) then
-			stop "Error - delta t not ok in energy CV"
-		endif
+!		!Sanity checks -- count_t == ncrossings & sum(delta_t_list) == delta_t
+!		if (ncrossings .ne. 0.5*count_t) then
+!			print'(a,2i12)', ' count_t == ncrossings ',count_t/2,ncrossings
+!			stop "Error - crossing values not equal"
+!		endif
+!		if (any(delta_t_list .gt. delta_t)) then
+!			stop "Error - delta t not ok in energy CV"
+!		endif
 
-		!print'(i4,a,2i12,a,2f10.5)',iter,' count_t == ncrossings ',ncrossings,count_t/2, & 
-		!						 ' sum(delta_t_list) == delta_t ',delta_t, sum(delta_t_list)
+!		!print'(i4,a,2i12,a,2f10.5)',iter,' count_t == ncrossings ',ncrossings,count_t/2, & 
+!		!						 ' sum(delta_t_list) == delta_t ',delta_t, sum(delta_t_list)
 
-		!Set initial and final time and copy timestep arrays 
-		allocate(delta_t_array(ncrossings+2))
-		delta_t_array(1) = 0.d0
-		delta_t_array(ncrossings+2) = delta_t
-		n = 2
-		do i = 1,size(delta_t_list),2
-			if (delta_t_list(i) .ne. delta_t_list(i+1)) then
-				stop "Error - Successive timesteps not same in delta_t array"
-			endif 
-			delta_t_array(n) = delta_t_list(i)
-			n = n + 1
-		enddo
+!		!Set initial and final time and copy timestep arrays 
+!		allocate(delta_t_array(ncrossings+2))
+!		delta_t_array(1) = 0.d0
+!		delta_t_array(ncrossings+2) = delta_t
+!		n = 2
+!		do i = 1,size(delta_t_list),2
+!			if (delta_t_list(i) .ne. delta_t_list(i+1)) then
+!				stop "Error - Successive timesteps not same in delta_t array"
+!			endif 
+!			delta_t_array(n) = delta_t_list(i)
+!			n = n + 1
+!		enddo
 
-	endif
+!	endif
 
-	if (ncrossings .ge. 1) then
- 	if (all(ibin .eq. 3)  .or. &
- 		all(jbin .eq. 3) 	) then
-!  	if (all(ibin .eq. 3) .and. any(jbin .ne. 3) .or. &
-!  		all(jbin .eq. 3) .and. any(ibin .ne. 3)	) then
-		print'(a,12i4)','Predicted cells', ibin,ibin_mdt,jbin,jbin_mdt
-	endif
-	endif
+!	if (ncrossings .ge. 1) then
+! 	if (all(ibin .eq. 3)  .or. &
+! 		all(jbin .eq. 3) 	) then
+!!  	if (all(ibin .eq. 3) .and. any(jbin .ne. 3) .or. &
+!!  		all(jbin .eq. 3) .and. any(ibin .ne. 3)	) then
+!		print'(a,12i4)','Predicted cells', ibin,ibin_mdt,jbin,jbin_mdt
+!	endif
+!	endif
 
-	!Calculate surface contributions
-	do n=1,ncrossings+1
-	
-		delta_t_portion = delta_t_array(n+1)-delta_t_array(n)
+!	!Calculate surface contributions
+!	do n=1,ncrossings+1
+!	
+!		delta_t_portion = delta_t_array(n+1)-delta_t_array(n)
 
-		!Calculate intermediate positions
-		ri_p = ri - vi_mhdt*delta_t_portion + eps
-		rj_p = rj - vj_mhdt*delta_t_portion + eps
+!		!Calculate intermediate positions
+!		ri_p = ri - vi_mhdt*delta_t_portion + eps
+!		rj_p = rj - vj_mhdt*delta_t_portion + eps
 
-		ibin(:) 	= ceiling((ri_p(:)	+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
-		jbin(:) 	= ceiling((rj_p(:)	+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
+!		ibin(:) 	= ceiling((ri_p(:)	+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
+!		jbin(:) 	= ceiling((rj_p(:)	+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
 
-		if (ncrossings .ge. 1) then
- 		if (all(ibin .eq. 3) .and. any(jbin .ne. 3) .or. &
- 			all(jbin .eq. 3) .and. any(ibin .ne. 3)	) then
-				print'(a,12i4,3f14.9)','Delta_t',iter,n,molnoi,molnoj,ibin,jbin, & 
-												 ncrossingsi,ncrossingsj, delta_t_array(n),& 
-												 delta_t_portion,delta_t_array(n+1)
-		endif
-		endif
-
-		!Calculate and add fraction of interation
-		fijvi_trapz = 0.5d0*delta_t_portion * (fijvi + fijvi_mdt)/delta_t
-		call  get_CV_surface_contributions(ibin,jbin,ri_p,rj_p,Fbinsize,fijvi_trapz,Pxyvface2,molnoi,molnoj)
-
-!  		if (all(ibin .eq. 3) .and. any(jbin .ne. 3)) then
-! 			print'(a,3i4,10f11.6)', 'Saving ints',iter,molnoi,molnoj,delta_t_portion , & 
-! 													0.25*Pxyvface2(ibin(1),ibin(2),ibin(3),:)/5.0, &  !binsize
-! 													fijvi,fijvi_mdt,fijvi_trapz
-! 		endif
-! 		if (all(jbin .eq. 3) .and. any(ibin .ne. 3)) then
-! 			print'(a,3i4,10f11.6)', 'Saving ints',iter,molnoi,molnoj,delta_t_portion , &
-! 													0.25*Pxyvface2(jbin(1),jbin(2),jbin(3),:)/5.0, & 
-! 													fijvi,fijvi_mdt,fijvi_trapz
-! 		endif
-
+!		if (ncrossings .ge. 1) then
 ! 		if (all(ibin .eq. 3) .and. any(jbin .ne. 3) .or. &
 ! 			all(jbin .eq. 3) .and. any(ibin .ne. 3)	) then
-! 			print'(a,3i4,10f11.7)', 'Current',iter,molnoi,molnoj,fij_mdt,vi_mdt,fijvi_mdt,0.25*fijvi_trapz/(5.0*delta_t)
-! 			print'(a,3i4,10f11.7)', 'Future ',iter,molnoi,molnoj,fij,vi,fijvi,0.25*fijvi_trapz/(5.0*delta_t)
-! 		endif
-		!print'(a,12f10.5)', 'Power after', Pxyvface(ibin(1),ibin(2),ibin(3),:), Pxyvface(jbin(1),jbin(2),jbin(3),:)
+!				print'(a,12i4,3f14.9)','Delta_t',iter,n,molnoi,molnoj,ibin,jbin, & 
+!												 ncrossingsi,ncrossingsj, delta_t_array(n),& 
+!												 delta_t_portion,delta_t_array(n+1)
+!		endif
+!		endif
 
-	enddo
+!		!Calculate and add fraction of interation
+!		fijvi_trapz = 0.5d0*delta_t_portion * (fijvi + fijvi_mdt)/delta_t
+!		call  get_CV_surface_contributions(ibin,jbin,ri_p,rj_p,Fbinsize,fijvi_trapz,Pxyvface2,molnoi,molnoj)
 
-end subroutine control_volume_power_partialint
+!!  		if (all(ibin .eq. 3) .and. any(jbin .ne. 3)) then
+!! 			print'(a,3i4,10f11.6)', 'Saving ints',iter,molnoi,molnoj,delta_t_portion , & 
+!! 													0.25*Pxyvface2(ibin(1),ibin(2),ibin(3),:)/5.0, &  !binsize
+!! 													fijvi,fijvi_mdt,fijvi_trapz
+!! 		endif
+!! 		if (all(jbin .eq. 3) .and. any(ibin .ne. 3)) then
+!! 			print'(a,3i4,10f11.6)', 'Saving ints',iter,molnoi,molnoj,delta_t_portion , &
+!! 													0.25*Pxyvface2(jbin(1),jbin(2),jbin(3),:)/5.0, & 
+!! 													fijvi,fijvi_mdt,fijvi_trapz
+!! 		endif
+
+!! 		if (all(ibin .eq. 3) .and. any(jbin .ne. 3) .or. &
+!! 			all(jbin .eq. 3) .and. any(ibin .ne. 3)	) then
+!! 			print'(a,3i4,10f11.7)', 'Current',iter,molnoi,molnoj,fij_mdt,vi_mdt,fijvi_mdt,0.25*fijvi_trapz/(5.0*delta_t)
+!! 			print'(a,3i4,10f11.7)', 'Future ',iter,molnoi,molnoj,fij,vi,fijvi,0.25*fijvi_trapz/(5.0*delta_t)
+!! 		endif
+!		!print'(a,12f10.5)', 'Power after', Pxyvface(ibin(1),ibin(2),ibin(3),:), Pxyvface(jbin(1),jbin(2),jbin(3),:)
+
+!	enddo
+
+!end subroutine control_volume_power_partialint
 
 
 
