@@ -766,9 +766,9 @@ module calculated_properties_MD
 	double precision, dimension(:,:,:,:), allocatable	:: &
 		volume_momentum,	& 		!Momentum in a control volume at time t
 		energy_flux,		&		!Flow of energy over a control volume surface
-		Pxyvface,			&		!Stress tensor on bin face
-		Pxyvface2,			&		!Stress tensor on bin face TEMP FOR DEBUG
-		Pxyvface_mdt,		&		!Stress tensor on bin face at previous timestep
+		Pxyvface,			&		!Power tensor on bin face
+		Pxyvface_mdt,		&		!Power tensor on bin face at previous timestep
+		Pxyvface_integrated,&		!Integrated form of Power
 		F_ext_bin					!External Force per bin
 
 	double precision, dimension(:,:,:,:,:), allocatable :: & 
