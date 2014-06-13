@@ -1031,7 +1031,7 @@ contains
 
         integer :: b
 
-        do molnoi=1,np
+        do molnoi=1,np+halo_np
 
             ri(:) = r(:,molnoi) !Retrieve ri(:)
             do b=1,monomer(molnoi)%funcy
