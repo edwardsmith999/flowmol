@@ -1045,7 +1045,7 @@ end subroutine get_distributed_force
 		allocate(w(3,np))
 		allocate(MD_stress(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
 		MD_stress = 0.25d0*CV_constraint%Pxy
-		w(:,:) = linearsurface_weight(MD_stress,r_in(:,1:np),binsize,domain,zeromean=.true.)
+		w(:,:) = linearsurface_weight(MD_stress,r_in(:,1:np),binsize,domain,shiftmean=2)
 
 		!Call linear lagrange polynomial to distribute forces
 		!w(:,:) = lagrange_poly_weight(MD_stress,r_in(:,1:np),binsize,domain,2)
@@ -1118,7 +1118,7 @@ end subroutine get_distributed_force
 
 		!Call linear lagrange polynomial to distribute forces
 		allocate(w(3,np))
-		w(:,:) = linearsurface_weight(CFDstress,r_in(:,1:np),binsize,domain,zeromean=.true.)
+		w(:,:) = linearsurface_weight(CFDstress,r_in(:,1:np),binsize,domain,shiftmean=2)
 		!w(:,:) = lagrange_poly_weight_Nmol(CFDstress,r_in(:,1:np),binsize,domain,2,zeromean=.true.)
 		w(2:3,:) = 0.d0
 	
@@ -1513,8 +1513,8 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
         		select case (CVforce_testcaseflag)
         		case(1)
         			!Apply differential CV flux constraint
-        			F_constraint(ib,jb,kb,:)  =	     MD_Pi_dS(ib,jb,kb,:) +  MD_rhouu_dS(ib,jb,kb,:) &
-    										  + (CFD_rhouu_dS(ib,jb,kb,:) -    CFD_Pi_dS(ib,jb,kb,:) )*volume
+        			F_constraint(ib,jb,kb,:)  =	       MD_Pi_dS(ib,jb,kb,:) + MD_rhouu_dS(ib,jb,kb,:) &
+    										  - ( -CFD_rhouu_dS(ib,jb,kb,:) + CFD_Pi_dS(ib,jb,kb,:) )*volume
 
 
                     !if (ib .eq. 3 .and. jb .eq. 3 .and. kb .eq. 3) then
