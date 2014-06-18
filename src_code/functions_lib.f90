@@ -32,7 +32,142 @@
 
 !------------------------------------------------------------------------------
 
+module Weight_fn_mod
+
+	! Vector shape function object of the form \vek{f}(x) = ax^2 + bx + c for 0 ≤ x ≤ 1.0  
+	! Constructed subject to the following values :
+	!	tBC   -- vector - top boundary condition, f(x=1) = tBC(1:3)
+	!	bBC   -- vector - bottom boundary conditions, f(x=0) = bBC(1:3)
+	!	sBC   -- vector - sum boundary condition, the sum of f(x) at a supplied selection of 
+	!		     		  x values must satisfy \sum f(x_n) = sBC(1:3)
+	!	sumx  -- scalar - sum of positions of points that must sum to sBC
+	!	sumx2 -- scalar - sum of squares of positions of points that must sum to sBC	
+	!	Np	  -- scalar interger - Number of points
+
+	type :: Weight_1D_vector
+		private
+		double precision,dimension(3) :: a,b,c
+
+	contains
+
+		procedure :: constructor => set_coeffs_1D_vector
+		procedure :: forces  	 => get_force_1D_vector
+
+	end type Weight_1D_vector
+
+	! NOTE -- THIS DOESN'T WORK -- THE SUM CONSTRAINT SHOULD BE BASED ON THE POSITION IN 3D
+	! SPACE AND CANNOT BE WORKED OUT FROM THE PRODUCT OF 3 x 1D SHAPE FUNCTIONS
+	! 			INCLUDED FOR RECORD ONLY!!!!!!
+	! Vector shape function object of the form \vek{Na}(x,y,z) =  \vek{f}(x)\vek{f}(y)\vek{f}(z)
+	! where each \vek{f}(x)  = ax^2 + bx + c for 0 ≤ x ≤ 1.0  
+	! Constructed subject to the following values :
+	!	tBC   -- vector - top boundary condition, f(x=1) = tBC(1:3,1:3)
+	!	bBC   -- vector - bottom boundary conditions, f(x=0) = bBC(1:3,1:3)
+	!	sBC   -- vector - sum boundary condition, the sum of f(x) at a supplied selection of 
+	!		     		  x values must satisfy \sum f(x_n) = sBC(1:3)
+	!	sumx  -- scalar - sum of positions of points that must sum to sBC
+	!	sumx2 -- scalar - sum of squares of positions of points that must sum to sBC	
+	!	Np	  -- scalar interger - Number of points
+
+	type :: Weight_3D_vector
+		private
+		type(Weight_1D_vector),dimension(3) 	:: Weight_1D
+
+	contains
+
+		procedure :: constructor => set_coeffs_3D_vector
+		procedure :: forces  	 => get_force_3D_vector
+
+	end type Weight_3D_vector
+
+contains
+
+subroutine set_coeffs_1D_vector(self, Np, sumx, sumx2, bBC, tBC, sBC)
+	implicit none
+
+	class(Weight_1D_vector) 		:: self
+
+	integer,intent(in)						  :: Np
+	double precision,dimension(3),intent(in)  :: bBC, tBC, sBC
+	double precision,intent(in)				  :: sumx, sumx2
+
+	!Set constant to bottom boundary condition
+	self%c = bBC
+	!Expression for b is given by:
+	self%b = (sBC(:) - Np*self%c(:) - (tBC(:)-self%c(:))*sumx2)/(sumx - sumx2)
+	!Expression for a is given by:
+	self%a = tBC - self%b - self%c
+
+end subroutine set_coeffs_1D_vector
+
+function get_force_1D_vector(self,x) result(fx)
+	implicit none
+
+	class(Weight_1D_vector) 		:: self
+
+	double precision,dimension(:),allocatable,intent(in)	:: x
+
+	integer													:: n
+	double precision,dimension(:,:),allocatable				:: fx
+
+	!Get values of f(x_n)
+	allocate(fx(size(x,1),3))
+	do n = 1,size(x,1)
+		fx(n,:) = self%a(:)*x(n)**2.d0 + self%b(:)*x(n) + self%c(:)
+	enddo
+
+end function get_force_1D_vector
+
+! NOTE -- THIS DOESN'T WORK -- THE SUM CONSTRAINT SHOULD BE BASED ON THE POSITION IN 3D
+! SPACE AND CANNOT BE WORKED OUT FROM THE PRODUCT OF 3 x 1D SHAPE FUNCTIONS
+! 			INCLUDED FOR RECORD ONLY!!!!!!
+subroutine set_coeffs_3D_vector(self, Np, sumx, sumx2, bBC, tBC, sBC)
+	implicit none
+
+	class(Weight_3D_vector) 				:: self
+
+	integer,dimension(3),intent(in)			   :: Np
+	double precision,dimension(3),intent(in)   :: sumx, sumx2, sBC
+	double precision,dimension(3,3),intent(in) :: bBC, tBC
+
+	integer	:: ixyz
+
+	do ixyz=1,3
+		print*, ixyz, bBC(:,ixyz)
+		call self%Weight_1D(ixyz)%constructor(Np(ixyz), & 
+											  sumx(ixyz), &
+											  sumx2(ixyz), & 
+						 			    	  bBC(:,ixyz), &
+											  tBC(:,ixyz), &
+											  sBC(:)**(1.d0/3.d0))
+	enddo
+
+end subroutine set_coeffs_3D_vector
+
+function get_force_3D_vector(self,r) result(fx)
+	implicit none
+
+	class(Weight_3D_vector) 		:: self
+
+	double precision,dimension(:,:),allocatable,intent(in)	:: r
+
+	double precision,dimension(:),allocatable				:: x,y,z
+	double precision,dimension(:,:),allocatable				:: fx
+
+	allocate(x(size(r,1)),y(size(r,1)),z(size(r,1)),fx(size(r,1),3))
+	x = r(:,1); y = r(:,2); z = r(:,3)
+	fx =  self%Weight_1D(1)%forces(x) &
+		 *self%Weight_1D(2)%forces(y) &
+		 *self%Weight_1D(3)%forces(z)
+
+end function get_force_3D_vector
+
+end module Weight_fn_mod
+
+
 module librarymod
+
+	use Weight_fn_mod
 
 	double precision,parameter :: pi=4.d0*atan(1.d0)
 	double precision,parameter :: const0 = 0.d0, const1 = 1.d0
@@ -62,6 +197,22 @@ module librarymod
 
     private int_heaviside, int_array_heaviside, dp_heaviside, &
 	        dp_array_heaviside
+
+	! use same name for 1D and 3D plotting
+	interface PYplot
+		module procedure PYplot_1D, PYplot_3D
+	end interface
+
+	private PYplot_1D, PYplot_3D
+
+	! use same name for 1D and 3D functions to return value on a shape_fn
+	interface get_weight_fn
+		module procedure get_weight_fn_scalar, get_weight_fn_vector
+	end interface
+
+	private get_weight_fn_scalar, get_weight_fn_vector
+
+
 
 	!Assembly language interface to Heaviside function
     interface
@@ -1395,16 +1546,23 @@ subroutine GNUplot(x,y)
 end subroutine GNUplot
 
 
-subroutine PYplot(x,y,routine)
+subroutine PYplot_1D(x,y,routine,savefig)
 	implicit none
 
 	integer										:: i,unitno1
 	double precision,dimension(:),intent(in)	:: x,y
 	character(*)								:: routine
 	character(100)								:: callpython
+	logical										:: savefig_
+	logical,intent(in),optional					:: savefig
+
+	if (.not. present(savefig)) then
+		savefig_ = .false.
+	else
+		savefig_ = savefig
+	endif
 
 	if (size(x,1) .ne. size(y,1)) call error_abort("Error in GNUplot - array sizes differ")
-
 	unitno1 = get_new_fileunit()
 
 	!Generate temp file of results
@@ -1414,14 +1572,62 @@ subroutine PYplot(x,y,routine)
 	enddo
 
 	!Close all previous gnuplot windows and create new
-	call system("killall eog")
-	write(callpython,*) "python2.7 ", routine, " ; eog hist.png &"
+	if (savefig_) then
+		call system("killall eog")
+		write(callpython,*) "python2.7 ", routine, " ; eog hist.png &"
+	else
+		write(callpython,*) "python2.7 ", routine
+	endif
 	call system(trim(callpython))
 
 	!Clean up all temp files
 	close(unitno1,status='delete')
 
-end subroutine PYplot
+end subroutine PYplot_1D
+
+
+subroutine PYplot_3D(x,y,routine,savefig)
+	implicit none
+
+	integer										:: i,unitno1
+	double precision,dimension(:,:),intent(in)	:: x,y
+	character(*)								:: routine
+	character(100)								:: callpython
+	logical										:: savefig_
+	logical,intent(in),optional					:: savefig
+
+	if (.not. present(savefig)) then
+		savefig_ = .false.
+	else
+		savefig_ = savefig
+	endif
+
+
+	if (size(x,1) .ne. size(y,1)) stop "Error in GNUplot - array sizes differ"
+
+	unitno1 = get_new_fileunit()
+
+	!Generate temp file of results
+	open(unitno1,FILE='./tempout')
+	do i =1,size(x,1)
+		print'(a,6f10.5)', 'writing', x(i,1),y(i,1),x(i,2),y(i,2),x(i,3),y(i,3)
+		write(unitno1,'(6f18.12)') x(i,1),y(i,1),x(i,2),y(i,2),x(i,3),y(i,3)
+	enddo
+
+	!Close all previous gnuplot windows and create new
+	if (savefig_) then
+		call system("killall eog")
+		write(callpython,*) "python2.7 ", routine, " ; eog hist.png &"
+	else
+		write(callpython,*) "python2.7 ", routine
+	endif
+	call system(trim(callpython))
+
+	!Clean up all temp files
+	close(unitno1,status='delete')
+
+end subroutine PYplot_3D
+
 
 
 !Constructor for PDF object
@@ -1840,6 +2046,8 @@ function couette_analytical_stress_fn(t,Re,U_wall,L,npoints,slidingwall) result 
 
 end function couette_analytical_stress_fn
 
+
+
 ! Take surface forces on a cube's surfaces and return the 
 ! values at the node of intersection. 
 ! = = Surface data assumed to be stored as 
@@ -1873,19 +2081,25 @@ end function surface_array_to_nodes
 ! array of surface fluxes passed into the function
 
 !Wrapper for single molecule
-function linearsurface_weight_1mol(array,r_in,binsize,domain,zeromean) result(weight)
+function linearsurface_weight_1mol(array,r_in,binsize,domain,shiftmean,meanvalue) result(weight)
 
     double precision,dimension(3),intent(in)	:: domain,binsize
     double precision,dimension(:),intent(in)	:: r_in
     double precision,dimension(:,:,:,:,:),allocatable,intent(in)    :: array
-	logical,intent(in),optional	:: zeromean
+	integer,intent(in),optional	:: shiftmean
+	double precision,dimension(:,:,:,:),allocatable,intent(in),optional	:: meanvalue
 
     double precision,dimension(3,1)	    :: buf
     double precision,dimension(:,:),allocatable	    :: weight
     
     buf(:,1) =  r_in(:)
-	if (present(zeromean)) then
-	    weight = linearsurface_weight_Nmol(array,buf,binsize,domain,zeromean)
+	if (present(shiftmean)) then
+		if (.not. present(meanvalue)) then
+			weight = linearsurface_weight_Nmol(array,buf,binsize,domain,shiftmean)
+			!stop "Error in linearsurface_weight_Nmol -- shiftmean requested and meanvalue not specified"
+		else
+			weight = linearsurface_weight_Nmol(array,buf,binsize,domain,shiftmean,meanvalue)
+		endif
 	else
 		weight = linearsurface_weight_Nmol(array,buf,binsize,domain)
 	endif
@@ -1897,30 +2111,52 @@ end function linearsurface_weight_1mol
 ! Use linear interpolation between the surfaces of the cube 
 !(I think this is equivalent to nodes and lagrange interpolates below)
 
-function linearsurface_weight_Nmol(array,r_in,binsize,domain,zeromean) result(weight)
+function linearsurface_weight_Nmol(array,r_in,binsize,domain,shiftmean,meanvalue) result(weight)
     implicit none
 
     double precision,dimension(3),intent(in)	:: domain,binsize
     double precision,dimension(:,:),intent(in)	:: r_in
     double precision,dimension(:,:,:,:,:),allocatable,intent(in)    :: array
-	logical,intent(in),optional	:: zeromean
+	integer,intent(in),optional	:: shiftmean
+	double precision,dimension(:,:,:,:),allocatable,intent(in),optional	:: meanvalue
 
     integer,dimension(:,:,:),allocatable :: nperbin
     double precision,dimension(:,:),allocatable	    :: weight
-    double precision,dimension(:,:,:,:),allocatable :: wsum_bin
+    double precision,dimension(:,:,:),allocatable 	:: sqr_term
+    double precision,dimension(:,:,:,:),allocatable :: wsum_bin, w_2ndorder,meanvalue_
 
 	integer							:: npoints,n
     integer,dimension(3)            :: bin, order_nd, nbins
+    double precision				:: fxfyfz
     double precision,dimension(3)   :: r_in_, Na
     double precision,dimension(:,:),allocatable :: grid, rhat
     double precision,dimension(3,6)	:: surfaces
 
 	nbins = nint(domain/binsize)
 
-	if (present(zeromean)) then
-		allocate(wsum_bin(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
-		allocate(nperbin(nbins(1)+2,nbins(2)+2,nbins(3)+2))
-		wsum_bin = 0.d0; nperbin = 0
+	if (present(shiftmean)) then
+		allocate(meanvalue_(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
+		if (.not. present(meanvalue)) then
+			meanvalue_ = 0.d0
+		else
+			meanvalue_ = meanvalue
+		endif
+		select case(shiftmean)
+		case(0)
+			!Do nothing, shiftmean not requested
+		case(1)
+			allocate(wsum_bin(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
+			allocate(nperbin(nbins(1)+2,nbins(2)+2,nbins(3)+2))
+			wsum_bin = 0.d0; nperbin = 0
+		case(2)
+			allocate(wsum_bin(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
+			allocate(nperbin(nbins(1)+2,nbins(2)+2,nbins(3)+2))
+			allocate(sqr_term(nbins(1)+2,nbins(2)+2,nbins(3)+2))
+			allocate(w_2ndorder(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
+			sqr_term = 0.d0; wsum_bin = 0.d0; nperbin = 0
+		case default
+			stop "Error in linearsurface_weight_Nmol -- incorrect shiftmean value"
+		end select
 	endif
 
 	!Setup polynomial and other functions
@@ -1948,10 +2184,25 @@ function linearsurface_weight_Nmol(array,r_in,binsize,domain,zeromean) result(we
                        (surfaces(:,5)*(1.d0-Na(2)) + surfaces(:,2)*Na(2))+ &
                        (surfaces(:,6)*(1.d0-Na(3)) + surfaces(:,3)*Na(3)))
 
-
-		if (present(zeromean)) then
-			wsum_bin(bin(1),bin(2),bin(3),:) = wsum_bin(bin(1),bin(2),bin(3),:) + weight(:,n)
-			nperbin(bin(1),bin(2),bin(3)) 	 = nperbin(bin(1),bin(2),bin(3)) + 1
+		if (present(shiftmean)) then
+			select case(shiftmean)
+			case(0)
+				!Do nothing, shiftmean not requested
+			case(1)
+				!Get sum of weightings to subtract so mean is zero by adjusting constant value
+				wsum_bin(bin(1),bin(2),bin(3),:) = wsum_bin(bin(1),bin(2),bin(3),:) + weight(:,n)
+				nperbin(bin(1),bin(2),bin(3)) 	 = nperbin(bin(1),bin(2),bin(3)) + 1
+			case(2)
+				! Zero mean by adding a 2nd order term preserving the B.C. and adjusting the 
+				! 3D parabolicness until the sum is correct
+				wsum_bin(bin(1),bin(2),bin(3),:) = wsum_bin(bin(1),bin(2),bin(3),:) + weight(:,n)
+				nperbin(bin(1),bin(2),bin(3)) 	 = nperbin(bin(1),bin(2),bin(3)) + 1
+				fxfyfz = ((Na(1)-0.5d0)**2-0.25d0) &
+						*((Na(2)-0.5d0)**2-0.25d0) &
+						*((Na(3)-0.5d0)**2-0.25d0)
+				sqr_term(bin(1),bin(2),bin(3)) = sqr_term(bin(1),bin(2),bin(3)) + fxfyfz
+				!print'(a,4i6,5f10.5)','para', n,bin, Na,fxfyfz,sqr_term(bin(1),bin(2),bin(3))
+			end select
 		endif
        ! if (bin(1) .eq. 3 .and. bin(2) .eq. 3 .and. bin(3) .eq. 3) then
         !    print'(4i6,12f10.5)', n, bin,rhat(:,n), weight(:,n),surfaces(1,:)
@@ -1959,25 +2210,138 @@ function linearsurface_weight_Nmol(array,r_in,binsize,domain,zeromean) result(we
 
 	enddo
 
-	if (present(zeromean)) then
-		if (zeromean) then
-			!wsum_bin(:,:,:,1) = wsum_bin(:,:,:,1)/nperbin(:,:,:)
-			!wsum_bin(:,:,:,2) = wsum_bin(:,:,:,2)/nperbin(:,:,:)
-			!wsum_bin(:,:,:,3) = wsum_bin(:,:,:,3)/nperbin(:,:,:)
+	if (present(shiftmean)) then
+		select case(shiftmean)
+		case(0)
+			!Do nothing, shiftmean not requested
+		case(1)
+			!Zero mean by adjusting constant value
 			do n =1,size(r_in,2)
 				r_in_(:) = r_in(:,n)+0.5d0*domain(:)
 				bin(:) = ceiling((r_in_)/binsize(:))+1
-				!print*, 'before loop', wsum_bin(bin(1),bin(2),bin(3),:), nperbin(bin(1),bin(2),bin(3))
-			    !if (bin(1) .eq. 3 .and. bin(2) .eq. 3 .and. bin(3) .eq. 3) then
-				!   print'(4i4,15f8.3)', n,bin, rhat(:,n),weight(:,n),wsum_bin(bin(1),bin(2),bin(3),:),surfaces(1,:)
-				!endif
-				weight(:,n) = weight(:,n) - wsum_bin(bin(1),bin(2),bin(3),:)/nperbin(bin(1),bin(2),bin(3))
+				!print'(a,4i4,9f8.3,i6)','linear', n,bin, rhat(:,n),weight(:,n),wsum_bin(bin(1),bin(2),bin(3),:),nperbin(bin(1),bin(2),bin(3))
+				weight(:,n) = weight(:,n) - (wsum_bin(bin(1),bin(2),bin(3),:)-meanvalue_(bin(1),bin(2),bin(3),:))/nperbin(bin(1),bin(2),bin(3))
 
 			enddo
-		endif
+		case(2)
+			! Zero mean by adding a 2nd order term preserving the B.C. and adjusting the 
+			! parabolicness until the sum is correct
+			!w_2ndorder(:,:,:,1) = sqr_term(:,:,:)/(wsum_bin(:,:,:,1)/nperbin(:,:,:))
+			!w_2ndorder(:,:,:,2) = sqr_term(:,:,:)/(wsum_bin(:,:,:,2)/nperbin(:,:,:))
+			!w_2ndorder(:,:,:,3) = sqr_term(:,:,:)/(wsum_bin(:,:,:,3)/nperbin(:,:,:))
+			!print*, w_2ndorder(:,:,:,3),sqr_term(:,:,:),(wsum_bin(:,:,:,3)/nperbin(:,:,:))
+			do n =1,size(r_in,2)
+				r_in_(:) = r_in(:,n)+0.5d0*domain(:)
+				bin(:) = ceiling((r_in_)/binsize(:))+1
+				Na(:) = rhat(:,n)
+				fxfyfz = ((Na(1)-0.5d0)**2-0.25d0) &
+						*((Na(2)-0.5d0)**2-0.25d0) &
+						*((Na(3)-0.5d0)**2-0.25d0)
+				weight(:,n) = weight(:,n) - fxfyfz * (wsum_bin(bin(1),bin(2),bin(3),:)-meanvalue_(bin(1),bin(2),bin(3),:))/sqr_term(bin(1),bin(2),bin(3))
+				!print'(a,4i4,7f8.3,3f18.12)','parabol', n,bin, rhat(:,n),fxfyfz,weight(:,n),wsum_bin(bin(1),bin(2),bin(3),:)/sqr_term(bin(1),bin(2),bin(3))
+			enddo
+
+		end select
 	endif
 
 end function linearsurface_weight_Nmol
+
+
+! Derive a weight function of the form f(x) = ax^2 + bx + c for 0 ≤ x ≤ 1.0  
+! subject to the boundary conditions :
+! INPUTS:
+!	tBC -- top boundary condition, f(x=1) = tBC
+!	bBC -- bottom boundary conditions, f(x=0) = bBC
+!	sBC -- sum boundary condition, the sum of f(x) at a supplied selection of 
+!		   x values must satisfy \sum f(x_n) = sBC
+!	x_n -- points to evaluate that must sum to sBC
+! OUTPUTS:
+!	fx_n -- An array of values on the weight function at x_n, f(x_n) 
+
+
+function get_weight_fn_scalar(tBC,bBC,sBC,x_n) result(fx_n)
+	implicit none
+
+	double precision,intent(in)								:: tBC,bBC,sBC
+	double precision,dimension(:),allocatable,intent(in)	:: x_n
+	double precision,dimension(:),allocatable				:: fx_n
+
+	integer													:: n, Np
+	double precision										:: sumx_n, sumx_n2
+	double precision										:: diffsumx
+	double precision										:: a,b,c
+
+	!Get sum of x_n and sum of x_n^2
+	sumx_n = 0.d0; sumx_n2 = 0.d0
+	Np = size(x_n,1)	!Number of points
+	do n = 1,Np
+		sumx_n  = sumx_n  + x_n(n) 
+		sumx_n2 = sumx_n2 + x_n(n)**2.d0
+	enddo
+	diffsumx = sumx_n - sumx_n2
+
+	!Set constant to bottom boundary condition
+	c = bBC
+
+	!Expression for b is given by
+	b = (sBC - Np*c - (tBC-c)*sumx_n2)/diffsumx
+
+	!Expression for a is given by
+	a = tBC - b - c
+
+	!Get values of f(x_n)
+	allocate(fx_n(Np))
+	do n = 1,Np
+		fx_n(n) = a*x_n(n)**2.d0 + b*x_n(n) + c
+	enddo
+
+end function get_weight_fn_scalar
+
+
+! Derive a weight function of the form f(x) = ax^2 + bx + c for 0 ≤ x ≤ 1.0  
+! subject to the boundary conditions :
+!	tBC -- top boundary condition, f(x=1) = tBC
+!	bBC -- bottom boundary conditions, f(x=0) = bBC
+!	sBC -- sum boundary condition, the sum of f(x) at a supplied selection of 
+!		   x values must satisfy \sum f(x_n) = sBC
+!	x_n -- points that must sum to sBC
+
+function get_weight_fn_vector(tBC,bBC,sBC,x_n) result(fx_n)
+	implicit none
+
+	double precision,dimension(3),intent(in)				:: tBC,bBC,sBC
+	double precision,dimension(:),allocatable,intent(in)	:: x_n
+	double precision,dimension(:,:),allocatable				:: fx_n
+
+	integer	:: n, Np
+	double precision	:: sumx_n, sumx_n2,diffsumx
+	double precision,dimension(3)	:: a,b,c
+
+	!Get sum of x_n and sum of x_n^2
+	sumx_n = 0.d0; sumx_n2 = 0.d0
+	Np = size(x_n,1)	!Number of points
+	do n = 1,Np
+		sumx_n  = sumx_n  + x_n(n) 
+		sumx_n2 = sumx_n2 + x_n(n)**2.d0
+	enddo
+	diffsumx = sumx_n - sumx_n2
+
+	!Set constant to bottom boundary condition
+	c = bBC
+
+	!Expression for b is given by
+	b = (sBC(:) - Np*c(:) - (tBC(:)-c(:))*sumx_n2)/diffsumx
+
+	!Expression for a is given by
+	a = tBC - b - c
+
+	!Get values of f(x_n)
+	allocate(fx_n(Np,3))
+	do n = 1,Np
+		fx_n(n,:) = a(:)*x_n(n)**2.d0 + b(:)*x_n(n) + c(:)
+	enddo
+
+end function get_weight_fn_vector
 
 ! Use lagrange interpolation between the nodes of the cube 
 
