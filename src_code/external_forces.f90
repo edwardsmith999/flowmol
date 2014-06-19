@@ -869,18 +869,18 @@ subroutine flux2force(flux,bl,force)
 	!Total CFD flux
 	!print*, 'flux2force', bl, shape(flux), shape(force), & 
 	!		shape(flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,1)), shape(force(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:))
-!	force(:,:,:,:) =  ( flux(:,:,:,:,1)-flux(:,:,:,:,4)) &
-!					 +( flux(:,:,:,:,2)-flux(:,:,:,:,5)) &
-!					 +( flux(:,:,:,:,3)-flux(:,:,:,:,6))
+	force(:,:,:,:) =  ( flux(:,:,:,:,1)-flux(:,:,:,:,4)) &
+					 +( flux(:,:,:,:,2)-flux(:,:,:,:,5)) &
+					 +( flux(:,:,:,:,3)-flux(:,:,:,:,6))
 		 
 
-	force(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:) & 
-		  =  ( flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,1)  & 
-			  -flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,4)) &
-		    +( flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,2)  & 
-			  -flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,5)) &
-		    +( flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,3)  & 
-			  -flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,5))
+!	force(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:) & 
+!		  =  ( flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,1)  & 
+!			  -flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,4)) &
+!		    +( flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,2)  & 
+!			  -flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,5)) &
+!		    +( flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,3)  & 
+!			  -flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,5))
 
 end subroutine
 
@@ -1087,7 +1087,6 @@ end subroutine get_Fstresses_CV
 
 subroutine get_Fstresses_mol(CFD_stress,   & 
 							 MD_stress,    &
-							 Fstresses_CV, & 
 							 binlimits,    & 
 							 Fstresses_mol)
 	use arrays_MD, only: r
@@ -1097,8 +1096,6 @@ subroutine get_Fstresses_mol(CFD_stress,   &
 
 	integer,intent(in)             		 :: binlimits(6)
 	real(kind(0.d0)),intent(in), & 
-		allocatable,dimension(:,:,:,:)   :: Fstresses_CV
-	real(kind(0.d0)),intent(in), & 
 		allocatable,dimension(:,:,:,:,:) :: CFD_stress,MD_stress
 	real(kind(0.d0)),intent(out), & 
 		allocatable,dimension(:,:)   	 :: Fstresses_mol
@@ -1106,9 +1103,15 @@ subroutine get_Fstresses_mol(CFD_stress,   &
 	integer								 :: n, bin(3)
 	real(kind(0.d0)),allocatable,& 
 		dimension(:,:,:,:,:) 			 :: Pxy
+	real(kind(0.d0)), & 
+		allocatable,dimension(:,:,:,:)   :: Fstresses_CV
 
 	allocate(Fstresses_mol(3,np));  Fstresses_mol=0.d0
+	allocate(Fstresses_CV( nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); Fstresses_CV=0.d0
 	allocate(Pxy( nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
+
+	!Get F_stresses on the CV
+	call get_Fstresses_CV(CFD_stress, MD_stress, binlimits, Fstresses_CV)
 
 	Pxy = MD_stress-CFD_stress
 	Fstresses_mol(:,:) = linearsurface_weight(Pxy,r(:,1:np),Fbinsize,domain, &
@@ -1434,7 +1437,8 @@ end module apply_CV_force_mod
 
 subroutine apply_CV_force
 	use apply_CV_force_mod
-	use computational_constants_MD, only : iter,  F_CV_limits, VOID
+	use computational_constants_MD, only : iter, F_CV_limits,CVforce_correct, & 
+										   VOID, CVweighting_flag
 	use calculated_properties_MD, only : gnbins
 	implicit none
 
@@ -1465,36 +1469,47 @@ subroutine apply_CV_force
 	!Get CFD stresses and fluxes
 	call get_CFD_velocity(F_CV_limits, u_CFD)
 	call get_CFD_stresses_fluxes(F_CV_limits, CFD_stress, CFD_flux)
-	print'(a,13f10.5)', 'CFD velocity and stresses', u_CFD(3,3,3,1), CFD_stress(3,3,3,1,:), CFD_flux(3,3,3,1,:)
+	!print'(a,13f10.5)', 'CFD velocity and stresses', u_CFD(3,3,3,1), CFD_stress(3,3,3,1,:), CFD_flux(3,3,3,1,:)
 
-	!Get MD stresses and fluxes
+	!Get molecules per bin, MD stresses and MD fluxes
+	call get_boxnp(boxnp)
+	!print'(a,i12)', 'MD boxnp', boxnp(3,3,3)
 	call get_MD_stresses_fluxes(F_CV_limits, MD_stress, MD_flux)
-	print'(a,12f11.3)', 'MD stresses', MD_stress(3,3,3,1,:), MD_flux(3,3,3,1,:)
+	!print'(a,12f11.3)', 'MD stresses', MD_stress(3,3,3,1,:), MD_flux(3,3,3,1,:)
 
 	! Get CV force based on CFD flux
 	call get_Fcfdflux_CV(CFD_flux, F_CV_limits, Fcfdflux_CV)
-	print'(a,3f18.12)', 'CFD flux force', Fcfdflux_CV(3,3,3,:)
+	!print'(a,3f18.12)', 'CFD flux force', Fcfdflux_CV(3,3,3,:)
 
-	! Get CV force based on difference in CFD and MD stresses
-	call get_Fstresses_CV(CFD_stress, MD_stress, F_CV_limits, Fstresses_CV)
-	print'(a,3f18.12)', 'CFD&MD stress force', Fstresses_CV(3,3,3,:)
+	! Get force required to correct velocity setpoint if drift occurs
+	if (CVforce_correct .eq. 0) then
+		allocate(Fcorrect_CV(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); Fcorrect_CV = 0.d0
+	elseif (CVforce_correct .eq. 1) then
+		call get_F_correction_CV(u_CFD, F_CV_limits, Fcorrect_CV)
+	endif
+	!print'(a,3f18.12)', 'MD correction force', Fcorrect_CV(3,3,3,:)
 
-	! Get force per molecule based on distribution of stress which maintains total force
-	call get_Fstresses_mol(CFD_stress, MD_stress, Fstresses_CV, F_CV_limits, Fstresses_mol)
+	!Apply CV stresses as constant force to whole volume or distribute
+	allocate(F_CV(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); F_CV = 0.d0
+	if (CVweighting_flag .eq. 0) then
+		! Get CV force based on difference in CFD and MD stresses
+		call get_Fstresses_CV(CFD_stress, MD_stress, F_CV_limits, Fstresses_CV)
+		!print'(a,4f18.12)', 'CFD&MD stress force', Fstresses_CV(3,3,3,:),sum(Fstresses_CV(3,3,3,:))/(volume)
 
-	! Get correction force based on velocity setpoint
-	call get_F_correction_CV(u_CFD, F_CV_limits, Fcorrect_CV)
-	print'(a,3f18.12)', 'MD correction force', Fcorrect_CV(3,3,3,:)
+		! Force per molecule is zero and Fstresses added to CV force
+		allocate(Fstresses_mol(3,np)); Fstresses_mol = 0.d0
+		F_CV = Fcfdflux_CV + Fstresses_CV + Fcorrect_CV
+	elseif (CVweighting_flag .eq. 1) then
+		! Get Fstresses per molecule based on distribution of stress 
+		! and don't add Fstresses_CV to total
+		call get_Fstresses_mol(CFD_stress, MD_stress, F_CV_limits, Fstresses_mol)
+		F_CV = Fcfdflux_CV  + Fcorrect_CV
+	endif
 
 	! Get CV force based on MD fluxes (Using all other forces and iterating until
 	! 								   MD_flux and force are consistent)
-	call get_boxnp(boxnp)
-	print'(a,i12)', 'MD boxnp', boxnp(3,3,3)
-
-	allocate(F_CV(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); F_CV = 0.d0
-	F_CV = Fcfdflux_CV+Fcorrect_CV
 	call get_Fmdflux_CV(F_CV, Fstresses_mol, MD_flux, boxnp, F_CV_limits, Fmdflux_CV)
-	print'(a,3f18.12)', 'MD flux force', Fmdflux_CV(3,3,3,:)
+	!print'(a,3f18.12)', 'MD flux force', Fmdflux_CV(3,3,3,:)
 
 	!Add up all forces and apply 
 	F_CV = F_CV + Fmdflux_CV
@@ -1533,7 +1548,7 @@ end subroutine apply_CV_force
 subroutine apply_CV_force_multibin(iter)
     use physical_constants_MD, only : density
 	use computational_constants_MD, only : irank, npy, globaldomain, CVforce_flag,CVforce_starttime, & 
-										   CVweighting_flag, VOID,  Nsteps, iblock, jblock, kblock
+										   CVweighting_flag, VOID,  Nsteps, iblock, jblock, kblock, F_CV_limits
 	use calculated_properties_MD, only : pressure, nbins, gnbins
 	use librarymod, only : get_new_fileunit, couette_analytical_fn, lagrange_poly_weight_Nmol, linearsurface_weight
 	use module_external_forces, only : np, momentum_flux, irank,nbins, nbinso,domain,delta_t,Nvflux_ave
@@ -1562,6 +1577,16 @@ subroutine apply_CV_force_multibin(iter)
 	volume = product(Fbinsize)
 
 	starttime = CVforce_starttime  !Nsteps/2.d0
+
+	if (any(F_CV_limits .eq. VOID)) then
+		F_CV_limits(1) = 1
+		F_CV_limits(2) = gnbins(1)
+		F_CV_limits(3) = 1
+		F_CV_limits(4) = gnbins(2)
+		F_CV_limits(5) = 1
+		F_CV_limits(6) = gnbins(3)
+	endif
+
     igmin = 1; jgmin = 1; kgmin = 1;
     igmax = gnbins(1); jgmax = nint(gnbins(2)/2.d0)+1; kgmax = gnbins(3)
 
@@ -1575,8 +1600,10 @@ subroutine apply_CV_force_multibin(iter)
 
 	!Get average over current cell and apply constraint forces
 	!call get_continuum_values
-	call get_test_forces(CVforce_flag, igmin,jgmin,kgmin,igmax,jgmax,kgmax)
-	call get_distributed_force(CVweighting_flag, igmin,jgmin,kgmin,igmax,jgmax,kgmax,F_dist)
+	call get_test_forces(CVforce_flag, F_CV_limits(1),F_CV_limits(3),F_CV_limits(5), & 
+									   F_CV_limits(2),F_CV_limits(4),F_CV_limits(6))
+	call get_distributed_force(CVweighting_flag,  F_CV_limits(1),F_CV_limits(3),F_CV_limits(5), & 
+									   			  F_CV_limits(2),F_CV_limits(4),F_CV_limits(6),F_dist)
 
 	! Apply correction between current velocity and required velocity by adding
 	! the derivative of a sigmoid type function to the CV constraint force
@@ -1592,9 +1619,9 @@ subroutine apply_CV_force_multibin(iter)
 !  							  kbin-1, kbin-1, & 
 !   							  (/ 0.0d0,0.d0,0.d0 /),0)
 
-		do jbin = jgmin,jgmax
-    	do ibin = igmin,igmax
-    	do kbin = kgmin,kgmax
+		do jbin = F_CV_limits(3), F_CV_limits(4)
+    	do ibin = F_CV_limits(1), F_CV_limits(2)
+    	do kbin = F_CV_limits(5), F_CV_limits(6)
 
 !			y_loc = (jbin-1)*Fbinsize(2)
             if (CVforce_flag .eq. 5) then
@@ -1611,10 +1638,10 @@ subroutine apply_CV_force_multibin(iter)
 
 !			u_bin = (/ (jbin-1)*2.d0/(nbins(2)-1)-1.0 ,0.d0, 0.d0 /)
 !			!u_bin = (/ 0.25*sin(2.d0*3.14159*y_loc/globaldomain(2)),0.d0, 0.d0 /)
-			call set_bin_velocity(ibin, ibin, & 
-								  jbin, jbin, & 
-								  kbin, kbin, & 
- 								  u_bin,1)
+!			call set_bin_velocity(ibin, ibin, & 
+!								  jbin, jbin, & 
+!								  kbin, kbin, & 
+! 								  u_bin,1)
 		enddo
 		enddo
 		enddo
