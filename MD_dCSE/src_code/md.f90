@@ -118,8 +118,8 @@ contains
 		call average_and_send_MD_to_CFD(iter)  ! MD=>CFD Calculate averages of MD to pass to CFD
 #else
 		!call apply_flekkoy_test
-		!call apply_CV_force
-		call apply_CV_force_multibin(iter)
+		call apply_CV_force
+		!call apply_CV_force_multibin(iter)
 		call apply_boundary_force
 #endif
 
