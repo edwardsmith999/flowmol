@@ -836,6 +836,696 @@ subroutine simulation_apply_constant_force(ixyz,F_const)
 end subroutine simulation_apply_constant_force
 
 
+
+!==================================================================
+!  			A P P L Y      C V      C O N S T R A I N T
+!==================================================================
+
+module apply_CV_force_mod
+	use calculated_properties_MD, only : nbins
+	use computational_constants_MD, only: domain,CVforce_starttime
+	use physical_constants_MD, only: np
+	implicit none
+
+	real(kind(0.d0))				::	volume
+	real(kind(0.d0)),dimension(3)	::	Fbinsize
+
+contains 
+
+! ---------------------------------------------------------
+! Take the difference between top and bottom stresses for
+! a range of CV in 3 dimensions to obtain force
+!   Note bin limits here should be local to processor
+
+subroutine flux2force(flux,bl,force)
+	implicit none
+
+	integer,intent(in)             		 :: bl(6)
+	real(kind(0.d0)),intent(in), & 
+		allocatable,dimension(:,:,:,:,:) :: flux
+	real(kind(0.d0)),intent(inout), & 
+		allocatable,dimension(:,:,:,:) 	 :: force
+
+	!Total CFD flux
+	!print*, 'flux2force', bl, shape(flux), shape(force), & 
+	!		shape(flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,1)), shape(force(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:))
+!	force(:,:,:,:) =  ( flux(:,:,:,:,1)-flux(:,:,:,:,4)) &
+!					 +( flux(:,:,:,:,2)-flux(:,:,:,:,5)) &
+!					 +( flux(:,:,:,:,3)-flux(:,:,:,:,6))
+		 
+
+	force(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:) & 
+		  =  ( flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,1)  & 
+			  -flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,4)) &
+		    +( flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,2)  & 
+			  -flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,5)) &
+		    +( flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,3)  & 
+			  -flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,5))
+
+end subroutine
+
+! ---------------------------------------------------------
+
+subroutine get_MD_stresses(MD_stress)
+	use CV_objects, only : 	CV_constraint
+	implicit none
+
+	real(kind(0.d0)),intent(inout), & 
+		allocatable,dimension(:,:,:,:,:) 	:: MD_stress
+
+	MD_stress = 0.25d0 * CV_constraint%Pxy
+	CV_constraint%Pxy = 0.d0
+
+end subroutine get_MD_stresses
+
+! ---------------------------------------------------------
+
+subroutine get_MD_fluxes(MD_flux, r_in, v_in)
+	use CV_objects, only : 	CV_constraint
+	use arrays_MD, only : r, v, a
+	use computational_constants_MD, only : delta_t
+	use calculated_properties_MD, only : nbinso
+	use cumulative_momentum_flux_mod, only : cumulative_momentum_flux
+	implicit none
+
+	real(kind(0.d0)),intent(inout), & 
+		allocatable,dimension(:,:,:,:,:) 	:: MD_flux
+	real(kind(0.d0)),intent(in),optional, &
+		allocatable, dimension(:,:)			:: r_in, v_in
+
+	integer	:: n
+	real(kind(0.d0)),dimension(:,:),allocatable	:: r_temp,v_temp
+
+	allocate(r_temp(3,np),v_temp(3,np))
+	if (present(r_in) .and. present(v_in)) then
+		if (.not. allocated(r_in) .or. .not. allocated(v_in)) then
+			stop "Error in get_MD_fluxes -- r_in or v_in not allocated"
+		endif
+		r_temp = r_in
+		v_temp = v_in
+	else
+		!Get velocity/positions at next timestep without constraint
+		do n = 1,np
+			v_temp(:,n) = v(:,n) + delta_t * a(:,n) 		!Velocity calculated from acceleration
+			r_temp(:,n) = r(:,n) + delta_t * v_temp(:,n)	!Position calculated from velocity
+		enddo
+	endif
+	!Get momentum flux using velocity and project backwards
+	CV_constraint%flux = 0.d0
+	call cumulative_momentum_flux(r_temp,v_temp,CV_constraint%flux)
+
+	! Exchange all halo values for CV values ready to apply forces
+	call CV_constraint%swap_halos(nbinso)
+	MD_flux = CV_constraint%flux/delta_t
+
+end subroutine get_MD_fluxes
+
+! ---------------------------------------------------------
+
+subroutine get_boxnp(boxnp)
+	use arrays_MD, only : r
+	implicit none
+
+	integer,intent(out), & 
+		allocatable,dimension(:,:,:):: boxnp
+
+	integer							:: n
+	integer,dimension(3)			:: bin
+
+	allocate(boxnp(nbins(1)+2,nbins(2)+2,nbins(3)+2)); boxnp = 0
+	do n = 1,np
+		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
+		!Add molecule to overlap list
+		boxnp( bin(1),bin(2),bin(3)) = boxnp( bin(1),bin(2),bin(3)) + 1
+	enddo
+
+
+end subroutine get_boxnp
+
+! ---------------------------------------------------------
+
+
+subroutine get_CFD_velocity(binlimits, & 
+							u_CFD)
+	!use , only : nbins
+	implicit none
+
+	integer,dimension(6),intent(in)		:: binlimits(6)
+	real(kind(0.d0)),intent(out), & 
+		allocatable,dimension(:,:,:,:) 	:: u_CFD
+
+	allocate(u_CFD(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); u_CFD=0.d0
+
+	!This should be replaced by coupler call
+	u_CFD = u_CFD
+
+end subroutine get_CFD_velocity
+
+subroutine get_CFD_stresses_fluxes(binlimits, & 
+								   CFD_stress, & 
+								   CFD_flux)
+	!use , only : nbins
+	implicit none
+
+	integer,dimension(6),intent(in)			:: binlimits(6)
+	real(kind(0.d0)),intent(out), & 
+		allocatable,dimension(:,:,:,:,:) 	:: CFD_stress,CFD_flux
+
+	allocate(CFD_stress(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6)); CFD_stress=0.d0
+	allocate(  CFD_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6)); CFD_flux=0.d0
+
+	!This should be replaced by coupler call
+	CFD_stress = CFD_stress*volume
+	CFD_flux   = CFD_flux*volume
+
+end subroutine get_CFD_stresses_fluxes
+
+! ---------------------------------------------------------
+
+subroutine get_MD_stresses_fluxes(binlimits, & 
+								  MD_stress, & 
+								  MD_flux)
+
+	!use , only : nbins
+	implicit none
+
+	integer,intent(in)             			:: binlimits(6)
+	real(kind(0.d0)),intent(out), & 
+		allocatable,dimension(:,:,:,:,:) 	:: MD_stress,MD_flux
+
+	allocate( MD_stress(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6)); MD_stress=0.d0
+	allocate(   MD_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6)); MD_flux=0.d0
+
+	call get_MD_fluxes(MD_flux)
+	call get_MD_stresses(MD_stress)
+
+end subroutine get_MD_stresses_fluxes
+
+
+! ---------------------------------------------------------
+
+subroutine get_Fcfdflux_CV(CFD_flux,  & 
+						   binlimits, &
+						   Fcfdflux_CV)
+    use messenger, only : localise_bin
+	implicit none
+
+	integer,intent(in)             		 :: binlimits(6)
+	real(kind(0.d0)),intent(in), & 
+		allocatable,dimension(:,:,:,:,:) :: CFD_flux
+	real(kind(0.d0)),intent(out), & 
+		allocatable,dimension(:,:,:,:) 	 :: Fcfdflux_CV
+
+	integer,dimension(6)				 :: localbinlimits
+
+    localbinlimits(1:5:2) = max(localise_bin((/binlimits(1), & 
+											   binlimits(3), & 
+											   binlimits(5)/)),(/2,2,2 /))
+    localbinlimits(2:6:2) = min(localise_bin((/binlimits(2), & 
+											   binlimits(4), & 
+											   binlimits(6)/)),nbins(:)+1)
+
+	allocate( Fcfdflux_CV(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); Fcfdflux_CV=0.d0
+	call flux2force(CFD_flux, localbinlimits, Fcfdflux_CV)
+
+end subroutine get_Fcfdflux_CV
+
+! ---------------------------------------------------------
+
+subroutine get_Fstresses_CV(CFD_stress, & 
+							MD_stress,  &
+							binlimits,  &
+							Fstresses_CV)
+    use messenger, only : localise_bin
+	implicit none
+
+	integer,intent(in)             		 :: binlimits(6)
+	real(kind(0.d0)),intent(out), & 
+		allocatable,dimension(:,:,:,:)   :: Fstresses_CV
+	real(kind(0.d0)),intent(in), & 
+		allocatable,dimension(:,:,:,:,:) :: CFD_stress,MD_stress
+
+	integer,dimension(6)				:: localbinlimits
+	real(kind(0.d0)),allocatable,dimension(:,:,:,:,:) :: Pxy
+
+    localbinlimits(1:5:2) = max(localise_bin((/binlimits(1), & 
+											   binlimits(3), & 
+											   binlimits(5)/)),(/2,2,2 /))
+    localbinlimits(2:6:2) = min(localise_bin((/binlimits(2), & 
+											   binlimits(4), & 
+											   binlimits(6)/)),nbins(:)+1)
+
+	allocate(Fstresses_CV(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); Fstresses_CV=0.d0
+	allocate(Pxy( nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
+
+	Pxy = MD_stress-CFD_stress
+	call flux2force(Pxy, localbinlimits, Fstresses_CV)
+
+end subroutine get_Fstresses_CV
+
+! ---------------------------------------------------------
+
+subroutine get_Fstresses_mol(CFD_stress,   & 
+							 MD_stress,    &
+							 Fstresses_CV, & 
+							 binlimits,    & 
+							 Fstresses_mol)
+	use arrays_MD, only: r
+	use librarymod, only : linearsurface_weight
+	use computational_constants_MD, only : iter
+	implicit none
+
+	integer,intent(in)             		 :: binlimits(6)
+	real(kind(0.d0)),intent(in), & 
+		allocatable,dimension(:,:,:,:)   :: Fstresses_CV
+	real(kind(0.d0)),intent(in), & 
+		allocatable,dimension(:,:,:,:,:) :: CFD_stress,MD_stress
+	real(kind(0.d0)),intent(out), & 
+		allocatable,dimension(:,:)   	 :: Fstresses_mol
+
+	integer								 :: n, bin(3)
+	real(kind(0.d0)),allocatable,& 
+		dimension(:,:,:,:,:) 			 :: Pxy
+
+	allocate(Fstresses_mol(3,np));  Fstresses_mol=0.d0
+	allocate(Pxy( nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
+
+	Pxy = MD_stress-CFD_stress
+	Fstresses_mol(:,:) = linearsurface_weight(Pxy,r(:,1:np),Fbinsize,domain, &
+											  shiftmean=2,meanvalue=Fstresses_CV)
+
+	do n = 1,np
+		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
+		if (bin(1) .eq. 3 .and. &
+			bin(2) .eq. 3 .and. &
+			bin(3) .eq. 3) then
+			write(5000,'(2i8,6f14.6)'), iter, n,r(:,n), Fstresses_mol(:,n)
+
+		endif
+	enddo
+
+end subroutine
+
+
+! ---------------------------------------------------------
+! Apply a correction to velocity of the form 
+!  u_correct = (u_CV - CFD_u_cnst)*tanh(t/t_correct)
+! as a differential constraint in the form of a CV force
+
+subroutine get_F_correction_CV(u_CFD, &
+							   binlimits, & 
+							   Fcorrect_CV)
+	use calculated_properties_MD, only : nbins
+	use arrays_MD, only : r, v
+	use computational_constants_MD, only : iter
+    use messenger, only : localise_bin
+	implicit none
+
+	!Perhaps they need a good talking to, if you don't mind my saying so. 
+	!Perhaps a bit more. My girls, sir, they didn't care for the Overlook 
+	!at first. One of them actually stole a pack of matches, and tried to 
+	!burn it down. But I "corrected" them sir. 
+	!And when my wife tried to prevent me from doing my duty,
+	!I "corrected" her.
+
+	integer,intent(in)             		:: binlimits(6)
+	real(kind(0.d0)),intent(in), & 
+		allocatable,dimension(:,:,:,:)   :: u_CFD
+	real(kind(0.d0)),intent(out), & 
+		allocatable,dimension(:,:,:,:)   :: Fcorrect_CV
+
+	!While currently being "corrected", don't apply further constraints
+	integer												 :: n,i,j,k,t
+	integer,parameter									 :: t_correct=10
+	integer,dimension(3)								 :: bmin,bmax,bin
+	integer,allocatable,dimension(:,:,:),save			 :: correctstart
+	logical,allocatable,dimension(:,:,:),save			 :: correction_lock
+	!Machine Precision -- ε such that 1 = 1+ε on a computer
+	double precision,parameter							 :: tol = 2.2204460E-16 
+	double precision,allocatable,dimension(:,:,:,:) 	 :: u_CV
+	double precision,allocatable,dimension(:,:,:,:),save :: u_error
+
+    bmin = max(localise_bin((/binlimits(1),binlimits(3),binlimits(5)/)),(/2,2,2 /))
+    bmax = min(localise_bin((/binlimits(2),binlimits(4),binlimits(6)/)),nbins(:)+1)
+
+	!Allocate only on first call
+	if (iter .eq. CVforce_starttime) then
+		allocate(correctstart(nbins(1)+2,nbins(2)+2,nbins(3)+2))
+		allocate(correction_lock(nbins(1)+2,nbins(2)+2,nbins(3)+2))
+		allocate(u_error(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
+		correction_lock=.false.
+	endif
+
+	allocate(Fcorrect_CV(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); Fcorrect_CV=0.d0
+	allocate(u_CV(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); u_CV = 0.d0
+
+	!Get velocity of current CV cells
+	u_CV = 0.d0
+	do n = 1,np
+		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
+		u_CV( bin(1),bin(2),bin(3),:) = u_CV( bin(1),bin(2),bin(3),:) + v(:,n)
+	enddo
+
+	!Result force du_correct/dt
+	Fcorrect_CV = 0.d0
+	do i = binlimits(1),binlimits(2)
+	do j = binlimits(3),binlimits(4)
+	do k = binlimits(5),binlimits(6)
+		!Check if CV is currently being corrected
+		if (.not. correction_lock(i,j,k)) then
+			u_error(i,j,k,:) = u_CV(i,j,k,:) - u_CFD(i,j,k,:)
+			if (any(u_error(i,j,k,:) .gt. tol*1000.d0)) then
+				correction_lock(i,j,k) = .true.
+				correctstart(i,j,k) = iter
+				if (i .eq. 3 .and. j .eq. 3 .and. k .eq. 3) then
+					print'(a,4i5,7f10.5)', 'New error detected',iter,i,j,k,u_CV(i,j,k,:),u_CFD(i,j,k,:),tol*1000.d0
+				endif
+			endif
+		endif
+
+		!If correction lock is on, calculate correction
+		if (correction_lock(i,j,k)) then
+			!Get time passed relative to start of correction
+			t = (iter - correctstart(i,j,k))
+			Fcorrect_CV(i,j,k,:) = u_error(i,j,k,:)/(t_correct*cosh(dble(t)/dble(t_correct))**2.d0)
+			!Switch lock off if end of correction period
+			if (t .eq. t_correct) correction_lock(i,j,k) = .false.
+			!print'(a,6i5,6f10.5)', 'Correction force',iter,t,correctstart(i,j,k),i,j,k,u_error(i,j,k,:),Fcorrect_CV(i,j,k,:)
+		endif
+	enddo
+	enddo
+	enddo
+
+end subroutine get_F_correction_CV
+
+! ---------------------------------------------------------
+
+subroutine get_Fmdflux_CV(F_CV, 	 & 
+						  F_mol, 	 &
+						  MD_flux,   &
+						  boxnp,	 &
+						  binlimits, &
+						  Fmdflux_CV)
+
+	use arrays_MD, only : r, v, a
+	use computational_constants_MD, only : delta_t
+    use messenger, only : localise_bin
+	implicit none
+
+	integer,intent(in)             		:: binlimits(6)
+	integer,intent(in), & 
+		allocatable,dimension(:,:,:)	:: boxnp
+	real(kind(0.d0)),intent(in), & 
+		allocatable,dimension(:,:,:,:) 	:: F_CV
+	real(kind(0.d0)),intent(in), & 
+		allocatable,dimension(:,:)     	:: F_mol
+	real(kind(0.d0)),intent(inout), & 
+		allocatable,dimension(:,:,:,:,:):: MD_flux
+	real(kind(0.d0)),intent(out), & 
+		allocatable,dimension(:,:,:,:) 	:: Fmdflux_CV
+
+	logical								:: converged
+	integer								:: n
+	integer								:: maxiter, attempt
+	integer,dimension(3)			    :: bin
+	integer,dimension(6)				:: localbinlimits
+	real(kind(0.d0)),dimension(3)		:: F_iext
+	real(kind(0.d0)),allocatable, & 
+		dimension(:,:)  				:: r_temp, v_temp
+	real(kind(0.d0)),allocatable, & 
+		dimension(:,:,:,:) 				:: Fmdflux_CV_prev
+
+    localbinlimits(1:5:2) = max(localise_bin((/binlimits(1), & 
+											   binlimits(3), & 
+											   binlimits(5)/)),(/2,2,2 /))
+    localbinlimits(2:6:2) = min(localise_bin((/binlimits(2), & 
+											   binlimits(4), & 
+											   binlimits(6)/)),nbins(:)+1)
+
+	allocate( Fmdflux_CV(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); Fmdflux_CV=0.d0
+	allocate( Fmdflux_CV_prev(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); Fmdflux_CV_prev=0.d0
+
+	!Get initial value of flux based force
+	call flux2force(MD_flux, localbinlimits, Fmdflux_CV)
+
+	!Iterate until momentum flux and applied CV force are consistent
+	converged = .false.; maxiter = 100; 
+	allocate(r_temp(3,np),v_temp(3,np))
+	do attempt = 1,maxiter
+
+    	!Get velocity at next timestep with constraint
+    	do n = 1,np
+    		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
+
+			!Get total force on a molecule from sum of CV forces and molecular forces
+			F_iext = (F_mol(:,n) + F_CV(bin(1),bin(2),bin(3),:)  &
+						   + Fmdflux_CV(bin(1),bin(2),bin(3),:))/dble(boxnp(bin(1),bin(2),bin(3)))
+
+			!Velocity and positions calculated  		
+    		v_temp(:,n) = v(:,n) + delta_t * ( a(:,n) - F_iext ) 
+    		r_temp(:,n) = r(:,n) + delta_t * v_temp(:,n) 
+
+    	enddo
+
+		!Check convergence
+ 		if (converged) then
+			exit
+		elseif (attempt .eq. maxiter-1) then
+			print*, "Warning -- CV Force could not converge"
+			continue
+			!stop "Error -- CV Force could not converge"
+		else
+			!Keep going
+		endif
+
+		!Update momentum flux and force
+		call get_MD_fluxes(MD_flux, r_in=r_temp, v_in=v_temp)
+		Fmdflux_CV_prev = Fmdflux_CV
+		!print*, 'converge check', attempt, Fmdflux_CV(3,3,3,:), Fmdflux_CV_prev(3,3,3,:)
+		call flux2force(MD_flux,localbinlimits,Fmdflux_CV)
+		call check_convergence
+
+	enddo
+	deallocate(r_temp,v_temp)
+
+contains
+
+
+	subroutine check_convergence
+	    use messenger, only : globalise_bin, localise_bin
+		use computational_constants_MD, only : iter
+		implicit none
+
+		integer					:: ib, jb, kb
+		integer					:: global_converged, convergence
+		integer					:: converge_cells, convergence_count
+		integer, dimension(3)	:: bmin, bmax
+		!Machine Precision -- ε such that 1 = 1+ε on a computer
+		double precision,parameter							 :: tol = 2.2204460E-16 
+
+		bmin = max(localise_bin((/binlimits(1),binlimits(3),binlimits(5)/)),(/2,2,2 /))
+		bmax = min(localise_bin((/binlimits(2),binlimits(4),binlimits(6)/)),nbins(:)+1)
+
+		!If flux force have converged (to tolerence) then exit after calculating final force
+		if (all(abs(Fmdflux_CV_prev - Fmdflux_CV) .lt. tol)) then
+			converged = .true.
+			!Wait for all processors to converge
+			global_converged = 1
+			call globalMinInt(global_converged)
+			if (global_converged .ne. 1) then
+				converged = .false.
+			else
+	            convergence = 0.d0; converge_cells = 0
+		        do ib = bmin(1),bmax(1)
+		        do jb = bmin(2),bmax(2)
+		        do kb = bmin(3),bmax(3)
+				    convergence = convergence + sum(abs(Fmdflux_CV_prev(ib,jb,kb,:) - Fmdflux_CV(ib,jb,kb,:)))
+    	            converge_cells = converge_cells + 1
+			    enddo
+			    enddo
+			    enddo
+				print'(a,2i5,2i8,f28.17)', 'converged ', iter, attempt, convergence_count, converge_cells, convergence
+			endif
+
+		else
+			!Tell other processors "I'm not converged"
+			global_converged = 0
+			call globalMinInt(global_converged)
+
+			!Ouput convergence if it looks like it's going to be a problem
+			if (attempt .gt. 25) then
+				convergence = 0.d0; converge_cells = 0
+				!if (mod(attempt,20)) delta_t = delta_t/2.d0
+
+    	        do ib = bmin(1),bmax(1)
+    	        do jb = bmin(2),bmax(2)
+    	        do kb = bmin(3),bmax(3)
+					if (sum(Fmdflux_CV_prev(ib,jb,kb,:)) .ne. sum(Fmdflux_CV(ib,jb,kb,:))) then
+						convergence = convergence + sum(abs(Fmdflux_CV_prev(ib,jb,kb,:) - Fmdflux_CV(ib,jb,kb,:)))
+                        converge_cells = converge_cells + 1
+					endif
+				enddo
+				enddo
+				enddo
+				convergence_count = convergence_count + 1
+				print'(a,2i5,2i8,f28.17)', 'convergence ', iter, attempt, convergence_count, converge_cells, convergence
+			endif
+		endif
+
+!		if (attempt .eq. maxiter-1 .and. converged .eqv. .false.) then
+!			print*, "Warning -- CV Force could not converge"
+!			continue
+!		endif
+
+	end subroutine check_convergence
+
+
+end subroutine get_Fmdflux_CV
+
+! ---------------------------------------------------------
+
+subroutine apply_force(F_CV,  &
+					   F_mol, &
+					   boxnp, &
+					   binlimits)
+	use arrays_MD, only: r, v, a
+	use computational_constants_MD, only : eflux_outflag, delta_t
+	use module_record_external_forces, only : record_external_forces
+	implicit none
+
+	integer,intent(in)             		:: binlimits(6)
+	integer,intent(in), & 
+		allocatable,dimension(:,:,:)	:: boxnp
+	real(kind(0.d0)),intent(in), & 
+		allocatable,dimension(:,:,:,:) 	:: F_CV
+	real(kind(0.d0)),intent(in), & 
+		allocatable,dimension(:,:)     	:: F_mol
+
+	integer								:: n
+	integer,dimension(3)				:: bin
+	real(kind(0.d0)),dimension(3)		:: F_iext, velvect
+
+	!Loop over all molecules and apply constraint
+	do n = 1, np
+		!Get bin
+		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
+
+		!Get total force on a molecule from sum of CV forces and molecular forces
+		F_iext(:) = (F_mol(:,n) + F_CV(bin(1),bin(2),bin(3),:))/dble(boxnp(bin(1),bin(2),bin(3)))
+						
+		!Apply force by adding to total
+		a(:,n) = a(:,n) - F_iext(:)
+
+		!Add external force to CV total
+		if (eflux_outflag .eq. 4) then
+			velvect(:) = v(:,n) + 0.5d0*delta_t*a(:,n)
+			call record_external_forces(F_iext,r(:,n),velvect)
+		else
+			call record_external_forces(F_iext,r(:,n))
+		endif
+
+	enddo
+
+end subroutine apply_force
+
+
+end module apply_CV_force_mod
+
+
+subroutine apply_CV_force
+	use apply_CV_force_mod
+	use computational_constants_MD, only : iter,  F_CV_limits, VOID
+	use calculated_properties_MD, only : gnbins
+	implicit none
+
+	integer,allocatable,dimension(:,:,:) 				:: boxnp
+	real(kind(0.d0)),allocatable,dimension(:,:)     	:: Fstresses_mol
+	real(kind(0.d0)),allocatable,dimension(:,:,:,:) 	:: F_CV, u_CFD
+	real(kind(0.d0)),allocatable,dimension(:,:,:,:) 	:: Fmdflux_CV, Fstresses_CV
+	real(kind(0.d0)),allocatable,dimension(:,:,:,:) 	:: Fcfdflux_CV, Fcorrect_CV
+	real(kind(0.d0)),allocatable,dimension(:,:,:,:,:) 	:: CFD_stress,CFD_flux
+	real(kind(0.d0)),allocatable,dimension(:,:,:,:,:) 	:: MD_stress,MD_flux
+
+	!Check for start time 
+	if (iter .lt. CVforce_starttime) return
+
+	!Test case focuses on a single CV
+	Fbinsize = domain/nbins
+	volume = product(Fbinsize)
+
+	if (any(F_CV_limits .eq. VOID)) then
+		F_CV_limits(1) = 1
+		F_CV_limits(2) = gnbins(1)
+		F_CV_limits(3) = 1
+		F_CV_limits(4) = gnbins(2)
+		F_CV_limits(5) = 1
+		F_CV_limits(6) = gnbins(3)
+	endif
+
+	!Get CFD stresses and fluxes
+	call get_CFD_velocity(F_CV_limits, u_CFD)
+	call get_CFD_stresses_fluxes(F_CV_limits, CFD_stress, CFD_flux)
+	print'(a,13f10.5)', 'CFD velocity and stresses', u_CFD(3,3,3,1), CFD_stress(3,3,3,1,:), CFD_flux(3,3,3,1,:)
+
+	!Get MD stresses and fluxes
+	call get_MD_stresses_fluxes(F_CV_limits, MD_stress, MD_flux)
+	print'(a,12f11.3)', 'MD stresses', MD_stress(3,3,3,1,:), MD_flux(3,3,3,1,:)
+
+	! Get CV force based on CFD flux
+	call get_Fcfdflux_CV(CFD_flux, F_CV_limits, Fcfdflux_CV)
+	print'(a,3f18.12)', 'CFD flux force', Fcfdflux_CV(3,3,3,:)
+
+	! Get CV force based on difference in CFD and MD stresses
+	call get_Fstresses_CV(CFD_stress, MD_stress, F_CV_limits, Fstresses_CV)
+	print'(a,3f18.12)', 'CFD&MD stress force', Fstresses_CV(3,3,3,:)
+
+	! Get force per molecule based on distribution of stress which maintains total force
+	call get_Fstresses_mol(CFD_stress, MD_stress, Fstresses_CV, F_CV_limits, Fstresses_mol)
+
+	! Get correction force based on velocity setpoint
+	call get_F_correction_CV(u_CFD, F_CV_limits, Fcorrect_CV)
+	print'(a,3f18.12)', 'MD correction force', Fcorrect_CV(3,3,3,:)
+
+	! Get CV force based on MD fluxes (Using all other forces and iterating until
+	! 								   MD_flux and force are consistent)
+	call get_boxnp(boxnp)
+	print'(a,i12)', 'MD boxnp', boxnp(3,3,3)
+
+	allocate(F_CV(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); F_CV = 0.d0
+	F_CV = Fcfdflux_CV+Fcorrect_CV
+	call get_Fmdflux_CV(F_CV, Fstresses_mol, MD_flux, boxnp, F_CV_limits, Fmdflux_CV)
+	print'(a,3f18.12)', 'MD flux force', Fmdflux_CV(3,3,3,:)
+
+	!Add up all forces and apply 
+	F_CV = F_CV + Fmdflux_CV
+	call apply_force(F_CV, Fstresses_mol, boxnp, F_CV_limits)
+
+end subroutine apply_CV_force
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 !=========================================================================
 ! Routine to test flux calculations by various methods
 ! with iteration over all bins to convergence
@@ -885,8 +1575,8 @@ subroutine apply_CV_force_multibin(iter)
 
 	!Get average over current cell and apply constraint forces
 	!call get_continuum_values
-	call get_distributed_force(CVweighting_flag, igmin,jgmin,kgmin,igmax,jgmax,kgmax,F_dist)
 	call get_test_forces(CVforce_flag, igmin,jgmin,kgmin,igmax,jgmax,kgmax)
+	call get_distributed_force(CVweighting_flag, igmin,jgmin,kgmin,igmax,jgmax,kgmax,F_dist)
 
 	! Apply correction between current velocity and required velocity by adding
 	! the derivative of a sigmoid type function to the CV constraint force
@@ -1655,6 +2345,217 @@ subroutine average_over_allbins_iter(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
 	deallocate(r_temp,v_temp,box_np_afr,box_np_bfr,u_bin_afr,u_bin_bfr)
 
 end subroutine average_over_allbins_iter
+
+
+
+
+subroutine average_over_allbins_iter_optimised(flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax)
+	use computational_constants_MD, only : nhb, iblock,CVforce_testcaseflag
+	use arrays_MD, only : r, v, a
+	use linked_list, only : node, cell
+	use physical_constants_MD, only : pi
+	use CV_objects, only :  CV_constraint, CVE => CVcheck_energy
+	use cumulative_momentum_flux_mod, only : cumulative_momentum_flux
+	use cumulative_energy_flux_mod, only : cumulative_energy_flux
+    use messenger, only : globalise_bin, localise_bin
+	implicit none
+
+	integer,intent(in)	                            :: flag,igmin,jgmin,kgmin,igmax,jgmax,kgmax
+
+	integer         	                            :: bmin(3),bmax(3)
+	integer											:: ib,jb,kb, maxiter,global_converged, converge_cells
+	integer											:: n,i,molno,cellnp, attempt
+	integer,dimension(3)							:: bin
+	integer,allocatable,dimension(:,:,:) 			:: box_np_bfr,box_np_afr
+
+	double precision								:: convergence,w(3),wmol(3)
+	double precision,parameter						:: tol = 2.2204460E-16 !Machine Precision -- ε such that 1 = 1+ε on a computer
+	double precision,dimension(:,:),allocatable 	:: r_temp,v_temp,converge_history
+	double precision,allocatable,dimension(:,:,:,:) :: u_bin_afr,u_bin_bfr
+
+	real(kind(0.d0)),allocatable,dimension(:,:,:,:) :: MD_Pi_dS,MD_rhouu_dS,MD_rhouu_dS_prev
+
+	type(node), pointer								:: old, current
+
+	integer,save									:: convergence_count = 0
+	logical											:: converged
+	logical,save									:: apply_force = .false., first_time = .true.
+	double precision, allocatable, dimension(:,:,:,:)   :: wsum
+
+	if (CVforce_testcaseflag .ne. 1) then
+		stop "Error - Only full constraint possbile with average_over_allbins_iter"
+	endif
+
+    bmin = max(localise_bin((/igmin,jgmin,kgmin/)),(/2,2,2 /))
+    bmax = min(localise_bin((/igmax,jgmax,kgmax/)),nbins(:)+1)
+
+	!Allocate and zero arrays
+	allocate(r_temp(3,np),v_temp(3,np))
+	r_temp = 0.d0; v_temp = 0.d0
+	allocate(box_np_bfr(nbins(1)+2,nbins(2)+2,nbins(3)+2))
+	allocate(box_np_afr(nbins(1)+2,nbins(2)+2,nbins(3)+2))
+	allocate(u_bin_afr(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
+	allocate(MD_Pi_dS(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
+	allocate(MD_rhouu_dS(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
+	allocate(MD_rhouu_dS_prev(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
+	allocate(F_constraint(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
+
+	!Get velocity/positions before force applied
+	box_np_bfr = 0; u_bin_bfr = 0.d0
+	do n = 1,np
+		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
+		!Add molecule to overlap list
+		box_np_bfr(bin(1),bin(2),bin(3))  = box_np_bfr(bin(1),bin(2),bin(3))   + 1
+	enddo
+
+	!Get velocity/positions at next timestep without constraint
+	box_np_afr = 0; u_bin_afr = 0.d0
+	do n = 1,np
+		v_temp(:,n) = v(:,n) + delta_t * a(:,n) 		!Velocity calculated from acceleration
+		r_temp(:,n) = r(:,n) + delta_t * v_temp(:,n)	!Position calculated from velocity
+	enddo
+	!Update momentum flux using velocity at next timestep
+	CV_constraint%flux = 0.d0
+	call cumulative_momentum_flux(r_temp,v_temp,CV_constraint%flux)
+
+	! - - - - -  Get CV Momentum Totals - - - - - - - - - 
+	!Total surface stresses
+	MD_Pi_dS(:,:,:,:)=	0.25d0 *((CV_constraint%Pxy(:,:,:,:,1)-CV_constraint%Pxy(:,:,:,:,4)) &
+	              				+(CV_constraint%Pxy(:,:,:,:,2)-CV_constraint%Pxy(:,:,:,:,5)) &
+		    	              	+(CV_constraint%Pxy(:,:,:,:,3)-CV_constraint%Pxy(:,:,:,:,6)))
+	!Total CV flux
+	MD_rhouu_dS(:,:,:,:)=  -((CV_constraint%flux(:,:,:,:,1)-CV_constraint%flux(:,:,:,:,4)) &
+	          	 			+(CV_constraint%flux(:,:,:,:,2)-CV_constraint%flux(:,:,:,:,5)) &
+	          	 			+(CV_constraint%flux(:,:,:,:,3)-CV_constraint%flux(:,:,:,:,6)))/delta_t
+
+	! Stress difference between MD and CFD
+	! F_stress_CV(ib,jb,kb,:)  = MD_Pi_dS(ib,jb,kb,:) - CFD_Pi_dS(ib,jb,kb,:)*volume
+	!	F_stress_CV(ib,jb,kb,:) => F_stress_mol(n,:) 
+
+	! CFD fluxes are constant
+	! F_CFDflux_CV(ib,jb,kb,:) = CFD_rhouu_dS(ib,jb,kb,:)*volume
+		
+	! MD fluxes are iterated
+	! F_MDflux_CV(ib,jb,kb,:)  = MD_rhouu_dS(ib,jb,kb,:)
+
+	!Iterate until momentum flux and applied CV force are consistent
+	F_constraint = 0.d0; converged = .false.; maxiter = 100; 
+	do attempt = 1,maxiter
+
+    	do ib = bmin(1),bmax(1)
+    	do jb = bmin(2),bmax(2)
+    	do kb = bmin(3),bmax(3)
+
+        	if (box_np_bfr(ib,jb,kb) .ne. 0 .and. apply_CVforce) then
+       			!Apply differential CV flux constraint
+       			F_constraint(ib,jb,kb,:)  =	   -MD_rhouu_dS(ib,jb,kb,:) +  MD_Pi_dS(ib,jb,kb,:)  &
+   										  - ( -CFD_rhouu_dS(ib,jb,kb,:) + CFD_Pi_dS(ib,jb,kb,:) )*volume
+        	else
+        		F_constraint(ib,jb,kb,:) = 0.d0
+        	endif
+
+    	enddo
+    	enddo
+    	enddo
+
+    	!Get velocity at next timestep with constraint
+    	box_np_afr = 0; u_bin_afr = 0.d0
+    	do n = 1,np
+    		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
+
+    		!Velocity calculated from acceleration
+    		v_temp(:,n) = v(:,n) + delta_t * (a(:,n) - (F_constraint(bin(1),bin(2),bin(3),:)+F_dist(:,n))/dble(box_np_bfr(bin(1),bin(2),bin(3))))
+
+    		!Position calculated from velocity
+    		r_temp(:,n) = r(:,n) + delta_t * v_temp(:,n)
+
+    		bin(:) = ceiling((r_temp(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
+    		box_np_afr(bin(1),bin(2),bin(3))  = box_np_afr(bin(1),bin(2),bin(3))   + 1
+    		u_bin_afr( bin(1),bin(2),bin(3),:)= u_bin_afr( bin(1),bin(2),bin(3),:) + v_temp(:,n)
+    	enddo
+
+		if (any(box_np_afr(bmin(1):bmax(1),bmin(2):bmax(2),bmin(3):bmax(3)) .eq. 0)) then
+			print'(a,3i6)', "Error -- no molecules left in box after timestep", ib,jb,kb
+			stop
+		endif
+
+		!Check convergence
+ 		if (converged) then
+			exit
+		elseif (attempt .eq. maxiter-1) then
+			print*, "Warning -- CV Force could not converge"
+			continue
+			!stop "Error -- CV Force could not converge"
+		else
+			!Keep going
+		endif
+
+		!Update momentum flux using velocity at next timestep
+		CV_constraint%flux = 0.d0
+		call cumulative_momentum_flux(r_temp,v_temp,CV_constraint%flux)
+		! Exchange all halo values for CV values ready to apply forces
+		call CV_constraint%swap_halos(nbinso)
+
+    	! - - - - -  Get CV Momentum Totals - - - - - - - - - 
+    	!Total CV flux
+		MD_rhouu_dS_prev = MD_rhouu_dS
+    	MD_rhouu_dS(:,:,:,:)=-((CV_constraint%flux(:,:,:,:,1)-CV_constraint%flux(:,:,:,:,4)) &
+    	          	 		  +(CV_constraint%flux(:,:,:,:,2)-CV_constraint%flux(:,:,:,:,5)) &
+    	          	 		  +(CV_constraint%flux(:,:,:,:,3)-CV_constraint%flux(:,:,:,:,6)))/delta_t
+
+		!If fluxes have converged (to tolerence) then exit after calculating final force
+		if (all(abs(MD_rhouu_dS_prev-MD_rhouu_dS) .lt. tol)) then
+			converged = .true.
+			!Wait for all processors to converge
+			global_converged = 1
+			call globalMinInt(global_converged)
+			if (global_converged .ne. 1) then
+				converged = .false.
+			else
+!	            convergence = 0.d0; converge_cells = 0
+!		        do ib = bmin(1),bmax(1)
+!		        do jb = bmin(2),bmax(2)
+!		        do kb = bmin(3),bmax(3)
+!				    convergence = convergence + sum(abs(MD_rhouu_dS_prev(ib,jb,kb,:) - MD_rhouu_dS(ib,jb,kb,:)))
+!    	            converge_cells = converge_cells + 1
+!			    enddo
+!			    enddo
+!			    enddo
+!				print'(a,2i5,2i8,f28.17)', 'converged ', iter, attempt, convergence_count, converge_cells, convergence
+			endif
+
+		else
+			!Tell other processors "I'm not converged"
+			global_converged = 0
+			call globalMinInt(global_converged)
+
+			!Ouput convergence if it looks like it's going to be a problem
+			if (attempt .gt. 25) then
+				convergence = 0.d0; converge_cells = 0
+				!if (mod(attempt,20)) delta_t = delta_t/2.d0
+
+    	        do ib = bmin(1),bmax(1)
+    	        do jb = bmin(2),bmax(2)
+    	        do kb = bmin(3),bmax(3)
+					if (sum(MD_rhouu_dS_prev(ib,jb,kb,:)) .ne. sum(MD_rhouu_dS(ib,jb,kb,:))) then
+						convergence = convergence + sum(abs(MD_rhouu_dS_prev(ib,jb,kb,:) - MD_rhouu_dS(ib,jb,kb,:)))
+                        converge_cells = converge_cells + 1
+					endif
+				enddo
+				enddo
+				enddo
+				convergence_count = convergence_count + 1
+				print'(a,2i5,2i8,f28.17)', 'convergence ', iter, attempt, convergence_count, converge_cells, convergence
+			endif
+		endif
+
+	enddo
+
+	deallocate(r_temp,v_temp,box_np_afr,box_np_bfr,u_bin_afr,u_bin_bfr)
+
+end subroutine average_over_allbins_iter_optimised
+
+
 
 
 !=============================================================================
