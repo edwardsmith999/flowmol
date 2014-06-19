@@ -3,7 +3,7 @@ from plot import PyplotPanel
 from choosefield import FieldChooserPanel
 from sliders import RecordSliderPanel
 
-from postproclib.mdpostproc import MD_PostProc  
+from postproclib.allpostproc import All_PostProc  
 
 class VisualiserPanel(wx.Panel):
  
@@ -12,8 +12,8 @@ class VisualiserPanel(wx.Panel):
         wx.Panel.__init__(self,parent,**kwargs)
 
         self.fdir = fdir
-        self.MD_PP = MD_PostProc(self.fdir)#, cpol_bins=True)
-        self.fieldname, self.field = self.MD_PP.plotlist.items()[0]
+        self.PP = All_PostProc(self.fdir)#, cpol_bins=True)
+        self.fieldname, self.field = self.PP.plotlist.items()[0]
 
         self.pyplotp = PyplotPanel(self)
         self.choosep = FieldChooserPanel(self)
@@ -107,10 +107,10 @@ class VisualiserPanel(wx.Panel):
 
     def handle_fieldtype(self, event):
         ftype = event.GetString()
-        if (self.field == self.MD_PP.plotlist[ftype]):
+        if (self.field == self.PP.plotlist[ftype]):
             pass
         else:
-            self.field = self.MD_PP.plotlist[ftype]
+            self.field = self.PP.plotlist[ftype]
             self.fieldname = ftype
         self.update_components()
         self.update_normals(self.normal)

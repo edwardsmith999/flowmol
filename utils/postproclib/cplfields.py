@@ -48,6 +48,10 @@ class CPLField(Field):
         self.maxrec = self.md_field.maxrec 
         self.grid = self.get_cpl_grid()
 
+        self.labels = self.md_field.labels
+        self.axislabels = self.md_field.axislabels
+        self.Raw = self.md_field.Raw
+
     def get_grids(self):
 
         md_grid = self.md_field.grid
@@ -67,7 +71,7 @@ class CPLField(Field):
         grid = [gridx,gridy,gridz]
         return grid
         
-    def read(self,startrec,endrec):
+    def read(self,startrec,endrec,**kwargs):
         
         if (not skit_imported):
             quit(skit_imported_fail_message)
@@ -113,9 +117,11 @@ class CPLField(Field):
         return self.md_grid[axis], md_data, self.cfd_grid[axis], cfd_data 
 
 class CPL_vField(CPLField):
+    nperbin = 3
     MDFieldType = mdfields.MD_vField 
     CFDFieldType = cfdfields.CFD_vField
 
 class CPL_PField(CPLField):
+    nperbin = 9
     MDFieldType = mdfields.MD_PField 
-    CFDFieldType = cfdfields.CFD_PField
+    CFDFieldType = cfdfields.CFD_StressField

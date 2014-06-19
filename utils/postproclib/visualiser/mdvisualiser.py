@@ -1,7 +1,7 @@
 # /usr/bin/env python
 import wx
 import sys
-from postproclib.mdpostproc import NoResultsInDir
+from postproclib.postproc import NoResultsInDir
 
 from visuals import VisualiserPanel
 from directory import DirectoryChooserPanel
@@ -57,7 +57,8 @@ class MDVisualiserFrame(wx.Frame):
         try:
             newvp = VisualiserPanel(self, fdir)
         except IOError:
-            showMessageDlg('Invalid directory.')
+            raise
+            #showMessageDlg('Invalid directory.')
         except NoResultsInDir:
             showMessageDlg('No results in this directory.')
         else:

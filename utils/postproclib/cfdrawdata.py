@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 import numpy as np
+import os
 
 class CFD_RawData:
     
@@ -7,6 +8,7 @@ class CFD_RawData:
         self.fdir = fdir
         self.grid = self.get_grid()
         self.subdomlist = self.get_subdomlist()
+        self.npercell = self.get_npercell()
         self.maxrec = len(self.subdomlist)-1 # count from 0
 
     def get_grid(self):
@@ -51,7 +53,6 @@ class CFD_RawData:
         return grid 
 
     def get_subdomlist(self):
-        import os
 
         def get_int(name):
             string, integer = name.split('.')
@@ -62,14 +63,25 @@ class CFD_RawData:
             if (filename.find('SubDom') != -1):
                 subdoms.append(filename)
 
+        if (len(subdoms) == 0):
+            raise IOError 
+
         subdoms = sorted(subdoms,key=get_int)
         return subdoms
+
+    def get_npercell(self):
+        dprealbytes = 8 # 8 for dp float
+        ngridpoints = self.nrx * self.nry * self.nrz
+        filepath = self.fdir + self.subdomlist[0]
+        filesize = os.path.getsize(filepath)
+        npercell = filesize / (dprealbytes*ngridpoints) 
+        return npercell
 
     def read(self,startrec,endrec):
 
         nrecs = endrec - startrec + 1
         # Efficient memory allocation
-        subdata = np.empty((self.nrx,self.nry,self.nrz,nrecs,4))
+        subdata = np.empty((self.nrx,self.nry,self.nrz,nrecs,self.npercell))
 
         # Loop through files and insert data
         for plusrec in range(0,nrecs):
@@ -78,7 +90,7 @@ class CFD_RawData:
             with open(fpath,'rb') as fobj:
                 data = np.fromfile(fobj,dtype='d')
                 # zxy ordered in file
-                data = np.reshape(data,[self.nrz,self.nrx,self.nry,4],
+                data = np.reshape(data,[self.nrz,self.nrx,self.nry,self.npercell],
                                   order='F')
                 # change to xyz ordering
                 data = np.transpose(data,(1,2,0,3))

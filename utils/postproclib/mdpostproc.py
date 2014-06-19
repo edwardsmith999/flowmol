@@ -7,11 +7,9 @@ import glob
 
 from mdfields import *
 from headerdata import *
+from postproc import PostProc, NoResultsInDir 
 
-class NoResultsInDir(Exception):
-    pass
-
-class MD_PostProc:
+class MD_PostProc(PostProc):
 
     """ 
         Post processing class for MD runs
@@ -149,67 +147,3 @@ class MD_PostProc:
 
         if (len(self.plotlist) == 0):
             raise NoResultsInDir 
-
-    def available_output_string(self):
-        print('\nAvailable outputs in ' + self.resultsdir + ' include:\n')
-        print('\t{0:^24s}\t{1:>10s}'.format('field', 'records'))
-        print('\t{0:^24s}\t{1:^10s}'.format('-'*24, '-'*10))
-        for key,field in self.plotlist.items():
-            line = '\t{0:<24s}\t{1:>10d}'.format(key, field.maxrec)
-            print(line)
-            #print(key + ' with ', str(field[0].maxrec), ' records')
-
-    def __repr__(self):
-        return "MD_PostProc()"
-    def __str__(self):
-        self.available_output_string()
-        return "\nInstance of MD_PostProc()"
-
-    def read_output_file(self,keyword=None):
-
-        """
-            Reads from output file and strips out keywords using grep
-
-        """
-
-        tempfile = 'temp'
-        self.extract_from_stdout(keyword=keyword,tempfile=tempfile)
-
-        try:
-            array = np.genfromtxt(tempfile,invalid_raise=False)
-        except:
-            print("ERROR in read_output_file")
-            raise
-            array = []
-
-        return array
-
-    def extract_from_stdout(self,keyword=None,tempfile='temp'):
-
-        """
-            Reads from stdout output file and writes to temp
-
-        """
-        cmd = "cat " + self.rundir + "/" + self.outputfile
-        with open(tempfile,'w+') as f:
-            if (keyword == None):
-                args = shlex.split(cmd)
-                out=subprocess.Popen(args, stdout=f)
-            else:
-                proc1 = subprocess.Popen(shlex.split(cmd),stdout=subprocess.PIPE)
-                proc2 = subprocess.Popen(shlex.split('grep ' + keyword),stdin=proc1.stdout,
-                             stdout=f,stderr=subprocess.PIPE)
-
-                proc1.stdout.close() # Allow proc1 to receive a SIGPIPE if proc2 exits.
-                err=proc2.communicate()
-
-        return err
-
-    def file_len(self,fname):
-        try:
-            with open(fname) as f:
-                for i, l in enumerate(f):
-                    pass
-            return i + 1
-        except:
-            return 0
