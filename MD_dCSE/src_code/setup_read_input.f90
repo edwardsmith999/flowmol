@@ -818,6 +818,19 @@ subroutine setup_read_input
 		if (ios .ne. 0) CVweighting_flag = 0
 		read(1,*,iostat=ios) CVforce_starttime
 		if (ios .ne. 0) CVforce_starttime = 200
+		read(1,*,iostat=ios) F_CV_limits(1)
+		if (ios .ne. 0) F_CV_limits(1) = VOID
+		read(1,*,iostat=ios) F_CV_limits(2)
+		if (ios .ne. 0) F_CV_limits(2) = VOID
+		read(1,*,iostat=ios) F_CV_limits(3)
+		if (ios .ne. 0) F_CV_limits(3) = VOID
+		read(1,*,iostat=ios) F_CV_limits(4)
+		if (ios .ne. 0) F_CV_limits(4) = VOID
+		read(1,*,iostat=ios) F_CV_limits(5)
+		if (ios .ne. 0) F_CV_limits(5) = VOID
+		read(1,*,iostat=ios) F_CV_limits(6)
+		if (ios .ne. 0) F_CV_limits(6) = VOID
+
 	endif
 
 	close(1,status='keep')      !Close input file

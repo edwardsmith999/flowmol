@@ -138,6 +138,7 @@ module computational_constants_MD
 		CVforce_starttime				!Start time of applied force
 
 	!Add debugging CV flags
+	integer,dimension(6) :: F_CV_limits		 !Limits of CV forces
 	logical	:: CV_debug=.false.
 
 	integer, dimension(3)	:: periodic
