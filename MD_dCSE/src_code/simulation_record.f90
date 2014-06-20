@@ -2850,8 +2850,8 @@ subroutine energy_flux_averaging(ixyz)
 	!Integration of surface power using trapizium rule, get current value and
     !add to segment to running total using previous value
 	call simulation_compute_power(2, nbins(1)+1, 2, nbins(2)+1, 2, nbins(3)+1)
-	Pxyvface_integrated = Pxyvface_integrated + 0.5d0 * (Pxyvface_mdt + Pxyvface) 
-	Pxyvface_mdt = Pxyvface
+	!Pxyvface_integrated = Pxyvface_integrated + 0.5d0 * (Pxyvface_mdt + Pxyvface) 
+	!Pxyvface_mdt = Pxyvface
 
 	call cumulative_energy_flux(r,v,energy_flux)
 	sample_count = sample_count + 1
@@ -2885,9 +2885,9 @@ subroutine energy_flux_averaging(ixyz)
 	!as both use velocity at v(t-dt/2)
 	if (sample_count .eq. Neflux_ave-1) then
 		call surface_power_io
-        Pxyvface_integrated = 0.d0
-		!Pxyvface_mdt = Pxyvface
-		!Pxyvface = 0.d0
+        !Pxyvface_integrated = 0.d0
+		Pxyvface_mdt = Pxyvface
+		Pxyvface = 0.d0
 		!Pxyvface2 = 0.d0
 		!Debug flag to check CV conservation in code
 		if (CV_debug) then

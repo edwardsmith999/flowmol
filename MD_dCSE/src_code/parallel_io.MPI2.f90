@@ -3549,24 +3549,25 @@ subroutine surface_power_io
 
 	!Include halo surface stresses to get correct values for all cells
 	nresults = 6
-	call swaphalos(Pxyvface_integrated,nbinso(1),nbinso(2),nbinso(3),nresults)
+	call swaphalos(Pxyvface,nbinso(1),nbinso(2),nbinso(3),nresults)
 
 	do ixyz = 1,3
 		binface		  = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
 			     		(domain(modulo(ixyz+1,3)+1)/nbins(modulo(ixyz+1,3)+1))
-		Pxyvface_integrated(:,:,:,ixyz  ) = 0.25d0 * Pxyvface_integrated(:,:,:,ixyz  )/binface !Bottom
-		Pxyvface_integrated(:,:,:,ixyz+3) = 0.25d0 * Pxyvface_integrated(:,:,:,ixyz+3)/binface !Top
+		Pxyvface(:,:,:,ixyz  ) = 0.25d0 * Pxyvface(:,:,:,ixyz  )/binface !Bottom
+		Pxyvface(:,:,:,ixyz+3) = 0.25d0 * Pxyvface(:,:,:,ixyz+3)/binface !Top
 	enddo
 
 	!Integration of stress using trapizium rule requires multiplication by timestep
-	!Pxyvface_mdt = (0.5d0/Neflux_ave) * (Pxyvface_mdt + Pxyvface) 
+	Pxyvface_mdt = (0.5d0/Neflux_ave) * (Pxyvface_mdt + Pxyvface) 
 
 	!Integration of stress using trapizium rule requires division by number of results
-	Pxyvface_integrated = Pxyvface_integrated/Neflux_ave
+	!Pxyvface_integrated = Pxyvface_integrated/Neflux_ave
 
 	!Store surface stress value in CV data object
 	if (CV_debug) then
-		call CVcheck_energy%update_Pxy(Pxyvface_integrated)
+		!call CVcheck_energy%update_Pxy(Pxyvface_integrated)
+		call CVcheck_energy%update_Pxy(Pxyvface_mdt)
 	endif
 
 	!Write surface pressures * velocity to file
@@ -3578,7 +3579,7 @@ subroutine surface_power_io
 	case default
 		call error_abort('CV_conserve value used forsurface power is incorrectly defined - should be 0=off or 1=on')
 	end select
-	call write_arrays(Pxyvface_integrated,nresults,trim(prefix_dir)//'results/esurface',m)
+	call write_arrays(Pxyvface_mdt,nresults,trim(prefix_dir)//'results/esurface',m)
 
 end subroutine surface_power_io
 
