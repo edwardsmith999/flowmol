@@ -238,7 +238,7 @@ contains
 		logical		 	:: check_ok
 
 		!First call doesn't have difference in time yet so skip
-		if (first_time .lt. 2) then
+		if (first_time .lt. 3) then
 			first_time = first_time + 1
 			return
 		endif
