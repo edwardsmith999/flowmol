@@ -2057,6 +2057,11 @@ end function couette_analytical_stress_fn
 ! 1 = [0,0,0]; 2=[1,0,0]; 3 =[0,1,0]; 4 =[1,1,0]
 ! 5 = [0,0,1]; 6=[1,0,1]; 7 =[0,1,1]; 8 =[1,1,1]
 
+! Note -- this only takes the 3 components in the cell
+! 		  that the node is currently being considered for
+!		  i.e. node(:,1) for cell 2 is not equal to
+!			   node(:,2) for cell 1 
+
 function surface_array_to_nodes(surface) result(nodes)
     implicit none
 
@@ -2073,7 +2078,6 @@ function surface_array_to_nodes(surface) result(nodes)
 	nodes(:,8) = surface(:,1)+surface(:,2)+surface(:,3)
 
 end function surface_array_to_nodes
-
 
 !===================================================
 ! Functions to return a polynomial weighting function
