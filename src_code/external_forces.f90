@@ -1484,7 +1484,7 @@ subroutine apply_force(F_CV,  &
 
 		if (mod(iter,100) .eq. 0) then
 			bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
-			write(5000+iter,'(2i8,9f18.8)'), iter, n, r(:,n), F_iext, v(:,n)
+			write(5000+iter,'(2i8,9f18.8)'), iter, n, r(:,n), F_iext, a(:,n)
 		endif
 						
 		!Apply force by adding to total
@@ -1510,7 +1510,7 @@ subroutine apply_CV_force
 	use apply_CV_force_mod
 	use computational_constants_MD, only : iter,initialstep,  F_CV_limits, & 
 										   CVforce_correct, CVweighting_flag, & 
-										   VOID
+										   VOID, CVforce_flag
 	use calculated_properties_MD, only : gnbins
 	implicit none
 
@@ -1521,6 +1521,9 @@ subroutine apply_CV_force
 	real(kind(0.d0)),allocatable,dimension(:,:,:,:) 	:: Fcfdflux_CV, Fcorrect_CV
 	real(kind(0.d0)),allocatable,dimension(:,:,:,:,:) 	:: CFD_stress,CFD_flux
 	real(kind(0.d0)),allocatable,dimension(:,:,:,:,:) 	:: MD_stress,MD_flux
+
+	!Check if CV force is turned on
+	if (CVforce_flag .eq. VOID) return
 
 	!Check for start time 
 	if (iter-initialstep+1 .lt. CVforce_starttime) return
@@ -1541,17 +1544,13 @@ subroutine apply_CV_force
 	!Get CFD stresses and fluxes
 	call get_CFD_velocity(F_CV_limits, u_CFD)
 	call get_CFD_stresses_fluxes(F_CV_limits, CFD_stress, CFD_flux)
-	!print'(a,13f10.5)', 'CFD velocity and stresses', u_CFD(3,3,3,1), CFD_stress(3,3,3,1,:), CFD_flux(3,3,3,1,:)
 
 	!Get molecules per bin, MD stresses and MD fluxes
 	call get_boxnp(boxnp)
-	!print'(a,i12)', 'MD boxnp', boxnp(3,3,3)
 	call get_MD_stresses_fluxes(F_CV_limits, MD_stress, MD_flux)
-	!print'(a,12f11.3)', 'MD stresses', MD_stress(3,3,3,1,:), MD_flux(3,3,3,1,:)
 
 	! Get CV force based on CFD flux
 	call get_Fcfdflux_CV(CFD_flux, F_CV_limits, Fcfdflux_CV)
-	!print'(a,3f18.12)', 'CFD flux force', Fcfdflux_CV(3,3,3,:)
 
 	! Get force required to correct velocity setpoint if drift occurs
 	if (CVforce_correct .eq. 0) then
@@ -1559,22 +1558,21 @@ subroutine apply_CV_force
 	elseif (CVforce_correct .eq. 1) then
 		call get_F_correction_CV(u_CFD, F_CV_limits, Fcorrect_CV)
 	endif
-	!print'(a,3f18.12)', 'MD correction force', Fcorrect_CV(3,3,3,:)
 
 	!Apply CV stresses as constant force to whole volume or distribute
 	allocate(F_CV(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); F_CV = 0.d0
+
+	! Force per molecule is zero and Fstresses added to CV force
 	if (CVweighting_flag .eq. 0) then
 		! Get CV force based on difference in CFD and MD stresses
 		call get_Fstresses_CV(CFD_stress, MD_stress, F_CV_limits, Fstresses_CV)
-		!print'(a,4f18.12)', 'CFD&MD stress force', Fstresses_CV(3,3,3,:),sum(Fstresses_CV(3,3,3,:))/(volume)
-
-		! Force per molecule is zero and Fstresses added to CV force
 		allocate(Fstresses_mol(3,np)); Fstresses_mol = 0.d0
 		F_CV = Fcfdflux_CV + Fstresses_CV + Fcorrect_CV
+
+	! Get Fstresses per molecule based on distribution of stress 
+	! and don't add Fstresses_CV to total
 	elseif (CVweighting_flag .eq. 1 .or. & 
 			CVweighting_flag .eq. 2) then
-		! Get Fstresses per molecule based on distribution of stress 
-		! and don't add Fstresses_CV to total
 		call get_Fstresses_mol(CFD_stress, MD_stress, boxnp, CVweighting_flag, F_CV_limits, Fstresses_mol)
 		F_CV = Fcfdflux_CV  + Fcorrect_CV
 	endif
@@ -1582,7 +1580,6 @@ subroutine apply_CV_force
 	! Get CV force based on MD fluxes (Using all other forces and iterating until
 	! 								   MD_flux and force are consistent)
 	call get_Fmdflux_CV(F_CV, Fstresses_mol, MD_flux, boxnp, F_CV_limits, Fmdflux_CV)
-	!print'(a,3f18.12)', 'MD flux force', Fmdflux_CV(3,3,3,:)
 
 	!Add up all forces and apply 
 	F_CV = F_CV + Fmdflux_CV
