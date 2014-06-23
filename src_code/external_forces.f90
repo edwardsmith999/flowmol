@@ -1135,6 +1135,7 @@ end subroutine get_Fstresses_CV
 subroutine get_Fstresses_mol(CFD_stress,   & 
 							 MD_stress,    &
 						  	 boxnp,	 	   &
+						  	 flag,	 	   &
 							 binlimits,    & 
 							 Fstresses_mol)
 	use arrays_MD, only: r
@@ -1142,7 +1143,7 @@ subroutine get_Fstresses_mol(CFD_stress,   &
 	use computational_constants_MD, only : iter
 	implicit none
 
-	integer,intent(in)             		 :: binlimits(6)
+	integer,intent(in)             		 :: binlimits(6), flag
 	integer,intent(in), & 
 		allocatable,dimension(:,:,:)	:: boxnp
 	real(kind(0.d0)),intent(in), & 
@@ -1167,26 +1168,13 @@ subroutine get_Fstresses_mol(CFD_stress,   &
 	Fstresses_CV(:,:,:,2)=Fstresses_CV(:,:,:,2)*dble(boxnp)
 	Fstresses_CV(:,:,:,3)=Fstresses_CV(:,:,:,3)*dble(boxnp)
 
-	!print*, 'WARNING -- STRSS IN  get_Fstresses_mol IS cfd ONLY'
-	!Pxy = -CFD_stress
-	!print*, 'WARNING -- STRSS IN  get_Fstresses_mol IS cfd ONLY'
-
 	Pxy = MD_stress-CFD_stress
+	print*, 'WARNING -- STRSS IN  get_Fstresses_mol HAS SIGN REVERSED'
+	Pxy(:,:,:,:,1:3) = -Pxy(:,:,:,:,1:3)
+	Pxy(:,:,:,:,4:6) = Pxy(:,:,:,:,4:6)
+	print*, 'WARNING -- STRSS IN  get_Fstresses_mol HAS SIGN REVERSED'
 	Fstresses_mol(:,:) = linearsurface_weight(Pxy,r(:,1:np),Fbinsize,domain, &
-											  shiftmean=2,meanvalue=Fstresses_CV)
-
-	if (mod(iter,100) .eq. 0) then
-		do n = 1,np
-			bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
-			if (bin(1) .eq. 3 .and. &
-				bin(2) .eq. 3 .and. &
-				bin(3) .eq. 3) then
-				write(5000+iter,'(2i8,6f18.8)'), iter, n,r(:,n), Fstresses_mol(:,n)/dble(boxnp(3,3,3))!,Pxy(3,3,3,1,:)
-			endif
-		enddo
-	endif
-
-	!stop "Stopped for debugging purposes in get_Fstresses_mol"
+											  shiftmean=flag,meanvalue=Fstresses_CV)
 
 end subroutine  get_Fstresses_mol
 
@@ -1201,7 +1189,7 @@ subroutine get_F_correction_CV(u_CFD, &
 							   Fcorrect_CV)
 	use calculated_properties_MD, only : nbins
 	use arrays_MD, only : r, v
-	use computational_constants_MD, only : iter, delta_t
+	use computational_constants_MD, only : iter, initialstep, delta_t
     use messenger, only : localise_bin
 	use physical_constants_MD, only: pi
 	use librarymod, only : linspace
@@ -1238,7 +1226,7 @@ subroutine get_F_correction_CV(u_CFD, &
     bmax = min(localise_bin((/binlimits(2),binlimits(4),binlimits(6)/)),nbins(:)+1)
 
 	!Allocate only on first call
-	if (iter .eq. CVforce_starttime) then
+	if (iter-initialstep+1 .eq. CVforce_starttime) then
 		allocate(correctstart(nbins(1)+2,nbins(2)+2,nbins(3)+2))
 		allocate(correction_lock(nbins(1)+2,nbins(2)+2,nbins(3)+2))
 		allocate(u_error(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
@@ -1470,7 +1458,7 @@ subroutine apply_force(F_CV,  &
 					   boxnp, &
 					   binlimits)
 	use arrays_MD, only: r, v, a
-	use computational_constants_MD, only : eflux_outflag, delta_t
+	use computational_constants_MD, only : eflux_outflag, delta_t,iter
 	use module_record_external_forces, only : record_external_forces
 	implicit none
 
@@ -1493,6 +1481,11 @@ subroutine apply_force(F_CV,  &
 
 		!Get total force on a molecule from sum of CV forces and molecular forces
 		F_iext(:) = (F_mol(:,n) + F_CV(bin(1),bin(2),bin(3),:))/dble(boxnp(bin(1),bin(2),bin(3)))
+
+		if (mod(iter,100) .eq. 0) then
+			bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
+			write(5000+iter,'(2i8,9f18.8)'), iter, n, r(:,n), F_iext, v(:,n)
+		endif
 						
 		!Apply force by adding to total
 		a(:,n) = a(:,n) - F_iext(:)
@@ -1515,8 +1508,9 @@ end module apply_CV_force_mod
 
 subroutine apply_CV_force
 	use apply_CV_force_mod
-	use computational_constants_MD, only : iter, F_CV_limits,CVforce_correct, & 
-										   VOID, CVweighting_flag
+	use computational_constants_MD, only : iter,initialstep,  F_CV_limits, & 
+										   CVforce_correct, CVweighting_flag, & 
+										   VOID
 	use calculated_properties_MD, only : gnbins
 	implicit none
 
@@ -1529,7 +1523,7 @@ subroutine apply_CV_force
 	real(kind(0.d0)),allocatable,dimension(:,:,:,:,:) 	:: MD_stress,MD_flux
 
 	!Check for start time 
-	if (iter .lt. CVforce_starttime) return
+	if (iter-initialstep+1 .lt. CVforce_starttime) return
 
 	!Test case focuses on a single CV
 	Fbinsize = domain/nbins
@@ -1577,10 +1571,11 @@ subroutine apply_CV_force
 		! Force per molecule is zero and Fstresses added to CV force
 		allocate(Fstresses_mol(3,np)); Fstresses_mol = 0.d0
 		F_CV = Fcfdflux_CV + Fstresses_CV + Fcorrect_CV
-	elseif (CVweighting_flag .eq. 1) then
+	elseif (CVweighting_flag .eq. 1 .or. & 
+			CVweighting_flag .eq. 2) then
 		! Get Fstresses per molecule based on distribution of stress 
 		! and don't add Fstresses_CV to total
-		call get_Fstresses_mol(CFD_stress, MD_stress, boxnp, F_CV_limits, Fstresses_mol)
+		call get_Fstresses_mol(CFD_stress, MD_stress, boxnp, CVweighting_flag, F_CV_limits, Fstresses_mol)
 		F_CV = Fcfdflux_CV  + Fcorrect_CV
 	endif
 
