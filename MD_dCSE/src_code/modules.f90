@@ -111,7 +111,7 @@ module computational_constants_MD
 
 	!Input (on or off) flags
 	integer	:: & 
-		vmd_outflag, vmd_start, vmd_finish, vmd_count=1, &
+		vmd_outflag, vmd_skip, vmd_start, vmd_finish, vmd_count=1, &
 		macro_outflag, &
 		sLRC_flag,	&
 		mass_outflag, &

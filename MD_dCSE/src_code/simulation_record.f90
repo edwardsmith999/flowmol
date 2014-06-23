@@ -83,6 +83,7 @@ subroutine simulation_record
 
 	integer			:: vmd_iter
 	integer,save	:: i = 1
+    integer, save :: vmd_skip_count=0
 
 	if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
 		call mass_flux_averaging(mflux_outflag)				!Average mass flux before movement of particles
@@ -105,25 +106,39 @@ subroutine simulation_record
 
 	!Parallel output for molecular positions
 	if (vmd_outflag.ne.0 .and. size(vmd_intervals,2).ge.i) then
-		vmd_iter = iter-initialstep+1
-		if (vmd_iter.ge.vmd_intervals(1,i).and.vmd_iter.lt.vmd_intervals(2,i)) then
-			select case(vmd_outflag)
-			case(1)
-				call parallel_io_vmd
-			case(2)
-				call parallel_io_vmd_sl
-			case(3)
-				call parallel_io_vmd
-				call parallel_io_vmd_halo
-			case(4)
-				call parallel_io_vmd_true
-			case default
-				call error_abort('Unrecognised vmd_outflag in simulation_record')
-			end select
-			vmd_count = vmd_count + 1
-		else if (vmd_iter.ge.vmd_intervals(2,i)) then
-			i = i + 1			
-		endif
+        
+        vmd_skip_count = vmd_skip_count + 1 
+        if (vmd_skip_count .eq. vmd_skip) then
+
+            vmd_skip_count = 0
+
+            vmd_iter = iter-initialstep+1
+
+            if (vmd_iter.ge.vmd_intervals(1,i).and.vmd_iter.lt.vmd_intervals(2,i)) then
+                select case(vmd_outflag)
+                case(1)
+                    call parallel_io_vmd
+                case(2)
+                    call parallel_io_vmd_sl
+                case(3)
+                    call parallel_io_vmd
+                    call parallel_io_vmd_halo
+                case(4)
+                    call parallel_io_vmd_true
+                case default
+                    call error_abort('Unrecognised vmd_outflag in simulation_record')
+                end select
+                vmd_count = vmd_count + 1
+            else if (vmd_iter.ge.vmd_intervals(2,i)) then
+                i = i + 1			
+            endif
+
+        else
+            
+            continue
+            
+        end if
+
 	endif
 	
     !Get polymer statistics
