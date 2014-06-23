@@ -2337,21 +2337,28 @@ end function get_weight_fn_vector
 
 ! Use lagrange interpolation between the nodes of the cube 
 
-function lagrange_poly_weight_Nmol(array,r_in,binsize,domain,order) result(weight)
+function lagrange_poly_weight_Nmol(array, r_in, binsize, domain, & 
+								   order, shiftmean, meanvalue) result(weight)
     implicit none
 
-    integer,intent(in)    :: order
     double precision,dimension(3),intent(in)	:: domain,binsize
     double precision,dimension(:,:),intent(in)	:: r_in
     double precision,dimension(:,:,:,:,:),allocatable,intent(in)    :: array
-
-    double precision,dimension(:,:),allocatable	    :: weight
+	integer,intent(in),optional	:: shiftmean, order
+	double precision,dimension(:,:,:,:),allocatable,intent(in),optional	:: meanvalue
 
 	integer							:: npoints,n
-    integer,dimension(3)            :: bin, order_nd
-    double precision,dimension(3)   :: r_in_, lowerlim,upperlim
+    integer,dimension(3)            :: bin, order_nd, nbins
+    double precision				:: fxfyfz
+    double precision,dimension(3)   :: r_in_, Na, lowerlim,upperlim
     double precision,dimension(:,:),allocatable :: grid, rhat
+    double precision,dimension(3,6)	:: surfaces
     double precision,dimension(3,8)	:: nodes,test
+
+    integer,dimension(:,:,:),allocatable :: nperbin
+    double precision,dimension(:,:),allocatable	    :: weight
+    double precision,dimension(:,:,:),allocatable 	:: sqr_term
+    double precision,dimension(:,:,:,:),allocatable :: wsum_bin, w_2ndorder,meanvalue_
 
 	!Setup polynomial and other functions
 	allocate(  rhat(size(r_in,1),size(r_in,2)))
@@ -2359,6 +2366,32 @@ function lagrange_poly_weight_Nmol(array,r_in,binsize,domain,order) result(weigh
 	order_nd(:) = order	!Assumed same order in all dimensions
 	lowerlim(:) = (/ -1.d0,-1.d0,-1.d0 /)
 	upperlim(:) = (/  1.d0, 1.d0, 1.d0 /)
+
+	nbins = nint(domain/binsize)
+	if (present(shiftmean)) then
+		allocate(meanvalue_(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
+		if (.not. present(meanvalue)) then
+			meanvalue_ = 0.d0
+		else
+			meanvalue_ = meanvalue
+		endif
+		select case(shiftmean)
+		case(0)
+			!Do nothing, shiftmean not requested
+		case(1)
+			allocate(wsum_bin(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
+			allocate(nperbin(nbins(1)+2,nbins(2)+2,nbins(3)+2))
+			wsum_bin = 0.d0; nperbin = 0
+		case(2)
+			allocate(wsum_bin(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
+			allocate(nperbin(nbins(1)+2,nbins(2)+2,nbins(3)+2))
+			allocate(sqr_term(nbins(1)+2,nbins(2)+2,nbins(3)+2))
+			allocate(w_2ndorder(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
+			sqr_term = 0.d0; wsum_bin = 0.d0; nperbin = 0
+		case default
+			stop "Error in linearsurface_weight_Nmol -- incorrect shiftmean value"
+		end select
+	endif
 
 	do n =1,size(r_in,2)
     	! Shift to all positive, get bin
@@ -2376,6 +2409,25 @@ function lagrange_poly_weight_Nmol(array,r_in,binsize,domain,order) result(weigh
 		call lagrange_interp_nd_value( 3, order_nd, lowerlim, upperlim, npoints, nodes(2,:), 1, rhat(:,n), weight(2,n))
 		call lagrange_interp_nd_value( 3, order_nd, lowerlim, upperlim, npoints, nodes(3,:), 1, rhat(:,n), weight(3,n))
 
+		if (present(shiftmean)) then
+			select case(shiftmean)
+			case(0)
+				!Do nothing, shiftmean not requested
+			case(1)
+				!Get sum of weightings to subtract so mean is zero by adjusting constant value
+				wsum_bin(bin(1),bin(2),bin(3),:) = wsum_bin(bin(1),bin(2),bin(3),:) + weight(:,n)
+				nperbin(bin(1),bin(2),bin(3)) 	 = nperbin(bin(1),bin(2),bin(3)) + 1
+			case(2)
+				! Zero mean by adding a 2nd order term preserving the B.C. and adjusting the 
+				! 3D parabolicness until the sum is correct
+				wsum_bin(bin(1),bin(2),bin(3),:) = wsum_bin(bin(1),bin(2),bin(3),:) + weight(:,n)
+				nperbin(bin(1),bin(2),bin(3)) 	 = nperbin(bin(1),bin(2),bin(3)) + 1
+				fxfyfz = ((Na(1)-0.5d0)**2-0.25d0) &
+						*((Na(2)-0.5d0)**2-0.25d0) &
+						*((Na(3)-0.5d0)**2-0.25d0)
+				sqr_term(bin(1),bin(2),bin(3)) = sqr_term(bin(1),bin(2),bin(3)) + fxfyfz
+			end select
+		endif
 !		call lagrange_interp(order_nd(:), lowerlim(:), upperlim(:), nodes(1,:), rhat(:,n), weight(1,n))
 !		call lagrange_interp(order_nd(:), lowerlim(:), upperlim(:), nodes(2,:), rhat(:,n), weight(2,n))
 !		call lagrange_interp(order_nd(:), lowerlim(:), upperlim(:), nodes(3,:), rhat(:,n), weight(3,n))
@@ -2385,6 +2437,34 @@ function lagrange_poly_weight_Nmol(array,r_in,binsize,domain,order) result(weigh
 		    stop "Error in lagrange_poly_weight_Nmol as -1 < rhat < 1 is not true"
 		endif
 	enddo
+
+	if (present(shiftmean)) then
+		select case(shiftmean)
+		case(0)
+			!Do nothing, shiftmean not requested
+		case(1)
+			!Zero mean by adjusting constant value
+			do n =1,size(r_in,2)
+				r_in_(:) = r_in(:,n)+0.5d0*domain(:)
+				bin(:) = ceiling((r_in_)/binsize(:))+1
+				weight(:,n) = weight(:,n) - (wsum_bin(bin(1),bin(2),bin(3),:)-meanvalue_(bin(1),bin(2),bin(3),:))/nperbin(bin(1),bin(2),bin(3))
+
+			enddo
+		case(2)
+			! Zero mean by adding a 2nd order term preserving the B.C. and adjusting the 
+			! parabolicness until the sum is correct
+			do n =1,size(r_in,2)
+				r_in_(:) = r_in(:,n)+0.5d0*domain(:)
+				bin(:) = ceiling((r_in_)/binsize(:))+1
+				Na(:) = rhat(:,n)
+				fxfyfz = ((Na(1)-0.5d0)**2-0.25d0) &
+						*((Na(2)-0.5d0)**2-0.25d0) &
+						*((Na(3)-0.5d0)**2-0.25d0)
+				weight(:,n) = weight(:,n) - fxfyfz * (wsum_bin(bin(1),bin(2),bin(3),:)-meanvalue_(bin(1),bin(2),bin(3),:))/sqr_term(bin(1),bin(2),bin(3))
+			enddo
+
+		end select
+	endif
 
 end function lagrange_poly_weight_Nmol
 
