@@ -149,13 +149,13 @@ class MDRun:
         self.build.wait()
 
         #Check source code executable against run directory executable
-        if self.basedir != self.srcdir:
-            cmdstr = 'diff '
-            cmdstr += self.basedir + self.executable
-            cmdstr += self.srcdir  + self.executable
-            split_cmdstg = shlex.split(cmdstg)
-            diffexec = sp.check_output(split_cmdstg)
-            print(diffexec)
+#        if self.basedir != self.srcdir:
+#            cmdstr = 'diff '
+#            cmdstr += self.basedir + self.executable
+#            cmdstr += self.srcdir  + self.executable
+#            split_cmdstg = shlex.split(cmdstg)
+#            diffexec = sp.check_output(split_cmdstg)
+#            print(diffexec)
 
         return
 

@@ -12,6 +12,8 @@ from headerdata import MDHeaderData
 from writecolormap import WriteColorMap
 sys.path.insert(0,'../')
 from misclib import Chdir
+sys.path.insert(0,'../')
+from misclib import Chdir
 class VMDFields:
     
     """

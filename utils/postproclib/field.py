@@ -5,7 +5,7 @@ import scipy.ndimage
 class Field():
 
     """
-        Base class to be inherited by MDField, CFDField and CPLField.
+        Abstract base class to be inherited by MDField, CFDField and CPLField.
 
         Authors: David Trevelyan & Ed Smith 2014
 
@@ -114,6 +114,10 @@ class Field():
     def power_spectrum(self,startrec=0,endrec=None,preavgaxes=(),fftaxes=(),
                        postavgaxes=(), windowaxis=None, verify_Parseval=True,
                        savefile=None,**kwargs):
+
+        """
+            Calculates power spectrum
+        """
 
         class AxisManager():
 
@@ -282,7 +286,6 @@ class Field():
                 f.write(energy)
         
         return energy 
- 
 
     def write_dx_file(self,startrec,endrec,writedir=None,component=0,**kwargs):
 
