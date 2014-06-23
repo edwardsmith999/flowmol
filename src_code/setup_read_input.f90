@@ -614,7 +614,17 @@ subroutine setup_read_input
 		!If not switched on in input then VMD set to off
 		vmd_outflag = 0
 	endif
-
+    
+    call locate(1,'VMD_SKIP',.false.,found_in_input)
+    if (found_in_input) then
+        read(1,*) vmd_skip  
+        if (vmd_skip .lt. 1) then
+            call error_abort('VMD_SKIP cannot be less than 1')
+        end if
+    else
+        vmd_skip = 1
+    end if
+    
 	call locate(1,'SEPARATE_OUTFILES',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) separate_outfiles

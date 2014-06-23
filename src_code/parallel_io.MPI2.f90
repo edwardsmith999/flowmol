@@ -1562,6 +1562,10 @@ subroutine parallel_io_vmd
 		!-------------Write X coordinates--------------------
 		!Obtain location to write in file
 
+
+        !print*, Nvmd_intervals
+        !call error_abort()
+
 		!If intervals set to zero then full simulation recorded
 		if (Nvmd_intervals.eq.0) then
 			disp =((iter-initialstep+1)/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
@@ -1644,36 +1648,41 @@ subroutine parallel_io_vmd
 		call globalSum(Xbufglob,globalnp)  !Global summation to complete global buffer
 		call globalSum(Ybufglob,globalnp)
 		call globalSum(Zbufglob,globalnp)
-	
-		call MPI_FILE_OPEN(MD_COMM,trim(prefix_dir)//'results/vmd_temp.dcd', & 
-		                   MPI_MODE_RDWR + MPI_MODE_CREATE,       & 
-		                   MPI_INFO_NULL, fileid, ierr)
 
-		disp =((iter-initialstep+1)/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize   !Current iteration
+        if (irank .eq. iroot) then	
 
-		!Write X positions---------------------------------------------
-		call MPI_FILE_SET_VIEW(fileid,     disp, MPI_REAL, MPI_REAL,          &      !Find position
-		                       'native', MPI_INFO_NULL, ierr)
-		call MPI_FILE_WRITE_ALL(fileid,     Xbufglob,     globalnp, MPI_REAL, &      !Write buffer
-		                        MPI_STATUS_IGNORE, ierr)
+            call MPI_FILE_OPEN(MPI_COMM_SELF,trim(prefix_dir)//'results/vmd_temp.dcd', & 
+                               MPI_MODE_RDWR + MPI_MODE_CREATE,       & 
+                               MPI_INFO_NULL, fileid, ierr)
 
-		disp = disp + globalnp*datasize                                          !Update file disp
+            !disp =((iter-initialstep+1)/(tplot-1)) * nd * globalnp * datasize   !Current iteration
+			disp = vmd_count * nd * globalnp * datasize !& !Current iteration
 
-		!Write Y positions---------------------------------------------
-		call MPI_FILE_SET_VIEW(fileid,     disp, MPI_REAL, MPI_REAL,          &      !Find position
-		                       'native', MPI_INFO_NULL, ierr)
-		call MPI_FILE_WRITE_ALL(fileid,     Ybufglob,     globalnp, MPI_REAL, &      !Write buffer
-		                        MPI_STATUS_IGNORE, ierr)
+            !Write X positions---------------------------------------------
+            call MPI_FILE_SET_VIEW(fileid,     disp, MPI_REAL, MPI_REAL,          &      !Find position
+                                   'native', MPI_INFO_NULL, ierr)
+            call MPI_FILE_WRITE(fileid,     Xbufglob,     globalnp, MPI_REAL, &      !Write buffer
+                                    MPI_STATUS_IGNORE, ierr)
 
-		disp = disp + globalnp*datasize
+            disp = disp + globalnp*datasize                                          !Update file disp
 
-		!Write Z positions---------------------------------------------
-		call MPI_FILE_SET_VIEW(fileid,     disp, MPI_REAL, MPI_REAL,          &      !Find position
-		                       'native', MPI_INFO_NULL, ierr)
-		call MPI_FILE_WRITE_ALL(fileid,     Zbufglob,     globalnp, MPI_REAL, &      !Write buffer
-		                        MPI_STATUS_IGNORE, ierr)
-	
-		call MPI_FILE_CLOSE(fileid, ierr) 
+            !Write Y positions---------------------------------------------
+            call MPI_FILE_SET_VIEW(fileid,     disp, MPI_REAL, MPI_REAL,          &      !Find position
+                                   'native', MPI_INFO_NULL, ierr)
+            call MPI_FILE_WRITE(fileid,     Ybufglob,     globalnp, MPI_REAL, &      !Write buffer
+                                    MPI_STATUS_IGNORE, ierr)
+
+            disp = disp + globalnp*datasize
+
+            !Write Z positions---------------------------------------------
+            call MPI_FILE_SET_VIEW(fileid,     disp, MPI_REAL, MPI_REAL,          &      !Find position
+                                   'native', MPI_INFO_NULL, ierr)
+            call MPI_FILE_WRITE(fileid,     Zbufglob,     globalnp, MPI_REAL, &      !Write buffer
+                                    MPI_STATUS_IGNORE, ierr)
+        
+            call MPI_FILE_CLOSE(fileid, ierr) 
+
+        end if
 	
 	case default
 	end select
@@ -3026,12 +3035,18 @@ end subroutine energy_bin_io
 subroutine virial_stress_io
 	use module_parallel_io
 	implicit none
+
 	integer		:: m, length
 
 	!call globalAverage(Pxy, 9)
 
 	!Write virial pressure to file
-	m = (iter-initialstep+1)/(tplot*Nstress_ave)
+	m = real(iter-initialstep+1)/real(tplot*Nstress_ave)
+    if (m .le. 0) then
+        print*, 'WARNING: negative record number in virial_stress_io'
+        return
+    end if
+    
 	if (irank .eq. iroot) then
 		inquire(iolength=length) Pxy
 		open (unit=7, file=trim(prefix_dir)//'results/pvirial',form='unformatted',access='direct',recl=length)

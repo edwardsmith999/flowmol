@@ -335,6 +335,8 @@ subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 		tagdisttop	  = tethereddisttop
 	case(posts)
 
+        tagdisttop = tethereddisttop
+
 		postheight = 5.12d0
 		tagdistbottom = tethereddistbottom
 		ylocation = rg(2) + 0.5*globaldomain(2)

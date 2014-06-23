@@ -938,49 +938,50 @@ subroutine setup_initialise_polymer_brush
     solid_density = density
     call initialise_lattice_positions
     call initialise_info
-    call connect_all_possible_chains(maxchainID)
-    proc_chains(irank) = maxchainID
-
-
 
     ! Remove chains to get target grafting density (as close as possible) 
-    if (irank.eq.1) then
-        print('(a,f10.5)'), 'Target grafting density: ', grafting_density
-    end if
-    grafting_density_real = 1.d0 
-    nchainsremove = nint((grafting_density_real - grafting_density) &
-                          *real(proc_chains(irank)))
-    if (nchainsremove .gt. 0) then
-        call remove_chains_random(nchainsremove)
-        proc_chains(irank) = proc_chains(irank) - nchainsremove 
-    else if (nchainsremove .eq. 0) then
-        print*, "Don't need to remove any chains."
+    if (jblock .eq. 1) then
+        call connect_all_possible_chains(maxchainID)
+        proc_chains(irank) = maxchainID
+        if (irank.eq.1) then
+            print('(a,f10.5)'), 'Target grafting density: ', grafting_density
+        end if
+        grafting_density_real = 1.d0 
+        nchainsremove = nint((grafting_density_real - grafting_density) &
+                              *real(proc_chains(irank)))
+        if (nchainsremove .gt. 0) then
+            call remove_chains_random(nchainsremove)
+            proc_chains(irank) = proc_chains(irank) - nchainsremove 
+        else if (nchainsremove .eq. 0) then
+            print*, "Don't need to remove any chains on irank:", irank
+        else
+            print*, 'Grafting density before chain removal:', grafting_density_real 
+            print*, 'Target grafting density, nchains connectable: ', &
+                     grafting_density, proc_chains(irank) 
+            print*, 'The target grafting density is not obtainable by removing &
+                     existing chains.'
+            call error_abort('Aborting') 
+        end if
+        proc_units_xz = initialnunits(1)*initialnunits(3)/(npx*npz) 
+        grafting_density = real(proc_chains(irank))/real(proc_units_xz)
+        if (irank .eq. 1) then
+            print('(a,f10.5)'), 'Actual grafting density: ', grafting_density 
+        end if
+        ! Shift the y-positions of chain monomers so that they are all separated
+        ! by their equilibrium distance.
+        call contract_chains_to_equil_sep
     else
-        print*, 'Grafting density before chain removal:', grafting_density_real 
-        print*, 'Target grafting density, nchains connectable: ', &
-                 grafting_density, proc_chains(irank) 
-        print*, 'The target grafting density is not obtainable by removing &
-                 existing chains.'
-        call error_abort('Aborting') 
+        maxchainID = 0
+        proc_chains(irank) = 0
     end if
-    proc_units_xz = initialnunits(1)*initialnunits(3)/(npx*npz) 
-    grafting_density = real(proc_chains(irank))/real(proc_units_xz)
-    if (irank .eq. 1) then
-        print('(a,f10.5)'), 'Actual grafting density: ', grafting_density 
-    end if
-
-
-
-
-    ! Shift the y-positions of chain monomers so that they are all separated
-    ! by their equilibrium distance.
-    call contract_chains_to_equil_sep
 
     ! Remove solvent molecules so that target density is acquired, store 
     ! new number of particles
     density_ratio = liquid_density/solid_density
     nmolsremove = nint(real(np)*(1.d0 - density_ratio))
+    !print*, irank, 'before'
     call remove_solvent_mols(nmolsremove)
+    !print*, irank, 'after'
     proc_nps(irank) = np
 
     ! Relabel chainIDs globally
@@ -1373,6 +1374,7 @@ contains
 
         ! If first molecule is in fluid region, don't connect
         rn = r(:,molno)
+        call wall_textures(texture_type,globalise(rn),solid_bottom,solid_top)
         if (all(globalise(rn) .ge. solid_bottom-globaldomain/2.d0) .and. & 
             all(globalise(rn) .le. (globaldomain/2.d0)-solid_top)) then
             success = .false.
@@ -1390,6 +1392,7 @@ contains
             rnmmag = sqrt(dot_product(rnm,rnm))
 
             ! Check that the molecule isn't a cylinder one
+            call wall_textures(texture_type,globalise(rm),solid_bottom,solid_top)
             if (any(globalise(rm) .lt. solid_bottom-globaldomain/2.d0)) success = .false.! ; return
             if (any(globalise(rm) .gt. (globaldomain/2.d0)-solid_top)) success = .false.! ; return 
 
@@ -1413,15 +1416,25 @@ contains
    
         integer, intent(in) :: nremove
         
-        integer :: n, molno
+        integer :: n, molno, failcount
         double precision :: random
 
         n = 0
+        failcount = 0
         do 
+
+            if (failcount .gt. 100*np) then
+                print*, "Can't remove enough molecules from irank ", irank
+                call error_abort()
+            end if
+
+            failcount = failcount + 1
+            if (n .eq. nremove) exit
 
             call random_number(random)
             molno = ceiling(random*real(np))
 
+            call wall_textures(texture_type,globalise(r(:,molno)),solid_bottom,solid_top)
             if (any(globalise(r(:,molno)) .lt. solid_bottom-globaldomain/2.d0)) cycle
             if (any(globalise(r(:,molno)) .gt. (globaldomain/2.d0)-solid_top)) cycle
 
@@ -1433,10 +1446,10 @@ contains
                 monomer(molno)%glob_no = molno
                 tag(molno) = tag(np)
                 np = np - 1 
+                failcount = 0
             
             end if
 
-            if (n .eq. nremove) exit
         
         end do 
 
