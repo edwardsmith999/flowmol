@@ -2031,19 +2031,19 @@ end subroutine simulation_compute_kinetic_VA_cells
 ! Control Volume mass continuity
 !-----------------------------------------------------------------------------------
 
-subroutine mass_flux_averaging(ixyz)
+subroutine mass_flux_averaging(flag)
 	!use field_io, only : mass_flux_io
 	use module_record
 	use CV_objects, only : CVcheck_mass, CV_debug!,CV_sphere_mass
 	implicit none
 
-	integer			                :: ixyz
+	integer			                :: flag
     integer,dimension(3)            :: thermbinstop,thermbinsbot
     double precision,dimension(3)   :: mbinsize
 	integer, save	                :: sample_count
 
 	!Only average if mass averaging turned on
-	if (ixyz .eq. 0) return
+	if (flag .eq. 0) return
 
 	call cumulative_mass_flux
 	sample_count = sample_count + 1
@@ -2488,7 +2488,7 @@ end subroutine cumulative_momentum_flux
 
 end module cumulative_momentum_flux_mod
 
-subroutine momentum_flux_averaging(ixyz)
+subroutine momentum_flux_averaging(flag)
 	!use field_io, only :  momentum_flux_io,surface_stress_io, & 
 	!					  external_force_io,MOP_stress_io
 	use module_record
@@ -2496,21 +2496,22 @@ subroutine momentum_flux_averaging(ixyz)
 	use CV_objects, only : CV_debug, CVcheck_momentum!, CV_constraint!, CV_sphere_momentum
 	implicit none
 
-	integer				:: ixyz,icell,jcell,kcell,n
+	integer,intent(in)	:: flag
+	integer				::icell,jcell,kcell,n
     integer,dimension(3):: thermbinstop,thermbinsbot
 	double precision,dimension(3)	:: mbinsize
 	integer, save		:: sample_count
 
-	if (vflux_outflag .eq. 0) return
+	if (flag .eq. 0) return
 
 	call cumulative_momentum_flux(r,v,momentum_flux)
 	sample_count = sample_count + 1
 	if (sample_count .eq. Nvflux_ave) then
 
-		select case(vflux_outflag)
+		select case(flag)
 		case(1:3)
 			!MOP momentum flux and stresses
-			call MOP_stress_io(ixyz)
+			call MOP_stress_io(flag)
 			Pxy_plane = 0.d0
 		case(4)
 			!CV momentum flux and stress
@@ -2833,20 +2834,21 @@ end module cumulative_energy_flux_mod
 !===================================================================================
 ! Collect Energy Flux over a surface and write data after specified time period
 
-subroutine energy_flux_averaging(ixyz)
+subroutine energy_flux_averaging(flag)
 	!use field_io, only : energy_flux_io,surface_power_io,MOP_energy_io
 	use module_record
 	use CV_objects, only :  CVcheck_energy
 	use cumulative_energy_flux_mod, only : cumulative_energy_flux
 	implicit none
 
-	integer				:: ixyz
+	integer,intent(in)	:: flag
 	integer, save		:: sample_count
 
     integer,dimension(3):: thermbinstop,thermbinsbot
 	double precision,dimension(3)	:: ebinsize
 
-	if (eflux_outflag .eq. 0) return
+	if (flag .eq. 0) return
+
 	!Integration of surface power using trapizium rule, get current value and
     !add to segment to running total using previous value
 	call simulation_compute_power(2, nbins(1)+1, 2, nbins(2)+1, 2, nbins(3)+1)
@@ -2857,10 +2859,10 @@ subroutine energy_flux_averaging(ixyz)
 	sample_count = sample_count + 1
 	if (sample_count .eq. Neflux_ave) then
 
-		select case(ixyz)
+		select case(flag)
 		case(1:3)
 			!MOP energy flux and Power (stresses*velocity)
-			call MOP_energy_io(ixyz)
+			call MOP_energy_io(flag)
 			Pxy_plane = 0.d0
 		case(4)
 			!CV energy flux and Power (stresses*velocity)

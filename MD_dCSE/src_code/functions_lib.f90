@@ -2174,8 +2174,6 @@ function linearsurface_weight_Nmol(array,r_in,binsize,domain,shiftmean,meanvalue
 		bin(:) = ceiling((r_in_)/binsize(:))+1
 		rhat(:,n) = (r_in_(:)/binsize(:) - dble(bin(:)-2))
 
-		!print'(a,4i6,12f10.5)', 'WE', n, bin,rhat(:,n), r_in(:,n),surfaces(1,:)
-
 		if (any(rhat(:,n)-epsilon(rhat(:,n)) .gt. 1.d0) .or. & 
             any(rhat(:,n)+epsilon(rhat(:,n)) .lt. 0.d0)) then
 		    stop "Error in lagrange_poly_weight_Nmol --rhat must satisfy 0 < rhat < 1"
@@ -2205,12 +2203,8 @@ function linearsurface_weight_Nmol(array,r_in,binsize,domain,shiftmean,meanvalue
 						*((Na(2)-0.5d0)**2-0.25d0) &
 						*((Na(3)-0.5d0)**2-0.25d0)
 				sqr_term(bin(1),bin(2),bin(3)) = sqr_term(bin(1),bin(2),bin(3)) + fxfyfz
-				!print'(a,4i6,5f10.5)','para', n,bin, Na,fxfyfz,sqr_term(bin(1),bin(2),bin(3))
 			end select
 		endif
-       ! if (bin(1) .eq. 3 .and. bin(2) .eq. 3 .and. bin(3) .eq. 3) then
-        !    print'(4i6,12f10.5)', n, bin,rhat(:,n), weight(:,n),surfaces(1,:)
-        !endif
 
 	enddo
 
@@ -2223,17 +2217,12 @@ function linearsurface_weight_Nmol(array,r_in,binsize,domain,shiftmean,meanvalue
 			do n =1,size(r_in,2)
 				r_in_(:) = r_in(:,n)+0.5d0*domain(:)
 				bin(:) = ceiling((r_in_)/binsize(:))+1
-				!print'(a,4i4,9f8.3,i6)','linear', n,bin, rhat(:,n),weight(:,n),wsum_bin(bin(1),bin(2),bin(3),:),nperbin(bin(1),bin(2),bin(3))
 				weight(:,n) = weight(:,n) - (wsum_bin(bin(1),bin(2),bin(3),:)-meanvalue_(bin(1),bin(2),bin(3),:))/nperbin(bin(1),bin(2),bin(3))
 
 			enddo
 		case(2)
 			! Zero mean by adding a 2nd order term preserving the B.C. and adjusting the 
 			! parabolicness until the sum is correct
-			!w_2ndorder(:,:,:,1) = sqr_term(:,:,:)/(wsum_bin(:,:,:,1)/nperbin(:,:,:))
-			!w_2ndorder(:,:,:,2) = sqr_term(:,:,:)/(wsum_bin(:,:,:,2)/nperbin(:,:,:))
-			!w_2ndorder(:,:,:,3) = sqr_term(:,:,:)/(wsum_bin(:,:,:,3)/nperbin(:,:,:))
-			!print*, w_2ndorder(:,:,:,3),sqr_term(:,:,:),(wsum_bin(:,:,:,3)/nperbin(:,:,:))
 			do n =1,size(r_in,2)
 				r_in_(:) = r_in(:,n)+0.5d0*domain(:)
 				bin(:) = ceiling((r_in_)/binsize(:))+1
@@ -2242,7 +2231,6 @@ function linearsurface_weight_Nmol(array,r_in,binsize,domain,shiftmean,meanvalue
 						*((Na(2)-0.5d0)**2-0.25d0) &
 						*((Na(3)-0.5d0)**2-0.25d0)
 				weight(:,n) = weight(:,n) - fxfyfz * (wsum_bin(bin(1),bin(2),bin(3),:)-meanvalue_(bin(1),bin(2),bin(3),:))/sqr_term(bin(1),bin(2),bin(3))
-				!print'(a,4i4,7f8.3,3f18.12)','parabol', n,bin, rhat(:,n),fxfyfz,weight(:,n),wsum_bin(bin(1),bin(2),bin(3),:)/sqr_term(bin(1),bin(2),bin(3))
 			enddo
 
 		end select
@@ -2489,7 +2477,7 @@ end function lagrange_poly_weight_Nmol
 !        call lagrange_interp_nd_grid ( M, ind, a, b, nd, xd )
 !
 ! where M is the spatial dimension and ind is an array of size M with the required order of polynomial in each dimension
-! A and B of size M with the top and bottom spatial limits and  nd is the size of the interpolant grid 
+! A and B of size M with the top and bottom spatial limits and nd is the size of the interpolant grid 
 ! from lagrange_interp_nd_size
 !
 ! The interpolation function needs data at the data points. It is assumed that this will be supplied 
@@ -2509,7 +2497,7 @@ end function lagrange_poly_weight_Nmol
 !  Modified:
 !    8 May 2014
 !  Author:
-!    Edward Smith
+!    Edward Smith using functions by John Burkardt
 !  Parameters:
 !    Input, integer ( kind = 4 ) N_1D(M), the order of the 1D rule to be used
 !    in each dimension.
