@@ -21,8 +21,15 @@ class Channelflow_vField(ChannelflowField):
     labels = ['u','v','w']
 
     def read(self,startrec,endrec,**kwargs):
-        subdata = ChannelflowField.read(self,startrec,endrec)
-        v = subdata[:,:,:,:,0:3]
+        subdata = ChannelflowField.read(self,startrec,endrec,**kwargs)
+
+        def add_laminar(vin):
+            #ny = np.linspace(1,self.Raw.Ny,self.Raw.Ny)
+            #v_laminar = 2.0*ny/self.Raw.Ny-1.0
+            v_laminar = self.Raw.cosinegrid(a=-1.0, b=1.0, Npoints=self.Raw.nry)
+            return vin - v_laminar
+
+        v = np.apply_along_axis(add_laminar,1,subdata)
         return v 
 
 # ============================================================================
