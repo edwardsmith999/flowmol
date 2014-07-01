@@ -189,6 +189,20 @@ module librarymod
 
     private linearsurface_weight_Nmol, linearsurface_weight_1mol
 
+	interface lagrange_poly_weight
+		module procedure lagrange_poly_weight_Nmol, lagrange_poly_weight_1mol
+	end interface
+
+    private lagrange_poly_weight_Nmol, lagrange_poly_weight_1mol
+
+
+	interface surface_array_to_nodes
+		module procedure surface_array_to_nodes_incell, surface_array_to_nodes_multicell
+	end interface
+
+    private surface_array_to_nodes_incell, surface_array_to_nodes_multicell
+	
+
 	!Various Heavisides
 	interface heaviside
 		module procedure int_heaviside, int_array_heaviside, dp_heaviside, &
@@ -2048,6 +2062,33 @@ end function couette_analytical_stress_fn
 
 
 
+
+! shape function
+
+function Na(r,a)
+    implicit none
+
+	integer,intent(in)							:: a
+    double precision,dimension(3),intent(in)	:: r
+	
+	double precision							:: Na
+	double precision,dimension(3,8), & 
+		parameter	::  ra = (/ -1d0, -1.d0, -1.d0, & 
+								 1d0, -1.d0, -1.d0, & 
+								-1d0,  1.d0, -1.d0, & 
+								 1d0,  1.d0, -1.d0, & 
+								-1d0, -1.d0,  1.d0, & 
+								-1d0,  1.d0, -1.d0, & 
+								-1d0,  1.d0,  1.d0, & 
+								 1d0,  1.d0,  1.d0    /)
+
+	Na = 0.125d0 * (1.d0 + ra(1,a)*r(1)) & 
+				 * (1.d0 + ra(2,a)*r(2)) &
+				 * (1.d0 + ra(3,a)*r(3))
+
+end function Na
+
+
 ! Take surface forces on a cube's surfaces and return the 
 ! values at the node of intersection. 
 ! = = Surface data assumed to be stored as 
@@ -2062,7 +2103,7 @@ end function couette_analytical_stress_fn
 !		  i.e. node(:,1) for cell 2 is not equal to
 !			   node(:,2) for cell 1 
 
-function surface_array_to_nodes(surface) result(nodes)
+function surface_array_to_nodes_incell(surface) result(nodes)
     implicit none
 
     double precision,dimension(3,6),intent(in):: surface
@@ -2077,7 +2118,64 @@ function surface_array_to_nodes(surface) result(nodes)
 	nodes(:,7) = surface(:,2)+surface(:,3)+surface(:,4)
 	nodes(:,8) = surface(:,1)+surface(:,2)+surface(:,3)
 
-end function surface_array_to_nodes
+end function surface_array_to_nodes_incell
+
+
+! Take surface forces on a cube's surfaces and return the 
+! values at the node of intersection. 
+! = = Surface data assumed to be stored as 
+! 1 = top x;  2 = top y;  3 = top z
+! 4 = bottom x;  5 = bottom y;  6 = bottom z
+! = = Node data assumed to be stored as
+! 1 = [0,0,0]; 2=[1,0,0]; 3 =[0,1,0]; 4 =[1,1,0]
+! 5 = [0,0,1]; 6=[1,0,1]; 7 =[0,1,1]; 8 =[1,1,1]
+
+! Note -- this only takes the 3 components in the cell
+! 		  that the node is currently being considered for
+!		  i.e. node(:,1) for cell 2 is not equal to
+!			   node(:,2) for cell 1 
+
+
+function surface_array_to_nodes_multicell(surface) result(nodes)
+    implicit none
+
+    double precision,dimension(3,3,3,3,6),intent(in):: surface
+
+    integer :: i,j,k
+	double precision,dimension(3,8)			  :: nodes
+
+
+    !Each node is where 8 cubes join, each with three relevant faces. As
+    !each face must touch another, the total no. of unique faces is 12. This
+    !is expressed here as 3 on the central cube, 3 on it's diagonal and 2 on
+    !each cube attached by a surface to the central cube
+
+	nodes(:,1) = get_node(surface(1:2,1:2,1:2,:,:))
+	nodes(:,2) = get_node(surface(2:3,1:2,1:2,:,:))
+	nodes(:,3) = get_node(surface(1:2,2:3,1:2,:,:))
+	nodes(:,4) = get_node(surface(2:3,2:3,1:2,:,:))
+	nodes(:,5) = get_node(surface(1:2,1:2,2:3,:,:))
+	nodes(:,6) = get_node(surface(2:3,1:2,2:3,:,:))
+	nodes(:,7) = get_node(surface(1:2,2:3,2:3,:,:))
+	nodes(:,8) = get_node(surface(2:3,2:3,2:3,:,:))
+
+end function surface_array_to_nodes_multicell
+
+
+function get_node(surface) result(node)
+    implicit none
+
+    double precision,dimension(2,2,2,3,6),intent(in):: surface
+	double precision,dimension(3)			  :: node
+
+    double precision,parameter                :: divider = 1.d0
+	node(:) =(+surface(1,1,1,:,1)+surface(1,1,1,:,2)+surface(1,1,1,:,3) &
+			  +surface(2,2,2,:,4)+surface(2,2,2,:,5)+surface(2,2,2,:,6) &
+              +surface(1,2,2,:,5)+surface(1,2,2,:,6) &
+              +surface(2,2,1,:,4)+surface(2,2,1,:,5) & 
+              +surface(1,1,2,:,1)+surface(2,1,1,:,3) )/divider
+
+end function get_node
 
 !===================================================
 ! Functions to return a polynomial weighting function
@@ -2127,7 +2225,7 @@ function linearsurface_weight_Nmol(array,r_in,binsize,domain,shiftmean,meanvalue
     integer,dimension(:,:,:),allocatable :: nperbin
     double precision,dimension(:,:),allocatable	    :: weight
     double precision,dimension(:,:,:),allocatable 	:: sqr_term
-    double precision,dimension(:,:,:,:),allocatable :: wsum_bin, w_2ndorder,meanvalue_
+    double precision,dimension(:,:,:,:),allocatable :: wsum_bin, meanvalue_
 
 	integer							:: npoints,n
     integer,dimension(3)            :: bin, order_nd, nbins
@@ -2156,7 +2254,6 @@ function linearsurface_weight_Nmol(array,r_in,binsize,domain,shiftmean,meanvalue
 			allocate(wsum_bin(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
 			allocate(nperbin(nbins(1)+2,nbins(2)+2,nbins(3)+2))
 			allocate(sqr_term(nbins(1)+2,nbins(2)+2,nbins(3)+2))
-			allocate(w_2ndorder(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
 			sqr_term = 0.d0; wsum_bin = 0.d0; nperbin = 0
 		case default
 			stop "Error in linearsurface_weight_Nmol -- incorrect shiftmean value"
@@ -2217,7 +2314,8 @@ function linearsurface_weight_Nmol(array,r_in,binsize,domain,shiftmean,meanvalue
 			do n =1,size(r_in,2)
 				r_in_(:) = r_in(:,n)+0.5d0*domain(:)
 				bin(:) = ceiling((r_in_)/binsize(:))+1
-				weight(:,n) = weight(:,n) - (wsum_bin(bin(1),bin(2),bin(3),:)-meanvalue_(bin(1),bin(2),bin(3),:))/nperbin(bin(1),bin(2),bin(3))
+				weight(:,n) = weight(:,n) - (wsum_bin(bin(1),bin(2),bin(3),:) & 
+							-meanvalue_(bin(1),bin(2),bin(3),:))/nperbin(bin(1),bin(2),bin(3))
 
 			enddo
 		case(2)
@@ -2230,7 +2328,8 @@ function linearsurface_weight_Nmol(array,r_in,binsize,domain,shiftmean,meanvalue
 				fxfyfz = ((Na(1)-0.5d0)**2-0.25d0) &
 						*((Na(2)-0.5d0)**2-0.25d0) &
 						*((Na(3)-0.5d0)**2-0.25d0)
-				weight(:,n) = weight(:,n) - fxfyfz * (wsum_bin(bin(1),bin(2),bin(3),:)-meanvalue_(bin(1),bin(2),bin(3),:))/sqr_term(bin(1),bin(2),bin(3))
+				weight(:,n) = weight(:,n) - fxfyfz * (wsum_bin(bin(1),bin(2),bin(3),:) & 
+							-meanvalue_(bin(1),bin(2),bin(3),:))/sqr_term(bin(1),bin(2),bin(3))
 			enddo
 
 		end select
@@ -2335,30 +2434,67 @@ function get_weight_fn_vector(tBC,bBC,sBC,x_n) result(fx_n)
 
 end function get_weight_fn_vector
 
+
 ! Use lagrange interpolation between the nodes of the cube 
 
-function lagrange_poly_weight_Nmol(array, r_in, binsize, domain, & 
+!Wrapper for single molecule
+function lagrange_poly_weight_1mol(array, r_in, binsize, domain, & 
 								   order, shiftmean, meanvalue) result(weight)
+
+    double precision,dimension(3),intent(in)	:: domain,binsize
+    double precision,dimension(:),intent(in)	:: r_in
+    double precision,dimension(:,:,:,:,:),allocatable,intent(in)    :: array
+	integer,intent(in),optional	:: shiftmean, order
+	double precision,dimension(:,:,:,:),allocatable,intent(in),optional	:: meanvalue
+
+	integer								:: order_
+    double precision,dimension(3,1)	    :: buf
+    double precision,dimension(:,:),allocatable	    :: weight
+    
+    buf(:,1) =  r_in(:)
+	if (.not. present(order)) then
+		order_ = 2	!Default linear (minimum order)
+	endif
+	if (present(shiftmean)) then
+		if (.not. present(meanvalue)) then
+			weight = lagrange_poly_weight_Nmol(array,buf,binsize,domain,order=order_,shiftmean=shiftmean)
+			!stop "Error in lagrange_poly_weight_Nmol -- shiftmean requested and meanvalue not specified"
+		else
+			weight = lagrange_poly_weight_Nmol(array,buf,binsize,domain, & 
+											   order=order_,shiftmean=shiftmean, & 
+											   meanvalue=meanvalue)
+		endif
+	else
+		weight = lagrange_poly_weight_Nmol(array,buf,binsize,domain,order=order_)
+	endif
+
+
+end function lagrange_poly_weight_1mol
+
+
+function lagrange_poly_weight_Nmol(array, r_in, binsize, domain, & 
+								   order, node_averages, shiftmean, meanvalue) result(weight)
     implicit none
 
     double precision,dimension(3),intent(in)	:: domain,binsize
     double precision,dimension(:,:),intent(in)	:: r_in
     double precision,dimension(:,:,:,:,:),allocatable,intent(in)    :: array
-	integer,intent(in),optional	:: shiftmean, order
+	integer,intent(in),optional	:: shiftmean, order, node_averages
 	double precision,dimension(:,:,:,:),allocatable,intent(in),optional	:: meanvalue
 
-	integer							:: npoints,n
+	integer							:: npoints,n, node_ave
     integer,dimension(3)            :: bin, order_nd, nbins
     double precision				:: fxfyfz
     double precision,dimension(3)   :: r_in_, Na, lowerlim,upperlim
     double precision,dimension(:,:),allocatable :: grid, rhat
     double precision,dimension(3,6)	:: surfaces
     double precision,dimension(3,8)	:: nodes,test
+    double precision,dimension(3,27):: nodes_order3
 
     integer,dimension(:,:,:),allocatable :: nperbin
     double precision,dimension(:,:),allocatable	    :: weight
     double precision,dimension(:,:,:),allocatable 	:: sqr_term
-    double precision,dimension(:,:,:,:),allocatable :: wsum_bin, w_2ndorder,meanvalue_
+    double precision,dimension(:,:,:,:),allocatable :: wsum_bin,meanvalue_
 
 	!Setup polynomial and other functions
 	allocate(  rhat(size(r_in,1),size(r_in,2)))
@@ -2366,6 +2502,18 @@ function lagrange_poly_weight_Nmol(array, r_in, binsize, domain, &
 	order_nd(:) = order	!Assumed same order in all dimensions
 	lowerlim(:) = (/ -1.d0,-1.d0,-1.d0 /)
 	upperlim(:) = (/  1.d0, 1.d0, 1.d0 /)
+
+    !Number of surrounding cells to average for node
+    ! 0 -- in cell nodes only (nodes not not equal between adjacent cells)
+    ! 1 -- surrounding cells (nodes equal between cells but surfaces may not be)
+    if (.not. present(node_averages)) then
+        node_ave = 1
+    else
+        node_ave = node_averages
+        if (node_ave .gt. 1) then
+            stop "Error in lagrange_poly_weight -- node_averages should be zero or one"
+        endif
+    endif
 
 	nbins = nint(domain/binsize)
 	if (present(shiftmean)) then
@@ -2377,19 +2525,20 @@ function lagrange_poly_weight_Nmol(array, r_in, binsize, domain, &
 		endif
 		select case(shiftmean)
 		case(0)
+			allocate(wsum_bin(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)) !TEMP FOR DEBUG
 			!Do nothing, shiftmean not requested
 		case(1)
 			allocate(wsum_bin(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
 			allocate(nperbin(nbins(1)+2,nbins(2)+2,nbins(3)+2))
 			wsum_bin = 0.d0; nperbin = 0
 		case(2)
+            if (node_ave .eq. 1) stop "Error in lagrange_poly_weight -- node_average should be 0 (in cell, i.e. Finite Volume) with polynomial shiftmean"
 			allocate(wsum_bin(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
 			allocate(nperbin(nbins(1)+2,nbins(2)+2,nbins(3)+2))
 			allocate(sqr_term(nbins(1)+2,nbins(2)+2,nbins(3)+2))
-			allocate(w_2ndorder(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
 			sqr_term = 0.d0; wsum_bin = 0.d0; nperbin = 0
 		case default
-			stop "Error in linearsurface_weight_Nmol -- incorrect shiftmean value"
+			stop "Error in linearsurface_weight -- incorrect shiftmean value"
 		end select
 	endif
 
@@ -2401,17 +2550,33 @@ function lagrange_poly_weight_Nmol(array, r_in, binsize, domain, &
 		rhat(:,n) = 2.d0*(r_in_(:)/binsize(:) - dble(bin(:)-2))-1.d0
 
 		!Setup polynomial
-		nodes(:,:) = surface_array_to_nodes(array(bin(1),bin(2),bin(3),:,:))
-		!print'(a,18f8.3)', 'surface', array(bin(1),bin(2),bin(3),:,:)
-		!print'(a,8f10.5)', 'nodes   array', nodes(1,:)
-		call lagrange_interp_nd_size ( 3, order_nd, npoints )
-		call lagrange_interp_nd_value( 3, order_nd, lowerlim, upperlim, npoints, nodes(1,:), 1, rhat(:,n), weight(1,n))
-		call lagrange_interp_nd_value( 3, order_nd, lowerlim, upperlim, npoints, nodes(2,:), 1, rhat(:,n), weight(2,n))
-		call lagrange_interp_nd_value( 3, order_nd, lowerlim, upperlim, npoints, nodes(3,:), 1, rhat(:,n), weight(3,n))
+        if (order .eq. 0) then
+            stop "Error in linearsurface_weight -- order must be greater than zero"
+        elseif (order .eq. 1) then
+            weight = 1.d0
+            !stop "Error in lagrange_poly_weight -- First order weighting is a constant "
+        elseif (order .eq. 2) then
+            if (node_ave .eq. 0) then
+                !I think a factor of 2 is needed here as each surface only counted once
+           		nodes(:,:) = 2.d0*surface_array_to_nodes(array(bin(1),bin(2),bin(3),:,:))
+            elseif (node_ave .eq. 1) then
+                !I think a factor of 2 is needed here as each surface only counted once
+           		nodes(:,:) = 2.d0*surface_array_to_nodes(array(bin(1)-node_ave:bin(1)+node_ave, & 
+	            										       bin(2)-node_ave:bin(2)+node_ave, & 
+	            										       bin(3)-node_ave:bin(3)+node_ave,:,:))
+            endif
+		    call lagrange_interp_nd_size ( 3, order_nd, npoints )
+		    call lagrange_interp_nd_value( 3, order_nd, lowerlim, upperlim, npoints, nodes(1,:), 1, rhat(:,n), weight(1,n))
+		    call lagrange_interp_nd_value( 3, order_nd, lowerlim, upperlim, npoints, nodes(2,:), 1, rhat(:,n), weight(2,n))
+		    call lagrange_interp_nd_value( 3, order_nd, lowerlim, upperlim, npoints, nodes(3,:), 1, rhat(:,n), weight(3,n))
+        elseif (order .ge. 3) then
+            stop "Error in lagrange_poly_weight -- Higher orders than 2 are not currently possible"
+        endif
 
 		if (present(shiftmean)) then
 			select case(shiftmean)
 			case(0)
+				wsum_bin(bin(1),bin(2),bin(3),:) = wsum_bin(bin(1),bin(2),bin(3),:) + weight(:,n) !TEMP FOR DEBUG
 				!Do nothing, shiftmean not requested
 			case(1)
 				!Get sum of weightings to subtract so mean is zero by adjusting constant value
@@ -2422,16 +2587,14 @@ function lagrange_poly_weight_Nmol(array, r_in, binsize, domain, &
 				! 3D parabolicness until the sum is correct
 				wsum_bin(bin(1),bin(2),bin(3),:) = wsum_bin(bin(1),bin(2),bin(3),:) + weight(:,n)
 				nperbin(bin(1),bin(2),bin(3)) 	 = nperbin(bin(1),bin(2),bin(3)) + 1
+        		Na(:) = (r_in_(:)/binsize(:) - dble(bin(:)-2))
 				fxfyfz = ((Na(1)-0.5d0)**2-0.25d0) &
 						*((Na(2)-0.5d0)**2-0.25d0) &
 						*((Na(3)-0.5d0)**2-0.25d0)
 				sqr_term(bin(1),bin(2),bin(3)) = sqr_term(bin(1),bin(2),bin(3)) + fxfyfz
 			end select
 		endif
-!		call lagrange_interp(order_nd(:), lowerlim(:), upperlim(:), nodes(1,:), rhat(:,n), weight(1,n))
-!		call lagrange_interp(order_nd(:), lowerlim(:), upperlim(:), nodes(2,:), rhat(:,n), weight(2,n))
-!		call lagrange_interp(order_nd(:), lowerlim(:), upperlim(:), nodes(3,:), rhat(:,n), weight(3,n))
-		!print'(3i6,12f10.5,2l)', bin, dble(bin(:)-2)*(binsize(:))-0.5d0*domain(:), r_in_, rhat, weight(3,n),any(rhat-epsilon(rhat) .ge. 1.d0),any(rhat+epsilon(rhat) .le. 0.d0)
+
 
 		if (any(rhat(:,n)-epsilon(rhat(:,n)) .ge. 1.d0) .or. any(rhat(:,n)+epsilon(rhat(:,n)) .le. -1.d0)) then
 		    stop "Error in lagrange_poly_weight_Nmol as -1 < rhat < 1 is not true"
@@ -2442,32 +2605,46 @@ function lagrange_poly_weight_Nmol(array, r_in, binsize, domain, &
 		select case(shiftmean)
 		case(0)
 			!Do nothing, shiftmean not requested
+            print'(a,6f18.4)', 'Error in integral cell 3,3,3  ',&
+                                 wsum_bin(3,3,3,1), meanvalue_(3,3,3,1), & 
+                                 wsum_bin(3,3,3,2), meanvalue_(3,3,3,2), & 
+                                 wsum_bin(3,3,3,3), meanvalue_(3,3,3,3) !TEMP FOR DEBUG
 		case(1)
 			!Zero mean by adjusting constant value
 			do n =1,size(r_in,2)
 				r_in_(:) = r_in(:,n)+0.5d0*domain(:)
 				bin(:) = ceiling((r_in_)/binsize(:))+1
-				weight(:,n) = weight(:,n) - (wsum_bin(bin(1),bin(2),bin(3),:)-meanvalue_(bin(1),bin(2),bin(3),:))/nperbin(bin(1),bin(2),bin(3))
+				weight(:,n) = weight(:,n) - (wsum_bin(bin(1),bin(2),bin(3),:) & 
+							 -meanvalue_(bin(1),bin(2),bin(3),:))/nperbin(bin(1),bin(2),bin(3))
 
 			enddo
+            print'(a,6f18.4)', 'Error in integral cell 3,3,3  ',&
+                                 wsum_bin(3,3,3,1), meanvalue_(3,3,3,1), & 
+                                 wsum_bin(3,3,3,2), meanvalue_(3,3,3,2), & 
+                                 wsum_bin(3,3,3,3), meanvalue_(3,3,3,3)
 		case(2)
 			! Zero mean by adding a 2nd order term preserving the B.C. and adjusting the 
 			! parabolicness until the sum is correct
 			do n =1,size(r_in,2)
 				r_in_(:) = r_in(:,n)+0.5d0*domain(:)
 				bin(:) = ceiling((r_in_)/binsize(:))+1
-				Na(:) = rhat(:,n)
+				Na(:) = (r_in_(:)/binsize(:) - dble(bin(:)-2))
 				fxfyfz = ((Na(1)-0.5d0)**2-0.25d0) &
 						*((Na(2)-0.5d0)**2-0.25d0) &
 						*((Na(3)-0.5d0)**2-0.25d0)
-				weight(:,n) = weight(:,n) - fxfyfz * (wsum_bin(bin(1),bin(2),bin(3),:)-meanvalue_(bin(1),bin(2),bin(3),:))/sqr_term(bin(1),bin(2),bin(3))
+				weight(:,n) = weight(:,n) - fxfyfz * (wsum_bin(bin(1),bin(2),bin(3),:) & 
+							-meanvalue_(bin(1),bin(2),bin(3),:))/sqr_term(bin(1),bin(2),bin(3))
 			enddo
+            print'(a,6f18.4)', 'Error in integral cell 3,3,3  ', & 
+                                wsum_bin(3,3,3,1), meanvalue_(3,3,3,1), & 
+                                wsum_bin(3,3,3,2), meanvalue_(3,3,3,2), & 
+                                wsum_bin(3,3,3,3), meanvalue_(3,3,3,3)
 
 		end select
+
 	endif
 
 end function lagrange_poly_weight_Nmol
-
 
 !!===================================================
 !! Function to return a polynomial weighting function

@@ -171,7 +171,7 @@ subroutine simulation_apply_boundary_force(flags,dists)
 	integer,          dimension(6), intent(in) :: flags
 	real(kind(0.d0)), dimension(6), intent(in) :: dists 
 
-	integer :: n,ixyz,flag,block(3),npxyz(3)
+	integer :: n,ixyz,flag,block(3),nPxy(3)
 	real(kind(0.d0)) :: xyz,thresh,hdom
 	real(kind(0.d0)), dimension(3) :: tops,bottoms
 
@@ -184,13 +184,13 @@ subroutine simulation_apply_boundary_force(flags,dists)
 				dists(5) - domain(3)/2.d0  /)
 
 	block  = (/iblock,jblock,kblock/)
-	npxyz  = (/npx,npy,npz/)
+	nPxy  = (/npx,npy,npz/)
 
 	do n = 1, np
 	do ixyz = 1, 3
 			
 		if ( r(ixyz,n)   .gt. tops(ixyz)  .and. &
-		     block(ixyz) .eq. npxyz(ixyz)       ) then
+		     block(ixyz) .eq. nPxy(ixyz)       ) then
 			
 			xyz    = r(ixyz,n)
 			thresh = tops(ixyz)
@@ -843,7 +843,9 @@ end subroutine simulation_apply_constant_force
 
 module apply_CV_force_mod
 	use calculated_properties_MD, only : nbins
-	use computational_constants_MD, only: domain,CVforce_starttime
+	use computational_constants_MD, only: domain, & 
+                                          CVforce_starttime, &
+                                          CVforce_flag
 	use physical_constants_MD, only: np
 	implicit none
 
@@ -867,20 +869,17 @@ subroutine flux2force(flux,bl,force)
 		allocatable,dimension(:,:,:,:) 	 :: force
 
 	!Total CFD flux
-	!print*, 'flux2force', bl, shape(flux), shape(force), & 
-	!		shape(flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,1)), shape(force(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:))
-	force(:,:,:,:) =  ( flux(:,:,:,:,1)-flux(:,:,:,:,4)) &
-					 +( flux(:,:,:,:,2)-flux(:,:,:,:,5)) &
-					 +( flux(:,:,:,:,3)-flux(:,:,:,:,6))
+!	force(:,:,:,:) =  ( flux(:,:,:,:,1)-flux(:,:,:,:,4)) &
+!					 +( flux(:,:,:,:,2)-flux(:,:,:,:,5)) &
+!					 +( flux(:,:,:,:,3)-flux(:,:,:,:,6))
 		 
-
-!	force(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:) & 
-!		  =  ( flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,1)  & 
-!			  -flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,4)) &
-!		    +( flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,2)  & 
-!			  -flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,5)) &
-!		    +( flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,3)  & 
-!			  -flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,5))
+	force(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:) & 
+		  =  ( flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,1)  & 
+			  -flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,4)) &
+		    +( flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,2)  & 
+			  -flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,5)) &
+		    +( flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,3)  & 
+			  -flux(bl(1):bl(2),bl(3):bl(4),bl(5):bl(6),:,6))
 
 end subroutine
 
@@ -893,8 +892,20 @@ subroutine get_MD_stresses(MD_stress)
 	real(kind(0.d0)),intent(inout), & 
 		allocatable,dimension(:,:,:,:,:) 	:: MD_stress
 
-	MD_stress = 0.25d0 * CV_constraint%Pxy
-	CV_constraint%Pxy = 0.d0
+    integer :: ibin,jbin,kbin,ixyz
+
+!    do ibin = 2,nbins(1)+1
+!    do jbin = 2,nbins(2)+1
+!    do kbin = 2,nbins(3)+1
+!        do ixyz = 1,3
+!            print'(4i4,6f17.5)', ibin, jbin, jbin, ixyz, CV_constraint%Pxy(ibin,jbin,kbin,ixyz,:)
+!        enddo
+!    enddo
+!    enddo
+!    enddo
+
+	MD_stress(:,:,:,:,:) = 0.25d0 * CV_constraint%Pxy(:,:,:,:,:)
+    CV_constraint%Pxy = 0.d0
 
 end subroutine get_MD_stresses
 
@@ -936,7 +947,7 @@ subroutine get_MD_fluxes(MD_flux, r_in, v_in)
 
 	! Exchange all halo values for CV values ready to apply forces
 	call CV_constraint%swap_halos(nbinso)
-	MD_flux = CV_constraint%flux/delta_t
+	MD_flux(:,:,:,:,:) = CV_constraint%flux(:,:,:,:,:)/delta_t
 
 end subroutine get_MD_fluxes
 
@@ -967,17 +978,48 @@ end subroutine get_boxnp
 
 subroutine get_CFD_velocity(binlimits, & 
 							u_CFD)
-	!use , only : nbins
+    use computational_constants_MD, only : iter, delta_t
+    use physical_constants_MD, only : pi
+    use messenger, only : localise_bin
 	implicit none
 
 	integer,dimension(6),intent(in)		:: binlimits(6)
 	real(kind(0.d0)),intent(out), & 
 		allocatable,dimension(:,:,:,:) 	:: u_CFD
 
+	integer,dimension(6)				 	:: lbl
+	real(kind(0.d0))             			:: sin_mag, sin_period
+
 	allocate(u_CFD(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); u_CFD=0.d0
 
-	!This should be replaced by coupler call
-	u_CFD = u_CFD
+    lbl(1:5:2) = max(localise_bin((/binlimits(1), & 
+									binlimits(3), & 
+									binlimits(5)/)),(/2,2,2 /))
+    lbl(2:6:2) = min(localise_bin((/binlimits(2), & 
+									binlimits(4), & 
+									binlimits(6)/)),nbins(:)+1)
+
+#if USE_COUPLER
+	! v v v v v   This should be replaced by coupler call   v v v v v 
+    !call socket_get_velocity(u_CFD)
+	! ^ ^ ^ ^ ^   This should be replaced by coupler call   ^ ^ ^ ^ ^
+#else
+    select case (CVforce_flag)
+    case(0)
+        !Do nothing, zero CFD velocity
+    case(1)
+        ! - - - - -  Sinusoid of velocity corresponding to CFD stresses - - - - - - - - - 
+        !The correction parameter is obtained from curve fitting based on the 
+        !resulting sinusoid after application of the surface flux based force. I have
+        !no idea why there is a difference of 1.07205...
+        sin_mag = 0.1d0;  sin_period = 100.d0
+        u_CFD(lbl(1):lbl(2),lbl(3):lbl(4),lbl(5):lbl(6),1) = & 
+                    1.07205d0*sin_mag*(sin_period/(2.d0*pi)) & 
+                    *sin(2.d0*pi*((iter-CVforce_starttime-0.5)/sin_period))
+    case(2)
+        
+    end select
+#endif
 
 end subroutine get_CFD_velocity
 
@@ -985,6 +1027,8 @@ subroutine get_CFD_stresses_fluxes(binlimits, &
 								   CFD_stress, & 
 								   CFD_flux)
     use messenger, only : localise_bin
+    use computational_constants_MD, only : irank, iter
+    use physical_constants_MD, only : pi
 	implicit none
 
 	integer,dimension(6),intent(in)			:: binlimits(6)
@@ -993,57 +1037,130 @@ subroutine get_CFD_stresses_fluxes(binlimits, &
 
 
 	logical 								:: timeevolve = .false.
-	integer									:: appliedbins, taumin,taumax,jb
-	integer,dimension(6)				 	:: localbinlimits
+	integer									:: appliedbins, taumin,taumax,ib,jb,kb
+	integer,dimension(6)				 	:: lbl
+	real(kind(0.d0))             			:: sin_mag, sin_period
 	real(kind(0.d0)), & 
 		allocatable,dimension(:) 			:: tautemp
 
 	allocate(CFD_stress(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6)); CFD_stress=0.d0
 	allocate(  CFD_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6)); CFD_flux=0.d0
 
+    lbl(1:5:2) = max(localise_bin((/binlimits(1), & 
+									binlimits(3), & 
+									binlimits(5)/)),(/2,2,2 /))
+    lbl(2:6:2) = min(localise_bin((/binlimits(2), & 
+									binlimits(4), & 
+									binlimits(6)/)),nbins(:)+1)
+
+#if USE_COUPLER
 	! v v v v v   This should be replaced by coupler call   v v v v v 
-!    localbinlimits(1:5:2) = max(localise_bin((/binlimits(1), & 
-!											   binlimits(3), & 
-!											   binlimits(5)/)),(/2,2,2 /))
-!    localbinlimits(2:6:2) = min(localise_bin((/binlimits(2), & 
-!											   binlimits(4), & 
-!											   binlimits(6)/)),nbins(:)+1)
-
-!	taumin = 2.d0 * (binlimits(3)-1) - 1
-!	taumax = 2.d0 * (binlimits(4)  ) - 1
-!	appliedbins = taumax-taumin+1
-!	allocate(tautemp(appliedbins))	!Double resolution for surfaces
-
-!	! Couette Analytical solution
-!	if (timeevolve) then
-!		!Time evolving solution
-!		!tautemp = couette_analytical_stress_fn((iter-CVforce_starttime)*delta_t,Re,1.d0,H,appliedbins,2)
-!	else
-!		! Steady state solution
-!		tautemp = 2.d0/domain(2)
-!	endif
-
-!	!Copy tau to CFD surfaces
-!	CFD_flux = 0.d0
-!	CFD_stress  = 0.d0
-!	do jb = binlimits(3),binlimits(4)
-!		!CFD_stress(:,jb,:,1,2) = tautemp(2.d0*(jb-1)-1)	!Top
-!		!CFD_stress(:,jb,:,1,5) = tautemp(2.d0*(jb  )-1)	!Bottom
-!	    if (mod(jb,2) .eq. 0) then
-!			CFD_stress(:,jb,:,1,2) =  tautemp(2.d0*(jb-1)-1)	!Top
-!			CFD_stress(:,jb,:,1,5) =  0.d0						!Bottom
-!		else
-!			CFD_stress(:,jb,:,1,2) =  0.d0						!Top
-!			CFD_stress(:,jb,:,1,5) =  tautemp(2.d0*(jb  )-1)	!Bottom
-!		endif
-!		!print*, jb, tautemp(2.d0*(jb-1)-1), CFD_stress(3,jb,3,1,2)
-!	enddo
-
+    !call socket_get_fluxes_and_stresses(CFD_stress,CFD_flux)
 	! ^ ^ ^ ^ ^   This should be replaced by coupler call   ^ ^ ^ ^ ^
+#else
+    select case (CVforce_flag)
+    case(0)
+        !Do nothing, zero CFD constraint
+    case(1)
+        !Sinusoidally fluctuating stress
+        CFD_stress(lbl(1):lbl(2),lbl(3):lbl(4),lbl(5):lbl(6),:,:) = 0.d0
+        !Sin function shifted by pi/2 so velocity which is given
+        !by the integral (cos) alternates around zero
+        sin_mag = 0.1d0;  sin_period = 100.d0
+        CFD_stress(lbl(1):lbl(2), & 
+                   lbl(3):lbl(4), & 
+                   lbl(5):lbl(6),1,2) =  0.5d0*sin_mag * cos(2.d0*pi*((iter-CVforce_starttime)/sin_period))
+        CFD_stress(lbl(1):lbl(2), & 
+                   lbl(3):lbl(4), & 
+                   lbl(5):lbl(6),1,5) = -0.5d0*sin_mag * cos(2.d0*pi*((iter-CVforce_starttime)/sin_period))
+
+    case(2)
+
+        !SINGLE CELL VORTEX
+	    !Top
+        CFD_stress(3,3,3,:,1) = (/  0.d0,  1.d0,  0.d0 /)
+        CFD_stress(3,3,3,:,2) = (/ -1.d0,  0.d0,  0.d0 /)
+        CFD_stress(3,3,3,:,3) = (/  0.d0,  0.d0,  0.d0 /)
+    	!Bottom
+        CFD_stress(3,3,3,:,4) = (/  0.d0,  1.d0,  0.d0 /)
+        CFD_stress(3,3,3,:,5) = (/ -1.d0,  0.d0,  0.d0 /)
+        CFD_stress(3,3,3,:,6) = (/  0.d0,  0.d0,  0.d0 /)
+        !Adjacent surfaces
+        CFD_stress(2,3,3,:,1) = -CFD_stress(3,3,3,:,4)
+        CFD_stress(4,3,3,:,4) = -CFD_stress(3,3,3,:,1)
+        CFD_stress(3,2,3,:,2) = -CFD_stress(3,3,3,:,5)
+        CFD_stress(3,4,3,:,5) = -CFD_stress(3,3,3,:,2)
+        CFD_stress(3,3,2,:,3) = -CFD_stress(3,3,3,:,6)
+        CFD_stress(3,3,4,:,6) = -CFD_stress(3,3,3,:,3)
+
+    case(3)
+
+        !CELL VORTEX AND STRETCHED ELONGATION in all z
+        do kb = 2,nbins(3)+1
+	        !Top
+            CFD_stress(3,3,kb,:,1) = (/  0.d0, -1.d0,  0.d0 /)
+            CFD_stress(3,3,kb,:,2) = (/ -1.d0,  0.d0,  0.d0 /)
+            CFD_stress(3,3,kb,:,3) = (/  0.d0,  0.d0,  0.d0 /)
+	        !Bottom
+            CFD_stress(3,3,kb,:,4) = (/  0.d0, -1.d0,  0.d0 /)
+            CFD_stress(3,3,kb,:,5) = (/ -1.0d0, 0.d0,  0.d0 /)
+            CFD_stress(3,3,kb,:,6) = (/  0.d0,  0.d0,  0.d0 /)
+
+	        !Top
+            CFD_stress(4,3,kb,:,1) = (/  0.d0,  1.0d0, 0.d0 /)
+            CFD_stress(4,3,kb,:,2) = (/ -1.d0,  0.d0,  0.d0 /)
+            CFD_stress(4,3,kb,:,3) = (/  0.d0,  0.d0,  0.d0 /)
+	        !Bottom
+            CFD_stress(4,3,kb,:,4) = (/  0.d0,  1.0d0, 0.d0 /)
+            CFD_stress(4,3,kb,:,5) = (/ -1.0d0, 0.d0,  0.d0 /)
+            CFD_stress(4,3,kb,:,6) = (/  0.d0,  0.d0,  0.d0 /)
+
+            CFD_stress(3,3,kb-1,:,3) = -CFD_stress(3,3,kb,:,6)
+            CFD_stress(3,3,kb+1,:,6) = -CFD_stress(3,3,kb,:,3)
+
+            CFD_stress(4,3,kb-1,:,3) = -CFD_stress(4,3,kb,:,6)
+            CFD_stress(4,3,kb+1,:,6) = -CFD_stress(4,3,kb,:,3)
+        enddo
+    
+    case(4)
+        taumin = 2.d0 * (binlimits(3)-1) - 1
+	    taumax = 2.d0 * (binlimits(4)  ) - 1
+	    appliedbins = taumax-taumin+1
+	    allocate(tautemp(appliedbins))	!Double resolution for surfaces
+
+	    ! Couette Analytical solution
+	    if (timeevolve) then
+		    !Time evolving solution
+		    !tautemp = couette_analytical_stress_fn((iter-CVforce_starttime)*delta_t,Re,1.d0,H,appliedbins,2)
+	    else
+		    ! Steady state solution
+		    tautemp = 2.d0/domain(2)
+	    endif
+
+	    !Copy tau to CFD surfaces
+	    CFD_flux = 0.d0
+	    CFD_stress  = 0.d0
+	    do jb = binlimits(3),binlimits(4)
+		    CFD_stress(:,jb,:,1,2) = tautemp(2.d0*(jb-1)-1)	!Top
+		    CFD_stress(:,jb,:,1,5) = tautemp(2.d0*(jb  )-1)	!Bottom
+!	        if (mod(jb,2) .eq. 0) then
+!			    CFD_stress(:,jb,:,1,2) =  tautemp(2.d0*(jb-1)-1)	!Top
+!			    CFD_stress(:,jb,:,1,5) =  0.d0						!Bottom
+!		    else
+!			    CFD_stress(:,jb,:,1,2) =  0.d0						!Top
+!			    CFD_stress(:,jb,:,1,5) =  tautemp(2.d0*(jb  )-1)	!Bottom
+!		    endif
+		    print*, jb, tautemp(2.d0*(jb-1)-1), CFD_stress(3,jb,3,1,2)
+	    enddo
+
+    case default
+        stop "Error in get_CFD_stresses_fluxes -- CVforce_flag is unknown case"
+    end select
 
 	CFD_stress = CFD_stress*volume
 	CFD_flux   = CFD_flux*volume
 
+#endif
 
 end subroutine get_CFD_stresses_fluxes
 
@@ -1063,6 +1180,7 @@ subroutine get_MD_stresses_fluxes(binlimits, &
 	allocate( MD_stress(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6)); MD_stress=0.d0
 	allocate(   MD_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6)); MD_flux=0.d0
 
+    !Call get fluxes first which exchanges halos
 	call get_MD_fluxes(MD_flux)
 	call get_MD_stresses(MD_stress)
 
@@ -1139,42 +1257,56 @@ subroutine get_Fstresses_mol(CFD_stress,   &
 							 binlimits,    & 
 							 Fstresses_mol)
 	use arrays_MD, only: r
-	use librarymod, only : linearsurface_weight
+	use librarymod, only : linearsurface_weight, lagrange_poly_weight
 	use computational_constants_MD, only : iter
+    use calculated_properties_MD, only : nbins
 	implicit none
 
 	integer,intent(in)             		 :: binlimits(6), flag
 	integer,intent(in), & 
-		allocatable,dimension(:,:,:)	:: boxnp
+		allocatable,dimension(:,:,:)	 :: boxnp
 	real(kind(0.d0)),intent(in), & 
 		allocatable,dimension(:,:,:,:,:) :: CFD_stress,MD_stress
 	real(kind(0.d0)),intent(out), & 
 		allocatable,dimension(:,:)   	 :: Fstresses_mol
 
-	integer								 :: n, bin(3), ixyz, s
+	integer								 :: n, bin(3), ixyz, s, ibin,jbin,kbin
 	real(kind(0.d0)),allocatable,& 
 		dimension(:,:,:,:,:) 			 :: Pxy
 	real(kind(0.d0)), & 
 		allocatable,dimension(:,:,:,:)   :: Fstresses_CV
 
 	allocate(Fstresses_mol(3,np));  Fstresses_mol=0.d0
-
 	allocate(Fstresses_CV( nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); Fstresses_CV=0.d0
-	allocate(Pxy( nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
+	allocate(Pxy( nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6)); Pxy = 0.d0
 
 	!Get F_stresses on the CV
 	call get_Fstresses_CV(CFD_stress, MD_stress, binlimits, Fstresses_CV)
-	Fstresses_CV(:,:,:,1)=Fstresses_CV(:,:,:,1)*dble(boxnp)
-	Fstresses_CV(:,:,:,2)=Fstresses_CV(:,:,:,2)*dble(boxnp)
-	Fstresses_CV(:,:,:,3)=Fstresses_CV(:,:,:,3)*dble(boxnp)
 
-	Pxy = MD_stress-CFD_stress
-	print*, 'WARNING -- STRSS IN  get_Fstresses_mol HAS SIGN REVERSED'
-	Pxy(:,:,:,:,1:3) = -Pxy(:,:,:,:,1:3)
-	Pxy(:,:,:,:,4:6) = Pxy(:,:,:,:,4:6)
-	print*, 'WARNING -- STRSS IN  get_Fstresses_mol HAS SIGN REVERSED'
-	Fstresses_mol(:,:) = linearsurface_weight(Pxy,r(:,1:np),Fbinsize,domain, &
-											  shiftmean=flag,meanvalue=Fstresses_CV)
+    !Get stress in inner domain
+	Pxy = (MD_stress-CFD_stress)
+
+    do ibin = 2,nbins(1)+1
+    do jbin = 2,nbins(2)+1
+    do kbin = 2,nbins(3)+1
+        do ixyz = 1,3
+	        Pxy(ibin,jbin,kbin,ixyz,1) =  Pxy(ibin,jbin,kbin,ixyz,1)/dble(boxnp(ibin,jbin,kbin))
+	        Pxy(ibin,jbin,kbin,ixyz,2) =  Pxy(ibin,jbin,kbin,ixyz,2)/dble(boxnp(ibin,jbin,kbin))
+	        Pxy(ibin,jbin,kbin,ixyz,3) =  Pxy(ibin,jbin,kbin,ixyz,3)/dble(boxnp(ibin,jbin,kbin))
+	        Pxy(ibin,jbin,kbin,ixyz,4) = -Pxy(ibin,jbin,kbin,ixyz,4)/dble(boxnp(ibin,jbin,kbin))
+	        Pxy(ibin,jbin,kbin,ixyz,5) = -Pxy(ibin,jbin,kbin,ixyz,5)/dble(boxnp(ibin,jbin,kbin))
+	        Pxy(ibin,jbin,kbin,ixyz,6) = -Pxy(ibin,jbin,kbin,ixyz,6)/dble(boxnp(ibin,jbin,kbin))
+        enddo
+    enddo
+    enddo
+    enddo
+
+!	Fstresses_mol(:,:) = linearsurface_weight(Pxy,r(:,1:np),Fbinsize,domain, &
+!											  shiftmean=flag,meanvalue=Fstresses_CV)
+	Fstresses_mol(:,:) = lagrange_poly_weight(Pxy,r(:,1:np),Fbinsize,domain,order=2, &
+                                              node_averages=0,shiftmean=2, & 
+                                              meanvalue=Fstresses_CV)
+
 
 end subroutine  get_Fstresses_mol
 
@@ -1210,6 +1342,7 @@ subroutine get_F_correction_CV(u_CFD, &
 
 	!While currently being "corrected", don't apply further constraints
 	integer												 :: n,i,j,k, rel_iter
+    integer                                              :: CVforce_correctime
 	integer,parameter									 :: iter_correct=50
 	integer,dimension(3)								 :: bmin,bmax,bin
 	integer,allocatable,dimension(:,:,:),save			 :: correctstart
@@ -1250,22 +1383,27 @@ subroutine get_F_correction_CV(u_CFD, &
 		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
 		u_CV( bin(1),bin(2),bin(3),:) = u_CV( bin(1),bin(2),bin(3),:) + v(:,n)
 	enddo
+    !print'(a,4i6,6f10.5)', 'Cell ', iter,3,3,3,u_CFD(3,3,3,:),u_CV(3,3,3,:)
+
+    !Maximum correcting period before stop
+!    CVforce_correctime = CVforce_starttime+iter_correct
+!	if (iter-initialstep+1 .ge. CVforce_correctime) then
+!        Fcorrect_CV = 0.d0
+!        return
+!    endif
 
 	!Result force du_correct/dt
 	Fcorrect_CV = 0.d0
-	do i = binlimits(1),binlimits(2)
-	do j = binlimits(3),binlimits(4)
-	do k = binlimits(5),binlimits(6)
+	do i = bmin(1),bmax(2)
+	do j = bmin(2),bmax(2)
+	do k = bmin(3),bmax(3)
 		!Check if CV is currently being corrected
 		if (.not. correction_lock(i,j,k)) then
 			u_error(i,j,k,:) = u_CV(i,j,k,:) - u_CFD(i,j,k,:)
 			if (any(u_error(i,j,k,:) .gt. tol*1000.d0)) then
 				correction_lock(i,j,k) = .true.
 				correctstart(i,j,k) = iter
-!				if (i .eq. 3 .and. j .eq. 3 .and. k .eq. 3) then
-!					F_sum = 0.d0
-!					print'(a,4i5,7f10.5)', 'New error detected',iter,i,j,k,u_CV(i,j,k,:),u_CFD(i,j,k,:),tol*1000.d0
-!				endif
+                print'(a,3i6,6f10.5)', 'Correcting ', i,j,k,u_CFD(i,j,k,:),u_CV(i,j,k,:)
 			endif
 		endif
 
@@ -1279,11 +1417,6 @@ subroutine get_F_correction_CV(u_CFD, &
 			Fcorrect_CV(i,j,k,:) = (u_error(i,j,k,:))/(delta_t*normalise*cosh(2.d0*pi*that)**2.d0)
 			!Switch lock off if end of correction period
 			if (rel_iter .eq. iter_correct) correction_lock(i,j,k) = .false.
-!			if (i .eq. 3 .and. j .eq. 3 .and. k .eq. 3) then
-!				F_sum = F_sum + u_error(i,j,k,:)/(normalise*cosh(2.d0*pi*that)**2.d0)
-!				print'(a,2i5,2f10.5,4i3,6f10.4,4f12.5)', 'Corr',iter,rel_iter,that,1.d0/cosh(2.d0*pi*that)**2.d0, & 
-!														  correctstart(i,j,k),i,j,k,u_error(i,j,k,:),Fcorrect_CV(i,j,k,:),F_sum(:),normalise
-!			endif
 		endif
 	enddo
 	enddo
@@ -1351,8 +1484,8 @@ subroutine get_Fmdflux_CV(F_CV, 	 &
     		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
 
 			!Get total force on a molecule from sum of CV forces and molecular forces
-			F_iext = (F_mol(:,n) + F_CV(bin(1),bin(2),bin(3),:)  &
-						   + Fmdflux_CV(bin(1),bin(2),bin(3),:))/dble(boxnp(bin(1),bin(2),bin(3)))
+			F_iext = F_mol(:,n) + ( Fmdflux_CV(bin(1),bin(2),bin(3),:)  &
+						              +   F_CV(bin(1),bin(2),bin(3),:) )/dble(boxnp(bin(1),bin(2),bin(3)))
 
 			!Velocity and positions calculated  		
     		v_temp(:,n) = v(:,n) + delta_t * ( a(:,n) - F_iext ) 
@@ -1370,6 +1503,7 @@ subroutine get_Fmdflux_CV(F_CV, 	 &
 		!Update momentum flux and force
 		call get_MD_fluxes(MD_flux, r_in=r_temp, v_in=v_temp)
 		Fmdflux_CV_prev = Fmdflux_CV
+        Fmdflux_CV = 0.d0
 		!print*, 'converge check', attempt, Fmdflux_CV(3,3,3,:), Fmdflux_CV_prev(3,3,3,:)
 		call flux2force(MD_flux,localbinlimits,Fmdflux_CV)
 		call check_convergence
@@ -1458,7 +1592,8 @@ subroutine apply_force(F_CV,  &
 					   boxnp, &
 					   binlimits)
 	use arrays_MD, only: r, v, a
-	use computational_constants_MD, only : eflux_outflag, delta_t,iter
+	use computational_constants_MD, only : eflux_outflag, delta_t, & 
+                                           iter,CVweighting_flag
 	use module_record_external_forces, only : record_external_forces
 	implicit none
 
@@ -1480,11 +1615,15 @@ subroutine apply_force(F_CV,  &
 		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
 
 		!Get total force on a molecule from sum of CV forces and molecular forces
-		F_iext(:) = (F_mol(:,n) + F_CV(bin(1),bin(2),bin(3),:))/dble(boxnp(bin(1),bin(2),bin(3)))
+		F_iext(:) = F_mol(:,n) + (F_CV(bin(1),bin(2),bin(3),:))/dble(boxnp(bin(1),bin(2),bin(3)))
 
+        !Debug -- write out force applied to molecules every 100 timesteps
 		if (mod(iter,100) .eq. 0) then
-			bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
-			write(5000+iter,'(2i8,9f18.8)'), iter, n, r(:,n), F_iext, a(:,n)
+            if (CVweighting_flag .eq. 0) then
+                write(5000+iter,'(2i8,9f18.8)'), iter, n, r(:,n), F_iext, a(:,n)
+            elseif (CVweighting_flag .ge. 1) then
+                write(5000+iter,'(2i8,9f18.8)'), iter, n, r(:,n), F_mol(:,n), a(:,n)
+            endif
 		endif
 						
 		!Apply force by adding to total
@@ -1575,6 +1714,8 @@ subroutine apply_CV_force
 			CVweighting_flag .eq. 2) then
 		call get_Fstresses_mol(CFD_stress, MD_stress, boxnp, CVweighting_flag, F_CV_limits, Fstresses_mol)
 		F_CV = Fcfdflux_CV  + Fcorrect_CV
+    else
+        stop "Error in apply_CV_force - incorrect CVweighting_flag"
 	endif
 
 	! Get CV force based on MD fluxes (Using all other forces and iterating until
@@ -1620,7 +1761,7 @@ subroutine apply_CV_force_multibin(iter)
 	use computational_constants_MD, only : irank, npy, globaldomain, CVforce_flag,CVforce_starttime, & 
 										   CVweighting_flag, VOID,  Nsteps, iblock, jblock, kblock, F_CV_limits
 	use calculated_properties_MD, only : pressure, nbins, gnbins
-	use librarymod, only : get_new_fileunit, couette_analytical_fn, lagrange_poly_weight_Nmol, linearsurface_weight
+	use librarymod, only : get_new_fileunit, couette_analytical_fn, lagrange_poly_weight, linearsurface_weight
 	use module_external_forces, only : np, momentum_flux, irank,nbins, nbinso,domain,delta_t,Nvflux_ave
 	use CV_objects, only : 	CV_constraint
 	use set_bin_velocity_mod
