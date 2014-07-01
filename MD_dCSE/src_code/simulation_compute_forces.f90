@@ -903,7 +903,7 @@ subroutine simulation_compute_rfbins(imin, imax, jmin, jmax, kmin, kmax)
 	integer                         :: icellshift, jcellshift, kcellshift
 	integer                         :: cellnp, adjacentcellnp 
 	integer							:: molnoi, molnoj
-	integer							:: ibinmin,jbinmin,kbinmin,ibinmax,jbinmax,kbinmax
+	integer							:: icellmin,jcellmin,kcellmin,icellmax,jcellmax,kcellmax
 	type(node), pointer 	        :: oldi, currenti, oldj, currentj
 
 	double precision,dimension(3)	:: cellsperbin
@@ -922,23 +922,39 @@ subroutine simulation_compute_rfbins(imin, imax, jmin, jmax, kmin, kmax)
 !	do jcell=(jmin-1)*cellsperbin(2)+1, jmax*cellsperbin(2)
 !	do icell=(imin-1)*cellsperbin(1)+1, imax*cellsperbin(1)
 
-	ibinmin = (imin-1)*cellsperbin(1)+1
-	ibinmax = (imax-2)*cellsperbin(1)+2
-	jbinmin = (jmin-1)*cellsperbin(2)+1
-	jbinmax = (jmax-2)*cellsperbin(2)+2
-	kbinmin = (kmin-1)*cellsperbin(3)+1
-	kbinmax = (kmax-2)*cellsperbin(3)+2
+	icellmin = (imin-1)*cellsperbin(1)+1
+	icellmax = (imax-2)*cellsperbin(1)+2
+	jcellmin = (jmin-1)*cellsperbin(2)+1
+	jcellmax = (jmax-2)*cellsperbin(2)+2
+	kcellmin = (kmin-1)*cellsperbin(3)+1
+	kcellmax = (kmax-2)*cellsperbin(3)+2
 
-!	ibinmin = (imin-1)*cellsperbin(1)+2+(1-cellsperbin(1))
-!	ibinmax =  imax   *cellsperbin(1)-cellsperbin(1)
-!	jbinmin = (jmin-1)*cellsperbin(2)+2+(1-cellsperbin(2))
-!	jbinmax =  jmax   *cellsperbin(2)-cellsperbin(2)
-!	kbinmin = (kmin-1)*cellsperbin(3)+2+(1-cellsperbin(3))
-!	kbinmax =  kmax   *cellsperbin(3)-cellsperbin(3)
+	!Get cell number from bin numbers
+!	icellmin = (imin-1)*cellsperbin(1)+1+(1-cellsperbin(1))
+!	icellmax =  imax   *cellsperbin(1)  +(1-cellsperbin(1))
+!	jcellmin = (jmin-1)*cellsperbin(2)+1+(1-cellsperbin(2))
+!	jcellmax =  jmax   *cellsperbin(2)  +(1-cellsperbin(2))
+!	kcellmin = (kmin-1)*cellsperbin(3)+1+(1-cellsperbin(3))
+!	kcellmax =  kmax   *cellsperbin(3)  +(1-cellsperbin(3))
 
-	do kcell=kbinmin, kbinmax
-	do jcell=jbinmin, jbinmax 
-	do icell=ibinmin, ibinmax 
+	!Get cell number from bin numbers
+!	ibinmin = (iminl-1)*cellsperbin(1)+1+(1-cellsperbin(1))
+!	ibinmax =  imaxl   *cellsperbin(1)  +(1-cellsperbin(1))
+!	jbinmin = (jminl-1)*cellsperbin(2)+1+(1-cellsperbin(2))
+!	jbinmax = jmaxl    *cellsperbin(2)  +(1-cellsperbin(2))
+!	kbinmin = (kminl-1)*cellsperbin(3)+1+(1-cellsperbin(3))
+!	kbinmax = kmaxl    *cellsperbin(3)  +(1-cellsperbin(3))
+
+!	icellmin = (imin-1)*cellsperbin(1)+2+(1-cellsperbin(1))
+!	icellmax =  imax   *cellsperbin(1)-cellsperbin(1)
+!	jcellmin = (jmin-1)*cellsperbin(2)+2+(1-cellsperbin(2))
+!	jcellmax =  jmax   *cellsperbin(2)-cellsperbin(2)
+!	kcellmin = (kmin-1)*cellsperbin(3)+2+(1-cellsperbin(3))
+!	kcellmax =  kmax   *cellsperbin(3)-cellsperbin(3)
+
+	do kcell=kcellmin, kcellmax
+	do jcell=jcellmin, jcellmax 
+	do icell=icellmin, icellmax 
 	
 		cellnp = cell%cellnp(icell,jcell,kcell)
 		oldi => cell%head(icell,jcell,kcell)%point !Set old to first molecule in list
@@ -952,14 +968,14 @@ subroutine simulation_compute_rfbins(imin, imax, jmin, jmax, kmin, kmax)
 			do icellshift = -1,1
 
 				!Prevents out of range values in i
-				if (icell+icellshift .lt. imin) cycle
-				if (icell+icellshift .gt. imax) cycle
+				if (icell+icellshift .lt. icellmin) cycle
+				if (icell+icellshift .gt. icellmax) cycle
 				!Prevents out of range values in j
-				if (jcell+jcellshift .lt. jmin) cycle
-				if (jcell+jcellshift .gt. jmax) cycle
+				if (jcell+jcellshift .lt. jcellmin) cycle
+				if (jcell+jcellshift .gt. jcellmax) cycle
 				!Prevents out of range values in k
-				if (kcell+kcellshift .lt. kmin) cycle
-				if (kcell+kcellshift .gt. kmax) cycle
+				if (kcell+kcellshift .lt. kcellmin) cycle
+				if (kcell+kcellshift .gt. kcellmax) cycle
 
 				oldj => cell%head(icell+icellshift,jcell+jcellshift,kcell+kcellshift)%point
 				adjacentcellnp = cell%cellnp(icell+icellshift,jcell+jcellshift,kcell+kcellshift)
@@ -1208,7 +1224,7 @@ subroutine simulation_compute_power(imin, imax, jmin, jmax, kmin, kmax)
 	integer                         :: icellshift, jcellshift, kcellshift
 	integer                         :: cellnp, adjacentcellnp 
 	integer							:: molnoi, molnoj
-	integer							:: ibinmin,jbinmin,kbinmin,ibinmax,jbinmax,kbinmax
+	integer							:: icellmin,jcellmin,kcellmin,icellmax,jcellmax,kcellmax
 	type(node), pointer 	        :: oldi, currenti, oldj, currentj
 
 	double precision,dimension(3)	:: cellsperbin
@@ -1220,30 +1236,40 @@ subroutine simulation_compute_power(imin, imax, jmin, jmax, kmin, kmax)
     ! bins are bigger than cells
 	where (cellsperbin .lt. 1.d0) cellsperbin = 1.d0
 
-	ibinmin = (imin-1)*cellsperbin(1)+1
-	ibinmax = (imax-2)*cellsperbin(1)+2
-	jbinmin = (jmin-1)*cellsperbin(2)+1
-	jbinmax = (jmax-2)*cellsperbin(2)+2
-	kbinmin = (kmin-1)*cellsperbin(3)+1
-	kbinmax = (kmax-2)*cellsperbin(3)+2
+!	icellmin = (imin-1)*cellsperbin(1)+1
+!	icellmax = (imax-2)*cellsperbin(1)+2
+!	jcellmin = (jmin-1)*cellsperbin(2)+1
+!	jcellmax = (jmax-2)*cellsperbin(2)+2
+!	kcellmin = (kmin-1)*cellsperbin(3)+1
+!	kcellmax = (kmax-2)*cellsperbin(3)+2
 
-!	ibinmin = (imin-1)*cellsperbin(1)+2+(1-cellsperbin(1))
-!	ibinmax =  imax   *cellsperbin(1)-2*cellsperbin(1)
-!	jbinmin = (jmin-1)*cellsperbin(2)+2+(1-cellsperbin(2))
-!	jbinmax =  jmax   *cellsperbin(2)-2*cellsperbin(2)
-!	kbinmin = (kmin-1)*cellsperbin(3)+2+(1-cellsperbin(3))
-!	kbinmax =  kmax   *cellsperbin(3)-2*cellsperbin(3)
+	!Get cell number from bin numbers
+	icellmin = (imin-1)*cellsperbin(1)+1+(1-cellsperbin(1))
+	icellmax =  imax   *cellsperbin(1)  +(1-cellsperbin(1))
+	jcellmin = (jmin-1)*cellsperbin(2)+1+(1-cellsperbin(2))
+	jcellmax =  jmax   *cellsperbin(2)  +(1-cellsperbin(2))
+	kcellmin = (kmin-1)*cellsperbin(3)+1+(1-cellsperbin(3))
+	kcellmax =  kmax   *cellsperbin(3)  +(1-cellsperbin(3))
 
-!	ibinmin = (imin)*cellsperbin(1)+1+(1-cellsperbin(1))
-!	ibinmax = (imax)*cellsperbin(1)  +(1-cellsperbin(1))
-!	jbinmin = (jmin)*cellsperbin(2)+1+(1-cellsperbin(2))
-!	jbinmax = (jmax)*cellsperbin(2)  +(1-cellsperbin(2))
-!	kbinmin = (kmin)*cellsperbin(3)+1+(1-cellsperbin(3))
-!	kbinmax = (kmax)*cellsperbin(3)  +(1-cellsperbin(3))
+!	icellmin = (imin-1)*cellsperbin(1)+2+(1-cellsperbin(1))
+!	icellmax =  imax   *cellsperbin(1)-2*cellsperbin(1)
+!	jcellmin = (jmin-1)*cellsperbin(2)+2+(1-cellsperbin(2))
+!	jcellmax =  jmax   *cellsperbin(2)-2*cellsperbin(2)
+!	kcellmin = (kmin-1)*cellsperbin(3)+2+(1-cellsperbin(3))
+!	kcellmax =  kmax   *cellsperbin(3)-2*cellsperbin(3)
 
-	do kcell=kbinmin, kbinmax
-	do jcell=jbinmin, jbinmax 
-	do icell=ibinmin, ibinmax 
+!	icellmin = (imin)*cellsperbin(1)+1+(1-cellsperbin(1))
+!	icellmax = (imax)*cellsperbin(1)  +(1-cellsperbin(1))
+!	jcellmin = (jmin)*cellsperbin(2)+1+(1-cellsperbin(2))
+!	jcellmax = (jmax)*cellsperbin(2)  +(1-cellsperbin(2))
+!	kcellmin = (kmin)*cellsperbin(3)+1+(1-cellsperbin(3))
+!	kcellmax = (kmax)*cellsperbin(3)  +(1-cellsperbin(3))
+
+   ! print*, icellmin,jcellmin,kcellmin,icellmax,jcellmax,kcellmax,imin, imax, jmin, jmax, kmin, kmax
+
+	do kcell=kcellmin, kcellmax
+	do jcell=jcellmin, jcellmax 
+	do icell=icellmin, icellmax 
 
 		cellnp = cell%cellnp(icell,jcell,kcell)
 		oldi => cell%head(icell,jcell,kcell)%point !Set old to first molecule in list
@@ -1257,14 +1283,14 @@ subroutine simulation_compute_power(imin, imax, jmin, jmax, kmin, kmax)
 			do icellshift = -1,1
 
 				!Prevents out of range values in i
-				if (icell+icellshift .lt. imin) cycle
-				if (icell+icellshift .gt. imax) cycle
+				if (icell+icellshift .lt. icellmin) cycle
+				if (icell+icellshift .gt. icellmax) cycle
 				!Prevents out of range values in j
-				if (jcell+jcellshift .lt. jmin) cycle
-				if (jcell+jcellshift .gt. jmax) cycle
+				if (jcell+jcellshift .lt. jcellmin) cycle
+				if (jcell+jcellshift .gt. jcellmax) cycle
 				!Prevents out of range values in k
-				if (kcell+kcellshift .lt. kmin) cycle
-				if (kcell+kcellshift .gt. kmax) cycle
+				if (kcell+kcellshift .lt. kcellmin) cycle
+				if (kcell+kcellshift .gt. kcellmax) cycle
 
 				oldj => cell%head(icell+icellshift,jcell+jcellshift,kcell+kcellshift)%point
 				adjacentcellnp = cell%cellnp(icell+icellshift,jcell+jcellshift,kcell+kcellshift)

@@ -468,7 +468,7 @@ contains
 			!if(abs(conserved) .gt. 0.000000001d0) then
 			if (i .eq. 3 .and. j .eq. 3 .and. k .eq. 3 .and. irank .eq. 1) then
 			!if (any(abs(dvelocitydt) .lt. 0.00001d0)) then
-				print'(a,i8,4i4,7f11.5)','Error_in_momentum_flux', iter,irank,i,j,k, & 
+				print'(a,i8,4i4,6f11.5,f27.23)','Error_in_momentum_flux', iter,irank,i,j,k, & 
 					 conserved, sum(totalpressure),-sum(totalflux),sum(dvelocitydt), & 
 					+sum(F_ext), sum(self%X(i,j,k,:)),   & 
 					 sum(self%X_minus_t(i,j,k,:))
