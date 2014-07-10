@@ -21,7 +21,9 @@ subroutine setup_initial_record
     use polymer_info_MD
     use shear_info_MD
     use concentric_cylinders, only: gcpol_bins
-    use librarymod, only : get_version_number, get_Timestep_FileName,couette_analytical_fn, linspace
+    use librarymod, only : get_version_number, get_Timestep_FileName, & 
+                           couette_analytical_fn,couette_analytical_stress_fn, linspace
+                           
     implicit none
 
     integer                 :: i,n,missing_file_tolerance=5
@@ -32,7 +34,7 @@ subroutine setup_initial_record
     character(8)            :: the_date
     character(10)           :: the_time
     character(23)           :: file_names_t
-    character(23),parameter :: file_names(28) = &
+    character(23),parameter :: file_names(29) = &
                                 (/ "mslice      ", "mbins       ", "msnap   ",&
                                    "vslice      ", "vbins       ", "vsnap   ",&
                                    "pvirial     ", "pVA         ", "pVA_k   ",& 
@@ -42,19 +44,39 @@ subroutine setup_initial_record
                                    "esurface    ", "viscometrics", "rdf     ",&
                                    "rdf3d       ", "ssf         ", "Fext    ",&
                                    "Tbins       ", "vmd_temp.dcd", "vPDF    ",&
-                                   "bforce_pdf  "/) 
+                                   "bforce_pdf  ", "Fvext       "/) 
 
 
     !COUETTE FLOW ANALYTICAL SOLUTION
+!    integer                                   :: wallbintop, wallbinbottom, appliedbins
+!    double precision                          :: Re, Uwall, H, t, Fbinsize(3)
 !    double precision,dimension(:),allocatable :: ucouette,y
-!    allocate(y,source=linspace(0.d0,globaldomain(2),gnbins(2)*10))
-!    do iter =0,10000,100
-!        allocate(ucouette, source=couette_analytical_fn(iter*delta_t,0.1d0,wallslidev(1),globaldomain(2),gnbins(2)*10,2))
+!    double precision,dimension(:),allocatable :: taucouette
+
+!    Fbinsize = globaldomain(2)/gnbins(2)
+!    wallbintop    = ceiling(tethereddisttop(2)   /Fbinsize(2))
+!    wallbinbottom = ceiling(tethereddistbottom(2)/Fbinsize(2))
+!    appliedbins = gnbins(2)+2 - wallbintop - wallbinbottom !lbl(4)-lbl(3)+1
+!    Re = 1.4d0
+!    Uwall = 1.d0
+!    H = globaldomain(2) - tethereddistbottom(2) - tethereddisttop(2)
+!    !Add one extra record to get values at surfaces
+!    appliedbins = appliedbins*10
+!    allocate(y,source=linspace(0.d0,globaldomain(2),appliedbins))
+!    do i = 4,30
+!	    !Time evolving solution
+!        iter = 2.d0**dble(i)
+!        t = (iter)*delta_t
+!        allocate(ucouette, source=couette_analytical_fn(t,Re,Uwall,H,appliedbins,0))
+!        allocate(taucouette, source=couette_analytical_stress_fn(t,Re,Uwall,H,appliedbins+1,0))
 !        do n =1,size(ucouette,1)
-!            write(500000+iter,'(2f18.12)'),y(n),ucouette(n)
+!            write(7500000+iter,'(3f18.12)'),y(n),ucouette(n),taucouette(n)/density
 !        enddo
 !        deallocate(ucouette)
+!        deallocate(taucouette)
 !    enddo
+
+!    stop "STOPPED AFTER COUETTE FLOW ANALYTICAL SOLUTION in setup_initial_record"
 
 
     !Delete all files from previous run

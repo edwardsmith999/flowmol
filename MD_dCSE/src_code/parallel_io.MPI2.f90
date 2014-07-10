@@ -2565,11 +2565,11 @@ subroutine velocity_PDF_slice_io(ixyz,pfdx,pfdy,pfdz)
 
 		!Obtain displacement of x record
 		disp =   ((iter-initialstep+1)/(tplot*Nvpdf_ave) - 1) 	  	&	    !Current iteration
-		            * datasize*int_datasize*nxpz(ixyz)     &	    !times record size
+		            * datasize*int_datasize                         &	    !times record size
 		            + datasize*int_datasize*(ijkblock(ixyz)-1)              !Processor location
 
-        !print'(12i10)',iblock, jblock,kblock,nxpz(ixyz),disp,datasize,int_datasize,nbins(ixyz),gnbins(ixyz), & 
-        !               ((iter-initialstep+1)/(tplot*Nvpdf_ave)-1),datasize*int_datasize*nxpz(ixyz), datasize*int_datasize*(ijkblock(ixyz)-1) 
+        !print'(15i10)',iblock, jblock,kblock,ixyz,jxyz,kxyz,nxpz(ixyz),disp,datasize,int_datasize,nbins(ixyz),gnbins(ixyz), & 
+        !               ((iter-initialstep+1)/(tplot*Nvpdf_ave)-1),datasize*int_datasize, datasize*int_datasize*(ijkblock(ixyz)-1) 
 
 		call MPI_FILE_SET_VIEW(slicefileid, disp, MPI_INTEGER, & 
 	 				MPI_INTEGER, 'native', MPI_INFO_NULL, ierr)

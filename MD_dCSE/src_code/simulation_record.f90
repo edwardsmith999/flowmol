@@ -1307,23 +1307,6 @@ end subroutine cumulative_mass
 !ixyz = 1,2,3 or in 3D bins when ixyz =4
 !-----------------------------------------------------------------------------------
 
-subroutine bforce_pdf_stats
-    use boundary_MD
-    use statistics_io, only: bforce_pdf_write
-    implicit none
-
-	integer, save		:: average_count=-1
-
-    average_count = average_count + 1
-    call collect_bforce_pdf_data
-
-    if (average_count .eq. bforce_pdf_Nave) then
-        average_count = 0
-        call bforce_pdf_write
-    end if 
-
-end subroutine bforce_pdf_stats
-
 subroutine velocity_averaging(ixyz)
 	use module_record
 	use field_io , only : velocity_slice_io,velocity_bin_io,velocity_bin_cpol_io
@@ -2022,6 +2005,25 @@ subroutine simulation_compute_kinetic_VA_cells(imin,imax,jmin,jmax,kmin,kmax)
 	nullify(currenti)      	!Nullify as no longer required
 
 end subroutine simulation_compute_kinetic_VA_cells
+
+
+
+subroutine bforce_pdf_stats
+    use boundary_MD
+    use statistics_io, only: bforce_pdf_write
+    implicit none
+
+	integer, save		:: average_count=-1
+
+    average_count = average_count + 1
+    call collect_bforce_pdf_data
+
+    if (average_count .eq. bforce_pdf_Nave) then
+        average_count = 0
+        call bforce_pdf_write
+    end if 
+
+end subroutine bforce_pdf_stats
 
 !=================================================================================
 ! CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV
@@ -3844,7 +3846,7 @@ subroutine control_volume_stresses(fij,ri,rj)
 		Pxyface(cbin(1),cbin(2),cbin(3),:,6) = Pxyface(cbin(1),cbin(2),cbin(3),:,6) + fij(:)*dble(onfacezt)
 
 		!Add instantanous stress to CV record
-		if (CV_debug) then
+		if (CVforce_flag .ne. VOID .and. iter-initialstep+1 .ge. CVforce_starttime) then
     		CV_constraint%Pxy(cbin(1),cbin(2),cbin(3),:,1) = & 
 				CV_constraint%Pxy(cbin(1),cbin(2),cbin(3),:,1) + fij(:)*dble(onfacexb)
     		CV_constraint%Pxy(cbin(1),cbin(2),cbin(3),:,2) = & 

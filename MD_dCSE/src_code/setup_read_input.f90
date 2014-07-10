@@ -822,8 +822,6 @@ subroutine setup_read_input
 			if (.not. CV_debug) call error_abort("Input ERROR -- CV_FORCES true so CV_CONSERVE should be set to 1 and debugging set to .true.")
 			if (vflux_outflag .ne. 4) call error_abort("Input ERROR -- CV_FORCES .true. but VFLUX_OUTFLAG not set to 4 (CV averages)")
 		endif
-		read(1,*,iostat=ios) CVforce_testcaseflag
-		if (ios .ne. 0) CVforce_testcaseflag = 1
 		read(1,*,iostat=ios) CVweighting_flag
 		if (ios .ne. 0) CVweighting_flag = 0
 		read(1,*,iostat=ios) CVforce_correct
@@ -843,6 +841,7 @@ subroutine setup_read_input
 		read(1,*,iostat=ios) F_CV_limits(6)
 		if (ios .ne. 0) F_CV_limits(6) = VOID
 
+        print*, CVforce_flag, CVweighting_flag, CVforce_correct,  CVforce_starttime
 	endif
 
 	close(1,status='keep')      !Close input file
