@@ -21,7 +21,7 @@ from headerdata import MDHeaderData
     the number of values per averaging "bin" to read (i.e. velocity
     would require 3 values per bin, one for each cartesian direction).
     
-    The optional argument cpol_bins is true if the data has been
+    The header variable cpol_bins is true if the data has been
     averaged in the MD code using cylindrical polar bins: in this 
     case the only difference lies in creating the mesh of the 
     bin topology, because the domain size in cylindrical polar
@@ -33,23 +33,22 @@ from headerdata import MDHeaderData
         1) As a contained object within another that packages
            and returns the data in a 3D field format (from which 
            it may be averaged/summed/sliced into a new format that 
-           you may want to plot), or
+           you may want to plot), i.e. an MDField object, or
 
         2) For inspection of the numerical values in any binary
-           file.
+           data file in a results folder from the MD code.
 
 """
 
 class MD_RawData:
     
-    def __init__(self,fdir,fname,dtype,nperbin,cpol_bins=False):
+    def __init__(self,fdir,fname,dtype,nperbin):
 
         """
             fdir       -  file directory containing results, string
             fname      -  file path from which to read raw data, string
             dtype      -  datatype string, 'i' for integer, 'd' for float
             nperbin    -  number of items to read per bin, integer
-            cpol_bins  -  boolean flag indicating cylindrical polar bins
         """
 
         if (fdir[-1] != '/'): fdir += '/' 
@@ -64,8 +63,8 @@ class MD_RawData:
             print('Neither ' + fname + ' nor ' + fname + '.* exist.')
             quit()
 
-        self.cpol_bins = cpol_bins
         self.header = MDHeaderData(fdir)
+        self.cpol_bins = bool(int(self.header.cpol_bins))
         self.dtype = dtype
         self.nperbin = nperbin
         self.nbins, self.grid = self.get_bintopology()

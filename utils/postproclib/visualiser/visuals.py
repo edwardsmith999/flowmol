@@ -7,12 +7,12 @@ from postproclib.allpostproc import All_PostProc
 
 class VisualiserPanel(wx.Panel):
  
-    def __init__(self,parent,fdir,cpol_bins=False,**kwargs):
+    def __init__(self,parent,fdir,**kwargs):
 
         wx.Panel.__init__(self,parent,**kwargs)
 
         self.fdir = fdir
-        self.PP = All_PostProc(self.fdir)#, cpol_bins=True)
+        self.PP = All_PostProc(self.fdir)
         self.fieldname, self.field = self.PP.plotlist.items()[0]
 
         self.pyplotp = PyplotPanel(self)

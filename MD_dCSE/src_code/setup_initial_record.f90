@@ -781,7 +781,8 @@ subroutine simulation_header
     write(fileunit,*)  'mass flux average steps ;  Nmflux_ave ;', Nmflux_ave
     write(fileunit,*)  'velocity flux average steps ;  Nvflux_ave ;', Nvflux_ave
     write(fileunit,*)  'energy flux average steps ;  Neflux_ave ;', Neflux_ave
-    if (velocity_outflag .eq. 5 .or. mass_outflag .eq. 5 .or. pressure_outflag .eq. 3) then
+    if (velocity_outflag .eq. 5 .or. mass_outflag .eq. 5 .or. pressure_outflag .eq. 3 .or. temperature_outflag .eq. 5) then
+        write(fileunit,*)  'Cylindrical polar bins post-proc flag ; cpol_bins ; 1'
         write(fileunit,*)  'Velocity/stress Averaging Bins in r ;      gnbins(1) ;', gcpol_bins(1)
         write(fileunit,*)  'Velocity/stress Averaging Bins in theta ;  gnbins(2) ;', gcpol_bins(2)
         write(fileunit,*)  'Velocity/stress Averaging Bins in z ;      gnbins(3) ;', gcpol_bins(3)
@@ -790,6 +791,7 @@ subroutine simulation_header
         write(fileunit,*)  'Outer radius of inner cylinder ;   r_oi   ;', r_oi
         write(fileunit,*)  'Inner radius of inner cylinder ;   r_ii   ;', r_ii
     else
+        write(fileunit,*)  'Cylindrical polar bins post-proc flag ; cpol_bins ;  0 '
         write(fileunit,*)  'Velocity/stress Averaging Bins in x ;  gnbins(1) ;', gnbins(1)
         write(fileunit,*)  'Velocity/stress Averaging Bins in y ;  gnbins(2) ;', gnbins(2)
         write(fileunit,*)  'Velocity/stress Averaging Bins in z ;  gnbins(3) ;', gnbins(3)

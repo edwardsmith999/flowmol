@@ -13,26 +13,26 @@ class All_PostProc:
             MD_PP = MD_PostProc(fdir)
             self.plotlist.update(MD_PP.plotlist)
             print(MD_PP)
-        except:
+        except NoResultsInDir:
             pass
         try:
             CFD_PP = CFD_PostProc(fdir)
             self.plotlist.update(CFD_PP.plotlist)
             print(CFD_PP)
-        except:
+        except NoResultsInDir:
             pass
         try:
             CPL_PP = CPL_PostProc(fdir)
             self.plotlist.update(CPL_PP.plotlist)
             print(CPL_PP)
-        except:
+        except NoResultsInDir:
             pass
 
         try:
             CF_PP = channelflow_PostProc(fdir)
             self.plotlist.update(CF_PP.plotlist)
             print(CF_PP)
-        except:
+        except NoResultsInDir:
             pass
 
         if (len(self.plotlist) == 0):

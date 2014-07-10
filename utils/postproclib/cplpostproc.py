@@ -1,6 +1,6 @@
 import os
 from cplfields import *
-from postproc import PostProc
+from postproc import PostProc, NoResultsInDir
 
 class CPL_PostProc(PostProc):
 
@@ -17,6 +17,11 @@ class CPL_PostProc(PostProc):
         if (not os.path.isdir(self.resultsdir)):
             print("Directory " +  self.resultsdir + " not found")
             raise IOError
+
+        try:
+            fobj = open(self.resultsdir + 'coupler_header','r')
+        except IOError:
+            raise NoResultsInDir
 
         possibles = {'CPL Velocity': CPL_vField,
                      'CPL Stress': CPL_PField}

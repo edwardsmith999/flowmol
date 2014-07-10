@@ -1,6 +1,6 @@
 import os
 from cfdfields import *
-from postproc import PostProc
+from postproc import PostProc, NoResultsInDir 
 
 class CFD_PostProc(PostProc):
 
@@ -18,6 +18,11 @@ class CFD_PostProc(PostProc):
             print("Directory " +  self.resultsdir + " not found")
             raise IOError
 
+        try:
+            fobj = open(self.resultsdir + 'report','r') 
+        except IOError:
+            raise NoResultsInDir
+
         possibles = {'CFD Velocity': CFD_vField,
                      'CFD Pressure': CFD_PField,
                      'CFD Stress': CFD_StressField}
@@ -28,3 +33,4 @@ class CFD_PostProc(PostProc):
                 self.plotlist[key] = field(self.resultsdir)
             except AssertionError:
                 pass 
+

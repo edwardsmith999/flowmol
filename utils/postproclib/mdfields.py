@@ -8,12 +8,13 @@ from mdrawdata import MD_RawData
 
 class MDField(Field):
        
-    def __init__(self,fdir,cpol_bins=False):
+    def __init__(self,fdir):
         Raw = MD_RawData(fdir, self.fname, self.dtype, 
-                         self.nperbin,cpol_bins)
+                         self.nperbin)
         Field.__init__(self,Raw)
         self.header = self.Raw.header
-        if (cpol_bins):
+        self.cpol_bins = bool(int(self.header.cpol_bins))
+        if (self.cpol_bins):
             self.axislabels = ['r','theta','z']
         else:
             self.axislabels = ['x','y','z']
@@ -31,10 +32,10 @@ class MD_mField(MDField):
     dtype = 'i'
     nperbin = 1
 
-    def __init__(self,fdir,fname='mbins',cpol_bins=False):
+    def __init__(self,fdir,fname='mbins'):
         
         self.fname = fname
-        MDField.__init__(self,fdir,cpol_bins=cpol_bins)
+        MDField.__init__(self,fdir)
         self.labels = ["mag"]
         self.nperbin = self.Raw.nperbin
         if fname == 'mbins':
@@ -55,10 +56,10 @@ class MD_pField(MDField):
     dtype = 'd'
     nperbin = 3
 
-    def __init__(self,fdir,fname='vbins',cpol_bins=False):
+    def __init__(self,fdir,fname='vbins'):
 
         self.fname = fname
-        MDField.__init__(self,fdir,cpol_bins=cpol_bins)
+        MDField.__init__(self,fdir)
         self.labels = self.axislabels
         self.nperbin = self.Raw.nperbin
         if fname == 'vbins':
@@ -78,10 +79,10 @@ class MD_FField(MDField):
     dtype = 'd'
     nperbin = 3
 
-    def __init__(self,fdir,fname='Fext',cpol_bins=False):
+    def __init__(self,fdir,fname='Fext'):
 
         self.fname = fname
-        MDField.__init__(self,fdir,cpol_bins=cpol_bins)
+        MDField.__init__(self,fdir)
         self.labels = self.axislabels 
         self.nperbin = self.Raw.nperbin
         self.plotfreq = self.Raw.header.Nvel_ave
@@ -99,10 +100,10 @@ class MD_EField(MDField):
     dtype = 'd'
     nperbin = 1
 
-    def __init__(self,fdir,fname='Tbins',cpol_bins=False):
+    def __init__(self,fdir,fname='Tbins'):
 
         self.fname = fname
-        MDField.__init__(self,fdir,cpol_bins=cpol_bins)
+        MDField.__init__(self,fdir)
         self.labels = ["mag"]
         self.nperbin = self.Raw.nperbin
         if fname == 'Tbins':
@@ -123,10 +124,10 @@ class MD_mfluxField(MDField):
     dtype = 'i'
     nperbin = 6
 
-    def __init__(self,fdir,fname='mflux',cpol_bins=False):
+    def __init__(self,fdir,fname='mflux'):
 
         self.fname = fname
-        MDField.__init__(self,fdir,cpol_bins=cpol_bins)
+        MDField.__init__(self,fdir)
         self.labels = ["xtop","ytop","ztop","xbottom","ybottom","zbottom"]
         self.nperbin = self.Raw.nperbin
         self.plotfreq = self.Raw.header.Nmflux_ave
@@ -144,10 +145,10 @@ class MD_PField(MDField):
     dtype = 'd'
     nperbin = 9
 
-    def __init__(self,fdir,fname='pVA',cpol_bins=False):
+    def __init__(self,fdir,fname='pVA'):
         self.fname = fname
         if (fname in ("pVA","pVA_k","pVA_c")):
-            MDField.__init__(self,fdir,cpol_bins=cpol_bins)
+            MDField.__init__(self,fdir)
         else:
             quit("Output type not recognised, should be pVA, pVA_k or pVA_c")
         x = self.axislabels[0]; y = self.axislabels[1]; z = self.axislabels[2]
@@ -169,7 +170,7 @@ class MD_pfluxField(MDField):
     dtype = 'd'
     nperbin = 18
 
-    def __init__(self,fdir,fname,cpol_bins=False):
+    def __init__(self,fdir,fname):
 
         if (fname in ("psurface","vflux")):
             self.fname = fname
@@ -179,7 +180,7 @@ class MD_pfluxField(MDField):
                            "xxbottom","yxbottom","zxbottom",
                            "xybottom","yybottom","zybottom",
                            "xybottom","yybottom","zzbottom"]
-            MDField.__init__(self,fdir,cpol_bins=cpol_bins)
+            MDField.__init__(self,fdir)
             self.nperbin = self.Raw.nperbin
             self.plotfreq = self.Raw.header.Nvflux_ave
         else:
@@ -198,13 +199,13 @@ class MD_efluxField(MDField):
     dtype = 'd'
     nperbin = 6
 
-    def __init__(self,fdir,fname,cpol_bins=False):
+    def __init__(self,fdir,fname):
 
         if (fname in ("esurface","eflux")):
             self.fname = fname
             self.labels = ["xtop","ytop","ztop",
                            "xbottom","ybottom","zbottom"]
-            MDField.__init__(self,fdir,cpol_bins=cpol_bins)
+            MDField.__init__(self,fdir)
             self.nperbin = self.Raw.nperbin
             self.plotfreq = self.Raw.header.Neflux_ave
         else:
@@ -216,17 +217,18 @@ class MD_efluxField(MDField):
 # overridden.
 class MD_vField(MDField):
 
-    def __init__(self,fdir,rectype='bins',cpol_bins=False):
+    def __init__(self,fdir,rectype='bins'):
         if (rectype == 'bins'):
-            self.mField = MD_mField(fdir,fname='mbins',cpol_bins=cpol_bins)
-            self.pField = MD_pField(fdir,fname='vbins',cpol_bins=cpol_bins)
+            self.mField = MD_mField(fdir,fname='mbins')
+            self.pField = MD_pField(fdir,fname='vbins')
         elif (rectype == 'snap'):
-            self.mField = MD_mField(fdir,fname='msnap',cpol_bins=cpol_bins)
-            self.pField = MD_pField(fdir,fname='vsnap',cpol_bins=cpol_bins)
+            self.mField = MD_mField(fdir,fname='msnap')
+            self.pField = MD_pField(fdir,fname='vsnap')
 
         Field.__init__(self,self.mField.Raw)
         self.header = self.pField.Raw.header
         self.nperbin = self.pField.nperbin
+        self.cpol_bins = self.pField.cpol_bins
         self.axislabels = self.pField.axislabels
         self.labels = self.pField.labels
         if (self.mField.plotfreq == self.pField.plotfreq):
@@ -262,15 +264,15 @@ class MD_vField(MDField):
 
 class MD_pVAField(MDField):
 
-    def __init__(self, fdir, fname, cpol_bins=False):
+    def __init__(self, fdir, fname):
 
         self.fname = fname
-        self.cpol_bins = cpol_bins
-        self.PField = MD_PField(fdir,fname,cpol_bins=cpol_bins)
+        self.PField = MD_PField(fdir,fname)
         Field.__init__(self,self.PField.Raw)
 
         self.header = self.PField.Raw.header
         self.nperbin = self.PField.nperbin
+        self.cpol_bins = self.PField.cpol_bins
         self.axislabels = self.PField.axislabels
         self.labels = self.PField.labels
         self.plotfreq = self.PField.plotfreq
@@ -294,8 +296,8 @@ class MD_pVAField(MDField):
             else:   
 
                 # Get mean velocity and density field
-                vField = MD_vField(self.fdir,cpol_bins=self.cpol_bins)
-                dField = MD_dField(self.fdir,cpol_bins=self.cpol_bins)
+                vField = MD_vField(self.fdir)
+                dField = MD_dField(self.fdir)
                 vdata = vField.read(startrec,endrec,**kwargs)
                 ddata = dField.read(startrec,endrec,**kwargs)
 
@@ -313,13 +315,14 @@ class MD_pVAField(MDField):
 
 class MD_TField(MDField):
 
-    def __init__(self,fdir,cpol_bins=False):
-        self.mField = MD_mField(fdir,cpol_bins=cpol_bins)
-        self.pField = MD_pField(fdir,cpol_bins=cpol_bins)
-        self.KEField = MD_EField(fdir,cpol_bins=cpol_bins)
+    def __init__(self,fdir):
+        self.mField = MD_mField(fdir)
+        self.pField = MD_pField(fdir)
+        self.KEField = MD_EField(fdir)
         Field.__init__(self,self.KEField.Raw)
         self.header = self.KEField.Raw.header
         self.nperbin = self.KEField.nperbin
+        self.cpol_bins = self.KEField.cpol_bins
         if ((self.mField.plotfreq == self.pField.plotfreq) &
             (self.mField.plotfreq == self.KEField.plotfreq)):
             self.plotfreq = self.KEField.plotfreq
@@ -381,11 +384,12 @@ class MD_TField(MDField):
 # Density field
 class MD_dField(MDField):
     
-    def __init__(self,fdir,fname='mbins',cpol_bins=False):
-        self.mField = MD_mField(fdir,fname,cpol_bins=cpol_bins)
+    def __init__(self,fdir,fname='mbins'):
+        self.mField = MD_mField(fdir,fname)
         Field.__init__(self,self.mField.Raw)
         self.header = self.mField.Raw.header
         self.nperbin = self.mField.nperbin
+        self.cpol_bins = self.mField.cpol_bins
         self.plotfreq = self.mField.plotfreq
         self.axislabels = self.mField.axislabels
         self.labels = self.mField.labels
@@ -427,11 +431,12 @@ class MD_dField(MDField):
 # Momentum density field
 class MD_momField(MDField):
     
-    def __init__(self,fdir,fname='vbins',cpol_bins=False):
-        self.pField = MD_pField(fdir,fname,cpol_bins=cpol_bins)
+    def __init__(self,fdir,fname='vbins'):
+        self.pField = MD_pField(fdir,fname)
         Field.__init__(self,self.pField.Raw)
         self.header = self.pField.Raw.header
         self.nperbin = self.pField.nperbin
+        self.cpol_bins = self.pField.cpol_bins
         self.plotfreq = self.pField.plotfreq
         self.axislabels = self.pField.axislabels
         self.labels = self.pField.labels
@@ -469,10 +474,10 @@ class MD_momField(MDField):
 
 class MD_CVvField(MDField):
 
-    def __init__(self,fdir,cpol_bins=False):
-        self.CVvsnapField = MD_pField(fdir='vsnap',cpol_bins=cpol_bins)
-        self.CVvfluxField = MD_pfluxField(fdir='vflux',cpol_bins=cpol_bins)
-        self.CVpsurfField = MD_pfluxField(fdir='psurface',cpol_bins=cpol_bins)
+    def __init__(self,fdir):
+        self.CVvsnapField = MD_pField(fdir='vsnap')
+        self.CVvfluxField = MD_pfluxField(fdir='vflux')
+        self.CVpsurfField = MD_pfluxField(fdir='psurface')
 
     def check_conservation(self,startrec,endrec,**kwargs):
 

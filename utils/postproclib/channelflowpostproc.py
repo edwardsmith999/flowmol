@@ -1,6 +1,7 @@
 import os
+import glob
 from channelflowfields import *
-from postproc import PostProc
+from postproc import PostProc, NoResultsInDir
 
 class channelflow_PostProc(PostProc):
 
@@ -19,6 +20,9 @@ class channelflow_PostProc(PostProc):
             raise IOError
 
         possibles = {'channelflow Velocity': Channelflow_vField}
+        
+        if (not glob.glob(self.resultsdir+'*.h5')):
+            raise NoResultsInDir
 
         self.plotlist = {}
         for key, field in possibles.items():
@@ -26,3 +30,6 @@ class channelflow_PostProc(PostProc):
                 self.plotlist[key] = field(self.resultsdir)
             except AssertionError:
                 pass 
+
+        if (len(self.plotlist) == 0):
+            raise NoResultsInDir
