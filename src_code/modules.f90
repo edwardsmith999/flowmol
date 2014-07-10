@@ -133,7 +133,6 @@ module computational_constants_MD
 		fixed_rebuild_flag, &		!Fixed rebuild flag
 		peculiar_flag, &	 			!Take streaming velocity away from temperature 	
 		CVforce_flag = VOID, & 			!Type of CV force to apply
-		CVforce_testcaseflag = 1, &		!Variety of test cases using CV forces
 		CVweighting_flag = 0, &			!Distribution of CV forces
 		CVforce_correct = 0, &			!Apply force to correct CV velocity to setpoint
 		CVforce_starttime				!Start time of applied force

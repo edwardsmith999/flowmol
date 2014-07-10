@@ -13,6 +13,7 @@ module CV_objects
 	implicit none
 
 !Parent of CV check -- this does not work as you apparently cannot call parents constructor
+!                      when instantiating the child
 !type, abstract :: check_CV
 !	integer						 	:: N_ave
 !	integer, dimension(3)		   	:: nbins
@@ -702,20 +703,39 @@ contains
 
 
 
-!subroutine get_CV_surface_contributions(r1,r2,value)
+!subroutine get_CV_surface_contributions(r1,r2,value,flux)
 !	use computational_constants_MD, only : halfdomain, nhb, iter
 !	use librarymod, only : heaviside => heaviside_a1
 !	implicit none
 
-!	double precision, dimension(3),intent(in)						:: r1, r2
-!	double precision, intent(in)									:: value
+!   ! class(*) :: self 
 
+!	double precision, dimension(3),intent(in)						    :: r1, r2
+
+!	!integer, intent(in)	            								:: value
+!	!integer dimension(:,:,:,:),allocatable,intent(inout)               :: flux
+
+!	!double precision, intent(in)									    :: value
+!	!double precision, dimension(:,:,:,:),allocatable,intent(inout)     :: flux
+
+!	double precision,dimension(3),intent(in)						    :: value
+!	double precision, dimension(:,:,:,:,:),allocatable,intent(inout)    :: flux
 
 !	integer, dimension(3)						:: bin1,bin2
 !	integer										:: i,j,k,ixyz, face
-!	double precision							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
+!	double precision							:: onfacext,onfacexb,onfaceyt, & 
+!                                                   onfaceyb,onfacezt,onfacezb
 !	double precision,dimension(3)   			:: Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
 !	double precision,dimension(3)				:: rij,  bintop, binbot
+
+!!    select type(self)
+!!    class is (check_CV_mass)
+!!        print*, 'mass fluxes'
+!!    class is (check_CV_momentum)
+!!        print*, 'momentum fluxes'
+!!    class is (check_CV_energy)
+!!        print*, 'energy fluxes'
+!!    end select
 
 !	r12   = r1 - r2				!Molecule i trajectory between t-dt and t
 !	where (r12 .eq. 0.d0) r12 = 0.000001d0
@@ -731,8 +751,9 @@ contains
 !	if (sum(abs(crossface(:))) .ne. 0) return
 
 !	!If same bin, nothing to do here
-!	if (bin1(1) .eq. bin2(1) .and. bin1(2) .eq. bin2(2) .and. bin1(3) .eq. bin2(3)) return
-
+!	if (bin1(1) .eq. bin2(1) .and. & 
+!        bin1(2) .eq. bin2(2) .and. &
+!        bin1(3) .eq. bin2(3)) return
 !		
 !	!Loop through all intermediate bins, check surface to add to and then add
 !	do i = bin1(1),bin2(1),sign(1,bin2(1)-bin1(1))
@@ -748,40 +769,77 @@ contains
 !		binbot(3) = (k-1*nhb(3)-1)*Fbinsize(3)-halfdomain(3)
 
 !		!Calculate the plane intersect of line with surfaces of the cube
-!		Pxt=(/ bintop(1),ri(2)+(rij(2)/rij(1))*(bintop(1)-ri(1)),ri(3)+(rij(3)/rij(1))*(bintop(1)-ri(1))  /)
-!		Pxb=(/ binbot(1),ri(2)+(rij(2)/rij(1))*(binbot(1)-ri(1)),ri(3)+(rij(3)/rij(1))*(binbot(1)-ri(1))  /)
-!		Pyt=(/ri(1)+(rij(1)/rij(2))*(bintop(2)-ri(2)), bintop(2),ri(3)+(rij(3)/rij(2))*(bintop(2)-ri(2))  /)
-!		Pyb=(/ri(1)+(rij(1)/rij(2))*(binbot(2)-ri(2)), binbot(2),ri(3)+(rij(3)/rij(2))*(binbot(2)-ri(2))  /)
-!		Pzt=(/ri(1)+(rij(1)/rij(3))*(bintop(3)-ri(3)), ri(2)+(rij(2)/rij(3))*(bintop(3)-ri(3)), bintop(3) /)
-!		Pzb=(/ri(1)+(rij(1)/rij(3))*(binbot(3)-ri(3)), ri(2)+(rij(2)/rij(3))*(binbot(3)-ri(3)), binbot(3) /)
+!		Pxt=(/                  bintop(1), & 
+!                ri(2)+(rij(2)/rij(1))*(bintop(1)-ri(1)), & 
+!                ri(3)+(rij(3)/rij(1))*(bintop(1)-ri(1))  /)
+!		Pxb=(/                  binbot(1), & 
+!                ri(2)+(rij(2)/rij(1))*(binbot(1)-ri(1)), &
+!                ri(3)+(rij(3)/rij(1))*(binbot(1)-ri(1))  /)
+!		Pyt=(/  ri(1)+(rij(1)/rij(2))*(bintop(2)-ri(2)), &
+!                                bintop(2), &
+!                ri(3)+(rij(3)/rij(2))*(bintop(2)-ri(2))  /)
+!		Pyb=(/  ri(1)+(rij(1)/rij(2))*(binbot(2)-ri(2)),  &
+!                                binbot(2), &
+!                ri(3)+(rij(3)/rij(2))*(binbot(2)-ri(2))  /)
+!		Pzt=(/  ri(1)+(rij(1)/rij(3))*(bintop(3)-ri(3)),  &
+!                ri(2)+(rij(2)/rij(3))*(bintop(3)-ri(3)),  &
+!                                bintop(3)                /)
+!		Pzb=(/  ri(1)+(rij(1)/rij(3))*(binbot(3)-ri(3)),  &
+!                ri(2)+(rij(2)/rij(3))*(binbot(3)-ri(3)),  &
+!                                binbot(3)                /)
 
-!		onfacexb =  	(sign(1.d0,binbot(1)- rj(1)) - sign(1.d0,binbot(1)- ri(1)))* &
-!						(heaviside(bintop(2)-Pxb(2)) - heaviside(binbot(2)-Pxb(2)))* &
-!						(heaviside(bintop(3)-Pxb(3)) - heaviside(binbot(3)-Pxb(3)))
-!		onfaceyb =  	(sign(1.d0,binbot(2)- rj(2)) - sign(1.d0,binbot(2)- ri(2)))* &
-!						(heaviside(bintop(1)-Pyb(1)) - heaviside(binbot(1)-Pyb(1)))* &
-!						(heaviside(bintop(3)-Pyb(3)) - heaviside(binbot(3)-Pyb(3)))
-!		onfacezb =  	(sign(1.d0,binbot(3)- rj(3)) - sign(1.d0,binbot(3)- ri(3)))* &
-!						(heaviside(bintop(1)-Pzb(1)) - heaviside(binbot(1)-Pzb(1)))* &
-!						(heaviside(bintop(2)-Pzb(2)) - heaviside(binbot(2)-Pzb(2)))
+!		onfacexb =  	(sign(1.d0,binbot(1)- rj(1)) &
+!                       - sign(1.d0,binbot(1)- ri(1)))* &
+!						(heaviside(bintop(2)-Pxb(2)) &
+!                       - heaviside(binbot(2)-Pxb(2)))* &
+!						(heaviside(bintop(3)-Pxb(3)) &
+!                       - heaviside(binbot(3)-Pxb(3)))
+!		onfaceyb =  	(sign(1.d0,binbot(2)- rj(2)) &
+!                       - sign(1.d0,binbot(2)- ri(2)))* &
+!						(heaviside(bintop(1)-Pyb(1)) &
+!                       - heaviside(binbot(1)-Pyb(1)))* &
+!						(heaviside(bintop(3)-Pyb(3)) &
+!                       - heaviside(binbot(3)-Pyb(3)))
+!		onfacezb =  	(sign(1.d0,binbot(3)- rj(3)) &
+!                       - sign(1.d0,binbot(3)- ri(3)))* &
+!						(heaviside(bintop(1)-Pzb(1)) &
+!                       - heaviside(binbot(1)-Pzb(1)))* &
+!						(heaviside(bintop(2)-Pzb(2)) &
+!                       - heaviside(binbot(2)-Pzb(2)))
 
-!		onfacext =  	(sign(1.d0,bintop(1)- rj(1)) - sign(1.d0,bintop(1)- ri(1)))* &
-!						(heaviside(bintop(2)-Pxt(2)) - heaviside(binbot(2)-Pxt(2)))* &
-!						(heaviside(bintop(3)-Pxt(3)) - heaviside(binbot(3)-Pxt(3)))
-!		onfaceyt = 		(sign(1.d0,bintop(2)- rj(2)) - sign(1.d0,bintop(2)- ri(2)))* &
-!						(heaviside(bintop(1)-Pyt(1)) - heaviside(binbot(1)-Pyt(1)))* &
-!						(heaviside(bintop(3)-Pyt(3)) - heaviside(binbot(3)-Pyt(3)))
-!		onfacezt =  	(sign(1.d0,bintop(3)- rj(3)) - sign(1.d0,bintop(3)- ri(3)))* &
-!						(heaviside(bintop(1)-Pzt(1)) - heaviside(binbot(1)-Pzt(1)))* &
-!						(heaviside(bintop(2)-Pzt(2)) - heaviside(binbot(2)-Pzt(2)))
+!		onfacext =  	(sign(1.d0,bintop(1)- rj(1)) &
+!                       - sign(1.d0,bintop(1)- ri(1)))* &
+!						(heaviside(bintop(2)-Pxt(2)) &
+!                       - heaviside(binbot(2)-Pxt(2)))* &
+!						(heaviside(bintop(3)-Pxt(3)) &
+!                       - heaviside(binbot(3)-Pxt(3)))
+!		onfaceyt = 		(sign(1.d0,bintop(2)- rj(2)) &
+!                       - sign(1.d0,bintop(2)- ri(2)))* &
+!						(heaviside(bintop(1)-Pyt(1)) &
+!                       - heaviside(binbot(1)-Pyt(1)))* &
+!						(heaviside(bintop(3)-Pyt(3)) &
+!                       - heaviside(binbot(3)-Pyt(3)))
+!		onfacezt =  	(sign(1.d0,bintop(3)- rj(3)) &
+!                       - sign(1.d0,bintop(3)- ri(3)))* &
+!						(heaviside(bintop(1)-Pzt(1)) &
+!                       - heaviside(binbot(1)-Pzt(1)))* &
+!						(heaviside(bintop(2)-Pzt(2)) &
+!                       - heaviside(binbot(2)-Pzt(2)))
 
 !		!Value acting on face
-!		CV_Face_value(i,j,k,1) = CV_Face_value(i,j,k,1) + value*onfacexb
-!		CV_Face_value(i,j,k,2) = CV_Face_value(i,j,k,2) + value*onfaceyb
-!		CV_Face_value(i,j,k,3) = CV_Face_value(i,j,k,3) + value*onfacezb
-!		CV_Face_value(i,j,k,4) = CV_Face_value(i,j,k,4) + value*onfacext
-!		CV_Face_value(i,j,k,5) = CV_Face_value(i,j,k,5) + value*onfaceyt
-!		CV_Face_value(i,j,k,6) = CV_Face_value(i,j,k,6) + value*onfacezt
+!		flux(i,j,k,1) = flux(i,j,k,1) + value*onfacexb
+!		flux(i,j,k,2) = flux(i,j,k,2) + value*onfaceyb
+!		flux(i,j,k,3) = flux(i,j,k,3) + value*onfacezb
+!		flux(i,j,k,4) = flux(i,j,k,4) + value*onfacext
+!		flux(i,j,k,5) = flux(i,j,k,5) + value*onfaceyt
+!		flux(i,j,k,6) = flux(i,j,k,6) + value*onfacezt
+
+!		flux(i,j,k,:,1) = flux(i,j,k,:,1) + value*onfacexb
+!		flux(i,j,k,:,2) = flux(i,j,k,:,2) + value*onfaceyb
+!		flux(i,j,k,:,3) = flux(i,j,k,:,3) + value*onfacezb
+!		flux(i,j,k,:,4) = flux(i,j,k,:,4) + value*onfacext
+!		flux(i,j,k,:,5) = flux(i,j,k,:,5) + value*onfaceyt
+!		flux(i,j,k,:,6) = flux(i,j,k,:,6) + value*onfacezt
 
 !!  	if (i .eq. 3 .and. j .eq. 3 .and. k .eq. 3) then
 !!   	if (any(abs((/onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb/)) .gt. 0.00001)) then
@@ -793,14 +851,14 @@ contains
 !!   			if (abs(onfaceyt) .gt. 0.000001) face = 5 
 !!   			if (abs(onfacezt) .gt. 0.000001) face = 6 
 !!   				print'(a,6i5,2f12.4,6i3,f6.0,5f4.0)','Int pp box 3', iter,molnoi,molnoj,i,j,k,value, & 
-!!   																	CV_Face_value(i,j,k,face), & 
+!!   																	flux(i,j,k,face), & 
 !!   																	bin1,bin2,onfacext,onfacexb,onfaceyt, & 
 !!   																	onfaceyb,onfacezt,onfacezb
 !!   	!endif
 !!   	endif
 !!   	endif
 
-!		!print'(a,3i4,7f10.5)', 'IN surface cv routine ',i,j,k, CV_Face_value(i,j,k,:), value
+!		!print'(a,3i4,7f10.5)', 'IN surface cv routine ',i,j,k, flux(i,j,k,:), value
 
 !	enddo
 !	enddo
