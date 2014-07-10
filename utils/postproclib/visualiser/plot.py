@@ -52,3 +52,6 @@ class PyplotPanel(wx.Panel):
     def update_contour(self, data):
         self.colormesh.set_array(data[:,1:].ravel())          
         self.canvas.draw()
+
+    def savefigure(self,fpath):
+        self.figure.savefig(str(fpath),dpi=300)

@@ -408,22 +408,22 @@ class MD_dField(MDField):
         
         return density
 
-    def averaged_data(self,startrec,endrec,avgaxes=(), **kwargs):
+    def averaged_data(self,startrec,endrec,avgaxes=(),binlimits=None, **kwargs):
 
         nrecs = endrec - startrec + 1
-        binvolumes = self.mField.Raw.get_binvolumes()
+        binvolumes = self.mField.Raw.get_binvolumes(binlimits=binlimits)
         binvolumes = np.expand_dims(binvolumes,axis=-1)
         #Nmass_ave = self.mField.Raw.header.Nmass_ave
 
         # Read 4D time series from startrec to endrec
-        mdata = self.mField.read(startrec, endrec, **kwargs)
+        mdata = self.mField.read(startrec, endrec, binlimits=binlimits)
         mdata = np.divide(mdata,float(self.plotfreq))
 
         if (avgaxes != ()):
             mdata = np.sum(mdata,axis=avgaxes) 
             # binvolumes should only be length=1 in time & component axis
             binvolumes = np.sum(binvolumes,axis=avgaxes) 
-        
+
         density = np.divide(mdata,binvolumes*nrecs)
 
         return density 

@@ -83,6 +83,19 @@ class VisualiserPanel(wx.Panel):
         self.Bind(wx.EVT_CHECKBOX, self.handle_autoscale, 
                   self.choosep.autoscale_b) 
 
+        self.choosep.save_b.Bind(wx.EVT_BUTTON, self.save_dialogue) 
+
+    def save_dialogue(self, event):
+        dlg = wx.FileDialog(self, defaultDir='./', defaultFile='fig.png',
+                            style=wx.FD_SAVE) 
+        if (dlg.ShowModal() == wx.ID_OK):
+            fpath = dlg.GetPath()
+        dlg.Destroy()
+
+        if fpath:
+            print('Saving figure as ' + fpath)
+            self.pyplotp.savefigure(fpath)
+            print('Saved.')
 
     def handle_plottype(self, event):
         plottype = event.GetString()
@@ -275,4 +288,3 @@ class VisualiserPanel(wx.Panel):
             slider.SetTransparent(10)
         else:
             quit("Error - toggle_position_slider must be str On of Off")
-

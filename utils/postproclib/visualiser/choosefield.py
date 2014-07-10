@@ -27,6 +27,12 @@ class FieldTypePanel(scrolled.ScrolledPanel):
         self.SetAutoLayout(1)
         self.SetupScrolling()
 
+class SaveFigurePanel(wx.Panel):
+
+    def __init__(self,parent,**kwargs):
+        wx.Panel.__init__(self,parent,**kwargs)
+        self.savebutton = wx.Button(self,-1,"Save figure...")
+
 class FieldComponentPanel(wx.Panel):
     
     def __init__(self,parent,**kwargs):
@@ -62,6 +68,8 @@ class FieldChooserPanel(wx.Panel):
         self.component_p = FieldComponentPanel(self)
         # Autoscale button
         self.autoscale_b = wx.CheckBox(self,-1,label='Autoscale')
+        # Save button
+        self.save_b = SaveFigurePanel(self)
 
         # Sizer
         vbox = wx.BoxSizer(wx.VERTICAL)
@@ -69,4 +77,5 @@ class FieldChooserPanel(wx.Panel):
         vbox.Add(self.fieldtype_p,0,wx.EXPAND, 0)
         vbox.Add(self.component_p,0,wx.EXPAND, 0)
         vbox.Add(self.autoscale_b,0,wx.EXPAND, 0)
+        vbox.Add(self.save_b,     0,wx.EXPAND, 0)
         self.SetSizer(vbox) 
