@@ -1391,7 +1391,7 @@ contains
             rnm = rm - rn 
             rnmmag = sqrt(dot_product(rnm,rnm))
 
-            ! Check that the molecule isn't a cylinder one
+            ! Check that the molecule isn't a wall one
             call wall_textures(texture_type,globalise(rm),solid_bottom,solid_top)
             if (any(globalise(rm) .lt. solid_bottom-globaldomain/2.d0)) success = .false.! ; return
             if (any(globalise(rm) .gt. (globaldomain/2.d0)-solid_top)) success = .false.! ; return 
