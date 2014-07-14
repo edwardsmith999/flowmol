@@ -13,9 +13,9 @@ def showMessageDlg(msg, title='Information', style=wx.OK|wx.ICON_INFORMATION):
     dlg.ShowModal()
     dlg.Destroy()
 
-class MDVisualiserFrame(wx.Frame):
+class MainFrame(wx.Frame):
 
-    def __init__(self, parent=None, fdir='./', title='MDViewer 4000', 
+    def __init__(self, parent=None, fdir='./', title='DataViewer 5000', 
                  size=(800,600), **kwargs):
 
         wx.Frame.__init__(self,parent,title=title,size=size)

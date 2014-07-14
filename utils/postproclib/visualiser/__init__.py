@@ -1,1 +1,1 @@
-from mdvisualiser import MDVisualiserFrame
+from mainframe import MainFrame

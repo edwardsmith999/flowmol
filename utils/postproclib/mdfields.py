@@ -214,8 +214,20 @@ class MD_efluxField(MDField):
 # ============================================================================
 # Complex fields that inherit MDField AND contain MDField objects, require 
 # extra calculations. "Read" and "average_data" routines are commonly 
-# overridden.
-class MD_vField(MDField):
+# overridden. Parameters for the complex field are usually inherited from
+# one of the sub-fields.
+
+class MD_complexField(MDField):
+   
+    def inherit_parameters(self, subfieldobj):
+        self.header = subfieldobj.Raw.header
+        self.nperbin = subfieldobj.nperbin
+        self.cpol_bins = subfieldobj.cpol_bins
+        self.plotfreq = subfieldobj.plotfreq
+        self.axislabels = subfieldobj.axislabels
+        self.labels = subfieldobj.labels
+
+class MD_vField(MD_complexField):
 
     def __init__(self,fdir,rectype='bins'):
         if (rectype == 'bins'):
@@ -226,11 +238,12 @@ class MD_vField(MDField):
             self.pField = MD_pField(fdir,fname='vsnap')
 
         Field.__init__(self,self.mField.Raw)
-        self.header = self.pField.Raw.header
-        self.nperbin = self.pField.nperbin
-        self.cpol_bins = self.pField.cpol_bins
-        self.axislabels = self.pField.axislabels
-        self.labels = self.pField.labels
+        self.inherit_parameters(self.pField)
+        #self.header = self.pField.Raw.header
+        #self.nperbin = self.pField.nperbin
+        #self.cpol_bins = self.pField.cpol_bins
+        #self.axislabels = self.pField.axislabels
+        #self.labels = self.pField.labels
         if (self.mField.plotfreq == self.pField.plotfreq):
             self.plotfreq = self.pField.plotfreq
         else:
@@ -262,20 +275,21 @@ class MD_vField(MDField):
 
         return vdata 
 
-class MD_pVAField(MDField):
+class MD_pVAField(MD_complexField):
 
     def __init__(self, fdir, fname):
 
         self.fname = fname
         self.PField = MD_PField(fdir,fname)
         Field.__init__(self,self.PField.Raw)
+        self.inherit_parameters(self.PField)
 
-        self.header = self.PField.Raw.header
-        self.nperbin = self.PField.nperbin
-        self.cpol_bins = self.PField.cpol_bins
-        self.axislabels = self.PField.axislabels
-        self.labels = self.PField.labels
-        self.plotfreq = self.PField.plotfreq
+        #self.header = self.PField.Raw.header
+        #self.nperbin = self.PField.nperbin
+        #self.cpol_bins = self.PField.cpol_bins
+        #self.axislabels = self.PField.axislabels
+        #self.labels = self.PField.labels
+        #self.plotfreq = self.PField.plotfreq
 
     def read(self,startrec,endrec,peculiar=True,**kwargs):
 
@@ -313,16 +327,17 @@ class MD_pVAField(MDField):
 
         return Pdata 
 
-class MD_TField(MDField):
+class MD_TField(MD_complexField):
 
     def __init__(self,fdir):
         self.mField = MD_mField(fdir)
         self.pField = MD_pField(fdir)
         self.KEField = MD_EField(fdir)
         Field.__init__(self,self.KEField.Raw)
-        self.header = self.KEField.Raw.header
-        self.nperbin = self.KEField.nperbin
-        self.cpol_bins = self.KEField.cpol_bins
+        self.inherit_parameters(self.KEField)
+        #self.header = self.KEField.Raw.header
+        #self.nperbin = self.KEField.nperbin
+        #self.cpol_bins = self.KEField.cpol_bins
         if ((self.mField.plotfreq == self.pField.plotfreq) &
             (self.mField.plotfreq == self.KEField.plotfreq)):
             self.plotfreq = self.KEField.plotfreq
@@ -382,17 +397,18 @@ class MD_TField(MDField):
         return Tdata 
 
 # Density field
-class MD_dField(MDField):
+class MD_dField(MD_complexField):
     
     def __init__(self,fdir,fname='mbins'):
         self.mField = MD_mField(fdir,fname)
         Field.__init__(self,self.mField.Raw)
-        self.header = self.mField.Raw.header
-        self.nperbin = self.mField.nperbin
-        self.cpol_bins = self.mField.cpol_bins
-        self.plotfreq = self.mField.plotfreq
-        self.axislabels = self.mField.axislabels
-        self.labels = self.mField.labels
+        self.inherit_parameters(self.mField)
+        #self.header = self.mField.Raw.header
+        #self.nperbin = self.mField.nperbin
+        #self.cpol_bins = self.mField.cpol_bins
+        #self.plotfreq = self.mField.plotfreq
+        #self.axislabels = self.mField.axislabels
+        #self.labels = self.mField.labels
 
     def read(self, startrec, endrec, binlimits=None, **kwargs):
 
@@ -413,7 +429,6 @@ class MD_dField(MDField):
         nrecs = endrec - startrec + 1
         binvolumes = self.mField.Raw.get_binvolumes(binlimits=binlimits)
         binvolumes = np.expand_dims(binvolumes,axis=-1)
-        #Nmass_ave = self.mField.Raw.header.Nmass_ave
 
         # Read 4D time series from startrec to endrec
         mdata = self.mField.read(startrec, endrec, binlimits=binlimits)
@@ -429,38 +444,39 @@ class MD_dField(MDField):
         return density 
 
 # Momentum density field
-class MD_momField(MDField):
+class MD_momField(MD_complexField):
     
     def __init__(self,fdir,fname='vbins'):
         self.pField = MD_pField(fdir,fname)
         Field.__init__(self,self.pField.Raw)
-        self.header = self.pField.Raw.header
-        self.nperbin = self.pField.nperbin
-        self.cpol_bins = self.pField.cpol_bins
-        self.plotfreq = self.pField.plotfreq
-        self.axislabels = self.pField.axislabels
-        self.labels = self.pField.labels
+        self.inherit_parameters(self.pField)
+        #self.header = self.pField.Raw.header
+        #self.nperbin = self.pField.nperbin
+        #self.cpol_bins = self.pField.cpol_bins
+        #self.plotfreq = self.pField.plotfreq
+        #self.axislabels = self.pField.axislabels
+        #self.labels = self.pField.labels
 
-    def read(self, startrec, endrec,**kwargs):
+    def read(self, startrec, endrec, binlimits=None, **kwargs):
 
-        binvolumes = self.pField.Raw.get_binvolumes()
+        binvolumes = self.pField.Raw.get_binvolumes(binlimits=binlimits)
         binvolumes = np.expand_dims(binvolumes,axis=-1)
 
         # Read 4D time series from startrec to endrec
-        pdata = self.pField.read(startrec, endrec,**kwargs)
+        pdata = self.pField.read(startrec, endrec,binlimits=binlimits,**kwargs)
         pdata = np.divide(pdata,float(self.plotfreq))
 
         momdensity = np.divide(pdata,binvolumes)
         
         return momdensity
 
-    def averaged_data(self,startrec,endrec,avgaxes=(),**kwargs):
+    def averaged_data(self,startrec,endrec,binlimits=None,avgaxes=(),**kwargs):
 
-        binvolumes = self.pField.Raw.get_binvolumes()
+        binvolumes = self.pField.Raw.get_binvolumes(binlimits=binlimits)
         binvolumes = np.expand_dims(binvolumes,axis=-1)
 
         # Read 4D time series from startrec to endrec
-        pdata = self.pField.read(startrec, endrec,**kwargs)
+        pdata = self.pField.read(startrec,endrec,binlimits=binlimits,**kwargs)
         pdata = np.divide(pdata,float(self.plotfreq))
 
         if (avgaxes != ()):
@@ -472,6 +488,7 @@ class MD_momField(MDField):
 
         return momdensity 
 
+# MD CV Fields...
 class MD_CVvField(MDField):
 
     def __init__(self,fdir):

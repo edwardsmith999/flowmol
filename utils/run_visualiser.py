@@ -10,6 +10,6 @@ if __name__ == "__main__":
         direc = '../MD_dCSE/src_code/results/'
 
     app = wx.App()
-    fr = pplv.MDVisualiserFrame(None, fdir=direc)
+    fr = pplv.MainFrame(None, fdir=direc)
     fr.Show()
     app.MainLoop()
