@@ -116,6 +116,49 @@ class CPLField(Field):
                                                 avgaxes=avgaxes, **kwargs)
         return self.md_grid[axis], md_data, self.cfd_grid[axis], cfd_data 
 
+    def profile_both_cnstinfo(self, axis, startrec=0, endrec=None, **kwargs):
+
+        md_ax, md_data, cfd_ax, cfd_data = self.profile_both(axis,
+                                                startrec=startrec,
+                                                endrec=endrec, **kwargs)
+
+        dx = cfd_ax[1] - cfd_ax[0]
+        uppercellfaces = cfd_ax + 0.5*dx
+        lowercellfaces = cfd_ax - 0.5*dx
+
+        # -1 to compensate Fortran indexing, +1 to add CFD halo
+        if (axis == 0):
+            lowercnstcell = int(self.header.icmin_cnst) - 1
+            uppercnstcell = int(self.header.icmax_cnst) - 1 
+        elif (axis == 1):
+            lowercnstcell = int(self.header.jcmin_cnst) - 1 + 1
+            uppercnstcell = int(self.header.jcmax_cnst) - 1 + 1
+        elif (axis == 2):
+            lowercnstcell = int(self.header.kcmin_cnst) - 1
+            uppercnstcell = int(self.header.kcmax_cnst) - 1 
+        else:
+            raise
+
+        # Constrained MD cells
+        cnst_md = np.logical_and(md_ax>lowercellfaces[lowercnstcell],
+                                 md_ax<uppercellfaces[uppercnstcell])
+        md_ax_cnst = md_ax[cnst_md]
+        md_data_cnst = md_data[cnst_md]
+
+        # CFD boundary condition only output for y axis
+        if (axis == 1):
+            cfd_ax_bc = np.array([cfd_ax[0], cfd_ax[-1]])
+            cfd_data_bc = np.array([ cfd_data[0,:], cfd_data[-1,:] ])
+        else:
+            cfd_ax_bc = np.array([None, None])
+            cfd_data_bc = np.array([ 
+                                     [None]*cfd_data.shape[1], 
+                                     [None]*cfd_data.shape[1] 
+                                   ])
+
+        return (md_ax, md_data, cfd_ax, cfd_data, md_ax_cnst, md_data_cnst, 
+               cfd_ax_bc, cfd_data_bc)
+
 class CPL_vField(CPLField):
     nperbin = 3
     MDFieldType = mdfields.MD_vField 
