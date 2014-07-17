@@ -77,7 +77,7 @@ class CFD_RawData:
         npercell = filesize / (dprealbytes*ngridpoints) 
         return npercell
 
-    def read(self,startrec,endrec):
+    def read(self,startrec,endrec,binlimits=None,verbose=False,**kwargs):
 
         nrecs = endrec - startrec + 1
         # Efficient memory allocation
@@ -96,5 +96,27 @@ class CFD_RawData:
                 data = np.transpose(data,(1,2,0,3))
                 # insert into array
                 subdata[:,:,:,plusrec,:] = data 
+
+        # If bin limits are specified, return only those within range
+        if (binlimits):
+
+            if (verbose):
+                print('subdata.shape = {0:s}'.format(str(subdata.shape)))
+                print('Extracting bins {0:s}'.format(str(binlimits)))
+
+            # Defaults
+            lower = [0]*3
+            upper = [i for i in subdata.shape] 
+    
+            for axis in range(3):
+                if (binlimits[axis] == None):
+                    continue
+                else:
+                    lower[axis] = binlimits[axis][0] 
+                    upper[axis] = binlimits[axis][1] 
+
+            subdata = subdata[lower[0]:upper[0],
+                              lower[1]:upper[1],
+                              lower[2]:upper[2], :, :]
          
         return subdata

@@ -25,8 +25,9 @@ class CFD_vField(CFDField):
         assert self.Raw.npercell > 0
         self.labels = ['u','v','w']
     
-    def read(self,startrec,endrec,**kwargs):
-        subdata = CFDField.read(self,startrec,endrec) 
+    def read(self,startrec,endrec,binlimits=None,**kwargs):
+        subdata = CFDField.read(self,startrec,endrec,binlimits=binlimits,
+                                **kwargs) 
         v = subdata[:,:,:,:,0:3]
         return v 
         
@@ -39,8 +40,9 @@ class CFD_PField(CFDField):
         assert self.Raw.npercell > 3
         self.labels = ['p']
 
-    def read(self,startrec,endrec,**kwargs):
-        subdata = CFDField.read(self,startrec,endrec) 
+    def read(self,startrec,endrec,binlimits=None,**kwargs):
+        subdata = CFDField.read(self,startrec,endrec,binlimits=binlimits,
+                                **kwargs) 
         P = subdata[:,:,:,:,3:4]
         return P 
 
@@ -55,8 +57,9 @@ class CFD_StressField(CFDField):
                        y+x,y+y,y+z,
                        z+x,z+y,z+z]
 
-    def read(self,startrec,endrec,**kwargs):
-        subdata = CFDField.read(self,startrec,endrec) 
+    def read(self,startrec,endrec,binlimits=None,**kwargs):
+        subdata = CFDField.read(self,startrec,endrec,binlimits=binlimits,
+                                **kwargs) 
         P = subdata[:,:,:,:,4:]
         return P 
 # ============================================================================
