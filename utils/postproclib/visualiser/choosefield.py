@@ -5,12 +5,12 @@ class PlotTypePanel(wx.Panel):
 
     def __init__(self,parent,**kwargs):
         wx.Panel.__init__(self,parent,**kwargs)
-        choices = ['Profile','Contour']
+        choices = ['Profile','Contour','CPL']
         self.fieldradiobox = wx.RadioBox(self,label='Plot Type',    
                                     style=wx.RA_SPECIFY_COLS,
                                     choices=choices)
         vbox = wx.BoxSizer(wx.VERTICAL)
-        vbox.Add(self.fieldradiobox, 0, wx.EXPAND)
+        vbox.Add(self.fieldradiobox, 0, wx.EXPAND|wx.ALL, 10)
         self.SetSizer(vbox)
 
 class FieldTypePanel(scrolled.ScrolledPanel):

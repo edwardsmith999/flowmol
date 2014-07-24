@@ -11,6 +11,7 @@ class VisualiserPanel(wx.Panel):
 
         wx.Panel.__init__(self,parent,**kwargs)
 
+        if (fdir[-1] != '/'): fdir+='/'
         self.fdir = fdir
         self.PP = All_PostProc(self.fdir)
         self.fieldname, self.field = self.PP.plotlist.items()[0]
@@ -107,6 +108,10 @@ class VisualiserPanel(wx.Panel):
             self.redraw = self.redraw_contour
             self.update = self.update_contour
             self.toggle_binslider("On")
+        elif plottype == 'CPL':
+            self.redraw = self.redraw_cpl_plot
+            self.update = self.update_cpl_plot
+            self.toggle_binslider("Off")
         #else: 
             #try:
             #    from mayavi import mlab
@@ -247,35 +252,65 @@ class VisualiserPanel(wx.Panel):
                                             endrec=self.rec+self.recwidth,
                                             binlimits=binlimits,
                                             quit_on_error=False)
-        return ax1, ax2, data, naxes
+        return ax1, ax2, data[:,:,self.component], naxes
 
     def get_plot_data(self):
         ax, data = self.field.profile(self.normal, 
                                       startrec=self.rec-self.recwidth, 
                                       endrec=self.rec+self.recwidth, 
                                       quit_on_error=False)
-        return ax, data
+        return ax, data[:,self.component]
+
+    def get_cpl_plot_data(self):
+        (md_ax, md_data, cfd_ax, cfd_data, md_ax_cnst, md_data_cnst, 
+         cfd_ax_bc, cfd_data_bc) = self.field.profile_both_cnstinfo(self.normal, 
+                                      startrec=self.rec-self.recwidth, 
+                                      endrec=self.rec+self.recwidth, 
+                                      quit_on_error=False)
+        axs = [md_ax, cfd_ax, md_ax_cnst, cfd_ax_bc]
+        datas = [md_data[:,self.component], cfd_data[:,self.component],
+                 md_data_cnst[:,self.component], cfd_data_bc[:,self.component]]
+        return axs, datas
 
     def redraw_plot(self):
         ax, data = self.get_plot_data()
         xlabel = self.field.axislabels[self.normal] 
         ylabel = self.fieldname + "_" + self.field.labels[self.component] 
-        self.pyplotp.redraw_plot(ax, data[:,self.component], xlabel, ylabel)
+        self.pyplotp.redraw_plot(ax, data, xlabel, ylabel)
         self.Refresh()
     def update_plot(self):
         ax, data = self.get_plot_data()
-        self.pyplotp.update_plot(ax, data[:,self.component])
+        self.pyplotp.update_plot(ax, data)
+        self.Refresh()
+
+    def redraw_cpl_plot(self):
+        axs, datas = self.get_cpl_plot_data()
+        xlabel = self.field.axislabels[self.normal] 
+        ylabel = self.fieldname + "_" + self.field.labels[self.component] 
+        styles = [{'marker':'o','mec':'none', 'ms':5.0, 'color':'b', 
+                   'label':'MD'},#,'linestyle':'none'},
+                  {'marker':'x','color':'g', 'mew':2.0, 'ms':5.0, 
+                   'label':'CFD'},
+                  {'marker':'o','mec':'none', 'ms':5.0, 'color':'r', 
+                   'alpha':0.6, 'label':'MD const'},#,'linestyle':'none'},
+                  {'marker':'o','linestyle':'none','mec':'g','mfc':'none',
+                   'ms':10.0, 'mew':2.0, 'label':'CFD const'}]
+        self.pyplotp.redraw_plot_many(axs, datas, styles, xlabel, ylabel)
+        self.Refresh()
+    def update_cpl_plot(self):
+        axs, datas = self.get_cpl_plot_data()
+        self.pyplotp.update_plot_many(axs, datas)
         self.Refresh()
 
     def redraw_contour(self):
         ax1, ax2, data, naxes = self.get_contour_data()
         xlabel = naxes[0]
         ylabel = naxes[1]
-        self.pyplotp.redraw_contour(ax1, ax2, data[:,:,self.component], xlabel, ylabel)
+        self.pyplotp.redraw_contour(ax1, ax2, data, xlabel, ylabel)
         self.Refresh()
     def update_contour(self):
         ax1, ax2, data, naxes = self.get_contour_data()
-        self.pyplotp.update_contour(data[:,:,self.component])
+        self.pyplotp.update_contour(data)
         self.Refresh()
 
     def toggle_binslider(self,switchon):
