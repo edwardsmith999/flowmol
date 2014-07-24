@@ -1,6 +1,7 @@
 # /usr/bin/env python
 import wx
 import sys
+from postproclib.visualiser import __path__ as pplvpath
 from postproclib.postproc import NoResultsInDir
 
 from visuals import VisualiserPanel
@@ -21,10 +22,12 @@ class MainFrame(wx.Frame):
         wx.Frame.__init__(self,parent,title=title,size=size)
         try:
             _icon = wx.EmptyIcon()
-            _icon.CopyFromBitmap(wx.Bitmap("./postproclib/visualiser/logo.gif", 
-                                 wx.BITMAP_TYPE_ANY))
+            _icon.CopyFromBitmap(
+                # postproclib.visualiser.__path__ (pplvpath) is a list
+                wx.Bitmap(pplvpath[0]+"/logo.gif", wx.BITMAP_TYPE_ANY)
+            )
             self.SetIcon(_icon)
-        except:
+        except IOError:
             print('Couldn\'t load icon')
 
         self.dirchooser = DirectoryChooserPanel(self, fdir)

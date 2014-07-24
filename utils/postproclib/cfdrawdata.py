@@ -67,6 +67,9 @@ class CFD_RawData:
             raise IOError 
 
         subdoms = sorted(subdoms,key=get_int)
+        
+        # CFD writes a record at the beginning, so remove it
+        subdoms = subdoms[1:]
         return subdoms
 
     def get_npercell(self):
