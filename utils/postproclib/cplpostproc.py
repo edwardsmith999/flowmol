@@ -19,7 +19,7 @@ class CPL_PostProc(PostProc):
             raise IOError
 
         try:
-            fobj = open(self.resultsdir + 'coupler_header','r')
+            fobj = open(self.resultsdir + 'results/coupler_header','r')
         except IOError:
             raise NoResultsInDir
 

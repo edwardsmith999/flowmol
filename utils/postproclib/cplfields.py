@@ -71,13 +71,14 @@ class CPLField(Field):
         grid = [gridx,gridy,gridz]
         return grid
         
-    def read(self,startrec,endrec,**kwargs):
+    def read(self,startrec,endrec,binlimits=None,**kwargs):
         
         if (not skit_imported):
             quit(skit_imported_fail_message)
 
         md_data = self.md_field.read(startrec,endrec)
         cfd_data = self.cfd_field.read(startrec,endrec)
+
         ndims =  md_data.shape[-1]
         nrecs = endrec - startrec + 1
 
@@ -99,6 +100,24 @@ class CPLField(Field):
         #cfd_data = cfd_data[:,jstart:,:,:,:]
 
         cpl_data = np.concatenate((md_coarse,cfd_data),axis=1)
+        
+        if (binlimits):
+
+            # Defaults
+            lower = [0]*3
+            upper = [i for i in cpl_data.shape] 
+    
+            for axis in range(3):
+                if (binlimits[axis] == None):
+                    continue
+                else:
+                    lower[axis] = binlimits[axis][0] 
+                    upper[axis] = binlimits[axis][1] 
+
+            cpl_data = cpl_data[lower[0]:upper[0],
+                                lower[1]:upper[1],
+                                lower[2]:upper[2]]
+            
         return cpl_data
     
     def profile_both(self,axis,startrec=0,endrec=None,**kwargs):

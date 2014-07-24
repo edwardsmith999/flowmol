@@ -15,12 +15,14 @@ class All_PostProc:
             print(MD_PP)
         except NoResultsInDir:
             pass
+
         try:
             CFD_PP = CFD_PostProc(fdir)
             self.plotlist.update(CFD_PP.plotlist)
             print(CFD_PP)
         except NoResultsInDir:
             pass
+
         try:
             CPL_PP = CPL_PostProc(fdir)
             self.plotlist.update(CPL_PP.plotlist)
