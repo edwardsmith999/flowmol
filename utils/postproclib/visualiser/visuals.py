@@ -67,9 +67,13 @@ class VisualiserPanel(wx.Panel):
         self.Bind(wx.EVT_COMBOBOX, self.handle_normal, 
                   self.choosep.component_p.normalcombobox)
 
-        self.Bind(wx.EVT_COMMAND_SCROLL, self.handle_recslider, 
+        self.Bind(wx.EVT_COMMAND_SCROLL_THUMBTRACK, self.handle_recslider, 
                   self.slidersp.recslider.slider)
-        self.Bind(wx.EVT_COMMAND_SCROLL, self.handle_binslider, 
+        self.Bind(wx.EVT_COMMAND_SCROLL_THUMBTRACK, self.handle_binslider, 
+                  self.slidersp.binslider.slider)
+        self.Bind(wx.EVT_COMMAND_SCROLL_CHANGED, self.handle_recslider, 
+                  self.slidersp.recslider.slider)
+        self.Bind(wx.EVT_COMMAND_SCROLL_CHANGED, self.handle_binslider, 
                   self.slidersp.binslider.slider)
         self.Bind(wx.EVT_TEXT_ENTER, self.handle_rectxt,
                   self.slidersp.recslider.slidertext)
