@@ -54,27 +54,23 @@ end module
 !=======================================================================
 subroutine messenger_invoke()
     use mpi
+	use messenger, only : CFD_COMM, ierr,wallTime
+	use continuum_data_export, only : prefix_dir
 #if USE_COUPLER
-    use coupler
+    use CPL, only : CPL_create_comm, cfd_realm
 #endif
-	use messenger
-!    use continuum_coupler_socket_init
+    implicit none
 
     call MPI_init (ierr)
 
 #if USE_COUPLER
-            !call init_coupler(CFD_COMM)
-            call coupler_create_comm(COUPLER_CFD, CFD_COMM, ierror)
-            prefix_dir ="./couette_data/"
+    CFD_COMM = MPI_COMM_WORLD
 #else
-            CFD_COMM = MPI_COMM_WORLD
-            prefix_dir = "./"
+    CFD_COMM = MPI_COMM_WORLD
+    prefix_dir = "./"
 #endif
 
     wallTime = mpi_wtime()
-
-	! If coupling is used MPI initialisation is done at the top level
-	! of coupled program
 
 	return
 

@@ -96,8 +96,9 @@ subroutine continuum_record
 	!use calculated_properties_MD
 	implicit none
 
-	integer										:: m, length, ixyz
-	double precision, allocatable, dimension(:)	:: uslice
+	integer										    :: i,j, m, length, ixyz
+	double precision, allocatable, dimension(:)	    :: uslice
+	double precision, allocatable, dimension(:,:)	:: tauslice
 
 	select case(continuum_vflag)
 	case(0)
@@ -113,6 +114,7 @@ subroutine continuum_record
 			allocate(uslice(nx+2))
 			!uslice = uc(1:nx+2,floor(dble(ny)/2.d0))
 			uslice = sum(uc(1:nx+2,2:ny+1),dim=ixyz)/(ny)
+
 		elseif (continuum_vflag .eq. 2) then
 			allocate(uslice(ny+2))
 			!uslice = uc(floor(dble(nx)/2.d0),1:ny+2)
@@ -123,58 +125,107 @@ subroutine continuum_record
 		open (unit=1003, file=trim(prefix_dir)//"results/continuum_vslice",form="unformatted",access='direct',recl=length)
 		write(1003,rec=m) uslice
 		close(1003,status='keep')
-
 		deallocate(uslice)
+
+        if (solver .eq. FV) then
+			    tauslice = get_slice(continuum_vflag,tau_xx)
+    		    inquire(iolength=length) tauslice
+		        open (unit=1004, file=trim(prefix_dir)//"results/continuum_tauslice_xx",form="unformatted",access='direct',recl=length)
+		        write(1004,rec=m) tauslice
+		        close(1004,status='keep')
+    		    deallocate(tauslice)
+			    tauslice = get_slice(continuum_vflag,tau_xy)
+    		    inquire(iolength=length) tauslice
+		        open (unit=1004, file=trim(prefix_dir)//"results/continuum_tauslice_xy",form="unformatted",access='direct',recl=length)
+		        write(1004,rec=m) tauslice
+		        close(1004,status='keep')
+    		    deallocate(tauslice)
+			    tauslice = get_slice(continuum_vflag,tau_yx)
+    		    inquire(iolength=length) tauslice
+		        open (unit=1004, file=trim(prefix_dir)//"results/continuum_tauslice_yx",form="unformatted",access='direct',recl=length)
+		        write(1004,rec=m) tauslice
+		        close(1004,status='keep')
+    		    deallocate(tauslice)
+			    tauslice = get_slice(continuum_vflag,tau_yy)
+    		    inquire(iolength=length) tauslice
+		        open (unit=1004, file=trim(prefix_dir)//"results/continuum_tauslice_yy",form="unformatted",access='direct',recl=length)
+		        write(1004,rec=m) tauslice
+		        close(1004,status='keep')
+    		    deallocate(tauslice)
+
+        endif
+
+
 	case(3)
 		!Write Continuum velocities
 		m = continuum_iter/continuum_tplot
 
-		inquire(iolength=length) uc(1:nx+2,1:ny+2)
+		inquire(iolength=length) uc
 		open (unit=1003, file=trim(prefix_dir)//"results/continuum_vxbins",form="unformatted",access='direct',recl=length)
-		write(1003,rec=m) uc(1:nx+2,1:ny+2)
+		write(1003,rec=m) uc
 		close(1003,status='keep')
 
-		!inquire(iolength=length) vc(1:nx+2,1:ny+2)
-		!open (unit=1004, file="results/continuum_vybins",form="unformatted",access='direct',recl=length)
-		!write(1004,rec=m) vc(1:nx+2,1:ny+2)
-		!close(1004,status='keep')
-        case(4)  ! ASCII output
-                call text_output
+        !Write Stresses
+        if (solver .eq. FV) then
+!	        do i = 4,4
+!	        do j = 2, ny+1
+!                !if (abs((uc(i,j)-uc_t_minus_1(i,j))/continuum_delta_t - xresidual(i,j)/vcell(i,j)) .gt. 1e-10) then
+!        	        write(7500000+continuum_iter,'(a,3i5,10f10.6)'),'time', continuum_iter, i, j, uc(i,j),(uc(i,j)-uc_t_minus_1(i,j))/continuum_delta_t,xresidual(i,j)/vcell(i,j), & 
+!                                        (tau_xy(i,j,4)*sy(j,4)+tau_xy(i,j,2)*sy(j,2))/(vcell(i,j)*Re), &
+!                                        tau_xy(i,j,1)*sy(j,1)+tau_xy(i,j,3)*sy(j,3), & 
+!                                        tau_xy(i,j,:),vcell(i,j)
+!            		close(7500000+continuum_iter,status='keep')
+!                !endif
+!	        enddo
+!	        enddo
+
+		    inquire(iolength=length) tau_xx
+
+    		open (unit=1004, file=trim(prefix_dir)//"results/continuum_tau_xx",form="unformatted",access='direct',recl=length)
+	    	write(1004,rec=m) tau_xx
+	    	close(1004,status='keep')
+    		open (unit=1004, file=trim(prefix_dir)//"results/continuum_tau_xy",form="unformatted",access='direct',recl=length)
+	    	write(1004,rec=m) tau_xy
+	    	close(1004,status='keep')
+    		open (unit=1004, file=trim(prefix_dir)//"results/continuum_tau_yx",form="unformatted",access='direct',recl=length)
+	    	write(1004,rec=m) tau_yx
+	    	close(1004,status='keep')
+    		open (unit=1004, file=trim(prefix_dir)//"results/continuum_tau_yy",form="unformatted",access='direct',recl=length)
+	    	write(1004,rec=m) tau_yy
+	    	close(1004,status='keep')
+        endif
+
 	case default
 		stop "Error incorrect input for continuum velocity "
 	end select
 
 	!Output simulation progress and residual
-	print'(a,i8,a,f20.15)', ' elapsed continnum steps ', continuum_iter, &
-		 ' residual = ' , sum(xresidual)/nx + sum(yresidual)/ny
+	print'(a,i8,2(a,f20.15))', ' elapsed continnum steps ', continuum_iter, &
+		 ' residual x, y = ' , sum(xresidual)/nx, ',', sum(yresidual)/ny
+
 contains
 
-        subroutine text_output
-                implicit none
- 
+    function get_slice(dir,array) result(slice)
 
-                integer j
-                logical, save :: firsttime=.true.
-                character(len=32) file_position
+	    integer,intent(in)							                :: dir
+	    double precision, allocatable, dimension(:,:,:),intent(in)	:: array
 
-                if (firsttime) then
-                        firsttime = .false.
-                        file_position = "rewind"
-                else
-                        file_position = "append"
-                endif
+	    double precision, allocatable, dimension(:,:)              	:: slice
 
-                open (unit=1003, file=trim(prefix_dir)//"results/continuum_uc.txt",position=file_position)
+        allocate(slice(size(array,dir),size(array,3)))
 
-                write(1003,'(a,I6)')'# step', continuum_iter
-                do j=1,ny+2
-                        write(1003,'(1000E12.4)') uc(:,j)
-                enddo
-                write(1003,'(1x/1x)')
-                close(1003)
-                
+		!Get directions orthogonal to slice direction
+		ixyz = mod(dir,2)+1
 
-       end subroutine text_output
+	    if (dir .eq. 1) then
+		    allocate(tauslice(nx+2,4))
+		    slice = sum(array(1:nx+2,2:ny+1,:),dim=ixyz)/(ny)
+	    elseif (dir .eq. 2) then
+		    allocate(tauslice(ny+2,4))
+            slice = sum(array(2:nx+1,1:ny+2,:),dim=ixyz)/(nx)
+	    endif
+
+    end function get_slice
 
 end subroutine continuum_record
 

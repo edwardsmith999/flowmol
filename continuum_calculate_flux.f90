@@ -243,24 +243,26 @@ implicit none
 	xres_t = 0.d0
 	yres_t = 0.d0
 
-	do i = 2, nx + 1
 	do j = 2, ny + 1
+	do i = 2, nx + 1
 		do n = 1, 4
-			xres_t(i,j) = xres_t(i,j) &
+ 			xres_t(i,j) = xres_t(i,j) &
 				    + tau_xx(i,j,n)*sx(i,n) &
 				    + tau_xy(i,j,n)*sy(j,n)
 			yres_t(i,j) = yres_t(i,j) &
 				    + tau_yx(i,j,n)*sx(i,n) &
 				    + tau_yy(i,j,n)*sy(j,n)  
 		enddo
-
+!		print'(3i5,8f10.6)',continuum_iter, i, j, uc_t(4,j),xres_t(i,j), & 
+!                            tau_xy(i,j,4)*sy(j,4)+tau_xy(i,j,2)*sy(j,2), &
+!                            tau_xy(i,j,1)*sy(j,1)+tau_xy(i,j,3)*sy(j,3), & 
+!                            tau_xy(i,j,:)
 	enddo
 	enddo
 
-	!do j = 2, ny + 1
-		!print*, j, uc_t(2,j)
-		!print'(i,f10.5)',j,xres_t(2,j)
-	!enddo
+!	do j = 2, ny + 1
+!		print'(2i5,8f10.6)',continuum_iter, j, uc_t(4,j),xres_t(4,j),tau_xy(4,j,:),tau_xy(4,j,1)-tau_xy(4,j,3),tau_xy(4,j,4)-tau_xy(4,j,2)
+!	enddo
 
 	!Divide diffusive term by Reynolds number
 	xres_t = xres_t/Re
