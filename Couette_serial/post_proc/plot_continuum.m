@@ -8,6 +8,10 @@ resultfile_dir = './../results';
 %Read data for continuum plot
 [continuum_velslice] = read_continuum_vslice(resultfile_dir);
 read_continuum_header
+continuum_tau_xx=read_continuum_tauslice(resultfile_dir,'continuum_tauslice_xx');
+continuum_tau_xy=read_continuum_tauslice(resultfile_dir,'continuum_tauslice_xy');
+continuum_tau_yx=read_continuum_tauslice(resultfile_dir,'continuum_tauslice_yx');
+continuum_tau_yy=read_continuum_tauslice(resultfile_dir,'continuum_tauslice_yy');
 Ncontinuum_records = floor(continuum_Nsteps / continuum_tplot);
 
 scrsz = get(0,'ScreenSize');
@@ -16,7 +20,7 @@ fig2 = figure('Position',[scrsz(3)/6 scrsz(4)/4 scrsz(3)/6 scrsz(4)/2]);
 
 u_wall = 1.0;%0.5*(continuum_velslice(ny+1,1) + continuum_velslice(ny+2,1));
 
-spectral_res = 10;
+spectral_res = 1.0;
 dy = 1/(ny+2);
 xaxis = linspace(0,1,ny+2); %1/(ny+1):1/(ny+1):1-1/(ny+1);
 %xaxis = linspace(0,1,ny+2); %1/(ny+1):1/(ny+1):1-1/(ny+1);
@@ -60,10 +64,11 @@ for i = 1:Ncontinuum_records
     set(0,'currentfigure',fig2)
     continuum_stress=continuum_vslice_to_stress(continuum_velslice,meu,ly,ny);
     plot(xaxis(2:ny+1),continuum_stress(1:ny,m),'s','Color',[.5 .5 .5]);
-    axis([-0.1 1.1 -0.05 5.5]);
+    axis([-0.1 1.1 -0.05 1.5]);
     hold on
+    plot(xaxis(2:ny+1),-meu*continuum_tau_xy(1:ny,:,m),'o','Color',[.3 .3 .3]);
 
-    analy=couette_analytical_stress_fn(t,Re,1,ly,spectral_res*ny);
+    analy=couette_analytical_stress_fn(t,Re,1,ly,spectral_res*ny,'top');
     plot(xaxis_analy,analy*rho,'r');
     legend ('CFD','Analytical','location','NorthWest'); legend('boxoff')
     xlabel('y/H'); ylabel('stress')

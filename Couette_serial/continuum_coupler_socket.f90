@@ -28,11 +28,11 @@ end subroutine socket_coupler_invoke
 subroutine socket_coupler_init
     use computational_constants, only : nx, ny, & 
 					nsteps => continuum_Nsteps,&
-        			continuum_delta_t, lx, ly
+        			continuum_delta_t, lx, ly, lz
     use physical_constants, only : rho
     use grid_arrays, only : mx, my
     use continuum_data_export, only : npx,npy,npz,icoord
-    use CPL, only : coupler_cfd_init, CPL_write_header
+    use CPL, only : coupler_cfd_init, CPL_write_header, VOID
 	use messenger, only : icomm_grid
     implicit none
 
@@ -42,10 +42,10 @@ subroutine socket_coupler_init
     real(kind(0.d0)),dimension(3)	:: xyzL
     ! 2D problem, z direction parameters are set to trivial values
     real(kind(0.d0)),dimension(:,:),allocatable :: x0,y0
-    real(kind(0.d0)) :: z0(1)=(/0.d0/)
+    real(kind(0.d0)) :: z0(1)
           
 	!Define compound arrays to make passing more concise
-	ijkmin = (/ 2, 2, 1 /)
+	ijkmin = (/ 1, 1, 1 /)
 	!Minus 1 as coupler requires max cells NOT max cell vertices
 	ijkmax = (/ nx+2, ny+2, 1 /)
 	iTmin = ijkmin(1); iTmax = ijkmax(1)
@@ -53,15 +53,17 @@ subroutine socket_coupler_init
 	kTmin = ijkmin(3); kTmax = ijkmax(3)
 	npxyz  = (/ npx , npy , npz  /)
 	!Minus 1 as coupler requires no. of cells NOT no. cell vertices
-	ngxyz  = (/ nx , ny , 1  	/) 
-	xyzL   = (/ lx , ly , 1.d0  /)
+	ngxyz  = (/ nx , ny , 1   /) 
+	xyzL   = (/ lx , ly , lz  /)
+    z0 = (/0.d0/)
 
-	allocate(x0(nx,ny))
-	allocate(y0(nx,ny))
-	do i =1,nx
-	do j =1,ny
+	allocate(x0(nx+1,ny+1))
+	allocate(y0(nx+1,ny+1))
+	do i =1,nx+1
+	do j =1,ny+1
 		x0(i,j) = mx(i)
 		y0(i,j) = my(j)
+       ! print'(a,2i5,2f10.5)', 'continuum socket_coupler_init grid', i,j,x0(i,j),y0(i,j)
 	enddo
 	enddo
 
@@ -99,6 +101,38 @@ end subroutine socket_coupler_init
 ! Simulation  Simulation  Simulation  Simulation  Simulation  Simulation  
 !=============================================================================
 
+subroutine socket_coupler_send_CFD_to_MD
+    use grid_arrays, only : uc,vc,tau_xx,tau_xy,tau_yx,tau_yy
+    use CPL, only : CPL_get, error_abort
+    implicit none
+
+	integer :: constraint_algorithm
+	integer :: OT, NCER, Flekkoy, CV, off
+
+	call CPL_get(	constraint_algo	      = constraint_algorithm, & 
+					constraint_OT         = OT,        & 
+					constraint_NCER       = NCER,      &
+					constraint_Flekkoy    = Flekkoy,   &
+                    constraint_CV         = CV,        &
+					constraint_off        = off          )
+	
+	if ( constraint_algorithm .eq. off ) then
+		return
+	else if ( constraint_algorithm .eq. OT ) then
+		call error_abort("OT constraint force not yet implemented")
+	else if ( constraint_algorithm .eq. NCER ) then
+		call socket_coupler_send_velocity(uc,vc)
+	else if ( constraint_algorithm .eq. Flekkoy ) then
+		call socket_coupler_send_stress(tau_xx,tau_xy,tau_yx,tau_yy)
+	else if ( constraint_algorithm .eq. CV ) then
+		call socket_coupler_send_velocity(uc,vc)
+		call socket_coupler_send_stress(tau_xx,tau_xy,tau_yx,tau_yy)
+	else
+		call error_abort("Unrecognised constraint algorithm flag")
+	end if	
+
+end subroutine socket_coupler_send_CFD_to_MD
+
 !---------------------------------------------------------------------
 ! Send continuum velocity in x direction to be used by MD
 
@@ -109,7 +143,7 @@ subroutine socket_coupler_send_velocity(u,v)
     real(kind(0.d0)), intent(in) :: u(:,:), v(:,:)
 
 	logical	:: send_flag
-    integer	:: i,j,k,ixyz,icell,jcell,kcell,npercell,nclx,ncly,nclz
+    integer	:: i,j,k,jj,ixyz,icell,jcell,kcell,npercell,nclx,ncly,nclz
     integer	:: coord(3),extents(6),cnstd(6)
     real(kind(0.d0)),dimension(:,:,:,:), allocatable :: sendbuf
 
@@ -122,17 +156,18 @@ subroutine socket_coupler_send_velocity(u,v)
 	              kcmin_cnst=cnstd(5),kcmax_cnst=cnstd(6)  )
 
 	!Three velocity components
-	npercell = 2
+	npercell = 3
 
 	!Allocate array for size of data on local processor
-	coord = (/1,1,1 /)
+	coord = (/1,1,1/)
 	call CPL_olap_extents(coord,CPL_realm(),extents)
 	nclx = extents(2)-extents(1)+1
 	ncly = extents(4)-extents(3)+1
 	nclz = extents(6)-extents(5)+1
-	allocate(sendbuf(npercell,nclx,ncly,nclz))
+	allocate(sendbuf(npercell,nclx,cnstd(3):cnstd(4),nclz))
 
 	!Interpolate cell centres using surfaces
+    print*, 'output', shape(sendbuf),cnstd
 	sendbuf(:,:,:,:) = 0.d0
 	do i=1,nclx
 	do j=cnstd(3),cnstd(4)
@@ -226,7 +261,7 @@ subroutine socket_coupler_get_md_BC(u,v)
 					printf,CPL_OLAP_COMM,xg,xL_cfd,yg,yL_cfd,zg,zL_cfd !DEBUG DEBUG
     implicit none
 
-    real(kind(0.d0)),dimension(:,:),intent(out)  	:: u,v
+    real(kind(0.d0)),dimension(:),intent(out)  	      :: u,v
 
 	logical		  								      :: recv_flag
 	integer											  :: i,j,k,ii,ib,jb
@@ -241,7 +276,7 @@ subroutine socket_coupler_get_md_BC(u,v)
 	integer		:: bufsize, jcmin_olap
 	character	:: str_bufsize
 
-	!Setup extents
+	!Setup extents -- halo is one below minimum cell in domain
 	call CPL_get(jcmin_olap=jcmin_olap)
 	jcmin_recv = jcmin_olap; jcmax_recv = jcmin_olap
 
@@ -260,8 +295,8 @@ subroutine socket_coupler_get_md_BC(u,v)
 	if (any(uvw_md(:,2:nclx+1,jcmin_recv:jcmax_recv,2:nclz+1) .eq. VOID)) & 
 		call error_abort("socket_coupler_get_md_BC error - VOID value copied to uc,vc or wc")
 
-	u(:,:) = uvw_md(1,:,:,1)/uvw_md(4,:,:,1)
-	v(:,:) = uvw_md(2,:,:,1)/uvw_md(4,:,:,1)
+	u(:) = uvw_md(1,:,1,1)/uvw_md(4,:,1,1)
+	v(:) = uvw_md(2,:,1,1)/uvw_md(4,:,1,1)
 
 end subroutine socket_coupler_get_md_BC
 #endif

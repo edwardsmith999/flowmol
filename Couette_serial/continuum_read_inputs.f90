@@ -29,6 +29,7 @@ subroutine continuum_read_inputs
 	read(1001,* ) ny          			!Number of cells in Domain in y - ny
 	read(1001,* ) lx		       		!Domain size in x - lx
 	read(1001,* ) ly		       		!Domain size in y - ly
+	read(1001,* ) lz		       		!DUMMY Domain size in z - lz
 	read(1001,* ) continuum_delta_t  	!Timestep
 	read(1001,* ) meu					!Viscosity
 	read(1001,* ) rho					!Density

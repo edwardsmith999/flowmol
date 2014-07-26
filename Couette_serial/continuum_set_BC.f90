@@ -18,43 +18,16 @@ end module module_setup_BC
 subroutine continuum_set_BC
 	use module_setup_BC
 #if USE_COUPLER
-    use continuum_coupler_socket, only : MD_continuum_BC
+    use continuum_coupler_socket, only : socket_coupler_get_md_BC
 #endif
 	implicit none
 	
 	integer					:: i, j, n
 	logical, save 			:: first_time = .true.
-	!integer					:: averng
-	!integer					:: xobs, yobs
-	!double precision			:: x_interval,lstsqrsinter,lstsqrsgrad
-	!double precision			:: uwall,uwall_LS 
-
-	!Add one to velocity count to prevent division by zero
-	!slice_mass = slice_mass + 1	
-
-	!Average from averng above to averng below cell corresponding to halo
-	!averng = 0
-	!do n = nbins(2)-overlap-averng, nbins(2)-overlap+averng
-	!	u_MD = u_MD + volume_momentum(:,n,:,1)
-	!enddo
-	!u_MD = u_MD / (1.d0 + 2.d0 * averng)
-
-	!Predict using least squares the expect slope based on continuum constraint forces
-	!y(:) = slice_momentum((nbins(1)-overlap+1):nbins(1))/slice_mass((nbins(1)-overlap+1):nbins(1))
-	!x_interval = 1.d0
-	!call least_squares(y,x_interval,overlap,lstsqrsinter,lstsqrsgrad)
-	!uwall_LS = lstsqrsgrad * 0.d0 + lstsqrsinter
-
-	!print'(a,i8,a,f10.5,a,f10.5)', '; ; ; ; ; ; ; ; ', iter, '; Least square prediction of uwall ;', uwall_LS, '; uwall MD ;', uwall
-
-	!print'(a,f10.5,a,i3,a,f10.5)', 'Velocity at MD Cell corresponding to Continuum halo location = ', &
-	!	 slice_momentum(nbins(1)-overlap)/slice_mass(nbins(1)-overlap), &
-	!	' & velocity average over ',averng,' cells above and below = ',  uwall	
-
 
     if (first_time) then
 		first_time = .false.
-		allocate(u_MD(nx), v_MD(nx), stat=i)
+		allocate(u_MD(nx), v_MD(nx))
     endif
 
 	!Loop over all 4 domain boundaries
@@ -71,7 +44,7 @@ subroutine continuum_set_BC
 			!stop "No Von Neumann BC yet"
 #if USE_COUPLER
 		case(4)
-			call MD_continuum_BC(u_MD,v_MD)
+			call socket_coupler_get_md_BC(u_MD,v_MD)
 			call Dirichlet_BC_set_halo(i,u_MD,v_MD)
 #endif
 		case default

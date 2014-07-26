@@ -16,7 +16,7 @@ module computational_constants
 	integer				:: continuum_vflag
 	integer,dimension(4)		:: BC_flag
 	double precision,dimension(4)	:: uwall_BC	
-	double precision		:: lx, ly  			!Domain extents
+	double precision		:: lx, ly, lz  			!Domain extents
 	double precision		:: continuum_delta_t  		!Timestep
 	double precision		:: domain_volume
 	double precision		:: grid_density

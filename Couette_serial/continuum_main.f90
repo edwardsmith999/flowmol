@@ -1,6 +1,6 @@
 program continuum
 	use computational_constants
-	use continuum_messenger
+	use messenger
 	implicit none
 
 	double precision :: t1, t2 !Values used to establish simulation time

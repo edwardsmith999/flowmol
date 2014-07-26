@@ -1,6 +1,6 @@
 %Read velocity average output from simulation
-%clear all
-%close all
+function [continuum_velbins] = read_continuum_vbins(resultfile_dir)
+
 
 %Store Present Working directory
 pwdir = pwd;
@@ -23,8 +23,10 @@ if (fid == -1)
     error('continuum_vxbins file does not exist in results')
 end
 continuum_vxbins = fread(fid,'double');
+continuum_velbins = reshape(continuum_vxbins,(nx+2),(ny+2),Ncontinuum_records);
+fclose(fid);
 
-% %Load velocity in y direction CV data
+%Load velocity in y direction CV data
 % cd(resultfile_dir);
 % fid = fopen('./continuum_vybins','r','n');
 % cd (pwdir);
@@ -32,39 +34,7 @@ continuum_vxbins = fread(fid,'double');
 % if (fid == -1)
 %     error('continuum_vybins file does not exist in results')
 % end
+% continuum_vybins = fread(fid,'double');
+% fclose(fid);
 
-continuum_vybins = fread(fid,'double');
-continuum_velbins = reshape(continuum_vxbins,(nx+2),(ny+2),Ncontinuum_records);
-fclose(fid);
-
-continuum_velslice = squeeze(mean(continuum_velbins,1));
-
-% %Plot evolving y profile
-% xaxis = 0:1/(ny-1):1;
-% n = 1;
-% for i=1:Ncontinuum_records
-%     n = n*2;
-%     if (n > Ncontinuum_records) 
-%         break 
-%     end
-%     plot(xaxis,continuum_velslice(2:ny+1,n),'s');
-%     axis([-0.1 1.1 -0.1 1.1]);
-%     hold on
-%     %Time -0.5 to record value at half time interval
-%     t = (n)*continuum_delta_t*continuum_tplot;
-%     analy = couette_analytical_fn(t,Re,[1,0],ly,ny-1,'top');
-%     plot(xaxis,analy,'r');
-% 	legend ('CFD simulation','Analytical','location','NorthWest'); legend('boxoff')
-% 	xlabel('y/H'); ylabel('U_x/U')
-% end
-
-% %Plot contour plot as it evolves in time
-% figure
-% for i=1:Ncontinuum_records
-%     imagesc(continuum_velbins(:,:,i)')
-%     pause(0.01)
-% end
-% 
-% %Plot slicomatic of velocity array
-% sliceomatic(continuum_velbins)
 
