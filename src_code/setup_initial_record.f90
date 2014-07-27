@@ -47,32 +47,54 @@ subroutine setup_initial_record
                                    "bforce_pdf  ", "Fvext       "/) 
 
 
-    !COUETTE FLOW ANALYTICAL SOLUTION
+!   ! COUETTE FLOW ANALYTICAL SOLUTION
 !    integer                                   :: wallbintop, wallbinbottom, appliedbins
-!    double precision                          :: Re, Uwall, H, t, Fbinsize(3)
-!    double precision,dimension(:),allocatable :: ucouette,y
-!    double precision,dimension(:),allocatable :: taucouette
+!    double precision                          :: Re, Uwall, H, t, Fbinsize(3),dudt,div_tau,liquiddensity, appliedbinsize
+!    double precision,dimension(:),allocatable :: ucouette,ucouette_pdt,y,y_tau,int_ucouette
+!    double precision,dimension(:),allocatable :: taucouette,intdivtau
 
-!    Fbinsize = globaldomain(2)/gnbins(2)
+!    Fbinsize = globaldomain/gnbins
 !    wallbintop    = ceiling(tethereddisttop(2)   /Fbinsize(2))
 !    wallbinbottom = ceiling(tethereddistbottom(2)/Fbinsize(2))
 !    appliedbins = gnbins(2)+2 - wallbintop - wallbinbottom !lbl(4)-lbl(3)+1
-!    Re = 1.4d0
-!    Uwall = 1.d0
+!    appliedbins = appliedbins
 !    H = globaldomain(2) - tethereddistbottom(2) - tethereddisttop(2)
+!    appliedbinsize = H/appliedbins
+!    !Inclue halos
+!    appliedbins = appliedbins + 2
+!    Re = 0.005 !1.4d0
+!    Uwall = 1.d0
+
 !    !Add one extra record to get values at surfaces
-!    appliedbins = appliedbins*10
-!    allocate(y,source=linspace(0.d0,globaldomain(2),appliedbins))
-!    do i = 4,30
+!    allocate(y,source=linspace(-0.5d0*appliedbinsize,H+0.5d0*appliedbinsize,appliedbins))
+!    allocate(y_tau,source=linspace(0.d0,H,appliedbins-1))
+!    allocate(int_ucouette(appliedbins)); int_ucouette = 0.d0; int_ucouette(size(int_ucouette,1))= Uwall
+!    allocate(intdivtau(appliedbins)); intdivtau = 0.d0; intdivtau(size(intdivtau,1))= Uwall
+
+!    do iter = 1,1000
 !	    !Time evolving solution
-!        iter = 2.d0**dble(i)
-!        t = (iter)*delta_t
-!        allocate(ucouette, source=couette_analytical_fn(t,Re,Uwall,H,appliedbins,0))
-!        allocate(taucouette, source=couette_analytical_stress_fn(t,Re,Uwall,H,appliedbins+1,0))
-!        do n =1,size(ucouette,1)
-!            write(7500000+iter,'(3f18.12)'),y(n),ucouette(n),taucouette(n)/density
+!        t = (iter-1)*delta_t
+!        liquiddensity = density
+!        allocate(ucouette,     source=couette_analytical_fn(t,        Re,Uwall,H,appliedbins,0))
+!        allocate(ucouette_pdt, source=couette_analytical_fn(t+delta_t,Re,Uwall,H,appliedbins,0))
+!        allocate(taucouette,   source=couette_analytical_stress_fn(t, Re,Uwall,H,appliedbins-1,0))
+!        write(7500000+iter,'(6f18.12)'),y(1),ucouette(1),0.d0,0.d0,0.d0,0.d0
+!        do n =2,size(ucouette,1)-1
+!            dudt = (ucouette_pdt(n) - ucouette(n))/delta_t
+!            div_tau = (taucouette(n)-taucouette(n-1))/((y_tau(n+1)-y_tau(n))*liquiddensity)
+!            int_ucouette(n) = int_ucouette(n) + dudt*delta_t
+!            intdivtau(n)    = intdivtau(n)    + div_tau*delta_t
+!            write(7500000+iter,'(6f18.12)'),y(n),ucouette(n),int_ucouette(n),intdivtau(n),dudt,div_tau
 !        enddo
+!        write(7500000+iter,'(6f18.12)'),y(size(ucouette,1)),ucouette(size(ucouette,1)),0.d0,0.d0,0.d0,0.d0
+!        do n =1,size(taucouette,1)
+!            write(8500000+iter,'(2f28.12)'),y_tau(n),taucouette(n)
+!        enddo
+
+!        close(unit=7500000+iter)
+!        close(unit=8500000+iter)
 !        deallocate(ucouette)
+!        deallocate(ucouette_pdt)
 !        deallocate(taucouette)
 !    enddo
 

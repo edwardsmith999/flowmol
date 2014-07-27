@@ -1963,7 +1963,7 @@ function couette_analytical_fn(t,Re,U_wall,L,npoints,slidingwall) result (u)
 
     double precision,dimension(:),allocatable :: y
 
-    nmodes = 1000
+    nmodes = 5000
     k = 1.d0/Re
     allocate(y,source=linspace(0.d0,L,npoints))
     uinitial = 0.d0  !Initial condition
@@ -2019,7 +2019,7 @@ function couette_analytical_stress_fn(t,Re,U_wall,L,npoints,slidingwall) result 
     double precision               :: k, uinitial, lambda
     double precision,dimension(:),allocatable :: y
 
-    nmodes = 1000
+    nmodes = 5000
     k = 1.d0/Re
     allocate(y,source=linspace(0.d0,L,npoints))
     allocate(tau(npoints)); tau = 0.d0
