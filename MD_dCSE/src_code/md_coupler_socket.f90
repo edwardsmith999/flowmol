@@ -1211,8 +1211,10 @@ subroutine apply_force
 		g = flekkoy_gweight(r(2,molno),CFD_box(3),CFD_box(4))
 
 		!Gsum is replaced with the fixed value based on density and volume
-		gsum = density*dV
-		!gsum = box_average(ib,jb,kb)%a(2)
+		!gsum = density*dV
+
+        !Sum of all gsum for all molecules
+		gsum = box_average(ib,jb,kb)%a(2)
 
 		if (gsum .eq. 0.d0) cycle
 
@@ -1247,14 +1249,14 @@ function flekkoy_gweight(y,ymin,ymax) result (g)
 
     !Sanity Check and exceptions
     if (yhat .lt. 0.d0) then
-        g = 0
+        g = 0.d0
         return
     elseif (yhat .gt. 0.5*L) then
 		call error_abort(" flekkoy_gweight error - input y cannot be greater than ymax")
     endif
 
 	!Calculate weighting function
-	g = 2*( 1/(L-2*yhat) - 1/L - 2*yhat/(L**2))
+	g = 2.d0*( 1.d0/(L-2.d0*yhat) - 1.d0/L - 2.d0*yhat/(L**2.d0))
 
 end function
 
@@ -1301,13 +1303,14 @@ function socket_get_domain_top() result(top)
 
 	real(kind(0.d0)) :: yL_md, dy, top, removed_dist
 	integer :: algorithm
-	integer :: OT,NCER,Flekkoy,off
+	integer :: OT,NCER,Flekkoy,CV,off
 
 	call CPL_get(dy=dy,yL_md=yL_md, &
 				 constraint_algo    = algorithm, & 
 				 constraint_OT      = OT,        & 
 				 constraint_NCER    = NCER,      &
 				 constraint_Flekkoy = Flekkoy,   &
+				 constraint_CV      = CV,   &
 				 constraint_off     = off          )
 
 	!Specifiy size of removed distance as half a cell
@@ -1320,6 +1323,8 @@ function socket_get_domain_top() result(top)
 	else if ( algorithm .eq. NCER ) then
 		top = yL_md/2.d0 - dy/2.d0
 	else if ( algorithm .eq. Flekkoy ) then
+		top = yL_md/2.d0
+	else if ( algorithm .eq. CV ) then
 		top = yL_md/2.d0
 	else
 		call error_abort("Error in socket_get_domain_top - Unrecognised constraint algorithm flag")
