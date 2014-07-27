@@ -42,7 +42,7 @@ end subroutine socket_coupler_invoke
 ! Call coupler initialise to swap all setup data
 !-----------------------------------------------------------------------------
 subroutine socket_coupler_init
-	use CPL, only : coupler_cfd_init,CPL_create_map,error_abort, density_cfd,CPL_write_header
+	use CPL, only : coupler_cfd_init,error_abort, density_cfd,CPL_write_header
     use messenger, only : icomm_grid, icoord
     use data_export, only : imin,imax,jmin,jmax,kmin,kmax, &
 							iTmin_1,iTmax_1,jTmin_1,jTmax_1, &
@@ -66,9 +66,10 @@ subroutine socket_coupler_init
 	ngxyz  = (/ ngx , ngy , ngz  /)-1 !Minus 1 as coupler requires no. of cells NOT no. cell vertices
 	xyzL   = (/  xL ,  yL ,  zL  /)
 
-    call coupler_cfd_init(nsteps,dt,icomm_grid,icoord,npxyz,xyzL,ngxyz, & 
-	                      density_cfd,ijkmax,ijkmin,iTmin_1,iTmax_1,jTmin_1,&
-	                      jTmax_1,kTmin_1,kTmax_1,xpg,ypg,zpg)
+    call coupler_cfd_init(nsteps,dt,icomm_grid,icoord,npxyz,xyzL, & 
+						  ngxyz,density_cfd,ijkmax,ijkmin,iTmin_1, & 
+						  iTmax_1,jTmin_1,jTmax_1,kTmin_1, & 
+						  kTmax_1,xpg,ypg,zpg)
 
 	!Write coupler information to header file
 	call CPL_write_header('./results/coupler_header')
