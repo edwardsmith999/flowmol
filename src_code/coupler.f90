@@ -1868,6 +1868,7 @@ subroutine CPL_get(icmax_olap,icmin_olap,jcmax_olap,jcmin_olap,  &
                    constraint_algo, constraint_CVflag,           &
                    constraint_OT, constraint_NCER,               &
                    constraint_Flekkoy, constraint_off,           &
+                   constraint_CV,                                &
                    icmin_cnst, icmax_cnst,                       &
                    jcmin_cnst, jcmax_cnst,                       &
                    kcmin_cnst, kcmax_cnst,                       &
@@ -1898,6 +1899,7 @@ subroutine CPL_get(icmax_olap,icmin_olap,jcmax_olap,jcmin_olap,  &
 	                            constraint_OT_ => constraint_OT,           &
 	                            constraint_NCER_ => constraint_NCER,       & 
 	                            constraint_Flekkoy_ => constraint_Flekkoy, &
+	                            constraint_CV_ => constraint_CV,           &
 	                            constraint_off_ => constraint_off,         &
 	                            icmin_cnst_ => icmin_cnst, &
 	                            icmax_cnst_ => icmax_cnst, &
@@ -1920,6 +1922,7 @@ subroutine CPL_get(icmax_olap,icmin_olap,jcmax_olap,jcmin_olap,  &
 	integer, optional, intent(out)          :: constraint_OT
 	integer, optional, intent(out)          :: constraint_NCER
 	integer, optional, intent(out)          :: constraint_Flekkoy
+	integer, optional, intent(out)          :: constraint_CV
 	integer, optional, intent(out)          :: constraint_off
 	integer, optional, intent(out)			:: icmax_cnst, icmin_cnst
 	integer, optional, intent(out)			:: jcmax_cnst, jcmin_cnst
@@ -1994,6 +1997,7 @@ subroutine CPL_get(icmax_olap,icmin_olap,jcmax_olap,jcmin_olap,  &
 	if (present(constraint_OT)) constraint_OT = constraint_OT_
 	if (present(constraint_NCER)) constraint_NCER = constraint_NCER_
 	if (present(constraint_Flekkoy)) constraint_Flekkoy = constraint_Flekkoy_
+	if (present(constraint_CV)) constraint_CV = constraint_CV_
 	if (present(constraint_off)) constraint_off = constraint_off_
 	if (present(icmin_cnst)) icmin_cnst = icmin_cnst_
 	if (present(icmax_cnst)) icmax_cnst = icmax_cnst_
