@@ -1,0 +1,212 @@
+#! /usr/bin/env python
+import numpy as np
+import os
+import glob
+from headerdata import Serial_CFD_HeaderData
+
+class Serial_CFD_RawData:
+    
+    def __init__(self,fdir,fname,dtype,nperbin):
+        if (fdir[-1] != '/'): fdir += '/' 
+        self.fdir = fdir
+        self.fname = fname
+        self.dtype = dtype
+        self.nperbin = nperbin
+        self.filepath = self.fdir + self.fname + '/'
+
+        if (glob.glob(self.filepath)):
+            self.separate_outfiles = False
+        elif (glob.glob(self.filepath+'.*')):
+            self.separate_outfiles = True 
+        else:
+            self.separate_outfiles = False
+
+        self.header = Serial_CFD_HeaderData(fdir)
+        self.grid = self.get_grid()
+        self.maxrec = self.get_maxrec()
+
+    def get_grid(self):
+        # Number of grid points in main code
+        self.nx = int(self.header.nx)+2
+        self.ny = int(self.header.ny)+2
+        self.nz = int(self.header.nz)+2
+        # Number of cell-centered values written to files
+        self.nrx = int(self.nx)
+        self.nry = int(self.ny)
+        self.nrz = int(self.nz)
+        # Domain lengths
+        self.xL = float(self.header.lx)
+        self.yL = float(self.header.ly)
+        self.zL = float(self.header.lz)
+        # Grid spacing
+        self.dx = self.xL/float(self.nx)
+        self.dy = self.yL/float(self.ny)
+        self.dz = self.zL/float(self.nz)
+        # Linspaces of cell centers, accounting for halos written in y
+        gridx = np.linspace(-self.dx/2., self.xL +self.dx/2., num=self.nrx)
+        gridy = np.linspace(-self.dy/2., self.yL +self.dy/2., num=self.nry)
+        gridz = np.linspace(-self.dz/2., self.zL +self.dz/2., num=self.nrz)
+        grid = [gridx,gridy,gridz]
+        return grid 
+
+    def get_maxrec(self):
+
+        if (glob.glob(self.fdir+self.fname)):
+
+            filesize = os.path.getsize(self.fdir+self.fname)
+            if (self.dtype == 'i'):
+                maxrec = filesize/(4*self.nperbin*self.nrx*self.nry*self.nrz) - 1
+            elif (self.dtype == 'd'):
+                maxrec = filesize/(8*self.nperbin*self.nrx*self.nry*self.nrz) - 1
+            else:
+                quit('Unrecognised dtype in MD_RawData.get_maxrec')
+
+        elif (glob.glob(self.fdir+self.fname+'.*')):
+
+            filelist = glob.glob(self.fdir+self.fname+'.*')
+            sortedlist = sorted(filelist)
+            maxrec = int(sortedlist[-1].split('.')[-1])
+            
+        else:
+            print('Neither ' + self.fname + ' nor ' + self.fname + '.* exist.')
+            quit()
+
+        return maxrec
+
+    def read(self, startrec, endrec, binlimits=None, verbose=False, quit_on_error=True):
+
+        """
+            Required inputs:
+
+                startrec - seek a specific record with this integer, count
+                           from 0.
+                endrec   - record at which to finish (integer)
+
+            Return:
+                
+                bindata - 4D array of data in one record that was
+                          read from the binary data file. The size
+                          is (nbinsx, nbinsy, nbinsz, nperbin) or
+                          the equivalent in cylindrical polar.
+                
+        """
+
+        #return_zeros if data cannot be obtained
+        return_zeros = False
+      
+        # Store how many records are to be read
+        nrecs = endrec - startrec + 1 
+        # Allocate enough memory in the C library to efficiently insert
+        # into bindata
+        recitems = self.nx*self.ny*self.nz*self.nperbin
+        bindata  = np.empty(nrecs*recitems)
+
+        # Check whether the records are written separately
+        # If so
+        if (self.separate_outfiles):
+
+            # Loop through files and append data
+            for plusrec in range(0,nrecs):
+
+                filepath = self.fdir+self.fname+'.'+"%07d"%(startrec+plusrec)
+                try: 
+                    fobj = open(filepath,'rb')
+                except:
+                    if quit_on_error:
+                        quit('Unable to find file ' + filepath)    
+                    else:
+                        print('Unable to find file ' + filepath)
+                        return_zeros = True
+
+                istart = plusrec*recitems
+                iend = istart + recitems
+                if (verbose):
+                    print('Reading {0:s} rec {1:5d}'.format(
+                          self.fname,startrec+plusrec))
+                if return_zeros:
+                    bindata = np.zeros([ self.nx,self.ny,self.nz,
+                                         self.nperbin ,nrecs ])
+                else:
+                    bindata[istart:iend] = np.fromfile(fobj,dtype=self.dtype)
+                    fobj.close()
+
+       # Else
+        else:
+
+            try: 
+                fobj = open(self.fdir+self.fname,'rb')
+            except:
+                if quit_on_error:
+                    quit('Unable to find file ' + self.fname)    
+                else:
+                    print('Unable to find file ' + self.fname)
+                    return_zeros = True
+
+            # Seek to correct point in the file
+            if (self.dtype == 'i'):
+                recbytes = 4*recitems
+            elif (self.dtype == 'd'):
+                recbytes = 8*recitems
+            else:
+                if quit_on_error:
+                    quit('Unrecognised data type in read_bins')
+                else:
+                    print('Unrecognised data type in read_bins')   
+            seekbyte = startrec*recbytes
+            fobj.seek(seekbyte)
+
+            if (verbose):
+                print('Reading {0:s} recs {1:5d} to {2:5d}'.format(
+                      self.fname,startrec,endrec))
+
+            # Get data and reshape with fortran array ordering
+            if return_zeros:
+                bindata = np.zeros([ self.nx,self.ny,self.nz,
+                                     self.nperbin ,nrecs ])
+            else:
+                bindata = np.fromfile(fobj, dtype=self.dtype,
+                                      count=nrecs*recitems)  
+
+            fobj.close()
+
+        if (verbose):
+            print('Reshaping and transposing {0:s} '.format(self.fname))
+
+        # Reshape bindata
+        bindata = np.reshape( bindata,
+                             [ self.nx,
+                               self.ny,
+                               self.nz,
+                               self.nperbin ,
+                               nrecs ],
+                              order='F')
+        bindata = np.transpose(bindata, (0,1,2,4,3))
+
+        # If bin limits are specified, return only those within range
+        if (binlimits):
+
+            if (verbose):
+                print('bindata.shape = {0:s}'.format(str(bindata.shape)))
+                print('Extracting bins {0:s} from {1:s} '.format(
+                      str(binlimits),self.fname))
+            # Defaults
+            lower = [0]*3
+            upper = [i for i in bindata.shape] 
+    
+            for axis in range(3):
+                if (binlimits[axis] == None):
+                    continue
+                else:
+                    lower[axis] = binlimits[axis][0] 
+                    upper[axis] = binlimits[axis][1] 
+
+            bindata = bindata[lower[0]:upper[0],
+                              lower[1]:upper[1],
+                              lower[2]:upper[2], :, :]
+
+
+            if (verbose):
+                print('new bindata.shape = {0:s}'.format(str(bindata.shape)))
+
+        return bindata
+        
