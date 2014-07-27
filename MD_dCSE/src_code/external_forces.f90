@@ -1020,7 +1020,7 @@ subroutine get_CFD_velocity(binlimits, &
         !Number of bins -- use global liquid domain
         wallbintop    = ceiling(tethereddisttop(2)   /Fbinsize(2))
         wallbinbottom = ceiling(tethereddistbottom(2)/Fbinsize(2))
-	    appliedbins = gnbins(2)+2 - wallbintop - wallbinbottom !lbl(4)-lbl(3)+1
+	    appliedbins = gnbins(2) - wallbintop - wallbinbottom !lbl(4)-lbl(3)+1
 	    allocate(Utemp(appliedbins))	
 
 	    if (couette_timeevolve) then
@@ -1190,7 +1190,7 @@ subroutine get_CFD_stresses_fluxes(binlimits, &
         !Number of bins -- use global liquid domain
         wallbintop    = ceiling(tethereddisttop(2)   /Fbinsize(2))
         wallbinbottom = ceiling(tethereddistbottom(2)/Fbinsize(2))
-	    appliedbins = gnbins(2)+2 - wallbintop - wallbinbottom !lbl(4)-lbl(3)+1
+	    appliedbins = gnbins(2) - wallbintop - wallbinbottom !lbl(4)-lbl(3)+1
         !Add one extra record to get values at surfaces
         appliedbins = appliedbins + 1
 	    allocate(tautemp(appliedbins))	
@@ -1211,7 +1211,7 @@ subroutine get_CFD_stresses_fluxes(binlimits, &
 
 	    !Copy tau to CFD surfaces
 	    do jb = lbl(3),lbl(4)
-            j = jb+wallbinbottom
+            j = jb-1
 		    CFD_stress(lbl(1):lbl(2),jb,lbl(5):lbl(6),1,2) = tautemp(j)	    !Top
 		    CFD_stress(lbl(1):lbl(2),jb,lbl(5):lbl(6),1,5) = tautemp(j-1)	!Bottom
             if (mod(iter,100) .eq. 0) then
@@ -1555,7 +1555,8 @@ subroutine get_Fmdflux_CV(F_CV, 	 &
 
 			!Get total force on a molecule from sum of CV forces and molecular forces
 			F_iext = F_mol(:,n) + ( Fmdflux_CV(bin(1),bin(2),bin(3),:)  &
-						              +   F_CV(bin(1),bin(2),bin(3),:) )/dble(boxnp(bin(1),bin(2),bin(3)))
+						              +   F_CV(bin(1),bin(2),bin(3),:) ) & 
+								   /dble(boxnp(bin(1),bin(2),bin(3)))
 
 			!Velocity and positions calculated  		
     		v_temp(:,n) = v(:,n) + delta_t * ( a(:,n) - F_iext ) 
@@ -1730,9 +1731,9 @@ subroutine check_limits(CV_limits)
     if (CV_limits(6) .gt. gnbins(3)) CV_limits(6) = gnbins(3)
 
     !Negative maximum are taken from top as with python array syntax
-    if (CV_limits(2) .lt. 0) CV_limits(2) = gnbins(1)+CV_limits(2)
-    if (CV_limits(4) .lt. 0) CV_limits(4) = gnbins(2)+CV_limits(4)
-    if (CV_limits(6) .lt. 0) CV_limits(6) = gnbins(3)+CV_limits(6)
+    if (CV_limits(2) .le. 0) CV_limits(2) = gnbins(1)+CV_limits(2)
+    if (CV_limits(4) .le. 0) CV_limits(4) = gnbins(2)+CV_limits(4)
+    if (CV_limits(6) .le. 0) CV_limits(6) = gnbins(3)+CV_limits(6)
 
 end subroutine check_limits
 

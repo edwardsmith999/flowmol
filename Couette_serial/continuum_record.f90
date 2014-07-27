@@ -70,8 +70,10 @@ subroutine continuum_initial_record
 	write(1002,*) 'Simulation start time ;  sim_start_time ;', the_time
 	write(1002,*) 'Number of cells in Domain in x ;  nx ;', nx
 	write(1002,*) 'Number of cells in Domain in y ;  ny ;', ny
+	write(1002,*) 'Number of cells in Domain in z ;  nz ;', 1
 	write(1002,*) 'Domain size in x ; lx ;', lx
 	write(1002,*) 'Domain size in y ; ly ;', ly
+	write(1002,*) 'Domain size in z ; lz ;', lz
 	write(1002,*) 'Time Step - delta t ;   continuum_delta_t ;',  	continuum_delta_t
 	write(1002,*) 'Total number of steps ; continuum_Nsteps;',  	continuum_Nsteps
 	write(1002,*) 'Continuum initial step ; continuum_initialstep;',continuum_initialstep
@@ -80,6 +82,7 @@ subroutine continuum_initial_record
 	write(1002,*) 'Density ; rho ;',  	rho
 	write(1002,*) 'Reynolds Number ; Re ;', Re
 	write(1002,*) 'Continuum velocity output flag; continuum_vflag ;', continuum_vflag
+	write(1002,*) 'Finite difference of Finite Volume; solver ;', solver
 
 	close(1002,status='keep')
 
@@ -97,8 +100,8 @@ subroutine continuum_record
 	implicit none
 
 	integer										    :: i,j, m, length, ixyz
-	double precision, allocatable, dimension(:)	    :: uslice
-	double precision, allocatable, dimension(:,:)	:: tauslice
+	double precision, allocatable, dimension(:,:)	:: uslice,tauslice
+	double precision, allocatable, dimension(:,:,:)	:: buffer
 
 	select case(continuum_vflag)
 	case(0)
@@ -111,14 +114,15 @@ subroutine continuum_record
 		ixyz = mod(continuum_vflag,2)+1
 
 		if (continuum_vflag .eq. 1) then
-			allocate(uslice(nx+2))
-			!uslice = uc(1:nx+2,floor(dble(ny)/2.d0))
-			uslice = sum(uc(1:nx+2,2:ny+1),dim=ixyz)/(ny)
-
+			allocate(uslice(nx+2,3))
+			uslice(:,1) = sum(uc(1:nx+2,2:ny+1),dim=ixyz)/(ny)
+			uslice(:,2) = sum(vc(1:nx+2,2:ny+1),dim=ixyz)/(ny)
+			uslice(:,3) = 0.d0
 		elseif (continuum_vflag .eq. 2) then
-			allocate(uslice(ny+2))
-			!uslice = uc(floor(dble(nx)/2.d0),1:ny+2)
-			uslice = sum(uc(2:nx+1,1:ny+2),dim=ixyz)/(nx)
+			allocate(uslice(ny+2,3))
+			uslice(:,1) = sum(uc(2:nx+1,1:ny+2),dim=ixyz)/(nx)
+			uslice(:,2) = sum(vc(2:nx+1,1:ny+2),dim=ixyz)/(nx)
+			uslice(:,3) = 0.d0
 		endif
 
 		inquire(iolength=length) uslice
@@ -160,39 +164,32 @@ subroutine continuum_record
 		!Write Continuum velocities
 		m = continuum_iter/continuum_tplot
 
-		inquire(iolength=length) uc
-		open (unit=1003, file=trim(prefix_dir)//"results/continuum_vxbins",form="unformatted",access='direct',recl=length)
-		write(1003,rec=m) uc
+		allocate(buffer(nx,ny+2,3))
+		buffer(:,:,1) = uc(2:nx+1,:)
+		buffer(:,:,2) = vc(2:nx+1,:)
+		buffer(:,:,3) = 0.d0
+		inquire(iolength=length) buffer
+		open (unit=1003, file=trim(prefix_dir)//"results/continuum_vbins",form="unformatted",access='direct',recl=length)
+		write(1003,rec=m) buffer
 		close(1003,status='keep')
 
         !Write Stresses
         if (solver .eq. FV) then
-!	        do i = 4,4
-!	        do j = 2, ny+1
-!                !if (abs((uc(i,j)-uc_t_minus_1(i,j))/continuum_delta_t - xresidual(i,j)/vcell(i,j)) .gt. 1e-10) then
-!        	        write(7500000+continuum_iter,'(a,3i5,10f10.6)'),'time', continuum_iter, i, j, uc(i,j),(uc(i,j)-uc_t_minus_1(i,j))/continuum_delta_t,xresidual(i,j)/vcell(i,j), & 
-!                                        (tau_xy(i,j,4)*sy(j,4)+tau_xy(i,j,2)*sy(j,2))/(vcell(i,j)*Re), &
-!                                        tau_xy(i,j,1)*sy(j,1)+tau_xy(i,j,3)*sy(j,3), & 
-!                                        tau_xy(i,j,:),vcell(i,j)
-!            		close(7500000+continuum_iter,status='keep')
-!                !endif
-!	        enddo
-!	        enddo
 
-		    inquire(iolength=length) tau_xx
-
+		    inquire(iolength=length) tau_xx(2:nx+1,:,:)
     		open (unit=1004, file=trim(prefix_dir)//"results/continuum_tau_xx",form="unformatted",access='direct',recl=length)
-	    	write(1004,rec=m) tau_xx
+	    	write(1004,rec=m) tau_xx(2:nx+1,:,:)
 	    	close(1004,status='keep')
     		open (unit=1004, file=trim(prefix_dir)//"results/continuum_tau_xy",form="unformatted",access='direct',recl=length)
-	    	write(1004,rec=m) tau_xy
+	    	write(1004,rec=m) tau_xy(2:nx+1,:,:)
 	    	close(1004,status='keep')
     		open (unit=1004, file=trim(prefix_dir)//"results/continuum_tau_yx",form="unformatted",access='direct',recl=length)
-	    	write(1004,rec=m) tau_yx
+	    	write(1004,rec=m) tau_yx(2:nx+1,:,:)
 	    	close(1004,status='keep')
     		open (unit=1004, file=trim(prefix_dir)//"results/continuum_tau_yy",form="unformatted",access='direct',recl=length)
-	    	write(1004,rec=m) tau_yy
+	    	write(1004,rec=m) tau_yy(2:nx+1,:,:)
 	    	close(1004,status='keep')
+
         endif
 
 	case default
