@@ -1307,7 +1307,9 @@ subroutine check_config_feasibility
 	rval = rval + abs(mod( zL_md+rtoler, dz )-rtoler)
 
 	if (rval .gt. rtoler) then
-		print'(3(a,f10.5))', ' xL_md/dx = ',xL_md/dx,' yL_md/dy = ', yL_md/dy,' zL_md/dz = ',zL_md/dz
+		print'(6(a,f10.5))', ' xL_md/dx = ',xL_md/dx, 'dx =', dx, & 
+				     ' yL_md/dy = ',yL_md/dy, 'dy =', dy, &
+				     ' zL_md/dz = ',zL_md/dz, 'dz =', dz
 		string = "MD region lengths must be an integer number of CFD " // &
 		         "cell sizes (i.e. xL_md must be an integer multiple " // &
 		         "of dx, etc. ), aborting simulation."
@@ -1352,10 +1354,10 @@ subroutine check_config_feasibility
 	if (kcmin_olap.lt.kcmin) ival = ival + 1		
 	if (kcmax_olap.gt.kcmax) ival = ival + 1		
 	if (ival.ne.0) then
-		print*, 'icmin, icmax = ', icmin, icmax
-		print*, 'jcmin, jcmax = ', jcmin, jcmax
-		print*, 'kcmin, kcmax = ', kcmin, kcmax
-		print*, 'olap extents = ', icmin_olap, icmax_olap, jcmin_olap, &
+		print'(a,6i10)', 'ijkcmin,ijkcmax = ' , icmin, icmax & 
+							, jcmin, jcmax &
+							, kcmin, kcmax
+		print'(a,6i10)', 'olap extents    = ', icmin_olap, icmax_olap, jcmin_olap, &
 		                           jcmax_olap, kcmin_olap, kcmax_olap
 		string = "Overlap region has been specified outside of the "  // &
 		         "CFD region. Aborting simulation."
