@@ -167,7 +167,7 @@ subroutine socket_coupler_send_velocity(u,v)
 	allocate(sendbuf(npercell,nclx,cnstd(3):cnstd(4),nclz))
 
 	!Interpolate cell centres using surfaces
-    print*, 'output', shape(sendbuf),cnstd
+    !print*, 'output', shape(sendbuf),cnstd
 	sendbuf(:,:,:,:) = 0.d0
 	do i=1,nclx
 	do j=cnstd(3),cnstd(4)
@@ -181,7 +181,7 @@ subroutine socket_coupler_send_velocity(u,v)
 
 	call CPL_send( sendbuf,                                 &
 	               icmin_send=cnstd(1),icmax_send=cnstd(2), &
-	               jcmin_send=cnstd(3),jcmax_send=cnstd(4), &
+	               jcmin_send=cnstd(3)-cnstd(3)+1,jcmax_send=cnstd(4)-cnstd(3)+1, &
 	               kcmin_send=cnstd(5),kcmax_send=cnstd(6), &
 	               send_flag=send_flag                        )
 
@@ -199,7 +199,7 @@ subroutine socket_coupler_send_stress(tau_xx,tau_xy,tau_yx,tau_yy)
 									tau_yx(:,:,:), tau_yy(:,:,:)
 
 	logical	:: send_flag
-    integer	:: i,j,k,ixyz,icell,jcell,kcell,npercell,nclx,ncly,nclz
+    integer	:: i,j,k,jj,ixyz,icell,jcell,kcell,npercell,nclx,ncly,nclz
     integer	:: coord(3),extents(6),cnstd(6)
     real(kind(0.d0)),dimension(:,:,:,:), allocatable 	:: sendbuf
 	real(kind(0.d0)),dimension(:,:,:,:,:), allocatable 	:: stress
@@ -218,7 +218,7 @@ subroutine socket_coupler_send_stress(tau_xx,tau_xy,tau_yx,tau_yy)
 	nclx = extents(2)-extents(1)+1
 	ncly = extents(4)-extents(3)+1
 	nclz = extents(6)-extents(5)+1
-	allocate(sendbuf(npercell,nclx,ncly,nclz))
+	allocate(sendbuf(npercell,nclx,cnstd(3):cnstd(4),nclz))
 
 	! Pack stresses into a dummy 3D cube with 6 surfaces and 3 stresses per surface
 	allocate(stress(3,6,nclx,ncly,nclz)); stress = 0.d0
@@ -235,7 +235,8 @@ subroutine socket_coupler_send_stress(tau_xx,tau_xy,tau_yx,tau_yy)
 	do i=1,nclx
 	do j=cnstd(3),cnstd(4)
 	do k=1,nclz
-		sendbuf(:,i,j,k) = reshape(stress(:,:,i,j,k),(/ npercell /))
+		jj = j - cnstd(3)+1
+		sendbuf(:,i,j,k) = reshape(stress(:,:,i,jj,k),(/ npercell /))
 	enddo
 	enddo
 	enddo
@@ -243,7 +244,7 @@ subroutine socket_coupler_send_stress(tau_xx,tau_xy,tau_yx,tau_yy)
 	!Send stress tensor to MD code
 	call CPL_send( sendbuf,                                 &
 	               icmin_send=cnstd(1),icmax_send=cnstd(2), &
-	               jcmin_send=cnstd(3),jcmax_send=cnstd(4), &
+	               jcmin_send=cnstd(3)-cnstd(3)+1,jcmax_send=cnstd(4)-cnstd(3)+1, &
 	               kcmin_send=cnstd(5),kcmax_send=cnstd(6), &
 	               send_flag=send_flag                        )
 
