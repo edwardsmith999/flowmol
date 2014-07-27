@@ -37,20 +37,18 @@ class Serial_CFD_vField(Serial_CFDField):
 class Serial_CFD_StressField(Serial_CFDField):
 
     dtype = 'd'
-    nperbin = 18
+    nperbin = 4
 
-    def __init__(self,fdir,fname='continuum_vbins'):
+    def __init__(self,fdir,fname='continuum_tau_xy'):
 
-        if (fname in ("continuum_tau_xx")):
+        if (fname in ("continuum_tau_xx", "continuum_tau_xy",
+                      "continuum_tau_yx", "continuum_tau_yy")):
             self.fname = fname
             Serial_CFDField.__init__(self,fdir)
-            self.labels = ["xxtop","yxtop","zxtop",
-                           "xytop","yytop","zytop",
-                           "xztop","yztop","zztop",
-                           "xxbottom","yxbottom","zxbottom",
-                           "xybottom","yybottom","zybottom",
-                           "xybottom","yybottom","zzbottom"]
+            self.labels = ["right", "top",
+							"left", "bottom"]
             Serial_CFDField.__init__(self,fdir)
+            assert self.Raw.nperbin > 0
             self.nperbin = self.Raw.nperbin
             self.plotfreq = self.Raw.header.continuum_tplot
 

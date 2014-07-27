@@ -26,14 +26,18 @@ class Serial_CFD_RawData:
         self.maxrec = self.get_maxrec()
 
     def get_grid(self):
+        #Number of halos
+        self.halox = 1
+        self.haloy = 1
+        self.haloz = 1
         # Number of grid points in main code
-        self.nx = int(self.header.nx)+2
-        self.ny = int(self.header.ny)+2
-        self.nz = int(self.header.nz)+2
+        self.nx = int(self.header.nx)
+        self.ny = int(self.header.ny)
+        self.nz = int(self.header.nz)
         # Number of cell-centered values written to files
-        self.nrx = int(self.nx)
-        self.nry = int(self.ny)
-        self.nrz = int(self.nz)
+        self.nrx = int(self.nx)#+2*self.halox
+        self.nry = int(self.ny)+2*self.haloy
+        self.nrz = int(self.nz)#+2*self.haloz
         # Domain lengths
         self.xL = float(self.header.lx)
         self.yL = float(self.header.ly)
@@ -98,7 +102,7 @@ class Serial_CFD_RawData:
         nrecs = endrec - startrec + 1 
         # Allocate enough memory in the C library to efficiently insert
         # into bindata
-        recitems = self.nx*self.ny*self.nz*self.nperbin
+        recitems = self.nrx*self.nry*self.nrz*self.nperbin
         bindata  = np.empty(nrecs*recitems)
 
         # Check whether the records are written separately
@@ -124,7 +128,7 @@ class Serial_CFD_RawData:
                     print('Reading {0:s} rec {1:5d}'.format(
                           self.fname,startrec+plusrec))
                 if return_zeros:
-                    bindata = np.zeros([ self.nx,self.ny,self.nz,
+                    bindata = np.zeros([ self.nrx,self.nry,self.nrz,
                                          self.nperbin ,nrecs ])
                 else:
                     bindata[istart:iend] = np.fromfile(fobj,dtype=self.dtype)
@@ -161,7 +165,7 @@ class Serial_CFD_RawData:
 
             # Get data and reshape with fortran array ordering
             if return_zeros:
-                bindata = np.zeros([ self.nx,self.ny,self.nz,
+                bindata = np.zeros([ self.nrx,self.nry,self.nrz,
                                      self.nperbin ,nrecs ])
             else:
                 bindata = np.fromfile(fobj, dtype=self.dtype,
@@ -174,9 +178,9 @@ class Serial_CFD_RawData:
 
         # Reshape bindata
         bindata = np.reshape( bindata,
-                             [ self.nx,
-                               self.ny,
-                               self.nz,
+                             [ self.nrx,
+                               self.nry,
+                               self.nrz,
                                self.nperbin ,
                                nrecs ],
                               order='F')

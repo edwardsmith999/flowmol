@@ -25,8 +25,8 @@ class Serial_CFD_PostProc(PostProc):
         # Check directory exists before instantiating object and check 
         # which files associated with plots are in directory
         self.potentialfiles = ( "continuum_vbins", "continuum_tau_xx", 
-								"continuum_tau_xy","continuum_tau_xy", 
-								"continuum_tau_xy")        
+                                "continuum_tau_xy","continuum_tau_yx", 
+                                "continuum_tau_yy")
 
         if (not os.path.isdir(self.resultsdir)):
             print("Directory " +  self.resultsdir + " not found")
@@ -52,9 +52,26 @@ class Serial_CFD_PostProc(PostProc):
             self.plotlist.update({'u':d1})
 
         #Stress
-#        if 'continuum_tau_xx' in (self.fieldfiles1):
-#            M1 = Serial_CFD_StressField(self.resultsdir, **kwargs)
-#            self.plotlist.update({'Stress':M1})
+        if 'continuum_tau_xx' in (self.fieldfiles1):
+            M1 = Serial_CFD_StressField(self.resultsdir,
+                                        fname='continuum_tau_xx', 
+                                        **kwargs)
+            self.plotlist.update({'Tau_xx':M1})
+
+        if 'continuum_tau_xy' in (self.fieldfiles1):
+            M1 = Serial_CFD_StressField(self.resultsdir,
+                                        fname='continuum_tau_xy', **kwargs)
+            self.plotlist.update({'Tau_xy':M1})
+
+        if 'continuum_tau_yx' in (self.fieldfiles1):
+            M1 = Serial_CFD_StressField(self.resultsdir,
+                                        fname='continuum_tau_yx', **kwargs)
+            self.plotlist.update({'Tau_yx':M1})
+
+        if 'continuum_tau_yy' in (self.fieldfiles1):
+            M1 = Serial_CFD_StressField(self.resultsdir,
+                                        fname='continuum_tau_yy', **kwargs)
+            self.plotlist.update({'Tau_yy':M1})
 
         if (len(self.plotlist) == 0):
             raise NoResultsInDir 
