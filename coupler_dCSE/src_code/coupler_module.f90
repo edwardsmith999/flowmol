@@ -217,8 +217,8 @@ module coupler_module
 		constraint_off = 0,          &
 		constraint_OT = 1,           &
 		constraint_NCER = 2,         &
-		constraint_Flekkoy = 3
-		
+		constraint_Flekkoy = 3,      &
+		constraint_CV = 4	
 	! Processor cell ranges 
 	integer,protected, dimension(:), allocatable :: &
 		icPmin_md,        &
@@ -850,9 +850,9 @@ subroutine coupler_cfd_init(nsteps,dt,icomm_grid,icoord,npxyz_cfd,xyzL,ncxyz, &
     call MPI_bcast(ncxyz,3,MPI_INTEGER,source,CPL_INTER_COMM,ierr)				!Send
 
 	! Store & send array of global grid points
-    allocate(xg(size(xgrid+1,1)+1,size(xgrid,2)+1),stat=ierr); xg = xgrid
-    allocate(yg(size(ygrid+1,1)+1,size(ygrid,2)+1),stat=ierr); yg = ygrid
-    allocate(zg(size(zgrid+1,1)+1			   ),stat=ierr)  ; zg = zgrid
+    allocate(xg(size(xgrid,1)+1,size(xgrid,2)+1),stat=ierr); xg = xgrid
+    allocate(yg(size(ygrid,1)+1,size(ygrid,2)+1),stat=ierr); yg = ygrid
+    allocate(zg(size(zgrid,1)+1			       ),stat=ierr); zg = zgrid
     call MPI_bcast(xgrid,size(xgrid),MPI_double_precision,source,CPL_INTER_COMM,ierr) !Send
     call MPI_bcast(ygrid,size(ygrid),MPI_double_precision,source,CPL_INTER_COMM,ierr) !Send
     call MPI_bcast(zgrid,size(zgrid),MPI_double_precision,source,CPL_INTER_COMM,ierr) !Send
@@ -901,19 +901,25 @@ contains
 	subroutine check_mesh
 		implicit none
 
+        integer :: i,j
+
 		!Define cell sizes dx,dy & dz and check for grid stretching
 		! - - x - -
 		dx = xg(2,1)-xg(1,1)
 		dxmax = maxval(xg(2:ncx+1,2:ncy+1)-xg(1:ncx,1:ncy))
 		dxmin = minval(xg(2:ncx+1,2:ncy+1)-xg(1:ncx,1:ncy))
-		if (dxmax-dx.gt.0.00001d0) call error_abort("ERROR - Grid stretching in x not supported")
-		if (dx-dxmin.gt.0.00001d0) call error_abort("ERROR - Grid stretching in x not supported")
+		if (dxmax-dx.gt.0.00001d0 .or.dx-dxmin.gt.0.00001d0) then
+            print'(3(a,f15.7))', 'Max dx = ', dxmax, ' dx = ', dx, ' Min dx = ',dxmin
+            call error_abort("ERROR - Grid stretching in x not supported")
+        endif
 		! - - y - -
 		dy = yg(1,2)-yg(1,1)
 		dymax = maxval(yg(2:ncx+1,2:ncy+1)-yg(1:ncx,1:ncy))
 		dymin = minval(yg(2:ncx+1,2:ncy+1)-yg(1:ncx,1:ncy))
-		if (dymax-dy.gt.0.00001d0) call error_abort("ERROR - Grid stretching in y not supported")
-		if (dy-dymin.gt.0.00001d0) call error_abort("ERROR - Grid stretching in y not supported")
+		if (dymax-dy.gt.0.00001d0 .or. dy-dymin.gt.0.00001d0) then
+            print'(3(a,f15.7))', 'Max dy = ', dymax, ' dy = ', dy, ' Min dy = ',dymin
+            call error_abort("ERROR - Grid stretching in y not supported")
+        endif
 		!if (dymax-dy.gt.0.0001 .or. dy-dymin.gt.0.0001) then
 	    !    write(*,*) "********************************************************************"
 	    !    write(*,*) " Grid stretching employed in CFD domain - range of dy sizes:        "
@@ -925,8 +931,10 @@ contains
 
 		dzmax = maxval(zg(2:ncz)-zg(1:ncz))
 		dzmin = minval(zg(2:ncz)-zg(1:ncz))
-		if (dzmax-dz.gt.0.00001d0) call error_abort("ERROR - Grid stretching in z not supported")
-		if (dz-dzmin.gt.0.00001d0) call error_abort("ERROR - Grid stretching in z not supported")
+		if (dzmax-dz.gt.0.00001d0 .or. dz-dzmin.gt.0.00001d0) then
+            print'(3(a,f15.7))', 'Max dz = ', dzmax, ' dz = ', dz, ' Min dz = ',dzmin
+            call error_abort("ERROR - Grid stretching in z not supported")
+        endif
 
 
 	end subroutine check_mesh
