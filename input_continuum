@@ -12,7 +12,7 @@
 3			        !OUTPUT FLAG - Velocity record 0=off 1,2=x,y slice 3=3D bins
 0		        	!Right wall flag  0=periodic, 1=Dirichlet, 2=Neumann, 3=coupled
 0.d0        		!Right wall Boundary value (not used for periodic or coupled)
-4		        	!Top wall flag    0=periodic, 1=Dirichlet, 2=Neumann, 3=coupled
+1		        	!Top wall flag    0=periodic, 1=Dirichlet, 2=Neumann, 3=coupled
 1.d0	        	!Top wall Boundary value (not used for periodic or coupled)
 0		        	!Left wall flag   0=periodic, 1=Dirichlet, 2=Neumann, 3=coupled
 0.d0	        	!Left wall Boundary value (not used for periodic or coupled)

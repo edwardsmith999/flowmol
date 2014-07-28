@@ -31,6 +31,9 @@ subroutine continuum_set_BC
     endif
 
 	!Loop over all 4 domain boundaries
+#if USE_COUPLER
+	call socket_coupler_get_md_BC(u_MD,v_MD)
+#endif
 	do i = 1,4
 		select case(BC_flag(i))
 		case(0)
@@ -42,11 +45,9 @@ subroutine continuum_set_BC
 		case(3)
 			call Von_Neumann_BC(i,0.d0,0.d0,0.d0,0.d0)
 			!stop "No Von Neumann BC yet"
-#if USE_COUPLER
 		case(4)
-			call socket_coupler_get_md_BC(u_MD,v_MD)
+			!Coupled boundary condition applied
 			call Dirichlet_BC_set_halo(i,u_MD,v_MD)
-#endif
 		case default
 			stop "Error in choice of continuum BC"
 		end select

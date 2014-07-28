@@ -67,12 +67,12 @@ subroutine simulation_continuum
 
 	integer :: t	      !Time t used to determine frequency of plots
 
-#if USE_COUPLER
-	call socket_coupler_send_CFD_to_MD
-#endif
 	call continuum_calculate_flux
 	!call continuum_advance_time_RK
 	call continuum_advance_time
+#if USE_COUPLER
+	call socket_coupler_send_CFD_to_MD
+#endif
 	call continuum_set_BC
 
 end subroutine simulation_continuum
