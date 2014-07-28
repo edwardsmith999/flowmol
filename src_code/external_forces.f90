@@ -128,10 +128,10 @@ subroutine apply_boundary_force
 
 #if USE_COUPLER
 
-		integer :: constraint_algorithm,OT,NCER,Flekkoy,off
+		integer :: constraint_algorithm,OT,NCER,Flekkoy,CV,off
 
 		call socket_get_constraint_info(constraint_algorithm,OT=OT, &
-                                        NCER=NCER,Flekkoy=Flekkoy,off=off)
+                                        NCER=NCER,Flekkoy=Flekkoy,CV=CV,off=off)
 		if ( constraint_algorithm .eq. off ) then
 			return
 		else if ( constraint_algorithm .eq. OT ) then
@@ -143,6 +143,7 @@ subroutine apply_boundary_force
 			!call simulation_apply_boundary_force(bforce_flag,(/ 0 0 0 2.d0 0 0 /)) 
 			!Flekkoy boundary force applied by constraint
 			return
+		else if ( constraint_algorithm .eq. CV ) then
 		else
 			call error_abort("Unrecognised constraint algorithm flag")
 		end if	

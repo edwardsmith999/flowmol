@@ -684,17 +684,17 @@ end subroutine insert_remove_molecules
 !-----------------------------------------------------------------------------
 
 subroutine socket_apply_continuum_forces
-	use interfaces, only: error_abort
-	use CPL, only: CPL_get
+	use CPL, only: CPL_get, error_abort
 	implicit none
 
 	integer :: constraint_algorithm
-	integer :: OT, NCER, Flekkoy, off
+	integer :: OT, NCER, Flekkoy, CV, off
 
 	call CPL_get(	constraint_algo	      = constraint_algorithm, & 
 					constraint_OT         = OT,        & 
 					constraint_NCER       = NCER,      &
 					constraint_Flekkoy    = Flekkoy,   &
+					constraint_CV         = CV,        &
 					constraint_off        = off          )
 	
 	if ( constraint_algorithm .eq. off ) then
@@ -705,6 +705,8 @@ subroutine socket_apply_continuum_forces
 		call apply_continuum_forces_NCER
 	else if ( constraint_algorithm .eq. Flekkoy ) then
 		call apply_continuum_forces_flekkoy
+	else if ( constraint_algorithm .eq. CV ) then
+		call apply_continuum_forces_CV
 	else
 		call error_abort("Unrecognised constraint algorithm flag")
 	end if	
@@ -919,7 +921,7 @@ end subroutine average_over_bin
 subroutine apply_force
 	use arrays_MD, only : r, a
 	use computational_constants_MD, only : irank, vflux_outflag, CV_conserve, tplot
-	use interfaces, only : error_abort
+	use CPL, only : error_abort
 	use module_record_external_forces, only : record_external_forces
 	implicit none
 
@@ -1263,23 +1265,158 @@ end function
 end subroutine apply_continuum_forces_flekkoy
 
 
+
+subroutine apply_continuum_forces_CV()
+    use computational_constants_MD, only :iblock,jblock,kblock, iter
+	use calculated_properties_MD, only : nbins
+    implicit none
+
+    integer :: i,j,k
+	real(kind(0.d0)),allocatable,dimension(:,:,:,:)    :: u_CFD 
+	real(kind(0.d0)),allocatable,dimension(:,:,:,:,:)  :: CFD_stress,CFD_flux
+
+    allocate(u_CFD(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
+    allocate(CFD_stress(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
+    allocate(CFD_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
+
+    call socket_get_velocity(u_CFD)
+    call socket_get_fluxes_and_stresses(CFD_stress,CFD_flux)
+
+    do i=1,nbins(1)+2
+    do j=1,nbins(2)+2
+    do k=1,nbins(3)+2
+        if (any(abs(u_CFD(i,j,k,:)) .gt. 0.0000001)) then
+            print'(a,4i3,3f27.10)','recv vel  ',iter, i,j,k,u_CFD(i,j,k,:)
+        endif
+        if (any(abs(CFD_stress(i,j,k,:,:)) .gt. 0.0000001)) then
+            print'(a,4i3,18f8.4)','recv stress',iter, i,j,k,CFD_stress(i,j,k,:,:)
+        endif
+    enddo
+    enddo
+    enddo
+
+contains
+
+    subroutine socket_get_velocity(u_CFD)
+	    use CPL, only : CPL_recv, CPL_proc_extents,CPL_realm, & 
+                        CPL_olap_extents, CPL_get
+        implicit none
+
+	    real(kind(0.d0)),intent(inout), & 
+		    allocatable,dimension(:,:,:,:) 	    :: u_CFD
+
+	    logical	:: recv_flag
+        integer	:: npercell,nclx,ncly,nclz
+        integer	:: coord(3),extents(6),cnstd(6)
+	    real(kind(0.d0)), & 
+		    allocatable,dimension(:,:,:,:) 	    :: recv_buf
+
+		coord= (/ iblock,jblock,kblock /)
+	    call CPL_olap_extents(coord,CPL_realm(),extents)
+		call CPL_get(icmin_cnst=cnstd(1),icmax_cnst=cnstd(2), & 
+	                 jcmin_cnst=cnstd(3),jcmax_cnst=cnstd(4), & 
+					 kcmin_cnst=cnstd(5),kcmax_cnst=cnstd(6)    )
+
+        npercell = 3
+	    nclx = extents(2)-extents(1)+1
+	    ncly = extents(4)-extents(3)+1
+	    nclz = extents(6)-extents(5)+1
+	    allocate(recv_buf(npercell,nclx,ncly,nclz))
+
+		recv_buf = -666.d0
+        !print*, 'output', shape(recv_buf),extents,cnstd
+		call CPL_recv(recv_buf,                                & 
+		              icmin_recv=cnstd(1),icmax_recv=cnstd(2), &
+		              jcmin_recv=cnstd(3),jcmax_recv=cnstd(4), &
+		              kcmin_recv=cnstd(5),kcmax_recv=cnstd(6), &
+		              recv_flag=recv_flag                       )
+        do i=cnstd(1),cnstd(2)
+        do j=cnstd(3),cnstd(4)
+        do k=cnstd(5),cnstd(6)
+		    u_CFD(i,j,k,:) = recv_buf(:,i,j,k)
+        enddo
+        enddo
+        enddo
+		deallocate(recv_buf)
+
+    end subroutine socket_get_velocity
+
+
+    subroutine socket_get_fluxes_and_stresses(CFD_stress,CFD_flux)
+	    use CPL, only : CPL_recv, CPL_proc_extents,CPL_realm, & 
+                        CPL_olap_extents, CPL_get
+        implicit none
+
+	    real(kind(0.d0)),intent(inout), & 
+		    allocatable,dimension(:,:,:,:,:) 	:: CFD_stress,CFD_flux
+
+	    logical	:: recv_flag
+        integer	:: npercell,nclx,ncly,nclz
+        integer	:: coord(3),extents(6),cnstd(6)
+	    real(kind(0.d0)), & 
+		    allocatable,dimension(:,:,:,:) 	    :: recv_buf
+
+        npercell = 18
+		coord= (/ iblock,jblock,kblock /)
+	    call CPL_olap_extents(coord,CPL_realm(),extents)
+	    nclx = extents(2)-extents(1)+1
+	    ncly = extents(4)-extents(3)+1
+	    nclz = extents(6)-extents(5)+1
+	    allocate(recv_buf(npercell,extents(1):extents(2), &
+		                           extents(3):extents(4), &
+		                           extents(5):extents(6)))
+		call CPL_get(icmin_cnst=cnstd(1),icmax_cnst=cnstd(2), & 
+	                 jcmin_cnst=cnstd(3),jcmax_cnst=cnstd(4), & 
+					 kcmin_cnst=cnstd(5),kcmax_cnst=cnstd(6)    )
+
+        ! vvvvvvv COMING SOON vvvvvvv
+        !Get Fluxes 
+        CFD_flux = 0.d0
+		recv_buf = -666.d0
+        ! ^^^^^^^ COMING SOON ^^^^^^^
+
+        !Get Stresses
+        CFD_stress = 0.d0
+		recv_buf = -666.d0
+        !call CPL_recv(recv_buf,jcmin_recv=cnstd(3), & 
+        !                       jcmax_recv=cnstd(4),recv_flag=recv_flag)
+		call CPL_recv(recv_buf,                                & 
+		              icmin_recv=cnstd(1),icmax_recv=cnstd(2), &
+		              jcmin_recv=cnstd(3),jcmax_recv=cnstd(4), &
+		              kcmin_recv=cnstd(5),kcmax_recv=cnstd(6), &
+		              recv_flag=recv_flag                       )
+        do i=cnstd(1),cnstd(2)
+        do j=cnstd(3),cnstd(4)
+        do k=cnstd(5),cnstd(6)
+		    CFD_stress(i,j,k,:,:) = reshape(recv_buf(:,i,j,k),(/ 3,6 /) )
+        enddo
+        enddo
+        enddo
+		deallocate(recv_buf)
+
+    end subroutine socket_get_fluxes_and_stresses
+
+end subroutine apply_continuum_forces_CV
+
+
 !=============================================================================
 ! 					INQUIRY ROUTINES
 !
 !=============================================================================
 
 ! Get constraint info from CPL module
-subroutine socket_get_constraint_info(algorithm,OT,NCER,Flekkoy,off)
+subroutine socket_get_constraint_info(algorithm,OT,NCER,CV,Flekkoy,off)
 	use CPL, only: CPL_get
 	implicit none
 
 	integer, intent(out) :: algorithm
-	integer, intent(out), optional :: OT,NCER,Flekkoy,off
+	integer, intent(out), optional :: OT,NCER,Flekkoy,CV,off
 	
 	call CPL_get(	constraint_algo    = algorithm, & 
 					constraint_OT      = OT,        & 
 					constraint_NCER    = NCER,      &
 					constraint_Flekkoy = Flekkoy,   &
+					constraint_CV      = CV,        &
 					constraint_off     = off          )
 
 end subroutine socket_get_constraint_info
