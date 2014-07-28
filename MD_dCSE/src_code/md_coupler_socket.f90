@@ -1167,7 +1167,8 @@ subroutine average_over_bin
 			np_overlap = np_overlap + 1
 			list(1:4, np_overlap) = (/ n, ib, jb, kb /)
 			box_average(ib,jb,kb)%np   =  box_average(ib,jb,kb)%np   + 1
-			box_average(ib,jb,kb)%a(2) =  box_average(ib,jb,kb)%a(2)  + flekkoy_gweight(r(2,n),CFD_box(3),CFD_box(4))
+			box_average(ib,jb,kb)%a(2) =  box_average(ib,jb,kb)%a(2) + &
+					flekkoy_gweight(r(2,n),CFD_box(3),CFD_box(4))
 
 		endif
 
@@ -1269,60 +1270,66 @@ end subroutine apply_continuum_forces_flekkoy
 subroutine apply_continuum_forces_CV()
     use computational_constants_MD, only :iblock,jblock,kblock, iter
 	use calculated_properties_MD, only : nbins
+    use CPL, only : CPL_proc_extents,CPL_realm, & 
+                    CPL_olap_extents, CPL_get
     implicit none
 
     integer :: i,j,k
+    integer :: nclx,ncly,nclz
+	integer	:: pcoords(3),extents(6),cnstd(6)
 	real(kind(0.d0)),allocatable,dimension(:,:,:,:)    :: u_CFD 
 	real(kind(0.d0)),allocatable,dimension(:,:,:,:,:)  :: CFD_stress,CFD_flux
 
-    allocate(u_CFD(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
-    allocate(CFD_stress(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
-    allocate(CFD_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6))
+	!Save extents of current processor
+	pcoords = (/ iblock,jblock,kblock /)
+	call CPL_proc_extents(pcoords,CPL_realm(),extents)
+
+	! Get total number of CFD cells on each processor
+	nclx = extents(2)-extents(1)+1
+	ncly = extents(4)-extents(3)+1
+	nclz = extents(6)-extents(5)+1
+
+	call CPL_get(icmin_cnst=cnstd(1),icmax_cnst=cnstd(2), & 
+                 jcmin_cnst=cnstd(3),jcmax_cnst=cnstd(4), & 
+				 kcmin_cnst=cnstd(5),kcmax_cnst=cnstd(6)    )
+
+	!Allocate CFD received boxes
+    allocate(u_CFD(nclx,ncly,nclz,3)); u_CFD = 0.d0
+    allocate(CFD_stress(nclx,ncly,nclz,3,6)); CFD_stress = 0.d0
+    allocate(CFD_flux(nclx,ncly,nclz,3,6)); CFD_flux =0.d0
 
     call socket_get_velocity(u_CFD)
-    call socket_get_fluxes_and_stresses(CFD_stress,CFD_flux)
+    !call socket_get_fluxes_and_stresses(CFD_stress,CFD_flux)
 
-    do i=1,nbins(1)+2
-    do j=1,nbins(2)+2
-    do k=1,nbins(3)+2
-        if (any(abs(u_CFD(i,j,k,:)) .gt. 0.0000001)) then
-            print'(a,4i3,3f27.10)','recv vel  ',iter, i,j,k,u_CFD(i,j,k,:)
-        endif
-        if (any(abs(CFD_stress(i,j,k,:,:)) .gt. 0.0000001)) then
-            print'(a,4i3,18f8.4)','recv stress',iter, i,j,k,CFD_stress(i,j,k,:,:)
-        endif
-    enddo
-    enddo
-    enddo
+!    do i=1,nclx
+!    do j=1,ncly
+!    do k=1,nclz
+!        if (any(abs(u_CFD(i,j,k,:)) .gt. 0.0000001)) then
+!            print'(a,4i3,3f27.10)','recv vel  ',iter, i,j,k,u_CFD(i,j,k,:)
+!        endif
+!        if (any(abs(CFD_stress(i,j,k,:,:)) .gt. 0.0000001)) then
+!            print'(a,4i3,18f8.4)','recv stress',iter, i,j,k,CFD_stress(i,j,k,:,:)
+!        endif
+!    enddo
+!    enddo
+!    enddo
 
 contains
 
     subroutine socket_get_velocity(u_CFD)
-	    use CPL, only : CPL_recv, CPL_proc_extents,CPL_realm, & 
-                        CPL_olap_extents, CPL_get
+	    use CPL, only : CPL_recv
         implicit none
 
 	    real(kind(0.d0)),intent(inout), & 
 		    allocatable,dimension(:,:,:,:) 	    :: u_CFD
 
 	    logical	:: recv_flag
-        integer	:: npercell,nclx,ncly,nclz
-        integer	:: coord(3),extents(6),cnstd(6)
+        integer	:: npercell
 	    real(kind(0.d0)), & 
 		    allocatable,dimension(:,:,:,:) 	    :: recv_buf
 
-		coord= (/ iblock,jblock,kblock /)
-	    call CPL_olap_extents(coord,CPL_realm(),extents)
-		call CPL_get(icmin_cnst=cnstd(1),icmax_cnst=cnstd(2), & 
-	                 jcmin_cnst=cnstd(3),jcmax_cnst=cnstd(4), & 
-					 kcmin_cnst=cnstd(5),kcmax_cnst=cnstd(6)    )
-
         npercell = 3
-	    nclx = extents(2)-extents(1)+1
-	    ncly = extents(4)-extents(3)+1
-	    nclz = extents(6)-extents(5)+1
 	    allocate(recv_buf(npercell,nclx,ncly,nclz))
-
 		recv_buf = -666.d0
         !print*, 'output', shape(recv_buf),extents,cnstd
 		call CPL_recv(recv_buf,                                & 
@@ -1333,7 +1340,8 @@ contains
         do i=cnstd(1),cnstd(2)
         do j=cnstd(3),cnstd(4)
         do k=cnstd(5),cnstd(6)
-		    u_CFD(i,j,k,:) = recv_buf(:,i,j,k)
+		!    u_CFD(i,j,k,:) = recv_buf(:,i,j,k)
+            print'(a,4i3,3e27.10)','recv vel  ',iter, i,j,k,recv_buf(:,i,j,k)
         enddo
         enddo
         enddo
@@ -1343,31 +1351,19 @@ contains
 
 
     subroutine socket_get_fluxes_and_stresses(CFD_stress,CFD_flux)
-	    use CPL, only : CPL_recv, CPL_proc_extents,CPL_realm, & 
-                        CPL_olap_extents, CPL_get
+	    use CPL, only : CPL_recv
         implicit none
 
 	    real(kind(0.d0)),intent(inout), & 
 		    allocatable,dimension(:,:,:,:,:) 	:: CFD_stress,CFD_flux
 
 	    logical	:: recv_flag
-        integer	:: npercell,nclx,ncly,nclz
-        integer	:: coord(3),extents(6),cnstd(6)
+        integer	:: npercell
 	    real(kind(0.d0)), & 
 		    allocatable,dimension(:,:,:,:) 	    :: recv_buf
 
         npercell = 18
-		coord= (/ iblock,jblock,kblock /)
-	    call CPL_olap_extents(coord,CPL_realm(),extents)
-	    nclx = extents(2)-extents(1)+1
-	    ncly = extents(4)-extents(3)+1
-	    nclz = extents(6)-extents(5)+1
-	    allocate(recv_buf(npercell,extents(1):extents(2), &
-		                           extents(3):extents(4), &
-		                           extents(5):extents(6)))
-		call CPL_get(icmin_cnst=cnstd(1),icmax_cnst=cnstd(2), & 
-	                 jcmin_cnst=cnstd(3),jcmax_cnst=cnstd(4), & 
-					 kcmin_cnst=cnstd(5),kcmax_cnst=cnstd(6)    )
+	    allocate(recv_buf(npercell,nclx,ncly,nclz))
 
         ! vvvvvvv COMING SOON vvvvvvv
         !Get Fluxes 
@@ -1378,8 +1374,6 @@ contains
         !Get Stresses
         CFD_stress = 0.d0
 		recv_buf = -666.d0
-        !call CPL_recv(recv_buf,jcmin_recv=cnstd(3), & 
-        !                       jcmax_recv=cnstd(4),recv_flag=recv_flag)
 		call CPL_recv(recv_buf,                                & 
 		              icmin_recv=cnstd(1),icmax_recv=cnstd(2), &
 		              jcmin_recv=cnstd(3),jcmax_recv=cnstd(4), &
@@ -1388,7 +1382,8 @@ contains
         do i=cnstd(1),cnstd(2)
         do j=cnstd(3),cnstd(4)
         do k=cnstd(5),cnstd(6)
-		    CFD_stress(i,j,k,:,:) = reshape(recv_buf(:,i,j,k),(/ 3,6 /) )
+			!print*, i,j,k,recv_buf(:,i,j,k)
+            print*,'recv stress',iter,i,j,k,CFD_stress(i,j,k,:,:)
         enddo
         enddo
         enddo

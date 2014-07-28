@@ -126,7 +126,7 @@ subroutine socket_coupler_send_CFD_to_MD
 		call socket_coupler_send_stress(tau_xx,tau_xy,tau_yx,tau_yy)
 	else if ( constraint_algorithm .eq. CV ) then
 		call socket_coupler_send_velocity(uc,vc)
-		call socket_coupler_send_stress(tau_xx,tau_xy,tau_yx,tau_yy)
+		!call socket_coupler_send_stress(tau_xx,tau_xy,tau_yx,tau_yy)
 	else
 		call error_abort("Unrecognised constraint algorithm flag")
 	end if	
@@ -138,6 +138,7 @@ end subroutine socket_coupler_send_CFD_to_MD
 
 subroutine socket_coupler_send_velocity(u,v)
     use CPL, only : CPL_send,CPL_olap_extents,CPL_overlap,CPL_get,CPL_realm
+	use computational_constants, only : continuum_iter
     implicit none
 
     real(kind(0.d0)), intent(in) :: u(:,:), v(:,:)
@@ -168,8 +169,11 @@ subroutine socket_coupler_send_velocity(u,v)
 		                      extents(3):extents(4), &
 		                      extents(5):extents(6)))
 
-	!Interpolate cell centres using surfaces
-    !print*, 'output', shape(sendbuf),extents,cnstd
+	do j = 1,10
+        print'(a,4i6,3e27.10)','all  vel  ',continuum_iter, 0,j,0, u(2,j),v(2,j),0.d0
+	enddo
+
+	!Copy cell centered velocity to buffer
 	sendbuf(:,:,:,:) = 0.d0
 	do i=cnstd(1),cnstd(2)
 	do j=cnstd(3),cnstd(4)
@@ -177,17 +181,16 @@ subroutine socket_coupler_send_velocity(u,v)
 		sendbuf(1,i,j,k) = u(i,j)
 		sendbuf(2,i,j,k) = v(i,j)
 		sendbuf(3,i,j,k) = 0.d0
+        print'(a,4i3,3e27.10)','send vel  ',continuum_iter, i,j,k,sendbuf(:,i,j,k)
 	enddo
 	enddo
 	enddo
 
-	call CPL_send( sendbuf,jcmin_send=cnstd(3), & 
-                           jcmax_send=cnstd(4),send_flag=send_flag)
-!	call CPL_send( sendbuf,                                 &
-!	               icmin_send=cnstd(1),icmax_send=cnstd(2), &
-!	               jcmin_send=cnstd(3),jcmax_send=cnstd(4), &
-!	               kcmin_send=cnstd(5),kcmax_send=cnstd(6), &
-!	               send_flag=send_flag                        )
+	call CPL_send( sendbuf,                                 &
+	               icmin_send=cnstd(1),icmax_send=cnstd(2), &
+	               jcmin_send=cnstd(3),jcmax_send=cnstd(4), &
+	               kcmin_send=cnstd(5),kcmax_send=cnstd(6), &
+	               send_flag=send_flag                        )
 
 end subroutine socket_coupler_send_velocity
 
@@ -250,13 +253,11 @@ subroutine socket_coupler_send_stress(tau_xx,tau_xy,tau_yx,tau_yy)
 	enddo
 
 	!Send stress tensor to MD code
-	call CPL_send( sendbuf,jcmin_send=cnstd(3), & 
-                           jcmax_send=cnstd(4),send_flag=send_flag)
-!	call CPL_send( sendbuf,                                 &
-!	               icmin_send=cnstd(1),icmax_send=cnstd(2), &
-!	               jcmin_send=cnstd(3),jcmax_send=cnstd(4), &
-!	               kcmin_send=cnstd(5),kcmax_send=cnstd(6), &
-!	               send_flag=send_flag                        )
+	call CPL_send( sendbuf,                                 &
+	               icmin_send=cnstd(1),icmax_send=cnstd(2), &
+	               jcmin_send=cnstd(3),jcmax_send=cnstd(4), &
+	               kcmin_send=cnstd(5),kcmax_send=cnstd(6), &
+	               send_flag=send_flag                        )
 
 end subroutine socket_coupler_send_stress
 
@@ -274,8 +275,8 @@ subroutine socket_coupler_get_md_BC(u,v)
     real(kind(0.d0)),dimension(:),intent(out)  	      :: u,v
 
 	logical		  								      :: recv_flag
+	integer											  :: i
 	integer											  :: nclx,ncly,nclz,pcoords(3),extents(6)
-	integer											  :: i1,i2,j1,j2,k1,k2
 	integer											  :: jcmin_recv,jcmax_recv
     real(kind(0.d0)), allocatable, dimension(:,:,:,:) :: uvw_md
 	real											  :: uvw_BC(4)
@@ -299,12 +300,21 @@ subroutine socket_coupler_get_md_BC(u,v)
 
 	!Receive data from MD
 	call CPL_recv(uvw_md,jcmax_recv=jcmax_recv,jcmin_recv=jcmin_recv,recv_flag=recv_flag)
-	if (any(uvw_md(:,2:nclx+1,jcmin_recv:jcmax_recv,2:nclz+1) .eq. VOID)) & 
+	if (any(uvw_md(:,:,jcmin_recv:jcmax_recv,:) .eq. VOID)) & 
 		call error_abort("socket_coupler_get_md_BC error - VOID value copied to uc,vc or wc")
 
-	u(:) = uvw_md(1,:,1,1)/uvw_md(4,:,1,1)
-	v(:) = uvw_md(2,:,1,1)/uvw_md(4,:,1,1)
-	!w(:) = uvw_md(3,:,1,1)/uvw_md(4,:,1,1)
+	do i = 1,nclx
+		if (uvw_md(4,i,1,1) .ne. 0) then
+			u(i) = uvw_md(1,i,1,1)/uvw_md(4,i,1,1)
+			v(i) = uvw_md(2,i,1,1)/uvw_md(4,i,1,1)
+			!w(i) = uvw_md(3,i,1,1)/uvw_md(4,i,1,1)
+		else
+			u(i) = 0.d0
+			v(i) = 0.d0
+			!w(i) = 0.d0
+		endif
+	enddo
+
 
 end subroutine socket_coupler_get_md_BC
 #endif
