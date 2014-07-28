@@ -12,6 +12,39 @@ module module_continuum_record
 	use grid_arrays
         use continuum_data_export, only : prefix_dir
 
+contains
+
+    !------------------------------------------------------------------------------
+    !Pure fortran subroutine to return an updated filename by appending
+    !the current timestep to that file
+    subroutine get_Timestep_FileName(timestep,basename,filename)
+		    implicit none
+
+		    integer,intent(in) 			:: timestep
+		    character(*),intent(in) 	:: basename
+		    character(*),intent(out)	:: filename
+
+            if(timestep.le.9                         		) &
+            write(filename,'(a,a7,i1)') trim(basename),'.000000',timestep
+            if(timestep.ge.10      .and. timestep.le.99     ) &
+            write(filename,'(a,a6,i2)') trim(basename),'.00000' ,timestep
+            if(timestep.ge.100     .and. timestep.le.999    ) &
+            write(filename,'(a,a5,i3)') trim(basename),'.0000'  ,timestep
+            if(timestep.ge.1000    .and. timestep.le.9999   ) &
+            write(filename,'(a,a4,i4)') trim(basename),'.000'   ,timestep
+            if(timestep.ge.10000   .and. timestep.le.99999  ) &
+            write(filename,'(a,a3,i5)') trim(basename),'.00'    ,timestep
+            if(timestep.ge.100000  .and. timestep.le.999999 ) &
+            write(filename,'(a,a2,i6)') trim(basename),'.0'     ,timestep
+            if(timestep.ge.1000000 .and. timestep.le.9999999) &
+            write(filename,'(a,a1,i7)') trim(basename),'.'      ,timestep
+
+		    !Remove any surplus blanks
+		    filename = trim(filename)
+
+    end subroutine get_Timestep_FileName
+
+
 end module module_continuum_record
 !----------------------------------------------------------------------------------
 
@@ -23,19 +56,48 @@ end module module_continuum_record
 
 subroutine continuum_initial_record
 	use module_continuum_record
+    use messenger, only : irank, iroot
 	implicit none
 
-	Character(8)  		:: the_date
-	Character(10)  		:: the_time
+    character               :: ixyz_char
+    integer                 :: i,n,missing_file_tolerance=5
+    logical                 :: file_exist
+	Character(8)  		    :: the_date
+	Character(10)  		    :: the_time
+    character(25)           :: file_names_t
+    character(16),parameter :: file_names(5) = &
+                                (/ "continuum_vbins ",  &
+                                   "continuum_tau_xx",  &
+                                   "continuum_tau_xy",  &
+                                   "continuum_tau_yx",  &
+                                   "continuum_tau_yy" /) 
 
-	!Delete existing files
-	open (unit=1003, file=trim(prefix_dir)//"results/continuum_vslice")
-	close(1003,status='delete')
-	open (unit=1004, file=trim(prefix_dir)//"results/continuum_vxbins")
-	close(1004,status='delete')
+    !Delete all files from previous run
+    if (irank.eq.iroot) then
+        do i=1,size(file_names)
+            inquire(file=trim(prefix_dir)//'results/'//file_names(i),exist=file_exist)
+            if(file_exist) then
+                open (unit=23, file=trim(prefix_dir)//'results/'//file_names(i))
+                close(23,status='delete')
+            endif
+            !Remove indivdual files -- Keep looping until no further increase in number
+            do n = 0,9999999
+                call get_Timestep_FileName(n,file_names(i),file_names_t)
+                inquire(file=trim(prefix_dir)//'results/'//file_names_t,exist=file_exist)
+                if(file_exist) then
+                    open (unit=23, file=trim(prefix_dir)//'results/'//file_names_t)
+                    close(23,status='delete')
+                elseif(missing_file_tolerance .eq. 0) then
+                    exit !Exit loop if max file reached 
+                else
+                    missing_file_tolerance = missing_file_tolerance - 1
+                endif
+            enddo
+        enddo
+    endif
+    call messenger_syncall()
 
 	call date_and_time(the_date, the_time)
-
 	print*, '=================Continuum Simulation Parameters======================'
 	print'(3(a,f10.5))', 'Specified Size in x ', lx , ' & y ', ly, ' Volume of domain ', domain_volume
 	print'(2(a,f10.5))', 'Resulting computaional domain size in x ', mx(nx+2)-mx(2),' & y ',my(ny+2)-my(2)
