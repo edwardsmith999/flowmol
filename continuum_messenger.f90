@@ -38,8 +38,12 @@ module messenger
 #endif
     save
        
-	integer myid                      ! my process rank
+	integer myid                      ! my process id 
 	integer idroot                    ! rank of root process
+    integer irank                     ! my process rank (id+1)
+    integer iroot                     ! rank of root process (id+1)
+    integer iblock,jblock,kblock      ! x,y,z processor loc
+    integer irankx,iranky,irankz      ! x,y,z processor loc
     integer CFD_COMM                  ! CFD communicator
     integer ierr                  	  ! error flag
 
@@ -81,11 +85,12 @@ subroutine messenger_init()
     use mpi
     use continuum_data_export, only : icoord
 	use messenger
+    implicit none
 
 	integer idims(3)
 	logical Lperiodic(3)
 	logical Lremain_dims(3)
-        integer np, ndims, ip, ixyz
+    integer np, ndims, ip, ixyz
 
 	! Initialize MPI
 	call MPI_comm_size (CFD_COMM, np, ierr)
@@ -143,6 +148,15 @@ subroutine messenger_free()
 
 	return
 end
+
+subroutine messenger_syncall()
+	use messenger
+	!include "mpif.h"
+
+	call MPI_Barrier(CFD_COMM,ierr)
+
+	return
+end subroutine messenger_syncall
 
 !=======================================================================
 subroutine globalSum(A, na)

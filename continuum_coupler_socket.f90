@@ -47,7 +47,7 @@ subroutine socket_coupler_init
 	!Define compound arrays to make passing more concise
 	ijkmin = (/ 1, 1, 1 /)
 	!Minus 1 as coupler requires max cells NOT max cell vertices
-	ijkmax = (/ nx+2, ny+2, 1 /)
+	ijkmax = (/ nx, ny, 1 /)
 	iTmin = ijkmin(1); iTmax = ijkmax(1)
 	jTmin = ijkmin(2); jTmax = ijkmax(2)
 	kTmin = ijkmin(3); kTmax = ijkmax(3)
@@ -115,7 +115,7 @@ subroutine socket_coupler_send_CFD_to_MD
 					constraint_Flekkoy    = Flekkoy,   &
                     constraint_CV         = CV,        &
 					constraint_off        = off          )
-	
+
 	if ( constraint_algorithm .eq. off ) then
 		return
 	else if ( constraint_algorithm .eq. OT ) then
@@ -164,14 +164,16 @@ subroutine socket_coupler_send_velocity(u,v)
 	nclx = extents(2)-extents(1)+1
 	ncly = extents(4)-extents(3)+1
 	nclz = extents(6)-extents(5)+1
-	allocate(sendbuf(npercell,nclx,cnstd(3):cnstd(4),nclz))
+	allocate(sendbuf(npercell,extents(1):extents(2), &
+		                      extents(3):extents(4), &
+		                      extents(5):extents(6)))
 
 	!Interpolate cell centres using surfaces
-    !print*, 'output', shape(sendbuf),cnstd
+    !print*, 'output', shape(sendbuf),extents,cnstd
 	sendbuf(:,:,:,:) = 0.d0
-	do i=1,nclx
+	do i=cnstd(1),cnstd(2)
 	do j=cnstd(3),cnstd(4)
-	do k=1,nclz
+	do k=cnstd(5),cnstd(6)
 		sendbuf(1,i,j,k) = u(i,j)
 		sendbuf(2,i,j,k) = v(i,j)
 		sendbuf(3,i,j,k) = 0.d0
@@ -179,11 +181,13 @@ subroutine socket_coupler_send_velocity(u,v)
 	enddo
 	enddo
 
-	call CPL_send( sendbuf,                                 &
-	               icmin_send=cnstd(1),icmax_send=cnstd(2), &
-	               jcmin_send=cnstd(3)-cnstd(3)+1,jcmax_send=cnstd(4)-cnstd(3)+1, &
-	               kcmin_send=cnstd(5),kcmax_send=cnstd(6), &
-	               send_flag=send_flag                        )
+	call CPL_send( sendbuf,jcmin_send=cnstd(3), & 
+                           jcmax_send=cnstd(4),send_flag=send_flag)
+!	call CPL_send( sendbuf,                                 &
+!	               icmin_send=cnstd(1),icmax_send=cnstd(2), &
+!	               jcmin_send=cnstd(3),jcmax_send=cnstd(4), &
+!	               kcmin_send=cnstd(5),kcmax_send=cnstd(6), &
+!	               send_flag=send_flag                        )
 
 end subroutine socket_coupler_send_velocity
 
@@ -218,10 +222,15 @@ subroutine socket_coupler_send_stress(tau_xx,tau_xy,tau_yx,tau_yy)
 	nclx = extents(2)-extents(1)+1
 	ncly = extents(4)-extents(3)+1
 	nclz = extents(6)-extents(5)+1
-	allocate(sendbuf(npercell,nclx,cnstd(3):cnstd(4),nclz))
+	allocate(sendbuf(npercell,extents(1):extents(2), &
+		                      extents(3):extents(4), &
+		                      extents(5):extents(6)))
 
 	! Pack stresses into a dummy 3D cube with 6 surfaces and 3 stresses per surface
-	allocate(stress(3,6,nclx,ncly,nclz)); stress = 0.d0
+	allocate(stress(3,6,extents(1):extents(2), &
+		                extents(3):extents(4), &
+		                extents(5):extents(6)))
+    stress = 0.d0
 	stress(1,1,:,:,1) = tau_xx(:,:,1)
 	stress(1,3,:,:,1) = tau_xx(:,:,3)
 	stress(2,1,:,:,1) = tau_yx(:,:,1)
@@ -232,21 +241,22 @@ subroutine socket_coupler_send_stress(tau_xx,tau_xy,tau_yx,tau_yy)
 	stress(2,4,:,:,1) = tau_yy(:,:,4)
 
 	sendbuf = 0.d0
-	do i=1,nclx
+	do i=cnstd(1),cnstd(2)
 	do j=cnstd(3),cnstd(4)
-	do k=1,nclz
-		jj = j - cnstd(3)+1
-		sendbuf(:,i,j,k) = reshape(stress(:,:,i,jj,k),(/ npercell /))
+	do k=cnstd(5),cnstd(6)
+		sendbuf(:,i,j,k) = reshape(stress(:,:,i,j,k),(/ npercell /))
 	enddo
 	enddo
 	enddo
 
 	!Send stress tensor to MD code
-	call CPL_send( sendbuf,                                 &
-	               icmin_send=cnstd(1),icmax_send=cnstd(2), &
-	               jcmin_send=cnstd(3)-cnstd(3)+1,jcmax_send=cnstd(4)-cnstd(3)+1, &
-	               kcmin_send=cnstd(5),kcmax_send=cnstd(6), &
-	               send_flag=send_flag                        )
+	call CPL_send( sendbuf,jcmin_send=cnstd(3), & 
+                           jcmax_send=cnstd(4),send_flag=send_flag)
+!	call CPL_send( sendbuf,                                 &
+!	               icmin_send=cnstd(1),icmax_send=cnstd(2), &
+!	               jcmin_send=cnstd(3),jcmax_send=cnstd(4), &
+!	               kcmin_send=cnstd(5),kcmax_send=cnstd(6), &
+!	               send_flag=send_flag                        )
 
 end subroutine socket_coupler_send_stress
 
@@ -258,20 +268,16 @@ end subroutine socket_coupler_send_stress
 !----------------------------------------------------------------------------------
 
 subroutine socket_coupler_get_md_BC(u,v)
-    use CPL, only : CPL_get,CPL_recv,CPL_realm,error_abort,cpl_proc_extents,VOID, & 
-					printf,CPL_OLAP_COMM,xg,xL_cfd,yg,yL_cfd,zg,zL_cfd !DEBUG DEBUG
+    use CPL, only : CPL_get,CPL_recv,CPL_realm,error_abort,cpl_proc_extents,VOID
     implicit none
 
     real(kind(0.d0)),dimension(:),intent(out)  	      :: u,v
 
 	logical		  								      :: recv_flag
-	integer											  :: i,j,k,ii,ib,jb
 	integer											  :: nclx,ncly,nclz,pcoords(3),extents(6)
 	integer											  :: i1,i2,j1,j2,k1,k2
 	integer											  :: jcmin_recv,jcmax_recv
-    real(kind(0.d0))								  :: dy, dvdy
-    real(kind(0.d0)), allocatable, dimension(:,:,:,:) :: uvw_md, ucvcwc_md
-    real(kind(0.d0)), allocatable, dimension(:,:,:,:) :: buf1, buf2
+    real(kind(0.d0)), allocatable, dimension(:,:,:,:) :: uvw_md
 	real											  :: uvw_BC(4)
 
 	integer		:: bufsize, jcmin_olap
@@ -298,8 +304,10 @@ subroutine socket_coupler_get_md_BC(u,v)
 
 	u(:) = uvw_md(1,:,1,1)/uvw_md(4,:,1,1)
 	v(:) = uvw_md(2,:,1,1)/uvw_md(4,:,1,1)
+	!w(:) = uvw_md(3,:,1,1)/uvw_md(4,:,1,1)
 
 end subroutine socket_coupler_get_md_BC
 #endif
+
 end module continuum_coupler_socket
 

@@ -45,5 +45,4 @@ module grid_arrays
 	double precision, dimension(:,:,:), allocatable	:: tau_xx,tau_xy,tau_yx,tau_yy 	!Cell diffusive flux
 	double precision, dimension(:,:,:), allocatable	:: xfluxdots, yfluxdots
 
-
 end module grid_arrays
