@@ -24,7 +24,7 @@ class CPL_PostProc(PostProc):
             raise NoResultsInDir
 
         possibles = {'CPL Velocity': CPL_vField,
-                     'CPL Stress': CPL_PField}
+                     'CPL Stress': CPL_stressField}
 
         self.plotlist = {}
         for key, field in possibles.items(): 

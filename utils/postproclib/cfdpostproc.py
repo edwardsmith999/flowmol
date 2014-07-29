@@ -25,6 +25,7 @@ class CFD_PostProc(PostProc):
 
         possibles = {'CFD Velocity': CFD_vField,
                      'CFD Pressure': CFD_PField,
+                     'CFD mugradv': CFD_mugradvField,
                      'CFD Stress': CFD_StressField}
 
         self.plotlist = {}

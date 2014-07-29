@@ -46,6 +46,7 @@ class CFD_PField(CFDField):
         P = subdata[:,:,:,:,3:4]
         return P 
 
+
 class CFD_StressField(CFDField):
 
     nperbin = 9    
@@ -62,5 +63,53 @@ class CFD_StressField(CFDField):
                                 **kwargs) 
         P = subdata[:,:,:,:,4:]
         return P 
-# ============================================================================
+# =============================================================================
 # Complex fields that require extra calculations. 
+class CFD_complexField(CFDField):
+    pass
+
+class CFD_mugradvField(CFD_complexField):
+  
+    nperbin = 9
+ 
+    def __init__(self, fdir):
+        self.vField = CFD_vField(fdir)
+        CFD_complexField.__init__(self, fdir)
+        x = self.axislabels[0]; y = self.axislabels[1]; z = self.axislabels[2]
+        self.labels = [x+x,x+y,x+z,
+                       y+x,y+y,y+z,
+                       z+x,z+y,z+z]
+        self.rho = None
+
+    def set_rho(self, rho):
+        self.rho = rho
+        
+    def read(self, startrec, endrec, binlimits=None, **kwargs):
+
+        if (self.rho == None):
+            print('CFD_mugradvField requires rho, set by ' +
+                  'CFD_mugradvField.set_rho(rho).')
+ 
+        vdata = self.vField.read(startrec, endrec, binlimits=binlimits, 
+                                 **kwargs)   
+
+        dx = self.vField.Raw.dx
+        dy = self.vField.Raw.dy
+        dz = self.vField.Raw.dz
+        gradv = np.empty(list(vdata.shape[:-1]) + [9])
+        for rec in range(gradv.shape[-2]):
+            for ixyz in range(3):
+                for jxyz in range(3):
+                    c = 3*ixyz + jxyz
+                    gradv[:,:,:,rec,c] = (
+                        np.gradient(vdata[:,:,:,rec,ixyz], dx, dy, dz)[jxyz]
+                    )
+
+        nugradv = self.vField.Raw.nu*gradv
+        try:
+            mugradv = np.multiply(nugradv, self.rho)
+            return mugradv
+        except TypeError:
+            print('Rho not set, returning nugradv')
+            return nugradv
+

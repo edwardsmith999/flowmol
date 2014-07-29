@@ -10,6 +10,20 @@ class CFD_RawData:
         self.subdomlist = self.get_subdomlist()
         self.npercell = self.get_npercell()
         self.maxrec = len(self.subdomlist)-1 # count from 0
+        self.Re, self.nu = self.get_couette_params()
+
+    def get_couette_params(self):
+
+        def extract_param(string):
+            with open(self.fdir+'input','r') as fobj:
+                param = float(fobj.read().split(string)[0].split()[-1])
+            return param
+
+        Re = extract_param('Re')
+        Umax = extract_param('uwall_t')
+        L = 1.0
+        nu = Umax*L/Re
+        return Re, nu
 
     def get_grid(self):
         fobj = open(self.fdir+'report','r')

@@ -30,6 +30,7 @@ class CPLField(Field):
         self.cfd_dxyz = np.array([(self.cfd_field.grid[i][1] - 
                                    self.cfd_field.grid[i][0])
                                   for i in range(3)])
+        self.density_cfd = float(self.header.density_cfd)
         self.cpl_dxyz = np.copy(self.cfd_dxyz)
         self.md_xyzL = np.array([float(self.md_field.header.globaldomain1),
                                  float(self.md_field.header.globaldomain2),
@@ -183,7 +184,11 @@ class CPL_vField(CPLField):
     MDFieldType = mdfields.MD_vField 
     CFDFieldType = cfdfields.CFD_vField
 
-class CPL_PField(CPLField):
+class CPL_stressField(CPLField):
     nperbin = 9
-    MDFieldType = mdfields.MD_PField 
-    CFDFieldType = cfdfields.CFD_StressField
+    MDFieldType = mdfields.MD_stressField 
+    CFDFieldType = cfdfields.CFD_mugradvField
+
+    def __init__(self, fdir):
+        CPLField.__init__(self,fdir)
+        self.cfd_field.set_rho(self.density_cfd)

@@ -67,6 +67,7 @@ class MD_pField(MDField):
         elif fname == 'vsnap':
             self.plotfreq = self.Raw.header.Nvflux_ave
 
+
 class MD_FField(MDField):
 
     """
@@ -158,6 +159,22 @@ class MD_PField(MDField):
         self.nperbin = self.Raw.nperbin
         self.plotfreq = self.Raw.header.Nstress_ave
 
+class MD_stressField(MD_PField):
+   
+    """
+        PField multiplied by -1, useful for coupled output
+
+    """ 
+
+    def read(self,startrec,endrec,**kwargs):
+
+        if (endrec > self.maxrec):
+            quit('Record ' + str(endrec) + ' is greater than the maximum '
+                 'available (' + str(self.maxrec) + '). Aborting.')
+        
+        grid_data = -1.0 * self.Raw.read(startrec,endrec,**kwargs) 
+        return grid_data
+
 class MD_pfluxField(MDField):
 
     """
@@ -226,6 +243,8 @@ class MD_complexField(MDField):
         self.plotfreq = subfieldobj.plotfreq
         self.axislabels = subfieldobj.axislabels
         self.labels = subfieldobj.labels
+
+
 
 class MD_vField(MD_complexField):
 
