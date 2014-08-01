@@ -24,6 +24,7 @@
 !-----------------------------------------------------------------------------
 
 subroutine setup_MD
+    use interfaces, only: error_abort
 	use computational_constants_MD
 #if USE_COUPLER
 	use md_coupler_socket, only : socket_coupler_invoke,  &

@@ -100,7 +100,6 @@ subroutine setup_initial_record
 
 !    stop "STOPPED AFTER COUETTE FLOW ANALYTICAL SOLUTION in setup_initial_record"
 
-
     !Delete all files from previous run
     if (irank.eq.iroot) then
         do i=1,size(file_names)
