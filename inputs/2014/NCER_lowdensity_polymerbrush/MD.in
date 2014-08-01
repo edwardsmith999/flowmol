@@ -40,123 +40,8 @@ RCUTOFF
 INPUTTEMPERATURE
 1.0
 
-#########################################################################
-# Initial configuration
-#
-#    0 - FCC Lattice
-#
-#    1 - Special case, must be followed by string on next line. This
-#        string must be lower case, so the same string in capitals is
-#        reserved as an input flag for information about the special
-#        case. Options:
-#
-#            - dense_fene     
-#                 connect monomers on an FCC lattice with a specified 
-#                 chain length and FENE potential parameters. 
-#
-#            - sparse_fene    
-#                 connect monomers on a cubic lattice
-#                 separated by FENE equilibrium distance
-#
-#            - concentric_cylinders
-#                 build concentric cylinders from an FCC lattice
-#                 and melt them between specular walls
-#
-#            - fill_cylinders 
-#                 tether concentric cylinders from previous
-#                 simulation to their initial sites, and fill them
-#                 with fluid 
-#
-#            - rotate_cylinders
-#                 restart from filled cylinder restart file and
-#                 rotate the inner cylinder with specified
-#                 angular velocity 
-#
-#    2 - Configuration file, like a *.pdb. To be developed.
-#
-# -----------------------------------------------------------------------
 INITIAL_CONFIG_FLAG
-1
-rotate_cylinders
-
-#########################################################################
-# Sparse FENE special case info: designed for cases where the density
-# is lower than the density at which the average separation between
-# monomers on an FCC lattice is greater than the FENE maximum bond 
-# elongation.
-#
-#	- number of LJ beads for each polymer chain (nmonomers)
-#	- spring constant, k_c
-#	- maximum spring elongation
-#   - domain length in x
-#   - domain length in y
-#   - domain length in z
-#   - nchains
-# -----------------------------------------------------------------------
-#SPARSE_FENE
-#20
-#30.0
-#1.5
-#15.0
-#10.0
-#10.0
-#4
-
-#########################################################################
-# Dense FENE special case information
-#
-#	- number of LJ beads for each polymer chain (nmonomers)
-#	- spring constant, k_c
-#	- maximum spring elongation
-#   - monomer density
-#   - FCC (4 monomer) units in x
-#   - FCC (4 monomer) units in y
-#   - FCC (4 monomer) units in z
-# -----------------------------------------------------------------------
-#DENSE_FENE
-#8
-#30.0
-#1.5
-#1.1
-#8
-#8
-#8
-
-#########################################################################
-# Concentric cylinders special case definition
-#
-#	- Cylinder density
-#	- Outer diameter of outer cylinder in FCC UNITS
-#	- Inner diameter of outer cylinder in FCC UNITS
-#	- Outer diameter of inner cylinder in FCC UNITS
-#	- Inner diameter of inner cylinder in FCC UNITS
-#	- Length of cylinder in z-direction in FCC UNITS 
-# -----------------------------------------------------------------------
-#CONCENTRIC_CYLINDERS
-#1.0
-#30
-#25
-#10
-#5
-#30
-
-#########################################################################
-# Rotate cylinders special case definition
-#
-#	- Angular velocity of inner cylinder
-# -----------------------------------------------------------------------
-ROTATE_CYLINDERS
-0.1
-
-#########################################################################
-# Cylinderical polar bins for averaging 
-#
-#	- 
-# -----------------------------------------------------------------------
-CPOL_BINS
-25
-80
-100
+0
 
 #########################################################################
 # Number of unit cells in the x,y,z directions, formatted:
@@ -165,15 +50,15 @@ CPOL_BINS
 #	z	
 # -----------------------------------------------------------------------
 INITIALNUNITS
-8
-8
-8
+96
+30
+24
 
 #########################################################################
 # Total number of timesteps:
 # -----------------------------------------------------------------------
 NSTEPS
-5000
+900000
 
 
 #########################################################################
@@ -181,7 +66,7 @@ NSTEPS
 #	(subroutine simulation_record is called)
 # -----------------------------------------------------------------------
 TPLOT
-25
+15
 
 #########################################################################
 # Timestep interval:
@@ -216,47 +101,14 @@ DELTA_RNEIGHBR
 
 
 #########################################################################
-# Frequency (in seconds) to write rescue snapshot 'final_state' file
-# -----------------------------------------------------------------------
-RESCUE_SNAPSHOT_FREQ
-21600
-
-#########################################################################
-# Fixed rebuild flag
-# 0: off - use delta_rneighbr to calculate rebuild
-# 1: on using frequency specifed on next line
-# -----------------------------------------------------------------------
-FIXED_REBUILD_FLAG
-0
-20
-
-#########################################################################
-# Sorting parameters - sorts molecules every rebuild*sort_freq
-# Sort_Flag:  		0 - No sorting
-# 		 	  		1 - Sequential cell-block based Sorting
-# 		 	  		2 - 3D Hilbert Curve cell-block based sorting
-# sort_freq:		1 sorts every rebuild 
-# cell-block size:	1 is sort cell by cell, 3 uses the 27 block used in
-#					force calculation and seems to give good performance
-# Notes: large systems and long times will generally benifit most from
-# sorting algorithm - use script based tuning for your case
-# -----------------------------------------------------------------------
-SORT_FLAG
-0
-1
-3
-
-
-#########################################################################
-# Ensemble selector: case sensitive! (currently only developed for VV)
+# Ensemble selector: case sensitive! 
 # 0 - NVE
 # 1 - NVT (Nosé-Hoover thermostat)
 # 2 - NVT (Gaussian iso-kinetic thermostat) - only availble with VV
 # 3 - NVT (Profile unbiased Nosé-Hoover thermostat)
-# 4 - NVT (Pairwise additive Nosé-Hoover thermostat 
-#                   by Allen & Schmid)
-# 5 - NVT (DPD thermostat by Soddemann)
-# 6 - Tagged Move System
+# 4 - NVT (Pairwise additive Nosé-Hoover thermostat by Allen & Schmid)
+# 5 - NVT (DPD thermostat by Soddemann, Dunweg an Kremer Phys Rev E 68, 046702 (2003))
+# 6 - TAG system - specify fixed wall and localised thermostatting
 # -----------------------------------------------------------------------
 ENSEMBLE
 6
@@ -277,51 +129,22 @@ ENSEMBLE
 # -----------------------------------------------------------------------
 PERIODIC
 1
-1
+0
 1
 
+
 #########################################################################
-# Boundary force flag and distances, formatted:
-#   bforce_flag(1) (x direction, bottom)           (integer)
-#   bforce_flag(2) (x direction, top)              (integer)
-#   bforce_flag(3) (y direction, bottom)           (integer)
-#   bforce_flag(4) (y direction, top)              (integer)
-#   bforce_flag(5) (z direction, bottom)           (integer)
-#   bforce_flag(6) (z direction, top)              (integer)
-#   bforce_dxyz(1) (x distance, bottom)            (real)
-#   bforce_dxyz(2) (x distance, top)               (real)
-#   bforce_dxyz(3) (y distance, bottom)            (real)
-#   bforce_dxyz(4) (y distance, top)               (real)
-#   bforce_dxyz(5) (z distance, bottom)            (real)
-#   bforce_dxyz(6) (z distance, top)               (real)
+# Specular walls
+# Specifiy the distance from the top and bottom of the domain of the 
+# specular wall. Molecules are reflected if they pass this wall
+#   specular_wall(1) (x direction, top & bottom)	(dp real)
+#   specular_wall(2) (y direction, top & bottom)	(dp real)
+#   specular_wall(3) (z direction, top & bottom)	(dp real)
 #
-# If periodic boundaries in x, y or z directions are turned off, the
-# option to apply a boundary force to keep molecules within the domain
-# is provided via the bforce flag. Choose from the following in each
-# direction:
-#
-#    0 = off 
-#    1 = O'Connell & Thompson     1995  (Phys. Rev. E 52, 5792)
-#    2 = Nie, Chen, E & Robbins   2003  (JFM 500 pp. 55-64)
-#    3 = Flekkøy, Wagner & Feder  2000  (Europhys. Lett. 52 3, p271)
-#
-# bforce_dxyz defines the distance from each edge of the domain beyond 
-# which any particle will no longer feel the effect of the boundary 
-# force. Low values correspond to hard walls, while larger values will
-# make the boundaries softer.
 # -----------------------------------------------------------------------
-BFORCE
-0
-0
-0
-0
-0
-0
+SPECULAR_WALL
 0.0
-0.0
-0.0
-0.0
-0.0
+0.1
 0.0
 
 #########################################################################
@@ -329,7 +152,7 @@ BFORCE
 #	shear direction (i.e. 1 for x direction, -2 for negative y direction)
 #	shear iter0
 #	velocity or rate flag: 0-velocity, 1-rate
-#	velocity or rate numerical value
+#	numerical value
 # -----------------------------------------------------------------------
 DEFINE_SHEAR
 1
@@ -357,25 +180,6 @@ FENE_INFO
 1.5
 
 #########################################################################
-# Solvent information:
-#	- flag
-#		> 0 - Polymer only
-#		> 1 - Polymer in theta solvent
-#		> 2 - Solvent of variable quality (Soddemann)
-#	- solvent ratio (integer): number of solvent molecules per FENE
-#                              monomer.
-#	- solvent energy parameter eps_pp (polymer-polymer)
-#	- solvent energy parameter eps_ps (polymer-solvent)
-#	- solvent energy parameter eps_ss (solvent-solvent)
-# -----------------------------------------------------------------------
-SOLVENT_INFO
-0
-0
-0.0
-0.0
-0.0
-
-#########################################################################
 # Random number seeds, formattted:
 #	seed1
 #	seed2
@@ -385,6 +189,23 @@ SOLVENT_INFO
 # -----------------------------------------------------------------------
 SEED
 1
+2
+
+
+#########################################################################
+# MPI topology
+#   npx 
+#   npy
+#   npz
+#
+# if npz = 0 it will be set to nproc/(npx*npy)
+#
+# constrain: npx*npy*npz = nproc 
+# nproc is set by the argument of mpirun
+#-----------------------------------------------------------------------
+PROCESSORS
+8
+2
 2
 
 ########################################################################
@@ -437,7 +258,7 @@ FIXDISTTOP
 # ----------------------------------------------------------------------
 TETHEREDDISTBOTTOM
 0.0
-0.0
+5.1299
 0.0
 
 ########################################################################
@@ -451,21 +272,13 @@ TETHEREDDISTTOP
 0.0
 0.0
 
-#########################################################################
-# Thermostat flag:
-# 0 - off, 1 - all, 2 - all (PUT), 3 - selection (must also specify 
-#													THERMSTATTOP and/or
-#												 	 THERMSTATBOTTOM)
-# -----------------------------------------------------------------------
-THERMSTAT_FLAG
-0
 
 ########################################################################
 # Distance from domain bottom to apply thermostat 
 # ----------------------------------------------------------------------
 THERMSTATBOTTOM
 0.0
-0.0
+5.1299
 0.0
 
 ########################################################################
@@ -473,24 +286,8 @@ THERMSTATBOTTOM
 # ----------------------------------------------------------------------
 THERMSTATTOP
 0.0
+15.39
 0.0
-0.0
-
-#########################################################################
-# MPI topology
-#   npx 
-#   npy
-#   npz
-#
-# if npz = 0 it will be set to nproc/(npx*npy)
-#
-# constrain: npx*npy*npz = nproc 
-# nproc is set by the argument of mpirun
-#-----------------------------------------------------------------------
-PROCESSORS
-1 
-1
-8
 
 #------------------------------------------------------------------------
 #########################################################################
@@ -512,7 +309,7 @@ PROCESSORS
 #			1-homogeneous, 
 #			2-solid/liquid,
 #	      	3-homogeneous+halos, 
-#			4-"true" unwrapped positions
+#			4-Debug
 #	Number of intervals: 0-all, 1 to 20-specified in csv format below
 #						20 or more-all
 #	Intervals: start and finish iteration of each interval in format
@@ -520,47 +317,55 @@ PROCESSORS
 # -----------------------------------------------------------------------
 VMD_OUTFLAG
 1
-0
-0, 10000
+5
+0,1500, 5000,6500, 9000,10500, 40000,41500, 58500,60000
 
 #########################################################################
 # Output flag for macroscopic properties:
 #	0 - off
-#	1 - high precision > stdout
-#	2 - high precision > stdout + results/macroscopic_properties
-#	3 - concise        > stdout
-#	4 - concise        > stdout + results/macroscopic_properties
+#	1 - print to terminal
+#	2 - output file + print to terminal
 # -----------------------------------------------------------------------
 MACRO_OUTFLAG
-2
+1
 
 #########################################################################
 # Output flag for mass record:
-#	output_flag (0=off 1,2,3=x,y,z slice 4=3D bins, 5=3D cylindrical)
+#	output_flag (0=off 1,2,3=x,y,z slice 4=3D bins)
 #	No. of samples for mass average
 # -----------------------------------------------------------------------
 MASS_OUTFLAG
 0
+1
+
+#########################################################################
+# Output flag for Velocity record:
+#	output_flag (0=off 1,2,3=x,y,z slice 4=3D bins)
+#	No. of samples for velocity average
+# -----------------------------------------------------------------------
+VELOCITY_OUTFLAG
+4
 100
 
 #########################################################################
 # Output flag for Velocity record:
-#	output_flag (0=off 1,2,3=x,y,z slice 4=3D bins, 5=3D cylindrical)
+#	output_flag (0=off 1,2,3=x,y,z slice 4=3D bins)
 #	No. of samples for velocity average
 # -----------------------------------------------------------------------
-VELOCITY_OUTFLAG
-5
-1
+TEMPERATURE_OUTFLAG
+4
+100
 
 #########################################################################
 # Output flag for Pressure binning:
 #	output_flag (0=off 1=virial 2=Volume Averaged)
 #	No. of samples for pressure average (number of viscosity bins)
-#   Seperate kinetic and configurational 0 = together 1=seperate
+#	Seperate kinetic and configurational 0 = together 1=seperate
 # -----------------------------------------------------------------------
 PRESSURE_OUTFLAG
-0
+2
 100
+0
 
 #########################################################################
 # Output flag for viscosity:
@@ -573,15 +378,16 @@ VISCOSITY_OUTFLAG
 0
 100
 
+
 #########################################################################
-# Control Volume Conservation Averaging
-#	CV Conservation averaging (0=off 1=on) - take mass, momentum or 
-#	energy flux measure every step to ensureflux will be equal to change 
-#	in snapshots. Note, this increases computational cost somewhat
-#
-# -----------------------------------------------------------------------
+## Control Volume Conservation Averaging
+##	CV Conservation averaging (0=off 1=on) - take mass, momentum or 
+##	energy flux measure every step to ensureflux will be equal to change 
+##	in snapshots. Note, this increases computational cost somewhat
+##
+## -----------------------------------------------------------------------
 CV_CONSERVE
-0
+1
 
 #########################################################################
 # Output flag for mass flux:
@@ -591,7 +397,7 @@ CV_CONSERVE
 # -----------------------------------------------------------------------
 MFLUX_OUTFLAG
 0
-1
+1500
 
 #########################################################################
 # Output flag for velocity flux:
@@ -601,7 +407,7 @@ MFLUX_OUTFLAG
 # -----------------------------------------------------------------------
 VFLUX_OUTFLAG
 0
-1
+1500
 
 #########################################################################
 # Output flag for energy flux:
@@ -611,19 +417,14 @@ VFLUX_OUTFLAG
 # -----------------------------------------------------------------------
 EFLUX_OUTFLAG
 0
-100
+1
 
 #########################################################################
 # Output flag for end-to-end vector time correlation function (etevtcf):
-#	- flag:
-#	    > 0 - off
-#	    > 1 - on-the-fly calculation, printed to terminal
-#	    > 2 - write entire history of vectors so that t.c.f. may
-#	          be calculated with a post-processing routine (fft).
-#
+#	- flag (0-off,1-print to terminal,2-write to output file)
 #	- iteration at which to begin averaging (must be "hit" by a tplot, 
 #	  otherwise etev_0 will not be initialised and the t.c.f. will be
-#	  incorrectly calculated.)
+#	  incorrectly calculated.
 # -----------------------------------------------------------------------
 ETEVTCF_OUTFLAG
 0
@@ -631,13 +432,8 @@ ETEVTCF_OUTFLAG
 
 #########################################################################
 # Radius of gyration output flag:
-#	- flag:
-#		> 0 - off
-#		> 1 - on
-#		> 2 - on + output file
-#	- iteration at which to begin averaging (must be "hit" by a tplot, 
-#	  otherwise etev_0 will not be initialised and the t.c.f. will be
-#	  incorrectly calculated.)
+#	0 - off
+#	1 - on
 # -----------------------------------------------------------------------
 R_GYRATION_OUTFLAG
 0
@@ -647,12 +443,11 @@ R_GYRATION_OUTFLAG
 # Radial distribution output flag
 #	- flag: 
 #		> 0 - off
-#		> 1 - on (1D, spherical)
-#		> 2 - on (3D, cartesian)
+#		> 1 - on
 #	- maximum radius for the calculation of g(r)
 #	- number of radial "shells" or "bins"
 # -----------------------------------------------------------------------
-RDF_OUTFLAG
+RADIALDIST_OUTFLAG
 0
 3.5
 100

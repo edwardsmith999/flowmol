@@ -13,7 +13,7 @@ else
 	cp ./../CFD_dCSE/src_code/main_code/input ./$1
 	cp ./../coupler_dCSE/src_code/COUPLER.in ./$1
 	cp ./../coupler_dCSE/src_code/md_data/MD.in ./$1
-	svn add $1
-	echo "Case" $1 "added to input folder - use upack_case.sh [" $1 "] in ./input folder to use" > ./$1/log 
-	svn ci $1 -F ./$1/log
+	#svn add $1
+	#echo "Case" $1 "added to input folder - use upack_case.sh [" $1 "] in ./input folder to use" > ./$1/log 
+	#svn ci $1 -F ./$1/log
 fi
