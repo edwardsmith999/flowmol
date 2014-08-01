@@ -217,6 +217,12 @@ module coupler_module
         cpl_cfd_bc_x, &
         cpl_cfd_bc_y, &
         cpl_cfd_bc_z
+    
+    ! Coupling constrained regions, average MD quantities 
+    ! in spanwise direction (flags)
+    logical, protected :: &
+        cpl_md_bc_slice, &
+        cpl_cfd_bc_slice ! (average MD values, not CFD)
 
 	! Constraint parameters	
 	integer, parameter :: &
@@ -535,6 +541,20 @@ subroutine read_coupler_input
         cpl_cfd_bc_x = 1
         cpl_cfd_bc_y = 0
         cpl_cfd_bc_z = 1
+    end if
+
+    call locate(infileid,'CPL_CFD_BC_SLICE',found)
+    if (found) then
+        read(infileid,*) cpl_cfd_bc_slice
+    else
+        cpl_cfd_bc_slice = .false.
+    end if
+
+    call locate(infileid,'CPL_MD_BC_SLICE',found)
+    if (found) then
+        read(infileid,*) cpl_md_bc_slice
+    else
+        cpl_md_bc_slice = .false.
     end if
 
 	close(infileid,status="keep")

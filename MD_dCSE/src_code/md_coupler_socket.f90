@@ -19,6 +19,7 @@
 !=============================================================================
 
 
+
 module md_coupler_socket
 
 #if USE_COUPLER 
@@ -87,9 +88,11 @@ subroutine socket_coupler_init
 								/((density/4.d0)**(1.d0/nd))
 	enddo
 
+
 	! If coupled calculation prepare exchange layout
 	call coupler_md_init(Nsteps,initialstep,delta_t,icomm_grid,icoord, &
 	                     (/ npx,npy,npz /),globaldomain,density)
+
 
 	!update elapsedtime using new 
 	elapsedtime = Nsteps * delta_t
@@ -856,7 +859,7 @@ end subroutine setup_CFD_box
 subroutine average_over_bin
 	use computational_constants_MD, only : nhb, irank
 	use arrays_MD, only : r, v, a
-	use CPL, only : CPL_get
+	use CPL, only : CPL_get, cpl_md_bc_slice
 	implicit none
 
 	integer				:: ib,jb,kb,n,ixyz
@@ -903,14 +906,20 @@ subroutine average_over_bin
 
 	enddo
 
-	!Get single average value for slice and store in slice
-	!do jb = 1,size(box_average,2)
-	!	box_average(:,jb,:)%np  =  sum(box_average(:,jb,:)%np)
-	!	do ixyz =1,3
-	!		box_average(:,jb,:)%v(ixyz) = sum(box_average(:,jb,:)%v(ixyz))
-	!		box_average(:,jb,:)%a(ixyz) = sum(box_average(:,jb,:)%a(ixyz))
-	!	enddo
-	!enddo
+    if (cpl_md_bc_slice) then
+        !Get single average value for slice and store in slice
+        do jb = 1,size(box_average,2)
+            box_average(:,jb,:)%np  =  sum(box_average(:,jb,:)%np)
+            do ixyz =1,3
+                box_average(:,jb,:)%v(ixyz) = sum(box_average(:,jb,:)%v(ixyz))
+                uvw_cfd(ixyz,:,jb+cnstd(3)-extents(3),:) = &
+                    sum(uvw_cfd(ixyz,:,jb+cnstd(3)-extents(3),:))&
+                    /real((size(uvw_cfd,2)*size(uvw_cfd,4)))
+                box_average(:,jb,:)%a(ixyz) = sum(box_average(:,jb,:)%a(ixyz))
+            enddo
+        enddo
+    end if
+
 
 end subroutine average_over_bin
 
@@ -920,13 +929,13 @@ end subroutine average_over_bin
 
 subroutine apply_force
 	use arrays_MD, only : r, a
-	use computational_constants_MD, only : irank, vflux_outflag, CV_conserve, tplot
+	use computational_constants_MD, only : irank, vflux_outflag, CV_conserve, tplot, initialstep
 	use CPL, only : error_abort
 	use module_record_external_forces, only : record_external_forces
 	implicit none
 
 	integer	:: NCER_type
-	integer ib, jb, kb, i, molno, n
+	integer ib, jb, kb, i, j, k, molno, n
 	real(kind=kind(0.d0)) alpha(3), u_cfd_t_plus_dt(3), inv_dtMD, acfd(3)
 
 	! set the continnum constraints for the particle in the bin
@@ -960,8 +969,9 @@ subroutine apply_force
 		case(2)
 			! Full NCER including correct special "discretisation" to apply proportional
 			! constraint to equations of motion
-			acfd(:) =	- box_average(ib,jb,kb)%a(:) / n & 
-						- inv_dtMD * (    box_average(ib,jb,kb)%v(:) / n & 
+            !print('(a, 3f10.3, a, i10)'), 'a: ', box_average(ib,jb,kb)%a(:), 'n: ', n 
+			acfd(:) =	- box_average(ib,jb,kb)%a(:) / real(n,kind(0.d0)) & 
+						- inv_dtMD * (    box_average(ib,jb,kb)%v(:) / real(n,kind(0.d0)) & 
 										- uvw_cfd(:,ib,jb+cnstd(3)-extents(3),kb) )
 		case default 
 			call error_abort("Incorrect case in apply_continuum_forces_NCER")
@@ -976,6 +986,7 @@ subroutine apply_force
 		a(:,molno) = a(:,molno) + acfd(:)
 
 	enddo
+
 
 end subroutine apply_force
 
@@ -1236,6 +1247,7 @@ subroutine apply_force
 		!									 (g/gsum)*dA*stress_cfd(2,2,ib,jb+cnstd(3)-extents(3),kb)
 		!	endif
         !endif
+
 	enddo
 
     !write(99999,'(i2,i7,i7,2f10.2,f6.1,3f9.3,6f12.4)'), rank_world,iter,np_overlap,sum(box_average(:,:,:)%a(2)),  &

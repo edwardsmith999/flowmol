@@ -741,6 +741,7 @@ subroutine set_parameters_outputs
 	integer					:: n,i,j,k, ixyz
 	double precision		:: shift
 
+
 	!Use definition of temperature and re-arrange to define an average velocity minus 3 degrees of
 	!freedom - this is to fix the momentum of the domain boundaries 
 	initialvel = sqrt(nd * (1.d0 - 1.d0/np)*inputtemperature)

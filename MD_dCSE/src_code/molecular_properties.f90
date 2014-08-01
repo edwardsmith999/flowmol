@@ -11,6 +11,66 @@ module module_molecule_properties
 	use arrays_MD
 	use calculated_properties_MD
 
+contains
+
+    function get_tag_status(rg,status_type) result(tag_status)
+        use interfaces, only: error_abort
+        use computational_constants_MD, only : texture_type, domain
+        use calculated_properties_MD, only : nbins
+        implicit none
+
+        double precision :: rg(3)   ! Global position
+        character(*) :: status_type ! Specifies thermo, tethered, fixed, etc
+
+        integer :: ixyz
+        double precision :: bottom(3) ! Global position of bottom of domain
+        double precision :: top(3)
+        double precision :: tagdistbottom(3) ! Distance specified by user
+        double precision :: tagdisttop(3)
+        double precision :: Mbinsize(3)
+        logical :: tag_status 
+
+        bottom = (/ -globaldomain(1)/2.d0, -globaldomain(2)/2.d0, -globaldomain(3)/2.d0 /)
+        top	= (/  globaldomain(1)/2.d0,  globaldomain(2)/2.d0,  globaldomain(3)/2.d0 /)
+
+        select case (status_type)
+        case ('thermo')
+            tagdistbottom(:) = thermstatbottom(:)
+            tagdisttop(:)	 = thermstattop(:)
+            !Thermostat complicated wall texture if specified, otherwise thermostat
+            !is based on thermstatbottom/thermstattop
+            if (texture_type .ne. 0 .and. texture_therm .eq. 1) then
+                call wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
+            endif
+        case ('teth')
+            tagdistbottom(:) = tethereddistbottom(:)
+            tagdisttop(:)	= tethereddisttop(:)
+            !Apply a complicated wall texture if specified
+            if (texture_type .ne. 0) call wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
+        case ('fixed')
+            tagdistbottom(:) = fixdistbottom(:)
+            tagdisttop(:)	= fixdisttop(:)
+        case ('slide')
+            tagdistbottom(:) = slidedistbottom(:)
+            tagdisttop(:)	= slidedisttop(:)
+        case default
+            call error_abort("Unrecognised tag status type")
+        end select
+
+        tag_status = .false.
+        ! If within a tagged region then mark tag status as true and return
+        Mbinsize = domain/nbins
+        do ixyz = 1,3
+            if (rg(ixyz) .le. bottom(ixyz) + tagdistbottom(ixyz) .or. &
+               (rg(ixyz) .ge. top(ixyz)	   - tagdisttop(ixyz)) ) then
+                tag_status = .true.
+                return
+
+            end if  
+        end do
+
+    end function get_tag_status
+
 end module module_molecule_properties
 
 !----------------------------------------------------------------------------------
@@ -81,6 +141,7 @@ subroutine setup_cylinder_tags_equilibrate
 
 end subroutine setup_cylinder_tags_equilibrate
 
+
 subroutine setup_location_tags
 	use module_molecule_properties
 	use interfaces, only: error_abort
@@ -90,7 +151,7 @@ subroutine setup_location_tags
 	implicit none
 
 	integer :: n
-	double precision :: rglob(3), Mbinsize(3)
+	double precision :: rglob(3)
 	logical :: l_thermo
 	logical :: l_teth
 	logical :: l_fixed
@@ -139,63 +200,9 @@ subroutine setup_location_tags
 
 	end if
 
-contains
-
-	function get_tag_status(rg,status_type) result(tag_status)
-		implicit none
-
-		double precision :: rg(3)   ! Global position
-		character(*) :: status_type ! Specifies thermo, tethered, fixed, etc
-
-		integer :: ixyz
-		double precision :: bottom(3) ! Global position of bottom of domain
-		double precision :: top(3)
-		double precision :: tagdistbottom(3) ! Distance specified by user
-		double precision :: tagdisttop(3)
-		logical :: tag_status 
-
-		bottom = (/ -globaldomain(1)/2.d0, -globaldomain(2)/2.d0, -globaldomain(3)/2.d0 /)
-		top	= (/  globaldomain(1)/2.d0,  globaldomain(2)/2.d0,  globaldomain(3)/2.d0 /)
-
-		select case (status_type)
-		case ('thermo')
-			tagdistbottom(:) = thermstatbottom(:)
-			tagdisttop(:)	 = thermstattop(:)
-			!Thermostat complicated wall texture if specified, otherwise thermostat
-			!is based on thermstatbottom/thermstattop
-			if (texture_type .ne. 0 .and. texture_therm .eq. 1) then
-				call wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
-			endif
-		case ('teth')
-			tagdistbottom(:) = tethereddistbottom(:)
-			tagdisttop(:)	= tethereddisttop(:)
-			!Apply a complicated wall texture if specified
-			if (texture_type .ne. 0) call wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
-		case ('fixed')
-			tagdistbottom(:) = fixdistbottom(:)
-			tagdisttop(:)	= fixdisttop(:)
-		case ('slide')
-			tagdistbottom(:) = slidedistbottom(:)
-			tagdisttop(:)	= slidedisttop(:)
-		case default
-			call error_abort("Unrecognised tag status type")
-		end select
-
-		tag_status = .false.
-		! If within a tagged region then mark tag status as true and return
-		Mbinsize = domain/nbins
-		do ixyz = 1,3
-			if (rg(ixyz) .le. bottom(ixyz) + tagdistbottom(ixyz) .or. &
-			   (rg(ixyz) .ge. top(ixyz)	   - tagdisttop(ixyz)) ) then
-				tag_status = .true.
-				return
-
-			end if  
-		end do
-
-	end function get_tag_status
-
 end subroutine setup_location_tags
+
+
 
 
 subroutine reset_location_tags
@@ -216,6 +223,13 @@ subroutine reset_location_tags
 		do n = 1,np
 
 			rglob(:) = globalise(r(:,n))
+
+            if (any(tag(n) .eq. tether_tags)) then
+                cycle
+            else if (tag(n) .eq. fixed .or. tag(n) .eq. fixed_slide) then
+                cycle 
+            end if
+
 			l_thermo = get_tag_status(rglob,'thermo') 
 			if (l_thermo) tag(n) = thermo
 
@@ -225,62 +239,6 @@ subroutine reset_location_tags
 		call get_tag_thermostat_activity(tag_thermostat_active)
 
 	end if
-
-contains
-
-	function get_tag_status(rg,status_type) result(tag_status)
-		implicit none
-
-		double precision :: rg(3)   ! Global position
-		character(*) :: status_type ! Specifies thermo, tethered, fixed, etc
-
-		integer :: ixyz
-		double precision :: bottom(3) ! Global position of bottom of domain
-		double precision :: top(3)
-		double precision :: tagdistbottom(3) ! Distance specified by user
-		double precision :: tagdisttop(3)
-		logical :: tag_status 
-
-		bottom = (/ -globaldomain(1)/2.d0, -globaldomain(2)/2.d0, -globaldomain(3)/2.d0 /)
-		top	= (/  globaldomain(1)/2.d0,  globaldomain(2)/2.d0,  globaldomain(3)/2.d0 /)
-
-		select case (status_type)
-		case ('thermo')
-			tagdistbottom(:) = thermstatbottom(:)
-			tagdisttop(:)	 = thermstattop(:)
-			!Thermostat complicated wall texture if specified, otherwise thermostat
-			!is based on thermstatbottom/thermstattop
-			if (texture_type .ne. 0 .and. texture_therm .eq. 1) then
-				call wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
-			endif
-		case ('teth')
-			tagdistbottom(:) = tethereddistbottom(:)
-			tagdisttop(:)	= tethereddisttop(:)
-			!Apply a complicated wall texture if specified
-			if (texture_type .ne. 0) call wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
-		case ('fixed')
-			tagdistbottom(:) = fixdistbottom(:)
-			tagdisttop(:)	= fixdisttop(:)
-		case ('slide')
-			tagdistbottom(:) = slidedistbottom(:)
-			tagdisttop(:)	= slidedisttop(:)
-		case default
-			call error_abort("Unrecognised tag status type")
-		end select
-
-		tag_status = .false.
-		! If within a tagged region then mark tag status as true and return
-		Mbinsize = domain/nbins
-		do ixyz = 1,3
-			if (rg(ixyz) .le. bottom(ixyz) + tagdistbottom(ixyz) .or. &
-			   (rg(ixyz) .ge. top(ixyz)	   - tagdisttop(ixyz)) ) then
-				tag_status = .true.
-				return
-
-			end if  
-		end do
-
-	end function get_tag_status
 
 end subroutine reset_location_tags
 
