@@ -1190,6 +1190,7 @@ subroutine apply_force
 	use arrays_MD, only : r,v,a
 	use physical_constants_MD, only : density
 	use computational_constants_MD, only : irank
+    use calculated_properties_MD, only: pressure
 	use CPL, only :  rank_world
 	implicit none
 
@@ -1220,8 +1221,13 @@ subroutine apply_force
 		gsum = box_average(ib,jb,kb)%a(2)
 
 		if (gsum .eq. 0.d0) cycle
+        if (n .eq. 0) cycle
+
+        !g = 1.d0
+        !gsum = real(n,kind(0.d0))
 
 		a(:,molno) = a(:,molno) + (g/gsum) * dA * stress_cfd(:,2,ib,jb+cnstd(3)-extents(3),kb) 
+        a(2,molno) = a(2,molno) - (g/gsum) * dA * pressure
 
         !if (g .ne. 0.d0) then
 		!	if (iter .lt. 1000) then

@@ -212,6 +212,12 @@ module coupler_module
 		kcmin_cnst,       &
 		kcmax_cnst
 
+    ! Coupling CFD boundary condition direction flags
+    integer, protected :: &
+        cpl_cfd_bc_x, &
+        cpl_cfd_bc_y, &
+        cpl_cfd_bc_z
+
 	! Constraint parameters	
 	integer, parameter :: &
 		constraint_off = 0,          &
@@ -519,6 +525,17 @@ subroutine read_coupler_input
 	else
 		md_cfd_match_cellsize = 0
 	end if
+
+    call locate(infileid,'CPL_CFD_BC_XYZ',found)
+    if (found) then
+        read(infileid,*) cpl_cfd_bc_x 
+        read(infileid,*) cpl_cfd_bc_y 
+        read(infileid,*) cpl_cfd_bc_z 
+    else
+        cpl_cfd_bc_x = 1
+        cpl_cfd_bc_y = 0
+        cpl_cfd_bc_z = 1
+    end if
 
 	close(infileid,status="keep")
 
