@@ -95,7 +95,8 @@ end subroutine socket_coupler_init
 
 subroutine  socket_coupler_get_md_BC(uc,vc,wc)
     use CPL, only : CPL_get,CPL_recv,CPL_realm,error_abort,cpl_proc_extents,VOID, & 
-					printf,CPL_OLAP_COMM,xg,xL_cfd,yg,yL_cfd,zg,zL_cfd !DEBUG DEBUG
+					printf,CPL_OLAP_COMM,xg,xL_cfd,yg,yL_cfd,zg,zL_cfd,&
+                    cpl_cfd_bc_x, cpl_cfd_bc_y, cpl_cfd_bc_z
 	use data_export, only : nixb,niyb,nlx,ngz,nizb,iblock,jblock,kblock, & 
 							i1_u,i2_u,j1_u,j2_u, & 
 							i1_v,i2_v,j1_v,j2_v, & 
@@ -167,9 +168,11 @@ subroutine  socket_coupler_get_md_BC(uc,vc,wc)
 
 		!Set full extent of halos to zero and set domain portion to MD values
 		uc(:,:,0) = 0.d0; vc(:,:,1) = 0.d0; wc(:,:,0) = 0.d0
-		uc(:,:,0) = uvw_BC(1)/uvw_BC(4)
-		vc(:,:,1) = uvw_BC(2)/uvw_BC(4)
-		wc(:,:,0) = uvw_BC(3)/uvw_BC(4)
+
+        if (cpl_cfd_bc_x) uc(:,:,0) = uvw_BC(1)/uvw_BC(4)
+		if (cpl_cfd_bc_y) vc(:,:,1) = uvw_BC(2)/uvw_BC(4)
+		if (cpl_cfd_bc_z) wc(:,:,0) = uvw_BC(3)/uvw_BC(4)
+
 	else ! Use cell by cell value as BC
 
 		! u interval [i1_u, i2_u], or [2,  ngx ] ??? 4 Procs = [2 32][3 34][3 34][3 35] ??? 30 31 32
@@ -342,62 +345,74 @@ subroutine  socket_coupler_get_md_BC(uc,vc,wc)
 
 		!Set CFD halo - internal cell surfaces from 2 to nclx
 		! X direction
-		uc(:,:,0) = 0.d0; 
-		do i=1, nclx +1
-			if (iblock .eq. 1) then
-				ii = i + i1_u - 2
-			else
-				ii = i + i1_u - 1
-			endif
-			if (ii .gt. i2_u) cycle
-		do j=jcmin_recv,jcmax_recv
-		do k=1, nclz
-			uc(k,ii,j-1) = ucvcwc_md(1,i,j,k)
-			!print'(a,11i5,3f14.6)', 'uc', iblock,jblock,kblock,i1_u,i2_u,i,j,k,ii,imap_1(ii),ibmap_1(ii), & 
-			!				      ucvcwc_md(1,i,j,k),uc(k,ii,j-1),sin(2.d0*3.141592654d0*(xg(ibmap_1(ii),1)-0.5d0*xL_cfd)/xL_cfd)!!,uvw_md(1,i,j,k)!,vc(k,ii,j ),wc(k,ii,j-1)
-		enddo
-		enddo
-		enddo
-		! Y direction
-		vc(:,:,1) = 0.d0; vc(:,:,0) = 0.d0
+        if (cpl_cfd_bc_x) then
+            uc(:,:,0) = 0.d0; 
+            do i=1, nclx +1
+                if (iblock .eq. 1) then
+                    ii = i + i1_u - 2
+                else
+                    ii = i + i1_u - 1
+                endif
+                if (ii .gt. i2_u) cycle
+            do j=jcmin_recv,jcmax_recv
+            do k=1, nclz
+                uc(k,ii,j-1) = ucvcwc_md(1,i,j,k)
+                !print'(a,11i5,3f14.6)', 'uc', iblock,jblock,kblock,i1_u,i2_u,i,j,k,ii,imap_1(ii),ibmap_1(ii), & 
+                !				      ucvcwc_md(1,i,j,k),uc(k,ii,j-1),sin(2.d0*3.141592654d0*(xg(ibmap_1(ii),1)-0.5d0*xL_cfd)/xL_cfd)!!,uvw_md(1,i,j,k)!,vc(k,ii,j ),wc(k,ii,j-1)
+            enddo
+            enddo
+            enddo
+        end if
 
-		!Ensure latest fluxes are stored as cartesian
-		call Flux_to_Cart
+        if (cpl_cfd_bc_y) then
+            ! Y direction
+            vc(:,:,1) = 0.d0; vc(:,:,0) = 0.d0
+            !Ensure latest fluxes are stored as cartesian
+            call Flux_to_Cart
 
-		!Set value of vc
-		dy = yg(1,j+1) - yg(1,j)
-		do i=1, nclx
-			ii = i + i1_v - 1
-			if (ii .gt. i2_v) cycle
-		do j=jcmin_recv,jcmax_recv
-		do k=1, nclz
+            !Set value of vc
+            dy = yg(1,j+1) - yg(1,j)
+            do i=1, nclx
+                ii = i + i1_v - 1
+                if (ii .gt. i2_v) cycle
+            do j=jcmin_recv,jcmax_recv
+            do k=1, nclz
 
-			! MD value is cell centred so Interpolate/Extrapolate using known points 
-			! from the domain to get surface values of vc
-			dvdy = (vc(k,ii,j+1) - ucvcwc_md(2,i,j,k))/(dy * 3.d0/2.d0)
-			vc(k,ii,j-1) = -0.5d0 * dvdy * dy +  ucvcwc_md(2,i,j,k)
-			vc(k,ii,j  ) =  0.5d0 * dvdy * dy +  ucvcwc_md(2,i,j,k)
+                ! MD value is cell centred so Interpolate/Extrapolate using known points 
+                ! from the domain to get surface values of vc
+                dvdy = (vc(k,ii,j+1) - ucvcwc_md(2,i,j,k))/(dy * 3.d0/2.d0)
+                vc(k,ii,j-1) = -0.5d0 * dvdy * dy +  ucvcwc_md(2,i,j,k)
+                vc(k,ii,j  ) =  0.5d0 * dvdy * dy +  ucvcwc_md(2,i,j,k)
 
- 			!vc(k,ii,j  ) = ucvcwc_md(2,i,j,k)
-			!print'(a,11i5,6f14.6)', 'vc', iblock,jblock,kblock,i1_v,i2_v,i,j,k,ii,imap_1(ii),ibmap_1(ii), & 
-			!				      ucvcwc_md(2,i,j,k),vc(k,ii,j-1),vc(k,ii,j  ),vc(k,ii,j+1),yg(1,j)-0.5d0*yL_cfd
-		enddo
-		enddo
-		enddo
+                !vc(k,ii,j  ) = ucvcwc_md(2,i,j,k)
+
+                !extend
+                !vc(:, :, 0) = vc(:, :, 2)
+                !vc(k,ii,j  ) = 0.d0 
+                !vc(:,:,0) = 0.d0
+
+                !print'(a,11i5,6f14.6)', 'vc', iblock,jblock,kblock,i1_v,i2_v,i,j,k,ii,imap_1(ii),ibmap_1(ii), & 
+                !				      ucvcwc_md(2,i,j,k),vc(k,ii,j-1),vc(k,ii,j  ),vc(k,ii,j+1),yg(1,j)-0.5d0*yL_cfd
+            enddo
+            enddo
+            enddo
+        end if
 
 		! Z direction
-		wc(:,:,0) = 0.d0
-		do i=1, nclx
-			ii = i + i1_w - 1
-			if (ii .gt. i2_w) cycle
-		do j=jcmin_recv,jcmax_recv
-		do k=1, nclz + 1
-			wc(k,ii,j-1) = ucvcwc_md(3,i,j,k)
-			!print'(a,11i5,3f14.6)', 'wc', iblock,jblock,kblock,i1_w,i2_w,i,j,k,ii,imap_1(ii),ibmap_1(ii), & 
-			!				      ucvcwc_md(3,i,j,k),wc(k,ii,j-1),sin(2.d0*3.141592654d0*(zg(k)-0.5d0*zL_cfd)/zL_cfd)
-		enddo
-		enddo
-		enddo
+        if (cpl_cfd_bc_z) then
+            wc(:,:,0) = 0.d0
+            do i=1, nclx
+                ii = i + i1_w - 1
+                if (ii .gt. i2_w) cycle
+            do j=jcmin_recv,jcmax_recv
+            do k=1, nclz + 1
+                wc(k,ii,j-1) = ucvcwc_md(3,i,j,k)
+                !print'(a,11i5,3f14.6)', 'wc', iblock,jblock,kblock,i1_w,i2_w,i,j,k,ii,imap_1(ii),ibmap_1(ii), & 
+                !				      ucvcwc_md(3,i,j,k),wc(k,ii,j-1),sin(2.d0*3.141592654d0*(zg(k)-0.5d0*zL_cfd)/zL_cfd)
+            enddo
+            enddo
+            enddo
+        end if
 
 	endif
 	
@@ -628,6 +643,7 @@ end subroutine socket_coupler_send_stress
 
 
 subroutine Evaluate_stress(uc,vc,wc,P,stress)
+    use CPL, only: density_cfd
 	use data_export, only : ibmin,ibmax,jbmin,jbmax,kbmin,kbmax, &
 						   	imap_1,jmap_1,ibmap_1,jbmap_1,npx,npy, & 
 							ngx,ngy,ngzm,iblock,jblock,kblock,vp, &
@@ -641,6 +657,8 @@ subroutine Evaluate_stress(uc,vc,wc,P,stress)
 	real(kind(0.d0))									:: P_guage
 	real(kind(0.d0)),dimension(:,:,:,:,:),allocatable	:: dUidxj
 
+    real(kind(0.d0)) :: mu
+
 	call Evaluate_strain(uc,vc,wc,dUidxj)
 
 	i1 = ibmin ; if (iblock ==  1 ) i1 =  1   ; i1 = imap_1(i1)
@@ -648,18 +666,24 @@ subroutine Evaluate_stress(uc,vc,wc,P,stress)
 	j1 = jbmin ; if (jblock ==  1 ) j1 =  1   ; j1 = jmap_1(j1)
 	j2 = jbmax ; if (jblock == npy) j2 = ngy-1; j2 = jmap_1(j2)
 
+    ! visc is kinematic 
+    mu = visc*density_cfd
+
 	!Allocate array to store stress tensor
-	P_guage = 4.d0
 	if (allocated(stress)) deallocate(stress)
 	allocate(stress(3,3,0:ngz,0:nlx,0:nly)); stress = 0.d0
 
 	do j=j1,j2
 	do i=i1,i2
 	do k=1,ngzm
-		stress(:,:,k,i,j) = -(P(k,i,j) + P_guage) * IDM(3) & 
-							-(2.d0/3.d0)*visc*trace(dUidxj(:,:,k,i,j)) * IDM(3) &
-						    +visc*(dUidxj(:,:,k,i,j)+transpose(dUidxj(:,:,k,i,j)))
+		!stress(:,:,k,i,j) = -(P(k,i,j) + P_guage) * IDM(3) & 
+	!						-(2.d0/3.d0)*visc*trace(dUidxj(:,:,k,i,j)) * IDM(3) &
+	!					    +visc*(dUidxj(:,:,k,i,j)+transpose(dUidxj(:,:,k,i,j)))
 
+        !print('(3f10.4)'), P(k,i,j), dUidxj(2,1,k,i,j), dUidxj(1,2,k,i,j)
+		stress(:,:,k,i,j) = -P(k,i,j)*IDM(3) & 
+		                    -(2.d0/3.d0)*mu*trace(dUidxj(:,:,k,i,j)) * IDM(3) &
+						    +mu*(dUidxj(:,:,k,i,j)+transpose(dUidxj(:,:,k,i,j)))
 	enddo
 	enddo
 	enddo
