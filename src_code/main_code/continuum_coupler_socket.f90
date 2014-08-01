@@ -96,7 +96,7 @@ end subroutine socket_coupler_init
 subroutine  socket_coupler_get_md_BC(uc,vc,wc)
     use CPL, only : CPL_get,CPL_recv,CPL_realm,error_abort,cpl_proc_extents,VOID, & 
 					printf,CPL_OLAP_COMM,xg,xL_cfd,yg,yL_cfd,zg,zL_cfd,&
-                    cpl_cfd_bc_x, cpl_cfd_bc_y, cpl_cfd_bc_z
+                    cpl_cfd_bc_x, cpl_cfd_bc_y, cpl_cfd_bc_z, cpl_cfd_bc_slice
 	use data_export, only : nixb,niyb,nlx,ngz,nizb,iblock,jblock,kblock, & 
 							i1_u,i2_u,j1_u,j2_u, & 
 							i1_v,i2_v,j1_v,j2_v, & 
@@ -111,7 +111,7 @@ subroutine  socket_coupler_get_md_BC(uc,vc,wc)
 
     real(kind(0.d0)),dimension(0:,0:,0:),intent(out)  :: uc,vc,wc 
 
-	logical		  								      :: recv_flag, MD_BC_SLICE_average, exchangehalo
+	logical		  								      :: recv_flag, exchangehalo
 	integer											  :: icount, isource, idest, ierr
     logical, save 								      :: firsttime = .true.
 	integer											  :: i,j,k,ii,ib,jb
@@ -127,9 +127,6 @@ subroutine  socket_coupler_get_md_BC(uc,vc,wc)
 	character	:: str_bufsize
 
 	! - - Some tuneable parameters - -
-	! Average all MD BC into single halo value
-	! or apply the cell by cell values
-	MD_BC_SLICE_average = .false.
 	! Each CFD processor only recieves its part of the domain 
 	! and not the halos to the next processor. They can either
 	! exchange these or extrapolate to obtain them...
@@ -147,8 +144,8 @@ subroutine  socket_coupler_get_md_BC(uc,vc,wc)
 	nclz = extents(6)-extents(5)+1
 
 	!Copy recieved data into appropriate cells
-	if (MD_BC_SLICE_average) then 	! Use a single averaged value for the BC
-	
+	if (cpl_cfd_bc_slice) then 	! Use a single averaged value for the BC
+
 		!Allocate array to CFD number of cells ready to receive data
 		allocate(uvw_md(4,nclx,ncly,nclz)); uvw_md = VOID
 
@@ -543,7 +540,6 @@ subroutine socket_coupler_send_velocity
 		ii = i + i1_u - 1
 		sendbuf(1,i,j,:) = 0.5d0*(uc(:,ii,j) + uc(:,ii+1,j))
 	enddo
-	!call printf(sendbuf(1,40,j,:))
 	enddo
 
 	call CPL_send( sendbuf,                                 &
