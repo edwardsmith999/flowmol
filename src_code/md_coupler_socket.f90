@@ -149,7 +149,6 @@ subroutine set_params_globdomain_cpld
     endif
 
     np = globalnp / nproc	
-
 	domain(1) = globaldomain(1) / real(npx, kind(0.d0))			!determine domain size per processor
 	domain(2) = globaldomain(2) / real(npy, kind(0.d0))			!determine domain size per processor
 	domain(3) = globaldomain(3) / real(npz, kind(0.d0))			!determine domain size per processor
@@ -158,17 +157,33 @@ subroutine set_params_globdomain_cpld
 		halfdomain(ixyz) = 0.5d0*domain(ixyz)			!Useful definition
 	enddo
 
-    if(irank .eq. iroot) then
-        write(*,'(a/a/a,f5.2,a,f5.2,a,f5.2,/,a,3(f5.2),a,/,a,3(I6),/,a)'), &
-                "**********************************************************************", &
-                "WARNING - this is a coupled run which resets the following parameters:", &
-                " density from MD =", density , ' changed to ', density_cfd,              & 
-                " hence the cubic FCC side =", b0 ,                  	                  &
-                " initialunitsize =", initialunitsize(:)/b0," in b units ",               &     
-                " initialnunits   =", initialnunits(:),                                   &
-                "**********************************************************************"
+    if (config_special_case .eq. 'solid_liquid') then
+        liquid_density = density_cfd
+        density = density
+        if(irank .eq. iroot) then
+            write(*,'(a/a/a,f5.2,a,f5.2,a,f5.2,/,a,f5.2,/,a,3(f5.2),a,/,a,3(I6),/,a)'), &
+                    "**********************************************************************", &
+                    "WARNING - this is a coupled run which resets the following parameters:", &
+                    " liquid density MD =", liquid_density , ' changed to ', density_cfd,     & 
+                    " solid density MD =", density,    & 
+                    " hence the cubic FCC side =", b0 ,                  	                  &
+                    " initialunitsize =", initialunitsize(:)/b0," in b units ",               &     
+                    " initialnunits   =", initialnunits(:),                                   &
+                    "**********************************************************************"
+        endif      
+    else
+	    density = density_cfd
+        if(irank .eq. iroot) then
+            write(*,'(a/a/a,f5.2,a,f5.2,a,f5.2,/,a,3(f5.2),a,/,a,3(I6),/,a)'), &
+                    "**********************************************************************", &
+                    "WARNING - this is a coupled run which resets the following parameters:", &
+                    " density from MD =", density , ' changed to ', density_cfd,              & 
+                    " hence the cubic FCC side =", b0 ,                  	                  &
+                    " initialunitsize =", initialunitsize(:)/b0," in b units ",               &     
+                    " initialnunits   =", initialnunits(:),                                   &
+                    "**********************************************************************"
+        endif
     endif
-	density = density_cfd
 
 end subroutine set_params_globdomain_cpld
 
@@ -709,7 +724,8 @@ subroutine socket_apply_continuum_forces
 	else if ( constraint_algorithm .eq. Flekkoy ) then
 		call apply_continuum_forces_flekkoy
 	else if ( constraint_algorithm .eq. CV ) then
-		call apply_continuum_forces_CV
+        call apply_CV_force()
+		!call DEBUG_apply_continuum_forces_CV
 	else
 		call error_abort("Unrecognised constraint algorithm flag")
 	end if	
@@ -1285,7 +1301,7 @@ end subroutine apply_continuum_forces_flekkoy
 
 
 
-subroutine apply_continuum_forces_CV()
+subroutine DEBUG_apply_continuum_forces_CV()
     use computational_constants_MD, only :iblock,jblock,kblock, iter
 	use calculated_properties_MD, only : nbins
     use CPL, only : CPL_proc_extents,CPL_realm, & 
@@ -1317,20 +1333,22 @@ subroutine apply_continuum_forces_CV()
     allocate(CFD_flux(nclx,ncly,nclz,3,6)); CFD_flux =0.d0
 
     call socket_get_velocity(u_CFD)
-    !call socket_get_fluxes_and_stresses(CFD_stress,CFD_flux)
+    call socket_get_fluxes_and_stresses(CFD_stress,CFD_flux)
 
-!    do i=1,nclx
-!    do j=1,ncly
-!    do k=1,nclz
-!        if (any(abs(u_CFD(i,j,k,:)) .gt. 0.0000001)) then
-!            print'(a,4i3,3f27.10)','recv vel  ',iter, i,j,k,u_CFD(i,j,k,:)
-!        endif
-!        if (any(abs(CFD_stress(i,j,k,:,:)) .gt. 0.0000001)) then
-!            print'(a,4i3,18f8.4)','recv stress',iter, i,j,k,CFD_stress(i,j,k,:,:)
-!        endif
-!    enddo
-!    enddo
-!    enddo
+    do i=1,nclx
+    do j=1,ncly
+    do k=1,nclz
+        if (any(abs(u_CFD(i,j,k,:)) .gt. 0.0000001)) then
+            print'(a,4i6,3f27.10)','recv vel  ',iter, i,j,k,u_CFD(i,j,k,:)
+            !print*,'recv vel  ',iter, i,j,k,u_CFD(i,j,k,:)
+        endif
+        if (any(abs(CFD_stress(i,j,k,:,:)) .gt. 0.0000001)) then
+            print'(a,4i6,2f27.10)','recv stress',iter, i,j,k,CFD_stress(i,j,k,1,2),CFD_stress(i,j,k,1,4)
+            !print*,'recv stress',iter, i,j,k,CFD_stress(i,j,k,1,2),CFD_stress(i,j,k,1,4)
+        endif
+    enddo
+    enddo
+    enddo
 
 contains
 
@@ -1358,8 +1376,8 @@ contains
         do i=cnstd(1),cnstd(2)
         do j=cnstd(3),cnstd(4)
         do k=cnstd(5),cnstd(6)
-		!    u_CFD(i,j,k,:) = recv_buf(:,i,j,k)
-            print'(a,4i3,3e27.10)','recv vel  ',iter, i,j,k,recv_buf(:,i,j,k)
+		    u_CFD(i,j,k,:) = recv_buf(:,i,j,k)
+            !print'(a,4i3,3e27.10)','recv vel  ',iter, i,j,k,recv_buf(:,i,j,k)
         enddo
         enddo
         enddo
@@ -1400,8 +1418,8 @@ contains
         do i=cnstd(1),cnstd(2)
         do j=cnstd(3),cnstd(4)
         do k=cnstd(5),cnstd(6)
-			!print*, i,j,k,recv_buf(:,i,j,k)
-            print*,'recv stress',iter,i,j,k,CFD_stress(i,j,k,:,:)
+		    CFD_stress(i,j,k,:,:) = reshape(recv_buf(:,i,j,k), (/ 3,6 /))
+            !print*,'recv stress',iter,i,j,k,CFD_stress(i,j,k,1,2),CFD_stress(i,j,k,1,4)
         enddo
         enddo
         enddo
@@ -1409,7 +1427,169 @@ contains
 
     end subroutine socket_get_fluxes_and_stresses
 
-end subroutine apply_continuum_forces_CV
+end subroutine DEBUG_apply_continuum_forces_CV
+
+
+
+subroutine socket_get_velocity(u_CFD)
+    use CPL, only : CPL_recv
+    use computational_constants_MD, only :iblock,jblock,kblock,iter,nhb
+	use calculated_properties_MD, only : nbins
+    use CPL, only : CPL_proc_extents,CPL_realm, & 
+                    CPL_olap_extents, CPL_get,error_abort
+    implicit none
+
+	real(kind(0.d0)),intent(inout),allocatable,dimension(:,:,:,:)    :: u_CFD 
+
+    logical	:: recv_flag
+    integer :: i,j,k,ii,jj,kk
+    ! Extra plus one here for y as CPL_library cannot simulate case
+    ! where MD goes beyond top of domain
+    integer :: y_MDcells_above_CFD = 1
+	integer	:: pcoords(3),extents(6),cnstd(6)
+    integer	:: npercell,nclx,ncly,nclz
+    real(kind(0.d0)), & 
+        allocatable,dimension(:,:,:,:) 	    :: recv_buf
+
+	!Save extents of current processor
+	pcoords = (/ iblock,jblock,kblock /)
+	call CPL_proc_extents(pcoords,CPL_realm(),extents)
+
+	! Get total number of CFD cells on each processor
+	nclx = extents(2)-extents(1)+1
+	ncly = extents(4)-extents(3)+1
+	nclz = extents(6)-extents(5)+1
+
+	call CPL_get(icmin_cnst=cnstd(1),icmax_cnst=cnstd(2), & 
+                 jcmin_cnst=cnstd(3),jcmax_cnst=cnstd(4), & 
+				 kcmin_cnst=cnstd(5),kcmax_cnst=cnstd(6)    )
+
+	!Check CFD receiving array
+    if (size(u_CFD,1)-2*nhb(1) .ne. nclx) then
+        print*, 'nbins(1) = ', nbins(1), 'nclx = ', nclx
+        call error_abort("u_CFD -- nbins(1) not equal to x CFD cells")
+    endif
+    !if (size(u_CFD,2)-2*nhb(2) .ne. ncly)then
+    !    print*, 'nbins(2) = ', nbins(2), 'ncly = ', ncly
+    !     call error_abort("u_CFD -- nbins(2) not equal to y CFD cells")
+    !endif
+    if (size(u_CFD,3)-2*nhb(3) .ne. nclz) then
+        print*, 'nbins(3) = ', nbins(3), 'nclz = ', nclz
+        call error_abort("u_CFD -- nbins(3) not equal to z CFD cells")
+    endif
+    if (size(u_CFD,4) .ne. 3) call error_abort("Fourth index of velocity should be size three")
+    u_CFD = 0.d0
+
+    npercell = 3
+    allocate(recv_buf(npercell,nclx,ncly,nclz))
+    recv_buf = -666.d0
+    !print*, 'output', shape(recv_buf),extents,cnstd
+    call CPL_recv(recv_buf,                                & 
+                  icmin_recv=cnstd(1),icmax_recv=cnstd(2), &
+                  jcmin_recv=cnstd(3),jcmax_recv=cnstd(4), &
+                  kcmin_recv=cnstd(5),kcmax_recv=cnstd(6), &
+                  recv_flag=recv_flag                       )
+    do i=cnstd(1),cnstd(2)
+    do j=cnstd(3),cnstd(4)
+    do k=cnstd(5),cnstd(6)
+        ii = i + nhb(1); jj = j + nhb(2) + y_MDcells_above_CFD; kk = k + nhb(3)
+        u_CFD(ii,jj,kk,:) = recv_buf(:,i,j,k)
+        !if (any(abs(u_CFD(ii,jj,kk,:)) .gt. 0.00001)) then
+        !    print'(a,7i5,3e27.10)','recv vel   ',iter,i,j,k,ii,jj,kk,u_CFD(ii,jj,kk,:)
+        !endif
+    enddo
+    enddo
+    enddo
+    deallocate(recv_buf)
+
+end subroutine socket_get_velocity
+
+
+subroutine socket_get_fluxes_and_stresses(CFD_stress,CFD_flux)
+    use CPL, only : 
+    use computational_constants_MD, only :iblock,jblock,kblock,iter,nhb
+	use calculated_properties_MD, only : nbins
+    use CPL, only : CPL_proc_extents,CPL_realm, CPL_recv, & 
+                    CPL_olap_extents, CPL_get,error_abort
+    implicit none
+
+    real(kind(0.d0)),intent(inout), & 
+        allocatable,dimension(:,:,:,:,:) 	:: CFD_stress,CFD_flux
+
+    logical	:: recv_flag
+    integer	:: npercell,nclx,ncly,nclz
+    integer :: i,j,k,ii,jj,kk
+    ! Extra plus one here for y as CPL_library cannot simulate case
+    ! where MD goes beyond top of domain
+    integer :: y_MDcells_above_CFD = 1
+	integer	:: pcoords(3),extents(6),cnstd(6)
+    real(kind(0.d0)), & 
+        allocatable,dimension(:,:,:,:) 	    :: recv_buf
+
+	!Save extents of current processor
+	pcoords = (/ iblock,jblock,kblock /)
+	call CPL_proc_extents(pcoords,CPL_realm(),extents)
+
+	! Get total number of CFD cells on each processor
+	nclx = extents(2)-extents(1)+1
+	ncly = extents(4)-extents(3)+1
+	nclz = extents(6)-extents(5)+1
+
+	call CPL_get(icmin_cnst=cnstd(1),icmax_cnst=cnstd(2), & 
+                 jcmin_cnst=cnstd(3),jcmax_cnst=cnstd(4), & 
+				 kcmin_cnst=cnstd(5),kcmax_cnst=cnstd(6)    )
+
+	!Allocate CFD received boxes
+    if (size(CFD_stress,1)-2*nhb(1) .ne. nclx) then
+        print*, 'nbins(1) = ', nbins(1), 'nclx = ', nclx
+        call error_abort("CFD_stress -- nbins(1) not equal to x CFD cells")
+    endif
+    !if (size(CFD_stress,2)-2*nhb(2) .ne. ncly)then
+    !    print*, 'nbins(2) = ', nbins(2), 'ncly = ', ncly
+    !     call error_abort("CFD_stress -- nbins(2) not equal to y CFD cells")
+    !endif
+    if (size(CFD_stress,3)-2*nhb(3) .ne. nclz) then
+        print*, 'nbins(3) = ', nbins(3), 'nclz = ', nclz
+        call error_abort("CFD_stress -- nbins(3) not equal to z CFD cells")
+    endif
+    if (size(CFD_stress,4) .ne. 3) call error_abort("Fourth index of stress should be size three")
+    if (size(CFD_stress,5) .ne. 6) call error_abort("Fifth index of stress should be size six")
+    if (any(shape(CFD_stress) .ne. shape(CFD_flux))) call error_abort("CFD_Flux should match CFD_stress")
+
+    npercell = 18
+    allocate(recv_buf(npercell,nclx,ncly,nclz))
+
+    ! vvvvvvv COMING SOON vvvvvvv
+    !Get Fluxes 
+    CFD_flux = 0.d0
+    recv_buf = -666.d0
+    ! ^^^^^^^ COMING SOON ^^^^^^^
+
+    !Get Stresses
+    CFD_stress = 0.d0
+    recv_buf = -666.d0
+    call CPL_recv(recv_buf,                                & 
+                  icmin_recv=cnstd(1),icmax_recv=cnstd(2), &
+                  jcmin_recv=cnstd(3),jcmax_recv=cnstd(4), &
+                  kcmin_recv=cnstd(5),kcmax_recv=cnstd(6), &
+                  recv_flag=recv_flag                       )
+
+    do i=cnstd(1),cnstd(2)
+    do j=cnstd(3),cnstd(4)
+    do k=cnstd(5),cnstd(6)
+        ! Extra plus one here for y as CPL_library cannot simulate case
+        ! where MD goes beyond top of domain
+        ii = i + nhb(1); jj = j + nhb(2)+y_MDcells_above_CFD; kk = k + nhb(3)
+	    CFD_stress(ii,jj,kk,:,:) = reshape(recv_buf(:,i,j,k), (/ 3,6 /))
+        !if (abs(CFD_stress(ii,jj,kk,1,2)) .gt. 0.00001) then
+        !    print'(a,7i5,2f27.10)','recv stress',iter,i,j,k,ii,jj,kk,CFD_stress(ii,jj,kk,1,2),CFD_stress(ii,jj,kk,1,4)
+        !endif
+    enddo
+    enddo
+    enddo
+    deallocate(recv_buf)
+
+end subroutine socket_get_fluxes_and_stresses
 
 
 !=============================================================================
@@ -1504,419 +1684,6 @@ function socket_get_dy() result(dy_)
 	dy_ = dy
 
 end function socket_get_dy
-
-!======================================================================
-!======================================================================
-!================================モデル=================================
-!======================================================================
-!======================================================================
-!
-!
-! TESTING ROUTINES TESTING ROUTINES TESTING ROUTINES TESTING ROUTINES
-!
-!
-!=========✘✘✘✘✘✘✘✘✘✘✘✘✘✘✘✘✘✘✘✘✘✘✘✘✘✘✘==========ƦƦƦƦƦƦƦƦ=======
-!=============================モデル======================================= ϟƘƦƖןןΣ✘
-!======================================================================
-!======================================================================
-
-! ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬ஜ۩۞۩ஜ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬ 
-! Test the send and recv routines from coupler
-
-subroutine test_send_recv_MD2CFD
-	use coupler_module
-	use coupler
-	use computational_constants_MD, only : Nsteps
-	implicit none
-
-	logical	:: send_flag,recv_flag
-	integer :: ncxl,ncyl,nczl,ixyz,icell,jcell,kcell
-	integer	:: jcmin_send,jcmax_send,jcmin_recv,jcmax_recv,npercell,coord(3),extents(6)
-	double precision,dimension(:,:,:,:),allocatable	:: sendbuf,recvbuf
-
-	npercell = 3
-	jcmax_send=1; jcmin_send=1; 
-	jcmax_recv = jcmax_send
-	jcmin_recv = jcmin_send
-
-	call CPL_Cart_coords(CPL_WORLD_COMM,rank_world,realm,3,coord,ierr)
-	!print'(2a,5i8)', 'MD SIDE',realm_name(realm), rank_world, CPL_overlap,coord
-
-	if (.not.(CPL_overlap())) return
-
-	! Test Sending from MD to CFD							   
-	if (realm .eq. md_realm) then
-
-		if (Nsteps_cfd .ne. Nsteps) then
-			call error_abort("test_send_recv_MD2CFD error - MD_STEPS_PER_DT_CFD must be 1 in COUPLER.in for this testcase")
-		endif
-
-		call CPL_Cart_coords(CPL_CART_COMM,rank_cart,realm,3,coord,ierr)
-		call CPL_olap_extents(coord,realm,extents)
-
-		allocate(sendbuf(npercell,extents(1):extents(2), &
-		                          extents(3):extents(4), &
-		                          extents(5):extents(6)))
-
-		!print'(2a,11i7)', 'sent size',realm_name(realm),extents,size(sendbuf),shape(sendbuf)
-
-		! Populate dummy gatherbuf
-		sendbuf = -333.d0 ! 0.d0
-		do ixyz = 1,npercell
-		do icell=extents(1),extents(2)
-		do jcell=extents(3),extents(4)
-		do kcell=extents(5),extents(6)
-			sendbuf(ixyz,icell,jcell,kcell) = 0.1d0*ixyz + 1*icell + &
-			                                            1000*jcell + &
-			                                         1000000*kcell
-		end do
-		end do
-		end do
-		end do
-
-		call CPL_send(sendbuf,jcmax_send=jcmax_send,jcmin_send=jcmin_send,send_flag=send_flag)	
-
-		if (send_flag .eqv. .true.) then
-			do kcell=extents(5),extents(6)
-			do jcell=jcmin_send,jcmax_send
-			do icell=extents(1),extents(2)
-			do ixyz =1,npercell
-				write(4000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
-				      'send MD(',ixyz,',',icell,',',jcell,',',kcell,') =', &
-				       sendbuf(ixyz,icell,jcell,kcell)
-			end do
-			end do
-			end do
-			end do
-		endif
-
-	else if (realm .eq. cfd_realm) then	 
-
-		call CPL_Cart_coords(CPL_CART_COMM,rank_cart,realm,3,coord,ierr)
-		call CPL_proc_extents(coord,realm,extents)
-		!print'(2a,8i7)', 'proc extents', realm_name(realm),rank_world,rank_cart,extents
-		call CPL_olap_extents(coord,realm,extents)
-		!print'(2a,8i7)', 'olap extents', realm_name(realm),rank_world,rank_cart,extents
-
-		allocate(recvbuf(npercell,extents(1):extents(2), &
-		                          extents(3):extents(4), &
-		                          extents(5):extents(6)))
-
-		!print'(2a,11i7)', 'recv size', realm_name(realm),extents,size(recvbuf),shape(recvbuf)
-		recvbuf = -444.d0
-		call CPL_recv(recvbuf,jcmax_recv=jcmax_recv,jcmin_recv=jcmin_recv,recv_flag=recv_flag)
-
-		if (recv_flag .eqv. .true.) then
-			do kcell=extents(5),extents(6)
-			do jcell=jcmin_recv,jcmax_recv  !extents(3),extents(4)
-			do icell=extents(1),extents(2)
-			do ixyz =1,npercell
-					write(5000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
-					      'recv CFD(',ixyz,',',icell,',',jcell,',',kcell,') =', &
-					       recvbuf(ixyz,icell,jcell,kcell)
-			end do
-			end do
-			end do
-			end do
-		endif
-	end if								   
-	
-end subroutine test_send_recv_MD2CFD
-
-
-! ۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩۩
-! Test Sending from MD to CFD
-
-subroutine test_send_recv_CFD2MD
-	use coupler_module
-	use coupler
-	use computational_constants_MD, only : Nsteps
-	implicit none
-
-	logical	:: send_flag,recv_flag
-	integer	:: jcmin_send,jcmax_send,jcmin_recv,jcmax_recv
-	integer :: ncxl,ncyl,nczl,ixyz,icell,jcell,kcell,npercell,coord(3),extents(6)
-	double precision,dimension(:,:,:,:),allocatable	:: sendbuf,recvbuf
-
-	npercell = 3
-	jcmax_send=1; jcmin_send=1; 
-	jcmax_recv = jcmax_send
-	jcmin_recv = jcmin_send
-	if (.not.(CPL_overlap())) return
-
-	! Test Sending from CFD to MD							   
-	if (realm .eq. md_realm) then	
-
-		if (Nsteps_cfd .ne. Nsteps) then
-			call error_abort("test_send_recv_MD2CFD error - MD_STEPS_PER_DT_CFD must be 1 in COUPLER.in for this testcase")
-		endif	   
-
-		coord = (/iblock_realm,jblock_realm,kblock_realm /)
-		call CPL_olap_extents(coord,realm,extents)
-
-		allocate(recvbuf(npercell,extents(1):extents(2), &
-		                          extents(3):extents(4), &
-		                          extents(5):extents(6)))
-		recvbuf = -444
-
-		!print*, 'recv size', realm_name(realm),extents, size(recvbuf),shape(recvbuf)
-		call CPL_recv(recvbuf,jcmax_recv=1,jcmin_recv=1,recv_flag=recv_flag)   
-
-		if (recv_flag .eqv. .true.) then
-			do kcell=extents(5),extents(6)
-			do jcell=jcmin_send,jcmax_send
-			do icell=extents(1),extents(2)
-			do ixyz = 1,npercell
-				write(11000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
-			      	'recv MD(',ixyz,',',icell,',',jcell,',',kcell,') =', &
-			      	 recvbuf(ixyz,icell,jcell,kcell)
-			end do
-			end do
-			end do
-			end do
-		endif
-
-	else if (realm .eq. cfd_realm) then	   
-
-		coord = (/iblock_realm,jblock_realm,kblock_realm /)
-		call CPL_olap_extents(coord,realm,extents)
-		allocate(sendbuf(npercell,extents(1):extents(2), &
-		                          extents(3):extents(4), &
-		                          extents(5):extents(6)))
-
-		do ixyz =1,npercell
-		do icell=extents(1),extents(2)
-		do jcell=extents(3),extents(4)
-		do kcell=extents(5),extents(6)
-			sendbuf(ixyz,icell,jcell,kcell) = 0.1d0*ixyz + 1*(icell) + &
-			                       			  1000*(jcell) + &
-			                    			  1000000*(kcell)
-
-		end do
-		end do
-		end do
-		end do
-
-		!print*, 'sent size',realm_name(realm),3*ncxl*ncyl*nczl,size(sendbuf)
-		call CPL_send(sendbuf,jcmax_send=1,jcmin_send=1,send_flag=send_flag)
-
-		do kcell=extents(5),extents(6)
-		do jcell=jcmin_send,jcmax_send
-		do icell=extents(1),extents(2)
-		do ixyz = 1,npercell
-			write(9000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
-			      'send CFD(',ixyz,',',icell,',',jcell,',',kcell,') =', &
-			       sendbuf(ixyz,icell,jcell,kcell)
-		end do
-		end do
-		end do
-		end do
-	end if								   
-	
-end subroutine test_send_recv_CFD2MD
-
-subroutine test_gather_scatter
-	use coupler_module
-	use coupler
-	use computational_constants_MD, only : Nsteps
-	implicit none
-
-	double precision,dimension(:,:,:,:),allocatable	:: u,stress,gatheru,scatterstress
-	integer :: coord(3), extents(6), gatherlims(6), scatterlims(6), npercell
-	integer :: pos, ixyz, icell, jcell, kcell
-	integer :: ncxl,ncyl,nczl
-	integer :: i,j,k
-
- 	if (.not.(CPL_overlap())) return
-
-	!print*, 'test_gather_scatter called on MD proc ID:', rank_realm, rank_world
-
-	if (realm .eq. md_realm) then	
-
-		if (Nsteps_cfd .ne. Nsteps) then
-			call error_abort("test_send_recv_MD2CFD error - MD_STEPS_PER_DT_CFD must be 1 in COUPLER.in for this testcase")
-		endif
-
-		call CPL_Cart_coords(CPL_CART_COMM,rank_cart,md_realm,3,coord,ierr)
-		call CPL_proc_extents(coord,md_realm,extents)
-		npercell = 3
-		allocate(u(npercell,extents(1):extents(2), &
-		                    extents(3):extents(4), &
-		                    extents(5):extents(6)))
-		allocate(stress(0,0,0,0))
-
-		! Populate dummy gatherbuf
-		pos = 1
-		do ixyz = 1,npercell
-		do icell=extents(1),extents(2)
-		do jcell=extents(3),extents(4)
-		do kcell=extents(5),extents(6)
-
-			u(ixyz,icell,jcell,kcell) = 0.1d0*ixyz + 1*icell + &
-			                                      1000*jcell + &
-			                                   1000000*kcell
-			pos = pos + 1
-
-		end do
-		end do
-		end do
-		end do
-
-	else if (realm .eq. cfd_realm) then	  
-		
-		call CPL_Cart_coords(CPL_CART_COMM,rank_cart,cfd_realm,3,coord,ierr)
-		call CPL_proc_extents(coord,cfd_realm,extents)
-		npercell = 9
-		allocate(u(0,0,0,0))
-		allocate(stress(npercell,extents(1):extents(2), &
-		                         extents(3):extents(4), &
-		                         extents(5):extents(6)))
-
-		! Populate dummy gatherbuf
-		pos = 1
-		do ixyz = 1,npercell
-		do icell=extents(1),extents(2)
-		do jcell=extents(3),extents(4)
-		do kcell=extents(5),extents(6)
-
-			stress(ixyz,icell,jcell,kcell) = 0.1d0*ixyz + 1*icell + &
-			                                           1000*jcell + &
-			                                        1000000*kcell
-			pos = pos + 1
-
-		end do
-		end do
-		end do
-		end do
-
-	endif
-
-
-	! Allocate test arrays over local domain
-	if (realm.eq.cfd_realm) then
-		call CPL_cart_coords(CPL_CART_COMM,rank_cart,cfd_realm,3,coord,ierr)
-		call CPL_proc_extents(coord,cfd_realm,extents)
-		ncxl = extents(2) - extents(1) + 1
-		ncyl = extents(4) - extents(3) + 1
-		nczl = extents(6) - extents(5) + 1
-		allocate(gatheru(3,ncxl,ncyl,nczl))
-		gatheru = 0.d0
-	else if (realm.eq.md_realm) then
-		call CPL_cart_coords(CPL_CART_COMM,rank_cart,md_realm,3,coord,ierr)
-		call CPL_proc_extents(coord,md_realm,extents)
-		ncxl = extents(2) - extents(1) + 1
-		ncyl = extents(4) - extents(3) + 1
-		nczl = extents(6) - extents(5) + 1
-		allocate(scatterstress(9,ncxl,ncyl,nczl))
-		scatterstress = 0.d0
-	end if
-
-
-
-
-	!gatherlims  = (/1,1,1,1,1,1/)
-	!scatterlims = (/1,1,1,1,1,1/)
-	!================== PERFORM GATHER/SCATTER =============================!	
-	gatherlims  = (/1,85,15,21, 3, 4/)
-	scatterlims = (/1,85, 2, 9, 1, 8/)
-	if ((CPL_overlap())) call CPL_gather(u,3,gatherlims,gatheru)
-	if ((CPL_overlap())) call CPL_scatter(stress,9,scatterlims, &
-	                                                 scatterstress)
-
-	! Print results to file
-	if (realm.eq.cfd_realm) then
-
-		do ixyz  = 1,size(gatheru,1)
-		do icell = 1,size(gatheru,2)
-		do jcell = 1,size(gatheru,3)
-		do kcell = 1,size(gatheru,4)
-
-			i = icell + extents(1) - 1
-			j = jcell + extents(3) - 1
-			k = kcell + extents(5) - 1
-
-			if (gatheru(ixyz,icell,jcell,kcell).lt.0.0001) then
-				!write(8000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
-				!	  'gatheru(',0,',',0,',',0,',',0,') =', 0.d0
-			else
-				write(8000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
-					  'gatheru(',ixyz,',',i,',',j,',',k,') =', &
-					   gatheru(ixyz,icell,jcell,kcell)
-			end if
-
-		end do	
-		end do	
-		end do
-		end do
-
-	else if (realm.eq.md_realm) then
-
-		do ixyz  = 1,size(scatterstress,1)
-		do icell = 1,size(scatterstress,2)
-		do jcell = 1,size(scatterstress,3)
-		do kcell = 1,size(scatterstress,4)
-
-			i = icell + extents(1) - 1
-			j = jcell + extents(3) - 1
-			k = kcell + extents(5) - 1
-
-			if (scatterstress(ixyz,icell,jcell,kcell).lt.0.0001) then
-				!write(7000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
-				!	  'scatterstress(',0,',',0,',',0,',',0,') =', 0.d0
-			else
-				write(7000+myid_world,'(a,i4,a,i4,a,i4,a,i4,a,f20.1)'),   &
-					  'scatterstress(',ixyz,',',i,',',j,',',k,') =', &
-					   scatterstress(ixyz,icell,jcell,kcell)
-			end if
-
-		end do	
-		end do	
-		end do
-		end do
-	
-	end if
-
-	!print*, 'test_gather_scatter finished on MD proc ID:', rank_realm, rank_world
-	
-end subroutine test_gather_scatter
-
-! ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ ♥ 
-
-
-#if COUPLER_DEBUG_LA
-	! dump debug data 
-	subroutine write_uc(iter)
-	    use coupler
-	    use computational_constants_MD, only : initialstep
-	    use physical_constants_MD, only : np
-		use arrays_MD, only :r,v
-	    implicit none
-	    integer,intent(in) :: iter
-
-	    integer :: iter_cfd, iter_average, Naverage, save_period, average_period
-		logical, save :: first_time=.true.
-		save  save_period, average_period, Naverage
-
-	    if (first_time) then 
-		    first_time     = .false.
-	        save_period    = coupler_md_get_save_period()   
-		    average_period = coupler_md_get_average_period() 	! collection interval in the average cycle
-		    Naverage = coupler_md_get_md_steps_per_cfd_dt()  	! number of steps in MD average cycle
-	    endif
-
-	    iter_average = mod(iter-1, Naverage)+1			! current step
-	    iter_cfd     = (iter-initialstep)/Naverage +1 	! CFD corresponding step
-
-	    if ( mod(iter_cfd,save_period) == 0) then 
-	        if (mod(iter_average,average_period) == 0 ) then
-	            call coupler_uc_average_test(np,r,v,lwrite=.false.)
-	        endif
-	        if (iter_average == Naverage) then
-	            call coupler_uc_average_test(np,r,v,lwrite=.true.)
-	        endif
-	    endif
-	end subroutine write_uc
-#endif
 
 #endif
 

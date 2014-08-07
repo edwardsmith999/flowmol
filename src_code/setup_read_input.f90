@@ -824,8 +824,6 @@ subroutine setup_read_input
 		endif
 		read(1,*,iostat=ios) CVweighting_flag
 		if (ios .ne. 0) CVweighting_flag = 0
-		read(1,*,iostat=ios) CVforce_correct
-		if (ios .ne. 0) CVforce_correct = 1
 		read(1,*,iostat=ios) CVforce_starttime
 		if (ios .ne. 0) CVforce_starttime = 200
 		read(1,*,iostat=ios) F_CV_limits(1)
@@ -840,6 +838,12 @@ subroutine setup_read_input
 		if (ios .ne. 0) F_CV_limits(5) = VOID
 		read(1,*,iostat=ios) F_CV_limits(6)
 		if (ios .ne. 0) F_CV_limits(6) = VOID
+		read(1,*,iostat=ios) CVforce_correct
+		if (ios .ne. 0) CVforce_correct = 0
+        if (CVforce_correct .eq. 1) then
+    		read(1,*,iostat=ios) CVforce_correct_nsteps
+	    	if (ios .ne. 0) CVforce_correct_nsteps = NSTEPS
+        endif
 
         print*, CVforce_flag, CVweighting_flag, CVforce_correct,  CVforce_starttime
 	endif
