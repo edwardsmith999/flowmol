@@ -1600,12 +1600,20 @@ subroutine get_overlap_blocks
 	! - - y - -
 	yLl_cfd = yL_cfd/npy_cfd
 	endproc = ceiling(yL_olap/yLl_cfd)
-	do n = 1,endproc
-	do i = 1,nolapsy
-		cfd_jcoord2olap_md_jcoords(n,i) =   (n-1)*nolapsy + i &
-										  + (npy_md - nolapsy)
-	end do
-	end do
+    if (endproc .gt. npy_cfd) then
+        print*, "Warning in get_overlap_blocks -- top processor in CFD greater than number"
+        print*,  "  of processors. This may be correct if some MD domain exists above CFD."
+        endproc = npy_cfd
+        nolapsy = 1
+        print*, endproc, nolapsy
+    endif
+    do n = 1,endproc
+    do i = 1,nolapsy
+	    cfd_jcoord2olap_md_jcoords(n,i) =   (n-1)*nolapsy + i &
+									      + (npy_md - nolapsy)
+    end do
+    end do
+
 
 	! - - z - -
 	do n = 1,npz_cfd
