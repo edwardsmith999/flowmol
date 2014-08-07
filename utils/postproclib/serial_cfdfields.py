@@ -33,6 +33,27 @@ class Serial_CFD_vField(Serial_CFDField):
         assert self.Raw.nperbin > 0
         self.labels = ['u','v','w']
 
+class Serial_CFD_momField(Serial_CFDField):
+
+    dtype = 'd'
+    nperbin = 3
+
+    def __init__(self,fdir,fname='continuum_vbins'):
+
+        self.fname = fname
+        Serial_CFDField.__init__(self,fdir)
+        self.labels = self.axislabels
+        self.nperbin = self.Raw.nperbin
+        self.plotfreq = self.Raw.header.continuum_tplot
+        assert self.Raw.nperbin > 0
+        self.labels = ["rhou","rhov","rhow"]
+
+    def read(self,startrec,endrec,**kwargs):
+
+        grid_data = Serial_CFDField.read(self,startrec,endrec,**kwargs)
+        density = float(self.Raw.header.rho)
+        grid_data = density*grid_data
+        return grid_data 
 
 class Serial_CFD_StressField(Serial_CFDField):
 
