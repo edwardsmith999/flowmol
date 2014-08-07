@@ -2,6 +2,7 @@
 import numpy as np 
 import glob
 import os
+import sys
 from headerdata import MDHeaderData
 
 """
@@ -61,10 +62,14 @@ class MD_RawData:
             self.separate_outfiles = True 
         else:
             print('Neither ' + fname + ' nor ' + fname + '.* exist.')
-            quit()
+            sys.exit()
 
         self.header = MDHeaderData(fdir)
-        self.cpol_bins = bool(int(self.header.cpol_bins))
+        try:
+            self.cpol_bins = bool(int(self.header.cpol_bins))
+        except AttributeError:
+            self.cpol_bins = False
+            self.header.cpol_bins = False
         self.dtype = dtype
         self.nperbin = nperbin
         self.nbins, self.grid = self.get_bintopology()
@@ -172,7 +177,7 @@ class MD_RawData:
             elif (self.dtype == 'd'):
                 maxrec = filesize/(8*self.nperbin*np.prod(self.nbins)) - 1
             else:
-                quit('Unrecognised dtype in MD_RawData.get_maxrec')
+                sys.exit('Unrecognised dtype in MD_RawData.get_maxrec')
 
         elif (glob.glob(self.fdir+self.fname+'.*')):
 
@@ -182,7 +187,7 @@ class MD_RawData:
             
         else:
             print('Neither ' + self.fname + ' nor ' + self.fname + '.* exist.')
-            quit()
+            sys.exit
 
         return maxrec
 
@@ -227,7 +232,7 @@ class MD_RawData:
                     fobj = open(filepath,'rb')
                 except:
                     if quit_on_error:
-                        quit('Unable to find file ' + filepath)    
+                        sys.exit('Unable to find file ' + filepath)    
                     else:
                         print('Unable to find file ' + filepath)
                         return_zeros = True
@@ -251,7 +256,7 @@ class MD_RawData:
                 fobj = open(self.fdir+self.fname,'rb')
             except:
                 if quit_on_error:
-                    quit('Unable to find file ' + self.fname)    
+                    sys.exit('Unable to find file ' + self.fname)    
                 else:
                     print('Unable to find file ' + self.fname)
                     return_zeros = True
@@ -263,7 +268,7 @@ class MD_RawData:
                 recbytes = 8*recitems
             else:
                 if quit_on_error:
-                    quit('Unrecognised data type in read_bins')
+                    sys.exit('Unrecognised data type in read_bins')
                 else:
                     print('Unrecognised data type in read_bins')   
             seekbyte = startrec*recbytes
