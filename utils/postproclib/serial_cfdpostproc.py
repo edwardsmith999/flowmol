@@ -56,22 +56,22 @@ class Serial_CFD_PostProc(PostProc):
             M1 = Serial_CFD_StressField(self.resultsdir,
                                         fname='continuum_tau_xx', 
                                         **kwargs)
-            self.plotlist.update({'Tau_xx':M1})
+            self.plotlist.update({'CFD surface Tau_xx':M1})
 
         if 'continuum_tau_xy' in (self.fieldfiles1):
             M1 = Serial_CFD_StressField(self.resultsdir,
                                         fname='continuum_tau_xy', **kwargs)
-            self.plotlist.update({'Tau_xy':M1})
+            self.plotlist.update({'CFD surface Tau_xx':M1})
 
         if 'continuum_tau_yx' in (self.fieldfiles1):
             M1 = Serial_CFD_StressField(self.resultsdir,
                                         fname='continuum_tau_yx', **kwargs)
-            self.plotlist.update({'Tau_yx':M1})
+            self.plotlist.update({'CFD surface Tau_xx':M1})
 
         if 'continuum_tau_yy' in (self.fieldfiles1):
             M1 = Serial_CFD_StressField(self.resultsdir,
                                         fname='continuum_tau_yy', **kwargs)
-            self.plotlist.update({'Tau_yy':M1})
+            self.plotlist.update({'CFD surface Tau_xx':M1})
 
         if (len(self.plotlist) == 0):
             raise NoResultsInDir 

@@ -31,25 +31,28 @@ class Serial_CFD_RawData:
         self.haloy = 1
         self.haloz = 1
         # Number of grid points in main code
-        self.nx = int(self.header.nx)
-        self.ny = int(self.header.ny)
-        self.nz = int(self.header.nz)
-        # Number of cell-centered values written to files
-        self.nrx = int(self.nx)#+2*self.halox
-        self.nry = int(self.ny)+2*self.haloy
-        self.nrz = int(self.nz)#+2*self.haloz
+        self.nx = int(self.header.nx)+1
+        self.ny = int(self.header.ny)+1
+        self.nz = int(self.header.nz)+1
+        # Number of cell-centered values written with halos
+        self.nrx = int(self.nx)-1  #+2*self.halox
+        self.nry = int(self.ny)-1+2*self.haloy
+        self.nrz = 1 #int(self.nz)-1  #+2*self.haloz
         # Domain lengths
         self.xL = float(self.header.lx)
         self.yL = float(self.header.ly)
         self.zL = float(self.header.lz)
+        self.xyzL = [self.xL,self.yL,self.zL]
         # Grid spacing
-        self.dx = self.xL/float(self.nx)
-        self.dy = self.yL/float(self.ny)
-        self.dz = self.zL/float(self.nz)
+        self.dx = self.xL/float(self.nrx)
+        self.dy = self.yL/float(self.nry-2*self.haloy)
+        self.dz = self.zL/float(self.nrz)
         # Linspaces of cell centers, accounting for halos written in y
-        gridx = np.linspace(-self.dx/2., self.xL +self.dx/2., num=self.nrx)
-        gridy = np.linspace(-self.dy/2., self.yL +self.dy/2., num=self.nry)
-        gridz = np.linspace(-self.dz/2., self.zL +self.dz/2., num=self.nrz)
+        gridx = np.linspace(+self.dx/2., self.xL -self.dx/2., num=self.nrx)
+        # NOTE SHIFTED BY HALF A CELL SO IT MATCHES THE OVERLAPPED MD CASE
+        gridy = np.linspace(-self.dy/2., self.yL +self.dy/2., num=self.nry)-self.dy
+        print(self.yL,self.ny,self.dy,gridy)
+        gridz = np.linspace(+self.dz/2., self.zL -self.dz/2., num=self.nrz)
         grid = [gridx,gridy,gridz]
         return grid 
 
