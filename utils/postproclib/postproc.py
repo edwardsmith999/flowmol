@@ -1,7 +1,3 @@
-
-class NoResultsInDir(Exception):
-    pass
-
 class PostProc:
 
     def __str__(self):

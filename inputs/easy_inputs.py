@@ -4,25 +4,31 @@ import math
 # Desired "Inputs" 
 density = 1.0
 rcutoff = 2.0**(1.0/6.0)
-dr_nbr  = 0.3
-D_xL    = 1562                                 # Prefix "D_" for "desired"
-D_zL    = 1071 
-D_yL_md = 568
-D_yL_cfd = 568
-wall_layers = 0
+dr_nbr  = 0.36
+D_xL    = 26.                                 # Prefix "D_" for "desired"
+D_zL    = 26. 
+D_yL_md = 59.5275
+D_yL_cfd = 50.8
+
+wall_layers = 0.5
 eps = 0.01
+
+#D_xL    = 1562                                 # Prefix "D_" for "desired"
+#D_zL    = 1071 
+#D_yL_md = 568
+#D_yL_cfd = 568
 # npx_md = 12
 # npy_md = 6
 # npz_md = 4
 # cfd_cells_per_md_proc_x = 7
 # cfd_cells_per_md_proc_y = 33
 # cfd_cells_per_md_proc_z = 17
-npx_md = 12
-npy_md = 6
-npz_md = 10
-cfd_cells_per_md_proc_x = 7
-cfd_cells_per_md_proc_y = 33
-cfd_cells_per_md_proc_z = 5
+npx_md = 4
+npy_md = 10
+npz_md = 4
+cfd_cells_per_md_proc_x = 1
+cfd_cells_per_md_proc_y = 1
+cfd_cells_per_md_proc_z = 1
 
 ncy_olap = 0
 

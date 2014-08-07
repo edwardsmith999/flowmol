@@ -7,6 +7,8 @@ try:
 except:
     print("h5py package not avilable -- using ascii conversion")
 
+from pplexceptions import DataNotAvailable
+
 class Channelflow_RawData:
     
     def __init__(self,fdir):

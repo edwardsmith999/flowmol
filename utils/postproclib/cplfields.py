@@ -13,23 +13,37 @@ except:
 
 import cfdfields
 import mdfields
+import serial_cfdfields
 from headerdata import HeaderData
 from field import Field
 
 class CPLField(Field):
     
-    def __init__(self,fdir):
+    def __init__(self,fdir,cpldir='results/coupler_header',
+                           mddir='md_data/results/',
+                           cfddir='couette_data/',
+                           **kwargs):
         self.fdir = fdir
-        self.header = HeaderData(open(fdir+'results/coupler_header')) 
-        self.md_field = self.MDFieldType(fdir+'md_data/results/') 
-        self.cfd_field = self.CFDFieldType(fdir+'couette_data/')
+        self.cpldir = cpldir
+        self.mddir = mddir
+        self.cfddir = cfddir
+        self.header = HeaderData(open(fdir+cpldir)) 
+        self.md_field = self.MDFieldType(fdir+mddir,**kwargs) 
+        self.cfd_field = self.CFDFieldType(fdir+cfddir)
         self.olap_cells = np.array(
             [int(self.header.icmax_olap) - int(self.header.icmin_olap) + 1,
              int(self.header.jcmax_olap) - int(self.header.jcmin_olap) + 1,
              int(self.header.kcmax_olap) - int(self.header.kcmin_olap) + 1 ])
-        self.cfd_dxyz = np.array([(self.cfd_field.grid[i][1] - 
-                                   self.cfd_field.grid[i][0])
-                                  for i in range(3)])
+        self.cfd_dxyz=np.empty(3)
+        self.CFD_2d = [False, False, False]
+        for i in range(3):
+            if self.cfd_field.grid[i].shape[0] > 1:
+                self.cfd_dxyz[i] = np.array(self.cfd_field.grid[i][1] - 
+                                            self.cfd_field.grid[i][0]  )
+            else:
+                self.cfd_dxyz[i] = self.cfd_field.Raw.xyzL[i]
+                self.CFD_2d[i] = True
+
         self.density_cfd = float(self.header.density_cfd)
         self.cpl_dxyz = np.copy(self.cfd_dxyz)
         self.md_xyzL = np.array([float(self.md_field.header.globaldomain1),
@@ -42,9 +56,10 @@ class CPLField(Field):
         self.md_cfdcells = np.rint(
                                    np.divide(self.md_xyzL,self.cfd_dxyz)
                                   ).astype(int)
+
         self.cfd_halos = [0,1,0]
-        self.cpl_cells = (self.md_cfdcells + self.cfd_cells - self.olap_cells - 
-                         self.cfd_halos)
+        self.cpl_cells = (self.md_cfdcells + self.cfd_cells 
+                        - self.olap_cells  - self.cfd_halos)
         self.md_grid, self.cfd_grid = self.get_grids()
         self.maxrec = self.md_field.maxrec 
         self.grid = self.get_cpl_grid()
@@ -93,6 +108,9 @@ class CPLField(Field):
             for comp in range(ndims):
                 md_coarse[:,:,:,rec,comp]=skit.resize(md_data[:,:,:,rec,comp],
                                                              self.md_cfdcells)
+                if self.CFD_2d[comp]:
+                    temp = np.expand_dims(cfd_data, axis=comp)
+                    temp = np.lib.pad(temp,md_coarse.shape[comp],'mean')
 
         jstart = self.olap_cells[1] - 1 + self.cfd_halos[1]
         cfd_data = cfd_data[:,jstart:,:,:,:]
@@ -192,3 +210,30 @@ class CPL_stressField(CPLField):
     def __init__(self, fdir):
         CPLField.__init__(self,fdir)
         self.cfd_field.set_rho(self.density_cfd)
+
+class CPL_Serial_CFD_vField(CPLField):
+    nperbin = 3
+    MDFieldType = mdfields.MD_vField 
+    CFDFieldType = serial_cfdfields.Serial_CFD_vField
+
+    def __init__(self, fdir):
+        CPLField.__init__(self,fdir,cfddir='couette_serial/results/')
+
+class CPL_Serial_CFD_momField(CPLField):
+    nperbin = 3
+    MDFieldType  = mdfields.MD_momField
+    CFDFieldType = serial_cfdfields.Serial_CFD_momField
+
+    def __init__(self, fdir):
+        CPLField.__init__(self,fdir,cfddir='couette_serial/results/')
+
+
+class CPL_Serial_CFD_stressField(CPLField):
+    nperbin = 9
+    MDFieldType = mdfields.MD_pfluxField
+    nperbin = 4
+    CFDFieldType = serial_cfdfields.Serial_CFD_StressField
+
+    def __init__(self, fdir):
+        CPLField.__init__(self,fdir,cfddir='couette_serial/results/',fname='psurface')
+

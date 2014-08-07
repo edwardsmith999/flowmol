@@ -5,4 +5,5 @@ from channelflowfields import *
 from serial_cfdfields import *
 from cplfields import *
 from mdpdfs import *
+from pplexceptions import *
 

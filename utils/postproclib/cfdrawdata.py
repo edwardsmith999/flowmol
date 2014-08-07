@@ -2,6 +2,8 @@
 import numpy as np
 import os
 
+from pplexceptions import DataNotAvailable
+
 class CFD_RawData:
     
     def __init__(self,fdir):
@@ -26,7 +28,10 @@ class CFD_RawData:
         return Re, nu
 
     def get_grid(self):
-        fobj = open(self.fdir+'report','r')
+        try:
+            fobj = open(self.fdir+'report','r')
+        except IOError:
+            raise DataNotAvailable
         report = fobj.readlines()[3:6] # Lines with info in
         for line in report:
             linepairs = line.split('|')
@@ -78,7 +83,7 @@ class CFD_RawData:
                 subdoms.append(filename)
 
         if (len(subdoms) == 0):
-            raise IOError 
+            raise DataNotAvailable
 
         subdoms = sorted(subdoms,key=get_int)
         

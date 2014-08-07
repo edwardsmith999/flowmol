@@ -20,7 +20,8 @@
 #
 # serial (OBSOLETE)
 #
-clean_serial_couette serial_couette serial_couette_solo : CFD_SRC_PATH := ./Couette_serial/ 
+SERIAL_CFD_SRC_PATH := ./Couette_serial/
+#clean_serial_couette serial_couette serial_couette_solo : 
 serial_couette serial_couette_solo : CFD_TARGET := continuum.exe
 #
 # parallel (DNS CODE)
@@ -64,15 +65,13 @@ md : $(CPL_LIB)
 couette : $(CPL_LIB)
 	@cd $(CFD_SRC_PATH) && $(MAKE) $(MAKEFILE_NAME) USE_COUPLER=yes $(CFD_TARGET)
 serial_couette : $(CPL_LIB)
-	cd $(CFD_SRC_PATH) && $(MAKE) USE_COUPLER=yes $(CFD_TARGET)
+	cd $(SERIAL_CFD_SRC_PATH) && $(MAKE) USE_COUPLER=yes $(CFD_TARGET)
 $(CPL_LIB) :
 	@cd $(COUPLER_SRC_PATH) && $(MAKE) USE_COUPLER=yes
-#cd $(CFD_SRC_PATH) && touch continuum_coupler_socket.f90	# Touch socket to ensure a rebuild
-#cd $(MD_SRC_PATH)  && touch md_coupler_socket.f90			# Touch socket to ensure a rebuild
 md_solo :
 	cd $(MD_SRC_PATH)  && $(MAKE) USE_COUPLER=no $(MD_TARGET)
 serial_couette_solo : 
-	cd $(CFD_SRC_PATH) && $(MAKE) USE_COUPLER=no $(CFD_TARGET)
+	cd $(SERIAL_CFD_SRC_PATH) && $(MAKE) USE_COUPLER=no $(CFD_TARGET)
 couette_solo :
 	cd $(CFD_SRC_PATH) && $(MAKE) $(MAKEFILE_NAME) USE_COUPLER=no $(CFD_TARGET)
 
@@ -81,7 +80,7 @@ setup_couette :
 	cp $(CFD_GRID_PATH)/grid.data $(CFD_SETUP_PATH)
 	cd $(CFD_SETUP_PATH) && make simple && ./a.out
 
-clean_all : clean_coupler clean_md clean_couette_solo clean_serial_couette 
+clean_all : clean_coupler clean_md clean_couette_solo clean_serial_cfd
 
 clean_couette_md : clean_couette_solo clean_md
 
@@ -91,6 +90,8 @@ clean_md :
 	cd  $(MD_SRC_PATH)  && $(MAKE) clean  
 clean_cfd :
 	cd  $(CFD_SRC_PATH) && $(MAKE) $(MAKEFILE_NAME) clean
+clean_serial_cfd : clean_serial_couette
+	cd  $(SERIAL_CFD_SRC_PATH) && $(MAKE) $(MAKEFILE_NAME) clean
 clean_coupler :
 	cd $(COUPLER_SRC_PATH) && $(MAKE) clean
 clean_couette clean_couette_solo : clean_cfd

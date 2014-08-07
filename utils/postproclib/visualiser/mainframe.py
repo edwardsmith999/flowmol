@@ -2,7 +2,7 @@
 import wx
 import sys
 from postproclib.visualiser import __path__ as pplvpath
-from postproclib.postproc import NoResultsInDir
+from postproclib.pplexceptions import NoResultsInDir
 
 from visuals import VisualiserPanel
 from directory import DirectoryChooserPanel

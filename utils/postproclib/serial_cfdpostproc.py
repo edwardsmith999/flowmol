@@ -8,7 +8,8 @@ import glob
 
 from serial_cfdfields import *
 from headerdata import *
-from postproc import PostProc, NoResultsInDir 
+from postproc import PostProc
+from pplexceptions import NoResultsInDir 
 
 class Serial_CFD_PostProc(PostProc):
 

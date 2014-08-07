@@ -1,6 +1,7 @@
 import os
 from cfdfields import *
-from postproc import PostProc, NoResultsInDir 
+from postproc import PostProc
+from pplexceptions import NoResultsInDir 
 
 class CFD_PostProc(PostProc):
 

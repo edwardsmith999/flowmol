@@ -2,7 +2,9 @@
 import numpy as np
 import os
 import glob
+
 from headerdata import Serial_CFD_HeaderData
+from pplexceptions import DataNotAvailable
 
 class Serial_CFD_RawData:
     
@@ -76,7 +78,7 @@ class Serial_CFD_RawData:
             
         else:
             print('Neither ' + self.fname + ' nor ' + self.fname + '.* exist.')
-            quit()
+            raise DataNotAvailable
 
         return maxrec
 

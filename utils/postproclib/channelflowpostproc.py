@@ -1,7 +1,8 @@
 import os
 import glob
 from channelflowfields import *
-from postproc import PostProc, NoResultsInDir
+from postproc import PostProc
+from pplexceptions import NoResultsInDir
 
 class channelflow_PostProc(PostProc):
 

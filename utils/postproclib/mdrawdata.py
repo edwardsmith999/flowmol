@@ -3,7 +3,9 @@ import numpy as np
 import glob
 import os
 import sys
+
 from headerdata import MDHeaderData
+from pplexceptions import DataNotAvailable
 
 """
 
@@ -62,7 +64,7 @@ class MD_RawData:
             self.separate_outfiles = True 
         else:
             print('Neither ' + fname + ' nor ' + fname + '.* exist.')
-            sys.exit()
+            raise DataNotAvailable
 
         self.header = MDHeaderData(fdir)
         try:

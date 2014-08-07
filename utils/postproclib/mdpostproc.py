@@ -7,7 +7,8 @@ import glob
 
 from mdfields import *
 from headerdata import *
-from postproc import PostProc, NoResultsInDir 
+from postproc import PostProc
+from pplexceptions import NoResultsInDir 
 
 class MD_PostProc(PostProc):
 
