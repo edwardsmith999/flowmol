@@ -438,6 +438,51 @@ OPEN_BOUNDARY
 
 
 #########################################################################
+#
+# Apply a CV based force with a number of options
+# Apply force
+#	0 - Zero force (MD values taken off and no force applied)
+#	1 - Sinusoidal force (MD values taken off)
+#	2 - vortex
+#	3 - vortex and elongation
+#   4 - vortex generator
+#	5 - Couette Analytical solution from function_lib
+# Weighting Function
+#	0 - No weighting -- apply evenly. 
+#	1 - Weighting based on continuum stress only
+#	2 - Weighting based on MD and continuum stress
+# Start time of CV constraint
+#	200 - default value
+# Range of application
+#	- xmin - minimum x coordinate in global system 
+#	- xmax - maximum x coordinate in global system 
+#	- ymin - minimum y coordinate in global system 
+#	- ymax - maximum y coordinate in global system 
+#	- zmin - minimum z coordinate in global system 
+#	- zmax - maximum z coordinate in global system 
+# Correction to velocity value
+#	0 - Off. 
+#	1 - On
+# Time to stop applying correction
+#	End - default value
+# -----------------------------------------------------------------------
+CV_FORCES
+0
+2
+100
+2
+2
+2
+2
+2
+2
+1
+
+
+
+
+
+#########################################################################
 # Apply external force to region of space
 # 0 - off
 # 1 - apply to all molecules, requires

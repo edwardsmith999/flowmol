@@ -2605,10 +2605,10 @@ function lagrange_poly_weight_Nmol(array, r_in, binsize, domain, &
 		select case(shiftmean)
 		case(0)
 			!Do nothing, shiftmean not requested
-            print'(a,6f18.4)', 'Error in integral cell 3,3,3  ',&
-                                 wsum_bin(3,3,3,1), meanvalue_(3,3,3,1), & 
-                                 wsum_bin(3,3,3,2), meanvalue_(3,3,3,2), & 
-                                 wsum_bin(3,3,3,3), meanvalue_(3,3,3,3) !TEMP FOR DEBUG
+            !print'(a,6f18.4)', 'Error in integral cell 3,3,3  ',&
+            !                     wsum_bin(3,3,3,1), meanvalue_(3,3,3,1), & 
+            !                     wsum_bin(3,3,3,2), meanvalue_(3,3,3,2), & 
+            !                     wsum_bin(3,3,3,3), meanvalue_(3,3,3,3) !TEMP FOR DEBUG
 		case(1)
 			!Zero mean by adjusting constant value
 			do n =1,size(r_in,2)
@@ -2618,10 +2618,10 @@ function lagrange_poly_weight_Nmol(array, r_in, binsize, domain, &
 							 -meanvalue_(bin(1),bin(2),bin(3),:))/nperbin(bin(1),bin(2),bin(3))
 
 			enddo
-            print'(a,6f18.4)', 'Error in integral cell 3,3,3  ',&
-                                 wsum_bin(3,3,3,1), meanvalue_(3,3,3,1), & 
-                                 wsum_bin(3,3,3,2), meanvalue_(3,3,3,2), & 
-                                 wsum_bin(3,3,3,3), meanvalue_(3,3,3,3)
+            !print'(a,6f18.4)', 'Error in integral cell 3,3,3  ',&
+            !                     wsum_bin(3,3,3,1), meanvalue_(3,3,3,1), & 
+            !                     wsum_bin(3,3,3,2), meanvalue_(3,3,3,2), & 
+            !                     wsum_bin(3,3,3,3), meanvalue_(3,3,3,3)
 		case(2)
 			! Zero mean by adding a 2nd order term preserving the B.C. and adjusting the 
 			! parabolicness until the sum is correct
@@ -2635,10 +2635,10 @@ function lagrange_poly_weight_Nmol(array, r_in, binsize, domain, &
 				weight(:,n) = weight(:,n) - fxfyfz * (wsum_bin(bin(1),bin(2),bin(3),:) & 
 							-meanvalue_(bin(1),bin(2),bin(3),:))/sqr_term(bin(1),bin(2),bin(3))
 			enddo
-            print'(a,6f18.4)', 'Error in integral cell 3,3,3  ', & 
-                                wsum_bin(3,3,3,1), meanvalue_(3,3,3,1), & 
-                                wsum_bin(3,3,3,2), meanvalue_(3,3,3,2), & 
-                                wsum_bin(3,3,3,3), meanvalue_(3,3,3,3)
+           ! print'(a,6f18.4)', 'Error in integral cell 3,3,3  ', & 
+           !                     wsum_bin(3,3,3,1), meanvalue_(3,3,3,1), & 
+           !                     wsum_bin(3,3,3,2), meanvalue_(3,3,3,2), & 
+           !                     wsum_bin(3,3,3,3), meanvalue_(3,3,3,3)
 
 		end select
 
