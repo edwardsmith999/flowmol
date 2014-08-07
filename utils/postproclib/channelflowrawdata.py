@@ -17,13 +17,9 @@ class Channelflow_RawData:
         self.grid = self.get_grid()
         self.maxrec = len(self.subdomlist)-1 # count from 0
         try:
-            import h5py
             self.read_field = self.read_h5field
         except:
             self.read_field = self.asciiread_field
-
-        print(self.read_field)
-
 
     def get_channelflow_utils(self):
 
@@ -141,7 +137,6 @@ class Channelflow_RawData:
 
 
     def cosinegrid(self,a,b,Npoints):
-        print(a,b,Npoints)
         points = np.linspace(0, Npoints, Npoints)
         cosgrid = 0.5*(b+a) - 0.5*(b-a)*np.cos((points*np.pi)/(Npoints-1))
 
