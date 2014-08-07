@@ -2,35 +2,20 @@
 import glob
 import numpy as np
 import struct
-
+import os
 from headerdata import MDHeaderData
 from mdrawdata import MD_RawData
 
     
-class MD_boundaryPDFs():
+class MD_PDFs():
 
     """
         Abstract, to be inherited.
     """
 
     def __init__(self):
-        self.recitems = self.nsubcells * self.histbins * self.nperbin
+        self.recitems = self.nPDFs * self.histbins * self.nperbin
         self.maxrec = self.get_maxrec()
-        self.set_bintopology()
-
-    def set_bintopology(self):
-
-        self.histbinsize = (self.maxval - self.minval)/float(self.histbins)
-        minbincenter = self.minval + self.histbinsize/2.0
-        maxbincenter = self.maxval - self.histbinsize/2.0
-        self.F = np.linspace(minbincenter,maxbincenter,num=self.histbins)
-        self.binlefts = self.F - self.histbinsize/2.0
-        self.binrights = self.F + self.histbinsize/2.0
-
-        self.subcellsize = (self.cutoff)/float(self.nsubcells)
-        minbincenter = self.histbinsize/2.0
-        maxbincenter = self.cutoff - self.histbinsize/2.0
-        self.dy = np.linspace(minbincenter,maxbincenter,num=self.nsubcells)
     
     def get_maxrec(self):
 
@@ -79,27 +64,118 @@ class MD_boundaryPDFs():
                 fobj.seek(seekbyte)
                 data = np.fromfile(fobj,dtype='i',count=nrecs*self.recitems)  
 
-        data = np.reshape(data, [self.nsubcells, self.histbins, self.nperbin, nrecs], 
-                          order='F')
+        data = np.reshape(data, [self.nPDFs, self.histbins, 
+                                 self.nperbin, nrecs], order='F')
         return data
 
     def mean_pdfs(self,startrec,endrec):
         data = self.read(startrec, endrec)
-        data = np.sum(data, axis=-1) 
-        itgls = np.sum(data, axis=1, keepdims=True)*self.histbinsize
-        pdfs = np.divide(data,itgls)
-        return self.dy, self.F, pdfs 
+        data = np.sum(data, axis=-1) #Sum over all time records
+        #itgls= np.sum(data, axis=1, keepdims=True)*self.histbinsize
+        itgls= np.trapz(data,dx=self.histbinsize,axis=1)
+        pdfs = np.empty(data.shape)
+        for j in range(data.shape[0]):
+            for ixyz in range(2):
+                pdfs[j,:,ixyz] = np.divide(data[j,:,ixyz],itgls[j,ixyz])
+        return self.dy, self.histbinloc, pdfs 
 
     def prepare_inputfile(self, savefile, startrec, endrec): 
         data = self.mean_pdfs(startrec, endrec) 
         with open(savefile, 'wb') as fobj:
-            fobj.write(struct.pack('i',self.nsubcells)) 
+            fobj.write(struct.pack('i',self.nPDFs)) 
             fobj.write(struct.pack('i',self.histbins)) 
             fobj.write(struct.pack('d',self.minval)) 
             fobj.write(struct.pack('d',self.maxval)) 
             fobj.write(struct.pack('d',self.cutoff)) 
             fobj.write(struct.pack('i',self.nperbin)) 
             np.ravel(data,order='F').tofile(fobj)
+
+class MD_vPDFs(MD_PDFs):
+
+    def __init__(self,fdir):
+
+        if (fdir[-1] != '/'): fdir += '/' 
+        self.fdir = fdir
+        self.fname = 'vPDF'
+        self.nperbin = 3
+        self.header = MDHeaderData(fdir)
+        self.PDF_flag = int(self.header.vPDF_flag)-1
+        self.nPDFs = int(eval("self.header.gnbins"+str(self.PDF_flag+1)))
+        self.NPDF_ave = int(self.header.NvPDF_ave)
+        self.histbins = int(self.header.NPDFbins)
+        self.minval = -float(self.header.PDFvlims)
+        self.maxval =  float(self.header.PDFvlims)
+        MD_PDFs.__init__(self)
+        self.dy, self.histbinloc, self.histbinsize = self.get_bintopology()
+
+
+    def get_bintopology(self):
+
+        """
+            Returns:
+            
+                binspaces - A length-3 list of numpy linspaces specifying
+                            the locations of the center of each bin in a
+                            uniform grid (one linspace for each direction)
+
+        """
+        
+        #Get data values of histogram bins
+        histbinsize = (self.maxval - self.minval)/float(self.histbins)
+        minbincenter = self.minval + histbinsize/2.0
+        maxbincenter = self.maxval - histbinsize/2.0
+        histbinloc = np.linspace(minbincenter,maxbincenter,num=self.histbins)
+ 
+
+        #Get spatial location of bins
+        gnbins  = ([ int(self.header.gnbins1), 
+                     int(self.header.gnbins2),
+                     int(self.header.gnbins3) ])
+
+        domain = ([ float(self.header.globaldomain1),
+                    float(self.header.globaldomain2),
+                    float(self.header.globaldomain3) ])
+
+        ixyz = self.PDF_flag
+        binsize = np.divide(domain[ixyz],gnbins[ixyz])
+        botbincenter = binsize/2.0 
+        topbincenter = gnbins[ixyz]*binsize - binsize/2.0
+        dy=np.linspace(botbincenter,
+                       topbincenter,
+                       num=gnbins[ixyz])
+        
+
+        return dy, histbinloc, histbinsize
+
+
+class MD_boundaryPDFs(MD_PDFs):
+
+    def __init__(self,fdir):
+
+        self.header = MDHeaderData(fdir)
+        self.nPDFs = int(self.header.bforce_pdf_nsubcells)
+        self.histbins = int(self.header.bforce_pdf_nbins)
+        self.minval = float(self.header.bforce_pdf_min)
+        self.maxval = float(self.header.bforce_pdf_max)
+        self.cutoff = float(self.header.rcutoff)
+        MD_PDFs.__init__(self)
+        self.dy, self.histbinloc, self.histbinsize = self.get_bintopology()
+    
+    def get_bintopology(self):
+
+        #Get data values of histogram bins
+        histbinsize = (self.maxval - self.minval)/float(self.histbins)
+        minbincenter = self.minval + histbinsize/2.0
+        maxbincenter = self.maxval - histbinsize/2.0
+        histbinloc = np.linspace(minbincenter,maxbincenter,num=self.histbins)
+
+        #Get spatial location of bins
+        minbincenter = histbinsize/2.0
+        maxbincenter = self.cutoff - histbinsize/2.0
+        dy = np.linspace(minbincenter,maxbincenter,num=self.nPDFs)
+
+        return dy, histbinloc, histbinsize
+
 
 class MD_bforcePDFs(MD_boundaryPDFs):
 
@@ -109,13 +185,8 @@ class MD_bforcePDFs(MD_boundaryPDFs):
         self.fdir = fdir
         self.fname = 'bforce_pdf'
         self.nperbin = 3
-        self.header = MDHeaderData(fdir)
-        self.nsubcells = int(self.header.bforce_pdf_nsubcells)
-        self.histbins = int(self.header.bforce_pdf_nbins)
-        self.minval = float(self.header.bforce_pdf_min)
-        self.maxval = float(self.header.bforce_pdf_max)
-        self.cutoff = float(self.header.bforce_pdf_cutoff)
-        MD_boundaryPDFs.__init__(self)
+        MD_boundaryPDFs.__init__(self,fdir)
+
 
 class MD_bUPDFs(MD_boundaryPDFs):
 
@@ -124,10 +195,6 @@ class MD_bUPDFs(MD_boundaryPDFs):
         self.fdir = fdir
         self.fname = 'bU_pdf'
         self.nperbin = 1
-        self.header = MDHeaderData(fdir)
-        self.nsubcells = int(self.header.bforce_pdf_nsubcells)
-        self.histbins = int(self.header.bU_pdf_nbins)
-        self.minval = float(self.header.bU_pdf_min)
-        self.maxval = float(self.header.bU_pdf_max)
-        self.cutoff = float(self.header.bforce_pdf_cutoff)
-        MD_boundaryPDFs.__init__(self)
+        MD_boundaryPDFs.__init__(self,fdir)
+
+
