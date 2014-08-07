@@ -1,7 +1,37 @@
 module continuum_coupler_socket
         implicit none
-#if USE_COUPLER
+
 contains
+    !LINSPACE Linearly spaced vector.
+    !
+    !   LINSPACE(X1, X2, N) generates N points between X1 and X2.
+    !   For N = 1, LINSPACE returns X2.
+    !   Based on the MATLAB function
+
+    function linspace(d1, d2, n)
+        implicit none
+
+        integer,intent(in)              :: n
+        double precision,intent(in)     :: d1,d2
+        double precision,dimension(:),allocatable    :: linspace
+
+        integer                                     :: i, n1
+
+        n1 = n-1
+        if (n1 .eq. 0) stop "Error in linspace -- Ensure n > 1"
+        
+        allocate(linspace(n))
+        do i = 0,n1
+            linspace(i+1) = d1 + i * (d2-d1)/(n1)
+        enddo
+
+       ! print'(20f7.2)',linspace
+
+    end function linspace
+
+
+#if USE_COUPLER
+
 !=============================================================================
 ! Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup  Setup
 !
@@ -26,7 +56,7 @@ end subroutine socket_coupler_invoke
     
     
 subroutine socket_coupler_init
-    use computational_constants, only : nx, ny, & 
+    use computational_constants, only : nx, ny, nz, & 
 					nsteps => continuum_Nsteps,&
         			continuum_delta_t, lx, ly, lz
     use physical_constants, only : rho
@@ -42,20 +72,20 @@ subroutine socket_coupler_init
     real(kind(0.d0)),dimension(3)	:: xyzL
     ! 2D problem, z direction parameters are set to trivial values
     real(kind(0.d0)),dimension(:,:),allocatable :: x0,y0
-    real(kind(0.d0)) :: z0(1)
+    real(kind(0.d0)) :: z0(nz+1)
           
 	!Define compound arrays to make passing more concise
 	ijkmin = (/ 1, 1, 1 /)
 	!Minus 1 as coupler requires max cells NOT max cell vertices
-	ijkmax = (/ nx, ny, 1 /)
+	ijkmax = (/ nx, ny, nz /)
 	iTmin = ijkmin(1); iTmax = ijkmax(1)
 	jTmin = ijkmin(2); jTmax = ijkmax(2)
 	kTmin = ijkmin(3); kTmax = ijkmax(3)
 	npxyz  = (/ npx , npy , npz  /)
 	!Minus 1 as coupler requires no. of cells NOT no. cell vertices
-	ngxyz  = (/ nx , ny , 1   /) 
+	ngxyz  = (/ nx , ny , nz   /) 
 	xyzL   = (/ lx , ly , lz  /)
-    z0 = (/0.d0/)
+    z0 = linspace(0.d0,lz,nz+1)
 
 	allocate(x0(nx+1,ny+1))
 	allocate(y0(nx+1,ny+1))
@@ -126,7 +156,7 @@ subroutine socket_coupler_send_CFD_to_MD
 		call socket_coupler_send_stress(tau_xx,tau_xy,tau_yx,tau_yy)
 	else if ( constraint_algorithm .eq. CV ) then
 		call socket_coupler_send_velocity(uc,vc)
-		!call socket_coupler_send_stress(tau_xx,tau_xy,tau_yx,tau_yy)
+		call socket_coupler_send_stress(tau_xx,tau_xy,tau_yx,tau_yy)
 	else
 		call error_abort("Unrecognised constraint algorithm flag")
 	end if	
@@ -169,23 +199,25 @@ subroutine socket_coupler_send_velocity(u,v)
 		                      extents(3):extents(4), &
 		                      extents(5):extents(6)))
 
-	do j = 1,10
-        print'(a,4i6,3e27.10)','all  vel  ',continuum_iter, 0,j,0, u(2,j),v(2,j),0.d0
-	enddo
+	!do j = 1,10
+    !    print'(a,4i6,3e27.10)','all  vel  ',continuum_iter, 0,j,0, u(2,j),v(2,j),0.d0
+	!enddo
 
 	!Copy cell centered velocity to buffer
 	sendbuf(:,:,:,:) = 0.d0
 	do i=cnstd(1),cnstd(2)
 	do j=cnstd(3),cnstd(4)
 	do k=cnstd(5),cnstd(6)
-		sendbuf(1,i,j,k) = u(i,j)
-		sendbuf(2,i,j,k) = v(i,j)
+		sendbuf(1,i,j,k) = u(i+1,j+1)
+		sendbuf(2,i,j,k) = v(i+1,j+1)
 		sendbuf(3,i,j,k) = 0.d0
-        print'(a,4i3,3e27.10)','send vel  ',continuum_iter, i,j,k,sendbuf(:,i,j,k)
+		!print'(a,3i8,3f10.5)', 'Pre send vel  ', i+1,j+1,k+1,sendbuf(:,i,j,k)
 	enddo
 	enddo
 	enddo
 
+!	call CPL_send( sendbuf,jcmin_send=cnstd(3), & 
+!                           jcmax_send=cnstd(4),send_flag=send_flag)
 	call CPL_send( sendbuf,                                 &
 	               icmin_send=cnstd(1),icmax_send=cnstd(2), &
 	               jcmin_send=cnstd(3),jcmax_send=cnstd(4), &
@@ -200,6 +232,7 @@ end subroutine socket_coupler_send_velocity
 
 subroutine socket_coupler_send_stress(tau_xx,tau_xy,tau_yx,tau_yy)
     use CPL, only : CPL_send,CPL_olap_extents,CPL_overlap,CPL_get,CPL_realm
+    use physical_constants, only : Re
     implicit none
 
     real(kind(0.d0)), intent(in) :: tau_xx(:,:,:), tau_xy(:,:,:), &
@@ -234,20 +267,19 @@ subroutine socket_coupler_send_stress(tau_xx,tau_xy,tau_yx,tau_yy)
 		                extents(3):extents(4), &
 		                extents(5):extents(6)))
     stress = 0.d0
-	stress(1,1,:,:,1) = tau_xx(:,:,1)
-	stress(1,3,:,:,1) = tau_xx(:,:,3)
-	stress(2,1,:,:,1) = tau_yx(:,:,1)
-	stress(2,3,:,:,1) = tau_yx(:,:,3)
-	stress(1,2,:,:,1) = tau_xy(:,:,2)
-	stress(1,4,:,:,1) = tau_xy(:,:,4)
-	stress(2,2,:,:,1) = tau_yy(:,:,2)
-	stress(2,4,:,:,1) = tau_yy(:,:,4)
-
 	sendbuf = 0.d0
 	do i=cnstd(1),cnstd(2)
 	do j=cnstd(3),cnstd(4)
 	do k=cnstd(5),cnstd(6)
-		sendbuf(:,i,j,k) = reshape(stress(:,:,i,j,k),(/ npercell /))
+	    stress(1,1,i,j,k) = tau_xx(i+1,j+1,1)
+	    stress(1,4,i,j,k) = tau_xx(i+1,j+1,3)
+	    stress(2,1,i,j,k) = tau_yx(i+1,j+1,1)
+	    stress(2,4,i,j,k) = tau_yx(i+1,j+1,3)
+	    stress(1,2,i,j,k) = tau_xy(i+1,j+1,2)
+	    stress(1,5,i,j,k) = tau_xy(i+1,j+1,4)
+	    stress(2,2,i,j,k) = tau_yy(i+1,j+1,2)
+	    stress(2,5,i,j,k) = tau_yy(i+1,j+1,4)
+		sendbuf(:,i,j,k) = (1.d0/Re)*reshape(stress(:,:,i,j,k),(/ npercell /))
 	enddo
 	enddo
 	enddo

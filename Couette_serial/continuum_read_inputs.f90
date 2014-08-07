@@ -27,6 +27,7 @@ subroutine continuum_read_inputs
 	read(1001,* ) continuum_tplot		!Output ever number of steps
 	read(1001,* ) nx					!Number of cells in Domain in x - nx
 	read(1001,* ) ny          			!Number of cells in Domain in y - ny
+	read(1001,* ) nz          			!Number of cells in Domain in z - nz
 	read(1001,* ) lx		       		!Domain size in x - lx
 	read(1001,* ) ly		       		!Domain size in y - ly
 	read(1001,* ) lz		       		!DUMMY Domain size in z - lz
