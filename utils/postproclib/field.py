@@ -2,6 +2,9 @@
 import numpy as np
 import scipy.ndimage
 
+class OutsideRecRange(Exception):
+    pass
+
 class Field():
 
     """
@@ -51,8 +54,9 @@ class Field():
             
         """
         if (endrec > self.maxrec):
-            quit('Record ' + str(endrec) + ' is greater than the maximum '
-                 'available (' + str(self.maxrec) + '). Aborting.')
+            print('Record ' + str(endrec) + ' is greater than the maximum '
+                  'available (' + str(self.maxrec) + ').')
+            raise OutsideRecRange
 
         grid_data = self.Raw.read(startrec,endrec,**kwargs)
         return grid_data
