@@ -1,21 +1,21 @@
-50000		        !Number of computational steps
-1			        !Frequency of ouput plots
+500000		        !Number of computational steps
+100			        !Frequency of ouput plots
 4			        !Number of cells in Domain in x - nx
-10			        !Number of cells in Domain in y - ny
-23.9396632534738	!Domain size in x - lx
-59.8491581336844    !Domain size in y - ly
-23.9396632534738	!DUMMY Domain size in z - lz
-0.0025d0	        !Time step delta t
-1.6d0	        	!Viscosity
-0.8d0		        !Density
+8			        !Number of cells in Domain in y - ny
+4			        !DUMMY Number of cells in Domain in z - nz
+23.8110157795230	!Domain size in x - lx
+46.98707113825872   !Domain size in y - ly
+23.8110157795230	!DUMMY Domain size in z - lz
+0.005d0	            !Time step delta t
+0.2d0	        	!Viscosity
+0.3d0		        !Density
 2			        !SOLVER - 1=Finite Difference 2=Finite Volume
 3			        !OUTPUT FLAG - Velocity record 0=off 1,2=x,y slice 3=3D bins
-0		        	!Right wall flag  0=periodic, 1=Dirichlet, 2=Neumann, 3=coupled
+0		        	!Right wall flag  0=periodic, 1=Dirichlet_wall, 2=Dirichlet halo, 3=slip, 4=Neumann, 5=coupled
 0.d0        		!Right wall Boundary value (not used for periodic or coupled)
-1		        	!Top wall flag    0=periodic, 1=Dirichlet, 2=Neumann, 3=coupled
+2		        	!Top wall flag    0=periodic, 1=Dirichlet_wall, 2=Dirichlet halo, 3=slip, 4=Neumann, 5=coupled
 1.d0	        	!Top wall Boundary value (not used for periodic or coupled)
-0		        	!Left wall flag   0=periodic, 1=Dirichlet, 2=Neumann, 3=coupled
+0		        	!Left wall flag   0=periodic, 1=Dirichlet_wall, 2=Dirichlet halo, 3=slip, 4=Neumann, 5=coupled
 0.d0	        	!Left wall Boundary value (not used for periodic or coupled)
-1		        	!Bottom wall flag 0=periodic, 1=Dirichlet, 2=Neumann, 3=coupled
+2		        	!Bottom wall flag 0=periodic, 1=Dirichlet_wall, 2=Dirichlet halo, 3=slip, 4=Neumann, 5=coupled
 0.d0	        	!Bottom wall Boundary value (not used for periodic or coupled)
-

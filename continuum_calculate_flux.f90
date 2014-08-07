@@ -267,7 +267,6 @@ implicit none
 	!Divide diffusive term by Reynolds number
 	xres_t = xres_t/Re
 	yres_t = yres_t/Re
-		
 	
 end subroutine continuum_calculate_residual_FV
 

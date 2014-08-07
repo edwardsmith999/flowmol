@@ -41,13 +41,15 @@ subroutine continuum_set_BC
 		case(1)
 			call Dirichlet_BC_set_wall(i,uwall_BC(i),0.d0)
 		case(2)
-			call Dirichlet_slip_BC(i)
+			call Dirichlet_BC_set_halo(i,uwall_BC(i),0.d0)
 		case(3)
+			call Dirichlet_slip_BC(i)
+		case(4)
 			call Von_Neumann_BC(i,0.d0,0.d0,0.d0,0.d0)
 			!stop "No Von Neumann BC yet"
-		case(4)
+		case(5)
 			!Coupled boundary condition applied
-			call Dirichlet_BC_set_halo(i,u_MD,v_MD)
+			call Dirichlet_BC_set_halo_cpl(i,u_MD,v_MD)
 		case default
 			stop "Error in choice of continuum BC"
 		end select
@@ -203,10 +205,74 @@ subroutine Dirichlet_BC_set_wall(boundary,uwall,vwall)
 
 end subroutine Dirichlet_BC_set_wall
 
+
+subroutine Dirichlet_BC_set_halo(boundary,uwall,vwall)
+	use module_setup_BC
+	implicit none
+
+	integer			    :: i, j
+	integer			    :: boundary
+	double precision	:: uwall, vwall
+
+	!print*, vc(1,2),vc(2,2), vc(nx+2,2),vc(nx+1,2)
+
+	select case(boundary)
+	case(1)
+		!Right BC
+		i = nx+2
+		do j = 2 , ny+1
+			uc(i,j) = uwall
+			vc(i,j) = vwall
+			flux_xx(i,j) = rho * uc(i,j) * uc(i,j)
+			flux_xy(i,j) = rho * uc(i,j) * vc(i,j)
+			flux_yx(i,j) = rho * vc(i,j) * uc(i,j)
+			flux_yy(i,j) = rho * vc(i,j) * vc(i,j)
+		enddo
+	case(2)
+		!Top BC
+		j = ny+2
+		do i = 2 , nx+1
+			uc(i,j) = uwall
+			vc(i,j) = vwall
+			flux_xx(i,j) = rho * uc(i,j) * uc(i,j)
+			flux_xy(i,j) = rho * uc(i,j) * vc(i,j)
+			flux_yx(i,j) = rho * vc(i,j) * uc(i,j)
+			flux_yy(i,j) = rho * vc(i,j) * vc(i,j)
+		enddo
+	case(3)
+		!Left BC
+		i = 1
+		do j = 2 , ny+1
+			uc(i,j) = uwall
+			vc(i,j) = vwall
+			flux_xx(i,j) = rho * uc(i,j) * uc(i,j)
+			flux_xy(i,j) = rho * uc(i,j) * vc(i,j)
+			flux_yx(i,j) = rho * vc(i,j) * uc(i,j)
+			flux_yy(i,j) = rho * vc(i,j) * vc(i,j)
+		enddo
+	case(4)
+
+		!Bottom BC
+		j = 1
+		do i = 2 , nx+1
+			uc(i,j) = uwall
+			vc(i,j) = vwall
+			flux_xx(i,j) = rho * uc(i,j) * uc(i,j)
+			flux_xy(i,j) = rho * uc(i,j) * vc(i,j)
+			flux_yx(i,j) = rho * vc(i,j) * uc(i,j)
+			flux_yy(i,j) = rho * vc(i,j) * vc(i,j)
+		enddo
+	end select
+
+	!print*, uc(2:nx+1,1)
+
+end subroutine Dirichlet_BC_set_halo
+
+
 !----------------------------------------------------------------------------------
 !Wall/flow boundary conditions - set halo to specified value
 
-subroutine Dirichlet_BC_set_halo(boundary,uwall,vwall)
+subroutine Dirichlet_BC_set_halo_cpl(boundary,uwall,vwall)
 	use module_setup_BC
 	implicit none
 
@@ -266,7 +332,7 @@ subroutine Dirichlet_BC_set_halo(boundary,uwall,vwall)
 
 	!print*, uc(2:nx+1,1)
 
-end subroutine Dirichlet_BC_set_halo
+end subroutine Dirichlet_BC_set_halo_cpl
 
 
 !----------------------------------------------------------------------------------

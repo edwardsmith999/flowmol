@@ -132,7 +132,7 @@ subroutine continuum_initial_record
 	write(1002,*) 'Simulation start time ;  sim_start_time ;', the_time
 	write(1002,*) 'Number of cells in Domain in x ;  nx ;', nx
 	write(1002,*) 'Number of cells in Domain in y ;  ny ;', ny
-	write(1002,*) 'Number of cells in Domain in z ;  nz ;', 1
+	write(1002,*) 'Number of cells in Domain in z ;  nz ;', nz
 	write(1002,*) 'Domain size in x ; lx ;', lx
 	write(1002,*) 'Domain size in y ; ly ;', ly
 	write(1002,*) 'Domain size in z ; lz ;', lz

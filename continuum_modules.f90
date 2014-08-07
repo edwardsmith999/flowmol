@@ -12,7 +12,7 @@ module computational_constants
 	integer,parameter	:: FD = 1, FV = 2
 	integer				:: continuum_iter, continuum_initialstep
 	integer				:: continuum_tplot, continuum_Nsteps
-	integer				:: nx, ny  			!Number of points
+	integer				:: nx, ny, nz  			!Number of points
 	integer				:: continuum_vflag
 	integer,dimension(4)		:: BC_flag
 	double precision,dimension(4)	:: uwall_BC	

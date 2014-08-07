@@ -44,8 +44,17 @@ subroutine continuum_advance_time
 			!Finite volume
 			uc(i,j) = uc(i,j) + continuum_delta_t * xresidual(i,j) / vcell(i,j)
 			vc(i,j) = vc(i,j) + continuum_delta_t * yresidual(i,j) / vcell(i,j)
+
+            if (abs((uc(i,j)-uc_t_minus_1(i,j))/continuum_delta_t - xresidual(i,j)/vcell(i,j)) .gt. 1e-10) then
+      	        print'(a,3i5,10f10.6)','time', continuum_iter, i, j, uc(i,j),(uc(i,j)-uc_t_minus_1(i,j))/continuum_delta_t,xresidual(i,j)/vcell(i,j), & 
+                                        (tau_xy(i,j,4)*sy(j,4)+tau_xy(i,j,2)*sy(j,2))/(vcell(i,j)*Re), &
+                                        tau_xy(i,j,1)*sy(j,1)+tau_xy(i,j,3)*sy(j,3), & 
+                                        tau_xy(i,j,:),vcell(i,j)
+            endif
+
 		enddo
 		enddo
+
 	end select
 
 end subroutine continuum_advance_time
