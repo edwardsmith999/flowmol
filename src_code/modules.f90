@@ -138,6 +138,8 @@ module computational_constants_MD
         CVforce_correct_nsteps, &       !Number of steps to apply velocity correction over
 		CVforce_starttime				!Start time of applied force
 
+    logical,dimension(3)    :: CVforce_applied_dir  !Which directions to apply force
+
 	!Add debugging CV flags
 	integer,dimension(6) :: F_CV_limits		 !Limits of CV forces
 	logical	:: CV_debug=.false.

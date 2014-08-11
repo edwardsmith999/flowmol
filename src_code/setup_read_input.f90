@@ -845,7 +845,12 @@ subroutine setup_read_input
 	    	if (ios .ne. 0) CVforce_correct_nsteps = NSTEPS
         endif
 
-        print*, CVforce_flag, CVweighting_flag, CVforce_correct,  CVforce_starttime
+        do ixyz = 1,3
+    		read(1,*,iostat=ios) CVforce_applied_dir(ixyz)
+            if (ios .ne. 0) CVforce_applied_dir(ixyz) = .true.
+        enddo
+
+        !print*, CVforce_flag, CVweighting_flag, CVforce_correct,  CVforce_starttime
 	endif
 
 	close(1,status='keep')      !Close input file
