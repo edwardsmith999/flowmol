@@ -95,7 +95,8 @@ class CPLField(Field):
         md_data = self.md_field.read(startrec,endrec)
         cfd_data = self.cfd_field.read(startrec,endrec)
 
-        ndims =  md_data.shape[-1]
+        ndims =  min(self.md_field.nperbin,
+                     self.cfd_field.nperbin) #md_data.shape[-1]
         nrecs = endrec - startrec + 1
 
         md_coarse = np.empty([self.md_cfdcells[0],self.md_cfdcells[1],
@@ -104,11 +105,13 @@ class CPLField(Field):
                          self.md_cells.astype(float))
 
         #import matplotlib.pyplot as plt
+        dims = self.CFD_2d.count(False)
         for rec in range(nrecs):
             for comp in range(ndims):
                 md_coarse[:,:,:,rec,comp]=skit.resize(md_data[:,:,:,rec,comp],
                                                              self.md_cfdcells)
-                if self.CFD_2d[comp]:
+                dim = comp % dims 
+                if self.CFD_2d[dim]:
                     temp = np.expand_dims(cfd_data, axis=comp)
                     temp = np.lib.pad(temp,md_coarse.shape[comp],'mean')
 
@@ -229,7 +232,7 @@ class CPL_Serial_CFD_momField(CPLField):
 
 
 class CPL_Serial_CFD_stressField(CPLField):
-    nperbin = 9
+    nperbin = 18
     MDFieldType = mdfields.MD_pfluxField
     nperbin = 4
     CFDFieldType = serial_cfdfields.Serial_CFD_StressField

@@ -436,17 +436,22 @@ OPEN_BOUNDARY
 0
 0
 
-
 #########################################################################
 #
 # Apply a CV based force with a number of options
-# Apply force
-#	0 - Zero force (MD values taken off and no force applied)
-#	1 - Sinusoidal force (MD values taken off)
-#	2 - vortex
-#	3 - vortex and elongation
-#   4 - vortex generator
-#	5 - Couette Analytical solution from function_lib
+# Apply force, either:
+#   NON-COUPLED 
+#      -1 - Debug, apply nothing
+#	    0 - Zero force (MD values taken off and no force applied)
+#	    1 - Sinusoidal force (MD values taken off)
+#	    2 - vortex
+#	    3 - vortex and elongation
+#       4 - vortex generator
+#	    5 - Couette Analytical solution from function_lib
+#   COUPLED
+#      -1 - Debug, apply nothing
+#       0 - Zero force
+#       1 - Coupled CFD
 # Weighting Function
 #	0 - No weighting -- apply evenly. 
 #	1 - Weighting based on continuum stress only
@@ -463,22 +468,28 @@ OPEN_BOUNDARY
 # Correction to velocity value
 #	0 - Off. 
 #	1 - On
-# Time to stop applying correction
-#	End - default value
+# Number of steps to apply correction for
+#   Nsteps - default value
+# Direction to apply correction in
+#   .true. or .false. - x
+#   .true. or .false. - y
+#   .true. or .false. - z
 # -----------------------------------------------------------------------
 CV_FORCES
 0
 2
-100
-2
-2
-2
-2
-2
-2
+200
 1
-
-
+4
+6
+9
+1
+4
+1
+100
+.true.
+.true.
+.true.
 
 
 
