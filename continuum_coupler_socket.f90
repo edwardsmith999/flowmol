@@ -263,23 +263,23 @@ subroutine socket_coupler_send_stress(tau_xx,tau_xy,tau_yx,tau_yy)
 		                      extents(5):extents(6)))
 
 	! Pack stresses into a dummy 3D cube with 6 surfaces and 3 stresses per surface
-	allocate(stress(3,6,extents(1):extents(2), &
-		                extents(3):extents(4), &
-		                extents(5):extents(6)))
+	allocate(stress(extents(1):extents(2), &
+		            extents(3):extents(4), &
+		            extents(5):extents(6),3,6))
     stress = 0.d0
 	sendbuf = 0.d0
 	do i=cnstd(1),cnstd(2)
 	do j=cnstd(3),cnstd(4)
 	do k=cnstd(5),cnstd(6)
-	    stress(1,1,i,j,k) = tau_xx(i+1,j+1,1)
-	    stress(1,4,i,j,k) = tau_xx(i+1,j+1,3)
-	    stress(2,1,i,j,k) = tau_yx(i+1,j+1,1)
-	    stress(2,4,i,j,k) = tau_yx(i+1,j+1,3)
-	    stress(1,2,i,j,k) = tau_xy(i+1,j+1,2)
-	    stress(1,5,i,j,k) = tau_xy(i+1,j+1,4)
-	    stress(2,2,i,j,k) = tau_yy(i+1,j+1,2)
-	    stress(2,5,i,j,k) = tau_yy(i+1,j+1,4)
-		sendbuf(:,i,j,k) = (1.d0/Re)*reshape(stress(:,:,i,j,k),(/ npercell /))
+	    stress(i,j,k,1,1) = tau_xx(i+1,j+1,1)
+	    stress(i,j,k,1,4) = tau_xx(i+1,j+1,3)
+	    stress(i,j,k,2,1) = tau_yx(i+1,j+1,1)
+	    stress(i,j,k,2,4) = tau_yx(i+1,j+1,3)
+	    stress(i,j,k,1,2) = tau_xy(i+1,j+1,2)
+	    stress(i,j,k,1,5) = tau_xy(i+1,j+1,4)
+	    stress(i,j,k,2,2) = tau_yy(i+1,j+1,2)
+	    stress(i,j,k,2,5) = tau_yy(i+1,j+1,4)
+		sendbuf(:,i,j,k) = (1.d0/Re)*reshape(stress(i,j,k,:,:),(/ npercell /))
 	enddo
 	enddo
 	enddo
