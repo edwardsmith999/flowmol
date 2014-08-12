@@ -18,7 +18,7 @@
 #
 # -----------------------------------------------------------------------------
 DENSITY_CFD
-0.35
+0.8
 
 
 ###############################################################################
@@ -36,9 +36,9 @@ DENSITY_CFD
 # -----------------------------------------------------------------------------
 OVERLAP_EXTENTS
 1
-32
+8
 1
-3
+4
 1
 8
 
@@ -57,12 +57,12 @@ OVERLAP_EXTENTS
 ##
 ## -----------------------------------------------------------------------------
 CONSTRAINT_INFO
-2
+3
 0
 1
-32
-3
-3
+8
+2
+4
 1
 8
 
@@ -89,40 +89,3 @@ TIMESTEP_RATIO
 # -----------------------------------------------------------------------------
 MATCH_CELLSIZE
 0
-
-###############################################################################
-#
-#   Specify which components of velocity in CFD boundary condition are
-#   obtained from the MD (3*integer: x,y,z)
-#
-#          0 = "off"
-#          1 = "on"
-#
-# -----------------------------------------------------------------------------
-CPL_CFD_BC_XYZ
-1
-0
-1
-
-###############################################################################
-#
-#   Logical flag for averaging MD velocity in spanwise direction for the
-#   CFD boundary condition in the cfd socket. 
-#
-#          .false. = cell-by-cell coupling
-#          .true. = cell velocities averaged in a spanwise plane
-#
-# -----------------------------------------------------------------------------
-CPL_CFD_BC_SLICE
-.false.
-
-###############################################################################
-#
-#   Logical flag for averaging MD quantities in the constraint region
-#
-#          .false. = averaging on a cell-by-cell basis
-#          .true. = extra averaging across a slice in the spanwise direction 
-#
-# -----------------------------------------------------------------------------
-CPL_MD_BC_SLICE
-.false.
