@@ -4,7 +4,7 @@ import multiprocessing
 import subprocess as sp
 import time
 
-class MDThread(multiprocessing.Process):
+class Thread(multiprocessing.Process):
 
     """ 
         When instatiated, MDThread will create a new thread of 
@@ -44,9 +44,8 @@ class MDThread(multiprocessing.Process):
         # Perform runs per thread sequetially
         for run in self.runlist:
 
-            #Setup run directory
-            #run.build_executable()
-            run.setup_directory(existscheck=False)
+            #Setup run
+            run.setup()
 
             # Check number of processors required for this run
             # and wait until all are avialable using Multiphore  

@@ -2,10 +2,10 @@ import multiprocessing
 import subprocess as sp
 
 from platform import get_platform
-from mdthread import MDThread
+from thread import Thread
 from semaphores import DummySemaphore, Multiphore
 
-class MDStudy:
+class Study:
 
     def __init__(self,threadlist,maxproc=None):
 
@@ -17,7 +17,7 @@ class MDStudy:
             Constructor arguments:
             
                 threadlist - a list of runlists. Each runlist contains a
-                             series of MDRun objects to be executed 
+                             series of Run objects to be executed 
                              sequentially
                 
                 maxproc - maximum number of licenses the semaphore may
@@ -44,11 +44,11 @@ class MDStudy:
             print('Semaphore not available, creating dummy instead.')
             self.semaphore = DummySemaphore()
 
-        jobs = []
+        threads = []
         for runlist in threadlist:
-            job = MDThread(self.semaphore,runlist)
-            jobs.append(job)
-            job.start()
+            thread = Thread(self.semaphore,runlist)
+            threads.append(thread)
+            thread.start()
 
-        for job in jobs:
-            job.join()
+        for thread in threads:
+            thread.join()

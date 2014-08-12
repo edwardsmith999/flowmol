@@ -6,13 +6,14 @@ import subprocess as sp
 import shutil as sh
 import string
 
-import userconfirm as uc
-from platform import get_platform
-from inpututils import InputMod
-from cx import CXJob
-from gnuplotutils import GnuplotUtils
+import simwraplib.userconfirm as uc
+from simwraplib.platform import get_platform
+from simwraplib.inpututils import InputMod
+from simwraplib.jobs import CXJob
+from simwraplib.gnuplotutils import GnuplotUtils
+from simwraplib.run import Run
 
-class MDRun:
+class MDRun(Run):
         
     """ 
         When instatiated, MDRun will create a new folder as a "run" 
@@ -48,7 +49,7 @@ class MDRun:
 
                 inputchanges - dictionary of changes to make to the inputfile
                                once copied from the base directory
-                finishargs   - dictionary of keywords and associated objects
+                finishargs   - list of lists: keywords and associated commands 
                                that specify a range of actions to perform
                                when the execution of the run has finished. See
                                the comments at the top of finish() for more
@@ -59,7 +60,7 @@ class MDRun:
         Example usage from a higher level:
 
             run = MDRun('../MD_dCSE/src_code/', etc.)
-            run.setup_directory()
+            run.setup()
             run.execute()
             run.finish()
 
@@ -104,6 +105,8 @@ class MDRun:
         if (self.srcdir[-1] != '/'): self.srcdir += '/'
         if (self.rundir[-1] != '/'): self.rundir += '/'
         if (self.basedir[-1] != '/'): self.basedir += '/'
+        if (self.executable[0:2] != './'): 
+            self.executable = './' + self.executable
 
         # Check initstate and restartfile are not both specified
         if (initstate != None and restartfile != None):
@@ -159,7 +162,7 @@ class MDRun:
 
         return
 
-    def change_inputs(self,extrachanges=None):
+    def prepare_inputs(self,extrachanges=None):
 
         """
             Make alterations to the base input file (specified on 
@@ -183,45 +186,21 @@ class MDRun:
         
         return
 
-    def setup_directory(self, existscheck=True):
+    def setup(self, existscheck=False):
 
-        """
-            Create a new run directory and copy the relevant files into
-            it. 
+        # Do the normal creation of the run directory
+        self.create_rundir(existscheck=existscheck)
 
-        """
+        # Make a snapshot of the source code and store in a tarball
+        cmd = 'tar -cPf ' + self.rundir + 'src.tar ' + self.srcdir+'*.f90'
+        print(cmd)
+        sp.Popen(cmd,shell=True)
 
-        # Create run directory (and results dir inside it). If it already
-        # exists, ask the user if they want to carry on.
         try:
-
-            os.makedirs(self.rundir+'/results')
-
             # Copy post_proc folder from base directory (if not there already)
             sh.copytree(self.basedir+'post_proc/',self.rundir+'post_proc/')
-            # Make a snapshot of the source code and store in a tarball
-            cmd = 'tar -cPf ' + self.rundir + 'src.tar ' + self.srcdir+'*.f90'
-            sp.Popen(cmd,shell=True)
-
-            print('Created '+self.rundir)
-
-        except OSError as e:
-	
-
-            if existscheck:
-
-                if (e.errno == errno.EEXIST):
-                    message = ('Directory ' + self.rundir + ' already exists.\n' +
-                               'Continue anyway? (files could be overwritten)')
-                    print(message)
-                    go = uc.confirm(prompt=message,resp='y')
-                    if (not go):
-                        quit('Stopping.')
-                else:
-                    quit('Error creating directory.')
-            else:
-
-                pass
+        except OSError:
+            pass
 
         # Copy files and save new locations to instance variables
         for f in self.copyfiles:
@@ -233,9 +212,7 @@ class MDRun:
                 sh.copy(self.basedir+f, self.rundir+f)
 
         # Make changes to the input file once it has been copied
-        self.change_inputs()
-
-        return
+        self.prepare_inputs()
 
     def remove_directory(self,confirm=True):
 
@@ -297,7 +274,6 @@ class MDRun:
 
         """ 
 
-        cpuspernode = 8
         nprocs = self.get_nprocs()
         
         cmd = 'mpiexec ' + self.executable 
@@ -380,9 +356,9 @@ class MDRun:
         """
             Perform a selection of actions once the simulation has finished.
    
-            self.finishargs must be a dictionary of the form:
+            self.finishargs must be a list of lists, of the form:
             
-                {'keyword': [objects]}
+                [['keyword', object], ... ]
  
             Keyword options:
         
@@ -391,6 +367,8 @@ class MDRun:
 
                 python_script - with object specifying pythonscriptdir, 
                                 pyscriptname and [arg1,arg2,etc...] 
+                
+                etc., see below
 
         """
 

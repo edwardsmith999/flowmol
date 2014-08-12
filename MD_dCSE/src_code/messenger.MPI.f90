@@ -3249,7 +3249,7 @@ subroutine error_abort_s(msg)
         write(*,*) msg
     endif
 
-	call MPI_barrier(MPI_COMM_WORLD,ierr)
+	!call MPI_barrier(MPI_COMM_WORLD,ierr)
     call MPI_Abort(MPI_COMM_WORLD,errcode,ierr)
 
 end subroutine error_abort_s
@@ -3266,7 +3266,7 @@ subroutine error_abort_si(msg,i)
 
     write(*,*) msg,i
 
-	call MPI_barrier(MPI_COMM_WORLD,ierr)
+	!call MPI_barrier(MPI_COMM_WORLD,ierr)
     call MPI_Abort(MPI_COMM_WORLD,errcode,ierr)
 
 end subroutine error_abort_si
