@@ -1,7 +1,7 @@
 # Only import the classes we want to be accessible to the user
-from mdrun import MDRun
-from cfdrun import CFDRun
-from cplrun import CPLRun
-from thread import Thread
-from study import Study
-from inpututils import InputMod, InputDict, InputList
+from simwraplib.mdrun import MDRun
+from simwraplib.cfdrun import CFDRun
+from simwraplib.cplrun import CPLRun
+from simwraplib.thread import Thread
+from simwraplib.study import Study
+from simwraplib.inpututils import InputMod, InputDict, InputList

@@ -23,7 +23,11 @@ class Serial_CFD_RawData:
         else:
             self.separate_outfiles = False
 
-        self.header = Serial_CFD_HeaderData(fdir)
+        try:
+            self.header = Serial_CFD_HeaderData(fdir)
+        except IOError:
+            raise DataNotAvailable
+
         self.grid = self.get_grid()
         self.maxrec = self.get_maxrec()
 

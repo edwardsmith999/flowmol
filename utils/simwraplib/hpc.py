@@ -1,8 +1,13 @@
 #! /usr/bin/env python
 import time
 import os
+import math as maths
 import subprocess as sp
-from platform import get_platform
+
+from simwraplib.platform import get_platform
+
+# Default value, can be set externally with simwraplib.hpc.cpuspernode=X
+cpuspernode = 8
 
 class CXJob:
 
@@ -16,8 +21,7 @@ class CXJob:
                  queue='pqtzaki',
                  icib='true'):
 
-        # Store absolute run directory so we can move around
-        # after submission
+        # Store absolute run directory so we can move around after submission
         absrundir = os.path.abspath(rundir)
 
         # Get platform if not specified
@@ -25,12 +29,8 @@ class CXJob:
             platform = get_platform()
 
         # Calculate number of nodes required
-        if (nproc%8 != 0):
-            quit('nprocs not a factor of 8. Aborting.')
-        else:
-            ncpus = 8
-            select = nproc / ncpus
-            
+        select = int(maths.ceil(float(nproc)/float(cpuspernode)))
+
         # Create script
         if (platform == 'cx1'):
 
@@ -39,15 +39,15 @@ class CXJob:
             "#PBS -l walltime=%s \n"+
             "#PBS -l select=%s:ncpus=%s:icib=%s \n"+
             "#PBS -q %s \n"
-            ) % (jobname, walltime, select, ncpus, icib, queue)
+            ) % (jobname, walltime, select, cpuspernode, icib, queue)
 
         elif (platform == 'cx2'):
 
             script = ("#!/bin/bash \n"+
             "#PBS -N %s \n"+
             "#PBS -l walltime=%s \n"+
-            "#PBS -l select=%s:ncpus=%s:mpiprocs=8:ompthreads=1:mem=23500mb \n"
-            ) % (jobname, walltime, select, ncpus)
+            "#PBS -l select=%s:ncpus=%s:mpiprocs=8:ompthreads=1:mem=23500mb\n"
+            ) % (jobname, walltime, select, cpuspernode)
 
         else:
 
