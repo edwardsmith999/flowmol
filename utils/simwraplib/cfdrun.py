@@ -4,6 +4,7 @@ import subprocess as sp
 import shlex
 
 from simwraplib.platform import get_platform
+from simwraplib.hpc import CXJob
 from simwraplib.run import Run
 
 class CFDRun(Run):
@@ -17,6 +18,10 @@ class CFDRun(Run):
                  setupinputfile='input.setup',
                  inputfile='input',
                  outputfile='CFD.out',
+                 jobname='default_jobname',
+                 walltime='24:00:00',
+                 icib='true',
+                 queue='pqtzaki',
                  dryrun=False
                 ):
 
@@ -42,6 +47,15 @@ class CFDRun(Run):
 
         # Work out what machine we're on
         self.platform = get_platform()
+        # Store more values if cx1
+        if (self.platform == 'cx1'):
+            self.jobname = jobname
+            self.walltime = walltime 
+            self.icib = icib 
+            self.queue = queue 
+        elif (self.platform == 'cx2'):
+            self.jobname = jobname
+            self.walltime = walltime
 
     def setup(self, existscheck=False): 
         
@@ -141,9 +155,32 @@ class CFDRun(Run):
         
         if (self.platform == 'cx1' or
             self.platform == 'cx2' ):
-            quit("Can't run on cx1 or cx2 with the CFDRun wrapper yet.")
+            self.execute_cx(blocking=blocking)
         else:
             self.execute_local(blocking=blocking)
+
+    def execute_cx(self, blocking=False):
+        
+        nprocs = self.get_nprocs()
+        cmd = 'mpiexec ' + self.executable 
+        cmd += ' > ' + self.outputfile
+        cmd += ' 2> ' + self.outputfile + '_err'
+
+        # Create CXJob object based on the platform
+        if (self.platform == 'cx1'):
+
+            job = CXJob(self.rundir, self.jobname, nprocs, self.walltime, 
+                        cmd, queue=self.queue, icib=self.icib)
+
+        elif (self.platform == 'cx2'):
+
+            job = CXJob(self.rundir, self.jobname, nprocs, self.walltime, cmd) 
+        else:
+
+            quit('Unrecognised platform in execute_cx')
+
+        # Submit the job
+        job.submit(blocking=blocking)
    
     def execute_local(self, blocking=False, **kwargs):
 

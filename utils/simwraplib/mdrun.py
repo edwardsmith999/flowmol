@@ -9,7 +9,7 @@ import string
 import simwraplib.userconfirm as uc
 from simwraplib.platform import get_platform
 from simwraplib.inpututils import InputMod
-from simwraplib.jobs import CXJob
+from simwraplib.hpc import CXJob
 from simwraplib.gnuplotutils import GnuplotUtils
 from simwraplib.run import Run
 

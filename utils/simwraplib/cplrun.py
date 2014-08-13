@@ -5,6 +5,7 @@ import subprocess as sp
 
 from simwraplib.run import Run
 from simwraplib.platform import get_platform
+from simwraplib.hpc import CXJob
 
 class CPLRun(Run):
     
@@ -16,6 +17,10 @@ class CPLRun(Run):
                  rundir='../coupler_dCSE/src_code/',
                  inputfile='COUPLER.in',
                  outputfile='COUPLER.out',
+                 jobname='default_jobname',
+                 walltime='24:00:00',
+                 icib='true',
+                 queue='pqtzaki',
                  dryrun=False
                 ):
 
@@ -29,14 +34,25 @@ class CPLRun(Run):
         self.dryrun = dryrun
 
         if (self.basedir == None):
-            quit('You must specify a base directory which contains'+
-                 ' all input files.') 
+            if (self.mdrun.basedir == self.cfdrun.basedir):
+                self.basedir = self.mdrun.basedir
+            else:
+                quit('Unable to obtain base directory for coupler inputs')
 
         if (self.srcdir[-1] != '/'): self.srcdir += '/'
         if (self.rundir[-1] != '/'): self.rundir += '/'
         if (self.basedir[-1] != '/'): self.basedir += '/'
 
         self.platform = get_platform()
+        # Store more values if cx1
+        if (self.platform == 'cx1'):
+            self.jobname = jobname
+            self.walltime = walltime 
+            self.icib = icib 
+            self.queue = queue 
+        elif (self.platform == 'cx2'):
+            self.jobname = jobname
+            self.walltime = walltime
 
 
     def setup(self):
@@ -46,8 +62,8 @@ class CPLRun(Run):
         sh.copy(self.basedir+self.inputfile,self.rundir+self.inputfile)
 
         # Enforce directory structure for now
-        self.mdrunsubdir = 'md_data/'
-        self.cfdrunsubdir = 'couette_data/'
+        self.mdrunsubdir = './md_data/'
+        self.cfdrunsubdir = './couette_data/'
         print('Resetting MDRun rundir to ' + self.rundir + self.mdrunsubdir)
         print('Resetting CFDRun rundir to ' + self.rundir + self.mdrunsubdir)
         self.mdrun.rundir = self.rundir + self.mdrunsubdir 
@@ -72,15 +88,51 @@ class CPLRun(Run):
         
         if (self.platform == 'cx1' or
             self.platform == 'cx2' ):
-            quit("Can't run on cx1 or cx2 with the CFDRun wrapper yet.")
+            self.execute_cx(blocking=blocking)
         else:
             self.execute_local(blocking=blocking)
+
+    def execute_cx(self, blocking=False):
+
+        
+        # MD part of command string
+        cmd =  'mpiexec heterostart '
+        cmd += '{0:d} {1:s}{2:s} '.format(
+              self.cfdprocs, self.cfdrunsubdir, self.cfdrun.executable)
+        cmd += '{0:d} {1:s}{2:s} -i {1:s}{3:s} '.format(
+              self.mdprocs, self.mdrunsubdir, self.mdrun.executable, 
+              self.mdrun.inputfile)
+
+        if (self.mdrun.initstate != None):
+            cmd += ' -r ' + self.mdrunsubdir + self.mdrun.initstate
+        elif (self.mdrun.restartfile != None):
+            cmd += ' -r ' + self.mdrun.restartfile 
+       
+        nprocs = self.get_nprocs()
+ 
+        # Create CXJob object based on the platform
+        if (self.platform == 'cx1'):
+
+            job = CXJob(self.rundir, self.jobname, nprocs, self.walltime, 
+                        cmd, queue=self.queue, icib=self.icib)
+
+        elif (self.platform == 'cx2'):
+
+            job = CXJob(self.rundir, self.jobname, nprocs, self.walltime, cmd) 
+
+        else:
+
+            quit('Unrecognised platform in execute_cx')
+
+        # Submit the job
+        job.submit(blocking=blocking)
 
     def execute_local(self, blocking=False):
 
         # MD part of command string
-        cmd = 'mpirun -n {0:d} ./md_data/{1:s} -i ./md_data/{2:s}'.format(
-              self.mdprocs, self.mdrun.executable, self.mdrun.inputfile)
+        cmd = 'mpirun -n {0:d} {1:s}{2:s} -i {1:s}{3:s}'.format(
+              self.mdprocs, self.mdrunsubdir, self.mdrun.executable, 
+              self.mdrun.inputfile)
 
         if (self.mdrun.initstate != None):
             cmd += ' -r ' + self.mdrunsubdir + self.mdrun.initstate
@@ -88,8 +140,8 @@ class CPLRun(Run):
             cmd += ' -r ' + self.mdrun.restartfile 
 
         # CFD part of command string
-        cmd += ' : -n {0:d} ./couette_data/{1:s}'.format(
-               self.cfdprocs, self.cfdrun.executable)
+        cmd += ' : -n {0:d} {1:s}{2:s} '.format(
+               self.cfdprocs,self.cfdrunsubdir,self.cfdrun.executable)
 
         stdoutfile = self.rundir+self.outputfile
         stderrfile = self.rundir+self.outputfile+'_err'
