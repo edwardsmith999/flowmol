@@ -82,21 +82,6 @@ subroutine setup_read_input
 
 			density = nmonomers * nchains / product(globaldomain(1:3))	
 
-			call locate(1,'SOLVENT_INFO',.true.)
-			read(1,*) solvent_flag
-			select case(solvent_flag)
-			case(0)
-			case(1)
-				read(1,*) solvent_ratio
-			case(2)
-				read(1,*) solvent_ratio
-				read(1,*) eps_pp
-				read(1,*) eps_ps
-				read(1,*) eps_ss
-			case default
-				call error_abort('Unrecognised solvent flag!')
-			end select
-
 		case('dense_fene')	
 
 			potential_flag = 1	
@@ -111,21 +96,35 @@ subroutine setup_read_input
 			read(1,*) initialnunits(2)
 			read(1,*) initialnunits(3)	
 
+        case('fene_solution')
+
+            potential_flag = 1
+            rcutoff = 2.d0**(1.d0/6.d0)
+
+			call locate(1,'INITIALNUNITS',.true.)
+			read(1,*) initialnunits(1)
+			read(1,*) initialnunits(2)
+			read(1,*) initialnunits(3)	
+
+            call locate(1,'FENE_SOLUTION',.true.)
+			read(1,*) nmonomers
+			read(1,*) k_c
+			read(1,*) R_0
+			read(1,*) density
+            read(1,*) targetconc
+
 			call locate(1,'SOLVENT_INFO',.true.)
 			read(1,*) solvent_flag
 			select case(solvent_flag)
 			case(0)
 			case(1)
-				read(1,*) solvent_ratio
-			case(2)
-				read(1,*) solvent_ratio
 				read(1,*) eps_pp
 				read(1,*) eps_ps
 				read(1,*) eps_ss
 			case default
 				call error_abort('Unrecognised solvent flag!')
 			end select
-
+            
 		case('solid_liquid')
 
 			potential_flag = 0
@@ -790,6 +789,7 @@ subroutine setup_read_input
 	if (found_in_input) then
 		read(1,*) r_gyration_outflag
 		read(1,*) r_gyration_iter0
+        if (r_gyration_outflag .ne. 0) rtrue_flag = 1
 	endif
 
 	call locate(1,'RDF_OUTFLAG',.false.,found_in_input)

@@ -719,6 +719,10 @@ subroutine simulation_header
         write(fileunit,*) 'Number of FENE chains in domain ; nchains;', nchains
         write(fileunit,*) 'FENE bond maximum elongation ; R_0;', R_0
         write(fileunit,*) 'FENE spring stiffness ; k_c;', k_c
+        write(fileunit,*) 'Solvent flag; solvent_flag;', solvent_flag
+        write(fileunit,*) 'Polymer-polymer interaction; eps_pp', eps_pp
+        write(fileunit,*) 'Polymer-solvent interaction; eps_ps', eps_ps
+        write(fileunit,*) 'Solvent-solvent interaction; eps_ss', eps_ss
     end select  
     write(fileunit,*) 'Starting step of simulation ;  initialstep ;', initialstep
     write(fileunit,*) 'Generate output file every steps ;   tplot ;',  tplot

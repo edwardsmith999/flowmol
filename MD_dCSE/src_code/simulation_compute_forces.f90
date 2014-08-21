@@ -214,10 +214,10 @@ subroutine simulation_compute_forces
 			potenergymol_FENE	= 0.d0
 			potenergysum_FENE	= 0.d0
 			select case(solvent_flag)
-			case(0:1)
+			case(0)
 				call simulation_compute_forces_LJ_neigbr_halfint	!Compute LJ bead interactions
 				call simulation_compute_forces_FENE					!Add on FENE spring interactions
-			case(2)
+			case(1)
 				!call simulation_compute_forces_Soddemann_AP
 				call simulation_compute_forces_Soddemann_neigbr_halfint
 				call simulation_compute_forces_FENE

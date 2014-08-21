@@ -159,6 +159,9 @@ POTENTIAL_FLAG
 #                 connect monomers on a cubic lattice
 #                 separated by FENE equilibrium distance
 #
+#            - fene_solution
+#                 fene chains in an explicit solvent
+#
 #            - concentric_cylinders
 #                 build concentric cylinders from an FCC lattice
 #                 and melt them between specular walls
@@ -567,17 +570,13 @@ FENE_SOLUTION
 #########################################################################
 # Solvent information:
 #	- flag
-#		> 0 - Polymer only
-#		> 1 - Polymer in theta solvent
-#		> 2 - Solvent of variable quality (Soddemann)
-#	- solvent ratio (integer): number of solvent molecules per FENE
-#                              monomer.
+#		> 0 - All bead interactions equal (plus FENE) 
+#		> 1 - Solvent of variable quality (Soddemann)
 #	- solvent energy parameter eps_pp (polymer-polymer)
 #	- solvent energy parameter eps_ps (polymer-solvent)
 #	- solvent energy parameter eps_ss (solvent-solvent)
 # -----------------------------------------------------------------------
 SOLVENT_INFO
-0
 0
 0.0
 0.0
