@@ -365,7 +365,7 @@ subroutine set_parameters_global_domain
 			! - corrected after position setup
 			np = globalnp / nproc
 		
-		case ('dense_fene')
+		case ('dense_fene','fene_solution')
 			
 			globaldomain(:) = initialnunits(:)/((density/4.d0)**(1.d0/nd))
 			initialunitsize(:) = globaldomain(:) / initialnunits(:)
@@ -629,14 +629,14 @@ subroutine set_parameters_cells
 	select case(potential_flag)
 	case(1)
 		select case(solvent_flag)
-		case(0:1)
+		case(0)
 			if (rneighbr < R_0) then
 				rneighbr = R_0 
 				rneighbr2 = R_0**2
 				if(irank.eq.iroot) print*, 'Neighbour list distance rneighbr set to &
 						& maximum elongation of polymer spring, ',R_0
 			end if
-		case(2)
+		case(1)
 			if (rneighbr < sod_cut) then
 				rcutoff   = sod_cut
 				rcutoff2  = sod_cut2

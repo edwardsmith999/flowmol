@@ -40,6 +40,10 @@ subroutine setup_initialise_microstate
             call setup_initialise_lattice      !Numbering for FENE bonds
             call setup_lattice_dense_FENE_info !Chain IDs, etc
             call setup_location_tags           !Setup locn of fixed mols
+        case('fene_solution')
+            call setup_initialise_lattice      !Numbering for FENE bonds
+            call setup_FENE_solution !Numbering for FENE bonds
+            call setup_location_tags           !Setup locn of fixed mols
         case('solid_liquid')
             call setup_initialise_solid_liquid
             call setup_location_tags               !Setup locn of fixed mols
@@ -283,60 +287,25 @@ subroutine setup_lattice_dense_FENE_info
     subchainID = 0
     do n=1,np
 
-        select case (solvent_flag)
-        case (0)
-            solvent_selector = 0
-        case (1,2)
-            solvent_selector = mod((n-1)/nmonomers,solvent_ratio)
-        case default
-        end select
+        subchainID = subchainID + 1
+        if (subchainID .gt. nmonomers) then
+            subchainID = 1
+            chainID    = chainID + 1
+        end if
 
-        !if (foam_tag(n).eq.foam) then
-        !   solvent_selector = 0
-        !else
-        !   solvent_selector = 1
-        !end if
+        monomer(n)%chainID    = chainID
+        monomer(n)%subchainID = subchainID
+        monomer(n)%glob_no    = n   
         
-        select case (solvent_selector)
-        case(0) !POLYMER
-            
-            subchainID = subchainID + 1
-            if (subchainID .gt. nmonomers) then
-                subchainID = 1
-                chainID    = chainID + 1
-            end if
-    
-            monomer(n)%chainID    = chainID
-            monomer(n)%subchainID = subchainID
-            monomer(n)%glob_no    = n   
-            
-            
-            if (subchainID.eq.1) then
-                call connect_to_monomer(subchainID+1,n)
-            else if (subchainID.eq.nmonomers) then
-                call connect_to_monomer(subchainID-1,n)             
-            else
-                call connect_to_monomer(subchainID+1,n)
-                call connect_to_monomer(subchainID-1,n)
-            end if
-
-            
-        case(1:) !SOLVENT
-
-            !SET MOLECULES TO BE ATHERMAL SOLVENT MOLECULES
-            monomer(n)%chainID     = 0
-            monomer(n)%subchainID  = 1
-            monomer(n)%glob_no     = n
-            monomer(n)%funcy       = 0
-            bond(:,n)              = 0
         
-        case default
-        end select
-            
-        !print*, '-n,c,sc,f,g------------------------------------------------'
-        !print*, n, monomer(n)%chainID,monomer(n)%subchainID,monomer(n)%funcy,monomer(n)%glob_no
-        !print*, 'bin_bflag -', monomer(n)%bin_bflag
-        !print*, '==========================================================='
+        if (subchainID.eq.1) then
+            call connect_to_monomer(subchainID+1,n)
+        else if (subchainID.eq.nmonomers) then
+            call connect_to_monomer(subchainID-1,n)             
+        else
+            call connect_to_monomer(subchainID+1,n)
+            call connect_to_monomer(subchainID-1,n)
+        end if
 
     end do
 
@@ -355,6 +324,336 @@ subroutine setup_lattice_dense_FENE_info
     nchains = sum(proc_chains)
 
 end subroutine setup_lattice_dense_FENE_info
+
+
+subroutine setup_FENE_solution
+    use interfaces
+    use polymer_info_MD
+    use messenger
+    use messenger_data_exchange, only : globalSum
+    use arrays_MD, only: r
+    use physical_constants_MD, only: np, density
+    use concentric_cylinders, only: r_oi, r_io
+    use librarymod, only: cpolariser
+    implicit none
+
+    logical :: connectable 
+    integer :: n
+    integer :: maxchainID
+    integer :: nchainsremove
+    integer, dimension(nproc) :: proc_chains, proc_nps
+    real(kind(0.d0)) :: check, concentration
+
+    call initialise_info
+    
+    ! Connect all chains, removed later
+    call connect_all_possible_chains(maxchainID)
+
+    proc_chains(irank) = maxchainID
+    proc_nps(irank) = np
+
+    if (irank.eq.1) then
+        print*, 'Target concentration: ', targetconc
+    end if
+
+    ! Remove chains to get target concentration (as close as possible) 
+    concentration = real(nmonomers*proc_chains(irank))/real(np)
+    nchainsremove = nint((concentration - targetconc)*real(np) &
+                    /real(nmonomers))
+
+    ! If nchains is too many, remove, otherwise we can't do anything now
+    if (nchainsremove .gt. 0) then
+        call remove_chains(nchainsremove)
+        proc_chains(irank) = proc_chains(irank) - nchainsremove 
+    else
+        print*, 'Concentration before chain removal:', concentration
+        print*, 'Density, nchains connectable: ', density, proc_chains(irank) 
+        print*, 'The target concentration is not obtainable by removing &
+                 existing chains.'
+        call error_abort('Aborting') 
+    end if
+
+    ! Print actual concentration once chains are removed
+    concentration = real(nmonomers*proc_chains(irank)) / real(np)
+    if (irank .eq. 1) then
+        print*, 'Actual concentration: ', concentration
+    end if
+
+    ! Shift the y-positions of chain monomers so that they are all separated
+    ! by their equilibrium distance.
+    call contract_chains_to_equil_sep
+
+    ! Relabel chainIDs globally
+    call globalSum(proc_chains,nproc)
+    call globalSum(proc_nps,nproc)
+    do n=1,np
+        if (monomer(n)%chainID.ne.0) then
+            monomer(n)%chainID = monomer(n)%chainID + sum(proc_chains(1:irank)) - proc_chains(irank)
+        end if
+        monomer(n)%glob_no = monomer(n)%glob_no + sum(proc_nps(1:irank)) - proc_nps(irank)
+    end do
+
+    nchains = sum(proc_chains)
+
+    !if (irank .eq. 1) then 
+    !do n = 1, np
+    !    print*, '-n,c,sc,f,g------------------------------------------------'
+    !    print*, n, monomer(n)%chainID,monomer(n)%subchainID,monomer(n)%funcy,monomer(n)%glob_no
+    !    print*, 'bin_bflag -', monomer(n)%bin_bflag
+    !    print*, '==========================================================='
+    !end do 
+    !end if
+
+contains
+
+    subroutine initialise_info
+        implicit none
+
+        !integer :: intbits
+        real(kind(0.d0)) :: check
+        character(256) :: string
+
+        proc_chains(:)         = 0
+        proc_nps(:)            = 0
+
+        ! Check chains will fit
+        check = (4.0*real(initialnunits(2))/real(npy))/real(nmonomers)
+        if (check.lt.1.d0) then
+            print*, 'np, nmonomers, nmols in y direction =  ', np, &
+                     nmonomers, 4*initialnunits(2)/npy 
+            string = 'Number of molecules in the y direction on each processor &
+                      must not be more than 4*ncells(3). Please & 
+                      change the chain length in the input file.'
+            call error_abort(string)
+        end if
+    
+        ! Count cylinder mols and initialise monomer info
+        do n=1,np+extralloc
+
+            ! Initialise monomerinfo
+            monomer(n)%chainID      = 0
+            monomer(n)%subchainID   = 0
+            monomer(n)%funcy        = 0
+            monomer(n)%glob_no      = 0
+            monomer(n)%bin_bflag(:) = 0
+
+        end do  
+
+    end subroutine 
+
+    subroutine connect_all_possible_chains(maxchainID)
+        implicit none
+
+        integer, intent(out) :: maxchainID
+        integer :: subchainID, chainID, n, molno
+
+        chainID = 1
+        n = 1
+        do
+            ! Exit if past np 
+            if ( n .gt. np ) exit
+
+            ! Test to see if we can build a whole chain
+            call test_for_connectability(n, nmonomers, connectable)
+
+            ! If possible, build whole chain, otherwise mark as solvent and move on 
+            if (connectable) then
+
+                ! Connect 1 to 2
+                monomer(n)%chainID    = chainID
+                monomer(n)%subchainID = 1 
+                monomer(n)%glob_no    = n   
+                call connect_to_monomer(2,n)
+
+                ! Connect middles
+                do subchainID = 2, nmonomers-1
+                    molno = n+subchainID-1
+                    monomer(molno)%chainID    = chainID
+                    monomer(molno)%subchainID = subchainID 
+                    monomer(molno)%glob_no    = molno !corrected at bottom
+                    call connect_to_monomer(subchainID-1,molno) 
+                    call connect_to_monomer(subchainID+1,molno)             
+                end do
+
+                ! Connect end-1 to end
+                molno = n+nmonomers-1
+                monomer(molno)%chainID    = chainID
+                monomer(molno)%subchainID = subchainID 
+                monomer(molno)%glob_no    = molno !corrected at bottom
+                call connect_to_monomer(nmonomers-1,molno)
+                chainID = chainID + 1
+
+                n = n + nmonomers
+
+            else
+
+                monomer(n)%chainID     = 0
+                monomer(n)%subchainID  = 1
+                monomer(n)%glob_no     = n
+                monomer(n)%funcy       = 0
+                bond(:,n)              = 0
+
+                n = n + 1
+
+            end if
+
+        end do
+
+        maxchainID = chainID
+
+    end subroutine
+
+    subroutine remove_chains(nremove)
+        implicit none
+
+        integer, intent(in) :: nremove
+
+        integer :: m, cnt, chainID
+        integer, dimension(:), allocatable :: removeIDs
+
+        ! Spread removed chains throughout proc domain
+        allocate(removeIDs(nremove))
+        removeIDs(:) = 0
+        do n = 1, nremove
+            chainID = floor(real(n*proc_chains(irank))/real(nremove))
+            removeIDs(n) = chainID
+        end do
+
+        ! Remove chains labelled with removeIDs      
+        do n = 1,nremove
+            call mark_chain_as_solvent(removeIDs(n)) 
+        end do
+
+        ! Relabel remaining chains
+        cnt = 0
+        n = 1
+        do 
+
+            if (monomer(n)%chainID .gt. cnt) then
+
+                do m = 0, nmonomers-1
+                    monomer(n+m)%chainID = cnt + 1
+                end do
+
+                n = n + nmonomers
+                cnt = cnt + 1
+
+            else
+                
+                n = n + 1
+
+            end if
+            
+            if (n .gt. np) exit
+
+        end do
+
+        deallocate(removeIDs)
+
+    end subroutine
+
+    subroutine contract_chains_to_equil_sep 
+        implicit none
+
+        integer :: m
+        real(kind(0.d0)) :: rscale
+        real(kind(0.d0)) :: rmiddle(3)
+        real(kind(0.d0)) :: oldsep, equil_sep
+
+        equil_sep = 0.9608971929802091
+        if (irank.eq.iroot) then
+            print*, "Warning: equilibrium separation distance of FENE chain "&
+            "set to ", equil_sep, ", based on R_0 = 1.5 and k = 30, with LJ "&
+            "cutoff 2^1/6"
+        end if
+
+        n = 1
+        do 
+
+            if (n .gt. np) exit
+
+            if (monomer(n)%chainID .ne. 0) then
+
+                oldsep = sqrt(dot_product(r(:,n+1) - r(:,n),r(:,n+1) - r(:,n)))
+                rmiddle(:) = (r(:,n) + r(:,n+nmonomers-1))/2.d0
+                rscale = equil_sep / oldsep 
+                do m = 0, nmonomers-1
+                    r(:,n+m) = rmiddle(:) + rscale*(r(:,n+m) - rmiddle(:)) 
+                end do
+
+                n = n + nmonomers
+
+            else
+                
+                n = n + 1
+
+            end if
+
+        end do
+
+
+    end subroutine
+
+    subroutine mark_chain_as_solvent(ID)
+        implicit none
+
+        integer, intent(in) :: ID
+
+        integer :: molno
+
+        do molno = 1, np
+
+            if (monomer(molno)%chainID .eq. ID) then
+                monomer(molno)%chainID = 0
+                monomer(molno)%subchainID = 1
+                monomer(molno)%funcy = 0
+                monomer(molno)%bin_bflag(:) = 0
+                bond(:,molno) = 0
+            end if
+
+        end do
+
+    end subroutine mark_chain_as_solvent
+
+    subroutine test_for_connectability(molno, seekahead, success)
+        implicit none
+        
+        integer, intent(in) :: molno, seekahead
+        logical, intent(out) :: success
+
+        integer :: m
+        real(kind(0.d0)) :: rn(3), rm(3), rnm(3), rnmmag
+        real(kind(0.d0)) :: rpol(3)
+
+        success = .true.
+
+        if (molno + seekahead - 1 .gt. np) then
+            success = .false. 
+        end if
+
+        do m = 0,seekahead-1
+            
+            rn = r(:,molno+m) 
+            rm = r(:,molno+m+1)
+            rnm = rm - rn 
+            rnmmag = sqrt(dot_product(rnm,rnm))
+
+            ! Check if molecule is in domain of processor
+            if (abs(rm(1)) .ge.  halfdomain(1) .or. &
+                abs(rm(2)) .ge.  halfdomain(2) .or. &
+                abs(rm(3)) .ge.  halfdomain(3)) then
+                success = .false. 
+            end if
+
+            ! Check if molecule pair is in bond range
+            if (rnmmag .ge. R_0) success = .false. !; return
+
+        end do
+
+
+    end subroutine test_for_connectability
+
+end subroutine setup_FENE_solution
 
 !--------------------------------------------------------------------------------
 !FENE info

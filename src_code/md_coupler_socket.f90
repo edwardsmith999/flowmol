@@ -248,14 +248,14 @@ subroutine set_parameters_cells_coupled
 
 	if (potential_flag .eq. 1) then
 		select case(solvent_flag)
-		case(0:1)
+		case(0)
 			if (rneighbr < R_0) then
 				rneighbr = R_0 
 				rneighbr2 = R_0**2
 				print*, 'Neighbour list distance rneighbr set to &
 						& maximum elongation of polymer spring, ',R_0
 			end if
-		case(2)
+		case(1)
 			if (rneighbr < sod_cut) then
 				rcutoff   = sod_cut
 				rcutoff2  = sod_cut2

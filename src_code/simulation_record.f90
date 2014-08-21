@@ -1077,7 +1077,8 @@ subroutine etevtcf_calculate_parallel
 				j_sub  = monomer(j)%subchainID
 				if (j_sub.lt.i_sub) cycle  !Avoid counting backwards
 				rij(:) = r(:,j) - r(:,i)
-				rij(:) = rij(:) - domain(:)*anint(rij(:)/domain(:))
+                rij(:)        = rij(:) - &
+                                globaldomain(:)*anint(rij(:)/globaldomain(:))
 				etev_0(chain,:) = etev_0(chain,:) + rij(:)
 			end do
 		end do
@@ -1093,11 +1094,12 @@ subroutine etevtcf_calculate_parallel
 		i_sub = monomer(i)%subchainID
 		funcy = monomer(i)%funcy
 		do nbond=1,funcy
-			j             = bond(nbond,i)     ! Molecule number j is nth bond to i
+			j             = bond(nbond,i)          ! Molecule number j is nth bond to i
 			j_sub         = monomer(j)%subchainID  ! Find subchain ID of mol j
 			if (j_sub.lt.i_sub) cycle              ! Avoid counting backwards
 			rij(:)        = r(:,j) - r(:,i)                     
-			rij(:)        = rij(:) - domain(:)*anint(rij(:)/domain(:))
+			rij(:)        = rij(:) - &
+                            globaldomain(:)*anint(rij(:)/globaldomain(:))
 			etev(chain,:) = etev(chain,:) + rij(:)
 		end do
 	end do
