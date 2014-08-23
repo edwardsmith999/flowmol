@@ -34,7 +34,7 @@ subroutine setup_initial_record
     character(8)            :: the_date
     character(10)           :: the_time
     character(23)           :: file_names_t
-    character(23),parameter :: file_names(29) = &
+    character(23),parameter :: file_names(30) = &
                                 (/ "mslice      ", "mbins       ", "msnap   ",&
                                    "vslice      ", "vbins       ", "vsnap   ",&
                                    "pvirial     ", "pVA         ", "pVA_k   ",& 
@@ -44,7 +44,7 @@ subroutine setup_initial_record
                                    "esurface    ", "viscometrics", "rdf     ",&
                                    "rdf3d       ", "ssf         ", "Fext    ",&
                                    "Tbins       ", "vmd_temp.dcd", "vPDF    ",&
-                                   "bforce_pdf  ", "Fvext       "/) 
+                                   "bforce_pdf  ", "Fvext       ", "etev    "/) 
 
 
 !   ! COUETTE FLOW ANALYTICAL SOLUTION
@@ -720,9 +720,9 @@ subroutine simulation_header
         write(fileunit,*) 'FENE bond maximum elongation ; R_0;', R_0
         write(fileunit,*) 'FENE spring stiffness ; k_c;', k_c
         write(fileunit,*) 'Solvent flag; solvent_flag;', solvent_flag
-        write(fileunit,*) 'Polymer-polymer interaction; eps_pp', eps_pp
-        write(fileunit,*) 'Polymer-solvent interaction; eps_ps', eps_ps
-        write(fileunit,*) 'Solvent-solvent interaction; eps_ss', eps_ss
+        write(fileunit,*) 'Polymer-polymer interaction; eps_pp ;', eps_pp
+        write(fileunit,*) 'Polymer-solvent interaction; eps_ps ;', eps_ps
+        write(fileunit,*) 'Solvent-solvent interaction; eps_ss ;', eps_ss
     end select  
     write(fileunit,*) 'Starting step of simulation ;  initialstep ;', initialstep
     write(fileunit,*) 'Generate output file every steps ;   tplot ;',  tplot

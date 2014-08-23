@@ -194,7 +194,8 @@ class MD_RawData:
         return maxrec
 
 
-    def read(self, startrec, endrec, binlimits=None, verbose=False, quit_on_error=True):
+    def read(self, startrec, endrec, binlimits=None, verbose=False, 
+             quit_on_error=True):
 
         """
             Required inputs:
