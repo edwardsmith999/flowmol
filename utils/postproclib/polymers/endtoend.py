@@ -1,5 +1,6 @@
 import glob
 import numpy as np
+import scipy.signal as spsi
 from postproclib.pplexceptions import DataNotAvailable
 from postproclib.headerdata import MDHeaderData 
 
@@ -83,11 +84,11 @@ class EndToEnd():
         data = np.reshape(data, (self.nchains, 3, nrecs), order='F')
         return data
 
-    def mean_inclinations(self, axis, startrec=0, endrec=None):
+    def inclinations(self, axis, startrec=0, endrec=None):
 
         """
-            Axis is a plane, this calculates the mean inclination of all
-            polymer end-to-end vectors to it.
+            Axis defines a plane, this routine calculates the mean 
+            inclination of all polymer end-to-end vectors to it.
         """
 
         if (endrec==None):
@@ -102,6 +103,57 @@ class EndToEnd():
 
         Rhatdotaxishat = Rhat[:,axis,:]
         Rhatdotaxishat = np.clip(Rhatdotaxishat,-1.0,1.0)
-        theta = np.arccos(Rhatdotaxishat)
+        theta = np.pi/2.0 - np.arccos(Rhatdotaxishat)
 
         return theta
+
+    def inclinations_distribution(self, axis, bins=25, startrec=0, endrec=None):
+
+        if (endrec == None):
+            endrec = self.maxrec
+
+        theta  = self.inclinations(axis, startrec, endrec)
+        hist, edges = np.histogram(theta, bins=bins, density=True)
+        # NB len(edges) = len(hist) + 1
+        return hist, edges 
+
+    def time_selfcorrelation(self, startrec=0, endrec=None, verbose=False):
+
+        tplot = int(self.header.tplot)
+        delta_t = float(self.header.delta_t)
+
+        if (endrec==None): 
+            endrec=self.maxrec
+
+        nrecs = endrec - startrec + 1 
+
+        R = self.read(startrec, endrec)
+        Rx = R[:,0,:]
+        Ry = R[:,1,:]
+        Rz = R[:,2,:]
+
+        C = np.zeros(nrecs)
+        for i in range(self.nchains):
+
+            if (verbose):
+                progress = ('Calculating auto-correlation function '
+                            + str(i+1) + ' of ' + str(self.nchains) 
+                            + '...')                       
+                print(progress)
+
+            # Correlation is # convolution in reverse
+            auto_cx = spsi.fftconvolve(Rx[i,:],Rx[i,:][::-1]) 
+            auto_cy = spsi.fftconvolve(Ry[i,:],Ry[i,:][::-1]) 
+            auto_cz = spsi.fftconvolve(Rz[i,:],Rz[i,:][::-1]) 
+            # Only positive half
+            l = len(auto_cx) 
+            C += auto_cx[l/2:]+auto_cy[l/2:]+auto_cz[l/2:]
+        
+        C = C/float(self.nchains)
+        C = C/C[0]
+    
+        tmin = 0.0
+        tmax = tplot*delta_t*(len(C)-1)
+        t = np.linspace(tmin, tmax, num=len(C))
+        return t, C
+        

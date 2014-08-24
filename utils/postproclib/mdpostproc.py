@@ -29,7 +29,8 @@ class MD_PostProc(PostProc):
                                 "visc", "mflux","vflux", "pplane", "psurface",
                                 "esnap", "eflux", "eplane","esurface", "Fvext", 
                                 "viscometrics", "rdf", "rdf3d", "ssf", "Fext",
-                                "Tbins", "vPDF" )        
+                                "Tbins", "vPDF", "msolv", "mpoly", "vsolv",
+                                "vpoly")        
 
         if (not os.path.isdir(self.resultsdir)):
             print("Directory " +  self.resultsdir + " not found")
@@ -56,12 +57,36 @@ class MD_PostProc(PostProc):
             d1 = MD_dField(self.resultsdir, **kwargs)
             self.plotlist.update({'rho':d1})
 
+        if 'msolv' in (self.fieldfiles1):
+            m1 = MD_mField(self.resultsdir, fname='msolv', **kwargs)
+            self.plotlist.update({'msolv':m1})
+            d1 = MD_dField(self.resultsdir, fname='msolv', **kwargs)
+            self.plotlist.update({'rho_solv':d1})
+
+        if 'mpoly' in (self.fieldfiles1):
+            m1 = MD_mField(self.resultsdir, fname='mpoly', **kwargs)
+            self.plotlist.update({'mpoly':m1})
+            d1 = MD_dField(self.resultsdir, fname='mpoly', **kwargs)
+            self.plotlist.update({'rho_poly':d1})
+
         #Momentum
         if 'vbins' in (self.fieldfiles1):
             M1 = MD_pField(self.resultsdir, **kwargs)
             self.plotlist.update({'vbins':M1})
             M1 = MD_momField(self.resultsdir, **kwargs)
             self.plotlist.update({'rho u':M1})
+
+        if 'vsolv' in (self.fieldfiles1):
+            M1 = MD_pField(self.resultsdir,fname='vsolv',**kwargs)
+            self.plotlist.update({'vsolv':M1})
+            M1 = MD_momField(self.resultsdir,fname='vsolv',**kwargs)
+            self.plotlist.update({'rho u_solv':M1})
+
+        if 'vpoly' in (self.fieldfiles1):
+            M1 = MD_pField(self.resultsdir,fname='vpoly',**kwargs)
+            self.plotlist.update({'vpoly':M1})
+            M1 = MD_momField(self.resultsdir,fname='vpoly',**kwargs)
+            self.plotlist.update({'rho u_poly':M1})
 
         #Kinetic energy
         if 'Tbins' in (self.fieldfiles1):

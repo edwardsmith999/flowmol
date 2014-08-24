@@ -764,6 +764,13 @@ BIN2CELLRATIO
 SEPARATE_OUTFILES
 .false.
 
+
+#########################################################################
+# Split polymer/solvent parts of velocity/mass etc
+# Integer: 0 - together, 1-split 
+#SPLIT_POL_SOL_STATS
+#0
+
 #########################################################################
 # Output flag for visualisation in VMD:
 #	Flag: 	0-off, 

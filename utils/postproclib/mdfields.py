@@ -38,7 +38,7 @@ class MD_mField(MDField):
         MDField.__init__(self,fdir)
         self.labels = ["mag"]
         self.nperbin = self.Raw.nperbin
-        if fname == 'mbins':
+        if fname in ['mbins','mpoly','msolv']:
             self.plotfreq = self.Raw.header.Nmass_ave
         elif fname == 'msnap':
             self.plotfreq = self.Raw.header.Nmflux_ave
@@ -62,7 +62,7 @@ class MD_pField(MDField):
         MDField.__init__(self,fdir)
         self.labels = self.axislabels
         self.nperbin = self.Raw.nperbin
-        if fname == 'vbins':
+        if fname in ['vbins','vpoly','vsolv']:
             self.plotfreq = self.Raw.header.Nvel_ave
         elif fname == 'vsnap':
             self.plotfreq = self.Raw.header.Nvflux_ave
@@ -243,7 +243,6 @@ class MD_complexField(MDField):
         self.plotfreq = subfieldobj.plotfreq
         self.axislabels = subfieldobj.axislabels
         self.labels = subfieldobj.labels
-
 
 
 class MD_vField(MD_complexField):
