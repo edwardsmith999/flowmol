@@ -842,9 +842,25 @@ subroutine set_parameters_outputs
 
 	!Allocated bins for velocity averaging
 	if (velocity_outflag.eq.4) then
-		allocate(volume_momentum(nbinso(1),nbinso(2),nbinso(3),3  ))
-		volume_momentum = 0.d0
-		mass_outflag = 4	!Mass binning required too
+		if (.not. allocated(volume_momentum)) then
+			allocate(volume_momentum(nbinso(1),nbinso(2),nbinso(3),3))
+		endif
+        volume_momentum = 0.d0
+        mass_outflag = 4	!Mass binning required too
+        select case (split_pol_sol_stats)
+        case(0)
+            !Do nothing extra
+        case(1)
+		    if (.not. allocated(volume_momentum_s)) then
+                allocate(volume_momentum_s(nbinso(1),nbinso(2),nbinso(3),3))
+            end if
+		    if (.not. allocated(volume_momentum_p)) then
+                allocate(volume_momentum_p(nbinso(1),nbinso(2),nbinso(3),3))
+            end if
+			volume_momentum_s = 0.d0; volume_momentum_p = 0.d0
+        case default
+            call error_abort('Invalid potential flag in volume_momentum allocate')
+        end select
 	endif
 
 	!Allocated bins for temperature averaging
@@ -869,6 +885,20 @@ subroutine set_parameters_outputs
 			allocate(volume_mass(nbinso(1),nbinso(2),nbinso(3)))
 			volume_mass = 0
 		endif
+        select case (split_pol_sol_stats)
+        case(0)
+            !Do nothing extra
+        case(1)
+		    if (.not. allocated(volume_mass_s)) then
+                allocate(volume_mass_s(nbinso(1),nbinso(2),nbinso(3)))
+            end if
+		    if (.not. allocated(volume_mass_p)) then
+                allocate(volume_mass_p(nbinso(1),nbinso(2),nbinso(3)))
+            end if
+			volume_mass_s = 0; volume_mass_p = 0
+        case default
+            call error_abort('Invalid potential flag in volume_mass allocate')
+        end select
 	endif
 
 	! Allocate cylindrical polar bins

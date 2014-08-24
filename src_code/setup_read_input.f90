@@ -815,6 +815,14 @@ subroutine setup_read_input
 		read(1,*) ssf_nmax 
 	endif
 
+    split_pol_sol_stats = 0
+    if (potential_flag .eq. 1) then
+        call locate(1,'SPLIT_POL_SOL_STATS',.false.,found_in_input)
+        if (found_in_input) then
+            read(1,*) split_pol_sol_stats
+        end if
+    end if
+
 	call locate(1,'CV_FORCES',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) CVforce_flag

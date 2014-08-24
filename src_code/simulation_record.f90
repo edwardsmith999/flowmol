@@ -1199,9 +1199,20 @@ subroutine mass_averaging(ixyz)
 			!Reset mass slice
 			slice_mass = 0
 		case(4)
-			call mass_bin_io(volume_mass,'bins')
-			!Reset mass slice
-			volume_mass = 0
+
+            select case(split_pol_sol_stats)
+            case(0)
+                call mass_bin_io(volume_mass,'bins')
+                volume_mass = 0
+            case(1)
+                call mass_bin_io(volume_mass_s,'solv')
+                call mass_bin_io(volume_mass_p,'poly')
+                volume_mass_s = 0
+                volume_mass_p = 0
+            case default
+                call error_abort('Invalid split_pol_sol_stats in m averaging')
+            end select
+                
 		case(5)
 			call mass_bin_cpol_io(cyl_mass)
 			cyl_mass = 0
@@ -1252,12 +1263,32 @@ subroutine cumulative_mass(ixyz)
 		enddo
 	!Mass measurement for 3D bins throughout the domain
 	case(4)
-		mbinsize(:) = domain(:) / nbins(:) 
-		do n = 1,np
-			!Add up current volume mass densities
-			ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
-			volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + 1
-		enddo
+
+        mbinsize(:) = domain(:) / nbins(:) 
+        select case (split_pol_sol_stats)
+        case(0)
+            do n = 1,np
+                !Add up current volume mass densities
+                ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
+                volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + 1
+            enddo
+        case(1)
+            do n = 1,np
+                !Add up current volume mass densities
+                ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
+                if (monomer(n)%chainID .eq. 0) then
+                    volume_mass_s(ibin(1),ibin(2),ibin(3)) = &
+                    volume_mass_s(ibin(1),ibin(2),ibin(3)) + 1
+                else
+                    volume_mass_p(ibin(1),ibin(2),ibin(3)) = &
+                    volume_mass_p(ibin(1),ibin(2),ibin(3)) + 1
+                end if
+            enddo
+            volume_mass = volume_mass_s + volume_mass_p
+        case default 
+            call error_abort('Mass output not implemented for this potential flag')
+        end select 
+
 	case(5)
 
 		! Cylindrical polar coordinates                                       -
@@ -1352,10 +1383,23 @@ subroutine velocity_averaging(ixyz)
 				slice_mass = 0
 				slice_momentum  = 0.d0
 			case(4)
-				call velocity_bin_io(volume_mass,volume_momentum,'bins')
-				!Reset velocity bins
-				volume_mass = 0
-				volume_momentum = 0.d0
+
+                select case(split_pol_sol_stats)
+                case(0)
+                    call velocity_bin_io(volume_mass, volume_momentum,'bins')
+                    volume_mass = 0
+                    volume_momentum = 0.d0
+                case(1)
+                    call velocity_bin_io(volume_mass_s, volume_momentum_s, 'solv')
+                    call velocity_bin_io(volume_mass_p, volume_momentum_p, 'poly')
+                    volume_mass_s = 0
+                    volume_mass_p = 0
+                    volume_momentum_s = 0.d0
+                    volume_momentum_p = 0.d0
+                case default
+                    call error_abort('Invalid split_pol_sol_stats in m averaging')
+                end select
+
 			case(5)
 				call velocity_bin_cpol_io(cyl_mass,cyl_mom)
 				cyl_mass = 0
@@ -1416,17 +1460,37 @@ subroutine cumulative_velocity(ixyz)
 	!Velocity measurement for 3D bins throughout the domain
 	case(4)
 
-		!Determine bin size
-		Vbinsize(:) = domain(:) / nbins(:)
-
-		!Reset Control Volume momentum 
-		do n = 1,np
-			!Add up current volume mass and momentum densities
-			ibin(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
-			volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + 1
-			volume_momentum(ibin(1),ibin(2),ibin(3),:) = volume_momentum(ibin(1),ibin(2),ibin(3),:) & 
-														+ v(:,n) + slidev(:,n)
-		enddo
+        Vbinsize(:) = domain(:) / nbins(:) 
+        select case (split_pol_sol_stats)
+        case(0)
+            !Reset Control Volume momentum 
+            do n = 1,np
+                !Add up current volume mass and momentum densities
+                ibin(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
+                volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + 1
+                volume_momentum(ibin(1),ibin(2),ibin(3),:) = volume_momentum(ibin(1),ibin(2),ibin(3),:) & 
+                                                            + v(:,n) + slidev(:,n)
+            enddo
+        case(1)
+            !Reset Control Volume momentum 
+            do n = 1,np
+                !Add up current volume mass and momentum densities
+                ibin(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
+                if (monomer(n)%chainID .eq. 0) then
+                    volume_mass_s(ibin(1),ibin(2),ibin(3)) = volume_mass_s(ibin(1),ibin(2),ibin(3)) + 1
+                    volume_momentum_s(ibin(1),ibin(2),ibin(3),:) = volume_momentum_s(ibin(1),ibin(2),ibin(3),:) & 
+                                                                + v(:,n) + slidev(:,n)
+                else
+                    volume_mass_p(ibin(1),ibin(2),ibin(3)) = volume_mass_p(ibin(1),ibin(2),ibin(3)) + 1
+                    volume_momentum_p(ibin(1),ibin(2),ibin(3),:) = volume_momentum_p(ibin(1),ibin(2),ibin(3),:) & 
+                                                                + v(:,n) + slidev(:,n)
+                end if
+            enddo
+            volume_mass = volume_mass_s + volume_mass_p
+            volume_momentum = volume_momentum_s + volume_momentum_p
+        case default 
+            call error_abort('Momentum output not implemented for this potential flag')
+        end select 
 
 	case(5)
 

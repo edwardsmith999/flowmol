@@ -160,6 +160,7 @@ module computational_constants_MD
 		NTemp_ave, 				&	!Number of averages for each temperature measurement
 		Nstress_ave, 			&	!Number of bins for stress calculation
 		split_kin_config, 		&	!Flag to determine if kinetic and configurational stress separated
+		split_pol_sol_stats,    &	!Flag to determine if kinetic and configurational stress separated
 		Nvisc_ave, 				&	!Number of samples for viscosity measurement
 		Nmflux_ave, 			&	!Number of averages for each mass flux
 		Nvflux_ave, 			&	!Number of averages for each velocity flux
@@ -717,6 +718,8 @@ module calculated_properties_MD
 	integer,dimension(:), allocatable 		:: slice_mass	    	!Array to keep tally of molecules in slice
 	integer,dimension(:,:,:), allocatable 	:: slice_massbin 		!Recorded molecules in a bin
 	integer,dimension(:,:,:), allocatable	:: volume_mass			!Mass in a control volume at time t
+	integer,dimension(:,:,:), allocatable	:: volume_mass_s		!Solvnt mass in a control volume at time t
+	integer,dimension(:,:,:), allocatable	:: volume_mass_p		!Polymer mass in a control volume at time t
 	integer,dimension(:,:,:), allocatable	:: volume_mass_pdt		!Mass in a control volume at time t - dt
 	integer,dimension(:,:,:), allocatable	:: dmdt					!Mass change in control volume from t-dt to t
 	integer,dimension(:,:,:,:), allocatable	:: mass_flux  			!Flow of mass over a control volume surface
@@ -768,6 +771,8 @@ module calculated_properties_MD
 
 	double precision, dimension(:,:,:,:), allocatable	:: &
 		volume_momentum,	& 		!Momentum in a control volume at time t
+		volume_momentum_s,	& 		!Solvent momentum in a control volume at time t
+		volume_momentum_p,	& 		!Polymer momentum in a control volume at time t
 		energy_flux,		&		!Flow of energy over a control volume surface
 		Pxyvface,			&		!Power tensor on bin face
 		Pxyvface_mdt,		&		!Power tensor on bin face at previous timestep

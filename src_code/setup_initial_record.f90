@@ -34,7 +34,7 @@ subroutine setup_initial_record
     character(8)            :: the_date
     character(10)           :: the_time
     character(23)           :: file_names_t
-    character(23),parameter :: file_names(30) = &
+    character(23),parameter :: file_names(34) = &
                                 (/ "mslice      ", "mbins       ", "msnap   ",&
                                    "vslice      ", "vbins       ", "vsnap   ",&
                                    "pvirial     ", "pVA         ", "pVA_k   ",& 
@@ -44,7 +44,9 @@ subroutine setup_initial_record
                                    "esurface    ", "viscometrics", "rdf     ",&
                                    "rdf3d       ", "ssf         ", "Fext    ",&
                                    "Tbins       ", "vmd_temp.dcd", "vPDF    ",&
-                                   "bforce_pdf  ", "Fvext       ", "etev    "/) 
+                                   "bforce_pdf  ", "Fvext       ", "etev    ",&
+                                   "msolv       ", "mpoly       ", "vpoly   ",&
+                                   "vsolv       "/) 
 
 
 !   ! COUETTE FLOW ANALYTICAL SOLUTION
