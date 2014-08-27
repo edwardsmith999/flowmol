@@ -1277,6 +1277,8 @@ subroutine cumulative_mass(ixyz)
                 !Add up current volume mass densities
                 ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
                 if (monomer(n)%chainID .eq. 0) then
+                    !Skip wall molecules
+                    if (any(tag(n).eq.tether_tags)) cycle
                     volume_mass_s(ibin(1),ibin(2),ibin(3)) = &
                     volume_mass_s(ibin(1),ibin(2),ibin(3)) + 1
                 else
@@ -1477,6 +1479,7 @@ subroutine cumulative_velocity(ixyz)
                 !Add up current volume mass and momentum densities
                 ibin(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
                 if (monomer(n)%chainID .eq. 0) then
+                    if (any(tag(n).eq.tether_tags)) cycle
                     volume_mass_s(ibin(1),ibin(2),ibin(3)) = volume_mass_s(ibin(1),ibin(2),ibin(3)) + 1
                     volume_momentum_s(ibin(1),ibin(2),ibin(3),:) = volume_momentum_s(ibin(1),ibin(2),ibin(3),:) & 
                                                                 + v(:,n) + slidev(:,n)
