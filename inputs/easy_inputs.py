@@ -2,7 +2,8 @@
 import math
 
 # Desired "Inputs" 
-density = 1.0
+solid_density = 1.0
+liquid_density = 0.5
 rcutoff = 2.0**(1.0/6.0)
 dr_nbr  = 0.36
 D_xL    = 26.                                 # Prefix "D_" for "desired"
@@ -30,17 +31,14 @@ cfd_cells_per_md_proc_x = 1
 cfd_cells_per_md_proc_y = 1
 cfd_cells_per_md_proc_z = 1
 
-ncy_olap = 0
-
 
 # Calculate lattice properties and size 
-a = 1.0 / (math.pow((density/4.0),(1.0/3.0)))    # lattice parameter a
-D_yL_md_pluswall = (D_yL_md + 0.25*a + 
-                    0.5*(wall_layers - 1))       # account for wall
+a = 1.0 / (math.pow((solid_density/4.0),(1.0/3.0)))    # lattice parameter a
+teth_dist = a * (0.25 + 0.5*(wall_layers - 1))
+D_yL_md_pluswall = D_yL_md + teth_dist
 nunits_x_md = int(math.floor(D_xL/a))            # best number of units
 nunits_y_md = int(math.floor(D_yL_md_pluswall/a))
 nunits_z_md = int(math.floor(D_zL/a))
-teth_dist = a * (0.25 + 0.5*(wall_layers - 1))
 teth_dist = round(teth_dist,2) + eps
 
 # Calculate MD domain, proc domain, ncells and cellsize
@@ -77,10 +75,14 @@ zL_cfd = ncz_cfd*dz_cfd
 # Other interesting information
 globalnp = 4*nunits_x_md*nunits_y_md*nunits_z_md
 yL_olap = ncy_olap*dy_cfd
+dV_cfd = dx_cfd*dy_cfd*dz_cfd
+cellsamples = int(round(dV_cfd*liquid_density))
+slicesamples = cellsamples*ncx_cfd*ncz_cfd 
 
 message = (
            "CPL_parameter_tuning inputs: \n" + 
-           "\tdensity:           \t" + str(density)        + "\n" + 
+           "\tsolid_density:     \t" + str(solid_density)  + "\n" + 
+           "\tliquid_density:    \t" + str(liquid_density) + "\n" + 
            "\trcutoff:           \t" + str(rcutoff)        + "\n" + 
            "\tdr_nbr:            \t" + str(dr_nbr)         + "\n" + 
            "\tDesired xL:        \t" + str(D_xL)           + "\n" + 
@@ -138,9 +140,14 @@ message = (
            "\tO'lap size (y):    \t" + str(yL_olap)        + "\n\n\n" + 
 
 
+           "\tSamples per cfd cell: \t" + str(cellsamples) + "\n" +
+           "\tSamples per cfd slice: \t" + str(slicesamples) + "\n\n\n" +
+
+
            "----------- SUGGESTED INPUT PARAMETERS ---------- \n\n" +
            "MD.in: \n\n" +
-           "\tDENSITY:           \t" + str(density) + "\n" +
+           "\tSOLID_DENSITY:     \t" + str(solid_density) + "\n" +
+           "\tLIQUID_DENSITY:     \t" + str(liquid_density) + "\n" +
 		   "\tINITIALNUNITS(x):  \t" + str(nunits_x_md) + "\n" +
            "\tINITIALNUNITS(y):  \t" + str(nunits_y_md) + "\n" +
            "\tINITIALNUNITS(z):  \t" + str(nunits_z_md) + "\n" +
@@ -178,7 +185,7 @@ message = (
           "\tzL:                 \t" + str(zL_cfd) + "\n\n" +
 
           "COUPLER.in: \n\n" +
-          "\tDENSITY_CFD:        \t" + str(density) + "\n" +
+          "\tDENSITY_CFD:        \t" + str(liquid_density) + "\n" +
           "\tTIMESTEP_RATIO:     \t" + "match with MD and CFD dts" + "\n" +
           "\tCONSTRAINT_INFO:    \t" + "don't forget to set the cells correctly!" + "\n" +
           "\tOVERLAP_EXTENTS:    \t" + "don't forget to set the cells correctly! \n\n\n"
