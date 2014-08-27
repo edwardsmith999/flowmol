@@ -98,7 +98,12 @@ class Channelflow_RawData:
 
         def get_int(name):
             name = name.replace('u','')
-            integer, extension = name.split('.')
+            try:
+                integer, extension = name.split('.')
+            except ValueError:
+                print("Unrecognised fileno:", name.split('.'))
+                integer = 10000000000
+
             return int(integer)
 
         subdoms = []
@@ -145,24 +150,29 @@ class Channelflow_RawData:
         return cosgrid
  
 
-    def read(self,startrec,endrec, binlimits=None, verbose=False, quit_on_error=True):
+    def read(self,startrec,endrec, binlimits=None, verbose=False, 
+                quit_on_error=True,wallnormaldir=1):
 
         nrecs = endrec - startrec + 1
         nbins = [self.nx, self.ny, self.nz]
         lower = np.empty(3); upper = np.empty(3)
+
+        def add_laminar(vin,lims):
+            v_laminar = self.cosinegrid(a=-1.0, b=1.0, Npoints=self.nry)
+            return vin[:] - v_laminar[lims[0]:lims[1]]
 
         # If bin limits are specified, return only those within range
         for axis in range(3):
             if (binlimits):
                 if (binlimits[axis] == None):
                     lower[axis] = 0
-                    upper[axis] = nbins[axis]
+                    upper[axis] = int(nbins[axis])
                 else:
-                    lower[axis] = binlimits[axis][0] 
-                    upper[axis] = binlimits[axis][1]
+                    lower[axis] = int(binlimits[axis][0]) 
+                    upper[axis] = int(binlimits[axis][1])
             else:
                 lower[axis] = 0
-                upper[axis] = nbins[axis]
+                upper[axis] = int(nbins[axis])
 
         # Efficient memory allocation
         subdata = np.empty((upper[0]-lower[0],
@@ -176,13 +186,19 @@ class Channelflow_RawData:
         # Loop through files and insert data
         for plusrec in range(0,nrecs):
 
-            fpath = self.fdir + self.get_subdomlist().pop(startrec+plusrec)
+            fpath = self.fdir + self.subdomlist.pop(startrec+plusrec)
             data = self.read_field(fpath)
 
             # insert into array
             subdata[:,:,:,plusrec,:] = data[lower[0]:upper[0],
                                             lower[1]:upper[1],
                                             lower[2]:upper[2], :]
+
+
+            #Add u component of laminar flow in wallnormal direction
+            lims = (lower[wallnormaldir],upper[wallnormaldir])
+            subdata[:,:,:,plusrec,0] = np.apply_along_axis(add_laminar,wallnormaldir, 
+                                                            subdata[:,:,:,plusrec,0],lims)
          
         return subdata
 
