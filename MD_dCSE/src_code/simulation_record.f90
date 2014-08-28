@@ -1225,7 +1225,6 @@ subroutine mass_averaging(ixyz)
 
 	endif
 
-
 end subroutine mass_averaging
 
 !-----------------------------------------------------------------------------------
