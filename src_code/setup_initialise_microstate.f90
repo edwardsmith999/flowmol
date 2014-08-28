@@ -1227,7 +1227,7 @@ subroutine setup_initialise_polymer_brush
     double precision :: solid_bottom(3), solid_top(3)
     double precision :: grafting_density_real, density_ratio
     integer :: nchainsremove, proc_units_xz
-    integer :: wall_np, fluid_np, maxchainID
+    integer :: wall_np, fluid_np, maxchainID, np_poly
     integer, dimension(nproc) :: proc_chains, proc_nps
 
     ! Set positions on a lattice, connectable increasing pos in y
@@ -1277,7 +1277,9 @@ subroutine setup_initialise_polymer_brush
     ! Remove solvent molecules so that target density is acquired, store 
     ! new number of particles
     density_ratio = liquid_density/solid_density
-    nmolsremove = nint(real(np)*(1.d0 - density_ratio))
+    np_poly = (nmonomers-1)*proc_chains(irank) !first monomer is in wall, so -1
+    nmolsremove = nint(real(np - np_poly)*(1.d0 - density_ratio))
+    !print*, 'irank, nmolsremove: ', irank, nmolsremove
     !print*, irank, 'before'
     call remove_solvent_mols(nmolsremove)
     !print*, irank, 'after'
@@ -1304,16 +1306,16 @@ subroutine setup_initialise_polymer_brush
 
 #if USE_COUPLER
 
-    if (jblock .eq. npy .and. iblock .eq. 1 .and. kblock .eq. 1) then
-        print*, '*********************************************************************'
-        print*, '*WARNING - TOP LAYER OF DOMAIN REMOVED IN LINE WITH CONSTRAINT FORCE*'
-        print*, 'Removed from', domain_top, 'to Domain top', globaldomain(2)/2.d0
-        print*, 'Number of molecules reduced from',  & 
-                 4*initialnunits(1)*initialnunits(2)*initialnunits(3), 'to', globalnp
-        print*, '*********************************************************************'
-        !print*, 'microstate ', minval(r(1,:)), maxval(r(1,:)),minval(r(2,:)),  &
-        !         maxval(r(2,:)),minval(r(3,:)), maxval(r(3,:))
-    endif
+    !if (jblock .eq. npy .and. iblock .eq. 1 .and. kblock .eq. 1) then
+    !    print*, '*********************************************************************'
+    !    print*, '*WARNING - TOP LAYER OF DOMAIN REMOVED IN LINE WITH CONSTRAINT FORCE*'
+    !    print*, 'Removed from', domain_top, 'to Domain top', globaldomain(2)/2.d0
+    !    print*, 'Number of molecules reduced from',  & 
+    !             4*initialnunits(1)*initialnunits(2)*initialnunits(3), 'to', globalnp
+    !    print*, '*********************************************************************'
+    !    !print*, 'microstate ', minval(r(1,:)), maxval(r(1,:)),minval(r(2,:)),  &
+    !    !         maxval(r(2,:)),minval(r(3,:)), maxval(r(3,:))
+    !endif
 
 #endif
 
