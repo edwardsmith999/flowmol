@@ -9,7 +9,7 @@
 1		ipout       interval to print out restart file (might be same as iprint????)
 0		istat       Calculate statistics?  Sampling interval
 
-0.85 	Re          Reynolds number
+1.05 	Re          Reynolds number
 1       iSGS        Use a subgrid-scale model?
 
 ! Time-step control
