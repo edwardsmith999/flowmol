@@ -89,6 +89,7 @@ subroutine messenger_init()
 	Lperiodic = .true.
 	call MPI_Cart_create(CFD_COMM, ndims, idims, Lperiodic, .true., &
 	                     icomm_grid, ierr)
+
 	do ip=1,nproc
 		call MPI_Cart_coords(icomm_grid, ip-1, ndims, icoord(1,ip), ierr)
 	end do
