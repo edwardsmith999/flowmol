@@ -5,6 +5,7 @@ import shlex
 
 from simwraplib.platform import get_platform
 from simwraplib.hpc import CXJob
+from simwraplib.cfdinpututils import CFDInputMod 
 from simwraplib.run import Run
 
 class CFDRun(Run):
@@ -17,6 +18,8 @@ class CFDRun(Run):
                  gridinputfile='input.file',
                  setupinputfile='input.setup',
                  inputfile='input',
+                 paraminc=None,
+                 inputchanges={},
                  outputfile='CFD.out',
                  jobname='default_jobname',
                  walltime='24:00:00',
@@ -32,6 +35,8 @@ class CFDRun(Run):
         self.setupinputfile = setupinputfile
         self.gridinputfile = gridinputfile
         self.inputfile = inputfile
+        self.paraminc = paraminc
+        self.inputchanges = inputchanges
         self.outputfile = outputfile
         self.dryrun = dryrun
 
@@ -39,11 +44,15 @@ class CFDRun(Run):
             quit('You must specify a base directory which contains'+
                  ' all input files.') 
 
+
         if (self.srcdir[-1] != '/'): self.srcdir += '/'
         if (self.rundir[-1] != '/'): self.rundir += '/'
         if (self.basedir[-1] != '/'): self.basedir += '/'
         if (self.executable[0:2] != './'): 
             self.executable = './' + self.executable
+
+        if (self.paraminc == None):
+            self.paraminc = self.srcdir + 'main_code/param.inc'
 
         # Work out what machine we're on
         self.platform = get_platform()
@@ -56,6 +65,9 @@ class CFDRun(Run):
         elif (self.platform == 'cx2'):
             self.jobname = jobname
             self.walltime = walltime
+
+        # Set input mod to be CFD kind
+        self.inputmod = CFDInputMod
 
     def setup(self, existscheck=False): 
         
@@ -133,12 +145,9 @@ class CFDRun(Run):
         
         self.prepare_inputs()
 
-    def prepare_inputs(self, *args, **kwargs):
-        print('CFD cannot currently change inputs')
-    
     def get_nprocs(self, *args, **kwargs):  
        
-        with open(self.srcdir+'main_code/param.inc') as f:
+        with open(self.paraminc) as f:
             for line in f:
                 if ('npx' in line):
                     npx = int(line.split('npx=')[1].split(',')[0])

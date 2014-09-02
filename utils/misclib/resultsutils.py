@@ -4,6 +4,54 @@ import re
 import sys
 import shutil as sh
 
+class ResultsOperations:
+    
+    def __init__(self, fdir):
+        if (fdir[-1]!='/'): fdir+='/'
+        self.fdir = fdir
+
+    def Add(self, fnames_add, fname_out, dtype):
+        import glob
+        import numpy as np
+
+        for fname in fnames_add:
+            if (glob.glob(self.fdir+fname+'.*')):
+                separate_outfiles = True
+            elif (glob.glob(self.fdir+fname)):
+                separate_outfiles = False
+            else:
+                quit("Can't find {0:s} in {1:s}".format(fname,self.fdir))
+
+        if (separate_outfiles):
+
+            recs = [f.split('.')[-1] for f in glob.glob(self.fdir+fname+'.*')]
+
+            for rec in recs:
+
+                path_out = '{0:s}.{1:s}'.format(self.fdir+fname_out,rec)
+                print('Adding {0:s} to {1:s} for rec {2:s} in {3:s}'.
+                      format(str(fnames_add),fname_out,rec,self.fdir))
+
+                first_in = '{0:s}.{1:s}'.format(self.fdir+fnames_add[0],rec)
+                totaldata = np.fromfile(first_in,dtype=dtype)
+                for fname in fnames_add[1:]:
+                    path_in = '{0:s}.{1:s}'.format(self.fdir+fname,rec)
+                    totaldata += np.fromfile(path_in,dtype=dtype)
+                
+                totaldata.tofile(path_out)
+        
+        else:
+            
+            path_out = '{0:s}.{1:s}'.format(self.fdir+fname_out)
+            first_in = self.fdir+fnames_add[0]
+            totaldata = np.fromfile(first_in,dtype=dtype)
+            for fname in fnames_add[1:]:
+                path_in = self.fdir+fname
+                totaldata += np.fromfile(path_in,dtype=dtype)
+            totaldata.tofile(path_out)
+
+                
+        
 class ResultsUtils:
 
     def __init__(self,outdir):

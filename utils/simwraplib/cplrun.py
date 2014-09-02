@@ -4,6 +4,7 @@ import shutil as sh
 import subprocess as sp
 
 from simwraplib.run import Run
+from simwraplib.inpututils import InputMod
 from simwraplib.platform import get_platform
 from simwraplib.hpc import CXJob
 
@@ -17,6 +18,7 @@ class CPLRun(Run):
                  rundir='../coupler_dCSE/src_code/',
                  inputfile='COUPLER.in',
                  outputfile='COUPLER.out',
+                 inputchanges={},
                  jobname='default_jobname',
                  walltime='24:00:00',
                  icib='true',
@@ -31,6 +33,7 @@ class CPLRun(Run):
         self.rundir = rundir
         self.inputfile = inputfile
         self.outputfile = outputfile
+        self.inputchanges = inputchanges
         self.dryrun = dryrun
 
         if (self.basedir == None):
@@ -54,6 +57,8 @@ class CPLRun(Run):
             self.jobname = jobname
             self.walltime = walltime
 
+        # Set input modifier to be normal kind
+        self.inputmod = InputMod
 
     def setup(self):
 
@@ -69,11 +74,9 @@ class CPLRun(Run):
         self.mdrun.rundir = self.rundir + self.mdrunsubdir 
         self.cfdrun.rundir = self.rundir + self.cfdrunsubdir 
 
+        self.prepare_inputs()
         self.mdrun.setup()
         self.cfdrun.setup()
-
-    def prepare_inputs(self):
-        print("CPLRun can't change inputs yet")
        
     def get_nprocs(self):
         self.mdprocs = self.mdrun.get_nprocs() 

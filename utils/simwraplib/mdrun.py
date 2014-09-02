@@ -132,6 +132,10 @@ class MDRun(Run):
             self.jobname = jobname
             self.walltime = walltime
 
+
+        # Set input modifier to be normal kind
+        self.inputmod = InputMod
+
     def build_executable(self,debug=False):
 
         """
@@ -160,30 +164,6 @@ class MDRun(Run):
 #            diffexec = sp.check_output(split_cmdstg)
 #            print(diffexec)
 
-        return
-
-    def prepare_inputs(self,extrachanges=None):
-
-        """
-            Make alterations to the base input file (specified on 
-            construction) that will be copied into the run directory.
-        
-            The input "changes" should be a dictionary of the form:
-            
-                changes = { 'DENSITY': 0.8, 'INPUTTEMPERATURE': 1.0 , ...}    
-                
-        """
-
-        mod = InputMod(self.rundir+self.inputfile)
-
-        #If additional changes, add these to the input changes
-        if (extrachanges):
-            self.inputchanges.update(extrachanges)
-
-        for key in self.inputchanges:
-            values = self.inputchanges[key]
-            mod.replace_input(key,values)    
-        
         return
 
     def setup(self, existscheck=False):
