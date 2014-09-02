@@ -22,9 +22,10 @@ class CFD_RawData:
             return param
 
         Re = extract_param('Re')
-        Umax = extract_param('uwall_t')
-        L = 1.0
-        nu = Umax*L/Re
+        #Umax = extract_param('uwall_t')
+        #L = 1.0
+        #nu = Umax*L/Re
+        nu = 1.0/Re
         return Re, nu
 
     def get_grid(self):
