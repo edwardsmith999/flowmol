@@ -1207,8 +1207,10 @@ subroutine mass_averaging(ixyz)
             case(1)
                 call mass_bin_io(volume_mass_s,'solv')
                 call mass_bin_io(volume_mass_p,'poly')
+                call mass_bin_io(volume_mass,'bins')
                 volume_mass_s = 0
                 volume_mass_p = 0
+                volume_mass = 0
             case default
                 call error_abort('Invalid split_pol_sol_stats in m averaging')
             end select
@@ -1393,10 +1395,13 @@ subroutine velocity_averaging(ixyz)
                 case(1)
                     call velocity_bin_io(volume_mass_s, volume_momentum_s, 'solv')
                     call velocity_bin_io(volume_mass_p, volume_momentum_p, 'poly')
+                    call velocity_bin_io(volume_mass, volume_momentum, 'bins')
                     volume_mass_s = 0
                     volume_mass_p = 0
+                    volume_mass = 0
                     volume_momentum_s = 0.d0
                     volume_momentum_p = 0.d0
+                    volume_momentum = 0.d0 
                 case default
                     call error_abort('Invalid split_pol_sol_stats in m averaging')
                 end select
