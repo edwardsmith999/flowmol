@@ -160,7 +160,7 @@ module computational_constants_MD
 		NTemp_ave, 				&	!Number of averages for each temperature measurement
 		Nstress_ave, 			&	!Number of bins for stress calculation
 		split_kin_config, 		&	!Flag to determine if kinetic and configurational stress separated
-		split_pol_sol_stats,    &	!Flag to determine if kinetic and configurational stress separated
+		split_pol_sol_stats,    &	!Flag to determine if polymer and solvent stats separated
 		Nvisc_ave, 				&	!Number of samples for viscosity measurement
 		Nmflux_ave, 			&	!Number of averages for each mass flux
 		Nvflux_ave, 			&	!Number of averages for each velocity flux
