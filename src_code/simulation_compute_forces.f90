@@ -307,11 +307,6 @@ implicit none
 
 	integer                         :: i,j
 	integer                         :: p_i, p_j, ptot
-	double precision, parameter     :: sod_a    = 3.1730728678
-	double precision, parameter     :: sod_b    = -0.85622864544
-	double precision, parameter     :: wca_cut  = 1.12246204830937
-!	double precision, parameter     :: wca_cut2 = 1.25992104989486
-	double precision, parameter     :: wca_cut2 = 1.25992104989487
 	double precision                :: eps
 
 	do i = 1,np
@@ -787,10 +782,10 @@ implicit none
 	integer							:: molnoi, molnoj, j
 	integer							:: noneighbrs
 	type(neighbrnode), pointer		:: old, current
-	double precision, parameter     :: sod_a    = 3.1730728678
-	double precision, parameter     :: sod_b    = -0.85622864544
-	double precision, parameter     :: wca_cut  = 1.12246204830937
-	double precision, parameter     :: wca_cut2 = 1.25992104989487
+	!double precision, parameter     :: sod_a    = 3.1730728678
+	!double precision, parameter     :: sod_b    = -0.85622864544
+	!double precision, parameter     :: wca_cut  = 1.12246204830937
+	!double precision, parameter     :: wca_cut2 = 1.25992104989487
 	double precision                :: eps
 
 	do molnoi = 1, np
@@ -894,6 +889,9 @@ end subroutine simulation_compute_forces_Soddemann_neigbr_halfint
 
 subroutine simulation_compute_rfbins(imin, imax, jmin, jmax, kmin, kmax)
 	use module_compute_forces
+    use polymer_info_MD, only: sod_cut2, sod_a, sod_b, wca_cut2, wca_cut,&
+                               eps_pp, eps_ps, eps_ss, solvent_flag, monomer
+    use interfaces, only: error_abort
 	implicit none
 
 	integer,intent(in)  			:: imin, jmin, kmin, imax, jmax, kmax
@@ -904,9 +902,13 @@ subroutine simulation_compute_rfbins(imin, imax, jmin, jmax, kmin, kmax)
 	integer                         :: cellnp, adjacentcellnp 
 	integer							:: molnoi, molnoj
 	integer							:: icellmin,jcellmin,kcellmin,icellmax,jcellmax,kcellmax
+
+    integer :: p_i, p_j, ptot
+
 	type(node), pointer 	        :: oldi, currenti, oldj, currentj
 
 	double precision,dimension(3)	:: cellsperbin
+    double precision :: eps
 
 	!rfbin = 0.d0
 	!allocate(rijsum(nd,np+extralloc)) !Sum of rij for each i, used for SLLOD algorithm
@@ -997,27 +999,73 @@ subroutine simulation_compute_rfbins(imin, imax, jmin, jmax, kmin, kmax)
 						rij2 = rij2+rij(ixyz)*rij(ixyz) !Square of vector calculated
 					enddo
 
-					if (rij2 < rcutoff2) then
-						!Add current distance to rijsum for molecules i and j
-						!rijsum(:,molnoi) = rijsum(:,molnoi) + 0.5d0*rij(:)
-						!rijsum(:,molnoj) = rijsum(:,molnoj) + 0.5d0*rij(:)
-						!Linear magnitude of acceleration for each molecule
-						invrij2 = 1.d0/rij2                 !Invert value
-						accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
+                    if (potential_flag .eq. 1 .and. solvent_flag .eq. 1) then
 
-						!Select requested configurational line partition methodology
-						select case(VA_calcmethod)
-						case(0)
-							call pressure_tensor_forces_H(ri,rj,rij,accijmag)
-						case(1)
-							call pressure_tensor_forces_VA_trap(ri,rj,accijmag)
-						case(2)
-							call pressure_tensor_forces_VA(ri,rj,rij,accijmag)
-						case default
-							stop "Error - VA_calcmethod incorrect"
-						end select 
+                        if (rij2 .lt. sod_cut2) then            !If within potential range
 
-					endif
+                            p_i = 0                             !Init as solvent
+                            p_j = 0                             !Init as solvent
+                            if (monomer(molnoi)%chainID .ne. 0) p_i = 1 !Flag polymer
+                            if (monomer(molnoj)%chainID .ne. 0) p_j = 1 !Flag polymer
+                            ptot = p_i + p_j                    !Find flag total
+                        
+                            !Linear magnitude of acceleration for each bead---------------
+                            select case (ptot)
+                            case(0)
+                                eps = eps_ss                 !Solvent-solvent interaction
+                            case(1)
+                                eps = eps_ps                 !Polymer-solvent interaction
+                            case(2)
+                                eps = eps_pp                 !Polymer-polymer interaction
+                                                             !(no FENE)
+                            case default
+                                call error_abort("Undetermined interaction in &
+                                                  &compute_forces_Soddemann")
+                            end select
+                        
+                            invrij2  = 1.d0/rij2             !Useful value
+                            if (rij2 .lt. wca_cut2) then
+                                accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
+                            else
+                                accijmag = (eps*sod_a*invrij2**2.d0)*sin(invrij2*sod_a &
+                                                                         + sod_b)
+                            end if          
+
+                            !Select requested configurational line partition methodology
+                            select case(VA_calcmethod)
+                            case(0)
+                                call pressure_tensor_forces_H(ri,rj,rij,accijmag)
+                            case(1)
+                                call pressure_tensor_forces_VA_trap(ri,rj,accijmag)
+                            case(2)
+                                call pressure_tensor_forces_VA(ri,rj,rij,accijmag)
+                            case default
+                                stop "Error - VA_calcmethod incorrect"
+                            end select 
+
+                        end if
+                                     
+                    else
+                        if (rij2 < rcutoff2) then
+
+                            invrij2 = 1.d0/rij2                 !Invert value
+                            accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
+
+                            !Select requested configurational line partition methodology
+                            select case(VA_calcmethod)
+                            case(0)
+                                call pressure_tensor_forces_H(ri,rj,rij,accijmag)
+                            case(1)
+                                call pressure_tensor_forces_VA_trap(ri,rj,accijmag)
+                            case(2)
+                                call pressure_tensor_forces_VA(ri,rj,rij,accijmag)
+                            case default
+                                stop "Error - VA_calcmethod incorrect"
+                            end select 
+
+                        end if
+                    end if
+
 				enddo
 			enddo
 			enddo

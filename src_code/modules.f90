@@ -473,6 +473,11 @@ module polymer_info_MD
 	double precision    :: eps_pp, eps_ps, eps_ss   !Solvent parameters
 	double precision, parameter :: sod_cut =1.5d0   !Soddemann potential cutoff
 	double precision, parameter :: sod_cut2=2.25d0  ! 
+	double precision, parameter :: sod_a    = 3.1730728678
+	double precision, parameter :: sod_b    = -0.85622864544
+	double precision, parameter :: wca_cut  = 1.12246204830937
+!	double precision, parameter :: wca_cut2 = 1.25992104989486
+	double precision, parameter :: wca_cut2 = 1.25992104989487
 
 	double precision 	:: k_c, R_0					!Spring constant and max elongation of bonds	
 	double precision 	:: etevtcf                  !End-to-end vector time correlation function

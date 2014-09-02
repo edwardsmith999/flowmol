@@ -207,6 +207,18 @@ subroutine setup_read_input
             read(1,*) R_0
             read(1,*) grafting_density
 
+			call locate(1,'SOLVENT_INFO',.true.)
+			read(1,*) solvent_flag
+			select case(solvent_flag)
+			case(0)
+			case(1)
+				read(1,*) eps_pp
+				read(1,*) eps_ps
+				read(1,*) eps_ss
+			case default
+				call error_abort('Unrecognised solvent flag!')
+			end select
+
             call locate(1,'DENSITY',.true.)
             read(1,*) density
             call locate(1,'LIQUIDDENSITY',.true.)
