@@ -96,7 +96,7 @@ subroutine setup_read_input
 			read(1,*) initialnunits(2)
 			read(1,*) initialnunits(3)	
 
-        case('fene_solution')
+        case('fene_solution','single_fene')
 
             potential_flag = 1
             rcutoff = 2.d0**(1.d0/6.d0)

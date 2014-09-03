@@ -41,8 +41,13 @@ subroutine setup_initialise_microstate
             call setup_lattice_dense_FENE_info !Chain IDs, etc
             call setup_location_tags           !Setup locn of fixed mols
         case('fene_solution')
-            call setup_initialise_lattice      !Numbering for FENE bonds
-            call setup_FENE_solution !Numbering for FENE bonds
+            call setup_initialise_lattice
+            call setup_FENE_solution           !Numbering for FENE bonds
+            call setup_location_tags           !Setup locn of fixed mols
+        case('single_fene')
+            call setup_initialise_lattice      
+            call setup_FENE_solution           !Numbering for FENE bonds
+            call setup_remove_allbutoneFENE    !Leave single chain
             call setup_location_tags           !Setup locn of fixed mols
         case('solid_liquid')
             call setup_initialise_solid_liquid
@@ -594,27 +599,6 @@ contains
 
     end subroutine
 
-    subroutine mark_chain_as_solvent(ID)
-        implicit none
-
-        integer, intent(in) :: ID
-
-        integer :: molno
-
-        do molno = 1, np
-
-            if (monomer(molno)%chainID .eq. ID) then
-                monomer(molno)%chainID = 0
-                monomer(molno)%subchainID = 1
-                monomer(molno)%funcy = 0
-                monomer(molno)%bin_bflag(:) = 0
-                bond(:,molno) = 0
-            end if
-
-        end do
-
-    end subroutine mark_chain_as_solvent
-
     subroutine test_for_connectability(molno, seekahead, success)
         implicit none
         
@@ -654,6 +638,24 @@ contains
     end subroutine test_for_connectability
 
 end subroutine setup_FENE_solution
+
+subroutine setup_remove_allbutoneFENE
+    use interfaces
+    use polymer_info_MD
+    use physical_constants_MD, only: np
+    use messenger, only: irank
+    implicit none
+
+    integer :: n
+
+    do n=1,np
+        if (monomer(n)%chainID .gt. 1) then
+            call mark_chain_as_solvent(monomer(n)%chainID)
+        end if 
+    end do
+    nchains = 1
+
+end subroutine setup_remove_allbutoneFENE
 
 !--------------------------------------------------------------------------------
 !FENE info
@@ -949,27 +951,6 @@ contains
 
 
     end subroutine
-
-    subroutine mark_chain_as_solvent(ID)
-        implicit none
-
-        integer, intent(in) :: ID
-
-        integer :: molno
-
-        do molno = 1, np
-
-            if (monomer(molno)%chainID .eq. ID) then
-                monomer(molno)%chainID = 0
-                monomer(molno)%subchainID = 1
-                monomer(molno)%funcy = 0
-                monomer(molno)%bin_bflag(:) = 0
-                bond(:,molno) = 0
-            end if
-
-        end do
-
-    end subroutine mark_chain_as_solvent
 
     subroutine test_for_connectability(molno, seekahead, success)
         implicit none
@@ -1640,27 +1621,6 @@ contains
 
 
     end subroutine
-
-    subroutine mark_chain_as_solvent(ID)
-        implicit none
-
-        integer, intent(in) :: ID
-
-        integer :: molno
-
-        do molno = 1, np
-
-            if (monomer(molno)%chainID .eq. ID) then
-                monomer(molno)%chainID = 0
-                monomer(molno)%subchainID = 1
-                monomer(molno)%funcy = 0
-                monomer(molno)%bin_bflag(:) = 0
-                bond(:,molno) = 0
-            end if
-
-        end do
-
-    end subroutine mark_chain_as_solvent
 
     subroutine test_for_connectability(molno, seekahead, success)
         implicit none

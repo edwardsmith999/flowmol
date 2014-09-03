@@ -365,7 +365,7 @@ subroutine set_parameters_global_domain
 			! - corrected after position setup
 			np = globalnp / nproc
 		
-		case ('dense_fene','fene_solution')
+		case ('dense_fene','fene_solution','single_fene')
 			
 			globaldomain(:) = initialnunits(:)/((density/4.d0)**(1.d0/nd))
 			initialunitsize(:) = globaldomain(:) / initialnunits(:)

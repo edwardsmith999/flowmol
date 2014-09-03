@@ -684,6 +684,28 @@ contains
 
 	end subroutine write_monomer_info
 
+    subroutine mark_chain_as_solvent(ID)
+        use physical_constants_MD, only: np
+        implicit none
+
+        integer, intent(in) :: ID
+
+        integer :: molno
+
+        do molno = 1, np
+
+            if (monomer(molno)%chainID .eq. ID) then
+                monomer(molno)%chainID = 0
+                monomer(molno)%subchainID = 1
+                monomer(molno)%funcy = 0
+                monomer(molno)%bin_bflag(:) = 0
+                bond(:,molno) = 0
+            end if
+
+        end do
+
+    end subroutine mark_chain_as_solvent
+
 end module polymer_info_MD
 
 !-------------------------------------------------------------------------------------
