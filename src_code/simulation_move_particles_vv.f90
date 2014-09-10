@@ -468,7 +468,7 @@ contains
 
 	!----------------------------------------------------------------------------
 	!Evaluate pairwise terms for DPD thermostat by 
-	!Soddemann, Dunweg an Kremer Phys Rev E 68, 046702 (2003)
+	!Soddemann, Dunweg and Kremer Phys Rev E 68, 046702 (2003)
 	!From this paper : typical 0.5 < zeta < 1.5 
 	!Random numbers do not need to be Gaussian
 
@@ -592,7 +592,7 @@ contains
 
 	!----------------------------------------------------------------------------
 	!ALL PAIRS Evaluate pairwise terms for DPD thermostat by 
-	!Soddemann, Dunweg an Kremer Phys Rev E 68, 046702 (2003)
+	!Soddemann, Dunweg and Kremer Phys Rev E 68, 046702 (2003)
 	!From this paper : typical 0.5 < zeta < 1.5 
 	!Random numbers do not need to be Gaussian
 

@@ -3070,37 +3070,100 @@ subroutine pressure_tensor_forces(molno, rij, accijmag)
 
 end subroutine pressure_tensor_forces
 
+
+
+
+
+
+!---------------------------------------------------------------
+! Contains all routines for Volume Average Stress Calculation
+
+module Volume_average_pressure
+
+
+contains
+
+!---------------------------------------------------------------
+! Top level for stress calculation
+! Author: Edward Smith (edward.smith05@imperial.ac.uk)
+!Inputs: 
+!       ri       - Position of molecules i 
+!       rj       - Position of molecules j
+!       accijmag - Magnitude of force
+!       domain   - Total domain size
+!       nbins    - Number of averaging bins in domain
+!       nhb      - Number of halos bins (for periodic boundaries/parallel simulations)
+!  VA_calcmethod - Method of VA calculation
+!       rfbin    - Returned array with length of interaction
+!     
+! N.B. molecular positon from -halfdomain to +halfdomain       
+
+
+subroutine pressure_tensor_forces_VA(ri, rj, accijmag, domain,  & 
+                                   nbins, nhb, rfbin, VA_calcmethod)
+    use computational_constants_MD, only : VA_line_samples, cellsidelength
+
+    integer,intent(in)                                      :: VA_calcmethod
+    integer,dimension(3),intent(in)                         :: nbins,nhb
+	double precision,intent(in)            			        :: accijmag
+	double precision,dimension(3), intent(in)		        :: ri, rj, domain
+	double precision,dimension(:,:,:,:,:), intent(inout)	:: rfbin
+
+	double precision,dimension(3)                           :: halfdomain
+
+    halfdomain = 0.5d0 * domain
+
+	!Select requested configurational line partition methodology
+	select case(VA_calcmethod)
+	case(0)
+		call pressure_tensor_forces_H(ri,rj,accijmag)
+	case(1)
+		call pressure_tensor_forces_VA_trap(ri,rj,accijmag,VA_line_samples)
+	case(2)
+		call pressure_tensor_forces_VA_exact(ri,rj,accijmag)
+	case default
+		stop "Error - VA_calcmethod incorrect"
+	end select 
+
+contains
+
 !====================================================================================
 ! CONFIGURATIONAL INTERACTIONS ASSIGNED TO CONTAINING BIN - HALF PER MOLECULE 
+! Author: Edward Smith (edward.smith05@imperial.ac.uk)
 ! Use a configurational expression, similar to the virial with interaction partitioned 
 ! between bins with HALF given per bin and nothing in intermediate bins
 ! This is also called the Harasima contour in NAMD (MD package) and the paper it references
 ! Jacob Sonne,a Flemming Y. Hansen, and Günther H. Peters J.CHEM.PHYS. 122, 124903 (2005)
 ! The original paper by A. Harasima, Advances in Chemical Physics, Volume 1 P201 is unavailable
 
-subroutine pressure_tensor_forces_H(ri,rj,rij,accijmag)
-	use module_record
+subroutine pressure_tensor_forces_H(ri,rj,accijmag)
 	implicit none
+
+	double precision,intent(in)            			:: accijmag    !Non directional component of acceleration
+	double precision,dimension(3), intent(in)		:: ri, rj
 
 	integer											:: ixyz, jxyz
 	integer											:: diff
 	integer,dimension(3)							:: ibin, jbin, bindiff 
-	double precision,intent(in)            			:: accijmag    !Non directional component of acceleration
-	double precision,dimension(3), intent(in)		:: rij, ri, rj
-	double precision,dimension(3)					:: VAbinsize
+	double precision,dimension(3)					:: VAbinsize, rij
+
+    rij = rj - ri
 
 	!================================================================
 	!= Establish bins for molecules & check number of required bins	=
 	!================================================================
 
-	do ixyz = 1,nd
+	do ixyz = 1,3
 
 		VAbinsize(ixyz) = domain(ixyz) / nbins(ixyz)
-		if (VAbinsize(ixyz) .lt. cellsidelength(ixyz)) stop "Binsize bigger than cellsize ~ Not ok for volume averaging"
+		if (VAbinsize(ixyz) .lt. cellsidelength(ixyz)) & 
+            stop "Binsize bigger than cellsize ~ Not ok for volume averaging"
 
 		!Determine current bins using integer division
-		ibin(ixyz) = ceiling((ri(ixyz)+halfdomain(ixyz))/VAbinsize(ixyz)) + 1 !Establish current i bin
-		jbin(ixyz) = ceiling((rj(ixyz)+halfdomain(ixyz))/VAbinsize(ixyz)) + 1 !Establish current j bin
+		ibin(ixyz) = ceiling((ri(ixyz)+halfdomain(ixyz)) & 
+                        /VAbinsize(ixyz)) + 1 !Establish current i bin
+		jbin(ixyz) = ceiling((rj(ixyz)+halfdomain(ixyz)) & 
+                        /VAbinsize(ixyz)) + 1 !Establish current j bin
 
 		!Check number of bins between molecules
 		bindiff(ixyz) = abs(ibin(ixyz) - jbin(ixyz)) + 1
@@ -3117,8 +3180,8 @@ subroutine pressure_tensor_forces_H(ri,rj,rij,accijmag)
 	!Ignore values outside of domain resulting from shifted bin 
 	if (minval(ibin) .lt. 1) diff = 0
 	if (minval(jbin) .lt. 1) diff = 0
-	if (maxval(ibin) .gt. maxval(nbins)+2) diff = 0
-	if (maxval(jbin) .gt. maxval(nbins)+2) diff = 0
+	if (maxval(ibin) .gt. maxval(nbins+2*nhb)) diff = 0
+	if (maxval(jbin) .gt. maxval(nbins+2*nhb)) diff = 0
 
 	select case(diff)
 	!================Skip Force addition===========================
@@ -3129,10 +3192,11 @@ subroutine pressure_tensor_forces_H(ri,rj,rij,accijmag)
 	case(3)
 
 		!------Add molecules to bin-----
-		do ixyz = 1,nd
-		do jxyz = 1,nd
+		do ixyz = 1,3
+		do jxyz = 1,3
 			!Factor of two as molecule i and molecule j are both counted in bin i
-			rfbin(ibin(1),ibin(2),ibin(3),ixyz,jxyz) = rfbin(ibin(1),ibin(2),ibin(3),ixyz,jxyz) &
+			rfbin(ibin(1),ibin(2),ibin(3),ixyz,jxyz) = & 
+                rfbin(ibin(1),ibin(2),ibin(3),ixyz,jxyz) &
 				  + accijmag*rij(ixyz)*rij(jxyz)
 		enddo
 		enddo
@@ -3142,14 +3206,16 @@ subroutine pressure_tensor_forces_H(ri,rj,rij,accijmag)
 
 		!------Add molecules to bin-----
 		!Molecule i and j contribution split between bins
-		do ixyz = 1,nd
-		do jxyz = 1,nd
+		do ixyz = 1,3
+		do jxyz = 1,3
 			!-----------Molecule i bin-----------
-			rfbin(ibin(1),ibin(2),ibin(3),ixyz,jxyz) = rfbin(ibin(1),ibin(2),ibin(3),ixyz,jxyz) &
+			rfbin(ibin(1),ibin(2),ibin(3),ixyz,jxyz) = & 
+                rfbin(ibin(1),ibin(2),ibin(3),ixyz,jxyz) &
 				  + 0.5d0*accijmag*rij(ixyz)*rij(jxyz)
 
 			!-----------Molecule j bin-----------
-			rfbin(jbin(1),jbin(2),jbin(3),ixyz,jxyz) = rfbin(jbin(1),jbin(2),jbin(3),ixyz,jxyz) &
+			rfbin(jbin(1),jbin(2),jbin(3),ixyz,jxyz) = & 
+                rfbin(jbin(1),jbin(2),jbin(3),ixyz,jxyz) &
 				  + 0.5d0*accijmag*rij(ixyz)*rij(jxyz)
 
 		enddo
@@ -3163,24 +3229,25 @@ subroutine pressure_tensor_forces_H(ri,rj,rij,accijmag)
 
 end subroutine pressure_tensor_forces_H
 
+
 !====================================================================================
 ! VOLUME AVERAGE CONFIGURATIONAL EXPRESSION
-! Author: David Trevelyan, July 2013
-! Linear trajectory path sampled to find approximate values of l_ij (less accurate, 
-! but much easier to understand, and no problems with polar coordinates)
-subroutine pressure_tensor_forces_VA_trap(ri,rj,accijmag)
-	use computational_constants_MD, only: domain, halfdomain, VA_line_samples
-	use calculated_properties_MD, only: nbins, rfbin
+! Author: David Trevelyan, July 2013 (david.trevelyan06@imperial.ac.uk)
+! Linear trajectory path sampled to find approximate values of l_ij 
+!(less accurate, but much easier to understand)
+
+subroutine pressure_tensor_forces_VA_trap(ri,rj,accijmag,VA_line_samples)
 	use librarymod, only: outerprod
 	
 	implicit none
 
+    integer,intent(in)          :: VA_line_samples
 	real(kind(0.d0)), intent(in) :: accijmag
 	real(kind(0.d0)), dimension(3), intent(in) :: ri, rj
 
 	integer :: ss
-	integer :: Ns
-	real(kind(0.d0)) :: s, ds, rs(3), rij(3), Fij(3), VAbinsize(3), bin(3), rF(3,3)
+	integer :: Ns, bin(3)
+	real(kind(0.d0)) :: s, ds, rs(3), rij(3), Fij(3), VAbinsize(3), rF(3,3)
 
 	VAbinsize(:) = domain(:) / nbins(:)
 	rij = rj - ri
@@ -3213,6 +3280,648 @@ subroutine pressure_tensor_forces_VA_trap(ri,rj,accijmag)
 	end do	
 	
 end subroutine pressure_tensor_forces_VA_trap
+
+!===============================================================================
+! VOLUME AVERAGE CONFIGURATIONAL EXPRESSION
+! Author: Edward Smith (edward.smith05@imperial.ac.uk)
+! Use a configurational expression, similar to the virial with interaction partitioned 
+! between bins based on the share of the interaction between two molecules in a given bin
+! N.B. Assume no more than 1 bin between bins containing the molecules
+! This is the Volume Average stress of Lutsko, although this is also called the
+! Irving Kirkwood contour in NAMD (MD package) and the paper it references
+! Jacob Sonne,a Flemming Y. Hansen, and Günther H. Peters J.CHEM.PHYS. 122, 124903 (2005)
+! 								╭∩╮（︶︿︶）╭∩╮﻿
+
+subroutine pressure_tensor_forces_VA_exact(ri,rj,accijmag)
+	use librarymod, only : magnitude, plane_line_intersect
+	implicit none
+
+	double precision,intent(in)            			:: accijmag    !Non directional component of acceleration
+	double precision,dimension(3), intent(in)		:: ri, rj
+
+
+	integer											:: ixyz, jxyz,i,j,k,l,n
+	integer											:: diff
+	integer,dimension(3)							:: ibin, jbin, bindiff 
+	integer,dimension(:,:)		   ,allocatable		:: interbin, interbindiff
+	double precision,dimension(3)					:: VAbinsize, normal, p,temp1,temp2,temp3
+	double precision,dimension(3)                   :: rij
+	double precision,dimension(:,:)	   ,allocatable	:: intersection
+	double precision,dimension(:,:,:)  ,allocatable	:: MLfrac !Magnitude of fraction of stress
+	double precision,dimension(:,:,:,:),allocatable	:: Lfrac  !Fraction of stress in a given cell
+
+    !Define rij
+    rij = rj - ri
+
+	!================================================================
+	!= Establish bins for molecules & check number of required bins	=
+	!================================================================
+
+	do ixyz = 1,3
+
+		VAbinsize(ixyz) = domain(ixyz) / nbins(ixyz)
+		if (VAbinsize(ixyz) .lt. cellsidelength(ixyz)) &
+                     stop "Binsize bigger than cellsize ~ Not ok for volume averaging"
+
+		!Determine current bins using integer division
+		ibin(ixyz) = ceiling((ri(ixyz)+halfdomain(ixyz))/VAbinsize(ixyz)) + 1 !Establish current i bin
+		jbin(ixyz) = ceiling((rj(ixyz)+halfdomain(ixyz))/VAbinsize(ixyz)) + 1 !Establish current j bin
+
+		!Check number of bins between molecules
+		bindiff(ixyz) = abs(ibin(ixyz) - jbin(ixyz)) + 1
+
+	enddo
+
+	!================================================================
+	!=			Assign to bins				=
+	!================================================================
+
+	!Check difference between bins i and j
+	diff = bindiff(1)+bindiff(2)+bindiff(3)
+
+	!Ignore values outside of domain resulting from shifted bin 
+	if (minval(ibin) .lt. 1) diff = 0
+	if (minval(jbin) .lt. 1) diff = 0
+	if (maxval(ibin) .gt. maxval(nbins+2*nhb)) diff = 0
+	if (maxval(jbin) .gt. maxval(nbins+2*nhb)) diff = 0
+
+	select case(diff)
+	!================Skip Force addition===========================
+	case(0)
+	!Do Nothing
+
+	!================Molecules in same bin===========================
+	case(3)
+
+		!------Add molecules to bin-----
+		do ixyz = 1,3
+		do jxyz = 1,3
+			!Factor of two as molecule i and molecule j are both counted in bin i
+			rfbin(ibin(1),ibin(2),ibin(3),ixyz,jxyz) = rfbin(ibin(1),ibin(2),ibin(3),ixyz,jxyz) &
+				  + accijmag*rij(ixyz)*rij(jxyz)
+		enddo
+		enddo
+
+	!===================Interactions split over 2 cells only==========
+	case(4)
+
+		!Allocate array for vectors from molecules to bin walls
+		allocate(Lfrac(bindiff(1),bindiff(2),bindiff(3),3))
+		!Allocate arrays for magnitude of vector Lfrac
+		allocate(MLfrac(bindiff(1),bindiff(2),bindiff(3)))
+		!Allocate array for one bin intersection point
+		allocate(intersection(3,1))
+		Lfrac = 0.d0
+		MLfrac = 0.d0
+
+		do ixyz = 1,3
+			!Test to see over which coordinate molecules are in different bins
+			if (bindiff(ixyz) .ne. 1) then
+
+				!Set normal to plane for ixyz
+				normal = 0.d0
+				normal(ixyz) = 1.d0
+
+				!Establish location of plane between ri and rj
+				if (ri(ixyz) .lt. rj(ixyz)) then
+					p(ixyz) = (ibin(ixyz)-1)*VAbinsize(ixyz)-halfdomain(ixyz)
+				elseif (ri(ixyz) .gt. rj(ixyz)) then
+					p(ixyz) = (jbin(ixyz)-1)*VAbinsize(ixyz)-halfdomain(ixyz)
+				endif
+
+				!Calculate location of intersection of rij and plane
+				call plane_line_intersect(intersection(:,1),normal,p,ri,rj)
+
+				!Calculate vectors from ri & rj to intersect
+				Lfrac(1,1,1,:) = ri(:)-intersection(:,1)
+				Lfrac(bindiff(1),bindiff(2),bindiff(3),:) = rj(:)-intersection(:,1)
+				
+			endif
+		enddo
+
+		!Calculate magnitude of 3 vector components
+		do ixyz = 1,3
+			MLfrac(:,:,:) = MLfrac(:,:,:) + Lfrac(:,:,:,ixyz)**2
+		enddo
+		MLfrac(:,:,:) = MLfrac(:,:,:)**0.5d0
+		!Normalise to one
+		MLfrac(:,:,:) = MLfrac(:,:,:)/magnitude(rij(:))
+
+		!------Add molecules to bin-----
+		!Molecule i and j contribution split between bins
+		do ixyz = 1,3
+		do jxyz = 1,3
+			!-----------Molecule i bin-----------
+			rfbin(ibin(1),ibin(2),ibin(3),ixyz,jxyz) = & 
+                rfbin(ibin(1),ibin(2),ibin(3),ixyz,jxyz) &
+				  + accijmag*rij(ixyz)*rij(jxyz)*MLfrac(1,1,1)
+
+			!-----------Molecule j bin-----------
+			rfbin(jbin(1),jbin(2),jbin(3),ixyz,jxyz) = & 
+                rfbin(jbin(1),jbin(2),jbin(3),ixyz,jxyz) &
+				  + accijmag*rij(ixyz)*rij(jxyz)*MLfrac(bindiff(1),bindiff(2),bindiff(3))
+
+		enddo
+		enddo
+
+		deallocate(intersection)
+		deallocate(Lfrac)
+		deallocate(MLfrac)
+		
+	!==============Interactions split over intermediate cell===========
+	case(5)
+
+		!Allocate array for vectors from molecules to bin walls
+		allocate(Lfrac(bindiff(1),bindiff(2),bindiff(3),3))
+		!Allocate arrays for magnitude of vector Lfrac
+		allocate(MLfrac(bindiff(1),bindiff(2),bindiff(3)))
+		!Allocate array for bin intersection points
+		allocate(intersection(3,2))
+		!Allocate array for intersection points
+		allocate(interbin(3,1))
+		allocate(interbindiff(3,1))
+
+		!Set intersection location array to zero
+		n = 1
+		intersection = 0.d0
+		Lfrac = 0.d0
+		MLfrac = 0.d0
+
+		do ixyz = 1,3
+
+			!Test to see over which coordinate molecules are in different bins
+			if (bindiff(ixyz) .ne. 1) then
+
+				!Set normal to plane for ixyz
+				normal = 0.d0
+				normal(ixyz) = 1.d0
+
+				!Establish location of plane between ri and rj
+				if (ri(ixyz) .lt. rj(ixyz)) then
+					p(ixyz) = (ibin(ixyz)-1)*VAbinsize(ixyz)-halfdomain(ixyz)
+				elseif (ri(ixyz) .ge. rj(ixyz)) then
+					p(ixyz) = (jbin(ixyz)-1)*VAbinsize(ixyz)-halfdomain(ixyz)
+				endif
+
+				!Calculate location of intersection of rij and plane
+				call plane_line_intersect(intersection(:,n),normal,p,ri,rj)
+
+				n = n + 1
+
+			endif
+		enddo
+
+		!Take average of 2 cell side intersections to determine intermediate cell
+		do ixyz=1,3
+			interbin(ixyz,1) = ceiling((0.5d0*(intersection(ixyz,1) &
+					+intersection(ixyz,2))+halfdomain(ixyz))/VAbinsize(ixyz))+1
+			interbindiff(ixyz,1) = abs(interbin(ixyz,1)-ibin(ixyz)) + 1
+		enddo
+
+
+
+		!Check which plane is closest to i and which corresponds to j
+		temp1 = ri(:)-intersection(:,1)
+		temp2 = ri(:)-intersection(:,2)
+		if (magnitude(temp1) .le.magnitude(temp1)) then
+			i = 1
+			j = 2
+		else
+			i = 2
+			j = 1
+		endif
+
+		!Fix for vectors going directly through vertex of bin
+		if (all(interbindiff(:,1) .eq. 1)) then
+			!Ensure not in same bin as 1
+			if (bindiff(1)+bindiff(2) .eq. 3) then
+				interbindiff(3,1) = 2 
+			else 
+				interbindiff(1,1) = 2
+			endif
+		endif
+		if (all(interbindiff(:,1) .eq. bindiff(:))) then
+			!Ensure not in same bin as bindiff
+			if (bindiff(1)+bindiff(2) .eq. 3) then
+				interbindiff(3,1) = 1 
+			else 
+				interbindiff(1,1) = 1
+			endif
+		endif
+
+		!Calculate vectors from ri to intersect and rj to intersect
+		Lfrac(1,1,1,:) = ri(:)-intersection(:,i)
+		Lfrac(bindiff(1),bindiff(2),bindiff(3),:) = rj(:)-intersection(:,j)
+		Lfrac(interbindiff(1,1),interbindiff(2,1),interbindiff(3,1),:) = intersection(:,i)-intersection(:,j)
+
+		!Calculate magnitude of 3 vector components
+		do ixyz = 1,3
+			MLfrac(:,:,:) = MLfrac(:,:,:) + Lfrac(:,:,:,ixyz)**2
+		enddo
+		MLfrac(:,:,:) = MLfrac(:,:,:)**0.5d0
+
+		!Normalise to one
+		MLfrac(:,:,:) = MLfrac(:,:,:)/magnitude(rij(:))
+
+		!------Add stress component to bin weighted by line length-----
+		!Intermediate bin is either in domain or in halo. 
+		!For halo bins the stress is added to the cell the halo represents. 
+		!For domain cells it is added directly to that cell
+		do ixyz = 1,3
+		do jxyz = 1,3
+
+			!-----------Molecule i bin-----------
+			rfbin(ibin(1),ibin(2),ibin(3),ixyz,jxyz) = & 
+                rfbin(ibin(1),ibin(2),ibin(3),ixyz,jxyz) &
+				+ accijmag*rij(ixyz)*rij(jxyz)*MLfrac(1,1,1)
+
+			!-----------Intermediate Bin-----------
+			!If both bins are in the domain then contribution is added for both molecules
+			rfbin(interbin(1,1),interbin(2,1),interbin(3,1),ixyz,jxyz) = &
+				rfbin(interbin(1,1),interbin(2,1),interbin(3,1),ixyz,jxyz) &
+				+ accijmag*rij(ixyz)*rij(jxyz) & 
+                *MLfrac(interbindiff(1,1),interbindiff(2,1),interbindiff(3,1))
+
+			!-----------Molecule j bin-----------
+			rfbin(jbin(1),jbin(2),jbin(3),ixyz,jxyz) = & 
+                rfbin(jbin(1),jbin(2),jbin(3),ixyz,jxyz) &
+				+ accijmag*rij(ixyz)*rij(jxyz)*MLfrac(bindiff(1),bindiff(2),bindiff(3))
+
+		enddo
+		enddo
+
+		deallocate(Lfrac)
+		deallocate(MLfrac)
+		deallocate(interbin)
+		deallocate(intersection)
+		deallocate(interbindiff)
+
+	!===========Interactions split over 2 intermediate cell===============
+	case (6)
+
+		!Allocate array for vectors from molecules to bin walls
+		allocate(Lfrac(bindiff(1),bindiff(2),bindiff(3),3))
+		!Allocate arrays for magnitude of vector Lfrac
+		allocate(MLfrac(bindiff(1),bindiff(2),bindiff(3)))
+		!Allocate array for bin intersection points
+		allocate(intersection(3,3))
+		!Allocate array for intersection points
+		allocate(interbin(3,2))
+		allocate(interbindiff(3,2))
+
+		!Set intersection location array to zero
+		n = 1
+		intersection = 0.d0
+
+		Lfrac = 0.d0
+		MLfrac = 0.d0
+
+		do ixyz = 1,3
+
+			!Test to see over which coordinate molecules are in different bins
+			if (bindiff(ixyz) .ne. 1) then
+
+				!Set normal to plane for ixyz
+				normal = 0.d0
+				normal(ixyz) = 1.d0
+
+				!Establish location of plane between ri and rj
+				if (ri(ixyz) .lt. rj(ixyz)) then
+					p(ixyz) = (ibin(ixyz)-1)*VAbinsize(ixyz)-halfdomain(ixyz)
+				elseif (ri(ixyz) .gt. rj(ixyz)) then
+					p(ixyz) = (jbin(ixyz)-1)*VAbinsize(ixyz)-halfdomain(ixyz)
+				endif
+
+				!Calculate location of intersection of rij and plane
+				call plane_line_intersect(intersection(:,n),normal,p,ri,rj)
+
+				n = n+1
+
+			endif
+		enddo
+
+		!Determine which intersection covers both intermediate cells
+		! |(1)-(2)| > |(1)-(3)| > |(2)-(3)| then 1,2 must cover
+		! both cells while 1,3 and 2,3 are the cell intercepts
+		temp1 = intersection(:,1)-intersection(:,2)
+		temp2 = intersection(:,3)-intersection(:,2)
+		temp3 = intersection(:,1)-intersection(:,3)
+		if (magnitude(temp1).gt.magnitude(temp2)) then
+			if (magnitude(temp1).gt.magnitude(temp3)) then
+				k = 1
+				l = 2
+			else
+				k = 1
+				l = 3
+			endif
+		else
+			if (magnitude(temp2).gt.magnitude(temp3)) then
+				k = 2
+				l = 3
+			else
+				k = 1
+				l = 3
+			endif
+		endif
+
+		!Take average of cell side intersections to determine intermediate bins
+		!k and l are used to determine intermediate bins
+		do ixyz=1,3
+		
+			interbin(ixyz,1) = ceiling((0.5d0*(intersection(ixyz,(6-k-l)) &
+					    +intersection(ixyz,l))+halfdomain(ixyz))/VAbinsize(ixyz))+1
+			interbindiff(ixyz,1) = abs(interbin(ixyz,1)-ibin(ixyz)) + 1
+
+			interbin(ixyz,2) = ceiling((0.5d0*(intersection(ixyz,(6-k-l)) &
+					    +intersection(ixyz,k))+halfdomain(ixyz))/VAbinsize(ixyz))+1
+			interbindiff(ixyz,2) = abs(interbin(ixyz,2)-ibin(ixyz)) + 1
+
+		enddo
+
+		!Check which plane is closest to i
+		temp1 = ri(:)-intersection(:,1)
+		temp2 = ri(:)-intersection(:,2)
+		temp3 = ri(:)-intersection(:,3)
+		if (magnitude(temp1).lt.magnitude(temp2)) then
+			if (magnitude(temp1).lt.magnitude(temp3)) then
+				i = 1
+			else
+				i = 3
+			endif
+		else
+			if (magnitude(temp2) .lt. magnitude(temp3)) then
+				i = 2
+			else
+				i = 3
+			endif
+		endif
+
+		!Check which plane is closest to j 
+		temp1 = rj(:)-intersection(:,1)
+		temp2 = rj(:)-intersection(:,2)
+		temp3 = rj(:)-intersection(:,3)
+		if (magnitude(temp1).lt.magnitude(temp2))then
+			if (magnitude(temp1).lt.magnitude(temp3)) then
+				j = 1
+			else
+				j = 3
+			endif
+		else
+			if (magnitude(temp2).lt. magnitude(temp3)) then
+				j = 2
+			else
+				j = 3
+			endif
+		endif
+
+		!Calculate vectors from ri to intersect & rj to intersect
+		Lfrac(1,1,1,:) = ri(:)-intersection(:,i)
+		Lfrac(bindiff(1),bindiff(2),bindiff(3),:) = rj(:)-intersection(:,j)
+
+		!Calculate vectors in two intermediate cells
+		Lfrac(interbindiff(1,1),interbindiff(2,1),interbindiff(3,1),:) = & 
+                intersection(:,l)-intersection(:,(6-k-l))
+		Lfrac(interbindiff(1,2),interbindiff(2,2),interbindiff(3,2),:) = & 
+                intersection(:,k)-intersection(:,(6-k-l))
+
+		!Calculate magnitude of 3 vector components
+		do ixyz = 1,3
+			MLfrac(:,:,:) = MLfrac(:,:,:) + Lfrac(:,:,:,ixyz)**2
+		enddo
+		MLfrac(:,:,:) = MLfrac(:,:,:)**0.5d0
+
+		!Normalise to one
+		MLfrac(:,:,:) = MLfrac(:,:,:)/magnitude(rij(:))
+
+		!------Add stress component to bin weighted by line length-----
+		!Intermediate bin is either in domain or in halo. 
+		!For halo bins the stress is added to the cell the halo represents. 
+		!For domain cells it is added directly to that cell
+		do ixyz = 1,3
+		do jxyz = 1,3
+			!-----------Molecule i bin-----------
+			rfbin(ibin(1),ibin(2),ibin(3),ixyz,jxyz) = & 
+                rfbin(ibin(1),ibin(2),ibin(3),ixyz,jxyz) &
+				+ accijmag*rij(ixyz)*rij(jxyz)*MLfrac(1,1,1)
+
+			!-----------1st Intermediate Bin-----------
+			!Intermediate and i bin in domain, j in halo - add intermediate for molecule i
+			rfbin(interbin(1,1),interbin(2,1),interbin(3,1),ixyz,jxyz) = &
+				rfbin(interbin(1,1),interbin(2,1),interbin(3,1),ixyz,jxyz) &
+				+ accijmag*rij(ixyz)*rij(jxyz) & 
+                *MLfrac(interbindiff(1,1),interbindiff(2,1),interbindiff(3,1))
+
+			!-----------2nd Intermediate Bin-----------
+			!Intermediate and i bin in domain, j in halo - add intermediate for molecule i
+			rfbin(interbin(1,2),interbin(2,2),interbin(3,2),ixyz,jxyz) = &
+				rfbin(interbin(1,2),interbin(2,2),interbin(3,2),ixyz,jxyz) &
+				+ accijmag*rij(ixyz)*rij(jxyz) & 
+                *MLfrac(interbindiff(1,2),interbindiff(2,2),interbindiff(3,2))
+
+			!-----------Molecule j bin-----------
+			rfbin(jbin(1),jbin(2),jbin(3),ixyz,jxyz) = & 
+                rfbin(jbin(1),jbin(2),jbin(3),ixyz,jxyz) &
+				+ accijmag*rij(ixyz)*rij(jxyz) & 
+                *MLfrac(bindiff(1),bindiff(2),bindiff(3))
+		enddo
+		enddo
+
+		deallocate(intersection)
+		deallocate(Lfrac)
+		deallocate(MLfrac)
+		deallocate(interbin)
+		deallocate(interbindiff)
+		
+	case default
+
+	    stop "VOLUME AVERAGING ERROR"
+
+	end select
+
+end subroutine pressure_tensor_forces_VA_exact
+
+end subroutine pressure_tensor_forces_VA
+
+end module Volume_average_pressure
+
+
+
+!========================================================================
+!Compute Volume Averaged stress using all cells including halos
+
+subroutine simulation_compute_rfbins(imin, imax, jmin, jmax, kmin, kmax)
+    use Volume_average_pressure
+	use module_compute_forces
+	implicit none
+
+	integer,intent(in)  			:: imin, jmin, kmin, imax, jmax, kmax
+
+	integer                         :: i, j, ixyz !Define dummy index
+	integer							:: icell, jcell, kcell
+	integer                         :: icellshift, jcellshift, kcellshift
+	integer                         :: cellnp, adjacentcellnp 
+	integer							:: molnoi, molnoj
+	integer							:: icellmin,jcellmin,kcellmin,icellmax,jcellmax,kcellmax
+	type(node), pointer 	        :: oldi, currenti, oldj, currentj
+
+	double precision,dimension(3)	:: cellsperbin
+
+	!rfbin = 0.d0
+	!allocate(rijsum(nd,np+extralloc)) !Sum of rij for each i, used for SLLOD algorithm
+	!rijsum = 0.d0
+
+	!Calculate bin to cell ratio
+	cellsperbin = 1.d0/binspercell !ceiling(ncells(1)/dble(nbins(1)))
+    ! Still need to loop over every cell (i.e. get all interactions) if
+    ! bins are bigger than cells
+	where (cellsperbin .lt. 1.d0) cellsperbin = 1.d0
+
+!	do kcell=(kmin-1)*cellsperbin(3)+1, kmax*cellsperbin(3)
+!	do jcell=(jmin-1)*cellsperbin(2)+1, jmax*cellsperbin(2)
+!	do icell=(imin-1)*cellsperbin(1)+1, imax*cellsperbin(1)
+
+	icellmin = (imin-1)*cellsperbin(1)+1
+	icellmax = (imax-2)*cellsperbin(1)+2
+	jcellmin = (jmin-1)*cellsperbin(2)+1
+	jcellmax = (jmax-2)*cellsperbin(2)+2
+	kcellmin = (kmin-1)*cellsperbin(3)+1
+	kcellmax = (kmax-2)*cellsperbin(3)+2
+
+	!Get cell number from bin numbers
+!	icellmin = (imin-1)*cellsperbin(1)+1+(1-cellsperbin(1))
+!	icellmax =  imax   *cellsperbin(1)  +(1-cellsperbin(1))
+!	jcellmin = (jmin-1)*cellsperbin(2)+1+(1-cellsperbin(2))
+!	jcellmax =  jmax   *cellsperbin(2)  +(1-cellsperbin(2))
+!	kcellmin = (kmin-1)*cellsperbin(3)+1+(1-cellsperbin(3))
+!	kcellmax =  kmax   *cellsperbin(3)  +(1-cellsperbin(3))
+
+	!Get cell number from bin numbers
+!	ibinmin = (iminl-1)*cellsperbin(1)+1+(1-cellsperbin(1))
+!	ibinmax =  imaxl   *cellsperbin(1)  +(1-cellsperbin(1))
+!	jbinmin = (jminl-1)*cellsperbin(2)+1+(1-cellsperbin(2))
+!	jbinmax = jmaxl    *cellsperbin(2)  +(1-cellsperbin(2))
+!	kbinmin = (kminl-1)*cellsperbin(3)+1+(1-cellsperbin(3))
+!	kbinmax = kmaxl    *cellsperbin(3)  +(1-cellsperbin(3))
+
+!	icellmin = (imin-1)*cellsperbin(1)+2+(1-cellsperbin(1))
+!	icellmax =  imax   *cellsperbin(1)-cellsperbin(1)
+!	jcellmin = (jmin-1)*cellsperbin(2)+2+(1-cellsperbin(2))
+!	jcellmax =  jmax   *cellsperbin(2)-cellsperbin(2)
+!	kcellmin = (kmin-1)*cellsperbin(3)+2+(1-cellsperbin(3))
+!	kcellmax =  kmax   *cellsperbin(3)-cellsperbin(3)
+
+    !print*,icellmin,jcellmin,kcellmin,icellmax,jcellmax,kcellmax
+
+	do kcell=kcellmin, kcellmax
+	do jcell=jcellmin, jcellmax 
+	do icell=icellmin, icellmax 
+	
+		cellnp = cell%cellnp(icell,jcell,kcell)
+		oldi => cell%head(icell,jcell,kcell)%point !Set old to first molecule in list
+
+		do i = 1,cellnp					!Step through each particle in list 
+			molnoi = oldi%molno 	 	!Number of molecule
+			ri = r(:,molnoi)         	!Retrieve ri
+
+			do kcellshift = -1,1
+			do jcellshift = -1,1
+			do icellshift = -1,1
+
+				!Prevents out of range values in i
+				if (icell+icellshift .lt. icellmin) cycle
+				if (icell+icellshift .gt. icellmax) cycle
+				!Prevents out of range values in j
+				if (jcell+jcellshift .lt. jcellmin) cycle
+				if (jcell+jcellshift .gt. jcellmax) cycle
+				!Prevents out of range values in k
+				if (kcell+kcellshift .lt. kcellmin) cycle
+				if (kcell+kcellshift .gt. kcellmax) cycle
+
+				oldj => cell%head(icell+icellshift,jcell+jcellshift,kcell+kcellshift)%point
+				adjacentcellnp = cell%cellnp(icell+icellshift,jcell+jcellshift,kcell+kcellshift)
+
+				do j = 1,adjacentcellnp          !Step through all j for each i
+
+					molnoj = oldj%molno 	 !Number of molecule
+					rj = r(:,molnoj)         !Retrieve rj
+
+					currentj => oldj
+					oldj => currentj%next    !Use pointer in datatype to obtain next item in list
+
+					if(molnoi==molnoj) cycle !Check to prevent interaction with self
+
+					rij2=0                   !Set rij^2 to zero
+					rij(:) = ri(:) - rj(:)   !Evaluate distance between particle i and j
+
+					do ixyz=1,nd
+						rij2 = rij2+rij(ixyz)*rij(ixyz) !Square of vector calculated
+					enddo
+
+					if (rij2 < rcutoff2) then
+
+						!Linear magnitude of acceleration for each molecule
+						invrij2 = 1.d0/rij2                 !Invert value
+						accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
+
+						!Select requested configurational line partition methodology
+                        call pressure_tensor_forces_VA(ri,rj,accijmag, domain,  & 
+                                                    nbins, nhb,rfbin,VA_calcmethod)
+
+					endif
+				enddo
+			enddo
+			enddo
+			enddo
+			currenti => oldi
+			oldi => currenti%next !Use pointer in datatype to obtain next item in list
+		enddo
+	enddo
+	enddo
+	enddo
+
+    ! Add FENE contribution if it's there
+    if (potential_flag .eq. 1) then
+        call add_FENE_contribution
+    end if
+
+	nullify(oldi)      	!Nullify as no longer required
+	nullify(oldj)      	!Nullify as no longer required
+	nullify(currenti)      	!Nullify as no longer required
+	nullify(currentj)      	!Nullify as no longer required
+
+contains
+
+    subroutine add_FENE_contribution
+        use polymer_info_MD
+        use Volume_average_pressure, only : pressure_tensor_forces_VA
+        implicit none
+
+        integer :: b
+
+        do molnoi=1,np+halo_np
+
+            ri(:) = r(:,molnoi) !Retrieve ri(:)
+            do b=1,monomer(molnoi)%funcy
+
+                molnoj = bond(b,molnoi)
+                if (molnoj.eq.0) cycle
+
+                rj(:)  = r(:,molnoj)
+                rij(:) = ri(:) - rj(:)
+                rij2   = dot_product(rij,rij)
+                accijmag = -k_c/(1-(rij2/(R_0**2)))	!(-dU/dr)*(1/|r|)
+
+                call pressure_tensor_forces_VA(ri, rj, accijmag, domain,  & 
+                                                nbins, nhb, rfbin, VA_calcmethod=1)
+
+            end do	
+
+        end do
+
+    end subroutine
+
+end subroutine simulation_compute_rfbins
+
 
 subroutine pressure_tensor_forces_VA_trap_cpol(ri,rj,accijmag)
 	use concentric_cylinders
@@ -3318,467 +4027,141 @@ subroutine pressure_tensor_forces_VA_trap_cpol(ri,rj,accijmag)
 end subroutine pressure_tensor_forces_VA_trap_cpol
 
 
-!===============================================================================
-! VOLUME AVERAGE CONFIGURATIONAL EXPRESSION
-! Use a configurational expression, similar to the virial with interaction partitioned 
-! between bins based on the share of the interaction between two molecules in a given bin
-! N.B. Assume no more than 1 bin between bins containing the molecules
-! This is the Volume Average stress of Lutsko, although this is also called the
-! Irving Kirkwood contour in NAMD (MD package) and the paper it references
-! Jacob Sonne,a Flemming Y. Hansen, and Günther H. Peters J.CHEM.PHYS. 122, 124903 (2005)
-! 								╭∩╮（︶︿︶）╭∩╮﻿
-subroutine pressure_tensor_forces_VA(ri,rj,rij,accijmag)
-	use module_record
-	use librarymod, only : magnitude, plane_line_intersect
+!Cylindrical polar version
+subroutine simulation_compute_rfbins_cpol(imin, imax, jmin, jmax, kmin, kmax)
+	use module_compute_forces
+	use librarymod, only: cpolariser
+	use messenger, only: globalise
 	implicit none
 
-	integer											:: ixyz, jxyz,i,j,k,l,n
-	integer											:: diff
-	integer,dimension(3)							:: ibin, jbin, bindiff 
-	integer,dimension(:,:)		   ,allocatable		:: interbin, interbindiff
-	double precision,intent(in)            			:: accijmag    !Non directional component of acceleration
-	double precision,dimension(3), intent(in)		:: rij, ri, rj
-	double precision,dimension(3)					:: VAbinsize, normal, p,temp1,temp2,temp3
-	double precision,dimension(:,:)	   ,allocatable	:: intersection
-	double precision,dimension(:,:,:)  ,allocatable	:: MLfrac !Magnitude of fraction of stress
-	double precision,dimension(:,:,:,:),allocatable	:: Lfrac  !Fraction of stress in a given cell
+	integer, intent(in) :: imin, jmin, kmin, imax, jmax, kmax
 
+	integer :: i, j
+	integer	:: icell, jcell, kcell
+	integer :: icellshift, jcellshift, kcellshift
+	integer :: cellnp, adjacentcellnp
+	integer	:: molnoi, molnoj
+	type(node), pointer :: oldi, currenti, oldj, currentj
 
-	!================================================================
-	!= Establish bins for molecules & check number of required bins	=
-	!================================================================
+	double precision,dimension(3)	:: cellsperbin
 
-	do ixyz = 1,nd
+	!Calculate bin to cell ratio
+	cellsperbin = 1.d0/binspercell !ceiling(ncells(1)/dble(nbins(1)))
+	where (cellsperbin .gt. 1.d0) cellsperbin = 1.d0
 
-		VAbinsize(ixyz) = domain(ixyz) / nbins(ixyz)
-		if (VAbinsize(ixyz) .lt. cellsidelength(ixyz)) &
-                    call error_abort("Binsize bigger than cellsize ~ Not ok for volume averaging")
+	do kcell=(kmin-1)*cellsperbin(3)+1, kmax*cellsperbin(3)
+	do jcell=(jmin-1)*cellsperbin(2)+1, jmax*cellsperbin(2)
+	do icell=(imin-1)*cellsperbin(1)+1, imax*cellsperbin(1)
+	
+		cellnp = cell%cellnp(icell,jcell,kcell)
+		oldi => cell%head(icell,jcell,kcell)%point
 
-		!Determine current bins using integer division
-		ibin(ixyz) = ceiling((ri(ixyz)+halfdomain(ixyz))/VAbinsize(ixyz)) + 1 !Establish current i bin
-		jbin(ixyz) = ceiling((rj(ixyz)+halfdomain(ixyz))/VAbinsize(ixyz)) + 1 !Establish current j bin
+		do i = 1,cellnp
 
-		!Check number of bins between molecules
-		bindiff(ixyz) = abs(ibin(ixyz) - jbin(ixyz)) + 1
+			molnoi = oldi%molno
+			ri = r(:,molnoi)
+
+			do kcellshift = -1,1
+			do jcellshift = -1,1
+			do icellshift = -1,1
+
+				!Prevents out of range values in i
+				if (icell+icellshift .lt. imin) cycle
+				if (icell+icellshift .gt. imax) cycle
+				!Prevents out of range values in j
+				if (jcell+jcellshift .lt. jmin) cycle
+				if (jcell+jcellshift .gt. jmax) cycle
+				!Prevents out of range values in k
+				if (kcell+kcellshift .lt. kmin) cycle
+				if (kcell+kcellshift .gt. kmax) cycle
+
+				oldj => cell%head(icell+icellshift, &
+				                  jcell+jcellshift, &
+				                  kcell+kcellshift) % point
+
+				adjacentcellnp = cell%cellnp(icell+icellshift, &
+				                             jcell+jcellshift, &
+				                             kcell+kcellshift)
+
+				do j = 1,adjacentcellnp
+
+					molnoj = oldj%molno
+					rj = r(:,molnoj)
+
+					currentj => oldj
+					oldj => currentj%next 
+
+					! Prevent interaction with self
+					if ( molnoi == molnoj ) cycle 
+
+					rij(:) = ri(:) - rj(:)
+					rij2 = dot_product(rij,rij)
+
+					if (rij2 < rcutoff2) then
+
+						invrij2 = 1.d0/rij2
+						accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
+
+						call pressure_tensor_forces_VA_trap_cpol(ri,rj,accijmag)
+
+					endif
+
+				enddo
+
+			enddo
+			enddo
+			enddo
+
+			currenti => oldi
+			oldi => currenti%next
+
+		enddo
 
 	enddo
+	enddo
+	enddo
 
-	!================================================================
-	!=			Assign to bins				=
-	!================================================================
+    ! Add FENE contribution if it's there
+    if (potential_flag .eq. 1) then
+        call add_FENE_contribution
+    end if
 
-	!Check difference between bins i and j
-	diff = bindiff(1)+bindiff(2)+bindiff(3)
+	nullify(oldi)
+	nullify(oldj)
+	nullify(currenti)
+	nullify(currentj)
 
+contains
 
-	!Ignore values outside of domain resulting from shifted bin 
-	if (minval(ibin) .lt. 1) diff = 0
-	if (minval(jbin) .lt. 1) diff = 0
-	if (maxval(ibin) .gt. maxval(nbins)+2) diff = 0
-	if (maxval(jbin) .gt. maxval(nbins)+2) diff = 0
+    subroutine add_FENE_contribution
+        use polymer_info_MD
+        implicit none
 
-	select case(diff)
-	!================Skip Force addition===========================
-	case(0)
-	!Do Nothing
-	!print*, maxval(ri(:)+halfdomain(:)), 'is outside of domain', domain(1)
-	!================Molecules in same bin===========================
-	case(3)
+        integer :: b
 
-		!------Add molecules to bin-----
-		do ixyz = 1,nd
-		do jxyz = 1,nd
-			!Factor of two as molecule i and molecule j are both counted in bin i
-			rfbin(ibin(1),ibin(2),ibin(3),ixyz,jxyz) = rfbin(ibin(1),ibin(2),ibin(3),ixyz,jxyz) &
-				  + accijmag*rij(ixyz)*rij(jxyz)
-		enddo
-		enddo
+        do molnoi=1,np
 
-	!===================Interactions split over 2 cells only==========
-	case(4)
+            ri(:) = r(:,molnoi) !Retrieve ri(:)
+            do b=1,monomer(molnoi)%funcy
 
-		!Allocate array for vectors from molecules to bin walls
-		allocate(Lfrac(bindiff(1),bindiff(2),bindiff(3),nd))
-		!Allocate arrays for magnitude of vector Lfrac
-		allocate(MLfrac(bindiff(1),bindiff(2),bindiff(3)))
-		!Allocate array for one bin intersection point
-		allocate(intersection(3,1))
-		Lfrac = 0.d0
-		MLfrac = 0.d0
+                molnoj = bond(b,molnoi)
+                if (molnoj.eq.0) cycle
 
-		do ixyz = 1,nd
-			!Test to see over which coordinate molecules are in different bins
-			if (bindiff(ixyz) .ne. 1) then
+                rj(:)  = r(:,molnoj)
+                rij(:) = ri(:) - rj(:)
+                rij2   = dot_product(rij,rij)
+                accijmag = -k_c/(1-(rij2/(R_0**2)))	!(-dU/dr)*(1/|r|)
 
-				!Set normal to plane for ixyz
-				normal = 0.d0
-				normal(ixyz) = 1.d0
+                call pressure_tensor_forces_VA_trap_cpol(ri,rj,accijmag)
 
-				!Establish location of plane between ri and rj
-				if (ri(ixyz) .lt. rj(ixyz)) then
-					p(ixyz) = (ibin(ixyz)-1)*VAbinsize(ixyz)-halfdomain(ixyz)
-				elseif (ri(ixyz) .gt. rj(ixyz)) then
-					p(ixyz) = (jbin(ixyz)-1)*VAbinsize(ixyz)-halfdomain(ixyz)
-				endif
+            end do	
 
-				!Calculate location of intersection of rij and plane
-				call plane_line_intersect(intersection(:,1),normal,p,ri,rj)
+        end do
 
-				!Calculate vectors from ri & rj to intersect
-				Lfrac(1,1,1,:) = ri(:)-intersection(:,1)
-				Lfrac(bindiff(1),bindiff(2),bindiff(3),:) = rj(:)-intersection(:,1)
-				
-			endif
-		enddo
+    end subroutine
 
-		!Calculate magnitude of 3 vector components
-		do ixyz = 1,3
-			MLfrac(:,:,:) = MLfrac(:,:,:) + Lfrac(:,:,:,ixyz)**2
-		enddo
-		MLfrac(:,:,:) = MLfrac(:,:,:)**0.5d0
-		!Normalise to one
-		MLfrac(:,:,:) = MLfrac(:,:,:)/magnitude(rij(:))
+end subroutine simulation_compute_rfbins_cpol
 
-		!------Add molecules to bin-----
-		!Molecule i and j contribution split between bins
-		do ixyz = 1,nd
-		do jxyz = 1,nd
-			!-----------Molecule i bin-----------
-			rfbin(ibin(1),ibin(2),ibin(3),ixyz,jxyz) = rfbin(ibin(1),ibin(2),ibin(3),ixyz,jxyz) &
-				  + accijmag*rij(ixyz)*rij(jxyz)*MLfrac(1,1,1)
-
-			!-----------Molecule j bin-----------
-			rfbin(jbin(1),jbin(2),jbin(3),ixyz,jxyz) = rfbin(jbin(1),jbin(2),jbin(3),ixyz,jxyz) &
-				  + accijmag*rij(ixyz)*rij(jxyz)*MLfrac(bindiff(1),bindiff(2),bindiff(3))
-
-		enddo
-		enddo
-
-		deallocate(intersection)
-		deallocate(Lfrac)
-		deallocate(MLfrac)
-		
-	!==============Interactions split over intermediate cell===========
-	case(5)
-
-		!Allocate array for vectors from molecules to bin walls
-		allocate(Lfrac(bindiff(1),bindiff(2),bindiff(3),nd))
-		!Allocate arrays for magnitude of vector Lfrac
-		allocate(MLfrac(bindiff(1),bindiff(2),bindiff(3)))
-		!Allocate array for bin intersection points
-		allocate(intersection(3,2))
-		!Allocate array for intersection points
-		allocate(interbin(3,1))
-		allocate(interbindiff(3,1))
-
-		!Set intersection location array to zero
-		n = 1
-		intersection = 0.d0
-		Lfrac = 0.d0
-		MLfrac = 0.d0
-
-		do ixyz = 1,nd
-
-			!Test to see over which coordinate molecules are in different bins
-			if (bindiff(ixyz) .ne. 1) then
-
-				!Set normal to plane for ixyz
-				normal = 0.d0
-				normal(ixyz) = 1.d0
-
-				!Establish location of plane between ri and rj
-				if (ri(ixyz) .lt. rj(ixyz)) then
-					p(ixyz) = (ibin(ixyz)-1)*VAbinsize(ixyz)-halfdomain(ixyz)
-				elseif (ri(ixyz) .ge. rj(ixyz)) then
-					p(ixyz) = (jbin(ixyz)-1)*VAbinsize(ixyz)-halfdomain(ixyz)
-				endif
-
-				!Calculate location of intersection of rij and plane
-				call plane_line_intersect(intersection(:,n),normal,p,ri,rj)
-
-				n = n + 1
-
-			endif
-		enddo
-
-		!Take average of 2 cell side intersections to determine intermediate cell
-		do ixyz=1,3
-			interbin(ixyz,1) = ceiling((0.5d0*(intersection(ixyz,1) &
-					+intersection(ixyz,2))+halfdomain(ixyz))/VAbinsize(ixyz))+1
-			interbindiff(ixyz,1) = abs(interbin(ixyz,1)-ibin(ixyz)) + 1
-		enddo
-
-
-
-		!Check which plane is closest to i and which corresponds to j
-		temp1 = ri(:)-intersection(:,1)
-		temp2 = ri(:)-intersection(:,2)
-		!if (magnitude(ri(:)-intersection(:,1)) .le.  & 
-  	    !   	    magnitude(ri(:)-intersection(:,2))) then
-		if (magnitude(temp1) .le.magnitude(temp1)) then
-			i = 1
-			j = 2
-		else
-			i = 2
-			j = 1
-		endif
-
-		!Fix for vectors going directly through vertex of bin
-		if (all(interbindiff(:,1) .eq. 1)) then
-			!Ensure not in same bin as 1
-			if (bindiff(1)+bindiff(2) .eq. 3) then
-				interbindiff(3,1) = 2 
-			else 
-				interbindiff(1,1) = 2
-			endif
-		endif
-		if (all(interbindiff(:,1) .eq. bindiff(:))) then
-			!Ensure not in same bin as bindiff
-			if (bindiff(1)+bindiff(2) .eq. 3) then
-				interbindiff(3,1) = 1 
-			else 
-				interbindiff(1,1) = 1
-			endif
-		endif
-
-		!Calculate vectors from ri to intersect and rj to intersect
-		Lfrac(1,1,1,:) = ri(:)-intersection(:,i)
-		Lfrac(bindiff(1),bindiff(2),bindiff(3),:) = rj(:)-intersection(:,j)
-		Lfrac(interbindiff(1,1),interbindiff(2,1),interbindiff(3,1),:) = intersection(:,i)-intersection(:,j)
-
-		!Calculate magnitude of 3 vector components
-		do ixyz = 1,3
-			MLfrac(:,:,:) = MLfrac(:,:,:) + Lfrac(:,:,:,ixyz)**2
-		enddo
-		MLfrac(:,:,:) = MLfrac(:,:,:)**0.5d0
-
-		!Normalise to one
-		MLfrac(:,:,:) = MLfrac(:,:,:)/magnitude(rij(:))
-
-		!------Add stress component to bin weighted by line length-----
-		!Intermediate bin is either in domain or in halo. 
-		!For halo bins the stress is added to the cell the halo represents. 
-		!For domain cells it is added directly to that cell
-		do ixyz = 1,nd
-		do jxyz = 1,nd
-
-			!-----------Molecule i bin-----------
-			rfbin(ibin(1),ibin(2),ibin(3),ixyz,jxyz) = rfbin(ibin(1),ibin(2),ibin(3),ixyz,jxyz) &
-				+ accijmag*rij(ixyz)*rij(jxyz)*MLfrac(1,1,1)
-
-			!-----------Intermediate Bin-----------
-			!If both bins are in the domain then contribution is added for both molecules
-			rfbin(interbin(1,1),interbin(2,1),interbin(3,1),ixyz,jxyz) = &
-				rfbin(interbin(1,1),interbin(2,1),interbin(3,1),ixyz,jxyz) &
-				+ accijmag*rij(ixyz)*rij(jxyz)*MLfrac(interbindiff(1,1),interbindiff(2,1),interbindiff(3,1))
-
-			!-----------Molecule j bin-----------
-			rfbin(jbin(1),jbin(2),jbin(3),ixyz,jxyz) = rfbin(jbin(1),jbin(2),jbin(3),ixyz,jxyz) &
-				+ accijmag*rij(ixyz)*rij(jxyz)*MLfrac(bindiff(1),bindiff(2),bindiff(3))
-
-		enddo
-		enddo
-
-		deallocate(Lfrac)
-		deallocate(MLfrac)
-		deallocate(interbin)
-		deallocate(intersection)
-		deallocate(interbindiff)
-
-	!===========Interactions split over 2 intermediate cell===============
-	case (6)
-
-		!Allocate array for vectors from molecules to bin walls
-		allocate(Lfrac(bindiff(1),bindiff(2),bindiff(3),nd))
-		!Allocate arrays for magnitude of vector Lfrac
-		allocate(MLfrac(bindiff(1),bindiff(2),bindiff(3)))
-		!Allocate array for bin intersection points
-		allocate(intersection(3,3))
-		!Allocate array for intersection points
-		allocate(interbin(3,2))
-		allocate(interbindiff(3,2))
-
-		!Set intersection location array to zero
-		n = 1
-		intersection = 0.d0
-
-		Lfrac = 0.d0
-		MLfrac = 0.d0
-
-		do ixyz = 1,nd
-
-			!Test to see over which coordinate molecules are in different bins
-			if (bindiff(ixyz) .ne. 1) then
-
-				!Set normal to plane for ixyz
-				normal = 0.d0
-				normal(ixyz) = 1.d0
-
-				!Establish location of plane between ri and rj
-				if (ri(ixyz) .lt. rj(ixyz)) then
-					p(ixyz) = (ibin(ixyz)-1)*VAbinsize(ixyz)-halfdomain(ixyz)
-				elseif (ri(ixyz) .gt. rj(ixyz)) then
-					p(ixyz) = (jbin(ixyz)-1)*VAbinsize(ixyz)-halfdomain(ixyz)
-				endif
-
-				!Calculate location of intersection of rij and plane
-				call plane_line_intersect(intersection(:,n),normal,p,ri,rj)
-
-				n = n+1
-
-			endif
-		enddo
-
-		!Determine which intersection covers both intermediate cells
-		! |(1)-(2)| > |(1)-(3)| > |(2)-(3)| then 1,2 must cover
-		! both cells while 1,3 and 2,3 are the cell intercepts
-		temp1 = intersection(:,1)-intersection(:,2)
-		temp2 = intersection(:,3)-intersection(:,2)
-		temp3 = intersection(:,1)-intersection(:,3)
-		!if (magnitude(intersection(:,1)-intersection(:,2)) .gt. & 
-		!    magnitude(intersection(:,3)-intersection(:,2))) then
-		!	if (magnitude(intersection(:,1)-intersection(:,2)) .gt. & 
-		!	    magnitude(intersection(:,1)-intersection(:,3))) then
-		if (magnitude(temp1).gt.magnitude(temp2)) then
-			if (magnitude(temp1).gt.magnitude(temp3)) then
-				k = 1
-				l = 2
-			else
-				k = 1
-				l = 3
-			endif
-		else
-			!if (magnitude(intersection(:,3)-intersection(:,2)) .gt. & 
-			!    magnitude(intersection(:,1)-intersection(:,3))) then
-			if (magnitude(temp2).gt.magnitude(temp3)) then
-				k = 2
-				l = 3
-			else
-				k = 1
-				l = 3
-			endif
-		endif
-
-		!Take average of cell side intersections to determine intermediate bins
-		!k and l are used to determine intermediate bins
-		do ixyz=1,3
-		
-			interbin(ixyz,1) = ceiling((0.5d0*(intersection(ixyz,(6-k-l)) &
-					    +intersection(ixyz,l))+halfdomain(ixyz))/VAbinsize(ixyz))+1
-			interbindiff(ixyz,1) = abs(interbin(ixyz,1)-ibin(ixyz)) + 1
-
-			interbin(ixyz,2) = ceiling((0.5d0*(intersection(ixyz,(6-k-l)) &
-					    +intersection(ixyz,k))+halfdomain(ixyz))/VAbinsize(ixyz))+1
-			interbindiff(ixyz,2) = abs(interbin(ixyz,2)-ibin(ixyz)) + 1
-
-		enddo
-
-		!Check which plane is closest to i
-		temp1 = ri(:)-intersection(:,1)
-		temp2 = ri(:)-intersection(:,2)
-		temp3 = ri(:)-intersection(:,3)
-		if (magnitude(temp1).lt.magnitude(temp2)) then
-			if (magnitude(temp1).lt.magnitude(temp3)) then
-		!if (magnitude(ri(:)-intersection(:,1)) .lt.  & 
-  	    !   	    magnitude(ri(:)-intersection(:,2))) then
-		!	if (magnitude(ri(:)-intersection(:,1)) .lt.  & 
-  		 !      	    magnitude(ri(:)-intersection(:,3))) then
-				i = 1
-			else
-				i = 3
-			endif
-		else
-			if (magnitude(temp2) .lt. magnitude(temp3)) then
-			!if (magnitude(ri(:)-intersection(:,2)) .lt.  & 
-  	       	!  	    magnitude(ri(:)-intersection(:,3))) then
-				i = 2
-			else
-				i = 3
-			endif
-		endif
-
-		!Check which plane is closest to j 
-		temp1 = rj(:)-intersection(:,1)
-		temp2 = rj(:)-intersection(:,2)
-		temp3 = rj(:)-intersection(:,3)
-		!if (magnitude(rj(:)-intersection(:,1)) .lt.  & 
-  	    !   	    magnitude(rj(:)-intersection(:,2))) then
-		!	if (magnitude(rj(:)-intersection(:,1)) .lt.  & 
-  		!      	    magnitude(rj(:)-intersection(:,3))) then
-		if (magnitude(temp1).lt.magnitude(temp2))then
-			if (magnitude(temp1).lt.magnitude(temp3)) then
-				j = 1
-			else
-				j = 3
-			endif
-		else
-		!	if (magnitude(rj(:)-intersection(:,2)) .lt.  & 
-  	    !  	  	    magnitude(rj(:)-intersection(:,3))) then
-			if (magnitude(temp2).lt. magnitude(temp3)) then
-				j = 2
-			else
-				j = 3
-			endif
-		endif
-
-		!Calculate vectors from ri to intersect & rj to intersect
-		Lfrac(1,1,1,:) = ri(:)-intersection(:,i)
-		Lfrac(bindiff(1),bindiff(2),bindiff(3),:) = rj(:)-intersection(:,j)
-
-		!Calculate vectors in two intermediate cells
-		Lfrac(interbindiff(1,1),interbindiff(2,1),interbindiff(3,1),:) = intersection(:,l)-intersection(:,(6-k-l))
-		Lfrac(interbindiff(1,2),interbindiff(2,2),interbindiff(3,2),:) = intersection(:,k)-intersection(:,(6-k-l))
-
-		!Calculate magnitude of 3 vector components
-		do ixyz = 1,3
-			MLfrac(:,:,:) = MLfrac(:,:,:) + Lfrac(:,:,:,ixyz)**2
-		enddo
-		MLfrac(:,:,:) = MLfrac(:,:,:)**0.5d0
-
-		!Normalise to one
-		MLfrac(:,:,:) = MLfrac(:,:,:)/magnitude(rij(:))
-
-		!------Add stress component to bin weighted by line length-----
-		!Intermediate bin is either in domain or in halo. 
-		!For halo bins the stress is added to the cell the halo represents. 
-		!For domain cells it is added directly to that cell
-		do ixyz = 1,nd
-		do jxyz = 1,nd
-			!-----------Molecule i bin-----------
-			rfbin(ibin(1),ibin(2),ibin(3),ixyz,jxyz) = rfbin(ibin(1),ibin(2),ibin(3),ixyz,jxyz) &
-				+ accijmag*rij(ixyz)*rij(jxyz)*MLfrac(1,1,1)
-
-			!-----------1st Intermediate Bin-----------
-			!Intermediate and i bin in domain, j in halo - add intermediate for molecule i
-			rfbin(interbin(1,1),interbin(2,1),interbin(3,1),ixyz,jxyz) = &
-				rfbin(interbin(1,1),interbin(2,1),interbin(3,1),ixyz,jxyz) &
-				+ accijmag*rij(ixyz)*rij(jxyz)*MLfrac(interbindiff(1,1),interbindiff(2,1),interbindiff(3,1))
-
-			!-----------2nd Intermediate Bin-----------
-			!Intermediate and i bin in domain, j in halo - add intermediate for molecule i
-			rfbin(interbin(1,2),interbin(2,2),interbin(3,2),ixyz,jxyz) = &
-				rfbin(interbin(1,2),interbin(2,2),interbin(3,2),ixyz,jxyz) &
-				+ accijmag*rij(ixyz)*rij(jxyz)*MLfrac(interbindiff(1,2),interbindiff(2,2),interbindiff(3,2))
-
-			!-----------Molecule j bin-----------
-			rfbin(jbin(1),jbin(2),jbin(3),ixyz,jxyz) = rfbin(jbin(1),jbin(2),jbin(3),ixyz,jxyz) &
-				+ accijmag*rij(ixyz)*rij(jxyz)*MLfrac(bindiff(1),bindiff(2),bindiff(3))
-		enddo
-		enddo
-
-		deallocate(intersection)
-		deallocate(Lfrac)
-		deallocate(MLfrac)
-		deallocate(interbin)
-		deallocate(interbindiff)
-		
-	case default
-
-	call error_abort("VOLUME AVERAGING ERROR")
-
-	end select
-
-end subroutine pressure_tensor_forces_VA
 
 !===================================================================================
 !Forces over the surface of a Volume
