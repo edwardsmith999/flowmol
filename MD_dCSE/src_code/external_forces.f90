@@ -1434,7 +1434,8 @@ end subroutine  get_Fstresses_mol
 
 subroutine get_F_correction_CV(u_CFD, &
 							   lbl, & 
-							   Fcorrect_CV)
+							   Fcorrect_CV, &
+                               dir)
 	use calculated_properties_MD, only : nbins
 	use arrays_MD, only : r, v
 	use computational_constants_MD, only : iter, initialstep, delta_t
@@ -1449,14 +1450,20 @@ subroutine get_F_correction_CV(u_CFD, &
 	!And when my wife tried to prevent me from doing my duty,
 	!I "corrected" her.
 
-	integer,intent(in)             		:: lbl(6)
+	logical,intent(in),optional    		 :: dir(3)
+	integer,intent(in)             		 :: lbl(6)
 	real(kind(0.d0)),intent(in), & 
 		allocatable,dimension(:,:,:,:)   :: u_CFD
 	real(kind(0.d0)),intent(out), & 
 		allocatable,dimension(:,:,:,:)   :: Fcorrect_CV
 
+
+	integer,     & 
+		allocatable,dimension(:,:,:)     :: molsperbin
+
 	!While currently being "corrected", don't apply further constraints
-	integer												 :: n,i,j,k, rel_iter
+	logical                                      		 :: applied_in(3)
+	integer												 :: n,i,j,k,ixyz, rel_iter
     integer                                              :: CVforce_correctime
 	integer,parameter									 :: iter_correct=50
 	integer,dimension(3)								 :: bin
@@ -1467,6 +1474,13 @@ subroutine get_F_correction_CV(u_CFD, &
 	double precision,dimension(3),save					 :: F_sum
 	double precision,allocatable,dimension(:,:,:,:) 	 :: u_CV
 	double precision,allocatable,dimension(:,:,:,:),save :: u_error
+
+    !Default is apply all directions
+    if (.not. present(dir)) then
+        applied_in = (/ .true.,.true.,.true. /)
+    else
+        applied_in = dir
+    endif
 
 	!Allocate only on first call
 	if (iter-initialstep+1 .eq. CVforce_starttime) then
@@ -1481,7 +1495,7 @@ subroutine get_F_correction_CV(u_CFD, &
 
 	allocate(Fcorrect_CV(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); Fcorrect_CV=0.d0
 	allocate(u_CV(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); u_CV = 0.d0
-
+    allocate(molsperbin(nbins(1)+2,nbins(2)+2,nbins(3)+2)); molsperbin = 0
 	!Start correcting only after constraint is applied
 	if (iter .le. CVforce_starttime) then
 		return
@@ -1492,6 +1506,7 @@ subroutine get_F_correction_CV(u_CFD, &
 	do n = 1,np
 		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
 		u_CV( bin(1),bin(2),bin(3),:) = u_CV( bin(1),bin(2),bin(3),:) + v(:,n)
+        molsperbin(bin(1),bin(2),bin(3)) = molsperbin(bin(1),bin(2),bin(3)) + 1
 	enddo
 
     !Maximum correcting period before allowing free evolution
@@ -1508,13 +1523,16 @@ subroutine get_F_correction_CV(u_CFD, &
 	do k = lbl(5),lbl(6)
 		!Check if CV is currently being corrected
 		if (.not. correction_lock(i,j,k)) then
-			u_error(i,j,k,:) = u_CV(i,j,k,:) - u_CFD(i,j,k,:)
-            !print'(a,4i6,9f10.5,l)', 'Cell ', iter,i,j,k,u_CFD(i,j,k,:),u_CV(i,j,k,:), u_error(i,j,k,:),any(u_error(i,j,k,:) .gt. tol)
-			if (any(abs(u_error(i,j,k,:)) .gt. 0.0001d0)) then
-				correction_lock(i,j,k) = .true.
-				correctstart(i,j,k) = iter
-                print'(a,3i6,6f10.5,5e14.4)', 'Correcting ', i,j,k,u_CFD(i,j,k,:),u_CV(i,j,k,:),u_error(i,j,k,:),tol
-			endif
+            u_error(i,j,k,:) = 0.d0
+            !u_error(i,j,k,:) = u_CV(i,j,k,:) - u_CFD(i,j,k,:)
+            where (applied_in) u_error(i,j,k,:) = u_CV(i,j,k,:) - u_CFD(i,j,k,:)
+	        if (any(abs(u_error(i,j,k,:)) .gt. 0.0001d0)) then
+		        correction_lock(i,j,k) = .true.
+		        correctstart(i,j,k) = iter
+                print'(a,i5,3i3,7f9.5,3e10.2,f9.5)', 'Corrct ',iter,i,j,k,molsperbin(i,j,k)/volume, & 
+                                                              u_CFD(i,j,k,:),u_CV(i,j,k,:), & 
+                                                              u_error(i,j,k,:),u_CFD(i,j,k,1)/u_CV(i,j,k,1)
+	        endif
 		endif
 
 		!If correction lock is on, calculate correction
@@ -1732,13 +1750,13 @@ subroutine apply_force(F_CV,  &
         enddo
 
         !Debug -- write out force applied to molecules every 100 timesteps
-		if (mod(iter,100) .eq. 0) then
-            if (CVweighting_flag .eq. 0) then
-                write(5000+iter,'(2i8,9f18.8)'), iter, n, r(:,n), F_iext, a(:,n)
-            elseif (CVweighting_flag .ge. 1) then
-                write(5000+iter,'(2i8,9f18.8)'), iter, n, r(:,n), F_mol(:,n), a(:,n)
-            endif
-		endif
+!		if (mod(iter,100) .eq. 0) then
+!            if (CVweighting_flag .eq. 0) then
+!                write(5000+iter,'(2i8,9f18.8)'), iter, n, r(:,n), F_iext, a(:,n)
+!            elseif (CVweighting_flag .ge. 1) then
+!                write(5000+iter,'(2i8,9f18.8)'), iter, n, r(:,n), F_mol(:,n), a(:,n)
+!            endif
+!		endif
 						
 		!Apply force by adding to total
 		a(:,n) = a(:,n) - F_iext(:)
@@ -1813,7 +1831,10 @@ subroutine check_CFD(u_CFD,CFD_stress,CFD_flux,lbl)
 	real(kind(0.d0)),dimension(3)           :: totalflux,totalstress,dvelocitydt
 
     if (first_time) then
-        allocate(u_CFD_mdt(size(u_CFD,1),size(u_CFD,2),size(u_CFD,3),size(u_CFD,4)))
+        allocate(u_CFD_mdt(size(u_CFD,1), & 
+                           size(u_CFD,2), & 
+                           size(u_CFD,3), & 
+                           size(u_CFD,4)))
         u_CFD_mdt = 0.d0
         first_time = .false.
         cum_conserved = 0.d0
@@ -1832,15 +1853,6 @@ subroutine check_CFD(u_CFD,CFD_stress,CFD_flux,lbl)
 		totalstress =(CFD_stress(i,j,k,:,1)-CFD_stress(i,j,k,:,4)) & !/Fbinsize(1) &
 					+(CFD_stress(i,j,k,:,2)-CFD_stress(i,j,k,:,5)) & !/Fbinsize(2) &
 					+(CFD_stress(i,j,k,:,3)-CFD_stress(i,j,k,:,6))   !/Fbinsize(3)
-
-!        print'(3i4,9f10.5)',i,j,k, (CFD_stress(i,j,k,:,1)-CFD_stress(i,j,k,:,4)), &
-!                                   (CFD_stress(i,j,k,:,2)-CFD_stress(i,j,k,:,5)), &
-!                                   (CFD_stress(i,j,k,:,3)-CFD_stress(i,j,k,:,6))
-
-
-        !HACK HERE __ THIS IS NOT CORRECT!!!!!!!!!!!
-        !totalstress = totalstress*(Fbinsize(2)/Fbinsize(1))
-        !HACK HERE __ THIS IS NOT CORRECT!!!!!!!!!!!
 
 		!drhou/dt
 		dvelocitydt = (u_CFD(i,j,k,:)-u_CFD_mdt(i,j,k,:))/delta_t
@@ -1862,7 +1874,7 @@ subroutine check_CFD(u_CFD,CFD_stress,CFD_flux,lbl)
     enddo
     enddo
 
-    !print'(a,f27.18)', 'Cumulative error in CFD_CV conservation =', cum_conserved
+    print'(a,f27.18)', 'Cumulative error in CFD_CV conservation =', cum_conserved
 
 !            if (abs((uc(i,j)-uc_t_minus_1(i,j))/continuum_delta_t - xresidual(i,j)/vcell(i,j)) .gt. 1e-10) then
 !    	        print'(a,3i5,10f10.6)','time', continuum_iter, i, j, uc(i,j),(uc(i,j)-uc_t_minus_1(i,j))/continuum_delta_t,xresidual(i,j)/vcell(i,j), & 
@@ -1938,7 +1950,7 @@ subroutine apply_CV_force
 	if (CVforce_correct .eq. 0) then
 		allocate(Fcorrect_CV(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); Fcorrect_CV = 0.d0
 	elseif (CVforce_correct .eq. 1) then
-		call get_F_correction_CV(u_CFD, lbl, Fcorrect_CV)
+		call get_F_correction_CV(u_CFD, lbl, Fcorrect_CV, CVforce_applied_dir)
 	endif
 
 	!Apply CV stresses as constant force to whole volume or distribute

@@ -884,376 +884,6 @@ implicit none
 
 end subroutine simulation_compute_forces_Soddemann_neigbr_halfint
 
-!========================================================================
-!Compute Volume Averaged stress using all cells including halos
-
-subroutine simulation_compute_rfbins(imin, imax, jmin, jmax, kmin, kmax)
-	use module_compute_forces
-    use polymer_info_MD, only: sod_cut2, sod_a, sod_b, wca_cut2, wca_cut,&
-                               eps_pp, eps_ps, eps_ss, solvent_flag, monomer
-    use interfaces, only: error_abort
-	implicit none
-
-	integer,intent(in)  			:: imin, jmin, kmin, imax, jmax, kmax
-
-	integer                         :: i, j, ixyz !Define dummy index
-	integer							:: icell, jcell, kcell
-	integer                         :: icellshift, jcellshift, kcellshift
-	integer                         :: cellnp, adjacentcellnp 
-	integer							:: molnoi, molnoj
-	integer							:: icellmin,jcellmin,kcellmin,icellmax,jcellmax,kcellmax
-
-    integer :: p_i, p_j, ptot
-
-	type(node), pointer 	        :: oldi, currenti, oldj, currentj
-
-	double precision,dimension(3)	:: cellsperbin
-    double precision :: eps
-
-	!rfbin = 0.d0
-	!allocate(rijsum(nd,np+extralloc)) !Sum of rij for each i, used for SLLOD algorithm
-	!rijsum = 0.d0
-
-	!Calculate bin to cell ratio
-	cellsperbin = 1.d0/binspercell !ceiling(ncells(1)/dble(nbins(1)))
-    ! Still need to loop over every cell (i.e. get all interactions) if
-    ! bins are bigger than cells
-	where (cellsperbin .lt. 1.d0) cellsperbin = 1.d0
-
-!	do kcell=(kmin-1)*cellsperbin(3)+1, kmax*cellsperbin(3)
-!	do jcell=(jmin-1)*cellsperbin(2)+1, jmax*cellsperbin(2)
-!	do icell=(imin-1)*cellsperbin(1)+1, imax*cellsperbin(1)
-
-	icellmin = (imin-1)*cellsperbin(1)+1
-	icellmax = (imax-2)*cellsperbin(1)+2
-	jcellmin = (jmin-1)*cellsperbin(2)+1
-	jcellmax = (jmax-2)*cellsperbin(2)+2
-	kcellmin = (kmin-1)*cellsperbin(3)+1
-	kcellmax = (kmax-2)*cellsperbin(3)+2
-
-	!Get cell number from bin numbers
-!	icellmin = (imin-1)*cellsperbin(1)+1+(1-cellsperbin(1))
-!	icellmax =  imax   *cellsperbin(1)  +(1-cellsperbin(1))
-!	jcellmin = (jmin-1)*cellsperbin(2)+1+(1-cellsperbin(2))
-!	jcellmax =  jmax   *cellsperbin(2)  +(1-cellsperbin(2))
-!	kcellmin = (kmin-1)*cellsperbin(3)+1+(1-cellsperbin(3))
-!	kcellmax =  kmax   *cellsperbin(3)  +(1-cellsperbin(3))
-
-	!Get cell number from bin numbers
-!	ibinmin = (iminl-1)*cellsperbin(1)+1+(1-cellsperbin(1))
-!	ibinmax =  imaxl   *cellsperbin(1)  +(1-cellsperbin(1))
-!	jbinmin = (jminl-1)*cellsperbin(2)+1+(1-cellsperbin(2))
-!	jbinmax = jmaxl    *cellsperbin(2)  +(1-cellsperbin(2))
-!	kbinmin = (kminl-1)*cellsperbin(3)+1+(1-cellsperbin(3))
-!	kbinmax = kmaxl    *cellsperbin(3)  +(1-cellsperbin(3))
-
-!	icellmin = (imin-1)*cellsperbin(1)+2+(1-cellsperbin(1))
-!	icellmax =  imax   *cellsperbin(1)-cellsperbin(1)
-!	jcellmin = (jmin-1)*cellsperbin(2)+2+(1-cellsperbin(2))
-!	jcellmax =  jmax   *cellsperbin(2)-cellsperbin(2)
-!	kcellmin = (kmin-1)*cellsperbin(3)+2+(1-cellsperbin(3))
-!	kcellmax =  kmax   *cellsperbin(3)-cellsperbin(3)
-
-	do kcell=kcellmin, kcellmax
-	do jcell=jcellmin, jcellmax 
-	do icell=icellmin, icellmax 
-	
-		cellnp = cell%cellnp(icell,jcell,kcell)
-		oldi => cell%head(icell,jcell,kcell)%point !Set old to first molecule in list
-
-		do i = 1,cellnp					!Step through each particle in list 
-			molnoi = oldi%molno 	 	!Number of molecule
-			ri = r(:,molnoi)         	!Retrieve ri
-
-			do kcellshift = -1,1
-			do jcellshift = -1,1
-			do icellshift = -1,1
-
-				!Prevents out of range values in i
-				if (icell+icellshift .lt. icellmin) cycle
-				if (icell+icellshift .gt. icellmax) cycle
-				!Prevents out of range values in j
-				if (jcell+jcellshift .lt. jcellmin) cycle
-				if (jcell+jcellshift .gt. jcellmax) cycle
-				!Prevents out of range values in k
-				if (kcell+kcellshift .lt. kcellmin) cycle
-				if (kcell+kcellshift .gt. kcellmax) cycle
-
-				oldj => cell%head(icell+icellshift,jcell+jcellshift,kcell+kcellshift)%point
-				adjacentcellnp = cell%cellnp(icell+icellshift,jcell+jcellshift,kcell+kcellshift)
-
-				do j = 1,adjacentcellnp          !Step through all j for each i
-
-					molnoj = oldj%molno 	 !Number of molecule
-					rj = r(:,molnoj)         !Retrieve rj
-
-					currentj => oldj
-					oldj => currentj%next    !Use pointer in datatype to obtain next item in list
-
-					if(molnoi==molnoj) cycle !Check to prevent interaction with self
-
-					rij2=0                   !Set rij^2 to zero
-					rij(:) = ri(:) - rj(:)   !Evaluate distance between particle i and j
-
-					do ixyz=1,nd
-						rij2 = rij2+rij(ixyz)*rij(ixyz) !Square of vector calculated
-					enddo
-
-                    if (potential_flag .eq. 1 .and. solvent_flag .eq. 1) then
-
-                        if (rij2 .lt. sod_cut2) then            !If within potential range
-
-                            p_i = 0                             !Init as solvent
-                            p_j = 0                             !Init as solvent
-                            if (monomer(molnoi)%chainID .ne. 0) p_i = 1 !Flag polymer
-                            if (monomer(molnoj)%chainID .ne. 0) p_j = 1 !Flag polymer
-                            ptot = p_i + p_j                    !Find flag total
-                        
-                            !Linear magnitude of acceleration for each bead---------------
-                            select case (ptot)
-                            case(0)
-                                eps = eps_ss                 !Solvent-solvent interaction
-                            case(1)
-                                eps = eps_ps                 !Polymer-solvent interaction
-                            case(2)
-                                eps = eps_pp                 !Polymer-polymer interaction
-                                                             !(no FENE)
-                            case default
-                                call error_abort("Undetermined interaction in &
-                                                  &compute_forces_Soddemann")
-                            end select
-                        
-                            invrij2  = 1.d0/rij2             !Useful value
-                            if (rij2 .lt. wca_cut2) then
-                                accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
-                            else
-                                accijmag = (eps*sod_a*invrij2**2.d0)*sin(invrij2*sod_a &
-                                                                         + sod_b)
-                            end if          
-
-                            !Select requested configurational line partition methodology
-                            select case(VA_calcmethod)
-                            case(0)
-                                call pressure_tensor_forces_H(ri,rj,rij,accijmag)
-                            case(1)
-                                call pressure_tensor_forces_VA_trap(ri,rj,accijmag)
-                            case(2)
-                                call pressure_tensor_forces_VA(ri,rj,rij,accijmag)
-                            case default
-                                stop "Error - VA_calcmethod incorrect"
-                            end select 
-
-                        end if
-                                     
-                    else
-                        if (rij2 < rcutoff2) then
-
-                            invrij2 = 1.d0/rij2                 !Invert value
-                            accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
-
-                            !Select requested configurational line partition methodology
-                            select case(VA_calcmethod)
-                            case(0)
-                                call pressure_tensor_forces_H(ri,rj,rij,accijmag)
-                            case(1)
-                                call pressure_tensor_forces_VA_trap(ri,rj,accijmag)
-                            case(2)
-                                call pressure_tensor_forces_VA(ri,rj,rij,accijmag)
-                            case default
-                                stop "Error - VA_calcmethod incorrect"
-                            end select 
-
-                        end if
-                    end if
-
-				enddo
-			enddo
-			enddo
-			enddo
-			currenti => oldi
-			oldi => currenti%next !Use pointer in datatype to obtain next item in list
-		enddo
-	enddo
-	enddo
-	enddo
-
-    ! Add FENE contribution if it's there
-    if (potential_flag .eq. 1) then
-        call add_FENE_contribution
-    end if
-
-	nullify(oldi)      	!Nullify as no longer required
-	nullify(oldj)      	!Nullify as no longer required
-	nullify(currenti)      	!Nullify as no longer required
-	nullify(currentj)      	!Nullify as no longer required
-
-contains
-
-    subroutine add_FENE_contribution
-        use polymer_info_MD
-        implicit none
-
-        integer :: b
-
-        do molnoi=1,np+halo_np
-
-            ri(:) = r(:,molnoi) !Retrieve ri(:)
-            do b=1,monomer(molnoi)%funcy
-
-                molnoj = bond(b,molnoi)
-                if (molnoj.eq.0) cycle
-
-                rj(:)  = r(:,molnoj)
-                rij(:) = ri(:) - rj(:)
-                rij2   = dot_product(rij,rij)
-                accijmag = -k_c/(1-(rij2/(R_0**2)))	!(-dU/dr)*(1/|r|)
-
-                call pressure_tensor_forces_VA_trap(ri,rj,accijmag)
-
-            end do	
-
-        end do
-
-    end subroutine
-
-end subroutine simulation_compute_rfbins
-
-!Cylindrical polar version
-subroutine simulation_compute_rfbins_cpol(imin, imax, jmin, jmax, kmin, kmax)
-	use module_compute_forces
-	use librarymod, only: cpolariser
-	use messenger, only: globalise
-	implicit none
-
-	integer, intent(in) :: imin, jmin, kmin, imax, jmax, kmax
-
-	integer :: i, j
-	integer	:: icell, jcell, kcell
-	integer :: icellshift, jcellshift, kcellshift
-	integer :: cellnp, adjacentcellnp
-	integer	:: molnoi, molnoj
-	type(node), pointer :: oldi, currenti, oldj, currentj
-
-	double precision,dimension(3)	:: cellsperbin
-
-	!Calculate bin to cell ratio
-	cellsperbin = 1.d0/binspercell !ceiling(ncells(1)/dble(nbins(1)))
-	where (cellsperbin .gt. 1.d0) cellsperbin = 1.d0
-
-	do kcell=(kmin-1)*cellsperbin(3)+1, kmax*cellsperbin(3)
-	do jcell=(jmin-1)*cellsperbin(2)+1, jmax*cellsperbin(2)
-	do icell=(imin-1)*cellsperbin(1)+1, imax*cellsperbin(1)
-	
-		cellnp = cell%cellnp(icell,jcell,kcell)
-		oldi => cell%head(icell,jcell,kcell)%point
-
-		do i = 1,cellnp
-
-			molnoi = oldi%molno
-			ri = r(:,molnoi)
-
-			do kcellshift = -1,1
-			do jcellshift = -1,1
-			do icellshift = -1,1
-
-				!Prevents out of range values in i
-				if (icell+icellshift .lt. imin) cycle
-				if (icell+icellshift .gt. imax) cycle
-				!Prevents out of range values in j
-				if (jcell+jcellshift .lt. jmin) cycle
-				if (jcell+jcellshift .gt. jmax) cycle
-				!Prevents out of range values in k
-				if (kcell+kcellshift .lt. kmin) cycle
-				if (kcell+kcellshift .gt. kmax) cycle
-
-				oldj => cell%head(icell+icellshift, &
-				                  jcell+jcellshift, &
-				                  kcell+kcellshift) % point
-
-				adjacentcellnp = cell%cellnp(icell+icellshift, &
-				                             jcell+jcellshift, &
-				                             kcell+kcellshift)
-
-				do j = 1,adjacentcellnp
-
-					molnoj = oldj%molno
-					rj = r(:,molnoj)
-
-					currentj => oldj
-					oldj => currentj%next 
-
-					! Prevent interaction with self
-					if ( molnoi == molnoj ) cycle 
-
-					rij(:) = ri(:) - rj(:)
-					rij2 = dot_product(rij,rij)
-
-					if (rij2 < rcutoff2) then
-
-						invrij2 = 1.d0/rij2
-						accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
-
-						call pressure_tensor_forces_VA_trap_cpol(ri,rj,accijmag)
-
-					endif
-
-				enddo
-
-			enddo
-			enddo
-			enddo
-
-			currenti => oldi
-			oldi => currenti%next
-
-		enddo
-
-	enddo
-	enddo
-	enddo
-
-    ! Add FENE contribution if it's there
-    if (potential_flag .eq. 1) then
-        call add_FENE_contribution
-    end if
-
-	nullify(oldi)
-	nullify(oldj)
-	nullify(currenti)
-	nullify(currentj)
-
-contains
-
-    subroutine add_FENE_contribution
-        use polymer_info_MD
-        implicit none
-
-        integer :: b
-
-        do molnoi=1,np
-
-            ri(:) = r(:,molnoi) !Retrieve ri(:)
-            do b=1,monomer(molnoi)%funcy
-
-                molnoj = bond(b,molnoi)
-                if (molnoj.eq.0) cycle
-
-                rj(:)  = r(:,molnoj)
-                rij(:) = ri(:) - rj(:)
-                rij2   = dot_product(rij,rij)
-                accijmag = -k_c/(1-(rij2/(R_0**2)))	!(-dU/dr)*(1/|r|)
-
-                call pressure_tensor_forces_VA_trap_cpol(ri,rj,accijmag)
-
-            end do	
-
-        end do
-
-    end subroutine
-
-end subroutine simulation_compute_rfbins_cpol
-
-
 
 !========================================================================
 ! Compute Energy for specified range of CV, requires current acceleration
@@ -1571,85 +1201,85 @@ subroutine collect_bforce_pdf_data
 
 end subroutine collect_bforce_pdf_data 
 
-!========================================================================
-!Cell list computations of potential and force on "would-be" molecules
-subroutine compute_force_and_potential_at(input_pos,Usum,f) 
-	use module_compute_forces
-	implicit none
+!!========================================================================
+!!Cell list computations of potential and force on "would-be" molecules
+!subroutine compute_force_and_potential_at(input_pos,Usum,f) 
+!	use module_compute_forces
+!	implicit none
 
-	real(kind(0.d0)), intent(in)  :: input_pos(3)
-	real(kind(0.d0)), intent(out) :: Usum, f(3)
+!	real(kind(0.d0)), intent(in)  :: input_pos(3)
+!	real(kind(0.d0)), intent(out) :: Usum, f(3)
 
-	integer :: i,j 
-	integer :: icell, jcell, kcell
-	integer :: icellshift, jcellshift, kcellshift
-	integer :: cellnp
-	integer :: molno
-	type(node), pointer :: current, temp
-	real(kind(0.d0)) :: fmol(3), Umol
+!	integer :: i,j 
+!	integer :: icell, jcell, kcell
+!	integer :: icellshift, jcellshift, kcellshift
+!	integer :: cellnp
+!	integer :: molno
+!	type(node), pointer :: current, temp
+!	real(kind(0.d0)) :: fmol(3), Umol
 
-	! Init	
-	Usum = 0.d0
-	f = 0.d0 
+!	! Init	
+!	Usum = 0.d0
+!	f = 0.d0 
 
-	!Find cell, adding nh for halo(s)
-    icell = ceiling((input_pos(1)+halfdomain(1))/cellsidelength(1)) + nh
-    jcell = ceiling((input_pos(2)+halfdomain(2))/cellsidelength(2)) + nh
-    kcell = ceiling((input_pos(3)+halfdomain(3))/cellsidelength(3)) + nh
+!	!Find cell, adding nh for halo(s)
+!    icell = ceiling((input_pos(1)+halfdomain(1))/cellsidelength(1)) + nh
+!    jcell = ceiling((input_pos(2)+halfdomain(2))/cellsidelength(2)) + nh
+!    kcell = ceiling((input_pos(3)+halfdomain(3))/cellsidelength(3)) + nh
 
-	!Return Usum and f zero if position is outside the domain
-	if ( icell .lt. 2 .or. icell .gt. ncells(1)+1 .or. &
-	     jcell .lt. 2 .or. jcell .gt. ncells(2)+1 .or. &
-	     kcell .lt. 2 .or. kcell .gt. ncells(3)+1      ) then
-		print*, 'Warning - attempted to calculated force and potential'
-		print*, 'outside of the domain. Returning Usum=f=0.'
-		return
-	end if
+!	!Return Usum and f zero if position is outside the domain
+!	if ( icell .lt. 2 .or. icell .gt. ncells(1)+1 .or. &
+!	     jcell .lt. 2 .or. jcell .gt. ncells(2)+1 .or. &
+!	     kcell .lt. 2 .or. kcell .gt. ncells(3)+1      ) then
+!		print*, 'Warning - attempted to calculated force and potential'
+!		print*, 'outside of the domain. Returning Usum=f=0.'
+!		return
+!	end if
 
-	do kcellshift = -1,1
-	do jcellshift = -1,1
-	do icellshift = -1,1
+!	do kcellshift = -1,1
+!	do jcellshift = -1,1
+!	do icellshift = -1,1
 
-		current => cell%head  (icell+icellshift,jcell+jcellshift,kcell+kcellshift)%point
-		cellnp  =  cell%cellnp(icell+icellshift,jcell+jcellshift,kcell+kcellshift)
-    
-		do j = 1,cellnp	
+!		current => cell%head  (icell+icellshift,jcell+jcellshift,kcell+kcellshift)%point
+!		cellnp  =  cell%cellnp(icell+icellshift,jcell+jcellshift,kcell+kcellshift)
+!    
+!		do j = 1,cellnp	
 
-			rij(:) = input_pos(:) - r(:,current%molno)
-			rij2   = dot_product(rij,rij)
+!			rij(:) = input_pos(:) - r(:,current%molno)
+!			rij2   = dot_product(rij,rij)
 
-            if (rij2 .eq. 0.d0) then
-                !print*, 'Warning, computing potential with zero separation...', current%molno
-			    current => current%next
-                cycle
-            end if
+!            if (rij2 .eq. 0.d0) then
+!                !print*, 'Warning, computing potential with zero separation...', current%molno
+!			    current => current%next
+!                cycle
+!            end if
 
-            !Linear magnitude of acceleration for each molecule
-            invrij2 = 1.d0/rij2
+!            !Linear magnitude of acceleration for each molecule
+!            invrij2 = 1.d0/rij2
 
-			if (rij2 < rcutoff2) then
+!			if (rij2 < rcutoff2) then
 
-				!Linear magnitude of acceleration for each molecule
-				invrij2 = 1.d0/rij2
+!				!Linear magnitude of acceleration for each molecule
+!				invrij2 = 1.d0/rij2
 
-				!Find molecule's contribution to f and Usum
-				fmol = 48.d0*( invrij2**7 - 0.5d0*invrij2**4 )*rij
-				Umol = 4.d0*( invrij2**6 - invrij2**3 )-potshift
+!				!Find molecule's contribution to f and Usum
+!				fmol = 48.d0*( invrij2**7 - 0.5d0*invrij2**4 )*rij
+!				Umol = 4.d0*( invrij2**6 - invrij2**3 )-potshift
 
-				!Add to totals
-				f = f + fmol
-				Usum = Usum + Umol
+!				!Add to totals
+!				f = f + fmol
+!				Usum = Usum + Umol
 
-			endif
+!			endif
 
-			current => current%next
+!			current => current%next
 
-		enddo
+!		enddo
 
-	enddo
-	enddo
-	enddo
+!	enddo
+!	enddo
+!	enddo
 
-	nullify(current)      	!Nullify as no longer required
+!	nullify(current)      	!Nullify as no longer required
 
-end subroutine compute_force_and_potential_at 
+!end subroutine compute_force_and_potential_at 
