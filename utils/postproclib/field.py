@@ -1,6 +1,9 @@
 #! /usr/bin/env python
 import numpy as np
 import scipy.ndimage
+import scipy.interpolate as interp
+import scipy.ndimage.interpolation as interp2
+import matplotlib.pyplot as plt
 
 class OutsideRecRange(Exception):
     pass
@@ -289,7 +292,42 @@ class Field():
             with open(savefile,'w') as f:
                 f.write(energy)
         
-        return energy 
+        return energy
+
+
+    def grad(self,vdata, dx=None, 
+                         dy=None, 
+                         dz=None):
+
+        """
+            Return the gradient of a vector field
+        """
+
+        #if (dxyz is None):
+        #    dxyz=[self.Raw.dx,self.Raw.dy,self.Raw.dz]
+
+        if (dx is None):
+            dx=self.Raw.dx
+        if (dy is None):
+            dy=self.Raw.dy
+        if (dz is None):
+            dz=self.Raw.dz
+
+        grad_temp = np.empty((vdata.shape[0],
+                              vdata.shape[1],
+                              vdata.shape[2],
+                              vdata.shape[4]))
+        gradv = np.empty(list(vdata.shape[:-1]) + [9])
+        for rec in range(gradv.shape[-2]):
+            for ixyz in range(3):
+                grad_temp = np.gradient(vdata[:,:,:,rec,ixyz], 
+                                        dx, dy, dz)
+
+                for jxyz in range(3):
+                    c = 3*ixyz + jxyz
+                    gradv[:,:,:,rec,c] = grad_temp[jxyz]
+
+        return gradv
 
     def write_dx_file(self,startrec,endrec,writedir=None,component=0,**kwargs):
 
@@ -359,6 +397,84 @@ class Field():
                 f.write('object "'+str(self).split('.')[1].split(' ')[0]+'" class field \n')
 
         return np.mean(datamin), np.mean(datamax)
+
+    # Write ascii type field
+    def write_asciifield(self,startrec,endrec,
+                        writedir=None,maptocosine=True,
+                        flipdir=[False,True,False],**kwargs):
+
+        #Get file name
+        if (writedir == None):
+            writedir = self.fdir
+
+        Nxyz = [Nx,Ny,Nz]
+        for n,flip in enumerate(flipdir):
+            if flip:
+                mindir[n] = Nxyz[n]
+                maxdir[n] = 0
+            else:
+                mindir[n] = 0
+                maxdir[n] = Nxyz[n] 
+
+        data = self.read(startrec=startrec,endrec=endrec,**kwargs)
+
+        outfiles =[]
+        for rec in range(startrec,endrec):
+
+            FileName = writedir + 'u' + str(rec) + '.asc'
+            outfiles.append(FileName)
+            with open(FileName,'w+') as f:
+                for nx in range(mindir[0],maxdir[0]):
+                    for ny in range(mindir[1],maxdir[1]):
+                        for nz in range(mindir[2],maxdir[2]):
+                            for ixyz in data.shape[4]:
+                                if maptocosine:
+                                    f.write(str(
+                                                self.map_data_lineartocosine(
+                                                data[nx,ny,nz,rec,ixyz],
+                                                self.Raw.Ny,
+                                                self.Raw.a,
+                                                self.Raw.b))
+                                            +"\n")
+                                else:
+                                    f.write(str(
+                                                data[nx,ny,nz,rec,ixyz])
+                                            +"\n")
+
+        return outfiles
+
+    def map_data_lineartocosine(self,values_on_linear_grid,Ny,a,b):
+        """
+            Map data on a linear grid to a cosine grid 
+        """
+        ycells = np.linspace(0, Ny, Ny)
+        ylin = np.linspace(a, b, Ny)
+        ycos = 0.5*(b+a) - 0.5*(b-a)*np.cos((ycells*np.pi)/(Ny-1))
+        plt.plot(ylin,values_on_linear_grid,'o-',alpha=0.4,label='lineartocosine Before')
+        values_on_cosine_grid = interp.griddata(ylin, values_on_linear_grid, 
+                                                ycos, method='cubic',
+                                                fill_value=values_on_linear_grid[-1])
+        plt.plot(ycos,values_on_cosine_grid,'x-',label='lineartocosine After')
+        plt.legend()
+        plt.show()
+        return values_on_cosine_grid
+
+    def map_data_cosinetolinear(self,values_on_cosine_grid,Ny,a,b):
+            """
+                Map data on a cosine grid to a linear grid 
+            """
+            ycells = np.linspace(0, Ny, Ny)
+            ylin = np.linspace(a, b, Ny)
+            ycos = 0.5*(b+a) - 0.5*(b-a)*np.cos((ycells*np.pi)/(Ny-1))
+            plt.plot(ycos,values_on_cosine_grid,'x-',label='cosinetolinear Before')
+            values_on_linear_grid = interp.griddata(ycos, values_on_cosine_grid, 
+                                                    ylin, method='cubic',
+                                                    fill_value=values_on_cosine_grid[-1])
+            #values_on_linear_grid = interp2.map_coordinates(values_on_cosine_grid,ycos,output=ylin)
+            plt.plot(ylin,values_on_linear_grid,'o-',alpha=0.4,label='cosinetolinear After')
+            plt.legend()
+            plt.show()
+            return values_on_linear_grid
 
 
     def cellcentre2vertex(self,celldata):

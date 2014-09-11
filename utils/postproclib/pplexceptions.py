@@ -3,3 +3,6 @@ class DataNotAvailable(Exception):
 
 class NoResultsInDir(Exception):
     pass
+
+class DataMismatch(Exception):
+    pass

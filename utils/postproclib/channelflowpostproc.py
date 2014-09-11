@@ -20,7 +20,10 @@ class channelflow_PostProc(PostProc):
             print("Directory " +  self.resultsdir + " not found")
             raise IOError
 
-        possibles = {'channelflow Velocity': Channelflow_vField}
+        possibles = {'channelflow Velocity': Channelflow_vField,
+                     'Channelflow strain': Channelflow_strainField,
+                     'Channelflow vorticity': Channelflow_vortField,
+                     'Channelflow Dissipation': Channelflow_dissipField}
         
         if (not glob.glob(self.resultsdir+'*.h5')):
             raise NoResultsInDir

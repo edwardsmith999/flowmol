@@ -14,8 +14,9 @@ class Channelflow_RawData:
     def __init__(self,fdir):
         self.fdir = fdir
         self.get_channelflow_utils()
-        self.subdomlist = self.get_subdomlist()
+        self.subdomlist, self.plotfreq = self.get_subdomlist()
         self.npercell = 3
+        self.header = None
         self.grid = self.get_grid()
         self.maxrec = len(self.subdomlist)-1 # count from 0
         try:
@@ -64,7 +65,7 @@ class Channelflow_RawData:
         self.xL = float(self.Lx)
         self.yL = float(self.Ly)
         self.zL = float(self.Lz)
-        # Grid spacing
+        # Grid spacing (n.b. average in y as stretched grid)
         self.dx = self.xL/float(self.nx)
         self.dy = self.yL/float(self.ny)
         self.dz = self.zL/float(self.nz)
@@ -94,6 +95,43 @@ class Channelflow_RawData:
                 print("Can't save" + ' self.'+ x.replace('==','=').strip(' '))
 
 
+    def get_binvolumes(self,binlimits=None):
+
+        binspaces = self.grid
+    
+        x, y, z = np.meshgrid(binspaces[0],binspaces[1],binspaces[2],
+                              indexing='ij')
+
+        dx = binspaces[0][1] - binspaces[0][0]
+        dy = binspaces[1][1] - binspaces[1][0]
+        dz = binspaces[2][1] - binspaces[2][0]
+
+        binvolumes = np.ones(x.shape)*dx*dy*dz
+
+        # If bin limits are specified, return only those within range
+        if (binlimits):
+
+            # Defaults
+            lower = [0]*3
+            upper = [i for i in binvolumes.shape] 
+    
+            for axis in range(3):
+                if (binlimits[axis] == None):
+                    continue
+                else:
+                    lower[axis] = binlimits[axis][0] 
+                    upper[axis] = binlimits[axis][1] 
+
+            binvolumes = binvolumes[lower[0]:upper[0],
+                                    lower[1]:upper[1],
+                                    lower[2]:upper[2]]
+                
+        # Ensure binvolumes is the right shape for subsequent
+        # broadcasting with other fields
+        binvolumes = np.expand_dims(binvolumes,-1)
+
+        return binvolumes
+
     def get_subdomlist(self):
 
         def get_int(name):
@@ -112,7 +150,8 @@ class Channelflow_RawData:
                 subdoms.append(filename)
 
         subdoms = sorted(subdoms,key=get_int)
-        return subdoms
+        plotfreq = get_int(subdoms[1])-get_int(subdoms[0])
+        return subdoms, plotfreq
 
     def convert(self,filename):
         """
@@ -145,10 +184,31 @@ class Channelflow_RawData:
 
     def cosinegrid(self,a,b,Npoints):
         points = np.linspace(0, Npoints, Npoints)
-        cosgrid = 0.5*(b+a) - 0.5*(b-a)*np.cos((points*np.pi)/(Npoints-1))
+        cosgrid = 0.5*(b+a) - 0.5*(b-a)*np.cos((points*np.pi)/(Npoints))
 
         return cosgrid
- 
+
+#    def map_data_lineartocosine(values_on_linear_grid,Ny=self.ny,a=-1,b=1):
+#        """
+#            Map data on a linear grid to a cosine grid 
+#        """
+#	    ycells = np.linspace(0, Ny, Ny)
+#	    ylin = np.linspace(a, b, Ny)
+#	    ycos = 0.5*(b+a) - 0.5*(b-a)*np.cos((ycells*np.pi)/(Ny-1))
+#	    values_on_cosine_grid = griddata(ylin, values_on_linear_grid, 
+#									     ycos, method='cubic')
+#	    return values_on_cosine_grid
+
+#    def map_data_cosinetolinear(values_on_cosine_grid,Ny=self.ny,a=-1,b=1):
+#            """
+#                Map data on a cosine grid to a linear grid 
+#            """
+#	        ycells = np.linspace(0, Ny, Ny)
+#	        ylin = np.linspace(a, b, Ny)
+#	        ycos = 0.5*(b+a) - 0.5*(b-a)*np.cos((ycells*np.pi)/(Ny-1))
+#	        values_on_linear_grid = griddata(ycos, values_on_cosine_grid, 
+#									         ylin, method='cubic')
+#	        return values_on_linear_grid
 
     def read(self,startrec,endrec, binlimits=None, verbose=False, 
                 quit_on_error=True,wallnormaldir=1):
@@ -156,6 +216,14 @@ class Channelflow_RawData:
         nrecs = endrec - startrec + 1
         nbins = [self.nx, self.ny, self.nz]
         lower = np.empty(3); upper = np.empty(3)
+
+        if nrecs > len(self.subdomlist):
+            print('Number of records ', nrecs , ' greater than ', len(self.subdomlist) ,
+                 ' available:', self.subdomlist)
+        elif startrec + nrecs > len(self.subdomlist):
+            print('Range of records ', startrec, ' to ', endrec , ' outside ', 
+                  startrec, ' to ', len(self.subdomlist)+startrec,
+                  ' available:', self.subdomlist)
 
         def add_laminar(vin,lims):
             v_laminar = self.cosinegrid(a=-1.0, b=1.0, Npoints=self.nry)
@@ -186,7 +254,11 @@ class Channelflow_RawData:
         # Loop through files and insert data
         for plusrec in range(0,nrecs):
 
-            fpath = self.fdir + self.subdomlist.pop(startrec+plusrec)
+            try:
+                #fpath = self.fdir + self.subdomlist.pop(startrec+plusrec)
+                fpath = self.fdir + self.subdomlist[startrec+plusrec]
+            except IndexError:
+                raise DataNotAvailable
             data = self.read_field(fpath)
 
             # insert into array
@@ -227,9 +299,8 @@ class Channelflow_RawData:
     def read_h5field(self,fpath):
         #import h5py
         with h5py.File(fpath,'r') as fobj:
-            fftdata = fobj[u'data'].items()[0][1]
-            return np.transpose(np.array(fftdata),(1,2,3,0))
-
+            data = fobj[u'data'].items()[0][1]
+            return np.transpose(np.array(data),(1,2,3,0))
 
 
 

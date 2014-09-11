@@ -13,6 +13,7 @@ class CFD_RawData:
         self.npercell = self.get_npercell()
         self.maxrec = len(self.subdomlist)-1 # count from 0
         self.Re, self.nu = self.get_couette_params()
+        self.header = None
 
     def get_couette_params(self):
 
@@ -64,12 +65,7 @@ class CFD_RawData:
         gridy = np.linspace(-self.dy/2., self.yL +self.dy/2., num=self.nry)
         gridz = np.linspace( self.dz/2., self.zL -self.dz/2., num=self.nrz)
         grid = [gridx,gridy,gridz]
-        # Debug info
-        #print('nxyz = ', [self.nx, self.ny, self.nz])
-        #print('nrxyz = ', [self.nrx, self.nry, self.nrz])
-        #print('xyzL = ',[self.xL, self.yL, self.zL])
-        #print('dxyz = ',[self.dx, self.dy, self.dz])
-        #print(grid)
+
         return grid 
 
     def get_subdomlist(self):

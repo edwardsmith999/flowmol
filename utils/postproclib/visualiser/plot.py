@@ -80,4 +80,9 @@ class PyplotPanel(wx.Panel):
         self.canvas.draw()
 
     def savefigure(self,fpath):
-        self.figure.savefig(str(fpath),dpi=300)
+        fs = matplotlib.rcParams.get('font.size')
+        matplotlib.rcParams.update({'font.size': 22})
+        self.figure.savefig(str(fpath),dpi=300, transparent=True, 
+                            bbox_inches='tight', pad_inches=0.1)
+        matplotlib.rcParams.update({'font.size': fs})
+        self.canvas.draw()

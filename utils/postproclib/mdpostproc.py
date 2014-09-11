@@ -156,20 +156,53 @@ class MD_PostProc(PostProc):
 
         #Velocity
         if ('mbins' in (self.fieldfiles1) and 'vbins' in (self.fieldfiles1)):
-            v1 = MD_vField(self.resultsdir, **kwargs)
-            self.plotlist.update({'u':v1})
+            try:
+                v1 = MD_vField(self.resultsdir, **kwargs)
+                self.plotlist.update({'u':v1})
+            except DataMismatch:
+                pass
+
+        #strain
+        if ('mbins' in (self.fieldfiles1) and 'vbins' in (self.fieldfiles1)):
+            try:
+                v1 = MD_strainField(self.resultsdir, **kwargs)
+                self.plotlist.update({'Strain':v1})
+            except DataMismatch:
+                pass
+
+
+        #Vorticity
+        if ('mbins' in (self.fieldfiles1) and 'vbins' in (self.fieldfiles1)):
+            try:
+                v1 = MD_vortField(self.resultsdir, **kwargs)
+                self.plotlist.update({'Vorticity':v1})
+            except DataMismatch:
+                pass
+
+        #Dissipation
+        if ('mbins' in (self.fieldfiles1) and 'vbins' in (self.fieldfiles1)):
+            try:
+                v1 = MD_dissipField(self.resultsdir, **kwargs)
+                self.plotlist.update({'Dissipation':v1})
+            except DataMismatch:
+                pass
 
         #Velocity snapshot
         if ('msnap' in (self.fieldfiles1) and 'vsnap' in (self.fieldfiles1)):
-            v1 = MD_vField(self.resultsdir,rectype='snap', **kwargs)
-            self.plotlist.update({'u_snap':v1})
-
+            try:
+                v1 = MD_vField(self.resultsdir,rectype='snap', **kwargs)
+                self.plotlist.update({'u_snap':v1})
+            except DataMismatch:
+                pass
         #Temperature
         if ('mbins' in (self.fieldfiles1) and 
             'vbins' in (self.fieldfiles1) and 
             'Tbins' in (self.fieldfiles1)):
-            T1 = MD_TField(self.resultsdir, **kwargs)
-            self.plotlist.update({'T':T1})
+            try:
+                T1 = MD_TField(self.resultsdir, **kwargs)
+                self.plotlist.update({'T':T1})
+            except DataMismatch:
+                pass
 
         if (len(self.plotlist) == 0):
             raise NoResultsInDir 

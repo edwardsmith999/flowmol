@@ -74,7 +74,8 @@ class MD_RawData:
             self.header.cpol_bins = False
         self.dtype = dtype
         self.nperbin = nperbin
-        self.nbins, self.grid = self.get_bintopology()
+        self.nbins, self.grid, dxyz = self.get_bintopology()
+        self.dx = dxyz[0]; self.dy = dxyz[1]; self.dz = dxyz[2]
         self.maxrec = self.get_maxrec()
 
     def get_bintopology(self):
@@ -103,16 +104,17 @@ class MD_RawData:
                         float(self.header.globaldomain2),
                         float(self.header.globaldomain3) ])
 
-        binspaces = [] 
+        binspaces = []; binsizes = []
         for ixyz in range(3):
             binsize = np.divide(domain[ixyz],gnbins[ixyz])
+            binsizes.append(binsize)
             botbincenter = binsize/2.0 
             topbincenter = gnbins[ixyz]*binsize - binsize/2.0
             binspaces.append(np.linspace(botbincenter,
                                        topbincenter,
                                        num=gnbins[ixyz]))
 
-        return gnbins, binspaces
+        return gnbins, binspaces, binsizes
 
     def get_binvolumes(self,binlimits=None):
 
@@ -235,7 +237,8 @@ class MD_RawData:
                     fobj = open(filepath,'rb')
                 except:
                     if quit_on_error:
-                        sys.exit('Unable to find file ' + filepath)    
+                        print('Unable to find file ' + filepath)    
+                        raise DataNotAvailable
                     else:
                         print('Unable to find file ' + filepath)
                         return_zeros = True
@@ -259,7 +262,8 @@ class MD_RawData:
                 fobj = open(self.fdir+self.fname,'rb')
             except:
                 if quit_on_error:
-                    sys.exit('Unable to find file ' + self.fname)    
+                    print('Unable to find file ' + filepath)    
+                    raise DataNotAvailable 
                 else:
                     print('Unable to find file ' + self.fname)
                     return_zeros = True
