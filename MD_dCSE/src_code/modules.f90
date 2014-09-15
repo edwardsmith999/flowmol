@@ -142,7 +142,8 @@ module computational_constants_MD
 
 	!Add debugging CV flags
 	integer,dimension(6) :: F_CV_limits		 !Limits of CV forces
-	logical	:: CV_debug=.false.
+	integer	             :: CV_debug=0
+    integer,dimension(3) :: debug_CV
 
 	integer, dimension(3)	:: periodic
 
@@ -752,7 +753,7 @@ module calculated_properties_MD
 	integer,dimension(:,:,:,:), allocatable	:: mass_flux  			!Flow of mass over a control volume surface
 
 	double precision :: 	&
-		binsize,			&		!Size of each bin
+		binsize(3),			&		!Size of each bin
 		planespacing,		&		!Spacing between planes for MOP
 		vsum, v2sum,		&		!velocity sum
 		potenergysum,		&		!potential energy sum for system

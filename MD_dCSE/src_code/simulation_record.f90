@@ -71,6 +71,21 @@ module module_record
 
 	double precision :: vel
 
+
+contains
+
+    function get_bin(r) result(bin)
+        use computational_constants_MD, only : halfdomain, nhb
+        use calculated_properties_MD, only : binsize
+        implicit none
+
+        double precision,intent(in),dimension(3) :: r
+	    integer,dimension(3) 					 :: bin
+
+        bin = ceiling((r+halfdomain)/binsize)+nhb
+
+    end function get_bin
+
 end module module_record
 !==========================================================================
 ! Top level routine which calls all recording statements throughout the 
@@ -486,16 +501,16 @@ subroutine velocity_PDF_averaging(ixyz)
 
            	const = sqrt(temperature)
 		    !Allocate arrays based on cell 1,1,1 (assuming all identical)
-		    allocate(pdfx(nbins(ixyz),velPDF_array(2,2,2,1)%nbins)); pdfx =0.d0
-		    allocate(pdfy(nbins(ixyz),velPDF_array(2,2,2,2)%nbins)); pdfy =0.d0
-		    allocate(pdfz(nbins(ixyz),velPDF_array(2,2,2,3)%nbins)); pdfz =0.d0
-		    allocate(binloc,source=velPDF_array(2,2,2,1)%binvalues())
+		    allocate(pdfx(nbins(ixyz)+nhb(ixyz),velPDF_array(nhb(1)+1,nhb(2)+1,nhb(3)+1,1)%nbins)); pdfx =0.d0
+		    allocate(pdfy(nbins(ixyz)+nhb(ixyz),velPDF_array(nhb(1)+1,nhb(2)+1,nhb(3)+1,2)%nbins)); pdfy =0.d0
+		    allocate(pdfz(nbins(ixyz)+nhb(ixyz),velPDF_array(nhb(1)+1,nhb(2)+1,nhb(3)+1,3)%nbins)); pdfz =0.d0
+		    allocate(binloc,source=velPDF_array(nhb(1)+1,nhb(2)+1,nhb(3)+1,1)%binvalues())
 
 	        kxyz = mod(ixyz,3)+1
 	        jxyz = mod(ixyz+1,3)+1
-		    do j = 2,nbins(ixyz)+1
-        		do i = 2,nbins(jxyz)+1
-        		do k = 2,nbins(kxyz)+1
+		    do j = nhb(ixyz)+1,nbins(ixyz)+nhb(ixyz)
+        		do i = nhb(jxyz)+1,nbins(jxyz)+nhb(jxyz)
+        		do k = nhb(kxyz)+1,nbins(kxyz)+nhb(kxyz)
                     !Collect values per slice for PDF
                     pdfx(j-1,:) = pdfx(j-1,:) + velPDF_array(i,j,k,1)%hist
                     pdfy(j-1,:) = pdfy(j-1,:) + velPDF_array(i,j,k,2)%hist
@@ -539,9 +554,9 @@ subroutine velocity_PDF_averaging(ixyz)
 
         end select
 
-		do j = 2,nbins(2)+1
-    	do i = 2,nbins(1)+1
-    	do k = 2,nbins(3)+1
+		do j = nhb(2)+1,nbins(2)+nhb(2)
+    	do i = nhb(1)+1,nbins(1)+nhb(1)
+    	do k = nhb(3)+1,nbins(3)+nhb(3)
         do n = 1,nd
 		    velPDF_array(i,j,k,n)%hist = 0
         enddo
@@ -570,7 +585,8 @@ subroutine cumulative_velocity_PDF
 	!Add vmagnitude to PDF histogram for each bin
 	allocate(vmagnitude(1))
 	do n = 1, np    ! Loop over all particles
-		cbin(:) = ceiling((r(:,n)+0.5d0*domain(:))/binsize_(:))+1
+		!cbin(:) = ceiling((r(:,n)+0.5d0*domain(:))/binsize_(:))+1
+        cbin = get_bin(r(:,n))
         do ixyz = 1,nd
     		vmagnitude(1)=v(ixyz,n)
             call velPDF_array(cbin(1),cbin(2),cbin(3),ixyz)%update(vmagnitude)
@@ -1270,13 +1286,15 @@ subroutine cumulative_mass(ixyz)
         case(0)
             do n = 1,np
                 !Add up current volume mass densities
-                ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
+                !ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
+                ibin(:) = get_bin(r(:,n))
                 volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + 1
             enddo
         case(1)
             do n = 1,np
                 !Add up current volume mass densities
-                ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
+                !ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
+                ibin = get_bin(r(:,n))
                 if (monomer(n)%chainID .eq. 0) then
                     !Skip wall molecules
                     if (any(tag(n).eq.tether_tags)) cycle
@@ -1370,7 +1388,8 @@ subroutine velocity_averaging(ixyz)
 
 		do n=1,np
 			!Save streaming velocity per molecule
-			ib(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
+			!ib(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
+            ib(:) = get_bin(r(:,n))
 			U(:,n) =  volume_momentum(ib(1),ib(2),ib(3),:) / volume_mass(ib(1),ib(2),ib(3))
 		enddo
 
@@ -1472,7 +1491,8 @@ subroutine cumulative_velocity(ixyz)
             !Reset Control Volume momentum 
             do n = 1,np
                 !Add up current volume mass and momentum densities
-                ibin(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
+                !ibin(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
+                ibin(:) = get_bin(r(:,n))
                 volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + 1
                 volume_momentum(ibin(1),ibin(2),ibin(3),:) = volume_momentum(ibin(1),ibin(2),ibin(3),:) & 
                                                             + v(:,n) + slidev(:,n)
@@ -1481,7 +1501,8 @@ subroutine cumulative_velocity(ixyz)
             !Reset Control Volume momentum 
             do n = 1,np
                 !Add up current volume mass and momentum densities
-                ibin(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
+                !ibin(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
+                ibin(:) = get_bin(r(:,n))
                 if (monomer(n)%chainID .eq. 0) then
                     if (any(tag(n).eq.tether_tags)) cycle
                     volume_mass_s(ibin(1),ibin(2),ibin(3)) = volume_mass_s(ibin(1),ibin(2),ibin(3)) + 1
@@ -1651,7 +1672,8 @@ subroutine cumulative_temperature(ixyz)
 		!Reset Control Volume momentum 
 		do n = 1,np
 			!Add up current volume mass and temperature densities
-			ibin(:) = ceiling((r(:,n)+halfdomain(:))/Tbinsize(:)) + nhb
+			!ibin(:) = ceiling((r(:,n)+halfdomain(:))/Tbinsize(:)) + nhb
+            ibin(:) = get_bin(r(:,n))
 			if (velocity_outflag .ne. 4) & 
 			volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + 1
 			!Note - the streaming term is removed but includes sliding so this must be added back on
@@ -1851,21 +1873,25 @@ subroutine cumulative_pressure(ixyz,sample_count)
 	case(2)
 		!VOLUME AVERAGE STRESS CALCULATION
 		!Calculate Position (x) force for configurational part of stress tensor
-		call  simulation_compute_rfbins(1,nbins(1)+2,1,nbins(2)+2,1,nbins(3)+2)
+		call  simulation_compute_rfbins!(1,nbins(1)+2*nhb(1), & 
+                                       ! 1,nbins(2)+2*nhb(2), & 
+                                       ! 1,nbins(3)+2*nhb(3))
 		!Calculate velocity (x) velocity for kinetic part of stress tensor
 		if (nbins(1) .eq. ncells(1) .and. & 
 		    nbins(2) .eq. ncells(2) .and. & 
 		    nbins(3) .eq. ncells(3)) then
-			call  simulation_compute_kinetic_VA_cells(2,nbins(1)+1,2,nbins(2)+1,2,nbins(3)+1)
+			call  simulation_compute_kinetic_VA_cells(2,ncells(1)+1,2,ncells(2)+1,2,ncells(3)+1)
 		else
-			call  simulation_compute_kinetic_VA(2,nbins(1)+1,2,nbins(2)+1,2,nbins(3)+1)
+			call  simulation_compute_kinetic_VA(1,nbins(1), & 
+                                                1,nbins(2), & 
+                                                1,nbins(3))
 		endif
 
 		!Add results to cumulative total
 		Pxybin(:,:,:,:,:) =     vvbin(:,:,:,:,:) 				& 
-						      + rfbin(  2:nbins(1)+1, 			& 
-							      		2:nbins(2)+1, 			& 
-							      		2:nbins(3)+1,:,:)/2.d0
+						      + rfbin(  1+nhb(1):nbins(1)+nhb(1), 			& 
+							      		1+nhb(2):nbins(2)+nhb(2), 			& 
+							      		1+nhb(3):nbins(3)+nhb(3),:,:)/2.d0
 
 		!NOTE: REBUILD AT (mod(iter+1,tplot) .eq. 0) WHEN RECORD AFTER FORCE CALCULATION
 		!Reset bin force tensor before next calculation
@@ -1925,6 +1951,7 @@ subroutine simulation_compute_kinetic_VA(imin,imax,jmin,jmax,kmin,kmax)
 	integer								:: imin, jmin, kmin, imax, jmax, kmax
 	integer         					:: n, ixyz,jxyz
 	integer 							:: ibin, jbin, kbin
+	integer 							:: bin(3)
 	double precision, dimension(3)		:: VAbinsize, velvect
 
 	!vvbin = 0.d0
@@ -2138,7 +2165,7 @@ subroutine mass_flux_averaging(flag)
 	call cumulative_mass_flux
 	sample_count = sample_count + 1
 	if (sample_count .eq. Nmflux_ave) then
-		if (CV_debug) then
+		if (CV_debug .ne. 0) then
     		mbinsize(:) = domain(:) / nbins(:)
             thermbinstop = ceiling(thermstattop/mbinsize)
             thermbinsbot = ceiling(thermstatbottom/mbinsize)
@@ -2185,8 +2212,11 @@ subroutine cumulative_mass_flux
 		!call CV_sphere_mass%Add_spherical_CV_fluxes(ri2,ri1)
 
 		!Assign to bins before and after using integer division
-		ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:)) + nhb(:)
-		ibin2(:) = ceiling((ri2+halfdomain(:))/mbinsize(:)) + nhb(:)
+        ibin1(:) =  get_bin(ri1)
+        ibin2(:) =  get_bin(ri2)
+
+!		ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:)) + nhb(:)
+!		ibin2(:) = ceiling((ri2+halfdomain(:))/mbinsize(:)) + nhb(:)
 
 		!Replace Signum function with this functions which gives a
 		!check for plane crossing and the correct sign 
@@ -2324,7 +2354,8 @@ subroutine mass_snapshot
 	volume_mass_temp = 0
 	do n = 1,np
 		!Add up current volume momentum densities
-		ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
+		ibin(:) = get_bin(r(:,n)) 
+		!ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
 		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = volume_mass_temp(ibin(1),ibin(2),ibin(3)) + 1
 		!call  CV_sphere_mass%Add_spherical_CV_mass(r(:,n))
 	enddo
@@ -2332,7 +2363,7 @@ subroutine mass_snapshot
 	!Output Control Volume momentum change and fluxes
 	call mass_bin_io(volume_mass_temp,'snap')
 	!Create copy of previous timestep Control Volume mass and calculate time evolution
-	if (CV_debug) then
+	if (CV_debug .ne. 0) then
 		call CVcheck_mass%update_dXdt(volume_mass_temp)
 		!call CV_sphere_mass%update_dXdt(CV_sphere_mass%Xtemp)
 	endif
@@ -2360,6 +2391,7 @@ subroutine cumulative_momentum_flux(r_,v_,momentum_flux_,notcrossing)
 	use CV_objects, only : CV_constraint!, CV_sphere_momentum
     use librarymod, only : imaxloc, heaviside  =>  heaviside_a1
 	use interfaces, only : error_abort
+    use module_record, only : get_bin
 	implicit none
 
 	double precision,dimension(:,:),allocatable,intent(in) 			:: r_,v_
@@ -2438,8 +2470,11 @@ subroutine cumulative_momentum_flux(r_,v_,momentum_flux_,notcrossing)
 			!call CV_sphere_momentum%Add_spherical_CV_fluxes(velvect,ri2,ri1)
 
 			!Assign to bins before and after using integer division
-			ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:)) + nhb(:)
-			ibin2(:) = ceiling((ri2+halfdomain(:))/mbinsize(:)) + nhb(:)
+            ibin1(:) =  get_bin(ri1)
+            ibin2(:) =  get_bin(ri2)
+
+!			ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:)) + nhb(:)
+!			ibin2(:) = ceiling((ri2+halfdomain(:))/mbinsize(:)) + nhb(:)
 
 			!Replace Signum function with this functions which gives a
 			!check for plane crossing and the correct sign 
@@ -2628,7 +2663,7 @@ subroutine momentum_flux_averaging(flag)
 		call surface_stress_io
 		Pxyface = 0.d0
 		!Debug flag to check CV conservation in code
-        if (CV_debug) then
+        if (CV_debug .ne. 0) then
 
             !Currently, CV check will not work for thermostatted molecules
             !so exclude these from checked region
@@ -2675,7 +2710,9 @@ subroutine momentum_snapshot
 	volume_momentum_temp = 0.d0
 	do n = 1,np
 		!Add up current volume momentum densities
-		ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
+        ibin(:) =  get_bin(r(:,n))
+		!ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
+
 		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = volume_mass_temp(ibin(1),ibin(2),ibin(3)) + 1
 		volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) = volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) + v(:,n)
 		!call CV_sphere_momentum%Add_spherical_CV_velocity(r(:,n),v(:,n))
@@ -2710,6 +2747,7 @@ subroutine cumulative_energy_flux(r_,v_,energy_flux_)
 	use CV_objects, only : CVcheck_energy !, CV_sphere_momentum
     use librarymod, only : imaxloc, heaviside  =>  heaviside_a1
 	use interfaces, only : error_abort
+    use module_record, only : get_bin
 	implicit none
 
 	double precision,dimension(:,:),allocatable,intent(in) 			:: r_,v_
@@ -2775,8 +2813,11 @@ subroutine cumulative_energy_flux(r_,v_,energy_flux_)
 			where (ri12 .eq. 0.d0) ri12 = 0.000001d0
 
 			!Assign to bins before and after using integer division
-			ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:)) + nhb(:)
-			ibin2(:) = ceiling((ri2+halfdomain(:))/mbinsize(:)) + nhb(:)
+            ibin1(:) =  get_bin(ri1)
+            ibin2(:) =  get_bin(ri2)
+
+			!ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:)) + nhb(:)
+			!ibin2(:) = ceiling((ri2+halfdomain(:))/mbinsize(:)) + nhb(:)
 
 			!Replace Signum function with this functions which gives a
 			!check for plane crossing and the correct sign 
@@ -2941,9 +2982,19 @@ subroutine energy_flux_averaging(flag)
 
 	!Integration of surface power using trapizium rule, get current value and
     !add to segment to running total using previous value
-	call simulation_compute_power(2, nbins(1)+1, 2, nbins(2)+1, 2, nbins(3)+1)
-	!Pxyvface_integrated = Pxyvface_integrated + 0.5d0 * (Pxyvface_mdt + Pxyvface) 
-	!Pxyvface_mdt = Pxyvface
+	!call simulation_compute_power(1, nbins(1), 1, nbins(2), 1, nbins(3))
+
+	!call simulation_compute_power(1,nbins(1)+2*nhb(1), & 
+    !                              1,nbins(2)+2*nhb(2), & 
+
+	call simulation_compute_power!(1+nhb(1), nbins(1)+nhb(1), & 
+                                 ! 1+nhb(2), nbins(2)+nhb(2), & 
+                                 ! 1+nhb(3), nbins(3)+nhb(3))
+
+    !Integration of stress using trapizium rule requires multiplication by timestep
+	Pxyvface_integrated = Pxyvface_integrated + 0.5d0 * (Pxyvface_mdt + Pxyvface) 
+	Pxyvface_mdt = Pxyvface
+	Pxyvface = 0.d0
 
 	call cumulative_energy_flux(r,v,energy_flux)
 	sample_count = sample_count + 1
@@ -2977,12 +3028,10 @@ subroutine energy_flux_averaging(flag)
 	!as both use velocity at v(t-dt/2)
 	if (sample_count .eq. Neflux_ave-1) then
 		call surface_power_io
-        !Pxyvface_integrated = 0.d0
-		Pxyvface_mdt = Pxyvface
-		Pxyvface = 0.d0
-		!Pxyvface2 = 0.d0
+        Pxyvface_integrated = 0.d0
+
 		!Debug flag to check CV conservation in code
-		if (CV_debug) then
+		if (CV_debug .ne. 0) then
     		ebinsize(:) = domain(:) / nbins(:)
             if (ensemble .eq. 6) then
                 thermbinstop = ceiling(thermstattop/ebinsize)
@@ -3023,7 +3072,8 @@ subroutine energy_snapshot
 	volume_energy_temp = 0.d0
 	do n = 1,np
 		!Add up current volume momentum densities
-		ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb(:)
+        ibin(:) = get_bin(r(:,n))
+		!ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb(:)
 		velvect(:) = v(:,n) + 0.5d0*a(:,n)*delta_t
 		energy = 0.5d0 * (dot_product(velvect,velvect) + potenergymol(n))
 
@@ -3102,6 +3152,7 @@ contains
 subroutine pressure_tensor_forces_VA(ri, rj, accijmag, domain,  & 
                                    nbins, nhb, rfbin, VA_calcmethod)
     use computational_constants_MD, only : VA_line_samples, cellsidelength
+    use module_record, only : get_bin
 
     integer,intent(in)                                      :: VA_calcmethod
     integer,dimension(3),intent(in)                         :: nbins,nhb
@@ -3153,22 +3204,9 @@ subroutine pressure_tensor_forces_H(ri,rj,accijmag)
 	!= Establish bins for molecules & check number of required bins	=
 	!================================================================
 
-	do ixyz = 1,3
-
-		VAbinsize(ixyz) = domain(ixyz) / nbins(ixyz)
-		if (VAbinsize(ixyz) .lt. cellsidelength(ixyz)) & 
-            stop "Binsize bigger than cellsize ~ Not ok for volume averaging"
-
-		!Determine current bins using integer division
-		ibin(ixyz) = ceiling((ri(ixyz)+halfdomain(ixyz)) & 
-                        /VAbinsize(ixyz)) + 1 !Establish current i bin
-		jbin(ixyz) = ceiling((rj(ixyz)+halfdomain(ixyz)) & 
-                        /VAbinsize(ixyz)) + 1 !Establish current j bin
-
-		!Check number of bins between molecules
-		bindiff(ixyz) = abs(ibin(ixyz) - jbin(ixyz)) + 1
-
-	enddo
+    ibin(:) = get_bin(ri)
+    jbin(:) = get_bin(rj)
+    bindiff(:) = abs(ibin(:) - jbin(:)) + 1
 
 	!================================================================
 	!=			Assign to bins				=
@@ -3201,8 +3239,8 @@ subroutine pressure_tensor_forces_H(ri,rj,accijmag)
 		enddo
 		enddo
 
-	!===================Interactions split over 2 cells only==========
-	case(4:6)
+	!===================Interactions split over 2 or more cells ==========
+	case(4:)
 
 		!------Add molecules to bin-----
 		!Molecule i and j contribution split between bins
@@ -3223,6 +3261,7 @@ subroutine pressure_tensor_forces_H(ri,rj,accijmag)
 			
 	case default
 
+        print*, 'bindiff = ', ibin, jbin, bindiff
 		stop "Harasima Stress AVERAGING ERROR"
 
 	end select
@@ -3238,7 +3277,6 @@ end subroutine pressure_tensor_forces_H
 
 subroutine pressure_tensor_forces_VA_trap(ri,rj,accijmag,VA_line_samples)
 	use librarymod, only: outerprod
-	
 	implicit none
 
     integer,intent(in)          :: VA_line_samples
@@ -3269,7 +3307,8 @@ subroutine pressure_tensor_forces_VA_trap(ri,rj,accijmag,VA_line_samples)
 		! by neighbouring processors)
 		if ( .not. any( abs(rs(:)) .gt. halfdomain(:) ) ) then
 
-			bin(:) = ceiling((rs(:)+halfdomain(:))/VAbinsize(:)) + 1
+			!bin(:) = ceiling((rs(:)+halfdomain(:))/VAbinsize(:)) + 1
+            bin(:) = get_bin(rs(:))
 			rfbin(bin(1),bin(2),bin(3),:,:) =  &
 			rfbin(bin(1),bin(2),bin(3),:,:) + rF(:,:)/real(Ns,kind(0.d0))
 
@@ -3749,12 +3788,12 @@ end module Volume_average_pressure
 !========================================================================
 !Compute Volume Averaged stress using all cells including halos
 
-subroutine simulation_compute_rfbins(imin, imax, jmin, jmax, kmin, kmax)
+subroutine simulation_compute_rfbins!(imin, imax, jmin, jmax, kmin, kmax)
     use Volume_average_pressure
 	use module_compute_forces
 	implicit none
 
-	integer,intent(in)  			:: imin, jmin, kmin, imax, jmax, kmax
+	!integer,intent(in)  			:: imin, jmin, kmin, imax, jmax, kmax
 
 	integer                         :: i, j, ixyz !Define dummy index
 	integer							:: icell, jcell, kcell
@@ -3764,7 +3803,7 @@ subroutine simulation_compute_rfbins(imin, imax, jmin, jmax, kmin, kmax)
 	integer							:: icellmin,jcellmin,kcellmin,icellmax,jcellmax,kcellmax
 	type(node), pointer 	        :: oldi, currenti, oldj, currentj
 
-	double precision,dimension(3)	:: cellsperbin
+	double precision,dimension(3)	:: vi_t, cellsperbin
 
 	!rfbin = 0.d0
 	!allocate(rijsum(nd,np+extralloc)) !Sum of rij for each i, used for SLLOD algorithm
@@ -3772,20 +3811,10 @@ subroutine simulation_compute_rfbins(imin, imax, jmin, jmax, kmin, kmax)
 
 	!Calculate bin to cell ratio
 	cellsperbin = 1.d0/binspercell !ceiling(ncells(1)/dble(nbins(1)))
+
     ! Still need to loop over every cell (i.e. get all interactions) if
     ! bins are bigger than cells
-	where (cellsperbin .lt. 1.d0) cellsperbin = 1.d0
-
-!	do kcell=(kmin-1)*cellsperbin(3)+1, kmax*cellsperbin(3)
-!	do jcell=(jmin-1)*cellsperbin(2)+1, jmax*cellsperbin(2)
-!	do icell=(imin-1)*cellsperbin(1)+1, imax*cellsperbin(1)
-
-	icellmin = (imin-1)*cellsperbin(1)+1
-	icellmax = (imax-2)*cellsperbin(1)+2
-	jcellmin = (jmin-1)*cellsperbin(2)+1
-	jcellmax = (jmax-2)*cellsperbin(2)+2
-	kcellmin = (kmin-1)*cellsperbin(3)+1
-	kcellmax = (kmax-2)*cellsperbin(3)+2
+	where (cellsperbin .ge. 1.d0) cellsperbin = 1.d0
 
 	!Get cell number from bin numbers
 !	icellmin = (imin-1)*cellsperbin(1)+1+(1-cellsperbin(1))
@@ -3795,26 +3824,14 @@ subroutine simulation_compute_rfbins(imin, imax, jmin, jmax, kmin, kmax)
 !	kcellmin = (kmin-1)*cellsperbin(3)+1+(1-cellsperbin(3))
 !	kcellmax =  kmax   *cellsperbin(3)  +(1-cellsperbin(3))
 
-	!Get cell number from bin numbers
-!	ibinmin = (iminl-1)*cellsperbin(1)+1+(1-cellsperbin(1))
-!	ibinmax =  imaxl   *cellsperbin(1)  +(1-cellsperbin(1))
-!	jbinmin = (jminl-1)*cellsperbin(2)+1+(1-cellsperbin(2))
-!	jbinmax = jmaxl    *cellsperbin(2)  +(1-cellsperbin(2))
-!	kbinmin = (kminl-1)*cellsperbin(3)+1+(1-cellsperbin(3))
-!	kbinmax = kmaxl    *cellsperbin(3)  +(1-cellsperbin(3))
-
-!	icellmin = (imin-1)*cellsperbin(1)+2+(1-cellsperbin(1))
-!	icellmax =  imax   *cellsperbin(1)-cellsperbin(1)
-!	jcellmin = (jmin-1)*cellsperbin(2)+2+(1-cellsperbin(2))
-!	jcellmax =  jmax   *cellsperbin(2)-cellsperbin(2)
-!	kcellmin = (kmin-1)*cellsperbin(3)+2+(1-cellsperbin(3))
-!	kcellmax =  kmax   *cellsperbin(3)-cellsperbin(3)
-
-    !print*,icellmin,jcellmin,kcellmin,icellmax,jcellmax,kcellmax
+    icellmin = 1; icellmax = ncells(1) + 2
+    jcellmin = 1; jcellmax = ncells(2) + 2
+    kcellmin = 1; kcellmax = ncells(3) + 2
 
 	do kcell=kcellmin, kcellmax
 	do jcell=jcellmin, jcellmax 
 	do icell=icellmin, icellmax 
+
 	
 		cellnp = cell%cellnp(icell,jcell,kcell)
 		oldi => cell%head(icell,jcell,kcell)%point !Set old to first molecule in list
@@ -3852,20 +3869,35 @@ subroutine simulation_compute_rfbins(imin, imax, jmin, jmax, kmin, kmax)
 
 					rij2=0                   !Set rij^2 to zero
 					rij(:) = ri(:) - rj(:)   !Evaluate distance between particle i and j
-
-					do ixyz=1,nd
-						rij2 = rij2+rij(ixyz)*rij(ixyz) !Square of vector calculated
-					enddo
+					rij2 = dot_product(rij,rij)	!Square of vector calculated
 
 					if (rij2 < rcutoff2) then
 
-						!Linear magnitude of acceleration for each molecule
-						invrij2 = 1.d0/rij2                 !Invert value
-						accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
+                        !---------------------------------------
+                        ! - Get volume average pressure tensor -
 
-						!Select requested configurational line partition methodology
-                        call pressure_tensor_forces_VA(ri,rj,accijmag, domain,  & 
-                                                    nbins, nhb,rfbin,VA_calcmethod)
+				        if (pressure_outflag .eq. 2) then
+						    !Linear magnitude of acceleration for each molecule
+						    invrij2 = 1.d0/rij2                 !Invert value
+						    accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
+
+						    !Select requested configurational line partition methodology
+                            call pressure_tensor_forces_VA(ri, rj, accijmag, domain,  & 
+                                                           nbins, nhb,rfbin,VA_calcmethod)
+                        endif
+                        !----------------------------------------
+                        ! - Get volume average pressure heating -
+!				        if (heatflux_outflag .eq. 2) then
+!                            !Get the velocity, v, at time t 
+!                            ! ( This is the reason we need to do this after
+!                            !   the force calculation so we know a(t)      
+!                            vi_t(:) = v(:,molnoi) + 0.5d0*delta_t*a(:,molnoi)
+
+!						    !Select requested configurational line partition methodology
+!                            fijv = (accijmag * rij) * vi_t
+!                            call pressure_tensor_forces_VA(ri, rj, fijv, domain,  & 
+!                                                           nbins, nhb, rfvbin, VA_calcmethod)
+!                        endif
 
 					endif
 				enddo
@@ -4336,26 +4368,26 @@ end subroutine control_volume_stresses
 !===================================================================================
 ! Stresses times velocity over each of the six surfaces of the cuboid
 
-subroutine control_volume_power(fij,ri,rj,molnoi,ai_mdt)
+subroutine control_volume_power(fij,ri,rj,vi_t)
     use module_record
 	use CV_objects, only : CV_debug,CV_constraint
     use librarymod, only : heaviside  =>  heaviside_a1
     implicit none
 
 
-	integer,intent(in)							:: molnoi
 	double precision,intent(in),dimension(3)	:: ri,rj,fij
-	double precision,dimension(3),intent(in)	:: ai_mdt
+	double precision,dimension(3),intent(in)	:: vi_t
 
 
 	integer							:: i,j,k,ixyz,face
 	integer,dimension(3)			:: cbin, ibin, jbin
     double precision				:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb,fijvi,fijvj
 	double precision,dimension(3)	:: rij,fsurface,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb,velvect
-	double precision,dimension(3)	:: Fbinsize, bintop, binbot, vi_t,vj_t,vi_tmdt,vj_tmdt
+	double precision,dimension(3)	:: Fbinsize, bintop, binbot
 
 	!Calculate rij
 	rij = ri - rj
+
 	!Prevent Division by zero
 	do ixyz = 1,3
 		if (abs(rij(ixyz)) .lt. 0.000001d0) rij(ixyz) = sign(0.000001d0,rij(ixyz))
@@ -4365,8 +4397,8 @@ subroutine control_volume_power(fij,ri,rj,molnoi,ai_mdt)
 	Fbinsize(:) = domain(:) / nbins(:)
 
 	!Assign to bins using integer division
-	ibin(:) = ceiling((ri(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
-	jbin(:) = ceiling((rj(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
+	ibin(:) = get_bin(ri) !ceiling((ri(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
+	jbin(:) = get_bin(rj) !ceiling((rj(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
 
 	if (ibin(1) .eq. jbin(1) .and. ibin(2) .eq. jbin(2) .and. ibin(3) .eq. jbin(3)) return
 		
@@ -4376,8 +4408,8 @@ subroutine control_volume_power(fij,ri,rj,molnoi,ai_mdt)
 
 		cbin(1) = i; cbin(2) = j; cbin(3) = k
 
-		bintop(:) = (cbin(:)-1*nhb(:)  )*Fbinsize(:)-halfdomain(:)
-		binbot(:) = (cbin(:)-1*nhb(:)-1)*Fbinsize(:)-halfdomain(:)
+		bintop(:) = (cbin(:)-nhb(:)  )*Fbinsize(:)-halfdomain(:)
+		binbot(:) = (cbin(:)-nhb(:)-1)*Fbinsize(:)-halfdomain(:)
 
 		!Calculate the plane intersect of line with surfaces of the cube
 		Pxt=(/ bintop(1),ri(2)+(rij(2)/rij(1))*(bintop(1)-ri(1)),ri(3)+(rij(3)/rij(1))*(bintop(1)-ri(1))  /)
@@ -4407,15 +4439,9 @@ subroutine control_volume_power(fij,ri,rj,molnoi,ai_mdt)
 						(heaviside(bintop(1)-Pzt(1)) - heaviside(binbot(1)-Pzt(1)))* &
 						(heaviside(bintop(2)-Pzt(2)) - heaviside(binbot(2)-Pzt(2)))
 
-		!Stress acting on face over volume
-
-		!v at time t 
-		vi_t(:) = v(:,molnoi) + 0.5d0*delta_t*ai_mdt(:)
-
-		!Midpoint rule
+		!Stress work acting on face over volume - add current value 
+        ! to use in trapizium rule later 
 		fijvi = dot_product(fij,vi_t)
-
-        !if (iter .gt. 18)  print'(9i8)', ibin,jbin,cbin
 
 		Pxyvface(cbin(1),cbin(2),cbin(3),1) = & 
 			Pxyvface(cbin(1),cbin(2),cbin(3),1) + fijvi*onfacexb
@@ -4430,29 +4456,9 @@ subroutine control_volume_power(fij,ri,rj,molnoi,ai_mdt)
 		Pxyvface(cbin(1),cbin(2),cbin(3),6) = &
 			Pxyvface(cbin(1),cbin(2),cbin(3),6) + fijvi*onfacezt
 
-!  			if (i .eq. 3 .and. j .eq. 3 .and. k .eq. 3) then
-!  			!print'(a,6f10.5,f6.0,5f4.0)', 'power face', Pxyvface(i,j,k,:),onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
-!  			if (any(abs((/onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb/)) .gt. 0.00001)) then
-! ! 			if (abs(onfacext+onfacexb+onfaceyt+onfaceyb+onfacezt+onfacezb) .gt. 0.00001) then
-!  			if (abs(onfacexb) .gt. 0.000001) face = 1 
-!  			if (abs(onfaceyb) .gt. 0.000001) face = 2 
-!  			if (abs(onfacezb) .gt. 0.000001) face = 3 
-!  			if (abs(onfacext) .gt. 0.000001) face = 4 
-!  			if (abs(onfaceyt) .gt. 0.000001) face = 5 
-!  			if (abs(onfacezt) .gt. 0.000001) face = 6 
-!  				print'(a,3i5,2f8.4,6i3,f6.0,5f4.0)','Int in box 3', iter,molnoi,molnoj,fijvi, & 
-!  																	 Pxyvface(cbin(1),cbin(2),cbin(3),face), & 
-!  																	 ibin,jbin,onfacext,onfacexb,onfaceyt, & 
-!  																	 onfaceyb,onfacezt,onfacezb
-! ! 			endif
-!  			endif
-!  			endif
-
 	enddo
 	enddo
 	enddo
-
-	!fij_dmt(:,molnoi,molnoj) = fij(:)
 
 end subroutine control_volume_power
 

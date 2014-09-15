@@ -736,6 +736,7 @@ subroutine set_parameters_outputs
 						   bforce_pdf_nbins, bforce_pdf_min, bforce_pdf_max
 	use CV_objects, only : CVcheck_mass,CVcheck_momentum, & 
 						   CV_constraint,CVcheck_energy, CV_debug!,CV_sphere_momentum,CV_sphere_mass
+    use messenger, only : localise_bin
 	implicit none
 
 	integer					:: n,i,j,k, ixyz
@@ -766,15 +767,16 @@ subroutine set_parameters_outputs
 	!Calculate number of halo bins from ratio of cells to bins
 	nhb = ceiling(dble(nbins)/dble(ncells))
 	nbinso = nbins+2*nhb
+    binsize = domain/nbins
 
 	!Velocity PDF binning routines
 	select case(vPDF_flag)
 	case(1:4)
 		velPDFMB = PDF(NPDFbins,-PDFvlims,PDFvlims)
-		allocate(velPDF_array(nbins(1)+2,nbins(2)+2,nbins(3)+2,nd))
-		do i = 1,nbins(1)+2
-		do j = 1,nbins(2)+2
-		do k = 1,nbins(3)+2
+		allocate(velPDF_array(nbinso(1),nbinso(2),nbinso(3),nd))
+		do i = 1,nbinso(1)
+		do j = 1,nbinso(2)
+		do k = 1,nbinso(3)
 		do ixyz = 1,nd
 			velPDF_array(i,j,k,ixyz) = PDF(NPDFbins,-PDFvlims,PDFvlims)
 		enddo
@@ -1054,11 +1056,24 @@ subroutine set_parameters_outputs
 			momentum_flux 	= 0.d0
 			volume_momentum = 0.d0
 			volume_force 	= 0.d0
-			if (CV_debug) then
+			if (CV_debug .eq. 1) then
 				call CVcheck_mass%initialise(nbins,nhb,domain,delta_t,Nmflux_ave)   ! initialize CVcheck
 				call CVcheck_momentum%initialise(nbins,nhb,domain,delta_t,Nvflux_ave)   ! initialize CVcheck
 				call CV_constraint%initialise(nbins,nhb,domain,delta_t,Nvflux_ave)   ! initialize CV constraint object
 				call CVcheck_energy%initialise(nbins,nhb,domain,delta_t,Neflux_ave)   ! initialize CVcheck
+            elseif (CV_debug .eq. 2) then
+                print*, 'bin', debug_CV,localise_bin(debug_CV)
+				call CVcheck_mass%initialise(nbins,nhb,domain, & 
+                                             delta_t,Nmflux_ave, & 
+                                             localise_bin(debug_CV))     ! initialize CVcheck
+				call CVcheck_momentum%initialise(nbins,nhb,domain, & 
+                                                 delta_t,Nvflux_ave, & 
+                                                 localise_bin(debug_CV)) ! initialize CVcheck
+				call CV_constraint%initialise(nbins,nhb,domain,delta_t,Nvflux_ave)   ! initialize CV constraint object
+				call CVcheck_energy%initialise(nbins,nhb,domain, & 
+                                               delta_t,Neflux_ave, & 
+                                               localise_bin(debug_CV))   ! initialize CVcheck
+            
 				!call CV_sphere_mass%initialise((/1,1,1/))	
 				!call CV_sphere_momentum%initialise_sphere((/1,1,1/),collect_spherical=.false.)	
 			endif
@@ -1075,8 +1090,12 @@ subroutine set_parameters_outputs
 				allocate(  mass_flux(nbinso(1),nbinso(2),nbinso(3),6))
 				volume_mass = 0
 				mass_flux   = 0
-				if (CV_debug) then
+				if (CV_debug .eq. 1) then
 					call CVcheck_mass%initialise(nbins,nhb,domain,delta_t,Nmflux_ave)   ! initialize CVcheck
+                elseif (CV_debug .eq. 2) then
+					call CVcheck_mass%initialise(nbins,nhb,domain, & 
+                                                delta_t,Nmflux_ave, & 
+                                                localise_bin(debug_CV))   ! initialize CVcheck
 				endif
 			endif
 	end select
