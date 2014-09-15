@@ -27,7 +27,7 @@ module CV_objects
 !type, extends(check_CV) :: check_CV_mass
 type :: check_CV_mass
 	integer						 			:: N_ave
-	integer, dimension(3)		   			:: nbins, nhb
+	integer, dimension(3)		   			:: nbins, nhb, debug_CV
 	double precision						:: delta_t
 	double precision, dimension(3)  		:: domain, binsize
 	integer,dimension(:,:,:,:),allocatable 	:: flux
@@ -42,7 +42,7 @@ end type check_CV_mass
 !type, extends(check_CV) :: check_CV_momentum
 type :: check_CV_momentum
 	integer						 			:: N_ave
-	integer, dimension(3)		   			:: nbins, nhb
+	integer, dimension(3)		   			:: nbins, nhb, debug_CV
 	double precision						:: delta_t
 	double precision, dimension(3)  		:: domain, binsize
 	double precision,dimension(:,:,:,:,:),allocatable 	:: flux, Pxy,  Pxy_minus_t
@@ -61,7 +61,7 @@ end type check_CV_momentum
 !type, extends(check_CV) :: check_CV_energy
 type :: check_CV_energy
 	integer						 			:: N_ave
-	integer, dimension(3)		   			:: nbins, nhb
+	integer, dimension(3)		   			:: nbins, nhb, debug_CV
 	double precision						:: delta_t
 	double precision, dimension(3)  		:: domain, binsize
 	double precision,dimension(:,:,:,:),allocatable 	:: flux, Pxyv,  Pxyv_minus_t
@@ -151,7 +151,7 @@ contains
 !===================================================
 
 	!Constructor for object
-	subroutine initialise_mass(self,nbins,nhb,domain,delta_t,N_ave)
+	subroutine initialise_mass(self,nbins,nhb,domain,delta_t,N_ave,debug_CV)
 		implicit none
 
 		! initialize shape objects
@@ -159,6 +159,7 @@ contains
 
 		integer, dimension(3),intent(in) 			:: nbins,nhb
 		integer,intent(in)						 	:: N_ave
+		integer, dimension(3),intent(in),optional 	:: debug_CV
 		double precision,intent(in)					:: delta_t
 		double precision, dimension(3),intent(in)	:: domain
 
@@ -172,6 +173,11 @@ contains
 		self%delta_t = delta_t		
 		self%N_ave   = N_ave
 		self%binsize = domain/nbins
+        if (present(debug_CV)) then
+            self%debug_CV = debug_CV
+        else
+            self%debug_CV = (/ -666, -666, -666 /) 
+        endif
 
 		!Add halo bins to domain bins		
 		nb = nbins + 2*nhb
@@ -234,7 +240,7 @@ contains
 
 		integer,intent(in) :: iter,irank,imin,imax,jmin,jmax,kmin,kmax
 
-		integer 		:: i,j,k,totalflux
+		integer 		:: i,j,k,totalflux,conserved
 		integer,save 	:: first_time = 0
 		logical		 	:: check_ok
 
@@ -254,9 +260,15 @@ contains
 						+(self%flux(i,j,k,2) - self%flux(i,j,k,5)) & 
 						+(self%flux(i,j,k,3) - self%flux(i,j,k,6))
 
-			if(totalflux-self%dXdt(i,j,k) .ne. 0) then
-				print'(a,i8,4i4,4i8)','Error_cubeCV_mass', iter,irank,i,j,k, & 
-					totalflux,self%dXdt(i,j,k),self%X_minus_t(i,j,k),self%X(i,j,k)
+            conserved = totalflux-self%dXdt(i,j,k)
+
+            if (     (CV_debug .eq. 1) .and. (conserved .ne. 0) &
+			    .or. (i .eq. self%debug_CV(1) .and. & 
+                      j .eq. self%debug_CV(2) .and. & 
+                      k .eq. self%debug_CV(3))) then
+				print'(a,i8,4i4,7i8)','Error_cubeCV_mass', iter,irank,i,j,k, & 
+					conserved, 0, totalflux,self%dXdt(i,j,k), 0, self%X_minus_t(i,j,k),self%X(i,j,k)
+
 				check_ok = .false.
 			endif
 
@@ -271,13 +283,14 @@ contains
 !===================================================
 
 	!Constructor for object
-	subroutine initialise_momentum(self,nbins,nhb,domain,delta_t,N_ave)
+	subroutine initialise_momentum(self,nbins,nhb,domain,delta_t,N_ave,debug_CV)
 		implicit none
 
 		! initialize shape objects
 		class(check_CV_momentum) 		:: self
 
 		integer, dimension(3),intent(in) 			:: nbins, nhb
+		integer, dimension(3),intent(in),optional 	:: debug_CV
 		integer,intent(in)						 	:: N_ave
 		double precision,intent(in)					:: delta_t
 		double precision, dimension(3),intent(in)	:: domain
@@ -305,6 +318,11 @@ contains
 		allocate(self%F_ext(nb(1),nb(2),nb(3),3))
 		allocate(self%totalflux(nb(1),nb(2),nb(3),3))
 		allocate(self%totalpressure(nb(1),nb(2),nb(3),3))
+        if (present(debug_CV)) then
+            self%debug_CV = debug_CV
+        else
+            self%debug_CV = (/ -666, -666, -666 /) 
+        endif
 		!allocate(self%X_minus_2t(nb(1),nb(2),nb(3),3))
 
 		self%flux 		= 0.d0
@@ -439,10 +457,6 @@ contains
 			first_time = first_time + 1
 			return
 		endif
-
-		!print'(2i4,f13.5,3i8)', iter, irank, maxval(self%F_ext), maxloc(self%F_ext)
-		!print'(a,4i8,4f13.8)', 'Inside  object', irank,6,6,6, self%F_ext(6,6,6,:),sum(self%F_ext(6,6,6,:))
-
 		check_ok = .true.
 
 		do i = imin,imax
@@ -466,9 +480,12 @@ contains
 
 			!Verify that CV momentum is exactly conservative
 			conserved = sum(totalpressure+totalflux-dvelocitydt-F_ext)
-			!if(abs(conserved) .gt. 0.000000001d0) then
-			if (i .eq. 3 .and. j .eq. 10 .and. k .eq. 3 .and. irank .eq. 1) then
-			!if (any(abs(dvelocitydt) .lt. 0.00001d0)) then
+
+
+			if (     CV_debug .eq. 1 .and. (abs(conserved) .gt. 0.000000001d0) &
+			    .or. (i .eq. self%debug_CV(1) .and. & 
+                      j .eq. self%debug_CV(2) .and. & 
+                      k .eq. self%debug_CV(3))) then
 				print'(a,i8,4i4,6f11.5,f22.18)','Error_in_momentum_flux', iter,irank,i,j,k, & 
 					 conserved, sum(totalpressure),-sum(totalflux),sum(dvelocitydt), & 
 					+sum(F_ext), sum(self%X(i,j,k,:)),   & 
@@ -493,13 +510,14 @@ contains
 !===================================================
 
 	!Constructor for object
-	subroutine initialise_energy(self,nbins,nhb,domain,delta_t,N_ave)
+	subroutine initialise_energy(self,nbins,nhb,domain,delta_t,N_ave,debug_CV)
 		implicit none
 
 		! initialize shape objects
 		class(check_CV_energy) 		:: self
 
 		integer, dimension(3),intent(in) 			:: nbins, nhb
+		integer, dimension(3),intent(in),optional 	:: debug_CV
 		integer,intent(in)						 	:: N_ave
 		double precision,intent(in)					:: delta_t
 		double precision, dimension(3),intent(in)	:: domain
@@ -514,6 +532,11 @@ contains
 		self%delta_t = delta_t		
 		self%N_ave   = N_ave
 		self%binsize = domain/nbins
+        if (present(debug_CV)) then
+            self%debug_CV = debug_CV
+        else
+            self%debug_CV = (/ -666, -666, -666 /) 
+        endif
 
 		!Add halo bins to domain bins		
 		nb = nbins + 2*nhb
@@ -667,28 +690,28 @@ contains
 			!drhou/dt
 			denergydt =  self%dxdt(i,j,k)/(self%delta_t*self%N_ave)
 
-			!Sanity check top minus bottom
-			!if (i+1 .le. imax .or. j+1 .le. jmax .or. k+1 .le. kmax) then
-			!	print'(3i5,9f10.5)', i,j,k,	self%Pxyv(i,j,k,1),self%Pxyv(i,j,k,2), & 
-			!								self%Pxyv(i,j,k,3),self%Pxyv(i,j,k,4), & 
-			!								self%Pxyv(i,j,k,5),self%Pxyv(i,j,k,6), &
-			!								self%Pxyv(i+1,j,k,1)-self%Pxyv(i,j,k,4),&
-			!								self%Pxyv(i,j+1,k,2)-self%Pxyv(i,j,k,5),&
-			!								self%Pxyv(i,j,k+1,3)-self%Pxyv(i,j,k,6)
-			!endif
-
 		    !Verify that CV energy is less than 10% error 
 		    conserved = totalpower+totalflux-denergydt-Fv_ext
 
-			!if(abs(conserved/(self%X(i,j,k)-totalflux)) .gt. 0.1d0) then
-			!if (abs(Fv_ext) .gt. 0.000001) then
-			if (i .eq. 3 .and. j .eq. 3 .and. k .eq. 3 .and. irank .eq. 1) then
-				print'(a22,i5,4i3,9f13.8)','Error_%age_energy_flux', iter,irank,i,j,k, & 
+
+			if(      (CV_debug .eq. 1) .and. & 
+                (abs(conserved/(self%X(i,j,k)-totalflux)) .gt. 0.1d0) &
+			    .or. (i .eq. self%debug_CV(1) .and. & 
+                      j .eq. self%debug_CV(2) .and. & 
+                      k .eq. self%debug_CV(3))) then
+
+                !prevent divide by zero...
+                if (abs(self%X(i,j,k)-totalflux) .gt. 0.000001d0) then
+    				print'(a22,i5,4i3,2f13.6,e17.5,4f13.6)','Error_%age_energy_flux', iter,irank,i,j,k, & 
 					 conserved/(self%X(i,j,k)-totalflux), totalpower,-totalflux,denergydt, & 
 					+Fv_ext, self%X(i,j,k),self%X_minus_t(i,j,k)
+                else
+    				print'(a22,i5,4i3,2f13.6,e17.5,4f13.6)','Error_%age_energy_flux', iter,irank,i,j,k, & 
+					 conserved, totalpower,-totalflux,denergydt, & 
+					+Fv_ext, self%X(i,j,k),self%X_minus_t(i,j,k)
+                endif
 				check_ok = .false.
 			endif
-			!endif
 
 		enddo
 		enddo

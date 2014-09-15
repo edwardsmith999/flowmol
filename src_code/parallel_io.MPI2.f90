@@ -2494,7 +2494,7 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
         case(1)
             m = (iter-initialstep+1)/(Nvflux_ave) + 1 !Initial snapshot taken
             !Create copy of previous timestep Control Volume mass and calculate time evolution
-            if (CV_debug) then
+            if (CV_debug .ne. 0) then
                 call CVcheck_momentum%update_dXdt(CV_momentum_out(:,:,:,:))
             endif
         case default
@@ -3014,7 +3014,7 @@ subroutine energy_bin_io(CV_energy_out,io_type)
         case(1)
             m = (iter-initialstep+1)/(Neflux_ave) + 1 !Initial snapshot taken
             !Create copy of previous timestep Control Volume energy to calculate time evolution
-            if (CV_debug) then
+            if (CV_debug .ne. 0) then
                 call CVcheck_energy%update_dXdt(CV_energy_out(:,:,:))
             endif
         case default
@@ -3068,9 +3068,9 @@ subroutine VA_stress_io
 
     !Add kinetic and configurational to Pxybin total
     Pxybin(:,:,:,:,:) =     vvbin(:,:,:,:,:)        & 
-                          + rfbin(  2:nbins(1)+1,   & 
-                                    2:nbins(2)+1,   & 
-                                    2:nbins(3)+1,:,:)/2.d0
+                          + rfbin(1+nhb(1):nbins(1)+nhb(1),   & 
+                                  1+nhb(2):nbins(2)+nhb(2),   & 
+                                  1+nhb(3):nbins(3)+nhb(3),:,:)/2.d0
 
     !Average over samples
     Pxybin = Pxybin / Nstress_ave
@@ -3108,27 +3108,30 @@ subroutine VA_stress_io
 
         !Write sum of kinetic and configurational
         !Allocate buf with halo padding and 3x3 stresses reordered as 9 vector.
-        allocate(buf(nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults))
+        allocate(buf(nbinso(1), nbinso(2), nbinso(3), nresults))
         buf = 0.d0; 
-        buf(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1:9) = &
+        buf(1+nhb(1):nbins(1)+nhb(1),1+nhb(2):nbins(2)+nhb(2),1+nhb(3):nbins(3)+nhb(3),1:9) = &
             reshape(Pxybin,(/nbins(1),nbins(2),nbins(3),nresults/))
         call write_arrays(buf,nresults,trim(prefix_dir)//'results/pVA',m)
         deallocate(buf)
     case(1)
         !Kinetic
         !Allocate buf with halo padding and 3x3 stresses reordered as 9 vector.
-        allocate(buf(nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults))
+        allocate(buf(nbinso(1), nbinso(2), nbinso(3), nresults))
         buf = 0.d0; 
-        buf(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1:9) = &
+        buf(1+nhb(1):nbins(1)+nhb(1),1+nhb(2):nbins(2)+nhb(2),1+nhb(3):nbins(3)+nhb(3),1:9) = &
             reshape(vvbin,(/nbins(1),nbins(2),nbins(3),nresults/))
         call write_arrays(buf,nresults,trim(prefix_dir)//'results/pVA_k',m)
         deallocate(buf)
         !Configurational
         !Allocate buf with halo padding and 3x3 stresses reordered as 9 vector.
-        allocate(buf(nbins(1)+2,nbins(2)+2,nbins(3)+2,nresults))
+        allocate(buf(nbinso(1), nbinso(2), nbinso(3), nresults))
         buf = 0.d0; 
-        buf(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1:9) = &
-            reshape(rfbin(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,:,:),(/nbins(1),nbins(2),nbins(3),nresults/))
+        buf(1+nhb(1):nbins(1)+nhb(1),1+nhb(2):nbins(2)+nhb(2),1+nhb(3):nbins(3)+nhb(3),1:9) = &
+            reshape(rfbin(1+nhb(1):nbins(1)+nhb(1), & 
+                          1+nhb(2):nbins(2)+nhb(2), & 
+                          1+nhb(3):nbins(3)+nhb(3),:,:), & 
+                    (/nbins(1),nbins(2),nbins(3),nresults/))
             !reshape(rfbin,(/nbins(1),nbins(2),nbins(3),nresults/))
         call write_arrays(buf,nresults,trim(prefix_dir)//'results/pVA_c',m)
         deallocate(buf)
@@ -3231,7 +3234,7 @@ subroutine mass_flux_io
     call swaphalos(mass_flux,nbinso(1),nbinso(2),nbinso(3),nresults)
 
     !Store mass flux value in CV data object
-    if (CV_debug) then
+    if (CV_debug .ne. 0) then
         CVcheck_mass%flux = mass_flux
     endif
 
@@ -3291,7 +3294,7 @@ subroutine momentum_flux_io
     momentum_flux = momentum_flux/(delta_t*Nvflux_ave)
 
     !Store momentum flux value in CV data object
-    if (CV_debug) then
+    if (CV_debug .ne. 0) then
         CVcheck_momentum%flux = 0.d0
         call CVcheck_momentum%update_flux(momentum_flux)
     endif
@@ -3435,7 +3438,7 @@ subroutine surface_stress_io
     Pxyface = Pxyface/Nvflux_ave
 
     !Store surface stress value in CV data object
-    if (CV_debug) then
+    if (CV_debug .ne. 0) then
         call CVcheck_momentum%update_Pxy(Pxyface)
     endif
 
@@ -3479,7 +3482,7 @@ subroutine external_force_io
     F_ext_bin = F_ext_bin/Nvflux_ave
 
     !Store surface stress value in CV data object
-    if (CV_debug) then
+    if (CV_debug .ne. 0) then
         call CVcheck_momentum%update_F_ext(F_ext_bin)
         !CVcheck_momentum%F_ext = F_ext_bin
     endif
@@ -3531,7 +3534,7 @@ subroutine energy_flux_io
     energy_flux = energy_flux/(delta_t*Neflux_ave)
 
     !Store momentum flux value in CV data object
-    if (CV_debug) then
+    if (CV_debug .ne. 0) then
         CVcheck_energy%flux = 0.d0
         call CVcheck_energy%update_flux(energy_flux)
     endif
@@ -3564,25 +3567,21 @@ subroutine surface_power_io
 
     !Include halo surface stresses to get correct values for all cells
     nresults = 6
-    call swaphalos(Pxyvface,nbinso(1),nbinso(2),nbinso(3),nresults)
+    call swaphalos(Pxyvface_integrated,nbinso(1),nbinso(2),nbinso(3),nresults)
 
     do ixyz = 1,3
         binface       = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
                         (domain(modulo(ixyz+1,3)+1)/nbins(modulo(ixyz+1,3)+1))
-        Pxyvface(:,:,:,ixyz  ) = 0.25d0 * Pxyvface(:,:,:,ixyz  )/binface !Bottom
-        Pxyvface(:,:,:,ixyz+3) = 0.25d0 * Pxyvface(:,:,:,ixyz+3)/binface !Top
+        Pxyvface_integrated(:,:,:,ixyz  ) = 0.25d0 * Pxyvface_integrated(:,:,:,ixyz  )/binface !Bottom
+        Pxyvface_integrated(:,:,:,ixyz+3) = 0.25d0 * Pxyvface_integrated(:,:,:,ixyz+3)/binface !Top
     enddo
 
-    !Integration of stress using trapizium rule requires multiplication by timestep
-    Pxyvface_mdt = (0.5d0/Neflux_ave) * (Pxyvface_mdt + Pxyvface) 
-
     !Integration of stress using trapizium rule requires division by number of results
-    !Pxyvface_integrated = Pxyvface_integrated/Neflux_ave
+    Pxyvface_integrated = Pxyvface_integrated/Neflux_ave
 
     !Store surface stress value in CV data object
-    if (CV_debug) then
-        !call CVcheck_energy%update_Pxy(Pxyvface_integrated)
-        call CVcheck_energy%update_Pxy(Pxyvface_mdt)
+    if (CV_debug .ne. 0) then
+        call CVcheck_energy%update_Pxy(Pxyvface_integrated)
     endif
 
     !Write surface pressures * velocity to file
@@ -3594,7 +3593,7 @@ subroutine surface_power_io
     case default
         call error_abort('CV_conserve value used forsurface power is incorrectly defined - should be 0=off or 1=on')
     end select
-    call write_arrays(Pxyvface_mdt,nresults,trim(prefix_dir)//'results/esurface',m)
+    call write_arrays(Pxyvface_integrated,nresults,trim(prefix_dir)//'results/esurface',m)
 
 end subroutine surface_power_io
 
@@ -3624,7 +3623,7 @@ subroutine external_forcev_io
     Fv_ext_bin = Fv_ext_bin/Neflux_ave
 
     !Store surface stress value in CV data object
-    if (CV_debug) then
+    if (CV_debug .ne. 0) then
         call CVcheck_energy%update_F_ext(Fv_ext_bin)
         !CVcheck_energy%F_ext = Fv_ext_bin
     endif

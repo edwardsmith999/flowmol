@@ -610,7 +610,7 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 				a(2,molnoj)= a(2,molnoj) - accijmag*rij(2)
 				a(3,molnoj)= a(3,molnoj) - accijmag*rij(3) 
 
-				if (vflux_outflag.eq.4 .or. eflux_outflag.eq.4) then
+				if (vflux_outflag.eq.4) then
 					if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
 						if (molnoj .gt. np .or. molnoi .gt. np) then
 							fij = accijmag*rij(:)
@@ -890,11 +890,11 @@ end subroutine simulation_compute_forces_Soddemann_neigbr_halfint
 ! to already be calculated for all molecules so must be called after
 ! simulation computer forces
 
-subroutine simulation_compute_power(imin, imax, jmin, jmax, kmin, kmax)
+subroutine simulation_compute_power!(imin, imax, jmin, jmax, kmin, kmax)
 	use module_compute_forces
 	implicit none
 
-	integer,intent(in)				:: imin, jmin, kmin, imax, jmax, kmax
+	!integer,intent(in)				:: imin, jmin, kmin, imax, jmax, kmax
 
 
 	integer                         :: i, j, ixyz !Define dummy index
@@ -905,45 +905,30 @@ subroutine simulation_compute_power(imin, imax, jmin, jmax, kmin, kmax)
 	integer							:: icellmin,jcellmin,kcellmin,icellmax,jcellmax,kcellmax
 	type(node), pointer 	        :: oldi, currenti, oldj, currentj
 
-	double precision,dimension(3)	:: cellsperbin
+	double precision,dimension(3)	:: vi_t, cellsperbin
+
+    potenergymol = 0.d0
 
 	!Calculate bin to cell ratio
 	cellsperbin = 1.d0/binspercell !ceiling(ncells(1)/dble(nbins(1)))
 
     ! Still need to loop over every cell (i.e. get all interactions) if
     ! bins are bigger than cells
-	where (cellsperbin .lt. 1.d0) cellsperbin = 1.d0
-
-!	icellmin = (imin-1)*cellsperbin(1)+1
-!	icellmax = (imax-2)*cellsperbin(1)+2
-!	jcellmin = (jmin-1)*cellsperbin(2)+1
-!	jcellmax = (jmax-2)*cellsperbin(2)+2
-!	kcellmin = (kmin-1)*cellsperbin(3)+1
-!	kcellmax = (kmax-2)*cellsperbin(3)+2
+    ! 15/09/14 -- I think this is wrong -- you don't need to do this if
+    !             the cells to bins are mapped correctly as below
+	!where (cellsperbin .ge. 1.d0) cellsperbin = 1.d0
 
 	!Get cell number from bin numbers
-	icellmin = (imin-1)*cellsperbin(1)+1+(1-cellsperbin(1))
-	icellmax =  imax   *cellsperbin(1)  +(1-cellsperbin(1))
-	jcellmin = (jmin-1)*cellsperbin(2)+1+(1-cellsperbin(2))
-	jcellmax =  jmax   *cellsperbin(2)  +(1-cellsperbin(2))
-	kcellmin = (kmin-1)*cellsperbin(3)+1+(1-cellsperbin(3))
-	kcellmax =  kmax   *cellsperbin(3)  +(1-cellsperbin(3))
+!	icellmin = (imin-1)*cellsperbin(1)+1+(1-cellsperbin(1))
+!	icellmax =  imax   *cellsperbin(1)  +(1-cellsperbin(1))
+!	jcellmin = (jmin-1)*cellsperbin(2)+1+(1-cellsperbin(2))
+!	jcellmax =  jmax   *cellsperbin(2)  +(1-cellsperbin(2))
+!	kcellmin = (kmin-1)*cellsperbin(3)+1+(1-cellsperbin(3))
+!	kcellmax =  kmax   *cellsperbin(3)  +(1-cellsperbin(3))
 
-!	icellmin = (imin-1)*cellsperbin(1)+2+(1-cellsperbin(1))
-!	icellmax =  imax   *cellsperbin(1)-2*cellsperbin(1)
-!	jcellmin = (jmin-1)*cellsperbin(2)+2+(1-cellsperbin(2))
-!	jcellmax =  jmax   *cellsperbin(2)-2*cellsperbin(2)
-!	kcellmin = (kmin-1)*cellsperbin(3)+2+(1-cellsperbin(3))
-!	kcellmax =  kmax   *cellsperbin(3)-2*cellsperbin(3)
-
-!	icellmin = (imin)*cellsperbin(1)+1+(1-cellsperbin(1))
-!	icellmax = (imax)*cellsperbin(1)  +(1-cellsperbin(1))
-!	jcellmin = (jmin)*cellsperbin(2)+1+(1-cellsperbin(2))
-!	jcellmax = (jmax)*cellsperbin(2)  +(1-cellsperbin(2))
-!	kcellmin = (kmin)*cellsperbin(3)+1+(1-cellsperbin(3))
-!	kcellmax = (kmax)*cellsperbin(3)  +(1-cellsperbin(3))
-
-   ! print*, icellmin,jcellmin,kcellmin,icellmax,jcellmax,kcellmax,imin, imax, jmin, jmax, kmin, kmax
+    icellmin = 2; icellmax = ncells(1) + 1
+    jcellmin = 2; jcellmax = ncells(2) + 1
+    kcellmin = 2; kcellmax = ncells(3) + 1
 
 	do kcell=kcellmin, kcellmax
 	do jcell=jcellmin, jcellmax 
@@ -960,15 +945,15 @@ subroutine simulation_compute_power(imin, imax, jmin, jmax, kmin, kmax)
 			do jcellshift = -1,1
 			do icellshift = -1,1
 
-				!Prevents out of range values in i
-				if (icell+icellshift .lt. icellmin) cycle
-				if (icell+icellshift .gt. icellmax) cycle
-				!Prevents out of range values in j
-				if (jcell+jcellshift .lt. jcellmin) cycle
-				if (jcell+jcellshift .gt. jcellmax) cycle
-				!Prevents out of range values in k
-				if (kcell+kcellshift .lt. kcellmin) cycle
-				if (kcell+kcellshift .gt. kcellmax) cycle
+!				!Prevents out of range values in i
+!				if (icell+icellshift .lt. icellmin) cycle
+!				if (icell+icellshift .gt. icellmax) cycle
+!				!Prevents out of range values in j
+!				if (jcell+jcellshift .lt. jcellmin) cycle
+!				if (jcell+jcellshift .gt. jcellmax) cycle
+!				!Prevents out of range values in k
+!				if (kcell+kcellshift .lt. kcellmin) cycle
+!				if (kcell+kcellshift .gt. kcellmax) cycle
 
 				oldj => cell%head(icell+icellshift,jcell+jcellshift,kcell+kcellshift)%point
 				adjacentcellnp = cell%cellnp(icell+icellshift,jcell+jcellshift,kcell+kcellshift)
@@ -985,24 +970,24 @@ subroutine simulation_compute_power(imin, imax, jmin, jmax, kmin, kmax)
 
 					rij2=0                   !Set rij^2 to zero
 					rij(:) = ri(:) - rj(:)   !Evaluate distance between particle i and j
-
-					do ixyz=1,nd
-						rij2 = rij2+rij(ixyz)*rij(ixyz) !Square of vector calculated
-					enddo
+					rij2 = dot_product(rij,rij)	!Square of vector calculated
 
 					if (rij2 < rcutoff2) then
 
 						!Linear magnitude of acceleration for each molecule
 						invrij2 = 1.d0/rij2                 !Invert value
 						accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
+						potenergymol(molnoi)=potenergymol(molnoi) & 
+							     +4.d0*(invrij2**6-invrij2**3)-potshift
 
 						!CV stress and force calculations
-						if (eflux_outflag.eq. 4) then
-							if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
-								fij = accijmag*rij(:)
-								call control_volume_power(fij,ri,rj,molnoi,a(:,molnoi))
-							endif
-						endif
+						fij = accijmag*rij(:)
+
+                        !Get the velocity, v, at time t 
+                        ! ( This is the reason we need to do this after
+                        !   the force calculation so we know a(t)      )
+                        vi_t(:) = v(:,molnoi) + 0.5d0*delta_t*a(:,molnoi)
+						call control_volume_power(fij,ri,rj,vi_t)
 
 					endif
 				enddo

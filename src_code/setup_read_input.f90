@@ -748,7 +748,16 @@ subroutine setup_read_input
 	if (found_in_input) then
 		read(1,*) cv_conserve
 		read(1,*,iostat=ios) CV_debug
-		if (ios .ne. 0) CV_debug = .false.
+		if (ios .ne. 0) CV_debug = 0
+        if (CV_debug .eq. 2) then
+		    read(1,*,iostat=ios) debug_CV(1)
+            read(1,*,iostat=ios) debug_CV(2)
+            read(1,*,iostat=ios) debug_CV(3)
+    		if (ios .ne. 0) then
+                print*, "Warning - CV_debug = 2 so CV number should be specified, setting to 3,3,3"
+                debug_CV = (/ 3, 3, 3 /)
+            endif
+        endif
 	endif
 
 	call locate(1,'MFLUX_OUTFLAG',.false.,found_in_input)
@@ -770,7 +779,7 @@ subroutine setup_read_input
 			pass_vhalo = 1		!Turn on passing of velocities for halo images
 		endif
 	endif
-	if (CV_debug) then
+	if (CV_debug .gt. 0) then
 		if (mflux_outflag .eq. 0 .and. & 
 			vflux_outflag .eq. 0 .and. & 
 			eflux_outflag .eq. 0) then
@@ -839,7 +848,7 @@ subroutine setup_read_input
 	if (found_in_input) then
 		read(1,*) CVforce_flag
 		if (CVforce_flag .ne. VOID) then
-			if (.not. CV_debug) call error_abort("Input ERROR -- CV_FORCES true so CV_CONSERVE should be set to 1 and debugging set to .true.")
+			if (CV_debug .eq. 0) call error_abort("Input ERROR -- CV_FORCES true so CV_CONSERVE should be set to 1 and debugging set to > 1")
 			if (vflux_outflag .ne. 4) call error_abort("Input ERROR -- CV_FORCES .true. but VFLUX_OUTFLAG not set to 4 (CV averages)")
 		endif
 		read(1,*,iostat=ios) CVweighting_flag
