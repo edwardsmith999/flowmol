@@ -8,7 +8,7 @@ import glob
 from mdfields import *
 from headerdata import *
 from postproc import PostProc
-from pplexceptions import NoResultsInDir 
+from pplexceptions import NoResultsInDir
 
 class MD_PostProc(PostProc):
 
@@ -119,8 +119,12 @@ class MD_PostProc(PostProc):
             self.plotlist.update({'pVA_c':P1})
 
         #CV fluxes
+        if 'mflux' in (self.fieldfiles1):
+            flux1 = MD_mfluxField(self.resultsdir,'mflux', **kwargs)
+            self.plotlist.update({'mflux':flux1})
+
         if 'vflux' in (self.fieldfiles1):
-            flux1 = MD_pfluxField(self.resultsdir,'vflux', **kwargs)
+            flux1 = MD_pCVField(self.resultsdir,'vflux', **kwargs)
             self.plotlist.update({'vflux':flux1})
 
         #External forces
@@ -136,8 +140,14 @@ class MD_PostProc(PostProc):
 
         #CV stresses
         if 'psurface' in (self.fieldfiles1):
-            stress1 = MD_pfluxField(self.resultsdir,'psurface', **kwargs)
+            stress1 = MD_pCVField(self.resultsdir,'psurface', **kwargs)
             self.plotlist.update({'psurface':stress1})
+
+        #Stress Heating
+        if ('vflux'   in (self.fieldfiles1) and
+           'psurface' in (self.fieldfiles1)):
+            stress1 = MD_CVStressheat_Field(self.resultsdir, **kwargs)
+            self.plotlist.update({'stress_heating':stress1})
 
         #CV energy fluxes
         if 'eflux' in (self.fieldfiles1):
@@ -159,6 +169,12 @@ class MD_PostProc(PostProc):
             try:
                 v1 = MD_vField(self.resultsdir, **kwargs)
                 self.plotlist.update({'u':v1})
+            except DataMismatch:
+                pass
+
+            try:
+                v1 = MD_rhouuField(self.resultsdir, **kwargs)
+                self.plotlist.update({'rhouu':v1})
             except DataMismatch:
                 pass
 
@@ -204,5 +220,12 @@ class MD_PostProc(PostProc):
             except DataMismatch:
                 pass
 
+            try:
+                T1 = MD_dTdrField(self.resultsdir, **kwargs)
+                self.plotlist.update({'dTdr':T1})
+            except DataMismatch:
+                pass
+
         if (len(self.plotlist) == 0):
-            raise NoResultsInDir 
+            raise NoResultsInDir
+

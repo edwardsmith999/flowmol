@@ -5,7 +5,7 @@ import sys
 
 sys.path.append('../../../')
 import postproclib as ppl
-from misclib import tvregdiff
+from misclib import chaos_test
 
 fdirs = ['/media/My Passport/Work/CFD_laminar/','/media/My Passport/Work/CFD_minimal_channel/']
 startrecs = [0,0]
@@ -44,6 +44,9 @@ for i, fdir in enumerate(fdirs):
 
 plt.plot(D,I,'-o',alpha=0.7)
 plt.show()
+
+chaos_test(I)
+chaos_test(D)
 
 #Function differentiate noisy data (didn't seem to work...)
 #dudy_noiseless = tvregdiff.TVRegDiff(u[:,0], 10, 5, plotflag=0)

@@ -181,7 +181,7 @@ class MD_stressField(MD_PField):
 class MD_pfluxField(MDField):
 
     """
-        MD_vfluxField manages velcoity flux field data in the form of
+        MD_vfluxField manages velocity flux field data in the form of
         velocity/stress sum over 6 cubic bin surfaces with 18 double 
         precision real data types per bin
         e.g. fnames = totalflux, vflux, psurface (no default)
@@ -260,11 +260,7 @@ class MD_vField(MD_complexField):
 
         Field.__init__(self,self.mField.Raw)
         self.inherit_parameters(self.pField)
-        #self.header = self.pField.Raw.header
-        #self.nperbin = self.pField.nperbin
-        #self.cpol_bins = self.pField.cpol_bins
-        #self.axislabels = self.pField.axislabels
-        #self.labels = self.pField.labels
+
         if (self.mField.plotfreq == self.pField.plotfreq):
             self.plotfreq = self.pField.plotfreq
         else:
@@ -445,6 +441,35 @@ class MD_dissipField(MD_vField):
         if (avgaxes != ()):
             return np.sum(vdata,axis=avgaxes) 
 
+
+class MD_rhouuField(MD_complexField):
+
+    def __init__(self, fdir):
+
+        # Get mean velocity and density field
+        self.fdir = fdir
+        self.vField = MD_vField(self.fdir)
+        self.dField = MD_dField(self.fdir)
+        Field.__init__(self,self.vField.Raw)
+        self.inherit_parameters(self.vField)
+        self.labels = ['uu','uv','uw',
+                       'vu','vv','vw',
+                       'wu','wv','ww']
+        self.nperbin = 9
+
+    def read(self,startrec,endrec,peculiar=True,**kwargs):
+        vdata = self.vField.read(startrec,endrec,**kwargs)
+        ddata = self.dField.read(startrec,endrec,**kwargs)
+
+        # Find outer product of v*v and reshape to 1x9 rather than 3x3
+        nrecs = endrec-startrec+1
+        vvdata = np.einsum('abcdj,abcdk->abcdjk',vdata,vdata)
+        vvshapelist = list(vvdata.shape)
+        newshape = tuple(vvshapelist[0:4]+[9])
+        vvdata = np.reshape(vvdata,newshape)
+
+        return vvdata 
+
 class MD_pVAField(MD_complexField):
 
     def __init__(self, fdir, fname):
@@ -454,14 +479,7 @@ class MD_pVAField(MD_complexField):
         Field.__init__(self,self.PField.Raw)
         self.inherit_parameters(self.PField)
 
-        #self.header = self.PField.Raw.header
-        #self.nperbin = self.PField.nperbin
-        #self.cpol_bins = self.PField.cpol_bins
-        #self.axislabels = self.PField.axislabels
-        #self.labels = self.PField.labels
-        #self.plotfreq = self.PField.plotfreq
-
-    def read(self,startrec,endrec,peculiar=True,**kwargs):
+    def read(self,startrec,endrec,peculiar=True,verbose=False,**kwargs):
 
         # Read 4D time series from startrec to endrec
         Pdata = self.PField.read(startrec,endrec,**kwargs)  
@@ -470,30 +488,21 @@ class MD_pVAField(MD_complexField):
         if (peculiar==True):
 
             if (self.fname=='pVA_c'):
-                message = ('\n *** \n Removing the peculiar velocity from '
-                +' the configurational part \n of the stress tensor is '
-                +' entirely nonsensical! I will ignore this instruction.\n'
-                +' ***\n')
-                print(message)
+                if (verbose == True):
+                    message = ('\n *** \n Removing the peculiar velocity from '
+                    +' the configurational part \n of the stress tensor is '
+                    +' entirely nonsensical! I will ignore this instruction.\n'
+                    +' ***\n')
+                    print(message)
                 pass
 
             else:   
 
-                # Get mean velocity and density field
-                vField = MD_vField(self.fdir)
-                dField = MD_dField(self.fdir)
-                vdata = vField.read(startrec,endrec,**kwargs)
-                ddata = dField.read(startrec,endrec,**kwargs)
+                rhovvField = MD_rhouuField(self.fdir)
+                rhovvdata =  rhovvField.read(startrec,endrec,**kwargs)
 
-                # Find outer product of v*v and reshape to 1x9 rather than 3x3
-                nrecs = endrec-startrec+1
-                vvdata = np.einsum('abcdj,abcdk->abcdjk',vdata,vdata)
-                vvshapelist = list(vvdata.shape)
-                newshape = tuple(vvshapelist[0:4]+[9])
-                vvdata = np.reshape(vvdata,newshape)
-    
                 # Remove square of streaming velocity
-                Pdata = Pdata - ddata*vvdata
+                Pdata = Pdata - rhovvdata
 
         return Pdata 
 
@@ -505,9 +514,7 @@ class MD_TField(MD_complexField):
         self.KEField = MD_EField(fdir)
         Field.__init__(self,self.KEField.Raw)
         self.inherit_parameters(self.KEField)
-        #self.header = self.KEField.Raw.header
-        #self.nperbin = self.KEField.nperbin
-        #self.cpol_bins = self.KEField.cpol_bins
+
         if ((self.mField.plotfreq == self.pField.plotfreq) &
             (self.mField.plotfreq == self.KEField.plotfreq)):
             self.plotfreq = self.KEField.plotfreq
@@ -565,7 +572,50 @@ class MD_TField(MD_complexField):
                 v2data = np.mean(v2data,axis=avgaxes) 
             Tdata = Tdata - (1./3.)*v2data
 
-        return Tdata 
+        return Tdata
+
+
+class MD_dTdrField(MD_TField):
+
+    def __init__(self,fdir,rectype='bins'):
+        self.TField = MD_TField(fdir)
+
+        Field.__init__(self,self.TField.Raw)
+        self.inherit_parameters(self.TField)
+        self.labels = ["dTdx","dTdy","dTdz"]
+        self.nperbin = 3
+
+    def read(self,startrec,endrec, binlimits=None,**kwargs):
+        Tdata = self.TField.read(startrec, endrec, 
+                                 binlimits=None)
+
+        dTdr = self.grad(Tdata)
+
+        if (binlimits):
+
+            # Defaults
+            lower = [0]*3
+            upper = [i for i in dTdr.shape] 
+    
+            for axis in range(3):
+                if (binlimits[axis] == None):
+                    continue
+                else:
+                    lower[axis] = binlimits[axis][0] 
+                    upper[axis] = binlimits[axis][1] 
+
+            dTdr = dTdr[lower[0]:upper[0],
+                        lower[1]:upper[1],
+                        lower[2]:upper[2], :, :]
+
+        return dTdr
+
+    def averaged_data(self,startrec,endrec,avgaxes=(),**kwargs):
+
+        dTdr = self.read(startrec, endrec,**kwargs)
+        
+        if (avgaxes != ()):
+            return np.sum(dTdr,axis=avgaxes) 
 
 # Density field
 class MD_dField(MD_complexField):
@@ -574,18 +624,11 @@ class MD_dField(MD_complexField):
         self.mField = MD_mField(fdir,fname)
         Field.__init__(self,self.mField.Raw)
         self.inherit_parameters(self.mField)
-        #self.header = self.mField.Raw.header
-        #self.nperbin = self.mField.nperbin
-        #self.cpol_bins = self.mField.cpol_bins
-        #self.plotfreq = self.mField.plotfreq
-        #self.axislabels = self.mField.axislabels
-        #self.labels = self.mField.labels
 
     def read(self, startrec, endrec, binlimits=None, **kwargs):
 
         binvolumes = self.mField.Raw.get_binvolumes(binlimits=binlimits)
         binvolumes = np.expand_dims(binvolumes,axis=-1)
-        #Nmass_ave = self.mField.Raw.header.Nmass_ave
 
         # Read 4D time series from startrec to endrec
         mdata = self.mField.read(startrec, endrec, binlimits=binlimits)
@@ -621,12 +664,6 @@ class MD_momField(MD_complexField):
         self.pField = MD_pField(fdir,fname)
         Field.__init__(self,self.pField.Raw)
         self.inherit_parameters(self.pField)
-        #self.header = self.pField.Raw.header
-        #self.nperbin = self.pField.nperbin
-        #self.cpol_bins = self.pField.cpol_bins
-        #self.plotfreq = self.pField.plotfreq
-        #self.axislabels = self.pField.axislabels
-        #self.labels = self.pField.labels
 
     def read(self, startrec, endrec, binlimits=None, **kwargs):
 
@@ -659,44 +696,126 @@ class MD_momField(MD_complexField):
 
         return momdensity 
 
+
+
 # MD CV Fields...
-class MD_CVvField(MDField):
+
+class MD_pCVField(MD_complexField):
+
+    def __init__(self, fdir, fname):
+
+        self.fname = fname
+        self.pfluxField = MD_pfluxField(fdir,fname)
+        Field.__init__(self,self.pfluxField.Raw)
+        self.inherit_parameters(self.pfluxField)
+        self.warnagain = True
+
+    def read(self,startrec,endrec,peculiar=True,verbose=False,**kwargs):
+
+        # Read 4D time series from startrec to endrec
+        pflux = self.pfluxField.read(startrec,endrec,**kwargs)  
+
+        # Take off square of peculiar momenta if specified
+        if (peculiar==True):
+
+            if (self.fname=='psurface'):
+                if (verbose == True):
+                    message = ('\n *** \n Removing the peculiar velocity from '
+                    +' the configurational part \n of the stress tensor is '
+                    +' entirely nonsensical! I will ignore this instruction.\n'
+                    +' ***\n')
+                    print(message)
+                pass
+
+            else:   
+
+                rhovvField = MD_rhouuField(self.fdir)
+                rhovvdata =  rhovvField.read(startrec,endrec,**kwargs)
+
+                # Remove square of streaming velocity
+                for ixyz in range(0,pflux.shape[4]):
+                    pflux[:,:,:,:,ixyz] = ( pflux[:,:,:,:,ixyz] 
+                                           - rhovvdata[:,:,:,:,np.mod(
+                                            ixyz,rhovvdata.shape[4])])
+
+        return pflux 
+
+
+
+class MD_CVStressheat_Field(MD_complexField):
 
     def __init__(self,fdir):
-        self.CVvsnapField = MD_pField(fdir='vsnap')
-        self.CVvfluxField = MD_pfluxField(fdir='vflux')
-        self.CVpsurfField = MD_pfluxField(fdir='psurface')
+        self.fdir = fdir
+        self.vField = MD_vField(fdir)
+        self.vfluxField = MD_pCVField(fdir,fname='vflux')
+        self.psurfaceField = MD_pCVField(fdir,fname='psurface')
+        Field.__init__(self,self.vField.Raw)
+        self.inherit_parameters(self.vField)
+        self.labels = ["Pi_dot_u","Pi_dot_v","Pi_dot_w"]
+        self.nperbin = 3
 
-    def check_conservation(self,startrec,endrec,**kwargs):
+    def read(self,startrec,endrec,peculiar=True,**kwargs):
 
-        CVvsnap = self.CVvsnapField(startrec,endrec+1,**kwargs)
-        CVfluxdata = self.CVvfluxField.read(startrec,endrec+1,**kwargs)
-        CVsurfacedata = self.CVpsurfField.read(startrec,endrec+1,**kwargs)
-        Fext = self.MD_FField.read(startrec,endrec+1,**kwargs)
+        u = self.vField.read(startrec,endrec,**kwargs)
+        vflux = self.vfluxField.read(startrec,endrec,peculiar=True,**kwargs)
+        psurface = self.psurfaceField.read(startrec,endrec,peculiar=False,**kwargs)
 
-        CVfluxdata = np.reshape(CVfluxdata,[ self.nbins[0],
-                                             self.nbins[1],
-                                             self.nbins[2],
-                                            3 , 6, self.nrecs ], order='F')
+        vflux = np.reshape(vflux,[ vflux.shape[0],
+                                   vflux.shape[1],
+                                   vflux.shape[2],
+                                   vflux.shape[3], 3, 6],                                            
+                                   order='F')
 
-        CVsurfacedata = np.reshape(CVsurfacedata,[ self.nbins[0],
-                                                   self.nbins[1],
-                                                   self.nbins[2],
-                                                  3 , 6, self.nrecs ], order='F')
+        psurface = np.reshape(psurface,[ vflux.shape[0],
+                                         vflux.shape[1],
+                                         vflux.shape[2],
+                                         vflux.shape[3], 3, 6],                                            
+                                         order='F')
 
-        dmvdt = np.zeros(self.nbins[0],self.nbins[1],self.nbins[2],3,nrecs)
-        for n in range(startrec,enrec+1):
-            dmvdt[:,:,:,n] = CVvsnap[:,:,:,:,n+1] - CVvsnap[:,:,:,:,n]
+        Pi = psurface + vflux
+        Pidotu = np.einsum('abcdij,abcdi->abcdj',Pi,u)
 
-        totalflux[:,:,:,:] = ( (CVfluxdata[:,:,:,:,4,:] - CVfluxdata[:,:,:,:,1,:]) 
-                              +(CVfluxdata[:,:,:,:,5,:] - CVfluxdata[:,:,:,:,2,:])
-                              +(CVfluxdata[:,:,:,:,6,:] - CVfluxdata[:,:,:,:,3,:]))
+        return Pidotu
 
-        totalforce[:,:,:,:] =( (CVsurfacedata[:,:,:,:,4,:] - CVsurfacedata[:,:,:,:,1,:]) 
-                              +(CVsurfacedata[:,:,:,:,5,:] - CVsurfacedata[:,:,:,:,2,:])
-                              +(CVsurfacedata[:,:,:,:,6,:] - CVsurfacedata[:,:,:,:,3,:]))
 
-        conserved =  dmvdt + totalflux + totalforce + Fext
+## MD CV Fields...
+#class MD_CVvField(MDField):
 
-        return conserved
+#    def __init__(self,fdir):
+#        self.CVvsnapField = MD_pField(fdir='vsnap')
+#        self.CVvfluxField = MD_pfluxField(fdir='vflux')
+#        self.CVpsurfField = MD_pfluxField(fdir='psurface')
+
+#    def check_conservation(self,startrec,endrec,**kwargs):
+
+#        CVvsnap = self.CVvsnapField(startrec,endrec+1,**kwargs)
+#        CVfluxdata = self.CVvfluxField.read(startrec,endrec+1,**kwargs)
+#        CVsurfacedata = self.CVpsurfField.read(startrec,endrec+1,**kwargs)
+#        Fext = self.MD_FField.read(startrec,endrec+1,**kwargs)
+
+#        CVfluxdata = np.reshape(CVfluxdata,[ self.nbins[0],
+#                                             self.nbins[1],
+#                                             self.nbins[2],
+#                                            3 , 6, self.nrecs ], order='F')
+
+#        CVsurfacedata = np.reshape(CVsurfacedata,[ self.nbins[0],
+#                                                   self.nbins[1],
+#                                                   self.nbins[2],
+#                                                  3 , 6, self.nrecs ], order='F')
+
+#        dmvdt = np.zeros(self.nbins[0],self.nbins[1],self.nbins[2],3,nrecs)
+#        for n in range(startrec,enrec+1):
+#            dmvdt[:,:,:,n] = CVvsnap[:,:,:,:,n+1] - CVvsnap[:,:,:,:,n]
+
+#        totalflux[:,:,:,:] = ( (CVfluxdata[:,:,:,:,4,:] - CVfluxdata[:,:,:,:,1,:]) 
+#                              +(CVfluxdata[:,:,:,:,5,:] - CVfluxdata[:,:,:,:,2,:])
+#                              +(CVfluxdata[:,:,:,:,6,:] - CVfluxdata[:,:,:,:,3,:]))
+
+#        totalforce[:,:,:,:] =( (CVsurfacedata[:,:,:,:,4,:] - CVsurfacedata[:,:,:,:,1,:]) 
+#                              +(CVsurfacedata[:,:,:,:,5,:] - CVsurfacedata[:,:,:,:,2,:])
+#                              +(CVsurfacedata[:,:,:,:,6,:] - CVsurfacedata[:,:,:,:,3,:]))
+
+#        conserved =  dmvdt + totalflux + totalforce + Fext
+
+#        return conserved
 

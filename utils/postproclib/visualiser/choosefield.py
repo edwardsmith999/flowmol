@@ -17,7 +17,7 @@ class FieldTypePanel(scrolled.ScrolledPanel):
 
     def __init__(self,parent,**kwargs):
         scrolled.ScrolledPanel.__init__(self, parent,**kwargs)
-        choices = parent.parent.PP.plotlist.keys()   
+        choices = sorted(parent.parent.PP.plotlist.keys())
         self.fieldradiobox = wx.RadioBox(self,label='Field',    
                                     style=wx.RA_SPECIFY_ROWS,
                                     choices=choices)

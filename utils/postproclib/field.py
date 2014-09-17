@@ -317,9 +317,10 @@ class Field():
                               vdata.shape[1],
                               vdata.shape[2],
                               vdata.shape[4]))
-        gradv = np.empty(list(vdata.shape[:-1]) + [9])
+        ndims = vdata.shape[4]
+        gradv = np.empty(list(vdata.shape[:-1]) + [3*ndims])
         for rec in range(gradv.shape[-2]):
-            for ixyz in range(3):
+            for ixyz in range(ndims):
                 grad_temp = np.gradient(vdata[:,:,:,rec,ixyz], 
                                         dx, dy, dz)
 

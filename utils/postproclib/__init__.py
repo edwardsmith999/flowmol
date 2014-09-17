@@ -1,5 +1,6 @@
 # Only import the classes we want to be accessible to the user
 from mdfields import *
+from mdpostproc import *
 from cfdfields import *
 from channelflowfields import *
 from serial_cfdfields import *
