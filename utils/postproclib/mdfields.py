@@ -475,14 +475,30 @@ class MD_pVAField(MD_complexField):
     def __init__(self, fdir, fname):
 
         self.fname = fname
-        self.PField = MD_PField(fdir,fname)
+        try:
+            self.PField = MD_PField(fdir,fname)
+        except DataNotAvailable:
+            #If pVA file is not present, 
+            # try getting from pVA_c and pVA_k
+            if fname == 'pVA':
+                self.pkField = MD_PField(fdir,fname='pVA_k')
+                self.pcField = MD_PField(fdir,fname='pVA_c')
+                self.PField = self.pkField
+                self.fname = 'pVA_ck'
+            else:
+                raise DataNotAvailable
+
         Field.__init__(self,self.PField.Raw)
         self.inherit_parameters(self.PField)
 
     def read(self,startrec,endrec,peculiar=True,verbose=False,**kwargs):
 
         # Read 4D time series from startrec to endrec
-        Pdata = self.PField.read(startrec,endrec,**kwargs)  
+        if self.fname == 'pVA_ck':
+            Pdata = (  self.pkField.read(startrec,endrec,**kwargs)
+                     + self.pcField.read(startrec,endrec,**kwargs))
+        else:
+            Pdata = self.PField.read(startrec,endrec,**kwargs)
 
         # Take off square of peculiar momenta if specified
         if (peculiar==True):
@@ -504,7 +520,35 @@ class MD_pVAField(MD_complexField):
                 # Remove square of streaming velocity
                 Pdata = Pdata - rhovvdata
 
-        return Pdata 
+        return Pdata
+
+class MD_pVAheat_Field(MD_complexField):
+
+    def __init__(self,fdir):
+        self.fdir = fdir
+        self.vField = MD_vField(fdir)
+        self.pVA = MD_pVAField(fdir,fname='pVA')
+
+        Field.__init__(self,self.vField.Raw)
+        self.inherit_parameters(self.vField)
+        self.labels = ["Pi_dot_u","Pi_dot_v","Pi_dot_w"]
+        self.nperbin = 3
+
+    def read(self,startrec,endrec,peculiar=True,**kwargs):
+
+        u = self.vField.read(startrec,endrec,**kwargs)
+        Pi = self.pVA.read(startrec,endrec,**kwargs)
+
+        Pi = np.reshape(Pi,[ Pi.shape[0],
+                             Pi.shape[1],
+                             Pi.shape[2],
+                             Pi.shape[3], 3, 3],                                            
+                             order='F')
+
+        Pidotu = np.einsum('abcdij,abcdi->abcdj',Pi,u)
+
+        return Pidotu
+
 
 class MD_TField(MD_complexField):
 

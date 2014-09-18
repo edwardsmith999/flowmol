@@ -108,15 +108,22 @@ class MD_PostProc(PostProc):
             self.plotlist.update({'rhou_snap':v1})
 
         #VA stress
-        if 'pVA' in (self.fieldfiles1):
-            P1 = MD_pVAField(self.resultsdir,fname='pVA', **kwargs)
-            self.plotlist.update({'pVA':P1})
         if 'pVA_k' in (self.fieldfiles1):
             P1 = MD_pVAField(self.resultsdir,fname='pVA_k', **kwargs)
             self.plotlist.update({'pVA_k':P1})
         if 'pVA_c' in (self.fieldfiles1):
             P1 = MD_pVAField(self.resultsdir,fname='pVA_c', **kwargs)
             self.plotlist.update({'pVA_c':P1})
+        if (('pVA'   in self.fieldfiles1) or 
+            ('pVA_k' in self.fieldfiles1 and 
+             'pVA_c' in self.fieldfiles1    )):
+            P1 = MD_pVAField(self.resultsdir,fname='pVA', **kwargs)
+            self.plotlist.update({'pVA':P1})
+
+            #Pressure Heating term
+            if 'vbins' in self.fieldfiles1:
+                P1 = MD_pVAheat_Field(self.resultsdir, **kwargs)
+                self.plotlist.update({'pVAheat':P1}) 
 
         #CV fluxes
         if 'mflux' in (self.fieldfiles1):
