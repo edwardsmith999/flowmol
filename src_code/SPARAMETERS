@@ -10,7 +10,7 @@ kappa              = 1.0d-2      ! dXcdt = kappa*(Th-Tha)**mm
 mm                 = 3           ! 
 Equilibrium_Angle  = 'DYNAM'     ! EQUILIMBRIUM ANGLE: 'FIXED' or 'DYNAM'
 Thetac             = 0.5D0       ! VALUE OF EQUILIBRIUM ANGLE FOR CLEAN FLUID 
-MASS_SURFACTANT    = 2.00d0      ! TOTAL MASS OF SURFACTANT
+MASS_SURFACTANT    = 0.00d0      ! TOTAL MASS OF SURFACTANT
 Peca               = 1.0d+4      ! PECLET NUMBER (surfactact on interface)
 ba                 = 1.0d+0      ! DEGREE OF SURFACTANT SOLUBILITY
 ka                 = 1.0d-0      ! KINETIC CONSTANT

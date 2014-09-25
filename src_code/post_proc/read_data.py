@@ -22,7 +22,7 @@ def sort_nicely(l):
     l.sort(key=alphanum_key)
 
 #Get Headers from first file
-fpath = '../results/'
+fpath = '../results/M1p5/'
 filenames = ['VPROFILE.0000001.DAT','CPROFILE.0000001.DAT']
 for filename in filenames:
     print('Available fields in ' + filename + ':')
@@ -53,6 +53,7 @@ ax.set_ylim(1e-2,11)
 ax.set_xlim(1e-1,1e5)
 plt.show()
 
+
 #for name in tdata.keys():
 #    print(name)
 #    plt.plot(tdata['LogTime'],tdata[name])
@@ -61,22 +62,45 @@ plt.show()
 #    plt.show()
 
 #All files
-files = glob.glob('./*.DAT')
+files = glob.glob(fpath+'./*.DAT')
 vfiles = [s for s in files if "VPROFILE" in s]
 cfiles = [s for s in files if "CPROFILE" in s]
 sort_nicely(vfiles)
 sort_nicely(cfiles)
 
-for filename in vfiles:
+fig = plt.figure()
+ax = plt.subplot(111)
+
+xhist = []
+#for filename in vfiles:
+#    data = np.genfromtxt(filename,skip_header=3,names=True)
+#    xhist.append([data['X'][300],
+#				  data['X'][600],
+#				  data['X'][900]])
+
+#plt.plot(xhist)
+#plt.show()
+
+plotvalue = 'U'
+for filename in vfiles[::10]:
+    print(filename)
     data = np.genfromtxt(filename,skip_header=3,names=True)
-    plt.plot(data['X'],data['Cax'],'-',alpha=0.3)
-    plt.plot(data['X'],data['Cs'],'-',alpha=0.3)
-    plt.xlim((0.0,10.0))
-    plt.xlabel('X')
-    plt.ylabel('Cax')
-    plt.draw()
-    plt.pause(0.1)
-    plt.cla()
+    ax.plot(data['X'],data[plotvalue],'-',alpha=0.5)
+plt.show()  
+
+
+#plotvalue = 'H'
+#for filename in vfiles:
+#    print(filename)
+#    data = np.genfromtxt(filename,skip_header=3,names=True)
+#    ax.plot(data['X'],data[plotvalue],'-',alpha=0.5)
+#    ax.set_xlim((0.0,3.0))
+#    ax.set_ylim((0.0,1.0))
+#    ax.set_xlabel('X'); ax.set_ylabel(plotvalue)
+#    ax.set_aspect('equal')
+#    plt.draw()
+#    plt.pause(0.01)
+#    plt.cla()
 
 #Attempt to iterpolate from known points to contour plot
 #for name in data.dtype.names:

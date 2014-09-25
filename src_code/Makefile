@@ -22,7 +22,7 @@ LDFLAGS =
 
 # Directories
 
-SRC_DIR = ./src
+SRC_DIR = ./
 OBJ_DIR = ./obj
 
 # Source files
