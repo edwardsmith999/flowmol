@@ -34,7 +34,7 @@ subroutine setup_initial_record
     character(8)            :: the_date
     character(10)           :: the_time
     character(23)           :: file_names_t
-    character(23),parameter :: file_names(34) = &
+    character(23),parameter :: file_names(38) = &
                                 (/ "mslice      ", "mbins       ", "msnap   ",&
                                    "vslice      ", "vbins       ", "vsnap   ",&
                                    "pvirial     ", "pVA         ", "pVA_k   ",& 
@@ -46,7 +46,8 @@ subroutine setup_initial_record
                                    "Tbins       ", "vmd_temp.dcd", "vPDF    ",&
                                    "bforce_pdf  ", "Fvext       ", "etev    ",&
                                    "msolv       ", "mpoly       ", "vpoly   ",&
-                                   "vsolv       "/) 
+                                   "vsolv       ", "ebins       ", "hfVA_k  ",&
+                                   "hfVA_c      ", "hfVA        " /) 
 
 
 !   ! COUETTE FLOW ANALYTICAL SOLUTION
@@ -117,6 +118,7 @@ subroutine setup_initial_record
                 if(file_exist) then
                     open (unit=23, file=trim(prefix_dir)//'results/'//file_names_t)
                     close(23,status='delete')
+                    missing_file_tolerance = 5
                 elseif(missing_file_tolerance .eq. 0) then
                     exit !Exit loop if max file reached 
                 else
@@ -825,7 +827,9 @@ subroutine simulation_header
     write(fileunit,*)  'mass average steps ;  Nmass_ave ;', Nmass_ave
     write(fileunit,*)  'velocity average steps ;  Nvel_ave ;', Nvel_ave
     write(fileunit,*)  'Temperature average steps ;  NTemp_ave ;', NTemp_ave
+    write(fileunit,*)  'energy average steps ;  Nenergy_ave ;', Nenergy_ave
     write(fileunit,*)  'pressure average steps ;  Nstress_ave ;', Nstress_ave
+    write(fileunit,*)  'heatflux average steps ;  Nheatflux_ave ;', Nheatflux_ave
     write(fileunit,*)  'viscosity average samples ;  Nvisc_ave ;', Nvisc_ave
     write(fileunit,*)  'mass flux average steps ;  Nmflux_ave ;', Nmflux_ave
     write(fileunit,*)  'velocity flux average steps ;  Nvflux_ave ;', Nvflux_ave
@@ -987,13 +991,18 @@ implicit none
         call mass_averaging(mass_outflag)
     endif
 
+	!Obtain and record temperature
     if (temperature_outflag .ne. 0) then
         !Call first record
         call temperature_averaging(temperature_outflag)
     endif
 
+	!Obtain and record energy
+	if (energy_outflag .ne. 0)	call energy_averaging(energy_outflag)
+
     if (mflux_outflag .ne. 0) call mass_snapshot
     if (vflux_outflag .eq. 4) call momentum_snapshot
+    if (eflux_outflag .eq. 4) call energy_snapshot
 
     !Open pressure tensor and viscosity record file 
     !if (pressure_outflag .ne. 0) call stress_header

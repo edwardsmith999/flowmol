@@ -177,13 +177,13 @@ subroutine set_parameters_allocate
 	allocate(r(nd,np+extralloc))
 	allocate(v(nd,np+extralloc))
 	allocate(a(nd,np+extralloc))
-	if (eflux_outflag .eq. 4) then
-		allocate(a_old(nd,np+extralloc))
-	endif
+!	if (eflux_outflag .eq. 4) then
+!		allocate(a_old(nd,np+extralloc))
+!	endif
 
 	!Allocate potential energy and virial per molecule array
 	allocate(potenergymol(np+extralloc))
-	allocate(potenergymol_mdt(np+extralloc))
+	!allocate(potenergymol_mdt(np+extralloc))
 	allocate(potenergymol_LJ(np+extralloc))
 	allocate(virialmol(np+extralloc))
 
@@ -881,6 +881,13 @@ subroutine set_parameters_outputs
 		endif
 	endif
 
+	!Allocated bins for energy averaging
+	if (energy_outflag.eq.4) then
+		allocate(volume_energy(nbinso(1),nbinso(2),nbinso(3)))
+		volume_energy = 0.d0
+	endif
+
+
 	!Allocate mass bins if they haven't been already allocated (and they are needed)
 	if (mass_outflag.eq.4) then
 		if (.not. allocated(volume_mass)) then
@@ -991,6 +998,18 @@ subroutine set_parameters_outputs
 		vvbin = 0.d0
 		Pxybin = 0.d0
 	endif
+
+    if (heatflux_outflag .eq. 2) then
+		!Allocate pressure bin for Stress volume averaging
+		allocate( rfvbin( nbinso(1), nbinso(2), nbinso(3), 3, 1 ))
+		allocate( evbin( nbins (1),  nbins(2),  nbins(3),3  ))
+		rfvbin  = 0.d0
+		evbin = 0.d0
+    elseif (heatflux_outflag .eq. 0) then
+        !pass
+    else
+        call error_abort("Heatflux_outflag only developed for case 2")
+    endif
 
 	!Allocated Bins for Nose Hoover Stress Control
 	!allocate(Gxybins(nbins(1),nbins(2),nbins(3),3,3))

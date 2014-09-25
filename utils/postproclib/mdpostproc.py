@@ -30,7 +30,7 @@ class MD_PostProc(PostProc):
                                 "esnap", "eflux", "eplane","esurface", "Fvext", 
                                 "viscometrics", "rdf", "rdf3d", "ssf", "Fext",
                                 "Tbins", "vPDF", "msolv", "mpoly", "vsolv",
-                                "vpoly")        
+                                "vpoly", "ebins","hfVA","hfVA_k","hfVA_c")        
 
         if (not os.path.isdir(self.resultsdir)):
             print("Directory " +  self.resultsdir + " not found")
@@ -90,7 +90,7 @@ class MD_PostProc(PostProc):
 
         #Kinetic energy
         if 'Tbins' in (self.fieldfiles1):
-            KE1 = MD_EField(self.resultsdir, **kwargs)
+            KE1 = MD_EField(self.resultsdir,fname='Tbins', **kwargs)
             self.plotlist.update({'Tbins':KE1})
 
         #Mass snapshots
@@ -123,12 +123,48 @@ class MD_PostProc(PostProc):
             #Pressure Heating term
             if 'vbins' in self.fieldfiles1:
                 P1 = MD_pVAheat_Field(self.resultsdir, **kwargs)
-                self.plotlist.update({'pVAheat':P1}) 
+                self.plotlist.update({'pVA_stressheat':P1}) 
+
+        #VA Heatflux
+        if 'hfVA_k' in (self.fieldfiles1):
+            try:
+                P1 = MD_hfVAField(self.resultsdir,fname='hfVA_k', **kwargs)
+                self.plotlist.update({'hfVA_k':P1})
+            except DataNotAvailable:
+                pass
+                
+        if 'hfVA_c' in (self.fieldfiles1):
+            try:
+                P1 = MD_hfVAField(self.resultsdir,fname='hfVA_c', **kwargs)
+                self.plotlist.update({'hfVA_c':P1})
+            except DataNotAvailable:
+                pass
+        if (('hfVA'   in self.fieldfiles1) or 
+            ('hfVA_k' in self.fieldfiles1 and 
+             'hfVA_c' in self.fieldfiles1    )):
+            try:
+                P1 = MD_heatfluxVAField(self.resultsdir,fname='hfVA', **kwargs)
+                self.plotlist.update({'q':P1})
+            except DataNotAvailable:
+                pass
 
         #CV fluxes
         if 'mflux' in (self.fieldfiles1):
             flux1 = MD_mfluxField(self.resultsdir,'mflux', **kwargs)
             self.plotlist.update({'mflux':flux1})
+            rhouCV = MD_CVmomField(self.resultsdir)
+            self.plotlist.update({'rho_uCV':rhouCV})
+
+        if (('mflux' in self.fieldfiles1) and 
+            ('vbins' in self.fieldfiles1)     ):
+            rhouuCV =  MD_rhouuCVField(self.resultsdir)
+            self.plotlist.update({'rho_uuCV':rhouuCV})
+
+        if (('mflux' in self.fieldfiles1) and 
+            ('mbins' in self.fieldfiles1)     ):
+            uCV =  MD_CVvField(self.resultsdir)
+            self.plotlist.update({'uCV':uCV})
+
 
         if 'vflux' in (self.fieldfiles1):
             flux1 = MD_pCVField(self.resultsdir,'vflux', **kwargs)
@@ -144,6 +180,24 @@ class MD_PostProc(PostProc):
             esnap1 = MD_EField(self.resultsdir,'esnap', **kwargs)
             self.plotlist.update({'esnap':esnap1})
 
+        if 'ebins' in (self.fieldfiles1):
+            ebins = MD_EField(self.resultsdir,'ebins', **kwargs)
+            self.plotlist.update({'ebins':ebins})
+
+            try:
+                E = MD_EnergyField(self.resultsdir, **kwargs)
+                self.plotlist.update({'Energy':E})
+            except DataMismatch:
+                pass
+
+        if ('ebins' in self.fieldfiles1 and
+            'vbins' in self.fieldfiles1):
+            try:
+                rhoue =  MD_energyadvct_Field(self.resultsdir, **kwargs)
+                self.plotlist.update({'rhouE':rhoue})
+            except DataMismatch:
+                pass
+
 
         #CV stresses
         if 'psurface' in (self.fieldfiles1):
@@ -154,7 +208,15 @@ class MD_PostProc(PostProc):
         if ('vflux'   in (self.fieldfiles1) and
            'psurface' in (self.fieldfiles1)):
             stress1 = MD_CVStressheat_Field(self.resultsdir, **kwargs)
-            self.plotlist.update({'stress_heating':stress1})
+            self.plotlist.update({'CV_stressheat':stress1})
+
+        if ('ebins' in self.fieldfiles1 and
+            'mflux' in self.fieldfiles1):
+            try:
+                rhoue =  MD_rhouECVField(self.resultsdir, **kwargs)
+                self.plotlist.update({'CVrhouE':rhoue})
+            except DataMismatch:
+                pass
 
         #CV energy fluxes
         if 'eflux' in (self.fieldfiles1):
@@ -165,6 +227,17 @@ class MD_PostProc(PostProc):
         if 'esurface' in (self.fieldfiles1):
             energy1 = MD_efluxField(self.resultsdir,'esurface', **kwargs)
             self.plotlist.update({'esurface':energy1})
+
+
+        #Heat flux
+        if (('esurface' in self.fieldfiles1) and
+            ('psurface' in self.fieldfiles1) and 
+            ('vbins' in self.fieldfiles1  )    ):
+            try:
+                P1 = MD_heatfluxCVField(self.resultsdir, **kwargs)
+                self.plotlist.update({'q_CV':P1})
+            except DataNotAvailable:
+                pass
 
         #CV Energy due to external body 
         if 'Fvext' in (self.fieldfiles1):
@@ -227,9 +300,17 @@ class MD_PostProc(PostProc):
             except DataMismatch:
                 pass
 
+            #Derivative of temperature heatflux
             try:
                 T1 = MD_dTdrField(self.resultsdir, **kwargs)
                 self.plotlist.update({'dTdr':T1})
+            except DataMismatch:
+                pass
+
+            #Analytical form of heatflux
+            try:
+                q1 = MD_heatfluxapprox(self.resultsdir, **kwargs)
+                self.plotlist.update({'q_approx':q1})
             except DataMismatch:
                 pass
 

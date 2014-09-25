@@ -700,6 +700,13 @@ subroutine setup_read_input
 			if (ios .ne. 0) peculiar_flag = 0 !default to zero if value not found
 		endif
 	endif
+	call locate(1,'ENERGY_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) energy_outflag
+		if (energy_outflag .ne. 0)	then
+			read(1,*) Nenergy_ave
+		endif
+	endif
 	call locate(1,'PRESSURE_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) pressure_outflag
@@ -730,14 +737,42 @@ subroutine setup_read_input
 			read(1,*) gcpol_bins(2)	
 			read(1,*) gcpol_bins(3)	
 		end if
-		!if (pressure_outflag .eq. 2 .or. pressure_outflag .eq. 3) then
-		!	VA_line_samples = 20
-		!	call locate(1,'VA_LINE_SAMPLES',.false.,found_in_input)
-		!	if (found_in_input) then
-		!		read(1,*) VA_line_samples	
-		!	end if
-		!end if
 	endif
+
+	call locate(1,'HEATFLUX_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) heatflux_outflag
+		if (heatflux_outflag .ne. 0) then
+			!Stress averaging
+			read(1,*) Nheatflux_ave
+			!Split kinetic/config
+			read(1,*,iostat=ios) split_hfkin_config
+			if (ios .ne. 0) split_hfkin_config = 0 !default to zero if value not found
+			!Check other options such as calculation method and 
+			if (heatflux_outflag .eq. 2) then
+				if (pressure_outflag .ne. 2) then
+					call error_abort("Error -- Volume average stress must be recorded for heat flux")
+				endif
+			endif
+			if (heatflux_outflag .eq. 2 .or. heatflux_outflag .eq. 3) then
+    			read(1,*,iostat=ios) VA_heatflux_calcmethod
+				if (ios .ne. 0) VA_heatflux_calcmethod = 1
+    			if (any(binspercell .gt. 1.d0) .and. VA_heatflux_line_samples .eq. 2) then
+    				print*, "WARNING -- Cannot specify multiple bins per cell with exact VA "
+    				print*, "   calculation (method 2), switching to trapizium (method 1)   "
+					VA_heatflux_calcmethod = 1
+    			endif
+				if (VA_heatflux_calcmethod .eq. 1) then
+					read(1,*,iostat=ios) VA_heatflux_line_samples
+    				if (ios .ne. 0)	VA_heatflux_line_samples = 20
+				endif
+			endif
+		endif
+		if (heatflux_outflag .eq. 3) then
+			call error_abort("Error -- heat flux not developed for cpol bins")
+		end if
+	endif
+
 	call locate(1,'VISCOSITY_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) viscosity_outflag
@@ -747,15 +782,17 @@ subroutine setup_read_input
 	cv_conserve = 0
 	if (found_in_input) then
 		read(1,*) cv_conserve
-		read(1,*,iostat=ios) CV_debug
-		if (ios .ne. 0) CV_debug = 0
-        if (CV_debug .eq. 2) then
-		    read(1,*,iostat=ios) debug_CV(1)
-            read(1,*,iostat=ios) debug_CV(2)
-            read(1,*,iostat=ios) debug_CV(3)
-    		if (ios .ne. 0) then
-                print*, "Warning - CV_debug = 2 so CV number should be specified, setting to 3,3,3"
-                debug_CV = (/ 3, 3, 3 /)
+        if (cv_conserve .ne. 0) then
+		    read(1,*,iostat=ios) CV_debug
+		    if (ios .ne. 0) CV_debug = 0
+            if (CV_debug .eq. 2) then
+		        read(1,*,iostat=ios) debug_CV(1)
+                read(1,*,iostat=ios) debug_CV(2)
+                read(1,*,iostat=ios) debug_CV(3)
+        		if (ios .ne. 0) then
+                    print*, "Warning - CV_debug = 2 so CV number should be specified, setting to 3,3,3"
+                    debug_CV = (/ 3, 3, 3 /)
+                endif
             endif
         endif
 	endif

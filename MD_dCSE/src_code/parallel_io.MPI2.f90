@@ -2936,12 +2936,10 @@ subroutine temperature_bin_io(CV_mass_out,CV_temperature_out,io_type)
     use messenger_bin_handler, only : swaphalos
     implicit none
 
-    integer             :: m,nresults
-    !integer                :: CV_mass_out(nbinso(1),nbinso(2),nbinso(3))
-    !double precision   :: CV_temperature_out(nbinso(1),nbinso(2),nbinso(3))
     integer,intent(inout)           :: CV_mass_out(:,:,:)
     double precision,intent(inout)  :: CV_temperature_out(:,:,:)
 
+    integer             :: m,nresults
     character(4)        :: io_type
     character(30)       :: filename, outfile
     double precision,allocatable,dimension(:,:,:,:) :: CV_temperature_temp
@@ -3020,9 +3018,10 @@ subroutine energy_bin_io(CV_energy_out,io_type)
         case default
             call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')   
         end select
+    elseif (io_type .eq. 'bins') then
+        m = (iter-initialstep+1)/(tplot * Nenergy_ave)
     else
-        !CV_energy_out = CV_energy_out / (tplot*Nvel_ave)
-        m = (iter-initialstep+1)/(tplot*Neflux_ave)
+        stop "Energy io error - unknown output type"
     endif
 
     !Write Energy to file
@@ -3110,7 +3109,7 @@ subroutine VA_stress_io
         !Allocate buf with halo padding and 3x3 stresses reordered as 9 vector.
         allocate(buf(nbinso(1), nbinso(2), nbinso(3), nresults))
         buf = 0.d0; 
-        buf(1+nhb(1):nbins(1)+nhb(1),1+nhb(2):nbins(2)+nhb(2),1+nhb(3):nbins(3)+nhb(3),1:9) = &
+        buf(1+nhb(1):nbins(1)+nhb(1),1+nhb(2):nbins(2)+nhb(2),1+nhb(3):nbins(3)+nhb(3),1:nresults) = &
             reshape(Pxybin,(/nbins(1),nbins(2),nbins(3),nresults/))
         call write_arrays(buf,nresults,trim(prefix_dir)//'results/pVA',m)
         deallocate(buf)
@@ -3119,7 +3118,7 @@ subroutine VA_stress_io
         !Allocate buf with halo padding and 3x3 stresses reordered as 9 vector.
         allocate(buf(nbinso(1), nbinso(2), nbinso(3), nresults))
         buf = 0.d0; 
-        buf(1+nhb(1):nbins(1)+nhb(1),1+nhb(2):nbins(2)+nhb(2),1+nhb(3):nbins(3)+nhb(3),1:9) = &
+        buf(1+nhb(1):nbins(1)+nhb(1),1+nhb(2):nbins(2)+nhb(2),1+nhb(3):nbins(3)+nhb(3),1:nresults) = &
             reshape(vvbin,(/nbins(1),nbins(2),nbins(3),nresults/))
         call write_arrays(buf,nresults,trim(prefix_dir)//'results/pVA_k',m)
         deallocate(buf)
@@ -3127,7 +3126,7 @@ subroutine VA_stress_io
         !Allocate buf with halo padding and 3x3 stresses reordered as 9 vector.
         allocate(buf(nbinso(1), nbinso(2), nbinso(3), nresults))
         buf = 0.d0; 
-        buf(1+nhb(1):nbins(1)+nhb(1),1+nhb(2):nbins(2)+nhb(2),1+nhb(3):nbins(3)+nhb(3),1:9) = &
+        buf(1+nhb(1):nbins(1)+nhb(1),1+nhb(2):nbins(2)+nhb(2),1+nhb(3):nbins(3)+nhb(3),1:nresults) = &
             reshape(rfbin(1+nhb(1):nbins(1)+nhb(1), & 
                           1+nhb(2):nbins(2)+nhb(2), & 
                           1+nhb(3):nbins(3)+nhb(3),:,:), & 
@@ -3141,6 +3140,117 @@ subroutine VA_stress_io
 
 
 end subroutine VA_stress_io
+
+
+
+
+
+!---------------------------------------------------------------------------------
+
+subroutine VA_heatflux_io
+    use module_parallel_io
+    implicit none
+
+    integer                                         :: ixyz, jxyz, m, nresults
+    double precision                                :: binvolume
+    double precision, dimension(3)                  :: heatflux
+    double precision,dimension(:,:,:,:),allocatable :: buf
+
+    !Add kinetic and configurational to Pxybin total
+    heatfluxbin(:,:,:,:) =     evbin(:,:,:,:)        & 
+                            + rfvbin(1+nhb(1):nbins(1)+nhb(1),   & 
+                                     1+nhb(2):nbins(2)+nhb(2),   & 
+                                     1+nhb(3):nbins(3)+nhb(3),:,1)/2.d0
+
+    !Average over samples
+    heatfluxbin = heatfluxbin / Nstress_ave
+    evbin  = evbin  / Nstress_ave 
+    rfvbin  = rfvbin  / Nstress_ave 
+
+	!Calculate total from sum of Volume Averaged heatfluxes
+	do ixyz = 1,3
+		heatflux(ixyz) = sum(heatfluxbin(:,:,:,ixyz))
+	enddo
+
+    !Write out total heatflux
+    heatflux = heatflux / volume
+    !call total_heatflux_io(heatflux)
+
+    binvolume = (domain(1)/nbins(1))*(domain(2)/nbins(2))*(domain(3)/nbins(3))
+    heatfluxbin = heatfluxbin / binvolume
+    evbin  = evbin  / binvolume
+    rfvbin = rfvbin  / (2.d0*binvolume)
+
+    !Write VA pressure to file
+    nresults = 3
+    m = (iter-initialstep+1)/(tplot*Nstress_ave)
+
+    select case (split_kin_config)
+    case(0)
+
+        !Write sum of kinetic and configurational
+        !Allocate buf with halo padding and 3x3 stresses reordered as 9 vector.
+        allocate(buf(nbinso(1), nbinso(2), nbinso(3), nresults))
+        buf = 0.d0; 
+        buf(1+nhb(1):nbins(1)+nhb(1),1+nhb(2):nbins(2)+nhb(2),1+nhb(3):nbins(3)+nhb(3),1:nresults) = &
+            reshape(heatfluxbin,(/nbins(1),nbins(2),nbins(3),nresults/))
+        call write_arrays(buf,nresults,trim(prefix_dir)//'results/hfVA',m)
+        deallocate(buf)
+    case(1)
+        !Kinetic
+        !Allocate buf with halo padding and 3x3 stresses reordered as 9 vector.
+        allocate(buf(nbinso(1), nbinso(2), nbinso(3), nresults))
+        buf = 0.d0; 
+        buf(1+nhb(1):nbins(1)+nhb(1),1+nhb(2):nbins(2)+nhb(2),1+nhb(3):nbins(3)+nhb(3),1:nresults) = &
+            reshape(evbin,(/nbins(1),nbins(2),nbins(3),nresults/))
+        call write_arrays(buf,nresults,trim(prefix_dir)//'results/hfVA_k',m)
+        deallocate(buf)
+        !Configurational
+        !Allocate buf with halo padding and 3x3 stresses reordered as 9 vector.
+        allocate(buf(nbinso(1), nbinso(2), nbinso(3), nresults))
+        buf = 0.d0; 
+        buf(1+nhb(1):nbins(1)+nhb(1),1+nhb(2):nbins(2)+nhb(2),1+nhb(3):nbins(3)+nhb(3),1:nresults) = &
+            reshape(rfvbin(1+nhb(1):nbins(1)+nhb(1), & 
+                           1+nhb(2):nbins(2)+nhb(2), & 
+                           1+nhb(3):nbins(3)+nhb(3),:,:), & 
+                    (/nbins(1),nbins(2),nbins(3),nresults/))
+            !reshape(rfbin,(/nbins(1),nbins(2),nbins(3),nresults/))
+        call write_arrays(buf,nresults,trim(prefix_dir)//'results/hfVA_c',m)
+        deallocate(buf)
+    case default
+        stop 'Error in Heatflux extra flag to split_kinetic_& configuartional parts'
+    end select
+
+
+end subroutine VA_heatflux_io
+
+subroutine total_heatflux_io(heatflux)
+    use module_parallel_io
+    implicit none
+
+    double precision,dimension(:),intent(in)    :: heatflux
+    integer     :: m, length
+
+    !Write total_heatflux to file
+    m = real(iter-initialstep+1)/real(tplot*Nheatflux_ave)
+    if (m .le. 0) then
+        print*, 'WARNING: negative record number in total_heatflux_io'
+        return
+    end if
+    
+    if (irank .eq. iroot) then
+        inquire(iolength=length) heatflux
+        open (unit=50, file=trim(prefix_dir)//'results/totalheatflux',form='unformatted',access='direct',recl=length)
+        write(50,rec=m) heatflux
+        close(50,status='keep')
+    endif
+
+end subroutine total_heatflux_io
+
+
+
+
+
 
 end module field_io
 
