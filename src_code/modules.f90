@@ -117,7 +117,9 @@ module computational_constants_MD
 		mass_outflag, &
 		velocity_outflag, &
 		temperature_outflag, &
+		energy_outflag, &
 		pressure_outflag, &
+		heatflux_outflag, &
 		viscosity_outflag, &
 		rdf_outflag, &
 		rtrue_flag, &
@@ -159,8 +161,11 @@ module computational_constants_MD
 		Nmass_ave, 				&	!Number of averages for each mass average
 		Nvel_ave, 				&	!Number of averages for each velocity average
 		NTemp_ave, 				&	!Number of averages for each temperature measurement
-		Nstress_ave, 			&	!Number of bins for stress calculation
+		Nenergy_ave,			&	!Number of averages for each energy measurement
+		Nstress_ave, 			&	!Number of averages for VA or virial stress calculation
+		Nheatflux_ave, 			&	!Number of averages for VA heat flux calculation
 		split_kin_config, 		&	!Flag to determine if kinetic and configurational stress separated
+		split_hfkin_config, 	&	!Flag to determine if kinetic and configurational heatflux are separated
 		split_pol_sol_stats,    &	!Flag to determine if polymer and solvent stats separated
 		Nvisc_ave, 				&	!Number of samples for viscosity measurement
 		Nmflux_ave, 			&	!Number of averages for each mass flux
@@ -252,10 +257,10 @@ module computational_constants_MD
 
 	!Calcultion, 0 -- Harasima contour (half per bin), 1 -- Line length per bin trapizium rule
 	! and 2 -- Line length per bin explicit calculation 
-	integer	:: VA_calcmethod
+	integer	:: VA_calcmethod, VA_heatflux_calcmethod
 
 	!Number of samples used to calculate l_ij in VA stress calculation
-	integer :: VA_line_samples
+	integer :: VA_line_samples, VA_heatflux_line_samples
 
 end module computational_constants_MD
 
@@ -795,6 +800,7 @@ module calculated_properties_MD
 		Pxymol,				&  		!Stress tensor per molecule
 		zeta_array,			&		!Local Nose Hoover Thermostat strength
 		volume_temperature, &		!Temperature in a control volume at time t
+		volume_energy,      &       !Energy in a control volume at time t
 		Fv_ext_bin					!Power due to external forces in bins
 
 	double precision, dimension(:,:,:,:), allocatable	:: &
@@ -805,12 +811,15 @@ module calculated_properties_MD
 		Pxyvface,			&		!Power tensor on bin face
 		Pxyvface_mdt,		&		!Power tensor on bin face at previous timestep
 		Pxyvface_integrated,&		!Integrated form of Power
-		F_ext_bin					!External Force per bin
+		F_ext_bin,          &		!External Force per bin
+		evbin,              &  		!velocity energy per bin
+        heatfluxbin
 
 	double precision, dimension(:,:,:,:,:), allocatable :: & 
 		volume_force,  		& 		!Force acting over control volume surface 
 		momentum_flux, 		&		!Flow of momentum over a control volume surface
 		rfbin, 				& 		!Position(x)Force tensor per bin
+		rfvbin,				& 		!PositionForce dot v per bin
 		vvbin, 				& 		!velocity(x)velocity tensor per bin
 		Pxybin, 			&		!Stress tensor per bin
 		Pxyface, 			&		!Stress tensor on bin face
