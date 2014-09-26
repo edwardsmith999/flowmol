@@ -79,7 +79,8 @@ class MainFrame(wx.Frame):
     def fdir_dialogue(self, event):
 
         fdir = ""  # Use  folder as a flag
-        dlg = wx.DirDialog(self, defaultPath ="../")
+        currentdir = self.dirchooser.textctrl.GetValue()
+        dlg = wx.DirDialog(self, defaultPath =currentdir)
         if dlg.ShowModal() == wx.ID_OK:
             fdir = dlg.GetPath() + "/"
             dlg.SetPath(fdir)

@@ -1,7 +1,9 @@
-import postproclib as ppl
-from postproclib.cfdpostproc import CFD_PostProc
 import matplotlib.pyplot as plt
-import itertools
+import numpy as np
+import sys
+
+sys.path.append('../../../')
+import postproclib as ppl
 
 #CFD laminar data
 fdir = '/home/es205/codes/coupled/CFD_dCSE/src_code/results/'
@@ -10,7 +12,7 @@ startrec = 10; endrec = 11
 #fdir = '/home/es205/scratch/data_DNS/onehundredflowthrough_vs_CFD/'
 #startrec = 100; endrec = 150
 
-CFD_pp = CFD_PostProc(fdir)	
+CFD_pp = ppl.CFD_PostProc(fdir)	
 
 vfield = CFD_pp.plotlist['CFD Velocity']
 

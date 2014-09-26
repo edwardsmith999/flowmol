@@ -118,6 +118,104 @@ class Field():
         data = self.averaged_data(startrec,endrec,avgaxes=avgaxes,**kwargs)
         return self.grid[axis], data
 
+
+    class AxisManager():
+
+        def __init__(self):
+            self.nreduced = 0
+            self.axisactive = [True]*5
+
+        def reduce_axes(self,axes):
+            for axis in axes:
+                self.nreduced += 1
+                self.axisactive[axis] = False 
+
+        def current_axis_number(self,axis_request):
+            if (not self.axisactive[axis_request]):
+                return None
+            n = 0
+            for otheraxis in range(axis_request):
+                if (not self.axisactive[otheraxis]):
+                    n += 1
+            return int(axis_request - n)
+        
+        def current_axes_numbers(self,axes_request):
+            newaxes = [] 
+            for axis in list(axes_request):
+                newaxes.append(self.current_axis_number(axis))
+            return tuple(newaxes)
+
+    def managed_mean(self,axismanager, data, avgaxes):
+        newaxes = axismanager.current_axes_numbers(avgaxes)
+        if (None in newaxes):
+            quit("Can't average over an axis that has been reduced")
+        avgdata = np.mean(data, axis=newaxes) 
+        axismanager.reduce_axes(avgaxes)
+        return avgdata
+
+    def managed_fft(self,axismanager, data, fftaxes):
+        newaxes = axismanager.current_axes_numbers(fftaxes)
+        if (None in newaxes):
+            quit("Can't fft over an axis that has been reduced")
+        fftdata = np.fft.fftn(data,axes=newaxes)
+        return fftdata
+
+    def managed_energyfield(self,axismanager, data, fftaxes):
+        
+        def add_negatives(a):
+            b = a
+            for i in range(1,len(b)/2):
+                b[i] += a[-i]
+            return b
+
+        newfftaxes = axismanager.current_axes_numbers(fftaxes)
+
+        # Count N
+        N = 1
+        for axis in newfftaxes:
+            N = N * data.shape[axis]
+
+        # Initial energy in every wavenumber (pos and neg)
+        E = np.abs(data)**2.0
+         
+        #Add negative contributions to positive wavenumbers
+        nd = len(E.shape)
+        slicer = [slice(None)]*nd
+        for axis in newfftaxes:
+
+            E = np.apply_along_axis(add_negatives,axis,E)
+            # Discard negative parts after adding to positive
+            k = E.shape[axis]
+            mid = int(np.ceil(float(k)/2.0))
+            cutout = np.s_[0:mid+1:1]
+            slicer[axis] = cutout
+            E = E[slicer]
+
+            # Refresh slice for new axis calculation
+            slicer[axis] = slice(None)
+
+        return E/N
+
+    def managed_window(self,axismanager, data, windowaxis):
+
+        def window_axis_function(a, window):
+            a = a * window
+            return a
+
+        newaxis = axismanager.current_axis_number(windowaxis)
+
+        N = data.shape[newaxis]
+        window = np.hanning(N)
+
+        # Save "window summed and squared" (see Numerical Recipes)
+        wss = np.sum(window**2.0)/float(N)
+
+        # Apply window
+        windoweddata = np.apply_along_axis(window_axis_function, 
+                                           newaxis, data, window)
+
+        return windoweddata, wss 
+
     def power_spectrum(self,startrec=0,endrec=None,preavgaxes=(),fftaxes=(),
                        postavgaxes=(), windowaxis=None, verify_Parseval=True,
                        savefile=None,**kwargs):
@@ -125,103 +223,6 @@ class Field():
         """
             Calculates power spectrum
         """
-
-        class AxisManager():
-
-            def __init__(self):
-                self.nreduced = 0
-                self.axisactive = [True]*5
-
-            def reduce_axes(self,axes):
-                for axis in axes:
-                    self.nreduced += 1
-                    self.axisactive[axis] = False 
-
-            def current_axis_number(self,axis_request):
-                if (not self.axisactive[axis_request]):
-                    return None
-                n = 0
-                for otheraxis in range(axis_request):
-                    if (not self.axisactive[otheraxis]):
-                        n += 1
-                return int(axis_request - n)
-            
-            def current_axes_numbers(self,axes_request):
-                newaxes = [] 
-                for axis in list(axes_request):
-                    newaxes.append(self.current_axis_number(axis))
-                return tuple(newaxes)
-
-        def managed_mean(axismanager, data, avgaxes):
-            newaxes = axismanager.current_axes_numbers(avgaxes)
-            if (None in newaxes):
-                quit("Can't average over an axis that has been reduced")
-            avgdata = np.mean(data, axis=newaxes) 
-            axismanager.reduce_axes(avgaxes)
-            return avgdata
-
-        def managed_fft(axismanager, data, fftaxes):
-            newaxes = axismanager.current_axes_numbers(fftaxes)
-            if (None in newaxes):
-                quit("Can't fft over an axis that has been reduced")
-            fftdata = np.fft.fftn(data,axes=newaxes)
-            return fftdata
-
-        def managed_energyfield(axismanager, data, fftaxes):
-            
-            def add_negatives(a):
-                b = a
-                for i in range(1,len(b)/2):
-                    b[i] += a[-i]
-                return b
-
-            newfftaxes = axismanager.current_axes_numbers(fftaxes)
-
-            # Count N
-            N = 1
-            for axis in newfftaxes:
-                N = N * data.shape[axis]
-
-            # Initial energy in every wavenumber (pos and neg)
-            E = np.abs(data)**2.0
-             
-            #Add negative contributions to positive wavenumbers
-            nd = len(E.shape)
-            slicer = [slice(None)]*nd
-            for axis in newfftaxes:
-
-                E = np.apply_along_axis(add_negatives,axis,E)
-                # Discard negative parts after adding to positive
-                k = E.shape[axis]
-                mid = int(np.ceil(float(k)/2.0))
-                cutout = np.s_[0:mid+1:1]
-                slicer[axis] = cutout
-                E = E[slicer]
-
-                # Refresh slice for new axis calculation
-                slicer[axis] = slice(None)
-
-            return E/N
-
-        def managed_window(axismanager, data, windowaxis):
-
-            def window_axis_function(a, window):
-                a = a * window
-                return a
-
-            newaxis = axismanager.current_axis_number(windowaxis)
-
-            N = data.shape[newaxis]
-            window = np.hanning(N)
-
-            # Save "window summed and squared" (see Numerical Recipes)
-            wss = np.sum(window**2.0)/float(N)
-
-            # Apply window
-            windoweddata = np.apply_along_axis(window_axis_function, 
-                                               newaxis, data, window)
-
-            return windoweddata, wss 
 
         # ---------------------------------------------------------------- 
         # Checks
@@ -264,18 +265,18 @@ class Field():
         if (endrec==None):
             endrec = self.maxrec
          
-        axisman = AxisManager() 
+        axisman = self.AxisManager() 
         data = self.read(startrec, endrec,**kwargs)
-        data = managed_mean(axisman, data, preavgaxes)
+        data = self.managed_mean(axisman, data, preavgaxes)
 
         if (windowaxis):
-            data, wss = managed_window(axisman, data, windowaxis)
+            data, wss = self.managed_window(axisman, data, windowaxis)
 
         if (verify_Parseval):
             Esumreal = np.sum(np.abs(data)**2.0)
 
-        fftdata = managed_fft(axisman, data, fftaxes)
-        energy = managed_energyfield(axisman, fftdata, fftaxes)
+        fftdata = self.managed_fft(axisman, data, fftaxes)
+        energy = self.managed_energyfield(axisman, fftdata, fftaxes)
 
         if (verify_Parseval):
             Esumfft = np.sum(energy)
@@ -286,7 +287,7 @@ class Field():
         if (windowaxis):
             energy = energy / wss
 
-        energy = managed_mean(axisman, energy, postavgaxes)
+        energy = self.managed_mean(axisman, energy, postavgaxes)
 
         if (savefile):
             with open(savefile,'w') as f:
@@ -297,14 +298,24 @@ class Field():
 
     def grad(self,vdata, dx=None, 
                          dy=None, 
-                         dz=None):
+                         dz=None, preavgaxes=()):
 
         """
             Return the gradient of a vector field
         """
 
+        # ---------------------------------------------------------------- 
+        # Checks
+        if (not isinstance(preavgaxes,tuple)):
+            try:
+                preavgaxes = tuple([preavgaxes])
+            except:
+                print('Failed to make preavgaxes in grad')
+
         #if (dxyz is None):
         #    dxyz=[self.Raw.dx,self.Raw.dy,self.Raw.dz]
+
+        vdata = np.mean(vdata,axis=preavgaxes,keepdims=True)
 
         if (dx is None):
             dx=self.Raw.dx
@@ -312,19 +323,23 @@ class Field():
             dy=self.Raw.dy
         if (dz is None):
             dz=self.Raw.dz
+        dxyz = (dx, dy, dz)
 
-        grad_temp = np.empty((vdata.shape[0],
-                              vdata.shape[1],
-                              vdata.shape[2],
-                              vdata.shape[4]))
         ndims = vdata.shape[4]
+        nonsingleton = [i!=1 for i in vdata.shape[0:3]]
+        dxyz = [elem for i,elem in enumerate(dxyz) if nonsingleton[i]]
+
         gradv = np.empty(list(vdata.shape[:-1]) + [3*ndims])
         for rec in range(gradv.shape[-2]):
             for ixyz in range(ndims):
-                grad_temp = np.gradient(vdata[:,:,:,rec,ixyz], 
+
+#                grad_temp = np.gradient(np.squeeze(vdata[:,:,:,rec,ixyz]), 
+#                                        [i in dxyz])
+                grad_temp = np.gradient(np.squeeze(vdata[:,:,:,rec,ixyz]), 
                                         dx, dy, dz)
 
-                for jxyz in range(3):
+
+                for jxyz in range(np.sum(nonsingleton)):
                     c = 3*ixyz + jxyz
                     gradv[:,:,:,rec,c] = grad_temp[jxyz]
 

@@ -296,7 +296,7 @@ class MD_vField(MD_complexField):
             self.mField = MD_mField(fdir,fname='msnap')
             self.pField = MD_pField(fdir,fname='vsnap')
 
-        Field.__init__(self,self.mField.Raw)
+        Field.__init__(self,self.pField.Raw)
         self.inherit_parameters(self.pField)
 
         if (self.mField.plotfreq == self.pField.plotfreq):
@@ -332,153 +332,6 @@ class MD_vField(MD_complexField):
 
         return vdata
 
-
-class MD_strainField(MD_vField):
-
-    def __init__(self,fdir,rectype='bins'):
-        self.vField = MD_vField(fdir)
-
-        Field.__init__(self,self.vField.Raw)
-        self.inherit_parameters(self.vField)
-        self.labels = ["dudx","dudy","dudz",
-                       "dvdx","dvdy","dvdz",
-                       "dwdx","dwdy","dwdz"]
-        self.nperbin = 9
-
-    def read(self,startrec,endrec, binlimits=None,**kwargs):
-        vdata = self.vField.read(startrec, endrec, 
-                                 binlimits=None)
-
-        straindata = self.grad(vdata)
-
-        if (binlimits):
-
-            # Defaults
-            lower = [0]*3
-            upper = [i for i in straindata.shape] 
-    
-            for axis in range(3):
-                if (binlimits[axis] == None):
-                    continue
-                else:
-                    lower[axis] = binlimits[axis][0] 
-                    upper[axis] = binlimits[axis][1] 
-
-            straindata = straindata[lower[0]:upper[0],
-                                    lower[1]:upper[1],
-                                    lower[2]:upper[2], :, :]
-
-        return straindata
-
-    def averaged_data(self,startrec,endrec,avgaxes=(),**kwargs):
-
-        straindata = self.read(startrec, endrec,**kwargs)
-        
-        if (avgaxes != ()):
-            return np.sum(straindata,axis=avgaxes) 
-
-class MD_vortField(MD_vField):
-
-    def __init__(self,fdir,rectype='bins'):
-        self.vField = MD_vField(fdir)
-        self.strainField = MD_strainField(fdir)
-
-        Field.__init__(self,self.vField.Raw)
-        self.inherit_parameters(self.strainField)
-        self.labels = ["x","y","z"]
-        self.nperbin = 3
-
-    def read(self,startrec,endrec, binlimits=None,**kwargs):
-        dudr = self.strainField.read(startrec, endrec, 
-                                      binlimits=None)
-
-        vortdata = np.empty([dudr.shape[0],dudr.shape[1],
-                             dudr.shape[2],dudr.shape[3],self.nperbin])
-        vortdata[:,:,:,:,0] = ( dudr[:,:,:,:,7]
-                               -dudr[:,:,:,:,5])
-        vortdata[:,:,:,:,1] = ( dudr[:,:,:,:,2]
-                               -dudr[:,:,:,:,6])
-        vortdata[:,:,:,:,2] = ( dudr[:,:,:,:,3]
-                               -dudr[:,:,:,:,1])
-
-        if (binlimits):
-
-            # Defaults
-            lower = [0]*3
-            upper = [i for i in vortdata.shape] 
-    
-            for axis in range(3):
-                if (binlimits[axis] == None):
-                    continue
-                else:
-                    lower[axis] = binlimits[axis][0] 
-                    upper[axis] = binlimits[axis][1] 
-
-            vortdata = vortdata[lower[0]:upper[0],
-                                lower[1]:upper[1],
-                                lower[2]:upper[2], :, :]
-
-        return  vortdata
-
-    def averaged_data(self,startrec,endrec,avgaxes=(),**kwargs):
-
-        vdata = self.read(startrec, endrec, 
-                           **kwargs)
-        
-        if (avgaxes != ()):
-            return np.sum(vdata,axis=avgaxes)
-
-
-
-
-class MD_dissipField(MD_vField):
-
-    def __init__(self,fdir,rectype='bins'):
-        self.vField = MD_vField(fdir)
-        self.strainField = MD_strainField(fdir)
-
-        Field.__init__(self,self.vField.Raw)
-        self.inherit_parameters(self.strainField)
-        self.labels = ["mag"]
-        self.nperbin = 1
-
-    def read(self,startrec,endrec, binlimits=None,**kwargs):
-        dudr = self.strainField.read(startrec, endrec, 
-                                      binlimits=None)
-
-        vortdata = np.empty([dudr.shape[0],dudr.shape[1],
-                             dudr.shape[2],dudr.shape[3],self.nperbin])
-        vortdata[:,:,:,:,0] = ( np.power(dudr[:,:,:,:,0],2.)
-                               +np.power(dudr[:,:,:,:,1],2.)
-                               +np.power(dudr[:,:,:,:,2],2.))
-
-
-        if (binlimits):
-
-            # Defaults
-            lower = [0]*3
-            upper = [i for i in vortdata.shape] 
-    
-            for axis in range(3):
-                if (binlimits[axis] == None):
-                    continue
-                else:
-                    lower[axis] = binlimits[axis][0] 
-                    upper[axis] = binlimits[axis][1] 
-
-            vortdata = vortdata[lower[0]:upper[0],
-                                lower[1]:upper[1],
-                                lower[2]:upper[2], :, :]
-
-        return  vortdata
-
-    def averaged_data(self,startrec,endrec,avgaxes=(),**kwargs):
-
-        vdata = self.read(startrec, endrec, 
-                           **kwargs)
-        
-        if (avgaxes != ()):
-            return np.sum(vdata,axis=avgaxes) 
 
 
 class MD_rhouuField(MD_complexField):
@@ -562,54 +415,6 @@ class MD_pVAField(MD_complexField):
 
         return Pdata
 
-class MD_pVAheat_Field(MD_complexField):
-
-    def __init__(self,fdir):
-        self.fdir = fdir
-        self.vField = MD_vField(fdir)
-        self.pVA = MD_pVAField(fdir,fname='pVA')
-
-        Field.__init__(self,self.vField.Raw)
-        self.inherit_parameters(self.vField)
-        self.labels = ["Pi_dot_u","Pi_dot_v","Pi_dot_w"]
-        self.nperbin = 3
-
-    def read(self,startrec,endrec,peculiar=True,**kwargs):
-
-        u = self.vField.read(startrec,endrec,**kwargs)
-        Pi = self.pVA.read(startrec,endrec,peculiar=True,**kwargs)
-
-        Pi = np.reshape(Pi,[ Pi.shape[0],
-                             Pi.shape[1],
-                             Pi.shape[2],
-                             Pi.shape[3], 3, 3],                                            
-                             order='F')
-
-        Pidotu = np.einsum('abcdij,abcdi->abcdj',Pi,u)
-
-        return Pidotu
-
-
-class MD_energyadvct_Field(MD_complexField):
-
-    def __init__(self,fdir):
-        self.fdir = fdir
-        #self.vField = MD_vField(fdir)
-        self.pField = MD_momField(fdir)
-        self.eField = MD_EnergyField(fdir)
-
-        Field.__init__(self,self.eField.Raw)
-        self.inherit_parameters(self.eField)
-        self.labels = ["rhouE","rhovE","rhowE"]
-        self.nperbin = 3
-
-    def read(self,startrec,endrec,**kwargs):
-
-        e = self.eField.read(startrec,endrec,**kwargs)
-        rhou = self.pField.read(startrec,endrec,**kwargs)
-        rhoue = rhou*e
-
-        return rhoue
 
 class MD_TField(MD_complexField):
 
@@ -680,47 +485,6 @@ class MD_TField(MD_complexField):
         return Tdata
 
 
-class MD_dTdrField(MD_TField):
-
-    def __init__(self,fdir,rectype='bins'):
-        self.TField = MD_TField(fdir)
-
-        Field.__init__(self,self.TField.Raw)
-        self.inherit_parameters(self.TField)
-        self.labels = ["dTdx","dTdy","dTdz"]
-        self.nperbin = 3
-
-    def read(self,startrec,endrec, binlimits=None,**kwargs):
-        Tdata = self.TField.read(startrec, endrec, 
-                                 binlimits=None)
-
-        dTdr = self.grad(Tdata)
-
-        if (binlimits):
-
-            # Defaults
-            lower = [0]*3
-            upper = [i for i in dTdr.shape] 
-    
-            for axis in range(3):
-                if (binlimits[axis] == None):
-                    continue
-                else:
-                    lower[axis] = binlimits[axis][0] 
-                    upper[axis] = binlimits[axis][1] 
-
-            dTdr = dTdr[lower[0]:upper[0],
-                        lower[1]:upper[1],
-                        lower[2]:upper[2], :, :]
-
-        return dTdr
-
-    def averaged_data(self,startrec,endrec,avgaxes=(),**kwargs):
-
-        dTdr = self.read(startrec, endrec,**kwargs)
-        
-        if (avgaxes != ()):
-            return np.sum(dTdr,axis=avgaxes) 
 
 
 class MD_EnergyField(MD_complexField):
@@ -737,7 +501,7 @@ class MD_EnergyField(MD_complexField):
                   "differs from Nenergy_ave")
             raise DataMismatch
 
-        if (peculiar and self.mField.plotfreq != self.EField.plotfreq):
+        if (peculiar and self.pField.plotfreq != self.EField.plotfreq):
             print("Error in MD_EField -- Nvel_ave " +
                   "differs from Nenergy_ave and peculiar=True ")
             raise DataMismatch  
@@ -803,6 +567,117 @@ class MD_EnergyField(MD_complexField):
         return Edata
 
 
+
+class MD_rhoEnergyField(MD_complexField):
+
+    def __init__(self,fdir,peculiar=False):
+        self.momField = MD_momField(fdir)
+        self.EField = MD_EField(fdir,fname='ebins')
+        Field.__init__(self,self.EField.Raw)
+        self.inherit_parameters(self.EField)
+
+        self.plotfreq = self.EField.plotfreq
+        self.axislabels = self.EField.axislabels
+        self.labels = self.EField.labels
+        self.peculiar = peculiar
+
+    def read(self,startrec,endrec,binlimits=None,**kwargs):
+
+        binvolumes = self.EField.Raw.get_binvolumes(binlimits=binlimits)
+        binvolumes = np.expand_dims(binvolumes,axis=-1)
+
+        Edata = self.EField.read(startrec,endrec,**kwargs)
+        Edata = np.divide(Edata,float(self.plotfreq))
+
+        # Energy (no streaming consideration)
+        Eout = np.divide(Eout,binvolumes)
+
+        # Remove average of streaming component
+        if 'peculiar' not in kwargs:
+            peculiar = self.peculiar
+
+        if (peculiar):
+            quit('Peculiar not developed for MD_rhoEnergyField')
+
+        return Eout 
+
+    def averaged_data(self,startrec,endrec,avgaxes=(),binlimits=None,**kwargs):
+        
+        binvolumes = self.EField.Raw.get_binvolumes(binlimits=binlimits)
+        binvolumes = np.expand_dims(binvolumes,axis=-1)
+
+        Edata = self.EField.read(startrec,endrec,**kwargs)
+        Edata = np.divide(Edata,float(self.plotfreq))
+
+        # Consider streaming velocity
+        if 'peculiar' not in kwargs:
+            peculiar = self.peculiar
+
+        if (peculiar):
+            quit('Peculiar not developed for MD_rhoEnergyField')
+
+        if (avgaxes != ()):
+            Edata = np.sum(Edata,axis=avgaxes) 
+            binvolumes = np.sum(binvolumes,axis=avgaxes) 
+
+        # Energy (no streaming consideration)
+        Edata = np.divide(Edata,binvolumes)
+
+        # Remove streaming velocity
+        if (peculiar):
+            quit('Peculiar not developed for MD_rhoEnergyField')
+
+        return Edata
+
+
+class MD_pVAheat_Field(MD_complexField):
+
+    def __init__(self,fdir):
+        self.fdir = fdir
+        self.vField = MD_vField(fdir)
+        self.pVA = MD_pVAField(fdir,fname='pVA')
+
+        Field.__init__(self,self.vField.Raw)
+        self.inherit_parameters(self.vField)
+        self.labels = ["Pi_dot_u","Pi_dot_v","Pi_dot_w"]
+        self.nperbin = 3
+
+    def read(self,startrec,endrec,peculiar=True,**kwargs):
+
+        u = self.vField.read(startrec,endrec,**kwargs)
+        Pi = self.pVA.read(startrec,endrec,peculiar=True,**kwargs)
+
+        Pi = np.reshape(Pi,[ Pi.shape[0],
+                             Pi.shape[1],
+                             Pi.shape[2],
+                             Pi.shape[3], 3, 3],                                            
+                             order='F')
+
+        Pidotu = np.einsum('abcdij,abcdi->abcdj',Pi,u)
+
+        return Pidotu
+
+
+class MD_energyadvct_Field(MD_complexField):
+
+    def __init__(self,fdir):
+        self.fdir = fdir
+        #self.vField = MD_vField(fdir)
+        self.pField = MD_momField(fdir)
+        self.eField = MD_EnergyField(fdir)
+
+        Field.__init__(self,self.eField.Raw)
+        self.inherit_parameters(self.eField)
+        self.labels = ["rhouE","rhovE","rhowE"]
+        self.nperbin = 3
+
+    def read(self,startrec,endrec,**kwargs):
+
+        e = self.eField.read(startrec,endrec,**kwargs)
+        rhou = self.pField.read(startrec,endrec,**kwargs)
+        rhoue = rhou*e
+
+        return rhoue
 
 class MD_heatfluxVAField(MD_complexField):
 
@@ -1296,4 +1171,199 @@ class MD_heatfluxapprox(MD_complexField):
 #        conserved =  dmvdt + totalflux + totalforce + Fext
 
 #        return conserved
+
+
+
+class MD_strainField(MD_vField):
+
+    def __init__(self,fdir,rectype='bins'):
+        self.vField = MD_vField(fdir)
+
+        Field.__init__(self,self.vField.Raw)
+        self.inherit_parameters(self.vField)
+        self.labels = ["dudx","dudy","dudz",
+                       "dvdx","dvdy","dvdz",
+                       "dwdx","dwdy","dwdz"]
+        self.nperbin = 9
+
+    def read(self,startrec,endrec, preavgaxes=(3),binlimits=None,**kwargs):
+
+        vdata = self.vField.read(startrec, endrec, 
+                                 binlimits=None)
+        straindata = self.grad(vdata,preavgaxes=preavgaxes)
+
+        if (binlimits):
+
+            # Defaults
+            lower = [0]*3
+            upper = [i for i in straindata.shape] 
+    
+            for axis in range(3):
+                if (binlimits[axis] == None):
+                    continue
+                else:
+                    lower[axis] = binlimits[axis][0] 
+                    upper[axis] = binlimits[axis][1] 
+
+            straindata = straindata[lower[0]:upper[0],
+                                    lower[1]:upper[1],
+                                    lower[2]:upper[2], :, :]
+
+        return straindata
+
+    def averaged_data(self,startrec,endrec,avgaxes=(),**kwargs):
+
+        data = self.read(startrec, endrec, 
+                           **kwargs)
+        
+        if (avgaxes != ()):
+            return np.mean(data,axis=avgaxes) 
+
+class MD_vortField(MD_vField):
+
+    def __init__(self,fdir,rectype='bins'):
+        self.vField = MD_vField(fdir)
+        self.strainField = MD_strainField(fdir)
+
+        Field.__init__(self,self.vField.Raw)
+        self.inherit_parameters(self.strainField)
+        self.labels = ["x","y","z"]
+        self.nperbin = 3
+
+    def read(self,startrec,endrec, binlimits=None,**kwargs):
+        dudr = self.strainField.read(startrec, endrec, 
+                                      binlimits=None)
+
+        vortdata = np.empty([dudr.shape[0],dudr.shape[1],
+                             dudr.shape[2],dudr.shape[3],self.nperbin])
+        vortdata[:,:,:,:,0] = ( dudr[:,:,:,:,7]
+                               -dudr[:,:,:,:,5])
+        vortdata[:,:,:,:,1] = ( dudr[:,:,:,:,2]
+                               -dudr[:,:,:,:,6])
+        vortdata[:,:,:,:,2] = ( dudr[:,:,:,:,3]
+                               -dudr[:,:,:,:,1])
+
+        if (binlimits):
+
+            # Defaults
+            lower = [0]*3
+            upper = [i for i in vortdata.shape] 
+    
+            for axis in range(3):
+                if (binlimits[axis] == None):
+                    continue
+                else:
+                    lower[axis] = binlimits[axis][0] 
+                    upper[axis] = binlimits[axis][1] 
+
+            vortdata = vortdata[lower[0]:upper[0],
+                                lower[1]:upper[1],
+                                lower[2]:upper[2], :, :]
+
+        return  vortdata
+
+    def averaged_data(self,startrec,endrec,avgaxes=(),**kwargs):
+
+        data = self.read(startrec, endrec, 
+                           **kwargs)
+        
+        if (avgaxes != ()):
+            return np.mean(data,axis=avgaxes) 
+
+
+
+class MD_dissipField(MD_vField):
+
+    def __init__(self,fdir,rectype='bins'):
+        self.vField = MD_vField(fdir)
+        self.strainField = MD_strainField(fdir)
+
+        Field.__init__(self,self.vField.Raw)
+        self.inherit_parameters(self.strainField)
+        self.labels = ["mag"]
+        self.nperbin = 1
+
+    def read(self,startrec,endrec, binlimits=None,**kwargs):
+        dudr = self.strainField.read(startrec, endrec, 
+                                      binlimits=None)
+
+        vortdata = np.empty([dudr.shape[0],dudr.shape[1],
+                             dudr.shape[2],dudr.shape[3],self.nperbin])
+        vortdata[:,:,:,:,0] = ( np.power(dudr[:,:,:,:,0],2.)
+                               +np.power(dudr[:,:,:,:,1],2.)
+                               +np.power(dudr[:,:,:,:,2],2.))
+
+
+        if (binlimits):
+
+            # Defaults
+            lower = [0]*3
+            upper = [i for i in vortdata.shape] 
+    
+            for axis in range(3):
+                if (binlimits[axis] == None):
+                    continue
+                else:
+                    lower[axis] = binlimits[axis][0] 
+                    upper[axis] = binlimits[axis][1] 
+
+            vortdata = vortdata[lower[0]:upper[0],
+                                lower[1]:upper[1],
+                                lower[2]:upper[2], :, :]
+
+        return  vortdata
+
+    def averaged_data(self,startrec,endrec,avgaxes=(),**kwargs):
+
+        data = self.read(startrec, endrec, 
+                           **kwargs)
+        
+        if (avgaxes != ()):
+            return np.mean(data,axis=avgaxes) 
+
+
+
+class MD_dTdrField(MD_TField):
+
+    def __init__(self,fdir,rectype='bins'):
+        self.TField = MD_TField(fdir)
+
+        Field.__init__(self,self.TField.Raw)
+        self.inherit_parameters(self.TField)
+        self.labels = ["dTdx","dTdy","dTdz"]
+        self.nperbin = 3
+
+    def read(self,startrec,endrec, preavgaxes=(3), binlimits=None,**kwargs):
+
+        Tdata = self.TField.read(startrec, endrec, 
+                                 binlimits=None)
+        dTdr = self.grad(Tdata,preavgaxes=preavgaxes)
+
+        if (binlimits):
+
+            # Defaults
+            lower = [0]*3
+            upper = [i for i in dTdr.shape] 
+    
+            for axis in range(3):
+                if (binlimits[axis] == None):
+                    continue
+                else:
+                    lower[axis] = binlimits[axis][0] 
+                    upper[axis] = binlimits[axis][1] 
+
+            dTdr = dTdr[lower[0]:upper[0],
+                        lower[1]:upper[1],
+                        lower[2]:upper[2], :, :]
+
+        return dTdr
+
+    def averaged_data(self,startrec,endrec,avgaxes=(),**kwargs):
+
+        data = self.read(startrec, endrec, 
+                           **kwargs)
+        
+        if (avgaxes != ()):
+            return np.mean(data,axis=avgaxes) 
+
 

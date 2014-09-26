@@ -190,6 +190,13 @@ class MD_PostProc(PostProc):
             except DataMismatch:
                 pass
 
+            try:
+                E = MD_rhoEnergyField(self.resultsdir, **kwargs)
+                self.plotlist.update({'rhoEnergy':E})
+            except DataMismatch:
+                pass
+
+
         if ('ebins' in self.fieldfiles1 and
             'vbins' in self.fieldfiles1):
             try:
