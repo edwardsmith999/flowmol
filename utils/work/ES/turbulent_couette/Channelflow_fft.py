@@ -8,7 +8,7 @@ import postproclib as ppl
 
 #CFD laminar and turbulent data
 fdirs = ['/media/My Passport/Work/CFD_laminar/', '/media/My Passport/Work/CFD_minimal_channel/']
-styles = ['-o', '-']
+styles = ['r-', 'k-']
 startrec = 300; endrec = 300
 f, ax = plt.subplots(2, 1)
 
@@ -25,16 +25,20 @@ for i, fdir in enumerate(fdirs):
     vspectras.append(vfield.power_spectrum(startrec=startrec,endrec=endrec,
                                            preavgaxes=(3),fftaxes=(2),
                                            postavgaxes=(0)).transpose(1,0,2))
-
+    machineeps = 1.11e-16
     for num, vspectra in enumerate(vspectras):
-        locs = [5,vspectra.shape[1]/4.,vspectra.shape[1]/2.]
-        ax[num].plot(vspectra[:,5,0],styles[i]+'k',alpha=0.4)
-        ax[num].plot(vspectra[:,45,0],styles[i]+'r',alpha=0.4)
-        ax[num].plot(vspectra[:,99,0],styles[i]+'b',alpha=0.4)
+        aliasloc = int((2./3.)*vspectra.shape[0])
+        locs = [5,int(vspectra.shape[1]/4.),int(vspectra.shape[1]/2.)]
+        #ax[num].plot(vspectra[:,locs[0],0],styles[i],alpha=0.8)
+        #ax[num].plot(vspectra[:,locs[1],0],styles[i]+'-',alpha=0.8)
+        ax[num].plot(vspectra[:aliasloc,locs[2],0]+machineeps,styles[i],alpha=0.8)
 
-        #ax[num].set_ylim([1e-16, 1e2])
+        ax[num].set_xlim([0.9, 50])
+        ax[num].set_ylim([1e-17, 10])
         ax[num].set_xscale('log')
         ax[num].set_yscale('log')
+        ax[num].set_xlabel('$k$')
+        ax[num].set_ylabel('$E$')
 
-plt.savefig('CFD_fft.png')
+plt.savefig('Channelflow_fft.png')
 
