@@ -243,10 +243,10 @@ for j in range(columns):
 
 
 # Save the full figure...
-plt.show()
-#figname = 'Heat_flux.pdf'
-#plt.savefig(figname)
-#os.system('evince ' + figname)
+#plt.show()
+figname = 'Heat_flux.pdf'
+plt.savefig(figname)
+os.system('evince ' + figname)
 
 
 # Save just the portion _inside_ the second axis's boundaries

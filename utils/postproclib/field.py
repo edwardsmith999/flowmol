@@ -145,7 +145,7 @@ class Field():
                 newaxes.append(self.current_axis_number(axis))
             return tuple(newaxes)
 
-    def managed_mean(self,axismanager, data, avgaxes):
+    def managed_mean(self, axismanager, data, avgaxes):
         newaxes = axismanager.current_axes_numbers(avgaxes)
         if (None in newaxes):
             quit("Can't average over an axis that has been reduced")
@@ -296,7 +296,7 @@ class Field():
         return energy
 
 
-    def grad(self,vdata, dx=None, 
+    def grad(self, data, dx=None, 
                          dy=None, 
                          dz=None, preavgaxes=()):
 
@@ -315,7 +315,7 @@ class Field():
         #if (dxyz is None):
         #    dxyz=[self.Raw.dx,self.Raw.dy,self.Raw.dz]
 
-        vdata = np.mean(vdata,axis=preavgaxes,keepdims=True)
+        data = np.mean(data,axis=preavgaxes,keepdims=True)
 
         if (dx is None):
             dx=self.Raw.dx
@@ -325,17 +325,17 @@ class Field():
             dz=self.Raw.dz
         dxyz = (dx, dy, dz)
 
-        ndims = vdata.shape[4]
-        nonsingleton = [i!=1 for i in vdata.shape[0:3]]
+        ndims = data.shape[4]
+        nonsingleton = [i!=1 for i in data.shape[0:3]]
         dxyz = [elem for i,elem in enumerate(dxyz) if nonsingleton[i]]
 
-        gradv = np.empty(list(vdata.shape[:-1]) + [3*ndims])
+        gradv = np.empty(list(data.shape[:-1]) + [3*ndims])
         for rec in range(gradv.shape[-2]):
             for ixyz in range(ndims):
 
-#                grad_temp = np.gradient(np.squeeze(vdata[:,:,:,rec,ixyz]), 
+#                grad_temp = np.gradient(np.squeeze(data[:,:,:,rec,ixyz]), 
 #                                        [i in dxyz])
-                grad_temp = np.gradient(np.squeeze(vdata[:,:,:,rec,ixyz]), 
+                grad_temp = np.gradient(np.squeeze(data[:,:,:,rec,ixyz]), 
                                         dx, dy, dz)
 
 

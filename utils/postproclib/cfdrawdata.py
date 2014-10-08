@@ -109,8 +109,21 @@ class CFD_RawData:
             with open(fpath,'rb') as fobj:
                 data = np.fromfile(fobj,dtype='d')
                 # zxy ordered in file
-                data = np.reshape(data,[self.nrz,self.nrx,self.nry,self.npercell],
-                                  order='F')
+                try:
+                    data = np.reshape(data,[self.nrz,self.nrx,self.nry,self.npercell],
+                                      order='F')
+                except ValueError:
+                    print('Data in CFD file seems wrong -- maybe it includes halos? \n'
+                          'Attempting to correct')
+                    if (data.shape[0] > self.nrz*self.nrx*self.nry*self.npercell):
+                        data = np.reshape(data,[self.nrz+1,self.nrx+1,self.nry,self.npercell],
+                                          order='F')
+                        data = data[:-1,:-1,:,:]
+                    else:
+                        data = np.reshape(data,[self.nrz-1,self.nrx-1,self.nry,self.npercell],
+                                          order='F')
+                        data = data[:-1,:-1,:,:]
+
                 # change to xyz ordering
                 data = np.transpose(data,(1,2,0,3))
                 # insert into array

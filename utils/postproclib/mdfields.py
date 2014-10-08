@@ -42,7 +42,7 @@ class MD_mField(MDField):
         if fname in ['mbins','mpoly','msolv']:
             self.plotfreq = int(self.Raw.header.Nmass_ave)
         elif fname == 'msnap':
-            self.plotfreq = int(self.Raw.header.Nmflux_ave)
+            self.plotfreq = 1 #int(self.Raw.header.Nmflux_ave)
 
 
 class MD_pField(MDField):
@@ -66,7 +66,7 @@ class MD_pField(MDField):
         if fname in ['vbins','vpoly','vsolv']:
             self.plotfreq = int(self.Raw.header.Nvel_ave)
         elif fname == 'vsnap':
-            self.plotfreq = int(self.Raw.header.Nvflux_ave)
+            self.plotfreq = 1 #int(self.Raw.header.Nvflux_ave)
 
 
 class MD_FField(MDField):
@@ -111,7 +111,7 @@ class MD_EField(MDField):
         if fname == 'Tbins':
             self.plotfreq = int(self.Raw.header.NTemp_ave)
         elif fname == 'esnap':
-            self.plotfreq = int(self.Raw.header.Neflux_ave)
+            self.plotfreq = 1 #int(self.Raw.header.Neflux_ave)
         elif fname == 'Fvext':
             self.plotfreq = int(self.Raw.header.Neflux_ave)
         elif fname == 'ebins':
@@ -233,12 +233,14 @@ class MD_pfluxField(MDField):
                            "xztop","yztop","zztop",
                            "xxbottom","yxbottom","zxbottom",
                            "xybottom","yybottom","zybottom",
-                           "xybottom","yybottom","zzbottom"]
+                           "xzbottom","yzbottom","zzbottom"]
             MDField.__init__(self,fdir)
             self.nperbin = self.Raw.nperbin
             self.plotfreq = int(self.Raw.header.Nvflux_ave)
         else:
-            quit("Output type not recognised, should be psurface, vflux or total")
+            print("Output type not recognised, should be psurface, vflux")
+            raise DataNotAvailable
+
 
 
 class MD_efluxField(MDField):
@@ -247,7 +249,7 @@ class MD_efluxField(MDField):
         MD_efluxField manages energy flux field data in the form of
         energy/esurface sum over 6 cubic bin surfaces with 6 double 
         precision real data types per bin
-        e.g. fnames = totalflux, vflux, psurface (no default)
+        e.g. fnames = eflux, esurface (no default)
     """
 
     dtype = 'd'
@@ -263,7 +265,8 @@ class MD_efluxField(MDField):
             self.nperbin = self.Raw.nperbin
             self.plotfreq = int(self.Raw.header.Neflux_ave)
         else:
-            quit("Output type not recognised, should be psurface, vflux or total")
+            print("Output type not recognised, should be esurface, eflux")
+            raise DataNotAvailable
 
 # ============================================================================
 
@@ -295,6 +298,9 @@ class MD_vField(MD_complexField):
         elif (rectype == 'snap'):
             self.mField = MD_mField(fdir,fname='msnap')
             self.pField = MD_pField(fdir,fname='vsnap')
+        else:
+            print("Record type ", rectype, " not understood")
+            raise DataNotAvailable
 
         Field.__init__(self,self.pField.Raw)
         self.inherit_parameters(self.pField)
@@ -344,9 +350,9 @@ class MD_rhouuField(MD_complexField):
         self.momField = MD_momField(self.fdir)
         Field.__init__(self,self.vField.Raw)
         self.inherit_parameters(self.vField)
-        self.labels = ['uu','uv','uw',
-                       'vu','vv','vw',
-                       'wu','wv','ww']
+        self.labels = ['rhouu','rhouv','rhouw',
+                       'rhovu','rhovv','rhovw',
+                       'rhowu','rhowv','rhoww']
         self.nperbin = 9
 
     def read(self,startrec,endrec,peculiar=True,**kwargs):
@@ -891,17 +897,33 @@ class MD_CVvField(MD_complexField):
 
 class MD_pCVField(MD_complexField):
 
-    def __init__(self, fdir, fname):
+
+    def __init__(self, fdir,fname):
 
         self.fname = fname
-        self.pfluxField = MD_pfluxField(fdir,fname)
-        Field.__init__(self,self.pfluxField.Raw)
-        self.inherit_parameters(self.pfluxField)
+        try:
+            self.PField = MD_pfluxField(fdir,fname)
+        except DataNotAvailable:
+            #As combined CV pressure doesn't exist, 
+            # try getting from psurface and vflux
+            if fname == 'total':
+                self.pkField = MD_pfluxField(fdir,fname='psurface')
+                self.pcField = MD_pfluxField(fdir,fname='vflux')
+                self.PField = self.pkField
+            else:
+                raise DataNotAvailable
+
+        Field.__init__(self,self.PField.Raw)
+        self.inherit_parameters(self.PField)
 
     def read(self,startrec,endrec,peculiar=True,verbose=False,**kwargs):
 
         # Read 4D time series from startrec to endrec
-        pflux = self.pfluxField.read(startrec,endrec,**kwargs)  
+        if self.fname == 'total':
+            pflux = (  self.pkField.read(startrec,endrec,**kwargs)
+                     + self.pcField.read(startrec,endrec,**kwargs))
+        else:
+            pflux = self.PField.read(startrec,endrec,**kwargs)
 
         # Take off square of peculiar momenta if specified
         if (peculiar==True):
@@ -921,12 +943,6 @@ class MD_pCVField(MD_complexField):
                 rhovvdata =  rhovvField.read(startrec,endrec,**kwargs)
                 pflux = pflux - rhovvdata
 
-#                # Remove square of streaming velocity
-#                for ixyz in range(0,pflux.shape[4]):
-#                    pflux[:,:,:,:,ixyz] = ( pflux[:,:,:,:,ixyz] 
-#                                           - rhovvdata[:,:,:,:,np.mod(
-#                                            ixyz,rhovvdata.shape[4])])
-
         return pflux 
 
 class MD_rhouuCVField(MD_complexField):
@@ -945,7 +961,7 @@ class MD_rhouuCVField(MD_complexField):
                        "xztop","yztop","zztop",
                        "xxbottom","yxbottom","zxbottom",
                        "xybottom","yybottom","zybottom",
-                       "xybottom","yybottom","zzbottom"]
+                       "xzbottom","yzbottom","zzbottom"]
         self.nperbin = 18
 
     def read(self,startrec,endrec,**kwargs):
@@ -1174,7 +1190,7 @@ class MD_heatfluxapprox(MD_complexField):
 
 
 
-class MD_strainField(MD_vField):
+class MD_strainField(MD_complexField):
 
     def __init__(self,fdir,rectype='bins'):
         self.vField = MD_vField(fdir)
@@ -1211,15 +1227,7 @@ class MD_strainField(MD_vField):
 
         return straindata
 
-    def averaged_data(self,startrec,endrec,avgaxes=(),**kwargs):
-
-        data = self.read(startrec, endrec, 
-                           **kwargs)
-        
-        if (avgaxes != ()):
-            return np.mean(data,axis=avgaxes) 
-
-class MD_vortField(MD_vField):
+class MD_vortField(MD_complexField):
 
     def __init__(self,fdir,rectype='bins'):
         self.vField = MD_vField(fdir)
@@ -1262,17 +1270,8 @@ class MD_vortField(MD_vField):
 
         return  vortdata
 
-    def averaged_data(self,startrec,endrec,avgaxes=(),**kwargs):
 
-        data = self.read(startrec, endrec, 
-                           **kwargs)
-        
-        if (avgaxes != ()):
-            return np.mean(data,axis=avgaxes) 
-
-
-
-class MD_dissipField(MD_vField):
+class MD_dissipField(MD_complexField):
 
     def __init__(self,fdir,rectype='bins'):
         self.vField = MD_vField(fdir)
@@ -1313,17 +1312,8 @@ class MD_dissipField(MD_vField):
 
         return  vortdata
 
-    def averaged_data(self,startrec,endrec,avgaxes=(),**kwargs):
 
-        data = self.read(startrec, endrec, 
-                           **kwargs)
-        
-        if (avgaxes != ()):
-            return np.mean(data,axis=avgaxes) 
-
-
-
-class MD_dTdrField(MD_TField):
+class MD_dTdrField(MD_complexField):
 
     def __init__(self,fdir,rectype='bins'):
         self.TField = MD_TField(fdir)
@@ -1357,13 +1347,5 @@ class MD_dTdrField(MD_TField):
                         lower[2]:upper[2], :, :]
 
         return dTdr
-
-    def averaged_data(self,startrec,endrec,avgaxes=(),**kwargs):
-
-        data = self.read(startrec, endrec, 
-                           **kwargs)
-        
-        if (avgaxes != ()):
-            return np.mean(data,axis=avgaxes) 
 
 

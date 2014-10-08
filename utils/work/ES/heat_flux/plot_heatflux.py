@@ -263,7 +263,7 @@ for j in range(columns):
 
 
 # Save the full figure...
-plt.show()
+#plt.show()
 figname = 'Heat_flux.pdf'
 plt.savefig(figname)
 os.system('evince ' + figname)

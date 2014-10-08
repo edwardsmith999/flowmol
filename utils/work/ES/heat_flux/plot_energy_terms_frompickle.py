@@ -71,7 +71,7 @@ lin_heatflux_analy = np.zeros(y_MD.shape)
 #lin_heatflux_analy[wallbinsbot:(wallbinsbot+liquidbins)] = condct * np.linspace(dTdy_bot,dTdy_top,liquidbins)
 
 rows = 2
-columns = 3
+columns = 4
 fig, axs = plt.subplots(rows,columns)
 fig.set_figwidth(15*1.9411764705882353)
 fig.set_figheight(15)
@@ -108,6 +108,14 @@ axs[ixyz,1].plot(y_MD[liquidbins],eflux_p[liquidbins,ixyz]-CVrhouE_p[liquidbins,
 axs[ixyz,2].plot(y_MD[liquidbins],esurface_p[liquidbins,ixyz]+eflux_p[liquidbins,ixyz],styles['CV'],label='$[fijvidS+ evi]^{MOP}$', markersize=ms)
 axs[ixyz,2].plot(y_MD[liquidbins],hfVA_c_p[liquidbins,ixyz]+hfVA_k_p[liquidbins,ixyz],styles['VA'],label='$[fijvidS+ evi]^{VA}$', markersize=ms)
 
+
+q_VA = ( hfVA_c_p[liquidbins,ixyz]-pVA_stressheat_p[liquidbins,ixyz]
+        +hfVA_k_p[liquidbins,ixyz]-rhouE_p[liquidbins,ixyz]         )
+q_CV= ( esurface_p[liquidbins,ixyz]-CV_stressheat_p[liquidbins,ixyz]
+        +  eflux_p[liquidbins,ixyz]-CVrhouE_p[liquidbins,ixyz]      )
+axs[ixyz,3].plot(y_MD[liquidbins],q_CV,styles['CV'],label='$q^{MOP}$', markersize=ms)
+axs[ixyz,3].plot(y_MD[liquidbins],q_VA,styles['VA'],label='$q^{VA}$', markersize=ms)
+
 ixyz = 1
 axs[ixyz,0].plot(y_MD[liquidbins],pVA_stressheat_p[liquidbins,ixyz],styles['VAc'],label='$\Pi \cdot u$', markersize=ms)
 axs[ixyz,0].plot(y_MD[liquidbins],hfVA_c_p[liquidbins,ixyz],'g',label='$fijvi^{VA}$', markersize=ms)
@@ -122,10 +130,21 @@ axs[ixyz,1].plot(y_MD[liquidbins],eflux_p[liquidbins,ixyz]-CVrhouE_p[liquidbins,
 axs[ixyz,2].plot(y_MD[liquidbins],esurface_p[liquidbins,ixyz]+eflux_p[liquidbins,ixyz],styles['CV'],label='$[fijvidS+ evi]^{MOP}$', markersize=ms)
 axs[ixyz,2].plot(y_MD[liquidbins],hfVA_c_p[liquidbins,ixyz]+hfVA_k_p[liquidbins,ixyz],styles['VA'],label='$[fijvidS+ evi]^{VA}$', markersize=ms)
 
+q_VA = ( hfVA_c_p[liquidbins,ixyz]-pVA_stressheat_p[liquidbins,ixyz]
+        +hfVA_k_p[liquidbins,ixyz]-rhouE_p[liquidbins,ixyz]         )
+q_CV= ( esurface_p[liquidbins,ixyz]-CV_stressheat_p[liquidbins,ixyz]
+        +  eflux_p[liquidbins,ixyz]-CVrhouE_p[liquidbins,ixyz]      )
+axs[ixyz,3].plot(y_MD[liquidbins],q_CV,styles['CV'],label='$q^{MOP}$', markersize=ms)
+axs[ixyz,3].plot(y_MD[liquidbins],q_VA,styles['VA'],label='$q^{VA}$', markersize=ms)
+
+
 for ixyz in range(0,2):
     axs[ixyz,0].legend(loc='best')
     axs[ixyz,1].legend(loc='best')
     axs[ixyz,2].legend(loc='best')
-plt.show()
+    axs[ixyz,3].legend(loc='best')
+
+plt.savefig('./energy_terms.pdf')
+#plt.show()
 
 

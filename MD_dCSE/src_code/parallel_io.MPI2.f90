@@ -3360,7 +3360,6 @@ subroutine mass_flux_io
 
     !Write mass to file
     call write_arrays(mass_flux,nresults,outfile,m)
-    !call write_arrays(mass_flux,nbinso(1),nbinso(2),nbinso(3),nresults,trim(prefix_dir)//'results/mflux',m)
 
 end subroutine mass_flux_io
 
