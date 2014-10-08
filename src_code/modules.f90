@@ -270,6 +270,7 @@ module boundary_MD
 	!Boundary force flag and parameters
 	integer,          dimension(6) :: bforce_flag
 	real(kind(0.d0)), dimension(6) :: bforce_dxyz
+    integer                        :: specular_wall_flag
 	real(kind(0.d0)), dimension(3) :: specular_wall
 
 	! Specular wall easy-read parameters
