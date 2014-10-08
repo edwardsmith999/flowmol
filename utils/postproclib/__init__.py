@@ -8,4 +8,5 @@ from channelflowpostproc import *
 from serial_cfdfields import *
 from cplfields import *
 from mdpdfs import *
+from mdpostproc import *
 from pplexceptions import *

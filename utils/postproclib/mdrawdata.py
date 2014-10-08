@@ -187,7 +187,11 @@ class MD_RawData:
 
             filelist = glob.glob(self.fdir+self.fname+'.*')
             sortedlist = sorted(filelist)
-            maxrec = int(sortedlist[-1].split('.')[-1])
+            try:
+                maxrec = int(sortedlist[-1].split('.')[-1])
+            except ValueError:
+                print("Error in last record, maybe '*', in filename? = ", sortedlist[-1])
+                maxrec = 0
             
         else:
             print('Neither ' + self.fname + ' nor ' + self.fname + '.* exist.')

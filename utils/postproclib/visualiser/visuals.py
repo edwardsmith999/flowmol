@@ -1,9 +1,12 @@
+# -*- encoding: utf-8 -*-
 import wx
 from plot import PyplotPanel
 from choosefield import FieldChooserPanel
 from sliders import RecordSliderPanel
 
+from postproclib.pplexceptions import DataNotAvailable
 from postproclib.allpostproc import All_PostProc  
+from misclib import unicodetolatex
 
 class VisualiserPanel(wx.Panel):
  
@@ -14,22 +17,29 @@ class VisualiserPanel(wx.Panel):
         if (fdir[-1] != '/'): fdir+='/'
         self.fdir = fdir
         self.PP = All_PostProc(self.fdir)
-        self.fieldname, self.field = self.PP.plotlist.items()[0]
+        # Loop through all field classes and try to initialise at least one.
+        # As fundametal classes typically return zeros on missing results 
+        # while DataNotAvailable error is returned for some complex classes
+        for item in self.PP.plotlist.items():
+            try:    
+                self.fieldname, self.field = item
+                self.pyplotp = PyplotPanel(self)
+                self.choosep = FieldChooserPanel(self)
+                self.slidersp = RecordSliderPanel(self)
+            
+                vbox = wx.BoxSizer(wx.VERTICAL)
+                hbox = wx.BoxSizer(wx.HORIZONTAL)
+                hbox.Add(self.choosep, 0, wx.EXPAND | wx.ALL)
+                hbox.Add(self.pyplotp, 1, wx.EXPAND | wx.ALL)
+                vbox.Add(hbox, 1, wx.EXPAND | wx.ALL)
+                vbox.Add(self.slidersp, 0, wx.EXPAND | wx.ALL)
+                self.SetSizer(vbox)
 
-        self.pyplotp = PyplotPanel(self)
-        self.choosep = FieldChooserPanel(self)
-        self.slidersp = RecordSliderPanel(self)
-    
-        vbox = wx.BoxSizer(wx.VERTICAL)
-        hbox = wx.BoxSizer(wx.HORIZONTAL)
-        hbox.Add(self.choosep, 0, wx.EXPAND | wx.ALL)
-        hbox.Add(self.pyplotp, 1, wx.EXPAND | wx.ALL)
-        vbox.Add(hbox, 1, wx.EXPAND | wx.ALL)
-        vbox.Add(self.slidersp, 0, wx.EXPAND | wx.ALL)
-        self.SetSizer(vbox)
-
-        self.set_bindings()
-        self.set_defaults()
+                self.set_bindings()
+                self.set_defaults()
+                break
+            except DataNotAvailable:
+                pass
 
     def set_defaults(self):
 
@@ -128,7 +138,7 @@ class VisualiserPanel(wx.Panel):
         self.redraw()
 
     def handle_fieldtype(self, event):
-        ftype = event.GetString()
+        ftype = unicodetolatex(event.GetString())
         if (self.field == self.PP.plotlist[ftype]):
             pass
         else:

@@ -60,8 +60,8 @@ def zero_one_test(x,Nrandnos=100,alpha=2.5):
     return np.median(kcorr)
 
 
-temp = np.arange(0,1000)
-print(zero_one_test(temp))
+#temp = np.arange(0,1000)
+#print(zero_one_test(temp))
 
-temp = np.random.rand(1000)
-print(zero_one_test(temp))
+#temp = np.random.rand(1000)
+#print(zero_one_test(temp))

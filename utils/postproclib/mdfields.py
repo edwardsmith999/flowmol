@@ -1325,8 +1325,7 @@ class MD_dTdrField(MD_complexField):
 
     def read(self,startrec,endrec, preavgaxes=(3), binlimits=None,**kwargs):
 
-        Tdata = self.TField.read(startrec, endrec, 
-                                 binlimits=None)
+        Tdata = self.TField.read(startrec, endrec, binlimits=None)
         dTdr = self.grad(Tdata,preavgaxes=preavgaxes)
 
         if (binlimits):

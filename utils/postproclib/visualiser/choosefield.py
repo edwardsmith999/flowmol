@@ -1,6 +1,8 @@
 import wx
 import wx.lib.scrolledpanel as scrolled
 
+from misclib import latextounicode
+
 class PlotTypePanel(wx.Panel):
 
     def __init__(self,parent,**kwargs):
@@ -17,7 +19,8 @@ class FieldTypePanel(scrolled.ScrolledPanel):
 
     def __init__(self,parent,**kwargs):
         scrolled.ScrolledPanel.__init__(self, parent,**kwargs)
-        choices = sorted(parent.parent.PP.plotlist.keys())
+
+        choices = latextounicode(sorted(parent.parent.PP.plotlist.keys()))
         self.fieldradiobox = wx.RadioBox(self,label='Field',    
                                     style=wx.RA_SPECIFY_ROWS,
                                     choices=choices)

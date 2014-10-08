@@ -3,6 +3,7 @@
 import os
 import numpy as np
 from matplotlib.colors import colorConverter
+import latex2utf
 
 class Chdir:          
     """
@@ -68,3 +69,33 @@ def get_colours(n):
                            (base[start+1] * x))
 
     return [pastel(c) for c in colours[0:n]]
+
+
+def latextounicode(strings):
+
+    if type(strings) is unicode:
+        string = strings.encode('utf8')
+        strings = strings.replace('rho','\xcf\x81')
+    if type(strings) is str:
+        strings = strings.replace('rho','\xcf\x81')
+    elif type(strings) is list:
+        for i, string in enumerate(strings):
+            strings[i] = string.replace('rho','\xcf\x81')
+            #latex2utf.latex2utf(string)
+
+    return strings
+
+def unicodetolatex(strings):
+
+    if type(strings) is unicode:
+        string = strings.encode('utf8')
+        strings = string.replace('\xcf\x81','rho')
+    if type(strings) is str:
+        strings = string.replace('\xcf\x81','rho')
+    elif type(strings) is list:
+        for i, string in enumerate(strings):
+            string = string.encode('utf8')
+            strings[i] = string.replace('\xcf\x81','rho')
+
+    return strings
+

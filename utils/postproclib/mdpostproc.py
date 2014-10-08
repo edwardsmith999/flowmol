@@ -1,3 +1,4 @@
+# -*- encoding: utf-8 -*-
 import os
 import numpy as np
 import sys
@@ -10,6 +11,7 @@ from headerdata import *
 from postproc import PostProc
 from pplexceptions import NoResultsInDir
 
+    
 class MD_PostProc(PostProc):
 
     """ 
@@ -153,17 +155,17 @@ class MD_PostProc(PostProc):
             flux1 = MD_mfluxField(self.resultsdir,'mflux', **kwargs)
             self.plotlist.update({'mflux':flux1})
             rhouCV = MD_CVmomField(self.resultsdir)
-            self.plotlist.update({'rho_uCV':rhouCV})
+            self.plotlist.update({'rhou CV':rhouCV})
 
         if (('mflux' in self.fieldfiles1) and 
             ('vbins' in self.fieldfiles1)     ):
             rhouuCV =  MD_rhouuCVField(self.resultsdir)
-            self.plotlist.update({'rho_uuCV':rhouuCV})
+            self.plotlist.update({'rhouu CV':rhouuCV})
 
         if (('mflux' in self.fieldfiles1) and 
             ('mbins' in self.fieldfiles1)     ):
             uCV =  MD_CVvField(self.resultsdir)
-            self.plotlist.update({'uCV':uCV})
+            self.plotlist.update({'u CV':uCV})
 
 
         if 'vflux' in (self.fieldfiles1):
@@ -217,13 +219,13 @@ class MD_PostProc(PostProc):
             stress1 = MD_pCVField(self.resultsdir,'total', **kwargs)
             self.plotlist.update({'CV_pressure':stress1})
             stress1 = MD_CVStressheat_Field(self.resultsdir, **kwargs)
-            self.plotlist.update({'CV_stressheat':stress1})
+            self.plotlist.update({'stressheat CV':stress1})
 
         if ('ebins' in self.fieldfiles1 and
             'mflux' in self.fieldfiles1):
             try:
                 rhoue =  MD_rhouECVField(self.resultsdir, **kwargs)
-                self.plotlist.update({'CVrhouE':rhoue})
+                self.plotlist.update({'rhouE CV':rhoue})
             except DataMismatch:
                 pass
 
@@ -315,6 +317,8 @@ class MD_PostProc(PostProc):
                 self.plotlist.update({'dTdr':T1})
             except DataMismatch:
                 pass
+            except DataNotAvailable:
+                pass
 
             #Analytical form of heatflux
             try:
@@ -322,7 +326,13 @@ class MD_PostProc(PostProc):
                 self.plotlist.update({'q_approx':q1})
             except DataMismatch:
                 pass
+            except DataNotAvailable:
+                pass
 
         if (len(self.plotlist) == 0):
             raise NoResultsInDir
 
+        #Encode latex names
+#        for key in self.plotlist.keys():
+#            print(key,latex_encode(key))
+#            self.plotlist[latex_encode(key)] = self.plotlist.pop(key)

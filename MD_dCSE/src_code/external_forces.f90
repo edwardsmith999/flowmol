@@ -138,9 +138,7 @@ subroutine apply_boundary_force
 			call error_abort("OT boundary force not yet implemented")
 		else if ( constraint_algorithm .eq. NCER ) then
 			call coupled_apply_boundary_force_NCER
-			!call coupled_apply_boundary_force(bforce_flag,bforce_dxyz)
 		else if ( constraint_algorithm .eq. Flekkoy ) then
-			!call simulation_apply_boundary_force(bforce_flag,(/ 0 0 0 2.d0 0 0 /)) 
 			!Flekkoy boundary force applied by constraint
 			return
 		else if ( constraint_algorithm .eq. CV ) then
