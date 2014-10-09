@@ -3,6 +3,7 @@ import wx
 from plot import PyplotPanel
 from choosefield import FieldChooserPanel
 from sliders import RecordSliderPanel
+from math import log10, floor
 
 from postproclib.pplexceptions import DataNotAvailable
 from postproclib.allpostproc import All_PostProc  
@@ -17,11 +18,15 @@ class VisualiserPanel(wx.Panel):
         if (fdir[-1] != '/'): fdir+='/'
         self.fdir = fdir
         self.PP = All_PostProc(self.fdir)
+        #Define rounding function with lambda
+        self.round_to_n = lambda x, n: x 
+        #self.round_to_n = lambda x, n: round(x, -int(floor(log10(abs(x)))) + (n - 1)) 
         # Loop through all field classes and try to initialise at least one.
         # As fundametal classes typically return zeros on missing results 
         # while DataNotAvailable error is returned for some complex classes
         for item in self.PP.plotlist.items():
             try:    
+                print(item)
                 self.fieldname, self.field = item
                 self.pyplotp = PyplotPanel(self)
                 self.choosep = FieldChooserPanel(self)
@@ -38,7 +43,7 @@ class VisualiserPanel(wx.Panel):
                 self.set_bindings()
                 self.set_defaults()
                 break
-            except DataNotAvailable:
+            except DataNotAvailable, ValueError:
                 pass
 
     def set_defaults(self):
@@ -63,6 +68,7 @@ class VisualiserPanel(wx.Panel):
 
         self.redraw = self.redraw_plot
         self.update = self.update_plot
+        self.set_limits = self.set_plot_limits
         self.toggle_binslider("Off")
         self.redraw()
 
@@ -97,6 +103,10 @@ class VisualiserPanel(wx.Panel):
 
         self.Bind(wx.EVT_CHECKBOX, self.handle_autoscale, 
                   self.choosep.autoscale_b) 
+        self.Bind(wx.EVT_TEXT_ENTER, self.handle_minscale, 
+                  self.choosep.minpspin) 
+        self.Bind(wx.EVT_TEXT_ENTER, self.handle_maxscale, 
+                  self.choosep.maxpspin) 
 
         self.choosep.save_b.Bind(wx.EVT_BUTTON, self.save_dialogue) 
 
@@ -117,10 +127,12 @@ class VisualiserPanel(wx.Panel):
         if plottype == 'Profile':
             self.redraw = self.redraw_plot
             self.update = self.update_plot
+            self.set_limits = self.set_plot_limits
             self.toggle_binslider("Off")
         elif plottype == 'Contour':
             self.redraw = self.redraw_contour
             self.update = self.update_contour
+            self.set_limits = self.set_contour_limits
             self.toggle_binslider("On")
         elif plottype == 'CPL':
             self.redraw = self.redraw_cpl_plot
@@ -180,6 +192,7 @@ class VisualiserPanel(wx.Panel):
     def handle_component(self, event):
         self.component = event.GetInt()
         self.redraw()
+
     def handle_normal(self, event):
         self.normal = event.GetInt()
         self.maxbin = len(self.field.grid[self.normal]) - 1
@@ -187,32 +200,47 @@ class VisualiserPanel(wx.Panel):
         if (self.bin > self.maxbin):
             self.SetBin(self.maxbin)
         self.redraw()
+
     def handle_autoscale(self,event):
         self.autoscale = event.GetInt()
         self.redraw()
 
+    def handle_minscale(self, event):
+        self.minp = float(event.GetString())
+        self.maxp = float(self.choosep.maxpspin.GetValue())
+        self.choosep.minpspin.SetValue(event.GetString())
+        self.set_limits([self.minp,self.maxp])
+
+    def handle_maxscale(self, event):
+        self.minp = float(self.choosep.minpspin.GetValue())
+        self.maxp = float(event.GetString())
+        self.choosep.maxpspin.SetValue(event.GetString())
+        self.set_limits([self.minp,self.maxp])
 
     def handle_recslider(self, event):
         self.SetRecord(event.GetInt())
+
     def handle_rectxt(self, event):
         rec = int(event.GetString())
         if (rec > self.maxrec):
             self.SetRecord(self.maxrec)
         else:
             self.SetRecord(rec)
+
     def handle_recspin(self, event):
         width = event.GetInt()
         self.SetRecordWidth(width)
 
-
     def handle_binslider(self, event):
         self.SetBin(event.GetInt()) 
+
     def handle_bintxt(self, event):
         bin = int(event.GetString())
         if (bin > self.maxbin):
             self.SetBin(self.maxbin)
         else:
             self.SetBin(bin)
+
     def handle_binspin(self, event):
         width = event.GetInt()
         self.SetBinWidth(width)
@@ -228,6 +256,7 @@ class VisualiserPanel(wx.Panel):
             self.redraw()
         else:
             self.update()
+
     def SetRecordWidth(self, width):
         self.recwidth = width
         if (self.recwidth > self.maxrec/2):
@@ -246,6 +275,7 @@ class VisualiserPanel(wx.Panel):
             self.redraw()
         else:
             self.update()
+
     def SetBinWidth(self, width):
         self.binwidth = width
         if (self.binwidth > self.maxbin/2):
@@ -291,11 +321,22 @@ class VisualiserPanel(wx.Panel):
         xlabel = self.field.axislabels[self.normal] 
         ylabel = self.fieldname + "_" + self.field.labels[self.component] 
         self.pyplotp.redraw_plot(ax, data, xlabel, ylabel)
+        
+        # Trigger event update min/max text values
+        self.minp, self.maxp = self.pyplotp.ax.get_ylim()
+        self.choosep.minpspin.SetValue(str(self.minp))
+        self.choosep.maxpspin.SetValue(str(self.maxp))
+        #self.post_string_event(wx.EVT_TEXT_ENTER,self.round_to_n(self.minp,6),self.choosep.minpspin)
+        #self.post_string_event(wx.EVT_TEXT_ENTER,self.round_to_n(self.maxp,6),self.choosep.maxpspin)
         self.Refresh()
+
     def update_plot(self):
         ax, data = self.get_plot_data()
         self.pyplotp.update_plot(ax, data)
         self.Refresh()
+
+    def set_plot_limits(self, lims):
+        self.pyplotp.set_plot_limits(lims)
 
     def redraw_cpl_plot(self):
         axs, datas = self.get_cpl_plot_data()
@@ -311,6 +352,7 @@ class VisualiserPanel(wx.Panel):
                    'ms':10.0, 'mew':2.0, 'label':'CFD const'}]
         self.pyplotp.redraw_plot_many(axs, datas, styles, xlabel, ylabel)
         self.Refresh()
+
     def update_cpl_plot(self):
         axs, datas = self.get_cpl_plot_data()
         self.pyplotp.update_plot_many(axs, datas)
@@ -321,11 +363,21 @@ class VisualiserPanel(wx.Panel):
         xlabel = naxes[0]
         ylabel = naxes[1]
         self.pyplotp.redraw_contour(ax1, ax2, data, xlabel, ylabel)
+        # Trigger event update min/max text values
+        self.minp,self.maxp = self.pyplotp.colormesh.get_clim()
+        self.choosep.minpspin.SetValue(str(self.minp))
+        self.choosep.maxpspin.SetValue(str(self.maxp))
+        #self.post_string_event(wx.EVT_TEXT_ENTER,self.round_to_n(self.minp,6),self.choosep.minpspin)
+        #self.post_string_event(wx.EVT_TEXT_ENTER,self.round_to_n(self.maxp,6),self.choosep.maxpspin)
         self.Refresh()
+
     def update_contour(self):
         ax1, ax2, data, naxes = self.get_contour_data()
         self.pyplotp.update_contour(data)
         self.Refresh()
+
+    def set_contour_limits(self, lims):
+        self.pyplotp.set_contour_limits(lims)
 
     def toggle_binslider(self,switchon):
         slider = self.slidersp.binslider
@@ -337,3 +389,13 @@ class VisualiserPanel(wx.Panel):
             slider.SetTransparent(10)
         else:
             quit("Error - toggle_position_slider must be str On of Off")
+
+
+    def post_string_event(self, eventtype, eventval, panel):
+        """
+            Triggers an event 
+        """
+        event = wx.PyCommandEvent(eventtype.typeId, panel.GetId())
+        event.SetString(str(eventval))
+        wx.PostEvent(self.GetEventHandler(),event)
+

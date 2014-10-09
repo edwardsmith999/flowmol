@@ -8,8 +8,9 @@ import matplotlib.pyplot as plt
 
 class PyplotPanel(wx.Panel):
 
-    def __init__(self,parent,**kwargs):
+    def __init__(self, parent,**kwargs):
         wx.Panel.__init__(self,parent,**kwargs)
+        self.parent = parent
         self.figure = matplotlib.figure.Figure()
         self.canvas = wxaggb.FigureCanvasWxAgg(self, -1, self.figure)
         self.sizer = wx.BoxSizer(wx.VERTICAL)
@@ -64,10 +65,15 @@ class PyplotPanel(wx.Panel):
         plt.setp(self.lines, xdata=ax, ydata=data)
         self.canvas.draw()
 
+    def set_plot_limits(self,lims):
+        self.ax.set_ylim(lims[0], lims[1])
+        self.canvas.draw()
+
     def redraw_contour(self, ax1, ax2, data, xlabel=None, ylabel=None):
         self.figure.clf(keep_observers=True)
         self.ax = self.figure.add_subplot(111)
-        self.colormesh = self.ax.pcolormesh(ax1, ax2, data[:,1:], cmap=self.cmap)
+        self.colormesh = self.ax.pcolormesh(ax1, ax2, data[:,1:], 
+                                            cmap=self.cmap)
         self.cbar = self.figure.colorbar(self.colormesh)
         self.ax.set_xlim(ax1.min(), ax1.max())
         self.ax.set_ylim(ax2.min(), ax2.max())
@@ -76,7 +82,11 @@ class PyplotPanel(wx.Panel):
         self.canvas.draw()
 
     def update_contour(self, data):
-        self.colormesh.set_array(data[:,1:].ravel())          
+        self.colormesh.set_array(data[:,1:].ravel())
+        self.canvas.draw()
+
+    def set_contour_limits(self,lims):
+        self.colormesh.set_clim(vmin=lims[0], vmax=lims[1])
         self.canvas.draw()
 
     def savefigure(self,fpath):

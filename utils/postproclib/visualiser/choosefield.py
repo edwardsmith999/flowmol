@@ -60,8 +60,8 @@ class FieldComponentPanel(wx.Panel):
 
 class FieldChooserPanel(wx.Panel):
     
-    def __init__(self,parent,**kwargs):
-        wx.Panel.__init__(self,parent,**kwargs)
+    def __init__(self, parent, **kwargs):
+        wx.Panel.__init__(self, parent, **kwargs)
         self.parent = parent 
         # Plot type chooser box
         self.plottype_p = PlotTypePanel(self)    
@@ -71,6 +71,9 @@ class FieldChooserPanel(wx.Panel):
         self.component_p = FieldComponentPanel(self)
         # Autoscale button
         self.autoscale_b = wx.CheckBox(self,-1,label='Autoscale')
+        # Min and max values for autoscale
+        self.minpspin = wx.TextCtrl(self,style=wx.TE_PROCESS_ENTER,size=(70,-1))
+        self.maxpspin = wx.TextCtrl(self,style=wx.TE_PROCESS_ENTER,size=(70,-1))
         # Save button
         self.save_b = SaveFigurePanel(self)
 
@@ -79,6 +82,10 @@ class FieldChooserPanel(wx.Panel):
         vbox.Add(self.plottype_p, 0,wx.EXPAND, 0)
         vbox.Add(self.fieldtype_p,0,wx.EXPAND, 0)
         vbox.Add(self.component_p,0,wx.EXPAND, 0)
-        vbox.Add(self.autoscale_b,0,wx.EXPAND, 0)
+        hbox = wx.BoxSizer(wx.HORIZONTAL)
+        vbox.Add(hbox,0,wx.EXPAND, 0)
+        hbox.Add(self.autoscale_b,0,wx.EXPAND, 0)
+        hbox.Add(self.minpspin,0,wx.EXPAND, 0)
+        hbox.Add(self.maxpspin,0,wx.EXPAND, 0)
         vbox.Add(self.save_b,     0,wx.EXPAND, 0)
         self.SetSizer(vbox) 

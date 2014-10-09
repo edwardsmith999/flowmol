@@ -338,8 +338,6 @@ class MD_vField(MD_complexField):
 
         return vdata
 
-
-
 class MD_rhouuField(MD_complexField):
 
     def __init__(self, fdir):
@@ -451,8 +449,6 @@ class MD_TField(MD_complexField):
 
         # Remove average of streaming component
         if (peculiar==True):
-            #print('Average samples for streaming velocity: ' 
-            #       + str(np.mean(mfield)) )
             pdata = self.pField.read(startrec,endrec,**kwargs)
             vdata = np.divide(pdata,mdata)
             vdata[np.isnan(vdata)] = 0.0
@@ -489,9 +485,6 @@ class MD_TField(MD_complexField):
             Tdata = Tdata - (1./3.)*v2data
 
         return Tdata
-
-
-
 
 class MD_EnergyField(MD_complexField):
 

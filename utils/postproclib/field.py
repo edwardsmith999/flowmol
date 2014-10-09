@@ -4,6 +4,7 @@ import scipy.ndimage
 import scipy.interpolate as interp
 import scipy.ndimage.interpolation as interp2
 import matplotlib.pyplot as plt
+import sys
 
 class OutsideRecRange(Exception):
     pass
@@ -70,7 +71,7 @@ class Field():
             TO BE OVERRIDDEN IN COMPLICATED FIELDS.
             Average the data in the user-specified way.
         """
-        
+
         # Read 4D time series from startrec to endrec
         grid_data = self.read(startrec,endrec,**kwargs)
            
@@ -148,7 +149,7 @@ class Field():
     def managed_mean(self, axismanager, data, avgaxes):
         newaxes = axismanager.current_axes_numbers(avgaxes)
         if (None in newaxes):
-            quit("Can't average over an axis that has been reduced")
+            sys.exit("Can't average over an axis that has been reduced")
         avgdata = np.mean(data, axis=newaxes) 
         axismanager.reduce_axes(avgaxes)
         return avgdata
@@ -156,7 +157,7 @@ class Field():
     def managed_fft(self,axismanager, data, fftaxes):
         newaxes = axismanager.current_axes_numbers(fftaxes)
         if (None in newaxes):
-            quit("Can't fft over an axis that has been reduced")
+            sys.exit("Can't fft over an axis that has been reduced")
         fftdata = np.fft.fftn(data,axes=newaxes)
         return fftdata
 
@@ -246,14 +247,14 @@ class Field():
             message = "WARNING: you're asking me to average or fft over "
             message += "each component of the field. I don't know how to "
             message += "deal with this right now. Aborting."
-            quit(message)
+            sys.exit(message)
 
         if (windowaxis):
             if (windowaxis in preavgaxes or windowaxis in postavgaxes):
                 message = "Warning: you're asking me to window over an axis "
                 message += "that you're eventually going to average over. "
                 message += "Aborting."
-                quit(message)
+                sys.exit(message)
             if (windowaxis not in fftaxes):
                 message = "Warning: you're asking me to window over an axis "
                 message += "that won't be Fourier transformed. This makes no "

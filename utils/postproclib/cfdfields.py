@@ -170,12 +170,6 @@ class CFD_strainField(CFD_complexField,CFD_vField):
 
         return straindata
 
-    def averaged_data(self,startrec,endrec,avgaxes=(),**kwargs):
-
-        straindata = self.read(startrec, endrec,**kwargs)
-        
-        if (avgaxes != ()):
-            return np.sum(straindata,axis=avgaxes) 
 
 class CFD_vortField(CFD_complexField,CFD_vField):
 
@@ -220,16 +214,6 @@ class CFD_vortField(CFD_complexField,CFD_vField):
 
         return  vortdata
 
-    def averaged_data(self,startrec,endrec,avgaxes=(),**kwargs):
-
-        vdata = self.read(startrec, endrec, 
-                           **kwargs)
-        
-        if (avgaxes != ()):
-            return np.sum(vdata,axis=avgaxes)
-
-
-
 
 class CFD_dissipField(CFD_complexField,CFD_vField):
 
@@ -271,13 +255,5 @@ class CFD_dissipField(CFD_complexField,CFD_vField):
                                 lower[2]:upper[2], :, :]
 
         return  vortdata
-
-    def averaged_data(self,startrec,endrec,avgaxes=(),**kwargs):
-
-        vdata = self.read(startrec, endrec, 
-                           **kwargs)
-        
-        if (avgaxes != ()):
-            return np.sum(vdata,axis=avgaxes) 
 
 

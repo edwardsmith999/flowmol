@@ -84,13 +84,6 @@ class Channelflow_strainField(Channelflow_complexField,Channelflow_vField):
 
         return straindata
 
-    def averaged_data(self,startrec,endrec,avgaxes=(),**kwargs):
-
-        straindata = self.read(startrec, endrec,**kwargs)
-        
-        if (avgaxes != ()):
-            return np.sum(straindata,axis=avgaxes) 
-
 class Channelflow_vortField(Channelflow_complexField,Channelflow_vField):
 
     def __init__(self,fdir,rectype='bins'):
@@ -134,16 +127,6 @@ class Channelflow_vortField(Channelflow_complexField,Channelflow_vField):
 
         return  vortdata
 
-    def averaged_data(self,startrec,endrec,avgaxes=(),**kwargs):
-
-        vdata = self.read(startrec, endrec, 
-                           **kwargs)
-        
-        if (avgaxes != ()):
-            return np.sum(vdata,axis=avgaxes)
-
-
-
 
 class Channelflow_dissipField(Channelflow_complexField,Channelflow_vField):
 
@@ -186,10 +169,3 @@ class Channelflow_dissipField(Channelflow_complexField,Channelflow_vField):
 
         return  vortdata
 
-    def averaged_data(self,startrec,endrec,avgaxes=(),**kwargs):
-
-        vdata = self.read(startrec, endrec, 
-                           **kwargs)
-        
-        if (avgaxes != ()):
-            return np.sum(vdata,axis=avgaxes) 
