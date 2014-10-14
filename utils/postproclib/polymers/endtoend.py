@@ -117,6 +117,33 @@ class EndToEnd():
         # NB len(edges) = len(hist) + 1
         return hist, edges 
 
+    def inclinations_2(self, axis1, axis2, startrec=0, endrec=None):
+
+        """
+            Axis defines a plane, this routine calculates the mean 
+            inclination of all polymer end-to-end vectors to it.
+        """
+
+        if (endrec==None):
+            endrec = self.maxrec
+
+        R = self.read(startrec, endrec)
+        R1 = R[:,axis1,:]
+        R2 = R[:,axis2,:]
+        theta = np.arctan2(R2,R1)
+        #theta = np.pi/2.0 - np.arccos(Rhatdotaxishat)
+        return theta
+
+    def inclinations_2_distribution(self, axis1, axis2, bins=25, startrec=0, endrec=None):
+
+        if (endrec == None):
+            endrec = self.maxrec
+
+        theta  = self.inclinations_2(axis1, axis2, startrec, endrec)
+        hist, edges = np.histogram(theta, bins=bins, density=True)
+        # NB len(edges) = len(hist) + 1
+        return hist, edges 
+
     def time_selfcorrelation(self, startrec=0, endrec=None, verbose=False):
 
         tplot = int(self.header.tplot)
