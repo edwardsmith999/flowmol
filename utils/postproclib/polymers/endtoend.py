@@ -1,4 +1,5 @@
 import glob
+import sys
 import numpy as np
 import scipy.signal as spsi
 from postproclib.pplexceptions import DataNotAvailable
@@ -107,16 +108,6 @@ class EndToEnd():
 
         return theta
 
-    def inclinations_distribution(self, axis, bins=25, startrec=0, endrec=None):
-
-        if (endrec == None):
-            endrec = self.maxrec
-
-        theta  = self.inclinations(axis, startrec, endrec)
-        hist, edges = np.histogram(theta, bins=bins, density=True)
-        # NB len(edges) = len(hist) + 1
-        return hist, edges 
-
     def inclinations_2(self, axis1, axis2, startrec=0, endrec=None):
 
         """
@@ -140,10 +131,31 @@ class EndToEnd():
             endrec = self.maxrec
 
         theta  = self.inclinations_2(axis1, axis2, startrec, endrec)
+        hist, edges = np.histogram(theta, bins=bins, density=True)#density=True, normed=True)
+        # NB len(edges) = len(hist) + 1
+        return hist, edges 
+
+
+    def inclinations_distribution(self, axis, bins=25, startrec=0, endrec=None):
+
+        if (endrec == None):
+            endrec = self.maxrec
+
+        theta  = self.inclinations(axis, startrec, endrec)
         hist, edges = np.histogram(theta, bins=bins, density=True)
         # NB len(edges) = len(hist) + 1
         return hist, edges 
 
+    def component_distribution(self, axis, bins=25, startrec=0, endrec=None):
+
+        if (endrec == None):
+            endrec = self.maxrec
+    
+        R = self.read(startrec, endrec)
+        Raxis = R[:,axis,:]
+        hist, edges = np.histogram(Raxis, bins=bins, density=True)
+        return hist, edges 
+    
     def time_selfcorrelation(self, startrec=0, endrec=None, verbose=False):
 
         tplot = int(self.header.tplot)
