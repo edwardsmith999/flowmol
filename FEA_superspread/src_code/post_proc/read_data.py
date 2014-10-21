@@ -22,7 +22,7 @@ def sort_nicely(l):
     l.sort(key=alphanum_key)
 
 #Get Headers from first file
-fpath = '../results/M1p5/'
+fpath = '../results/'
 filenames = ['VPROFILE.0000001.DAT','CPROFILE.0000001.DAT']
 for filename in filenames:
     print('Available fields in ' + filename + ':')
@@ -81,7 +81,7 @@ xhist = []
 #plt.plot(xhist)
 #plt.show()
 
-plotvalue = 'U'
+plotvalue = 'H'
 for filename in vfiles[::10]:
     print(filename)
     data = np.genfromtxt(filename,skip_header=3,names=True)

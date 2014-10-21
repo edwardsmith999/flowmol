@@ -4,6 +4,11 @@
 !															           |
 !    PROGRAM WRITTEN BY G. KARAPETSAS, LAST UPDATE 09/12/2009          |
 !    CHANGES MADE BY E. R. SMITH, LAST UPDATE 05/10/2014               |
+!
+!   Functions:
+!
+!   Variables:
+!
 !----------------------------------------------------------------------|
 
 PROGRAM FEM_1D
@@ -35,10 +40,10 @@ PROGRAM FEM_1D
 	REAL(8) :: RSUM_OLD, RSUM_NEW
 
 	NAMELIST/parameters/ eps2, As1, As2, As12, d1, d12, bslip, kappa, &
-	mm, Equilibrium_Angle, Thetac, MASS_SURFACTANT, Peca, ba, ka, Ra, &
-	SOLUBLE_SURFACTANT, Peb, Pem, kb, nc, WALL_ADSORPTION, Pecs, bs,  &
-	ks, Rs, kas, Ras, ST_MODEL, Bl1, Bl2, Bl12, Kl1, Kl2, Kl12, &
-	GEOMETRY, NXELa, NXELb, XPACK, MPa, MPb, OUTFE_STEP
+	                     mm, Equilibrium_Angle, Thetac, MASS_SURFACTANT, Peca, ba, ka, Ra, &
+	                     SOLUBLE_SURFACTANT, Peb, Pem, kb, nc, WALL_ADSORPTION, Pecs, bs,  &
+	                     ks, Rs, kas, Ras, ST_MODEL, Bl1, Bl2, Bl12, Kl1, Kl2, Kl12, &
+	                     GEOMETRY, NXELa, NXELb, XPACK, MPa, MPb, OUTFE_STEP
 
 	!-----------------------------------------------------------------------
 	!     READ NAMELIST'S DATA
@@ -723,24 +728,24 @@ PROGRAM FEM_1D
 	!			DEALLOCATE ARRAYS
 	!-----------------------------------------------------------------------
 
-	DEALLOCATE( A,		STAT=IERROR(1) )
-	DEALLOCATE( B,		STAT=IERROR(2) )
-	DEALLOCATE( S,		STAT=IERROR(3) )
-	DEALLOCATE( A_ip,				STAT=IERROR(4) )
-	DEALLOCATE( A_pi,				STAT=IERROR(5) )
-	DEALLOCATE( S_c,					STAT=IERROR(6) )
-	DEALLOCATE( IPVT,				STAT=IERROR(7) )
-	DEALLOCATE( TQa,					STAT=IERROR(8) )
-	DEALLOCATE( TQao,				STAT=IERROR(9) )
-	DEALLOCATE( TQao1,			STAT=IERROR(10) )
-	DEALLOCATE( TQap,				STAT=IERROR(11) )
-	DEALLOCATE( TQb,					STAT=IERROR(12) )
-	DEALLOCATE( TQbo,				STAT=IERROR(13) )
-	DEALLOCATE( TQbo1,			STAT=IERROR(14) )
-	DEALLOCATE( TQbp,				STAT=IERROR(15) )
-	DEALLOCATE( TQo_GRAPH,    STAT=IERROR(16) )
-	DEALLOCATE( Xa,						STAT=IERROR(17) )
-	DEALLOCATE( Xb,						STAT=IERROR(18) )
+	DEALLOCATE( A,	    	STAT=IERROR(1)  )
+	DEALLOCATE( B,	    	STAT=IERROR(2)  )
+	DEALLOCATE( S,  		STAT=IERROR(3)  )
+	DEALLOCATE( A_ip,	    STAT=IERROR(4)  )
+	DEALLOCATE( A_pi,   	STAT=IERROR(5)  )
+	DEALLOCATE( S_c,	    STAT=IERROR(6)  )
+	DEALLOCATE( IPVT,   	STAT=IERROR(7)  )
+	DEALLOCATE( TQa,	    STAT=IERROR(8)  )
+	DEALLOCATE( TQao,   	STAT=IERROR(9)  )
+	DEALLOCATE( TQao1,	    STAT=IERROR(10) )
+	DEALLOCATE( TQap,	    STAT=IERROR(11) )
+	DEALLOCATE( TQb,	    STAT=IERROR(12) )
+	DEALLOCATE( TQbo,	    STAT=IERROR(13) )
+	DEALLOCATE( TQbo1,	    STAT=IERROR(14) )
+	DEALLOCATE( TQbp,	    STAT=IERROR(15) )
+	DEALLOCATE( TQo_GRAPH,  STAT=IERROR(16) )
+	DEALLOCATE( Xa,			STAT=IERROR(17) )
+	DEALLOCATE( Xb,			STAT=IERROR(18) )
 	DEALLOCATE( NM_Q_a,		STAT=IERROR(19) )
 	DEALLOCATE( NM_Q_b,		STAT=IERROR(20) )
 	DEALLOCATE( NM_QQ_a,	STAT=IERROR(21) )
@@ -2029,8 +2034,12 @@ SUBROUTINE CREATE_GRAPH_ARRAYS(TQa,TQb,Xc)
 
 	IMPLICIT NONE
 
+	REAL(8), intent(in)                                 :: Xc
+	REAL(8), DIMENSION(NODTOLa_QEL,NEQ_Q_a), intent(in) :: TQa
+	REAL(8), DIMENSION(NODTOLb_QEL,NEQ_Q_b), intent(in) :: TQb
+
 	INTEGER :: IEL, I, J, INOD
-	REAL(8) :: Z, XX, Xc, dZdx, H, Hx, Hxx, Hxxx
+	REAL(8) :: Z, XX, dZdx, H, Hx, Hxx, Hxxx
 	REAL(8) :: Ca, Caz, Cax, C, Cz, Cx
 	REAL(8) :: M, Mz, Mx, Cs, Csz, Csx
 	REAL(8) :: S1, S1x, S2, S2x, S12, S12x
@@ -2039,8 +2048,6 @@ SUBROUTINE CREATE_GRAPH_ARRAYS(TQa,TQb,Xc)
 	REAL(8), DIMENSION(NBF_Q) :: DFDX_Q
 	INTEGER, DIMENSION(5) :: IERROR
 
-	REAL(8), DIMENSION(NODTOLa_QEL,NEQ_Q_a) :: TQa
-	REAL(8), DIMENSION(NODTOLb_QEL,NEQ_Q_b) :: TQb
 
 	!-----------------------------------------------------------------------
 	!     INITIALIZE ARRAY
@@ -2178,8 +2185,8 @@ SUBROUTINE CREATE_GRAPH_ARRAYS(TQa,TQb,Xc)
 			Z = 0.D0 ; Cs = 0.D0 ; Csz = 0.D0
 
 			DO J = 1, NBF_Q
-						INOD = NM_Q_b(IEL,J+1)
-				Z    = Z    + Xb(INOD)     * NF_Q(J,I)
+				INOD = NM_Q_b(IEL,J+1)
+				Z    = Z    + Xb(INOD)    * NF_Q(J,I)
 				Cs   = Cs   + TQb(INOD,1) * NF_Q(J,I)
 				Csz  = Csz  + TQb(INOD,1) * DFDX_Q(J)
 			ENDDO
@@ -2445,7 +2452,7 @@ SUBROUTINE JACOBIAN ( ROI, NELEM, ININT, KK, BFN_Q, DFDX_Q, JDIM, NEQ, &
 
 	CALL XPERT(Xcj, epert)
 	CALL EQUATIONS ( ROI, NELEM, ININT, KK, BFN_Q, DFDX_Q, NM, INNTOL, &
-			TQj, TQo, X, INDTL, NEQ, Xcj, TERM_X_e(:,:) )
+			         TQj, TQo, X, INDTL, NEQ, Xcj, TERM_X_e(:,:) )
 
 	Xcj = Xc
 	TEMP_X(:,:) = TEMP_X(:,:) + &
@@ -2458,7 +2465,7 @@ SUBROUTINE JACOBIAN ( ROI, NELEM, ININT, KK, BFN_Q, DFDX_Q, JDIM, NEQ, &
 
 			CALL XPERT(TQj(JJ,JEQ), epert)
 			CALL EQUATIONS ( ROI, NELEM, ININT, KK, BFN_Q, DFDX_Q, NM, INNTOL, &
-					TQj, TQo, X, INDTL, NEQ, Xcj, TERM_J_e(:,JW,JEQ,:) )
+					         TQj, TQo, X, INDTL, NEQ, Xcj, TERM_J_e(:,JW,JEQ,:) )
 
 			TQj(JJ,JEQ) = TQ(JJ,JEQ)
 

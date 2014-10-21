@@ -50,10 +50,10 @@ LIBS = $(MKL)
 # Rules for compilation
 all: $(PROG)
 
-$(PROG): $(OBJS)
+$(PROG): obj $(OBJS)
 	$(FC) $(FFLAGS) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
 
-debug: $(OBJS)
+debug: obj $(OBJS)
 	$(FC) $(FFLAGS_DEBUG) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
 
 clean:
@@ -62,17 +62,20 @@ clean:
 cleanall:
 	rm -f $(PROG) $(OBJS) $(OBJ_DIR)/*.mod
 
+obj:
+	[ -d obj ] || mkdir obj
+
 cleandat:
-	rm -f *.DAT
+	rm -f ./results/*.DAT
 
 cleanzip:
-	rm -f *.gz
+	rm -f ./results/*.gz
 
 zip:
-	gzip *.DAT
+	gzip ./results/*.DAT
 
 unzip:
-	gunzip *.gz
+	gunzip ./results/*.gz
 
 # Each subdirectory must supply rules for building sources it contributes
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.f90
