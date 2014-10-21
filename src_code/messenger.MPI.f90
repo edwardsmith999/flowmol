@@ -705,13 +705,21 @@ subroutine unpack_recvbuffer(halo_np,recvnp,length,recvbuffer)
 	use computational_constants_MD, only :	potential_flag
 	use arrays_MD, only : r, v
 	use messenger
+	use interfaces, only : error_abort
+    implicit none
 
 	integer, intent(in)								:: halo_np,recvnp,length
 	double precision, dimension(:), intent(in) 		:: recvbuffer
 
 	integer 										:: n, pos
 	double precision, dimension(nd) 				:: rpack, vpack	!Temporary arrays used to pack
-	double precision, dimension(nsdmi)  				:: FENEpack
+	double precision, dimension(nsdmi)  			:: FENEpack
+
+    if (np+halo_np+recvnp .gt. size(r)/real(nd,kind(0.d0))) then
+        call error_abort(" Error in unpack_recvbuffer -- Molecule position &
+                          & array r overflow as Halo Recv array is bigger. &
+                          & Try increasing extralloc in set_parameters_allocate.")
+    endif
 
 	pos = 0
 	do n=halo_np+1,halo_np+recvnp
