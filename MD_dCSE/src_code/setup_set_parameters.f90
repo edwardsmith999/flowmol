@@ -169,7 +169,8 @@ subroutine set_parameters_allocate
 	do ixyz =1,nd
 		extralloc = extralloc + &
 		ceiling(((2.d0*(3*ncells(ixyz)**2+ &
-		6*ncells(ixyz)+4))/ncells(ixyz)**3))*np
+		                6*ncells(ixyz)+4)) &
+                         /ncells(ixyz)**3))*np
 	enddo
 	extralloc = extralloc/nd  + 300  !Average of all 3 dimensions inc safety factor
 
