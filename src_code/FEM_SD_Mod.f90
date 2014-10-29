@@ -8,9 +8,9 @@ module elements_data
 
 	integer, parameter :: NBF_Q = 3
 	integer, parameter :: NBF_L = 2
-
+   
+    !Number of equations in the fluid and vapour regions
 	integer, parameter :: NEQ_Q = 7
-     
 	integer, parameter :: NEQ_Q_a = 7
 	integer, parameter :: NEQ_Q_b = 1
      
@@ -54,6 +54,10 @@ module common_arrays
 	INTEGER, ALLOCATABLE, DIMENSION(:,:) :: NM_Q_b, NM_QQ_b
 
 	real(8), allocatable, dimension(:) :: Xa, Xb
+
+    !Used to define a 2D velocity field
+    real(8),allocatable ,dimension(:,:)   :: Z_loc
+    real(8),allocatable ,dimension(:,:,:) :: uwarray
 						
 end module common_arrays
 
@@ -167,6 +171,7 @@ module gauss_data
 
 	SAVE
 
+    !number of Gauss points per element
 	integer, parameter				  :: NINT_3P  = 3
 	real(8), dimension ( NINT_3P )    :: GAPT_3P
 	real(8), dimension ( NINT_3P )    :: WO_3P
@@ -219,11 +224,11 @@ contains
 		DO I = 1, NINT_3P
 
 			CALL  F_LINEAR( F1N(1:NBF_L), DF1N(1:NBF_L), NBF_L, GAPT_3P(I) )
-			TF_L(1:NBF_L,I)  = F1N(1:NBF_L)
+			TF_L(1:NBF_L,I)  =  F1N(1:NBF_L)
 			DTF_L(1:NBF_L,I) = DF1N(1:NBF_L)
 
 			CALL F_QUADRATIC( F1N(1:NBF_Q), DF1N(1:NBF_Q), NBF_Q, GAPT_3P(I) )
-			TF_Q(1:NBF_Q,I)  = F1N(1:NBF_Q)
+			TF_Q(1:NBF_Q,I)  =  F1N(1:NBF_Q)
 			DTF_Q(1:NBF_Q,I) = DF1N(1:NBF_Q)
 
 		ENDDO
@@ -235,11 +240,11 @@ contains
 		DO I = 1, NBF_Q
 
 			CALL  F_LINEAR( F1N(1:NBF_L), DF1N(1:NBF_L), NBF_L, KSI(I) )
-			NF_L(1:NBF_L,I) =  F1N(1:NBF_L)
+			NF_L(1:NBF_L,I)  =  F1N(1:NBF_L)
 			DNF_L(1:NBF_L,I) = DF1N(1:NBF_L)
 
 			CALL F_QUADRATIC( F1N(1:NBF_Q), DF1N(1:NBF_Q), NBF_Q, KSI(I) )
-			NF_Q(1:NBF_Q,I) =  F1N(1:NBF_Q)
+			NF_Q(1:NBF_Q,I)  =  F1N(1:NBF_Q)
 			DNF_Q(1:NBF_Q,I) = DF1N(1:NBF_Q)
 
 		ENDDO
@@ -272,10 +277,12 @@ contains
 		real(8), intent(inout), dimension(IDIM) :: F3N
 		real(8), intent(inout), dimension(IDIM) :: DF3N
 
+        !Gauss points
 		F3N(1)  = -0.5D0*x*(1.D0-x)
 		F3N(2)  = (1.D0-x)*(1.D0+x)
 		F3N(3)  = +0.5D0*x*(1.D0+x)
 
+        !Derivative of Gauss points
 		DF3N(1) = + x - 0.5D0
 		DF3N(2) = - 2.D0*x
 		DF3N(3) = + x + 0.5D0
@@ -594,8 +601,7 @@ contains
 				STOP
 			END SELECT
 
-			Surface_Tension_x = &
-								-3.d0*(As+1.d0)/As*((As+1.d0)**(1.d0/3.d0)-1.d0)*gx / & 
+			Surface_Tension_x = -3.d0*(As+1.d0)/As*((As+1.d0)**(1.d0/3.d0)-1.d0)*gx / & 
 									(1.d0+((As+1.d0)**(1.d0/3.d0)-1.d0)*g)**4
 
 		CASE DEFAULT
@@ -605,6 +611,70 @@ contains
 
 		RETURN
 	END FUNCTION Surface_Tension_x
+
+	REAL(8) FUNCTION Surface_Tension_xx(Interface,g,gx,gxx)
+		IMPLICIT NONE
+		REAL(8) :: g, gx, gxx, gm, As, Bl, Kl
+		REAL(8) :: COEFF1, COEFF2
+		CHARACTER(LEN=2) :: Interface
+
+		SELECT CASE(ST_MODEL)
+		CASE('LINEAR')
+
+			Surface_Tension_xx = - gxx
+
+		CASE('LANGMUIR')
+
+			SELECT CASE(Interface)
+			CASE ('SA')
+				Bl = Bl1
+				Kl = Kl1
+			CASE ('LA')
+				Bl = Bl2
+				Kl = Kl2
+			CASE ('LS')
+				Bl = Bl12
+				Kl = Kl12
+			CASE DEFAULT
+				WRITE(42,*) 'WRONG INTERFACE! / FUNCTION Surface_Tension_xx' 
+				STOP
+			END SELECT
+
+			gm = 1.d0 - DEXP(-1.D0/Bl)
+			IF ( g < gm ) THEN
+                stop "Error in Surface_Tension_xx -- NOT DEVELOPED for LANGMUIR"
+			!	Surface_Tension_xx = diff( Bl*( - gx/(1.d0-g) + Kl*g*gx ) , x)
+			ELSE
+				Surface_Tension_xx = 0.D0
+			ENDIF 
+
+		CASE('SHELUDKO')
+
+			SELECT CASE(Interface)
+			CASE ('SA')
+				As = As1
+			CASE ('LA')
+				As = As2
+			CASE ('LS')
+				As = As12
+			CASE DEFAULT
+				WRITE(42,*) 'WRONG INTERFACE! / FUNCTION Surface_Tension_x' 
+				STOP
+			END SELECT
+            COEFF1 = As+1.d0
+            COEFF2 = COEFF1**(1.d0/3.d0)-1.d0
+            Surface_Tension_xx =  (12.d0 * COEFF1 * COEFF2**2 * gx**2) & 
+                                        /(As * (1 + g*COEFF2)**5) &
+                                 -( 3.d0 * COEFF1 * COEFF2    * gxx  ) & 
+                                        /(As * (1 + g*COEFF2)**4)
+
+		CASE DEFAULT
+			WRITE(42,*) 'WRONG SELECTION OF MODEL! / FUNCTION Surface_Tension_x' 
+			STOP
+		END SELECT
+
+		RETURN
+	END FUNCTION Surface_Tension_xx
 
 	REAL(8) FUNCTION Fm(m)
 		IMPLICIT NONE

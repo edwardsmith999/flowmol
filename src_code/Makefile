@@ -12,10 +12,10 @@ FC = ifort
 # Fortran compiler options
 
 # Debug
-FFLAGS_DEBUG = -O0 -g -traceback -CB -fpe0 -debug extended -check all 
+FFLAGS_DEBUG:= -O0 -g -traceback -CB -fpe0 -debug extended# -check all 
 
 # Generic optimization
-FFLAGS = -O3 #-axSSSE3,SSE3
+FFLAGS_DEFAULT:= -O3 #-axSSSE3,SSE3
 
 # Fortran linker options
 LDFLAGS =
@@ -50,11 +50,17 @@ LIBS = $(MKL)
 # Rules for compilation
 all: $(PROG)
 
-$(PROG): obj $(OBJS)
+$(PROG): obj setflags $(OBJS)
 	$(FC) $(FFLAGS) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
 
-debug: obj $(OBJS)
-	$(FC) $(FFLAGS_DEBUG) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
+debug: obj changeflags $(OBJS)
+	$(FC) $(FFLAGS) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
+
+setflags:
+    $(eval FFLAGS = $(FFLAGS_DEFAULT))
+changeflags:
+    $(eval FFLAGS ?= $(FFLAGS_DEBUG))
+
 
 clean:
 	rm -f $(OBJS) $(OBJ_DIR)/*.mod
