@@ -219,12 +219,12 @@ contains
 		DO I = 1, NINT_3P
 
 			CALL  F_LINEAR( F1N(1:NBF_L), DF1N(1:NBF_L), NBF_L, GAPT_3P(I) )
-							TF_L(1:NBF_L,I) =  F1N(1:NBF_L)
-							DTF_L(1:NBF_L,I) = DF1N(1:NBF_L)
+			TF_L(1:NBF_L,I)  = F1N(1:NBF_L)
+			DTF_L(1:NBF_L,I) = DF1N(1:NBF_L)
 
 			CALL F_QUADRATIC( F1N(1:NBF_Q), DF1N(1:NBF_Q), NBF_Q, GAPT_3P(I) )
-								TF_Q(1:NBF_Q,I) =  F1N(1:NBF_Q)
-								DTF_Q(1:NBF_Q,I) = DF1N(1:NBF_Q)
+			TF_Q(1:NBF_Q,I)  = F1N(1:NBF_Q)
+			DTF_Q(1:NBF_Q,I) = DF1N(1:NBF_Q)
 
 		ENDDO
 
