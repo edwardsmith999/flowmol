@@ -626,8 +626,6 @@ function linspace(d1, d2, n)
         linspace(i+1) = d1 + i * (d2-d1)/(n1)
     enddo
 
-   ! print'(20f7.2)',linspace
-
 end function linspace
 
 !------------------------------------------------------------------------------
