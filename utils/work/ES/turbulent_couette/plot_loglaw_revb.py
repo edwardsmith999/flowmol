@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
+from scipy.optimize import curve_fit
+import scipy
 
 sys.path.append('../../../')
 import postproclib as ppl
@@ -9,7 +11,7 @@ def flip(a):
     return -a[::-1]
 
 #Get MD profile data
-fdir = '/media/My Passport/Work/MD_turbulence/Highres_iter_2800000_16ybinpercell/results/'
+fdir = '/home/es205/scratch/Re400/Highres_iter_2800000_16ybinpercell/results'
 
 densityObj = ppl.MD_dField(fdir)
 momentumObj = ppl.MD_momField(fdir)
@@ -67,6 +69,23 @@ wall_stress_loc = 60
 #Scaling parameters
 visc = 1.8; fluiddensity = 0.3
 dudy = np.diff(u_MD[:,0])/np.diff(y_MD)
+
+#def func(x, a, b, c, d, e, f, g, h, i):
+#  return g*np.cos(h*x) + i*x**6. + f*x**5. + e*x**4. + d*x**3. + c*x**2. + b*x + a
+
+def func(x, A):
+    return A*np.log(np.tan(x*0.25*np.pi/(0.5*x.max())))
+
+#p0 = scipy.array([1])
+#coeffs, matcov = curve_fit(func, y_MD, u_MD[:,0], p0)
+#yaj = func(y_MD, *coeffs)
+yaj = func(y_MD, 2.5)
+plt.plot(y_MD, u_MD[:,0],'x',y_MD,yaj,'r-')
+plt.show()
+
+
+
+
 dudy_top =  np.max(dudy[wall_stress_loc:-wall_stress_loc])
 dudy_bot = -np.min(dudy[wall_stress_loc:-wall_stress_loc])
 dudy_ave = 0.5*(dudy_top + dudy_bot)
@@ -81,7 +100,7 @@ u_plus_MD = mom_MD/(fluiddensity*u_tau);
 u_plus_MD_loc = u_MD/u_tau
 
 #Setup analytical solutions
-#kappa = 0.41; alpha = 5.1
+#kappa = 0.41; alpha = 5.5
 kappa = 1.0; alpha = -3.15
 #y_plus_wall = (y_MD[sublayer_strt:mid])/delta_tau
 strt = sublayer_strt-MDlayer_strt
@@ -106,7 +125,7 @@ plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 plt.rc('text', usetex=True)
 
 labley = -14
-ax2.text(y_plus_MD[1],labley,r'$\underbrace{\phantom{a + b + c + d + e + f + g + h }}_{Subviscous}$',fontsize=fsize)
+ax2.text(y_plus_MD[1],labley,r'$\underbrace{\phantom{a + b + c + d + e + f + g + h }}_{\mathcal{MD} \; Stick-Slip}$',fontsize=fsize)
 ax2.text(y_plus_MD[sublayer_strt-MDlayer_strt],labley,r'$\underbrace{\phantom{a + b + c + d \;\;\; }}_{Viscous}$',fontsize=fsize)
 ax2.text(y_plus_MD[bufferlayer_strt-MDlayer_strt],labley,r'$\underbrace{\phantom{a + b + c  \; }}_{Buffer}$',fontsize=fsize)
 ax2.text(y_plus_MD[loglaw_strt-MDlayer_strt],labley,r'$\underbrace{\phantom{a + b \; }}_{Loglaw}$',fontsize=fsize)
@@ -116,10 +135,14 @@ ax2.plot(y_plus_MD[bufferlayer_strt:],loglaw[bufferlayer_strt:],'k--')
 #ax1.set_xscale('log')
 ax2.set_xscale('log')
 ax2.set_xlim([6e-3,31])
+xticks=ax2.get_xticks().tolist()
+
 ax2.set_ylim([-15,1.01])
 
 ax2.set_xlabel('$y^+$')
 ax2.set_ylabel('$u^+$')
 
-plt.savefig('/home/es205/Documents/Turbulent_Couette/Resubmission_butwhere/law_of_the_wall.pdf')
+plt.show()
+#plt.savefig('./law_of_the_wall.pdf')
+#plt.savefig('/home/es205/Documents/Turbulent_Couette/Resubmission_butwhere/law_of_the_wall.pdf')
 

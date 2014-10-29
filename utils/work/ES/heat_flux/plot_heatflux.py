@@ -15,9 +15,9 @@ import postproclib as ppl
 
 #Get MD profile data
 #fdir = '/home/es205/results/heat_flux/initial_study/'
-fdir = '/home/es205/results/heat_flux/run_2/'
+#fdir = '/home/es205/results/heat_flux/run_2/'
 #fdir = '/home/es205/results/heat_flux/initial_VA_study/iter10000_20000/'
-#fdir = '../../../../MD_dCSE/src_code/results/'
+fdir = '../../../../MD_dCSE/src_code/results/'
 #startrec = 30; endrec = 995
 startrec = 1; endrec = 15
 nrecs = (endrec-startrec)+1
@@ -123,8 +123,8 @@ axs[1,0].plot(y_MD,u_analy[:],'-k',label=r'$u_{analy} $', lw=4)
 axs[1,0].plot(y_MD,rho_u_p[:,0]/(nrecs*fluiddensity),'-r',label=r'$\rho u^{VA}/\rho$', markersize=ms)
 axs[1,0].plot(y_MD,u_p[:,0],'--b',label=r'$u^{VA}$', markersize=ms)
 
-axs[1,0].plot(y_MD,rho_uCV_p[:,0]/(fluiddensity),'or',label=r'$ \rho u^{CV}/\rho$', markersize=ms)
-axs[1,0].plot(y_MD,uCV_p[:,0],'^b',label=r'$u_{CV}$', markersize=ms)
+axs[1,0].plot(y_MD,rhou_CV_p[:,0]/(fluiddensity),'or',label=r'$ \rho u^{CV}/\rho$', markersize=ms)
+axs[1,0].plot(y_MD,u_CV_p[:,0],'^b',label=r'$u_{CV}$', markersize=ms)
 
 axs[1,0].set_ylim((-2.0,2.0))
 
@@ -138,7 +138,7 @@ axs[2,0].plot(y_MD,-tau_analy[:],'-k',label=r'$\tau_{analy} $', lw=4)
 axs[2,0].plot(y_MD_surf,psurface_p[:,ixyz],styles['CVc'],label=r'$ \sigma_{yx}^{MOP} $', markersize=ms)
 axs[2,0].plot(y_MD_surf,vflux_p[:,ixyz],styles['CVk'],label=r'$ \kappa_{yx}^{MOP} $', markersize=ms)
 axs[2,0].plot(y_MD_surf,PiMOP_p[:,ixyz],styles['CV'],label=r'$ \Pi_{yx}^{MOP} $', markersize=ms)
-axs[2,0].plot(y_MD_surf,rho_uuCV_p[:,ixyz],'c^',label=r'$ \rho u v^{MOP} $', markersize=ms)
+axs[2,0].plot(y_MD_surf,rhouu_CV_p[:,ixyz],'c^',label=r'$ \rho u v^{MOP} $', markersize=ms)
 
 #VA method
 ixyz = 1
@@ -159,8 +159,8 @@ titles[1].append('Energy Equation Terms in x')
 axs[1,1].plot(y_MD,esurface_p[:,0],styles['CVc'],label='$fijvi^{MOP}$', markersize=ms)
 axs[1,1].plot(y_MD,eflux_p[:,0],styles['CVk'],label='$evi^{MOP}$', markersize=ms)
 axs[1,1].plot(y_MD,esurface_p[:,0]+eflux_p[:,0],styles['CV'],label='$[fijvidS+ evi]^{MOP}$', markersize=ms)
-axs[1,1].plot(y_MD,CV_stressheat_p[:,0],'c^',label='$Stress Heating MOP$', markersize=ms)
-axs[1,1].plot(y_MD,CVrhouE_p[:,0],'md',label=r'$\rho u E ^{MOP}$', markersize=ms)
+axs[1,1].plot(y_MD,stressheat_CV_p[:,0],'c^',label='$Stress Heating MOP$', markersize=ms)
+axs[1,1].plot(y_MD,rhouE_CV_p[:,0],'md',label=r'$\rho u E ^{MOP}$', markersize=ms)
 
 
 axs[1,1].plot(y_MD,hfVA_c_p[:,0],styles['VAc'],label='$fijvi^{VA}$', markersize=ms)
@@ -175,8 +175,8 @@ titles[2].append('Energy Equation Terms in y')
 axs[2,1].plot(y_MD,esurface_p[:,1],styles['CVc'],label='$fijvi^{MOP}$', markersize=ms)
 axs[2,1].plot(y_MD,eflux_p[:,1],styles['CVk'],label='$evi^{MOP}$', markersize=ms)
 axs[2,1].plot(y_MD,esurface_p[:,1]+eflux_p[:,1],styles['CV'],label='$[fijvidS+ evi] ^{MOP}$', markersize=ms)
-axs[2,1].plot(y_MD,CV_stressheat_p[:,1],'c^',label='$Stress Heating^{MOP}$', markersize=ms)
-axs[2,1].plot(y_MD,CVrhouE_p[:,1],'md',label=r'$\rho u E^{MOP}$', markersize=ms)
+axs[2,1].plot(y_MD,stressheat_CV_p[:,1],'c^',label='$Stress Heating^{MOP}$', markersize=ms)
+axs[2,1].plot(y_MD,rhouE_CV_p[:,1],'md',label=r'$\rho u E^{MOP}$', markersize=ms)
 
 axs[2,1].plot(y_MD,hfVA_c_p[:,1],styles['VAc'],label='$fijvi^{VA}$', markersize=ms)
 axs[2,1].plot(y_MD,hfVA_k_p[:,1],styles['VAk'],label='$evi^{VA}$', markersize=ms)

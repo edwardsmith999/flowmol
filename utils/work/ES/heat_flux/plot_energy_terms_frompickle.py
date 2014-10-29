@@ -9,7 +9,7 @@ sys.path.append('../../../')
 import postproclib as ppl
 
 # Load a dictionary into a pickle file.
-nrecs = 1596
+nrecs = 999
 varsDict = pickle.load( open( "heatflux.p", "rb" ) )
 varsObjs = pickle.load( open( "heatflux_obj.p", "rb" ) )
 print(varsDict.keys())
@@ -81,7 +81,7 @@ for row in range(rows):
 	titles.append([])
 
 styles = {'VAc':'r-', 'CVc':'kx','VAk':'b-','CVk':'ks','VA':'g-','CV':'ko'}
-ms = 2; lt = 1
+ms = 4; lt = 1
 
 def linear_fn(x, b, c):
     return  b * x + c
@@ -93,49 +93,58 @@ titles[1].append('Energy Equation Terms in x')
 
 
 
-liquidbins = range(liquidstart,liquidend)
+liquidbins = range(liquidstart,liquidend,10)
+qs = ['_x','_y']
+for ixyz in [0,1]:
+    axs[ixyz,0].plot(y_MD[liquidbins],esurface_p[liquidbins,ixyz],styles['CVc'],label=r'$fijvi^{MOP}'+ qs[ixyz] + '$', markersize=ms)
+    axs[ixyz,0].plot(y_MD[liquidbins],hfVA_c_p[liquidbins,ixyz],styles['VAk'],label=r'$fijvi^{VA}'+ qs[ixyz] + '$', markersize=ms)
 
-ixyz = 0
-axs[ixyz,0].plot(y_MD[liquidbins],pVA_stressheat_p[liquidbins,ixyz],styles['VAc'],label='$\Pi \cdot u$', markersize=ms)
-axs[ixyz,0].plot(y_MD[liquidbins],hfVA_c_p[liquidbins,ixyz],'g',label='$fijvi^{VA}$', markersize=ms)
-axs[ixyz,0].plot(y_MD[liquidbins],esurface_p[liquidbins,ixyz]-CV_stressheat_p[liquidbins,ixyz],styles['CVc'],label='$fijvi^{MOP}-\Pi \cdot u$', markersize=ms)
+    #axs[ixyz,0].plot(y_MD[liquidbins],esurface_p[liquidbins,ixyz]-stressheat_CV_p[liquidbins,ixyz],styles['CV'],label=r'$fijvi^{MOP}-[\Pi \cdot u]^{MOP}$', markersize=ms)
+    #axs[ixyz,0].plot(y_MD[liquidbins],-pVA_stressheat_p[liquidbins,ixyz]-hfVA_c_p[liquidbins,ixyz],styles['VA'],label=r'$fijvi^{VA}-[\Pi \cdot u]^{VA}$', markersize=ms)
 
-axs[ixyz,1].plot(y_MD[liquidbins],hfVA_k_p[liquidbins,ixyz],styles['VAk'],label=r'$evi^{VA}$', markersize=ms)
-axs[ixyz,1].plot(y_MD[liquidbins],rhouE_p[liquidbins,ixyz],'g',label=r'$\rho uE$', markersize=ms)
-axs[ixyz,1].plot(y_MD[liquidbins],eflux_p[liquidbins,ixyz]-CVrhouE_p[liquidbins,ixyz],styles['CVk'],label='$evi^{MOP} - \rho u E$', markersize=ms)
+    axs[ixyz,1].plot(y_MD[liquidbins],hfVA_k_p[liquidbins,ixyz],styles['VAk'],label=r'$evi^{VA}'+ qs[ixyz] + '$', markersize=ms)
+    axs[ixyz,1].plot(y_MD[liquidbins],eflux_p[liquidbins,ixyz],styles['CVk'],label=r'$evi^{MOP}'+ qs[ixyz] + '$', markersize=ms)
 
+    axs[ixyz,1].plot(y_MD[liquidbins],rhouE_p[liquidbins,ixyz],styles['VAc'],label=r'$\rho uE^{VA}'+ qs[ixyz] + '$', markersize=ms)
+    axs[ixyz,1].plot(y_MD[liquidbins],rhouE_CV_p[liquidbins,ixyz],styles['CVc'],label=r'$\rho uE^{MOP}'+ qs[ixyz] + '$', markersize=ms)
 
-axs[ixyz,2].plot(y_MD[liquidbins],esurface_p[liquidbins,ixyz]+eflux_p[liquidbins,ixyz],styles['CV'],label='$[fijvidS+ evi]^{MOP}$', markersize=ms)
-axs[ixyz,2].plot(y_MD[liquidbins],hfVA_c_p[liquidbins,ixyz]+hfVA_k_p[liquidbins,ixyz],styles['VA'],label='$[fijvidS+ evi]^{VA}$', markersize=ms)
-
-
-q_VA = ( hfVA_c_p[liquidbins,ixyz]-pVA_stressheat_p[liquidbins,ixyz]
-        +hfVA_k_p[liquidbins,ixyz]-rhouE_p[liquidbins,ixyz]         )
-q_CV= ( esurface_p[liquidbins,ixyz]-CV_stressheat_p[liquidbins,ixyz]
-        +  eflux_p[liquidbins,ixyz]-CVrhouE_p[liquidbins,ixyz]      )
-axs[ixyz,3].plot(y_MD[liquidbins],q_CV,styles['CV'],label='$q^{MOP}$', markersize=ms)
-axs[ixyz,3].plot(y_MD[liquidbins],q_VA,styles['VA'],label='$q^{VA}$', markersize=ms)
-
-ixyz = 1
-axs[ixyz,0].plot(y_MD[liquidbins],pVA_stressheat_p[liquidbins,ixyz],styles['VAc'],label='$\Pi \cdot u$', markersize=ms)
-axs[ixyz,0].plot(y_MD[liquidbins],hfVA_c_p[liquidbins,ixyz],'g',label='$fijvi^{VA}$', markersize=ms)
-axs[ixyz,0].plot(y_MD[liquidbins],esurface_p[liquidbins,ixyz]-CV_stressheat_p[liquidbins,ixyz],styles['CVc'],label='$fijvi^{MOP}-\Pi \cdot u$', markersize=ms)
+    #axs[ixyz,1].plot(y_MD[liquidbins],eflux_p[liquidbins,ixyz]-rhouE_CV_p[liquidbins,ixyz],styles['CV'],label=r'$evi^{MOP} - \rho u E^{MOP}$', markersize=ms)
+    #axs[ixyz,1].plot(y_MD[liquidbins],hfVA_k_p[liquidbins,ixyz]-rhouE_p[liquidbins,ixyz],styles['VA'],label=r'$evi^{VA} - \rho u E^{VA}$', markersize=ms)
 
 
-axs[ixyz,1].plot(y_MD[liquidbins],hfVA_k_p[liquidbins,ixyz],'g',label='$evi^{VA}$', markersize=ms)
-axs[ixyz,1].plot(y_MD[liquidbins],rhouE_p[liquidbins,ixyz],styles['VAk'],label='$rhouE_p$', markersize=ms)
-axs[ixyz,1].plot(y_MD[liquidbins],eflux_p[liquidbins,ixyz]-CVrhouE_p[liquidbins,ixyz],styles['CVk'],label=r'$evi^{MOP}- \rho u E$', markersize=ms)
+    axs[ixyz,2].plot(y_MD[liquidbins],stressheat_CV_p[liquidbins,ixyz],styles['CVk'],label=r'$[\Pi \cdot u]^{MOP}'+ qs[ixyz] + '$', markersize=ms)
+    axs[ixyz,2].plot(y_MD[liquidbins],pVA_stressheat_p[liquidbins,ixyz],styles['VAc'],label=r'$[\Pi \cdot u]^{VA}'+ qs[ixyz] + '$', markersize=ms)
+
+    axs[ixyz,2].plot(y_MD[liquidbins],esurface_p[liquidbins,ixyz]+eflux_p[liquidbins,ixyz],styles['CV'],label='$[fijvidS+ evi]^{MOP}'+ qs[ixyz] + '$', markersize=ms)
+    axs[ixyz,2].plot(y_MD[liquidbins],hfVA_c_p[liquidbins,ixyz]+hfVA_k_p[liquidbins,ixyz],styles['VA'],label='$[fijvidS+ evi]^{VA}'+ qs[ixyz] + '$', markersize=ms)
+
+    q_VA = ( hfVA_c_p[liquidbins,ixyz]-pVA_stressheat_p[liquidbins,ixyz]
+            +hfVA_k_p[liquidbins,ixyz]-rhouE_p[liquidbins,ixyz]         )
+    q_CV= ( esurface_p[liquidbins,ixyz]-stressheat_CV_p[liquidbins,ixyz]
+            +  eflux_p[liquidbins,ixyz]-rhouE_CV_p[liquidbins,ixyz]      )
+    axs[ixyz,3].plot(y_MD[liquidbins],q_CV,styles['CV'],label='$q^{MOP}' + qs[ixyz] + '$', markersize=ms)
+    axs[ixyz,3].plot(y_MD[liquidbins],q_VA,styles['VA'],label='$q^{VA}' + qs[ixyz] + '$', markersize=ms)
+
+#ixyz = 1
+#axs[ixyz,0].plot(y_MD[liquidbins],pVA_stressheat_p[liquidbins,ixyz],styles['VAc'],label='$\Pi \cdot u$', markersize=ms)
+#axs[ixyz,0].plot(y_MD[liquidbins],hfVA_c_p[liquidbins,ixyz],'g',label='$fijvi^{VA}$', markersize=ms)
+#axs[ixyz,0].plot(y_MD[liquidbins],esurface_p[liquidbins,ixyz]-stressheat_CV_p[liquidbins,ixyz],styles['CVc'],label='$fijvi^{MOP}-\Pi \cdot u$', markersize=ms)
 
 
-axs[ixyz,2].plot(y_MD[liquidbins],esurface_p[liquidbins,ixyz]+eflux_p[liquidbins,ixyz],styles['CV'],label='$[fijvidS+ evi]^{MOP}$', markersize=ms)
-axs[ixyz,2].plot(y_MD[liquidbins],hfVA_c_p[liquidbins,ixyz]+hfVA_k_p[liquidbins,ixyz],styles['VA'],label='$[fijvidS+ evi]^{VA}$', markersize=ms)
+#axs[ixyz,1].plot(y_MD[liquidbins],hfVA_k_p[liquidbins,ixyz],'g',label='$evi^{VA}$', markersize=ms)
+#axs[ixyz,1].plot(y_MD[liquidbins],rhouE_p[liquidbins,ixyz],styles['VAk'],label='$rho u E$', markersize=ms)
+#axs[ixyz,1].plot(y_MD[liquidbins],eflux_p[liquidbins,ixyz]-rhouE_CV_p[liquidbins,ixyz],styles['CVk'],label=r'$evi^{MOP}- \rho u E$', markersize=ms)
 
-q_VA = ( hfVA_c_p[liquidbins,ixyz]-pVA_stressheat_p[liquidbins,ixyz]
-        +hfVA_k_p[liquidbins,ixyz]-rhouE_p[liquidbins,ixyz]         )
-q_CV= ( esurface_p[liquidbins,ixyz]-CV_stressheat_p[liquidbins,ixyz]
-        +  eflux_p[liquidbins,ixyz]-CVrhouE_p[liquidbins,ixyz]      )
-axs[ixyz,3].plot(y_MD[liquidbins],q_CV,styles['CV'],label='$q^{MOP}$', markersize=ms)
-axs[ixyz,3].plot(y_MD[liquidbins],q_VA,styles['VA'],label='$q^{VA}$', markersize=ms)
+
+#axs[ixyz,2].plot(y_MD[liquidbins],esurface_p[liquidbins,ixyz]+eflux_p[liquidbins,ixyz],styles['CV'],label='$[fijvidS+ evi]^{MOP}$', markersize=ms)
+#axs[ixyz,2].plot(y_MD[liquidbins],hfVA_c_p[liquidbins,ixyz]+hfVA_k_p[liquidbins,ixyz],styles['VA'],label='$[fijvidS+ evi]^{VA}$', markersize=ms)
+
+#q_VA = ( hfVA_c_p[liquidbins,ixyz]-pVA_stressheat_p[liquidbins,ixyz]
+#        +hfVA_k_p[liquidbins,ixyz]-rhouE_p[liquidbins,ixyz]         )
+#q_CV= ( esurface_p[liquidbins,ixyz]-stressheat_CV_p[liquidbins,ixyz]
+#        +  eflux_p[liquidbins,ixyz]-rhouE_CV_p[liquidbins,ixyz]      )
+#axs[ixyz,3].plot(y_MD[liquidbins],q_CV,styles['CV'],label='$q^{MOP}_y$', markersize=ms)
+#axs[ixyz,3].plot(y_MD[liquidbins],q_VA,styles['VA'],label='$q^{VA}_y$', markersize=ms)
 
 
 for ixyz in range(0,2):
@@ -144,7 +153,9 @@ for ixyz in range(0,2):
     axs[ixyz,2].legend(loc='best')
     axs[ixyz,3].legend(loc='best')
 
-plt.savefig('./energy_terms.pdf')
+figname ='./energy_terms.pdf'
+plt.savefig(figname)
+os.system('evince ' + figname)
 #plt.show()
 
 

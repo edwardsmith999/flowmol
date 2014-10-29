@@ -201,7 +201,7 @@ class MD_RawData:
 
 
     def read(self, startrec, endrec, binlimits=None, verbose=False, 
-             quit_on_error=True):
+             missingrec='raise'):
 
         """
             Required inputs:
@@ -219,9 +219,9 @@ class MD_RawData:
                 
         """
 
-        #return_zeros if data cannot be obtained
-        return_zeros = False
-      
+        #return_zeros or skip_rec if data cannot be obtained?
+        return_zeros = False; skip_rec = False; skiprecs = []
+
         # Store how many records are to be read
         nrecs = endrec - startrec + 1 
         # Allocate enough memory in the C library to efficiently insert
@@ -235,17 +235,19 @@ class MD_RawData:
 
             # Loop through files and append data
             for plusrec in range(0,nrecs):
-
                 filepath = self.fdir+self.fname+'.'+"%07d"%(startrec+plusrec)
                 try: 
                     fobj = open(filepath,'rb')
                 except:
-                    if quit_on_error:
+                    if missingrec is 'raise':
                         print('Unable to find file ' + filepath)    
                         raise DataNotAvailable
-                    else:
-                        print('Unable to find file ' + filepath)
+                    elif missingrec is 'returnzeros':
+                        print('Unable to find file ' + filepath, '. Returning zeros')
                         return_zeros = True
+                    elif missingrec is 'skip':
+                        print('Unable to find file ' + filepath, '. Reducing returned records by one')
+                        skip_rec = True
 
                 istart = plusrec*recitems
                 iend = istart + recitems
@@ -255,9 +257,15 @@ class MD_RawData:
                 if return_zeros:
                     bindata = np.zeros([ self.nbins[0],self.nbins[1],
                                          self.nbins[2],self.nperbin ,nrecs ])
+                elif skip_rec:
+                    skiprecs.append(plusrec)
                 else:
                     bindata[istart:iend] = np.fromfile(fobj,dtype=self.dtype)
                     fobj.close()
+
+                #Reset ready for next record
+                return_zeros = False
+                skip_rec = False
 
        # Else
         else:
@@ -265,12 +273,15 @@ class MD_RawData:
             try: 
                 fobj = open(self.fdir+self.fname,'rb')
             except:
-                if quit_on_error:
+                if missingrec is 'raise':
                     print('Unable to find file ' + filepath)    
                     raise DataNotAvailable 
-                else:
-                    print('Unable to find file ' + self.fname)
+                elif missingrec is 'returnzeros':
+                    print('Unable to find file ' + filepath, '. Returning zeros')
                     return_zeros = True
+                elif missingrec is 'skip':
+                    print('Unable to find file ' + filepath, '. Returning nothing')
+                    skip_rec = True
 
             # Seek to correct point in the file
             if (self.dtype == 'i'):
@@ -278,10 +289,8 @@ class MD_RawData:
             elif (self.dtype == 'd'):
                 recbytes = 8*recitems
             else:
-                if quit_on_error:
-                    sys.exit('Unrecognised data type in read_bins')
-                else:
-                    print('Unrecognised data type in read_bins')   
+                sys.exit('Unrecognised data type ' + self.dtype + ' specified in read_bins')
+ 
             seekbyte = startrec*recbytes
             fobj.seek(seekbyte)
 
@@ -293,6 +302,8 @@ class MD_RawData:
             if return_zeros:
                 bindata = np.zeros([ self.nbins[0],self.nbins[1],
                                      self.nbins[2],self.nperbin ,nrecs ])
+            elif skip_rec:
+                return
             else:
                 bindata = np.fromfile(fobj, dtype=self.dtype,
                                       count=nrecs*recitems)  
@@ -311,6 +322,10 @@ class MD_RawData:
                                nrecs ],
                               order='F')
         bindata = np.transpose(bindata, (0,1,2,4,3))
+
+        #If records were missing and skip record requested
+        if skip_rec:
+            np.delete(bindata,skiprecs,axis=3)
 
         # If bin limits are specified, return only those within range
         if (binlimits):

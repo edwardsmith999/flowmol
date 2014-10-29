@@ -22,6 +22,7 @@ class channelflow_PostProc(PostProc):
 
         possibles = {'channelflow Velocity': Channelflow_vField,
                      'Channelflow strain': Channelflow_strainField,
+                     'Channelflow uu': Channelflow_uuField,
                      'Channelflow vorticity': Channelflow_vortField,
                      'Channelflow Dissipation': Channelflow_dissipField}
         

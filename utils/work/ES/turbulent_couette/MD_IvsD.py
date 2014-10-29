@@ -6,12 +6,13 @@ import sys
 sys.path.append('../../../')
 import postproclib as ppl
 from postproclib.mdpostproc import MD_PostProc
-from misclib import tvregdiff
+#from misclib import tvregdiff
 
-fdirs = ['/media/My Passport/Work/MD_laminar/Re400_transition/iter350000_to_1050000/results', '/media/My Passport/Work/MD_turbulence/COMBINED_iter0_to_5600000/bins64x256x64/','/media/My Passport/Work/MD_turbulence/COMBINED_iter0_to_5600000/bins84x198x50/']
+#fdirs = ['/media/My Passport/Work/MD_laminar/Re400_transition/iter350000_to_1050000/results', '/media/My Passport/Work/MD_turbulence/COMBINED_iter0_to_5600000/bins64x256x64/','/media/My Passport/Work/MD_turbulence/COMBINED_iter0_to_5600000/bins84x198x50/']
+fdirs = ['/home/es205/scratch/Re400_transition/iter350000_to_1050000/results', '/home/es205/scratch/Re400/COMBINED_iter0_to_5600000/bins64x256x64/','/home/es205/scratch/Re400/COMBINED_iter0_to_5600000/bins84x198x50/']
 startrecs = [0,0,960]
 endrecs   = [185,980,3500]
-skip = 300
+skip = 50
 
 I = []; D = []
 for i, fdir in enumerate(fdirs):

@@ -4,6 +4,7 @@ from plot import PyplotPanel
 from choosefield import FieldChooserPanel
 from sliders import RecordSliderPanel
 from math import log10, floor
+import math as maths
 
 from postproclib.pplexceptions import DataNotAvailable
 from postproclib.allpostproc import All_PostProc  
@@ -18,33 +19,108 @@ class VisualiserPanel(wx.Panel):
         if (fdir[-1] != '/'): fdir+='/'
         self.fdir = fdir
         self.PP = All_PostProc(self.fdir)
-        #Define rounding function with lambda
-        self.round_to_n = lambda x, n: x 
-        #self.round_to_n = lambda x, n: round(x, -int(floor(log10(abs(x)))) + (n - 1)) 
+
         # Loop through all field classes and try to initialise at least one.
         # As fundametal classes typically return zeros on missing results 
         # while DataNotAvailable error is returned for some complex classes
         for item in self.PP.plotlist.items():
             try:    
-                print(item)
-                self.fieldname, self.field = item
-                self.pyplotp = PyplotPanel(self)
-                self.choosep = FieldChooserPanel(self)
-                self.slidersp = RecordSliderPanel(self)
-            
-                vbox = wx.BoxSizer(wx.VERTICAL)
-                hbox = wx.BoxSizer(wx.HORIZONTAL)
-                hbox.Add(self.choosep, 0, wx.EXPAND | wx.ALL)
-                hbox.Add(self.pyplotp, 1, wx.EXPAND | wx.ALL)
-                vbox.Add(hbox, 1, wx.EXPAND | wx.ALL)
-                vbox.Add(self.slidersp, 0, wx.EXPAND | wx.ALL)
-                self.SetSizer(vbox)
-
-                self.set_bindings()
-                self.set_defaults()
+                self.initialise_visuals(item)
+                #If successful, use the current object
+                # if not then keep trying
                 break
             except DataNotAvailable, ValueError:
                 pass
+
+    def round_to_n(self,x,p):
+        """
+        returns a string representation of x formatted with a precision of p
+
+        Based on the webkit javascript implementation taken from here:
+        https://code.google.com/p/webkit-mirror/source/browse/JavaScriptCore/kjs/number_object.cpp
+        """
+
+        x = float(x)
+
+        if x == 0.:
+            return "0." + "0"*(p-1)
+
+        out = []
+
+        if x < 0:
+            out.append("-")
+            x = -x
+
+        e = int(maths.log10(x))
+        tens = maths.pow(10, e - p + 1)
+        n = maths.floor(x/tens)
+
+        if n < maths.pow(10, p - 1):
+            e = e -1
+            tens = maths.pow(10, e - p+1)
+            n = maths.floor(x / tens)
+
+        if abs((n + 1.) * tens - x) <= abs(n * tens -x):
+            n = n + 1
+
+        if n >= maths.pow(10,p):
+            n = n / 10.
+            e = e + 1
+
+        m = "%.*g" % (p, n)
+
+        if e < -2 or e >= p:
+            out.append(m[0])
+            if p > 1:
+                out.append(".")
+                out.extend(m[1:p])
+            out.append('e')
+            if e > 0:
+                out.append("+")
+            out.append(str(e))
+        elif e == (p -1):
+            out.append(m)
+        elif e >= 0:
+            out.append(m[:e+1])
+            if e+1 < len(m):
+                out.append(".")
+                out.extend(m[e+1:])
+        else:
+            out.append("0.")
+            out.extend(["0"]*-(e+1))
+            out.append(m)
+
+        return "".join(out)
+
+
+#    def round_to_n(self,x,n):
+
+#        if x > 1e-6:
+#            #Define rounding function with lambda
+#            round_to_n = lambda x, n: round(x, -int(floor(log10(abs(x)))) + (n - 1))
+#        else:
+#            round_to_n = lambda x, n: x 
+
+#        return round_to_n(x,n)
+
+    def initialise_visuals(self,item):
+        print('Trying to initialise visuals with ', item)
+        self.fieldname, self.field = item
+        self.pyplotp = PyplotPanel(self)
+        self.choosep = FieldChooserPanel(self)
+        self.slidersp = RecordSliderPanel(self)
+    
+        vbox = wx.BoxSizer(wx.VERTICAL)
+        hbox = wx.BoxSizer(wx.HORIZONTAL)
+        hbox.Add(self.choosep, 0, wx.EXPAND | wx.ALL)
+        hbox.Add(self.pyplotp, 1, wx.EXPAND | wx.ALL)
+        vbox.Add(hbox, 1, wx.EXPAND | wx.ALL)
+        vbox.Add(self.slidersp, 0, wx.EXPAND | wx.ALL)
+        self.SetSizer(vbox)
+
+        self.set_bindings()
+        self.set_defaults()
+
 
     def set_defaults(self):
 
@@ -295,14 +371,14 @@ class VisualiserPanel(wx.Panel):
                                             startrec=self.rec-self.recwidth,
                                             endrec=self.rec+self.recwidth,
                                             binlimits=binlimits,
-                                            quit_on_error=False)
+                                            missingrec='returnzeros')
         return ax1, ax2, data[:,:,self.component], naxes
 
     def get_plot_data(self):
         ax, data = self.field.profile(self.normal, 
                                       startrec=self.rec-self.recwidth, 
                                       endrec=self.rec+self.recwidth, 
-                                      quit_on_error=False)
+                                      missingrec='returnzeros')
         return ax, data[:,self.component]
 
     def get_cpl_plot_data(self):
@@ -310,7 +386,7 @@ class VisualiserPanel(wx.Panel):
          cfd_ax_bc, cfd_data_bc) = self.field.profile_both_cnstinfo(self.normal, 
                                       startrec=self.rec-self.recwidth, 
                                       endrec=self.rec+self.recwidth, 
-                                      quit_on_error=False)
+                                      missingrec='returnzeros')
         axs = [md_ax, cfd_ax, md_ax_cnst, cfd_ax_bc]
         datas = [md_data[:,self.component], cfd_data[:,self.component],
                  md_data_cnst[:,self.component], cfd_data_bc[:,self.component]]
@@ -322,10 +398,10 @@ class VisualiserPanel(wx.Panel):
         ylabel = self.fieldname + "_" + self.field.labels[self.component] 
         self.pyplotp.redraw_plot(ax, data, xlabel, ylabel)
         
-        # Trigger event update min/max text values
+        # Set min/max text values
         self.minp, self.maxp = self.pyplotp.ax.get_ylim()
-        self.choosep.minpspin.SetValue(str(self.minp))
-        self.choosep.maxpspin.SetValue(str(self.maxp))
+        self.choosep.minpspin.SetValue(str(self.round_to_n(self.minp,3)))
+        self.choosep.maxpspin.SetValue(str(self.round_to_n(self.maxp,3)))
         #self.post_string_event(wx.EVT_TEXT_ENTER,self.round_to_n(self.minp,6),self.choosep.minpspin)
         #self.post_string_event(wx.EVT_TEXT_ENTER,self.round_to_n(self.maxp,6),self.choosep.maxpspin)
         self.Refresh()
@@ -363,10 +439,10 @@ class VisualiserPanel(wx.Panel):
         xlabel = naxes[0]
         ylabel = naxes[1]
         self.pyplotp.redraw_contour(ax1, ax2, data, xlabel, ylabel)
-        # Trigger event update min/max text values
+        # Set min/max contour values
         self.minp,self.maxp = self.pyplotp.colormesh.get_clim()
-        self.choosep.minpspin.SetValue(str(self.minp))
-        self.choosep.maxpspin.SetValue(str(self.maxp))
+        self.choosep.minpspin.SetValue(str(self.round_to_n(self.minp,3)))
+        self.choosep.maxpspin.SetValue(str(self.round_to_n(self.maxp,3)))
         #self.post_string_event(wx.EVT_TEXT_ENTER,self.round_to_n(self.minp,6),self.choosep.minpspin)
         #self.post_string_event(wx.EVT_TEXT_ENTER,self.round_to_n(self.maxp,6),self.choosep.maxpspin)
         self.Refresh()

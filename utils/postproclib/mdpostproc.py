@@ -310,6 +310,11 @@ class MD_PostProc(PostProc):
                 self.plotlist.update({'T':T1})
             except DataMismatch:
                 pass
+            try:
+                T1 = MD_rhoTField(self.resultsdir, **kwargs)
+                self.plotlist.update({'rhoT':T1})
+            except DataMismatch:
+                pass
 
             #Derivative of temperature heatflux
             try:

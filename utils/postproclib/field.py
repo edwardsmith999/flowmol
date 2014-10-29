@@ -217,8 +217,9 @@ class Field():
 
         return windoweddata, wss 
 
-    def power_spectrum(self,startrec=0,endrec=None,preavgaxes=(),fftaxes=(),
-                       postavgaxes=(), windowaxis=None, verify_Parseval=True,
+    def power_spectrum(self,data=None,startrec=None,endrec=None,
+                       preavgaxes=(), fftaxes=(),postavgaxes=(), 
+                       windowaxis=None, verify_Parseval=True,
                        savefile=None,**kwargs):
 
         """
@@ -262,12 +263,16 @@ class Field():
         
         # ---------------------------------------------------------------- 
         # Do the process 
+        if (startrec==None):
+            startrec = 0
 
         if (endrec==None):
             endrec = self.maxrec
          
-        axisman = self.AxisManager() 
-        data = self.read(startrec, endrec,**kwargs)
+        axisman = self.AxisManager()
+        if data == None:
+            data = self.read(startrec, endrec,**kwargs)
+
         data = self.managed_mean(axisman, data, preavgaxes)
 
         if (windowaxis):
@@ -424,6 +429,7 @@ class Field():
         if (writedir == None):
             writedir = self.fdir
 
+        Nx, Ny, Nz = data.shape[0], data.shape[1], data.shape[2]
         Nxyz = [Nx,Ny,Nz]
         for n,flip in enumerate(flipdir):
             if flip:
@@ -460,6 +466,36 @@ class Field():
 
         return outfiles
 
+
+
+    # Write ascii type field
+    def map_3Ddata_cosinetolinear(self,data,flipdir=[False,True,False],**kwargs):
+
+        Nx, Ny, Nz = data.shape[0], data.shape[1], data.shape[2]
+        Nxyz = [Nx,Ny,Nz]
+        mindir = [0,0,0]; maxdir = [Nx,Ny,Nz]
+        for n,flip in enumerate(flipdir):
+            if flip:
+                mindir[n] = Nxyz[n]
+                maxdir[n] = 0
+            else:
+                mindir[n] = 0
+                maxdir[n] = Nxyz[n] 
+
+        lindata = np.empty(data.shape)
+        for nx in range(mindir[0],maxdir[0]):
+            for nz in range(mindir[2],maxdir[2]):
+                for rec in range(data.shape[3]):
+                    for ixyz in range(data.shape[4]):
+                        print(nx,nz,rec,ixyz)
+                        lindata[nx,:,nz,rec,ixyz] = self.map_data_cosinetolinear(
+                                            data[nx,:,nz,rec,ixyz],
+                                            self.Raw.Ny,
+                                            self.Raw.a,
+                                            self.Raw.b)
+
+        return lindata
+
     def map_data_lineartocosine(self,values_on_linear_grid,Ny,a,b):
         """
             Map data on a linear grid to a cosine grid 
@@ -483,14 +519,15 @@ class Field():
             ycells = np.linspace(0, Ny, Ny)
             ylin = np.linspace(a, b, Ny)
             ycos = 0.5*(b+a) - 0.5*(b-a)*np.cos((ycells*np.pi)/(Ny-1))
-            plt.plot(ycos,values_on_cosine_grid,'x-',label='cosinetolinear Before')
+            #print(ycos.shape,values_on_cosine_grid.shape)
+            #plt.plot(ycos,values_on_cosine_grid,'x-',label='cosinetolinear Before')
             values_on_linear_grid = interp.griddata(ycos, values_on_cosine_grid, 
                                                     ylin, method='cubic',
                                                     fill_value=values_on_cosine_grid[-1])
             #values_on_linear_grid = interp2.map_coordinates(values_on_cosine_grid,ycos,output=ylin)
-            plt.plot(ylin,values_on_linear_grid,'o-',alpha=0.4,label='cosinetolinear After')
-            plt.legend()
-            plt.show()
+            #plt.plot(ylin,values_on_linear_grid,'o-',alpha=0.4,label='cosinetolinear After')
+            #plt.legend()
+            #plt.show()
             return values_on_linear_grid
 
 

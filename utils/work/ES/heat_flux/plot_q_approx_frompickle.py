@@ -9,7 +9,7 @@ sys.path.append('../../../')
 import postproclib as ppl
 
 # Load a dictionary into a pickle file.
-nrecs = 1596
+nrecs = 999
 varsDict = pickle.load( open( "heatflux.p", "rb" ) )
 varsObjs = pickle.load( open( "heatflux_obj.p", "rb" ) )
 print(varsDict.keys())

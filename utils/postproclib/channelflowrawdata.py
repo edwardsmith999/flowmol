@@ -2,6 +2,7 @@
 import numpy as np
 import subprocess as sp
 import os
+import sys
 try:
     import h5py
 except:
@@ -81,7 +82,7 @@ class Channelflow_RawData:
     def get_geom(self):
         try:
             rawgeomdata = sp.check_output([self.fieldprops,'-g', self.filename])
-        except:
+        except OSError:
             raise
 
         # Split into list and keep only variables
@@ -138,11 +139,13 @@ class Channelflow_RawData:
             name = name.replace('u','')
             try:
                 integer, extension = name.split('.')
+                integer = int(integer)
             except ValueError:
                 print("Unrecognised fileno:", name.split('.'))
+                raise DataNotAvailable
                 integer = 10000000000
 
-            return int(integer)
+            return integer
 
         subdoms = []
         for filename in os.listdir(self.fdir):
@@ -199,19 +202,25 @@ class Channelflow_RawData:
 #									     ycos, method='cubic')
 #	    return values_on_cosine_grid
 
-#    def map_data_cosinetolinear(values_on_cosine_grid,Ny=self.ny,a=-1,b=1):
-#            """
-#                Map data on a cosine grid to a linear grid 
-#            """
-#	        ycells = np.linspace(0, Ny, Ny)
-#	        ylin = np.linspace(a, b, Ny)
-#	        ycos = 0.5*(b+a) - 0.5*(b-a)*np.cos((ycells*np.pi)/(Ny-1))
-#	        values_on_linear_grid = griddata(ycos, values_on_cosine_grid, 
-#									         ylin, method='cubic')
-#	        return values_on_linear_grid
+#    def map_data_cosinetolinear(self,cosgrid,Ny=None,a=-1.0,b=1.0):
+
+#        """
+#            Map data on a cosine grid to a linear grid 
+#        """
+#        if Ny == None:
+#            Ny = self.ny
+
+#        ycells = np.linspace(0, Ny, Ny)
+#        ylin = np.linspace(a, b, Ny)
+#        ycos = self.cosinegrid(a,b,Ny-1)
+#        lingrid = griddata(ycos, cosgrid, ylin, method='cubic')
+
+        return lingrid
 
     def read(self,startrec,endrec, binlimits=None, verbose=False, 
-                quit_on_error=True,wallnormaldir=1):
+                missingrec='raise',wallnormaldir=1):
+
+        return_zeros = False
 
         nrecs = endrec - startrec + 1
         nbins = [self.nx, self.ny, self.nz]
@@ -258,8 +267,19 @@ class Channelflow_RawData:
                 #fpath = self.fdir + self.subdomlist.pop(startrec+plusrec)
                 fpath = self.fdir + self.subdomlist[startrec+plusrec]
             except IndexError:
-                raise DataNotAvailable
-            data = self.read_field(fpath)
+                if missingrec is 'raise':
+                    raise DataNotAvailable
+                elif missingrec is 'returnszeros':
+                    return_zeros = True
+                elif missingrec is 'skip':
+                    sys.exit("Skip not developed in Channelflow_rawdata class")
+
+            if return_zeros:
+                data = np.zeros((self.nx,
+                                 self.ny,
+                                 self.nz,self.npercell))
+            else:
+                data = self.read_field(fpath)
 
             # insert into array
             subdata[:,:,:,plusrec,:] = data[lower[0]:upper[0],
@@ -271,6 +291,10 @@ class Channelflow_RawData:
             lims = (lower[wallnormaldir],upper[wallnormaldir])
             subdata[:,:,:,plusrec,0] = np.apply_along_axis(add_laminar,wallnormaldir, 
                                                             subdata[:,:,:,plusrec,0],lims)
+
+
+            #Reset return zero flag
+            return_zeros = False
          
         return subdata
 

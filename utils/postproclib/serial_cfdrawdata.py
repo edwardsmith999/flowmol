@@ -86,7 +86,7 @@ class Serial_CFD_RawData:
 
         return maxrec
 
-    def read(self, startrec, endrec, binlimits=None, verbose=False, quit_on_error=True):
+    def read(self, startrec, endrec, binlimits=None, verbose=False, missingrec='raise'):
 
         """
             Required inputs:
@@ -125,7 +125,7 @@ class Serial_CFD_RawData:
                 try: 
                     fobj = open(filepath,'rb')
                 except:
-                    if quit_on_error:
+                    if missingrec is 'raise':
                         quit('Unable to find file ' + filepath)    
                     else:
                         print('Unable to find file ' + filepath)
@@ -149,9 +149,10 @@ class Serial_CFD_RawData:
             try: 
                 fobj = open(self.fdir+self.fname,'rb')
             except:
-                if quit_on_error:
-                    quit('Unable to find file ' + self.fname)    
-                else:
+                if missingrec is 'raise':
+                    print('Unable to find file ' + self.fname)
+                    raise DataNotAvailable
+                elif missingrec is 'returnzeros':
                     print('Unable to find file ' + self.fname)
                     return_zeros = True
 
@@ -161,10 +162,13 @@ class Serial_CFD_RawData:
             elif (self.dtype == 'd'):
                 recbytes = 8*recitems
             else:
-                if quit_on_error:
-                    quit('Unrecognised data type in read_bins')
-                else:
-                    print('Unrecognised data type in read_bins')   
+                if missingrec is 'raise':
+                    print('Unable to find file ' + self.fname)
+                    raise DataNotAvailable
+                elif missingrec is 'returnzeros':
+                    print('Unable to find file ' + self.fname)
+                    return_zeros = True
+
             seekbyte = startrec*recbytes
             fobj.seek(seekbyte)
 

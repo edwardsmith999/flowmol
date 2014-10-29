@@ -61,8 +61,6 @@ class Channelflow_strainField(Channelflow_complexField,Channelflow_vField):
         dz = np.gradient(grid[2])
         dX,dY,dZ = np.meshgrid(dx,dy,dz,indexing='ij')
 
-        print(grid[1],dy)
-
         straindata = self.grad(vdata,dX,dY,dZ)
 
         if (binlimits):
@@ -83,6 +81,33 @@ class Channelflow_strainField(Channelflow_complexField,Channelflow_vField):
                                     lower[2]:upper[2], :, :]
 
         return straindata
+
+class Channelflow_uuField(Channelflow_complexField):
+
+    def __init__(self, fdir):
+
+        # Get mean velocity and density field
+        self.fdir = fdir
+        self.vField = Channelflow_vField(fdir)
+        Field.__init__(self,self.vField.Raw)
+        self.inherit_parameters(self.vField)
+        self.labels = ['uu','uv','uw',
+                       'vu','vv','vw',
+                       'wu','wv','ww']
+        self.nperbin = 9
+
+    def read(self,startrec,endrec,**kwargs):
+        vdata = self.vField.read(startrec,endrec,**kwargs)
+
+        # Find outer product of v*v and reshape to 1x9 rather than 3x3
+        nrecs = endrec-startrec+1
+        rhovvdata = np.einsum('abcdj,abcdk->abcdjk',vdata,vdata)
+        vvshapelist = list(rhovvdata.shape)
+        newshape = tuple(vvshapelist[0:4]+[self.nperbin])
+        rhovvdata = np.reshape(rhovvdata,newshape)
+
+        return rhovvdata 
+
 
 class Channelflow_vortField(Channelflow_complexField,Channelflow_vField):
 
@@ -143,18 +168,24 @@ class Channelflow_dissipField(Channelflow_complexField,Channelflow_vField):
         dudr = self.strainField.read(startrec, endrec, 
                                       binlimits=None)
 
-        vortdata = np.empty([dudr.shape[0],dudr.shape[1],
-                             dudr.shape[2],dudr.shape[3],self.nperbin])
-        vortdata[:,:,:,:,0] = ( np.power(dudr[:,:,:,:,0],2.)
-                               +np.power(dudr[:,:,:,:,1],2.)
-                               +np.power(dudr[:,:,:,:,2],2.))
+        dissipdata = np.empty([dudr.shape[0],dudr.shape[1],
+                               dudr.shape[2],dudr.shape[3],self.nperbin])
+        dissipdata[:,:,:,:,0] = (     np.power(dudr[:,:,:,:,0],2.) +
+                                      np.power(dudr[:,:,:,:,4],2.) +
+                                      np.power(dudr[:,:,:,:,8],2.) +
+                                 0.5*(np.power(dudr[:,:,:,:,1],2.) +
+                                      np.power(dudr[:,:,:,:,2],2.) +
+                                      np.power(dudr[:,:,:,:,3],2.) +
+                                      np.power(dudr[:,:,:,:,5],2.) +
+                                      np.power(dudr[:,:,:,:,6],2.) +
+                                      np.power(dudr[:,:,:,:,7],2.)  ))
 
 
         if (binlimits):
 
             # Defaults
             lower = [0]*3
-            upper = [i for i in vortdata.shape] 
+            upper = [i for i in dissipdata.shape] 
     
             for axis in range(3):
                 if (binlimits[axis] == None):
@@ -163,9 +194,9 @@ class Channelflow_dissipField(Channelflow_complexField,Channelflow_vField):
                     lower[axis] = binlimits[axis][0] 
                     upper[axis] = binlimits[axis][1] 
 
-            vortdata = vortdata[lower[0]:upper[0],
-                                lower[1]:upper[1],
-                                lower[2]:upper[2], :, :]
+            dissipdata = dissipdata[lower[0]:upper[0],
+                                    lower[1]:upper[1],
+                                    lower[2]:upper[2], :, :]
 
-        return  vortdata
+        return  dissipdata
 
