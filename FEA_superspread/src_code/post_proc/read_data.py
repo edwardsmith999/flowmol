@@ -89,6 +89,19 @@ for filename in vfiles[::10]:
 plt.show()  
 
 
+
+
+f, axs = plt.subplots(nrows=4)
+startrecs = [0,20,50,75]
+
+for i,fileno in enumerate(startrecs):
+    filename = vfiles[fileno]
+    data = np.genfromtxt(filename,skip_header=3,names=True)
+    axs[i].fill_between(data['X'],data['H'],0,color='r',alpha=0.3)
+    axs[i].set_ylim((0.0,1.2))
+    axs[i].set_xlim((0.0,2.0))
+plt.show()  
+
 #plotvalue = 'H'
 #for filename in vfiles:
 #    print(filename)

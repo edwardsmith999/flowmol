@@ -198,6 +198,10 @@ PROGRAM FEM_1D
 	NM_Q_a(:,1) = NBF_Q
 	IDIM_Q = NM_Q_a(1,1)
 
+    !Elements    1     2     3     4
+    !         |-----|-----|-----|-----|
+    !         x--x--x--x--x--x--x--x--x
+    !Nodes    1  2  3  4  5  6  7  8  9
 	DO IEL = 1, NNTOLa
 		NM_Q_a(IEL,2) = 2*IEL-1
 		NM_Q_a(IEL,3) = NM_Q_a(IEL,2)+1
@@ -645,17 +649,28 @@ PROGRAM FEM_1D
 		DO I = 1, NEQ_Q_a 
 			ERIND(I,1) = DOT_PRODUCT( TQa(:,I)-TQap(:,I), TQa(:,I)-TQap(:,I) )
 			ERIND(I,2) = DOT_PRODUCT( TQa(:,I), TQa(:,I) )
-			ERIND(I,3) = DSQRT( ERIND(I,1)/ERIND(I,2) )
+            if (ERIND(I,2) .gt. 1e-7) then
+    			ERIND(I,3) = DSQRT( ERIND(I,1)/ERIND(I,2) )
+            else
+                ERIND(I,3) = 0.d0
+            endif
 		ENDDO
 
 		ERIND(NEQ_Q_a,1) = ERIND(NEQ_Q_a,1) + &
 						DOT_PRODUCT( TQb(:,1)-TQbp(:,1), TQb(:,1)-TQbp(:,1) )
 		ERIND(NEQ_Q_a,2) = ERIND(NEQ_Q_a,2) + DOT_PRODUCT( TQb(:,1), TQb(:,1) )
-		ERIND(NEQ_Q_a,3) = DSQRT( ERIND(NEQ_Q_a,1)/ERIND(NEQ_Q_a,2) )
-
+        if (ERIND(NEQ_Q_a,2) .gt. 1e-7) then
+		    ERIND(NEQ_Q_a,3) = DSQRT( ERIND(NEQ_Q_a,1)/ERIND(NEQ_Q_a,2) )
+        else
+            ERIND(NEQ_Q_a,3) = 0.d0
+        endif
 		ERIND(NEQ_Q_a+1,1) = (Xc-Xcp)**2
 		ERIND(NEQ_Q_a+1,2) = Xc**2
-		ERIND(NEQ_Q_a+1,3) = DSQRT( ERIND(NEQ_Q_a+1,1)/ERIND(NEQ_Q_a+1,2) )
+        if (ERIND(NEQ_Q_a+1,2) .gt. 1e-7) then
+    		ERIND(NEQ_Q_a+1,3) = DSQRT( ERIND(NEQ_Q_a+1,1)/ERIND(NEQ_Q_a+1,2) )
+        else
+            ERIND(NEQ_Q_a+1,3) = 0.d0
+        endif
 
 		IF (MASS_SURFACTANT < 1.d-9) ERIND(4:7,3) = 0.D0
 
@@ -897,6 +912,8 @@ SUBROUTINE DOMI
 
 		CASE(1)
 
+            ! As ROI is droplet, store number of elements NNTOLa, 
+            !number of equation NEQ_Q_a and number of nodes NODTOLa_QEL
 			INNTOL = NNTOLa
 			INEQ   = NEQ_Q_a
 			INDTL  = NODTOLa_QEL
@@ -904,8 +921,8 @@ SUBROUTINE DOMI
 			! ALLOCATE ARRAYS
 
 			ALLOCATE( TQ(INDTL,INEQ),		STAT = IERROR(1) )
-			ALLOCATE( TQo(INDTL,INEQ),	STAT = IERROR(2) )
-			ALLOCATE( X(INDTL),			STAT = IERROR(3) )
+			ALLOCATE( TQo(INDTL,INEQ),	    STAT = IERROR(2) )
+			ALLOCATE( X(INDTL),			    STAT = IERROR(3) )
 			ALLOCATE( NMQ(INNTOL,NBF_Q+1),  STAT = IERROR(4) )
 			ALLOCATE( NMQQ(INNTOL,NBF_Q+1), STAT = IERROR(5) )
 
@@ -925,15 +942,17 @@ SUBROUTINE DOMI
 			X  = Xa
 
 		CASE(2)
+
+            ! As ROI is vapour, store number of elements NNTOLb, 
+            !number of equation NEQ_Q_b and number of nodes NODTOLb_QEL
 			INNTOL = NNTOLb
 			INEQ   = NEQ_Q_b
 			INDTL  = NODTOLb_QEL
 
 			! ALLOCATE ARRAYS
-
 			ALLOCATE( TQ(INDTL,INEQ),		STAT = IERROR(1) )
-			ALLOCATE( TQo(INDTL,INEQ),	STAT = IERROR(2) )
-			ALLOCATE( X(INDTL),			STAT = IERROR(3) )
+			ALLOCATE( TQo(INDTL,INEQ),	    STAT = IERROR(2) )
+			ALLOCATE( X(INDTL),			    STAT = IERROR(3) )
 			ALLOCATE( NMQ(INNTOL,NBF_Q+1),  STAT = IERROR(4) )
 			ALLOCATE( NMQQ(INNTOL,NBF_Q+1), STAT = IERROR(5) )
 
@@ -957,10 +976,9 @@ SUBROUTINE DOMI
 		!-----------------------------------------------------------------------
 		!	ALLOCATE TEMPORARY ARRAYS
 		!-----------------------------------------------------------------------
-
-		ALLOCATE( TERM(NBF_Q,INEQ),				STAT = IERROR(1) )
-		ALLOCATE( TEMP_R(NBF_Q,INEQ),		STAT = IERROR(2) )
-		ALLOCATE( TEMP_X(NBF_Q,INEQ),		STAT = IERROR(3) )
+		ALLOCATE( TERM(NBF_Q,INEQ),				 STAT = IERROR(1) )
+		ALLOCATE( TEMP_R(NBF_Q,INEQ),		     STAT = IERROR(2) )
+		ALLOCATE( TEMP_X(NBF_Q,INEQ),		     STAT = IERROR(3) )
 		ALLOCATE( TEMP_J(NBF_Q,NBF_Q,INEQ,INEQ), STAT = IERROR(4) )
 
 		LOOP_CHECK_ALLOCATION3: DO I = 1, 4
@@ -975,7 +993,6 @@ SUBROUTINE DOMI
 		!-----------------------------------------------------------------------
 		!	ITERATE OVER ALL ELEMENTS
 		!-----------------------------------------------------------------------
-
 		LOOP_ELEMENTS: DO NELEM = 1, INNTOL
 
 			!-----------------------------------------------------------------------
@@ -1055,7 +1072,7 @@ SUBROUTINE DOMI
 
 		DEALLOCATE( TQ,     STAT = IERROR(1) )
 		DEALLOCATE( TQo,    STAT = IERROR(2) )
-		DEALLOCATE( X,	STAT = IERROR(3) )
+		DEALLOCATE( X,	    STAT = IERROR(3) )
 		DEALLOCATE( NMQ,    STAT = IERROR(4) )
 		DEALLOCATE( NMQQ,   STAT = IERROR(5) )
 		DEALLOCATE( TERM,   STAT = IERROR(6) )
@@ -1078,7 +1095,22 @@ END SUBROUTINE DOMI
 
 !-----------------------------------------------------------------------
 !				SUBROUTINE EQUATIONS
-! ROI is the region, either inside or out
+!Inputs:
+!        ROI    -- Domain, inside or outside droplet
+!        NELEM  -- Current element index
+!        ININT  -- Number of Gauss points per element from NINT_3P (3)
+!        IG     -- Current Gauss point index 
+!        BFN_Q  -- Array of Gauss points (3,3)
+!        DFDX_Q -- Array of derivative Gauss points (3,3)
+!        NM     -- Array of node indices per element NM_Q in current ROI (NM_Q_a or NM_Q_b)
+!        INNTOL -- Total number of elements inside and outside droplet
+!        TQ     -- The MAIN array containing current values at all nodes for all equations 
+!        TQo    -- MAIN array TQ at the previous timestep
+!        X      -- Physical location of nodes (Fixed by MESH)
+!        INDTL  -- Number of nodes in current ROI (NODTOLa_QEL or NODTOLb_QEL)
+!        INEQ   -- Number of equations (7  i.e. Z,H,Hx,Hxx,Ca,M,Cs)
+!        Xc     -- Position of Contact line
+!        TERM   -- Working residual vector for element NELEM
 !-----------------------------------------------------------------------
 
 SUBROUTINE EQUATIONS ( ROI, NELEM, ININT, IG, BFN_Q, DFDX_Q, NM_Q, &
@@ -1201,10 +1233,10 @@ SUBROUTINE EQUATIONS ( ROI, NELEM, ININT, IG, BFN_Q, DFDX_Q, NM_Q, &
 		dZdx = L1/Xc
 
 		dXcdt = (Xc-Xco)/Dt
-		dHdt  = (H-Ho)/Dt - dXcdt*Z/Xc*Hz
+		dHdt  = (H-Ho)/Dt   - dXcdt*Z/Xc*Hz
 		dCadt = (Ca-Cao)/Dt - dXcdt*Z/Xc*Caz
-		dCdt  = (C-Co)/Dt - dXcdt*Z/Xc*Cz
-		dMdt  = (M-Mo)/Dt - dXcdt*Z/Xc*Mz
+		dCdt  = (C-Co)/Dt   - dXcdt*Z/Xc*Cz
+		dMdt  = (M-Mo)/Dt   - dXcdt*Z/Xc*Mz
 		dCsdt = (Cs-Cso)/Dt - dXcdt*Z/Xc*Csz
 
 		!-----------------------------------------------------------------------
@@ -1473,6 +1505,7 @@ SUBROUTINE BOUNDARY_RESIDUALS
 				M  = 0.D0 ; Mz  = 0.d0
 				Cs = 0.D0
 
+                !7 equations of interest (Z,H,Hx,Hxx,Ca,M,Cs)
 				DO I = 1, IDIM_Q
 					Z   =  Z    +  Xa(NQ(I))*NF_Q(I,IN)
 					Ca  =  Ca   +  TQa(NQ(I),4)*NF_Q(I,IN)
@@ -1669,17 +1702,16 @@ SUBROUTINE BOUNDARY_RESIDUALS
 			LOOP_EDGEb: DO IEDGE = 1,2
 
 				SELECT CASE (IEDGE)
- 
-					CASE (1)
-						IN  = 1
-						IEL = 1
-						NQ    = NM_Q_b(IEL,2:)
-						NQ_QL = NM_QQ_b(IEL,2:)
-					CASE (2)
-						IN  = 3
-						IEL = NNTOLb
-						NQ    = NM_Q_b(IEL,2:)
+ 				CASE (1)
+					IN  = 1
+					IEL = 1
+					NQ    = NM_Q_b(IEL,2:)
 					NQ_QL = NM_QQ_b(IEL,2:)
+				CASE (2)
+					IN  = 3
+					IEL = NNTOLb
+					NQ    = NM_Q_b(IEL,2:)
+				    NQ_QL = NM_QQ_b(IEL,2:)
 				END SELECT
 
 				!--------------------------------------------------------------------
@@ -1713,11 +1745,19 @@ SUBROUTINE BOUNDARY_RESIDUALS
 					Caz =  Caz  +  TQb(NQ(I),1)*DFDX_Q(I)
 				ENDDO
 
-				XX = L2*Xc/(L1+L2-Z)
+                if (L1+L2-Z .gt. 1e-7) then
+				    XX = L2*Xc/(L1+L2-Z)
+                else
+                    XX = 0.d0
+                endif
 				dZdx = (L1+L2-Z)**2/(L2*Xc)
 				dXcdt = (Xc-Xco)/Dt
 				Csx = Csz*dZdx
-				XX_Xc = L2/(L1+L2-Z)
+                if (L1+L2-Z .gt. 1e-7) then
+				    XX_Xc = L2/(L1+L2-Z)
+                else
+                    XX_Xc = 0.d0
+                endif
 				dZdx_Xc = - (L1+L2-Z)**2/(L2*Xc**2)
 				dXcdt_Xc = 1.D0/Dt
 				Csx_Cs(:) = DFDX_Q(:)*dZdx
@@ -1749,6 +1789,7 @@ SUBROUTINE BOUNDARY_RESIDUALS
 						B(IROW) = B(IROW) ! XX becomes infinite at L1+L2 and Csx(x->oo)=0
 
 						LOOP_JACOBIAN4: DO J = 1, IDIM_Q
+
 							BJFN=NF_Q(J,IN)
 					!		TEMP(IN,J,1,1) = - XX*Csx_Cs(J)/Pecs
 							TEMP(IN,J,1,1) = 0.D0
@@ -1844,6 +1885,8 @@ SUBROUTINE CALCULATE_MASS(TQa, TQb, Xc, MASS_FLUID, MASS_SURFACTANT)
 
 	REAL(8), INTENT(INOUT) :: MASS_FLUID, MASS_SURFACTANT
 
+    !Arrays which contain all information for all the  
+    !nodes in domain (NODTOL*_QEL) and each of the 7 equations (NEQ_Q_*)
 	REAL(8), INTENT(IN), DIMENSION (NODTOLa_QEL,NEQ_Q_a) :: TQa
 	REAL(8), INTENT(IN), DIMENSION (NODTOLb_QEL,NEQ_Q_b) :: TQb
 	REAL(8), INTENT(IN) :: Xc
@@ -1878,9 +1921,7 @@ SUBROUTINE CALCULATE_MASS(TQa, TQb, Xc, MASS_FLUID, MASS_SURFACTANT)
 			ENDDO
 
 			AJACX_Q = DABS(AJACX_Q)
-
 			WET_Q = WO_3P(IG) * AJACX_Q
-
 			DFDX_Q(:) = DTF_Q(:,IG) / AJACX_Q
 
 			!----------------------------------------------------------------------
@@ -1963,9 +2004,7 @@ SUBROUTINE CALCULATE_MASS(TQa, TQb, Xc, MASS_FLUID, MASS_SURFACTANT)
 			ENDDO
 
 			AJACX_Q = DABS(AJACX_Q)
-
 			WET_Q = WO_3P(IG) * AJACX_Q
-
 			DFDX_Q(:) = DTF_Q(:,IG) / AJACX_Q
 
 			!----------------------------------------------------------------------
@@ -2026,6 +2065,7 @@ SUBROUTINE CREATE_GRAPH_ARRAYS(TQa,TQb,Xc)
 	USE ELEMENTS_DATA,     only: NBF_Q, NNTOLa, NNTOLb, NEQ_Q_a, NEQ_Q_b, &
 										NODTOLa_QEL, NODTOLb_QEL
 	USE COMMON_ARRAYS,     only: Xa, Xb, NM_Q_a, NM_Q_b, TQo_GRAPH
+	USE COMMON_ARRAYS,     only: uwarray, Z_loc
 	USE BASIS_FUNCTION_1D, only: NF_Q, DNF_Q
 	USE FLOW_PARAMETERS
 	USE FUNCTIONS
@@ -2038,26 +2078,28 @@ SUBROUTINE CREATE_GRAPH_ARRAYS(TQa,TQb,Xc)
 	REAL(8), DIMENSION(NODTOLb_QEL,NEQ_Q_b), intent(in) :: TQb
 
 	INTEGER :: IEL, I, J, INOD
-	REAL(8) :: Z, XX, dZdx, H, Hx, Hxx, Hxxx
-	REAL(8) :: Ca, Caz, Cax, C, Cz, Cx
-	REAL(8) :: M, Mz, Mx, Cs, Csz, Csx
-	REAL(8) :: S1, S1x, S2, S2x, S12, S12x
-	REAL(8) :: dPdX, U, Hxxz, AJACX_Q
+	REAL(8) :: Z, XX, dZdx, H, Hx, Hxx, Hxxx, Hxxxx
+	REAL(8) :: Ca, Caz, Cax, C, Cz, Cx, Caxz, Caxx
+	REAL(8) :: M, Mz, Mx, Cs, Csz, Csx, COEFF
+	REAL(8) :: S1, S1x, S2, S2x, S12, S12x, S2xx
+	REAL(8) :: dPdX, U, Hxxz, AJACX_Q, Hxxxz, Pxx
 
 	REAL(8), DIMENSION(NBF_Q) :: DFDX_Q
 	INTEGER, DIMENSION(5) :: IERROR
 
+    integer :: Nzpoints,zpoint
 
 	!-----------------------------------------------------------------------
 	!     INITIALIZE ARRAY
 	!-----------------------------------------------------------------------
-
-	TQo_GRAPH = 0.D0
+	Nzpoints = 100; TQo_GRAPH = 0.D0
+    if (.not. allocated(Z_loc)) allocate(Z_loc(NODTOLa_QEL,Nzpoints))
+    if (.not. allocated(uwarray)) allocate(uwarray(NODTOLa_QEL,Nzpoints,2))
+    Z_loc = 0.d0; uwarray = 0.d0
 
 	!-----------------------------------------------------------------------
 	!     REGION 1
 	!-----------------------------------------------------------------------
-
 	LOOP_ELEMENTS1: DO IEL = 1, NNTOLa
 
 		DO I = 1, NBF_Q
@@ -2086,6 +2128,9 @@ SUBROUTINE CREATE_GRAPH_ARRAYS(TQa,TQb,Xc)
 			Cs   = 0.D0 ; Csz  = 0.D0
 
 			DO J = 1, NBF_Q
+                !Get node index from NM_Q_a, get value at a given node from TQa
+                !which contains 7 quantities of interest (Z,H,Hx,Hxx,Ca,M,Cs) 
+                !and multiply by Gauss points to integrate
 				INOD = NM_Q_a(IEL,J+1)
 				Z    = Z    + Xa(INOD)    * NF_Q(J,I)
 				H    = H    + TQa(INOD,1) * NF_Q(J,I)
@@ -2102,10 +2147,12 @@ SUBROUTINE CREATE_GRAPH_ARRAYS(TQa,TQb,Xc)
 				Csz  = Csz  + TQa(INOD,7) * DFDX_Q(J)
 			ENDDO
 
+            !x position of node in mapped coordinate system
 			XX = Z*Xc/L1
 
 			dZdx = L1/Xc
    
+            !Convert from z coordinate derivative to x?
 			Hxxx = Hxxz*dZdx
 			Cax  = Caz*dZdx
 			Cx   = Cz*dZdx
@@ -2130,7 +2177,38 @@ SUBROUTINE CREATE_GRAPH_ARRAYS(TQa,TQb,Xc)
 				ENDIF
 			END SELECT
 
-			U = - 0.5d0*dPdX*H**2 + H*S2x + bslip*(S2x-dPdX*H) 
+			!Note, this is equivalent to Eq 2.32 where 
+            !U(z=H) = 0.5d0*dPdX*H**2 + (S2x - dPdX*H)*H + bslip*(S2x-dPdX*H)
+			U = - 0.5d0*dPdX*H**2 + H*S2x + bslip*(S2x-dPdX*H)
+
+            !Reinflate the z dimension using equation (2.32) from Karapetsas et al JFM (2011)
+            Hxxxz = 0.D0; Caxz = 0.d0
+		    DO J=1,NBF_Q
+			    Hxxxz = Hxxxz + Hxxx * DFDX_Q(J)
+				Caxz  = Caxz  + Cax  * DFDX_Q(J)
+		    ENDDO
+            Hxxxx = Hxxxz*dZdx
+			Caxx  = Caxz*dZdx
+            S2xx = Surface_Tension_xx('LA',Ca,Cax,Caxx)
+			SELECT CASE(GEOMETRY)
+			CASE('CARTESIAN')
+                Pxx = -(eps**2) * (Hxxxx*(1.D0/As2+S2) + 2.d0*Hxxx*S2x + Hxx*S2xx )
+			CASE('CYLINDRICAL')
+                stop "Error in CREATE_GRAPH_ARRAYS -- 2D velocity output not developed for CYLINDRICAL geometry"
+			END SELECT
+
+            COEFF = S2xx - Pxx*H - dPdx * Hx
+            do zpoint = 1,Nzpoints
+			    INOD = NM_Q_a(IEL,I+1)
+                Z_loc(INOD,zpoint)  =  H * zpoint/dble(Nzpoints)
+                uwarray(INOD,zpoint,1) =  0.5d0*dPdX*Z_loc(INOD,zpoint)**2 & 
+                                         + Z_loc(INOD,zpoint)*(S2x-dPdX*H) &
+                                         + bslip*(S2x-dPdX*H)
+
+                uwarray(INOD,zpoint,2) =-( (1.d0/6.d0)*Pxx * Z_loc(INOD,zpoint)**3 &
+                                          + 0.5d0*COEFF*Z_loc(INOD,zpoint)**2 &   
+                                          + bslip*COEFF*Z_loc(INOD,zpoint)             )
+            enddo
 
 			INOD = NM_Q_a(IEL,I+1)
 
@@ -2190,7 +2268,11 @@ SUBROUTINE CREATE_GRAPH_ARRAYS(TQa,TQb,Xc)
 				Csz  = Csz  + TQb(INOD,1) * DFDX_Q(J)
 			ENDDO
 
-			XX = L2*Xc/(L1+L2-Z)
+            if (L1+L2-Z .gt. 1e-7) then
+    			XX = L2*Xc/(L1+L2-Z)
+            else
+                XX = 0.d0
+            endif
 
 			dZdx = (L1+L2-Z)**2/(L2*Xc)
 
@@ -2225,8 +2307,9 @@ SUBROUTINE WRITE_FILES(WTS,PRINT_PROFILES,T,Dt)
 	USE ELEMENTS_DATA,     only: NBF_Q, NNTOLa, NNTOLb, NEQ_Q_a, NEQ_Q_b, &
 										NODTOLa_QEL, NODTOLb_QEL, NODTOL_QEL
 	USE COMMON_ARRAYS,     only: TQo_GRAPH, TQa, TQao, TQb, TQbo, Xc, Xco, Xco1
+	USE COMMON_ARRAYS,     only: uwarray, Z_loc, xa
 	USE FLOW_PARAMETERS,   only: MASS_FLUIDi, MASS_SURFi
-		USE FUNCTIONS
+    USE FUNCTIONS
 
 	IMPLICIT NONE
 
@@ -2235,7 +2318,7 @@ SUBROUTINE WRITE_FILES(WTS,PRINT_PROFILES,T,Dt)
 	REAL(8), INTENT(IN) :: T, Dt
 	
 	CHARACTER(200) :: filename
-	INTEGER :: I, J, recno
+	INTEGER :: I, J, recno, length
 	REAL(8) :: MASS_FLUID, MASS_SURF, TIME
 	REAL(8) :: MASS_ERROR_F, MASS_ERROR_S
 	REAL(8) :: Theta, Hmax, Cac, Cc, Mc, Csc, Cao, Co, Mo, Cso, XXc, XXco
@@ -2360,6 +2443,33 @@ SUBROUTINE WRITE_FILES(WTS,PRINT_PROFILES,T,Dt)
 
 		close(46,status='keep')
 
+        !x position of every node
+        call get_Timestep_FileName(recno,'results/xgrid',filename)
+	    write(filename,'(a21,a4)') filename,'.DAT'
+	    inquire(iolength=length) TQo_GRAPH(1:NODTOLa_QEL,2)
+        print*, trim(filename),shape(TQo_GRAPH(1:NODTOLa_QEL,2)),size(TQo_GRAPH(1:NODTOLa_QEL,2)),length
+	    open(48, file=filename,action='write',form='unformatted',access='direct',recl=length)
+        write(48,rec=1) TQo_GRAPH(1:NODTOLa_QEL,2)
+        close(48)
+
+        !2D z location of velocity values at every node
+        call get_Timestep_FileName(recno,'results/zgrid',filename)
+	    write(filename,'(a21,a4)') filename,'.DAT'
+	    inquire(iolength=length) Z_loc
+        print*, trim(filename),shape(z_loc),size(z_loc),length
+	    open(48, file=filename,action='write',form='unformatted',access='direct',recl=length)
+        write(48,rec=1) Z_loc
+        close(48)
+
+        ! 2D domain snapshots of z values of velocity data at every node
+        call get_Timestep_FileName(recno,'results/uwgrid',filename)
+	    write(filename,'(a21,a4)') filename,'.DAT'
+	    inquire(iolength=length) uwarray
+        print*, trim(filename),shape(uwarray),size(uwarray),length
+	    open(48, file=filename,action='write',form='unformatted',access='direct',recl=length)
+        write(48,rec=1) uwarray
+        close(48)
+
 	ENDIF
 
 	!     TIMEDATA1.DAT
@@ -2369,8 +2479,13 @@ SUBROUTINE WRITE_FILES(WTS,PRINT_PROFILES,T,Dt)
 					'H(0,t)','Theta','Thetaa'
 					
 
-	WRITE(44,'(1X,14ES14.6)') TIME, log10(TIME), XXc, log10(XXc), &
+    if (TIME .gt. 1e-7 .and. XXc .gt. 1e-7 .and. abs(XXc-1.D0) .gt. 1e-7) then
+    	WRITE(44,'(1X,14ES14.6)') TIME, log10(TIME), XXc, log10(XXc), &
 					log10(XXc-1.D0), (XXc-XXco)/Dt, Hmax, Theta, Thetaa
+    else
+    	WRITE(44,'(1X,14ES14.6)') TIME, 0.d0, XXc, 0.d0, &
+					0.d0, (XXc-XXco)/Dt, Hmax, Theta, Thetaa        
+    endif
 							
 !		|  Time, Log(Time), Xc, Log(Xc), Log(Xc-1), dXcdt, H(0,t), Theta, &
 !					Thetaa |
@@ -2381,15 +2496,28 @@ SUBROUTINE WRITE_FILES(WTS,PRINT_PROFILES,T,Dt)
 	WRITE(47,'(14A14)')'Time','Log(Time)','Ca(0,t)','c(0,t)','m(0,t)',&
 					'Cs(0,t)','Ca(xc,t)','c(xc,t)','m(xc,t)','Cs(xc,t)'
 
-	WRITE(47,'(1X,14ES14.6)') TIME, log10(TIME), Cao, Co, Mo, Cso, Cac, Cc, & 
+    if (TIME .gt. 1e-7 ) then
+	    WRITE(47,'(1X,14ES14.6)') TIME, log10(TIME), Cao, Co, Mo, Cso, Cac, Cc, & 
 							Mc, Csc
+    else
+	    WRITE(47,'(1X,14ES14.6)') TIME, 0.d0, Cao, Co, Mo, Cso, Cac, Cc, & 
+							Mc, Csc
+    endif
 !		|  Time, Log(Time), Ca(0,t), c(0,t), m(0,t), Cs(0,t), Ca(xc,t),  
 !					c(xc,t), m(xc,t), Cs(xc,t)  |
 
 	!     ERROR.DAT
 
-	MASS_ERROR_F = 1.d2*(MASS_FLUID - MASS_FLUIDi)/MASS_FLUIDi
-	MASS_ERROR_S = 1.d2*(MASS_SURF - MASS_SURFi) /MASS_SURFi
+    if (MASS_FLUIDi .gt. 1e-7) then
+        MASS_ERROR_F = 1.d2*(MASS_FLUID - MASS_FLUIDi)/MASS_FLUIDi
+    else
+        MASS_ERROR_F = 0.d0
+    endif
+	if (MASS_SURFi .gt. 1e-7) then
+        MASS_ERROR_S = 1.d2*(MASS_SURF - MASS_SURFi) /MASS_SURFi
+    else
+        MASS_ERROR_S = 0.d0
+    endif
 
 	IF (TIME < 1.D-10) &
 	WRITE(45,'(10A14)')'TIME','total_mass','error_mass', &
@@ -2400,11 +2528,31 @@ SUBROUTINE WRITE_FILES(WTS,PRINT_PROFILES,T,Dt)
 !		| Time, MASS_FLUID, MASS_ERROR, MASS_SURF, MASS_SURF_ERROR |
 
 
-	END SUBROUTINE WRITE_FILES
+END SUBROUTINE WRITE_FILES
 
 !----------------------------------------------------------------------
 !					SUBROUTINE JACOBIAN
 !----------------------------------------------------------------------
+!Inputs:
+!        ROI    -- Domain, inside or outside droplet
+!        NELEM  -- Current element index
+!        ININT  -- Number of Gauss points per element from NINT_3P (3)
+!        KK     -- Current Gauss point index 
+!        BFN_Q  -- Array of Gauss points (3,3)
+!        DFDX_Q -- Array of derivative Gauss points (3,3)
+!        JDIM   -- Number of Gauss points per element from NBF_Q (3)
+!        NEQ    -- Number of equations (7, i.e. Z,H,Hx,Hxx,Ca,M,Cs)
+!        NM     -- Array of node indices per element NM_Q in current ROI (NM_Q_a or NM_Q_b)
+!        INNTOL -- Total number of elements inside and outside droplet
+!        TQ     -- The MAIN array containing current values at all nodes for all equations 
+!        TQo    -- MAIN array TQ at the previous timestep
+!        X      -- Physical location of nodes (Fixed by MESH)
+!        INDTL  -- Number of nodes in current ROI (NODTOLa_QEL or NODTOLb_QEL)
+!        TERM   -- Working residual vector for element NELEM
+!        TEMP_X -- Cumulative evolution of TERM??
+!        TEMP_J -- Returned array for element??
+!        WET_Q  -- This seems to employ the GAUSS_LINE and is used to evolve equations??
+
 
 SUBROUTINE JACOBIAN ( ROI, NELEM, ININT, KK, BFN_Q, DFDX_Q, JDIM, NEQ, &
 					  NM, INNTOL, TQ, TQo, X, INDTL, TERM, TEMP_X, TEMP_J, &
@@ -2425,31 +2573,33 @@ SUBROUTINE JACOBIAN ( ROI, NELEM, ININT, KK, BFN_Q, DFDX_Q, JDIM, NEQ, &
 
 	INTEGER, INTENT(IN), DIMENSION( INNTOL, JDIM+1 ) :: NM
 
-	REAL(8), INTENT(IN), DIMENSION( IDIM_Q, ININT ) :: BFN_Q
-	REAL(8), INTENT(IN), DIMENSION( IDIM_Q )			:: DFDX_Q
+	REAL(8), INTENT(IN), DIMENSION( IDIM_Q, ININT )  :: BFN_Q
+	REAL(8), INTENT(IN), DIMENSION( IDIM_Q )		 :: DFDX_Q
 
 	REAL(8), INTENT(IN), DIMENSION( IDIM_Q, NEQ ) :: TERM
 
 	REAL(8), INTENT(INOUT), DIMENSION( IDIM_Q, NEQ ) :: TEMP_X
 	REAL(8), INTENT(INOUT), DIMENSION( IDIM_Q, JDIM, NEQ, NEQ ) :: TEMP_J
+	REAL(8), INTENT(IN), DIMENSION( INDTL, NEQ )  :: TQ, TQo
 
 	REAL(8), DIMENSION( IDIM_Q, NEQ ) :: TERM_X_e
 	REAL(8), DIMENSION( IDIM_Q, JDIM, NEQ, NEQ ) :: TERM_J_e
 
 	REAL(8) :: Xcj
-	REAL(8), DIMENSION( INDTL ) :: X
-	REAL(8), DIMENSION( INDTL, NEQ )  :: TQ, TQo, TQj
+	REAL(8), DIMENSION( INDTL )         :: X
+	REAL(8), DIMENSION( INDTL, NEQ )    :: TQj
 
 !----------------------------------------------------------------------
 
 !	Initialize arrays
-
 	TQj = TQ
 	Xcj = Xc
 
 !----------------------------------------------------------------------
 
+    !Use to retain precision when xc only changes by small amounts?
 	CALL XPERT(Xcj, epert)
+    !Call routine with all of the physical equations 
 	CALL EQUATIONS ( ROI, NELEM, ININT, KK, BFN_Q, DFDX_Q, NM, INNTOL, &
 			         TQj, TQo, X, INDTL, NEQ, Xcj, TERM_X_e(:,:) )
 
@@ -2459,6 +2609,7 @@ SUBROUTINE JACOBIAN ( ROI, NELEM, ININT, KK, BFN_Q, DFDX_Q, JDIM, NEQ, &
 
 	LOOP_JACOBIAN: DO  JW = 1, JDIM
 
+        !Loop over all equations
 		DO JEQ = 1, NEQ
 			JJ = NM(NELEM,JW+1)
 
@@ -2483,6 +2634,9 @@ END SUBROUTINE JACOBIAN
 !-----------------------------------------------------------------------
 !							SUBROUTINE XPERT
 !-----------------------------------------------------------------------
+! Ensures X is not less than the sqrt of the machine
+! precision and return the difference as variable h
+! Same as max(X,eps)?
 
 SUBROUTINE XPERT(X, H)
 	USE MACHINE_EPSILON

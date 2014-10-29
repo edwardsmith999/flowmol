@@ -3,10 +3,11 @@ import numpy as np
 import os
 import glob
 
+from rawdata import RawData
 from headerdata import Serial_CFD_HeaderData
 from pplexceptions import DataNotAvailable
 
-class Serial_CFD_RawData:
+class Serial_CFD_RawData(RawData):
     
     def __init__(self,fdir,fname,dtype,nperbin):
         if (fdir[-1] != '/'): fdir += '/' 
@@ -24,14 +25,21 @@ class Serial_CFD_RawData:
             self.separate_outfiles = False
 
         try:
-            self.header = Serial_CFD_HeaderData(fdir)
+            self.header = self.read_header(fdir)
         except IOError:
             raise DataNotAvailable
 
         self.grid = self.get_grid()
         self.maxrec = self.get_maxrec()
 
+    def read_header(self,fdir):
+        self.header = Serial_CFD_HeaderData(fdir)
+
     def get_grid(self):
+        print("Call to get_grid are depreciated, please use get_gridtopology instead")
+        return self.get_gridtopology()
+
+    def get_gridtopology(self):
         #Number of halos
         self.halox = 1
         self.haloy = 1

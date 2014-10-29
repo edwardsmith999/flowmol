@@ -1662,6 +1662,43 @@ function socket_get_domain_top() result(top)
 
 end function socket_get_domain_top
 
+
+! Get domain top minus removed molecules (if appropriate for choice of coupling scheme) 
+function socket_get_domain_bottom() result(bottom)
+	use CPL, only: CPL_get, error_abort
+	implicit none
+
+	real(kind(0.d0)) :: yL_md, dy, bottom, removed_dist
+	integer :: algorithm
+	integer :: OT,NCER,Flekkoy,CV,off
+
+	call CPL_get(dy=dy,yL_md=yL_md, &
+				 constraint_algo    = algorithm, & 
+				 constraint_OT      = OT,        & 
+				 constraint_NCER    = NCER,      &
+				 constraint_Flekkoy = Flekkoy,   &
+				 constraint_CV      = CV,   &
+				 constraint_off     = off          )
+
+	!Specifiy size of removed distance as half a cell
+	removed_dist = dy/2.d0
+
+	if ( algorithm .eq. off ) then
+		bottom = -yL_md/2.d0
+	else if ( algorithm .eq. OT ) then
+		bottom = -yL_md/2.d0
+	else if ( algorithm .eq. NCER ) then
+		bottom = -yL_md/2.d0
+	else if ( algorithm .eq. Flekkoy ) then
+		bottom = -yL_md/2.d0
+	else if ( algorithm .eq. CV ) then
+		bottom = -yL_md/2.d0
+	else
+		call error_abort("Error in socket_get_domain_bottom - Unrecognised constraint algorithm flag")
+	end if	
+
+end function socket_get_domain_bottom
+
 ! Get domain top minus dy
 function socket_get_bottom_of_top_boundary() result(bottom)
 	use computational_constants_MD, only: halfdomain

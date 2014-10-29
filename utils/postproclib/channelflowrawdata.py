@@ -8,9 +8,10 @@ try:
 except:
     print("h5py package not avilable -- using ascii conversion")
 
+from rawdata import RawData
 from pplexceptions import DataNotAvailable
 
-class Channelflow_RawData:
+class Channelflow_RawData(RawData):
     
     def __init__(self,fdir):
         self.fdir = fdir
@@ -18,7 +19,7 @@ class Channelflow_RawData:
         self.subdomlist, self.plotfreq = self.get_subdomlist()
         self.npercell = 3
         self.header = None
-        self.grid = self.get_grid()
+        self.grid = self.get_gridtopology()
         self.maxrec = len(self.subdomlist)-1 # count from 0
         try:
             self.read_field = self.read_h5field
@@ -44,6 +45,10 @@ class Channelflow_RawData:
         return locout.split('\n')[0]
 
     def get_grid(self):
+        print("Call to get_grid are depreciated, please use get_gridtopology instead")
+        return self.get_gridtopology()
+
+    def get_gridtopology(self):
         """
             Get details for CFD grid from 1st subdomain
         """
@@ -97,6 +102,10 @@ class Channelflow_RawData:
 
 
     def get_binvolumes(self,binlimits=None):
+        print("Call to get_binvolumes are depreciated, please use get_binvolumes instead")
+        return self.get_gridvolumes(binlimits)
+
+    def get_gridvolumes(self,binlimits=None):
 
         binspaces = self.grid
     
@@ -107,14 +116,14 @@ class Channelflow_RawData:
         dy = binspaces[1][1] - binspaces[1][0]
         dz = binspaces[2][1] - binspaces[2][0]
 
-        binvolumes = np.ones(x.shape)*dx*dy*dz
+        gridvolumes = np.ones(x.shape)*dx*dy*dz
 
         # If bin limits are specified, return only those within range
         if (binlimits):
 
             # Defaults
             lower = [0]*3
-            upper = [i for i in binvolumes.shape] 
+            upper = [i for i in gridvolumes.shape] 
     
             for axis in range(3):
                 if (binlimits[axis] == None):
@@ -123,15 +132,15 @@ class Channelflow_RawData:
                     lower[axis] = binlimits[axis][0] 
                     upper[axis] = binlimits[axis][1] 
 
-            binvolumes = binvolumes[lower[0]:upper[0],
+            gridvolumes = gridvolumes[lower[0]:upper[0],
                                     lower[1]:upper[1],
                                     lower[2]:upper[2]]
                 
-        # Ensure binvolumes is the right shape for subsequent
+        # Ensure gridvolumes is the right shape for subsequent
         # broadcasting with other fields
-        binvolumes = np.expand_dims(binvolumes,-1)
+        gridvolumes = np.expand_dims(gridvolumes,-1)
 
-        return binvolumes
+        return gridvolumes
 
     def get_subdomlist(self):
 
@@ -191,16 +200,6 @@ class Channelflow_RawData:
 
         return cosgrid
 
-#    def map_data_lineartocosine(values_on_linear_grid,Ny=self.ny,a=-1,b=1):
-#        """
-#            Map data on a linear grid to a cosine grid 
-#        """
-#	    ycells = np.linspace(0, Ny, Ny)
-#	    ylin = np.linspace(a, b, Ny)
-#	    ycos = 0.5*(b+a) - 0.5*(b-a)*np.cos((ycells*np.pi)/(Ny-1))
-#	    values_on_cosine_grid = griddata(ylin, values_on_linear_grid, 
-#									     ycos, method='cubic')
-#	    return values_on_cosine_grid
 
 #    def map_data_cosinetolinear(self,cosgrid,Ny=None,a=-1.0,b=1.0):
 

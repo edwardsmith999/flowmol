@@ -656,14 +656,14 @@ class MD_rhoEnergyField(MD_complexField):
     def read(self, startrec, endrec, 
              binlimits=None, peculiar=None, **kwargs):
 
-        binvolumes = self.EField.Raw.get_binvolumes(binlimits=binlimits)
-        binvolumes = np.expand_dims(binvolumes,axis=-1)
+        gridvolumes = self.EField.Raw.get_gridvolumes(binlimits=binlimits)
+        gridvolumes = np.expand_dims(gridvolumes,axis=-1)
 
         Edata = self.EField.read(startrec,endrec,**kwargs)
         Edata = np.divide(Edata,float(self.plotfreq))
 
         # Energy (no streaming consideration)
-        Eout = np.divide(Eout,binvolumes)
+        Eout = np.divide(Eout,gridvolumes)
 
         # Remove average of streaming component
         if peculiar == None:
@@ -677,8 +677,8 @@ class MD_rhoEnergyField(MD_complexField):
     def averaged_data(self, startrec, endrec, avgaxes=(),
                       binlimits=None, peculiar=None, **kwargs):
         
-        binvolumes = self.EField.Raw.get_binvolumes(binlimits=binlimits)
-        binvolumes = np.expand_dims(binvolumes,axis=-1)
+        gridvolumes = self.EField.Raw.get_gridvolumes(binlimits=binlimits)
+        gridvolumes = np.expand_dims(gridvolumes,axis=-1)
 
         Edata = self.EField.read(startrec,endrec,**kwargs)
         Edata = np.divide(Edata,float(self.plotfreq))
@@ -692,10 +692,10 @@ class MD_rhoEnergyField(MD_complexField):
 
         if (avgaxes != ()):
             Edata = np.sum(Edata,axis=avgaxes) 
-            binvolumes = np.sum(binvolumes,axis=avgaxes) 
+            gridvolumes = np.sum(gridvolumes,axis=avgaxes) 
 
         # Energy (no streaming consideration)
-        Edata = np.divide(Edata,binvolumes)
+        Edata = np.divide(Edata,gridvolumes)
 
         # Remove streaming velocity
         if (peculiar):
@@ -828,22 +828,22 @@ class MD_dField(MD_complexField):
 
     def read(self, startrec, endrec, binlimits=None, **kwargs):
 
-        binvolumes = self.mField.Raw.get_binvolumes(binlimits=binlimits)
-        binvolumes = np.expand_dims(binvolumes,axis=-1)
+        gridvolumes = self.mField.Raw.get_gridvolumes(binlimits=binlimits)
+        gridvolumes = np.expand_dims(gridvolumes,axis=-1)
 
         # Read 4D time series from startrec to endrec
         mdata = self.mField.read(startrec, endrec, binlimits=binlimits)
         mdata = np.divide(mdata,float(self.plotfreq))
 
-        density = np.divide(mdata,binvolumes)
+        density = np.divide(mdata,gridvolumes)
         
         return density
 
     def averaged_data(self,startrec,endrec,avgaxes=(),binlimits=None, **kwargs):
 
         nrecs = endrec - startrec + 1
-        binvolumes = self.mField.Raw.get_binvolumes(binlimits=binlimits)
-        binvolumes = np.expand_dims(binvolumes,axis=-1)
+        gridvolumes = self.mField.Raw.get_gridvolumes(binlimits=binlimits)
+        gridvolumes = np.expand_dims(gridvolumes,axis=-1)
 
         # Read 4D time series from startrec to endrec
         mdata = self.mField.read(startrec, endrec, binlimits=binlimits)
@@ -851,10 +851,10 @@ class MD_dField(MD_complexField):
 
         if (avgaxes != ()):
             mdata = np.sum(mdata,axis=avgaxes) 
-            # binvolumes should only be length=1 in time & component axis
-            binvolumes = np.sum(binvolumes,axis=avgaxes) 
+            # gridvolumes should only be length=1 in time & component axis
+            gridvolumes = np.sum(gridvolumes,axis=avgaxes) 
 
-        density = np.divide(mdata,binvolumes*nrecs)
+        density = np.divide(mdata,gridvolumes*nrecs)
 
         return density 
 
@@ -868,21 +868,21 @@ class MD_momField(MD_complexField):
 
     def read(self, startrec, endrec, binlimits=None, **kwargs):
 
-        binvolumes = self.pField.Raw.get_binvolumes(binlimits=binlimits)
-        binvolumes = np.expand_dims(binvolumes,axis=-1)
+        gridvolumes = self.pField.Raw.get_gridvolumes(binlimits=binlimits)
+        gridvolumes = np.expand_dims(gridvolumes,axis=-1)
 
         # Read 4D time series from startrec to endrec
         pdata = self.pField.read(startrec, endrec,binlimits=binlimits,**kwargs)
         pdata = np.divide(pdata,float(self.plotfreq))
 
-        momdensity = np.divide(pdata,binvolumes)
+        momdensity = np.divide(pdata,gridvolumes)
         
         return momdensity
 
     def averaged_data(self,startrec,endrec,binlimits=None,avgaxes=(),**kwargs):
 
-        binvolumes = self.pField.Raw.get_binvolumes(binlimits=binlimits)
-        binvolumes = np.expand_dims(binvolumes,axis=-1)
+        gridvolumes = self.pField.Raw.get_gridvolumes(binlimits=binlimits)
+        gridvolumes = np.expand_dims(gridvolumes,axis=-1)
 
         # Read 4D time series from startrec to endrec
         pdata = self.pField.read(startrec,endrec,binlimits=binlimits,**kwargs)
@@ -890,10 +890,10 @@ class MD_momField(MD_complexField):
 
         if (avgaxes != ()):
             pdata = np.sum(pdata,axis=avgaxes) 
-            # binvolumes should only be length=1 in time & component axis 
-            binvolumes = np.sum(binvolumes,axis=avgaxes) 
+            # gridvolumes should only be length=1 in time & component axis 
+            gridvolumes = np.sum(gridvolumes,axis=avgaxes) 
         
-        momdensity = np.divide(pdata,binvolumes)
+        momdensity = np.divide(pdata,gridvolumes)
 
         return momdensity 
 

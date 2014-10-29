@@ -29,6 +29,7 @@ module physical_constants_MD
 	!Simulation setup conditions
 	double precision, dimension(3)	:: fixdisttop, slidedisttop, fixdistbottom, slidedistbottom, wallslidev
 	double precision, dimension(3)	:: tethereddisttop, tethereddistbottom, thermstattop,thermstatbottom
+	double precision, dimension(3)	:: emptydistbottom, emptydisttop
 
 end module physical_constants_MD
 
@@ -99,6 +100,7 @@ module computational_constants_MD
 	integer           	:: initial_config_flag
 	character(len=128)	:: config_special_case
 	double precision	:: liquid_density	!Density of liquid if solid/liquid case used
+	double precision	:: gas_density	    !Density of liquid if gas/liquid case used
 
 	!Initial velocity selection
 	integer           	:: initial_velocity_flag
@@ -289,7 +291,8 @@ module boundary_MD
 		bforce_OT = 1,          &
 		bforce_NCER = 2,        &
 		bforce_Flekkoy = 3,     &
-        bforce_pdf_input = 4
+        bforce_pdf_input = 4,   &
+        substrate_force = 5
 
     ! Measure boundary force with pdf
     integer :: bforce_pdf_measure

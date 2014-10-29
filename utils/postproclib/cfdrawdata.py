@@ -2,9 +2,10 @@
 import numpy as np
 import os
 
+from rawdata import RawData
 from pplexceptions import DataNotAvailable
 
-class CFD_RawData:
+class CFD_RawData(RawData):
     
     def __init__(self,fdir):
         self.fdir = fdir

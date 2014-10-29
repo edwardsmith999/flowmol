@@ -4,6 +4,7 @@ import glob
 import os
 import sys
 
+from rawdata import RawData
 from headerdata import MDHeaderData
 from pplexceptions import DataNotAvailable
 
@@ -43,7 +44,7 @@ from pplexceptions import DataNotAvailable
 
 """
 
-class MD_RawData:
+class MD_RawData(RawData):
     
     def __init__(self,fdir,fname,dtype,nperbin):
 
@@ -66,7 +67,7 @@ class MD_RawData:
             print('Neither ' + fname + ' nor ' + fname + '.* exist.')
             raise DataNotAvailable
 
-        self.header = MDHeaderData(fdir)
+        self.header = self.read_header(fdir)
         try:
             self.cpol_bins = bool(int(self.header.cpol_bins))
         except AttributeError:
@@ -74,11 +75,19 @@ class MD_RawData:
             self.header.cpol_bins = False
         self.dtype = dtype
         self.nperbin = nperbin
-        self.nbins, self.grid, dxyz = self.get_bintopology()
+        self.nbins, self.grid, dxyz = self.get_gridtopology()
         self.dx = dxyz[0]; self.dy = dxyz[1]; self.dz = dxyz[2]
         self.maxrec = self.get_maxrec()
 
+    def read_header(self,fdir):
+        return MDHeaderData(fdir)
+
     def get_bintopology(self):
+        print("Call to get_bintopology are depreciated, please use get_gridtopology instead")
+        return self.get_gridtopology()
+
+    def get_gridtopology(self):
+
 
         """
             Returns:
@@ -88,6 +97,7 @@ class MD_RawData:
                 binspaces - A length-3 list of numpy linspaces specifying
                             the locations of the center of each bin in a
                             uniform grid (one linspace for each direction)
+                binsizes  - A length-3 list with the size of each bin
 
         """
         
@@ -116,10 +126,18 @@ class MD_RawData:
 
         return gnbins, binspaces, binsizes
 
-    def get_binvolumes(self,binlimits=None):
 
-        binspaces = self.grid
-    
+    def get_binvolumes(self,binlimits=None):
+        print("Calls to get_binvolumes are depreciated, please use get_gridvolumes instead")
+        return self.get_gridvolumes(binlimits=binlimits)
+
+    def get_gridvolumes(self,binlimits=None):
+
+        try:
+            binspaces = self.grid
+        except AttributeError:
+            nbins, binspaces, dxyz = self.get_gridtopology()
+
         if (self.cpol_bins == True):    
 
             r_oi = float(self.header.r_oi)
@@ -134,7 +152,7 @@ class MD_RawData:
             dz     = binspaces[2][1] - binspaces[2][0]
 
             r = r + 0.5*dr
-            binvolumes = r*dr*dtheta*dz
+            gridvolumes = r*dr*dtheta*dz
 
         else:
 
@@ -146,14 +164,14 @@ class MD_RawData:
             dy = binspaces[1][1] - binspaces[1][0]
             dz = binspaces[2][1] - binspaces[2][0]
 
-            binvolumes = np.ones(x.shape)*dx*dy*dz
+            gridvolumes = np.ones(x.shape)*dx*dy*dz
 
         # If bin limits are specified, return only those within range
         if (binlimits):
 
             # Defaults
             lower = [0]*3
-            upper = [i for i in binvolumes.shape] 
+            upper = [i for i in gridvolumes.shape] 
     
             for axis in range(3):
                 if (binlimits[axis] == None):
@@ -162,14 +180,14 @@ class MD_RawData:
                     lower[axis] = binlimits[axis][0] 
                     upper[axis] = binlimits[axis][1] 
 
-            binvolumes = binvolumes[lower[0]:upper[0],
+            gridvolumes = gridvolumes[lower[0]:upper[0],
                                     lower[1]:upper[1],
                                     lower[2]:upper[2]]
                 
-        # Ensure binvolumes is the right shape for subsequent
+        # Ensure gridvolumes is the right shape for subsequent
         # broadcasting with other fields
-        binvolumes = np.expand_dims(binvolumes,-1)
-        return binvolumes
+        gridvolumes = np.expand_dims(gridvolumes,-1)
+        return gridvolumes
 
     def get_maxrec(self):
 

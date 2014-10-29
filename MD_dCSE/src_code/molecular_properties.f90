@@ -31,7 +31,7 @@ contains
         logical :: tag_status 
 
         bottom = (/ -globaldomain(1)/2.d0, -globaldomain(2)/2.d0, -globaldomain(3)/2.d0 /)
-        top	= (/  globaldomain(1)/2.d0,  globaldomain(2)/2.d0,  globaldomain(3)/2.d0 /)
+        top	   = (/  globaldomain(1)/2.d0,  globaldomain(2)/2.d0,  globaldomain(3)/2.d0 /)
 
         select case (status_type)
         case ('thermo')
@@ -44,15 +44,18 @@ contains
             endif
         case ('teth')
             tagdistbottom(:) = tethereddistbottom(:)
-            tagdisttop(:)	= tethereddisttop(:)
+            tagdisttop(:)	 = tethereddisttop(:)
             !Apply a complicated wall texture if specified
             if (texture_type .ne. 0) call wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
         case ('fixed')
             tagdistbottom(:) = fixdistbottom(:)
-            tagdisttop(:)	= fixdisttop(:)
+            tagdisttop(:)	 = fixdisttop(:)
         case ('slide')
             tagdistbottom(:) = slidedistbottom(:)
-            tagdisttop(:)	= slidedisttop(:)
+            tagdisttop(:)	 = slidedisttop(:)
+        case('nonexistent')
+            tagdistbottom(:) = emptydistbottom(:)
+            tagdisttop(:)	 = emptydisttop(:)
         case default
             call error_abort("Unrecognised tag status type")
         end select
@@ -463,6 +466,7 @@ subroutine read_tag(molno)
 			fix(:,molno) = 1
 			slidev(:,molno) = 0.d0
 		case default
+            print'(3(a,i20))', ' Error in molecular_properties at Iter =', iter, ' Mol no = ', molno, ' Tag number = ', tag(molno)
 			call error_abort("Invalid molecular Tag")
 		end select
 

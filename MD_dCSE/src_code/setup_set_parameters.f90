@@ -386,7 +386,7 @@ subroutine set_parameters_global_domain
 			! - corrected after position setup
 			np = globalnp / nproc
 
-		case('solid_liquid','polymer_brush')
+		case('solid_liquid','polymer_brush','droplet2D','droplet3D','2phase')
 
 			volume=1	!Set domain size to unity for loop below
 			do ixyz=1,nd
@@ -540,7 +540,7 @@ subroutine set_parameters_global_domain
 
 		case default
 
-			call error_abort("set_parameters_global_domain must be corrected for this special case")	
+			call error_abort("Error in set_parameters_global_domain -- must be corrected for this special case")	
 
 		end select
 

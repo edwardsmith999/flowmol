@@ -6,6 +6,7 @@ import numpy as np
 import csv
 import sys
 
+from mdpostproc import MD_PostProc
 from mdfields import (MD_mField, MD_vField, MD_TField, 
                       MD_momField, MD_dField)
 from headerdata import MDHeaderData
@@ -42,6 +43,16 @@ class VMDFields:
                 else:
                     self.finished = True
 
+        #Get vmd skip
+        vmd_skip_found = False
+        for i in dir(self.header):
+            if (i.find('vmd_skip') == 0):
+                self.vmd_skip = int(vars(self.header)[i])
+                vmd_skip_found = True
+
+        if (not vmd_skip_found):
+            self.vmd_skip = 1
+
         #Get VMD intervals from header
         self.starts = []; self.ends = []
         for i in dir(self.header):
@@ -60,16 +71,18 @@ class VMDFields:
             self.ends.append(int(simulation_time))
 
         #Get averaging time per record 
-        if (isinstance(fieldobj, MD_mField)):
-            self.Nave = self.header.Nmass_ave
-        elif (isinstance(fieldobj, MD_vField)):
-            self.Nave = self.header.Nvel_ave
-        elif (isinstance(fieldobj, MD_TField)):
-            self.Nave = self.header.NTemp_ave
-        elif (isinstance(fieldobj, MD_dField)):
-            self.Nave = self.header.Nmass_ave
-        elif (isinstance(fieldobj, MD_momField)):
-            self.Nave = self.header.Nvel_ave
+        self.Nave = str(self.fieldobj.plotfreq)
+        print(self.Nave)
+#        if (isinstance(fieldobj, MD_mField)):
+#            self.Nave = self.header.Nmass_ave
+#        elif (isinstance(fieldobj, MD_vField)):
+#            self.Nave = self.header.Nvel_ave
+#        elif (isinstance(fieldobj, MD_TField)):
+#            self.Nave = self.header.NTemp_ave
+#        elif (isinstance(fieldobj, MD_dField)):
+#            self.Nave = self.header.Nmass_ave
+#        elif (isinstance(fieldobj, MD_momField)):
+#            self.Nave = self.header.Nvel_ave
 #        elif (isinstance(fieldobj, MD_CVField)):
 #            self.Nave = self.header.Nvflux_ave
 
@@ -86,6 +99,7 @@ class VMDFields:
             f.write(self.header.tplot + '\n')
             f.write(self.header.delta_t + '\n')
             f.write(self.Nave + '\n')
+            f.write(str(self.vmd_skip) + '\n')
 
     def write_vmd_intervals(self):
 
@@ -99,6 +113,7 @@ class VMDFields:
 
     #Write range of dx files based on VMD intervals
     def write_dx_range(self,component=0,clims=None):
+
         #Clean previous files
         outdir = self.fdir+"./vmd/vol_data/"
         filelist = [ f for f in os.listdir(outdir + ".") if f.endswith(".dx") ]
@@ -111,6 +126,7 @@ class VMDFields:
         for i in self.vmdintervals:
             fieldrecstart = i[0]/(int(self.header.tplot)*int(self.Nave))
             fieldrecend   = i[1]/(int(self.header.tplot)*int(self.Nave))
+            print(fieldrecstart,fieldrecend)
             #If limits are not specified, store time history for all intervals and average
             if (clims == None):
                 clims_array.append(self.fieldobj.write_dx_file(fieldrecstart,fieldrecend,component=component))
@@ -158,11 +174,17 @@ if __name__ == "__main__":
                   'density','momentum','CV_config',
                   'CV_kinetic','CV_total'}
 
+    ppObj = MD_PostProc(fdir)
+
     if(len(sys.argv) == 1):
         print("No field type specified, options include: " 
               + str(fieldtypes) + " Setting default vbins")
         objtype = 'vbins'
         component = 0
+    elif(sys.argv[1] in ['--help', '-help', '-h']):
+        print("Available field types include")
+        print(ppObj)
+        sys.exit()
     else:
         objtype = sys.argv[1]
         if(len(sys.argv) == 2):
@@ -171,24 +193,29 @@ if __name__ == "__main__":
         else:
             component = sys.argv[2]
 
-    if (objtype == 'mbins'):
-        fobj = MD_mField(fdir)
-    elif (objtype == 'vbins'):
-        fobj = MD_vField(fdir)
-    elif (objtype == 'Tbins'):
-        fobj = MD_TField(fdir)
-    elif (objtype == 'density'):
-        fobj = MD_dField(fdir)
-    elif (objtype == 'momentum'):
-        fobj = MD_momField(fdir)
-    elif (objtype == 'CV_config'):
-        fobj = MD_CVField(fdir,fname='psurface')
-    elif (objtype == 'CV_kinetic'):
-        fobj = MD_CVField(fdir,fname='vflux')
-    elif (objtype == 'CV_total'):
-        fobj = MD_CVField(fdir,fname='total')
-    else:
-        quit("Argument " + sys.argv[1] + " is not a valid field type")
+    try:
+        fobj = ppObj.plotlist[objtype]
+    except:
+        raise
+
+#    if (objtype == 'mbins'):
+#        fobj = MD_mField(fdir)
+#    elif (objtype == 'vbins'):
+#        fobj = MD_vField(fdir)
+#    elif (objtype == 'Tbins'):
+#        fobj = MD_TField(fdir)
+#    elif (objtype == 'density'):
+#        fobj = MD_dField(fdir)
+#    elif (objtype == 'momentum'):
+#        fobj = MD_momField(fdir)
+#    elif (objtype == 'CV_config'):
+#        fobj = MD_CVField(fdir,fname='psurface')
+#    elif (objtype == 'CV_kinetic'):
+#        fobj = MD_CVField(fdir,fname='vflux')
+#    elif (objtype == 'CV_total'):
+#        fobj = MD_CVField(fdir,fname='total')
+#    else:
+#        quit("Argument " + sys.argv[1] + " is not a valid field type")
 
     vmdobj = VMDFields(fobj,fdir)
     vmdobj.write_vmd_header()

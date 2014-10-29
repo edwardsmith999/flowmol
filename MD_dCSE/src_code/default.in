@@ -797,7 +797,7 @@ VMD_OUTFLAG
 #	4 - concise        > stdout + results/macroscopic_properties
 # -----------------------------------------------------------------------
 MACRO_OUTFLAG
-1
+2
 
 #########################################################################
 # Output flag for mass record:
