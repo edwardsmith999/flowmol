@@ -459,7 +459,7 @@ contains
 				rtether(:,n) = localise(rglob(:))
 
 			case default
-                print'(3(a,i8))', ' Error in simulation_move_lfv at Iter =', iter, ' Mol no = ', molno, ' Tag number = ', tag(molno)
+                print'(3(a,i8))', ' Error in simulation_move_lfv at Iter =', iter, ' Mol no = ', n, ' Tag number = ', tag(n)
 				call error_abort("Invalid molecular Tag")
 			end select
 

@@ -161,9 +161,8 @@ end subroutine apply_boundary_force
 subroutine simulation_apply_boundary_force(flags,dists)
 	use arrays_MD,  only: r,a
 	use computational_constants_MD, only: iblock,jblock,kblock,npx,npy,npz, &
-	                                      domain,irank
-	use physical_constants_MD, only: np, procnp
-	use calculated_properties_MD, only: pressure
+	                                      domain
+	use physical_constants_MD, only: np
 	use interfaces, only: error_abort
 	implicit none
 
@@ -219,18 +218,22 @@ end subroutine simulation_apply_boundary_force
 
 subroutine apply_bforce(a_in,ixyz,xyz,thresh,hdom,flag)
 	use boundary_MD, only: bforce_NCER, bforce_off, bforce_pdf_input, &
-                           bforce_pdf_nsubcells
+                           bforce_pdf_nsubcells, substrate_force 
 	use calculated_properties_MD,   only: pressure
     use computational_constants_MD, only: cellsidelength 
 	use interfaces,                 only: error_abort
 	implicit none
 
 	real(kind(0.d0)), intent(inout) :: a_in	  !Accel to which add bforce
-	real(kind(0.d0)), intent(in) :: xyz       !Position, 1D
-	real(kind(0.d0)), intent(in) :: thresh    !Threshold for bforce, 1D
-	real(kind(0.d0)), intent(in) :: hdom      !Domain edge
-	integer, intent(in) :: ixyz               !Direction 
-	integer, intent(in) :: flag               !Type of bforce 
+	real(kind(0.d0)), intent(in)    :: xyz    !Position, 1D
+	real(kind(0.d0)), intent(in)    :: thresh !Threshold for bforce, 1D
+	real(kind(0.d0)), intent(in)    :: hdom   !Domain edge
+	integer, intent(in)             :: ixyz   !Direction 
+	integer, intent(in)             :: flag   !Type of bforce 
+
+
+    !Substrate wall parameters
+    double precision                :: eij, sij, C, lama, lamr, rho_wall
 
 	real(kind(0.d0)) :: numer,denom,ratio,P,f,dxyz
 	character(128)   :: string
@@ -258,9 +261,20 @@ subroutine apply_bforce(a_in,ixyz,xyz,thresh,hdom,flag)
         !print*, 'subcell, ixyz, f', subcell, ixyz, f
         a_in = a_in + f
 
+	case ( substrate_force )
+
+        eij = 1.4d0; sij = 1.d0
+        lama = 12.d0; lamr = 6.d0
+        C = (lamr/(lamr-lama))*(lamr/lama)**(lama/(lamr-lama))
+        rho_wall = 1.d0
+        dxyz = abs(hdom - xyz)
+        call get_substrate_force(dxyz,eij,sij,C,lama,lamr,rho_wall,f)
+        !write(100,'(a,3f10.5,i6)'), 'Substrate_Force', dxyz, f,xyz,ixyz
+        a_in = a_in + f
+
 	case default
 
-		string="MD uncoupled boundary force only developed for NCER case"
+		string="MD uncoupled boundary force not developed for specified case"
 		call error_abort(string)
 
 	end select
@@ -328,6 +342,31 @@ contains
         end if 
 
     end function pull_from_bforce_pdf 
+
+    subroutine get_substrate_force(D, eij, sij, C, lama, lamr, rho_wall, Fd, potenergy)
+        use physical_constants_MD, only : pi
+        double precision, intent(in)            :: D, eij, sij, C, lama, lamr, rho_wall
+        double precision, intent(out)           :: Fd
+        double precision, intent(out),optional  :: potenergy
+
+        double precision                        :: lama_m2,lama_m3,lamr_m2,lamr_m3
+        double precision                        :: sijovrD,inva,invr,consts
+
+        consts = 2.d0*pi*rho_wall*C*eij*sij**3.d0
+        lamr_m2 = lamr-2.d0; lama_m2 = lama-2.d0
+        sijovrD = sij/D
+
+        Fd = consts*( (sijovrD**lamr_m2)/lamr_m2  & 
+                     -(sijovrD**lama_m2)/lama_m2   )
+
+        if (present(potenergy)) then
+            lamr_m3 = lamr-3.d0; lama_m3 = lama-3.d0 
+            invr = (sijovrD**(lamr_m3))/(lamr_m2*lamr_m3)
+            inva = (sijovrD**(lama_m3))/(lama_m2*lama_m3)
+            potenergy = consts*(invr-inva)
+        endif
+
+    end subroutine get_substrate_force
 
 end subroutine apply_bforce
 

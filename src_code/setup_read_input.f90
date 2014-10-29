@@ -28,11 +28,12 @@ end module module_read_input
 
 subroutine setup_read_input
 	use module_read_input
-	use librarymod, only :locate
+	use librarymod, only :locate, linspace
 	implicit none
 
-	logical					:: found_in_input, error
-	integer 				:: ios, ixyz, n
+	logical					:: found_in_input, error, empty
+	integer 				:: ios, ixyz, n, Nvmd_interval_size
+    character(256)          :: str
 
 	! Open input file
 	open(1,file=input_file)
@@ -140,6 +141,22 @@ subroutine setup_read_input
 			read(1,*) initialnunits(2)		!y dimension split into number of cells
 			read(1,*) initialnunits(3)		!z dimension split into number of cells
 
+		case('droplet2D','droplet3D','2phase')
+
+			potential_flag = 0
+
+			call locate(1,'DENSITY',.true.)
+			read(1,*) density
+			call locate(1,'LIQUIDDENSITY',.true.) 
+    	    read(1,*) liquid_density
+			call locate(1,'GASDENSITY',.true.) 
+    	    read(1,*) gas_density
+			call locate(1,'RCUTOFF',.true.)
+			read(1,*) rcutoff
+			call locate(1,'INITIALNUNITS',.true.)
+			read(1,*) initialnunits(1)		!x dimension split into number of cells
+			read(1,*) initialnunits(2)		!y dimension split into number of cells
+			read(1,*) initialnunits(3)		!z dimension split into number of cells
 
 		case('concentric_cylinders')
 			
@@ -501,7 +518,10 @@ subroutine setup_read_input
 	tethereddistbottom = 0.d0; tethereddisttop = 0.d0
 	!Setup thermostatted molecules
 	thermstatbottom = 0.d0; thermstattop = 0.d0 
-	
+	!Setup regions to remove molecules (used for some boundary forces)
+    emptydistbottom = 0.d0; emptydisttop = 0.d0
+
+
 	call locate(1,'WALLSLIDEV',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) wallslidev(1)
@@ -591,6 +611,18 @@ subroutine setup_read_input
 		read(1,*) thermstattop(2)
 		read(1,*) thermstattop(3)
 	endif
+	call locate(1,'EMPTYDISTTOP',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) emptydisttop(1)
+		read(1,*) emptydisttop(2)
+		read(1,*) emptydisttop(3)
+	endif
+	call locate(1,'EMPTYDISTBOTTOM',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) emptydistbottom(1)
+		read(1,*) emptydistbottom(2)
+		read(1,*) emptydistbottom(3)
+	endif
 
 	!Flag to determine if output is switched on
 	call locate(1,'VMD_OUTFLAG',.false.,found_in_input)
@@ -598,19 +630,36 @@ subroutine setup_read_input
 		read(1,*) vmd_outflag
 		if (vmd_outflag .ne. 0) then
 			read(1,*,iostat=ios) Nvmd_intervals	!Number of vmd intervals
-			if (Nvmd_intervals .gt. 20) then
-				print*, "Number of VMD intervals greater than 20 or not specified, setting on for all simulation"
-				Nvmd_intervals = 0
-			endif
+            !If zero intervals or not specified, switch on for entire time
 			if (Nvmd_intervals .eq. 0 .or. ios .ne. 0) then
 				allocate(vmd_intervals(2,1))
 				vmd_intervals(1,1) = 1; vmd_intervals(2,1) = Nsteps
 				Nvmd_intervals = 1
+            !Otherwise, try to read intervals from next line
 			else
 				allocate(vmd_intervals(2,Nvmd_intervals))
-				!write(readin_format,'(a,i5,a)') '(',2*Nvmd_intervals,'i)'
-				!read(1,trim(readin_format)) vmd_intervals
-				read(1,*) vmd_intervals
+                !Check if interval in form of comma seperated list of inputs
+                read(1,'(a)',iostat=ios) str
+                backspace(1)
+                if(scan(str, ",").gt.0) then
+                    read(1,*,iostat=ios) vmd_intervals
+                !Otherwise, use Nvmd_interval_size to specify linearly space records
+                else
+                    !See if a single interval size is specified, otherwise use 1000
+                    read(1,*,iostat=ios) Nvmd_interval_size
+                    if (ios .ne. 0) Nvmd_interval_size = 1000
+                    vmd_intervals(1,:) = linspace(0.d0, & 
+                                                  real(Nsteps,kind(0.d0)),&
+                                                  Nvmd_intervals)
+                    vmd_intervals(2,:) = vmd_intervals(1,:) + Nvmd_interval_size
+                    !Note, convention to have last interval from Nsteps 
+                    !interval_size to Nsteps
+                    vmd_intervals(1,size(vmd_intervals,2)) = & 
+                        vmd_intervals(1,size(vmd_intervals,2)) - Nvmd_interval_size
+                    vmd_intervals(2,size(vmd_intervals,2)) = & 
+                        vmd_intervals(2,size(vmd_intervals,2)) - Nvmd_interval_size
+                endif
+
 #if USE_COUPLER
 				!Coupler total simulation time is setup later so defer this check
 				!until later
@@ -627,7 +676,7 @@ subroutine setup_read_input
 		!If not switched on in input then VMD set to off
 		vmd_outflag = 0
 	endif
-    
+
     call locate(1,'VMD_SKIP',.false.,found_in_input)
     if (found_in_input) then
         read(1,*) vmd_skip  
@@ -637,6 +686,8 @@ subroutine setup_read_input
     else
         vmd_skip = 1
     end if
+    
+
     
 	call locate(1,'SEPARATE_OUTFILES',.false.,found_in_input)
 	if (found_in_input) then

@@ -808,11 +808,21 @@ subroutine simulation_header
         if (i .lt. 10) then
             write(fileunit,'(a,i1,a,i1,a,i8)')  'VMD interval ',i,' start ;  vmd_start_0',i,' ;', vmd_intervals(1,i)
             write(fileunit,'(a,i1,a,i1,a,i8)')  'VMD interval ',i,' end   ;    vmd_end_0',i,' ;', vmd_intervals(2,i)
-        else
+        elseif (i .lt. 100) then
             write(fileunit,'(a,i2,a,i2,a,i8)')  'VMD interval ',i,' start ;  vmd_start_',i,' ;', vmd_intervals(1,i)
             write(fileunit,'(a,i2,a,i2,a,i8)')  'VMD interval ',i,' end   ;    vmd_end_',i,' ;', vmd_intervals(2,i)
+        elseif (i .lt. 1000) then
+            write(fileunit,'(a,i3,a,i3,a,i8)')  'VMD interval ',i,' start ;  vmd_start_',i,' ;', vmd_intervals(1,i)
+            write(fileunit,'(a,i3,a,i3,a,i8)')  'VMD interval ',i,' end   ;    vmd_end_',i,' ;', vmd_intervals(2,i)
+        elseif (i .lt. 10000) then
+            write(fileunit,'(a,i4,a,i4,a,i8)')  'VMD interval ',i,' start ;  vmd_start_',i,' ;', vmd_intervals(1,i)
+            write(fileunit,'(a,i4,a,i4,a,i8)')  'VMD interval ',i,' end   ;    vmd_end_',i,' ;', vmd_intervals(2,i)
+        elseif (i .lt. 100000) then
+            write(fileunit,'(a,i5,a,i5,a,i8)')  'VMD interval ',i,' start ;  vmd_start_',i,' ;', vmd_intervals(1,i)
+            write(fileunit,'(a,i5,a,i5,a,i8)')  'VMD interval ',i,' end   ;    vmd_end_',i,' ;', vmd_intervals(2,i)
         endif
     enddo
+    write(fileunit,*)  'VMD skip ;  vmd_skip ;', vmd_skip
     write(fileunit,*)  'macro flag ;  macro_outflag  ;', macro_outflag
     write(fileunit,*)  'mass flag ;  mass_outflag ;', mass_outflag  
     write(fileunit,*)  'velocity flag ;  velocity_outflag ;', velocity_outflag

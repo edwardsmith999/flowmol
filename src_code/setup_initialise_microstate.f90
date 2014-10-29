@@ -13,6 +13,31 @@ module module_initialise_microstate
 
     double precision            :: angle, rand  !Define variables
     double precision            :: v13          !Mag of v1 and v3 vectors
+
+contains
+
+    ! Get domain top
+    function get_domain_top(L_md) result(top)
+	    implicit none
+
+	    real(kind(0.d0)),intent(in)  :: L_md
+	    real(kind(0.d0))    :: top
+
+        top = L_md/2.d0
+
+    end function get_domain_top
+
+    ! Get domain bottom 
+    function get_domain_bottom(L_md) result(bottom)
+	    implicit none
+
+	    real(kind(0.d0)),intent(in)  :: L_md
+	    real(kind(0.d0))             :: bottom
+
+        bottom = -L_md/2.d0
+
+    end function get_domain_bottom
+
     
 end module module_initialise_microstate
 !------------------------------------------------------------------------------
@@ -51,6 +76,9 @@ subroutine setup_initialise_microstate
             call setup_location_tags           !Setup locn of fixed mols
         case('solid_liquid')
             call setup_initialise_solid_liquid
+            call setup_location_tags               !Setup locn of fixed mols
+        case('droplet2D','droplet3D','2phase')
+            call setup_initialise_solid_liquid_gas(config_special_case)
             call setup_location_tags               !Setup locn of fixed mols
         case('polymer_brush')
             call setup_initialise_polymer_brush
@@ -133,13 +161,15 @@ subroutine setup_initialise_lattice
     use messenger_data_exchange, only : globalSum
 #if USE_COUPLER
     use coupler
-    use md_coupler_socket, only: socket_get_domain_top
+    use md_coupler_socket, only: socket_get_domain_top, &
+                                 socket_get_domain_bottom
 #endif
+    use module_molecule_properties, only : get_tag_status
     implicit none
 
     integer :: j, n, nl, nx, ny, nz
     integer, dimension(nd) :: p_units_lb, p_units_ub 
-    double precision :: domain_top
+    double precision :: domain_top, domain_bottom
     double precision, dimension (nd):: rc, c !Temporary variable
 
     p_units_lb(1) = (iblock-1)*floor(initialnunits(1)/real((npx),kind(0.d0)))
@@ -150,12 +180,18 @@ subroutine setup_initialise_lattice
     p_units_ub(3) =  kblock *ceiling(initialnunits(3)/real((npz),kind(0.d0)))
 
     !Set top of domain initially
-    domain_top = globaldomain(2)/2.d0
-
 #if USE_COUPLER
 
     if (jblock .eq. npy) then
-        domain_top = socket_get_domain_top()
+        domain_top    = socket_get_domain_top()
+        domain_bottom = socket_get_domain_bottom()
+    endif
+
+#else
+
+    if (jblock .eq. npy) then
+        domain_top    = get_domain_top(globaldomain(2))
+        domain_bottom = get_domain_bottom(globaldomain(2))
     endif
 
 #endif
@@ -190,12 +226,15 @@ subroutine setup_initialise_lattice
 
             n = n + 1   !Move to next particle
             
-            !Remove molecules from top of domain if constraint applied
+            !Remove molecules from top of domain if required
+            if (get_tag_status(rc-0.5d0*globaldomain,'nonexistent')) cycle
+
             if (jblock .eq. npy) then
                 ! Note rc is in global coordinates from 0 to globaldomain while Domaintop
                 ! is given in global coordinates from -halfglobaldomain to halfglobaldomain
                 !print*, "MOLECULAR REMOVAL TURNED OFF IN setup_initialise_lattice"
-                if (rc(2)-globaldomain(2)/2.d0 .gt. domain_top) cycle 
+                if (rc(2)-globaldomain(2)/2.d0 .gt. domain_top   ) cycle 
+                if (rc(2)-globaldomain(2)/2.d0 .lt. domain_bottom) cycle 
             endif
 
             !Check if molecule is in domain of processor
@@ -1032,7 +1071,15 @@ subroutine setup_initialise_sparse_FENE
 
     if (jblock .eq. npy) then
         domain_top = socket_get_domain_top()
+        domain_bottom = socket_get_domain_bottom()
     endif
+
+#else
+
+!    if (jblock .eq. npy) then
+!        domain_top    = get_domain_top(globaldomain(2))
+!        domain_bottom = get_domain_bottom(globaldomain(2))
+!    endif
 
 #endif
 
@@ -1305,13 +1352,14 @@ contains
     subroutine initialise_lattice_positions
 #if USE_COUPLER
         use coupler
-        use md_coupler_socket, only: socket_get_domain_top
+        use md_coupler_socket, only: socket_get_domain_top,socket_get_domain_bottom
 #endif
+        use module_molecule_properties, only : get_tag_status
         implicit none
 
         integer :: j, n, nl, nx, ny, nz
         integer, dimension(nd) :: p_units_lb, p_units_ub 
-        double precision :: domain_top, solid_density, density_ratio
+        double precision :: domain_top, domain_bottom, solid_density, density_ratio
         double precision, dimension (nd):: rc, c
 
         p_units_lb(1) = (iblock-1)*floor(initialnunits(1)/real((npx),kind(0.d0)))
@@ -1332,7 +1380,16 @@ contains
 
         if (jblock .eq. npy) then
             domain_top = socket_get_domain_top()
+            domain_bottom = socket_get_domain_bottom()
         endif
+
+#else
+
+    if (jblock .eq. npy) then
+        domain_top    = get_domain_top(globaldomain(2))
+        domain_bottom = get_domain_bottom(globaldomain(2))
+    endif
+
 
 #endif
 
@@ -1366,11 +1423,14 @@ contains
 
                 n = n + 1   !Move to next particle
                 
-                !Remove molecules from top of domain if constraint applied
+                !Remove molecules from top of domain if required
+                if (get_tag_status(rc-0.5d0*globaldomain,'nonexistent')) cycle
+
                 if (jblock .eq. npy) then
                     ! Note rc is in global coordinates from 0 to globaldomain while Domaintop
                     ! is given in global coordinates from -halfglobaldomain to halfglobaldomain
-                    if (rc(2)-globaldomain(2)/2.d0 .gt. domain_top) cycle 
+                    if (rc(2)-globaldomain(2)/2.d0 .gt. domain_top   ) cycle 
+                    if (rc(2)-globaldomain(2)/2.d0 .lt. domain_bottom) cycle 
                 endif
 
                 !Check if molecule is in domain of processor
@@ -1728,11 +1788,12 @@ subroutine setup_initialise_solid_liquid
     use coupler
     use md_coupler_socket, only: socket_get_domain_top
 #endif
+    use module_molecule_properties, only : get_tag_status
     implicit none
 
     integer :: j, n, nl, nx, ny, nz
     integer, dimension(nd) :: p_units_lb, p_units_ub 
-    double precision :: domain_top, solid_density, density_ratio
+    double precision :: domain_top, domain_bottom, solid_density, density_ratio
     double precision, dimension (nd):: solid_bottom,solid_top, rc, c
 
     p_units_lb(1) = (iblock-1)*floor(initialnunits(1)/real((npx),kind(0.d0)))
@@ -1753,6 +1814,14 @@ subroutine setup_initialise_solid_liquid
 
     if (jblock .eq. npy) then
         domain_top = socket_get_domain_top()
+        domain_bottom = socket_get_domain_bottom()
+    endif
+
+#else
+
+    if (jblock .eq. npy) then
+        domain_top    = get_domain_top(globaldomain(2))
+        domain_bottom = get_domain_bottom(globaldomain(2))
     endif
 
 #endif
@@ -1787,12 +1856,16 @@ subroutine setup_initialise_solid_liquid
 
             n = n + 1   !Move to next particle
             
+            !Remove molecules from top of domain if required
+            if (get_tag_status(rc-0.5d0*globaldomain,'nonexistent')) cycle
+
             !Remove molecules from top of domain if constraint applied
-            if (jblock .eq. npy) then
-                ! Note rc is in global coordinates from 0 to globaldomain while Domaintop
-                ! is given in global coordinates from -halfglobaldomain to halfglobaldomain
-                if (rc(2)-globaldomain(2)/2.d0 .gt. domain_top) cycle 
-            endif
+!            if (jblock .eq. npy) then
+!                ! Note rc is in global coordinates from 0 to globaldomain while Domaintop
+!                ! is given in global coordinates from -halfglobaldomain to halfglobaldomain
+!                if (rc(2)-globaldomain(2)/2.d0 .gt. domain_top   ) cycle 
+!                if (rc(2)-globaldomain(2)/2.d0 .lt. domain_bottom) cycle 
+!            endif
 
             !Check if molecule is in domain of processor
             if(rc(1).lt. domain(1)*(iblock-1)) cycle
@@ -1854,6 +1927,224 @@ subroutine setup_initialise_solid_liquid
 #endif
 
 end subroutine setup_initialise_solid_liquid
+
+
+
+!-----------------------------------------------------------------------------
+subroutine setup_initialise_solid_liquid_gas(gastype)
+    use physical_constants_MD, only : fixdistbottom
+    use module_initialise_microstate
+    use messenger
+    use messenger_data_exchange, only : globalSum
+    use interfaces, only: error_abort
+#if USE_COUPLER
+    use coupler
+    use md_coupler_socket, only: socket_get_domain_top
+#endif
+    use module_molecule_properties, only : get_tag_status
+    implicit none
+
+    character(*),intent(in)   :: gastype
+
+    integer :: j, n, nl, nx, ny, nz
+    integer, dimension(nd) :: p_units_lb, p_units_ub 
+    double precision :: domain_top, domain_bottom, solid_density, density_ratio_sl
+    double precision :: density_ratio_gl, h, h0, x, y, z, hx, hz
+    double precision, dimension (nd):: solid_bottom,solid_top, rc, c
+
+    p_units_lb(1) = (iblock-1)*floor(initialnunits(1)/real((npx),kind(0.d0)))
+    p_units_ub(1) =  iblock *ceiling(initialnunits(1)/real((npx),kind(0.d0)))
+    p_units_lb(2) = (jblock-1)*floor(initialnunits(2)/real((npy),kind(0.d0)))
+    p_units_ub(2) =  jblock *ceiling(initialnunits(2)/real((npy),kind(0.d0)))
+    p_units_lb(3) = (kblock-1)*floor(initialnunits(3)/real((npz),kind(0.d0)))
+    p_units_ub(3) =  kblock *ceiling(initialnunits(3)/real((npz),kind(0.d0)))
+
+
+    !Setup solid/liquid properties
+    solid_density = density
+    density_ratio_sl = liquid_density/solid_density
+    density_ratio_gl = gas_density/liquid_density
+
+#if USE_COUPLER
+    if (jblock .eq. npy) then
+        domain_top = socket_get_domain_top()
+        domain_bottom = socket_get_domain_bottom()
+    endif
+#else
+
+    if (jblock .eq. npy) then
+        domain_top    = get_domain_top(globaldomain(2))
+        domain_bottom = get_domain_bottom(globaldomain(2))
+    endif
+
+
+!    select case(ixyz)
+!    case(1,4)
+
+!    case(2,5)
+
+!    case(3,6)
+!        domain_top(ixyz) = get_domain_top(bforce_flag(ixyz),ixyz, & 
+!                                          globaldomain(ixyz)/2.d0, & 
+!                                          bforce_dxyz(ixyz))
+!    end select
+
+#endif
+
+    !Molecules per unit FCC structure (3D)
+    n  = 0      !Initialise global np counter n
+    nl = 0      !Initialise local np counter nl
+
+    !Inner loop in y (useful for setting connectivity)
+    do nz=p_units_lb(3),p_units_ub(3)
+    c(3) = (nz - 0.75d0)*initialunitsize(3) !- halfdomain(3) 
+    do nx=p_units_lb(1),p_units_ub(1)
+    c(1) = (nx - 0.75d0)*initialunitsize(1) !- halfdomain(1)
+    do ny=p_units_lb(2),p_units_ub(2)
+    c(2) = (ny - 0.75d0)*initialunitsize(2) !- halfdomain(2) 
+
+        do j=1,4    !4 Molecules per cell
+
+            rc(:) = c(:)
+            select case(j)
+            case(2)
+                rc(1) = c(1) + 0.5d0*initialunitsize(1)
+                rc(3) = c(3) + 0.5d0*initialunitsize(3)
+            case(3)
+                rc(2) = c(2) + 0.5d0*initialunitsize(2)
+                rc(3) = c(3) + 0.5d0*initialunitsize(3)
+            case(4)
+                rc(1) = c(1) + 0.5d0*initialunitsize(1)
+                rc(2) = c(2) + 0.5d0*initialunitsize(2)
+            case default
+            end select
+
+            n = n + 1   !Move to next particle
+            
+            !Remove molecules from top of domain if required
+            if (get_tag_status(rc-0.5d0*globaldomain,'nonexistent')) cycle
+
+            !Remove molecules from top of domain if constraint applied
+            if (jblock .eq. npy) then
+                ! Note rc is in global coordinates from 0 to globaldomain while Domaintop
+                ! is given in global coordinates from -halfglobaldomain to halfglobaldomain
+                if (rc(2)-globaldomain(2)/2.d0 .gt. domain_top   ) cycle 
+                if (rc(2)-globaldomain(2)/2.d0 .lt. domain_bottom) cycle 
+            endif
+
+            !Check if molecule is in domain of processor
+            if(rc(1).lt. domain(1)*(iblock-1)) cycle
+            if(rc(1).ge. domain(1)*(iblock  )) cycle
+            if(rc(2).lt. domain(2)*(jblock-1)) cycle
+            if(rc(2).ge. domain(2)*(jblock  )) cycle
+            if(rc(3).lt. domain(3)*(kblock-1)) cycle
+            if(rc(3).ge. domain(3)*(kblock  )) cycle
+
+            !Solid region given by wall textures or tethered region
+            call wall_textures(texture_type,(rc(:)-globaldomain(:)/2.d0),solid_bottom,solid_top)
+
+            !If outside solid region, randomly remove molecules from lattice
+            if (rc(2)-globaldomain(2)/2.d0 .gt. (solid_bottom(2) - globaldomain(2)/2.d0) .and. & 
+                rc(2)-globaldomain(2)/2.d0 .lt. (globaldomain(2)/2.d0  -  solid_top(2))) then
+                !cycle
+                call random_number(rand)
+                if (rand .gt. density_ratio_sl) cycle
+
+                !Next, take liquid domain and randomly remove in gas region
+                select case(gastype)
+                case('droplet2D')
+                    !Take contact line start as 90% of domain height in y
+                    h0 = 0.9d0*globaldomain(2)
+                    if (h0 .gt. globaldomain(1)/2.d0) then
+                        call error_abort("Error in setup_initialise_solid_liquid_gas &
+                                          & -- should have domain width > domain height")
+                    endif
+
+                    !Droplet initially of shape 1 - x^2 with contact line
+                    x = (rc(1)-globaldomain(1)/2.d0)/h0
+                    y =  rc(2)
+                    !h = sqrt(h0**2.d0 - x**2.d0)
+                    h = h0*(1.d0 - x**2.d0)
+
+                    if (y .gt. h ) then!.or. abs(x) .gt. h0) then
+                        call random_number(rand)
+                        if (rand .gt. density_ratio_gl) cycle   
+                    endif                   
+
+                case('droplet3D')
+                    !Take contact line start as 90% of domain height in y
+                    h0 = 0.9d0*globaldomain(2)
+                    if (h0 .gt. globaldomain(1)/2.d0 .or. h0 .gt. globaldomain(3)/2.d0) then
+                        call error_abort("Error in setup_initialise_solid_liquid_gas &
+                                          & -- should have domain width > domain height")
+                    endif
+
+                    !Droplet initially of shape 1 - x^2 with contact line
+                    x = (rc(1)-globaldomain(1)/2.d0)/h0
+                    y =  rc(2)
+                    z = (rc(3)-globaldomain(3)/2.d0)/h0
+                    h = h0*(1.d0 - x**2.d0  - z**2.d0)
+
+                    if (y .gt. h .or. & 
+                        abs(x) .gt. h0 .or. abs(z) .gt. h0) then
+                        call random_number(rand)
+                        if (rand .gt. density_ratio_gl) cycle   
+                    endif      
+
+                case('2phase')
+                    !Gas if on the left of the domain
+                    if ((rc(1)-globaldomain(1)/2.d0) .gt. 0.d0) then
+                        call random_number(rand)
+                        if (rand .gt. density_ratio_gl) cycle   
+                    endif
+
+                case default
+                    call error_abort("Error in setup_initialise_solid_liquid_gas -- gastype not know")
+                endselect 
+
+            endif
+
+            !If molecules is in the domain then add to total
+            nl = nl + 1 !Local molecule count
+
+            !Correct to local coordinates
+            r(1,nl) = rc(1)-domain(1)*(iblock-1)-halfdomain(1)
+            r(2,nl) = rc(2)-domain(2)*(jblock-1)-halfdomain(2)
+            r(3,nl) = rc(3)-domain(3)*(kblock-1)-halfdomain(3)
+
+        enddo
+
+    enddo
+    enddo
+    enddo
+
+    !Correct local number of particles on processor
+    np = nl
+
+    !Establish global number of particles on current process
+    globalnp = np
+    call globalSum(globalnp)
+
+    !Build array of number of particles on neighbouring
+    !processe's subdomain on current proccess
+    call globalGathernp
+
+#if USE_COUPLER
+
+    if (jblock .eq. npy .and. iblock .eq. 1 .and. kblock .eq. 1) then
+        print*, '*********************************************************************'
+        print*, '*WARNING - TOP LAYER OF DOMAIN REMOVED IN LINE WITH CONSTRAINT FORCE*'
+        print*, 'Removed from', domain_top, 'to Domain top', globaldomain(2)/2.d0
+        print*, 'Number of molecules reduced from',  & 
+                 4*initialnunits(1)*initialnunits(2)*initialnunits(3), 'to', globalnp
+        print*, '*********************************************************************'
+        !print*, 'microstate ', minval(r(1,:)), maxval(r(1,:)),minval(r(2,:)),  &
+        !         maxval(r(2,:)),minval(r(3,:)), maxval(r(3,:))
+    endif
+
+#endif
+
+end subroutine setup_initialise_solid_liquid_gas
 
 !=============================================================================
 !Initialise "solid" concentric cylinders
@@ -2689,4 +2980,66 @@ subroutine set_velocity_field_from_DNS_restart(filename,ngx,ngy,ngz)
     deallocate(uc,vc,wc)
 
 end subroutine set_velocity_field_from_DNS_restart
+
+
+
+
+
+
+
+
+!! Get domain top minus removed molecules
+!function get_domain_top(algorithm,ixyz,L_md,removed_dist) result(top)
+!    use interfaces, only : error_abort
+!	implicit none
+
+!	real(kind(0.d0))    :: yL_md, dy, top
+!	integer,intent(in)  :: algorithm,ixyz, removed_dist
+
+!	!Specifiy size of removed distance as half a cell
+!	removed_dist = dy/2.d0
+
+!	if (      algorithm .eq. 0 ) then
+!		top = L_md/2.d0
+!	else if ( algorithm .eq. 1 ) then
+!		top = L_md/2.d0 - removed_dist
+!	else if ( algorithm .eq. 2 ) then
+!		top = L_md/2.d0 - removed_dist
+!	else if ( algorithm .eq. 3 ) then
+!		top = L_md/2.d0
+!	else if ( algorithm .eq. 4 ) then
+!		top = L_md/2.d0
+!	else
+!		call error_abort("Error in get_domain_top - Unrecognised constraint algorithm flag")
+!	end if	
+
+!end function get_domain_top
+
+
+!! Get domain bottom minus removed molecules
+!function get_domain_bottom(algorithm) result(bottom)
+!    use interfaces, only : error_abort
+!	implicit none
+
+!	real(kind(0.d0))     :: yL_md, dy, bottom, removed_dist
+!	integer,intent(in)   :: algorithm
+
+!	if (      algorithm .eq. 0 ) then
+!		bottom = -yL_md/2.d0
+!	else if ( algorithm .eq. 1 ) then
+!		bottom = -yL_md/2.d0
+!	else if ( algorithm .eq. 2 ) then
+!		bottom = -yL_md/2.d0
+!	else if ( algorithm .eq. 3 ) then
+!		bottom = -yL_md/2.d0
+!	else if ( algorithm .eq. 4 ) then
+!		bottom = -yL_md/2.d0
+!	else
+!		call error_abort("Error in get_domain_bottom - Unrecognised constraint algorithm flag")
+!	end if	
+
+!end function get_domain_bottom
+
+
+
 
