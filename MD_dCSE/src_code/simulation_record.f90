@@ -5401,6 +5401,220 @@ subroutine evaluate_U
 end subroutine evaluate_U
 
 
+!This routine uses the mass averaging to obtain the gas/liquid interface
+
+!Requires volume_mass to be up to date and divided by volume
+
+subroutine get_fluid_liquid_interface_cells(density_bins, & 
+                                            liquiddensity, & 
+                                            gasdensity, &
+                                            interfacecell)
+    use computational_constants_MD, only : iter, binspercell
+    implicit none
+
+
+    double precision, intent(in)                               :: liquiddensity,gasdensity
+    double precision, dimension(:,:,:),allocatable,intent(in)  :: density_bins
+
+    double precision, dimension(:,:),allocatable,intent(out)   :: interfacecell
+
+	integer                         :: ixyz, i, j, k, is, js, ks, ncount
+    double precision                :: averagedensity
+    double precision,dimension(3)   :: cellsperbin
+    double precision, dimension(:,:),allocatable               :: interfacelist
+    logical, dimension(:,:,:),allocatable                      :: liquidbins, gasbins, interfacebin
+
+	cellsperbin = 1.d0/binspercell !ceiling(ncells(1)/dble(nbins(1)))
+
+    averagedensity = 0.5d0 * (liquiddensity + gasdensity)
+    allocate(liquidbins(size(density_bins,1), &
+                        size(density_bins,2), &
+                        size(density_bins,3)))
+    allocate(gasbins   (size(density_bins,1), &
+                        size(density_bins,2), &
+                        size(density_bins,3)))
+    liquidbins = .false.; gasbins = .false.
+    do i = 1,size(density_bins,1)
+    do j = 1,size(density_bins,2)
+    do k = 1,size(density_bins,3)
+        if (density_bins(i,j,k) .gt. averagedensity) then
+            liquidbins(i,j,k) = .true.
+        elseif (density_bins(i,j,k) .le. averagedensity) then
+            gasbins(i,j,k) = .true.
+        endif
+    enddo
+    enddo
+    enddo
+
+    !If liquid bin is next to a gas bin then must be an interface position
+    allocate(interfacebin(size(density_bins,1), &
+                          size(density_bins,2), &
+                          size(density_bins,3)))
+    interfacebin = .false.; ncount = 0
+    do i = 1,size(density_bins,1)
+    do j = 1,size(density_bins,2)
+    do k = 1,size(density_bins,3)
+	    do ks = -1,1
+	    do js = -1,1
+	    do is = -1,1
+            if (gasbins(i,j,k) .and. liquidbins(i+is,j+js,k+k)) then
+                    interfacebin(i,j,k) = .true.
+                    ncount = ncount + 1
+            endif
+        enddo
+        enddo
+        enddo
+    enddo
+    enddo
+    enddo
+
+    allocate(interfacelist(3,ncount))
+    ncount = 0
+    do i = 1,size(density_bins,1)
+    do j = 1,size(density_bins,2)
+    do k = 1,size(density_bins,3)
+        if (interfacebin(i,j,k)) then
+            ncount = ncount + 1
+            interfacelist(:,ncount) = (/i,j,k/)
+            write(90210,'(2i5,3f10.5)') iter,ncount,interfacelist(:,ncount)
+        endif
+    enddo
+    enddo
+    enddo
+
+    !Map bin to cells here!
+    do ixyz=1,3
+        interfacecell(ixyz,:) = (interfacelist(ixyz,:)-1) & 
+                                  *cellsperbin(ixyz)+1+  & 
+                                (1-cellsperbin(ixyz))
+    enddo
+
+end subroutine get_fluid_liquid_interface_cells
+
+subroutine get_molecules_within_rc(interfacecells,rc)
+	use module_compute_forces
+	use librarymod, only: outerprod
+    use computational_constants_MD, only : iter
+	implicit none
+
+    double precision, intent(in)                              :: rc
+    double precision, dimension(:,:),allocatable,intent(in)   :: interfacecells
+
+	integer                         :: i, j, n, ixyz !Define dummy index
+	integer							:: icell, jcell, kcell
+	integer                         :: icellshift, jcellshift, kcellshift
+	integer                         :: cellnp, adjacentcellnp 
+	integer							:: molnoi, molnoj, noneighbrs, cellshifts
+	integer							:: icellmin,jcellmin,kcellmin,icellmax,jcellmax,kcellmax
+    double precision                :: rc2
+	type(node), pointer 	        :: oldi, currenti, oldj, currentj
+	type(neighbrnode), pointer      :: noldj,ncurrentj
+
+    rc2 = rc**2.d0
+
+    do n = 1,size(interfacecells,2)
+
+        icell = interfacecells(1,n)
+        jcell = interfacecells(2,n)
+        kcell = interfacecells(3,n)
+	
+		cellnp = cell%cellnp(icell,jcell,kcell)
+		oldi => cell%head(icell,jcell,kcell)%point !Set oldi to first molecule in list
+
+		do i = 1,cellnp					!Step through each particle in list 
+			molnoi = oldi%molno 	 	!Number of molecule
+			ri = r(:,molnoi)         	!Retrieve ri
+
+	        noneighbrs = neighbour%noneighbrs(molnoi)	!Determine number of elements in neighbourlist
+		    noldj => neighbour%head(molnoi)%point			!Set old to head of neighbour list
+
+            ! If interface cutoff is less that interaction rcutoff
+            ! then we can use the neighbourlist to get molecules in 
+            ! interface region
+            if (rc2 .le. rcutoff2 + delta_rneighbr) then
+
+		        do j = 1,noneighbrs							!Step through all pairs of neighbours i and j
+
+			        molnoj = noldj%molnoj			!Number of molecule j
+			        rj(:) = r(:,molnoj)			!Retrieve rj
+			        rij(:)= ri(:) - rj(:)   	!Evaluate distance between particle i and j
+			        rij2  = dot_product(rij,rij)!Square of vector calculated
+
+			        if (rij2 < rc) then
+                        write(451,'(4i5,6f10.5)') iter, icell,jcell,kcell,ri(:),rj(:)  
+                    endif
+
+			        ncurrentj => noldj
+			        noldj => ncurrentj%next !Use pointer in datatype to obtain next item in list
+                enddo
+
+            ! If the interface cutoff is greater than rcutoff
+            ! then we can't use neighbour list and need to loop 
+            ! over a greater number of adjacent cells
+            elseif (rc2 .gt. rcutoff2 + delta_rneighbr) then
+
+                cellshifts = ceiling(rc/(rcutoff + delta_rneighbr))
+
+			    do kcellshift = -cellshifts,cellshifts
+			    do jcellshift = -cellshifts,cellshifts
+			    do icellshift = -cellshifts,cellshifts
+
+				    !Prevents out of range values in i
+				    if (icell+icellshift .lt. icellmin) cycle
+				    if (icell+icellshift .gt. icellmax) cycle
+				    !Prevents out of range values in j
+				    if (jcell+jcellshift .lt. jcellmin) cycle
+				    if (jcell+jcellshift .gt. jcellmax) cycle
+				    !Prevents out of range values in k
+				    if (kcell+kcellshift .lt. kcellmin) cycle
+				    if (kcell+kcellshift .gt. kcellmax) cycle
+
+				    oldj => cell%head(icell+icellshift,jcell+jcellshift,kcell+kcellshift)%point
+				    adjacentcellnp = cell%cellnp(icell+icellshift,jcell+jcellshift,kcell+kcellshift)
+
+				    do j = 1,adjacentcellnp      !Step through all j for each i
+
+					    molnoj = oldj%molno 	 !Number of molecule
+					    rj = r(:,molnoj)         !Retrieve rj
+
+					    if(molnoi==molnoj) cycle !Check to prevent interaction with self
+
+					    rij2=0                   !Set rij^2 to zero
+					    rij(:) = ri(:) - rj(:)   !Evaluate distance between particle i and j
+					    rij2 = dot_product(rij,rij)	!Square of vector calculated
+
+					    if (rij2 < rc) then
+                            write(451,'(7i5,6f10.5)') iter, icell,jcell,kcell, & 
+                                                     icell+icellshift,jcell+jcellshift, & 
+                                                     kcell+kcellshift, ri(:),rj(:)  
+                        endif
+
+					    currentj => oldj
+					    oldj => currentj%next    !Use pointer in datatype to obtain next item in list
+
+				    enddo
+			    enddo
+			    enddo
+			    enddo
+			    currenti => oldi
+			    oldi => currenti%next !Use pointer in datatype to obtain next item in list
+
+            endif
+
+		enddo
+	enddo
+
+	nullify(oldi)      	!Nullify as no longer required
+	nullify(oldj)      	!Nullify as no longer required
+	nullify(currenti)      	!Nullify as no longer required
+	nullify(currentj)      	!Nullify as no longer required
+
+end subroutine get_molecules_within_rc
+
+
+
+
+
 
 !===================================================================================
 !Calculate Radial distribution function (RDF) using cell method

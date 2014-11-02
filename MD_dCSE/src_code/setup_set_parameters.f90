@@ -624,8 +624,8 @@ subroutine set_parameters_cells
 	double precision :: rneighbr
 
 	!Calculate size of neighbour list region
-	rneighbr = rcutoff + delta_rneighbr
-	rneighbr2 = (rcutoff + delta_rneighbr)**2
+	rneighbr  = rcutoff + delta_rneighbr
+	rneighbr2 = rneighbr**2
 
 	select case(potential_flag)
 	case(1)
