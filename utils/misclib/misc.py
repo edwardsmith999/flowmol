@@ -70,7 +70,7 @@ def get_colours(n):
 
     return [pastel(c) for c in colours[0:n]]
 
-def round_to_n(self,x,p):
+def round_to_n(x,p):
     """
     returns a string representation of x formatted with a precision of p
 
