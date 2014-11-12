@@ -4,6 +4,8 @@ import os
 import numpy as np
 from matplotlib.colors import colorConverter
 import latex2utf
+from math import log10, floor
+import math as maths
 
 class Chdir:          
     """

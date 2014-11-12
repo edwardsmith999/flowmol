@@ -1,7 +1,7 @@
 import wx
 import numpy as np
 import matplotlib
-matplotlib.use('WXAgg')
+#matplotlib.use('WXAgg')
 import matplotlib.backends.backend_wxagg as wxaggb
 import matplotlib.backends.backend_wx as wxb
 import matplotlib.pyplot as plt
