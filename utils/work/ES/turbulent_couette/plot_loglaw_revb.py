@@ -3,6 +3,7 @@ import numpy as np
 import sys
 from scipy.optimize import curve_fit
 import scipy
+from matplotlib import rc
 
 sys.path.append('../../../')
 import postproclib as ppl
@@ -142,7 +143,12 @@ ax2.set_ylim([-15,1.01])
 ax2.set_xlabel('$y^+$')
 ax2.set_ylabel('$u^+$')
 
-plt.show()
-#plt.savefig('./law_of_the_wall.pdf')
-#plt.savefig('/home/es205/Documents/Turbulent_Couette/Resubmission_butwhere/law_of_the_wall.pdf')
+f.subplots_adjust(wspace=0)
+plt.rc('font', size=24)
+rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+rc('text', usetex=True)
+
+#plt.show()
+plt.savefig('./law_of_the_wall.pdf')
+plt.savefig('/home/es205/Documents/Turbulent_Couette/Resubmission_butwhere/law_of_the_wall.pdf')
 

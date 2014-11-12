@@ -169,8 +169,10 @@ class MD_PostProc(PostProc):
 
 
         if 'vflux' in (self.fieldfiles1):
-            flux1 = MD_pCVField(self.resultsdir,'vflux', **kwargs)
+            flux1 = MD_pCVField(self.resultsdir,'vflux', peculiar=False, **kwargs)
             self.plotlist.update({'vflux':flux1})
+            flux1 = MD_pCVField(self.resultsdir,'vflux', peculiar=True, **kwargs)
+            self.plotlist.update({'CVPressure_k':flux1})
 
         #External forces
         if 'Fext' in (self.fieldfiles1):

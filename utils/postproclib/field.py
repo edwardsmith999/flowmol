@@ -119,6 +119,33 @@ class Field():
         data = self.averaged_data(startrec,endrec,avgaxes=avgaxes,**kwargs)
         return self.grid[axis], data
 
+    def quiver(self,axes,components=None,startrec=0,endrec=None,**kwargs):
+
+        """
+            NOT TO BE OVERRIDDEN UNLESS ABSOLUTELY NECESSARY
+            Wrapper for averaged_data, returns easily plottable data 
+        """
+
+        if (components==None):
+            components = axes
+
+        X, Y, data = self.contour(axes,startrec=startrec,endrec=endrec,**kwargs)
+
+        #avgaxes = [0,1,2,3]
+        #avgaxes.remove(axes[0])
+        #avgaxes.remove(axes[1])
+        #avgaxes = tuple(avgaxes)
+
+        #if (endrec==None): 
+        #    endrec = self.maxrec
+
+        #data = self.averaged_data(startrec,endrec,avgaxes=avgaxes,**kwargs)
+
+        # Need version 1.7.1 of numpy or higher
+        #X, Y = np.meshgrid(self.grid[axes[0]],self.grid[axes[1]],indexing='ij')
+
+        return X, Y, data[:,:,components]
+
 
     class AxisManager():
 

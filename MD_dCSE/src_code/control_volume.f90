@@ -3,6 +3,7 @@
 !
 !	Routines add forces and fluxes per molecule to running totals
 !
+!   Written by Edward ( ͡° ͜ʖ ͡°)﻿ Smith
 !===================================================================================
 
 

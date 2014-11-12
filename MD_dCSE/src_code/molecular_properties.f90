@@ -1186,9 +1186,11 @@ contains
 
 		integer,intent(in)	:: flag,insertnp
 		double precision,intent(in),optional :: Utarget_in
-		double precision,dimension(:,:),allocatable,intent(out) :: insert_locs
 		!An array of extra molecular positions to include in potential calculation
 		double precision,dimension(:,:),allocatable,optional,intent(in)  :: extra_pos
+
+		double precision,dimension(:,:),allocatable,intent(out) :: insert_locs
+
 
 		integer				:: maxattempts=10000
 		double precision 	:: Utarget

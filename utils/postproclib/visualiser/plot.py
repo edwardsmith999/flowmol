@@ -17,6 +17,9 @@ class PyplotPanel(wx.Panel):
         self.sizer.Add(self.canvas, 1, wx.LEFT | wx.TOP | wx.GROW)
         self.Bind(wx.EVT_SIZE, self.sizeHandler)
 
+        # canvas is your canvas, and root is your parent (Frame, TopLevel, Tk instance etc.)
+        #self.zoomhandle = wxaggb.NavigationToolbar2WxAgg(self.canvas)
+
         #self.toolbar = wxb.NavigationToolbar2Wx(self.canvas) 
         #self.toolbar.Realize()
         #self.toolbar.update()

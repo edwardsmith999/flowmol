@@ -983,8 +983,8 @@ class MD_pCVField(MD_complexField):
             #As combined CV pressure doesn't exist, 
             # try getting from psurface and vflux
             if fname == 'total':
-                self.pkField = MD_pfluxField(fdir,fname='psurface')
-                self.pcField = MD_pfluxField(fdir,fname='vflux')
+                self.pkField = MD_pfluxField(fdir,fname='vflux')
+                self.pcField = MD_pfluxField(fdir,fname='psurface')
                 self.PField = self.pkField
             else:
                 raise DataNotAvailable
@@ -996,35 +996,110 @@ class MD_pCVField(MD_complexField):
     def read(self, startrec, endrec, peculiar=None,
              verbose=False,**kwargs):
 
-        # Read 4D time series from startrec to endrec
-        if self.fname == 'total':
-            pflux = (  self.pkField.read(startrec,endrec,**kwargs)
-                     + self.pcField.read(startrec,endrec,**kwargs))
-        else:
-            pflux = self.PField.read(startrec,endrec,**kwargs)
-
-        # Take off square of peculiar momenta if specified
+        # Override peculiar momenta specifier if required
         if peculiar == None:
             peculiar = self.peculiar
 
-        if (peculiar==True):
+        # Read 4D time series from startrec to endrec
+        if self.fname in ['total', 'vflux']:
+            # Read kinetic terms
+            pflux = self.PField.read(startrec,endrec)
 
-            if (self.fname=='psurface'):
-                if (verbose == True):
-                    message = ('\n *** \n Removing the peculiar velocity from '
-                    +' the configurational part \n of the stress tensor is '
-                    +' entirely nonsensical! I will ignore this instruction.\n'
-                    +' ***\n')
-                    print(message)
-                pass
-
-            else:   
-
+            # Take off peculiar momenta if specified
+            if (peculiar==True):
                 rhovvField = MD_rhouuCVField(self.fdir)
-                rhovvdata =  rhovvField.read(startrec,endrec,**kwargs)
-                pflux = pflux - rhovvdata
+                rhovvdata =  rhovvField.read(startrec,endrec)
+                pflux = pflux + rhovvdata
+
+            #Change convention so top and botton values have the same sign
+            pflux[:,:,:,:,9:] = -pflux[:,:,:,:,9:]
+
+            #Add psurface if required
+            if self.fname is 'total':
+                pflux = pflux - self.pcField.read(startrec,endrec,**kwargs)
+        else:
+            #Otherwise just read psurface
+            pflux = self.PField.read(startrec,endrec)
 
         return pflux 
+
+    #ORIGINAL READ
+
+#    def read(self, startrec, endrec, peculiar=None,
+#             verbose=False,**kwargs):
+
+#        # Read 4D time series from startrec to endrec
+#        if self.fname == 'total':
+#            pflux = (  self.pkField.read(startrec,endrec,**kwargs)
+#                     + self.pcField.read(startrec,endrec,**kwargs))
+#        else:
+#            pflux = self.PField.read(startrec,endrec,**kwargs)
+
+#        # Take off square of peculiar momenta if specified
+#        if peculiar == None:
+#            peculiar = self.peculiar
+
+#        if (peculiar==True):
+
+#            if (self.fname=='psurface'):
+#                if (verbose == True):
+#                    message = ('\n *** \n Removing the peculiar velocity from '
+#                    +' the configurational part \n of the stress tensor is '
+#                    +' entirely nonsensical! I will ignore this instruction.\n'
+#                    +' ***\n')
+#                    print(message)
+#                pass
+
+#            else:   
+
+#                rhovvField = MD_rhouuCVField(self.fdir)
+#                rhovvdata =  rhovvField.read(startrec,endrec,**kwargs)
+#                pflux = pflux + rhovvdata
+
+#        return pflux 
+
+    #ATTEMPT TO FLIP SIGN ON KINETIC PART 
+
+#        # Read 4D time series from startrec to endrec
+#        if self.fname == 'total':
+#            P_c = self.pcField.read(startrec,endrec,**kwargs)
+#            P_k = self.pkField.read(startrec,endrec,**kwargs)
+#            #Change convention so top and botton values have the same sign
+#            print('Flipping sign in  MD_pCVField for total')
+#            P_k[:,:,:,:,9:] = -P_k[:,:,:,:,9:]
+#            pflux = ( P_k - P_c )
+#        else:
+#            if self.fname is 'vflux':
+#                #Change convention so top and botton values have the same sign
+#                print('Flipping sign in  MD_pCVField for vflux')
+#                pflux = self.PField.read(startrec,endrec,**kwargs)
+#                pflux[:,:,:,:,9:] = -pflux[:,:,:,:,9:]
+#            else:
+#                pflux = self.PField.read(startrec,endrec,**kwargs)
+##            pflux = self.PField.read(startrec,endrec,**kwargs)
+
+#        # Take off square of peculiar momenta if specified
+#        if peculiar == None:
+#            peculiar = self.peculiar
+
+#        if (peculiar==True):
+
+#            if (self.fname=='psurface'):
+#                if (verbose == True):
+#                    message = ('\n *** \n Removing the peculiar velocity from '
+#                    +' the configurational part \n of the stress tensor is '
+#                    +' entirely nonsensical! I will ignore this instruction.\n'
+#                    +' ***\n')
+#                    print(message)
+#                pass
+
+#            else:   
+
+#                rhovvField = MD_rhouuCVField(self.fdir)
+#                rhovvdata =  rhovvField.read(startrec,endrec,**kwargs)
+#                pflux = pflux + rhovvdata
+
+#        return pflux 
 
 class MD_rhouuCVField(MD_complexField):
 
