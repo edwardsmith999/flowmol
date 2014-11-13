@@ -100,6 +100,8 @@ subroutine simulation_record
 	integer,save	:: i = 1
     integer, save :: vmd_skip_count=0
 
+    integer :: sl_interface_outflag
+
 	if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
 		call mass_flux_averaging(mflux_outflag)				!Average mass flux before movement of particles
 		call momentum_flux_averaging(vflux_outflag)         !Average momnetum flux after movement of particles
@@ -224,6 +226,9 @@ subroutine simulation_record
 	if (velocity_outflag .eq. 0 .and. &
 		mass_outflag .ne. 0) call mass_averaging(mass_outflag)
 
+    sl_interface_outflag = 0
+    if (sl_interface_outflag .ne. 0) call sl_interface(sl_interface_outflag)
+
 	!Obtain and record velocity distributions
 	if (vPDF_flag .ne. 0) call velocity_PDF_averaging(vPDF_flag)
 
@@ -244,6 +249,7 @@ subroutine simulation_record
 		call pressure_averaging(pressure_outflag)
 	end if
 
+    !Calculate heat flux information
 	if (heatflux_outflag .ne. 0) then
 		call heatflux_averaging(heatflux_outflag)
 	end if
@@ -5401,218 +5407,407 @@ subroutine evaluate_U
 end subroutine evaluate_U
 
 
-!This routine uses the mass averaging to obtain the gas/liquid interface
-
-!Requires volume_mass to be up to date and divided by volume
-
-subroutine get_fluid_liquid_interface_cells(density_bins, & 
-                                            liquiddensity, & 
-                                            gasdensity, &
-                                            interfacecell)
-    use computational_constants_MD, only : iter, binspercell
-    implicit none
 
 
-    double precision, intent(in)                               :: liquiddensity,gasdensity
-    double precision, dimension(:,:,:),allocatable,intent(in)  :: density_bins
+module sl_interface_mod
 
-    double precision, dimension(:,:),allocatable,intent(out)   :: interfacecell
+contains
 
-	integer                         :: ixyz, i, j, k, is, js, ks, ncount
-    double precision                :: averagedensity
-    double precision,dimension(3)   :: cellsperbin
-    double precision, dimension(:,:),allocatable               :: interfacelist
-    logical, dimension(:,:,:),allocatable                      :: liquidbins, gasbins, interfacebin
+    !This routine uses the mass averaging to obtain the gas/liquid interface
 
-	cellsperbin = 1.d0/binspercell !ceiling(ncells(1)/dble(nbins(1)))
+    !Requires volume_mass to be up to date and divided by (volume*Nmass_ave)
+    ! (OR use mass bins and multiply liquiddensity/massdensity by (volume*Nmass_ave)
 
-    averagedensity = 0.5d0 * (liquiddensity + gasdensity)
-    allocate(liquidbins(size(density_bins,1), &
-                        size(density_bins,2), &
-                        size(density_bins,3)))
-    allocate(gasbins   (size(density_bins,1), &
-                        size(density_bins,2), &
-                        size(density_bins,3)))
-    liquidbins = .false.; gasbins = .false.
-    do i = 1,size(density_bins,1)
-    do j = 1,size(density_bins,2)
-    do k = 1,size(density_bins,3)
-        if (density_bins(i,j,k) .gt. averagedensity) then
-            liquidbins(i,j,k) = .true.
-        elseif (density_bins(i,j,k) .le. averagedensity) then
-            gasbins(i,j,k) = .true.
+    subroutine get_fluid_liquid_interface_cells(density_bins, & 
+                                                liquiddensity, & 
+                                                gasdensity, &
+                                                interfacecells)
+        use computational_constants_MD, only : iter, binspercell, Nmass_ave
+        use physical_constants_MD, only : globalnp
+        implicit none
+
+
+        double precision, intent(in)                      :: liquiddensity,gasdensity
+        integer, dimension(:,:,:),allocatable,intent(in)  :: density_bins
+
+        integer, dimension(:,:),allocatable,intent(out)   :: interfacecells
+
+	    integer                         :: ixyz, i, j, k, is, js, ks, ncount
+        double precision                :: averagedensity
+        double precision,dimension(3)   :: cellsperbin
+        double precision, dimension(:,:),allocatable               :: interfacelist, interfacelist_temp
+        logical, dimension(:,:,:),allocatable                      :: liquidbins, gasbins, interfacebin
+
+
+        !Sanity check
+        if (sum(density_bins(2:size(density_bins,1)-1,2:size(density_bins,2)-1,2:size(density_bins,3)-1)) .ne. (Nmass_ave-1)*globalnp) then
+            print*, 'Warning in interface check - number of molecules in mass averaged bins is greater than total'
+            print*, 'e.g.',globalnp, sum(density_bins(2:size(density_bins,1)-1,2:size(density_bins,2)-1,2:size(density_bins,3)-1))/(Nmass_ave-1)
         endif
-    enddo
-    enddo
-    enddo
+        print*, 'Densities', sum(density_bins(2:size(density_bins,1)-1,2:size(density_bins,2)-1,2:size(density_bins,3)-1)),product(shape(density_bins(2:size(density_bins,1)-1,2:size(density_bins,2)-1,2:size(density_bins,3)-1))),liquiddensity,gasdensity
 
-    !If liquid bin is next to a gas bin then must be an interface position
-    allocate(interfacebin(size(density_bins,1), &
-                          size(density_bins,2), &
-                          size(density_bins,3)))
-    interfacebin = .false.; ncount = 0
-    do i = 1,size(density_bins,1)
-    do j = 1,size(density_bins,2)
-    do k = 1,size(density_bins,3)
-	    do ks = -1,1
-	    do js = -1,1
-	    do is = -1,1
-            if (gasbins(i,j,k) .and. liquidbins(i+is,j+js,k+k)) then
+	    cellsperbin = 1.d0/binspercell !ceiling(ncells(1)/dble(nbins(1)))
+
+        averagedensity = 0.5d0 * (liquiddensity + gasdensity)
+        allocate(liquidbins(size(density_bins,1), &
+                            size(density_bins,2), &
+                            size(density_bins,3)))
+        allocate(gasbins   (size(density_bins,1), &
+                            size(density_bins,2), &
+                            size(density_bins,3)))
+        liquidbins = .false.; gasbins = .false.
+        do i = 1,size(density_bins,1)
+        do j = 1,size(density_bins,2)
+        do k = 1,size(density_bins,3)
+            !print'(4i7,f10.5,2l)', i,j,k,density_bins(i,j,k), averagedensity,density_bins(i,j,k) .gt. averagedensity,density_bins(i,j,k) .le. averagedensity
+            if (density_bins(i,j,k) .gt. averagedensity) then
+                liquidbins(i,j,k) = .true.
+                write(2010,'(5i5,i8,f10.5)') iter,ncount,i,j,k,density_bins(i,j,k),averagedensity
+            elseif (density_bins(i,j,k) .le. averagedensity) then
+                gasbins(i,j,k) = .true.
+                write(2020,'(5i5,i8,f10.5)') iter,ncount,i,j,k,density_bins(i,j,k),averagedensity
+            endif
+        enddo
+        enddo
+        enddo
+
+        !If liquid bin is next to a gas bin then must be an interface position
+        allocate(interfacebin(size(density_bins,1), &
+                              size(density_bins,2), &
+                              size(density_bins,3)))
+        interfacebin = .false.; 
+        ncount = 0
+        allocate(interfacelist_temp(3,product(shape(density_bins))))
+        do i = 2,size(density_bins,1)-1
+        do j = 2,size(density_bins,2)-1
+        do k = 2,size(density_bins,3)-1
+	        do ks = -1,1
+	        do js = -1,1
+	        do is = -1,1
+
+				!Prevents out of range values in i
+				if (i+is .lt.           2           ) cycle
+				if (i+is .gt. size(density_bins,1)-1) cycle
+				!Prevents out of range values in j
+				if (j+js .lt.           2           ) cycle
+				if (j+js .gt. size(density_bins,2)-1) cycle
+				!Prevents out of range values in k
+				if (k+ks .lt.           2           ) cycle
+				if (k+ks .gt. size(density_bins,3)-1) cycle
+
+                if (gasbins(i,j,k) .and. liquidbins(i+is,j+js,k+ks) .and. (.not. interfacebin(i,j,k))) then
                     interfacebin(i,j,k) = .true.
                     ncount = ncount + 1
-            endif
-        enddo
-        enddo
-        enddo
-    enddo
-    enddo
-    enddo
+                    interfacelist_temp(:,ncount) = (/i,j,k/)
+                    write(90210,'(6i12,f10.5)') iter,ncount,i,j,k,density_bins(i,j,k),averagedensity
+                endif
 
-    allocate(interfacelist(3,ncount))
-    ncount = 0
-    do i = 1,size(density_bins,1)
-    do j = 1,size(density_bins,2)
-    do k = 1,size(density_bins,3)
-        if (interfacebin(i,j,k)) then
-            ncount = ncount + 1
-            interfacelist(:,ncount) = (/i,j,k/)
-            write(90210,'(2i5,3f10.5)') iter,ncount,interfacelist(:,ncount)
+                if (gasbins(i+is,j+js,k+ks) .and. liquidbins(i,j,k)  .and. (.not. interfacebin(i,j,k))) then
+                    interfacebin(i,j,k) = .true.
+                    ncount = ncount + 1
+                    interfacelist_temp(:,ncount) = (/i,j,k/)
+                    write(90210,'(6i12,f10.5)') iter,ncount,i,j,k,density_bins(i,j,k),averagedensity
+                endif
+            enddo
+            enddo
+            enddo
+        enddo
+        enddo
+        enddo
+
+        allocate(interfacelist(3,ncount))
+        interfacelist = interfacelist_temp(:,1:ncount)
+!        ncount = 0
+!        do i = 1,size(density_bins,1)
+!        do j = 1,size(density_bins,2)
+!        do k = 1,size(density_bins,3)
+!            if (interfacebin(i,j,k)) then
+!                ncount = ncount + 1
+!                interfacelist(:,ncount) = (/i,j,k/)
+
+!            endif
+!        enddo
+!        enddo
+!        enddo
+
+        !Map bin to cells here!
+        allocate(interfacecells(3,ncount))
+        interfacecells=interfacelist
+!        do ixyz=1,3
+!            interfacecells(ixyz,:) = (interfacelist(ixyz,:)-1)*cellsperbin(ixyz)+1  & 
+!                                    +(1-cellsperbin(ixyz))
+!        enddo
+
+    end subroutine get_fluid_liquid_interface_cells
+
+    !===============================
+    !Inputs:
+    !       A -- 3 x N array of values
+    !Outputs:
+    !       Omega -- 3 x 3 covariance matrix
+    !
+
+    subroutine get_covariance(A,omega,normalise)
+        use librarymod, only : outerprod
+        implicit none
+
+        logical,intent(in),optional :: normalise
+        double precision,dimension(:,:),allocatable,intent(in) :: A
+
+        double precision,dimension(3,3),intent(out) :: omega
+
+        integer                         :: j
+        double precision,dimension(3) :: rj
+
+        omega = 0.d0
+        do j = 1,size(A,2)
+            rj = A(:,j)
+            omega = omega + outerprod(rj,rj)
+        enddo
+
+        if (present(normalise)) then
+            if (normalise) omega = omega/size(A,2)
         endif
-    enddo
-    enddo
-    enddo
 
-    !Map bin to cells here!
-    do ixyz=1,3
-        interfacecell(ixyz,:) = (interfacelist(ixyz,:)-1) & 
-                                  *cellsperbin(ixyz)+1+  & 
-                                (1-cellsperbin(ixyz))
-    enddo
+    end subroutine get_covariance
 
-end subroutine get_fluid_liquid_interface_cells
+    !Input -- molecules within rc of molecule i
 
-subroutine get_molecules_within_rc(interfacecells,rc)
-	use module_compute_forces
-	use librarymod, only: outerprod
-    use computational_constants_MD, only : iter
-	implicit none
+    subroutine get_surface_at_ri(ri, rarray, surface)
+        use librarymod, only : get_eigenvec3x3
+        !TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
+        use computational_constants_MD, only : iter
+        !TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
+        implicit none
 
-    double precision, intent(in)                              :: rc
-    double precision, dimension(:,:),allocatable,intent(in)   :: interfacecells
+        double precision,dimension(3),intent(in) ::  ri
+        double precision,dimension(:,:),allocatable,intent(in) ::  rarray
+        double precision,dimension(3,3),intent(out) :: surface 
 
-	integer                         :: i, j, n, ixyz !Define dummy index
-	integer							:: icell, jcell, kcell
-	integer                         :: icellshift, jcellshift, kcellshift
-	integer                         :: cellnp, adjacentcellnp 
-	integer							:: molnoi, molnoj, noneighbrs, cellshifts
-	integer							:: icellmin,jcellmin,kcellmin,icellmax,jcellmax,kcellmax
-    double precision                :: rc2
-	type(node), pointer 	        :: oldi, currenti, oldj, currentj
-	type(neighbrnode), pointer      :: noldj,ncurrentj
+        integer :: i, mineig
+        double precision,dimension(3)   :: rave,eigval
+        double precision,dimension(3,3) :: omega, eigvec
 
-    rc2 = rc**2.d0
+        double precision,dimension(:,:),allocatable :: rcent
 
-    do n = 1,size(interfacecells,2)
+        if (size(rarray,2) .eq. 0) then
+            print'(a,3f10.5,a)', 'Molecule at ', ri ,' has no neighbours!'
+            return
+        endif
 
-        icell = interfacecells(1,n)
-        jcell = interfacecells(2,n)
-        kcell = interfacecells(3,n)
-	
-		cellnp = cell%cellnp(icell,jcell,kcell)
-		oldi => cell%head(icell,jcell,kcell)%point !Set oldi to first molecule in list
+        !Get average position of all molecules
+        rave = sum(rarray,2)/size(rarray,2)
 
-		do i = 1,cellnp					!Step through each particle in list 
-			molnoi = oldi%molno 	 	!Number of molecule
-			ri = r(:,molnoi)         	!Retrieve ri
+        !Subtract average from all molecules
+        allocate(rcent(size(rarray,1),size(rarray,2)))
+        do i = 1,size(rarray,2)
+            rcent(:,i) = rarray(:,i) - rave(:)
+        enddo
 
-	        noneighbrs = neighbour%noneighbrs(molnoi)	!Determine number of elements in neighbourlist
-		    noldj => neighbour%head(molnoi)%point			!Set old to head of neighbour list
+        !Get covariance (omega) of rcert
+        call get_covariance(rcent,omega,normalise=.true.)
 
-            ! If interface cutoff is less that interaction rcutoff
-            ! then we can use the neighbourlist to get molecules in 
-            ! interface region
-            if (rc2 .le. rcutoff2 + delta_rneighbr) then
+        !Get eigenvalues and eigenvectors of covariance (omega)
+        call  get_eigenvec3x3(omega,eigvec,eigval)
 
-		        do j = 1,noneighbrs							!Step through all pairs of neighbours i and j
+        mineig = minloc(eigval,1)
+        surface(:,1) = eigvec(:,mineig)
+        surface(:,2) = eigvec(:,mod(mineig,3)+1)
+        surface(:,3) = eigvec(:,mod(mineig+1,3)+1)
 
-			        molnoj = noldj%molnoj			!Number of molecule j
-			        rj(:) = r(:,molnoj)			!Retrieve rj
-			        rij(:)= ri(:) - rj(:)   	!Evaluate distance between particle i and j
-			        rij2  = dot_product(rij,rij)!Square of vector calculated
+        write(1984,'(i8,6f10.4,3f20.7)'), iter, ri, rave(:), eigval !dot_product(surface(:,1),surface(:,2)), dot_product(surface(:,1),surface(:,3)),surface
 
-			        if (rij2 < rc) then
-                        write(451,'(4i5,6f10.5)') iter, icell,jcell,kcell,ri(:),rj(:)  
-                    endif
+        !do i = 1,3
+        !    print'(a,2i5,4f15.4,6f10.4)','Eigenstuff', i,minloc(eigval,1), omega(i,:),eigval(i),eigvec(i,:),surface(i,:)
+        !enddo
 
-			        ncurrentj => noldj
-			        noldj => ncurrentj%next !Use pointer in datatype to obtain next item in list
-                enddo
+    end subroutine get_surface_at_ri
 
-            ! If the interface cutoff is greater than rcutoff
-            ! then we can't use neighbour list and need to loop 
-            ! over a greater number of adjacent cells
-            elseif (rc2 .gt. rcutoff2 + delta_rneighbr) then
 
-                cellshifts = ceiling(rc/(rcutoff + delta_rneighbr))
+    subroutine get_molecules_within_rc(interfacecells, rc, rarray)
+	    use module_compute_forces
+	    use librarymod, only: outerprod
+        use computational_constants_MD, only : iter
+	    implicit none
 
-			    do kcellshift = -cellshifts,cellshifts
-			    do jcellshift = -cellshifts,cellshifts
-			    do icellshift = -cellshifts,cellshifts
+        double precision, intent(in)                     :: rc
+        integer, dimension(:,:),allocatable,intent(in)   :: interfacecells
 
-				    !Prevents out of range values in i
-				    if (icell+icellshift .lt. icellmin) cycle
-				    if (icell+icellshift .gt. icellmax) cycle
-				    !Prevents out of range values in j
-				    if (jcell+jcellshift .lt. jcellmin) cycle
-				    if (jcell+jcellshift .gt. jcellmax) cycle
-				    !Prevents out of range values in k
-				    if (kcell+kcellshift .lt. kcellmin) cycle
-				    if (kcell+kcellshift .gt. kcellmax) cycle
+        double precision, dimension(:,:),allocatable  :: rarray
 
-				    oldj => cell%head(icell+icellshift,jcell+jcellshift,kcell+kcellshift)%point
-				    adjacentcellnp = cell%cellnp(icell+icellshift,jcell+jcellshift,kcell+kcellshift)
+	    integer                         :: i, j, n, ixyz !Define dummy index
+	    integer							:: icell, jcell, kcell, ncount
+	    integer                         :: icellshift, jcellshift, kcellshift
+	    integer                         :: cellnp, adjacentcellnp 
+	    integer							:: molnoi, molnoj, noneighbrs, cellshifts
+	    integer							:: icellmin,jcellmin,kcellmin,icellmax,jcellmax,kcellmax
+        double precision                :: rc2
+        double precision, dimension(:,:),allocatable :: rneigh
+        double precision, dimension(:,:,:),allocatable :: cellsurface, surfacei
+	    type(node), pointer 	        :: oldi, currenti, oldj, currentj
+	    type(neighbrnode), pointer      :: noldj,ncurrentj
 
-				    do j = 1,adjacentcellnp      !Step through all j for each i
+        rc2 = rc**2.d0
 
-					    molnoj = oldj%molno 	 !Number of molecule
-					    rj = r(:,molnoj)         !Retrieve rj
+        allocate(cellsurface(3,3,size(interfacecells,2)))
+        do n = 1,size(interfacecells,2)
 
-					    if(molnoi==molnoj) cycle !Check to prevent interaction with self
+            icell = interfacecells(1,n)
+            jcell = interfacecells(2,n)
+            kcell = interfacecells(3,n)
 
-					    rij2=0                   !Set rij^2 to zero
-					    rij(:) = ri(:) - rj(:)   !Evaluate distance between particle i and j
-					    rij2 = dot_product(rij,rij)	!Square of vector calculated
+		    cellnp = cell%cellnp(icell,jcell,kcell)
+		    oldi => cell%head(icell,jcell,kcell)%point !Set oldi to first molecule in list
 
-					    if (rij2 < rc) then
-                            write(451,'(7i5,6f10.5)') iter, icell,jcell,kcell, & 
-                                                     icell+icellshift,jcell+jcellshift, & 
-                                                     kcell+kcellshift, ri(:),rj(:)  
+            !print'(5i7,2f10.5)', n, icell, jcell, kcell, cellnp, rc, rcutoff + delta_rneighbr
+
+            allocate(surfacei(3,3,cellnp))
+		    do i = 1,cellnp					!Step through each particle in list 
+			    molnoi = oldi%molno 	 	!Number of molecule
+			    ri = r(:,molnoi)         	!Retrieve ri
+
+                ! If interface cutoff is less that interaction rcutoff
+                ! then we can use the neighbourlist to get molecules in 
+                ! interface region
+                if (rc .le. rcutoff + delta_rneighbr) then
+
+	                noneighbrs = neighbour%noneighbrs(molnoi)	!Determine number of elements in neighbourlist
+		            noldj => neighbour%head(molnoi)%point			!Set old to head of neighbour list
+                    allocate(rneigh(3,noneighbrs))
+                    ncount = 0
+		            do j = 1,noneighbrs							!Step through all pairs of neighbours i and j
+
+			            molnoj = noldj%molnoj			!Number of molecule j
+			            rj(:) = r(:,molnoj)			!Retrieve rj
+			            rij(:)= ri(:) - rj(:)   	!Evaluate distance between particle i and j
+			            rij2  = dot_product(rij,rij)!Square of vector calculated
+
+			            if (rij2 < rc2) then
+                            write(451,'(4i8,6f11.5)') iter,icell,jcell,kcell,ri(:),rj(:)
+                            ncount = ncount + 1
+                            rneigh(:,ncount) = rj(:)
                         endif
 
-					    currentj => oldj
-					    oldj => currentj%next    !Use pointer in datatype to obtain next item in list
+			            ncurrentj => noldj
+			            noldj => ncurrentj%next !Use pointer in datatype to obtain next item in list
+                    enddo
+                    allocate(rarray(3,ncount))
+                    rarray = rneigh(:,1:ncount)
+                    deallocate(rneigh)
+                    call get_surface_at_ri(ri, rarray, surfacei(:,:,i))
+                    write(452,'(i5,12f10.4)'), i, ri(:), surfacei(:,:,i)
+                    deallocate(rarray)
 
-				    enddo
-			    enddo
-			    enddo
-			    enddo
-			    currenti => oldi
-			    oldi => currenti%next !Use pointer in datatype to obtain next item in list
+                ! If the interface cutoff is greater than rcutoff
+                ! then we can't use neighbour list and need to loop 
+                ! over a greater number of adjacent cells
+                elseif (rc .gt. rcutoff + delta_rneighbr) then
 
+                    stop "May work, probably won't so check get_molecules_within_rc for rc > rcutoff + delta_rneighbr"
+
+!                    cellshifts = ceiling(rc/(rcutoff + delta_rneighbr))
+
+!			        do kcellshift = -cellshifts,cellshifts
+!			        do jcellshift = -cellshifts,cellshifts
+!			        do icellshift = -cellshifts,cellshifts
+
+!				        !Prevents out of range values in i
+!				        if (icell+icellshift .lt. icellmin) cycle
+!				        if (icell+icellshift .gt. icellmax) cycle
+!				        !Prevents out of range values in j
+!				        if (jcell+jcellshift .lt. jcellmin) cycle
+!				        if (jcell+jcellshift .gt. jcellmax) cycle
+!				        !Prevents out of range values in k
+!				        if (kcell+kcellshift .lt. kcellmin) cycle
+!				        if (kcell+kcellshift .gt. kcellmax) cycle
+
+!				        oldj => cell%head(icell+icellshift,jcell+jcellshift,kcell+kcellshift)%point
+!				        adjacentcellnp = cell%cellnp(icell+icellshift,jcell+jcellshift,kcell+kcellshift)
+
+!				        do j = 1,adjacentcellnp      !Step through all j for each i
+
+!					        molnoj = oldj%molno 	 !Number of molecule
+!					        rj = r(:,molnoj)         !Retrieve rj
+
+!					        if(molnoi==molnoj) cycle !Check to prevent interaction with self
+
+!					        rij2=0                   !Set rij^2 to zero
+!					        rij(:) = ri(:) - rj(:)   !Evaluate distance between particle i and j
+!					        rij2 = dot_product(rij,rij)	!Square of vector calculated
+
+!					        if (rij2 < rc2) then
+!                                write(451,'(7i5,6f10.5)') iter, icell,jcell,kcell, & 
+!                                                         icell+icellshift,jcell+jcellshift, & 
+!                                                         kcell+kcellshift, ri(:),rj(:)  
+!                            endif
+
+!					        currentj => oldj
+!					        oldj => currentj%next    !Use pointer in datatype to obtain next item in list
+
+!				        enddo
+!			        enddo
+!			        enddo
+!			        enddo
+                endif
+
+		        currenti => oldi
+		        oldi => currenti%next !Use pointer in datatype to obtain next item in list
+
+            enddo
+            !Sum up cellnp molecules in cell
+            if (cellnp .ne. 0) then
+                cellsurface(:,:,n) = sum(surfacei,3)/dble(cellnp)
             endif
 
-		enddo
-	enddo
+            deallocate(surfacei)
 
-	nullify(oldi)      	!Nullify as no longer required
-	nullify(oldj)      	!Nullify as no longer required
-	nullify(currenti)      	!Nullify as no longer required
-	nullify(currentj)      	!Nullify as no longer required
+            !print'(a,3i8,9f10.5)','cell sum', icell,jcell,kcell,cellsurface
+	    enddo
 
-end subroutine get_molecules_within_rc
+	    nullify(oldi)      	!Nullify as no longer required
+	    nullify(oldj)      	!Nullify as no longer required
+	    nullify(currenti)      	!Nullify as no longer required
+	    nullify(currentj)      	!Nullify as no longer required
+
+    end subroutine get_molecules_within_rc
 
 
 
+end module sl_interface_mod
+
+!Calculate interface location
+subroutine sl_interface(flag)
+    use sl_interface_mod
+    use calculated_properties_MD, only : nbins, volume_mass
+	use computational_constants_MD, only: domain, iter, Nmass_ave, tplot, liquid_density, gas_density
+    implicit none
+
+    integer, intent(in) :: flag
+
+    double precision    :: binvolume, input_liquiddensity, input_gasdensity, rc
+    integer,dimension(:,:),allocatable    :: interfacecells
+    double precision,dimension(:,:),allocatable    :: rarray
+
+    if (mod(iter/tplot+1,(Nmass_ave)) .eq. 0) then
+        !allocate(density_bins(size(volume_mass,1),size(volume_mass,2),size(volume_mass,3)))
+    	binvolume = (domain(1)/nbins(1))*(domain(2)/nbins(2))*(domain(3)/nbins(3))
+        !density_bins = volume_mass/(binvolume*Nmass_ave)
+        input_liquiddensity = liquid_density*binvolume*(Nmass_ave-1)
+        input_gasdensity = gas_density*binvolume*(Nmass_ave-1)
+        !print*, 'interface output', mod(iter/tplot,Nmass_ave),iter/tplot,iter,tplot, & 
+        !                            Nmass_ave,input_gasdensity,gas_density, & 
+        !                            input_liquiddensity,liquid_density,binvolume
+        call get_fluid_liquid_interface_cells(volume_mass, & 
+                                              input_liquiddensity, & 
+                                              input_gasdensity, &
+                                              interfacecells)
+        rc = 2.d0
+        call get_molecules_within_rc(interfacecells,rc,rarray)
+    else
+        !print*, 'NO output', mod(iter/tplot,Nmass_ave), iter,tplot,Nmass_ave
+    endif
+
+end subroutine sl_interface
 
 
 

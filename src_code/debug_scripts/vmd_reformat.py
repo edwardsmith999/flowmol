@@ -23,14 +23,14 @@ class Chdir:
         self.newPath = newPath
 
     def __enter__( self ):
-        os.chdir(self.newPath)
+        os.chdir('./'+self.newPath)
 
     def __exit__( self, etype, value, traceback):
-        os.chdir( self.savedPath )
+        os.chdir(self.savedPath )
 
 class VmdReformat:
 
-    def __init__(self,fdir,scriptdir):
+    def __init__(self, fdir, scriptdir):
 
         headerfile = fdir + 'simulation_header'
         # Extract np from header

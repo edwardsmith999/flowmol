@@ -1350,7 +1350,7 @@ subroutine sendmols()
 	integer		:: i,ixyz,dir,maxnew_np,sendnp,new_np
 
 	pass%sendnp = 0
-    insertnp = 0
+    reinsertnp = 0
 
 	!Three loops to cover possibility of more than one transfer
 	do i = 1,nd
@@ -1524,7 +1524,7 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
         if (open_boundary(ix).ne.0) then
 
             !call collect_escaped_moldata(sendnp,sendsize,sendbuffer,pos,length)
-            insertnp = insertnp + sendnp
+            reinsertnp = reinsertnp + sendnp
            ! print'(a,i6,a,i1,a,i8,a,3i8)', 'Iter = ', iter,' open_boundary(',ix,') collected ',sendnp,' escaped molecules on proc.', iblock,jblock,kblock
 		    call NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest)
 

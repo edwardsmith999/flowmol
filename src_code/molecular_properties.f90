@@ -996,11 +996,15 @@ contains
 
 end module particle_insertion
 
+
+
+
+
 subroutine reinsert_molecules
 	use particle_insertion
 	use computational_constants_MD, only: halfdomain, nproc, VOID, & 
 										  irank,iroot,iter,iblock,jblock,kblock,npx,npy,npz
-	use physical_constants_MD, only: np, tethereddistbottom, insertnp, rcutoff2
+	use physical_constants_MD, only: np, tethereddistbottom, insertnp=>reinsertnp , rcutoff2
     use boundary_MD, only: open_boundary
 	use arrays_MD, only: r, v
 	use  messenger_data_exchange, only : GlobalGatherv, planeGatherv
@@ -1470,6 +1474,575 @@ contains
 	end function get_Utarget
 
 
+
+
+end subroutine reinsert_molecules
+
+
+
+
+
+
+
+
+
+
+!==============================================
+! This routine reinserts any molecules which
+! have left the domain by getting value from
+! messenger (reinsertnp) and inserting
+
+subroutine reinsert_molecules_new
+	use physical_constants_MD, only: reinsertnp
+    use computational_constants_MD, only : globaldomain
+	implicit none
+
+    integer          :: insertflag
+	double precision :: miniw, maxiw
+
+    !Insert flag specified where and how to insert
+    ! 0 -- anywhere at random
+    ! 1,3,5 are on bottom boundary in x,y,z respectivly
+    ! 2,4,6 are on top boundary in x,y,z respectivly
+	insertflag = 4
+    if (insertflag .ne. 0) then
+        miniw = -0.5d0*globaldomain(ceiling(0.5*insertflag))
+        maxiw =  0.5d0*globaldomain(ceiling(0.5*insertflag))
+    else
+        miniw = -0.5d0*(maxval(globaldomain))
+        maxiw =  0.5d0*(maxval(globaldomain))
+    endif
+
+    !Call generalised routine for molecular insertion
+    call insert_all_molecules(reinsertnp, insertflag, miniw, maxiw)
+
+end subroutine reinsert_molecules_new
+
+!==============================================
+! This routine does all the steps required to insert 
+! molecules into the domain
+! Inputs:
+!        target_insertnp -- Number of molecules to insert
+!        insertflag      -- 0, whole domain or 1 to 6 for top/bottom and x,y,z
+!        miniw/maxiw     -- Minimum and maximum locations in global coordinate space
+
+subroutine insert_all_molecules(target_insertnp, insertflag, miniw, maxiw)
+	use particle_insertion
+	use computational_constants_MD, only: halfdomain, nproc, VOID, & 
+										  irank,iroot,iter,iblock,jblock,kblock,npx,npy,npz
+	use physical_constants_MD, only: np, tethereddistbottom, rcutoff2
+    use boundary_MD, only: open_boundary
+	use arrays_MD, only: r, v
+	use messenger_data_exchange, only : GlobalGatherv, planeGatherv
+	use messenger, only : globalise,  plane_nproc, planerank
+	implicit none
+
+    integer, intent(in)    :: insertflag, target_insertnp
+	double precision, intent(in) :: miniw, maxiw
+
+	integer :: n, i,j,ixyz
+	integer :: insertnp, reinsertnp,insert_attempt,procmolcount,insert_flag, block(3),npxyz(3)
+	integer :: subcomminsertnp, insert_temp(1),proc, nproc_insert, commrank
+	integer,dimension(:),allocatable ::rdisps, subcommmol_to_proc
+	
+	integer,dimension(:,:),allocatable :: insertnp_array,reinsert_molno
+	double precision :: x,y,z,dx,dy,dz,vx,vy,vz
+	double precision :: Ufinish, fdummy(3)
+	double precision :: startpos(3), insertpos(3),rij(3),rij2
+	double precision,dimension(:,:),allocatable :: insert_locs,insert_vels,reinsert_locs,subcomminsert_locs
+
+	! If specified boundary is not open then return
+	!if (all(open_boundary.eq.0)) then
+	if (open_boundary(insertflag).eq.0) then
+		return
+	end if
+
+    !Set initial value of insertnp to target value
+    insertnp = target_insertnp
+
+	! Insertnp is a local value on each processor but reinsertion on a different
+    ! processor is possible so first collect an array of all required insertions on 
+    ! all processors, either in all domain or along surface of interest.
+	insert_temp(1) = insertnp
+
+	select case (insert_flag)
+	case(0)
+
+		!Get global number of molecules to insert from all inserted molecules
+		nproc_insert = nproc; commrank = irank
+		allocate(insertnp_array(1,nproc_insert))
+		call globalGather(insert_temp,insertnp_array,1)
+		subcomminsertnp = sum(insertnp_array)
+        !Redistribute to all processors in domain evenly
+		call calculate_mol_proc_redistribution_random(subcomminsertnp,nproc_insert,commrank, & 
+														insertnp, insertnp_array,subcommmol_to_proc)
+
+	case(1,3,5) !Bottom x,y,z
+		ixyz = ceiling(0.5*insert_flag)
+		nproc_insert = plane_nproc(ixyz); commrank = planerank(ixyz)
+		block = (/ iblock, jblock, kblock /)
+		if (block(ixyz) .eq. 1 .and. open_boundary(insert_flag) .eq. 1) then
+
+			!Share number of molecules to insert across subcomm
+			allocate(insertnp_array(1,nproc_insert))
+			call planeGatherInt(insert_temp,insertnp_array,1,ixyz)
+			subcomminsertnp = sum(insertnp_array)
+
+            !Redistribute to all processors in domain evenly
+			call calculate_mol_proc_redistribution_random(subcomminsertnp,nproc_insert,commrank, & 
+															insertnp, insertnp_array,subcommmol_to_proc)
+
+		elseif (open_boundary(insert_flag) .eq. 0 ) then
+			stop "Error - open boundary off but insertion requested"
+		else
+			!Outside of reinsertion region
+			insertnp = 0; subcomminsertnp = 0
+			allocate(insertnp_array(1,nproc_insert)); insertnp_array = 0
+		endif
+
+	case(2,4,6) !Top x,y,z
+		ixyz = ceiling(0.5*insert_flag)
+		nproc_insert = plane_nproc(ixyz); commrank = planerank(ixyz)
+		block = (/ iblock, jblock, kblock /)
+		npxyz = (/   npx,   npy,    npz   /)
+		if (block(ixyz) .eq. npxyz(ixyz) .and. open_boundary(insert_flag) .eq. 1) then
+			!Share number of molecules to insert across subcomm
+			allocate(insertnp_array(1,nproc_insert))
+			call planeGatherInt(insert_temp,insertnp_array,1,ixyz)
+			subcomminsertnp = sum(insertnp_array)
+
+            !Redistribute to all processors in domain evenly
+			call calculate_mol_proc_redistribution_random(subcomminsertnp,nproc_insert, commrank, & 
+															insertnp, insertnp_array,subcommmol_to_proc)
+
+			!print*, 'values',irank,iblock,jblock,kblock,insertnp_array,insertnp,subcomminsertnp
+
+		elseif (open_boundary(insert_flag) .eq. 0 ) then
+			stop "Error - open boundary off but insertion requested"
+		else
+			!Outside of reinsertion region
+			insertnp = 0; subcomminsertnp = 0
+			allocate(insertnp_array(1,nproc_insert)); insertnp_array = 0
+		endif
+
+	case default
+		stop "Error in insert flag type"
+	end select
+
+	if (subcomminsertnp .eq. 0) return
+
+    !Initial reinsert is all inserted molecules 
+    allocate(insert_locs(3,insertnp))
+    reinsertnp = insertnp
+    allocate(reinsert_molno(2,reinsertnp))
+    do n =1,reinsertnp
+        reinsert_molno(1,n) = n
+    enddo
+    reinsert_molno(2,:) = VOID
+
+    !Attempt to insert a number of times
+    do insert_attempt = 1,100
+        
+        !Generate potential positions array "insert_locs" using the USHER algorithm
+	    call usher_get_positions(flag=insert_flag, & 
+                                 insertnp=reinsertnp, & 
+                                 insert_locs=reinsert_locs)
+
+        ! If any molecules need to be reinserted then update these molecules in
+        ! "insert_loc" array with new reinserted molecular positions
+		do n =1,reinsertnp
+			insert_locs(:,reinsert_molno(1,n)) = reinsert_locs(:,n)
+		enddo
+
+        ! Gather "insert_locs" array of potential positions on all
+        ! processors in array "subcomminsert_locs"
+        call Gather_global_insertpos( insert_flag, & 
+                                      nproc_insert, & 
+                                      insertnp_array, & 
+                                      insertnp, &
+                                      subcomminsertnp, & 
+                                      insert_locs, & 
+                                      subcomminsert_locs)
+
+        ! When molecules are inserted it is possible they may overlap and
+        ! cause blowup, this is checked here using the global positions
+        ! arrat "subcomminsert_locs" and a list of any molecules to
+        ! reinsert "reinsert_molno" and number "reinsertnp" is returned.
+        deallocate(reinsert_molno)
+		call check_insert_overlap(gnip = subcomminsertnp, & 
+                                  inp = reinsertnp, & 
+                                  gi_locs = subcomminsert_locs, & 
+						  		  gm_to_p = subcommmol_to_proc, &
+                                  rank_= commrank, & 
+                                  ri_molno = reinsert_molno, & 
+                                  rinp = reinsertnp)
+
+        ! If molecule to reinsert, iterate on any which need to be reinserted 
+    	if (reinsertnp .eq. 0) exit
+    enddo
+
+	! As all potential positions are okay, generate velocities 
+    ! and insert molecules at required positions 
+	call get_random_velocity(insertnp,insert_vels)
+	call insert_molecules(insert_locs,insert_vels)
+
+	deallocate(insertnp_array)
+	deallocate(insert_locs)
+	deallocate(subcomminsert_locs)
+
+contains 
+
+
+	subroutine usher_get_positions(flag,insertnp,insert_locs,Utarget_in,extra_pos)
+		use interfaces, only : error_abort
+		implicit none
+
+		integer,intent(in)	:: flag,insertnp
+		double precision,intent(in),optional :: Utarget_in
+		!An array of extra molecular positions to include in potential calculation
+		double precision,dimension(:,:),allocatable,optional,intent(in)  :: extra_pos
+
+		double precision,dimension(:,:),allocatable,intent(out) :: insert_locs
+
+		integer				:: maxattempts=10000
+		double precision 	:: Utarget
+		logical 			:: pos_found
+
+		!print*, 'usher_get_positions', present(extra_pos)
+
+		!Allocate array to record all inserted locations
+		if (allocated(insert_locs)) deallocate(insert_locs)
+		allocate(insert_locs(3,insertnp))
+
+		!Loop through and get position of all molecules to insert
+		do n = 1, insertnp
+
+			do i = 1, maxattempts
+
+				!Choose starting guess for input position
+				select case(flag)
+				case(0)
+					startpos = get_randompos_procdomain() 
+				case(1,3,5)
+					startpos = get_randompos_procbottom(nint(0.5*(flag+1)))
+				case(2,4,6)
+					startpos = get_randompos_proctop(nint(0.5*flag))
+				case default
+					call error_abort("Error - Usher flag not recognised ")
+				end select
+				
+				!Get target potential energy
+				if (present(Utarget_in)) then
+					Utarget = Utarget_in
+				else
+					Utarget = get_Utarget() 
+				endif
+
+				!Call USHER to get molecule position
+				if (present(extra_pos)) then
+					call usher_get_insertion_pos(startpos,Utarget,insertpos,pos_found,Ufinish,extra_pos=extra_pos)
+				else
+					call usher_get_insertion_pos(startpos,Utarget,insertpos,pos_found,Ufinish)
+				endif
+
+				!Insert molecule if suitable position is found
+				if (pos_found) then
+					print('(a,2f9.3,a,3f9.3,a,i4,a,i6)'), ' USHER SUCCEEDED: Utarget, Ufinish: ', &
+														Utarget, Ufinish, ', r:',  &
+														insertpos, ', after ', i,  &
+														' attempts , new np', np
+					exit
+				endif
+
+			enddo
+
+			if (.not. pos_found) then 
+				print*, ' usher failed  Utarget =', Utarget
+				STOP "ERROR -- For USHER, failure is not an option"
+			endif
+
+			!Save inserted location and return
+			insert_locs(:,n) = insertpos
+
+		enddo
+
+	end subroutine usher_get_positions
+
+	!Return an array of randomly chosen molecular velocities 
+	subroutine get_random_velocity(insertnp,insert_vels)
+		implicit none
+
+		integer,intent(in)	:: insertnp
+		double precision,dimension(:,:),allocatable,intent(out) :: insert_vels
+
+		integer :: n
+
+		if (allocated(insert_vels)) deallocate(insert_vels)
+		allocate(insert_vels(3,insertnp))
+
+		do n = 1,insertnp
+			insert_vels(:,n) = sample_MB_vel3()
+		enddo
+
+	end subroutine get_random_velocity
+
+	! For re-insert insert, divide evenly between all specified processors
+	! and add remainder processorwise with shift used to prevent preferential insertion
+
+	subroutine calculate_mol_proc_redistribution_random(subcomminsertnp,nproc_,rank_,insertnp,  & 
+														insertnp_array, subcommmol_to_proc)
+		implicit none
+
+		integer, intent(in)									:: subcomminsertnp, nproc_,rank_
+		integer, intent(out)								:: insertnp
+		integer,allocatable,dimension(:), intent(out)		:: subcommmol_to_proc
+		integer,allocatable,dimension(:,:),intent(inout)	:: insertnp_array
+
+		integer 		:: n, molno, proc, extra_insert, insertproc
+		integer,save 	:: currentproc = 0
+
+		! For subcomm insert, divide evenly between all processors
+		! and add remainder processorwise
+		insertnp = floor(subcomminsertnp/dble(nproc_))
+		insertnp_array(1,:) = insertnp
+		extra_insert = mod(subcomminsertnp,nproc_)
+		!Keep shifting the processor used for insert to prevent preferential insertion
+		currentproc = currentproc + 1
+		do n=1,extra_insert
+			insertproc = mod(currentproc+n-1,nproc_)+1
+			!print*,rank_,n, 'shiftproc', insertproc,extra_insert
+			if (rank_ .eq. insertproc) then
+				insertnp = insertnp + 1
+			endif
+			insertnp_array(1,insertproc) = insertnp_array(1,insertproc) + 1
+			!print*, 'EXTRA', rank_, n, insertnp, insertnp_array(1,:)
+		enddo
+
+		!Define a mapping between subcomm inserted molecule number and the processor its added to
+		allocate(subcommmol_to_proc(subcomminsertnp))
+		do proc=1,size(insertnp_array,2)
+			do n=1,insertnp_array(1,proc)
+				molno = sum(insertnp_array(1,1:proc-1)) + n
+				subcommmol_to_proc(molno) = proc
+				!print*, n, molno, proc, subcommmol_to_proc(molno),size(subcommmol_to_proc)
+			enddo
+		enddo
+
+
+	end subroutine calculate_mol_proc_redistribution_random
+
+
+	! Update global list of molecules on every process to allow check for
+    ! overlap on adjacent processors
+
+	subroutine Gather_global_insertpos(insert_flag, nproc_insert, insertnp_array, & 
+                                       insertnp, subcomminsertnp, insert_locs, & 
+                                       subcomminsert_locs)
+	    use messenger, only : globalise
+		implicit none
+
+    	integer,intent(in) :: insert_flag, insertnp, nproc_insert, subcomminsertnp
+    	integer,dimension(:,:),allocatable,intent(in) :: insertnp_array
+    	double precision,dimension(:,:),allocatable,intent(in) :: insert_locs
+        double precision,dimension(:,:),allocatable,intent(out) :: subcomminsert_locs
+
+    	double precision,dimension(:),allocatable :: sendbuf, recvbuf
+
+	    allocate(subcomminsert_locs(3,subcomminsertnp))
+	    allocate(rdisps(nproc_insert))
+	    allocate(recvbuf(3*subcomminsertnp))		
+	    allocate(sendbuf(3*insertnp))
+
+	    !Gatherv takes array of different sizes from each processes and exchanges
+	    rdisps = 0
+	    do i=1,nproc_insert-1
+		    rdisps(i+1) = rdisps(i) + 3*insertnp_array(1,i)
+	    enddo
+
+	    sendbuf = reshape(globalise(insert_locs),(/3*insertnp/))
+        recvbuf = reshape(subcomminsert_locs,(/3*subcomminsertnp/)) !This step is not necessary ??
+	    select case (insert_flag)
+	    case(0)
+		    call globalGatherv(sendbuf,3*insertnp, & 
+						       recvbuf,3*insertnp_array(1,:),rdisps)
+	    case(1:6) !Bottom/Top x,y,z
+		    call planeGatherv( sendbuf,3*insertnp, & 
+						       recvbuf,3*insertnp_array(1,:),rdisps, & 
+                               ceiling(0.5*insert_flag))
+	    case default
+		    stop "Error in insert flag type"
+	    end select
+	    subcomminsert_locs = reshape(recvbuf,(/3,nint(size(recvbuf)/3.d0)/))
+
+	    deallocate(rdisps)
+	    deallocate(recvbuf)
+	    deallocate(sendbuf)
+
+	end subroutine Gather_global_insertpos
+
+
+	!Check molecular positions to see if any should be reinserted
+    !Inputs:    
+    !       gnip     -- Number of molecules to insert on subcommunicator
+    !       inp      -- Total molecules to insert
+    !       gi_locs  -- Molecular locations
+    !       gm_to_p  -- Mapping subcommunicator molno to processor no
+    !       rank_    -- Current processor rank
+    !Output:
+    !       ri_molno -- Array of molecule index to reinsert
+    !       rinp     -- Number of molecules to reinsert (no. overlapping)
+
+	subroutine check_insert_overlap(gnip, inp, gi_locs, gm_to_p, rank_, ri_molno, rinp)
+		use computational_constants_MD, only : irank, globaldomain, VOID
+		use physical_constants_MD, only : rcutoff2
+		implicit none
+
+		integer ,intent(in)										:: gnip, inp,rank_
+		integer,dimension(:),allocatable,intent(in) 			:: gm_to_p
+		double precision,dimension(:,:),allocatable,intent(in)	:: gi_locs
+
+		integer ,intent(out)									:: rinp
+		integer,dimension(:,:),allocatable,intent(out) 			:: ri_molno 
+
+		integer	:: i,j,proc,procmolcount
+		double precision	:: rij(3), rij2
+
+		!Check on every processor if any inserted molecules is too close to any other
+		allocate(ri_molno(2,inp)); ri_molno = VOID
+		rinp = 0; proc = 1; procmolcount = 0
+		do i=1,gnip
+			!Keep track of which processor the current molecule is located
+			!if (i .gt. sum(insertnp_array(1,1:proc)) .and. proc .ne. nproc_) proc = proc + 1
+			proc = gm_to_p(i)
+			!if (3*i .gt. rdisps(proc) .and. proc .ne. nproc_) proc = proc + 1
+			if (rank_ .eq. proc) then
+				procmolcount = procmolcount + 1
+				!print'(a,9i7)', 'PROCESSOR COUNT', rank_, iter, i,inp,gnip, proc, shape(ri_molno), procmolcount
+			endif
+			do j=i+1,gnip
+				rij(:) = gi_locs(:,i)-gi_locs(:,j)
+				!If more than half a domain betwen molecules, must be closer over periodic boundaries  
+				do ixyz = 1,3    
+					if (abs(rij(ixyz)) .gt. 0.5d0*globaldomain(ixyz)) then  !N.B array operator-corresponding element compared 
+						rij(ixyz) = rij(ixyz) - sign(globaldomain(ixyz),rij(ixyz))    !Sign of rij applied to domain
+					endif
+				enddo
+				rij2 = dot_product(rij,rij)
+				write(300+irank,'(5i5,7f18.9)'), iter, irank,  i,j, gm_to_p(j),  gi_locs(:,i), gi_locs(:,j),rij2
+				if (rij2 .lt. rcutoff2) then
+					if (rank_ .eq. proc) then
+						print'(a,i8,3i5,7f12.7,i6)', 'Inserted Molecular overlap',iter,irank, i,j,sqrt(rij2),gi_locs(:,i),gi_locs(:,j),proc
+						rinp = rinp + 1
+						ri_molno(1,rinp) = procmolcount	!Local number
+						ri_molno(2,rinp) = i			!subcomm number
+					endif
+				endif
+			enddo
+		enddo
+
+
+	end subroutine check_insert_overlap
+
+	
+
+	!Create a random positions on a given processors local domain
+	function get_randompos_procdomain() result(pos)
+		use computational_constants_MD, only: domain
+		implicit none
+	
+		integer :: ixyz
+		double precision :: pos(3), rand
+		
+		do ixyz = 1,3
+			call random_number(rand)
+			rand = (rand-0.5)*domain(ixyz)
+			pos(ixyz) = rand
+		enddo
+	
+	end function get_randompos_procdomain
+
+	!Create a random positions from the top of a processors local domain
+	function get_randompos_proctop(dir) result(pos)
+		use computational_constants_MD, only: domain
+		use calculated_properties_MD, only : nbins
+		implicit none
+	
+		integer,intent(in) :: dir
+		integer			   :: ixyz
+		double precision   :: pos(3), rand, binsize
+	
+		do ixyz = 1,3
+			call random_number(rand)
+			if (ixyz == dir) then
+				binsize = domain(ixyz)/nbins(ixyz)
+				rand = 0.5d0*domain(ixyz) - rand*binsize
+				pos(ixyz) = rand
+			else
+				rand = (rand-0.5)*domain(ixyz)
+				pos(ixyz) = rand
+			endif
+		enddo
+	
+	end function get_randompos_proctop
+
+	!Create a random positions from the bottom of a processors local domain
+	function get_randompos_procbottom(dir) result(pos)
+		use computational_constants_MD, only: domain
+		use calculated_properties_MD, only : nbins
+		implicit none
+	
+		integer,intent(in) :: dir
+		integer			   :: ixyz
+		double precision   :: pos(3), rand, binsize
+	
+		do ixyz = 1,3
+			call random_number(rand)
+			if (ixyz == dir) then
+				binsize = domain(ixyz)/nbins(ixyz)
+				rand = -0.5d0*domain(ixyz) + rand*binsize
+				pos(ixyz) = rand
+			else
+				rand = (rand-0.5)*domain(ixyz)
+				pos(ixyz) = rand
+			endif
+		enddo
+	
+	end function get_randompos_procbottom
+
+	! Get maxwell Boltzmann speed
+	function sample_MB_vel3() result(vsample)
+		use librarymod, only : Maxwell_Boltzmann_vel3
+		use calculated_properties_MD, only : temperature
+		use physical_constants_MD, only: inputtemperature
+		implicit none
+
+		double precision :: vsample(3)
+		double precision :: zeromean(3)
+
+		zeromean(:) = 0.d0
+		!Insert molecules with the same value as the current temperature
+		vsample = Maxwell_Boltzmann_vel3(temperature,zeromean)
+		!Insert molecules with the setpoint temperature
+		!vsample = Maxwell_Boltzmann_vel3(inputtemperature,zeromean)
+
+	end function sample_MB_vel3 
+
+	! Get potential energy of system
+	function get_Utarget() result(U)
+		use calculated_properties_MD, only: potenergy
+		use physical_constants_MD, only: potential_sLRC
+		implicit none
+	
+		double precision :: U 
+
+		!Insert molecules with the same value as the current potential
+		U = potenergy + potential_sLRC  
+		!Insert molecules with the setpoint potential
+		!U = inputpotential
+
+	end function get_Utarget
+
+
 !	subroutine usher_insert(flag,insertnp,insert_locs,Utarget_in,v_ins,skipinsert)
 !		use interfaces, only : error_abort
 !		implicit none
@@ -1547,7 +2120,7 @@ contains
 
 
 
-end subroutine reinsert_molecules
+end subroutine insert_all_molecules
 
 
 
