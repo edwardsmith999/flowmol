@@ -3,12 +3,10 @@ import wx
 from plot import PyplotPanel
 from choosefield import FieldChooserPanel
 from sliders import RecordSliderPanel
-from math import log10, floor
-import math as maths
 
 from postproclib.pplexceptions import DataNotAvailable
 from postproclib.allpostproc import All_PostProc  
-from misclib import unicodetolatex
+from misclib import unicodetolatex, round_to_n
 
 class VisualiserPanel(wx.Panel):
  
@@ -31,77 +29,6 @@ class VisualiserPanel(wx.Panel):
                 break
             except DataNotAvailable, ValueError:
                 pass
-
-    def round_to_n(self,x,p):
-        """
-        returns a string representation of x formatted with a precision of p
-
-        Based on the webkit javascript implementation taken from here:
-        https://code.google.com/p/webkit-mirror/source/browse/JavaScriptCore/kjs/number_object.cpp
-        """
-
-        x = float(x)
-
-        if x == 0.:
-            return "0." + "0"*(p-1)
-
-        out = []
-
-        if x < 0:
-            out.append("-")
-            x = -x
-
-        e = int(maths.log10(x))
-        tens = maths.pow(10, e - p + 1)
-        n = maths.floor(x/tens)
-
-        if n < maths.pow(10, p - 1):
-            e = e -1
-            tens = maths.pow(10, e - p+1)
-            n = maths.floor(x / tens)
-
-        if abs((n + 1.) * tens - x) <= abs(n * tens -x):
-            n = n + 1
-
-        if n >= maths.pow(10,p):
-            n = n / 10.
-            e = e + 1
-
-        m = "%.*g" % (p, n)
-
-        if e < -2 or e >= p:
-            out.append(m[0])
-            if p > 1:
-                out.append(".")
-                out.extend(m[1:p])
-            out.append('e')
-            if e > 0:
-                out.append("+")
-            out.append(str(e))
-        elif e == (p -1):
-            out.append(m)
-        elif e >= 0:
-            out.append(m[:e+1])
-            if e+1 < len(m):
-                out.append(".")
-                out.extend(m[e+1:])
-        else:
-            out.append("0.")
-            out.extend(["0"]*-(e+1))
-            out.append(m)
-
-        return "".join(out)
-
-
-#    def round_to_n(self,x,n):
-
-#        if x > 1e-6:
-#            #Define rounding function with lambda
-#            round_to_n = lambda x, n: round(x, -int(floor(log10(abs(x)))) + (n - 1))
-#        else:
-#            round_to_n = lambda x, n: x 
-
-#        return round_to_n(x,n)
 
     def initialise_visuals(self,item):
         print('Trying to initialise visuals with ', item)
@@ -400,8 +327,8 @@ class VisualiserPanel(wx.Panel):
         
         # Set min/max text values
         self.minp, self.maxp = self.pyplotp.ax.get_ylim()
-        self.choosep.minpspin.SetValue(str(self.round_to_n(self.minp,3)))
-        self.choosep.maxpspin.SetValue(str(self.round_to_n(self.maxp,3)))
+        self.choosep.minpspin.SetValue(str(round_to_n(self.minp,3)))
+        self.choosep.maxpspin.SetValue(str(round_to_n(self.maxp,3)))
         #self.post_string_event(wx.EVT_TEXT_ENTER,self.round_to_n(self.minp,6),self.choosep.minpspin)
         #self.post_string_event(wx.EVT_TEXT_ENTER,self.round_to_n(self.maxp,6),self.choosep.maxpspin)
         self.Refresh()

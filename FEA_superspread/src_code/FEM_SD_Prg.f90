@@ -43,7 +43,7 @@ PROGRAM FEM_1D
 	                     mm, Equilibrium_Angle, Thetac, MASS_SURFACTANT, Peca, ba, ka, Ra, &
 	                     SOLUBLE_SURFACTANT, Peb, Pem, kb, nc, WALL_ADSORPTION, Pecs, bs,  &
 	                     ks, Rs, kas, Ras, ST_MODEL, Bl1, Bl2, Bl12, Kl1, Kl2, Kl12, &
-	                     GEOMETRY, NXELa, NXELb, XPACK, MPa, MPb, OUTFE_STEP
+	                     GEOMETRY, NXELa, NXELb, XPACK, MPa, MPb, OUTFE_STEP, NZELa
 
 	!-----------------------------------------------------------------------
 	!     READ NAMELIST'S DATA
@@ -2063,7 +2063,7 @@ END SUBROUTINE CALCULATE_MASS
 SUBROUTINE CREATE_GRAPH_ARRAYS(TQa,TQb,Xc)
 
 	USE ELEMENTS_DATA,     only: NBF_Q, NNTOLa, NNTOLb, NEQ_Q_a, NEQ_Q_b, &
-										NODTOLa_QEL, NODTOLb_QEL
+										NODTOLa_QEL, NODTOLb_QEL, NZELa
 	USE COMMON_ARRAYS,     only: Xa, Xb, NM_Q_a, NM_Q_b, TQo_GRAPH
 	USE COMMON_ARRAYS,     only: uwarray, Z_loc
 	USE BASIS_FUNCTION_1D, only: NF_Q, DNF_Q
@@ -2087,14 +2087,14 @@ SUBROUTINE CREATE_GRAPH_ARRAYS(TQa,TQb,Xc)
 	REAL(8), DIMENSION(NBF_Q) :: DFDX_Q
 	INTEGER, DIMENSION(5) :: IERROR
 
-    integer :: Nzpoints,zpoint
+    integer :: zpoint
 
 	!-----------------------------------------------------------------------
 	!     INITIALIZE ARRAY
 	!-----------------------------------------------------------------------
-	Nzpoints = 100; TQo_GRAPH = 0.D0
-    if (.not. allocated(Z_loc)) allocate(Z_loc(NODTOLa_QEL,Nzpoints))
-    if (.not. allocated(uwarray)) allocate(uwarray(NODTOLa_QEL,Nzpoints,2))
+	TQo_GRAPH = 0.D0
+    if (.not. allocated(Z_loc)) allocate(Z_loc(NODTOLa_QEL,NZELa))
+    if (.not. allocated(uwarray)) allocate(uwarray(NODTOLa_QEL,NZELa,2))
     Z_loc = 0.d0; uwarray = 0.d0
 
 	!-----------------------------------------------------------------------
@@ -2198,9 +2198,9 @@ SUBROUTINE CREATE_GRAPH_ARRAYS(TQa,TQb,Xc)
 			END SELECT
 
             COEFF = S2xx - Pxx*H - dPdx * Hx
-            do zpoint = 1,Nzpoints
+            do zpoint = 1,NZELa
 			    INOD = NM_Q_a(IEL,I+1)
-                Z_loc(INOD,zpoint)  =  H * zpoint/dble(Nzpoints)
+                Z_loc(INOD,zpoint)  =  H * zpoint/dble(NZELa)
                 uwarray(INOD,zpoint,1) =  0.5d0*dPdX*Z_loc(INOD,zpoint)**2 & 
                                          + Z_loc(INOD,zpoint)*(S2x-dPdX*H) &
                                          + bslip*(S2x-dPdX*H)
@@ -2447,7 +2447,7 @@ SUBROUTINE WRITE_FILES(WTS,PRINT_PROFILES,T,Dt)
         call get_Timestep_FileName(recno,'results/xgrid',filename)
 	    write(filename,'(a21,a4)') filename,'.DAT'
 	    inquire(iolength=length) TQo_GRAPH(1:NODTOLa_QEL,2)
-        print*, trim(filename),shape(TQo_GRAPH(1:NODTOLa_QEL,2)),size(TQo_GRAPH(1:NODTOLa_QEL,2)),length
+        !print*, trim(filename),shape(TQo_GRAPH(1:NODTOLa_QEL,2)),size(TQo_GRAPH(1:NODTOLa_QEL,2)),length
 	    open(48, file=filename,action='write',form='unformatted',access='direct',recl=length)
         write(48,rec=1) TQo_GRAPH(1:NODTOLa_QEL,2)
         close(48)
@@ -2456,7 +2456,7 @@ SUBROUTINE WRITE_FILES(WTS,PRINT_PROFILES,T,Dt)
         call get_Timestep_FileName(recno,'results/zgrid',filename)
 	    write(filename,'(a21,a4)') filename,'.DAT'
 	    inquire(iolength=length) Z_loc
-        print*, trim(filename),shape(z_loc),size(z_loc),length
+        !print*, trim(filename),shape(z_loc),size(z_loc),length
 	    open(48, file=filename,action='write',form='unformatted',access='direct',recl=length)
         write(48,rec=1) Z_loc
         close(48)
@@ -2465,7 +2465,7 @@ SUBROUTINE WRITE_FILES(WTS,PRINT_PROFILES,T,Dt)
         call get_Timestep_FileName(recno,'results/uwgrid',filename)
 	    write(filename,'(a21,a4)') filename,'.DAT'
 	    inquire(iolength=length) uwarray
-        print*, trim(filename),shape(uwarray),size(uwarray),length
+        !print*, trim(filename),shape(uwarray),size(uwarray),length
 	    open(48, file=filename,action='write',form='unformatted',access='direct',recl=length)
         write(48,rec=1) uwarray
         close(48)

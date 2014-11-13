@@ -220,7 +220,7 @@ subroutine apply_bforce(a_in,ixyz,xyz,thresh,hdom,flag)
 	use boundary_MD, only: bforce_NCER, bforce_off, bforce_pdf_input, &
                            bforce_pdf_nsubcells, substrate_force 
 	use calculated_properties_MD,   only: pressure
-    use computational_constants_MD, only: cellsidelength 
+    use computational_constants_MD, only: cellsidelength, eij_wall
 	use interfaces,                 only: error_abort
 	implicit none
 
@@ -263,7 +263,7 @@ subroutine apply_bforce(a_in,ixyz,xyz,thresh,hdom,flag)
 
 	case ( substrate_force )
 
-        eij = 1.4d0; sij = 1.d0
+        eij = eij_wall; sij = 1.d0
         lama = 12.d0; lamr = 6.d0
         C = (lamr/(lamr-lama))*(lamr/lama)**(lama/(lamr-lama))
         rho_wall = 1.d0

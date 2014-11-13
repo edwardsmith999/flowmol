@@ -1937,6 +1937,78 @@ end subroutine read_DNS_velocity_files
 
 
 
+!Read input file from the FEA codes
+
+
+subroutine read_FEA_output_files(filename, HLratio, nNodes, X, Z, & 
+                                 H, Hx, Hxx, Hxxx, U, S2, &
+                                 S2x, S12_or_S1, S12x_or_S1x)
+	implicit none
+
+	character(*),intent(in)	:: filename
+
+    integer,intent(out),optional          :: nNodes
+    double precision,intent(out),optional :: HLratio
+    double precision,intent(out),optional, &
+        allocatable,dimension(:)       :: X, Z, H, Hx, Hxx, Hxxx, U, & 
+                                          S2, S2x, S12_or_S1, S12x_or_S1x
+
+    integer                               :: N
+    double precision                      :: Time_, HLratio_
+    double precision,allocatable,dimension(:) :: X_, Z_, H_, Hx_, Hxx_, Hxxx_, U_, & 
+                                                 S2_, S2x_, S12_or_S1_, S12x_or_S1x_
+
+	integer					:: unitno, i
+	character(30)        	:: char_temp
+
+	unitno = get_new_fileunit()
+
+    !'======================'
+    !  'Time = ', Time
+    !'======================'
+    open(unitno, file=filename,action='read')
+    read(unitno,*) char_temp 
+    read(unitno,*) char_temp
+    read(unitno,*) char_temp
+
+    !'X','Z','H','Hx','Hxx','Hxxx','U', &
+	!'S2','S2x','S12_or_S1','S12x_or_S1x'
+    read(unitno,'(11A14)') char_temp, char_temp, char_temp, char_temp,& 
+                           char_temp, char_temp, char_temp, char_temp,& 
+                           char_temp, char_temp, char_temp          
+
+    !Should read number of elements and eps from SPARAMETERS
+    N = 601
+    HLratio_ = 0.42 !1.d0 !0.02d0 !0.005d0
+
+    !Loop through and read all the data
+    allocate(X_(N), Z_(N), H_(N), Hx_(N), Hxx_(N), Hxxx_(N), & 
+             U_(N), S2_(N), S2x_(N), S12_or_S1_(N), S12x_or_S1x_(N))
+
+    do i = 1, N
+        read(unitno,'(1X,11ES14.6)') X_(i), Z_(i), H_(i), Hx_(i), Hxx_(i), Hxxx_(i), & 
+                                     U_(i), S2_(i), S2x_(i), S12_or_S1_(i), S12x_or_S1x_(i)
+    enddo
+    close(unitno)
+
+    if (present(HLratio)) HLratio = HLratio_
+    if (present(Nnodes)) Nnodes = N
+    if (present(X)) allocate(X, source = X_)
+    if (present(Z)) allocate(Z, source = Z_)
+    if (present(H)) allocate(H, source = H_)
+    if (present(Hx)) allocate(Hx, source  = Hx_)
+    if (present(Hxx)) allocate(Hxx, source  = Hxx_)
+    if (present(Hxxx)) allocate(Hxxx, source  = Hxxx_)
+    if (present(U)) allocate(U, source  = U_)
+    if (present(S2)) allocate(S2, source  = S2_)
+    if (present(S2x)) allocate(S2x, source  = S2x_)
+    if (present(S12_or_S1)) allocate(S12_or_S1, source  = S12_or_S1_)
+    if (present(S12x_or_S1x)) allocate(S12x_or_S1x, source  = S12x_or_S1x_)
+
+end subroutine read_FEA_output_files
+
+
+
 ! Ouput spectral solution for velocity in unsteady Couette flow u(y,t). Input in form
 ! "couette_analytical_fn(time,
 !                        Reynolds_number,
@@ -2713,6 +2785,29 @@ end function lagrange_poly_weight_Nmol
 !
 !==============================================================================================================
 
+!In the simple case of a 1D quadratic, it's as simple as:
+
+!Input
+!       x -- three x positions of known values
+!       y -- three values at the x positions y = f(x)
+!       xeval -- positions to evaluate y at yeval = f(xeval)
+!Ouput  yeval -- value at position x
+
+subroutine quadratic_lagrange_interp(x,y,xeval,yeval)
+    implicit none
+
+    double precision, intent(in) :: xeval
+    double precision, dimension(3),intent(in) :: x, y
+
+    double precision, intent(out) :: yeval
+
+    yeval =   y(1) * (xeval-x(2))/(x(1)-x(2)) * (xeval-x(3))/(x(1)-x(3)) &
+            + y(2) * (xeval-x(1))/(x(2)-x(1)) * (xeval-x(3))/(x(2)-x(3)) &
+            + y(3) * (xeval-x(2))/(x(3)-x(2)) * (xeval-x(1))/(x(3)-x(1))
+
+end subroutine quadratic_lagrange_interp
+
+
 ! Example usage of code
 !
 
@@ -2743,7 +2838,7 @@ end function lagrange_poly_weight_Nmol
 ! where M is the spatial dimension, N is the number of points to be evaluated, X is a vector of dimension (M,N) 
 
 !Once the interpolant has been defined, the user is free to evaluate it repeatedly, by specifying NI points XI, and requesting the interpolated values ZI by:
-!        call lagrange_interp_nd_value ( m, ind, ab, nd, zd, ni, xi, zi );
+!        call lagrange_interp_nd_value ( m, ind, a, b, nd, zd, ni, xi, zi );
 !
 
 
@@ -3178,6 +3273,299 @@ subroutine r8vec_direct_product2 ( factor_index, factor_order, factor_value,fact
 	contig = contig * factor_order
 
 end subroutine r8vec_direct_product2
+
+
+
+
+! ----------------------------------------------------------------------------
+! Numerical diagonalization of 3x3 matrcies
+! Copyright (C) 2006  Joachim Kopp
+!
+! If you use this code, please cite
+! Joachim Kopp
+! Efficient numerical diagonalization of hermitian 3x3 matrices
+! Int. J. Mod. Phys. C 19 (2008) 523-548
+! arXiv.org: physics/0610206
+!
+!
+!
+! ----------------------------------------------------------------------------
+! This library is free software; you can redistribute it and/or
+! modify it under the terms of the GNU Lesser General Public
+! License as published by the Free Software Foundation; either
+! version 2.1 of the License, or (at your option) any later version.
+!
+! This library is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+! Lesser General Public License for more details.
+!
+! You should have received a copy of the GNU Lesser General Public
+! License along with this library; if not, write to the Free Software
+! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+! ----------------------------------------------------------------------------
+
+
+! ----------------------------------------------------------------------------
+SUBROUTINE get_eigenval3x3(A, W)
+    implicit none
+    ! ----------------------------------------------------------------------------
+    ! Calculates the eigenvalues of a symmetric 3x3 matrix A using Cardano's
+    ! analytical algorithm.
+    ! Only the diagonal and upper triangular parts of A are accessed. The access
+    ! is read-only.
+    ! ----------------------------------------------------------------------------
+    ! Parameters:
+    !   A: The symmetric input matrix
+    !   W: Storage buffer for eigenvalues
+    ! ----------------------------------------------------------------------------
+    !     .. Arguments ..
+	DOUBLE PRECISION, intent(in)   :: A(3,3)
+	DOUBLE PRECISION, intent(out)  :: W(3)
+
+    !     .. Parameters ..
+	DOUBLE PRECISION SQRT3
+	PARAMETER	  ( SQRT3 = 1.73205080756887729352744634151D0 )
+
+    !     .. Local Variables ..
+	DOUBLE PRECISION M, C1, C0
+	DOUBLE PRECISION DE, DD, EE, FF
+	DOUBLE PRECISION P, SQRTP, Q, C, S, PHI
+  
+    !     Determine coefficients of characteristic poynomial. We write
+    !	     | A   D   F  |
+    !	A =  | D*  B   E  |
+    !	     | F*  E*  C  |
+	DE    = A(1,2) * A(2,3)
+	DD    = A(1,2)**2
+	EE    = A(2,3)**2
+	FF    = A(1,3)**2
+	M     = A(1,1) + A(2,2) + A(3,3)
+	C1    = ( A(1,1)*A(2,2) + A(1,1)*A(3,3) + A(2,2)*A(3,3) ) &
+      	   - (DD + EE + FF)
+	C0    = A(3,3)*DD + A(1,1)*EE + A(2,2)*FF - A(1,1)*A(2,2)*A(3,3) &
+      	   - 2.0D0 * A(1,3)*DE
+
+	P     = M**2 - 3.0D0 * C1
+	Q     = M*(P - (3.0D0/2.0D0)*C1) - (27.0D0/2.0D0)*C0
+	SQRTP = SQRT(ABS(P))
+
+	PHI   = 27.0D0 * ( 0.25D0 * C1**2 * (P - C1) &
+      	    + C0 * (Q + (27.0D0/4.0D0)*C0) )
+	PHI   = (1.0D0/3.0D0) * ATAN2(SQRT(ABS(PHI)), Q)
+
+	C     = SQRTP * COS(PHI)
+	S     = (1.0D0/SQRT3) * SQRTP * SIN(PHI)
+
+	W(2) = (1.0D0/3.0D0) * (M - C)
+	W(3) = W(2) + S
+	W(1) = W(2) + C
+	W(2) = W(2) - S
+
+END SUBROUTINE get_eigenval3x3
+
+
+! ----------------------------------------------------------------------------
+
+! ----------------------------------------------------------------------------
+! Calculates the eigenvalues and normalized eigenvectors of a symmetric 3x3
+! matrix A using Cardano's method for the eigenvalues and an analytical
+! method based on vector cross products for the eigenvectors.
+! Only the diagonal and upper triangular parts of A need to contain
+! meaningful values. However, all of A may be used as temporary storage
+! and may hence be destroyed.
+! ----------------------------------------------------------------------------
+! Parameters:
+!   A: The symmetric input matrix
+!   Q: Storage buffer for eigenvectors
+!   W: Storage buffer for eigenvalues
+! ----------------------------------------------------------------------------
+! Dependencies:
+!   get_eigenval3x3()
+! ----------------------------------------------------------------------------
+! Version history:
+!   v1.1 (12 Mar 2012): Removed access to lower triangualr part of A
+!     (according to the documentation, only the upper triangular part needs
+!     to be filled)
+!   v1.0: First released version
+! ----------------------------------------------------------------------------
+SUBROUTINE get_eigenvec3x3(A, Q, W)
+    implicit none
+    !     .. Arguments ..
+	DOUBLE PRECISION, intent(inout)  :: A(3,3)
+	DOUBLE PRECISION, intent(out)    :: Q(3,3)
+	DOUBLE PRECISION, intent(out)    :: W(3)
+
+    !     .. Parameters ..
+	DOUBLE PRECISION EPS
+	PARAMETER	  ( EPS = 2.2204460492503131D-16 )
+
+    !     .. Local Variables ..
+	DOUBLE PRECISION NORM, N1, N2, N1TMP, N2TMP
+	DOUBLE PRECISION THRESH, ERROR, WMAX, F, T
+	INTEGER	    I, J
+
+    !     Calculate eigenvalues
+	CALL get_eigenval3x3(A, W)
+
+    !     --- The rest of this subroutine can be omitted if only the eigenvalues are desired ---
+	WMAX   = MAX(ABS(W(1)), ABS(W(2)), ABS(W(3)))
+	THRESH = (8.0D0 * EPS * WMAX)**2
+
+    !     Prepare calculation of eigenvectors
+	N1TMP   = A(1, 2)**2 + A(1, 3)**2
+	N2TMP   = A(1, 2)**2 + A(2, 3)**2
+	Q(1, 1) = A(1, 2) * A(2, 3) - A(1, 3) * A(2, 2)
+	Q(1, 2) = Q(1, 1)
+	Q(2, 1) = A(1, 3) * A(1, 2) - A(2, 3) * A(1, 1)
+	Q(2, 2) = Q(2, 1)
+	Q(3, 2) = A(1, 2)**2
+
+    !     Calculate first eigenvector by the formula
+    !	 v[0] = (A - lambda[0]).e1 x (A - lambda[0]).e2
+	A(1, 1) = A(1, 1) - W(1)
+	A(2, 2) = A(2, 2) - W(1)
+	Q(1, 1) = Q(1, 2) + A(1, 3) * W(1)
+	Q(2, 1) = Q(2, 2) + A(2, 3) * W(1)
+	Q(3, 1) = A(1, 1) * A(2, 2) - Q(3, 2)
+	NORM    = Q(1, 1)**2 + Q(2, 1)**2 + Q(3, 1)**2
+	N1	= N1TMP + A(1, 1)**2
+	N2	= N2TMP + A(2, 2)**2
+	ERROR   = N1 * N2
+
+    !     If the first column is zero, then (1, 0, 0) is an eigenvector
+	IF (N1 .LE. THRESH) THEN
+	  Q(1, 1) = 1.0D0
+	  Q(2, 1) = 0.0D0
+	  Q(3, 1) = 0.0D0
+    !     If the second column is zero, then (0, 1, 0) is an eigenvector
+	ELSE IF (N2 .LE. THRESH) THEN
+	  Q(1, 1) = 0.0D0
+	  Q(2, 1) = 1.0D0
+	  Q(3, 1) = 0.0D0
+    !     If angle between A(*,1) and A(*,2) is too small, don't use
+    !     cross product, but calculate v ~ (1, -A0/A1, 0)
+	ELSE IF (NORM .LT. (64.0D0 * EPS)**2 * ERROR) THEN
+        T = ABS(A(1, 2))
+        F = -A(1, 1) / A(1, 2)
+        IF (ABS(A(2, 2)) .GT. T) THEN
+            T = ABS(A(2, 2))
+            F = -A(1, 2) / A(2, 2)
+        END IF
+        IF (ABS(A(2, 3)) .GT. T) THEN
+            F = -A(1, 3) / A(2, 3)
+        END IF
+        NORM    = 1.0D0 / SQRT(1.0D0 + F**2)
+        Q(1, 1) = NORM
+        Q(2, 1) = F * NORM
+        Q(3, 1) = 0.0D0
+        !     This is the standard branch
+	ELSE
+        NORM = SQRT(1.0D0 / NORM)
+        do J = 1, 3
+        Q(J, 1) = Q(J, 1) * NORM
+        enddo
+	END IF
+ 
+    !     Prepare calculation of second eigenvector     
+	T = W(1) - W(2)
+
+    !     Is this eigenvalue degenerate?
+	IF (ABS(T) .GT. 8.0D0 * EPS * WMAX) THEN
+    !	 For non-degenerate eigenvalue, calculate second eigenvector by
+    !	 the formula
+    !	   v[1] = (A - lambda[1]).e1 x (A - lambda[1]).e2
+	  A(1, 1) = A(1, 1) + T
+	  A(2, 2) = A(2, 2) + T
+	  Q(1, 2) = Q(1, 2) + A(1, 3) * W(2)
+	  Q(2, 2) = Q(2, 2) + A(2, 3) * W(2)
+	  Q(3, 2) = A(1, 1) * A(2, 2) - Q(3, 2)
+	  NORM    = Q(1, 2)**2 + Q(2, 2)**2 + Q(3, 2)**2
+	  N1	= N1TMP + A(1, 1)**2
+	  N2	= N2TMP + A(2, 2)**2
+	  ERROR   = N1 * N2
+
+	  IF (N1 .LE. THRESH) THEN
+	    Q(1, 2) = 1.0D0
+	    Q(2, 2) = 0.0D0
+	    Q(3, 2) = 0.0D0
+	  ELSE IF (N2 .LE. THRESH) THEN
+	    Q(1, 2) = 0.0D0
+	    Q(2, 2) = 1.0D0
+	    Q(3, 2) = 0.0D0
+	  ELSE IF (NORM .LT. (64.0D0 * EPS)**2 * ERROR) THEN
+	    T = ABS(A(1, 2))
+	    F = -A(1, 1) / A(1, 2)
+	    IF (ABS(A(2, 2)) .GT. T) THEN
+		T = ABS(A(2, 2))
+		F = -A(1, 2) / A(2, 2)
+	    END IF
+	    IF (ABS(A(2, 3)) .GT. T) THEN
+		F = -A(1, 3) / A(2, 3)
+	    END IF
+	    NORM    = 1.0D0 / SQRT(1.0D0 + F**2)
+	    Q(1, 2) = NORM
+	    Q(2, 2) = F * NORM
+	    Q(3, 2) = 0.0D0
+	  ELSE
+	    NORM = SQRT(1.0D0 / NORM)
+	    do J = 1, 3 
+    		Q(J, 2) = Q(J, 2) * NORM
+        enddo
+	  END IF
+	ELSE
+    !	 For degenerate eigenvalue, calculate second eigenvector according to
+    !	   v[1] = v[0] x (A - lambda[1]).e[i]
+    !   
+    !	 This would really get to complicated if we could not assume all of A to
+    !	 contain meaningful values.
+        A(2, 1) = A(1, 2)
+        A(3, 1) = A(1, 3)
+        A(3, 2) = A(2, 3)
+        A(1, 1) = A(1, 1) + W(1)
+        A(2, 2) = A(2, 2) + W(1)
+        do I = 1, 3
+            A(I, I) = A(I, I) - W(2)
+            N1	= A(1, I)**2 + A(2, I)**2 + A(3, I)**2
+            IF (N1 .GT. THRESH) THEN
+                Q(1, 2) = Q(2, 1) * A(3, I) - Q(3, 1) * A(2, I)
+                Q(2, 2) = Q(3, 1) * A(1, I) - Q(1, 1) * A(3, I)
+                Q(3, 2) = Q(1, 1) * A(2, I) - Q(2, 1) * A(1, I)
+                NORM    = Q(1,2)**2 + Q(2,2)**2 + Q(3,2)**2
+                if (NORM .GT. (256.0D0 * EPS)**2 * N1) THEN
+                    NORM = SQRT(1.0D0 / NORM)
+                    do J = 1, 3
+                        Q(J, 2) = Q(J, 2) * NORM
+                    enddo
+                    exit
+                    !GO TO 60
+                endif
+            endif
+        enddo
+   
+        ! This means that any vector orthogonal to v[0] is an EV.
+        if (I .eq. 4) THEN
+	        do J = 1, 3
+            ! Find nonzero element of v[0] and swap it with the next one
+		        if (Q(J, 1).NE.0.0D0) THEN
+                    NORM = 1.0D0 / SQRT(Q(J, 1)**2 + Q(1 + MOD(J,3), 1)**2)
+                    Q(J, 2)		  = Q(1 + MOD(J,3), 1) * NORM
+                    Q(1 + MOD(J,3), 2)   = -Q(J, 1) * NORM
+                    Q(1 + MOD(J+1,3), 2) = 0.0D0
+                    exit
+		            !GO TO 80
+		        endif
+            enddo
+        endif
+	endif
+
+    !     Calculate third eigenvector according to
+    !	 v[2] = v[0] x v[1]
+    Q(1, 3) = Q(2, 1) * Q(3, 2) - Q(3, 1) * Q(2, 2)
+    Q(2, 3) = Q(3, 1) * Q(1, 2) - Q(1, 1) * Q(3, 2)
+    Q(3, 3) = Q(1, 1) * Q(2, 2) - Q(2, 1) * Q(1, 2)
+
+END SUBROUTINE get_eigenvec3x3
 
 
 

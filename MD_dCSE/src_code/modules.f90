@@ -12,7 +12,7 @@ module physical_constants_MD
 	integer		   					:: globalnp             !Global number of particles
 	integer                         :: tethernp             !Number of tethered particles
 	integer		   					:: halo_np              !Number of molecules in halo
-    integer                         :: insertnp             !Number of molecules to insert
+    integer                         :: reinsertnp           !Number of molecules to reinsert (leaving over surfaces)
 	integer,dimension(:),allocatable:: procnp 				!Array of all processors np
 	integer,dimension(:),allocatable:: proctethernp 		!Array of all processors np
 	double precision   				:: volume, density      !Define constant volume and density
@@ -53,8 +53,10 @@ module computational_constants_MD
 	integer                 	  :: tether_flag     	 !True if there exists 
 	integer                 	  :: external_force_flag !Apply external forces?
 	integer                 	  :: F_ext_ixyz			 !Direction of external forces
+    integer                       :: eij_wall            !Interaction potential strength for substrate wall
 	double precision        	  :: F_ext				 !Magnitude of external forces
 	double precision,dimension(6) :: F_ext_limits		 !Limits of region external forces applied to
+    
 
 	! Move particle tags
 	logical 		   :: tag_thermostat_active
@@ -101,12 +103,16 @@ module computational_constants_MD
 	character(len=128)	:: config_special_case
 	double precision	:: liquid_density	!Density of liquid if solid/liquid case used
 	double precision	:: gas_density	    !Density of liquid if gas/liquid case used
+	double precision	:: lg_fract	    !Fraction of the domain which is liquid (0 = all gas, 1 = all liquid)
+    logical             :: Twophase_from_file = .false.
+	character(len=128)	:: FEA_filename
 
 	!Initial velocity selection
 	integer           	:: initial_velocity_flag
 	character(len=128)	:: velocity_special_case
 	character(len=128)	:: DNS_filename
 	integer           	:: DNS_ngx,DNS_ngy,DNS_ngz
+
 
 	!Write a separate file for each timestep
 	logical ::	separate_outfiles = .false.

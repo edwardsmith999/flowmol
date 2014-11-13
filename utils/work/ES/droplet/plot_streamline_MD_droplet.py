@@ -10,13 +10,19 @@ f, axs = plt.subplots(nrows=4)
 
 
 
-#fdir = '/home/es205/scratch/droplet/2D_long_run/'
-#xwindow = 2.6
+fdir = '/home/es205/scratch/droplet/2D_e1p4/'
+xwindow = 2.6
 #startrecs = [6,10,50,80]; endrecs = [7,12,55,90]
 
-fdir = '../../../../MD_dCSE/src_code/results/'
-xwindow = 1.0
-startrecs = [200,600,100,800]; endrecs = [210,602,800,801]
+#fdir = '../../../../MD_dCSE/src_code/results/'
+#xwindow = 1.0
+
+
+PPObj = ppl.MD_PostProc(fdir)
+rhoObj = PPObj.plotlist['rho']
+maxrec = rhoObj.maxrec
+
+startrecs = [20,40,60,maxrec-5]; endrecs = [25,45,65,maxrec]
 
 for i,ax in enumerate(axs):
     startrec = startrecs[i]; endrec = endrecs[i]
@@ -36,7 +42,7 @@ for i,ax in enumerate(axs):
     speed = np.sqrt(U*U + V*V)
     lw = 2.5*speed/speed.max()
     im=ax.streamplot(X[:,xlims], Y[:,xlims], U[xlims,:].T, V[xlims,:].T, 
-                     color=Rho[xlims,:].T, linewidth=lw[xlims,:].T, 
+                     color=speed[xlims,:].T, linewidth=lw[xlims,:].T, 
                      cmap=plt.cm.RdYlBu_r, density=[3., 3])
     ax.axis('scaled')
 

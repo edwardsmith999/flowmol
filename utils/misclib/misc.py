@@ -53,6 +53,11 @@ def pastel(colour, weight=2.4):
 
     return rgb
 
+def update_line(hl, new_data):
+    hl.set_xdata(np.append(hl.get_xdata(), new_data))
+    hl.set_ydata(np.append(hl.get_ydata(), new_data))
+    plt.draw()
+
 def get_colours(n):
     """ Return n pastel colours. """
     base = np.asarray([[1,0,0], [0,1,0], [0,0,1]])

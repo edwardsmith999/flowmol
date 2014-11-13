@@ -998,7 +998,8 @@ implicit none
     !Obtain and record mass only
     if (velocity_outflag .eq. 0 .and. mass_outflag .ne. 0) then
         !Call first record
-        call mass_averaging(mass_outflag)
+        print*, 'WARNING -- I HAVE REMOVED INITIAL MASS AVERAGE RECORD AS IT MAKES FIRST RESULT WRONG BY 1'
+        !call mass_averaging(mass_outflag)
     endif
 
 	!Obtain and record temperature

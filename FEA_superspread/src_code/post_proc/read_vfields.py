@@ -34,10 +34,25 @@ class FEA_RawData(RawData):
         self.maxrec = self.get_maxrec()
 
     def read_header(self,fdir):
-        
-        self.nx = 601
-        self.ny = 1
-        self.nz = 100       
+
+        class HeaderData:
+            def __init__(self,fdir):
+                headerfile = fdir + './SPARAMETERS'
+                with open(headerfile) as f:
+                    dump = f.read()
+                    data = dump.split('\n')
+                    for i in data:
+                        if (i.find('=')>0):
+                            nocomment = i.split('!')[0]
+                            nocomment = nocomment.replace(" ","")
+                            varname, varval = nocomment.split('=')
+                            vars(self)[varname] = varval.replace('d','e')
+
+                    self.nx = int(self.NXELa) + int(self.NXELb) + 1
+                    self.ny = 1
+                    self.nz = int(self.NZELa)
+
+        return HeaderData(fdir)
 
     def get_maxrec(self):
         return len(self.get_subdomlist(self.fname))
@@ -89,11 +104,11 @@ class FEA_RawData(RawData):
         """
 
         if (nx == None):
-            nx = self.nx
+            nx = int(self.header.nx)
         if (ny == None):
-            ny = self.ny
+            ny = int(self.header.ny)
         if (nz == None):
-            nz = self.nz
+            nz = int(self.header.nz)
         if (npercell == None):
             npercell = self.npercell
         
@@ -159,13 +174,15 @@ class FEA_RawData(RawData):
 
 if __name__ == "__main__":
 
-    fdir = '/home/es205/codes/superspreading/coupled_code/FEA_superspread/src_code/results/'
+    fdir = '/home/es205/codes/superspreading/coupled_code/FEA_superspread/src_code/results/HLratio_study/eps2_0p1'
+    #fdir = '/home/es205/codes/superspreading/coupled_code/FEA_superspread/src_code/results/HLratio_study/eps2_0p02/'
     fname = 'uwgrid'
+    truescale = True
     fObj  = FEA_RawData(fdir,fname,'d',2)
 
     print('Number of records = ', fObj.maxrec)
     n = 0
-    f,ax = plt.subplots(2,2)
+    f,ax = plt.subplots(4,1)
     axs = ax.reshape(4) 
     for rec in range(10,fObj.maxrec,20):
 
@@ -175,6 +192,15 @@ if __name__ == "__main__":
 
         x = grid[0][:,0,:,0,0]
         z = grid[1][:,0,:,0,0]
+        eps = np.sqrt(float(fObj.header.eps2))
+        if truescale:
+            H = 1.0
+            L = H/eps
+        else:
+            L = 1.0
+            H = 1.0
+        x = x * L
+        z = z * H
         X,Z = np.meshgrid(x,z[0,:],indexing='ij')
         u = uw[:,0,:,0,0]
         w = uw[:,0,:,0,1]
@@ -184,9 +210,7 @@ if __name__ == "__main__":
         #scaled_u = (u - u.min()) / u.ptp()
         #colors = plt.cm.RdYlBu_r(scaled_u)
 
-        axs[n].plot(x,np.zeros(x.shape[0]),'k-')
-        axs[n].set_xlim((0.0,1.8))
-        axs[n].set_ylim((0.0,1.0))
+
         #for i in range(0,z.shape[1]):
         #    cm = plt.scatter(x[:,0], z[:,i],  s=size, c=u[:,i], marker='o', lw = 0,  alpha=0.7, cmap=plt.cm.RdYlBu_r)
 
@@ -205,21 +229,31 @@ if __name__ == "__main__":
 #        plt.show()
 
         #NOTE THE -w here is not in line with expected!
-        skipx = 10; skipz = 10
+        skipx = 5; skipz = 10
         cm = axs[n].pcolormesh(X[::skipx,::skipz], z[::skipx,::skipz], speed[::skipx,::skipz], cmap=plt.cm.RdYlBu_r, vmin=0.0, vmax=0.001)
-        axs[n].quiver(X[::skipx,::skipz], z[::skipx,::skipz], u[::skipx,::skipz], -w[::skipx,::skipz], scale=0.1)
-        n += 1
+        axs[n].quiver(X[::skipx,::skipz], z[::skipx,::skipz], u[::skipx,::skipz],
+                     -w[::skipx,::skipz],angles='xy',scale_units='xy',scale=0.1)
+        axs[n].plot(x,np.zeros(x.shape[0]),'k-')
+        axs[n].axis('scaled')
+        axs[n].set_xlim((0.0,1.8*L))
+        axs[n].set_ylim((0.0,1.0))
+
 
         #Streamplot only works on a uniform grid!!
         #f, ax = plt.subplots(nrows=1)
-        #lw = 2.5*speed/speed.max()
+        #lw = 5.*speed/speed.max()
         #sp = streamplot(ax, Z[::skipx,::skipz], X[::skipx,::skipz],u[::skipx,::skipz], -w[::skipx,::skipz], 
         #                    linewidth=lw[::skipx,::skipz])
-        #im=plt.streamplot(Z[::skipx,::skipz], X[::skipx,::skipz], u[::skipx,::skipz], w[::skipx,::skipz], 
-        #                 linewidth=lw[::skipx,::skipz], density=[3., 3])
+        #im=axs[n].streamplot(Z[::skipx,::skipz], X[::skipx,::skipz], u[::skipx,::skipz], -w[::skipx,::skipz])#, 
+                             #linewidth=lw[::skipx,::skipz], density=[2., 2])
+        #cm = im.lines
         #im=plt.streamplot(Z[::skipx,::skipz], X[::skipx,::skipz], u[::skipx,::skipz], w[::skipx,::skipz])
         #plt.colorbar(im.lines)
 
+        #Update axis number
+        n += 1
+
+    plt.suptitle("eps2 = " + fObj.header.eps2)
     f.subplots_adjust(left=0.2)
     cbar_ax = f.add_axes([0.05, 0.1, 0.025, 0.8])
     f.colorbar(cm, cax=cbar_ax)

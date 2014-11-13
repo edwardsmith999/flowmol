@@ -158,6 +158,18 @@ subroutine setup_read_input
 			read(1,*) initialnunits(2)		!y dimension split into number of cells
 			read(1,*) initialnunits(3)		!z dimension split into number of cells
 
+            if (config_special_case .eq. '2phase') then
+			    call locate(1,'FEA_FILENAME',.false.,found_in_input) 
+	            if (found_in_input) then
+                    Twophase_from_file = .true.
+                    read(1,*) FEA_filename
+                endif
+			    call locate(1,'LIQUID_FRACTION',.false.,found_in_input) 
+	            if (found_in_input) then
+                    read(1,*) lg_fract
+                endif
+            endif   
+
 		case('concentric_cylinders')
 			
 			potential_flag = 0
@@ -405,6 +417,15 @@ subroutine setup_read_input
                     bforce_dxyz(n) = rcutoff
                 end if
             end do
+
+            if (any(bforce_flag .eq. substrate_force)) then
+                call locate(1,'EIJ_WALL',.false.,found_in_input)
+		        if (found_in_input) then
+                    read(1,*) eij_wall
+                else
+                    eij_wall = 1.d0
+                endif
+            endif
 
 		end if
 

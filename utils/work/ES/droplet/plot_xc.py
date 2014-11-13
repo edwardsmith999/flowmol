@@ -49,17 +49,28 @@ def update_plot(fdir,Lmin,Lmax):
     #Take gradient of density 
     #drhodx, drhodz = np.gradient(np.mean(rho[:,0:1,:,:,0],(1,2)))
     #cm=ax1.pcolormesh(X,T,np.sqrt(drhodx*drhodx),cmap=plt.cm.RdYlBu_r,shading='gouraud')
+    meanrho = np.mean(rho[:,0:1,:,:,0],(1,2))
+    try:
+        cm=ax1.pcolormesh(X,T,meanrho,cmap=plt.cm.RdYlBu_r,shading='gouraud')
+        ax1.contour(X,T,meanrho>Lmin,color='k')
+    except ValueError:  #raised if `y` is empty.
+        print('No interface found for Lmin and Lmax values',Lmin,Lmax)
+        f.subplots_adjust(left=0.2)
+        cbar_ax = f.add_axes([0.05, 0.1, 0.025, 0.8])
+        f.colorbar(cm, cax=cbar_ax)
+        plt.show()
 
-    cm=ax1.pcolormesh(X,T,np.mean(rho[:,0:1,:,:,0],(1,2)),cmap=plt.cm.RdYlBu_r,shading='gouraud')
-    ax1.contour(X,T,np.mean(rho[:,0:1,:,:,0],(1,2))>Lmin,color='k')
-    #ax.pcolormesh(np.mean(rho[:,0:1,:,:,0],(1,2))>0.2,cmap=plt.cm.bone_r,alpha=0.2)
+    #ax.pcolormesh(meanrho>0.2,cmap=plt.cm.bone_r,alpha=0.2)
     ax1.axis('tight')
+    ax1.set_xlabel('$x$')
+    ax1.set_ylabel(r'$t$')
 
     #Plot locations of edges only using Lmin and Lmax
-    edgedensity = ((Lmax>np.mean(rho[:,0:1,:,:,0],(1,2))) & 
-                   (Lmin<np.mean(rho[:,0:1,:,:,0],(1,2)))    )
+    edgedensity = ((Lmax>meanrho) & 
+                   (Lmin<meanrho)    )
     x = X[edgedensity] - np.max(x[:])/2.
     t = T[edgedensity]
+
 
     #Plot all data
     ax2.plot(x,t,'bo')
@@ -70,18 +81,26 @@ def update_plot(fdir,Lmin,Lmax):
     x = x[t>indrop]  
     t = t[t>indrop]
     ax2.plot(x,t,'ro',ms=2.5)
+    ax2.set_xlabel(r'$x_c$')
+    ax2.set_ylabel(r'$t$')
 
     #Fit line
     #Zero minimum value and 
-    x = x - x.min() 
+    x = x - x.min()
+    t = t - t.min() 
+    #Normalise by initial location
+    x = x/x[0]
+        
     popxt, pcovx = curve_fit(linear_fn_zero_origin, x, t, (1.))
     t_linfit = linear_fn_zero_origin(x, *popxt)
     popxt, pcovx = curve_fit(quadratic_fn_zero_origin, x, t, (1.,1.))
     t_quadfit = quadratic_fn_zero_origin(x, *popxt)
 
-    ax3.plot(x,t,'bo')
-    ax3.plot(x,t_linfit,'r-')
-    ax3.plot(x,t_quadfit,'y-')
+    ax3.plot(t,x,'bo')
+    ax3.plot(t_linfit,x,'r-')
+    ax3.plot(t_quadfit,x,'y-')
+    ax3.set_ylabel(r'$x_c/x_{initial}$')
+    ax3.set_xlabel(r'$t$')
 
     f.subplots_adjust(left=0.2)
     cbar_ax = f.add_axes([0.05, 0.1, 0.025, 0.8])
@@ -89,9 +108,10 @@ def update_plot(fdir,Lmin,Lmax):
     plt.show()
 
 
-#fdir = '/home/es205/scratch/droplet/2D_e1p4/'
+#fdir = '/home/es205/scratch/droplet/2D_e1p6/'
+fdir = '/home/es205/scratch/droplet/2D_e1p4/'
 #fdir = '/home/es205/scratch/droplet/2D_e0p6/'
-fdir = '/home/es205/codes/superspreading/coupled_code/MD_dCSE/src_code/results/'
+#fdir = '/home/es205/codes/superspreading/coupled_code/MD_dCSE/src_code/results/'
 
 
 #Minimin and maximum values for liquid
