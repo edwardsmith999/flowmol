@@ -15,7 +15,7 @@ FC = ifort
 FFLAGS_DEBUG:= -O0 -g -traceback -CB -fpe0 -debug extended# -check all 
 
 # Generic optimization
-FFLAGS_DEFAULT:= -O3 #-axSSSE3,SSE3
+FFLAGS_DEFAULT:= -O3  -parallel #-axSSSE3,SSE3
 
 # Fortran linker options
 LDFLAGS =

@@ -1,5 +1,5 @@
 &parameters
-eps2               = 5.0d-3      ! eps = H/L
+eps2               = 1.8d-1      ! eps = H/L
 As1                = 2.0d-1      ! As1  = (s1o-s1m)/s1m
 As2                = 2.0d+0      ! As2  = (s2o-s2m)/s2m
 As12               = 2.0d+0      ! As12 = (s12o-s12m)/s12m
@@ -43,5 +43,6 @@ XPACK              = 'N'         ! MESH_PACKING
 MPa                = 1.25        ! PARAMETER FOR PACKING
 MPb                = 1.25        ! PARAMETER FOR PACKING
 OUTFE_STEP         = 1000        ! PRINT IN OUTFE.DAT EVERY OUT_STEP STEPS
+NZELa              = 100         ! NUMBER OF CELLS IN Z TO USE FOR OUTPUT VELOCITY FIELD
 /
 

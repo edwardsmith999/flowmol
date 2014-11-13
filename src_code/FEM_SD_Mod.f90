@@ -19,6 +19,7 @@ module elements_data
 	integer :: NXELa, NNTOLa, NNXa, NODTOLa_QEL, NODTOLa
 	integer :: NXELb, NNTOLb, NNXb, NODTOLb_QEL, NODTOLb
 	integer :: NXEL,  NNTOL,  NNX,  NODTOL_QEL,  NODTOL
+	integer :: NZELa !Z cells for 2D velociyt field
 
 	integer :: IBAND, HBAND, MBAND, IDIM_A
 
@@ -257,8 +258,8 @@ contains
 
 		integer, intent(in) :: IDIM
 		real(8), intent(in) :: x
-		real(8), intent(inout), dimension(IDIM) :: F1N
-		real(8), intent(inout), dimension(IDIM) :: DF1N
+		real(8), intent(out), dimension(IDIM) :: F1N
+		real(8), intent(out), dimension(IDIM) :: DF1N
 
 		F1N(1)  =   0.5D0*(1.D0-x)
 		F1N(2)  =   0.5D0*(1.D0+x)
@@ -274,8 +275,8 @@ contains
 
 		integer, intent(in) :: IDIM
 		real(8), intent(in) :: x
-		real(8), intent(inout), dimension(IDIM) :: F3N
-		real(8), intent(inout), dimension(IDIM) :: DF3N
+		real(8), intent(out), dimension(IDIM) :: F3N
+		real(8), intent(out), dimension(IDIM) :: DF3N
 
         !Gauss points
 		F3N(1)  = -0.5D0*x*(1.D0-x)
