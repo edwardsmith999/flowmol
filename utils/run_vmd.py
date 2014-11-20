@@ -21,11 +21,13 @@ if __name__ == "__main__":
 
     #Keyword arguments
     parser = argparse.ArgumentParser(description='run_vmd vs. master jay -- Runs VMD with overlayed field')
-    parser.add_argument('d','-fdir', nargs='?', help='Directory with vmd file and field files', default='../MD_dCSE/src_code/results/')
+    parser.add_argument('-d','-fdir',dest='fdir', nargs='?', help='Directory with vmd file and field files', default='../MD_dCSE/src_code/results/')
     #parser.add_argument('-h','--help', help='Field type',  default='vbins')
-    parser.add_argument('-f','--field', help=print_fieldlist(),  default=None)
-    parser.add_argument('-c','--comp', help='Component name', default=None)
+    parser.add_argument('-f', '--field', dest='field', help=print_fieldlist(),  default=None)
+    parser.add_argument('-c', '--comp', dest='comp', help='Component name', default=None)
     args = vars(parser.parse_args())
+
+    print(args)
 
     #Static arguments
     ppObj = ppl.MD_PostProc(args['fdir'])
