@@ -9,7 +9,7 @@ import glob
 from mdfields import *
 from headerdata import *
 from postproc import PostProc
-from pplexceptions import NoResultsInDir
+from pplexceptions import NoResultsInDir, DataMismatch
 
     
 class MD_PostProc(PostProc):
@@ -164,8 +164,11 @@ class MD_PostProc(PostProc):
 
         if (('mflux' in self.fieldfiles1) and 
             ('mbins' in self.fieldfiles1)     ):
-            uCV =  MD_CVvField(self.resultsdir)
-            self.plotlist.update({'u CV':uCV})
+            try:
+                uCV =  MD_CVvField(self.resultsdir)
+                self.plotlist.update({'u CV':uCV})
+            except DataMismatch:
+                pass
 
 
         if 'vflux' in (self.fieldfiles1):

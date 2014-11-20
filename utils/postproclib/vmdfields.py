@@ -15,6 +15,7 @@ sys.path.insert(0,'../')
 from misclib import Chdir
 sys.path.insert(0,'../')
 from misclib import Chdir
+
 class VMDFields:
     
     """
@@ -87,7 +88,7 @@ class VMDFields:
 #            self.Nave = self.header.Nvflux_ave
 
         #Create VMD vol_data folder
-        self.vol_dir = fdir + './vmd/vol_data/'
+        self.vol_dir = self.fdir + './vmd/vol_data/'
         if not os.path.exists(self.vol_dir):
             os.makedirs(self.vol_dir)
 
@@ -160,7 +161,7 @@ class VMDFields:
                 np = int(vars(self.header)[i])
 
         # Build and call VMD_reformat with np from header
-        with Chdir(fdir + '../debug_scripts/'):
+        with Chdir(self.fdir + '../debug_scripts/'):
             cmd = "ifort -O3 -o vmd_reformat.exe vmd_reformat.f90"
             os.system(cmd)
             cmd = './vmd_reformat.exe ' + str(np)
@@ -195,6 +196,10 @@ if __name__ == "__main__":
 
     try:
         fobj = ppObj.plotlist[objtype]
+    except KeyError:
+        print("Field not recognised == available field types include")
+        print(ppObj)
+        sys.exit()
     except:
         raise
 
@@ -223,5 +228,6 @@ if __name__ == "__main__":
     vmdobj.write_dx_range(component=component)
     vmdobj.writecolormap('RdYlBu')
     with Chdir(fdir + './vmd/'):
+        print(fdir)
         command = "vmd -e " + "./plot_MD_field.vmd"
         os.system(command)

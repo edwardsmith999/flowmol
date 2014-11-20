@@ -85,7 +85,11 @@ def round_to_n(x,p):
     https://code.google.com/p/webkit-mirror/source/browse/JavaScriptCore/kjs/number_object.cpp
     """
 
-    x = float(x)
+    #No need to round an integer
+    if isinstance(x,int):
+        return x
+    else:
+        x = float(x)
 
     if x == 0.:
         return "0." + "0"*(p-1)

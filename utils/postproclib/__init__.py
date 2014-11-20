@@ -10,3 +10,4 @@ from cplfields import *
 from mdpdfs import *
 from mdpostproc import *
 from pplexceptions import *
+from vmdfields import *

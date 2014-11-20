@@ -10,7 +10,8 @@ f, axs = plt.subplots(nrows=4)
 
 
 
-fdir = '/home/es205/scratch/droplet/2D_e1p4/'
+#fdir = '/home/es205/scratch/droplet/2D_e1p4/'
+fdir = '/home/es205/codes/superspreading/coupled_code/MD_dCSE/runs/EIJWALL1p7/results/'
 xwindow = 2.6
 #startrecs = [6,10,50,80]; endrecs = [7,12,55,90]
 

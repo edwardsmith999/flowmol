@@ -368,8 +368,8 @@ class VisualiserPanel(wx.Panel):
         self.pyplotp.redraw_contour(ax1, ax2, data, xlabel, ylabel)
         # Set min/max contour values
         self.minp,self.maxp = self.pyplotp.colormesh.get_clim()
-        self.choosep.minpspin.SetValue(str(self.round_to_n(self.minp,3)))
-        self.choosep.maxpspin.SetValue(str(self.round_to_n(self.maxp,3)))
+        self.choosep.minpspin.SetValue(str(round_to_n(self.minp,3)))
+        self.choosep.maxpspin.SetValue(str(round_to_n(self.maxp,3)))
         #self.post_string_event(wx.EVT_TEXT_ENTER,self.round_to_n(self.minp,6),self.choosep.minpspin)
         #self.post_string_event(wx.EVT_TEXT_ENTER,self.round_to_n(self.maxp,6),self.choosep.maxpspin)
         self.Refresh()

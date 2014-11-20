@@ -1,3 +1,5 @@
+import os
+
 from mdpostproc import MD_PostProc
 from cfdpostproc import CFD_PostProc
 from cplpostproc import CPL_PostProc
@@ -8,6 +10,10 @@ from pplexceptions import NoResultsInDir
 class All_PostProc:
     
     def __init__(self,fdir):
+
+        if not os.path.isdir(fdir):
+            print("Requested directory ", fdir, " does not exist.")
+            fdir = './'
 
         self.plotlist = {}
         try:
