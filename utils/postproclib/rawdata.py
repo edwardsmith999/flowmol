@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 import sys
 
-class RawData():
+class RawData(object):
 
     """
         Abstract base class to be inherited by raw data classes

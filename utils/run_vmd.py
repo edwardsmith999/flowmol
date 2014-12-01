@@ -22,17 +22,24 @@ def run_vmd(parent_parser=argparse.ArgumentParser(add_help=False)):
     #Keyword arguments
     parser = argparse.ArgumentParser(description='run_vmd vs. master jay -- Runs VMD with overlayed field',
                                      parents=[parent_parser])
-    parser.add_argument('-d','-fdir',dest='fdir', nargs='?', help='Directory with vmd file and field files', default=None)
-    parser.add_argument('-f', '--field', dest='field', help=print_fieldlist(),  default=None)
-    parser.add_argument('-c', '--comp', dest='comp', help='Component name', default=None)
+
+    try:
+        argns, unknown = parser.parse_known_args()
+        print('Using directory defined as ', argns.fdir)
+    except AttributeError:
+        parser.add_argument('-d','--fdir',dest='fdir', nargs='?', 
+                            help='Directory with vmd file and field files',     
+                            default=None)
+
+    parser.add_argument('-f', '--field', dest='field', 
+                        help=print_fieldlist(), default=None)
+    parser.add_argument('-c', '--comp', dest='comp', 
+                        help='Component name', default=None)
     args = vars(parser.parse_args())
 
     #Static arguments
     if args['fdir'] == None:
         scriptdir = os.path.dirname(os.path.realpath(__file__))
-        #for curdir, direntries, fileentries in os.walk(os.path.dirname(__file__)):
-        #    print curdir, direntries, fileentries
-        #print("SCRIPT is in ", scriptdir,os.path.realpath(__file__),os.path.abspath(__file__),__file__,os.walk(scriptdir))
         args['fdir'] = scriptdir + '/../MD_dCSE/src_code/results/'
     if args['field'] == None:
         print("No field type specified -- using default value of no field")

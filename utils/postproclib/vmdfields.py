@@ -84,7 +84,6 @@ class VMDFields:
         #Create VMD vol_data folder
         self.vmd_dir = self.fdir + '/vmd/'
         self.vol_dir = self.vmd_dir + '/vol_data/'
-        print(self.vol_dir,os.path.exists(self.vol_dir))
         if not os.path.exists(self.vol_dir):
             os.makedirs(self.vol_dir)
 
@@ -105,12 +104,20 @@ class VMDFields:
         if not self.finished:
             if (os.path.isfile(self.fdir+self.vmdfile)):
                 filetime = os.path.getmtime(self.fdir+self.vmdfile)
-                temptime = os.path.getmtime(self.fdir+self.vmdfile.replace('out','temp'))
-                if temptime > filetime:
-                    print('Attempting to reformat vmd_out.dcd from vmd_temp.dcd')
-                    reformat = True
             else:
+                filetime = 0.
+
+            if (os.path.isfile(self.fdir+self.vmdfile.replace('out','temp'))):
+                temptime = os.path.getmtime(self.fdir+self.vmdfile.replace('out','temp'))
+            else:
+                temptime = 0.
+
+            print(filetime,temptime,temptime > filetime)
+                
+            if temptime > filetime:
+                print('Attempting to reformat vmd_out.dcd from vmd_temp.dcd')
                 reformat = True
+
         else:
             if not os.path.isfile(self.fdir+self.vmdfile):
                 print(self.fdir+self.vmdfile)
