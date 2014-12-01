@@ -7,3 +7,6 @@ class NoResultsInDir(Exception):
 class DataMismatch(Exception):
     pass
 
+class ScriptMissing(Exception):
+    pass
+

@@ -5,6 +5,8 @@ import os
 import numpy as np
 import csv
 import sys
+import shutil
+import glob
 
 from mdpostproc import MD_PostProc
 from mdfields import (MD_mField, MD_vField, MD_TField, 
@@ -13,8 +15,8 @@ from headerdata import MDHeaderData
 from writecolormap import WriteColorMap
 sys.path.insert(0,'../')
 from misclib import Chdir
-sys.path.insert(0,'../')
-from misclib import Chdir
+from vmd_reformat import VmdReformat
+
 
 class VMDFields:
     
@@ -23,9 +25,15 @@ class VMDFields:
         fields and run VMD with molecules coloured by these fields
     """
 
-    def __init__(self,fieldobj,fdir='../MD_dCSE/src_code/results/'):
-        self.fdir = fdir
+    def __init__(self,fieldobj,fdir=None):
+
+        if fdir == None:
+            self.fdir = fieldobj.fdir
+        else:
+            self.fdir = fdir
         self.fieldobj = fieldobj
+        self.pwd = os.path.join(os.path.dirname(__file__))
+        self.vmdfile = 'vmd_out.dcd'
 
         #Read Header
         self.header = MDHeaderData(fdir)
@@ -40,7 +48,6 @@ class VMDFields:
                 if (int(simulation_time) < self.Nsteps):
                     self.Nsteps = int(simulation_time)
                     self.finished = False
-                    self.reformat_vmdtemp()
                 else:
                     self.finished = True
 
@@ -73,24 +80,45 @@ class VMDFields:
 
         #Get averaging time per record 
         self.Nave = str(self.fieldobj.plotfreq)
-        print(self.Nave)
-#        if (isinstance(fieldobj, MD_mField)):
-#            self.Nave = self.header.Nmass_ave
-#        elif (isinstance(fieldobj, MD_vField)):
-#            self.Nave = self.header.Nvel_ave
-#        elif (isinstance(fieldobj, MD_TField)):
-#            self.Nave = self.header.NTemp_ave
-#        elif (isinstance(fieldobj, MD_dField)):
-#            self.Nave = self.header.Nmass_ave
-#        elif (isinstance(fieldobj, MD_momField)):
-#            self.Nave = self.header.Nvel_ave
-#        elif (isinstance(fieldobj, MD_CVField)):
-#            self.Nave = self.header.Nvflux_ave
 
         #Create VMD vol_data folder
-        self.vol_dir = self.fdir + './vmd/vol_data/'
+        self.vmd_dir = self.fdir + '/vmd/'
+        self.vol_dir = self.vmd_dir + '/vol_data/'
+        print(self.vol_dir,os.path.exists(self.vol_dir))
         if not os.path.exists(self.vol_dir):
             os.makedirs(self.vol_dir)
+
+        def listdir_nohidden(path):
+            return glob.glob(os.path.join(path, '*'))
+
+        #Copy tcl scripts to vmd folder
+        self.vmdtcl = self.pwd+'/vmd_tcl/'
+        for filepath in listdir_nohidden(self.vmdtcl):
+            filename = filepath.split('/')[-1]
+            shutil.copyfile(filepath, self.vmd_dir+ '/' +filename )
+
+    def reformat(self):
+
+        # If simulation has not finish and temp is newer than out
+        # call reformat to update vmd_out.dcd
+        reformat = False
+        if not self.finished:
+            if (os.path.isfile(self.fdir+self.vmdfile)):
+                filetime = os.path.getmtime(self.fdir+self.vmdfile)
+                temptime = os.path.getmtime(self.fdir+self.vmdfile.replace('out','temp'))
+                if temptime > filetime:
+                    print('Attempting to reformat vmd_out.dcd from vmd_temp.dcd')
+                    reformat = True
+            else:
+                reformat = True
+        else:
+            if not os.path.isfile(self.fdir+self.vmdfile):
+                print(self.fdir+self.vmdfile)
+                print('Run has finished but vmd_out.dcd is missing')
+                sys.exit(1)
+
+        if reformat:
+            self.reformat_vmdtemp()
 
     def write_vmd_header(self):
 
@@ -155,17 +183,13 @@ class VMDFields:
             useful form
         """
 
-        #Get number of molecules from header file
-        for i in dir(self.header):
-            if (i.find('globalnp') == 0):
-                np = int(vars(self.header)[i])
+        print("Attempting to reformat " + self.vmdfile.replace('out','temp') + 
+              " in " + self.fdir + " to " + self.vmdfile   )
 
-        # Build and call VMD_reformat with np from header
-        with Chdir(self.fdir + '../debug_scripts/'):
-            cmd = "ifort -O3 -o vmd_reformat.exe vmd_reformat.f90"
-            os.system(cmd)
-            cmd = './vmd_reformat.exe ' + str(np)
-            os.system(cmd)
+        VMDreformobj = VmdReformat(os.path.abspath(self.fdir)+'/', 
+                                   fname=self.vmdfile.replace('out','temp'), 
+                                   scriptdir='./postproclib/')
+        VMDreformobj.reformat()
 
 if __name__ == "__main__":
 
@@ -203,26 +227,8 @@ if __name__ == "__main__":
     except:
         raise
 
-#    if (objtype == 'mbins'):
-#        fobj = MD_mField(fdir)
-#    elif (objtype == 'vbins'):
-#        fobj = MD_vField(fdir)
-#    elif (objtype == 'Tbins'):
-#        fobj = MD_TField(fdir)
-#    elif (objtype == 'density'):
-#        fobj = MD_dField(fdir)
-#    elif (objtype == 'momentum'):
-#        fobj = MD_momField(fdir)
-#    elif (objtype == 'CV_config'):
-#        fobj = MD_CVField(fdir,fname='psurface')
-#    elif (objtype == 'CV_kinetic'):
-#        fobj = MD_CVField(fdir,fname='vflux')
-#    elif (objtype == 'CV_total'):
-#        fobj = MD_CVField(fdir,fname='total')
-#    else:
-#        quit("Argument " + sys.argv[1] + " is not a valid field type")
-
     vmdobj = VMDFields(fobj,fdir)
+    vmdobj.reformat()
     vmdobj.write_vmd_header()
     vmdobj.write_vmd_intervals()
     vmdobj.write_dx_range(component=component)

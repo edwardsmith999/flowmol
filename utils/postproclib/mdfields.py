@@ -22,6 +22,23 @@ class MDField(Field):
 
 # ============================================================================
 # MDField derived classes, but calculated by the main code
+
+class MD_dummyField(MDField):
+
+    """
+        Dummy field object
+    """
+
+    dtype = 'N/A'
+    nperbin = 1
+
+    def __init__(self,fdir=None):
+        
+        self.fname = None
+        self.labels = [""]
+        self.nperbin = 1
+
+
 class MD_mField(MDField):
 
     """
