@@ -1955,7 +1955,7 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
 
 
     integer                                     :: Nnodes
-    double precision                            :: HLratio, L, FEA_nodespace
+    double precision                            :: HLratio, L, FEA_nodespace, fract
     double precision,allocatable,dimension(:)   :: FEA_X, FEA_H, MD_X, MD_H
 
     p_units_lb(1) = (iblock-1)*floor(initialnunits(1)/real((npx),kind(0.d0)))
@@ -2005,9 +2005,13 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
                 !print'(a,i5,6f17.5,l)', 'FEA values', i, FEA_X(i), maxval(FEA_X)-FEA_X(i),globaldomain(1)*lg_fract, & 
                 !                                      globaldomain(1),lg_fract,maxval(FEA_X)-globaldomain(1)*lg_fract, & 
                 !                                      FEA_X(i) .gt. maxval(FEA_X)-globaldomain(1)*lg_fract
-                !We need to shift MD to account for gas region of md in line with
-                !liquid_fraction input (lg_fract)
-                if (FEA_X(i) .gt. maxval(FEA_X)-globaldomain(1)*lg_fract) then
+
+                !We need to shift MD to account for gas region of md to give 
+                !contact line some room to spread using value of
+                !liquid_fraction input (lg_fract) shifted 
+                !to give half vapour buffer at each end of domain
+                fract = (lg_fract + 0.5*(1.d0-lg_fract))
+                if (FEA_X(i) .gt. maxval(FEA_X)-globaldomain(1)*fract) then
                     Nnodes = Nnodes + 1
                 endif
             enddo
@@ -2017,8 +2021,8 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
             allocate(MD_X(Nnodes))
             do i = 1,Nnodes
                 MD_H(i) = FEA_H(size(FEA_H)-Nnodes+i)
-                MD_X(i) = globaldomain(1)*lg_fract - (maxval(FEA_X) - FEA_X(size(FEA_H)-Nnodes+i)) !globaldomain(1)*(1.d0-lg_fract) - ( FEA_X(size(FEA_H)-Nnodes+i)) 
-                print*, 'MD values', i, MD_X(i), MD_H(i)
+                MD_X(i) = globaldomain(1)*fract - (maxval(FEA_X) - FEA_X(size(FEA_H)-Nnodes+i)) !globaldomain(1)*(1.d0-lg_fract) - ( FEA_X(size(FEA_H)-Nnodes+i)) 
+                !print*, 'MD values', i, MD_X(i), MD_H(i)
             enddo
 
             !Test values
@@ -2100,20 +2104,41 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
                 select case(gastype)
                 case('droplet2D')
 
-                    !Height to width ratio (Assumed small in lubrication theory
-                    !                       but actually works to angles of 40°
-                    !                       which I htink is HLratio = 0.42 )
-                    HLratio = 0.42
+                    !Height to width ratio 
+                    ! (Assumed small in lubrication theory
+                    !  but actually works to angles of 40°
+                    !  which I think is HLratio = 0.42 )
+                    if (dropletHLratio .lt. 1e-4) then
+                        HLratio = 0.42
+                    else
+                        HLratio = dropletHLratio
+                    endif
 
-                    !Take contact line start as 90% of domain height in y
-                    h0 = 0.8d0*globaldomain(2)
+                    !Define droplet height
+                    if (dropletH .lt. 1e-4) then
+                        !If not defined, take contact line start as 80% of domain height in y
+                        h0 = 0.8d0*globaldomain(2)
+                    elseif (dropletH .le. 1.d0) then
+                        !If less than one, specifies fraction of domain height
+                        h0 = dropletH*globaldomain(2)
+                    elseif (dropletH .lt. globaldomain(2)) then
+                        !If greater than one, specifies of domain height in MD units
+                        h0 = dropletH
+                    else
+                        !If specified height is greater than domain, domain height is taken
+                        h0 = globaldomain(2)
+                    endif
 
                     !Width is then determined by H and HLratio
                     L = h0/HLratio
 
+                    !print'(7f10.5)', dropletH, dropletHLratio, HLratio, globaldomain(1), globaldomain(2), h0, L
+
                     if (L .gt. globaldomain(1)/2.d0) then
-                        call error_abort("Error in setup_initialise_solid_liquid_gas &
-                                          & -- should have domain width > domain height")
+                        print*, "Error in setup_initialise_solid_liquid_gas -- "
+                        print*,  "should have 1/2 domain width > droplet width but"
+                        print'(2(a,f10.5))',  "1/2 domain width = ", 0.5*globaldomain(1), ' and droplet =', L
+                        call error_abort()
                     endif
 
 
@@ -2131,8 +2156,10 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
                     !Take contact line start as 90% of domain height in y
                     h0 = 0.9d0*globaldomain(2)
                     if (h0 .gt. globaldomain(1)/2.d0 .or. h0 .gt. globaldomain(3)/2.d0) then
-                        call error_abort("Error in setup_initialise_solid_liquid_gas &
-                                          & -- should have domain width > domain height")
+                        print*, "Error in setup_initialise_solid_liquid_gas -- "
+                        print*,  "should have 1/2 domain width > droplet width but"
+                        print'(2(a,f10.5))',  "1/2 domain width = ", 0.5*globaldomain(1), ' and droplet =', L
+                        call error_abort()
                     endif
 
                     !Droplet initially of shape 1 - x^2 with contact line
@@ -2148,10 +2175,12 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
                     endif      
 
                 case('2phase')
+                    x = rc(1)
+
                     !Read initial state from FEA code
                     if (Twophase_from_file) then
                         !Remove any molecules greater than contact line
-
+                        y = rc(2) - tethereddistbottom(2)
                         !First bin to get contact line location
                         i = nint(rc(1)/FEA_nodespace)
                         if (i .lt. 2) i = 2
@@ -2160,16 +2189,22 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
                         !Use bin either side to define parabolic line (lagrangian interpolant)
                         call quadratic_lagrange_interp((/MD_X(i-1),MD_X(i),MD_X(i+1)/), & 
                                                        (/MD_H(i-1),MD_H(i),MD_H(i+1)/), & 
-                                                        rc(1),hz)
+                                                        x,hz)
 
-                        WRITE(12345,*), RC(2),HZ
-                        if (rc(2) .gt. hz) then
+                        if (x .lt. 0.5d0*(1.d0-lg_fract)*globaldomain(1)) then
+                            !print*, MD_H(Nnodes),MD_H(Nnodes-1),MD_H(2),globaldomain(2),H
+                            call quadratic_lagrange_interp((/MD_X(i-1),MD_X(i),MD_X(i+1)/), & 
+                                                           (/MD_H(i-1),MD_H(i),MD_H(i+1)/), & 
+                                                             0.5d0*(1.d0-lg_fract)*globaldomain(1),hz)
+                        endif
+
+                        if (y .gt. hz) then
                             call random_number(rand)
                             if (rand .gt. density_ratio_gl) cycle   
                         endif
                     else                      
                         !Gas is initialised for half of the domain which is 
-                        if (rc(1) .gt. lg_fract*globaldomain(1)) then
+                        if (x .gt. lg_fract*globaldomain(1)) then
                             call random_number(rand)
                             if (rand .gt. density_ratio_gl) cycle   
                         endif

@@ -158,6 +158,17 @@ subroutine setup_read_input
 			read(1,*) initialnunits(2)		!y dimension split into number of cells
 			read(1,*) initialnunits(3)		!z dimension split into number of cells
 
+            if (config_special_case .eq. 'droplet2D') then
+			    call locate(1,'DROPHEIGHT',.false.,found_in_input)
+	            if (found_in_input) then
+                    read(1,*) dropletH
+                endif
+			    call locate(1,'DROPHLRATIO',.false.,found_in_input)
+	            if (found_in_input) then
+                    read(1,*) dropletHLratio
+                endif
+            endif
+
             if (config_special_case .eq. '2phase') then
 			    call locate(1,'FEA_FILENAME',.false.,found_in_input) 
 	            if (found_in_input) then
@@ -328,14 +339,15 @@ subroutine setup_read_input
 	call locate(1,'DELTA_RNEIGHBR',.true.) 
 	read(1,*) delta_rneighbr 	!Extra distance used for neighbour cell
 
-	call locate(1,'FIXED_REBUILD_FLAG',.false.,found_in_input) 
+	call locate(1,'REBUILD_CRITERIA',.false.,found_in_input) 
 	if (found_in_input) then
-		read(1,*) fixed_rebuild_flag 	!Fixed rebuild flag
-		read(1,*) fixed_rebuild 		!Fixed rebuild frequency
+		read(1,*) rebuild_criteria   	!Choice of rebuild criteria
+        if (rebuild_criteria .eq. 1) then
+    		read(1,*) fixed_rebuild 		!Fixed rebuild frequency
+        endif
 	else
-		fixed_rebuild_flag = 0			!Rebuild uses neighbourcell
+		rebuild_criteria = 0			!Rebuild uses neighbourcell
 	endif
-
 
 	call locate(1,'RESCUE_SNAPSHOT_FREQ',.false.,found_in_input) 
 	if (found_in_input) then
@@ -959,6 +971,7 @@ subroutine setup_read_input
 	if (found_in_input) then
 		read(1,*) CVforce_flag
 		if (CVforce_flag .ne. VOID) then
+            print*, CV_debug, vflux_outflag, CVforce_flag
 			if (CV_debug .eq. 0) call error_abort("Input ERROR -- CV_FORCES true so CV_CONSERVE should be set to 1 and debugging set to > 1")
 			if (vflux_outflag .ne. 4) call error_abort("Input ERROR -- CV_FORCES .true. but VFLUX_OUTFLAG not set to 4 (CV averages)")
 		endif

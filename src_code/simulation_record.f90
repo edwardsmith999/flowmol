@@ -96,10 +96,8 @@ subroutine simulation_record
 	use CV_objects, only : CVcheck_mass, CV_debug
 	implicit none
 
-	integer			:: vmd_iter
-	integer,save	:: i = 1
-    integer, save :: vmd_skip_count=0
-
+    integer, save   :: vmd_skip_count=0
+    integer, save   :: vmdintervalno = 1
     integer :: sl_interface_outflag
 
 	if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
@@ -122,40 +120,12 @@ subroutine simulation_record
 	!---------------Only record every tplot iterations------------------------
 
 	!Parallel output for molecular positions
-	if (vmd_outflag.ne.0 .and. size(vmd_intervals,2).ge.i) then
-        
+	if (vmd_outflag.ne.0 .and. size(vmd_intervals,2).ge.vmdintervalno) then
         vmd_skip_count = vmd_skip_count + 1 
         if (vmd_skip_count .eq. vmd_skip) then
-
             vmd_skip_count = 0
-
-            vmd_iter = iter-initialstep+1
-
-            if (vmd_iter.ge.vmd_intervals(1,i).and.vmd_iter.lt.vmd_intervals(2,i)) then
-                select case(vmd_outflag)
-                case(1)
-                    call parallel_io_vmd
-                case(2)
-                    call parallel_io_vmd_sl
-                case(3)
-                    call parallel_io_vmd
-                    call parallel_io_vmd_halo
-                case(4)
-                    call parallel_io_vmd_true
-                case default
-                    call error_abort('Unrecognised vmd_outflag in simulation_record')
-                end select
-                vmd_count = vmd_count + 1
-            else if (vmd_iter.ge.vmd_intervals(2,i)) then
-                i = i + 1			
-            endif
-
-        else
-            
-            continue
-            
-        end if
-
+            call parallel_io_write_vmd(vmdintervalno,vmd_count)
+        endif
 	endif
 	
     !Get polymer statistics
@@ -4016,7 +3986,6 @@ subroutine momentum_snapshot
 
 		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = volume_mass_temp(ibin(1),ibin(2),ibin(3)) + 1
 		volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) = volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) + v(:,n)
-		!call CV_sphere_momentum%Add_spherical_CV_velocity(r(:,n),v(:,n))
 	enddo
 	binvolume = (domain(1)/nbins(1))*(domain(2)/nbins(2))*(domain(3)/nbins(3))
 	volume_momentum_temp = volume_momentum_temp/binvolume

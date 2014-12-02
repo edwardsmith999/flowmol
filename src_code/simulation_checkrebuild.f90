@@ -27,7 +27,7 @@ subroutine simulation_checkrebuild(rebuild)
 	double precision       :: vmax, t2, dt
 	double precision, save :: rmax = 0.d0, t1, average_rb_count
 	double precision,dimension(:),allocatable :: vmagnitude
-
+	double precision,dimension(:,:),allocatable,save :: rdisp  !Displacement from initial state used in checkrebuild
 	rebuild = 0
 
 	!Trigger rebuild if record to be taken on next timestep
@@ -72,27 +72,68 @@ subroutine simulation_checkrebuild(rebuild)
 		call error_abort('Restart file written. Simulation aborted.')
 	end if
 
-	!Trigger rebuild if FIXED REBUILD specified in input
-	if (fixed_rebuild_flag .eq. 1) then
+    select case(rebuild_criteria)
+    case(0) !Rapaport vmax criterion
+	    !Evaluate velocity magnitude
+	    allocate(vmagnitude(np))
+	    do n = 1, np    ! Loop over all molecules
+		    vmagnitude(n) = dot_product(v(:,n),v(:,n)) 
+	    enddo
+	    !Obtain maximum velocity
+	    vmax = maxval(vmagnitude)
+	    vmax = sqrt(vmax)
+	    deallocate(vmagnitude)
+
+	    !Calculate maximum possible displacement based on maximum velocity
+	    rmax = rmax + vmax * delta_t
+
+	    !Check if maximum displacment has exceeded extra distance
+	    if (rmax .gt. 0.5d0*delta_rneighbr) rebuild = 1
+
+    case(1) !fixed
+
 		if (mod(iter,fixed_rebuild) .eq. 0) rebuild = 1
-		return
-	endif
 
-	!Evaluate velocity magnitude
-	allocate(vmagnitude(np))
-	do n = 1, np    ! Loop over all molecules
-		vmagnitude(n) = dot_product(v(:,n),v(:,n)) 
-	enddo
-	!Obtain maximum velocity
-	vmax = maxval(vmagnitude)
-	vmax = sqrt(vmax)
-	deallocate(vmagnitude)
+    case(2) !displacement
+        if (allocated(rdisp) .and. size(rdisp,2) .ne. np) then
+            deallocate(rdisp)
+        endif
+        if (.not. allocated(rdisp)) then
+            allocate(rdisp(3,np)); rdisp = 0.d0
+        endif
+        ! Loop over all molecules and add displacement
+	    do n = 1, np    
+            rdisp(:,n) = rdisp(:,n) + v(:,n) * delta_t
+            !rmax = max(rmax,rdisp(:,n))
+            if (any(abs(rdisp(:,n)) .gt. 0.5d0*delta_rneighbr)) then
+                !print'(2i6,4f10.5)', iter, n, abs(rdisp(:,n)), delta_rneighbr
+                rebuild = 1;
+                exit
+            endif
+        enddo
+    end select
 
-	!Calculate maximum possible displacement based on maximum velocity
-	rmax = rmax + vmax * delta_t
+!	!Trigger rebuild if FIXED REBUILD specified in input
+!	if (fixed_rebuild_flag .eq. 1) then
+!		if (mod(iter,fixed_rebuild) .eq. 0) rebuild = 1
+!		return
+!	endif
 
-	!Check if maximum displacment has exceeded extra distance
-	if (rmax .gt. 0.5d0*delta_rneighbr) rebuild = 1
+!	!Evaluate velocity magnitude
+!	allocate(vmagnitude(np))
+!	do n = 1, np    ! Loop over all molecules
+!		vmagnitude(n) = dot_product(v(:,n),v(:,n)) 
+!	enddo
+!	!Obtain maximum velocity
+!	vmax = maxval(vmagnitude)
+!	vmax = sqrt(vmax)
+!	deallocate(vmagnitude)
+
+!	!Calculate maximum possible displacement based on maximum velocity
+!	rmax = rmax + vmax * delta_t
+
+!	!Check if maximum displacment has exceeded extra distance
+!	if (rmax .gt. 0.5d0*delta_rneighbr) rebuild = 1
 
 	!Ensure all processor flags are the same - if any rebuild
 	!then all should rebuild
@@ -102,9 +143,12 @@ subroutine simulation_checkrebuild(rebuild)
 	if(rebuild .eq. 1) then
 		!Set local processor rmax to zero as rebuild is global
 		rmax = 0.d0
+        if (rebuild_criteria .eq. 2) then
+            deallocate(rdisp) 
+        endif
 		!Reset count and store average rebuild frequency
 		average_rb_count = average_rb_count + dble(rb_count)
-		rb_count = 0; total_rb = total_rb + 1
+		rb_count = 1; total_rb = total_rb + 1
 		if (irank .eq. iroot) then
 			if (mod(total_rb,100) .eq. 0) then	!Print rebuild stats every 1000 rebuilds
 		   		!open(30,file=trim(prefix_dir)//'/results/rebuild_stats',access='append')

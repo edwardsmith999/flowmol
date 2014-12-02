@@ -26,7 +26,7 @@ subroutine setup_initial_record
                            
     implicit none
 
-    integer                 :: i,n,missing_file_tolerance=5
+    integer                 :: i,n,missing_file_tolerance=5, intervalno, recno
     integer, parameter      :: LongInt = selected_int_kind (8)
     integer(kind=LongInt)   :: est_filesize,output_steps
     logical                 :: file_exist
@@ -153,8 +153,12 @@ subroutine setup_initial_record
         end select
     end if
 
-    if (vmd_outflag.ne.0 .and. potential_flag.eq.1) call build_psf
-    
+    if (vmd_outflag.ne.0) then
+        if (potential_flag.eq.1) call build_psf
+        intervalno = 1; recno = 0
+        call parallel_io_write_vmd(intervalno,recno)
+    endif
+
     !Calculate Control Volume starting state
     call initial_control_volume
 
@@ -251,7 +255,7 @@ subroutine setup_initial_record
         print*, 'Generate output file every: ',  tplot, 'steps'
         print*, 'Density: ',              density
         print*, 'Initial Temperature: ',  inputtemperature
-        if (fixed_rebuild_flag .eq. 0) then
+        if (rebuild_criteria .eq. 0) then
             print'(a,f19.15,a,f10.5)', ' Cut off distance:  ', rcutoff, &
                     '  Neighbour List Delta r:  ', delta_rneighbr
         else

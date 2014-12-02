@@ -56,7 +56,12 @@ module computational_constants_MD
     integer                       :: eij_wall            !Interaction potential strength for substrate wall
 	double precision        	  :: F_ext				 !Magnitude of external forces
 	double precision,dimension(6) :: F_ext_limits		 !Limits of region external forces applied to
-    
+
+    !Rebuild check flags
+    integer             :: rebuild_criteria    !Choice of rebuild criteria
+    integer             :: fixed_rebuild      !Fixed rebuild frequency
+	double precision 	:: rneighbr2         !Square of rcuttoff+delta_rneighbr
+	double precision 	:: delta_rneighbr    !Radius used for neighbour list construction
 
 	! Move particle tags
 	logical 		   :: tag_thermostat_active
@@ -103,7 +108,8 @@ module computational_constants_MD
 	character(len=128)	:: config_special_case
 	double precision	:: liquid_density	!Density of liquid if solid/liquid case used
 	double precision	:: gas_density	    !Density of liquid if gas/liquid case used
-	double precision	:: lg_fract	    !Fraction of the domain which is liquid (0 = all gas, 1 = all liquid)
+	double precision	:: lg_fract	        !Fraction of the domain which is liquid (0 = all gas, 1 = all liquid)
+	double precision	:: dropletH =0.d0,dropletHLratio=0.d0   !Droplet height and H to length ratio
     logical             :: Twophase_from_file = .false.
 	character(len=128)	:: FEA_filename
 
@@ -140,7 +146,6 @@ module computational_constants_MD
 		eflux_outflag, &
 		proc_reorder, &				!Reorder processors at restart
 		pass_vhalo = 0, &
-		fixed_rebuild_flag, &		!Fixed rebuild flag
 		peculiar_flag, &	 			!Take streaming velocity away from temperature 	
 		CVforce_flag = VOID, & 			!Type of CV force to apply
 		CVweighting_flag = 0, &			!Distribution of CV forces
@@ -183,7 +188,6 @@ module computational_constants_MD
 		finalstep,              &   !Final step of simulation
 		Nsteps, 				&	!Total number of computational steps
 		initialise_steps, 		&	!Initialisation steps to run before simulation start
-		fixed_rebuild,          &   !Fixed rebuild frequency
 		extralloc, 				&	!Extra allocation space to include copied halos
 		overlap, 				&	!Size of overlap region used to apply force to molecular region
 		Nvmd_intervals,         &
@@ -197,8 +201,6 @@ module computational_constants_MD
 	double precision 	:: delta_t           !Size of timestep for each computational step
 	double precision 	:: elapsedtime       !Total time elapsed including restarts
 	double precision 	:: simtime=0.d0      !Total incremented simulation time
-	double precision 	:: rneighbr2         !Square of rcuttoff+delta_rneighbr
-	double precision 	:: delta_rneighbr    !Radius used for neighbour list construction
 	double precision    :: rdf_rmax          !Maximum radius for radial distribution function
 	double precision	:: rescue_snapshot_freq	!Rescue snapshot output frequency in seconds
 
