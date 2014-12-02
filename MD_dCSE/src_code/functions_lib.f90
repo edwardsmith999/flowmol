@@ -1979,7 +1979,7 @@ subroutine read_FEA_output_files(filename, HLratio, nNodes, X, Z, &
 
     !Should read number of elements and eps from SPARAMETERS
     N = 601
-    HLratio_ = 0.42 !1.d0 !0.02d0 !0.005d0
+    HLratio_ = 0.42 !0.02d0 !0.005d0
 
     !Loop through and read all the data
     allocate(X_(N), Z_(N), H_(N), Hx_(N), Hxx_(N), Hxxx_(N), & 

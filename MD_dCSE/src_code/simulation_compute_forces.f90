@@ -25,6 +25,32 @@ module module_compute_forces
 
 contains
 
+    function LJ_accijmag(invrij2)
+
+        double precision    :: invrij2, LJ_accijmag
+
+        LJ_accijmag = 48.d0 * ( invrij2**7 - 0.5d0*invrij2**4 )
+
+    end function LJ_accijmag
+
+    function LJ_force(invrij2,rij)
+
+        double precision                :: invrij2
+        double precision,dimension(3)   :: rij, LJ_force
+
+        LJ_force = LJ_accijmag(invrij2)*rij
+
+    end function LJ_force
+
+
+    function LJ_energy(invrij2,potshift)
+
+        double precision    :: invrij2,potshift,LJ_energy
+
+        LJ_energy = 4.d0*( invrij2**6 - invrij2**3 )-potshift
+
+    end function LJ_energy
+
 	!========================================================================
 	!Cell list computations of potential and force on "would-be" molecules
 	subroutine compute_force_and_potential_at(input_pos,Usum,f,extra_pos) 
@@ -95,8 +121,10 @@ contains
 					invrij2 = 1.d0/rij2
 
 					!Find molecule's contribution to f and Usum
-					fmol = 48.d0*( invrij2**7 - 0.5d0*invrij2**4 )*rij
-					Umol = 4.d0*( invrij2**6 - invrij2**3 )-potshift
+					fmol = LJ_force(invrij2,rij)
+					Umol = LJ_energy(invrij2,potshift)
+					!fmol = 48.d0*( invrij2**7 - 0.5d0*invrij2**4 )*rij
+					!Umol = 4.d0*( invrij2**6 - invrij2**3 )-potshift
 
 					!Add to totals
 					f = f + fmol
@@ -139,8 +167,10 @@ contains
 					invrij2 = 1.d0/rij2
 
 					!Find molecule's contribution to f and Usum
-					fmol = 48.d0*( invrij2**7 - 0.5d0*invrij2**4 )*rij
-					Umol = 4.d0*( invrij2**6 - invrij2**3 )-potshift
+					fmol = LJ_force(invrij2,rij)
+					Umol = LJ_energy(invrij2,potshift)
+					!fmol = 48.d0*( invrij2**7 - 0.5d0*invrij2**4 )*rij
+					!Umol = 4.d0*( invrij2**6 - invrij2**3 )-potshift
 
 					!Add to totals
 					f = f + fmol
@@ -263,7 +293,8 @@ subroutine simulation_compute_forces_LJ_AP
 
 				!Linear magnitude of acceleration for each molecule
 				invrij2 = 1.d0/rij2                 !Invert value
-				accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
+                accijmag = LJ_accijmag(invrij2)
+				!accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
 
 				!Sum of forces on particle i added for each j
 				a(1,i)= a(1,i) + accijmag*rij(1)
@@ -278,10 +309,10 @@ subroutine simulation_compute_forces_LJ_AP
 				!Only calculate properties when required for output
 				if (mod(iter,tplot) .eq. 0) then
 					!Record potential energy total to use for output later (potshift=-1 for WCA)
-					potenergymol_LJ(i)=potenergymol_LJ(i) & 
-						     +4.d0*(invrij2**6-invrij2**3)-potshift
-					potenergymol_LJ(j)=potenergymol_LJ(j) & 
-						     +4.d0*(invrij2**6-invrij2**3)-potshift
+					potenergymol_LJ(i) = potenergymol_LJ(i) & 
+						     + LJ_energy(invrij2,potshift) !+4.d0*(invrij2**6-invrij2**3)-potshift
+					potenergymol_LJ(j) = potenergymol_LJ(j) & 
+						     + LJ_energy(invrij2,potshift) !+4.d0*(invrij2**6-invrij2**3)-potshift
 					!Virial expression used to obtain pressure
 					virialmol(i) = virialmol(i) + accijmag*rij2
 					virialmol(j) = virialmol(j) + accijmag*rij2
@@ -342,9 +373,10 @@ implicit none
 				end select
 			
 				if (rij2 .lt. wca_cut2) then
-					accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
+					!accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
+                    accijmag = LJ_accijmag(invrij2)
 				else
-					accijmag = (eps*sod_a*invrij2**2.d0)*sin(invrij2*sod_a &
+					accijmag = (eps*sod_a*invrij2**2)*sin(invrij2*sod_a &
 				                                          + sod_b)
 				end if          
 				!-------------------------------------------------------------
@@ -364,9 +396,9 @@ implicit none
 					!Record potential energy total to use for output later
 					if (rij2 .lt. wca_cut2) then
 						potenergymol_LJ(i) = potenergymol_LJ(i)   &
-					    + 4.d0*(invrij2**6.d0 - invrij2**3.d0 + 0.25d0) - eps 
+					    + 4.d0*(invrij2**6 - invrij2**3 + 0.25d0) - eps 
 						potenergymol_LJ(j) = potenergymol_LJ(j)   &
-					    + 4.d0*(invrij2**6.d0 - invrij2**3.d0 + 0.25d0) - eps 
+					    + 4.d0*(invrij2**6 - invrij2**3 + 0.25d0) - eps 
 					else
 						potenergymol_LJ(i) = potenergymol_LJ(i)   &
 						+ 0.5d0*eps*(cos(sod_a*rij2 + sod_b) - 1.d0)
@@ -440,7 +472,8 @@ subroutine simulation_compute_forces_LJ_cells
 
 						!Linear magnitude of acceleration for each molecule
 						invrij2 = 1.d0/rij2                 !Invert value
-						accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
+                        accijmag = LJ_accijmag(invrij2)
+						!accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
 
 						!Sum of forces on particle i added for each j
 						a(1,molnoi)= a(1,molnoi) + accijmag*rij(1)
@@ -459,7 +492,7 @@ subroutine simulation_compute_forces_LJ_cells
 						if (mod(iter,tplot) .eq. 0) then
 							!Record potential energy total to use for output later (potshift=-1 for WCA)
 							potenergymol_LJ(molnoi)=potenergymol_LJ(molnoi) & 
-								     +4.d0*(invrij2**6-invrij2**3)-potshift
+								     +LJ_energy(invrij2,potshift) !4.d0*(invrij2**6-invrij2**3)-potshift
 							!Virial expression used to obtain pressure
 							virialmol(molnoi) = virialmol(molnoi) + accijmag*rij2
 							if (pressure_outflag .eq. 1) call pressure_tensor_forces(molnoi,rij,accijmag)
@@ -521,7 +554,8 @@ subroutine simulation_compute_forces_LJ_neigbr
 
 			if (rij2 < rcutoff2) then
 				invrij2  = 1.d0/rij2                !Invert value
-				accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4) ! (-dU/dr)*(1/|r|)
+                accijmag = LJ_accijmag(invrij2)
+				!accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4) ! (-dU/dr)*(1/|r|)
 
 				!Sum of forces on particle i added for each j
 				a(1,molnoi)= a(1,molnoi) + accijmag*rij(1)
@@ -540,8 +574,11 @@ subroutine simulation_compute_forces_LJ_neigbr
 				if (mod(iter,tplot) .eq. 0) then
 
 					!Record potential energy total to use for output later (potshift=-1 for WCA)
-					potenergymol_LJ(molnoi)=potenergymol_LJ(molnoi) & 
-						     +4.d0*(invrij2**6-invrij2**3)-potshift
+					!potenergymol_LJ(molnoi)=potenergymol_LJ(molnoi) & 
+					!	     +4.d0*(invrij2**6-invrij2**3)-potshift
+					potenergymol_LJ(molnoi) = potenergymol_LJ(molnoi) & 
+						       + LJ_energy(invrij2,potshift)
+
 					!Virial expression used to obtain pressure
 					virialmol(molnoi) = virialmol(molnoi) + accijmag*rij2
 
@@ -598,7 +635,8 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 
 				!Linear magnitude of acceleration for each molecule
 				invrij2  = 1.d0/rij2                 !Invert value
-				accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
+                accijmag = LJ_accijmag(invrij2)
+				!accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
 	
 				!Sum of forces on particle i added for each j
 				a(1,molnoi)= a(1,molnoi) + accijmag*rij(1)
@@ -628,8 +666,10 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 				if (mod(iter,tplot) .eq. 0) then
 
 					!Record potential energy total to use for output later (potshift=-1 for WCA)
-					potenergymol_LJ(molnoi)=potenergymol_LJ(molnoi)+4.d0*(invrij2**6-invrij2**3)-potshift
-					potenergymol_LJ(molnoj)=potenergymol_LJ(molnoj)+4.d0*(invrij2**6-invrij2**3)-potshift
+					!potenergymol_LJ(molnoi)=potenergymol_LJ(molnoi)+4.d0*(invrij2**6-invrij2**3)-potshift
+					!potenergymol_LJ(molnoj)=potenergymol_LJ(molnoj)+4.d0*(invrij2**6-invrij2**3)-potshift
+					potenergymol_LJ(molnoi)=potenergymol_LJ(molnoi)+LJ_energy(invrij2,potshift)
+					potenergymol_LJ(molnoj)=potenergymol_LJ(molnoj)+LJ_energy(invrij2,potshift)
 			
 					!Virial expression used to obtain pressure
 					virialmol(molnoi) = virialmol(molnoi) + accijmag*rij2
@@ -826,7 +866,8 @@ implicit none
 			
 				invrij2  = 1.d0/rij2             !Useful value
 				if (rij2 .lt. wca_cut2) then
-					accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
+                    accijmag = LJ_accijmag(invrij2)
+					!accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
 				else
 					accijmag = (eps*sod_a*invrij2**2.d0)*sin(invrij2*sod_a &
 				                                             + sod_b)
@@ -848,9 +889,9 @@ implicit none
 					!Record potential energy total to use for output later
 					if (rij2 .lt. wca_cut2) then
 						potenergymol_LJ(molnoi) = potenergymol_LJ(molnoi)   &
-					    + 4.d0*(invrij2**6.d0 - invrij2**3.d0 + 0.25d0) - eps 
+					    + 4.d0*(invrij2**6 - invrij2**3 + 0.25d0) - eps 
 						potenergymol_LJ(molnoj) = potenergymol_LJ(molnoj)   &
-					    + 4.d0*(invrij2**6.d0 - invrij2**3.d0 + 0.25d0) - eps 
+					    + 4.d0*(invrij2**6 - invrij2**3 + 0.25d0) - eps 
 					else
 						potenergymol_LJ(molnoi) = potenergymol_LJ(molnoi)   &
 						+ 0.5d0*eps*(cos(sod_a*rij2 + sod_b) - 1.d0)
@@ -976,9 +1017,13 @@ subroutine simulation_compute_power!(imin, imax, jmin, jmax, kmin, kmax)
 
 						!Linear magnitude of acceleration for each molecule
 						invrij2 = 1.d0/rij2                 !Invert value
-						accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
+						!accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
+                        accijmag = LJ_accijmag(invrij2)
 						potenergymol(molnoi)=potenergymol(molnoi) & 
-							     +4.d0*(invrij2**6-invrij2**3)-potshift
+							     + LJ_energy(invrij2,potshift)
+
+						!potenergymol(molnoi)=potenergymol(molnoi) & 
+						!	     + 4.d0*(invrij2**6-invrij2**3)-potshift
 
 						!CV stress and force calculations
 						fij = accijmag*rij(:)
@@ -1015,6 +1060,7 @@ subroutine collect_bforce_pdf_data
     use linked_list, only: neighbrnode, neighbour, cell, node
     use librarymod, only: heaviside, normal_dist
     use arrays_MD, only: r
+    use module_compute_forces, only : LJ_accijmag
 	implicit none
 
 	integer :: i, j, ixyz 
@@ -1071,7 +1117,8 @@ subroutine collect_bforce_pdf_data
 
 						!Linear magnitude of acceleration for each molecule
 						invrij2 = 1.d0/rij2                 !Invert value
-						accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
+                        accijmag = LJ_accijmag(invrij2)
+						!accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
 
                         ycell_i = ceiling((r(2,molnoi)+halfdomain(2)) &
                         /cellsidelength(2))!+nh !Add nh due to halo(s)

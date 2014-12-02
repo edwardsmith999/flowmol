@@ -1911,7 +1911,7 @@ subroutine check_CFD(u_CFD,CFD_stress,CFD_flux,lbl)
     enddo
     enddo
 
-    print'(a,f27.18)', 'Cumulative error in CFD_CV conservation =', cum_conserved
+    !print'(a,f27.18)', 'Cumulative error in CFD_CV conservation =', cum_conserved
 
 !            if (abs((uc(i,j)-uc_t_minus_1(i,j))/continuum_delta_t - xresidual(i,j)/vcell(i,j)) .gt. 1e-10) then
 !    	        print'(a,3i5,10f10.6)','time', continuum_iter, i, j, uc(i,j),(uc(i,j)-uc_t_minus_1(i,j))/continuum_delta_t,xresidual(i,j)/vcell(i,j), & 

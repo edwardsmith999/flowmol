@@ -13,7 +13,7 @@ module module_molecule_properties
 
 contains
 
-    function get_tag_status(rg,status_type) result(tag_status)
+    recursive function get_tag_status(rg,status_type) result(tag_status)
         use interfaces, only: error_abort
         use computational_constants_MD, only : texture_type, domain
         use calculated_properties_MD, only : nbins
@@ -54,6 +54,11 @@ contains
             tagdistbottom(:) = slidedistbottom(:)
             tagdisttop(:)	 = slidedisttop(:)
         case('nonexistent')
+            !Don't remove tethered molecules!
+            if (get_tag_status(rg,'teth')) then
+                tag_status = .false.
+                return
+            endif
             tagdistbottom(:) = emptydistbottom(:)
             tagdisttop(:)	 = emptydisttop(:)
         case default
