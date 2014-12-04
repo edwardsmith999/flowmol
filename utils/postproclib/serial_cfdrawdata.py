@@ -26,14 +26,15 @@ class Serial_CFD_RawData(RawData):
 
         try:
             self.header = self.read_header(fdir)
+            print(self.header)
         except IOError:
             raise DataNotAvailable
 
-        self.grid = self.get_grid()
+        self.grid = self.get_gridtopology()
         self.maxrec = self.get_maxrec()
 
     def read_header(self,fdir):
-        self.header = Serial_CFD_HeaderData(fdir)
+        return Serial_CFD_HeaderData(fdir)
 
     def get_grid(self):
         print("Call to get_grid are depreciated, please use get_gridtopology instead")

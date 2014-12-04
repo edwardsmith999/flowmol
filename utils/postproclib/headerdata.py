@@ -33,7 +33,6 @@ class Serial_CFD_HeaderData(HeaderData):
         fobj = open(fdir+'continuum_header','r')
         HeaderData.__init__(self,fobj)
 
-
 class FEA_HeaderData(HeaderData):
 
     def __init__(self, fdir):
