@@ -925,6 +925,7 @@ subroutine flux2force(flux,bl,force)
 end subroutine
 
 ! ---------------------------------------------------------
+! Get stresses over surfaces of CV
 
 subroutine get_MD_stresses(MD_stress)
 	use CV_objects, only : 	CV_constraint
@@ -941,6 +942,7 @@ subroutine get_MD_stresses(MD_stress)
 end subroutine get_MD_stresses
 
 ! ---------------------------------------------------------
+! Get flux of momentum over surfaces of CV
 
 subroutine get_MD_fluxes(MD_flux, r_in, v_in)
 	use CV_objects, only : 	CV_constraint
@@ -983,6 +985,7 @@ subroutine get_MD_fluxes(MD_flux, r_in, v_in)
 end subroutine get_MD_fluxes
 
 ! ---------------------------------------------------------
+! Get number of molecules in CV
 
 subroutine get_boxnp(boxnp)
 	use arrays_MD, only : r
@@ -1005,7 +1008,7 @@ subroutine get_boxnp(boxnp)
 end subroutine get_boxnp
 
 ! ---------------------------------------------------------
-
+! Get velocity from CFD (or other source)
 
 subroutine get_CFD_velocity(lbl, & 
 							u_CFD)
@@ -1110,6 +1113,9 @@ subroutine get_CFD_velocity(lbl, &
 #endif
 
 end subroutine get_CFD_velocity
+
+! ---------------------------------------------------------
+! Get stresses and fluxes from CFD (or other source)
 
 subroutine get_CFD_stresses_fluxes(lbl, & 
 								   CFD_stress, & 

@@ -1071,7 +1071,7 @@ subroutine setup_initialise_sparse_FENE
 
     if (jblock .eq. npy) then
         domain_top = socket_get_domain_top()
-        domain_bottom = socket_get_domain_bottom()
+        !domain_bottom = socket_get_domain_bottom()
     endif
 
 #else
@@ -1814,7 +1814,7 @@ subroutine setup_initialise_solid_liquid
 
     if (jblock .eq. npy) then
         domain_top = socket_get_domain_top()
-        domain_bottom = socket_get_domain_bottom()
+        !domain_bottom = socket_get_domain_bottom()
     endif
 
 #else
@@ -1973,7 +1973,7 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
 #if USE_COUPLER
     if (jblock .eq. npy) then
         domain_top = socket_get_domain_top()
-        domain_bottom = socket_get_domain_bottom()
+        !domain_bottom = socket_get_domain_bottom()
     endif
 #else
 
