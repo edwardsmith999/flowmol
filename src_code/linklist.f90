@@ -648,6 +648,36 @@ subroutine assign_to_neighbourlist_halfint
 	nullify(currenti)      	!Nullify as no longer required
 	nullify(currentj)      	!Nullify as no longer required
 
+contains
+
+    subroutine all_cell_interactions
+
+        integer               :: icell,jcell,kcell,x,y,z,x1,y1,z1,x2,y2,z2
+        integer,dimension(27) :: imin,imax,jmin,jmax,kmin,kmax,shift
+
+        x = ncells(1); x1 = x+1; x2 = x+2
+        y = ncells(2); y1 = y+1; y2 = y+2
+        z = ncells(3); z1 = z+1; z2 = z+2
+        imin = [2,1,3,2,2,1,3,3,1,1,1,1,1,1,x2,x2,x2,x2,2,2,3,2,2,3,2,3,2]
+        imax = [x1,x,x2,x1,x1,x,x2,x2,x,1,1,1,1,1,x2,x2,x2,x2,x1,x,x1,x1,x,x1,x1,x1,x]
+        jmin = [2,2,2,1,3,1,1,3,3,2,2,1,1,3,1,2,1,3,1,1,1,1,1,1,y2,y2,y2]
+        jmax = [y1,y1,y1,y,y2,y,y,y2,y2,y1,y1,y,y,y2,y,y1,y,y2,1,1,1,1,1,1,y2,y2,y2]
+        kmin = [1,1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2]
+        kmax = [1,1,1,1,1,1,1,1,1,z1,z,z1,z,z,z1,z,z,z,z1,z1,z1,z,z,z,z,z,z]
+        shift= [5,6,10,8,12,7,9,11,13,1,6,2,7,13,4,10,9,11,3,2,4,8,7,9,12,11,13]
+
+        do i = 1,size(shift)
+            do icell = imin(i),imax(i)
+            do jcell = jmin(i),jmax(i)
+            do kcell = kmin(i),kmax(i)
+                call calculate_cell_interactions(icell, jcell, kcell, shift(i))
+            enddo
+            enddo
+            enddo
+        enddo
+
+    end subroutine all_cell_interactions
+
 end subroutine assign_to_neighbourlist_halfint
 
 
@@ -766,195 +796,224 @@ subroutine assign_to_neighbourlist_halfint_opt
 	enddo
 
 	!Build up interactions using unchecked halo cells
+    call all_cell_interactions()
 
-	!-----------------------------
-	! Bottom xy plane domain face-
-		   kcell=1
-	!       9 Interactions	     -
-	!-----------------------------
+!	!-----------------------------
+!	! Bottom xy plane domain face-
+!		   kcell=1
+!	!       9 Interactions	     -
+!	!-----------------------------
 
-	!Perpendicular in z direction
-	k = 5
-	call calculate_cell_interactions_opt(     2     ,ncells(1)+1,icellshift(k), & 
-										      2     ,ncells(2)+1,jcellshift(k),	& 
-										     kcell  ,    kcell  ,kcellshift(k) )
+!	!Perpendicular in z direction
+!	k = 5
+!	call calculate_cell_interactions_opt(     2     ,ncells(1)+1,icellshift(k), & 
+!										      2     ,ncells(2)+1,jcellshift(k),	& 
+!										     kcell  ,    kcell  ,kcellshift(k) )
 
-	!Edge cells diagonals in xz plane
-	k = 6
-	call calculate_cell_interactions_opt(     1     ,ncells(1)  ,icellshift(k), & 
-										      2     ,ncells(2)+1,jcellshift(k),	& 
-										     kcell  ,    kcell  ,kcellshift(k) )
+!	!Edge cells diagonals in xz plane
+!	k = 6
+!	call calculate_cell_interactions_opt(     1     ,ncells(1)  ,icellshift(k), & 
+!										      2     ,ncells(2)+1,jcellshift(k),	& 
+!										     kcell  ,    kcell  ,kcellshift(k) )
 
-	k = 10
-	call calculate_cell_interactions_opt(     3     ,ncells(1)+2,icellshift(k), & 
-										      2     ,ncells(2)+1,jcellshift(k),	& 
-										     kcell  ,    kcell  ,kcellshift(k) )
+!	k = 10
+!	call calculate_cell_interactions_opt(     3     ,ncells(1)+2,icellshift(k), & 
+!										      2     ,ncells(2)+1,jcellshift(k),	& 
+!										     kcell  ,    kcell  ,kcellshift(k) )
 
-	!Edge cells diagonals in yz plane
-	k = 8
-	call calculate_cell_interactions_opt(     2     ,ncells(1)+1,icellshift(k), & 
-										      1     ,ncells(2)  ,jcellshift(k),	& 
-										     kcell  ,    kcell  ,kcellshift(k) )
+!	!Edge cells diagonals in yz plane
+!	k = 8
+!	call calculate_cell_interactions_opt(     2     ,ncells(1)+1,icellshift(k), & 
+!										      1     ,ncells(2)  ,jcellshift(k),	& 
+!										     kcell  ,    kcell  ,kcellshift(k) )
 
-	k = 12
-	call calculate_cell_interactions_opt(     2     ,ncells(1)+1,icellshift(k), & 
-										      3     ,ncells(2)+2,jcellshift(k),	& 
-										     kcell  ,    kcell  ,kcellshift(k) )
+!	k = 12
+!	call calculate_cell_interactions_opt(     2     ,ncells(1)+1,icellshift(k), & 
+!										      3     ,ncells(2)+2,jcellshift(k),	& 
+!										     kcell  ,    kcell  ,kcellshift(k) )
 
-	!Corner cell xyz diagonals
-	k =7
-	call calculate_cell_interactions_opt(     1     ,ncells(1)  ,icellshift(k), & 
-										      1     ,ncells(2)  ,jcellshift(k),	& 
-										     kcell  ,    kcell  ,kcellshift(k) )
+!	!Corner cell xyz diagonals
+!	k =7
+!	call calculate_cell_interactions_opt(     1     ,ncells(1)  ,icellshift(k), & 
+!										      1     ,ncells(2)  ,jcellshift(k),	& 
+!										     kcell  ,    kcell  ,kcellshift(k) )
 
-	k = 9
-	call calculate_cell_interactions_opt(     3     ,ncells(1)+2,icellshift(k), & 
-										      1     ,ncells(2)  ,jcellshift(k),	& 
-										     kcell  ,    kcell  ,kcellshift(k) )
+!	k = 9
+!	call calculate_cell_interactions_opt(     3     ,ncells(1)+2,icellshift(k), & 
+!										      1     ,ncells(2)  ,jcellshift(k),	& 
+!										     kcell  ,    kcell  ,kcellshift(k) )
 
-	k = 11
-	call calculate_cell_interactions_opt(     3     ,ncells(1)+2,icellshift(k), & 
-										      3     ,ncells(2)+2,jcellshift(k),	& 
-										     kcell  ,    kcell  ,kcellshift(k) )
+!	k = 11
+!	call calculate_cell_interactions_opt(     3     ,ncells(1)+2,icellshift(k), & 
+!										      3     ,ncells(2)+2,jcellshift(k),	& 
+!										     kcell  ,    kcell  ,kcellshift(k) )
 
-	k = 13
-	call calculate_cell_interactions_opt(     1     ,ncells(1)  ,icellshift(k), & 
-										      3     ,ncells(2)+2,jcellshift(k),	& 
-										     kcell  ,    kcell  ,kcellshift(k) )
+!	k = 13
+!	call calculate_cell_interactions_opt(     1     ,ncells(1)  ,icellshift(k), & 
+!										      3     ,ncells(2)+2,jcellshift(k),	& 
+!										     kcell  ,    kcell  ,kcellshift(k) )
 
-	!------------------------------
-	! Bottom yz plane domain face -
-		  icell = 1
-	!	5 Interactions
-	!------------------------------
+!	!------------------------------
+!	! Bottom yz plane domain face -
+!		  icell = 1
+!	!	5 Interactions
+!	!------------------------------
 
-	!Perpendicular in x direction
-	k = 1
-	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
-										      2     ,ncells(2)+1,jcellshift(k),	& 
-										      2     ,ncells(3)+1,kcellshift(k) )
+!	!Perpendicular in x direction
+!	k = 1
+!	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
+!										      2     ,ncells(2)+1,jcellshift(k),	& 
+!										      2     ,ncells(3)+1,kcellshift(k) )
 
-	!Edge cells diagonals in xz plane
-	k = 6
-	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
-										      2     ,ncells(2)+1,jcellshift(k),	& 
-										      2     ,ncells(3)  ,kcellshift(k) )
+!	!Edge cells diagonals in xz plane
+!	k = 6
+!	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
+!										      2     ,ncells(2)+1,jcellshift(k),	& 
+!										      2     ,ncells(3)  ,kcellshift(k) )
 
-	!Edge cells diagonals in xy plane
-	k = 2
-	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
-										      1     ,ncells(2)  ,jcellshift(k),	& 
-										      2     ,ncells(3)+1,kcellshift(k) )
+!	!Edge cells diagonals in xy plane
+!	k = 2
+!	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
+!										      1     ,ncells(2)  ,jcellshift(k),	& 
+!										      2     ,ncells(3)+1,kcellshift(k) )
 
-	!Corner cell xyz diagonals
-	k = 7
-	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
-										      1     ,ncells(2)  ,jcellshift(k),	& 
-										      2     ,ncells(3)  ,kcellshift(k) )
+!	!Corner cell xyz diagonals
+!	k = 7
+!	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
+!										      1     ,ncells(2)  ,jcellshift(k),	& 
+!										      2     ,ncells(3)  ,kcellshift(k) )
 
-	k = 13
-	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
-										      3     ,ncells(2)+2,jcellshift(k),	& 
-										      2     ,ncells(3)  ,kcellshift(k) )
+!	k = 13
+!	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
+!										      3     ,ncells(2)+2,jcellshift(k),	& 
+!										      2     ,ncells(3)  ,kcellshift(k) )
 
-	!------------------------------
-	! Top yz plane domain face    -
-	    icell = ncells(1) + 2
-	!	4 Interactions	      -
-	!------------------------------
+!	!------------------------------
+!	! Top yz plane domain face    -
+!	    icell = ncells(1) + 2
+!	!	4 Interactions	      -
+!	!------------------------------
 
-	!Edge cells diagonals in xy plane
-	k = 4
-	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
-										      1     ,ncells(2)  ,jcellshift(k),	& 
-										      2     ,ncells(3)+1,kcellshift(k) )
+!	!Edge cells diagonals in xy plane
+!	k = 4
+!	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
+!										      1     ,ncells(2)  ,jcellshift(k),	& 
+!										      2     ,ncells(3)+1,kcellshift(k) )
 
-	!Edge cells diagonals in xz plane
-	k = 10
-	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
-										      2     ,ncells(2)+1,jcellshift(k),	& 
-										      2     ,ncells(3)  ,kcellshift(k) )
-	!Corner cell xyz diagonals
-	k = 9
-	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
-										      1     ,ncells(2)  ,jcellshift(k),	& 
-										      2     ,ncells(3)  ,kcellshift(k) )
-	k = 11
-	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
-										      3     ,ncells(2)+2,jcellshift(k),	& 
-										      2     ,ncells(3)  ,kcellshift(k) )
+!	!Edge cells diagonals in xz plane
+!	k = 10
+!	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
+!										      2     ,ncells(2)+1,jcellshift(k),	& 
+!										      2     ,ncells(3)  ,kcellshift(k) )
+!	!Corner cell xyz diagonals
+!	k = 9
+!	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
+!										      1     ,ncells(2)  ,jcellshift(k),	& 
+!										      2     ,ncells(3)  ,kcellshift(k) )
+!	k = 11
+!	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
+!										      3     ,ncells(2)+2,jcellshift(k),	& 
+!										      2     ,ncells(3)  ,kcellshift(k) )
 
-	!------------------------------
-	! Bottom xy plane domain face -
-		  jcell = 1
-	!	6 Interactions
-	!------------------------------
+!	!------------------------------
+!	! Bottom xy plane domain face -
+!		  jcell = 1
+!	!	6 Interactions
+!	!------------------------------
 
-	!Perpendicular in y direction
-	k = 3
-	call calculate_cell_interactions_opt(    2     ,ncells(1)+1,icellshift(k), & 
-										     jcell     , jcell ,jcellshift(k),& 
-										     2     ,ncells(3)+1,kcellshift(k) )
+!	!Perpendicular in y direction
+!	k = 3
+!	call calculate_cell_interactions_opt(    2     ,ncells(1)+1,icellshift(k), & 
+!										     jcell     , jcell ,jcellshift(k),& 
+!										     2     ,ncells(3)+1,kcellshift(k) )
 
-	!Edge cells diagonals in xy plane
-	k = 2
-	call calculate_cell_interactions_opt(    2     ,ncells(1)  ,icellshift(k), & 
-										     jcell     , jcell ,jcellshift(k),& 
-										     2     ,ncells(3)+1,kcellshift(k) )
+!	!Edge cells diagonals in xy plane
+!	k = 2
+!	call calculate_cell_interactions_opt(    2     ,ncells(1)  ,icellshift(k), & 
+!										     jcell     , jcell ,jcellshift(k),& 
+!										     2     ,ncells(3)+1,kcellshift(k) )
 
 
-	k = 4
-	call calculate_cell_interactions_opt(    3     ,ncells(1)+1,icellshift(k), & 
-										   jcell   , jcell     ,jcellshift(k),& 
-										     2     ,ncells(3)+1,kcellshift(k) )
+!	k = 4
+!	call calculate_cell_interactions_opt(    3     ,ncells(1)+1,icellshift(k), & 
+!										   jcell   , jcell     ,jcellshift(k),& 
+!										     2     ,ncells(3)+1,kcellshift(k) )
 
-	!Edge cells diagonals in xz plane
-	k = 8
-	call calculate_cell_interactions_opt(    2     ,ncells(1)+1,icellshift(k), & 
-										     jcell     , jcell ,jcellshift(k),& 
-										     2     ,ncells(3)  ,kcellshift(k) )
+!	!Edge cells diagonals in xz plane
+!	k = 8
+!	call calculate_cell_interactions_opt(    2     ,ncells(1)+1,icellshift(k), & 
+!										     jcell     , jcell ,jcellshift(k),& 
+!										     2     ,ncells(3)  ,kcellshift(k) )
 
-	!Corner cell xyz diagonals
-	k = 7
-	call calculate_cell_interactions_opt(    2     ,ncells(1)  ,icellshift(k), & 
-										     jcell     , jcell ,jcellshift(k),& 
-										     2     ,ncells(3)  ,kcellshift(k) )
+!	!Corner cell xyz diagonals
+!	k = 7
+!	call calculate_cell_interactions_opt(    2     ,ncells(1)  ,icellshift(k), & 
+!										     jcell     , jcell ,jcellshift(k),& 
+!										     2     ,ncells(3)  ,kcellshift(k) )
 
-	k = 9
-	call calculate_cell_interactions_opt(    3     ,ncells(1)+1,icellshift(k), & 
-										     jcell     , jcell ,jcellshift(k),& 
-										     2     ,ncells(3)  ,kcellshift(k) )
+!	k = 9
+!	call calculate_cell_interactions_opt(    3     ,ncells(1)+1,icellshift(k), & 
+!										     jcell     , jcell ,jcellshift(k),& 
+!										     2     ,ncells(3)  ,kcellshift(k) )
 
-	!------------------------------
-	! Top xy plane domain face    -
-	     jcell = ncells(2)+2
-	!	3 Interactions
-	!------------------------------
+!	!------------------------------
+!	! Top xy plane domain face    -
+!	     jcell = ncells(2)+2
+!	!	3 Interactions
+!	!------------------------------
 
-	!Edge cells diagonals in xz plane
-	k = 12
-	call calculate_cell_interactions_opt(    2     ,ncells(1)+1,icellshift(k), & 
-										     jcell     , jcell ,jcellshift(k),& 
-										     2     ,ncells(3)  ,kcellshift(k) )
+!	!Edge cells diagonals in xz plane
+!	k = 12
+!	call calculate_cell_interactions_opt(    2     ,ncells(1)+1,icellshift(k), & 
+!										     jcell     , jcell ,jcellshift(k),& 
+!										     2     ,ncells(3)  ,kcellshift(k) )
 
-	!Corner cell xyz diagonals
-	k = 11
-	call calculate_cell_interactions_opt(    3     ,ncells(1)+1,icellshift(k), & 
-										     jcell     , jcell ,jcellshift(k),& 
-										     2     ,ncells(3)  ,kcellshift(k) )
+!	!Corner cell xyz diagonals
+!	k = 11
+!	call calculate_cell_interactions_opt(    3     ,ncells(1)+1,icellshift(k), & 
+!										     jcell     , jcell ,jcellshift(k),& 
+!										     2     ,ncells(3)  ,kcellshift(k) )
 
-	k = 13
-	call calculate_cell_interactions_opt(    2     ,ncells(1)  ,icellshift(k), & 
-										     jcell     , jcell ,jcellshift(k),& 
-										     2     ,ncells(3)  ,kcellshift(k) )
-
+!	k = 13
+!	call calculate_cell_interactions_opt(    2     ,ncells(1)  ,icellshift(k), & 
+!										     jcell     , jcell ,jcellshift(k),& 
+!										     2     ,ncells(3)  ,kcellshift(k) )
 
 	nullify(oldi)      	!Nullify as no longer required
 	nullify(oldj)      	!Nullify as no longer required
 	nullify(currenti)      	!Nullify as no longer required
 	nullify(currentj)      	!Nullify as no longer required
 
+contains
+
+    subroutine all_cell_interactions
+
+        integer               :: x,y,z,x1,y1,z1,x2,y2,z2
+        integer,dimension(27) :: imin,imax,jmin,jmax,kmin,kmax,shift
+
+        x = ncells(1); x1 = x+1; x2 = x+2
+        y = ncells(2); y1 = y+1; y2 = y+2
+        z = ncells(3); z1 = z+1; z2 = z+2
+        imin = [2,1,3,2,2,1,3,3,1,1,1,1,1,1,x2,x2,x2,x2,2,2,3,2,2,3,2,3,2]
+        imax = [x1,x,x2,x1,x1,x,x2,x2,x,1,1,1,1,1,x2,x2,x2,x2,x1,x,x1,x1,x,x1,x1,x1,x]
+        jmin = [2,2,2,1,3,1,1,3,3,2,2,1,1,3,1,2,1,3,1,1,1,1,1,1,y2,y2,y2]
+        jmax = [y1,y1,y1,y,y2,y,y,y2,y2,y1,y1,y,y,y2,y,y1,y,y2,1,1,1,1,1,1,y2,y2,y2]
+        kmin = [1,1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2]
+        kmax = [1,1,1,1,1,1,1,1,1,z1,z,z1,z,z,z1,z,z,z,z1,z1,z1,z,z,z,z,z,z]
+        shift= [5,6,10,8,12,7,9,11,13,1,6,2,7,13,4,10,9,11,3,2,4,8,7,9,12,11,13]
+
+        do i = 1,size(shift)
+            call calculate_cell_interactions_opt(imin(i),imax(i),icellshift(shift(i)), &
+                                                 jmin(i),jmax(i),jcellshift(shift(i)), &
+                                                 kmin(i),kmax(i),kcellshift(shift(i))   )
+        enddo
+
+    end subroutine all_cell_interactions
+
 end subroutine assign_to_neighbourlist_halfint_opt
+
+
+
 
 !----------------------------------------------------------------------------------
 ! Assign to Neighbourlist each molecules only once so each interaction is
@@ -1260,7 +1319,9 @@ subroutine calculate_cell_interactions(icell, jcell, kcell, k)
 !molecule i's neighbourlist
 
 
-subroutine calculate_cell_interactions_opt(istart,iend,ishift,jstart,jend,jshift,kstart,kend,kshift)
+subroutine calculate_cell_interactions_opt(istart,iend,ishift, & 
+                                           jstart,jend,jshift, & 
+                                           kstart,kend,kshift)
 	use module_linklist
 	implicit none
 
@@ -1273,6 +1334,7 @@ subroutine calculate_cell_interactions_opt(istart,iend,ishift,jstart,jend,jshift
 	double precision,dimension(3)   :: ri, rj !Position of molecule i and j
 	double precision,dimension(3)   :: rij    !vector between particles i and j
 	type(node), pointer 	        :: oldi, currenti, oldjhead, oldj, currentj
+
 
 	do kcell=kstart,kend
 	do jcell=jstart,jend
@@ -1354,11 +1416,11 @@ subroutine sort_mols
 	case(1)
 		!Use ordered array generated during setup
 		if (potential_flag .eq. 1) call error_abort("Sort should be turned off - Not developed for polymers")
-		!if (any(tag.ne.0)) call error_abort("Sort should be turned off - Not developed for tagged move system")
+        if (Mie_potential .eq. 1) call error_abort("Sort should be turned off - Not developed for Mie potential")
 	case(2)
 		!Use Hilbert curve generated during setup
 		if (potential_flag .eq. 1) call error_abort("Sort should be turned off - Not developed for polymers")
-		!if (any(tag.ne.0)) call error_abort("Sort should be turned off - Not developed for tagged move system")
+        if (Mie_potential .eq. 1) call error_abort("Sort should be turned off - Not developed for Mie potential")
 	case default
 		call error_abort('Incorrect value of sort_flag')
 	end select

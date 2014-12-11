@@ -109,6 +109,11 @@ subroutine setup_initialise_microstate
         call error_abort('Unidentified initial configuration flag') 
     end select
 
+    !This should be included in every case?
+    if (mie_potential .eq. 1) then
+        call setup_moltypes                    !Setup type of molecules
+    endif
+
     if (rtrue_flag.eq.1) then
         do n=1,np    !Initialise global true positions
             rtrue(1,n) = r(1,n)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
@@ -432,7 +437,8 @@ subroutine setup_FENE_solution
     call globalSum(proc_nps,nproc)
     do n=1,np
         if (monomer(n)%chainID.ne.0) then
-            monomer(n)%chainID = monomer(n)%chainID + sum(proc_chains(1:irank)) - proc_chains(irank)
+            monomer(n)%chainID = monomer(n)%chainID &
+                + sum(proc_chains(1:irank)) - proc_chains(irank)
         end if
         monomer(n)%glob_no = monomer(n)%glob_no + sum(proc_nps(1:irank)) - proc_nps(irank)
     end do
@@ -483,7 +489,7 @@ contains
 
         end do  
 
-    end subroutine 
+    end subroutine initialise_info
 
     subroutine connect_all_possible_chains(maxchainID)
         implicit none
@@ -545,7 +551,7 @@ contains
 
         maxchainID = chainID
 
-    end subroutine
+    end subroutine connect_all_possible_chains
 
     subroutine remove_chains(nremove)
         implicit none
@@ -594,7 +600,7 @@ contains
 
         deallocate(removeIDs)
 
-    end subroutine
+    end subroutine remove_chains
 
     subroutine contract_chains_to_equil_sep 
         implicit none
@@ -633,10 +639,10 @@ contains
 
             end if
 
-        end do
+        end do 
 
 
-    end subroutine
+    end subroutine contract_chains_to_equil_sep 
 
     subroutine test_for_connectability(molno, seekahead, success)
         implicit none

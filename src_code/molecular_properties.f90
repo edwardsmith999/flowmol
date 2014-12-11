@@ -13,6 +13,7 @@ module module_molecule_properties
 
 contains
 
+    !Recursive as it must call itself to see if removed molecules are tethered
     recursive function get_tag_status(rg,status_type) result(tag_status)
         use interfaces, only: error_abort
         use computational_constants_MD, only : texture_type, domain
@@ -91,6 +92,7 @@ end module module_molecule_properties
 	!				 __________]  a/4 (distance from bottom of domain)
 	!
 	!So use (0.20+0.5d0*mol_layers)*initialunitsize(ixyz)
+
 subroutine setup_cylinder_tags
 	use module_molecule_properties
 	use concentric_cylinders
@@ -210,8 +212,24 @@ subroutine setup_location_tags
 
 end subroutine setup_location_tags
 
+!---------------------------------
+! Setup type of molecule
+subroutine setup_moltypes()
+    use arrays_MD, only : tag, moltype
+    use computational_constants_MD, only : tether_tags
+    use physical_constants_MD, only : np
+    implicit none
 
+    integer :: n
 
+    do n = 1,np
+        if (any(tag(n).eq.tether_tags)) then
+            !Set all tethered walls to paraffin
+            moltype(n) = 7
+        endif
+    enddo
+
+end subroutine setup_moltypes
 
 subroutine reset_location_tags
 	use module_molecule_properties
@@ -281,7 +299,7 @@ subroutine get_tag_thermostat_activity(active)
 end subroutine get_tag_thermostat_activity
 
 !----------------------------------------------------------------------------------
-
+! Build up a range of wall textures
 subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 	use physical_constants_MD, only : pi,tethereddistbottom,tethereddisttop
 	use computational_constants_MD, only : posts,roughness,converge_diverge,texture_intensity, &
@@ -1671,8 +1689,9 @@ subroutine insert_all_molecules(target_insertnp, insertflag, miniw, maxiw)
 
         ! When molecules are inserted it is possible they may overlap and
         ! cause blowup, this is checked here using the global positions
-        ! arrat "subcomminsert_locs" and a list of any molecules to
-        ! reinsert "reinsert_molno" and number "reinsertnp" is returned.
+        ! array "subcomminsert_locs" and a list of any molecules to
+        ! reinsert. 
+        ! "reinsert_molno" and number "reinsertnp" is returned.
         deallocate(reinsert_molno)
 		call check_insert_overlap(gnip = subcomminsertnp, & 
                                   inp = reinsertnp, & 

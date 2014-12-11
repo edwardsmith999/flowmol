@@ -1606,9 +1606,9 @@ subroutine parallel_io_vmd(recno)
         !    disp =((iter-initialstep+1)/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
         !        + procdisp  
         !else
-            !Otherwise, calculate number of previous intervals
-            disp = recno * nd * globalnp * datasize & !Current iteration
-                + procdisp  
+        !Otherwise, calculate number of previous intervals
+        disp = recno * nd * globalnp * datasize & !Current iteration
+            + procdisp  
         !endif
 
         call MPI_FILE_SET_VIEW(fileid,     disp, MPI_REAL,          & 
@@ -1789,9 +1789,9 @@ subroutine parallel_io_vmd_true(recno)
         !    disp =((iter-initialstep+1)/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
         !        + procdisp  
         !else
-            !Otherwise, calculate number of previous intervals
-            disp = recno * nd * globalnp * datasize & !Current iteration
-                + procdisp  
+        !Otherwise, calculate number of previous intervals
+        disp = recno * nd * globalnp * datasize & !Current iteration
+            + procdisp  
         !endif
 
         call MPI_FILE_SET_VIEW(fileid,     disp, MPI_REAL,          & 
@@ -1965,9 +1965,9 @@ subroutine parallel_io_vmd_sl(recno)
     !    disp =((iter-initialstep+1)/real((tplot),kind(0.d0))-1) * nd * globalnp * datasize & !Current iteration
     !        + procdisp  
     !else
-        !Otherwise, calculate number of previous intervals
-        disp = recno * nd * globalnp * datasize & !Current iteration
-                + procdisp  
+    !Otherwise, calculate number of previous intervals
+    disp = recno * nd * globalnp * datasize & !Current iteration
+            + procdisp  
     !endif
 
 
@@ -2206,6 +2206,194 @@ subroutine parallel_io_vmd_halo
     call error_abort("Cannot print vmd halos in parallel simulation - run in serial")
 
 end subroutine parallel_io_vmd_halo
+
+!-----------------------------------------------------------------------------
+!Write a psf file with information in the form
+! Note this uses a poor mans MPI where each proc writes its own psf file
+! and system cat is called at the end. If this fails, the files can be 
+! concatted after. IT IS NOT TRIVIAL TO WRITE ASCII with MPI!!!
+!=============================================================================
+
+!PSF CMAP
+!       6 !NTITLE
+! REMARKS original generated structure x-plor psf file
+! REMARKS 2 patches were applied to the molecule.
+! REMARKS topology top_all27_prot_lipid.inp
+! REMARKS segment U { first NTER; last CTER; auto angles dihedrals }
+! REMARKS defaultpatch NTER U:1
+! REMARKS defaultpatch CTER U:76
+
+!    1231 !NATOM
+!       1 U    1    MET  N    NH3   -0.300000       14.0070           0
+!       2 U    1    MET  HT1  HC     0.330000        1.0080           0
+!       3 U    1    MET  HT2  HC     0.330000        1.0080           0
+!       4 U    1    MET  HT3  HC     0.330000        1.0080           0
+!       5 U    1    MET  CA   CT1    0.210000       12.0110           0
+!       6 U    1    MET  HA   HB     0.100000        1.0080           0
+!       7 U    1    MET  CB   CT2   -0.180000       12.0110           0
+! Fields include: 
+!   molno, 
+!   segment name, 
+!   Residue ID, 
+!   residue name, 
+!   atom name, 
+!   atom type, 
+!   charge, 
+!   mass 
+!   A "0" for no reason!
+!=============================================================================
+
+subroutine parallel_io_psf()
+    use module_parallel_io
+    use module_set_parameters, only : moltype_names, mass_lookup, epsilon_lookup
+    use librarymod, only : get_new_fileunit
+    implicit none
+
+    integer                 :: n, mt, unitno, startmol
+!    character(20)           :: atomname
+    character(256)           :: filename, cmd
+
+    !Build array of number of particles on neighbouring
+    !processe's subdomain on current proccess
+    call globalGathernp()
+
+    startmol = 0
+    do n = 1, irank -1
+        startmol = startmol + procnp(n)
+    enddo
+
+    unitno = get_new_fileunit()
+    if (irank .lt. 10) then
+        write(filename,'(a,i1)'),trim(prefix_dir)//'results/vmd_out.psf.',irank
+    elseif (irank .lt. 100) then
+        write(filename,'(a,i2)'),trim(prefix_dir)//'results/vmd_out.psf.',irank
+    elseif (irank .lt. 1000) then
+        write(filename,'(a,i3)'),trim(prefix_dir)//'results/vmd_out.psf.',irank
+    elseif (irank .lt. 10000) then
+        write(filename,'(a,i4)'),trim(prefix_dir)//'results/vmd_out.psf.',irank
+    else
+       stop "Error in parallel_io_psf -- irank > 1000"
+    endif
+    open(unit=unitno, file=trim(filename),status='replace',action='write')
+    if (irank .eq. iroot) then
+        write(unitno,'(a)') "PSF CMAP"
+        write(unitno,'(a)') ""
+        write(unitno,'(a)') "      1 !NTITLE"
+        write(unitno,'(a)') " REMARKS psf file written by crompulenceMD code"
+        write(unitno,'(a)') ""
+        write(unitno,'(i8,a)') globalnp, " !NATOM"
+    endif
+
+    do n = 1, np
+        mt = moltype(n)
+        write(unitno,'(i5,a,i5,3a,f12.7,f12.5,i4)') &
+                 startmol + n, &            ! molno
+                 trim(moltype_names(mt)), & ! segment name
+                  1,  &                     ! Residue ID
+                 trim(moltype_names(mt)), & ! residue name
+                 trim(moltype_names(mt)), & ! atom name
+                 trim(moltype_names(mt)), & ! atom type
+                 epsilon_lookup(mt,mt), &   ! charge
+                 mass_lookup(mt), &            ! mass
+                  0                         ! A "0" for no reason!
+    enddo
+    close(unitno)
+
+
+    call MPI_Barrier(MD_COMM,ierr)
+    if (irank .eq. iroot) then
+        write(cmd,'(3a)'), "cat ", trim(prefix_dir)//"results/vmd_out.psf.* > ", & 
+                            trim(prefix_dir)//"results/vmd_out.psf"
+        call system(cmd)
+    endif
+
+end subroutine parallel_io_psf
+
+!subroutine parallel_io_psf()
+!    use module_parallel_io
+!    use module_set_parameters, only : moltype_names, mass_lookup, epsilon_lookup
+!    use librarymod, only : get_new_fileunit
+!    implicit none
+
+!    integer         :: n, mt, unitno
+!    integer(kind=MPI_OFFSET_KIND) :: headersize, disp, datasize, linesize
+!    character(48)  :: headerlines(6)
+!    character(256) :: line(np)
+
+
+!    !Build array of number of particles on neighbouring
+!    !processe's subdomain on current proccess
+!    call globalGathernp
+
+!    !Write file header on root processor
+!    unitno = get_new_fileunit()
+!    if (irank .eq. iroot) then
+!        headerlines(1) = "PSF CMAP"
+!        headerlines(2) = ""
+!        headerlines(3) = "      1 !NTITLE"
+!        headerlines(4) = " REMARKS psf file written by crompulenceMD code"
+!        headerlines(5) = ""
+!        write(headerlines(6),'(i8,a)') np, " !NATOM"
+
+!        open(unit=unitno, file=trim(prefix_dir)//'results/vmd_out.psf',status='replace',action='write')
+!        headersize = 0
+!        do n=1,size(headerlines,1)
+!            print*, trim(headerlines(n))
+!            write(unitno,'(a)') trim(headerlines(n))
+!            headersize = headersize + len_trim(headerlines(n))
+!        enddo
+!    endif
+!    call globalbroadcast(headersize,1,iroot)
+!   
+!    !Pack data into line character
+!    do n = 1, np
+!        mt = moltype(n)
+!        write(line(n),'(i5,a,i5,3a,f12.7,f12.5,i4,a)') &
+!                  n, &                      ! molno
+!                 trim(moltype_names(mt)), & ! segment name
+!                  1,  &                     ! Residue ID
+!                 trim(moltype_names(mt)), & ! residue name
+!                 trim(moltype_names(mt)), & ! atom name
+!                 trim(moltype_names(mt)), & ! atom type
+!                 epsilon_lookup(mt,mt), &   ! charge
+!                 mass_lookup(mt), &         ! mass
+!                  0, &                      ! A "0" for no reason!
+!                 " \n"                       !Newline
+!        
+!    enddo
+
+!    disp = headersize
+!    linesize = len_trim(line(1))
+!    datasize = linesize*np
+!    !Obtain displacement of each processor using all other procs' np
+!    do n = 1, irank -1
+!        disp = disp + procnp(n)*datasize
+!    enddo
+
+
+!    print*, irank, headersize, linesize, datasize, disp
+
+!    !Open file on all processors
+!    call MPI_FILE_OPEN(MD_COMM,trim(prefix_dir)//'results/vmd_out.psf',      & 
+!                       MPI_MODE_RDWR + MPI_MODE_CREATE, & 
+!                       MPI_INFO_NULL, fileid,     ierr)
+
+!    !Loop through each line and write
+!    do n = 1, np
+!        disp = disp + linesize
+!        call MPI_FILE_SET_VIEW(fileid, disp, MPI_CHAR,          & 
+!                               MPI_CHAR, 'native', MPI_INFO_NULL, ierr)
+!        
+!        !Write information to file
+!        call MPI_FILE_WRITE_ALL(fileid, trim(line(n)), linesize, MPI_CHAR, & 
+!                                MPI_STATUS_IGNORE, ierr)
+!    enddo
+
+!    !-------------- CLOSE -------------------------------   
+!    call MPI_FILE_CLOSE(fileid, ierr)
+
+!end subroutine parallel_io_psf
+
 
 !-----------------------------------------------------------------------------
 ! Write cylinder molecules and properties to a file
