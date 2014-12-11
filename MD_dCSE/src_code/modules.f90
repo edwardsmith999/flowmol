@@ -18,7 +18,6 @@ module physical_constants_MD
 	double precision   				:: volume, density      !Define constant volume and density
 	double precision   				:: rcutoff, halfrcutoff !Cut off distance for particle interactions
 	double precision   				:: rcutoff2             !Cut off distance for particle interactions squared
-	double precision   				:: potshift		   		!Shift in Lennard Jones potential due to cutoff
 	double precision   				:: potential_sLRC 		!Long range potential correction 
 	double precision   				:: pressure_sLRC 		!Long range pressure correction 
 	double precision   				:: inputtemperature     !Define initial temperature
@@ -50,6 +49,7 @@ module computational_constants_MD
 	!Force and Potential flags
 	integer						  :: force_list	   		 !flag for neighbr/cell list
 	integer						  :: potential_flag  	 !Choose LJ or Polymer potential
+    integer                       :: Mie_potential       !Choose if LJ/Polymer replaced by more general Mie potential
 	integer                 	  :: tether_flag     	 !True if there exists 
 	integer                 	  :: external_force_flag !Apply external forces?
 	integer                 	  :: F_ext_ixyz			 !Direction of external forces
@@ -340,8 +340,8 @@ end module shear_info_MD
 module arrays_MD
 
 	integer,          dimension(:),   allocatable, target	:: tag !Mol tags
-	integer, 	  	  dimension(:,:), allocatable, target	:: &
-		fix                         !Fixed molecules
+	integer,          dimension(:),   allocatable, target	:: moltype !Type used for interactions
+	integer, 	  	  dimension(:,:), allocatable, target	:: fix  !Fixed molecules
 	double precision, dimension(:),   allocatable, target 	:: &
 		potenergymol, 		&		!Potential energy of each molecule
 		potenergymol_LJ, 	&		!LJ Potential energy of each molecule

@@ -143,7 +143,10 @@ subroutine setup_read_input
 
 		case('droplet2D','droplet3D','2phase')
 
-			potential_flag = 0
+			!call locate(1,'POTENTIAL_FLAG',.true.)
+            !read(1,*) potential_flag
+
+            potential_flag = 0
 
 			call locate(1,'DENSITY',.true.)
 			read(1,*) density
@@ -376,6 +379,13 @@ subroutine setup_read_input
 		seed(2) = 2		!Fixed default seed for repeatability
 	endif
 
+    !Specifiy more general potential than LJ
+	call locate(1,'MIE_POTENTIAL',.false.,found_in_input) 
+	if (found_in_input) then
+        read(1,*) Mie_potential
+    else
+        Mie_potential = 0
+    endif
 	!Flags to determine if periodic boundaries are on or shearing Lees Edwards
 	call locate(1,'PERIODIC',.true.)
 	read(1,*) periodic(1)

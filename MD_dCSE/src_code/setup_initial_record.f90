@@ -159,6 +159,10 @@ subroutine setup_initial_record
         call parallel_io_write_vmd(intervalno,recno)
     endif
 
+    if (mie_potential .eq. 1) then
+        call parallel_io_psf()
+    endif
+
     !Calculate Control Volume starting state
     call initial_control_volume
 

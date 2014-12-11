@@ -200,12 +200,6 @@ contains
 
 	end function localise_bin
 
-
-
-
-
-
-
 end module messenger
 
 !======================================================================
@@ -640,7 +634,7 @@ end subroutine messenger_updateborders
 module pack_unpack_cell
 	use physical_constants_MD, only : nd
 	use computational_constants_MD, only :	potential_flag
-	use arrays_MD, only : r, v
+	use arrays_MD, only : r, v, moltype
 	use polymer_info_MD, only: nsdmi
 	use linked_list
 	use messenger
@@ -656,7 +650,9 @@ subroutine pack_cell(icell,jcell,kcell,sendbuffer,buffsize,pos)
 	double precision, dimension(:), intent(out) 	:: sendbuffer
 
 	integer 										:: i, molno,cellnp
-	double precision, dimension(nd) 				:: rpack, vpack	!Temporary arrays used to pack
+    !Temporary arrays used to pack
+	double precision                				:: typepack
+	double precision, dimension(nd) 				:: rpack, vpack	
 	double precision, dimension(nsdmi) 				:: FENEpack
 
 	type(node), pointer 	        				:: old, current
@@ -673,25 +669,30 @@ subroutine pack_cell(icell,jcell,kcell,sendbuffer,buffsize,pos)
 		case(0)
 			rpack(:) = r(:,molno)	!Load into temp array
 			call MPI_Pack(rpack,nd,MPI_DOUBLE_PRECISION,& 
-			sendbuffer,buffsize,pos,icomm_grid,ierr)
+			              sendbuffer,buffsize,pos,icomm_grid,ierr)
 			if (pass_vhalo .ne. 0) then
 				vpack(:) = v(:,molno)	!Load into temp array
 				call MPI_Pack(vpack,nd,MPI_DOUBLE_PRECISION,& 
-				sendbuffer,buffsize,pos,icomm_grid,ierr)
+				              sendbuffer,buffsize,pos,icomm_grid,ierr)
 			endif
 		case(1)
 			rpack(:) = r(:,molno)	!Load into temp array
 			call MPI_Pack(rpack,nd,MPI_DOUBLE_PRECISION,& 
-			sendbuffer,buffsize,pos,icomm_grid,ierr)	
+			              sendbuffer,buffsize,pos,icomm_grid,ierr)	
 			if (pass_vhalo .ne. 0) then
 				vpack(:) = v(:,molno)	!Load into temp array
 				call MPI_Pack(vpack,nd,MPI_DOUBLE_PRECISION,& 
-				sendbuffer,buffsize,pos,icomm_grid,ierr)
+				              sendbuffer,buffsize,pos,icomm_grid,ierr)
 			endif
 			call prepare_FENEbuffer(molno,FENEpack)
 			call MPI_Pack(FENEpack,nsdmi,MPI_DOUBLE_PRECISION,&
 			sendbuffer,buffsize,pos,icomm_grid,ierr)
 		end select
+        if (Mie_potential .eq. 1) then
+            typepack = real(moltype(molno),kind(0.d0))
+			call MPI_Pack(typepack,1,MPI_DOUBLE_PRECISION,&
+			              sendbuffer,buffsize,pos,icomm_grid,ierr)
+        endif
 		current => old
 		old => current%next
 	enddo
@@ -712,7 +713,9 @@ subroutine unpack_recvbuffer(halo_np,recvnp,length,recvbuffer)
 	double precision, dimension(:), intent(in) 		:: recvbuffer
 
 	integer 										:: n, pos
-	double precision, dimension(nd) 				:: rpack, vpack	!Temporary arrays used to pack
+    !Temporary arrays used to pack
+	double precision                				:: typepack
+	double precision, dimension(nd) 				:: rpack, vpack	
 	double precision, dimension(nsdmi)  			:: FENEpack
 
     if (np+halo_np+recvnp .gt. size(r)/real(nd,kind(0.d0))) then
@@ -726,26 +729,31 @@ subroutine unpack_recvbuffer(halo_np,recvnp,length,recvbuffer)
 		select case(potential_flag)
 		case(0)
 			call MPI_Unpack(recvbuffer,length,pos,rpack, &
-			nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+			                nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
 			r(:,np+n) = rpack
 			if (pass_vhalo .ne. 0) then
 				call MPI_Unpack(recvbuffer,length,pos,vpack, &
-				nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+				                nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
 				v(:,np+n) = vpack
 			endif
 		case(1)
 			call MPI_Unpack(recvbuffer,length,pos,rpack, &
-			nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+			                nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
 			r(:,np+n) = rpack
 			if (pass_vhalo .ne. 0) then
 				call MPI_Unpack(recvbuffer,length,pos,vpack, &
-				nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+				                nd,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
 				v(:,np+n) = vpack
 			endif
 			call MPI_Unpack(recvbuffer,length,pos,FENEpack, &
-			nsdmi,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+			                nsdmi,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
 			call assign_FENEbuffer(np+n,FENEpack)
 		end select
+        if (Mie_potential .eq. 1) then
+			call MPI_Unpack(recvbuffer,length,pos,typepack, &
+			                1,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+            moltype(np+n) = int(typepack)
+        endif
 	enddo
 
 end subroutine unpack_recvbuffer
@@ -767,6 +775,10 @@ subroutine get_sendsize(sendnp,sendsize)
 		sendsize = nd*sendnp + (nsdmi)*sendnp
 		if (pass_vhalo .ne. 0) sendsize = sendsize + nd*sendnp
 	end select
+    !Add Mie_potential moltype data is needed
+    if (Mie_potential .eq. 1) then
+        sendsize = sendsize + sendnp
+    endif
 
 end subroutine get_sendsize
 
@@ -779,20 +791,27 @@ subroutine get_recvnp(recvsize,recvnp)
 	integer, intent(in)		:: recvsize
 	integer, intent(out)	:: recvnp
 
+    integer                 :: recordsize
+
 	select case(potential_flag)
 	case(0)
 		if (pass_vhalo .eq. 0) then
-			recvnp = recvsize/real(nd,kind(0.d0))
+            recordsize = nd
 		else
-			recvnp = recvsize/real(2*nd,kind(0.d0))
+            recordsize = 2*nd
 		endif
 	case(1)
 		if (pass_vhalo .eq. 0) then
-			recvnp = recvsize/real(nd+nsdmi,kind(0.d0))
+            recordsize = nd+nsdmi
 		else
-			recvnp = recvsize/real(2*nd+nsdmi,kind(0.d0))
+            recordsize = 2*nd+nsdmi
 		endif
 	end select
+    if (Mie_potential .eq. 1) then
+        recordsize = recordsize + 1
+    endif
+
+    recvnp = recvsize/real(recordsize,kind(0.d0))
 
 end subroutine get_recvnp
 
@@ -1502,6 +1521,12 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 			call MPI_Pack(FENEpack,nsdmi,MPI_DOUBLE_PRECISION,& 
 			              sendbuffer,buffsize,pos,icomm_grid,ierr)
 		end if	
+
+        if (Mie_potential .eq. 1) then
+			dppack = real(moltype(molno),kind(0.d0))
+			call MPI_Pack(dppack,1,MPI_DOUBLE_PRECISION, &
+		              sendbuffer,buffsize,pos,icomm_grid,ierr)
+        endif
 		
 		old => current%next  !make old point to next node of current
 		current => old      !Set current item to old ready for next loop
@@ -1594,6 +1619,12 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 				call assign_FENEbuffer(np+n,FENEpack)
 			end if
 
+            if (Mie_potential .eq. 1) then
+				call MPI_Unpack(recvbuffer,length,pos,dppack, &
+							1,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+				moltype(np+n)     = nint(dppack)
+            endif
+
 		enddo
 		!-------------------------------------------------------------!
 
@@ -1662,6 +1693,11 @@ contains
 		if (potential_flag.eq.1) then
 			sendsizeloc = sendsizeloc + nsdmi*sendnp
 		end if
+
+        if (Mie_potential .eq. 1) then
+			sendsizeloc = sendsizeloc + 1*sendnp
+        endif
+
 
 	end subroutine get_sendmols_buffersize
 
@@ -1790,10 +1826,14 @@ subroutine reorderdata(new_np)
 				rtether(:,molno) = rtether(:,np+new_np)
 			endif
 		endif
-		
+	
 		if (potential_flag .eq. 1) then	
 			monomer(molno) = monomer(np+new_np)
-		end if
+		endif
+
+        if (Mie_potential .eq. 1) then
+			moltype(molno) = moltype(np+new_np)
+        endif
 
 		!Read molecular tag and assign correct properties to reordered molecules
 		if (ensemble.eq.tag_move) call read_tag(molno)
@@ -2093,7 +2133,9 @@ subroutine pairedsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,i
 end subroutine pairedsendproberecv
 
 !Non-blocking Send of packaged data; test for size of package; receive data 
-
+! NOTE --      An eager send of an arbitary sized array followed by check and
+!              correcttion as required would be more efficient than this probing 
+!              approach (no time to implement!!)
 subroutine NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest)
 	use messenger
 	use physical_constants_MD
@@ -2130,7 +2172,7 @@ subroutine NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest
 
 	!Receive particles
 	call MPI_Recv(recvbuffer,length,MPI_PACKED, &
-	isource,sendrecv_tag,icomm_grid,status(:),ierr)
+	              isource,sendrecv_tag,icomm_grid,status(:),ierr)
 
  	call MPI_wait(request, status(:), ierr)
 

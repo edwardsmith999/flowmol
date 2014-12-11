@@ -34,6 +34,372 @@ module module_set_parameters
 	type(PDF) 									:: velPDF, velPDFMB
 	type(PDF),allocatable,dimension(:,:,:,:) 	:: velPDF_array
 
+    !LJ parameters
+    double precision           :: potshift !Shift in Lennard Jones potential due to cutoff
+
+    !Generalised Mie-potential parameters
+    integer,parameter :: ntypes = 7
+    character(30),dimension(ntypes)             :: moltype_names
+    double precision,dimension(ntypes)          :: mass_lookup
+    double precision,dimension(ntypes,ntypes)   :: epsilon_lookup, sigma_lookup, &    
+                                                   lambdar_lookup, lambdaa_lookup, &
+                                                   C_lookup, potshift_lookup
+
+	abstract interface
+		function fn_mass(i)
+			double precision              :: fn_mass
+            integer, intent(in)           :: i
+		end function fn_mass
+	end interface
+
+	abstract interface
+		function fn_accijmag(invrij2, i, j)
+			double precision              :: fn_accijmag
+            integer, intent(in)           :: i, j
+			double precision, intent (in) :: invrij2
+		end function fn_accijmag
+	end interface
+
+	abstract interface
+		function fn_force(invrij2, rij, i, j)
+			double precision,dimension(3) :: fn_force
+            integer, intent(in)           :: i, j
+            double precision, intent(in),dimension(3)   :: rij
+			double precision, intent (in) :: invrij2
+		end function fn_force
+	end interface
+
+	abstract interface
+		function fn_energy(invrij2, i, j)
+			double precision              :: fn_energy
+            integer, intent(in)           :: i, j
+			double precision, intent (in) :: invrij2
+		end function fn_energy
+	end interface
+
+   procedure (fn_mass),     pointer :: mass         => null ()
+   procedure (fn_accijmag), pointer :: get_accijmag => null ()
+   procedure (fn_force),    pointer :: get_force    => null ()
+   procedure (fn_energy),   pointer :: get_energy   => null ()
+
+
+contains
+
+    !LJ or Mie force calculation functions
+    function LJ_mass(i)
+
+        integer, intent(in)             :: i
+        double precision                :: LJ_mass
+
+        LJ_mass = 1.d0
+
+    end function LJ_mass
+
+    function LJ_accijmag(invrij2, i, j)
+
+        integer, intent(in)             :: i, j
+        double precision, intent(in)    :: invrij2
+        double precision                :: LJ_accijmag
+
+        LJ_accijmag = 48.d0 * ( invrij2**7 - 0.5d0*invrij2**4 )
+
+    end function LJ_accijmag
+
+    function LJ_force(invrij2, rij, i, j)
+
+        integer, intent(in)                         :: i, j
+        double precision, intent(in)                :: invrij2
+        double precision,dimension(3), intent(in)   :: rij
+        double precision,dimension(3)               :: LJ_force
+
+        LJ_force = LJ_accijmag(invrij2, i, j)*rij
+
+    end function LJ_force
+
+    function LJ_energy(invrij2,  i, j)
+
+        integer, intent(in)             :: i, j
+        double precision, intent(in)    :: invrij2
+        double precision                :: LJ_energy
+
+        LJ_energy = 4.d0*( invrij2**6 - invrij2**3 )-potshift
+
+    end function LJ_energy
+
+    function Mie_mass(i)
+        !use module_set_parameters, only : mass_lookup
+        use arrays_MD, only : moltype
+
+        integer, intent(in)             :: i
+        double precision                :: Mie_mass
+
+        Mie_mass = mass_lookup(moltype(i))
+
+    end function Mie_mass
+
+    function Mie_accijmag(invrij2, i, j)
+        !use module_set_parameters, only : epsilon_lookup, &
+        !                                  sigma_lookup,   &    
+        !                                  lambdar_lookup, &
+        !                                  lambdaa_lookup, &
+        !                                  C_lookup
+        use arrays_MD, only : moltype
+
+        integer, intent(in)             :: i, j
+        double precision, intent(in)    :: invrij2
+        double precision                :: Mie_accijmag
+
+        double precision                :: C, sigmaij, epsilonij, &
+                                              lambdar, lambdaa
+
+        epsilonij = epsilon_lookup(moltype(i),moltype(j))
+        sigmaij   = sigma_lookup(moltype(i),moltype(j))
+        lambdar   = lambdar_lookup(moltype(i),moltype(j))
+        lambdaa   = lambdaa_lookup(moltype(i),moltype(j))
+        C         = C_lookup(moltype(i),moltype(j))
+        !C = (lambdar/(lambdar-lambdaa))*(lambdar/lambdaa)**(lambdaa/(lambdar-lambdaa))
+       
+        Mie_accijmag = C*epsilonij*(   lambdar*invrij2**(0.5d0*lambdar+1) & 
+                                     - lambdaa*invrij2**(0.5d0*lambdaa+1) )
+
+        !Mie_accijmag =  C_lookup(moltype(i),moltype(j)) &
+        !               * epsilon_lookup(moltype(i),moltype(j)) & 
+        !               *( lambdar_lookup(moltype(i),moltype(j)) & 
+        !                  *invrij2**(0.5d0*lambdar_lookup(moltype(i),moltype(j))+1) & 
+        !                 - lambdaa_lookup(moltype(i),moltype(j)) &
+        !                  *invrij2**(0.5d0*lambdaa_lookup(moltype(i),moltype(j))+1) )
+
+    end function Mie_accijmag
+
+    function Mie_force(invrij2, rij, i, j)
+
+        integer, intent(in)                         :: i, j
+        double precision, intent(in)                :: invrij2
+        double precision, intent(in),dimension(3)   :: rij
+        double precision,dimension(3)               :: Mie_force
+
+        Mie_force = rij*Mie_accijmag(invrij2, i, j)
+
+    end function Mie_force
+
+
+    function Mie_energy(invrij2, i, j)
+        !use module_set_parameters, only : epsilon_lookup, &
+        !                                  sigma_lookup,   &    
+        !                                  lambdar_lookup, &
+        !                                  lambdaa_lookup, &
+        !                                  c_lookup
+        use arrays_MD, only : moltype
+
+        integer, intent(in)             :: i, j
+        double precision, intent(in)    :: invrij2
+        double precision                :: Mie_energy
+
+        double precision                :: C, sigmaij, epsilonij, &
+                                              lambdar, lambdaa, potshift
+
+        epsilonij = epsilon_lookup(moltype(i),moltype(j))
+        sigmaij   = sigma_lookup(moltype(i),moltype(j))
+        lambdar   = lambdar_lookup(moltype(i),moltype(j))
+        lambdaa   = lambdaa_lookup(moltype(i),moltype(j))
+        C         = C_lookup(moltype(i),moltype(j))
+        potshift  = potshift_lookup(moltype(i),moltype(j))
+
+        !C = (lambdar/(lambdar-lambdaa))*(lambdar/lambdaa)**(lambdaa/(lambdar-lambdaa))
+
+        Mie_energy = C*epsilonij*( invrij2**(0.5d0*lambdar) - invrij2**(0.5d0*lambdaa) ) - potshift
+
+        !Mie_energy = C_lookup(moltype(i),moltype(j)) & 
+        !             *epsilon_lookup(moltype(i),moltype(j)) &
+        !             *( invrij2**(0.5d0*lambdar_lookup(moltype(i),moltype(j))) &
+        !               -invrij2**(0.5d0*lambdaa_lookup(moltype(i),moltype(j))))&
+        !             - potshift_lookup(moltype(i),moltype(j))
+
+    end function Mie_energy
+
+
+subroutine setup_mie_potential
+    implicit none
+
+    integer :: i, j
+
+    !Initialise all as zero
+    mass_lookup = 0.d0
+    epsilon_lookup = 0.d0
+    sigma_lookup   = 0.d0
+    lambdar_lookup = 0.d0
+    lambdaa_lookup = 0.d0
+
+    !Setup table of cross potentials 
+    !1 == Argon;
+    !moltype_names(1) = '           Ar           '
+    moltype_names(1)    = ' Ar '
+    mass_lookup(1)      = 1.d0
+    epsilon_lookup(1,1) = 1.d0
+    sigma_lookup(1,1)   = 1.d0
+    lambdar_lookup(1,1) = 12.d0
+    lambdaa_lookup(1,1) = 6.d0
+
+    !2 == Wall; 
+    !moltype_names(2) = '          Wall          '
+    moltype_names(2)    = ' Wall '
+    mass_lookup(2)      = 1.d0
+    epsilon_lookup(2,2) = 1.d0
+    sigma_lookup(2,2)   = 1.d0
+    lambdar_lookup(2,2) = 12.d0
+    lambdaa_lookup(2,2) = 6.d0
+
+    !1-2 == Wall/Argon cross interaction
+    epsilon_lookup(2,1) = 1.4d0 
+    sigma_lookup(2,1)   = 1.d0 
+    lambdar_lookup(2,1) = 12.d0
+    lambdaa_lookup(2,1) = 6.d0
+
+    ! SAFT gamma Mie values ₀₁₂₃₄₅₆₇₈₉	
+    !(from Theodorakis, Muller, Craster & Matar (2014))
+    !3 == Water "W" 2{H₂O} molecules per bead
+    !moltype_names(3) = '         2H₂O          '
+    moltype_names(3)    = ' 2H2O '
+    mass_lookup(3)      = 0.8179d0
+    epsilon_lookup(3,3) = 0.8129d0
+    sigma_lookup(3,3)   = 0.8584d0
+    lambdar_lookup(3,3) = 8.d0
+    lambdaa_lookup(3,3) = 6.d0
+
+    !4 == SAFT "M" {(CH₃)₃--Si--O½} molecules per bead
+    !moltype_names(4) = '     (CH₃)₃--Si--O½     '
+    moltype_names(4)    = ' 3CH3SiOh '
+    mass_lookup(4)      = 1.8588d0
+    epsilon_lookup(4,4) = 0.8998d0
+    sigma_lookup(4,4)   = 1.2398d0
+    lambdar_lookup(4,4) = 26.d0
+    lambdaa_lookup(4,4) = 6.d0
+
+    !5 == SAFT "D" {O½--(CH₃)₂--Si--O½} molecules per bead
+    !moltype_names(5) = '   O½--(CH₃)₂--Si--O½   '
+    moltype_names(5)    = ' Oh2CH3SiOh '
+    mass_lookup(5)      = 1.6833d0
+    epsilon_lookup(5,5) = 0.5081d0
+    sigma_lookup(5,5)   = 1.0702d0
+    lambdar_lookup(5,5) = 13.90d0
+    lambdaa_lookup(5,5) = 6.d0
+
+    !6 == SAFT ether "EO" {--CH₂--O--CH₂--} molecules per bead
+    !moltype_names(6)   = '    --CH₂--O--CH₂--     '
+    moltype_names(6)    = ' CH2OCH2 '
+    mass_lookup(6)      = 1.0000d0
+    epsilon_lookup(6,6) = 0.8067d0
+    sigma_lookup(6,6)   = 0.9307d0
+    lambdar_lookup(6,6) = 19.d0
+    lambdaa_lookup(6,6) = 6.d0
+
+    !7 == SAFT alkane "CM" {--CH₂--CH₂--CH₂--} molecules per bead
+    !moltype_names(7) = '   --CH₂--CH₂--CH₂--    '
+    moltype_names(7)    = ' 3CH2 '
+    mass_lookup(7)      = 0.9552d0
+    epsilon_lookup(7,7) = 0.7000d0
+    sigma_lookup(7,7)   = 1.0000d0
+    lambdar_lookup(7,7) = 15.d0
+    lambdaa_lookup(7,7) = 6.d0
+
+    !Define adjusted cross potential interactions (tuned by prior simulation)
+    epsilon_lookup(6,3) = 0.9756d0
+    !No wall/water interaction
+    !epsilon_lookup(7,3) = 0.01d0
+    !SAFT adjusted water--CH3 interaction from prior studies
+    epsilon_lookup(7,3) = 0.5081d0
+    !Superspreading requires this as 1.4 according to Panos
+    !epsilon_lookup(7,3) = 1.4
+    epsilon_lookup(5,4) = 0.7114d0
+    epsilon_lookup(7,6) = 0.7154d0
+
+    ! Define anything that isn't already defined
+    ! Epsilon and lambda cross rules from:
+    ! Thomas Lafitte, Anastasia Apostolakou, Carlos Avendaño, 
+    ! Amparo Galindo, Claire S. Adjiman, Erich A. Müller
+    ! and George Jackson (2013) "Accurate statistical 
+    ! associating fluid theory for chain molecules formed from Mie segments"
+    ! The Journal of Chemical Physics 139, 154504 ; doi: 10.1063/1.4819786
+    do i = 1,ntypes
+    do j = 1,ntypes
+
+        if (lambdar_lookup(i,j) .lt. 1e-5) then
+            lambdar_lookup(i,j) = sqrt( (lambdar_lookup(i,i)-3.d0) &
+                                       *(lambdar_lookup(j,j)-3.d0)) + 3.d0
+        endif
+
+        if (lambdaa_lookup(i,j) .lt. 1e-5) then
+            lambdaa_lookup(i,j) = sqrt( (lambdaa_lookup(i,i)-3.d0) &
+                                       *(lambdaa_lookup(j,j)-3.d0)) + 3.d0
+        endif
+
+        ! Replace undefined sigma from cross rules using Lorentz-Berthelot
+        if (sigma_lookup(i,j) .lt. 1e-5) then
+            sigma_lookup(i,j) = 0.5d0*(sigma_lookup(i,i)+sigma_lookup(j,j))
+        endif
+        if (epsilon_lookup(i,j) .lt. 1e-5) then
+            epsilon_lookup(i,j) = (sqrt((sigma_lookup(i,i)**3)   & 
+                                       *(sigma_lookup(j,j)**3))  &
+                                       /(sigma_lookup(i,j)**3))  & 
+                                  *sqrt(epsilon_lookup(i,i)      &
+                                       *epsilon_lookup(j,j))
+        endif
+
+        !Get C_array
+        C_lookup(i,j) = (lambdar_lookup(i,j)/(lambdar_lookup(i,j)-lambdaa_lookup(i,j))) & 
+                        *(lambdar_lookup(i,j)/lambdaa_lookup(i,j))**(lambdaa_lookup(i,j) & 
+                        /(lambdar_lookup(i,j)-lambdaa_lookup(i,j)))
+
+        potshift_lookup(i,j) = get_energy(1.d0/rcutoff**2,i,j)
+
+    enddo
+    enddo
+
+    ! Enforce Symmetry of lookup tables
+    do i = 1,ntypes
+    do j = i,ntypes
+        !if (lambdar_lookup(i,j) .lt. 1e-5) then
+            lambdar_lookup(i,j) = lambdar_lookup(j,i)
+        !endif
+
+        !if (lambdaa_lookup(i,j) .lt. 1e-5) then
+            lambdaa_lookup(i,j) = lambdaa_lookup(j,i)
+        !endif
+        !if (sigma_lookup(i,j) .lt. 1e-5) then
+            sigma_lookup(i,j) = sigma_lookup(j,i)
+        !endif
+        !if (epsilon_lookup(i,j) .lt. 1e-5) then
+            epsilon_lookup(i,j) = epsilon_lookup(j,i)
+        !endif
+        !if (C_lookup(i,j) .lt. 1e-5) then
+            C_lookup(i,j) = C_lookup(j,i)
+        !endif
+        !if (potshift_lookup(i,j) .lt. 1e-5) then
+            potshift_lookup(i,j) = potshift_lookup(j,i)
+        !endif
+
+    enddo
+    enddo
+
+    !Print all properties
+    if (irank .eq. iroot) then
+        do i = 1,ntypes
+        do j = 1,ntypes
+            print'(a20,2i6,3a,4f10.5)', 'SAFT PARAMETERS',i,j,moltype_names(i), 'to', & 
+                                                              moltype_names(j), & 
+                                                              sigma_lookup(i,j), & 
+                                                              epsilon_lookup(i,j), &
+                                                              lambdar_lookup(i,j), &
+                                                              lambdaa_lookup(i,j)
+        enddo
+        enddo
+    endif
+
+
+end subroutine setup_mie_potential
+
+
+
 end module module_set_parameters 
 !------------------------------------------------------------------------------
 
@@ -54,17 +420,6 @@ subroutine setup_set_parameters
 	call set_parameters_cells
 #endif
 	!call set_parameters_setlimits
-
-	!Calculate shift in lennard-Jones potential based on cutoff
-	potshift = 4.d0*(1.d0/rcutoff**12 - 1.d0/rcutoff**6)
-
-	!Calculate correction to lennard-Jones potential/pressure based on cutoff
-	if (sLRC_flag .ne. 0) then
-		potential_sLRC = 8.d0*pi*density	  *(1.d0/(9.d0*rcutoff**9) - 1.d0/(3.d0*rcutoff**3))
-		Pressure_sLRC  = 8.d0*pi*density**2.d0*(4.d0/(9.d0*rcutoff**9) - 2.d0/(3.d0*rcutoff**3))
-	else
-		potential_sLRC = 0.d0; Pressure_sLRC = 0.d0;
-	endif
 
 	!Allocate array sizes for position, velocity and acceleration
 	call set_parameters_allocate
@@ -115,11 +470,6 @@ subroutine setup_set_parameters
 		call error_abort('Incorrect value of sort_flag')
 	end select
 
-	!call establish_surface_cells(-1)
-	!call establish_surface_cells2(-1)
-	!call establish_gpusurface_cells2(0)
-	!call CUDA_setup
-
 	!Setup shear info
 	call setup_shear_parameters
 
@@ -150,6 +500,42 @@ subroutine setup_set_parameters
 		endif
 	enddo
 
+    !Choose potenital and force calculation method to use
+    if ( Mie_potential  .eq. 0) then
+        mass => LJ_mass
+        get_accijmag => LJ_accijmag
+        get_force => LJ_force
+        get_energy => LJ_energy
+    elseif (Mie_potential  .eq. 1) then
+        mass => Mie_mass
+        get_accijmag => Mie_accijmag
+        get_force => Mie_force
+        get_energy => Mie_energy
+    else
+        call error_abort("Error in simulation_compute_forces -- Mie potential flag is incorrectly specified")
+    end if
+
+    !Setup Mie potential if LJ not used
+    if (mie_potential .eq. 0) then
+    	!Calculate shift in lennard-Jones potential based on cutoff
+        potshift = 4.d0*(1.d0/rcutoff**12 - 1.d0/rcutoff**6)
+    elseif (mie_potential .eq. 1) then
+        call setup_mie_potential
+    endif
+
+	!Calculate correction to lennard-Jones potential/pressure based on cutoff
+	if (sLRC_flag .ne. 0) then
+		potential_sLRC = 8.d0*pi*density	  *(1.d0/(9.d0*rcutoff**9) - 1.d0/(3.d0*rcutoff**3))
+		Pressure_sLRC  = 8.d0*pi*density**2.d0*(4.d0/(9.d0*rcutoff**9) - 2.d0/(3.d0*rcutoff**3))
+	else
+		potential_sLRC = 0.d0; Pressure_sLRC = 0.d0;
+	endif
+
+    !If Mie potential used, standard LRC are no longer valid
+    if (Mie_potential .ne. 0) then
+        potential_sLRC = 0.d0; Pressure_sLRC = 0.d0;
+    endif
+
 end subroutine setup_set_parameters
 
 
@@ -161,7 +547,8 @@ subroutine set_parameters_allocate
 	use shear_info_MD
 	implicit none
 
-	integer :: ixyz
+	integer :: ixyz, n
+    double precision    :: temp
 
 	!Calculate required extra allocation of molecules to allow copied Halos
 	!using ratio of halo to domain volume (with safety factor)
@@ -205,6 +592,13 @@ subroutine set_parameters_allocate
 		allocate(aR(nd,np+extralloc))
 		call random_number(theta)
 	endif
+
+    !If molecular types are used
+    if (Mie_potential .eq. 1) then
+        allocate(moltype(np+extralloc)) 
+        !Default value is 2 x water with Mie
+        moltype(1:np) = 3
+    endif
 
 	!Allocate arrays use to fix molecules and allow sliding
 	allocate(tag(np+extralloc)); tag = free
