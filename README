@@ -1,0 +1,19 @@
+cpl-library
+===========
+
+Description
+
+Git repository management
+-------------------------
+
+The top-level repository contains a number of "forks" of external repositories.
+The directories of these forks are to be managed with the **subtree merge
+strategy**, for which information may be found on [GitHub
+help](https://help.github.com/articles/about-git-subtree-merges/) or in
+`cpl-library/doc/git/subtree_instructions_github.html`.
+
+The subtrees may be kept up-to-date with the following remotes: 
+
+    * `lammps: https://github.com/lammps/lammps.git`
+    * `open-foam: https://github.com/OpenFOAM/OpenFOAM-2.3.x.git`
+
