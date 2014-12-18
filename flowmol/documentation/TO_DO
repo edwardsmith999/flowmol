@@ -1,0 +1,37 @@
+
+              ,----,                                                
+            ,/   .`|  ,----..                            ,----..    
+          ,`   .'  : /   /   \              ,---,       /   /   \   
+        ;    ;     //   .     :           .'  .' `\    /   .     :  
+      .'___,/    ,'.   /   ;.  \        ,---.'     \  .   /   ;.  \ 
+      |    :     |.   ;   /  ` ;        |   |  .`\  |.   ;   /  ` ; 
+      ;    |.';  ;;   |  ; \ ; |        :   : |  '  |;   |  ; \ ; | 
+      `----'  |  ||   :  | ; | '        |   ' '  ;  :|   :  | ; | ' 
+          '   :  ;.   |  ' ' ' :        '   | ;  .  |.   |  ' ' ' : 
+          |   |  ''   ;  \; /  |        |   | :  |  ''   ;  \; /  | 
+          '   :  | \   \  ',  /         '   : | /  ;  \   \  ',  /  
+          ;   |.'   ;   :    /          |   | '` ,/    ;   :    /   
+          '---'      \   \ .'           ;   :  .'       \   \ .'    
+                      `---`             |   ,.'          `---`      
+                                        '---'                       
+                                                             
+Key:
+	
+	*     Point of interest
+	[ ]   Requires action 
+	[/]   Complete
+	[o]   In progress 
+	[x]   No longer required
+	(DT)  Initials of executant 
+
+------------------------------------------------------------------------------
+
+List:
+	
+	* Move everything in the messenger source file into a module      [ ] (  )
+
+	* Check that field flux output routines still work now they are
+	  in a module                                                     [ ] (  ) 
+
+	* Make a decision on whether to keep the serial code              [ ] (  )
+

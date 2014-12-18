@@ -1,0 +1,91 @@
+\documentclass{article}
+\usepackage{pstricks}
+\usepackage{pst-node}
+\usepackage{pst-blur}
+\definecolor{Pink}{rgb}{1.,0.75,0.8}
+\pagestyle{empty}
+\begin{document}
+
+\vspace{0cm}
+
+Coupler flow diagram 
+
+%\vspace{0.5cm}
+%\small
+%\psframebox[linearc=0.5,cornersize=absolute,framesep=10pt]{%
+\psset{unit=1.0}
+%\begin{minipage}[t]{0.6\textwidth}
+%  \vspace{0pt}
+  \psset{shadowcolor=black!70,blur=true}%
+  \begin{psmatrix}[rowsep=0.4,colsep=0.6]
+    % start
+    [name=startF]\psovalbox[fillstyle=solid,fillcolor=yellow,shadow=true]{CFD} &  [name=startP]\psovalbox[fillstyle=solid,fillcolor=yellow,shadow=true]{MD} &  [colsep=2.0cm]\rnode{comment0}{\parbox{4cm}{comments}} \\
+    % mpi init
+    [name=mpiF]\psframebox[shadow=true]{create communicators} & [name=mpiP]\psframebox[shadow=true]{create communicators} &  [colsep=2.0cm]\rnode{comment1}{\parbox{4cm}{bla, bla}}\\
+    % init defaults
+    [name=init1F]\psframebox[shadow=true]{initialise coupler (I)} & [name=init1P] \psframebox[shadow=true]{initialise coupler (I)} \\
+    % test  if  coupler.in exists, CFD side
+    [name=inputfileF]\psdiabox[fillstyle=solid,fillcolor=Pink,shadow=true]{coupler.in ?} & \\
+    % broadcast coupler.in tests
+    [name=bcastinF]\psframebox[fillstyle=solid,shadow=true]{bcast file exists} & [name=bcastinP]\psframebox[fillstyle=solid,shadow=true]{bcast file exists}\\
+    % MD branching on coupler.in
+    [name=readinF] \psframebox[shadow=true]{ read input} & [name=inputfileP]\psdiabox[fillstyle=solid,fillcolor=Pink,shadow=true]{coupler.in ?} \\    
+    % initialise with data from input file
+    [name=init2F]\psframebox[shadow=true]{initialise coupler (II)} & [name=init2P]\psframebox[shadow=true]{initialise coupler (II)} \\
+    % read local input files
+    [name=cfdinF] \psframebox[shadow=true]{read CFD.in} &  [name=mdinP]\psframebox[shadow=true]{read MD.in} \\
+    \psframebox[shadow=true]{CFD setup} & \psframebox[shadow=true]{MD init} \\
+    \psframebox[shadow=true]{initialise coupler (III) } & \psframebox[shadow=true]{initialise coupler (III)} \\
+                                             & \psframebox[shadow=true]{MD  setup} \\
+    \psframebox[shadow=true]{create maps } & \psframebox[shadow=true]{create maps} \\
+    \psframebox[shadow=true]{send CFD velocities } & \psframebox[shadow=true]{constrain force} \\
+    \psframebox[shadow=true]{CFD iteration } & \psframebox[shadow=true]{MD iteration} \\
+    \psframebox[shadow=true]{boundary condition } & \psframebox[shadow=true]{average velocity} \\
+    \psframebox[shadow=true]{write restart } & \psframebox[shadow=true]{write restart} \\
+    \psframebox[shadow=true]{finish } & \psframebox[shadow=true]{finish}
+   
+    % Links
+    % MPI init
+    \ncline{->}{startF}{mpiF} \ncline{->}{startP}{mpiP}
+    \ncline{->}{mpiF}{init1F} \ncline{->}{mpiP}{init1P} \ncline{<->}{mpiF}{mpiP}
+    % read coupler.in and initialisation of coupler data
+    \ncline{->}{init1F}{inputfileF} \ncline{->}{init1P}{bcastinP} 
+    \ncline{->}{inputfileF}{bcastinF}<{yes}
+    \ncangle[angleA=180,angleB=180,armB=1.3]{->}{inputfileF}{cfdinF}
+    \nbput[npos=0.5]{no}
+    \ncline{->}{bcastinF}{readinF}  \ncline{->}{bcastinP}{inputfileP} \ncline{->}{bcastinF}{bcastinP}
+    \ncline{->}{readinF}{init2F}    \ncline{->}{inputfileP}{init2P}<{yes}
+    \ncline{->}{readinF}{init2P}     \ncangle[angleA=0,angleB=0,armB=1.3]{->}{inputfileP}{mdinP}
+                                    \nbput[npos=0.5]{no}
+    \ncline{->}{init2F}{cfdinF} \ncline{->}{init2P}{mdinP}
+%    \ncline{->}{7,1}{9,1}
+%    \ncline{->}{9,1}{10,1}
+%    \ncline{->}{10,1}{11,1}
+%    \ncline{->}{11,1}{12,1}
+%    \ncline{->}{12,1}{13,1}
+%    \ncline{->}{13,1}{14,1}
+    % Links MD
+%    \ncline{->}{1,2}{2,2}
+%    \ncline{->}{2,2}{4,2}
+%    \ncline{->}{4,2}{5,2}
+%    \ncline{->}{5,2}{7,2}
+%    \ncline{->}{7,2}{8,2}
+%    \ncline{->}{8,2}{9,2}
+%    \ncline{->}{9,2}{10,2}
+%    \ncline{->}{10,2}{11,2}
+%    \ncline{->}{11,2}{12,2}
+%    \ncline{->}{12,2}{13,2}
+%    \ncline{->}{13,2}{14,2}
+    %Links coupler
+  \end{psmatrix}
+   %
+%\end{minipage}
+%}
+%\hfill
+%\begin{minipage}[t]{0.15\textwidth}
+%\vspace{0pt}
+%\rnode{comm1}{bla,bla}
+%\ncarc[nodesep=0]{->}{comm1}{inputfileF}
+%\end{minipage}
+
+\end{document}
