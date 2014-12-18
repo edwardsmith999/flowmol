@@ -14,6 +14,6 @@ help](https://help.github.com/articles/about-git-subtree-merges/) or in
 
 The subtrees may be kept up-to-date with the following remotes: 
 
-    * `lammps: https://github.com/lammps/lammps.git`
-    * `open-foam: https://github.com/OpenFOAM/OpenFOAM-2.3.x.git`
+    * lammps: https://github.com/lammps/lammps.git
+    * open-foam: https://github.com/OpenFOAM/OpenFOAM-2.3.x.git
 
