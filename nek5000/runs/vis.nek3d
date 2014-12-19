@@ -1,0 +1,5 @@
+NEK5000
+version: 1.0
+filetemplate:  turbChannel%d.f%05d
+firsttimestep: 1
+numtimesteps: 100

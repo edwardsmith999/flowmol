@@ -1,0 +1,743 @@
+K 25
+svn:wc:ra_dav:version-url
+V 44
+/repos/nek5/!svn/ver/855/branches/adapt_mesh
+END
+gfdm_solve.f
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/gfdm_solve.f
+END
+induct.f
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/repos/nek5/!svn/ver/855/branches/adapt_mesh/induct.f
+END
+AVG
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/AVG
+END
+singlmesh.f
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/singlmesh.f
+END
+drive1.f
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/repos/nek5/!svn/ver/855/branches/adapt_mesh/drive1.f
+END
+mktar
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/mktar
+END
+calcz.f
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/calcz.f
+END
+setprop.f
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/repos/nek5/!svn/ver/855/branches/adapt_mesh/setprop.f
+END
+bg_mxm44.s
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/bg_mxm44.s
+END
+LICENSE
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/LICENSE
+END
+makeq.f
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/makeq.f
+END
+CTIMER
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/CTIMER
+END
+makenek.inc
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/repos/nek5/!svn/ver/855/branches/adapt_mesh/makenek.inc
+END
+map2.f
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/map2.f
+END
+chelpers.c
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/chelpers.c
+END
+GEOM
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/GEOM
+END
+zero.usr
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/zero.usr
+END
+ESOLV
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/ESOLV
+END
+ADJOINT
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/ADJOINT
+END
+NONCON
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/NONCON
+END
+PARALLEL
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/PARALLEL
+END
+connect1.f
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/repos/nek5/!svn/ver/855/branches/adapt_mesh/connect1.f
+END
+DXYZ
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/DXYZ
+END
+cvode_driver.f
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/cvode_driver.f
+END
+INPUT
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/INPUT
+END
+mxm_std.f
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/mxm_std.f
+END
+VPROJ
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/VPROJ
+END
+CVODE
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/CVODE
+END
+gmres.f
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/gmres.f
+END
+bg_mxm44_uneven.s
+K 25
+svn:wc:ra_dav:version-url
+V 62
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/bg_mxm44_uneven.s
+END
+adaptnotes
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/repos/nek5/!svn/ver/855/branches/adapt_mesh/adaptnotes
+END
+DEALIAS
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/DEALIAS
+END
+plan4.f
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/plan4.f
+END
+gfdm_par.f
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/gfdm_par.f
+END
+init_plugin.f
+K 25
+svn:wc:ra_dav:version-url
+V 58
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/init_plugin.f
+END
+WZF
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/WZF
+END
+DOMAIN
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/DOMAIN
+END
+perturb.f
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/perturb.f
+END
+genxyz.f
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/repos/nek5/!svn/ver/855/branches/adapt_mesh/genxyz.f
+END
+GMRES
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/GMRES
+END
+SCRCT
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/SCRCT
+END
+dssum.f
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/dssum.f
+END
+prepost.f
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/repos/nek5/!svn/ver/855/branches/adapt_mesh/prepost.f
+END
+subs1.f
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/repos/nek5/!svn/ver/855/branches/adapt_mesh/subs1.f
+END
+libk10_mxm.a
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/libk10_mxm.a
+END
+conduct.f
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/repos/nek5/!svn/ver/855/branches/adapt_mesh/conduct.f
+END
+mvmesh.f
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/mvmesh.f
+END
+byte.c
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/byte.c
+END
+mxm_wrapper.f
+K 25
+svn:wc:ra_dav:version-url
+V 58
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/mxm_wrapper.f
+END
+navier1.f
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/repos/nek5/!svn/ver/855/branches/adapt_mesh/navier1.f
+END
+multimesh.f
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/multimesh.f
+END
+navier3.f
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/navier3.f
+END
+TOPOL
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/TOPOL
+END
+navier5.f
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/navier5.f
+END
+HSMG
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/HSMG
+END
+FDMH1
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/FDMH1
+END
+navier7.f
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/navier7.f
+END
+WZ
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/WZ
+END
+cvode_aux.f
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/cvode_aux.f
+END
+genbox.f
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/genbox.f
+END
+fast3d.f
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/fast3d.f
+END
+hmholtz.f
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/repos/nek5/!svn/ver/855/branches/adapt_mesh/hmholtz.f
+END
+SOLN
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/SOLN
+END
+ORTHOP
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/ORTHOP
+END
+adapt.f
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/repos/nek5/!svn/ver/855/branches/adapt_mesh/adapt.f
+END
+math.f
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/math.f
+END
+ORTHOT
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/ORTHOT
+END
+drive2.f
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/repos/nek5/!svn/ver/855/branches/adapt_mesh/drive2.f
+END
+ZPER
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/ZPER
+END
+SEMHAT
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/SEMHAT
+END
+ORTHOV
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/ORTHOV
+END
+hsmg.f
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/hsmg.f
+END
+EIGEN
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/EIGEN
+END
+makefile.template
+K 25
+svn:wc:ra_dav:version-url
+V 62
+/repos/nek5/!svn/ver/855/branches/adapt_mesh/makefile.template
+END
+HEADER
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/HEADER
+END
+ADAPT
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/repos/nek5/!svn/ver/855/branches/adapt_mesh/ADAPT
+END
+MVGEOM
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/MVGEOM
+END
+ssolv.f
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/repos/nek5/!svn/ver/855/branches/adapt_mesh/ssolv.f
+END
+TURBO
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/TURBO
+END
+edgec.f
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/edgec.f
+END
+pertsupport.f
+K 25
+svn:wc:ra_dav:version-url
+V 58
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/pertsupport.f
+END
+drive.f
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/drive.f
+END
+bg_mxm3.s
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/bg_mxm3.s
+END
+connect2.f
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/connect2.f
+END
+bg_aligned3.s
+K 25
+svn:wc:ra_dav:version-url
+V 58
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/bg_aligned3.s
+END
+GLOBALCOM
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/GLOBALCOM
+END
+gfdm_op.f
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/gfdm_op.f
+END
+coef.f
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/repos/nek5/!svn/ver/855/branches/adapt_mesh/coef.f
+END
+qthermal.f
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/qthermal.f
+END
+MASS
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/MASS
+END
+speclib.f
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/speclib.f
+END
+gauss.f
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/gauss.f
+END
+planx.f
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/planx.f
+END
+nek_comm.c
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/nek_comm.c
+END
+NEKNEK
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/NEKNEK
+END
+makenek
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/makenek
+END
+papi.f
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/papi.f
+END
+ic.f
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/ic.f
+END
+subs2.f
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/repos/nek5/!svn/ver/855/branches/adapt_mesh/subs2.f
+END
+TOTAL
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/repos/nek5/!svn/ver/855/branches/adapt_mesh/TOTAL
+END
+mpi_dummy.f
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/mpi_dummy.f
+END
+comm_mpi.f
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/comm_mpi.f
+END
+bdry.f
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/repos/nek5/!svn/ver/855/branches/adapt_mesh/bdry.f
+END
+RESTART
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/RESTART
+END
+convect.f
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/repos/nek5/!svn/ver/855/branches/adapt_mesh/convect.f
+END
+mpi_dummy.h
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/mpi_dummy.h
+END
+OPCTR
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/OPCTR
+END
+navier0.f
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/navier0.f
+END
+STEADY
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/STEADY
+END
+NEKUSE
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/NEKUSE
+END
+navier2.f
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/navier2.f
+END
+postpro.f
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/postpro.f
+END
+byte_mpi.f
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/byte_mpi.f
+END
+eigsolv.f
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/eigsolv.f
+END
+navier4.f
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/navier4.f
+END
+k10_mxm.c
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/k10_mxm.c
+END
+navier6.f
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/navier6.f
+END
+TSTEP
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/TSTEP
+END
+makeq_aux.f
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/makeq_aux.f
+END
+navier8.f
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/navier8.f
+END
+turb.f
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/turb.f
+END
+IXYZ
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/repos/nek5/!svn/ver/854/branches/adapt_mesh/IXYZ
+END
+fasts.f
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/repos/nek5/!svn/ver/855/branches/adapt_mesh/fasts.f
+END

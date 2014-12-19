@@ -32,4 +32,3 @@ and each subtree may be updated from the upstream remote branch with:
     git pull -s subtree lammps master
     git pull -s subtree openfoam master
     git pull -s subtree flowmol master
-

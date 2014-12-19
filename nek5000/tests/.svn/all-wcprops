@@ -1,0 +1,41 @@
+K 25
+svn:wc:ra_dav:version-url
+V 31
+/repos/nek5/!svn/ver/1035/tests
+END
+ExTestmpi
+K 25
+svn:wc:ra_dav:version-url
+V 41
+/repos/nek5/!svn/ver/1028/tests/ExTestmpi
+END
+BB_RunTest
+K 25
+svn:wc:ra_dav:version-url
+V 41
+/repos/nek5/!svn/ver/924/tests/BB_RunTest
+END
+RunTests
+K 25
+svn:wc:ra_dav:version-url
+V 40
+/repos/nek5/!svn/ver/1028/tests/RunTests
+END
+Analysis.py
+K 25
+svn:wc:ra_dav:version-url
+V 43
+/repos/nek5/!svn/ver/1035/tests/Analysis.py
+END
+ExTest
+K 25
+svn:wc:ra_dav:version-url
+V 38
+/repos/nek5/!svn/ver/1028/tests/ExTest
+END
+README
+K 25
+svn:wc:ra_dav:version-url
+V 37
+/repos/nek5/!svn/ver/867/tests/README
+END

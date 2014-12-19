@@ -1,0 +1,18 @@
+This contains the setup files for a DNS simulation of Couette flow at Re=400, counter sliding walls and the minimum dimensions required to sustain turbulent flow (consistent with the minimal flow unit of J. M. Hamilton, J. Kim and F. Waleffe, Regeneration mechanisms of near-wall turbulence structures, J. Fluid Mech. 287 (1995). Identification and numerical study of organized dynamics in low-Reynolds plane Couette flow in small aspect ratio cells).
+
+In order to get repeating turbulent structures, random noise is used to trigger transition at a Reynolds number of 5000 and this is gradually decreased to Re=400 in steps of 5000,2500,1000 and 400.
+An initial snapshot file for Re=400 is included, obtained from a run of 10000 timesteps.
+
+To run nek, the workflow is typically:
+
+define the box geomtery in file turbChannel.box
+call "genbox" from the binary files built by /trunk/tools/maketools to create box.rea
+rename box.rea to turbChannel.rea 
+call "genmap" to create turbChannel.map
+call "./makenek"
+run with wrapper "./nekmpi turbChannel numberofprocs"
+
+ 
+
+
+
