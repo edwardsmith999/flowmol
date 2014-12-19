@@ -14,36 +14,36 @@ is included, obtained from a run of 10000 timesteps.
 Running nek5000 with turbChannel case
 =====================================
 
+In the following, $NEK5000 is shorthand for cpl-library/nek5000
+
 The workflow is typically:
 
-    ($NEK5000 is shorthand for cpl-library/nek5000) 
+1. define the box geomtery in file turbChannel.box
 
-    1. define the box geomtery in file turbChannel.box
+2. build binary "tools" in $NEK5000/trunk/tools/:
 
-    2. build binary "tools" in $NEK5000/trunk/tools/:
+    cd $NEK5000/trunk/tools/
+    ./maketools all
 
-        cd $NEK5000/trunk/tools/
-        ./maketools all
+3. call "genbox" from the binary files built by maketools above
+   to create box.rea:
+      
+    cd $NEK5000/runs/
+    ../trunk/tools/bin/genbox       (input name "turbChannel.box")
 
-    3. call "genbox" from the binary files built by maketools above
-       to create box.rea:
-          
-        cd $NEK5000/runs/
-        ../trunk/tools/bin/genbox       (input name "turbChannel.box")
+4. rename box.rea to turbChannel.rea:
+
+    mv box.rea turbChannel.rea
+
+5. call "genmap" to create turbChannel.map
+
+    ../trunk/tools/bin/genmap       (input name "turbChannel", 
+                                     input mesh tolerance 0.2)
+
+6. call makenek wrapper:
     
-    4. rename box.rea to turbChannel.rea:
+    ./makenek turbChannel
+
+7. run with wrapper nekmpi:
     
-        mv box.rea turbChannel.rea
-
-    5. call "genmap" to create turbChannel.map
-
-        ../trunk/tools/bin/genmap       (input name "turbChannel", 
-                                         input mesh tolerance 0.2)
-
-    6. call makenek wrapper:
-        
-        ./makenek turbChannel
-
-    7. run with wrapper nekmpi:
-        
-        ./nekmpi turbChannel [numberofprocs]
+    ./nekmpi turbChannel [numberofprocs]
