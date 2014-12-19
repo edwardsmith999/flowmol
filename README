@@ -25,7 +25,7 @@ once per clone),
 
     git remote add lammps https://github.com/lammps/lammps.git
     git remote add openfoam https://github.com/OpenFOAM/OpenFOAM-2.3.x.git
-    git remote add git@bitbucket.org:crompulence/flowmol.git
+    git remote add flowmol git@bitbucket.org:crompulence/flowmol.git
 
 and each subtree may be updated from the upstream remote branch with:
 
