@@ -13,9 +13,9 @@ help](https://help.github.com/articles/about-git-subtree-merges/) or in
 
 The subtrees may be kept up-to-date with the following remotes: 
 
-    * lammps: https://github.com/lammps/lammps.git
-    * openfoam: https://github.com/OpenFOAM/OpenFOAM-2.3.x.git
-    * flowmol: git@bitbucket.org:crompulence/flowmol.git
+* lammps: https://github.com/lammps/lammps.git
+* openfoam: https://github.com/OpenFOAM/OpenFOAM-2.3.x.git
+* flowmol: git@bitbucket.org:crompulence/flowmol.git
 
 Keeping the subtrees up-to-date
 -------------------------------
@@ -23,6 +23,6 @@ Keeping the subtrees up-to-date
 Once the remotes above are added correctly, they may be updated from the
 upstream remote branches with:
 
-    `git pull -s subtree lammps master`
-    `git pull -s subtree openfoam master`
-    `git pull -s subtree flowmol master`
+    git pull -s subtree lammps master
+    git pull -s subtree openfoam master
+    git pull -s subtree flowmol master
