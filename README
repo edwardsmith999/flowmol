@@ -20,9 +20,16 @@ The subtrees may be kept up-to-date with the following remotes:
 Keeping the subtrees up-to-date
 -------------------------------
 
-Once the remotes above are added correctly, they may be updated from the
-upstream remote branches with:
+The remotes above may be added by (this process need only be performed
+once per clone), 
+
+    git remote add lammps https://github.com/lammps/lammps.git
+    git remote add openfoam https://github.com/OpenFOAM/OpenFOAM-2.3.x.git
+    git remote add git@bitbucket.org:crompulence/flowmol.git
+
+and each subtree may be updated from the upstream remote branch with:
 
     git pull -s subtree lammps master
     git pull -s subtree openfoam master
     git pull -s subtree flowmol master
+
