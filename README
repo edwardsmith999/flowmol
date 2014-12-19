@@ -17,3 +17,4 @@ The subtrees may be kept up-to-date with the following remotes:
     * lammps: https://github.com/lammps/lammps.git
     * openfoam: https://github.com/OpenFOAM/OpenFOAM-2.3.x.git
     * flowmol: git@bitbucket.org:crompulence/flowmol.git
+    * nek5000: git@bitbucket.org:crompulence/cpl-library/nek5000.git
