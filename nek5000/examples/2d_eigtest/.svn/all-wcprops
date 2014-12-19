@@ -1,0 +1,59 @@
+K 25
+svn:wc:ra_dav:version-url
+V 45
+/repos/nek5/!svn/ver/1015/examples/2d_eigtest
+END
+doall
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/repos/nek5/!svn/ver/841/examples/2d_eigtest/doall
+END
+eig1.rea
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/repos/nek5/!svn/ver/1015/examples/2d_eigtest/eig1.rea
+END
+README
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/repos/nek5/!svn/ver/841/examples/2d_eigtest/README
+END
+eig1.usr
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/repos/nek5/!svn/ver/1011/examples/2d_eigtest/eig1.usr
+END
+doit
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/repos/nek5/!svn/ver/841/examples/2d_eigtest/doit
+END
+eig1.map
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/repos/nek5/!svn/ver/841/examples/2d_eigtest/eig1.map
+END
+hmholtz_b_prec.f
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/repos/nek5/!svn/ver/947/examples/2d_eigtest/hmholtz_b_prec.f
+END
+SIZE
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/repos/nek5/!svn/ver/841/examples/2d_eigtest/SIZE
+END
+SIZE0
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/repos/nek5/!svn/ver/841/examples/2d_eigtest/SIZE0
+END

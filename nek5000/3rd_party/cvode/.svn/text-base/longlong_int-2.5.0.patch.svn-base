@@ -1,0 +1,294 @@
+diff -crB cvode-2.5.0/include/nvector/nvector_parallel.h longint_cvode/cvode-2.5.0/include/nvector/nvector_parallel.h
+*** cvode-2.5.0/include/nvector/nvector_parallel.h	2006-11-06 17:18:34.000000000 -0600
+--- longint_cvode/cvode-2.5.0/include/nvector/nvector_parallel.h	2009-03-06 04:30:23.888531344 -0600
+***************
+*** 89,95 ****
+  
+  struct _N_VectorContent_Parallel {
+    long int local_length;   /* local vector length         */
+!   long int global_length;  /* global vector length        */
+    booleantype own_data;    /* ownership of data           */
+    realtype *data;          /* local data array            */
+    MPI_Comm comm;           /* pointer to MPI communicator */
+--- 89,95 ----
+  
+  struct _N_VectorContent_Parallel {
+    long int local_length;   /* local vector length         */
+!   long long int global_length;  /* global vector length   */                              /* LONG_LONG_MOD */
+    booleantype own_data;    /* ownership of data           */
+    realtype *data;          /* local data array            */
+    MPI_Comm comm;           /* pointer to MPI communicator */
+***************
+*** 203,209 ****
+  
+  N_Vector N_VNew_Parallel(MPI_Comm comm, 
+                           long int local_length,
+!                          long int global_length);
+  
+  /*
+   * -----------------------------------------------------------------
+--- 203,209 ----
+  
+  N_Vector N_VNew_Parallel(MPI_Comm comm, 
+                           long int local_length,
+!                          long long int global_length);                              /* LONG_LONG_MOD */
+  
+  /*
+   * -----------------------------------------------------------------
+***************
+*** 216,222 ****
+  
+  N_Vector N_VNewEmpty_Parallel(MPI_Comm comm, 
+                                long int local_length,
+!                               long int global_length);
+  
+  /*
+   * -----------------------------------------------------------------
+--- 216,222 ----
+  
+  N_Vector N_VNewEmpty_Parallel(MPI_Comm comm, 
+                                long int local_length,
+!                               long long int global_length);                              /* LONG_LONG_MOD */
+  
+  /*
+   * -----------------------------------------------------------------
+***************
+*** 229,235 ****
+  
+  N_Vector N_VMake_Parallel(MPI_Comm comm, 
+                            long int local_length,
+!                           long int global_length,
+                            realtype *v_data);
+  
+  /*
+--- 229,235 ----
+  
+  N_Vector N_VMake_Parallel(MPI_Comm comm, 
+                            long int local_length,
+!                           long long int global_length,                              /* LONG_LONG_MOD */
+                            realtype *v_data);
+  
+  /*
+diff -crB cvode-2.5.0/src/nvec_par/fnvector_parallel.c longint_cvode/cvode-2.5.0/src/nvec_par/fnvector_parallel.c
+*** cvode-2.5.0/src/nvec_par/fnvector_parallel.c	2006-11-06 17:18:34.000000000 -0600
+--- longint_cvode/cvode-2.5.0/src/nvec_par/fnvector_parallel.c	2009-03-06 04:30:24.658523887 -0600
+***************
+*** 43,49 ****
+  
+  /* Fortran callable interfaces */
+  
+! void FNV_INITP(MPI_Fint *comm, int *code, long int *L, long int *N, int *ier)
+  {
+    MPI_Comm F2C_comm;
+  
+--- 43,49 ----
+  
+  /* Fortran callable interfaces */
+  
+! void FNV_INITP(MPI_Fint *comm, int *code, long int *L, long long int *N, int *ier)
+  {
+    MPI_Comm F2C_comm;
+  
+***************
+*** 76,82 ****
+    }
+  }
+  
+! void FNV_INITP_Q(MPI_Fint *comm, int *code, long int *Lq, long int *Nq, int *ier)
+  {
+    MPI_Comm F2C_comm;
+  
+--- 76,82 ----
+    }
+  }
+  
+! void FNV_INITP_Q(MPI_Fint *comm, int *code, long int *Lq, long long int *Nq, int *ier)
+  {
+    MPI_Comm F2C_comm;
+  
+***************
+*** 104,110 ****
+    }
+  }
+  
+! void FNV_INITP_B(MPI_Fint *comm, int *code, long int *LB, long int *NB, int *ier)
+  {
+    MPI_Comm F2C_comm;
+  
+--- 104,110 ----
+    }
+  }
+  
+! void FNV_INITP_B(MPI_Fint *comm, int *code, long int *LB, long long int *NB, int *ier)
+  {
+    MPI_Comm F2C_comm;
+  
+***************
+*** 132,138 ****
+    }
+  }
+  
+! void FNV_INITP_QB(MPI_Fint *comm, int *code, long int *LqB, long int *NqB, int *ier)
+  {
+    MPI_Comm F2C_comm;
+  
+--- 132,138 ----
+    }
+  }
+  
+! void FNV_INITP_QB(MPI_Fint *comm, int *code, long int *LqB, long long int *NqB, int *ier)
+  {
+    MPI_Comm F2C_comm;
+  
+diff -crB cvode-2.5.0/src/nvec_par/fnvector_parallel.h longint_cvode/cvode-2.5.0/src/nvec_par/fnvector_parallel.h
+*** cvode-2.5.0/src/nvec_par/fnvector_parallel.h	2006-11-06 17:18:34.000000000 -0600
+--- longint_cvode/cvode-2.5.0/src/nvec_par/fnvector_parallel.h	2009-03-06 04:30:25.278517883 -0600
+***************
+*** 115,124 ****
+  #define MPI_Fint int
+  #endif
+  
+!   void FNV_INITP(MPI_Fint *comm, int *code, long int *L, long int *N, int *ier);
+!   void FNV_INITP_Q(MPI_Fint *comm, int *code, long int *Lq, long int *Nq, int *ier);
+!   void FNV_INITP_B(MPI_Fint *comm, int *code, long int *LB, long int *NB, int *ier);
+!   void FNV_INITP_QB(MPI_Fint *comm, int *code, long int *LqB, long int *NqB, int *ier);
+    void FNV_INITP_S(int *code, int *Ns, int *ier);
+  
+  #ifdef __cplusplus
+--- 115,124 ----
+  #define MPI_Fint int
+  #endif
+  
+!   void FNV_INITP(MPI_Fint *comm, int *code, long int *L, long long int *N, int *ier);
+!   void FNV_INITP_Q(MPI_Fint *comm, int *code, long int *Lq, long long int *Nq, int *ier);
+!   void FNV_INITP_B(MPI_Fint *comm, int *code, long int *LB, long long int *NB, int *ier);
+!   void FNV_INITP_QB(MPI_Fint *comm, int *code, long int *LqB, long long int *NqB, int *ier);
+    void FNV_INITP_S(int *code, int *Ns, int *ier);
+  
+  #ifdef __cplusplus
+diff -crB cvode-2.5.0/src/nvec_par/nvector_parallel.c longint_cvode/cvode-2.5.0/src/nvec_par/nvector_parallel.c
+*** cvode-2.5.0/src/nvec_par/nvector_parallel.c	2006-11-06 17:18:34.000000000 -0600
+--- longint_cvode/cvode-2.5.0/src/nvec_par/nvector_parallel.c	2009-03-06 04:30:23.298537057 -0600
+***************
+*** 70,85 ****
+  
+  N_Vector N_VNewEmpty_Parallel(MPI_Comm comm, 
+                                long int local_length,
+!                               long int global_length)
+  {
+    N_Vector v;
+    N_Vector_Ops ops;
+    N_VectorContent_Parallel content;
+!   long int n, Nsum;
+  
+    /* Compute global length as sum of local lengths */
+!   n = local_length;
+!   MPI_Allreduce(&n, &Nsum, 1, PVEC_INTEGER_MPI_TYPE, MPI_SUM, comm);
+    if (Nsum != global_length) {
+      printf(BAD_N);
+      return(NULL);
+--- 70,85 ----
+  
+  N_Vector N_VNewEmpty_Parallel(MPI_Comm comm, 
+                                long int local_length,
+!                               long long int global_length)                                     /*  LONG_LONG_MOD */
+  {
+    N_Vector v;
+    N_Vector_Ops ops;
+    N_VectorContent_Parallel content;
+!   long long int n, Nsum;                                                                      /*  LONG_LONG_MOD */
+  
+    /* Compute global length as sum of local lengths */
+!   n = (long long int)local_length;                                                            /*  LONG_LONG_MOD */
+!   MPI_Allreduce(&n, &Nsum, 1, MPI_LONG_LONG_INT, MPI_SUM, comm);                                  /*  LONG_LONG_MOD */
+    if (Nsum != global_length) {
+      printf(BAD_N);
+      return(NULL);
+***************
+*** 146,152 ****
+  
+  N_Vector N_VNew_Parallel(MPI_Comm comm, 
+                           long int local_length,
+!                          long int global_length)
+  {
+    N_Vector v;
+    realtype *data;
+--- 146,152 ----
+  
+  N_Vector N_VNew_Parallel(MPI_Comm comm, 
+                           long int local_length,
+!                          long long int global_length)                                     /*  LONG_LONG_MOD */
+  {
+    N_Vector v;
+    realtype *data;
+***************
+*** 178,184 ****
+  
+  N_Vector N_VMake_Parallel(MPI_Comm comm, 
+                            long int local_length,
+!                           long int global_length,
+                            realtype *v_data)
+  {
+    N_Vector v;
+--- 178,184 ----
+  
+  N_Vector N_VMake_Parallel(MPI_Comm comm, 
+                            long int local_length,
+!                           long long int global_length,                                     /*  LONG_LONG_MOD */
+                            realtype *v_data)
+  {
+    N_Vector v;
+***************
+*** 412,418 ****
+    comm = NV_COMM_P(v);
+    MPI_Comm_size(comm, &npes);
+    
+!   *lrw = NV_GLOBLENGTH_P(v);
+    *liw = 2*npes;
+  
+    return;
+--- 412,419 ----
+    comm = NV_COMM_P(v);
+    MPI_Comm_size(comm, &npes);
+    
+!   /* *lrw = NV_GLOBLENGTH_P(v); */                                     /*  LONG_LONG_MOD */
+!   *lrw = 0;                                                            /*  LONG_LONG_MOD */
+    *liw = 2*npes;
+  
+    return;
+***************
+*** 691,697 ****
+  
+  realtype N_VWrmsNorm_Parallel(N_Vector x, N_Vector w)
+  {
+!   long int i, N, N_global;
+    realtype sum, prodi, *xd, *wd, gsum;
+    MPI_Comm comm;
+  
+--- 692,699 ----
+  
+  realtype N_VWrmsNorm_Parallel(N_Vector x, N_Vector w)
+  {
+!   long int i, N;                                                           /*  LONG_LONG_MOD */
+!   long long int N_global;                                                  /*  LONG_LONG_MOD */
+    realtype sum, prodi, *xd, *wd, gsum;
+    MPI_Comm comm;
+  
+***************
+*** 716,722 ****
+  
+  realtype N_VWrmsNormMask_Parallel(N_Vector x, N_Vector w, N_Vector id)
+  {
+!   long int i, N, N_global;
+    realtype sum, prodi, *xd, *wd, *idd, gsum;
+    MPI_Comm comm;
+  
+--- 718,725 ----
+  
+  realtype N_VWrmsNormMask_Parallel(N_Vector x, N_Vector w, N_Vector id)
+  {
+!   long int i, N;                                                           /*  LONG_LONG_MOD */
+!   long long int N_global;                                                  /*  LONG_LONG_MOD */
+    realtype sum, prodi, *xd, *wd, *idd, gsum;
+    MPI_Comm comm;
+  
