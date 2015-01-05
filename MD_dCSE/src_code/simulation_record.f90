@@ -5630,6 +5630,13 @@ contains
             jcell = interfacecells(2,n)
             kcell = interfacecells(3,n)
 
+		    if ( icell .lt. 2 .or. icell .gt. ncells(1)+1 .or. &
+			     jcell .lt. 2 .or. jcell .gt. ncells(2)+1 .or. &
+			     kcell .lt. 2 .or. kcell .gt. ncells(3)+1      ) then
+			     print*, 'Warning - interfacecells is in halo'
+			    return
+		    end if
+
 		    cellnp = cell%cellnp(icell,jcell,kcell)
 		    oldi => cell%head(icell,jcell,kcell)%point !Set oldi to first molecule in list
 
@@ -5646,15 +5653,15 @@ contains
                 if (rc .le. rcutoff + delta_rneighbr) then
 
 	                noneighbrs = neighbour%noneighbrs(molnoi)	!Determine number of elements in neighbourlist
-		            noldj => neighbour%head(molnoi)%point			!Set old to head of neighbour list
+		            noldj => neighbour%head(molnoi)%point		!Set old to head of neighbour list
                     allocate(rneigh(3,noneighbrs))
                     ncount = 0
 		            do j = 1,noneighbrs							!Step through all pairs of neighbours i and j
 
-			            molnoj = noldj%molnoj			!Number of molecule j
-			            rj(:) = r(:,molnoj)			!Retrieve rj
-			            rij(:)= ri(:) - rj(:)   	!Evaluate distance between particle i and j
-			            rij2  = dot_product(rij,rij)!Square of vector calculated
+			            molnoj = noldj%molnoj			        !Number of molecule j
+			            rj(:) = r(:,molnoj)			            !Retrieve rj
+			            rij(:)= ri(:) - rj(:)   	            !Evaluate distance between particle i and j
+			            rij2  = dot_product(rij,rij)            !Square of vector calculated
 
 			            if (rij2 < rc2) then
                             write(451,'(4i8,6f11.5)') iter,icell,jcell,kcell,ri(:),rj(:)

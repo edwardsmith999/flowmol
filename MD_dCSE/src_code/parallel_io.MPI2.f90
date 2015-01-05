@@ -2208,7 +2208,7 @@ subroutine parallel_io_vmd_halo
 end subroutine parallel_io_vmd_halo
 
 !-----------------------------------------------------------------------------
-!Write a psf file with information in the form
+! Write a psf file with information in the form
 ! Note this uses a poor mans MPI where each proc writes its own psf file
 ! and system cat is called at the end. If this fails, the files can be 
 ! concatted after. IT IS NOT TRIVIAL TO WRITE ASCII with MPI!!!

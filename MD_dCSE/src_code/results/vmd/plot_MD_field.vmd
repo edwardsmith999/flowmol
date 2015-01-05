@@ -90,7 +90,7 @@ cmapfile_color_scale $colorfilename
 color Display Background white
 
 # Load molecular data
-set updmol [mol new {../../results/vmd_out.dcd} type dcd waitfor all]; puts ""
+set updmol [mol new {../vmd_out.dcd} type dcd waitfor all]; puts ""
 set nframes [molinfo top get numframes]; puts ""
 
 
