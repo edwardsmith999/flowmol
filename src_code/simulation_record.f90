@@ -196,7 +196,7 @@ subroutine simulation_record
 	if (velocity_outflag .eq. 0 .and. &
 		mass_outflag .ne. 0) call mass_averaging(mass_outflag)
 
-    sl_interface_outflag = 0
+    sl_interface_outflag = 1
     if (sl_interface_outflag .ne. 0) call sl_interface(sl_interface_outflag)
 
 	!Obtain and record velocity distributions
@@ -5434,10 +5434,14 @@ contains
             !print'(4i7,f10.5,2l)', i,j,k,density_bins(i,j,k), averagedensity,density_bins(i,j,k) .gt. averagedensity,density_bins(i,j,k) .le. averagedensity
             if (density_bins(i,j,k) .gt. averagedensity) then
                 liquidbins(i,j,k) = .true.
+                open(unit=2010,file='./liquidcells',access='append')
                 write(2010,'(5i5,i8,f10.5)') iter,ncount,i,j,k,density_bins(i,j,k),averagedensity
+                close(2010,status='keep')
             elseif (density_bins(i,j,k) .le. averagedensity) then
                 gasbins(i,j,k) = .true.
+                open(unit=2020,file='./gascells',access='append')
                 write(2020,'(5i5,i8,f10.5)') iter,ncount,i,j,k,density_bins(i,j,k),averagedensity
+                close(2020,status='keep')
             endif
         enddo
         enddo
@@ -5471,14 +5475,18 @@ contains
                     interfacebin(i,j,k) = .true.
                     ncount = ncount + 1
                     interfacelist_temp(:,ncount) = (/i,j,k/)
+                    open(unit=90210,file='./interfacecells',access='append')
                     write(90210,'(6i12,f10.5)') iter,ncount,i,j,k,density_bins(i,j,k),averagedensity
+                    close(90210,status='keep')
                 endif
 
                 if (gasbins(i+is,j+js,k+ks) .and. liquidbins(i,j,k)  .and. (.not. interfacebin(i,j,k))) then
                     interfacebin(i,j,k) = .true.
                     ncount = ncount + 1
                     interfacelist_temp(:,ncount) = (/i,j,k/)
+                    open(unit=90210,file='./interfacecells',access='append')
                     write(90210,'(6i12,f10.5)') iter,ncount,i,j,k,density_bins(i,j,k),averagedensity
+                    close(90210,status='keep')
                 endif
             enddo
             enddo
@@ -5587,7 +5595,11 @@ contains
         surface(:,2) = eigvec(:,mod(mineig,3)+1)
         surface(:,3) = eigvec(:,mod(mineig+1,3)+1)
 
-        write(1984,'(i8,6f10.4,3f20.7)'), iter, ri, rave(:), eigval !dot_product(surface(:,1),surface(:,2)), dot_product(surface(:,1),surface(:,3)),surface
+        open(unit=1984,file='./eigenvalues',access='append')
+        write(1984,'(i8,6f10.4,3f20.7)'), iter, ri, rave(:), eigval
+        close(1984,status='keep')
+
+ !dot_product(surface(:,1),surface(:,2)), dot_product(surface(:,1),surface(:,3)),surface
 
         !do i = 1,3
         !    print'(a,2i5,4f15.4,6f10.4)','Eigenstuff', i,minloc(eigval,1), omega(i,:),eigval(i),eigvec(i,:),surface(i,:)
@@ -5664,7 +5676,7 @@ contains
 			            rij2  = dot_product(rij,rij)            !Square of vector calculated
 
 			            if (rij2 < rc2) then
-                            write(451,'(4i8,6f11.5)') iter,icell,jcell,kcell,ri(:),rj(:)
+                            !write(451,'(4i8,6f11.5)') iter,icell,jcell,kcell,ri(:),rj(:)
                             ncount = ncount + 1
                             rneigh(:,ncount) = rj(:)
                         endif
@@ -5676,7 +5688,7 @@ contains
                     rarray = rneigh(:,1:ncount)
                     deallocate(rneigh)
                     call get_surface_at_ri(ri, rarray, surfacei(:,:,i))
-                    write(452,'(i5,12f10.4)'), i, ri(:), surfacei(:,:,i)
+                    !write(452,'(i5,12f10.4)'), i, ri(:), surfacei(:,:,i)
                     deallocate(rarray)
 
                 ! If the interface cutoff is greater than rcutoff
