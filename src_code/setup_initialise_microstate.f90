@@ -2209,8 +2209,10 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
                             if (rand .gt. density_ratio_gl) cycle   
                         endif
                     else                      
-                        !Gas is initialised for half of the domain which is 
-                        if (x .gt. lg_fract*globaldomain(1)) then
+                        !Gas is initialised for fraction of the domain 
+                        x = x-0.5*globaldomain(1)
+                        if (abs(x) - 0.5*lg_fract*globaldomain(1) .gt. 0.d0) then
+                        !if (mod(x-lg_fract*globaldomain(1)-0.5*globaldomain(1),globaldomain(1)) .gt. 0.d0) then
                             call random_number(rand)
                             if (rand .gt. density_ratio_gl) cycle   
                         endif
