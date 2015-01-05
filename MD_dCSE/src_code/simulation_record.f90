@@ -1367,7 +1367,7 @@ subroutine velocity_averaging(ixyz)
 		! T_{unbias} = (1/3N) * \sum_i^N m_i * (vi - u)*(vi - u)
 		! CAN INSTEAD BE CALCULATED FROM:
 		! T_{unbias} = (1/3N) * \sum_i^N m_i * vi*vi - u^2/3
-		stop "Peculiar momentum functionality removed -- please calculate using T_{unbias} = (1/3N) * \sum_i^N m_i*vi*vi - u^2/3"
+		call error_abort( "Peculiar momentum functionality removed -- please calculate using T_{unbias} = (1/3N) * \sum_i^N m_i*vi*vi - u^2/3")
 
 		do n=1,np
 			!Save streaming velocity per molecule
@@ -4426,22 +4426,22 @@ subroutine control_volume_forces(fij,ri,rj,molnoi,molnoj)
 	!Add for molecule i
 	if(molnoi .le. np) then
 		fsurface = fij(:)* dble((heaviside(bintopi(1)-ri(1))-heaviside(binboti(1)-ri(1)))* & 
-			  		(heaviside(bintopi(2)-ri(2))-heaviside(binboti(2)-ri(2)))* & 
-			  		(heaviside(bintopi(3)-ri(3))-heaviside(binboti(3)-ri(3)))- & 
-			  		(heaviside(bintopi(1)-rj(1))-heaviside(binboti(1)-rj(1)))* & 
-			  		(heaviside(bintopi(2)-rj(2))-heaviside(binboti(2)-rj(2)))* & 
-			  		(heaviside(bintopi(3)-rj(3))-heaviside(binboti(3)-rj(3))))
+			              		(heaviside(bintopi(2)-ri(2))-heaviside(binboti(2)-ri(2)))* & 
+			              		(heaviside(bintopi(3)-ri(3))-heaviside(binboti(3)-ri(3)))- & 
+			              		(heaviside(bintopi(1)-rj(1))-heaviside(binboti(1)-rj(1)))* & 
+			              		(heaviside(bintopi(2)-rj(2))-heaviside(binboti(2)-rj(2)))* & 
+			              		(heaviside(bintopi(3)-rj(3))-heaviside(binboti(3)-rj(3))))
 		volume_force(ibin(1),ibin(2),ibin(3),:,1) = volume_force(ibin(1),ibin(2),ibin(3),:,1) + fsurface*delta_t
 	endif
 
 	!Add for molecule j
 	if(molnoj .le. np) then
 		fsurface = fij(:)* dble((heaviside(bintopj(1)-ri(1))-heaviside(binbotj(1)-ri(1)))* & 
-			  		(heaviside(bintopj(2)-ri(2))-heaviside(binbotj(2)-ri(2)))* & 
-			  		(heaviside(bintopj(3)-ri(3))-heaviside(binbotj(3)-ri(3)))- & 
-			  		(heaviside(bintopj(1)-rj(1))-heaviside(binbotj(1)-rj(1)))* & 
-			  		(heaviside(bintopj(2)-rj(2))-heaviside(binbotj(2)-rj(2)))* & 
-			  		(heaviside(bintopj(3)-rj(3))-heaviside(binbotj(3)-rj(3))))
+			              		(heaviside(bintopj(2)-ri(2))-heaviside(binbotj(2)-ri(2)))* & 
+			              		(heaviside(bintopj(3)-ri(3))-heaviside(binbotj(3)-ri(3)))- & 
+			              		(heaviside(bintopj(1)-rj(1))-heaviside(binbotj(1)-rj(1)))* & 
+			              		(heaviside(bintopj(2)-rj(2))-heaviside(binbotj(2)-rj(2)))* & 
+			              		(heaviside(bintopj(3)-rj(3))-heaviside(binbotj(3)-rj(3))))
 		volume_force(jbin(1),jbin(2),jbin(3),:,1) = volume_force(jbin(1),jbin(2),jbin(3),:,1) + fsurface*delta_t
 	endif
 
@@ -5409,7 +5409,10 @@ contains
 
 
         !Sanity check
-        if (sum(density_bins(2:size(density_bins,1)-1,2:size(density_bins,2)-1,2:size(density_bins,3)-1)) .ne. (Nmass_ave-1)*globalnp) then
+        if (sum(density_bins(2:size(density_bins,1)-1, & 
+                             2:size(density_bins,2)-1, &
+                             2:size(density_bins,3)-1)) .ne. &
+                            (Nmass_ave-1)*globalnp) then
             print*, 'Warning in interface check - number of molecules in mass averaged bins is greater than total'
             print*, 'e.g.',globalnp, sum(density_bins(2:size(density_bins,1)-1,2:size(density_bins,2)-1,2:size(density_bins,3)-1))/(Nmass_ave-1)
         endif
@@ -5597,6 +5600,7 @@ contains
 	    use module_compute_forces
 	    use librarymod, only: outerprod
         use computational_constants_MD, only : iter
+	    use interfaces, only : error_abort
 	    implicit none
 
         double precision, intent(in)                     :: rc
@@ -5617,6 +5621,7 @@ contains
 	    type(neighbrnode), pointer      :: noldj,ncurrentj
 
         rc2 = rc**2.d0
+        if (force_list .ne. 2) call error_abort("Error in get_molecules_within_rc -- full neightbour list should be used with interface tracking")
 
         allocate(cellsurface(3,3,size(interfacecells,2)))
         do n = 1,size(interfacecells,2)
@@ -5637,7 +5642,7 @@ contains
 
                 ! If interface cutoff is less that interaction rcutoff
                 ! then we can use the neighbourlist to get molecules in 
-                ! interface region
+                ! interface region (N.B. need to use all interations)
                 if (rc .le. rcutoff + delta_rneighbr) then
 
 	                noneighbrs = neighbour%noneighbrs(molnoi)	!Determine number of elements in neighbourlist
