@@ -225,7 +225,10 @@ subroutine setup_moltypes()
     do n = 1,np
         if (any(tag(n).eq.tether_tags)) then
             !Set all tethered walls to paraffin
-            moltype(n) = 7
+            !moltype(n) = 7
+
+            !Set all tethered walls to wall
+            moltype(n) = 2
         endif
     enddo
 
