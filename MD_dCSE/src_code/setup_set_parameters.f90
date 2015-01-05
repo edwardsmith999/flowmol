@@ -11,12 +11,6 @@
 ! set_parameters_setlimits
 ! set_parameters_outputs
 ! setup_linklist
-
-! *********CUDA ROUTINES - WILL BE IN SEPERATE FILE SOON************
-! establish_surface_cells2(CPU_buffer_region_size)
-! establish_gpusurface_cells2(CPU_buffer_region_size-1)
-! CUDA_setup
-!
 !
 !-----------------------------------------------------------------------------
 
@@ -250,7 +244,18 @@ subroutine setup_mie_potential
     lambdaa_lookup(2,2) = 6.d0
 
     !1-2 == Wall/Argon cross interaction
-    epsilon_lookup(2,1) = 1.4d0 
+    !select case (wall_liquid)
+    !case(No_wetting) 
+    !    epsilon_lookup(2,1) = 1.0d0
+    !case(Paraffin_Water) 
+        epsilon_lookup(2,1) = 0.5d0
+    !case(Superhydrophobic)
+    !    epsilon_lookup(2,1) = 0.01d0  !No wall/water interaction
+    !case(Superspreading)
+    !    !Superspreading requires this as 1.4 according to Panos
+    !    epsilon_lookup(2,1) = 1.4
+    !end select
+
     sigma_lookup(2,1)   = 1.d0 
     lambdar_lookup(2,1) = 12.d0
     lambdaa_lookup(2,1) = 6.d0
@@ -303,14 +308,23 @@ subroutine setup_mie_potential
     lambdaa_lookup(7,7) = 6.d0
 
     !Define adjusted cross potential interactions (tuned by prior simulation)
+    !ether and Water
     epsilon_lookup(6,3) = 0.9756d0
-    !No wall/water interaction
-    !epsilon_lookup(7,3) = 0.01d0
     !SAFT adjusted water--CH3 interaction from prior studies
-    epsilon_lookup(7,3) = 0.5081d0
-    !Superspreading requires this as 1.4 according to Panos
-    !epsilon_lookup(7,3) = 1.4
+    !select case (wall_liquid)
+    !case(No_wetting) 
+    !    epsilon_lookup(7,3) = 1.d0
+    !case(Paraffin_Water) 
+        epsilon_lookup(7,3) = 0.5081d0
+    !case(Superhydrophobic)
+    !    epsilon_lookup(7,3) = 0.01d0  !No wall/water interaction
+    !case(superspreading)
+    !    !Superspreading requires this as 1.4 according to Panos
+    !    epsilon_lookup(7,3) = 1.4
+    !end select
+    !SAFT adjusted D--M interaction from prior studies
     epsilon_lookup(5,4) = 0.7114d0
+    !SAFT adjusted alkane--ether interaction from prior studies
     epsilon_lookup(7,6) = 0.7154d0
 
     ! Define anything that isn't already defined
@@ -596,8 +610,11 @@ subroutine set_parameters_allocate
     !If molecular types are used
     if (Mie_potential .eq. 1) then
         allocate(moltype(np+extralloc)) 
-        !Default value is 2 x water with Mie
-        moltype(1:np) = 3
+        !Default value is 2 (models 2 x water per bead with Mie)
+        !moltype(1:np) = 3
+
+        !This is simply Lennard Jones but allowing wall fluid differences
+        moltype(1:np) = 1
     endif
 
 	!Allocate arrays use to fix molecules and allow sliding
