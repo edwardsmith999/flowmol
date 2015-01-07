@@ -52,7 +52,7 @@ def update_plot(fdir,Lmin,Lmax,startrec=0,endrec=None):
     #Take gradient of density 
     #drhodx, drhodz = np.gradient(np.mean(rho[:,0:1,:,:,0],(1,2)))
     #cm=ax1.pcolormesh(X,T,np.sqrt(drhodx*drhodx),cmap=plt.cm.RdYlBu_r,shading='gouraud')
-    meanrho = np.mean(rho[:,0:1,:,:,0],(1,2))
+    meanrho = np.mean(rho[:,10:11,:,:,0],(1,2))
 
     #Plot locations of edges only using Lmin and Lmax
     fluid =  (Lmax<meanrho)
@@ -125,7 +125,7 @@ def update_plot(fdir,Lmin,Lmax,startrec=0,endrec=None):
     plt.show()
 
 
-fdir = '/home/es205/scratch/droplet/2D_e1p6/'
+fdir = '/home/es205/results/droplet/tether_walls/Thompson_Robbins_1989/ewall_alkene_water/sliding/SLIDING_study/coupled_code/MD_dCSE/runs/WALLSLIDEV0100/results/'
 #fdir = '/home/es205/scratch/droplet/2D_e1p4/'
 #fdir = '/home/es205/scratch/droplet/2D_e0p6/'
 #fdir = '/home/es205/codes/superspreading/coupled_code/MD_dCSE/src_code/results/'
@@ -134,5 +134,5 @@ fdir = '/home/es205/scratch/droplet/2D_e1p6/'
 #Minimin and maximum values for liquid
 Lmin = 0.4
 Lmax = 0.55
-update_plot(fdir,Lmin,Lmax,startrec = 20, endrec = 127)
+update_plot(fdir,Lmin,Lmax,startrec = 10, endrec = 50)
 
