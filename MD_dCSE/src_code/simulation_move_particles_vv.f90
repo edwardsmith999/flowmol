@@ -422,7 +422,7 @@ contains
 		double precision :: rij2,wsq,vr,Q
 		double precision, dimension(nd) :: ri,rj,rij,rijhat
 		double precision, dimension(nd) :: vi,vj,vij
-		type(neighbrnode), pointer :: old, current
+		type(node), pointer :: old, current
 
 		vrelsum = 0.d0
 		dzeta_dt = 0.d0
@@ -437,7 +437,7 @@ contains
 	
 			do j=1,noneighbrs
 	
-				molnoj    = old%molnoj
+				molnoj    = old%molno
 				if (molnoj.eq.molnoi) call error_abort("Self interaction in pwaNH thermostat")
 				rj(:)     = r(:,molnoj)
 				vj(:)     = v(:,molnoj)
@@ -484,7 +484,7 @@ contains
 		double precision, dimension(nd) :: ri,rj,rij,rijhat
 		double precision, dimension(nd)	:: randi,randj,theta_ij
 		double precision, dimension(nd)	:: vi,vj,vij
-		type(neighbrnode), pointer 		:: old, current
+		type(node), pointer 		    :: old, current
 
 		zeta = 10.d0; sigma = sqrt(2.d0*inputtemperature*zeta)
 
@@ -500,7 +500,7 @@ contains
 				vi(:)      = v(:,molnoi)
 	
 				do j=1,noneighbrs
-					molnoj    = old%molnoj
+					molnoj    = old%molno
 					if (molnoj.eq.molnoi) call error_abort("Self interaction in DPD vv")	!Self interactions are unacceptable!
 					rj(:)     = r(:,molnoj)
 					rij(:)    = ri(:) - rj(:)
@@ -538,7 +538,7 @@ contains
 				randi(:)   = theta(:,molnoi)
 		
 				do j=1,noneighbrs
-					molnoj    = old%molnoj
+					molnoj    = old%molno
 					if (molnoj.eq.molnoi) stop "Self interaction in DPD vv"	!self interactions are unacceptable!
 					rj(:)     = r(:,molnoj)
 					rij(:)    = ri(:)-rj(:)

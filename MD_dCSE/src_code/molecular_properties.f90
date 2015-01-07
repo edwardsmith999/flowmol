@@ -789,7 +789,7 @@ contains
 											   iblock,jblock,kblock,npx,npy,npz
 		use physical_constants_MD, only : density,np
 		use calculated_properties_MD, only : temperature
-		use linked_list
+		use linked_list, only : node, cell
 		use arrays_MD, only : r
 		implicit none
 

@@ -34,14 +34,64 @@
 !
 !-------------------------------------------------------------------------------
 
-module module_linklist
+module linked_list
 
 	use physical_constants_MD
 	use computational_constants_MD
 	use arrays_MD
-	use linked_list
 
 	integer, dimension(6,6,6)	:: intcount
+
+	!3D Information for each cell and pointer to cell/bin linked list
+	type cellinfo
+		integer  , dimension(:,:,:), allocatable :: cellnp
+		type(ptr), dimension(:,:,:), pointer     :: head
+	end type cellinfo
+	
+	!Cannot create array of pointers in Fortran so create an array of
+	!type ptr which contains a pointer
+	type ptr
+		type(node), pointer :: point
+	end type ptr
+
+	!A Node of the linked list which is built for each cell/bin
+	type node
+		!double precision,dimension(:), pointer 	:: rp
+		!double precision,dimension(:), pointer 	:: vp
+		!double precision,dimension(:), pointer	:: ap
+		integer             :: molno
+		type(node), pointer :: next, previous
+	end type node
+
+	! Neighbourlist with cell head 
+	!Information for pointer to neighbour list
+	type neighbrinfo
+		integer,dimension(:),allocatable    :: noneighbrs
+		type(ptr), dimension(:), pointer	:: head
+	end type neighbrinfo
+	
+	!Information for pass list
+	type passinfo
+		integer					:: sendnp
+		type(passnode), pointer :: head
+	end type passinfo
+
+	!A Node of the passed molecule list
+	type passnode
+		integer                 :: molno
+		integer					:: ipass
+		integer					:: jpass
+		integer					:: kpass
+		type(passnode), pointer :: next, previous
+	end type passnode
+
+	!Global type cell used to record location of all cells linked lists
+	!N.B. Type cell is not a pointer & nothing points to it
+	type(cellinfo)    	:: cell
+	type(cellinfo)    	:: bin	!Used to bin molecules for statistics
+	type(neighbrinfo) 	:: neighbour
+	type(passinfo)    	:: pass
+
 
 contains
 
@@ -110,7 +160,7 @@ contains
 	end subroutine linklist_gotomolecule
 
 
-end module module_linklist
+end module linked_list
 
 !======================================================================
 !		Cell and neighbour building subroutines               =
@@ -120,7 +170,7 @@ end module module_linklist
 !Routine used to rebuild linked list for each cell
 
 subroutine assign_to_cell
-	use module_linklist
+	use linked_list
 	use interfaces, only: error_abort
 	implicit none
 
@@ -152,7 +202,7 @@ end subroutine assign_to_cell
 !Routine used to rebuild linked list for each halo cell
 
 subroutine assign_to_halocell(start,finish)
-	use module_linklist
+	use linked_list
 	implicit none
 
 	integer		:: n, start, finish
@@ -179,7 +229,7 @@ end subroutine assign_to_halocell
 
 subroutine assign_to_neighbourlist
 use interfaces
-use module_linklist
+use linked_list
 implicit none
 
 	!Choose between all pairs, cell list or neighbour list
@@ -214,7 +264,7 @@ end subroutine assign_to_neighbourlist
 ! counted twice.
 
 subroutine assign_to_neighbourlist_allint
-	use module_linklist
+	use linked_list
 	implicit none
 
 	integer                         :: i, j !Define dummy index
@@ -301,7 +351,7 @@ end subroutine assign_to_neighbourlist_allint
 ! each other with each interaction counted only once
 
 subroutine assign_to_neighbourlist_halfint
-	use module_linklist
+	use linked_list
 	implicit none
 
 	integer                         :: i, j,k !Define dummy index
@@ -689,7 +739,7 @@ end subroutine assign_to_neighbourlist_halfint
 ! each other with each interaction counted only once
 
 subroutine assign_to_neighbourlist_halfint_opt
-	use module_linklist
+	use linked_list
 	implicit none
 
 	integer                         :: i, j,k !Define dummy index
@@ -743,7 +793,6 @@ subroutine assign_to_neighbourlist_halfint_opt
 				if(molnoi==molnoj) cycle!Check to prevent interaction with self
 	
 				rij(:) = ri(:) - rj(:)  !Evaluate distance between particle i and j
-
 				rij2 = dot_product(rij,rij)	!Square of vector calculated
                 
 				if (potential_flag.eq.1) call check_update_adjacentbeadinfo(molnoi,molnoj)	
@@ -798,187 +847,6 @@ subroutine assign_to_neighbourlist_halfint_opt
 	!Build up interactions using unchecked halo cells
     call all_cell_interactions()
 
-!	!-----------------------------
-!	! Bottom xy plane domain face-
-!		   kcell=1
-!	!       9 Interactions	     -
-!	!-----------------------------
-
-!	!Perpendicular in z direction
-!	k = 5
-!	call calculate_cell_interactions_opt(     2     ,ncells(1)+1,icellshift(k), & 
-!										      2     ,ncells(2)+1,jcellshift(k),	& 
-!										     kcell  ,    kcell  ,kcellshift(k) )
-
-!	!Edge cells diagonals in xz plane
-!	k = 6
-!	call calculate_cell_interactions_opt(     1     ,ncells(1)  ,icellshift(k), & 
-!										      2     ,ncells(2)+1,jcellshift(k),	& 
-!										     kcell  ,    kcell  ,kcellshift(k) )
-
-!	k = 10
-!	call calculate_cell_interactions_opt(     3     ,ncells(1)+2,icellshift(k), & 
-!										      2     ,ncells(2)+1,jcellshift(k),	& 
-!										     kcell  ,    kcell  ,kcellshift(k) )
-
-!	!Edge cells diagonals in yz plane
-!	k = 8
-!	call calculate_cell_interactions_opt(     2     ,ncells(1)+1,icellshift(k), & 
-!										      1     ,ncells(2)  ,jcellshift(k),	& 
-!										     kcell  ,    kcell  ,kcellshift(k) )
-
-!	k = 12
-!	call calculate_cell_interactions_opt(     2     ,ncells(1)+1,icellshift(k), & 
-!										      3     ,ncells(2)+2,jcellshift(k),	& 
-!										     kcell  ,    kcell  ,kcellshift(k) )
-
-!	!Corner cell xyz diagonals
-!	k =7
-!	call calculate_cell_interactions_opt(     1     ,ncells(1)  ,icellshift(k), & 
-!										      1     ,ncells(2)  ,jcellshift(k),	& 
-!										     kcell  ,    kcell  ,kcellshift(k) )
-
-!	k = 9
-!	call calculate_cell_interactions_opt(     3     ,ncells(1)+2,icellshift(k), & 
-!										      1     ,ncells(2)  ,jcellshift(k),	& 
-!										     kcell  ,    kcell  ,kcellshift(k) )
-
-!	k = 11
-!	call calculate_cell_interactions_opt(     3     ,ncells(1)+2,icellshift(k), & 
-!										      3     ,ncells(2)+2,jcellshift(k),	& 
-!										     kcell  ,    kcell  ,kcellshift(k) )
-
-!	k = 13
-!	call calculate_cell_interactions_opt(     1     ,ncells(1)  ,icellshift(k), & 
-!										      3     ,ncells(2)+2,jcellshift(k),	& 
-!										     kcell  ,    kcell  ,kcellshift(k) )
-
-!	!------------------------------
-!	! Bottom yz plane domain face -
-!		  icell = 1
-!	!	5 Interactions
-!	!------------------------------
-
-!	!Perpendicular in x direction
-!	k = 1
-!	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
-!										      2     ,ncells(2)+1,jcellshift(k),	& 
-!										      2     ,ncells(3)+1,kcellshift(k) )
-
-!	!Edge cells diagonals in xz plane
-!	k = 6
-!	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
-!										      2     ,ncells(2)+1,jcellshift(k),	& 
-!										      2     ,ncells(3)  ,kcellshift(k) )
-
-!	!Edge cells diagonals in xy plane
-!	k = 2
-!	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
-!										      1     ,ncells(2)  ,jcellshift(k),	& 
-!										      2     ,ncells(3)+1,kcellshift(k) )
-
-!	!Corner cell xyz diagonals
-!	k = 7
-!	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
-!										      1     ,ncells(2)  ,jcellshift(k),	& 
-!										      2     ,ncells(3)  ,kcellshift(k) )
-
-!	k = 13
-!	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
-!										      3     ,ncells(2)+2,jcellshift(k),	& 
-!										      2     ,ncells(3)  ,kcellshift(k) )
-
-!	!------------------------------
-!	! Top yz plane domain face    -
-!	    icell = ncells(1) + 2
-!	!	4 Interactions	      -
-!	!------------------------------
-
-!	!Edge cells diagonals in xy plane
-!	k = 4
-!	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
-!										      1     ,ncells(2)  ,jcellshift(k),	& 
-!										      2     ,ncells(3)+1,kcellshift(k) )
-
-!	!Edge cells diagonals in xz plane
-!	k = 10
-!	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
-!										      2     ,ncells(2)+1,jcellshift(k),	& 
-!										      2     ,ncells(3)  ,kcellshift(k) )
-!	!Corner cell xyz diagonals
-!	k = 9
-!	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
-!										      1     ,ncells(2)  ,jcellshift(k),	& 
-!										      2     ,ncells(3)  ,kcellshift(k) )
-!	k = 11
-!	call calculate_cell_interactions_opt(    icell     , icell  ,icellshift(k), & 
-!										      3     ,ncells(2)+2,jcellshift(k),	& 
-!										      2     ,ncells(3)  ,kcellshift(k) )
-
-!	!------------------------------
-!	! Bottom xy plane domain face -
-!		  jcell = 1
-!	!	6 Interactions
-!	!------------------------------
-
-!	!Perpendicular in y direction
-!	k = 3
-!	call calculate_cell_interactions_opt(    2     ,ncells(1)+1,icellshift(k), & 
-!										     jcell     , jcell ,jcellshift(k),& 
-!										     2     ,ncells(3)+1,kcellshift(k) )
-
-!	!Edge cells diagonals in xy plane
-!	k = 2
-!	call calculate_cell_interactions_opt(    2     ,ncells(1)  ,icellshift(k), & 
-!										     jcell     , jcell ,jcellshift(k),& 
-!										     2     ,ncells(3)+1,kcellshift(k) )
-
-
-!	k = 4
-!	call calculate_cell_interactions_opt(    3     ,ncells(1)+1,icellshift(k), & 
-!										   jcell   , jcell     ,jcellshift(k),& 
-!										     2     ,ncells(3)+1,kcellshift(k) )
-
-!	!Edge cells diagonals in xz plane
-!	k = 8
-!	call calculate_cell_interactions_opt(    2     ,ncells(1)+1,icellshift(k), & 
-!										     jcell     , jcell ,jcellshift(k),& 
-!										     2     ,ncells(3)  ,kcellshift(k) )
-
-!	!Corner cell xyz diagonals
-!	k = 7
-!	call calculate_cell_interactions_opt(    2     ,ncells(1)  ,icellshift(k), & 
-!										     jcell     , jcell ,jcellshift(k),& 
-!										     2     ,ncells(3)  ,kcellshift(k) )
-
-!	k = 9
-!	call calculate_cell_interactions_opt(    3     ,ncells(1)+1,icellshift(k), & 
-!										     jcell     , jcell ,jcellshift(k),& 
-!										     2     ,ncells(3)  ,kcellshift(k) )
-
-!	!------------------------------
-!	! Top xy plane domain face    -
-!	     jcell = ncells(2)+2
-!	!	3 Interactions
-!	!------------------------------
-
-!	!Edge cells diagonals in xz plane
-!	k = 12
-!	call calculate_cell_interactions_opt(    2     ,ncells(1)+1,icellshift(k), & 
-!										     jcell     , jcell ,jcellshift(k),& 
-!										     2     ,ncells(3)  ,kcellshift(k) )
-
-!	!Corner cell xyz diagonals
-!	k = 11
-!	call calculate_cell_interactions_opt(    3     ,ncells(1)+1,icellshift(k), & 
-!										     jcell     , jcell ,jcellshift(k),& 
-!										     2     ,ncells(3)  ,kcellshift(k) )
-
-!	k = 13
-!	call calculate_cell_interactions_opt(    2     ,ncells(1)  ,icellshift(k), & 
-!										     jcell     , jcell ,jcellshift(k),& 
-!										     2     ,ncells(3)  ,kcellshift(k) )
-
 	nullify(oldi)      	!Nullify as no longer required
 	nullify(oldj)      	!Nullify as no longer required
 	nullify(currenti)      	!Nullify as no longer required
@@ -1021,7 +889,7 @@ end subroutine assign_to_neighbourlist_halfint_opt
 ! number of calculated properties
 
 subroutine assign_to_neighbourlist_allint_halo
-	use module_linklist
+	use linked_list
 	implicit none
 
 	integer                         :: i, j !Define dummy index
@@ -1120,7 +988,7 @@ end subroutine assign_to_neighbourlist_allint_halo
 ! number of calculated properties
 
 subroutine assign_to_neighbourlist_halfint_halo
-	use module_linklist
+	use linked_list
 	implicit none
 
 	integer                         :: i,j,k !Define dummy index
@@ -1251,7 +1119,7 @@ end subroutine assign_to_neighbourlist_halfint_halo
 !molecule i's neighbourlist
 
 subroutine calculate_cell_interactions(icell, jcell, kcell, k)
-	use module_linklist
+	use linked_list
 	implicit none
 
 	integer							:: i,j
@@ -1322,7 +1190,7 @@ subroutine calculate_cell_interactions(icell, jcell, kcell, k)
 subroutine calculate_cell_interactions_opt(istart,iend,ishift, & 
                                            jstart,jend,jshift, & 
                                            kstart,kend,kshift)
-	use module_linklist
+	use linked_list
 	implicit none
 
 	integer							:: i,j
@@ -1383,7 +1251,7 @@ end subroutine calculate_cell_interactions_opt
 !blocks of multiple cells
 
 subroutine sort_mols
-	use module_linklist
+	use linked_list
 	use interfaces, only : error_abort
 	implicit none
 
@@ -1510,9 +1378,9 @@ end subroutine sort_mols
 
 !-----------------------------------------------------------------------
 !Build linklist from array of positions of molecules
-
+! NOT USED NOT USED NOT USED NOT USED NOT USED NOT USED 
 subroutine linklist_build(start, finish)
-	use module_linklist
+	use linked_list
 	implicit none
 
 	integer            :: j
@@ -1523,17 +1391,17 @@ subroutine linklist_build(start, finish)
 
 	print*, 'building linklist'
 	allocate (old)            !Allocate storage space for pointer old to point at
-	old%rp => r(start,:)          !Point to first molecule's r
-	old%vp => v(start,:)          !Set up pointer to current molecule's v
-	old%ap => a(start,:)          !Set up pointer to current molecule's a
+	!old%rp => r(start,:)          !Point to first molecule's r
+	!old%vp => v(start,:)          !Set up pointer to current molecule's v
+	!old%ap => a(start,:)          !Set up pointer to current molecule's a
 	old%molno  = start       !Assign first molecule number 1
 	nullify (old%next)        !Points to null as first in linked list
 	
 	do j=start+1,finish
 		allocate (current)          !Allocate storage space for current to point at
-		current%rp  => r(:,j)       !Set up pointer to current molecule's r
-		current%vp  => v(:,j)       !Set up pointer to current molecule's v
-		current%ap  => a(:,j)       !Set up pointer to current molecule's a
+		!current%rp  => r(:,j)       !Set up pointer to current molecule's r
+		!current%vp  => v(:,j)       !Set up pointer to current molecule's v
+		!current%ap  => a(:,j)       !Set up pointer to current molecule's a
 		current%molno  = j     !Assign each molecule a number
 		old%previous => current     !Set up forward pointer to allow movement forward
 		current%next => old         !Set current's link pointer to point to previous item
@@ -1547,12 +1415,13 @@ subroutine linklist_build(start, finish)
 
 
 end subroutine linklist_build
+! NOT USED NOT USED NOT USED NOT USED NOT USED NOT USED 
 
 !===================================================================================
 !Build circular linklist from array of positions of molecules
-
+! NOT USED NOT USED NOT USED NOT USED NOT USED NOT USED 
 subroutine linklist_circbuild(start, finish)
-	use module_linklist
+	use linked_list
 	implicit none
 
 	integer              :: j
@@ -1563,24 +1432,24 @@ subroutine linklist_circbuild(start, finish)
         
 	print*, 'building circular linklist'
 	allocate (bottom)          !Allocate storage space for pointer bottom to point at
-	bottom%rp => r(start,:)    !Point to first molecule's r
-	bottom%vp => v(start,:)    !Set up pointer to current molecule's v
-	bottom%ap => a(start,:)    !Set up pointer to current molecule's a
+	!bottom%rp => r(start,:)    !Point to first molecule's r
+	!bottom%vp => v(start,:)    !Set up pointer to current molecule's v
+	!bottom%ap => a(start,:)    !Set up pointer to current molecule's a
 	bottom%molno  = start !Assign first molecule number
 
 	allocate (old)            !Allocate storage space for pointer old to point at
-	old%rp => r(start+1,:)    !Point to second molecule's r
-	old%vp => v(start+1,:)    !Point to second molecule's v
-	old%ap => a(start+1,:)    !Point to second molecule's a
+	!old%rp => r(start+1,:)    !Point to second molecule's r
+	!old%vp => v(start+1,:)    !Point to second molecule's v
+	!old%ap => a(start+1,:)    !Point to second molecule's a
 	old%molno  = start+1 !Assign second molecule number
 	bottom%previous => old    !Set up forward pointer to allow movement forward 
 	old%next => bottom 	  !Set up first elements pointer to bottom of list
 
 	do j=start+2,finish
 		allocate (current)          !Allocate storage space for current to point at
-		current%rp  => r(:,j)       !Set up pointer to current molecule's r
-		current%vp  => v(:,j)       !Set up pointer to current molecule's v
-		current%ap  => a(:,j)       !Set up pointer to current molecule's a
+		!current%rp  => r(:,j)       !Set up pointer to current molecule's r
+		!current%vp  => v(:,j)       !Set up pointer to current molecule's v
+		!current%ap  => a(:,j)       !Set up pointer to current molecule's a
 		current%molno   = j    !Assign each molecule a number
 		old%previous => current     !Set up forward pointer to allow movement forward
 		current%next => old         !Set current's link pointer to point to previous item
@@ -1594,6 +1463,7 @@ subroutine linklist_circbuild(start, finish)
 	nullify(current) !Nullify current as no longer required
 	
 end subroutine linklist_circbuild
+! NOT USED NOT USED NOT USED NOT USED NOT USED NOT USED 
 
 !===================================================================================
 ! Remove ('pop') a molecule from the stack and returns its cell
@@ -1601,7 +1471,7 @@ end subroutine linklist_circbuild
 ! Find which cell list molecule "molno" is associated with (it might not necessarily
 ! be calculatable with integer division if it has strayed between rebuilds)
 subroutine linklist_findandpop(molno,icell_return, jcell_return, kcell_return)
-    use module_linklist
+    use linked_list
     implicit none
 
     integer, intent(in) :: molno
@@ -1686,7 +1556,7 @@ subroutine linklist_findandpop(molno,icell_return, jcell_return, kcell_return)
 end subroutine linklist_findandpop
 
 subroutine linklist_pop(icell, jcell, kcell, molnopop)
-	use module_linklist
+	use linked_list
 	implicit none
 
 	integer, intent(in)    	       :: icell, jcell, kcell
@@ -1769,7 +1639,7 @@ end subroutine linklist_pop
 !Adds molecule specified by passed variables moleculenpush to linked list
 
 subroutine linklist_push(icell, jcell, kcell, molnopush)
-	use module_linklist
+	use linked_list
 	implicit none
 
 	integer             :: cellnp		
@@ -1786,9 +1656,9 @@ subroutine linklist_push(icell, jcell, kcell, molnopush)
 
 	allocate(push) !Allocate type to add to stack
 	push%molno = molnopush !Build type from inputs
-	push%rp => r(:,molnopush)   !Build type from inputs
-	push%vp => v(:,molnopush)   !Build type from inputs
-	push%ap => a(:,molnopush)   !Build type from inputs
+	!push%rp => r(:,molnopush)   !Build type from inputs
+	!push%vp => v(:,molnopush)   !Build type from inputs
+	!push%ap => a(:,molnopush)   !Build type from inputs
 
 	current => old           !Set current to first item in list
 	old     => current%next  !Set old to next item in list
@@ -1814,7 +1684,7 @@ end subroutine linklist_push
 !linklist is empty so new linklist can be established
 
 subroutine linklist_checkpush(icell, jcell, kcell, molnopush)
-	use module_linklist
+	use linked_list
 	implicit none
 
 	integer             :: cellnp		
@@ -1823,11 +1693,11 @@ subroutine linklist_checkpush(icell, jcell, kcell, molnopush)
 	type(node), pointer :: old, current
 
 	cellnp = cell%cellnp(icell,jcell,kcell)
-	allocate(current) 		!Allocate type to add to stack
-	current%molno = molnopush 	!Build type from inputs
-	current%rp => r(:,molnopush)   	!Build type from inputs
-	current%vp => v(:,molnopush)   	!Build type from inputs
-	current%ap => a(:,molnopush)  	!Build type from inputs
+	allocate(current) 		        !Allocate type to add to stack
+	current%molno = molnopush 	    !Build type from inputs
+	!current%rp => r(:,molnopush)   	!Build type from inputs
+	!current%vp => v(:,molnopush)   	!Build type from inputs
+	!current%ap => a(:,molnopush)  	!Build type from inputs
 
 	select case (cellnp)
 	case(0)
@@ -1857,7 +1727,7 @@ end subroutine linklist_checkpush
 !linklist is empty so new linklist can be established
 
 subroutine linklist_checkpush_bin(ibin, jbin, kbin, molnopush)
-	use module_linklist
+	use linked_list
 	implicit none
 
 	integer             :: binnp		
@@ -1866,11 +1736,11 @@ subroutine linklist_checkpush_bin(ibin, jbin, kbin, molnopush)
 	type(node), pointer :: old, current
 
 	binnp = bin%cellnp(ibin,jbin,kbin)
-	allocate(current) 		!Allocate type to add to stack
+	allocate(current) 		    !Allocate type to add to stack
 	current%molno = molnopush 	!Build type from inputs
-	nullify(current%rp)    		!Build type from inputs
-	nullify(current%vp)    		!Build type from inputs
-	nullify(current%ap) 	  	!Build type from inputs
+	!nullify(current%rp)    		!Build type from inputs
+	!nullify(current%vp)    		!Build type from inputs
+	!nullify(current%ap) 	  	!Build type from inputs
 
 	select case (binnp)
 	case(0)
@@ -1900,16 +1770,16 @@ end subroutine linklist_checkpush_bin
 !linklist is empty so new linklist can be established
 
 subroutine linklist_checkpushneighbr(molnoi, molnoj)
-	use module_linklist
+	use linked_list
 	implicit none
 
 	integer			  			:: noneighbrs
 	integer                    	:: molnoi, molnoj
-	type(neighbrnode), pointer 	:: old, current
+	type(node), pointer 	    :: old, current
 
 	noneighbrs = neighbour%noneighbrs(molnoi)
 	allocate(current)                         	!Allocate type to add to stack
-	current%molnoj = molnoj                   	!Build type from inputs
+	current%molno = molnoj                   	!Build type from inputs
 
 	select case (noneighbrs)
 	case(0)
@@ -1937,7 +1807,7 @@ end subroutine linklist_checkpushneighbr
 !linklist is empty so new linklist can be established
 
 subroutine linklist_checkpushmol(molno,ipass,jpass,kpass)
-	use module_linklist
+	use linked_list
 	implicit none
 
 	integer,intent(in)			:: molno
@@ -1977,7 +1847,7 @@ end subroutine linklist_checkpushmol
 !Move backwards through linked list and print out results
 	
 subroutine linklist_print(icell, jcell, kcell)
-	use module_linklist
+	use linked_list
 	implicit none
 
 	integer             :: j
@@ -1995,7 +1865,7 @@ subroutine linklist_print(icell, jcell, kcell)
 	current => old ! make current point to head of list
 	do j=1,cellnp
 		!print*, 'more items in linked list?: ', associated(old%next)
-		print'(i8,3f10.5)', current%molno, current%rp
+		print'(i8,3f10.5)', current%molno, r(:,current%molno)
 		if (associated(old%next) .eqv. .true. ) then !Exit if null
 			old => current%next ! Use pointer in datatype to obtain next item in list
 			current => old      ! make current point to old - move alone one
@@ -2012,7 +1882,7 @@ end subroutine linklist_print
 !upon completion 
 	
 subroutine linklist_printallcells
-	use module_linklist
+	use linked_list
 	implicit none
 
 	integer             :: j
@@ -2036,7 +1906,7 @@ subroutine linklist_printallcells
 		current => old ! make current point to head of list
 		do j=1,cellnp
 			!print*, 'more items in linked list?: ', associated(old%next)
-			print*, current%molno, current%rp
+			print*, current%molno, r(:,current%molno)
 			if (associated(old%next) .eqv. .true. ) then !Exit if null
 				old => current%next ! Use pointer in datatype to obtain next item in list
 				current => old      ! make current point to old - move alone one
@@ -2054,7 +1924,7 @@ end subroutine linklist_printallcells
 
 
 subroutine linklist_writeallcells
-	use module_linklist
+	use linked_list
     use librarymod
 	implicit none
 
@@ -2085,7 +1955,7 @@ subroutine linklist_writeallcells
 		current => old ! make current point to head of list
 		do j=1,cellnp
 			!print*, 'more items in linked list?: ', associated(old%next)
-			write(f, '(i10, 3f15.4)'), current%molno, current%rp
+			write(f, '(i10, 3f15.4)'), current%molno, r(:,current%molno)
 			if (associated(old%next) .eqv. .true. ) then !Exit if null
 				old => current%next ! Use pointer in datatype to obtain next item in list
 				current => old      ! make current point to old - move alone one
@@ -2108,7 +1978,7 @@ end subroutine linklist_writeallcells
 !results reseting back to the top upon completion 
 	
 subroutine linklist_printalldomaincells
-	use module_linklist
+	use linked_list
 	implicit none
 
 	integer             :: j
@@ -2132,7 +2002,7 @@ subroutine linklist_printalldomaincells
 		current => old ! make current point to head of list
 		do j=1,cellnp
 			!print*, 'more items in linked list?: ', associated(old%next)
-			print*, current%molno, current%rp
+			print*, current%molno, r(:,current%molno)
 			if (associated(old%next) .eqv. .true. ) then !Exit if null
 				old => current%next ! Use pointer in datatype to obtain next item in list
 				current => old      ! make current point to old - move alone one
@@ -2153,13 +2023,13 @@ end subroutine linklist_printalldomaincells
 !Move backwards through linked list and print out results
 	
 subroutine linklist_printneighbourlist(molno)
-	use module_linklist
+	use linked_list
 	implicit none
 
 	integer,intent(in)			:: molno
 
 	integer						:: noneighbrs, j
-	type(neighbrnode), pointer	:: old, current
+	type(node), pointer	:: old, current
 
 	!Obtain molecular number and top item of link list from cell head
 	noneighbrs = neighbour%noneighbrs(molno)  	!Determine number of elements in neighbourlist
@@ -2170,7 +2040,7 @@ subroutine linklist_printneighbourlist(molno)
 	current => old ! make current point to head of list
 	do j=1,noneighbrs
 		!print*, 'more items in linked list?: ', associated(old%next)
-		print'(2(a,i8),6f10.5)', ' Linklist print called for molecule i = ', molno,' j = ', current%molnoj, r(:,molno), r(:,current%molnoj)
+		print'(2(a,i8),6f10.5)', ' Linklist print called for molecule i = ', molno,' j = ', current%molno, r(:,molno), r(:,current%molno)
 		if (associated(old%next) .eqv. .true. ) then !Exit if null
 			old => current%next ! Use pointer in datatype to obtain next item in list
 			current => old      ! make current point to old - move alone one
@@ -2186,7 +2056,7 @@ end subroutine linklist_printneighbourlist
 !Move backwards through linked list and print out results
 	
 subroutine linklist_printpassedlist
-	use module_linklist
+	use linked_list
 	implicit none
 
 	integer                    :: j
@@ -2220,7 +2090,7 @@ end subroutine linklist_printpassedlist
 !Print array and linklist to compare value 
 	
 subroutine linklist_compareprint(icell, jcell, kcell)
-	use module_linklist
+	use linked_list
 	implicit none
 
 	integer            	:: j         !Dummy counter
@@ -2238,8 +2108,8 @@ subroutine linklist_compareprint(icell, jcell, kcell)
 	current => old
 	do j=1,cellnp
 		n = old%molno
-		print'(i0,a,2f20.15,a,2f10.5,a,2f10.5)',old%molno, ' ap = ',old%ap, &
-			 ' vp = ', old%vp, ' rp = ', old%rp
+		print'(i0,a,2f20.15,a,2f10.5,a,2f10.5)',old%molno, ' ap = ', a(:,old%molno), &
+			 ' vp = ', v(:,old%molno), ' rp = ', r(:,old%molno)
 		print'(i0,a,2f20.15,a,2f10.5,a,2f10.5)',n, ' a  = ',a(:,n), ' v  = ', &
 			 v(:,n), ' r  = ', r(:,n)
 		old => current%next !Use pointer in datatype to obtain next item in list
@@ -2257,7 +2127,7 @@ end subroutine linklist_compareprint
 !Deallocate cell linklist
 
 subroutine linklist_deallocate(icell, jcell, kcell)
-	use module_linklist
+	use linked_list
 	implicit none
 
 	integer            :: j
@@ -2294,7 +2164,7 @@ end subroutine linklist_deallocate
 !Deallocate bin linklist
 
 subroutine linklist_deallocate_bins
-	use module_linklist
+	use linked_list
 	use calculated_properties_MD
 	implicit none
 
@@ -2341,7 +2211,7 @@ end subroutine linklist_deallocate_bins
 !Deallocate all linklists
 
 subroutine linklist_deallocatepasslist
-	use module_linklist
+	use linked_list
 	implicit none
 
 	integer            :: j
@@ -2349,7 +2219,7 @@ subroutine linklist_deallocatepasslist
 	type(passnode), pointer :: old, current
 
 	if (associated(pass%head) .eqv. .true. ) then !Exit if null
-        	sendnp = pass%sendnp  		!Determine number of elements in passlist
+        sendnp = pass%sendnp  		!Determine number of elements in passlist
 		old => pass%head		!Set old to head of pass list
 		current => old 			!make current point to head of list
 		do j=1,sendnp-1
@@ -2375,7 +2245,7 @@ end subroutine linklist_deallocatepasslist
 !Deallocate all linklists
 
 subroutine linklist_deallocate_cells
-	use module_linklist
+	use linked_list
 	use polymer_info_MD, only: bond, bondcount
 	implicit none
 
@@ -2383,7 +2253,6 @@ subroutine linklist_deallocate_cells
 	integer           			:: cellnp, noneighbrs, np_neigbrs
 	integer            			:: icell, jcell, kcell
 	type(node), pointer			:: old, current
-	type(neighbrnode), pointer 	:: oldn, currentn
 
 	do icell=1,ncells(1)+2
 	do jcell=1,ncells(2)+2
@@ -2419,15 +2288,14 @@ end subroutine linklist_deallocate_cells
 !Deallocate all linklists
 
 subroutine linklist_deallocateall
-	use module_linklist
+	use linked_list
 	use polymer_info_MD, only: bond, bondcount
 	implicit none
 
 	integer            			:: i, j
 	integer           			:: cellnp, noneighbrs, np_neigbrs
 	integer            			:: icell, jcell, kcell
-	type(node), pointer			:: old, current
-	type(neighbrnode), pointer 	:: oldn, currentn
+	type(node), pointer 	    :: old, current, oldn, currentn
 
 	select case(potential_flag)
 	case(0)
@@ -2515,31 +2383,34 @@ end subroutine linklist_deallocateall
 !=============================================================================
 !Moves to the bottom of the linklist
 
-subroutine linklist_gotobottom(icell, jcell, kcell)
-	use module_linklist
+subroutine linklist_gotobottom(self, icell, jcell, kcell)
+	use linked_list
 	implicit none
+
+    type(cellinfo),intent(in)  :: self
+	integer,intent(in)         :: icell, jcell, kcell
 
 	integer            :: j
 	integer            :: cellnp		
-	integer            :: icell, jcell, kcell
+
 	type(node), pointer:: old, current
 
-	old => cell%head(icell,jcell, kcell)%point
-	cellnp = cell%cellnp(icell,jcell, kcell)
+	old => self%head(icell,jcell, kcell)%point
+	cellnp = self%cellnp(icell,jcell, kcell)
 
 	print*, 'linklist go to bottom called'
 
 	current => old ! make current point to head of list
 	do j=1,cellnp
 		print*, 'more items in linked list?: ', associated(old%next)
-		print*, current%molno, current%rp
+		print*, current%molno, r(:,current%molno)
 		if (associated(old%next) .eqv. .true. ) then !Exit if null
 			old => current%next ! make list point to next node of old
 			current => old      ! make current point to new previous
 		endif
 	enddo
 
-	cell%head(icell,jcell, kcell)%point => old
+	self%head(icell,jcell, kcell)%point => old
 
 	nullify(current) !Nullify current as no longer required
 	nullify(old)     !Nullify old as no longer required
@@ -2549,31 +2420,33 @@ end subroutine linklist_gotobottom
 !============================================================================
 !Moves to the top of the linklist
 
-subroutine linklist_gototop(icell, jcell, kcell)
-	use module_linklist
+subroutine linklist_gototop(self, icell, jcell, kcell)
+	use linked_list
 	implicit none
+
+    type(cellinfo),intent(in)  :: self
+	integer,intent(in)         :: icell, jcell, kcell
 
 	integer            :: j
 	integer            :: cellnp		
-	integer            :: icell, jcell, kcell
 	type(node), pointer:: old, current
 
-	old => cell%head(icell,jcell, kcell)%point
-	cellnp = cell%cellnp(icell,jcell, kcell)
+	old => self%head(icell,jcell, kcell)%point
+	cellnp = self%cellnp(icell,jcell, kcell)
 
 	print*, 'linklist go to top called'
 
 	current => old ! make current point to head of list
 	do j=1,cellnp
 		!print*, 'more items in linked list?: ', associated(old%previous)
-		!print*, current%molno, current%rp
+		!print*, current%molno, r(:,current%molno)
 		if (associated(old%previous) .eqv. .true. ) then !Exit if null
 			old => current%previous     !Set up forward pointer to allow movement forward
 			current  => old             !Set current item to old ready for next loop
 		endif
 	enddo
 
-	cell%head(icell,jcell, kcell)%point => old
+	self%head(icell,jcell, kcell)%point => old
 
 	nullify(current) !Nullify current as no longer required
 	nullify(old)     !Nullify old as no longer required
@@ -2585,7 +2458,7 @@ end subroutine linklist_gototop
 !If molecule is not found, flag is set to zero
 
 !subroutine linklist_gotomolecule(icell, jcell, kcell, n, flag)
-!	use module_linklist
+!	use linked_list
 !	implicit none
 
 !	integer             :: j
@@ -2626,7 +2499,7 @@ end subroutine linklist_gototop
 !down
 
 subroutine linklist_movethrough(icell, jcell, kcell, n, dir)
-	use module_linklist
+	use linked_list
 	implicit none
 
 	integer            :: n, j
@@ -2642,7 +2515,7 @@ subroutine linklist_movethrough(icell, jcell, kcell, n, dir)
 	if (dir == 'goup') then
 		do j=1,n 
 			!print*, 'more items in linked list?: ', associated(old%previous)
-			!print*, current%molno, current%rp
+			!print*, current%molno, r(:,current%molno)
 			if (associated(old%previous) .eqv. .true. ) then !Exit if null
 				old => current%previous  !make old point to previous node of current
 				current  => old          !Set current item to old ready for next loop
@@ -2651,7 +2524,7 @@ subroutine linklist_movethrough(icell, jcell, kcell, n, dir)
 	elseif (dir == 'down') then
 		do j=1,n
 			!print*, 'more items in linked list?: ', associated(old%next)
-			!print*, current%molno, current%rp
+			!print*, current%molno, r(:,current%molno)
 			if (associated(old%next) .eqv. .true. ) then !Exit if null
 				old => current%next      !make old point to next node of current
 				current => old           !Set current item to old ready for next loop
@@ -2674,7 +2547,7 @@ end subroutine linklist_movethrough
 !side in the linked list
 
 subroutine linklist_printcurrent(icell, jcell, kcell)
-	use module_linklist
+	use linked_list
 	implicit none
 
 	integer            :: icell, jcell, kcell
@@ -2684,15 +2557,15 @@ subroutine linklist_printcurrent(icell, jcell, kcell)
 	if (associated(old) .eqv. .true.) then !exit if empty
 
 		if (associated(old%next) .eqv. .true. ) then
-			print'(a,i8,3f10.5)', 'element below =', old%next%molno, old%next%rp
+			print'(a,i8,3f10.5)', 'element below =', old%next%molno, r(:,old%next%molno)
 		else
 			print*, 'no element below'
 		endif
 
-		print'(a,i8,3f10.5)', 'current element =', old%molno, old%rp
+		print'(a,i8,3f10.5)', 'current element =', old%molno, r(:,old%molno)
 
 		if (associated(old%previous) .eqv. .true. ) then
-			print'(a,i8,3f10.5)', 'element above = ', old%previous%molno, old%previous%rp
+			print'(a,i8,3f10.5)', 'element above = ', old%previous%molno, r(:,old%previous%molno)
 		else
 			print*, 'no element above'
 		endif
@@ -2705,7 +2578,7 @@ end subroutine linklist_printcurrent
 !  updates left and right molnos during rebuild
 !----------------------------------------------------------------------------------
 subroutine check_update_adjacentbeadinfo(molnoi,molnoj)
-	use module_linklist
+	use linked_list
 	use polymer_info_MD
 	implicit none
 
@@ -2748,7 +2621,7 @@ contains
 end subroutine check_update_adjacentbeadinfo
 
 subroutine check_update_adjacentbeadinfo_allint(molnoi,molnoj)
-	use module_linklist
+	use linked_list
 	use polymer_info_MD
 	implicit none
 
