@@ -4177,17 +4177,54 @@ end subroutine r_gyration_io
 
 subroutine rdf3d_io
     use module_parallel_io
+	use calculated_properties_MD, only: rdf3d
     implicit none
 
+	integer :: m
+	integer :: length
+
     print*, 'Need to parallelise RDF i/o'
+
+	m = 1
+	inquire(iolength=length) rdf3d
+
+	if (iter.eq.0) then
+		open(16,file=trim(prefix_dir)//'results/rdf3d', &
+		     form = 'unformatted', access = 'direct'       , &
+		     status = 'replace',   recl = length              )
+		write(16, rec = m) rdf3d
+	else
+		open(16,file=trim(prefix_dir)//'results/rdf3d', &
+		     form = 'unformatted', access = 'direct'       , &
+		                           recl = length              )
+		write(16, rec = m) rdf3d	
+	end if
 
 end subroutine rdf3d_io
 
 subroutine rdf_io
     use module_parallel_io
+	use calculated_properties_MD, only: rdf
     implicit none
 
+	integer :: m
+	integer :: length
     print*, 'Need to parallelise RDF i/o'
+
+	m = 1
+	inquire(iolength=length) rdf
+
+	if (iter.eq.0) then
+		open(16,file=trim(prefix_dir)//'results/rdf', &
+		     form = 'unformatted', access = 'direct'       , &
+		     status = 'replace',   recl = length              )
+		write(16, rec = m) rdf
+	else
+		open(16,file=trim(prefix_dir)//'results/rdf', &
+		     form = 'unformatted', access = 'direct'       , &
+		                           recl = length              )
+		write(16, rec = m) rdf	
+	end if
 
 end subroutine rdf_io
 

@@ -607,7 +607,7 @@ subroutine simulation_compute_forces_LJ_neigbr
 	integer                         :: j  !Define dummy index
 	integer							:: molnoi, molnoj
 	integer							:: noneighbrs
-	type(neighbrnode), pointer		:: old, current
+	type(node), pointer		:: old, current
 
 	do molnoi = 1, np
 
@@ -617,7 +617,7 @@ subroutine simulation_compute_forces_LJ_neigbr
 
 		do j = 1,noneighbrs							!Step through all pairs of neighbours molnoi and j
 
-			molnoj = old%molnoj						!Number of molecule j
+			molnoj = old%molno						!Number of molecule j
 			rj(:) = r(:,molnoj)						!Retrieve rj
 			rij(:) = ri(:) - rj(:)   				!Evaluate distance between particle i and j
 			rij2 = dot_product(rij,rij)				!Square of vector calculated
@@ -686,7 +686,7 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 	integer                         :: j, ixyz 
 	integer							:: molnoi, molnoj
 	integer							:: noneighbrs
-	type(neighbrnode), pointer		:: old, current
+	type(node), pointer		:: old, current
 
 	do molnoi = 1, np
 
@@ -696,7 +696,7 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 
 		do j = 1,noneighbrs							!Step through all pairs of neighbours i and j
 
-			molnoj = old%molnoj			!Number of molecule j
+			molnoj = old%molno			!Number of molecule j
 			rj(:) = r(:,molnoj)			!Retrieve rj
 			rij(:)= ri(:) - rj(:)   	!Evaluate distance between particle i and j
 			rij2  = dot_product(rij,rij)!Square of vector calculated
@@ -893,7 +893,7 @@ implicit none
 	integer                         :: p_i, p_j, ptot
 	integer							:: molnoi, molnoj, j
 	integer							:: noneighbrs
-	type(neighbrnode), pointer		:: old, current
+	type(node), pointer		:: old, current
 	!double precision, parameter     :: sod_a    = 3.1730728678
 	!double precision, parameter     :: sod_b    = -0.85622864544
 	!double precision, parameter     :: wca_cut  = 1.12246204830937
@@ -908,7 +908,7 @@ implicit none
 
 		do j = 1,noneighbrs                         !Step through all pairs
 		                                            !of neighbours i and j
-			molnoj = old%molnoj                     !Number of molecule j
+			molnoj = old%molno                     !Number of molecule j
 			rj     = r(:,molnoj)                    !Position
 			rij    = ri - rj                        !Difference
 			rij(:) = rij(:) - domain(:)*anint(rij(:)/domain(:))!Min image
@@ -1129,7 +1129,7 @@ subroutine collect_bforce_pdf_data
     use boundary_MD
     use physical_constants_MD, only: np, rcutoff2
     use computational_constants_MD, only: cellsidelength, nh, halfdomain, ncells
-    use linked_list, only: neighbrnode, neighbour, cell, node
+    use linked_list, only: neighbour, cell, node
     use librarymod, only: heaviside, normal_dist
     use arrays_MD, only: r
     use module_compute_forces, only : get_accijmag
@@ -1147,7 +1147,7 @@ subroutine collect_bforce_pdf_data
     real(kind(0.d0)) :: ri(3), rj(3), rij(3), rij2, invrij2, accijmag
     real(kind(0.d0)) :: bforce(3)
     logical :: bflag
-	type(neighbrnode), pointer :: old, current
+	type(node), pointer :: old, current
 
 	do kcell=2, ncells(3)+1
 	do jcell=2, ncells(2)+1
@@ -1246,7 +1246,7 @@ subroutine collect_bforce_pdf_data
 !
 !		do j = 1,noneighbrs							!Step through all pairs of neighbours i and j
 !
-!			molnoj = old%molnoj			!Number of molecule j
+!			molnoj = old%molno			!Number of molecule j
 !			rj(:) = r(:,molnoj)			!Retrieve rj
 !			rij(:)= ri(:) - rj(:)   	!Evaluate distance between particle i and j
 !			rij2  = dot_product(rij,rij)!Square of vector calculated
