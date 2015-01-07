@@ -86,7 +86,7 @@ module linked_list
 	!N.B. Type cell is not a pointer & nothing points to it
 	type(cellinfo)    	:: cell
 	type(cellinfo)    	:: bin	!Used to bin molecules for statistics
-	type(neighbrinfo) 	:: neighbour
+	type(neighbrinfo) 	:: neighbour, cluster
 	type(passinfo)    	:: pass
 
 
@@ -2383,7 +2383,7 @@ subroutine linklist_gotobottom(self, icell, jcell, kcell)
 	use linked_list
 	implicit none
 
-    type(cellinfo),intent(in)  :: self
+    type(cellinfo),intent(inout)  :: self
 	integer,intent(in)         :: icell, jcell, kcell
 
 	integer            :: j
@@ -2420,7 +2420,7 @@ subroutine linklist_gototop(self, icell, jcell, kcell)
 	use linked_list
 	implicit none
 
-    type(cellinfo),intent(in)  :: self
+    type(cellinfo),intent(inout)  :: self
 	integer,intent(in)         :: icell, jcell, kcell
 
 	integer            :: j
