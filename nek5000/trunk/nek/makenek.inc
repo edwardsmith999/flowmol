@@ -405,6 +405,7 @@ sed -e "s:^F77[ ]*=.*:F77\:=$F77:" \
 -e "s/^IFNEKNEK[ ]*=.*/IFNEKNEK:=$IFNEKNEK/" \
 -e "s:^USR[ ]*=.*:USR\:=$USR:" \
 -e "s:^USR_LFLAGS[ ]*=.*:USR_LFLAGS\:=$USR_LFLAGS:" \
+-e "s:^USR_IFLAGS[ ]*=.*:USR_IFLAGS\:=$USR_IFLAGS:" \
 -e "s:^S[ ]*=.*:S\:=${SOURCE_ROOT}:" $SOURCE_ROOT/makefile.template >.makefile
 
 echo $G | grep '\-g' 1>/dev/null

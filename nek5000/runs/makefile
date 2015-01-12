@@ -1,9 +1,9 @@
-### makefile automatically created by makenek 12/19/2014 17:33:53 ###
+### makefile automatically created by makenek 01/12/2015 17:38:03 ###
 BINNAME=nek5000
 LIBNAME=libnek5000.a
 CASENAME:=turbChannel
-CASEDIR:=/home/djt06/Personal/Play/gittest/cpl-library/nek5000/runs
-S:=/home/djt06/Personal/Play/gittest/cpl-library/nek5000/trunk/nek
+CASEDIR:=/home/es205/codes/gitest/cpl-library/nek5000/runs
+S:=/home/es205/codes/gitest/cpl-library/nek5000/trunk/nek
 J:=$S/jl
 OPT_INCDIR:=./
 OBJDIR=obj
@@ -21,7 +21,8 @@ PPS= PTRSIZE8 MPI LONGINT8 UNDERSCORE GLOBAL_LONG_LONG
 G:=
 OPT_FLAGS_STD=
 USR:=
-USR_LFLAGS:=
+USR_LFLAGS:= -L../../flowmol/lib/coupler/intel/opt/ -lcoupler
+USR_IFLAGS:= -I../../flowmol/lib/coupler/intel/opt/
 IFVISIT=
 VISIT_IFLAGS=
 VISIT_LFLAGS=
@@ -120,11 +121,11 @@ L2=$(G) -O2
 L3=$(G) -O3
 L4=$(L3)
 
-FL0   = $(L0) $(P) $(PPS_F) -I$(CASEDIR) -I$S -I$(OPT_INCDIR)
-FL2i4 = $(L0)      $(PPS_F) -I$(CASEDIR) -I$S -I$(OPT_INCDIR)
-FL2   = $(L2) $(P) $(PPS_F) -I$(CASEDIR) -I$S -I$(OPT_INCDIR)
-FL3   = $(L3) $(P) $(PPS_F) -I$(CASEDIR) -I$S -I$(OPT_INCDIR)
-FL4   = $(L4) $(P) $(PPS_F) -I$(CASEDIR) -I$S -I$(OPT_INCDIR)
+FL0   = $(L0) $(P) $(PPS_F) -I$(CASEDIR) -I$S -I$(OPT_INCDIR) $(USR_IFLAGS)
+FL2i4 = $(L0)      $(PPS_F) -I$(CASEDIR) -I$S -I$(OPT_INCDIR) $(USR_IFLAGS)
+FL2   = $(L2) $(P) $(PPS_F) -I$(CASEDIR) -I$S -I$(OPT_INCDIR) $(USR_IFLAGS)
+FL3   = $(L3) $(P) $(PPS_F) -I$(CASEDIR) -I$S -I$(OPT_INCDIR) $(USR_IFLAGS)
+FL4   = $(L4) $(P) $(PPS_F) -I$(CASEDIR) -I$S -I$(OPT_INCDIR) $(USR_IFLAGS)
 
 cFL0   = $(L0) $(PPS_C) 
 cFL2   = $(L2) $(PPS_C) 

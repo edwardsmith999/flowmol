@@ -40,9 +40,17 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine userchk
+      use CPL, only : CPL_create_comm, cfd_realm
       include 'SIZE'
       include 'TOTAL'
       include 'ZPER'  ! for nelx,nely,nelz
+      common /nekmpi/ nekcomm
+
+      integer :: ierr, CFD_COMM
+
+      CFD_COMM = nekcomm
+
+      call CPL_create_comm(cfd_realm,CFD_COMM,ierr)
 
       return
       end
