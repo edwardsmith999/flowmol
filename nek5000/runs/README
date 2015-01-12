@@ -40,7 +40,8 @@ The workflow is typically:
         ../trunk/tools/bin/genmap       (input name "turbChannel", 
                                          input mesh tolerance 0.2)
 
-    6. call makenek wrapper:
+    6. call makenek wrapper (requires coupler to be built and present in
+       ../flowmol/lib/coupler/intel/opt/):
         
         ./makenek turbChannel
 
