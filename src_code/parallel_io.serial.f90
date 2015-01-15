@@ -167,7 +167,7 @@ subroutine setup_restart_inputs
 	integer					:: n, k, ios, ixyz
 	integer 				:: extrasteps, prev_nproc
 	integer 				:: checkint
-	double precision 		:: checkdp
+	real(kind(0.d0)) 		:: checkdp
 	integer,dimension(8)	:: tvalue
 	character(20)			:: readin_format
 
@@ -341,9 +341,9 @@ subroutine setup_restart_microstate
 
 	logical								:: tag_off=.false.
 	integer 							:: ixyz, n
-	double precision                    :: dpbuf
-	double precision,dimension(nd)		:: buf
-	double precision,dimension(8)       :: monomerbuf
+	real(kind(0.d0))                    :: dpbuf
+	real(kind(0.d0)),dimension(nd)		:: buf
+	real(kind(0.d0)),dimension(8)       :: monomerbuf
 
 	!Allocate temporary tag array
 	if (allocated(tag) .ne. .true.) then
@@ -473,9 +473,9 @@ subroutine parallel_io_final_state
 	integer, dimension(np) 					:: chainID, subchainID,right,left
 	integer 								:: int_filesize,dp_filesize
 	integer(kind=selected_int_kind(18))		:: header_pos ! 8 byte integer for header address
-	double precision                        :: dpbuf
-	double precision, dimension(nd) 		:: buf
-	double precision, dimension(8)          :: monomerbuf
+	real(kind(0.d0))                        :: dpbuf
+	real(kind(0.d0)), dimension(nd) 		:: buf
+	real(kind(0.d0)), dimension(8)          :: monomerbuf
 
 	!Rebuild simulation before recording final state
 	call linklist_deallocateall	   		!Deallocate all linklist components
@@ -898,8 +898,8 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 	integer					:: n,m,i,j,k
 	integer					:: length,filesize
 	integer					:: CV_mass_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
-	double precision		:: temp,CV_momentum_out(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)
-	double precision		:: buf(nbins(1),nbins(2),nbins(3),3)
+	real(kind(0.d0))		:: temp,CV_momentum_out(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)
+	real(kind(0.d0))		:: buf(nbins(1),nbins(2),nbins(3),3)
 	character(4)			:: io_type
 	character(13)			:: filename
 
@@ -983,8 +983,8 @@ subroutine temperature_bin_io(CV_mass_out,CV_temperature_out,io_type)
 	integer					:: n,m,i,j,k
 	integer					:: length
 	integer					:: CV_mass_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
-	double precision		:: CV_temperature_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
-	double precision		:: buf(nbins(1),nbins(2),nbins(3))
+	real(kind(0.d0))		:: CV_temperature_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
+	real(kind(0.d0))		:: buf(nbins(1),nbins(2),nbins(3))
 	character(4)			:: io_type
 	character(13)			:: filename
 
@@ -1038,8 +1038,8 @@ subroutine energy_bin_io(CV_energy_out,io_type)
 
 	integer					:: n,m,i,j,k
 	integer					:: length
-	double precision		:: CV_energy_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
-	double precision		:: buf(nbins(1),nbins(2),nbins(3))
+	real(kind(0.d0))		:: CV_energy_out(nbins(1)+2,nbins(2)+2,nbins(3)+2)
+	real(kind(0.d0))		:: buf(nbins(1),nbins(2),nbins(3))
 	character(4)			:: io_type
 	character(13)			:: filename
 
@@ -1104,8 +1104,8 @@ subroutine VA_stress_io
 	implicit none
 
 	integer				:: ixyz, jxyz, m, length
-	double precision	:: binvolume
-	double precision	:: buf(nbins(1),nbins(2),nbins(3),3,3)
+	real(kind(0.d0))	:: binvolume
+	real(kind(0.d0))	:: buf(nbins(1),nbins(2),nbins(3),3,3)
 
 	!Add kinetic and configurational to Pxybin total
 	Pxybin(:,:,:,:,:) = 	vvbin(:,:,:,:,:) 		& 
@@ -1173,7 +1173,7 @@ subroutine viscosity_io
 	implicit none
 
 	integer				:: m, length
-	double precision	:: viscosity
+	real(kind(0.d0))	:: viscosity
 
 	call integrate_trap(Pxycorrel,tplot*delta_t,Nstress_ave,viscosity)
 	viscosity = (viscosity*volume)/(3.0*Nstress_ave*Nvisc_ave*inputtemperature)
@@ -1197,8 +1197,8 @@ implicit none
 	
 	integer                        :: Nviscometrics_ave
 	integer                        :: m, length
-	double precision, intent(in)   :: eta, N1, N2, P
-	double precision, dimension(4) :: buf
+	real(kind(0.d0)), intent(in)   :: eta, N1, N2, P
+	real(kind(0.d0)), dimension(4) :: buf
 
 	Nviscometrics_ave = 1	
 
@@ -1271,8 +1271,8 @@ subroutine momentum_flux_io
 	implicit none
 
 	integer					:: ixyz,i,j,k,n,m,length
-	double precision		:: buf(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1:3,1:6)
-	double precision		:: binface
+	real(kind(0.d0))		:: buf(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1:3,1:6)
+	real(kind(0.d0))		:: binface
 
 	!Include halo surface fluxes to get correct values for all cells
 	do n = 1, nhalocells
@@ -1351,8 +1351,8 @@ subroutine surface_stress_io
 	implicit none
 
 	integer							:: ixyz,i,j,k,n,m,length
-	double precision				:: buf(nbins(1),nbins(2),nbins(3),1:3,1:6)
-	double precision,dimension(3)	:: binface
+	real(kind(0.d0))				:: buf(nbins(1),nbins(2),nbins(3),1:3,1:6)
+	real(kind(0.d0)),dimension(3)	:: binface
 
 	!Include halo surface stresses to get correct values for all cells
 	do n = 1, nhalocells
@@ -1408,7 +1408,7 @@ subroutine external_force_io
 	implicit none
 
 	integer							:: i,j,k,n,m,length
-	double precision				:: buf(nbins(1),nbins(2),nbins(3),1:3)
+	real(kind(0.d0))				:: buf(nbins(1),nbins(2),nbins(3),1:3)
 
 	!---------------Correct for surface fluxes on halo cells---------------
 	!Include halo surface fluxes to get correct values for all cells
@@ -1458,8 +1458,8 @@ subroutine energy_flux_io
 	implicit none
 
 	integer					:: ixyz,i,j,k,n,m,length
-	double precision		:: binface
-	double precision		:: buf(nbins(1),nbins(2),nbins(3),6)
+	real(kind(0.d0))		:: binface
+	real(kind(0.d0))		:: buf(nbins(1),nbins(2),nbins(3),6)
 
 	!Include halo surface fluxes to get correct values for all cells
 	do n = 1, nhalocells
@@ -1511,8 +1511,8 @@ subroutine surface_power_io
 	implicit none
 
 	integer							:: ixyz,i,j,k,n,m,length
-	double precision				:: buf(nbins(1),nbins(2),nbins(3),6)
-	double precision,dimension(3)	:: binface
+	real(kind(0.d0))				:: buf(nbins(1),nbins(2),nbins(3),6)
+	real(kind(0.d0)),dimension(3)	:: binface
 
 
 	!Include halo surface stresses to get correct values for all cells

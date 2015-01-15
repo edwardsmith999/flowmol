@@ -69,7 +69,7 @@ module module_record
     use boundary_MD, only: bforce_pdf_measure
 	!use module_set_parameters, only : velPDF, velPDFMB, velPDF_array
 
-	double precision :: vel
+	real(kind(0.d0)) :: vel
 
 
 contains
@@ -79,7 +79,7 @@ contains
         use calculated_properties_MD, only : binsize
         implicit none
 
-        double precision,intent(in),dimension(3) :: r
+        real(kind(0.d0)),intent(in),dimension(3) :: r
 	    integer,dimension(3) 					 :: bin
 
         bin = ceiling((r+halfdomain)/binsize)+nhb
@@ -467,10 +467,10 @@ subroutine velocity_PDF_averaging(ixyz)
 	integer,dimension(3)	:: cbin
 	integer,dimension(:,:),allocatable          :: pdfx,pdfy,pdfz
 
-	double precision 	                        :: Hfunction,vfactor,const
-	double precision,save 	                    :: meanstream, meannp
-	double precision,dimension(3)	            :: peculiarv,binsize_
-	double precision,dimension(:),allocatable 	:: vmagnitude,binloc
+	real(kind(0.d0)) 	                        :: Hfunction,vfactor,const
+	real(kind(0.d0)),save 	                    :: meanstream, meannp
+	real(kind(0.d0)),dimension(3)	            :: peculiarv,binsize_
+	real(kind(0.d0)),dimension(:),allocatable 	:: vmagnitude,binloc
 
 	average_count = average_count + 1
 	call cumulative_velocity_PDF
@@ -594,10 +594,10 @@ end subroutine velocity_PDF_averaging
 !	implicit none
 
 !	integer          :: n, cbin, nvbins
-!	double precision :: Hfunction,vfactor,const,streamvel
-!	double precision,save :: meanstream, meannp
-!	double precision,dimension(3)		:: peculiarv
-!	double precision,dimension(:),allocatable :: vmagnitude,normalisedvfd_bin,normalisedvfdMB_bin,binloc
+!	real(kind(0.d0)) :: Hfunction,vfactor,const,streamvel
+!	real(kind(0.d0)),save :: meanstream, meannp
+!	real(kind(0.d0)),dimension(3)		:: peculiarv
+!	real(kind(0.d0)),dimension(:),allocatable :: vmagnitude,normalisedvfd_bin,normalisedvfdMB_bin,binloc
 
 !	!Calculate matrix of velocity magnitudes and bin in histogram
 !	allocate(vmagnitude(np))
@@ -673,11 +673,11 @@ end subroutine velocity_PDF_averaging
 
 !	integer  :: n, i,j,k, nvbins, outinterval!, sumhist
 !	integer,dimension(3)	:: cbin
-!	double precision 	:: Hfunction,vfactor,const
-!	double precision,save 	:: meanstream, meannp
-!	double precision,dimension(3)	:: peculiarv,binsize_
-!	double precision,dimension(:),allocatable 	:: vmagnitude,normalisedvfd_bin,normalisedvfdMB_bin,binloc
-!	double precision,dimension(:,:,:),allocatable 	:: streamvel
+!	real(kind(0.d0)) 	:: Hfunction,vfactor,const
+!	real(kind(0.d0)),save 	:: meanstream, meannp
+!	real(kind(0.d0)),dimension(3)	:: peculiarv,binsize_
+!	real(kind(0.d0)),dimension(:),allocatable 	:: vmagnitude,normalisedvfd_bin,normalisedvfdMB_bin,binloc
+!	real(kind(0.d0)),dimension(:,:,:),allocatable 	:: streamvel
 
 !    outinterval = Nvel_ave*tplot
 
@@ -811,8 +811,8 @@ implicit none
 
 	integer                                    :: i,j,bin
 	integer, save                              :: hist_count=1
-	double precision                           :: rmag,dr,Nideal,Nbin,dV
-	double precision, dimension(nd)            :: rij
+	real(kind(0.d0))                           :: rmag,dr,Nideal,Nbin,dV
+	real(kind(0.d0)), dimension(nd)            :: rij
 
 	!Shell "width"
 	dr = rdf_rmax/real(rdf_nbins,kind(0.d0))
@@ -857,8 +857,8 @@ implicit none
 
 	integer          :: i,j,bin,ixyz
 	integer, save    :: hist_count=1
-	double precision :: x,dx,Nideal,Nbin,dV
-	double precision :: xij
+	real(kind(0.d0)) :: x,dx,Nideal,Nbin,dV
+	real(kind(0.d0)) :: xij
 
 	!Shell "width"
 	dx = rdf_rmax/real(rdf_nbins,kind(0.d0))
@@ -952,8 +952,8 @@ implicit none
 	integer            :: i,j,posi,posj
 	integer            :: n
 	integer, save      :: hist_count=1
-	double precision   :: c,s
-	double precision, dimension(nd)  :: k,dk
+	real(kind(0.d0))   :: c,s
+	real(kind(0.d0)), dimension(nd)  :: k,dk
 
 	!Wavevectors restricted to fit inside periodic box lengths
 	dk(:) = 2.d0*pi/domain(:)
@@ -1020,10 +1020,10 @@ use calculated_properties_MD, only: Pxy
 use shear_info_MD,            only: le_sd, le_sp, le_rp, le_sr
 implicit none
 
-	double precision :: eta              ! Shear viscosity
-	double precision :: N1               ! First normal stress difference
-	double precision :: N2               ! Second normal stress difference
-	double precision :: P                ! Hydrostatic pressure
+	real(kind(0.d0)) :: eta              ! Shear viscosity
+	real(kind(0.d0)) :: N1               ! First normal stress difference
+	real(kind(0.d0)) :: N2               ! Second normal stress difference
+	real(kind(0.d0)) :: P                ! Hydrostatic pressure
 	integer          :: x,y,z            ! Notation (see below)
 
 	x = le_sd                            ! Shear direction
@@ -1055,9 +1055,9 @@ subroutine etevtcf_calculate_parallel
 	
 	integer :: nbond,i,j
 	integer :: chain, i_sub, j_sub, funcy
-	double precision :: etev_prod, etev_prod_sum
-	double precision :: etev2, etev2_sum
-	double precision, dimension(nd) :: rij
+	real(kind(0.d0)) :: etev_prod, etev_prod_sum
+	real(kind(0.d0)) :: etev2, etev2_sum
+	real(kind(0.d0)), dimension(nd) :: rij
 
 	if (iter.eq.etevtcf_iter0) then	!Initialise end-to-end vectors at t_0
 
@@ -1129,9 +1129,9 @@ subroutine r_gyration_calculate_parallel
 	implicit none
 
 	integer :: i,chainID
-	double precision :: R_g2
-	double precision, dimension(nd) :: rij
-	double precision, dimension(:,:), allocatable :: r_cm
+	real(kind(0.d0)) :: R_g2
+	real(kind(0.d0)), dimension(nd) :: rij
+	real(kind(0.d0)), dimension(:,:), allocatable :: r_cm
 
 	allocate(r_cm(nchains,nd))
 
@@ -1244,8 +1244,8 @@ subroutine cumulative_mass(ixyz)
 	integer         				:: n, ixyz
 	integer         				:: cbin
 	integer,dimension(3)			:: ibin
-	double precision				:: slicebinsize
-	double precision,dimension(3) 	:: mbinsize 
+	real(kind(0.d0))				:: slicebinsize
+	real(kind(0.d0)),dimension(3) 	:: mbinsize 
 
 	integer :: br, bt, bz
 	real(kind(0.d0)) :: fluiddomain_cyl(3), rglob(3), rpol(3)
@@ -1354,7 +1354,7 @@ subroutine velocity_averaging(ixyz)
 	integer				:: ixyz, n
 	integer,dimension(3):: ib
 	integer, save		:: average_count=-1
-	double precision,dimension(3) 	:: Vbinsize
+	real(kind(0.d0)),dimension(3) 	:: Vbinsize
 
 	average_count = average_count + 1
 	call cumulative_velocity(ixyz)
@@ -1439,8 +1439,8 @@ subroutine cumulative_velocity(ixyz)
 	integer							:: n,ixyz
 	integer         				:: cbin
 	integer		,dimension(3)		:: ibin
-	double precision				:: slicebinsize
-	double precision,dimension(3) 	:: Vbinsize 
+	real(kind(0.d0))				:: slicebinsize
+	real(kind(0.d0)),dimension(3) 	:: Vbinsize 
 	
 	integer :: br, bt, bz
 	real(kind(0.d0)) :: fluiddomain_cyl(3), rglob(3), rpol(3), vpol(3)
@@ -1618,8 +1618,8 @@ subroutine cumulative_temperature(ixyz)
 	integer							:: n,ixyz
 	integer         				:: cbin
 	integer		,dimension(3)		:: ibin
-	double precision				:: slicebinsize
-	double precision,dimension(3) 	:: Tbinsize 
+	real(kind(0.d0))				:: slicebinsize
+	real(kind(0.d0)),dimension(3) 	:: Tbinsize 
 
 	integer :: br, bt, bz
 	real(kind(0.d0)) :: fluiddomain_cyl(3), rglob(3), rpol(3)
@@ -1791,8 +1791,8 @@ subroutine cumulative_energy(ixyz)
 	integer							:: n,ixyz
 	integer         				:: cbin
 	integer		,dimension(3)		:: ibin
-	double precision				:: slicebinsize, energy
-	double precision,dimension(3) 	:: Tbinsize, velvect
+	real(kind(0.d0))				:: slicebinsize, energy
+	real(kind(0.d0)),dimension(3) 	:: Tbinsize, velvect
 
 	select case(ixyz)
 	!energy measurement is a number of 2D slices through the domain
@@ -1886,9 +1886,9 @@ subroutine cumulative_pressure(ixyz,sample_count)
 	implicit none
 
 	integer								:: sample_count,n,ixyz,jxyz,kxyz
-	double precision, dimension(3)		:: velvect
-	double precision, dimension(3)      :: rglob
-	double precision, dimension(3,3)	:: Pxytemp
+	real(kind(0.d0)), dimension(3)		:: velvect
+	real(kind(0.d0)), dimension(3)      :: rglob
+	real(kind(0.d0)), dimension(3,3)	:: Pxytemp
 
 
 	Pxytemp = 0.d0
@@ -2030,7 +2030,7 @@ subroutine simulation_compute_kinetic_VA(imin,imax,jmin,jmax,kmin,kmax)
 	integer         					:: n, ixyz,jxyz
 	integer 							:: ibin, jbin, kbin
 	integer 							:: bin(3)
-	double precision, dimension(3)		:: VAbinsize, velvect
+	real(kind(0.d0)), dimension(3)		:: VAbinsize, velvect
 
 	!vvbin = 0.d0
 
@@ -2138,7 +2138,7 @@ subroutine simulation_compute_kinetic_VA_cells(imin,imax,jmin,jmax,kmin,kmax)
 	integer                         :: i, ixyz, jxyz   !Define dummy index
 	integer 						:: ibin, jbin, kbin,icell, jcell, kcell
 	integer                         :: cellnp, molnoi
-	double precision, dimension(3)	:: velvect
+	real(kind(0.d0)), dimension(3)	:: velvect
 	type(node), pointer 	        :: oldi, currenti
 
 	!vvbin = 0.d0
@@ -2222,11 +2222,11 @@ subroutine pressure_tensor_forces_VA(ri, rj, rF, domain,  &
     integer,intent(in),optional                             :: VA_line_samples
     integer,dimension(3),intent(in)                         :: nbins,nhb
 	real(kind(0.d0)), dimension(:,:), intent(in)            :: rF
-	double precision,dimension(3), intent(in)		        :: ri, rj, domain
-	double precision,dimension(:,:,:,:,:), intent(inout)	:: rfbin
+	real(kind(0.d0)),dimension(3), intent(in)		        :: ri, rj, domain
+	real(kind(0.d0)),dimension(:,:,:,:,:), intent(inout)	:: rfbin
 
     integer                                                 :: VA_line_samples_
-	double precision,dimension(3)                           :: halfdomain
+	real(kind(0.d0)),dimension(3)                           :: halfdomain
 
     halfdomain = 0.5d0 * domain
 
@@ -2262,12 +2262,12 @@ subroutine pressure_tensor_forces_H(ri,rj,rF)
 	implicit none
 
 	real(kind(0.d0)), dimension(:,:), intent(in)    :: rF
-	double precision,dimension(3), intent(in)		:: ri, rj
+	real(kind(0.d0)),dimension(3), intent(in)		:: ri, rj
 
 	integer											:: ixyz, jxyz
 	integer											:: diff
 	integer,dimension(3)							:: ibin, jbin, bindiff 
-	double precision,dimension(3)					:: VAbinsize, rij
+	real(kind(0.d0)),dimension(3)					:: VAbinsize, rij
 
     rij = rj - ri
 
@@ -2398,18 +2398,18 @@ subroutine pressure_tensor_forces_VA_exact(ri,rj,rF)
 	implicit none
 
 	real(kind(0.d0)), dimension(:,:), intent(in)    :: rF
-	double precision,dimension(3), intent(in)		:: ri, rj
+	real(kind(0.d0)),dimension(3), intent(in)		:: ri, rj
 
 
 	integer											:: ixyz, i,j,k,l,n
 	integer											:: diff
 	integer,dimension(3)							:: ibin, jbin, bindiff 
 	integer,dimension(:,:)		   ,allocatable		:: interbin, interbindiff
-	double precision,dimension(3)					:: VAbinsize, normal, p,temp1,temp2,temp3
-	double precision,dimension(3)                   :: rij
-	double precision,dimension(:,:)	   ,allocatable	:: intersection
-	double precision,dimension(:,:,:)  ,allocatable	:: MLfrac !Magnitude of fraction of stress
-	double precision,dimension(:,:,:,:),allocatable	:: Lfrac  !Fraction of stress in a given cell
+	real(kind(0.d0)),dimension(3)					:: VAbinsize, normal, p,temp1,temp2,temp3
+	real(kind(0.d0)),dimension(3)                   :: rij
+	real(kind(0.d0)),dimension(:,:)	   ,allocatable	:: intersection
+	real(kind(0.d0)),dimension(:,:,:)  ,allocatable	:: MLfrac !Magnitude of fraction of stress
+	real(kind(0.d0)),dimension(:,:,:,:),allocatable	:: Lfrac  !Fraction of stress in a given cell
 
     !Define rij
     rij = rj - ri
@@ -2845,7 +2845,7 @@ subroutine simulation_compute_rfbins!(imin, imax, jmin, jmax, kmin, kmax)
 	integer							:: icellmin,jcellmin,kcellmin,icellmax,jcellmax,kcellmax
 	type(node), pointer 	        :: oldi, currenti, oldj, currentj
 
-	double precision,dimension(3)	:: vi_t, cellsperbin
+	real(kind(0.d0)),dimension(3)	:: vi_t, cellsperbin
 	real(kind(0.d0)), dimension(3,3):: rF
 	real(kind(0.d0)), dimension(3,1):: rFv
 	!rfbin = 0.d0
@@ -3129,7 +3129,7 @@ subroutine simulation_compute_rfbins_cpol(imin, imax, jmin, jmax, kmin, kmax)
 	integer	:: molnoi, molnoj
 	type(node), pointer :: oldi, currenti, oldj, currentj
 
-	double precision,dimension(3)	:: cellsperbin
+	real(kind(0.d0)),dimension(3)	:: cellsperbin
 
 	!Calculate bin to cell ratio
 	cellsperbin = 1.d0/binspercell !ceiling(ncells(1)/dble(nbins(1)))
@@ -3297,9 +3297,9 @@ subroutine cumulative_heatflux(ixyz,sample_count)
 	implicit none
 
 	integer								:: sample_count,n,ixyz,jxyz,kxyz
-	double precision, dimension(3)		:: velvect
-	double precision, dimension(3)      :: rglob
-	double precision, dimension(3,3)	:: Pxytemp
+	real(kind(0.d0)), dimension(3)		:: velvect
+	real(kind(0.d0)), dimension(3)      :: rglob
+	real(kind(0.d0)), dimension(3,3)	:: Pxytemp
 
 	Pxytemp = 0.d0
 
@@ -3341,8 +3341,8 @@ subroutine simulation_compute_energy_VA(imin,imax,jmin,jmax,kmin,kmax)
 	integer         					:: n, ixyz,jxyz
 	integer 							:: ibin, jbin, kbin
 	integer 							:: bin(3)
-    double precision                    :: energy
-	double precision, dimension(3)		:: VAbinsize, velvect
+    real(kind(0.d0))                    :: energy
+	real(kind(0.d0)), dimension(3)		:: VAbinsize, velvect
 
 	!Determine bin size
 	VAbinsize(:) = domain(:) / nbins(:)
@@ -3427,7 +3427,7 @@ subroutine mass_flux_averaging(flag)
 
 	integer			                :: flag
     integer,dimension(3)            :: thermbinstop,thermbinsbot
-    double precision,dimension(3)   :: mbinsize
+    real(kind(0.d0)),dimension(3)   :: mbinsize
 	integer, save	                :: sample_count
 
 	!Only average if mass averaging turned on
@@ -3466,9 +3466,9 @@ subroutine cumulative_mass_flux
 
 	integer							:: jxyz,i,j,k,n
 	integer		,dimension(3)		:: ibin1,ibin2,cbin
-	double precision				:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
-	double precision,dimension(3)	:: mbinsize,crossface
-	double precision,dimension(3)	:: ri1,ri2,ri12,bintop,binbot,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
+	real(kind(0.d0))				:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
+	real(kind(0.d0)),dimension(3)	:: mbinsize,crossface
+	real(kind(0.d0)),dimension(3)	:: ri1,ri2,ri12,bintop,binbot,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
 
 	!Determine bin size
 	mbinsize(:) = domain(:) / nbins(:)
@@ -3613,7 +3613,7 @@ subroutine mass_snapshot
 	integer										:: n
 	integer		,dimension(3)					:: ibin
 	integer		,dimension(:,:,:)  ,allocatable	:: volume_mass_temp
-	double precision,dimension(3)				:: mbinsize
+	real(kind(0.d0)),dimension(3)				:: mbinsize
 
 	!Determine bin size
 	mbinsize(:) = domain(:) / nbins(:)
@@ -3665,18 +3665,18 @@ subroutine cumulative_momentum_flux(r_,v_,momentum_flux_,notcrossing)
     use module_record, only : get_bin
 	implicit none
 
-	double precision,dimension(:,:),allocatable,intent(in) 			:: r_,v_
-	double precision,dimension(:,:,:,:,:),allocatable,intent(inout) :: momentum_flux_
+	real(kind(0.d0)),dimension(:,:),allocatable,intent(in) 			:: r_,v_
+	real(kind(0.d0)),dimension(:,:,:,:,:),allocatable,intent(inout) :: momentum_flux_
 	integer,dimension(:),allocatable,intent(out),optional			:: notcrossing
 
 
 	integer							:: ixyz,jxyz,i,j,k,n
 	integer							:: planeno
 	integer		,dimension(3)		:: ibin1,ibin2,cbin
-    double precision				:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
-	double precision				:: crossplane,rplane,shift
-	double precision,dimension(3)	:: mbinsize,velvect,crossface
-	double precision,dimension(3)	:: ri1,ri2,ri12,bintop,binbot,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
+    real(kind(0.d0))				:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
+	real(kind(0.d0))				:: crossplane,rplane,shift
+	real(kind(0.d0)),dimension(3)	:: mbinsize,velvect,crossface
+	real(kind(0.d0)),dimension(3)	:: ri1,ri2,ri12,bintop,binbot,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
 
 	!Allocate array if required and assume all are not crossing
 	if (present(notcrossing)) then
@@ -3895,7 +3895,7 @@ subroutine momentum_flux_averaging(flag)
 	integer,intent(in)	:: flag
 	integer				::icell,jcell,kcell,n
     integer,dimension(3):: thermbinstop,thermbinsbot
-	double precision,dimension(3)	:: mbinsize
+	real(kind(0.d0)),dimension(3)	:: mbinsize
 	integer, save		:: sample_count
 
 	if (flag .eq. 0) return
@@ -3966,9 +3966,9 @@ subroutine momentum_snapshot
 	integer											:: n
 	integer		,dimension(3)						:: ibin
 	integer		,dimension(:,:,:)  ,allocatable		:: volume_mass_temp
-	double precision								:: binvolume
-	double precision,dimension(3)					:: mbinsize
-	double precision,dimension(:,:,:,:),allocatable :: volume_momentum_temp
+	real(kind(0.d0))								:: binvolume
+	real(kind(0.d0)),dimension(3)					:: mbinsize
+	real(kind(0.d0)),dimension(:,:,:,:),allocatable :: volume_momentum_temp
 
 	mbinsize(:) = domain(:) / nbins(:)
 
@@ -4020,16 +4020,16 @@ subroutine cumulative_energy_flux(r_,v_,energy_flux_)
     use module_record, only : get_bin
 	implicit none
 
-	double precision,dimension(:,:),allocatable,intent(in) 			:: r_,v_
-	double precision,dimension(:,:,:,:),allocatable,intent(inout) :: energy_flux_
+	real(kind(0.d0)),dimension(:,:),allocatable,intent(in) 			:: r_,v_
+	real(kind(0.d0)),dimension(:,:,:,:),allocatable,intent(inout) :: energy_flux_
 
 	integer							:: ixyz,jxyz,i,j,k,n,planeno
-	double precision				:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
+	real(kind(0.d0))				:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
 	integer		,dimension(3)		:: ibin1,ibin2,cbin
-	double precision				:: crosstime,crossplane,rplane,shift,energy
-	double precision				:: crosstimetop,crosstimebot,frac,delta_t_cross,potenergy_cross
-	double precision,dimension(3)	:: mbinsize,velvect,crossface
-	double precision,dimension(3)	:: ri1,ri2,ri12,bintop,binbot,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
+	real(kind(0.d0))				:: crosstime,crossplane,rplane,shift,energy
+	real(kind(0.d0))				:: crosstimetop,crosstimebot,frac,delta_t_cross,potenergy_cross
+	real(kind(0.d0)),dimension(3)	:: mbinsize,velvect,crossface
+	real(kind(0.d0)),dimension(3)	:: ri1,ri2,ri12,bintop,binbot,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
 
 	ixyz = eflux_outflag
 
@@ -4246,7 +4246,7 @@ subroutine energy_flux_averaging(flag)
 	integer, save		:: sample_count
 
     integer,dimension(3):: thermbinstop,thermbinsbot
-	double precision,dimension(3)	:: ebinsize
+	real(kind(0.d0)),dimension(3)	:: ebinsize
 
 	if (flag .eq. 0) return
 
@@ -4329,9 +4329,9 @@ subroutine energy_snapshot
 
 	integer											:: n
 	integer		,dimension(3)						:: ibin
-	double precision								:: binvolume, energy
-	double precision,dimension(3)					:: mbinsize,velvect
-	double precision,dimension(:,:,:),allocatable 	:: volume_energy_temp
+	real(kind(0.d0))								:: binvolume, energy
+	real(kind(0.d0)),dimension(3)					:: mbinsize,velvect
+	real(kind(0.d0)),dimension(:,:,:),allocatable 	:: volume_energy_temp
 
 	mbinsize(:) = domain(:) / nbins(:)
 
@@ -4379,8 +4379,8 @@ subroutine pressure_tensor_forces(molno, rij, accijmag)
 
 	integer										:: ixyz, jxyz
 	integer,intent(in)							:: molno
-	double precision,intent(in)     			:: accijmag    !Non directional component of acceleration
-	double precision,dimension(3),intent(in)   	:: rij         !vector between particles i and j
+	real(kind(0.d0)),intent(in)     			:: accijmag    !Non directional component of acceleration
+	real(kind(0.d0)),dimension(3),intent(in)   	:: rij         !vector between particles i and j
 
 	do ixyz = 1,3
 	do jxyz = 1,3
@@ -4406,8 +4406,8 @@ subroutine control_volume_forces(fij,ri,rj,molnoi,molnoj)
 
 	integer							:: molnoi, molnoj
 	integer,dimension(3)			:: ibin, jbin
-	double precision,dimension(3)	:: ri, rj, fij,crossplane,fsurface
-	double precision,dimension(3)	:: Fbinsize, bintopi, binboti, bintopj, binbotj
+	real(kind(0.d0)),dimension(3)	:: ri, rj, fij,crossplane,fsurface
+	real(kind(0.d0)),dimension(3)	:: Fbinsize, bintopi, binboti, bintopj, binbotj
 
 	!Determine bin size
 	Fbinsize(:) = domain(:) / nbins(:)
@@ -4457,16 +4457,16 @@ subroutine control_volume_stresses(fij,ri,rj)
     implicit none
 
 
-	double precision,intent(in),dimension(3)	:: ri,rj,fij
+	real(kind(0.d0)),intent(in),dimension(3)	:: ri,rj,fij
 
 	integer							:: i,j,k,ixyz,face
 	integer,dimension(3)			:: cbin, ibin, jbin
-    double precision				:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb,fijvi,fijvj
-	double precision,dimension(3)	:: rij,fsurface,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb,velvect
-	double precision,dimension(3)	:: Fbinsize, bintop, binbot, vi_t,vj_t,vi_tmdt,vj_tmdt
+    real(kind(0.d0))				:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb,fijvi,fijvj
+	real(kind(0.d0)),dimension(3)	:: rij,fsurface,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb,velvect
+	real(kind(0.d0)),dimension(3)	:: Fbinsize, bintop, binbot, vi_t,vj_t,vi_tmdt,vj_tmdt
 
-	!double precision,allocatable,dimension(:,:,:),save 	:: fij_dmt
-	!double precision,allocatable,dimension(:,:,:),save 	:: fij_dmt
+	!real(kind(0.d0)),allocatable,dimension(:,:,:),save 	:: fij_dmt
+	!real(kind(0.d0)),allocatable,dimension(:,:,:),save 	:: fij_dmt
 
 	!if (.not. allocated(fij_dmt)) then
 	!	allocate(fij_dmt(3,np+extralloc,np+extralloc))
@@ -4576,15 +4576,15 @@ subroutine control_volume_power(fij,ri,rj,vi_t)
     implicit none
 
 
-	double precision,intent(in),dimension(3)	:: ri,rj,fij
-	double precision,dimension(3),intent(in)	:: vi_t
+	real(kind(0.d0)),intent(in),dimension(3)	:: ri,rj,fij
+	real(kind(0.d0)),dimension(3),intent(in)	:: vi_t
 
 
 	integer							:: i,j,k,ixyz,face
 	integer,dimension(3)			:: cbin, ibin, jbin
-    double precision				:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb,fijvi,fijvj
-	double precision,dimension(3)	:: rij,fsurface,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb,velvect
-	double precision,dimension(3)	:: Fbinsize, bintop, binbot
+    real(kind(0.d0))				:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb,fijvi,fijvj
+	real(kind(0.d0)),dimension(3)	:: rij,fsurface,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb,velvect
+	real(kind(0.d0)),dimension(3)	:: Fbinsize, bintop, binbot
 
 	!Calculate rij
 	rij = ri - rj
@@ -4678,13 +4678,13 @@ subroutine get_timesteps(ncrossings,bin,bin_mdt,Fbinsize,rc,vc,delta_t,delta_t_l
 
 	integer,intent(in)								:: ncrossings, bin(3),bin_mdt(3)
 	integer,intent(inout)							:: count_t
-	double precision,intent(in)						:: delta_t
-	double precision,dimension(3),intent(in)		:: rc,vc,Fbinsize
-	double precision,dimension(:),allocatable,intent(inout)	:: delta_t_list
+	real(kind(0.d0)),intent(in)						:: delta_t
+	real(kind(0.d0)),dimension(3),intent(in)		:: rc,vc,Fbinsize
+	real(kind(0.d0)),dimension(:),allocatable,intent(inout)	:: delta_t_list
 
 	integer											:: i,j,k,m
-	double precision,dimension(3)					:: bintop,binbot
-	double precision,dimension(6)					:: crosstime
+	real(kind(0.d0)),dimension(3)					:: bintop,binbot
+	real(kind(0.d0)),dimension(6)					:: crosstime
 
 
 	if (ncrossings .eq. 0) return
@@ -4737,14 +4737,14 @@ subroutine get_CV_surface_contributions(ibin,jbin,ri,rj,Fbinsize,value,CV_Face_v
 
 	integer, dimension(3),intent(in)								:: ibin,jbin
 	integer,intent(in)												:: molnoi,molnoj !TEMPTEMP
-	double precision, dimension(3),intent(in)						:: ri, rj, Fbinsize
-	double precision, intent(in)									:: value
-	double precision,dimension(:,:,:,:),allocatable, intent(inout)	:: CV_Face_value
+	real(kind(0.d0)), dimension(3),intent(in)						:: ri, rj, Fbinsize
+	real(kind(0.d0)), intent(in)									:: value
+	real(kind(0.d0)),dimension(:,:,:,:),allocatable, intent(inout)	:: CV_Face_value
 
 	integer										:: i,j,k,ixyz, face
-    double precision							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
-	double precision,dimension(3)   			:: Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
-	double precision,dimension(3)				:: rij,  bintop, binbot
+    real(kind(0.d0))							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
+	real(kind(0.d0)),dimension(3)   			:: Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
+	real(kind(0.d0)),dimension(3)				:: rij,  bintop, binbot
 
 
 	!If same bin, nothing to do here
@@ -4842,19 +4842,19 @@ end module get_timesteps_module
 !    implicit none
 
 !	integer,intent(in)						 	:: molnoi, molnoj
-!	double precision,dimension(3),intent(in) 	:: fij,ri,rj,vi_mhdt,vj_mhdt,ai_mdt,aj_mdt,ai,aj
+!	real(kind(0.d0)),dimension(3),intent(in) 	:: fij,ri,rj,vi_mhdt,vj_mhdt,ai_mdt,aj_mdt,ai,aj
 
 
 !	integer										:: i,j,k,m,n,ixyz,ncrossings,ncrossingsi,ncrossingsj,count_t
 !	integer,dimension(3)						:: cbin, ibin, jbin, ibin_mdt, jbin_mdt
-!    double precision							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
-!    double precision							:: invrij2,rij2_mdt,fijvi,fijvi_mdt,fijvi_trapz,delta_t_portion,eps = 0.0001d0
-!	double precision,dimension(3)   			:: fsurface,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb,velvect
-!	double precision,dimension(3)   			:: vi,vj,vi_mdt,vj_mdt
-!	double precision,dimension(3)   			:: ri_mdt,rj_mdt,rij_mdt,fij_mdt,ri_p,rj_p
-!	double precision,dimension(3)				:: Fbinsize, bintop, binbot
-!	double precision,dimension(6)				:: crosstime
-!	double precision,dimension(:),allocatable	:: delta_t_list,delta_t_array
+!    real(kind(0.d0))							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
+!    real(kind(0.d0))							:: invrij2,rij2_mdt,fijvi,fijvi_mdt,fijvi_trapz,delta_t_portion,eps = 0.0001d0
+!	real(kind(0.d0)),dimension(3)   			:: fsurface,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb,velvect
+!	real(kind(0.d0)),dimension(3)   			:: vi,vj,vi_mdt,vj_mdt
+!	real(kind(0.d0)),dimension(3)   			:: ri_mdt,rj_mdt,rij_mdt,fij_mdt,ri_p,rj_p
+!	real(kind(0.d0)),dimension(3)				:: Fbinsize, bintop, binbot
+!	real(kind(0.d0)),dimension(6)				:: crosstime
+!	real(kind(0.d0)),dimension(:),allocatable	:: delta_t_list,delta_t_array
 
 !	character(30)	:: frmtstr
 
@@ -5053,8 +5053,8 @@ end module get_timesteps_module
 
 ! 	integer							:: i,j,k,ixyz,molnoi,molnoj
 ! 	integer,dimension(3)			:: cbin, ibin, jbin, Si
-! 	double precision,dimension(3)	:: ri,rj,rij,fij,fsurface,Px,Py,Pz,sgnjit,sgnjib,onfaceb,onfacet,velvect
-! 	double precision,dimension(3)	:: Fbinsize, bintop, binbot
+! 	real(kind(0.d0)),dimension(3)	:: ri,rj,rij,fij,fsurface,Px,Py,Pz,sgnjit,sgnjib,onfaceb,onfacet,velvect
+! 	real(kind(0.d0)),dimension(3)	:: Fbinsize, bintop, binbot
 
 ! 	!Calculate rij
 ! 	rij = ri - rj
@@ -5145,9 +5145,9 @@ end module get_timesteps_module
 	!integer							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
 !	integer,dimension(3)			:: cbin, ibin, jbin
 !	integer,dimension(18)			:: hfacelimits
-!	double precision,dimension(3)	:: ri,rj,rij,fij,fsurface,Px,Py,Pz,Si,sgnjit,sgnjib,onfaceb,onfacet,velvect
-!	double precision,dimension(3)	:: Fbinsize, bintop, binbot
-!	double precision,dimension(18)	:: facelimits
+!	real(kind(0.d0)),dimension(3)	:: ri,rj,rij,fij,fsurface,Px,Py,Pz,Si,sgnjit,sgnjib,onfaceb,onfacet,velvect
+!	real(kind(0.d0)),dimension(3)	:: Fbinsize, bintop, binbot
+!	real(kind(0.d0)),dimension(18)	:: facelimits
 
 	!Calculate rij
 !	rij = ri - rj
@@ -5245,10 +5245,10 @@ subroutine pressure_tensor_forces_MOP(pnxyz,ri,rj,rij,accijmag)
 	integer							:: n
 	integer							:: pnxyz	 !Plane normal direction
 	integer							:: planenoi,planenoj
-	double precision                :: shift, plane !Plane normal components i and j
-	double precision                :: accijmag      !Non directional component of acceleration
-	double precision,dimension(3)   :: ri, rj, rij   !Vector between particles i and j
-	double precision,dimension(3)   :: Pyb           !Location of intercept with plane
+	real(kind(0.d0))                :: shift, plane !Plane normal components i and j
+	real(kind(0.d0))                :: accijmag      !Non directional component of acceleration
+	real(kind(0.d0)),dimension(3)   :: ri, rj, rij   !Vector between particles i and j
+	real(kind(0.d0)),dimension(3)   :: Pyb           !Location of intercept with plane
 
 	!Shift by half difference between value rounded down and actual value
 	!to ensure same distance to top and bottom plane from domain edge
@@ -5293,13 +5293,13 @@ subroutine record_external_forces(F,ri,vi)
 	use librarymod, only : imaxloc
 	implicit none
 
-	double precision,dimension(3),intent(in):: F,ri
-	double precision,dimension(3),intent(in),optional :: vi
+	real(kind(0.d0)),dimension(3),intent(in):: F,ri
+	real(kind(0.d0)),dimension(3),intent(in),optional :: vi
 
 	integer									:: jxyz
 	integer	,dimension(3)					:: ibin, ibin_pt, crossface
-	double precision						:: crosstimetop,crosstimebot,delta_t_cross, Fiextvi
-	double precision,dimension(3)			:: mbinsize, ri_pt, bintop, binbot
+	real(kind(0.d0))						:: crosstimetop,crosstimebot,delta_t_cross, Fiextvi
+	real(kind(0.d0)),dimension(3)			:: mbinsize, ri_pt, bintop, binbot
 
 	!Determine bin size and bin
 	mbinsize(:) = domain(:) / nbins(:)
@@ -5331,7 +5331,7 @@ subroutine evaluate_U
 
 	integer				:: n
 	integer,dimension(3):: ib
-	double precision,dimension(3) 	:: Vbinsize
+	real(kind(0.d0)),dimension(3) 	:: Vbinsize
 
 	integer, dimension(:,:,:), allocatable :: mbin
 	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: vbin
@@ -5642,12 +5642,12 @@ contains
         implicit none
 
         logical,intent(in),optional :: normalise
-        double precision,dimension(:,:),allocatable,intent(in) :: A
+        real(kind(0.d0)),dimension(:,:),allocatable,intent(in) :: A
 
-        double precision,dimension(3,3),intent(out) :: omega
+        real(kind(0.d0)),dimension(3,3),intent(out) :: omega
 
         integer                         :: j
-        double precision,dimension(3) :: rj
+        real(kind(0.d0)),dimension(3) :: rj
 
         omega = 0.d0
         do j = 1,size(A,2)
@@ -5670,15 +5670,15 @@ contains
         !TEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMPTEMP
         implicit none
 
-        double precision,dimension(3),intent(in) ::  ri
-        double precision,dimension(:,:),allocatable,intent(in) ::  rarray
-        double precision,dimension(3,3),intent(out) :: surface 
+        real(kind(0.d0)),dimension(3),intent(in) ::  ri
+        real(kind(0.d0)),dimension(:,:),allocatable,intent(in) ::  rarray
+        real(kind(0.d0)),dimension(3,3),intent(out) :: surface 
 
         integer :: i, mineig
-        double precision,dimension(3)   :: rave,eigval
-        double precision,dimension(3,3) :: omega, eigvec
+        real(kind(0.d0)),dimension(3)   :: rave,eigval
+        real(kind(0.d0)),dimension(3,3) :: omega, eigvec
 
-        double precision,dimension(:,:),allocatable :: rcent
+        real(kind(0.d0)),dimension(:,:),allocatable :: rcent
 
         if (size(rarray,2) .eq. 0) then
             print'(a,3f10.5,a)', 'Molecule at ', ri ,' has no neighbours!'
@@ -5725,10 +5725,10 @@ contains
 	    use interfaces, only : error_abort
 	    implicit none
 
-        double precision, intent(in)                     :: rc
+        real(kind(0.d0)), intent(in)                     :: rc
         integer, dimension(:,:),allocatable,intent(in)   :: celllist
 
-        double precision, dimension(:,:),allocatable  :: rarray
+        real(kind(0.d0)), dimension(:,:),allocatable  :: rarray
 
 	    integer                         :: i, j, n, ixyz !Define dummy index
 	    integer							:: icell, jcell, kcell, ncount
@@ -5736,9 +5736,9 @@ contains
 	    integer                         :: cellnp, adjacentcellnp 
 	    integer							:: molnoi, molnoj, noneighbrs, cellshifts
 	    integer							:: icellmin,jcellmin,kcellmin,icellmax,jcellmax,kcellmax
-        double precision                :: rc2
-        double precision, dimension(:,:),allocatable :: rneigh
-        double precision, dimension(:,:,:),allocatable :: cellsurface, surfacei
+        real(kind(0.d0))                :: rc2
+        real(kind(0.d0)), dimension(:,:),allocatable :: rneigh
+        real(kind(0.d0)), dimension(:,:,:),allocatable :: cellsurface, surfacei
 	    type(node), pointer 	        :: oldi, currenti, oldj, currentj, noldj,ncurrentj
 
         rc2 = rc**2.d0
@@ -5892,7 +5892,7 @@ subroutine sl_interface(flag)
 
     double precision    :: binvolume, input_soliddensity, input_liquiddensity, input_gasdensity, rc
     integer,dimension(:,:),allocatable    :: interfacecells
-    double precision,dimension(:,:),allocatable    :: rarray
+    real(kind(0.d0)),dimension(:,:),allocatable    :: rarray
 
     if (Nmass_ave .eq. 0) call error_abort("Error in sl_interface -- Interface checking requires mass binning")
     if (mod(iter/tplot+1,(Nmass_ave)) .eq. 0) then

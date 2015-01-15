@@ -426,7 +426,7 @@ subroutine setup_set_parameters
 
 	integer							:: i,iblk,jblk,kblk
 	integer,dimension(3)			:: nblocks,nvalues
-	double precision,dimension(3)	:: blocksidelength
+	real(kind(0.d0)),dimension(3)	:: blocksidelength
 
 	!This has alreay been done in initialise for a coupled run
 #if (USE_COUPLER == 0)	
@@ -1002,11 +1002,11 @@ contains
 
 		!	2		   
 		!	x -------- x 3
-		!	|		  |
-		!	|		  |
-		!	|		  |
-		!	|		  |
-		!  1 x -------- x
+		!	|		   |
+		!	|		   |
+		!	|		   |
+		!	|		   |
+		! 1 x -------- x
 		!			   4  
 
 		vertices(1,:) = (iblock-1)*ivec + (jblock-1)*jvec
@@ -1032,7 +1032,7 @@ subroutine set_parameters_cells
 	implicit none
 
 	integer :: ixyz
-	double precision :: rneighbr
+	real(kind(0.d0)) :: rneighbr
 
 	!Calculate size of neighbour list region
 	rneighbr  = rcutoff + delta_rneighbr
@@ -1152,7 +1152,7 @@ subroutine set_parameters_outputs
 	implicit none
 
 	integer					:: n,i,j,k, ixyz
-	double precision		:: shift
+	real(kind(0.d0))		:: shift
 
 
 	!Use definition of temperature and re-arrange to define an average velocity minus 3 degrees of

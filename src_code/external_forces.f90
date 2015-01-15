@@ -34,10 +34,10 @@ subroutine simulation_apply_global_force(ixyz,F_const)
 	implicit none
 
 	integer,intent(in)     			:: ixyz
-	double precision,intent(in)		:: F_const
+	real(kind(0.d0)),intent(in)		:: F_const
 
 	integer				 		 :: n
-	double precision,dimension(3):: F_vector
+	real(kind(0.d0)),dimension(3):: F_vector
 	
 	!Put directional results into a vector 
 	F_vector = 0.d0
@@ -71,11 +71,11 @@ subroutine simulation_apply_local_force(ixyz,F_const,xmin,xmax,ymin,ymax,zmin,zm
 	implicit none
 
 	integer, intent(in) 		 :: ixyz
-	double precision, intent(in) :: F_const
-	double precision, intent(in) :: xmin, xmax, ymin, ymax, zmin, zmax
+	real(kind(0.d0)), intent(in) :: F_const
+	real(kind(0.d0)), intent(in) :: xmin, xmax, ymin, ymax, zmin, zmax
 
 	integer				 		 :: n
-	double precision,dimension(3):: lmin,lmax, F_vector
+	real(kind(0.d0)),dimension(3):: lmin,lmax, F_vector
 
 	!Get local coordinates
 	lmin = (/ xmin, ymin, zmin /)
@@ -233,7 +233,7 @@ subroutine apply_bforce(a_in,ixyz,xyz,thresh,hdom,flag)
 
 
     !Substrate wall parameters
-    double precision                :: eij, sij, C, lama, lamr, rho_wall
+    real(kind(0.d0))                :: eij, sij, C, lama, lamr, rho_wall
 
 	real(kind(0.d0)) :: numer,denom,ratio,P,f,dxyz
 	character(128)   :: string
@@ -345,12 +345,12 @@ contains
 
     subroutine get_substrate_force(D, eij, sij, C, lama, lamr, rho_wall, Fd, potenergy)
         use physical_constants_MD, only : pi
-        double precision, intent(in)            :: D, eij, sij, C, lama, lamr, rho_wall
-        double precision, intent(out)           :: Fd
-        double precision, intent(out),optional  :: potenergy
+        real(kind(0.d0)), intent(in)            :: D, eij, sij, C, lama, lamr, rho_wall
+        real(kind(0.d0)), intent(out)           :: Fd
+        real(kind(0.d0)), intent(out),optional  :: potenergy
 
-        double precision                        :: lama_m2,lama_m3,lamr_m2,lamr_m3
-        double precision                        :: sijovrD,inva,invr,consts
+        real(kind(0.d0))                        :: lama_m2,lama_m3,lamr_m2,lamr_m3
+        real(kind(0.d0))                        :: sijovrD,inva,invr,consts
 
         consts = 2.d0*pi*rho_wall*C*eij*sij**3.d0
         lamr_m2 = lamr-2.d0; lama_m2 = lama-2.d0
@@ -462,8 +462,8 @@ subroutine simulation_apply_boundary_forces_OT
 	implicit none
 
 	integer				:: n
-	double precision 	:: alpha
-	double precision 	:: y, y2, delta_y
+	real(kind(0.d0)) 	:: alpha
+	real(kind(0.d0)) 	:: y, y2, delta_y
 
 	delta_y = socket_get_dy()
 
@@ -497,8 +497,8 @@ subroutine coupled_apply_boundary_force_NCER
 	implicit none
 
 	integer	:: n
-	double precision 	:: delta_y
-	double precision 	:: y, y2, y3
+	real(kind(0.d0)) 	:: delta_y
+	real(kind(0.d0)) 	:: y, y2, y3
 
 	if (jblock .eq. npy) then
 
@@ -531,8 +531,8 @@ subroutine simulation_apply_boundary_forces_Werder
 	implicit none
 
 	integer	:: n
-	double precision 	:: delta_y
-	double precision 	:: y, y2, y3
+	real(kind(0.d0)) 	:: delta_y
+	real(kind(0.d0)) 	:: y, y2, y3
 
 	if (jblock .eq. npy) then
 
@@ -631,7 +631,7 @@ subroutine average_over_bin
 	implicit none
 
 	integer				:: n
-	double precision	:: g
+	real(kind(0.d0))	:: g
 
 
 	!Zero box averages
@@ -794,13 +794,13 @@ subroutine simulation_apply_linear_forces
 	use module_external_forces
 	implicit none
 
-	!double precision :: y, y0, y1, y2, y3
+	!real(kind(0.d0)) :: y, y0, y1, y2, y3
 	integer         			:: n, molno
 	integer         			:: cbin, binnp
 	integer						:: ibin, jbin, kbin
-	double precision 			:: F
-	double precision			:: isumvel, isumacc
-	double precision, dimension(overlap)	:: continuum_u
+	real(kind(0.d0)) 			:: F
+	real(kind(0.d0))			:: isumvel, isumacc
+	real(kind(0.d0)), dimension(overlap)	:: continuum_u
 	type(node), pointer			:: old, current
 
 	if (jblock .eq. npy) then
@@ -867,7 +867,7 @@ subroutine simulation_apply_constant_force(ixyz,F_const)
 	implicit none
 
 	integer         			:: ixyz
-	double precision 			:: F_const
+	real(kind(0.d0)) 			:: F_const
 
 	a(ixyz,:) = a(ixyz,:) + F_const
 
@@ -893,8 +893,8 @@ module apply_CV_force_mod
 	real(kind(0.d0)),dimension(3)	::	Fbinsize
 
     !Machine Precision -- ε such that 1 = 1+ε on a computer
-	double precision,parameter	    :: mp = 2.2204460E-16 
-	double precision,parameter		:: tol = mp*100000.d0
+	real(kind(0.d0)),parameter	    :: mp = 2.2204460E-16 
+	real(kind(0.d0)),parameter		:: tol = mp*100000.d0
 
     logical                         :: couette_timeevolve=.false.
 
@@ -1071,10 +1071,15 @@ subroutine get_CFD_velocity(lbl, &
         !The correction parameter is obtained from curve fitting based on the 
         !resulting sinusoid after application of the surface flux based force. I have
         !no idea why there is a difference of 1.07205...
-        sin_mag = 2.0d0;  sin_period = 100.d0
+        sin_mag = 0.02d0;  sin_period = 100.d0
         u_CFD(lbl(1):lbl(2),lbl(3):lbl(4),lbl(5):lbl(6),1) = & 
                     1.07205d0*sin_mag*(sin_period/(2.d0*pi)) & 
                     *sin(2.d0*pi*((iter-CVforce_starttime-0.5)/sin_period))
+        if (config_special_case	.eq. 'solid_liquid') then
+            u_CFD = u_CFD*volume*liquid_density
+        else
+            u_CFD = u_CFD*volume*density
+        endif
     case(4)
         sin_mag = 2.0d0;  sin_period = 100.d0
         u_CFD(lbl(1):lbl(2),lbl(3):lbl(4),lbl(5):lbl(6),1) = & 
@@ -1146,11 +1151,11 @@ subroutine get_CFD_stresses_fluxes(lbl, &
 	allocate(CFD_stress(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6)); CFD_stress=0.d0
 	allocate(  CFD_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6)); CFD_flux=0.d0
 
-
-#if USE_COUPLER
     delta_x = Fbinsize(2)*Fbinsize(3)
     delta_y = Fbinsize(1)*Fbinsize(3)
     delta_z = Fbinsize(1)*Fbinsize(2)
+#if USE_COUPLER
+
     select case (CVforce_flag)
     case(-1)
         !DEBUG case -- no force applied
@@ -1188,7 +1193,6 @@ subroutine get_CFD_stresses_fluxes(lbl, &
     case default
         stop "Error in get_CFD_stresses_fluxes -- CVforce_flag for coupled code should be 0=off, 1=on"
     end select
-    !print'(7f10.5)', volume, delta_x, delta_y, delta_z, Fbinsize
 #else
     select case (CVforce_flag)
     case(-1)
@@ -1200,13 +1204,26 @@ subroutine get_CFD_stresses_fluxes(lbl, &
         CFD_stress(lbl(1):lbl(2),lbl(3):lbl(4),lbl(5):lbl(6),:,:) = 0.d0
         !Sin function shifted by pi/2 so velocity which is given
         !by the integral (cos) alternates around zero
-        sin_mag = 2.0d0;  sin_period = 100.d0
+        sin_mag = 0.02d0;  sin_period = 100.d0
         CFD_stress(lbl(1):lbl(2), & 
                    lbl(3):lbl(4), & 
                    lbl(5):lbl(6),1,2) =  0.5d0*sin_mag * cos(2.d0*pi*((iter-CVforce_starttime)/sin_period))
         CFD_stress(lbl(1):lbl(2), & 
                    lbl(3):lbl(4), & 
                    lbl(5):lbl(6),1,5) = -0.5d0*sin_mag * cos(2.d0*pi*((iter-CVforce_starttime)/sin_period))
+
+        !Correct based on size of volume
+        CFD_stress(:,:,:,:,1) = CFD_stress(:,:,:,:,1)*delta_x
+        CFD_stress(:,:,:,:,2) = CFD_stress(:,:,:,:,2)*delta_z
+        CFD_stress(:,:,:,:,3) = CFD_stress(:,:,:,:,3)*delta_y
+        CFD_stress(:,:,:,:,4) = CFD_stress(:,:,:,:,4)*delta_x
+        CFD_stress(:,:,:,:,5) = CFD_stress(:,:,:,:,5)*delta_z
+        CFD_stress(:,:,:,:,6) = CFD_stress(:,:,:,:,6)*delta_y
+        if (config_special_case	.eq. 'solid_liquid') then
+            CFD_stress = CFD_stress*liquid_density
+        else
+            CFD_stress = CFD_stress*density
+        endif
 
     case(2)
 
@@ -1508,15 +1525,15 @@ subroutine get_F_correction_CV(u_CFD, &
 	logical                                      		 :: applied_in(3)
 	integer												 :: n,i,j,k,ixyz, rel_iter
     integer                                              :: CVforce_correctime
-	integer,parameter									 :: iter_correct=50
+	integer,parameter									 :: iter_correct=10
 	integer,dimension(3)								 :: bin
 	integer,allocatable,dimension(:,:,:),save			 :: correctstart
 	logical,allocatable,dimension(:,:,:),save			 :: correction_lock
-	double precision									 :: t,t_correct,that
-	double precision,save					 			 :: normalise
-	double precision,dimension(3),save					 :: F_sum
-	double precision,allocatable,dimension(:,:,:,:) 	 :: u_CV
-	double precision,allocatable,dimension(:,:,:,:),save :: u_error
+	real(kind(0.d0))									 :: t,t_correct,that
+	real(kind(0.d0)),save					 			 :: normalise
+	real(kind(0.d0)),dimension(3),save					 :: F_sum
+	real(kind(0.d0)),allocatable,dimension(:,:,:,:) 	 :: u_CV
+	real(kind(0.d0)),allocatable,dimension(:,:,:,:),save :: u_error
 
     !Default is apply all directions
     if (.not. present(dir)) then
@@ -1569,10 +1586,15 @@ subroutine get_F_correction_CV(u_CFD, &
             u_error(i,j,k,:) = 0.d0
             !u_error(i,j,k,:) = u_CV(i,j,k,:) - u_CFD(i,j,k,:)
             where (applied_in) u_error(i,j,k,:) = u_CV(i,j,k,:) - u_CFD(i,j,k,:)
-	        if (any(abs(u_error(i,j,k,:)) .gt. 0.0001d0)) then
+	        if (any(abs(u_error(i,j,k,:)) .gt. 1e-12)) then
 		        correction_lock(i,j,k) = .true.
 		        correctstart(i,j,k) = iter
-                print'(a,i5,3i3,7f9.5,3e10.2,f9.5)', 'Corrct ',iter,i,j,k,molsperbin(i,j,k)/volume, & 
+                print'(a,i5,3i3,7f9.3,3e10.2,f14.7)', 'Corrct ',iter,i,j,k,molsperbin(i,j,k)/volume, & 
+                                                              u_CFD(i,j,k,:),u_CV(i,j,k,:), & 
+                                                              u_error(i,j,k,:),u_CFD(i,j,k,1)/u_CV(i,j,k,1)
+
+            else 
+                print'(a,i5,3i3,7f9.3,3e10.2,f14.7)', 'No Crct',iter,i,j,k,molsperbin(i,j,k)/volume, & 
                                                               u_CFD(i,j,k,:),u_CV(i,j,k,:), & 
                                                               u_error(i,j,k,:),u_CFD(i,j,k,1)/u_CV(i,j,k,1)
 	        endif
@@ -1644,8 +1666,6 @@ subroutine get_Fmdflux_CV(F_CV, 	 &
     	!Get velocity at next timestep with constraint
     	do n = 1,np
     		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
-            !if (any (bin(:) .lt. lbl(1:5:2)-1)) cycle
-            !if (any (bin(:) .gt. lbl(2:6:2)+1)) cycle
 
 			!Get total force on a molecule from sum of CV forces and molecular forces
 			F_iext = F_mol(:,n) + ( Fmdflux_CV(bin(1),bin(2),bin(3),:)  &
@@ -1658,11 +1678,13 @@ subroutine get_Fmdflux_CV(F_CV, 	 &
 
     	enddo
 
-		!Check convergence
+		!If convergence is reached, exit
  		if (converged) then
 			exit
 		elseif (attempt .eq. maxiter-1) then
 			print*, "Warning -- CV Force could not converge"
+        else
+            continue
 		endif
 
 		!Update momentum flux and force
@@ -1670,6 +1692,8 @@ subroutine get_Fmdflux_CV(F_CV, 	 &
 		Fmdflux_CV_prev = Fmdflux_CV
         Fmdflux_CV = 0.d0
 		call flux2force(MD_flux,lbl,Fmdflux_CV)
+
+		!Check convergence
 		call check_convergence
 
 	enddo
@@ -1718,7 +1742,7 @@ contains
 		integer					:: converge_cells
 		integer					:: ib, jb, kb
 		integer,save			:: convergence_count=0
-		double precision		:: convergence
+		real(kind(0.d0))		:: convergence
 
 		convergence = 0.d0; converge_cells = 0
         do ib = lbl(1),lbl(2)
@@ -1851,7 +1875,7 @@ end subroutine check_limits
 
 !----------------------------------------------------------------
 ! Check CFD streses solution are consistent with time evolution of
-! velocity -- i.e that the CV is conserved
+! velocity -- i.e that the CFD CV is conserved
 subroutine check_CFD(u_CFD,CFD_stress,CFD_flux,lbl)
     use messenger, only : globalise_bin, irank
 	use computational_constants_MD, only : delta_t, iter
@@ -1883,9 +1907,12 @@ subroutine check_CFD(u_CFD,CFD_stress,CFD_flux,lbl)
         cum_conserved = 0.d0
     endif
 
-	do i = 2,nbins(1)+1
-	do j = 2,nbins(2)+1
-	do k = 2,nbins(3)+1
+	do i = lbl(1),lbl(2)
+	do j = lbl(3),lbl(4)
+	do k = lbl(5),lbl(6)
+	!do i = 2,nbins(1)+1
+	!do j = 2,nbins(2)+1
+	!do k = 2,nbins(3)+1
 
 		!N.B. here self%flux has already been divided by delta_t
 		totalflux =  (CFD_flux(i,j,k,:,1)-CFD_flux(i,j,k,:,4)) & !/Fbinsize(1) &
@@ -1904,12 +1931,15 @@ subroutine check_CFD(u_CFD,CFD_stress,CFD_flux,lbl)
 		conserved = sum(totalstress+totalflux-dvelocitydt)
         cum_conserved = cum_conserved + abs(conserved)
 		if (abs(conserved) .gt. tol) then
-            print'(a,6f10.5)', 'CFD Stress in x =', CFD_stress(i,j,k,1,:)
-			print'(a,i8,4i4,5f9.6,2f18.12)','Error_in_CFD_momentum_flux', iter,irank,i,j,k, & 
-				 conserved, sum(totalstress)/(0.3*volume),-sum(totalflux),sum(dvelocitydt)/(volume*0.3), & 
-		    		sum(totalstress)/sum(dvelocitydt), u_CFD(i,j,k,1),u_CFD_mdt(i,j,k,1)
-		endif
+            !print'(a,6f10.5)', 'CFD Stress in x =', CFD_stress(i,j,k,1,:)
+            if (sum(dvelocitydt) .gt. 1e-12) then
+    			print'(a,i8,4i4,e12.3,4f9.4,2f18.10)','Error_in_CFD_momentum_flux', iter,irank,i,j,k, & 
+	    			 conserved, sum(totalstress)/(0.3d0*volume),-sum(totalflux),sum(dvelocitydt)/(volume*0.3d0), & 
+	    	    		sum(totalstress)/sum(dvelocitydt), u_CFD(i,j,k,1),u_CFD_mdt(i,j,k,1)
+            endif
 
+		endif
+        write(670,'(i8,4f18.10)'), iter, sum(totalstress)/(0.3d0*volume),sum(dvelocitydt)/(volume*0.3d0),u_CFD(i,j,k,1), u_CFD_mdt(i,j,k,1)
         !Save last timestep
         u_CFD_mdt(i,j,k,:) = u_CFD(i,j,k,:)
 
@@ -1929,6 +1959,42 @@ subroutine check_CFD(u_CFD,CFD_stress,CFD_flux,lbl)
 
 end subroutine check_CFD
 
+!----------------------------------------------------------------
+! Check CFD vs MD solutions are consistent 
+subroutine check_CFD_vs_MD(u_CFD,lbl)
+    use messenger, only : globalise_bin, irank
+    use arrays_MD, only : r, v
+	use computational_constants_MD, only : delta_t, iter
+    implicit none
+
+	integer,intent(in)             		                :: lbl(6)
+	real(kind(0.d0)),intent(in), & 
+        allocatable,dimension(:,:,:,:) 	                :: u_CFD
+
+    logical, save                                       :: first_time = .true.
+    integer                                             :: i,j,k, n
+	integer,dimension(3)								:: bin
+	real(kind(0.d0)),allocatable,dimension(:,:,:,:) 	:: u_CV
+
+	!Get velocity in each bin after constraint has been applied
+	allocate(u_CV(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); u_CV = 0.d0
+	do n = 1,np
+		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
+		u_CV( bin(1),bin(2),bin(3),:) = u_CV( bin(1),bin(2),bin(3),:) + v(:,n)
+	enddo
+
+
+	!Result force du_correct/dt
+	do i = lbl(1),lbl(2)
+	do j = lbl(3),lbl(4)
+	do k = lbl(5),lbl(6)
+        if (i .eq. 5 .and. j .eq. 10 .and. k .eq. 5) write(666,'(i8,4i4,2f18.12)'),iter,irank,i,j,k,u_CFD(i,j,k,1),u_CV(i,j,k,1)
+    	print'(a,i8,4i4,2f18.12)','CFD_vs_MD', iter,irank,i,j,k,u_CFD(i,j,k,1),u_CV(i,j,k,1)
+    enddo
+    enddo
+    enddo
+
+end subroutine check_CFD_vs_MD
 
 
 end module apply_CV_force_mod
@@ -2024,6 +2090,10 @@ subroutine apply_CV_force
 	F_CV = F_CV + Fmdflux_CV
 	call apply_force(F_CV, Fstresses_mol, boxnp, lbl, CVforce_applied_dir)
 
+
+    !Print Difference between CFD and MD after forces is applied
+    call check_CFD_vs_MD(u_CFD, lbl)    
+
 end subroutine apply_CV_force
 
 
@@ -2039,10 +2109,10 @@ subroutine set_mol_velocity(mol_list, listnp, velocity)
 
 	integer,intent(in)							:: listnp
 	integer,dimension(listnp), intent(in)       :: mol_list
-	double precision,dimension(3),intent(in)	:: velocity   !Overall momentum of system
+	real(kind(0.d0)),dimension(3),intent(in)	:: velocity   !Overall momentum of system
 
 	integer										:: i,molno,binNsum
-	double precision,dimension(3)				:: binvsum, vcorrection
+	real(kind(0.d0)),dimension(3)				:: binvsum, vcorrection
 
 	if (listnp .eq. 0) return
 
@@ -2099,13 +2169,13 @@ subroutine apply_continuum_forces_ES(iter)
 	integer								:: ii,jj,kk,icell,jcell,kcell
 	integer								:: ibmin_md,ibmax_md,jbmin_md,jbmax_md,kbmin_md,kbmax_md
 	integer								:: isummol
-	double precision					:: inv_dtCFD
-	double precision					:: isumvel, isumacc
-	double precision, dimension(:,:,:),allocatable	:: u_continuum
+	real(kind(0.d0))					:: inv_dtCFD
+	real(kind(0.d0))					:: isumvel, isumacc
+	real(kind(0.d0)), dimension(:,:,:),allocatable	:: u_continuum
 	type(node), pointer 	        	:: old, current
 
 	integer         					:: averagecount
-	double precision					:: average
+	real(kind(0.d0))					:: average
 
 	!allocate(u_continuum(icPmin_md(iblock_realm):icPmax_md(iblock_realm), & 
 	!					 jcPmin_md(jblock_realm):jcPmax_md(jblock_realm), & 
@@ -2229,14 +2299,14 @@ subroutine apply_continuum_forces_CV(iter)
 	integer								:: ii,jj,kk,icell,jcell,kcell
 	integer								:: ibmin_md,ibmax_md,jbmin_md,jbmax_md,kbmin_md,kbmax_md
 	integer								:: isummol
-	double precision					:: inv_dtCFD
-	double precision					:: isumvel, isumacc
-	double precision					:: isumflux, isumforce
-	double precision, dimension(:,:,:),allocatable :: continuum_res, continuum_Fs
+	real(kind(0.d0))					:: inv_dtCFD
+	real(kind(0.d0))					:: isumvel, isumacc
+	real(kind(0.d0))					:: isumflux, isumforce
+	real(kind(0.d0)), dimension(:,:,:),allocatable :: continuum_res, continuum_Fs
 	type(node), pointer 	        	:: old, current
 
 	integer         					:: averagecount
-	double precision					:: average
+	real(kind(0.d0))					:: average
 
 	!allocate(u_continuum(icPmin_md(iblock_realm):icPmax_md(iblock_realm), & 
 	!					 jcPmin_md(jblock_realm):jcPmax_md(jblock_realm), & 
@@ -2351,7 +2421,7 @@ subroutine CFD_cells_to_MD_compute_cells(ii_cfd,jj_cfd,kk_cfd, &
 	integer,intent(in)		:: ii_cfd,jj_cfd,kk_cfd
 	integer,intent(out)		:: ibmin_md,ibmax_md,jbmin_md,jbmax_md,kbmin_md,kbmax_md
 	
-	double precision		:: xL_min,xL_max,yL_min,yL_max,zL_min,zL_max
+	real(kind(0.d0))		:: xL_min,xL_max,yL_min,yL_max,zL_min,zL_max
 
 	! Get minimum point in processors domain
 	xL_min = xL_md*(iblock_realm-1); xL_max = xL_md*(iblock_realm)
@@ -2384,13 +2454,13 @@ subroutine pointsphere(centre,targetradius,start_iter)
 	implicit none
 
 	integer,optional,intent(in)			:: start_iter
-	double precision, intent(in)			:: targetradius
-	double precision, dimension(3), intent(in)	:: centre
+	real(kind(0.d0)), intent(in)			:: targetradius
+	real(kind(0.d0)), dimension(3), intent(in)	:: centre
 
 	integer						:: n, start
-	double precision 				:: radius, radius2, Fapplied, magnitude
-	double precision 				:: rspherical,rspherical2
-	double precision, dimension(3)	:: rmapped
+	real(kind(0.d0)) 				:: radius, radius2, Fapplied, magnitude
+	real(kind(0.d0)) 				:: rspherical,rspherical2
+	real(kind(0.d0)), dimension(3)	:: rmapped
 
 	!Grow pore slowly
 	if (present(start_iter)) then

@@ -129,7 +129,7 @@ subroutine reformat_dcd
 	character(len=80), dimension(2)	:: TITLE	        !--Title(s)
 	real 							:: time_start, time_end
 	real,allocatable,dimension(:)   :: Xbuf, Ybuf, Zbuf	!--Buffers used to copy from direct access to binary
-	double precision				:: DELTA		!--Timestep between frames
+	real(kind(0.d0))				:: DELTA		!--Timestep between frames
 
 	print*, 'Initialising trajectory file reformat to *.dcd. For large'
 	print*, 'systems or long runs this may take some time...' 
@@ -293,7 +293,7 @@ subroutine reformat_dcd_true
 	character(len=80), dimension(2)	:: TITLE	        !--Title(s)
 	real 							:: time_start, time_end
 	real,allocatable,dimension(:)   :: Xbuf, Ybuf, Zbuf	!--Buffers used to copy from direct access to binary
-	double precision				:: DELTA		!--Timestep between frames
+	real(kind(0.d0))				:: DELTA		!--Timestep between frames
 
 
 	print*, 'Initialising trajectory file reformat to *.dcd. For large'
@@ -424,7 +424,7 @@ subroutine reformat_dcd_sl
 	character(len=80), dimension(2)	:: TITLE	        !--Title(s)
 	real 							:: time_start, time_end
 	real,allocatable,dimension(:)   :: Xbuf, Ybuf, Zbuf	!--Buffers used to copy from direct access to binary
-	double precision				:: DELTA		!--Timestep between frames
+	real(kind(0.d0))				:: DELTA		!--Timestep between frames
 
 	print*, 'Initialising trajectory file reformat to *.dcd. For large'
 	print*, 'systems or long runs this may take some time...' 
@@ -567,7 +567,7 @@ subroutine reformat_dcd_halo
 	character(len=80), dimension(2)	:: TITLE	        !--Title(s)
 	real 							:: time_start, time_end
 	real,allocatable,dimension(:)   :: Xbuf, Ybuf, Zbuf	!--Buffers used to copy from direct access to binary
-	double precision				:: DELTA		!--Timestep between frames
+	real(kind(0.d0))				:: DELTA		!--Timestep between frames
 
 	print*, 'Initialising trajectory file reformat to *.dcd. For large'
 	print*, 'systems or long runs this may take some time...' 

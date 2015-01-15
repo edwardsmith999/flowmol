@@ -2,7 +2,7 @@
 program md_main
 implicit none
 
-	double precision :: t1, t2 !Values used to establish simulation time
+	real(kind(0.d0)) :: t1, t2 !Values used to establish simulation time
 
 	call setup_MD      !Setup simulation 
 	call cpu_time(t1)  !Get intial cpu time

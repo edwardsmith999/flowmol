@@ -47,13 +47,13 @@ subroutine simulation_move_particles_vv(pass_num)
 
 	integer                :: n,i
 	integer, intent(in)    :: pass_num
-	double precision       :: alpha
-	double precision       :: zeta_old
-	double precision, save :: dzeta_dt
-	double precision, save :: zeta=0.d0
-	double precision, dimension(nd,np) :: v_old
-	double precision, dimension(nd,np) :: vrelsum
-	double precision, dimension(nd,np) :: Utrue
+	real(kind(0.d0))       :: alpha
+	real(kind(0.d0))       :: zeta_old
+	real(kind(0.d0)), save :: dzeta_dt
+	real(kind(0.d0)), save :: zeta=0.d0
+	real(kind(0.d0)), dimension(nd,np) :: v_old
+	real(kind(0.d0)), dimension(nd,np) :: vrelsum
+	real(kind(0.d0)), dimension(nd,np) :: Utrue
 
 
 	!--------First half of velocity-Verlet algorithm. Finds r(t+dt) and v(t+dt/2).--------!
@@ -271,8 +271,8 @@ contains
 	    use messenger_data_exchange, only : globalSum
 		implicit none
 
-		double precision :: v2sum
-		double precision :: Q
+		real(kind(0.d0)) :: v2sum
+		real(kind(0.d0)) :: Q
 	
 		v2sum=0.d0
 		do n=1,np
@@ -291,8 +291,8 @@ contains
 	    use messenger_data_exchange, only : globalSum
 		implicit none
 
-		double precision :: avsum
-		double precision :: v2sum
+		real(kind(0.d0)) :: avsum
+		real(kind(0.d0)) :: v2sum
 
 		avsum = 0.d0
 		v2sum = 0.d0
@@ -315,9 +315,9 @@ contains
 	    use messenger_data_exchange, only : globalSum
 		implicit none
 		
-		double precision :: pec_v2sum
-		double precision :: Q
-		double precision, dimension(nd) :: pec_v
+		real(kind(0.d0)) :: pec_v2sum
+		real(kind(0.d0)) :: Q
+		real(kind(0.d0)), dimension(nd) :: pec_v
 
 		pec_v2sum = 0.d0
 		do n=1,np
@@ -340,9 +340,9 @@ contains
 		
 		integer :: slicebin
 		integer, dimension(:), allocatable :: m_slice
-		double precision, dimension(nd) :: slicebinsize
-		double precision, dimension(:,:), allocatable :: v_slice
-		double precision, dimension(:,:), allocatable :: v_avg
+		real(kind(0.d0)), dimension(nd) :: slicebinsize
+		real(kind(0.d0)), dimension(:,:), allocatable :: v_slice
+		real(kind(0.d0)), dimension(:,:), allocatable :: v_avg
 	
 		allocate(m_slice(nbins(le_sp)))                                   ! PUT: Allocate instantaneous mass slices
 		allocate(v_slice(nbins(le_sp),nd))                                ! PUT: Allocate instantaneous velocity slices
@@ -375,9 +375,9 @@ contains
 		implicit none
 	
 		integer :: i,j
-		double precision :: rij2,wsq,vr,Q
-		double precision, dimension(nd) :: ri,rj,rij,rijhat
-		double precision, dimension(nd) :: vi,vj,vij
+		real(kind(0.d0)) :: rij2,wsq,vr,Q
+		real(kind(0.d0)), dimension(nd) :: ri,rj,rij,rijhat
+		real(kind(0.d0)), dimension(nd) :: vi,vj,vij
 
 		vrelsum = 0.d0
 		dzeta_dt = 0.d0
@@ -419,9 +419,9 @@ contains
 	
 		integer :: noneighbrs
 		integer :: j,molnoi,molnoj
-		double precision :: rij2,wsq,vr,Q
-		double precision, dimension(nd) :: ri,rj,rij,rijhat
-		double precision, dimension(nd) :: vi,vj,vij
+		real(kind(0.d0)) :: rij2,wsq,vr,Q
+		real(kind(0.d0)), dimension(nd) :: ri,rj,rij,rijhat
+		real(kind(0.d0)), dimension(nd) :: vi,vj,vij
 		type(node), pointer :: old, current
 
 		vrelsum = 0.d0
@@ -480,10 +480,10 @@ contains
 		integer,intent(in)				:: flag
 		integer 						:: noneighbrs
 		integer 						:: j,molnoi,molnoj
-		double precision 				:: rij2,vr,wR,wD,sigma
-		double precision, dimension(nd) :: ri,rj,rij,rijhat
-		double precision, dimension(nd)	:: randi,randj,theta_ij
-		double precision, dimension(nd)	:: vi,vj,vij
+		real(kind(0.d0)) 				:: rij2,vr,wR,wD,sigma
+		real(kind(0.d0)), dimension(nd) :: ri,rj,rij,rijhat
+		real(kind(0.d0)), dimension(nd)	:: randi,randj,theta_ij
+		real(kind(0.d0)), dimension(nd)	:: vi,vj,vij
 		type(node), pointer 		    :: old, current
 
 		zeta = 10.d0; sigma = sqrt(2.d0*inputtemperature*zeta)
@@ -603,10 +603,10 @@ contains
 		integer,intent(in)				:: flag
 		integer 						:: ixyz, tempi
 		integer 						:: molnoi,molnoj
-		double precision 				:: rij2,vr,wR,wD,sigma, temp, temp2
-		double precision, dimension(nd)	:: ri,rj,rij,rijhat
-		double precision, dimension(nd)	:: rand,randi,randj,theta_ij,meantheta,vartheta
-		double precision, dimension(nd)	:: vi,vj,vij
+		real(kind(0.d0)) 				:: rij2,vr,wR,wD,sigma, temp, temp2
+		real(kind(0.d0)), dimension(nd)	:: ri,rj,rij,rijhat
+		real(kind(0.d0)), dimension(nd)	:: rand,randi,randj,theta_ij,meantheta,vartheta
+		real(kind(0.d0)), dimension(nd)	:: vi,vj,vij
 
 		zeta = 10.d0; sigma = sqrt(2.d0*inputtemperature*zeta)
 		select case(flag)

@@ -24,10 +24,10 @@ subroutine simulation_checkrebuild(rebuild)
 	integer                :: n, proc_abort
 	integer, save		   :: rb_count, total_rb=0
 	integer, intent(out)   :: rebuild
-	double precision       :: vmax, t2, dt
-	double precision, save :: rmax = 0.d0, t1, average_rb_count
-	double precision,dimension(:),allocatable :: vmagnitude
-	double precision,dimension(:,:),allocatable,save :: rdisp  !Displacement from initial state used in checkrebuild
+	real(kind(0.d0))       :: vmax, t2, dt
+	real(kind(0.d0)), save :: rmax = 0.d0, t1, average_rb_count
+	real(kind(0.d0)),dimension(:),allocatable :: vmagnitude
+	real(kind(0.d0)),dimension(:,:),allocatable,save :: rdisp  !Displacement from initial state used in checkrebuild
 	rebuild = 0
 
 	!Trigger rebuild if record to be taken on next timestep

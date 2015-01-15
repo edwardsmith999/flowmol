@@ -25,7 +25,7 @@ interface SubcommSum
         subroutine SubcommSumVect(A, na, ixyz)
 
                 integer, intent(in) :: na, ixyz !Direction of sub-comm
-                double precision A(na)
+                real(kind(0.d0)) A(na)
 
         end subroutine SubcommSumVect
 

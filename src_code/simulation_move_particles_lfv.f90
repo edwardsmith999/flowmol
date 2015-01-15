@@ -42,8 +42,8 @@ subroutine simulation_move_particles_lfv
 	implicit none
 	
 	integer :: n
-	double precision :: ascale, bscale, ry_old, vy_old, shear
-	double precision, save :: zeta=0.d0
+	real(kind(0.d0)) :: ascale, bscale, ry_old, vy_old, shear
+	real(kind(0.d0)), save :: zeta=0.d0
 
 	!Apply external force field to regions of spaces
 	select case(external_force_flag)
@@ -165,10 +165,10 @@ contains
     	use messenger_data_exchange, only : globalSum
 		implicit none
 	
-		double precision, dimension (nd) :: vel
-		double precision :: v2sum
-		double precision :: Q
-		double precision :: dzeta_dt
+		real(kind(0.d0)), dimension (nd) :: vel
+		real(kind(0.d0)) :: v2sum
+		real(kind(0.d0)) :: Q
+		real(kind(0.d0)) :: dzeta_dt
 		
 		v2sum = 0.d0
 		do n=1,np
@@ -190,10 +190,10 @@ contains
 	    use messenger_data_exchange, only : globalSum
 		implicit none
 		
-		double precision :: pec_v2sum
-		double precision :: Q
-		double precision :: dzeta_dt
-		double precision, dimension(nd) :: pec_v
+		real(kind(0.d0)) :: pec_v2sum
+		real(kind(0.d0)) :: Q
+		real(kind(0.d0)) :: dzeta_dt
+		real(kind(0.d0)), dimension(nd) :: pec_v
 
 		print*, 'Warning: PUT evaluation only applicable to Lees-Edwards systems'
 
@@ -222,9 +222,9 @@ contains
 		
 		integer :: slicebin
 		integer, dimension(:), allocatable :: m_slice
-		double precision, dimension(nd) :: slicebinsize
-		double precision, dimension(:,:), allocatable :: v_slice
-		double precision, dimension(:,:), allocatable :: v_avg
+		real(kind(0.d0)), dimension(nd) :: slicebinsize
+		real(kind(0.d0)), dimension(:,:), allocatable :: v_slice
+		real(kind(0.d0)), dimension(:,:), allocatable :: v_avg
 
 		print*, 'Warning: PUT evaluation only applicable to Lees-Edwards systems'
 	
@@ -264,10 +264,10 @@ contains
 		implicit none
 				
 		integer	:: n, thermostatnp
-		double precision :: freq, dzeta_dt, v2sum, Q
-		double precision :: ascale, bscale, dtheta
-		double precision, dimension(nd)	:: vel
-		double precision, dimension(nd)	:: rpol, rglob
+		real(kind(0.d0)) :: freq, dzeta_dt, v2sum, Q
+		real(kind(0.d0)) :: ascale, bscale, dtheta
+		real(kind(0.d0)), dimension(nd)	:: vel
+		real(kind(0.d0)), dimension(nd)	:: rpol, rglob
 
 		!Dynamically reassign tags based on spatial location
 		if (dynamically_update_tags) then
@@ -610,8 +610,8 @@ end subroutine specular_walls_cylinders
 !	implicit none
 !
 !	integer                        :: molno, normal_dirn
-!	double precision               :: r_in, r_out, wall, perp_dist, vr_mag, tol
-!    double precision, dimension(3) :: r_prev, r_prev_pol, r_prev_glob, r_pol, &
+!	real(kind(0.d0))               :: r_in, r_out, wall, perp_dist, vr_mag, tol
+!    real(kind(0.d0)), dimension(3) :: r_prev, r_prev_pol, r_prev_glob, r_pol, &
 !                                      r_glob, z_hat, theta_hat, normal, r2_X, &
 !                                      rX, vr, vtheta, perp_vec
 !
@@ -682,12 +682,12 @@ subroutine specular_flat_wall(dir, spec_pos, flag)
 
 	integer,intent(in)			   :: dir
 	integer,intent(in),optional	   :: flag
-	double precision,intent(in)	   :: spec_pos
+	real(kind(0.d0)),intent(in)	   :: spec_pos
 
-	double precision, dimension(3) :: r_glob
+	real(kind(0.d0)), dimension(3) :: r_glob
 	integer                        :: n, ixyz
 	integer                        :: normal
-	double precision               :: newxd
+	real(kind(0.d0))               :: newxd
 
 	do n = 1,np
 
