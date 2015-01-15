@@ -52,9 +52,9 @@ subroutine setup_initial_record
 
 !   ! COUETTE FLOW ANALYTICAL SOLUTION
 !    integer                                   :: wallbintop, wallbinbottom, appliedbins
-!    double precision                          :: Re, Uwall, H, t, Fbinsize(3),dudt,div_tau,liquiddensity, appliedbinsize
-!    double precision,dimension(:),allocatable :: ucouette,ucouette_pdt,y,y_tau,int_ucouette
-!    double precision,dimension(:),allocatable :: taucouette,intdivtau
+!    real(kind(0.d0))                          :: Re, Uwall, H, t, Fbinsize(3),dudt,div_tau,liquiddensity, appliedbinsize
+!    real(kind(0.d0)),dimension(:),allocatable :: ucouette,ucouette_pdt,y,y_tau,int_ucouette
+!    real(kind(0.d0)),dimension(:),allocatable :: taucouette,intdivtau
 
 !    Fbinsize = globaldomain/gnbins
 !    wallbintop    = ceiling(tethereddisttop(2)   /Fbinsize(2))
@@ -920,7 +920,7 @@ subroutine initial_macroscopic_properties
     implicit none
 
     integer          :: n, ixyz
-    double precision :: vel
+    real(kind(0.d0)) :: vel
 
     vsum  = 0.d0      ! Reset all sums
     v2sum = 0.d0      ! Reset all sums

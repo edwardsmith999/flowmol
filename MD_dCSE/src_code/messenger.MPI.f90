@@ -62,7 +62,7 @@ module messenger
 
 	logical :: Lperiodic(3)
 
-	double precision wallTime
+	real(kind(0.d0)) wallTime
 
 
 	!Various Globalise/localise
@@ -87,10 +87,10 @@ contains
 		implicit none
 		
 		integer,intent(in)			  :: ixyz
-		double precision, intent(in)  :: rloc
+		real(kind(0.d0)), intent(in)  :: rloc
 
 		integer						  :: block(3), npxyz(3)
-		double precision              :: rglob
+		real(kind(0.d0))              :: rglob
 
 		block = (/ iblock, jblock, kblock /)
 		npxyz = (/ npx, npy, npz /)
@@ -102,9 +102,9 @@ contains
 		implicit none
 		
 		integer,intent(in)			  :: ixyz
-		double precision, intent(in)  :: rglob
+		real(kind(0.d0)), intent(in)  :: rglob
 		integer						  :: block(3), npxyz(3)
-		double precision              :: rloc
+		real(kind(0.d0))              :: rloc
 
 		block = (/ iblock, jblock, kblock /)
 		npxyz = (/ npx, npy, npz /)
@@ -118,8 +118,8 @@ contains
 	function globalise_single(rloc) result(rglob)
 		implicit none
 		
-		double precision, intent(in)  :: rloc(3)
-		double precision              :: rglob(3)
+		real(kind(0.d0)), intent(in)  :: rloc(3)
+		real(kind(0.d0))              :: rglob(3)
 
 		rglob(1) = rloc(1)-halfdomain(1)*(npx-1)+domain(1)*(iblock-1)
 		rglob(2) = rloc(2)-halfdomain(2)*(npy-1)+domain(2)*(jblock-1)
@@ -130,8 +130,8 @@ contains
 	function localise_single(rglob) result(rloc)
 		implicit none
 		
-		double precision, intent(in)  :: rglob(3)
-		double precision              :: rloc(3)
+		real(kind(0.d0)), intent(in)  :: rglob(3)
+		real(kind(0.d0))              :: rloc(3)
 
 		rloc(1) = rglob(1)+(halfdomain(1)*(npx-1))-domain(1)*(iblock-1)
 		rloc(2) = rglob(2)+(halfdomain(2)*(npy-1))-domain(2)*(jblock-1)
@@ -145,8 +145,8 @@ contains
 	function globalise_array(rloc) result(rglob)
 		implicit none
 		
-		double precision,allocatable,intent(in)  :: rloc(:,:)
-		double precision,allocatable             :: rglob(:,:)
+		real(kind(0.d0)),allocatable,intent(in)  :: rloc(:,:)
+		real(kind(0.d0)),allocatable             :: rglob(:,:)
 
 		allocate(rglob(3,size(rloc,2)))
 
@@ -159,8 +159,8 @@ contains
 	function localise_array(rglob) result(rloc)
 		implicit none
 		
-		double precision,allocatable, intent(in)  :: rglob(:,:)
-		double precision,allocatable              :: rloc(:,:)
+		real(kind(0.d0)),allocatable, intent(in)  :: rglob(:,:)
+		real(kind(0.d0)),allocatable              :: rloc(:,:)
 
 		allocate(rloc(3,size(rglob,2)))
 
@@ -647,7 +647,7 @@ subroutine pack_cell(icell,jcell,kcell,sendbuffer,buffsize,pos)
 
 	integer, intent(in)								:: icell,jcell,kcell,buffsize
 	integer, intent(inout)							:: pos
-	double precision, dimension(:), intent(out) 	:: sendbuffer
+	real(kind(0.d0)), dimension(:), intent(out) 	:: sendbuffer
 
 	integer 										:: i, molno,cellnp
     !Temporary arrays used to pack
@@ -710,7 +710,7 @@ subroutine unpack_recvbuffer(halo_np,recvnp,length,recvbuffer)
     implicit none
 
 	integer, intent(in)								:: halo_np,recvnp,length
-	double precision, dimension(:), intent(in) 		:: recvbuffer
+	real(kind(0.d0)), dimension(:), intent(in) 		:: recvbuffer
 
 	integer 										:: n, pos
     !Temporary arrays used to pack
@@ -828,7 +828,7 @@ subroutine prepare_FENEbuffer(molno,FENEpack)
 	implicit none
 	
 	integer, intent(in) :: molno
-	double precision, dimension(*), intent(out) :: FENEpack
+	real(kind(0.d0)), dimension(*), intent(out) :: FENEpack
 		
 	FENEpack(1)   = real(monomer(molno)%chainID,        kind(0.d0))
 	FENEpack(2)   = real(monomer(molno)%subchainID,     kind(0.d0))
@@ -844,7 +844,7 @@ subroutine assign_FENEbuffer(molno,FENEpack)
 	implicit none
 
 	integer, intent(in) :: molno
-	double precision, dimension(*), intent(in) :: FENEpack
+	real(kind(0.d0)), dimension(*), intent(in) :: FENEpack
 	
 	monomer(molno)%chainID         = nint(FENEpack(1))	
 	monomer(molno)%subchainID      = nint(FENEpack(2))	
@@ -874,7 +874,7 @@ subroutine updatefacedown(ixyz)
 	integer :: icell,jcell,kcell
 	integer :: cellnp,sendnp,sendsize,recvnp,recvsize,pos,length,datasize,buffsize
 	integer :: isource,idest
-	double precision, dimension(:), allocatable :: sendbuffer
+	real(kind(0.d0)), dimension(:), allocatable :: sendbuffer
 	type(node), pointer :: old, current
 
 	!Obtain processor ID of lower neighbour
@@ -1008,7 +1008,7 @@ subroutine updatefaceup(ixyz)
 	integer :: icell,jcell,kcell
 	integer :: cellnp,sendnp,sendsize,recvnp,recvsize,pos,length,datasize,buffsize
 	integer :: isource,idest
-	double precision, dimension(:), allocatable :: sendbuffer
+	real(kind(0.d0)), dimension(:), allocatable :: sendbuffer
 	type(node), pointer 	        :: old, current
 
 	!Obtain processor ID of upper neighbour
@@ -1140,7 +1140,7 @@ subroutine updateedge(face1,face2)
 	integer :: cellnp,sendnp,sendsize,recvnp,recvsize,pos,length,datasize,buffsize
 	integer :: isource,idest
 	integer, dimension(3,4)   :: edge1, edge2
-	double precision, dimension(:), allocatable :: sendbuffer
+	real(kind(0.d0)), dimension(:), allocatable :: sendbuffer
 	type(node), pointer 	        :: old, current
 
 
@@ -1287,7 +1287,7 @@ subroutine updatecorners()
 	integer :: cellnp,sendnp,sendsize,recvnp,recvsize,pos,length,buffsize
 	integer :: isource,idest
 	integer, dimension(8)   :: icornercell, jcornercell, kcornercell
-	double precision, dimension(:), allocatable :: sendbuffer
+	real(kind(0.d0)), dimension(:), allocatable :: sendbuffer
 	type(node), pointer 	        :: old, current
 
 
@@ -1456,10 +1456,10 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 	integer :: molno,sendsize,recvnp,recvsize
 	integer :: pos,length,datasize,buffsize
 	integer :: isource,idest
-	double precision :: dppack !Temporay packing buffer
-	double precision, dimension(nd) :: Xpack !Temporay packing buffer
-	double precision, dimension(nsdmi)  :: FENEpack
-	double precision, dimension(:), allocatable :: sendbuffer
+	real(kind(0.d0)) :: dppack !Temporay packing buffer
+	real(kind(0.d0)), dimension(nd) :: Xpack !Temporay packing buffer
+	real(kind(0.d0)), dimension(nsdmi)  :: FENEpack
+	real(kind(0.d0)), dimension(:), allocatable :: sendbuffer
 	type(passnode), pointer :: old, current
 	character(len=1024) :: string
 
@@ -1915,7 +1915,7 @@ subroutine molsendrecv(recvarray)
 	integer :: molno,norecvd,sendnp,ipass,jpass,kpass
 	integer :: status(MPI_STATUS_SIZE),req
 	integer :: isource,idest,icount
-	double precision, dimension(6):: buf1, buf2
+	real(kind(0.d0)), dimension(6):: buf1, buf2
 	integer,dimension(nd,nd,nd)   :: recvarray
 	type(passnode), pointer    :: oldp, currentp
 
@@ -2050,7 +2050,7 @@ subroutine sendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest)
 	integer,intent(in) :: pos,isource,idest
 	integer,intent(in) :: sendsize
 	integer,intent(out):: recvsize,length
-	double precision,intent(in) :: sendbuffer(sendsize)
+	real(kind(0.d0)),intent(in) :: sendbuffer(sendsize)
 
 	!Send data to neighbour
 	call MPI_Send(sendbuffer, pos, MPI_PACKED, &
@@ -2086,7 +2086,7 @@ subroutine pairedsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,i
 	integer,intent(in) :: pos,isource,idest
 	integer,intent(in) :: sendsize
 	integer,intent(out):: recvsize,length
-	double precision,intent(in) :: sendbuffer(sendsize)
+	real(kind(0.d0)),intent(in) :: sendbuffer(sendsize)
 	integer,dimension(nd) :: coords
 
 	call MPI_cart_coords(icomm_grid,myid,3,coords,ierr)
@@ -2148,7 +2148,7 @@ subroutine NBsendproberecv(recvsize,sendsize,sendbuffer,pos,length,isource,idest
 	integer,intent(in) :: sendsize
 	integer,intent(out):: recvsize, length
 	integer, dimension(:), allocatable :: status
-	double precision,intent(in) :: sendbuffer(sendsize)
+	real(kind(0.d0)),intent(in) :: sendbuffer(sendsize)
 
 	!Choose a unique sendrecv_tag for this operation
 	sendrecv_tag = 101
@@ -2303,7 +2303,7 @@ subroutine iswaphalos(A,n1,n2,n3,nresults)
 
 end subroutine iswaphalos
 
-!Update face halo cells by passing to neighbours (double precision version)
+!Update face halo cells by passing to neighbours (real(kind(0.d0)) version)
 subroutine rswaphalos(A,n1,n2,n3,nresults)
 	use computational_constants_MD, only : ncells,nhalocells,halocells,nhb, & 
 										   nhalobins,halobins,nhalocellbins, halocellbins
@@ -2312,11 +2312,11 @@ subroutine rswaphalos(A,n1,n2,n3,nresults)
 	implicit none
 
 	integer,intent(in)								:: n1,n2,n3,nresults
-	double precision,intent(inout)					:: A(:,:,:,:)
+	real(kind(0.d0)),intent(inout)					:: A(:,:,:,:)
 
 	logical											:: packbinsincells(3)
 	integer											:: ixyz,n,i,j,k,ic,jc,kc,nresultscell
-	double precision,dimension(:,:,:,:),allocatable	:: buf
+	real(kind(0.d0)),dimension(:,:,:,:),allocatable	:: buf
 
 	integer											:: nhalo,na(3),nxyz(3)
 	integer,dimension(:,:),pointer					:: halo
@@ -2468,8 +2468,8 @@ subroutine rpack_bins_into_cells(cells,bins,nresults)
 	implicit none
 
 	integer,intent(in)								:: nresults
-	double precision,dimension(:,:,:,:),intent(in)	:: bins
-	double precision,dimension(:,:,:,:),intent(out)	:: cells
+	real(kind(0.d0)),dimension(:,:,:,:),intent(in)	:: bins
+	real(kind(0.d0)),dimension(:,:,:,:),intent(out)	:: cells
 
 	integer	:: result,icell,jcell,kcell,ibin,jbin,kbin,n
 
@@ -2504,8 +2504,8 @@ subroutine runpack_cells_into_bins(bins,cells,nresults)
 	implicit none
 
 	integer,intent(in)								:: nresults
-	double precision,dimension(:,:,:,:),intent(out)	:: bins
-	double precision,dimension(:,:,:,:),intent(in)	:: cells
+	real(kind(0.d0)),dimension(:,:,:,:),intent(out)	:: bins
+	real(kind(0.d0)),dimension(:,:,:,:),intent(in)	:: cells
 
 	integer											:: result,icell,jcell,kcell,ibin,jbin,kbin,n
 
@@ -2617,11 +2617,11 @@ subroutine rupdatefaces(A,n1,n2,n3,nresults,ixyz)
 	implicit none
 
 	integer,intent(in)								:: n1,n2,n3,nresults
-	double precision,intent(inout)					:: A(:,:,:,:)
+	real(kind(0.d0)),intent(inout)					:: A(:,:,:,:)
 
 	integer 										:: ixyz, sendrecv_tag
 	integer 										:: icount,isource,idest
-	double precision,dimension(:,:,:,:),allocatable	:: buf1, buf2
+	real(kind(0.d0)),dimension(:,:,:,:),allocatable	:: buf1, buf2
 
 	!Choose a unique sendrecv_tag for this operation
 	sendrecv_tag = 1002
@@ -2706,9 +2706,9 @@ end subroutine iswaphalos3D
 subroutine rswaphalos3D(A,n1,n2,n3)
 
 	integer,intent(in)				:: n1,n2,n3
-	double precision,intent(inout)	:: A(:,:,:)
+	real(kind(0.d0)),intent(inout)	:: A(:,:,:)
 
-	double precision, dimension(:,:,:,:), allocatable :: TEMP
+	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: TEMP
 
 	allocate(TEMP(size(A,1),size(A,2),size(A,3),1))
 	TEMP(:,:,:,1) = A(:,:,:)
@@ -2737,10 +2737,10 @@ end subroutine iswaphalos5D
 subroutine rswaphalos5D(A,n1,n2,n3)
 
 	integer,intent(in)				:: n1,n2,n3
-	double precision,intent(inout)	:: A(:,:,:,:,:)
+	real(kind(0.d0)),intent(inout)	:: A(:,:,:,:,:)
 
 	integer									 :: nresults
-	double precision, dimension(:,:,:,:), allocatable :: TEMP
+	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: TEMP
 
 	nresults = size(A,4)*size(A,5)
 	allocate(TEMP(size(A,1),size(A,2),size(A,3),nresults))
@@ -2786,7 +2786,7 @@ subroutine globalSumdp(A)
 	use messenger
 	implicit none
 
-	double precision :: A, buf
+	real(kind(0.d0)) :: A, buf
 
 	call MPI_AllReduce (A, buf, 1, MPI_DOUBLE_PRECISION, &
 	                    MPI_SUM, MD_COMM, ierr)
@@ -2830,8 +2830,8 @@ subroutine globalSumdpVect(A, na)
 	implicit none
 
 	integer, intent(in) :: na
-	double precision, intent(inout) :: A(na)
-	double precision, dimension(:), allocatable :: buf
+	real(kind(0.d0)), intent(inout) :: A(na)
+	real(kind(0.d0)), dimension(:), allocatable :: buf
 
     allocate(buf(na))
 	call MPI_AllReduce (A, buf, na, MPI_DOUBLE_PRECISION, &
@@ -2866,8 +2866,8 @@ subroutine globalSumTwoDim(A,na1,na2)
 	implicit none
 
 	integer, intent(in) :: na1,na2
-	double precision, intent(inout) :: A(na1,na2)
-	double precision, allocatable :: buf(:,:)
+	real(kind(0.d0)), intent(inout) :: A(na1,na2)
+	real(kind(0.d0)), allocatable :: buf(:,:)
 
     allocate(buf(na1,na2))	
 	call MPI_AllReduce (A, buf, na1*na2, MPI_DOUBLE_PRECISION, &
@@ -2905,8 +2905,8 @@ subroutine PlaneSumdp(A, ixyz)
     implicit none
 
     integer, intent(in) :: ixyz
-	double precision, intent(inout) :: A
-    double precision :: buf
+	real(kind(0.d0)), intent(inout) :: A
+    real(kind(0.d0)) :: buf
 
 	call MPI_AllReduce (A, buf, 1, MPI_DOUBLE_PRECISION, &
 	                    MPI_SUM, plane_comm(ixyz), ierr)
@@ -2943,8 +2943,8 @@ subroutine PlaneSumVect(A, na, ixyz)
 
     integer, intent(in) :: na
 	integer, intent(in) :: ixyz
-	double precision, intent(inout) :: A(na)
-	double precision, allocatable :: buf(:)
+	real(kind(0.d0)), intent(inout) :: A(na)
+	real(kind(0.d0)), allocatable :: buf(:)
 
 	allocate(buf(na))
 
@@ -2964,8 +2964,8 @@ subroutine globalGatherv(A,na,B,nb,rdisps)
 
 	integer, intent(in) :: na,nb(nproc),rdisps(nproc)
 
-	double precision, intent(in) :: A(na)
-	double precision, intent(out):: B(sum(nb))
+	real(kind(0.d0)), intent(in) :: A(na)
+	real(kind(0.d0)), intent(out):: B(sum(nb))
 
    	call MPI_Allgatherv (A, na,       MPI_DOUBLE_PRECISION, & 
                          B, nb,rdisps,MPI_DOUBLE_PRECISION, & 
@@ -2979,8 +2979,8 @@ subroutine planeGatherv(A,na,B,nb,rdisps,ixyz)
 
 	integer, intent(in) :: na,nb(plane_nproc(ixyz)),rdisps(plane_nproc(ixyz)),ixyz
 
-	double precision, intent(in) :: A(na)
-	double precision, intent(out):: B(sum(nb))
+	real(kind(0.d0)), intent(in) :: A(na)
+	real(kind(0.d0)), intent(out):: B(sum(nb))
 
 	!print'(14i6)', irank,iblock,jblock,kblock,na,nb,ixyz,size(A),size(B),plane_nproc(ixyz),size(rdisps)
 
@@ -2999,7 +2999,7 @@ subroutine globalSum_(A)
 	use messenger
 	implicit none
 
-	double precision :: A, buf
+	real(kind(0.d0)) :: A, buf
 
 	call MPI_AllReduce (A, buf, 1, MPI_DOUBLE_PRECISION, &
 	                    MPI_SUM, MD_COMM, ierr)
@@ -3013,7 +3013,7 @@ subroutine globalMax(A)
 	use messenger
 	implicit none
 
-	double precision :: A, buf
+	real(kind(0.d0)) :: A, buf
 
 	call MPI_AllReduce (A, buf, 1, MPI_DOUBLE_PRECISION, &
 	                    MPI_MAX, MD_COMM, ierr)
@@ -3040,8 +3040,8 @@ subroutine globalMaxVect(A, na)
 	implicit none
 
     integer, intent(in) :: na
-	double precision, intent(inout) :: A(na)
-	double precision, allocatable :: buf(:)
+	real(kind(0.d0)), intent(inout) :: A(na)
+	real(kind(0.d0)), allocatable :: buf(:)
 
     allocate(buf(na))
 	call MPI_AllReduce (A, buf, na, MPI_DOUBLE_PRECISION, &
@@ -3089,8 +3089,8 @@ subroutine globalMinVect(A, na)
 	implicit none
 
 	integer, intent(in) :: na
-	double precision, intent(inout) :: A(na)
-	double precision, allocatable :: buf(:)
+	real(kind(0.d0)), intent(inout) :: A(na)
+	real(kind(0.d0)), allocatable :: buf(:)
 
     allocate(buf(na))
 	call MPI_AllReduce (A, buf, na, MPI_DOUBLE_PRECISION, &
@@ -3108,8 +3108,8 @@ subroutine globalAverage(A, na)
 	integer, intent(in) :: na
 
 	integer	:: nprocs
-	double precision, intent(inout) :: A(na)
-	double precision, allocatable :: buf(:)
+	real(kind(0.d0)), intent(inout) :: A(na)
+	real(kind(0.d0)), allocatable :: buf(:)
 
     allocate(buf(na))
 	call MPI_AllReduce (A, buf, na, MPI_DOUBLE_PRECISION, &
@@ -3130,7 +3130,7 @@ subroutine globalbroadcast(A,na,broadprocid)
 	implicit none
 
 	integer				:: na, broadprocid
-	double precision	:: A
+	real(kind(0.d0))	:: A
 
 	call MPI_BCAST(A,na,MPI_DOUBLE_PRECISION,broadprocid-1,MD_COMM,ierr)
 
@@ -3143,9 +3143,9 @@ subroutine globalsyncreduce(A, na, meanA, maxA, minA)
 	!include "mpif.h"
 
  	integer						  :: na, nprocs
-	double precision, intent(in)  :: A(na)
-	double precision, intent(out) :: meanA(na), maxA(na), minA(na)
-	double precision buf(na)
+	real(kind(0.d0)), intent(in)  :: A(na)
+	real(kind(0.d0)), intent(out) :: meanA(na), maxA(na), minA(na)
+	real(kind(0.d0)) buf(na)
 
 	call MPI_Reduce(A, buf, na, MPI_DOUBLE_PRECISION, &
 	                    MPI_MAX, iroot-1, MD_COMM, ierr)
@@ -3226,8 +3226,8 @@ subroutine SubcommSum(A, ixyz)
 	implicit none
 
 	integer, intent(in) :: ixyz !Direction of sub-comm
-	double precision	A
-	double precision buf
+	real(kind(0.d0))	A
+	real(kind(0.d0)) buf
 
 	call MPI_AllReduce (A, buf, 1, MPI_DOUBLE_PRECISION, &
 	                    MPI_SUM, icomm_xyz(ixyz), ierr)
@@ -3257,8 +3257,8 @@ subroutine SubcommSumVect(A, na, ixyz)
 
 	integer, intent(in) :: na, ixyz !Direction of sub-comm
 
-	double precision, intent(inout) :: A(na)
-	double precision, allocatable :: buf(:)
+	real(kind(0.d0)), intent(inout) :: A(na)
+	real(kind(0.d0)), allocatable :: buf(:)
 
     allocate(buf(na))
 	call MPI_AllReduce (A, buf, na, MPI_DOUBLE_PRECISION, &

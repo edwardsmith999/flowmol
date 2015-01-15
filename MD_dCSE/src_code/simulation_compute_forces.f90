@@ -17,12 +17,12 @@ module module_compute_forces
 	use linked_list
     use module_set_parameters, only : mass, get_accijmag, get_force, get_energy
 
-	double precision                :: rij2        	!rij dotted with itself (one dimensional)
-	double precision                :: invrij2     	!inverse of rij2 
-	double precision                :: accijmag    	!Non directional component of acceleration
-	double precision,dimension(3)   :: ri, rj 		!Position of molecule i and j
-	double precision,dimension(3)   :: rij    		!vector between particles i and j
-	double precision,dimension(3)   :: fij    		!force between particles i and j
+	real(kind(0.d0))                :: rij2        	!rij dotted with itself (one dimensional)
+	real(kind(0.d0))                :: invrij2     	!inverse of rij2 
+	real(kind(0.d0))                :: accijmag    	!Non directional component of acceleration
+	real(kind(0.d0)),dimension(3)   :: ri, rj 		!Position of molecule i and j
+	real(kind(0.d0)),dimension(3)   :: rij    		!vector between particles i and j
+	real(kind(0.d0)),dimension(3)   :: fij    		!force between particles i and j
 
 contains
 
@@ -134,7 +134,7 @@ contains
 		real(kind(0.d0)), intent(out) 				:: Usum
 		real(kind(0.d0)),dimension(3), intent(out)	:: f
 		!Optional array of extra molecular positions to check against
-		double precision,dimension(:,:),allocatable,optional,intent(in)  :: extra_pos
+		real(kind(0.d0)),dimension(:,:),allocatable,optional,intent(in)  :: extra_pos
 
 		integer :: i,j 
 		integer :: icell, jcell, kcell
@@ -408,7 +408,7 @@ implicit none
 
 	integer                         :: i,j
 	integer                         :: p_i, p_j, ptot
-	double precision                :: eps
+	real(kind(0.d0))                :: eps
 
 	do i = 1,np
 		ri = r(:,i)
@@ -521,8 +521,12 @@ subroutine simulation_compute_forces_LJ_cells
 			do jcellshift = -1,1
 			do icellshift = -1,1
 
-				oldj => cell%head(icell+icellshift,jcell+jcellshift,kcell+kcellshift)%point
-				adjacentcellnp = cell%cellnp(icell+icellshift,jcell+jcellshift,kcell+kcellshift)
+				oldj => cell%head(icell+icellshift, & 
+                                  jcell+jcellshift, &
+                                  kcell+kcellshift)%point
+				adjacentcellnp = cell%cellnp(icell+icellshift, & 
+                                             jcell+jcellshift, &
+                                             kcell+kcellshift)
 
 				do j = 1,adjacentcellnp			!Step through all j for each i
 
@@ -894,11 +898,11 @@ implicit none
 	integer							:: molnoi, molnoj, j
 	integer							:: noneighbrs
 	type(node), pointer		:: old, current
-	!double precision, parameter     :: sod_a    = 3.1730728678
-	!double precision, parameter     :: sod_b    = -0.85622864544
-	!double precision, parameter     :: wca_cut  = 1.12246204830937
-	!double precision, parameter     :: wca_cut2 = 1.25992104989487
-	double precision                :: eps
+	!real(kind(0.d0)), parameter     :: sod_a    = 3.1730728678
+	!real(kind(0.d0)), parameter     :: sod_b    = -0.85622864544
+	!real(kind(0.d0)), parameter     :: wca_cut  = 1.12246204830937
+	!real(kind(0.d0)), parameter     :: wca_cut2 = 1.25992104989487
+	real(kind(0.d0))                :: eps
 
 	do molnoi = 1, np
 
@@ -1018,7 +1022,7 @@ subroutine simulation_compute_power!(imin, imax, jmin, jmax, kmin, kmax)
 	integer							:: icellmin,jcellmin,kcellmin,icellmax,jcellmax,kcellmax
 	type(node), pointer 	        :: oldi, currenti, oldj, currentj
 
-	double precision,dimension(3)	:: vi_t, cellsperbin
+	real(kind(0.d0)),dimension(3)	:: vi_t, cellsperbin
 
     potenergymol = 0.d0
 

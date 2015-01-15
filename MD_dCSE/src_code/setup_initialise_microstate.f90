@@ -11,8 +11,8 @@ module module_initialise_microstate
     use arrays_MD
     use calculated_properties_MD
 
-    double precision            :: angle, rand  !Define variables
-    double precision            :: v13          !Mag of v1 and v3 vectors
+    real(kind(0.d0))            :: angle, rand  !Define variables
+    real(kind(0.d0))            :: v13          !Mag of v1 and v3 vectors
 
 contains
 
@@ -174,8 +174,8 @@ subroutine setup_initialise_lattice
 
     integer :: j, n, nl, nx, ny, nz
     integer, dimension(nd) :: p_units_lb, p_units_ub 
-    double precision :: domain_top, domain_bottom
-    double precision, dimension (nd):: rc, c !Temporary variable
+    real(kind(0.d0)) :: domain_top, domain_bottom
+    real(kind(0.d0)), dimension (nd):: rc, c !Temporary variable
 
     p_units_lb(1) = (iblock-1)*floor(initialnunits(1)/real((npx),kind(0.d0)))
     p_units_ub(1) =  iblock *ceiling(initialnunits(1)/real((npx),kind(0.d0)))
@@ -1258,8 +1258,8 @@ subroutine setup_initialise_polymer_brush
     use interfaces, only: error_abort
     use messenger_data_exchange, only : globalSum
 
-    double precision :: solid_bottom(3), solid_top(3)
-    double precision :: grafting_density_real, density_ratio
+    real(kind(0.d0)) :: solid_bottom(3), solid_top(3)
+    real(kind(0.d0)) :: grafting_density_real, density_ratio
     integer :: nchainsremove, proc_units_xz
     integer :: wall_np, fluid_np, maxchainID, np_poly
     integer, dimension(nproc) :: proc_chains, proc_nps
@@ -1365,8 +1365,8 @@ contains
 
         integer :: j, n, nl, nx, ny, nz
         integer, dimension(nd) :: p_units_lb, p_units_ub 
-        double precision :: domain_top, domain_bottom, solid_density, density_ratio
-        double precision, dimension (nd):: rc, c
+        real(kind(0.d0)) :: domain_top, domain_bottom, solid_density, density_ratio
+        real(kind(0.d0)), dimension (nd):: rc, c
 
         p_units_lb(1) = (iblock-1)*floor(initialnunits(1)/real((npx),kind(0.d0)))
         p_units_ub(1) =  iblock *ceiling(initialnunits(1)/real((npx),kind(0.d0)))
@@ -1592,7 +1592,7 @@ contains
 
         integer :: m, cnt, chainID
         integer, dimension(:), allocatable :: removeIDs, removeflags
-        double precision :: random
+        real(kind(0.d0)) :: random
 
         allocate(removeIDs(nremove))
         allocate(removeflags(proc_chains(irank)))
@@ -1744,7 +1744,7 @@ contains
         integer, intent(in) :: nremove
         
         integer :: n, molno, failcount
-        double precision :: random
+        real(kind(0.d0)) :: random
 
         n = 0
         failcount = 0
@@ -1799,8 +1799,8 @@ subroutine setup_initialise_solid_liquid
 
     integer :: j, n, nl, nx, ny, nz
     integer, dimension(nd) :: p_units_lb, p_units_ub 
-    double precision :: domain_top, domain_bottom, solid_density, density_ratio
-    double precision, dimension (nd):: solid_bottom,solid_top, rc, c
+    real(kind(0.d0)) :: domain_top, domain_bottom, solid_density, density_ratio
+    real(kind(0.d0)), dimension (nd):: solid_bottom,solid_top, rc, c
 
     p_units_lb(1) = (iblock-1)*floor(initialnunits(1)/real((npx),kind(0.d0)))
     p_units_ub(1) =  iblock *ceiling(initialnunits(1)/real((npx),kind(0.d0)))
@@ -1955,14 +1955,14 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
 
     integer :: i, j, n, nl, nx, ny, nz
     integer, dimension(nd) :: p_units_lb, p_units_ub 
-    double precision :: domain_top, domain_bottom, solid_density, density_ratio_sl
-    double precision :: density_ratio_gl, h, h0, x, y, z, hx, hz
-    double precision, dimension (nd):: solid_bottom,solid_top, rc, c
+    real(kind(0.d0)) :: domain_top, domain_bottom, solid_density, density_ratio_sl
+    real(kind(0.d0)) :: density_ratio_gl, h, h0, x, y, z, hx, hz
+    real(kind(0.d0)), dimension (nd):: solid_bottom,solid_top, rc, c
 
 
     integer                                     :: Nnodes
-    double precision                            :: HLratio, L, FEA_nodespace, fract
-    double precision,allocatable,dimension(:)   :: FEA_X, FEA_H, MD_X, MD_H
+    real(kind(0.d0))                            :: HLratio, L, FEA_nodespace, fract
+    real(kind(0.d0)),allocatable,dimension(:)   :: FEA_X, FEA_H, MD_X, MD_H
 
     p_units_lb(1) = (iblock-1)*floor(initialnunits(1)/real((npx),kind(0.d0)))
     p_units_ub(1) =  iblock *ceiling(initialnunits(1)/real((npx),kind(0.d0)))
@@ -2273,7 +2273,7 @@ subroutine set_droplet_from_FEA_output(filename,ratio_gl)
 
     character(*),intent(in):: filename
 
-    double precision,intent(in) :: ratio_gl
+    real(kind(0.d0)),intent(in) :: ratio_gl
 
 
 
@@ -2293,7 +2293,7 @@ subroutine setup_initialise_concentric_cylinders
     integer :: j, n, nl, nx, ny, nz
     integer :: p_units_lb(nd), p_units_ub(nd)
     real(kind(0.d0)) :: rr,rx,ry             !Radial pos (cylindrical polar)
-    double precision, dimension (nd):: rc, c !Temporary variable
+    real(kind(0.d0)), dimension (nd):: rc, c !Temporary variable
 
     p_units_lb(1) = (iblock-1)*floor(initialnunits(1)/real((npx),kind(0.d0)))
     p_units_ub(1) =  iblock *ceiling(initialnunits(1)/real((npx),kind(0.d0)))
@@ -2389,7 +2389,7 @@ subroutine setup_initialise_fill_cylinders
     integer :: j, nl, nx, ny, nz
     integer :: p_units_lb(nd), p_units_ub(nd)
     real(kind(0.d0)) :: rr,rx,ry,dr          !Radial pos (cylindrical polar)
-    double precision, dimension (nd):: rc, c !Temporary variable
+    real(kind(0.d0)), dimension (nd):: rc, c !Temporary variable
 
     dr = rcutoff ! no-overlap tolerance
 
@@ -2494,8 +2494,8 @@ subroutine setup_initialise_polyinfo_singlebranched
     integer :: modcheck
     integer :: scIDbranch, glob_n_branch, nbranch, branchmonomers
     integer, dimension(nproc) :: proc_chains, proc_nps
-    double precision, dimension(3) :: rij
-    double precision :: rij2
+    real(kind(0.d0)), dimension(3) :: rij
+    real(kind(0.d0)) :: rij2
     
     proc_chains(:)         = 0
     proc_nps(:)            = 0
@@ -2623,14 +2623,14 @@ subroutine set_bin_velocity(imin, imax, jmin, jmax, kmin, kmax, velocity,veltype
 
 	integer, intent(in)                			:: veltype ! 0 = vbin/Nbin, 1 = vbin/binvolume
 	integer, intent(in)                			:: imin, imax, jmin, jmax, kmin, kmax
-	double precision,dimension(3),intent(in)	:: velocity   !Overall momentum of system
+	real(kind(0.d0)),dimension(3),intent(in)	:: velocity   !Overall momentum of system
 
 	integer			                			:: iminl, imaxl, jminl, jmaxl, kminl, kmaxl
 	integer										:: ibinmin,jbinmin,kbinmin,ibinmax,jbinmax,kbinmax
 	integer										:: i,icell,jcell,kcell,molno,binNsum,cellnp
 	integer	,dimension(3)						:: p_lb, p_ub
-	double precision,dimension(3)				:: binvsum, vcorrection,cellsperbin
-	double precision,dimension(3)				:: r_temp,v_temp,binsize,binmin,binmax
+	real(kind(0.d0)),dimension(3)				:: binvsum, vcorrection,cellsperbin
+	real(kind(0.d0)),dimension(3)				:: r_temp,v_temp,binsize,binmin,binmax
 	type(node), pointer 	        			:: old, current
 
 	if (imin .ne. imax) stop "Error set_bin_velocity -- bin indices imin and imax currently must be the same"
@@ -2828,7 +2828,7 @@ subroutine setup_initialise_velocities
     implicit none
 
     integer                            :: n,i 
-    double precision, dimension (nd)   :: netv   !Overall momentum of system
+    real(kind(0.d0)), dimension (nd)   :: netv   !Overall momentum of system
 
     !If ensemble is not tag based, set all molecules to unfixed
     if (ensemble .ne. tag_move) then
@@ -2887,8 +2887,8 @@ subroutine setup_initialise_velocities_TG
     implicit none
 
     integer                            :: n,i 
-    double precision                   :: x,y,z,Lx,Ly,Lz
-    double precision, dimension (nd)   :: netv   !Overall momentum of system
+    real(kind(0.d0))                   :: x,y,z,Lx,Ly,Lz
+    real(kind(0.d0)), dimension (nd)   :: netv   !Overall momentum of system
 
     !Use definition of temperature and re-arrange to define an average velocity
     initialvel = sqrt(nd * (1.d0 - 1.d0/globalnp)*inputtemperature)
@@ -2924,8 +2924,8 @@ subroutine setup_initialise_velocities_TG_parallel
     implicit none
 
     integer                            :: n,i 
-    double precision                   :: x,y,z,Lx,Ly,Lz
-    double precision, dimension (nd)   :: netv   !Overall momentum of system
+    real(kind(0.d0))                   :: x,y,z,Lx,Ly,Lz
+    real(kind(0.d0)), dimension (nd)   :: netv   !Overall momentum of system
 
     !Use definition of temperature and re-arrange to define an average velocity
     initialvel = sqrt(nd * (1.d0 - 1.d0/globalnp)*inputtemperature)
@@ -2970,7 +2970,7 @@ subroutine setup_initialise_velocities_test
     implicit none
 
     !integer                            :: i, n
-    !double precision, dimension (nd)   :: netv   !Overall momentum of system
+    !real(kind(0.d0)), dimension (nd)   :: netv   !Overall momentum of system
 
     !Use definition of temperature and re-arrange to define an average velocity
     !initialvel = sqrt(nd * (1.d0 - 1.d0/np)*inputtemperature)
@@ -3021,12 +3021,12 @@ subroutine set_velocity_field_from_couette_analytical(t,Re,Uwall,H,slidewall,ixy
     implicit none
 
 	integer, intent(in)				:: ixyz, slidewall
-	double precision, intent(in)	:: t, Re, Uwall, H
+	real(kind(0.d0)), intent(in)	:: t, Re, Uwall, H
 
 
 	integer										:: ibin, jbin, kbin,appliedbins
-	double precision,dimension(3)				:: binvel
-	double precision,dimension(:),allocatable	:: utemp
+	real(kind(0.d0)),dimension(3)				:: binvel
+	real(kind(0.d0)),dimension(:),allocatable	:: utemp
 
 	appliedbins = gnbins(ixyz)
 	allocate(utemp(gnbins(ixyz))); utemp = 0.d0
@@ -3067,8 +3067,8 @@ subroutine set_velocity_field_from_DNS_restart(filename,ngx,ngy,ngz)
 
     integer     :: i,j,k,ibin,jbin,kbin
     logical, dimension(3)       :: bin_error
-    double precision, dimension(3)  :: binvel
-    double precision, dimension(:,:,:),allocatable  :: uc, vc, wc
+    real(kind(0.d0)), dimension(3)  :: binvel
+    real(kind(0.d0)), dimension(:,:,:),allocatable  :: uc, vc, wc
 
     !Read DNS data into arrays
     call read_DNS_velocity_files(trim(filename),ngx,ngy,ngz,uc,vc,wc)

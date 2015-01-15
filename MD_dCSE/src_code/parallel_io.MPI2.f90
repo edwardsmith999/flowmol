@@ -178,10 +178,10 @@ end subroutine iwrite_arrays
 subroutine rwrite_arrays_1(temp,nresults,outfile,outstep)
 
     integer, intent(in)                             :: nresults,outstep
-    double precision, dimension(:,:,:),intent(in)   :: temp
+    real(kind(0.d0)), dimension(:,:,:),intent(in)   :: temp
     character(*),intent(in)                         :: outfile
 
-    double precision, dimension(:,:,:,:),allocatable    :: some_array
+    real(kind(0.d0)), dimension(:,:,:,:),allocatable    :: some_array
 
     allocate(some_array(size(temp,1),size(temp,2),size(temp,3),1))
     some_array(:,:,:,1) = temp(:,:,:)
@@ -197,7 +197,7 @@ subroutine rwrite_arrays(some_array,nresults,outfile,outstep)
     use librarymod, only : get_Timestep_FileName
 
     integer, intent(in)                             :: nresults,outstep
-    double precision, dimension(:,:,:,:),intent(in) :: some_array
+    real(kind(0.d0)), dimension(:,:,:,:),intent(in) :: some_array
     character(*),intent(in)                         :: outfile
 
     integer                             :: n, fh
@@ -210,7 +210,7 @@ subroutine rwrite_arrays(some_array,nresults,outfile,outstep)
     integer, dimension(3)               :: gsizes, lsizes, memsizes
     integer, dimension(3)               :: global_indices, local_indices
     integer, dimension(:,:),allocatable :: proc_lsizes 
-    double precision, allocatable,dimension(:,:,:)      :: OutBuffer
+    real(kind(0.d0)), allocatable,dimension(:,:,:)      :: OutBuffer
     character(200)                      :: outfile_t
 
     datatype = MPI_DOUBLE_PRECISION
@@ -305,7 +305,7 @@ subroutine rwrite_zplane(cpol_array,nresults,outfile,outstep)
     implicit none
 
     integer, intent(in) :: nresults,outstep
-    double precision, dimension(:,:,:,:),intent(in) :: cpol_array
+    real(kind(0.d0)), dimension(:,:,:,:),intent(in) :: cpol_array
     character(*),intent(in) :: outfile
 
     integer :: n, fh
@@ -317,7 +317,7 @@ subroutine rwrite_zplane(cpol_array,nresults,outfile,outstep)
     integer, dimension(3) :: gsizes, lsizes, memsizes
     integer, dimension(3) :: global_indices, local_indices
     integer, dimension(:,:),allocatable :: kblock_lsizes 
-    double precision, allocatable,dimension(:,:,:) :: OutBuffer
+    real(kind(0.d0)), allocatable,dimension(:,:,:) :: OutBuffer
     character(200) :: outfile_t
 
     datatype = MPI_DOUBLE_PRECISION
@@ -682,7 +682,7 @@ subroutine setup_restart_inputs
     integer                         :: checkint
     integer(kind=MPI_OFFSET_KIND)   :: ofs, header_ofs
     integer(selected_int_kind(18))  :: header_pos
-    double precision                :: checkdp
+    real(kind(0.d0))                :: checkdp
     character(400)                  :: error_message
 
     !Allocate random number seed
@@ -954,10 +954,10 @@ subroutine setup_restart_microstate
     integer                                      :: dp_datasize
     integer(kind=MPI_OFFSET_KIND)                :: disp, procdisp
     integer, dimension(:), allocatable           :: bufsize
-    double precision                             :: tagtemp
-    double precision, dimension (nd)             :: rtemp,vtemp,rtruetemp,rtethertemp
-    double precision, dimension (nsdmi)          :: monomertemp
-    double precision, dimension (:), allocatable :: buf !Temporary variable
+    real(kind(0.d0))                             :: tagtemp
+    real(kind(0.d0)), dimension (nd)             :: rtemp,vtemp,rtruetemp,rtethertemp
+    real(kind(0.d0)), dimension (nsdmi)          :: monomertemp
+    real(kind(0.d0)), dimension (:), allocatable :: buf !Temporary variable
 
     allocate(bufsize(nproc))
     bufsize = 0
@@ -1335,8 +1335,8 @@ subroutine parallel_io_final_state
     integer, dimension(:), allocatable              :: bufsize
     integer(kind=MPI_OFFSET_KIND)                   :: disp, procdisp, filesize
     integer(kind=selected_int_kind(18))             :: header_pos
-    double precision, dimension(:,:), allocatable   :: rglobal,rtetherglobal
-    double precision, dimension(:)  , allocatable   :: buf
+    real(kind(0.d0)), dimension(:,:), allocatable   :: rglobal,rtetherglobal
+    real(kind(0.d0)), dimension(:)  , allocatable   :: buf
 
     allocate(bufsize(nproc))
     bufsize = 0
@@ -2699,9 +2699,9 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
 
     integer                 :: m,nresults
     !integer, intent(in)        :: CV_mass_out(nbinso(1),nbinso(2),nbinso(3))
-    !double precision, intent(in) :: CV_momentum_out(nbinso(1),nbinso(2),nbinso(3),nd)
+    !real(kind(0.d0)), intent(in) :: CV_momentum_out(nbinso(1),nbinso(2),nbinso(3),nd)
     integer, dimension(:,:,:), intent(inout) :: CV_mass_out
-    double precision, dimension(:,:,:,:), intent(inout) :: CV_momentum_out
+    real(kind(0.d0)), dimension(:,:,:,:), intent(inout) :: CV_momentum_out
 
     character(4)            :: io_type
     character(30)           :: filename,outfile
@@ -3171,12 +3171,12 @@ subroutine temperature_bin_io(CV_mass_out,CV_temperature_out,io_type)
     implicit none
 
     integer,intent(inout)           :: CV_mass_out(:,:,:)
-    double precision,intent(inout)  :: CV_temperature_out(:,:,:)
+    real(kind(0.d0)),intent(inout)  :: CV_temperature_out(:,:,:)
 
     integer             :: m,nresults
     character(4)        :: io_type
     character(30)       :: filename, outfile
-    double precision,allocatable,dimension(:,:,:,:) :: CV_temperature_temp
+    real(kind(0.d0)),allocatable,dimension(:,:,:,:) :: CV_temperature_temp
 
     !Write mass bins
     if (velocity_outflag .ne. 4) then
@@ -3219,9 +3219,9 @@ subroutine energy_bin_io(CV_energy_out,io_type)
     implicit none
 
     integer                         :: m,nresults
-    double precision,intent(inout)  :: CV_energy_out(:,:,:)
+    real(kind(0.d0)),intent(inout)  :: CV_energy_out(:,:,:)
 
-    double precision,allocatable,dimension(:,:,:,:) :: CV_energy_temp
+    real(kind(0.d0)),allocatable,dimension(:,:,:,:) :: CV_energy_temp
     character(4)        :: io_type
     character(30)       :: filename, outfile
 
@@ -3296,8 +3296,8 @@ subroutine VA_stress_io
     implicit none
 
     integer                                         :: ixyz, jxyz, m, nresults
-    double precision                                :: binvolume
-    double precision,dimension(:,:,:,:),allocatable :: buf
+    real(kind(0.d0))                                :: binvolume
+    real(kind(0.d0)),dimension(:,:,:,:),allocatable :: buf
 
     !Add kinetic and configurational to Pxybin total
     Pxybin(:,:,:,:,:) =     vvbin(:,:,:,:,:)        & 
@@ -3386,9 +3386,9 @@ subroutine VA_heatflux_io
     implicit none
 
     integer                                         :: ixyz, jxyz, m, nresults
-    double precision                                :: binvolume
-    double precision, dimension(3)                  :: heatflux
-    double precision,dimension(:,:,:,:),allocatable :: buf
+    real(kind(0.d0))                                :: binvolume
+    real(kind(0.d0)), dimension(3)                  :: heatflux
+    real(kind(0.d0)),dimension(:,:,:,:),allocatable :: buf
 
     !Add kinetic and configurational to Pxybin total
     heatfluxbin(:,:,:,:) =     evbin(:,:,:,:)        & 
@@ -3462,7 +3462,7 @@ subroutine total_heatflux_io(heatflux)
     use module_parallel_io
     implicit none
 
-    double precision,dimension(:),intent(in)    :: heatflux
+    real(kind(0.d0)),dimension(:),intent(in)    :: heatflux
     integer     :: m, length
 
     !Write total_heatflux to file
@@ -3607,8 +3607,8 @@ subroutine momentum_flux_io
     implicit none
 
     integer                                         :: ixyz,m,nresults
-    double precision                                :: binface
-    double precision,allocatable,dimension(:,:,:,:) :: momentum_flux_temp
+    real(kind(0.d0))                                :: binface
+    real(kind(0.d0)),allocatable,dimension(:,:,:,:) :: momentum_flux_temp
 
     ! Swap Halos
     nresults = 18
@@ -3757,8 +3757,8 @@ subroutine surface_stress_io
     implicit none
 
     integer                                             :: ixyz,m,nresults
-    double precision                                    :: binface
-    double precision,allocatable,dimension(:,:,:,:)     :: Pxyface_temp
+    real(kind(0.d0))                                    :: binface
+    real(kind(0.d0)),allocatable,dimension(:,:,:,:)     :: Pxyface_temp
 
     ! Swap Halos
     nresults = 18
@@ -3814,7 +3814,7 @@ subroutine external_force_io
     implicit none
 
     integer                                             :: m,nresults
-    double precision,dimension(:,:,:,:),allocatable     :: temp
+    real(kind(0.d0)),dimension(:,:,:,:),allocatable     :: temp
 
     ! Swap Halos
     nresults = 3
@@ -3859,7 +3859,7 @@ subroutine energy_flux_io
     implicit none
 
     integer                 :: ixyz,m,nresults
-    double precision        :: binface
+    real(kind(0.d0))        :: binface
 
     !Include halo surface fluxes to get correct values for all cells
     nresults = 6
@@ -3906,7 +3906,7 @@ subroutine surface_power_io
     implicit none
 
     integer                 :: ixyz,m,nresults
-    double precision        :: binface
+    real(kind(0.d0))        :: binface
 
     !Include halo surface stresses to get correct values for all cells
     nresults = 6
@@ -4057,7 +4057,7 @@ subroutine viscosity_io
     implicit none
 
     integer             :: m, length
-    double precision    :: viscosity
+    real(kind(0.d0))    :: viscosity
 
     !call globalAverage(Pxycorrel, Nvisc_ave)
 

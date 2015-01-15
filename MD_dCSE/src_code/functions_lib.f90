@@ -46,7 +46,7 @@ module Weight_fn_mod
 
 	type :: Weight_1D_vector
 		private
-		double precision,dimension(3) :: a,b,c
+		real(kind(0.d0)),dimension(3) :: a,b,c
 
 	contains
 
@@ -88,8 +88,8 @@ subroutine set_coeffs_1D_vector(self, Np, sumx, sumx2, bBC, tBC, sBC)
 	class(Weight_1D_vector) 		:: self
 
 	integer,intent(in)						  :: Np
-	double precision,dimension(3),intent(in)  :: bBC, tBC, sBC
-	double precision,intent(in)				  :: sumx, sumx2
+	real(kind(0.d0)),dimension(3),intent(in)  :: bBC, tBC, sBC
+	real(kind(0.d0)),intent(in)				  :: sumx, sumx2
 
 	!Set constant to bottom boundary condition
 	self%c = bBC
@@ -105,10 +105,10 @@ function get_force_1D_vector(self,x) result(fx)
 
 	class(Weight_1D_vector) 		:: self
 
-	double precision,dimension(:),allocatable,intent(in)	:: x
+	real(kind(0.d0)),dimension(:),allocatable,intent(in)	:: x
 
 	integer													:: n
-	double precision,dimension(:,:),allocatable				:: fx
+	real(kind(0.d0)),dimension(:,:),allocatable				:: fx
 
 	!Get values of f(x_n)
 	allocate(fx(size(x,1),3))
@@ -127,8 +127,8 @@ subroutine set_coeffs_3D_vector(self, Np, sumx, sumx2, bBC, tBC, sBC)
 	class(Weight_3D_vector) 				:: self
 
 	integer,dimension(3),intent(in)			   :: Np
-	double precision,dimension(3),intent(in)   :: sumx, sumx2, sBC
-	double precision,dimension(3,3),intent(in) :: bBC, tBC
+	real(kind(0.d0)),dimension(3),intent(in)   :: sumx, sumx2, sBC
+	real(kind(0.d0)),dimension(3,3),intent(in) :: bBC, tBC
 
 	integer	:: ixyz
 
@@ -149,10 +149,10 @@ function get_force_3D_vector(self,r) result(fx)
 
 	class(Weight_3D_vector) 		:: self
 
-	double precision,dimension(:,:),allocatable,intent(in)	:: r
+	real(kind(0.d0)),dimension(:,:),allocatable,intent(in)	:: r
 
-	double precision,dimension(:),allocatable				:: x,y,z
-	double precision,dimension(:,:),allocatable				:: fx
+	real(kind(0.d0)),dimension(:),allocatable				:: x,y,z
+	real(kind(0.d0)),dimension(:,:),allocatable				:: fx
 
 	allocate(x(size(r,1)),y(size(r,1)),z(size(r,1)),fx(size(r,1),3))
 	x = r(:,1); y = r(:,2); z = r(:,3)
@@ -169,10 +169,10 @@ module librarymod
 
 	use Weight_fn_mod
 
-	double precision,parameter :: pi=4.d0*atan(1.d0)
-	double precision,parameter :: const0 = 0.d0, const1 = 1.d0
+	real(kind(0.d0)),parameter :: pi=4.d0*atan(1.d0)
+	real(kind(0.d0)),parameter :: const0 = 0.d0, const1 = 1.d0
 
-	! use same name for integer or double precision args versions of imaxloc
+	! use same name for integer or real(kind(0.d0)) args versions of imaxloc
 	interface imaxloc
 		module procedure imaxloc_int, imaxloc_dp
 	end interface
@@ -248,7 +248,7 @@ module librarymod
 
 		integer								:: nbins
 		integer,dimension(:),allocatable 	:: hist
-		double precision					:: minvalue,maxvalue,binsize
+		real(kind(0.d0))					:: minvalue,maxvalue,binsize
 
 	contains
 
@@ -379,8 +379,8 @@ end subroutine locate
 function magnitude3(a)
 	implicit none
 	
-	double precision						:: magnitude3
-	double precision,dimension(3),intent(in):: a
+	real(kind(0.d0))						:: magnitude3
+	real(kind(0.d0)),dimension(3),intent(in):: a
 
     ! this should use BLAS library 
     ! magnitude = dnorm2(3,a,1)
@@ -396,10 +396,10 @@ function magnitudeN(a,n)
 	implicit none
 	
 	integer,intent(in)			:: n
-	double precision,intent(in)	:: a(:)
+	real(kind(0.d0)),intent(in)	:: a(:)
 
 	integer						:: i
-	double precision			:: magnitudeN
+	real(kind(0.d0))			:: magnitudeN
 
 
     ! simpler with a BLAS call
@@ -613,8 +613,8 @@ function linspace(d1, d2, n)
     implicit none
 
     integer,intent(in)              :: n
-    double precision,intent(in)     :: d1,d2
-    double precision,dimension(:),allocatable    :: linspace
+    real(kind(0.d0)),intent(in)     :: d1,d2
+    real(kind(0.d0)),dimension(:),allocatable    :: linspace
 
     integer                                     :: i, n1
 
@@ -636,10 +636,10 @@ implicit none
 
 	integer											:: n
 	integer		, intent(in)						:: npoints
-	double precision								:: lstsqrsx,lstsqrsy,lstsqrsx2,lstsqrsxy
-	double precision, intent(in)					:: x_interval
-	double precision, intent(out)					:: lstsqrsgrad, lstsqrsinter
-	double precision, dimension(npoints), intent(in):: y
+	real(kind(0.d0))								:: lstsqrsx,lstsqrsy,lstsqrsx2,lstsqrsxy
+	real(kind(0.d0)), intent(in)					:: x_interval
+	real(kind(0.d0)), intent(out)					:: lstsqrsgrad, lstsqrsinter
+	real(kind(0.d0)), dimension(npoints), intent(in):: y
 
 	!Calculate molecular velocity using least squares to fit line
 	!and extrapolate down to point below overlap corresponding to continuum halo
@@ -677,9 +677,9 @@ subroutine integrate_trap(y,x_interval,npoints,s)
 implicit none
 
 	integer		, intent(in)						:: npoints
-	double precision, intent(in)					:: x_interval
-	double precision, intent(out)					:: s
-	double precision, dimension(npoints), intent(in):: y
+	real(kind(0.d0)), intent(in)					:: x_interval
+	real(kind(0.d0)), intent(out)					:: s
+	real(kind(0.d0)), dimension(npoints), intent(in):: y
 
 	integer											:: n
 
@@ -701,10 +701,10 @@ end subroutine integrate_trap
 subroutine bubble_sort(vec)
 	implicit none
 
-	double precision, dimension(:),allocatable,intent(inout)	:: vec 
+	real(kind(0.d0)), dimension(:),allocatable,intent(inout)	:: vec 
 
 	integer 			:: bubble, vsize, j
-	double precision	:: temp
+	real(kind(0.d0))	:: temp
 
 	vsize = size(vec) 
 
@@ -729,7 +729,7 @@ end subroutine bubble_sort
 function int_heaviside(x)
 	implicit none
 
-	double precision				:: int_heaviside
+	real(kind(0.d0))				:: int_heaviside
 	integer	,intent(in)				:: x
 
 	int_heaviside = nint(0.5*sign(1,x)+1)
@@ -740,7 +740,7 @@ function int_array_heaviside(x)
 	implicit none
 
 	integer,dimension(:),intent(in)	    :: x
-	double precision,dimension(size(x))	:: int_array_heaviside
+	real(kind(0.d0)),dimension(size(x))	:: int_array_heaviside
 
 	int_array_heaviside = nint(0.5*sign(1,x(:))+1)
 
@@ -749,8 +749,8 @@ end function int_array_heaviside
 function dp_heaviside(x)
 	implicit none
 
-	double precision			:: dp_heaviside
-	double precision,intent(in)	:: x
+	real(kind(0.d0))			:: dp_heaviside
+	real(kind(0.d0)),intent(in)	:: x
 
 	dp_heaviside = ceiling(sign(0.5d0,x))
 	!heaviside = 0.5*sign(1.d0,x)+1
@@ -760,8 +760,8 @@ end function dp_heaviside
 function dp_array_heaviside(x)
 	implicit none
 
-	double precision,dimension(:),intent(in)	:: x
-	double precision,dimension(size(x))			:: dp_array_heaviside
+	real(kind(0.d0)),dimension(:),intent(in)	:: x
+	real(kind(0.d0)),dimension(size(x))			:: dp_array_heaviside
 
 	dp_array_heaviside = ceiling(sign(0.5d0,x(:)))
 
@@ -770,11 +770,11 @@ end function dp_array_heaviside
 
 function sphereCV(r,radius)
 
-	double precision,intent(in)					:: radius
-	double precision,dimension(3),intent(in)	:: r
+	real(kind(0.d0)),intent(in)					:: radius
+	real(kind(0.d0)),dimension(3),intent(in)	:: r
 
-	double precision							:: sphereCV
-	double precision,dimension(3)				:: rs
+	real(kind(0.d0))							:: sphereCV
+	real(kind(0.d0)),dimension(3)				:: rs
 
 	!Convert to spherical coordinates
 	rs = sphereiser(r)
@@ -788,8 +788,8 @@ end function sphereCV
 ! k adjusts how aggressive it is
 function heaviside_dp_approx(x,k)
 
-	double precision,dimension(:),intent(in)	:: x, k
-	double precision,dimension(size(x))			:: heaviside_dp_approx
+	real(kind(0.d0)),dimension(:),intent(in)	:: x, k
+	real(kind(0.d0)),dimension(size(x))			:: heaviside_dp_approx
 
 	heaviside_dp_approx = 0.5d0*(1.d0 + tanh(k*x))
 
@@ -808,9 +808,9 @@ end function heaviside_dp_approx
 subroutine plane_line_intersect(intersection,normal,p,ri,rj)
 implicit none
 
-	double precision, dimension(3)				:: rij
-	double precision, dimension(3), intent(in)	:: ri, rj, normal, p
-	double precision, dimension(3), intent(out)	:: intersection
+	real(kind(0.d0)), dimension(3)				:: rij
+	real(kind(0.d0)), dimension(3), intent(in)	:: ri, rj, normal, p
+	real(kind(0.d0)), dimension(3), intent(out)	:: intersection
 
 	rij = rj-ri
 
@@ -824,8 +824,8 @@ end subroutine plane_line_intersect
 subroutine swap(a,b)
 	implicit none
 
-	double precision,dimension(:),intent(inout)	:: a, b
-	double precision,dimension(size(a,1))		:: temp
+	real(kind(0.d0)),dimension(:),intent(inout)	:: a, b
+	real(kind(0.d0)),dimension(size(a,1))		:: temp
 
 	if (size(a) .ne. size(b)) call error_abort("Array sizes different in swap")
 
@@ -840,8 +840,8 @@ end subroutine swap
 function outerprod(a,b)
 	implicit none
 
-	double precision,dimension(:),intent(in)	:: a, b
-	double precision,dimension(size(a),size(b))	:: outerprod
+	real(kind(0.d0)),dimension(:),intent(in)	:: a, b
+	real(kind(0.d0)),dimension(size(a),size(b))	:: outerprod
 
 	outerprod = spread(a,dim=2,ncopies=size(b))*spread(b,dim=1,ncopies=size(a))
 	
@@ -852,8 +852,8 @@ end function outerprod
 function crossprod(a,b)
 	implicit none
 
-	double precision,dimension(3),intent(in)	:: a, b
-	double precision,dimension(3)				:: crossprod
+	real(kind(0.d0)),dimension(3),intent(in)	:: a, b
+	real(kind(0.d0)),dimension(3)				:: crossprod
 
 	if (size(a) .ne. 3 .or. size(b) .ne. 3) call error_abort("Error - vectors must be 3 Dimensional for cross product")
 
@@ -870,7 +870,7 @@ function imaxloc_dp(a)
 
 	integer 									:: imaxloc_dp
 	integer,dimension(1)						:: imax
-	double precision,dimension(:),intent(in)	:: a
+	real(kind(0.d0)),dimension(:),intent(in)	:: a
 
 	imax = maxloc(a(:)) 
 	imaxloc_dp = imax(1)
@@ -914,10 +914,10 @@ end function nonzero
 subroutine LUdcmp(A,indx,d)
 	implicit none
 
-	double precision, dimension(:,:), intent(inout)	:: A
+	real(kind(0.d0)), dimension(:,:), intent(inout)	:: A
 	integer, dimension(:), intent(out)				:: indx
-	double precision								:: d
-	double precision, dimension(size(A,1))			:: vv
+	real(kind(0.d0))								:: d
+	real(kind(0.d0)), dimension(size(A,1))			:: vv
 	integer											:: j, n, imax
 
     ! Lapack version
@@ -957,9 +957,9 @@ subroutine LUbksb(A,indx,b)
 
 	integer						:: i, n, ii, ll
 	integer, dimension(:), intent(in)		:: indx
-	double precision				:: summ
-	double precision, dimension(:,:), intent(in)	:: A
-	double precision, dimension(:), intent(inout)	:: b
+	real(kind(0.d0))				:: summ
+	real(kind(0.d0)), dimension(:,:), intent(in)	:: A
+	real(kind(0.d0)), dimension(:), intent(inout)	:: b
 
         ! Lapack version, factorisation included
         ! call DGESV( N, NRHS, A, LDA, IPIV, B, LDB, INFO )
@@ -1111,8 +1111,8 @@ subroutine build_hilbert(ncells,Hcurve)
 
 	integer	:: icell,jcell,kcell,maxcells
 	integer	:: hindex,i,n,m
-	double precision	:: shift
-	double precision,dimension(:),allocatable	:: x,y,z
+	real(kind(0.d0))	:: shift
+	real(kind(0.d0)),dimension(:),allocatable	:: x,y,z
 
 	!Calculate max size of cell to determine required 3d Hilbert cube dimensions
 	maxcells=maxval(ncells(:))
@@ -1160,8 +1160,8 @@ contains
 		implicit none
 
 		integer,intent(in)										:: n
-		double precision,dimension(:),allocatable,intent(out)   :: x,y,z
-		double precision,dimension(:),allocatable				:: xo,yo,zo
+		real(kind(0.d0)),dimension(:),allocatable,intent(out)   :: x,y,z
+		real(kind(0.d0)),dimension(:),allocatable				:: xo,yo,zo
 
 
 		if (n .le. 0) then
@@ -1196,8 +1196,8 @@ end subroutine build_hilbert
 function normal_dist
 	implicit none
 
-	double precision			  :: normal_dist
-	double precision,dimension(2) :: rand, randn
+	real(kind(0.d0))			  :: normal_dist
+	real(kind(0.d0)),dimension(2) :: rand, randn
 
 	!Use box-muller to get normally distributed random numbers
 	call random_number(rand)
@@ -1213,9 +1213,9 @@ end function normal_dist
 function Rayleigh_vel(T,u)
 	implicit none
 
-	double precision			:: T, u, Rayleigh_vel
-	double precision			:: rand
-	double precision,parameter 	:: kB = 1.d0	!Boltzmann's constant
+	real(kind(0.d0))			:: T, u, Rayleigh_vel
+	real(kind(0.d0))			:: rand
+	real(kind(0.d0)),parameter 	:: kB = 1.d0	!Boltzmann's constant
 
 	! Rayleigh distributed number about 0 generated and added to
 	! mean u to give required velocity
@@ -1231,8 +1231,8 @@ end function Rayleigh_vel
 function Maxwell_Boltzmann_vel(T,u)
 	implicit none
 
-	double precision			 :: T, u, Maxwell_Boltzmann_vel
-	double precision,dimension(2):: rand
+	real(kind(0.d0))			 :: T, u, Maxwell_Boltzmann_vel
+	real(kind(0.d0)),dimension(2):: rand
 
 	!Use box-muller to get normally distributed random numbers for 1D Maxwell Boltzmann
 	call random_number(rand)
@@ -1246,10 +1246,10 @@ end function Maxwell_Boltzmann_vel
 function Maxwell_Boltzmann_speed(T,u)
 	implicit none
 
-	double precision			 :: T, u, Maxwell_Boltzmann_speed
-	double precision,dimension(3):: randn
-	double precision,dimension(4):: rand
-	double precision,parameter 	 :: kB = 1.d0	!Boltzmann's constant
+	real(kind(0.d0))			 :: T, u, Maxwell_Boltzmann_speed
+	real(kind(0.d0)),dimension(3):: randn
+	real(kind(0.d0)),dimension(4):: rand
+	real(kind(0.d0)),parameter 	 :: kB = 1.d0	!Boltzmann's constant
 
 	!Use box-muller to get normally distributed random numbers
 	call random_number(rand)
@@ -1267,10 +1267,10 @@ end function Maxwell_Boltzmann_speed
 function Maxwell_Boltzmann_vel3(T,u)
 	implicit none
 
-	double precision			 :: T
-	double precision,dimension(3):: Maxwell_Boltzmann_vel3, u 
-	double precision,dimension(4):: rand
-	double precision,parameter 	 :: kB = 1.d0	!Boltzmann's constant
+	real(kind(0.d0))			 :: T
+	real(kind(0.d0)),dimension(3):: Maxwell_Boltzmann_vel3, u 
+	real(kind(0.d0)),dimension(4):: rand
+	real(kind(0.d0)),parameter 	 :: kB = 1.d0	!Boltzmann's constant
 
 	!Use box-muller to get normally distributed random numbers
 	call random_number(rand)
@@ -1435,11 +1435,11 @@ end subroutine write_matrix
 subroutine printf(buf,dplaces_in)
 	implicit none
 
-	double precision,dimension(:),intent(in):: buf
+	real(kind(0.d0)),dimension(:),intent(in):: buf
 	integer, intent(in), optional			:: dplaces_in
 
 	integer				:: n,dplaces
-	double precision	:: maxbuf,minbuf,order
+	real(kind(0.d0))	:: maxbuf,minbuf,order
 	character*10	 	:: string
 	character*42	 	:: buf_precision
 
@@ -1530,7 +1530,7 @@ subroutine GNUplot(x,y)
 	implicit none
 
 	integer										:: i,unitno1,unitno2
-	double precision,dimension(:),intent(in)	:: x,y
+	real(kind(0.d0)),dimension(:),intent(in)	:: x,y
 
 	if (size(x,1) .ne. size(y,1)) call error_abort("Error in GNUplot - array sizes differ")
 
@@ -1562,7 +1562,7 @@ subroutine PYplot_1D(x,y,routine,savefig)
 	implicit none
 
 	integer										:: i,unitno1
-	double precision,dimension(:),intent(in)	:: x,y
+	real(kind(0.d0)),dimension(:),intent(in)	:: x,y
 	character(*)								:: routine
 	character(100)								:: callpython
 	logical										:: savefig_
@@ -1602,7 +1602,7 @@ subroutine PYplot_3D(x,y,routine,savefig)
 	implicit none
 
 	integer										:: i,unitno1
-	double precision,dimension(:,:),intent(in)	:: x,y
+	real(kind(0.d0)),dimension(:,:),intent(in)	:: x,y
 	character(*)								:: routine
 	character(100)								:: callpython
 	logical										:: savefig_
@@ -1650,7 +1650,7 @@ function PDF_constructor(nbins_in,minvalue_in, maxvalue_in)
 	type(PDF) 		:: PDF_constructor
 
 	integer, intent(in)			 :: nbins_in
-	double precision, intent(in) :: minvalue_in,maxvalue_in
+	real(kind(0.d0)), intent(in) :: minvalue_in,maxvalue_in
 
 	PDF_constructor%nbins     = nbins_in
 	PDF_constructor%minvalue  = minvalue_in
@@ -1668,7 +1668,7 @@ subroutine PDF_initialise(self, nbins_in,minvalue_in, maxvalue_in)
 	implicit none
 
 	integer, intent(in)			 :: nbins_in
-	double precision, intent(in) :: minvalue_in,maxvalue_in
+	real(kind(0.d0)), intent(in) :: minvalue_in,maxvalue_in
 
 	! initialize objects
 	class(PDF) 		:: self
@@ -1687,7 +1687,7 @@ end subroutine PDF_initialise
 subroutine PDF_update(self, array, checkrange)
 	implicit none
 
-	double precision, intent(in), dimension(:) 	:: array
+	real(kind(0.d0)), intent(in), dimension(:) 	:: array
 	logical,intent(in),optional					:: checkrange
 
 	logical										:: check
@@ -1725,7 +1725,7 @@ function PDF_binvalues(self)
 	implicit none
 
 	integer										:: i
-	double precision,dimension(:),allocatable	:: PDF_binvalues 
+	real(kind(0.d0)),dimension(:),allocatable	:: PDF_binvalues 
 
 	! initialize objects
 	class(PDF) 		:: self
@@ -1741,7 +1741,7 @@ end function PDF_binvalues
 ! function PDF_normalise(self)
 ! 	implicit none
 
-! 	double precision,dimension(:),allocatable	:: PDF_normalise 
+! 	real(kind(0.d0)),dimension(:),allocatable	:: PDF_normalise 
 
 ! 	! initialize shape objects
 ! 	class(PDF) 		:: self
@@ -1758,8 +1758,8 @@ function PDF_normalise(self)
 
 	integer										:: n
 
-	double precision,dimension(:),allocatable	:: PDF_normalise
-	double precision							:: normalise_factor
+	real(kind(0.d0)),dimension(:),allocatable	:: PDF_normalise
+	real(kind(0.d0))							:: normalise_factor
 	!initialize objects
 	class(PDF) 		:: self
 
@@ -1789,8 +1789,8 @@ function PDF_moments(self,momentno)
 	integer,intent(in)							:: momentno
 
 	integer										:: n
-	double precision							:: PDF_moments , zeromoment
-	double precision,dimension(:),allocatable	:: binslocs, normalisedPDF
+	real(kind(0.d0))							:: PDF_moments , zeromoment
+	real(kind(0.d0)),dimension(:),allocatable	:: binslocs, normalisedPDF
 
 	! initialize shape objects
 	class(PDF) 		:: self
@@ -1826,8 +1826,8 @@ function PDF_Hfunction(self)
 	implicit none
 
 	integer										:: n
-	double precision							:: PDF_Hfunction
-	double precision,dimension(:),allocatable	:: normalisedPDF 
+	real(kind(0.d0))							:: PDF_Hfunction
+	real(kind(0.d0)),dimension(:),allocatable	:: normalisedPDF 
 
 	! initialize shape objects
 	class(PDF) 		:: self
@@ -1850,7 +1850,7 @@ subroutine PDF_GNUplot(self)
 	implicit none
 
 	integer										:: i
-	double precision,allocatable,dimension(:)	:: binloc,out
+	real(kind(0.d0)),allocatable,dimension(:)	:: binloc,out
 
 	! initialize shape objects
 	class(PDF) 		:: self
@@ -1868,7 +1868,7 @@ subroutine PDF_PYplot(self)
 	implicit none
 
 	integer										:: i
-	double precision,allocatable,dimension(:)	:: binloc,out
+	real(kind(0.d0)),allocatable,dimension(:)	:: binloc,out
 	character(11)								:: routine
 
 	! initialize shape objects
@@ -1902,7 +1902,7 @@ subroutine read_DNS_velocity_files(filename,ngx,ngy,ngz,uc,vc,wc)
 
 	integer,intent(in)		:: ngx, ngy, ngz
 	character(*),intent(in)	:: filename
-	double precision, dimension(:,:,:),allocatable, intent(out)	:: uc, vc, wc
+	real(kind(0.d0)), dimension(:,:,:),allocatable, intent(out)	:: uc, vc, wc
 
 	integer					::  ifieldlength, file_size, unitno
 
@@ -1948,14 +1948,14 @@ subroutine read_FEA_output_files(filename, HLratio, nNodes, X, Z, &
 	character(*),intent(in)	:: filename
 
     integer,intent(out),optional          :: nNodes
-    double precision,intent(out),optional :: HLratio
-    double precision,intent(out),optional, &
+    real(kind(0.d0)),intent(out),optional :: HLratio
+    real(kind(0.d0)),intent(out),optional, &
         allocatable,dimension(:)       :: X, Z, H, Hx, Hxx, Hxxx, U, & 
                                           S2, S2x, S12_or_S1, S12x_or_S1x
 
     integer                               :: N
-    double precision                      :: Time_, HLratio_
-    double precision,allocatable,dimension(:) :: X_, Z_, H_, Hx_, Hxx_, Hxxx_, U_, & 
+    real(kind(0.d0))                      :: Time_, HLratio_
+    real(kind(0.d0)),allocatable,dimension(:) :: X_, Z_, H_, Hx_, Hxx_, Hxxx_, U_, & 
                                                  S2_, S2x_, S12_or_S1_, S12x_or_S1x_
 
 	integer					:: unitno, i
@@ -2024,14 +2024,14 @@ function couette_analytical_fn(t,Re,U_wall,L,npoints,slidingwall) result (u)
     implicit none
 
     integer,intent(in)             :: npoints,slidingwall
-    double precision,intent(in)    :: t,Re,U_wall,L
-    double precision,dimension(:),allocatable  :: u
+    real(kind(0.d0)),intent(in)    :: t,Re,U_wall,L
+    real(kind(0.d0)),dimension(:),allocatable  :: u
     
 	integer,parameter				:: top=0, bottom=1,both=2
     integer                        :: nmodes, n
-    double precision               :: k, uinitial, lambda
+    real(kind(0.d0))               :: k, uinitial, lambda
 
-    double precision,dimension(:),allocatable :: y
+    real(kind(0.d0)),dimension(:),allocatable :: y
 
     nmodes = 5000
     k = 1.d0/Re
@@ -2082,12 +2082,12 @@ function couette_analytical_stress_fn(t,Re,U_wall,L,npoints,slidingwall) result 
     implicit none
 
     integer,intent(in)             :: npoints,slidingwall
-    double precision,intent(in)    :: t,Re,U_wall,L
-    double precision,dimension(:),allocatable  :: tau
+    real(kind(0.d0)),intent(in)    :: t,Re,U_wall,L
+    real(kind(0.d0)),dimension(:),allocatable  :: tau
     
     integer                        :: nmodes, n
-    double precision               :: k, uinitial, lambda
-    double precision,dimension(:),allocatable :: y
+    real(kind(0.d0))               :: k, uinitial, lambda
+    real(kind(0.d0)),dimension(:),allocatable :: y
 
     nmodes = 5000
     k = 1.d0/Re
@@ -2139,10 +2139,10 @@ function Na(r,a)
     implicit none
 
 	integer,intent(in)							:: a
-    double precision,dimension(3),intent(in)	:: r
+    real(kind(0.d0)),dimension(3),intent(in)	:: r
 	
-	double precision							:: Na
-	double precision,dimension(3,8), & 
+	real(kind(0.d0))							:: Na
+	real(kind(0.d0)),dimension(3,8), & 
 		parameter	::  ra = (/ -1d0, -1.d0, -1.d0, & 
 								 1d0, -1.d0, -1.d0, & 
 								-1d0,  1.d0, -1.d0, & 
@@ -2176,8 +2176,8 @@ end function Na
 function surface_array_to_nodes_incell(surface) result(nodes)
     implicit none
 
-    double precision,dimension(3,6),intent(in):: surface
-	double precision,dimension(3,8)			  :: nodes
+    real(kind(0.d0)),dimension(3,6),intent(in):: surface
+	real(kind(0.d0)),dimension(3,8)			  :: nodes
 
 	nodes(:,1) = surface(:,4)+surface(:,5)+surface(:,6)
 	nodes(:,2) = surface(:,1)+surface(:,5)+surface(:,6)
@@ -2209,10 +2209,10 @@ end function surface_array_to_nodes_incell
 function surface_array_to_nodes_multicell(surface) result(nodes)
     implicit none
 
-    double precision,dimension(3,3,3,3,6),intent(in):: surface
+    real(kind(0.d0)),dimension(3,3,3,3,6),intent(in):: surface
 
     integer :: i,j,k
-	double precision,dimension(3,8)			  :: nodes
+	real(kind(0.d0)),dimension(3,8)			  :: nodes
 
 
     !Each node is where 8 cubes join, each with three relevant faces. As
@@ -2235,10 +2235,10 @@ end function surface_array_to_nodes_multicell
 function get_node(surface) result(node)
     implicit none
 
-    double precision,dimension(2,2,2,3,6),intent(in):: surface
-	double precision,dimension(3)			  :: node
+    real(kind(0.d0)),dimension(2,2,2,3,6),intent(in):: surface
+	real(kind(0.d0)),dimension(3)			  :: node
 
-    double precision,parameter                :: divider = 1.d0
+    real(kind(0.d0)),parameter                :: divider = 1.d0
 	node(:) =(+surface(1,1,1,:,1)+surface(1,1,1,:,2)+surface(1,1,1,:,3) &
 			  +surface(2,2,2,:,4)+surface(2,2,2,:,5)+surface(2,2,2,:,6) &
               +surface(1,2,2,:,5)+surface(1,2,2,:,6) &
@@ -2255,14 +2255,14 @@ end function get_node
 !Wrapper for single molecule
 function linearsurface_weight_1mol(array,r_in,binsize,domain,shiftmean,meanvalue) result(weight)
 
-    double precision,dimension(3),intent(in)	:: domain,binsize
-    double precision,dimension(:),intent(in)	:: r_in
-    double precision,dimension(:,:,:,:,:),allocatable,intent(in)    :: array
+    real(kind(0.d0)),dimension(3),intent(in)	:: domain,binsize
+    real(kind(0.d0)),dimension(:),intent(in)	:: r_in
+    real(kind(0.d0)),dimension(:,:,:,:,:),allocatable,intent(in)    :: array
 	integer,intent(in),optional	:: shiftmean
-	double precision,dimension(:,:,:,:),allocatable,intent(in),optional	:: meanvalue
+	real(kind(0.d0)),dimension(:,:,:,:),allocatable,intent(in),optional	:: meanvalue
 
-    double precision,dimension(3,1)	    :: buf
-    double precision,dimension(:,:),allocatable	    :: weight
+    real(kind(0.d0)),dimension(3,1)	    :: buf
+    real(kind(0.d0)),dimension(:,:),allocatable	    :: weight
     
     buf(:,1) =  r_in(:)
 	if (present(shiftmean)) then
@@ -2286,23 +2286,23 @@ end function linearsurface_weight_1mol
 function linearsurface_weight_Nmol(array,r_in,binsize,domain,shiftmean,meanvalue) result(weight)
     implicit none
 
-    double precision,dimension(3),intent(in)	:: domain,binsize
-    double precision,dimension(:,:),intent(in)	:: r_in
-    double precision,dimension(:,:,:,:,:),allocatable,intent(in)    :: array
+    real(kind(0.d0)),dimension(3),intent(in)	:: domain,binsize
+    real(kind(0.d0)),dimension(:,:),intent(in)	:: r_in
+    real(kind(0.d0)),dimension(:,:,:,:,:),allocatable,intent(in)    :: array
 	integer,intent(in),optional	:: shiftmean
-	double precision,dimension(:,:,:,:),allocatable,intent(in),optional	:: meanvalue
+	real(kind(0.d0)),dimension(:,:,:,:),allocatable,intent(in),optional	:: meanvalue
 
     integer,dimension(:,:,:),allocatable :: nperbin
-    double precision,dimension(:,:),allocatable	    :: weight
-    double precision,dimension(:,:,:),allocatable 	:: sqr_term
-    double precision,dimension(:,:,:,:),allocatable :: wsum_bin, meanvalue_
+    real(kind(0.d0)),dimension(:,:),allocatable	    :: weight
+    real(kind(0.d0)),dimension(:,:,:),allocatable 	:: sqr_term
+    real(kind(0.d0)),dimension(:,:,:,:),allocatable :: wsum_bin, meanvalue_
 
 	integer							:: npoints,n
     integer,dimension(3)            :: bin, order_nd, nbins
-    double precision				:: fxfyfz
-    double precision,dimension(3)   :: r_in_, Na
-    double precision,dimension(:,:),allocatable :: grid, rhat
-    double precision,dimension(3,6)	:: surfaces
+    real(kind(0.d0))				:: fxfyfz
+    real(kind(0.d0)),dimension(3)   :: r_in_, Na
+    real(kind(0.d0)),dimension(:,:),allocatable :: grid, rhat
+    real(kind(0.d0)),dimension(3,6)	:: surfaces
 
 	nbins = nint(domain/binsize)
 
@@ -2423,14 +2423,14 @@ end function linearsurface_weight_Nmol
 function get_weight_fn_scalar(tBC,bBC,sBC,x_n) result(fx_n)
 	implicit none
 
-	double precision,intent(in)								:: tBC,bBC,sBC
-	double precision,dimension(:),allocatable,intent(in)	:: x_n
-	double precision,dimension(:),allocatable				:: fx_n
+	real(kind(0.d0)),intent(in)								:: tBC,bBC,sBC
+	real(kind(0.d0)),dimension(:),allocatable,intent(in)	:: x_n
+	real(kind(0.d0)),dimension(:),allocatable				:: fx_n
 
 	integer													:: n, Np
-	double precision										:: sumx_n, sumx_n2
-	double precision										:: diffsumx
-	double precision										:: a,b,c
+	real(kind(0.d0))										:: sumx_n, sumx_n2
+	real(kind(0.d0))										:: diffsumx
+	real(kind(0.d0))										:: a,b,c
 
 	!Get sum of x_n and sum of x_n^2
 	sumx_n = 0.d0; sumx_n2 = 0.d0
@@ -2470,13 +2470,13 @@ end function get_weight_fn_scalar
 function get_weight_fn_vector(tBC,bBC,sBC,x_n) result(fx_n)
 	implicit none
 
-	double precision,dimension(3),intent(in)				:: tBC,bBC,sBC
-	double precision,dimension(:),allocatable,intent(in)	:: x_n
-	double precision,dimension(:,:),allocatable				:: fx_n
+	real(kind(0.d0)),dimension(3),intent(in)				:: tBC,bBC,sBC
+	real(kind(0.d0)),dimension(:),allocatable,intent(in)	:: x_n
+	real(kind(0.d0)),dimension(:,:),allocatable				:: fx_n
 
 	integer	:: n, Np
-	double precision	:: sumx_n, sumx_n2,diffsumx
-	double precision,dimension(3)	:: a,b,c
+	real(kind(0.d0))	:: sumx_n, sumx_n2,diffsumx
+	real(kind(0.d0)),dimension(3)	:: a,b,c
 
 	!Get sum of x_n and sum of x_n^2
 	sumx_n = 0.d0; sumx_n2 = 0.d0
@@ -2511,15 +2511,15 @@ end function get_weight_fn_vector
 function lagrange_poly_weight_1mol(array, r_in, binsize, domain, & 
 								   order, shiftmean, meanvalue) result(weight)
 
-    double precision,dimension(3),intent(in)	:: domain,binsize
-    double precision,dimension(:),intent(in)	:: r_in
-    double precision,dimension(:,:,:,:,:),allocatable,intent(in)    :: array
+    real(kind(0.d0)),dimension(3),intent(in)	:: domain,binsize
+    real(kind(0.d0)),dimension(:),intent(in)	:: r_in
+    real(kind(0.d0)),dimension(:,:,:,:,:),allocatable,intent(in)    :: array
 	integer,intent(in),optional	:: shiftmean, order
-	double precision,dimension(:,:,:,:),allocatable,intent(in),optional	:: meanvalue
+	real(kind(0.d0)),dimension(:,:,:,:),allocatable,intent(in),optional	:: meanvalue
 
 	integer								:: order_
-    double precision,dimension(3,1)	    :: buf
-    double precision,dimension(:,:),allocatable	    :: weight
+    real(kind(0.d0)),dimension(3,1)	    :: buf
+    real(kind(0.d0)),dimension(:,:),allocatable	    :: weight
     
     buf(:,1) =  r_in(:)
 	if (.not. present(order)) then
@@ -2546,25 +2546,25 @@ function lagrange_poly_weight_Nmol(array, r_in, binsize, domain, &
 								   order, node_averages, shiftmean, meanvalue) result(weight)
     implicit none
 
-    double precision,dimension(3),intent(in)	:: domain,binsize
-    double precision,dimension(:,:),intent(in)	:: r_in
-    double precision,dimension(:,:,:,:,:),allocatable,intent(in)    :: array
+    real(kind(0.d0)),dimension(3),intent(in)	:: domain,binsize
+    real(kind(0.d0)),dimension(:,:),intent(in)	:: r_in
+    real(kind(0.d0)),dimension(:,:,:,:,:),allocatable,intent(in)    :: array
 	integer,intent(in),optional	:: shiftmean, order, node_averages
-	double precision,dimension(:,:,:,:),allocatable,intent(in),optional	:: meanvalue
+	real(kind(0.d0)),dimension(:,:,:,:),allocatable,intent(in),optional	:: meanvalue
 
 	integer							:: npoints,n, node_ave
     integer,dimension(3)            :: bin, order_nd, nbins
-    double precision				:: fxfyfz
-    double precision,dimension(3)   :: r_in_, Na, lowerlim,upperlim
-    double precision,dimension(:,:),allocatable :: grid, rhat
-    double precision,dimension(3,6)	:: surfaces
-    double precision,dimension(3,8)	:: nodes,test
-    double precision,dimension(3,27):: nodes_order3
+    real(kind(0.d0))				:: fxfyfz
+    real(kind(0.d0)),dimension(3)   :: r_in_, Na, lowerlim,upperlim
+    real(kind(0.d0)),dimension(:,:),allocatable :: grid, rhat
+    real(kind(0.d0)),dimension(3,6)	:: surfaces
+    real(kind(0.d0)),dimension(3,8)	:: nodes,test
+    real(kind(0.d0)),dimension(3,27):: nodes_order3
 
     integer,dimension(:,:,:),allocatable :: nperbin
-    double precision,dimension(:,:),allocatable	    :: weight
-    double precision,dimension(:,:,:),allocatable 	:: sqr_term
-    double precision,dimension(:,:,:,:),allocatable :: wsum_bin,meanvalue_
+    real(kind(0.d0)),dimension(:,:),allocatable	    :: weight
+    real(kind(0.d0)),dimension(:,:,:),allocatable 	:: sqr_term
+    real(kind(0.d0)),dimension(:,:,:,:),allocatable :: wsum_bin,meanvalue_
 
 	!Setup polynomial and other functions
 	allocate(  rhat(size(r_in,1),size(r_in,2)))
@@ -2725,16 +2725,16 @@ end function lagrange_poly_weight_Nmol
 !    implicit none
 
 !    integer,dimension(nd),intent(in)    :: order
-!    double precision,dimension(nd),intent(in)    :: r_in,domain,binsize
-!    double precision,dimension(:,:,:,:,:),allocatable,intent(in)    :: array
+!    real(kind(0.d0)),dimension(nd),intent(in)    :: r_in,domain,binsize
+!    real(kind(0.d0)),dimension(:,:,:,:,:),allocatable,intent(in)    :: array
 
-!    double precision,dimension(nd)		    :: weight
+!    real(kind(0.d0)),dimension(nd)		    :: weight
 
 !	integer							:: npoints,i
 !    integer,dimension(3)            :: bin, order_nd
-!    double precision,dimension(3)   :: r_in_, rhat, rhat_,lowerlim,upperlim
-!    double precision,dimension(:,:),allocatable :: grid
-!    double precision,dimension(3,8)	:: nodes,test
+!    real(kind(0.d0)),dimension(3)   :: r_in_, rhat, rhat_,lowerlim,upperlim
+!    real(kind(0.d0)),dimension(:,:),allocatable :: grid
+!    real(kind(0.d0)),dimension(3,8)	:: nodes,test
 
 !    !Shift to all positive and get bin
 !    r_in_ = r_in(:)+0.5d0*domain(:)
@@ -2796,10 +2796,10 @@ end function lagrange_poly_weight_Nmol
 subroutine quadratic_lagrange_interp(x,y,xeval,yeval)
     implicit none
 
-    double precision, intent(in) :: xeval
-    double precision, dimension(3),intent(in) :: x, y
+    real(kind(0.d0)), intent(in) :: xeval
+    real(kind(0.d0)), dimension(3),intent(in) :: x, y
 
-    double precision, intent(out) :: yeval
+    real(kind(0.d0)), intent(out) :: yeval
 
     yeval =   y(1) * (xeval-x(2))/(x(1)-x(2)) * (xeval-x(3))/(x(1)-x(3)) &
             + y(2) * (xeval-x(1))/(x(2)-x(1)) * (xeval-x(3))/(x(2)-x(3)) &
@@ -2864,13 +2864,13 @@ subroutine lagrange_interp (n_1d, a, b, zd, xi, zi, xd )
 	implicit none
 
 	integer,intent(in) :: n_1d(:)
-	double precision,intent(in) :: a(:), b(:), zd(:), xi(:,:)
+	real(kind(0.d0)),intent(in) :: a(:), b(:), zd(:), xi(:,:)
 
-	double precision,intent(out) :: zi(:)
-	double precision,intent(out),optional :: xd(:,:)
+	real(kind(0.d0)),intent(out) :: zi(:)
+	real(kind(0.d0)),intent(out),optional :: xd(:,:)
 
 	integer :: m, nd, ni
-	double precision, allocatable,dimension(:) :: value,x_1d
+	real(kind(0.d0)), allocatable,dimension(:) :: value,x_1d
 
 	m = size(n_1d); nd = product(n_1d); ni = size(zd)
 	call lagrange_interp_nd_value( m, n_1d, a, b, nd, zd, ni, xi, zi)
@@ -2930,12 +2930,12 @@ subroutine lagrange_interp_nd_grid ( m, n_1d, a, b, nd, xd )
 	implicit none
 
 	integer, intent(in) ::	m, n_1d(m),nd
-	double precision,intent(in) :: a(m), b(m)
+	real(kind(0.d0)),intent(in) :: a(m), b(m)
 
-	double precision,intent(out) :: xd(m,nd)
+	real(kind(0.d0)),intent(out) :: xd(m,nd)
 
 	integer ::	i, n
-	double precision, allocatable :: x_1d(:)
+	real(kind(0.d0)), allocatable :: x_1d(:)
 
 	!Compute the data points.
 	xd(1:m,1:nd) = 0.0d0
@@ -2978,12 +2978,12 @@ subroutine lagrange_interp_nd_value ( m, n_1d, a, b, nd, zd, ni, xi, zi )
 	implicit none
 
 	integer,intent(in) :: m, n_1d(m), nd, ni
-	double precision,intent(in) :: a(m), b(m), zd(nd),xi(m,ni)
-	double precision,intent(out) :: zi(ni)
+	real(kind(0.d0)),intent(in) :: a(m), b(m), zd(nd),xi(m,ni)
+	real(kind(0.d0)),intent(out) :: zi(ni)
 
 	integer :: i,j,n
-	double precision :: w(nd)
-	double precision, allocatable,dimension(:) :: value,x_1d
+	real(kind(0.d0)) :: w(nd)
+	real(kind(0.d0)), allocatable,dimension(:) :: value,x_1d
 
 	do j = 1, ni
 
@@ -3029,9 +3029,9 @@ subroutine lagrange_basis_1d ( nd, xd, ni, xi, lb )
 	implicit none
 
 	integer,intent(in) ::	nd, ni
-	double precision,intent(in) :: xd(nd),xi(ni)
+	real(kind(0.d0)),intent(in) :: xd(nd),xi(ni)
 
-	double precision,intent(out) :: lb(ni,nd)
+	real(kind(0.d0)),intent(out) :: lb(ni,nd)
 
 	integer ::	i, j
 	
@@ -3066,7 +3066,7 @@ subroutine cc_compute_points ( n, points )
 	implicit none
 
 	integer,intent(in) ::	n
-	double precision,intent(out) :: points(n)
+	real(kind(0.d0)),intent(out) :: points(n)
 
 	integer ::	i
 
@@ -3962,12 +3962,12 @@ subroutine check
 	integer						:: i,j
 	integer						:: n,npoints
 	integer,dimension(3)		:: indx
-	double precision			:: d
-	double precision			:: integral
-	double precision			:: rand, x_interval, intercept, gradient
-	double precision,dimension(3)			:: b
-	double precision,dimension(3,3)			:: a
-	double precision, dimension(:), allocatable	:: y
+	real(kind(0.d0))			:: d
+	real(kind(0.d0))			:: integral
+	real(kind(0.d0))			:: rand, x_interval, intercept, gradient
+	real(kind(0.d0)),dimension(3)			:: b
+	real(kind(0.d0)),dimension(3,3)			:: a
+	real(kind(0.d0)), dimension(:), allocatable	:: y
 
 	!Check least squares line
 

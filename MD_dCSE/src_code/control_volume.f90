@@ -18,8 +18,8 @@ module CV_objects
 !type, abstract :: check_CV
 !	integer						 	:: N_ave
 !	integer, dimension(3)		   	:: nbins
-!	double precision				:: delta_t
-!	double precision, dimension(3)  :: domain, binsize
+!	real(kind(0.d0))				:: delta_t
+!	real(kind(0.d0)), dimension(3)  :: domain, binsize
 !	contains
 !		procedure :: initialise  => initialise_check_CV
 !end type check_CV
@@ -29,8 +29,8 @@ module CV_objects
 type :: check_CV_mass
 	integer						 			:: N_ave
 	integer, dimension(3)		   			:: nbins, nhb, debug_CV
-	double precision						:: delta_t
-	double precision, dimension(3)  		:: domain, binsize
+	real(kind(0.d0))						:: delta_t
+	real(kind(0.d0)), dimension(3)  		:: domain, binsize
 	integer,dimension(:,:,:,:),allocatable 	:: flux
 	integer,dimension(:,:,:),allocatable	:: dXdt, X, X_minus_t, X_minus_2t
 	contains
@@ -44,10 +44,10 @@ end type check_CV_mass
 type :: check_CV_momentum
 	integer						 			:: N_ave
 	integer, dimension(3)		   			:: nbins, nhb, debug_CV
-	double precision						:: delta_t
-	double precision, dimension(3)  		:: domain, binsize
-	double precision,dimension(:,:,:,:,:),allocatable 	:: flux, Pxy,  Pxy_minus_t
-	double precision,dimension(:,:,:,:),allocatable		:: dXdt, X, X_minus_t, X_minus_2t, & 
+	real(kind(0.d0))						:: delta_t
+	real(kind(0.d0)), dimension(3)  		:: domain, binsize
+	real(kind(0.d0)),dimension(:,:,:,:,:),allocatable 	:: flux, Pxy,  Pxy_minus_t
+	real(kind(0.d0)),dimension(:,:,:,:),allocatable		:: dXdt, X, X_minus_t, X_minus_2t, & 
 														   F_ext, totalflux, totalpressure
 	contains
 		procedure :: initialise  => initialise_momentum
@@ -63,10 +63,10 @@ end type check_CV_momentum
 type :: check_CV_energy
 	integer						 			:: N_ave
 	integer, dimension(3)		   			:: nbins, nhb, debug_CV
-	double precision						:: delta_t
-	double precision, dimension(3)  		:: domain, binsize
-	double precision,dimension(:,:,:,:),allocatable 	:: flux, Pxyv,  Pxyv_minus_t
-	double precision,dimension(:,:,:),allocatable		:: dXdt, X, X_minus_t, X_minus_2t, & 
+	real(kind(0.d0))						:: delta_t
+	real(kind(0.d0)), dimension(3)  		:: domain, binsize
+	real(kind(0.d0)),dimension(:,:,:,:),allocatable 	:: flux, Pxyv,  Pxyv_minus_t
+	real(kind(0.d0)),dimension(:,:,:),allocatable		:: dXdt, X, X_minus_t, X_minus_2t, & 
 														   Fv_ext, totalflux, totalpower
 	contains
 		procedure :: initialise  => initialise_energy
@@ -81,7 +81,7 @@ end type check_CV_energy
 
 !type, extends(check_CV_mass) :: sphereObj_mass
 
-!	double precision						:: radius = 2.d0
+!	real(kind(0.d0))						:: radius = 2.d0
 !	integer,dimension(:,:,:),allocatable	:: Xtemp
 !	integer,dimension(:,:,:,:),allocatable	:: fluxTemp
 !contains
@@ -95,8 +95,8 @@ end type check_CV_energy
 !type, extends(check_CV_momentum) :: sphereObj_mom
 
 !	logical											:: collect_spherical
-!	double precision								:: radius = 2.d0
-!	double precision,dimension(:,:,:,:),allocatable	:: Xtemp,FsurfaceTemp, Fsurface
+!	real(kind(0.d0))								:: radius = 2.d0
+!	real(kind(0.d0)),dimension(:,:,:,:),allocatable	:: Xtemp,FsurfaceTemp, Fsurface
 !contains
 !	procedure :: initialise_sphere		   => initialise_sphere_momentum
 !	procedure :: Add_spherical_CV_forces   => Add_spherical_CV_forces
@@ -136,8 +136,8 @@ contains
 
 !		integer, dimension(3),intent(in) 			:: nbins
 !		integer,intent(in)						 	:: N_ave
-!		double precision,intent(in)					:: delta_t
-!		double precision, dimension(3),intent(in)	:: domain
+!		real(kind(0.d0)),intent(in)					:: delta_t
+!		real(kind(0.d0)), dimension(3),intent(in)	:: domain
 
 !		self%domain  = domain
 !		self%nbins   = nbins
@@ -161,8 +161,8 @@ contains
 		integer, dimension(3),intent(in) 			:: nbins,nhb
 		integer,intent(in)						 	:: N_ave
 		integer, dimension(3),intent(in),optional 	:: debug_CV
-		double precision,intent(in)					:: delta_t
-		double precision, dimension(3),intent(in)	:: domain
+		real(kind(0.d0)),intent(in)					:: delta_t
+		real(kind(0.d0)), dimension(3),intent(in)	:: domain
 
 		integer, dimension(3)						:: nb
 
@@ -293,8 +293,8 @@ contains
 		integer, dimension(3),intent(in) 			:: nbins, nhb
 		integer, dimension(3),intent(in),optional 	:: debug_CV
 		integer,intent(in)						 	:: N_ave
-		double precision,intent(in)					:: delta_t
-		double precision, dimension(3),intent(in)	:: domain
+		real(kind(0.d0)),intent(in)					:: delta_t
+		real(kind(0.d0)), dimension(3),intent(in)	:: domain
 
 		integer, dimension(3)						:: nb
 
@@ -345,7 +345,7 @@ contains
 		! initialize shape objects
 		class(check_CV_momentum) :: self
 
-		double precision,dimension(:,:,:,:),intent(in) :: X
+		real(kind(0.d0)),dimension(:,:,:,:),intent(in) :: X
 
 		self%X_minus_t  = self%X
 		self%X 		  = X
@@ -360,7 +360,7 @@ contains
 		! initialize shape objects
 		class(check_CV_momentum) :: self
 
-		double precision,dimension(:,:,:,:),allocatable,intent(in) :: X
+		real(kind(0.d0)),dimension(:,:,:,:),allocatable,intent(in) :: X
 
 		self%F_ext = X
 
@@ -372,7 +372,7 @@ contains
 		! initialize shape objects
 		class(check_CV_momentum) :: self
 
-		double precision,dimension(:,:,:,:,:),allocatable,intent(in) :: X
+		real(kind(0.d0)),dimension(:,:,:,:,:),allocatable,intent(in) :: X
 
 		self%flux = X
 
@@ -384,7 +384,7 @@ contains
 		! initialize shape objects
 		class(check_CV_momentum) :: self
 
-		double precision,dimension(:,:,:,:,:),allocatable,intent(in) :: X
+		real(kind(0.d0)),dimension(:,:,:,:,:),allocatable,intent(in) :: X
 
 		self%Pxy_minus_t = self%Pxy
 		self%Pxy = X
@@ -399,7 +399,7 @@ contains
 		integer, dimension(3),intent(in) :: nb
 
 		integer							 :: nresults
-		double precision,dimension(:,:,:,:),allocatable :: temp
+		real(kind(0.d0)),dimension(:,:,:,:),allocatable :: temp
 
 		! initialize shape objects
 		class(check_CV_momentum) :: self
@@ -450,8 +450,8 @@ contains
 		logical							:: check_ok
 		integer 						:: i,j,k
 		integer,save 					:: first_time = 0
-		double precision				:: conserved
-		double precision,dimension(3)	:: totalpressure,totalflux,F_ext,dvelocitydt
+		real(kind(0.d0))				:: conserved
+		real(kind(0.d0)),dimension(3)	:: totalpressure,totalflux,F_ext,dvelocitydt
 
 		!First call doesn't have difference in time yet so skip
 		if (first_time .lt. 2) then
@@ -520,8 +520,8 @@ contains
 		integer, dimension(3),intent(in) 			:: nbins, nhb
 		integer, dimension(3),intent(in),optional 	:: debug_CV
 		integer,intent(in)						 	:: N_ave
-		double precision,intent(in)					:: delta_t
-		double precision, dimension(3),intent(in)	:: domain
+		real(kind(0.d0)),intent(in)					:: delta_t
+		real(kind(0.d0)), dimension(3),intent(in)	:: domain
 
 		integer, dimension(3)			 			:: nb
 
@@ -572,7 +572,7 @@ contains
 		! initialize shape objects
 		class(check_CV_energy) :: self
 
-		double precision,dimension(:,:,:),intent(in) :: X
+		real(kind(0.d0)),dimension(:,:,:),intent(in) :: X
 
 		!self%X_minus_2t  = self%X_minus_t
 		self%X_minus_t   = self%X
@@ -589,7 +589,7 @@ contains
 		! initialize shape objects
 		class(check_CV_energy) :: self
 
-		double precision,dimension(:,:,:),allocatable,intent(in) :: X
+		real(kind(0.d0)),dimension(:,:,:),allocatable,intent(in) :: X
 
 		self%Fv_ext = X
 
@@ -601,7 +601,7 @@ contains
 		! initialize shape objects
 		class(check_CV_energy) :: self
 
-		double precision,dimension(:,:,:,:),allocatable,intent(in) :: X
+		real(kind(0.d0)),dimension(:,:,:,:),allocatable,intent(in) :: X
 
 		self%flux = X
 
@@ -613,7 +613,7 @@ contains
 		! initialize shape objects
 		class(check_CV_energy) :: self
 
-		double precision,dimension(:,:,:,:),allocatable,intent(in) :: X
+		real(kind(0.d0)),dimension(:,:,:,:),allocatable,intent(in) :: X
 
 		self%Pxyv_minus_t = self%Pxyv
 		self%Pxyv = X
@@ -628,7 +628,7 @@ contains
 		integer, dimension(3),intent(in) 				:: nb
 
 		integer							 				:: nresults
-		double precision,dimension(:,:,:,:),allocatable :: temp
+		real(kind(0.d0)),dimension(:,:,:,:),allocatable :: temp
 
 		! initialize shape objects
 		class(check_CV_energy) :: self
@@ -659,7 +659,7 @@ contains
 		logical							:: check_ok
 		integer 						:: i,j,k
 		integer,save 					:: first_time = 0
-		double precision				:: conserved,totalpower,totalflux,Fv_ext,denergydt
+		real(kind(0.d0))				:: conserved,totalpower,totalflux,Fv_ext,denergydt
 
 		!First call doesn't have difference in time yet so skip
 		if (first_time .lt. 2) then
@@ -734,23 +734,23 @@ contains
 
 !   ! class(*) :: self 
 
-!	double precision, dimension(3),intent(in)						    :: r1, r2
+!	real(kind(0.d0)), dimension(3),intent(in)						    :: r1, r2
 
 !	!integer, intent(in)	            								:: value
 !	!integer dimension(:,:,:,:),allocatable,intent(inout)               :: flux
 
-!	!double precision, intent(in)									    :: value
-!	!double precision, dimension(:,:,:,:),allocatable,intent(inout)     :: flux
+!	!real(kind(0.d0)), intent(in)									    :: value
+!	!real(kind(0.d0)), dimension(:,:,:,:),allocatable,intent(inout)     :: flux
 
-!	double precision,dimension(3),intent(in)						    :: value
-!	double precision, dimension(:,:,:,:,:),allocatable,intent(inout)    :: flux
+!	real(kind(0.d0)),dimension(3),intent(in)						    :: value
+!	real(kind(0.d0)), dimension(:,:,:,:,:),allocatable,intent(inout)    :: flux
 
 !	integer, dimension(3)						:: bin1,bin2
 !	integer										:: i,j,k,ixyz, face
-!	double precision							:: onfacext,onfacexb,onfaceyt, & 
+!	real(kind(0.d0))							:: onfacext,onfacexb,onfaceyt, & 
 !                                                   onfaceyb,onfacezt,onfacezb
-!	double precision,dimension(3)   			:: Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
-!	double precision,dimension(3)				:: rij,  bintop, binbot
+!	real(kind(0.d0)),dimension(3)   			:: Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
+!	real(kind(0.d0)),dimension(3)				:: rij,  bintop, binbot
 
 !!    select type(self)
 !!    class is (check_CV_mass)
@@ -973,7 +973,7 @@ contains
 !		integer 						:: i,j,k
 !		integer,save 					:: first_time = 0
 !		integer		 				:: conserved, dmdt, totalflux
-!		double precision,dimension(3)	:: binsize
+!		real(kind(0.d0)),dimension(3)	:: binsize
 !		
 !		!First call doesn't have difference in time yet so skip
 !		if (first_time .lt. 2) then
@@ -1122,7 +1122,7 @@ contains
 !		! initialize objects
 !		class(sphereObj_mom) :: self
 
-!		double precision,dimension(:,:,:,:),allocatable,intent(in) :: X
+!		real(kind(0.d0)),dimension(:,:,:,:),allocatable,intent(in) :: X
 
 !		self%X_minus_t  = self%X
 !		self%X 		  = X
@@ -1149,8 +1149,8 @@ contains
 !		logical							:: check_ok
 !		integer 						:: i,j,k
 !		integer,save 					:: first_time = 0
-!		double precision				:: conserved
-!		double precision,dimension(3)	:: binsize,totalpressure,totalflux,F_ext,dvelocitydt
+!		real(kind(0.d0))				:: conserved
+!		real(kind(0.d0)),dimension(3)	:: binsize,totalpressure,totalflux,F_ext,dvelocitydt
 
 !		!First call doesn't have difference in time yet so skip
 !		if (first_time .lt. 2) then
@@ -1244,8 +1244,8 @@ contains
 ! 	integer							:: i,j,k,jxyz
 ! 	integer							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
 ! 	integer		,dimension(3)		:: ibin1,ibin2,cbin
-! 	double precision,dimension(3)	:: mbinsize,velvect,crossface
-! 	double precision,dimension(3)	:: ri1,ri2,ri12,bintop,binbot,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
+! 	real(kind(0.d0)),dimension(3)	:: mbinsize,velvect,crossface
+! 	real(kind(0.d0)),dimension(3)	:: ri1,ri2,ri12,bintop,binbot,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
 
 ! 	!CV momentum flux
 ! 	!Determine bin size
@@ -1389,11 +1389,11 @@ contains
 ! 	implicit none
 
 ! 	integer,intent(in)							:: molnoi,molnoj
-! 	double precision,dimension(3),intent(in)	:: ri,rj,fij
+! 	real(kind(0.d0)),dimension(3),intent(in)	:: ri,rj,fij
 
 ! 	integer,dimension(3)			:: ibin, jbin
-! 	double precision,dimension(3)	:: crossplane,fsurface
-! 	double precision,dimension(3)	:: Fbinsize, bintopi, binboti, bintopj, binbotj
+! 	real(kind(0.d0)),dimension(3)	:: crossplane,fsurface
+! 	real(kind(0.d0)),dimension(3)	:: Fbinsize, bintopi, binboti, bintopj, binbotj
 
 ! 	!Determine bin size
 ! 	Fbinsize(:) = domain(:) / nbins(:)
@@ -1446,13 +1446,13 @@ contains
 
 
 ! 	integer,intent(in)							:: molnoi
-! 	double precision,dimension(3),intent(in)	:: ri,rj,fij
+! 	real(kind(0.d0)),dimension(3),intent(in)	:: ri,rj,fij
 
 ! 	integer							:: i,j,k,ixyz
 ! 	integer							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
 ! 	integer,dimension(3)			:: cbin, ibin, jbin
-! 	double precision,dimension(3)	:: rij,fsurface,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb,velvect
-! 	double precision,dimension(3)	:: Fbinsize, bintop, binbot
+! 	real(kind(0.d0)),dimension(3)	:: rij,fsurface,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb,velvect
+! 	real(kind(0.d0)),dimension(3)	:: Fbinsize, bintop, binbot
 
 ! 	!Calculate rij
 ! 	rij = ri - rj
@@ -1560,12 +1560,12 @@ contains
 ! 	implicit none
 
 ! 	integer,intent(in)										:: icell,jcell,kcell
-! 	double precision,intent(inout)							:: isumflux
-! 	double precision,optional,dimension(3,6),intent(out)	:: Flux
+! 	real(kind(0.d0)),intent(inout)							:: isumflux
+! 	real(kind(0.d0)),optional,dimension(3,6),intent(out)	:: Flux
 
 ! 	integer								:: n,molno
 ! 	integer								:: icellshift,jcellshift,kcellshift,adjacentcellnp
-! 	double precision,dimension(3)		:: mbinsize,ri1,ri2,Fsurface,velvect
+! 	real(kind(0.d0)),dimension(3)		:: mbinsize,ri1,ri2,Fsurface,velvect
 ! 	type(node), pointer		 			:: old, current
 
 
@@ -1625,19 +1625,19 @@ contains
 ! 		implicit none
 
 ! 		integer,intent(in)										:: icell,jcell,kcell
-! 		double precision,dimension(3),intent(in)				:: ri1, ri2, velvect
-! 		double precision,dimension(3),intent(out)				:: Fsurface
-! 		double precision,dimension(3,6),intent(inout),optional	:: Flux
+! 		real(kind(0.d0)),dimension(3),intent(in)				:: ri1, ri2, velvect
+! 		real(kind(0.d0)),dimension(3),intent(out)				:: Fsurface
+! 		real(kind(0.d0)),dimension(3,6),intent(inout),optional	:: Flux
 
 ! 		integer									:: ixyz,jxyz,kxyz,i,j,k,ii,jj,kk,n
 ! 		integer									:: planeno
 ! 		integer									:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
 ! 		integer		,dimension(3)				:: ibin1,ibin2,cbin
-! 		double precision						:: crosstime,crossplane,rplane,shift
-! 		double precision,dimension(3)			:: mbinsize,crossface
-! 		double precision,dimension(3)			:: ri12,bintop,binbot,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
-! 		double precision,dimension(3,3,3,3)		:: Fsurfacebins
-! 		double precision,dimension(3,3,3,3,6)	:: Fluxbins
+! 		real(kind(0.d0))						:: crosstime,crossplane,rplane,shift
+! 		real(kind(0.d0)),dimension(3)			:: mbinsize,crossface
+! 		real(kind(0.d0)),dimension(3)			:: ri12,bintop,binbot,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
+! 		real(kind(0.d0)),dimension(3,3,3,3)		:: Fsurfacebins
+! 		real(kind(0.d0)),dimension(3,3,3,3,6)	:: Fluxbins
 
 ! 		!CV momentum flux
 ! 		!Determine bin size
@@ -1782,13 +1782,13 @@ contains
 ! 	implicit none
 
 ! 	integer,intent(in)										:: icell,jcell,kcell
-! 	double precision,intent(inout)							:: isumforce
-! 	double precision,dimension(3,6),optional,intent(inout)	:: Traction
+! 	real(kind(0.d0)),intent(inout)							:: isumforce
+! 	real(kind(0.d0)),dimension(3,6),optional,intent(inout)	:: Traction
 
 ! 	integer							:: n,j,ixyz,molnoi,molnoj
 ! 	integer							:: icellshift,jcellshift,kcellshift,cellnp,adjacentcellnp
-! 	double precision				:: rij2, invrij2, accijmag
-! 	double precision,dimension(3)	:: ri,rj,rij,fij,Fsurface
+! 	real(kind(0.d0))				:: rij2, invrij2, accijmag
+! 	real(kind(0.d0)),dimension(3)	:: ri,rj,rij,fij,Fsurface
 ! 	type(node), pointer		 	 	:: oldi, currenti, oldj, currentj
 
 ! 	cellnp = cell%cellnp(icell,jcell,kcell)
@@ -1869,12 +1869,12 @@ contains
 ! 		implicit none
 
 ! 		integer,intent(in)							:: molnoi,molnoj
-! 		double precision,dimension(3),intent(in)	:: ri, rj, fij
-! 		double precision,dimension(3),intent(out)	:: Fsurface
+! 		real(kind(0.d0)),dimension(3),intent(in)	:: ri, rj, fij
+! 		real(kind(0.d0)),dimension(3),intent(out)	:: Fsurface
 
 ! 		integer							:: ixyz
 ! 		integer,dimension(3)			:: ibin, jbin
-! 		double precision,dimension(3)	:: Fbinsize, bintop, binbot, crossplane
+! 		real(kind(0.d0)),dimension(3)	:: Fbinsize, bintop, binbot, crossplane
 
 ! 		!Determine bin size
 ! 		Fbinsize(:) = domain(:) / nbins(:)
@@ -1905,18 +1905,18 @@ contains
 ! 		implicit none
 
 ! 		integer,intent(in)										:: molnoi,molnoj
-! 		double precision,dimension(3),intent(in)				:: ri,rj,fij
-! 		double precision,dimension(3),intent(out)				:: Fsurface
-! 		double precision,dimension(3,6),intent(inout),optional	:: Traction
+! 		real(kind(0.d0)),dimension(3),intent(in)				:: ri,rj,fij
+! 		real(kind(0.d0)),dimension(3),intent(out)				:: Fsurface
+! 		real(kind(0.d0)),dimension(3,6),intent(inout),optional	:: Traction
 
 ! 		integer									:: i,j,k,ixyz,n,tempi
 ! 		integer									:: icell,jcell,kcell
 ! 		integer									:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
 ! 		integer,dimension(3)					:: cbin, ibin, jbin
-! 		double precision						:: binforce
-! 		double precision,dimension(3)			:: rij,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
-! 		double precision,dimension(3)			:: Fbinsize, bintop, binbot
-! 		double precision,dimension(3,3,3,3,6)	:: Tractionbins
+! 		real(kind(0.d0))						:: binforce
+! 		real(kind(0.d0)),dimension(3)			:: rij,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
+! 		real(kind(0.d0)),dimension(3)			:: Fbinsize, bintop, binbot
+! 		real(kind(0.d0)),dimension(3,3,3,3,6)	:: Tractionbins
 ! 		!Calculate rij
 ! 		rij = ri - rj
 ! 		!Prevent Division by zero

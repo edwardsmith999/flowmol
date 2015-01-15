@@ -26,9 +26,9 @@ module physical_constants_MD
 	double precision,parameter 		:: pi=4.d0*atan(1.d0)
 
 	!Simulation setup conditions
-	double precision, dimension(3)	:: fixdisttop, slidedisttop, fixdistbottom, slidedistbottom, wallslidev
-	double precision, dimension(3)	:: tethereddisttop, tethereddistbottom, thermstattop,thermstatbottom
-	double precision, dimension(3)	:: emptydistbottom, emptydisttop
+	real(kind(0.d0)), dimension(3)	:: fixdisttop, slidedisttop, fixdistbottom, slidedistbottom, wallslidev
+	real(kind(0.d0)), dimension(3)	:: tethereddisttop, tethereddistbottom, thermstattop,thermstatbottom
+	real(kind(0.d0)), dimension(3)	:: emptydistbottom, emptydisttop
 
 end module physical_constants_MD
 
@@ -54,14 +54,14 @@ module computational_constants_MD
 	integer                 	  :: external_force_flag !Apply external forces?
 	integer                 	  :: F_ext_ixyz			 !Direction of external forces
     integer                       :: eij_wall            !Interaction potential strength for substrate wall
-	double precision        	  :: F_ext				 !Magnitude of external forces
-	double precision,dimension(6) :: F_ext_limits		 !Limits of region external forces applied to
+	real(kind(0.d0))        	  :: F_ext				 !Magnitude of external forces
+	real(kind(0.d0)),dimension(6) :: F_ext_limits		 !Limits of region external forces applied to
 
     !Rebuild check flags
     integer             :: rebuild_criteria    !Choice of rebuild criteria
     integer             :: fixed_rebuild      !Fixed rebuild frequency
-	double precision 	:: rneighbr2         !Square of rcuttoff+delta_rneighbr
-	double precision 	:: delta_rneighbr    !Radius used for neighbour list construction
+	real(kind(0.d0)) 	:: rneighbr2         !Square of rcuttoff+delta_rneighbr
+	real(kind(0.d0)) 	:: delta_rneighbr    !Radius used for neighbour list construction
 
 	! Move particle tags
 	logical 		   :: tag_thermostat_active
@@ -85,7 +85,7 @@ module computational_constants_MD
 	integer, parameter :: posts = 1
 	integer, parameter :: roughness = 2
 	integer, parameter :: converge_diverge = 3
-	double precision   :: texture_intensity
+	real(kind(0.d0))   :: texture_intensity
 	
 
 	!Integration algorithm
@@ -106,10 +106,10 @@ module computational_constants_MD
 	!Initial configuration selection
 	integer           	:: initial_config_flag
 	character(len=128)	:: config_special_case
-	double precision	:: liquid_density	!Density of liquid if solid/liquid case used
-	double precision	:: gas_density	    !Density of liquid if gas/liquid case used
-	double precision	:: lg_fract	        !Fraction of the domain which is liquid (0 = all gas, 1 = all liquid)
-	double precision	:: dropletH =0.d0,dropletHLratio=0.d0   !Droplet height and H to length ratio
+	real(kind(0.d0))	:: liquid_density	!Density of liquid if solid/liquid case used
+	real(kind(0.d0))	:: gas_density	    !Density of liquid if gas/liquid case used
+	real(kind(0.d0))	:: lg_fract	        !Fraction of the domain which is liquid (0 = all gas, 1 = all liquid)
+	real(kind(0.d0))	:: dropletH =0.d0,dropletHLratio=0.d0   !Droplet height and H to length ratio
     logical             :: Twophase_from_file = .false.
 	character(len=128)	:: FEA_filename
 
@@ -163,7 +163,7 @@ module computational_constants_MD
 	integer, dimension(3)	:: periodic
 
 	!Tethered molecules spring potential coefficients
-	double precision    :: teth_k2,teth_k4,teth_k6
+	real(kind(0.d0))    :: teth_k2,teth_k4,teth_k6
 
 	!Parameters
 	integer	:: & 
@@ -198,19 +198,19 @@ module computational_constants_MD
 
 	integer,dimension(:,:),allocatable	:: vmd_intervals			!Multiple intervals for vmd record
 
-	double precision 	:: delta_t           !Size of timestep for each computational step
-	double precision 	:: elapsedtime       !Total time elapsed including restarts
-	double precision 	:: simtime=0.d0      !Total incremented simulation time
-	double precision    :: rdf_rmax          !Maximum radius for radial distribution function
-	double precision	:: rescue_snapshot_freq	!Rescue snapshot output frequency in seconds
+	real(kind(0.d0)) 	:: delta_t           !Size of timestep for each computational step
+	real(kind(0.d0)) 	:: elapsedtime       !Total time elapsed including restarts
+	real(kind(0.d0)) 	:: simtime=0.d0      !Total incremented simulation time
+	real(kind(0.d0))    :: rdf_rmax          !Maximum radius for radial distribution function
+	real(kind(0.d0))	:: rescue_snapshot_freq	!Rescue snapshot output frequency in seconds
 
     !Constants for probability density function
 	integer             :: NvPDF_ave   !Number of averages for each velocity PDF 
 	integer             :: NPDFbins    !Number of histogram bins for velocity PDF 
-	double precision	:: PDFvlims    !Velocity Probability density functions min/max value
+	real(kind(0.d0))	:: PDFvlims    !Velocity Probability density functions min/max value
 
 
-	double precision, dimension(3)			:: binspercell     !Number of avergaing bins per computational cell
+	real(kind(0.d0)), dimension(3)			:: binspercell     !Number of avergaing bins per computational cell
 	
 	!Store surface bins of processes subdomain for outputs over periodic boundaries
 	integer									:: nsurfacebins     !Number of surface bins
@@ -230,15 +230,15 @@ module computational_constants_MD
 
 	!Number and size of unit used for initial setup of molecules (i.e. FCC unit)
 	integer,          dimension(3)		:: initialnunits
-	double precision, dimension(3) 		:: initialunitsize
+	real(kind(0.d0)), dimension(3) 		:: initialunitsize
 
 	!Size of global computational domain and domain per processor
-	double precision, dimension(3)	:: globaldomain
-	double precision, dimension(3)	:: domain, halfdomain
+	real(kind(0.d0)), dimension(3)	:: globaldomain
+	real(kind(0.d0)), dimension(3)	:: domain, halfdomain
 
 	!Number and size of cells used for domain subdivision into cells of size ~rcutoff
 	integer,          dimension(3)	:: ncells
-	double precision, dimension(3)	:: cellsidelength, halfcellsidelength
+	real(kind(0.d0)), dimension(3)	:: cellsidelength, halfcellsidelength
 
 	!Array Storing mapping from cell number to point on 3D
 	!Hilbert curve
@@ -325,10 +325,10 @@ module shear_info_MD
 	integer				:: le_sp                    !Shear plane
 	integer				:: le_sd                    !Shear direction
 	integer				:: le_rp                    !Shear remaining plane
-	double precision 	:: le_sv                    !Shear velocity
-	double precision 	:: le_sr                    !Shear rate
-	double precision	:: le_sx                    !Shear distance
-	double precision	:: le_st                    !Shear time
+	real(kind(0.d0)) 	:: le_sv                    !Shear velocity
+	real(kind(0.d0)) 	:: le_sr                    !Shear rate
+	real(kind(0.d0))	:: le_sx                    !Shear distance
+	real(kind(0.d0))	:: le_st                    !Shear time
 
 	integer, dimension(:), allocatable	:: mol_wrap_integer		
 
@@ -342,21 +342,21 @@ module arrays_MD
 	integer,          dimension(:),   allocatable, target	:: tag !Mol tags
 	integer,          dimension(:),   allocatable, target	:: moltype !Type used for interactions
 	integer, 	  	  dimension(:,:), allocatable, target	:: fix  !Fixed molecules
-	double precision, dimension(:),   allocatable, target 	:: &
+	real(kind(0.d0)), dimension(:),   allocatable, target 	:: &
 		potenergymol, 		&		!Potential energy of each molecule
 		potenergymol_LJ, 	&		!LJ Potential energy of each molecule
 		potenergymol_FENE,	&		!FENE Potential energy of each molecule
 		potenergymol_mdt,	&		!Potential energy of each molecule at previous timestep
 		virialmol,			&		!Virial of each molecule
 		recvbuffer
-	double precision, dimension(:,:),   allocatable			:: &
+	real(kind(0.d0)), dimension(:,:),   allocatable			:: &
 		rtrue, 		&      			!Positions with no period BC
 		vtrue,      &               !Corresponding velocities
 		rtether, 	&
 		rijsum, 	&				!Sum of all molecular rij values
 		theta, 		&
 		aD,aR
-	double precision, dimension(:,:),   allocatable, target 	:: &
+	real(kind(0.d0)), dimension(:,:),   allocatable, target 	:: &
 		r, 		&        		  	!Positions
 		v, 		&        		  	!Velocity
 		a, 		&					!Accelerations
@@ -417,19 +417,19 @@ module polymer_info_MD
 	integer             :: r_gyration_iter0         !Iteration at which to start recording R_g
 
 	integer             :: solvent_flag             !Solvent on/off flag
-    double precision    :: targetconc               !Solvent target concentration
-	double precision    :: eps_pp, eps_ps, eps_ss   !Solvent parameters
-	double precision, parameter :: sod_cut =1.5d0   !Soddemann potential cutoff
-	double precision, parameter :: sod_cut2=2.25d0  ! 
-	double precision, parameter :: sod_a    = 3.1730728678
-	double precision, parameter :: sod_b    = -0.85622864544
-	double precision, parameter :: wca_cut  = 1.12246204830937
-!	double precision, parameter :: wca_cut2 = 1.25992104989486
-	double precision, parameter :: wca_cut2 = 1.25992104989487
+    real(kind(0.d0))    :: targetconc               !Solvent target concentration
+	real(kind(0.d0))    :: eps_pp, eps_ps, eps_ss   !Solvent parameters
+	real(kind(0.d0)), parameter :: sod_cut =1.5d0   !Soddemann potential cutoff
+	real(kind(0.d0)), parameter :: sod_cut2=2.25d0  ! 
+	real(kind(0.d0)), parameter :: sod_a    = 3.1730728678
+	real(kind(0.d0)), parameter :: sod_b    = -0.85622864544
+	real(kind(0.d0)), parameter :: wca_cut  = 1.12246204830937
+!	real(kind(0.d0)), parameter :: wca_cut2 = 1.25992104989486
+	real(kind(0.d0)), parameter :: wca_cut2 = 1.25992104989487
 
-	double precision 	:: k_c, R_0					!Spring constant and max elongation of bonds	
-	double precision 	:: etevtcf                  !End-to-end vector time correlation function
-	double precision    :: R_g                      !Radius of gyration
+	real(kind(0.d0)) 	:: k_c, R_0					!Spring constant and max elongation of bonds	
+	real(kind(0.d0)) 	:: etevtcf                  !End-to-end vector time correlation function
+	real(kind(0.d0))    :: R_g                      !Radius of gyration
 	
 	integer, parameter   :: max_funcy=4             !Maximum functionality of monomers in system
 	integer, allocatable :: bond(:,:)               !Chain neighbour molnos
@@ -452,13 +452,13 @@ module polymer_info_MD
     !-1, because 2**31 + 2**(something<31) not possible to represent with 32 bit integer
     !See get_bondflag explanation for a better idea.
     
-    double precision :: grafting_density                                                            
+    real(kind(0.d0)) :: grafting_density                                                            
 
 	type(monomer_info), dimension(:), allocatable :: monomer
 	!eg. to access chainID of mol 23, call monomer(23)%chainID
 
-	double precision, dimension(:,:), allocatable :: etev
-	double precision, dimension(:,:), allocatable :: etev_0 !End-to-end vectors for polymer chains at iter=etevtcf_iter0 (size of np,only stored for leftmost chain mols) 
+	real(kind(0.d0)), dimension(:,:), allocatable :: etev
+	real(kind(0.d0)), dimension(:,:), allocatable :: etev_0 !End-to-end vectors for polymer chains at iter=etevtcf_iter0 (size of np,only stored for leftmost chain mols) 
 
 contains
 
@@ -699,7 +699,7 @@ module calculated_properties_MD
 	integer,dimension(:,:,:), allocatable	:: dmdt					!Mass change in control volume from t-dt to t
 	integer,dimension(:,:,:,:), allocatable	:: mass_flux  			!Flow of mass over a control volume surface
 
-	double precision :: 	&
+	real(kind(0.d0)) :: 	&
 		binsize(3),			&		!Size of each bin
 		planespacing,		&		!Spacing between planes for MOP
 		vsum, v2sum,		&		!velocity sum
@@ -718,8 +718,8 @@ module calculated_properties_MD
 		zeta,				&		!Parameter used in Nose Hoover thermostat
 		gamma						!Parameter used in Nose Hoover shearostat
 
-	double precision, dimension(3,3) 			:: gamma_xy	 !Parameter used in Nose Hoover tensor stressostat 
-	double precision, dimension(:), allocatable :: &
+	real(kind(0.d0)), dimension(3,3) 			:: gamma_xy	 !Parameter used in Nose Hoover tensor stressostat 
+	real(kind(0.d0)), dimension(:), allocatable :: &
 		planes,				&  		!Location of planes used in MOP
 		rdf,				&		!Radial distribution function
 		diffusion,			&		!Diffusion of molecules
@@ -728,7 +728,7 @@ module calculated_properties_MD
 		slice_temperature,	&		!Temperature in a domain slice
 		Pxyv_plane 	 				!Energy on plane for MOP
 
-	double precision, dimension(:,:), allocatable 	:: & 
+	real(kind(0.d0)), dimension(:,:), allocatable 	:: & 
 		ssf,                &       !Static structure factor
 		rdf3d,				&		!Radial distribution function
 		ssf_hist,           &       !Running total for structure factor calculation
@@ -737,7 +737,7 @@ module calculated_properties_MD
 		Pxy,				&  		!Stress tensor for whole domain
 		Pxyzero   					!Stress tensor at start of sample
 
-	double precision, dimension(:,:,:), allocatable :: & 
+	real(kind(0.d0)), dimension(:,:,:), allocatable :: & 
 		rfmol,				&  		!Position(x)Force tensor per molecule
 		Pxymol,				&  		!Stress tensor per molecule
 		zeta_array,			&		!Local Nose Hoover Thermostat strength
@@ -745,7 +745,7 @@ module calculated_properties_MD
 		volume_energy,      &       !Energy in a control volume at time t
 		Fv_ext_bin					!Power due to external forces in bins
 
-	double precision, dimension(:,:,:,:), allocatable	:: &
+	real(kind(0.d0)), dimension(:,:,:,:), allocatable	:: &
 		volume_momentum,	& 		!Momentum in a control volume at time t
 		volume_momentum_s,	& 		!Solvent momentum in a control volume at time t
 		volume_momentum_p,	& 		!Polymer momentum in a control volume at time t
@@ -757,7 +757,7 @@ module calculated_properties_MD
 		evbin,              &  		!velocity energy per bin
         heatfluxbin
 
-	double precision, dimension(:,:,:,:,:), allocatable :: & 
+	real(kind(0.d0)), dimension(:,:,:,:,:), allocatable :: & 
 		volume_force,  		& 		!Force acting over control volume surface 
 		momentum_flux, 		&		!Flow of momentum over a control volume surface
 		rfbin, 				& 		!Position(x)Force tensor per bin
@@ -767,7 +767,7 @@ module calculated_properties_MD
 		Pxyface, 			&		!Stress tensor on bin face
 		Gxybins	    				!Parameter used in Nose Hoover stressostat
 
-	!double precision,dimension(2,3,44)	:: shiftVAstress
+	!real(kind(0.d0)),dimension(2,3,44)	:: shiftVAstress
 contains
  
 	function get_mass_slices(ixyz)
@@ -778,7 +778,7 @@ contains
 
 		integer, intent(in) 				:: ixyz
 		integer								:: bin,n
-		double precision 					:: binsize
+		real(kind(0.d0)) 					:: binsize
 		integer, dimension(nbins(ixyz)) 	:: get_mass_slices
 		
 		binsize = domain(ixyz)/nbins(ixyz)
@@ -800,8 +800,8 @@ contains
 
 		integer, intent(in) 				:: ixyz
 		integer								:: bin,n
-		double precision 					:: binsize
-		double precision, dimension(nbins(ixyz),nd) :: get_velo_slices
+		real(kind(0.d0)) 					:: binsize
+		real(kind(0.d0)), dimension(nbins(ixyz),nd) :: get_velo_slices
 		
 		binsize = domain(ixyz)/nbins(ixyz)
 		get_velo_slices = 0
@@ -819,7 +819,7 @@ contains
 
 	end function get_velo_slices
 
-	double precision function get_temperature_PUT()
+	real(kind(0.d0)) function get_temperature_PUT()
 	use computational_constants_MD, only: domain, halfdomain,delta_t
 	use physical_constants_MD, only: np,nd,globalnp
 	use arrays_MD, only: r,v,a
@@ -828,9 +828,9 @@ contains
 	
 		integer	:: slicebin,n	
 		integer, dimension(:), allocatable 	:: m_slice
-		double precision :: pec_v2sum
-		double precision, dimension(nd) 	:: slicebinsize, vel
-		double precision, dimension(:,:), allocatable :: v_slice,v_avg
+		real(kind(0.d0)) :: pec_v2sum
+		real(kind(0.d0)), dimension(nd) 	:: slicebinsize, vel
+		real(kind(0.d0)), dimension(:,:), allocatable :: v_slice,v_avg
 		
 		slicebinsize(:) = domain(:)/nbins(:)				! Get bin size
 		pec_v2sum 		= 0.d0								! Initialise

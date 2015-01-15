@@ -664,7 +664,7 @@ subroutine allocatecheck()
 	use arrays_MD
 	implicit none
 
-	double precision, dimension(:,:), allocatable :: tempr
+	real(kind(0.d0)), dimension(:,:), allocatable :: tempr
 
 	!Check allocated space is less than half filled at half way
 	if (nint((size(r,1)-np)/2.) < halo_np) then
@@ -977,7 +977,7 @@ subroutine send_VA_interaction(Rfbin_halo,intercbin)
 
 	integer				:: ibin, jbin, kbin
 	integer,dimension(3)		:: intercbin
-	double precision,dimension(3,3)	:: Rfbin_halo
+	real(kind(0.d0)),dimension(3,3)	:: Rfbin_halo
 
 	ibin = modulo((intercbin(1)-1),nbins(1))+1
 	jbin = modulo((intercbin(2)-1),nbins(1))+1
@@ -997,7 +997,7 @@ subroutine globalbroadcast(A,na,broadprocid)
 	implicit none
 
 	integer			:: na, broadprocid
-	double precision	:: A
+	real(kind(0.d0))	:: A
 
 	A = A
 
@@ -1009,8 +1009,8 @@ subroutine globalsyncreduce(A, na, meanA, maxA, minA)
 	implicit none
 	
         integer na
-	double precision, intent(in)  :: A(na)
-	double precision, intent(out) :: meanA(na), maxA(na), minA(na)
+	real(kind(0.d0)), intent(in)  :: A(na)
+	real(kind(0.d0)), intent(out) :: meanA(na), maxA(na), minA(na)
 
 	meanA = A
 	maxA = A
@@ -1022,7 +1022,7 @@ end
 subroutine globalSum(A)
 	use messenger
 	
-	double precision A
+	real(kind(0.d0)) A
 
 	A = A
 
@@ -1042,7 +1042,7 @@ end
 subroutine globalMax(A)
 	use messenger
 
-	double precision :: A
+	real(kind(0.d0)) :: A
 
 	A = A
 
@@ -1074,7 +1074,7 @@ subroutine globalSumVect(A, na)
 	use messenger
 	
 	integer na
-	double precision A(na)
+	real(kind(0.d0)) A(na)
 
 	A = A
 
@@ -1085,7 +1085,7 @@ subroutine globalSumTwoDim(A,na1,na2)
 	use messenger
 
 	integer, intent(in) :: na1,na2
-	double precision A(na1,na2)
+	real(kind(0.d0)) A(na1,na2)
 	
 	A = A
 
@@ -1130,7 +1130,7 @@ subroutine globalMaxVect(A, na)
 	use messenger
 	
         integer na
-	double precision A(na)
+	real(kind(0.d0)) A(na)
 
 	A = A
 
@@ -1141,7 +1141,7 @@ subroutine globalMinVect(A, na)
 	use messenger
 	
         integer na
-	double precision A(na)
+	real(kind(0.d0)) A(na)
 
 	A = A
 
@@ -1152,7 +1152,7 @@ subroutine globalAverage(A, na)
 	use messenger
 	
         integer na
-	double precision A(na)
+	real(kind(0.d0)) A(na)
 
 	A = A
 
@@ -1197,8 +1197,8 @@ subroutine SubcommSumVect(A, na, ixyz)
 	!include "mpif.h"
 
         integer, intent(in) :: na, ixyz !Direction of sub-comm
-	double precision A(na)
-	double precision buf(na)
+	real(kind(0.d0)) A(na)
+	real(kind(0.d0)) buf(na)
 
 	A = A
 

@@ -277,8 +277,6 @@ program change_proc_topology
     write(2) header_pos-1     ! -1 for MPI IO compatibility
 	close(2,status='keep') 	  !Close final_state file
 
-	close(2,status='keep')
-
 	deallocate(procnp)
 	deallocate(proctethernp)
 	deallocate(npcount)

@@ -265,9 +265,9 @@ subroutine assign_to_neighbourlist_allint(self)
 	integer                         :: icellshift, jcellshift, kcellshift
 	integer                         :: cellnp, adjacentcellnp
 	integer							:: molnoi, molnoj
-	double precision				:: rij2   !magnitude^2 between i and j
-	double precision,dimension(3)   :: ri, rj !Position of molecule i and j
-	double precision,dimension(3)   :: rij    !vector between particles i and j
+	real(kind(0.d0))				:: rij2   !magnitude^2 between i and j
+	real(kind(0.d0)),dimension(3)   :: ri, rj !Position of molecule i and j
+	real(kind(0.d0)),dimension(3)   :: rij    !vector between particles i and j
 	type(node), pointer 	        :: oldi, currenti, oldj, currentj
 
 	!Create Neighbourlist array based on current np
@@ -354,9 +354,9 @@ subroutine assign_to_neighbourlist_halfint(self)
 	integer                         :: cellnp, adjacentcellnp
 	integer							:: molnoi, molnoj
 	integer, dimension(13)          :: icellshift, jcellshift, kcellshift
-	double precision				:: rij2   !magnitude^2 between i and j
-	double precision,dimension(3)   :: ri, rj !Position of molecule i and j
-	double precision,dimension(3)   :: rij    !vector between particles i and j
+	real(kind(0.d0))				:: rij2   !magnitude^2 between i and j
+	real(kind(0.d0)),dimension(3)   :: ri, rj !Position of molecule i and j
+	real(kind(0.d0)),dimension(3)   :: rij    !vector between particles i and j
 	type(node), pointer 	        :: oldihead, oldi, currenti, oldjhead, oldj, currentj
 
 	!Create Neighbourlist array based on current np
@@ -744,9 +744,9 @@ subroutine assign_to_neighbourlist_halfint_opt(self)
 	integer                         :: cellnp, adjacentcellnp
 	integer							:: molnoi, molnoj
 	integer, dimension(13)          :: icellshift, jcellshift, kcellshift
-	double precision				:: rij2   !magnitude^2 between i and j
-	double precision,dimension(3)   :: ri, rj !Position of molecule i and j
-	double precision,dimension(3)   :: rij    !vector between particles i and j
+	real(kind(0.d0))				:: rij2   !magnitude^2 between i and j
+	real(kind(0.d0)),dimension(3)   :: ri, rj !Position of molecule i and j
+	real(kind(0.d0)),dimension(3)   :: rij    !vector between particles i and j
 	type(node), pointer 	        :: oldihead, oldi, currenti, oldjhead, oldj, currentj
 
 
@@ -896,9 +896,9 @@ subroutine assign_to_neighbourlist_allint_halo(self)
 	integer                         :: icellshift, jcellshift, kcellshift
 	integer                         :: cellnp, adjacentcellnp
 	integer							:: molnoi, molnoj
-	double precision				:: rij2   !magnitude^2 between i and j
-	double precision,dimension(3)   :: ri, rj !Position of molecule i and j
-	double precision,dimension(3)   :: rij    !vector between particles i and j
+	real(kind(0.d0))				:: rij2   !magnitude^2 between i and j
+	real(kind(0.d0)),dimension(3)   :: ri, rj !Position of molecule i and j
+	real(kind(0.d0)),dimension(3)   :: rij    !vector between particles i and j
 	type(node), pointer 	        :: oldi, currenti, oldj, currentj
 
 	!Create Neighbourlist array based on current np
@@ -997,9 +997,9 @@ subroutine assign_to_neighbourlist_halfint_halo(self)
 	integer                         :: cellnp, adjacentcellnp
 	integer							:: molnoi, molnoj
 	integer, dimension(13)          :: icellshift, jcellshift, kcellshift
-	double precision				:: rij2   !magnitude^2 between i and j
-	double precision,dimension(3)   :: ri, rj !Position of molecule i and j
-	double precision,dimension(3)   :: rij    !vector between particles i and j
+	real(kind(0.d0))				:: rij2   !magnitude^2 between i and j
+	real(kind(0.d0)),dimension(3)   :: ri, rj !Position of molecule i and j
+	real(kind(0.d0)),dimension(3)   :: rij    !vector between particles i and j
 	type(node), pointer 	        :: oldihead, oldi, currenti, oldjhead, oldj, currentj
 
 	!Create Neighbourlist array based on current np
@@ -1128,9 +1128,9 @@ subroutine calculate_cell_interactions(icell, jcell, kcell, k)
 	integer                         :: cellnp, adjacentcellnp
 	integer							:: molnoi, molnoj
 	integer, dimension(13)			:: icellshift, jcellshift, kcellshift
-	double precision				:: rij2   !magnitude^2 between i and j
-	double precision,dimension(3)   :: ri, rj !Position of molecule i and j
-	double precision,dimension(3)   :: rij    !vector between particles i and j
+	real(kind(0.d0))				:: rij2   !magnitude^2 between i and j
+	real(kind(0.d0)),dimension(3)   :: ri, rj !Position of molecule i and j
+	real(kind(0.d0)),dimension(3)   :: rij    !vector between particles i and j
 	type(node), pointer 	        :: oldi, currenti, oldjhead, oldj, currentj
 
 	!Assign cell offsets
@@ -1201,9 +1201,9 @@ subroutine calculate_cell_interactions_opt(self, istart,iend,ishift, &
 	integer							:: icell, jcell, kcell
 	integer                         :: cellnp, adjacentcellnp
 	integer							:: molnoi, molnoj
-	double precision				:: rij2   !magnitude^2 between i and j
-	double precision,dimension(3)   :: ri, rj !Position of molecule i and j
-	double precision,dimension(3)   :: rij    !vector between particles i and j
+	real(kind(0.d0))				:: rij2   !magnitude^2 between i and j
+	real(kind(0.d0)),dimension(3)   :: ri, rj !Position of molecule i and j
+	real(kind(0.d0)),dimension(3)   :: rij    !vector between particles i and j
 	type(node), pointer 	        :: oldi, currenti, oldjhead, oldj, currentj
 
 
@@ -1263,12 +1263,12 @@ subroutine sort_mols
 	integer,dimension(3)							:: nblocks
 	integer,allocatable,dimension(:)				:: molperblock
 	integer,allocatable,dimension(:,:)				:: tagtemp
-	double precision,dimension(3)					:: blocksidelength
-	double precision,allocatable,dimension(:,:,:)	:: rtemp,vtemp
-	double precision,allocatable,dimension(:,:,:)	:: rtethertemp
+	real(kind(0.d0)),dimension(3)					:: blocksidelength
+	real(kind(0.d0)),allocatable,dimension(:,:,:)	:: rtemp,vtemp
+	real(kind(0.d0)),allocatable,dimension(:,:,:)	:: rtethertemp
 	!Safety factors in allocations
 	integer,save									:: sf2=5
-	double precision,save							:: sf1=1.5d0
+	real(kind(0.d0)),save							:: sf1=1.5d0
 	!Number of rebuilds since last sort
 	integer,save									::  nrebuilds=1
 

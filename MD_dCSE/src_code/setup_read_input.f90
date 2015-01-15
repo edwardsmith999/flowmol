@@ -21,7 +21,7 @@ module module_read_input
 	! that could possibily be read in from the input file and proctect it! 
 	! It is then called throughout the code by using this module...
 	integer			 :: COUETTE_slidewall,  COUETTE_ixyz
-	double precision :: COUETTE_t, COUETTE_Re, COUETTE_Uwall, COUETTE_H
+	real(kind(0.d0)) :: COUETTE_t, COUETTE_Re, COUETTE_Uwall, COUETTE_H
 
 end module module_read_input
 !----------------------------------------------------------------------------------

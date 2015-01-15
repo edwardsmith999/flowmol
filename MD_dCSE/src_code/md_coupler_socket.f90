@@ -200,8 +200,8 @@ subroutine set_parameters_cells_coupled
 
 	integer 						:: ixyz,icmax,icmin,jcmax,jcmin,kcmax,kcmin
 	integer,dimension(3) 			:: max_ncells,cfd_ncells,cfd_md_cell_ratio
-	double precision 				:: rneighbr,dx,dy,dz
-	double precision ,dimension(3) 	:: cfd_cellsidelength, maxdelta_rneighbr
+	real(kind(0.d0)) 				:: rneighbr,dx,dy,dz
+	real(kind(0.d0)) ,dimension(3) 	:: cfd_cellsidelength, maxdelta_rneighbr
 
 
 	call CPL_get(icmax_olap=icmax,icmin_olap=icmin,jcmax_olap=jcmax,jcmin_olap=jcmin, & 
@@ -296,9 +296,9 @@ subroutine socket_check_cell_sizes
 	use CPL, only: CPL_get
 	implicit none
 
-	double precision							:: dx,dy,dz
-	double precision,dimension(:),allocatable	:: zg
-	double precision,dimension(:,:),allocatable	:: xg,yg
+	real(kind(0.d0))							:: dx,dy,dz
+	real(kind(0.d0)),dimension(:),allocatable	:: zg
+	real(kind(0.d0)),dimension(:,:),allocatable	:: xg,yg
 
 	call CPL_get(dx=dx,dy=dy,dz=dz,xg=xg,yg=yg,zg=zg)
 	if (irank .eq. iroot) then
@@ -431,9 +431,9 @@ contains
 
 		integer							:: i,j,k,n, ixyz
 		integer,dimension(3)			:: ibin,ibin1,ibin2,minbin,maxbin,crossplane,cfdbins
-		double precision	 			:: xbcmin,xbcmax, ybcmin,ybcmax, zbcmin,zbcmax
-		double precision,dimension(3) 	:: cfd_cellsidelength
-		double precision,dimension(3)	:: dxyz,ri1,ri2,avrg_top,avrg_bot,rd,rd2
+		real(kind(0.d0))	 			:: xbcmin,xbcmax, ybcmin,ybcmax, zbcmin,zbcmax
+		real(kind(0.d0)),dimension(3) 	:: cfd_cellsidelength
+		real(kind(0.d0)),dimension(3)	:: dxyz,ri1,ri2,avrg_top,avrg_bot,rd,rd2
 
 		!Specify BC region to average molecules
 		ybcmin = yg(1,jcmin_olap)-dy;    ybcmax = yg(1,jcmin_olap)
@@ -582,9 +582,9 @@ subroutine insert_remove_molecules
 	integer,save			:: cnstd(6),pcoords(3),extents(6),timestep_ratio,nclx,ncly,nclz
 	integer,dimension(:,:,:),allocatable				:: mols_change
 	integer,dimension(:,:,:),allocatable,save 			:: total_mols_change
-	double precision,dimension(3)						:: rin, vin, u
-	double precision,dimension(:,:,:),allocatable		:: mass_cfd
-	double precision,dimension(:,:,:),allocatable,save	:: mass_change
+	real(kind(0.d0)),dimension(3)						:: rin, vin, u
+	real(kind(0.d0)),dimension(:,:,:),allocatable		:: mass_cfd
+	real(kind(0.d0)),dimension(:,:,:),allocatable,save	:: mass_change
 
 	! Check processor is inside MD/CFD overlap zone 
 	if (.not.(CPL_overlap())) return
@@ -751,7 +751,7 @@ subroutine apply_continuum_forces_NCER
 	integer 				:: iter_average
 	integer					:: i,j,k,n,np_overlap
 	integer,allocatable 	:: list(:,:)
-	real(kind=kind(0.d0))	:: inv_dtCFD,t_fract,CFD_box(6)
+	real(kind(0.d0))	    :: inv_dtCFD,t_fract,CFD_box(6)
 	integer,save			:: cnstd(6),pcoords(3),extents(6),timestep_ratio
 	logical,save			:: recv_flag, first_time=.true.
 	save CFD_box
@@ -814,12 +814,12 @@ subroutine setup_CFD_box(limits,CFD_box,recv_flag)
 	!Flag to check if limits cover current processor
 	logical				 ,intent(out)	:: recv_flag
 	!Returned spacial limits of CFD box to receive data
-	real(kind=kind(0.d0)),dimension(6)  :: CFD_box
+	real(kind(0.d0)),dimension(6)  :: CFD_box
 
 	integer 	  		  :: portion(6)
 	integer		  		  :: nclx,ncly,nclz,ncbax,ncbay,ncbaz,ierr
     logical, save 		  :: firsttime=.true.
-	real(kind=kind(0.d0)),dimension(3) 			:: xyzmin,xyzmax
+	real(kind(0.d0)),dimension(3) 			:: xyzmin,xyzmax
 	real(kind(0.d0)),dimension(:),allocatable 	:: zg
 	real(kind(0.d0)),dimension(:,:),allocatable :: xg, yg
 
@@ -952,7 +952,7 @@ subroutine apply_force
 
 	integer	:: NCER_type
 	integer ib, jb, kb, i, j, k, molno, n
-	real(kind=kind(0.d0)) alpha(3), u_cfd_t_plus_dt(3), inv_dtMD, acfd(3)
+	real(kind(0.d0)) alpha(3), u_cfd_t_plus_dt(3), inv_dtMD, acfd(3)
 
 	! set the continnum constraints for the particle in the bin
 	! speed extrapolation add all up
@@ -1027,8 +1027,8 @@ subroutine apply_continuum_forces_flekkoy
 	integer					:: i,j,k,n,np_overlap
 	integer					:: icmin_olap,icmax_olap,jcmin_olap,jcmax_olap,kcmin_olap,kcmax_olap
 	integer,allocatable 	:: list(:,:)
-	real(kind=kind(0.d0))	:: inv_dtCFD,t_fract,CFD_box(6)
-	real(kind=kind(0.d0)),allocatable,dimension(:,:,:,:)	:: recv_buf
+	real(kind(0.d0))	    :: inv_dtCFD,t_fract,CFD_box(6)
+	real(kind(0.d0)),allocatable,dimension(:,:,:,:)	:: recv_buf
 	integer,save			:: cnstd(6),pcoords(3),extents(6),timestep_ratio
 	logical,save			:: recv_flag, first_time=.true.
 	save CFD_box
@@ -1098,12 +1098,12 @@ subroutine setup_CFD_box(limits,CFD_box,recv_flag)
 	!Flag to check if limits cover current processor
 	logical				 ,intent(out)	:: recv_flag
 	!Returned spacial limits of CFD box to receive data
-	real(kind=kind(0.d0)),dimension(6) :: CFD_box
+	real(kind(0.d0)),dimension(6)       :: CFD_box
 
 	integer 	  		  :: portion(6)
 	integer		  		  :: nclx,ncly,nclz,ncbax,ncbay,ncbaz,ierr
     logical, save 		  :: firsttime=.true.
-	real(kind=kind(0.d0)),dimension(3) 			:: xyzmin,xyzmax
+	real(kind(0.d0)),dimension(3) 			    :: xyzmin,xyzmax
 	real(kind(0.d0)),dimension(:),allocatable 	:: zg
 	real(kind(0.d0)),dimension(:,:),allocatable :: xg, yg
 
@@ -1401,11 +1401,11 @@ contains
         npercell = 18
 	    allocate(recv_buf(npercell,nclx,ncly,nclz))
 
-        ! vvvvvvv COMING SOON vvvvvvv
+        ! vvvvvvv FLUX EXCHANGE COMING SOON vvvvvvv
         !Get Fluxes 
         CFD_flux = 0.d0
 		recv_buf = -666.d0
-        ! ^^^^^^^ COMING SOON ^^^^^^^
+        ! ^^^^^^^ FLUX EXCHANGE COMING SOON ^^^^^^^
 
         !Get Stresses
         CFD_stress = 0.d0

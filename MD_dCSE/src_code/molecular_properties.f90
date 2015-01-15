@@ -20,15 +20,15 @@ contains
         use calculated_properties_MD, only : nbins
         implicit none
 
-        double precision :: rg(3)   ! Global position
+        real(kind(0.d0)) :: rg(3)   ! Global position
         character(*) :: status_type ! Specifies thermo, tethered, fixed, etc
 
         integer :: ixyz
-        double precision :: bottom(3) ! Global position of bottom of domain
-        double precision :: top(3)
-        double precision :: tagdistbottom(3) ! Distance specified by user
-        double precision :: tagdisttop(3)
-        double precision :: Mbinsize(3)
+        real(kind(0.d0)) :: bottom(3) ! Global position of bottom of domain
+        real(kind(0.d0)) :: top(3)
+        real(kind(0.d0)) :: tagdistbottom(3) ! Distance specified by user
+        real(kind(0.d0)) :: tagdisttop(3)
+        real(kind(0.d0)) :: Mbinsize(3)
         logical :: tag_status 
 
         bottom = (/ -globaldomain(1)/2.d0, -globaldomain(2)/2.d0, -globaldomain(3)/2.d0 /)
@@ -102,7 +102,7 @@ subroutine setup_cylinder_tags
 	implicit none
 
 	integer :: n
-	double precision :: rglob(3), rpol(3)
+	real(kind(0.d0)) :: rglob(3), rpol(3)
 
 	do n = 1,np
 		
@@ -130,7 +130,7 @@ subroutine setup_cylinder_tags_equilibrate
 	implicit none
 
 	integer :: n
-	double precision :: rglob(3), rpol(3)
+	real(kind(0.d0)) :: rglob(3), rpol(3)
 
 	do n = 1,np
 		
@@ -161,7 +161,7 @@ subroutine setup_location_tags
 	implicit none
 
 	integer :: n
-	double precision :: rglob(3)
+	real(kind(0.d0)) :: rglob(3)
 	logical :: l_thermo
 	logical :: l_teth
 	logical :: l_fixed
@@ -243,7 +243,7 @@ subroutine reset_location_tags
 	implicit none
 
 	integer :: n
-	double precision :: rglob(3), Mbinsize(3)
+	real(kind(0.d0)) :: rglob(3), Mbinsize(3)
 	logical :: l_thermo
 
 	if (ensemble .eq. tag_move) then
@@ -310,10 +310,10 @@ subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 	implicit none
 
 	integer,intent(in)	  :: texture_type
-	double precision,dimension(3),intent(in) :: rg
-	double precision,dimension(3),intent(out):: tagdistbottom,tagdisttop
+	real(kind(0.d0)),dimension(3),intent(in) :: rg
+	real(kind(0.d0)),dimension(3),intent(out):: tagdistbottom,tagdisttop
 
-	double precision		:: xlocation,ylocation,zlocation,rand,fraction_domain,postheight
+	real(kind(0.d0))		:: xlocation,ylocation,zlocation,rand,fraction_domain,postheight
 
 	select case (texture_type)
 	case(0)
@@ -439,7 +439,7 @@ subroutine read_tag(molno)
 	implicit none
 
 	integer :: molno
-	double precision   :: r_global(3)
+	real(kind(0.d0))   :: r_global(3)
 
 	if (ensemble .eq. tag_move) then
 
@@ -509,17 +509,17 @@ subroutine tether_force(molno)
 	implicit none
 
 	integer						:: molno
-	double precision			   :: acctmag
-	double precision, dimension(3) :: at,mat, rio
+	real(kind(0.d0))			   :: acctmag
+	real(kind(0.d0)), dimension(3) :: at,mat, rio
 
 	!COEFFICIENTS MOVED TO INPUT FILE
 	!Define strength of tethering potential ~ phi= k2*rio^2 
 	!Force constants (k2 = 0.5*57.15) from Liem Brown and Clarke via B. D. Todd, Peter J. Daivis, and Denis J. Evans (1995) PRE. 52, 5
-	!double precision, parameter	:: teth_k2=28.575
+	!real(kind(0.d0)), parameter	:: teth_k2=28.575
 	!Define strength of tethering potential ~ phi= -k4*rio^4 - k6*rio^6
 	!Force constants (k4 = 5,000, k6 = 5,000,000) from Petravich and Harrowell (2006) J. Chem. Phys.124, 014103.
-	!double precision, parameter	:: teth_k4=5000.d0	
-	!double precision, parameter	:: teth_k6=5000000.d0
+	!real(kind(0.d0)), parameter	:: teth_k4=5000.d0	
+	!real(kind(0.d0)), parameter	:: teth_k6=5000000.d0
 
 	!Obtain displacement from initial position
 	rio(:) = r(:,molno) - rtether(:,molno)
@@ -563,7 +563,7 @@ contains
 		implicit none
 
 		integer,dimension(:), intent(in),optional	:: tagin
-		double precision,dimension(:,:),intent(in)	:: rin, vin
+		real(kind(0.d0)),dimension(:,:),intent(in)	:: rin, vin
 
 		integer	:: n		
 
@@ -589,11 +589,11 @@ contains
 		implicit none
 
 		integer, intent(in),optional			:: tagin
-		double precision,dimension(3),intent(in):: rin, vin
+		real(kind(0.d0)),dimension(3),intent(in):: rin, vin
 
 		integer :: icell, jcell, kcell
 		integer :: icell_halo, jcell_halo, kcell_halo
-		double precision,parameter :: tol = 0.1d0
+		real(kind(0.d0)),parameter :: tol = 0.1d0
 
 		!Copy np + 1 halo molecule to (np + halo_np) + 1 position
 		r(:,np+halo_np+1)  = r(:,np+1)
@@ -772,7 +772,7 @@ contains
 
 		integer, intent(in) :: molno
 		integer, intent(in),optional			:: tagin
-		double precision,dimension(3),intent(in):: rin, vin
+		real(kind(0.d0)),dimension(3),intent(in):: rin, vin
 
 		call remove_molecule(molno)
 		call insert_molecule(rin,vin,tagin)
@@ -796,14 +796,14 @@ contains
 
 		logical,intent(in),optional				 :: check
 		integer,intent(in)						  :: icell,jcell,kcell,dir
-		double precision,dimension(3),intent(in)	:: u
-		double precision,dimension(3),intent(out)   :: rout
+		real(kind(0.d0)),dimension(3),intent(in)	:: u
+		real(kind(0.d0)),dimension(3),intent(out)   :: rout
 
 		logical						 :: insert_ok
 		integer						 :: ixyz,i,j,k,cellnp,molnoi
 		integer,dimension(3)			:: cells,block,procs
-		double precision,dimension(3)   :: rand,dxyz,ri,rij
-		double precision				:: dx,dy,dz
+		real(kind(0.d0)),dimension(3)   :: rand,dxyz,ri,rij
+		real(kind(0.d0))				:: dx,dy,dz
 		type(node), pointer			 :: oldi, currenti
 
 #if USE_COUPLER
@@ -906,8 +906,8 @@ contains
 		use calculated_properties_MD, only : temperature
 		implicit none
 
-		double precision,dimension(3),intent(out) :: vout
-		double precision,dimension(3),intent(in)  :: u
+		real(kind(0.d0)),dimension(3),intent(out) :: vout
+		real(kind(0.d0)),dimension(3),intent(in)  :: u
 
 		vout = Maxwell_Boltzmann_vel3(temperature,u)
 
@@ -926,22 +926,22 @@ contains
 		use module_compute_forces, only : compute_force_and_potential_at
 		implicit none
 
-		double precision , intent(in) :: startpos(3), Utarget
-		double precision, intent(out) :: finishpos(3), Ufinish
+		real(kind(0.d0)) , intent(in) :: startpos(3), Utarget
+		real(kind(0.d0)), intent(out) :: finishpos(3), Ufinish
 		logical, intent(out)		  :: succeed
-		double precision,dimension(:,:),allocatable,optional,intent(in)  :: extra_pos
+		real(kind(0.d0)),dimension(:,:),allocatable,optional,intent(in)  :: extra_pos
 
 		integer, optional, intent(in) :: maxiter_op 
-		double precision,optional, intent(in) :: dSmax_op 
-		double precision,optional, intent(in) :: tol_op
+		real(kind(0.d0)),optional, intent(in) :: dSmax_op 
+		real(kind(0.d0)),optional, intent(in) :: tol_op
 
 		integer :: n, maxiter					 
-		double precision :: dS, dSmax			! Step lengths
-		double precision :: dir				  ! Desired direction up/down in U
-		double precision :: ratio,tol			! U toler for stopping algorithm
-		double precision :: steppos(3) 
-		double precision :: U, Uold, Uovlp	   
-		double precision :: f(3), fhat(3), fmag
+		real(kind(0.d0)) :: dS, dSmax			! Step lengths
+		real(kind(0.d0)) :: dir				  ! Desired direction up/down in U
+		real(kind(0.d0)) :: ratio,tol			! U toler for stopping algorithm
+		real(kind(0.d0)) :: steppos(3) 
+		real(kind(0.d0)) :: U, Uold, Uovlp	   
+		real(kind(0.d0)) :: f(3), fhat(3), fmag
 
 		!print*, 'usher_get_insertion_pos', present(extra_pos)
 
@@ -1043,11 +1043,11 @@ subroutine reinsert_molecules
 	integer,dimension(:),allocatable ::rdisps, subcommmol_to_proc
 	
 	integer,dimension(:,:),allocatable :: insertnp_array,reinsert_molno
-	double precision :: x,y,z,dx,dy,dz,vx,vy,vz
-	double precision :: Ufinish, fdummy(3)
-	double precision :: startpos(3), insertpos(3),rij(3),rij2
-	double precision,dimension(:),allocatable :: sendbuf, recvbuf
-	double precision,dimension(:,:),allocatable :: insert_locs,insert_vels,reinsert_locs,subcomminsert_locs
+	real(kind(0.d0)) :: x,y,z,dx,dy,dz,vx,vy,vz
+	real(kind(0.d0)) :: Ufinish, fdummy(3)
+	real(kind(0.d0)) :: startpos(3), insertpos(3),rij(3),rij2
+	real(kind(0.d0)),dimension(:),allocatable :: sendbuf, recvbuf
+	real(kind(0.d0)),dimension(:,:),allocatable :: insert_locs,insert_vels,reinsert_locs,subcomminsert_locs
 
 	insert_flag = 4
 
@@ -1215,15 +1215,15 @@ contains
 		implicit none
 
 		integer,intent(in)	:: flag,insertnp
-		double precision,intent(in),optional :: Utarget_in
+		real(kind(0.d0)),intent(in),optional :: Utarget_in
 		!An array of extra molecular positions to include in potential calculation
-		double precision,dimension(:,:),allocatable,optional,intent(in)  :: extra_pos
+		real(kind(0.d0)),dimension(:,:),allocatable,optional,intent(in)  :: extra_pos
 
-		double precision,dimension(:,:),allocatable,intent(out) :: insert_locs
+		real(kind(0.d0)),dimension(:,:),allocatable,intent(out) :: insert_locs
 
 
 		integer				:: maxattempts=10000
-		double precision 	:: Utarget
+		real(kind(0.d0)) 	:: Utarget
 		logical 			:: pos_found
 
 		!print*, 'usher_get_positions', present(extra_pos)
@@ -1291,7 +1291,7 @@ contains
 		implicit none
 
 		integer,intent(in)	:: insertnp
-		double precision,dimension(:,:),allocatable,intent(out) :: insert_vels
+		real(kind(0.d0)),dimension(:,:),allocatable,intent(out) :: insert_vels
 
 		integer :: n
 
@@ -1359,10 +1359,10 @@ contains
 		integer ,intent(out)									:: rinp
 		integer,dimension(:),allocatable,intent(in) 			:: gm_to_p
 		integer,dimension(:,:),allocatable,intent(out) 			:: ri_molno 
-		double precision,dimension(:,:),allocatable,intent(in)	:: gi_locs
+		real(kind(0.d0)),dimension(:,:),allocatable,intent(in)	:: gi_locs
 
 		integer	:: i,j,proc,procmolcount
-		double precision	:: rij(3), rij2
+		real(kind(0.d0))	:: rij(3), rij2
 
 		!Check on every processor if any inserted molecules is too close to any other
 		allocate(ri_molno(2,inp)); ri_molno = VOID
@@ -1408,7 +1408,7 @@ contains
 		implicit none
 	
 		integer :: ixyz
-		double precision :: pos(3), rand
+		real(kind(0.d0)) :: pos(3), rand
 		
 		do ixyz = 1,3
 			call random_number(rand)
@@ -1426,7 +1426,7 @@ contains
 	
 		integer,intent(in) :: dir
 		integer			   :: ixyz
-		double precision   :: pos(3), rand, binsize
+		real(kind(0.d0))   :: pos(3), rand, binsize
 	
 		do ixyz = 1,3
 			call random_number(rand)
@@ -1450,7 +1450,7 @@ contains
 	
 		integer,intent(in) :: dir
 		integer			   :: ixyz
-		double precision   :: pos(3), rand, binsize
+		real(kind(0.d0))   :: pos(3), rand, binsize
 	
 		do ixyz = 1,3
 			call random_number(rand)
@@ -1473,8 +1473,8 @@ contains
 		use physical_constants_MD, only: inputtemperature
 		implicit none
 
-		double precision :: vsample(3)
-		double precision :: zeromean(3)
+		real(kind(0.d0)) :: vsample(3)
+		real(kind(0.d0)) :: zeromean(3)
 
 		zeromean(:) = 0.d0
 		!Insert molecules with the same value as the current temperature
@@ -1490,7 +1490,7 @@ contains
 		use physical_constants_MD, only: potential_sLRC
 		implicit none
 	
-		double precision :: U 
+		real(kind(0.d0)) :: U 
 
 		!Insert molecules with the same value as the current potential
 		U = potenergy + potential_sLRC  
@@ -1524,7 +1524,7 @@ subroutine reinsert_molecules_new
 	implicit none
 
     integer          :: insertflag
-	double precision :: miniw, maxiw
+	real(kind(0.d0)) :: miniw, maxiw
 
     !Insert flag specified where and how to insert
     ! 0 -- anywhere at random
@@ -1564,7 +1564,7 @@ subroutine insert_all_molecules(target_insertnp, insertflag, miniw, maxiw)
 	implicit none
 
     integer, intent(in)    :: insertflag, target_insertnp
-	double precision, intent(in) :: miniw, maxiw
+	real(kind(0.d0)), intent(in) :: miniw, maxiw
 
 	integer :: n, i,j,ixyz
 	integer :: insertnp, reinsertnp,insert_attempt,procmolcount,insert_flag, block(3),npxyz(3)
@@ -1572,10 +1572,10 @@ subroutine insert_all_molecules(target_insertnp, insertflag, miniw, maxiw)
 	integer,dimension(:),allocatable ::rdisps, subcommmol_to_proc
 	
 	integer,dimension(:,:),allocatable :: insertnp_array,reinsert_molno
-	double precision :: x,y,z,dx,dy,dz,vx,vy,vz
-	double precision :: Ufinish, fdummy(3)
-	double precision :: startpos(3), insertpos(3),rij(3),rij2
-	double precision,dimension(:,:),allocatable :: insert_locs,insert_vels,reinsert_locs,subcomminsert_locs
+	real(kind(0.d0)) :: x,y,z,dx,dy,dz,vx,vy,vz
+	real(kind(0.d0)) :: Ufinish, fdummy(3)
+	real(kind(0.d0)) :: startpos(3), insertpos(3),rij(3),rij2
+	real(kind(0.d0)),dimension(:,:),allocatable :: insert_locs,insert_vels,reinsert_locs,subcomminsert_locs
 
 	! If specified boundary is not open then return
 	!if (all(open_boundary.eq.0)) then
@@ -1725,14 +1725,14 @@ contains
 		implicit none
 
 		integer,intent(in)	:: flag,insertnp
-		double precision,intent(in),optional :: Utarget_in
+		real(kind(0.d0)),intent(in),optional :: Utarget_in
 		!An array of extra molecular positions to include in potential calculation
-		double precision,dimension(:,:),allocatable,optional,intent(in)  :: extra_pos
+		real(kind(0.d0)),dimension(:,:),allocatable,optional,intent(in)  :: extra_pos
 
-		double precision,dimension(:,:),allocatable,intent(out) :: insert_locs
+		real(kind(0.d0)),dimension(:,:),allocatable,intent(out) :: insert_locs
 
 		integer				:: maxattempts=10000
-		double precision 	:: Utarget
+		real(kind(0.d0)) 	:: Utarget
 		logical 			:: pos_found
 
 		!print*, 'usher_get_positions', present(extra_pos)
@@ -1800,7 +1800,7 @@ contains
 		implicit none
 
 		integer,intent(in)	:: insertnp
-		double precision,dimension(:,:),allocatable,intent(out) :: insert_vels
+		real(kind(0.d0)),dimension(:,:),allocatable,intent(out) :: insert_vels
 
 		integer :: n
 
@@ -1870,10 +1870,10 @@ contains
 
     	integer,intent(in) :: insert_flag, insertnp, nproc_insert, subcomminsertnp
     	integer,dimension(:,:),allocatable,intent(in) :: insertnp_array
-    	double precision,dimension(:,:),allocatable,intent(in) :: insert_locs
-        double precision,dimension(:,:),allocatable,intent(out) :: subcomminsert_locs
+    	real(kind(0.d0)),dimension(:,:),allocatable,intent(in) :: insert_locs
+        real(kind(0.d0)),dimension(:,:),allocatable,intent(out) :: subcomminsert_locs
 
-    	double precision,dimension(:),allocatable :: sendbuf, recvbuf
+    	real(kind(0.d0)),dimension(:),allocatable :: sendbuf, recvbuf
 
 	    allocate(subcomminsert_locs(3,subcomminsertnp))
 	    allocate(rdisps(nproc_insert))
@@ -1926,13 +1926,13 @@ contains
 
 		integer ,intent(in)										:: gnip, inp,rank_
 		integer,dimension(:),allocatable,intent(in) 			:: gm_to_p
-		double precision,dimension(:,:),allocatable,intent(in)	:: gi_locs
+		real(kind(0.d0)),dimension(:,:),allocatable,intent(in)	:: gi_locs
 
 		integer ,intent(out)									:: rinp
 		integer,dimension(:,:),allocatable,intent(out) 			:: ri_molno 
 
 		integer	:: i,j,proc,procmolcount
-		double precision	:: rij(3), rij2
+		real(kind(0.d0))	:: rij(3), rij2
 
 		!Check on every processor if any inserted molecules is too close to any other
 		allocate(ri_molno(2,inp)); ri_molno = VOID
@@ -1978,7 +1978,7 @@ contains
 		implicit none
 	
 		integer :: ixyz
-		double precision :: pos(3), rand
+		real(kind(0.d0)) :: pos(3), rand
 		
 		do ixyz = 1,3
 			call random_number(rand)
@@ -1996,7 +1996,7 @@ contains
 	
 		integer,intent(in) :: dir
 		integer			   :: ixyz
-		double precision   :: pos(3), rand, binsize
+		real(kind(0.d0))   :: pos(3), rand, binsize
 	
 		do ixyz = 1,3
 			call random_number(rand)
@@ -2020,7 +2020,7 @@ contains
 	
 		integer,intent(in) :: dir
 		integer			   :: ixyz
-		double precision   :: pos(3), rand, binsize
+		real(kind(0.d0))   :: pos(3), rand, binsize
 	
 		do ixyz = 1,3
 			call random_number(rand)
@@ -2043,8 +2043,8 @@ contains
 		use physical_constants_MD, only: inputtemperature
 		implicit none
 
-		double precision :: vsample(3)
-		double precision :: zeromean(3)
+		real(kind(0.d0)) :: vsample(3)
+		real(kind(0.d0)) :: zeromean(3)
 
 		zeromean(:) = 0.d0
 		!Insert molecules with the same value as the current temperature
@@ -2060,7 +2060,7 @@ contains
 		use physical_constants_MD, only: potential_sLRC
 		implicit none
 	
-		double precision :: U 
+		real(kind(0.d0)) :: U 
 
 		!Insert molecules with the same value as the current potential
 		U = potenergy + potential_sLRC  
@@ -2075,13 +2075,13 @@ contains
 !		implicit none
 
 !		integer,intent(in)	:: flag,insertnp
-!		double precision,intent(in),optional :: Utarget_in
-!		double precision,dimension(:,:),intent(in),optional :: v_ins
-!		double precision,dimension(:,:),allocatable,optional,intent(out) :: insert_locs
+!		real(kind(0.d0)),intent(in),optional :: Utarget_in
+!		real(kind(0.d0)),dimension(:,:),intent(in),optional :: v_ins
+!		real(kind(0.d0)),dimension(:,:),allocatable,optional,intent(out) :: insert_locs
 !		logical,optional,intent(in)	:: skipinsert
 
 !		integer				:: maxattempts=1000
-!		double precision 	:: Utarget, insertvel(3)
+!		real(kind(0.d0)) 	:: Utarget, insertvel(3)
 !		logical 			:: pos_found
 
 !		!Allocate array to record all inserted locations
@@ -2166,10 +2166,10 @@ end subroutine insert_all_molecules
 
 !	integer :: n,i,maxattempts=1000,icell,jcell,kcell
 !	integer :: molno
-!	double precision :: Ufinish, rand1, fdummy(3)
-!	double precision :: startpos(3), insertpos(3)
-!	double precision,dimension(3) :: avevel,vnew,vold,rand
-!	double precision,dimension(:),allocatable :: Utarget
+!	real(kind(0.d0)) :: Ufinish, rand1, fdummy(3)
+!	real(kind(0.d0)) :: startpos(3), insertpos(3)
+!	real(kind(0.d0)),dimension(3) :: avevel,vnew,vold,rand
+!	real(kind(0.d0)),dimension(:),allocatable :: Utarget
 !	logical :: pos_found
 
 !	avevel = 0.d0
@@ -2235,7 +2235,7 @@ end subroutine insert_all_molecules
 !		use calculated_properties_MD, only: potenergy
 !		implicit none
 !	
-!		double precision :: U 
+!		real(kind(0.d0)) :: U 
 !		U = potenergy + potential_sLRC  
 !	
 !	end function get_Utarget
@@ -2245,7 +2245,7 @@ end subroutine insert_all_molecules
 !		implicit none
 !	
 !		integer :: ixyz
-!		double precision :: pos(3), rand
+!		real(kind(0.d0)) :: pos(3), rand
 !		
 !		do ixyz = 1,3
 !			call random_number(rand)
@@ -2273,12 +2273,12 @@ end subroutine insert_all_molecules
 !	implicit none
 
 !	integer, intent(in) :: nparticles
-!	double precision,dimension(:),allocatable,intent(in) :: Utarget,vold
+!	real(kind(0.d0)),dimension(:),allocatable,intent(in) :: Utarget,vold
 
 !	logical  :: pos_found
 !	integer :: n,i,maxattempts=10000
-!	double precision :: Ufinish 
-!	double precision :: startpos(3), insertpos(3)
+!	real(kind(0.d0)) :: Ufinish 
+!	real(kind(0.d0)) :: startpos(3), insertpos(3)
 
 !	do n = 1,nparticles 
 !		do i = 1, maxattempts
@@ -2313,7 +2313,7 @@ end subroutine insert_all_molecules
 !		use calculated_properties_MD, only: potenergy
 !		implicit none
 !	
-!		double precision :: U 
+!		real(kind(0.d0)) :: U 
 !		U = potenergy + potential_sLRC  
 !	
 !	end function get_Utarget
@@ -2323,7 +2323,7 @@ end subroutine insert_all_molecules
 !		implicit none
 !	
 !		integer :: ixyz
-!		double precision :: pos(3), rand
+!		real(kind(0.d0)) :: pos(3), rand
 !		
 !		do ixyz = 1,3
 !			call random_number(rand)
@@ -2343,14 +2343,14 @@ end subroutine insert_all_molecules
 !	implicit none
 
 !	integer, intent(in) :: nparticles
-!	double precision,dimension(:),allocatable,intent(out) :: Utarget
-!	double precision,dimension(:,:),allocatable,intent(out) :: vold
+!	real(kind(0.d0)),dimension(:),allocatable,intent(out) :: Utarget
+!	real(kind(0.d0)),dimension(:,:),allocatable,intent(out) :: vold
 
 !	integer :: n
 !	integer :: molno
-!	double precision :: fdummy(3)
-!	double precision :: startpos(3)
-!	double precision,dimension(3) :: vnew,rand
+!	real(kind(0.d0)) :: fdummy(3)
+!	real(kind(0.d0)) :: startpos(3)
+!	real(kind(0.d0)),dimension(3) :: vnew,rand
 
 !	if (allocated(Utarget)) deallocate(Utarget)
 
