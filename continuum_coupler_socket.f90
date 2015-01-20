@@ -132,7 +132,7 @@ end subroutine socket_coupler_init
 !=============================================================================
 
 subroutine socket_coupler_send_CFD_to_MD
-    use grid_arrays, only : uc,vc,tau_xx,tau_xy,tau_yx,tau_yy
+    use grid_arrays, only : uc, vc, uc_t_minus_1,vc_t_minus_1,tau_xx,tau_xy,tau_yx,tau_yy
     use CPL, only : CPL_get, error_abort
     implicit none
 
@@ -168,7 +168,6 @@ end subroutine socket_coupler_send_CFD_to_MD
 
 subroutine socket_coupler_send_velocity(u,v)
     use CPL, only : CPL_send,CPL_olap_extents,CPL_overlap,CPL_get,CPL_realm
-	use computational_constants, only : continuum_iter
     implicit none
 
     real(kind(0.d0)), intent(in) :: u(:,:), v(:,:)
@@ -199,10 +198,6 @@ subroutine socket_coupler_send_velocity(u,v)
 		                      extents(3):extents(4), &
 		                      extents(5):extents(6)))
 
-	!do j = 1,10
-    !    print'(a,4i6,3e27.10)','all  vel  ',continuum_iter, 0,j,0, u(2,j),v(2,j),0.d0
-	!enddo
-
 	!Copy cell centered velocity to buffer
 	sendbuf(:,:,:,:) = 0.d0
 	do i=cnstd(1),cnstd(2)
@@ -211,13 +206,10 @@ subroutine socket_coupler_send_velocity(u,v)
 		sendbuf(1,i,j,k) = u(i+1,j+1)
 		sendbuf(2,i,j,k) = v(i+1,j+1)
 		sendbuf(3,i,j,k) = 0.d0
-		!print'(a,3i8,3f10.5)', 'Pre send vel  ', i+1,j+1,k+1,sendbuf(:,i,j,k)
 	enddo
 	enddo
 	enddo
 
-!	call CPL_send( sendbuf,jcmin_send=cnstd(3), & 
-!                           jcmax_send=cnstd(4),send_flag=send_flag)
 	call CPL_send( sendbuf,                                 &
 	               icmin_send=cnstd(1),icmax_send=cnstd(2), &
 	               jcmin_send=cnstd(3),jcmax_send=cnstd(4), &
@@ -241,6 +233,7 @@ subroutine socket_coupler_send_stress(tau_xx,tau_xy,tau_yx,tau_yy)
 	logical	:: send_flag
     integer	:: i,j,k,jj,ixyz,icell,jcell,kcell,npercell,nclx,ncly,nclz
     integer	:: coord(3),extents(6),cnstd(6)
+    real(kind(0.d0))                                 	:: dz
     real(kind(0.d0)),dimension(:,:,:,:), allocatable 	:: sendbuf
 	real(kind(0.d0)),dimension(:,:,:,:,:), allocatable 	:: stress
 
@@ -266,19 +259,25 @@ subroutine socket_coupler_send_stress(tau_xx,tau_xy,tau_yx,tau_yy)
 	allocate(stress(extents(1):extents(2), &
 		            extents(3):extents(4), &
 		            extents(5):extents(6),3,6))
+
+    !Going from 2D to 3D goes from unit depth to depth dz
+    ! Get dz from coupler ready to "inflate" the 3rd dimension
+    call CPL_get(dz=dz)
     stress = 0.d0
 	sendbuf = 0.d0
 	do i=cnstd(1),cnstd(2)
 	do j=cnstd(3),cnstd(4)
 	do k=cnstd(5),cnstd(6)
-	    stress(i,j,k,1,1) = tau_xx(i+1,j+1,1)
-	    stress(i,j,k,1,4) = tau_xx(i+1,j+1,3)
-	    stress(i,j,k,2,1) = tau_yx(i+1,j+1,1)
-	    stress(i,j,k,2,4) = tau_yx(i+1,j+1,3)
-	    stress(i,j,k,1,2) = tau_xy(i+1,j+1,2)
-	    stress(i,j,k,1,5) = tau_xy(i+1,j+1,4)
-	    stress(i,j,k,2,2) = tau_yy(i+1,j+1,2)
-	    stress(i,j,k,2,5) = tau_yy(i+1,j+1,4)
+
+        !Going from 2D to 3D goes from unit depth to depth dz
+	    stress(i,j,k,1,1) = tau_xx(i+1,j+1,1)/dz   !x on TOP in x
+	    stress(i,j,k,1,4) = tau_xx(i+1,j+1,3)/dz   !x on BOT in x
+	    stress(i,j,k,2,1) = tau_yx(i+1,j+1,1)/dz   !y on TOP in x
+	    stress(i,j,k,2,4) = tau_yx(i+1,j+1,3)/dz   !y on BOT in x
+	    stress(i,j,k,1,2) = tau_xy(i+1,j+1,2)/dz   !x on TOP in y
+	    stress(i,j,k,1,5) = tau_xy(i+1,j+1,4)/dz   !x on BOT in y
+	    stress(i,j,k,2,2) = tau_yy(i+1,j+1,2)/dz   !y on TOP in y
+	    stress(i,j,k,2,5) = tau_yy(i+1,j+1,4)/dz   !y on BOT in y
 		sendbuf(:,i,j,k) = (1.d0/Re)*reshape(stress(i,j,k,:,:),(/ npercell /))
 	enddo
 	enddo
