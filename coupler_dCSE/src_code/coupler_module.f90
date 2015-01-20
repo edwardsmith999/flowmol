@@ -2223,11 +2223,11 @@ end subroutine messenger_lasterrorcheck
 subroutine printf(buf,dplaces_in)
 	implicit none
 
-	double precision,dimension(:),intent(in):: buf
+	real(kind(0.d0)),dimension(:),intent(in):: buf
 	integer, intent(in), optional			:: dplaces_in
 
 	integer				:: n,dplaces, space
-	double precision	:: maxbuf,minbuf,order
+	real(kind(0.d0))	:: maxbuf,minbuf,order
 	character*19	 	:: string
 	character*42	 	:: buf_precision
 
@@ -2294,7 +2294,7 @@ subroutine write_matrix(a,varname,fh)
 
 	integer							 :: i,j,fh
 	character(*)					 :: varname
-	double precision, dimension(:,:) :: a
+	real(kind(0.d0)), dimension(:,:) :: a
 
 	write(fh,*) varname
 	do i = lbound(a,1), ubound(a,1)

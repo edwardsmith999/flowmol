@@ -326,7 +326,7 @@ end subroutine CPL_gather
 !! - Input
 !!
 !!  - scatterarray
-!!   - assumed shape array of data to be scattered (double precision)
+!!   - assumed shape array of data to be scattered (real(kind(0.d0)))
 !!
 !!  - limits
 !!   - integer array of length 6, specifying the global cell extents of the
