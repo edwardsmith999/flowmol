@@ -572,8 +572,8 @@ subroutine insert_remove_molecules
 	                                       delta_rneighbr,iblock,jblock,kblock
 	use CPL, only : CPL_overlap, CPL_recv, CPL_proc_extents, & 
 					CPL_realm, CPL_get, coupler_md_get_dt_cfd
-	use linked_list
-	use particle_insertion
+	use particle_insertion, only : insert_molecule, create_position, &
+                                    create_velocity, remove_molecule
 	implicit none
 
 	logical,save			:: recv_flag, first_time=.true.
