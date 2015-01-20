@@ -56,12 +56,32 @@ class Channelflow_strainField(Channelflow_complexField,Channelflow_vField):
                                  binlimits=None)
 
         grid = self.vField.Raw.grid
-        dx = np.gradient(grid[0])
-        dy = np.gradient(grid[1])
-        dz = np.gradient(grid[2])
+        x, y, z = grid
+        dx = np.gradient(x)
+        dy = np.gradient(y)
+        dz = np.gradient(z)
         dX,dY,dZ = np.meshgrid(dx,dy,dz,indexing='ij')
 
         straindata = self.grad(vdata,dX,dY,dZ)
+
+#        straindata = np.zeros((vdata.shape[0],vdata.shape[1],vdata.shape[2],vdata.shape[3],9))
+#        print(vdata.shape)
+#        for i in range(1,vdata.shape[0]):
+#            for j in range(1,vdata.shape[1]):
+#                for k in range(1,vdata.shape[2]):
+#                    straindata[i,j,k,:,0] = (vdata[i+1,j,k,:,0]-vdata[i-1,j,k,:,0])/(2.*(x[i+1]-x[i-1]))
+#                    straindata[i,j,k,:,1] = (vdata[i+1,j,k,:,1]-vdata[i-1,j,k,:,1])/(2.*(x[i+1]-x[i-1]))
+#                    straindata[i,j,k,:,2] = (vdata[i+1,j,k,:,2]-vdata[i-1,j,k,:,2])/(2.*(x[i+1]-x[i-1]))
+
+#                    straindata[i,j,k,:,3] = (vdata[i,j+1,k,:,0]-vdata[i,j-1,k,:,0])/(2.*(y[j+1]-y[j-1]))
+#                    straindata[i,j,k,:,4] = (vdata[i,j+1,k,:,1]-vdata[i,j-1,k,:,1])/(2.*(y[j+1]-y[j-1]))
+#                    straindata[i,j,k,:,5] = (vdata[i,j+1,k,:,2]-vdata[i,j-1,k,:,2])/(2.*(y[j+1]-y[j-1]))
+
+#                    straindata[i,j,k,:,6] = (vdata[i,j,k+1,:,0]-vdata[i,j,k-1,:,0])/(2.*(z[k+1]-z[k-1]))
+#                    straindata[i,j,k,:,7] = (vdata[i,j,k+1,:,1]-vdata[i,j,k-1,:,1])/(2.*(z[k+1]-z[k-1]))
+#                    straindata[i,j,k,:,8] = (vdata[i,j,k+1,:,2]-vdata[i,j,k-1,:,2])/(2.*(z[k+1]-z[k-1]))
+
+#                    print(i,j,k,straindata[i,j,k,0,:])
 
         if (binlimits):
 
@@ -170,16 +190,30 @@ class Channelflow_dissipField(Channelflow_complexField,Channelflow_vField):
 
         dissipdata = np.empty([dudr.shape[0],dudr.shape[1],
                                dudr.shape[2],dudr.shape[3],self.nperbin])
-        dissipdata[:,:,:,:,0] = (     np.power(dudr[:,:,:,:,0],2.) +
-                                      np.power(dudr[:,:,:,:,4],2.) +
-                                      np.power(dudr[:,:,:,:,8],2.) +
-                                 0.5*(np.power(dudr[:,:,:,:,1],2.) +
-                                      np.power(dudr[:,:,:,:,2],2.) +
-                                      np.power(dudr[:,:,:,:,3],2.) +
-                                      np.power(dudr[:,:,:,:,5],2.) +
-                                      np.power(dudr[:,:,:,:,6],2.) +
-                                      np.power(dudr[:,:,:,:,7],2.)  ))
 
+        #From Viswanath 2006 D = \int_V |del u|^2 + |del v|^2 + |del w|^2 dV
+#        dissipdata[:,:,:,:,0] = (  np.power(dudr[:,:,:,:,0] 
+#                                          + dudr[:,:,:,:,1] 
+#                                          + dudr[:,:,:,:,2],2)
+#                                 + np.power(dudr[:,:,:,:,3] 
+#                                          + dudr[:,:,:,:,4] 
+#                                          + dudr[:,:,:,:,5],2)
+#                                 + np.power(dudr[:,:,:,:,6] 
+#                                          + dudr[:,:,:,:,7] 
+#                                          + dudr[:,:,:,:,8],2))
+
+        dissipdata[:,:,:,:,0] = ( np.power(dudr[:,:,:,:,0],2.) +
+                                  np.power(dudr[:,:,:,:,4],2.) +
+                                  np.power(dudr[:,:,:,:,8],2.) +
+                                  np.power(dudr[:,:,:,:,1],2.) +
+                                  np.power(dudr[:,:,:,:,2],2.) +
+                                  np.power(dudr[:,:,:,:,3],2.) +
+                                  np.power(dudr[:,:,:,:,5],2.) +
+                                  np.power(dudr[:,:,:,:,6],2.) +
+                                  np.power(dudr[:,:,:,:,7],2.)   )
+
+
+        #print('dissip data = ',dudr[3,100,3,0,:],dissipdata[3,100,3,0,0])
 
         if (binlimits):
 

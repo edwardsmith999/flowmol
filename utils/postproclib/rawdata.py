@@ -127,7 +127,7 @@ class RawData(object):
         sys.exit("get_gridvolumes not defined")
 
     def read(self, startrec, endrec, binlimits=None, verbose=False, 
-             quit_on_error=True):
+             missingrec='raise'):
         """
             Read the specified range of data and return as an array in
             the form: 

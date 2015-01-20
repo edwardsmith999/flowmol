@@ -376,12 +376,12 @@ class MD_rhouuField(MD_complexField):
 
         # Find outer product of v*v and reshape to 1x9 rather than 3x3
         nrecs = endrec-startrec+1
-        rhovvdata = np.einsum('abcdj,abcdk->abcdjk',momdata,vdata)
-        vvshapelist = list(rhovvdata.shape)
+        rhouudata = np.einsum('abcdj,abcdk->abcdjk',momdata,vdata)
+        vvshapelist = list(rhouudata.shape)
         newshape = tuple(vvshapelist[0:4]+[self.nperbin])
-        rhovvdata = np.reshape(rhovvdata,newshape)
+        rhouudata = np.reshape(rhouudata,newshape)
 
-        return rhovvdata 
+        return rhouudata 
 
 class MD_pVAField(MD_complexField):
 
@@ -433,11 +433,11 @@ class MD_pVAField(MD_complexField):
 
             else:   
 
-                rhovvField = MD_rhouuField(self.fdir)
-                rhovvdata =  rhovvField.read(startrec,endrec,**kwargs)
+                rhouuField = MD_rhouuField(self.fdir)
+                rhouudata =  rhouuField.read(startrec,endrec,**kwargs)
 
                 # Remove square of streaming velocity
-                Pdata = Pdata - rhovvdata
+                Pdata = Pdata - rhouudata
 
         return Pdata
 
@@ -561,7 +561,7 @@ class MD_rhoTField(MD_complexField):
         if peculiar == None:
             peculiar = self.peculiar
 
-        binvolumes = self.KEField.Raw.get_binvolumes(binlimits=binlimits)
+        binvolumes = self.KEField.Raw.get_gridvolumes(binlimits=binlimits)
         binvolumes = np.expand_dims(binvolumes,axis=-1)
 
         Tdata = self.KEField.read(startrec, endrec, **kwargs)
@@ -713,10 +713,6 @@ class MD_rhoEnergyField(MD_complexField):
 
         # Energy (no streaming consideration)
         Edata = np.divide(Edata,gridvolumes)
-
-        # Remove streaming velocity
-        if (peculiar):
-            quit('Peculiar not developed for MD_rhoEnergyField')
 
         return Edata
 
@@ -1024,12 +1020,12 @@ class MD_pCVField(MD_complexField):
 
             # Take off peculiar momenta if specified
             if (peculiar==True):
-                rhovvField = MD_rhouuCVField(self.fdir)
-                rhovvdata =  rhovvField.read(startrec,endrec)
-                pflux = pflux + rhovvdata
+                rhouuField = MD_rhouuCVField(self.fdir)
+                rhouudata = rhouuField.read(startrec,endrec)
+                pflux = pflux - rhouudata
 
             #Change convention so top and botton values have the same sign
-            pflux[:,:,:,:,9:] = -pflux[:,:,:,:,9:]
+            #pflux[:,:,:,:,:9] = pflux[:,:,:,:,:9]
 
             #Add psurface if required
             if self.fname is 'total':
@@ -1040,83 +1036,6 @@ class MD_pCVField(MD_complexField):
 
         return pflux 
 
-    #ORIGINAL READ
-
-#    def read(self, startrec, endrec, peculiar=None,
-#             verbose=False,**kwargs):
-
-#        # Read 4D time series from startrec to endrec
-#        if self.fname == 'total':
-#            pflux = (  self.pkField.read(startrec,endrec,**kwargs)
-#                     + self.pcField.read(startrec,endrec,**kwargs))
-#        else:
-#            pflux = self.PField.read(startrec,endrec,**kwargs)
-
-#        # Take off square of peculiar momenta if specified
-#        if peculiar == None:
-#            peculiar = self.peculiar
-
-#        if (peculiar==True):
-
-#            if (self.fname=='psurface'):
-#                if (verbose == True):
-#                    message = ('\n *** \n Removing the peculiar velocity from '
-#                    +' the configurational part \n of the stress tensor is '
-#                    +' entirely nonsensical! I will ignore this instruction.\n'
-#                    +' ***\n')
-#                    print(message)
-#                pass
-
-#            else:   
-
-#                rhovvField = MD_rhouuCVField(self.fdir)
-#                rhovvdata =  rhovvField.read(startrec,endrec,**kwargs)
-#                pflux = pflux + rhovvdata
-
-#        return pflux 
-
-    #ATTEMPT TO FLIP SIGN ON KINETIC PART 
-
-#        # Read 4D time series from startrec to endrec
-#        if self.fname == 'total':
-#            P_c = self.pcField.read(startrec,endrec,**kwargs)
-#            P_k = self.pkField.read(startrec,endrec,**kwargs)
-#            #Change convention so top and botton values have the same sign
-#            print('Flipping sign in  MD_pCVField for total')
-#            P_k[:,:,:,:,9:] = -P_k[:,:,:,:,9:]
-#            pflux = ( P_k - P_c )
-#        else:
-#            if self.fname is 'vflux':
-#                #Change convention so top and botton values have the same sign
-#                print('Flipping sign in  MD_pCVField for vflux')
-#                pflux = self.PField.read(startrec,endrec,**kwargs)
-#                pflux[:,:,:,:,9:] = -pflux[:,:,:,:,9:]
-#            else:
-#                pflux = self.PField.read(startrec,endrec,**kwargs)
-##            pflux = self.PField.read(startrec,endrec,**kwargs)
-
-#        # Take off square of peculiar momenta if specified
-#        if peculiar == None:
-#            peculiar = self.peculiar
-
-#        if (peculiar==True):
-
-#            if (self.fname=='psurface'):
-#                if (verbose == True):
-#                    message = ('\n *** \n Removing the peculiar velocity from '
-#                    +' the configurational part \n of the stress tensor is '
-#                    +' entirely nonsensical! I will ignore this instruction.\n'
-#                    +' ***\n')
-#                    print(message)
-#                pass
-
-#            else:   
-
-#                rhovvField = MD_rhouuCVField(self.fdir)
-#                rhovvdata =  rhovvField.read(startrec,endrec,**kwargs)
-#                pflux = pflux + rhovvdata
-
-#        return pflux 
 
 class MD_rhouuCVField(MD_complexField):
 
@@ -1143,12 +1062,12 @@ class MD_rhouuCVField(MD_complexField):
 
         # Find outer product of v*v and reshape to 1x18 rather than 6x3
         nrecs = endrec-startrec+1
-        rhovvdata = np.einsum('abcdj,abcdk->abcdjk',momdata,vdata)
-        vvshapelist = list(rhovvdata.shape)
+        rhouudata = np.einsum('abcdj,abcdk->abcdjk',momdata,vdata)
+        vvshapelist = list(rhouudata.shape)
         newshape = tuple(vvshapelist[0:4]+[self.nperbin])
-        rhovvdata = np.reshape(rhovvdata,newshape)
+        rhouudata = np.reshape(rhouudata,newshape)
 
-        return rhovvdata 
+        return rhouudata 
 
 
 class MD_rhouECVField(MD_complexField):
@@ -1384,11 +1303,45 @@ class MD_strainField(MD_complexField):
                        "dwdx","dwdy","dwdz"]
         self.nperbin = 9
 
-    def read(self,startrec,endrec, preavgaxes=(3),binlimits=None,**kwargs):
+    def read(self,startrec,endrec, preavgaxes=(3), 
+             highpassfilter=0.0, binlimits=None,**kwargs):
 
         vdata = self.vField.read(startrec, endrec, 
-                                 binlimits=None)
+                                 binlimits=None,**kwargs)
+
+        if highpassfilter>0.0:
+
+            import matplotlib.pyplot as plt
+            mid = 100
+            f,ax = plt.subplots(2,2)
+            cs = ax[0,0].pcolormesh(vdata[:,mid,:,0,0])
+            ax[0,1].plot(np.mean(vdata[:,mid,:,0,0],0))
+            ax[0,1].plot(np.mean(vdata[:,mid,:,0,0],1))
+
+            import scipy as scp
+            vdata_fft = scp.ndimage.filters.gaussian_filter(vdata,highpassfilter)
+
+            #vdata_fft = np.fft.fftn(vdata)
+            #vdata_fft[vdata_fft>highpassfilter] = 0.
+            #vdata = np.fft.ifftn(vdata_fft)
+
+            vdata = vdata_fft
+            cs = ax[1,0].pcolormesh(vdata[:,mid,:,0,0])
+            ax[1,1].plot(np.mean(vdata_fft[:,mid,:,0,0],0))
+            ax[1,1].plot(np.mean(vdata_fft[:,mid,:,0,0],1))
+
+            f.subplots_adjust(right=0.8)
+            cbar_ax = f.add_axes([0.85, 0.15, 0.05, 0.7])
+            f.colorbar(cs, cax=cbar_ax)
+            plt.show()
+
+        
+#        straindata = self.grad(vdata,preavgaxes=preavgaxes,
+#                               dx=float(self.header.binsize1),
+#                               dy=float(self.header.binsize2),
+#                               dz=float(self.header.binsize3))
         straindata = self.grad(vdata,preavgaxes=preavgaxes)
+
 
         if (binlimits):
 
@@ -1422,7 +1375,7 @@ class MD_vortField(MD_complexField):
 
     def read(self,startrec,endrec, binlimits=None,**kwargs):
         dudr = self.strainField.read(startrec, endrec, 
-                                      binlimits=None)
+                                      binlimits=None,**kwargs)
 
         vortdata = np.empty([dudr.shape[0],dudr.shape[1],
                              dudr.shape[2],dudr.shape[3],self.nperbin])
@@ -1464,27 +1417,46 @@ class MD_dissipField(MD_complexField):
         self.labels = ["mag"]
         self.nperbin = 1
 
-    def read(self,startrec,endrec, binlimits=None,**kwargs):
+    def read(self,startrec,endrec, binlimits=None, 
+                 highpassfilter=0.0,**kwargs):
         dudr = self.strainField.read(startrec, endrec, 
-                                      binlimits=None)
+                                     highpassfilter=highpassfilter, 
+                                     binlimits=None,**kwargs)
 
         dissipdata = np.empty([dudr.shape[0],dudr.shape[1],
                                dudr.shape[2],dudr.shape[3],self.nperbin])
+
+
+        #From Viswanath 2006 D = \int_V |del u|^2 + |del v|^2 + |del w|^2 dV
+        dissipdata[:,:,:,:,0] = (  np.power(dudr[:,:,:,:,0] 
+                                          + dudr[:,:,:,:,1] 
+                                          + dudr[:,:,:,:,2],2)
+                                 + np.power(dudr[:,:,:,:,3] 
+                                          + dudr[:,:,:,:,4] 
+                                          + dudr[:,:,:,:,5],2)
+                                 + np.power(dudr[:,:,:,:,6] 
+                                          + dudr[:,:,:,:,7] 
+                                          + dudr[:,:,:,:,8],2))
+
+#        dissipdata[:,:,:,:,0] = ( np.power(dudr[:,:,:,:,0],2.)
+#                                 +np.power(dudr[:,:,:,:,1],2.)
+#                                 +np.power(dudr[:,:,:,:,2],2.))
+
 #        dissipdata[:,:,:,:,0] = ( np.power(dudr[:,:,:,:,0],2.)
 #                                 +np.power(dudr[:,:,:,:,1],2.)
 #                                 +np.power(dudr[:,:,:,:,2],2.))
 
         #dissipdata[:,:,:,:,0] = np.sum(np.power(dudr[:,:,:,:,:],2.),4)
 
-        dissipdata[:,:,:,:,0] = (     np.power(dudr[:,:,:,:,0],2.) +
-                                      np.power(dudr[:,:,:,:,4],2.) +
-                                      np.power(dudr[:,:,:,:,8],2.) +
-                                 0.5*(np.power(dudr[:,:,:,:,1],2.) +
-                                      np.power(dudr[:,:,:,:,2],2.) +
-                                      np.power(dudr[:,:,:,:,3],2.) +
-                                      np.power(dudr[:,:,:,:,5],2.) +
-                                      np.power(dudr[:,:,:,:,6],2.) +
-                                      np.power(dudr[:,:,:,:,7],2.)  ))
+#        dissipdata[:,:,:,:,0] = (     np.power(dudr[:,:,:,:,0],2.) +
+#                                      np.power(dudr[:,:,:,:,4],2.) +
+#                                      np.power(dudr[:,:,:,:,8],2.) +
+#                                 0.5*(np.power(dudr[:,:,:,:,1],2.) +
+#                                      np.power(dudr[:,:,:,:,2],2.) +
+#                                      np.power(dudr[:,:,:,:,3],2.) +
+#                                      np.power(dudr[:,:,:,:,5],2.) +
+#                                      np.power(dudr[:,:,:,:,6],2.) +
+#                                      np.power(dudr[:,:,:,:,7],2.)  ))
 
         if (binlimits):
 

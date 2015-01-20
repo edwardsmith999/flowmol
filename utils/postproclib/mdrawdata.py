@@ -342,8 +342,8 @@ class MD_RawData(RawData):
         bindata = np.transpose(bindata, (0,1,2,4,3))
 
         #If records were missing and skip record requested
-        if skip_rec:
-            np.delete(bindata,skiprecs,axis=3)
+        if skiprecs != []:
+            bindata = np.delete(bindata,skiprecs,axis=3)
 
         # If bin limits are specified, return only those within range
         if (binlimits):

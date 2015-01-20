@@ -16,6 +16,7 @@ module computational_constants
 	integer				:: continuum_vflag
 	integer,dimension(4)		:: BC_flag
 	double precision,dimension(4)	:: uwall_BC	
+	real(kind(0.d0)),parameter 		:: pi=4.d0*atan(1.d0)
 	double precision		:: lx, ly, lz  			!Domain extents
 	double precision		:: continuum_delta_t  		!Timestep
 	double precision		:: domain_volume

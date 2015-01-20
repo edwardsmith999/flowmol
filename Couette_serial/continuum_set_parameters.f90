@@ -34,8 +34,8 @@ subroutine continuum_set_parameters
 	allocate(solid(nx,ny))
 	allocate(uc(nx+2,ny+2))
 	allocate(vc(nx+2,ny+2))
-	allocate(uc_t_minus_1(nx+2,ny+2))
-	allocate(vc_t_minus_1(nx+2,ny+2))
+	allocate(uc_t_minus_1(nx+2,ny+2)); uc_t_minus_1 = 0.d0
+	allocate(vc_t_minus_1(nx+2,ny+2)); vc_t_minus_1 = 0.d0
 	allocate(xresidual(nx+2,ny+2))
 	allocate(yresidual(nx+2,ny+2))
 	allocate(xresidual_t_minus_1(nx+2,ny+2))

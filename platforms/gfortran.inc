@@ -26,7 +26,7 @@ else
   $(if $(findstring $(BUILD), $(BUILD_LIST)),,$(error unknown value of BUILD = $(BUILD)))
 endif
 
-F90   := gfortran
+F90   := mpif90 #gfortran
 LD    := $(F90)
 
 # set the preprocessor flags for coupler calls activation
@@ -52,7 +52,7 @@ endif
 #
 
 FLAGS_BASE_debug := -fbacktrace -g -O0 -W -Wsurprising -Wampersand -Waliasing -fbounds-check -ffpe-trap=zero,overflow,underflow -J$(OBJ_DIR)
-FLAGS_BASE_opt   := -O3 -funroll-loops -J$(OBJ_DIR)
+FLAGS_BASE_opt   := -O3 -funroll-loops -Wconversion -J$(OBJ_DIR)
 
 #
 # add  flags required by particulary codes

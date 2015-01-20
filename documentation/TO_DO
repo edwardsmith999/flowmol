@@ -33,5 +33,12 @@ List:
 	* Check that field flux output routines still work now they are
 	  in a module                                                     [ ] (  ) 
 
-	* Make a decision on whether to keep the serial code              [ ] (  )
+	* Make a decision on whether to keep the serial code              [/] (ES/DT)
 
+
+    * Add in cutoff calculation based on fixed rebuild and            [o] (  )
+      displacement of all molecules
+
+    * Add a KeyboardInterrupt based restart functionality to the      [ ] (  )
+      study class (using pool it seems is the most robust) and a 
+      way to pickle any runs still to be finished for later

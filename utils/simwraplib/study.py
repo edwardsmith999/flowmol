@@ -25,6 +25,9 @@ class Study:
 
         """
 
+        self.threadlist = threadlist
+        self.maxproc = maxproc
+
         #Get semaphore is possible, otherwise use dummy routine
         if (get_platform() == 'local'):
 
@@ -44,11 +47,22 @@ class Study:
             print('Semaphore not available, creating dummy instead.')
             self.semaphore = DummySemaphore()
 
-        threads = []
+        self.threads = []
         for runlist in threadlist:
             thread = Thread(self.semaphore,runlist)
-            threads.append(thread)
+            self.threads.append(thread)
+            #thread.start()
+
+        #The jobs should not be run in the constructor surely?!
+        self.run()
+
+        #for thread in self.threads:
+        #    thread.join()
+
+    def run(self):
+
+        for thread in self.threads:
             thread.start()
 
-        for thread in threads:
+        for thread in self.threads:
             thread.join()

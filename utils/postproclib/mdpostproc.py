@@ -111,6 +111,8 @@ class MD_PostProc(PostProc):
 
         #VA stress
         if 'pVA_k' in (self.fieldfiles1):
+            P1 = MD_pVAField(self.resultsdir,fname='pVA_k', peculiar=False, **kwargs)
+            self.plotlist.update({'VA_mvv_k':P1})
             P1 = MD_pVAField(self.resultsdir,fname='pVA_k', **kwargs)
             self.plotlist.update({'pVA_k':P1})
         if 'pVA_c' in (self.fieldfiles1):

@@ -2574,7 +2574,7 @@ function lagrange_poly_weight_Nmol(array, r_in, binsize, domain, &
 	upperlim(:) = (/  1.d0, 1.d0, 1.d0 /)
 
     !Number of surrounding cells to average for node
-    ! 0 -- in cell nodes only (nodes not not equal between adjacent cells)
+    ! 0 -- in cell nodes only (nodes not equal between adjacent cells)
     ! 1 -- surrounding cells (nodes equal between cells but surfaces may not be)
     if (.not. present(node_averages)) then
         node_ave = 1

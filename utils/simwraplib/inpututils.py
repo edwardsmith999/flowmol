@@ -1,5 +1,6 @@
 import string
 import os
+from misclib import round_to_n
 
 class InputMod:
 
@@ -141,9 +142,26 @@ class InputList(list):
     def filenames(self):
 
         #Generate list containing filenames
-        filenames=[(''.join(c for c in str(name.items()) 
-                          if c in self.valid_chars[6:]))
-                          for name in self]
+        filenames = []
+        for name in self:
+            filename = ''
+            for key, value in name.items():
+                value = round_to_n(value,2)
+                # Combine key and value with invalid characters removed
+                kvstr = str((key,value))
+                kvstr = kvstr.replace('.','p')
+                filename = filename + (''.join(c for c in kvstr 
+                                       if c in self.valid_chars[6:]))
+
+            filenames.append(filename)
+
+            #print(name,filename)
+
+
+        #First remove any invalid characters
+        #filenames=[(''.join(c for c in str(name.items()) 
+        #                  if c in self.valid_chars[6:]))
+        #                  for name in self]
          
         return filenames
 

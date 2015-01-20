@@ -9,9 +9,9 @@ sys.path.append('../../../')
 import postproclib as ppl
 
 # Load a dictionary into a pickle file.
-nrecs = 999
 varsDict = pickle.load( open( "heatflux.p", "rb" ) )
 varsObjs = pickle.load( open( "heatflux_obj.p", "rb" ) )
+nrecs = varsDict['nrecs']
 print(varsDict.keys())
 print(varsObjs.keys())
 for plotObj in varsDict.keys():
@@ -41,12 +41,12 @@ hbsy = bsy/2.
 y_MD_surf = y_MD #+ hbsy
 
 #Analytical
-utop = 1.; ubot = -1.; U = utop - ubot
+utop = 1.4; ubot = -1.4; U = utop - ubot
 Ttop = 1.05  ; Tbot = 1.05   
 #dTdy_top =  ; dTdy_bot = 
-fluiddensity = 0.8 #mbins.Raw.header.liquiddensity
+fluiddensity = 0.01273239545 #mbins.Raw.header.liquiddensity
 walldensity = mbins.Raw.header.density
-visc = 1.8; condct = 0.5
+visc = 0.14; condct = 0.5
 dt = float(mbins.Raw.header.delta_t)
 
 Lyliquid = Ly - float(mbins.Raw.header.tethdistbot2) - float(mbins.Raw.header.tethdisttop2)
@@ -89,13 +89,11 @@ def linear_fn(x, b, c):
 def quadratic_fn(x, a, b, c):
     return a*np.power(x,2.) + b * x + c
 
-
-def qy_approx_fn(x, k, f):
-    return (k + 3. * f * np.power(dudy[x],2) ) * dTdy[x] 
-
 def qx_approx_fn(x, c):
     return c * dTdy[x] * dudy[x]
 
+def qy_approx_fn(x, k, f):
+    return (k + 3. * f * np.power(dudy[x],2) ) * dTdy[x] 
 
 #Plot energy q components
 liquidstart = liquidstart +2
@@ -104,10 +102,8 @@ liquidend = liquidend -3
 dy = np.mean(np.diff(T.grid[1]))
 dTdy = np.gradient(T_p[:,0],dy)
 dudy = np.gradient(u_p[:,0],dy)
-k=-5.; f=3.
 
-c=5.
-
+k=-5.; f=3.; c=5.
 liquidbins = range(liquidstart,liquidend)
 q_approx_p = np.empty((dudy[liquidbins].shape[0],3))
 q_approx_p[:,0] = qx_approx_fn(liquidbins,c)  #(k + 3. * f * np.power(dudy[:],2) ) * dTdy[:] 

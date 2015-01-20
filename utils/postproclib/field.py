@@ -362,7 +362,7 @@ class Field():
         nonsingleton = [i!=1 for i in data.shape[0:3]]
         dxyz = [elem for i,elem in enumerate(dxyz) if nonsingleton[i]]
 
-        gradv = np.empty(list(data.shape[:-1]) + [3*ndims])
+        gradv = np.zeros(list(data.shape[:-1]) + [3*ndims])
         for rec in range(gradv.shape[-2]):
             for ixyz in range(ndims):
 
@@ -371,9 +371,8 @@ class Field():
                 grad_temp = np.gradient(np.squeeze(data[:,:,:,rec,ixyz]), 
                                         dx, dy, dz)
 
-
                 for jxyz in range(np.sum(nonsingleton)):
-                    c = 3*ixyz + jxyz
+                    c = 3*ixyz + jxyz   
                     gradv[:,:,:,rec,c] = grad_temp[jxyz]
 
         return gradv

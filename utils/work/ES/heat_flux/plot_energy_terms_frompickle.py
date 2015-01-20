@@ -9,9 +9,9 @@ sys.path.append('../../../')
 import postproclib as ppl
 
 # Load a dictionary into a pickle file.
-nrecs = 999
 varsDict = pickle.load( open( "heatflux.p", "rb" ) )
 varsObjs = pickle.load( open( "heatflux_obj.p", "rb" ) )
+nrecs = varsDict['nrecs']
 print(varsDict.keys())
 print(varsObjs.keys())
 for plotObj in varsDict.keys():
@@ -41,12 +41,12 @@ hbsy = bsy/2.
 y_MD_surf = y_MD #+ hbsy
 
 #Analytical
-utop = 1.; ubot = -1.; U = utop - ubot
+utop = 1.4; ubot = -1.4; U = utop - ubot
 Ttop = 1.05  ; Tbot = 1.05   
 #dTdy_top =  ; dTdy_bot = 
-fluiddensity = 0.8 #mbins.Raw.header.liquiddensity
+fluiddensity = 0.01273239545 #mbins.Raw.header.liquiddensity
 walldensity = mbins.Raw.header.density
-visc = 1.8; condct = 0.5
+visc = 0.14; condct = 0.5
 dt = float(mbins.Raw.header.delta_t)
 
 Lyliquid = Ly - float(mbins.Raw.header.tethdistbot2) - float(mbins.Raw.header.tethdisttop2)
@@ -122,8 +122,8 @@ for ixyz in [0,1]:
             +hfVA_k_p[liquidbins,ixyz]-rhouE_p[liquidbins,ixyz]         )
     q_CV= ( esurface_p[liquidbins,ixyz]-stressheat_CV_p[liquidbins,ixyz]
             +  eflux_p[liquidbins,ixyz]-rhouE_CV_p[liquidbins,ixyz]      )
-    axs[ixyz,3].plot(y_MD[liquidbins],q_CV,styles['CV'],label='$q^{MOP}' + qs[ixyz] + '$', markersize=ms)
-    axs[ixyz,3].plot(y_MD[liquidbins],q_VA,styles['VA'],label='$q^{VA}' + qs[ixyz] + '$', markersize=ms)
+    axs[ixyz,3].plot(y_MD[liquidbins],q_CV_p[liquidbins,ixyz],styles['CV'],label='$q^{MOP}' + qs[ixyz] + '$', markersize=ms)
+    axs[ixyz,3].plot(y_MD[liquidbins],q_p[liquidbins,ixyz],styles['VA'],label='$q^{VA}' + qs[ixyz] + '$', markersize=ms)
 
 #ixyz = 1
 #axs[ixyz,0].plot(y_MD[liquidbins],pVA_stressheat_p[liquidbins,ixyz],styles['VAc'],label='$\Pi \cdot u$', markersize=ms)

@@ -8,9 +8,9 @@ sys.path.append('../../../')
 import postproclib as ppl
 
 # Load a dictionary into a pickle file.
-nrecs = 999
 varsDict = pickle.load( open( "heatflux.p", "rb" ) )
 varsObjs = pickle.load( open( "heatflux_obj.p", "rb" ) )
+nrecs = varsDict['nrecs']
 print(varsDict.keys())
 print(varsObjs.keys())
 for plotObj in varsDict.keys():
@@ -40,12 +40,12 @@ hbsy = bsy/2.
 y_MD_surf = y_MD #+ hbsy
 
 #Analytical
-utop = 1.; ubot = -1.; U = utop - ubot
+utop = 1.4; ubot = -1.4; U = utop - ubot
 Ttop = 1.05  ; Tbot = 1.05   
 #dTdy_top =  ; dTdy_bot = 
-fluiddensity = 0.8 #mbins.Raw.header.liquiddensity
+fluiddensity = 0.01273239545 #mbins.Raw.header.liquiddensity
 walldensity = mbins.Raw.header.density
-visc = 1.8; condct = 0.5
+visc = 0.14; condct = 0.5
 dt = float(mbins.Raw.header.delta_t)
 
 Lyliquid = Ly - float(mbins.Raw.header.tethdistbot2) - float(mbins.Raw.header.tethdisttop2)
@@ -68,6 +68,23 @@ tau_analy[wallbinsbot:(wallbinsbot+liquidbins)] = visc * U/Lyliquid
 
 lin_heatflux_analy = np.zeros(y_MD.shape)
 #lin_heatflux_analy[wallbinsbot:(wallbinsbot+liquidbins)] = condct * np.linspace(dTdy_bot,dTdy_top,liquidbins)
+
+fig, ax = plt.subplots(3)
+ax[0].plot(y_MD,vflux_p[:,0],'-')
+ax[1].plot(y_MD,vflux_p[:,4],'-')
+ax[2].plot(y_MD,vflux_p[:,8],'-')
+ax[0].plot(y_MD,rhouu_CV_p[:,0],'x')
+ax[1].plot(y_MD,rhouu_CV_p[:,4],'x')
+ax[2].plot(y_MD,rhouu_CV_p[:,8],'x')
+ax[0].plot(y_MD,VA_mvv_k_p[:,0],'s')
+ax[1].plot(y_MD,VA_mvv_k_p[:,4],'s')
+ax[2].plot(y_MD,VA_mvv_k_p[:,8],'s')
+ax[0].plot(y_MD,rhouu_p[:,0],'--')
+ax[1].plot(y_MD,rhouu_p[:,4],'--')
+ax[2].plot(y_MD,rhouu_p[:,8],'--')
+#print("ERROR HERE -- THE PECULIAR RHOUU AND RHOUU_cv DONT AGREE!!")
+plt.show()
+quit()
 
 rows = 4
 columns = 2 
@@ -95,11 +112,11 @@ axs[0,0].plot(y_MD,rhoEnergy_p[:,0]/(nrecs*fluiddensity),'o-',label=r'$\rho Ener
 titles[1].append('Velocity Momentum')
 axs[1,0].plot(y_MD,u_analy[:],'-k',label=r'$u_{analy} $', lw=4)
 
-axs[1,0].plot(y_MD,rhou_p[:,0]/(nrecs*fluiddensity),'-r',label=r'$\rho u^{VA}/\rho$', markersize=ms)
+axs[1,0].plot(y_MD,rho_u_p[:,0]/(nrecs*fluiddensity),'-r',label=r'$\rho u^{VA}/\rho$', markersize=ms)
 axs[1,0].plot(y_MD,u_p[:,0],'--b',label=r'$u^{VA}$', markersize=ms)
 
 axs[1,0].plot(y_MD,rhou_CV_p[:,0]/(fluiddensity),'or',label=r'$ \rho u^{CV}/\rho$', markersize=ms)
-axs[1,0].plot(y_MD,uCV_p[:,0],'^b',label=r'$u_{CV}$', markersize=ms)
+axs[1,0].plot(y_MD,u_CV_p[:,0],'^b',label=r'$u_{CV}$', markersize=ms)
 
 axs[1,0].set_ylim((-2.0,2.0))
 
@@ -164,10 +181,12 @@ axs[2,1].plot(y_MD,rhouE_p[:,1],'m-',label=r'$\rho u E^{VA}$', markersize=ms)
 titles[3].append('Direct Pressure')
 
 #MOP/CV method
-PiMOP_p = psurface_p + vflux_p
+PiMOP_p = CV_pressure_p #psurface_p + vflux_p
 axs[3,0].plot(y_MD,PiMOP_p[:,0],styles['VAc'], label=r'$ \Pi_{xx} ^{MOP} $', markersize=ms)
 axs[3,0].plot(y_MD,PiMOP_p[:,4],styles['VAk'],label=r'$ \Pi_{yy} ^{MOP} $', markersize=ms)
 axs[3,0].plot(y_MD,PiMOP_p[:,8],styles['VA'], label=r'$ \Pi_{zz} ^{MOP} $', markersize=ms)
+
+
 
 #for ixyz in [0,4,8]:
     #axs[3,0].plot(y_MD_surf,psurface_p[:,ixyz],'-o',label=r'$ \sigma_{xx} dS_x^- $', markersize=ms)
@@ -213,7 +232,7 @@ axs[3,1].plot(y_MD,q_approx_p[:,0],'k-',label='$q_x approx$', lw=2)
 axs[3,1].plot(y_MD,q_approx_p[:,1],'k:',label='$q_y approx$', lw=2)
 
 
-axs[3,1].set_ylim((-0.3,0.3))
+#axs[3,1].set_ylim((-0.3,0.3))
 #axs[3,1].plot(y_MD_surf,esurface_p[:,1],'-rs',label='$fijvidS_y^+$', markersize=ms)
 #axs[3,1].plot(y_MD_surf,eflux_p[:,1],'-bx',label='$evidS_y^+$', markersize=ms)
 #axs[3,1].plot(y_MD_surf,esurface_p[:,1]+eflux_p[:,1],'-g^',label='$[fijvidS+ evi] dS_y^+$', markersize=ms)
@@ -243,7 +262,7 @@ for j in range(columns):
 
 
 # Save the full figure...
-#plt.show()
+plt.show()
 figname = 'Heat_flux.pdf'
 plt.savefig(figname)
 os.system('evince ' + figname)
