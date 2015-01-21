@@ -1363,7 +1363,7 @@ end subroutine updatecorners
 subroutine sendmols()
 	use messenger
 	use physical_constants_MD
-	use linked_list
+	use linked_list, only : linklist_deallocatepasslist, pass
 	implicit none
 
 	integer		:: i,ixyz,dir,maxnew_np,sendnp,new_np
@@ -1407,7 +1407,7 @@ subroutine checksendbuild(ixyz,sendnp,dir)
 	use physical_constants_MD
 	use computational_constants_MD
 	use arrays_MD
-	use linked_list
+	use linked_list, only : pass, linklist_checkpushmol
 	implicit none
 
 	integer 		:: n
@@ -1420,14 +1420,14 @@ subroutine checksendbuild(ixyz,sendnp,dir)
 	case(-1)
 		do n = 1,np
 			if(r(ixyz,n) < -halfdomain(ixyz)) then
-				call linklist_checkpushmol(n,0,0,0)
+				call linklist_checkpushmol(pass,n,0,0,0)
 				sendnp = sendnp + 1
 			endif
 		enddo
 	case(1)
 		do n = 1,np
 			if(r(ixyz,n) >= halfdomain(ixyz)) then
-				call linklist_checkpushmol(n,0,0,0)
+				call linklist_checkpushmol(pass,n,0,0,0)
 				sendnp = sendnp + 1
 			endif
 		enddo

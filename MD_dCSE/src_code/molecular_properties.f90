@@ -586,6 +586,8 @@ contains
 		use physical_constants_MD, only : np, halo_np, globalnp
 		use computational_constants_MD, only :halfdomain,cellsidelength, nh,&
 											  ensemble,tag_move, ncells
+        use linked_list, only : cell, linklist_findandpop, &
+                                      linklist_checkpush
 		implicit none
 
 		integer, intent(in),optional			:: tagin
@@ -600,15 +602,15 @@ contains
 		v(:,np+halo_np+1)  = v(:,np+1)
 
 		!Linklist update -- pop np+1 from its cell
-		call linklist_findandpop(np+1, icell_halo, jcell_halo, kcell_halo)
+		call linklist_findandpop(cell, np+1, icell_halo, jcell_halo, kcell_halo)
 
 		!print*, 'halo after pop and before push:'
 		!call linklist_print(icell_halo, jcell_halo, kcell_halo)
 
-		call linklist_checkpush(icell_halo, jcell_halo, kcell_halo, np+1+halo_np)
+		call linklist_checkpush(cell, icell_halo, jcell_halo, kcell_halo, np+1+halo_np)
 
 		!print*, 'halo after push:'
-		!call linklist_print(icell_halo, jcell_halo, kcell_halo)
+		!call linklist_print(cell, icell_halo, jcell_halo, kcell_halo)
    
 		!Add new molecule position and velocity to top of array
 		r(:,np+1)  = rin(:)
@@ -634,13 +636,13 @@ contains
 		/cellsidelength(3))+nh !Add nh due to halo(s)
 
 		!print*, 'cell before push:'
-		!call linklist_print(icell, jcell, kcell)
+		!call linklist_print(cell, icell, jcell, kcell)
 
 		!Add new molecule to current cell list
-		call linklist_checkpush(icell, jcell, kcell, np)
+		call linklist_checkpush(cell, icell, jcell, kcell, np)
 
 		!print*, 'cell after push:'
-		!call linklist_print(icell, jcell, kcell)
+		!call linklist_print(cell, icell, jcell, kcell)
 
 	end subroutine insert_molecule
 
@@ -652,6 +654,7 @@ contains
 		use physical_constants_MD, only : np, globalnp, halo_np
 		use computational_constants_MD, only : ensemble,tag_move,tether_tags,rtrue_flag, &
 											   halfdomain, cellsidelength, nh, ncells
+        use linked_list, only : cell, linklist_findandpop, linklist_checkpush
 		implicit none
 
 		integer, intent(in) :: molno
@@ -670,19 +673,19 @@ contains
 
 
 		!print*, 'molno cell linklist before pop:'
-		!call linklist_print(icell,jcell,kcell)
+		!call linklist_print(cell, icell,jcell,kcell)
 		!print*, 'np cell linklist before pop:'
-		!call linklist_print(icell_top,jcell_top,kcell_top)
+		!call linklist_print(cell, icell_top,jcell_top,kcell_top)
 
 		!Pop removed molecule and top molecule from cell lists
-		call linklist_findandpop(molno,icell,jcell,kcell)
-		call linklist_findandpop(np,icell,jcell,kcell) !TODO new cell return,
+		call linklist_findandpop(cell, molno,icell,jcell,kcell)
+		call linklist_findandpop(cell, np,icell,jcell,kcell) !TODO new cell return,
 													   !to be developed
 
 		!print*, 'molno cell linklist after pop:'
-		!call linklist_print(icell,jcell,kcell)
+		!call linklist_print(cell, icell,jcell,kcell)
 		!print*, 'np cell linklist after pop:'
-		!call linklist_print(icell_top,jcell_top,kcell_top)
+		!call linklist_print(cell, icell_top,jcell_top,kcell_top)
 
 		!Replace specified molecule with top one from array
 		if (ensemble.eq.tag_move) then
@@ -707,10 +710,10 @@ contains
 		/cellsidelength(2))+nh !Add nh due to halo(s)
 		kcell_top = ceiling((r(3,np)+halfdomain(3)) &
 		/cellsidelength(3))+nh !Add nh due to halo(s)
-		call linklist_checkpush(icell_top, jcell_top, kcell_top, molno) 
+		call linklist_checkpush(cell, icell_top, jcell_top, kcell_top, molno) 
 
 		!print*, 'molno cell linklist after push again:'
-		!call linklist_print(icell_top,jcell_top,kcell_top)
+		!call linklist_print(cell, icell_top,jcell_top,kcell_top)
 
 		!Replace void at np with top halo molecule TODO
 		!Get removed molecule's cell
@@ -739,10 +742,10 @@ contains
 		!print*, 'np+halo_np cell linklist before pop:'
 		!call linklist_print(icell_halo,jcell_halo,kcell_halo)
 
-		call linklist_findandpop(np+halo_np)
+		call linklist_findandpop(cell, np+halo_np,icell,jcell,kcell)
 
 		!print*, 'np+halo_np cell linklist after pop and before push:'
-		!call linklist_print(icell_halo,jcell_halo,kcell_halo)
+		!call linklist_print(cell, icell_halo,jcell_halo,kcell_halo)
 
 		! If halo cell molecule is out of the domain 
 		if (icell_halo .gt. ncells(1)+2) stop "Error -- mol outside halo!"  ! icell_halo = ncells(1) + 2 
@@ -751,10 +754,10 @@ contains
 		if (icell_halo .lt. 1) stop "Error -- mol outside halo!"  ! icell_halo = 1
 		if (jcell_halo .lt. 1) stop "Error -- mol outside halo!"  ! jcell_halo = 1
 		if (kcell_halo .lt. 1) stop "Error -- mol outside halo!"  ! kcell_halo = 1
-		call linklist_checkpush(icell_halo, jcell_halo, kcell_halo, np) 
+		call linklist_checkpush(cell, icell_halo, jcell_halo, kcell_halo, np) 
 
 		!print*, 'np+halo_np cell linklist after push:'
-		!call linklist_print(icell_halo,jcell_halo,kcell_halo)
+		!call linklist_print(cell, icell_halo,jcell_halo,kcell_halo)
 
 		! Update borders to be safe
 		!call messenger_updateborders(1)	   

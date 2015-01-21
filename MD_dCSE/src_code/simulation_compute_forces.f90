@@ -615,7 +615,7 @@ subroutine simulation_compute_forces_LJ_neigbr
 
 	do molnoi = 1, np
 
-        noneighbrs = neighbour%noneighbrs(molnoi)	!Determine number of elements in neighbourlist
+        noneighbrs = neighbour%Nlist(molnoi)	!Determine number of elements in neighbourlist
 		old => neighbour%head(molnoi)%point			!Set old to head of neighbour list
 		ri(:) = r(:,molnoi)							!Retrieve ri
 
@@ -694,7 +694,7 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 
 	do molnoi = 1, np
 
-	    noneighbrs = neighbour%noneighbrs(molnoi)	!Determine number of elements in neighbourlist
+	    noneighbrs = neighbour%Nlist(molnoi)	!Determine number of elements in neighbourlist
 		old => neighbour%head(molnoi)%point			!Set old to head of neighbour list
 		ri(:) = r(:,molnoi)							!Retrieve ri
 
@@ -769,8 +769,9 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 				endif
 
 			endif
+            !Use pointer in datatype to obtain next item in list
 			current => old
-			old => current%next !Use pointer in datatype to obtain next item in list
+			old => current%next 
 		enddo
 
 	enddo
@@ -906,7 +907,7 @@ implicit none
 
 	do molnoi = 1, np
 
-	    noneighbrs = neighbour%noneighbrs(molnoi)	!elements in neighbour list
+	    noneighbrs = neighbour%Nlist(molnoi)	!elements in neighbour list
 		old => neighbour%head(molnoi)%point			!old>head of neighbour list
 		ri(:) = r(:,molnoi)							!Retrieve ri
 
@@ -1244,7 +1245,7 @@ subroutine collect_bforce_pdf_data
 !
 !        virtual_plane_force = 0.d0
 !
-!	    noneighbrs = neighbour%noneighbrs(molnoi)	!Determine number of elements in neighbourlist
+!	    noneighbrs = neighbour%Nlist(molnoi)	!Determine number of elements in neighbourlist
 !		old => neighbour%head(molnoi)%point			!Set old to head of neighbour list
 !		ri(:) = r(:,molnoi)							!Retrieve ri
 !

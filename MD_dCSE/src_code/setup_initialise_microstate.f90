@@ -109,11 +109,6 @@ subroutine setup_initialise_microstate
         call error_abort('Unidentified initial configuration flag') 
     end select
 
-    !This should be included in every case?
-    if (mie_potential .eq. 1) then
-        call setup_moltypes                    !Setup type of molecules
-    endif
-
     if (rtrue_flag.eq.1) then
         do n=1,np    !Initialise global true positions
             rtrue(1,n) = r(1,n)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
@@ -128,6 +123,11 @@ subroutine setup_initialise_microstate
             call read_tag(n)                          !Read tag, assign props
         enddo
     end if
+
+    !This should be included in every case?
+    if (mie_potential .eq. 1) then
+        call setup_moltypes                    !Setup type of molecules
+    endif
 
     !Choose initial molecular velocities using velocity flag
     select case(initial_velocity_flag)
@@ -3033,7 +3033,7 @@ subroutine set_velocity_field_from_couette_analytical(t,Re,Uwall,H,slidewall,ixy
 	utemp = couette_analytical_fn(t,Re,Uwall,H,appliedbins,slidewall)
 
 	!Create cell lists to be used in specifying velocity!
-    call assign_to_cell
+    call assign_to_cell()
 
     !Set MD velocity
     do jbin=2,gnbins(2)+1
@@ -3060,6 +3060,7 @@ subroutine set_velocity_field_from_DNS_restart(filename,ngx,ngy,ngz)
     use calculated_properties_MD, only : gnbins
     use librarymod, only : read_DNS_velocity_files
 	use set_bin_velocity_mod
+    use linked_list, only : linklist_deallocate_cells, cell
     implicit none
 
     integer,intent(in)      :: ngx, ngy, ngz
@@ -3109,7 +3110,7 @@ subroutine set_velocity_field_from_DNS_restart(filename,ngx,ngy,ngz)
     enddo
     enddo
 
-    call linklist_deallocate_cells            !Deallocate all linklist components
+    call linklist_deallocate_cells(cell)            !Deallocate all linklist components
     deallocate(uc,vc,wc)
 
 end subroutine set_velocity_field_from_DNS_restart

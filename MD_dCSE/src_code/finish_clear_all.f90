@@ -20,13 +20,12 @@ end module module_clear_all
 !----------------------------------------------------------------------------------
 
 subroutine finish_clear_all
-use module_clear_all
-implicit none
+    use module_clear_all
+    implicit none
 
     integer :: i,j,k,n
 
-	call linklist_deallocateall !Final deallocation of all linked lists
-	call linklist_deallocate_bins
+	call linklist_deallocateall() !Final deallocation of all linked lists
 	
 	!Deallocate all allocated arrays
 	deallocate(r)
