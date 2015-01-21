@@ -1929,7 +1929,6 @@ subroutine check_CFD_vs_MD(u_CFD,lbl,outtype)
 
 	!Get velocity in each bin after constraint has been applied
 	allocate(u_CV(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); u_CV = 0.d0
-	allocate(r_pdt(3,np),v_pdt(3,np)); r_pdt = 0.d0; v_pdt = 0.d0
 	do n = 1,np
 		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
 		u_CV( bin(1),bin(2),bin(3),:) = u_CV( bin(1),bin(2),bin(3),:) + v(:,n)

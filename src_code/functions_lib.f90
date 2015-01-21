@@ -628,47 +628,107 @@ function linspace(d1, d2, n)
 
 end function linspace
 
+
+
+!*****************************************************************************80
+!
+! Subroutine for calculating least squares straight line
+!
+!  A formula for a line of the form y = m x + c is sought, which
+!  will minimize the root-mean-square error to N data points ( x), y );
+!
+!  Parameters:
+!
+!    Input, real(kind(0.d0)) X(:), Y(:), data points.
+!    Output, real(kind(0.d0)) A, B, the slope and y-intercept
+
+subroutine least_squares( x, y, m, c )
+    implicit none
+
+    real (kind(0.d0)),dimension(:),allocatable,intent(in)  :: x
+    real (kind(0.d0)),dimension(:),allocatable,intent(in)  :: y
+
+    real (kind(0.d0)), intent(out) :: m
+    real (kind(0.d0)), intent(out) :: c
+
+    integer           :: n
+    real (kind(0.d0)) :: xbar
+    real (kind(0.d0)) :: ybar
+    real (kind(0.d0)) :: bot
+    real (kind(0.d0)) :: top
+
+    !Sanity check
+    if (size(x,1) .ne. size(y,1)) then
+        print*, size(x,1), size(y,1)
+        stop "Error in least_squares - x must be same size as y"
+    endif
+
+    !Get number of values
+    n = size(x,1)
+
+    !  Special case.
+    if ( n == 1 ) then
+        m = 0.d0; c = y(1)
+        return
+    end if
+
+    !  Average X and Y.
+    xbar = sum ( x(1:n) ) / real(n, kind(0.d0))
+    ybar = sum ( y(1:n) ) / real(n, kind(0.d0))
+
+    !  Compute a and b
+    top = dot_product ( x(1:n) - xbar, y(1:n) - ybar )
+    bot = dot_product ( x(1:n) - xbar, x(1:n) - xbar )
+
+    m = top / bot
+    c = ybar - m * xbar
+
+end subroutine least_squares
+
+
 !------------------------------------------------------------------------------
 !Subroutine for calculating least squares straight line with a uniform interval between x values
 
-subroutine least_squares(y,x_interval,npoints,lstsqrsinter, lstsqrsgrad)
-implicit none
+!subroutine least_squares(y, x_interval, npoints, lstsqrsinter, lstsqrsgrad)
+!implicit none
 
-	integer											:: n
-	integer		, intent(in)						:: npoints
-	real(kind(0.d0))								:: lstsqrsx,lstsqrsy,lstsqrsx2,lstsqrsxy
-	real(kind(0.d0)), intent(in)					:: x_interval
-	real(kind(0.d0)), intent(out)					:: lstsqrsgrad, lstsqrsinter
-	real(kind(0.d0)), dimension(npoints), intent(in):: y
+!	integer		, intent(in)						:: npoints
+!	real(kind(0.d0)), dimension(npoints), intent(in):: y
+!	real(kind(0.d0)), intent(in)					:: x_interval
+!	real(kind(0.d0)), intent(out)					:: lstsqrsgrad, lstsqrsinter
 
-	!Calculate molecular velocity using least squares to fit line
-	!and extrapolate down to point below overlap corresponding to continuum halo
-	lstsqrsy  = 0.d0
-	lstsqrsx  = 0.d0
-	lstsqrsx2 = 0.d0
-	lstsqrsxy = 0.d0
+!	integer											:: n
+!	real(kind(0.d0))								:: ndx, lstsqrsx,lstsqrsy,lstsqrsx2,lstsqrsxy
 
-	do n = 1, npoints
-		lstsqrsx  = lstsqrsx  + n*x_interval
-		lstsqrsx2 = lstsqrsx2 + (n*x_interval)*(n*x_interval)
-		lstsqrsy  = lstsqrsy  + y(n)
-		lstsqrsxy = lstsqrsxy + (n*x_interval)*y(n)
-	enddo
+!	!Calculate molecular velocity using least squares to fit line
+!	!and extrapolate down to point below overlap corresponding to continuum halo
+!	lstsqrsy  = 0.d0
+!	lstsqrsx  = 0.d0
+!	lstsqrsx2 = 0.d0
+!	lstsqrsxy = 0.d0
 
-	!print*, lstsqrsx, lstsqrsx2, lstsqrsy, lstsqrsxy
+!	do n = 1, npoints
+!        ndx = n*x_interval
+!		lstsqrsx  = lstsqrsx  + ndx
+!		lstsqrsx2 = lstsqrsx2 + ndx*ndx
+!		lstsqrsy  = lstsqrsy  + y(n)
+!		lstsqrsxy = lstsqrsxy + ndx*y(n)
+!	enddo
 
-	!Calculate gradient
-	lstsqrsgrad = (npoints*lstsqrsxy-lstsqrsx*lstsqrsy) / &
-		      (npoints*lstsqrsx2-lstsqrsx*lstsqrsx)
+!	!print*, lstsqrsx, lstsqrsx2, lstsqrsy, lstsqrsxy
 
-	!Calculate intercept
-	lstsqrsinter =(lstsqrsy*lstsqrsx2 - lstsqrsx*lstsqrsxy) / &
-		      (npoints*lstsqrsx2 - lstsqrsx*lstsqrsx)
+!	!Calculate gradient
+!	lstsqrsgrad = (npoints*lstsqrsxy-lstsqrsx*lstsqrsy) / &
+!		          (npoints*lstsqrsx2-lstsqrsx*lstsqrsx)
+
+!	!Calculate intercept
+!	lstsqrsinter =(lstsqrsy*lstsqrsx2 - lstsqrsx*lstsqrsxy) / &
+!		           (npoints*lstsqrsx2 - lstsqrsx*lstsqrsx)
 
 
-	print'(a,f10.5,a,f10.5)', 'y = ', lstsqrsgrad, ' x + ', lstsqrsinter
+!	print'(a,f10.5,a,f10.5)', 'y = ', lstsqrsgrad, ' x + ', lstsqrsinter
 
-end subroutine least_squares
+!end subroutine least_squares
 
 !-------------------------------------------------------------------------------------
 !Subrountine used to intergrate a function over a uniform grid using the trapizium rule
@@ -3320,17 +3380,17 @@ SUBROUTINE get_eigenval3x3(A, W)
     !   W: Storage buffer for eigenvalues
     ! ----------------------------------------------------------------------------
     !     .. Arguments ..
-	DOUBLE PRECISION, intent(in)   :: A(3,3)
-	DOUBLE PRECISION, intent(out)  :: W(3)
+	real(kind(0.d0)), intent(in)   :: A(3,3)
+	real(kind(0.d0)), intent(out)  :: W(3)
 
     !     .. Parameters ..
-	DOUBLE PRECISION SQRT3
+	real(kind(0.d0)) SQRT3
 	PARAMETER	  ( SQRT3 = 1.73205080756887729352744634151D0 )
 
     !     .. Local Variables ..
-	DOUBLE PRECISION M, C1, C0
-	DOUBLE PRECISION DE, DD, EE, FF
-	DOUBLE PRECISION P, SQRTP, Q, C, S, PHI
+	real(kind(0.d0)) M, C1, C0
+	real(kind(0.d0)) DE, DD, EE, FF
+	real(kind(0.d0)) P, SQRTP, Q, C, S, PHI
   
     !     Determine coefficients of characteristic poynomial. We write
     !	     | A   D   F  |
@@ -3392,17 +3452,17 @@ END SUBROUTINE get_eigenval3x3
 SUBROUTINE get_eigenvec3x3(A, Q, W)
     implicit none
     !     .. Arguments ..
-	DOUBLE PRECISION, intent(inout)  :: A(3,3)
-	DOUBLE PRECISION, intent(out)    :: Q(3,3)
-	DOUBLE PRECISION, intent(out)    :: W(3)
+	real(kind(0.d0)), intent(inout)  :: A(3,3)
+	real(kind(0.d0)), intent(out)    :: Q(3,3)
+	real(kind(0.d0)), intent(out)    :: W(3)
 
     !     .. Parameters ..
-	DOUBLE PRECISION EPS
+	real(kind(0.d0)) EPS
 	PARAMETER	  ( EPS = 2.2204460492503131D-16 )
 
     !     .. Local Variables ..
-	DOUBLE PRECISION NORM, N1, N2, N1TMP, N2TMP
-	DOUBLE PRECISION THRESH, ERROR, WMAX, F, T
+	real(kind(0.d0)) NORM, N1, N2, N1TMP, N2TMP
+	real(kind(0.d0)) THRESH, ERROR, WMAX, F, T
 	INTEGER	    I, J
 
     !     Calculate eigenvalues
@@ -3980,7 +4040,7 @@ subroutine check
 		y(n) = 2*(n * x_interval)! + (rand-0.5d0))
 	enddo
 
-	call least_squares(y, x_interval , npoints ,intercept, gradient)
+	!call least_squares(y, x_interval , npoints ,intercept, gradient)
 
 	print'(a,f10.5,a,f10.5)', 'y = ', gradient, 'x + ', intercept
 

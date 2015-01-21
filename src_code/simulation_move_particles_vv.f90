@@ -430,7 +430,7 @@ contains
 
 		do molnoi=1,np
  
-	    	noneighbrs = neighbour%noneighbrs(molnoi)   !Determine number of elements in neighbourlist
+	    	noneighbrs = neighbour%Nlist(molnoi)   !Determine number of elements in neighbourlist
 			old        => neighbour%head(molnoi)%point  !Set old to head of neighbour list
 			ri(:)      = r(:,molnoi)
 			vi(:)      = v(:,molnoi)
@@ -494,7 +494,7 @@ contains
 			!Evaluate dissipative terms only
 			aD = 0.d0
 			do molnoi=1,np
-	 	    	noneighbrs = neighbour%noneighbrs(molnoi)   !Determine number of elements in neighbourlist
+	 	    	noneighbrs = neighbour%Nlist(molnoi)   !Determine number of elements in neighbourlist
 				old        => neighbour%head(molnoi)%point  !Set old to head of neighbour list
 				ri(:)      = r(:,molnoi)
 				vi(:)      = v(:,molnoi)
@@ -531,7 +531,7 @@ contains
 			!Evaluate random and dissipative terms
 			aD = 0.d0; aR=0.d0
 			do molnoi=1,np
-	 	    	noneighbrs = neighbour%noneighbrs(molnoi)   !Determine number of elements in neighbourlist
+	 	    	noneighbrs = neighbour%Nlist(molnoi)   !Determine number of elements in neighbourlist
 				old        => neighbour%head(molnoi)%point  !Set old to head of neighbour list
 				ri(:)      = r(:,molnoi)
 				vi(:)      = v(:,molnoi)

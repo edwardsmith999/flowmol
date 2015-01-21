@@ -1118,6 +1118,7 @@ subroutine setup_restart_microstate
                 rtether(2,nl) = rtethertemp(2)-domain(2)*(jblock-1)+halfdomain(2)*(npy-1)
                 rtether(3,nl) = rtethertemp(3)-domain(3)*(kblock-1)+halfdomain(3)*(npz-1)
             end if
+
             if (potential_flag.eq.1) then
                 monomer(nl)%chainID        = nint(monomertemp(1))
                 monomer(nl)%subchainID     = nint(monomertemp(2))
@@ -1136,6 +1137,11 @@ subroutine setup_restart_microstate
         call error_abort('processor re-ordering flag incorrect in restart microstate')
 
     end select
+
+    !This should be included in every case?
+    if (mie_potential .eq. 1) then
+        call setup_moltypes                    !Setup type of molecules
+    endif
 
     ! Determine number of chains by global maximum of chainID
     if (potential_flag .eq. 1) then
