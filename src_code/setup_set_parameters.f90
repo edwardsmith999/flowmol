@@ -24,6 +24,7 @@ module module_set_parameters
 	use polymer_info_MD
 	use concentric_cylinders
 	use librarymod, only : PDF
+    implicit none
 
 	type(PDF) 									:: velPDF, velPDFMB
 	type(PDF),allocatable,dimension(:,:,:,:) 	:: velPDF_array
@@ -37,7 +38,10 @@ module module_set_parameters
     double precision,dimension(ntypes)          :: mass_lookup
     double precision,dimension(ntypes,ntypes)   :: epsilon_lookup, sigma_lookup, &    
                                                    lambdar_lookup, lambdaa_lookup, &
-                                                   C_lookup, potshift_lookup
+                                                   C_lookup, potshift_lookup, &
+                                                   k_lookup, r0_lookup, equil_sep_lookup
+
+    double precision,dimension(ntypes,ntypes,ntypes) :: angular_k_lookup, angular_r0_lookup
 
 	abstract interface
 		function fn_mass(i)
@@ -120,8 +124,10 @@ contains
 
     end function LJ_energy
 
+
+
+
     function Mie_mass(i)
-        !use module_set_parameters, only : mass_lookup
         use arrays_MD, only : moltype
 
         integer, intent(in)             :: i
@@ -132,11 +138,6 @@ contains
     end function Mie_mass
 
     function Mie_accijmag(invrij2, i, j)
-        !use module_set_parameters, only : epsilon_lookup, &
-        !                                  sigma_lookup,   &    
-        !                                  lambdar_lookup, &
-        !                                  lambdaa_lookup, &
-        !                                  C_lookup
         use arrays_MD, only : moltype
 
         integer, intent(in)             :: i, j
@@ -151,18 +152,9 @@ contains
         lambdar   = lambdar_lookup(moltype(i),moltype(j))
         lambdaa   = lambdaa_lookup(moltype(i),moltype(j))
         C         = C_lookup(moltype(i),moltype(j))
-        !C = (lambdar/(lambdar-lambdaa))*(lambdar/lambdaa)**(lambdaa/(lambdar-lambdaa))
        
         Mie_accijmag = C*epsilonij*(   lambdar*invrij2**(0.5d0*lambdar+1) & 
                                      - lambdaa*invrij2**(0.5d0*lambdaa+1) )
-
-        !Mie_accijmag =  C_lookup(moltype(i),moltype(j)) &
-        !               * epsilon_lookup(moltype(i),moltype(j)) & 
-        !               *( lambdar_lookup(moltype(i),moltype(j)) & 
-        !                  *invrij2**(0.5d0*lambdar_lookup(moltype(i),moltype(j))+1) & 
-        !                 - lambdaa_lookup(moltype(i),moltype(j)) &
-        !                  *invrij2**(0.5d0*lambdaa_lookup(moltype(i),moltype(j))+1) )
-
     end function Mie_accijmag
 
     function Mie_force(invrij2, rij, i, j)
@@ -178,11 +170,6 @@ contains
 
 
     function Mie_energy(invrij2, i, j)
-        !use module_set_parameters, only : epsilon_lookup, &
-        !                                  sigma_lookup,   &    
-        !                                  lambdar_lookup, &
-        !                                  lambdaa_lookup, &
-        !                                  c_lookup
         use arrays_MD, only : moltype
 
         integer, intent(in)             :: i, j
@@ -199,23 +186,177 @@ contains
         C         = C_lookup(moltype(i),moltype(j))
         potshift  = potshift_lookup(moltype(i),moltype(j))
 
-        !C = (lambdar/(lambdar-lambdaa))*(lambdar/lambdaa)**(lambdaa/(lambdar-lambdaa))
-
         Mie_energy = C*epsilonij*( invrij2**(0.5d0*lambdar) - invrij2**(0.5d0*lambdaa) ) - potshift
-
-        !Mie_energy = C_lookup(moltype(i),moltype(j)) & 
-        !             *epsilon_lookup(moltype(i),moltype(j)) &
-        !             *( invrij2**(0.5d0*lambdar_lookup(moltype(i),moltype(j))) &
-        !               -invrij2**(0.5d0*lambdaa_lookup(moltype(i),moltype(j))))&
-        !             - potshift_lookup(moltype(i),moltype(j))
 
     end function Mie_energy
 
 
+    !Functions for FENE
+    function FENE_accijmag(rij2, i, j)
+        use polymer_info_MD, only : k_c, R_0
+
+        integer, intent(in)             :: i, j
+        double precision, intent(in)    :: rij2
+        double precision                :: FENE_accijmag
+
+        FENE_accijmag =  k_c/(1-(rij2/(R_0**2)))
+
+    end function FENE_accijmag
+
+    function FENE_force(rij2, rij, i, j)
+
+        integer, intent(in)                         :: i, j
+        double precision, intent(in)                :: rij2
+        double precision, intent(in),dimension(3)   :: rij
+        double precision,dimension(3)               :: FENE_force
+
+        FENE_force = rij*FENE_accijmag(rij2, i, j)
+
+    end function FENE_force
+
+    function FENE_energy(rij2, i, j)
+        use polymer_info_MD, only : k_c, R_0
+
+        integer, intent(in)             :: i, j
+        double precision, intent(in)    :: rij2
+        double precision                :: FENE_energy
+
+        FENE_energy = 0.5d0*k_c*R_0*R_0*dlog(1.d0-(rij2/(R_0**2)))
+
+    end function FENE_energy
+
+    !Functions for harmonic potential
+    function harmonic_accijmag(rij2, i, j)
+        use arrays_MD, only : moltype
+
+        integer, intent(in)             :: i, j
+        double precision, intent(in)    :: rij2
+        double precision                :: k_harmonic, r0
+        double precision                :: rij_mag, harmonic_accijmag
+
+        k_harmonic = k_lookup(moltype(i),moltype(j))
+        r0 = r0_lookup(moltype(i),moltype(j))
+
+        rij_mag = sqrt(rij2)
+        harmonic_accijmag = -k_harmonic * (rij_mag - r0)/rij_mag
+
+    end function
+
+
+    function harmonic_force(rij2, rij, i, j)
+        use arrays_MD, only : moltype
+
+        integer, intent(in)             :: i, j
+        double precision, intent(in)    :: rij2
+        double precision,dimension(3), intent(in)    :: rij
+        double precision                :: k_harmonic, r0
+        double precision,dimension(3)   :: harmonic_force
+
+        k_harmonic = k_lookup(moltype(i),moltype(j))
+        r0 = r0_lookup(moltype(i),moltype(j))
+        harmonic_force = rij * harmonic_accijmag(rij2, i, j) 
+
+       ! print'(4i6,3f10.5,3f16.2)', i,j,moltype(i),moltype(j),k_harmonic,r0,sqrt(rij2),harmonic_force
+
+    end function harmonic_force
+
+    function harmonic_energy(rij, i, j)
+        use arrays_MD, only : moltype
+
+        integer, intent(in)             :: i, j
+        double precision,dimension(3), intent(in)    :: rij
+        double precision                :: harmonic_energy
+        double precision                :: k_harmonic, r0
+        double precision                :: harmonic_accijmag
+
+        k_harmonic = k_lookup(moltype(i),moltype(j))
+        r0 = r0_lookup(moltype(i),moltype(j))
+
+        harmonic_energy = 0.5d0*k_harmonic*(dot_product(rij-r0,rij-r0))
+
+    end function harmonic_energy
+
+
+    ! Add function for harmonic angular potential
+    ! for polymer of the form   o-o-o-o-o
+    !                             ^ ^ ^
+    !                             | | |
+    ! we will check               i j k 
+
+    function angular_harmonic_force(rij, rjk, i, j, k)
+
+        integer, intent(in)                         :: i, j, k
+        double precision, intent(in),dimension(3)   :: rij, rjk
+        double precision                            :: k_ijk, theta_0
+        double precision                            :: mag_rij, mag_rjk
+        double precision                            :: theta_ijk, dot_rijrjk, accijmag
+        double precision,dimension(3,3)             :: angular_harmonic_force
+
+        k_ijk = angular_k_lookup(moltype(i),moltype(j),moltype(k))
+        theta_0 = angular_r0_lookup(moltype(i),moltype(j),moltype(k))
+
+        !Check if no angular interaction present between molecules
+        if (k_ijk .lt. 1e-5) return
+
+        mag_rij = sqrt(dot_product(rij,rij))
+        mag_rjk = sqrt(dot_product(rjk,rjk))
+        theta_ijk = acos(dot_product(rij,rjk)/(mag_rij*mag_rjk))
+
+        if (theta_ijk .lt. 1e-5) then
+            angular_harmonic_force = 0.d0
+            return
+        endif
+
+
+
+        angular_harmonic_force(1,:) =-(k_ijk * (theta_ijk - theta_0) & 
+                                      / (mag_rij * sin(theta_ijk))) &
+                                       * ((rjk/mag_rjk) - (rij/mag_rij)& 
+                                       *cos(theta_ijk))
+        angular_harmonic_force(3,:) =-(k_ijk * (theta_ijk - theta_0) & 
+                                      / (mag_rjk * sin(theta_ijk))) & 
+                                       * ((rij/mag_rij) - (rjk/mag_rjk)& 
+                                       *cos(theta_ijk))
+        angular_harmonic_force(2,:) = - angular_harmonic_force(1,:) & 
+                                      - angular_harmonic_force(3,:)
+
+!        accijmag = -(k_ijk * (theta_ijk - theta_0)/(sin(theta_ijk)))
+!        angular_harmonic_force(1,:)=accijmag* ((rjk/mag_rjk) & 
+!                                              -(rij/mag_rij)*cos(theta_ijk)) & 
+!                                                /mag_rij
+!        angular_harmonic_force(3,:)=accijmag* ((rij/mag_rij) & 
+!                                              -(rjk/mag_rjk)*cos(theta_ijk)) & 
+!                                                /mag_rjk
+!        angular_harmonic_force(2,:) = - angular_harmonic_force(1,:) & 
+!                                      - angular_harmonic_force(3,:)
+
+    end function angular_harmonic_force
+
+
+
+    function angular_harmonic_energy(rij, rjk, i,j,k)
+
+        integer, intent(in)                         :: i, j, k
+        double precision, intent(in),dimension(3)   :: rij, rjk
+        double precision                            :: k_ijk, theta_0
+        double precision                            :: mag_rij, mag_rjk
+        double precision                            :: theta_ijk, dot_rijrjk
+        double precision                            :: angular_harmonic_energy
+
+        k_ijk = angular_k_lookup(moltype(i),moltype(j),moltype(k))
+        theta_0 = angular_r0_lookup(moltype(i),moltype(j),moltype(k))
+
+        theta_ijk = acos(dot_product(rij,rjk)/(mag_rij*mag_rjk))
+        angular_harmonic_energy = 0.5d0 * k_ijk * (theta_ijk - theta_0)**2
+
+    end function angular_harmonic_energy
+
+
 subroutine setup_mie_potential
+    use interfaces, only : error_abort
     implicit none
 
-    integer :: i, j
+    integer :: i, j, ids(3)
 
     !Initialise all as zero
     mass_lookup = 0.d0
@@ -227,7 +368,7 @@ subroutine setup_mie_potential
     !Setup table of cross potentials 
     !1 == Argon;
     !moltype_names(1) = '           Ar           '
-    moltype_names(1)    = ' Ar '
+    moltype_names(1)    = 'Ar' !' Ar '
     mass_lookup(1)      = 1.d0
     epsilon_lookup(1,1) = 1.d0
     sigma_lookup(1,1)   = 1.d0
@@ -236,35 +377,51 @@ subroutine setup_mie_potential
 
     !2 == Wall; 
     !moltype_names(2) = '          Wall          '
-    moltype_names(2)    = ' Wall '
+    moltype_names(2)    = 'S' !' Wall '
     mass_lookup(2)      = 1.d0
     epsilon_lookup(2,2) = 1.d0
     sigma_lookup(2,2)   = 1.d0
     lambdar_lookup(2,2) = 12.d0
     lambdaa_lookup(2,2) = 6.d0
 
-    !1-2 == Wall/Argon cross interaction
+    !1-2 == Wall/{D,M,CM} hydrophobic/strong wall interaction
+    ids = (/ 4,5,7 /)
+
     !select case (wall_liquid)
     !case(No_wetting) 
     !    epsilon_lookup(2,1) = 1.0d0
+    !    do i =1,size(ids)
+    !        epsilon_lookup(ids(i),2) = 1.0d0
+    !    enddo
     !case(Paraffin_Water) 
-        epsilon_lookup(2,1) = 0.5d0
+    !    epsilon_lookup(2,1) = 0.5d0
+    !    do i =1,size(ids)
+    !        epsilon_lookup(ids(i),2) = 0.5d0
+    !    enddo
     !case(Superhydrophobic)
     !    epsilon_lookup(2,1) = 0.01d0  !No wall/water interaction
+    !    do i =1,size(ids)
+    !        epsilon_lookup(ids(i),2) = 0.01d0
+    !    enddo
     !case(Superspreading)
     !    !Superspreading requires this as 1.4 according to Panos
-    !    epsilon_lookup(2,1) = 1.4
+         !for water and hydrophobic parts CM, M and D
+        !epsilon_lookup(2,1) = 1.4
+        do i =1,size(ids)
+            epsilon_lookup(ids(i),2) = 1.4d0
+        enddo
+    !1-2 == Wall/{Water,EO} hydrophilic/weak wall interaction
+    epsilon_lookup(3,2) = 0.5d0
+    epsilon_lookup(6,2)  = 0.5d0     
+    !case(Cross_rules)
     !end select
 
-    sigma_lookup(2,1)   = 1.d0 
-    lambdar_lookup(2,1) = 12.d0
-    lambdaa_lookup(2,1) = 6.d0
 
     ! SAFT gamma Mie values ₀₁₂₃₄₅₆₇₈₉	
     !(from Theodorakis, Muller, Craster & Matar (2014))
     !3 == Water "W" 2{H₂O} molecules per bead
     !moltype_names(3) = '         2H₂O          '
-    moltype_names(3)    = ' 2H2O '
+    moltype_names(3)    = 'W'!' 2H2O '
     mass_lookup(3)      = 0.8179d0
     epsilon_lookup(3,3) = 0.8129d0
     sigma_lookup(3,3)   = 0.8584d0
@@ -273,7 +430,7 @@ subroutine setup_mie_potential
 
     !4 == SAFT "M" {(CH₃)₃--Si--O½} molecules per bead
     !moltype_names(4) = '     (CH₃)₃--Si--O½     '
-    moltype_names(4)    = ' 3CH3SiOh '
+    moltype_names(4)    = 'M'!' 3CH3SiOh '
     mass_lookup(4)      = 1.8588d0
     epsilon_lookup(4,4) = 0.8998d0
     sigma_lookup(4,4)   = 1.2398d0
@@ -282,7 +439,7 @@ subroutine setup_mie_potential
 
     !5 == SAFT "D" {O½--(CH₃)₂--Si--O½} molecules per bead
     !moltype_names(5) = '   O½--(CH₃)₂--Si--O½   '
-    moltype_names(5)    = ' Oh2CH3SiOh '
+    moltype_names(5)    = 'D'!' Oh2CH3SiOh '
     mass_lookup(5)      = 1.6833d0
     epsilon_lookup(5,5) = 0.5081d0
     sigma_lookup(5,5)   = 1.0702d0
@@ -291,7 +448,7 @@ subroutine setup_mie_potential
 
     !6 == SAFT ether "EO" {--CH₂--O--CH₂--} molecules per bead
     !moltype_names(6)   = '    --CH₂--O--CH₂--     '
-    moltype_names(6)    = ' CH2OCH2 '
+    moltype_names(6)    = 'EO'!' CH2OCH2 '
     mass_lookup(6)      = 1.0000d0
     epsilon_lookup(6,6) = 0.8067d0
     sigma_lookup(6,6)   = 0.9307d0
@@ -300,7 +457,7 @@ subroutine setup_mie_potential
 
     !7 == SAFT alkane "CM" {--CH₂--CH₂--CH₂--} molecules per bead
     !moltype_names(7) = '   --CH₂--CH₂--CH₂--    '
-    moltype_names(7)    = ' 3CH2 '
+    moltype_names(7)    = 'CM'!' 3CH2 '
     mass_lookup(7)      = 0.9552d0
     epsilon_lookup(7,7) = 0.7000d0
     sigma_lookup(7,7)   = 1.0000d0
@@ -326,6 +483,31 @@ subroutine setup_mie_potential
     epsilon_lookup(5,4) = 0.7114d0
     !SAFT adjusted alkane--ether interaction from prior studies
     epsilon_lookup(7,6) = 0.7154d0
+
+
+    !Define chain interactions
+
+    !Default to zero for anything which shouldn't interact!
+    k_lookup = 0.d0 ;         r0_lookup = 0.d0
+    k_lookup(5,4) = 295.3322; r0_lookup(5,4) = 1.1550
+    k_lookup(6,5) = 295.3322; r0_lookup(6,5) = 1.0004
+    k_lookup(6,6) = 295.3322; r0_lookup(6,6) = 0.9307
+    k_lookup(7,6) = 295.3322; r0_lookup(7,6) = 0.9653
+    k_lookup(7,7) = 295.3322; r0_lookup(7,7) = 1.0000
+
+    !This is assumed -- not in paper
+    k_lookup(6,4) = 295.3322; r0_lookup(6,4) = 1.0000
+
+    !Angular interactions
+    angular_k_lookup = 0.d0;          angular_r0_lookup = 0.d0
+    angular_k_lookup(6,6,6) = 4.3196; angular_r0_lookup(6,6,6) = 2.75064
+    angular_k_lookup(6,6,7) = 4.3196; angular_r0_lookup(6,6,7) = 2.75064
+    angular_k_lookup(6,7,7) = 4.3196; angular_r0_lookup(6,7,7) = 2.75064
+    angular_k_lookup(6,7,6) = 4.3196; angular_r0_lookup(6,7,6) = 2.75064
+    angular_k_lookup(7,6,6) = 4.3196; angular_r0_lookup(7,6,6) = 2.75064
+    angular_k_lookup(7,7,6) = 4.3196; angular_r0_lookup(7,7,6) = 2.75064
+    angular_k_lookup(7,7,7) = 4.3196; angular_r0_lookup(7,7,7) = 2.75064
+    angular_k_lookup(7,6,7) = 4.3196; angular_r0_lookup(7,6,7) = 2.75064
 
     ! Define anything that isn't already defined
     ! Epsilon and lambda cross rules from:
@@ -392,22 +574,115 @@ subroutine setup_mie_potential
             potshift_lookup(i,j) = potshift_lookup(j,i)
         !endif
 
+            k_lookup(i,j)  = k_lookup(j,i)
+            r0_lookup(i,j) = r0_lookup(j,i)
+
+        !How do we enforce symmetry on a rank 3 tensor?!?
+        !Done manually above as only 2 molecules have interactions
+!        do k = i,ntypes
+!            angular_k_lookup(i,j,k)  = angular_k_lookup(k,i,j)
+!            angular_r0_lookup(i,j,k) = angular_k_lookup(k,i,j)
+!        enddo
+
     enddo
     enddo
 
+    call get_equilibrium_seperations()
+
     !Print all properties
-    if (irank .eq. iroot) then
+
         do i = 1,ntypes
         do j = 1,ntypes
-            print'(a20,2i6,3a,4f10.5)', 'SAFT PARAMETERS',i,j,moltype_names(i), 'to', & 
+            print'(a20,2i6,3a4,5f10.5)', 'SAFT PARAMETERS',i,j,moltype_names(i), ' to ', & 
                                                               moltype_names(j), & 
                                                               sigma_lookup(i,j), & 
                                                               epsilon_lookup(i,j), &
                                                               lambdar_lookup(i,j), &
-                                                              lambdaa_lookup(i,j)
+                                                              lambdaa_lookup(i,j), &
+                                                              equil_sep_lookup(i,j)
         enddo
         enddo
-    endif
+
+    contains
+
+        !Calculate the equilbrium seperations -- assumes moltype has not been allocated yet
+
+        subroutine get_equilibrium_seperations
+            implicit none
+
+            integer          :: i,j,n
+            real(kind(0.d0)) :: rand, accijmag,error, step, val, rij2, invrij2
+            real(kind(0.d0)) :: temp(ntypes)
+
+            ! Get equilibrium separation of Mie and harmonic potential
+            ! Could probably solve this exactly or using a crompulent
+            ! numerical technique but I can't be bothered so I'm 
+            ! using a Monte Carlo/steepest descent type method...
+
+
+            ! Save first ntypes moltypes in case they've already been defined.
+            do n =1,ntypes
+                temp(n) = moltype(n)
+                moltype(n) = n
+            enddo
+
+            !Loop through all possible interactions
+            do i = 1,ntypes
+            do j = 1,ntypes
+                !Get initial guess
+                n = 0
+                val = 100d0
+                error = val
+                equil_sep_lookup(i,j) = 1.d0
+                accijmag = 1.d0
+                call random_number(rand)
+                rij2 = 10.d0*(rand-0.5d0)
+                !Steepest descent type thing until error in force is small
+                do while (error .gt. 1e-12) 
+                    call random_number(rand)
+                    step = min(0.1d0,error)
+                    rij2 = equil_sep_lookup(i,j) + sign(step*rand,accijmag)
+                    invrij2 = 1.d0 / rij2
+                    accijmag = harmonic_accijmag(rij2, i, j) + Mie_accijmag(invrij2, i, j)
+                    if ( abs(accijmag) .lt. abs(val)) then
+                        equil_sep_lookup(i,j) = rij2
+                        error = abs(val)-abs(accijmag)
+                        !print'(i7,2i3,4(a,f20.10))',n, i,j, ' Error = ',  error , ' Previous =', val, ' new = ',accijmag , ' Seperation = ', sqrt(rij2)
+                        val = min(abs(val),abs(accijmag))
+                    endif
+
+                    !Exit conditions if failure or non-forces
+                    if (abs(accijmag) .lt. 1e-5) exit ! print'(3i6,2f10.5)', n,i,j, accijmag, val
+                    n = n + 1
+                    if (n .gt. 1000000) then
+                        print*, 'failed to find equilibrium distance'
+                        print'(i7,2i3,4(a,f20.10))',n, i,j, ' Error = ',  error , ' Previous =', val, ' new = ',accijmag , ' Separation = ', sqrt(rij2)
+                        exit                        
+                    endif
+
+                enddo
+                equil_sep_lookup(i,j) = sqrt(equil_sep_lookup(i,j))
+            enddo
+            enddo
+
+            !Sanity check
+            do i = 1,ntypes
+            do j = 1,ntypes
+                rij2 = equil_sep_lookup(i,j)**2
+                invrij2 = 1.d0 / rij2
+                accijmag = Mie_accijmag(invrij2, i, j) + harmonic_accijmag(rij2, i, j)
+                if (accijmag .gt. 1e-5) print*, 'WARNING -- equilibrium force not zero for', i,j, accijmag
+            enddo
+            enddo
+            
+            !Copy first ntypes moltypes back to array.
+            do n =1,ntypes
+                temp(n) = moltype(n)
+            enddo
+
+
+        end subroutine get_equilibrium_seperations
+
 
 
 end subroutine setup_mie_potential
@@ -797,7 +1072,7 @@ subroutine set_parameters_global_domain
 			! - corrected after position setup
 			np = globalnp / nproc
 
-		case('solid_liquid','polymer_brush','droplet2D','droplet3D','2phase')
+		case('solid_liquid','polymer_brush','droplet2D','droplet3D','2phase','2phase_surfactant_solution')
 
 			volume=1	!Set domain size to unity for loop below
 			do ixyz=1,nd

@@ -2506,6 +2506,7 @@ subroutine check_update_adjacentbeadinfo(molnoi,molnoj)
 	if (chaindiff.eq.0) then                                           !If same chain
 		jscID = monomer(molnoj)%subchainID                             !Get subchainID of molnoj
 		bflag = get_bondflag(molnoi,jscID)                             !Check if molnoi/j are connected
+
 		select case (bflag)
 		case(1)                                                        !If connected, add to bond list
 			bondcount(molnoi) = bondcount(molnoi) + 1
@@ -2528,6 +2529,7 @@ contains
 	implicit none
 		
 		integer, intent(in) :: molno
+        r(0,-1) = 1
 		call error_abort('Error: too many bonds for molno ', molno)
 	
 	end subroutine too_many_bonds_error 
@@ -2545,11 +2547,11 @@ subroutine check_update_adjacentbeadinfo_allint(molnoi,molnoj)
 
 	chaindiff = monomer(molnoi)%chainID - monomer(molnoj)%chainID      !Check for same chainID
 
-    if (irank .eq. 1) then
-        if (molnoi .eq. 19118 .or. molnoj .eq. 19118) then
-            write(8001,*) molnoi, molnoj 
-        end if
-    end if
+!    if (irank .eq. 1) then
+!        if (molnoi .eq. 19118 .or. molnoj .eq. 19118) then
+!            write(8001,*) molnoi, molnoj 
+!        end if
+!    end if
 
 	if (chaindiff.eq.0) then                                           !If same chain
 		jscID = monomer(molnoj)%subchainID                             !Get subchainID of molnoj
@@ -2570,6 +2572,7 @@ contains
 	implicit none
 		
 		integer, intent(in) :: molno
+        r(0,-1) = 1
 		call error_abort('Error: too many bonds for molno ', molno)
 	
 	end subroutine too_many_bonds_error 
@@ -2831,6 +2834,7 @@ subroutine linklist_deallocateall
 	!integer            			:: icell, jcell, kcell
 	!type(node), pointer 	    :: old, current, oldn, currentn
 
+    !Reset all polymer information
 	select case(potential_flag)
 	case(0)
 	case(1)

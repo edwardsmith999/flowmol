@@ -196,7 +196,7 @@ subroutine simulation_record
 	if (velocity_outflag .eq. 0 .and. &
 		mass_outflag .ne. 0) call mass_averaging(mass_outflag)
 
-    sl_interface_outflag = 2
+    sl_interface_outflag =0
     if (sl_interface_outflag .eq. 1) then
         call sl_interface(sl_interface_outflag)
     elseif (sl_interface_outflag .eq. 2) then
@@ -5389,24 +5389,13 @@ contains
     subroutine build_clusters(self, rd)
 	    use module_compute_forces
         use computational_constants_MD, only : iter
-        use physical_constants_MD, only : pi
 	    use interfaces, only : error_abort
-        use linked_list, only : linklist_printneighbourlist
-        use librarymod, only : imaxloc, get_Timestep_FileName, bubble_sort, least_squares
 	    implicit none
 
         type(clusterinfo),intent(inout)    :: self
         double precision, intent(in)        :: rd
 
-        integer                         :: i, j, resolution
-        integer                         :: npsum, molcount, clustno, noneighbrs
-        double precision                :: tolerence, m, c, cl_angle
-        double precision,dimension(3)   :: COM
-        double precision,dimension(6)   :: extents
-        double precision,dimension(:),allocatable :: cluster_sizes, x,y
-        double precision,dimension(:,:),allocatable :: rnp, extents_grid
-        character(32)                    :: filename
-    	type(node), pointer 	        :: old, current
+        integer                         :: i
 
         !Initialised cluster list
         if (.not. allocated(self%Nlist)) then
@@ -5423,173 +5412,92 @@ contains
 	    enddo
 
         !Call to build clusters from neighbour and cell lists
-        !allocate(rnp(3,np))
-        !rnp = r(:,1:np)
         call build_from_cellandneighbour_lists(self, cell, neighbour, rd, r, np, skipwalls_=.true.)
-        !call build_debug_clusters(self, rd)
-
-        !Write debugging info
-!    
+  
         !Remove all empty cluster references
         call CompressClusters(self)
 
-!        call get_Timestep_FileName(iter,'./Big_clust',filename)
-!        open(unit=1042,file=trim(filename),access='append')
-!        do i = 1, self%Nclust
-!            if (self%Nlist(i) .eq. maxval(self%Nlist)) then
-!                print*, 'skipping', i, 'with ', self%Nlist(i)
-!                cycle
-!            endif
-!            call linklist_printneighbourlist(self, i,1042)
-!        enddo
-!        close(1042,status='keep')
+    end subroutine build_clusters
 
-!        call get_Timestep_FileName(iter,'./Big_clust',filename)
-!        open(unit=1042,file=trim(filename),access='append')
-!        molcount = 0
-!        do clustno = 1, self%Nclust
+    subroutine get_cluster_properties(self, rd)
+        use physical_constants_MD, only : pi
+        use computational_constants_MD, only : iter
+        use linked_list, only : linklist_printneighbourlist
+        use librarymod, only : imaxloc, get_Timestep_FileName, bubble_sort_r, least_squares
+        implicit none
 
-!            if (self%Nlist(clustno) .ne. maxval(self%Nlist)) then
-!                !print*, 'skipping', clustno, 'with ', self%Nlist(clustno)
-!                cycle
-!            endif
+        type(clusterinfo),intent(inout)    :: self
+        double precision, intent(in)       :: rd
 
-!	        noneighbrs = self%Nlist(clustno)  	!Determine number of elements in neighbourlist
-!	        old => self%head(clustno)%point		!Set old to head of neighbour list
-
-!	        if(noneighbrs == 0) print*, clustno, 'cluster has no elements'
-
-!	        current => old ! make current point to head of list
-!	        do j=1,noneighbrs
-!                molcount =  molcount + 1
-!          		write(1042,'(2i6, 3(a,i8),3f10.5)'), molcount, j, ' of ', self%Nlist(clustno), & 
-!                                             ' Linklist for cluster ', clustno,' j = ', & 
-!                                             current%molno, r(:,current%molno)
-!		        if (associated(old%next) .eqv. .true. ) then !Exit if null
-!			        old => current%next ! Use pointer in datatype to obtain next item in list
-!			        current => old      ! make current point to old - move alone one
-!		        endif
-!	        enddo
-
-!	        nullify(current)                    !Nullify current as no longer required
-!	        nullify(old)                        !Nullify old as no longer required
-
-!        enddo
-!        close(1042,status='keep')
-
-!        npsum = 0
-!        do i = 1, self%Nclust
-!            npsum = npsum + self%Nlist(i)
-!            !print*, i, self%Nlist(i)
-!        enddo
-!        print*, 'TOTALS after compress= ', self%Nclust, npsum, maxval(self%Nlist), sum(self%Nlist)
-
-
-        !allocate(cluster_sizes(self%Nclust))
-        !cluster_sizes = dble(self%Nlist)
-        !call bubble_sort(cluster_sizes)
-
-        !do i = size(cluster_sizes,1)-10,size(cluster_sizes,1)
-        !    print*, cluster_sizes(i)
-        !enddo
-
-
-        !call cluster_centre_of_mass(self, imaxloc(self%Nlist), COM)
-        !call cluster_global_extents(self, imaxloc(self%Nlist), extents)
-        !print'(2(a,3f10.5),6f10.5)', 'Centre of mass = ', COM, ' Extents = ', extents, 0.5*globaldomain
-
+        character(32)                   :: filename
+        integer                         :: i,j,resolution
+        double precision                :: tolerence, m, c, cl_angle
+        double precision,dimension(6)   :: extents
+        double precision,dimension(:),allocatable :: x,y,cluster_sizes
+        double precision,dimension(:,:),allocatable :: rnp, extents_grid
 
         resolution = 10; tolerence = rd
-        call cluster_extents_grid(self, imaxloc(self%Nlist), 1, resolution, extents_grid)
-        call cluster_outer_mols(self, imaxloc(self%Nlist), tolerence=tolerence, dir=1, rmols=rnp, extents=extents_grid)
-
-        call get_Timestep_FileName(iter,'./results/maxcell_top',filename)
-        open(unit=1042,file=trim(filename),access='append')
-        do i = 1,resolution
-        do j = 1,resolution
-            write(1042,'(2i6,3f10.5)') i,j,extents_grid(i,j),(i-0.5d0)*(extents(2)-extents(5))/dble(resolution)+extents(5), & 
-                                                             (j-0.5d0)*(extents(3)-extents(6))/dble(resolution)+extents(6)
-        enddo
-        enddo
-        close(1042,status='keep')
-
-        call get_Timestep_FileName(iter,'./results/clust_edge_top',filename)
-        open(unit=1042,file=trim(filename),access='append')
-        do i =1,size(rnp,2)
-            write(1042,'(i6,3f10.5)') i, rnp(:,i)
-        enddo
-        close(1042,status='keep')
-
+        call cluster_global_extents(self, imaxloc(self%Nlist), extents)
+        call cluster_extents_grid(self, imaxloc(self%Nlist), 1, resolution, & 
+                                  extents_grid, debug_outfile='./results/maxcell_top')
+        call cluster_outer_mols(self, imaxloc(self%Nlist), tolerence=tolerence, dir=1, & 
+                                rmols=rnp, extents=extents_grid, debug_outfile='./results/clust_edge_top')
 
         allocate(x(size(rnp,2)),y(size(rnp,2)))
         x = rnp(2,:); y = rnp(1,:)
         call least_squares(x, y, m, c)
         deallocate(x,y)
-        cl_angle = 180.d0-atan(m)*180./pi
+        cl_angle = 90.d0+atan(m)*180./pi
         open(unit=1042,file='linecoeff_top',access='append')
         write(1042,'(i12, 3(a,f10.5))'), iter, ' Top line    y = ', m, ' x + ',c , ' angle = ', cl_angle
         close(1042,status='keep')
 
-        call cluster_extents_grid(self, imaxloc(self%Nlist), 4, resolution, extents_grid)
-        call cluster_outer_mols(self, imaxloc(self%Nlist), tolerence=tolerence, dir=4, rmols=rnp, extents=extents_grid)
-
-        call get_Timestep_FileName(iter,'./results/maxcell_bot',filename)
-        open(unit=1042,file=trim(filename),access='append')
-        do i = 1,resolution
-        do j = 1,resolution
-            write(1042,'(2i6,3f10.5)') i,j,extents_grid(i,j),(i-0.5d0)*(extents(2)-extents(5))/dble(resolution)+extents(5), & 
-                                                             (j-0.5d0)*(extents(3)-extents(6))/dble(resolution)+extents(6)
-        enddo
-        enddo
-        close(1042,status='keep')
-
-        call get_Timestep_FileName(iter,'./results/clust_edge_bot',filename)
-        open(unit=1042,file=trim(filename),access='append')
-        do i =1,size(rnp,2)
-            write(1042,'(i6,3f10.5)') i, rnp(:,i)
-        enddo
-        close(1042,status='keep')
+        call cluster_extents_grid(self, imaxloc(self%Nlist), 4, resolution, &
+                                  extents_grid, debug_outfile='./results/maxcell_bot')
+        call cluster_outer_mols(self, imaxloc(self%Nlist), tolerence=tolerence, dir=4, & 
+                                rmols=rnp, extents=extents_grid, debug_outfile='./results/clust_edge_bot')
 
         allocate(x(size(rnp,2)),y(size(rnp,2)))
         x = rnp(2,:); y = rnp(1,:)
         call least_squares(x, y, m, c)
         deallocate(x,y)
-        cl_angle = 180.d0-atan(m)*180.d0/pi
+        cl_angle = 90.d0+atan(m)*180.d0/pi
         open(unit=1042,file='linecoeff_bot',access='append')
         write(1042,'(i12, 3(a,f10.5))'), iter, ' Bottom line y = ', m, ' x + ',c  , ' angle = ', cl_angle
         close(1042,status='keep')
 
 
-!        do clustno = 1, self%Nclust
-
-!	        noneighbrs = self%Nlist(clustno)  	!Determine number of elements in neighbourlist
-!	        old => self%head(clustno)%point		!Set old to head of neighbour list
-
-!	        if(noneighbrs == 0) print*, clustno, 'cluster has no elements'
-
-!	        current => old ! make current point to head of list
-!	        do j=1,noneighbrs
-!                molcount =  molcount + 1
-!          		print'(2i6, 3(a,i8),3f10.5)', molcount, j, 'of', self%Nlist(clustno), ' Linklist for cluster ', clustno,' j = ', current%molno, r(:,current%molno)
-!		        if (associated(old%next) .eqv. .true. ) then !Exit if null
-!			        old => current%next ! Use pointer in datatype to obtain next item in list
-!			        current => old      ! make current point to old - move alone one
-!		        endif
-!	        enddo
-
-!	        nullify(current)                    !Nullify current as no longer required
-!	        nullify(old)                        !Nullify old as no longer required
-
+        !Print Biggest cluster
+!        call get_Timestep_FileName(iter,'./results/Big_clust',filename)
+!        open(unit=1042,file=trim(filename),access='append')
+!        do i = 1, self%Nclust
+!            if (self%Nlist(i) .ne. maxval(self%Nlist)) then
+!                print*, 'skipping', i, 'with ', self%Nlist(i)
+!                cycle
+!            endif
+!            call linklist_printneighbourlist(self, i, 1042)
 !        enddo
-!     
+!        close(1042,status='keep')
 
 
-    end subroutine build_clusters
+        ! Sort clusters by size and check if more than one big one!
+        allocate(cluster_sizes(self%Nclust))
+        cluster_sizes = dble(self%Nlist)
+        call bubble_sort_r(cluster_sizes)
+        print'(a,8f10.1)', 'TOP EIGHT CLUSTERS =', cluster_sizes(1:8)
+
+    end subroutine get_cluster_properties
+
+    subroutine print_interface()
+        implicit none
+
+    end subroutine print_interface
 
 
     subroutine build_from_cellandneighbour_lists(self, cell, neighbour, rd, rmols, nmols, skipwalls_)
 	    use module_compute_forces
 	    use interfaces, only : error_abort
+        implicit none
 
         type(clusterinfo),intent(inout) :: self
         type(cellinfo),intent(in)       :: cell
@@ -5874,10 +5782,12 @@ contains
 
     !Generate extents for the 2D surface on a cell by cell basis
 
-    subroutine cluster_extents_grid(self, clustNo, dir, resolution, extents, maxmols)
+    subroutine cluster_extents_grid(self, clustNo, dir, resolution, & 
+                                    extents, maxmols, debug_outfile)
         use arrays_MD, only : r
         use module_set_parameters, only : mass
-        use computational_constants_MD, only : halfdomain
+        use computational_constants_MD, only : halfdomain, iter
+        use librarymod, only : get_new_fileunit,get_Timestep_FileName
         implicit none
 
         type(clusterinfo),intent(in)    :: self
@@ -5885,12 +5795,17 @@ contains
         integer, intent(in)             :: clustNo, dir, resolution
         double precision,dimension(:,:),allocatable,intent(out)   :: extents
         double precision,dimension(:,:),allocatable,intent(out),optional   :: maxmols
+        character(*),intent(in),optional :: debug_outfile
 
-        integer                         :: ixyz,jxyz,kxyz,n,molno,Nmols
+        character(32)                   :: filename
+        logical                         :: print_debug = .false.
+        integer                         :: i,j,ixyz,jxyz,kxyz,n,molno,Nmols
         integer                         :: jcell, kcell, surftodim
         double precision,dimension(6)   :: global_extents
         double precision,dimension(2)   :: cellsidelength, clusterwidth
 	    type(node), pointer 	        :: old, current
+
+        if (present(debug_outfile)) print_debug = .true.
 
         !Allocate array of extents
         allocate(extents(resolution,resolution))
@@ -5952,15 +5867,32 @@ contains
 
             enddo
         endif
+
+        if (print_debug) then
+            call get_Timestep_FileName(iter,debug_outfile,filename)
+            n = get_new_fileunit()
+            open(unit=n,file=trim(filename),status='replace')
+            do i = 1,resolution
+            do j = 1,resolution
+                write(n,'(2i6,3f10.5)') i,j,extents(i,j),& 
+                                 (i-0.5d0)*(global_extents(2)-global_extents(5)) & 
+                                  /dble(resolution)+global_extents(5), &
+                                 (j-0.5d0)*(global_extents(3)-global_extents(6)) & 
+                                  /dble(resolution)+global_extents(6)
+            enddo
+            enddo
+            close(n,status='keep')
+        endif
     
     end subroutine cluster_extents_grid
 
 
-    subroutine cluster_outer_mols(self, clustNo, tolerence, dir, rmols, extents)
+    subroutine cluster_outer_mols(self, clustNo, tolerence, dir, rmols, extents, debug_outfile)
         use arrays_MD, only : r
         use module_set_parameters, only : mass
-        use computational_constants_MD, only : halfdomain
+        use computational_constants_MD, only : halfdomain, iter
 	    use interfaces, only : error_abort
+        use librarymod, only : get_new_fileunit, get_Timestep_FileName
         implicit none
 
         type(clusterinfo),intent(in)    :: self
@@ -5969,13 +5901,19 @@ contains
         double precision,intent(in)     :: tolerence
         double precision,dimension(:,:),intent(in),optional  :: extents
         double precision,dimension(:,:),allocatable,intent(out) :: rmols
+        character(*),intent(in),optional :: debug_outfile
 
-        integer                         :: ixyz,jxyz,kxyz,n,m, Nmols, molno
+        character(32)                   :: filename
+        logical                         :: print_debug = .false.
+
+        integer                         :: ixyz,jxyz,kxyz,i,j,n,m, Nmols, molno
         integer                         :: jcell, kcell, surftodim
         double precision,dimension(6)               :: global_extents
         double precision,dimension(:,:),allocatable :: rtemp, extents_, molband
         double precision,dimension(2)   :: cellsidelength, clusterwidth
 	    type(node), pointer 	        :: old, current
+
+        if (present(debug_outfile)) print_debug = .true.
 
         !Get directional index and orthogonal directions
         if (dir .le. 3) then
@@ -6060,6 +5998,16 @@ contains
         !Copy total array to array size of outer molecules
         allocate(rmols(3,m))
         rmols = rtemp(:,1:m)
+
+        if (print_debug) then
+            call get_Timestep_FileName(iter,debug_outfile,filename)
+            n = get_new_fileunit()
+            open(unit=n,file=trim(filename),status='replace')
+            do i =1,size(rmols,2)
+                write(n,'(i6,3f10.5)') i, rmols(:,i)
+            enddo
+            close(n,status='keep')
+        endif
 
     end subroutine cluster_outer_mols
 
@@ -6260,14 +6208,14 @@ end module cluster_analysis
 
 subroutine get_interface_from_clusters()
     use cluster_analysis
-    use linked_list, only : cluster, linklist_printneighbourlist
+    use linked_list, only : cluster
     implicit none
 
-    character(20)       :: filename
     double precision    :: rd
 
     rd = 1.5d0
     call build_clusters(cluster, rd)
+    call get_cluster_properties(cluster, rd)
 
 end subroutine get_interface_from_clusters
 

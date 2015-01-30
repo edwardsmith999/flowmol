@@ -271,6 +271,37 @@ subroutine setup_read_input
             read(1,*) initialnunits(2)		!y dimension split into number of cells
             read(1,*) initialnunits(3)		!z dimension split into number of cells
 
+		case('2phase_surfactant_solution')
+
+            potential_flag = 1
+            ensemble = tag_move
+			call locate(1,'RCUTOFF',.true.)
+			read(1,*) rcutoff
+
+            call locate(1,'2PHASE_SURFACTANT',.true.)
+			read(1,*) nmonomers
+            read(1,*) targetconc
+            read(1,*) angular_potential
+
+            if (targetconc .gt. 1.d0) call error_abort("ERROR in 2PHASE_SURFACTANT input -- targetconc must be between 0.0 and 1.0")
+
+            call locate(1,'DENSITY',.true.)
+            read(1,*) density
+            call locate(1,'LIQUIDDENSITY',.true.)
+            read(1,*) liquid_density
+			call locate(1,'GASDENSITY',.true.) 
+    	    read(1,*) gas_density
+
+            call locate(1,'INITIALNUNITS',.true.)
+            read(1,*) initialnunits(1)		!x dimension split into number of cells
+            read(1,*) initialnunits(2)		!y dimension split into number of cells
+            read(1,*) initialnunits(3)		!z dimension split into number of cells
+
+		    call locate(1,'LIQUID_FRACTION',.false.,found_in_input) 
+            if (found_in_input) then
+                read(1,*) lg_fract
+            endif
+
 		case default
 
 			call error_abort("ERROR -- Unrecognised special case string")
