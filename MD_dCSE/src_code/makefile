@@ -98,6 +98,8 @@ optimised_p:
 debug_s:
 	@make serial_md.exe "BUILD=debug"
 debug_p:
+	@make $(MD_EXE) "BUILD=debug"
+fastdebug_p:
 	@make $(MD_EXE) "FFLAGS = -O2 -g -traceback -CB -fpe0"   # "BUILD=debug"
 full_debug_s:
 	@make serial_md.exe "FFLAGS = -g -O0 -traceback -CB -check all -warn all,nodec,interfaces -gen_interfaces"
