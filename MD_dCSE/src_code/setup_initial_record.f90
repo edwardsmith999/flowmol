@@ -1037,6 +1037,7 @@ subroutine build_psf
     use librarymod, only: get_new_fileunit
     use polymer_info_MD
     use messenger_data_exchange, only : globalSum
+    use module_set_parameters, only : moltype
     implicit none
 
     integer :: i,j,n,item,molno,sc
@@ -1106,24 +1107,23 @@ subroutine build_psf
     call globalSum(glob_sc,globalnp)
     call globalSum(glob_bf,4,globalnp)
 
-    do n=1,globalnp
-        select case (res_ID(n))
-        case(0)
-            seg_name(n)  = 'N'
-            res_name(n)  = 'SOL'
-            atom_name(n) = 'N'
-            atom_type(n) = 'N'
-            mass(n)      = 1.00794
-        case(1:)
-            seg_name(n)  = 'C'
-            res_name(n)  = 'POL'
-            atom_name(n) = 'C'
-            atom_type(n) = 'C'
-            mass(n)      = 1.00794
-        case default
-        end select
-        charge(n)    = 0.00000
-    end do
+    if (Mie_potential .eq. 1) then
+        do n=1,globalnp
+            !LJ still used so revert to FENE write out
+            if (moltype(n) .eq. 1) then
+                call SOL_or_POL(n)
+            else
+                !Part of surfactant chain
+                call Mie_chains(n)
+            endif
+        enddo
+    else
+        !LJ still used so revert to FENE
+        do n=1,globalnp
+            call SOL_or_POL(n)
+        end do
+    endif
+
 
     if (irank.eq.iroot) then
 
@@ -1231,5 +1231,59 @@ subroutine build_psf
                 ' topology file. (This may take a long time, depending on',&
                 ' the system size)'
     end if
+
+contains
+
+    subroutine SOL_or_POL(n)
+
+        integer, intent(in) :: n
+
+        select case (res_ID(n))
+        case(0)
+            seg_name(n)  = 'N'
+            res_name(n)  = 'SOL'
+            atom_name(n) = 'N'
+            atom_type(n) = 'N'
+            mass(n)      = 1.00794
+        case(1:)
+            seg_name(n)  = 'C'
+            res_name(n)  = 'POL'
+            atom_name(n) = 'C'
+            atom_type(n) = 'C'
+            mass(n)      = 1.00794
+        case default
+        end select
+        charge(n)    = 0.00000
+
+    end subroutine SOL_or_POL
+
+
+    subroutine Mie_chains(n)
+        use module_set_parameters, only : moltype, moltype_names, mass_lookup, epsilon_lookup
+
+        integer, intent(in) :: n
+        integer :: mt
+
+        mt = moltype(n)
+
+        select case (res_ID(n))
+        case(0)
+            !Water, wall or other unconnected molecules
+            seg_name(n)  = trim(moltype_names(mt))
+            res_name(n)  = trim(moltype_names(mt))
+            atom_name(n) = trim(moltype_names(mt))
+            atom_type(n) = trim(moltype_names(mt))
+            mass(n)      = mass_lookup(mt)
+            charge(n)    = epsilon_lookup(mt,mt)
+        case(1:)
+            !Surfactant or other chain
+            seg_name(n)  = 'Chain'
+            res_name(n)  = trim(moltype_names(mt))
+            atom_name(n) = trim(moltype_names(mt))
+            atom_type(n) = trim(moltype_names(mt))
+            mass(n)      = mass_lookup(mt)
+            charge(n)    = epsilon_lookup(mt,mt)
+        end select
+    end subroutine Mie_chains
 
 end subroutine build_psf

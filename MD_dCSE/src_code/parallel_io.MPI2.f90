@@ -1038,6 +1038,10 @@ subroutine setup_restart_microstate
                 rtether(3,nl) = buf(pos+2)-domain(3)*(kblock-1)+halfdomain(3)*(npz-1)
                 pos = pos + 3
             end if
+            !if (Mie_potential .eq. 1) then
+            !    moltype(nl) = nint(buf(pos))
+            !    pos = pos + 1
+            !endif
             if (potential_flag.eq.1) then
                 !Read monomer data
                 monomer(nl)%chainID        = nint(buf(pos))

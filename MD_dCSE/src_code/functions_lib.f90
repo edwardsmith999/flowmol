@@ -757,6 +757,7 @@ end subroutine integrate_trap
 
 !-------------------------------------------------------------------------------------
 ! Very simple bubble sorting algorithm -- should only be used for small data sets
+! Orders smallest to biggest
 
 subroutine bubble_sort(vec)
 	implicit none
@@ -782,6 +783,33 @@ subroutine bubble_sort(vec)
 	enddo
 
 end subroutine bubble_sort
+
+! Reverse of the above but ordering biggest to smallest
+
+subroutine bubble_sort_r(vec)
+	implicit none
+
+	real(kind(0.d0)), dimension(:),allocatable,intent(inout)	:: vec 
+
+	integer 			:: bubble, vsize, j
+	real(kind(0.d0))	:: temp
+
+	vsize = size(vec) 
+
+	do while (vsize .gt. 1)
+		bubble = 0
+		do j = 2, vsize
+			if (vec(j) .gt. vec(j-1)) then
+				temp = vec(j)
+				vec(j) = vec(j-1)
+				vec(j-1) = temp
+				bubble = j
+			endif 
+		enddo
+		vsize = bubble   
+	enddo
+
+end subroutine bubble_sort_r
 
 !-------------------------------------------------------------------------------------
 !Returns the heaviside function for input x -- interface at top

@@ -413,6 +413,7 @@ module polymer_info_MD
 	integer				:: etevtcf_iter0			!Iteration from which to begin averaging
 	integer             :: nchains                  !Number of FENE chains in domain
 	integer				:: nmonomers				!Number of LJ beads per FENE chain
+    integer             :: angular_potential        !Calculate and apply angular potential
 	integer             :: r_gyration_outflag       !Radius of gyration outflag
 	integer             :: r_gyration_iter0         !Iteration at which to start recording R_g
 
@@ -446,7 +447,19 @@ module polymer_info_MD
 		! THE TOTAL NUMBER OF ITEMS IN THIS DATA TYPE MUST ALSO BE STORED IN THE VARIABLE nsdmi
 	end type monomer_info
 
+	type(monomer_info), dimension(:), allocatable :: monomer
+	!eg. to access chainID of mol 23, call monomer(23)%chainID
+
 	integer, parameter :: nsdmi=8                   !Number of sent doubles for monomer_info 
+
+	type chain_info
+		SEQUENCE									!For MPI convenience
+		integer :: chainID                          !Integer value: chain number 
+        integer :: nmonomers                        !Number of monomers in chain
+        integer,allocatable,dimension(:) :: beads   !Molno of all beads in chain
+	end type chain_info
+
+	type(chain_info), dimension(:), allocatable :: chain
 
 	integer, parameter :: intbits=bit_size(1)-1     !Size in bits of integer on this machine
     !-1, because 2**31 + 2**(something<31) not possible to represent with 32 bit integer
@@ -454,11 +467,11 @@ module polymer_info_MD
     
     real(kind(0.d0)) :: grafting_density                                                            
 
-	type(monomer_info), dimension(:), allocatable :: monomer
-	!eg. to access chainID of mol 23, call monomer(23)%chainID
+
 
 	real(kind(0.d0)), dimension(:,:), allocatable :: etev
-	real(kind(0.d0)), dimension(:,:), allocatable :: etev_0 !End-to-end vectors for polymer chains at iter=etevtcf_iter0 (size of np,only stored for leftmost chain mols) 
+    !End-to-end vectors for polymer chains at iter=etevtcf_iter0 (size of np,only stored for leftmost chain mols) 
+	real(kind(0.d0)), dimension(:,:), allocatable :: etev_0 
 
 contains
 
@@ -634,6 +647,8 @@ contains
 
     subroutine mark_chain_as_solvent(ID)
         use physical_constants_MD, only: np
+        use computational_constants_MD, only : Mie_potential
+        use arrays_MD, only : moltype
         implicit none
 
         integer, intent(in) :: ID
@@ -648,6 +663,10 @@ contains
                 monomer(molno)%funcy = 0
                 monomer(molno)%bin_bflag(:) = 0
                 bond(:,molno) = 0
+                if (Mie_potential .eq. 1) then
+                    moltype(molno) = 3 !WATER
+                endif
+
             end if
 
         end do

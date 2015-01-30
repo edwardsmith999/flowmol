@@ -649,7 +649,7 @@ contains
 
 	!Remove molecules from the array and reorder to fill the gap
 	! Code Author: Edward Smith & DT 2014
-	subroutine remove_molecule(molno)
+	subroutine remove_molecule(molno, changelists)
 		use arrays_MD, only : r, v, tag, rtrue, rtether
 		use physical_constants_MD, only : np, globalnp, halo_np
 		use computational_constants_MD, only : ensemble,tag_move,tether_tags,rtrue_flag, &
@@ -658,29 +658,41 @@ contains
 		implicit none
 
 		integer, intent(in) :: molno
+        logical,optional,intent(in) :: changelists
 
+        logical :: changelists_
 		integer :: icell,jcell,kcell
 		integer :: icell_top,jcell_top,kcell_top
 		integer :: icell_halo,jcell_halo,kcell_halo
 
+        ! If molecule is inside a lists then these should be
+        ! updated too
+        if (present(changelists)) then
+            changelists_ = changelists
+        else
+            changelists_ = .true.
+        endif
+
 		!Get removed molecule's cell
-		icell = ceiling((r(1,molno)+halfdomain(1)) &
-		/cellsidelength(1))+nh !Add nh due to halo(s)
-		jcell = ceiling((r(2,molno)+halfdomain(2)) &
-		/cellsidelength(2))+nh !Add nh due to halo(s)
-		kcell = ceiling((r(3,molno)+halfdomain(3)) &
-		/cellsidelength(3))+nh !Add nh due to halo(s)
+	    icell = ceiling((r(1,molno)+halfdomain(1)) &
+	    /cellsidelength(1))+nh !Add nh due to halo(s)
+	    jcell = ceiling((r(2,molno)+halfdomain(2)) &
+	    /cellsidelength(2))+nh !Add nh due to halo(s)
+	    kcell = ceiling((r(3,molno)+halfdomain(3)) &
+	    /cellsidelength(3))+nh !Add nh due to halo(s)
 
+		    !print*, 'molno cell linklist before pop:'
+		    !call linklist_print(cell, icell,jcell,kcell)
+		    !print*, 'np cell linklist before pop:'
+		    !call linklist_print(cell, icell_top,jcell_top,kcell_top)
 
-		!print*, 'molno cell linklist before pop:'
-		!call linklist_print(cell, icell,jcell,kcell)
-		!print*, 'np cell linklist before pop:'
-		!call linklist_print(cell, icell_top,jcell_top,kcell_top)
+        if (changelists_) then
+		    !Pop removed molecule and top molecule from cell lists
+		    call linklist_findandpop(cell, molno,icell,jcell,kcell)
+		    call linklist_findandpop(cell, np,icell,jcell,kcell) !TODO new cell return,
+													       !to be developed
 
-		!Pop removed molecule and top molecule from cell lists
-		call linklist_findandpop(cell, molno,icell,jcell,kcell)
-		call linklist_findandpop(cell, np,icell,jcell,kcell) !TODO new cell return,
-													   !to be developed
+        endif
 
 		!print*, 'molno cell linklist after pop:'
 		!call linklist_print(cell, icell,jcell,kcell)
@@ -704,25 +716,27 @@ contains
 
 		!Add top molecule to current cell list
 		!Get top molecule's cell
-		icell_top = ceiling((r(1,np)+halfdomain(1)) &
-		/cellsidelength(1))+nh !Add nh due to halo(s)
-		jcell_top = ceiling((r(2,np)+halfdomain(2)) &
-		/cellsidelength(2))+nh !Add nh due to halo(s)
-		kcell_top = ceiling((r(3,np)+halfdomain(3)) &
-		/cellsidelength(3))+nh !Add nh due to halo(s)
-		call linklist_checkpush(cell, icell_top, jcell_top, kcell_top, molno) 
+	    icell_top = ceiling((r(1,np)+halfdomain(1)) &
+	    /cellsidelength(1))+nh !Add nh due to halo(s)
+	    jcell_top = ceiling((r(2,np)+halfdomain(2)) &
+	    /cellsidelength(2))+nh !Add nh due to halo(s)
+	    kcell_top = ceiling((r(3,np)+halfdomain(3)) &
+	    /cellsidelength(3))+nh !Add nh due to halo(s)
 
+        if (changelists_) then
+		    call linklist_checkpush(cell, icell_top, jcell_top, kcell_top, molno) 
+        endif
 		!print*, 'molno cell linklist after push again:'
 		!call linklist_print(cell, icell_top,jcell_top,kcell_top)
 
-		!Replace void at np with top halo molecule TODO
-		!Get removed molecule's cell
-		icell_halo = ceiling((r(1,np+halo_np)+halfdomain(1)) &
-		/cellsidelength(1))+nh !Add nh due to halo(s)
-		jcell_halo = ceiling((r(2,np+halo_np)+halfdomain(2)) &
-		/cellsidelength(2))+nh !Add nh due to halo(s)
-		kcell_halo = ceiling((r(3,np+halo_np)+halfdomain(3)) &
-		/cellsidelength(3))+nh !Add nh due to halo(s)
+	    !Replace void at np with top halo molecule TODO
+	    !Get removed molecule's cell
+	    icell_halo = ceiling((r(1,np+halo_np)+halfdomain(1)) &
+	    /cellsidelength(1))+nh !Add nh due to halo(s)
+	    jcell_halo = ceiling((r(2,np+halo_np)+halfdomain(2)) &
+	    /cellsidelength(2))+nh !Add nh due to halo(s)
+	    kcell_halo = ceiling((r(3,np+halo_np)+halfdomain(3)) &
+	    /cellsidelength(3))+nh !Add nh due to halo(s)
 
 		!Replace specified molecule with top one from array
 		if (ensemble.eq.tag_move) then
@@ -741,9 +755,9 @@ contains
 
 		!print*, 'np+halo_np cell linklist before pop:'
 		!call linklist_print(icell_halo,jcell_halo,kcell_halo)
-
-		call linklist_findandpop(cell, np+halo_np,icell,jcell,kcell)
-
+        if (changelists_) then
+		    call linklist_findandpop(cell, np+halo_np,icell,jcell,kcell)
+        endif
 		!print*, 'np+halo_np cell linklist after pop and before push:'
 		!call linklist_print(cell, icell_halo,jcell_halo,kcell_halo)
 
@@ -754,7 +768,10 @@ contains
 		if (icell_halo .lt. 1) stop "Error -- mol outside halo!"  ! icell_halo = 1
 		if (jcell_halo .lt. 1) stop "Error -- mol outside halo!"  ! jcell_halo = 1
 		if (kcell_halo .lt. 1) stop "Error -- mol outside halo!"  ! kcell_halo = 1
-		call linklist_checkpush(cell, icell_halo, jcell_halo, kcell_halo, np) 
+
+        if (changelists_) then
+		    call linklist_checkpush(cell, icell_halo, jcell_halo, kcell_halo, np) 
+        endif
 
 		!print*, 'np+halo_np cell linklist after push:'
 		!call linklist_print(cell, icell_halo,jcell_halo,kcell_halo)
