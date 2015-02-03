@@ -1058,7 +1058,7 @@ subroutine etevtcf_calculate_parallel
 	implicit none
 	
 	integer :: nbond,i,j
-	integer :: chain, i_sub, j_sub, funcy
+	integer :: chainID, i_sub, j_sub, funcy
 	real(kind(0.d0)) :: etev_prod, etev_prod_sum
 	real(kind(0.d0)) :: etev2, etev2_sum
 	real(kind(0.d0)), dimension(nd) :: rij
@@ -1069,7 +1069,7 @@ subroutine etevtcf_calculate_parallel
 		allocate(etev_0(nchains,nd))
 		etev_0 = 0.d0
 		do i=1,np
-			chain = monomer(i)%chainID
+			chainID = monomer(i)%chainID
 			i_sub = monomer(i)%subchainID
 			funcy = monomer(i)%funcy
 			do nbond=1,funcy
@@ -1082,7 +1082,7 @@ subroutine etevtcf_calculate_parallel
 				rij(:) = r(:,j) - r(:,i)
                 rij(:)        = rij(:) - &
                                 globaldomain(:)*anint(rij(:)/globaldomain(:))
-				etev_0(chain,:) = etev_0(chain,:) + rij(:)
+				etev_0(chainID,:) = etev_0(chainID,:) + rij(:)
 			end do
 		end do
 		call globalSum(etev_0,nchains,nd)
@@ -1093,7 +1093,7 @@ subroutine etevtcf_calculate_parallel
 	!Calculate all end-to-end vectors for file output
 	etev = 0.d0
 	do i=1,np
-		chain = monomer(i)%chainID
+		chainID = monomer(i)%chainID
 		i_sub = monomer(i)%subchainID
 		funcy = monomer(i)%funcy
 		do nbond=1,funcy
@@ -1103,7 +1103,7 @@ subroutine etevtcf_calculate_parallel
 			rij(:)        = r(:,j) - r(:,i)                     
 			rij(:)        = rij(:) - &
                             globaldomain(:)*anint(rij(:)/globaldomain(:))
-			etev(chain,:) = etev(chain,:) + rij(:)
+			etev(chainID,:) = etev(chainID,:) + rij(:)
 		end do
 	end do
 	call globalSum(etev,nchains,nd)
@@ -1113,9 +1113,9 @@ subroutine etevtcf_calculate_parallel
 	!Running calculation for stdout...	
 	etev_prod_sum	= 0.d0
 	etev2_sum 		= 0.d0
-	do chain=1,nchains
-		etev_prod		  = dot_product(etev(chain,:),etev_0(chain,:))
-		etev2			  = dot_product(etev(chain,:),etev(chain,:))			
+	do chainID=1,nchains
+		etev_prod		  = dot_product(etev(chainID,:),etev_0(chainID,:))
+		etev2			  = dot_product(etev(chainID,:),etev(chainID,:))			
 		etev_prod_sum	  = etev_prod_sum + etev_prod
 		etev2_sum		  = etev2_sum + etev2		
 	end do

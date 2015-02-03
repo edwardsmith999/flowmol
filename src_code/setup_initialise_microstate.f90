@@ -2640,7 +2640,7 @@ contains
                     monomer(molno)%subchainID = 1 
                     monomer(molno)%glob_no    = n
                     moltype(molno) = ids(1)  ! EO bead
-                    print'(4(a,i5))', 'In chain ', chainID, ' connecting ', molno, ' with subchain id ', monomer(molno)%subchainID, ' to subchain ', 2 
+                    !print'(4(a,i5))', 'In chain ', chainID, ' connecting ', molno, ' with subchain id ', monomer(molno)%subchainID, ' to subchain ', 2 
                     call connect_to_monomer(2,molno)
 
                     call check_update_adjacentbeadinfo_allint(molno,mols(2))
@@ -2655,7 +2655,7 @@ contains
                         moltype(molno) = ids(subchainID)
                         call connect_to_monomer(subchainID-1,molno) 
                         call connect_to_monomer(subchainID+1,molno) 
-                        print'(5(a,i5))', 'In chain ', chainID, ' connecting ', molno, ' with subchain id ', monomer(molno)%subchainID, ' to subchain ', subchainID-1, ' and ', subchainID+1 
+                        !print'(5(a,i5))', 'In chain ', chainID, ' connecting ', molno, ' with subchain id ', monomer(molno)%subchainID, ' to subchain ', subchainID-1, ' and ', subchainID+1 
                         call check_update_adjacentbeadinfo_allint(molno,mols(subchainID-1))
                         call check_update_adjacentbeadinfo_allint(molno,mols(subchainID+1))
                     end do
@@ -2670,7 +2670,7 @@ contains
                         monomer(molno)%glob_no    = molno !corrected at bottom
                         moltype(molno) = ids(size(ids)-1) 
                         call connect_to_monomer(nmonomers-2,molno)
-                        print'(4(a,i5))', 'In chain ', chainID, ' connecting as branch ', molno, ' with subchain id ', monomer(molno)%subchainID, ' to subchain ', nmonomers-2
+                        !print'(4(a,i5))', 'In chain ', chainID, ' connecting as branch ', molno, ' with subchain id ', monomer(molno)%subchainID, ' to subchain ', nmonomers-2
                     endif
 
                     ! Connect end-1 to end
@@ -2681,7 +2681,7 @@ contains
                     monomer(molno)%glob_no    = molno !corrected at bottom
                     moltype(molno) = ids(nmonomers) 
                     call connect_to_monomer(nmonomers-1,molno)
-                    print'(4(a,i5))', 'In chain ', chainID, ' connecting ', molno, ' with subchain id ', monomer(molno)%subchainID, ' to subchain ', nmonomers-1
+                    !print'(4(a,i5))', 'In chain ', chainID, ' connecting ', molno, ' with subchain id ', monomer(molno)%subchainID, ' to subchain ', nmonomers-1
                     call check_update_adjacentbeadinfo_allint(molno,mols(nmonomers-1))
 
                     chainID = chainID + 1

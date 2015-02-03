@@ -1030,7 +1030,10 @@ implicit none
 end subroutine initial_control_volume
 
 !----------------------------------------------------------------------------------
-! TODO -- COMMENT
+! Build a psf file which describes all the molecular types
+! and intermolecular bonds, used primarily for vmd visualisation
+! Note - a single psf is used for all frames so molecules must
+!        be in the same place throughout the run
 subroutine build_psf
     use module_initial_record
     use interfaces, only: error_abort
@@ -1048,6 +1051,7 @@ subroutine build_psf
     integer, allocatable, dimension(:,:) :: bonds   
     integer, allocatable, dimension(:)   :: res_ID
     integer, allocatable, dimension(:)   :: glob_sc
+    integer, allocatable, dimension(:)   :: glob_moltype
     integer, allocatable, dimension(:,:) :: glob_bf
     character(len=4), allocatable, dimension(:) :: atom_name, atom_type
     character(len=4), allocatable, dimension(:) :: seg_name, res_name
@@ -1085,7 +1089,9 @@ subroutine build_psf
     allocate(atom_type(NATOM))! Determine type for each atom
     allocate(charge(NATOM))   ! Determine charge for each atom
     allocate(mass(NATOM))     ! Determine mass of each atom
-
+    if (Mie_potential .eq. 1) then
+        allocate(glob_moltype(NATOM))
+    endif
     res_ID(:) = 0
     glob_sc(:) = 0
     glob_bf(:,:) = 0
@@ -1101,6 +1107,10 @@ subroutine build_psf
         glob_bf(:,molno) = monomer(n)%bin_bflag(:)
         write(fileunit,'(i12,a3,i12,a3,i12,a3,4i)') molno,'   ', &
             res_ID(molno),'   ',glob_sc(molno),'   ',glob_bf(:,molno)
+
+        if (Mie_potential .eq. 1) then
+            glob_moltype(molno) = moltype(n)
+        endif
     end do
 
     call globalSum(res_ID,globalnp)
@@ -1108,13 +1118,14 @@ subroutine build_psf
     call globalSum(glob_bf,4,globalnp)
 
     if (Mie_potential .eq. 1) then
+        call globalSum(glob_moltype,globalnp)
         do n=1,globalnp
             !LJ still used so revert to FENE write out
-            if (moltype(n) .eq. 1) then
+            if (glob_moltype(n) .eq. 1) then
                 call SOL_or_POL(n)
             else
                 !Part of surfactant chain
-                call Mie_chains(n)
+                call Mie_chains(glob_moltype, n)
             endif
         enddo
     else
@@ -1258,13 +1269,14 @@ contains
     end subroutine SOL_or_POL
 
 
-    subroutine Mie_chains(n)
-        use module_set_parameters, only : moltype, moltype_names, mass_lookup, epsilon_lookup
+    subroutine Mie_chains(glob_moltype, n)
+        use module_set_parameters, only : moltype_names, mass_lookup, epsilon_lookup
 
         integer, intent(in) :: n
+        integer, allocatable, dimension(:), intent(in)   ::glob_moltype
         integer :: mt
 
-        mt = moltype(n)
+        mt = glob_moltype(n)
 
         select case (res_ID(n))
         case(0)

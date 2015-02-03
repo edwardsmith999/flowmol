@@ -65,7 +65,7 @@ subroutine setup_read_input
 
 	case(1)	
 
-		read(1,*) config_special_case	
+		read(1,*) config_special_case
 		select case (trim(config_special_case))
 		case('sparse_fene')	
 
@@ -304,14 +304,14 @@ subroutine setup_read_input
 
 		case default
 
-			call error_abort("ERROR -- Unrecognised special case string")
+			call error_abort("ERROR in setup_read_input -- Unrecognised special case string")
 
 		end select
 
 	case(2)
-		call error_abort("ERROR -- Generic input file read in is not developed yet")
+		call error_abort("ERROR in setup_read_input -- Generic input file read in is not developed yet")
 	case default
-		call error_abort("ERROR -- Unrecognised initial_config_flag")
+		call error_abort("ERROR in setup_read_input -- Unrecognised initial_config_flag")
 	end select 
 
 	!Read in initial temperature

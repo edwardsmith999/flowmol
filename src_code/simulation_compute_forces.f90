@@ -1070,8 +1070,9 @@ subroutine simulation_compute_forces_miePOLY
 
         enddo
 
-        !If molecule is between two others, 
-        !maybe there is an angular force
+        ! If molecule is between two others, 
+        ! maybe there is an angular force. Maybe not.
+        ! Get for i and add this force only to i and k
         !          j
         !      o   o   o   o
         !     / \ / \ / \ / \
