@@ -904,8 +904,14 @@ subroutine setup_restart_inputs
         endif
         call MPI_File_read(restartfileid,delta_rneighbr  ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)    !delta_rneighbr
 
+        call MPI_File_read(restartfileid,checkint        ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr) !Mie_potential flag
+        if (checkint .eq. 0 .and. Mie_potential .eq. 1) then
+            print*, 'Discrepancy between potential_flag', &
+                    'in input & restart file - Mie flags ', & 
+                    'will attempt to be assigned to restart config'
+            Mie_potential = 2
+        endif
         call MPI_File_close(restartfileid,ierr)
-    
     endif
 
     !---------------Broadcast data read by root to all other processors-------------------------!
@@ -935,6 +941,7 @@ subroutine setup_restart_inputs
     call MPI_BCAST(eps_pp,            1,MPI_double_precision,iroot-1,MD_COMM,ierr)
     call MPI_BCAST(eps_ps,            1,MPI_double_precision,iroot-1,MD_COMM,ierr)
     call MPI_BCAST(eps_ss,            1,MPI_double_precision,iroot-1,MD_COMM,ierr)
+    call MPI_BCAST(Mie_potential,     1,MPI_integer,iroot-1,MD_COMM,ierr)
 
     elapsedtime = elapsedtime + delta_t*extrasteps  !Set elapsed time to end of simualtion
     initialstep = Nsteps                            !Set plot count to final plot of last
@@ -954,7 +961,7 @@ subroutine setup_restart_microstate
     integer                                      :: dp_datasize
     integer(kind=MPI_OFFSET_KIND)                :: disp, procdisp
     integer, dimension(:), allocatable           :: bufsize
-    real(kind(0.d0))                             :: tagtemp
+    real(kind(0.d0))                             :: tagtemp, moltypetemp
     real(kind(0.d0)), dimension (nd)             :: rtemp,vtemp,rtruetemp,rtethertemp
     real(kind(0.d0)), dimension (nsdmi)          :: monomertemp
     real(kind(0.d0)), dimension (:), allocatable :: buf !Temporary variable
@@ -983,6 +990,9 @@ subroutine setup_restart_microstate
             bufsize(irank) = bufsize(irank) + nd*procnp(irank)
         end if
         bufsize(irank) = bufsize(irank) + nd*proctethernp(irank)
+        if (Mie_potential .eq. 1) then
+            bufsize(irank) = bufsize(irank) + procnp(irank)
+        end if
         if (potential_flag .eq. 1) then
             bufsize(irank) = bufsize(irank) + nsdmi*procnp(irank)
         end if
@@ -1038,10 +1048,10 @@ subroutine setup_restart_microstate
                 rtether(3,nl) = buf(pos+2)-domain(3)*(kblock-1)+halfdomain(3)*(npz-1)
                 pos = pos + 3
             end if
-            !if (Mie_potential .eq. 1) then
-            !    moltype(nl) = nint(buf(pos))
-            !    pos = pos + 1
-            !endif
+            if (Mie_potential .eq. 1) then
+                moltype(nl) = nint(buf(pos))
+                pos = pos + 1
+            endif
             if (potential_flag.eq.1) then
                 !Read monomer data
                 monomer(nl)%chainID        = nint(buf(pos))
@@ -1084,6 +1094,10 @@ subroutine setup_restart_microstate
                 call MPI_FILE_READ_ALL(restartfileid, rtethertemp, 3, MPI_DOUBLE_PRECISION, &
                                        MPI_STATUS_IGNORE, ierr)
             end if
+            if (Mie_potential .eq. 1) then
+                call MPI_FILE_READ_ALL(restartfileid, moltypetemp, 1, MPI_DOUBLE_PRECISION, &
+                                       MPI_STATUS_IGNORE, ierr)
+            endif
             if (potential_flag.eq.1) then
                 call MPI_FILE_READ_ALL(restartfileid, monomertemp, nsdmi, MPI_DOUBLE_PRECISION, &
                                        MPI_STATUS_IGNORE, ierr)
@@ -1122,7 +1136,9 @@ subroutine setup_restart_microstate
                 rtether(2,nl) = rtethertemp(2)-domain(2)*(jblock-1)+halfdomain(2)*(npy-1)
                 rtether(3,nl) = rtethertemp(3)-domain(3)*(kblock-1)+halfdomain(3)*(npz-1)
             end if
-
+            if (Mie_potential .eq. 1) then
+                moltype(nl) = moltypetemp
+            endif
             if (potential_flag.eq.1) then
                 monomer(nl)%chainID        = nint(monomertemp(1))
                 monomer(nl)%subchainID     = nint(monomertemp(2))
@@ -1142,9 +1158,11 @@ subroutine setup_restart_microstate
 
     end select
 
-    !This should be included in every case?
-    if (mie_potential .eq. 1) then
+    ! Mie moltype should be from restart file!! If mie_potential was zero in restart
+    ! but now input requests one, setup as if new run (based on location, etc).
+    if (mie_potential .eq. 2) then
         call setup_moltypes                    !Setup type of molecules
+        mie_potential = 1
     endif
 
     ! Determine number of chains by global maximum of chainID
@@ -1408,6 +1426,10 @@ subroutine parallel_io_final_state
             bufsize(irank) = bufsize(irank) + nd
         end if
     end do
+    ! If mie potential, add space for moltypes
+    if (Mie_potential .eq. 1) then
+        bufsize(irank) = bufsize(irank) + procnp(irank)
+    end if
     ! If polymer sim, add space for polymer info
     if (potential_flag .eq. 1) then
         bufsize(irank) = bufsize(irank) + nsdmi*procnp(irank)
@@ -1431,6 +1453,9 @@ subroutine parallel_io_final_state
         end if
         if (any(tag(n) .eq. tether_tags)) then
             buf(pos:pos+2) = rtetherglobal(:,n);  pos = pos + 3
+        end if
+        if (mie_potential .eq. 1) then
+            buf(pos) = moltype(n);  pos = pos + 1
         end if
         if (potential_flag .eq. 1) then
             buf(pos)     = real(monomer(n)%chainID,kind(0.d0))
@@ -1511,6 +1536,7 @@ subroutine parallel_io_final_state
         call MPI_File_write(restartfileid,eps_ps        ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,eps_ss        ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,delta_rneighbr,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+        call MPI_File_write(restartfileid,mie_potential,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 
         header_pos = filesize ! just in case offset kind is 32 bit, rather improbable these days  !!!
         call MPI_File_write(restartfileid,header_pos,1,MPI_INTEGER8,MPI_STATUS_IGNORE,ierr)

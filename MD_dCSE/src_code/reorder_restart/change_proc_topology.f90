@@ -12,7 +12,7 @@ program change_proc_topology
 	integer :: checkint 
 	integer :: prev_nproc,npx,npy,npz,prev_npx,prev_npy,prev_npz
 	integer :: npxyz(3)
-	integer :: rtrue_flag, solvent_flag
+	integer :: rtrue_flag, solvent_flag, mie_potential
 	integer :: tag
 	integer,parameter :: nd = 3
     integer(selected_int_kind(18)) :: header_pos,end_pos ! 8 byte integer for header address
@@ -21,7 +21,7 @@ program change_proc_topology
 	integer,dimension(:),allocatable :: procnp, proctethernp
 	integer,dimension(:,:,:),allocatable :: npcount, tethernpcount,fileunit
 	double precision :: density,rcutoff,delta_t,elapsedtime,k_c,R_0,delta_rneighbr
-	double precision :: simtime, eps_pp, eps_ps, eps_ss, dpbuf
+	double precision :: simtime, eps_pp, eps_ps, eps_ss, dpbuf, moltypebuf
 	double precision,dimension(3) :: domain,halfdomain,globaldomain
 	double precision,dimension(3) :: rbuf, vbuf, rtruebuf, rtetherbuf
 	double precision,dimension(13) :: rv_buf
@@ -118,6 +118,7 @@ program change_proc_topology
 	read(2) eps_ps 
 	read(2) eps_ss 
 	read(2) delta_rneighbr
+	read(2) mie_potential
 	close(2,status='keep')
 
 	domain(1) = 	globaldomain(1)/npx
@@ -155,6 +156,9 @@ program change_proc_topology
 		if (any(tag.eq.tether_tags)) then
 			read(2) rtetherbuf  
 		end if
+        if (mie_potential .eq. 1) then
+            read(2) moltypebuf
+        endif
 		if (potential_flag.eq.1) then
             !Read monomer data
             read(2) monomer_dpbuf
@@ -188,10 +192,12 @@ program change_proc_topology
 		endpos = pos - 1
 
 		write(fileunit(pa(1),pa(2),pa(3))) rv_buf(1:endpos)
+        if (Mie_potential .eq. 1) then
+            write(fileunit(pa(1),pa(2),pa(3))) moltypebuf
+        end if
         if (potential_flag .eq. 1) then
             write(fileunit(pa(1),pa(2),pa(3))) monomer_dpbuf
         end if
-
 		npcount(pa(1),pa(2),pa(3)) = npcount(pa(1),pa(2),pa(3)) + 1
 		if (any(tag.eq.tether_tags)) then
 			tethernpcount(pa(1),pa(2),pa(3)) = tethernpcount(pa(1),pa(2),pa(3)) + 1
@@ -274,6 +280,7 @@ program change_proc_topology
 	write(2) eps_ps           !Soddemann potential parameter
 	write(2) eps_ss           !Soddemann potential parameter
 	write(2) delta_rneighbr	  !Extra distance used for neighbour list cell size
+	write(2) mie_potential	  !Mie potential flag
     write(2) header_pos-1     ! -1 for MPI IO compatibility
 	close(2,status='keep') 	  !Close final_state file
 
