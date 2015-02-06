@@ -1,9 +1,9 @@
-### makefile automatically created by makenek 01/12/2015 17:38:03 ###
+### makefile automatically created by makenek 01/12/2015 18:31:58 ###
 BINNAME=nek5000
 LIBNAME=libnek5000.a
 CASENAME:=turbChannel
-CASEDIR:=/home/es205/codes/gitest/cpl-library/nek5000/runs
-S:=/home/es205/codes/gitest/cpl-library/nek5000/trunk/nek
+CASEDIR:=/home/djt06/Personal/Play/gittest/cpl-library/nek5000/runs
+S:=/home/djt06/Personal/Play/gittest/cpl-library/nek5000/trunk/nek
 J:=$S/jl
 OPT_INCDIR:=./
 OBJDIR=obj
