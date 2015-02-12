@@ -384,6 +384,9 @@ subroutine setup_mie_potential
     lambdar_lookup(2,2) = 12.d0
     lambdaa_lookup(2,2) = 6.d0
 
+    !Liquid Agron and wall
+    epsilon_lookup(2,1) = 0.5
+
     !1-2 == Wall/{D,M,CM} hydrophobic/strong wall interaction
     ids = (/ 4,5,7 /)
 
@@ -399,14 +402,13 @@ subroutine setup_mie_potential
     !        epsilon_lookup(ids(i),2) = 0.5d0
     !    enddo
     !case(Superhydrophobic)
-    !    epsilon_lookup(2,1) = 0.01d0  !No wall/water interaction
     !    do i =1,size(ids)
     !        epsilon_lookup(ids(i),2) = 0.01d0
     !    enddo
     !case(Superspreading)
     !    !Superspreading requires this as 1.4 according to Panos
          !for water and hydrophobic parts CM, M and D
-        !epsilon_lookup(2,1) = 1.4
+
         do i =1,size(ids)
             epsilon_lookup(ids(i),2) = 1.4d0
         enddo
