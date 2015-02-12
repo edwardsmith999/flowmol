@@ -25,6 +25,7 @@ finish = [{'final_state':'final_state'}]
 
 # Specify input file changes for each thread 
 inputs1 = swl.InputDict({'INITIALNUNITS': [list(zip([11*i],[34*j])[0])+[5] for i in [1,2,4,8] for j in [1,2,4,8]]})
+inputs2 = swl.InputDict({'PROCESSORS': [list(zip([int(0.5*i)],[int(0.5*j)])[0])+[1] for i in [1,2,4,8] for j in [1,2,4,8]]})
 changes = inputs1.expand()
 filenames = changes.filenames()
 

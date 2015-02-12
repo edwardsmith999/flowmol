@@ -146,7 +146,11 @@ class InputList(list):
         for name in self:
             filename = ''
             for key, value in name.items():
-                value = round_to_n(value,2)
+                if type(value) is float:
+                    value = round_to_n(value,2)
+                if type(value) is int:
+                    value = value
+
                 # Combine key and value with invalid characters removed
                 kvstr = str((key,value))
                 kvstr = kvstr.replace('.','p')
