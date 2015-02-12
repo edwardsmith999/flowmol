@@ -2322,7 +2322,7 @@ subroutine parallel_io_psf()
 
     do n = 1, np
         mt = moltype(n)
-        write(unitno,'(i5,a,i5,3a,f12.7,f12.5,i4)') &
+        write(unitno,'(i5,a5,i5,3a5,f12.7,f12.5,i4)') &
                  startmol + n, &            ! molno
                  trim(moltype_names(mt)), & ! segment name
                   1,  &                     ! Residue ID
