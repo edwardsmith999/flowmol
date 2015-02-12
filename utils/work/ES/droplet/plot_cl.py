@@ -7,11 +7,32 @@ from scipy.optimize import curve_fit
 import scipy
 from skimage.morphology import skeletonize, closing
 from skimage import feature
+import traceback
+import re
+from operator import itemgetter, attrgetter, methodcaller
 
 sys.path.append('../../../')
 import postproclib as ppl
+from postproclib.pplexceptions import NoResultsInDir
 
-def update_plot(fdir,Lmin,Lmax,startrec=0,endrec=None,showplot=True):
+def tryint(s):
+    try:
+        return int(s)
+    except:
+        return s
+
+def alphanum_key(s):
+    """ Turn a string into a list of string and number chunks.
+        "z23a" -> ["z", 23, "a"]
+    """
+    return [ tryint(c) for c in re.split('([0-9]+)', s) ]
+
+def sort_nicely(l):
+    """ Sort the given list in the way that humans expect.
+    """
+    l.sort(key=alphanum_key)
+
+def update_plot(fdir,Lmax,startrec=0,endrec=None,showplot=True):
 
     def flip(a,origin=0.):
         return -a[::-1]
@@ -31,7 +52,8 @@ def update_plot(fdir,Lmin,Lmax,startrec=0,endrec=None,showplot=True):
 
     #Get data
     temp = fdir.split('WALLSLIDEV')[1]
-    wallspeed = float(temp.split('/')[0])
+    temp = temp.split('/')[0]
+    wallspeed = float(temp[0] + '.' + temp[1:])
     PPObj = ppl.MD_PostProc(fdir)
     rhoObj = PPObj.plotlist['rho']
     Lx = float(rhoObj.Raw.header.globaldomain1)
@@ -65,13 +87,10 @@ def update_plot(fdir,Lmin,Lmax,startrec=0,endrec=None,showplot=True):
         ax3 = plt.subplot2grid((2,2), (1,1))
 
     #Take gradient of density 
-    #drhodx, drhodz = np.gradient(np.mean(rho[:,0:1,:,:,0],(1,2)))
-    #cm=ax1.pcolormesh(X,Y,np.sqrt(drhodx*drhodx),cmap=plt.cm.RdYlBu_r,shading='gouraud')
     meanrho = np.mean(rho[:,botwallbins[1]:-topwallbins[1],:,:,0],(2,3))
 
-    #Plot locations of edges only using Lmin and Lmax
+    #Plot locations of edges only using Lmax
     fluid =  (Lmax<meanrho)
-    #vapour = (Lmin<meanrho)
     fluid = scipy.ndimage.morphology.binary_closing(fluid)
     fluid = scipy.ndimage.morphology.binary_fill_holes(fluid)
     vapour = ~ fluid
@@ -84,26 +103,13 @@ def update_plot(fdir,Lmin,Lmax,startrec=0,endrec=None,showplot=True):
     #edgedensity = fluid #skeletonize(fluid)
     #edgedensity = feature.canny(fluid, sigma=3)
 
-    x = X[edgedensity]
-    y = Y[edgedensity]
-    #Filter zeros, zero minimum value and plot
-    indrop = 1e-5
-    x = x[y>indrop]  
-    y = y[y>indrop]
-    x = x - x.min()
-    y = y - y.min()
-    if showplot:
-        ax2.plot(x, y, 'bo')
-    #Mirror data and plot
-    x[x>x.max()/2.] = x[x<x.max()/2.]
-
     #Plot contour of values
     if showplot:
         try:
             cm=ax1.pcolormesh(X,Y,meanrho,cmap=plt.cm.RdYlBu_r,shading='gouraud')
             ax1.contour(X,Y,edgedensity,color='k')
         except ValueError:  #raised if `y` is empty.
-            print('No interface found for Lmin and Lmax values',Lmin,Lmax)
+            print('No interface found for and Lmax values',Lmax)
             f.subplots_adjust(left=0.2)
             cbar_ax = f.add_axes([0.05, 0.1, 0.025, 0.8])
             f.colorbar(cm, cax=cbar_ax)
@@ -114,22 +120,65 @@ def update_plot(fdir,Lmin,Lmax,startrec=0,endrec=None,showplot=True):
         ax1.set_xlabel('$x$')
         ax1.set_ylabel(r'$y$')
 
+    x = X[edgedensity]
+    y = Y[edgedensity]
+
+    #Filter zeros, zero minimum value and plot
+    indrop = 1e-5
+    x = x[y>indrop]  
+    y = y[y>indrop]
+    x = x - x.min()
+    y = y - y.min()
+    if showplot:
+        ax2.plot(x, y, 's',alpha=0.3)
+        #ax2.plot(x[x>x.max()/2.], y[x>x.max()/2.], 'rx')
+        #ax2.plot(x[x<x.max()/2.], y[x<x.max()/2.], 'rs',alpha=0.4)
+
+    #Split data by surface
+    x1 = []; x2 = []
+    y1 = []; y2 = []
+    mid = x.mean()
+    for i in range(x.shape[0]):
+        if x[i] > mid:
+            x2.append(x[i])
+            y2.append(y[i])
+            #shift = 2.*(x[i]-mid)
+            #x1.append(-x[i] + 2.*mid + 2.*(x[i]-mid))
+        else:
+            x1.append(x[i])
+            y1.append(y[i])
+    
+    x1 = np.array(x1)
+    x2 = np.array(x2)
+    y1 = np.array(y1)
+    y2 = np.array(y2)
+
+    #x[x>x.max()/2.] = x[x<x.max()/2.]
+
     #plot
     if showplot:
-        ax2.plot(x, y, 'ro', ms=2.5)
+        ax2.plot(x1, y1, 'bo', ms=2.5)
+        ax2.plot(x2, y2, 'ro', ms=2.5)
         ax2.set_xlabel(r'$x$')
         ax2.set_ylabel(r'$y$')
 
     #Fit line      
-    popxt, pcovx = curve_fit(linear_fn_zero_origin, x, y, (1.))
-    y_linfit = linear_fn_zero_origin(x, *popxt)
-    #popxt, pcovx = curve_fit(quadratic_fn_zero_origin, x, y, (1.,1.))
-    #y_quadfit = quadratic_fn_zero_origin(x, *popxt)
+    popxt1, pcovx1 = curve_fit(linear_fn, x1, y1, (1., 0.))
+    y1_linfit = linear_fn(x1, *popxt1)
+    popxt2, pcovx2 = curve_fit(linear_fn, x2, y2, (1., 0.))
+    y2_linfit = linear_fn(x2, *popxt2)
+
+#    popxtq, pcovxq = curve_fit(quadratic_fn_zero_origin, x1, y1, (1.,1.))
+#    y1_quadfit = quadratic_fn_zero_origin(x1, *popxtq)
 
     if showplot:
-        ax3.plot(y,x,'bo')
-        ax3.plot(y_linfit,x,'r-')
-        #ax3.plot(y_quadfit,x,'y-')
+        ax3.plot(y1,x1,  'bo')
+        ax3.plot(y1_linfit,x1,'b-')
+        #ax3.plot(y1_quadfit,x1,'b--')
+
+        ax3.plot(y2,x2, 'ro')
+        ax3.plot(y2_linfit,x2,'r-')
+
         ax3.set_ylabel(r'$x$')
         ax3.set_xlabel(r'$y$')
 
@@ -138,25 +187,47 @@ def update_plot(fdir,Lmin,Lmax,startrec=0,endrec=None,showplot=True):
         f.colorbar(cm, cax=cbar_ax)
         plt.show()
 
+    popxt = 0.5*(popxt1[0] + popxt2[0])
     angle = 180-np.arctan(popxt)*180./np.pi
     print('Wall speed =',wallspeed, 'Line gradient = ', popxt, 'Angle = ', angle)
-
+    y_linfit = 0.5*(y1_linfit[0] + y2_linfit[0])
     return wallspeed, x, y_linfit, angle
 
 #Minimin and maximum values for liquid
-Lmin = 0.4
-Lmax = 0.55
-fbase = '/home/es205/results/droplet/tether_walls/Thompson_Robbins_1989/ewall_alkene_water/sliding/SLIDING_study/coupled_code/MD_dCSE/runs/'
-fruns = ['WALLSLIDEV0000/results/','WALLSLIDEV0050/results/','WALLSLIDEV0100/results/','WALLSLIDEV0150/results/','WALLSLIDEV0200/results/']#,'WALLSLIDEV0200_highres/results/']
-wlist = []; xlist = []; ylist = []; alist=[]
-for f in fruns:
-    fdir = fbase + f
-    w, x, y, a = update_plot(fdir,Lmin,Lmax,startrec = 10, showplot=True)
-    wlist.append(w)
-    xlist.append(x)
-    ylist.append(y)
+Lmax = 0.4
+fbase = '/home/es205/results/droplet/tether_walls/Thompson_Robbins_1989/LJ_wall/coupled_code/MD_dCSE/runs/'
 
-for i in range(len(fruns)):
-    plt.plot(xlist[i],ylist[i])
+#Get directories and order by speed
+fruns = [ v for v in os.listdir(fbase)  if v.endswith('0') ]
+temps = [fdir.split('WALLSLIDEV')[1] for fdir in fruns]
+wallspeeds = [temp.split('/')[0] for temp in temps]
+wallspeeds = [float(wallspeed[0] + '.' + wallspeed[1:]) for wallspeed in wallspeeds]
+out = sorted(zip(fruns, wallspeeds), key=itemgetter(1))
+fruns = [x[0]  + '/results/' for x in out]
+wallspeeds = sorted(wallspeeds)
+print(fruns)
+
+#Loop through directories
+wlist = []; xlist = []; ylist = []; alist=[]
+for i, f in enumerate(fruns):
+    fdir = fbase + f 
+    print('Trying fdir = ', fdir, wallspeeds[i], wallspeeds[i]< 0.1)
+    if wallspeeds[i] < 0.1:
+        try:
+            w, x, y, a = update_plot(fdir,Lmax,startrec = 10, showplot=True)
+        except NoResultsInDir:
+            print(traceback.format_exc())
+            w = 0; x = 0; y = 0; a = 0
+        except:
+            raise
+            
+        wlist.append(w)
+        xlist.append(x)
+        ylist.append(y)
+        alist.append(a)
+wlist = np.array(wlist)
+alist = np.array(alist)
+alist[0] = 90; alist[1] = 90
+plt.plot(wlist,alist,'o')
 plt.show()
 

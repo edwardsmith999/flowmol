@@ -24,7 +24,7 @@ outputfile = 'MD.out'
 finish = [{'final_state':'final_state'}]
 
 # Specify input file changes for each thread 
-inputs1 = swl.InputDict({'WALLSLIDEV':[round_to_n(i,3) for i in np.arange(0.0,0.2,0.01)]})
+inputs1 = swl.InputDict({'INITIALNUNITS': [list(zip([11*i],[34*j])[0])+[5] for i in [1,2,4,8] for j in [1,2,4,8]]})
 changes = inputs1.expand()
 filenames = changes.filenames()
 
@@ -49,5 +49,5 @@ for thread in range(0,len(changes)):
      print('Run in directory '  + rundir + ' and dryrun is '  + str(run.dryrun))
 
 # Run the study
-study = swl.Study(threadlist,ncpus)
+#study = swl.Study(threadlist,ncpus)
 
