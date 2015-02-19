@@ -1,15 +1,73 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib
 from scipy.interpolate import griddata
 import glob
 import re
 import sys
 import os
 
-from streamlines import streamplot
+from streamlines import nonuniform_streamplot
 sys.path.append('../../../utils/')
 from postproclib.rawdata import RawData
 
+#def streams(ax, xx, yy, u, v, 
+#            density = None, color=None, lw=None, 
+#            base_map=False, plotgrid=False, **kwargs):
+
+#    if density == None:
+#        density = 1.
+
+#    #Streamplot defaults to 30 x 30 seeds for density of 1
+#    if isinstance(density,(int,float)):
+#        res = [30*density, 30*density]
+#    elif isinstance(density,list) and len(density) == 2:
+#        res = [30*i for i in density]
+#    else:
+#        raise ValueError("density should be float or 2-tuple")
+
+#    x = np.linspace(xx.min(), xx.max(), res[0])
+#    y = np.linspace(yy.min(), yy.max(), res[1])
+#    xi, yi = np.meshgrid(x,y)
+
+#    #then, interpolate your data onto this grid:
+#    px = xx.flatten()
+#    py = yy.flatten()
+#    pu = u.flatten()
+#    pv = v.flatten()
+
+#    gu = griddata(zip(px,py), pu, (xi,yi))
+#    gv = griddata(zip(px,py), pv, (xi,yi))
+
+#    #Get speed for color and linewidth
+#    if lw == None or color == None or plotgrid:
+#        speed = np.sqrt(u*u + w*w)
+#        if lw == None:
+#            pspeed = speed.flatten()
+#            gspeed = griddata(zip(px,py), pspeed, (xi,yi))
+#            linewidth = 6*gspeed/np.nanmax(gspeed)
+#            lw = linewidth
+#        if color == None:
+#            color = gspeed
+
+#    #now, you can use x, y, gu, gv and gspeed in streamplot:
+#    if base_map:
+#        xx,yy = ax(xx,yy)
+#        xi,yi = ax(xi,yi)
+
+#    #Add grid to plot
+#    if plotgrid:
+#        ax.contour(xx,yy,speed, colors='k', alpha=0.4)
+#        ax.plot(xx,yy,'-k',alpha=0.3)
+#        ax.plot(xx.T,yy.T,'-k',alpha=0.3)
+#        ax.plot(xi,yi,'-b',alpha=0.1)
+#        ax.plot(xi.T,yi.T,'-b',alpha=0.1)
+
+#    #Call streamplot with mapped grid
+#    c = ax.streamplot(x, y, gu, gv, color=color, 
+#                      linewidth=lw, density=density, **kwargs) 
+
+#    return c
 
 
 class FEA_RawData(RawData):
@@ -152,7 +210,7 @@ class FEA_RawData(RawData):
             try:
                 fpath = self.fdir + self.fname_records[startrec+plusrec]
                 if verbose:
-                    print('Filename = ', fpath)
+                    print('Filename = ', fpath, ' is record ', plusrec, ' of ', nrecs)
             except IndexError:
                 raise DataNotAvailable
             try:
@@ -163,7 +221,8 @@ class FEA_RawData(RawData):
 
             bindata = np.reshape( data,[nx,ny,nz,npercell], order='F')
 
-            # insert into array
+            # insert into array (N.B. calling this grid for the data 
+            #                    on a grid is a terrible name...)
             grid[:,:,:,plusrec,:] = bindata[lower[0]:upper[0],
                                             lower[1]:upper[1],
                                             lower[2]:upper[2], :]
@@ -174,7 +233,8 @@ class FEA_RawData(RawData):
 
 if __name__ == "__main__":
 
-    fdir = '/home/es205/codes/superspreading/coupled_code/FEA_superspread/src_code/results/HLratio_study/eps2_0p1'
+    fdir = '/home/es205/codes/superspreading/coupled_code/FEA_superspread/src_code/results/HLratio_study/eps2_0p18/'
+    #fdir = '/home/es205/codes/superspreading/coupled_code/FEA_superspread/src_code/results/HLratio_study/eps2_0p1'
     #fdir = '/home/es205/codes/superspreading/coupled_code/FEA_superspread/src_code/results/HLratio_study/eps2_0p02/'
     fname = 'uwgrid'
     truescale = True
@@ -182,9 +242,13 @@ if __name__ == "__main__":
 
     print('Number of records = ', fObj.maxrec)
     n = 0
-    f,ax = plt.subplots(4,1)
-    axs = ax.reshape(4) 
-    for rec in range(10,fObj.maxrec,20):
+    startrec = 1; endrec = fObj.maxrec; skiprec = 10
+    plots = int(np.ceil((endrec-startrec)/skiprec))+1
+    ratio = 2.
+    f,ax = plt.subplots(int(plots/ratio),int(ratio))
+    axs = ax.reshape(plots) 
+    for rec in range(startrec,endrec,skiprec):
+        print(rec,plots)
 
         grid = fObj.get_gridtopology(rec,rec)
         uw = fObj.read(rec,rec,verbose=True)
@@ -229,10 +293,12 @@ if __name__ == "__main__":
 #        plt.show()
 
         #NOTE THE -w here is not in line with expected!
-        skipx = 5; skipz = 10
-        cm = axs[n].pcolormesh(X[::skipx,::skipz], z[::skipx,::skipz], speed[::skipx,::skipz], cmap=plt.cm.RdYlBu_r, vmin=0.0, vmax=0.001)
-        axs[n].quiver(X[::skipx,::skipz], z[::skipx,::skipz], u[::skipx,::skipz],
-                     -w[::skipx,::skipz],angles='xy',scale_units='xy',scale=0.1)
+        skipx = 50; skipz = 16
+
+        #axs[n].quiver(X[::skipx,::skipz], z[::skipx,::skipz], u[::skipx,::skipz],
+        #             -w[::skipx,::skipz])#,angles='xy',scale_units='xy',scale=0.1)
+        cs = nonuniform_streamplot(axs[n], X, z, u, -w, density=1., lw = 1., color='k')# cmap=plt.cm.RdYlBu_r)
+        cm = axs[n].pcolormesh(X, z, speed, cmap=plt.cm.RdYlBu_r,vmin=0.000001,vmax = 0.1,norm=matplotlib.colors.LogNorm(),alpha=0.9)
         axs[n].plot(x,np.zeros(x.shape[0]),'k-')
         axs[n].axis('scaled')
         axs[n].set_xlim((0.0,1.8*L))
@@ -256,6 +322,13 @@ if __name__ == "__main__":
     plt.suptitle("eps2 = " + fObj.header.eps2)
     f.subplots_adjust(left=0.2)
     cbar_ax = f.add_axes([0.05, 0.1, 0.025, 0.8])
-    f.colorbar(cm, cax=cbar_ax)
+    try:
+        f.colorbar(cs.lines, cax=cbar_ax)
+    except:
+        pass
+    try:
+        f.colorbar(cm, cax=cbar_ax)
+    except:
+        pass
     plt.show()
 
