@@ -45,11 +45,14 @@ class VMDFields:
         for i in dir(self.header):
             if (i.find('Nsteps') == 0):
                 self.Nsteps = int(vars(self.header)[i])
-                if (int(simulation_time) < self.Nsteps):
-                    self.Nsteps = int(simulation_time)
-                    self.finished = False
-                else:
-                    self.finished = True
+            if (i.find('initialstep') == 0):
+                self.initialstep = int(vars(self.header)[i])
+
+        if (int(simulation_time)-self.initialstep < self.Nsteps):
+            self.Nsteps = int(simulation_time)
+            self.finished = False
+        else:
+            self.finished = True
 
         #Get vmd skip
         vmd_skip_found = False
@@ -66,22 +69,26 @@ class VMDFields:
         for i in dir(self.header):
             if (i.find('vmd_start') == 0):
                 start = int(vars(self.header)[i])
-                #print(start,int(simulation_time),start < int(simulation_time))
-                if (start < int(simulation_time)):
+                if (start < int(simulation_time)-self.initialstep):
                     self.starts.append(start)
             if (i.find('vmd_end') == 0):
                 end = int(vars(self.header)[i])
-                #print(end,int(simulation_time),end < int(simulation_time))
-                if (end < float(simulation_time)):
+                if (end < float(simulation_time)-self.initialstep):
                     self.ends.append(end)
         #If part way though an interval, set maximum to last iteration run
         if (len(self.starts) > len(self.ends)):
-            self.ends.append(int(simulation_time))
+            self.ends.append(int(simulation_time)-self.initialstep)
+
+        #Shift by initialrecord
 
         #Get averaging time per record 
         self.Nave = str(self.fieldobj.plotfreq)
 
-        #Create VMD vol_data folder
+    def copy_tclfiles(self):
+        
+        """
+            Create VMD vol_data folder
+        """
         self.vmd_dir = self.fdir + '/vmd/'
         self.vol_dir = self.vmd_dir + '/vol_data/'
         if not os.path.exists(self.vol_dir):
@@ -111,8 +118,6 @@ class VMDFields:
                 temptime = os.path.getmtime(self.fdir+self.vmdfile.replace('out','temp'))
             else:
                 temptime = 0.
-
-            print(filetime,temptime,temptime > filetime)
                 
             if temptime > filetime:
                 print('Attempting to reformat vmd_out.dcd from vmd_temp.dcd')
@@ -162,7 +167,6 @@ class VMDFields:
         for i in self.vmdintervals:
             fieldrecstart = i[0]/(int(self.header.tplot)*int(self.Nave))
             fieldrecend   = i[1]/(int(self.header.tplot)*int(self.Nave))
-            print(fieldrecstart,fieldrecend)
             #If limits are not specified, store time history for all intervals and average
             if (clims == None):
                 clims_array.append(self.fieldobj.write_dx_file(fieldrecstart,fieldrecend,component=component))

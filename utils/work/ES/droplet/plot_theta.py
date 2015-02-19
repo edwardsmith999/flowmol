@@ -17,7 +17,7 @@ import gen_surface
 #xwindow = 1.0
 
 fdir = '/home/es205/codes/superspreading/coupled_code/MD_dCSE/src_code/results/'
-xwindow = 3.0
+xwindow = 5.0
 
 
 def get_edge_cells(density,Lmin,Lmax):
@@ -47,7 +47,7 @@ tplot=int(rhoObj.Raw.header.tplot)
 delta_t = float(rhoObj.Raw.header.delta_t)
 
 minxi = int(x.shape[0]*(5.-xwindow)/10.)
-maxxi = int(x.shape[0]*(5.+xwindow)/10.)
+maxxi = int(x.shape[0]*(5.+xwindow)/10.-1)
 minx = x[minxi]; maxx = x[maxxi]; 
 Lx = float(rhoObj.Raw.header.globaldomain1)
 Ly = float(rhoObj.Raw.header.globaldomain2)
@@ -70,7 +70,6 @@ for rec in range(startrec,endrec,1):
     density = np.mean(rho[:,:,:,:,0],(2,3))
     edge, index = get_edge_cells(density,Lmin,Lmax)
 
-
     #Plot contourmap of edge position in x against z
     ax1 = plt.subplot2grid((3,1), (0,0))#, rowspan=2)
     ax2 = plt.subplot2grid((3,1), (1,0))
@@ -82,6 +81,9 @@ for rec in range(startrec,endrec,1):
     molwindow = (((maxx-0.5*Lx)>vmd[:,0]) & ((minx-0.5*Lx)<vmd[:,0]))
 
     ax3.plot(vmd[molwindow,0],vmd[molwindow,1],'ko',ms=0.1)
+
+    liquidcells = np.genfromtxt('../../../../MD_dCSE/src_code/liquidcells')
+    ax3.plot(liquidcells[:,2],liquidcells[:,3],'rs')
 
     surfacemol = np.genfromtxt('../../../../MD_dCSE/src_code/fort.451')
 
@@ -95,7 +97,7 @@ for rec in range(startrec,endrec,1):
     surfacenormal = np.genfromtxt('../../../../MD_dCSE/src_code/fort.452')
     ax3.quiver(surfacenormal[:,1],surfacenormal[:,2],surfacenormal[:,4],surfacenormal[:,5])
 
-    surfacevar = np.genfromtxt('../../../../MD_dCSE/src_code/fort.1984')
+    surfacevar = np.genfromtxt('../../../../MD_dCSE/src_code/eigenvalues')
     rectime = surfacevar[:,0] == timestep
     print(rectime)
     surfacevar = surfacevar[rectime,:]

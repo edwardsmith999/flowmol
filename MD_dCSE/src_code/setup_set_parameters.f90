@@ -410,12 +410,17 @@ subroutine setup_mie_potential
          !for water and hydrophobic parts CM, M and D
 
         do i =1,size(ids)
-            epsilon_lookup(ids(i),2) = 1.4d0
+            epsilon_lookup(ids(i),2) = 0.5d0 !1.4d0
         enddo
-    !1-2 == Wall/{Water,EO} hydrophilic/weak wall interaction
-    epsilon_lookup(3,2) = 0.5d0
-    epsilon_lookup(6,2)  = 0.5d0     
-    !case(Cross_rules)
+        !1-2 == Wall/Water [hydrophilic or weak wall interaction]
+        ! set to same as surfactant
+        epsilon_lookup(3,2) = epsilon_lookup(ids(1),2)
+
+        !Wall/EO [hydrophillic or weak wall interaction]
+        !epsilon_lookup(6,2)  = 0.5d0     
+        !case(Cross_rules)
+        !end select
+
     !end select
 
 
@@ -496,7 +501,6 @@ subroutine setup_mie_potential
     k_lookup(6,6) = 295.3322; r0_lookup(6,6) = 0.9307
     k_lookup(7,6) = 295.3322; r0_lookup(7,6) = 0.9653
     k_lookup(7,7) = 295.3322; r0_lookup(7,7) = 1.0000
-
     !This is assumed -- not in paper
     k_lookup(6,4) = 295.3322; r0_lookup(6,4) = 1.0000
 

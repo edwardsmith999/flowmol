@@ -2563,20 +2563,33 @@ contains
         logical :: connectable, branch, flip=.true., connectable2
 
         !SURFACTANT CHAIN -- Randomly flipped either up or down
-        !  M
-        !  |  
-        !  D--EO--EO--EO--EO--EO--EO--EO--EO  Optimal super-spreading Surfactant
-        !  |
-        !  M
-        !
-        !  M--D--M--EO--EO--EO--EO--EO--EO--EO--EO super-spreading Surfactant (slower than T shape above)
+        !_________________________________________________________________________
+        ! a) Optimal super-spreading surfactant
+        !       M
+        !       |  
+        !       D--EO--EO--EO--EO--EO--EO--EO--EO  
+        !       |
+        !       M
+        !_________________________________________________________________________
         !        M- D -M- EO-EO-EO-EO-EO-EO-EO-EO
-        ids = (/ 4, 5, 4, 6, 6, 6, 6, 6, 6, 6, 6 /)
-        branch = .false.
+        !ids = (/ 4, 5, 4, 6, 6, 6, 6, 6, 6, 6, 6 /)
+        ! branch = .true.
 
-        !  CM--CM--CM--EO--EO--EO--EO--EO--EO--EO--EO Spreading Surfactant
-        !ids = (/ 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 6 /)
-        !branch = .true.
+        !_________________________________________________________________________
+        ! b) Super-spreading Surfactant (slower than T shape above)
+        !       M--D--M--EO--EO--EO--EO--EO--EO--EO--EO 
+        !_________________________________________________________________________
+        !
+        !        M- D -M- EO-EO-EO-EO-EO-EO-EO-EO
+        !ids = (/ 4, 5, 4, 6, 6, 6, 6, 6, 6, 6, 6 /)
+       ! branch = .false.
+        !_________________________________________________________________________
+        ! c) Organic spreading surfactant
+        !       CM--CM--CM--EO--EO--EO--EO--EO--EO--EO--EO 
+        !_________________________________________________________________________
+        !
+        ids = (/ 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 6 /)
+        branch = .false.
 
         if (branch) then
             midendID = nmonomers-2

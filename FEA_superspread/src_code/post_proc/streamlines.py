@@ -10,8 +10,153 @@ import matplotlib.colors as mcolors
 import matplotlib.collections as mcollections
 import matplotlib.patches as patches
 import bisect
-
+from scipy.interpolate import griddata
 __all__ = ['streamplot']
+
+
+def nonuniform_streamplot(ax, xx, yy, u, v, 
+                          density = None, color=None, lw=None, 
+                          base_map=False, plotgrid=False, 
+                          arrowsize=1, arrowstyle='-|>',
+                          vmin=None, vmax=None, **kwargs):
+
+    """Draws streamlines of a vector flow on a non-uniform grid by
+       defining a full uniform grid and using griddata to interpolate
+       stretched grid to this. Then streamlines are only plotted on
+       the local region where u and v is defined.
+
+    *xx*, *yy* : 1d arrays
+        defines the grid.
+    *u*, *v* : 2d arrays
+        x and y-velocities. Number of rows should match length of y, and
+        the number of columns should match x.
+    *density* : float or 2-tuple
+        Controls the closeness of streamlines. When `density = 1`, the domain
+        is divided into a 30x30 grid---*density* linearly scales this grid.
+        Each cell in the grid can have, at most, one traversing streamline.
+        For different densities in each direction, use [density_x, density_y].
+    *linewidth* : numeric or 2d array
+        vary linewidth when given a 2d array with the same shape as velocities.
+        if not specified, speed is used
+    *color* : matplotlib color code, or 2d array
+        Streamline color. When given an array with the same shape as
+        velocities, *color* values are converted to colors using *cmap*.
+        if not specified, speed is used
+    *cmap* : :class:`~matplotlib.colors.Colormap`
+        Colormap used to plot streamlines and arrows. Only necessary when using
+        an array input for *color*.
+    *norm* : :class:`~matplotlib.colors.Normalize`
+        Normalize object used to scale luminance data to 0, 1. If None, stretch
+        (min, max) to (0, 1). Only necessary when *color* is an array.
+    *arrowsize* : float
+        Factor scale arrow size.
+    *arrowstyle* : str
+        Arrow style specification.
+        See :class:`~matplotlib.patches.FancyArrowPatch`.
+    *minlength* : float
+        Minimum length of streamline in axes coordinates.
+    *base_map*  : boolean
+        default is False
+    *plotgrid*  : boolean
+        Display full grid used to plot streamlines 
+
+    Returns:
+
+        *stream_container* : StreamplotSet
+            Container object with attributes
+
+                - lines: `matplotlib.collections.LineCollection` of streamlines
+
+                - arrows: collection of `matplotlib.patches.FancyArrowPatch`
+                  objects representing arrows half-way along stream
+                  lines.
+
+            This container will probably change in the future to allow changes
+            to the colormap, alpha, etc. for both lines and arrows, but these
+            changes should be backward compatible.
+
+    """
+
+    if density == None:
+        density = 1.
+
+    #Streamplot defaults to 30 x 30 seeds for density of 1
+    if isinstance(density,(int,float)):
+        res = [30*density, 30*density]
+    elif isinstance(density,list) and len(density) == 2:
+        res = [30*i for i in density]
+    else:
+        raise ValueError("density should be float or 2-tuple")
+
+    x = np.linspace(xx.min(), xx.max(), res[0])
+    y = np.linspace(yy.min(), yy.max(), res[1])
+    xi, yi = np.meshgrid(x,y)
+
+    #then, interpolate your data onto this grid:
+    px = xx.flatten()
+    py = yy.flatten()
+    pu = u.flatten()
+    pv = v.flatten()
+
+    gu = griddata(zip(px,py), pu, (xi,yi))
+    gv = griddata(zip(px,py), pv, (xi,yi))
+
+    #Get speed for color and linewidth
+    if lw == None or color == None or plotgrid:
+        speed = np.sqrt(u*u + v*v)
+        pspeed = speed.flatten()
+        gspeed = griddata(zip(px,py), pspeed, (xi,yi))
+        if vmax == None:
+            normaliser = np.nanmax(gspeed)
+        else:
+            normaliser = vmax
+        print(normaliser,np.nanmax(gspeed))
+        linewidth = 6*gspeed/normaliser
+
+        if lw == None:
+            lw = linewidth
+        if color == None:
+            color = gspeed
+
+    #now, you can use x, y, gu, gv and gspeed in streamplot:
+    if base_map:
+        xx,yy = ax(xx,yy)
+        xi,yi = ax(xi,yi)
+
+    #Add grid to plot
+    if plotgrid:
+        ax.contour(xx,yy,speed, colors='k', alpha=0.4)
+        ax.plot(xx,yy,'-k',alpha=0.3)
+        ax.plot(xx.T,yy.T,'-k',alpha=0.3)
+        ax.plot(xi,yi,'-b',alpha=0.1)
+        ax.plot(xi.T,yi.T,'-b',alpha=0.1)
+
+    #Call streamplot with mapped grid
+    c = ax.streamplot(x, y, gu, gv, color=color,
+                      linewidth=lw, density=density, **kwargs)
+
+    #Set values of vmin and vmax if not defined
+    recolor = False
+    if vmin != None and vmax == None:
+        vmin, dummy = c.lines.get_clim()
+        recolor = True
+    elif vmax != None and vmin == None:
+        dummy, vmax = c.lines.get_clim()
+        recolor = True 
+    elif vmax != None and vmin != None:
+        recolor = True 
+
+    if recolor:
+        c.lines.set_clim(vmin,vmax)
+        #Note, set arrow clims doesn't work!
+        c.arrows.set_clim(vmin,vmax)
+        #Instead, just set to black if vmin/vmax specified
+        for x in ax.get_children():
+            if type(x)==matplotlib.patches.FancyArrowPatch:
+                x.set_color('k') 
+
+    return c
+
 
 
 def streamplot(axes, x, y, u, v, density=1, linewidth=None, color=None,

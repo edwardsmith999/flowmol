@@ -81,7 +81,7 @@ class VmdReformat:
 
         if self.Reformatted:
             try:
-                with open('./' + self.fdir + '/' + self.fname.replace('temp','out')): pass
+                with open('./'   + self.fdir + '/' + self.fname.replace('temp','out')): pass
                 os.system('vmd ' + self.fdir + '/' + self.fname.replace('temp','out'))
             except IOError:
                 print 'vmd_out.dcd file missing in run_vmd  -- have you called reformat?'

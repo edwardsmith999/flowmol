@@ -2182,6 +2182,7 @@ SUBROUTINE CREATE_GRAPH_ARRAYS(TQa,TQb,Xc)
 			U = - 0.5d0*dPdX*H**2 + H*S2x + bslip*(S2x-dPdX*H)
 
             !Reinflate the z dimension using equation (2.32) from Karapetsas et al JFM (2011)
+            ! Maybe we could stick a 2D FV CFD solver here for the uniform mapped grid???
             Hxxxz = 0.D0; Caxz = 0.d0
 		    DO J=1,NBF_Q
 			    Hxxxz = Hxxxz + Hxxx * DFDX_Q(J)
@@ -2302,7 +2303,7 @@ END SUBROUTINE CREATE_GRAPH_ARRAYS
 !     SUBROUTINE WRITE_FILES
 !----------------------------------------------------------------------
 
-SUBROUTINE WRITE_FILES(WTS,PRINT_PROFILES,T,Dt)
+SUBROUTINE WRITE_FILES(WTS, PRINT_PROFILES, T, Dt)
 
 	USE ELEMENTS_DATA,     only: NBF_Q, NNTOLa, NNTOLb, NEQ_Q_a, NEQ_Q_b, &
 										NODTOLa_QEL, NODTOLb_QEL, NODTOL_QEL
@@ -2318,12 +2319,13 @@ SUBROUTINE WRITE_FILES(WTS,PRINT_PROFILES,T,Dt)
 	REAL(8), INTENT(IN) :: T, Dt
 	
 	CHARACTER(200) :: filename
-	INTEGER :: I, J, recno, length
+    integer,save    :: recno=0
+	INTEGER :: I, J, length
 	REAL(8) :: MASS_FLUID, MASS_SURF, TIME
 	REAL(8) :: MASS_ERROR_F, MASS_ERROR_S
 	REAL(8) :: Theta, Hmax, Cac, Cc, Mc, Csc, Cao, Co, Mo, Cso, XXc, XXco
 
-!     SELECT WHICH TIME INSTANT TO PRINT
+    !     SELECT WHICH TIME INSTANT TO PRINT
 
 	SELECT CASE(WTS)
 
@@ -2379,7 +2381,10 @@ SUBROUTINE WRITE_FILES(WTS,PRINT_PROFILES,T,Dt)
 
 !     CPROFILE.DAT
 
-		recno = ceiling((Time+Dt)/Dt)
+		recno = recno + 1 !ceiling((Time+Dt)/Dt)
+		!recno = ceiling((Time+Dt)/Dt)
+
+
 		call get_Timestep_FileName(recno,'results/CPROFILE',filename)
 		WRITE(filename,'(a24,a4)') filename,'.DAT'
 		OPEN(43, file=filename, status='UNKNOWN', action='WRITE')
@@ -2412,7 +2417,6 @@ SUBROUTINE WRITE_FILES(WTS,PRINT_PROFILES,T,Dt)
 
 		!	VPROFILE.DAT
 
-		recno = ceiling((Time+Dt)/Dt)
 		call get_Timestep_FileName(recno,'results/VPROFILE',filename)
 		WRITE(filename,'(a24,a4)') filename,'.DAT'
 		OPEN(46, file=filename, status='UNKNOWN', action='WRITE')
@@ -2463,7 +2467,7 @@ SUBROUTINE WRITE_FILES(WTS,PRINT_PROFILES,T,Dt)
 
         ! 2D domain snapshots of z values of velocity data at every node
         call get_Timestep_FileName(recno,'results/uwgrid',filename)
-	    write(filename,'(a21,a4)') filename,'.DAT'
+	    write(filename,'(a22,a4)') filename,'.DAT'
 	    inquire(iolength=length) uwarray
         !print*, trim(filename),shape(uwarray),size(uwarray),length
 	    open(48, file=filename,action='write',form='unformatted',access='direct',recl=length)
