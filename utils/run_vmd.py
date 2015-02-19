@@ -35,6 +35,8 @@ def run_vmd(parent_parser=argparse.ArgumentParser(add_help=False)):
                         help=print_fieldlist(), default=None)
     parser.add_argument('-c', '--comp', dest='comp', 
                         help='Component name', default=None)
+    parser.add_argument('-p', '--poly',help='Polymer flag',
+                        action='store_const', const=True)
     args = vars(parser.parse_args())
 
     #Static arguments
@@ -45,7 +47,7 @@ def run_vmd(parent_parser=argparse.ArgumentParser(add_help=False)):
         print("No field type specified -- using default value of no field")
         args['field'] = None
         component = 0
-    elif(sys.argv[1] in ['--help', '-help', '-h']):
+    if(len(sys.argv) < 2 or sys.argv[1] in ['--help', '-help', '-h']):
         ppObj = ppl.MD_PostProc(args['fdir'])
         print("Available field types include")
         print(ppObj)
@@ -54,17 +56,40 @@ def run_vmd(parent_parser=argparse.ArgumentParser(add_help=False)):
         print("No components direction specified, setting default = 0")
         args['comp'] = 0
 
+    #Polymer case, no field at the moment
+    if args['poly']:
+        if args['field'] != None:
+            print("Can't overlay field and polymers yet")
+        fobj = ppl.MD_dummyField(args['fdir'])
+        fobj.plotfreq = 1
+        vmdobj = ppl.VMDFields(fobj,args['fdir'])
+        vmdobj.copy_tclfiles() #Create VMD vol_data folder and copy vmd driver scripts
+        vmdobj.reformat()
+
+        #Open vmd 
+        with Chdir(args['fdir']):
+            #Build vmd polymer file 
+            ppl.build_psf()
+            ppl.concat_files()
+
+            #Call polymer script
+            command = "vmd -e ./vmd/load_polymer.vmd"
+            os.system(command)
+            sys.exit()
+
     #Plane field case
     if args['field'] == None:
         fobj = ppl.MD_dummyField(args['fdir'])
         fobj.plotfreq = 1
         vmdobj = ppl.VMDFields(fobj,args['fdir'])
+        vmdobj.copy_tclfiles() #Create VMD vol_data folder and copy vmd driver scripts
         vmdobj.reformat()
 
         #Open vmd 
         with Chdir(args['fdir']):
             command = "vmd " + "./vmd_out.dcd"
             os.system(command)
+
     #Overlayed field case
     else:
         try:
@@ -78,6 +103,7 @@ def run_vmd(parent_parser=argparse.ArgumentParser(add_help=False)):
             raise
 
         vmdobj = ppl.VMDFields(fobj,args['fdir'])
+        vmdobj.copy_tclfiles() #Create VMD vol_data folder and copy vmd driver scripts
         vmdobj.reformat()
         vmdobj.write_vmd_header()
         vmdobj.write_vmd_intervals()
