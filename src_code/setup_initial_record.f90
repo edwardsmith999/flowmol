@@ -1154,7 +1154,7 @@ subroutine build_psf
 
         do i=1,NATOM
 
-            write(1,'(i8,3a,i4,6a,2f10.5,i1)') i,' ',seg_name(i),' ', &
+            write(1,'(i8,3a,i4,6a,2f10.5,i2)') i,' ',seg_name(i),' ', &
                 res_ID(i),' ',res_name(i),' ',atom_name(i),' ',       &
                 atom_type(i),charge(i),mass(i),0 
 

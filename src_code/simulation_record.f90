@@ -196,7 +196,7 @@ subroutine simulation_record
 	if (velocity_outflag .eq. 0 .and. &
 		mass_outflag .ne. 0) call mass_averaging(mass_outflag)
 
-    sl_interface_outflag =0
+    sl_interface_outflag = 2
     if (sl_interface_outflag .eq. 1) then
         call sl_interface(sl_interface_outflag)
     elseif (sl_interface_outflag .eq. 2) then
@@ -5423,17 +5423,17 @@ contains
         use physical_constants_MD, only : pi
         use computational_constants_MD, only : iter
         use linked_list, only : linklist_printneighbourlist
-        use librarymod, only : imaxloc, get_Timestep_FileName, bubble_sort_r, least_squares
+        use librarymod, only : imaxloc, get_Timestep_FileName, least_squares, get_new_fileunit
         implicit none
 
         type(clusterinfo),intent(inout)    :: self
         double precision, intent(in)       :: rd
 
         character(32)                   :: filename
-        integer                         :: i,j,resolution
+        integer                         :: i,j,resolution,fileunit
         double precision                :: tolerence, m, c, cl_angle
         double precision,dimension(6)   :: extents
-        double precision,dimension(:),allocatable :: x,y,cluster_sizes
+        double precision,dimension(:),allocatable :: x,y
         double precision,dimension(:,:),allocatable :: rnp, extents_grid
 
         resolution = 10; tolerence = rd
@@ -5448,9 +5448,10 @@ contains
         call least_squares(x, y, m, c)
         deallocate(x,y)
         cl_angle = 90.d0+atan(m)*180./pi
-        open(unit=1042,file='linecoeff_top',access='append')
-        write(1042,'(i12, 3(a,f10.5))'), iter, ' Top line    y = ', m, ' x + ',c , ' angle = ', cl_angle
-        close(1042,status='keep')
+    	fileunit = get_new_fileunit()
+        open(unit=fileunit,file='linecoeff_top',access='append')
+        write(fileunit,'(i12, 3(a,f10.5))'), iter, ' Top line    y = ', m, ' x + ',c , ' angle = ', cl_angle
+        close(fileunit,status='keep')
 
         call cluster_extents_grid(self, imaxloc(self%Nlist), 4, resolution, &
                                   extents_grid, debug_outfile='./results/maxcell_bot')
@@ -5462,10 +5463,13 @@ contains
         call least_squares(x, y, m, c)
         deallocate(x,y)
         cl_angle = 90.d0+atan(m)*180.d0/pi
-        open(unit=1042,file='linecoeff_bot',access='append')
-        write(1042,'(i12, 3(a,f10.5))'), iter, ' Bottom line y = ', m, ' x + ',c  , ' angle = ', cl_angle
-        close(1042,status='keep')
+    	fileunit = get_new_fileunit()
+        open(unit=fileunit,file='linecoeff_bot',access='append')
+        write(fileunit,'(i12, 3(a,f10.5))'), iter, ' Bottom line y = ', m, ' x + ',c  , ' angle = ', cl_angle
+        close(fileunit,status='keep')
 
+
+        call check_for_cluster_breakup(self)
 
         !Print Biggest cluster
 !        call get_Timestep_FileName(iter,'./results/Big_clust',filename)
@@ -5480,13 +5484,37 @@ contains
 !        close(1042,status='keep')
 
 
+    end subroutine get_cluster_properties
+
+    subroutine check_for_cluster_breakup(self)
+        use librarymod, only : bubble_sort_r
+        use interfaces, only : error_abort
+        implicit none
+
+        type(clusterinfo),intent(inout)    :: self
+
+        double precision,dimension(:),allocatable :: cluster_sizes
+
         ! Sort clusters by size and check if more than one big one!
         allocate(cluster_sizes(self%Nclust))
         cluster_sizes = dble(self%Nlist)
         call bubble_sort_r(cluster_sizes)
-        print'(a,8f10.1)', 'TOP EIGHT CLUSTERS =', cluster_sizes(1:8)
 
-    end subroutine get_cluster_properties
+        if ((cluster_sizes(1) - cluster_sizes(2))/cluster_sizes(1) .gt. 0.4d0) then
+            print'(a,8f10.1,e18.8)', 'TOP EIGHT CLUSTERS =', cluster_sizes(1:8), (cluster_sizes(1) - cluster_sizes(2))/cluster_sizes(1)
+
+        else
+            print*, 'It appears clusters have broken up -- writing final state and exiting'
+
+            print'(a,8f10.1,e18.8)', 'EXIT HERE ', cluster_sizes(1:8), (cluster_sizes(1) - cluster_sizes(2))/cluster_sizes(1)
+            !Exit Gracefully
+	        !call messenger_syncall
+	        !call parallel_io_final_state	
+	        !call error_abort('Restart file written. Simulation aborted.')
+        endif
+
+
+    end subroutine check_for_cluster_breakup
 
     subroutine print_interface()
         implicit none
@@ -6081,7 +6109,7 @@ contains
 
 
     subroutine build_debug_clusters(self, rd)
-        use librarymod, only : get_Timestep_FileName
+        use librarymod, only : get_Timestep_FileName, get_new_fileunit
 	    use module_compute_forces, only : iter, np, r, halfdomain, cellsidelength, nh, ncells, rneighbr2
         use linked_list, only : build_cell_and_neighbourlist_using_debug_positions, cellinfo,neighbrinfo
 	    implicit none
@@ -6090,7 +6118,7 @@ contains
         double precision, intent(in)    :: rd
 
 	    integer		:: i, cellnp, n, m, testmols, molcount, clustno, molnoi, molnoj, adjacentcellnp, noneighbrs, j
-	    integer		:: icell, jcell, kcell, icellshift, kcellshift, jcellshift
+	    integer		:: icell, jcell, kcell, icellshift, kcellshift, jcellshift, fileunit
         double precision                :: rd2, rij2
         double precision,dimension(3)   :: ri, rj, rij
         double precision,dimension(4)   :: rand
@@ -6169,8 +6197,9 @@ contains
         !PRINT CLUSTER DEBUGGING INFO
         call CompressClusters(self)
 
+    	fileunit = get_new_fileunit()
         call get_Timestep_FileName(iter,'./Big_clust',filename)
-        open(unit=1042,file=trim(filename),access='append')
+        open(unit=fileunit,file=trim(filename),access='append')
 
         molcount = 0
         do clustno = 1, self%Nclust
@@ -6183,7 +6212,7 @@ contains
 	        current => old ! make current point to head of list
 	        do j=1,noneighbrs
                 molcount =  molcount + 1
-          		write(1042,'(2i6, 3(a,i8),3f10.5)'), molcount, j, ' of ', self%Nlist(clustno), & 
+          		write(fileunit,'(2i6, 3(a,i8),3f10.5)'), molcount, j, ' of ', self%Nlist(clustno), & 
                                              ' Linklist for cluster ', clustno,' j = ', & 
                                              current%molno, rdebug(:,current%molno)
 		        if (associated(old%next) .eqv. .true. ) then !Exit if null
@@ -6197,7 +6226,7 @@ contains
 
         enddo
 
-        close(1042,status='keep')
+        close(fileunit,status='keep')
 
      
 
