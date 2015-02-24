@@ -190,13 +190,13 @@ subroutine simulation_record
 	end select
 
 	!Obtain and record velocity and mass
-	if (velocity_outflag .ne. 0) call velocity_averaging(velocity_outflag)
+	if (momentum_outflag .ne. 0) call momentum_averaging(momentum_outflag)
 
 	!Obtain and record mass only
-	if (velocity_outflag .eq. 0 .and. &
+	if (momentum_outflag .eq. 0 .and. &
 		mass_outflag .ne. 0) call mass_averaging(mass_outflag)
 
-    sl_interface_outflag = 2
+    sl_interface_outflag = 0
     if (sl_interface_outflag .eq. 1) then
         call sl_interface(sl_interface_outflag)
     elseif (sl_interface_outflag .eq. 2) then
@@ -239,12 +239,13 @@ subroutine evaluate_macroscopic_properties
 	use module_record
 	use messenger, only : globalise
     use messenger_data_exchange, only : globalSum
+    use module_set_parameters, only : mass
 	implicit none
 
 	integer :: n,ixyz
 
 	vsum  = 0.d0                                                ! Reset all sums
-	v2sum = 0.d0                                                ! Reset all sums
+	mv2sum = 0.d0                                                ! Reset all sums
 
 	! Potential Component
 	select case(potential_flag)
@@ -269,7 +270,7 @@ subroutine evaluate_macroscopic_properties
 		do ixyz = 1, nd									! Loop over all dimensions
 			vel   = v(ixyz,n) + 0.5d0*a(ixyz,n)*delta_t	! Velocity must shifted half a timestep
 			vsum  = vsum + vel							! Add up all molecules' velocity components
-			v2sum = v2sum + vel**2						! Add up all molecules' velocity squared components  
+			mv2sum = mv2sum + mass(n)*vel**2			! Add up all molecules' velocity squared components  
 		enddo
 		enddo
 	case(velocity_verlet) 								! If velocity Verlet algorithm
@@ -277,18 +278,18 @@ subroutine evaluate_macroscopic_properties
 		do ixyz = 1, nd
 			vel   = v(ixyz,n)
 			vsum  = vsum+vel
-			v2sum = v2sum + vel**2          			! Sum all velocity squared components
+			mv2sum = mv2sum + mass(n)*vel**2          	! Sum all velocity squared components
 		enddo
 		enddo
 	end select
         
 	!Obtain global sums for all parameters
 	call globalSum(vsum)
-	call globalSum(v2sum)
+	call globalSum(mv2sum)
 	virial = sum(virialmol(1:np))
 	call globalSum(virial)
 
-	kinenergy   = (0.5d0 * v2sum) / real(globalnp,kind(0.d0))
+	kinenergy   = (0.5d0 * mv2sum) / real(globalnp,kind(0.d0))
 	potenergy   = potenergysum /(2.d0*real(globalnp,kind(0.d0))) + Potential_sLRC !N.B. extra 1/2 as all interactions calculated
 	if (potential_flag.eq.1) then
 		potenergy_LJ= potenergysum_LJ/(2.d0*real(globalnp,kind(0.d0))) + Potential_sLRC
@@ -308,21 +309,24 @@ subroutine evaluate_macroscopic_properties
 		call error_abort("STOPPING CODE")
 	endif
 	totenergy   = kinenergy + potenergy
-	temperature = v2sum / real(nd*globalnp,kind(0.d0))
+	temperature = mv2sum / real(nd*globalnp,kind(0.d0))
 	if (any(periodic.gt.1)) temperature = get_temperature_PUT()
-	pressure    = (density/(globalnp*nd))*(v2sum+virial/2.d0) + Pressure_sLRC !N.B. virial/2 as all interactions calculated
+	pressure    = (density/(globalnp*nd))*(mv2sum+virial/2.d0) + Pressure_sLRC !N.B. virial/2 as all interactions calculated
+
+    !print'(a,i8,3f20.10)', 'pressure   ', iter, mv2sum+virial/2.d0, mv2sum , virial
 
 end subroutine evaluate_macroscopic_properties
 
 subroutine evaluate_microstate_pressure
 	use module_record
     use messenger_data_exchange, only : globalSum
+    use module_set_parameters, only : mass
 	implicit none
 
 	integer :: n
 	real(kind(0.d0)) :: vtemp(nd)
 
-	v2sum = 0.d0
+	mv2sum = 0.d0
 
 	! Kinetic part of Virial
 	select case(integration_algorithm)
@@ -330,13 +334,13 @@ subroutine evaluate_microstate_pressure
 
 		do n = 1, np
 			vtemp(:) = v(:,n) + 0.5d0*a(:,n)*delta_t ! Velocity must shifted half a timestep
-			v2sum = v2sum + dot_product(vtemp,vtemp)
+			mv2sum = mv2sum + mass(n) * dot_product(vtemp,vtemp)
 		enddo
 
 	case(velocity_verlet)
 
 		do n = 1, np
-			v2sum = v2sum + dot_product(v(:,n),v(:,n))
+			mv2sum = mv2sum + mass(n) * dot_product(v(:,n),v(:,n))
 		enddo
 
 	end select
@@ -346,7 +350,7 @@ subroutine evaluate_microstate_pressure
 	call globalSum(virial)
 
 	! Instantaneous pressure 
-	pressure = (density/(globalnp*nd))*(v2sum+virial/2.d0) + Pressure_sLRC !N.B. virial/2 as all interactions calculated
+	pressure = (density/(globalnp*nd))*(mv2sum+virial/2.d0) + Pressure_sLRC !N.B. virial/2 as all interactions calculated
 
 end subroutine evaluate_microstate_pressure
 
@@ -363,7 +367,7 @@ implicit none
 			select case(macro_outflag)
 			case(1:2)
 				print '(1x,i8,a,f10.3,a,e12.2,a,e10.2,a,f7.3,a,f19.15,a,f19.15,a,f19.15,a,f10.4)', &
-				it,';', simtime,';',vsum,';', v2sum,';', temperature,';', &
+				it,';', simtime,';',vsum,';', mv2sum,';', temperature,';', &
 				kinenergy,';',potenergy,';',totenergy,';',pressure
 			case(3:4)
 				print '(1x,i7,a,f9.3,a,e9.2,a,e8.1,a,f8.4,a,f8.4,a,f8.4,a,f8.4)', &
@@ -375,7 +379,7 @@ implicit none
 			select case(macro_outflag)
 			case(1:2)
 				print '(1x,i8,a,f10.3,a,e10.3,a,e10.2,a,f7.3,a,f15.11,a,f15.11,a,f15.11,a,f10.4,a,f7.4,a,f9.3)', &
-				it,';',simtime,';',vsum,';', v2sum,';', temperature,';', &
+				it,';',simtime,';',vsum,';', mv2sum,';', temperature,';', &
 				kinenergy,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
 			case(3:4)
 				print '(1x,i7,a,f8.3,a,e8.1,a,e8.1,a,f7.3,a,f7.3,a,f7.3,a,f7.3,a,f6.3,a,f5.1)', &
@@ -1243,6 +1247,7 @@ subroutine cumulative_mass(ixyz)
 	use messenger, only: globalise
 	use concentric_cylinders
 	use librarymod, only : cpolariser
+    use module_set_parameters, only : mass
 	implicit none
 
 	integer         				:: n, ixyz
@@ -1262,8 +1267,8 @@ subroutine cumulative_mass(ixyz)
 			!Assign to bins using integer division
 			cbin = ceiling((r(ixyz,n)+halfdomain(ixyz))/slicebinsize)!Establish current bin
 			if (cbin > nbins(ixyz)) cbin = nbins(ixyz) 		 !Prevents out of range values
-			if (cbin < 1 ) cbin = 1        				 !Prevents out of range values
-			slice_mass(cbin)= slice_mass(cbin)+1      			 !Add one to current bin
+			if (cbin < 1 ) cbin = 1        				                !Prevents out of range values
+			slice_mass(cbin)= slice_mass(cbin) + mass(n)      			 !Add mass to current bin
 		enddo
 	!Mass measurement for 3D bins throughout the domain
 	case(4)
@@ -1275,21 +1280,23 @@ subroutine cumulative_mass(ixyz)
                 !Add up current volume mass densities
                 !ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
                 ibin(:) = get_bin(r(:,n))
-                volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + 1
+                volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + mass(n)
             enddo
-        case(1)
+        case(1:2)
+            !Seperate logging for polymer and non-polymer 
             do n = 1,np
                 !Add up current volume mass densities
                 !ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
                 ibin = get_bin(r(:,n))
                 if (monomer(n)%chainID .eq. 0) then
                     !Skip wall molecules
-                    if (any(tag(n).eq.tether_tags)) cycle
+                    if (split_pol_sol_stats .eq. 1 .and. &
+                        any(tag(n).eq.tether_tags)) cycle
                     volume_mass_s(ibin(1),ibin(2),ibin(3)) = &
-                    volume_mass_s(ibin(1),ibin(2),ibin(3)) + 1
+                    volume_mass_s(ibin(1),ibin(2),ibin(3)) + mass(n)
                 else
                     volume_mass_p(ibin(1),ibin(2),ibin(3)) = &
-                    volume_mass_p(ibin(1),ibin(2),ibin(3)) + 1
+                    volume_mass_p(ibin(1),ibin(2),ibin(3)) + mass(n)
                 end if
             enddo
             volume_mass = volume_mass_s + volume_mass_p
@@ -1339,18 +1346,18 @@ subroutine cumulative_mass(ixyz)
 end subroutine cumulative_mass
 
 !===================================================================================
-!		RECORD VELOCITY AT LOCATION IN SPACE
-! Either by binning or taking slices on a plane, the velocity field in the molecular
+!		RECORD MOMENTUM AT LOCATION IN SPACE
+! Either by binning or taking slices on a plane, the momentum field in the molecular
 ! system is recorded and output
 !===================================================================================
 
-!Calculate averaged velocity components of each bin or slice with 2D slice in 
+!Calculate averaged momentum components of each bin or slice with 2D slice in 
 !ixyz = 1,2,3 or in 3D bins when ixyz =4
 !-----------------------------------------------------------------------------------
 
-subroutine velocity_averaging(ixyz)
+subroutine momentum_averaging(ixyz)
 	use module_record
-	use field_io , only : velocity_slice_io,velocity_bin_io,velocity_bin_cpol_io
+	use field_io , only : momentum_slice_io,momentum_bin_io,momentum_bin_cpol_io
 	use concentric_cylinders, only: cyl_mass, cyl_mom
 	use linked_list
 	implicit none
@@ -1361,9 +1368,9 @@ subroutine velocity_averaging(ixyz)
 	real(kind(0.d0)),dimension(3) 	:: Vbinsize
 
 	average_count = average_count + 1
-	call cumulative_velocity(ixyz)
+	call cumulative_momentum(ixyz)
 
-	!Save streaming velocity for temperature averages
+	!Save streaming momentum for temperature averages
 	if (temperature_outflag .ne. 0 .and. peculiar_flag .ne. 0) then
 
 		! NOTE THE peculiar_flag CAN BE SET TO 0 AND
@@ -1374,7 +1381,7 @@ subroutine velocity_averaging(ixyz)
 		call error_abort( "Peculiar momentum functionality removed -- please calculate using T_{unbias} = (1/3N) * \sum_i^N m_i*vi*vi - u^2/3")
 
 		do n=1,np
-			!Save streaming velocity per molecule
+			!Save streaming momentum per molecule
 			!ib(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
             ib(:) = get_bin(r(:,n))
 			U(:,n) =  volume_momentum(ib(1),ib(2),ib(3),:) / volume_mass(ib(1),ib(2),ib(3))
@@ -1387,21 +1394,21 @@ subroutine velocity_averaging(ixyz)
 
 		select case(ixyz)
 			case(1:3)
-				call velocity_slice_io(ixyz)
-				!Reset velocity slice
+				call momentum_slice_io(ixyz)
+				!Reset momentum slice
 				slice_mass = 0
 				slice_momentum  = 0.d0
 			case(4)
 
                 select case(split_pol_sol_stats)
                 case(0)
-                    call velocity_bin_io(volume_mass, volume_momentum,'bins')
+                    call momentum_bin_io(volume_mass, volume_momentum,'bins')
                     volume_mass = 0
                     volume_momentum = 0.d0
-                case(1)
-                    call velocity_bin_io(volume_mass_s, volume_momentum_s, 'solv')
-                    call velocity_bin_io(volume_mass_p, volume_momentum_p, 'poly')
-                    call velocity_bin_io(volume_mass, volume_momentum, 'bins')
+                case(1:2)
+                    call momentum_bin_io(volume_mass_s, volume_momentum_s, 'solv')
+                    call momentum_bin_io(volume_mass_p, volume_momentum_p, 'poly')
+                    call momentum_bin_io(volume_mass, volume_momentum, 'bins')
                     volume_mass_s = 0
                     volume_mass_p = 0
                     volume_mass = 0
@@ -1413,31 +1420,32 @@ subroutine velocity_averaging(ixyz)
                 end select
 
 			case(5)
-				call velocity_bin_cpol_io(cyl_mass,cyl_mom)
+				call momentum_bin_cpol_io(cyl_mass,cyl_mom)
 				cyl_mass = 0
 				cyl_mom = 0.d0
 			case default
-				call error_abort("Error input for velocity averaging incorrect")
+				call error_abort("Error input for momentum averaging incorrect")
 			end select
 
 			!Collect velocities for next step
-			!call cumulative_velocity(ixyz)
+			!call cumulative_momentum(ixyz)
 
 	endif
 
-end subroutine velocity_averaging
+end subroutine momentum_averaging
 
 !-----------------------------------------------------------------------------------
 !Add velocities to running total, with 2D slice in ixyz = 1,2,3 or
 !in 3D bins when ixyz =4
 !-----------------------------------------------------------------------------------
 
-subroutine cumulative_velocity(ixyz)
+subroutine cumulative_momentum(ixyz)
 	use module_record
 	use concentric_cylinders
 	use messenger, only: globalise, localise
 	use linked_list
     use librarymod, only : cpolariser, cpolarisev
+    use module_set_parameters, only : mass
 	implicit none
 
 	integer							:: n,ixyz
@@ -1449,13 +1457,13 @@ subroutine cumulative_velocity(ixyz)
 	integer :: br, bt, bz
 	real(kind(0.d0)) :: fluiddomain_cyl(3), rglob(3), rpol(3), vpol(3)
 
-	!In case someone wants to record velocity in a simulation without sliding walls!?!?
+	!In case someone wants to record momentum in a simulation without sliding walls!?!?
 	if (ensemble .ne. tag_move) then
 		allocate(slidev(3,np)); slidev = 0.d0
 	endif
 
 	select case(ixyz)
-	!Velocity measurement is a number of 2D slices through the domain
+	!momentum measurement is a number of 2D slices through the domain
 	case(1:3)
 
 		slicebinsize = domain(ixyz) / nbins(ixyz)
@@ -1465,11 +1473,11 @@ subroutine cumulative_velocity(ixyz)
 			cbin = ceiling((r(ixyz,n)+halfdomain(ixyz))/slicebinsize)!Establish current bin
 			if (cbin > nbins(ixyz)) cbin = nbins(ixyz) 		 !Prevents out of range values
 			if (cbin < 1 ) cbin = 1        				 !Prevents out of range values
-			slice_mass(cbin)= slice_mass(cbin)+1      			 !Add one to current bin
-			slice_momentum(cbin,:) = slice_momentum(cbin,:)+v(:,n) + slidev(:,n) 	 !Add streamwise velocity to current bin
+			slice_mass(cbin)= slice_mass(cbin) + mass(n)      			 !Add one to current bin
+			slice_momentum(cbin,:) = slice_momentum(cbin,:) + mass(n) * (v(:,n) + slidev(:,n)) 	 !Add streamwise momentum to current bin
 		enddo
 
-	!Velocity measurement for 3D bins throughout the domain
+	!momentum measurement for 3D bins throughout the domain
 	case(4)
 
         Vbinsize(:) = domain(:) / nbins(:) 
@@ -1480,9 +1488,9 @@ subroutine cumulative_velocity(ixyz)
                 !Add up current volume mass and momentum densities
                 !ibin(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
                 ibin(:) = get_bin(r(:,n))
-                volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + 1
+                volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + mass(n)
                 volume_momentum(ibin(1),ibin(2),ibin(3),:) = volume_momentum(ibin(1),ibin(2),ibin(3),:) & 
-                                                            + v(:,n) + slidev(:,n)
+                                                            + mass(n)*(v(:,n) + slidev(:,n))
             enddo
         case(1)
             !Reset Control Volume momentum 
@@ -1492,13 +1500,13 @@ subroutine cumulative_velocity(ixyz)
                 ibin(:) = get_bin(r(:,n))
                 if (monomer(n)%chainID .eq. 0) then
                     if (any(tag(n).eq.tether_tags)) cycle
-                    volume_mass_s(ibin(1),ibin(2),ibin(3)) = volume_mass_s(ibin(1),ibin(2),ibin(3)) + 1
+                    volume_mass_s(ibin(1),ibin(2),ibin(3)) = volume_mass_s(ibin(1),ibin(2),ibin(3)) + mass(n)
                     volume_momentum_s(ibin(1),ibin(2),ibin(3),:) = volume_momentum_s(ibin(1),ibin(2),ibin(3),:) & 
-                                                                + v(:,n) + slidev(:,n)
+                                                                + mass(n)*(v(:,n) + slidev(:,n))
                 else
-                    volume_mass_p(ibin(1),ibin(2),ibin(3)) = volume_mass_p(ibin(1),ibin(2),ibin(3)) + 1
+                    volume_mass_p(ibin(1),ibin(2),ibin(3)) = volume_mass_p(ibin(1),ibin(2),ibin(3)) + mass(n)
                     volume_momentum_p(ibin(1),ibin(2),ibin(3),:) = volume_momentum_p(ibin(1),ibin(2),ibin(3),:) & 
-                                                                + v(:,n) + slidev(:,n)
+                                                                + mass(n)*(v(:,n) + slidev(:,n))
                 end if
             enddo
             volume_mass = volume_mass_s + volume_mass_p
@@ -1545,7 +1553,7 @@ subroutine cumulative_velocity(ixyz)
 		enddo
 	
 	case default 
-		call error_abort("Velocity Binning Error")
+		call error_abort("momentum Binning Error")
 	end select
 
 	if (ensemble .ne. tag_move) then
@@ -1553,7 +1561,7 @@ subroutine cumulative_velocity(ixyz)
 	endif
 
 	 
-end subroutine cumulative_velocity
+end subroutine cumulative_momentum
 
 !===================================================================================
 !		RECORD TEMPERATURE AT LOCATION IN SPACE
@@ -1584,16 +1592,16 @@ subroutine temperature_averaging(ixyz)
 		case(1:3)
 			call temperature_slice_io(ixyz)
 			!Reset temperature slice
-			if (velocity_outflag .ne. ixyz) slice_mass = 0
+			if (momentum_outflag .ne. ixyz) slice_mass = 0
 			slice_temperature  = 0.d0
 		case(4)
 			call temperature_bin_io(volume_mass,volume_temperature,'bins')
 			!Reset temperature bins
-			if (velocity_outflag .ne. 4) volume_mass = 0
+			if (momentum_outflag .ne. 4) volume_mass = 0
 			volume_temperature = 0.d0
 		case(5)
 			call temperature_bin_cpol_io(cyl_mass,cyl_KE)
-			if (velocity_outflag .ne. 5) cyl_mass = 0
+			if (momentum_outflag .ne. 5) cyl_mass = 0
 			cyl_KE = 0.d0
 		case default
 			stop "Error input for temperature averaging incorrect"
@@ -1617,6 +1625,7 @@ subroutine cumulative_temperature(ixyz)
 	use messenger, only: globalise, localise
 	use linked_list
     use librarymod, only : cpolariser
+    use module_set_parameters, only : mass
 	implicit none
 
 	integer							:: n,ixyz
@@ -1628,7 +1637,7 @@ subroutine cumulative_temperature(ixyz)
 	integer :: br, bt, bz
 	real(kind(0.d0)) :: fluiddomain_cyl(3), rglob(3), rpol(3)
 
-	!In case someone wants to record velocity in a simulation without sliding walls!?!?
+	!In case someone wants to record momentum in a simulation without sliding walls!?!?
 	if (ensemble .ne. tag_move) then
 		allocate(slidev(3,np)); slidev = 0.d0
 	endif
@@ -1642,10 +1651,10 @@ subroutine cumulative_temperature(ixyz)
 			cbin = ceiling((r(ixyz,n)+halfdomain(ixyz))/slicebinsize)!Establish current bin
 			if (cbin > nbins(ixyz)) cbin = nbins(ixyz) 		 !Prevents out of range values
 			if (cbin < 1 ) cbin = 1        				 !Prevents out of range values
-			if (velocity_outflag .ne. ixyz) & 
-			slice_mass(cbin)= slice_mass(cbin)+1      			 !Add one to current bin
+			if (momentum_outflag .ne. ixyz) & 
+			slice_mass(cbin)= slice_mass(cbin) + mass(n)     			 !Add one to current bin
 			slice_temperature(cbin) = slice_temperature(cbin) & 
-					+ dot_product((v(:,n)+slidev(:,n)),(v(:,n)+slidev(:,n))) 	 !Add streamwise temperature to current bin
+					+ mass(n)*dot_product((v(:,n)+slidev(:,n)),(v(:,n)+slidev(:,n))) 	 !Add streamwise temperature to current bin
 		enddo
 
 	!Temperature measurement for 3D bins throughout the domain
@@ -1661,8 +1670,8 @@ subroutine cumulative_temperature(ixyz)
 			!Add up current volume mass and temperature densities
 			!ibin(:) = ceiling((r(:,n)+halfdomain(:))/Tbinsize(:)) + nhb
             ibin(:) = get_bin(r(:,n))
-			if (velocity_outflag .ne. 4) & 
-			volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + 1
+			if (momentum_outflag .ne. 4) & 
+			volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + mass(n)
 			!Note - the streaming term is removed but includes sliding so this must be added back on
 			if (peculiar_flag .eq. 0) then
 				!if (mod(iter,1000) .eq. 0 	.and. &
@@ -1672,11 +1681,11 @@ subroutine cumulative_temperature(ixyz)
 				!	print*, iter, ibin, dot_product(v(:,n),v(:,n)), v(:,n)
 				!endif
 				volume_temperature(ibin(1),ibin(2),ibin(3)) = volume_temperature(ibin(1),ibin(2),ibin(3)) & 
-										+ dot_product((v(:,n)+slidev(:,n)),(v(:,n)+slidev(:,n)))
+										+ mass(n)*dot_product((v(:,n)+slidev(:,n)),(v(:,n)+slidev(:,n)))
 			else
 				volume_temperature(ibin(1),ibin(2),ibin(3)) = volume_temperature(ibin(1),ibin(2),ibin(3)) & 
-										+ dot_product((v(:,n)-U(:,n)+slidev(:,n)), & 
-													  (v(:,n)-U(:,n)+slidev(:,n)))
+										+ mass(n)*dot_product((v(:,n)-U(:,n)+slidev(:,n)), & 
+													           (v(:,n)-U(:,n)+slidev(:,n)))
 				!write(958,'(2i8,5f10.5)'),iter,n,r(2,n),U(1,n),v(1,n),dot_product(v(:,n),v(:,n)),dot_product((v(:,n)-U(:,n)+slidev(:,n)), & 
 				!									  (v(:,n)-U(:,n)+slidev(:,n)))
 			endif
@@ -1716,7 +1725,7 @@ subroutine cumulative_temperature(ixyz)
  			if ( br .lt. 1 ) cycle
 			if ( tag(n) .eq. cyl_teth_thermo_rotate ) cycle
 
-			if (velocity_outflag .ne. 5) then
+			if (momentum_outflag .ne. 5) then
                 cyl_mass(br,bt,bz) = cyl_mass(br,bt,bz) + 1
             end if
 
@@ -1790,6 +1799,7 @@ subroutine cumulative_energy(ixyz)
 	use messenger, only: globalise, localise
 	use linked_list
     use librarymod, only : cpolariser
+    use module_set_parameters, only : mass
 	implicit none
 
 	integer							:: n,ixyz
@@ -1810,7 +1820,7 @@ subroutine cumulative_energy(ixyz)
             ibin(:) = get_bin(r(:,n))
 			if (peculiar_flag .eq. 0) then
 		        velvect(:) = v(:,n) + 0.5d0*a(:,n)*delta_t! + slidev(:,n)
-		        energy = 0.5d0*(dot_product(velvect,velvect)+potenergymol(n))
+		        energy = 0.5d0*(mass(n)*dot_product(velvect,velvect)+potenergymol(n))
 
 				volume_energy(ibin(1),ibin(2),ibin(3)) = & 
                     volume_energy(ibin(1),ibin(2),ibin(3)) + energy
@@ -1857,6 +1867,18 @@ subroutine pressure_averaging(ixyz)
 			Pxy = 0.d0
 		case(2)
 		!VA STRESS CALCULATION
+!            print'(a,i8,3f20.10)', 'Pressure VA', iter, &
+!                                    sum(Pxybin(:,:,:,1,1)+Pxybin(:,:,:,2,2)+Pxybin(:,:,:,3,3)), &
+!                                    sum(vvbin(:,:,:,1,1)+vvbin(:,:,:,2,2)+vvbin(:,:,:,3,3)), &
+!                                    sum(rfbin(1+nhb(1):nbins(1)+nhb(1),   & 
+!                                              1+nhb(2):nbins(2)+nhb(2),   & 
+!                                              1+nhb(3):nbins(3)+nhb(3),1,1) & 
+!                                       +rfbin(1+nhb(1):nbins(1)+nhb(1),   & 
+!                                              1+nhb(2):nbins(2)+nhb(2),   & 
+!                                              1+nhb(3):nbins(3)+nhb(3),2,2) & 
+!                                       +rfbin(1+nhb(1):nbins(1)+nhb(1),   & 
+!                                              1+nhb(2):nbins(2)+nhb(2),   & 
+!                                              1+nhb(3):nbins(3)+nhb(3),3,3))
 			call VA_stress_io
 			Pxybin = 0.d0
 			vvbin  = 0.d0
@@ -1958,7 +1980,7 @@ subroutine cumulative_pressure(ixyz,sample_count)
 		call  simulation_compute_rfbins!(1,nbins(1)+2*nhb(1), & 
                                        ! 1,nbins(2)+2*nhb(2), & 
                                        ! 1,nbins(3)+2*nhb(3))
-		!Calculate velocity (x) velocity for kinetic part of stress tensor
+		!Calculate mass [velocity (x) velocity] for kinetic part of stress tensor
 		if (nbins(1) .eq. ncells(1) .and. & 
 		    nbins(2) .eq. ncells(2) .and. & 
 		    nbins(3) .eq. ncells(3)) then
@@ -2028,6 +2050,7 @@ end subroutine cumulative_pressure
 subroutine simulation_compute_kinetic_VA(imin,imax,jmin,jmax,kmin,kmax)
 	use module_record
 	use physical_constants_MD
+    use module_set_parameters, only : mass
 	implicit none
 
 	integer								:: imin, jmin, kmin, imax, jmax, kmax
@@ -2067,7 +2090,7 @@ subroutine simulation_compute_kinetic_VA(imin,imax,jmin,jmax,kmin,kmax)
 		do ixyz = 1,3
 		do jxyz = 1,3
 			vvbin(ibin,jbin,kbin,ixyz,jxyz) = vvbin(ibin,jbin,kbin,ixyz,jxyz)	&
-					       		  + velvect(ixyz) * velvect(jxyz)
+					       		  + mass(n) * velvect(ixyz) * velvect(jxyz)
 		enddo
 		enddo
 
@@ -2136,6 +2159,7 @@ subroutine simulation_compute_kinetic_VA_cells(imin,imax,jmin,jmax,kmin,kmax)
 	use module_record
 	use physical_constants_MD
 	use linked_list
+    use module_set_parameters, only : mass
 	implicit none
 
 	integer,intent(in)				:: imin, jmin, kmin, imax, jmax, kmax
@@ -2172,7 +2196,7 @@ subroutine simulation_compute_kinetic_VA_cells(imin,imax,jmin,jmax,kmin,kmax)
 			do ixyz = 1,3
 			do jxyz = 1,3
 				vvbin(ibin,jbin,kbin,ixyz,jxyz) = vvbin(ibin,jbin,kbin,ixyz,jxyz) &
-								  + velvect(ixyz) * velvect(jxyz)
+								  + mass(i) * velvect(ixyz) * velvect(jxyz)
 			enddo
 			enddo
 
@@ -2968,7 +2992,7 @@ subroutine simulation_compute_rfbins!(imin, imax, jmin, jmax, kmin, kmax)
 
     ! Add FENE contribution if it's there
     if (potential_flag .eq. 1) then
-        call add_FENE_contribution
+        call add_POLY_contribution
     end if
 
 	nullify(oldi)      	!Nullify as no longer required
@@ -2978,10 +3002,11 @@ subroutine simulation_compute_rfbins!(imin, imax, jmin, jmax, kmin, kmax)
 
 contains
 
-    subroutine add_FENE_contribution
+    subroutine add_POLY_contribution
         use polymer_info_MD
         use Volume_average_pressure, only : pressure_tensor_forces_VA
 	    use librarymod, only: outerprod
+        use module_set_parameters, only : get_poly_accijmag
         implicit none
 
         integer :: b
@@ -2997,7 +3022,8 @@ contains
                 rj(:)  = r(:,molnoj)
                 rij(:) = ri(:) - rj(:)
                 rij2   = dot_product(rij,rij)
-                accijmag = -k_c/(1-(rij2/(R_0**2)))	!(-dU/dr)*(1/|r|)
+                !accijmag = -k_c/(1-(rij2/(R_0**2)))	!(-dU/dr)*(1/|r|)
+                accijmag = -get_poly_accijmag(rij2, molnoi, molnoj)
                 rf = outerprod(rij,rij*accijmag)
                 call pressure_tensor_forces_VA(ri, rj, rf, domain,  & 
                                                 nbins, nhb, rfbin,  &
@@ -3008,7 +3034,7 @@ contains
 
         end do
 
-    end subroutine
+    end subroutine add_POLY_contribution
 
 end subroutine simulation_compute_rfbins
 
@@ -3318,7 +3344,7 @@ subroutine cumulative_heatflux(ixyz,sample_count)
             call simulation_compute_rfbins
         endif
 
-		!Calculate velocity (x) velocity for kinetic part of heatflux tensor
+		!Calculate mass velocity dot [velocity (x) velocity] for kinetic part of heatflux tensor
         call  simulation_compute_energy_VA(1,nbins(1), 1,nbins(2), 1,nbins(3))
 
 		!Add results to cumulative total
@@ -3339,6 +3365,7 @@ end subroutine cumulative_heatflux
 subroutine simulation_compute_energy_VA(imin,imax,jmin,jmax,kmin,kmax)
 	use module_record
 	use physical_constants_MD
+    use module_set_parameters, only : mass
 	implicit none
 
 	integer								:: imin, jmin, kmin, imax, jmax, kmax
@@ -3374,7 +3401,7 @@ subroutine simulation_compute_energy_VA(imin,imax,jmin,jmax,kmin,kmax)
 			velvect(:) = v(:,n)
 		end select
 
-        energy = 0.5d0 * (dot_product(velvect,velvect) + potenergymol(n))
+        energy = 0.5d0 * (mass(n)*dot_product(velvect,velvect) + potenergymol(n))
 		evbin(ibin,jbin,kbin,:) = evbin(ibin,jbin,kbin,:) & 
                                   + velvect(:) * energy
 
@@ -3465,6 +3492,7 @@ end subroutine mass_flux_averaging
 subroutine cumulative_mass_flux
 	use module_record
     use librarymod, only : imaxloc, heaviside  =>  heaviside_a1
+    use module_set_parameters, only : mass
     !use CV_objects, only : CV_sphere_mass
     implicit none
 
@@ -3571,22 +3599,22 @@ subroutine cumulative_mass_flux
 				!Add Mass flux over face
 				mass_flux(cbin(1),cbin(2),cbin(3),1) = & 
 					mass_flux(cbin(1),cbin(2),cbin(3),1) & 
-				      + nint(dble(onfacexb)*abs(crossface(jxyz)))
+				      + mass(n)*nint(dble(onfacexb)*abs(crossface(jxyz)))
 				mass_flux(cbin(1),cbin(2),cbin(3),2) = & 
 					mass_flux(cbin(1),cbin(2),cbin(3),2) & 
-				      + nint(dble(onfaceyb)*abs(crossface(jxyz)))
+				      + mass(n)*nint(dble(onfaceyb)*abs(crossface(jxyz)))
 				mass_flux(cbin(1),cbin(2),cbin(3),3) = & 
 					mass_flux(cbin(1),cbin(2),cbin(3),3) &
-				      + nint(dble(onfacezb)*abs(crossface(jxyz)))
+				      + mass(n)*nint(dble(onfacezb)*abs(crossface(jxyz)))
 				mass_flux(cbin(1),cbin(2),cbin(3),4) = & 
 					mass_flux(cbin(1),cbin(2),cbin(3),4) &
-				      + nint(dble(onfacext)*abs(crossface(jxyz)))
+				      + mass(n)*nint(dble(onfacext)*abs(crossface(jxyz)))
 				mass_flux(cbin(1),cbin(2),cbin(3),5) = & 
 					mass_flux(cbin(1),cbin(2),cbin(3),5) &
-				      + nint(dble(onfaceyt)*abs(crossface(jxyz)))
+				      + mass(n)*nint(dble(onfaceyt)*abs(crossface(jxyz)))
 				mass_flux(cbin(1),cbin(2),cbin(3),6) = & 
 					mass_flux(cbin(1),cbin(2),cbin(3),6) &
-				      + nint(dble(onfacezt)*abs(crossface(jxyz)))
+				      + mass(n)*nint(dble(onfacezt)*abs(crossface(jxyz)))
 				      
 
 				!if (onfacexb .ne. 0) print*, n, i,j,k,ibin1,ibin2,bintop,halfdomain
@@ -3612,6 +3640,7 @@ subroutine mass_snapshot
 	use module_record
 	use field_io, only : mass_bin_io
 	use CV_objects, only : CVcheck_mass, CV_debug!, CV_sphere_mass
+    use module_set_parameters, only : mass
 	implicit none
 
 	integer										:: n
@@ -3631,7 +3660,7 @@ subroutine mass_snapshot
 		!Add up current volume momentum densities
 		ibin(:) = get_bin(r(:,n)) 
 		!ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
-		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = volume_mass_temp(ibin(1),ibin(2),ibin(3)) + 1
+		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = volume_mass_temp(ibin(1),ibin(2),ibin(3)) + mass(n)
 		!call  CV_sphere_mass%Add_spherical_CV_mass(r(:,n))
 	enddo
 
@@ -3667,6 +3696,7 @@ subroutine cumulative_momentum_flux(r_,v_,momentum_flux_,notcrossing)
     use librarymod, only : imaxloc, heaviside  =>  heaviside_a1
 	use interfaces, only : error_abort
     use module_record, only : get_bin
+    use module_set_parameters, only : mass
 	implicit none
 
 	real(kind(0.d0)),dimension(:,:),allocatable,intent(in) 			:: r_,v_
@@ -3723,7 +3753,7 @@ subroutine cumulative_momentum_flux(r_,v_,momentum_flux_,notcrossing)
                 !                    call error_abort("error in kinetic MOP")
 
 				!Obtain stress for three components on y plane
-				Pxy_plane(:,planeno) = Pxy_plane(:,planeno) + velvect(:)!*crossplane
+				Pxy_plane(:,planeno) = Pxy_plane(:,planeno) + mass(n)*velvect(:)!*crossplane
 
 			endif
 		enddo
@@ -3853,22 +3883,22 @@ subroutine cumulative_momentum_flux(r_,v_,momentum_flux_,notcrossing)
 					!Add Momentum flux over face
 					momentum_flux_(cbin(1),cbin(2),cbin(3),:,1) = & 
 						momentum_flux_(cbin(1),cbin(2),cbin(3),:,1) & 
-					      + velvect(:)*dble(onfacexb)*abs(crossface(jxyz))
+					      + mass(n)*velvect(:)*dble(onfacexb)*abs(crossface(jxyz))
 					momentum_flux_(cbin(1),cbin(2),cbin(3),:,2) = & 
 						momentum_flux_(cbin(1),cbin(2),cbin(3),:,2) & 
-					      + velvect(:)*dble(onfaceyb)*abs(crossface(jxyz))
+					      + mass(n)*velvect(:)*dble(onfaceyb)*abs(crossface(jxyz))
 					momentum_flux_(cbin(1),cbin(2),cbin(3),:,3) = & 
 						momentum_flux_(cbin(1),cbin(2),cbin(3),:,3) &
-					      + velvect(:)*dble(onfacezb)*abs(crossface(jxyz))
+					      + mass(n)*velvect(:)*dble(onfacezb)*abs(crossface(jxyz))
 					momentum_flux_(cbin(1),cbin(2),cbin(3),:,4) = & 
 						momentum_flux_(cbin(1),cbin(2),cbin(3),:,4) &
-					      + velvect(:)*dble(onfacext)*abs(crossface(jxyz))
+					      + mass(n)*velvect(:)*dble(onfacext)*abs(crossface(jxyz))
 					momentum_flux_(cbin(1),cbin(2),cbin(3),:,5) = & 
 						momentum_flux_(cbin(1),cbin(2),cbin(3),:,5) &
-					      + velvect(:)*dble(onfaceyt)*abs(crossface(jxyz))
+					      + mass(n)*velvect(:)*dble(onfaceyt)*abs(crossface(jxyz))
 					momentum_flux_(cbin(1),cbin(2),cbin(3),:,6) = & 
 						momentum_flux_(cbin(1),cbin(2),cbin(3),:,6) &
-					      + velvect(:)*dble(onfacezt)*abs(crossface(jxyz))
+					      + mass(n)*velvect(:)*dble(onfacezt)*abs(crossface(jxyz))
 
 				enddo
 				enddo
@@ -3962,8 +3992,9 @@ end subroutine momentum_flux_averaging
 ! Control Volume snapshot of momentum in a given bin
 
 subroutine momentum_snapshot
-	use field_io, only : velocity_bin_io
+	use field_io, only : momentum_bin_io
 	use module_record
+    use module_set_parameters, only : mass
 	!use CV_objects, only : CV_sphere_momentum
 	implicit none
 
@@ -3988,14 +4019,14 @@ subroutine momentum_snapshot
         ibin(:) =  get_bin(r(:,n))
 		!ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
 
-		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = volume_mass_temp(ibin(1),ibin(2),ibin(3)) + 1
-		volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) = volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) + v(:,n)
+		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = volume_mass_temp(ibin(1),ibin(2),ibin(3)) + mass(n)
+		volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) = volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) + mass(n)*v(:,n)
 	enddo
 	binvolume = (domain(1)/nbins(1))*(domain(2)/nbins(2))*(domain(3)/nbins(3))
 	volume_momentum_temp = volume_momentum_temp/binvolume
 
 	!Output Control Volume momentum change and fluxes
-	call velocity_bin_io(volume_mass_temp,volume_momentum_temp,'snap')
+	call momentum_bin_io(volume_mass_temp,volume_momentum_temp,'snap')
 
 	deallocate(volume_mass_temp)
 	deallocate(volume_momentum_temp)
@@ -4022,6 +4053,7 @@ subroutine cumulative_energy_flux(r_,v_,energy_flux_)
     use librarymod, only : imaxloc, heaviside  =>  heaviside_a1
 	use interfaces, only : error_abort
     use module_record, only : get_bin
+    use module_set_parameters, only : mass
 	implicit none
 
 	real(kind(0.d0)),dimension(:,:),allocatable,intent(in) 			:: r_,v_
@@ -4064,7 +4096,7 @@ subroutine cumulative_energy_flux(r_,v_,energy_flux_)
 
 				!Calculate energy at intersection
 				velvect(:) = v_(:,n) + 0.5d0*a(:,n)*delta_t
-				energy = 0.5d0 * (dot_product(velvect,velvect) + potenergymol(n))
+				energy = 0.5d0 *  (mass(n)*dot_product(velvect,velvect) + potenergymol(n))
 
 				if (crosstime/delta_t .gt. 1.d0) call error_abort("error in kinetic MOP")
 
@@ -4187,7 +4219,7 @@ subroutine cumulative_energy_flux(r_,v_,energy_flux_)
 !  					energy = 0.5d0 * (dot_product(velvect,velvect) + potenergy_cross)
 
 					velvect(:) = v_(:,n) + 0.5d0*a(:,n)*delta_t
-					energy = 0.5d0 * (dot_product(velvect,velvect) + potenergymol(n))
+					energy = 0.5d0 * ( mass(n)*dot_product(velvect,velvect) + potenergymol(n))
 
 
 ! 					print'(a,8f10.5)', 'Energy flux', delta_t_cross,potenergymol(n),potenergymol_mdt(n), & 
@@ -4329,6 +4361,7 @@ subroutine energy_snapshot
 	use field_io, only : energy_bin_io
 	use librarymod
 	use module_record
+    use module_set_parameters, only : mass
 	implicit none
 
 	integer											:: n
@@ -4349,7 +4382,7 @@ subroutine energy_snapshot
         ibin(:) = get_bin(r(:,n))
 		!ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb(:)
 		velvect(:) = v(:,n) + 0.5d0*a(:,n)*delta_t
-		energy = 0.5d0 * (dot_product(velvect,velvect) + potenergymol(n))
+		energy = 0.5d0 * ( mass(n)*dot_product(velvect,velvect) + potenergymol(n))
 
 		!if (all(ibin .eq. 3)) then
 		!	print'(a,2i5,6f12.7)','E__ in bin 3', iter, n, velvect,0.5d0*(dot_product(velvect,velvect)),0.5d0*potenergymol(n), energy

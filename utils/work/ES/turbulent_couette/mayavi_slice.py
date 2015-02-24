@@ -8,7 +8,8 @@ import postproclib as ppl
 
 f = mlab.figure(bgcolor=(1.,1.,1.),fgcolor=(0.,0.,0.), size=(1024, 768))
 #fdirs = ['/media/My Passport/Work/MD_turbulence/COMBINED_iter0_to_5600000/bins64x256x64/','/media/My Passport/Work/MD_turbulence/COMBINED_iter0_to_5600000/bins84x198x50/']
-fdirs = ['/media/My Passport/Work/MD_turbulence/COMBINED_iter0_to_5600000/bins84x198x50/']
+#fdirs = ['/media/My Passport/Work/MD_turbulence/COMBINED_iter0_to_5600000/bins84x198x50/']
+fdirs = ['/home/es205/scratch/Re400/COMBINED_iter0_to_5600000/bins84x198x50/']
 startrecs = [2805]
 endrecs   = [3500]
 count=548; skip = 5
@@ -22,7 +23,7 @@ for i, fdir in enumerate(fdirs):
 
     #Get initial field
     vobj = ppl.MD_vField(fdir)
-    uvw = vobj.read(startrec=startrec,endrec=startrec,quit_on_error=True)
+    uvw = vobj.read(startrec=startrec,endrec=startrec,missingrec='raise')
     [x,y,z] = vobj.grid
     [X,Y,Z] = np.meshgrid(x,y,z,indexing='ij')
 
@@ -228,7 +229,7 @@ for i, fdir in enumerate(fdirs):
     for rec in range(startrec,endrec,skip):
 
         try:
-            uvw = vobj.read(startrec=rec,endrec=rec,quit_on_error=True)
+            uvw = vobj.read(startrec=rec, endrec=rec, missingrec='raise')
             print('Reading record ', rec)
         except:
             print('Record ', rec, ' not found, skipping')

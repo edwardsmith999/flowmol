@@ -26,113 +26,20 @@ module module_compute_forces
 
 contains
 
-!    function get_accijmag(invrij2, i, j)
-
-!        integer, intent(in)             :: i, j
-!        double precision, intent(in)    :: invrij2
-!        double precision                :: get_accijmag
-
-!        get_accijmag = 48.d0 * ( invrij2**7 - 0.5d0*invrij2**4 )
-
-!    end function get_accijmag
-
-!    function get_force(invrij2,rij, i, j)
-
-!        integer, intent(in)             :: i, j
-!        double precision, intent(in)                :: invrij2
-!        double precision,dimension(3), intent(in)   :: rij
-!        double precision,dimension(3)               :: get_force
-
-!        get_force = get_accijmag(invrij2,i,j)*rij
-
-!    end function get_force
-
-!    function get_energy(invrij2,potshift, i, j)
-
-!        integer, intent(in)             :: i, j
-!        double precision, intent(in)    :: invrij2,potshift
-!        double precision                :: get_energy
-!        get_energy = 4.d0*( invrij2**6 - invrij2**3 )-potshift
-
-!    end function get_energy
-
-!    function LJ_accijmag(invrij2)
-
-!        double precision, intent(in)    :: invrij2
-!        double precision                :: LJ_accijmag
-
-!        LJ_accijmag = 48.d0 * ( invrij2**7 - 0.5d0*invrij2**4 )
-
-!    end function LJ_accijmag
-
-!    function LJ_force(invrij2,rij)
-
-!        double precision, intent(in)                :: invrij2
-!        double precision,dimension(3), intent(in)   :: rij
-!        double precision,dimension(3)               :: LJ_force
-
-!        LJ_force = LJ_accijmag(invrij2)*rij
-
-!    end function LJ_force
-
-!    function LJ_energy(invrij2,potshift)
-
-!        double precision, intent(in)    :: invrij2,potshift
-!        double precision                :: LJ_energy
-!        LJ_energy = 4.d0*( invrij2**6 - invrij2**3 )-potshift
-
-!    end function LJ_energy
-
-
-!    function Mie_accijmag(invrij2, C, sigmaij, & 
-!                          epsilonij, lambdar, lambdaa)
-
-!        double precision, intent(in)    :: C, sigmaij, epsilonij
-!        double precision, intent(in)    :: invrij2, lambdar, lambdaa
-!        double precision                :: Mie_accijmag
-
-!        Mie_accijmag = -C*epsilonij*(   lambdar*invrij2**(0.5d0*lambdar+1) & 
-!                                      - lambdaa*invrij2**(0.5d0*lambdaa+1) )
-
-!    end function Mie_accijmag
-
-!    function Mie_force(invrij2, rij, C, sigmaij, & 
-!                       epsilonij, lambdar, lambdaa)
-
-!        double precision, intent(in)                :: C, sigmaij, epsilonij
-!        double precision, intent(in)                :: invrij2, lambdar, lambdaa
-!        double precision, intent(in),dimension(3)   :: rij
-!        double precision,dimension(3)               :: Mie_force
-
-!        Mie_force = rij*Mie_accijmag(invrij2, C, sigmaij, & 
-!                                     epsilonij, lambdar, lambdaa)
-
-!    end function Mie_force
-
-
-!    function Mie_energy(invrij2, potshift, C, sigmaij, & 
-!                          epsilonij, lambdar, lambdaa)
-
-!        double precision, intent(in)    :: C, sigmaij,epsilonij,lambdar,lambdaa
-!        double precision, intent(in)    :: invrij2,potshift
-!        double precision                :: Mie_energy
-
-!        Mie_energy = -C*epsilonij*( invrij2**lambdar - invrij2**lambdaa ) + potshift
-
-!    end function Mie_energy
-
 	!========================================================================
 	!Cell list computations of potential and force on "would-be" molecules
-	subroutine compute_force_and_potential_at(input_pos,Usum,f,extra_pos) 
+	subroutine compute_force_and_potential_at(input_pos,Usum,f,extra_pos,rf) 
 		use linked_list, only : node, cell
 		use physical_constants_MD, only : rcutoff2
 		use computational_constants_MD, only: halfdomain, cellsidelength, nh, ncells
 		use arrays_MD, only : r
+        use librarymod, only : outerprod
 		implicit none
 
 		real(kind(0.d0)),dimension(3), intent(in)	:: input_pos
 		real(kind(0.d0)), intent(out) 				:: Usum
 		real(kind(0.d0)),dimension(3), intent(out)	:: f
+		real(kind(0.d0)),dimension(3,3), intent(out), optional	:: rf
 		!Optional array of extra molecular positions to check against
 		real(kind(0.d0)),dimension(:,:),allocatable,optional,intent(in)  :: extra_pos
 
@@ -149,6 +56,7 @@ contains
 		! Init	
 		Usum = 0.d0
 		f = 0.d0 
+        if (present(rf)) rf = 0.d0
 
 		!Find cell, adding nh for halo(s)
 		icell = ceiling((input_pos(1)+halfdomain(1))/cellsidelength(1)) + nh
@@ -193,12 +101,13 @@ contains
 					!Find molecule's contribution to f and Usum
 					fmol = get_force(invrij2,rij,current%molno,current%molno)
 					Umol = get_energy(invrij2,current%molno,current%molno)
-					!fmol = 48.d0*( invrij2**7 - 0.5d0*invrij2**4 )*rij
-					!Umol = 4.d0*( invrij2**6 - invrij2**3 )-potshift
 
 					!Add to totals
 					f = f + fmol
 					Usum = Usum + Umol
+                    if (present(rf)) then
+                        rf = rf + outerprod(fij, rij)
+                    endif
 
 				endif
 
@@ -239,8 +148,6 @@ contains
 					!Find molecule's contribution to f and Usum
 					fmol = get_force(invrij2,rij,1,1)           !What molecule to use for tag!?
 					Umol = get_energy(invrij2,1,1)      !What molecule to use for tag!?
-					!fmol = 48.d0*( invrij2**7 - 0.5d0*invrij2**4 )*rij
-					!Umol = 4.d0*( invrij2**6 - invrij2**3 )-potshift
 
 					!Add to totals
 					f = f + fmol
@@ -263,7 +170,7 @@ end module module_compute_forces
 subroutine simulation_compute_forces
 	use interfaces
 	use module_compute_forces
-	use polymer_info_MD, only: solvent_flag
+	use polymer_info_MD, only: solvent_flag, angular_potential
 	implicit none
 
 	a					= 0.d0	!Reset acceleration matrix before force calculations
@@ -316,15 +223,14 @@ subroutine simulation_compute_forces
 			select case(solvent_flag)
 			case(0)
 				call simulation_compute_forces_LJ_neigbr_halfint	!Compute LJ bead interactions
-                if (mie_potential .eq. 1) then
-                    call simulation_compute_forces_miePOLY          !Add on harmonic and angular potential
-                else
-    			    call simulation_compute_forces_FENE				!Add on FENE spring interactions
+ 			    call simulation_compute_forces_poly				!Add on FENE or harmonic spring interactions
+                if (angular_potential) then
+                    call simulation_compute_forces_angular
                 endif
 			case(1)
 				!call simulation_compute_forces_Soddemann_AP
 				call simulation_compute_forces_Soddemann_neigbr_halfint
-				call simulation_compute_forces_FENE
+				call simulation_compute_forces_poly
 			case default
 				call error_abort('Solvent flag not recognised!')
 			end select
@@ -741,36 +647,34 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 				endif
 
 				!Only calculate properties when required for output
-				if (mod(iter,tplot) .eq. 0) then
+			    if (mod(iter,tplot) .eq. 0) then
 
-					!Record potential energy total to use for output later (potshift=-1 for WCA)
-					!potenergymol_LJ(molnoi)=potenergymol_LJ(molnoi)+4.d0*(invrij2**6-invrij2**3)-potshift
-					!potenergymol_LJ(molnoj)=potenergymol_LJ(molnoj)+4.d0*(invrij2**6-invrij2**3)-potshift
-					potenergymol_LJ(molnoi)=potenergymol_LJ(molnoi) & 
+				    !Record potential energy total to use for output later (potshift=-1 for WCA)
+				    potenergymol_LJ(molnoi)=potenergymol_LJ(molnoi) & 
                             + get_energy(invrij2, molnoi, molnoj)
-					potenergymol_LJ(molnoj)=potenergymol_LJ(molnoj) & 
+				    potenergymol_LJ(molnoj)=potenergymol_LJ(molnoj) & 
                             + get_energy(invrij2, molnoi, molnoj)
-			
-					!Virial expression used to obtain pressure
-					virialmol(molnoi) = virialmol(molnoi) + accijmag*rij2
-					virialmol(molnoj) = virialmol(molnoj) + accijmag*rij2
+		
+				    !Virial expression used to obtain pressure
+				    virialmol(molnoi) = virialmol(molnoi) + accijmag*rij2
+				    virialmol(molnoj) = virialmol(molnoj) + accijmag*rij2
 
-					!Factor of two for half interaction virial calculation
-					if (pressure_outflag .eq. 1) then
-						call pressure_tensor_forces(molnoi,rij,accijmag)
-						if (molnoj .le. np) call pressure_tensor_forces(molnoj,rij,accijmag)
-					endif
-					if (vflux_outflag.ne.0 .and. vflux_outflag.ne.4)	then
-						call pressure_tensor_forces_MOP(vflux_outflag,ri(:),rj(:),rij(:),accijmag)
-					endif
+				    !Factor of two for half interaction virial calculation
+				    if (pressure_outflag .eq. 1) then
+					    call pressure_tensor_forces(molnoi,rij,accijmag)
+					    if (molnoj .le. np) call pressure_tensor_forces(molnoj,rij,accijmag)
+				    endif
+				    if (vflux_outflag.ne.0 .and. vflux_outflag.ne.4)	then
+					    call pressure_tensor_forces_MOP(vflux_outflag,ri(:),rj(:),rij(:),accijmag)
+				    endif
 
-				else if (mod(iter,teval) .eq. 0) then
+			    else if (mod(iter,teval) .eq. 0) then
 
-					!Virial expression used to obtain pressure
-					virialmol(molnoi) = virialmol(molnoi) + accijmag*rij2
-					virialmol(molnoj) = virialmol(molnoj) + accijmag*rij2
+				    !Virial expression used to obtain pressure
+				    virialmol(molnoi) = virialmol(molnoi) + accijmag*rij2
+				    virialmol(molnoj) = virialmol(molnoj) + accijmag*rij2
 
-				endif
+			    endif
 
 			endif
             !Use pointer in datatype to obtain next item in list
@@ -791,10 +695,10 @@ end subroutine simulation_compute_forces_LJ_neigbr_halfint
 !========================================================================
 !Compute polymer FENE potential forces using monomer bond lists
 
-subroutine simulation_compute_forces_FENE
+subroutine simulation_compute_forces_poly
 	use module_compute_forces
 	use polymer_info_MD
-    use module_set_parameters, only : FENE_accijmag, FENE_energy
+    use module_set_parameters, only : get_poly_accijmag, get_poly_energy
 	implicit none
 
 	integer	:: molnoi,molnoj						!Current LJ bead
@@ -812,22 +716,32 @@ subroutine simulation_compute_forces_FENE
 			rj(:)  = r(:,molnoj)
 			rij(:) = ri(:) - rj(:)
 			rij2   = dot_product(rij,rij)
+            accijmag = -get_poly_accijmag(rij2, molnoi, molnoj)
 
-			if(rij2.ge.R_0**2)	call polymer_bond_error(molnoj)
+            !Add components of acceleration
+			a(1,molnoi)= a(1,molnoi) + accijmag*rij(1)/mass(molnoi)	
+			a(2,molnoi)= a(2,molnoi) + accijmag*rij(2)/mass(molnoi)
+			a(3,molnoi)= a(3,molnoi) + accijmag*rij(3)/mass(molnoi)
 
-			!accijmag = -k_c/(1-(rij2/(R_0**2)))			!(-dU/dr)*(1/|r|)
-            accijmag = -FENE_accijmag(rij2, molnoi, molnoj)
+            !CV Stress terms
+			if (vflux_outflag.eq.4) then
+				if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
+					if (molnoi .gt. np .or. molnoj .gt. np) then
+						fij = accijmag*rij(:)
+						call control_volume_stresses(fij,ri,rj)
+					else
+    					fij = 2.d0*accijmag*rij(:)
+						call control_volume_stresses(fij,ri,rj)
+					endif
+				endif
+			endif
 
-			a(1,molnoi)= a(1,molnoi) + accijmag*rij(1)	!Add components of acceleration
-			a(2,molnoi)= a(2,molnoi) + accijmag*rij(2)
-			a(3,molnoi)= a(3,molnoi) + accijmag*rij(3)
-
+            !General Virial stress tensor and potential energy calculations
 			if (mod(iter,tplot) .eq. 0) then
 				if (pressure_outflag .eq. 1) then
 					call pressure_tensor_forces(molnoi,rij,accijmag)
 				endif
-                potenergymol_FENE(molnoi) = potenergymol_FENE(molnoi) - FENE_energy(rij2, molnoi, molnoj)
-				!potenergymol_FENE(molnoi) = potenergymol_FENE(molnoi) - 0.5d0*k_c*R_0*R_0*dlog(1.d0-(rij2/(R_0**2)))
+                potenergymol_FENE(molnoi) = potenergymol_FENE(molnoi) - get_poly_energy(rij2, molnoi, molnoj)
 				potenergymol(molnoi)      = potenergymol(molnoi)      + potenergymol_FENE(molnoi)
 				virialmol(molnoi)         = virialmol(molnoi)         + accijmag*rij2
 
@@ -841,66 +755,15 @@ subroutine simulation_compute_forces_FENE
 
 	end do
 
-contains
+end subroutine simulation_compute_forces_poly
 
-	subroutine polymer_bond_error(molnoX)
-		use interfaces
-		implicit none
-
-		integer, intent(in) :: molnoX
-		real(kind(0.d0)) :: rglobi(3),rglobX(3)
-
-		rglobi(1) = r(1,molnoi) - halfdomain(1)*(npx-1) + domain(1)*(iblock - 1)   
-		rglobi(2) = r(2,molnoi) - halfdomain(2)*(npy-1) + domain(2)*(jblock - 1)   
-		rglobi(3) = r(3,molnoi) - halfdomain(3)*(npz-1) + domain(3)*(kblock - 1)   
-
-		rglobX(1) = r(1,molnoX) - halfdomain(1)*(npx-1) + domain(1)*(iblock - 1)   
-		rglobX(2) = r(2,molnoX) - halfdomain(2)*(npy-1) + domain(2)*(jblock - 1)   
-		rglobX(3) = r(3,molnoX) - halfdomain(3)*(npz-1) + domain(3)*(kblock - 1)   
-
-		print*, 'irank: ', irank
-		print '(a,i6,a,i8,a,i8,a,f8.5,a,f8.5,a,f12.5)', & 
-					'Bond broken at iter ',iter,': atoms ',molnoi,' and ',molnoX,' are separated by ', &
-					rij2**0.5,', which is greater than the allowed limit of ', R_0, &
-					'. Stopping simulation, total time elapsed = ', iter*delta_t
-		print '(a)', 'Atomic positions:'
-		print '(a,i8,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoi,' is located at global position', &
-		                                        rglobi(1),' ',rglobi(2),' ',rglobi(3) 
-		print '(a,i8,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoX,' is located at global position', &
-		                                        rglobX(1),' ',rglobX(2),' ',rglobX(3) 
-
-		print '(a,i8,a)', 'Monomer information for atom ', molnoi,':'
-		print '(a,i8)', 'ChainID: '   , monomer(molnoi)%chainID
-		print '(a,i8)', 'SubchainID: ', monomer(molnoi)%subchainID
-		print '(a,i8)', 'Funcy: '     , monomer(molnoi)%funcy
-		print '(a,i8)', 'Glob_no: '   , monomer(molnoi)%glob_no
-		print '(a,i8)', 'Bin_bflag: ' , monomer(molnoi)%bin_bflag
-		print '(a,i8)', 'Tag: '       , tag(molnoi) 
-
-		print '(a,i8,a)', 'Monomer information for atom ', molnoX,':'
-		print '(a,i8)', 'ChainID: '   , monomer(molnoX)%chainID
-		print '(a,i8)', 'SubchainID: ', monomer(molnoX)%subchainID
-		print '(a,i8)', 'Funcy: '     , monomer(molnoX)%funcy
-		print '(a,i8)', 'Glob_no: '   , monomer(molnoX)%glob_no
-		print '(a,i8)', 'Bin_bflag: ' , monomer(molnoX)%bin_bflag
-		print '(a,i8)', 'Tag: '       , tag(molnoX) 
-
-		if (molnoX.gt.np) then
-			call error_abort('Halo!')
-		else
-			call error_abort('')
-		end if
-
-	end subroutine polymer_bond_error
-
-end subroutine simulation_compute_forces_FENE
 !==============================================================================
 !Compute solvent-solvent, solvent-monomer, monomer-monomer (-FENE) forces
 subroutine simulation_compute_forces_Soddemann_neigbr_halfint
-use interfaces
-use module_compute_forces
-use polymer_info_MD
-implicit none
+    use interfaces
+    use module_compute_forces
+    use polymer_info_MD
+    implicit none
 
 	integer                         :: p_i, p_j, ptot
 	integer							:: molnoi, molnoj, j
@@ -1014,9 +877,84 @@ end subroutine simulation_compute_forces_Soddemann_neigbr_halfint
 
 
 !========================================================================
-!Compute polymer FENE potential forces using monomer bond lists
+!Compute polymer Mie potential forces using monomer bond lists
 
-subroutine simulation_compute_forces_miePOLY
+!subroutine simulation_compute_forces_miePOLY
+!	use module_compute_forces
+!	use polymer_info_MD
+!    use module_set_parameters, only : harmonic_force, harmonic_energy, &
+!                                      angular_harmonic_force, angular_harmonic_energy, &
+!                                      Mie_accijmag, Mie_force, harmonic_accijmag
+!    use librarymod, only : magnitude
+!	implicit none
+
+!	integer	:: molnoi,molnoj, molnok
+!	integer :: i, b
+!    double precision                 :: rjk2, accjkmag
+!    double precision, dimension(3)   :: rk, rjk, fjk
+!    double precision, dimension(3,3) :: aForce
+
+!	do molnoj=1,np
+
+!		rj(:) = r(:,molnoj)
+
+!		do b=1,monomer(molnoj)%funcy
+
+!			molnok = bond(b,molnoj)
+!			if (molnok.eq.0) cycle
+
+!			rk(:)  = r(:,molnok)
+!			rjk(:) = rj(:) - rk(:)
+!            rjk2 = dot_product(rjk,rjk)
+
+!            accjkmag = harmonic_accijmag(rjk2, molnoj, molnok)
+!            fjk = accjkmag*rjk
+
+!			a(1,molnoj)= a(1,molnoj) + fjk(1)/mass(molnoj)
+!			a(2,molnoj)= a(2,molnoj) + fjk(2)/mass(molnoj)
+!			a(3,molnoj)= a(3,molnoj) + fjk(3)/mass(molnoj)
+
+!			if (vflux_outflag.eq.4) then
+!				if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
+!					if (molnoj .gt. np .or. molnok .gt. np) then
+!						call control_volume_stresses(fjk,rj,rk)
+!					else
+!						call control_volume_stresses(2.d0*fjk,rj,rk)
+!					endif
+!				endif
+!			endif
+
+!			if (mod(iter,tplot) .eq. 0) then
+!				if (pressure_outflag .eq. 1) then
+!					call pressure_tensor_forces(molnoj,rjk,accjkmag)
+!				endif
+!                potenergymol_FENE(molnoj) = potenergymol_FENE(molnoj) - harmonic_energy(rjk2, molnoj, molnok)
+!				potenergymol(molnoj)      = potenergymol(molnoj)      + potenergymol_FENE(molnoj)
+!				virialmol(molnoj)         = virialmol(molnoj)         + accjkmag*rjk2
+
+!			else if (mod(iter,teval) .eq. 0) then
+!			
+!				virialmol(molnoj) = virialmol(molnoj) + accjkmag*rjk2
+
+!			endif
+
+!        enddo
+
+!    enddo
+
+!end subroutine simulation_compute_forces_miePOLY
+
+!========================================================================
+! If molecule is between two others, 
+! maybe there is an angular force. Maybe not.
+! Get for i and add this force only to i and k
+!          j
+!      o   o   o   o
+!     / \ / \ / \ / \
+!    o   o   o   o   o
+!        i   k
+
+subroutine simulation_compute_forces_angular
 	use module_compute_forces
 	use polymer_info_MD
     use module_set_parameters, only : harmonic_force, harmonic_energy, &
@@ -1025,99 +963,55 @@ subroutine simulation_compute_forces_miePOLY
     use librarymod, only : magnitude
 	implicit none
 
-	integer	:: molnoi,molnoj, molnok	!Current LJ bead
+	integer	:: molnoi,molnoj, molnok
 	integer :: i, b
-    double precision                 :: rjk2
-    double precision, dimension(3)   :: rk, rjk, Forcei, Forcej, Forcek
+    double precision                 :: rjk2, accjkmag
+    double precision, dimension(3)   :: rk, rjk, fjk
     double precision, dimension(3,3) :: aForce
 
+    !Loop over all molecules (WHY NOT JUST BONDED HERE!?!?!)
 	do molnoj=1,np
 
-		rj(:) = r(:,molnoj)							!Retrieve ri(:)
+		rj(:) = r(:,molnoj)
 
-		do b=1,monomer(molnoj)%funcy
+        if (monomer(molnoj)%funcy .eq. 2) then
 
-			molnok = bond(b,molnoj)
-			if (molnok.eq.0) cycle
+            !No point calculating force on halo molecules 
+            if (molnoj .gt. np) cycle
 
-			rk(:)  = r(:,molnok)
-			rjk(:) = rj(:) - rk(:)
-            rjk2 = dot_product(rjk,rjk)
+            !Find the two molecules which are bonded
+            !Why is there a case when this isn't 1 and 2??
+            b = 1
+            do i=1,monomer(molnoj)%funcy
+                molnoi = bond(b,molnoj)
+                b = b + 1
+                if (molnoi.ne.0) exit
+            enddo
+            do i=1,monomer(molnoj)%funcy-b
+                molnok = bond(b,molnoj)
+                b = b + 1
+                if (molnok.ne.0) exit
+            enddo
+            !molnoi = bond(1,molnoj)
+            !molnok = bond(2,molnoj)
 
-			!if(rjk2.ge.1.5**2) stop !	print*, rjk2, 1.5**2
-            Forcej = harmonic_force(rjk2, rjk, molnoj, molnok)
-            !Forcek = -Forcej
+            ri(:)  = r(:,molnoi)
+            rij(:) = ri(:) - rj(:)
+            rk(:)  = r(:,molnok)
+            rjk(:) = rj(:) - rk(:)    
 
-            !As bonds are so rigid, seems we need to prevent outragous values
-            !if (magnitude(Forcej) .gt. 100.d0) print'(a,3i7,6f15.5)', 'large force =', iter, molnoj, molnok, Forcej, a(:,molnoj)
-            !Forcej = sign(1.d0,Forcej)*min(abs(Forcej),100.d0)
+            aForce(:,:) = angular_harmonic_force(rij, rjk, molnoi, molnoj, molnok)
 
-!            print'(5i6,8f12.5)', iter, molnoj, molnok,moltype(molnoj),moltype(molnok),sqrt(rjk2), Mie_accijmag(1.d0/rjk2, molnoj, molnok) + harmonic_accijmag(rjk2, molnoj, molnok), &
-!                                  Mie_accijmag(1.d0/rjk2, molnoj, molnok)*rjk + harmonic_accijmag(rjk2, molnoj, molnok)*rjk ,  Mie_force(1.d0/rjk2, rjk, molnoj, molnok) + harmonic_force(rjk2, rjk, molnoj, molnok)
+            !Only add contribution to connected molecules i and k, not the molecule itself
+            a(:,molnoi)= a(:,molnoi) - aForce(1,:)/mass(molnoi)
+            !a(:,molnoj)= a(:,molnoj) - aForce(2,:)/mass(molnoj)
+            a(:,molnok)= a(:,molnok) - aForce(3,:)/mass(molnok)
 
-			a(1,molnoj)= a(1,molnoj) + Forcej(1)/mass(molnoj)
-			a(2,molnoj)= a(2,molnoj) + Forcej(2)/mass(molnoj)
-			a(3,molnoj)= a(3,molnoj) + Forcej(3)/mass(molnoj)
-
-			!a(1,molnok)= a(1,molnok) + Forcek(1)/mass(molnok)
-			!a(2,molnok)= a(2,molnok) + Forcek(2)/mass(molnok)
-			!a(3,molnok)= a(3,molnok) + Forcek(3)/mass(molnok)
-
-			!if (mod(iter,tplot) .eq. 0) then
-            !    potenergymol_harmonic(molnoi) = potenergymol_harmonic(molnoi) - harmonic_energy(rij, molnoi, molnoj)
-			!	potenergymol(molnoi)          = potenergymol(molnoi) + potenergymol_harmonic(molnoi)
-			!endif
-
-        enddo
-
-        ! If molecule is between two others, 
-        ! maybe there is an angular force. Maybe not.
-        ! Get for i and add this force only to i and k
-        !          j
-        !      o   o   o   o
-        !     / \ / \ / \ / \
-        !    o   o   o   o   o
-        !        i   k
-        if (angular_potential) then
-            if (monomer(molnoj)%funcy .eq. 2) then
-
-                !No point calculating force on halo molecules 
-                if (molnoj .gt. np) cycle
-
-                !Find the two molecules which are bonded
-                !Why is there a case when this isn't 1 and 2??
-                b = 1
-                do i=1,monomer(molnoj)%funcy
-                    molnoi = bond(b,molnoj)
-                    b = b + 1
-                    if (molnoi.ne.0) exit
-                enddo
-                do i=1,monomer(molnoj)%funcy-b
-                    molnok = bond(b,molnoj)
-                    b = b + 1
-                    if (molnok.ne.0) exit
-                enddo
-                !molnoi = bond(1,molnoj)
-                !molnok = bond(2,molnoj)
-
-                ri(:)  = r(:,molnoi)
-                rij(:) = ri(:) - rj(:)
-                rk(:)  = r(:,molnok)
-                rjk(:) = rj(:) - rk(:)    
-
-                aForce(:,:) = angular_harmonic_force(rij, rjk, molnoi, molnoj, molnok)
-
-                !Only add contribution to connected molecules i and k, not the molecule itself
-                a(:,molnoi)= a(:,molnoi) - aForce(1,:)/mass(molnoi)
-                !a(:,molnoj)= a(:,molnoj) - aForce(2,:)/mass(molnoj)
-                a(:,molnok)= a(:,molnok) - aForce(3,:)/mass(molnok)
-
-            endif
         endif
 
 	end do
 
-end subroutine simulation_compute_forces_miePOLY
+end subroutine simulation_compute_forces_angular
 
 !========================================================================
 ! Compute Energy for specified range of CV, requires current acceleration
@@ -1210,13 +1104,9 @@ subroutine simulation_compute_power!(imin, imax, jmin, jmax, kmin, kmax)
 
 						!Linear magnitude of acceleration for each molecule
 						invrij2 = 1.d0/rij2                 !Invert value
-						!accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
                         accijmag = get_accijmag(invrij2, molnoi, molnoj)
 						potenergymol(molnoi)=potenergymol(molnoi) & 
 							     + get_energy(invrij2, molnoi, molnoj)
-
-						!potenergymol(molnoi)=potenergymol(molnoi) & 
-						!	     + 4.d0*(invrij2**6-invrij2**3)-potshift
 
 						!CV stress and force calculations
 						fij = accijmag*rij(:)

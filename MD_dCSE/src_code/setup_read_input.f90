@@ -273,7 +273,22 @@ subroutine setup_read_input
 
 		case('2phase_surfactant_solution')
 
-            potential_flag = 1
+            !Specifiy more general potential than LJ
+	        call locate(1,'MIE_POTENTIAL',.false.,found_in_input) 
+            print*, 'MIE', found_in_input
+	        if (found_in_input) then
+                read(1,*) Mie_potential
+            else
+                Mie_potential = 0
+            endif
+
+            if (mie_potential .ne. 1) then
+                call error_abort("2phase_surfactant_solution initial case used but Mie flag is off -- aborting")
+            endif
+            if (potential_flag .ne. 1) then
+                print*, "2phase_surfactant_solution initial case used but potential flag is off -- switching on"
+                potential_flag = 1
+            endif
             ensemble = tag_move
 			call locate(1,'RCUTOFF',.true.)
 			read(1,*) rcutoff
@@ -412,6 +427,7 @@ subroutine setup_read_input
 
     !Specifiy more general potential than LJ
 	call locate(1,'MIE_POTENTIAL',.false.,found_in_input) 
+    print*, 'MIE', found_in_input
 	if (found_in_input) then
         read(1,*) Mie_potential
     else
@@ -808,10 +824,13 @@ subroutine setup_read_input
 		end if
 	endif
 	call locate(1,'VELOCITY_OUTFLAG',.false.,found_in_input)
+    if (.not. found_in_input) then	
+    	call locate(1,'MOMENTUM_OUTFLAG',.false.,found_in_input)
+    endif
 	if (found_in_input) then
-		read(1,*) velocity_outflag
-		if (velocity_outflag .ne. 0) read(1,*) Nvel_ave
-		if (velocity_outflag .eq. 5) then
+		read(1,*) momentum_outflag
+		if (momentum_outflag .ne. 0) read(1,*) Nvel_ave
+		if (momentum_outflag .eq. 5) then
 			call locate(1,'CPOL_BINS',.true.)
 			read(1,*) gcpol_bins(1)	
 			read(1,*) gcpol_bins(2)	

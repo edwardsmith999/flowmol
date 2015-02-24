@@ -98,7 +98,10 @@ class VMDFields:
             return glob.glob(os.path.join(path, '*'))
 
         #Copy tcl scripts to vmd folder
-        self.vmdtcl = self.pwd+'/vmd_tcl/'
+        #self.vmdtcl = self.pwd+'/vmd_tcl/'
+        self.vmdtcl = './postproclib/vmd_tcl/'
+        if listdir_nohidden(self.vmdtcl) == []:
+            sys.exit("Error in copy_tclfiles -- Directory " + self.vmdtcl + " is empty or not found ")
         for filepath in listdir_nohidden(self.vmdtcl):
             filename = filepath.split('/')[-1]
             shutil.copyfile(filepath, self.vmd_dir+ '/' +filename )

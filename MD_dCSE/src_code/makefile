@@ -100,7 +100,7 @@ debug_s:
 debug_p:
 	@make $(MD_EXE) "BUILD=debug"
 fastdebug_p:
-	@make $(MD_EXE) "FFLAGS = -O2 -g -traceback -CB -fpe0"   # "BUILD=debug"
+	@make $(MD_EXE) "FFLAGS = -O3 -g -traceback -CB -fpe0"   # "BUILD=debug"
 full_debug_s:
 	@make serial_md.exe "FFLAGS = -g -O0 -traceback -CB -check all -warn all,nodec,interfaces -gen_interfaces"
 full_debug_p:
@@ -110,7 +110,9 @@ profile_s:
 memprofile_s:
 	@make serial_md.exe "FFLAGS = -O3 -g"; valgrind --tool=cachegrind ./md.exe
 profile_p:
-	@make $(MD_EXE) "FFLAGS = -g -pg -mpe=mpilog "
+	@make $(MD_EXE) "FFLAGS = -O3 -g -pg"
+
+#-mpe=mpilog "
 
 #Make executables
 md.exe: $(MD_EXE)

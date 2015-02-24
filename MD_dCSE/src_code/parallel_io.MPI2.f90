@@ -2647,8 +2647,8 @@ end subroutine mass_bin_io
 
 
 !---------------------------------------------------------------------------------
-! Record velocity in a slice through the domain
-subroutine velocity_slice_io(ixyz)
+! Record momentum in a slice through the domain
+subroutine momentum_slice_io(ixyz)
     use module_parallel_io
     use messenger
     implicit none
@@ -2722,12 +2722,12 @@ subroutine velocity_slice_io(ixyz)
 
     endif 
 
-end subroutine velocity_slice_io
+end subroutine momentum_slice_io
 
 !------------------------------------------------------------------------
 !A routine with each proc writing its own bins in binary
 
-subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
+subroutine momentum_bin_io(CV_mass_out,CV_momentum_out,io_type)
     use module_parallel_io
     use CV_objects, only : CVcheck_momentum,CV_debug
     use messenger_bin_handler, only : swaphalos
@@ -2778,7 +2778,7 @@ subroutine velocity_bin_io(CV_mass_out,CV_momentum_out,io_type)
     !Write out arrays
     call write_arrays(CV_momentum_out,nresults,outfile,m)
 
-end subroutine velocity_bin_io
+end subroutine momentum_bin_io
 
 
 !---------------------------------------------------------------------------------
@@ -2913,8 +2913,8 @@ contains
 end subroutine mass_bin_cpol_io
 
 !------------------------------------------------------------------------------
-! Cylindrical polar velocity bins
-subroutine velocity_bin_cpol_io(mass_out,mom_out)
+! Cylindrical polar momentum bins
+subroutine momentum_bin_cpol_io(mass_out,mom_out)
     use module_parallel_io, only: write_zplane
     use concentric_cylinders, only: cpol_binso
     use physical_constants_MD, only: nd
@@ -2981,7 +2981,7 @@ contains
 
     end subroutine ZPlaneReduceMom
 
-end subroutine velocity_bin_cpol_io
+end subroutine momentum_bin_cpol_io
 
 !------------------------------------------------------------------------------
 ! Cylindrical polar KE bins
@@ -2991,7 +2991,7 @@ subroutine temperature_bin_cpol_io(mass_out,KE_out)
     use physical_constants_MD, only: nd
     use computational_constants_MD, only: iter, initialstep, tplot, &
                                           NTemp_ave, prefix_dir, &
-                                          velocity_outflag
+                                          momentum_outflag
     use messenger, only: icomm_grid,iblock,jblock,plane_comm
     implicit none
 
@@ -3005,7 +3005,7 @@ subroutine temperature_bin_cpol_io(mass_out,KE_out)
     integer :: m, ierr
 
     ! Make sure mass is written out
-    if (velocity_outflag .ne. 5) then
+    if (momentum_outflag .ne. 5) then
         call mass_bin_cpol_io(mass_out)
     end if
 
@@ -3050,7 +3050,7 @@ contains
 end subroutine temperature_bin_cpol_io
 
 !------------------------------------------------------------------------------
-! Cylindrical polar velocity bins
+! Cylindrical polar momentum bins
 subroutine VA_stress_cpol_io
     use module_parallel_io, only: write_zplane
     use concentric_cylinders, only: cpol_binso, r_oi, r_io, cpol_bins
@@ -3215,7 +3215,7 @@ subroutine temperature_bin_io(CV_mass_out,CV_temperature_out,io_type)
     real(kind(0.d0)),allocatable,dimension(:,:,:,:) :: CV_temperature_temp
 
     !Write mass bins
-    if (velocity_outflag .ne. 4) then
+    if (momentum_outflag .ne. 4) then
         call mass_bin_io(CV_mass_out,io_type)
     endif
 
@@ -3246,7 +3246,7 @@ subroutine temperature_bin_io(CV_mass_out,CV_temperature_out,io_type)
 end subroutine temperature_bin_io
 
 !---------------------------------------------------------------------------------
-! Record velocity in 3D bins throughout domain
+! Record energy in 3D bins throughout domain
 
 subroutine energy_bin_io(CV_energy_out,io_type)
     use module_parallel_io
@@ -3363,6 +3363,12 @@ subroutine VA_stress_io
     Pxybin = Pxybin / binvolume
     vvbin  = vvbin  / binvolume
     rfbin  = rfbin  / (2.d0*binvolume)
+
+
+!    print'(a,i8,3f20.10)', 'Pressure VA', iter, &
+!                            sum(Pxybin(:,:,:,1,1)+Pxybin(:,:,:,2,2)+Pxybin(:,:,:,3,3)), &
+!                            sum(vvbin(:,:,:,1,1)+vvbin(:,:,:,2,2)+vvbin(:,:,:,3,3)), &
+!                            sum(rfbin(:,:,:,1,1)+rfbin(:,:,:,2,2)+rfbin(:,:,:,3,3))
 
     !Write VA pressure to file
     nresults = 9
@@ -4070,11 +4076,11 @@ implicit none
     if (irank .eq. iroot) then
         if (potential_flag.eq.0) then   
             write(10,'(1x,i8,a,f15.4,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)'), &
-            iter,';',simtime,';',vsum,';', v2sum,';', temperature,';', &
+            iter,';',simtime,';',vsum,';', mv2sum,';', temperature,';', &
             kinenergy,';',potenergy,';',totenergy,';',pressure
         else if (potential_flag.eq.1) then
             write(10, '(1x,i8,a,f15.4,a,f15.4,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f10.4,a,f10.4,a,f10.4)') &
-            iter,';',simtime,';',vsum,';', v2sum,';', temperature,';', &
+            iter,';',simtime,';',vsum,';', mv2sum,';', temperature,';', &
             kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
         end if
     endif

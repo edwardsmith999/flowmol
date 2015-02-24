@@ -1596,6 +1596,7 @@ end subroutine linklist_push
 !linklist is empty so new linklist can be established
 
 subroutine linklist_checkpush(self, icell, jcell, kcell, molnopush)
+    use mpi
 	implicit none
 
     type(cellinfo),intent(inout)    :: self

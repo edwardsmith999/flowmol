@@ -80,6 +80,9 @@ module module_set_parameters
    procedure (fn_force),    pointer :: get_force    => null ()
    procedure (fn_energy),   pointer :: get_energy   => null ()
 
+   procedure (fn_accijmag), pointer :: get_poly_accijmag => null ()
+   procedure (fn_force),    pointer :: get_poly_force    => null ()
+   procedure (fn_energy),   pointer :: get_poly_energy   => null ()
 
 contains
 
@@ -199,6 +202,7 @@ contains
         double precision, intent(in)    :: rij2
         double precision                :: FENE_accijmag
 
+		if(rij2.ge.R_0**2)	call polymer_bond_error(i,j)
         FENE_accijmag =  k_c/(1-(rij2/(R_0**2)))
 
     end function FENE_accijmag
@@ -260,19 +264,20 @@ contains
 
     end function harmonic_force
 
-    function harmonic_energy(rij, i, j)
+    function harmonic_energy(rij2, i, j)
         use arrays_MD, only : moltype
 
         integer, intent(in)             :: i, j
-        double precision,dimension(3), intent(in)    :: rij
-        double precision                :: harmonic_energy
+        double precision, intent(in)    :: rij2
+        double precision                :: harmonic_energy, rij_mag
         double precision                :: k_harmonic, r0
-        double precision                :: harmonic_accijmag
 
         k_harmonic = k_lookup(moltype(i),moltype(j))
         r0 = r0_lookup(moltype(i),moltype(j))
 
-        harmonic_energy = 0.5d0*k_harmonic*(dot_product(rij-r0,rij-r0))
+        rij_mag = sqrt(rij2)
+        harmonic_energy = 0.5d0*k_harmonic*(rij_mag-r0)**2.d0
+        !harmonic_energy = 0.5d0*k_harmonic*(dot_product(rij-r0,rij-r0))
 
     end function harmonic_energy
 
@@ -349,7 +354,60 @@ contains
         theta_ijk = acos(dot_product(rij,rjk)/(mag_rij*mag_rjk))
         angular_harmonic_energy = 0.5d0 * k_ijk * (theta_ijk - theta_0)**2
 
-    end function angular_harmonic_energy
+    end function angular_harmonic_energy	
+
+
+    subroutine polymer_bond_error(molnoi, molnoX)
+		use interfaces
+		implicit none
+
+		integer, intent(in) :: molnoi, molnoX
+		real(kind(0.d0)) :: rglobi(3),rglobX(3), rij2
+
+		rglobi(1) = r(1,molnoi) - halfdomain(1)*(npx-1) + domain(1)*(iblock - 1)   
+		rglobi(2) = r(2,molnoi) - halfdomain(2)*(npy-1) + domain(2)*(jblock - 1)   
+		rglobi(3) = r(3,molnoi) - halfdomain(3)*(npz-1) + domain(3)*(kblock - 1)   
+
+		rglobX(1) = r(1,molnoX) - halfdomain(1)*(npx-1) + domain(1)*(iblock - 1)   
+		rglobX(2) = r(2,molnoX) - halfdomain(2)*(npy-1) + domain(2)*(jblock - 1)   
+		rglobX(3) = r(3,molnoX) - halfdomain(3)*(npz-1) + domain(3)*(kblock - 1)   
+
+        rij2 = dot_product(r(:,molnoi),r(:,molnoX))
+
+		print*, 'irank: ', irank
+		print '(a,i6,a,i8,a,i8,a,f8.5,a,f8.5,a,f12.5)', & 
+					'Bond broken at iter ',iter,': atoms ',molnoi,' and ',molnoX,' are separated by ', &
+					rij2**0.5,', which is greater than the allowed limit of ', R_0, &
+					'. Stopping simulation, total time elapsed = ', iter*delta_t
+		print '(a)', 'Atomic positions:'
+		print '(a,i8,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoi,' is located at global position', &
+		                                        rglobi(1),' ',rglobi(2),' ',rglobi(3) 
+		print '(a,i8,a,f10.5,a,f10.5,a,f10.5)', 'Atom ',molnoX,' is located at global position', &
+		                                        rglobX(1),' ',rglobX(2),' ',rglobX(3) 
+
+		print '(a,i8,a)', 'Monomer information for atom ', molnoi,':'
+		print '(a,i8)', 'ChainID: '   , monomer(molnoi)%chainID
+		print '(a,i8)', 'SubchainID: ', monomer(molnoi)%subchainID
+		print '(a,i8)', 'Funcy: '     , monomer(molnoi)%funcy
+		print '(a,i8)', 'Glob_no: '   , monomer(molnoi)%glob_no
+		print '(a,i8)', 'Bin_bflag: ' , monomer(molnoi)%bin_bflag
+		print '(a,i8)', 'Tag: '       , tag(molnoi) 
+
+		print '(a,i8,a)', 'Monomer information for atom ', molnoX,':'
+		print '(a,i8)', 'ChainID: '   , monomer(molnoX)%chainID
+		print '(a,i8)', 'SubchainID: ', monomer(molnoX)%subchainID
+		print '(a,i8)', 'Funcy: '     , monomer(molnoX)%funcy
+		print '(a,i8)', 'Glob_no: '   , monomer(molnoX)%glob_no
+		print '(a,i8)', 'Bin_bflag: ' , monomer(molnoX)%bin_bflag
+		print '(a,i8)', 'Tag: '       , tag(molnoX) 
+
+		if (molnoX.gt.np) then
+			call error_abort('Halo!')
+		else
+			call error_abort('')
+		end if
+
+	end subroutine polymer_bond_error
 
 
 subroutine setup_mie_potential
@@ -364,12 +422,11 @@ subroutine setup_mie_potential
     sigma_lookup   = 0.d0
     lambdar_lookup = 0.d0
     lambdaa_lookup = 0.d0
-
     !Setup table of cross potentials 
     !1 == Argon;
     !moltype_names(1) = '           Ar           '
     moltype_names(1)    = 'Ar' !' Ar '
-    mass_lookup(1)      = 1.d0
+    mass_lookup(1)      = 1.0d0
     epsilon_lookup(1,1) = 1.d0
     sigma_lookup(1,1)   = 1.d0
     lambdar_lookup(1,1) = 12.d0
@@ -683,7 +740,7 @@ subroutine setup_mie_potential
             
             !Copy first ntypes moltypes back to array.
             do n =1,ntypes
-                temp(n) = moltype(n)
+                moltype(n) = temp(n)
             enddo
 
 
@@ -801,11 +858,17 @@ subroutine setup_set_parameters
         get_accijmag => LJ_accijmag
         get_force => LJ_force
         get_energy => LJ_energy
+        get_poly_accijmag => FENE_accijmag
+        get_poly_force => FENE_force
+        get_poly_energy => FENE_energy
     elseif (Mie_potential  .eq. 1) then
         mass => Mie_mass
         get_accijmag => Mie_accijmag
         get_force => Mie_force
         get_energy => Mie_energy
+        get_poly_accijmag => harmonic_accijmag
+        get_poly_force => harmonic_force
+        get_poly_energy => harmonic_energy
     else
         call error_abort("Error in simulation_compute_forces -- Mie potential flag is incorrectly specified")
     end if
@@ -1522,10 +1585,10 @@ subroutine set_parameters_outputs
 		Pxycorrel = 0.d0
 	endif
 
-	!Allocated arrays for velocity slice
-	if (velocity_outflag.ne.0 .and. velocity_outflag.lt.4) then
-		allocate(slice_momentum(nbins(velocity_outflag),3))
-		allocate(slice_mass(nbins(velocity_outflag)))
+	!Allocated arrays for momentum slice
+	if (momentum_outflag.ne.0 .and. momentum_outflag.lt.4) then
+		allocate(slice_momentum(nbins(momentum_outflag),3))
+		allocate(slice_mass(nbins(momentum_outflag)))
 		slice_momentum = 0.d0
 		slice_mass = 0
 	else
@@ -1535,8 +1598,8 @@ subroutine set_parameters_outputs
 		endif
 	endif
 
-	!Allocated bins for velocity averaging
-	if (velocity_outflag.eq.4) then
+	!Allocated bins for momentum averaging
+	if (momentum_outflag.eq.4) then
 		if (.not. allocated(volume_momentum)) then
 			allocate(volume_momentum(nbinso(1),nbinso(2),nbinso(3),3))
 		endif
@@ -1566,10 +1629,10 @@ subroutine set_parameters_outputs
 		!Allocate and zero peculiar momentum binning array
 		if (peculiar_flag .ne. 0) then
 			allocate(u(nd,np+extralloc)); u = 0.d0
-			if (velocity_outflag.ne.4) then
+			if (momentum_outflag.ne.4) then
 				call error_abort("set_parameters_outputs Error -- Temperature outflag on with &
-								 &perculiar momentum but velocity binning is off. Please switch &
-								 &VELOCITY_OUTFLAG 1st option to 4 or TEMPERATURE_OUTFLAG 3rd option to 0")
+								 &perculiar momentum but momentum binning is off. Please switch &
+								 &MOMENTUM_OUTFLAG 1st option to 4 or TEMPERATURE_OUTFLAG 3rd option to 0")
 			endif
 		endif
 	endif
@@ -1639,7 +1702,7 @@ subroutine set_parameters_outputs
 
 		endif
 
-		if ( velocity_outflag .eq. 5 ) then
+		if ( momentum_outflag .eq. 5 ) then
 
 			allocate(cyl_mom(cpol_binso(1),cpol_binso(2),cpol_binso(3),3))
 			cyl_mom  = 0.d0

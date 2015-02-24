@@ -1311,36 +1311,43 @@ class MD_strainField(MD_complexField):
 
         if highpassfilter>0.0:
 
-            import matplotlib.pyplot as plt
-            mid = 100
-            f,ax = plt.subplots(2,2)
-            cs = ax[0,0].pcolormesh(vdata[:,mid,:,0,0])
-            ax[0,1].plot(np.mean(vdata[:,mid,:,0,0],0))
-            ax[0,1].plot(np.mean(vdata[:,mid,:,0,0],1))
+#            import matplotlib.pyplot as plt
+#            mid = 100
+#            f,ax = plt.subplots(2,2)
+#            cs = ax[0,0].pcolormesh(vdata[:,mid,:,0,0])
+#            ax[0,1].plot(np.mean(vdata[:,mid,:,0,0],0))
+#            ax[0,1].plot(np.mean(vdata[:,mid,:,0,0],1))
 
             import scipy as scp
-            vdata_fft = scp.ndimage.filters.gaussian_filter(vdata,highpassfilter)
+            scp.ndimage.map_coordinates(vdata, vdata.shape, order=3, mode='nearest')
+
+            #vdata_fft = scp.ndimage.filters.gaussian_filter(vdata,highpassfilter)
+            #vdata = vdata_fft
+
+            #b, a = scp.signal.butter(N=2, Wn=highpassfilter, btype='low')
+            #output_signal = scp.signal.filtfilt(b, a, vdata)
 
             #vdata_fft = np.fft.fftn(vdata)
             #vdata_fft[vdata_fft>highpassfilter] = 0.
             #vdata = np.fft.ifftn(vdata_fft)
 
-            vdata = vdata_fft
-            cs = ax[1,0].pcolormesh(vdata[:,mid,:,0,0])
-            ax[1,1].plot(np.mean(vdata_fft[:,mid,:,0,0],0))
-            ax[1,1].plot(np.mean(vdata_fft[:,mid,:,0,0],1))
 
-            f.subplots_adjust(right=0.8)
-            cbar_ax = f.add_axes([0.85, 0.15, 0.05, 0.7])
-            f.colorbar(cs, cax=cbar_ax)
-            plt.show()
+#            cs = ax[1,0].pcolormesh(vdata[:,mid,:,0,0])
+#            ax[1,1].plot(np.mean(vdata_fft[:,mid,:,0,0],0))
+#            ax[1,1].plot(np.mean(vdata_fft[:,mid,:,0,0],1))
+
+#            f.subplots_adjust(right=0.8)
+#            cbar_ax = f.add_axes([0.85, 0.15, 0.05, 0.7])
+#            f.colorbar(cs, cax=cbar_ax)
+#            plt.show()
+
 
         
-#        straindata = self.grad(vdata,preavgaxes=preavgaxes,
-#                               dx=float(self.header.binsize1),
-#                               dy=float(self.header.binsize2),
-#                               dz=float(self.header.binsize3))
-        straindata = self.grad(vdata,preavgaxes=preavgaxes)
+        straindata = self.grad(vdata,preavgaxes=preavgaxes,
+                               dx=float(self.header.binsize1),
+                               dy=float(self.header.binsize2),
+                               dz=float(self.header.binsize3))
+        #straindata = self.grad(vdata,preavgaxes=preavgaxes)
 
 
         if (binlimits):
@@ -1418,7 +1425,32 @@ class MD_dissipField(MD_complexField):
         self.nperbin = 1
 
     def read(self,startrec,endrec, binlimits=None, 
-                 highpassfilter=0.0,**kwargs):
+                 highpassfilter=0.0, preavgaxes=(3),**kwargs):
+
+
+#        vdata = self.vField.read(startrec, endrec, 
+#                                 binlimits=None,**kwargs)
+
+#        grid = self.vField.Raw.grid
+#        x, y, z = grid
+#        dx = np.gradient(x)
+#        dy = np.gradient(y)
+#        dz = np.gradient(z)
+#        dX,dY,dZ = np.meshgrid(dx,dy,dz,indexing='ij')    
+
+#        dissipdata = np.empty([vdata.shape[0],vdata.shape[1],
+#                               vdata.shape[2],vdata.shape[3],self.nperbin])
+
+#        if (preavgaxes == 3):
+#            vdata = np.mean(vdata,3,keepdims=True)
+
+#        for rec in range(vdata.shape[3]):
+#            for ixyz in range(3):
+#                ui = np.squeeze(vdata[:,:,:,rec,ixyz])
+#                straindata = np.gradient(ui,dX,dY,dZ)
+#                for strain in straindata:
+#                    dissipdata[:,:,:,rec,0] += np.multiply(strain,strain)
+
         dudr = self.strainField.read(startrec, endrec, 
                                      highpassfilter=highpassfilter, 
                                      binlimits=None,**kwargs)
@@ -1428,15 +1460,25 @@ class MD_dissipField(MD_complexField):
 
 
         #From Viswanath 2006 D = \int_V |del u|^2 + |del v|^2 + |del w|^2 dV
-        dissipdata[:,:,:,:,0] = (  np.power(dudr[:,:,:,:,0] 
-                                          + dudr[:,:,:,:,1] 
-                                          + dudr[:,:,:,:,2],2)
-                                 + np.power(dudr[:,:,:,:,3] 
-                                          + dudr[:,:,:,:,4] 
-                                          + dudr[:,:,:,:,5],2)
-                                 + np.power(dudr[:,:,:,:,6] 
-                                          + dudr[:,:,:,:,7] 
-                                          + dudr[:,:,:,:,8],2))
+#        dissipdata[:,:,:,:,0] = (  np.power(dudr[:,:,:,:,0] 
+#                                          + dudr[:,:,:,:,1] 
+#                                          + dudr[:,:,:,:,2],2)
+#                                 + np.power(dudr[:,:,:,:,3] 
+#                                          + dudr[:,:,:,:,4] 
+#                                          + dudr[:,:,:,:,5],2)
+#                                 + np.power(dudr[:,:,:,:,6] 
+#                                          + dudr[:,:,:,:,7] 
+#                                          + dudr[:,:,:,:,8],2))
+
+        dissipdata[:,:,:,:,0] = (  np.power(dudr[:,:,:,:,0],2) 
+                                 + np.power(dudr[:,:,:,:,1],2)
+                                 + np.power(dudr[:,:,:,:,2],2)
+                                 + np.power(dudr[:,:,:,:,3],2)
+                                 + np.power(dudr[:,:,:,:,4],2)
+                                 + np.power(dudr[:,:,:,:,5],2)
+                                 + np.power(dudr[:,:,:,:,6],2)
+                                 + np.power(dudr[:,:,:,:,7],2)
+                                 + np.power(dudr[:,:,:,:,8],2))
 
 #        dissipdata[:,:,:,:,0] = ( np.power(dudr[:,:,:,:,0],2.)
 #                                 +np.power(dudr[:,:,:,:,1],2.)

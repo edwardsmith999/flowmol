@@ -366,8 +366,6 @@ class Field():
         for rec in range(gradv.shape[-2]):
             for ixyz in range(ndims):
 
-#                grad_temp = np.gradient(np.squeeze(data[:,:,:,rec,ixyz]), 
-#                                        [i in dxyz])
                 grad_temp = np.gradient(np.squeeze(data[:,:,:,rec,ixyz]), 
                                         dx, dy, dz)
 

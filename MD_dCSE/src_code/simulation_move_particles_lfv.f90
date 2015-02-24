@@ -163,21 +163,22 @@ contains
 	!Evaluate Nosé-Hoover parameters
 	subroutine evaluate_NH_params
     	use messenger_data_exchange, only : globalSum
+        use module_set_parameters, only : mass
 		implicit none
 	
 		real(kind(0.d0)), dimension (nd) :: vel
-		real(kind(0.d0)) :: v2sum
+		real(kind(0.d0)) :: mv2sum
 		real(kind(0.d0)) :: Q
 		real(kind(0.d0)) :: dzeta_dt
 		
-		v2sum = 0.d0
+		mv2sum = 0.d0
 		do n=1,np
 			vel(:) = v(:,n) + 0.5d0*a(:,n)*delta_t	
-			v2sum = v2sum + dot_product(vel,vel)
+			mv2sum = mv2sum + mass(n) * dot_product(vel,vel)
 		end do
-		call globalSum(v2sum)		
+		call globalSum(mv2sum)		
 		Q        = globalnp*delta_t
-		dzeta_dt = (v2sum - (real(nd*globalnp + 1,kind(0.d0)))*inputtemperature)/Q
+		dzeta_dt = (mv2sum - (real(nd*globalnp + 1,kind(0.d0)))*inputtemperature)/Q
 		zeta     = zeta + delta_t*dzeta_dt
 		bscale   = 1.0/(1.0+0.5*delta_t*zeta)
 		ascale   = (1-0.5*delta_t*zeta)*bscale
@@ -188,9 +189,10 @@ contains
 	!Evaluate N-H parameters for profile unbiased thermostat
 	subroutine evaluate_NH_params_PUT
 	    use messenger_data_exchange, only : globalSum
+        use module_set_parameters, only : mass
 		implicit none
 		
-		real(kind(0.d0)) :: pec_v2sum
+		real(kind(0.d0)) :: pec_mv2sum
 		real(kind(0.d0)) :: Q
 		real(kind(0.d0)) :: dzeta_dt
 		real(kind(0.d0)), dimension(nd) :: pec_v
@@ -199,14 +201,14 @@ contains
 
         call error_abort("Error -- This routine cannot work as U is not longer defined!")
 
-		pec_v2sum = 0.d0
+		pec_mv2sum = 0.d0
 		do n=1,np
 			!pec_v(:)  = v(:,n) + 0.5d0*a(:,n)*delta_t - U(:,n)      ! PUT: Find peculiar velocity
-			pec_v2sum = pec_v2sum + dot_product(pec_v,pec_v)        ! PUT: Sum peculiar velocities squared
+			pec_mv2sum = pec_mv2sum + mass(n) * dot_product(pec_v,pec_v)        ! PUT: Sum peculiar velocities squared
 		end do
-		call globalSum(pec_v2sum)
+		call globalSum(pec_mv2sum)
 		Q        = globalnp*delta_t                                 ! PUT: Thermal inertia
-		dzeta_dt = (pec_v2sum - (real(globalnp*nd+1,kind(0.d0)))*inputtemperature)/Q ! PUT: dzeta_dt(t-dt)
+		dzeta_dt = (pec_mv2sum - (real(globalnp*nd+1,kind(0.d0)))*inputtemperature)/Q ! PUT: dzeta_dt(t-dt)
 		zeta     = zeta + delta_t*dzeta_dt                          ! PUT: zeta(t)
 		bscale   = 1.0/(1.0+0.5*zeta*delta_t)                       
 		ascale   = (1.0-0.5*zeta*delta_t)*bscale
@@ -261,10 +263,11 @@ contains
 		use messenger, only: localise, globalise
 	    use messenger_data_exchange, only : globalSum
 		use concentric_cylinders, only: omega
+        use module_set_parameters, only : mass
 		implicit none
 				
 		integer	:: n, thermostatnp
-		real(kind(0.d0)) :: freq, dzeta_dt, v2sum, Q
+		real(kind(0.d0)) :: freq, dzeta_dt, mv2sum, Q
 		real(kind(0.d0)) :: ascale, bscale, dtheta
 		real(kind(0.d0)), dimension(nd)	:: vel
 		real(kind(0.d0)), dimension(nd)	:: rpol, rglob
@@ -284,7 +287,7 @@ contains
 			!  temperature field. It is NOT intended to be used as a tool
 			!  for applying temperature gradients or "regional" thermostats. 
 			!  If this functionality is desired, the routine will need to 
-			!  be redeveloped with multiple "v2sum"s for each region that 
+			!  be redeveloped with multiple "mv2sum"s for each region that 
 			!  is thermostatted separately.
 			! 
 			! --------------------------------------------------------------!
@@ -300,7 +303,7 @@ contains
 				end if
 			end if
 
-			v2sum = 0.d0
+			mv2sum = 0.d0
 			thermostatnp = 0
 			do n = 1, np
 				if ( tag(n) .eq. PUT_thermo ) then
@@ -312,34 +315,36 @@ contains
 					cycle
 				end if
 
-				v2sum = v2sum + dot_product(vel,vel)
+				mv2sum = mv2sum + mass(n) * dot_product(vel,vel)
 				thermostatnp = thermostatnp + 1
 
 			enddo
 
 			!Obtain global sums for all parameters
 			call globalSum(thermostatnp)
-			call globalSum(v2sum)	
+			call globalSum(mv2sum)	
 
 			!Nose Hoover thermostat coefficients
-			Q        = thermostatnp * delta_t 
-			dzeta_dt = (v2sum - (nd*thermostatnp + 1)*inputtemperature) / Q
+			Q        = 0.1*thermostatnp * delta_t 
+			dzeta_dt = (mv2sum - (nd*thermostatnp + 1)*inputtemperature) / Q
 			zeta 	 = zeta + delta_t*dzeta_dt
 			bscale	 = 1.0/(1.0+0.5*delta_t*zeta)
 			ascale	 = (1-0.5*delta_t*zeta)*bscale
 
+            !write(234+irank,'(i6,5f18.12)'), iter, Q, dzeta_dt, zeta, ascale, bscale
+
 			!if (iter .eq. 1) write(9999,'(4a)'), 'iter; dzeta_dt; zeta; inputtemperature; temperature; themostatnp'
 			!write(9999,'(i10,a,f14.6,a,3(f10.5,a),i10)'),iter,';', dzeta_dt,';', zeta,';', & 
-			!		 inputtemperature,';', v2sum/(nd*thermostatnp + 1), ';',thermostatnp
+			!		 inputtemperature,';', mv2sum/(nd*thermostatnp + 1), ';',thermostatnp
 
 			!Velocity rescaling (Gaussian?) thermostat
-			!bscale = sqrt(inputtemperature/(v2sum/(nd*thermostatnp + 1)))
+			!bscale = sqrt(inputtemperature/(mv2sum/(nd*thermostatnp + 1)))
 			!ascale = 2.d0*bscale - 1.d0
 
 
 !			if (iter .eq. 1) write(9999,'(4a)'), 'iter; bscale; ascale; inputtemperature; temperature; themostatnp'
 !			write(9999,'(i10,a,f14.6,a,3(f10.5,a),i10)'),iter,';', bscale,';', ascale,';', & 
-!					 inputtemperature,';', v2sum/(nd*thermostatnp + 1), ';',thermostatnp
+!					 inputtemperature,';', mv2sum/(nd*thermostatnp + 1), ';',thermostatnp
 !	
 		else
 

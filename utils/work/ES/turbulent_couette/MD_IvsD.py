@@ -11,15 +11,29 @@ from postproclib.pplexceptions import DataNotAvailable
 #from misclib import tvregdiff
 
 fdirs = ['/home/es205/scratch/Re400_transition/iter350000_to_1050000/results', 
-         #'/home/es205/scratch/Re400/COMBINED_iter0_to_5600000/bins64x256x64/',
-         '/home/es205/scratch/Re400/COMBINED_iter0_to_5600000/bins84x198x50/']
+         '/home/es205/scratch/Re43p5/',
+         '/home/es205/scratch/Re43p5/iter_101000_to_201000/results/',
+         '/home/es205/scratch/Re43p5/iter_201000_to_301000/results/']#,
+         #'/home/es205/scratch/Re96/up2iter100000/',
+         #'/home/es205/scratch/Re96/iter100000_2_300000/',
+         #'/home/es205/scratch/Re400/COMBINED_iter0_to_5600000/bins64x256x64/']
+         #'/home/es205/scratch/Re400/COMBINED_iter0_to_5600000/bins84x198x50/']
 startrecs = [0,  
-             #0,  
-             960 ]
+             0,
+             0,
+             0,
+             0,
+             80,
+             980 ]
 endrecs   = [185,
-             #980,
+             390,
+             390,
+             390,
+             1190,
+             970,
              3500]
-flowtype = ['laminar','turbulent','turbulent']
+sizeratio = [1., 1., 1., 1., 1., 1.]
+flowtype = ['laminar','turbulent','turbulent','turbulent','turbulent','turbulent']
 skip = 1; avetime = 100
 
 startrecs = [i + int(0.5*avetime) for i in startrecs]
@@ -39,8 +53,8 @@ for i, fdir in enumerate(fdirs):
     #TEST OF HIGH PASS FILTER CODE
     #dissip = dissipField.read(startrec=int(0.5*recrange),endrec=int(0.5*recrange)+1,highpassfilter=0.9)
 
-    xyz = dudrField.grid
-    [X,Y,Z] = np.meshgrid(xyz[0],xyz[1],xyz[2],index='ij')
+   # xyz = dudrField.grid
+    #[X,Y,Z] = np.meshgrid(xyz[0],xyz[1],xyz[2],index='ij')
     wallcell = 4
     for rec in range(startrec,endrec,skip):
         try:
@@ -76,9 +90,9 @@ for i, fdir in enumerate(fdirs):
 #                 /np.sum(volumes[:,wallcell+1:-(wallcell+1),:,0],(0,1,2)))
 
         Irec =0.5*(  np.mean(dudr[:, wallcell,:,0,1],(0,1))
-                   + np.mean(dudr[:,-wallcell,:,0,1],(0,1)))
+                   + np.mean(dudr[:,-wallcell,:,0,1],(0,1)))/sizeratio[i]
         #Drec = np.mean(np.power(dudr[:,(wallcell+1):-(wallcell+1),:,0,1],2.))
-        Drec =       np.mean(dissip[:,(wallcell+1):-(wallcell+1),:,0,0],(0,1,2))
+        Drec =       np.mean(dissip[:,(wallcell+1):-(wallcell+1),:,0,0],(0,1,2))/np.power(sizeratio[i],2)
         I.append(Irec)
         D.append(Drec)
         print('Rec= ', rec, 'D= ', Drec , 'I= ', Irec)
@@ -98,7 +112,7 @@ for i, fdir in enumerate(fdirs):
 pickle.dump( I, open( "Ihist_MD.p", "wb" ) )
 pickle.dump( D, open( "Dhist_MD.p", "wb" ) )
 
-plt.plot(D/Dlam,I/Ilam,'-o',alpha=0.7)
+plt.plot(I/Ilam,D/Dlam,'-o',alpha=0.7)
 plt.show()
 
 #Function differentiate noisy data (didn't seem to work...)
