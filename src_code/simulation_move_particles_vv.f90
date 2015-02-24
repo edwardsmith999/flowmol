@@ -269,19 +269,21 @@ contains
 	!Evaluate dzeta_dt for global Nose-Hoover equations of motion
 	subroutine evaluate_dzeta_dt	
 	    use messenger_data_exchange, only : globalSum
+        use module_set_parameters, only : mass
+
 		implicit none
 
-		real(kind(0.d0)) :: v2sum
+		real(kind(0.d0)) :: mv2sum
 		real(kind(0.d0)) :: Q
 	
-		v2sum=0.d0
+		mv2sum=0.d0
 		do n=1,np
-			v2sum = v2sum + dot_product(v(:,n),v(:,n))
+			mv2sum = mv2sum + mass(n) * dot_product(v(:,n),v(:,n))
 		end do
-		call globalSum(v2sum)
+		call globalSum(mv2sum)
 
 		Q        = globalnp*delta_t
-		dzeta_dt = (v2sum - (globalnp*nd+1)*inputtemperature)/Q
+		dzeta_dt = (mv2sum - (globalnp*nd+1)*inputtemperature)/Q
 
 	end subroutine evaluate_dzeta_dt
 
@@ -289,21 +291,22 @@ contains
 	!Evaluate zeta for global Gaussian isokinetic thermostat
 	subroutine evaluate_zeta_GIK
 	    use messenger_data_exchange, only : globalSum
+        use module_set_parameters, only : mass
 		implicit none
 
 		real(kind(0.d0)) :: avsum
-		real(kind(0.d0)) :: v2sum
+		real(kind(0.d0)) :: mv2sum
 
 		avsum = 0.d0
-		v2sum = 0.d0
+		mv2sum = 0.d0
 		do n=1,np
 			avsum = avsum + dot_product(a(:,n),v(:,n))
-			v2sum = v2sum + dot_product(v(:,n),v(:,n))
+			mv2sum = mv2sum + mass(n) * dot_product(v(:,n),v(:,n))
 		end do
 		call globalSum(avsum)
-		call globalSum(v2sum)
+		call globalSum(mv2sum)
 
-		zeta = avsum/v2sum
+		zeta = avsum/mv2sum
 		
 	end subroutine evaluate_zeta_GIK
 	
@@ -313,21 +316,22 @@ contains
 		use calculated_properties_MD,  only: nbins, get_mass_slices, get_velo_slices
 		use shear_info_MD,             only: le_sp	
 	    use messenger_data_exchange, only : globalSum
+        use module_set_parameters, only : mass
 		implicit none
 		
-		real(kind(0.d0)) :: pec_v2sum
+		real(kind(0.d0)) :: pec_mv2sum
 		real(kind(0.d0)) :: Q
 		real(kind(0.d0)), dimension(nd) :: pec_v
 
-		pec_v2sum = 0.d0
+		pec_mv2sum = 0.d0
 		do n=1,np
 			pec_v(:)  = v(:,n) - U(:,n)                                         ! PUT: Find peculiar velocity
-			pec_v2sum = pec_v2sum + dot_product(pec_v,pec_v)                    ! PUT: Sum peculiar velocities squared
+			pec_mv2sum = pec_mv2sum + mass(n) * dot_product(pec_v,pec_v)        ! PUT: Sum peculiar velocities squared
 		end do
-		call globalSum(pec_v2sum)
+		call globalSum(pec_mv2sum)
 
 		Q = globalnp*delta_t
-		dzeta_dt = (pec_v2sum - (globalnp*nd+1)*inputtemperature)/Q
+		dzeta_dt = (pec_mv2sum - (globalnp*nd+1)*inputtemperature)/Q
 
 	end subroutine evaluate_dzeta_dt_PUT
 

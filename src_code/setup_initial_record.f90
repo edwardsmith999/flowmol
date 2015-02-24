@@ -357,35 +357,35 @@ subroutine setup_initial_record
         case(5)
             print'(3(a,i8),a)', ' Mass 3D Cylindrical Polar bins recorded every:', &
                     tplot,' x ',Nmass_ave,' = ',tplot*Nmass_ave,' iterations'
-            print'(a,3i8)', ' Domain split into Velocity Averaging Bins in r,theta and z:', gcpol_bins
+            print'(a,3i8)', ' Domain split into momentum Averaging Bins in r,theta and z:', gcpol_bins
         case default
             call error_abort("Invalid Mass output flag in input file")
         end select
 
-        select case(velocity_outflag)
+        select case(momentum_outflag)
         case(0)
-            print*, 'Velocity record off'
+            print*, 'momentum record off'
             print*, ''
             print*, ''
         case(1:3)
-            if (velocity_outflag .eq. 1) then
+            if (momentum_outflag .eq. 1) then
                 ixyz_char = 'x'
-            elseif (velocity_outflag .eq. 2) then 
+            elseif (momentum_outflag .eq. 2) then 
                 ixyz_char = 'y'
             else 
                 ixyz_char = 'z'
             endif
 
-            print'(3(a,i8),a)', ' Velocity slice recorded every:', & 
+            print'(3(a,i8),a)', ' momentum slice recorded every:', & 
                     tplot,' x ',Nvel_ave,' = ',tplot*Nvel_ave,' iterations'
-            print'(a,i8,2a)', ' Domain split into',gnbins(velocity_outflag) , & 
-                      ' Velocity Averaging Slices in  ', ixyz_char  
+            print'(a,i8,2a)', ' Domain split into',gnbins(momentum_outflag) , & 
+                      ' momentum Averaging Slices in  ', ixyz_char  
             print'(a,f10.5)', ' With each averaging slice of width:', & 
-                        globaldomain(velocity_outflag)/gnbins(velocity_outflag)
+                        globaldomain(momentum_outflag)/gnbins(momentum_outflag)
         case(4)
-            print'(3(a,i8),a)', ' Velocity 3D bins recorded every:', &
+            print'(3(a,i8),a)', ' momentum 3D bins recorded every:', &
                     tplot,' x ',Nvel_ave,' = ',tplot*Nvel_ave,' iterations'
-            print'(a,3i8)', ' Domain split into Velocity Averaging Bins in x,y and z:', gnbins
+            print'(a,3i8)', ' Domain split into momentum Averaging Bins in x,y and z:', gnbins
             print'(a,3f10.5)', ' Each of size:', & 
             globaldomain(1)/gnbins(1), globaldomain(2)/gnbins(2),globaldomain(3)/gnbins(3)
             output_steps = ceiling((Nsteps-initialstep)/dble(tplot*Nvel_ave))
@@ -393,11 +393,11 @@ subroutine setup_initial_record
             print'(a,i14,a,i14,a)', ' Number of records ', output_steps,  & 
                              ' Estimated File Size:', ceiling(est_filesize/dble(1024**2)), ' MB '
         case(5)
-            print'(3(a,i8),a)', ' Velocity 3D Cylindrical Polar bins recorded every:', &
+            print'(3(a,i8),a)', ' momentum 3D Cylindrical Polar bins recorded every:', &
                     tplot,' x ',Nvel_ave,' = ',tplot*Nvel_ave,' iterations'
-            print'(a,3i8)', ' Domain split into Velocity Averaging Bins in r,theta and z:', gcpol_bins
+            print'(a,3i8)', ' Domain split into momentum Averaging Bins in r,theta and z:', gcpol_bins
         case default
-            call error_abort("Invalid Velocity output flag in input file")
+            call error_abort("Invalid momentum output flag in input file")
         end select
 
         select case(Temperature_outflag)
@@ -439,7 +439,7 @@ subroutine setup_initial_record
         case(5)
             print'(3(a,i8),a)', ' Temperature 3D Cylindrical Polar bins recorded every:', &
                     tplot,' x ',NTemp_ave,' = ',tplot*NTemp_ave,' iterations'
-            print'(a,3i8)', ' Domain split into Velocity Averaging Bins in r,theta and z:', gcpol_bins
+            print'(a,3i8)', ' Domain split into momentum Averaging Bins in r,theta and z:', gcpol_bins
         case default
             call error_abort("Invalid Temperature output flag in input file")
         end select
@@ -550,7 +550,7 @@ subroutine setup_initial_record
             print'(a,i14,a,i14,a)', ' Number of records ', output_steps,  & 
                              ' Estimated File Size:', ceiling(est_filesize/dble(1024**2)), ' MB '
         case default
-            call error_abort("Invalid velocity flux output flag in input file")
+            call error_abort("Invalid momentum flux output flag in input file")
         end select
 
 
@@ -739,6 +739,14 @@ subroutine simulation_header
     write(fileunit,*) 'Starting step of simulation ;  initialstep ;', initialstep
     write(fileunit,*) 'Generate output file every steps ;   tplot ;',  tplot
     write(fileunit,*) 'Density ; density ;',density
+    select case (config_special_case)
+	case('solid_liquid')
+        write(fileunit,*) 'Liquid density ; liquid_density ;',liquid_density
+    case('droplet2D','droplet3D','2phase', '2phase_surfactant_solution')
+        write(fileunit,*) 'Liquid density ; liquid_density ;',liquid_density
+        write(fileunit,*) 'Gas density ; gas_density ;',gas_density
+        write(fileunit,*) 'Liquid_Fraction ; lg_fract ;',lg_fract
+    end select
     write(fileunit,*) 'Initial Temperature ;   inputtemperature ;',  inputtemperature
     write(fileunit,*) 'Cut off distance ;  rcutoff ;', rcutoff
     write(fileunit,*) 'Neighbour List Delta r ;  delta_rneighbr ;', delta_rneighbr
@@ -833,7 +841,7 @@ subroutine simulation_header
     write(fileunit,*)  'VMD skip ;  vmd_skip ;', vmd_skip
     write(fileunit,*)  'macro flag ;  macro_outflag  ;', macro_outflag
     write(fileunit,*)  'mass flag ;  mass_outflag ;', mass_outflag  
-    write(fileunit,*)  'velocity flag ;  velocity_outflag ;', velocity_outflag
+    write(fileunit,*)  'momentum flag ;  momentum_outflag ;', momentum_outflag
     write(fileunit,*)  'temperature flag ;  temperature_outflag ;', temperature_outflag
     write(fileunit,*)  'Peculiar flag ;  peculiar_flag ;', peculiar_flag
     write(fileunit,*)  'Pressure flag ;  pressure_outflag ;', pressure_outflag
@@ -843,7 +851,7 @@ subroutine simulation_header
     write(fileunit,*)  'velocity flux flag ;  vflux_outflag ;', vflux_outflag
     write(fileunit,*)  'energy flux flag ;  eflux_outflag ;', eflux_outflag
     write(fileunit,*)  'mass average steps ;  Nmass_ave ;', Nmass_ave
-    write(fileunit,*)  'velocity average steps ;  Nvel_ave ;', Nvel_ave
+    write(fileunit,*)  'momentum average steps ;  Nvel_ave ;', Nvel_ave
     write(fileunit,*)  'Temperature average steps ;  NTemp_ave ;', NTemp_ave
     write(fileunit,*)  'energy average steps ;  Nenergy_ave ;', Nenergy_ave
     write(fileunit,*)  'pressure average steps ;  Nstress_ave ;', Nstress_ave
@@ -852,20 +860,20 @@ subroutine simulation_header
     write(fileunit,*)  'mass flux average steps ;  Nmflux_ave ;', Nmflux_ave
     write(fileunit,*)  'velocity flux average steps ;  Nvflux_ave ;', Nvflux_ave
     write(fileunit,*)  'energy flux average steps ;  Neflux_ave ;', Neflux_ave
-    if (velocity_outflag .eq. 5 .or. mass_outflag .eq. 5 .or. pressure_outflag .eq. 3 .or. temperature_outflag .eq. 5) then
+    if (momentum_outflag .eq. 5 .or. mass_outflag .eq. 5 .or. pressure_outflag .eq. 3 .or. temperature_outflag .eq. 5) then
         write(fileunit,*)  'Cylindrical polar bins post-proc flag ; cpol_bins ; 1'
-        write(fileunit,*)  'Velocity/stress Averaging Bins in r ;      gnbins(1) ;', gcpol_bins(1)
-        write(fileunit,*)  'Velocity/stress Averaging Bins in theta ;  gnbins(2) ;', gcpol_bins(2)
-        write(fileunit,*)  'Velocity/stress Averaging Bins in z ;      gnbins(3) ;', gcpol_bins(3)
+        write(fileunit,*)  'momentum/stress Averaging Bins in r ;      gnbins(1) ;', gcpol_bins(1)
+        write(fileunit,*)  'momentum/stress Averaging Bins in theta ;  gnbins(2) ;', gcpol_bins(2)
+        write(fileunit,*)  'momentum/stress Averaging Bins in z ;      gnbins(3) ;', gcpol_bins(3)
         write(fileunit,*)  'Outer radius of outer cylinder ;   r_oo   ;', r_oo
         write(fileunit,*)  'Inner radius of outer cylinder ;   r_io   ;', r_io
         write(fileunit,*)  'Outer radius of inner cylinder ;   r_oi   ;', r_oi
         write(fileunit,*)  'Inner radius of inner cylinder ;   r_ii   ;', r_ii
     else
         write(fileunit,*)  'Cylindrical polar bins post-proc flag ; cpol_bins ;  0 '
-        write(fileunit,*)  'Velocity/stress Averaging Bins in x ;  gnbins(1) ;', gnbins(1)
-        write(fileunit,*)  'Velocity/stress Averaging Bins in y ;  gnbins(2) ;', gnbins(2)
-        write(fileunit,*)  'Velocity/stress Averaging Bins in z ;  gnbins(3) ;', gnbins(3)
+        write(fileunit,*)  'momentum/stress Averaging Bins in x ;  gnbins(1) ;', gnbins(1)
+        write(fileunit,*)  'momentum/stress Averaging Bins in y ;  gnbins(2) ;', gnbins(2)
+        write(fileunit,*)  'momentum/stress Averaging Bins in z ;  gnbins(3) ;', gnbins(3)
         write(fileunit,*)  'Of size in x ;  binsize(1)  ;', globaldomain(1)/gnbins(1) 
         write(fileunit,*)  'Of size in y ;  binsize(2)  ;', globaldomain(2)/gnbins(2) 
         write(fileunit,*)  'Of size in z ;  binsize(3)  ;', globaldomain(3)/gnbins(3) 
@@ -917,13 +925,14 @@ subroutine initial_macroscopic_properties
     use module_initial_record
     use interfaces
     use messenger_data_exchange, only : globalSum
+    use module_set_parameters, only : mass
     implicit none
 
     integer          :: n, ixyz
     real(kind(0.d0)) :: vel
 
     vsum  = 0.d0      ! Reset all sums
-    v2sum = 0.d0      ! Reset all sums
+    mv2sum = 0.d0      ! Reset all sums
 
     !Calculate forces to obtain initial potential energies and virial
     call simulation_compute_forces
@@ -954,37 +963,37 @@ subroutine initial_macroscopic_properties
             !velocity of interest - required due to use of the leapfrog method
             vel = v(ixyz,n) + 0.5d0*a(ixyz,n)*delta_t
             vsum = vsum + vel         !Add up all molecules' velocity components
-            v2sum = v2sum + vel**2.d0 !Add up all molecules' velocity squared components  
+            mv2sum = mv2sum + mass(n) * vel**2.d0 !Add up all molecules' velocity squared components  
         enddo
         enddo
         call globalSum(vsum)
-        call globalSum(v2sum)
+        call globalSum(mv2sum)
     case(velocity_verlet)
         do ixyz = 1, nd   ! Loop over all dimensions
         do n = 1, np    ! Loop over all particles  
             vsum  = vsum  + v(ixyz,n)
-            v2sum = v2sum +  v(ixyz,n) * v(ixyz,n)
+            mv2sum = mv2sum +  mass(n) * v(ixyz,n) * v(ixyz,n)
         enddo
         enddo
         call globalSum(vsum)
-        call globalSum(v2sum)
+        call globalSum(mv2sum)
     end select
 
     !Obtain global sums for all parameters
-    kinenergy   = (0.5d0 * v2sum) / real(globalnp,kind(0.d0))
+    kinenergy   = (0.5d0 * mv2sum) / real(globalnp,kind(0.d0))
     potenergy   = potenergysum /(2.d0*real(globalnp,kind(0.d0))) !N.B. extra 1/2 as all interactions calculated
     if (potential_flag.eq.1) then
         potenergy_LJ= potenergysum_LJ/(2.d0*real(globalnp,kind(0.d0)))
         potenergy_FENE= potenergysum_FENE/(2.d0*real(globalnp,kind(0.d0)))
     end if
     totenergy   = kinenergy + potenergy
-    temperature = v2sum / real(nd*globalnp,kind(0.d0))
+    temperature = mv2sum / real(nd*globalnp,kind(0.d0))
     if (any(periodic.gt.1)) temperature = get_temperature_PUT()
-    pressure    = (density/(globalnp*nd))*(v2sum+virial/2) !N.B. virial/2 as all interactions calculated
+    pressure    = (density/(globalnp*nd))*(mv2sum+virial/2) !N.B. virial/2 as all interactions calculated
     
     !WARNING ABOUT THERMOSTATTED RESTARTS! WILL CONSERVE TEMPERATURE OF LAST ITERATION
     !For velocity rescaling thermostat
-    initialenergy = (potenergysum+v2sum)/(np)
+    initialenergy = (potenergysum+mv2sum)/(np)
 
 end subroutine initial_macroscopic_properties
 
@@ -994,17 +1003,17 @@ subroutine initial_control_volume
 use module_initial_record
 implicit none
 
-    !Obtain and record velocity and mass
-    if (velocity_outflag .ne. 0) then
+    !Obtain and record momentum and mass
+    if (momentum_outflag .ne. 0) then
 
-        !Set mass record frequency to same as velocity
+        !Set mass record frequency to same as momentum
         Nmass_ave = Nvel_ave
         !Call first record      
-        call velocity_averaging(velocity_outflag)
+        call momentum_averaging(momentum_outflag)
     endif
 
     !Obtain and record mass only
-    if (velocity_outflag .eq. 0 .and. mass_outflag .ne. 0) then
+    if (momentum_outflag .eq. 0 .and. mass_outflag .ne. 0) then
         !Call first record
         print*, 'WARNING -- I HAVE REMOVED INITIAL MASS AVERAGE RECORD AS IT MAKES FIRST RESULT WRONG BY 1'
         !call mass_averaging(mass_outflag)

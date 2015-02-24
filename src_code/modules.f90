@@ -129,7 +129,7 @@ module computational_constants_MD
 		macro_outflag, &
 		sLRC_flag,	&
 		mass_outflag, &
-		velocity_outflag, &
+		momentum_outflag, &
 		temperature_outflag, &
 		energy_outflag, &
 		pressure_outflag, &
@@ -721,7 +721,7 @@ module calculated_properties_MD
 	real(kind(0.d0)) :: 	&
 		binsize(3),			&		!Size of each bin
 		planespacing,		&		!Spacing between planes for MOP
-		vsum, v2sum,		&		!velocity sum
+		vsum, mv2sum,		&		!velocity/mv2 sum
 		potenergysum,		&		!potential energy sum for system
 		potenergysum_LJ,	&		!potential energy sum from LJ
 		potenergysum_FENE,	&		!potential energy sum from FENE
@@ -847,12 +847,14 @@ contains
 	
 		integer	:: slicebin,n	
 		integer, dimension(:), allocatable 	:: m_slice
-		real(kind(0.d0)) :: pec_v2sum
+		real(kind(0.d0)) :: pec_mv2sum
 		real(kind(0.d0)), dimension(nd) 	:: slicebinsize, vel
 		real(kind(0.d0)), dimension(:,:), allocatable :: v_slice,v_avg
 		
 		slicebinsize(:) = domain(:)/nbins(:)				! Get bin size
-		pec_v2sum 		= 0.d0								! Initialise
+		pec_mv2sum 		= 0.d0								! Initialise
+
+        print*, "WARNING -- this get_temperature_PUT routine is old -- mass not included"
 		
 		!todo reevaluate
 		allocate(m_slice(nbins(le_sp)))	
@@ -869,12 +871,12 @@ contains
 			if (slicebin > nbins(le_sp)) slicebin = nbins(le_sp)	! Prevent out-of-range values
 			if (slicebin < 1) slicebin = 1										! Prevent out-of-range values
 			vel(:) 			 	= v(:,n) - v_avg(slicebin,:) - 0.5d0*a(:,n)*delta_t
-			pec_v2sum 			= pec_v2sum + dot_product(vel,vel)
+			pec_mv2sum 			= pec_mv2sum + dot_product(vel,vel)
 		end do
 
-		call globalSum_(pec_v2sum)
+		call globalSum_(pec_mv2sum)
 	
-		get_temperature_PUT = pec_v2sum / real(nd*globalnp,kind(0.d0))
+		get_temperature_PUT = pec_mv2sum / real(nd*globalnp,kind(0.d0))
 
 		deallocate(m_slice)
 		deallocate(v_slice)

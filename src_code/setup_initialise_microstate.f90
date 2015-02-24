@@ -81,7 +81,7 @@ subroutine setup_initialise_microstate
             call setup_initialise_solid_liquid_gas(config_special_case)
             call setup_location_tags               !Setup locn of fixed mols
         case('2phase_surfactant_solution')
-            call setup_initialise_2phase_fene
+            call setup_initialise_surfactants
             !call setup_location_tags
         case('polymer_brush')
             call setup_initialise_polymer_brush
@@ -2285,7 +2285,7 @@ end subroutine setup_initialise_solid_liquid_gas
 !-----------------------------------------------------------------------------
 ! Polymer setup code for multile phase system
 
-subroutine setup_initialise_2phase_fene
+subroutine setup_initialise_surfactants
     use module_initialise_microstate
     use polymer_info_MD
     use messenger
@@ -3160,7 +3160,7 @@ contains
 
     end subroutine remove_solvent_limits
 
-end subroutine setup_initialise_2phase_fene
+end subroutine setup_initialise_surfactants
 
 
 
@@ -3722,9 +3722,11 @@ end module set_bin_velocity_mod
 subroutine setup_initialise_velocities
     use module_initialise_microstate
     use messenger_data_exchange, only : globalSum
+    use module_set_parameters, only : mass
     implicit none
 
     integer                            :: n,i 
+    real(kind(0.d0))                   :: initialmom
     real(kind(0.d0)), dimension (nd)   :: netv   !Overall momentum of system
 
     !If ensemble is not tag based, set all molecules to unfixed
@@ -3733,13 +3735,15 @@ subroutine setup_initialise_velocities
     endif
 
     !Use definition of temperature and re-arrange to define an average velocity
-    initialvel = sqrt(nd * (1.d0 - 1.d0/globalnp)*inputtemperature)
+    initialmom = sqrt(nd * (1.d0 - 1.d0/globalnp)*inputtemperature)
 
     v = 0.d0    !Set velocity initially to zero
     i = 0       !Zero number of molecules with velocity assigned
     netv=0.d0   !Set net velocity of system to zero initially
 
     do n=1,np                               !Step through each molecule
+
+        initialvel =  initialmom / sqrt(mass(n))
         if (fix(1,n) .eq. 1) then           !For x component as fix occurs in all 3 dimensions
             call random_number(rand)        !Generate a random number for each dimension/particle
             angle  = 2.d0*pi*rand           !Random angle between 0 and 2pi
@@ -3781,20 +3785,23 @@ end subroutine setup_initialise_velocities
 subroutine setup_initialise_velocities_TG
     use module_initialise_microstate
     use messenger_data_exchange, only : globalSum
+    use module_set_parameters, only : mass
     implicit none
 
     integer                            :: n,i 
     real(kind(0.d0))                   :: x,y,z,Lx,Ly,Lz
+    real(kind(0.d0))                   :: initialmom
     real(kind(0.d0)), dimension (nd)   :: netv   !Overall momentum of system
 
     !Use definition of temperature and re-arrange to define an average velocity
-    initialvel = sqrt(nd * (1.d0 - 1.d0/globalnp)*inputtemperature)
+    initialmom = sqrt(nd * (1.d0 - 1.d0/globalnp)*inputtemperature)
 
     v = 0.d0    !Set velocity initially to zero
     i = 0       !Zero number of molecules with velocity assigned
     netv=0.d0   !Set net velocity of system to zero initially
 
     do n=1,np                               !Step through each molecule
+        initialvel =  initialmom / sqrt(mass(n))
         x  = r(1,n);    y  = r(2,n);    z  = r(3,n);
         Lx = halfdomain(1); Ly = halfdomain(2); Lz = halfdomain(3); !Domain should be cubic...
         v(1,n) =  initialvel*sin(pi*x/Lx)*cos(pi*y/Ly)*cos(pi*z/Lz)
@@ -3818,20 +3825,23 @@ end subroutine setup_initialise_velocities_TG
 subroutine setup_initialise_velocities_TG_parallel
     use module_initialise_microstate
     use messenger_data_exchange, only : globalSum
+    use module_set_parameters, only : mass
     implicit none
 
     integer                            :: n,i 
     real(kind(0.d0))                   :: x,y,z,Lx,Ly,Lz
+    real(kind(0.d0))                   :: initialmom
     real(kind(0.d0)), dimension (nd)   :: netv   !Overall momentum of system
 
     !Use definition of temperature and re-arrange to define an average velocity
-    initialvel = sqrt(nd * (1.d0 - 1.d0/globalnp)*inputtemperature)
+    initialmom = sqrt(nd * (1.d0 - 1.d0/globalnp)*inputtemperature)
 
     v = 0.d0    !Set velocity initially to zero
     i = 0       !Zero number of molecules with velocity assigned
     netv=0.d0   !Set net velocity of system to zero initially
 
     do n=1,np                               !Step through each molecule
+        initialvel =  initialmom / sqrt(mass(n))
         x  = r(1,n)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
         y  = r(2,n)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
         z  = r(3,n)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
