@@ -278,7 +278,10 @@ class MD_RawData(RawData):
                 elif skip_rec:
                     skiprecs.append(plusrec)
                 else:
-                    bindata[istart:iend] = np.fromfile(fobj,dtype=self.dtype)
+                    try:
+                        bindata[istart:iend] = np.fromfile(fobj,dtype=self.dtype)
+                    except ValueError:
+                        raise
                     fobj.close()
 
                 #Reset ready for next record

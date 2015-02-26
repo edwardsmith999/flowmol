@@ -8,7 +8,7 @@ from pplexceptions import DataMismatch, DataNotAvailable
 # MDField base class
 
 class MDField(Field):
-       
+      
     def __init__(self,fdir):
         Raw = MD_RawData(fdir, self.fname, self.dtype, 
                          self.nperbin)
@@ -19,6 +19,23 @@ class MDField(Field):
             self.axislabels = ['r','theta','z']
         else:
             self.axislabels = ['x','y','z']
+
+
+    def check_dtype(self, fdir):
+        #Check dtype is correct -- included for backward
+        #                          compatibility with old integer
+        #                          format for mbins, mflux, etc
+        # THIS FIX REQUIRED FOR ALL FILES MADE BEFORE 25/02/2015
+        from headerdata import MDHeaderData
+        header = MDHeaderData(fdir)
+
+        year = header.sim_date[:4]
+        month = header.sim_date[4:6]
+        day = header.sim_date[6:8]
+        #print(day, month, year)
+        if (int(year)<2015 or int(month)<2 or int(day) < 25):
+            #print("Results from before 25/02/2015 so assuming mbins uses integers")
+            self.dtype = 'i'
 
 # ============================================================================
 # MDField derived classes, but calculated by the main code
@@ -47,11 +64,13 @@ class MD_mField(MDField):
         e.g. fnames = [mbins], msnap  (default in [])
     """
 
-    dtype = 'i'
+    dtype = 'd'
     nperbin = 1
 
-    def __init__(self,fdir,fname='mbins'):
-        
+    def __init__(self, fdir, fname='mbins'):
+
+        MDField.check_dtype(self, fdir)
+
         self.fname = fname
         MDField.__init__(self,fdir)
         self.labels = ["mag"]
@@ -60,6 +79,9 @@ class MD_mField(MDField):
             self.plotfreq = int(self.Raw.header.Nmass_ave)
         elif fname == 'msnap':
             self.plotfreq = 1 #int(self.Raw.header.Nmflux_ave)
+
+
+
 
 
 class MD_pField(MDField):
@@ -146,10 +168,12 @@ class MD_mfluxField(MDField):
         e.g. fnames = [mflux] (default in [])
     """
     
-    dtype = 'i'
+    dtype = 'd'
     nperbin = 6
 
     def __init__(self,fdir,fname='mflux'):
+
+        MDField.check_dtype(self, fdir)
 
         self.fname = fname
         MDField.__init__(self,fdir)

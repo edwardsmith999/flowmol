@@ -53,6 +53,11 @@ def build_psf():
     maxchainID = data[-1,1]
     pairs = [] # List of bond pairs
     count = 0
+
+    if maxchainID == 0:
+        print('No polymers in fluid -- exiting')
+        return 
+
     print('Finding bond pairs in all chains...')
     while True:
 
@@ -61,7 +66,7 @@ def build_psf():
         # keep track of where we are in the data
         lastindex = np.where(data[:,1]==chainID)[0][-1]
         
-        if (chainID%100 == 0): 
+        if (chainID%100 == 0):
             progress_bar(float(chainID)/float(maxchainID))
 
         if (chainID != 0):

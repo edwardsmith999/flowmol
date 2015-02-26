@@ -31,7 +31,7 @@ def get_surface_tension(fdir='./results/', plotstuff=False):
 
     #Get y MD profile
     PPObj = ppl.MD_PostProc(fdir)
-    startrec = 20; endrec = PPObj.plotlist['psurface'].maxrec-3
+    startrec = 10; endrec = PPObj.plotlist['psurface'].maxrec-3
     nrecs = (endrec-startrec)+1
 
     #Get average temperature in run
@@ -94,6 +94,8 @@ def get_surface_tension(fdir='./results/', plotstuff=False):
     gamma_VA = 0.5 * np.trapz(integrand_VA, x=None, dx=dx)
     gamma_CV = 0.5 * np.trapz(integrand_CV, x=None, dx=dx)
 
+
+    
     #Try getting per value
 #    gamma_VA_hist = []; gamma_CV_hist = []
 #    for rec in range(startrec, endrec):
