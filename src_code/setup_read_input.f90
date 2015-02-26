@@ -46,6 +46,13 @@ subroutine setup_read_input
 		if (ios .ne. 0) dynamically_update_tags  = .false.
 	endif
 
+	call locate(1,'RESET_TAGS_ON_RESTART',.false.,found_in_input)
+	if (found_in_input) then
+        read(1,*) reset_tags_on_restart
+    else
+        reset_tags_on_restart = 0
+    endif
+
 	!Setup initial configuration
 	call locate(1,'INITIAL_CONFIG_FLAG',.true.)
 	read(1,*) initial_config_flag 
@@ -204,7 +211,9 @@ subroutine setup_read_input
 		case('fill_cylinders')
 			
 			potential_flag = 0
-			ensemble = tag_move
+            if (ensemble .ne. tag_move) then
+                call error_abort("Error in setup_read_input -- special case fill_cylinders needs ENSEMBLE=6 for tag_move_system")
+            endif
 
 			call locate(1,'DENSITY',.true.)
 			read(1,*) density
@@ -214,7 +223,9 @@ subroutine setup_read_input
 		case('fill_cylinders_fene_solution')
 
 			potential_flag = 1	    
-            ensemble = tag_move
+            if (ensemble .ne. tag_move) then
+                call error_abort("Error in setup_read_input -- special case fill_cylinders_fene_solution needs ENSEMBLE=6 for tag_move_system")
+            endif
 			rcutoff = 2.d0**(1.d0/6.d0)
 
             call locate(1,'FENE_SOLUTION',.true.)
@@ -226,7 +237,9 @@ subroutine setup_read_input
 
 		case('rotate_cylinders')
 			
-			ensemble = tag_move
+            if (ensemble .ne. tag_move) then
+                call error_abort("Error in setup_read_input -- special case rotate_cylinders needs ENSEMBLE=6 for tag_move_system")
+            endif
 
 			!call locate(1,'RCUTOFF',.true.)
 			!read(1,*) rcutoff
@@ -241,7 +254,9 @@ subroutine setup_read_input
 		case('polymer_brush')
 
             potential_flag = 1
-            ensemble = tag_move
+            if (ensemble .ne. tag_move) then
+                call error_abort("Error in setup_read_input -- special case polymer_brush needs ENSEMBLE=6 for tag_move_system")
+            endif
             rcutoff = 2.d0**(1.d0/6.d0)
 
             call locate(1,'POLYMER_BRUSH',.true.)
@@ -289,7 +304,9 @@ subroutine setup_read_input
                 print*, "2phase_surfactant_solution initial case used but potential flag is off -- switching on"
                 potential_flag = 1
             endif
-            ensemble = tag_move
+            if (ensemble .ne. tag_move) then
+                call error_abort("Error in setup_read_input -- special case 2phase_surfactant_solution needs ENSEMBLE=6 for tag_move_system")
+            endif
 			call locate(1,'RCUTOFF',.true.)
 			read(1,*) rcutoff
 
@@ -713,6 +730,18 @@ subroutine setup_read_input
 		read(1,*) emptydistbottom(2)
 		read(1,*) emptydistbottom(3)
 	endif
+
+	call locate(1,'CLUSTER_ANALYSIS',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) cluster_analysis_outflag
+        if (cluster_analysis_outflag .and. nproc .ne. 1) then
+            call error_abort("Cluster Analysis only works with one processor")
+        endif
+    else
+        cluster_analysis_outflag = 0
+	endif
+
+
 
 	!Flag to determine if output is switched on
 	call locate(1,'VMD_OUTFLAG',.false.,found_in_input)

@@ -103,6 +103,9 @@ module computational_constants_MD
 		tag_move    = 6, &
 		SLLOD       = 7
 
+    !Reset tags on restart
+    integer :: reset_tags_on_restart
+
 	!Initial configuration selection
 	integer           	:: initial_config_flag
 	character(len=128)	:: config_special_case
@@ -144,14 +147,15 @@ module computational_constants_MD
 		mflux_outflag, &
 		vflux_outflag, &
 		eflux_outflag, &
-		proc_reorder, &				!Reorder processors at restart
+		proc_reorder, &				    !Reorder processors at restart
 		pass_vhalo = 0, &
 		peculiar_flag, &	 			!Take streaming velocity away from temperature 	
 		CVforce_flag = VOID, & 			!Type of CV force to apply
 		CVweighting_flag = 0, &			!Distribution of CV forces
 		CVforce_correct = 0, &			!Apply force to correct CV velocity to setpoint
         CVforce_correct_nsteps, &       !Number of steps to apply velocity correction over
-		CVforce_starttime				!Start time of applied force
+		CVforce_starttime, &			!Start time of applied force
+        cluster_analysis_outflag        !Cluster analysis with interface tracking
 
     logical,dimension(3)    :: CVforce_applied_dir  !Which directions to apply force
 
@@ -399,7 +403,7 @@ module concentric_cylinders
 	integer :: gcpol_bins(3)                 !Glob averaging bins in cpol
 	integer :: cpol_nhbz                     !Number of halo bins in z direction
 
-	integer, dimension(:,:,:),   allocatable :: cyl_mass
+	real(kind(0.d0)), dimension(:,:,:),   allocatable :: cyl_mass
 	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: cyl_mom
 	real(kind(0.d0)), dimension(:,:,:), allocatable :: cyl_KE
 
@@ -709,14 +713,14 @@ module calculated_properties_MD
 	integer,dimension(3) 					:: nbins,nbinso,gnbins  !Number of bins to store molecular properties
 	integer,dimension(:), allocatable       :: rdf_hist             !Array to keep tally of radial distribution
 	integer,dimension(:,:), allocatable	    :: rdf3d_hist           !Array to keep tally of radial distribution
-	integer,dimension(:), allocatable 		:: slice_mass	    	!Array to keep tally of molecules in slice
-	integer,dimension(:,:,:), allocatable 	:: slice_massbin 		!Recorded molecules in a bin
-	integer,dimension(:,:,:), allocatable	:: volume_mass			!Mass in a control volume at time t
-	integer,dimension(:,:,:), allocatable	:: volume_mass_s		!Solvnt mass in a control volume at time t
-	integer,dimension(:,:,:), allocatable	:: volume_mass_p		!Polymer mass in a control volume at time t
-	integer,dimension(:,:,:), allocatable	:: volume_mass_pdt		!Mass in a control volume at time t - dt
-	integer,dimension(:,:,:), allocatable	:: dmdt					!Mass change in control volume from t-dt to t
-	integer,dimension(:,:,:,:), allocatable	:: mass_flux  			!Flow of mass over a control volume surface
+	real(kind(0.d0)),dimension(:), allocatable 		 :: slice_mass	    	!Array to keep tally of molecules in slice
+	real(kind(0.d0)),dimension(:,:,:), allocatable 	 :: slice_massbin 		!Recorded molecules in a bin
+	real(kind(0.d0)),dimension(:,:,:), allocatable	 :: volume_mass			!Mass in a control volume at time t
+	real(kind(0.d0)),dimension(:,:,:), allocatable	 :: volume_mass_s		!Solvnt mass in a control volume at time t
+	real(kind(0.d0)),dimension(:,:,:), allocatable	 :: volume_mass_p		!Polymer mass in a control volume at time t
+	real(kind(0.d0)),dimension(:,:,:), allocatable	 :: volume_mass_pdt		!Mass in a control volume at time t - dt
+	real(kind(0.d0)),dimension(:,:,:), allocatable	 :: dmdt					!Mass change in control volume from t-dt to t
+	real(kind(0.d0)),dimension(:,:,:,:), allocatable :: mass_flux  			!Flow of mass over a control volume surface
 
 	real(kind(0.d0)) :: 	&
 		binsize(3),			&		!Size of each bin

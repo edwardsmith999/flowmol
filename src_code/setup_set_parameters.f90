@@ -656,13 +656,14 @@ subroutine setup_mie_potential
 
         do i = 1,ntypes
         do j = 1,ntypes
-            print'(a20,2i6,3a4,5f10.5)', 'SAFT PARAMETERS',i,j,moltype_names(i), ' to ', & 
-                                                              moltype_names(j), & 
-                                                              sigma_lookup(i,j), & 
-                                                              epsilon_lookup(i,j), &
-                                                              lambdar_lookup(i,j), &
-                                                              lambdaa_lookup(i,j), &
-                                                              equil_sep_lookup(i,j)
+            print'(a,2i6,2a5,f10.5,3a4,6f10.5)', 'SAFT PARAMETERS',i,j, & 
+                                        moltype_names(i), ' m= ', mass_lookup(i), ' to ', & 
+                                        moltype_names(j), ' m= ', mass_lookup(j), &
+                                        sigma_lookup(i,j), & 
+                                        epsilon_lookup(i,j), &
+                                        lambdar_lookup(i,j), &
+                                        lambdaa_lookup(i,j), &
+                                        equil_sep_lookup(i,j)
         enddo
         enddo
 
@@ -917,7 +918,9 @@ subroutine set_parameters_allocate
 		                6*ncells(ixyz)+4)) &
                          /ncells(ixyz)**3))*np
 	enddo
-	extralloc = extralloc/nd  + 300  !Average of all 3 dimensions inc safety factor
+	!extralloc = extralloc/nd  + 300  !Average of all 3 dimensions inc safety factor
+    !Set to 2000 here as start case was 2 phase with uneven distribution
+	extralloc = extralloc/nd  + 2000 
 
 	!Allocate array sizes for position, velocity and acceleration
 	allocate(r(nd,np+extralloc))

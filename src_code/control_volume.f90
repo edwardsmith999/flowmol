@@ -31,8 +31,8 @@ type :: check_CV_mass
 	integer, dimension(3)		   			:: nbins, nhb, debug_CV
 	real(kind(0.d0))						:: delta_t
 	real(kind(0.d0)), dimension(3)  		:: domain, binsize
-	integer,dimension(:,:,:,:),allocatable 	:: flux
-	integer,dimension(:,:,:),allocatable	:: dXdt, X, X_minus_t, X_minus_2t
+	real(kind(0.d0)),dimension(:,:,:,:),allocatable :: flux
+	real(kind(0.d0)),dimension(:,:,:),allocatable	:: dXdt, X, X_minus_t, X_minus_2t
 	contains
 		procedure :: initialise  => initialise_mass
 		procedure :: update_dXdt => update_dXdt_mass
@@ -204,7 +204,7 @@ contains
 		! initialize shape objects
 		class(check_CV_mass) :: self
 
-		integer,dimension(:,:,:),allocatable,intent(in) :: X
+		real(kind(0.d0)),dimension(:,:,:),allocatable,intent(in) :: X
 
 		self%X_minus_t  = self%X
 		self%X 			= X
