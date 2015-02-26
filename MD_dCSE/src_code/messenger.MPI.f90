@@ -718,7 +718,10 @@ subroutine unpack_recvbuffer(halo_np,recvnp,length,recvbuffer)
 	double precision, dimension(nd) 				:: rpack, vpack	
 	double precision, dimension(nsdmi)  			:: FENEpack
 
-    if (np+halo_np+recvnp .gt. size(r)/real(nd,kind(0.d0))) then
+    if (np+halo_np+recvnp .gt. nint(size(r)/real(nd,kind(0.d0)))) then
+        print'(6(a,i10))', 'np = ', np,  ' halo_np = ', halo_np, ' recvnp = ', recvnp, & 
+                        ' extralloc = ', extralloc,  ' recieved = ', np+halo_np+recvnp , &
+                        ' Array size = ', nint(size(r)/real(nd,kind(0.d0)))
         call error_abort(" Error in unpack_recvbuffer -- Molecule position &
                           & array r overflow as Halo Recv array is bigger. &
                           & Try increasing extralloc in set_parameters_allocate.")

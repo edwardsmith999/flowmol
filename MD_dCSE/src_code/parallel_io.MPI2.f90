@@ -1178,7 +1178,12 @@ subroutine setup_restart_microstate
         call MPI_FILE_DELETE(initial_microstate_file, MPI_INFO_NULL, ierr)
     endif
 
-    if (irank.eq.iroot) print*, 'Molecular tags have been read from restart file.'
+    if (reset_tags_on_restart .eq. 1) then
+        if (irank.eq.iroot) print*, 'Molecular tags reset based on input file.'
+        call setup_location_tags               !Setup locn of fixed mols
+    else
+        if (irank.eq.iroot) print*, 'Molecular tags have been read from restart file.'
+    endif
     call get_tag_thermostat_activity(tag_thermostat_active)
     if (irank.eq.iroot) print*, 'Thermostat thermostat activity = ', tag_thermostat_active
     do n = 1,np
@@ -2602,11 +2607,11 @@ subroutine mass_bin_io(CV_mass_out,io_type)
     !use CV_objects, only : CVcheck_mass, CV_debug
     implicit none
 
-    integer, dimension(:,:,:), intent(inout) :: CV_mass_out
+    real(kind(0.d0)), dimension(:,:,:), intent(inout) :: CV_mass_out
     !integer, intent(in)    :: CV_mass_out(nbinso(1),nbinso(2),nbinso(3))
     character(4),intent(in) :: io_type
 
-    integer, dimension(:,:,:,:), allocatable :: CVmasscopy
+    real(kind(0.d0)), dimension(:,:,:,:), allocatable :: CVmasscopy
     !integer :: CVmasscopy(nbinso(1),nbinso(2),nbinso(3))
     integer :: m,nresults
     character(30) :: filename, outfile
@@ -2736,7 +2741,7 @@ subroutine momentum_bin_io(CV_mass_out,CV_momentum_out,io_type)
     integer                 :: m,nresults
     !integer, intent(in)        :: CV_mass_out(nbinso(1),nbinso(2),nbinso(3))
     !real(kind(0.d0)), intent(in) :: CV_momentum_out(nbinso(1),nbinso(2),nbinso(3),nd)
-    integer, dimension(:,:,:), intent(inout) :: CV_mass_out
+    real(kind(0.d0)), dimension(:,:,:), intent(inout) :: CV_mass_out
     real(kind(0.d0)), dimension(:,:,:,:), intent(inout) :: CV_momentum_out
 
     character(4)            :: io_type
@@ -2867,7 +2872,7 @@ subroutine mass_bin_cpol_io(mass_out)
     !                                   cpol_binso(2), &
     !                                   cpol_binso(3))
     
-    integer, dimension(:,:,:), intent(inout) :: mass_out
+    real(kind(0.d0)), dimension(:,:,:), intent(inout) :: mass_out
 
     character(200) :: mfile!, vfile
     integer :: m, ierr
@@ -2933,7 +2938,7 @@ subroutine momentum_bin_cpol_io(mass_out,mom_out)
     !                                            cpol_binso(2), &
     !                                            cpol_binso(3), &
     !                                            nd)
-    integer, dimension(:,:,:), intent(inout) :: mass_out
+    real(kind(0.d0)), dimension(:,:,:), intent(inout) :: mass_out
     real(kind(0.d0)), dimension(:,:,:,:), intent(inout) :: mom_out
 
     character(200) :: vfile
@@ -2998,7 +3003,7 @@ subroutine temperature_bin_cpol_io(mass_out,KE_out)
     ! z-plane mass and KE for all_reduce on zplane subcomms.
     ! The mass and KE arrays on each processor are global in
     ! r and theta, but local in z.  
-    integer, dimension(:,:,:), intent(inout) :: mass_out
+    real(kind(0.d0)), dimension(:,:,:), intent(inout) :: mass_out
     real(kind(0.d0)), dimension(:,:,:), intent(inout) :: KE_out
 
     character(200) :: Tfile
@@ -3206,7 +3211,7 @@ subroutine temperature_bin_io(CV_mass_out,CV_temperature_out,io_type)
     use messenger_bin_handler, only : swaphalos
     implicit none
 
-    integer,intent(inout)           :: CV_mass_out(:,:,:)
+    real(kind(0.d0)),intent(inout)  :: CV_mass_out(:,:,:)
     real(kind(0.d0)),intent(inout)  :: CV_temperature_out(:,:,:)
 
     integer             :: m,nresults
@@ -3993,7 +3998,7 @@ subroutine external_forcev_io
     implicit none
 
     integer                                  :: m,nresults
-    integer, dimension(:,:,:,:), allocatable :: Fv_ext_copy
+    real(kind(0.d0)), dimension(:,:,:,:), allocatable :: Fv_ext_copy
 
     !Copy CV_energy_out so it is not changed
     nresults = 1

@@ -98,7 +98,6 @@ subroutine simulation_record
 
     integer, save   :: vmd_skip_count=0
     integer, save   :: vmdintervalno = 1
-    integer :: sl_interface_outflag
 
 	if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
 		call mass_flux_averaging(mflux_outflag)				!Average mass flux before movement of particles
@@ -196,11 +195,11 @@ subroutine simulation_record
 	if (momentum_outflag .eq. 0 .and. &
 		mass_outflag .ne. 0) call mass_averaging(mass_outflag)
 
-    sl_interface_outflag = 0
-    if (sl_interface_outflag .eq. 1) then
-        call sl_interface(sl_interface_outflag)
-    elseif (sl_interface_outflag .eq. 2) then
+    !Cluster analysis or average bin based tracking of liquid vapour interfaces
+    if (cluster_analysis_outflag .eq. 1) then
         call get_interface_from_clusters()
+    elseif (cluster_analysis_outflag .eq. 2) then
+        call sl_interface_from_binaverage()
     endif
 
 	!Obtain and record velocity distributions
@@ -1652,7 +1651,7 @@ subroutine cumulative_temperature(ixyz)
 			if (cbin > nbins(ixyz)) cbin = nbins(ixyz) 		 !Prevents out of range values
 			if (cbin < 1 ) cbin = 1        				 !Prevents out of range values
 			if (momentum_outflag .ne. ixyz) & 
-			slice_mass(cbin)= slice_mass(cbin) + mass(n)     			 !Add one to current bin
+			slice_mass(cbin)= slice_mass(cbin) + mass(n)     			 !Add mass to current bin
 			slice_temperature(cbin) = slice_temperature(cbin) & 
 					+ mass(n)*dot_product((v(:,n)+slidev(:,n)),(v(:,n)+slidev(:,n))) 	 !Add streamwise temperature to current bin
 		enddo
@@ -3645,7 +3644,7 @@ subroutine mass_snapshot
 
 	integer										:: n
 	integer		,dimension(3)					:: ibin
-	integer		,dimension(:,:,:)  ,allocatable	:: volume_mass_temp
+	real(kind(0.d0)),dimension(:,:,:)  ,allocatable	:: volume_mass_temp
 	real(kind(0.d0)),dimension(3)				:: mbinsize
 
 	!Determine bin size
@@ -4000,7 +3999,7 @@ subroutine momentum_snapshot
 
 	integer											:: n
 	integer		,dimension(3)						:: ibin
-	integer		,dimension(:,:,:)  ,allocatable		:: volume_mass_temp
+	real(kind(0.d0)) ,dimension(:,:,:)  ,allocatable		:: volume_mass_temp
 	real(kind(0.d0))								:: binvolume
 	real(kind(0.d0)),dimension(3)					:: mbinsize
 	real(kind(0.d0)),dimension(:,:,:,:),allocatable :: volume_momentum_temp
@@ -5370,7 +5369,7 @@ subroutine evaluate_U
 	integer,dimension(3):: ib
 	real(kind(0.d0)),dimension(3) 	:: Vbinsize
 
-	integer, dimension(:,:,:), allocatable :: mbin
+	real(kind(0.d0)), dimension(:,:,:), allocatable :: mbin
 	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: vbin
 
 	integer :: x,y,z,c
@@ -5453,17 +5452,18 @@ contains
     end subroutine build_clusters
 
     subroutine get_cluster_properties(self, rd)
-        use physical_constants_MD, only : pi
-        use computational_constants_MD, only : iter
+        use physical_constants_MD, only : pi, np
+        use computational_constants_MD, only : iter, thermo_tags, thermo, free
         use linked_list, only : linklist_printneighbourlist
         use librarymod, only : imaxloc, get_Timestep_FileName, least_squares, get_new_fileunit
+        use arrays_MD, only : tag
         implicit none
 
         type(clusterinfo),intent(inout)    :: self
         double precision, intent(in)       :: rd
 
         character(32)                   :: filename
-        integer                         :: i,j,resolution,fileunit
+        integer                         :: n, i,j,resolution,fileunit
         double precision                :: tolerence, m, c, cl_angle
         double precision,dimension(6)   :: extents
         double precision,dimension(:),allocatable :: x,y
@@ -5501,8 +5501,18 @@ contains
         write(fileunit,'(i12, 3(a,f10.5))'), iter, ' Bottom line y = ', m, ' x + ',c  , ' angle = ', cl_angle
         close(fileunit,status='keep')
 
-
         call check_for_cluster_breakup(self)
+
+
+        ! - - -Set cluster molecules to be thermostatted - - -
+
+        !First set all thermostatted liquid molecules to unthermostatted
+        do n = 1,np
+           ! if (tag(n) .eq. thermo) 
+            tag(n) = free
+        enddo
+        !Then set molecules in biggest cluster to thermostatted
+        call thermostat_cluster(self, imaxloc(self%Nlist))
 
         !Print Biggest cluster
 !        call get_Timestep_FileName(iter,'./results/Big_clust',filename)
@@ -5548,6 +5558,39 @@ contains
 
 
     end subroutine check_for_cluster_breakup
+
+    subroutine thermostat_cluster(self, clustNo)
+        use arrays_MD, only : tag
+        use computational_constants_MD, only : thermo_tags, thermo
+        implicit none
+
+        type(clusterinfo),intent(in)    :: self
+        integer, intent(in)             :: clustNo
+
+        integer                         :: n, molno, Nmols
+	    type(node), pointer 	        :: old, current
+
+        Nmols = self%Nlist(clustNo)
+        if (Nmols .gt. 0) then
+            current => self%head(clustNo)%point
+            !Loop through all cluster molecules
+            do n = 1,Nmols
+
+                !Get molecule number and step to the next link list item
+                molno = current%molno
+                old => current%next      
+                current => old
+
+                !if (any(tag(n) .ne. thermo_tags)) then
+                    !print*, n, tag(n)
+                    tag(n) = thermo
+                !endif
+
+            enddo
+        endif
+
+    end subroutine thermostat_cluster
+
 
     subroutine print_interface()
         implicit none
@@ -5842,7 +5885,6 @@ contains
     end subroutine cluster_global_extents
 
     !Generate extents for the 2D surface on a cell by cell basis
-
     subroutine cluster_extents_grid(self, clustNo, dir, resolution, & 
                                     extents, maxmols, debug_outfile)
         use arrays_MD, only : r
@@ -6073,149 +6115,113 @@ contains
     end subroutine cluster_outer_mols
 
 
+!    subroutine build_debug_clusters(self, rd)
+!        use librarymod, only : get_Timestep_FileName, get_new_fileunit
+!	    use module_compute_forces, only : iter, np, r, halfdomain, cellsidelength, nh, ncells, rneighbr2
+!        use linked_list, only : build_cell_and_neighbourlist_using_debug_positions, cellinfo,neighbrinfo
+!	    implicit none
 
-!    subroutine cluster_outer_mols(self, clustNo, tolerence, dir, rmols, extents)
-!        use arrays_MD, only : r
-!        use module_set_parameters, only : mass
-!        use computational_constants_MD, only : halfdomain
-!	    use interfaces, only : error_abort
-!        implicit none
+!        type(clusterinfo),intent(inout) :: self
+!        double precision, intent(in)    :: rd
 
-!        type(clusterinfo),intent(in)    :: self
-
-!        integer, intent(in)             :: clustNo, dir
-!        double precision,intent(in)     :: tolerence
-!        double precision,dimension(6),intent(in),optional  :: extents
-!        double precision,dimension(:,:),allocatable,intent(out) :: rmols
-
-!        double precision,dimension(6)  :: extents_, molband
-!        double precision,dimension(:,:),allocatable :: rtemp
-!        integer                         :: ixyz,n,m, Nmols
-!	    type(node), pointer 	        :: old, current
-
-!        if (dir .gt. 6) call error_abort("Error in cluster_outer_mols -- dir should be between 1 and 6")
-
-!        !If no extents supplies, use cluster values
-!        if (present(extents)) then
-!            extents_ = extents
-!        else
-!            call cluster_global_extents(self, clustNo, extents_)
-!        endif
-
-!        !For all clusters which are not empty
-!        molband(1:3) = extents_(1:3) - tolerence
-!        molband(4:6) = extents_(4:6) + tolerence
-
-!        Nmols = self%Nlist(clustNo)
-!        allocate(rtemp(3,Nmols))
-!        m = 0
-!        if (Nmols .gt. 0) then
-!            current => self%head(clustNo)%point
-!            !Redefine cluster molecules is included in
-!            do n = 1,Nmols
-!                !Check if in top band
-!                if (dir .le. 3) then
-!                    if (r(dir,current%molno) .lt. extents_(dir) .and. & 
-!                        r(dir,current%molno) .gt. molband(dir)) then
-!                        m = m + 1
-!                        rtemp(:,m) = r(:,current%molno)
-!                    endif
-!                elseif (dir .gt. 3) then  
-!                    !Check if in bottom band
-!                    if (r(dir-3,current%molno) .gt. extents_(dir) .and. & 
-!                        r(dir-3,current%molno) .lt. molband(dir)) then
-!                        m = m + 1
-!                        rtemp(:,m) = r(:,current%molno)
-!                    endif
-!                endif
-
-!                old => current%next      
-!                current => old
-!            enddo
-!        endif
-
-!        !Copy total array to array size of outer molecules
-!        allocate(rmols(3,m))
-!        rmols = rtemp(:,1:m)
-
-!    end subroutine cluster_outer_mols
-
-
-    subroutine build_debug_clusters(self, rd)
-        use librarymod, only : get_Timestep_FileName, get_new_fileunit
-	    use module_compute_forces, only : iter, np, r, halfdomain, cellsidelength, nh, ncells, rneighbr2
-        use linked_list, only : build_cell_and_neighbourlist_using_debug_positions, cellinfo,neighbrinfo
-	    implicit none
-
-        type(clusterinfo),intent(inout) :: self
-        double precision, intent(in)    :: rd
-
-	    integer		:: i, cellnp, n, m, testmols, molcount, clustno, molnoi, molnoj, adjacentcellnp, noneighbrs, j
-	    integer		:: icell, jcell, kcell, icellshift, kcellshift, jcellshift, fileunit
-        double precision                :: rd2, rij2
-        double precision,dimension(3)   :: ri, rj, rij
-        double precision,dimension(4)   :: rand
-        double precision, dimension(:,:),allocatable   :: rdebug
-        character(20)                    :: filename
-        type(cellinfo)                  :: celldebug
-        type(neighbrinfo)               :: neighbourdebug
-	    type(node), pointer	            :: old, current
+!	    integer		:: i, cellnp, n, m, testmols, molcount, clustno, molnoi, molnoj, adjacentcellnp, noneighbrs, j
+!	    integer		:: icell, jcell, kcell, icellshift, kcellshift, jcellshift, fileunit
+!        double precision                :: rd2, rij2
+!        double precision,dimension(3)   :: ri, rj, rij
+!        double precision,dimension(4)   :: rand
+!        double precision, dimension(:,:),allocatable   :: rdebug
+!        character(20)                    :: filename
+!        type(cellinfo)                  :: celldebug
+!        type(neighbrinfo)               :: neighbourdebug
+!	    type(node), pointer	            :: old, current
 
 
 
-        rd2 = rd**2.d0
-        testmols = 200
+!        rd2 = rd**2.d0
+!        testmols = 200
 
-        allocate(rdebug(3,testmols))
-        rdebug = 0.d0
+!        allocate(rdebug(3,testmols))
+!        rdebug = 0.d0
 
-        do n = 1,testmols
-            call random_number(rand)
-            if (rand(1) .le. 1.d0/4.d0) then
-                rdebug(:,n) = (/ 0.d0, 5.d0, 0.d0 /) + (rand(2:4)-0.5d0) * 2.d0
-            elseif (rand(1) .gt. 1.d0/4.d0 .and. rand(1) .le. 2.d0/4.d0) then
-                rdebug(:,n) = (/  6.d0, -6.d0, 0.d0 /) + (rand(2:4)-0.5d0) * 2.d0
-            elseif (rand(1) .gt. 2.d0/4.d0 .and. rand(1) .le. 3.d0/4.d0) then
-                rdebug(:,n) = (/ -7.d0, -7.d0, 0.d0 /) + (rand(2:4)-0.5d0) * 2.d0
-            else
-                rdebug(:,n) = (/ -7.d0, -7.d0, 0.d0 /) + (/ (rand(2)) * 10.d0, (rand(3)) * 14.d0 , 0.d0 /)
-            endif
-            !print'(i6,3f10.5)', n, rdebug(:,n)
-        enddo
-
-
-        !Try an all pairs solution
 !        do n = 1,testmols
-!            ri(:) = rdebug(:,n)
-!            do m = n,testmols
-!                if (n .eq. m) cycle
-!                rj(:) = rdebug(:,m)			            !Retrieve rj
-!			    rij(:)= ri(:) - rj(:)   	            !Evaluate distance between particle i and j
-!			    rij2  = dot_product(rij,rij)            !Square of vector calculated
-!	            if (rij2 .lt. rd2) then
-!                    call AddBondedPair(self, n, m)
-!                endif
-!            enddo
+!            call random_number(rand)
+!            if (rand(1) .le. 1.d0/4.d0) then
+!                rdebug(:,n) = (/ 0.d0, 5.d0, 0.d0 /) + (rand(2:4)-0.5d0) * 2.d0
+!            elseif (rand(1) .gt. 1.d0/4.d0 .and. rand(1) .le. 2.d0/4.d0) then
+!                rdebug(:,n) = (/  6.d0, -6.d0, 0.d0 /) + (rand(2:4)-0.5d0) * 2.d0
+!            elseif (rand(1) .gt. 2.d0/4.d0 .and. rand(1) .le. 3.d0/4.d0) then
+!                rdebug(:,n) = (/ -7.d0, -7.d0, 0.d0 /) + (rand(2:4)-0.5d0) * 2.d0
+!            else
+!                rdebug(:,n) = (/ -7.d0, -7.d0, 0.d0 /) + (/ (rand(2)) * 10.d0, (rand(3)) * 14.d0 , 0.d0 /)
+!            endif
+!            !print'(i6,3f10.5)', n, rdebug(:,n)
 !        enddo
 
-        !Or build all cell and neighbour lists
-        call build_cell_and_neighbourlist_using_debug_positions(rdebug, celldebug, neighbourdebug)
-        !Then call original routine to build
-        call build_from_cellandneighbour_lists(self, celldebug, neighbourdebug, rd, rdebug, testmols, skipwalls_=.false.)
 
-        !And print test of neighlists
-!        do molno = 1, testmols
+!        !Try an all pairs solution
+!!        do n = 1,testmols
+!!            ri(:) = rdebug(:,n)
+!!            do m = n,testmols
+!!                if (n .eq. m) cycle
+!!                rj(:) = rdebug(:,m)			            !Retrieve rj
+!!			    rij(:)= ri(:) - rj(:)   	            !Evaluate distance between particle i and j
+!!			    rij2  = dot_product(rij,rij)            !Square of vector calculated
+!!	            if (rij2 .lt. rd2) then
+!!                    call AddBondedPair(self, n, m)
+!!                endif
+!!            enddo
+!!        enddo
 
-!	        noneighbrs = neighbourdebug%Nlist(molno)  	!Determine number of elements in neighbourlist
-!	        old => neighbourdebug%head(molno)%point		!Set old to head of neighbour list
+!        !Or build all cell and neighbour lists
+!        call build_cell_and_neighbourlist_using_debug_positions(rdebug, celldebug, neighbourdebug)
+!        !Then call original routine to build
+!        call build_from_cellandneighbour_lists(self, celldebug, neighbourdebug, rd, rdebug, testmols, skipwalls_=.false.)
 
-!	        if(noneighbrs == 0) print'(i6, a,3f10.5)', molno, 'has 0 neighbours', rdebug(:,molno)
+!        !And print test of neighlists
+!!        do molno = 1, testmols
+
+!!	        noneighbrs = neighbourdebug%Nlist(molno)  	!Determine number of elements in neighbourlist
+!!	        old => neighbourdebug%head(molno)%point		!Set old to head of neighbour list
+
+!!	        if(noneighbrs == 0) print'(i6, a,3f10.5)', molno, 'has 0 neighbours', rdebug(:,molno)
+
+!!	        current => old ! make current point to head of list
+!!	        do j=1,noneighbrs
+!!                
+!!		        !print*, 'more items in linked list?: ', associated(old%next)
+!!          		print'(i6, 2(a,i8),3f10.5)', j, ' Linklist print called for molecule ', molno,' j = ', current%molno, rdebug(:,current%molno)
+!!		        if (associated(old%next) .eqv. .true. ) then !Exit if null
+!!			        old => current%next ! Use pointer in datatype to obtain next item in list
+!!			        current => old      ! make current point to old - move alone one
+!!		        endif
+!!	        enddo
+
+!!	        nullify(current)                    !Nullify current as no longer required
+!!	        nullify(old)                        !Nullify old as no longer required
+
+!!        enddo
+
+!        !PRINT CLUSTER DEBUGGING INFO
+!        call CompressClusters(self)
+
+!    	fileunit = get_new_fileunit()
+!        call get_Timestep_FileName(iter,'./Big_clust',filename)
+!        open(unit=fileunit,file=trim(filename),access='append')
+
+!        molcount = 0
+!        do clustno = 1, self%Nclust
+
+!	        noneighbrs = self%Nlist(clustno)  	!Determine number of elements in neighbourlist
+!	        old => self%head(clustno)%point		!Set old to head of neighbour list
+
+!	        if(noneighbrs == 0) print*, clustno, 'cluster has no elements'
 
 !	        current => old ! make current point to head of list
 !	        do j=1,noneighbrs
-!                
-!		        !print*, 'more items in linked list?: ', associated(old%next)
-!          		print'(i6, 2(a,i8),3f10.5)', j, ' Linklist print called for molecule ', molno,' j = ', current%molno, rdebug(:,current%molno)
+!                molcount =  molcount + 1
+!          		write(fileunit,'(2i6, 3(a,i8),3f10.5)'), molcount, j, ' of ', self%Nlist(clustno), & 
+!                                             ' Linklist for cluster ', clustno,' j = ', & 
+!                                             current%molno, rdebug(:,current%molno)
 !		        if (associated(old%next) .eqv. .true. ) then !Exit if null
 !			        old => current%next ! Use pointer in datatype to obtain next item in list
 !			        current => old      ! make current point to old - move alone one
@@ -6227,43 +6233,11 @@ contains
 
 !        enddo
 
-        !PRINT CLUSTER DEBUGGING INFO
-        call CompressClusters(self)
+!        close(fileunit,status='keep')
 
-    	fileunit = get_new_fileunit()
-        call get_Timestep_FileName(iter,'./Big_clust',filename)
-        open(unit=fileunit,file=trim(filename),access='append')
+!     
 
-        molcount = 0
-        do clustno = 1, self%Nclust
-
-	        noneighbrs = self%Nlist(clustno)  	!Determine number of elements in neighbourlist
-	        old => self%head(clustno)%point		!Set old to head of neighbour list
-
-	        if(noneighbrs == 0) print*, clustno, 'cluster has no elements'
-
-	        current => old ! make current point to head of list
-	        do j=1,noneighbrs
-                molcount =  molcount + 1
-          		write(fileunit,'(2i6, 3(a,i8),3f10.5)'), molcount, j, ' of ', self%Nlist(clustno), & 
-                                             ' Linklist for cluster ', clustno,' j = ', & 
-                                             current%molno, rdebug(:,current%molno)
-		        if (associated(old%next) .eqv. .true. ) then !Exit if null
-			        old => current%next ! Use pointer in datatype to obtain next item in list
-			        current => old      ! make current point to old - move alone one
-		        endif
-	        enddo
-
-	        nullify(current)                    !Nullify current as no longer required
-	        nullify(old)                        !Nullify old as no longer required
-
-        enddo
-
-        close(fileunit,status='keep')
-
-     
-
-    end subroutine build_debug_clusters
+!    end subroutine build_debug_clusters
 
 
 end module cluster_analysis
@@ -6304,8 +6278,8 @@ contains
         implicit none
 
 
-        double precision, intent(in)                      :: liquiddensity,gasdensity,soliddensity
-        integer, dimension(:,:,:),allocatable,intent(in)  :: density_bins
+        double precision, intent(in)                               :: liquiddensity,gasdensity,soliddensity
+        double precision, dimension(:,:,:),allocatable,intent(in)  :: density_bins
 
         integer, dimension(:,:),allocatable,optional,intent(out)   :: interfacecells
         integer, dimension(:,:),allocatable,optional,intent(out)   :: liquidcells
@@ -6690,7 +6664,7 @@ contains
 end module sl_interface_mod
 
 !Calculate interface location
-subroutine sl_interface(flag)
+subroutine sl_interface_from_binaverage()
     use sl_interface_mod
     use interfaces, only : error_abort
     use physical_constants_MD, only : density
@@ -6700,13 +6674,11 @@ subroutine sl_interface(flag)
                                           liquid_density, gas_density
     implicit none
 
-    integer, intent(in) :: flag
-
-    double precision    :: binvolume, input_soliddensity, input_liquiddensity, input_gasdensity, rd
+    real(kind(0.d0))   :: binvolume, input_soliddensity, input_liquiddensity, input_gasdensity, rd
     integer,dimension(:,:),allocatable    :: interfacecells
     real(kind(0.d0)),dimension(:,:),allocatable    :: rarray
 
-    if (Nmass_ave .eq. 0) call error_abort("Error in sl_interface -- Interface checking requires mass binning")
+    if (Nmass_ave .eq. 0) call error_abort("Error in sl_interface_from_binaverage -- Interface checking requires mass binning")
     if (mod(iter/tplot+1,(Nmass_ave)) .eq. 0) then
         !allocate(density_bins(size(volume_mass,1),size(volume_mass,2),size(volume_mass,3)))
     	binvolume = (domain(1)/nbins(1))*(domain(2)/nbins(2))*(domain(3)/nbins(3))
@@ -6728,7 +6700,7 @@ subroutine sl_interface(flag)
         !print*, 'NO output', mod(iter/tplot,Nmass_ave), iter,tplot,Nmass_ave
     endif
 
-end subroutine sl_interface
+end subroutine sl_interface_from_binaverage
 
 
 
