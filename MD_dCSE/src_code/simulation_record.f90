@@ -5462,6 +5462,7 @@ contains
         type(clusterinfo),intent(inout)    :: self
         double precision, intent(in)       :: rd
 
+        logical                         :: first_time=.true.
         character(32)                   :: filename
         integer                         :: n, i,j,resolution,fileunit
         double precision                :: tolerence, m, c, cl_angle
@@ -5472,9 +5473,9 @@ contains
         resolution = 10; tolerence = rd
         call cluster_global_extents(self, imaxloc(self%Nlist), extents)
         call cluster_extents_grid(self, imaxloc(self%Nlist), 1, resolution, & 
-                                  extents_grid, debug_outfile='./results/maxcell_top')
+                                  extents_grid)!, debug_outfile='./results/maxcell_top')
         call cluster_outer_mols(self, imaxloc(self%Nlist), tolerence=tolerence, dir=1, & 
-                                rmols=rnp, extents=extents_grid, debug_outfile='./results/clust_edge_top')
+                                rmols=rnp, extents=extents_grid)!, debug_outfile='./results/clust_edge_top')
 
         allocate(x(size(rnp,2)),y(size(rnp,2)))
         x = rnp(2,:); y = rnp(1,:)
@@ -5482,14 +5483,18 @@ contains
         deallocate(x,y)
         cl_angle = 90.d0+atan(m)*180./pi
     	fileunit = get_new_fileunit()
-        open(unit=fileunit,file='linecoeff_top',access='append')
+        if (first_time) then
+            open(unit=fileunit,file='linecoeff_top',status='replace')
+        else
+            open(unit=fileunit,file='linecoeff_top',access='append')
+        endif
         write(fileunit,'(i12, 3(a,f10.5))'), iter, ' Top line    y = ', m, ' x + ',c , ' angle = ', cl_angle
         close(fileunit,status='keep')
 
         call cluster_extents_grid(self, imaxloc(self%Nlist), 4, resolution, &
-                                  extents_grid, debug_outfile='./results/maxcell_bot')
+                                  extents_grid )!, debug_outfile='./results/maxcell_bot')
         call cluster_outer_mols(self, imaxloc(self%Nlist), tolerence=tolerence, dir=4, & 
-                                rmols=rnp, extents=extents_grid, debug_outfile='./results/clust_edge_bot')
+                                rmols=rnp, extents=extents_grid)!, debug_outfile='./results/clust_edge_bot')
 
         allocate(x(size(rnp,2)),y(size(rnp,2)))
         x = rnp(2,:); y = rnp(1,:)
@@ -5497,7 +5502,12 @@ contains
         deallocate(x,y)
         cl_angle = 90.d0+atan(m)*180.d0/pi
     	fileunit = get_new_fileunit()
-        open(unit=fileunit,file='linecoeff_bot',access='append')
+        if (first_time) then
+            open(unit=fileunit,file='linecoeff_bot',status='replace')
+            first_time = .false.
+        else
+            open(unit=fileunit,file='linecoeff_bot',access='append')
+        endif
         write(fileunit,'(i12, 3(a,f10.5))'), iter, ' Bottom line y = ', m, ' x + ',c  , ' angle = ', cl_angle
         close(fileunit,status='keep')
 
@@ -5507,12 +5517,12 @@ contains
         ! - - -Set cluster molecules to be thermostatted - - -
 
         !First set all thermostatted liquid molecules to unthermostatted
-        do n = 1,np
-           ! if (tag(n) .eq. thermo) 
-            tag(n) = free
-        enddo
+        !do n = 1,np
+        !   ! if (tag(n) .eq. thermo) 
+        !    tag(n) = free
+        !enddo
         !Then set molecules in biggest cluster to thermostatted
-        call thermostat_cluster(self, imaxloc(self%Nlist))
+        !call thermostat_cluster(self, imaxloc(self%Nlist))
 
         !Print Biggest cluster
 !        call get_Timestep_FileName(iter,'./results/Big_clust',filename)
@@ -5544,7 +5554,7 @@ contains
         call bubble_sort_r(cluster_sizes)
 
         if ((cluster_sizes(1) - cluster_sizes(2))/cluster_sizes(1) .gt. 0.4d0) then
-            print'(a,8f10.1,e18.8)', 'TOP EIGHT CLUSTERS =', cluster_sizes(1:8), (cluster_sizes(1) - cluster_sizes(2))/cluster_sizes(1)
+            !print'(a,8f10.1,e18.8)', 'TOP EIGHT CLUSTERS =', cluster_sizes(1:8), (cluster_sizes(1) - cluster_sizes(2))/cluster_sizes(1)
 
         else
             print*, 'It appears clusters have broken up -- writing final state and exiting'

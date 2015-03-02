@@ -167,18 +167,21 @@ contains
 		implicit none
 	
 		real(kind(0.d0)), dimension (nd) :: vel
-		real(kind(0.d0)) :: mv2sum
+		real(kind(0.d0)) :: mv2sum, thermostatnp
 		real(kind(0.d0)) :: Q
 		real(kind(0.d0)) :: dzeta_dt
 		
 		mv2sum = 0.d0
+        thermostatnp = 0.d0
 		do n=1,np
 			vel(:) = v(:,n) + 0.5d0*a(:,n)*delta_t	
 			mv2sum = mv2sum + mass(n) * dot_product(vel,vel)
+        	thermostatnp = thermostatnp + mass(n)          
 		end do
 		call globalSum(mv2sum)		
-		Q        = globalnp*delta_t
-		dzeta_dt = (mv2sum - (real(nd*globalnp + 1,kind(0.d0)))*inputtemperature)/Q
+		call globalSum(thermostatnp)		
+		Q        = thermostatnp*delta_t
+		dzeta_dt = (mv2sum - (real(nd*thermostatnp + 1,kind(0.d0)))*inputtemperature)/Q
 		zeta     = zeta + delta_t*dzeta_dt
 		bscale   = 1.0/(1.0+0.5*delta_t*zeta)
 		ascale   = (1-0.5*delta_t*zeta)*bscale
@@ -192,7 +195,7 @@ contains
         use module_set_parameters, only : mass
 		implicit none
 		
-		real(kind(0.d0)) :: pec_mv2sum
+		real(kind(0.d0)) :: pec_mv2sum, thermostatnp
 		real(kind(0.d0)) :: Q
 		real(kind(0.d0)) :: dzeta_dt
 		real(kind(0.d0)), dimension(nd) :: pec_v
@@ -205,10 +208,12 @@ contains
 		do n=1,np
 			!pec_v(:)  = v(:,n) + 0.5d0*a(:,n)*delta_t - U(:,n)      ! PUT: Find peculiar velocity
 			pec_mv2sum = pec_mv2sum + mass(n) * dot_product(pec_v,pec_v)        ! PUT: Sum peculiar velocities squared
+        	thermostatnp = thermostatnp + mass(n)          
 		end do
 		call globalSum(pec_mv2sum)
-		Q        = globalnp*delta_t                                 ! PUT: Thermal inertia
-		dzeta_dt = (pec_mv2sum - (real(globalnp*nd+1,kind(0.d0)))*inputtemperature)/Q ! PUT: dzeta_dt(t-dt)
+		call globalSum(thermostatnp)		
+		Q        = thermostatnp*delta_t                                 ! PUT: Thermal inertia
+		dzeta_dt = (pec_mv2sum - (real(thermostatnp*nd+1,kind(0.d0)))*inputtemperature)/Q ! PUT: dzeta_dt(t-dt)
 		zeta     = zeta + delta_t*dzeta_dt                          ! PUT: zeta(t)
 		bscale   = 1.0/(1.0+0.5*zeta*delta_t)                       
 		ascale   = (1.0-0.5*zeta*delta_t)*bscale
@@ -266,8 +271,8 @@ contains
         use module_set_parameters, only : mass
 		implicit none
 				
-		integer	:: n, thermostatnp
-		real(kind(0.d0)) :: freq, dzeta_dt, mv2sum, Q
+		integer	:: n
+		real(kind(0.d0)) :: thermostatnp, freq, dzeta_dt, mv2sum, Q
 		real(kind(0.d0)) :: ascale, bscale, dtheta
 		real(kind(0.d0)), dimension(nd)	:: vel
 		real(kind(0.d0)), dimension(nd)	:: rpol, rglob
@@ -304,7 +309,7 @@ contains
 			end if
 
 			mv2sum = 0.d0
-			thermostatnp = 0
+			thermostatnp = 0.d0
 			do n = 1, np
 				if ( tag(n) .eq. PUT_thermo ) then
 					vel(:) = v(:,n) - U(:,n) + 0.5d0*a(:,n)*delta_t
@@ -316,7 +321,7 @@ contains
 				end if
 
 				mv2sum = mv2sum + mass(n) * dot_product(vel,vel)
-				thermostatnp = thermostatnp + 1
+				thermostatnp = thermostatnp + mass(n)
 
 			enddo
 
