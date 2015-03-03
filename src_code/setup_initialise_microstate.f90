@@ -3757,7 +3757,7 @@ subroutine setup_initialise_velocities
         else
             v(:,n) = 0.d0                   !Don't assign velocity if molecule is fixed
         endif
-        netv(:)= netv(:) + v(:,n)           !Sum up overall momentum of system due to random movement
+        netv(:)= netv(:) + mass(n)*v(:,n)   !Sum up overall momentum of system due to random movement
     enddo
 
     call globalSum(netv, nd)            !Sum net velocity on all processors
@@ -3767,7 +3767,7 @@ subroutine setup_initialise_velocities
 
     do n=1,np
         !reducing all non-fixed particles by same amount
-        if (fix(1,n) .eq. 1) v(:,n)= v(:,n)-netv(:) 
+        if (fix(1,n) .eq. 1) v(:,n) = v(:,n)-netv(:)/mass(n)
                    
     enddo
 

@@ -935,6 +935,18 @@ function outerprod(a,b)
 	
 end function outerprod
 
+
+subroutine get_outerprod(a,b,outerprod)
+	implicit none
+
+	real(kind(0.d0)),dimension(:),intent(in)	            :: a, b
+	real(kind(0.d0)),dimension(:,:),allocatable,intent(out)	:: outerprod
+
+    allocate(outerprod(size(a),size(b)))
+	outerprod = spread(a,dim=2,ncopies=size(b))*spread(b,dim=1,ncopies=size(a))
+	
+end subroutine get_outerprod
+
 !--------------------------------------------------------------------------------------
 !Calculate cross product of two 3D vectors 
 function crossprod(a,b)

@@ -297,6 +297,9 @@ subroutine setup_read_input
                 Mie_potential = 0
             endif
 
+			call locate(1,'POTENTIAL_FLAG',.true.)
+            read(1,*) potential_flag
+
             if (mie_potential .ne. 1) then
                 call error_abort("2phase_surfactant_solution initial case used but Mie flag is off -- aborting")
             endif
@@ -321,8 +324,10 @@ subroutine setup_read_input
             read(1,*) density
             call locate(1,'LIQUIDDENSITY',.true.)
             read(1,*) liquid_density
+            if (density .lt. liquid_density) call error_abort("ERROR in 2PHASE_SURFACTANT input -- DENSITY must be greater than LIQUIDDENSITY")
 			call locate(1,'GASDENSITY',.true.) 
     	    read(1,*) gas_density
+            if (liquid_density .lt. gas_density) call error_abort("ERROR in 2PHASE_SURFACTANT input -- LIQUIDDENSITY must be greater than GASDENSITY")
 
             call locate(1,'INITIALNUNITS',.true.)
             read(1,*) initialnunits(1)		!x dimension split into number of cells
