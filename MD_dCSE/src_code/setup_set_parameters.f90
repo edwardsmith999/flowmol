@@ -203,7 +203,7 @@ contains
         double precision                :: FENE_accijmag
 
 		if(rij2.ge.R_0**2)	call polymer_bond_error(i,j)
-        FENE_accijmag =  k_c/(1-(rij2/(R_0**2)))
+        FENE_accijmag =  -k_c/(1-(rij2/(R_0**2)))
 
     end function FENE_accijmag
 

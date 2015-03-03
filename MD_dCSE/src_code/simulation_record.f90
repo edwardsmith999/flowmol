@@ -242,7 +242,9 @@ subroutine evaluate_macroscopic_properties
 	implicit none
 
 	integer :: n,ixyz
+    real(kind(0.d0))    :: msum
 
+    msum  = 0.d0
 	vsum  = 0.d0                                                ! Reset all sums
 	mv2sum = 0.d0                                                ! Reset all sums
 
@@ -266,37 +268,38 @@ subroutine evaluate_macroscopic_properties
 	select case(integration_algorithm)
 	case(leap_frog_verlet)
 		do n = 1, np 									! Loop over all particles
+        msum = msum + mass(n)
 		do ixyz = 1, nd									! Loop over all dimensions
 			vel   = v(ixyz,n) + 0.5d0*a(ixyz,n)*delta_t	! Velocity must shifted half a timestep
-			vsum  = vsum + vel							! Add up all molecules' velocity components
+			vsum  = vsum + mass(n)*vel							! Add up all molecules' velocity components
 			mv2sum = mv2sum + mass(n)*vel**2			! Add up all molecules' velocity squared components  
 		enddo
 		enddo
 	case(velocity_verlet) 								! If velocity Verlet algorithm
 		do n = 1, np
+        msum = msum + mass(n)
 		do ixyz = 1, nd
 			vel   = v(ixyz,n)
-			vsum  = vsum+vel
+			vsum  = vsum + mass(n)*vel
 			mv2sum = mv2sum + mass(n)*vel**2          	! Sum all velocity squared components
 		enddo
 		enddo
 	end select
         
 	!Obtain global sums for all parameters
+	call globalSum(msum)
 	call globalSum(vsum)
 	call globalSum(mv2sum)
 	virial = sum(virialmol(1:np))
 	call globalSum(virial)
 
 	kinenergy   = (0.5d0 * mv2sum) / real(globalnp,kind(0.d0))
-	potenergy   = potenergysum /(2.d0*real(globalnp,kind(0.d0))) + Potential_sLRC !N.B. extra 1/2 as all interactions calculated
+	potenergy   = (0.5d0 * potenergysum) / real(globalnp,kind(0.d0)) + Potential_sLRC !N.B. extra 1/2 as all interactions calculated
 	if (potential_flag.eq.1) then
-		potenergy_LJ= potenergysum_LJ/(2.d0*real(globalnp,kind(0.d0))) + Potential_sLRC
-		potenergy_FENE= potenergysum_FENE/(2.d0*real(globalnp,kind(0.d0)))
+		potenergy_LJ= (0.5d0 * potenergysum_LJ)/real(globalnp,kind(0.d0)) + Potential_sLRC
+		potenergy_FENE= (0.5d0 * potenergysum_FENE)/real(globalnp,kind(0.d0))
 	end if
-	!print'(4(a,f18.8))', ' <PE>= ',potenergy, & 
-	!						 ' std(PE) = ',sqrt(sum((potenergymol(1:np)-potenergy)**2)/(2.d0*real(globalnp,kind(0.d0)))), & 
-	!						 ' max= ',maxval(potenergymol(1:np)),' min= ',minval(potenergymol(1:np))
+
 	if (maxval(potenergymol(1:np)) .gt. 10000) then
 		print*, 'np = ', np
 		print*, 'max(potenergymol) = ', maxval(potenergymol(1:np))
@@ -310,7 +313,31 @@ subroutine evaluate_macroscopic_properties
 	totenergy   = kinenergy + potenergy
 	temperature = mv2sum / real(nd*globalnp,kind(0.d0))
 	if (any(periodic.gt.1)) temperature = get_temperature_PUT()
-	pressure    = (density/(globalnp*nd))*(mv2sum+virial/2.d0) + Pressure_sLRC !N.B. virial/2 as all interactions calculated
+	pressure    = (density/real(globalnp*nd,kind(0.d0)))*(mv2sum+virial/2.d0) + Pressure_sLRC !N.B. virial/2 as all interactions calculated
+
+!	kinenergy   = (0.5d0 * mv2sum) / msum
+!	potenergy   = potenergysum /(2.d0*msum) + Potential_sLRC !N.B. extra 1/2 as all interactions calculated
+!	if (potential_flag.eq.1) then
+!		potenergy_LJ= potenergysum_LJ/(2.d0*msum) + Potential_sLRC
+!		potenergy_FENE= potenergysum_FENE/(2.d0*msum)
+!	end if
+!	!print'(4(a,f18.8))', ' <PE>= ',potenergy, & 
+!	!						 ' std(PE) = ',sqrt(sum((potenergymol(1:np)-potenergy)**2)/(2.d0*real(msum,kind(0.d0)))), & 
+!	!						 ' max= ',maxval(potenergymol(1:np)),' min= ',minval(potenergymol(1:np))
+!	if (maxval(potenergymol(1:np)) .gt. 10000) then
+!		print*, 'np = ', np
+!		print*, 'max(potenergymol) = ', maxval(potenergymol(1:np))
+!		do n=1,np
+!			write(3000+irank,'(i10,f28.4,6f10.4)'), n , potenergymol(n), r(:,n), globalise(r(:,n))
+!		enddo
+!		print*, 'Simulation aborted because max PE has reached an unreasonably high value.'
+!		print*, 'Inspect fort.(3000+irank) for n, potenergymol, r, r_global'
+!		call error_abort("STOPPING CODE")
+!	endif
+!	totenergy   = kinenergy + potenergy
+!	temperature = mv2sum / (real(nd,kind(0.d0))*msum)
+!	if (any(periodic.gt.1)) temperature = get_temperature_PUT()
+!	pressure    = (density/(real(nd,kind(0.d0))*msum))*(mv2sum+virial/2.d0) + Pressure_sLRC !N.B. virial/2 as all interactions calculated
 
     !print'(a,i8,3f20.10)', 'pressure   ', iter, mv2sum+virial/2.d0, mv2sum , virial
 
@@ -324,7 +351,9 @@ subroutine evaluate_microstate_pressure
 
 	integer :: n
 	real(kind(0.d0)) :: vtemp(nd)
+    real(kind(0.d0)) :: msum
 
+    msum  = 0.d0
 	mv2sum = 0.d0
 
 	! Kinetic part of Virial
@@ -332,6 +361,7 @@ subroutine evaluate_microstate_pressure
 	case(leap_frog_verlet)
 
 		do n = 1, np
+            msum = msum + mass(n)
 			vtemp(:) = v(:,n) + 0.5d0*a(:,n)*delta_t ! Velocity must shifted half a timestep
 			mv2sum = mv2sum + mass(n) * dot_product(vtemp,vtemp)
 		enddo
@@ -339,6 +369,7 @@ subroutine evaluate_microstate_pressure
 	case(velocity_verlet)
 
 		do n = 1, np
+            msum = msum + mass(n)
 			mv2sum = mv2sum + mass(n) * dot_product(v(:,n),v(:,n))
 		enddo
 
@@ -2859,7 +2890,7 @@ end module Volume_average_pressure
 subroutine simulation_compute_rfbins!(imin, imax, jmin, jmax, kmin, kmax)
     use Volume_average_pressure
 	use module_compute_forces
-	use librarymod, only: outerprod
+	use librarymod, only: get_outerprod
 	implicit none
 
 	!integer,intent(in)  			:: imin, jmin, kmin, imax, jmax, kmax
@@ -2873,7 +2904,8 @@ subroutine simulation_compute_rfbins!(imin, imax, jmin, jmax, kmin, kmax)
 	type(node), pointer 	        :: oldi, currenti, oldj, currentj
 
 	real(kind(0.d0)),dimension(3)	:: vi_t, cellsperbin
-	real(kind(0.d0)), dimension(3,3):: rF
+	!real(kind(0.d0)), dimension(3,3):: rF
+	real(kind(0.d0)), dimension(:,:), allocatable :: rF
 	real(kind(0.d0)), dimension(3,1):: rFv
 	!rfbin = 0.d0
 	!allocate(rijsum(nd,np+extralloc)) !Sum of rij for each i, used for SLLOD algorithm
@@ -2950,7 +2982,8 @@ subroutine simulation_compute_rfbins!(imin, imax, jmin, jmax, kmin, kmax)
 						    !Linear magnitude of acceleration for each molecule
 						    invrij2 = 1.d0/rij2                 !Invert value
 						    accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
-                            rf = outerprod(rij, accijmag*rij)
+                            call get_outerprod(rij,rij*accijmag,rf)
+                            !rf = outerprod(rij, accijmag*rij)
 
 						    !Select requested configurational line partition methodology
                             call pressure_tensor_forces_VA(ri, rj, rF, domain,  & 
@@ -2967,7 +3000,8 @@ subroutine simulation_compute_rfbins!(imin, imax, jmin, jmax, kmin, kmax)
                             vi_t(:) = v(:,molnoi) + 0.5d0*delta_t*a(:,molnoi)
 
 						    !Select requested configurational line partition methodology
-                            rf = outerprod(rij, accijmag*rij)
+                            !rf = outerprod(rij, accijmag*rij)
+                            call get_outerprod(rij,rij*accijmag,rf)
                             do ixyz = 1,3
                                 rfv(ixyz,1) = dot_product(rf(ixyz,:),vi_t(:))
                             enddo
@@ -3004,7 +3038,8 @@ contains
     subroutine add_POLY_contribution
         use polymer_info_MD
         use Volume_average_pressure, only : pressure_tensor_forces_VA
-	    use librarymod, only: outerprod
+	    !use librarymod, only: outerprod
+	    use librarymod, only: get_outerprod
         use module_set_parameters, only : get_poly_accijmag
         implicit none
 
@@ -3023,7 +3058,8 @@ contains
                 rij2   = dot_product(rij,rij)
                 !accijmag = -k_c/(1-(rij2/(R_0**2)))	!(-dU/dr)*(1/|r|)
                 accijmag = -get_poly_accijmag(rij2, molnoi, molnoj)
-                rf = outerprod(rij,rij*accijmag)
+                call get_outerprod(rij,rij*accijmag,rf)
+                !rf = outerprod(rij,rij*accijmag)
                 call pressure_tensor_forces_VA(ri, rj, rf, domain,  & 
                                                 nbins, nhb, rfbin,  &
                                                 VA_calcmethod=1,    & 
@@ -3066,6 +3102,7 @@ subroutine pressure_tensor_forces_VA_trap_cpol(ri,rj,accijmag)
 	! Store rij * Fij outer product tensor (cartesian)
 	rij = rj - ri
 	rF = outerprod(rij, accijmag*rij)
+
 	! Transform to polar coordinates
 	rF = cpolariseT(rF,ripol(2)) 
 

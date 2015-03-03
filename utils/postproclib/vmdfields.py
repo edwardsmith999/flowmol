@@ -89,6 +89,7 @@ class VMDFields:
         """
             Create VMD vol_data folder
         """
+
         self.vmd_dir = self.fdir + '/vmd/'
         self.vol_dir = self.vmd_dir + '/vol_data/'
         if not os.path.exists(self.vol_dir):
@@ -104,6 +105,7 @@ class VMDFields:
             sys.exit("Error in copy_tclfiles -- Directory " + self.vmdtcl + " is empty or not found ")
         for filepath in listdir_nohidden(self.vmdtcl):
             filename = filepath.split('/')[-1]
+            print(filepath, self.vmd_dir+ '/' +filename)
             shutil.copyfile(filepath, self.vmd_dir+ '/' +filename )
 
     def reformat(self):

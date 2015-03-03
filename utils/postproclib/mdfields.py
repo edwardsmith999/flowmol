@@ -32,8 +32,8 @@ class MDField(Field):
         year = header.sim_date[:4]
         month = header.sim_date[4:6]
         day = header.sim_date[6:8]
-        #print(day, month, year)
-        if (int(year)<2015 or int(month)<2 or int(day) < 25):
+        #print(day, month, year, int(year)<2015 , int(month)<2 , int(day) < 25)
+        if (int(year)<2015 or (int(year) is 2015 and int(month)<2)):
             #print("Results from before 25/02/2015 so assuming mbins uses integers")
             self.dtype = 'i'
 
