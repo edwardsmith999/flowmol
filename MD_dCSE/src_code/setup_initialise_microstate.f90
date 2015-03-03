@@ -2651,7 +2651,7 @@ contains
                     molno = mols(1)
                     monomer(molno)%chainID    = chainID
                     monomer(molno)%subchainID = 1 
-                    monomer(molno)%glob_no    = n
+                    monomer(molno)%glob_no    = molno
                     moltype(molno) = ids(1)  ! EO bead
                     !print'(4(a,i5))', 'In chain ', chainID, ' connecting ', molno, ' with subchain id ', monomer(molno)%subchainID, ' to subchain ', 2 
                     call connect_to_monomer(2,molno)
@@ -2697,6 +2697,7 @@ contains
                     !print'(4(a,i5))', 'In chain ', chainID, ' connecting ', molno, ' with subchain id ', monomer(molno)%subchainID, ' to subchain ', nmonomers-1
                     call check_update_adjacentbeadinfo_allint(molno,mols(nmonomers-1))
 
+                    !call connect_beads(mols, ids, chainID, branch)
                     chainID = chainID + 1
                     n = n + nmonomers
 
@@ -2721,6 +2722,77 @@ contains
         enddo
 
     end subroutine connect_all_possible_chains_surfactant
+
+
+
+    subroutine connect_beads(mols, ids, chainID, branch)
+        use linked_list, only : check_update_adjacentbeadinfo_allint
+        implicit none
+
+        logical, intent(in)                         :: branch
+        integer, intent(in)                         :: chainID
+        integer,dimension(:),intent(in)    :: mols, ids
+
+        integer :: molno, subchainID, midendID, nmonomers
+
+        nmonomers = size(mols)
+        if (branch) then
+            midendID = nmonomers-2 
+        else
+            midendID = nmonomers-1 
+        endif
+
+        ! Connect 1 to 2 
+        molno = mols(1)
+        monomer(molno)%chainID    = chainID
+        monomer(molno)%subchainID = 1 
+        monomer(molno)%glob_no    = molno
+        moltype(molno) = ids(1) 
+        !print'(4(a,i5))', 'In chain ', chainID, ' connecting ', molno, ' with subchain id ', monomer(molno)%subchainID, ' to subchain ', 2 
+        call connect_to_monomer(2,molno)
+
+        call check_update_adjacentbeadinfo_allint(molno,mols(2))
+
+        ! Connect middles
+        do subchainID = 2, midendID
+            !molno = n+subchainID-1
+            molno = mols(subchainID)
+            monomer(molno)%chainID    = chainID
+            monomer(molno)%subchainID = subchainID 
+            monomer(molno)%glob_no    = molno !corrected at bottom
+            moltype(molno) = ids(subchainID)
+            call connect_to_monomer(subchainID-1,molno) 
+            call connect_to_monomer(subchainID+1,molno) 
+            !print'(5(a,i5))', 'In chain ', chainID, ' connecting ', molno, ' with subchain id ', monomer(molno)%subchainID, ' to subchain ', subchainID-1, ' and ', subchainID+1 
+            call check_update_adjacentbeadinfo_allint(molno,mols(subchainID-1))
+            call check_update_adjacentbeadinfo_allint(molno,mols(subchainID+1))
+        end do
+
+        if (branch) then
+            !stop "Branch functionality is untested"
+            ! BRANCH means we connect end-2 to end
+            !molno = n+nmonomers-2
+            molno = mols(midendID+1)
+            monomer(molno)%chainID    = chainID
+            monomer(molno)%subchainID = nmonomers-1 
+            monomer(molno)%glob_no    = molno !corrected at bottom
+            moltype(molno) = ids(size(ids)-1) 
+            call connect_to_monomer(nmonomers-2,molno)
+            !print'(4(a,i5))', 'In chain ', chainID, ' connecting as branch ', molno, ' with subchain id ', monomer(molno)%subchainID, ' to subchain ', nmonomers-2
+        endif
+
+        ! Connect end-1 to end
+        !molno = n+nmonomers-1
+        molno = mols(nmonomers)
+        monomer(molno)%chainID    = chainID
+        monomer(molno)%subchainID = nmonomers 
+        monomer(molno)%glob_no    = molno !corrected at bottom
+        moltype(molno) = ids(nmonomers) 
+        call connect_to_monomer(nmonomers-1,molno)
+        !print'(4(a,i5))', 'In chain ', chainID, ' connecting ', molno, ' with subchain id ', monomer(molno)%subchainID, ' to subchain ', nmonomers-1
+        call check_update_adjacentbeadinfo_allint(molno,mols(nmonomers-1))
+
+    end subroutine connect_beads
 
     subroutine remove_chains_random(nremove)
         implicit none

@@ -5591,12 +5591,12 @@ contains
         call bubble_sort_r(cluster_sizes)
 
         if ((cluster_sizes(1) - cluster_sizes(2))/cluster_sizes(1) .gt. 0.4d0) then
-            !print'(a,8f10.1,e18.8)', 'TOP EIGHT CLUSTERS =', cluster_sizes(1:8), (cluster_sizes(1) - cluster_sizes(2))/cluster_sizes(1)
 
         else
-            print*, 'It appears clusters have broken up -- writing final state and exiting'
+            print*, 'It appears clusters have broken up'
+            print'(a,8f10.1,e18.8)', 'CLUSTER DETAILS ', cluster_sizes(1:8), (cluster_sizes(1) - cluster_sizes(2))/cluster_sizes(1)
 
-            print'(a,8f10.1,e18.8)', 'EXIT HERE ', cluster_sizes(1:8), (cluster_sizes(1) - cluster_sizes(2))/cluster_sizes(1)
+            !print*, 'It appears clusters have broken up -- writing final state and exiting'
             !Exit Gracefully
 	        !call messenger_syncall
 	        !call parallel_io_final_state	
