@@ -1167,37 +1167,40 @@ end subroutine get_Timestep_FileName
 
 function get_version_number()
         
-        logical        ::  file_exists
+        logical        :: file_exists
         integer        :: unit_no, statusno
         character(30)  :: get_version_number
 
         ! External system call -- this is almost certain not to
         ! work in general (e.g. not intel and not linux)
-		call system("svnversion > ./subversion_no_temp")
-		!statusno = system("svnversion > ./subversion_no_temp")
 
-        !Check if system call has worked and file exists
-        inquire(file='./subversion_no_temp', exist=file_exists)
+        get_version_number = "DISABLED"
 
-		!Read file and store unit number if it exists, otherwise N/A
-        !if (file_exists .and. statusno .eq. 0) then
-        if (file_exists) then
-
-            !Check if unit number is used and assign unique number
-            unit_no = get_new_fileunit()
-            open(unit=unit_no, file='./subversion_no_temp')
-            read(unit_no,*,IOSTAT=statusno) get_version_number
-
-			!If nothing is written in file, set to N/A
-			if (statusno .ne. 0)  then
-				close(unit_no,status='delete')
-				get_version_number = 'N/A'
-			else
-				close(unit_no,status='delete')
-			endif
-		else
-			get_version_number = 'N/A'
-		endif
+!		call system("svnversion > ./subversion_no_temp")
+!		!statusno = system("svnversion > ./subversion_no_temp")
+!
+!        !Check if system call has worked and file exists
+!        inquire(file='./subversion_no_temp', exist=file_exists)
+!
+!		!Read file and store unit number if it exists, otherwise N/A
+!        !if (file_exists .and. statusno .eq. 0) then
+!        if (file_exists) then
+!
+!            !Check if unit number is used and assign unique number
+!            unit_no = get_new_fileunit()
+!            open(unit=unit_no, file='./subversion_no_temp')
+!            read(unit_no,*,IOSTAT=statusno) get_version_number
+!
+!			!If nothing is written in file, set to N/A
+!			if (statusno .ne. 0)  then
+!				close(unit_no,status='delete')
+!				get_version_number = 'N/A'
+!			else
+!				close(unit_no,status='delete')
+!			endif
+!		else
+!			get_version_number = 'N/A'
+!		endif
 
 end function get_version_number
  
@@ -1293,7 +1296,7 @@ end subroutine build_hilbert
 ! Return random numbers from distributions
 
 ! Normal distribtion
-function normal_dist
+function normal_dist()
 	implicit none
 
 	real(kind(0.d0))			  :: normal_dist
@@ -2093,17 +2096,28 @@ subroutine read_FEA_output_files(filename, HLratio, nNodes, X, Z, &
 
     if (present(HLratio)) HLratio = HLratio_
     if (present(Nnodes)) Nnodes = N
-    if (present(X)) allocate(X, source = X_)
-    if (present(Z)) allocate(Z, source = Z_)
-    if (present(H)) allocate(H, source = H_)
-    if (present(Hx)) allocate(Hx, source  = Hx_)
-    if (present(Hxx)) allocate(Hxx, source  = Hxx_)
-    if (present(Hxxx)) allocate(Hxxx, source  = Hxxx_)
-    if (present(U)) allocate(U, source  = U_)
-    if (present(S2)) allocate(S2, source  = S2_)
-    if (present(S2x)) allocate(S2x, source  = S2x_)
-    if (present(S12_or_S1)) allocate(S12_or_S1, source  = S12_or_S1_)
-    if (present(S12x_or_S1x)) allocate(S12x_or_S1x, source  = S12x_or_S1x_)
+    !if (present(X)) allocate(X, source = X_)
+    !if (present(Z)) allocate(Z, source = Z_)
+    !if (present(H)) allocate(H, source = H_)
+    !if (present(Hx)) allocate(Hx, source  = Hx_)
+    !if (present(Hxx)) allocate(Hxx, source  = Hxx_)
+    !if (present(Hxxx)) allocate(Hxxx, source  = Hxxx_)
+    !if (present(U)) allocate(U, source  = U_)
+    !if (present(S2)) allocate(S2, source  = S2_)
+    !if (present(S2x)) allocate(S2x, source  = S2x_)
+    !if (present(S12_or_S1)) allocate(S12_or_S1, source  = S12_or_S1_)
+    !if (present(S12x_or_S1x)) allocate(S12x_or_S1x, source  = S12x_or_S1x_)
+    if (present(X)) allocate(X(size(X_))) ; X = X_
+    if (present(Z)) allocate(Z(size(Z_))) ; Z = Z_
+    if (present(H)) allocate(H(size(H_))) ; H = H_
+    if (present(Hx)) allocate(Hx(size(Hx_))) ; Hx = Hx_
+    if (present(Hxx)) allocate(Hxx(size(Hxx_))) ; Hxx = Hxx_
+    if (present(Hxxx)) allocate(Hxxx(size(Hxxx_))) ; Hxxx = Hxxx_
+    if (present(U)) allocate(U(size(U_))) ; U = U_
+    if (present(S2)) allocate(S2(size(S2_))) ; S2 = S2_
+    if (present(S2x)) allocate(S2x(size(S2x_))) ; S2x = S2x_
+    if (present(S12_or_S1)) allocate(S12_or_S1(size(S12_or_S1_))) ; S12_or_S1 = S12_or_S1_
+    if (present(S12x_or_S1x)) allocate(S12x_or_S1x(size(S12x_or_S1x_))) ; S12x_or_S1x = S12x_or_S1x_
 
 end subroutine read_FEA_output_files
 
@@ -2135,7 +2149,8 @@ function couette_analytical_fn(t,Re,U_wall,L,npoints,slidingwall) result (u)
 
     nmodes = 5000
     k = 1.d0/Re
-    allocate(y,source=linspace(0.d0,L,npoints))
+    !allocate(y,source=linspace(0.d0,L,npoints))
+    allocate(y(npoints)); y = linspace(0.d0,L,npoints)
     uinitial = 0.d0  !Initial condition
 
     allocate(u(npoints)); u = 0.d0
@@ -2191,7 +2206,8 @@ function couette_analytical_stress_fn(t,Re,U_wall,L,npoints,slidingwall) result 
 
     nmodes = 5000
     k = 1.d0/Re
-    allocate(y,source=linspace(0.d0,L,npoints))
+    !allocate(y,source=linspace(0.d0,L,npoints))
+    allocate(y(npoints)); y = linspace(0.d0,L,npoints)
     allocate(tau(npoints)); tau = 0.d0
 
     ! - - - Calculate strain - - -
@@ -2243,14 +2259,15 @@ function Na(r,a)
 	
 	real(kind(0.d0))							:: Na
 	real(kind(0.d0)),dimension(3,8), & 
-		parameter	::  ra = (/ -1d0, -1.d0, -1.d0, & 
-								 1d0, -1.d0, -1.d0, & 
-								-1d0,  1.d0, -1.d0, & 
-								 1d0,  1.d0, -1.d0, & 
-								-1d0, -1.d0,  1.d0, & 
-								-1d0,  1.d0, -1.d0, & 
-								-1d0,  1.d0,  1.d0, & 
-								 1d0,  1.d0,  1.d0    /)
+		parameter	::  ra = reshape((/ -1d0, -1.d0, -1.d0, & 
+                                         1d0, -1.d0, -1.d0, & 
+                                        -1d0,  1.d0, -1.d0, & 
+                                         1d0,  1.d0, -1.d0, & 
+                                        -1d0, -1.d0,  1.d0, & 
+                                        -1d0,  1.d0, -1.d0, & 
+                                        -1d0,  1.d0,  1.d0, & 
+                                         1d0,  1.d0,  1.d0    /), &
+                                      (/3,8/))
 
 	Na = 0.125d0 * (1.d0 + ra(1,a)*r(1)) & 
 				 * (1.d0 + ra(2,a)*r(2)) &
@@ -2702,13 +2719,18 @@ function lagrange_poly_weight_Nmol(array, r_in, binsize, domain, &
 			allocate(nperbin(nbins(1)+2,nbins(2)+2,nbins(3)+2))
 			wsum_bin = 0.d0; nperbin = 0
 		case(2)
-            if (node_ave .eq. 1) stop "Error in lagrange_poly_weight -- node_average should be 0 (in cell, i.e. Finite Volume) with polynomial shiftmean"
+            if (node_ave .eq. 1) then
+                print*, "Error in lagrange_poly_weight -- node_average should",&
+                "be 0 (in cell, i.e. Finite Volume) with polynomial shiftmean"
+                stop
+            end if
 			allocate(wsum_bin(nbins(1)+2,nbins(2)+2,nbins(3)+2,3))
 			allocate(nperbin(nbins(1)+2,nbins(2)+2,nbins(3)+2))
 			allocate(sqr_term(nbins(1)+2,nbins(2)+2,nbins(3)+2))
 			sqr_term = 0.d0; wsum_bin = 0.d0; nperbin = 0
 		case default
-			stop "Error in linearsurface_weight -- incorrect shiftmean value"
+			print*, "Error in linearsurface_weight -- incorrect shiftmean value"
+            stop
 		end select
 	endif
 
@@ -3667,9 +3689,9 @@ SUBROUTINE get_eigenvec3x3(A, Q, W)
 
 END SUBROUTINE get_eigenvec3x3
 
-
-
 end module librarymod
+
+
 
 module circle_rectangle_intersection
 

@@ -541,74 +541,75 @@ subroutine simulation_move_particles_lfv_basic
 	enddo
 
 end subroutine simulation_move_particles_lfv_basic
+
 !======================================================================================
 ! Specular walls for cylinder setup
 ! Author: David Trevelyan 2013
 subroutine specular_walls_cylinders
-	use concentric_cylinders
-	use computational_constants_MD, only: delta_rneighbr 
-	use physical_constants_MD, only: np
-	use arrays_MD, only: r, v
-	use messenger, only: localise, globalise
-	use librarymod, only: cpolariser, cartesianiser, cpolarisev, cartesianisev
-	implicit none
+    use concentric_cylinders
+    use computational_constants_MD, only: delta_rneighbr 
+    use physical_constants_MD, only: np
+    use arrays_MD, only: r, v
+    use messenger, only: localise, globalise
+    use librarymod, only: cpolariser, cartesianiser, cpolarisev, cartesianisev
+    implicit none
 
-	real(kind(0.d0)) :: rcpol(3), vcpol(3), rglob(3)
-	real(kind(0.d0)) :: tol, rr
-	integer :: n,cyl
-		
-	tol = delta_rneighbr
+    real(kind(0.d0)) :: rcpol(3), vcpol(3), rglob(3)
+    real(kind(0.d0)) :: tol, rr
+    integer :: n,cyl
+        
+    tol = delta_rneighbr
 
-	do n=1,np
+    do n=1,np
 
-		rglob(:) = globalise(r(:,n))
-		rcpol(:) = cpolariser(rglob(:))
-		vcpol(:) = cpolarisev(v(:,n),rcpol(2))
-		rr = rcpol(1)
+        rglob(:) = globalise(r(:,n))
+        rcpol(:) = cpolariser(rglob(:))
+        vcpol(:) = cpolarisev(v(:,n),rcpol(2))
+        rr = rcpol(1)
 
-		if ( rr .lt. r_oi + tol) cyl = cyl_inner
-		if ( rr .gt. r_io - tol) cyl = cyl_outer
+        if ( rr .lt. r_oi + tol) cyl = cyl_inner
+        if ( rr .gt. r_io - tol) cyl = cyl_outer
 
-		if ( cyl .eq. cyl_outer ) then
-	
-			call speculate(rcpol,vcpol,r_oo,r_io)
-	
-		else if ( cyl .eq. cyl_inner ) then
+        if ( cyl .eq. cyl_outer ) then
+    
+            call speculate(rcpol,vcpol,r_oo,r_io)
+    
+        else if ( cyl .eq. cyl_inner ) then
 
-			call speculate(rcpol,vcpol,r_oi,r_ii)
-		
-		end if 
-	
-		rglob(:) = cartesianiser(rcpol(:))
-		r(:,n) = localise(rglob(:))
-		v(:,n) = cartesianisev(vcpol(:),rcpol(2))
+            call speculate(rcpol,vcpol,r_oi,r_ii)
+        
+        end if 
+    
+        rglob(:) = cartesianiser(rcpol(:))
+        r(:,n) = localise(rglob(:))
+        v(:,n) = cartesianisev(vcpol(:),rcpol(2))
 
-	end do
+    end do
 
 contains
 
-	subroutine speculate(rcpol,vcpol,r_o,r_i)
+    subroutine speculate(rcpol,vcpol,r_o,r_i)
 
-		real(kind(0.d0)), intent(in)    :: r_o, r_i
-		real(kind(0.d0)), intent(inout) :: rcpol(3),vcpol(3)
+        real(kind(0.d0)), intent(in)    :: r_o, r_i
+        real(kind(0.d0)), intent(inout) :: rcpol(3),vcpol(3)
 
-		real(kind(0.d0)) :: dr
+        real(kind(0.d0)) :: dr
 
-		if ( rcpol(1) .gt. r_o ) then
+        if ( rcpol(1) .gt. r_o ) then
 
-			dr = rcpol(1) - r_o	
-			rcpol(1) = rcpol(1) - 2.0*dr
-			vcpol(1) = -vcpol(1)
+            dr = rcpol(1) - r_o	
+            rcpol(1) = rcpol(1) - 2.0*dr
+            vcpol(1) = -vcpol(1)
 
-		else if ( rcpol(1) .lt. r_i ) then
+        else if ( rcpol(1) .lt. r_i ) then
 
-			dr = r_i - rcpol(1)	
-			rcpol(1) = rcpol(1) + 2.0*dr
-			vcpol(1) = -vcpol(1)
+            dr = r_i - rcpol(1)	
+            rcpol(1) = rcpol(1) + 2.0*dr
+            vcpol(1) = -vcpol(1)
 
-		end if			
+        end if			
 
-	end subroutine speculate
+    end subroutine speculate
 
 end subroutine specular_walls_cylinders
 
@@ -684,68 +685,66 @@ end subroutine specular_walls_cylinders
 
 !--------------------------------------------------------------------------------------
 subroutine specular_flat_wall(dir, spec_pos, flag)
-	use module_molecule_properties
-	use arrays_MD
-	use interfaces
+    use module_molecule_properties
+    use arrays_MD
+    use interfaces
     use librarymod, only :  Maxwell_Boltzmann_vel3
-	implicit none
+    implicit none
 
-	integer,intent(in)			   :: dir
-	integer,intent(in),optional	   :: flag
-	real(kind(0.d0)),intent(in)	   :: spec_pos
+    integer,intent(in) :: dir
+    integer,intent(in) :: flag
+    real(kind(0.d0)),intent(in)	:: spec_pos
 
-	real(kind(0.d0)), dimension(3) :: r_glob
-	integer                        :: n, ixyz
-	integer                        :: normal
-	real(kind(0.d0))               :: newxd
+    real(kind(0.d0)), dimension(3) :: r_glob
+    integer                        :: n, ixyz
+    integer                        :: normal
+    real(kind(0.d0))               :: newxd
 
-	do n = 1,np
+    do n = 1,np
 
-		!Get position in global co-ordinates
+        !Get position in global co-ordinates
         newxd = 0.d0
-		r_glob(1) = r(1,n) - (halfdomain(1)*(npx-1)) + domain(1)*(iblock-1)
-		r_glob(2) = r(2,n) - (halfdomain(2)*(npy-1)) + domain(2)*(jblock-1)
-		r_glob(3) = r(3,n) - (halfdomain(3)*(npz-1)) + domain(3)*(kblock-1)
+        r_glob(1) = r(1,n) - (halfdomain(1)*(npx-1)) + domain(1)*(iblock-1)
+        r_glob(2) = r(2,n) - (halfdomain(2)*(npy-1)) + domain(2)*(jblock-1)
+        r_glob(3) = r(3,n) - (halfdomain(3)*(npz-1)) + domain(3)*(kblock-1)
 
         ! Skip tethered mols
         if (any(tag(n) .eq. tether_tags)) cycle
 
-		if (abs(r_glob(dir)) .gt. spec_pos) then
+        if (abs(r_glob(dir)) .gt. spec_pos) then
 
-			!Get normal direction of molecule by checking if top or bottom
-			if ( r_glob(dir) .lt. 0) then
-				normal = 1   !normal should point outwards
-			else
-				normal = -1  !normal should point inwards
-			endif
+            !Get normal direction of molecule by checking if top or bottom
+            if ( r_glob(dir) .lt. 0) then
+                normal = 1   !normal should point outwards
+            else
+                normal = -1  !normal should point inwards
+            endif
 
-			! Reflect normal velocity.
-			v(dir,n) = normal*abs(v(dir,n))
-			!Calculate distance over the spectral barrier
-			newxd = abs(r_glob(dir)) - spec_pos
-			!Move molecule same distance back into the domain on other side of spectral barrier
-			r(dir,n) = r(dir,n) + normal*2.d0*newxd
+            ! Reflect normal velocity.
+            v(dir,n) = normal*abs(v(dir,n))
+            !Calculate distance over the spectral barrier
+            newxd = abs(r_glob(dir)) - spec_pos
+            !Move molecule same distance back into the domain on other side of spectral barrier
+            r(dir,n) = r(dir,n) + normal*2.d0*newxd
 
-            if (present(flag)) then
-                select case(flag)
-                case(0)
-                    !Do nothing - control case
-                case(1)
-                    !Pick specified temperature and velocity from Maxwell Boltzmann style distribution
-                    v(:,n) = Maxwell_Boltzmann_vel3(inputtemperature,wallslidev(:)*sign(1.d0,r_glob(dir)))
+            select case(flag)
+            case(0)
+                !Do nothing - control case
+            case(1)
+                !Pick specified temperature and velocity from Maxwell Boltzmann style distribution
+                v(:,n) = Maxwell_Boltzmann_vel3(inputtemperature,wallslidev(:)*sign(1.d0,r_glob(dir)))
 !                    do ixyz = 1,3
 !                        v(ixyz,n) = Maxwell_Boltzmann_vel(inputtemperature,wallslidev(ixyz)*sign(1.d0,r_glob(dir)))
 !                    enddo
-                    !if (newxd .gt. 0.0000d0) print'(a,2i7,7f10.5)', 'specular wall', iter, n, v(:,n), inputtemperature,wallslidev(:)
-                end select
-            endif
+                !if (newxd .gt. 0.0000d0) print'(a,2i7,7f10.5)', 'specular wall', iter, n, v(:,n), inputtemperature,wallslidev(:)
+            end select
 
-			!write(7777,'(4i8,4f10.5)'), irank,dir,normal, n,newxd,r_glob(dir), r(dir,n),spec_pos
+            !write(7777,'(4i8,4f10.5)'), irank,dir,normal, n,newxd,r_glob(dir), r(dir,n),spec_pos
 
-		endif
+        endif
 
         !if (newxd .gt. 0.0000d0) print'(a,i8,6f10.5,i8)', 'Greater than spec_pos', n,r_glob(dir),abs(r_glob(dir)),spec_pos,r(dir,n),newxd, periodic(dir)
 
-	end do
+    end do
 
 end subroutine specular_flat_wall 

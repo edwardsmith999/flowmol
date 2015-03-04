@@ -720,7 +720,9 @@ subroutine setup_mie_potential
                     n = n + 1
                     if (n .gt. 1000000) then
                         print*, 'failed to find equilibrium distance'
-                        print'(i7,2i3,4(a,f20.10))',n, i,j, ' Error = ',  error , ' Previous =', val, ' new = ',accijmag , ' Separation = ', sqrt(rij2)
+                        print'(i7,2i3,4(a,f20.10))',n, i,j, ' Error = ',  &
+                        error , ' Previous =', val, ' new = ',accijmag ,  &
+                        ' Separation = ', sqrt(rij2)
                         exit                        
                     endif
 

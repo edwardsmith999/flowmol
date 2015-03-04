@@ -1985,9 +1985,13 @@ subroutine linklist_printneighbourlist(self, molno, unitno)
         
 		!print*, 'more items in linked list?: ', associated(old%next)
         if (present(unitno)) then
-            write(unitno,'(i6, 2(a,i8),6f10.5)'), j, ' Linklist print called for i = ', molno,' j = ', current%molno, r(:,molno), r(:,current%molno)
+            write(unitno,'(i6, 2(a,i8),6f10.5)'), j, &
+            ' Linklist print called for i = ', molno,' j = ', &
+            current%molno, r(:,molno), r(:,current%molno)
         else
-    		print'(i6, 2(a,i8),6f10.5)', j, ' Linklist print called for i = ', molno,' j = ', current%molno, r(:,molno), r(:,current%molno)
+    		print'(i6, 2(a,i8),6f10.5)', j, &
+            ' Linklist print called for i = ', molno,' j = ', &
+            current%molno, r(:,molno), r(:,current%molno)
         endif
 		if (associated(old%next) .eqv. .true. ) then !Exit if null
 			old => current%next ! Use pointer in datatype to obtain next item in list

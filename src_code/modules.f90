@@ -278,47 +278,6 @@ module computational_constants_MD
 
 end module computational_constants_MD
 
-module boundary_MD
-    use librarymod, only: PDF
-
-	!Boundary force flag and parameters
-	integer,          dimension(6) :: bforce_flag
-	real(kind(0.d0)), dimension(6) :: bforce_dxyz
-    integer                        :: specular_wall_flag
-	real(kind(0.d0)), dimension(3) :: specular_wall
-
-	! Specular wall easy-read parameters
-	integer :: specular_flag
-	integer, parameter ::       &
-		specular_off = 0,       &
-		specular_flat = 1,      &
-		specular_radial = 2
-
-    ! Open Boundary flags
-    integer, dimension(6) :: open_boundary 
-
-	! Boundary force easy-read parameters
-	integer,          parameter    :: &
-		bforce_off = 0,         &
-		bforce_OT = 1,          &
-		bforce_NCER = 2,        &
-		bforce_Flekkoy = 3,     &
-        bforce_pdf_input = 4,   &
-        substrate_force = 5
-
-    ! Measure boundary force with pdf
-    integer :: bforce_pdf_measure
-    integer :: bforce_pdf_nsubcells
-    integer :: bforce_pdf_nbins
-    integer :: bforce_pdf_Nave
-    real(kind(0.d0)) :: bforce_pdf_min
-    real(kind(0.d0)) :: bforce_pdf_max
-    real(kind(0.d0)) :: bforce_pdf_binsize
-    type(PDF), dimension(:,:), allocatable :: bforce_pdf
-    real(kind(0.d0)), allocatable :: bforce_pdf_input_data(:,:,:)
-
-end module boundary_MD
-
 !-------------------------------------------------------------------------------------
 !-------------------------------Shearing BCs------------------------------------------
 module shear_info_MD
@@ -889,3 +848,45 @@ contains
 	end function get_temperature_PUT
 
 end module calculated_properties_MD
+
+module boundary_MD
+    use librarymod, only: PDF
+
+	!Boundary force flag and parameters
+	integer,          dimension(6) :: bforce_flag
+	real(kind(0.d0)), dimension(6) :: bforce_dxyz
+    integer                        :: specular_wall_flag
+	real(kind(0.d0)), dimension(3) :: specular_wall
+
+	! Specular wall easy-read parameters
+	integer :: specular_flag
+	integer, parameter ::       &
+		specular_off = 0,       &
+		specular_flat = 1,      &
+		specular_radial = 2
+
+    ! Open Boundary flags
+    integer, dimension(6) :: open_boundary 
+
+	! Boundary force easy-read parameters
+	integer,          parameter    :: &
+		bforce_off = 0,         &
+		bforce_OT = 1,          &
+		bforce_NCER = 2,        &
+		bforce_Flekkoy = 3,     &
+        bforce_pdf_input = 4,   &
+        substrate_force = 5
+
+    ! Measure boundary force with pdf
+    integer :: bforce_pdf_measure
+    integer :: bforce_pdf_nsubcells
+    integer :: bforce_pdf_nbins
+    integer :: bforce_pdf_Nave
+    real(kind(0.d0)) :: bforce_pdf_min
+    real(kind(0.d0)) :: bforce_pdf_max
+    real(kind(0.d0)) :: bforce_pdf_binsize
+    type(PDF), dimension(:,:), allocatable :: bforce_pdf
+    real(kind(0.d0)), allocatable :: bforce_pdf_input_data(:,:,:)
+
+end module boundary_MD
+

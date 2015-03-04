@@ -970,7 +970,7 @@ subroutine setup_restart_microstate
     bufsize = 0
 
     !Allocate temporary tag array
-    if (allocated(tag) .ne. .true.) then
+    if (allocated(tag) .neqv. .true.) then
         allocate(tag(np+extralloc)); tag = free
         tag_off = .true.
     endif
@@ -4078,15 +4078,20 @@ subroutine macroscopic_properties_record
 use module_parallel_io
 implicit none
 
+    
+
     if (irank .eq. iroot) then
         if (potential_flag.eq.0) then   
             write(10,'(1x,i8,a,f15.4,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)'), &
             iter,';',simtime,';',vsum,';', mv2sum,';', temperature,';', &
             kinenergy,';',potenergy,';',totenergy,';',pressure
         else if (potential_flag.eq.1) then
-            write(10, '(1x,i8,a,f15.4,a,f15.4,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,f10.4,a,f10.4,a,f10.4)') &
+            write(10, '(1x,i8,a,f15.4,a,f15.4,a,f15.4,a,f15.4,a,f10.4,a'//&
+                      ',f19.15,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,'//&
+                      'f10.4,a,f10.4,a,f10.4)') &
             iter,';',simtime,';',vsum,';', mv2sum,';', temperature,';', &
-            kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,';',totenergy,';',pressure,';',etevtcf,';',R_g
+            kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,&
+            ';',totenergy,';',pressure,';',etevtcf,';',R_g
         end if
     endif
 

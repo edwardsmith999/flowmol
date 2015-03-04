@@ -35,18 +35,18 @@ subroutine setup_initial_record
     character(10)           :: the_time
     character(23)           :: file_names_t
     character(23),parameter :: file_names(38) = &
-                                (/ "mslice      ", "mbins       ", "msnap   ",&
-                                   "vslice      ", "vbins       ", "vsnap   ",&
-                                   "pvirial     ", "pVA         ", "pVA_k   ",& 
-                                   "pVA_c       ", "visc        ", "mflux   ",& 
-                                   "vflux       ", "pplane      ", "psurface",&
-                                   "esnap       ", "eflux       ", "eplane  ",&
-                                   "esurface    ", "viscometrics", "rdf     ",&
-                                   "rdf3d       ", "ssf         ", "Fext    ",&
-                                   "Tbins       ", "vmd_temp.dcd", "vPDF    ",&
-                                   "bforce_pdf  ", "Fvext       ", "etev    ",&
-                                   "msolv       ", "mpoly       ", "vpoly   ",&
-                                   "vsolv       ", "ebins       ", "hfVA_k  ",&
+                                (/ "mslice      ", "mbins       ", "msnap       ",&
+                                   "vslice      ", "vbins       ", "vsnap       ",&
+                                   "pvirial     ", "pVA         ", "pVA_k       ",& 
+                                   "pVA_c       ", "visc        ", "mflux       ",& 
+                                   "vflux       ", "pplane      ", "psurface    ",&
+                                   "esnap       ", "eflux       ", "eplane      ",&
+                                   "esurface    ", "viscometrics", "rdf         ",&
+                                   "rdf3d       ", "ssf         ", "Fext        ",&
+                                   "Tbins       ", "vmd_temp.dcd", "vPDF        ",&
+                                   "bforce_pdf  ", "Fvext       ", "etev        ",&
+                                   "msolv       ", "mpoly       ", "vpoly       ",&
+                                   "vsolv       ", "ebins       ", "hfVA_k      ",&
                                    "hfVA_c      ", "hfVA        " /) 
 
 
@@ -237,9 +237,11 @@ subroutine setup_initial_record
                 ixyz_char = 'z'
             endif
             if (external_force_flag .eq. 1) then
-                print'(a,f10.5,3a)', ' External force of magnitude ', F_ext, ' applied in the ', ixyz_char, ' direction to all molecules'
+                print'(a,f10.5,3a)', ' External force of magnitude ', F_ext, &
+                     ' applied in the ', ixyz_char, ' direction to all molecules'
             elseif (external_force_flag .eq. 2) then
-                print'(a,f10.5,3a)', ' External force of magnitude ', F_ext, ' applied in the ', ixyz_char, ' direction to '
+                print'(a,f10.5,3a)', ' External force of magnitude ', F_ext, &
+                     ' applied in the ', ixyz_char, ' direction to '
                 print'(a,6f10.5)', ' molecules between ', F_ext_limits
             endif
 
@@ -701,7 +703,7 @@ subroutine simulation_header
     use calculated_properties_MD
     use concentric_cylinders
     use boundary_MD
-    use librarymod, only : get_new_fileunit,get_version_number
+    use librarymod, only : get_new_fileunit, get_version_number
     implicit none
 
     integer             :: fileunit, i
@@ -1114,7 +1116,7 @@ subroutine build_psf
         res_ID(molno)    = monomer(n)%chainID 
         glob_sc(molno)   = monomer(n)%subchainID
         glob_bf(:,molno) = monomer(n)%bin_bflag(:)
-        write(fileunit,'(i12,a3,i12,a3,i12,a3,4i)') molno,'   ', &
+        write(fileunit,'(i12,a3,i12,a3,i12,a3,4i12)') molno,'   ', &
             res_ID(molno),'   ',glob_sc(molno),'   ',glob_bf(:,molno)
 
         if (Mie_potential .eq. 1) then

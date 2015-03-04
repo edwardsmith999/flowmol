@@ -2980,7 +2980,8 @@ subroutine planeGatherv(A,na,B,nb,rdisps,ixyz)
 	use messenger
 	implicit none
 
-	integer, intent(in) :: na,nb(plane_nproc(ixyz)),rdisps(plane_nproc(ixyz)),ixyz
+	integer, intent(in) :: na,ixyz
+    integer, intent(in) :: nb(plane_nproc(ixyz)), rdisps(plane_nproc(ixyz))
 
 	real(kind(0.d0)), intent(in) :: A(na)
 	real(kind(0.d0)), intent(out):: B(sum(nb))

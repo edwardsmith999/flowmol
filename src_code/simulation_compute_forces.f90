@@ -224,8 +224,7 @@ subroutine simulation_compute_forces
 			case(0)
 				call simulation_compute_forces_LJ_neigbr_halfint	!Compute LJ bead interactions
  			    call simulation_compute_forces_poly				!Add on FENE or harmonic spring interactions
-                !call simulation_compute_forces_miePOLY()
-                if (angular_potential) then
+                if (angular_potential .ne. 0) then
                     stop("I don't think angular potential works yet")
                     call simulation_compute_forces_angular
                 endif

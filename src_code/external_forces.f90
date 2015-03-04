@@ -1315,7 +1315,9 @@ subroutine get_CFD_stresses_fluxes(lbl, &
 		    CFD_stress(lbl(1):lbl(2),jb,lbl(5):lbl(6),1,2) = tautemp(j)	    !Top
 		    CFD_stress(lbl(1):lbl(2),jb,lbl(5):lbl(6),1,5) = tautemp(j-1)	!Bottom
             if (mod(iter,100) .eq. 0) then
-    		    write(6000+iter/100,'(a,2i8,4f18.12)'), 'Stress', jb,j, tautemp(j),tautemp(j-1),CFD_stress(3,jb,3,1,2),CFD_stress(3,jb,3,1,5)
+    		    write(6000+iter/100,'(a,2i8,4f18.12)'), 'Stress', &
+                jb,j, tautemp(j),tautemp(j-1),CFD_stress(3,jb,3,1,2),&
+                CFD_stress(3,jb,3,1,5)
             endif
 	    enddo
 
@@ -1938,22 +1940,55 @@ subroutine check_CFD_vs_MD(u_CFD,lbl,outtype)
 	do i = lbl(1),lbl(2)
 	do j = lbl(3),lbl(4)
 	do k = lbl(5),lbl(6)
+
         if (abs(u_CFD(i,j,k,1) - u_CV(i,j,k,1)) .gt. tol) then
+
             if (outtype .eq. 0) then
-        	    print'(a,i8,4i4,2f18.12)','Error_in_CFD_vs_MD', iter,irank,i,j,k,u_CFD(i,j,k,1),u_CV(i,j,k,1)
+
+        	    print'(a,i8,4i4,2f18.12)','Error_in_CFD_vs_MD', &
+                     iter,irank,i,j,k,u_CFD(i,j,k,1),u_CV(i,j,k,1)
+
             elseif (outtype .eq. 1) then
-                if (i .eq. 5 .and. j .eq. 10 .and. k .eq. 5) write(666,'(a,i8,4i4,2f18.12)'),'CFD_vs_MD', iter,irank,i,j,k,u_CFD(i,j,k,1),u_CV(i,j,k,1)
+
+                if (i .eq. 5 .and. j .eq. 10 .and. k .eq. 5) then
+
+                    write(666,'(a,i8,4i4,2f18.12)'), &
+                    'CFD_vs_MD', iter,irank,i,j,k,u_CFD(i,j,k,1),u_CV(i,j,k,1)
+
+                end if
+
             elseif (outtype .eq. 2) then
-        	    print'(a,i8,4i4,2f18.12)','Error_in_CFD_vs_MD', iter,irank,i,j,k,u_CFD(i,j,k,1),u_CV(i,j,k,1)
-                if (i .eq. 5 .and. j .eq. 10 .and. k .eq. 5) write(666,'(a,i8,4i4,2f18.12)'),'CFD_vs_MD', iter,irank,i,j,k,u_CFD(i,j,k,1),u_CV(i,j,k,1)
+
+        	    print'(a,i8,4i4,2f18.12)','Error_in_CFD_vs_MD', &
+                     iter,irank,i,j,k,u_CFD(i,j,k,1),u_CV(i,j,k,1)
+
+                if (i .eq. 5 .and. j .eq. 10 .and. k .eq. 5) then
+
+                    write(666,'(a,i8,4i4,2f18.12)'),'CFD_vs_MD', &
+                    iter,irank,i,j,k,u_CFD(i,j,k,1),u_CV(i,j,k,1)
+
+                end if
+
             elseif (outtype .eq. 3) then
-          	    print'(a,i8,4i4,2f18.12)','Error_in_CFD_vs_MD', iter,irank,i,j,k,u_CFD(i,j,k,1) ,u_CV(i,j,k,1)
+
+          	    print'(a,i8,4i4,2f18.12)','Error_in_CFD_vs_MD', &
+                     iter,irank,i,j,k,u_CFD(i,j,k,1) ,u_CV(i,j,k,1)
+
             endif
+
         endif
 
         if (outtype .eq. 3) then
-            if (i .eq. 5 .and. j .eq. 10 .and. k .eq. 5) write(666,'(a,i8,4i4,2f18.12)'),'Error_in_CFD_vs_MD', iter,irank,i,j,k,u_CFD(i,j,k,1),u_CV(i,j,k,1)
+
+            if (i .eq. 5 .and. j .eq. 10 .and. k .eq. 5) then
+    
+                write(666,'(a,i8,4i4,2f18.12)'),'Error_in_CFD_vs_MD', &
+                iter,irank,i,j,k,u_CFD(i,j,k,1),u_CV(i,j,k,1)
+
+            end if
+
         endif
+
     enddo
     enddo
     enddo
@@ -2427,10 +2462,17 @@ subroutine CFD_cells_to_MD_compute_cells(ii_cfd,jj_cfd,kk_cfd, &
 	kbmin_md = (zg(     kk_cfd      )-zL_min)/cellsidelength(3)+1
 	kbmax_md = (zg(     kk_cfd+1    )-zL_min)/cellsidelength(3)+1
 
-	print'(a,9i8)','indices', ii_cfd,ibmin_md,ibmax_md,jj_cfd,jbmin_md,jbmax_md,kk_cfd,kbmin_md,kbmax_md
-	print*,'xcells', xg(ii_cfd  ,jj_cfd  ),(xg(ii_cfd  ,jj_cfd  )-xL_min)/cellsidelength(1)+1, (xg(ii_cfd+1,jj_cfd  )-xL_min)/cellsidelength(1)+1
-	print*,'ycells', yg(ii_cfd  ,jj_cfd  ),(yg(ii_cfd  ,jj_cfd  )-yL_min)/cellsidelength(2)+1, (yg(ii_cfd+1,jj_cfd  )-yL_min)/cellsidelength(2)+1
-	print*,'zcells', zg(kk_cfd  ),(zg(kk_cfd)-zL_min)/cellsidelength(3)+1, (zg(kk_cfd+1)-zL_min)/cellsidelength(3)+1
+    print'(a,9i8)','indices', ii_cfd,ibmin_md,ibmax_md,jj_cfd,jbmin_md,&
+    jbmax_md, kk_cfd,kbmin_md,kbmax_md
+
+    print*,'xcells', xg(ii_cfd  ,jj_cfd  ),(xg(ii_cfd  ,jj_cfd  )-xL_min)/&
+    cellsidelength(1)+1, (xg(ii_cfd+1,jj_cfd  )-xL_min)/cellsidelength(1)+1
+
+    print*,'ycells', yg(ii_cfd  ,jj_cfd  ),(yg(ii_cfd  ,jj_cfd  )-yL_min)/&
+    cellsidelength(2)+1, (yg(ii_cfd+1,jj_cfd  )-yL_min)/cellsidelength(2)+1
+
+    print*,'zcells', zg(kk_cfd  ),(zg(kk_cfd)-zL_min)/cellsidelength(3)+1,&
+    (zg(kk_cfd+1)-zL_min)/cellsidelength(3)+1
 
 end subroutine CFD_cells_to_MD_compute_cells
 

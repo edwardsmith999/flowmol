@@ -849,7 +849,7 @@ contains
 			! Volume insertion -- chooses position in 3D space inside cell
 			!Get 3D position
 			insert_ok = .false.
-			do while (insert_ok .eq. .false.) 
+			do while (insert_ok .eqv. .false.) 
 				!Get three random numbers
 				call random_number(rand)
 				do ixyz = 1,3
@@ -1202,7 +1202,10 @@ subroutine reinsert_molecules
 		call insert_molecules(insert_locs,insert_vels)
 	else
 		do reinsert_attemp = 1,100
-			print'(2(a,i8),i6,a,2i8)', 'At iter = ',  iter, ' attempt = ',  reinsert_attemp,reinsertnp, ' molecule(s) overlap -- attempt to reinsert ',  irank, insertnp
+			print'(2(a,i8),i6,a,2i8)', 'At iter = ',  iter, &
+                 ' attempt = ',  reinsert_attemp,reinsertnp,&
+                 ' molecule(s) overlap -- attempt to reinsert ',  &
+                 irank, insertnp
 			call usher_get_positions(flag=insert_flag,insertnp=reinsertnp,insert_locs=reinsert_locs)
 			!print'(a,4i6,3f10.5,2i7)', 'details', iter, irank, reinsert_attemp, reinsertnp, reinsert_locs, reinsert_molno
 			do n =1,reinsertnp
