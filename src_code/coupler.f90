@@ -738,7 +738,7 @@ subroutine CPL_send_xd(asend,icmin_send,icmax_send,jcmin_send, &
 	real(kind=kind(0.d0)), allocatable 	:: vbuf(:)
 
 	! This local CFD domain is outside MD overlap zone 
-	if (olap_mask(rank_world) .eq. .false.) return
+	if (olap_mask(rank_world) .eqv. .false.) return
 
 	! Save limits array of Minimum and maximum values to send
 	limits = (/ icmin_send,icmax_send,jcmin_send,jcmax_send,kcmin_send,kcmax_send /)
@@ -1034,7 +1034,7 @@ subroutine CPL_recv_xd(arecv,icmin_recv,icmax_recv,jcmin_recv, &
     real(kind(0.d0)),dimension(:), allocatable ::  vbuf
  
 	! This local CFD domain is outside MD overlap zone 
-	if (olap_mask(rank_world).eq. .false.) return
+	if (olap_mask(rank_world).eqv. .false.) return
 
 	! Save limits array of Minimum and maximum values to recv
 	limits = (/ icmin_recv,icmax_recv,jcmin_recv,jcmax_recv,kcmin_recv,kcmax_recv /)
@@ -2010,7 +2010,7 @@ end subroutine CPL_get
 
 
 ! Function to get cuurent realm
-function CPL_realm
+function CPL_realm()
 	use coupler_module, only : realm
 	implicit none
 	
