@@ -1,0 +1,48 @@
+&parameters
+eps2               = 1.8d-1      ! eps = H/L
+As1                = 2.0d-1      ! As1  = (s1o-s1m)/s1m
+As2                = 2.0d+0      ! As2  = (s2o-s2m)/s2m
+As12               = 2.0d+0      ! As12 = (s12o-s12m)/s12m
+d1                 = 5.0d+0      ! d1   = s1m/s2m
+d12                = 1.0d+0      ! d12  = s12m/s2m
+bslip              = 1.0d-5      ! SLIP PARAMETER
+kappa              = 1.0d-2      ! dXcdt = kappa*(Th-Tha)**mm
+mm                 = 3           ! 
+Equilibrium_Angle  = 'DYNAM'     ! EQUILIMBRIUM ANGLE: 'FIXED' or 'DYNAM'
+Thetac             = 0.5D0       ! VALUE OF EQUILIBRIUM ANGLE FOR CLEAN FLUID 
+MASS_SURFACTANT    = 0.0d0       ! TOTAL MASS OF SURFACTANT
+Peca               = 1.0d+4      ! PECLET NUMBER (surfactact on interface)
+ba                 = 1.0d+0      ! DEGREE OF SURFACTANT SOLUBILITY
+ka                 = 1.0d-0      ! KINETIC CONSTANT
+Ra                 = 1.0d+1      ! TENDENCY OF SURFACTANT TO FORM MICELLES
+SOLUBLE_SURFACTANT = .TRUE.      ! SURFACTANT SOLUBILITY
+Peb                = 1.0d+1      ! PECLET NUMBER (surfactact in bulk fluid)
+Pem                = 1.0d+1      ! PECLET NUMBER (micelles in bulk fluid)
+kb                 = 1.0d-0      ! KINETIC CONSTANT
+nc                 = 1.0d+1      ! NUMBER OF MONOMERS IN MICELLES
+WALL_ADSORPTION    = .TRUE.      ! ADSORPTION OF THE SURFACTANT ON THE WALL
+Pecs               = 1.0d+4      ! PECLET NUMBER (surfactact on wall)
+bs                 = 2.0d+0      ! DEGREE OF SURFACTANT SOLUBILITY
+ks                 = 1.0d-0      ! KINETIC CONSTANT
+Rs                 = 1.0d+1      ! PARAMETER FOR THE DESORPTION OF SURFACTANT 
+kas                = 1.0d-0      ! KINETIC CONSTANT
+Ras                = 1.0d+0      ! PARAMETER FOR THE DESORPTION OF SURFACTANT 
+ST_MODEL           = 'SHELUDKO'  ! CHOOSE EQUATION OF STATE FOR SURFACE TENSION:
+                                 ! 'LINEAR' or 'LANGMUIR' or 'SHELUDKO'
+Bl1                = 3.0d-1      ! LANGMUIR model : Bl1  = R*T*Csoo/(s1o-s1m)
+Bl2                = 3.0d-1      ! LANGMUIR model : Bl2  = R*T*Caoo/(s2o-s2m)
+Bl12               = 3.0d-1      ! LANGMUIR model : Bl12 = R*T*Csoo/(s12o-s12m)
+Kl1                = 0.0d-1      ! LANGMUIR model 
+Kl2                = 0.0d-1      ! LANGMUIR model
+Kl12               = 0.0d-1      ! LANGMUIR model
+GEOMETRY           = 'CARTESIAN' ! CHOOSE TYPE OF COORDINATES: 
+                                 ! 'CARTESIAN' or 'CYLINDRICAL'
+NXELa              = 300         ! NUMBER OF ELEMENTS (REGION 1)
+NXELb              = 300         ! NUMBER OF ELEMENTS (REGION 2)
+XPACK              = 'N'         ! MESH_PACKING
+MPa                = 1.25        ! PARAMETER FOR PACKING
+MPb                = 1.25        ! PARAMETER FOR PACKING
+OUTFE_STEP         = 1000        ! PRINT IN OUTFE.DAT EVERY OUT_STEP STEPS
+NZELa              = 100         ! NUMBER OF CELLS IN Z TO USE FOR OUTPUT VELOCITY FIELD
+/
+
