@@ -1,0 +1,142 @@
+#! /usr/bin/env python
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.animation as ani
+
+# Class to read and store coupled data
+class AnalyticalSoln:
+	U = 1.
+	t_0 = 160.
+	spec_res = 6
+	viscosity = 1.6
+	density = 0.8
+	Re = density*U*1./viscosity
+	analy_points = 20                   # Number of spectral points
+
+class HeaderData:
+
+	def __init__(self,fobj):
+		for line in fobj:
+			varname = line.split(';')[1].strip().replace('(','').replace(')','')
+			varval  = line.split(';')[2].strip()
+			vars(self)[varname] = varval
+					
+class CoupledData(HeaderData):
+	
+	def __init__(self,fdir):
+		self.resultsdir = fdir
+		self.MDdir  = fdir + '/md_data/results/'
+		self.CFDdir = fdir + '/couette_data/'
+		self.CPLdir = fdir + '/results/'
+		self.MDheader  = open(self.MDdir +'simulation_header','r') # Object
+		self.CPLheader = open(self.CPLdir+'coupler_header','r') # Object
+		self.mbins = open(self.MDdir+'mbins','rb')
+		self.vbins = open(self.MDdir+'vbins','rb')
+		Nrecs = int(open(self.MDdir+'simulation_progress').readline().strip())
+
+		self.read_headers()
+	
+	def read_headers(self):
+
+		# Read MD header data and store in self.MDheaderdata
+		self.MD = HeaderData(self.MDheader)
+
+		# Correct Nsteps to whatever is in simulation_progress
+		try:
+			with open(self.MDdir+'simulation_progress') as f:
+				self.MD.Nsteps = f.readline()
+		except:
+			pass
+
+		vflag = int(self.MD.velocity_outflag)
+		mflag = int(self.MD.mass_outflag)
+
+		if ( vflag == 4 ):
+			N = int(self.MD.Nsteps)
+			i = int(self.MD.initialstep)
+			tp = int(self.MD.tplot)
+			va = int(self.MD.Nvel_ave)
+			self.Nvel_records = (N-i)/(tp*va)
+		elif ( vflag > 0 and vflag < 4 ):
+			quit('Python visualisation routines only developed for bins so far.')
+		else:
+			quit('Unrecognised velocity flag in MD header')
+
+
+		self.CPLheaderdata = HeaderData(self.CPLheader)
+
+	# Read next record in object (unless call asks for final or a seek pos)
+	def read_bins(self,fobj,dtype,nperbin,lastrec=False,seek=0,whence=1):
+
+		nbins    = np.array([int(self.MD.gnbins1),int(self.MD.gnbins2),int(self.MD.gnbins3)])
+		recsize  = np.product(nbins)*nperbin 
+
+		if (lastrec == True): # Seek from end of file
+			if (dtype == 'i'):
+				seekbyte = -4*recsize
+			elif (dtype == 'd'):
+				seekbyte = -8*recsize
+			else:
+				quit('Unrecognised data type in read_bins')
+			fobj.seek(seekbyte,2)
+		else:
+			fobj.seek(seek,whence)
+
+		bindata  = np.fromfile(fobj,dtype=dtype,count=recsize)	
+		bindata  = np.reshape(bindata,[nbins[0],nbins[1],nbins[2],nperbin],order='F')
+		return bindata
+
+	def get_vprofile(self,last=False):
+
+		ybins = int(self.MD.gnbins2)
+		massbins = self.read_bins(self.mbins,'i',1,lastrec=last)
+		velobins = self.read_bins(self.vbins,'d',3,lastrec=last)
+
+		# Bug in np.sum (axis doesn't accept tuple), so doing sum a weird way
+		summ  = massbins.sum(axis=0).sum(axis=1)
+		sumv  = velobins.sum(axis=0).sum(axis=1)
+
+		vprofile = []
+		for ybin in range(ybins):
+			vxbin = sumv[ybin][0]/float(summ[ybin])
+			vprofile.append(vxbin)
+		
+		return vprofile	
+
+# Class to loop through data and plot
+class PlotCoupledData(AnalyticalSoln,CoupledData):
+	
+	def __init__(self,filepath):	
+
+		self.CPLdata = CoupledData(filepath)
+		self.fig = plt.figure()
+		self.ax  = self.fig.add_subplot(111)
+		self.ax.set_xlim([-0.1,1.1])
+		self.ax.set_ylim([-0.1,1.1])
+
+		self.MDpts = self.ax.plot([],'ro')[0] 
+		self.MDpts.set_data([],[])
+
+	def start_animation(self,lastrec=False):
+		self.anim = ani.FuncAnimation(
+		                               self.fig,
+		                               self.update,
+		                               fargs=[lastrec],
+		                               interval=100
+		                             )
+
+	def update(self,dummy,lastrec):
+		try:
+			vprofile = self.CPLdata.get_vprofile(last=lastrec)
+		except:
+			vprofile = self.CPLdata.get_vprofile(last=True)
+
+		self.MDpts.set_xdata(vprofile)
+		self.MDpts.set_ydata(np.linspace(0.,1.,num=len(vprofile)))
+
+wdir = '/home/djt06/Documents/Academia/PhD/Code/Data/2013/02/19/NCER/branch/coupler_dCSE/src_code'
+#wdir = '/home/djt06/Documents/Academia/PhD/Code/Data/2013/02/19/LJ/branch/coupler_dCSE/src_code'
+
+CPLfig = PlotCoupledData(wdir)
+CPLfig.start_animation()
+plt.show()
