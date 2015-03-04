@@ -1,57 +1,0 @@
-50,51c50,51
-< 12      ianim
-< 15.0    save_dt
----
-> 12        ianim
-> 15.0     save_dt
-1,2c1,2
-< 41.0394227202	! Lx		Domain Length
-< 41.0394227202	! Ly		Domain height at inlet
----
-> 41.0394227202407 	! Lx		Domain Length
-> 41.0394227202407	! Ly		Domain height at inlet
-11,13c11,13
-< 41.0394227202	xL	domain length
-< 41.0394227202	yL	domain length
-< 41.0394227202	zL  domain width
----
-> 41.0394227202407		xL domain length
-> 41.0394227202407		yL domain height
-> 41.0394227202407		zL domain width
-41c41
-< 1.1
----
-> 1.0
-43,49d42
-< #########################################################################
-< # Initial configuration
-< #
-< #    0 - FCC Lattice
-< #    1 - Special case, must be followed by string on next line 
-< #    2 - Configuration file
-< # -----------------------------------------------------------------------
-52d44
-< special_case_name
-62c54
-< 18
----
-> 30
-108c100
-< 0.29
----
-> 0.3
-254c246
-< 1.29
----
-> 10.2598
-319,322c311,312
-< #	1 - high precision > stdout
-< #	2 - high precision > stdout + results/macroscopic_properties
-< #	3 - concise        > stdout
-< #	4 - concise        > stdout + results/macroscopic_properties
----
-> #	1 - print to terminal
-> #	2 - output file + print to terminal
-0a1
-> 	Í^Âej?>+Ÿvr?¯µ‡kĞu?éŸÄä|?ôY%ú¿ƒ?biÙå’‰?Ğ¥—û@L?Â²E…Õ”?DAYû)š?[p½”N ?¥âû‹{ğ£?gÓ+ÿä¨?¡–sÿ®?Ç=ò)¹Ç²??ÍJNo•¶?Í~ƒ¦¦`»?¡~W½(tÀ?>ıHVlÃ?1%bØAÖÆ?t¯X*ùæÊ?¢ï[l_Ï?fÒFòÎÒ?Gd±òÁ·Ô?û3	›dÁ×?.‘ÂóÚ?%bXC¤?Ş?4MŞK5ôà?—n•¢öâ?Z<ä¯‰÷ä?@Èvqöæ?¨ÃˆÕ'1é?R·Éí¦Ÿë?şñdª½í?
-\ No newline at end of file

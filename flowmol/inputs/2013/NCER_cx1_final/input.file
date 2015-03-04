@@ -1,7 +1,0 @@
-41.0394227202407 	! Lx		Domain Length
-41.0394227202407	! Ly		Domain height at inlet
-9				! ngx		Number of streamwise  grid points
-9				! ngy		Number of wall-normal grid points
-0				! imeshY	Mesh Sretching parameter (0=uniform)(1=tanh)(2=gauss-lobatto)
-40.				! ratio		Mesh Stretching Ratio (delta yn / delta y1)
-0				! direction Mesh Stretching direction (0=top to bottom)(1=bottom to top)

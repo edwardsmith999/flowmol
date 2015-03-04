@@ -1,1 +1,0 @@
-In order for the *.vmd states to find the correct trajectory files, vmd must be called from a terminal in which the present working directory is /src_code/results/. If it is called from /src_code/results/vmd/, then the files will not be found.
