@@ -51,8 +51,9 @@ endif
 # common compiler flags
 #
 
-FLAGS_BASE_debug := -fbacktrace -g -O0 -W -Wsurprising -Wampersand -Waliasing -fbounds-check -ffpe-trap=zero,overflow,underflow -J$(OBJ_DIR)
-FLAGS_BASE_opt   := -O3 -funroll-loops -Wconversion -J$(OBJ_DIR)
+FLAGS_BASE_debug := -fbacktrace -g -O0 -W -Wsurprising -Wampersand -Waliasing -fbounds-check -ffpe-trap=zero,overflow,underflow -J$(OBJ_DIR) $(FPP_FLAGS)
+#FLAGS_BASE_opt   := -O3 -funroll-loops -Wconversion -J$(OBJ_DIR)
+FLAGS_BASE_opt   := -O3 -funroll-loops -J$(OBJ_DIR) $(FPP_FLAGS)
 
 #
 # add  flags required by particulary codes

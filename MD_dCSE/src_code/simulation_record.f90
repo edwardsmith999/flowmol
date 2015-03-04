@@ -71,7 +71,6 @@ module module_record
 
 	real(kind(0.d0)) :: vel
 
-
 contains
 
     function get_bin(r) result(bin)
@@ -525,7 +524,9 @@ subroutine velocity_PDF_averaging(ixyz)
 		    allocate(pdfx(nbins(ixyz)+nhb(ixyz),velPDF_array(nhb(1)+1,nhb(2)+1,nhb(3)+1,1)%nbins)); pdfx =0.d0
 		    allocate(pdfy(nbins(ixyz)+nhb(ixyz),velPDF_array(nhb(1)+1,nhb(2)+1,nhb(3)+1,2)%nbins)); pdfy =0.d0
 		    allocate(pdfz(nbins(ixyz)+nhb(ixyz),velPDF_array(nhb(1)+1,nhb(2)+1,nhb(3)+1,3)%nbins)); pdfz =0.d0
-		    allocate(binloc,source=velPDF_array(nhb(1)+1,nhb(2)+1,nhb(3)+1,1)%binvalues())
+		    !allocate(binloc,source=velPDF_array(nhb(1)+1,nhb(2)+1,nhb(3)+1,1)%binvalues())
+		    allocate(binloc(velPDF_array(nhb(1)+1,nhb(2)+1,nhb(3)+1,1)%nbins))
+            binloc = velPDF_array(nhb(1)+1,nhb(2)+1,nhb(3)+1,1)%binvalues()
 
 	        kxyz = mod(ixyz,3)+1
 	        jxyz = mod(ixyz+1,3)+1
@@ -1408,7 +1409,9 @@ subroutine momentum_averaging(ixyz)
 		! T_{unbias} = (1/3N) * \sum_i^N m_i * (vi - u)*(vi - u)
 		! CAN INSTEAD BE CALCULATED FROM:
 		! T_{unbias} = (1/3N) * \sum_i^N m_i * vi*vi - u^2/3
-		call error_abort( "Peculiar momentum functionality removed -- please calculate using T_{unbias} = (1/3N) * \sum_i^N m_i*vi*vi - u^2/3")
+		call error_abort("Peculiar momentum functionality removed -- "//&
+                         "please calculate using T_{unbias} = (1/3N) "//&
+                         "* \sum_i^N m_i*vi*vi - u^2/3")
 
 		do n=1,np
 			!Save streaming momentum per molecule
@@ -5646,7 +5649,9 @@ contains
 
 
     subroutine build_from_cellandneighbour_lists(self, cell, neighbour, rd, rmols, nmols, skipwalls_)
-	    use module_compute_forces
+	    use module_compute_forces, only: cellinfo, neighbrinfo, rj, rij, ri,&
+                                         delta_rneighbr, rcutoff, rij2, &
+                                         moltype
 	    use interfaces, only : error_abort
         implicit none
 
@@ -5657,7 +5662,7 @@ contains
         integer,intent(in)              :: nmols
         logical, intent(in),optional    :: skipwalls_
         double precision, intent(in)    :: rd
-        double precision, intent(in), dimension(:,:), allocatable    :: rmols
+        double precision, intent(in), dimension(:,:) :: rmols
 
         logical                         :: skipwalls
 	    integer                         :: i, j !Define dummy index
@@ -6344,9 +6349,38 @@ contains
                              2:size(density_bins,3)-1)) .ne. &
                             (Nmass_ave-1)*globalnp) then
             print*, 'Warning in interface check - number of molecules in mass averaged bins is greater than total'
-            print*, 'e.g.',globalnp, sum(density_bins(2:size(density_bins,1)-1,2:size(density_bins,2)-1,2:size(density_bins,3)-1))/(Nmass_ave-1)
+            print*, 'e.g.', globalnp, &
+                    sum(    density_bins                   &
+                            (                              &
+                               2:size(density_bins,1)-1,   &
+                               2:size(density_bins,2)-1,   &
+                               2:size(density_bins,3)-1    &
+                            )                              &
+                       )/(Nmass_ave-1)
         endif
-        print*, 'Densities', sum(density_bins(2:size(density_bins,1)-1,2:size(density_bins,2)-1,2:size(density_bins,3)-1)),product(shape(density_bins(2:size(density_bins,1)-1,2:size(density_bins,2)-1,2:size(density_bins,3)-1))),liquiddensity,gasdensity
+        print*, 'Densities', &
+                sum&
+                (&
+                    density_bins &
+                    (&
+                        2:size(density_bins,1)-1,&
+                        2:size(density_bins,2)-1,&
+                        2:size(density_bins,3)-1 &
+                    )&
+                ),&
+                product&
+                (&
+                    shape&
+                    (&
+                        density_bins&
+                        (&
+                            2:size(density_bins,1)-1,&
+                            2:size(density_bins,2)-1,&
+                            2:size(density_bins,3)-1&
+                        )&
+                    )&
+                ),&
+                liquiddensity, gasdensity
 
 	    cellsperbin = 1.d0/binspercell !ceiling(ncells(1)/dble(nbins(1)))
 
@@ -6575,7 +6609,10 @@ contains
 	    type(node), pointer 	        :: oldi, currenti, oldj, currentj, noldj,ncurrentj
 
         rd2 = rd**2.d0
-        if (force_list .ne. 2) call error_abort("Error in get_molecules_within_rc -- full neightbour list should be used with interface tracking")
+        if (force_list .ne. 2) then
+            call error_abort("Error in get_molecules_within_rc -- full "//&
+                             "neightbour list should be used with interface tracking")
+        end if
 
         allocate(cellsurface(3,3,size(celllist,2)))
         do n = 1,size(celllist,2)

@@ -562,7 +562,7 @@ contains
 		self%Fv_ext		= 0.d0
 		self%totalflux  = 0.d0
 		self%totalpower = 0.d0
-		self%X_minus_2t = 0.d0
+		!self%X_minus_2t = 0.d0
 
 	end subroutine initialise_energy
 

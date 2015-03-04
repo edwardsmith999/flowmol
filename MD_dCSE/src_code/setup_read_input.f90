@@ -212,7 +212,8 @@ subroutine setup_read_input
 			
 			potential_flag = 0
             if (ensemble .ne. tag_move) then
-                call error_abort("Error in setup_read_input -- special case fill_cylinders needs ENSEMBLE=6 for tag_move_system")
+                call error_abort("Error in setup_read_input -- special case "&
+                     //"fill_cylinders needs ENSEMBLE=6 for tag_move_system")
             endif
 
 			call locate(1,'DENSITY',.true.)
@@ -224,7 +225,8 @@ subroutine setup_read_input
 
 			potential_flag = 1	    
             if (ensemble .ne. tag_move) then
-                call error_abort("Error in setup_read_input -- special case fill_cylinders_fene_solution needs ENSEMBLE=6 for tag_move_system")
+                call error_abort("Error in setup_read_input -- special case "&
+                //"fill_cylinders_fene_solution needs ENSEMBLE=6 for tag_move_system")
             endif
 			rcutoff = 2.d0**(1.d0/6.d0)
 
@@ -238,7 +240,8 @@ subroutine setup_read_input
 		case('rotate_cylinders')
 			
             if (ensemble .ne. tag_move) then
-                call error_abort("Error in setup_read_input -- special case rotate_cylinders needs ENSEMBLE=6 for tag_move_system")
+                call error_abort("Error in setup_read_input -- special case "&
+                //"rotate_cylinders needs ENSEMBLE=6 for tag_move_system")
             endif
 
 			!call locate(1,'RCUTOFF',.true.)
@@ -255,7 +258,8 @@ subroutine setup_read_input
 
             potential_flag = 1
             if (ensemble .ne. tag_move) then
-                call error_abort("Error in setup_read_input -- special case polymer_brush needs ENSEMBLE=6 for tag_move_system")
+                call error_abort("Error in setup_read_input -- special case "&
+                //"polymer_brush needs ENSEMBLE=6 for tag_move_system")
             endif
             rcutoff = 2.d0**(1.d0/6.d0)
 
@@ -301,14 +305,17 @@ subroutine setup_read_input
             read(1,*) potential_flag
 
             if (mie_potential .ne. 1) then
-                call error_abort("2phase_surfactant_solution initial case used but Mie flag is off -- aborting")
+                call error_abort("2phase_surfactant_solution initial case "&
+                //"used but Mie flag is off -- aborting")
             endif
             if (potential_flag .ne. 1) then
-                print*, "2phase_surfactant_solution initial case used but potential flag is off -- switching on"
+                print*, "2phase_surfactant_solution initial case used but "&
+                //"potential flag is off -- switching on"
                 potential_flag = 1
             endif
             if (ensemble .ne. tag_move) then
-                call error_abort("Error in setup_read_input -- special case 2phase_surfactant_solution needs ENSEMBLE=6 for tag_move_system")
+                call error_abort("Error in setup_read_input -- special case "&
+                //"2phase_surfactant_solution needs ENSEMBLE=6 for tag_move_system")
             endif
 			call locate(1,'RCUTOFF',.true.)
 			read(1,*) rcutoff
@@ -318,16 +325,25 @@ subroutine setup_read_input
             read(1,*) targetconc
             read(1,*) angular_potential
 
-            if (targetconc .gt. 1.d0) call error_abort("ERROR in 2PHASE_SURFACTANT input -- targetconc must be between 0.0 and 1.0")
+            if (targetconc .gt. 1.d0) then
+                call error_abort("ERROR in 2PHASE_SURFACTANT input -- "&
+                //"targetconc must be between 0.0 and 1.0")
+            end if
 
             call locate(1,'DENSITY',.true.)
             read(1,*) density
             call locate(1,'LIQUIDDENSITY',.true.)
             read(1,*) liquid_density
-            if (density .lt. liquid_density) call error_abort("ERROR in 2PHASE_SURFACTANT input -- DENSITY must be greater than LIQUIDDENSITY")
+            if (density .lt. liquid_density) then
+                call error_abort("ERROR in 2PHASE_SURFACTANT input -- "&
+                //"DENSITY must be greater than LIQUIDDENSITY")
+            end if
 			call locate(1,'GASDENSITY',.true.) 
     	    read(1,*) gas_density
-            if (liquid_density .lt. gas_density) call error_abort("ERROR in 2PHASE_SURFACTANT input -- LIQUIDDENSITY must be greater than GASDENSITY")
+            if (liquid_density .lt. gas_density) then
+                call error_abort("ERROR in 2PHASE_SURFACTANT input -- "&
+                //"LIQUIDDENSITY must be greater than GASDENSITY")
+            end if
 
             call locate(1,'INITIALNUNITS',.true.)
             read(1,*) initialnunits(1)		!x dimension split into number of cells
@@ -739,8 +755,10 @@ subroutine setup_read_input
 	call locate(1,'CLUSTER_ANALYSIS',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) cluster_analysis_outflag
-        if (cluster_analysis_outflag .and. nproc .ne. 1) then
-            call error_abort("Cluster Analysis only works with one processor")
+        if (cluster_analysis_outflag .ne. 0) then
+            if (nproc .ne. 1) then
+                call error_abort("Cluster Analysis only works with one processor")
+            end if
         endif
     else
         cluster_analysis_outflag = 0

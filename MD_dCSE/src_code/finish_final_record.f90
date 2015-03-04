@@ -181,7 +181,7 @@ subroutine reformat_dcd
 		open (unit=17, file=trim(prefix_dir)//"results/vmd_temp.dcd",access='stream')
 	    
 		!Open unit 6 (stdout) with fortran carriage control 
-		open (unit=6, carriagecontrol='fortran')  
+		!open (unit=6, carriagecontrol='fortran')  
 		plot_mod = max(1,NSET/100)
 		write(*,'(a)') ' VMD reformat read completion:  '
 
@@ -341,7 +341,7 @@ subroutine reformat_dcd_true
 	open (unit=18, file=trim(prefix_dir)//"results/vmd_temp_true.dcd",access='stream')
 
 	!Open unit 6 (stdout) with fortran carriage control 
-	open (unit=6, carriagecontrol='fortran')  
+	!open (unit=6, carriagecontrol='fortran')  
 	plot_mod = max(1,NSET/100)
 	write(*,'(a)') ' VMD reformat read completion:  '
 
@@ -463,7 +463,7 @@ subroutine reformat_dcd_sl
 	open (unit=17, file=trim(prefix_dir)//"results/vmd_solid_temp.dcd",access='direct',recl=1)
 	
 	!Open unit 6 (stdout) with fortran carriage control 
-	open (unit=6, carriagecontrol='fortran')  
+	!open (unit=6, carriagecontrol='fortran')  
 	plot_mod = max(1,NSET/100)
 	write(*,'(a)') ' VMD reformat read completion (solid):  '
 
@@ -613,7 +613,7 @@ subroutine reformat_dcd_halo
 	open (unit=17, file=trim(prefix_dir)//"results/vmd_halo_temp.dcd",access='direct',recl=1)
 	
 	!Open unit 6 (stdout) with fortran carriage control 
-	open (unit=6, carriagecontrol='fortran')  
+	!open (unit=6, carriagecontrol='fortran')  
 	plot_mod = max(1,NSET/100)
 	write(*,'(a)') ' VMD reformat read completion (halo):  '
 

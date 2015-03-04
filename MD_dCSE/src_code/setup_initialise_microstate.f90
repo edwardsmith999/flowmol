@@ -615,8 +615,8 @@ contains
 
         equil_sep = 0.9608971929802091
         if (irank.eq.iroot) then
-            print*, "Warning: equilibrium separation distance of FENE chain "&
-            "set to ", equil_sep, ", based on R_0 = 1.5 and k = 30, with LJ "&
+            print*, "Warning: equilibrium separation distance of FENE chain "//&
+            "set to ", equil_sep, ", based on R_0 = 1.5 and k = 30, with LJ "//&
             "cutoff 2^1/6"
         end if
 
@@ -968,8 +968,8 @@ contains
 
         equil_sep = 0.9608971929802091
         if (irank.eq.iroot) then
-            print*, "Warning: equilibrium separation distance of FENE chain "&
-            "set to ", equil_sep, ", based on R_0 = 1.5 and k = 30, with LJ "&
+            print*, "Warning: equilibrium separation distance of FENE chain "//&
+            "set to ", equil_sep, ", based on R_0 = 1.5 and k = 30, with LJ "//&
             "cutoff 2^1/6"
         end if
 
@@ -1673,8 +1673,8 @@ contains
 
         equil_sep = 0.9608971929802091
         if (irank.eq.iroot) then
-            print*, "Warning: equilibrium separation distance of FENE chain "&
-            "set to ", equil_sep, ", based on R_0 = 1.5 and k = 30, with LJ "&
+            print*, "Warning: equilibrium separation distance of FENE chain "//&
+            "set to ", equil_sep, ", based on R_0 = 1.5 and k = 30, with LJ "//&
             "cutoff 2^1/6"
         end if
 
@@ -2489,7 +2489,10 @@ contains
         integer :: subchainID, chainID, n, molno
         logical :: connectable
 
-        if (R_0 .lt. 0.5 .or. R_0 .gt. 1.5) call error_abort("R_0 not defined or not sane values -- must be less than 1.5 and greater than ~0.5")
+        if (R_0 .lt. 0.5 .or. R_0 .gt. 1.5) then
+            call error_abort("R_0 not defined or not sane values -- "//&
+                             "must be less than 1.5 and greater than ~0.5")
+        end if
 
         chainID = 1
         n = 1
@@ -2718,7 +2721,11 @@ contains
             maxchainID = chainID - 1
             concentration = real(nmonomers*maxchainID)/real(fluid_np)
 
-            if (rmax .gt. magnitude(halfdomain)) call error_abort("Error in connect_all_possible_chains_surfactant -- request concentration is not possible ")
+            if (rmax .gt. magnitude(halfdomain)) then
+                call error_abort("Error in connect_all_possible_chains_surfactant "//&
+                                 "-- request concentration is not possible ")
+            end if
+
         enddo
 
     end subroutine connect_all_possible_chains_surfactant
@@ -2932,8 +2939,8 @@ contains
 
         equil_sep = 0.9608971929802091
         if (irank.eq.iroot) then
-            print*, "Warning: equilibrium separation distance of FENE chain "&
-            "set to ", equil_sep, ", based on R_0 = 1.5 and k = 30, with LJ "&
+            print*, "Warning: equilibrium separation distance of FENE chain "//&
+            "set to ", equil_sep, ", based on R_0 = 1.5 and k = 30, with LJ "//&
             "cutoff 2^1/6"
         end if
 
@@ -2988,7 +2995,12 @@ contains
                     rij2 = dot_product(r(:,n+m+1)-r(:,n+m) , r(:,n+m+1)-r(:,n+m))
                     invrij2 = 1.d0 / rij2
                     accijmag = Mie_accijmag(invrij2, n+m+1, n+m) + harmonic_accijmag(rij2, n+m+1, n+m)
-                    if (accijmag .gt. 1e-5) print'(a,2i5,2(a,f18.6))', 'WARNING -- equilibrium force not zero polymer mol=', n+m, n+m+1, ' seperation=', sqrt(rij2), ' Force=', accijmag
+                    if (accijmag .gt. 1e-5) then
+                        print'(a,2i5,2(a,f18.6))', &
+                        'WARNING -- equilibrium force not zero polymer mol=', &
+                        n+m, n+m+1, ' seperation=', sqrt(rij2), ' Force=', &
+                        accijmag
+                    end if
                 enddo
 
                 n = n + nmonomers
@@ -3201,7 +3213,11 @@ contains
                 if (remove) then
                     call random_number(random)
                     if (random .gt. density_ratio) then
-                        if (monomer(molno)%chainID .ne. 0) call error_abort("Error in remove_solvent_limits -- No polymer should exist here")
+
+                        if (monomer(molno)%chainID .ne. 0) then
+                            call error_abort("Error in remove_solvent_limits"//&
+                                             "-- No polymer should exist here")
+                        end if
                         !n = n + 1
 
 !		                if (ensemble.eq.tag_move) then

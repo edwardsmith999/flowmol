@@ -69,7 +69,7 @@ end subroutine socket_coupler_invoke
 ! Setup initial times based on coupled calculation
 !-----------------------------------------------------------------------------
 subroutine socket_coupler_init
-    use interfaces
+    !use interfaces
 	use CPL, only : coupler_md_init, CPL_create_map, set_coupled_timing, CPL_get,CPL_write_header
 	use computational_constants_MD, only : npx,npy,npz,delta_t,elapsedtime, & 
 										   Nsteps,initialstep,delta_t, & 
@@ -191,7 +191,7 @@ end subroutine set_params_globdomain_cpld
 ! Adjust MD cells to match to continuum
 
 subroutine set_parameters_cells_coupled
-	use interfaces
+	!use interfaces
 	use computational_constants_MD
 	use physical_constants_MD
 	use polymer_info_MD
@@ -1616,7 +1616,7 @@ end subroutine socket_get_constraint_info
 
 
 ! Get overlap status
-function socket_get_overlap_status result(olap)
+function socket_get_overlap_status() result(olap)
 	use coupler, only: CPL_overlap
 	implicit none
 

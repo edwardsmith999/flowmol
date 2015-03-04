@@ -1822,7 +1822,7 @@ subroutine prepare_overlap_comms
 	!call MPI_bcast(testval,1,MPI_INTEGER,CFDid_olap,CPL_OLAP_COMM,ierr)
 
 	! Set all non-overlapping processors to MPI_COMM_NULL
-	if (olap_mask(rank_world).eq..false.) then
+	if (olap_mask(rank_world).eqv..false.) then
 		myid_olap = olap_null
 		rank_olap = olap_null
 		CPL_OLAP_COMM = MPI_COMM_NULL
@@ -1856,7 +1856,7 @@ subroutine CPL_overlap_topology
 	reorder = .true.
 
 	!Get number of processors in communicating overlap region 
-	if (olap_mask(rank_world).eq..true.) then
+	if (olap_mask(rank_world).eqv..true.) then
 
 		!CFD processor is root and has mapping to all MD processors
 		allocate(index(nproc_olap))			! Index for each processor
