@@ -1,0 +1,291 @@
+#########################################################################
+# Number density of the particles in the system:
+# -----------------------------------------------------------------------
+DENSITY
+0.8
+
+#########################################################################
+# Cut-off distance for particle interaction:
+#	2^(1/6) = 1.12246204830937
+# -----------------------------------------------------------------------
+RCUTOFF
+1.12246204830937
+
+#########################################################################
+# Define initial temperature of the system:
+#	- determines magnitude of initial random velocities
+# -----------------------------------------------------------------------
+INPUTTEMPERATURE
+1.0
+
+#########################################################################
+# Number of unit cells in the x,y,z directions, formatted:
+#	x
+#	y
+#	z	
+# -----------------------------------------------------------------------
+INITIALNUNITS
+8
+8
+8
+
+#########################################################################
+# Total number of timesteps:
+# -----------------------------------------------------------------------
+NSTEPS
+2000
+
+#########################################################################
+# Timestep interval:
+# -----------------------------------------------------------------------
+DELTA_T
+0.005
+
+#########################################################################
+# Integration algorithm
+# 0: Leap-frog Verlet
+# 1: Velocity Verlet
+# 2: Other
+# -----------------------------------------------------------------------
+INTEGRATION_ALGORITHM
+0
+
+#########################################################################
+# Force list used
+# 0: All Pairs
+# 1: Cell List
+# 2: Neighbour list with all interactions
+# 3: Neighbour list using 3rd law optimisation (half interactions)
+# -----------------------------------------------------------------------
+FORCE_LIST
+3
+
+
+#########################################################################
+# Results are recorded periodically every TPLOT timesteps:
+#	(subroutine simulation_record is called)
+# -----------------------------------------------------------------------
+TPLOT
+100
+
+#########################################################################
+# Number of initialisation steps to run before simulation start
+#	
+# -----------------------------------------------------------------------
+INITISE_STEPS
+0
+
+
+#########################################################################
+# Extra distance added to r_cutoff to determine neighbour cell size
+# -----------------------------------------------------------------------
+DELTA_RNEIGHBR
+0.3
+
+#########################################################################
+# Ensemble selector: case sensitive! 
+# 0 - NVE
+# 1 - NVT (Nosé-Hoover thermostat)
+# 2 - NVT (Gaussian iso-kinetic thermostat) - only availble with VV
+# 3 - NVT (Profile unbiased Nosé-Hoover thermostat)
+# 4 - NVT (Pairwise additive Nosé-Hoover thermostat by Allen & Schmid)
+# 5 - NVT (DPD thermostat by Soddemann, Dunweg an Kremer Phys Rev E 68, 046702 (2003))
+# 6 - TAG system - specify fixed wall and localised thermostatting
+# -----------------------------------------------------------------------
+ENSEMBLE
+0
+
+#########################################################################
+# Random number seeds, formattted:
+#	seed1
+#	seed2
+#	
+# If seed1 and seed2 are the same, the seed generation will be
+# automatically randomised by the main program.
+# -----------------------------------------------------------------------
+SEED
+1
+2
+
+#########################################################################
+# Output flag for visualisation in VMD:
+#	0 - off
+#	1 - homogeneous
+# 	2 - solid/liquid
+#	3 - homogeneous + halos
+# -----------------------------------------------------------------------
+VMD_OUTFLAG
+0
+
+#########################################################################
+# Output flag for macroscopic properties:
+#	0 - off
+#	1 - print to terminal
+#	2 - output file + print to terminal
+# -----------------------------------------------------------------------
+MACRO_OUTFLAG
+2
+
+#########################################################################
+# Output flag for mass record:
+#	output_flag (0=off 1,2,3=x,y,z slice 4=3D bins)
+#	No. of samples for mass average
+# -----------------------------------------------------------------------
+MASS_OUTFLAG
+0
+50
+
+#########################################################################
+# Output flag for Velocity record:
+#	output_flag (0=off 1,2,3=x,y,z slice 4=3D bins)
+#	No. of samples for velocity average
+# -----------------------------------------------------------------------
+VELOCITY_OUTFLAG
+0
+50
+
+#########################################################################
+# Output flag for Pressure binning:
+#	output_flag (0=off 1=virial 2=Volume Averaged)
+#	No. of samples for pressure average (number of viscosity bins)
+# -----------------------------------------------------------------------
+PRESSURE_OUTFLAG
+0
+50
+
+#########################################################################
+# Output flag for viscosity:
+#	output_flag (0=off 1=virial 2=Volume Averaged)
+#	No. of Steps to average viscosity sample bins over 
+#
+# Note that Visc output freq = (PRESSURE_visc_bins*visc_ave_steps)
+# -----------------------------------------------------------------------
+VISCOSITY_OUTFLAG
+0
+50
+
+
+#########################################################################
+# Output flag for mass flux:
+#	output_flag (0=off 1=3D CV)
+#	No. of samples for mass flux & interval for CV mass snapshot
+#
+# -----------------------------------------------------------------------
+MFLUX_OUTFLAG
+0
+50
+
+#########################################################################
+# Output flag for velocity flux:
+#	output_flag (0=off 1,2,3=x,y,z MOP 4=3D CV)
+#	No. of samples for momentum flux/pressure & CV momentum snapshots
+#
+# -----------------------------------------------------------------------
+VFLUX_OUTFLAG
+0
+50
+
+#########################################################################
+# Periodic boundary flags, formatted:
+#	x
+#	y
+#	z
+#
+#	Constraint must be put in place before periodic BC are turned off!
+#	
+#	0 - off
+#	1 - periodic
+#	2 - Lees-Edwards shearing BC
+#
+#	Note: currently, only the boundary in the y direction may be sheared.
+# -----------------------------------------------------------------------
+PERIODIC
+1
+1
+1
+
+#########################################################################
+# MPI topology
+#   npx 
+#   npy
+#   npz
+#
+# if npz = 0 it will be set to nproc/(npx*npy)
+#
+# constrain: npx*npy*npz = nproc 
+# nproc is set by the argument of mpirun
+#-----------------------------------------------------------------------
+PROCESSORS
+2 
+2
+2
+
+#########################################################################
+# Shear definition, formatted:
+#	shear direction (i.e. 1 for x direction, -2 for negative y direction)
+#	shear iter0
+#	velocity or rate flag: 0-velocity, 1-rate
+#	numerical value
+# -----------------------------------------------------------------------
+DEFINE_SHEAR
+3
+0
+0
+1.0
+
+#########################################################################
+# Potential flag:
+#	0 - Lennard-Jones
+#	1 - FENE spring polymer potentials
+# -----------------------------------------------------------------------
+POTENTIAL_FLAG
+0
+
+#########################################################################
+# Parameters of the FENE potential, formatted:
+#	number of LJ beads for each polymer chain
+#	spring constant, k_c
+#	maximum spring elongation
+# -----------------------------------------------------------------------
+FENE_INFO
+8
+30.0
+1.5
+
+#########################################################################
+# Solvent information:
+#	- flag
+#		> 0 - Polymer only
+#		> 1 - Polymer in theta solvent
+#	- solvent ratio (integer): number of solvent molecules per FENE
+#                              monomer.
+#	- solvent energy parameter eps_pp (polymer-polymer)
+#	- solvent energy parameter eps_ps (polymer-solvent)
+#	- solvent energy parameter eps_ss (solvent-solvent)
+# -----------------------------------------------------------------------
+SOLVENT_INFO
+2
+4
+0.0
+0.8
+0.0
+
+#########################################################################
+# Output flag for end-to-end vector time correlation function (etevtcf):
+#	flag (0-off,1-print to terminal,2-write to output file)
+#	iteration at which to begin averaging (must be "hit" by a tplot, 
+#	otherwise etev_0 will not be initialised and the t.c.f. will be
+#	incorrectly calculated.
+# -----------------------------------------------------------------------
+ETEVTCF_OUTFLAG
+0
+40000
+
+#########################################################################
+# Radius of gyration output flag:
+#	0 - off
+#	1 - on
+# -----------------------------------------------------------------------
+R_GYRATION_OUTFLAG
+0
+0
