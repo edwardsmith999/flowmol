@@ -32,7 +32,7 @@ USE_COUPLER := no
 # path to .inc file the choosen platform. 
 # This is needed for build started in this directory
 #
-MAKE_INC_PATH :=  ../../platforms
+MAKE_INC_PATH :=  ../../misc/platforms
 #
 # Get platform to build, compiler names and flags, check the make.inc directory
 #
@@ -65,7 +65,7 @@ CPL_LIB =
 
 # If coupled, link to static library coupler.a
 ifeq ($(strip $(USE_COUPLER)),yes)
-  CPL_LIB_DIR = ../../lib/coupler/$(PLATFORM)/$(BUILD)
+  CPL_LIB_DIR = ../../cpl/lib
   FFLAGS  +=  -I$(CPL_LIB_DIR) #Object generation flags
   LDFLAGS +=  -L$(CPL_LIB_DIR) -lcoupler
   CPL_LIB = $(CPL_LIB_DIR)/libcoupler.a
