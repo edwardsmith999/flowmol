@@ -290,7 +290,7 @@ subroutine setup_read_input
             read(1,*) initialnunits(2)		!y dimension split into number of cells
             read(1,*) initialnunits(3)		!z dimension split into number of cells
 
-		case('2phase_surfactant_solution')
+		case('2phase_surfactant_solution', '2phase_surfactant_atsurface')
 
             !Specifiy more general potential than LJ
 	        call locate(1,'MIE_POTENTIAL',.false.,found_in_input) 
@@ -324,6 +324,10 @@ subroutine setup_read_input
 			read(1,*) nmonomers
             read(1,*) targetconc
             read(1,*) angular_potential
+            if (config_special_case .eq. '2phase_surfactant_atsurface') then
+                read(1,*,iostat=ios) surface_surfactant_layer
+				if (ios .ne. 0) surface_surfactant_layer = 4.d0
+            endif
 
             if (targetconc .gt. 1.d0) then
                 call error_abort("ERROR in 2PHASE_SURFACTANT input -- "&

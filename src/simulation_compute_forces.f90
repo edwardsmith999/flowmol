@@ -218,8 +218,8 @@ subroutine simulation_compute_forces
 		case(0)					!If simple LJ fluid
 			call simulation_compute_forces_LJ_neigbr_halfint
 		case(1)					!If FENE polymer
-			potenergymol_FENE	= 0.d0
-			potenergysum_FENE	= 0.d0
+			potenergymol_POLY	= 0.d0
+			potenergysum_POLY	= 0.d0
 			select case(solvent_flag)
 			case(0)
 				call simulation_compute_forces_LJ_neigbr_halfint	!Compute LJ bead interactions
@@ -731,7 +731,7 @@ subroutine simulation_compute_forces_poly
 			if (vflux_outflag.eq.4) then
 				if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
 					fij = accijmag*rij(:)
-					call control_volume_stresses(fij,ri,rj)
+					call control_volume_stresses(fij, ri, rj)
 				endif
 			endif
 
@@ -740,8 +740,8 @@ subroutine simulation_compute_forces_poly
 				if (pressure_outflag .eq. 1) then
 					call pressure_tensor_forces(molnoi, rij, accijmag)
 				endif
-                potenergymol_FENE(molnoi) = potenergymol_FENE(molnoi) - get_poly_energy(rij2, molnoi, molnoj)
-				potenergymol(molnoi)      = potenergymol(molnoi)      + potenergymol_FENE(molnoi)
+                potenergymol_POLY(molnoi) = potenergymol_POLY(molnoi) - get_poly_energy(rij2, molnoi, molnoj)
+				potenergymol(molnoi)      = potenergymol(molnoi)      + potenergymol_POLY(molnoi)
 				virialmol(molnoi)         = virialmol(molnoi)         + accijmag*rij2
 
 			else if (mod(iter,teval) .eq. 0) then
@@ -878,63 +878,63 @@ end subroutine simulation_compute_forces_Soddemann_neigbr_halfint
 !========================================================================
 !Compute polymer Mie potential forces using monomer bond lists
 
-subroutine simulation_compute_forces_miePOLY
-	use module_compute_forces
-	use polymer_info_MD
-    use module_set_parameters, only : harmonic_force, harmonic_energy, &
-                                      angular_harmonic_force, angular_harmonic_energy, &
-                                      Mie_accijmag, Mie_force, harmonic_accijmag
-    use librarymod, only : magnitude
-	implicit none
+!subroutine simulation_compute_forces_miePOLY
+!	use module_compute_forces
+!	use polymer_info_MD
+!    use module_set_parameters, only : harmonic_force, harmonic_energy, &
+!                                      angular_harmonic_force, angular_harmonic_energy, &
+!                                      Mie_accijmag, Mie_force, harmonic_accijmag
+!    use librarymod, only : magnitude
+!	implicit none
 
-	integer	:: molnoi, molnoj
-	integer :: i, b
+!	integer	:: molnoi, molnoj
+!	integer :: i, b
 
-	do molnoi=1,np
+!	do molnoi=1,np
 
-		ri(:) = r(:,molnoi)
+!		ri(:) = r(:,molnoi)
 
-		do b=1,monomer(molnoi)%funcy
+!		do b=1,monomer(molnoi)%funcy
 
-			molnoj = bond(b,molnoi)
-			if (molnoj.eq.0) cycle
+!			molnoj = bond(b,molnoi)
+!			if (molnoj.eq.0) cycle
 
-			rj(:)  = r(:,molnoj)
-			rij(:) = ri(:) - rj(:)
-            rij2 = dot_product(rij,rij)
+!			rj(:)  = r(:,molnoj)
+!			rij(:) = ri(:) - rj(:)
+!            rij2 = dot_product(rij,rij)
 
-            accijmag = harmonic_accijmag(rij2, molnoi, molnoj)
-            fij = accijmag*rij
+!            accijmag = harmonic_accijmag(rij2, molnoi, molnoj)
+!            fij = accijmag*rij
 
-			a(1,molnoi)= a(1,molnoi) + fij(1)/mass(molnoi)
-			a(2,molnoi)= a(2,molnoi) + fij(2)/mass(molnoi)
-			a(3,molnoi)= a(3,molnoi) + fij(3)/mass(molnoi)
+!			a(1,molnoi)= a(1,molnoi) + fij(1)/mass(molnoi)
+!			a(2,molnoi)= a(2,molnoi) + fij(2)/mass(molnoi)
+!			a(3,molnoi)= a(3,molnoi) + fij(3)/mass(molnoi)
 
-			if (vflux_outflag.eq.4) then
-				if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
-					call control_volume_stresses(fij,ri,rj)
-				endif
-			endif
+!			if (vflux_outflag.eq.4) then
+!				if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
+!					call control_volume_stresses(fij,ri,rj)
+!				endif
+!			endif
 
-			if (mod(iter,tplot) .eq. 0) then
-				if (pressure_outflag .eq. 1) then
-					call pressure_tensor_forces(molnoi,rij,accijmag)
-				endif
-                potenergymol_FENE(molnoi) = potenergymol_FENE(molnoi) - harmonic_energy(rij2, molnoi, molnoj)
-				potenergymol(molnoi)      = potenergymol(molnoi)      + potenergymol_FENE(molnoi)
-				virialmol(molnoi)         = virialmol(molnoi)         + accijmag*rij2
+!			if (mod(iter,tplot) .eq. 0) then
+!				if (pressure_outflag .eq. 1) then
+!					call pressure_tensor_forces(molnoi,rij,accijmag)
+!				endif
+!                potenergymol_POLY(molnoi) = potenergymol_POLY(molnoi) - harmonic_energy(rij2, molnoi, molnoj)
+!				potenergymol(molnoi)      = potenergymol(molnoi)      + potenergymol_POLY(molnoi)
+!				virialmol(molnoi)         = virialmol(molnoi)         + accijmag*rij2
 
-			else if (mod(iter,teval) .eq. 0) then
+!			else if (mod(iter,teval) .eq. 0) then
+!			
+!				virialmol(molnoi) = virialmol(molnoi) + accijmag*rij2
 			
-				virialmol(molnoi) = virialmol(molnoi) + accijmag*rij2
+!			endif
 
-			endif
+!        enddo
 
-        enddo
+!    enddo
 
-    enddo
-
-end subroutine simulation_compute_forces_miePOLY
+!end subroutine simulation_compute_forces_miePOLY
 
 !========================================================================
 ! If molecule is between two others, 
@@ -1125,6 +1125,51 @@ subroutine simulation_compute_power!(imin, imax, jmin, jmax, kmin, kmax)
 	nullify(oldj)      	!Nullify as no longer required
 	nullify(currenti)      	!Nullify as no longer required
 	nullify(currentj)      	!Nullify as no longer required
+
+    ! Add FENE contribution if it's there
+    if (potential_flag .eq. 1) then
+        call add_POLY_contribution
+    end if
+
+contains
+
+    subroutine add_POLY_contribution
+        use polymer_info_MD
+        use Volume_average_pressure, only : pressure_tensor_forces_VA
+	    !use librarymod, only: outerprod
+	    use librarymod, only: get_outerprod
+        use module_set_parameters, only : get_poly_accijmag
+        implicit none
+
+        integer :: b
+
+        do molnoi=1,np+halo_np
+
+            ri(:) = r(:,molnoi) !Retrieve ri(:)
+            do b=1,monomer(molnoi)%funcy
+
+                molnoj = bond(b,molnoi)
+                if (molnoj.eq.0) cycle
+
+                rj(:)  = r(:,molnoj)
+                rij(:) = ri(:) - rj(:)
+                rij2   = dot_product(rij,rij)
+
+                accijmag = -get_poly_accijmag(rij2, molnoi, molnoj)
+
+				!CV stress and force calculations
+				fij = accijmag*rij(:)
+
+                !Get the velocity, v, at time t 
+                ! ( This is the reason we need to do this after
+                !   the force calculation so we know a(t)      )
+                vi_t(:) = v(:,molnoi) + 0.5d0*delta_t*a(:,molnoi)
+				call control_volume_power(fij,ri,rj,vi_t)
+
+            enddo	
+        enddo
+
+    end subroutine add_POLY_contribution
 
 end subroutine simulation_compute_power
 

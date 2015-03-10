@@ -308,7 +308,7 @@ module arrays_MD
 	real(kind(0.d0)), dimension(:),   allocatable, target 	:: &
 		potenergymol, 		&		!Potential energy of each molecule
 		potenergymol_LJ, 	&		!LJ Potential energy of each molecule
-		potenergymol_FENE,	&		!FENE Potential energy of each molecule
+		potenergymol_POLY,	&		!FENE Potential energy of each molecule
 		potenergymol_mdt,	&		!Potential energy of each molecule at previous timestep
 		virialmol,			&		!Virial of each molecule
 		recvbuffer
@@ -382,6 +382,7 @@ module polymer_info_MD
 
 	integer             :: solvent_flag             !Solvent on/off flag
     real(kind(0.d0))    :: targetconc               !Solvent target concentration
+    real(kind(0.d0))    :: surface_surfactant_layer !Solvent thickness at liquid surface
 	real(kind(0.d0))    :: eps_pp, eps_ps, eps_ss   !Solvent parameters
 	real(kind(0.d0)), parameter :: sod_cut =1.5d0   !Soddemann potential cutoff
 	real(kind(0.d0)), parameter :: sod_cut2=2.25d0  ! 
@@ -687,7 +688,7 @@ module calculated_properties_MD
 		vsum, mv2sum,		&		!velocity/mv2 sum
 		potenergysum,		&		!potential energy sum for system
 		potenergysum_LJ,	&		!potential energy sum from LJ
-		potenergysum_FENE,	&		!potential energy sum from FENE
+		potenergysum_POLY,	&		!potential energy sum from FENE
 		potenergy_LJ,		&		!potential energy from LJ
 		potenergy_FENE,		&		!potential energy FENE
 		kinenergy, 			&		!Energies

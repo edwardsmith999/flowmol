@@ -254,10 +254,10 @@ subroutine evaluate_macroscopic_properties
 		call globalSum(potenergysum)
 	case(1)
 		potenergysum_LJ = sum(potenergymol_LJ(1:np))
-		potenergysum_FENE = sum(potenergymol_FENE(1:np))
-		potenergysum = sum(potenergymol_LJ(1:np) + potenergymol_FENE(1:np))
+		potenergysum_POLY = sum(potenergymol_POLY(1:np))
+		potenergysum = sum(potenergymol_LJ(1:np) + potenergymol_POLY(1:np))
 		call globalSum(potenergysum_LJ)
-		call globalSum(potenergysum_FENE)
+		call globalSum(potenergysum_POLY)
 		call globalSum(potenergysum)
 	case default
 		call error_abort("Unrecognised potential flag in simulation_record")
@@ -296,7 +296,7 @@ subroutine evaluate_macroscopic_properties
 	potenergy   = (0.5d0 * potenergysum) / real(globalnp,kind(0.d0)) + Potential_sLRC !N.B. extra 1/2 as all interactions calculated
 	if (potential_flag.eq.1) then
 		potenergy_LJ= (0.5d0 * potenergysum_LJ)/real(globalnp,kind(0.d0)) + Potential_sLRC
-		potenergy_FENE= (0.5d0 * potenergysum_FENE)/real(globalnp,kind(0.d0))
+		potenergy_FENE= (0.5d0 * potenergysum_POLY)/real(globalnp,kind(0.d0))
 	end if
 
 	if (maxval(potenergymol(1:np)) .gt. 10000) then
@@ -318,7 +318,7 @@ subroutine evaluate_macroscopic_properties
 !	potenergy   = potenergysum /(2.d0*msum) + Potential_sLRC !N.B. extra 1/2 as all interactions calculated
 !	if (potential_flag.eq.1) then
 !		potenergy_LJ= potenergysum_LJ/(2.d0*msum) + Potential_sLRC
-!		potenergy_FENE= potenergysum_FENE/(2.d0*msum)
+!		potenergy_FENE= potenergysum_POLY/(2.d0*msum)
 !	end if
 !	!print'(4(a,f18.8))', ' <PE>= ',potenergy, & 
 !	!						 ' std(PE) = ',sqrt(sum((potenergymol(1:np)-potenergy)**2)/(2.d0*real(msum,kind(0.d0)))), & 
@@ -2984,7 +2984,7 @@ subroutine simulation_compute_rfbins!(imin, imax, jmin, jmax, kmin, kmax)
 				        if (pressure_outflag .eq. 2) then
 						    !Linear magnitude of acceleration for each molecule
 						    invrij2 = 1.d0/rij2                 !Invert value
-						    accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
+						    accijmag = get_accijmag(invrij2, molnoi, molnoj) !48.d0*(invrij2**7-0.5d0*invrij2**4)
                             call get_outerprod(rij,rij*accijmag,rf)
                             !rf = outerprod(rij, accijmag*rij)
 
@@ -3255,7 +3255,7 @@ subroutine simulation_compute_rfbins_cpol(imin, imax, jmin, jmax, kmin, kmax)
 					if (rij2 < rcutoff2) then
 
 						invrij2 = 1.d0/rij2
-						accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
+						accijmag = get_accijmag(invrij2, molnoi, molnoj) !48.d0*(invrij2**7-0.5d0*invrij2**4)
 
 						call pressure_tensor_forces_VA_trap_cpol(ri,rj,accijmag)
 
@@ -3290,6 +3290,7 @@ contains
 
     subroutine add_FENE_contribution
         use polymer_info_MD
+        use module_set_parameters, only : get_poly_accijmag
         implicit none
 
         integer :: b
@@ -3305,7 +3306,7 @@ contains
                 rj(:)  = r(:,molnoj)
                 rij(:) = ri(:) - rj(:)
                 rij2   = dot_product(rij,rij)
-                accijmag = -k_c/(1-(rij2/(R_0**2)))	!(-dU/dr)*(1/|r|)
+                accijmag =  -get_poly_accijmag(rij2, molnoi, molnoj) !-k_c/(1-(rij2/(R_0**2)))	!(-dU/dr)*(1/|r|)
 
                 call pressure_tensor_forces_VA_trap_cpol(ri,rj,accijmag)
 
@@ -4087,11 +4088,11 @@ contains
 
 subroutine cumulative_energy_flux(r_,v_,energy_flux_)
 	use module_record, only : eflux_outflag, domain, halfdomain, planespacing, CV_debug, & 
-							  delta_t, planes, Pxyv_plane, nplanes, np, nbins, nhb, potenergymol,potenergymol_mdt,a
+							  delta_t, planes, Pxyv_plane, nplanes, np, nbins, nhb, & 
+                              potenergymol, get_bin, a
 	use CV_objects, only : CVcheck_energy !, CV_sphere_momentum
     use librarymod, only : imaxloc, heaviside  =>  heaviside_a1
 	use interfaces, only : error_abort
-    use module_record, only : get_bin
     use module_set_parameters, only : mass
 	implicit none
 
@@ -4240,34 +4241,8 @@ subroutine cumulative_energy_flux(r_,v_,energy_flux_)
 					jxyz = imaxloc(abs(crossface))	!Integer array of size 1 copied to integer
 
 					!Calculate velocity at time of intersection
-!  					crosstimetop = (bintop(jxyz) - ri2(jxyz))/ v_(jxyz,n)
-!  					crosstimebot = (binbot(jxyz) - ri2(jxyz))/ v_(jxyz,n)
-!  					if (crosstimetop .gt. 0.d0 .and. crosstimetop .lt. delta_t) then
-!  						delta_t_cross = crosstimetop
-! 	 					frac = delta_t_cross/delta_t
-!  					elseif (crosstimebot .gt. 0.d0 .and. crosstimebot .lt. delta_t) then
-!  						delta_t_cross = crosstimebot
-!  					else
-!  						stop "Error -- crossing doesn't happen in energy flux"
-!  					endif
-!  					velvect(:) = v_(:,n) + 0.5d0*a(:,n)*delta_t_cross
-!  					potenergy_cross =   potenergymol(n)
-! 					frac = delta_t_cross/delta_t
-!  					potenergy_cross =   potenergymol(n)*frac  & 
-!  									  + potenergymol_mdt(n)*(1-frac)
-!  					energy = 0.5d0 * (dot_product(velvect,velvect) + potenergy_cross)
-
 					velvect(:) = v_(:,n) + 0.5d0*a(:,n)*delta_t
 					energy = 0.5d0 * ( mass(n)*dot_product(velvect,velvect) + potenergymol(n))
-
-
-! 					print'(a,8f10.5)', 'Energy flux', delta_t_cross,potenergymol(n),potenergymol_mdt(n), & 
-! 													  frac, dot_product(velvect,velvect), & 
-! 													dot_product(v_(:,n) + 0.5d0*a(:,n)*delta_t,v_(:,n) + 0.5d0*a(:,n)*delta_t), & 
-! 													energy,0.5d0 * (dot_product(velvect,velvect) + potenergymol(n))
-
-					!print'(2(a,f16.12))', ' V^2 ', 0.5d0 * dot_product(velvect,velvect) ,' potential_energy ',potenergymol(n)
-
 					!Change in velocity at time of crossing is not needed as velocity assumed constant 
 					!for timestep and changes when forces are applied.
 

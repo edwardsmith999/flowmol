@@ -189,7 +189,8 @@ contains
         C         = C_lookup(moltype(i),moltype(j))
         potshift  = potshift_lookup(moltype(i),moltype(j))
 
-        Mie_energy = C*epsilonij*( invrij2**(0.5d0*lambdar) - invrij2**(0.5d0*lambdaa) ) - potshift
+        Mie_energy = C*epsilonij*( invrij2**(0.5d0*lambdar) & 
+                                 - invrij2**(0.5d0*lambdaa) ) - potshift
 
     end function Mie_energy
 
@@ -1000,7 +1001,7 @@ subroutine setup_polymer_info
 	allocate(bondcount(np+extralloc))
 	bondcount = 0
 	allocate(monomer(np+extralloc))
-	allocate(potenergymol_FENE(np+extralloc))
+	allocate(potenergymol_POLY(np+extralloc))
 
 	etevtcf = 0.d0
 	R_g	 = 0.d0
@@ -1146,7 +1147,10 @@ subroutine set_parameters_global_domain
 			! - corrected after position setup
 			np = globalnp / nproc
 
-		case('solid_liquid','polymer_brush','droplet2D','droplet3D','2phase','2phase_surfactant_solution')
+		case('solid_liquid','polymer_brush', & 
+             'droplet2D','droplet3D','2phase', & 
+             '2phase_surfactant_solution', & 
+             '2phase_surfactant_atsurface')
 
 			volume=1	!Set domain size to unity for loop below
 			do ixyz=1,nd

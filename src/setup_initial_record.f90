@@ -744,7 +744,7 @@ subroutine simulation_header
     select case (config_special_case)
 	case('solid_liquid')
         write(fileunit,*) 'Liquid density ; liquid_density ;',liquid_density
-    case('droplet2D','droplet3D','2phase', '2phase_surfactant_solution')
+    case('droplet2D','droplet3D','2phase', '2phase_surfactant_solution', '2phase_surfactant_atsurface')
         write(fileunit,*) 'Liquid density ; liquid_density ;',liquid_density
         write(fileunit,*) 'Gas density ; gas_density ;',gas_density
         write(fileunit,*) 'Liquid_Fraction ; lg_fract ;',lg_fract
@@ -945,10 +945,10 @@ subroutine initial_macroscopic_properties
         call globalSum(potenergysum)
     case(1)
         potenergysum_LJ = sum(potenergymol_LJ(1:np))
-        potenergysum_FENE = sum(potenergymol_FENE(1:np))
-        potenergysum = sum(potenergymol_LJ(1:np) + potenergymol_FENE(1:np))
+        potenergysum_POLY = sum(potenergymol_POLY(1:np))
+        potenergysum = sum(potenergymol_LJ(1:np) + potenergymol_POLY(1:np))
         call globalSum(potenergysum_LJ)
-        call globalSum(potenergysum_FENE)
+        call globalSum(potenergysum_POLY)
         call globalSum(potenergysum)
     case default
         call error_abort("Unrecognised potential flag in initial_macroscopic_properties")
@@ -986,7 +986,7 @@ subroutine initial_macroscopic_properties
     potenergy   = potenergysum /(2.d0*real(globalnp,kind(0.d0))) !N.B. extra 1/2 as all interactions calculated
     if (potential_flag.eq.1) then
         potenergy_LJ= potenergysum_LJ/(2.d0*real(globalnp,kind(0.d0)))
-        potenergy_FENE= potenergysum_FENE/(2.d0*real(globalnp,kind(0.d0)))
+        potenergy_FENE= potenergysum_POLY/(2.d0*real(globalnp,kind(0.d0)))
     end if
     totenergy   = kinenergy + potenergy
     temperature = mv2sum / real(nd*globalnp,kind(0.d0))

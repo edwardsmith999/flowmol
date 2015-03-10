@@ -241,7 +241,8 @@ contains
 
 		integer,intent(in) :: iter,irank,imin,imax,jmin,jmax,kmin,kmax
 
-		integer 		:: i,j,k,totalflux,conserved
+        integer         :: i,j,k
+		real(kind(0.d0)):: totalflux,conserved
 		integer,save 	:: first_time = 0
 		logical		 	:: check_ok
 
@@ -267,8 +268,8 @@ contains
 			    .or. (i .eq. self%debug_CV(1) .and. & 
                       j .eq. self%debug_CV(2) .and. & 
                       k .eq. self%debug_CV(3))) then
-				print'(a,i8,4i4,7i8)','Error_cubeCV_mass', iter,irank,i,j,k, & 
-					conserved, 0, totalflux,self%dXdt(i,j,k), 0, self%X_minus_t(i,j,k),self%X(i,j,k)
+				print'(a,i8,4i4,6f11.5,f22.18)','Error_cubeCV_mass', iter,irank,i,j,k, & 
+					conserved, 0.d0, totalflux,self%dXdt(i,j,k), 0.d0, self%X_minus_t(i,j,k),self%X(i,j,k)
 
 				check_ok = .false.
 			endif
@@ -659,7 +660,7 @@ contains
 		logical							:: check_ok
 		integer 						:: i,j,k
 		integer,save 					:: first_time = 0
-		real(kind(0.d0))				:: conserved,totalpower,totalflux,Fv_ext,denergydt
+		real(kind(0.d0))				:: conserved,totalpower,totalflux,Fv_ext,denergydt, divider
 
 		!First call doesn't have difference in time yet so skip
 		if (first_time .lt. 2) then
@@ -714,25 +715,23 @@ contains
 !				check_ok = .false.
 !			endif
 
-
-			if (CV_debug .eq. 1) then
                 !prevent divide by zero...
-                if (abs(self%X(i,j,k)-totalflux) .gt. 0.000001d0) then
-                    if((abs(conserved/(self%X(i,j,k)-totalflux)) .gt. 0.1d0) &
+            if (abs(self%X(i,j,k)-totalflux) .lt. 0.000001d0) then
+                divider = 1.d0
+            else
+                divider = self%X(i,j,k)-totalflux
+            endif
+
+			if(      (CV_debug .eq. 1) .and. & 
+                (abs(conserved/divider) .gt. 0.1d0) &
 			            .or. (i .eq. self%debug_CV(1) .and. & 
                               j .eq. self%debug_CV(2) .and. & 
                               k .eq. self%debug_CV(3))) then
-            				print'(a22,i5,4i3,2f13.6,e17.5,4f13.6)','Error_%age_energy_flux', iter,irank,i,j,k, & 
-					         conserved/(self%X(i,j,k)-totalflux), totalpower,-totalflux,denergydt, & 
+
+                print'(a22,i8,4i4,2f13.6,e16.5,4f13.6)','Error_%age_energy_flux', iter,irank,i,j,k, & 
+					         conserved/divider, totalpower,-totalflux,denergydt, & 
 					        +Fv_ext, self%X(i,j,k),self%X_minus_t(i,j,k)
     				    check_ok = .false.
-                    endif
-                else
-				    print'(a22,i5,4i3,2f13.6,e17.5,4f13.6)','Error_%age_energy_flux', iter,irank,i,j,k, & 
-				     conserved, totalpower,-totalflux,denergydt, & 
-				    +Fv_ext, self%X(i,j,k),self%X_minus_t(i,j,k)
-
-			    endif
             endif
 
 		enddo

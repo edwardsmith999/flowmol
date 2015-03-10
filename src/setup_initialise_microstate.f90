@@ -80,8 +80,8 @@ subroutine setup_initialise_microstate
         case('droplet2D','droplet3D','2phase')
             call setup_initialise_solid_liquid_gas(config_special_case)
             call setup_location_tags               !Setup locn of fixed mols
-        case('2phase_surfactant_solution')
-            call setup_initialise_surfactants
+        case('2phase_surfactant_solution','2phase_surfactant_atsurface')
+            call setup_initialise_surfactants(config_special_case)
             !call setup_location_tags
         case('polymer_brush')
             call setup_initialise_polymer_brush
@@ -2285,7 +2285,7 @@ end subroutine setup_initialise_solid_liquid_gas
 !-----------------------------------------------------------------------------
 ! Polymer setup code for multile phase system
 
-subroutine setup_initialise_surfactants
+subroutine setup_initialise_surfactants(casename)
     use module_initialise_microstate
     use polymer_info_MD
     use messenger
@@ -2293,12 +2293,14 @@ subroutine setup_initialise_surfactants
     use messenger_data_exchange, only : globalSum
     implicit none
 
+    character(*)   :: casename
+
     integer :: n
     integer :: nchainsremove, proc_units_xz, nmolsremove
     integer :: wall_np, fluid_np, maxchainID, np_poly
     integer, dimension(nproc) :: proc_chains, proc_nps
     real(kind(0.d0)) :: solid_bottom(3), solid_top(3), concentration
-    real(kind(0.d0)) :: gasupperregion(6), gaslowerregion(6), Vremove
+    real(kind(0.d0)) :: gasupperregion(6), gaslowerregion(6), nosurfactant(6)
     real(kind(0.d0)) :: grafting_density_real, solid_density, density_ratio_sl, density_ratio_gl
 
     !Setup regions of gas either side of central region
@@ -2359,6 +2361,16 @@ subroutine setup_initialise_surfactants
     ! Turn all polymers at the sides to solvent here
     call remove_all_chains_limits(gaslowerregion)
     call remove_all_chains_limits(gasupperregion)
+
+    if (casename .eq. '2phase_surfactant_atsurface') then
+        nosurfactant = (/ -0.5d0*lg_fract*globaldomain(1)+surface_surfactant_layer, & 
+                          -0.5d0*globaldomain(2)+solid_bottom(2), & 
+                          -0.5d0*globaldomain(3), & 
+                           0.5d0*lg_fract*globaldomain(1)-surface_surfactant_layer, &
+                           0.5d0*globaldomain(2)-solid_top(2), &
+                           0.5d0*globaldomain(3) /)
+        call remove_all_chains_limits(nosurfactant)
+    endif
 
     ! Remove solvent molecules so that target density is acquired, store 
     ! new number of particles
@@ -2649,58 +2661,58 @@ contains
                 ! If possible, build whole chain, otherwise mark as solvent and move on 
                 if (connectable) then
 
-                    ! Connect 1 to 2 
-                    !molno = n
-                    molno = mols(1)
-                    monomer(molno)%chainID    = chainID
-                    monomer(molno)%subchainID = 1 
-                    monomer(molno)%glob_no    = molno
-                    moltype(molno) = ids(1)  ! EO bead
-                    !print'(4(a,i5))', 'In chain ', chainID, ' connecting ', molno, ' with subchain id ', monomer(molno)%subchainID, ' to subchain ', 2 
-                    call connect_to_monomer(2,molno)
+!                    ! Connect 1 to 2 
+!                    !molno = n
+!                    molno = mols(1)
+!                    monomer(molno)%chainID    = chainID
+!                    monomer(molno)%subchainID = 1 
+!                    monomer(molno)%glob_no    = molno
+!                    moltype(molno) = ids(1)  ! EO bead
+!                    !print'(4(a,i5))', 'In chain ', chainID, ' connecting ', molno, ' with subchain id ', monomer(molno)%subchainID, ' to subchain ', 2 
+!                    call connect_to_monomer(2,molno)
 
-                    call check_update_adjacentbeadinfo_allint(molno,mols(2))
+!                    call check_update_adjacentbeadinfo_allint(molno,mols(2))
 
-                    ! Connect middles
-                    do subchainID = 2, midendID
-                        !molno = n+subchainID-1
-                        molno = mols(subchainID)
-                        monomer(molno)%chainID    = chainID
-                        monomer(molno)%subchainID = subchainID 
-                        monomer(molno)%glob_no    = molno !corrected at bottom
-                        moltype(molno) = ids(subchainID)
-                        call connect_to_monomer(subchainID-1,molno) 
-                        call connect_to_monomer(subchainID+1,molno) 
-                        !print'(5(a,i5))', 'In chain ', chainID, ' connecting ', molno, ' with subchain id ', monomer(molno)%subchainID, ' to subchain ', subchainID-1, ' and ', subchainID+1 
-                        call check_update_adjacentbeadinfo_allint(molno,mols(subchainID-1))
-                        call check_update_adjacentbeadinfo_allint(molno,mols(subchainID+1))
-                    end do
+!                    ! Connect middles
+!                    do subchainID = 2, midendID
+!                        !molno = n+subchainID-1
+!                        molno = mols(subchainID)
+!                        monomer(molno)%chainID    = chainID
+!                        monomer(molno)%subchainID = subchainID 
+!                        monomer(molno)%glob_no    = molno !corrected at bottom
+!                        moltype(molno) = ids(subchainID)
+!                        call connect_to_monomer(subchainID-1,molno) 
+!                        call connect_to_monomer(subchainID+1,molno) 
+!                        !print'(5(a,i5))', 'In chain ', chainID, ' connecting ', molno, ' with subchain id ', monomer(molno)%subchainID, ' to subchain ', subchainID-1, ' and ', subchainID+1 
+!                        call check_update_adjacentbeadinfo_allint(molno,mols(subchainID-1))
+!                        call check_update_adjacentbeadinfo_allint(molno,mols(subchainID+1))
+!                    end do
 
-                    if (branch) then
-                        !stop "Branch functionality is untested"
-                        ! BRANCH means we connect end-2 to end
-                        !molno = n+nmonomers-2
-                        molno = mols(midendID+1)
-                        monomer(molno)%chainID    = chainID
-                        monomer(molno)%subchainID = nmonomers-1 
-                        monomer(molno)%glob_no    = molno !corrected at bottom
-                        moltype(molno) = ids(size(ids)-1) 
-                        call connect_to_monomer(nmonomers-2,molno)
-                        !print'(4(a,i5))', 'In chain ', chainID, ' connecting as branch ', molno, ' with subchain id ', monomer(molno)%subchainID, ' to subchain ', nmonomers-2
-                    endif
+!                    if (branch) then
+!                        !stop "Branch functionality is untested"
+!                        ! BRANCH means we connect end-2 to end
+!                        !molno = n+nmonomers-2
+!                        molno = mols(midendID+1)
+!                        monomer(molno)%chainID    = chainID
+!                        monomer(molno)%subchainID = nmonomers-1 
+!                        monomer(molno)%glob_no    = molno !corrected at bottom
+!                        moltype(molno) = ids(size(ids)-1) 
+!                        call connect_to_monomer(nmonomers-2,molno)
+!                        !print'(4(a,i5))', 'In chain ', chainID, ' connecting as branch ', molno, ' with subchain id ', monomer(molno)%subchainID, ' to subchain ', nmonomers-2
+!                    endif
 
-                    ! Connect end-1 to end
-                    !molno = n+nmonomers-1
-                    molno = mols(nmonomers)
-                    monomer(molno)%chainID    = chainID
-                    monomer(molno)%subchainID = nmonomers 
-                    monomer(molno)%glob_no    = molno !corrected at bottom
-                    moltype(molno) = ids(nmonomers) 
-                    call connect_to_monomer(nmonomers-1,molno)
-                    !print'(4(a,i5))', 'In chain ', chainID, ' connecting ', molno, ' with subchain id ', monomer(molno)%subchainID, ' to subchain ', nmonomers-1
-                    call check_update_adjacentbeadinfo_allint(molno,mols(nmonomers-1))
+!                    ! Connect end-1 to end
+!                    !molno = n+nmonomers-1
+!                    molno = mols(nmonomers)
+!                    monomer(molno)%chainID    = chainID
+!                    monomer(molno)%subchainID = nmonomers 
+!                    monomer(molno)%glob_no    = molno !corrected at bottom
+!                    moltype(molno) = ids(nmonomers) 
+!                    call connect_to_monomer(nmonomers-1,molno)
+!                    !print'(4(a,i5))', 'In chain ', chainID, ' connecting ', molno, ' with subchain id ', monomer(molno)%subchainID, ' to subchain ', nmonomers-1
+!                    call check_update_adjacentbeadinfo_allint(molno,mols(nmonomers-1))
 
-                    !call connect_beads(mols, ids, chainID, branch)
+                    call connect_beads(mols, ids, chainID, branch)
                     chainID = chainID + 1
                     n = n + nmonomers
 
@@ -2736,13 +2748,13 @@ contains
         use linked_list, only : check_update_adjacentbeadinfo_allint
         implicit none
 
-        logical, intent(in)                         :: branch
-        integer, intent(in)                         :: chainID
+        logical, intent(in)                :: branch
+        integer, intent(in)                :: chainID
         integer,dimension(:),intent(in)    :: mols, ids
 
         integer :: molno, subchainID, midendID, nmonomers
 
-        nmonomers = size(mols)
+        nmonomers = size(mols)-1
         if (branch) then
             midendID = nmonomers-2 
         else
