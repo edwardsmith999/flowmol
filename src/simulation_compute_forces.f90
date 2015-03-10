@@ -685,7 +685,7 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 
 	enddo
 
-	!Total used with other potentials (e.g. FENE)
+	!Total used with other potentials (e.g. POLY)
 	potenergymol = potenergymol + potenergymol_LJ
 
 	nullify(current)        !Nullify current as no longer required
@@ -724,9 +724,6 @@ subroutine simulation_compute_forces_poly
 			a(2,molnoi)= a(2,molnoi) + accijmag*rij(2)/mass(molnoi)
 			a(3,molnoi)= a(3,molnoi) + accijmag*rij(3)/mass(molnoi)
 
-
-            !print'(4i5,7f10.5)', molnoi, molnoj, monomer(molnoi)%subchainID, monomer(molnoj)%subchainID, accijmag*rij(:)/mass(molnoi), mass(molnoi), fsum
-
             !CV Stress terms
 			if (vflux_outflag.eq.4) then
 				if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
@@ -740,8 +737,8 @@ subroutine simulation_compute_forces_poly
 				if (pressure_outflag .eq. 1) then
 					call pressure_tensor_forces(molnoi, rij, accijmag)
 				endif
-                potenergymol_POLY(molnoi) = potenergymol_POLY(molnoi) - get_poly_energy(rij2, molnoi, molnoj)
-				potenergymol(molnoi)      = potenergymol(molnoi)      + potenergymol_POLY(molnoi)
+
+                potenergymol_POLY(molnoi) = potenergymol_POLY(molnoi) + get_poly_energy(rij2, molnoi, molnoj)
 				virialmol(molnoi)         = virialmol(molnoi)         + accijmag*rij2
 
 			else if (mod(iter,teval) .eq. 0) then
@@ -753,6 +750,9 @@ subroutine simulation_compute_forces_poly
 		end do	
 
 	end do
+
+	!Total used with other potentials (e.g. LJ)
+	potenergymol = potenergymol + potenergymol_POLY
 
 end subroutine simulation_compute_forces_poly
 
@@ -994,7 +994,7 @@ subroutine simulation_compute_forces_angular
 
             aForce(:,:) = angular_harmonic_force(rij, rjk, molnoi, molnoj, molnok)
 
-            !Only add contribution to connected molecules i and k, not the molecule itself
+            !Only add contribution to connected molecules i and k, not the molecule itself??
             a(:,molnoi)= a(:,molnoi) - aForce(1,:)/mass(molnoi)
             !a(:,molnoj)= a(:,molnoj) - aForce(2,:)/mass(molnoj)
             a(:,molnok)= a(:,molnok) - aForce(3,:)/mass(molnok)
@@ -1027,6 +1027,7 @@ subroutine simulation_compute_power!(imin, imax, jmin, jmax, kmin, kmax)
 
 	real(kind(0.d0)),dimension(3)	:: vi_t, cellsperbin
 
+    potenergymol_LJ = 0.d0
     potenergymol = 0.d0
 
 	!Calculate bin to cell ratio
@@ -1097,7 +1098,7 @@ subroutine simulation_compute_power!(imin, imax, jmin, jmax, kmin, kmax)
 						!Linear magnitude of acceleration for each molecule
 						invrij2 = 1.d0/rij2                 !Invert value
                         accijmag = get_accijmag(invrij2, molnoi, molnoj)
-						potenergymol(molnoi)=potenergymol(molnoi) & 
+						potenergymol_LJ(molnoi)=potenergymol_LJ(molnoi) & 
 							     + get_energy(invrij2, molnoi, molnoj)
 
 						!CV stress and force calculations
@@ -1123,8 +1124,11 @@ subroutine simulation_compute_power!(imin, imax, jmin, jmax, kmin, kmax)
 
 	nullify(oldi)      	!Nullify as no longer required
 	nullify(oldj)      	!Nullify as no longer required
-	nullify(currenti)      	!Nullify as no longer required
-	nullify(currentj)      	!Nullify as no longer required
+	nullify(currenti)   !Nullify as no longer required
+	nullify(currentj)   !Nullify as no longer required
+
+	!Total used with other potentials (e.g. FENE)
+	potenergymol = potenergymol + potenergymol_LJ
 
     ! Add FENE contribution if it's there
     if (potential_flag .eq. 1) then
@@ -1136,12 +1140,13 @@ contains
     subroutine add_POLY_contribution
         use polymer_info_MD
         use Volume_average_pressure, only : pressure_tensor_forces_VA
-	    !use librarymod, only: outerprod
 	    use librarymod, only: get_outerprod
-        use module_set_parameters, only : get_poly_accijmag
+        use module_set_parameters, only : get_poly_accijmag, get_poly_energy
         implicit none
 
         integer :: b
+
+        potenergymol_POLY = 0.d0
 
         do molnoi=1,np+halo_np
 
@@ -1155,7 +1160,9 @@ contains
                 rij(:) = ri(:) - rj(:)
                 rij2   = dot_product(rij,rij)
 
-                accijmag = -get_poly_accijmag(rij2, molnoi, molnoj)
+                accijmag = get_poly_accijmag(rij2, molnoi, molnoj)
+				potenergymol_POLY(molnoi)=potenergymol_POLY(molnoi) & 
+					     + get_poly_energy(rij2, molnoi, molnoj)
 
 				!CV stress and force calculations
 				fij = accijmag*rij(:)
@@ -1168,6 +1175,9 @@ contains
 
             enddo	
         enddo
+
+	    !Total used with other potentials (e.g. LJ)
+	    potenergymol = potenergymol + potenergymol_POLY
 
     end subroutine add_POLY_contribution
 

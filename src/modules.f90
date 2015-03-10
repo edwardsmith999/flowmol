@@ -690,7 +690,7 @@ module calculated_properties_MD
 		potenergysum_LJ,	&		!potential energy sum from LJ
 		potenergysum_POLY,	&		!potential energy sum from FENE
 		potenergy_LJ,		&		!potential energy from LJ
-		potenergy_FENE,		&		!potential energy FENE
+		potenergy_POLY,		&		!potential energy FENE
 		kinenergy, 			&		!Energies
 		potenergy,			&		!Energies
 		totenergy,			&  		!Energies

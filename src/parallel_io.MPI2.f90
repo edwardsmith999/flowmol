@@ -4066,7 +4066,7 @@ implicit none
         else if (potential_flag.eq.1) then
             write(10,'(2a)') &
             ' iter; simtime; VSum; V^2Sum; Temp;', &
-            ' KE; PE (LJ); PE (FENE); PE (Tot); TE; Pressure; Etevtcf; R_g '
+            ' KE; PE (LJ); PE (POLY); PE (Tot); TE; Pressure; Etevtcf; R_g '
         end if
     endif
     call macroscopic_properties_record
@@ -4090,7 +4090,7 @@ implicit none
                       ',f19.15,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,'//&
                       'f10.4,a,f10.4,a,f10.4)') &
             iter,';',simtime,';',vsum,';', mv2sum,';', temperature,';', &
-            kinenergy,';',potenergy_LJ,';',potenergy_FENE,';',potenergy,&
+            kinenergy,';',potenergy_LJ,';',potenergy_POLY,';',potenergy,&
             ';',totenergy,';',pressure,';',etevtcf,';',R_g
         end if
     endif

@@ -292,11 +292,11 @@ subroutine evaluate_macroscopic_properties
 	virial = sum(virialmol(1:np))
 	call globalSum(virial)
 
-	kinenergy   = (0.5d0 * mv2sum) / real(globalnp,kind(0.d0))
+	kinenergy   = (0.5d0 * mv2sum) / real(globalnp,kind(0.d0)) 
 	potenergy   = (0.5d0 * potenergysum) / real(globalnp,kind(0.d0)) + Potential_sLRC !N.B. extra 1/2 as all interactions calculated
 	if (potential_flag.eq.1) then
 		potenergy_LJ= (0.5d0 * potenergysum_LJ)/real(globalnp,kind(0.d0)) + Potential_sLRC
-		potenergy_FENE= (0.5d0 * potenergysum_POLY)/real(globalnp,kind(0.d0))
+		potenergy_POLY= (0.5d0 * potenergysum_POLY)/real(globalnp,kind(0.d0))
 	end if
 
 	if (maxval(potenergymol(1:np)) .gt. 10000) then
@@ -318,7 +318,7 @@ subroutine evaluate_macroscopic_properties
 !	potenergy   = potenergysum /(2.d0*msum) + Potential_sLRC !N.B. extra 1/2 as all interactions calculated
 !	if (potential_flag.eq.1) then
 !		potenergy_LJ= potenergysum_LJ/(2.d0*msum) + Potential_sLRC
-!		potenergy_FENE= potenergysum_POLY/(2.d0*msum)
+!		potenergy_POLY= potenergysum_POLY/(2.d0*msum)
 !	end if
 !	!print'(4(a,f18.8))', ' <PE>= ',potenergy, & 
 !	!						 ' std(PE) = ',sqrt(sum((potenergymol(1:np)-potenergy)**2)/(2.d0*real(msum,kind(0.d0)))), & 

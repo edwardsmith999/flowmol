@@ -986,7 +986,7 @@ subroutine initial_macroscopic_properties
     potenergy   = potenergysum /(2.d0*real(globalnp,kind(0.d0))) !N.B. extra 1/2 as all interactions calculated
     if (potential_flag.eq.1) then
         potenergy_LJ= potenergysum_LJ/(2.d0*real(globalnp,kind(0.d0)))
-        potenergy_FENE= potenergysum_POLY/(2.d0*real(globalnp,kind(0.d0)))
+        potenergy_POLY= potenergysum_POLY/(2.d0*real(globalnp,kind(0.d0)))
     end if
     totenergy   = kinenergy + potenergy
     temperature = mv2sum / real(nd*globalnp,kind(0.d0))

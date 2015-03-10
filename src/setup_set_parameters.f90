@@ -981,7 +981,7 @@ subroutine set_parameters_allocate
 		allocate(Pxymol(np+extralloc,nd,nd))
 	endif
 
-	!Allocate bulk shear array
+	!Allocate bulk shear array 
 	if (any(periodic.eq.2)) then
 		allocate(mol_wrap_integer(np))
 	endif
