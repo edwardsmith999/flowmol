@@ -66,7 +66,8 @@ CPL_LIB =
 # If coupled, link to static library coupler.a
 ifeq ($(strip $(USE_COUPLER)),yes)
   CPL_LIB_DIR = ../../cpl/lib
-  FFLAGS  +=  -I$(CPL_LIB_DIR) #Object generation flags
+  CPL_INC_DIR = ../../cpl/include
+  FFLAGS  +=  -I$(CPL_INC_DIR) #Object generation flags
   LDFLAGS +=  -L$(CPL_LIB_DIR) -lcoupler
   CPL_LIB = $(CPL_LIB_DIR)/libcoupler.a
 endif
