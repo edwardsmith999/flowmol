@@ -481,7 +481,6 @@ subroutine simulation_compute_forces_LJ_cells
 							!Virial expression used to obtain pressure
 							virialmol(molnoi) = virialmol(molnoi) + accijmag*rij2
 							if (pressure_outflag .eq. 1) call pressure_tensor_forces(molnoi,rij,accijmag)
-							!if (pressure_outflag .eq. 2) call pressure_tensor_forces_VA(ri,rj,rij,accijmag)
 							if (vflux_outflag.eq.1)	call pressure_tensor_forces_MOP(1,ri(:),rj(:),rij(:),accijmag)
 							if (vflux_outflag.eq.2)	call pressure_tensor_forces_MOP(2,ri(:),rj(:),rij(:),accijmag)
 							if (vflux_outflag.eq.3)	call pressure_tensor_forces_MOP(3,ri(:),rj(:),rij(:),accijmag)
@@ -568,7 +567,6 @@ subroutine simulation_compute_forces_LJ_neigbr
 					virialmol(molnoi) = virialmol(molnoi) + accijmag*rij2
 
 					if (pressure_outflag .eq. 1) call pressure_tensor_forces(molnoi,rij,accijmag)
-					!if (pressure_outflag .eq. 2) call pressure_tensor_forces_VA(ri,rj,rij,accijmag)
 					if (vflux_outflag.eq.1)	call pressure_tensor_forces_MOP(1,ri(:),rj(:),rij(:),accijmag)
 					if (vflux_outflag.eq.2)	call pressure_tensor_forces_MOP(2,ri(:),rj(:),rij(:),accijmag)
 					if (vflux_outflag.eq.3)	call pressure_tensor_forces_MOP(3,ri(:),rj(:),rij(:),accijmag)
@@ -1139,7 +1137,6 @@ contains
 
     subroutine add_POLY_contribution
         use polymer_info_MD
-        use Volume_average_pressure, only : pressure_tensor_forces_VA
 	    use librarymod, only: get_outerprod
         use module_set_parameters, only : get_poly_accijmag, get_poly_energy
         implicit none
