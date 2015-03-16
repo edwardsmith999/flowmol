@@ -107,7 +107,7 @@ subroutine socket_coupler_init
 	endif
 
 	!Write coupler information to header file
-	call CPL_write_header('./results/coupler_header')
+	!call CPL_write_header('./results/coupler_header')
 
 end subroutine socket_coupler_init
 
