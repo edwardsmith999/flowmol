@@ -61,7 +61,7 @@ subroutine socket_coupler_invoke
 	implicit none
 
 	call CPL_create_comm(md_realm,MD_COMM,ierr)
-    prefix_dir = "./md_data/"
+    prefix_dir = "./flowmol/"
 
 end subroutine socket_coupler_invoke
 
