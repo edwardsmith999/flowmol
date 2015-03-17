@@ -225,7 +225,6 @@ subroutine simulation_compute_forces
 				call simulation_compute_forces_LJ_neigbr_halfint	!Compute LJ bead interactions
  			    call simulation_compute_forces_poly				!Add on FENE or harmonic spring interactions
                 if (angular_potential .ne. 0) then
-                    stop("I don't think angular potential works yet")
                     call simulation_compute_forces_angular
                 endif
 			case(1)
@@ -959,43 +958,53 @@ subroutine simulation_compute_forces_angular
     double precision, dimension(3)   :: rk, rjk, fjk
     double precision, dimension(3,3) :: aForce
 
-    !Loop over all molecules (WHY NOT JUST BONDED HERE!?!?!)
-	do molnoj=1,np
+    !Loop over all molecules including halos 
+    !(WHY NOT JUST LOOP OVER BONDED HERE!?!?!)
+	do molnoj=1,np+halo_np
 
 		rj(:) = r(:,molnoj)
 
         if (monomer(molnoj)%funcy .eq. 2) then
 
-            !No point calculating force on halo molecules 
-            if (molnoj .gt. np) cycle
+            print*, minloc(abs(bond), 1, mask=abs(bond).gt.0)
 
             !Find the two molecules which are bonded
-            !Why is there a case when this isn't 1 and 2??
-            b = 1
-            do i=1,monomer(molnoj)%funcy
-                molnoi = bond(b,molnoj)
-                b = b + 1
-                if (molnoi.ne.0) exit
-            enddo
-            do i=1,monomer(molnoj)%funcy-b
-                molnok = bond(b,molnoj)
-                b = b + 1
-                if (molnok.ne.0) exit
-            enddo
-            !molnoi = bond(1,molnoj)
-            !molnok = bond(2,molnoj)
+            molnoi = bond(1,molnoj)
+            molnok = bond(2,molnoj)
+
+            !Safety check in case this isn't 1 and 2 (why can this happen??)
+            if (molnoi .eq. 0 .and. molnok .eq. 0) then
+                molnoi = bond(3,molnoj)
+                molnok = bond(4,molnoj)
+            elseif (molnoi .eq. 0) then
+                do b=3,monomer(molnoj)%funcy
+                    molnoi = bond(b,molnoj); if (molnoi.ne.0) exit
+                enddo
+            elseif (molnok .eq. 0) then
+                do i=3,monomer(molnoj)%funcy
+                    molnok = bond(b,molnoj); if (molnoi.ne.0) exit
+                enddo
+            endif
 
             ri(:)  = r(:,molnoi)
             rij(:) = ri(:) - rj(:)
             rk(:)  = r(:,molnok)
-            rjk(:) = rj(:) - rk(:)    
+            rjk(:) = rj(:) - rk(:)
+
+            !if (molnoI .gt. np) cycle
+            !if (molnok .gt. np) cycle
 
             aForce(:,:) = angular_harmonic_force(rij, rjk, molnoi, molnoj, molnok)
 
-            !Only add contribution to connected molecules i and k, not the molecule itself??
+            if (abs(sum(aForce)) .gt. 1e-8) stop "Angular forces lead to unbalance"
+            !print'(a,i9,8i6,2f14.5)', 'b4', iter, monomer(molnoj)%funcy,bond(:,molnoj), molnoi, molnoj, molnok, sum(aForce), sum(a(:,1:np+halo_np))
+
+            !Add contribution to connected molecules i, j and k
             a(:,molnoi)= a(:,molnoi) - aForce(1,:)/mass(molnoi)
-            !a(:,molnoj)= a(:,molnoj) - aForce(2,:)/mass(molnoj)
+            a(:,molnoj)= a(:,molnoj) - aForce(2,:)/mass(molnoj)
             a(:,molnok)= a(:,molnok) - aForce(3,:)/mass(molnok)
+
+            !print'(a,i9,8i6,2f14.5)', 'at', iter,monomer(molnoj)%funcy,bond(:,molnoj), molnoi, molnoj, molnok, sum(aForce), sum(a(:,1:np+halo_np))
 
         endif
 

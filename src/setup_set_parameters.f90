@@ -315,14 +315,17 @@ contains
 
 
 
+        !Force on molecule i
         angular_harmonic_force(1,:) =-(k_ijk * (theta_ijk - theta_0) & 
                                       / (mag_rij * sin(theta_ijk))) &
                                        * ((rjk/mag_rjk) - (rij/mag_rij)& 
                                        *cos(theta_ijk))
+        !Force on molecule k
         angular_harmonic_force(3,:) =-(k_ijk * (theta_ijk - theta_0) & 
                                       / (mag_rjk * sin(theta_ijk))) & 
                                        * ((rij/mag_rij) - (rjk/mag_rjk)& 
                                        *cos(theta_ijk))
+        !Force on central molecule j
         angular_harmonic_force(2,:) = - angular_harmonic_force(1,:) & 
                                       - angular_harmonic_force(3,:)
 
@@ -352,6 +355,8 @@ contains
         k_ijk = angular_k_lookup(moltype(i),moltype(j),moltype(k))
         theta_0 = angular_r0_lookup(moltype(i),moltype(j),moltype(k))
 
+        mag_rij = sqrt(dot_product(rij,rij))
+        mag_rjk = sqrt(dot_product(rjk,rjk))
         theta_ijk = acos(dot_product(rij,rjk)/(mag_rij*mag_rjk))
         angular_harmonic_energy = 0.5d0 * k_ijk * (theta_ijk - theta_0)**2
 
