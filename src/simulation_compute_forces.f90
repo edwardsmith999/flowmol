@@ -1146,7 +1146,6 @@ contains
 
     subroutine add_POLY_contribution
         use polymer_info_MD
-	    use librarymod, only: get_outerprod
         use module_set_parameters, only : get_poly_accijmag, get_poly_energy
         implicit none
 

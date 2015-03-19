@@ -148,7 +148,7 @@ subroutine setup_read_input
 			read(1,*) initialnunits(2)		!y dimension split into number of cells
 			read(1,*) initialnunits(3)		!z dimension split into number of cells
 
-		case('droplet2D','droplet3D','2phase')
+		case('droplet2D','droplet3D','2phase','2phase_LJ')
 
 			!call locate(1,'POTENTIAL_FLAG',.true.)
             !read(1,*) potential_flag
@@ -179,7 +179,8 @@ subroutine setup_read_input
                 endif
             endif
 
-            if (config_special_case .eq. '2phase') then
+            if (config_special_case .eq. '2phase' .or. &
+                config_special_case .eq. '2phase_LJ') then
 			    call locate(1,'FEA_FILENAME',.false.,found_in_input) 
 	            if (found_in_input) then
                     Twophase_from_file = .true.
@@ -189,7 +190,7 @@ subroutine setup_read_input
 	            if (found_in_input) then
                     read(1,*) lg_fract
                 endif
-            endif   
+            endif
 
 		case('concentric_cylinders')
 			
@@ -294,7 +295,6 @@ subroutine setup_read_input
 
             !Specifiy more general potential than LJ
 	        call locate(1,'MIE_POTENTIAL',.false.,found_in_input) 
-            print*, 'MIE', found_in_input
 	        if (found_in_input) then
                 read(1,*) Mie_potential
             else

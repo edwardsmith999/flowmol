@@ -33,13 +33,14 @@ module module_set_parameters
     double precision           :: potshift !Shift in Lennard Jones potential due to cutoff
 
     !Generalised Mie-potential parameters
-    integer,parameter :: ntypes = 7
+    integer,parameter :: ntypes = 8
     character(30),dimension(ntypes)             :: moltype_names
     double precision,dimension(ntypes)          :: mass_lookup
     double precision,dimension(ntypes,ntypes)   :: epsilon_lookup, sigma_lookup, &    
                                                    lambdar_lookup, lambdaa_lookup, &
                                                    C_lookup, potshift_lookup, &
-                                                   k_lookup, r0_lookup, equil_sep_lookup
+                                                   k_lookup, r0_lookup, equil_sep_lookup, &
+                                                   alpha_lookup
 
     double precision,dimension(ntypes,ntypes,ntypes) :: angular_k_lookup, angular_r0_lookup
 
@@ -148,16 +149,17 @@ contains
         double precision                :: Mie_accijmag
 
         double precision                :: C, sigmaij, epsilonij, &
-                                              lambdar, lambdaa
+                                              lambdar, lambdaa, alpha
 
         epsilonij = epsilon_lookup(moltype(i),moltype(j))
         sigmaij   = sigma_lookup(moltype(i),moltype(j))
         lambdar   = lambdar_lookup(moltype(i),moltype(j))
         lambdaa   = lambdaa_lookup(moltype(i),moltype(j))
         C         = C_lookup(moltype(i),moltype(j))
-       
-        Mie_accijmag = C*epsilonij*(   lambdar*invrij2**(0.5d0*lambdar+1) & 
-                                     - lambdaa*invrij2**(0.5d0*lambdaa+1) )
+        alpha     = alpha_lookup(moltype(i),moltype(j))
+
+        Mie_accijmag = C*epsilonij*(       lambdar*invrij2**(0.5d0*lambdar+1) & 
+                                    -alpha*lambdaa*invrij2**(0.5d0*lambdaa+1) )
     end function Mie_accijmag
 
     function Mie_force(invrij2, rij, i, j)
@@ -180,7 +182,8 @@ contains
         double precision                :: Mie_energy
 
         double precision                :: C, sigmaij, epsilonij, &
-                                              lambdar, lambdaa, potshift
+                                           lambdar, lambdaa, alpha,&
+                                           potshift
 
         epsilonij = epsilon_lookup(moltype(i),moltype(j))
         sigmaij   = sigma_lookup(moltype(i),moltype(j))
@@ -188,9 +191,10 @@ contains
         lambdaa   = lambdaa_lookup(moltype(i),moltype(j))
         C         = C_lookup(moltype(i),moltype(j))
         potshift  = potshift_lookup(moltype(i),moltype(j))
+        alpha     = alpha_lookup(moltype(i),moltype(j))
 
-        Mie_energy = C*epsilonij*( invrij2**(0.5d0*lambdar) & 
-                                 - invrij2**(0.5d0*lambdaa) ) - potshift
+        Mie_energy = C*epsilonij*(      invrij2**(0.5d0*lambdar) & 
+                                 -alpha*invrij2**(0.5d0*lambdaa) ) - potshift
 
     end function Mie_energy
 
@@ -422,12 +426,23 @@ subroutine setup_mie_potential
 
     integer :: i, j, ids(3)
 
+
+    ! ------------Mie Potential--------------
+    ! phi = A(lambda_r,lambda_a) * epsilon * [ (sigma/r)^lambda_r - (sigma/r)^lambda_a)]
+    ! A(lambda_r,lambda_a) = (lambda_r/(lambda_r-lambda_a))*(lambda_r/lambda_a)^(lambda_a/(lambda_r-lambda_a))
+    ! 
+    ! ------------Including two phase repulsion between species --------------
+    ! phi = A(lambda_r,lambda_a) * epsilon * [ (sigma/r)^lambda_r - alpha * (sigma/r)^lambda_a)]
+    ! Where alpha is the relative magnitude of attrative and repulsive terms (allows opposite signs)
+
     !Initialise all as zero
     mass_lookup = 0.d0
     epsilon_lookup = 0.d0
     sigma_lookup   = 0.d0
     lambdar_lookup = 0.d0
     lambdaa_lookup = 0.d0
+    alpha_lookup = 1.d0
+
     !Setup table of cross potentials 
     !1 == Argon;
     !moltype_names(1) = '           Ar           '
@@ -437,6 +452,19 @@ subroutine setup_mie_potential
     sigma_lookup(1,1)   = 1.d0
     lambdar_lookup(1,1) = 12.d0
     lambdaa_lookup(1,1) = 6.d0
+
+    !8 == Second phase of Argon;
+    !moltype_names(1) = '           Ar           '
+    moltype_names(8)    = 'AR' !' Ar '
+    mass_lookup(8)      = 1.0d0
+    epsilon_lookup(8,8) = 1.d0
+    sigma_lookup(8,8)   = 1.d0
+    lambdar_lookup(8,8) = 12.d0
+    lambdaa_lookup(8,8) = 6.d0
+
+    !The two phases of argon attract each other less strongly
+    alpha_lookup(1,8) = 0.5d0
+    alpha_lookup(8,1) = 0.5d0
 
     !2 == Wall; 
     !moltype_names(2) = '          Wall          '
@@ -966,10 +994,10 @@ subroutine set_parameters_allocate
     if (Mie_potential .eq. 1) then
         allocate(moltype(np+extralloc)) 
         !Default value is 2 (models 2 x water per bead with Mie)
-        !moltype(1:np) = 3
+        moltype(1:np) = 3
 
         !This is simply Lennard Jones but allowing wall fluid differences
-        moltype(1:np) = 1
+        !moltype(1:np) = 1
     endif
 
 	!Allocate arrays use to fix molecules and allow sliding
@@ -1155,7 +1183,8 @@ subroutine set_parameters_global_domain
 		case('solid_liquid','polymer_brush', & 
              'droplet2D','droplet3D','2phase', & 
              '2phase_surfactant_solution', & 
-             '2phase_surfactant_atsurface')
+             '2phase_surfactant_atsurface', &
+              '2phase_LJ')
 
 			volume=1	!Set domain size to unity for loop below
 			do ixyz=1,nd

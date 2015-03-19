@@ -82,7 +82,10 @@ subroutine setup_initialise_microstate
             call setup_location_tags               !Setup locn of fixed mols
         case('2phase_surfactant_solution','2phase_surfactant_atsurface')
             call setup_initialise_surfactants(config_special_case)
-            !call setup_location_tags
+        case('2phase_LJ')
+            call setup_initialise_solid_liquid     !Setup FCC lattice 
+            call setup_location_tags               !Setup locn of fixed mols
+            call split_domain
         case('polymer_brush')
             call setup_initialise_polymer_brush
             call setup_location_tags
@@ -129,7 +132,7 @@ subroutine setup_initialise_microstate
 
     !This should be included in every case?
     if (mie_potential .eq. 1) then
-        call setup_moltypes                    !Setup type of molecules
+        call setup_moltypes_wall                   !Setup type of molecules
     endif
 
     !Choose initial molecular velocities using velocity flag
@@ -2044,8 +2047,9 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
             allocate(MD_X(Nnodes))
             do i = 1,Nnodes
                 MD_H(i) = FEA_H(size(FEA_H)-Nnodes+i)
-                MD_X(i) = globaldomain(1)*fract - (maxval(FEA_X) - FEA_X(size(FEA_H)-Nnodes+i)) !globaldomain(1)*(1.d0-lg_fract) - ( FEA_X(size(FEA_H)-Nnodes+i)) 
-                !print*, 'MD values', i, MD_X(i), MD_H(i)
+                MD_X(i) = globaldomain(1)*fract & 
+                         - (maxval(FEA_X) & 
+                         - FEA_X(size(FEA_H)-Nnodes+i)) 
             enddo
 
             !Test values
@@ -2211,8 +2215,7 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
 
                         !Use bin either side to define parabolic line (lagrangian interpolant)
                         call quadratic_lagrange_interp((/MD_X(i-1),MD_X(i),MD_X(i+1)/), & 
-                                                       (/MD_H(i-1),MD_H(i),MD_H(i+1)/), & 
-                                                        x,hz)
+                                                       (/MD_H(i-1),MD_H(i),MD_H(i+1)/), x,hz)
 
                         if (x .lt. 0.5d0*(1.d0-lg_fract)*globaldomain(1)) then
                             !print*, MD_H(Nnodes),MD_H(Nnodes-1),MD_H(2),globaldomain(2),H
@@ -2282,6 +2285,41 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
 
 end subroutine setup_initialise_solid_liquid_gas
 
+
+
+!-----------------------------------------------------------------------------
+!For LJ 2phase case, split domain into ARGON type 1 and ARGON type 2
+
+subroutine split_domain()
+    use computational_constants_MD, only : globaldomain, lg_fract, & 
+                                           tether_tags, liquid_density, & 
+                                           gas_density
+                                                    
+    use physical_constants_MD, only : np
+    use arrays_MD, only : r, tag, moltype
+    implicit none
+
+    integer             :: n
+
+    if (gas_density .ne. liquid_density) stop "Error -- LJ2phase doesn't support different densities"
+
+    !Argon type based on fraction of the domain 
+    do n = 1,np
+
+        !Don't change interaction of walls
+        if (any(tag(n).eq.tether_tags)) cycle
+
+        !Split based on location
+        if (abs(r(1,n)) - 0.5*lg_fract*globaldomain(1) .gt. 0.d0) then
+            moltype(n) = 1
+        else
+            moltype(n) = 8
+        endif
+    enddo
+
+end subroutine split_domain
+
+
 !-----------------------------------------------------------------------------
 ! Polymer setup code for multile phase system
 
@@ -2307,7 +2345,7 @@ subroutine setup_initialise_surfactants(casename)
     gaslowerregion = (/ -0.5d0*globaldomain(1), & 
                         -0.5d0*globaldomain(2)+solid_bottom(2), & 
                         -0.5d0*globaldomain(3), & 
-                      -0.5d0*lg_fract*globaldomain(1), & 
+                        -0.5d0*lg_fract*globaldomain(1), & 
                          0.5d0*globaldomain(2)-solid_top(2), &
                          0.5d0*globaldomain(3) /)
     gasupperregion = (/ 0.5d0*lg_fract*globaldomain(1), &

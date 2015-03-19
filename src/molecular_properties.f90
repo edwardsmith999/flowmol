@@ -213,8 +213,8 @@ subroutine setup_location_tags
 end subroutine setup_location_tags
 
 !---------------------------------
-! Setup type of molecule
-subroutine setup_moltypes()
+! Setup type of molecules in the wall
+subroutine setup_moltypes_wall()
     use arrays_MD, only : tag, moltype
     use computational_constants_MD, only : tether_tags
     use physical_constants_MD, only : np
@@ -232,7 +232,7 @@ subroutine setup_moltypes()
         endif
     enddo
 
-end subroutine setup_moltypes
+end subroutine setup_moltypes_wall
 
 subroutine reset_location_tags
 	use module_molecule_properties

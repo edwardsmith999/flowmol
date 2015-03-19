@@ -1161,7 +1161,7 @@ subroutine setup_restart_microstate
     ! Mie moltype should be from restart file!! If mie_potential was zero in restart
     ! but now input requests one, setup as if new run (based on location, etc).
     if (mie_potential .eq. 2) then
-        call setup_moltypes                    !Setup type of molecules
+        call setup_moltypes_wall                  !Setup type of molecules
         mie_potential = 1
     endif
 
