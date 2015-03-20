@@ -530,27 +530,49 @@ contains
 !-----------------------------------------------------------------------------
 
 	subroutine send_velocity_average
-		use CPL, only : CPL_send
+		use CPL, only : CPL_send, CPL_gather, CPL_get, CPL_overlap
 		use computational_constants_MD, only : iblock,jblock,kblock
 		implicit none
 
 		logical :: send_flag,ovr_box_x
 		integer :: jcmin_send,jcmax_send, i,k
 
-		!Define arbitary range to send -- TODO move to input file --
-		jcmin_send = jcmin_olap; jcmax_send = jcmin_olap
+        ! TEMP TEMP TEMP
+        integer :: limits(6)
+        real(kind(0.d0)), dimension(:,:,:,:), allocatable :: dummy
 
-		!Send data to CFD if send_data flag is set
-		select case(staggered_averages(1))	
-		! Send velocity flux over surface
-		case(.true.)
-            call CPL_send(dble(mflux),jcmax_send=jcmax_send,jcmin_send=jcmin_send,send_flag=send_flag)
-			mflux = 0
-		! Send velocity in cell centre
-		case(.false.)
-            call CPL_send(uvw_md,jcmax_send=jcmax_send,jcmin_send=jcmin_send,send_flag=send_flag)
-			uvw_md = 0.d0
-		end select
+        if (.not.CPL_overlap()) return
+
+        ! Get limits
+	    call CPL_get( &                         
+                      icmin_olap=limits(1), &
+                      icmax_olap=limits(2), &
+                      jcmin_olap=limits(3), &
+                      jcmax_olap=limits(4), &
+                      kcmin_olap=limits(5), &
+                      kcmax_olap=limits(6)  &
+                    )
+
+        ! MD side doesn't unpack from gather
+        allocate(dummy(0,0,0,0))
+        limits(3) = 1; limits(4) = 1;
+        call CPL_gather(uvw_md, 3, limits, dummy) 
+        deallocate(dummy)
+
+		!!Define arbitary range to send -- TODO move to input file --
+		!jcmin_send = jcmin_olap; jcmax_send = jcmin_olap
+
+		!!Send data to CFD if send_data flag is set
+		!select case(staggered_averages(1))	
+		!! Send velocity flux over surface
+		!case(.true.)
+        !    call CPL_send(dble(mflux),jcmax_send=jcmax_send,jcmin_send=jcmin_send,send_flag=send_flag)
+		!	mflux = 0
+		!! Send velocity in cell centre
+		!case(.false.)
+        !    call CPL_send(uvw_md,jcmax_send=jcmax_send,jcmin_send=jcmin_send,send_flag=send_flag)
+		!	uvw_md = 0.d0
+		!end select
 
 	end subroutine send_velocity_average
 
@@ -1019,7 +1041,7 @@ subroutine apply_continuum_forces_flekkoy
 										   cellsidelength, halfdomain, &
 	                                       delta_rneighbr,iblock,jblock,kblock,irank
 	use CPL, only : CPL_overlap, CPL_recv, CPL_proc_extents,globalise, & 
-					CPL_realm, CPL_get, coupler_md_get_dt_cfd
+					CPL_realm, CPL_get, coupler_md_get_dt_cfd, CPL_scatter
 	use linked_list
 	implicit none
 
@@ -1028,7 +1050,7 @@ subroutine apply_continuum_forces_flekkoy
 	integer					:: icmin_olap,icmax_olap,jcmin_olap,jcmax_olap,kcmin_olap,kcmax_olap
 	integer,allocatable 	:: list(:,:)
 	real(kind(0.d0))	    :: inv_dtCFD,t_fract,CFD_box(6)
-	real(kind(0.d0)),allocatable,dimension(:,:,:,:)	:: recv_buf
+	real(kind(0.d0)),allocatable,dimension(:,:,:,:)	:: recv_buf, dummy
 	integer,save			:: cnstd(6),pcoords(3),extents(6),timestep_ratio
 	logical,save			:: recv_flag, first_time=.true.
 	save CFD_box
@@ -1054,15 +1076,22 @@ subroutine apply_continuum_forces_flekkoy
 
 	! Receive value of CFD velocities at first timestep of timestep_ratio
 	if (iter_average .eq. 1 .or. first_time) then
+
+        allocate(dummy(0,0,0,0))
 		allocate(recv_buf(9,size(stress_cfd,3),size(stress_cfd,4),size(stress_cfd,5)))
 		recv_buf = -666.d0
-		call CPL_recv(recv_buf,                                 & 
-		              icmin_recv=cnstd(1),icmax_recv=cnstd(2), &
-		              jcmin_recv=cnstd(3),jcmax_recv=cnstd(4), &
-		              kcmin_recv=cnstd(5),kcmax_recv=cnstd(6), &
-		              recv_flag=recv_flag                       )
+
+		!call CPL_recv(recv_buf,                                 & 
+		!              icmin_recv=cnstd(1),icmax_recv=cnstd(2), &
+		!              jcmin_recv=cnstd(3),jcmax_recv=cnstd(4), &
+		!              kcmin_recv=cnstd(5),kcmax_recv=cnstd(6), &
+		!              recv_flag=recv_flag                       )
+
+        call CPL_scatter(dummy, 9, cnstd, recv_buf)
 		stress_cfd = reshape(recv_buf,(/ 3,3,size(recv_buf,2),size(recv_buf,3),size(recv_buf,4) /) )
+
 		deallocate(recv_buf)
+		deallocate(dummy)
 
 		!do i=1,size(stress_cfd,3)
 		!do j=1,size(stress_cfd,4)
@@ -1252,7 +1281,6 @@ subroutine apply_force
 
         !g = 1.d0
         !gsum = real(n,kind(0.d0))
-
 		a(:,molno) = a(:,molno) + (g/gsum) * dA * stress_cfd(:,2,ib,jb+cnstd(3)-extents(3),kb) 
         a(2,molno) = a(2,molno) - (g/gsum) * dA * pressure
 
