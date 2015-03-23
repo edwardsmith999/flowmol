@@ -261,7 +261,7 @@ subroutine setup_initialise_lattice
             nl = nl + 1 !Local molecule count
 
             !Add global number if required
-            if (mol_numbering .eq. 1) then
+            if (global_numbering .eq. 1) then
                 glob_no(nl) = nl
             endif
 
@@ -281,7 +281,7 @@ subroutine setup_initialise_lattice
     np = nl
 
     ! Relabel global id
-    if (mol_numbering .eq. 1) then
+    if (global_numbering .eq. 1) then
         proc_nps(irank) = np
         call globalSum(proc_nps,nproc)
         proc_start_molno = sum(proc_nps(1:irank)) - proc_nps(irank)
@@ -1932,7 +1932,7 @@ subroutine setup_initialise_solid_liquid
             nl = nl + 1 !Local molecule count
 
             !Add global number if required
-            if (mol_numbering .eq. 1) then
+            if (global_numbering .eq. 1) then
                 glob_no(nl) = nl
             endif
 
@@ -1951,7 +1951,7 @@ subroutine setup_initialise_solid_liquid
     np = nl
 
     ! Relabel global id
-    if (mol_numbering .eq. 1) then
+    if (global_numbering .eq. 1) then
         proc_nps(irank) = np
         call globalSum(proc_nps,nproc)
         proc_start_molno = sum(proc_nps(1:irank)) - proc_nps(irank)
@@ -2279,7 +2279,7 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
             nl = nl + 1 !Local molecule count
 
             !Add global number if required
-            if (mol_numbering .eq. 1) then
+            if (global_numbering .eq. 1) then
                 glob_no(nl) = nl
             endif
 
@@ -2298,7 +2298,7 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
     np = nl
 
     ! Relabel global id
-    if (mol_numbering .eq. 1) then
+    if (global_numbering .eq. 1) then
         proc_nps(irank) = np
         call globalSum(proc_nps,nproc)
         proc_start_molno = sum(proc_nps(1:irank)) - proc_nps(irank)

@@ -104,7 +104,7 @@ module computational_constants_MD
 		SLLOD       = 7
 
     !Misc flags
-    integer :: mol_numbering         !Enforce global molecular numbering
+    integer :: global_numbering         !Enforce global molecular numbering
     integer :: reset_tags_on_restart !Reset tags on restart
 
 	!Initial configuration selection

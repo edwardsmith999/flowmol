@@ -693,7 +693,7 @@ subroutine pack_cell(icell,jcell,kcell,sendbuffer,buffsize,pos)
 			call MPI_Pack(typepack,1,MPI_DOUBLE_PRECISION,&
 			              sendbuffer,buffsize,pos,icomm_grid,ierr)
         endif
-        if (mol_numbering .eq. 1) then
+        if (global_numbering .eq. 1) then
             typepack = real(glob_no(molno),kind(0.d0))
 			call MPI_Pack(typepack,1,MPI_DOUBLE_PRECISION,&
 			              sendbuffer,buffsize,pos,icomm_grid,ierr)
@@ -762,7 +762,7 @@ subroutine unpack_recvbuffer(halo_np,recvnp,length,recvbuffer)
 			                1,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
             moltype(np+n) = int(typepack)
         endif
-        if (mol_numbering .eq. 1) then
+        if (global_numbering .eq. 1) then
 			call MPI_Unpack(recvbuffer,length,pos,typepack, &
 			                1,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
             glob_no(np+n) = int(typepack)
@@ -792,7 +792,7 @@ subroutine get_sendsize(sendnp,sendsize)
     if (Mie_potential .eq. 1) then
         sendsize = sendsize + sendnp
     endif
-    if (mol_numbering .eq. 1) then
+    if (global_numbering .eq. 1) then
         sendsize = sendsize + sendnp
     endif
 
@@ -826,7 +826,7 @@ subroutine get_recvnp(recvsize,recvnp)
     if (Mie_potential .eq. 1) then
         recordsize = recordsize + 1
     endif
-    if (mol_numbering .eq. 1) then
+    if (global_numbering .eq. 1) then
         recordsize = recordsize + 1
     endif
 
@@ -1547,7 +1547,7 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 		              sendbuffer,buffsize,pos,icomm_grid,ierr)
         endif
 
-        if (mol_numbering .eq. 1) then
+        if (global_numbering .eq. 1) then
 			dppack = real(glob_no(molno),kind(0.d0))
 			call MPI_Pack(dppack,1,MPI_DOUBLE_PRECISION, &
 		              sendbuffer,buffsize,pos,icomm_grid,ierr)
@@ -1651,7 +1651,7 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 				moltype(np+n)     = nint(dppack)
             endif
 
-            if (mol_numbering .eq. 1) then
+            if (global_numbering .eq. 1) then
 				call MPI_Unpack(recvbuffer,length,pos,dppack, &
 							1,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
 				glob_no(np+n)     = nint(dppack)
@@ -1730,7 +1730,7 @@ contains
 			sendsizeloc = sendsizeloc + 1*sendnp
         endif
 
-        if (mol_numbering .eq. 1) then
+        if (global_numbering .eq. 1) then
 			sendsizeloc = sendsizeloc + 1*sendnp
         endif
 
@@ -1871,7 +1871,7 @@ subroutine reorderdata(new_np)
 			moltype(molno) = moltype(np+new_np)
         endif
 
-        if (mol_numbering .eq. 1) then
+        if (global_numbering .eq. 1) then
 			glob_no(molno) = glob_no(np+new_np)
         endif
 

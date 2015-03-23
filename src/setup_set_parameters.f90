@@ -1009,7 +1009,7 @@ subroutine set_parameters_allocate
 	endif
 
     !If necessary, allocate global molecular number
-    if (mol_numbering .ne. 0) then
+    if (global_numbering .ne. 0) then
         allocate(glob_no(np+extralloc))
     endif
 

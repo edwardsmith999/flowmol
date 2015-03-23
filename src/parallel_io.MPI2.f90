@@ -912,11 +912,11 @@ subroutine setup_restart_inputs
             Mie_potential = 2
         endif
 
-        call MPI_File_read(restartfileid,checkint        ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr) !mol_numbering flag
-        if (checkint .eq. 1 .and. mol_numbering .eq. 0) then
-            print*, 'Mol_numbering used in restart file but not requested in', &
-                    'input file - mol_numbering will be used '
-            mol_numbering = checkint
+        call MPI_File_read(restartfileid,checkint        ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr) !global_numbering flag
+        if (checkint .eq. 1 .and. global_numbering .eq. 0) then
+            print*, 'global_numbering used in restart file but not requested in', &
+                    'input file - global_numbering will be used '
+            global_numbering = checkint
         endif
         call MPI_File_close(restartfileid,ierr)
     endif
@@ -949,7 +949,7 @@ subroutine setup_restart_inputs
     call MPI_BCAST(eps_ps,            1,MPI_double_precision,iroot-1,MD_COMM,ierr)
     call MPI_BCAST(eps_ss,            1,MPI_double_precision,iroot-1,MD_COMM,ierr)
     call MPI_BCAST(Mie_potential,     1,MPI_integer,iroot-1,MD_COMM,ierr)
-    call MPI_BCAST(mol_numbering,     1,MPI_integer,iroot-1,MD_COMM,ierr)
+    call MPI_BCAST(global_numbering,     1,MPI_integer,iroot-1,MD_COMM,ierr)
 
     elapsedtime = elapsedtime + delta_t*extrasteps  !Set elapsed time to end of simualtion
     initialstep = Nsteps                            !Set plot count to final plot of last
@@ -1002,7 +1002,7 @@ subroutine setup_restart_microstate
             bufsize(irank) = bufsize(irank) + procnp(irank)
         end if
         !Add global number if required
-        if (mol_numbering .eq. 1) then
+        if (global_numbering .eq. 1) then
             bufsize(irank) = bufsize(irank) + procnp(irank)
         endif
         if (potential_flag .eq. 1) then
@@ -1065,7 +1065,7 @@ subroutine setup_restart_microstate
                 pos = pos + 1
             endif
             !Add global number if required
-            if (mol_numbering .eq. 1) then
+            if (global_numbering .eq. 1) then
                 glob_no(nl) = nint(buf(pos))
                 pos = pos + 1
             endif
@@ -1115,7 +1115,7 @@ subroutine setup_restart_microstate
                 call MPI_FILE_READ_ALL(restartfileid, moltypetemp, 1, MPI_DOUBLE_PRECISION, &
                                        MPI_STATUS_IGNORE, ierr)
             endif
-            if (mol_numbering .eq. 1) then
+            if (global_numbering .eq. 1) then
                 call MPI_FILE_READ_ALL(restartfileid, globnotemp, 1, MPI_DOUBLE_PRECISION, &
                                        MPI_STATUS_IGNORE, ierr)
             endif
@@ -1161,7 +1161,7 @@ subroutine setup_restart_microstate
                 moltype(nl) = moltypetemp
             endif
             !Add global number if required
-            if (mol_numbering .eq. 1) then
+            if (global_numbering .eq. 1) then
                 glob_no(nl) = globnotemp
             endif
             if (potential_flag.eq.1) then
@@ -1461,7 +1461,7 @@ subroutine parallel_io_final_state
         bufsize(irank) = bufsize(irank) + procnp(irank)
     end if
     !If global molecular numbers, add space
-    if (mol_numbering .eq. 1) then
+    if (global_numbering .eq. 1) then
         bufsize(irank) = bufsize(irank) + procnp(irank)
     endif
     ! If polymer sim, add space for polymer info
@@ -1492,7 +1492,7 @@ subroutine parallel_io_final_state
             buf(pos) = moltype(n);  pos = pos + 1
         end if
         !If global molecular numbers, add space
-        if (mol_numbering .eq. 1) then
+        if (global_numbering .eq. 1) then
             buf(pos) = glob_no(n);  pos = pos + 1
         endif
         if (potential_flag .eq. 1) then
@@ -1575,7 +1575,7 @@ subroutine parallel_io_final_state
         call MPI_File_write(restartfileid,eps_ss        ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,delta_rneighbr,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,mie_potential,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
-        call MPI_File_write(restartfileid,mol_numbering,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+        call MPI_File_write(restartfileid,global_numbering,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 
         header_pos = filesize ! just in case offset kind is 32 bit, rather improbable these days  !!!
         call MPI_File_write(restartfileid,header_pos,1,MPI_INTEGER8,MPI_STATUS_IGNORE,ierr)
@@ -1652,7 +1652,7 @@ subroutine parallel_io_vmd(recno)
     !Determine size of real datatype
     call MPI_type_size(MPI_real,datasize,ierr)
 
-    if (mol_numbering .eq. 1) then
+    if (global_numbering .eq. 1) then
         ordered_write = 1
         globalno => glob_no
     endif
