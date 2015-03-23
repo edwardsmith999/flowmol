@@ -47,7 +47,7 @@ subroutine setup_initial_record
                                    "bforce_pdf  ", "Fvext       ", "etev        ",&
                                    "msolv       ", "mpoly       ", "vpoly       ",&
                                    "vsolv       ", "ebins       ", "hfVA_k      ",&
-                                   "hfVA_c      ", "hfVA        ", "msurf" /) 
+                                   "hfVA_c      ", "hfVA        ", "msurf       "/) 
 
 
 !   ! COUETTE FLOW ANALYTICAL SOLUTION
