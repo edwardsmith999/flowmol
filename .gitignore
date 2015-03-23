@@ -1,2 +1,8 @@
 src/results/*
 MD.in
+*.in
+mol_escape_err.*
+out
+diffed
+*.bak
+fort.*
