@@ -3943,6 +3943,39 @@ subroutine energy_flux_io
 
 end subroutine energy_flux_io
 
+
+
+subroutine surface_density_io
+    use module_parallel_io
+    use messenger_bin_handler, only : swaphalos
+    implicit none
+
+    integer             :: m,nresults
+    character(30)       :: filename, outfile
+
+    !Work out correct filename for i/o type
+    filename='results/msurf'
+    outfile = trim(prefix_dir)//filename
+
+    !Include halo surface fluxes to get correct values for all cells
+    nresults = 6
+    call swaphalos(surface_density,nbinso(1),nbinso(2),nbinso(3),nresults)
+
+    !Calculate record number timestep
+    select case(CV_conserve)
+    case(0)
+        m = (iter-initialstep+1)/(tplot*Nsurfm_ave)
+    case(1)
+        m = (iter-initialstep+1)/(Nsurfm_ave)
+    case default
+        call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
+    end select
+
+    !Write mass to file
+    call write_arrays(surface_density, nresults, outfile, m)
+
+end subroutine surface_density_io
+
 !---------------------------------------------------------------------------------
 ! Record stress times velocity (power) accross surfaces of Control Volumes
 
