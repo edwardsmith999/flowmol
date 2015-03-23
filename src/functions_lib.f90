@@ -2683,7 +2683,7 @@ function lagrange_poly_weight_Nmol(array, r_in, binsize, domain, &
     real(kind(0.d0)),dimension(:,:,:),allocatable 	:: sqr_term
     real(kind(0.d0)),dimension(:,:,:,:),allocatable :: wsum_bin,meanvalue_
 
-	!Setup polynomial and other functions
+    !Setup polynomial and other functions
 	allocate(  rhat(size(r_in,1),size(r_in,2)))
 	allocate(weight(size(r_in,1),size(r_in,2)))
 	order_nd(:) = order	!Assumed same order in all dimensions
