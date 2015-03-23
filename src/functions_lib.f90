@@ -630,7 +630,7 @@ end function linspace
 
 
 
-!*****************************************************************************80
+!===========================================================================
 !
 ! Subroutine for calculating least squares straight line
 !
@@ -686,49 +686,137 @@ subroutine least_squares( x, y, m, c )
 end subroutine least_squares
 
 
-!------------------------------------------------------------------------------
-!Subroutine for calculating least squares straight line with a uniform interval between x values
+!===========================================================================
+! Numerical Recipes - Lomb Normalized Periodogram
+!
+! ofac:  oversampling parameter (typically 4 or larger)
+! hifac: ratio of f(high)/f(Nyquist) (let it be close to but less than 1)
+! nout:  dimension of the output arrays
+! px:    frequency (not angular frequency)
+! py:    power spectral density
+! jmax:  the array index of the maximum spectral power, py(jmax)
+! prob:  significance of the peak given by py(jmax)
+!
+subroutine Periodogram(x,y,n,ofac,hifac,px,py,np,nout,jmax,prob)
 
-!subroutine least_squares(y, x_interval, npoints, lstsqrsinter, lstsqrsgrad)
-!implicit none
+    integer,intent(in)           :: np
+    integer,intent(out)          :: jmax,nout
+    double precision,intent(in)  :: hifac,ofac,x(n),y(n)
+    double precision,intent(out) :: prob,px(np),py(np)
 
-!	integer		, intent(in)						:: npoints
-!	real(kind(0.d0)), dimension(npoints), intent(in):: y
-!	real(kind(0.d0)), intent(in)					:: x_interval
-!	real(kind(0.d0)), intent(out)					:: lstsqrsgrad, lstsqrsinter
+    integer  ::  i,j,n
+    integer,parameter :: nmax=2000
+    double precision  :: ave,c,cc,cwtau,effm,expy,pnow,pymax,s,ss
+    double precision  :: sumc,sumcy,sums,sumsh,sumsy,swtau,var
+    double precision  :: wtau,xave,xdif,xmax,xmin,yy
+    double precision  :: arg,wtemp,wi(nmax),wpi(nmax)
+    double precision  :: wpr(nmax),wr(nmax),twopid
 
-!	integer											:: n
-!	real(kind(0.d0))								:: ndx, lstsqrsx,lstsqrsy,lstsqrsx2,lstsqrsxy
+    parameter(twopid=6.2831853071795865d0)
+    nout=0.5d0*ofac*hifac*n
+    if(nout.gt.np) stop 'output arrays too short in period'
+    call avevar(y,n,ave,var)
 
-!	!Calculate molecular velocity using least squares to fit line
-!	!and extrapolate down to point below overlap corresponding to continuum halo
-!	lstsqrsy  = 0.d0
-!	lstsqrsx  = 0.d0
-!	lstsqrsx2 = 0.d0
-!	lstsqrsxy = 0.d0
+    xmax=x(1)
+    xmin=x(1)
+    do j=1,n
+       if(x(j).gt.xmax)xmax=x(j)
+       if(x(j).lt.xmin)xmin=x(j)
+    enddo
+    xdif=xmax-xmin
+    xave=0.5d0*(xmax+xmin)
+    pymax=0.d0
+    pnow=1d0/(xdif*ofac)
 
-!	do n = 1, npoints
-!        ndx = n*x_interval
-!		lstsqrsx  = lstsqrsx  + ndx
-!		lstsqrsx2 = lstsqrsx2 + ndx*ndx
-!		lstsqrsy  = lstsqrsy  + y(n)
-!		lstsqrsxy = lstsqrsxy + ndx*y(n)
-!	enddo
+    do j=1,n
+       arg=TWOPID*((x(j)-xave)*pnow)
+       wpr(j)=-2.d0*sin(0.5d0*arg)**2
+       wpi(j)=sin(arg)
+       wr(j)=cos(arg)
+       wi(j)=wpi(j)
+    enddo
 
-!	!print*, lstsqrsx, lstsqrsx2, lstsqrsy, lstsqrsxy
+    do i=1,nout
+       px(i)=pnow
+       sumsh=0d0
+       sumc=0d0
+       do j=1,n
+          c=wr(j)
+          s=wi(j)
+          sumsh=sumsh+s*c
+          sumc=sumc+(c-s)*(c+s)
+       enddo
+       wtau=0.5d0*atan2(2d0*sumsh,sumc)
+       swtau=sin(wtau)
+       cwtau=cos(wtau)
+       sums=0d0; sumc=0d0
+       sumsy=0d0; sumcy=0d0
+       do j=1,n
+          s=wi(j)
+          c=wr(j)
+          ss=s*cwtau-c*swtau
+          cc=c*cwtau+s*swtau
+          sums=sums+ss**2
+          sumc=sumc+cc**2
+          yy=y(j)-ave
+          sumsy=sumsy+yy*ss
+          sumcy=sumcy+yy*cc
+          wtemp=wr(j)
+          wr(j)=(wr(j)*wpr(j)-wi(j)*wpi(j))+wr(j)
+          wi(j)=(wi(j)*wpr(j)+wtemp*wpi(j))+wi(j)
+       enddo
+       py(i)=0.5*(sumcy**2/sumc+sumsy**2/sums)/var
+       if(py(i).ge.pymax)then
+          pymax=py(i)
+          jmax=i
+       endif
+       pnow=pnow+1./(ofac*xdif)
+    enddo
 
-!	!Calculate gradient
-!	lstsqrsgrad = (npoints*lstsqrsxy-lstsqrsx*lstsqrsy) / &
-!		          (npoints*lstsqrsx2-lstsqrsx*lstsqrsx)
+    expy=exp(-pymax)
+    effm=2d0*nout/ofac
+    prob=effm*expy
 
-!	!Calculate intercept
-!	lstsqrsinter =(lstsqrsy*lstsqrsx2 - lstsqrsx*lstsqrsxy) / &
-!		           (npoints*lstsqrsx2 - lstsqrsx*lstsqrsx)
+    if(prob.gt.0.01d0) prob=1d0-(1d0-expy)**effm
+
+    return
+
+contains
+
+    !
+    ! Given array data(1:n), returns its mean as ave and its variance as var.
+    !
+    subroutine avevar(data,n,ave,var)
+        integer j,n
+        double precision ave,var,data(n),s,ep
+        ave=0d0
+        do j=1,n
+           ave=ave+data(j)
+        enddo
+        ave=ave/n
+        var=0d0
+        ep=0d0
+        do j=1,n
+           s=data(j)-ave
+           ep=ep+s
+           var=var+s*s
+        enddo
+        var=(var-ep**2/n)/(n-1)
+        return
+    end subroutine avevar
 
 
-!	print'(a,f10.5,a,f10.5)', 'y = ', lstsqrsgrad, ' x + ', lstsqrsinter
+end subroutine Periodogram
 
-!end subroutine least_squares
+
+
+
+
+
+
+
+
+
 
 !-------------------------------------------------------------------------------------
 !Subrountine used to intergrate a function over a uniform grid using the trapizium rule

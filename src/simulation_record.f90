@@ -5488,9 +5488,9 @@ contains
         resolution = 10; tolerence = rd
         call cluster_global_extents(self, imaxloc(self%Nlist), extents)
         call cluster_extents_grid(self, imaxloc(self%Nlist), 1, resolution, & 
-                                  extents_grid)!, debug_outfile='./results/maxcell_top')
+                                  extents_grid, debug_outfile='./results/maxcell_top')
         call cluster_outer_mols(self, imaxloc(self%Nlist), tolerence=tolerence, dir=1, & 
-                                rmols=rnp, extents=extents_grid)!, debug_outfile='./results/clust_edge_top')
+                                rmols=rnp, extents=extents_grid, debug_outfile='./results/clust_edge_top')
 
         allocate(x(size(rnp,2)),y(size(rnp,2)))
         x = rnp(2,:); y = rnp(1,:)
@@ -5507,9 +5507,9 @@ contains
         close(fileunit,status='keep')
 
         call cluster_extents_grid(self, imaxloc(self%Nlist), 4, resolution, &
-                                  extents_grid )!, debug_outfile='./results/maxcell_bot')
+                                  extents_grid , debug_outfile='./results/maxcell_bot')
         call cluster_outer_mols(self, imaxloc(self%Nlist), tolerence=tolerence, dir=4, & 
-                                rmols=rnp, extents=extents_grid)!, debug_outfile='./results/clust_edge_bot')
+                                rmols=rnp, extents=extents_grid, debug_outfile='./results/clust_edge_bot')
 
         allocate(x(size(rnp,2)),y(size(rnp,2)))
         x = rnp(2,:); y = rnp(1,:)
@@ -5518,10 +5518,10 @@ contains
         cl_angle = 90.d0+atan(m)*180.d0/pi
     	fileunit = get_new_fileunit()
         if (first_time) then
-            open(unit=fileunit,file='linecoeff_bot',status='replace')
+            open(unit=fileunit,file='./results/linecoeff_bot',status='replace')
             first_time = .false.
         else
-            open(unit=fileunit,file='linecoeff_bot',access='append')
+            open(unit=fileunit,file='./results/linecoeff_bot',access='append')
         endif
         write(fileunit,'(i12, 3(a,f10.5))'), iter, ' Bottom line y = ', m, ' x + ',c  , ' angle = ', cl_angle
         close(fileunit,status='keep')
@@ -5572,7 +5572,7 @@ contains
 
         else
             print*, 'It appears clusters have broken up'
-            print'(a,8f10.1,e18.8)', 'CLUSTER DETAILS ', cluster_sizes(1:8), (cluster_sizes(1) - cluster_sizes(2))/cluster_sizes(1)
+            print'(a,8f10.1,e18.8)', 'CLUSTER DETAILS ', cluster_sizes(1:7), sum(cluster_sizes), (cluster_sizes(1) - cluster_sizes(2))/cluster_sizes(1)
 
             !print*, 'It appears clusters have broken up -- writing final state and exiting'
             !Exit Gracefully
@@ -5686,7 +5686,10 @@ contains
 		            rij2  = dot_product(rij,rij)            !Square of vector calculated
 
 		            if (rij2 .lt. rd2) then
-                        if (skipwalls .and. moltype(molnoj) .eq. 2) then
+                        !if (skipwalls .and. moltype(molnoj) .eq. 2) then
+                        if ((skipwalls .and.  & 
+                            any(tag(molnoj).eq.tether_tags)) .or. & 
+                            moltype(molnoj) .eq. 8) then
                             call AddBondedPair(self, molnoi, molnoi)
                         else
                             call AddBondedPair(self, molnoi, molnoj)

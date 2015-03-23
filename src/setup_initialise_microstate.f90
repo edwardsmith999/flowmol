@@ -1955,7 +1955,7 @@ subroutine setup_initialise_solid_liquid
         proc_nps(irank) = np
         call globalSum(proc_nps,nproc)
         proc_start_molno = sum(proc_nps(1:irank)) - proc_nps(irank)
-        print*, proc_start_molno, proc_nps,proc_nps(1:irank-1),sum(proc_nps(1:irank-1))
+        !print*, proc_start_molno, proc_nps(irank),sum(proc_nps(1:irank-1))
         glob_no(:) = glob_no(:) + proc_start_molno
     endif
 
@@ -2359,9 +2359,9 @@ subroutine split_domain()
         !Split based on location
         rglob = globalise(r(:,n))
         if (abs(rglob(1)) - 0.5*lg_fract*globaldomain(1) .gt. 0.d0) then
-            moltype(n) = 1
-        else
             moltype(n) = 8
+        else
+            moltype(n) = 1
         endif
     enddo
 
