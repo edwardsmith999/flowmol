@@ -103,8 +103,9 @@ module computational_constants_MD
 		tag_move    = 6, &
 		SLLOD       = 7
 
-    !Reset tags on restart
-    integer :: reset_tags_on_restart
+    !Misc flags
+    integer :: mol_numbering         !Enforce global molecular numbering
+    integer :: reset_tags_on_restart !Reset tags on restart
 
 	!Initial configuration selection
 	integer           	:: initial_config_flag
@@ -302,8 +303,11 @@ end module shear_info_MD
 
 module arrays_MD
 
-	integer,          dimension(:),   allocatable, target	:: tag !Mol tags
-	integer,          dimension(:),   allocatable, target	:: moltype !Type used for interactions
+	integer,          dimension(:),   allocatable, target	:: & 
+        tag,     &   !Mol tags
+        moltype, &   !Type used for interactions
+        glob_no      !Global molecular number
+
 	integer, 	  	  dimension(:,:), allocatable, target	:: fix  !Fixed molecules
 	real(kind(0.d0)), dimension(:),   allocatable, target 	:: &
 		potenergymol, 		&		!Potential energy of each molecule
@@ -411,7 +415,7 @@ module polymer_info_MD
 		! THE TOTAL NUMBER OF ITEMS IN THIS DATA TYPE MUST ALSO BE STORED IN THE VARIABLE nsdmi
 	end type monomer_info
 
-	type(monomer_info), dimension(:), allocatable :: monomer
+	type(monomer_info), dimension(:), allocatable,target :: monomer
 	!eg. to access chainID of mol 23, call monomer(23)%chainID
 
 	integer, parameter :: nsdmi=8                   !Number of sent doubles for monomer_info 

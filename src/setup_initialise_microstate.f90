@@ -178,8 +178,9 @@ subroutine setup_initialise_lattice
     use module_molecule_properties, only : get_tag_status
     implicit none
 
-    integer :: j, n, nl, nx, ny, nz
+    integer :: j, n, nl, nx, ny, nz, proc_start_molno
     integer, dimension(nd) :: p_units_lb, p_units_ub 
+    integer, dimension(nproc) :: proc_nps
     real(kind(0.d0)) :: domain_top, domain_bottom
     real(kind(0.d0)), dimension (nd):: rc, c !Temporary variable
 
@@ -259,6 +260,11 @@ subroutine setup_initialise_lattice
             !If molecules is in the domain then add to total
             nl = nl + 1 !Local molecule count
 
+            !Add global number if required
+            if (mol_numbering .eq. 1) then
+                glob_no(nl) = nl
+            endif
+
             !Correct to local coordinates
             r(1,nl) = rc(1)-domain(1)*(iblock-1)-halfdomain(1)
             r(2,nl) = rc(2)-domain(2)*(jblock-1)-halfdomain(2)
@@ -273,6 +279,15 @@ subroutine setup_initialise_lattice
 
     !Correct local number of particles on processor
     np = nl
+
+    ! Relabel global id
+    if (mol_numbering .eq. 1) then
+        proc_nps(irank) = np
+        call globalSum(proc_nps,nproc)
+        proc_start_molno = sum(proc_nps(1:irank)) - proc_nps(irank)
+        glob_no(:) = glob_no(:) + proc_start_molno
+    endif
+
 
     !Establish global number of particles on current process
     globalnp = np
@@ -1817,8 +1832,9 @@ subroutine setup_initialise_solid_liquid
     use module_molecule_properties, only : get_tag_status
     implicit none
 
-    integer :: j, n, nl, nx, ny, nz
+    integer :: j, n, nl, nx, ny, nz, proc_start_molno
     integer, dimension(nd) :: p_units_lb, p_units_ub 
+    integer, dimension(nproc) :: proc_nps
     real(kind(0.d0)) :: domain_top, domain_bottom, solid_density, density_ratio
     real(kind(0.d0)), dimension (nd):: solid_bottom,solid_top, rc, c
 
@@ -1915,6 +1931,11 @@ subroutine setup_initialise_solid_liquid
             !If molecules is in the domain then add to total
             nl = nl + 1 !Local molecule count
 
+            !Add global number if required
+            if (mol_numbering .eq. 1) then
+                glob_no(nl) = nl
+            endif
+
             !Correct to local coordinates
             r(1,nl) = rc(1)-domain(1)*(iblock-1)-halfdomain(1)
             r(2,nl) = rc(2)-domain(2)*(jblock-1)-halfdomain(2)
@@ -1928,6 +1949,16 @@ subroutine setup_initialise_solid_liquid
 
     !Correct local number of particles on processor
     np = nl
+
+    ! Relabel global id
+    if (mol_numbering .eq. 1) then
+        proc_nps(irank) = np
+        call globalSum(proc_nps,nproc)
+        proc_start_molno = sum(proc_nps(1:irank)) - proc_nps(irank)
+        print*, proc_start_molno, proc_nps,proc_nps(1:irank-1),sum(proc_nps(1:irank-1))
+        glob_no(:) = glob_no(:) + proc_start_molno
+    endif
+
 
     !Establish global number of particles on current process
     globalnp = np
@@ -1973,8 +2004,9 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
 
     character(*),intent(in)   :: gastype
 
-    integer :: i, j, n, nl, nx, ny, nz
+    integer :: i, j, n, nl, nx, ny, nz, proc_start_molno
     integer, dimension(nd) :: p_units_lb, p_units_ub 
+    integer, dimension(nproc) :: proc_nps
     real(kind(0.d0)) :: domain_top, domain_bottom, solid_density, density_ratio_sl
     real(kind(0.d0)) :: density_ratio_gl, h, h0, x, y, z, hx, hz
     real(kind(0.d0)), dimension (nd):: solid_bottom,solid_top, rc, c
@@ -2246,6 +2278,11 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
             !If molecules is in the domain then add to total
             nl = nl + 1 !Local molecule count
 
+            !Add global number if required
+            if (mol_numbering .eq. 1) then
+                glob_no(nl) = nl
+            endif
+
             !Correct to local coordinates
             r(1,nl) = rc(1)-domain(1)*(iblock-1)-halfdomain(1)
             r(2,nl) = rc(2)-domain(2)*(jblock-1)-halfdomain(2)
@@ -2259,6 +2296,15 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
 
     !Correct local number of particles on processor
     np = nl
+
+    ! Relabel global id
+    if (mol_numbering .eq. 1) then
+        proc_nps(irank) = np
+        call globalSum(proc_nps,nproc)
+        proc_start_molno = sum(proc_nps(1:irank)) - proc_nps(irank)
+        glob_no(:) = glob_no(:) + proc_start_molno
+    endif
+
 
     !Establish global number of particles on current process
     globalnp = np
@@ -2294,12 +2340,13 @@ subroutine split_domain()
     use computational_constants_MD, only : globaldomain, lg_fract, & 
                                            tether_tags, liquid_density, & 
                                            gas_density
-                                                    
+    use messenger, only : globalise                                               
     use physical_constants_MD, only : np
     use arrays_MD, only : r, tag, moltype
     implicit none
 
-    integer             :: n
+    integer                          :: n
+    double precision,dimension(3)    :: rglob
 
     if (gas_density .ne. liquid_density) stop "Error -- LJ2phase doesn't support different densities"
 
@@ -2310,7 +2357,8 @@ subroutine split_domain()
         if (any(tag(n).eq.tether_tags)) cycle
 
         !Split based on location
-        if (abs(r(1,n)) - 0.5*lg_fract*globaldomain(1) .gt. 0.d0) then
+        rglob = globalise(r(:,n))
+        if (abs(rglob(1)) - 0.5*lg_fract*globaldomain(1) .gt. 0.d0) then
             moltype(n) = 1
         else
             moltype(n) = 8

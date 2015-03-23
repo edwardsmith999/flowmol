@@ -455,7 +455,7 @@ subroutine setup_mie_potential
 
     !8 == Second phase of Argon;
     !moltype_names(1) = '           Ar           '
-    moltype_names(8)    = 'AR' !' Ar '
+    moltype_names(8)    = 'rA' !' Ar '
     mass_lookup(8)      = 1.0d0
     epsilon_lookup(8,8) = 1.d0
     sigma_lookup(8,8)   = 1.d0
@@ -463,8 +463,8 @@ subroutine setup_mie_potential
     lambdaa_lookup(8,8) = 6.d0
 
     !The two phases of argon attract each other less strongly
-    alpha_lookup(1,8) = 0.5d0
-    alpha_lookup(8,1) = 0.5d0
+    alpha_lookup(1,8) = -1.d0
+    alpha_lookup(8,1) = -1.d0
 
     !2 == Wall; 
     !moltype_names(2) = '          Wall          '
@@ -476,7 +476,7 @@ subroutine setup_mie_potential
     lambdaa_lookup(2,2) = 6.d0
 
     !Liquid Agron and wall
-    epsilon_lookup(2,1) = 0.5
+    epsilon_lookup(2,1) = 1.4
 
     !1-2 == Wall/{D,M,CM} hydrophobic/strong wall interaction
     ids = (/ 4,5,7 /)
@@ -1007,6 +1007,11 @@ subroutine set_parameters_allocate
 		allocate(rtether(nd,np+extralloc))
 		allocate(slidev(nd,np+extralloc))
 	endif
+
+    !If necessary, allocate global molecular number
+    if (mol_numbering .ne. 0) then
+        allocate(glob_no(np+extralloc))
+    endif
 
 	!Allocate pressure tensors
 	if (pressure_outflag .eq. 1) then

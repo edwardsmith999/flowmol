@@ -911,6 +911,13 @@ subroutine setup_restart_inputs
                     'will attempt to be assigned to restart config'
             Mie_potential = 2
         endif
+
+        call MPI_File_read(restartfileid,checkint        ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr) !mol_numbering flag
+        if (checkint .eq. 1 .and. mol_numbering .eq. 0) then
+            print*, 'Mol_numbering used in restart file but not requested in', &
+                    'input file - mol_numbering will be used '
+            mol_numbering = checkint
+        endif
         call MPI_File_close(restartfileid,ierr)
     endif
 
@@ -942,6 +949,7 @@ subroutine setup_restart_inputs
     call MPI_BCAST(eps_ps,            1,MPI_double_precision,iroot-1,MD_COMM,ierr)
     call MPI_BCAST(eps_ss,            1,MPI_double_precision,iroot-1,MD_COMM,ierr)
     call MPI_BCAST(Mie_potential,     1,MPI_integer,iroot-1,MD_COMM,ierr)
+    call MPI_BCAST(mol_numbering,     1,MPI_integer,iroot-1,MD_COMM,ierr)
 
     elapsedtime = elapsedtime + delta_t*extrasteps  !Set elapsed time to end of simualtion
     initialstep = Nsteps                            !Set plot count to final plot of last
@@ -961,7 +969,7 @@ subroutine setup_restart_microstate
     integer                                      :: dp_datasize
     integer(kind=MPI_OFFSET_KIND)                :: disp, procdisp
     integer, dimension(:), allocatable           :: bufsize
-    real(kind(0.d0))                             :: tagtemp, moltypetemp
+    real(kind(0.d0))                             :: tagtemp, moltypetemp, globnotemp
     real(kind(0.d0)), dimension (nd)             :: rtemp,vtemp,rtruetemp,rtethertemp
     real(kind(0.d0)), dimension (nsdmi)          :: monomertemp
     real(kind(0.d0)), dimension (:), allocatable :: buf !Temporary variable
@@ -993,6 +1001,10 @@ subroutine setup_restart_microstate
         if (Mie_potential .eq. 1) then
             bufsize(irank) = bufsize(irank) + procnp(irank)
         end if
+        !Add global number if required
+        if (mol_numbering .eq. 1) then
+            bufsize(irank) = bufsize(irank) + procnp(irank)
+        endif
         if (potential_flag .eq. 1) then
             bufsize(irank) = bufsize(irank) + nsdmi*procnp(irank)
         end if
@@ -1052,6 +1064,11 @@ subroutine setup_restart_microstate
                 moltype(nl) = nint(buf(pos))
                 pos = pos + 1
             endif
+            !Add global number if required
+            if (mol_numbering .eq. 1) then
+                glob_no(nl) = nint(buf(pos))
+                pos = pos + 1
+            endif
             if (potential_flag.eq.1) then
                 !Read monomer data
                 monomer(nl)%chainID        = nint(buf(pos))
@@ -1098,6 +1115,10 @@ subroutine setup_restart_microstate
                 call MPI_FILE_READ_ALL(restartfileid, moltypetemp, 1, MPI_DOUBLE_PRECISION, &
                                        MPI_STATUS_IGNORE, ierr)
             endif
+            if (mol_numbering .eq. 1) then
+                call MPI_FILE_READ_ALL(restartfileid, globnotemp, 1, MPI_DOUBLE_PRECISION, &
+                                       MPI_STATUS_IGNORE, ierr)
+            endif
             if (potential_flag.eq.1) then
                 call MPI_FILE_READ_ALL(restartfileid, monomertemp, nsdmi, MPI_DOUBLE_PRECISION, &
                                        MPI_STATUS_IGNORE, ierr)
@@ -1138,6 +1159,10 @@ subroutine setup_restart_microstate
             end if
             if (Mie_potential .eq. 1) then
                 moltype(nl) = moltypetemp
+            endif
+            !Add global number if required
+            if (mol_numbering .eq. 1) then
+                glob_no(nl) = globnotemp
             endif
             if (potential_flag.eq.1) then
                 monomer(nl)%chainID        = nint(monomertemp(1))
@@ -1435,6 +1460,10 @@ subroutine parallel_io_final_state
     if (Mie_potential .eq. 1) then
         bufsize(irank) = bufsize(irank) + procnp(irank)
     end if
+    !If global molecular numbers, add space
+    if (mol_numbering .eq. 1) then
+        bufsize(irank) = bufsize(irank) + procnp(irank)
+    endif
     ! If polymer sim, add space for polymer info
     if (potential_flag .eq. 1) then
         bufsize(irank) = bufsize(irank) + nsdmi*procnp(irank)
@@ -1462,6 +1491,10 @@ subroutine parallel_io_final_state
         if (mie_potential .eq. 1) then
             buf(pos) = moltype(n);  pos = pos + 1
         end if
+        !If global molecular numbers, add space
+        if (mol_numbering .eq. 1) then
+            buf(pos) = glob_no(n);  pos = pos + 1
+        endif
         if (potential_flag .eq. 1) then
             buf(pos)     = real(monomer(n)%chainID,kind(0.d0))
             buf(pos+1)   = real(monomer(n)%subchainID,kind(0.d0))
@@ -1542,6 +1575,7 @@ subroutine parallel_io_final_state
         call MPI_File_write(restartfileid,eps_ss        ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,delta_rneighbr,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
         call MPI_File_write(restartfileid,mie_potential,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+        call MPI_File_write(restartfileid,mol_numbering,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 
         header_pos = filesize ! just in case offset kind is 32 bit, rather improbable these days  !!!
         call MPI_File_write(restartfileid,header_pos,1,MPI_INTEGER8,MPI_STATUS_IGNORE,ierr)
@@ -1604,10 +1638,12 @@ subroutine parallel_io_vmd(recno)
     integer, intent(in)             :: recno
 
     integer                         :: i, datasize
+    integer                         :: n,globmolno,ordered_write
+    integer(kind=MPI_OFFSET_KIND)   :: disp, procdisp
+    integer,dimension(:),pointer    :: globalno
     real,dimension(:),allocatable   :: Xbuf, Ybuf, Zbuf
     real,dimension(:),allocatable   :: Xbufglob,Ybufglob,Zbufglob
-    integer                         :: n,globmolno
-    integer(kind=MPI_OFFSET_KIND)   :: disp, procdisp
+
 
     !Build array of number of particles on neighbouring
     !processe's subdomain on current proccess
@@ -1616,9 +1652,20 @@ subroutine parallel_io_vmd(recno)
     !Determine size of real datatype
     call MPI_type_size(MPI_real,datasize,ierr)
 
+    if (mol_numbering .eq. 1) then
+        ordered_write = 1
+        globalno => glob_no
+    endif
+
+    if (potential_flag .eq. 1) then
+        ordered_write = 1
+        globalno => monomer(:)%glob_no
+    endif
+
+
     !Load buffers with single precision r and adjust according
     !to processor topology with r = 0 at centre
-    select case(potential_flag)
+    select case(ordered_write)
     case(0)
 
         !Allocate buffers
@@ -1717,7 +1764,7 @@ subroutine parallel_io_vmd(recno)
 
         !Build sparse individual "global" buffers according to global molecular ID of each monomer
         do n=1,np
-            globmolno           = monomer(n)%glob_no
+            globmolno           = globalno(n)
             Xbufglob(globmolno) = r(1,n)-(halfdomain(1)*(npx-1))+domain(1)*(iblock-1)
             Ybufglob(globmolno) = r(2,n)-(halfdomain(2)*(npy-1))+domain(2)*(jblock-1)
             Zbufglob(globmolno) = r(3,n)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)

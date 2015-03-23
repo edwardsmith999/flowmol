@@ -447,6 +447,15 @@ subroutine setup_read_input
 		rescue_snapshot_freq = 21600	!Every 6 hours
 	endif
 
+	call locate(1,'MOL_NUMBERING',.false.,found_in_input) 
+	if (found_in_input) then
+		read(1,*) mol_numbering  	!Include global molecular numbering
+        if (potential_flag .eq. 1 .and. mol_numbering .eq. 1) then
+            print*, "POTENTIAL_FLAG is on so MOL_NUMBERING not needed, use mononmer(n)%glob_no instead"
+            mol_numbering = 0
+        endif
+    endif
+
 	call locate(1,'SORT_FLAG',.false.,found_in_input) 
 	if (found_in_input) then
 		read(1,*) sort_flag

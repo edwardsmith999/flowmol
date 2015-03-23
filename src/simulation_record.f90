@@ -5626,7 +5626,7 @@ contains
     subroutine build_from_cellandneighbour_lists(self, cell, neighbour, rd, rmols, nmols, skipwalls_)
 	    use module_compute_forces, only: cellinfo, neighbrinfo, rj, rij, ri,&
                                          delta_rneighbr, rcutoff, rij2, &
-                                         moltype
+                                         moltype, tag, tether_tags
 	    use interfaces, only : error_abort
         implicit none
 
@@ -5658,7 +5658,11 @@ contains
         do molnoi = 1, nmols
 
 	        ri = rmols(:,molnoi)         	!Retrieve ri
-            if (skipwalls .and. moltype(molnoi) .eq. 2) cycle !Don't include wall molecules
+
+            !Don't include wall type molecules or 2nd phase argon molecules
+            !if (skipwalls .and. moltype(molnoi) .eq. 2) cycle 
+            if (skipwalls .and. any(tag(molnoi).eq.tether_tags)) cycle 
+            if (moltype(molnoi) .eq. 8) cycle
 
             ! If interface cutoff is less that interaction rcutoff
             ! then we can use the neighbourlist to get molecules in 
@@ -6736,6 +6740,9 @@ subroutine sl_interface_from_binaverage()
     real(kind(0.d0))   :: binvolume, input_soliddensity, input_liquiddensity, input_gasdensity, rd
     integer,dimension(:,:),allocatable    :: interfacecells
     real(kind(0.d0)),dimension(:,:),allocatable    :: rarray
+
+
+    call error_abort("sl_interface_from_binaverage is obsolete -- it may work but cluster analysis is preferred")
 
     if (Nmass_ave .eq. 0) call error_abort("Error in sl_interface_from_binaverage -- Interface checking requires mass binning")
     if (mod(iter/tplot+1,(Nmass_ave)) .eq. 0) then
