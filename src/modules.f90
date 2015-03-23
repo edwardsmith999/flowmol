@@ -147,6 +147,7 @@ module computational_constants_MD
 		mflux_outflag, &
 		vflux_outflag, &
 		eflux_outflag, &
+        msurf_outflag, &
 		proc_reorder, &				    !Reorder processors at restart
 		pass_vhalo = 0, &
 		peculiar_flag, &	 			!Take streaming velocity away from temperature 	
@@ -188,6 +189,7 @@ module computational_constants_MD
 		Nmflux_ave, 			&	!Number of averages for each mass flux
 		Nvflux_ave, 			&	!Number of averages for each velocity flux
 		Neflux_ave, 			&	!Number of averages for each energy flux
+		Nsurfm_ave, 			&	!Number of averages for each surface mass
 		initialstep, 			&	!Initial step of simulation
 		finalstep,              &   !Final step of simulation
 		Nsteps, 				&	!Total number of computational steps
@@ -679,8 +681,9 @@ module calculated_properties_MD
 	real(kind(0.d0)),dimension(:,:,:), allocatable	 :: volume_mass_s		!Solvnt mass in a control volume at time t
 	real(kind(0.d0)),dimension(:,:,:), allocatable	 :: volume_mass_p		!Polymer mass in a control volume at time t
 	real(kind(0.d0)),dimension(:,:,:), allocatable	 :: volume_mass_pdt		!Mass in a control volume at time t - dt
-	real(kind(0.d0)),dimension(:,:,:), allocatable	 :: dmdt					!Mass change in control volume from t-dt to t
+	real(kind(0.d0)),dimension(:,:,:), allocatable	 :: dmdt				!Mass change in control volume from t-dt to t
 	real(kind(0.d0)),dimension(:,:,:,:), allocatable :: mass_flux  			!Flow of mass over a control volume surface
+	real(kind(0.d0)),dimension(:,:,:,:), allocatable :: surface_density  	!Mass located on a control volume surface
 
 	real(kind(0.d0)) :: 	&
 		binsize(3),			&		!Size of each bin
