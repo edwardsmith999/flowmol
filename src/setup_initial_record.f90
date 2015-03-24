@@ -34,7 +34,7 @@ subroutine setup_initial_record
     character(8)            :: the_date
     character(10)           :: the_time
     character(23)           :: file_names_t
-    character(23),parameter :: file_names(38) = &
+    character(23),parameter :: file_names(39) = &
                                 (/ "mslice      ", "mbins       ", "msnap       ",&
                                    "vslice      ", "vbins       ", "vsnap       ",&
                                    "pvirial     ", "pVA         ", "pVA_k       ",& 
@@ -47,7 +47,7 @@ subroutine setup_initial_record
                                    "bforce_pdf  ", "Fvext       ", "etev        ",&
                                    "msolv       ", "mpoly       ", "vpoly       ",&
                                    "vsolv       ", "ebins       ", "hfVA_k      ",&
-                                   "hfVA_c      ", "hfVA        " /) 
+                                   "hfVA_c      ", "hfVA        ", "msurf       "/) 
 
 
 !   ! COUETTE FLOW ANALYTICAL SOLUTION

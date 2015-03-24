@@ -1034,6 +1034,15 @@ subroutine setup_read_input
 			call error_abort("If CV_debug is true, mass/momentum/energy flux must be turned on")
 		endif
 	endif
+	call locate(1,'MSURF_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+        read(1,*) msurf_outflag
+        read(1,*) Nsurfm_ave
+    else
+        msurf_outflag = 0
+        Nsurfm_ave = 0
+    endif
+
 	call locate(1,'ETEVTCF_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) etevtcf_outflag

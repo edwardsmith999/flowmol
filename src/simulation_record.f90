@@ -213,6 +213,7 @@ subroutine simulation_record
 	!Obtain and record temperature
 	if (energy_outflag .ne. 0)	call energy_averaging(energy_outflag)
 
+    if (msurf_outflag .ne. 0) call surface_density_averaging(msurf_outflag)
 	!Obtain and record molecular diffusion
 	!call evaluate_properties_diffusion
 
@@ -3492,8 +3493,10 @@ end subroutine bforce_pdf_stats
 
 subroutine mass_flux_averaging(flag)
 	!use field_io, only : mass_flux_io
-	use module_record
-	use CV_objects, only : CVcheck_mass, CV_debug!,CV_sphere_mass
+	use module_record, only : Nmflux_ave, domain, nbins, nhb, & 
+                              thermstattop, thermstatbottom, &
+                              iter, irank, mass_flux
+	use CV_objects, only : CV_debug, CVcheck_mass, check_error_mass !,CV_sphere_mass
 	implicit none
 
 	integer			                :: flag
@@ -3512,7 +3515,15 @@ subroutine mass_flux_averaging(flag)
             thermbinstop = ceiling(thermstattop/mbinsize)
             thermbinsbot = ceiling(thermstatbottom/mbinsize)
             
-		    call CVcheck_mass%check_error(1+nhb(1)+thermbinsbot(1),nbins(1)+nhb(1)-thermbinstop(1), & 
+            !E.S. this causes a compiler seg fault for 
+            !     ifort version 13.0.1 which is fixed by 
+            !     replacing 
+            !     "call CVcheck_mass%check_error( ... "   
+            !     with 
+            !     "check_error_mass(CVcheck_mass, ... "
+            call check_error_mass(CVcheck_mass, &
+
+             1+nhb(1)+thermbinsbot(1),nbins(1)+nhb(1)-thermbinstop(1), & 
 										  1+nhb(2)+thermbinsbot(2),nbins(2)+nhb(2)-thermbinstop(2), & 
 										  1+nhb(3)+thermbinsbot(3),nbins(3)+nhb(3)-thermbinstop(3),iter,irank)
 			!call CV_sphere_mass%check_error(1,1,1,1,1,1,iter,irank)
@@ -3525,9 +3536,9 @@ subroutine mass_flux_averaging(flag)
 
 end subroutine mass_flux_averaging
 
-!===================================================================================
-! Mass Flux over a surface of a bin
-! Includes all intermediate bins
+!!===================================================================================
+!! Mass Flux over a surface of a bin
+!! Includes all intermediate bins
 
 subroutine cumulative_mass_flux
 	use module_record
@@ -3673,8 +3684,8 @@ subroutine cumulative_mass_flux
 
 end subroutine cumulative_mass_flux
 
-!===================================================================================
-! Control Volume snapshot of the mass in a given bin
+!!===================================================================================
+!! Control Volume snapshot of the mass in a given bin
 
 subroutine mass_snapshot
 	use module_record
@@ -3717,13 +3728,13 @@ subroutine mass_snapshot
 end subroutine mass_snapshot
 
 
-!===================================================================================
-! Control Volume Momentum continuity
-!===================================================================================
+!!===================================================================================
+!! Control Volume Momentum continuity
+!!===================================================================================
 
 
-!===================================================================================
-! Momentum Flux over a surface of a bin including all intermediate bins
+!!===================================================================================
+!! Momentum Flux over a surface of a bin including all intermediate bins
 
 module cumulative_momentum_flux_mod
 
@@ -4286,7 +4297,6 @@ end module cumulative_energy_flux_mod
 ! Collect Energy Flux over a surface and write data after specified time period
 
 subroutine energy_flux_averaging(flag)
-	!use field_io, only : energy_flux_io,surface_power_io,MOP_energy_io
 	use module_record
 	use CV_objects, only :  CVcheck_energy
 	use cumulative_energy_flux_mod, only : cumulative_energy_flux
@@ -4416,6 +4426,186 @@ subroutine energy_snapshot
 	deallocate(volume_energy_temp)
 
 end subroutine energy_snapshot
+
+
+
+
+
+
+subroutine surface_density_averaging(flag)
+	!use field_io, only : mass_flux_io
+	use module_record
+	implicit none
+
+	integer			                :: flag
+    real(kind(0.d0)),dimension(3)   :: mbinsize
+	integer, save	                :: sample_count
+
+	!Only average if mass averaging turned on
+	if (flag .eq. 0) return
+
+	call cumulative_surface_density
+	sample_count = sample_count + 1
+	if (sample_count .eq. Nsurfm_ave) then
+		call surface_density_io
+		sample_count = 0
+		surface_density = 0
+	endif
+
+end subroutine surface_density_averaging
+
+!===================================================================================
+! Density of molecules found on the surface of a bin 
+! Includes all intermediate bins, methodology from 
+! " A technique for the calculation of mass, energy, and momentum densities
+!   at planes in molecular dynamics simulations"
+!  By Peter J. Daivis,a) Karl P. Travis, and B. D. Todd
+! 
+
+subroutine cumulative_surface_density
+	use module_record
+    use librarymod, only : imaxloc, heaviside  =>  heaviside_a1
+    use module_set_parameters, only : mass
+    !use CV_objects, only : CV_sphere_mass
+    implicit none
+
+	integer							:: jxyz,i,j,k,n
+	integer		,dimension(3)		:: ibin1,ibin2,cbin
+	real(kind(0.d0))				:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
+	real(kind(0.d0)),dimension(3)	:: mbinsize,crossface,velvect
+	real(kind(0.d0)),dimension(3)	:: ri1,ri2,ri12,bintop,binbot,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
+
+	!Determine bin size
+	mbinsize(:) = domain(:) / nbins(:)
+
+	do n = 1,np
+
+		ri1(:) = r(:,n) 							!Molecule i at time t
+		ri2(:) = r(:,n)	- delta_t*v(:,n)			!Molecule i at time t-dt
+		ri12   = ri1 - ri2							!Molecule i trajectory between t-dt and t
+		where (ri12 .eq. 0.d0) ri12 = 0.000001d0
+		
+		!call CV_sphere_mass%Add_spherical_CV_fluxes(ri2,ri1)
+
+		!Assign to bins before and after using integer division
+        ibin1(:) =  get_bin(ri1)
+        ibin2(:) =  get_bin(ri2)
+
+!		ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:)) + nhb(:)
+!		ibin2(:) = ceiling((ri2+halfdomain(:))/mbinsize(:)) + nhb(:)
+
+		!Replace Signum function with this functions which gives a
+		!check for plane crossing and the correct sign 
+		crossface(:) =  ibin1(:) - ibin2(:)
+
+		if (sum(abs(crossface(:))) .ne. 0) then
+
+			do i = ibin1(1),ibin2(1),sign(1,ibin2(1)-ibin1(1))
+			do j = ibin1(2),ibin2(2),sign(1,ibin2(2)-ibin1(2))
+			do k = ibin1(3),ibin2(3),sign(1,ibin2(3)-ibin1(3))
+
+				cbin(1) = i; cbin(2) = j; cbin(3) = k
+
+				bintop(:) = (cbin(:)-1*nhb(:)  )*mbinsize(:)-halfdomain(:)
+				binbot(:) = (cbin(:)-1*nhb(:)-1)*mbinsize(:)-halfdomain(:)
+
+				!Calculate the plane intersect of trajectory with surfaces of the cube
+				Pxt=(/ 			bintop(1), 		     & 
+						ri1(2)+(ri12(2)/ri12(1))*(bintop(1)-ri1(1)), & 
+						ri1(3)+(ri12(3)/ri12(1))*(bintop(1)-ri1(1))  	/)
+				Pxb=(/ 			binbot(1), 		     & 
+						ri1(2)+(ri12(2)/ri12(1))*(binbot(1)-ri1(1)), & 
+						ri1(3)+(ri12(3)/ri12(1))*(binbot(1)-ri1(1))  	/)
+				Pyt=(/	ri1(1)+(ri12(1)/ri12(2))*(bintop(2)-ri1(2)), & 
+							bintop(2), 		     & 
+						ri1(3)+(ri12(3)/ri12(2))*(bintop(2)-ri1(2))  	/)
+				Pyb=(/	ri1(1)+(ri12(1)/ri12(2))*(binbot(2)-ri1(2)), &
+							binbot(2), 		     & 
+						ri1(3)+(ri12(3)/ri12(2))*(binbot(2)-ri1(2))  	/)
+				Pzt=(/	ri1(1)+(ri12(1)/ri12(3))*(bintop(3)-ri1(3)), & 
+						ri1(2)+(ri12(2)/ri12(3))*(bintop(3)-ri1(3)), &
+							bintop(3) 			/)
+				Pzb=(/	ri1(1)+(ri12(1)/ri12(3))*(binbot(3)-ri1(3)), &
+						ri1(2)+(ri12(2)/ri12(3))*(binbot(3)-ri1(3)), & 
+							binbot(3) 			/)
+
+				onfacexb =0.5d0*(sign(1.d0,binbot(1) - ri2(1)) 	 & 
+						       - sign(1.d0,binbot(1) - ri1(1)))* &
+								(heaviside(bintop(2) - Pxb(2)) 	 &
+						       - heaviside(binbot(2) - Pxb(2)))* &
+								(heaviside(bintop(3) - Pxb(3)) 	 &
+						       - heaviside(binbot(3) - Pxb(3)))
+				onfaceyb =0.5d0*(sign(1.d0,binbot(2) - ri2(2))   &
+						       - sign(1.d0,binbot(2) - ri1(2)))* &
+								(heaviside(bintop(1) - Pyb(1))   &
+						       - heaviside(binbot(1) - Pyb(1)))* &
+								(heaviside(bintop(3) - Pyb(3))   &
+						       - heaviside(binbot(3) - Pyb(3)))
+				onfacezb =0.5d0*(sign(1.d0,binbot(3) - ri2(3))   &
+						       - sign(1.d0,binbot(3) - ri1(3)))* &
+								(heaviside(bintop(1) - Pzb(1))   &
+						       - heaviside(binbot(1) - Pzb(1)))* &
+								(heaviside(bintop(2) - Pzb(2))   &
+						       - heaviside(binbot(2) - Pzb(2)))
+
+				onfacext =0.5d0*(sign(1.d0,bintop(1) - ri2(1))   &
+						       - sign(1.d0,bintop(1) - ri1(1)))* &
+								(heaviside(bintop(2) - Pxt(2))   &
+						       - heaviside(binbot(2) - Pxt(2)))* &
+								(heaviside(bintop(3) - Pxt(3))   &
+						       - heaviside(binbot(3) - Pxt(3)))
+				onfaceyt =0.5d0*(sign(1.d0,bintop(2) - ri2(2))   &
+						       - sign(1.d0,bintop(2) - ri1(2)))* &
+								(heaviside(bintop(1) - Pyt(1))   &
+						       - heaviside(binbot(1) - Pyt(1)))* &
+								(heaviside(bintop(3) - Pyt(3))   &
+						       - heaviside(binbot(3) - Pyt(3)))
+				onfacezt =0.5d0*(sign(1.d0,bintop(3) - ri2(3))   &
+						       - sign(1.d0,bintop(3) - ri1(3)))* &
+								(heaviside(bintop(1) - Pzt(1))   &
+							   - heaviside(binbot(1) - Pzt(1)))* &
+								(heaviside(bintop(2) - Pzt(2))   &
+						       - heaviside(binbot(2) - Pzt(2)))
+
+				jxyz = imaxloc(abs(crossface))	!Integer array of size 1 copied to integer
+				velvect(:) = v(:,n) !- a(:,n) * crosstime
+
+				!Add Density on surface for molecules crossing face
+				surface_density(cbin(1),cbin(2),cbin(3),1) = & 
+					surface_density(cbin(1),cbin(2),cbin(3),1) & 
+				      + mass(n)*nint(dble(onfacexb)*abs(crossface(jxyz)))/abs(velvect(1))
+				surface_density(cbin(1),cbin(2),cbin(3),2) = & 
+					surface_density(cbin(1),cbin(2),cbin(3),2) & 
+				      + mass(n)*nint(dble(onfaceyb)*abs(crossface(jxyz)))/abs(velvect(2))
+				surface_density(cbin(1),cbin(2),cbin(3),3) = & 
+					surface_density(cbin(1),cbin(2),cbin(3),3) &
+				      + mass(n)*nint(dble(onfacezb)*abs(crossface(jxyz)))/abs(velvect(3))
+				surface_density(cbin(1),cbin(2),cbin(3),4) = & 
+					surface_density(cbin(1),cbin(2),cbin(3),4) &
+				      + mass(n)*nint(dble(onfacext)*abs(crossface(jxyz)))/abs(velvect(1))
+				surface_density(cbin(1),cbin(2),cbin(3),5) = & 
+					surface_density(cbin(1),cbin(2),cbin(3),5) &
+				      + mass(n)*nint(dble(onfaceyt)*abs(crossface(jxyz)))/abs(velvect(2))
+				surface_density(cbin(1),cbin(2),cbin(3),6) = & 
+					surface_density(cbin(1),cbin(2),cbin(3),6) &
+				      + mass(n)*nint(dble(onfacezt)*abs(crossface(jxyz)))/abs(velvect(3))
+				      
+
+				!if (onfacexb .ne. 0) print*, n, i,j,k,ibin1,ibin2,bintop,halfdomain
+
+				!if (cbin(1) .ge. nbins(1)+1 .or. cbin(1) .le. 2) then
+				!	print'(4i8,6f10.5)',iter, cbin, momentum_flux(cbin(1),cbin(2),cbin(3),:,1),momentum_flux(cbin(1),cbin(2),cbin(3),:,4)
+				!endif
+
+			enddo
+			enddo
+			enddo
+
+		endif
+
+	enddo
+
+end subroutine cumulative_surface_density
 
 !====================================================================================
 !
@@ -4716,577 +4906,587 @@ end subroutine control_volume_power
 
 
 
-!===================================================================================
-!Forces times velocity over the surface of a Volume
-
-module get_timesteps_module
-
-contains
-
-subroutine get_timesteps(ncrossings,bin,bin_mdt,Fbinsize,rc,vc,delta_t,delta_t_list,count_t)
-	use computational_constants_MD, only : halfdomain, nhb, iter
-	implicit none
-
-	integer,intent(in)								:: ncrossings, bin(3),bin_mdt(3)
-	integer,intent(inout)							:: count_t
-	real(kind(0.d0)),intent(in)						:: delta_t
-	real(kind(0.d0)),dimension(3),intent(in)		:: rc,vc,Fbinsize
-	real(kind(0.d0)),dimension(:),allocatable,intent(inout)	:: delta_t_list
-
-	integer											:: i,j,k,m
-	real(kind(0.d0)),dimension(3)					:: bintop,binbot
-	real(kind(0.d0)),dimension(6)					:: crosstime
-
-
-	if (ncrossings .eq. 0) return
-
-       !Otherwise, get time spent in each cell
-	do i = bin(1),bin_mdt(1),sign(1,bin_mdt(1)-bin(1))
-    do j = bin(2),bin_mdt(2),sign(1,bin_mdt(2)-bin(2))
-    do k = bin(3),bin_mdt(3),sign(1,bin_mdt(3)-bin(3))
-
-		!Get bin top and bottom
-	    bintop(1) = (i-1*nhb(1)  )*Fbinsize(1)-halfdomain(1)
-	    bintop(2) = (j-1*nhb(2)  )*Fbinsize(2)-halfdomain(2)
-	    bintop(3) = (k-1*nhb(3)  )*Fbinsize(3)-halfdomain(3)
-	    binbot(1) = (i-1*nhb(1)-1)*Fbinsize(1)-halfdomain(1)
-	    binbot(2) = (j-1*nhb(2)-1)*Fbinsize(2)-halfdomain(2)
-	    binbot(3) = (k-1*nhb(3)-1)*Fbinsize(3)-halfdomain(3)
-
-	    !Calculate the plane intersect of line with surfaces of the cube
-		crosstime(1) = (rc(1) - bintop(1))/ vc(1)
-		crosstime(2) = (rc(1) - binbot(1))/ vc(1)
-		crosstime(3) = (rc(2) - bintop(2))/ vc(2)
-		crosstime(4) = (rc(2) - binbot(2))/ vc(2)
-		crosstime(5) = (rc(3) - bintop(3))/ vc(3)
-		crosstime(6) = (rc(3) - binbot(3))/ vc(3)
-
-! 		print'(a,i6,3i3,6f12.7)','Crossingtimes',iter,i,j,k,crosstime
-!  		print'(a,i6,3i3,9f12.7)','Surfaces',iter,i,j,k,	bintop(1),rc(1),binbot(1), & 
-!  														bintop(2),rc(2),binbot(2), & 
-!  														bintop(3),rc(3),binbot(3) 
-
-		!Add any crossings within the time period to the list of crossings
-		do m = 1,6
-			if (crosstime(m) .gt. 0.d0 .and. crosstime(m) .lt. delta_t) then
-				count_t = count_t + 1
-				delta_t_list(count_t) = crosstime(m)
-			endif
-		enddo
-
-	enddo
-	enddo
-	enddo
-
-end subroutine get_timesteps
-
-
-subroutine get_CV_surface_contributions(ibin,jbin,ri,rj,Fbinsize,value,CV_Face_value,molnoi,molnoj)
-	use computational_constants_MD, only : halfdomain, nhb, iter
-    use librarymod, only : heaviside => heaviside_a1
-	implicit none
-
-	integer, dimension(3),intent(in)								:: ibin,jbin
-	integer,intent(in)												:: molnoi,molnoj !TEMPTEMP
-	real(kind(0.d0)), dimension(3),intent(in)						:: ri, rj, Fbinsize
-	real(kind(0.d0)), intent(in)									:: value
-	real(kind(0.d0)),dimension(:,:,:,:),allocatable, intent(inout)	:: CV_Face_value
-
-	integer										:: i,j,k,ixyz, face
-    real(kind(0.d0))							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
-	real(kind(0.d0)),dimension(3)   			:: Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
-	real(kind(0.d0)),dimension(3)				:: rij,  bintop, binbot
-
-
-	!If same bin, nothing to do here
-	if (ibin(1) .eq. jbin(1) .and. ibin(2) .eq. jbin(2) .and. ibin(3) .eq. jbin(3)) return
-
-	!Get interaction line
-	rij = ri - rj
-
-	!Prevent Division by zero
-	do ixyz = 1,3
-		if (abs(rij(ixyz)) .lt. 0.000001d0) rij(ixyz) = sign(0.000001d0,rij(ixyz))
-	enddo
-		
-	!Loop through all intermediate bins, check surface to add to and then add
-	do i = ibin(1),jbin(1),sign(1,jbin(1)-ibin(1))
-	do j = ibin(2),jbin(2),sign(1,jbin(2)-ibin(2))
-	do k = ibin(3),jbin(3),sign(1,jbin(3)-ibin(3))
-
-		!Get bin top and bottom
-	    bintop(1) = (i-1*nhb(1)  )*Fbinsize(1)-halfdomain(1)
-	    bintop(2) = (j-1*nhb(2)  )*Fbinsize(2)-halfdomain(2)
-	    bintop(3) = (k-1*nhb(3)  )*Fbinsize(3)-halfdomain(3)
-	    binbot(1) = (i-1*nhb(1)-1)*Fbinsize(1)-halfdomain(1)
-	    binbot(2) = (j-1*nhb(2)-1)*Fbinsize(2)-halfdomain(2)
-	    binbot(3) = (k-1*nhb(3)-1)*Fbinsize(3)-halfdomain(3)
-
-		!Calculate the plane intersect of line with surfaces of the cube
-		Pxt=(/ bintop(1),ri(2)+(rij(2)/rij(1))*(bintop(1)-ri(1)),ri(3)+(rij(3)/rij(1))*(bintop(1)-ri(1))  /)
-		Pxb=(/ binbot(1),ri(2)+(rij(2)/rij(1))*(binbot(1)-ri(1)),ri(3)+(rij(3)/rij(1))*(binbot(1)-ri(1))  /)
-		Pyt=(/ri(1)+(rij(1)/rij(2))*(bintop(2)-ri(2)), bintop(2),ri(3)+(rij(3)/rij(2))*(bintop(2)-ri(2))  /)
-		Pyb=(/ri(1)+(rij(1)/rij(2))*(binbot(2)-ri(2)), binbot(2),ri(3)+(rij(3)/rij(2))*(binbot(2)-ri(2))  /)
-		Pzt=(/ri(1)+(rij(1)/rij(3))*(bintop(3)-ri(3)), ri(2)+(rij(2)/rij(3))*(bintop(3)-ri(3)), bintop(3) /)
-		Pzb=(/ri(1)+(rij(1)/rij(3))*(binbot(3)-ri(3)), ri(2)+(rij(2)/rij(3))*(binbot(3)-ri(3)), binbot(3) /)
-
-		onfacexb =  	(sign(1.d0,binbot(1)- rj(1)) - sign(1.d0,binbot(1)- ri(1)))* &
-						(heaviside(bintop(2)-Pxb(2)) - heaviside(binbot(2)-Pxb(2)))* &
-						(heaviside(bintop(3)-Pxb(3)) - heaviside(binbot(3)-Pxb(3)))
-		onfaceyb =  	(sign(1.d0,binbot(2)- rj(2)) - sign(1.d0,binbot(2)- ri(2)))* &
-						(heaviside(bintop(1)-Pyb(1)) - heaviside(binbot(1)-Pyb(1)))* &
-						(heaviside(bintop(3)-Pyb(3)) - heaviside(binbot(3)-Pyb(3)))
-		onfacezb =  	(sign(1.d0,binbot(3)- rj(3)) - sign(1.d0,binbot(3)- ri(3)))* &
-						(heaviside(bintop(1)-Pzb(1)) - heaviside(binbot(1)-Pzb(1)))* &
-						(heaviside(bintop(2)-Pzb(2)) - heaviside(binbot(2)-Pzb(2)))
-
-		onfacext =  	(sign(1.d0,bintop(1)- rj(1)) - sign(1.d0,bintop(1)- ri(1)))* &
-						(heaviside(bintop(2)-Pxt(2)) - heaviside(binbot(2)-Pxt(2)))* &
-	            		(heaviside(bintop(3)-Pxt(3)) - heaviside(binbot(3)-Pxt(3)))
-		onfaceyt = 		(sign(1.d0,bintop(2)- rj(2)) - sign(1.d0,bintop(2)- ri(2)))* &
-						(heaviside(bintop(1)-Pyt(1)) - heaviside(binbot(1)-Pyt(1)))* &
-						(heaviside(bintop(3)-Pyt(3)) - heaviside(binbot(3)-Pyt(3)))
-		onfacezt =  	(sign(1.d0,bintop(3)- rj(3)) - sign(1.d0,bintop(3)- ri(3)))* &
-						(heaviside(bintop(1)-Pzt(1)) - heaviside(binbot(1)-Pzt(1)))* &
-						(heaviside(bintop(2)-Pzt(2)) - heaviside(binbot(2)-Pzt(2)))
-
-		!Value acting on face
-		CV_Face_value(i,j,k,1) = CV_Face_value(i,j,k,1) + value*onfacexb
-		CV_Face_value(i,j,k,2) = CV_Face_value(i,j,k,2) + value*onfaceyb
-		CV_Face_value(i,j,k,3) = CV_Face_value(i,j,k,3) + value*onfacezb
-		CV_Face_value(i,j,k,4) = CV_Face_value(i,j,k,4) + value*onfacext
-		CV_Face_value(i,j,k,5) = CV_Face_value(i,j,k,5) + value*onfaceyt
-		CV_Face_value(i,j,k,6) = CV_Face_value(i,j,k,6) + value*onfacezt
-
-  	if (i .eq. 3 .and. j .eq. 3 .and. k .eq. 3) then
-   	if (any(abs((/onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb/)) .gt. 0.00001)) then
-   	!if (abs(onfacext+onfacexb+onfaceyt+onfaceyb+onfacezt+onfacezb) .gt. 0.00001) then
-   			if (abs(onfacexb) .gt. 0.000001) face = 1 
-   			if (abs(onfaceyb) .gt. 0.000001) face = 2 
-   			if (abs(onfacezb) .gt. 0.000001) face = 3 
-   			if (abs(onfacext) .gt. 0.000001) face = 4 
-   			if (abs(onfaceyt) .gt. 0.000001) face = 5 
-   			if (abs(onfacezt) .gt. 0.000001) face = 6 
-   				print'(a,6i5,2f12.4,6i3,f6.0,5f4.0)','Int pp box 3', iter,molnoi,molnoj,i,j,k,value, & 
-   																	CV_Face_value(i,j,k,face), & 
-   																	ibin,jbin,onfacext,onfacexb,onfaceyt, & 
-   																	onfaceyb,onfacezt,onfacezb
-   	!endif
-   	endif
-   	endif
-
-		!print'(a,3i4,7f10.5)', 'IN surface cv routine ',i,j,k, CV_Face_value(i,j,k,:), value
-
-	enddo
-	enddo
-	enddo
-
-end subroutine get_CV_surface_contributions
-
-end module get_timesteps_module
-
-!subroutine control_volume_power_partialint(fij,ri,rj,vi_mhdt,vj_mhdt,ai_mdt,aj_mdt,ai,aj,molnoi,molnoj)
-!    use module_record
-!	use CV_objects, only : CV_debug,CV_constraint
-!    use librarymod, only : heaviside => heaviside_a1, bubble_sort
-!	use get_timesteps_module
-!    implicit none
-
-!	integer,intent(in)						 	:: molnoi, molnoj
-!	real(kind(0.d0)),dimension(3),intent(in) 	:: fij,ri,rj,vi_mhdt,vj_mhdt,ai_mdt,aj_mdt,ai,aj
-
-
-!	integer										:: i,j,k,m,n,ixyz,ncrossings,ncrossingsi,ncrossingsj,count_t
-!	integer,dimension(3)						:: cbin, ibin, jbin, ibin_mdt, jbin_mdt
-!    real(kind(0.d0))							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
-!    real(kind(0.d0))							:: invrij2,rij2_mdt,fijvi,fijvi_mdt,fijvi_trapz,delta_t_portion,eps = 0.0001d0
-!	real(kind(0.d0)),dimension(3)   			:: fsurface,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb,velvect
-!	real(kind(0.d0)),dimension(3)   			:: vi,vj,vi_mdt,vj_mdt
-!	real(kind(0.d0)),dimension(3)   			:: ri_mdt,rj_mdt,rij_mdt,fij_mdt,ri_p,rj_p
-!	real(kind(0.d0)),dimension(3)				:: Fbinsize, bintop, binbot
-!	real(kind(0.d0)),dimension(6)				:: crosstime
-!	real(kind(0.d0)),dimension(:),allocatable	:: delta_t_list,delta_t_array
-
-!	character(30)	:: frmtstr
-
-!	!Determine bin size
-!	Fbinsize(:) = domain(:) / nbins(:)
-
-!! 	!Old velocities
-!! 	vi_mhdt = vi_hdt - ai_mdt*delta_t
-!! 	vj_mhdt = vj_hdt - aj_mdt*delta_t
-!! 	
-!! 	!Old positions
-!! 	ri_mdt = ri - vi_mhdt*delta_t
-!! 	rj_mdt = rj - vj_mhdt*delta_t
-
-!! 	!Get fij, vi and vj
-!! 	vi = vi_hdt + 0.5*ai_mdt*delta_t		!This is not okay -- ai_pdt should be used...
-!! 	vj = vi_hdt + 0.5*ai_mdt*delta_t		!This is not okay -- ai_pdt should be used...
-
-!! 	!Get fij_mdt, vi_mdt and vj_mdt
-!! 	rij_mdt(:)= ri_mdt(:) - rj_mdt(:)   					!Evaluate distance between particle i and j
-!! 	invrij2  = 1.d0/(dot_product(rij_mdt,rij_mdt))					!Invert value
-!! 	fij_mdt = 48.d0*(invrij2**7-0.5d0*invrij2**4)*rij_mdt
-!! 	vi_mdt = vi_hdt - 0.5*ai_mdt*delta_t
-!! 	vj_mdt = vi_hdt - 0.5*ai_mdt*delta_t
-
-
-!	!Assuming acceleration passed in are at time t-dt/2
-
-!	!Velocities for dot product @ t and t-dt
-!	vi(:) 	  = vi_mhdt + 0.5d0*delta_t*ai(:)
-!	vj(:) 	  = vj_mhdt + 0.5d0*delta_t*aj(:)
-
-!	vi_mdt(:) = vi_mhdt - 0.5d0*delta_t*ai_mdt(:)
-!	vj_mdt(:) = vj_mhdt - 0.5d0*delta_t*aj_mdt(:)
-
-!	!Velocity=>Positions=>fij at t-dt
-!	!vi_mhdt(:) = vi_hdt - delta_t*ai_mdt(:)
-!	!vj_mhdt(:) = vj_hdt - delta_t*aj_mdt(:)
-
-! 	ri_mdt(:) = ri - delta_t*vi_mhdt(:)
-! 	rj_mdt(:) = rj - delta_t*vj_mhdt(:)
-
-! 	rij_mdt(:)= ri_mdt(:) - rj_mdt(:)   					!Evaluate distance between particle i and j
-!	rij2_mdt = dot_product(rij_mdt,rij_mdt)
-!	if (rij2_mdt < rcutoff2) then
-!	 	invrij2  = 1.d0/rij2_mdt
-! 		fij_mdt = 48.d0*(invrij2**7-0.5d0*invrij2**4)*rij_mdt
-!	else
-!		fij_mdt = 0.d0
-!	endif
-
-!	!Trapizium rule calculation of power to add during portion of timestep
-!	fijvi 	  = dot_product(fij    ,  vi  )
-!	fijvi_mdt = dot_product(fij_mdt,vi_mdt)
-
-
-!! 	vi_phdt(:) = vi_hdt + delta_t*ai(:)
-!! 	vj_phdt(:) = vj_hdt + delta_t*aj(:)
-
-!! 	ri_pdt(:) = ri + delta_t*vi_phdt(:)
-!! 	rj_pdt(:) = rj + delta_t*vj_phdt(:)
-
-! 	!Get fij_mdt, vi_mdt and vj_mdt
-!!  	rij_pdt(:)= ri_pdt(:) - rj_pdt(:)   					!Evaluate distance between particle i and j
-!!  	invrij2  = 1.d0/(dot_product(rij_pdt,rij_pdt))					!Invert value
-!!  	fij_pdt = 48.d0*(invrij2**7-0.5d0*invrij2**4)*rij_pdt
-
-
-
-!	!Assign to bins using integer division
-!	ibin(:) 	= ceiling((ri(:)	+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
-!	jbin(:) 	= ceiling((rj(:)	+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
-!	ibin_mdt(:) = ceiling((ri_mdt(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish previous bin
-!	jbin_mdt(:) = ceiling((rj_mdt(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish previous bin
-
-!	!Get number of crossings
-!	ncrossingsi =  abs(ibin(1) - ibin_mdt(1)) + abs(ibin(2) - ibin_mdt(2)) + abs(ibin(3) - ibin_mdt(3))
-!	ncrossingsj =  abs(jbin(1) - jbin_mdt(1)) + abs(jbin(2) - jbin_mdt(2)) + abs(jbin(3) - jbin_mdt(3)) 
-!	ncrossings = ncrossingsi+ncrossingsj
-
-!	!Get portion of timestep in each cell
-!	count_t = 0
-!	if (ncrossings .eq. 0) then
-!		allocate(delta_t_array(2))
-!		delta_t_array(1) = 0.d0
-!		delta_t_array(2) = delta_t
-!	else
-!		! Each molecular crossing time is counted twice -- once for the cell it's 
-!		! leaving and once for the cell it's moving into
-!		allocate(delta_t_list(2*ncrossings))
-!		if (ncrossingsi .ne. 0) print'(a,2i4,6f12.8,6i4)', 'Molecule i',iter, molnoi, ri,ri_mdt,ibin,ibin_mdt
-!		if (ncrossingsj .ne. 0) print'(a,2i4,6f12.8,6i4)', 'Molecule j',iter, molnoj, rj,rj_mdt,jbin,jbin_mdt
-
-!    	!Check if molecule i has changed bin
-!		call  get_timesteps(ncrossingsi,ibin,ibin_mdt,Fbinsize,ri,vi_mhdt,delta_t,delta_t_list,count_t)
-
-!    	!Check if molecule j has changed bin
-!		call  get_timesteps(ncrossingsj,jbin,jbin_mdt,Fbinsize,rj,vj_mhdt,delta_t,delta_t_list,count_t)
-
-!		!Get crossing times in chronological order
-!		call bubble_sort(delta_t_list)
-
-!		!Sanity checks -- count_t == ncrossings & sum(delta_t_list) == delta_t
-!		if (ncrossings .ne. 0.5*count_t) then
-!			print'(a,2i12)', ' count_t == ncrossings ',count_t/2,ncrossings
-!			stop "Error - crossing values not equal"
-!		endif
-!		if (any(delta_t_list .gt. delta_t)) then
-!			stop "Error - delta t not ok in energy CV"
-!		endif
-
-!		!print'(i4,a,2i12,a,2f10.5)',iter,' count_t == ncrossings ',ncrossings,count_t/2, & 
-!		!						 ' sum(delta_t_list) == delta_t ',delta_t, sum(delta_t_list)
-
-!		!Set initial and final time and copy timestep arrays 
-!		allocate(delta_t_array(ncrossings+2))
-!		delta_t_array(1) = 0.d0
-!		delta_t_array(ncrossings+2) = delta_t
-!		n = 2
-!		do i = 1,size(delta_t_list),2
-!			if (delta_t_list(i) .ne. delta_t_list(i+1)) then
-!				stop "Error - Successive timesteps not same in delta_t array"
-!			endif 
-!			delta_t_array(n) = delta_t_list(i)
-!			n = n + 1
+
+
+
+
+
+
+
+
+
+
+!!===================================================================================
+!!Forces times velocity over the surface of a Volume
+
+!module get_timesteps_module
+
+!contains
+
+!subroutine get_timesteps(ncrossings,bin,bin_mdt,Fbinsize,rc,vc,delta_t,delta_t_list,count_t)
+!	use computational_constants_MD, only : halfdomain, nhb, iter
+!	implicit none
+
+!	integer,intent(in)								:: ncrossings, bin(3),bin_mdt(3)
+!	integer,intent(inout)							:: count_t
+!	real(kind(0.d0)),intent(in)						:: delta_t
+!	real(kind(0.d0)),dimension(3),intent(in)		:: rc,vc,Fbinsize
+!	real(kind(0.d0)),dimension(:),allocatable,intent(inout)	:: delta_t_list
+
+!	integer											:: i,j,k,m
+!	real(kind(0.d0)),dimension(3)					:: bintop,binbot
+!	real(kind(0.d0)),dimension(6)					:: crosstime
+
+
+!	if (ncrossings .eq. 0) return
+
+!       !Otherwise, get time spent in each cell
+!	do i = bin(1),bin_mdt(1),sign(1,bin_mdt(1)-bin(1))
+!    do j = bin(2),bin_mdt(2),sign(1,bin_mdt(2)-bin(2))
+!    do k = bin(3),bin_mdt(3),sign(1,bin_mdt(3)-bin(3))
+
+!		!Get bin top and bottom
+!	    bintop(1) = (i-1*nhb(1)  )*Fbinsize(1)-halfdomain(1)
+!	    bintop(2) = (j-1*nhb(2)  )*Fbinsize(2)-halfdomain(2)
+!	    bintop(3) = (k-1*nhb(3)  )*Fbinsize(3)-halfdomain(3)
+!	    binbot(1) = (i-1*nhb(1)-1)*Fbinsize(1)-halfdomain(1)
+!	    binbot(2) = (j-1*nhb(2)-1)*Fbinsize(2)-halfdomain(2)
+!	    binbot(3) = (k-1*nhb(3)-1)*Fbinsize(3)-halfdomain(3)
+
+!	    !Calculate the plane intersect of line with surfaces of the cube
+!		crosstime(1) = (rc(1) - bintop(1))/ vc(1)
+!		crosstime(2) = (rc(1) - binbot(1))/ vc(1)
+!		crosstime(3) = (rc(2) - bintop(2))/ vc(2)
+!		crosstime(4) = (rc(2) - binbot(2))/ vc(2)
+!		crosstime(5) = (rc(3) - bintop(3))/ vc(3)
+!		crosstime(6) = (rc(3) - binbot(3))/ vc(3)
+
+!! 		print'(a,i6,3i3,6f12.7)','Crossingtimes',iter,i,j,k,crosstime
+!!  		print'(a,i6,3i3,9f12.7)','Surfaces',iter,i,j,k,	bintop(1),rc(1),binbot(1), & 
+!!  														bintop(2),rc(2),binbot(2), & 
+!!  														bintop(3),rc(3),binbot(3) 
+
+!		!Add any crossings within the time period to the list of crossings
+!		do m = 1,6
+!			if (crosstime(m) .gt. 0.d0 .and. crosstime(m) .lt. delta_t) then
+!				count_t = count_t + 1
+!				delta_t_list(count_t) = crosstime(m)
+!			endif
 !		enddo
 
-!	endif
-
-!	if (ncrossings .ge. 1) then
-! 	if (all(ibin .eq. 3)  .or. &
-! 		all(jbin .eq. 3) 	) then
-!!  	if (all(ibin .eq. 3) .and. any(jbin .ne. 3) .or. &
-!!  		all(jbin .eq. 3) .and. any(ibin .ne. 3)	) then
-!		print'(a,12i4)','Predicted cells', ibin,ibin_mdt,jbin,jbin_mdt
-!	endif
-!	endif
-
-!	!Calculate surface contributions
-!	do n=1,ncrossings+1
-!	
-!		delta_t_portion = delta_t_array(n+1)-delta_t_array(n)
-
-!		!Calculate intermediate positions
-!		ri_p = ri - vi_mhdt*delta_t_portion + eps
-!		rj_p = rj - vj_mhdt*delta_t_portion + eps
-
-!		ibin(:) 	= ceiling((ri_p(:)	+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
-!		jbin(:) 	= ceiling((rj_p(:)	+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
-
-!		if (ncrossings .ge. 1) then
-! 		if (all(ibin .eq. 3) .and. any(jbin .ne. 3) .or. &
-! 			all(jbin .eq. 3) .and. any(ibin .ne. 3)	) then
-!				print'(a,12i4,3f14.9)','Delta_t',iter,n,molnoi,molnoj,ibin,jbin, & 
-!												 ncrossingsi,ncrossingsj, delta_t_array(n),& 
-!												 delta_t_portion,delta_t_array(n+1)
-!		endif
-!		endif
-
-!		!Calculate and add fraction of interation
-!		fijvi_trapz = 0.5d0*delta_t_portion * (fijvi + fijvi_mdt)/delta_t
-!		call  get_CV_surface_contributions(ibin,jbin,ri_p,rj_p,Fbinsize,fijvi_trapz,Pxyvface2,molnoi,molnoj)
-
-!!  		if (all(ibin .eq. 3) .and. any(jbin .ne. 3)) then
-!! 			print'(a,3i4,10f11.6)', 'Saving ints',iter,molnoi,molnoj,delta_t_portion , & 
-!! 													0.25*Pxyvface2(ibin(1),ibin(2),ibin(3),:)/5.0, &  !binsize
-!! 													fijvi,fijvi_mdt,fijvi_trapz
-!! 		endif
-!! 		if (all(jbin .eq. 3) .and. any(ibin .ne. 3)) then
-!! 			print'(a,3i4,10f11.6)', 'Saving ints',iter,molnoi,molnoj,delta_t_portion , &
-!! 													0.25*Pxyvface2(jbin(1),jbin(2),jbin(3),:)/5.0, & 
-!! 													fijvi,fijvi_mdt,fijvi_trapz
-!! 		endif
-
-!! 		if (all(ibin .eq. 3) .and. any(jbin .ne. 3) .or. &
-!! 			all(jbin .eq. 3) .and. any(ibin .ne. 3)	) then
-!! 			print'(a,3i4,10f11.7)', 'Current',iter,molnoi,molnoj,fij_mdt,vi_mdt,fijvi_mdt,0.25*fijvi_trapz/(5.0*delta_t)
-!! 			print'(a,3i4,10f11.7)', 'Future ',iter,molnoi,molnoj,fij,vi,fijvi,0.25*fijvi_trapz/(5.0*delta_t)
-!! 		endif
-!		!print'(a,12f10.5)', 'Power after', Pxyvface(ibin(1),ibin(2),ibin(3),:), Pxyvface(jbin(1),jbin(2),jbin(3),:)
-
+!	enddo
+!	enddo
 !	enddo
 
-!end subroutine control_volume_power_partialint
+!end subroutine get_timesteps
 
 
+!subroutine get_CV_surface_contributions(ibin,jbin,ri,rj,Fbinsize,value,CV_Face_value,molnoi,molnoj)
+!	use computational_constants_MD, only : halfdomain, nhb, iter
+!    use librarymod, only : heaviside => heaviside_a1
+!	implicit none
+
+!	integer, dimension(3),intent(in)								:: ibin,jbin
+!	integer,intent(in)												:: molnoi,molnoj !TEMPTEMP
+!	real(kind(0.d0)), dimension(3),intent(in)						:: ri, rj, Fbinsize
+!	real(kind(0.d0)), intent(in)									:: value
+!	real(kind(0.d0)),dimension(:,:,:,:),allocatable, intent(inout)	:: CV_Face_value
+
+!	integer										:: i,j,k,ixyz, face
+!    real(kind(0.d0))							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
+!	real(kind(0.d0)),dimension(3)   			:: Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
+!	real(kind(0.d0)),dimension(3)				:: rij,  bintop, binbot
 
 
-! !===================================================================================
-! !Forces over the surface of a Volume optmised for computational efficiency
+!	!If same bin, nothing to do here
+!	if (ibin(1) .eq. jbin(1) .and. ibin(2) .eq. jbin(2) .and. ibin(3) .eq. jbin(3)) return
 
-! subroutine control_volume_stresses_opt(fij,ri,rj,molnoi)
-! 	use module_record
-!     use librarymod, only : heaviside  =>  heaviside_a1
-! 	implicit none
-
-! 	integer							:: i,j,k,ixyz,molnoi,molnoj
-! 	integer,dimension(3)			:: cbin, ibin, jbin, Si
-! 	real(kind(0.d0)),dimension(3)	:: ri,rj,rij,fij,fsurface,Px,Py,Pz,sgnjit,sgnjib,onfaceb,onfacet,velvect
-! 	real(kind(0.d0)),dimension(3)	:: Fbinsize, bintop, binbot
-
-! 	!Calculate rij
-! 	rij = ri - rj
-! 	!Prevent Division by zero
-! 	do ixyz = 1,3
-! 		if (abs(rij(ixyz)) .lt. 0.000001d0) rij(ixyz) = sign(0.000001d0,rij(ixyz))
-! 	enddo
-
-! 	!Determine bin size
-! 	Fbinsize(:) = domain(:) / nbins(:)
-
-! 	!Assign to bins using integer division
-! 	ibin(:) = ceiling((ri(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
-! 	jbin(:) = ceiling((rj(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
-
-! 	if (ibin(1) .eq. jbin(1) .and. ibin(2) .eq. jbin(2) .and. ibin(3) .eq. jbin(3)) return
-! 		
-! 	do i = ibin(1),jbin(1),sign(1,jbin(1)-ibin(1))
-! 	do j = ibin(2),jbin(2),sign(1,jbin(2)-ibin(2))
-! 	do k = ibin(3),jbin(3),sign(1,jbin(3)-ibin(3))
-
-! 		cbin(1) = i; cbin(2) = j; cbin(3) = k
-
-! 		bintop(:) = (cbin(:)-1*nhb(:)  )*Fbinsize(:)-halfdomain(:)
-! 		binbot(:) = (cbin(:)-1*nhb(:)-1)*Fbinsize(:)-halfdomain(:)
-
-! 		!Calculate the plane intersect of line with surfaces of the cube
-! 		Px=(/ bintop(1),ri(2)+(rij(2)/rij(1))*(bintop(1)-ri(1)),ri(3)+(rij(3)/rij(1))*(bintop(1)-ri(1))  /)
-! 		Py=(/ri(1)+(rij(1)/rij(2))*(bintop(2)-ri(2)), bintop(2),ri(3)+(rij(3)/rij(2))*(bintop(2)-ri(2))  /)
-! 		Pz=(/ri(1)+(rij(1)/rij(3))*(bintop(3)-ri(3)), ri(2)+(rij(2)/rij(3))*(bintop(3)-ri(3)), bintop(3) /)
-
-! 		sgnjit(:)= sign(1.d0,bintop(:)- rj(:)) - sign(1.d0,bintop(:)- ri(:))
-! 		sgnjib(:)= sign(1.d0,binbot(:)- rj(:)) - sign(1.d0,binbot(:)- ri(:))
-
-! 		Si(1) =	(heaviside(bintop(2)-Px(2)) - heaviside(binbot(2)-Px(2)))* &
-! 				(heaviside(bintop(3)-Px(3)) - heaviside(binbot(3)-Px(3)))
-! 		Si(2) =	(heaviside(bintop(1)-Py(1)) - heaviside(binbot(1)-Py(1)))* &
-! 				(heaviside(bintop(3)-Py(3)) - heaviside(binbot(3)-Py(3)))
-! 		Si(3) =	(heaviside(bintop(1)-Pz(1)) - heaviside(binbot(1)-Pz(1)))* &
-! 				(heaviside(bintop(2)-Pz(2)) - heaviside(binbot(2)-Pz(2)))
-
-! 		onfaceb(:) = sgnjib(:)*dble(Si(:))
-! 		onfacet(:) = sgnjit(:)*dble(Si(:))
-
-! 		!Stress acting on face over volume
-! 		Pxyface(cbin(1),cbin(2),cbin(3),:,1) = Pxyface(cbin(1),cbin(2),cbin(3),:,1) + fij(:)*onfaceb(1)
-! 		Pxyface(cbin(1),cbin(2),cbin(3),:,2) = Pxyface(cbin(1),cbin(2),cbin(3),:,2) + fij(:)*onfaceb(2)
-! 		Pxyface(cbin(1),cbin(2),cbin(3),:,3) = Pxyface(cbin(1),cbin(2),cbin(3),:,3) + fij(:)*onfaceb(3)
-! 		Pxyface(cbin(1),cbin(2),cbin(3),:,4) = Pxyface(cbin(1),cbin(2),cbin(3),:,4) + fij(:)*onfacet(1)
-! 		Pxyface(cbin(1),cbin(2),cbin(3),:,5) = Pxyface(cbin(1),cbin(2),cbin(3),:,5) + fij(:)*onfacet(2)
-! 		Pxyface(cbin(1),cbin(2),cbin(3),:,6) = Pxyface(cbin(1),cbin(2),cbin(3),:,6) + fij(:)*onfacet(3)
-
-! 		!Stress acting on face over volume
-! 		if (eflux_outflag .ne. 0) then
-! 			velvect(:) = v(:,molnoi) 
-! 			!if (molnoi .gt. np) print*, velvect(1)
-! 			!velvect(:) = v(:,molnoi) + 0.5d0*delta_t*a(:,molnoi)
-! 			Pxyvface(cbin(1),cbin(2),cbin(3),1) = Pxyvface(cbin(1),cbin(2),cbin(3),1) + dot_product(fij,velvect)*onfaceb(1)
-! 			Pxyvface(cbin(1),cbin(2),cbin(3),2) = Pxyvface(cbin(1),cbin(2),cbin(3),2) + dot_product(fij,velvect)*onfaceb(2)
-! 			Pxyvface(cbin(1),cbin(2),cbin(3),3) = Pxyvface(cbin(1),cbin(2),cbin(3),3) + dot_product(fij,velvect)*onfaceb(3)
-! 			Pxyvface(cbin(1),cbin(2),cbin(3),4) = Pxyvface(cbin(1),cbin(2),cbin(3),4) + dot_product(fij,velvect)*onfacet(1)
-! 			Pxyvface(cbin(1),cbin(2),cbin(3),5) = Pxyvface(cbin(1),cbin(2),cbin(3),5) + dot_product(fij,velvect)*onfacet(2)
-! 			Pxyvface(cbin(1),cbin(2),cbin(3),6) = Pxyvface(cbin(1),cbin(2),cbin(3),6) + dot_product(fij,velvect)*onfacet(3)
-! 		endif
-
-! 		!Force applied to volume
-! 		fsurface(:) = 0.d0
-! 		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*(onfaceb(1) - onfacet(1))
-! 		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*(onfaceb(2) - onfacet(2))
-! 		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*(onfaceb(3) - onfacet(3))
-! 		volume_force(cbin(1),cbin(2),cbin(3),:,1) = volume_force(cbin(1),cbin(2),cbin(3),:,1) + fsurface*delta_t
-
-! 	enddo
-! 	enddo
-! 	enddo
-
-! end subroutine control_volume_stresses_opt
-
-
-!===================================================================================
-!Forces over the surface of a Volume further optmised for computational efficiency
-
-!subroutine control_volume_stresses_opt_2(fij,ri,rj,molnoi)
-!use module_record
-!implicit none
-
-!	integer							:: i,j,k,ixyz,molnoi
-	!integer							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
-!	integer,dimension(3)			:: cbin, ibin, jbin
-!	integer,dimension(18)			:: hfacelimits
-!	real(kind(0.d0)),dimension(3)	:: ri,rj,rij,fij,fsurface,Px,Py,Pz,Si,sgnjit,sgnjib,onfaceb,onfacet,velvect
-!	real(kind(0.d0)),dimension(3)	:: Fbinsize, bintop, binbot
-!	real(kind(0.d0)),dimension(18)	:: facelimits
-
-	!Calculate rij
+!	!Get interaction line
 !	rij = ri - rj
-	!Prevent Division by zero
+
+!	!Prevent Division by zero
 !	do ixyz = 1,3
 !		if (abs(rij(ixyz)) .lt. 0.000001d0) rij(ixyz) = sign(0.000001d0,rij(ixyz))
 !	enddo
-
-	!Determine bin size
-!	Fbinsize(:) = domain(:) / nbins(:)
-
-	!Assign to bins using integer division
-!	ibin(:) = ceiling((ri(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
-!	jbin(:) = ceiling((rj(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
-!
-!	if (ibin(1) .eq. jbin(1) .and. ibin(2) .eq. jbin(2) .and. ibin(3) .eq. jbin(3)) return
-		
+!		
+!	!Loop through all intermediate bins, check surface to add to and then add
 !	do i = ibin(1),jbin(1),sign(1,jbin(1)-ibin(1))
 !	do j = ibin(2),jbin(2),sign(1,jbin(2)-ibin(2))
 !	do k = ibin(3),jbin(3),sign(1,jbin(3)-ibin(3))
 
-!		cbin(1) = i; cbin(2) = j; cbin(3) = k
+!		!Get bin top and bottom
+!	    bintop(1) = (i-1*nhb(1)  )*Fbinsize(1)-halfdomain(1)
+!	    bintop(2) = (j-1*nhb(2)  )*Fbinsize(2)-halfdomain(2)
+!	    bintop(3) = (k-1*nhb(3)  )*Fbinsize(3)-halfdomain(3)
+!	    binbot(1) = (i-1*nhb(1)-1)*Fbinsize(1)-halfdomain(1)
+!	    binbot(2) = (j-1*nhb(2)-1)*Fbinsize(2)-halfdomain(2)
+!	    binbot(3) = (k-1*nhb(3)-1)*Fbinsize(3)-halfdomain(3)
 
-!		bintop(:) = (cbin(:)-1*nhb(:)  )*Fbinsize(:)-halfdomain(:)
-!		binbot(:) = (cbin(:)-1*nhb(:)-1)*Fbinsize(:)-halfdomain(:)
+!		!Calculate the plane intersect of line with surfaces of the cube
+!		Pxt=(/ bintop(1),ri(2)+(rij(2)/rij(1))*(bintop(1)-ri(1)),ri(3)+(rij(3)/rij(1))*(bintop(1)-ri(1))  /)
+!		Pxb=(/ binbot(1),ri(2)+(rij(2)/rij(1))*(binbot(1)-ri(1)),ri(3)+(rij(3)/rij(1))*(binbot(1)-ri(1))  /)
+!		Pyt=(/ri(1)+(rij(1)/rij(2))*(bintop(2)-ri(2)), bintop(2),ri(3)+(rij(3)/rij(2))*(bintop(2)-ri(2))  /)
+!		Pyb=(/ri(1)+(rij(1)/rij(2))*(binbot(2)-ri(2)), binbot(2),ri(3)+(rij(3)/rij(2))*(binbot(2)-ri(2))  /)
+!		Pzt=(/ri(1)+(rij(1)/rij(3))*(bintop(3)-ri(3)), ri(2)+(rij(2)/rij(3))*(bintop(3)-ri(3)), bintop(3) /)
+!		Pzb=(/ri(1)+(rij(1)/rij(3))*(binbot(3)-ri(3)), ri(2)+(rij(2)/rij(3))*(binbot(3)-ri(3)), binbot(3) /)
 
-		!Calculate the plane intersect of line with surfaces of the cube
-!		Px=(/ bintop(1),ri(2)+(rij(2)/rij(1))*(bintop(1)-ri(1)),ri(3)+(rij(3)/rij(1))*(bintop(1)-ri(1))  /)
-!		Py=(/ri(1)+(rij(1)/rij(2))*(bintop(2)-ri(2)), bintop(2),ri(3)+(rij(3)/rij(2))*(bintop(2)-ri(2))  /)
-!		Pz=(/ri(1)+(rij(1)/rij(3))*(bintop(3)-ri(3)), ri(2)+(rij(2)/rij(3))*(bintop(3)-ri(3)), bintop(3) /)
+!		onfacexb =  	(sign(1.d0,binbot(1)- rj(1)) - sign(1.d0,binbot(1)- ri(1)))* &
+!						(heaviside(bintop(2)-Pxb(2)) - heaviside(binbot(2)-Pxb(2)))* &
+!						(heaviside(bintop(3)-Pxb(3)) - heaviside(binbot(3)-Pxb(3)))
+!		onfaceyb =  	(sign(1.d0,binbot(2)- rj(2)) - sign(1.d0,binbot(2)- ri(2)))* &
+!						(heaviside(bintop(1)-Pyb(1)) - heaviside(binbot(1)-Pyb(1)))* &
+!						(heaviside(bintop(3)-Pyb(3)) - heaviside(binbot(3)-Pyb(3)))
+!		onfacezb =  	(sign(1.d0,binbot(3)- rj(3)) - sign(1.d0,binbot(3)- ri(3)))* &
+!						(heaviside(bintop(1)-Pzb(1)) - heaviside(binbot(1)-Pzb(1)))* &
+!						(heaviside(bintop(2)-Pzb(2)) - heaviside(binbot(2)-Pzb(2)))
 
-!		facelimits(1 :3 ) = bintop-Px	
-!		facelimits(4 :6 ) = bintop-Py 		
-!		facelimits(7 :9 ) = bintop-Pz
-!		facelimits(10:12) = binbot-Px	
-!		facelimits(13:15) = binbot-Py 		
-!		facelimits(16:18) = binbot-Pz
+!		onfacext =  	(sign(1.d0,bintop(1)- rj(1)) - sign(1.d0,bintop(1)- ri(1)))* &
+!						(heaviside(bintop(2)-Pxt(2)) - heaviside(binbot(2)-Pxt(2)))* &
+!	            		(heaviside(bintop(3)-Pxt(3)) - heaviside(binbot(3)-Pxt(3)))
+!		onfaceyt = 		(sign(1.d0,bintop(2)- rj(2)) - sign(1.d0,bintop(2)- ri(2)))* &
+!						(heaviside(bintop(1)-Pyt(1)) - heaviside(binbot(1)-Pyt(1)))* &
+!						(heaviside(bintop(3)-Pyt(3)) - heaviside(binbot(3)-Pyt(3)))
+!		onfacezt =  	(sign(1.d0,bintop(3)- rj(3)) - sign(1.d0,bintop(3)- ri(3)))* &
+!						(heaviside(bintop(1)-Pzt(1)) - heaviside(binbot(1)-Pzt(1)))* &
+!						(heaviside(bintop(2)-Pzt(2)) - heaviside(binbot(2)-Pzt(2)))
 
-!		hfacelimits = heaviside(facelimits)
+!		!Value acting on face
+!		CV_Face_value(i,j,k,1) = CV_Face_value(i,j,k,1) + value*onfacexb
+!		CV_Face_value(i,j,k,2) = CV_Face_value(i,j,k,2) + value*onfaceyb
+!		CV_Face_value(i,j,k,3) = CV_Face_value(i,j,k,3) + value*onfacezb
+!		CV_Face_value(i,j,k,4) = CV_Face_value(i,j,k,4) + value*onfacext
+!		CV_Face_value(i,j,k,5) = CV_Face_value(i,j,k,5) + value*onfaceyt
+!		CV_Face_value(i,j,k,6) = CV_Face_value(i,j,k,6) + value*onfacezt
 
-!		Si(1) =	(hfacelimits(2) - hfacelimits(11))* &
-!				(hfacelimits(3) - hfacelimits(12))
-!		Si(2) =	(hfacelimits(4) - hfacelimits(13))* &
-!				(hfacelimits(6) - hfacelimits(15))
-!		Si(3) =	(hfacelimits(7) - hfacelimits(16))* &
-!				(hfacelimits(8) - hfacelimits(17))
+!  	if (i .eq. 3 .and. j .eq. 3 .and. k .eq. 3) then
+!   	if (any(abs((/onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb/)) .gt. 0.00001)) then
+!   	!if (abs(onfacext+onfacexb+onfaceyt+onfaceyb+onfacezt+onfacezb) .gt. 0.00001) then
+!   			if (abs(onfacexb) .gt. 0.000001) face = 1 
+!   			if (abs(onfaceyb) .gt. 0.000001) face = 2 
+!   			if (abs(onfacezb) .gt. 0.000001) face = 3 
+!   			if (abs(onfacext) .gt. 0.000001) face = 4 
+!   			if (abs(onfaceyt) .gt. 0.000001) face = 5 
+!   			if (abs(onfacezt) .gt. 0.000001) face = 6 
+!   				print'(a,6i5,2f12.4,6i3,f6.0,5f4.0)','Int pp box 3', iter,molnoi,molnoj,i,j,k,value, & 
+!   																	CV_Face_value(i,j,k,face), & 
+!   																	ibin,jbin,onfacext,onfacexb,onfaceyt, & 
+!   																	onfaceyb,onfacezt,onfacezb
+!   	!endif
+!   	endif
+!   	endif
 
-!		sgnjit(:)= sign(1.d0,bintop(:)- rj(:)) - sign(1.d0,bintop(:)- ri(:))
-!		sgnjib(:)= sign(1.d0,binbot(:)- rj(:)) - sign(1.d0,binbot(:)- ri(:))
+!		!print'(a,3i4,7f10.5)', 'IN surface cv routine ',i,j,k, CV_Face_value(i,j,k,:), value
 
-!		onfaceb =  	sgnjib*Si
-!		onfacet =  	sgnjit*Si
+!	enddo
+!	enddo
+!	enddo
 
-		!Stress acting on face over volume
-!		Pxyface(cbin(1),cbin(2),cbin(3),:,1) = Pxyface(cbin(1),cbin(2),cbin(3),:,1) + fij(:)*dble(onfaceb(1))
-!		Pxyface(cbin(1),cbin(2),cbin(3),:,2) = Pxyface(cbin(1),cbin(2),cbin(3),:,2) + fij(:)*dble(onfaceb(2))
-!		Pxyface(cbin(1),cbin(2),cbin(3),:,3) = Pxyface(cbin(1),cbin(2),cbin(3),:,3) + fij(:)*dble(onfaceb(3))
-!		Pxyface(cbin(1),cbin(2),cbin(3),:,4) = Pxyface(cbin(1),cbin(2),cbin(3),:,4) + fij(:)*dble(onfacet(1))
-!		Pxyface(cbin(1),cbin(2),cbin(3),:,5) = Pxyface(cbin(1),cbin(2),cbin(3),:,5) + fij(:)*dble(onfacet(2))
-!		Pxyface(cbin(1),cbin(2),cbin(3),:,6) = Pxyface(cbin(1),cbin(2),cbin(3),:,6) + fij(:)*dble(onfacet(3))
+!end subroutine get_CV_surface_contributions
+
+!end module get_timesteps_module
+
+!!subroutine control_volume_power_partialint(fij,ri,rj,vi_mhdt,vj_mhdt,ai_mdt,aj_mdt,ai,aj,molnoi,molnoj)
+!!    use module_record
+!!	use CV_objects, only : CV_debug,CV_constraint
+!!    use librarymod, only : heaviside => heaviside_a1, bubble_sort
+!!	use get_timesteps_module
+!!    implicit none
+
+!!	integer,intent(in)						 	:: molnoi, molnoj
+!!	real(kind(0.d0)),dimension(3),intent(in) 	:: fij,ri,rj,vi_mhdt,vj_mhdt,ai_mdt,aj_mdt,ai,aj
+
+
+!!	integer										:: i,j,k,m,n,ixyz,ncrossings,ncrossingsi,ncrossingsj,count_t
+!!	integer,dimension(3)						:: cbin, ibin, jbin, ibin_mdt, jbin_mdt
+!!    real(kind(0.d0))							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
+!!    real(kind(0.d0))							:: invrij2,rij2_mdt,fijvi,fijvi_mdt,fijvi_trapz,delta_t_portion,eps = 0.0001d0
+!!	real(kind(0.d0)),dimension(3)   			:: fsurface,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb,velvect
+!!	real(kind(0.d0)),dimension(3)   			:: vi,vj,vi_mdt,vj_mdt
+!!	real(kind(0.d0)),dimension(3)   			:: ri_mdt,rj_mdt,rij_mdt,fij_mdt,ri_p,rj_p
+!!	real(kind(0.d0)),dimension(3)				:: Fbinsize, bintop, binbot
+!!	real(kind(0.d0)),dimension(6)				:: crosstime
+!!	real(kind(0.d0)),dimension(:),allocatable	:: delta_t_list,delta_t_array
+
+!!	character(30)	:: frmtstr
+
+!!	!Determine bin size
+!!	Fbinsize(:) = domain(:) / nbins(:)
+
+!!! 	!Old velocities
+!!! 	vi_mhdt = vi_hdt - ai_mdt*delta_t
+!!! 	vj_mhdt = vj_hdt - aj_mdt*delta_t
+!!! 	
+!!! 	!Old positions
+!!! 	ri_mdt = ri - vi_mhdt*delta_t
+!!! 	rj_mdt = rj - vj_mhdt*delta_t
+
+!!! 	!Get fij, vi and vj
+!!! 	vi = vi_hdt + 0.5*ai_mdt*delta_t		!This is not okay -- ai_pdt should be used...
+!!! 	vj = vi_hdt + 0.5*ai_mdt*delta_t		!This is not okay -- ai_pdt should be used...
+
+!!! 	!Get fij_mdt, vi_mdt and vj_mdt
+!!! 	rij_mdt(:)= ri_mdt(:) - rj_mdt(:)   					!Evaluate distance between particle i and j
+!!! 	invrij2  = 1.d0/(dot_product(rij_mdt,rij_mdt))					!Invert value
+!!! 	fij_mdt = 48.d0*(invrij2**7-0.5d0*invrij2**4)*rij_mdt
+!!! 	vi_mdt = vi_hdt - 0.5*ai_mdt*delta_t
+!!! 	vj_mdt = vi_hdt - 0.5*ai_mdt*delta_t
+
+
+!!	!Assuming acceleration passed in are at time t-dt/2
+
+!!	!Velocities for dot product @ t and t-dt
+!!	vi(:) 	  = vi_mhdt + 0.5d0*delta_t*ai(:)
+!!	vj(:) 	  = vj_mhdt + 0.5d0*delta_t*aj(:)
+
+!!	vi_mdt(:) = vi_mhdt - 0.5d0*delta_t*ai_mdt(:)
+!!	vj_mdt(:) = vj_mhdt - 0.5d0*delta_t*aj_mdt(:)
+
+!!	!Velocity=>Positions=>fij at t-dt
+!!	!vi_mhdt(:) = vi_hdt - delta_t*ai_mdt(:)
+!!	!vj_mhdt(:) = vj_hdt - delta_t*aj_mdt(:)
+
+!! 	ri_mdt(:) = ri - delta_t*vi_mhdt(:)
+!! 	rj_mdt(:) = rj - delta_t*vj_mhdt(:)
+
+!! 	rij_mdt(:)= ri_mdt(:) - rj_mdt(:)   					!Evaluate distance between particle i and j
+!!	rij2_mdt = dot_product(rij_mdt,rij_mdt)
+!!	if (rij2_mdt < rcutoff2) then
+!!	 	invrij2  = 1.d0/rij2_mdt
+!! 		fij_mdt = 48.d0*(invrij2**7-0.5d0*invrij2**4)*rij_mdt
+!!	else
+!!		fij_mdt = 0.d0
+!!	endif
+
+!!	!Trapizium rule calculation of power to add during portion of timestep
+!!	fijvi 	  = dot_product(fij    ,  vi  )
+!!	fijvi_mdt = dot_product(fij_mdt,vi_mdt)
+
+
+!!! 	vi_phdt(:) = vi_hdt + delta_t*ai(:)
+!!! 	vj_phdt(:) = vj_hdt + delta_t*aj(:)
+
+!!! 	ri_pdt(:) = ri + delta_t*vi_phdt(:)
+!!! 	rj_pdt(:) = rj + delta_t*vj_phdt(:)
+
+!! 	!Get fij_mdt, vi_mdt and vj_mdt
+!!!  	rij_pdt(:)= ri_pdt(:) - rj_pdt(:)   					!Evaluate distance between particle i and j
+!!!  	invrij2  = 1.d0/(dot_product(rij_pdt,rij_pdt))					!Invert value
+!!!  	fij_pdt = 48.d0*(invrij2**7-0.5d0*invrij2**4)*rij_pdt
+
+
+
+!!	!Assign to bins using integer division
+!!	ibin(:) 	= ceiling((ri(:)	+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
+!!	jbin(:) 	= ceiling((rj(:)	+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
+!!	ibin_mdt(:) = ceiling((ri_mdt(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish previous bin
+!!	jbin_mdt(:) = ceiling((rj_mdt(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish previous bin
+
+!!	!Get number of crossings
+!!	ncrossingsi =  abs(ibin(1) - ibin_mdt(1)) + abs(ibin(2) - ibin_mdt(2)) + abs(ibin(3) - ibin_mdt(3))
+!!	ncrossingsj =  abs(jbin(1) - jbin_mdt(1)) + abs(jbin(2) - jbin_mdt(2)) + abs(jbin(3) - jbin_mdt(3)) 
+!!	ncrossings = ncrossingsi+ncrossingsj
+
+!!	!Get portion of timestep in each cell
+!!	count_t = 0
+!!	if (ncrossings .eq. 0) then
+!!		allocate(delta_t_array(2))
+!!		delta_t_array(1) = 0.d0
+!!		delta_t_array(2) = delta_t
+!!	else
+!!		! Each molecular crossing time is counted twice -- once for the cell it's 
+!!		! leaving and once for the cell it's moving into
+!!		allocate(delta_t_list(2*ncrossings))
+!!		if (ncrossingsi .ne. 0) print'(a,2i4,6f12.8,6i4)', 'Molecule i',iter, molnoi, ri,ri_mdt,ibin,ibin_mdt
+!!		if (ncrossingsj .ne. 0) print'(a,2i4,6f12.8,6i4)', 'Molecule j',iter, molnoj, rj,rj_mdt,jbin,jbin_mdt
+
+!!    	!Check if molecule i has changed bin
+!!		call  get_timesteps(ncrossingsi,ibin,ibin_mdt,Fbinsize,ri,vi_mhdt,delta_t,delta_t_list,count_t)
+
+!!    	!Check if molecule j has changed bin
+!!		call  get_timesteps(ncrossingsj,jbin,jbin_mdt,Fbinsize,rj,vj_mhdt,delta_t,delta_t_list,count_t)
+
+!!		!Get crossing times in chronological order
+!!		call bubble_sort(delta_t_list)
+
+!!		!Sanity checks -- count_t == ncrossings & sum(delta_t_list) == delta_t
+!!		if (ncrossings .ne. 0.5*count_t) then
+!!			print'(a,2i12)', ' count_t == ncrossings ',count_t/2,ncrossings
+!!			stop "Error - crossing values not equal"
+!!		endif
+!!		if (any(delta_t_list .gt. delta_t)) then
+!!			stop "Error - delta t not ok in energy CV"
+!!		endif
+
+!!		!print'(i4,a,2i12,a,2f10.5)',iter,' count_t == ncrossings ',ncrossings,count_t/2, & 
+!!		!						 ' sum(delta_t_list) == delta_t ',delta_t, sum(delta_t_list)
+
+!!		!Set initial and final time and copy timestep arrays 
+!!		allocate(delta_t_array(ncrossings+2))
+!!		delta_t_array(1) = 0.d0
+!!		delta_t_array(ncrossings+2) = delta_t
+!!		n = 2
+!!		do i = 1,size(delta_t_list),2
+!!			if (delta_t_list(i) .ne. delta_t_list(i+1)) then
+!!				stop "Error - Successive timesteps not same in delta_t array"
+!!			endif 
+!!			delta_t_array(n) = delta_t_list(i)
+!!			n = n + 1
+!!		enddo
+
+!!	endif
+
+!!	if (ncrossings .ge. 1) then
+!! 	if (all(ibin .eq. 3)  .or. &
+!! 		all(jbin .eq. 3) 	) then
+!!!  	if (all(ibin .eq. 3) .and. any(jbin .ne. 3) .or. &
+!!!  		all(jbin .eq. 3) .and. any(ibin .ne. 3)	) then
+!!		print'(a,12i4)','Predicted cells', ibin,ibin_mdt,jbin,jbin_mdt
+!!	endif
+!!	endif
+
+!!	!Calculate surface contributions
+!!	do n=1,ncrossings+1
+!!	
+!!		delta_t_portion = delta_t_array(n+1)-delta_t_array(n)
+
+!!		!Calculate intermediate positions
+!!		ri_p = ri - vi_mhdt*delta_t_portion + eps
+!!		rj_p = rj - vj_mhdt*delta_t_portion + eps
+
+!!		ibin(:) 	= ceiling((ri_p(:)	+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
+!!		jbin(:) 	= ceiling((rj_p(:)	+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
+
+!!		if (ncrossings .ge. 1) then
+!! 		if (all(ibin .eq. 3) .and. any(jbin .ne. 3) .or. &
+!! 			all(jbin .eq. 3) .and. any(ibin .ne. 3)	) then
+!!				print'(a,12i4,3f14.9)','Delta_t',iter,n,molnoi,molnoj,ibin,jbin, & 
+!!												 ncrossingsi,ncrossingsj, delta_t_array(n),& 
+!!												 delta_t_portion,delta_t_array(n+1)
+!!		endif
+!!		endif
+
+!!		!Calculate and add fraction of interation
+!!		fijvi_trapz = 0.5d0*delta_t_portion * (fijvi + fijvi_mdt)/delta_t
+!!		call  get_CV_surface_contributions(ibin,jbin,ri_p,rj_p,Fbinsize,fijvi_trapz,Pxyvface2,molnoi,molnoj)
+
+!!!  		if (all(ibin .eq. 3) .and. any(jbin .ne. 3)) then
+!!! 			print'(a,3i4,10f11.6)', 'Saving ints',iter,molnoi,molnoj,delta_t_portion , & 
+!!! 													0.25*Pxyvface2(ibin(1),ibin(2),ibin(3),:)/5.0, &  !binsize
+!!! 													fijvi,fijvi_mdt,fijvi_trapz
+!!! 		endif
+!!! 		if (all(jbin .eq. 3) .and. any(ibin .ne. 3)) then
+!!! 			print'(a,3i4,10f11.6)', 'Saving ints',iter,molnoi,molnoj,delta_t_portion , &
+!!! 													0.25*Pxyvface2(jbin(1),jbin(2),jbin(3),:)/5.0, & 
+!!! 													fijvi,fijvi_mdt,fijvi_trapz
+!!! 		endif
+
+!!! 		if (all(ibin .eq. 3) .and. any(jbin .ne. 3) .or. &
+!!! 			all(jbin .eq. 3) .and. any(ibin .ne. 3)	) then
+!!! 			print'(a,3i4,10f11.7)', 'Current',iter,molnoi,molnoj,fij_mdt,vi_mdt,fijvi_mdt,0.25*fijvi_trapz/(5.0*delta_t)
+!!! 			print'(a,3i4,10f11.7)', 'Future ',iter,molnoi,molnoj,fij,vi,fijvi,0.25*fijvi_trapz/(5.0*delta_t)
+!!! 		endif
+!!		!print'(a,12f10.5)', 'Power after', Pxyvface(ibin(1),ibin(2),ibin(3),:), Pxyvface(jbin(1),jbin(2),jbin(3),:)
+
+!!	enddo
+
+!!end subroutine control_volume_power_partialint
+
+
+
+
+!! !===================================================================================
+!! !Forces over the surface of a Volume optmised for computational efficiency
+
+!! subroutine control_volume_stresses_opt(fij,ri,rj,molnoi)
+!! 	use module_record
+!!     use librarymod, only : heaviside  =>  heaviside_a1
+!! 	implicit none
+
+!! 	integer							:: i,j,k,ixyz,molnoi,molnoj
+!! 	integer,dimension(3)			:: cbin, ibin, jbin, Si
+!! 	real(kind(0.d0)),dimension(3)	:: ri,rj,rij,fij,fsurface,Px,Py,Pz,sgnjit,sgnjib,onfaceb,onfacet,velvect
+!! 	real(kind(0.d0)),dimension(3)	:: Fbinsize, bintop, binbot
+
+!! 	!Calculate rij
+!! 	rij = ri - rj
+!! 	!Prevent Division by zero
+!! 	do ixyz = 1,3
+!! 		if (abs(rij(ixyz)) .lt. 0.000001d0) rij(ixyz) = sign(0.000001d0,rij(ixyz))
+!! 	enddo
+
+!! 	!Determine bin size
+!! 	Fbinsize(:) = domain(:) / nbins(:)
+
+!! 	!Assign to bins using integer division
+!! 	ibin(:) = ceiling((ri(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
+!! 	jbin(:) = ceiling((rj(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
+
+!! 	if (ibin(1) .eq. jbin(1) .and. ibin(2) .eq. jbin(2) .and. ibin(3) .eq. jbin(3)) return
+!! 		
+!! 	do i = ibin(1),jbin(1),sign(1,jbin(1)-ibin(1))
+!! 	do j = ibin(2),jbin(2),sign(1,jbin(2)-ibin(2))
+!! 	do k = ibin(3),jbin(3),sign(1,jbin(3)-ibin(3))
+
+!! 		cbin(1) = i; cbin(2) = j; cbin(3) = k
+
+!! 		bintop(:) = (cbin(:)-1*nhb(:)  )*Fbinsize(:)-halfdomain(:)
+!! 		binbot(:) = (cbin(:)-1*nhb(:)-1)*Fbinsize(:)-halfdomain(:)
+
+!! 		!Calculate the plane intersect of line with surfaces of the cube
+!! 		Px=(/ bintop(1),ri(2)+(rij(2)/rij(1))*(bintop(1)-ri(1)),ri(3)+(rij(3)/rij(1))*(bintop(1)-ri(1))  /)
+!! 		Py=(/ri(1)+(rij(1)/rij(2))*(bintop(2)-ri(2)), bintop(2),ri(3)+(rij(3)/rij(2))*(bintop(2)-ri(2))  /)
+!! 		Pz=(/ri(1)+(rij(1)/rij(3))*(bintop(3)-ri(3)), ri(2)+(rij(2)/rij(3))*(bintop(3)-ri(3)), bintop(3) /)
+
+!! 		sgnjit(:)= sign(1.d0,bintop(:)- rj(:)) - sign(1.d0,bintop(:)- ri(:))
+!! 		sgnjib(:)= sign(1.d0,binbot(:)- rj(:)) - sign(1.d0,binbot(:)- ri(:))
+
+!! 		Si(1) =	(heaviside(bintop(2)-Px(2)) - heaviside(binbot(2)-Px(2)))* &
+!! 				(heaviside(bintop(3)-Px(3)) - heaviside(binbot(3)-Px(3)))
+!! 		Si(2) =	(heaviside(bintop(1)-Py(1)) - heaviside(binbot(1)-Py(1)))* &
+!! 				(heaviside(bintop(3)-Py(3)) - heaviside(binbot(3)-Py(3)))
+!! 		Si(3) =	(heaviside(bintop(1)-Pz(1)) - heaviside(binbot(1)-Pz(1)))* &
+!! 				(heaviside(bintop(2)-Pz(2)) - heaviside(binbot(2)-Pz(2)))
+
+!! 		onfaceb(:) = sgnjib(:)*dble(Si(:))
+!! 		onfacet(:) = sgnjit(:)*dble(Si(:))
+
+!! 		!Stress acting on face over volume
+!! 		Pxyface(cbin(1),cbin(2),cbin(3),:,1) = Pxyface(cbin(1),cbin(2),cbin(3),:,1) + fij(:)*onfaceb(1)
+!! 		Pxyface(cbin(1),cbin(2),cbin(3),:,2) = Pxyface(cbin(1),cbin(2),cbin(3),:,2) + fij(:)*onfaceb(2)
+!! 		Pxyface(cbin(1),cbin(2),cbin(3),:,3) = Pxyface(cbin(1),cbin(2),cbin(3),:,3) + fij(:)*onfaceb(3)
+!! 		Pxyface(cbin(1),cbin(2),cbin(3),:,4) = Pxyface(cbin(1),cbin(2),cbin(3),:,4) + fij(:)*onfacet(1)
+!! 		Pxyface(cbin(1),cbin(2),cbin(3),:,5) = Pxyface(cbin(1),cbin(2),cbin(3),:,5) + fij(:)*onfacet(2)
+!! 		Pxyface(cbin(1),cbin(2),cbin(3),:,6) = Pxyface(cbin(1),cbin(2),cbin(3),:,6) + fij(:)*onfacet(3)
+
+!! 		!Stress acting on face over volume
+!! 		if (eflux_outflag .ne. 0) then
+!! 			velvect(:) = v(:,molnoi) 
+!! 			!if (molnoi .gt. np) print*, velvect(1)
+!! 			!velvect(:) = v(:,molnoi) + 0.5d0*delta_t*a(:,molnoi)
+!! 			Pxyvface(cbin(1),cbin(2),cbin(3),1) = Pxyvface(cbin(1),cbin(2),cbin(3),1) + dot_product(fij,velvect)*onfaceb(1)
+!! 			Pxyvface(cbin(1),cbin(2),cbin(3),2) = Pxyvface(cbin(1),cbin(2),cbin(3),2) + dot_product(fij,velvect)*onfaceb(2)
+!! 			Pxyvface(cbin(1),cbin(2),cbin(3),3) = Pxyvface(cbin(1),cbin(2),cbin(3),3) + dot_product(fij,velvect)*onfaceb(3)
+!! 			Pxyvface(cbin(1),cbin(2),cbin(3),4) = Pxyvface(cbin(1),cbin(2),cbin(3),4) + dot_product(fij,velvect)*onfacet(1)
+!! 			Pxyvface(cbin(1),cbin(2),cbin(3),5) = Pxyvface(cbin(1),cbin(2),cbin(3),5) + dot_product(fij,velvect)*onfacet(2)
+!! 			Pxyvface(cbin(1),cbin(2),cbin(3),6) = Pxyvface(cbin(1),cbin(2),cbin(3),6) + dot_product(fij,velvect)*onfacet(3)
+!! 		endif
+
+!! 		!Force applied to volume
+!! 		fsurface(:) = 0.d0
+!! 		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*(onfaceb(1) - onfacet(1))
+!! 		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*(onfaceb(2) - onfacet(2))
+!! 		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*(onfaceb(3) - onfacet(3))
+!! 		volume_force(cbin(1),cbin(2),cbin(3),:,1) = volume_force(cbin(1),cbin(2),cbin(3),:,1) + fsurface*delta_t
+
+!! 	enddo
+!! 	enddo
+!! 	enddo
+
+!! end subroutine control_volume_stresses_opt
+
+
+!!===================================================================================
+!!Forces over the surface of a Volume further optmised for computational efficiency
+
+!!subroutine control_volume_stresses_opt_2(fij,ri,rj,molnoi)
+!!use module_record
+!!implicit none
+
+!!	integer							:: i,j,k,ixyz,molnoi
+!	!integer							:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
+!!	integer,dimension(3)			:: cbin, ibin, jbin
+!!	integer,dimension(18)			:: hfacelimits
+!!	real(kind(0.d0)),dimension(3)	:: ri,rj,rij,fij,fsurface,Px,Py,Pz,Si,sgnjit,sgnjib,onfaceb,onfacet,velvect
+!!	real(kind(0.d0)),dimension(3)	:: Fbinsize, bintop, binbot
+!!	real(kind(0.d0)),dimension(18)	:: facelimits
+
+!	!Calculate rij
+!!	rij = ri - rj
+!	!Prevent Division by zero
+!!	do ixyz = 1,3
+!!		if (abs(rij(ixyz)) .lt. 0.000001d0) rij(ixyz) = sign(0.000001d0,rij(ixyz))
+!!	enddo
+
+!	!Determine bin size
+!!	Fbinsize(:) = domain(:) / nbins(:)
+
+!	!Assign to bins using integer division
+!!	ibin(:) = ceiling((ri(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
+!!	jbin(:) = ceiling((rj(:)+halfdomain(:))/Fbinsize(:))+nhb(:)	!Establish current bin
+!!
+!!	if (ibin(1) .eq. jbin(1) .and. ibin(2) .eq. jbin(2) .and. ibin(3) .eq. jbin(3)) return
+!		
+!!	do i = ibin(1),jbin(1),sign(1,jbin(1)-ibin(1))
+!!	do j = ibin(2),jbin(2),sign(1,jbin(2)-ibin(2))
+!!	do k = ibin(3),jbin(3),sign(1,jbin(3)-ibin(3))
+
+!!		cbin(1) = i; cbin(2) = j; cbin(3) = k
+
+!!		bintop(:) = (cbin(:)-1*nhb(:)  )*Fbinsize(:)-halfdomain(:)
+!!		binbot(:) = (cbin(:)-1*nhb(:)-1)*Fbinsize(:)-halfdomain(:)
+
+!		!Calculate the plane intersect of line with surfaces of the cube
+!!		Px=(/ bintop(1),ri(2)+(rij(2)/rij(1))*(bintop(1)-ri(1)),ri(3)+(rij(3)/rij(1))*(bintop(1)-ri(1))  /)
+!!		Py=(/ri(1)+(rij(1)/rij(2))*(bintop(2)-ri(2)), bintop(2),ri(3)+(rij(3)/rij(2))*(bintop(2)-ri(2))  /)
+!!		Pz=(/ri(1)+(rij(1)/rij(3))*(bintop(3)-ri(3)), ri(2)+(rij(2)/rij(3))*(bintop(3)-ri(3)), bintop(3) /)
+
+!!		facelimits(1 :3 ) = bintop-Px	
+!!		facelimits(4 :6 ) = bintop-Py 		
+!!		facelimits(7 :9 ) = bintop-Pz
+!!		facelimits(10:12) = binbot-Px	
+!!		facelimits(13:15) = binbot-Py 		
+!!		facelimits(16:18) = binbot-Pz
+
+!!		hfacelimits = heaviside(facelimits)
+
+!!		Si(1) =	(hfacelimits(2) - hfacelimits(11))* &
+!!				(hfacelimits(3) - hfacelimits(12))
+!!		Si(2) =	(hfacelimits(4) - hfacelimits(13))* &
+!!				(hfacelimits(6) - hfacelimits(15))
+!!		Si(3) =	(hfacelimits(7) - hfacelimits(16))* &
+!!				(hfacelimits(8) - hfacelimits(17))
+
+!!		sgnjit(:)= sign(1.d0,bintop(:)- rj(:)) - sign(1.d0,bintop(:)- ri(:))
+!!		sgnjib(:)= sign(1.d0,binbot(:)- rj(:)) - sign(1.d0,binbot(:)- ri(:))
+
+!!		onfaceb =  	sgnjib*Si
+!!		onfacet =  	sgnjit*Si
 
 !		!Stress acting on face over volume
-!		if (eflux_outflag .ne. 0) then
-!			velvect(:) = v(:,molnoi) 
-			!if (molnoi .gt. np) print*, velvect(1)
-			!velvect(:) = v(:,molnoi) + 0.5d0*delta_t*a(:,molnoi)
-!			Pxyvface(cbin(1),cbin(2),cbin(3),1) = Pxyvface(cbin(1),cbin(2),cbin(3),1) + dot_product(fij,velvect)*dble(onfaceb(1))
-!			Pxyvface(cbin(1),cbin(2),cbin(3),2) = Pxyvface(cbin(1),cbin(2),cbin(3),2) + dot_product(fij,velvect)*dble(onfaceb(2))
-!			Pxyvface(cbin(1),cbin(2),cbin(3),3) = Pxyvface(cbin(1),cbin(2),cbin(3),3) + dot_product(fij,velvect)*dble(onfaceb(3))
-!			Pxyvface(cbin(1),cbin(2),cbin(3),4) = Pxyvface(cbin(1),cbin(2),cbin(3),4) + dot_product(fij,velvect)*dble(onfacet(1))
-!			Pxyvface(cbin(1),cbin(2),cbin(3),5) = Pxyvface(cbin(1),cbin(2),cbin(3),5) + dot_product(fij,velvect)*dble(onfacet(2))
-!			Pxyvface(cbin(1),cbin(2),cbin(3),6) = Pxyvface(cbin(1),cbin(2),cbin(3),6) + dot_product(fij,velvect)*dble(onfacet(3))
-!		endif
+!!		Pxyface(cbin(1),cbin(2),cbin(3),:,1) = Pxyface(cbin(1),cbin(2),cbin(3),:,1) + fij(:)*dble(onfaceb(1))
+!!		Pxyface(cbin(1),cbin(2),cbin(3),:,2) = Pxyface(cbin(1),cbin(2),cbin(3),:,2) + fij(:)*dble(onfaceb(2))
+!!		Pxyface(cbin(1),cbin(2),cbin(3),:,3) = Pxyface(cbin(1),cbin(2),cbin(3),:,3) + fij(:)*dble(onfaceb(3))
+!!		Pxyface(cbin(1),cbin(2),cbin(3),:,4) = Pxyface(cbin(1),cbin(2),cbin(3),:,4) + fij(:)*dble(onfacet(1))
+!!		Pxyface(cbin(1),cbin(2),cbin(3),:,5) = Pxyface(cbin(1),cbin(2),cbin(3),:,5) + fij(:)*dble(onfacet(2))
+!!		Pxyface(cbin(1),cbin(2),cbin(3),:,6) = Pxyface(cbin(1),cbin(2),cbin(3),:,6) + fij(:)*dble(onfacet(3))
 
-		!Force applied to volume
-!		fsurface(:) = 0.d0
-!		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*dble(onfaceb(1) - onfacet(1))
-!		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*dble(onfaceb(2) - onfacet(2))
-!		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*dble(onfaceb(3) - onfacet(3))
-!		volume_force(cbin(1),cbin(2),cbin(3),:,1) = volume_force(cbin(1),cbin(2),cbin(3),:,1) + fsurface*delta_t
+!!		!Stress acting on face over volume
+!!		if (eflux_outflag .ne. 0) then
+!!			velvect(:) = v(:,molnoi) 
+!			!if (molnoi .gt. np) print*, velvect(1)
+!			!velvect(:) = v(:,molnoi) + 0.5d0*delta_t*a(:,molnoi)
+!!			Pxyvface(cbin(1),cbin(2),cbin(3),1) = Pxyvface(cbin(1),cbin(2),cbin(3),1) + dot_product(fij,velvect)*dble(onfaceb(1))
+!!			Pxyvface(cbin(1),cbin(2),cbin(3),2) = Pxyvface(cbin(1),cbin(2),cbin(3),2) + dot_product(fij,velvect)*dble(onfaceb(2))
+!!			Pxyvface(cbin(1),cbin(2),cbin(3),3) = Pxyvface(cbin(1),cbin(2),cbin(3),3) + dot_product(fij,velvect)*dble(onfaceb(3))
+!!			Pxyvface(cbin(1),cbin(2),cbin(3),4) = Pxyvface(cbin(1),cbin(2),cbin(3),4) + dot_product(fij,velvect)*dble(onfacet(1))
+!!			Pxyvface(cbin(1),cbin(2),cbin(3),5) = Pxyvface(cbin(1),cbin(2),cbin(3),5) + dot_product(fij,velvect)*dble(onfacet(2))
+!!			Pxyvface(cbin(1),cbin(2),cbin(3),6) = Pxyvface(cbin(1),cbin(2),cbin(3),6) + dot_product(fij,velvect)*dble(onfacet(3))
+!!		endif
 
-!	enddo
-!	enddo
-!	enddo
+!		!Force applied to volume
+!!		fsurface(:) = 0.d0
+!!		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*dble(onfaceb(1) - onfacet(1))
+!!		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*dble(onfaceb(2) - onfacet(2))
+!!		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*dble(onfaceb(3) - onfacet(3))
+!!		volume_force(cbin(1),cbin(2),cbin(3),:,1) = volume_force(cbin(1),cbin(2),cbin(3),:,1) + fsurface*delta_t
 
-!end subroutine control_volume_stresses_opt_2
+!!	enddo
+!!	enddo
+!!	enddo
 
-!====================================================================================
+!!end subroutine control_volume_stresses_opt_2
+
+!!====================================================================================
 
 subroutine pressure_tensor_forces_MOP(pnxyz,ri,rj,rij,accijmag)
 	use module_record
@@ -5330,8 +5530,8 @@ subroutine pressure_tensor_forces_MOP(pnxyz,ri,rj,rij,accijmag)
 
 end subroutine pressure_tensor_forces_MOP
 
-!===================================================================================
-! Record external forces applied to molecules inside a volume
+!!===================================================================================
+!! Record external forces applied to molecules inside a volume
 
 module module_record_external_forces
 
@@ -5375,56 +5575,56 @@ end subroutine record_external_forces
 end module module_record_external_forces
 
 
-subroutine evaluate_U
-	use module_record
-	use linked_list
-	implicit none
+!subroutine evaluate_U
+!	use module_record
+!	use linked_list
+!	implicit none
 
-	integer				:: n
-	integer,dimension(3):: ib
-	real(kind(0.d0)),dimension(3) 	:: Vbinsize
+!	integer				:: n
+!	integer,dimension(3):: ib
+!	real(kind(0.d0)),dimension(3) 	:: Vbinsize
 
-	real(kind(0.d0)), dimension(:,:,:), allocatable :: mbin
-	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: vbin
+!	real(kind(0.d0)), dimension(:,:,:), allocatable :: mbin
+!	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: vbin
 
-	integer :: x,y,z,c
+!	integer :: x,y,z,c
 
-	Vbinsize(:) = domain(:) / nbins(:)
-	
-	x = nbins(1) + 2*nhb(1)
-	y = nbins(2) + 2*nhb(2)
-	z = nbins(3) + 2*nhb(3)
-	c = 3
-	
-	allocate(vbin(x,y,z,c))
-	allocate(mbin(x,y,z))
-	
-	vbin = 0.d0
-	mbin = 0
-		
-	do n = 1, np
+!	Vbinsize(:) = domain(:) / nbins(:)
+!	
+!	x = nbins(1) + 2*nhb(1)
+!	y = nbins(2) + 2*nhb(2)
+!	z = nbins(3) + 2*nhb(3)
+!	c = 3
+!	
+!	allocate(vbin(x,y,z,c))
+!	allocate(mbin(x,y,z))
+!	
+!	vbin = 0.d0
+!	mbin = 0
+!		
+!	do n = 1, np
 
-		! Get bin
-		ib(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
-		! Add v, m to bin
-		vbin(ib(1),ib(2),ib(3),:) = vbin(ib(1),ib(2),ib(3),:) + v(:,n)
-		mbin(ib(1),ib(2),ib(3)) = mbin(ib(1),ib(2),ib(3)) + 1 
+!		! Get bin
+!		ib(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
+!		! Add v, m to bin
+!		vbin(ib(1),ib(2),ib(3),:) = vbin(ib(1),ib(2),ib(3),:) + v(:,n)
+!		mbin(ib(1),ib(2),ib(3)) = mbin(ib(1),ib(2),ib(3)) + 1 
 
-	end do
+!	end do
 
-	do n = 1, np
+!	do n = 1, np
 
-		! Get bin
-		ib(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
-		! Get U from vbin / mbin
-		U(:,n) = vbin(ib(1),ib(2),ib(3),:)/real(mbin(ib(1),ib(2),ib(3)),kind(0.d0))
-	
-	end do
-	
-	deallocate(vbin)
-	deallocate(mbin)
+!		! Get bin
+!		ib(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
+!		! Get U from vbin / mbin
+!		U(:,n) = vbin(ib(1),ib(2),ib(3),:)/real(mbin(ib(1),ib(2),ib(3)),kind(0.d0))
+!	
+!	end do
+!	
+!	deallocate(vbin)
+!	deallocate(mbin)
 
-end subroutine evaluate_U
+!end subroutine evaluate_U
 
 
 module cluster_analysis

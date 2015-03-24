@@ -1941,6 +1941,11 @@ subroutine set_parameters_outputs
 		stop "Error - eflux MOP is not coded!"
 	endif
 
+
+    if (msurf_outflag .eq. 1) then
+        allocate(surface_density(nbinso(1),nbinso(2),nbinso(3),6))
+    endif
+
 #if USE_COUPLER
 	! Check end of maximum VMD intervals is not greater than the number of steps Nsteps
 	! which has been changed by the coupler.
