@@ -294,7 +294,6 @@ subroutine setup_read_input
 
             !Specifiy more general potential than LJ
 	        call locate(1,'MIE_POTENTIAL',.false.,found_in_input) 
-            print*, 'MIE', found_in_input
 	        if (found_in_input) then
                 read(1,*) Mie_potential
             else
@@ -469,7 +468,6 @@ subroutine setup_read_input
 
     !Specifiy more general potential than LJ
 	call locate(1,'MIE_POTENTIAL',.false.,found_in_input) 
-    print*, 'MIE', found_in_input
 	if (found_in_input) then
         read(1,*) Mie_potential
     else
