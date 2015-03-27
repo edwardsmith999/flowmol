@@ -742,7 +742,7 @@ subroutine simulation_header
     write(fileunit,*) 'Generate output file every steps ;   tplot ;',  tplot
     write(fileunit,*) 'Density ; density ;',density
     select case (config_special_case)
-	case('solid_liquid','2phase_LJ')
+	case('solid_liquid')
         write(fileunit,*) 'Liquid density ; liquid_density ;',liquid_density
     case('droplet2D','droplet3D','2phase', & 
          '2phase_surfactant_solution',  & 
