@@ -4573,22 +4573,22 @@ subroutine cumulative_surface_density
 				!Add Density on surface for molecules crossing face
 				surface_density(cbin(1),cbin(2),cbin(3),1) = & 
 					surface_density(cbin(1),cbin(2),cbin(3),1) & 
-				      + mass(n)*nint(dble(onfacexb)*abs(crossface(jxyz)))/abs(velvect(1))
+				      + mass(n)*nint(dble(onfacexb)*crossface(jxyz))/abs(velvect(1))
 				surface_density(cbin(1),cbin(2),cbin(3),2) = & 
 					surface_density(cbin(1),cbin(2),cbin(3),2) & 
-				      + mass(n)*nint(dble(onfaceyb)*abs(crossface(jxyz)))/abs(velvect(2))
+				      + mass(n)*nint(dble(onfaceyb)*crossface(jxyz))/abs(velvect(2))
 				surface_density(cbin(1),cbin(2),cbin(3),3) = & 
 					surface_density(cbin(1),cbin(2),cbin(3),3) &
-				      + mass(n)*nint(dble(onfacezb)*abs(crossface(jxyz)))/abs(velvect(3))
+				      + mass(n)*nint(dble(onfacezb)*crossface(jxyz))/abs(velvect(3))
 				surface_density(cbin(1),cbin(2),cbin(3),4) = & 
 					surface_density(cbin(1),cbin(2),cbin(3),4) &
-				      + mass(n)*nint(dble(onfacext)*abs(crossface(jxyz)))/abs(velvect(1))
+				      + mass(n)*nint(dble(onfacext)*crossface(jxyz))/abs(velvect(1))
 				surface_density(cbin(1),cbin(2),cbin(3),5) = & 
 					surface_density(cbin(1),cbin(2),cbin(3),5) &
-				      + mass(n)*nint(dble(onfaceyt)*abs(crossface(jxyz)))/abs(velvect(2))
+				      + mass(n)*nint(dble(onfaceyt)*crossface(jxyz))/abs(velvect(2))
 				surface_density(cbin(1),cbin(2),cbin(3),6) = & 
 					surface_density(cbin(1),cbin(2),cbin(3),6) &
-				      + mass(n)*nint(dble(onfacezt)*abs(crossface(jxyz)))/abs(velvect(3))
+				      + mass(n)*nint(dble(onfacezt)*crossface(jxyz))/abs(velvect(3))
 				      
 
 				!if (onfacexb .ne. 0) print*, n, i,j,k,ibin1,ibin2,bintop,halfdomain
