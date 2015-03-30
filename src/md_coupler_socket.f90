@@ -541,6 +541,7 @@ contains
         integer :: limits(6)
         real(kind(0.d0)) :: emptybuf(0, 0, 0, 0)
 
+
         if (.not.CPL_overlap()) return
 
         ! Get limits
@@ -555,7 +556,7 @@ contains
 
         select case (comm_style)
         case (comm_style_gath_scat)
-
+            
             !Define arbitary range to send -- TODO move to input file --
             limits(3) = 1; limits(4) = 1;
             call CPL_gather(uvw_md, 3, limits, emptybuf) 
