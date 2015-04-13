@@ -4573,22 +4573,22 @@ subroutine cumulative_surface_density
 				!Add Density on surface for molecules crossing face
 				surface_density(cbin(1),cbin(2),cbin(3),1) = & 
 					surface_density(cbin(1),cbin(2),cbin(3),1) & 
-				      + mass(n)*nint(dble(onfacexb)*(crossface(jxyz)))/abs(velvect(1))
+				      + mass(n)*nint(dble(onfacexb)*crossface(jxyz))/abs(velvect(1))
 				surface_density(cbin(1),cbin(2),cbin(3),2) = & 
 					surface_density(cbin(1),cbin(2),cbin(3),2) & 
-				      + mass(n)*nint(dble(onfaceyb)*(crossface(jxyz)))/abs(velvect(2))
+				      + mass(n)*nint(dble(onfaceyb)*crossface(jxyz))/abs(velvect(2))
 				surface_density(cbin(1),cbin(2),cbin(3),3) = & 
 					surface_density(cbin(1),cbin(2),cbin(3),3) &
-				      + mass(n)*nint(dble(onfacezb)*(crossface(jxyz)))/abs(velvect(3))
+				      + mass(n)*nint(dble(onfacezb)*crossface(jxyz))/abs(velvect(3))
 				surface_density(cbin(1),cbin(2),cbin(3),4) = & 
 					surface_density(cbin(1),cbin(2),cbin(3),4) &
-				      + mass(n)*nint(dble(onfacext)*(crossface(jxyz)))/abs(velvect(1))
+				      + mass(n)*nint(dble(onfacext)*crossface(jxyz))/abs(velvect(1))
 				surface_density(cbin(1),cbin(2),cbin(3),5) = & 
 					surface_density(cbin(1),cbin(2),cbin(3),5) &
-				      + mass(n)*nint(dble(onfaceyt)*(crossface(jxyz)))/abs(velvect(2))
+				      + mass(n)*nint(dble(onfaceyt)*crossface(jxyz))/abs(velvect(2))
 				surface_density(cbin(1),cbin(2),cbin(3),6) = & 
 					surface_density(cbin(1),cbin(2),cbin(3),6) &
-				      + mass(n)*nint(dble(onfacezt)*(crossface(jxyz)))/abs(velvect(3))
+				      + mass(n)*nint(dble(onfacezt)*crossface(jxyz))/abs(velvect(3))
 				      
 
 				!if (onfacexb .ne. 0) print*, n, i,j,k,ibin1,ibin2,bintop,halfdomain
@@ -5718,10 +5718,10 @@ contains
         cl_angle = 90.d0+atan(m)*180.d0/pi
     	fileunit = get_new_fileunit()
         if (first_time) then
-            open(unit=fileunit,file='./results/linecoeff_bot',status='replace')
+            open(unit=fileunit,file='linecoeff_bot',status='replace')
             first_time = .false.
         else
-            open(unit=fileunit,file='./results/linecoeff_bot',access='append')
+            open(unit=fileunit,file='linecoeff_bot',access='append')
         endif
         write(fileunit,'(i12, 3(a,f10.5))'), iter, ' Bottom line y = ', m, ' x + ',c  , ' angle = ', cl_angle
         close(fileunit,status='keep')
@@ -5772,7 +5772,7 @@ contains
 
         else
             print*, 'It appears clusters have broken up'
-            print'(a,8f10.1,e18.8)', 'CLUSTER DETAILS ', cluster_sizes(1:7), sum(cluster_sizes), (cluster_sizes(1) - cluster_sizes(2))/cluster_sizes(1)
+            print'(a,8f10.1,e18.8)', 'CLUSTER DETAILS ', cluster_sizes(1:8), (cluster_sizes(1) - cluster_sizes(2))/cluster_sizes(1)
 
             !print*, 'It appears clusters have broken up -- writing final state and exiting'
             !Exit Gracefully
@@ -5826,7 +5826,7 @@ contains
     subroutine build_from_cellandneighbour_lists(self, cell, neighbour, rd, rmols, nmols, skipwalls_)
 	    use module_compute_forces, only: cellinfo, neighbrinfo, rj, rij, ri,&
                                          delta_rneighbr, rcutoff, rij2, &
-                                         moltype, tag, tether_tags
+                                         moltype
 	    use interfaces, only : error_abort
         implicit none
 
@@ -5858,11 +5858,7 @@ contains
         do molnoi = 1, nmols
 
 	        ri = rmols(:,molnoi)         	!Retrieve ri
-
-            !Don't include wall type molecules or 2nd phase argon molecules
-            !if (skipwalls .and. moltype(molnoi) .eq. 2) cycle 
-            if (skipwalls .and. any(tag(molnoi).eq.tether_tags)) cycle 
-            if (moltype(molnoi) .eq. 8) cycle
+            if (skipwalls .and. moltype(molnoi) .eq. 2) cycle !Don't include wall molecules
 
             ! If interface cutoff is less that interaction rcutoff
             ! then we can use the neighbourlist to get molecules in 
@@ -5886,10 +5882,7 @@ contains
 		            rij2  = dot_product(rij,rij)            !Square of vector calculated
 
 		            if (rij2 .lt. rd2) then
-                        !if (skipwalls .and. moltype(molnoj) .eq. 2) then
-                        if ((skipwalls .and.  & 
-                            any(tag(molnoj).eq.tether_tags)) .or. & 
-                            moltype(molnoj) .eq. 8) then
+                        if (skipwalls .and. moltype(molnoj) .eq. 2) then
                             call AddBondedPair(self, molnoi, molnoi)
                         else
                             call AddBondedPair(self, molnoi, molnoj)
@@ -6943,9 +6936,6 @@ subroutine sl_interface_from_binaverage()
     real(kind(0.d0))   :: binvolume, input_soliddensity, input_liquiddensity, input_gasdensity, rd
     integer,dimension(:,:),allocatable    :: interfacecells
     real(kind(0.d0)),dimension(:,:),allocatable    :: rarray
-
-
-    call error_abort("sl_interface_from_binaverage is obsolete -- it may work but cluster analysis is preferred")
 
     if (Nmass_ave .eq. 0) call error_abort("Error in sl_interface_from_binaverage -- Interface checking requires mass binning")
     if (mod(iter/tplot+1,(Nmass_ave)) .eq. 0) then
