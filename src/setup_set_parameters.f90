@@ -476,7 +476,7 @@ subroutine setup_mie_potential
     lambdaa_lookup(2,2) = 6.d0
 
     !Liquid Agron and wall
-    epsilon_lookup(2,1) = 1.4
+    epsilon_lookup(2,1) = eij_wall
 
     !1-2 == Wall/{D,M,CM} hydrophobic/strong wall interaction
     ids = (/ 4,5,7 /)
@@ -501,7 +501,7 @@ subroutine setup_mie_potential
          !for water and hydrophobic parts CM, M and D
 
         do i =1,size(ids)
-            epsilon_lookup(ids(i),2) = 0.5d0 !1.4d0
+            epsilon_lookup(ids(i),2) = eij_wall
         enddo
         !1-2 == Wall/Water [hydrophilic or weak wall interaction]
         ! set to same as surfactant

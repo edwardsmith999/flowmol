@@ -484,6 +484,17 @@ subroutine setup_read_input
     else
         Mie_potential = 0
     endif
+
+    if (Mie_potential .ne. 0) then
+        call locate(1,'EIJ_WALL',.false.,found_in_input)
+        if (found_in_input) then
+            read(1,*) eij_wall
+        else
+            eij_wall = 1.d0
+        endif
+    endif
+
+
 	!Flags to determine if periodic boundaries are on or shearing Lees Edwards
 	call locate(1,'PERIODIC',.true.)
 	read(1,*) periodic(1)

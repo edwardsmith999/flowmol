@@ -5688,9 +5688,9 @@ contains
         resolution = 10; tolerence = rd
         call cluster_global_extents(self, imaxloc(self%Nlist), extents)
         call cluster_extents_grid(self, imaxloc(self%Nlist), 1, resolution, & 
-                                  extents_grid, debug_outfile='./results/maxcell_top')
+                                  extents_grid)!, debug_outfile='./results/maxcell_top')
         call cluster_outer_mols(self, imaxloc(self%Nlist), tolerence=tolerence, dir=1, & 
-                                rmols=rnp, extents=extents_grid, debug_outfile='./results/clust_edge_top')
+                                rmols=rnp, extents=extents_grid)!, debug_outfile='./results/clust_edge_top')
 
         allocate(x(size(rnp,2)),y(size(rnp,2)))
         x = rnp(2,:); y = rnp(1,:)
@@ -5707,9 +5707,9 @@ contains
         close(fileunit,status='keep')
 
         call cluster_extents_grid(self, imaxloc(self%Nlist), 4, resolution, &
-                                  extents_grid , debug_outfile='./results/maxcell_bot')
+                                  extents_grid )!, debug_outfile='./results/maxcell_bot')
         call cluster_outer_mols(self, imaxloc(self%Nlist), tolerence=tolerence, dir=4, & 
-                                rmols=rnp, extents=extents_grid, debug_outfile='./results/clust_edge_bot')
+                                rmols=rnp, extents=extents_grid)!, debug_outfile='./results/clust_edge_bot')
 
         allocate(x(size(rnp,2)),y(size(rnp,2)))
         x = rnp(2,:); y = rnp(1,:)
