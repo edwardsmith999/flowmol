@@ -1809,7 +1809,8 @@ subroutine setup_initialise_solid_liquid
     use messenger_data_exchange, only : globalSum
 #if USE_COUPLER
     use coupler
-    use md_coupler_socket, only: socket_get_domain_top
+    use md_coupler_socket, only: socket_get_domain_top, &
+                                 socket_get_domain_bottom
 #endif
     use module_molecule_properties, only : get_tag_status
     implicit none
@@ -1828,6 +1829,7 @@ subroutine setup_initialise_solid_liquid
 
     !Set top of domain initially
     domain_top = globaldomain(2)/2.d0
+    domain_bottom = -globaldomain(2)/2.d0
 
     !Setup solid/liquid properties
     solid_density = density
@@ -1837,7 +1839,7 @@ subroutine setup_initialise_solid_liquid
 
     if (jblock .eq. npy) then
         domain_top = socket_get_domain_top()
-        !domain_bottom = socket_get_domain_bottom()
+        domain_bottom = socket_get_domain_bottom()
     endif
 
 #else

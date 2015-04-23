@@ -451,71 +451,107 @@ contains
         real(kind(0.d0)) :: top_rght_md(3) ! Top right of CFD domain (CFD coords) 
         real(kind(0.d0)) :: r_rel_olap(3) ! MD local position relative to olap bottom left 
         real(kind(0.d0)) :: probe_pos(3)
-        ! End Dave temporary code
 
-!        !Specify BC region to average molecules
-!        ybcmin = yg(1,jcmin_olap)-dy;    ybcmax = yg(1,jcmin_olap)
-!        !ybcmin = yg(1,jcmin_olap);    ybcmax = ybcmin + dy
-!
-!        !print*, 'ybcmin, ybcmax', ybcmin, ybcmax
-!
-!        !Velocity measurement for 3D bins throughout the domain
-!        !Determine bin size
-!        dxyz = (/ dx, dy, dz /)
-!        !print*, 'dx, dy, dz', dxyz 
-!
-!        !Eliminate processors outside of passing region
-!
-!        if (any(extents .eq. VOID)) return
-!        if ((yg(1,extents(3)) .gt. ybcmax) .or. (yg(1,extents(4)+1) .lt. ybcmin)) return
-!
-!        !Get local extents on processor(s) of interest
-!        rd(:) = (/ 0.d0 , ybcmin, 0.d0 /)   !Bottom of cell below domain
-!        avrg_bot = localise(map_cfd2md_global(rd))
-!        rd2(:) = (/ globaldomain(1) , ybcmax , globaldomain(3)   /)   !Top of cell below domain (= bottom of domain)
-!        avrg_top = localise(map_cfd2md_global(rd2))
-!
-!        minbin = ceiling((avrg_bot+halfdomain(:))/dxyz(:)) + nhb
-!        maxbin = ceiling((avrg_top+halfdomain(:))/dxyz(:)) + nhb
-!        !minbin = ceiling((avrg_bot+halfdomain(:))/dxyz(:)) + 2!+ nhb
-!        !maxbin = ceiling((avrg_top+halfdomain(:))/dxyz(:)) + 2!+ nhb
-!
-!        !print*, 'minbin, maxbin, nhb', minbin, maxbin, nhb
-!
+        dxyz = (/ dx, dy, dz /)
+        call CPL_get(icmin_olap=icmin_olap, jcmin_olap=jcmin_olap, kcmin_olap=kcmin_olap)
+        call CPL_get(icmax_olap=icmax_olap, jcmax_olap=jcmax_olap, kcmax_olap=kcmax_olap)
 
-        ! Dave's temporary code
-        davecode = .true. 
-        if (davecode) then
+        ! Assume halos were not part of CFD grid passed in during cfd_init, minimum
+        ! overlap should be bottom left of the CFD domain
+        xmin_cfd = xg(icmin_olap, 1)
+        ymin_cfd = yg(1, jcmin_olap)
+        zmin_cfd = zg(kcmin_olap)
+        ! + dxyz to get top vertex of top cell
+        xmax_cfd = xg(icmax_olap, 1) + dx
+        ymax_cfd = yg(1, jcmax_olap) + dy
+        zmax_cfd = zg(kcmax_olap) + dz
 
+        ! Hack ymin_cfd to actually be equivalent of the bottom of a halo
+        ! cell, below the bottom of the domain, and ymax_cfd to be the
+        ! bottom of the domain. This is why uvw_md is
+        ! allocated (4, nclx, 1, nclz) We will interpolate later 
+        ! in the CFD socket to get domain face BC.
+        ymin_cfd = ymin_cfd - dy
+        ymax_cfd = ymin_cfd + dy
+
+        ! Bottom left and top right of overlap (CFD coords) 
+        bot_left_cfd = (/xmin_cfd, ymin_cfd, zmin_cfd/)
+        top_rght_cfd = (/xmax_cfd, ymax_cfd, zmax_cfd/)
+
+        ! Bottom left and top right of overlap (MD local coords)
+        bot_left_md = localise(map_cfd2md_global(bot_left_cfd))
+        top_rght_md = localise(map_cfd2md_global(top_rght_cfd))
+
+        select case(staggered_averages(1))  
+        !- - - - - - - - - - - - - - - - - - - -
+        !Record velocity flux over surface
+        !- - - - - - - - - - - - - - - - - - - -
+        case(.true.)
+
+            call error_abort("Staggered averages (.true.) case selection "//&
+            "probably has a bug (nhb?) in md_coupler_socket - aborting.")
+
+            ! ---------------------------------------------------------------
+            ! THIS CODE WAS REPLACED ABOVE in April 2015
+            ! ---------------------------------------------------------------
+            !Specify BC region to average molecules
+            ybcmin = yg(1,jcmin_olap)-dy;    ybcmax = yg(1,jcmin_olap)
+    
+            !Determine bin size
             dxyz = (/ dx, dy, dz /)
-            call CPL_get(icmin_olap=icmin_olap, jcmin_olap=jcmin_olap, kcmin_olap=kcmin_olap)
-            call CPL_get(icmax_olap=icmax_olap, jcmax_olap=jcmax_olap, kcmax_olap=kcmax_olap)
+    
+            !Eliminate processors outside of passing region
+            if (any(extents .eq. VOID)) return
+            if ((yg(1,extents(3)) .gt. ybcmax) .or. (yg(1,extents(4)+1) .lt. ybcmin)) return
+    
+            !Get local extents on processor(s) of interest
+            rd(:) = (/ 0.d0 , ybcmin, 0.d0 /)   !Bottom of cell below domain
+            avrg_bot = localise(map_cfd2md_global(rd))
+            rd2(:) = (/ globaldomain(1) , ybcmax , globaldomain(3)   /)   !Top of cell below domain (= bottom of domain)
+            avrg_top = localise(map_cfd2md_global(rd2))
+    
+            minbin = ceiling((avrg_bot+halfdomain(:))/dxyz(:)) + nhb
+            maxbin = ceiling((avrg_top+halfdomain(:))/dxyz(:)) + nhb
+            ! ---------------------------------------------------------------
+            ! END OLD CODE from before April 2015
+            ! ---------------------------------------------------------------
 
-            ! Assume halos were not part of CFD grid passed in during cfd_init, minimum
-            ! overlap should be bottom left of the CFD domain
-            xmin_cfd = xg(icmin_olap, 1)
-            ymin_cfd = yg(1, jcmin_olap)
-            zmin_cfd = zg(kcmin_olap)
-            ! + dxyz to get top vertex of top cell
-            xmax_cfd = xg(icmax_olap, 1) + dx
-            ymax_cfd = yg(1, jcmax_olap) + dy
-            zmax_cfd = zg(kcmax_olap) + dz
+            do n = 1,np
 
-            ! Hack ymin_cfd to actually be equivalent of the bottom of a halo
-            ! cell, below the bottom of the domain, and ymax_cfd to be the
-            ! bottom of the domain. This is why uvw_md is
-            ! allocated (4, nclx, 1, nclz) We will interpolate later 
-            ! in the CFD socket to get domain face BC.
-            ymin_cfd = ymin_cfd - dy
-            ymax_cfd = ymin_cfd + dy
+                ri1(:) = r(:,n)                             !Molecule i at time t
+                ri2(:) = r(:,n) -delta_t*v(:,n)             !Molecule i at time t-dt
+                !Assign to bins before and after using integer division
+                ibin1(:) = ceiling((ri1+halfdomain(:))/dxyz(:)) + nhb
+                ibin2(:) = ceiling((ri2+halfdomain(:))/dxyz(:)) + nhb
+                    
+                !Exclude molecules outside of processor domain
+                if (      ibin1(2) .lt. minbin(2) .or. ibin1(2) .ge. maxbin(2) &
+                    .and. ibin2(2) .lt. minbin(2) .or. ibin2(2) .ge. maxbin(2) ) cycle
 
-            ! Bottom left and top right of overlap (CFD coords) 
-            bot_left_cfd = (/xmin_cfd, ymin_cfd, zmin_cfd/)
-            top_rght_cfd = (/xmax_cfd, ymax_cfd, zmax_cfd/)
+                !Replace Signum function with this functions which gives a
+                !check for plane crossing and the correct sign 
+                crossplane(:) =  ibin1(:) - ibin2(:)
+                if (sum(abs(crossplane(:))) .ne. 0) then
+                    !Find which direction the surface is crossed
+                    !For simplicity, if more than one surface has been crossed surface fluxes of intermediate cells
+                    !are not included. This assumption => more reasonable as Delta_t => 0
+                    ixyz = imaxloc(abs(crossplane))
+                    !Add mass flux to the new bin surface count and take from the old
+                    mflux(ixyz+3*heaviside(-dble(crossplane(ixyz))),ibin1(3),ibin1(1),ibin1(2)) = & 
+                        mflux(ixyz+3*heaviside(-dble(crossplane(ixyz))),ibin1(3),ibin1(1),ibin1(2)) & 
+                            + abs(crossplane(ixyz))
+                    mflux(ixyz+3*heaviside(dble(crossplane(ixyz))),ibin2(3),ibin2(1),ibin2(2)) = & 
+                        mflux(ixyz+3*heaviside(dble(crossplane(ixyz))),ibin2(3),ibin2(1),ibin2(2)) &
+                            - abs(crossplane(ixyz))
+                endif
 
-            ! Bottom left and top right of overlap (MD local coords)
-            bot_left_md = localise(map_cfd2md_global(bot_left_cfd))
-            top_rght_md = localise(map_cfd2md_global(top_rght_cfd))
+            enddo
+
+        !- - - - - - - - - - - - - - - - - - - -
+        !Record velocity in cell centre
+        !- - - - - - - - - - - - - - - - - - - -
+        !Add up current volume mass and momentum densities
+        case(.false.)
 
             do n = 1,np
 
@@ -549,82 +585,19 @@ contains
                 end if
                 
                 ! Add velocity and molecular count to bin
-                uvw_md(1:3,ibin(1),ibin(2),ibin(3)) = uvw_md(1:3,ibin(1),ibin(2),ibin(3)) + 0.25 !v(:,n)
+                uvw_md(1:3,ibin(1),ibin(2),ibin(3)) = uvw_md(1:3,ibin(1),ibin(2),ibin(3)) + v(:,n)
                 uvw_md(4,  ibin(1),ibin(2),ibin(3)) = uvw_md(4,  ibin(1),ibin(2),ibin(3)) + 1.d0
 
+                !DEBUG - each cell is loaded with its physical location in space
+                !uvw_md(1:3,ibin(1),ibin(2),ibin(3)) = globalise(ibin(:)*dxyz(:)-halfdomain(:)-0.5*dxyz(:))
+                !uvw_md(1:3,ibin(1),ibin(2),ibin(3)) = sin(2*pi*(globalise(ibin(:)*dxyz(:)-halfdomain(:)-0.5*dxyz(:)))/globaldomain(:))
+                !uvw_md(4,  ibin(1),ibin(2),ibin(3)) = 1.d0
+
             enddo
-           
-            return 
 
-        end if 
-
-!        select case(staggered_averages(1))  
-!        !- - - - - - - - - - - - - - - - - - - -
-!        !Record velocity flux over surface
-!        !- - - - - - - - - - - - - - - - - - - -
-!        case(.true.)
-!            !Determine bin size
-!            do n = 1,np
-!                ri1(:) = r(:,n)                             !Molecule i at time t
-!                ri2(:) = r(:,n) -delta_t*v(:,n)             !Molecule i at time t-dt
-!                !Assign to bins before and after using integer division
-!                ibin1(:) = ceiling((ri1+halfdomain(:))/dxyz(:)) + nhb
-!                ibin2(:) = ceiling((ri2+halfdomain(:))/dxyz(:)) + nhb
-!                    
-!                !Exclude molecules outside of processor domain
-!                if (      ibin1(2) .lt. minbin(2) .or. ibin1(2) .ge. maxbin(2) &
-!                    .and. ibin2(2) .lt. minbin(2) .or. ibin2(2) .ge. maxbin(2) ) cycle
-!
-!                !Replace Signum function with this functions which gives a
-!                !check for plane crossing and the correct sign 
-!                crossplane(:) =  ibin1(:) - ibin2(:)
-!                if (sum(abs(crossplane(:))) .ne. 0) then
-!                    !Find which direction the surface is crossed
-!                    !For simplicity, if more than one surface has been crossed surface fluxes of intermediate cells
-!                    !are not included. This assumption => more reasonable as Delta_t => 0
-!                    ixyz = imaxloc(abs(crossplane))
-!                    !Add mass flux to the new bin surface count and take from the old
-!                    mflux(ixyz+3*heaviside(-dble(crossplane(ixyz))),ibin1(3),ibin1(1),ibin1(2)) = & 
-!                        mflux(ixyz+3*heaviside(-dble(crossplane(ixyz))),ibin1(3),ibin1(1),ibin1(2)) & 
-!                            + abs(crossplane(ixyz))
-!                    mflux(ixyz+3*heaviside(dble(crossplane(ixyz))),ibin2(3),ibin2(1),ibin2(2)) = & 
-!                        mflux(ixyz+3*heaviside(dble(crossplane(ixyz))),ibin2(3),ibin2(1),ibin2(2)) &
-!                            - abs(crossplane(ixyz))
-!                endif
-!            enddo
-!        !- - - - - - - - - - - - - - - - - - - -
-!        !Record velocity in cell centre
-!        !- - - - - - - - - - - - - - - - - - - -
-!        !Add up current volume mass and momentum densities
-!        case(.false.)
-!            do n = 1,np
-!                !Get bin containing molecule
-!                ibin(:) = ceiling((r(:,n)+halfdomain(:))/dxyz(:)) !+ nhb
-!
-!                !Exclude molecules outside of averaging region
-!                !if (any(ibin(:).lt.minbin(:)) .or. any(ibin(:).ge.maxbin(:))) cycle
-!                if (r(2,n).lt.avrg_bot(2) .or. r(2,n).gt.avrg_top(2) ) cycle
-!
-!                !Exclude molecules which leave processor between rebuilds
-!                if (ibin(1).lt.1) ibin(1) = 1; if (ibin(1).gt.extents(2)-extents(1)+1) ibin(1) = extents(2)-extents(1)+1
-!                if (ibin(3).lt.1) ibin(3) = 1; if (ibin(3).gt.extents(6)-extents(5)+1) ibin(3) = extents(6)-extents(5)+1
-!
-!                !print*,'ibin(2) - minbin(2) + 2', ibin(2) - minbin(2) + 2
-!                !Add velocity and molecular count to bin
-!                uvw_md(1:3,ibin(1),ibin(2)-minbin(2)+2,ibin(3)) = &
-!                    uvw_md(1:3,ibin(1),ibin(2)-minbin(2)+2,ibin(3)) + v(:,n)
-!                uvw_md(4,  ibin(1),ibin(2)-minbin(2)+2,ibin(3)) = &     
-!                    uvw_md(4,  ibin(1),ibin(2)-minbin(2)+2,ibin(3)) + 1.d0
-!
-!                !DEBUG - each cell is loaded with its physical location in space
-!                !uvw_md(1:3,ibin(1),ibin(2)-minbin(2)+2,ibin(3)) = globalise(ibin(:)*dxyz(:)-halfdomain(:)-0.5*dxyz(:))
-!                !uvw_md(1:3,ibin(1),ibin(2)-minbin(2)+2,ibin(3)) = sin(2*pi*(globalise(ibin(:)*dxyz(:)-halfdomain(:)-0.5*dxyz(:)))/globaldomain(:))
-!                !uvw_md(4,  ibin(1),ibin(2)-minbin(2)+2,ibin(3)) = 1.d0
-!            enddo
-!
-!        case default
-!            call error_abort('Unknown case in staggered_averages')
-!        end select
+        case default
+            call error_abort('Unknown case in staggered_averages')
+        end select
 
     end subroutine cumulative_velocity_average
 
