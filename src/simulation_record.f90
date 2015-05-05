@@ -5671,6 +5671,7 @@ contains
         use computational_constants_MD, only : iter, thermo_tags, thermo, free
         use linked_list, only : linklist_printneighbourlist
         use librarymod, only : imaxloc, get_Timestep_FileName, least_squares, get_new_fileunit
+        use minpack_fit_funcs_mod, only : fn, cubic_fn, curve_fit
         use arrays_MD, only : tag
         implicit none
 
@@ -5681,49 +5682,63 @@ contains
         character(32)                   :: filename
         integer                         :: n, i,j,resolution,fileunit
         double precision                :: tolerence, m, c, cl_angle
+        double precision, dimension(4)  :: p0 = (/ 0.d0, 0.d0, 0.d0, 0.d0 /)
         double precision,dimension(6)   :: extents
-        double precision,dimension(:),allocatable :: x,y
+        double precision,dimension(:),allocatable :: x,y,f
         double precision,dimension(:,:),allocatable :: rnp, extents_grid
+
 
         resolution = 10; tolerence = rd
         call cluster_global_extents(self, imaxloc(self%Nlist), extents)
         call cluster_extents_grid(self, imaxloc(self%Nlist), 1, resolution, & 
                                   extents_grid)!, debug_outfile='./results/maxcell_top')
         call cluster_outer_mols(self, imaxloc(self%Nlist), tolerence=tolerence, dir=1, & 
-                                rmols=rnp, extents=extents_grid)!, debug_outfile='./results/clust_edge_top')
+                                rmols=rnp, extents=extents_grid, debug_outfile='./results/clust_edge_top')
 
+        !Curve fits to clusers
         allocate(x(size(rnp,2)),y(size(rnp,2)))
         x = rnp(2,:); y = rnp(1,:)
+        !Linear
         call least_squares(x, y, m, c)
+        !Cubic using minpack
+        fn => cubic_fn
+        call curve_fit(fn, x, y, p0, f)
         deallocate(x,y)
         cl_angle = 90.d0+atan(m)*180./pi
     	fileunit = get_new_fileunit()
         if (first_time) then
-            open(unit=fileunit,file='linecoeff_top',status='replace')
+            open(unit=fileunit,file='./results/linecoeff_top',status='replace')
         else
-            open(unit=fileunit,file='linecoeff_top',access='append')
+            open(unit=fileunit,file='./results/linecoeff_top',access='append')
         endif
-        write(fileunit,'(i12, 3(a,f10.5))'), iter, ' Top line    y = ', m, ' x + ',c , ' angle = ', cl_angle
+        write(fileunit,'(i12, 7f15.8)'), iter, m, c, cl_angle, p0
+        !write(fileunit,'(i12, 3(a,f10.5))'), iter, ' Top line    y = ', m, ' x + ',c , ' angle = ', cl_angle
         close(fileunit,status='keep')
 
         call cluster_extents_grid(self, imaxloc(self%Nlist), 4, resolution, &
                                   extents_grid )!, debug_outfile='./results/maxcell_bot')
         call cluster_outer_mols(self, imaxloc(self%Nlist), tolerence=tolerence, dir=4, & 
-                                rmols=rnp, extents=extents_grid)!, debug_outfile='./results/clust_edge_bot')
+                                rmols=rnp, extents=extents_grid, debug_outfile='./results/clust_edge_bot')
 
+        !Curve fits to clusers
         allocate(x(size(rnp,2)),y(size(rnp,2)))
         x = rnp(2,:); y = rnp(1,:)
+        !Linear
         call least_squares(x, y, m, c)
+        !Cubic using minpack
+        fn => cubic_fn
+        call curve_fit(fn, x, y, p0, f)
         deallocate(x,y)
         cl_angle = 90.d0+atan(m)*180.d0/pi
     	fileunit = get_new_fileunit()
         if (first_time) then
-            open(unit=fileunit,file='linecoeff_bot',status='replace')
+            open(unit=fileunit,file='./results/linecoeff_bot',status='replace')
             first_time = .false.
         else
-            open(unit=fileunit,file='linecoeff_bot',access='append')
+            open(unit=fileunit,file='./results/linecoeff_bot',access='append')
         endif
-        write(fileunit,'(i12, 3(a,f10.5))'), iter, ' Bottom line y = ', m, ' x + ',c  , ' angle = ', cl_angle
+        write(fileunit,'(i12, 7f15.8)'), iter, m, c, cl_angle, p0
+        !write(fileunit,'(i12, 3(a,f10.5))'), iter, ' Bottom line y = ', m, ' x + ',c  , ' angle = ', cl_angle
         close(fileunit,status='keep')
 
         call check_for_cluster_breakup(self)

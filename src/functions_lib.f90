@@ -165,8 +165,94 @@ end function get_force_3D_vector
 end module Weight_fn_mod
 
 
-module librarymod
 
+
+!*****************************************************************************
+! Routine to call minpack in order to fit arbitary function
+
+module minpack_fit_funcs_mod
+
+    real ( kind = 8 ), dimension (:),allocatable :: xdat, ydat
+
+    abstract interface
+        subroutine mp_fn( m, n, x, fvec, iflag )
+            integer ( kind = 4 ), intent(in) :: m
+            integer ( kind = 4 ), intent(in) :: n
+            integer ( kind = 4 ), intent(in) :: iflag
+            real ( kind = 8 ), intent(in)    :: x(n)
+            real ( kind = 8 ), intent(out)   :: fvec(m)
+        end subroutine mp_fn
+    end interface
+
+   procedure (mp_fn),     pointer :: fn => null()
+
+contains
+
+! curve_fit fits an arbitary function, fn, to data in the form of xdata vs ydata
+! using initial guess for coefficients p0.
+! N.B. size of p0 must be consistent with unknowns in function fn.
+
+subroutine curve_fit(fn, xdata, ydata, p0, fvec)
+    implicit none
+
+    real ( kind = 8 ), dimension(:), intent(in) :: xdata, ydata
+    real ( kind = 8 ), dimension(:), intent(inout) :: p0
+    real ( kind = 8 ), dimension(:), allocatable, intent(out) :: fvec
+
+    external fn
+    integer :: m, n, iflag, info
+    real ( kind = 8 ) :: tol
+
+    tol = 0.00001D+00
+    iflag = 1
+
+    if (size(xdata) .ne. size(ydata)) then
+        stop "Error in curve_fit -- xdata != ydata"
+    endif
+    m = size(xdata); n = size(p0);
+    allocate(fvec(m))
+
+    !Set xdat and ydat arrays which are used in fn
+    allocate(xdat(m),ydat(m))
+    xdat = xdata; ydat = ydata
+
+    call fn(m, n, p0, fvec, iflag )
+    call lmdif1(fn, m, n, p0, fvec, tol, info)
+
+    deallocate(xdat,ydat)
+
+end subroutine curve_fit
+
+! cubic_fn is a cubic function routine.
+subroutine cubic_fn ( m, n, x, fvec, iflag )
+    implicit none
+
+    integer ( kind = 4 ), intent(in) :: m
+    integer ( kind = 4 ), intent(in) :: n
+    integer ( kind = 4 ), intent(in) :: iflag
+
+    real ( kind = 8 ), intent(inout) :: x(n)
+
+    real ( kind = 8 ), intent(out) :: fvec(m)
+
+    !Cubic needs four coefficients
+    if (n .ne. 4) then
+        stop "Error in cubic_fn, number of coefficients 'n' should be 4"
+    endif
+
+    fvec(1:m) =   x(1) & 
+                + x(2)*xdat(1:m) & 
+                + x(3)*xdat(1:m)**2 & 
+                + x(4)*xdat(1:m)**3 & 
+                - ydat(1:m)
+
+end subroutine cubic_fn
+
+end module minpack_fit_funcs_mod
+
+
+module librarymod
+    use minpack_fit_funcs_mod
 	use Weight_fn_mod
 
 	real(kind(0.d0)),parameter :: pi=4.d0*atan(1.d0)
