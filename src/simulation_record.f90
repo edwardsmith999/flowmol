@@ -5668,21 +5668,25 @@ contains
 
     subroutine get_cluster_properties(self, rd)
         use physical_constants_MD, only : pi, np
-        use computational_constants_MD, only : iter, thermo_tags, thermo, free
+        use physical_constants_MD, only : tethereddisttop, tethereddistbottom
+        use computational_constants_MD, only : iter, thermo_tags, thermo, free, globaldomain 
         use linked_list, only : linklist_printneighbourlist
         use librarymod, only : imaxloc, get_Timestep_FileName, least_squares, get_new_fileunit
         use minpack_fit_funcs_mod, only : fn, cubic_fn, curve_fit
-        use arrays_MD, only : tag
+        use arrays_MD, only : tag, r
+        use librarymod, only : heaviside  =>  heaviside_a1
         implicit none
 
         type(clusterinfo),intent(inout)    :: self
         double precision, intent(in)       :: rd
 
-        logical                         :: first_time=.true.
-        character(32)                   :: filename
-        integer                         :: n, i,j,resolution,fileunit
-        double precision                :: tolerence, m, c, cl_angle
-        double precision, dimension(4)  :: p0 = (/ 0.d0, 0.d0, 0.d0, 0.d0 /)
+        logical                         :: first_time=.true., print_debug
+        character(32)                   :: filename, debug_outfile
+        integer                         :: n,pid,i,j,resolution,fileunit
+        double precision                :: tolerence, m, c, cl_angle, theta_i, yi
+        double precision, dimension(3)  :: bintopi, binboti, ri 
+        double precision, dimension(4)  :: pt = (/ 0.d0, 0.d0, 0.d0, 0.d0 /)
+        double precision, dimension(4)  :: pb = (/ 0.d0, 0.d0, 0.d0, 0.d0 /)
         double precision,dimension(6)   :: extents
         double precision,dimension(:),allocatable :: x,y,f
         double precision,dimension(:,:),allocatable :: rnp, extents_grid
@@ -5702,7 +5706,7 @@ contains
         call least_squares(x, y, m, c)
         !Cubic using minpack
         fn => cubic_fn
-        call curve_fit(fn, x, y, p0, f)
+        call curve_fit(fn, x, y, pt, f)
         deallocate(x,y)
         cl_angle = 90.d0+atan(m)*180.d0/pi
     	fileunit = get_new_fileunit()
@@ -5711,7 +5715,7 @@ contains
         else
             open(unit=fileunit,file='./results/linecoeff_top',access='append')
         endif
-        write(fileunit,'(i12, 7f15.8)'), iter, m, c, cl_angle, p0
+        write(fileunit,'(i12, 7f15.8)'), iter, m, c, cl_angle, pt
         !write(fileunit,'(i12, 3(a,f10.5))'), iter, ' Top line    y = ', m, ' x + ',c , ' angle = ', cl_angle
         close(fileunit,status='keep')
 
@@ -5727,7 +5731,7 @@ contains
         call least_squares(x, y, m, c)
         !Cubic using minpack
         fn => cubic_fn
-        call curve_fit(fn, x, y, p0, f)
+        call curve_fit(fn, x, y, pb, f)
         deallocate(x,y)
         cl_angle = 90.d0+atan(m)*180.d0/pi
     	fileunit = get_new_fileunit()
@@ -5737,11 +5741,52 @@ contains
         else
             open(unit=fileunit,file='./results/linecoeff_bot',access='append')
         endif
-        write(fileunit,'(i12, 7f15.8)'), iter, m, c, cl_angle, p0
+        write(fileunit,'(i12, 7f15.8)'), iter, m, c, cl_angle, pb
         !write(fileunit,'(i12, 3(a,f10.5))'), iter, ' Bottom line y = ', m, ' x + ',c  , ' angle = ', cl_angle
         close(fileunit,status='keep')
 
         call check_for_cluster_breakup(self)
+
+        !Front/back surfaces in y
+        bintopi(2) =  0.5d0*globaldomain(2) - tethereddisttop(2)
+        binboti(2) = -0.5d0*globaldomain(2) + tethereddistbottom(2)
+        
+        !Left/Right cluser based surfaces in z
+        bintopi(3) =  0.5d0*globaldomain(3) 
+        binboti(3) = -0.5d0*globaldomain(3) 
+
+
+        print_debug = .false.
+        debug_outfile = './results/CV_mols'
+        if (print_debug) then
+            pid = get_new_fileunit()
+            call get_Timestep_FileName(iter,debug_outfile,filename)
+            open(unit=pid,file=trim(filename),status='replace')
+            do n =1,np
+
+                ri(:) = r(:,n)
+                yi = ri(2)
+                !Top/bottom surfaces in x
+                bintopi(1) = pt(4)*yi**3.d0 + pt(3)*yi**2.d0 + pt(2)*yi + pt(1)
+                binboti(1) = pb(4)*yi**3.d0 + pb(3)*yi**2.d0 + pb(2)*yi + pb(1)
+
+                !Use CV function
+		        theta_i = dble((heaviside(bintopi(1)-ri(1))-heaviside(binboti(1)-ri(1)))* & 
+			               	   (heaviside(bintopi(2)-ri(2))-heaviside(binboti(2)-ri(2)))* & 
+			              	   (heaviside(bintopi(3)-ri(3))-heaviside(binboti(3)-ri(3))))
+
+                if (theta_i .eq. 1.d0) then
+                    write(pid,'(i10,6f18.9)') n, ri, 0.d0, 0.d0, 0.d0
+                else
+                    write(pid,'(i10,6f18.9)') n, 0.d0, 0.d0, 0.d0, ri
+                endif
+
+            enddo
+        endif
+
+        close(pid,status='keep')
+
+
 
 
         ! - - -Set cluster molecules to be thermostatted - - -
