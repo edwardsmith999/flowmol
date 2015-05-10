@@ -172,15 +172,15 @@ end module Weight_fn_mod
 
 module minpack_fit_funcs_mod
 
-    real ( kind = 8 ), dimension (:),allocatable :: xdat, ydat
+    real(kind(0.d0)), dimension (:),allocatable :: xdat, ydat, zdat
 
     abstract interface
         subroutine mp_fn( m, n, x, fvec, iflag )
             integer ( kind = 4 ), intent(in) :: m
             integer ( kind = 4 ), intent(in) :: n
             integer ( kind = 4 ), intent(in) :: iflag
-            real ( kind = 8 ), intent(in)    :: x(n)
-            real ( kind = 8 ), intent(out)   :: fvec(m)
+            real(kind(0.d0)), intent(in)    :: x(n)
+            real(kind(0.d0)), intent(out)   :: fvec(m)
         end subroutine mp_fn
     end interface
 
@@ -192,16 +192,18 @@ contains
 ! using initial guess for coefficients p0.
 ! N.B. size of p0 must be consistent with unknowns in function fn.
 
-subroutine curve_fit(fn, xdata, ydata, p0, fvec)
+subroutine curve_fit(fn, xdata, ydata, p0, fvec, zdata)
     implicit none
 
-    real ( kind = 8 ), dimension(:), intent(in) :: xdata, ydata
-    real ( kind = 8 ), dimension(:), intent(inout) :: p0
-    real ( kind = 8 ), dimension(:), allocatable, intent(out) :: fvec
+    real(kind(0.d0)), dimension(:), intent(in) :: xdata, ydata
+    real(kind(0.d0)), dimension(:), intent(inout) :: p0
+    real(kind(0.d0)), dimension(:), allocatable, intent(out) :: fvec
+
+    real(kind(0.d0)), dimension(:), intent(in),optional :: zdata
 
     external fn
     integer :: m, n, iflag, info
-    real ( kind = 8 ) :: tol
+    real(kind(0.d0)) :: tol
 
     tol = 0.00001D+00
     iflag = 1
@@ -211,15 +213,33 @@ subroutine curve_fit(fn, xdata, ydata, p0, fvec)
     endif
     m = size(xdata); n = size(p0);
     allocate(fvec(m))
+    !For curve fitting, number of data points must be greater than
+    ! or equal to number of unknowns
+    if (m .lt. n) then
+        print*,   "Warning in curve_fit -- number of data points "// 
+                 +"must be greater than or equal to "// 
+                 +"number of unknowns. Returning zeros."
+        p0 = 0.d0
+        fvec = 0.d0
+        return
+    endif
 
-    !Set xdat and ydat arrays which are used in fn
+    !Set xdat, ydat and may be zdat arrays which are used in fn
     allocate(xdat(m),ydat(m))
     xdat = xdata; ydat = ydata
+    if present(zdata) then
+        if (size(xdata) .ne. size(zdata)) then
+            stop "Error in curve_fit -- xdata != zdata"
+        endif
+        allocate(zdat(m))
+        zdat = zdata
+    endif
 
     call fn(m, n, p0, fvec, iflag )
     call lmdif1(fn, m, n, p0, fvec, tol, info)
 
     deallocate(xdat,ydat)
+    if present(zdata) deallocate(zdat)
 
 end subroutine curve_fit
 
@@ -231,9 +251,9 @@ subroutine cubic_fn ( m, n, x, fvec, iflag )
     integer ( kind = 4 ), intent(in) :: n
     integer ( kind = 4 ), intent(in) :: iflag
 
-    real ( kind = 8 ), intent(inout) :: x(n)
+    real(kind(0.d0)), intent(inout) :: x(n)
 
-    real ( kind = 8 ), intent(out) :: fvec(m)
+    real(kind(0.d0)), intent(out) :: fvec(m)
 
     !Cubic needs four coefficients
     if (n .ne. 4) then
@@ -245,6 +265,35 @@ subroutine cubic_fn ( m, n, x, fvec, iflag )
                 + x(3)*xdat(1:m)**2 & 
                 + x(4)*xdat(1:m)**3 & 
                 - ydat(1:m)
+
+end subroutine cubic_fn
+
+! cubic_fn2D is a cubic function routine.
+subroutine cubic_fn2D ( m, n, x, fvec, iflag )
+    implicit none
+
+    integer ( kind = 4 ), intent(in) :: m
+    integer ( kind = 4 ), intent(in) :: n
+    integer ( kind = 4 ), intent(in) :: iflag
+
+    real(kind(0.d0)), intent(inout) :: x(n)
+
+    real(kind(0.d0)), intent(out) :: fvec(m)
+
+    !Cubic needs four coefficients
+    if (n .ne. 8) then
+        stop "Error in cubic_fn, number of coefficients 'n' should be 4"
+    endif
+
+    fvec(1:m) = + x(1) & 
+                + x(2)*xdat(1:m) & 
+                + x(3)*xdat(1:m)**2 & 
+                + x(4)*xdat(1:m)**3 & 
+                + x(5) &
+                + x(6)*ydat(1:m) &
+                + x(7)*ydat(1:m)**2 &
+                + x(8)*ydat(1:m)**3 &
+                - zdata(1:m)
 
 end subroutine cubic_fn
 
@@ -3147,13 +3196,13 @@ end subroutine quadratic_lagrange_interp
 !  Parameters:
 !    Input, integer ( kind = 4 ) N_1D(M), the order of the 1D rule to be used
 !    in each dimension.
-!    Input, real ( kind = 8 ) A(M), B(M), the lower and upper limits.
-!    Input, real ( kind = 8 ) ZD(ND), the function evaluated at the points XD.
-!    Input, real ( kind = 8 ) XI(M,NI), the points at which the interpolant is 
+!    Input, real(kind(0.d0)) A(M), B(M), the lower and upper limits.
+!    Input, real(kind(0.d0)) ZD(ND), the function evaluated at the points XD.
+!    Input, real(kind(0.d0)) XI(M,NI), the points at which the interpolant is 
 !    to be evaluated.
-!    Output, real ( kind = 8 ) ZI(NI), the interpolant evaluated at the 
+!    Output, real(kind(0.d0)) ZI(NI), the interpolant evaluated at the 
 !    points XI.
-!	 Output, real ( kind = 8 ) XD(M,ND), the points at which data was sampled.
+!	 Output, real(kind(0.d0)) XD(M,ND), the points at which data was sampled.
 !*****************************************************************************80
 
 subroutine lagrange_interp (n_1d, a, b, zd, xi, zi, xd )
@@ -3217,9 +3266,9 @@ end subroutine lagrange_interp_nd_size
 !		Input, integer ( kind = 4 ) M, the spatial dimension.
 !		Input, integer ( kind = 4 ) N_1D(M), the order of the 1D rule to be used
 !		in each dimension.
-!		Input, real ( kind = 8 ) A(M), B(M), the lower and upper limits.
+!		Input, real(kind(0.d0)) A(M), B(M), the lower and upper limits.
 !		Input, integer ( kind = 4 ) ND, the number of points in the product grid.
-!		Output, real ( kind = 8 ) XD(M,ND), the points at which data was sampled.
+!		Output, real(kind(0.d0)) XD(M,ND), the points at which data was sampled.
 !*****************************************************************************80
 
 subroutine lagrange_interp_nd_grid ( m, n_1d, a, b, nd, xd )
@@ -3259,14 +3308,14 @@ end subroutine lagrange_interp_nd_grid
 !    Input, integer ( kind = 4 ) M, the spatial dimension.
 !    Input, integer ( kind = 4 ) N_1D(M), the order of the 1D rule to be used
 !    in each dimension.
-!    Input, real ( kind = 8 ) A(M), B(M), the lower and upper limits.
+!    Input, real(kind(0.d0)) A(M), B(M), the lower and upper limits.
 !    Input, integer ( kind = 4 ) ND, the number of points in the product grid.
-!    Input, real ( kind = 8 ) ZD(ND), the function evaluated at the points XD.
+!    Input, real(kind(0.d0)) ZD(ND), the function evaluated at the points XD.
 !    Input, integer ( kind = 4 ) NI, the number of points at which the 
 !    interpolant is to be evaluated.
-!    Input, real ( kind = 8 ) XI(M,NI), the points at which the interpolant is 
+!    Input, real(kind(0.d0)) XI(M,NI), the points at which the interpolant is 
 !    to be evaluated.
-!    Output, real ( kind = 8 ) ZI(NI), the interpolant evaluated at the 
+!    Output, real(kind(0.d0)) ZI(NI), the interpolant evaluated at the 
 !    points XI.
 !*****************************************************************************80
 
@@ -3314,10 +3363,10 @@ end subroutine lagrange_interp_nd_value
 !    John Burkardt
 !  Parameters:
 !    Input, integer ( kind = 4 ) ND, the number of data points.
-!    Input, real ( kind = 8 ) XD(ND), the interpolation nodes.
+!    Input, real(kind(0.d0)) XD(ND), the interpolation nodes.
 !    Input, integer ( kind = 4 ) NI, the number of evaluation points.
-!    Input, real ( kind = 8 ) XI(NI), the evaluation points.
-!    Output, real ( kind = 8 ) LB(NI,ND), the value, at the I-th point XI, 
+!    Input, real(kind(0.d0)) XI(NI), the evaluation points.
+!    Output, real(kind(0.d0)) LB(NI,ND), the value, at the I-th point XI, 
 !    of the Jth basis function.
 !*****************************************************************************80
 
@@ -3355,7 +3404,7 @@ end subroutine lagrange_basis_1d
 !  Parameters:
 !    Input, integer ( kind = 4 ) N, the order.
 !    1 <= N.
-!    Output, real ( kind = 8 ) POINTS(N), the abscissas.
+!    Output, real(kind(0.d0)) POINTS(N), the abscissas.
 !*****************************************************************************
 
 subroutine cc_compute_points ( n, points )
@@ -3467,12 +3516,12 @@ end subroutine cc_compute_points
 !  Parameters:
 !    Input, integer ( kind = 4 ) FACTOR_INDEX, the index of the factor being
 !    processed.  The first factor processed must be factor 1!    Input, integer ( kind = 4 ) FACTOR_ORDER, the order of the factor.
-!    Input, real ( kind = 8 ) FACTOR_VALUE(FACTOR_ORDER), the factor values
+!    Input, real(kind(0.d0)) FACTOR_VALUE(FACTOR_ORDER), the factor values
 !    for factor FACTOR_INDEX.
 !    Input, integer ( kind = 4 ) FACTOR_NUM, the number of factors.
 !    Input, integer ( kind = 4 ) POINT_NUM, the number of elements in the
 !    direct product.
-!    Input/output, real ( kind = 8 ) W(POINT_NUM), the elements of the
+!    Input/output, real(kind(0.d0)) W(POINT_NUM), the elements of the
 !    direct product, which are built up gradually.
 !  Local Parameters:
 !    Local, integer ( kind = 4 ) START, the first location of a block of values
@@ -3493,13 +3542,13 @@ subroutine r8vec_direct_product ( factor_index, factor_order, factor_value,facto
 
 	integer , save :: contig
 	integer ::	factor_index
-	real ( kind = 8 ) factor_value(factor_order)
+	real(kind(0.d0)) factor_value(factor_order)
 	integer ::	j
 	integer ::	k
 	integer , save :: rep
 	integer , save :: skip
 	integer ::	start
-	real ( kind = 8 ) x(factor_num,point_num)
+	real(kind(0.d0)) x(factor_num,point_num)
 
 	if ( factor_index == 1 ) then
 		contig = 1
@@ -3537,13 +3586,13 @@ subroutine r8vec_direct_product2 ( factor_index, factor_order, factor_value,fact
 
 	integer , save :: contig
 	integer ::	factor_index
-	real ( kind = 8 ) factor_value(factor_order)
+	real(kind(0.d0)) factor_value(factor_order)
 	integer ::	j
 	integer ::	k
 	integer , save :: rep
 	integer , save :: skip
 	integer ::	start
-	real ( kind = 8 ) w(point_num)
+	real(kind(0.d0)) w(point_num)
 
 	if ( factor_index == 1 ) then
 		contig = 1

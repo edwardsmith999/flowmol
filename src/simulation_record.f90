@@ -5693,7 +5693,7 @@ contains
         call cluster_extents_grid(self, imaxloc(self%Nlist), 1, resolution, & 
                                   extents_grid)!, debug_outfile='./results/maxcell_top')
         call cluster_outer_mols(self, imaxloc(self%Nlist), tolerence=tolerence, dir=1, & 
-                                rmols=rnp, extents=extents_grid, debug_outfile='./results/clust_edge_top')
+                                rmols=rnp, extents=extents_grid)!, debug_outfile='./results/clust_edge_top')
 
         !Curve fits to clusers
         allocate(x(size(rnp,2)),y(size(rnp,2)))
@@ -5704,7 +5704,7 @@ contains
         fn => cubic_fn
         call curve_fit(fn, x, y, p0, f)
         deallocate(x,y)
-        cl_angle = 90.d0+atan(m)*180./pi
+        cl_angle = 90.d0+atan(m)*180.d0/pi
     	fileunit = get_new_fileunit()
         if (first_time) then
             open(unit=fileunit,file='./results/linecoeff_top',status='replace')
@@ -5718,7 +5718,7 @@ contains
         call cluster_extents_grid(self, imaxloc(self%Nlist), 4, resolution, &
                                   extents_grid )!, debug_outfile='./results/maxcell_bot')
         call cluster_outer_mols(self, imaxloc(self%Nlist), tolerence=tolerence, dir=4, & 
-                                rmols=rnp, extents=extents_grid, debug_outfile='./results/clust_edge_bot')
+                                rmols=rnp, extents=extents_grid)!, debug_outfile='./results/clust_edge_bot')
 
         !Curve fits to clusers
         allocate(x(size(rnp,2)),y(size(rnp,2)))
