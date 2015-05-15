@@ -477,6 +477,7 @@ subroutine setup_mie_potential
 
     !Liquid Agron and wall
     epsilon_lookup(2,1) = eij_wall
+    epsilon_lookup(8,2) = eij_wall
 
     !1-2 == Wall/{D,M,CM} hydrophobic/strong wall interaction
     ids = (/ 4,5,7 /)
@@ -994,10 +995,8 @@ subroutine set_parameters_allocate
     if (Mie_potential .eq. 1) then
         allocate(moltype(np+extralloc)) 
         !Default value is 2 (models 2 x water per bead with Mie)
-        moltype(1:np) = 3
+        moltype(1:np) = default_moltype
 
-        !This is simply Lennard Jones but allowing wall fluid differences
-        !moltype(1:np) = 1
     endif
 
 	!Allocate arrays use to fix molecules and allow sliding

@@ -297,6 +297,11 @@ subroutine setup_read_input
 	        call locate(1,'MIE_POTENTIAL',.false.,found_in_input) 
 	        if (found_in_input) then
                 read(1,*) Mie_potential
+                read(1,iostat=ios) default_moltype
+				if (ios .ne. 0) then
+                    print*, "Default moltype not given -- assuming Argon (=1)"
+                    default_moltype = 1
+                endif
             else
                 Mie_potential = 0
             endif
@@ -481,6 +486,11 @@ subroutine setup_read_input
     print*, 'MIE', found_in_input
 	if (found_in_input) then
         read(1,*) Mie_potential
+        read(1,iostat=ios) default_moltype
+		if (ios .ne. 0) then
+            print*, "Default moltype not given -- assuming Argon (=1)"
+            default_moltype = 1
+        endif
     else
         Mie_potential = 0
     endif

@@ -50,6 +50,7 @@ module computational_constants_MD
 	integer						  :: force_list	   		 !flag for neighbr/cell list
 	integer						  :: potential_flag  	 !Choose LJ or Polymer potential
     integer                       :: Mie_potential       !Choose if LJ/Polymer replaced by more general Mie potential
+    integer                       :: default_moltype=1   !Default moltype for mie potential -- taken to be LJ (=1) here
 	integer                 	  :: tether_flag     	 !True if there exists 
 	integer                 	  :: external_force_flag !Apply external forces?
 	integer                 	  :: F_ext_ixyz			 !Direction of external forces

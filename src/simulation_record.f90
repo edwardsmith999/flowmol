@@ -5782,9 +5782,9 @@ contains
                 endif
 
             enddo
+            close(pid,status='keep')
         endif
 
-        close(pid,status='keep')
 
 
 
