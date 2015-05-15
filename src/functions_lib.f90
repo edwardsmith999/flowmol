@@ -1396,7 +1396,10 @@ subroutine least_squares( x, y, m, c )
     n = size(x,1)
 
     !  Special case.
-    if ( n == 1 ) then
+    if (n .eq. 0) then
+        m = 0.d0; c=0.d0
+        return
+    elseif ( n .eq. 1 ) then
         m = 0.d0; c = y(1)
         return
     end if
@@ -1409,7 +1412,11 @@ subroutine least_squares( x, y, m, c )
     top = dot_product ( x(1:n) - xbar, y(1:n) - ybar )
     bot = dot_product ( x(1:n) - xbar, x(1:n) - xbar )
 
-    m = top / bot
+    if (bot .lt. 1e-8) then
+        m = 0.d0
+    else
+        m = top / bot
+    endif
     c = ybar - m * xbar
 
 end subroutine least_squares
