@@ -1599,7 +1599,7 @@ subroutine parallel_io_write_vmd(intervalno,reccount)
 	use interfaces, only : error_abort
     implicit none
 
-    integer,intent(inout)  :: intervalno, reccount
+    integer,intent(out)  :: intervalno, reccount
 
 	integer			:: vmd_iter
 
@@ -1644,10 +1644,9 @@ subroutine parallel_io_vmd(recno)
     real,dimension(:),allocatable   :: Xbuf, Ybuf, Zbuf
     real,dimension(:),allocatable   :: Xbufglob,Ybufglob,Zbufglob
 
-
     !Build array of number of particles on neighbouring
     !processe's subdomain on current proccess
-    call globalGathernp
+    call globalGathernp()
 
     !Determine size of real datatype
     call MPI_type_size(MPI_real,datasize,ierr)
