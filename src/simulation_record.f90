@@ -5668,7 +5668,6 @@ contains
 
     subroutine get_cluster_properties(self, rd)
         use physical_constants_MD, only : pi, np
-        use physical_constants_MD, only : tethereddisttop, tethereddistbottom
         use computational_constants_MD, only : iter, thermo_tags, thermo, free, globaldomain 
         use linked_list, only : linklist_printneighbourlist
         use librarymod, only : imaxloc, get_Timestep_FileName, least_squares, get_new_fileunit
@@ -5682,15 +5681,13 @@ contains
 
         logical                         :: first_time=.true., print_debug
         character(32)                   :: filename, debug_outfile
-        integer                         :: n,pid,i,j,resolution,fileunit
-        double precision                :: tolerence, m, c, cl_angle, theta_i, yi
-        double precision, dimension(3)  :: bintopi, binboti, ri 
-        double precision, dimension(4)  :: pt = (/ 0.d0, 0.d0, 0.d0, 0.d0 /)
-        double precision, dimension(4)  :: pb = (/ 0.d0, 0.d0, 0.d0, 0.d0 /)
+        integer                         :: n,i,j,resolution,fileunit
+        double precision                :: tolerence, m, c, cl_angle
         double precision,dimension(6)   :: extents
         double precision,dimension(:),allocatable :: x,y,f
         double precision,dimension(:,:),allocatable :: rnp, extents_grid
-
+        double precision, dimension(4)  :: pt = (/ 0.d0, 0.d0, 0.d0, 0.d0 /)
+        double precision, dimension(4)  :: pb = (/ 0.d0, 0.d0, 0.d0, 0.d0 /)
 
         resolution = 10; tolerence = rd
         call cluster_global_extents(self, imaxloc(self%Nlist), extents)
@@ -5747,46 +5744,7 @@ contains
 
         call check_for_cluster_breakup(self)
 
-        !Front/back surfaces in y
-        bintopi(2) =  0.5d0*globaldomain(2) - tethereddisttop(2)
-        binboti(2) = -0.5d0*globaldomain(2) + tethereddistbottom(2)
-        
-        !Left/Right cluser based surfaces in z
-        bintopi(3) =  0.5d0*globaldomain(3) 
-        binboti(3) = -0.5d0*globaldomain(3) 
-
-
-        print_debug = .false.
-        debug_outfile = './results/CV_mols'
-        if (print_debug) then
-            pid = get_new_fileunit()
-            call get_Timestep_FileName(iter,debug_outfile,filename)
-            open(unit=pid,file=trim(filename),status='replace')
-            do n =1,np
-
-                ri(:) = r(:,n)
-                yi = ri(2)
-                !Top/bottom surfaces in x
-                bintopi(1) = pt(4)*yi**3.d0 + pt(3)*yi**2.d0 + pt(2)*yi + pt(1)
-                binboti(1) = pb(4)*yi**3.d0 + pb(3)*yi**2.d0 + pb(2)*yi + pb(1)
-
-                !Use CV function
-		        theta_i = dble((heaviside(bintopi(1)-ri(1))-heaviside(binboti(1)-ri(1)))* & 
-			               	   (heaviside(bintopi(2)-ri(2))-heaviside(binboti(2)-ri(2)))* & 
-			              	   (heaviside(bintopi(3)-ri(3))-heaviside(binboti(3)-ri(3))))
-
-                if (theta_i .eq. 1.d0) then
-                    write(pid,'(i10,6f18.9)') n, ri, 0.d0, 0.d0, 0.d0
-                else
-                    write(pid,'(i10,6f18.9)') n, 0.d0, 0.d0, 0.d0, ri
-                endif
-
-            enddo
-            close(pid,status='keep')
-        endif
-
-
-
+        call cluster_CV_fn(pt, pb)
 
 
         ! - - -Set cluster molecules to be thermostatted - - -
@@ -5813,6 +5771,131 @@ contains
 
 
     end subroutine get_cluster_properties
+
+    subroutine cluster_CV_fn(pt, pb)
+        use physical_constants_MD, only : np
+        use physical_constants_MD, only : tethereddisttop, tethereddistbottom
+        use interfaces, only : error_abort
+        use computational_constants_MD, only : iter, globaldomain, delta_t 
+        use librarymod, only : get_Timestep_FileName, get_new_fileunit
+        use arrays_MD, only : r, v
+        use librarymod, only : heaviside  =>  heaviside_a1
+        use PolynomialRoots, only : cubicroots
+        implicit none
+
+        double precision, dimension(4), intent(in)  :: pt, pb
+
+
+        integer                         :: i, n, pid
+        integer, save                   :: clustCV=0, clustCV_mdt
+        logical                         :: first_time=.true., print_debug
+        character(32)                   :: filename, debug_outfile
+        double precision                :: theta_i, dS_i, m, c, yi, tcross
+        double precision, dimension(3)  :: bintopi, binboti, ri
+        double precision, dimension(4)  :: ptl
+
+        !Front/back surfaces in y
+        bintopi(2) =  0.5d0*globaldomain(2) - tethereddisttop(2)
+        binboti(2) = -0.5d0*globaldomain(2) + tethereddistbottom(2)
+        
+        !Left/Right cluser based surfaces in z
+        bintopi(3) =  0.5d0*globaldomain(3) 
+        binboti(3) = -0.5d0*globaldomain(3) 
+
+        clustCV_mdt = clustCV
+        clustCV = 0
+        print_debug = .false.
+        debug_outfile = './results/CV_mols'
+        if (print_debug) then
+            pid = get_new_fileunit()
+            call get_Timestep_FileName(iter,debug_outfile,filename)
+            open(unit=pid,file=trim(filename),status='replace')
+            do n =1,np
+
+                ri(:) = r(:,n)
+                yi = ri(2)
+                !Top/bottom surfaces in x
+                bintopi(1) = surface_fn(pt, yi) !pt(4)*yi**3.d0 + pt(3)*yi**2.d0 + pt(2)*yi + pt(1)
+                binboti(1) = surface_fn(pb, yi) !pb(4)*yi**3.d0 + pb(3)*yi**2.d0 + pb(2)*yi + pb(1)
+
+                !Use CV function
+		        theta_i = dble((heaviside(bintopi(1)-ri(1))-heaviside(binboti(1)-ri(1)))* & 
+			               	   (heaviside(bintopi(2)-ri(2))-heaviside(binboti(2)-ri(2)))* & 
+			              	   (heaviside(bintopi(3)-ri(3))-heaviside(binboti(3)-ri(3))))
+
+                if (theta_i .eq. 1.d0) then
+                    clustCV = clustCV + 1
+                    write(pid,'(i10,6f18.9)') n, ri, 0.d0, 0.d0, 0.d0
+                else
+                    write(pid,'(i10,6f18.9)') n, 0.d0, 0.d0, 0.d0, ri
+                endif
+
+
+                call surface_interaction(pt, n, ri)
+                call surface_interaction(pb, n, ri)
+
+            enddo
+            close(pid,status='keep')
+            print*, 'Cluster CV = ', clustCV
+        endif
+
+    contains
+
+        function surface_fn(p0, yi)
+
+            double precision :: yi, surface_fn
+            double precision,dimension(4) :: p0
+
+            surface_fn = p0(4)*yi**3.d0 + p0(3)*yi**2.d0 + p0(2)*yi + p0(1)
+
+        end function surface_fn
+
+        function dsurface_fndyi(p0, yi)
+
+            double precision :: yi, dsurface_fndyi
+            double precision,dimension(4) :: p0
+
+            dsurface_fndyi = 3.d0*p0(4)*yi**2.d0 + 2.d0*p0(3)*yi + p0(2)
+
+        end function dsurface_fndyi
+
+
+        subroutine surface_interaction(p0, n, ri)
+
+            integer                         :: n
+            double precision, dimension(3)  :: ri
+            double precision, dimension(4)  :: p0
+
+            double precision, dimension(4)  :: ptl
+
+            complex(KIND(1.0D0)),dimension(3)        :: z
+            double precision                :: dS_i, tcross
+
+            !Get intersection of moving molecule and current surface
+            ptl = pt
+            ptl(1) = pt(1) + r(2,n)
+            ptl(2) = pt(2) - v(2,n)
+            call CubicRoots(ptl, z)
+            !Check if any roots are real
+            do i = 1, size(z)
+                if (imag(z(i)) .eq. 0.d0) then
+                    if (r(1,n) .gt. real(z(i)) .and. real(z(i)) .gt. r(1,n)-v(1,n)*delta_t .or. &
+                        r(1,n) .lt. real(z(i)) .and. real(z(i)) .lt. r(1,n)-v(1,n)*delta_t) then
+
+                        !Get time of crossing
+                        tcross = (r(1,n) - real(z(i))) / v(1,n)
+                        ri = (/ real(z(i)), r(2,n)-v(2,n)*tcross, r(3,n)-v(3,n)*tcross /)
+	                    dS_i = dble((heaviside(bintopi(2)-ri(2))-heaviside(binboti(2)-ri(2)))* & 
+		                      	    (heaviside(bintopi(3)-ri(3))-heaviside(binboti(3)-ri(3))))
+
+                        print'(a,2i8,7f13.8)','Soln', n, i, r(1,n), real(z(i)), r(1,n)-v(1,n)*delta_t, ri, dS_i
+                    endif
+                endif
+            enddo
+
+        end subroutine surface_interaction
+
+    end subroutine cluster_CV_fn
 
     subroutine check_for_cluster_breakup(self)
         use librarymod, only : bubble_sort_r
