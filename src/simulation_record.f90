@@ -5744,6 +5744,12 @@ contains
 
         call check_for_cluster_breakup(self)
 
+        !Set dummy values of CV surfaces
+        pt = (/ 10.d0, 0.1d0, 0.02d0, -0.001d0  /)
+        pb = (/-10.d0, 0.1d0, 0.02d0, -0.001d0  /)
+
+        !pt = (/ 10., 0.0, 0.0, 0.0  /)
+        !pb = (/ -10.,0.0, 0.0, 0.0  /)
         call cluster_CV_fn(pt, pb)
 
 
@@ -5789,7 +5795,7 @@ contains
         integer                         :: i, n, pid
         integer, save                   :: clustCV=0, clustCV_mdt
         logical                         :: first_time=.true., print_debug
-        character(32)                   :: filename, debug_outfile
+        character(33)                   :: filename, debug_outfile
         double precision                :: theta_i, dS_i, m, c, yi, tcross
         double precision, dimension(3)  :: bintopi, binboti, ri
         double precision, dimension(4)  :: ptl
@@ -5800,13 +5806,13 @@ contains
         
         !Left/Right cluser based surfaces in z
         bintopi(3) =  0.5d0*globaldomain(3) 
-        binboti(3) = -0.5d0*globaldomain(3) 
+        binboti(3) = -0.5d0*globaldomain(3)
 
         clustCV_mdt = clustCV
         clustCV = 0
         print_debug = .false.
-        debug_outfile = './results/CV_mols'
         if (print_debug) then
+            debug_outfile = './results/CV_mols'
             pid = get_new_fileunit()
             call get_Timestep_FileName(iter,debug_outfile,filename)
             open(unit=pid,file=trim(filename),status='replace')
@@ -5817,7 +5823,8 @@ contains
                 !Top/bottom surfaces in x
                 bintopi(1) = surface_fn(pt, yi) !pt(4)*yi**3.d0 + pt(3)*yi**2.d0 + pt(2)*yi + pt(1)
                 binboti(1) = surface_fn(pb, yi) !pb(4)*yi**3.d0 + pb(3)*yi**2.d0 + pb(2)*yi + pb(1)
-
+                !bintopi(1) = pt(4)*yi**3.d0 + pt(3)*yi**2.d0 + pt(2)*yi + pt(1)
+                !binboti(1) = pb(4)*yi**3.d0 + pb(3)*yi**2.d0 + pb(2)*yi + pb(1)
                 !Use CV function
 		        theta_i = dble((heaviside(bintopi(1)-ri(1))-heaviside(binboti(1)-ri(1)))* & 
 			               	   (heaviside(bintopi(2)-ri(2))-heaviside(binboti(2)-ri(2)))* & 
@@ -5830,13 +5837,26 @@ contains
                     write(pid,'(i10,6f18.9)') n, 0.d0, 0.d0, 0.d0, ri
                 endif
 
-
-                call surface_interaction(pt, n, ri)
-                call surface_interaction(pb, n, ri)
-
             enddo
             close(pid,status='keep')
             print*, 'Cluster CV = ', clustCV
+
+            debug_outfile = './results/CV_surface_mols'
+            pid = get_new_fileunit()
+            call get_Timestep_FileName(iter,debug_outfile,filename)
+            open(unit=pid,file=trim(filename),status='replace')
+
+            call surface_interaction(pt, 1, ri)
+
+
+!            do n =1,np
+
+!                call surface_interaction(pt, n, ri)
+!                !call surface_interaction(pb, n, ri)
+
+!            enddo
+            close(pid,status='keep')
+
         endif
 
     contains
@@ -5860,38 +5880,63 @@ contains
         end function dsurface_fndyi
 
 
-        subroutine surface_interaction(p0, n, ri)
+        subroutine surface_interaction(p0, n, rcross)
+            implicit none
 
             integer                         :: n
-            double precision, dimension(3)  :: ri
+            double precision, dimension(3)  :: rcross
             double precision, dimension(4)  :: p0
 
             double precision, dimension(4)  :: ptl
 
+            double precision, dimension(3)  :: ri, vi, ri_mdt
             complex(KIND(1.0D0)),dimension(3)        :: z
-            double precision                :: dS_i, tcross
+            double precision                :: dS_i, tcross, m,c,dt
+
 
             !Get intersection of moving molecule and current surface
             ptl = pt
-            ptl(1) = pt(1) + r(2,n)
-            ptl(2) = pt(2) - v(2,n)
+            !ri = r(:,n); vi = v(:,n)
+            !c = ri(1); m = vi(1)/vi(2)
+            !dt = delta_t
+
+            !DEBUG DATE HERE -- define an arbitary line
+            !c = 12.4d0; m = 1000.d0
+            dt = 3.0d0
+            ri(1) = 12.4d0-iter*1.d0; ri(2)=15.d0-iter; ri(3)=0.d0
+            vi(1) = 0.d0; vi(2) = 10.d0; vi(3)=0.d0
+            ri_mdt(:) = ri(:) - vi(:)*dt
+            c = ri(1)
+            m = vi(1)/vi(2)
+
+            ptl(1) = pt(1) - c
+            ptl(2) = pt(2) - m
             call CubicRoots(ptl, z)
             !Check if any roots are real
             do i = 1, size(z)
-                if (imag(z(i)) .eq. 0.d0) then
-                    if (r(1,n) .gt. real(z(i)) .and. real(z(i)) .gt. r(1,n)-v(1,n)*delta_t .or. &
-                        r(1,n) .lt. real(z(i)) .and. real(z(i)) .lt. r(1,n)-v(1,n)*delta_t) then
+                !print*, 'root', z, ri(:), ri(:)-vi(:)*delta_t
+                if (imag(z(i)) .lt. 1e-8) then
+                    !Get time of crossing
+                    tcross = (ri(2) - real(z(i))) / vi(2)
+                    !if (tcross .lt. delta_t .and. tcross .gt. 0.d0) then
+                    !if (r(1,n) .gt. real(z(i)) .and. real(z(i)) .gt. r(1,n)-v(1,n)*delta_t .or. &
+                    !    r(1,n) .lt. real(z(i)) .and. real(z(i)) .lt. r(1,n)-v(1,n)*delta_t) then
 
-                        !Get time of crossing
-                        tcross = (r(1,n) - real(z(i))) / v(1,n)
-                        ri = (/ real(z(i)), r(2,n)-v(2,n)*tcross, r(3,n)-v(3,n)*tcross /)
-	                    dS_i = dble((heaviside(bintopi(2)-ri(2))-heaviside(binboti(2)-ri(2)))* & 
-		                      	    (heaviside(bintopi(3)-ri(3))-heaviside(binboti(3)-ri(3))))
+                        rcross = (/ ri(1)-vi(1)*tcross, real(z(i)), ri(3)-vi(3)*tcross /)
+	                    dS_i = dble((heaviside( tcross )            -heaviside(tcross - dt))* & 
+                                    (heaviside(bintopi(2)-rcross(2))-heaviside(binboti(2)-rcross(2)))* & 
+		                      	    (heaviside(bintopi(3)-rcross(3))-heaviside(binboti(3)-rcross(3))))
 
-                        print'(a,2i8,7f13.8)','Soln', n, i, r(1,n), real(z(i)), r(1,n)-v(1,n)*delta_t, ri, dS_i
-                    endif
+                        if (dS_i .ne. 0.d0) then
+                            print('(2i6,2f6.2,10f10.5)'), n, i, dS_i, (heaviside(bintopi(2)-rcross(2))-heaviside(binboti(2)-rcross(2)))* & 
+            		                      	                         (heaviside(bintopi(3)-rcross(3))-heaviside(binboti(3)-rcross(3))), tcross, ri(:), ri(:)-vi(:)*dt, rcross(:)
+                            write(pid,'(2i6,f6.2,7f10.5,3f18.12)'), n, i, dS_i, tcross, ri(:), ri(:)-vi(:)*dt, rcross(:)
+                        endif
+                    !endif
                 endif
             enddo
+
+
 
         end subroutine surface_interaction
 
