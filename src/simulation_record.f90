@@ -229,6 +229,15 @@ subroutine simulation_record
 
 	call update_simulation_progress_file
 
+	!Write entire xy field @ z
+!    if (iter .gt. 10 .and. mod(iter,10) .eq. 0) then
+!    	call simulation_write_potential_field(-halfdomain(1),halfdomain(1), &
+!	    							          -halfdomain(2),halfdomain(2), &
+!		    							      -halfdomain(3),halfdomain(3), &
+!                                               50, 50, 50, 30000+iter,3)
+!    endif
+
+
 end subroutine simulation_record
 
 !==========================================================================
@@ -949,37 +958,53 @@ implicit none
 end subroutine evaluate_properties_rdf3d
 
 !Use a test particle to plot the potential field
-subroutine simulation_write_potential_field(xmin,xmax,ymin,ymax,z,res,filenum)
+subroutine simulation_write_potential_field(xmin,xmax,ymin,ymax,zmin, & 
+                                            zmax,xres,yres,zres, &
+                                            filenum,casetype)
 	use module_compute_forces, only : compute_force_and_potential_at
 	implicit none
 
-	integer, intent(in) :: res, filenum	
-	real(kind(0.d0)), intent(in) :: xmin, xmax, ymin, ymax, z
+	integer, intent(in) :: xres,yres,zres, filenum, casetype
+	real(kind(0.d0)), intent(in) :: xmin, xmax, ymin, ymax, zmin, zmax
 
-	integer :: i,j
-	real(kind(0.d0)) :: x, y, dx, dy
+	integer :: i,j,k
+	real(kind(0.d0)) :: x, y,z, dx, dy, dz
 	real(kind(0.d0)) :: U
-	real(kind(0.d0)) :: dummy(3)
+	real(kind(0.d0)) :: rijave(3), f(3), rf(3,3)
 
-	dx = (xmax - xmin)/real(res)
-	dy = (ymax - ymin)/real(res)
+	dx = (xmax - xmin)/real(xres)
+	dy = (ymax - ymin)/real(yres)
+	dz = (zmax - zmin)/real(zres)
 
-	do i = 0,res
+	do i = 0,xres
+    do j = 0,yres
+	do k = 0,zres
 
-		do j = 0,res
+		x  = xmin + i*dx
+		y  = ymin + j*dy 
+		z  = zmin + k*dz 
 
-				x  = xmin + i*dx
-				y  = ymin + j*dy 
+        select case(casetype)
+        case(0)
+			call compute_force_and_potential_at((/x,y,z/),U,f)
+		    write(filenum,'(4e12.4)') x, y, z, U
+        case(1)
+		    call compute_force_and_potential_at((/x,y,z/),U,f,rf=rf)
+		    write(filenum,'(12e12.4)') x, y, z, rf
+        case(2)
+		    call compute_force_and_potential_at((/x,y,z/),U,f,rijave=rijave)
+		    write(filenum,'(12f12.4)') x, y, z, rijave
+        case(3)
+            !Write the lot
+		    call compute_force_and_potential_at((/x,y,z/),U,f,rmin=2.d0,rf=rf,rijave=rijave)
+		    write(filenum,'(4e12.4)') x, y, z, U
+		    write(filenum+10000,'(12e12.4)') x, y, z, rf
+		    write(filenum+20000,'(12f12.4)') x, y, z, rijave
+        end select
 
-				call compute_force_and_potential_at((/x,y,z/),U,dummy)
-
-				write(filenum,*) x, y, U
-
-		end do
-
-		write(filenum,*) ' ' 
-
-	end do
+    enddo
+    enddo
+    enddo
 
 end subroutine simulation_write_potential_field
 
@@ -5810,7 +5835,7 @@ contains
 
         clustCV_mdt = clustCV
         clustCV = 0
-        print_debug = .false.
+        print_debug = .true.
         if (print_debug) then
             debug_outfile = './results/CV_mols'
             pid = get_new_fileunit()
@@ -5861,6 +5886,15 @@ contains
 
     contains
 
+        function linear_fn(m, c, yi)
+
+            double precision :: yi, linear_fn
+            double precision :: m, c
+
+            linear_fn = m*yi + c
+
+        end function linear_fn
+
         function surface_fn(p0, yi)
 
             double precision :: yi, surface_fn
@@ -5903,8 +5937,8 @@ contains
             !DEBUG DATE HERE -- define an arbitary line
             !c = 12.4d0; m = 1000.d0
             dt = 3.0d0
-            ri(1) = 12.4d0-iter*1.d0; ri(2)=15.d0-iter; ri(3)=0.d0
-            vi(1) = 0.d0; vi(2) = 10.d0; vi(3)=0.d0
+            ri(1) = 15.4d0-iter*1.d0; ri(2)=15.d0-iter; ri(3)=0.d0
+            vi(1) = 50.d0; vi(2) = 10.d0; vi(3)=0.d0
             ri_mdt(:) = ri(:) - vi(:)*dt
             c = ri(1)
             m = vi(1)/vi(2)
@@ -5916,6 +5950,8 @@ contains
             do i = 1, size(z)
                 !print*, 'root', z, ri(:), ri(:)-vi(:)*delta_t
                 if (imag(z(i)) .lt. 1e-8) then
+
+
                     !Get time of crossing
                     tcross = (ri(2) - real(z(i))) / vi(2)
                     !if (tcross .lt. delta_t .and. tcross .gt. 0.d0) then
@@ -5927,9 +5963,12 @@ contains
                                     (heaviside(bintopi(2)-rcross(2))-heaviside(binboti(2)-rcross(2)))* & 
 		                      	    (heaviside(bintopi(3)-rcross(3))-heaviside(binboti(3)-rcross(3))))
 
+                        print('(2i6,2f6.2,8f10.5)'), n, i, dS_i, tcross, real(z(i)), surface_fn(ptl, real(z(i))), surface_fn(pt, real(z(i))), linear_fn(m, c, real(z(i))), rcross(:)
+                    if (surface_fn(ptl, real(z(i))) .gt. 1e-8) cycle
                         if (dS_i .ne. 0.d0) then
-                            print('(2i6,2f6.2,10f10.5)'), n, i, dS_i, (heaviside(bintopi(2)-rcross(2))-heaviside(binboti(2)-rcross(2)))* & 
-            		                      	                         (heaviside(bintopi(3)-rcross(3))-heaviside(binboti(3)-rcross(3))), tcross, ri(:), ri(:)-vi(:)*dt, rcross(:)
+
+        !                    print('(2i6,2f6.2,10f10.5)'), n, i, dS_i, (heaviside(bintopi(2)-rcross(2))-heaviside(binboti(2)-rcross(2)))* & 
+         !   		                      	                         (heaviside(bintopi(3)-rcross(3))-heaviside(binboti(3)-rcross(3))), tcross, ri(:), ri(:)-vi(:)*dt, rcross(:)
                             write(pid,'(2i6,f6.2,7f10.5,3f18.12)'), n, i, dS_i, tcross, ri(:), ri(:)-vi(:)*dt, rcross(:)
                         endif
                     !endif
