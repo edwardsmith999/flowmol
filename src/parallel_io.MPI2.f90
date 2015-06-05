@@ -2580,12 +2580,16 @@ end subroutine parallel_io_write_cylinders
 
 subroutine update_simulation_progress_file
     use module_parallel_io
+    use librarymod, only: get_new_fileunit
     implicit none
 
+    integer :: fileunit
+
     if (irank .eq. iroot) then
-        open (unit=99999, file=trim(prefix_dir)//"results/simulation_progress")
-        write(99999,*) iter
-        close(99999,status='keep')
+    	fileunit = get_new_fileunit()
+        open (unit=fileunit, file=trim(prefix_dir)//"results/simulation_progress")
+        write(fileunit,*) iter
+        close(fileunit,status='keep')
     endif
 
 end subroutine update_simulation_progress_file
@@ -3554,8 +3558,10 @@ end subroutine VA_heatflux_io
 
 subroutine total_heatflux_io(heatflux)
     use module_parallel_io
+	use librarymod, only : get_new_fileunit
     implicit none
-
+   
+    integer :: fileunit
     real(kind(0.d0)),dimension(:),intent(in)    :: heatflux
     integer     :: m, length
 
@@ -3568,9 +3574,10 @@ subroutine total_heatflux_io(heatflux)
     
     if (irank .eq. iroot) then
         inquire(iolength=length) heatflux
-        open (unit=50, file=trim(prefix_dir)//'results/totalheatflux',form='unformatted',access='direct',recl=length)
-        write(50,rec=m) heatflux
-        close(50,status='keep')
+        fileunit = get_new_fileunit()
+        open (unit=fileunit, file=trim(prefix_dir)//'results/totalheatflux',form='unformatted',access='direct',recl=length)
+        write(fileunit,rec=m) heatflux
+        close(fileunit,status='keep')
     endif
 
 end subroutine total_heatflux_io
@@ -4134,20 +4141,26 @@ end subroutine MOP_energy_io
 ! Write macroscopic properties to file
 !-----------------------------------------------------------------------------
 subroutine macroscopic_properties_header
-use module_parallel_io
-implicit none
+    use module_parallel_io
+	use librarymod, only : get_new_fileunit
+    implicit none
+
+    integer :: fileunit
 
     if (irank .eq. iroot) then  
-        open(unit=10,file=trim(prefix_dir)//'results/macroscopic_properties',status='replace')
-        if (potential_flag.eq.0) then
-            write(10,'(2a)') &
+	    fileunit = get_new_fileunit()
+
+        open(unit=fileunit,file=trim(prefix_dir)//'results/macroscopic_properties',status='replace')
+        if (potential_flag .eq. 0) then
+            write(fileunit,'(2a)') &
             ' iter; simtime; VSum; V^2Sum; Temp;', &
             ' KE; PE; TE; Pressure'
         else if (potential_flag.eq.1) then
-            write(10,'(2a)') &
+            write(fileunit,'(2a)') &
             ' iter; simtime; VSum; V^2Sum; Temp;', &
             ' KE; PE (LJ); PE (POLY); PE (Tot); TE; Pressure; Etevtcf; R_g '
         end if
+        close(unit=fileunit, status='keep')
     endif
     call macroscopic_properties_record
 
@@ -4155,24 +4168,28 @@ end subroutine macroscopic_properties_header
 
 
 subroutine macroscopic_properties_record
-use module_parallel_io
-implicit none
-
-    
+    use module_parallel_io
+	use librarymod, only : get_new_fileunit
+    implicit none
+   
+    integer :: fileunit
 
     if (irank .eq. iroot) then
+	    fileunit = get_new_fileunit()
+        open(unit=fileunit,file=trim(prefix_dir)//'results/macroscopic_properties',position='append')
         if (potential_flag.eq.0) then   
-            write(10,'(1x,i8,a,f15.4,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)'), &
+            write(fileunit,'(1x,i8,a,f15.4,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)'), &
             iter,';',simtime,';',vsum,';', mv2sum,';', temperature,';', &
             kinenergy,';',potenergy,';',totenergy,';',pressure
         else if (potential_flag.eq.1) then
-            write(10, '(1x,i8,a,f15.4,a,f15.4,a,f15.4,a,f15.4,a,f10.4,a'//&
+            write(fileunit, '(1x,i8,a,f15.4,a,f15.4,a,f15.4,a,f15.4,a,f10.4,a'//&
                       ',f19.15,a,f19.15,a,f19.15,a,f19.15,a,f19.15,a,'//&
                       'f10.4,a,f10.4,a,f10.4)') &
             iter,';',simtime,';',vsum,';', mv2sum,';', temperature,';', &
             kinenergy,';',potenergy_LJ,';',potenergy_POLY,';',potenergy,&
             ';',totenergy,';',pressure,';',etevtcf,';',R_g
         end if
+        close(unit=fileunit, status='keep')
     endif
 
 end subroutine macroscopic_properties_record
