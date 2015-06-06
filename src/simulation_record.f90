@@ -210,7 +210,7 @@ subroutine simulation_record
 	!Obtain and record temperature
 	if (temperature_outflag .ne. 0)	call temperature_averaging(temperature_outflag)
 
-	!Obtain and record energy
+	!Obtain and record temperature
 	if (energy_outflag .ne. 0)	call energy_averaging(energy_outflag)
 
 	!Obtain and record density on a surface
@@ -231,6 +231,15 @@ subroutine simulation_record
 
 	!Write current timestep to a progress file
 	call update_simulation_progress_file()
+
+	!Write entire xy field @ z
+!    if (iter .gt. 10 .and. mod(iter,10) .eq. 0) then
+!    	call simulation_write_potential_field(-halfdomain(1),halfdomain(1), &
+!	    							          -halfdomain(2),halfdomain(2), &
+!		    							      -halfdomain(3),halfdomain(3), &
+!                                               50, 50, 50, 30000+iter,3)
+!    endif
+
 
 end subroutine simulation_record
 
@@ -952,37 +961,53 @@ implicit none
 end subroutine evaluate_properties_rdf3d
 
 !Use a test particle to plot the potential field
-subroutine simulation_write_potential_field(xmin,xmax,ymin,ymax,z,res,filenum)
+subroutine simulation_write_potential_field(xmin,xmax,ymin,ymax,zmin, & 
+                                            zmax,xres,yres,zres, &
+                                            filenum,casetype)
 	use module_compute_forces, only : compute_force_and_potential_at
 	implicit none
 
-	integer, intent(in) :: res, filenum	
-	real(kind(0.d0)), intent(in) :: xmin, xmax, ymin, ymax, z
+	integer, intent(in) :: xres,yres,zres, filenum, casetype
+	real(kind(0.d0)), intent(in) :: xmin, xmax, ymin, ymax, zmin, zmax
 
-	integer :: i,j
-	real(kind(0.d0)) :: x, y, dx, dy
+	integer :: i,j,k
+	real(kind(0.d0)) :: x, y,z, dx, dy, dz
 	real(kind(0.d0)) :: U
-	real(kind(0.d0)) :: dummy(3)
+	real(kind(0.d0)) :: rijave(3), f(3), rf(3,3)
 
-	dx = (xmax - xmin)/real(res)
-	dy = (ymax - ymin)/real(res)
+	dx = (xmax - xmin)/real(xres)
+	dy = (ymax - ymin)/real(yres)
+	dz = (zmax - zmin)/real(zres)
 
-	do i = 0,res
+	do i = 0,xres
+    do j = 0,yres
+	do k = 0,zres
 
-		do j = 0,res
+		x  = xmin + i*dx
+		y  = ymin + j*dy 
+		z  = zmin + k*dz 
 
-				x  = xmin + i*dx
-				y  = ymin + j*dy 
+        select case(casetype)
+        case(0)
+			call compute_force_and_potential_at((/x,y,z/),U,f)
+		    write(filenum,'(4e12.4)') x, y, z, U
+        case(1)
+		    call compute_force_and_potential_at((/x,y,z/),U,f,rf=rf)
+		    write(filenum,'(12e12.4)') x, y, z, rf
+        case(2)
+		    call compute_force_and_potential_at((/x,y,z/),U,f,rijave=rijave)
+		    write(filenum,'(12f12.4)') x, y, z, rijave
+        case(3)
+            !Write the lot
+		    call compute_force_and_potential_at((/x,y,z/),U,f,rmin=2.d0,rf=rf,rijave=rijave)
+		    write(filenum,'(4e12.4)') x, y, z, U
+		    write(filenum+10000,'(12e12.4)') x, y, z, rf
+		    write(filenum+20000,'(12f12.4)') x, y, z, rijave
+        end select
 
-				call compute_force_and_potential_at((/x,y,z/),U,dummy)
-
-				write(filenum,*) x, y, U
-
-		end do
-
-		write(filenum,*) ' ' 
-
-	end do
+    enddo
+    enddo
+    enddo
 
 end subroutine simulation_write_potential_field
 
@@ -5645,7 +5670,8 @@ contains
         type(clusterinfo),intent(inout)    :: self
         double precision, intent(in)        :: rd
 
-        integer                         :: i, sumi
+        integer                         :: i
+
         !Initialised cluster list
         if (.not. allocated(self%Nlist)) then
             allocate(self%Nlist(np+extralloc))
@@ -5656,13 +5682,13 @@ contains
         self%Nclust = 0
 	    do i = 1,np+extralloc
             self%inclust(i) = 0
-		    self%Nlist(i) = 0	        !Zero number of molecules in cluster list
-		    nullify(self%head(i)%point) !Nullify cluster list head pointer 
+		    self%Nlist(i) = 0	!Zero number of molecules in cluster list
+		    nullify(self%head(i)%point)!Nullify cluster list head pointer 
 	    enddo
 
         !Call to build clusters from neighbour and cell lists
         call build_from_cellandneighbour_lists(self, cell, neighbour, rd, r, np, skipwalls_=.true.)
-
+  
         !Remove all empty cluster references
         call CompressClusters(self)
 
@@ -5672,6 +5698,7 @@ contains
         use physical_constants_MD, only : pi, np
         use physical_constants_MD, only : tethereddisttop, tethereddistbottom
         use computational_constants_MD, only : iter, thermo_tags, thermo, free, globaldomain 
+        use linked_list, only : linklist_printneighbourlist
         use librarymod, only : imaxloc, get_Timestep_FileName, least_squares, get_new_fileunit
         use minpack_fit_funcs_mod, only : fn, cubic_fn, curve_fit
         use arrays_MD, only : tag, r
@@ -5749,43 +5776,14 @@ contains
         !If cluster has broken up, stop simulation
         call check_for_cluster_breakup(self)
 
-        !Front/back surfaces in y
-        bintopi(2) =  0.5d0*globaldomain(2) - tethereddisttop(2)
-        binboti(2) = -0.5d0*globaldomain(2) + tethereddistbottom(2)
-        
-        !Left/Right cluser based surfaces in z
-        bintopi(3) =  0.5d0*globaldomain(3) 
-        binboti(3) = -0.5d0*globaldomain(3) 
+        !Set dummy values of CV surfaces
+        pt = (/ 10.d0, 0.1d0, 0.02d0, -0.001d0  /)
+        pb = (/-10.d0, 0.1d0, 0.02d0, -0.001d0  /)
 
+        !pt = (/ 10., 0.0, 0.0, 0.0  /)
+        !pb = (/ -10.,0.0, 0.0, 0.0  /)
+        call cluster_CV_fn(pt, pb)
 
-        print_debug = .false.
-        debug_outfile = './results/CV_mols'
-        if (print_debug) then
-            pid = get_new_fileunit()
-            call get_Timestep_FileName(iter,debug_outfile,filename)
-            open(unit=pid,file=trim(filename),status='replace')
-            do n =1,np
-
-                ri(:) = r(:,n)
-                yi = ri(2)
-                !Top/bottom surfaces in x
-                bintopi(1) = pt(4)*yi**3.d0 + pt(3)*yi**2.d0 + pt(2)*yi + pt(1)
-                binboti(1) = pb(4)*yi**3.d0 + pb(3)*yi**2.d0 + pb(2)*yi + pb(1)
-
-                !Use CV function
-		        theta_i = dble((heaviside(bintopi(1)-ri(1))-heaviside(binboti(1)-ri(1)))* & 
-			               	   (heaviside(bintopi(2)-ri(2))-heaviside(binboti(2)-ri(2)))* & 
-			              	   (heaviside(bintopi(3)-ri(3))-heaviside(binboti(3)-ri(3))))
-
-                if (theta_i .eq. 1.d0) then
-                    write(pid,'(i10,6f18.9)') n, ri, 0.d0, 0.d0, 0.d0
-                else
-                    write(pid,'(i10,6f18.9)') n, 0.d0, 0.d0, 0.d0, ri
-                endif
-
-            enddo
-            close(pid,status='keep')
-        endif
 
         ! - - -Set cluster molecules to be thermostatted - - -
 
@@ -5811,6 +5809,184 @@ contains
 
 
     end subroutine get_cluster_properties
+
+    subroutine cluster_CV_fn(pt, pb)
+        use physical_constants_MD, only : np
+        use physical_constants_MD, only : tethereddisttop, tethereddistbottom
+        use interfaces, only : error_abort
+        use computational_constants_MD, only : iter, globaldomain, delta_t 
+        use librarymod, only : get_Timestep_FileName, get_new_fileunit
+        use arrays_MD, only : r, v
+        use librarymod, only : heaviside  =>  heaviside_a1
+        use PolynomialRoots, only : cubicroots
+        implicit none
+
+        double precision, dimension(4), intent(in)  :: pt, pb
+
+
+        integer                         :: i, n, pid
+        integer, save                   :: clustCV=0, clustCV_mdt
+        logical                         :: first_time=.true., print_debug
+        character(33)                   :: filename, debug_outfile
+        double precision                :: theta_i, dS_i, m, c, yi, tcross
+        double precision, dimension(3)  :: bintopi, binboti, ri
+        double precision, dimension(4)  :: ptl
+
+        !Front/back surfaces in y
+        bintopi(2) =  0.5d0*globaldomain(2) - tethereddisttop(2)
+        binboti(2) = -0.5d0*globaldomain(2) + tethereddistbottom(2)
+        
+        !Left/Right cluser based surfaces in z
+        bintopi(3) =  0.5d0*globaldomain(3) 
+        binboti(3) = -0.5d0*globaldomain(3) 
+
+
+        print_debug = .false.
+        debug_outfile = './results/CV_mols'
+        if (print_debug) then
+            debug_outfile = './results/CV_mols'
+            pid = get_new_fileunit()
+            call get_Timestep_FileName(iter,debug_outfile,filename)
+            open(unit=pid,file=trim(filename),status='replace')
+            do n =1,np
+
+                ri(:) = r(:,n)
+                yi = ri(2)
+                !Top/bottom surfaces in x
+                bintopi(1) = surface_fn(pt, yi) !pt(4)*yi**3.d0 + pt(3)*yi**2.d0 + pt(2)*yi + pt(1)
+                binboti(1) = surface_fn(pb, yi) !pb(4)*yi**3.d0 + pb(3)*yi**2.d0 + pb(2)*yi + pb(1)
+                !bintopi(1) = pt(4)*yi**3.d0 + pt(3)*yi**2.d0 + pt(2)*yi + pt(1)
+                !binboti(1) = pb(4)*yi**3.d0 + pb(3)*yi**2.d0 + pb(2)*yi + pb(1)
+                !Use CV function
+		        theta_i = dble((heaviside(bintopi(1)-ri(1))-heaviside(binboti(1)-ri(1)))* & 
+			               	   (heaviside(bintopi(2)-ri(2))-heaviside(binboti(2)-ri(2)))* & 
+			              	   (heaviside(bintopi(3)-ri(3))-heaviside(binboti(3)-ri(3))))
+
+                if (theta_i .eq. 1.d0) then
+                    clustCV = clustCV + 1
+                    write(pid,'(i10,6f18.9)') n, ri, 0.d0, 0.d0, 0.d0
+                else
+                    write(pid,'(i10,6f18.9)') n, 0.d0, 0.d0, 0.d0, ri
+                endif
+
+            enddo
+            close(pid,status='keep')
+            print*, 'Cluster CV = ', clustCV
+
+            debug_outfile = './results/CV_surface_mols'
+            pid = get_new_fileunit()
+            call get_Timestep_FileName(iter,debug_outfile,filename)
+            open(unit=pid,file=trim(filename),status='replace')
+
+            call surface_interaction(pt, 1, ri)
+
+
+!            do n =1,np
+
+!                call surface_interaction(pt, n, ri)
+!                !call surface_interaction(pb, n, ri)
+
+!            enddo
+            close(pid,status='keep')
+
+        endif
+
+    contains
+
+        function linear_fn(m, c, yi)
+
+            double precision :: yi, linear_fn
+            double precision :: m, c
+
+            linear_fn = m*yi + c
+
+        end function linear_fn
+
+        function surface_fn(p0, yi)
+
+            double precision :: yi, surface_fn
+            double precision,dimension(4) :: p0
+
+            surface_fn = p0(4)*yi**3.d0 + p0(3)*yi**2.d0 + p0(2)*yi + p0(1)
+
+        end function surface_fn
+
+        function dsurface_fndyi(p0, yi)
+
+            double precision :: yi, dsurface_fndyi
+            double precision,dimension(4) :: p0
+
+            dsurface_fndyi = 3.d0*p0(4)*yi**2.d0 + 2.d0*p0(3)*yi + p0(2)
+
+        end function dsurface_fndyi
+
+
+        subroutine surface_interaction(p0, n, rcross)
+            implicit none
+
+            integer                         :: n
+            double precision, dimension(3)  :: rcross
+            double precision, dimension(4)  :: p0
+
+            double precision, dimension(4)  :: ptl
+
+            double precision, dimension(3)  :: ri, vi, ri_mdt
+            complex(KIND(1.0D0)),dimension(3)        :: z
+            double precision                :: dS_i, tcross, m,c,dt
+
+
+            !Get intersection of moving molecule and current surface
+            ptl = pt
+            !ri = r(:,n); vi = v(:,n)
+            !c = ri(1); m = vi(1)/vi(2)
+            !dt = delta_t
+
+            !DEBUG DATE HERE -- define an arbitary line
+            !c = 12.4d0; m = 1000.d0
+            dt = 3.0d0
+            ri(1) = 15.4d0-iter*1.d0; ri(2)=15.d0-iter; ri(3)=0.d0
+            vi(1) = 50.d0; vi(2) = 10.d0; vi(3)=0.d0
+            ri_mdt(:) = ri(:) - vi(:)*dt
+            c = ri(1)
+            m = vi(1)/vi(2)
+
+            ptl(1) = pt(1) - c
+            ptl(2) = pt(2) - m
+            call CubicRoots(ptl, z)
+            !Check if any roots are real
+            do i = 1, size(z)
+                !print*, 'root', z, ri(:), ri(:)-vi(:)*delta_t
+                if (imag(z(i)) .lt. 1e-8) then
+
+
+                    !Get time of crossing
+                    tcross = (ri(2) - real(z(i))) / vi(2)
+                    !if (tcross .lt. delta_t .and. tcross .gt. 0.d0) then
+                    !if (r(1,n) .gt. real(z(i)) .and. real(z(i)) .gt. r(1,n)-v(1,n)*delta_t .or. &
+                    !    r(1,n) .lt. real(z(i)) .and. real(z(i)) .lt. r(1,n)-v(1,n)*delta_t) then
+
+                        rcross = (/ ri(1)-vi(1)*tcross, real(z(i)), ri(3)-vi(3)*tcross /)
+	                    dS_i = dble((heaviside( tcross )            -heaviside(tcross - dt))* & 
+                                    (heaviside(bintopi(2)-rcross(2))-heaviside(binboti(2)-rcross(2)))* & 
+		                      	    (heaviside(bintopi(3)-rcross(3))-heaviside(binboti(3)-rcross(3))))
+
+                        print('(2i6,2f6.2,8f10.5)'), n, i, dS_i, tcross, real(z(i)), surface_fn(ptl, real(z(i))), surface_fn(pt, real(z(i))), linear_fn(m, c, real(z(i))), rcross(:)
+                    if (surface_fn(ptl, real(z(i))) .gt. 1e-8) cycle
+                        if (dS_i .ne. 0.d0) then
+
+        !                    print('(2i6,2f6.2,10f10.5)'), n, i, dS_i, (heaviside(bintopi(2)-rcross(2))-heaviside(binboti(2)-rcross(2)))* & 
+         !   		                      	                         (heaviside(bintopi(3)-rcross(3))-heaviside(binboti(3)-rcross(3))), tcross, ri(:), ri(:)-vi(:)*dt, rcross(:)
+                            write(pid,'(2i6,f6.2,7f10.5,3f18.12)'), n, i, dS_i, tcross, ri(:), ri(:)-vi(:)*dt, rcross(:)
+                        endif
+                    !endif
+                endif
+            enddo
+
+
+
+        end subroutine surface_interaction
+
+    end subroutine cluster_CV_fn
 
     subroutine check_for_cluster_breakup(self)
         use librarymod, only : bubble_sort_r
@@ -5876,6 +6052,12 @@ contains
         endif
 
     end subroutine thermostat_cluster
+
+
+    subroutine print_interface()
+        implicit none
+
+    end subroutine print_interface
 
 
     subroutine build_from_cellandneighbour_lists(self, cell, neighbour, rd, rmols, nmols, skipwalls_)
@@ -5988,6 +6170,7 @@ contains
         if (self%inclust(molnoi) .eq. 0) then
             !and molecule j is also NOT in a cluster
             if (self%inclust(molnoj) .eq. 0) then
+                !print*, molnoi, molnoj, 'No i or j in cluster'
                 !Create a new cluster
                 self%Nclust = self%Nclust + 1
                 nc = self%Nclust
@@ -5997,11 +6180,14 @@ contains
                 !Add to cluster linked lists
                 call linklist_checkpushneighbr(self, nc, molnoi)
                 call linklist_checkpushneighbr(self, nc, molnoj)
+                !self%Nlist(nc) = 2
 
             !But molecule j is in a cluster
             else
+                !print*, molnoi, molnoj, 'No i in cluster'
                 !Get cluster number and add one more to it
                 nc = self%inclust(molnoj)
+                !self%Nlist(nc) = self%Nlist(nc) + 1
                 !Add molecule i to same cluster as j
                 self%inclust(molnoi) = nc
                 !Add molecule i to cluster linked lists
@@ -6012,8 +6198,10 @@ contains
         else
             !But molecule j is NOT in a cluster
             if (self%inclust(molnoj) .eq. 0) then
+                !print*, molnoi, molnoj, 'No j in cluster'
                 !Get cluster number and add one more to it
                 nc = self%inclust(molnoi)
+                !self%Nlist(nc) = self%Nlist(nc) + 1
                 !Add molecule i to same cluster as j
                 self%inclust(molnoj) = nc
                 !Add molecule i to cluster linked lists
@@ -6021,6 +6209,7 @@ contains
 
             !Molecule j is also in a cluster
             else
+                !print*,molnoi, molnoj,  'i and j already in cluster(s)'
                 !Load cluster numbers and check if they are the same
                 nci = self%inclust(molnoi); ncj = self%inclust(molnoj)
                 if (nci .ne. ncj) then
@@ -6048,19 +6237,25 @@ contains
             endif
         endif
 
+
+!        if (sumNlist .lt. countmol) then
+!            print*, sumNlist, countmol, molnoi, molnoj, self%inclust(molnoi), self%inclust(molnoj), &
+!                             self%Nclust
+!        endif
+
     end subroutine AddBondedPair
 
-    !Remove any gaps in the list of clusters
     subroutine CompressClusters(self)
         implicit none
 
-        type(clusterinfo),intent(inout) :: self
+        type(clusterinfo),intent(inout)    :: self
 
-        integer                         :: m, j, nc
+        integer :: m, j, nc
 	    type(node), pointer 	        :: old, current
 
-        !Loop though all clusters
         nc = 0
+
+        !Loop though all clusters
         do j = 1,self%Nclust
             !For all clusters which are not empty
             if (self%Nlist(j) .gt. 0) then
@@ -6508,23 +6703,11 @@ contains
 
 !    end subroutine build_debug_clusters
 
-    subroutine destroy_clusters(self)
-        use linked_list, only : linklist_deallocate_cluster
-        implicit none
-
-        type(clusterinfo),intent(inout)    :: self
-
-        call linklist_deallocate_cluster(self)
-
-    end subroutine destroy_clusters
-
 
 end module cluster_analysis
 
 subroutine get_interface_from_clusters()
-    use cluster_analysis, only : build_clusters, & 
-                                 get_cluster_properties, & 
-                                 destroy_clusters
+    use cluster_analysis
     use linked_list, only : cluster
     implicit none
 
@@ -6533,7 +6716,6 @@ subroutine get_interface_from_clusters()
     rd = 1.5d0
     call build_clusters(cluster, rd)
     call get_cluster_properties(cluster, rd)
-    call destroy_clusters(cluster)
 
 end subroutine get_interface_from_clusters
 
