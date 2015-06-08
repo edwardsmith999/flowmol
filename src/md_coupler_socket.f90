@@ -563,6 +563,11 @@ contains
                 if (r(2,n) .gt. top_rght_md(2)) cycle
                 if (r(3,n) .gt. top_rght_md(3)) cycle
 
+                ! Ignore molecules that have strayed outside domain 
+                if ( abs(r(1,n)) .gt. halfdomain(1) ) cycle
+                if ( abs(r(2,n)) .gt. halfdomain(2) ) cycle
+                if ( abs(r(3,n)) .gt. halfdomain(3) ) cycle
+
                 ! Position relative to bottom left of overlap in MD coords 
                 r_rel_olap(:) = r(:,n) - bot_left_md(:)
 
@@ -574,15 +579,17 @@ contains
                 ibin(2) = ibin(2) - extents(3) + 1
                 ibin(3) = ibin(3) - extents(5) + 1
 
-                ! Ignore molecules that have strayed outside domain 
-                if ( abs(r(1,n)) .gt. halfdomain(1) ) cycle
-                if ( abs(r(2,n)) .gt. halfdomain(2) ) cycle
-                if ( abs(r(3,n)) .gt. halfdomain(3) ) cycle
-
                 if (ibin(2) .ne. 1) then
                     call error_abort("MD coupler socket: invalid ycell "//&
                     "when averaging for CFD boundary condition")
                 end if
+
+                ! If for some reason (?) a molecule is in the domain but not 
+                ! within the correct cell range, ignore it
+                if (ibin(1) .lt. 1)    cycle
+                if (ibin(1) .gt. nclx) cycle
+                if (ibin(3) .lt. 1)    cycle
+                if (ibin(3) .gt. nclz) cycle
                 
                 ! Add velocity and molecular count to bin
                 uvw_md(1:3,ibin(1),ibin(2),ibin(3)) = uvw_md(1:3,ibin(1),ibin(2),ibin(3)) + v(:,n)
