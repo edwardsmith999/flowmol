@@ -210,7 +210,7 @@ subroutine simulation_record
 	!Obtain and record temperature
 	if (temperature_outflag .ne. 0)	call temperature_averaging(temperature_outflag)
 
-	!Obtain and record temperature
+	!Obtain and record energy
 	if (energy_outflag .ne. 0)	call energy_averaging(energy_outflag)
 
 	!Obtain and record density on a surface
@@ -983,8 +983,8 @@ subroutine simulation_write_potential_field(xmin,xmax,ymin,ymax,zmin, &
     do j = 0,yres
 	do k = 0,zres
 
-				x  = xmin + i*dx
-				y  = ymin + j*dy 
+		x  = xmin + i*dx
+		y  = ymin + j*dy 
 		z  = zmin + k*dz 
 
         select case(casetype)
@@ -5696,6 +5696,7 @@ contains
 
     subroutine get_cluster_properties(self, rd)
         use physical_constants_MD, only : pi, np
+        use physical_constants_MD, only : tethereddisttop, tethereddistbottom
         use computational_constants_MD, only : iter, thermo_tags, thermo, free, globaldomain 
         use linked_list, only : linklist_printneighbourlist
         use librarymod, only : imaxloc, get_Timestep_FileName, least_squares, get_new_fileunit
@@ -5956,10 +5957,10 @@ contains
             osc = 0
 
             if (write_debug) then
-                debug_outfile = './results/CV_surface_mols'
-                pid = get_new_fileunit()
-                call get_Timestep_FileName(iter,debug_outfile,filename)
-                open(unit=pid,file=trim(filename),status='replace')
+            debug_outfile = './results/CV_surface_mols'
+            pid = get_new_fileunit()
+            call get_Timestep_FileName(iter,debug_outfile,filename)
+            open(unit=pid,file=trim(filename),status='replace')
             endif
 
             do n =1,np
@@ -6021,6 +6022,7 @@ contains
             c = ri(1)-ri(2)*m
             dt = delta_t
 
+        function surface_fn(p0, yi)
 
             !Get surface crossing direction
             crosssign = sign(1.d0,(-vi(1) + vi(2)*dsurface_fndyi(p0, ri(2))))
@@ -6050,6 +6052,7 @@ contains
                                 (heaviside(bintopi(2)-rcross(2))-heaviside(binboti(2)-rcross(2)))* & 
 	                      	    (heaviside(bintopi(3)-rcross(3))-heaviside(binboti(3)-rcross(3))))
 
+            dsurface_fndyi = 3.d0*p0(4)*yi**2.d0 + 2.d0*p0(3)*yi + p0(2)
 
 !                    if (heaviside(tcross)-heaviside(tcross - dt) .gt. tol) then
 !                        print('(a,2i6,f6.2,10f10.5)'), 'intime',n, i, (heaviside(bintopi(2)-rcross(2))-heaviside(binboti(2)-rcross(2)))* & 
@@ -6063,7 +6066,7 @@ contains
                         if (write_debug) then
                             print('(a,2i6,2f6.2,10f10.5)'), 'xing',n, i, dS_i, crosssign, tcross, ri(:), ri(:)-vi(:)*dt, rcross(:)
                             write(pid,'(2i6,f6.2,7f10.5,3f18.12)'), n, i, dS_i, tcross, ri(:), ri(:)-vi(:)*dt, rcross(:)
-                      
+
                             !It seems to be possible to get real roots which 
                             !don't actually give a zero value in the original function!?
                             if (surface_fn(p0l, real(z(i))) .gt. tol) then
@@ -6103,7 +6106,7 @@ contains
             !Front/back surfaces in y
             bintop(2) =  0.5d0*globaldomain(2) - tethereddisttop(2)
             binbot(2) = -0.5d0*globaldomain(2) + tethereddistbottom(2)
-            
+
             !Left/Right cluser based surfaces in z
             bintop(3) =  0.5d0*globaldomain(3) 
             binbot(3) = -0.5d0*globaldomain(3)
@@ -6139,6 +6142,10 @@ contains
 							(heaviside(bintop(3) - Pyt(3))   &
 					       - heaviside(binbot(3) - Pyt(3)))
 
+                        rcross = (/ ri(1)-vi(1)*tcross, real(z(i)), ri(3)-vi(3)*tcross /)
+	                    dS_i = dble((heaviside( tcross )            -heaviside(tcross - dt))* & 
+                                    (heaviside(bintopi(2)-rcross(2))-heaviside(binboti(2)-rcross(2)))* & 
+		                      	    (heaviside(bintopi(3)-rcross(3))-heaviside(binboti(3)-rcross(3))))
 
             !Y BOTTOM SURFACE
             bintop(1) = surface_fn(pt, Pyb(2))
@@ -6174,7 +6181,7 @@ contains
             !if (write_debug) then
                 if (onfaceyt .ne. 0.d0) then
                     print('(a,2i6,4f6.2,i4,9f8.3)'), 'yplanet xing', n, i, onfaceyt, onfaceyb, onfacezt, onfacezb, Ncross, ri1, ri2, Pyt
-                endif
+                        endif
                 if (onfaceyb .ne. 0.d0) then
                     print('(a,2i6,4f6.2,i4,9f8.3)'), 'yplaneb xing', n, i, onfaceyt, onfaceyb, onfacezt, onfacezb, Ncross, ri1, ri2, Pyb
                 endif
@@ -6964,11 +6971,23 @@ contains
 
 !    end subroutine build_debug_clusters
 
+    subroutine destroy_clusters(self)
+        use linked_list, only : linklist_deallocate_cluster
+        implicit none
+
+        type(clusterinfo),intent(inout)    :: self
+
+        call linklist_deallocate_cluster(self)
+
+    end subroutine destroy_clusters
+
 
 end module cluster_analysis
 
 subroutine get_interface_from_clusters()
-    use cluster_analysis
+    use cluster_analysis, only : build_clusters, & 
+                                 get_cluster_properties, & 
+                                 destroy_clusters
     use linked_list, only : cluster
     implicit none
 
@@ -6977,6 +6996,7 @@ subroutine get_interface_from_clusters()
     rd = 1.5d0
     call build_clusters(cluster, rd)
     call get_cluster_properties(cluster, rd)
+    call destroy_clusters(cluster)
 
 end subroutine get_interface_from_clusters
 
