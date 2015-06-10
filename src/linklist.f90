@@ -2318,6 +2318,19 @@ subroutine linklist_deallocate_cluster(self)
 		endif
 	enddo
 
+    !Check all other possible molecules
+    do i = 1, np+extralloc
+        if (associated(self%head(i)%point)) then
+            old => self%head(i)%point
+            if (associated(old%next) .eqv. .false.) then
+                nullify(self%head(i)%point)   !Set cluster head pointer to null
+            else
+                print*, iter, i, self%Nlist(i), self%Nclust, associated(old%next)
+                stop "ERROR in linklist_deallocate_cluster"
+            endif
+        endif
+    enddo
+
     !Deallocate array of molecules neighbourlist pointers
     self%Nclust = 0
     deallocate(self%Nlist)

@@ -1029,6 +1029,13 @@ subroutine setup_read_input
         endif
 	endif
 
+	call locate(1,'PASS_VHALO',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) pass_vhalo
+    else
+        pass_vhalo = 0
+	endif
+
 	call locate(1,'MFLUX_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) mflux_outflag

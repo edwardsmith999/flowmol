@@ -5779,9 +5779,6 @@ contains
         !Set dummy values of CV surfaces
         pt = (/ 10.d0, 0.1d0, 0.02d0, -0.001d0  /)
         pb = (/-10.d0, 0.1d0, 0.02d0, -0.001d0  /)
-
-        !pt = (/ 10., 0.0, 0.0, 0.0  /)
-        !pb = (/ -10.,0.0, 0.0, 0.0  /)
         call cluster_CV_fn(pt, pb)
 
 
@@ -5811,7 +5808,7 @@ contains
     end subroutine get_cluster_properties
 
     subroutine cluster_CV_fn(pt, pb)
-        use physical_constants_MD, only : np
+        use physical_constants_MD, only : np, halo_np
         use computational_constants_MD, only : iter
         use interfaces, only : error_abort
         use librarymod, only : get_Timestep_FileName, get_new_fileunit
@@ -5844,9 +5841,9 @@ contains
 
             call get_all_surface_crossings(pt, pb, Nmols_cross, write_debug=.false.)
 
-            print'(a,i8,3f16.5)', 'cluster_CV =', iter, NmolsCV, Nmols_cross, NmolsCV-NmolsCV_mdt
             if (ABS(NmolsCV-NmolsCV_mdt - Nmols_cross) .gt. 1e-8) then
                 print*, "ERROR IN CV FUNCTION FOR MASS CLUSTER"
+                print'(a,i8,3f16.5)', 'cluster_CV =', iter, NmolsCV, Nmols_cross, NmolsCV-NmolsCV_mdt
                 call CV_cluster(pt, pb, NmolsCV, write_debug=.true.)
                 call get_all_surface_crossings(pt, pb, Nmols_cross, write_debug=.true.)
             endif
@@ -5905,7 +5902,7 @@ contains
             call get_Timestep_FileName(iter,debug_outfile,filename)
             open(unit=pid,file=trim(filename),status='replace')
             endif
-            do n =1,np
+            do n =1,np+halo_np
 
                 ri(:) = r(:,n)
                 yi = ri(2)
@@ -5963,17 +5960,20 @@ contains
             open(unit=pid,file=trim(filename),status='replace')
             endif
 
-            do n =1,np
+            do n =1,np+halo_np
 
+                !Top cubic surface crossing
                 call get_cubic_surface_crossing(pt, n, Ncross, write_debug)
                 sc = sc + Ncross
+                !Bottom cubic surface crossing
                 call get_cubic_surface_crossing(pb, n, Ncross, write_debug)
                 sc = sc - Ncross
+                !periodic boundries and tethered molecule surface crossing
                 call get_plane_surface_crossing(pt, pb, n, Ncross, write_debug)
                 osc = osc + Ncross
             enddo
             if (osc .ne. 0) then
-                print*, 'Total crossing in y and z = ',  osc
+                print*, 'ERROR -- Total crossing in y and z not zero = ',  osc
             endif
             if (write_debug) then
                 close(pid,status='keep')
@@ -6022,19 +6022,8 @@ contains
             c = ri(1)-ri(2)*m
             dt = delta_t
 
-        function surface_fn(p0, yi)
-
             !Get surface crossing direction
             crosssign = sign(1.d0,(-vi(1) + vi(2)*dsurface_fndyi(p0, ri(2))))
-
-            !DEBUG DATE HERE -- define an arbitary line
-!            dt = 3.0d0
-!            ri(1) = 12.5; ri(2)=20.; ri(3)=0.d0
-!            vi(1) = 1.d0+iter*0.1; vi(2) = 10.d0-iter*0.2; vi(3)=0.d0
-!            ri_mdt(:) = ri(:) - vi(:)*dt 
-!            m = vi(1)/vi(2)
-!            c = ri(1)-ri(2)*m
-            !DEBUG DATE HERE -- define an arbitary line
 
             p0l(1) = p0(1) - c
             p0l(2) = p0(2) - m
@@ -6052,17 +6041,7 @@ contains
                                 (heaviside(bintopi(2)-rcross(2))-heaviside(binboti(2)-rcross(2)))* & 
 	                      	    (heaviside(bintopi(3)-rcross(3))-heaviside(binboti(3)-rcross(3))))
 
-            dsurface_fndyi = 3.d0*p0(4)*yi**2.d0 + 2.d0*p0(3)*yi + p0(2)
-
-!                    if (heaviside(tcross)-heaviside(tcross - dt) .gt. tol) then
-!                        print('(a,2i6,f6.2,10f10.5)'), 'intime',n, i, (heaviside(bintopi(2)-rcross(2))-heaviside(binboti(2)-rcross(2)))* & 
-!        		                      	                     (heaviside(bintopi(3)-rcross(3))-heaviside(binboti(3)-rcross(3))), tcross, ri(:), ri(:)-vi(:)*dt, rcross(:)
-!                    endif
-!                    if ((heaviside(bintopi(2)-rcross(2))-heaviside(binboti(2)-rcross(2)))* & 
-!    		            (heaviside(bintopi(3)-rcross(3))-heaviside(binboti(3)-rcross(3))) .gt. tol) then
-!                        print('(a,2i6,f6.2,10f10.5)'), 'indomain', n, i, dS_i, tcross, ri(:), ri(:)-vi(:)*dt, rcross(:)
-!                    endif
-                        if (dS_i .ne. 0.d0) then
+                    if (dS_i .ne. 0.d0) then
                         if (write_debug) then
                             print('(a,2i6,2f6.2,10f10.5)'), 'xing',n, i, dS_i, crosssign, tcross, ri(:), ri(:)-vi(:)*dt, rcross(:)
                             write(pid,'(2i6,f6.2,7f10.5,3f18.12)'), n, i, dS_i, tcross, ri(:), ri(:)-vi(:)*dt, rcross(:)
@@ -6076,9 +6055,6 @@ contains
                         endif
                         Ncross = Ncross + crosssign * dS_i
                     endif
-
-                    !if (r(1,n) .gt. real(z(i)) .and. real(z(i)) .gt. r(1,n)-v(1,n)*delta_t .or. &
-                    !    r(1,n) .lt. real(z(i)) .and. real(z(i)) .lt. r(1,n)-v(1,n)*delta_t) then
 
                 endif
             enddo
@@ -6098,6 +6074,7 @@ contains
             double precision, dimension(3)  :: vi, ri1, ri2, ri12, rcross
             double precision, dimension(3)  :: bintop, binbot,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
 	        real(kind(0.d0))				:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
+            complex(kind(0.d0))             :: z
             double precision, parameter     :: tol=1e-8
 
             !reset surface crossing
@@ -6142,11 +6119,6 @@ contains
 							(heaviside(bintop(3) - Pyt(3))   &
 					       - heaviside(binbot(3) - Pyt(3)))
 
-                        rcross = (/ ri(1)-vi(1)*tcross, real(z(i)), ri(3)-vi(3)*tcross /)
-	                    dS_i = dble((heaviside( tcross )            -heaviside(tcross - dt))* & 
-                                    (heaviside(bintopi(2)-rcross(2))-heaviside(binboti(2)-rcross(2)))* & 
-		                      	    (heaviside(bintopi(3)-rcross(3))-heaviside(binboti(3)-rcross(3))))
-
             !Y BOTTOM SURFACE
             bintop(1) = surface_fn(pt, Pyb(2))
             binbot(1) = surface_fn(pb, Pyb(2))
@@ -6178,7 +6150,7 @@ contains
 					       - heaviside(binbot(2) - Pzb(2)))
             
             Ncross = Ncross + int(onfaceyt - onfaceyb + onfacezt - onfacezb)
-            !if (write_debug) then
+            if (write_debug) then
                 if (onfaceyt .ne. 0.d0) then
                     print('(a,2i6,4f6.2,i4,9f8.3)'), 'yplanet xing', n, i, onfaceyt, onfaceyb, onfacezt, onfacezb, Ncross, ri1, ri2, Pyt
                         endif
@@ -6193,7 +6165,7 @@ contains
                     !write(pid,'(2i6,f6.2,7f10.5,3f18.12)'), n, i, dS_i, tcross, ri(:), ri(:)-vi(:)*delta_t, rcross(:)
                 endif
             
-                    !endif
+            endif
 
 
         end subroutine get_plane_surface_crossing
