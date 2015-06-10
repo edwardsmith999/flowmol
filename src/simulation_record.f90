@@ -210,7 +210,7 @@ subroutine simulation_record
 	!Obtain and record temperature
 	if (temperature_outflag .ne. 0)	call temperature_averaging(temperature_outflag)
 
-	!Obtain and record temperature
+	!Obtain and record energy
 	if (energy_outflag .ne. 0)	call energy_averaging(energy_outflag)
 
 	!Obtain and record density on a surface
@@ -5696,9 +5696,7 @@ contains
 
     subroutine get_cluster_properties(self, rd)
         use physical_constants_MD, only : pi, np
-        use physical_constants_MD, only : tethereddisttop, tethereddistbottom
         use computational_constants_MD, only : iter, thermo_tags, thermo, free, globaldomain 
-        use linked_list, only : linklist_printneighbourlist
         use librarymod, only : imaxloc, get_Timestep_FileName, least_squares, get_new_fileunit
         use minpack_fit_funcs_mod, only : fn, cubic_fn, curve_fit
         use arrays_MD, only : tag, r
@@ -5710,15 +5708,13 @@ contains
 
         logical                         :: first_time=.true., print_debug
         character(32)                   :: filename, debug_outfile
-        integer                         :: n,pid,i,j,resolution,fileunit
-        double precision                :: tolerence, m, c, cl_angle, theta_i, yi
-        double precision, dimension(3)  :: bintopi, binboti, ri 
-        double precision, dimension(4)  :: pt = (/ 0.d0, 0.d0, 0.d0, 0.d0 /)
-        double precision, dimension(4)  :: pb = (/ 0.d0, 0.d0, 0.d0, 0.d0 /)
+        integer                         :: n,i,j,resolution,fileunit
+        double precision                :: tolerence, m, c, cl_angle
         double precision,dimension(6)   :: extents
         double precision,dimension(:),allocatable :: x,y,f
         double precision,dimension(:,:),allocatable :: rnp, extents_grid
-
+        double precision, dimension(4)  :: pt = (/ 0.d0, 0.d0, 0.d0, 0.d0 /)
+        double precision, dimension(4)  :: pb = (/ 0.d0, 0.d0, 0.d0, 0.d0 /)
 
         resolution = 10; tolerence = rd
         call cluster_global_extents(self, imaxloc(self%Nlist), extents)
@@ -6054,12 +6050,6 @@ contains
     end subroutine thermostat_cluster
 
 
-    subroutine print_interface()
-        implicit none
-
-    end subroutine print_interface
-
-
     subroutine build_from_cellandneighbour_lists(self, cell, neighbour, rd, rmols, nmols, skipwalls_)
 	    use module_compute_forces, only: cellinfo, neighbrinfo, rj, rij, ri,&
                                          delta_rneighbr, rcutoff, rij2, &
@@ -6170,7 +6160,6 @@ contains
         if (self%inclust(molnoi) .eq. 0) then
             !and molecule j is also NOT in a cluster
             if (self%inclust(molnoj) .eq. 0) then
-                !print*, molnoi, molnoj, 'No i or j in cluster'
                 !Create a new cluster
                 self%Nclust = self%Nclust + 1
                 nc = self%Nclust
@@ -6180,14 +6169,11 @@ contains
                 !Add to cluster linked lists
                 call linklist_checkpushneighbr(self, nc, molnoi)
                 call linklist_checkpushneighbr(self, nc, molnoj)
-                !self%Nlist(nc) = 2
 
             !But molecule j is in a cluster
             else
-                !print*, molnoi, molnoj, 'No i in cluster'
                 !Get cluster number and add one more to it
                 nc = self%inclust(molnoj)
-                !self%Nlist(nc) = self%Nlist(nc) + 1
                 !Add molecule i to same cluster as j
                 self%inclust(molnoi) = nc
                 !Add molecule i to cluster linked lists
@@ -6198,10 +6184,8 @@ contains
         else
             !But molecule j is NOT in a cluster
             if (self%inclust(molnoj) .eq. 0) then
-                !print*, molnoi, molnoj, 'No j in cluster'
                 !Get cluster number and add one more to it
                 nc = self%inclust(molnoi)
-                !self%Nlist(nc) = self%Nlist(nc) + 1
                 !Add molecule i to same cluster as j
                 self%inclust(molnoj) = nc
                 !Add molecule i to cluster linked lists
@@ -6209,7 +6193,6 @@ contains
 
             !Molecule j is also in a cluster
             else
-                !print*,molnoi, molnoj,  'i and j already in cluster(s)'
                 !Load cluster numbers and check if they are the same
                 nci = self%inclust(molnoi); ncj = self%inclust(molnoj)
                 if (nci .ne. ncj) then
@@ -6237,25 +6220,19 @@ contains
             endif
         endif
 
-
-!        if (sumNlist .lt. countmol) then
-!            print*, sumNlist, countmol, molnoi, molnoj, self%inclust(molnoi), self%inclust(molnoj), &
-!                             self%Nclust
-!        endif
-
     end subroutine AddBondedPair
 
+    !Remove any gaps in the list of clusters
     subroutine CompressClusters(self)
         implicit none
 
-        type(clusterinfo),intent(inout)    :: self
+        type(clusterinfo),intent(inout) :: self
 
-        integer :: m, j, nc
+        integer                         :: m, j, nc
 	    type(node), pointer 	        :: old, current
 
-        nc = 0
-
         !Loop though all clusters
+        nc = 0
         do j = 1,self%Nclust
             !For all clusters which are not empty
             if (self%Nlist(j) .gt. 0) then
@@ -6703,11 +6680,23 @@ contains
 
 !    end subroutine build_debug_clusters
 
+    subroutine destroy_clusters(self)
+        use linked_list, only : linklist_deallocate_cluster
+        implicit none
+
+        type(clusterinfo),intent(inout)    :: self
+
+        call linklist_deallocate_cluster(self)
+
+    end subroutine destroy_clusters
+
 
 end module cluster_analysis
 
 subroutine get_interface_from_clusters()
-    use cluster_analysis
+    use cluster_analysis, only : build_clusters, & 
+                                 get_cluster_properties, & 
+                                 destroy_clusters
     use linked_list, only : cluster
     implicit none
 
@@ -6716,6 +6705,7 @@ subroutine get_interface_from_clusters()
     rd = 1.5d0
     call build_clusters(cluster, rd)
     call get_cluster_properties(cluster, rd)
+    call destroy_clusters(cluster)
 
 end subroutine get_interface_from_clusters
 
