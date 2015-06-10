@@ -5938,9 +5938,6 @@ contains
 
         end subroutine CV_cluster
 
-
-!            do n =1,np
-
         subroutine get_all_surface_crossings(pt, pb, surfacecross_out, write_debug)
             use physical_constants_MD, only : tethereddisttop, tethereddistbottom
             use computational_constants_MD, only : iter, globaldomain, delta_t 
@@ -5984,9 +5981,6 @@ contains
             surfacecross_out = dble(sc)
 
         end subroutine get_all_surface_crossings
-
-            double precision :: yi, dsurface_fndyi
-            double precision,dimension(4) :: p0
 
         subroutine get_cubic_surface_crossing(p0, n, Ncross, write_debug)
             use physical_constants_MD, only : tethereddisttop, tethereddistbottom
@@ -6052,9 +6046,9 @@ contains
                     rcross = (/ ri(1)-vi(1)*tcross, real(z(i)), ri(3)-vi(3)*tcross /)
 
                     !Get surface crossing function
-	                    dS_i = dble((heaviside( tcross )            -heaviside(tcross - dt))* & 
-                                    (heaviside(bintopi(2)-rcross(2))-heaviside(binboti(2)-rcross(2)))* & 
-		                      	    (heaviside(bintopi(3)-rcross(3))-heaviside(binboti(3)-rcross(3))))
+                    dS_i = dble((heaviside( tcross )            -heaviside(tcross - dt))* & 
+                                (heaviside(bintopi(2)-rcross(2))-heaviside(binboti(2)-rcross(2)))* & 
+	                      	    (heaviside(bintopi(3)-rcross(3))-heaviside(binboti(3)-rcross(3))))
 
 
 !                    if (heaviside(tcross)-heaviside(tcross - dt) .gt. tol) then
@@ -6326,13 +6320,6 @@ contains
         endif
 
     end subroutine thermostat_cluster
-
-
-    subroutine print_interface()
-        implicit none
-
-    end subroutine print_interface
-
 
     subroutine build_from_cellandneighbour_lists(self, cell, neighbour, rd, rmols, nmols, skipwalls_)
 	    use module_compute_forces, only: cellinfo, neighbrinfo, rj, rij, ri,&
