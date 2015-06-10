@@ -213,7 +213,9 @@ subroutine simulation_record
 	!Obtain and record temperature
 	if (energy_outflag .ne. 0)	call energy_averaging(energy_outflag)
 
+	!Obtain and record density on a surface
     if (msurf_outflag .ne. 0) call surface_density_averaging(msurf_outflag)
+
 	!Obtain and record molecular diffusion
 	!call evaluate_properties_diffusion
 
@@ -227,7 +229,17 @@ subroutine simulation_record
 		call heatflux_averaging(heatflux_outflag)
 	end if
 
-	call update_simulation_progress_file
+	!Write current timestep to a progress file
+	call update_simulation_progress_file()
+
+	!Write entire xy field @ z
+!    if (iter .gt. 10 .and. mod(iter,10) .eq. 0) then
+!    	call simulation_write_potential_field(-halfdomain(1),halfdomain(1), &
+!	    							          -halfdomain(2),halfdomain(2), &
+!		    							      -halfdomain(3),halfdomain(3), &
+!                                               50, 50, 50, 30000+iter,3)
+!    endif
+
 
 end subroutine simulation_record
 
@@ -949,37 +961,53 @@ implicit none
 end subroutine evaluate_properties_rdf3d
 
 !Use a test particle to plot the potential field
-subroutine simulation_write_potential_field(xmin,xmax,ymin,ymax,z,res,filenum)
+subroutine simulation_write_potential_field(xmin,xmax,ymin,ymax,zmin, & 
+                                            zmax,xres,yres,zres, &
+                                            filenum,casetype)
 	use module_compute_forces, only : compute_force_and_potential_at
 	implicit none
 
-	integer, intent(in) :: res, filenum	
-	real(kind(0.d0)), intent(in) :: xmin, xmax, ymin, ymax, z
+	integer, intent(in) :: xres,yres,zres, filenum, casetype
+	real(kind(0.d0)), intent(in) :: xmin, xmax, ymin, ymax, zmin, zmax
 
-	integer :: i,j
-	real(kind(0.d0)) :: x, y, dx, dy
+	integer :: i,j,k
+	real(kind(0.d0)) :: x, y,z, dx, dy, dz
 	real(kind(0.d0)) :: U
-	real(kind(0.d0)) :: dummy(3)
+	real(kind(0.d0)) :: rijave(3), f(3), rf(3,3)
 
-	dx = (xmax - xmin)/real(res)
-	dy = (ymax - ymin)/real(res)
+	dx = (xmax - xmin)/real(xres)
+	dy = (ymax - ymin)/real(yres)
+	dz = (zmax - zmin)/real(zres)
 
-	do i = 0,res
-
-		do j = 0,res
+	do i = 0,xres
+    do j = 0,yres
+	do k = 0,zres
 
 				x  = xmin + i*dx
 				y  = ymin + j*dy 
+		z  = zmin + k*dz 
 
-				call compute_force_and_potential_at((/x,y,z/),U,dummy)
+        select case(casetype)
+        case(0)
+			call compute_force_and_potential_at((/x,y,z/),U,f)
+		    write(filenum,'(4e12.4)') x, y, z, U
+        case(1)
+		    call compute_force_and_potential_at((/x,y,z/),U,f,rf=rf)
+		    write(filenum,'(12e12.4)') x, y, z, rf
+        case(2)
+		    call compute_force_and_potential_at((/x,y,z/),U,f,rijave=rijave)
+		    write(filenum,'(12f12.4)') x, y, z, rijave
+        case(3)
+            !Write the lot
+		    call compute_force_and_potential_at((/x,y,z/),U,f,rmin=2.d0,rf=rf,rijave=rijave)
+		    write(filenum,'(4e12.4)') x, y, z, U
+		    write(filenum+10000,'(12e12.4)') x, y, z, rf
+		    write(filenum+20000,'(12f12.4)') x, y, z, rijave
+        end select
 
-				write(filenum,*) x, y, U
-
-		end do
-
-		write(filenum,*) ' ' 
-
-	end do
+    enddo
+    enddo
+    enddo
 
 end subroutine simulation_write_potential_field
 
@@ -5681,13 +5709,15 @@ contains
 
         logical                         :: first_time=.true., print_debug
         character(32)                   :: filename, debug_outfile
-        integer                         :: n,i,j,resolution,fileunit
-        double precision                :: tolerence, m, c, cl_angle
+        integer                         :: n,pid,i,j,resolution,fileunit
+        double precision                :: tolerence, m, c, cl_angle, theta_i, yi
+        double precision, dimension(3)  :: bintopi, binboti, ri 
+        double precision, dimension(4)  :: pt = (/ 0.d0, 0.d0, 0.d0, 0.d0 /)
+        double precision, dimension(4)  :: pb = (/ 0.d0, 0.d0, 0.d0, 0.d0 /)
         double precision,dimension(6)   :: extents
         double precision,dimension(:),allocatable :: x,y,f
         double precision,dimension(:,:),allocatable :: rnp, extents_grid
-        double precision, dimension(4)  :: pt = (/ 0.d0, 0.d0, 0.d0, 0.d0 /)
-        double precision, dimension(4)  :: pb = (/ 0.d0, 0.d0, 0.d0, 0.d0 /)
+
 
         resolution = 10; tolerence = rd
         call cluster_global_extents(self, imaxloc(self%Nlist), extents)
@@ -5742,6 +5772,7 @@ contains
         !write(fileunit,'(i12, 3(a,f10.5))'), iter, ' Bottom line y = ', m, ' x + ',c  , ' angle = ', cl_angle
         close(fileunit,status='keep')
 
+        !If cluster has broken up, stop simulation
         call check_for_cluster_breakup(self)
 
         !Set dummy values of CV surfaces
@@ -5768,7 +5799,7 @@ contains
 !        open(unit=1042,file=trim(filename),access='append')
 !        do i = 1, self%Nclust
 !            if (self%Nlist(i) .ne. maxval(self%Nlist)) then
-!                print*, 'skipping', i, 'with ', self%Nlist(i) 
+!                print*, 'skipping', i, 'with ', self%Nlist(i)
 !                cycle
 !            endif
 !            call linklist_printneighbourlist(self, i, 1042)
@@ -5858,20 +5889,20 @@ contains
             clustCV_mdt = clustCV
             clustCV = 0
 
-            !Front/back surfaces in y
-            bintopi(2) =  0.5d0*globaldomain(2) - tethereddisttop(2)
-            binboti(2) = -0.5d0*globaldomain(2) + tethereddistbottom(2)
-            
-            !Left/Right cluser based surfaces in z
-            bintopi(3) =  0.5d0*globaldomain(3) 
-            binboti(3) = -0.5d0*globaldomain(3)
+        !Front/back surfaces in y
+        bintopi(2) =  0.5d0*globaldomain(2) - tethereddisttop(2)
+        binboti(2) = -0.5d0*globaldomain(2) + tethereddistbottom(2)
+        
+        !Left/Right cluser based surfaces in z
+        bintopi(3) =  0.5d0*globaldomain(3) 
+        binboti(3) = -0.5d0*globaldomain(3)
 
             !Plot all molecules inside the liquid cluster control volume
             if (write_debug) then
-                debug_outfile = './results/CV_mols'
-                pid = get_new_fileunit()
-                call get_Timestep_FileName(iter,debug_outfile,filename)
-                open(unit=pid,file=trim(filename),status='replace')
+            debug_outfile = './results/CV_mols'
+            pid = get_new_fileunit()
+            call get_Timestep_FileName(iter,debug_outfile,filename)
+            open(unit=pid,file=trim(filename),status='replace')
             endif
             do n =1,np
 
@@ -5883,24 +5914,24 @@ contains
                 !bintopi(1) = pt(4)*yi**3.d0 + pt(3)*yi**2.d0 + pt(2)*yi + pt(1)
                 !binboti(1) = pb(4)*yi**3.d0 + pb(3)*yi**2.d0 + pb(2)*yi + pb(1)
                 !Use CV function
-                theta_i = dble((heaviside(bintopi(1)-ri(1))-heaviside(binboti(1)-ri(1)))* & 
-                           	   (heaviside(bintopi(2)-ri(2))-heaviside(binboti(2)-ri(2)))* & 
-                          	   (heaviside(bintopi(3)-ri(3))-heaviside(binboti(3)-ri(3))))
+		        theta_i = dble((heaviside(bintopi(1)-ri(1))-heaviside(binboti(1)-ri(1)))* & 
+			               	   (heaviside(bintopi(2)-ri(2))-heaviside(binboti(2)-ri(2)))* & 
+			              	   (heaviside(bintopi(3)-ri(3))-heaviside(binboti(3)-ri(3))))
 
                 if (theta_i .eq. 1.d0) then
                     clustCV = clustCV + 1
                     if (write_debug) then
-                        write(pid,'(i10,6f18.9)') n, ri, 0.d0, 0.d0, 0.d0
+                    write(pid,'(i10,6f18.9)') n, ri, 0.d0, 0.d0, 0.d0
                     endif
                 else
                     if (write_debug) then
-                        write(pid,'(i10,6f18.9)') n, 0.d0, 0.d0, 0.d0, ri
-                    endif
+                    write(pid,'(i10,6f18.9)') n, 0.d0, 0.d0, 0.d0, ri
+                endif
                 endif
 
             enddo
             if (write_debug) then
-                close(pid,status='keep')
+            close(pid,status='keep')
             endif
 
             clustCV_out = DBLE(clustCV)
@@ -5908,6 +5939,7 @@ contains
         end subroutine CV_cluster
 
 
+!            do n =1,np
 
         subroutine get_all_surface_crossings(pt, pb, surfacecross_out, write_debug)
             use physical_constants_MD, only : tethereddisttop, tethereddistbottom
@@ -5948,11 +5980,13 @@ contains
             if (write_debug) then
                 close(pid,status='keep')
             endif
-   
+
             surfacecross_out = dble(sc)
 
         end subroutine get_all_surface_crossings
 
+            double precision :: yi, dsurface_fndyi
+            double precision,dimension(4) :: p0
 
         subroutine get_cubic_surface_crossing(p0, n, Ncross, write_debug)
             use physical_constants_MD, only : tethereddisttop, tethereddistbottom
@@ -5977,7 +6011,7 @@ contains
             !Front/back surfaces in y
             bintopi(2) =  0.5d0*globaldomain(2) - tethereddisttop(2)
             binboti(2) = -0.5d0*globaldomain(2) + tethereddistbottom(2)
-            
+
             !Left/Right cluser based surfaces in z
             bintopi(3) =  0.5d0*globaldomain(3) 
             binboti(3) = -0.5d0*globaldomain(3)
@@ -6018,9 +6052,9 @@ contains
                     rcross = (/ ri(1)-vi(1)*tcross, real(z(i)), ri(3)-vi(3)*tcross /)
 
                     !Get surface crossing function
-                    dS_i = dble((heaviside( tcross )            -heaviside(tcross - dt))* & 
-                                (heaviside(bintopi(2)-rcross(2))-heaviside(binboti(2)-rcross(2)))* & 
-	                      	    (heaviside(bintopi(3)-rcross(3))-heaviside(binboti(3)-rcross(3))))
+	                    dS_i = dble((heaviside( tcross )            -heaviside(tcross - dt))* & 
+                                    (heaviside(bintopi(2)-rcross(2))-heaviside(binboti(2)-rcross(2)))* & 
+		                      	    (heaviside(bintopi(3)-rcross(3))-heaviside(binboti(3)-rcross(3))))
 
 
 !                    if (heaviside(tcross)-heaviside(tcross - dt) .gt. tol) then
@@ -6031,7 +6065,7 @@ contains
 !    		            (heaviside(bintopi(3)-rcross(3))-heaviside(binboti(3)-rcross(3))) .gt. tol) then
 !                        print('(a,2i6,f6.2,10f10.5)'), 'indomain', n, i, dS_i, tcross, ri(:), ri(:)-vi(:)*dt, rcross(:)
 !                    endif
-                    if (dS_i .ne. 0.d0) then
+                        if (dS_i .ne. 0.d0) then
                         if (write_debug) then
                             print('(a,2i6,2f6.2,10f10.5)'), 'xing',n, i, dS_i, crosssign, tcross, ri(:), ri(:)-vi(:)*dt, rcross(:)
                             write(pid,'(2i6,f6.2,7f10.5,3f18.12)'), n, i, dS_i, tcross, ri(:), ri(:)-vi(:)*dt, rcross(:)
@@ -6041,7 +6075,7 @@ contains
                             if (surface_fn(p0l, real(z(i))) .gt. tol) then
                                 print'(a,7f12.3)', "root isn't a zero of function", z(i), tcross
                                 !stop 'ERROR -- root not zero'
-                            endif
+                        endif
                         endif
                         Ncross = Ncross + crosssign * dS_i
                     endif
@@ -6158,7 +6192,7 @@ contains
                     !write(pid,'(2i6,f6.2,7f10.5,3f18.12)'), n, i, dS_i, tcross, ri(:), ri(:)-vi(:)*delta_t, rcross(:)
                 endif
             
-            !endif
+                    !endif
 
 
         end subroutine get_plane_surface_crossing
@@ -6209,8 +6243,8 @@ contains
                         !write(666600+iter,'(i8,5f10.5)'), bin, bintopi(1), binboti(1), ri
                         surface_fitted_density(bin) = surface_fitted_density(bin) + 1.d0
                         exit !Found the bin for this molecule, skip to the next molecule 
-                    endif
-                enddo
+                endif
+            enddo
 
             enddo
             !Write molecular density in slice to file
@@ -6257,6 +6291,9 @@ contains
 
 
     end subroutine check_for_cluster_breakup
+
+
+    !This routine is highly experimental and has not been fully tested
 
     subroutine thermostat_cluster(self, clustNo)
         use arrays_MD, only : tag

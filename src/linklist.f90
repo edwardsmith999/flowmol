@@ -1568,9 +1568,6 @@ subroutine linklist_push(self, icell, jcell, kcell, molnopush)
 
 	allocate(push) !Allocate type to add to stack
 	push%molno = molnopush !Build type from inputs
-	!push%rp => r(:,molnopush)   !Build type from inputs
-	!push%vp => v(:,molnopush)   !Build type from inputs
-	!push%ap => a(:,molnopush)   !Build type from inputs
 
 	current => old           !Set current to first item in list
 	old     => current%next  !Set old to next item in list
@@ -1596,7 +1593,6 @@ end subroutine linklist_push
 !linklist is empty so new linklist can be established
 
 subroutine linklist_checkpush(self, icell, jcell, kcell, molnopush)
-    use mpi
 	implicit none
 
     type(cellinfo),intent(inout)    :: self
@@ -1609,13 +1605,9 @@ subroutine linklist_checkpush(self, icell, jcell, kcell, molnopush)
 	cellnp = self%cellnp(icell,jcell,kcell)
 	allocate(current) 		        !Allocate type to add to stack
 	current%molno = molnopush 	    !Build type from inputs
-	!current%rp => r(:,molnopush)   	!Build type from inputs
-	!current%vp => v(:,molnopush)   	!Build type from inputs
-	!current%ap => a(:,molnopush)  	!Build type from inputs
 
 	select case (cellnp)
 	case(0)
-		!print*, 'empty cell - cell contains', cellnp, 'molecules'
 		nullify(current%previous) !Nullify pointer at top of list
 		nullify(current%next)     !Nullify pointer at bottom of list
 	case(1:)
@@ -1664,19 +1656,13 @@ subroutine linklist_checkpushneighbr(self, molnoi, molnoj)
 		nullify(current%previous)				!Nullify pointer at top of list
 	end select
 
-	self%head(molnoi)%point => current		!Set cell pointer to top of cell list
+	self%head(molnoi)%point => current		    !Set cell pointer to top of cell list
 	noneighbrs = noneighbrs + 1               	!Increase number of particles by one
-	self%Nlist(molnoi) = noneighbrs	!Update neighbour list molecular number
+	self%Nlist(molnoi) = noneighbrs	            !Update neighbour list molecular number
 
 	!Nullify pointers current and old so neighbour head is left pointing to top
 	nullify(current)                          !Nullify current as no longer required
 	nullify(old)                              !Nullify old as no longer required
-
-!    select type (self)
-!    class is (clusterinfo)
-!        print'(a,5i10)', 'cluster info in checkpushneighbr',  molnoi, molnoj, self%Nlist(molnoi), self%Nclust 
-!    end select
-
 
 end subroutine linklist_checkpushneighbr
 
@@ -1761,7 +1747,7 @@ subroutine linklist_merge(self, keep, delete)
     self%Nlist(delete) = 0
 
     !Check total number of molecules after
-    if (self%Nlist(delete)+self%Nlist(keep) .ne. b4) then
+    if (self%Nlist(keep) .ne. b4) then
         stop "Error in linklist_merge -- Number of elements is not conserved"
     endif
 
@@ -2083,11 +2069,12 @@ end subroutine linklist_compareprint
 subroutine linklist_deallocate(self, icell, jcell, kcell)
 	implicit none
 
+
     type(cellinfo),intent(inout)    :: self
+	integer, intent(in)             :: icell, jcell, kcell
 
 	integer            :: j
 	integer            :: cellnp
-	integer            :: icell, jcell, kcell
 	type(node), pointer:: old, current		
 
 	if (associated(self%head(icell,jcell, kcell)%point) .eqv. .true. ) then !Exit if null
@@ -2133,7 +2120,7 @@ subroutine linklist_deallocate_bins(self)
 	do jbin = 1,nbins(1)
 	do kbin = 1,1	
 
-        call linklist_deallocate(self, ibin,jbin,kbin)
+        call linklist_deallocate(self, ibin, jbin, kbin)
 
 !		if (associated(bin%head(ibin,jbin,kbin)%point) .eqv. .true. ) then !Exit if null
 
@@ -2300,6 +2287,44 @@ subroutine linklist_deallocate_neighbour(self)
 end subroutine linklist_deallocate_neighbour
 
 
+subroutine linklist_deallocate_cluster(self)
+	implicit none
+
+    type(clusterinfo),intent(inout)    :: self
+
+    integer             :: i, j
+	integer             :: noclust
+	type(node), pointer :: old, current
+
+	do i = 1, self%Nclust
+		if (associated(self%head(i)%point) .eqv. .true. ) then !Exit if null
+       		noclust = self%Nlist(i)         !Determine number of elements in clusterlist
+			old => self%head(i)%point		!Set old to head of cluster list
+		    current => old                  ! make current point to head of list
+		    do j=1,noclust-1
+			    if (associated(old%next) .eqv. .true. ) then !Exit if null
+				    old => current%next        !Make list point to next node of old
+				    nullify(current%next)      !Remove pointer to next
+				    nullify(current%previous)  !Remove pointer to previous
+				    deallocate(current)        !Deallocate current entry
+				    current => old             !Make current point to new previous
+			    endif
+		    enddo
+		    nullify(old%next)         !Remove pointer to next
+		    nullify(old%previous)     !Remove pointer to previous
+		    deallocate(old)           !Deallocate final entry
+			nullify(self%head(i)%point)   !Set cluster head pointer to null
+			self%Nlist(i) = 0             !Zero cell molecule number
+		endif
+	enddo
+
+    !Deallocate array of molecules neighbourlist pointers
+    self%Nclust = 0
+    deallocate(self%Nlist)
+    deallocate(self%head)
+    deallocate(self%inclust)
+
+end subroutine linklist_deallocate_cluster
 
 !=============================================================================
 !Moves to the bottom of the linklist
