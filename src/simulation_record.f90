@@ -5779,6 +5779,9 @@ contains
         !Set dummy values of CV surfaces
         pt = (/ 10.d0, 0.1d0, 0.02d0, -0.001d0  /)
         pb = (/-10.d0, 0.1d0, 0.02d0, -0.001d0  /)
+
+        !pt = (/ 10., 0.0, 0.0, 0.0  /)
+        !pb = (/ -10.,0.0, 0.0, 0.0  /)
         call cluster_CV_fn(pt, pb)
 
 
@@ -5811,6 +5814,7 @@ contains
         use physical_constants_MD, only : np, halo_np
         use computational_constants_MD, only : iter
         use interfaces, only : error_abort
+        use computational_constants_MD, only : iter, globaldomain, delta_t 
         use librarymod, only : get_Timestep_FileName, get_new_fileunit
         use arrays_MD, only : r, v
         use librarymod, only : heaviside  =>  heaviside_a1
@@ -6018,7 +6022,7 @@ contains
                 m = vi(1)/vi(2)
             else
                 m = vi(1)/tol
-            endif
+        endif
             c = ri(1)-ri(2)*m
             dt = delta_t
 
@@ -6148,7 +6152,7 @@ contains
 					       - heaviside(binbot(1) - Pzb(1)))* &
 							(heaviside(bintop(2) - Pzb(2))   &
 					       - heaviside(binbot(2) - Pzb(2)))
-            
+
             Ncross = Ncross + int(onfaceyt - onfaceyb + onfacezt - onfacezb)
             if (write_debug) then
                 if (onfaceyt .ne. 0.d0) then
@@ -6164,12 +6168,20 @@ contains
                     print('(a,2i6,4f6.2,i4,9f8.3)'), 'zplaneb xing', n, i, onfaceyt, onfaceyb, onfacezt, onfacezb, Ncross, ri1, ri2, Pzb
                     !write(pid,'(2i6,f6.2,7f10.5,3f18.12)'), n, i, dS_i, tcross, ri(:), ri(:)-vi(:)*delta_t, rcross(:)
                 endif
-            
+
             endif
 
+                    !Get time of crossing
+                    tcross = (ri(2) - real(z(i))) / vi(2)
+                    !if (tcross .lt. delta_t .and. tcross .gt. 0.d0) then
+                    !if (r(1,n) .gt. real(z(i)) .and. real(z(i)) .gt. r(1,n)-v(1,n)*delta_t .or. &
+                    !    r(1,n) .lt. real(z(i)) .and. real(z(i)) .lt. r(1,n)-v(1,n)*delta_t) then
 
         end subroutine get_plane_surface_crossing
 
+                        print('(2i6,2f6.2,8f10.5)'), n, i, dS_i, tcross, real(z(i)), surface_fn(ptl, real(z(i))), surface_fn(pt, real(z(i))), linear_fn(m, c, real(z(i))), rcross(:)
+                    if (surface_fn(ptl, real(z(i))) .gt. 1e-8) cycle
+                        if (dS_i .ne. 0.d0) then
 
         subroutine CV_density_binning(p0)
             use physical_constants_MD, only : tethereddisttop, tethereddistbottom
@@ -6299,6 +6311,13 @@ contains
         endif
 
     end subroutine thermostat_cluster
+
+
+    subroutine print_interface()
+        implicit none
+
+    end subroutine print_interface
+
 
     subroutine build_from_cellandneighbour_lists(self, cell, neighbour, rd, rmols, nmols, skipwalls_)
 	    use module_compute_forces, only: cellinfo, neighbrinfo, rj, rij, ri,&
