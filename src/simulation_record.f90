@@ -6167,17 +6167,7 @@ contains
 
             endif
 
-                    !Get time of crossing
-                    tcross = (ri(2) - real(z(i))) / vi(2)
-                    !if (tcross .lt. delta_t .and. tcross .gt. 0.d0) then
-                    !if (r(1,n) .gt. real(z(i)) .and. real(z(i)) .gt. r(1,n)-v(1,n)*delta_t .or. &
-                    !    r(1,n) .lt. real(z(i)) .and. real(z(i)) .lt. r(1,n)-v(1,n)*delta_t) then
-
         end subroutine get_plane_surface_crossing
-
-                        print('(2i6,2f6.2,8f10.5)'), n, i, dS_i, tcross, real(z(i)), surface_fn(ptl, real(z(i))), surface_fn(pt, real(z(i))), linear_fn(m, c, real(z(i))), rcross(:)
-                    if (surface_fn(ptl, real(z(i))) .gt. 1e-8) cycle
-                        if (dS_i .ne. 0.d0) then
 
         subroutine CV_density_binning(p0)
             use physical_constants_MD, only : tethereddisttop, tethereddistbottom

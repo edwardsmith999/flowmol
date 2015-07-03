@@ -33,7 +33,7 @@ module module_set_parameters
     double precision           :: potshift !Shift in Lennard Jones potential due to cutoff
 
     !Generalised Mie-potential parameters
-    integer,parameter :: ntypes = 8
+    integer,parameter :: ntypes = 9
     character(30),dimension(ntypes)             :: moltype_names
     double precision,dimension(ntypes)          :: mass_lookup
     double precision,dimension(ntypes,ntypes)   :: epsilon_lookup, sigma_lookup, &    
@@ -424,7 +424,7 @@ subroutine setup_mie_potential
     use interfaces, only : error_abort
     implicit none
 
-    integer :: i, j, ids(3)
+    integer :: i, j, ids(4)
 
 
     ! ------------Mie Potential--------------
@@ -453,19 +453,6 @@ subroutine setup_mie_potential
     lambdar_lookup(1,1) = 12.d0
     lambdaa_lookup(1,1) = 6.d0
 
-    !8 == Second phase of Argon;
-    !moltype_names(1) = '           Ar           '
-    moltype_names(8)    = 'rA' !' Ar '
-    mass_lookup(8)      = 1.0d0
-    epsilon_lookup(8,8) = 1.d0
-    sigma_lookup(8,8)   = 1.d0
-    lambdar_lookup(8,8) = 12.d0
-    lambdaa_lookup(8,8) = 6.d0
-
-    !The two phases of argon attract each other less strongly
-    alpha_lookup(1,8) = -1.d0
-    alpha_lookup(8,1) = -1.d0
-
     !2 == Wall; 
     !moltype_names(2) = '          Wall          '
     moltype_names(2)    = 'S' !' Wall '
@@ -475,12 +462,19 @@ subroutine setup_mie_potential
     lambdar_lookup(2,2) = 12.d0
     lambdaa_lookup(2,2) = 6.d0
 
-    !Liquid Agron and wall
-    epsilon_lookup(2,1) = eij_wall
-    epsilon_lookup(8,2) = eij_wall
+
+    !Liquid Argon and wall
+    epsilon_lookup(2,1) = eij_wall(1)
+    epsilon_lookup(8,2) = eij_wall(1)
+    epsilon_lookup(9,1) = eij_wall(2)
+    epsilon_lookup(9,8) = eij_wall(2)
 
     !1-2 == Wall/{D,M,CM} hydrophobic/strong wall interaction
-    ids = (/ 4,5,7 /)
+    ids = (/ 3,4,5,7 /)
+    do i =1,size(ids)
+        epsilon_lookup(ids(i),2) = eij_wall(1)
+        epsilon_lookup(9,ids(i)) = eij_wall(2)
+    enddo
 
     !select case (wall_liquid)
     !case(No_wetting) 
@@ -501,17 +495,15 @@ subroutine setup_mie_potential
     !    !Superspreading requires this as 1.4 according to Panos
          !for water and hydrophobic parts CM, M and D
 
-        do i =1,size(ids)
-            epsilon_lookup(ids(i),2) = eij_wall
-        enddo
-        !1-2 == Wall/Water [hydrophilic or weak wall interaction]
-        ! set to same as surfactant
-        epsilon_lookup(3,2) = epsilon_lookup(ids(1),2)
+    !1-2 == Wall/Water [hydrophilic or weak wall interaction]
+    ! set to same as surfactant
+    !epsilon_lookup(3,2) = epsilon_lookup(ids(1),2)
+    !epsilon_lookup(9,3) = epsilon_lookup(9,ids(1))
 
-        !Wall/EO [hydrophillic or weak wall interaction]
-        !epsilon_lookup(6,2)  = 0.5d0     
-        !case(Cross_rules)
-        !end select
+    !Wall/EO [hydrophillic or weak wall interaction]
+    !epsilon_lookup(6,2)  = 0.5d0     
+    !case(Cross_rules)
+    !end select
 
     !end select
 
@@ -563,26 +555,37 @@ subroutine setup_mie_potential
     lambdar_lookup(7,7) = 15.d0
     lambdaa_lookup(7,7) = 6.d0
 
+    !8 == Second phase of Argon;
+    !moltype_names(1) = '           Ar           '
+    moltype_names(8)    = 'rA' !' Ar '
+    mass_lookup(8)      = 1.0d0
+    epsilon_lookup(8,8) = 1.d0
+    sigma_lookup(8,8)   = 1.d0
+    lambdar_lookup(8,8) = 12.d0
+    lambdaa_lookup(8,8) = 6.d0
+
+    !The two phases of argon attract each other less strongly
+    alpha_lookup(1,8) = -1.d0
+    alpha_lookup(8,1) = -1.d0
+
+    !9 == Wall type 2 ; 
+    !moltype_names(9) = '          Wall          '
+    moltype_names(9)    = 'S2' !' Wall '
+    mass_lookup(9)      = 1.d0
+    epsilon_lookup(9,9) = 1.d0
+    sigma_lookup(9,9)   = 1.d0
+    lambdar_lookup(9,9) = 12.d0
+    lambdaa_lookup(9,9) = 6.d0
+
     !Define adjusted cross potential interactions (tuned by prior simulation)
     !ether and Water
     epsilon_lookup(6,3) = 0.9756d0
     !SAFT adjusted water--CH3 interaction from prior studies
-    !select case (wall_liquid)
-    !case(No_wetting) 
-    !    epsilon_lookup(7,3) = 1.d0
-    !case(Paraffin_Water) 
-        epsilon_lookup(7,3) = 0.5081d0
-    !case(Superhydrophobic)
-    !    epsilon_lookup(7,3) = 0.01d0  !No wall/water interaction
-    !case(superspreading)
-    !    !Superspreading requires this as 1.4 according to Panos
-    !    epsilon_lookup(7,3) = 1.4
-    !end select
+    epsilon_lookup(7,3) = 0.5081d0
     !SAFT adjusted D--M interaction from prior studies
     epsilon_lookup(5,4) = 0.7114d0
     !SAFT adjusted alkane--ether interaction from prior studies
     epsilon_lookup(7,6) = 0.7154d0
-
 
     !Define chain interactions
 
@@ -688,7 +691,7 @@ subroutine setup_mie_potential
     call get_equilibrium_seperations()
 
     !Print all properties
-
+    if (irank .eq. iroot) then
         do i = 1,ntypes
         do j = 1,ntypes
             print'(a,2i6,2a5,f10.5,3a4,6f10.5)', 'SAFT PARAMETERS',i,j, & 
@@ -701,6 +704,7 @@ subroutine setup_mie_potential
                                         equil_sep_lookup(i,j)
         enddo
         enddo
+    endif
 
     contains
 

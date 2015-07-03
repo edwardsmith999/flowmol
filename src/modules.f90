@@ -54,9 +54,10 @@ module computational_constants_MD
 	integer                 	  :: tether_flag     	 !True if there exists 
 	integer                 	  :: external_force_flag !Apply external forces?
 	integer                 	  :: F_ext_ixyz			 !Direction of external forces
-    real(kind(0.d0))              :: eij_wall            !Interaction potential strength for substrate wall
 	real(kind(0.d0))        	  :: F_ext				 !Magnitude of external forces
+    real(kind(0.d0)),dimension(2) :: eij_wall            !Interaction potential strength for substrate wall
 	real(kind(0.d0)),dimension(6) :: F_ext_limits		 !Limits of region external forces applied to
+
 
     !Rebuild check flags
     integer             :: rebuild_criteria    !Choice of rebuild criteria

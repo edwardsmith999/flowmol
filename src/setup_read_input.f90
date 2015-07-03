@@ -483,10 +483,9 @@ subroutine setup_read_input
 
     !Specifiy more general potential than LJ
 	call locate(1,'MIE_POTENTIAL',.false.,found_in_input) 
-    print*, 'MIE', found_in_input
 	if (found_in_input) then
         read(1,*) Mie_potential
-        read(1,iostat=ios) default_moltype
+        read(1,*,iostat=ios) default_moltype
 		if (ios .ne. 0) then
             print*, "Default moltype not given -- assuming Argon (=1)"
             default_moltype = 1
@@ -498,7 +497,12 @@ subroutine setup_read_input
     if (Mie_potential .ne. 0) then
         call locate(1,'EIJ_WALL',.false.,found_in_input)
         if (found_in_input) then
-            read(1,*) eij_wall
+            read(1,*,iostat=ios) eij_wall(1)
+    		if (ios .ne. 0) then
+                call error_abort('Input Error -- EIJ_WALL no specified value') 
+            endif
+            read(1,*,iostat=ios) eij_wall(2)
+    		if (ios .ne. 0) eij_wall(2) = eij_wall(1)
         else
             eij_wall = 1.d0
         endif
@@ -561,8 +565,13 @@ subroutine setup_read_input
 
             if (any(bforce_flag .eq. substrate_force)) then
                 call locate(1,'EIJ_WALL',.false.,found_in_input)
-		        if (found_in_input) then
-                    read(1,*) eij_wall
+                if (found_in_input) then
+                    read(1,*,iostat=ios) eij_wall(1)
+            		if (ios .ne. 0) then
+                        call error_abort('Input Error -- EIJ_WALL no specified value') 
+                    endif
+                    read(1,*,iostat=ios) eij_wall(2)
+            		if (ios .ne. 0) eij_wall(2) = eij_wall(1)
                 else
                     eij_wall = 1.d0
                 endif

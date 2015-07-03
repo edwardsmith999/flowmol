@@ -215,12 +215,14 @@ end subroutine setup_location_tags
 !---------------------------------
 ! Setup type of molecules in the wall
 subroutine setup_moltypes_wall()
-    use arrays_MD, only : tag, moltype
-    use computational_constants_MD, only : tether_tags
+    use arrays_MD, only : r, tag, moltype
+    use computational_constants_MD, only : tether_tags, eij_wall
     use physical_constants_MD, only : np
+	use messenger, only: globalise
     implicit none
 
     integer :: n
+    double precision, dimension(3)  :: r_global
 
     do n = 1,np
         if (any(tag(n).eq.tether_tags)) then
@@ -229,6 +231,19 @@ subroutine setup_moltypes_wall()
 
             !Set all tethered walls to wall
             moltype(n) = 2
+
+            !Check if top and bottom walls are different...
+            if (abs(eij_wall(1)-eij_wall(2)) .gt. 1e-8) then
+    			r_global = globalise(r(:,n))
+	    		if (r_global(2) .lt. 0.d0) then
+                    moltype(n) = 9
+                    !write(586410,*) r_global
+                !else
+                !    write(586482,*) r_global
+                endif
+            endif
+
+
         endif
     enddo
 
