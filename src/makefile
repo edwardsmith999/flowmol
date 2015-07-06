@@ -37,6 +37,15 @@ MAKE_INC_PATH :=  ../../misc/platforms
 # Get platform to build, compiler names and flags, check the make.inc directory
 #
 #Check for default file
+ifndef USE_COUPLER
+  $(warning USE_COUPLER not define for code $(NAME), setting uncoupled run)
+  FPP_FLAGS     := -cpp -DUSE_COUPLER=0
+else 
+  FPP_FLAGS_no  := -cpp -DUSE_COUPLER=0 
+  FPP_FLAGS_yes := -cpp -DUSE_COUPLER=1
+  FPP_FLAGS     := $(FPP_FLAGS_$(USE_COUPLER))
+endif
+
 ifndef PLATFORM
     PLATFORM := $(shell cat $(MAKE_INC_PATH)/PLATFORM_default)
 endif
