@@ -132,6 +132,7 @@ subroutine apply_boundary_force
 
 		call socket_get_constraint_info(constraint_algorithm,OT=OT, &
                                         NCER=NCER,Flekkoy=Flekkoy,CV=CV,off=off)
+
 		if ( constraint_algorithm .eq. off ) then
 			return
 		else if ( constraint_algorithm .eq. OT ) then
