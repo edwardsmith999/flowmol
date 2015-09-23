@@ -66,9 +66,11 @@ module module_record
 	use arrays_MD
 	use calculated_properties_MD
 	use polymer_info_MD
+#if __INTEL_COMPILER < 12
     use boundary_MD, only: bforce_pdf_measure
 	!use module_set_parameters, only : velPDF, velPDFMB, velPDF_array
 
+#endif
 	real(kind(0.d0)) :: vel
 
 contains
@@ -502,6 +504,7 @@ end subroutine print_mol_escape_error
 !and calculate Boltzmann H function on a bin by bin basis
 
 
+#if __INTEL_COMPILER < 12
 subroutine velocity_PDF_averaging(ixyz)
 	use module_record
 	use librarymod, only : Maxwell_Boltzmann_vel,Maxwell_Boltzmann_speed
@@ -635,6 +638,7 @@ end subroutine velocity_PDF_averaging
 
 
 
+#endif
 
 
 !!===================================================================================
@@ -3479,6 +3483,7 @@ subroutine simulation_compute_energy_VA(imin,imax,jmin,jmax,kmin,kmax)
 end subroutine simulation_compute_energy_VA
 
 
+#if __INTEL_COMPILER < 12
 subroutine bforce_pdf_stats
     use boundary_MD
     use statistics_io, only: bforce_pdf_write
@@ -3495,6 +3500,7 @@ subroutine bforce_pdf_stats
     end if 
 
 end subroutine bforce_pdf_stats
+#endif
 
 !=================================================================================
 ! CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV

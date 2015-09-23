@@ -973,6 +973,7 @@ module librarymod
 
     end interface
 
+#if __INTEL_COMPILER < 12
 	type :: PDF
 
 		integer								:: nbins
@@ -997,6 +998,7 @@ module librarymod
 		module procedure PDF_constructor
 	end interface PDF
 
+#endif
     ! Define a local library version of error_abort so library
     ! exist in isolation without the main code -- the downside
     ! is that MPI_ABORT is not used 
@@ -1895,6 +1897,41 @@ subroutine get_Timestep_FileName(timestep,basename,filename)
 		filename = trim(filename)
 
 end subroutine get_Timestep_FileName
+!------------------------------------------------------------------------------
+!Pure fortran subroutine to return an updated filename by appending
+!the current no to that file
+subroutine get_FileName(no,basename,filename)
+		implicit none
+
+		integer,intent(in) 			:: no
+		character(*),intent(in) 	:: basename
+		character(*),intent(out)	:: filename
+
+        if(no.le.9                         		) &
+        write(filename,'(a,a10,i1)') trim(basename),'.000000000',no
+        if(no.ge.10      .and. no.le.99     ) &
+        write(filename,'(a,a9,i2)') trim(basename),'.00000000' ,no
+        if(no.ge.100     .and. no.le.999    ) &
+        write(filename,'(a,a8,i3)') trim(basename),'.0000000'  ,no
+        if(no.ge.1000    .and. no.le.9999   ) &
+        write(filename,'(a,a7,i4)') trim(basename),'.000000'   ,no
+        if(no.ge.10000   .and. no.le.99999  ) &
+        write(filename,'(a,a6,i5)') trim(basename),'.00000'    ,no
+        if(no.ge.100000  .and. no.le.999999 ) &
+        write(filename,'(a,a5,i6)') trim(basename),'.0000'     ,no
+        if(no.ge.1000000 .and. no.le.9999999) &
+        write(filename,'(a,a4,i7)') trim(basename),'.000'      ,no
+        if(no.ge.10000000 .and. no.le.99999999) &
+        write(filename,'(a,a3,i8)') trim(basename),'.00'      ,no
+        if(no.ge.100000000 .and. no.le.999999999) &
+        write(filename,'(a,a2,i9)') trim(basename),'.0'      ,no
+        if(no.ge.1000000000 .and. no.le.9999999999) &
+        write(filename,'(a,a1,i10)') trim(basename),'.'      ,no
+
+		!Remove any surplus blanks
+		filename = trim(filename)
+
+end subroutine get_FileName
 
 
 !------------------------------------------------------------------------------
@@ -2481,6 +2518,7 @@ end subroutine PYplot_3D
 
 
 
+#if __INTEL_COMPILER < 12
 !Constructor for PDF object
 function PDF_constructor(nbins_in,minvalue_in, maxvalue_in)
 	implicit none
@@ -2733,6 +2771,7 @@ subroutine PDF_destroy(self)
 
 end subroutine PDF_destroy
 
+#endif
 
 !Read input file from the DNS codes
 

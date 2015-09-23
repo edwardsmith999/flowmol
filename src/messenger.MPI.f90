@@ -3166,12 +3166,23 @@ subroutine globalAverage(A, na)
 	return
 end subroutine globalAverage
 
+subroutine globalbroadcastInt(A,na,broadprocid)
+	use messenger
+	implicit none
+
+	integer				:: na, broadprocid
+	integer         	:: A(na)
+
+	call MPI_BCAST(A,na,MPI_INTEGER,broadprocid-1,MD_COMM,ierr)
+
+	return
+end subroutine globalbroadcastInt
 subroutine globalbroadcast(A,na,broadprocid)
 	use messenger
 	implicit none
 
 	integer				:: na, broadprocid
-	real(kind(0.d0))	:: A
+	real(kind(0.d0))	:: A(na)
 
 	call MPI_BCAST(A,na,MPI_DOUBLE_PRECISION,broadprocid-1,MD_COMM,ierr)
 

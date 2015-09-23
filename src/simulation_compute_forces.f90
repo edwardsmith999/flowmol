@@ -1287,6 +1287,7 @@ subroutine collect_bforce_pdf_data
 			enddo
 			enddo
 
+#if __INTEL_COMPILER < 12
             if (bflag) then
                 ysubcell = ceiling((real(bforce_pdf_nsubcells,kind(0.d0))*( &
                            r(2,molnoi) + halfdomain(2)))/cellsidelength(2))
@@ -1301,6 +1302,7 @@ subroutine collect_bforce_pdf_data
                 end do
 
             end if
+#endif
 
 			currenti => oldi
 			oldi => currenti%next !Use pointer in datatype to obtain next item in list

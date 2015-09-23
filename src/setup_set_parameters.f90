@@ -23,11 +23,15 @@ module module_set_parameters
 	use linked_list
 	use polymer_info_MD
 	use concentric_cylinders
+#if __INTEL_COMPILER < 12
 	use librarymod, only : PDF
+#endif
     implicit none
 
+#if __INTEL_COMPILER < 12
 	type(PDF) 									:: velPDF, velPDFMB
 	type(PDF),allocatable,dimension(:,:,:,:) 	:: velPDF_array
+#endif
 
     !LJ parameters
     double precision           :: potshift !Shift in Lennard Jones potential due to cutoff
@@ -1539,8 +1543,10 @@ end subroutine setup_linklist
 subroutine set_parameters_outputs
 	use module_set_parameters
 	use interfaces
+#if __INTEL_COMPILER < 12
 	use boundary_MD, only: bforce_pdf_measure, bforce_pdf, bforce_pdf_nsubcells, &
 						   bforce_pdf_nbins, bforce_pdf_min, bforce_pdf_max
+#endif
 	use CV_objects, only : CVcheck_mass,CVcheck_momentum, & 
 						   CV_constraint,CVcheck_energy, CV_debug!,CV_sphere_momentum,CV_sphere_mass
     use messenger, only : localise_bin
@@ -1576,6 +1582,7 @@ subroutine set_parameters_outputs
 	nbinso = nbins+2*nhb
     binsize = domain/nbins
 
+#if __INTEL_COMPILER < 12
 	!Velocity PDF binning routines
 	select case(vPDF_flag)
 	case(1:4)
@@ -1604,6 +1611,7 @@ subroutine set_parameters_outputs
 			end do
 		end do
 	end if
+#endif
 
 	!Allocate and define number of shells used for Radial distribution function (rdf)
 	if (rdf_outflag .eq. 1) then

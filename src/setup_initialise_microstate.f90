@@ -282,6 +282,7 @@ subroutine setup_initialise_lattice
 
     ! Relabel global id
     if (global_numbering .eq. 1) then
+        proc_nps = 0
         proc_nps(irank) = np
         call globalSum(proc_nps,nproc)
         proc_start_molno = sum(proc_nps(1:irank)) - proc_nps(irank)
@@ -1954,6 +1955,7 @@ subroutine setup_initialise_solid_liquid
 
     ! Relabel global id
     if (global_numbering .eq. 1) then
+        proc_nps = 0
         proc_nps(irank) = np
         call globalSum(proc_nps,nproc)
         proc_start_molno = sum(proc_nps(1:irank)) - proc_nps(irank)
@@ -2301,6 +2303,7 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
 
     ! Relabel global id
     if (global_numbering .eq. 1) then
+        proc_nps = 0
         proc_nps(irank) = np
         call globalSum(proc_nps,nproc)
         proc_start_molno = sum(proc_nps(1:irank)) - proc_nps(irank)

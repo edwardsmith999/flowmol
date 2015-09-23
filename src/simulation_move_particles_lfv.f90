@@ -155,7 +155,7 @@ subroutine simulation_move_particles_lfv
 	end if
 		
 	if (rtrue_flag .eq. 1) then
-		call simulation_move_particles_true_lfv
+		call simulation_move_particles_true_lfv()
 	endif
 
 	simtime = simtime + delta_t
@@ -508,12 +508,18 @@ contains
 		use shear_info_MD, only: le_sp, le_sv, le_sd
 		implicit none
 
+        if (any(periodic .gt. 1)) then
 		vtrue = v
 
 		do n=1,np
 			vtrue(le_sd,n) = v(le_sd,n) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
 			rtrue(:,n)     = rtrue(:,n) + delta_t*vtrue(:,n)
 		end do
+        else
+		    do n=1,np
+			    rtrue(:,n) = rtrue(:,n) + delta_t*v(:,n)
+		    end do
+        endif
 
 	end subroutine simulation_move_particles_true_lfv
 
