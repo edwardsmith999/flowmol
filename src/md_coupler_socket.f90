@@ -431,11 +431,12 @@ contains
 
         !Limits of cells to average
 
-        integer                         :: i,j,k,n, ixyz
-        integer,dimension(3)            :: ibin,ibin1,ibin2,minbin,maxbin,crossplane,cfdbins
-        real(kind(0.d0))                :: xbcmin,xbcmax, ybcmin,ybcmax, zbcmin,zbcmax
-        real(kind(0.d0)),dimension(3)   :: cfd_cellsidelength
-        real(kind(0.d0)),dimension(3)   :: dxyz,ri1,ri2,avrg_top,avrg_bot,rd,rd2
+        integer :: i, j, k, n, ixyz
+        integer :: nclx, nclz
+        integer,dimension(3) :: ibin,ibin1,ibin2,minbin,maxbin,crossplane,cfdbins
+        real(kind(0.d0)) :: xbcmin,xbcmax, ybcmin,ybcmax, zbcmin,zbcmax
+        real(kind(0.d0)),dimension(3) :: cfd_cellsidelength
+        real(kind(0.d0)),dimension(3) :: dxyz,ri1,ri2,avrg_top,avrg_bot,rd,rd2
 
         
         ! Dave temporary code
@@ -451,6 +452,9 @@ contains
         real(kind(0.d0)) :: top_rght_md(3) ! Top right of CFD domain (CFD coords) 
         real(kind(0.d0)) :: r_rel_olap(3) ! MD local position relative to olap bottom left 
         real(kind(0.d0)) :: probe_pos(3)
+
+        nclx = extents(2)-extents(1)+1
+        nclz = extents(6)-extents(5)+1
 
         dxyz = (/ dx, dy, dz /)
         call CPL_get(icmin_olap=icmin_olap, jcmin_olap=jcmin_olap, kcmin_olap=kcmin_olap)
@@ -1048,7 +1052,7 @@ subroutine average_over_bin
 
     enddo
 
-    if (cpl_md_bc_slice) then
+    if (cpl_md_bc_slice .eq. 1) then
         !Get single average value for slice and store in slice
         do jb = 1,size(box_average,2)
             box_average(:,jb,:)%np  =  sum(box_average(:,jb,:)%np)
