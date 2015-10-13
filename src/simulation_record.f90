@@ -896,9 +896,9 @@ implicit none
 		rmag     = real(bin - 1.d0)*dr        !rmag now means r in g(r)
 		select case(nd)
 		case(2)
-			dV   = pi*((rmag+dr)**2.d0 - rmag**2.d0)
+			dV   = pi*((rmag+dr)**2 - rmag**2)
 		case(3)
-			dV   = (4.d0*pi/3.d0)*((rmag+dr)**3.d0 - rmag**3.d0)
+			dV   = (4.d0*pi/3)*((rmag+dr)**3 - rmag**3)
 		end select
 		Nideal   = density*dV
 		Nbin     = real(rdf_hist(bin))/real(np*hist_count)
@@ -1235,7 +1235,7 @@ subroutine r_gyration_calculate_parallel
 	call globalSum(R_g2)
 	R_g2 = R_g2/(nmonomers*nchains)
 
-	R_g  = R_g2**0.5d0
+	R_g  = sqrt(R_g2)
 
 	deallocate(r_cm)
 
@@ -2597,7 +2597,7 @@ subroutine pressure_tensor_forces_VA_exact(ri,rj,rF)
 		do ixyz = 1,3
 			MLfrac(:,:,:) = MLfrac(:,:,:) + Lfrac(:,:,:,ixyz)**2
 		enddo
-		MLfrac(:,:,:) = MLfrac(:,:,:)**0.5d0
+		MLfrac(:,:,:) = sqrt(MLfrac(:,:,:))
 		!Normalise to one
 		MLfrac(:,:,:) = MLfrac(:,:,:)/magnitude(rij(:))
 
@@ -2708,7 +2708,7 @@ subroutine pressure_tensor_forces_VA_exact(ri,rj,rF)
 		do ixyz = 1,3
 			MLfrac(:,:,:) = MLfrac(:,:,:) + Lfrac(:,:,:,ixyz)**2
 		enddo
-		MLfrac(:,:,:) = MLfrac(:,:,:)**0.5d0
+		MLfrac(:,:,:) = sqrt(MLfrac(:,:,:))
 
 		!Normalise to one
 		MLfrac(:,:,:) = MLfrac(:,:,:)/magnitude(rij(:))
@@ -2871,7 +2871,7 @@ subroutine pressure_tensor_forces_VA_exact(ri,rj,rF)
 		do ixyz = 1,3
 			MLfrac(:,:,:) = MLfrac(:,:,:) + Lfrac(:,:,:,ixyz)**2
 		enddo
-		MLfrac(:,:,:) = MLfrac(:,:,:)**0.5d0
+		MLfrac(:,:,:) = sqrt(MLfrac(:,:,:))
 
 		!Normalise to one
 		MLfrac(:,:,:) = MLfrac(:,:,:)/magnitude(rij(:))
@@ -5865,7 +5865,7 @@ contains
             double precision :: yi, surface_fn
             double precision,dimension(4) :: p0
 
-            surface_fn = p0(4)*yi**3.d0 + p0(3)*yi**2.d0 + p0(2)*yi + p0(1)
+            surface_fn = p0(4)*yi**3 + p0(3)*yi**2 + p0(2)*yi + p0(1)
 
         end function surface_fn
 
@@ -5874,7 +5874,7 @@ contains
             double precision :: yi, dsurface_fndyi
             double precision,dimension(4) :: p0
 
-            dsurface_fndyi = 3.d0*p0(4)*yi**2.d0 + 2.d0*p0(3)*yi + p0(2)
+            dsurface_fndyi = 3.d0*p0(4)*yi**2 + 2.d0*p0(3)*yi + p0(2)
 
         end function dsurface_fndyi
 
@@ -6337,7 +6337,7 @@ contains
             skipwalls = .false.
         endif
 
-        rd2 = rd**2.d0
+        rd2 = rd**2
 
         do molnoi = 1, nmols
 
@@ -7267,7 +7267,7 @@ contains
 
 	    type(node), pointer 	        :: oldi, currenti, oldj, currentj, noldj,ncurrentj
 
-        rd2 = rd**2.d0
+        rd2 = rd**2
         if (force_list .ne. 2) then
             call error_abort("Error in get_molecules_within_rc -- full "//&
                              "neightbour list should be used with interface tracking")

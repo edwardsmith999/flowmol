@@ -92,7 +92,8 @@ module module_set_parameters
 contains
 
     !LJ or Mie force calculation functions
-    function LJ_mass(i)
+
+    pure function LJ_mass(i)
 
         integer, intent(in)             :: i
         double precision                :: LJ_mass
@@ -101,7 +102,7 @@ contains
 
     end function LJ_mass
 
-    function LJ_accijmag(invrij2, i, j)
+    pure function LJ_accijmag(invrij2, i, j)
 
         integer, intent(in)             :: i, j
         double precision, intent(in)    :: invrij2
@@ -111,7 +112,7 @@ contains
 
     end function LJ_accijmag
 
-    function LJ_force(invrij2, rij, i, j)
+    pure function LJ_force(invrij2, rij, i, j)
 
         integer, intent(in)                         :: i, j
         double precision, intent(in)                :: invrij2
@@ -122,7 +123,7 @@ contains
 
     end function LJ_force
 
-    function LJ_energy(invrij2,  i, j)
+    pure function LJ_energy(invrij2,  i, j)
 
         integer, intent(in)             :: i, j
         double precision, intent(in)    :: invrij2
@@ -135,7 +136,7 @@ contains
 
 
 
-    function Mie_mass(i)
+    pure function Mie_mass(i)
         use arrays_MD, only : moltype
 
         integer, intent(in)             :: i
@@ -145,7 +146,7 @@ contains
 
     end function Mie_mass
 
-    function Mie_accijmag(invrij2, i, j)
+    pure function Mie_accijmag(invrij2, i, j)
         use arrays_MD, only : moltype
 
         integer, intent(in)             :: i, j
@@ -166,7 +167,7 @@ contains
                                     -alpha*lambdaa*invrij2**(0.5d0*lambdaa+1) )
     end function Mie_accijmag
 
-    function Mie_force(invrij2, rij, i, j)
+    pure function Mie_force(invrij2, rij, i, j)
 
         integer, intent(in)                         :: i, j
         double precision, intent(in)                :: invrij2
@@ -178,7 +179,7 @@ contains
     end function Mie_force
 
 
-    function Mie_energy(invrij2, i, j)
+    pure function Mie_energy(invrij2, i, j)
         use arrays_MD, only : moltype
 
         integer, intent(in)             :: i, j
@@ -204,7 +205,7 @@ contains
 
 
     !Functions for FENE
-    function FENE_accijmag(rij2, i, j)
+    pure function FENE_accijmag(rij2, i, j)
         use polymer_info_MD, only : k_c, R_0
 
         integer, intent(in)             :: i, j
@@ -216,7 +217,7 @@ contains
 
     end function FENE_accijmag
 
-    function FENE_force(rij2, rij, i, j)
+    pure function FENE_force(rij2, rij, i, j)
 
         integer, intent(in)                         :: i, j
         double precision, intent(in)                :: rij2
@@ -227,7 +228,7 @@ contains
 
     end function FENE_force
 
-    function FENE_energy(rij2, i, j)
+    pure function FENE_energy(rij2, i, j)
         use polymer_info_MD, only : k_c, R_0
 
         integer, intent(in)             :: i, j
@@ -239,7 +240,7 @@ contains
     end function FENE_energy
 
     !Functions for harmonic potential
-    function harmonic_accijmag(rij2, i, j)
+    pure function harmonic_accijmag(rij2, i, j)
         use arrays_MD, only : moltype
 
         integer, intent(in)             :: i, j
@@ -256,7 +257,7 @@ contains
     end function
 
 
-    function harmonic_force(rij2, rij, i, j)
+    pure function harmonic_force(rij2, rij, i, j)
         use arrays_MD, only : moltype
 
         integer, intent(in)             :: i, j
@@ -273,7 +274,7 @@ contains
 
     end function harmonic_force
 
-    function harmonic_energy(rij2, i, j)
+    pure function harmonic_energy(rij2, i, j)
         use arrays_MD, only : moltype
 
         integer, intent(in)             :: i, j
@@ -297,7 +298,7 @@ contains
     !                             | | |
     ! we will check               i j k 
 
-    function angular_harmonic_force(rij, rjk, i, j, k)
+    pure function angular_harmonic_force(rij, rjk, i, j, k)
 
         integer, intent(in)                         :: i, j, k
         double precision, intent(in),dimension(3)   :: rij, rjk
@@ -351,7 +352,7 @@ contains
 
 
 
-    function angular_harmonic_energy(rij, rjk, i,j,k)
+    pure function angular_harmonic_energy(rij, rjk, i,j,k)
 
         integer, intent(in)                         :: i, j, k
         double precision, intent(in),dimension(3)   :: rij, rjk
@@ -371,7 +372,7 @@ contains
     end function angular_harmonic_energy	
 
 
-    subroutine polymer_bond_error(molnoi, molnoX)
+    pure subroutine polymer_bond_error(molnoi, molnoX)
 		use interfaces
 		implicit none
 

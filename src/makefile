@@ -120,7 +120,7 @@ profile_s:
 memprofile_s:
 	@make serial_md.exe "FFLAGS = -O3 -g"; valgrind --tool=cachegrind ./md.exe
 profile_p:
-	@make $(MD_EXE) "FFLAGS = -O3 -g -pg"
+	@make $(MD_EXE) "FFLAGS = -O3 -g -pg -fno-inline-functions"
 
 #-mpe=mpilog "
 
