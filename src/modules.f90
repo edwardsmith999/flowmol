@@ -860,8 +860,9 @@ contains
 end module calculated_properties_MD
 
 module boundary_MD
+#if __INTEL_COMPILER > 1200
     use librarymod, only: PDF
-
+#endif
 	!Boundary force flag and parameters
 	integer,          dimension(6) :: bforce_flag
 	real(kind(0.d0)), dimension(6) :: bforce_dxyz

@@ -973,7 +973,8 @@ module librarymod
 
     end interface
 
-#if __INTEL_COMPILER < 12
+#if __INTEL_COMPILER > 1200
+
 	type :: PDF
 
 		integer								:: nbins
@@ -2518,7 +2519,7 @@ end subroutine PYplot_3D
 
 
 
-#if __INTEL_COMPILER < 12
+#if __INTEL_COMPILER > 1200
 !Constructor for PDF object
 function PDF_constructor(nbins_in,minvalue_in, maxvalue_in)
 	implicit none

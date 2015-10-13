@@ -66,7 +66,7 @@ module module_record
 	use arrays_MD
 	use calculated_properties_MD
 	use polymer_info_MD
-#if __INTEL_COMPILER < 12
+#if __INTEL_COMPILER > 1200
     use boundary_MD, only: bforce_pdf_measure
 	!use module_set_parameters, only : velPDF, velPDFMB, velPDF_array
 
@@ -207,7 +207,9 @@ subroutine simulation_record
 	if (vPDF_flag .ne. 0) call velocity_PDF_averaging(vPDF_flag)
 
 	!Record boundary force PDFs
+#if __INTEL_COMPILER > 1200
 	if (bforce_pdf_measure .ne. 0) call bforce_pdf_stats
+#endif
 
 	!Obtain and record temperature
 	if (temperature_outflag .ne. 0)	call temperature_averaging(temperature_outflag)
@@ -504,7 +506,7 @@ end subroutine print_mol_escape_error
 !and calculate Boltzmann H function on a bin by bin basis
 
 
-#if __INTEL_COMPILER < 12
+#if __INTEL_COMPILER > 1200
 subroutine velocity_PDF_averaging(ixyz)
 	use module_record
 	use librarymod, only : Maxwell_Boltzmann_vel,Maxwell_Boltzmann_speed
@@ -3483,7 +3485,7 @@ subroutine simulation_compute_energy_VA(imin,imax,jmin,jmax,kmin,kmax)
 end subroutine simulation_compute_energy_VA
 
 
-#if __INTEL_COMPILER < 12
+#if __INTEL_COMPILER > 1200
 subroutine bforce_pdf_stats
     use boundary_MD
     use statistics_io, only: bforce_pdf_write

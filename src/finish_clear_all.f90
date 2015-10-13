@@ -14,7 +14,7 @@ module module_clear_all
 	use calculated_properties_MD
 	use shear_info_MD
 	use polymer_info_MD
-#if __INTEL_COMPILER < 12
+#if __INTEL_COMPILER > 1200
 	use module_set_parameters, only : velPDF,velPDF_array
 #endif
 
@@ -67,7 +67,7 @@ subroutine finish_clear_all
 		deallocate(slidev)
 	endif
 
-#if __INTEL_COMPILER < 12
+#if __INTEL_COMPILER > 1200
 	if (vPDF_flag .eq. 5) then
 		call velPDF%destroy
     elseif (vPDF_flag .ne. 0) then
