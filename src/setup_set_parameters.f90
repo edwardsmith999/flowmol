@@ -205,19 +205,19 @@ contains
 
 
     !Functions for FENE
-    pure function FENE_accijmag(rij2, i, j)
+    function FENE_accijmag(rij2, i, j)
         use polymer_info_MD, only : k_c, R_0
 
         integer, intent(in)             :: i, j
         double precision, intent(in)    :: rij2
         double precision                :: FENE_accijmag
 
-		if(rij2.ge.R_0**2)	call polymer_bond_error(i,j)
+		if(rij2.ge.R_0**2) call polymer_bond_error(i,j)
         FENE_accijmag =  -k_c/(1-(rij2/(R_0**2)))
 
     end function FENE_accijmag
 
-    pure function FENE_force(rij2, rij, i, j)
+    function FENE_force(rij2, rij, i, j)
 
         integer, intent(in)                         :: i, j
         double precision, intent(in)                :: rij2
@@ -372,7 +372,7 @@ contains
     end function angular_harmonic_energy	
 
 
-    pure subroutine polymer_bond_error(molnoi, molnoX)
+    subroutine polymer_bond_error(molnoi, molnoX)
 		use interfaces
 		implicit none
 

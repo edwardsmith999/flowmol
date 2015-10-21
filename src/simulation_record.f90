@@ -5781,12 +5781,12 @@ contains
         call check_for_cluster_breakup(self)
 
         !Set dummy values of CV surfaces
-        pt = (/ 10.d0, 0.1d0, 0.02d0, -0.001d0  /)
-        pb = (/-10.d0, 0.1d0, 0.02d0, -0.001d0  /)
+        !pt = (/ 10.d0, 0.1d0, 0.02d0, -0.001d0  /)
+        !pb = (/-10.d0, 0.1d0, 0.02d0, -0.001d0  /)
 
         !pt = (/ 10., 0.0, 0.0, 0.0  /)
         !pb = (/ -10.,0.0, 0.0, 0.0  /)
-        call cluster_CV_fn(pt, pb)
+        !call cluster_CV_fn(pt, pb)
 
 
         ! - - -Set cluster molecules to be thermostatted - - -
@@ -6026,7 +6026,7 @@ contains
                 m = vi(1)/vi(2)
             else
                 m = vi(1)/tol
-        endif
+            endif
             c = ri(1)-ri(2)*m
             dt = delta_t
 
