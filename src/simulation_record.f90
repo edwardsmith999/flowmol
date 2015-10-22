@@ -5773,12 +5773,12 @@ contains
         call check_for_cluster_breakup(self)
 
         !Set dummy values of CV surfaces
-        pt = (/ 10.d0, 0.1d0, 0.02d0, -0.001d0  /)
-        pb = (/-10.d0, 0.1d0, 0.02d0, -0.001d0  /)
+        !pt = (/ 10.d0, 0.1d0, 0.02d0, -0.001d0  /)
+        !pb = (/-10.d0, 0.1d0, 0.02d0, -0.001d0  /)
 
         !pt = (/ 10., 0.0, 0.0, 0.0  /)
         !pb = (/ -10.,0.0, 0.0, 0.0  /)
-        call cluster_CV_fn(pt, pb)
+        !call cluster_CV_fn(pt, pb)
 
 
         ! - - -Set cluster molecules to be thermostatted - - -
@@ -5887,13 +5887,13 @@ contains
             clustCV_mdt = clustCV
             clustCV = 0
 
-        !Front/back surfaces in y
-        bintopi(2) =  0.5d0*globaldomain(2) - tethereddisttop(2)
-        binboti(2) = -0.5d0*globaldomain(2) + tethereddistbottom(2)
-        
-        !Left/Right cluser based surfaces in z
-        bintopi(3) =  0.5d0*globaldomain(3) 
-        binboti(3) = -0.5d0*globaldomain(3)
+            !Front/back surfaces in y
+            bintopi(2) =  0.5d0*globaldomain(2) - tethereddisttop(2)
+            binboti(2) = -0.5d0*globaldomain(2) + tethereddistbottom(2)
+            
+            !Left/Right cluser based surfaces in z
+            bintopi(3) =  0.5d0*globaldomain(3) 
+            binboti(3) = -0.5d0*globaldomain(3)
 
             !Plot all molecules inside the liquid cluster control volume
             if (write_debug) then
@@ -6018,7 +6018,7 @@ contains
                 m = vi(1)/vi(2)
             else
                 m = vi(1)/tol
-        endif
+            endif
             c = ri(1)-ri(2)*m
             dt = delta_t
 
@@ -6334,7 +6334,7 @@ contains
         do molnoi = 1, nmols
 
 	        ri = rmols(:,molnoi)         	!Retrieve ri
-            if (skipwalls .and. moltype(molnoi) .eq. 2) cycle !Don't include wall molecules
+            if (skipwalls .and. any(moltype(molnoi) .eq. (/ 2, 9 /) )) cycle !Don't include wall molecules
 
             ! If interface cutoff is less that interaction rcutoff
             ! then we can use the neighbourlist to get molecules in 
@@ -6358,7 +6358,7 @@ contains
 		            rij2  = dot_product(rij,rij)            !Square of vector calculated
 
 		            if (rij2 .lt. rd2) then
-                        if (skipwalls .and. moltype(molnoj) .eq. 2) then
+                        if (skipwalls .and. any(moltype(molnoj) .eq. (/ 2, 9 /))) then
                             call AddBondedPair(self, molnoi, molnoi)
                         else
                             call AddBondedPair(self, molnoi, molnoj)
