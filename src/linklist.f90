@@ -1747,7 +1747,7 @@ subroutine linklist_merge(self, keep, delete)
     self%Nlist(delete) = 0
 
     !Check total number of molecules after
-    if (self%Nlist(keep) .ne. b4) then
+    if (self%Nlist(delete)+self%Nlist(keep) .ne. b4) then
         stop "Error in linklist_merge -- Number of elements is not conserved"
     endif
 

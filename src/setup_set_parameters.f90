@@ -23,11 +23,15 @@ module module_set_parameters
 	use linked_list
 	use polymer_info_MD
 	use concentric_cylinders
+#if __INTEL_COMPILER > 1200
 	use librarymod, only : PDF
+#endif
     implicit none
 
+#if __INTEL_COMPILER > 1200
 	type(PDF) 									:: velPDF, velPDFMB
 	type(PDF),allocatable,dimension(:,:,:,:) 	:: velPDF_array
+#endif
 
     !LJ parameters
     double precision           :: potshift !Shift in Lennard Jones potential due to cutoff
@@ -88,7 +92,8 @@ module module_set_parameters
 contains
 
     !LJ or Mie force calculation functions
-    function LJ_mass(i)
+
+    pure function LJ_mass(i)
 
         integer, intent(in)             :: i
         double precision                :: LJ_mass
@@ -97,7 +102,7 @@ contains
 
     end function LJ_mass
 
-    function LJ_accijmag(invrij2, i, j)
+    pure function LJ_accijmag(invrij2, i, j)
 
         integer, intent(in)             :: i, j
         double precision, intent(in)    :: invrij2
@@ -107,7 +112,7 @@ contains
 
     end function LJ_accijmag
 
-    function LJ_force(invrij2, rij, i, j)
+    pure function LJ_force(invrij2, rij, i, j)
 
         integer, intent(in)                         :: i, j
         double precision, intent(in)                :: invrij2
@@ -118,7 +123,7 @@ contains
 
     end function LJ_force
 
-    function LJ_energy(invrij2,  i, j)
+    pure function LJ_energy(invrij2,  i, j)
 
         integer, intent(in)             :: i, j
         double precision, intent(in)    :: invrij2
@@ -131,7 +136,7 @@ contains
 
 
 
-    function Mie_mass(i)
+    pure function Mie_mass(i)
         use arrays_MD, only : moltype
 
         integer, intent(in)             :: i
@@ -141,7 +146,7 @@ contains
 
     end function Mie_mass
 
-    function Mie_accijmag(invrij2, i, j)
+    pure function Mie_accijmag(invrij2, i, j)
         use arrays_MD, only : moltype
 
         integer, intent(in)             :: i, j
@@ -162,7 +167,7 @@ contains
                                     -alpha*lambdaa*invrij2**(0.5d0*lambdaa+1) )
     end function Mie_accijmag
 
-    function Mie_force(invrij2, rij, i, j)
+    pure function Mie_force(invrij2, rij, i, j)
 
         integer, intent(in)                         :: i, j
         double precision, intent(in)                :: invrij2
@@ -174,7 +179,7 @@ contains
     end function Mie_force
 
 
-    function Mie_energy(invrij2, i, j)
+    pure function Mie_energy(invrij2, i, j)
         use arrays_MD, only : moltype
 
         integer, intent(in)             :: i, j
@@ -207,7 +212,7 @@ contains
         double precision, intent(in)    :: rij2
         double precision                :: FENE_accijmag
 
-		if(rij2.ge.R_0**2)	call polymer_bond_error(i,j)
+		if(rij2.ge.R_0**2) call polymer_bond_error(i,j)
         FENE_accijmag =  -k_c/(1-(rij2/(R_0**2)))
 
     end function FENE_accijmag
@@ -223,7 +228,7 @@ contains
 
     end function FENE_force
 
-    function FENE_energy(rij2, i, j)
+    pure function FENE_energy(rij2, i, j)
         use polymer_info_MD, only : k_c, R_0
 
         integer, intent(in)             :: i, j
@@ -235,7 +240,7 @@ contains
     end function FENE_energy
 
     !Functions for harmonic potential
-    function harmonic_accijmag(rij2, i, j)
+    pure function harmonic_accijmag(rij2, i, j)
         use arrays_MD, only : moltype
 
         integer, intent(in)             :: i, j
@@ -252,7 +257,7 @@ contains
     end function
 
 
-    function harmonic_force(rij2, rij, i, j)
+    pure function harmonic_force(rij2, rij, i, j)
         use arrays_MD, only : moltype
 
         integer, intent(in)             :: i, j
@@ -269,7 +274,7 @@ contains
 
     end function harmonic_force
 
-    function harmonic_energy(rij2, i, j)
+    pure function harmonic_energy(rij2, i, j)
         use arrays_MD, only : moltype
 
         integer, intent(in)             :: i, j
@@ -293,7 +298,7 @@ contains
     !                             | | |
     ! we will check               i j k 
 
-    function angular_harmonic_force(rij, rjk, i, j, k)
+    pure function angular_harmonic_force(rij, rjk, i, j, k)
 
         integer, intent(in)                         :: i, j, k
         double precision, intent(in),dimension(3)   :: rij, rjk
@@ -347,7 +352,7 @@ contains
 
 
 
-    function angular_harmonic_energy(rij, rjk, i,j,k)
+    pure function angular_harmonic_energy(rij, rjk, i,j,k)
 
         integer, intent(in)                         :: i, j, k
         double precision, intent(in),dimension(3)   :: rij, rjk
@@ -1539,8 +1544,10 @@ end subroutine setup_linklist
 subroutine set_parameters_outputs
 	use module_set_parameters
 	use interfaces
+#if __INTEL_COMPILER > 1200
 	use boundary_MD, only: bforce_pdf_measure, bforce_pdf, bforce_pdf_nsubcells, &
 						   bforce_pdf_nbins, bforce_pdf_min, bforce_pdf_max
+#endif
 	use CV_objects, only : CVcheck_mass,CVcheck_momentum, & 
 						   CV_constraint,CVcheck_energy, CV_debug!,CV_sphere_momentum,CV_sphere_mass
     use messenger, only : localise_bin
@@ -1576,6 +1583,7 @@ subroutine set_parameters_outputs
 	nbinso = nbins+2*nhb
     binsize = domain/nbins
 
+#if __INTEL_COMPILER > 1200
 	!Velocity PDF binning routines
 	select case(vPDF_flag)
 	case(1:4)
@@ -1604,6 +1612,7 @@ subroutine set_parameters_outputs
 			end do
 		end do
 	end if
+#endif
 
 	!Allocate and define number of shells used for Radial distribution function (rdf)
 	if (rdf_outflag .eq. 1) then

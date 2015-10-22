@@ -66,9 +66,11 @@ module module_record
 	use arrays_MD
 	use calculated_properties_MD
 	use polymer_info_MD
+#if __INTEL_COMPILER > 1200
     use boundary_MD, only: bforce_pdf_measure
 	!use module_set_parameters, only : velPDF, velPDFMB, velPDF_array
 
+#endif
 	real(kind(0.d0)) :: vel
 
 contains
@@ -205,7 +207,9 @@ subroutine simulation_record
 	if (vPDF_flag .ne. 0) call velocity_PDF_averaging(vPDF_flag)
 
 	!Record boundary force PDFs
+#if __INTEL_COMPILER > 1200
 	if (bforce_pdf_measure .ne. 0) call bforce_pdf_stats
+#endif
 
 	!Obtain and record temperature
 	if (temperature_outflag .ne. 0)	call temperature_averaging(temperature_outflag)
@@ -502,6 +506,7 @@ end subroutine print_mol_escape_error
 !and calculate Boltzmann H function on a bin by bin basis
 
 
+#if __INTEL_COMPILER > 1200
 subroutine velocity_PDF_averaging(ixyz)
 	use module_record
 	use librarymod, only : Maxwell_Boltzmann_vel,Maxwell_Boltzmann_speed
@@ -635,6 +640,7 @@ end subroutine velocity_PDF_averaging
 
 
 
+#endif
 
 
 !!===================================================================================
@@ -890,9 +896,9 @@ implicit none
 		rmag     = real(bin - 1.d0)*dr        !rmag now means r in g(r)
 		select case(nd)
 		case(2)
-			dV   = pi*((rmag+dr)**2.d0 - rmag**2.d0)
+			dV   = pi*((rmag+dr)**2 - rmag**2)
 		case(3)
-			dV   = (4.d0*pi/3.d0)*((rmag+dr)**3.d0 - rmag**3.d0)
+			dV   = (4.d0*pi/3)*((rmag+dr)**3 - rmag**3)
 		end select
 		Nideal   = density*dV
 		Nbin     = real(rdf_hist(bin))/real(np*hist_count)
@@ -1229,7 +1235,7 @@ subroutine r_gyration_calculate_parallel
 	call globalSum(R_g2)
 	R_g2 = R_g2/(nmonomers*nchains)
 
-	R_g  = R_g2**0.5d0
+	R_g  = sqrt(R_g2)
 
 	deallocate(r_cm)
 
@@ -2591,7 +2597,7 @@ subroutine pressure_tensor_forces_VA_exact(ri,rj,rF)
 		do ixyz = 1,3
 			MLfrac(:,:,:) = MLfrac(:,:,:) + Lfrac(:,:,:,ixyz)**2
 		enddo
-		MLfrac(:,:,:) = MLfrac(:,:,:)**0.5d0
+		MLfrac(:,:,:) = sqrt(MLfrac(:,:,:))
 		!Normalise to one
 		MLfrac(:,:,:) = MLfrac(:,:,:)/magnitude(rij(:))
 
@@ -2702,7 +2708,7 @@ subroutine pressure_tensor_forces_VA_exact(ri,rj,rF)
 		do ixyz = 1,3
 			MLfrac(:,:,:) = MLfrac(:,:,:) + Lfrac(:,:,:,ixyz)**2
 		enddo
-		MLfrac(:,:,:) = MLfrac(:,:,:)**0.5d0
+		MLfrac(:,:,:) = sqrt(MLfrac(:,:,:))
 
 		!Normalise to one
 		MLfrac(:,:,:) = MLfrac(:,:,:)/magnitude(rij(:))
@@ -2865,7 +2871,7 @@ subroutine pressure_tensor_forces_VA_exact(ri,rj,rF)
 		do ixyz = 1,3
 			MLfrac(:,:,:) = MLfrac(:,:,:) + Lfrac(:,:,:,ixyz)**2
 		enddo
-		MLfrac(:,:,:) = MLfrac(:,:,:)**0.5d0
+		MLfrac(:,:,:) = sqrt(MLfrac(:,:,:))
 
 		!Normalise to one
 		MLfrac(:,:,:) = MLfrac(:,:,:)/magnitude(rij(:))
@@ -3479,6 +3485,7 @@ subroutine simulation_compute_energy_VA(imin,imax,jmin,jmax,kmin,kmax)
 end subroutine simulation_compute_energy_VA
 
 
+#if __INTEL_COMPILER > 1200
 subroutine bforce_pdf_stats
     use boundary_MD
     use statistics_io, only: bforce_pdf_write
@@ -3495,6 +3502,7 @@ subroutine bforce_pdf_stats
     end if 
 
 end subroutine bforce_pdf_stats
+#endif
 
 !=================================================================================
 ! CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV CV
@@ -5857,7 +5865,7 @@ contains
             double precision :: yi, surface_fn
             double precision,dimension(4) :: p0
 
-            surface_fn = p0(4)*yi**3.d0 + p0(3)*yi**2.d0 + p0(2)*yi + p0(1)
+            surface_fn = p0(4)*yi**3 + p0(3)*yi**2 + p0(2)*yi + p0(1)
 
         end function surface_fn
 
@@ -5866,7 +5874,7 @@ contains
             double precision :: yi, dsurface_fndyi
             double precision,dimension(4) :: p0
 
-            dsurface_fndyi = 3.d0*p0(4)*yi**2.d0 + 2.d0*p0(3)*yi + p0(2)
+            dsurface_fndyi = 3.d0*p0(4)*yi**2 + 2.d0*p0(3)*yi + p0(2)
 
         end function dsurface_fndyi
 
@@ -6329,7 +6337,7 @@ contains
             skipwalls = .false.
         endif
 
-        rd2 = rd**2.d0
+        rd2 = rd**2
 
         do molnoi = 1, nmols
 
@@ -7259,7 +7267,7 @@ contains
 
 	    type(node), pointer 	        :: oldi, currenti, oldj, currentj, noldj,ncurrentj
 
-        rd2 = rd**2.d0
+        rd2 = rd**2
         if (force_list .ne. 2) then
             call error_abort("Error in get_molecules_within_rc -- full "//&
                              "neightbour list should be used with interface tracking")

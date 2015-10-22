@@ -282,6 +282,7 @@ subroutine setup_initialise_lattice
 
     ! Relabel global id
     if (global_numbering .eq. 1) then
+        proc_nps = 0
         proc_nps(irank) = np
         call globalSum(proc_nps,nproc)
         proc_start_molno = sum(proc_nps(1:irank)) - proc_nps(irank)
@@ -422,36 +423,42 @@ subroutine setup_FENE_solution
     proc_chains(irank) = maxchainID
     proc_nps(irank) = np
 
-    if (irank.eq.1) then
+    if (irank .eq. iroot) then
         print*, 'Target concentration: ', targetconc
     end if
 
-    ! Remove chains to get target concentration (as close as possible) 
-    concentration = real(nmonomers*proc_chains(irank))/real(np)
-    nchainsremove = nint((concentration - targetconc)*real(np) &
-                    /real(nmonomers))
+    if (targetconc .gt. 1e-4) then
 
-    ! If nchains is too many, remove, otherwise we can't do anything now
-    if (nchainsremove .gt. 0) then
-        call remove_chains(nchainsremove)
-        proc_chains(irank) = proc_chains(irank) - nchainsremove 
+		! Remove chains to get target concentration (as close as possible) 
+		concentration = real(nmonomers*proc_chains(irank))/real(np)
+		nchainsremove = nint((concentration - targetconc)*real(np) &
+		                /real(nmonomers))
+
+		! If nchains is too many, remove, otherwise we can't do anything now
+		if (nchainsremove .gt. 0) then
+		    call remove_chains(nchainsremove)
+		    proc_chains(irank) = proc_chains(irank) - nchainsremove 
+		else
+		    print*, 'Concentration before chain removal:', concentration
+		    print*, 'Density, nchains connectable: ', density, proc_chains(irank) 
+		    print*, 'The target concentration is not obtainable by removing &
+		             existing chains.'
+		    call error_abort('Aborting') 
+		end if
+
+		! Print actual concentration once chains are removed
+		concentration = real(nmonomers*proc_chains(irank)) / real(np)
+
+        ! Shift the y-positions of chain monomers so that they are all separated
+        ! by their equilibrium distance.
+        call contract_chains_to_equil_sep()
+
     else
-        print*, 'Concentration before chain removal:', concentration
-        print*, 'Density, nchains connectable: ', density, proc_chains(irank) 
-        print*, 'The target concentration is not obtainable by removing &
-                 existing chains.'
-        call error_abort('Aborting') 
-    end if
-
-    ! Print actual concentration once chains are removed
-    concentration = real(nmonomers*proc_chains(irank)) / real(np)
+        concentration = targetconc
+    endif
     if (irank .eq. 1) then
         print*, 'Actual concentration: ', concentration
     end if
-
-    ! Shift the y-positions of chain monomers so that they are all separated
-    ! by their equilibrium distance.
-    call contract_chains_to_equil_sep
 
     ! Relabel chainIDs globally
     call globalSum(proc_chains,nproc)
@@ -757,32 +764,37 @@ subroutine setup_cylinder_FENE_solution
         print*, 'Target concentration: ', targetconc
     end if
 
-    ! Remove chains to get target concentration (as close as possible) 
-    concentration = real(nmonomers*proc_chains(irank))/real(fluid_np)
-    nchainsremove = nint((concentration - targetconc)*real(fluid_np) &
-                    /real(nmonomers))
+    if (targetconc .gt. 1e-4) then
+		! Remove chains to get target concentration (as close as possible) 
+		concentration = real(nmonomers*proc_chains(irank))/real(fluid_np)
+		nchainsremove = nint((concentration - targetconc)*real(fluid_np) &
+		                /real(nmonomers))
 
-    ! If nchains is too many, remove, otherwise we can't do anything now
-    if (nchainsremove .gt. 0) then
-        call remove_chains(nchainsremove)
-        proc_chains(irank) = proc_chains(irank) - nchainsremove 
+		! If nchains is too many, remove, otherwise we can't do anything now
+		if (nchainsremove .gt. 0) then
+		    call remove_chains(nchainsremove)
+		    proc_chains(irank) = proc_chains(irank) - nchainsremove 
+		else
+		    print*, 'Concentration before chain removal:', concentration
+		    print*, 'Density, nchains connectable: ', density, proc_chains(irank) 
+		    print*, 'The target concentration is not obtainable by removing &
+		             existing chains.'
+		    call error_abort('Aborting') 
+		end if
+
+		! Print actual concentration once chains are removed
+		concentration = real(nmonomers*proc_chains(irank)) / real(fluid_np)
+
+		! Shift the z-positions of chain monomers so that they are all separated
+		! by their equilibrium distance.
+		call contract_chains_to_equil_sep
     else
-        print*, 'Concentration before chain removal:', concentration
-        print*, 'Density, nchains connectable: ', density, proc_chains(irank) 
-        print*, 'The target concentration is not obtainable by removing &
-                 existing chains.'
-        call error_abort('Aborting') 
-    end if
+        concentration = targetconc
+    endif
 
-    ! Print actual concentration once chains are removed
-    concentration = real(nmonomers*proc_chains(irank)) / real(fluid_np)
     if (irank .eq. 1) then
         print*, 'Actual concentration: ', concentration
     end if
-
-    ! Shift the z-positions of chain monomers so that they are all separated
-    ! by their equilibrium distance.
-    call contract_chains_to_equil_sep
 
     ! Relabel chainIDs globally
     call globalSum(proc_chains,nproc)
@@ -1827,7 +1839,8 @@ subroutine setup_initialise_solid_liquid
     use messenger_data_exchange, only : globalSum
 #if USE_COUPLER
     use coupler
-    use md_coupler_socket, only: socket_get_domain_top
+    use md_coupler_socket, only: socket_get_domain_top, &
+                                 socket_get_domain_bottom
 #endif
     use module_molecule_properties, only : get_tag_status
     implicit none
@@ -1847,6 +1860,7 @@ subroutine setup_initialise_solid_liquid
 
     !Set top of domain initially
     domain_top = globaldomain(2)/2.d0
+    domain_bottom = -globaldomain(2)/2.d0
 
     !Setup solid/liquid properties
     solid_density = density
@@ -1856,7 +1870,7 @@ subroutine setup_initialise_solid_liquid
 
     if (jblock .eq. npy) then
         domain_top = socket_get_domain_top()
-        !domain_bottom = socket_get_domain_bottom()
+        domain_bottom = socket_get_domain_bottom()
     endif
 
 #else
@@ -1952,6 +1966,7 @@ subroutine setup_initialise_solid_liquid
 
     ! Relabel global id
     if (global_numbering .eq. 1) then
+        proc_nps = 0
         proc_nps(irank) = np
         call globalSum(proc_nps,nproc)
         proc_start_molno = sum(proc_nps(1:irank)) - proc_nps(irank)
@@ -2299,6 +2314,7 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
 
     ! Relabel global id
     if (global_numbering .eq. 1) then
+        proc_nps = 0
         proc_nps(irank) = np
         call globalSum(proc_nps,nproc)
         proc_start_molno = sum(proc_nps(1:irank)) - proc_nps(irank)
@@ -2421,42 +2437,58 @@ subroutine setup_initialise_surfactants(casename)
         print*, 'Target concentration: ', targetconc
     end if
 
-    ! Remove chains to get target concentration (as close as possible) 
-    concentration = real(nmonomers*proc_chains(irank))/real(fluid_np)
-    nchainsremove = nint((concentration - targetconc)*real(fluid_np) &
-                    /real(nmonomers))
+    if (targetconc .gt. 1e-4) then
+		! Remove chains to get target concentration (as close as possible) 
+		concentration = real(nmonomers*proc_chains(irank))/real(fluid_np)
+		nchainsremove = nint((concentration - targetconc)*real(fluid_np) &
+		                /real(nmonomers))
 
-    ! If nchains is too many, remove, otherwise we can't do anything now
-    if (nchainsremove .gt. 0) then
-        call remove_chains_random(nchainsremove)
-        proc_chains(irank) = proc_chains(irank) - nchainsremove 
+		! If nchains is too many, remove, otherwise we can't do anything now
+		if (nchainsremove .gt. 0) then
+		    call remove_chains_random(nchainsremove)
+		    proc_chains(irank) = proc_chains(irank) - nchainsremove 
+		    elseif (nchainsremove .eq. 0) then
+		        print*, "Don't need to remove any chains on irank:", irank
+		else
+		    print*, 'Concentration before chain removal:', concentration
+		    print*, 'Density, nchains connectable: ', density, proc_chains(irank) 
+		    print*, 'The target concentration is not obtainable by removing &
+		             existing chains.'
+		    call error_abort('Aborting') 
+		end if
+
+		! Print actual concentration once chains are removed
+		concentration = real(nmonomers*proc_chains(irank)) / real(fluid_np)
+
+		! Turn all polymers at the sides to solvent here
+		call remove_all_chains_limits(gaslowerregion)
+		call remove_all_chains_limits(gasupperregion)
+
+		if (casename .eq. '2phase_surfactant_atsurface') then
+		    nosurfactant = (/ -0.5d0*lg_fract*globaldomain(1)+surface_surfactant_layer, & 
+		                      -0.5d0*globaldomain(2)+solid_bottom(2), & 
+		                      -0.5d0*globaldomain(3), & 
+		                       0.5d0*lg_fract*globaldomain(1)-surface_surfactant_layer, &
+		                       0.5d0*globaldomain(2)-solid_top(2), &
+		                       0.5d0*globaldomain(3) /)
+		    call remove_all_chains_limits(nosurfactant)
+		endif
+		    ! Shift the y-positions of chain monomers so that they are all separated
+		    ! by their equilibrium distance.
+		    if (mie_potential .eq. 1) then
+		        call contract_chains_to_equil_sep_mie()
+		    else
+		        call contract_chains_to_equil_sep()
+		    endif
+
+
     else
-        print*, 'Concentration before chain removal:', concentration
-        print*, 'Density, nchains connectable: ', density, proc_chains(irank) 
-        print*, 'The target concentration is not obtainable by removing &
-                 existing chains.'
-        call error_abort('Aborting') 
-    end if
+        concentration = targetconc
+    endif
 
-    ! Print actual concentration once chains are removed
-    concentration = real(nmonomers*proc_chains(irank)) / real(fluid_np)
-    if (irank .eq. 1) then
+    if (irank .eq. iroot) then
         print*, 'Actual concentration: ', concentration
     end if
-
-    ! Turn all polymers at the sides to solvent here
-    call remove_all_chains_limits(gaslowerregion)
-    call remove_all_chains_limits(gasupperregion)
-
-    if (casename .eq. '2phase_surfactant_atsurface') then
-        nosurfactant = (/ -0.5d0*lg_fract*globaldomain(1)+surface_surfactant_layer, & 
-                          -0.5d0*globaldomain(2)+solid_bottom(2), & 
-                          -0.5d0*globaldomain(3), & 
-                           0.5d0*lg_fract*globaldomain(1)-surface_surfactant_layer, &
-                           0.5d0*globaldomain(2)-solid_top(2), &
-                           0.5d0*globaldomain(3) /)
-        call remove_all_chains_limits(nosurfactant)
-    endif
 
     ! Remove solvent molecules so that target density is acquired, store 
     ! new number of particles
@@ -2486,14 +2518,6 @@ subroutine setup_initialise_surfactants(casename)
 !            print'(a,2i6,3f10.5)', 'after', n, tag(n), r(:,n)
 !        endif    
 !    enddo
-
-    ! Shift the y-positions of chain monomers so that they are all separated
-    ! by their equilibrium distance.
-    if (mie_potential .eq. 1) then
-        call contract_chains_to_equil_sep_mie()
-    else
-        call contract_chains_to_equil_sep()
-    endif
 
     proc_nps(irank) = np
 
@@ -2747,56 +2771,6 @@ contains
                 ! If possible, build whole chain, otherwise mark as solvent and move on 
                 if (connectable) then
 
-!                    ! Connect 1 to 2 
-!                    !molno = n
-!                    molno = mols(1)
-!                    monomer(molno)%chainID    = chainID
-!                    monomer(molno)%subchainID = 1 
-!                    monomer(molno)%glob_no    = molno
-!                    moltype(molno) = ids(1)  ! EO bead
-!                    !print'(4(a,i5))', 'In chain ', chainID, ' connecting ', molno, ' with subchain id ', monomer(molno)%subchainID, ' to subchain ', 2 
-!                    call connect_to_monomer(2,molno)
-
-!                    call check_update_adjacentbeadinfo_allint(molno,mols(2))
-
-!                    ! Connect middles
-!                    do subchainID = 2, midendID
-!                        !molno = n+subchainID-1
-!                        molno = mols(subchainID)
-!                        monomer(molno)%chainID    = chainID
-!                        monomer(molno)%subchainID = subchainID 
-!                        monomer(molno)%glob_no    = molno !corrected at bottom
-!                        moltype(molno) = ids(subchainID)
-!                        call connect_to_monomer(subchainID-1,molno) 
-!                        call connect_to_monomer(subchainID+1,molno) 
-!                        !print'(5(a,i5))', 'In chain ', chainID, ' connecting ', molno, ' with subchain id ', monomer(molno)%subchainID, ' to subchain ', subchainID-1, ' and ', subchainID+1 
-!                        call check_update_adjacentbeadinfo_allint(molno,mols(subchainID-1))
-!                        call check_update_adjacentbeadinfo_allint(molno,mols(subchainID+1))
-!                    end do
-
-!                    if (branch) then
-!                        !stop "Branch functionality is untested"
-!                        ! BRANCH means we connect end-2 to end
-!                        !molno = n+nmonomers-2
-!                        molno = mols(midendID+1)
-!                        monomer(molno)%chainID    = chainID
-!                        monomer(molno)%subchainID = nmonomers-1 
-!                        monomer(molno)%glob_no    = molno !corrected at bottom
-!                        moltype(molno) = ids(size(ids)-1) 
-!                        call connect_to_monomer(nmonomers-2,molno)
-!                        !print'(4(a,i5))', 'In chain ', chainID, ' connecting as branch ', molno, ' with subchain id ', monomer(molno)%subchainID, ' to subchain ', nmonomers-2
-!                    endif
-
-!                    ! Connect end-1 to end
-!                    !molno = n+nmonomers-1
-!                    molno = mols(nmonomers)
-!                    monomer(molno)%chainID    = chainID
-!                    monomer(molno)%subchainID = nmonomers 
-!                    monomer(molno)%glob_no    = molno !corrected at bottom
-!                    moltype(molno) = ids(nmonomers) 
-!                    call connect_to_monomer(nmonomers-1,molno)
-!                    !print'(4(a,i5))', 'In chain ', chainID, ' connecting ', molno, ' with subchain id ', monomer(molno)%subchainID, ' to subchain ', nmonomers-1
-!                    call check_update_adjacentbeadinfo_allint(molno,mols(nmonomers-1))
 
                     call connect_beads(mols, ids, chainID, branch)
                     chainID = chainID + 1
@@ -2820,6 +2794,9 @@ contains
             concentration = real(nmonomers*maxchainID)/real(fluid_np)
 
             if (rmax .gt. magnitude(halfdomain)) then
+                print*, "It is not possible to reach the request concentration. "
+                print*, "If you are running in parallel, try starting a single process"
+                print*, "case and using the restart file in parallel."
                 call error_abort("Error in connect_all_possible_chains_surfactant "//&
                                  "-- request concentration is not possible ")
             end if
