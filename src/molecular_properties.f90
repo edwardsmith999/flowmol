@@ -305,15 +305,22 @@ end subroutine get_tag_thermostat_activity
 ! Build up a range of wall textures
 subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 	use physical_constants_MD, only : pi,tethereddistbottom,tethereddisttop
-	use computational_constants_MD, only : posts,roughness,converge_diverge,texture_intensity, &
-										   globaldomain, cellsidelength,texture_therm,nh,halfdomain,ncells
+	use computational_constants_MD, only : posts,roughness,converge_diverge, fractal, & 
+                                           texture_intensity, globaldomain, cellsidelength, &
+										   texture_therm,nh,halfdomain,ncells, initialnunits, irank, iroot
+    use librarymod, only : DiamondSquare
 	implicit none
 
 	integer,intent(in)	  :: texture_type
 	real(kind(0.d0)),dimension(3),intent(in) :: rg
 	real(kind(0.d0)),dimension(3),intent(out):: tagdistbottom,tagdisttop
 
-	real(kind(0.d0))		:: xlocation,ylocation,zlocation,rand,fraction_domain,postheight
+    integer                 :: i, j, levels, Nx, Nz
+    logical                 :: first_time=.true.
+	real(kind(0.d0))		:: xlocation, ylocation, zlocation, unitsize(3)
+	real(kind(0.d0))		:: rand, fraction_domain, postheight
+	real(kind(0.d0)),dimension(:),allocatable	:: temp
+	real(kind(0.d0)),dimension(:,:),allocatable,save	:: z
 
 	select case (texture_type)
 	case(0)
@@ -379,6 +386,52 @@ subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 		if (tagdisttop(2) .lt. 0.05d0*globaldomain(2)) then
 			tagdisttop(2) = 0.05d0*globaldomain(2)
 		endif
+
+	case(fractal)
+
+        if (first_time .eqv. .true.) then
+            first_time = .false.
+
+            Nx = 4*initialnunits(1)
+            Nz = 4*initialnunits(3)
+            allocate(z(Nx,Nz)); z=0.d0
+            levels = max(initialnunits(1),initialnunits(3))
+
+            allocate(temp(Nx*Nz))
+            if (irank .eq. iroot) then
+                call DiamondSquare(z, 0, 0, Nx, Nz, 10.d0, levels)
+                temp= reshape(z,(/Nx*Nz/)) 
+            endif
+            
+            call globalbroadcast(temp,Nx*Nz,iroot)
+            z = reshape(temp,(/Nx,Nz/))
+            
+            !do i =1,initialnunits(1)
+            !do j =1,initialnunits(3)
+            !    write(10,'(2i8,f20.12)') i,j,z(i,j)
+            !enddo
+            !enddo
+        endif
+
+        tagdisttop = tethereddisttop
+
+!        unitsize(1) = globaldomain(1)/(4.d0*initialnunits(1))
+!        unitsize(3) = globaldomain(3)/(4.d0*initialnunits(3))
+!		i = ceiling((rg(1)+0.5*globaldomain(1))/unitsize(1)+1)
+!		j = ceiling((rg(3)+0.5*globaldomain(3))/unitsize(3)+1)
+!        if (i .lt. 1) i = 1; if (i .gt. size(z,1)) i = size(z,1)
+!        if (j .lt. 1) j = 1; if (j .gt. size(z,2)) j = size(z,2)
+!		postheight = z(i,j)
+		tagdistbottom = tethereddistbottom
+!		ylocation = rg(2) + 0.5*globaldomain(2)
+
+!		! Post is above wall
+!		if ((ylocation .gt. tethereddistbottom(2) ) .and. & 
+!			(ylocation .lt. tethereddistbottom(2) + postheight)) then
+!			tagdistbottom(2) = tethereddistbottom(2) + postheight 
+!        else
+!            tagdistbottom(2) = tethereddistbottom(2)
+!		endif
 
 	case(converge_diverge)
 		!A converging diverging channel
