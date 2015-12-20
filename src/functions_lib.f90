@@ -1361,6 +1361,131 @@ function linspace(d1, d2, n)
 end function linspace
 
 
+!Get surface crossings on a specified control volume surface
+! r1 -- position of molecules 1
+! r2 -- position of molecules 2
+! CV -- Array of top and botton location of cubic CV
+!       1) xbinbot, 2) ybinbot, 3) zbinbot
+!       4) xbintop, 5) ybintop, 6) zbintop
+! onface  -- onface of surfaces of CV
+!       1) xbinbot, 2) ybinbot, 3) zbinbot
+!       4) xbintop, 5) ybintop, 6) zbintop
+subroutine CV_surface_crossing(r1, r2, CV, onface) bind (C)
+    use, intrinsic :: ISO_C_BINDING, only : C_INT32_T, C_DOUBLE
+
+    real(C_DOUBLE),dimension(3), intent(in)     :: r1, r2
+    real(C_DOUBLE), dimension(6), intent(in)    :: CV
+    real(C_DOUBLE), dimension(6), intent(out)   :: onface
+
+    integer(C_INT32_T)  		:: jxyz
+    real(C_DOUBLE),dimension(3)	:: r12,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
+
+	r12   = r1 - r2							!Molecule i trajectory between t-dt and t
+	where (r12 .eq. 0.d0) r12 = 0.000001d0
+
+	!Calculate the plane intersect of trajectory with plane aligned with cube surfaces
+	Pxt=(/ 			               CV(4), 	     & 
+			r1(2)+(r12(2)/r12(1))*(CV(4)-r1(1)), & 
+			r1(3)+(r12(3)/r12(1))*(CV(4)-r1(1))  	/)
+	Pxb=(/ 			               CV(1), 	     & 
+			r1(2)+(r12(2)/r12(1))*(CV(1)-r1(1)), & 
+			r1(3)+(r12(3)/r12(1))*(CV(1)-r1(1))  	/)
+	Pyt=(/	r1(1)+(r12(1)/r12(2))*(CV(5)-r1(2)), & 
+				                   CV(5),	     & 
+			r1(3)+(r12(3)/r12(2))*(CV(5)-r1(2))  	/)
+	Pyb=(/	r1(1)+(r12(1)/r12(2))*(CV(2)-r1(2)), &
+				                   CV(2),	     & 
+			r1(3)+(r12(3)/r12(2))*(CV(2)-r1(2))  	/)
+	Pzt=(/	r1(1)+(r12(1)/r12(3))*(CV(6)-r1(3)), & 
+			r1(2)+(r12(2)/r12(3))*(CV(6)-r1(3)), &
+                                   CV(6) 			/)
+	Pzb=(/	r1(1)+(r12(1)/r12(3))*(CV(3)-r1(3)), &
+			r1(2)+(r12(2)/r12(3))*(CV(3)-r1(3)), & 
+				                   CV(3) 			/)
+
+	!Use Heavisides to determine if interaction actually on the cube's surface 
+	onface(1) =0.5d0*(sign(1.d0,CV(1) - r2(1)) 	 & 
+			        - sign(1.d0,CV(1) - r1(1)))* &
+					 (heaviside(CV(5) - Pxb(2)) 	 &
+			        - heaviside(CV(2) - Pxb(2)))* &
+					 (heaviside(CV(6) - Pxb(3)) 	 &
+			        - heaviside(CV(3) - Pxb(3)))
+	onface(2) =0.5d0*(sign(1.d0,CV(2) - r2(2))   &
+			        - sign(1.d0,CV(2) - r1(2)))* &
+					 (heaviside(CV(4) - Pyb(1))   &
+			        - heaviside(CV(1) - Pyb(1)))* &
+					 (heaviside(CV(6) - Pyb(3))   &
+			        - heaviside(CV(3) - Pyb(3)))
+	onface(3) =0.5d0*(sign(1.d0,CV(3) - r2(3))   &
+			        - sign(1.d0,CV(3) - r1(3)))* &
+					 (heaviside(CV(4) - Pzb(1))   &
+			        - heaviside(CV(1) - Pzb(1)))* &
+					 (heaviside(CV(5) - Pzb(2))   &
+			        - heaviside(CV(2) - Pzb(2)))
+
+	onface(4) =0.5d0*(sign(1.d0,CV(4) - r2(1))   &
+			        - sign(1.d0,CV(4) - r1(1)))* &
+					 (heaviside(CV(5) - Pxt(2))   &
+			        - heaviside(CV(2) - Pxt(2)))* &
+					 (heaviside(CV(6) - Pxt(3))   &
+			        - heaviside(CV(3) - Pxt(3)))
+	onface(5) =0.5d0*(sign(1.d0,CV(5) - r2(2))   &
+			        - sign(1.d0,CV(5) - r1(2)))* &
+					 (heaviside(CV(4) - Pyt(1))   &
+			        - heaviside(CV(1) - Pyt(1)))* &
+					 (heaviside(CV(6) - Pyt(3))   &
+			        - heaviside(CV(3) - Pyt(3)))
+	onface(6) =0.5d0*(sign(1.d0,CV(6) - r2(3))   &
+			        - sign(1.d0,CV(6) - r1(3)))* &
+			 		 (heaviside(CV(4) - Pzt(1))   &
+				    - heaviside(CV(1) - Pzt(1)))* &
+			 		 (heaviside(CV(5) - Pzt(2))   &
+			        - heaviside(CV(2) - Pzt(2)))
+
+end subroutine CV_surface_crossing
+
+
+!Get flux/force over a specified control volume surface
+! r1 -- position of molecules 1
+! r2 -- position of molecules 2
+! CV -- Array of top and botton location of cubic CV
+!       1) xbinbot, 2) ybinbot, 3) zbinbot
+!       4) xbintop, 5) ybintop, 6) zbintop
+! Quantity  -- Quantity of interest (mass, momentum, energy, etc)
+! N         -- Number of components in Quantity
+! fluxes  -- Additional fluxes over surfaces of CV
+!       1) xbinbot, 2) ybinbot, 3) zbinbot
+!       4) xbintop, 5) ybintop, 6) zbintop
+subroutine CV_surface_flux(r1, r2, CV, Quantity, N, fluxes) bind (C)
+    use, intrinsic :: ISO_C_BINDING, only : C_INT32_T, C_DOUBLE
+
+    integer(C_INT32_T), intent(in)				:: N
+    real(C_DOUBLE),dimension(3), intent(in)     :: r1, r2
+    real(C_DOUBLE), dimension(6), intent(in)    :: CV
+    real(C_DOUBLE), dimension(N), intent(in)    :: Quantity
+    real(C_DOUBLE), dimension(N,6), intent(out) :: fluxes
+
+    integer(C_INT32_T)  		:: jxyz
+    real(C_DOUBLE)				:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
+    real(C_DOUBLE),dimension(3)	:: r12,bintop,binbot,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
+    real(C_DOUBLE),dimension(6)	:: onface
+
+	r12   = r1 - r2							!Molecule i trajectory between t-dt and t
+	where (r12 .eq. 0.d0) r12 = 0.000001d0
+
+    call CV_surface_crossing(r1, r2, CV, onface)
+
+	!Add quantity over face
+	fluxes(:,1) = Quantity(:)*nint(dble(onface(1)))
+    fluxes(:,2) = Quantity(:)*nint(dble(onface(2)))
+    fluxes(:,3) = Quantity(:)*nint(dble(onface(3)))
+    fluxes(:,4) = Quantity(:)*nint(dble(onface(4)))
+    fluxes(:,5) = Quantity(:)*nint(dble(onface(5)))
+    fluxes(:,6) = Quantity(:)*nint(dble(onface(6)))
+
+end subroutine CV_surface_flux
+
+
 
 !*****************************************************************************80
 !
@@ -2883,17 +3008,50 @@ subroutine read_FEA_output_files(filename, HLratio, nNodes, X, Z, &
     !if (present(S2x)) allocate(S2x, source  = S2x_)
     !if (present(S12_or_S1)) allocate(S12_or_S1, source  = S12_or_S1_)
     !if (present(S12x_or_S1x)) allocate(S12x_or_S1x, source  = S12x_or_S1x_)
-    if (present(X)) allocate(X(size(X_))) ; X = X_
-    if (present(Z)) allocate(Z(size(Z_))) ; Z = Z_
-    if (present(H)) allocate(H(size(H_))) ; H = H_
-    if (present(Hx)) allocate(Hx(size(Hx_))) ; Hx = Hx_
-    if (present(Hxx)) allocate(Hxx(size(Hxx_))) ; Hxx = Hxx_
-    if (present(Hxxx)) allocate(Hxxx(size(Hxxx_))) ; Hxxx = Hxxx_
-    if (present(U)) allocate(U(size(U_))) ; U = U_
-    if (present(S2)) allocate(S2(size(S2_))) ; S2 = S2_
-    if (present(S2x)) allocate(S2x(size(S2x_))) ; S2x = S2x_
-    if (present(S12_or_S1)) allocate(S12_or_S1(size(S12_or_S1_))) ; S12_or_S1 = S12_or_S1_
-    if (present(S12x_or_S1x)) allocate(S12x_or_S1x(size(S12x_or_S1x_))) ; S12x_or_S1x = S12x_or_S1x_
+    if (present(X)) then
+        allocate(X(size(X_)))
+        X = X_
+    endif
+    if (present(Z)) then
+        allocate(Z(size(Z_)))
+ 		Z = Z_
+    endif
+    if (present(H)) then
+        allocate(H(size(H_)))
+		H = H_
+    endif
+    if (present(Hx)) then
+        allocate(Hx(size(Hx_)))
+		Hx = Hx_
+    endif
+    if (present(Hxx)) then
+        allocate(Hxx(size(Hxx_)))
+		Hxx = Hxx_
+    endif
+    if (present(Hxxx)) then
+        allocate(Hxxx(size(Hxxx_)))
+		Hxxx = Hxxx_
+    endif
+    if (present(U)) then
+        allocate(U(size(U_)))
+		U = U_
+    endif
+    if (present(S2)) then
+        allocate(S2(size(S2_)))
+		S2 = S2_
+    endif
+    if (present(S2x)) then
+        allocate(S2x(size(S2x_)))
+		S2x = S2x_
+    endif
+    if (present(S12_or_S1)) then
+        allocate(S12_or_S1(size(S12_or_S1_)))
+		S12_or_S1 = S12_or_S1_
+    endif
+    if (present(S12x_or_S1x)) then
+        allocate(S12x_or_S1x(size(S12x_or_S1x_)))
+		S12x_or_S1x = S12x_or_S1x_
+    endif
 
 end subroutine read_FEA_output_files
 

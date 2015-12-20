@@ -1638,7 +1638,7 @@ subroutine parallel_io_vmd(recno)
     integer, intent(in)             :: recno
 
     integer                         :: i, datasize
-    integer                         :: n,globmolno,ordered_write
+    integer                         :: n,globmolno,ordered_write=0
     integer(kind=MPI_OFFSET_KIND)   :: disp, procdisp
     integer,dimension(:),pointer    :: globalno
     real,dimension(:),allocatable   :: Xbuf, Ybuf, Zbuf
