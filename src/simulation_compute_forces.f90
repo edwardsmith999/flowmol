@@ -532,7 +532,10 @@ subroutine simulation_compute_forces_LJ_neigbr
 	integer                         :: j  !Define dummy index
 	integer							:: molnoi, molnoj
 	integer							:: noneighbrs
-	type(node), pointer		:: old, current
+	type(node), pointer		        :: old, current
+
+    !call random_number(potenergymol)
+    !return
 
 	do molnoi = 1, np
 
@@ -550,7 +553,6 @@ subroutine simulation_compute_forces_LJ_neigbr
 			if (rij2 < rcutoff2) then
 				invrij2  = 1.d0/rij2                !Invert value
                 accijmag = get_accijmag(invrij2, molnoi, molnoj)
-				!accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4) ! (-dU/dr)*(1/|r|)
 
 				!Sum of forces on particle i added for each j
 				a(1,molnoi)= a(1,molnoi) + accijmag*rij(1)/mass(molnoi)
@@ -569,8 +571,6 @@ subroutine simulation_compute_forces_LJ_neigbr
 				if (mod(iter,tplot) .eq. 0) then
 
 					!Record potential energy total to use for output later (potshift=-1 for WCA)
-					!potenergymol_LJ(molnoi)=potenergymol_LJ(molnoi) & 
-					!	     +4.d0*(invrij2**6-invrij2**3)-potshift
 					potenergymol_LJ(molnoi) = potenergymol_LJ(molnoi) & 
 						       + get_energy(invrij2, molnoi, molnoj)
 
