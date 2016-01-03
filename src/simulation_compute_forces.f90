@@ -633,14 +633,14 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 				!accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
 	
 				!Sum of forces on particle i added for each j
-				a(1,molnoi)= a(1,molnoi) + accijmag*rij(1)/mass(molnoi)
-				a(2,molnoi)= a(2,molnoi) + accijmag*rij(2)/mass(molnoi)
-				a(3,molnoi)= a(3,molnoi) + accijmag*rij(3)/mass(molnoi)
+				a(1,molnoi) = a(1,molnoi) + accijmag*rij(1)/mass(molnoi)
+				a(2,molnoi) = a(2,molnoi) + accijmag*rij(2)/mass(molnoi)
+				a(3,molnoi) = a(3,molnoi) + accijmag*rij(3)/mass(molnoi)
 
 				!Sum of forces on particle j added for each i
-				a(1,molnoj)= a(1,molnoj) - accijmag*rij(1)/mass(molnoj)
-				a(2,molnoj)= a(2,molnoj) - accijmag*rij(2)/mass(molnoj)
-				a(3,molnoj)= a(3,molnoj) - accijmag*rij(3)/mass(molnoj)
+				a(1,molnoj) = a(1,molnoj) - accijmag*rij(1)/mass(molnoj)
+				a(2,molnoj) = a(2,molnoj) - accijmag*rij(2)/mass(molnoj)
+				a(3,molnoj) = a(3,molnoj) - accijmag*rij(3)/mass(molnoj)
 
 				if (vflux_outflag.eq.4) then
 					if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
@@ -1095,8 +1095,12 @@ subroutine simulation_compute_power!(imin, imax, jmin, jmax, kmin, kmax)
 !				if (kcell+kcellshift .lt. kcellmin) cycle
 !				if (kcell+kcellshift .gt. kcellmax) cycle
 
-				oldj => cell%head(icell+icellshift,jcell+jcellshift,kcell+kcellshift)%point
-				adjacentcellnp = cell%cellnp(icell+icellshift,jcell+jcellshift,kcell+kcellshift)
+				oldj => cell%head(icell+icellshift, & 
+                                  jcell+jcellshift, & 
+                                  kcell+kcellshift)%point
+				adjacentcellnp = cell%cellnp(icell+icellshift, & 
+                                             jcell+jcellshift, & 
+                                             kcell+kcellshift)
 
 				do j = 1,adjacentcellnp          !Step through all j for each i
 
