@@ -2836,6 +2836,29 @@ subroutine momentum_bin_io(CV_mass_out,CV_momentum_out,io_type)
 end subroutine momentum_bin_io
 
 
+!------------------------------------------------------------------------
+!A routine with each proc writing its own bins in binary
+
+subroutine centre_of_mass_bin_io(centre_of_mass)
+    use module_parallel_io, only : write_arrays, nd, iter, Ncom_ave, & 
+                                   initialstep,tplot, nbinso, prefix_dir
+    use messenger_bin_handler, only : swaphalos
+    implicit none
+
+    integer                 :: m, nresults
+    real(kind(0.d0)), dimension(:,:,:,:), intent(inout) :: centre_of_mass
+
+    ! Swap Halos
+    nresults = nd
+    call swaphalos(centre_of_mass,nbinso(1),nbinso(2),nbinso(3),nresults)
+    m = (iter-initialstep+1)/(tplot*Ncom_ave)
+
+    !Write out arrays
+    call write_arrays(centre_of_mass,nresults,trim(prefix_dir)//'results/combin',m)
+
+end subroutine centre_of_mass_bin_io
+
+
 !---------------------------------------------------------------------------------
 ! Record velocity PDF in a slice through the domain
 subroutine velocity_PDF_slice_io(ixyz,pfdx,pfdy,pfdz)

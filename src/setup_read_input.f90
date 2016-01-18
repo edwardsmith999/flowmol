@@ -950,6 +950,13 @@ subroutine setup_read_input
 			read(1,*) Nenergy_ave
 		endif
 	endif
+	call locate(1,'CENTRE_OF_MASS_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) centre_of_mass_outflag
+		if (centre_of_mass_outflag .ne. 0)	then
+			read(1,*) Ncom_ave
+		endif
+	endif
 	call locate(1,'PRESSURE_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) pressure_outflag

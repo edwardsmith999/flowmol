@@ -217,6 +217,9 @@ subroutine simulation_record
 	!Obtain and record energy
 	if (energy_outflag .ne. 0)	call energy_averaging(energy_outflag)
 
+    !Obtain and record centre of mass
+    if (centre_of_mass_outflag .ne. 0)	call centre_of_mass_averaging(centre_of_mass_outflag)
+
 	!Obtain and record density on a surface
     if (msurf_outflag .ne. 0) call surface_density_averaging(msurf_outflag)
 
@@ -1905,6 +1908,85 @@ subroutine cumulative_energy(ixyz)
 	end select
 	 
 end subroutine cumulative_energy
+
+
+
+!===================================================================================
+!		RECORD CENTRE OF MASS AT LOCATION IN SPACE
+! By binning, the centre of mass field in the molecular
+! system is recorded and output
+!===================================================================================
+
+!Calculate averaged centre of mass in 3D bins
+!-----------------------------------------------------------------------------------
+
+subroutine centre_of_mass_averaging(ixyz)
+	use module_record, only : centre_of_mass, Ncom_ave, error_abort
+	use field_io , only : centre_of_mass_bin_io
+	implicit none
+
+	integer				            :: ixyz
+	integer,dimension(3)            :: ib
+	integer, save		            :: average_count=-1
+	real(kind(0.d0)),dimension(3) 	:: Vbinsize
+
+	average_count = average_count + 1
+	call cumulative_centre_of_mass(ixyz)
+
+	if (average_count .eq. Ncom_ave) then
+		average_count = 0
+
+		select case(ixyz)
+		case(1:3)
+            stop "Centre of Mass is not possible on slice"
+		case(4)
+            call centre_of_mass_bin_io(centre_of_mass)
+            centre_of_mass = 0.d0
+		case default
+			call error_abort("Error input for Centre of Mass incorrect")
+		end select
+	endif
+
+end subroutine centre_of_mass_averaging
+
+!-----------------------------------------------------------------------------------
+!Add velocities to running total, with 2D slice in ixyz = 1,2,3 or
+!in 3D bins when ixyz =4
+!-----------------------------------------------------------------------------------
+
+subroutine cumulative_centre_of_mass(ixyz)
+	use module_record, only : tag, tether_tags, r, nbins, domain, error_abort, &
+                              halfdomain, centre_of_mass, np, get_bin, nhb
+    use module_set_parameters, only : mass
+	implicit none
+
+	integer							:: n,ixyz
+	integer		,dimension(3)		:: ibin
+	real(kind(0.d0)),dimension(3) 	:: COM, mbinsize, bin_centre
+
+	!Determine bin size
+	mbinsize(:) = domain(:) / nbins(:)
+	
+	select case(ixyz)
+	!COM measurement is a number of 2D slices through the domain
+	case(1:3)
+        stop "Centre of Mass is not possible on slice"
+	!COM measurement for 3D bins throughout the domain
+	case(4)
+        do n = 1,np
+            !Add up current centre_of_mass
+            if (any(tag(n).eq.tether_tags)) cycle
+            ibin(:) = get_bin(r(:,n))
+            bin_centre(:) = (ibin(:)-1*nhb(:)-0.5d0)*mbinsize(:)-halfdomain(:)
+            COM(:) = mass(n) * (r(:,n) - bin_centre(:))
+            !COM(:) = mass(n) * r(:,n)
+            centre_of_mass(ibin(1),ibin(2),ibin(3),:) = centre_of_mass(ibin(1),ibin(2),ibin(3),:) + COM(:)
+        enddo
+	case default 
+		call error_abort("Centre of Mass Binning Error")
+	end select
+	 
+end subroutine cumulative_centre_of_mass
 
 
 !===================================================================================
@@ -5459,6 +5541,8 @@ contains
         !write(fileunit,'(i12, 3(a,f10.5))'), iter, ' Top line    y = ', m, ' x + ',c , ' angle = ', cl_angle
         close(fileunit,status='keep')
 
+        !pt = (/ c, m, 0.0d0, 0.0d0  /)
+
         call cluster_extents_grid(self, imaxloc(self%Nlist), 4, resolution, &
                                   extents_grid )!, debug_outfile='./results/maxcell_bot')
         call cluster_outer_mols(self, imaxloc(self%Nlist), tolerence=tolerence, dir=4, & 
@@ -5485,6 +5569,8 @@ contains
         !write(fileunit,'(i12, 3(a,f10.5))'), iter, ' Bottom line y = ', m, ' x + ',c  , ' angle = ', cl_angle
         close(fileunit,status='keep')
 
+        !pb = (/ c, m, 0.0d0, 0.0d0  /)
+
         !If cluster has broken up, stop simulation
         call check_for_cluster_breakup(self)
 
@@ -5494,12 +5580,16 @@ contains
         binbot(1) = -1e18
 
         !Top/bottom surfaces in y
-        bintop(2) =  2.d0 ! 0.5d0*globaldomain(2) - tethereddisttop(2)
-        binbot(2) = -2.d0 !-0.5d0*globaldomain(2) + tethereddistbottom(2)
+        !bintop(2) = 2.d0; binbot(2) = -2.d0
+        !bintop(3) = 2.d0; binbot(3) = -2.d0
+
+        !Top/bottom surfaces in y
+        bintop(2) = 0.5d0*globaldomain(2) - tethereddisttop(2)
+        binbot(2) = -0.5d0*globaldomain(2) + tethereddistbottom(2)
         
         !Front/back surfaces in z
-        bintop(3) =  2.d0 !0.5d0*globaldomain(3) - tethereddisttop(3)
-        binbot(3) = -2.d0 !-0.5d0*globaldomain(3) + tethereddistbottom(3)
+        bintop(3) = 0.5d0*globaldomain(3) - tethereddisttop(3)
+        binbot(3) = -0.5d0*globaldomain(3) + tethereddistbottom(3)
 
         !Apply CV analysis to control volume with moving interface
         !call cluster_CV_fn(pt, pb, bintop, binbot, 1)
@@ -5508,8 +5598,8 @@ contains
         !pt = (/ 3.d0+sin(2*3.14159*iter/1000), 0.1d0, 0.02d0, -0.001d0  /)
         !pb = (/-3.d0+cos(2*3.14159*iter/1000), 0.1d0, 0.02d0, -0.001d0  /)
 
-        !pt = (/ 10.d0, 0.1d0, 0.02d0, -0.001d0  /)
-        !pb = (/-10.d0, 0.1d0, 0.02d0, -0.001d0  /)
+        pt = (/ 5.d0, 0.d0, 0.0d0, -0.00d0  /)
+        pb = (/-5.d0, 0.d0, 0.0d0, -0.00d0  /)
 
         !call cluster_CV_fn(pt, pb, bintop, binbot, 1)
         call cluster_CV_fn(pt, pb, bintop, binbot, 2)
@@ -5703,14 +5793,16 @@ contains
 
     subroutine cluster_CV_fn(pt, pb, bintop, binbot, cnsvtype)
         use computational_constants_MD, only : iter, irank, delta_t
+        use librarymod, only : get_new_fileunit, get_Timestep_FileName
         implicit none
 
         integer, intent(in)                           :: cnsvtype
         double precision, dimension(3), intent(in)    :: bintop, binbot
         double precision, dimension(4), intent(in)    :: pt, pb
 
-        integer                                       :: i, nvals
+        integer                                       :: i, nvals, pid
         integer, parameter                            :: ct_mass=1, ct_momentum=2, ct_energy=3
+        character(33)                                 :: filename, debug_outfile
         double precision                              :: conserved
         double precision,dimension(:),allocatable     :: X_mdt, dX_dt
         double precision,dimension(:),allocatable     :: X_oldvol, dsurf_top, dsurf_bot 
@@ -5789,14 +5881,16 @@ contains
                 do i =1,nvals
 				    print'(a,i8,2i4,7f11.5)','Error_clustCV_mass', iter,irank, i, & 
 					    conserved, 0.d0, sum(X_cross(i,:)), dX_dt(i), 0.d0, X_mdt(i), X(i)                
-                    print'(a,2i8,4f10.5)', 'dsurf', iter, i, X_oldvol(i)-X(i), dsurf_top(i)-dsurf_bot(i), dsurf_top(i), dsurf_bot(i)
+                    print'(a,2i8,4f10.5)', 'dsurf', iter, i, X_oldvol(i)-X(i), & 
+                                        dsurf_top(i)-dsurf_bot(i), dsurf_top(i), dsurf_bot(i)
                 enddo
             case(ct_momentum)
                 print*, "ERROR IN CV FUNCTION FOR MOMENTUM CLUSTER"
                 do i =1,nvals
 				    print'(a,i8,2i4,7f11.5)','Error_clustCV_mom', iter,irank, i, & 
 					    conserved, sum(X_stress(i,:)), sum(X_cross(i,:)), dX_dt(i), 0.d0, X_mdt(i), X(i)                
-                    print'(a,2i8,4f10.5)', 'dsurf', iter, i, X_oldvol(i)-X(i), dsurf_top(i)-dsurf_bot(i), dsurf_top(i), dsurf_bot(i)
+                    print'(a,2i8,4f10.5)', 'dsurf', iter, i, X_oldvol(i)-X(i), &
+                                        dsurf_top(i)-dsurf_bot(i), dsurf_top(i), dsurf_bot(i)
                 enddo
             case(ct_energy)
                 print*, "ERROR IN CV FUNCTION FOR ENERGY CLUSTER"
@@ -5815,6 +5909,42 @@ contains
                 write(586482,'(i12,i4,10f18.8)'), iter,i, X(i), X(i)-X_mdt(i), X_cross(i,:), -dsurf_top(i), dsurf_bot(i)
             enddo
         endif
+
+        !===================================
+        !TEMP outputting routine
+        !===================================
+
+        debug_outfile = './results/clust_CV_dXdt'
+        pid = get_new_fileunit()
+        call get_Timestep_FileName(iter,debug_outfile,filename)
+        open(unit=pid,file=trim(filename),status='replace')
+        write(pid,'(i12,6f18.8)'), iter, X,X_mdt
+        close(pid,status='keep')
+
+        debug_outfile = './results/clust_CV_stress'
+        pid = get_new_fileunit()
+        call get_Timestep_FileName(iter,debug_outfile,filename)
+        open(unit=pid,file=trim(filename),status='replace')
+        write(pid,'(i12,18f18.8)'), iter, X_stress
+        close(pid,status='keep')
+
+        debug_outfile = './results/clust_CV_flux'
+        pid = get_new_fileunit()
+        call get_Timestep_FileName(iter,debug_outfile,filename)
+        open(unit=pid,file=trim(filename),status='replace')
+        write(pid,'(i12,18f18.8)'), iter, X_cross
+        close(pid,status='keep')
+
+        debug_outfile = './results/clust_CV_surf'
+        pid = get_new_fileunit()
+        call get_Timestep_FileName(iter,debug_outfile,filename)
+        open(unit=pid,file=trim(filename),status='replace')
+        write(pid,'(i12,6f18.8)'), iter, dsurf_top, dsurf_bot
+        close(pid,status='keep')
+
+        !===================================
+        !TEMP outputting routine
+        !===================================
 
         !Save Control Volume's previous surfaces for next timestep
         pt_mdt = pt; pb_mdt = pb
@@ -6080,18 +6210,18 @@ contains
 
                     ! A function with uses position 1, 2 and qnty to update the array sc which
                     ! contains all surface crossings
-					if (molnoj .gt. np .or. molnoi .gt. np) then
-    				    fij(:) = 0.5d0*accijmag*rij(:)
+					if (molnoj .gt. np) then
+    				    fij(:) = accijmag*rij(:)
                     else
-						fij(:) = accijmag*rij(:)
+						fij(:) = 0.5d0*accijmag*rij(:)
                     endif
                     call get_all_surface_crossings_r12(pt, pb, bintop, binbot, &
                                                        ri, rj, fij, nvals, sc_, write_debug)
 
                     sc = sc + sc_
-					if ((molnoj .gt. np .or. molnoi .gt. np) .and. (any(abs(sc_) .gt. 1e-8))) then
-                        print'(l, 2i8,18f10.5)', any(abs(sc) .gt. 1e-8), molnoi, molnoj, sc
-                    endif
+					!if ((molnoj .gt. np) .and. (any(abs(sc_) .gt. 1e-8))) then
+                    !    print'(l, 2i8,18f10.5)', any(abs(sc) .gt. 1e-8), molnoi, molnoj, sc
+                    !endif
 
                 endif
 			    current => old
@@ -6159,7 +6289,7 @@ contains
                                           Ncross, write_debug)
         use computational_constants_MD, only : iter
         use librarymod, only : heaviside  =>  heaviside_a1
-        use PolynomialRoots, only : cubicroots
+        use PolynomialRoots, only : QuadraticRoots, LinearRoot, cubicroots
         implicit none
 
         integer, intent(in)                        :: N
@@ -6171,7 +6301,7 @@ contains
         double precision, dimension(N),intent(out) :: Ncross
 
         integer                         :: i, pid
-        double precision, parameter     :: tol=1e-8
+        double precision, parameter     :: tol=1e-14
         double precision                :: dS_i, tcross, m,c,crosssign
         double precision, dimension(4)  :: p0l
         double precision, dimension(3)  :: vi, ri12, rcross
@@ -6198,7 +6328,17 @@ contains
         p0l(:) = p0(:)
         p0l(1) = p0(1) - c
         p0l(2) = p0(2) - m
-        call CubicRoots(p0l, z)
+
+        if (abs(p0l(3)) .lt. tol .and. abs(p0l(4)) .lt. tol) then
+            z(1) = cmplx(-p0l(1)/p0l(2), 0.d0, kind(1.d0))
+            z(2) = cmplx(0.d0, 1.d0, kind(1.d0))
+            z(3) = cmplx(0.d0, 1.d0, kind(1.d0))
+        elseif (abs(p0l(4)) .lt. tol) then
+            call QuadraticRoots(p0l(1:3), z)
+            z(3) = cmplx(0.d0, 1.d0, kind(1.d0))
+        else
+            call CubicRoots(p0l, z)
+        endif
 
         !Check if any roots are real
         do i = 1, size(z)
@@ -6218,6 +6358,7 @@ contains
                       	    (heaviside(bintop(3)-rcross(3))-heaviside(binbot(3)-rcross(3))))
 
                 if (dS_i .ne. 0.d0) then
+                    !if (i .ne. 1) then
                     if (write_debug) then
                         print('(a,2i6,2f6.2,10f10.5)'), 'xing',n, i, dS_i, crosssign, tcross, ri1(:), ri2(:), rcross(:)
                         !write(pid,'(2i6,f6.2,7f10.5,3f18.12)'), n, i, dS_i, tcross, ri1(:), ri2(:), rcross(:)
