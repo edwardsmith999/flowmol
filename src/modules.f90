@@ -727,7 +727,8 @@ module calculated_properties_MD
 		slice_momentum,		&		!Mean velocity used in velocity slice
 		Pxy_plane,			&		!Stress on plane for MOP
 		Pxy,				&  		!Stress tensor for whole domain
-		Pxyzero   					!Stress tensor at start of sample
+		Pxyzero,            & 	    !Stress tensor at start of sample
+        rough_array                 !Array used to setup fractal surface
 
 	real(kind(0.d0)), dimension(:,:,:), allocatable :: & 
 		rfmol,				&  		!Position(x)Force tensor per molecule

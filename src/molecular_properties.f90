@@ -319,16 +319,20 @@ end subroutine get_tag_thermostat_activity
 !----------------------------------------------------------------------------------
 ! Build up a range of wall textures
 subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
+    use librarymod, only : heaviside  =>  heaviside_a1
+    use calculated_properties_MD, only : rough_array
 	use physical_constants_MD, only : pi,tethereddistbottom,tethereddisttop
 	use computational_constants_MD, only : posts,roughness,converge_diverge,texture_intensity, &
-										   globaldomain, cellsidelength,texture_therm,nh,halfdomain,ncells
+										   globaldomain, cellsidelength,texture_therm,nh,halfdomain, & 
+                                           ncells, initialunitsize
 	implicit none
 
 	integer,intent(in)	  :: texture_type
 	real(kind(0.d0)),dimension(3),intent(in) :: rg
 	real(kind(0.d0)),dimension(3),intent(out):: tagdistbottom,tagdisttop
 
-	real(kind(0.d0))		:: xlocation,ylocation,zlocation,rand,fraction_domain,postheight
+    integer                 :: i,j
+	real(kind(0.d0))		:: xlocation,ylocation,zlocation,rand,fraction_domain,postheight,temp1,temp3
 
 	select case (texture_type)
 	case(0)
@@ -347,33 +351,52 @@ subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 		if ((ylocation .gt. tethereddistbottom(2) ) .and. & 
 			(ylocation .lt. tethereddistbottom(2) + postheight)) then
 
+            !Lots of posts
+            temp1 = sin(0.25*rg(1))
+            temp3 = sin(0.25*rg(3))
+            if (ceiling(sign(0.5d0,temp1)) .and. ceiling(sign(0.5d0,temp3))) then
+                tagdistbottom(2) = tethereddistbottom(2) + postheight
+            else
+                tagdistbottom(2) = tethereddistbottom(2)
+            endif
+
 			!Single strip in the middle of the domain
-			if (rg(1) .gt. -postheight/2.d0 .and. &
-				rg(1) .lt.  postheight/2.d0) then
-				tagdistbottom(2) = tethereddistbottom(2) + postheight 
-			else
-				tagdistbottom(2) = tethereddistbottom(2)
-			endif
+!			if (rg(1) .gt. -postheight/2.d0 .and. &
+!				rg(1) .lt.  postheight/2.d0) then
+!				tagdistbottom(2) = tethereddistbottom(2) + postheight 
+!			else
+!				tagdistbottom(2) = tethereddistbottom(2)
+!			endif
+
 		endif
 
 	case(roughness)
 
 		!rough wall
-		call random_number(rand)
-		tagdistbottom = 0.d0; tagdisttop=0.d0
-		xlocation = rg(1)/globaldomain(1) + 0.5
-		zlocation = rg(3)/globaldomain(3) + 0.5
+        tagdisttop = tethereddisttop
+		tagdistbottom = tethereddistbottom
+        !print*, rough_array(ceiling(rg(1)/initialnunits(1))+1, & 
+        !                               ceiling(rg(3)/initialnunits(3))+1)
+
+        i = ceiling((rg(1)+halfdomain(1))/initialunitsize(1))
+        j = ceiling((rg(3)+halfdomain(3))/initialunitsize(3))
+        if (i .lt. 1) i = 1; if (j .lt. 1) j = 1;
+        tagdistbottom(2) = tethereddistbottom(2) + rough_array(i,j)
+
+		!call random_number(rand)
+		!xlocation = rg(1)/globaldomain(1) + 0.5
+		!zlocation = rg(3)/globaldomain(3) + 0.5
 		!X roughness
-		tagdistbottom(2) =   0.5d0*texture_intensity *globaldomain(2) &  
-						   + 0.25d0*texture_intensity*globaldomain(2)*sin(2*pi*xlocation) + &
-						   + 0.25d0*texture_intensity*globaldomain(2)*sin(5*pi*xlocation) + &
-						   + 0.25d0*texture_intensity*globaldomain(2)*sin(20*pi*xlocation) + &
-						   + 0.25d0*texture_intensity*globaldomain(2)*2.d0*(rand-1)
-		tagdisttop(2)	=   0.5d0*texture_intensity*globaldomain(2) &  !Minimum height
-						   + 0.25d0*texture_intensity*globaldomain(2)*sin(2*pi*xlocation) + &
-						   + 0.25d0*texture_intensity*globaldomain(2)*sin(5*pi*xlocation) + &
-						   + 0.25d0*texture_intensity*globaldomain(2)*sin(20*pi*xlocation) + &
-						   + 0.25d0*texture_intensity*globaldomain(2)*2.d0*(rand-1)
+		!tagdistbottom(2) =   0.5d0*texture_intensity *globaldomain(2) &  
+		!				   + 0.25d0*texture_intensity*globaldomain(2)*sin(2*pi*xlocation) + &
+		!				   + 0.25d0*texture_intensity*globaldomain(2)*sin(5*pi*xlocation) + &
+		!				   + 0.25d0*texture_intensity*globaldomain(2)*sin(20*pi*xlocation) + &
+		!				   + 0.25d0*texture_intensity*globaldomain(2)*2.d0*(rand-1)
+		!tagdisttop(2)	=   0.5d0*texture_intensity*globaldomain(2) &  !Minimum height
+		!				   + 0.25d0*texture_intensity*globaldomain(2)*sin(2*pi*xlocation) + &
+		!				   + 0.25d0*texture_intensity*globaldomain(2)*sin(5*pi*xlocation) + &
+		!				   + 0.25d0*texture_intensity*globaldomain(2)*sin(20*pi*xlocation) + &
+		!				   + 0.25d0*texture_intensity*globaldomain(2)*2.d0*(rand-1)
 		!Z roughness
 		!tagdistbottom(2) = tagdistbottom(2)  &
 		!				  + 0.1d0*globaldomain(2)*sin(2*pi*zlocation) + &
@@ -387,13 +410,13 @@ subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 		!				  + 0.1d0*globaldomain(2)*2.d0*(rand-1)
 
 		!Ensure Minimum height
-		if (tagdistbottom(2) .lt. 0.05d0*globaldomain(2)) then
-			tagdistbottom(2) = 0.05d0*globaldomain(2)
+		if (tagdistbottom(2) .lt. tethereddistbottom(2)) then
+			tagdistbottom(2) = tethereddistbottom(2)
 		endif
 	
-		if (tagdisttop(2) .lt. 0.05d0*globaldomain(2)) then
-			tagdisttop(2) = 0.05d0*globaldomain(2)
-		endif
+!		if (tagdisttop(2) .lt. tethereddisttop(2)) then
+!			tagdisttop(2) = tethereddisttop(2)
+!		endif
 
 	case(converge_diverge)
 		!A converging diverging channel

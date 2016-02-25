@@ -889,6 +889,9 @@ subroutine setup_set_parameters
 	teval = 1
 #endif
 
+    !If roughness specified, define a wall using fractal recursive algorithm
+    call setup_fractal_wall()
+
 	!Setup external forces applied to regions of the domain
 	do i = 1,6
 		!If F_ext_limits > domain extents set to domain extents
@@ -1058,6 +1061,26 @@ subroutine setup_polymer_info
 	!intbits = bit_size(monomer(1)%bin_bflag(1))
 
 end subroutine setup_polymer_info
+
+
+subroutine setup_fractal_wall()
+    use calculated_properties_MD, only : rough_array
+    use computational_constants_MD, only : texture_type, roughness, & 
+                                           texture_intensity, initialnunits
+    use librarymod, only : DiamondSquare
+
+    integer :: Nx, Nz, levels
+
+    if (texture_type .eq. roughness) then
+        Nx = initialnunits(1); Nz = initialnunits(3) 
+        levels = int(max(Nx,Nz)/4.d0)+4
+        allocate(rough_array(Nx, Nz)); rough_array=0.d0
+        call DiamondSquare(rough_array, 0, 0, Nx, Nz, texture_intensity, levels)
+        print*,texture_intensity, maxval(rough_array),minval(rough_array), sum(rough_array)
+        !stop
+    endif
+
+end subroutine setup_fractal_wall
 
 !-----------------------------------------------------------------------------
 subroutine setup_shear_parameters
