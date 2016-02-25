@@ -141,6 +141,7 @@ module computational_constants_MD
 		pressure_outflag, &
 		heatflux_outflag, &
 		viscosity_outflag, &
+		centre_of_mass_outflag, &
 		rdf_outflag, &
 		rtrue_flag, &
 		prev_rtrue_flag, &
@@ -183,6 +184,7 @@ module computational_constants_MD
 		Nvel_ave, 				&	!Number of averages for each velocity average
 		NTemp_ave, 				&	!Number of averages for each temperature measurement
 		Nenergy_ave,			&	!Number of averages for each energy measurement
+		Ncom_ave,			    &	!Number of averages for each centre of mass measurement
 		Nstress_ave, 			&	!Number of averages for VA or virial stress calculation
 		Nheatflux_ave, 			&	!Number of averages for VA heat flux calculation
 		split_kin_config, 		&	!Flag to determine if kinetic and configurational stress separated
@@ -742,6 +744,7 @@ module calculated_properties_MD
 		volume_momentum,	& 		!Momentum in a control volume at time t
 		volume_momentum_s,	& 		!Solvent momentum in a control volume at time t
 		volume_momentum_p,	& 		!Polymer momentum in a control volume at time t
+		centre_of_mass,	    & 		!Centre of mass of control volume
 		energy_flux,		&		!Flow of energy over a control volume surface
 		Pxyvface,			&		!Power tensor on bin face
 		Pxyvface_mdt,		&		!Power tensor on bin face at previous timestep
