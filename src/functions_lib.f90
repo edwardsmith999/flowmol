@@ -2899,6 +2899,71 @@ end subroutine PDF_destroy
 
 #endif
 
+
+recursive subroutine DiamondSquare(z, x1, y1, x2, y2, nrange, level)
+    implicit none
+
+    double precision,dimension(:,:),allocatable,intent(inout) :: z
+    integer, intent(in) :: x1, y1, x2, y2, level
+    double precision, intent(in) :: nrange
+
+    integer :: istart, iend, i, jstart, jend, j, ind, jnd, id, jd
+    double precision    :: a, b, c, d, e, rand
+
+    if (level < 1) return
+
+    ! diamonds
+    istart = x1 + level + 1
+    iend = x2 + level
+    do id =istart,iend,level
+        i = id
+        if (i .gt. size(z,1)) i = i - size(z,1) +level
+        jstart = y1 + level + 1
+        jend = y2 + level
+        do jd = jstart,jend,level
+            j = jd
+            if (j .gt. size(z,2)) j = j - size(z,2)  +level
+            !print*, i,j,i-level,j-level
+            a = z(i-level,j-level)
+            b = z(i,j-level)
+            c = z(i-level,j)
+            d = z(i,j)
+            call random_number(rand)
+            e = (a+b+c+d)/4. + (rand-0.5d0)*nrange
+            z(i-level/2,j-level/2) = e
+        enddo
+    enddo
+
+    ! squares
+    istart = x1 + level + 1
+    iend = x2 + level
+    do id = istart,iend,level
+        i = id
+        if (i .gt. size(z,1)) i = i - size(z,1) +level
+        jstart = y1 + level + 1
+        jend = y2 + level
+        do jd =jstart,jend,level
+            j = jd
+            if (j .gt. size(z,2)) j = j - size(z,2) +level
+            a = z(i-level,j-level)
+            b = z(i,j-level)
+            c = z(i-level,j)
+            d = z(i,j)
+            e = z(i-level/2,j-level/2)
+
+            ind = i-3*level/2 
+            jnd = j-3*level/2
+            !print*, ind
+            if (ind .le. 0) ind = size(z,1) + ind
+            if (jnd .le. 0) jnd = size(z,2) + jnd
+            z(i-level,j-level/2) = (a+c+e+z(ind,j-level/2))/4.+(rand-0.5d0)*nrange
+            z(i-level/2,j-level) = (a+b+e+z(i-level/2,jnd))/4.+(rand-0.5d0)*nrange
+        enddo
+    enddo
+    call DiamondSquare(z, x1, y1, x2, y2, nrange/2., level/2)
+
+end subroutine DiamondSquare
+
 !Read input file from the DNS codes
 
 subroutine read_DNS_velocity_files(filename,ngx,ngy,ngz,uc,vc,wc)
