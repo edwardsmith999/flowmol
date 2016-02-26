@@ -31,6 +31,8 @@ contains
         real(kind(0.d0)) :: Mbinsize(3)
         logical :: tag_status 
 
+        logical, save :: first_time = .true.
+
         bottom = (/ -globaldomain(1)/2.d0, -globaldomain(2)/2.d0, -globaldomain(3)/2.d0 /)
         top	   = (/  globaldomain(1)/2.d0,  globaldomain(2)/2.d0,  globaldomain(3)/2.d0 /)
 
@@ -38,11 +40,25 @@ contains
         case ('thermo')
             tagdistbottom(:) = thermstatbottom(:)
             tagdisttop(:)	 = thermstattop(:)
+
             !Thermostat complicated wall texture if specified, otherwise thermostat
             !is based on thermstatbottom/thermstattop
             if (texture_type .ne. 0 .and. texture_therm .eq. 1) then
                 call wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
             endif
+                
+!            if (first_time) print*, "v v v Remove pool boiling region hack in get_tag_status v v v"
+!            !Ugly hack to specify pool boiling region
+!            if (rg(1) .gt. 2.d0 .or. rg(1) .lt. -2.d0) then
+!                tagdistbottom = 0.d0
+!            else
+!                tagdistbottom = thermstatbottom(:)
+!            endif
+!            if (first_time) then 
+!                print*, "^ ^ ^ Remove pool boiling region hack in get_tag_status ^ ^ ^"
+!                first_time = .false.
+!            endif
+
         case ('teth')
             tagdistbottom(:) = tethereddistbottom(:)
             tagdisttop(:)	 = tethereddisttop(:)
@@ -237,9 +253,6 @@ subroutine setup_moltypes_wall()
     			r_global = globalise(r(:,n))
 	    		if (r_global(2) .lt. 0.d0) then
                     moltype(n) = 9
-                    !write(586410,*) r_global
-                !else
-                !    write(586482,*) r_global
                 endif
             endif
 
@@ -335,6 +348,7 @@ subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 		!Case of simply tethered walls
 		tagdistbottom = tethereddistbottom
 		tagdisttop	  = tethereddisttop
+
 	case(posts)
 
         tagdisttop = tethereddisttop
@@ -347,13 +361,23 @@ subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 		if ((ylocation .gt. tethereddistbottom(2) ) .and. & 
 			(ylocation .lt. tethereddistbottom(2) + postheight)) then
 
+            !Lots of posts
+            temp1 = sin(0.25*rg(1))
+            temp3 = sin(0.25*rg(3))
+            !These should be Heaviside but getting a weird bug for some reason...
+            if (ceiling(sign(0.5d0,temp1)) .and. ceiling(sign(0.5d0,temp3))) then
+                tagdistbottom(2) = tethereddistbottom(2) + postheight
+            else
+                tagdistbottom(2) = tethereddistbottom(2)
+            endif
+
 			!Single strip in the middle of the domain
-			if (rg(1) .gt. -postheight/2.d0 .and. &
-				rg(1) .lt.  postheight/2.d0) then
-				tagdistbottom(2) = tethereddistbottom(2) + postheight 
-			else
-				tagdistbottom(2) = tethereddistbottom(2)
-			endif
+			!if (rg(1) .gt. -postheight/2.d0 .and. &
+			!	rg(1) .lt.  postheight/2.d0) then
+			!	tagdistbottom(2) = tethereddistbottom(2) + postheight 
+			!else
+			!	tagdistbottom(2) = tethereddistbottom(2)
+			!endif
 		endif
 
 	case(roughness)

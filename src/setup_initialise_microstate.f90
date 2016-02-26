@@ -2249,12 +2249,9 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
                     endif      
 
                 case('2phase')
-                    x = rc(1)
 
                     !Read initial state from FEA code
                     if (Twophase_from_file) then
-                        !Remove any molecules greater than contact line
-                        y = rc(2) - tethereddistbottom(2)
                         !First bin to get contact line location
                         i = nint(rc(1)/FEA_nodespace)
                         if (i .lt. 2) i = 2
@@ -2264,24 +2261,34 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
                         call quadratic_lagrange_interp((/MD_X(i-1),MD_X(i),MD_X(i+1)/), & 
                                                        (/MD_H(i-1),MD_H(i),MD_H(i+1)/), x,hz)
 
+                        x = rc(1)
                         if (x .lt. 0.5d0*(1.d0-lg_fract)*globaldomain(1)) then
-                            !print*, MD_H(Nnodes),MD_H(Nnodes-1),MD_H(2),globaldomain(2),H
                             call quadratic_lagrange_interp((/MD_X(i-1),MD_X(i),MD_X(i+1)/), & 
                                                            (/MD_H(i-1),MD_H(i),MD_H(i+1)/), & 
                                                              0.5d0*(1.d0-lg_fract)*globaldomain(1),hz)
                         endif
-
+                        !Remove any molecules greater than contact line   
+                        y = rc(2) - tethereddistbottom(2)
                         if (y .gt. hz) then
                             call random_number(rand)
                             if (rand .gt. density_ratio_gl) cycle   
                         endif
-                    else                      
-                        !Gas is initialised for fraction of the domain 
-                        x = x-0.5*globaldomain(1)
-                        if (abs(x) - 0.5*lg_fract*globaldomain(1) .gt. 0.d0) then
-                        !if (mod(x-lg_fract*globaldomain(1)-0.5*globaldomain(1),globaldomain(1)) .gt. 0.d0) then
-                            call random_number(rand)
-                            if (rand .gt. density_ratio_gl) cycle   
+                    else
+                        if (lg_direction .eq. 1) then
+                            !Gas is initialised for middle fraction of the domain in x
+                            x = x-0.5*globaldomain(1)
+                            if (abs(x) - 0.5*lg_fract*globaldomain(1) .gt. 0.d0) then
+                                call random_number(rand)
+                                if (rand .gt. density_ratio_gl) cycle   
+                            endif
+                        elseif (lg_direction .eq. 2) then
+                            y = rc(2)
+                            if (y .gt. lg_fract*globaldomain(2)) then
+                                call random_number(rand)
+                                if (rand .gt. density_ratio_gl) cycle   
+                            endif
+                        else
+                            call error_abort("lg_direction specified by second argument to LIQUID_FRACTION must be 1 or 2")
                         endif
                     endif
                 case default

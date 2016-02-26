@@ -629,14 +629,12 @@ contains
         if (.not.CPL_overlap()) return
 
         ! Get limits
-        call CPL_get( &                         
-                      icmin_olap=limits(1), &
+        call CPL_get( icmin_olap=limits(1), &
                       icmax_olap=limits(2), &
                       jcmin_olap=limits(3), &
                       jcmax_olap=limits(4), &
                       kcmin_olap=limits(5), &
-                      kcmax_olap=limits(6)  &
-                    )
+                      kcmax_olap=limits(6) )
 
         select case (comm_style)
         case (comm_style_gath_scat)
@@ -653,20 +651,16 @@ contains
             !Send data to CFD if send_data flag is set
             select case(staggered_averages(1)) 
             case(.true.) ! Send velocity flux over surface
-                call CPL_send( &
-                               dble(mflux), &
+                call CPL_send( dble(mflux), &
                                jcmax_send=jcmax_send, &
                                jcmin_send=jcmin_send, &
-                               send_flag=send_flag &
-                             )
+                               send_flag=send_flag )
                mflux = 0
             case(.false.) ! Send velocity in cell centre
-                call CPL_send( &
-                               uvw_md, &
+                call CPL_send( uvw_md, &
                                jcmax_send=jcmax_send, &
                                jcmin_send=jcmin_send, &
-                               send_flag=send_flag &
-                             )
+                               send_flag=send_flag )
                uvw_md = 0.d0
             end select
 
@@ -1187,15 +1181,9 @@ subroutine apply_continuum_forces_flekkoy
     ! Receive value of CFD velocities at first timestep of timestep_ratio
     if (iter_average .eq. 1 .or. first_time) then
 
-        allocate(                               &
-                  recv_buf(                     &
-                            9,                  &
-                            size(stress_cfd,3), &
+        allocate(recv_buf(9,size(stress_cfd,3), &
                             size(stress_cfd,4), &
-                            size(stress_cfd,5)  &
-                          )                     &
-                )
-
+                            size(stress_cfd,5)))
         recv_buf = -666.d0
 
         select case (comm_style)

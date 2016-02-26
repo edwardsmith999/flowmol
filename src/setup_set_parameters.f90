@@ -966,7 +966,8 @@ subroutine set_parameters_allocate
 	enddo
 	!extralloc = extralloc/nd  + 300  !Average of all 3 dimensions inc safety factor
     !Set to 2000 here as start case was 2 phase with uneven distribution
-	extralloc = extralloc/nd  + 2000 
+    print*, "EXTRA ALLOC is massive, reduce in set_parameters_allocate"
+	extralloc = extralloc/nd  + 20000 
 
 	!Allocate array sizes for position, velocity and acceleration
 	allocate(r(nd,np+extralloc))
@@ -1684,7 +1685,6 @@ subroutine set_parameters_outputs
 	!Allocated bins for temperature averaging
 	if (temperature_outflag.eq.4) then
 		allocate(volume_temperature(nbinso(1),nbinso(2),nbinso(3)))
-		volume_temperature = 0.d0
 		mass_outflag = 4	!Mass binning required too
 		!Allocate and zero peculiar momentum binning array
 		if (peculiar_flag .ne. 0) then

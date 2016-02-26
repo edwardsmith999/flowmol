@@ -189,6 +189,11 @@ subroutine setup_read_input
 			    call locate(1,'LIQUID_FRACTION',.false.,found_in_input) 
 	            if (found_in_input) then
                     read(1,*) lg_fract
+                    read(1,*,iostat=ios) lg_direction
+                    if (ios .ne. 0) then
+                        print*, "Default direction not given for LIQUID_FRACTION, assuming x"
+                        lg_direction = 1
+                    endif
                 endif
             endif
 
@@ -297,7 +302,7 @@ subroutine setup_read_input
 	        call locate(1,'MIE_POTENTIAL',.false.,found_in_input) 
 	        if (found_in_input) then
                 read(1,*) Mie_potential
-                read(1,iostat=ios) default_moltype
+                read(1,*,iostat=ios) default_moltype
 				if (ios .ne. 0) then
                     print*, "Default moltype not given -- assuming Argon (=1)"
                     default_moltype = 1
@@ -379,6 +384,14 @@ subroutine setup_read_input
 	!Read in initial temperature
 	call locate(1,'INPUTTEMPERATURE',.true.)
 	read(1,*) inputtemperature
+
+	!Read in thermostat temperature
+	call locate(1,'THERMOSTATTEMPERATURE',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) thermostattemperature
+    else
+        thermostattemperature = inputtemperature
+    endif
 
 	!Setup velocity initial condition
 	call locate(1,'INITIAL_VELOCITY_FLAG',.false.,found_in_input) 

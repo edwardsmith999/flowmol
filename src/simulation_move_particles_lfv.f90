@@ -184,7 +184,7 @@ contains
 		call globalSum(mv2sum)		
 		call globalSum(thermostatnp)		
 		Q        = thermostatnp*delta_t
-		dzeta_dt = (mv2sum - (real(nd*thermostatnp + 1,kind(0.d0)))*inputtemperature)/Q
+		dzeta_dt = (mv2sum - (real(nd*thermostatnp + 1,kind(0.d0)))*thermostattemperature)/Q
 		zeta     = zeta + delta_t*dzeta_dt
 		bscale   = 1.0/(1.0+0.5*delta_t*zeta)
 		ascale   = (1-0.5*delta_t*zeta)*bscale
@@ -216,7 +216,7 @@ contains
 		call globalSum(pec_mv2sum)
 		call globalSum(thermostatnp)		
 		Q        = thermostatnp*delta_t                                 ! PUT: Thermal inertia
-		dzeta_dt = (pec_mv2sum - (real(thermostatnp*nd+1,kind(0.d0)))*inputtemperature)/Q ! PUT: dzeta_dt(t-dt)
+		dzeta_dt = (pec_mv2sum - (real(thermostatnp*nd+1,kind(0.d0)))*thermostattemperature)/Q ! PUT: dzeta_dt(t-dt)
 		zeta     = zeta + delta_t*dzeta_dt                          ! PUT: zeta(t)
 		bscale   = 1.0/(1.0+0.5*zeta*delta_t)                       
 		ascale   = (1.0-0.5*zeta*delta_t)*bscale
@@ -334,25 +334,25 @@ contains
 
 			!Nose Hoover thermostat coefficients
 			Q        = 0.1*thermostatnp * delta_t 
-			dzeta_dt = (mv2sum - (nd*thermostatnp + 1)*inputtemperature) / Q
+			dzeta_dt = (mv2sum - (nd*thermostatnp + 1)*thermostattemperature) / Q
 			zeta 	 = zeta + delta_t*dzeta_dt
 			bscale	 = 1.0/(1.0+0.5*delta_t*zeta)
 			ascale	 = (1-0.5*delta_t*zeta)*bscale
 
             !write(234+irank,'(i6,5f18.12)'), iter, Q, dzeta_dt, zeta, ascale, bscale
 
-			!if (iter .eq. 1) write(9999,'(4a)'), 'iter; dzeta_dt; zeta; inputtemperature; temperature; themostatnp'
+			!if (iter .eq. 1) write(9999,'(4a)'), 'iter; dzeta_dt; zeta; thermostattemperature; temperature; themostatnp'
 			!write(9999,'(i10,a,f14.6,a,3(f10.5,a),i10)'),iter,';', dzeta_dt,';', zeta,';', & 
-			!		 inputtemperature,';', mv2sum/(nd*thermostatnp + 1), ';',thermostatnp
+			!		 thermostattemperature,';', mv2sum/(nd*thermostatnp + 1), ';',thermostatnp
 
 			!Velocity rescaling (Gaussian?) thermostat
-			!bscale = sqrt(inputtemperature/(mv2sum/(nd*thermostatnp + 1)))
+			!bscale = sqrt(thermostattemperature/(mv2sum/(nd*thermostatnp + 1)))
 			!ascale = 2.d0*bscale - 1.d0
 
 
-!			if (iter .eq. 1) write(9999,'(4a)'), 'iter; bscale; ascale; inputtemperature; temperature; themostatnp'
+!			if (iter .eq. 1) write(9999,'(4a)'), 'iter; bscale; ascale; thermostattemperature; temperature; themostatnp'
 !			write(9999,'(i10,a,f14.6,a,3(f10.5,a),i10)'),iter,';', bscale,';', ascale,';', & 
-!					 inputtemperature,';', mv2sum/(nd*thermostatnp + 1), ';',thermostatnp
+!					 thermostattemperature,';', mv2sum/(nd*thermostatnp + 1), ';',thermostatnp
 !	
 		else
 
@@ -796,11 +796,11 @@ end subroutine specular_flat_walls
 !                !Do nothing - control case
 !            case(1)
 !                !Pick specified temperature and velocity from Maxwell Boltzmann style distribution
-!                v(:,n) = Maxwell_Boltzmann_vel3(inputtemperature,wallslidev(:)*sign(1.d0,r_glob(dir)))
+!                v(:,n) = Maxwell_Boltzmann_vel3(thermostattemperature,wallslidev(:)*sign(1.d0,r_glob(dir)))
 !!                    do ixyz = 1,3
-!!                        v(ixyz,n) = Maxwell_Boltzmann_vel(inputtemperature,wallslidev(ixyz)*sign(1.d0,r_glob(dir)))
+!!                        v(ixyz,n) = Maxwell_Boltzmann_vel(thermostattemperature,wallslidev(ixyz)*sign(1.d0,r_glob(dir)))
 !!                    enddo
-!                !if (newxd .gt. 0.0000d0) print'(a,2i7,7f10.5)', 'specular wall', iter, n, v(:,n), inputtemperature,wallslidev(:)
+!                !if (newxd .gt. 0.0000d0) print'(a,2i7,7f10.5)', 'specular wall', iter, n, v(:,n), thermostattemperature,wallslidev(:)
 !            end select
 !
 !            !write(7777,'(4i8,4f10.5)'), irank,dir,normal, n,newxd,r_glob(dir), r(dir,n),spec_pos
