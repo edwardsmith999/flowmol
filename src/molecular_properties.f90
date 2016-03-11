@@ -558,12 +558,13 @@ subroutine tether_force(molno)
 	use module_molecule_properties
 	use arrays_MD
 	use module_record_external_forces, only : record_external_forces
-	use librarymod, only : magnitude 
+	use librarymod, only : magnitude
+    use messenger, only: globalise
 	implicit none
 
-	integer						:: molno
-	real(kind(0.d0))			   :: acctmag
-	real(kind(0.d0)), dimension(3) :: at,mat, rio
+	integer						   :: molno
+	real(kind(0.d0))			   :: acctmag, xt, sincoeff, mag, shift, freq, initialshift
+	real(kind(0.d0)), dimension(3) :: at, rglob, mat, rio
 
 	!COEFFICIENTS MOVED TO INPUT FILE
 	!Define strength of tethering potential ~ phi= k2*rio^2 
@@ -574,16 +575,31 @@ subroutine tether_force(molno)
 	!real(kind(0.d0)), parameter	:: teth_k4=5000.d0	
 	!real(kind(0.d0)), parameter	:: teth_k6=5000000.d0
 
-	!Obtain displacement from initial position
-	rio(:) = r(:,molno) - rtether(:,molno)
+    !Check for special case
+    if ((teth_k2+666.d0).gt.1e-3) then
+    	!Apply tethering forces
+	    acctmag = -2.d0*teth_k2*magnitude(rio)	     & 
+	    		  -4.d0*teth_k4*magnitude(rio)**2.d0 & 
+	    		  -6.d0*teth_k6*magnitude(rio)**4.d0
+    else
+	    !Obtain displacement from initial position
+        freq = 1.d0; initialshift = 0.d0!0.25d0*globaldomain(1)
+	    rio(:) = r(:,molno) - rtether(:,molno)
+        rglob = globalise(rtether(:,molno))+0.5d0*globaldomain
+        xt = (rglob(1)-iter*delta_t*wallslidev(1)+initialshift)/globaldomain(1)
 
-	!Apply tethering forces
-	acctmag = -2.d0*teth_k2*magnitude(rio)	   & 
-			  -4.d0*teth_k4*magnitude(rio)**2.d0 & 
-			  -6.d0*teth_k6*magnitude(rio)**4.d0
-	at(:) = acctmag * rio(:)
+        !Apply varying sinusoidal wall tethering
+        mag = 0.5d0*(teth_k4-teth_k6) !Magnitude = Max-Min
+        shift = teth_k6               !Shift = Min
+        sincoeff = mag*(sin(freq*2.d0*pi*xt)+1.d0)+shift
+        !if (mod(iter,1000) .eq. 0) then
+        !    write(50000+ceiling(iter/1000.d0),'(a,2i8,6f18.6)'), 'sin(x+t)', iter, molno, rglob(:), iter*delta_t*wallslidev(1), xt, sincoeff
+        !endif
+        acctmag = -2.d0*sincoeff*magnitude(rio)
+    endif
 
 	!Adjust molecular acceleration accordingly
+	at(:) = acctmag * rio(:)
 	a(:,molno) = a(:,molno) + at(:)
 
 	!Adjust initial postion if molecule is sliding
