@@ -218,8 +218,8 @@ subroutine curve_fit(fn, xdata, ydata, p0, fvec, zdata)
         !print*,   "Warning in curve_fit -- number of data points "// &
         !         +"must be greater than or equal to "// &
         !         +"number of unknowns. Returning zeros."
-        print*,   "Warning in curve_fit -- number of data points must be greater than or equal to number of unknowns. Returning zeros."
-        
+        print*,   "Warning in curve_fit -- number of data points"
+        print*,   "must be greater than or equal to number of unknowns. Returning zeros."
         p0 = 0.d0
         fvec = 0.d0
         return
@@ -2051,8 +2051,9 @@ subroutine get_FileName(no,basename,filename)
         write(filename,'(a,a3,i8)') trim(basename),'.00'      ,no
         if(no.ge.100000000 .and. no.le.999999999) &
         write(filename,'(a,a2,i9)') trim(basename),'.0'      ,no
-        if(no.ge.1000000000 .and. no.le.9999999999) &
-        write(filename,'(a,a1,i10)') trim(basename),'.'      ,no
+        !This is bigger than interger
+        !if(no.ge.1000000000 .and. no.le.9999999999) &
+        !write(filename,'(a,a1,i10)') trim(basename),'.'      ,no
 
 		!Remove any surplus blanks
 		filename = trim(filename)

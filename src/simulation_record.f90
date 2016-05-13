@@ -4346,7 +4346,12 @@ end subroutine energy_snapshot
 
 
 
-
+!===================================================================================
+! Density of molecules found on the surface of a bin 
+! Includes all intermediate bins, methodology from 
+! " A technique for the calculation of mass, energy, and momentum densities
+!   at planes in molecular dynamics simulations"
+!  By Peter J. Daivis, Karl P. Travis, and B. D. Todd
 
 subroutine surface_density_averaging(flag)
 	!use field_io, only : mass_flux_io
@@ -4360,23 +4365,18 @@ subroutine surface_density_averaging(flag)
 	!Only average if mass averaging turned on
 	if (flag .eq. 0) return
 
-	call cumulative_surface_density
+	call cumulative_surface_density()
 	sample_count = sample_count + 1
 	if (sample_count .eq. Nsurfm_ave) then
-		call surface_density_io
+		call surface_density_io()
 		sample_count = 0
 		surface_density = 0
 	endif
 
 end subroutine surface_density_averaging
 
-!===================================================================================
-! Density of molecules found on the surface of a bin 
-! Includes all intermediate bins, methodology from 
-! " A technique for the calculation of mass, energy, and momentum densities
-!   at planes in molecular dynamics simulations"
-!  By Peter J. Daivis, Karl P. Travis, and B. D. Todd
-! 
+
+! ----------------------------------------------------------------------------------
 
 subroutine cumulative_surface_density
 	use module_record
@@ -4492,12 +4492,6 @@ subroutine pressure_tensor_forces(molno, rij, accijmag)
 	enddo
 
 end subroutine pressure_tensor_forces
-
-
-
-
-
-
 
 !===================================================================================
 !Forces over the surface of a Volume
@@ -7342,37 +7336,16 @@ contains
                             (Nmass_ave-1)*globalnp) then
             print*, 'Warning in interface check - number of molecules in mass averaged bins is greater than total'
             print*, 'e.g.', globalnp, &
-                    sum(    density_bins                   &
-                            (                              &
-                               2:size(density_bins,1)-1,   &
-                               2:size(density_bins,2)-1,   &
-                               2:size(density_bins,3)-1    &
-                            )                              &
-                       )/(Nmass_ave-1)
+                    sum(density_bins( 2:size(density_bins,1)-1,   &
+                                      2:size(density_bins,2)-1,   &
+                                      2:size(density_bins,3)-1 ))/(Nmass_ave-1)
         endif
-        print*, 'Densities', &
-                sum&
-                (&
-                    density_bins &
-                    (&
-                        2:size(density_bins,1)-1,&
-                        2:size(density_bins,2)-1,&
-                        2:size(density_bins,3)-1 &
-                    )&
-                ),&
-                product&
-                (&
-                    shape&
-                    (&
-                        density_bins&
-                        (&
-                            2:size(density_bins,1)-1,&
-                            2:size(density_bins,2)-1,&
-                            2:size(density_bins,3)-1&
-                        )&
-                    )&
-                ),&
-                liquiddensity, gasdensity
+        print*, 'Densities', sum(density_bins(2:size(density_bins,1)-1,&
+                                              2:size(density_bins,2)-1,&
+                                              2:size(density_bins,3)-1)), &
+                   product(shape(density_bins(2:size(density_bins,1)-1,&
+                                              2:size(density_bins,2)-1,&
+                                              2:size(density_bins,3)-1))),liquiddensity, gasdensity
 
 	    cellsperbin = 1.d0/binspercell !ceiling(ncells(1)/dble(nbins(1)))
 

@@ -344,7 +344,8 @@ subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 	real(kind(0.d0)),dimension(3),intent(out):: tagdistbottom,tagdisttop
 
     integer                 :: i,j
-	real(kind(0.d0))		:: xlocation,ylocation,zlocation,rand,fraction_domain,postheight,temp1,temp3
+	real(kind(0.d0))		:: xlocation,ylocation,zlocation,rand, & 
+                               fraction_domain,postheight,temp1,temp3
 
 	select case (texture_type)
 	case(0)
@@ -355,7 +356,7 @@ subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 
         tagdisttop = tethereddisttop
 
-		postheight = 5.12d0
+		postheight = texture_intensity !5.12d0
 		tagdistbottom = tethereddistbottom
 		ylocation = rg(2) + 0.5*globaldomain(2)
 
@@ -367,7 +368,7 @@ subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
             temp1 = sin(0.25*rg(1))
             temp3 = sin(0.25*rg(3))
             !These should be Heaviside but getting a weird bug for some reason...
-            if (ceiling(sign(0.5d0,temp1)) .and. ceiling(sign(0.5d0,temp3))) then
+            if (heaviside(temp1) .eq. 1 .and. heaviside(temp3) .eq. 1) then
 				tagdistbottom(2) = tethereddistbottom(2) + postheight 
 			else
 				tagdistbottom(2) = tethereddistbottom(2)
