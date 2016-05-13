@@ -1040,7 +1040,7 @@ subroutine get_CFD_velocity(lbl, &
     select case (CVforce_flag)
     case(-1)
         !DEBUG case -- no force applied
-        call socket_get_velocity(u_CFD)
+        call socket_get_velocity(u_CFD, lbl)
         if (config_special_case	.eq. 'solid_liquid') then
             u_CFD = u_CFD*volume*liquid_density
         else
@@ -1048,11 +1048,11 @@ subroutine get_CFD_velocity(lbl, &
         endif
     case(0)
         !Do nothing, zero CFD constraint
-        call socket_get_velocity(u_CFD)
+        call socket_get_velocity(u_CFD, lbl)
         u_CFD=0.d0  
     case(1)
 	    ! v v v v v   coupler call   v v v v v 
-        call socket_get_velocity(u_CFD)
+        call socket_get_velocity(u_CFD, lbl)
         if (config_special_case	.eq. 'solid_liquid') then
             u_CFD = u_CFD*liquid_density*volume
         else
@@ -1151,6 +1151,7 @@ subroutine get_CFD_stresses_fluxes(lbl, &
 
 	allocate(CFD_stress(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6)); CFD_stress=0.d0
 	allocate(  CFD_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6)); CFD_flux=0.d0
+
 
 #if USE_COUPLER
 
@@ -1849,7 +1850,7 @@ end subroutine check_limits
 !----------------------------------------------------------------
 ! Check CFD streses solution are consistent with time evolution of
 ! velocity -- i.e that the CFD CV is conserved
-subroutine check_CFD(u_CFD,u_CFD_mdt,CFD_stress,CFD_flux,lbl)
+subroutine check_CFD(u_CFD, u_CFD_mdt, CFD_stress, CFD_flux, lbl)
     use messenger, only : globalise_bin, irank
 	use computational_constants_MD, only : delta_t, iter
     implicit none
@@ -1912,10 +1913,57 @@ subroutine check_CFD(u_CFD,u_CFD_mdt,CFD_stress,CFD_flux,lbl)
 
 end subroutine check_CFD
 
+
+
+
+
+
+
+!----------------------------------------------------------------
+! Get CFD stress from time evolution of
+! velocity -- i.e assume CFD CV is conserved
+subroutine get_CFD_stresses_fluxes_from_dudt(u_CFD, u_CFD_mdt, & 
+                                             CFD_stress, CFD_flux, lbl)
+    use messenger, only : globalise_bin, irank
+	use computational_constants_MD, only : delta_t, iter
+    implicit none
+
+	integer,intent(in)             		    :: lbl(6)
+	real(kind(0.d0)),intent(in), & 
+        allocatable,dimension(:,:,:,:) 	    :: u_CFD, u_CFD_mdt
+	real(kind(0.d0)),intent(out), & 
+        allocatable,dimension(:,:,:,:,:) 	:: CFD_stress, CFD_flux
+
+    integer                                 :: i,j,k
+
+	real(kind(0.d0)),dimension(3)           :: dvelocitydt
+
+	allocate(CFD_stress(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6)); CFD_stress=0.d0
+	allocate(  CFD_flux(nbins(1)+2,nbins(2)+2,nbins(3)+2,3,6)); CFD_flux=0.d0
+
+	do i = lbl(1),lbl(2)
+	do j = lbl(3),lbl(4)
+	do k = lbl(5),lbl(6)
+
+        !Get dudt
+	    dvelocitydt = (u_CFD(i,j,k,:)-u_CFD_mdt(i,j,k,:))/delta_t
+
+        !Assume all in top stress component, bottom is zero
+		CFD_stress(i,j,k,1,1) = dvelocitydt(1)
+		CFD_stress(i,j,k,2,2) = dvelocitydt(2)
+		CFD_stress(i,j,k,3,3) = dvelocitydt(3)
+    
+    enddo
+    enddo
+    enddo
+
+
+end subroutine get_CFD_stresses_fluxes_from_dudt
+
 !----------------------------------------------------------------
 ! Check CFD vs MD solutions are consistent at previous timestep
 
-subroutine check_CFD_vs_MD(u_CFD,lbl,outtype)
+subroutine check_CFD_vs_MD(u_CFD, lbl, outtype)
     use messenger, only : globalise_bin, irank
     use arrays_MD, only : r, v, a
 	use computational_constants_MD, only : delta_t, iter
@@ -1937,59 +1985,53 @@ subroutine check_CFD_vs_MD(u_CFD,lbl,outtype)
 		u_CV( bin(1),bin(2),bin(3),:) = u_CV( bin(1),bin(2),bin(3),:) + v(:,n)
 	enddo
 
+    !Debug, print non zero cells
+!	do i = 1,size(u_CFD,1)
+!	do j = 1,size(u_CFD,2)
+!	do k = 1,size(u_CFD,3)
+!        if (abs(u_CFD(i,j,k,1) .ne. 0.d0)) then
+!            if (i .lt. lbl(1) .or. i .gt. lbl(2) .or. &
+!                j .lt. lbl(3) .or. j .gt. lbl(4) .or. &
+!                k .lt. lbl(5) .or. k .gt. lbl(6)) then
+!                print'(a, 4i8,3f10.5)', 'NON CONSTRAINED CELL HAS VELOCITY VALUE', iter, i,j,k,u_CFD(i,j,k,:)
+!            endif
+!        endif
+!    enddo
+!    enddo
+!    enddo
+
 	!Result force du_correct/dt
 	do i = lbl(1),lbl(2)
 	do j = lbl(3),lbl(4)
 	do k = lbl(5),lbl(6)
-
         if (abs(u_CFD(i,j,k,1) - u_CV(i,j,k,1)) .gt. tol) then
-
             if (outtype .eq. 0) then
-
         	    print'(a,i8,4i4,2f18.12)','Error_in_CFD_vs_MD', &
-                     iter,irank,i,j,k,u_CFD(i,j,k,1),u_CV(i,j,k,1)
-
+                     iter, irank, i, j, k, u_CFD(i,j,k,1), u_CV(i,j,k,1)
             elseif (outtype .eq. 1) then
-
                 if (i .eq. 5 .and. j .eq. 10 .and. k .eq. 5) then
-
                     write(666,'(a,i8,4i4,2f18.12)'), &
-                    'CFD_vs_MD', iter,irank,i,j,k,u_CFD(i,j,k,1),u_CV(i,j,k,1)
-
+                    'CFD_vs_MD', iter, irank, i, j, k, u_CFD(i,j,k,1), u_CV(i,j,k,1)
                 end if
-
             elseif (outtype .eq. 2) then
-
         	    print'(a,i8,4i4,2f18.12)','Error_in_CFD_vs_MD', &
                      iter,irank,i,j,k,u_CFD(i,j,k,1),u_CV(i,j,k,1)
-
                 if (i .eq. 5 .and. j .eq. 10 .and. k .eq. 5) then
-
                     write(666,'(a,i8,4i4,2f18.12)'),'CFD_vs_MD', &
-                    iter,irank,i,j,k,u_CFD(i,j,k,1),u_CV(i,j,k,1)
-
+                    iter,irank,i, j, k, u_CFD(i,j,k,1), u_CV(i,j,k,1)
                 end if
-
             elseif (outtype .eq. 3) then
-
-          	    print'(a,i8,4i4,2f18.12)','Error_in_CFD_vs_MD', &
-                     iter,irank,i,j,k,u_CFD(i,j,k,1) ,u_CV(i,j,k,1)
-
+         	    print'(a,i8,4i4,6f18.12)','Error_in_CFD_vs_MD', &
+                     iter, irank, i, j, k, u_CFD(i,j,k,1), u_CV(i,j,k,1), & 
+                    u_CFD(i,j,k,1)-u_CV(i,j,k,1), u_CFD(i,j,k,1)/u_CV(i,j,k,1)
             endif
-
         endif
-
         if (outtype .eq. 3) then
-
-            if (i .eq. 5 .and. j .eq. 10 .and. k .eq. 5) then
-    
+            if (i .eq. 3 .and. j .eq. 14 .and. k .eq. 3) then
                 write(666,'(a,i8,4i4,2f18.12)'),'Error_in_CFD_vs_MD', &
-                iter,irank,i,j,k,u_CFD(i,j,k,1),u_CV(i,j,k,1)
-
+                iter, irank, i, j, k, u_CFD(i,j,k,1), u_CV(i,j,k,1)
             end if
-
         endif
-
     enddo
     enddo
     enddo
@@ -2000,7 +2042,7 @@ end subroutine check_CFD_vs_MD
 end module apply_CV_force_mod
 
 
-subroutine apply_CV_force
+subroutine apply_CV_force()
 	use apply_CV_force_mod
 	use computational_constants_MD, only : iter,initialstep,  F_CV_limits, & 
 										   CVforce_correct, CVweighting_flag, & 
@@ -2012,8 +2054,9 @@ subroutine apply_CV_force
 #endif
 	implicit none
 
+    logical                                             :: stresspassed=.false.
 	logical,dimension(3)				 	            :: applied_in
-	integer,dimension(6)				 	            :: lbl
+	integer,dimension(6),save   		 	            :: lbl
 	integer,allocatable,dimension(:,:,:) 				:: boxnp
 	real(kind(0.d0))                                    :: dx, dy, dz
 	real(kind(0.d0)),allocatable,dimension(:,:)     	:: Fstresses_mol
@@ -2037,15 +2080,15 @@ subroutine apply_CV_force
         call CPL_get(dx=dx, dy=dy, dz=dz)
         if (abs(dx-Fbinsize(1)) .gt. tol/100) then
             print*, 'CPL dx = ', dx, 'CV size = ', Fbinsize(1)
-            call error_abort("Error in get_CFD_stresses_fluxes -- CPL dx not equal to CV size in x")
+            call error_abort("Error in apply_CV_force -- CPL dx not equal to CV size in x")
         endif
         if (abs(dy-Fbinsize(2)) .gt. tol/100) then
-            print*, 'CPL dx = ', dy, 'CV size = ', Fbinsize(2)
-            call error_abort("Error in get_CFD_stresses_fluxes -- CPL dy not equal to CV size in y")
+            print*, 'CPL dy = ', dy, 'CV size = ', Fbinsize(2)
+            call error_abort("Error in apply_CV_force -- CPL dy not equal to CV size in y")
         endif
         if (abs(dz-Fbinsize(3)) .gt. tol/100) then
             print*, 'CPL dz = ', dz, 'CV size = ', Fbinsize(3)
-            call error_abort("Error in get_CFD_stresses_fluxes -- CPL dz not equal to CV size in z")
+            call error_abort("Error in apply_CV_force -- CPL dz not equal to CV size in z")
         endif
 #endif
 	    volume = product(Fbinsize)
@@ -2065,14 +2108,25 @@ subroutine apply_CV_force
 
     endif
 
+    ! = = = = = = = = = = = = Get CFD values = = = = = = = = = = = = 
 
+    !Get CFD velocity
+	call get_CFD_velocity(lbl, u_CFD)
 
 	!Get CFD stresses and fluxes
-	call get_CFD_velocity(lbl, u_CFD)
-	call get_CFD_stresses_fluxes(lbl, CFD_stress, CFD_flux)
+    if (CVweighting_flag .eq. 0 .and. stresspassed .eqv. .true.) then
+	    call get_CFD_stresses_fluxes(lbl, CFD_stress, CFD_flux)
+    else
+        !Calculate CFD stress and flux from change in velocity
+        call get_CFD_stresses_fluxes_from_dudt(u_CFD, u_CFD_mdt, & 
+                                               CFD_stress, CFD_flux, lbl)
+    endif
+
+    ! Get CV force based on CFD flux
+    call get_Fcfdflux_CV(CFD_flux, lbl, Fcfdflux_CV)
 
     !Check CFD stresses and fluxes are exactly equal to time evolution
-    call check_CFD(u_CFD,u_CFD_mdt,CFD_stress,CFD_flux,lbl)
+    call check_CFD(u_CFD, u_CFD_mdt, CFD_stress, CFD_flux, lbl)
 
     ! Check if there is a difference between previous CFD velocity setpoint 
     ! and MD velocity before constraint (i.e. last constraint applied correctly)
@@ -2081,9 +2135,6 @@ subroutine apply_CV_force
 	!Get molecules per bin, MD stresses and MD fluxes
 	call get_boxnp(boxnp)
 	call get_MD_stresses_fluxes(lbl, MD_stress, MD_flux)
-
-	! Get CV force based on CFD flux
-	call get_Fcfdflux_CV(CFD_flux, lbl, Fcfdflux_CV)
 
 	! Get force required to correct velocity setpoint if drift occurs
 	if (CVforce_correct .eq. 0) then

@@ -2824,8 +2824,12 @@ function lagrange_poly_weight_Nmol(array, r_in, binsize, domain, &
 				fxfyfz = ((Na(1)-0.5d0)**2-0.25d0) &
 						*((Na(2)-0.5d0)**2-0.25d0) &
 						*((Na(3)-0.5d0)**2-0.25d0)
-				weight(:,n) = weight(:,n) - fxfyfz * (wsum_bin(bin(1),bin(2),bin(3),:) & 
-							-meanvalue_(bin(1),bin(2),bin(3),:))/sqr_term(bin(1),bin(2),bin(3))
+                if (abs(sqr_term(bin(1),bin(2),bin(3))) .gt. 1e-8) then
+    				weight(:,n) = weight(:,n) - fxfyfz * (wsum_bin(bin(1),bin(2),bin(3),:) & 
+    							-meanvalue_(bin(1),bin(2),bin(3),:))/sqr_term(bin(1),bin(2),bin(3))
+                !else
+                !    print*, sqr_term(bin(1),bin(2),bin(3))
+                endif
 			enddo
            ! print'(a,6f18.4)', 'Error in integral cell 3,3,3  ', & 
            !                     wsum_bin(3,3,3,1), meanvalue_(3,3,3,1), & 
