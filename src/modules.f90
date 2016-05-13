@@ -21,6 +21,7 @@ module physical_constants_MD
 	double precision   				:: potential_sLRC 		!Long range potential correction 
 	double precision   				:: pressure_sLRC 		!Long range pressure correction 
 	double precision   				:: inputtemperature     !Define initial temperature
+	double precision   				:: thermostattemperature!Define thermostat setpoint temperature
 	double precision   				:: initialunitcell      !Initial size of unit cell
 	double precision   				:: initialvel           !Initial velocity of particles
 	double precision,parameter 		:: pi=4.d0*atan(1.d0)
@@ -50,12 +51,14 @@ module computational_constants_MD
 	integer						  :: force_list	   		 !flag for neighbr/cell list
 	integer						  :: potential_flag  	 !Choose LJ or Polymer potential
     integer                       :: Mie_potential       !Choose if LJ/Polymer replaced by more general Mie potential
+    integer                       :: default_moltype=1   !Default moltype for mie potential -- taken to be LJ (=1) here
 	integer                 	  :: tether_flag     	 !True if there exists 
 	integer                 	  :: external_force_flag !Apply external forces?
 	integer                 	  :: F_ext_ixyz			 !Direction of external forces
-    integer                       :: eij_wall            !Interaction potential strength for substrate wall
 	real(kind(0.d0))        	  :: F_ext				 !Magnitude of external forces
+    real(kind(0.d0)),dimension(2) :: eij_wall            !Interaction potential strength for substrate wall
 	real(kind(0.d0)),dimension(6) :: F_ext_limits		 !Limits of region external forces applied to
+
 
     !Rebuild check flags
     integer             :: rebuild_criteria    !Choice of rebuild criteria
@@ -103,8 +106,9 @@ module computational_constants_MD
 		tag_move    = 6, &
 		SLLOD       = 7
 
-    !Reset tags on restart
-    integer :: reset_tags_on_restart
+    !Misc flags
+    integer :: global_numbering         !Enforce global molecular numbering
+    integer :: reset_tags_on_restart !Reset tags on restart
 
 	!Initial configuration selection
 	integer           	:: initial_config_flag
@@ -112,6 +116,7 @@ module computational_constants_MD
 	real(kind(0.d0))	:: liquid_density	!Density of liquid if solid/liquid case used
 	real(kind(0.d0))	:: gas_density	    !Density of liquid if gas/liquid case used
 	real(kind(0.d0))	:: lg_fract	        !Fraction of the domain which is liquid (0 = all gas, 1 = all liquid)
+	real(kind(0.d0))	:: lg_direction     !Direction in which the domain is split into liquid and gas
 	real(kind(0.d0))	:: dropletH =0.d0,dropletHLratio=0.d0   !Droplet height and H to length ratio
     logical             :: Twophase_from_file = .false.
 	character(len=128)	:: FEA_filename
@@ -138,6 +143,7 @@ module computational_constants_MD
 		pressure_outflag, &
 		heatflux_outflag, &
 		viscosity_outflag, &
+		centre_of_mass_outflag, &
 		rdf_outflag, &
 		rtrue_flag, &
 		prev_rtrue_flag, &
@@ -180,6 +186,7 @@ module computational_constants_MD
 		Nvel_ave, 				&	!Number of averages for each velocity average
 		NTemp_ave, 				&	!Number of averages for each temperature measurement
 		Nenergy_ave,			&	!Number of averages for each energy measurement
+		Ncom_ave,			    &	!Number of averages for each centre of mass measurement
 		Nstress_ave, 			&	!Number of averages for VA or virial stress calculation
 		Nheatflux_ave, 			&	!Number of averages for VA heat flux calculation
 		split_kin_config, 		&	!Flag to determine if kinetic and configurational stress separated
@@ -304,8 +311,11 @@ end module shear_info_MD
 
 module arrays_MD
 
-	integer,          dimension(:),   allocatable, target	:: tag !Mol tags
-	integer,          dimension(:),   allocatable, target	:: moltype !Type used for interactions
+	integer,          dimension(:),   allocatable, target	:: & 
+        tag,     &   !Mol tags
+        moltype, &   !Type used for interactions
+        glob_no      !Global molecular number
+
 	integer, 	  	  dimension(:,:), allocatable, target	:: fix  !Fixed molecules
 	real(kind(0.d0)), dimension(:),   allocatable, target 	:: &
 		potenergymol, 		&		!Potential energy of each molecule
@@ -413,7 +423,7 @@ module polymer_info_MD
 		! THE TOTAL NUMBER OF ITEMS IN THIS DATA TYPE MUST ALSO BE STORED IN THE VARIABLE nsdmi
 	end type monomer_info
 
-	type(monomer_info), dimension(:), allocatable :: monomer
+	type(monomer_info), dimension(:), allocatable,target :: monomer
 	!eg. to access chainID of mol 23, call monomer(23)%chainID
 
 	integer, parameter :: nsdmi=8                   !Number of sent doubles for monomer_info 
@@ -721,7 +731,8 @@ module calculated_properties_MD
 		slice_momentum,		&		!Mean velocity used in velocity slice
 		Pxy_plane,			&		!Stress on plane for MOP
 		Pxy,				&  		!Stress tensor for whole domain
-		Pxyzero   					!Stress tensor at start of sample
+		Pxyzero,            & 	    !Stress tensor at start of sample
+        rough_array                 !Array used to setup fractal surface
 
 	real(kind(0.d0)), dimension(:,:,:), allocatable :: & 
 		rfmol,				&  		!Position(x)Force tensor per molecule
@@ -735,6 +746,7 @@ module calculated_properties_MD
 		volume_momentum,	& 		!Momentum in a control volume at time t
 		volume_momentum_s,	& 		!Solvent momentum in a control volume at time t
 		volume_momentum_p,	& 		!Polymer momentum in a control volume at time t
+		centre_of_mass,	    & 		!Centre of mass of control volume
 		energy_flux,		&		!Flow of energy over a control volume surface
 		Pxyvface,			&		!Power tensor on bin face
 		Pxyvface_mdt,		&		!Power tensor on bin face at previous timestep
@@ -854,8 +866,9 @@ contains
 end module calculated_properties_MD
 
 module boundary_MD
+#if __INTEL_COMPILER > 1200
     use librarymod, only: PDF
-
+#endif
 	!Boundary force flag and parameters
 	integer,          dimension(6) :: bforce_flag
 	real(kind(0.d0)), dimension(6) :: bforce_dxyz

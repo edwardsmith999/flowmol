@@ -28,7 +28,7 @@ contains
 
 	!========================================================================
 	!Cell list computations of potential and force on "would-be" molecules
-	subroutine compute_force_and_potential_at(input_pos,Usum,f,extra_pos,rf) 
+	subroutine compute_force_and_potential_at(input_pos, Usum, f, rmin, extra_pos, rf, rijave) 
 		use linked_list, only : node, cell
 		use physical_constants_MD, only : rcutoff2
 		use computational_constants_MD, only: halfdomain, cellsidelength, nh, ncells
@@ -36,12 +36,18 @@ contains
         use librarymod, only : outerprod
 		implicit none
 
+		
 		real(kind(0.d0)),dimension(3), intent(in)	:: input_pos
-		real(kind(0.d0)), intent(out) 				:: Usum
-		real(kind(0.d0)),dimension(3), intent(out)	:: f
-		real(kind(0.d0)),dimension(3,3), intent(out), optional	:: rf
+        !Optinal minimum length to count interactions for
+        real(kind(0.d0)),intent(in), optional	:: rmin
 		!Optional array of extra molecular positions to check against
 		real(kind(0.d0)),dimension(:,:),allocatable,optional,intent(in)  :: extra_pos
+
+
+		real(kind(0.d0)), intent(out) 				:: Usum
+		real(kind(0.d0)),dimension(3), intent(out)	:: f
+		real(kind(0.d0)),dimension(3), intent(out), optional	:: rijave
+		real(kind(0.d0)),dimension(3,3), intent(out), optional	:: rf
 
 		integer :: i,j 
 		integer :: icell, jcell, kcell
@@ -49,7 +55,7 @@ contains
 		integer :: cellnp
 		integer :: molno
 		type(node), pointer :: current, temp
-		real(kind(0.d0)) :: fmol(3), Umol, rij(3), rij2,invrij2
+		real(kind(0.d0)) :: fmol(3), Umol, rij(3), rij2,invrij2, rmin_
 
 		!print*, 'compute_force_and_potential_at', present(extra_pos)
 
@@ -57,6 +63,12 @@ contains
 		Usum = 0.d0
 		f = 0.d0 
         if (present(rf)) rf = 0.d0
+        if (present(rijave)) rijave = 0.d0
+        if (present(rmin)) then
+            rmin_ = rmin
+        else
+            rmin_ = 0.d0
+        endif
 
 		!Find cell, adding nh for halo(s)
 		icell = ceiling((input_pos(1)+halfdomain(1))/cellsidelength(1)) + nh
@@ -90,10 +102,7 @@ contains
 		            cycle
 		        end if
 
-		        !Linear magnitude of acceleration for each molecule
-		        invrij2 = 1.d0/rij2
-
-				if (rij2 < rcutoff2) then
+				if (rij2 .lt. rcutoff2 .and. rij2 .gt. rmin_) then
 
 					!Linear magnitude of acceleration for each molecule
 					invrij2 = 1.d0/rij2
@@ -106,7 +115,10 @@ contains
 					f = f + fmol
 					Usum = Usum + Umol
                     if (present(rf)) then
-                        rf = rf + outerprod(fij, rij)
+                        rf = rf + outerprod(fmol, rij)
+                    endif
+                    if (present(rijave)) then
+                        rijave = rijave + rij
                     endif
 
 				endif
@@ -520,7 +532,10 @@ subroutine simulation_compute_forces_LJ_neigbr
 	integer                         :: j  !Define dummy index
 	integer							:: molnoi, molnoj
 	integer							:: noneighbrs
-	type(node), pointer		:: old, current
+	type(node), pointer		        :: old, current
+
+    !call random_number(potenergymol)
+    !return
 
 	do molnoi = 1, np
 
@@ -538,7 +553,6 @@ subroutine simulation_compute_forces_LJ_neigbr
 			if (rij2 < rcutoff2) then
 				invrij2  = 1.d0/rij2                !Invert value
                 accijmag = get_accijmag(invrij2, molnoi, molnoj)
-				!accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4) ! (-dU/dr)*(1/|r|)
 
 				!Sum of forces on particle i added for each j
 				a(1,molnoi)= a(1,molnoi) + accijmag*rij(1)/mass(molnoi)
@@ -557,8 +571,6 @@ subroutine simulation_compute_forces_LJ_neigbr
 				if (mod(iter,tplot) .eq. 0) then
 
 					!Record potential energy total to use for output later (potshift=-1 for WCA)
-					!potenergymol_LJ(molnoi)=potenergymol_LJ(molnoi) & 
-					!	     +4.d0*(invrij2**6-invrij2**3)-potshift
 					potenergymol_LJ(molnoi) = potenergymol_LJ(molnoi) & 
 						       + get_energy(invrij2, molnoi, molnoj)
 
@@ -621,14 +633,14 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 				!accijmag = 48.d0*(invrij2**7-0.5d0*invrij2**4)
 	
 				!Sum of forces on particle i added for each j
-				a(1,molnoi)= a(1,molnoi) + accijmag*rij(1)/mass(molnoi)
-				a(2,molnoi)= a(2,molnoi) + accijmag*rij(2)/mass(molnoi)
-				a(3,molnoi)= a(3,molnoi) + accijmag*rij(3)/mass(molnoi)
+				a(1,molnoi) = a(1,molnoi) + accijmag*rij(1)/mass(molnoi)
+				a(2,molnoi) = a(2,molnoi) + accijmag*rij(2)/mass(molnoi)
+				a(3,molnoi) = a(3,molnoi) + accijmag*rij(3)/mass(molnoi)
 
 				!Sum of forces on particle j added for each i
-				a(1,molnoj)= a(1,molnoj) - accijmag*rij(1)/mass(molnoj)
-				a(2,molnoj)= a(2,molnoj) - accijmag*rij(2)/mass(molnoj)
-				a(3,molnoj)= a(3,molnoj) - accijmag*rij(3)/mass(molnoj)
+				a(1,molnoj) = a(1,molnoj) - accijmag*rij(1)/mass(molnoj)
+				a(2,molnoj) = a(2,molnoj) - accijmag*rij(2)/mass(molnoj)
+				a(3,molnoj) = a(3,molnoj) - accijmag*rij(3)/mass(molnoj)
 
 				if (vflux_outflag.eq.4) then
 					if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
@@ -1083,8 +1095,12 @@ subroutine simulation_compute_power!(imin, imax, jmin, jmax, kmin, kmax)
 !				if (kcell+kcellshift .lt. kcellmin) cycle
 !				if (kcell+kcellshift .gt. kcellmax) cycle
 
-				oldj => cell%head(icell+icellshift,jcell+jcellshift,kcell+kcellshift)%point
-				adjacentcellnp = cell%cellnp(icell+icellshift,jcell+jcellshift,kcell+kcellshift)
+				oldj => cell%head(icell+icellshift, & 
+                                  jcell+jcellshift, & 
+                                  kcell+kcellshift)%point
+				adjacentcellnp = cell%cellnp(icell+icellshift, & 
+                                             jcell+jcellshift, & 
+                                             kcell+kcellshift)
 
 				do j = 1,adjacentcellnp          !Step through all j for each i
 
@@ -1146,7 +1162,6 @@ contains
 
     subroutine add_POLY_contribution
         use polymer_info_MD
-	    use librarymod, only: get_outerprod
         use module_set_parameters, only : get_poly_accijmag, get_poly_energy
         implicit none
 
@@ -1276,6 +1291,7 @@ subroutine collect_bforce_pdf_data
 			enddo
 			enddo
 
+#if __INTEL_COMPILER < 12
             if (bflag) then
                 ysubcell = ceiling((real(bforce_pdf_nsubcells,kind(0.d0))*( &
                            r(2,molnoi) + halfdomain(2)))/cellsidelength(2))
@@ -1290,6 +1306,7 @@ subroutine collect_bforce_pdf_data
                 end do
 
             end if
+#endif
 
 			currenti => oldi
 			oldi => currenti%next !Use pointer in datatype to obtain next item in list

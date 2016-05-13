@@ -23,23 +23,28 @@ module module_set_parameters
 	use linked_list
 	use polymer_info_MD
 	use concentric_cylinders
+#if __INTEL_COMPILER > 1200
 	use librarymod, only : PDF
+#endif
     implicit none
 
+#if __INTEL_COMPILER > 1200
 	type(PDF) 									:: velPDF, velPDFMB
 	type(PDF),allocatable,dimension(:,:,:,:) 	:: velPDF_array
+#endif
 
     !LJ parameters
     double precision           :: potshift !Shift in Lennard Jones potential due to cutoff
 
     !Generalised Mie-potential parameters
-    integer,parameter :: ntypes = 7
+    integer,parameter :: ntypes = 9
     character(30),dimension(ntypes)             :: moltype_names
     double precision,dimension(ntypes)          :: mass_lookup
     double precision,dimension(ntypes,ntypes)   :: epsilon_lookup, sigma_lookup, &    
                                                    lambdar_lookup, lambdaa_lookup, &
                                                    C_lookup, potshift_lookup, &
-                                                   k_lookup, r0_lookup, equil_sep_lookup
+                                                   k_lookup, r0_lookup, equil_sep_lookup, &
+                                                   alpha_lookup
 
     double precision,dimension(ntypes,ntypes,ntypes) :: angular_k_lookup, angular_r0_lookup
 
@@ -87,7 +92,8 @@ module module_set_parameters
 contains
 
     !LJ or Mie force calculation functions
-    function LJ_mass(i)
+
+    pure function LJ_mass(i)
 
         integer, intent(in)             :: i
         double precision                :: LJ_mass
@@ -96,7 +102,7 @@ contains
 
     end function LJ_mass
 
-    function LJ_accijmag(invrij2, i, j)
+    pure function LJ_accijmag(invrij2, i, j)
 
         integer, intent(in)             :: i, j
         double precision, intent(in)    :: invrij2
@@ -106,7 +112,7 @@ contains
 
     end function LJ_accijmag
 
-    function LJ_force(invrij2, rij, i, j)
+    pure function LJ_force(invrij2, rij, i, j)
 
         integer, intent(in)                         :: i, j
         double precision, intent(in)                :: invrij2
@@ -117,7 +123,7 @@ contains
 
     end function LJ_force
 
-    function LJ_energy(invrij2,  i, j)
+    pure function LJ_energy(invrij2,  i, j)
 
         integer, intent(in)             :: i, j
         double precision, intent(in)    :: invrij2
@@ -130,7 +136,7 @@ contains
 
 
 
-    function Mie_mass(i)
+    pure function Mie_mass(i)
         use arrays_MD, only : moltype
 
         integer, intent(in)             :: i
@@ -140,7 +146,7 @@ contains
 
     end function Mie_mass
 
-    function Mie_accijmag(invrij2, i, j)
+    pure function Mie_accijmag(invrij2, i, j)
         use arrays_MD, only : moltype
 
         integer, intent(in)             :: i, j
@@ -148,19 +154,20 @@ contains
         double precision                :: Mie_accijmag
 
         double precision                :: C, sigmaij, epsilonij, &
-                                              lambdar, lambdaa
+                                              lambdar, lambdaa, alpha
 
         epsilonij = epsilon_lookup(moltype(i),moltype(j))
         sigmaij   = sigma_lookup(moltype(i),moltype(j))
         lambdar   = lambdar_lookup(moltype(i),moltype(j))
         lambdaa   = lambdaa_lookup(moltype(i),moltype(j))
         C         = C_lookup(moltype(i),moltype(j))
-       
-        Mie_accijmag = C*epsilonij*(   lambdar*invrij2**(0.5d0*lambdar+1) & 
-                                     - lambdaa*invrij2**(0.5d0*lambdaa+1) )
+        alpha     = alpha_lookup(moltype(i),moltype(j))
+
+        Mie_accijmag = C*epsilonij*(       lambdar*invrij2**(0.5d0*lambdar+1) & 
+                                    -alpha*lambdaa*invrij2**(0.5d0*lambdaa+1) )
     end function Mie_accijmag
 
-    function Mie_force(invrij2, rij, i, j)
+    pure function Mie_force(invrij2, rij, i, j)
 
         integer, intent(in)                         :: i, j
         double precision, intent(in)                :: invrij2
@@ -172,7 +179,7 @@ contains
     end function Mie_force
 
 
-    function Mie_energy(invrij2, i, j)
+    pure function Mie_energy(invrij2, i, j)
         use arrays_MD, only : moltype
 
         integer, intent(in)             :: i, j
@@ -180,7 +187,8 @@ contains
         double precision                :: Mie_energy
 
         double precision                :: C, sigmaij, epsilonij, &
-                                              lambdar, lambdaa, potshift
+                                           lambdar, lambdaa, alpha,&
+                                           potshift
 
         epsilonij = epsilon_lookup(moltype(i),moltype(j))
         sigmaij   = sigma_lookup(moltype(i),moltype(j))
@@ -188,9 +196,10 @@ contains
         lambdaa   = lambdaa_lookup(moltype(i),moltype(j))
         C         = C_lookup(moltype(i),moltype(j))
         potshift  = potshift_lookup(moltype(i),moltype(j))
+        alpha     = alpha_lookup(moltype(i),moltype(j))
 
-        Mie_energy = C*epsilonij*( invrij2**(0.5d0*lambdar) & 
-                                 - invrij2**(0.5d0*lambdaa) ) - potshift
+        Mie_energy = C*epsilonij*(      invrij2**(0.5d0*lambdar) & 
+                                 -alpha*invrij2**(0.5d0*lambdaa) ) - potshift
 
     end function Mie_energy
 
@@ -203,7 +212,7 @@ contains
         double precision, intent(in)    :: rij2
         double precision                :: FENE_accijmag
 
-		if(rij2.ge.R_0**2)	call polymer_bond_error(i,j)
+		if(rij2.ge.R_0**2) call polymer_bond_error(i,j)
         FENE_accijmag =  -k_c/(1-(rij2/(R_0**2)))
 
     end function FENE_accijmag
@@ -219,7 +228,7 @@ contains
 
     end function FENE_force
 
-    function FENE_energy(rij2, i, j)
+    pure function FENE_energy(rij2, i, j)
         use polymer_info_MD, only : k_c, R_0
 
         integer, intent(in)             :: i, j
@@ -231,7 +240,7 @@ contains
     end function FENE_energy
 
     !Functions for harmonic potential
-    function harmonic_accijmag(rij2, i, j)
+    pure function harmonic_accijmag(rij2, i, j)
         use arrays_MD, only : moltype
 
         integer, intent(in)             :: i, j
@@ -248,7 +257,7 @@ contains
     end function
 
 
-    function harmonic_force(rij2, rij, i, j)
+    pure function harmonic_force(rij2, rij, i, j)
         use arrays_MD, only : moltype
 
         integer, intent(in)             :: i, j
@@ -265,7 +274,7 @@ contains
 
     end function harmonic_force
 
-    function harmonic_energy(rij2, i, j)
+    pure function harmonic_energy(rij2, i, j)
         use arrays_MD, only : moltype
 
         integer, intent(in)             :: i, j
@@ -289,7 +298,7 @@ contains
     !                             | | |
     ! we will check               i j k 
 
-    function angular_harmonic_force(rij, rjk, i, j, k)
+    pure function angular_harmonic_force(rij, rjk, i, j, k)
 
         integer, intent(in)                         :: i, j, k
         double precision, intent(in),dimension(3)   :: rij, rjk
@@ -343,7 +352,7 @@ contains
 
 
 
-    function angular_harmonic_energy(rij, rjk, i,j,k)
+    pure function angular_harmonic_energy(rij, rjk, i,j,k)
 
         integer, intent(in)                         :: i, j, k
         double precision, intent(in),dimension(3)   :: rij, rjk
@@ -420,7 +429,16 @@ subroutine setup_mie_potential
     use interfaces, only : error_abort
     implicit none
 
-    integer :: i, j, ids(3)
+    integer :: i, j, ids(4)
+
+
+    ! ------------Mie Potential--------------
+    ! phi = A(lambda_r,lambda_a) * epsilon * [ (sigma/r)^lambda_r - (sigma/r)^lambda_a)]
+    ! A(lambda_r,lambda_a) = (lambda_r/(lambda_r-lambda_a))*(lambda_r/lambda_a)^(lambda_a/(lambda_r-lambda_a))
+    ! 
+    ! ------------Including two phase repulsion between species --------------
+    ! phi = A(lambda_r,lambda_a) * epsilon * [ (sigma/r)^lambda_r - alpha * (sigma/r)^lambda_a)]
+    ! Where alpha is the relative magnitude of attrative and repulsive terms (allows opposite signs)
 
     !Initialise all as zero
     mass_lookup = 0.d0
@@ -428,6 +446,8 @@ subroutine setup_mie_potential
     sigma_lookup   = 0.d0
     lambdar_lookup = 0.d0
     lambdaa_lookup = 0.d0
+    alpha_lookup = 1.d0
+
     !Setup table of cross potentials 
     !1 == Argon;
     !moltype_names(1) = '           Ar           '
@@ -447,11 +467,19 @@ subroutine setup_mie_potential
     lambdar_lookup(2,2) = 12.d0
     lambdaa_lookup(2,2) = 6.d0
 
-    !Liquid Agron and wall
-    epsilon_lookup(2,1) = 0.5
+
+    !Liquid Argon and wall
+    epsilon_lookup(2,1) = eij_wall(1)
+    epsilon_lookup(8,2) = eij_wall(1)
+    epsilon_lookup(9,1) = eij_wall(2)
+    epsilon_lookup(9,8) = eij_wall(2)
 
     !1-2 == Wall/{D,M,CM} hydrophobic/strong wall interaction
-    ids = (/ 4,5,7 /)
+    ids = (/ 3,4,5,7 /)
+    do i =1,size(ids)
+        epsilon_lookup(ids(i),2) = eij_wall(1)
+        epsilon_lookup(9,ids(i)) = eij_wall(2)
+    enddo
 
     !select case (wall_liquid)
     !case(No_wetting) 
@@ -472,17 +500,15 @@ subroutine setup_mie_potential
     !    !Superspreading requires this as 1.4 according to Panos
          !for water and hydrophobic parts CM, M and D
 
-        do i =1,size(ids)
-            epsilon_lookup(ids(i),2) = 0.5d0 !1.4d0
-        enddo
-        !1-2 == Wall/Water [hydrophilic or weak wall interaction]
-        ! set to same as surfactant
-        epsilon_lookup(3,2) = epsilon_lookup(ids(1),2)
+    !1-2 == Wall/Water [hydrophilic or weak wall interaction]
+    ! set to same as surfactant
+    !epsilon_lookup(3,2) = epsilon_lookup(ids(1),2)
+    !epsilon_lookup(9,3) = epsilon_lookup(9,ids(1))
 
-        !Wall/EO [hydrophillic or weak wall interaction]
-        !epsilon_lookup(6,2)  = 0.5d0     
-        !case(Cross_rules)
-        !end select
+    !Wall/EO [hydrophillic or weak wall interaction]
+    !epsilon_lookup(6,2)  = 0.5d0     
+    !case(Cross_rules)
+    !end select
 
     !end select
 
@@ -534,26 +560,37 @@ subroutine setup_mie_potential
     lambdar_lookup(7,7) = 15.d0
     lambdaa_lookup(7,7) = 6.d0
 
+    !8 == Second phase of Argon;
+    !moltype_names(1) = '           Ar           '
+    moltype_names(8)    = 'rA' !' Ar '
+    mass_lookup(8)      = 1.0d0
+    epsilon_lookup(8,8) = 1.d0
+    sigma_lookup(8,8)   = 1.d0
+    lambdar_lookup(8,8) = 12.d0
+    lambdaa_lookup(8,8) = 6.d0
+
+    !The two phases of argon attract each other less strongly
+    alpha_lookup(1,8) = -1.d0
+    alpha_lookup(8,1) = -1.d0
+
+    !9 == Wall type 2 ; 
+    !moltype_names(9) = '          Wall          '
+    moltype_names(9)    = 'S2' !' Wall '
+    mass_lookup(9)      = 1.d0
+    epsilon_lookup(9,9) = 1.d0
+    sigma_lookup(9,9)   = 1.d0
+    lambdar_lookup(9,9) = 12.d0
+    lambdaa_lookup(9,9) = 6.d0
+
     !Define adjusted cross potential interactions (tuned by prior simulation)
     !ether and Water
     epsilon_lookup(6,3) = 0.9756d0
     !SAFT adjusted water--CH3 interaction from prior studies
-    !select case (wall_liquid)
-    !case(No_wetting) 
-    !    epsilon_lookup(7,3) = 1.d0
-    !case(Paraffin_Water) 
-        epsilon_lookup(7,3) = 0.5081d0
-    !case(Superhydrophobic)
-    !    epsilon_lookup(7,3) = 0.01d0  !No wall/water interaction
-    !case(superspreading)
-    !    !Superspreading requires this as 1.4 according to Panos
-    !    epsilon_lookup(7,3) = 1.4
-    !end select
+    epsilon_lookup(7,3) = 0.5081d0
     !SAFT adjusted D--M interaction from prior studies
     epsilon_lookup(5,4) = 0.7114d0
     !SAFT adjusted alkane--ether interaction from prior studies
     epsilon_lookup(7,6) = 0.7154d0
-
 
     !Define chain interactions
 
@@ -659,7 +696,7 @@ subroutine setup_mie_potential
     call get_equilibrium_seperations()
 
     !Print all properties
-
+    if (irank .eq. iroot) then
         do i = 1,ntypes
         do j = 1,ntypes
             print'(a,2i6,2a5,f10.5,3a4,6f10.5)', 'SAFT PARAMETERS',i,j, & 
@@ -672,6 +709,7 @@ subroutine setup_mie_potential
                                         equil_sep_lookup(i,j)
         enddo
         enddo
+    endif
 
     contains
 
@@ -851,6 +889,9 @@ subroutine setup_set_parameters
 	teval = 1
 #endif
 
+    !If roughness specified, define a wall using fractal recursive algorithm
+    call setup_fractal_wall()
+
 	!Setup external forces applied to regions of the domain
 	do i = 1,6
 		!If F_ext_limits > domain extents set to domain extents
@@ -928,7 +969,8 @@ subroutine set_parameters_allocate
 	enddo
 	!extralloc = extralloc/nd  + 300  !Average of all 3 dimensions inc safety factor
     !Set to 2000 here as start case was 2 phase with uneven distribution
-	extralloc = extralloc/nd  + 2000 
+    print*, "EXTRA ALLOC is massive, reduce in set_parameters_allocate"
+	extralloc = extralloc/nd  + 20000 
 
 	!Allocate array sizes for position, velocity and acceleration
 	allocate(r(nd,np+extralloc))
@@ -966,10 +1008,8 @@ subroutine set_parameters_allocate
     if (Mie_potential .eq. 1) then
         allocate(moltype(np+extralloc)) 
         !Default value is 2 (models 2 x water per bead with Mie)
-        !moltype(1:np) = 3
+        moltype(1:np) = default_moltype
 
-        !This is simply Lennard Jones but allowing wall fluid differences
-        moltype(1:np) = 1
     endif
 
 	!Allocate arrays use to fix molecules and allow sliding
@@ -979,6 +1019,11 @@ subroutine set_parameters_allocate
 		allocate(rtether(nd,np+extralloc))
 		allocate(slidev(nd,np+extralloc))
 	endif
+
+    !If necessary, allocate global molecular number
+    if (global_numbering .ne. 0) then
+        allocate(glob_no(np+extralloc))
+    endif
 
 	!Allocate pressure tensors
 	if (pressure_outflag .eq. 1) then
@@ -1017,6 +1062,26 @@ subroutine setup_polymer_info
 	!intbits = bit_size(monomer(1)%bin_bflag(1))
 
 end subroutine setup_polymer_info
+
+
+subroutine setup_fractal_wall()
+    use calculated_properties_MD, only : rough_array
+    use computational_constants_MD, only : texture_type, roughness, & 
+                                           texture_intensity, initialnunits
+    use librarymod, only : DiamondSquare
+
+    integer :: Nx, Nz, levels
+
+    if (texture_type .eq. roughness) then
+        Nx = initialnunits(1); Nz = initialnunits(3) 
+        levels = int(max(Nx,Nz)/4.d0)+4
+        allocate(rough_array(Nx, Nz)); rough_array=0.d0
+        call DiamondSquare(rough_array, 0, 0, Nx, Nz, texture_intensity, levels)
+        print*,texture_intensity, maxval(rough_array),minval(rough_array), sum(rough_array)
+        !stop
+    endif
+
+end subroutine setup_fractal_wall
 
 !-----------------------------------------------------------------------------
 subroutine setup_shear_parameters
@@ -1155,7 +1220,8 @@ subroutine set_parameters_global_domain
 		case('solid_liquid','polymer_brush', & 
              'droplet2D','droplet3D','2phase', & 
              '2phase_surfactant_solution', & 
-             '2phase_surfactant_atsurface')
+             '2phase_surfactant_atsurface', &
+              '2phase_LJ')
 
 			volume=1	!Set domain size to unity for loop below
 			do ixyz=1,nd
@@ -1502,8 +1568,10 @@ end subroutine setup_linklist
 subroutine set_parameters_outputs
 	use module_set_parameters
 	use interfaces
+#if __INTEL_COMPILER > 1200
 	use boundary_MD, only: bforce_pdf_measure, bforce_pdf, bforce_pdf_nsubcells, &
 						   bforce_pdf_nbins, bforce_pdf_min, bforce_pdf_max
+#endif
 	use CV_objects, only : CVcheck_mass,CVcheck_momentum, & 
 						   CV_constraint,CVcheck_energy, CV_debug!,CV_sphere_momentum,CV_sphere_mass
     use messenger, only : localise_bin
@@ -1539,6 +1607,7 @@ subroutine set_parameters_outputs
 	nbinso = nbins+2*nhb
     binsize = domain/nbins
 
+#if __INTEL_COMPILER > 1200
 	!Velocity PDF binning routines
 	select case(vPDF_flag)
 	case(1:4)
@@ -1567,6 +1636,7 @@ subroutine set_parameters_outputs
 			end do
 		end do
 	end if
+#endif
 
 	!Allocate and define number of shells used for Radial distribution function (rdf)
 	if (rdf_outflag .eq. 1) then
@@ -1638,7 +1708,6 @@ subroutine set_parameters_outputs
 	!Allocated bins for temperature averaging
 	if (temperature_outflag.eq.4) then
 		allocate(volume_temperature(nbinso(1),nbinso(2),nbinso(3)))
-		volume_temperature = 0.d0
 		mass_outflag = 4	!Mass binning required too
 		!Allocate and zero peculiar momentum binning array
 		if (peculiar_flag .ne. 0) then
@@ -1657,7 +1726,12 @@ subroutine set_parameters_outputs
 		volume_energy = 0.d0
 	endif
 
-
+    if (centre_of_mass_outflag .eq. 4) then
+		allocate(centre_of_mass(nbinso(1),nbinso(2),nbinso(3),3))
+		centre_of_mass = 0.d0
+		mass_outflag = 4	!Mass binning required too
+	endif
+        
 	!Allocate mass bins if they haven't been already allocated (and they are needed)
 	if (mass_outflag.eq.4) then
 		if (.not. allocated(volume_mass)) then

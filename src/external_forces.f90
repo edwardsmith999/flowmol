@@ -264,7 +264,12 @@ subroutine apply_bforce(a_in,ixyz,xyz,thresh,hdom,flag)
 
 	case ( substrate_force )
 
-        eij = eij_wall; sij = 1.d0
+        if (hdom .lt. 0.d0) then
+            eij = eij_wall(1)
+        else
+            eij = eij_wall(2)
+        endif
+        sij = 1.d0
         lama = 12.d0; lamr = 6.d0
         C = (lamr/(lamr-lama))*(lamr/lama)**(lama/(lamr-lama))
         rho_wall = 1.d0

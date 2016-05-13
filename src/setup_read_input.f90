@@ -148,7 +148,7 @@ subroutine setup_read_input
 			read(1,*) initialnunits(2)		!y dimension split into number of cells
 			read(1,*) initialnunits(3)		!z dimension split into number of cells
 
-		case('droplet2D','droplet3D','2phase')
+		case('droplet2D','droplet3D','2phase','2phase_LJ')
 
 			!call locate(1,'POTENTIAL_FLAG',.true.)
             !read(1,*) potential_flag
@@ -179,7 +179,8 @@ subroutine setup_read_input
                 endif
             endif
 
-            if (config_special_case .eq. '2phase') then
+            if (config_special_case .eq. '2phase' .or. &
+                config_special_case .eq. '2phase_LJ') then
 			    call locate(1,'FEA_FILENAME',.false.,found_in_input) 
 	            if (found_in_input) then
                     Twophase_from_file = .true.
@@ -188,8 +189,13 @@ subroutine setup_read_input
 			    call locate(1,'LIQUID_FRACTION',.false.,found_in_input) 
 	            if (found_in_input) then
                     read(1,*) lg_fract
+                    read(1,*,iostat=ios) lg_direction
+                    if (ios .ne. 0) then
+                        print*, "Default direction not given for LIQUID_FRACTION, assuming x"
+                        lg_direction = 1
+                    endif
                 endif
-            endif   
+            endif
 
 		case('concentric_cylinders')
 			
@@ -296,6 +302,11 @@ subroutine setup_read_input
 	        call locate(1,'MIE_POTENTIAL',.false.,found_in_input) 
 	        if (found_in_input) then
                 read(1,*) Mie_potential
+                read(1,*,iostat=ios) default_moltype
+				if (ios .ne. 0) then
+                    print*, "Default moltype not given -- assuming Argon (=1)"
+                    default_moltype = 1
+                endif
             else
                 Mie_potential = 0
             endif
@@ -373,6 +384,14 @@ subroutine setup_read_input
 	!Read in initial temperature
 	call locate(1,'INPUTTEMPERATURE',.true.)
 	read(1,*) inputtemperature
+
+	!Read in thermostat temperature
+	call locate(1,'THERMOSTATTEMPERATURE',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) thermostattemperature
+    else
+        thermostattemperature = inputtemperature
+    endif
 
 	!Setup velocity initial condition
 	call locate(1,'INITIAL_VELOCITY_FLAG',.false.,found_in_input) 
@@ -457,6 +476,17 @@ subroutine setup_read_input
 		sortblocksize = 0
 	endif
 
+	call locate(1,'GLOBAL_NUMBERING',.false.,found_in_input) 
+	if (found_in_input) then
+		read(1,*) global_numbering  	!Include global molecular numbering
+        if (potential_flag .eq. 1 .and. global_numbering .eq. 1) then
+            print*, "POTENTIAL_FLAG is on so GLOBAL_NUMBERING not needed, use mononmer(n)%glob_no instead"
+            global_numbering = 0
+        endif
+        if (global_numbering .eq. 1 .and. sort_flag .ne. 0 ) then
+            call error_abort("Global number does not work with sort flag on")
+        endif
+    endif
 	call locate(1,'SEED',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) seed(1) 	!Random number seed value 1
@@ -470,9 +500,30 @@ subroutine setup_read_input
 	call locate(1,'MIE_POTENTIAL',.false.,found_in_input) 
 	if (found_in_input) then
         read(1,*) Mie_potential
+        read(1,*,iostat=ios) default_moltype
+		if (ios .ne. 0) then
+            print*, "Default moltype not given -- assuming Argon (=1)"
+            default_moltype = 1
+        endif
     else
         Mie_potential = 0
     endif
+
+    if (Mie_potential .ne. 0) then
+        call locate(1,'EIJ_WALL',.false.,found_in_input)
+        if (found_in_input) then
+            read(1,*,iostat=ios) eij_wall(1)
+    		if (ios .ne. 0) then
+                call error_abort('Input Error -- EIJ_WALL no specified value') 
+            endif
+            read(1,*,iostat=ios) eij_wall(2)
+    		if (ios .ne. 0) eij_wall(2) = eij_wall(1)
+        else
+            eij_wall = 1.d0
+        endif
+    endif
+
+
 	!Flags to determine if periodic boundaries are on or shearing Lees Edwards
 	call locate(1,'PERIODIC',.true.)
 	read(1,*) periodic(1)
@@ -529,8 +580,13 @@ subroutine setup_read_input
 
             if (any(bforce_flag .eq. substrate_force)) then
                 call locate(1,'EIJ_WALL',.false.,found_in_input)
-		        if (found_in_input) then
-                    read(1,*) eij_wall
+                if (found_in_input) then
+                    read(1,*,iostat=ios) eij_wall(1)
+            		if (ios .ne. 0) then
+                        call error_abort('Input Error -- EIJ_WALL no specified value') 
+                    endif
+                    read(1,*,iostat=ios) eij_wall(2)
+            		if (ios .ne. 0) eij_wall(2) = eij_wall(1)
                 else
                     eij_wall = 1.d0
                 endif
@@ -907,6 +963,13 @@ subroutine setup_read_input
 			read(1,*) Nenergy_ave
 		endif
 	endif
+	call locate(1,'CENTRE_OF_MASS_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) centre_of_mass_outflag
+		if (centre_of_mass_outflag .ne. 0)	then
+			read(1,*) Ncom_ave
+		endif
+	endif
 	call locate(1,'PRESSURE_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) pressure_outflag
@@ -995,6 +1058,13 @@ subroutine setup_read_input
                 endif
             endif
         endif
+	endif
+
+	call locate(1,'PASS_VHALO',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) pass_vhalo
+    else
+        pass_vhalo = 0
 	endif
 
 	call locate(1,'MFLUX_OUTFLAG',.false.,found_in_input)

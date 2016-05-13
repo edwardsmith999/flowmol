@@ -34,7 +34,7 @@ subroutine setup_initial_record
     character(8)            :: the_date
     character(10)           :: the_time
     character(23)           :: file_names_t
-    character(23),parameter :: file_names(39) = &
+    character(23),parameter :: file_names(40) = &
                                 (/ "mslice      ", "mbins       ", "msnap       ",&
                                    "vslice      ", "vbins       ", "vsnap       ",&
                                    "pvirial     ", "pVA         ", "pVA_k       ",& 
@@ -47,7 +47,8 @@ subroutine setup_initial_record
                                    "bforce_pdf  ", "Fvext       ", "etev        ",&
                                    "msolv       ", "mpoly       ", "vpoly       ",&
                                    "vsolv       ", "ebins       ", "hfVA_k      ",&
-                                   "hfVA_c      ", "hfVA        ", "msurf       "/) 
+                                   "hfVA_c      ", "hfVA        ", "msurf       ",&
+                                   "combin      "                                  /) 
 
 
 !   ! COUETTE FLOW ANALYTICAL SOLUTION
@@ -744,7 +745,10 @@ subroutine simulation_header
     select case (config_special_case)
 	case('solid_liquid')
         write(fileunit,*) 'Liquid density ; liquid_density ;',liquid_density
-    case('droplet2D','droplet3D','2phase', '2phase_surfactant_solution', '2phase_surfactant_atsurface')
+    case('droplet2D','droplet3D','2phase', & 
+         '2phase_surfactant_solution',  & 
+         '2phase_surfactant_atsurface', & 
+          '2phase_LJ')
         write(fileunit,*) 'Liquid density ; liquid_density ;',liquid_density
         write(fileunit,*) 'Gas density ; gas_density ;',gas_density
         write(fileunit,*) 'Liquid_Fraction ; lg_fract ;',lg_fract
@@ -824,20 +828,20 @@ subroutine simulation_header
     write(fileunit,*)  'VMD flag ;  vmd_outflag ;', vmd_outflag
     do i=1,Nvmd_intervals
         if (i .lt. 10) then
-            write(fileunit,'(a,i1,a,i1,a,i8)')  'VMD interval ',i,' start ;  vmd_start_0',i,' ;', vmd_intervals(1,i)
-            write(fileunit,'(a,i1,a,i1,a,i8)')  'VMD interval ',i,' end   ;    vmd_end_0',i,' ;', vmd_intervals(2,i)
+            write(fileunit,'(a,i1,a,i1,a,i14)')  'VMD interval ',i,' start ;  vmd_start_0',i,' ;', vmd_intervals(1,i)
+            write(fileunit,'(a,i1,a,i1,a,i14)')  'VMD interval ',i,' end   ;    vmd_end_0',i,' ;', vmd_intervals(2,i)
         elseif (i .lt. 100) then
-            write(fileunit,'(a,i2,a,i2,a,i8)')  'VMD interval ',i,' start ;  vmd_start_',i,' ;', vmd_intervals(1,i)
-            write(fileunit,'(a,i2,a,i2,a,i8)')  'VMD interval ',i,' end   ;    vmd_end_',i,' ;', vmd_intervals(2,i)
+            write(fileunit,'(a,i2,a,i2,a,i14)')  'VMD interval ',i,' start ;  vmd_start_',i,' ;', vmd_intervals(1,i)
+            write(fileunit,'(a,i2,a,i2,a,i14)')  'VMD interval ',i,' end   ;    vmd_end_',i,' ;', vmd_intervals(2,i)
         elseif (i .lt. 1000) then
-            write(fileunit,'(a,i3,a,i3,a,i8)')  'VMD interval ',i,' start ;  vmd_start_',i,' ;', vmd_intervals(1,i)
-            write(fileunit,'(a,i3,a,i3,a,i8)')  'VMD interval ',i,' end   ;    vmd_end_',i,' ;', vmd_intervals(2,i)
+            write(fileunit,'(a,i3,a,i3,a,i14)')  'VMD interval ',i,' start ;  vmd_start_',i,' ;', vmd_intervals(1,i)
+            write(fileunit,'(a,i3,a,i3,a,i14)')  'VMD interval ',i,' end   ;    vmd_end_',i,' ;', vmd_intervals(2,i)
         elseif (i .lt. 10000) then
-            write(fileunit,'(a,i4,a,i4,a,i8)')  'VMD interval ',i,' start ;  vmd_start_',i,' ;', vmd_intervals(1,i)
-            write(fileunit,'(a,i4,a,i4,a,i8)')  'VMD interval ',i,' end   ;    vmd_end_',i,' ;', vmd_intervals(2,i)
+            write(fileunit,'(a,i4,a,i4,a,i14)')  'VMD interval ',i,' start ;  vmd_start_',i,' ;', vmd_intervals(1,i)
+            write(fileunit,'(a,i4,a,i4,a,i14)')  'VMD interval ',i,' end   ;    vmd_end_',i,' ;', vmd_intervals(2,i)
         elseif (i .lt. 100000) then
-            write(fileunit,'(a,i5,a,i5,a,i8)')  'VMD interval ',i,' start ;  vmd_start_',i,' ;', vmd_intervals(1,i)
-            write(fileunit,'(a,i5,a,i5,a,i8)')  'VMD interval ',i,' end   ;    vmd_end_',i,' ;', vmd_intervals(2,i)
+            write(fileunit,'(a,i5,a,i5,a,i14)')  'VMD interval ',i,' start ;  vmd_start_',i,' ;', vmd_intervals(1,i)
+            write(fileunit,'(a,i5,a,i5,a,i14)')  'VMD interval ',i,' end   ;    vmd_end_',i,' ;', vmd_intervals(2,i)
         endif
     enddo
     write(fileunit,*)  'VMD skip ;  vmd_skip ;', vmd_skip

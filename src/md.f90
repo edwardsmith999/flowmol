@@ -45,18 +45,18 @@ subroutine setup_MD
 
 	!Check to see if simulation is a restart of a previous simualtion
 	if (restart) then
-		call setup_restart_inputs           !Recover simulation inputs from file
+		call setup_restart_inputs()         !Recover simulation inputs from file
 #if USE_COUPLER
-		call socket_coupler_init			!SETUP COUPLER AND EXCHANGE WITH CFD
+		call socket_coupler_init()			!SETUP COUPLER AND EXCHANGE WITH CFD
 #endif
-		call setup_set_parameters           !Calculate parameters using input
-		call setup_restart_microstate       !Recover position and velocities
+		call setup_set_parameters()         !Calculate parameters using input
+		call setup_restart_microstate()     !Recover position and velocities
 	else
 		call setup_inputs                   !Input simulation parameters
 #if USE_COUPLER
  		call socket_coupler_init			!SETUP COUPLER AND EXCHANGE WITH CFD
 #endif
-		call setup_set_parameters           !Calculate parameters using input
+		call setup_set_parameters()         !Calculate parameters using input
 		call setup_initialise_microstate    !Setup position and velocities
 	endif
 

@@ -693,6 +693,11 @@ subroutine pack_cell(icell,jcell,kcell,sendbuffer,buffsize,pos)
 			call MPI_Pack(typepack,1,MPI_DOUBLE_PRECISION,&
 			              sendbuffer,buffsize,pos,icomm_grid,ierr)
         endif
+        if (global_numbering .eq. 1) then
+            typepack = real(glob_no(molno),kind(0.d0))
+			call MPI_Pack(typepack,1,MPI_DOUBLE_PRECISION,&
+			              sendbuffer,buffsize,pos,icomm_grid,ierr)
+        endif
 		current => old
 		old => current%next
 	enddo
@@ -757,6 +762,11 @@ subroutine unpack_recvbuffer(halo_np,recvnp,length,recvbuffer)
 			                1,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
             moltype(np+n) = int(typepack)
         endif
+        if (global_numbering .eq. 1) then
+			call MPI_Unpack(recvbuffer,length,pos,typepack, &
+			                1,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+            glob_no(np+n) = int(typepack)
+        endif
 	enddo
 
 end subroutine unpack_recvbuffer
@@ -780,6 +790,9 @@ subroutine get_sendsize(sendnp,sendsize)
 	end select
     !Add Mie_potential moltype data is needed
     if (Mie_potential .eq. 1) then
+        sendsize = sendsize + sendnp
+    endif
+    if (global_numbering .eq. 1) then
         sendsize = sendsize + sendnp
     endif
 
@@ -811,6 +824,9 @@ subroutine get_recvnp(recvsize,recvnp)
 		endif
 	end select
     if (Mie_potential .eq. 1) then
+        recordsize = recordsize + 1
+    endif
+    if (global_numbering .eq. 1) then
         recordsize = recordsize + 1
     endif
 
@@ -1530,6 +1546,13 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 			call MPI_Pack(dppack,1,MPI_DOUBLE_PRECISION, &
 		              sendbuffer,buffsize,pos,icomm_grid,ierr)
         endif
+
+        if (global_numbering .eq. 1) then
+			dppack = real(glob_no(molno),kind(0.d0))
+			call MPI_Pack(dppack,1,MPI_DOUBLE_PRECISION, &
+		              sendbuffer,buffsize,pos,icomm_grid,ierr)
+        endif
+
 		
 		old => current%next  !make old point to next node of current
 		current => old      !Set current item to old ready for next loop
@@ -1628,6 +1651,12 @@ subroutine sendrecvface(ixyz,sendnp,new_np,dir)
 				moltype(np+n)     = nint(dppack)
             endif
 
+            if (global_numbering .eq. 1) then
+				call MPI_Unpack(recvbuffer,length,pos,dppack, &
+							1,MPI_DOUBLE_PRECISION,icomm_grid,ierr)
+				glob_no(np+n)     = nint(dppack)
+            endif
+
 		enddo
 		!-------------------------------------------------------------!
 
@@ -1698,6 +1727,10 @@ contains
 		end if
 
         if (Mie_potential .eq. 1) then
+			sendsizeloc = sendsizeloc + 1*sendnp
+        endif
+
+        if (global_numbering .eq. 1) then
 			sendsizeloc = sendsizeloc + 1*sendnp
         endif
 
@@ -1836,6 +1869,10 @@ subroutine reorderdata(new_np)
 
         if (Mie_potential .eq. 1) then
 			moltype(molno) = moltype(np+new_np)
+        endif
+
+        if (global_numbering .eq. 1) then
+			glob_no(molno) = glob_no(np+new_np)
         endif
 
 		!Read molecular tag and assign correct properties to reordered molecules
@@ -3129,12 +3166,23 @@ subroutine globalAverage(A, na)
 	return
 end subroutine globalAverage
 
+subroutine globalbroadcastInt(A,na,broadprocid)
+	use messenger
+	implicit none
+
+	integer				:: na, broadprocid
+	integer         	:: A(na)
+
+	call MPI_BCAST(A,na,MPI_INTEGER,broadprocid-1,MD_COMM,ierr)
+
+	return
+end subroutine globalbroadcastInt
 subroutine globalbroadcast(A,na,broadprocid)
 	use messenger
 	implicit none
 
 	integer				:: na, broadprocid
-	real(kind(0.d0))	:: A
+	real(kind(0.d0))	:: A(na)
 
 	call MPI_BCAST(A,na,MPI_DOUBLE_PRECISION,broadprocid-1,MD_COMM,ierr)
 
