@@ -88,6 +88,7 @@ module computational_constants_MD
 	integer, parameter :: posts = 1
 	integer, parameter :: roughness = 2
 	integer, parameter :: converge_diverge = 3
+	integer, parameter :: fractal = 4
 	real(kind(0.d0))   :: texture_intensity
 	
 

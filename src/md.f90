@@ -37,11 +37,8 @@ subroutine setup_MD
 #if USE_COUPLER
 	call socket_coupler_invoke				!INITIALISES COUPLER INTERCOMMUNICATOR
 #endif
-
-
 	call setup_command_arguments            !Process command line args specifying restart and input files
 	call messenger_init						!Establish processor topology
-
 
 	!Check to see if simulation is a restart of a previous simualtion
 	if (restart) then
