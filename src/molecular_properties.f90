@@ -305,15 +305,22 @@ end subroutine get_tag_thermostat_activity
 ! Build up a range of wall textures
 subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 	use physical_constants_MD, only : pi,tethereddistbottom,tethereddisttop
-	use computational_constants_MD, only : posts,roughness,converge_diverge,texture_intensity, &
-										   globaldomain, cellsidelength,texture_therm,nh,halfdomain,ncells
+	use computational_constants_MD, only : posts,roughness,converge_diverge, fractal, & 
+                                           texture_intensity, globaldomain, cellsidelength, &
+										   texture_therm,nh,halfdomain,ncells, initialnunits, irank, iroot
+    use librarymod, only : DiamondSquare
 	implicit none
 
 	integer,intent(in)	  :: texture_type
 	real(kind(0.d0)),dimension(3),intent(in) :: rg
 	real(kind(0.d0)),dimension(3),intent(out):: tagdistbottom,tagdisttop
 
-	real(kind(0.d0))		:: xlocation,ylocation,zlocation,rand,fraction_domain,postheight
+    integer                 :: i, j, levels, Nx, Nz
+    logical                 :: first_time=.true.
+	real(kind(0.d0))		:: xlocation, ylocation, zlocation, unitsize(3)
+	real(kind(0.d0))		:: rand, fraction_domain, postheight
+	real(kind(0.d0)),dimension(:),allocatable	:: temp
+	real(kind(0.d0)),dimension(:,:),allocatable,save	:: z
 
 	select case (texture_type)
 	case(0)
@@ -379,6 +386,52 @@ subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 		if (tagdisttop(2) .lt. 0.05d0*globaldomain(2)) then
 			tagdisttop(2) = 0.05d0*globaldomain(2)
 		endif
+
+	case(fractal)
+
+        if (first_time .eqv. .true.) then
+            first_time = .false.
+
+            Nx = 4*initialnunits(1)
+            Nz = 4*initialnunits(3)
+            allocate(z(Nx,Nz)); z=0.d0
+            levels = max(initialnunits(1),initialnunits(3))
+
+            allocate(temp(Nx*Nz))
+            if (irank .eq. iroot) then
+                call DiamondSquare(z, 0, 0, Nx, Nz, 10.d0, levels)
+                temp= reshape(z,(/Nx*Nz/)) 
+            endif
+            
+            call globalbroadcast(temp,Nx*Nz,iroot)
+            z = reshape(temp,(/Nx,Nz/))
+            
+            !do i =1,initialnunits(1)
+            !do j =1,initialnunits(3)
+            !    write(10,'(2i8,f20.12)') i,j,z(i,j)
+            !enddo
+            !enddo
+        endif
+
+        tagdisttop = tethereddisttop
+
+!        unitsize(1) = globaldomain(1)/(4.d0*initialnunits(1))
+!        unitsize(3) = globaldomain(3)/(4.d0*initialnunits(3))
+!		i = ceiling((rg(1)+0.5*globaldomain(1))/unitsize(1)+1)
+!		j = ceiling((rg(3)+0.5*globaldomain(3))/unitsize(3)+1)
+!        if (i .lt. 1) i = 1; if (i .gt. size(z,1)) i = size(z,1)
+!        if (j .lt. 1) j = 1; if (j .gt. size(z,2)) j = size(z,2)
+!		postheight = z(i,j)
+		tagdistbottom = tethereddistbottom
+!		ylocation = rg(2) + 0.5*globaldomain(2)
+
+!		! Post is above wall
+!		if ((ylocation .gt. tethereddistbottom(2) ) .and. & 
+!			(ylocation .lt. tethereddistbottom(2) + postheight)) then
+!			tagdistbottom(2) = tethereddistbottom(2) + postheight 
+!        else
+!            tagdistbottom(2) = tethereddistbottom(2)
+!		endif
 
 	case(converge_diverge)
 		!A converging diverging channel
@@ -505,12 +558,13 @@ subroutine tether_force(molno)
 	use module_molecule_properties
 	use arrays_MD
 	use module_record_external_forces, only : record_external_forces
-	use librarymod, only : magnitude 
+	use librarymod, only : magnitude
+    use messenger, only: globalise
 	implicit none
 
-	integer						:: molno
-	real(kind(0.d0))			   :: acctmag
-	real(kind(0.d0)), dimension(3) :: at,mat, rio
+	integer						   :: molno
+	real(kind(0.d0))			   :: acctmag, xt, sincoeff, mag, shift, freq, initialshift
+	real(kind(0.d0)), dimension(3) :: at, rglob, mat, rio
 
 	!COEFFICIENTS MOVED TO INPUT FILE
 	!Define strength of tethering potential ~ phi= k2*rio^2 
@@ -521,16 +575,31 @@ subroutine tether_force(molno)
 	!real(kind(0.d0)), parameter	:: teth_k4=5000.d0	
 	!real(kind(0.d0)), parameter	:: teth_k6=5000000.d0
 
-	!Obtain displacement from initial position
-	rio(:) = r(:,molno) - rtether(:,molno)
+    !Check for special case
+    if ((teth_k2+666.d0).gt.1e-3) then
+    	!Apply tethering forces
+	    acctmag = -2.d0*teth_k2*magnitude(rio)	     & 
+	    		  -4.d0*teth_k4*magnitude(rio)**2.d0 & 
+	    		  -6.d0*teth_k6*magnitude(rio)**4.d0
+    else
+	    !Obtain displacement from initial position
+        freq = 1.d0; initialshift = 0.d0!0.25d0*globaldomain(1)
+	    rio(:) = r(:,molno) - rtether(:,molno)
+        rglob = globalise(rtether(:,molno))+0.5d0*globaldomain
+        xt = (rglob(1)-iter*delta_t*wallslidev(1)+initialshift)/globaldomain(1)
 
-	!Apply tethering forces
-	acctmag = -2.d0*teth_k2*magnitude(rio)	   & 
-			  -4.d0*teth_k4*magnitude(rio)**2.d0 & 
-			  -6.d0*teth_k6*magnitude(rio)**4.d0
-	at(:) = acctmag * rio(:)
+        !Apply varying sinusoidal wall tethering
+        mag = 0.5d0*(teth_k4-teth_k6) !Magnitude = Max-Min
+        shift = teth_k6               !Shift = Min
+        sincoeff = mag*(sin(freq*2.d0*pi*xt)+1.d0)+shift
+        !if (mod(iter,1000) .eq. 0) then
+        !    write(50000+ceiling(iter/1000.d0),'(a,2i8,6f18.6)'), 'sin(x+t)', iter, molno, rglob(:), iter*delta_t*wallslidev(1), xt, sincoeff
+        !endif
+        acctmag = -2.d0*sincoeff*magnitude(rio)
+    endif
 
 	!Adjust molecular acceleration accordingly
+	at(:) = acctmag * rio(:)
 	a(:,molno) = a(:,molno) + at(:)
 
 	!Adjust initial postion if molecule is sliding
