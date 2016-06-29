@@ -207,7 +207,9 @@ subroutine simulation_record
 	if (vPDF_flag .ne. 0) call velocity_PDF_averaging(vPDF_flag)
 
 	!Record boundary force PDFs
+#if __INTEL_COMPILER > 1200
 	if (bforce_pdf_measure .ne. 0) call bforce_pdf_stats
+#endif
 
 	!Obtain and record temperature
 	if (temperature_outflag .ne. 0)	call temperature_averaging(temperature_outflag)
@@ -215,6 +217,10 @@ subroutine simulation_record
     !Obtain and record energy
 	if (energy_outflag .ne. 0)	call energy_averaging(energy_outflag)
 
+    !Obtain and record centre of mass
+    if (centre_of_mass_outflag .ne. 0)	call centre_of_mass_averaging(centre_of_mass_outflag)
+
+	!Obtain and record density on a surface
     if (msurf_outflag .ne. 0) call surface_density_averaging(msurf_outflag)
 	!Obtain and record molecular diffusion
 	!call evaluate_properties_diffusion
@@ -229,7 +235,8 @@ subroutine simulation_record
 		call heatflux_averaging(heatflux_outflag)
 	end if
 
-	call update_simulation_progress_file
+	!Write current timestep to a progress file
+	call update_simulation_progress_file()
 
 end subroutine simulation_record
 
@@ -1720,6 +1727,10 @@ subroutine cumulative_temperature(ixyz)
 
 		!Reset Control Volume momentum 
 		do n = 1,np
+
+            if (v(1,n)**2+v(1,n)**2+v(1,n)**2 .gt. 1000.d0) then
+                print*, n, slidev(:,n), v(:,n)
+            endif
 			!Add up current volume mass and temperature densities
 			!ibin(:) = ceiling((r(:,n)+halfdomain(:))/Tbinsize(:)) + nhb
             ibin(:) = get_bin(r(:,n))

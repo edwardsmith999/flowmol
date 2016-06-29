@@ -970,7 +970,8 @@ subroutine set_parameters_allocate
 	!extralloc = extralloc/nd  + 300  !Average of all 3 dimensions inc safety factor
     !Set to 2000 here as start case was 2 phase with uneven distribution
     print*, "EXTRA ALLOC is massive, reduce in set_parameters_allocate"
-	extralloc = extralloc/nd  + 20000 
+	extralloc = extralloc/nd  + 300000 
+    print*, "EXTRA ALLOC is massive, reduce in set_parameters_allocate"
 
 	!Allocate array sizes for position, velocity and acceleration
 	allocate(r(nd,np+extralloc))
@@ -1067,18 +1068,44 @@ end subroutine setup_polymer_info
 subroutine setup_fractal_wall()
     use calculated_properties_MD, only : rough_array
     use computational_constants_MD, only : texture_type, roughness, & 
-                                           texture_intensity, initialnunits
-    use librarymod, only : DiamondSquare
+                                           texture_intensity, initialnunits, fractal, irank, iroot
+    use librarymod, only : DiamondSquare, spectral_surface
+    implicit none
 
-    integer :: Nx, Nz, levels
+    integer :: i,j,Nx, Nz, levels
+    double precision, dimension(:), allocatable :: temp
 
-    if (texture_type .eq. roughness) then
-        Nx = initialnunits(1); Nz = initialnunits(3) 
-        levels = int(max(Nx,Nz)/4.d0)+4
+    if (texture_type .eq. fractal) then
+
+        Nx = int(initialnunits(1)); Nz = int(initialnunits(3))
         allocate(rough_array(Nx, Nz)); rough_array=0.d0
-        call DiamondSquare(rough_array, 0, 0, Nx, Nz, texture_intensity, levels)
-        print*,texture_intensity, maxval(rough_array),minval(rough_array), sum(rough_array)
-        !stop
+
+        if (irank .eq. iroot) then
+
+            call spectral_surface(rough_array, texture_intensity, 5)
+            !levels = int(max(Nx,Nz)/8.d0)+4
+            !call DiamondSquare(rough_array, 0, 0, Nx, Nz, texture_intensity, levels)
+            print*, "Fractal texture intensity ", texture_intensity, & 
+                    maxval(rough_array),minval(rough_array), sum(rough_array)
+
+            if (minval(rough_array) .lt. 0.d0) rough_array = rough_array - minval(rough_array)
+
+
+            do i =1,Nx
+            do j =1,Nz
+                write(100,*) rough_array(i,j)
+            enddo
+            enddo
+        endif
+
+
+        !Same array on all processors
+        allocate(temp(Nx*Nz))
+        temp(:) = reshape(rough_array(:,:), (/Nx*Nz/))
+        call globalbroadcast(temp, Nx*Nz, iroot)
+        rough_array(:,:) = reshape(temp(:), (/Nx,Nz/))
+        deallocate(temp)
+
     endif
 
 end subroutine setup_fractal_wall
@@ -1708,6 +1735,7 @@ subroutine set_parameters_outputs
 	!Allocated bins for temperature averaging
 	if (temperature_outflag.eq.4) then
 		allocate(volume_temperature(nbinso(1),nbinso(2),nbinso(3)))
+        volume_temperature = 0.d0
 		mass_outflag = 4	!Mass binning required too
 		!Allocate and zero peculiar momentum binning array
 		if (peculiar_flag .ne. 0) then

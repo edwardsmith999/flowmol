@@ -14,7 +14,7 @@ module module_molecule_properties
 contains
 
     !Recursive as it must call itself to see if removed molecules are tethered
-    recursive function get_tag_status(rg,status_type) result(tag_status)
+    recursive function get_tag_status(rg, status_type) result(tag_status)
         use interfaces, only: error_abort
         use computational_constants_MD, only : texture_type, domain
         use calculated_properties_MD, only : nbins
@@ -31,6 +31,7 @@ contains
         real(kind(0.d0)) :: Mbinsize(3)
         logical :: tag_status 
 
+        logical, save :: first_time = .true.
         bottom = (/ -globaldomain(1)/2.d0, -globaldomain(2)/2.d0, -globaldomain(3)/2.d0 /)
         top	   = (/  globaldomain(1)/2.d0,  globaldomain(2)/2.d0,  globaldomain(3)/2.d0 /)
 
@@ -41,13 +42,24 @@ contains
             !Thermostat complicated wall texture if specified, otherwise thermostat
             !is based on thermstatbottom/thermstattop
             if (texture_type .ne. 0 .and. texture_therm .eq. 1) then
-                call wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
+                call wall_textures(texture_type, rg, tagdistbottom, tagdisttop)
+            endif
+
+            if (any(local_heat_region .ne. -666.d0)) then
+                !Specify pool boiling region
+                if ((rg(1) .gt. local_heat_region(2) .or. rg(1) .lt. local_heat_region(1)) .or. & 
+                    (rg(3) .gt. local_heat_region(6) .or. rg(3) .lt. local_heat_region(5))) then
+                    tagdistbottom = 0.d0
+                else
+                    tagdistbottom = local_heat_region(4) - local_heat_region(3)
+                    !print'(a,3f10.5)', 'Heated region', rg(1),thermstatbottom(2),rg(3)
+                endif
             endif
         case ('teth')
             tagdistbottom(:) = tethereddistbottom(:)
             tagdisttop(:)	 = tethereddisttop(:)
             !Apply a complicated wall texture if specified
-            if (texture_type .ne. 0) call wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
+            if (texture_type .ne. 0) call wall_textures(texture_type, rg, tagdistbottom, tagdisttop)
         case ('fixed')
             tagdistbottom(:) = fixdistbottom(:)
             tagdisttop(:)	 = fixdisttop(:)
@@ -152,15 +164,15 @@ subroutine setup_cylinder_tags_equilibrate
 end subroutine setup_cylinder_tags_equilibrate
 
 
-subroutine setup_location_tags
+subroutine setup_location_tags()
 	use module_molecule_properties
 	use interfaces, only: error_abort
 	use messenger, only: globalise
 	use computational_constants_MD, only : texture_type, domain
-	use calculated_properties_MD, only : nbins
+	use calculated_properties_MD, only : nbins, rough_array
 	implicit none
 
-	integer :: n
+	integer :: n, i,j
 	real(kind(0.d0)) :: rglob(3)
 	logical :: l_thermo
 	logical :: l_teth
@@ -319,11 +331,15 @@ end subroutine get_tag_thermostat_activity
 
 !----------------------------------------------------------------------------------
 ! Build up a range of wall textures
-subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
-	use physical_constants_MD, only : pi,tethereddistbottom,tethereddisttop
+subroutine wall_textures(texture_type, rg, tagdistbottom, tagdisttop)
+	use physical_constants_MD, only : pi, tethereddistbottom, tethereddisttop, & 
+                                      thermstatbottom, rcutoff
 	use computational_constants_MD, only : posts,roughness,converge_diverge, fractal, & 
                                            texture_intensity, globaldomain, cellsidelength, &
-										   texture_therm,nh,halfdomain,ncells, initialnunits, irank, iroot
+										   texture_therm,nh,halfdomain,ncells, initialnunits, & 
+                                           irank, iroot, initialunitsize, npx, npy, npz, & 
+                                           iblock, jblock, kblock
+    use calculated_properties_MD, only : rough_array
     use librarymod, only : DiamondSquare
 	implicit none
 
@@ -331,12 +347,12 @@ subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 	real(kind(0.d0)),dimension(3),intent(in) :: rg
 	real(kind(0.d0)),dimension(3),intent(out):: tagdistbottom,tagdisttop
 
-    integer                 :: i, j, levels, Nx, Nz
+    integer                 :: i, j, levels, Nx, Nz, lb(3), ub(3)
     logical                 :: first_time=.true.
 	real(kind(0.d0))		:: xlocation, ylocation, zlocation, unitsize(3)
-	real(kind(0.d0))		:: rand, fraction_domain, postheight
-	real(kind(0.d0)),dimension(:),allocatable	:: temp
-	real(kind(0.d0)),dimension(:,:),allocatable,save	:: z
+	real(kind(0.d0))		:: rand, fraction_domain, postheight, sizex, sizez
+	!real(kind(0.d0)),dimension(:),allocatable	:: temp
+	!real(kind(0.d0)),dimension(:,:),allocatable,save	:: z
 
 	select case (texture_type)
 	case(0)
@@ -382,17 +398,6 @@ subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 						   + 0.25d0*texture_intensity*globaldomain(2)*sin(5*pi*xlocation) + &
 						   + 0.25d0*texture_intensity*globaldomain(2)*sin(20*pi*xlocation) + &
 						   + 0.25d0*texture_intensity*globaldomain(2)*2.d0*(rand-1)
-		!Z roughness
-		!tagdistbottom(2) = tagdistbottom(2)  &
-		!				  + 0.1d0*globaldomain(2)*sin(2*pi*zlocation) + &
-		!				  + 0.1d0*globaldomain(2)*sin(5*pi*zlocation) + &
-		!				  + 0.1d0*globaldomain(2)*sin(20*pi*zlocation) + &
-		!				  + 0.1d0*globaldomain(2)*2.d0*(rand-1)
-		!tagdisttop(2)	=   tagdisttop(2)   &
-		!				  + 0.1d0*globaldomain(2)*sin(2*pi*zlocation) + &
-		!				  + 0.1d0*globaldomain(2)*sin(5*pi*zlocation) + &
-		!				  + 0.1d0*globaldomain(2)*sin(20*pi*zlocation) + &
-		!				  + 0.1d0*globaldomain(2)*2.d0*(rand-1)
 
 		!Ensure Minimum height
 		if (tagdistbottom(2) .lt. 0.05d0*globaldomain(2)) then
@@ -405,49 +410,39 @@ subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 
 	case(fractal)
 
-        if (first_time .eqv. .true.) then
-            first_time = .false.
-
-            Nx = 4*initialnunits(1)
-            Nz = 4*initialnunits(3)
-            allocate(z(Nx,Nz)); z=0.d0
-            levels = max(initialnunits(1),initialnunits(3))
-
-            allocate(temp(Nx*Nz))
-            if (irank .eq. iroot) then
-                call DiamondSquare(z, 0, 0, Nx, Nz, 10.d0, levels)
-                temp= reshape(z,(/Nx*Nz/)) 
-            endif
-            
-            call globalbroadcast(temp,Nx*Nz,iroot)
-            z = reshape(temp,(/Nx,Nz/))
-            
-            !do i =1,initialnunits(1)
-            !do j =1,initialnunits(3)
-            !    write(10,'(2i8,f20.12)') i,j,z(i,j)
-            !enddo
-            !enddo
-        endif
-
         tagdisttop = tethereddisttop
+        tagdistbottom = tethereddistbottom
+        sizex = globaldomain(1)/dble(size(rough_array,1))
+        sizez = globaldomain(3)/dble(size(rough_array,2))
+        i = ceiling((rg(1)+0.5d0*globaldomain(1))/sizex)+1
+        j = ceiling((rg(3)+0.5d0*globaldomain(3))/sizez)+1
 
-!        unitsize(1) = globaldomain(1)/(4.d0*initialnunits(1))
-!        unitsize(3) = globaldomain(3)/(4.d0*initialnunits(3))
-!		i = ceiling((rg(1)+0.5*globaldomain(1))/unitsize(1)+1)
-!		j = ceiling((rg(3)+0.5*globaldomain(3))/unitsize(3)+1)
-!        if (i .lt. 1) i = 1; if (i .gt. size(z,1)) i = size(z,1)
-!        if (j .lt. 1) j = 1; if (j .gt. size(z,2)) j = size(z,2)
-!		postheight = z(i,j)
-		tagdistbottom = tethereddistbottom
-!		ylocation = rg(2) + 0.5*globaldomain(2)
+        if (i .lt. 1) i = 1; if (j .lt. 1) j = 1;
+        if (i .gt. size(rough_array,1)) i = size(rough_array,1)
+        if (j .gt. size(rough_array,2)) j = size(rough_array,2)
+        tagdistbottom(2) = tethereddistbottom(2) +  rough_array(i,j)
 
-!		! Post is above wall
-!		if ((ylocation .gt. tethereddistbottom(2) ) .and. & 
-!			(ylocation .lt. tethereddistbottom(2) + postheight)) then
-!			tagdistbottom(2) = tethereddistbottom(2) + postheight 
-!        else
-!            tagdistbottom(2) = tethereddistbottom(2)
+		!Ensure Minimum height
+		if (tagdistbottom(2) .lt. rcutoff) then
+			tagdistbottom(2) = rcutoff
+		endif
+
+!        tagdisttop = tethereddisttop
+!        tagdistbottom = tethereddistbottom
+
+!        i = ceiling((rg(1)+0.5d0*globaldomain(1))/initialunitsize(1))+1
+!        j = ceiling((rg(3)+0.5d0*globaldomain(3))/initialunitsize(3))+1
+
+!        if (i .lt. 1) i = 1; if (j .lt. 1) j = 1;
+!        if (i .gt. initialnunits(1)) i = initialnunits(1)
+!        if (j .gt. initialnunits(3)) j = initialnunits(3)
+!        tagdistbottom(2) = tethereddistbottom(2) +  rough_array(i,j)
+
+!		!Ensure Minimum height
+!		if (tagdistbottom(2) .lt. rcutoff) then
+!			tagdistbottom(2) = rcutoff
 !		endif
+
 	case(converge_diverge)
 		!A converging diverging channel
 		tagdistbottom = 0.d0; tagdisttop=0.d0
@@ -467,6 +462,7 @@ subroutine wall_textures(texture_type,rg,tagdistbottom,tagdisttop)
 		tagdisttop(2)	=  0.5d0*fraction_domain*globaldomain(2)   & 
 								 *(1-cos(2*pi*xlocation)) & 
 							+ tethereddisttop(2)	+ 0.5d0*cellsidelength(2)
+
 	end select
 
 end subroutine wall_textures
@@ -590,17 +586,18 @@ subroutine tether_force(molno)
 	!real(kind(0.d0)), parameter	:: teth_k4=5000.d0	
 	!real(kind(0.d0)), parameter	:: teth_k6=5000000.d0
 
+    !Obtain displacement from initial position
+    rio(:) = r(:,molno) - rtether(:,molno)
+
     !Check for special case
     if ((teth_k2+666.d0).gt.1e-3) then
 
-	!Apply tethering forces
-	acctmag = -2.d0*teth_k2*magnitude(rio)	   & 
-			  -4.d0*teth_k4*magnitude(rio)**2.d0 & 
-			  -6.d0*teth_k6*magnitude(rio)**4.d0
+	    !Apply tethering forces
+	    acctmag = -2.d0*teth_k2*magnitude(rio)	   & 
+			      -4.d0*teth_k4*magnitude(rio)**2.d0 & 
+			      -6.d0*teth_k6*magnitude(rio)**4.d0
     else
-	    !Obtain displacement from initial position
         freq = 1.d0; initialshift = 0.d0!0.25d0*globaldomain(1)
-	    rio(:) = r(:,molno) - rtether(:,molno)
         rglob = globalise(rtether(:,molno))+0.5d0*globaldomain
         xt = (rglob(1)-iter*delta_t*wallslidev(1)+initialshift)/globaldomain(1)
 
@@ -620,6 +617,8 @@ subroutine tether_force(molno)
 
 	!Adjust initial postion if molecule is sliding
 	rtether(:,molno) = rtether(:,molno) + slidev(:,molno)*delta_t
+
+    !if (mod(iter,25) .eq. 0) write(5860000+irank+10*int(iter/25),'(9f15.5)') rtether(:,molno), r(:,molno), a(:,molno)
 
 	!Add tethered force to stress calculation
 	if (vflux_outflag .eq. 4) then
