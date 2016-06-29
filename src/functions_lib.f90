@@ -2900,7 +2900,15 @@ end subroutine PDF_destroy
 
 #endif
 
-
+! A---G---B
+! |   |   |
+! F---E---H
+! |   |   |
+! C---M---D
+!    f = (a+c+e+h)/4.d0
+!    g = (a+b+e+m)/4.d0
+!    h = (b+d+e+f)/4.d0
+!    m = (c+d+e+g)/4.d0
 recursive subroutine DiamondSquare(z, x1, y1, x2, y2, nrange, level)
     implicit none
 
@@ -2908,22 +2916,45 @@ recursive subroutine DiamondSquare(z, x1, y1, x2, y2, nrange, level)
     integer, intent(in) :: x1, y1, x2, y2, level
     double precision, intent(in) :: nrange
 
+    integer, save :: depth=1, Nx, Ny
     integer :: istart, iend, i, jstart, jend, j, ind, jnd, id, jd
     double precision    :: a, b, c, d, e, rand
+    double precision    :: f,g,h,m
 
-    if (level < 1) return
+    if (level < 1) then
+
+!        Nx = size(z,1)
+!        Ny = size(z,2)
+        !Interpolate
+!        z(1,:)  = z(Nx-1,:) + 0.25*(z(2,:) - z(Nx-1,:))
+!        z(Nx,:) = z(Nx-1,:) + 0.75*(z(2,:) - z(Nx-1,:))
+
+!        z(:,1)  = z(:,Ny-1) + 0.25*(z(:,2) - z(:,Ny-1))
+!        z(:,Ny) = z(:,Ny-1) + 0.75*(z(:,2) - z(:,Ny-1))
+
+!        !Periodic
+!        z(Nx,:) = z(2,:)
+!        z(:,Ny) = z(:,2)
+
+!        z(1,:) = z(Nx-1,:)
+!        z(:,1) = z(:,Ny-1)
+        return
+    endif
+
+    !Add shifting so periodic
+    Nx = size(z,1)
+    Ny = size(z,2)
+
+    z = cshift(z,Nx/3,1) 
+    z = cshift(z,Ny/3,2) 
 
     ! diamonds
     istart = x1 + level + 1
-    iend = x2 + level
-    do id =istart,iend,level
-        i = id
-        if (i .gt. size(z,1)) i = i - size(z,1) +level
+    iend = x2 
+    do i =istart,iend,level
         jstart = y1 + level + 1
-        jend = y2 + level
-        do jd = jstart,jend,level
-            j = jd
-            if (j .gt. size(z,2)) j = j - size(z,2)  +level
+        jend = y2 
+        do j = jstart,jend,level
             !print*, i,j,i-level,j-level
             a = z(i-level,j-level)
             b = z(i,j-level)
@@ -2931,39 +2962,131 @@ recursive subroutine DiamondSquare(z, x1, y1, x2, y2, nrange, level)
             d = z(i,j)
             call random_number(rand)
             e = (a+b+c+d)/4. + (rand-0.5d0)*nrange
-            z(i-level/2,j-level/2) = e
+            z(i-int(level/2.d0),j-int(level/2.d0)) = e
         enddo
     enddo
 
     ! squares
-    istart = x1 + level + 1
-    iend = x2 + level
-    do id = istart,iend,level
-        i = id
-        if (i .gt. size(z,1)) i = i - size(z,1) +level
-        jstart = y1 + level + 1
-        jend = y2 + level
-        do jd =jstart,jend,level
-            j = jd
-            if (j .gt. size(z,2)) j = j - size(z,2) +level
+    istart = x1 + 2*level + 1
+    iend = x2
+    do i = istart,iend,level
+        jstart = y1 + 2*level + 1
+        jend = y2 
+        do j =jstart,jend,level
             a = z(i-level,j-level)
             b = z(i,j-level)
             c = z(i-level,j)
             d = z(i,j)
-            e = z(i-level/2,j-level/2)
+            e = z(i-int(level/2.d0),j-int(level/2.d0))
 
-            ind = i-3*level/2 
-            jnd = j-3*level/2
-            !print*, ind
-            if (ind .le. 0) ind = size(z,1) + ind
-            if (jnd .le. 0) jnd = size(z,2) + jnd
-            z(i-level,j-level/2) = (a+c+e+z(ind,j-level/2))/4.+(rand-0.5d0)*nrange
-            z(i-level/2,j-level) = (a+b+e+z(i-level/2,jnd))/4.+(rand-0.5d0)*nrange
+            ind = i-3*int(level/2.d0)
+            jnd = j-3*int(level/2.d0)
+            z(i-level,j-int(level/2.d0)) = (a+c+e+z(ind,j-int(level/2.d0)))/4.d0+(rand-0.5d0)*nrange
+            z(i-int(level/2.d0),j-level) = (a+b+e+z(i-int(level/2.d0),jnd))/4.d0+(rand-0.5d0)*nrange
         enddo
     enddo
-    call DiamondSquare(z, x1, y1, x2, y2, nrange/2., level/2)
+    depth = depth + 1
+    call DiamondSquare(z, x1, y1, x2, y2, 0.5*nrange, int(level/2.d0))
 
 end subroutine DiamondSquare
+
+
+subroutine spectral_surface(z, nrange, resolution)
+    implicit none
+
+    double precision,dimension(:,:),allocatable,intent(inout) :: z
+    integer, intent(in) :: resolution
+    double precision, intent(in) :: nrange
+
+    integer                     :: levels,m,n
+    double precision            :: A, rand(3)
+    double precision,dimension(:),allocatable  :: x,y
+	double precision,parameter  :: pi=4.d0*atan(1.d0)
+
+    allocate(x, source=linspace(0.d0,2.d0*pi,size(z,1)))
+    allocate(y, source=linspace(0.d0,2.d0*pi,size(z,2)))
+    z = 0.d0
+
+    do levels=1,20
+
+        call random_number(rand)
+        m = ceiling(rand(1)*resolution)
+        n = ceiling(rand(2)*resolution)
+        A = (rand(3)-0.5)/dble(n*m) 
+        z = z + A*outerprod(sin(n*x)+cos(n*x), sin(m*y)+cos(m*y))    
+
+    enddo
+
+    !scale
+    z = nrange*z/maxval(z)
+
+end subroutine spectral_surface
+
+
+
+!recursive subroutine DiamondSquare(z, x1, y1, x2, y2, nrange, level)
+!    implicit none
+
+!    double precision,dimension(:,:),allocatable,intent(inout) :: z
+!    integer, intent(in) :: x1, y1, x2, y2, level
+!    double precision, intent(in) :: nrange
+
+!    integer :: istart, iend, i, jstart, jend, j, ind, jnd, id, jd
+!    double precision    :: a, b, c, d, e, rand
+
+!    if (level < 1) return
+
+!    ! diamonds
+!    istart = x1 + level + 1
+!    iend = x2 !+ level
+!    do id =istart,iend,level
+!        i = id
+!        if (i .gt. size(z,1)) i = i - size(z,1) +level
+!        jstart = y1 + level + 1
+!        jend = y2 + level
+!        do jd = jstart,jend,level
+!            j = jd
+!            if (j .gt. size(z,2)) j = j - size(z,2)  +level
+!            !print*, i,j,i-level,j-level
+!            a = z(i-level,j-level)
+!            b = z(i,j-level)
+!            c = z(i-level,j)
+!            d = z(i,j)
+!            call random_number(rand)
+!            e = (a+b+c+d)/4. + (rand-0.5d0)*nrange
+!            z(i-level/2,j-level/2) = e
+!        enddo
+!    enddo
+
+!    ! squares
+!    istart = x1 + level + 1
+!    iend = x2 !+ level
+!    do id = istart,iend,level
+!        i = id
+!        if (i .gt. size(z,1)) i = i - size(z,1) +level
+!        jstart = y1 + level + 1
+!        jend = y2 + level
+!        do jd =jstart,jend,level
+!            j = jd
+!            if (j .gt. size(z,2)) j = j - size(z,2) +level
+!            a = z(i-level,j-level)
+!            b = z(i,j-level)
+!            c = z(i-level,j)
+!            d = z(i,j)
+!            e = z(i-level/2,j-level/2)
+
+!            ind = i-3*level/2 
+!            jnd = j-3*level/2
+!            !print*, ind
+!            if (ind .le. 0) ind = size(z,1) + ind
+!            if (jnd .le. 0) jnd = size(z,2) + jnd
+!            z(i-level,j-level/2) = (a+c+e+z(ind,j-level/2))/4.+(rand-0.5d0)*nrange
+!            z(i-level/2,j-level) = (a+b+e+z(i-level/2,jnd))/4.+(rand-0.5d0)*nrange
+!        enddo
+!    enddo
+!    call DiamondSquare(z, x1, y1, x2, y2, nrange/2., level/2)
+
+!end subroutine DiamondSquare
 
 !Read input file from the DNS codes
 

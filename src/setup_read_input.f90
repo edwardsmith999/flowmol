@@ -654,6 +654,10 @@ subroutine setup_read_input
 			read(1,*) F_ext_limits(4)
 			read(1,*) F_ext_limits(5)
 			read(1,*) F_ext_limits(6)
+        else
+            external_force_flag = 0
+            F_ext_ixyz = 1
+            F_ext = 0.d0
 		endif
 	else
 		external_force_flag = 0
@@ -667,6 +671,8 @@ subroutine setup_read_input
 		read(1,*) specular_wall(1)			
 		read(1,*) specular_wall(2)			
 		read(1,*) specular_wall(3)
+        print*, specular_wall
+        stop
     	read(1,*,iostat=ios) specular_wall_flag
 		if (ios .ne. 0) specular_wall_flag = 0
 	endif
@@ -821,6 +827,15 @@ subroutine setup_read_input
     else
         cluster_analysis_outflag = 0
 	endif
+
+	call locate(1,'LOCAL_HEAT',.false.,found_in_input)
+	if (found_in_input) then
+        do n =1,6
+            read(1,*) local_heat_region(n)
+        enddo
+    else
+        local_heat_region = -666.d0
+    endif
 
 
 

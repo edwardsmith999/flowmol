@@ -90,6 +90,7 @@ module computational_constants_MD
 	integer, parameter :: converge_diverge = 3
 	integer, parameter :: fractal = 4
 	real(kind(0.d0))   :: texture_intensity
+	real(kind(0.d0))   :: local_heat_region(6)
 	
 
 	!Integration algorithm

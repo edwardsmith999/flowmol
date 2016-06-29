@@ -318,13 +318,14 @@ contains
 					vel(:) = v(:,n) - U(:,n) + 0.5d0*a(:,n)*delta_t
 				else if ( any( thermo_tags .eq. tag(n) ) ) then
 					vel(:) = v(:,n) + 0.5d0*a(:,n)*delta_t
+                    write(9999,'(i10,a,f14.6,a,3(f10.5,a),f10.2)')
 				else
 					! Don't include non-thermostatted molecules in calculation
 					cycle
 				end if
 
 				mv2sum = mv2sum + mass(n) * dot_product(vel,vel)
-				thermostatnp = thermostatnp + mass(n)
+				thermostatnp = thermostatnp + mass(n)                
 
 			enddo
 
@@ -341,9 +342,9 @@ contains
 
             !write(234+irank,'(i6,5f18.12)'), iter, Q, dzeta_dt, zeta, ascale, bscale
 
-			!if (iter .eq. 1) write(9999,'(4a)'), 'iter; dzeta_dt; zeta; thermostattemperature; temperature; themostatnp'
-			!write(9999,'(i10,a,f14.6,a,3(f10.5,a),i10)'),iter,';', dzeta_dt,';', zeta,';', & 
-			!		 thermostattemperature,';', mv2sum/(nd*thermostatnp + 1), ';',thermostatnp
+!			if (iter .eq. 1) write(9999,'(4a)'), 'iter; dzeta_dt; zeta; thermostattemperature; temperature; themostatnp'
+!			write(9999,'(i10,a,f14.6,a,3(f10.5,a),f10.2)'),iter,';', dzeta_dt,';', zeta,';', & 
+!					 thermostattemperature,';', mv2sum/(nd*thermostatnp + 1), ';',thermostatnp
 
 			!Velocity rescaling (Gaussian?) thermostat
 			!bscale = sqrt(thermostattemperature/(mv2sum/(nd*thermostatnp + 1)))
@@ -421,7 +422,7 @@ contains
 				r(2,n) = r(2,n)    + 	 v(2,n)*delta_t				
 				v(3,n) = v(3,n)*ascale + a(3,n)*delta_t*bscale
 				r(3,n) = r(3,n)    +     v(3,n)*delta_t	
-				!if (iter .eq. 2) write(500+irank,*), globalise(r(:,n))
+				!if (iter .eq. 1) write(500+irank,'(6f10.5)'), globalise(r(:,n)),v(:,n)
 			case (teth_slide)
 				!Tethered molecules with sliding velocity
 				call tether_force(n)
