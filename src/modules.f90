@@ -82,6 +82,8 @@ module computational_constants_MD
 	integer, parameter :: cyl_teth_thermo_rotate = 10
 	integer, dimension(5), parameter :: tether_tags=(/teth,teth_thermo,teth_slide,teth_thermo_slide,cyl_teth_thermo_rotate/)
 	integer, dimension(6), parameter :: thermo_tags=(/thermo,teth_thermo,teth_thermo_slide,PUT_thermo,z_thermo,cyl_teth_thermo_rotate/)
+	integer, dimension(2), parameter :: fixed_tags=(/fixed, fixed_slide/)
+	integer, dimension(3), parameter :: slide_tags=(/teth_slide,teth_thermo_slide, fixed_slide/)
 
 	! Wall texture flags
 	integer			   :: texture_type, texture_therm

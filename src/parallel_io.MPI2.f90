@@ -838,9 +838,9 @@ subroutine setup_restart_inputs
         else
         
             !Read 2 other global domain values followed by density and check they match
-            do ixyz = 1,nd  
+            do ixyz = 1,nd
                 if (checkdp .ne. globaldomain(ixyz)) then
-                    print*, 'Discrepancy between globaldomain(', ixyz, ')', &
+                    print*, 'Discrepancy between globaldomain(', ixyz, ')', globaldomain(ixyz),checkdp  , &
                             'in input & restart file - restart file will be used'
                     globaldomain(ixyz) = checkdp
                 endif
@@ -1205,7 +1205,10 @@ subroutine setup_restart_microstate
 
     if (reset_tags_on_restart .eq. 1) then
         if (irank.eq.iroot) print*, 'Molecular tags reset based on input file.'
-        call setup_location_tags               !Setup locn of fixed mols
+        call setup_location_tags(0)              !Setup locn of fixed mols
+    elseif (reset_tags_on_restart .eq. 2) then
+        if (irank.eq.iroot) print*, 'Molecular tags reset based on input file.'
+        call setup_location_tags(1)              !Setup locn of thermostats only
     else
         if (irank.eq.iroot) print*, 'Molecular tags have been read from restart file.'
     endif

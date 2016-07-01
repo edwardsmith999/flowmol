@@ -781,7 +781,9 @@ subroutine setup_mie_potential
                 rij2 = equil_sep_lookup(i,j)**2
                 invrij2 = 1.d0 / rij2
                 accijmag = Mie_accijmag(invrij2, i, j) + harmonic_accijmag(rij2, i, j)
-                if (accijmag .gt. 1e-5) print*, 'WARNING -- equilibrium force not zero for', i,j, accijmag
+                if (irank .eq. iroot) then
+                    if (accijmag .gt. 1e-5) print*, 'WARNING -- equilibrium force not zero for', i,j, accijmag
+                endif
             enddo
             enddo
             
@@ -920,7 +922,7 @@ subroutine setup_set_parameters
         get_poly_force => harmonic_force
         get_poly_energy => harmonic_energy
     else
-        call error_abort("Error in simulation_compute_forces -- Mie potential flag is incorrectly specified")
+        call error_abort("Error in setup_set_parameters -- Mie potential flag is incorrectly specified")
     end if
 
     !Setup Mie potential if LJ not used
@@ -928,7 +930,7 @@ subroutine setup_set_parameters
     	!Calculate shift in lennard-Jones potential based on cutoff
         potshift = 4.d0*(1.d0/rcutoff**12 - 1.d0/rcutoff**6)
     elseif (mie_potential .eq. 1) then
-        call setup_mie_potential
+        call setup_mie_potential()
     endif
 
 	!Calculate correction to lennard-Jones potential/pressure based on cutoff
@@ -1068,34 +1070,68 @@ end subroutine setup_polymer_info
 subroutine setup_fractal_wall()
     use calculated_properties_MD, only : rough_array
     use computational_constants_MD, only : texture_type, roughness, & 
-                                           texture_intensity, initialnunits, fractal, irank, iroot
-    use librarymod, only : DiamondSquare, spectral_surface
+                                           reset_tags_on_restart, prefix_dir, & 
+                                           texture_intensity, initialnunits, &
+                                           fractal, irank, iroot
+    use librarymod, only : DiamondSquare, spectral_surface, & 
+                           get_new_fileunit, error_abort
     implicit none
 
-    integer :: i,j,Nx, Nz, levels
+    logical :: exists
+    integer :: fractal_type=2
+    integer, parameter :: square_diamond=1, spectral=2
+	character(len=200) :: fractal_surface_file
+
+    integer :: i, j, Nx, Nz, levels, fid, length
     double precision, dimension(:), allocatable :: temp
 
     if (texture_type .eq. fractal) then
 
         Nx = int(initialnunits(1)); Nz = int(initialnunits(3))
         allocate(rough_array(Nx, Nz)); rough_array=0.d0
-
+        fractal_surface_file = trim(prefix_dir)//'results/fractal_surface'
+        inquire(iolength=length) rough_array
         if (irank .eq. iroot) then
 
-            call spectral_surface(rough_array, texture_intensity, 5)
-            !levels = int(max(Nx,Nz)/8.d0)+4
-            !call DiamondSquare(rough_array, 0, 0, Nx, Nz, texture_intensity, levels)
+            if (reset_tags_on_restart .eq. 0) then
+                select case(fractal_type)
+                case(square_diamond)
+                    levels = int(max(Nx,Nz)/8.d0)+4              
+                    call DiamondSquare(rough_array, 0, 0, Nx, Nz, texture_intensity, levels)
+                case(spectral)
+                    levels = 5
+                    call spectral_surface(rough_array, texture_intensity, levels)
+                end select
+                if (minval(rough_array) .lt. 0.d0) rough_array = rough_array - minval(rough_array)
+
+            elseif (reset_tags_on_restart .eq. 1 .or. reset_tags_on_restart .eq. 2) then
+                inquire(file=fractal_surface_file, exist=exists)
+                if (exists) then
+                    print*, "reading ", trim(fractal_surface_file), " to setup wall"
+                    fid = get_new_fileunit()
+                    open(unit=fid,file=fractal_surface_file, &
+                         form='unformatted',access='direct', & 
+                         action="read", recl=length)
+                    read(fid, rec=1) rough_array
+                    close(fid, status="keep")
+                else
+                    call error_abort("Error in setup_fractal_wall -- cannot read fractal_surface file from previous run")
+                endif
+
+            else
+                call error_abort("Error in setup_fractal_wall -- reset_tags_on_restart unknown value")
+            endif
+
             print*, "Fractal texture intensity ", texture_intensity, & 
                     maxval(rough_array),minval(rough_array), sum(rough_array)
 
-            if (minval(rough_array) .lt. 0.d0) rough_array = rough_array - minval(rough_array)
-
-
-            do i =1,Nx
-            do j =1,Nz
-                write(100,*) rough_array(i,j)
-            enddo
-            enddo
+            !Write texture to file for output and restart
+            fid = get_new_fileunit()
+            open(unit=fid,file=fractal_surface_file, &
+                 form='unformatted',access='direct', & 
+                 action="write", recl=length)
+            write(fid, rec=1) rough_array
+            close(fid, status="keep")
         endif
 
 

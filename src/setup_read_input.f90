@@ -671,8 +671,6 @@ subroutine setup_read_input
 		read(1,*) specular_wall(1)			
 		read(1,*) specular_wall(2)			
 		read(1,*) specular_wall(3)
-        print*, specular_wall
-        stop
     	read(1,*,iostat=ios) specular_wall_flag
 		if (ios .ne. 0) specular_wall_flag = 0
 	endif

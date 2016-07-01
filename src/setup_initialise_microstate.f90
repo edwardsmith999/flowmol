@@ -55,40 +55,40 @@ subroutine setup_initialise_microstate
     select case(initial_config_flag)
     case(0)
         call setup_initialise_lattice          !Setup FCC lattice
-        call setup_location_tags               !Setup locn of fixed mols
+        call setup_location_tags(0)               !Setup locn of fixed mols
     case(1)
         select case (config_special_case)
         case('sparse_fene')
             call setup_initialise_sparse_FENE
-            call setup_location_tags           !Setup locn of fixed mols
+            call setup_location_tags(0)           !Setup locn of fixed mols
         case('dense_fene')
             call setup_initialise_lattice      !Numbering for FENE bonds
             call setup_lattice_dense_FENE_info !Chain IDs, etc
-            call setup_location_tags           !Setup locn of fixed mols
+            call setup_location_tags(0)           !Setup locn of fixed mols
         case('fene_solution')
             call setup_initialise_lattice
             call setup_FENE_solution           !Numbering for FENE bonds
-            call setup_location_tags           !Setup locn of fixed mols
+            call setup_location_tags(0)           !Setup locn of fixed mols
         case('single_fene')
             call setup_initialise_lattice      
             call setup_FENE_solution           !Numbering for FENE bonds
             call setup_remove_allbutoneFENE    !Leave single chain
-            call setup_location_tags           !Setup locn of fixed mols
+            call setup_location_tags(0)           !Setup locn of fixed mols
         case('solid_liquid')
             call setup_initialise_solid_liquid
-            call setup_location_tags               !Setup locn of fixed mols
+            call setup_location_tags(0)               !Setup locn of fixed mols
         case('droplet2D','droplet3D','2phase')
             call setup_initialise_solid_liquid_gas(config_special_case)
-            call setup_location_tags               !Setup locn of fixed mols
+            call setup_location_tags(0)               !Setup locn of fixed mols
         case('2phase_surfactant_solution','2phase_surfactant_atsurface')
             call setup_initialise_surfactants(config_special_case)
         case('2phase_LJ')
             call setup_initialise_solid_liquid     !Setup FCC lattice 
-            call setup_location_tags               !Setup locn of fixed mols
+            call setup_location_tags(0)               !Setup locn of fixed mols
             call split_domain
         case('polymer_brush')
             call setup_initialise_polymer_brush
-            call setup_location_tags
+            call setup_location_tags(0)
         case('rubber_liquid')
             call setup_initialise_solid_liquid
             call setup_lattice_dense_FENE_info !Chain IDs, etc
@@ -2432,7 +2432,7 @@ subroutine setup_initialise_surfactants(casename)
     ! Store maximum number of chains
     solid_density = density
     call setup_initialise_solid_liquid_gas('2phase')
-    call setup_location_tags               !Setup locn of fixed mols
+    call setup_location_tags(0)               !Setup locn of fixed mols
     call initialise_info
 
     ! Start by connectiong every possible chain 

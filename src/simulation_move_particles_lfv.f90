@@ -318,7 +318,6 @@ contains
 					vel(:) = v(:,n) - U(:,n) + 0.5d0*a(:,n)*delta_t
 				else if ( any( thermo_tags .eq. tag(n) ) ) then
 					vel(:) = v(:,n) + 0.5d0*a(:,n)*delta_t
-                    write(9999,'(i10,a,f14.6,a,3(f10.5,a),f10.2)')
 				else
 					! Don't include non-thermostatted molecules in calculation
 					cycle
@@ -340,21 +339,6 @@ contains
 			bscale	 = 1.0/(1.0+0.5*delta_t*zeta)
 			ascale	 = (1-0.5*delta_t*zeta)*bscale
 
-            !write(234+irank,'(i6,5f18.12)'), iter, Q, dzeta_dt, zeta, ascale, bscale
-
-!			if (iter .eq. 1) write(9999,'(4a)'), 'iter; dzeta_dt; zeta; thermostattemperature; temperature; themostatnp'
-!			write(9999,'(i10,a,f14.6,a,3(f10.5,a),f10.2)'),iter,';', dzeta_dt,';', zeta,';', & 
-!					 thermostattemperature,';', mv2sum/(nd*thermostatnp + 1), ';',thermostatnp
-
-			!Velocity rescaling (Gaussian?) thermostat
-			!bscale = sqrt(thermostattemperature/(mv2sum/(nd*thermostatnp + 1)))
-			!ascale = 2.d0*bscale - 1.d0
-
-
-!			if (iter .eq. 1) write(9999,'(4a)'), 'iter; bscale; ascale; thermostattemperature; temperature; themostatnp'
-!			write(9999,'(i10,a,f14.6,a,3(f10.5,a),i10)'),iter,';', bscale,';', ascale,';', & 
-!					 thermostattemperature,';', mv2sum/(nd*thermostatnp + 1), ';',thermostatnp
-!	
 		else
 
 			!Reduces to the un-thermostatted equations
@@ -379,32 +363,11 @@ contains
 			case (fixed_slide)
 				!Fixed with constant sliding speed
 				r(:,n) = r(:,n) + delta_t*slidev(:,n)	!Position calculated from velocity
-
-				!Moving piston for shock wave with 1000 equilibrate, 100 piston moving and 
-				!no moving wall for next 2000*0.005 time units taken for wave to cover whole domain 
-				!at which point the simulation blows up!
-				!if (iter .lt. 6000) then !Initialisation
-				!	!Fixed Molecules - no movement r(n+1) = r(n)
-				!elseif (iter .ge. 6000 .and. iter .lt. 8000) then
-				!	if (irank .eq. iroot) then
-				!		delta_t = 0.0005 !Reduce timestep
-				!		call globalbroadcast(delta_t,1,irank)
-				!	endif
-				!	freq = 10
-					!t = freq*iter*delta_t
-				!	r(:,n) = r(:,n) + delta_t*slidev(:,n)!*sin(t)	!Position calculated from velocity
-				!elseif (iter .ge. 8000) then
-					!Fixed Molecules - no movement r(n+1) = r(n)
-				!else
-					!Fixed Molecules - no movement r(n+1) = r(n)
-				!endif
-
 			case (teth)
 				!Tethered molecules
 				call tether_force(n)
 				v(:,n) = v(:,n) + delta_t * a(:,n) 	!Velocity calculated from acceleration
 				r(:,n) = r(:,n) + delta_t * v(:,n)	!Position calculated from velocity
-
 			case (thermo)
 				!Nose Hoover Thermostatted Molecule
 				v(1,n) = v(1,n)*ascale + a(1,n)*delta_t*bscale
@@ -412,7 +375,7 @@ contains
 				v(2,n) = v(2,n)*ascale + a(2,n)*delta_t*bscale
 				r(2,n) = r(2,n)    + 	 v(2,n)*delta_t				
 				v(3,n) = v(3,n)*ascale + a(3,n)*delta_t*bscale
-				r(3,n) = r(3,n)    +     v(3,n)*delta_t	
+				r(3,n) = r(3,n)    +     v(3,n)*delta_t
 			case (teth_thermo)
 				!Thermostatted Tethered molecules unfixed with no sliding velocity
 				call tether_force(n)
@@ -422,7 +385,7 @@ contains
 				r(2,n) = r(2,n)    + 	 v(2,n)*delta_t				
 				v(3,n) = v(3,n)*ascale + a(3,n)*delta_t*bscale
 				r(3,n) = r(3,n)    +     v(3,n)*delta_t	
-				!if (iter .eq. 1) write(500+irank,'(6f10.5)'), globalise(r(:,n)),v(:,n)
+				!write(1000000+iter*100+irank,'(8f10.5)'), globalise(r(:,n)),v(:,n),thermostattemperature,mv2sum/(nd*thermostatnp)
 			case (teth_slide)
 				!Tethered molecules with sliding velocity
 				call tether_force(n)

@@ -164,63 +164,76 @@ subroutine setup_cylinder_tags_equilibrate
 end subroutine setup_cylinder_tags_equilibrate
 
 
-subroutine setup_location_tags()
-	use module_molecule_properties
-	use interfaces, only: error_abort
-	use messenger, only: globalise
-	use computational_constants_MD, only : texture_type, domain
-	use calculated_properties_MD, only : nbins, rough_array
-	implicit none
 
-	integer :: n, i,j
-	real(kind(0.d0)) :: rglob(3)
-	logical :: l_thermo
-	logical :: l_teth
-	logical :: l_fixed
-	logical :: l_slide
+subroutine setup_location_tags(thermo_only_)
+    use module_molecule_properties
+    use interfaces, only: error_abort
+    use messenger, only: globalise
+    use computational_constants_MD, only : texture_type, domain
+    use calculated_properties_MD, only : nbins, rough_array
+    implicit none
 
-	!Initialise all molecules free of thermostats, etc (i.e. tag free=0)
-	tag(:) = free 
+    integer, intent(in) :: thermo_only_
 
-	if (ensemble .eq. tag_move) then
+    integer :: n, i, j
+    real(kind(0.d0)) :: rglob(3)
+    logical :: l_thermo, l_teth, l_fixed, l_slide, thermo_only
 
-		!Setup fixed wall and location dependent thermostat tags
-		do n = 1,np
+    !If only thermostat tags are updated
+    if (thermo_only_ .eq. 1) then
+        thermo_only = .true.
+    else
+        thermo_only = .false.
+        !Initialise all molecules free of thermostats, etc (i.e. tag free=0)
+        tag(:) = free 
+    endif
 
-			rglob(:) = globalise(r(:,n))
+    if (ensemble .eq. tag_move) then
 
-			l_thermo = get_tag_status(rglob,'thermo') 
-			l_teth   = get_tag_status(rglob,'teth') 
-			l_fixed  = get_tag_status(rglob,'fixed')
-			l_slide  = get_tag_status(rglob,'slide')
+	    !Setup fixed wall and location dependent thermostat tags
+	    do n = 1,np
 
-			! Checks
-			if ( l_teth .and. l_fixed ) then
-				call error_abort("User attempted to fix AND tether a molecule. Aborting.")
-			end if
-			if ( l_thermo .and. l_fixed ) then
-				call error_abort("User attempted to fix AND thermostat a molecule. Aborting.")
-			end if
+		    rglob(:) = globalise(r(:,n))
+            l_teth = .false.; l_fixed = .false.; l_slide = .false.
+            if (thermo_only) then
+		        l_thermo = get_tag_status(rglob,'thermo')
+                if (any(tag(n) .eq. tether_tags))  l_teth = .true.
+                if (any(tag(n) .eq. fixed_tags))  l_fixed = .true.
+                if (any(tag(n) .eq. slide_tags))  l_slide = .true.
+            else
+		        l_thermo = get_tag_status(rglob,'thermo')
+		        l_teth   = get_tag_status(rglob,'teth') 
+		        l_fixed  = get_tag_status(rglob,'fixed')
+		        l_slide  = get_tag_status(rglob,'slide')
+            endif
 
-			! Teth
-			if ( l_teth .and. .not. l_thermo .and. .not. l_slide  ) tag(n) = teth
-			if ( l_teth .and. .not. l_thermo .and.	   l_slide  ) tag(n) = teth_slide
-			if ( l_teth .and.	   l_thermo .and. .not. l_slide  ) tag(n) = teth_thermo
-			if ( l_teth .and.	   l_thermo .and.	   l_slide  ) tag(n) = teth_thermo_slide
+		    ! Checks
+		    if ( l_teth .and. l_fixed ) then
+			    call error_abort("User attempted to fix AND tether a molecule. Aborting.")
+		    end if
+		    if ( l_thermo .and. l_fixed ) then
+			    call error_abort("User attempted to fix AND thermostat a molecule. Aborting.")
+		    end if
 
-			! Fixed 
-			if ( l_fixed .and. .not. l_slide ) tag(n) = fixed
-			if ( l_fixed .and.	   l_slide ) tag(n) = fixed_slide
+		    ! Teth
+		    if ( l_teth .and. .not. l_thermo .and. .not. l_slide  ) tag(n) = teth
+		    if ( l_teth .and. .not. l_thermo .and.	   l_slide  ) tag(n) = teth_slide
+		    if ( l_teth .and.	   l_thermo .and. .not. l_slide  ) tag(n) = teth_thermo
+		    if ( l_teth .and.	   l_thermo .and.	   l_slide  ) tag(n) = teth_thermo_slide
 
-			! Thermo only
-			if ( l_thermo .and. .not. l_teth .and. .not. l_slide ) tag(n) = thermo
+		    ! Fixed 
+		    if ( l_fixed .and. .not. l_slide ) tag(n) = fixed
+		    if ( l_fixed .and.	   l_slide ) tag(n) = fixed_slide
 
-		enddo
+		    ! Thermo only
+		    if ( l_thermo .and. .not. l_teth .and. .not. l_slide ) tag(n) = thermo
 
-		!Check if any molecules are thermostatted and switch on flag
-		call get_tag_thermostat_activity(tag_thermostat_active)
+	    enddo
 
-	end if
+	    !Check if any molecules are thermostatted and switch on flag
+	    call get_tag_thermostat_activity(tag_thermostat_active)
+
+    end if
 
 end subroutine setup_location_tags
 
@@ -1577,7 +1590,6 @@ contains
 	function sample_MB_vel3() result(vsample)
 		use librarymod, only : Maxwell_Boltzmann_vel3
 		use calculated_properties_MD, only : temperature
-		use physical_constants_MD, only: inputtemperature
 		implicit none
 
 		real(kind(0.d0)) :: vsample(3)
@@ -1586,8 +1598,6 @@ contains
 		zeromean(:) = 0.d0
 		!Insert molecules with the same value as the current temperature
 		vsample = Maxwell_Boltzmann_vel3(temperature,zeromean)
-		!Insert molecules with the setpoint temperature
-		!vsample = Maxwell_Boltzmann_vel3(inputtemperature,zeromean)
 
 	end function sample_MB_vel3 
 
@@ -2147,7 +2157,6 @@ contains
 	function sample_MB_vel3() result(vsample)
 		use librarymod, only : Maxwell_Boltzmann_vel3
 		use calculated_properties_MD, only : temperature
-		use physical_constants_MD, only: inputtemperature
 		implicit none
 
 		real(kind(0.d0)) :: vsample(3)
@@ -2156,8 +2165,6 @@ contains
 		zeromean(:) = 0.d0
 		!Insert molecules with the same value as the current temperature
 		vsample = Maxwell_Boltzmann_vel3(temperature,zeromean)
-		!Insert molecules with the setpoint temperature
-		!vsample = Maxwell_Boltzmann_vel3(inputtemperature,zeromean)
 
 	end function sample_MB_vel3 
 
