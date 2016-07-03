@@ -21,10 +21,10 @@ module physical_constants_MD
 	double precision   				:: potential_sLRC 		!Long range potential correction 
 	double precision   				:: pressure_sLRC 		!Long range pressure correction 
 	double precision   				:: inputtemperature     !Define initial temperature
-	double precision   				:: thermostattemperature!Define thermostat setpoint temperature
 	double precision   				:: initialunitcell      !Initial size of unit cell
 	double precision   				:: initialvel           !Initial velocity of particles
 	double precision,parameter 		:: pi=4.d0*atan(1.d0)
+	double precision, dimension(:),allocatable :: thermostattemperature!Define thermostat setpoint temperature
 
 	!Simulation setup conditions
 	real(kind(0.d0)), dimension(3)	:: fixdisttop, slidedisttop, fixdistbottom, slidedistbottom, wallslidev
@@ -87,6 +87,7 @@ module computational_constants_MD
 
 	! Wall texture flags
 	integer			   :: texture_type, texture_therm
+    integer            :: nthermo
 	integer, parameter :: posts = 1
 	integer, parameter :: roughness = 2
 	integer, parameter :: converge_diverge = 3
@@ -715,7 +716,6 @@ module calculated_properties_MD
 		temperature,		&		!System properties
 		pressure,			&   	!System properties
 		initialenergy,		&		!Intial energy of system
-		zeta,				&		!Parameter used in Nose Hoover thermostat
 		gamma						!Parameter used in Nose Hoover shearostat
 
 	real(kind(0.d0)), dimension(3,3) 			:: gamma_xy	 !Parameter used in Nose Hoover tensor stressostat 

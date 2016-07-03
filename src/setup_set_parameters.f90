@@ -830,7 +830,6 @@ subroutine setup_set_parameters
 	v = 0.d0
 	a = 0.d0
 
-	zeta= 0.d0	!Set Nose Hoover thermostat scaling property to zero
 	halo_np = 0
 
 	call set_parameters_outputs

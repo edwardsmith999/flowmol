@@ -33,6 +33,7 @@ subroutine setup_read_input
 
 	logical					:: found_in_input, error, empty
 	integer 				:: ios, ixyz, n, Nvmd_interval_size
+	double precision,dimension(1000) :: temp
     character(256)          :: str
 
 	! Open input file
@@ -388,8 +389,19 @@ subroutine setup_read_input
 	!Read in thermostat temperature
 	call locate(1,'THERMOSTATTEMPERATURE',.false.,found_in_input)
 	if (found_in_input) then
-		read(1,*) thermostattemperature
+        nthermo = 0
+        do n = 1,1000
+            read(1,*,iostat=ios) temp(n)
+		    if (ios .ne. 0) then
+                exit
+            else
+                nthermo = nthermo + 1
+            endif
+        enddo
+        allocate(thermostattemperature(nthermo))
+        thermostattemperature = temp(1:nthermo)
     else
+        allocate(thermostattemperature(1))
         thermostattemperature = inputtemperature
     endif
 
