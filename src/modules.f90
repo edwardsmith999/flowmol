@@ -906,7 +906,9 @@ module boundary_MD
     real(kind(0.d0)) :: bforce_pdf_min
     real(kind(0.d0)) :: bforce_pdf_max
     real(kind(0.d0)) :: bforce_pdf_binsize
+#if __INTEL_COMPILER > 1200
     type(PDF), dimension(:,:), allocatable :: bforce_pdf
+#endif
     real(kind(0.d0)), allocatable :: bforce_pdf_input_data(:,:,:)
 
 end module boundary_MD

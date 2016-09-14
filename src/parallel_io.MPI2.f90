@@ -1185,7 +1185,7 @@ subroutine setup_restart_microstate
 
     ! Mie moltype should be from restart file!! If mie_potential was zero in restart
     ! but now input requests one, setup as if new run (based on location, etc).
-    if (mie_potential .eq. 2) then
+    if (Mie_potential .eq. 2) then
         call setup_moltypes_wall                  !Setup type of molecules
         mie_potential = 1
     endif
@@ -1246,6 +1246,7 @@ subroutine setup_restart_microstate
 end subroutine setup_restart_microstate
 
 
+#if __INTEL_COMPILER > 1200
 subroutine load_bforce_pdf
     use boundary_MD
     use librarymod, only: get_new_fileunit
@@ -1269,6 +1270,7 @@ subroutine load_bforce_pdf
     bforce_pdf_binsize = (bforce_pdf_max - bforce_pdf_min)/real(bforce_pdf_nbins)
 
 end subroutine load_bforce_pdf
+#endif
 
 !=============================================================================
 ! Import cylinders to be filled 
@@ -2289,9 +2291,11 @@ end subroutine parallel_io_vmd_optimised
 !------------------------------------------------------------------------
 !Write positions of molecules in halo to a file
 
-subroutine parallel_io_vmd_halo
+subroutine parallel_io_vmd_halo(recno)
     use module_parallel_io
     implicit none
+
+    integer, intent(in) :: recno
 
     call error_abort("Cannot print vmd halos in parallel simulation - run in serial")
 
@@ -3618,6 +3622,7 @@ module statistics_io
 
 contains
 
+#if __INTEL_COMPILER > 1200
     subroutine bforce_pdf_write
         !use mpi
         use boundary_MD
@@ -3674,6 +3679,7 @@ contains
         deallocate(array_out)
 
     end subroutine bforce_pdf_write
+#endif
 
 end module statistics_io
 

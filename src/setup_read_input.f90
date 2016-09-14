@@ -32,7 +32,7 @@ subroutine setup_read_input
 	implicit none
 
 	logical					:: found_in_input, error, empty
-	integer 				:: ios, ixyz, n, Nvmd_interval_size
+	integer 				:: ios, ixyz, n, Nvmd_interval_size, Mie_potential_input
     character(256)          :: str
 
 	! Open input file
@@ -302,6 +302,14 @@ subroutine setup_read_input
 	        call locate(1,'MIE_POTENTIAL',.false.,found_in_input) 
 	        if (found_in_input) then
                 read(1,*) Mie_potential
+!                print*, "Specifying MIE_POTENTIAL in the input is depreciated"
+!                print*, "Must be specified as a parameter in the module file"
+!                print*, "as this results in a 30% efficiency difference"
+!                read(1,*) Mie_potential_input        
+!                if (Mie_potential_input .ne. Mie_potential) then
+!                    print*, "Parameter for MIE_POTENTIAL is ", Mie_potential
+!                    call error_abort("Error -- Change MIE_POTENTIAL in code and rebuild")
+!                endif
                 read(1,*,iostat=ios) default_moltype
 				if (ios .ne. 0) then
                     print*, "Default moltype not given -- assuming Argon (=1)"
@@ -567,11 +575,11 @@ subroutine setup_read_input
 				' because periodic boundaries are on in the z-direction'
 				bforce_flag(5:6) = 0
 			end if
-
+#if __INTEL_COMPILER > 1200
             if (any(bforce_flag.eq.bforce_pdf_input)) then
                 call load_bforce_pdf
             end if
-            
+#endif            
             do n=1,6
                 if (bforce_flag(n) .eq. bforce_pdf_input) then
                     bforce_dxyz(n) = rcutoff

@@ -203,11 +203,11 @@ subroutine simulation_record
         call sl_interface_from_binaverage()
     endif
 
+#if __INTEL_COMPILER > 1200
 	!Obtain and record velocity distributions
 	if (vPDF_flag .ne. 0) call velocity_PDF_averaging(vPDF_flag)
 
 	!Record boundary force PDFs
-#if __INTEL_COMPILER > 1200
 	if (bforce_pdf_measure .ne. 0) call bforce_pdf_stats
 #endif
 
@@ -3607,14 +3607,16 @@ subroutine mass_flux_averaging(flag)
 	!use field_io, only : mass_flux_io
 	use module_record, only : Nmflux_ave, domain, nbins, nhb, & 
                               thermstattop, thermstatbottom, &
-                              iter, irank, mass_flux
+                              iter, irank, mass_flux 
 	use CV_objects, only : CV_debug, CVcheck_mass, check_error_mass !,CV_sphere_mass
+    use boundary_MD, only : specular_wall
 	implicit none
 
 	integer			                :: flag
     integer,dimension(3)            :: thermbinstop,thermbinsbot
     real(kind(0.d0)),dimension(3)   :: mbinsize
 	integer, save	                :: sample_count
+    integer,dimension(3):: skipbinstop,skipbinsbot
 
 	!Only average if mass averaging turned on
 	if (flag .eq. 0) return
@@ -3624,8 +3626,8 @@ subroutine mass_flux_averaging(flag)
 	if (sample_count .eq. Nmflux_ave) then
 		if (CV_debug .ne. 0) then
     		mbinsize(:) = domain(:) / nbins(:)
-            thermbinstop = ceiling(thermstattop/mbinsize)
-            thermbinsbot = ceiling(thermstatbottom/mbinsize)
+            skipbinstop = ceiling((thermstattop + specular_wall)/mbinsize)
+            skipbinsbot = ceiling((thermstatbottom + specular_wall)/mbinsize)
             
             !E.S. this causes a compiler seg fault for 
             !     ifort version 13.0.1 which is fixed by 
@@ -3634,9 +3636,9 @@ subroutine mass_flux_averaging(flag)
             !     with 
             !     "check_error_mass(CVcheck_mass, ... "
             call check_error_mass(CVcheck_mass, &
-                                   1+nhb(1)+thermbinsbot(1),nbins(1)+nhb(1)-thermbinstop(1), & 
-								   1+nhb(2)+thermbinsbot(2),nbins(2)+nhb(2)-thermbinstop(2), & 
-								   1+nhb(3)+thermbinsbot(3),nbins(3)+nhb(3)-thermbinstop(3),iter,irank)
+                                  1+nhb(1)+skipbinsbot(1),nbins(1)+nhb(1)-skipbinstop(1), & 
+								  1+nhb(2)+skipbinsbot(2),nbins(2)+nhb(2)-skipbinstop(2), & 
+								  1+nhb(3)+skipbinsbot(3),nbins(3)+nhb(3)-skipbinstop(3),iter,irank)
 			!call CV_sphere_mass%check_error(1,1,1,1,1,1,iter,irank)
 	    endif
 		call mass_flux_io
@@ -3925,11 +3927,12 @@ subroutine momentum_flux_averaging(flag)
 	use module_record
 	use cumulative_momentum_flux_mod, only : cumulative_momentum_flux
 	use CV_objects, only : CV_debug, CVcheck_momentum!, CV_constraint!, CV_sphere_momentum
+    use boundary_MD, only : specular_wall
 	implicit none
 
 	integer,intent(in)	:: flag
 	integer				::icell,jcell,kcell,n
-    integer,dimension(3):: thermbinstop,thermbinsbot
+    integer,dimension(3):: skipbinstop,skipbinsbot
 	real(kind(0.d0)),dimension(3)	:: mbinsize
 	integer, save		:: sample_count
 
@@ -3975,15 +3978,18 @@ subroutine momentum_flux_averaging(flag)
             !so exclude these from checked region
     		mbinsize(:) = domain(:) / nbins(:)
             if (ensemble .eq. 6) then
-                thermbinstop = ceiling(thermstattop/mbinsize)
-                thermbinsbot = ceiling(thermstatbottom/mbinsize)
+                skipbinstop = ceiling((thermstattop + specular_wall)/mbinsize)
+                skipbinsbot = ceiling((thermstatbottom + specular_wall)/mbinsize)
             else
-                thermbinstop = 0
-                thermbinsbot = 0
+                skipbinstop = 0
+                skipbinsbot = 0
             endif
-	    	    call CVcheck_momentum%check_error(1+nhb(1)+thermbinsbot(1),nbins(1)+nhb(1)-thermbinstop(1), & 
-	    										  1+nhb(2)+thermbinsbot(2),nbins(2)+nhb(2)-thermbinstop(2), & 
-	    										  1+nhb(3)+thermbinsbot(3),nbins(3)+nhb(3)-thermbinstop(3),iter,irank)
+	    	    call CVcheck_momentum%check_error(1+nhb(1)+skipbinsbot(1), & 
+                                                  nbins(1)+nhb(1)-skipbinstop(1), & 
+	    										  1+nhb(2)+skipbinsbot(2), & 
+                                                  nbins(2)+nhb(2)-skipbinstop(2), & 
+	    										  1+nhb(3)+skipbinsbot(3), & 
+                                                  nbins(3)+nhb(3)-skipbinstop(3),iter,irank)
         endif
 	endif
 
@@ -4184,12 +4190,13 @@ subroutine energy_flux_averaging(flag)
 	use module_record
 	use CV_objects, only :  CVcheck_energy
 	use cumulative_energy_flux_mod, only : cumulative_energy_flux
+    use boundary_MD, only : specular_wall
 	implicit none
 
 	integer,intent(in)	:: flag
 	integer, save		:: sample_count
 
-    integer,dimension(3):: thermbinstop,thermbinsbot
+    integer,dimension(3):: skipbinstop,skipbinsbot
 	real(kind(0.d0)),dimension(3)	:: ebinsize
 
 	if (flag .eq. 0) return
@@ -4248,15 +4255,15 @@ subroutine energy_flux_averaging(flag)
 		if (CV_debug .ne. 0) then
     		ebinsize(:) = domain(:) / nbins(:)
             if (ensemble .eq. 6) then
-                thermbinstop = ceiling(thermstattop/ebinsize)
-                thermbinsbot = ceiling(thermstatbottom/ebinsize)
+                skipbinstop = ceiling((thermstattop + specular_wall)/ebinsize)
+                skipbinsbot = ceiling((thermstatbottom + specular_wall)/ebinsize)
             else
-                thermbinstop = 0
-                thermbinsbot = 0
+                skipbinstop = 0
+                skipbinsbot = 0
             endif
-		    call CVcheck_energy%check_error(1+nhb(1)+thermbinsbot(1),nbins(1)+nhb(1)-thermbinstop(1), & 
-											1+nhb(2)+thermbinsbot(2),nbins(2)+nhb(2)-thermbinstop(2), & 
-											1+nhb(3)+thermbinsbot(3),nbins(3)+nhb(3)-thermbinstop(3),iter,irank)
+		    call CVcheck_energy%check_error(1+nhb(1)+skipbinstop(1),nbins(1)+nhb(1)-skipbinstop(1), & 
+											1+nhb(2)+skipbinstop(2),nbins(2)+nhb(2)-skipbinstop(2), & 
+											1+nhb(3)+skipbinstop(3),nbins(3)+nhb(3)-skipbinstop(3),iter,irank)
 	   endif
 	endif
 
@@ -4625,9 +4632,6 @@ end subroutine control_volume_stresses
 
 
 
-
-!===================================================================================
-! Stresses times velocity over each of the six surfaces of the cuboid
 
 !===================================================================================
 ! Stresses times velocity over each of the six surfaces of the cuboid
@@ -5804,7 +5808,7 @@ contains
         allocate(X_stress(Nvals,6)); X_stress = 0.d0
         allocate(X_cross(Nvals,6))
 
-        if (first_time .eq. .true.) then
+        if (first_time .eqv. .true.) then
             pt_mdt = pt; pb_mdt = pb
             allocate(X(Nvals))
             first_time = .false.
@@ -6796,6 +6800,7 @@ contains
 
         !Loop though all clusters
         nc = 0
+        !Loop though all clusters
         do j = 1,self%Nclust
             !For all clusters which are not empty
             if (self%Nlist(j) .gt. 0) then

@@ -116,11 +116,11 @@ full_debug_s:
 full_debug_p:
 	@make $(MD_EXE) "FFLAGS = -g -O0 -traceback -CB -check all -warn all,nodec,interfaces -gen_interfaces"
 profile_s:
-	@make serial_md.exe "FFLAGS = -O3 -funroll-loops -pg -g "
+	@make serial_md.exe "FFLAGS = -O3 -funroll-loops -pg -g -fpp"
 memprofile_s:
 	@make serial_md.exe "FFLAGS = -O3 -g"; valgrind --tool=cachegrind ./md.exe
 profile_p:
-	@make $(MD_EXE) "FFLAGS = -O3 -g -pg -fno-inline-functions"
+	@make $(MD_EXE) "FFLAGS = -O3 -g -pg -fno-inline-functions -fpp -nolib-inline"
 
 #-mpe=mpilog "
 
