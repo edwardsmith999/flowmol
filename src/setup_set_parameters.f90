@@ -1072,7 +1072,7 @@ subroutine setup_fractal_wall()
     use computational_constants_MD, only : texture_type, roughness, & 
                                            reset_tags_on_restart, prefix_dir, & 
                                            texture_intensity, initialnunits, &
-                                           fractal, irank, iroot
+                                           fractal, irank, iroot, restart
     use librarymod, only : DiamondSquare, spectral_surface, & 
                            get_new_fileunit, error_abort
     implicit none
@@ -1093,7 +1093,7 @@ subroutine setup_fractal_wall()
         inquire(iolength=length) rough_array
         if (irank .eq. iroot) then
 
-            if (reset_tags_on_restart .eq. 0) then
+            if (reset_tags_on_restart .eq. 0 .or. .not. restart) then
                 select case(fractal_type)
                 case(square_diamond)
                     levels = int(max(Nx,Nz)/8.d0)+4              
