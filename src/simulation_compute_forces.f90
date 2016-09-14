@@ -1131,7 +1131,7 @@ subroutine simulation_compute_power!(imin, imax, jmin, jmax, kmin, kmax)
                         ! ( This is the reason we need to do this after
                         !   the force calculation so we know a(t)      )
                         vi_t(:) = v(:,molnoi) + 0.5d0*delta_t*a(:,molnoi)
-						call control_volume_power(fij,ri,rj,vi_t)
+						call control_volume_power(fij, ri, rj, vi_t)
 
 					endif
 				enddo
@@ -1291,7 +1291,7 @@ subroutine collect_bforce_pdf_data
 			enddo
 			enddo
 
-#if __INTEL_COMPILER < 12
+#if __INTEL_COMPILER > 1200
             if (bflag) then
                 ysubcell = ceiling((real(bforce_pdf_nsubcells,kind(0.d0))*( &
                            r(2,molnoi) + halfdomain(2)))/cellsidelength(2))
