@@ -1973,7 +1973,8 @@ subroutine cumulative_centre_of_mass(ixyz)
             bin_centre(:) = (ibin(:)-1*nhb(:)-0.5d0)*mbinsize(:)-halfdomain(:)
             COM(:) = mass(n) * (r(:,n) - bin_centre(:))
             !COM(:) = mass(n) * r(:,n)
-            centre_of_mass(ibin(1),ibin(2),ibin(3),:) = centre_of_mass(ibin(1),ibin(2),ibin(3),:) + COM(:)
+            centre_of_mass(ibin(1),ibin(2),ibin(3),:) = & 
+                centre_of_mass(ibin(1),ibin(2),ibin(3),:) + COM(:)
         enddo
 	case default 
 		call error_abort("Centre of Mass Binning Error")
@@ -2006,24 +2007,11 @@ subroutine pressure_averaging(ixyz)
 
 		select case(ixyz)
 		case(1)
-		!FULL DOMAIN VIRIAL STRESS CALCULATION
-			!print'(a,10f12.5)', 'cumulative stress', Pxy,(Pxy(1,1)+Pxy(2,2)+Pxy(3,3))/3.d0
+		    !FULL DOMAIN VIRIAL STRESS CALCULATION
 			call virial_stress_io
 			Pxy = 0.d0
 		case(2)
-		!VA STRESS CALCULATION
-!            print'(a,i8,3f20.10)', 'Pressure VA', iter, &
-!                                    sum(Pxybin(:,:,:,1,1)+Pxybin(:,:,:,2,2)+Pxybin(:,:,:,3,3)), &
-!                                    sum(vvbin(:,:,:,1,1)+vvbin(:,:,:,2,2)+vvbin(:,:,:,3,3)), &
-!                                    sum(rfbin(1+nhb(1):nbins(1)+nhb(1),   & 
-!                                              1+nhb(2):nbins(2)+nhb(2),   & 
-!                                              1+nhb(3):nbins(3)+nhb(3),1,1) & 
-!                                       +rfbin(1+nhb(1):nbins(1)+nhb(1),   & 
-!                                              1+nhb(2):nbins(2)+nhb(2),   & 
-!                                              1+nhb(3):nbins(3)+nhb(3),2,2) & 
-!                                       +rfbin(1+nhb(1):nbins(1)+nhb(1),   & 
-!                                              1+nhb(2):nbins(2)+nhb(2),   & 
-!                                              1+nhb(3):nbins(3)+nhb(3),3,3))
+		    !VA STRESS CALCULATION
 			call VA_stress_io
 			Pxybin = 0.d0
 			vvbin  = 0.d0
@@ -3755,7 +3743,8 @@ subroutine mass_snapshot
 		!Add up current volume momentum densities
 		ibin(:) = get_bin(r(:,n)) 
 		!ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
-		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = volume_mass_temp(ibin(1),ibin(2),ibin(3)) + mass(n)
+		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = & 
+            volume_mass_temp(ibin(1),ibin(2),ibin(3)) + mass(n)
 		!call  CV_sphere_mass%Add_spherical_CV_mass(r(:,n))
 	enddo
 
@@ -4026,8 +4015,10 @@ subroutine momentum_snapshot
         ibin(:) =  get_bin(r(:,n))
 		!ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
 
-		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = volume_mass_temp(ibin(1),ibin(2),ibin(3)) + mass(n)
-		volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) = volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) + mass(n)*v(:,n)
+		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = & 
+            volume_mass_temp(ibin(1),ibin(2),ibin(3)) + mass(n)
+		volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) = & 
+            volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) + mass(n)*v(:,n)
 	enddo
 	binvolume = (domain(1)/nbins(1))*(domain(2)/nbins(2))*(domain(3)/nbins(3))
 	volume_momentum_temp = volume_momentum_temp/binvolume

@@ -907,14 +907,15 @@ subroutine setup_read_input
     else
         vmd_skip = 1
     end if
-    
-
-    
+      
 	call locate(1,'SEPARATE_OUTFILES',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) separate_outfiles
+        if (separate_outfiles) then
+    		read(1,*,iostat=ios) restart_numbering
+			if (ios .ne. 0) restart_numbering = .false.
+        endif
 	endif
-
 
 	call locate(1,'BIN2CELLRATIO',.false.,found_in_input)
 	if (found_in_input) then

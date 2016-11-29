@@ -104,7 +104,7 @@ subroutine setup_initial_record
 
 !    stop "STOPPED AFTER COUETTE FLOW ANALYTICAL SOLUTION in setup_initial_record"
 
-    !Delete all files from previous run
+    !Delete all files from previous run if number restarted
     if (irank.eq.iroot) then
         do i=1,size(file_names)
             inquire(file=trim(prefix_dir)//'results/'//file_names(i),exist=file_exist)
@@ -113,19 +113,21 @@ subroutine setup_initial_record
                 close(23,status='delete')
             endif
             !Remove indivdual files -- Keep looping until no further increase in number
-            do n = 0,9999999
-                call get_Timestep_FileName(n,file_names(i),file_names_t)
-                inquire(file=trim(prefix_dir)//'results/'//file_names_t,exist=file_exist)
-                if(file_exist) then
-                    open (unit=23, file=trim(prefix_dir)//'results/'//file_names_t)
-                    close(23,status='delete')
-                    missing_file_tolerance = 5
-                elseif(missing_file_tolerance .eq. 0) then
-                    exit !Exit loop if max file reached 
-                else
-                    missing_file_tolerance = missing_file_tolerance - 1
-                endif
-            enddo
+            if (restart_numbering) then
+                do n = 0,9999999
+                    call get_Timestep_FileName(n, file_names(i), file_names_t)
+                    inquire(file=trim(prefix_dir)//'results/'//file_names_t,exist=file_exist)
+                    if(file_exist) then
+                        open (unit=23, file=trim(prefix_dir)//'results/'//file_names_t)
+                        close(23,status='delete')
+                        missing_file_tolerance = 5
+                    elseif(missing_file_tolerance .eq. 0) then
+                        exit !Exit loop if max file reached 
+                    else
+                        missing_file_tolerance = missing_file_tolerance - 1
+                    endif
+                enddo
+            endif
         enddo
     endif
     call messenger_syncall()

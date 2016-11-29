@@ -134,6 +134,8 @@ module computational_constants_MD
 
 	!Write a separate file for each timestep
 	logical ::	separate_outfiles = .false.
+    !Start file numbering at beginning again?
+    logical :: restart_numbering = .true.
 
 	!Input (on or off) flags
 	integer	:: & 

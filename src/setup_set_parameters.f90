@@ -91,7 +91,7 @@ module module_set_parameters
 
 contains
 
-    !LJ or Mie force calculation functions
+    ! Simple LJ calculation functions first
 
     pure function LJ_mass(i)
 
@@ -134,7 +134,7 @@ contains
     end function LJ_energy
 
 
-
+    ! Next, Mie potential based on lookup values
 
     pure function Mie_mass(i)
         use arrays_MD, only : moltype
@@ -452,7 +452,7 @@ subroutine setup_mie_potential
     !1 == Argon;
     !moltype_names(1) = '           Ar           '
     moltype_names(1)    = 'Ar' !' Ar '
-    mass_lookup(1)      = 1.0d0
+    mass_lookup(1)      = 1.d0
     epsilon_lookup(1,1) = 1.d0
     sigma_lookup(1,1)   = 1.d0
     lambdar_lookup(1,1) = 12.d0
@@ -1911,8 +1911,8 @@ subroutine set_parameters_outputs
 		!Allocate pressure bin for Stress volume averaging
 		allocate( rfvbin( nbinso(1), nbinso(2), nbinso(3), 3, 1 ))
 		allocate( evbin( nbins (1),  nbins(2),  nbins(3),3  ))
-		rfvbin  = 0.d0
-		evbin = 0.d0
+		allocate( heatfluxbin( nbins (1),  nbins(2),  nbins(3),3  ))
+		rfvbin  = 0.d0; evbin = 0.d0; heatfluxbin = 0.d0
     elseif (heatflux_outflag .eq. 0) then
         !pass
     else

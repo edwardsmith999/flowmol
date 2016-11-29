@@ -42,7 +42,7 @@ contains
 end module module_initialise_microstate
 !------------------------------------------------------------------------------
 
-subroutine setup_initialise_microstate
+subroutine setup_initialise_microstate()
     use interfaces
     use module_initialise_microstate
 	use module_read_input, only : COUETTE_t,COUETTE_Re,COUETTE_Uwall, & 
