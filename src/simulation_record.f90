@@ -509,7 +509,7 @@ subroutine velocity_PDF_averaging(ixyz)
     integer,intent(in)      :: ixyz
 
 	integer                 :: n, i,j,k, jxyz,kxyz
-	integer, save		    :: average_count=-1
+	integer, save		    :: sample_count=-1
 
 	integer,dimension(3)	:: cbin
 	integer,dimension(:,:),allocatable          :: pdfx,pdfy,pdfz
@@ -519,12 +519,12 @@ subroutine velocity_PDF_averaging(ixyz)
 	real(kind(0.d0)),dimension(3)	            :: peculiarv,binsize_
 	real(kind(0.d0)),dimension(:),allocatable 	:: vmagnitude,binloc
 
-	average_count = average_count + 1
+	sample_count = sample_count + 1
 	call cumulative_velocity_PDF
 
 	!Write and reset PDF FOR EACH Y SLAB
-	if (average_count .eq. Nvpdf_ave) then
-        average_count = 0
+	if (sample_count .eq. Nvpdf_ave) then
+        sample_count = 0
 
 		select case(ixyz)
 		case(1:3)
@@ -1250,14 +1250,14 @@ subroutine mass_averaging(ixyz)
 	implicit none
 
 	integer							:: ixyz
-	integer, save					:: average_count=-1
+	integer, save					:: sample_count = -1
 
-	average_count = average_count + 1
+	sample_count = sample_count + 1
 	call cumulative_mass(ixyz)
-	if (average_count .eq. Nmass_ave) then
-		average_count = 0
-		!Determine bin size
+	if (sample_count .eq. Nmass_ave) then
+		sample_count = 0
 
+		!Determine bin size
 		select case(ixyz)
 		case(1:3)
 			call mass_slice_io(ixyz)
@@ -1422,10 +1422,10 @@ subroutine momentum_averaging(ixyz)
 
 	integer				:: ixyz, n
 	integer,dimension(3):: ib
-	integer, save		:: average_count=-1
+	integer, save		:: sample_count = -1
 	real(kind(0.d0)),dimension(3) 	:: Vbinsize
 
-	average_count = average_count + 1
+	sample_count = sample_count + 1
 	call cumulative_momentum(ixyz)
 
 	!Save streaming momentum for temperature averages
@@ -1442,15 +1442,14 @@ subroutine momentum_averaging(ixyz)
 
 		do n=1,np
 			!Save streaming momentum per molecule
-			!ib(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
             ib(:) = get_bin(r(:,n))
 			U(:,n) =  volume_momentum(ib(1),ib(2),ib(3),:) / volume_mass(ib(1),ib(2),ib(3))
 		enddo
 
 	endif
 
-	if (average_count .eq. Nvel_ave) then
-		average_count = 0
+	if (sample_count .eq. Nvel_ave) then
+		sample_count = 0
 
 		select case(ixyz)
 			case(1:3)
@@ -1641,12 +1640,12 @@ subroutine temperature_averaging(ixyz)
 	implicit none
 
 	integer				:: ixyz
-	integer, save		:: average_count=-1
+	integer, save		:: sample_count = -1
 	
-	average_count = average_count + 1
+	sample_count = sample_count + 1
 	call cumulative_temperature(ixyz)
-	if (average_count .eq. NTemp_ave) then
-		average_count = 0
+	if (sample_count .eq. NTemp_ave) then
+		sample_count = 0
 
 		select case(ixyz)
 		case(1:3)
@@ -1827,13 +1826,13 @@ subroutine energy_averaging(ixyz)
 	implicit none
 
 	integer				:: ixyz
-	integer, save		:: average_count=-1
+	integer, save		:: sample_count = -1
 	
-	average_count = average_count + 1
+	sample_count = sample_count + 1
 	call cumulative_energy(ixyz)
-    !print*, 'Total energy = ',average_count, sum(volume_energy)/(average_count*np), 0.5*sum(potenergymol(1:np)/np)
-	if (average_count .eq. Nenergy_ave) then
-		average_count = 0
+    !print*, 'Total energy = ',sample_count, sum(volume_energy)/(sample_count*np), 0.5*sum(potenergymol(1:np)/np)
+	if (sample_count .eq. Nenergy_ave) then
+		sample_count = 0
 
 		select case(ixyz)
 		case(1:3)
@@ -1920,14 +1919,14 @@ subroutine centre_of_mass_averaging(ixyz)
 
 	integer				            :: ixyz
 	integer,dimension(3)            :: ib
-	integer, save		            :: average_count=-1
+	integer, save		            :: sample_count = -1
 	real(kind(0.d0)),dimension(3) 	:: Vbinsize
 
-	average_count = average_count + 1
+	sample_count = sample_count + 1
 	call cumulative_centre_of_mass(ixyz)
 
-	if (average_count .eq. Ncom_ave) then
-		average_count = 0
+	if (sample_count .eq. Ncom_ave) then
+		sample_count = 0
 
 		select case(ixyz)
 		case(1:3)
@@ -1996,7 +1995,7 @@ subroutine pressure_averaging(ixyz)
 	implicit none
 
 	integer			:: ixyz
-	integer, save	:: sample_count, average_count
+	integer, save	:: sample_count = 0
 
 	sample_count = sample_count + 1
 	call cumulative_pressure(ixyz,sample_count)
@@ -2025,10 +2024,10 @@ subroutine pressure_averaging(ixyz)
 			call error_abort("Average Pressure Binning Error")
 		end select
 		if(viscosity_outflag .eq. 1) then
-			average_count = average_count+1
-			if (average_count .eq. Nvisc_ave) then
+			sample_count = sample_count + 1
+			if (sample_count .eq. Nvisc_ave) then
 				call viscosity_io
-				average_count = 0
+				sample_count = 0
 			endif
 		endif
 	endif
@@ -2044,7 +2043,8 @@ subroutine cumulative_pressure(ixyz,sample_count)
     use messenger_data_exchange, only : globalSum
 	implicit none
 
-	integer								:: sample_count,n,ixyz,jxyz,kxyz
+	integer								:: sample_count
+    integer                             :: n,ixyz,jxyz,kxyz
 	real(kind(0.d0)), dimension(3)		:: velvect
 	real(kind(0.d0)), dimension(3)      :: rglob
 	real(kind(0.d0)), dimension(3,3)	:: Pxytemp
@@ -3432,7 +3432,7 @@ subroutine heatflux_averaging(ixyz)
 	implicit none
 
 	integer			:: ixyz
-	integer, save	:: sample_count = 0
+	integer, save	:: sample_count = -1
 
 	sample_count = sample_count + 1
 	call cumulative_heatflux(ixyz,sample_count)
@@ -3466,7 +3466,8 @@ subroutine cumulative_heatflux(ixyz,sample_count)
     use messenger_data_exchange, only : globalSum
 	implicit none
 
-	integer								:: sample_count,n,ixyz,jxyz,kxyz
+	integer								:: sample_count
+    integer                             :: n,ixyz,jxyz,kxyz
 	real(kind(0.d0)), dimension(3)		:: velvect
 	real(kind(0.d0)), dimension(3)      :: rglob
 	real(kind(0.d0)), dimension(3,3)	:: Pxytemp
@@ -3555,13 +3556,13 @@ subroutine bforce_pdf_stats
     use statistics_io, only: bforce_pdf_write
     implicit none
 
-	integer, save		:: average_count=-1
+	integer, save		:: sample_count=-1
 
-    average_count = average_count + 1
+    sample_count = sample_count + 1
     call collect_bforce_pdf_data
 
-    if (average_count .eq. bforce_pdf_Nave) then
-        average_count = 0
+    if (sample_count .eq. bforce_pdf_Nave) then
+        sample_count = 0
         call bforce_pdf_write
     end if 
 
@@ -3603,7 +3604,7 @@ subroutine mass_flux_averaging(flag)
 	integer			                :: flag
     integer,dimension(3)            :: thermbinstop,thermbinsbot
     real(kind(0.d0)),dimension(3)   :: mbinsize
-	integer, save	                :: sample_count
+	integer, save	                :: sample_count = 0
     integer,dimension(3):: skipbinstop,skipbinsbot
 
 	!Only average if mass averaging turned on
@@ -3726,10 +3727,10 @@ subroutine mass_snapshot
     use module_set_parameters, only : mass
 	implicit none
 
-	integer										:: n
-	integer		,dimension(3)					:: ibin
+	integer										    :: n
+	integer		,dimension(3)					    :: ibin
 	real(kind(0.d0)),dimension(:,:,:)  ,allocatable	:: volume_mass_temp
-	real(kind(0.d0)),dimension(3)				:: mbinsize
+	real(kind(0.d0)),dimension(3)				    :: mbinsize
 
 	!Determine bin size
 	mbinsize(:) = domain(:) / nbins(:)
@@ -3923,7 +3924,7 @@ subroutine momentum_flux_averaging(flag)
 	integer				::icell,jcell,kcell,n
     integer,dimension(3):: skipbinstop,skipbinsbot
 	real(kind(0.d0)),dimension(3)	:: mbinsize
-	integer, save		:: sample_count
+	integer, save		:: sample_count = 0
 
 	if (flag .eq. 0) return
 
@@ -4185,7 +4186,7 @@ subroutine energy_flux_averaging(flag)
 	implicit none
 
 	integer,intent(in)	:: flag
-	integer, save		:: sample_count
+	integer, save		:: sample_count = 0
 
     integer,dimension(3):: skipbinstop,skipbinsbot
 	real(kind(0.d0)),dimension(3)	:: ebinsize
@@ -4326,7 +4327,7 @@ subroutine surface_density_averaging(flag)
 
 	integer			                :: flag
     real(kind(0.d0)),dimension(3)   :: mbinsize
-	integer, save	                :: sample_count
+	integer, save	                :: sample_count = 0
 
 	!Only average if mass averaging turned on
 	if (flag .eq. 0) return

@@ -1011,30 +1011,29 @@ subroutine initial_control_volume
 use module_initial_record
 implicit none
 
-    !Obtain and record momentum and mass
-    if (momentum_outflag .ne. 0) then
+!    !Obtain and record momentum and mass
+!    if (momentum_outflag .ne. 0) then
 
-        !Set mass record frequency to same as momentum
-        Nmass_ave = Nvel_ave
-        !Call first record      
-        call momentum_averaging(momentum_outflag)
-    endif
+!        !Set mass record frequency to same as momentum
+!        Nmass_ave = Nvel_ave
+!        !Call first record      
+!        call momentum_averaging(momentum_outflag)
+!    endif
 
-    !Obtain and record mass only
-    if (momentum_outflag .eq. 0 .and. mass_outflag .ne. 0) then
-        !Call first record
-        print*, 'WARNING -- I HAVE REMOVED INITIAL MASS AVERAGE RECORD AS IT MAKES FIRST RESULT WRONG BY 1'
-        !call mass_averaging(mass_outflag)
-    endif
+!    !Obtain and record mass only
+!    if (momentum_outflag .eq. 0 .and. mass_outflag .ne. 0) then
+!        !Call first record
+!        call mass_averaging(mass_outflag)
+!    endif
 
-	!Obtain and record temperature
-    if (temperature_outflag .ne. 0) then
-        !Call first record
-        call temperature_averaging(temperature_outflag)
-    endif
+!	!Obtain and record temperature
+!    if (temperature_outflag .ne. 0) then
+!        !Call first record
+!        call temperature_averaging(temperature_outflag)
+!    endif
 
 	!Obtain and record energy
-	if (energy_outflag .ne. 0)	call energy_averaging(energy_outflag)
+!	if (energy_outflag .ne. 0)	call energy_averaging(energy_outflag)
 
     if (mflux_outflag .ne. 0) call mass_snapshot
     if (vflux_outflag .eq. 4) call momentum_snapshot

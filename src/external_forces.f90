@@ -2696,10 +2696,11 @@ subroutine pointsphere(centre,targetradius,start_iter)
 	use arrays_MD, only : r,a
 	use physical_constants_MD, only : np, pi
 	use computational_constants_MD, only : iter
+    use messenger, only : globalise
 	implicit none
 
-	integer,optional,intent(in)			:: start_iter
-	real(kind(0.d0)), intent(in)			:: targetradius
+	integer,optional,intent(in)			        :: start_iter
+	real(kind(0.d0)), intent(in)			    :: targetradius
 	real(kind(0.d0)), dimension(3), intent(in)	:: centre
 
 	integer						:: n, start
@@ -2708,11 +2709,11 @@ subroutine pointsphere(centre,targetradius,start_iter)
 	real(kind(0.d0)), dimension(3)	:: rmapped
 
 	!Grow pore slowly
-	if (present(start_iter)) then
-		start = start_iter
-	else
+!	if (present(start_iter)) then
+!		start = start_iter
+!	else
 		start = 1
-	endif
+!	endif
 	radius = min((iter-start)/1000.d0,targetradius)
 	magnitude = 100.d0
 
@@ -2721,12 +2722,12 @@ subroutine pointsphere(centre,targetradius,start_iter)
 
 	! Loop through all molecules
 	do n=1,np
-		rmapped = r(:,n)-centre						!Map to origin of sphere
+		rmapped = globalise(r(:,n)-centre)						!Map to origin of sphere
 		rspherical2 = dot_product(rmapped,rmapped)	!Get position in spherical coordinates
 		rspherical = sqrt(rspherical2)
     	!theta 	   = acos(rmapped(3)/rspherical)
     	!phi 	   = atan(rmapped(2)/rmapped(1))
-		if (rspherical .lt. radius2) then			!Check if inside sphere
+		if (rspherical .lt. radius) then			!Check if inside sphere
 			!if (rspherical .lt. 1.d0) rspherical = 1.d0			!Bounded force
 			Fapplied = magnitude *(1.d0 + 1.d0/exp(rspherical)**2.d0)			!Apply force which diverges at centre
 			!print'(i8,13f10.5)', n,rmapped,rmapped(3)/rspherical,rspherical,theta,phi, Fapplied*sin(theta)*cos(phi), Fapplied*sin(theta)*sin(phi),Fapplied*cos(theta),a(:,n)

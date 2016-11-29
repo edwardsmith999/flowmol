@@ -32,7 +32,7 @@ subroutine setup_read_input
 	implicit none
 
 	logical					:: found_in_input, error, empty
-	integer 				:: ios, ixyz, n, Nvmd_interval_size, Mie_potential_input
+	integer 				:: ios, ixyz, n, Nvmd_interval_size
     character(256)          :: str
 
 	! Open input file
@@ -148,7 +148,7 @@ subroutine setup_read_input
 			read(1,*) initialnunits(2)		!y dimension split into number of cells
 			read(1,*) initialnunits(3)		!z dimension split into number of cells
 
-		case('droplet2D','droplet3D','2phase','2phase_LJ')
+		case('droplet2D','droplet3D','2phase','2phase_LJ', "bubble")
 
 			!call locate(1,'POTENTIAL_FLAG',.true.)
             !read(1,*) potential_flag
@@ -195,6 +195,14 @@ subroutine setup_read_input
                         lg_direction = 1
                     endif
                 endif
+            endif
+
+            if (config_special_case .eq. "bubble") then
+                call locate(1,'BUBBLERADIUS',.true.)
+                read(1,*) rbubble
+                read(1,*) rcentre(1)
+                read(1,*) rcentre(2)
+                read(1,*) rcentre(3)
             endif
 
 		case('concentric_cylinders')

@@ -204,7 +204,147 @@ contains
     end function Mie_energy
 
 
-    !Functions for FENE
+    ! Extended Finnis-Sinclair force
+    ! from X D Dai and Y Kong and J H Li and B X Liu (2006) 
+    ! "Extended Finnis–Sinclair potential for bcc and fcc metals and alloys"
+    ! J. Phys.: Cond. Matt. 18-19, 4527
+
+!    pure function FS_mass(i)
+!        use arrays_MD, only : moltype
+
+!        integer, intent(in)             :: i
+!        double precision                :: FS_mass
+
+!        FS_mass = mass_lookup(moltype(i))
+
+!    end function FS_mass
+
+!    pure function FS_accijmag(invrij2, i, j)
+!        use arrays_MD, only : moltype
+
+!        integer, intent(in)             :: i, j
+!        double precision, intent(in)    :: invrij2
+!        double precision                :: FS_accijmag, rij2, rij 
+!        double precision                :: A, B, d, c, c0, c1, c2, c3, c4
+
+!        !Pairwise part
+!        rij2 = 1.d0/invrij2
+!        rij = sqrt(rij2)
+!        FS_accijmag = 2.d0*(rij - c)*(c0 + c1*rij + c2*rij2 + c3*rij**3 + c4*rij2**2) &
+!                     + (rij - c)**2*(c1 + 2.d0*c2*rij + 3.d0*c3*rij2 + 4*c4*rij**3 )
+
+!        !Density part
+!        FS_accijmag = FS_accijmag + A*(sqrt(Erho(i)) + sqrt(Erho(j))) & 
+!                                    * (2.d0*(rij - d) + 4.d0*B**2*(rij - d)**3)
+
+!    end function FS_accijmag
+
+!    pure function FS_force(invrij2, rij, i, j)
+
+!        integer, intent(in)                         :: i, j
+!        double precision, intent(in)                :: invrij2
+!        double precision, intent(in),dimension(3)   :: rij
+!        double precision,dimension(3)               :: FS_force
+
+!        FS_force = rij*FS_accijmag(invrij2, i, j)
+
+!    end function FS_force
+
+
+!    pure function FS_energy(invrij2, i, j)
+!        use arrays_MD, only : moltype
+
+!        integer, intent(in)             :: i, j
+!        double precision, intent(in)    :: invrij2
+!        double precision                :: FS_energy
+!        !FS_energy = 
+
+!    end function FS_energy
+
+!    pure function FS_Edensity(invrij2, i, j)
+!        use arrays_MD, only : moltype
+
+!        integer, intent(in)             :: i, j
+!        double precision, intent(in)    :: invrij2
+!        double precision                :: FS_Edensity
+
+!        FS_Edensity = (rij - d)**2 + B**2*(rij - d)**4
+
+!    end function FS_Edensity
+
+
+!! ======= Cu ========
+!A = 0.391865
+!d = 4.32
+!c = 4.29
+!c0 = 10.18724
+!c1 = -12.82033
+!c2 = 6.176587
+!c3 = -1.341391
+!c4 = 0.109842
+!B = -0.881096
+
+!! ======= Ag ========
+!A = 0.325514
+!d = 4.41
+!c = 4.76
+!c0 = 10.6812
+!c1 = -12.04517
+!c2 = 5.203072
+!c3 = -1.013304
+!c4 = 0.0742308
+!B = -1.293394
+
+!! ======= Au ========
+!A = 0.0137025
+!d = 4.46
+!c = 4.16
+!c0 = 44.96858
+!c1 = -55.12826
+!c2 = 25.84657
+!c3 = -5.445922
+!c4 = 0.43266
+!B = -53.963
+
+!! ======= Ni ========
+!A  =  0.982477
+!d = 4.12
+!c = 4.22
+!c0 = 13.28276
+!c1 = -17.08506
+!c2 = 8.262515
+!c3 = -1.77048
+!c4 = 0.14139
+!B = 0.d0
+
+!! ======= Pd ========
+!A = 0.0499173
+!d = 4.5
+!c = 3.98
+!c0 = 23.60065
+!c1 = -28.24054
+!c2 = 13.11604
+!c3 = -2.785318
+!c4 = 0.227087
+!B = 10.68404
+
+!! ======= Pt ========
+!A = 0.15023
+!d = 4.12
+!c = 4.61
+!c0 = 31.50162
+!c1 = -37.90621
+!c2 = 17.48137
+!c3 = -3.627633
+!c4 = 0.282552
+!B = 9.3107
+
+
+        
+
+
+    !Functions for FENE and polymers
+
     function FENE_accijmag(rij2, i, j)
         use polymer_info_MD, only : k_c, R_0
 
@@ -321,8 +461,6 @@ contains
             angular_harmonic_force = 0.d0
             return
         endif
-
-
 
         !Force on molecule i
         angular_harmonic_force(1,:) =-(k_ijk * (theta_ijk - theta_0) & 
@@ -1284,7 +1422,7 @@ subroutine set_parameters_global_domain
              'droplet2D','droplet3D','2phase', & 
              '2phase_surfactant_solution', & 
              '2phase_surfactant_atsurface', &
-              '2phase_LJ')
+              '2phase_LJ','bubble')
 
 			volume=1	!Set domain size to unity for loop below
 			do ixyz=1,nd
