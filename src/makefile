@@ -74,7 +74,8 @@ O_ASSEMBLY_FILES = $(addprefix obj/,$(ASSEMBLY_FILES:.s=.o))
 
 # If coupled, link to static library coupler.a
 ifeq ($(strip $(USE_COUPLER)),yes)
-  CPL_LIBRARY_PATH = /home/es205/scratch/coupled_turbulent_case/cpl-library/cpl
+  #CPL_LIBRARY_PATH = /home/es205/scratch/coupled_turbulent_case/cpl-library/cpl
+  CPL_LIBRARY_PATH = /home/es205/codes/cpl/cpl-library/
   CPL_LIB_DIR = $(CPL_LIBRARY_PATH)/lib
   CPL_INC_DIR = $(CPL_LIBRARY_PATH)/include
   FFLAGS  += -I$(CPL_INC_DIR) # Object generation flags
