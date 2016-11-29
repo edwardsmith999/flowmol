@@ -149,7 +149,7 @@ subroutine setup_read_input
 			read(1,*) initialnunits(2)		!y dimension split into number of cells
 			read(1,*) initialnunits(3)		!z dimension split into number of cells
 
-		case('droplet2D','droplet3D','2phase','2phase_LJ')
+		case('droplet2D','droplet3D','2phase','2phase_LJ', "bubble")
 
 			!call locate(1,'POTENTIAL_FLAG',.true.)
             !read(1,*) potential_flag
@@ -196,6 +196,14 @@ subroutine setup_read_input
                         lg_direction = 1
                     endif
                 endif
+            endif
+
+            if (config_special_case .eq. "bubble") then
+                call locate(1,'BUBBLERADIUS',.true.)
+                read(1,*) rbubble
+                read(1,*) rcentre(1)
+                read(1,*) rcentre(2)
+                read(1,*) rcentre(3)
             endif
 
 		case('concentric_cylinders')
@@ -303,6 +311,14 @@ subroutine setup_read_input
 	        call locate(1,'MIE_POTENTIAL',.false.,found_in_input) 
 	        if (found_in_input) then
                 read(1,*) Mie_potential
+!                print*, "Specifying MIE_POTENTIAL in the input is depreciated"
+!                print*, "Must be specified as a parameter in the module file"
+!                print*, "as this results in a 30% efficiency difference"
+!                read(1,*) Mie_potential_input        
+!                if (Mie_potential_input .ne. Mie_potential) then
+!                    print*, "Parameter for MIE_POTENTIAL is ", Mie_potential
+!                    call error_abort("Error -- Change MIE_POTENTIAL in code and rebuild")
+!                endif
                 read(1,*,iostat=ios) default_moltype
 				if (ios .ne. 0) then
                     print*, "Default moltype not given -- assuming Argon (=1)"
@@ -579,11 +595,11 @@ subroutine setup_read_input
 				' because periodic boundaries are on in the z-direction'
 				bforce_flag(5:6) = 0
 			end if
-
+#if __INTEL_COMPILER > 1200
             if (any(bforce_flag.eq.bforce_pdf_input)) then
                 call load_bforce_pdf
             end if
-            
+#endif            
             do n=1,6
                 if (bforce_flag(n) .eq. bforce_pdf_input) then
                     bforce_dxyz(n) = rcutoff
@@ -911,14 +927,15 @@ subroutine setup_read_input
     else
         vmd_skip = 1
     end if
-    
-
-    
+      
 	call locate(1,'SEPARATE_OUTFILES',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) separate_outfiles
+        if (separate_outfiles) then
+    		read(1,*,iostat=ios) restart_numbering
+			if (ios .ne. 0) restart_numbering = .false.
+        endif
 	endif
-
 
 	call locate(1,'BIN2CELLRATIO',.false.,found_in_input)
 	if (found_in_input) then

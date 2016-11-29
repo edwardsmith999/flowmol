@@ -74,7 +74,8 @@ O_ASSEMBLY_FILES = $(addprefix obj/,$(ASSEMBLY_FILES:.s=.o))
 
 # If coupled, link to static library coupler.a
 ifeq ($(strip $(USE_COUPLER)),yes)
-  CPL_LIBRARY_PATH = /home/es205/scratch/coupled_turbulent_case/cpl-library/cpl
+  #CPL_LIBRARY_PATH = /home/es205/scratch/coupled_turbulent_case/cpl-library/cpl
+  CPL_LIBRARY_PATH = /home/es205/codes/cpl/cpl-library/
   CPL_LIB_DIR = $(CPL_LIBRARY_PATH)/lib
   CPL_INC_DIR = $(CPL_LIBRARY_PATH)/include
   FFLAGS  += -I$(CPL_INC_DIR) # Object generation flags
@@ -116,11 +117,11 @@ full_debug_s:
 full_debug_p:
 	@make $(MD_EXE) "FFLAGS = -g -O0 -traceback -CB -check all -warn all,nodec,interfaces -gen_interfaces"
 profile_s:
-	@make serial_md.exe "FFLAGS = -O3 -funroll-loops -pg -g "
+	@make serial_md.exe "FFLAGS = -O3 -funroll-loops -pg -g -fpp"
 memprofile_s:
 	@make serial_md.exe "FFLAGS = -O3 -g"; valgrind --tool=cachegrind ./md.exe
 profile_p:
-	@make $(MD_EXE) "FFLAGS = -O3 -g -pg -fno-inline-functions"
+	@make $(MD_EXE) "FFLAGS = -O3 -g -pg -fno-inline-functions -fpp -nolib-inline"
 
 #-mpe=mpilog "
 

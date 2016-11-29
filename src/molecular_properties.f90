@@ -301,7 +301,12 @@ subroutine reset_location_tags
             end if
 
 			l_thermo = get_tag_status(rglob,'thermo') 
-			if (l_thermo) tag(n) = thermo
+			if (l_thermo) then
+                tag(n) = thermo
+            else
+                tag(n) = free
+                !if (mod(iter,100) .eq. 0) print'(a,i8,3f10.5)', "Thermostat", iter, rglob
+            endif
 
 		enddo
 

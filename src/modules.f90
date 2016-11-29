@@ -123,6 +123,7 @@ module computational_constants_MD
 	real(kind(0.d0))	:: lg_fract	        !Fraction of the domain which is liquid (0 = all gas, 1 = all liquid)
 	real(kind(0.d0))	:: lg_direction     !Direction in which the domain is split into liquid and gas
 	real(kind(0.d0))	:: dropletH =0.d0,dropletHLratio=0.d0   !Droplet height and H to length ratio
+	real(kind(0.d0))	:: rbubble, rcentre(3)   !Radius of bubble
     logical             :: Twophase_from_file = .false.
 	character(len=128)	:: FEA_filename
 
@@ -135,6 +136,8 @@ module computational_constants_MD
 
 	!Write a separate file for each timestep
 	logical ::	separate_outfiles = .false.
+    !Start file numbering at beginning again?
+    logical :: restart_numbering = .true.
 
 	!Input (on or off) flags
 	integer	:: & 
@@ -906,7 +909,9 @@ module boundary_MD
     real(kind(0.d0)) :: bforce_pdf_min
     real(kind(0.d0)) :: bforce_pdf_max
     real(kind(0.d0)) :: bforce_pdf_binsize
+#if __INTEL_COMPILER > 1200
     type(PDF), dimension(:,:), allocatable :: bforce_pdf
+#endif
     real(kind(0.d0)), allocatable :: bforce_pdf_input_data(:,:,:)
 
 end module boundary_MD

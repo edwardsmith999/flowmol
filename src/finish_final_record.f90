@@ -32,6 +32,8 @@ implicit none
 		end select
 	end if
 
+   call simulation_record
+
    select case(integration_algorithm)
    case(leap_frog_verlet)
        call print_macroscopic_properties(Nsteps)

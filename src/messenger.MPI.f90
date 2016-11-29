@@ -121,9 +121,9 @@ contains
 		real(kind(0.d0)), intent(in)  :: rloc(3)
 		real(kind(0.d0))              :: rglob(3)
 
-		rglob(1) = rloc(1)-halfdomain(1)*(npx-1)+domain(1)*(iblock-1)
-		rglob(2) = rloc(2)-halfdomain(2)*(npy-1)+domain(2)*(jblock-1)
-		rglob(3) = rloc(3)-halfdomain(3)*(npz-1)+domain(3)*(kblock-1)
+		rglob(1) = rloc(1)-halfdomain(1)*dble(npx-1)+domain(1)*dble(iblock-1)
+		rglob(2) = rloc(2)-halfdomain(2)*dble(npy-1)+domain(2)*dble(jblock-1)
+		rglob(3) = rloc(3)-halfdomain(3)*dble(npz-1)+domain(3)*dble(kblock-1)
 
 	end function globalise_single
 
@@ -133,9 +133,9 @@ contains
 		real(kind(0.d0)), intent(in)  :: rglob(3)
 		real(kind(0.d0))              :: rloc(3)
 
-		rloc(1) = rglob(1)+(halfdomain(1)*(npx-1))-domain(1)*(iblock-1)
-		rloc(2) = rglob(2)+(halfdomain(2)*(npy-1))-domain(2)*(jblock-1)
-		rloc(3) = rglob(3)+(halfdomain(3)*(npz-1))-domain(3)*(kblock-1)
+		rloc(1) = rglob(1)+(halfdomain(1)*dble(npx-1))-domain(1)*dble(iblock-1)
+		rloc(2) = rglob(2)+(halfdomain(2)*dble(npy-1))-domain(2)*dble(jblock-1)
+		rloc(3) = rglob(3)+(halfdomain(3)*dble(npz-1))-domain(3)*dble(kblock-1)
 
 	end function localise_single 
 
