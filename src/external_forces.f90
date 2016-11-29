@@ -128,7 +128,7 @@ subroutine apply_boundary_force
 
 #if USE_COUPLER
 
-		integer :: constraint_algorithm,OT,NCER,Flekkoy,CV,off
+		integer :: constraint_algorithm,OT,NCER,Flekkoy,CV,off,debug=-666
 
 		call socket_get_constraint_info(constraint_algorithm,OT=OT, &
                                         NCER=NCER,Flekkoy=Flekkoy,CV=CV,off=off)
@@ -143,6 +143,9 @@ subroutine apply_boundary_force
 			!Flekkoy boundary force applied by constraint
 			return
 		else if ( constraint_algorithm .eq. CV ) then
+
+		else if ( constraint_algorithm .eq. debug ) then
+
 		else
 			call error_abort("Unrecognised constraint algorithm flag")
 		end if	
@@ -953,7 +956,7 @@ end subroutine get_MD_stresses
 subroutine get_MD_fluxes(MD_flux, r_in, v_in)
 	use CV_objects, only : 	CV_constraint
 	use arrays_MD, only : r, v, a
-	use computational_constants_MD, only : delta_t
+	use computational_constants_MD, only : delta_t, halfdomain
 	use calculated_properties_MD, only : nbinso
 	use cumulative_momentum_flux_mod, only : cumulative_momentum_flux
 	implicit none
@@ -963,7 +966,7 @@ subroutine get_MD_fluxes(MD_flux, r_in, v_in)
 	real(kind(0.d0)),intent(in),optional, &
 		allocatable, dimension(:,:)			:: r_in, v_in
 
-	integer	:: n
+	integer	:: n, ixyz
 	real(kind(0.d0)),dimension(:,:),allocatable	:: r_temp,v_temp
 
 	allocate(r_temp(3,np),v_temp(3,np))
@@ -973,6 +976,14 @@ subroutine get_MD_fluxes(MD_flux, r_in, v_in)
 		endif
 		r_temp = r_in
 		v_temp = v_in
+		do n = 1,np
+            do ixyz = 1,3
+                if (abs(r_in(ixyz,n)) .gt. halfdomain(ixyz)+CV_constraint%binsize(ixyz)) then
+                    print'(a,i8,6f10.5)', "Outside of domain in ", ixyz, r_temp(ixyz,n), halfdomain(ixyz)
+                    return
+                endif
+            enddo
+        enddo
 	else
 		!Get velocity/positions at next timestep without constraint
 		do n = 1,np
@@ -1611,13 +1622,16 @@ subroutine get_Fmdflux_CV(F_CV, 	 &
 						  F_mol, 	 &
 						  MD_flux,   &
 						  boxnp,	 &
-						  lbl, &
-						  Fmdflux_CV)
+						  lbl,       &
+						  Fmdflux_CV,&
+                          success)
 
 	use arrays_MD, only : r, v, a
 	use computational_constants_MD, only : delta_t, iter
 	implicit none
 
+    logical,intent(out),& 
+        allocatable, dimension(:,:,:)   :: success
 	integer,intent(in)             		:: lbl(6)
 	integer,intent(in), & 
 		allocatable,dimension(:,:,:)	:: boxnp
@@ -1630,10 +1644,11 @@ subroutine get_Fmdflux_CV(F_CV, 	 &
 	real(kind(0.d0)),intent(out), & 
 		allocatable,dimension(:,:,:,:) 	:: Fmdflux_CV
 
-	logical								:: converged
+	logical								:: converged, abort
 	integer								:: n
 	integer								:: maxiter, attempt
 	integer,dimension(3)			    :: bin
+
 	real(kind(0.d0)),dimension(3)		:: F_iext
 	real(kind(0.d0)),allocatable, & 
 		dimension(:,:)  				:: r_temp, v_temp
@@ -1642,6 +1657,8 @@ subroutine get_Fmdflux_CV(F_CV, 	 &
 
 	allocate( Fmdflux_CV(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); Fmdflux_CV=0.d0
 	allocate( Fmdflux_CV_prev(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); Fmdflux_CV_prev=0.d0
+    allocate(success(nbins(1)+2,nbins(2)+2,nbins(3)+2)); success=.true.
+    abort = .false.
 
 	!Get initial value of flux based force
 	call flux2force(MD_flux, lbl, Fmdflux_CV)
@@ -1668,47 +1685,76 @@ subroutine get_Fmdflux_CV(F_CV, 	 &
 
 		!If convergence is reached, exit
  		if (converged) then
+        	success=.true.
 			exit
-		elseif (attempt .eq. maxiter-1) then
-			print*, "Warning -- CV Force could not converge"
+		elseif (attempt .eq. maxiter-1 .or. abort) then
+			print*, "CV Force could not converge"
+            exit
         else
-            continue
+		    !Update momentum flux and force
+		    call get_MD_fluxes(MD_flux, r_in=r_temp, v_in=v_temp)
+		    Fmdflux_CV_prev = Fmdflux_CV; Fmdflux_CV = 0.d0
+		    call flux2force(MD_flux, lbl, Fmdflux_CV)
+
+		    !Check convergence
+		    call check_convergence(success, abort)
 		endif
-
-		!Update momentum flux and force
-		call get_MD_fluxes(MD_flux, r_in=r_temp, v_in=v_temp)
-		Fmdflux_CV_prev = Fmdflux_CV
-        Fmdflux_CV = 0.d0
-		call flux2force(MD_flux,lbl,Fmdflux_CV)
-
-		!Check convergence
-		call check_convergence
 
 	enddo
 	deallocate(r_temp,v_temp)
 
 contains
 
-
-	subroutine check_convergence
+	subroutine check_convergence(success, abort)
 
 		use computational_constants_MD, only : iter
 		implicit none
 
-		integer					:: global_converged
+        logical, intent(out)                :: abort
+        logical,intent(inout),& 
+            allocatable, dimension(:,:,:)   :: success
+		integer					:: global_converged, global_abort
+		integer					:: ib, jb, kb
+		integer					:: converge_cells
+		real(kind(0.d0))		:: convergence
+		real(kind(0.d0)), save  :: prev_convergence
 
 		!If flux force have converged (to tolerence -- here machine precision) 
         !then exit after calculating final force
-		if (all(abs(Fmdflux_CV_prev - Fmdflux_CV) .lt. mp)) then
+        convergence = 0.d0; converge_cells = 0; abort=.false.
+        do ib = lbl(1),lbl(2)
+        do jb = lbl(3),lbl(4)
+        do kb = lbl(5),lbl(6)
+			if (sum(Fmdflux_CV_prev(ib,jb,kb,:)) .ne. sum(Fmdflux_CV(ib,jb,kb,:))) then
+                if (sum(abs(Fmdflux_CV_prev(ib,jb,kb,:) - Fmdflux_CV(ib,jb,kb,:))) .gt. 1000.d0) then
+                    print'(a,4i8,f18.9)', "Large values in convergence ", ib,jb,kb,boxnp(ib,jb,kb), & 
+                                        sum(abs(Fmdflux_CV_prev(ib,jb,kb,:) - Fmdflux_CV(ib,jb,kb,:)))
+                    abort = .true.
+                    exit
+                endif
+				convergence = convergence + sum(abs(Fmdflux_CV_prev(ib,jb,kb,:) - Fmdflux_CV(ib,jb,kb,:)))
+                converge_cells = converge_cells + 1
+                success(ib,jb,kb) = .false.
+            else
+                success(ib,jb,kb) = .true.
+			endif
+		enddo
+		enddo
+		enddo
+
+        if (attempt .gt. 2 .and. (convergence-prev_convergence) .gt. 1e-8) then
+            print*, "Seems to be diverging ", prev_convergence, convergence
+            abort = .true.
+        endif
+        prev_convergence = convergence
+
+		if (convergence .lt. mp) then
 			converged = .true.
 			!Wait for all processors to converge
 			global_converged = 1
 			call globalMinInt(global_converged)
 			if (global_converged .ne. 1) then
 				converged = .false.
-			else
-                !Converved, no need to print anything
-                !call print_convergence()
 			endif
 
 		else
@@ -1717,36 +1763,134 @@ contains
 			call globalMinInt(global_converged)
 
 			!Ouput convergence if it looks like it's going to be a problem
-			if (attempt .gt. 25) then
-                call print_convergence()
+			if (attempt .gt. 50) then
+        		print'(a,3i8,f28.17)', 'slow convergence', iter, attempt, converge_cells, convergence
 			endif
 		endif
 
+		!Tell other processors "We're aborting"
+        if (abort) then
+            global_abort = 1
+            call globalMaxInt(global_abort)
+        else
+            global_abort = 0
+            call globalMaxInt(global_abort)
+            if (global_abort .ne. 0) abort=.true.
+        endif
+
 	end subroutine check_convergence
 
-    subroutine print_convergence()
-        implicit none
+!    subroutine print_convergence()
+!        implicit none
 
-		integer, dimension(3)	:: bmin, bmax
-		integer					:: converge_cells
-		integer					:: ib, jb, kb
-		integer,save			:: convergence_count=0
-		real(kind(0.d0))		:: convergence
+!		integer, dimension(3)	:: bmin, bmax
+!		integer					:: converge_cells
+!		integer					:: ib, jb, kb
+!		integer,save			:: convergence_count=0
+!		real(kind(0.d0))		:: convergence
+!		real(kind(0.d0)), save  :: prev_convergence=0.d0
 
-		convergence = 0.d0; converge_cells = 0
-        do ib = lbl(1),lbl(2)
-        do jb = lbl(3),lbl(4)
-        do kb = lbl(5),lbl(6)
-			if (sum(Fmdflux_CV_prev(ib,jb,kb,:)) .ne. sum(Fmdflux_CV(ib,jb,kb,:))) then
-				convergence = convergence + sum(abs(Fmdflux_CV_prev(ib,jb,kb,:) - Fmdflux_CV(ib,jb,kb,:)))
-                converge_cells = converge_cells + 1
-			endif
-		enddo
-		enddo
-		enddo
-		convergence_count = convergence_count + 1
-		print'(a,2i5,2i8,f28.17)', 'convergence ', iter, attempt, convergence_count, converge_cells, convergence
-    end subroutine print_convergence
+!		convergence = 0.d0; converge_cells = 0
+!        do ib = lbl(1),lbl(2)
+!        do jb = lbl(3),lbl(4)
+!        do kb = lbl(5),lbl(6)
+!			if (sum(Fmdflux_CV_prev(ib,jb,kb,:)) .ne. sum(Fmdflux_CV(ib,jb,kb,:))) then
+!				convergence = convergence + sum(abs(Fmdflux_CV_prev(ib,jb,kb,:) - Fmdflux_CV(ib,jb,kb,:)))
+!                converge_cells = converge_cells + 1
+!			endif
+!		enddo
+!		enddo
+!		enddo
+!		convergence_count = convergence_count + 1
+!		print'(a,2i5,2i8,f28.17)', 'convergence ', iter, attempt, convergence_count, converge_cells, convergence
+
+!        if (abs(convergence) .gt. 100.d0) then
+!            print*, "Large errors in convergence ", convergence
+!        elseif (convergence-prev_convergence .gt. 1e-8) then
+!            print*, "Seems to be diverging ", prev_convergence, convergence
+!        endif
+!        prev_convergence = convergence
+
+!    end subroutine print_convergence
+
+
+
+
+!	subroutine check_convergence
+
+!		use computational_constants_MD, only : iter
+!		implicit none
+
+!		integer					:: global_converged
+!		real(kind(0.d0))		:: convergence
+
+!		!If flux force have converged (to tolerence -- here machine precision) 
+!        !then exit after calculating final force
+!		if (all(abs(Fmdflux_CV_prev - Fmdflux_CV) .lt. mp)) then
+!			converged = .true.
+!			!Wait for all processors to converge
+!			global_converged = 1
+!			call globalMinInt(global_converged)
+!			if (global_converged .ne. 1) then
+!				converged = .false.
+!			endif
+
+!		else
+!			!Tell other processors "I'm not converged"
+!			global_converged = 0
+!			call globalMinInt(global_converged)
+
+!			!Ouput convergence if it looks like it's going to be a problem
+!			if (attempt .gt. 25) then
+!                call print_convergence()   
+!			endif
+!		endif
+
+!	end subroutine check_convergence
+
+!    subroutine print_convergence()
+!        implicit none
+
+!		integer, dimension(3)	:: bmin, bmax
+!		integer					:: converge_cells
+!		integer					:: ib, jb, kb
+!		integer,save			:: convergence_count=0
+!		real(kind(0.d0))		:: convergence
+
+!		convergence = 0.d0; converge_cells = 0
+!        do ib = lbl(1),lbl(2)
+!        do jb = lbl(3),lbl(4)
+!        do kb = lbl(5),lbl(6)
+!			if (sum(Fmdflux_CV_prev(ib,jb,kb,:)) .ne. sum(Fmdflux_CV(ib,jb,kb,:))) then
+!				convergence = convergence + sum(abs(Fmdflux_CV_prev(ib,jb,kb,:) - Fmdflux_CV(ib,jb,kb,:)))
+!                converge_cells = converge_cells + 1
+!			endif
+!		enddo
+!		enddo
+!		enddo
+!		convergence_count = convergence_count + 1
+
+!    end subroutine print_convergence
+
+!    subroutine set_success(success)
+!        implicit none
+
+!	    logical,allocatable,dimension(:,:,:), intent(out) :: success
+!		integer					:: ib, jb, kb
+
+!        
+!        do ib = lbl(1),lbl(2)
+!        do jb = lbl(3),lbl(4)
+!        do kb = lbl(5),lbl(6)
+!			if (sum(Fmdflux_CV_prev(ib,jb,kb,:)) .ne. sum(Fmdflux_CV(ib,jb,kb,:))) then
+!				success(ib,jb,kb) = .false.
+!                print*, "Cell ", ib,jb,kb, "Failed to converge", Fmdflux_CV_prev(ib,jb,kb,:)-Fmdflux_CV(ib,jb,kb,:)
+!			endif
+!		enddo
+!		enddo
+!		enddo
+
+!    end subroutine set_success
 
 end subroutine get_Fmdflux_CV
 
@@ -1756,13 +1900,16 @@ subroutine apply_force(F_CV,  &
 					   F_mol, &
 					   boxnp, &
 					   lbl,   &
-                       dir)
+                       dir,   &
+                       success)
 	use arrays_MD, only: r, v, a
 	use computational_constants_MD, only : eflux_outflag, delta_t, & 
                                            iter,CVweighting_flag
 	use module_record_external_forces, only : record_external_forces
 	implicit none
 
+    logical,intent(in), & 
+        allocatable,dimension(:,:,:)    :: success
 	logical,intent(in),optional    		:: dir(3)
 	integer,intent(in)             		:: lbl(6)
 	integer,intent(in), & 
@@ -1795,25 +1942,30 @@ subroutine apply_force(F_CV,  &
 		!Get bin and skip out of range values
 		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
 
-		!Get total force on a molecule from sum of CV forces and molecular forces
-        F_iext = 0.d0
-        do ixyz = 1,3
-            if (.not. applied_in(ixyz)) cycle
-    		F_iext(ixyz) = F_mol(ixyz,n) + (F_CV(bin(1),bin(2),bin(3),ixyz)) & 
-                                     /dble(boxnp(bin(1),bin(2),bin(3)))
-        enddo
+        !Only apply constraints to bins which have converged
+        if (success(bin(1),bin(2),bin(3))) then
+
+		    !Get total force on a molecule from sum of CV forces and molecular forces
+            F_iext = 0.d0
+            do ixyz = 1,3
+                if (.not. applied_in(ixyz)) cycle
+        		F_iext(ixyz) = F_mol(ixyz,n) + (F_CV(bin(1),bin(2),bin(3),ixyz)) & 
+                                         /dble(boxnp(bin(1),bin(2),bin(3)))
+            enddo
 
 					
-		!Apply force by adding to total
-		a(:,n) = a(:,n) - F_iext(:)
+		    !Apply force by adding to total
+		    a(:,n) = a(:,n) - F_iext(:)
 
-		!Add external force to CV total
-		if (eflux_outflag .eq. 4) then
-			velvect(:) = v(:,n) + 0.5d0*delta_t*a(:,n)
-			call record_external_forces(F_iext,r(:,n),velvect)
-		else
-			call record_external_forces(F_iext,r(:,n))
-		endif
+		    !Add external force to CV total
+		    if (eflux_outflag .eq. 4) then
+			    velvect(:) = v(:,n) + 0.5d0*delta_t*a(:,n)
+			    call record_external_forces(F_iext,r(:,n),velvect)
+		    else
+			    call record_external_forces(F_iext,r(:,n))
+		    endif
+
+        endif
 
 	enddo
 
@@ -1957,6 +2109,8 @@ subroutine get_CFD_stresses_fluxes_from_dudt(u_CFD, u_CFD_mdt, &
 		CFD_stress(i,j,k,1,1) = dvelocitydt(1)
 		CFD_stress(i,j,k,2,2) = dvelocitydt(2)
 		CFD_stress(i,j,k,3,3) = dvelocitydt(3)
+
+        !if (abs(dvelocitydt(1)) .gt. 1e-5) print*, i,j,k,dvelocitydt(1)
     
     enddo
     enddo
@@ -2026,9 +2180,9 @@ subroutine check_CFD_vs_MD(u_CFD, lbl, outtype)
                     iter,irank,i, j, k, u_CFD(i,j,k,1), u_CV(i,j,k,1)
                 end if
             elseif (outtype .eq. 3) then
-         	    print'(a,i8,4i4,6f18.12)','Error_in_CFD_vs_MD', &
+         	    print'(a,i8,4i4,5f18.12)','Error_in_CFD_vs_MD', &
                      iter, irank, i, j, k, u_CFD(i,j,k,1), u_CV(i,j,k,1), & 
-                    u_CFD(i,j,k,1)-u_CV(i,j,k,1), u_CFD(i,j,k,1)/u_CV(i,j,k,1)
+                    u_CFD(i,j,k,1)-u_CV(i,j,k,1)!, u_CFD(i,j,k,1)/u_CV(i,j,k,1)
             endif
         endif
         if (outtype .eq. 3) then
@@ -2061,6 +2215,7 @@ subroutine apply_CV_force()
 
     logical                                             :: stresspassed=.false.
 	logical,dimension(3)				 	            :: applied_in
+    logical,allocatable, dimension(:,:,:)               :: success
 	integer,dimension(6),save   		 	            :: lbl
 	integer,allocatable,dimension(:,:,:) 				:: boxnp
 	real(kind(0.d0))                                    :: dx, dy, dz
@@ -2170,11 +2325,11 @@ subroutine apply_CV_force()
 
 	! Get CV force based on MD fluxes (Using all other forces and iterating until
 	! 								   MD_flux and force are consistent)
-	call get_Fmdflux_CV(F_CV, Fstresses_mol, MD_flux, boxnp, lbl, Fmdflux_CV)
+	call get_Fmdflux_CV(F_CV, Fstresses_mol, MD_flux, boxnp, lbl, Fmdflux_CV, success)
 
-	!Add up all forces and apply 
-	F_CV = F_CV + Fmdflux_CV
-	call apply_force(F_CV, Fstresses_mol, boxnp, lbl, CVforce_applied_dir)
+	!Add up all forces and apply if iteration for fluxes successful
+  	F_CV = F_CV + Fmdflux_CV
+    call apply_force(F_CV, Fstresses_mol, boxnp, lbl, CVforce_applied_dir, success)
 
     !Save CFD value from previous timestep
     u_CFD_mdt = u_CFD
