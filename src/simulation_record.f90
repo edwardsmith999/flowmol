@@ -3974,12 +3974,12 @@ subroutine momentum_flux_averaging(flag)
                 skipbinstop = 0
                 skipbinsbot = 0
             endif
-	    	    call CVcheck_momentum%check_error(1+nhb(1)+skipbinsbot(1), & 
-                                                  nbins(1)+nhb(1)-skipbinstop(1), & 
-	    										  1+nhb(2)+skipbinsbot(2), & 
-                                                  nbins(2)+nhb(2)-skipbinstop(2), & 
-	    										  1+nhb(3)+skipbinsbot(3), & 
-                                                  nbins(3)+nhb(3)-skipbinstop(3),iter,irank)
+    	    call CVcheck_momentum%check_error(1+nhb(1)+skipbinsbot(1), & 
+                                              nbins(1)+nhb(1)-skipbinstop(1), & 
+    										  1+nhb(2)+skipbinsbot(2), & 
+                                              nbins(2)+nhb(2)-skipbinstop(2), & 
+    										  1+nhb(3)+skipbinsbot(3), & 
+                                              nbins(3)+nhb(3)-skipbinstop(3),iter,irank)
         endif
 	endif
 
@@ -4186,7 +4186,7 @@ subroutine energy_flux_averaging(flag)
 	implicit none
 
 	integer,intent(in)	:: flag
-	integer, save		:: sample_count = 0
+	integer, save		:: sample_count = -1
 
     integer,dimension(3):: skipbinstop,skipbinsbot
 	real(kind(0.d0)),dimension(3)	:: ebinsize
@@ -4253,9 +4253,12 @@ subroutine energy_flux_averaging(flag)
                 skipbinstop = 0
                 skipbinsbot = 0
             endif
-		    call CVcheck_energy%check_error(1+nhb(1)+skipbinstop(1),nbins(1)+nhb(1)-skipbinstop(1), & 
-											1+nhb(2)+skipbinstop(2),nbins(2)+nhb(2)-skipbinstop(2), & 
-											1+nhb(3)+skipbinstop(3),nbins(3)+nhb(3)-skipbinstop(3),iter,irank)
+		    call CVcheck_energy%check_error(1+nhb(1)+skipbinstop(1), & 
+                                            nbins(1)+nhb(1)-skipbinstop(1), & 
+											1+nhb(2)+skipbinstop(2), & 
+                                            nbins(2)+nhb(2)-skipbinstop(2), & 
+											1+nhb(3)+skipbinstop(3), & 
+                                            nbins(3)+nhb(3)-skipbinstop(3),iter,irank)
 	   endif
 	endif
 
@@ -4291,12 +4294,6 @@ subroutine energy_snapshot
 		velvect(:) = v(:,n) + 0.5d0*a(:,n)*delta_t
 		energy = 0.5d0 * ( mass(n)*dot_product(velvect,velvect) + potenergymol(n))
 
-		!if (all(ibin .eq. 3)) then
-		!	print'(a,2i5,6f12.7)','E__ in bin 3', iter, n, velvect,0.5d0*(dot_product(velvect,velvect)),0.5d0*potenergymol(n), energy
-		!endif
-		!if (abs(sum(velvect)) .gt. 0.000001d0 .or. abs(potenergymol(n)) .gt. 0.000001d0) then
-		!	print'(5i6,a,3f16.12,a,f16.12)', iter, n, ibin, ' velvect ', velvect ,' potential_energy ',potenergymol(n)
-		!endif
 		volume_energy_temp(ibin(1),ibin(2),ibin(3)) = volume_energy_temp(ibin(1),ibin(2),ibin(3)) + energy
 	enddo
 

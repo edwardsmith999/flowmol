@@ -4095,7 +4095,7 @@ end subroutine surface_density_io
 !---------------------------------------------------------------------------------
 ! Record stress times velocity (power) accross surfaces of Control Volumes
 
-subroutine surface_power_io
+subroutine surface_power_io()
     use module_parallel_io
     use messenger_bin_handler, only : swaphalos
     use CV_objects, only : CVcheck_energy
@@ -4109,10 +4109,12 @@ subroutine surface_power_io
     call swaphalos(Pxyvface_integrated,nbinso(1),nbinso(2),nbinso(3),nresults)
 
     do ixyz = 1,3
-        binface       = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
-                        (domain(modulo(ixyz+1,3)+1)/nbins(modulo(ixyz+1,3)+1))
-        Pxyvface_integrated(:,:,:,ixyz  ) = 0.25d0 * Pxyvface_integrated(:,:,:,ixyz  )/binface !Bottom
-        Pxyvface_integrated(:,:,:,ixyz+3) = 0.25d0 * Pxyvface_integrated(:,:,:,ixyz+3)/binface !Top
+        binface = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
+                  (domain(modulo(ixyz+1,3)+1)/nbins(modulo(ixyz+1,3)+1))
+        Pxyvface_integrated(:,:,:,ixyz  ) = & 
+            0.25d0*Pxyvface_integrated(:,:,:,ixyz  )/binface !Bottom
+        Pxyvface_integrated(:,:,:,ixyz+3) = & 
+            0.25d0*Pxyvface_integrated(:,:,:,ixyz+3)/binface !Top
     enddo
 
     !Integration of stress using trapizium rule requires division by number of results
@@ -4132,7 +4134,9 @@ subroutine surface_power_io
     case default
         call error_abort('CV_conserve value used for surface power is incorrectly defined - should be 0=off or 1=on')
     end select
-    call write_arrays(Pxyvface_integrated,nresults,trim(prefix_dir)//'results/esurface',m)
+
+    call write_arrays(Pxyvface_integrated, nresults, & 
+                      trim(prefix_dir)//'results/esurface', m)
 
 end subroutine surface_power_io
 
@@ -4280,7 +4284,8 @@ subroutine viscosity_io
         !Write viscosity to file
         m = get_iter()/(tplot*Nstress_ave*Nvisc_ave)
         inquire(iolength=length) viscosity
-        open (unit=7, file=trim(prefix_dir)//'results/visc',form='unformatted',access='direct',recl=length)
+        open (unit=7, file=trim(prefix_dir)//'results/visc', & 
+              form='unformatted',access='direct',recl=length)
         write(7,rec=m) viscosity
         close(7,status='keep')
     endif

@@ -308,6 +308,7 @@ contains
 			call reset_location_tags
 		endif
 	
+        allocate(ascale(nthermo), bscale(nthermo))
 		if (tag_thermostat_active) then
 		
 			! --------------------------------------------------------------!
@@ -362,19 +363,19 @@ contains
 			!Nose Hoover thermostat coefficients
             allocate(Q(nthermo))
             allocate(dzeta_dt(nthermo))
-            allocate(ascale(nthermo), bscale(nthermo))
             if (.not.allocated(zeta)) then
                 allocate(zeta(nthermo))
                 zeta = 0.d0
             endif
 
-            print*, zeta, dzeta_dt, nthermo, Q, thermostatnp
+            !print*, zeta, dzeta_dt, nthermo, Q, thermostatnp
 
 			Q(:)        = 0.1*thermostatnp(:) * delta_t 
-			dzeta_dt(:) = (mv2sum(:) - (nd*thermostatnp(:) + 1)*thermostattemperature(:)) / Q(:)
+			dzeta_dt(:) = (mv2sum(:) - (nd*thermostatnp(:) + 1) & 
+                           *thermostattemperature(:)) / Q(:)
 			zeta(:) 	 = zeta(:) + delta_t*dzeta_dt(:)
-			bscale(:)	 = 1.0/(1.0+0.5*delta_t*zeta(:))
-			ascale(:)	 = (1-0.5*delta_t*zeta(:))*bscale(:)
+			bscale(:)	 = 1.d0/(1.d0+0.5d0*delta_t*zeta(:))
+			ascale(:)	 = (1.d0-0.5d0*delta_t*zeta(:))*bscale(:)
 
 		else
 
