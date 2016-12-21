@@ -917,6 +917,10 @@ subroutine setup_restart_inputs
             print*, 'global_numbering used in restart file but not requested in', &
                     'input file - global_numbering will be used '
             global_numbering = checkint
+        elseif (checkint .eq. 0 .and. global_numbering .eq. 1) then
+            print*, 'global_numbering not in restart file but requested in', &
+                    'input file - global_numbering info will be created '
+            global_numbering = 2
         endif
         call MPI_File_close(restartfileid,ierr)
     endif
@@ -949,7 +953,7 @@ subroutine setup_restart_inputs
     call MPI_BCAST(eps_ps,            1,MPI_double_precision,iroot-1,MD_COMM,ierr)
     call MPI_BCAST(eps_ss,            1,MPI_double_precision,iroot-1,MD_COMM,ierr)
     call MPI_BCAST(Mie_potential,     1,MPI_integer,iroot-1,MD_COMM,ierr)
-    call MPI_BCAST(global_numbering,     1,MPI_integer,iroot-1,MD_COMM,ierr)
+    call MPI_BCAST(global_numbering,  1,MPI_integer,iroot-1,MD_COMM,ierr)
 
     elapsedtime = elapsedtime + delta_t*extrasteps  !Set elapsed time to end of simualtion
     initialstep = Nsteps                            !Set plot count to final plot of last
@@ -1064,10 +1068,14 @@ subroutine setup_restart_microstate
                 moltype(nl) = nint(buf(pos))
                 pos = pos + 1
             endif
-            !Add global number if required
+            !Load global number if required
             if (global_numbering .eq. 1) then
                 glob_no(nl) = nint(buf(pos))
                 pos = pos + 1
+            !Create global number if not present in restart file
+            elseif (global_numbering .eq. 2) then
+                glob_no(nl) = nl + sum(procnp(1:irank-1))
+                write(2530,*) nl, glob_no(nl)
             endif
             if (potential_flag.eq.1) then
                 !Read monomer data
@@ -1163,6 +1171,9 @@ subroutine setup_restart_microstate
             !Add global number if required
             if (global_numbering .eq. 1) then
                 glob_no(nl) = globnotemp
+            !Create global number if not present in restart file
+            elseif (global_numbering .eq. 2) then
+                glob_no(nl) = nl + sum(procnp(1:irank-1))
             endif
             if (potential_flag.eq.1) then
                 monomer(nl)%chainID        = nint(monomertemp(1))
@@ -1182,6 +1193,10 @@ subroutine setup_restart_microstate
         call error_abort('processor re-ordering flag incorrect in restart microstate')
 
     end select
+
+    if (global_numbering .eq. 2) then
+        global_numbering = 1
+    endif
 
     ! Mie moltype should be from restart file!! If mie_potential was zero in restart
     ! but now input requests one, setup as if new run (based on location, etc).
