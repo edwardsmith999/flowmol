@@ -509,7 +509,7 @@ subroutine velocity_PDF_averaging(ixyz)
     integer,intent(in)      :: ixyz
 
 	integer                 :: n, i,j,k, jxyz,kxyz
-	integer, save		    :: average_count=-1
+	integer, save		    :: sample_count=-1
 
 	integer,dimension(3)	:: cbin
 	integer,dimension(:,:),allocatable          :: pdfx,pdfy,pdfz
@@ -519,12 +519,12 @@ subroutine velocity_PDF_averaging(ixyz)
 	real(kind(0.d0)),dimension(3)	            :: peculiarv,binsize_
 	real(kind(0.d0)),dimension(:),allocatable 	:: vmagnitude,binloc
 
-	average_count = average_count + 1
+	sample_count = sample_count + 1
 	call cumulative_velocity_PDF
 
 	!Write and reset PDF FOR EACH Y SLAB
-	if (average_count .eq. Nvpdf_ave) then
-        average_count = 0
+	if (sample_count .eq. Nvpdf_ave) then
+        sample_count = 0
 
 		select case(ixyz)
 		case(1:3)
@@ -1250,14 +1250,14 @@ subroutine mass_averaging(ixyz)
 	implicit none
 
 	integer							:: ixyz
-	integer, save					:: average_count=-1
+	integer, save					:: sample_count = -1
 
-	average_count = average_count + 1
+	sample_count = sample_count + 1
 	call cumulative_mass(ixyz)
-	if (average_count .eq. Nmass_ave) then
-		average_count = 0
-		!Determine bin size
+	if (sample_count .eq. Nmass_ave) then
+		sample_count = 0
 
+		!Determine bin size
 		select case(ixyz)
 		case(1:3)
 			call mass_slice_io(ixyz)
@@ -1422,10 +1422,10 @@ subroutine momentum_averaging(ixyz)
 
 	integer				:: ixyz, n
 	integer,dimension(3):: ib
-	integer, save		:: average_count=-1
+	integer, save		:: sample_count = -1
 	real(kind(0.d0)),dimension(3) 	:: Vbinsize
 
-	average_count = average_count + 1
+	sample_count = sample_count + 1
 	call cumulative_momentum(ixyz)
 
 	!Save streaming momentum for temperature averages
@@ -1442,15 +1442,14 @@ subroutine momentum_averaging(ixyz)
 
 		do n=1,np
 			!Save streaming momentum per molecule
-			!ib(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
             ib(:) = get_bin(r(:,n))
 			U(:,n) =  volume_momentum(ib(1),ib(2),ib(3),:) / volume_mass(ib(1),ib(2),ib(3))
 		enddo
 
 	endif
 
-	if (average_count .eq. Nvel_ave) then
-		average_count = 0
+	if (sample_count .eq. Nvel_ave) then
+		sample_count = 0
 
 		select case(ixyz)
 			case(1:3)
@@ -1641,12 +1640,12 @@ subroutine temperature_averaging(ixyz)
 	implicit none
 
 	integer				:: ixyz
-	integer, save		:: average_count=-1
+	integer, save		:: sample_count = -1
 	
-	average_count = average_count + 1
+	sample_count = sample_count + 1
 	call cumulative_temperature(ixyz)
-	if (average_count .eq. NTemp_ave) then
-		average_count = 0
+	if (sample_count .eq. NTemp_ave) then
+		sample_count = 0
 
 		select case(ixyz)
 		case(1:3)
@@ -1827,13 +1826,13 @@ subroutine energy_averaging(ixyz)
 	implicit none
 
 	integer				:: ixyz
-	integer, save		:: average_count=-1
+	integer, save		:: sample_count = -1
 	
-	average_count = average_count + 1
+	sample_count = sample_count + 1
 	call cumulative_energy(ixyz)
-    !print*, 'Total energy = ',average_count, sum(volume_energy)/(average_count*np), 0.5*sum(potenergymol(1:np)/np)
-	if (average_count .eq. Nenergy_ave) then
-		average_count = 0
+    !print*, 'Total energy = ',sample_count, sum(volume_energy)/(sample_count*np), 0.5*sum(potenergymol(1:np)/np)
+	if (sample_count .eq. Nenergy_ave) then
+		sample_count = 0
 
 		select case(ixyz)
 		case(1:3)
@@ -1920,14 +1919,14 @@ subroutine centre_of_mass_averaging(ixyz)
 
 	integer				            :: ixyz
 	integer,dimension(3)            :: ib
-	integer, save		            :: average_count=-1
+	integer, save		            :: sample_count = -1
 	real(kind(0.d0)),dimension(3) 	:: Vbinsize
 
-	average_count = average_count + 1
+	sample_count = sample_count + 1
 	call cumulative_centre_of_mass(ixyz)
 
-	if (average_count .eq. Ncom_ave) then
-		average_count = 0
+	if (sample_count .eq. Ncom_ave) then
+		sample_count = 0
 
 		select case(ixyz)
 		case(1:3)
@@ -1973,7 +1972,8 @@ subroutine cumulative_centre_of_mass(ixyz)
             bin_centre(:) = (ibin(:)-1*nhb(:)-0.5d0)*mbinsize(:)-halfdomain(:)
             COM(:) = mass(n) * (r(:,n) - bin_centre(:))
             !COM(:) = mass(n) * r(:,n)
-            centre_of_mass(ibin(1),ibin(2),ibin(3),:) = centre_of_mass(ibin(1),ibin(2),ibin(3),:) + COM(:)
+            centre_of_mass(ibin(1),ibin(2),ibin(3),:) = & 
+                centre_of_mass(ibin(1),ibin(2),ibin(3),:) + COM(:)
         enddo
 	case default 
 		call error_abort("Centre of Mass Binning Error")
@@ -1995,7 +1995,7 @@ subroutine pressure_averaging(ixyz)
 	implicit none
 
 	integer			:: ixyz
-	integer, save	:: sample_count, average_count
+	integer, save	:: sample_count = 0
 
 	sample_count = sample_count + 1
 	call cumulative_pressure(ixyz,sample_count)
@@ -2006,24 +2006,11 @@ subroutine pressure_averaging(ixyz)
 
 		select case(ixyz)
 		case(1)
-		!FULL DOMAIN VIRIAL STRESS CALCULATION
-			!print'(a,10f12.5)', 'cumulative stress', Pxy,(Pxy(1,1)+Pxy(2,2)+Pxy(3,3))/3.d0
+		    !FULL DOMAIN VIRIAL STRESS CALCULATION
 			call virial_stress_io
 			Pxy = 0.d0
 		case(2)
-		!VA STRESS CALCULATION
-!            print'(a,i8,3f20.10)', 'Pressure VA', iter, &
-!                                    sum(Pxybin(:,:,:,1,1)+Pxybin(:,:,:,2,2)+Pxybin(:,:,:,3,3)), &
-!                                    sum(vvbin(:,:,:,1,1)+vvbin(:,:,:,2,2)+vvbin(:,:,:,3,3)), &
-!                                    sum(rfbin(1+nhb(1):nbins(1)+nhb(1),   & 
-!                                              1+nhb(2):nbins(2)+nhb(2),   & 
-!                                              1+nhb(3):nbins(3)+nhb(3),1,1) & 
-!                                       +rfbin(1+nhb(1):nbins(1)+nhb(1),   & 
-!                                              1+nhb(2):nbins(2)+nhb(2),   & 
-!                                              1+nhb(3):nbins(3)+nhb(3),2,2) & 
-!                                       +rfbin(1+nhb(1):nbins(1)+nhb(1),   & 
-!                                              1+nhb(2):nbins(2)+nhb(2),   & 
-!                                              1+nhb(3):nbins(3)+nhb(3),3,3))
+		    !VA STRESS CALCULATION
 			call VA_stress_io
 			Pxybin = 0.d0
 			vvbin  = 0.d0
@@ -2037,10 +2024,10 @@ subroutine pressure_averaging(ixyz)
 			call error_abort("Average Pressure Binning Error")
 		end select
 		if(viscosity_outflag .eq. 1) then
-			average_count = average_count+1
-			if (average_count .eq. Nvisc_ave) then
+			sample_count = sample_count + 1
+			if (sample_count .eq. Nvisc_ave) then
 				call viscosity_io
-				average_count = 0
+				sample_count = 0
 			endif
 		endif
 	endif
@@ -2056,7 +2043,8 @@ subroutine cumulative_pressure(ixyz,sample_count)
     use messenger_data_exchange, only : globalSum
 	implicit none
 
-	integer								:: sample_count,n,ixyz,jxyz,kxyz
+	integer								:: sample_count
+    integer                             :: n,ixyz,jxyz,kxyz
 	real(kind(0.d0)), dimension(3)		:: velvect
 	real(kind(0.d0)), dimension(3)      :: rglob
 	real(kind(0.d0)), dimension(3,3)	:: Pxytemp
@@ -3444,7 +3432,7 @@ subroutine heatflux_averaging(ixyz)
 	implicit none
 
 	integer			:: ixyz
-	integer, save	:: sample_count = 0
+	integer, save	:: sample_count = -1
 
 	sample_count = sample_count + 1
 	call cumulative_heatflux(ixyz,sample_count)
@@ -3478,7 +3466,8 @@ subroutine cumulative_heatflux(ixyz,sample_count)
     use messenger_data_exchange, only : globalSum
 	implicit none
 
-	integer								:: sample_count,n,ixyz,jxyz,kxyz
+	integer								:: sample_count
+    integer                             :: n,ixyz,jxyz,kxyz
 	real(kind(0.d0)), dimension(3)		:: velvect
 	real(kind(0.d0)), dimension(3)      :: rglob
 	real(kind(0.d0)), dimension(3,3)	:: Pxytemp
@@ -3567,13 +3556,13 @@ subroutine bforce_pdf_stats
     use statistics_io, only: bforce_pdf_write
     implicit none
 
-	integer, save		:: average_count=-1
+	integer, save		:: sample_count=-1
 
-    average_count = average_count + 1
+    sample_count = sample_count + 1
     call collect_bforce_pdf_data
 
-    if (average_count .eq. bforce_pdf_Nave) then
-        average_count = 0
+    if (sample_count .eq. bforce_pdf_Nave) then
+        sample_count = 0
         call bforce_pdf_write
     end if 
 
@@ -3615,7 +3604,7 @@ subroutine mass_flux_averaging(flag)
 	integer			                :: flag
     integer,dimension(3)            :: thermbinstop,thermbinsbot
     real(kind(0.d0)),dimension(3)   :: mbinsize
-	integer, save	                :: sample_count
+	integer, save	                :: sample_count = 0
     integer,dimension(3):: skipbinstop,skipbinsbot
 
 	!Only average if mass averaging turned on
@@ -3738,10 +3727,10 @@ subroutine mass_snapshot
     use module_set_parameters, only : mass
 	implicit none
 
-	integer										:: n
-	integer		,dimension(3)					:: ibin
+	integer										    :: n
+	integer		,dimension(3)					    :: ibin
 	real(kind(0.d0)),dimension(:,:,:)  ,allocatable	:: volume_mass_temp
-	real(kind(0.d0)),dimension(3)				:: mbinsize
+	real(kind(0.d0)),dimension(3)				    :: mbinsize
 
 	!Determine bin size
 	mbinsize(:) = domain(:) / nbins(:)
@@ -3755,7 +3744,8 @@ subroutine mass_snapshot
 		!Add up current volume momentum densities
 		ibin(:) = get_bin(r(:,n)) 
 		!ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
-		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = volume_mass_temp(ibin(1),ibin(2),ibin(3)) + mass(n)
+		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = & 
+            volume_mass_temp(ibin(1),ibin(2),ibin(3)) + mass(n)
 		!call  CV_sphere_mass%Add_spherical_CV_mass(r(:,n))
 	enddo
 
@@ -3934,7 +3924,7 @@ subroutine momentum_flux_averaging(flag)
 	integer				::icell,jcell,kcell,n
     integer,dimension(3):: skipbinstop,skipbinsbot
 	real(kind(0.d0)),dimension(3)	:: mbinsize
-	integer, save		:: sample_count
+	integer, save		:: sample_count = 0
 
 	if (flag .eq. 0) return
 
@@ -3984,12 +3974,12 @@ subroutine momentum_flux_averaging(flag)
                 skipbinstop = 0
                 skipbinsbot = 0
             endif
-	    	    call CVcheck_momentum%check_error(1+nhb(1)+skipbinsbot(1), & 
-                                                  nbins(1)+nhb(1)-skipbinstop(1), & 
-	    										  1+nhb(2)+skipbinsbot(2), & 
-                                                  nbins(2)+nhb(2)-skipbinstop(2), & 
-	    										  1+nhb(3)+skipbinsbot(3), & 
-                                                  nbins(3)+nhb(3)-skipbinstop(3),iter,irank)
+    	    call CVcheck_momentum%check_error(1+nhb(1)+skipbinsbot(1), & 
+                                              nbins(1)+nhb(1)-skipbinstop(1), & 
+    										  1+nhb(2)+skipbinsbot(2), & 
+                                              nbins(2)+nhb(2)-skipbinstop(2), & 
+    										  1+nhb(3)+skipbinsbot(3), & 
+                                              nbins(3)+nhb(3)-skipbinstop(3),iter,irank)
         endif
 	endif
 
@@ -4026,8 +4016,10 @@ subroutine momentum_snapshot
         ibin(:) =  get_bin(r(:,n))
 		!ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
 
-		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = volume_mass_temp(ibin(1),ibin(2),ibin(3)) + mass(n)
-		volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) = volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) + mass(n)*v(:,n)
+		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = & 
+            volume_mass_temp(ibin(1),ibin(2),ibin(3)) + mass(n)
+		volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) = & 
+            volume_momentum_temp(ibin(1),ibin(2),ibin(3),:) + mass(n)*v(:,n)
 	enddo
 	binvolume = (domain(1)/nbins(1))*(domain(2)/nbins(2))*(domain(3)/nbins(3))
 	volume_momentum_temp = volume_momentum_temp/binvolume
@@ -4194,7 +4186,7 @@ subroutine energy_flux_averaging(flag)
 	implicit none
 
 	integer,intent(in)	:: flag
-	integer, save		:: sample_count
+	integer, save		:: sample_count = -1
 
     integer,dimension(3):: skipbinstop,skipbinsbot
 	real(kind(0.d0)),dimension(3)	:: ebinsize
@@ -4261,9 +4253,12 @@ subroutine energy_flux_averaging(flag)
                 skipbinstop = 0
                 skipbinsbot = 0
             endif
-		    call CVcheck_energy%check_error(1+nhb(1)+skipbinstop(1),nbins(1)+nhb(1)-skipbinstop(1), & 
-											1+nhb(2)+skipbinstop(2),nbins(2)+nhb(2)-skipbinstop(2), & 
-											1+nhb(3)+skipbinstop(3),nbins(3)+nhb(3)-skipbinstop(3),iter,irank)
+		    call CVcheck_energy%check_error(1+nhb(1)+skipbinstop(1), & 
+                                            nbins(1)+nhb(1)-skipbinstop(1), & 
+											1+nhb(2)+skipbinstop(2), & 
+                                            nbins(2)+nhb(2)-skipbinstop(2), & 
+											1+nhb(3)+skipbinstop(3), & 
+                                            nbins(3)+nhb(3)-skipbinstop(3),iter,irank)
 	   endif
 	endif
 
@@ -4299,12 +4294,6 @@ subroutine energy_snapshot
 		velvect(:) = v(:,n) + 0.5d0*a(:,n)*delta_t
 		energy = 0.5d0 * ( mass(n)*dot_product(velvect,velvect) + potenergymol(n))
 
-		!if (all(ibin .eq. 3)) then
-		!	print'(a,2i5,6f12.7)','E__ in bin 3', iter, n, velvect,0.5d0*(dot_product(velvect,velvect)),0.5d0*potenergymol(n), energy
-		!endif
-		!if (abs(sum(velvect)) .gt. 0.000001d0 .or. abs(potenergymol(n)) .gt. 0.000001d0) then
-		!	print'(5i6,a,3f16.12,a,f16.12)', iter, n, ibin, ' velvect ', velvect ,' potential_energy ',potenergymol(n)
-		!endif
 		volume_energy_temp(ibin(1),ibin(2),ibin(3)) = volume_energy_temp(ibin(1),ibin(2),ibin(3)) + energy
 	enddo
 
@@ -4335,7 +4324,7 @@ subroutine surface_density_averaging(flag)
 
 	integer			                :: flag
     real(kind(0.d0)),dimension(3)   :: mbinsize
-	integer, save	                :: sample_count
+	integer, save	                :: sample_count = 0
 
 	!Only average if mass averaging turned on
 	if (flag .eq. 0) return

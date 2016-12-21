@@ -43,7 +43,7 @@ subroutine simulation_move_particles_lfv
 	
 	integer :: n
 	real(kind(0.d0)) :: ascale, bscale, ry_old, vy_old, shear
-	real(kind(0.d0)), save :: zeta=0.d0
+	real(kind(0.d0)), dimension(:), allocatable, save  :: zeta    	!Parameter used in Nose Hoover thermostat
 
 	!Apply external force field to regions of spaces
 	select case(external_force_flag)
@@ -184,10 +184,10 @@ contains
 		call globalSum(mv2sum)		
 		call globalSum(thermostatnp)		
 		Q        = thermostatnp*delta_t
-		dzeta_dt = (mv2sum - (real(nd*thermostatnp + 1,kind(0.d0)))*thermostattemperature)/Q
+		dzeta_dt = (mv2sum - (real(nd*thermostatnp + 1,kind(0.d0)))*thermostattemperature(1))/Q
 		zeta     = zeta + delta_t*dzeta_dt
-		bscale   = 1.0/(1.0+0.5*delta_t*zeta)
-		ascale   = (1-0.5*delta_t*zeta)*bscale
+		bscale   = 1.0/(1.0+0.5*delta_t*zeta(1))
+		ascale   = (1-0.5*delta_t*zeta(1))*bscale
 
 	end subroutine evaluate_NH_params
 
@@ -216,10 +216,10 @@ contains
 		call globalSum(pec_mv2sum)
 		call globalSum(thermostatnp)		
 		Q        = thermostatnp*delta_t                                 ! PUT: Thermal inertia
-		dzeta_dt = (pec_mv2sum - (real(thermostatnp*nd+1,kind(0.d0)))*thermostattemperature)/Q ! PUT: dzeta_dt(t-dt)
+		dzeta_dt = (pec_mv2sum - (real(thermostatnp*nd+1,kind(0.d0)))*thermostattemperature(1))/Q ! PUT: dzeta_dt(t-dt)
 		zeta     = zeta + delta_t*dzeta_dt                          ! PUT: zeta(t)
-		bscale   = 1.0/(1.0+0.5*zeta*delta_t)                       
-		ascale   = (1.0-0.5*zeta*delta_t)*bscale
+		bscale   = 1.0/(1.0+0.5*zeta(1)*delta_t)                       
+		ascale   = (1.0-0.5*zeta(1)*delta_t)*bscale
 
 	end subroutine evaluate_NH_params_PUT
 
@@ -262,6 +262,29 @@ contains
 
 	end subroutine evaluate_U_PUT
 
+
+    function get_therm_region(n)
+		use messenger, only: globalise
+        use computational_constants_MD, only : nthermo
+    	implicit none
+
+        integer, intent(in) :: n
+        integer :: get_therm_region
+        real(kind(0.d0)), dimension(3) :: rglob
+
+        if (nthermo .eq. 1) then
+            get_therm_region = 1 
+        else
+            rglob =globalise(r(:,n))
+            if (rglob(2) .gt. 0.d0) then
+                get_therm_region = 1
+            else
+                get_therm_region = 2
+            endif
+        endif
+
+    end function get_therm_region
+
 	!---------------------------------------------------------------------
 	!Tag move routine
 	subroutine simulation_move_particles_lfv_tag
@@ -271,12 +294,12 @@ contains
 		use messenger, only: localise, globalise
 	    use messenger_data_exchange, only : globalSum
 		use concentric_cylinders, only: omega
-        use module_set_parameters, only : mass
+        use module_set_parameters, only : mass, nthermo
 		implicit none
 				
-		integer	:: n
-		real(kind(0.d0)) :: thermostatnp, freq, dzeta_dt, mv2sum, Q
-		real(kind(0.d0)) :: ascale, bscale, dtheta
+		integer	:: n, tr
+		real(kind(0.d0)), dimension(:), allocatable :: thermostatnp, dzeta_dt, mv2sum, Q
+		real(kind(0.d0)), dimension(:), allocatable :: ascale, bscale
 		real(kind(0.d0)), dimension(nd)	:: vel
 		real(kind(0.d0)), dimension(nd)	:: rpol, rglob
 
@@ -285,6 +308,7 @@ contains
 			call reset_location_tags
 		endif
 	
+        allocate(ascale(nthermo), bscale(nthermo))
 		if (tag_thermostat_active) then
 		
 			! --------------------------------------------------------------!
@@ -311,6 +335,8 @@ contains
 				end if
 			end if
 
+            allocate(mv2sum(nthermo))
+            allocate(thermostatnp(nthermo))
 			mv2sum = 0.d0
 			thermostatnp = 0.d0
 			do n = 1, np
@@ -323,28 +349,39 @@ contains
 					cycle
 				end if
 
-				mv2sum = mv2sum + mass(n) * dot_product(vel,vel)
-				thermostatnp = thermostatnp + mass(n)                
+                !multiple thermostat regions
+                tr = get_therm_region(n)
+				mv2sum(tr) = mv2sum(tr) + mass(n) * dot_product(vel,vel)
+				thermostatnp(tr) = thermostatnp(tr) + mass(n)                
 
 			enddo
 
 			!Obtain global sums for all parameters
-			call globalSum(thermostatnp)
-			call globalSum(mv2sum)	
+			call globalSum(thermostatnp(:), size(thermostatnp))
+			call globalSum(mv2sum(:), size(mv2sum))
 
 			!Nose Hoover thermostat coefficients
-			Q        = 0.1*thermostatnp * delta_t 
-			dzeta_dt = (mv2sum - (nd*thermostatnp + 1)*thermostattemperature) / Q
-			zeta 	 = zeta + delta_t*dzeta_dt
-			bscale	 = 1.0/(1.0+0.5*delta_t*zeta)
-			ascale	 = (1-0.5*delta_t*zeta)*bscale
+            allocate(Q(nthermo))
+            allocate(dzeta_dt(nthermo))
+            if (.not.allocated(zeta)) then
+                allocate(zeta(nthermo))
+                zeta = 0.d0
+            endif
+
+            !print*, zeta, dzeta_dt, nthermo, Q, thermostatnp
+
+			Q(:)        = 0.1*thermostatnp(:) * delta_t 
+			dzeta_dt(:) = (mv2sum(:) - (nd*thermostatnp(:) + 1) & 
+                           *thermostattemperature(:)) / Q(:)
+			zeta(:) 	 = zeta(:) + delta_t*dzeta_dt(:)
+			bscale(:)	 = 1.d0/(1.d0+0.5d0*delta_t*zeta(:))
+			ascale(:)	 = (1.d0-0.5d0*delta_t*zeta(:))*bscale(:)
 
 		else
 
 			!Reduces to the un-thermostatted equations
-			ascale = 1
-			bscale = 1
-
+			ascale(:) = 1.d0
+			bscale(:) = 1.d0
 		endif
 
 		!call pointsphere((/ 0.0, 0.0, 0.0 /),8.d0)
@@ -370,20 +407,22 @@ contains
 				r(:,n) = r(:,n) + delta_t * v(:,n)	!Position calculated from velocity
 			case (thermo)
 				!Nose Hoover Thermostatted Molecule
-				v(1,n) = v(1,n)*ascale + a(1,n)*delta_t*bscale
+                tr = get_therm_region(n)
+				v(1,n) = v(1,n)*ascale(tr) + a(1,n)*delta_t*bscale(tr)
 				r(1,n) = r(1,n)    +     v(1,n)*delta_t			
-				v(2,n) = v(2,n)*ascale + a(2,n)*delta_t*bscale
+				v(2,n) = v(2,n)*ascale(tr) + a(2,n)*delta_t*bscale(tr)
 				r(2,n) = r(2,n)    + 	 v(2,n)*delta_t				
-				v(3,n) = v(3,n)*ascale + a(3,n)*delta_t*bscale
+				v(3,n) = v(3,n)*ascale(tr) + a(3,n)*delta_t*bscale(tr)
 				r(3,n) = r(3,n)    +     v(3,n)*delta_t
 			case (teth_thermo)
+                tr = get_therm_region(n)
 				!Thermostatted Tethered molecules unfixed with no sliding velocity
 				call tether_force(n)
-				v(1,n) = v(1,n)*ascale + a(1,n)*delta_t*bscale
+				v(1,n) = v(1,n)*ascale(tr) + a(1,n)*delta_t*bscale(tr)
 				r(1,n) = r(1,n)    +     v(1,n)*delta_t			
-				v(2,n) = v(2,n)*ascale + a(2,n)*delta_t*bscale
+				v(2,n) = v(2,n)*ascale(tr) + a(2,n)*delta_t*bscale(tr)
 				r(2,n) = r(2,n)    + 	 v(2,n)*delta_t				
-				v(3,n) = v(3,n)*ascale + a(3,n)*delta_t*bscale
+				v(3,n) = v(3,n)*ascale(tr) + a(3,n)*delta_t*bscale(tr)
 				r(3,n) = r(3,n)    +     v(3,n)*delta_t	
 				!write(1000000+iter*100+irank,'(8f10.5)'), globalise(r(:,n)),v(:,n),thermostattemperature,mv2sum/(nd*thermostatnp)
 			case (teth_slide)
@@ -392,25 +431,28 @@ contains
 				v(:,n) = v(:,n) + delta_t * a(:,n) 							!Velocity calculated from acceleration
 				r(:,n) = r(:,n) + delta_t * v(:,n) + delta_t*slidev(:,n)	!Position calculated from velocity+slidevel
 			case (teth_thermo_slide)
+                tr = get_therm_region(n)
 				!Thermostatted Tethered molecules unfixed with sliding velocity
 				call tether_force(n)
-				v(1,n) = v(1,n)*ascale + a(1,n)*delta_t*bscale
+				v(1,n) = v(1,n)*ascale(tr) + a(1,n)*delta_t*bscale(tr)
 				r(1,n) = r(1,n)    +     v(1,n)*delta_t	+ slidev(1,n)*delta_t		
-				v(2,n) = v(2,n)*ascale + a(2,n)*delta_t*bscale
+				v(2,n) = v(2,n)*ascale(tr) + a(2,n)*delta_t*bscale(tr)
 				r(2,n) = r(2,n)    + 	 v(2,n)*delta_t	+ slidev(2,n)*delta_t			
-				v(3,n) = v(3,n)*ascale + a(3,n)*delta_t*bscale
+				v(3,n) = v(3,n)*ascale(tr) + a(3,n)*delta_t*bscale(tr)
 				r(3,n) = r(3,n)    +     v(3,n)*delta_t	+ slidev(3,n)*delta_t
 			case (PUT_thermo)
+                tr = get_therm_region(n)
 				!Profile unbiased thermostat (Nose-Hoover)
-	        	v(:,n) = v(:,n)*ascale + (a(:,n)+zeta*U(:,n))*delta_t*bscale
+	        	v(:,n) = v(:,n)*ascale(tr) + (a(:,n)+zeta*U(:,n))*delta_t*bscale(tr)
 				r(:,n) = r(:,n)        + v(:,n)*delta_t			
 			case (z_thermo)
+                tr = get_therm_region(n)
 				!Thermostat in the z direction only (Nose-Hoover)
 				v(1,n) = v(1,n) + delta_t * a(1,n) 	
 				r(1,n) = r(1,n) + delta_t * v(1,n)	
 				v(2,n) = v(2,n) + delta_t * a(2,n) 	
 				r(2,n) = r(2,n) + delta_t * v(2,n)	
-				v(3,n) = v(3,n)*ascale + a(3,n)*delta_t*bscale
+				v(3,n) = v(3,n)*ascale(tr) + a(3,n)*delta_t*bscale(tr)
 				r(3,n) = r(3,n)    +     v(3,n)*delta_t	
 			case (cyl_teth_thermo_rotate)
 

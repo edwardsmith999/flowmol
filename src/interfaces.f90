@@ -19,6 +19,8 @@ interface error_abort
 
 end interface error_abort
 
+    private error_abort_si, error_abort_s
+
 
 interface SubcommSum
 

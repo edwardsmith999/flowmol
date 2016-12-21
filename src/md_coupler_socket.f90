@@ -57,10 +57,10 @@ contains
 !------------------------------------------------------------------------------
 subroutine socket_coupler_invoke
     use messenger
-    use CPL, only : CPL_create_comm, md_realm
+    use CPL, only : CPL_init, md_realm
     implicit none
 
-    call CPL_create_comm(md_realm,MD_COMM,ierr)
+    call CPL_init(md_realm, MD_COMM, ierr)
     prefix_dir = "./flowmol/"
 
 end subroutine socket_coupler_invoke
@@ -70,7 +70,7 @@ end subroutine socket_coupler_invoke
 !------------------------------------------------------------------------------
 subroutine socket_coupler_init
     !use interfaces
-    use CPL, only : coupler_md_init, CPL_create_map, CPL_get, CPL_write_header
+    use CPL, only : CPL_setup_md, CPL_get
     use computational_constants_MD, only : npx, npy, npz, delta_t, &
                                            elapsedtime, Nsteps, initialstep, &
                                            delta_t, globaldomain, initialnunits
@@ -88,9 +88,7 @@ subroutine socket_coupler_init
                                 /((density/4.d0)**(1.d0/nd))
     enddo
 
-    ! If coupled calculation prepare exchange layout
-    call coupler_md_init(Nsteps, initialstep, delta_t, icomm_grid, icoord, &
-                         (/npx, npy, npz/), globaldomain, density)
+    call CPL_setup_md(icomm_grid, globaldomain, -0.5*globaldomain)
 
 
     !update elapsedtime using new 
@@ -104,9 +102,6 @@ subroutine socket_coupler_init
     else
         call set_parameters_cells_coupled
     endif
-
-    !Write coupler information to header file
-    !call CPL_write_header('./results/coupler_header')
 
 end subroutine socket_coupler_init
 
@@ -284,8 +279,10 @@ subroutine set_parameters_cells_coupled
     endif
 
     !Ensure CFD cells are not smaller than minimum possible MD cells
-    if (any(max_ncells .lt. cfd_ncells)) & 
+    if (any(max_ncells .lt. cfd_ncells)) then
+        print*, "max_ncells", max_ncells, "cfd_ncells", cfd_ncells
         call error_abort("ERROR - CFD cellsize smaller than minimum MD computational/averaging cell")
+    endif
 
 end subroutine set_parameters_cells_coupled
 
@@ -333,17 +330,79 @@ end subroutine socket_check_cell_sizes
 ! (  \/  )(  _ \   (__ \    / __)( ___)(  _ \   (  _ \ / __)
 !  )    (  )(_) )   / _/   ( (__  )__)  )(_) )   ) _ <( (__ 
 ! (_/\/\_)(____/   (____)   \___)(__)  (____/   (____/ \___)
-!
+!-----------------------------------------------------------------------------
+
+subroutine average_and_send_MD_to_CFD(iter)
+    implicit none
+
+    integer, intent(in) :: iter
+    logical :: debug = .false.
+
+    if (debug) then
+        call debug_check_send(iter)
+    else
+        call average_and_send_MD_to_CFD_(iter)
+    endif
+
+end subroutine average_and_send_MD_to_CFD
+
+!=============================================================================
+! Debug routine package dummy data and send
+!-----------------------------------------------------------------------------
+
+subroutine debug_check_send(iter)
+    use cpl, only : CPL_get_olap_limits, CPL_my_proc_portion, &
+                    CPL_get_no_cells, CPL_send
+    implicit none
+
+    integer, intent(in) :: iter
+
+    logical :: send_flag
+    integer :: i,j,k,ii,jj,kk,ierr
+    integer, dimension(3) :: Ncells
+    integer, dimension(6) :: portion, limits
+    double precision, dimension(:,:,:,:), & 
+         allocatable  :: send_array
+
+    !Get detail for grid
+    call CPL_get_olap_limits(limits)
+    call CPL_my_proc_portion(limits, portion)
+    call CPL_get_no_cells(portion, Ncells)
+
+    ! Pack send_array with cell coordinates. Each cell in the array carries
+    ! its global cell number within the overlap region.
+    allocate(send_array(4, Ncells(1), Ncells(2), Ncells(3)))
+    do i = 1,Ncells(1)
+    do j = 1,Ncells(2)
+    do k = 1,Ncells(3)
+        ! -2 indices to match c++ and python indexing in portion and i,j,k
+        ii = i + portion(1) - 2
+        jj = j + portion(3) - 2
+        kk = k + portion(5) - 2
+
+        send_array(1,i,j,k) = ii
+        send_array(2,i,j,k) = jj
+        send_array(3,i,j,k) = kk
+        send_array(4,i,j,k) = iter
+    enddo
+    enddo
+    enddo
+
+    call CPL_send(send_array, limits, send_flag)
+
+end subroutine debug_check_send
+
+!=============================================================================
 ! Take average of x,y and z components of MD velocity to 
 ! calculate all components of velocity to pass to contiunuum region 
 !-----------------------------------------------------------------------------
 
-subroutine average_and_send_MD_to_CFD(iter)
+subroutine average_and_send_MD_to_CFD_(iter)
     use computational_constants_MD, only : initialstep, delta_t, nhb,iblock,jblock,kblock
     use calculated_properties_MD, only : nbins
     use physical_constants_MD, only : np
     use arrays_MD, only :r,v
-    use CPL, only : CPL_get, CPL_realm,coupler_md_get_average_period,CPL_proc_extents
+    use CPL, only : CPL_get, CPL_realm, CPL_proc_extents
     implicit none
 
     integer, intent(in) :: iter
@@ -353,7 +412,7 @@ subroutine average_and_send_MD_to_CFD(iter)
     integer :: ierr
 
     logical, save :: first_time=.true.,staggered_averages(3)
-    integer, save :: ncx, ncy, ncz, average_period, jcmin_olap,timestep_ratio, extents(6)
+    integer, save :: ncx, ncy, ncz, jcmin_olap,timestep_ratio, extents(6)
     real(kind(0.d0)),save :: dx, dy, dz
     real(kind(0.d0)),dimension(:),allocatable,save      :: zg
     real(kind(0.d0)),dimension(:,:),allocatable,save    :: xg, yg
@@ -364,25 +423,24 @@ subroutine average_and_send_MD_to_CFD(iter)
 
         !Get processor extents
         pcoords=(/ iblock,jblock,kblock /)
-        call CPL_proc_extents(pcoords,CPL_realm(),extents)
+!        call CPL_proc_extents(pcoords,CPL_realm(),extents)
         call setup_velocity_average()
-        call CPL_get(ncx=ncx,ncy=ncy,ncz=ncz,dx=dx,dy=dy,dz=dz,xg=xg,yg=yg,zg=zg, & 
-                        staggered_averages=staggered_averages,timestep_ratio=timestep_ratio, &
-                        jcmin_olap=jcmin_olap)
-        average_period = coupler_md_get_average_period()    ! collection interval in the average cycle
+!        call CPL_get(ncx=ncx,ncy=ncy,ncz=ncz,dx=dx,dy=dy,dz=dz,xg=xg,yg=yg,zg=zg, & 
+!                        staggered_averages=staggered_averages,timestep_ratio=timestep_ratio, &
+!                        jcmin_olap=jcmin_olap)
+        call CPL_get(timestep_ratio=timestep_ratio)
+
     endif
     iter_average = mod(iter-1, timestep_ratio)+1            ! current step
     iter_cfd     = (iter-initialstep)/timestep_ratio +1     ! CFD corresponding step
 
     !Collect uc data every save_period cfd iteration but discard the first one which cfd uses for initialisation
-    if ( mod(iter_average,average_period) .eq. 0 ) then
-        call cumulative_velocity_average()
-    endif
+    call cumulative_velocity_average()
 
     !Send accumulated results to CFD at the end of average cycle 
-    if  (iter_average .eq. timestep_ratio) then
+    !if  (iter_average .eq. timestep_ratio) then
         call send_velocity_average
-    endif
+    !endif
 
 contains
 
@@ -391,25 +449,24 @@ contains
 !-----------------------------------------------------------------------------
 
     subroutine setup_velocity_average
-        use CPL, only : CPL_proc_extents
-        use computational_constants_MD, only : iblock,jblock,kblock 
+        use CPL, only : CPL_get_olap_limits, CPL_my_proc_portion, CPL_get_no_cells
         implicit none
 
-        integer     :: nclx,ncly,nclz
+        integer, dimension(3) :: cells
+        integer, dimension(6) :: limits, portion
 
-        !Allocate array to size of cells in current processor
-        nclx = extents(2)-extents(1)+1
-        ncly = extents(4)-extents(3)+1
-        nclz = extents(6)-extents(5)+1
+        !Get detail for grid
+        call CPL_get_olap_limits(limits)
+        call CPL_my_proc_portion(limits, portion)
+        call CPL_get_no_cells(portion, cells)
 
         ! Setup averaging array on first call
         select case(staggered_averages(1))
         case(.true.)
-            allocate( mflux(6,nclx,ncly,nclz))
+            allocate( mflux(6,cells(1),cells(2),cells(3)))
             mflux = 0
         case(.false.)
-            ! 1 (perhaps non-existent!) CFD "halo" cell in y direction
-            allocate(uvw_md(4, nclx, 1, nclz))
+            allocate(uvw_md(4,cells(1),1,cells(3)))
             uvw_md = 0.d0
         end select
     end subroutine setup_velocity_average
@@ -419,196 +476,43 @@ contains
 !-----------------------------------------------------------------------------
 
     subroutine cumulative_velocity_average
-        use CPL, only : CPL_Cart_coords, CPL_realm, VOID, &
-                        map_md2cfd_global, map_cfd2md_global, globalise, &
-                        localise, error_abort
-        use computational_constants_MD, only : iter, ncells, domain, &
-                                               halfdomain, globaldomain, &
-                                               iblock, jblock, kblock, irank
-        use librarymod, only : heaviside, imaxloc
-        use physical_constants_MD, only : pi
+        use CPL, only : CPL_map_coord2cell, CPL_map_glob2loc_cell, CPL_get_olap_limits
+        use computational_constants_MD, only : iter, iblock, jblock, kblock, domain
+        use calculated_properties_MD, only : nbins
         implicit none
 
         !Limits of cells to average
-
-        integer :: i, j, k, n, ixyz
-        integer :: nclx, nclz
-        integer,dimension(3) :: ibin,ibin1,ibin2,minbin,maxbin,crossplane,cfdbins
-        real(kind(0.d0)) :: xbcmin,xbcmax, ybcmin,ybcmax, zbcmin,zbcmax
-        real(kind(0.d0)),dimension(3) :: cfd_cellsidelength
-        real(kind(0.d0)),dimension(3) :: dxyz,ri1,ri2,avrg_top,avrg_bot,rd,rd2
-
+        logical :: inbc
+        integer :: n
+        integer, dimension(3) :: ibin, bin
+        integer, dimension(6) :: limits
+        real(kind(0.d0)),dimension(3) :: Fbinsize 
         
-        ! Dave temporary code
-        logical :: davecode=.false.
-        integer :: icmin_olap, icmax_olap
-        integer :: jcmin_olap, jcmax_olap
-        integer :: kcmin_olap, kcmax_olap
-        real(kind(0.d0)) :: xmin_cfd, ymin_cfd, zmin_cfd ! Minima in CFD code (CFD coords) 
-        real(kind(0.d0)) :: xmax_cfd, ymax_cfd, zmax_cfd ! Minima in CFD code (CFD coords) 
-        real(kind(0.d0)) :: bot_left_cfd(3) ! Bottom left of CFD domain (CFD coords)
-        real(kind(0.d0)) :: top_rght_cfd(3) ! Top right of CFD domain (CFD coords) 
-        real(kind(0.d0)) :: bot_left_md(3) ! Bottom left of CFD domain (CFD coords)
-        real(kind(0.d0)) :: top_rght_md(3) ! Top right of CFD domain (CFD coords) 
-        real(kind(0.d0)) :: r_rel_olap(3) ! MD local position relative to olap bottom left 
-        real(kind(0.d0)) :: probe_pos(3)
-
-        nclx = extents(2)-extents(1)+1
-        nclz = extents(6)-extents(5)+1
-
-        dxyz = (/ dx, dy, dz /)
-        call CPL_get(icmin_olap=icmin_olap, jcmin_olap=jcmin_olap, kcmin_olap=kcmin_olap)
-        call CPL_get(icmax_olap=icmax_olap, jcmax_olap=jcmax_olap, kcmax_olap=kcmax_olap)
-
-        ! Assume halos were not part of CFD grid passed in during cfd_init, minimum
-        ! overlap should be bottom left of the CFD domain
-        xmin_cfd = xg(icmin_olap, 1)
-        ymin_cfd = yg(1, jcmin_olap)
-        zmin_cfd = zg(kcmin_olap)
-        ! + dxyz to get top vertex of top cell
-        xmax_cfd = xg(icmax_olap, 1) + dx
-        ymax_cfd = yg(1, jcmax_olap) + dy
-        zmax_cfd = zg(kcmax_olap) + dz
-
-        ! Hack ymin_cfd to actually be equivalent of the bottom of a halo
-        ! cell, below the bottom of the domain, and ymax_cfd to be the
-        ! bottom of the domain. This is why uvw_md is
-        ! allocated (4, nclx, 1, nclz) We will interpolate later 
-        ! in the CFD socket to get domain face BC.
-        ymin_cfd = ymin_cfd - dy
-        ymax_cfd = ymin_cfd + dy
-
-        ! Bottom left and top right of overlap (CFD coords) 
-        bot_left_cfd = (/xmin_cfd, ymin_cfd, zmin_cfd/)
-        top_rght_cfd = (/xmax_cfd, ymax_cfd, zmax_cfd/)
-
-        ! Bottom left and top right of overlap (MD local coords)
-        bot_left_md = localise(map_cfd2md_global(bot_left_cfd))
-        top_rght_md = localise(map_cfd2md_global(top_rght_cfd))
-
-        select case(staggered_averages(1))  
-        !- - - - - - - - - - - - - - - - - - - -
-        !Record velocity flux over surface
-        !- - - - - - - - - - - - - - - - - - - -
-        case(.true.)
-
-            call error_abort("Staggered averages (.true.) case selection "//&
-            "probably has a bug (nhb?) in md_coupler_socket - aborting.")
-
-            ! ---------------------------------------------------------------
-            ! THIS CODE WAS REPLACED ABOVE in April 2015
-            ! ---------------------------------------------------------------
-            !Specify BC region to average molecules
-            ybcmin = yg(1,jcmin_olap)-dy;    ybcmax = yg(1,jcmin_olap)
-    
-            !Determine bin size
-            dxyz = (/ dx, dy, dz /)
-    
-            !Eliminate processors outside of passing region
-            if (any(extents .eq. VOID)) return
-            if ((yg(1,extents(3)) .gt. ybcmax) .or. (yg(1,extents(4)+1) .lt. ybcmin)) return
-    
-            !Get local extents on processor(s) of interest
-            rd(:) = (/ 0.d0 , ybcmin, 0.d0 /)   !Bottom of cell below domain
-            avrg_bot = localise(map_cfd2md_global(rd))
-            rd2(:) = (/ globaldomain(1) , ybcmax , globaldomain(3)   /)   !Top of cell below domain (= bottom of domain)
-            avrg_top = localise(map_cfd2md_global(rd2))
-    
-            minbin = ceiling((avrg_bot+halfdomain(:))/dxyz(:)) + nhb
-            maxbin = ceiling((avrg_top+halfdomain(:))/dxyz(:)) + nhb
-            ! ---------------------------------------------------------------
-            ! END OLD CODE from before April 2015
-            ! ---------------------------------------------------------------
-
-            do n = 1,np
-
-                ri1(:) = r(:,n)                             !Molecule i at time t
-                ri2(:) = r(:,n) -delta_t*v(:,n)             !Molecule i at time t-dt
-                !Assign to bins before and after using integer division
-                ibin1(:) = ceiling((ri1+halfdomain(:))/dxyz(:)) + nhb
-                ibin2(:) = ceiling((ri2+halfdomain(:))/dxyz(:)) + nhb
-                    
-                !Exclude molecules outside of processor domain
-                if (      ibin1(2) .lt. minbin(2) .or. ibin1(2) .ge. maxbin(2) &
-                    .and. ibin2(2) .lt. minbin(2) .or. ibin2(2) .ge. maxbin(2) ) cycle
-
-                !Replace Signum function with this functions which gives a
-                !check for plane crossing and the correct sign 
-                crossplane(:) =  ibin1(:) - ibin2(:)
-                if (sum(abs(crossplane(:))) .ne. 0) then
-                    !Find which direction the surface is crossed
-                    !For simplicity, if more than one surface has been crossed surface fluxes of intermediate cells
-                    !are not included. This assumption => more reasonable as Delta_t => 0
-                    ixyz = imaxloc(abs(crossplane))
-                    !Add mass flux to the new bin surface count and take from the old
-                    mflux(ixyz+3*heaviside(-dble(crossplane(ixyz))),ibin1(3),ibin1(1),ibin1(2)) = & 
-                        mflux(ixyz+3*heaviside(-dble(crossplane(ixyz))),ibin1(3),ibin1(1),ibin1(2)) & 
-                            + abs(crossplane(ixyz))
-                    mflux(ixyz+3*heaviside(dble(crossplane(ixyz))),ibin2(3),ibin2(1),ibin2(2)) = & 
-                        mflux(ixyz+3*heaviside(dble(crossplane(ixyz))),ibin2(3),ibin2(1),ibin2(2)) &
-                            - abs(crossplane(ixyz))
-                endif
-
-            enddo
-
+        Fbinsize = domain(:)/nbins(:)
+        call CPL_get_olap_limits(limits)
         !- - - - - - - - - - - - - - - - - - - -
         !Record velocity in cell centre
         !- - - - - - - - - - - - - - - - - - - -
         !Add up current volume mass and momentum densities
-        case(.false.)
+        do n = 1,np
 
-            do n = 1,np
+            inbc = CPL_map_coord2cell(r(1,n), r(2,n), r(3,n), ibin)
+            !inbc = CPL_map_glob2loc_cell(limits, bin, ibin)
+            if (inbc .and. ibin(2) .eq. 1) then
 
-                !Exclude molecules outside of CFD BC region
-                if (r(1,n) .lt. bot_left_md(1)) cycle
-                if (r(2,n) .lt. bot_left_md(2)) cycle
-                if (r(3,n) .lt. bot_left_md(3)) cycle
-                if (r(1,n) .gt. top_rght_md(1)) cycle
-                if (r(2,n) .gt. top_rght_md(2)) cycle
-                if (r(3,n) .gt. top_rght_md(3)) cycle
-
-                ! Ignore molecules that have strayed outside domain 
-                if ( abs(r(1,n)) .gt. halfdomain(1) ) cycle
-                if ( abs(r(2,n)) .gt. halfdomain(2) ) cycle
-                if ( abs(r(3,n)) .gt. halfdomain(3) ) cycle
-
-                ! Position relative to bottom left of overlap in MD coords 
-                r_rel_olap(:) = r(:,n) - bot_left_md(:)
-
-                ! Bin by integer division, gives global CFD cell numbers 
-                ibin(:) = ceiling(r_rel_olap(:)/dxyz(:))
-
-                ! Localise cell numbers (still CFD cells)
-                ibin(1) = ibin(1) - extents(1) + 1
-                ibin(2) = ibin(2) - extents(3) + 1
-                ibin(3) = ibin(3) - extents(5) + 1
-
-                if (ibin(2) .ne. 1) then
-                    call error_abort("MD coupler socket: invalid ycell "//&
-                    "when averaging for CFD boundary condition")
-                end if
-
-                ! If for some reason (?) a molecule is in the domain but not 
-                ! within the correct cell range, ignore it
-                if (ibin(1) .lt. 1)    cycle
-                if (ibin(1) .gt. nclx) cycle
-                if (ibin(3) .lt. 1)    cycle
-                if (ibin(3) .gt. nclz) cycle
-                
+                bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))
+                if (bin(1) .ne. ibin(1) .or. bin(3) .ne. ibin(3)) then
+                    !print'(a,6i8,6f10.5)', 'CPL_map_coord2cell error:', bin, ibin, Fbinsize, 0.5d0*domain(:)
+                    ibin(1) = bin(1); ibin(3) = bin(3)
+                endif
+                !print'(2i8, l5, 6i8,3f10.5)', iter, n, inbc, iblock, jblock, kblock, ibin, r(:,n)
                 ! Add velocity and molecular count to bin
                 uvw_md(1:3,ibin(1),ibin(2),ibin(3)) = uvw_md(1:3,ibin(1),ibin(2),ibin(3)) + v(:,n)
                 uvw_md(4,  ibin(1),ibin(2),ibin(3)) = uvw_md(4,  ibin(1),ibin(2),ibin(3)) + 1.d0
 
-                !DEBUG - each cell is loaded with its physical location in space
-                !uvw_md(1:3,ibin(1),ibin(2),ibin(3)) = globalise(ibin(:)*dxyz(:)-halfdomain(:)-0.5*dxyz(:))
-                !uvw_md(1:3,ibin(1),ibin(2),ibin(3)) = sin(2*pi*(globalise(ibin(:)*dxyz(:)-halfdomain(:)-0.5*dxyz(:)))/globaldomain(:))
-                !uvw_md(4,  ibin(1),ibin(2),ibin(3)) = 1.d0
+            endif
 
-            enddo
-
-        case default
-            call error_abort('Unknown case in staggered_averages')
-        end select
+        enddo
 
     end subroutine cumulative_velocity_average
 
@@ -617,69 +521,40 @@ contains
 !-----------------------------------------------------------------------------
 
     subroutine send_velocity_average
-        use CPL, only : CPL_send, CPL_gather, CPL_get, CPL_overlap, &
-                        comm_style, comm_style_send_recv, &
-                        comm_style_gath_scat, error_abort
-        use computational_constants_MD, only : iblock, jblock, kblock
+        use CPL, only : CPL_send, cpl_get_olap_limits, CPL_overlap, &
+                        CPL_my_proc_portion, error_abort    
+        use librarymod, only : couette_analytical_fn
         implicit none
 
-        logical :: send_flag, ovr_box_x
-        integer :: jcmin_send, jcmax_send, i, k
+        logical :: send_flag
+        integer :: limits(6), portion(6)
+        real(kind(0.d0)), dimension(:), allocatable  :: u
 
-        integer :: limits(6)
-        real(kind(0.d0)) :: emptybuf(0, 0, 0, 0)
+        if (.not. CPL_overlap()) return
+
+        !Get detail for grid
+        call CPL_get_olap_limits(limits)
+        limits(3) = 1; limits(4) = 1
+        call CPL_my_proc_portion(limits, portion)
 
 
-        if (.not.CPL_overlap()) return
+        !TEMPTEMPTEMPTEMPTEMPTEMPTEMP
+!        allocate(u(26))
+!        u = couette_analytical_fn(iter*delta_t,0.65d0,1.d0,44.45d0,26,0)
+!        write(100,'(26f16.8)'),u
+!        uvw_md(1,:,1,:) = u(11)
+!        uvw_md(2,:,1,:) = 0.d0
+!        uvw_md(3,:,1,:) = 0.d0
+!        uvw_md(4,:,1,:) = 1.d0
+        !TEMPTEMPTEMPTEMPTEMPTEMPTEMP
 
-        ! Get limits
-        call CPL_get( icmin_olap=limits(1), &
-                      icmax_olap=limits(2), &
-                      jcmin_olap=limits(3), &
-                      jcmax_olap=limits(4), &
-                      kcmin_olap=limits(5), &
-                      kcmax_olap=limits(6)  )
-
-        select case (comm_style)
-        case (comm_style_gath_scat)
-            
-            !Define arbitary range to send -- TODO move to input file --
-            limits(4) = limits(3)
-            call CPL_gather(uvw_md, 4, limits, emptybuf) 
-            uvw_md = 0.d0
-         
-        case (comm_style_send_recv)
-
-            !Define arbitary range to send -- TODO move to input file --
-            jcmin_send = jcmin_olap; jcmax_send = jcmin_olap
-
-            !Send data to CFD if send_data flag is set
-            select case(staggered_averages(1)) 
-            case(.true.) ! Send velocity flux over surface
-                call CPL_send( dble(mflux), &
-                               jcmax_send=jcmax_send, &
-                               jcmin_send=jcmin_send, &
-                               send_flag=send_flag  )
-               mflux = 0
-            case(.false.) ! Send velocity in cell centre
-                call CPL_send( uvw_md, &
-                               jcmax_send=jcmax_send, &
-                               jcmin_send=jcmin_send, &
-                               send_flag=send_flag  )
-               uvw_md = 0.d0
-            end select
-
-        case default
-
-            call error_abort("Unknown comm_style in MD coupler socket "//&
-                             "send_velocity_average")
-
-        end select
-
+        !Send data to CFD if send_data flag is set
+        call CPL_send(uvw_md, limits=portion, send_flag=send_flag)
+        uvw_md = 0.d0
 
     end subroutine send_velocity_average
 
-end subroutine average_and_send_MD_to_CFD
+end subroutine average_and_send_MD_to_CFD_
 
 !==============================================================================
 !  ____  _  _  ___  ____  ____  ____    __  __  _____  __    ___
@@ -696,7 +571,7 @@ subroutine insert_remove_molecules
                                            cellsidelength, halfdomain, &
                                            delta_rneighbr,iblock,jblock,kblock
     use CPL, only : CPL_overlap, CPL_recv, CPL_proc_extents, & 
-                    CPL_realm, CPL_get, coupler_md_get_dt_cfd
+                    CPL_realm, CPL_get, CPL_cfd_dt
     use particle_insertion, only : insert_molecule, create_position, &
                                     create_velocity, remove_molecule
     implicit none
@@ -708,7 +583,7 @@ subroutine insert_remove_molecules
     integer,dimension(:,:,:),allocatable                :: mols_change
     integer,dimension(:,:,:),allocatable,save           :: total_mols_change
     real(kind(0.d0)),dimension(3)                       :: rin, vin, u
-    real(kind(0.d0)),dimension(:,:,:),allocatable       :: mass_cfd
+    real(kind(0.d0)),dimension(:,:,:,:),allocatable       :: mass_cfd
     real(kind(0.d0)),dimension(:,:,:),allocatable,save  :: mass_change
 
     ! Check processor is inside MD/CFD overlap zone 
@@ -741,12 +616,8 @@ subroutine insert_remove_molecules
 
     ! Receive value of CFD mass fluxes at first timestep of timestep_ratio
     if (iter_average .eq. 1) then
-        allocate(mass_cfd(nclx,ncly,nclz))
-        call CPL_recv(mass_cfd,                                 & 
-                      icmin_recv=cnstd(1),icmax_recv=cnstd(2), &
-                      jcmin_recv=cnstd(3),jcmax_recv=cnstd(4), &
-                      kcmin_recv=cnstd(5),kcmax_recv=cnstd(6), &
-                      recv_flag=recv_flag                       )
+        allocate(mass_cfd(1, nclx,ncly,nclz))
+        call CPL_recv(mass_cfd, limits = cnstd, recv_flag=recv_flag )
 
         !Get total number of molecules to insert before next exchange
         total_mols_change = floor(mass_change)
@@ -761,7 +632,7 @@ subroutine insert_remove_molecules
     jcell = cnstd(4)
     do icell=cnstd(1),cnstd(2)
     do kcell=cnstd(5),cnstd(6)
-        mass = mass_cfd(icell,jcell,kcell)
+        mass = mass_cfd(1,icell,jcell,kcell)
         do n=1,abs(mass)
             !Check if molecule is to insert or remove
             if (mass .gt. 0) then
@@ -777,42 +648,6 @@ subroutine insert_remove_molecules
         enddo
     enddo
     enddo
-
-!contains
-
-    !subroutine get_no_mols_to_append(mass_change,mols_change,new_mass_cfd)
-    !implicit none
-
-    !Default is to not insert/remove anything
-    !mols_change = 0
-
-    !Add any new mass to cumulative mass change
-    !if (present(new_mass_cfd)) then
-    !   mass_change = mass_change + new_mass_cfd
-    !endif
-
-    !Check if multiple molecules are to be inserted each timestep
-    !if(any(total_mols_change .gt. timestep_ratio)) then
-        
-    !endif
-
-    !Loop over all cells
-    !jcell = cnstd(4)
-    !do icell=cnstd(1),cnstd(2)
-    !do kcell=cnstd(5),cnstd(6)
-
-        !Space out insertion of molecules over the time interval
-    !   insert_time = mod(iter-1, (timestep_ratio/total_mols_change(icell,jcell,kcell)))+1
-
-    !   if (insert_time .eq. 1) then
-    !       mols_change(icell,jcell,kcell) = ceiling(total_mols_change(icell,jcell,kcell)/timestep_ratio)
-    !       mass_change(icell,jcell,kcell) = mass_change(icell,jcell,kcell) - mols_change(icell,jcell,kcell)
-    !   endif
-
-    !enddo
-    !enddo
-    
-    !end subroutine get_no_mols_to_append
 
 end subroutine insert_remove_molecules
 
@@ -832,7 +667,7 @@ subroutine socket_apply_continuum_forces()
     implicit none
 
     integer :: constraint_algorithm
-    integer :: OT, NCER, Flekkoy, CV, off
+    integer :: OT, NCER, Flekkoy, CV, off, debug=-666
 
     call CPL_get(   constraint_algo       = constraint_algorithm, & 
                     constraint_OT         = OT,        & 
@@ -852,12 +687,82 @@ subroutine socket_apply_continuum_forces()
     else if ( constraint_algorithm .eq. CV ) then
         call apply_CV_force()
         !call DEBUG_apply_continuum_forces_CV()
+    else if ( constraint_algorithm .eq. debug ) then
+        call debug_check_recv()
     else
         call error_abort("Unrecognised constraint algorithm flag")
     end if  
 
 end subroutine socket_apply_continuum_forces
 
+
+subroutine debug_check_recv()
+    use cpl, only : CPL_get_olap_limits, CPL_my_proc_portion, &
+                    CPL_get_no_cells, CPL_recv, CPL_overlap
+    use computational_constants_MD, only :  iter,irank
+    implicit none
+
+    logical :: recv_flag,no_error
+    integer :: i,j,k,ii,jj,kk,ierr
+    integer, dimension(3) :: Ncells
+    integer, dimension(6) :: portion, limits
+    double precision, dimension(:,:,:,:), allocatable  :: recv_array
+
+    !Get detail for grid
+    call CPL_get_olap_limits(limits)
+    call CPL_my_proc_portion(limits, portion)
+    call CPL_get_no_cells(portion, Ncells)
+
+    !Coupled Recieve and print
+    allocate(recv_array(4, Ncells(1), Ncells(2), Ncells(3)))
+    recv_array = 0.d0
+    call CPL_recv(recv_array, limits, recv_flag)
+
+    ! Check that every processor inside the overlap region receives the cell correctly
+    ! number.  
+    if (CPL_overlap()) then
+        no_error = .true.
+        do i = 1, Ncells(1)
+        do j = 1, Ncells(2)
+        do k = 1, Ncells(3)
+            ! -2 indices to match c++ and python indexing in portion and i,j,k
+            ii = i + portion(1) - 2
+            jj = j + portion(3) - 2
+            kk = k + portion(5) - 2
+
+            if ((dble(ii) - recv_array(1,i,j,k)) .gt. 1e-8) then 
+                print'(a,2i5,a,i5,a,i6,a,f10.5)', "ERROR -- portion in x: ", portion(1:2), & 
+                       " MD rank: ", irank, " cell i: ",ii, & 
+                       " recv_array: ", recv_array(1,i,j,k)
+                no_error = .false.
+            endif
+            if ((dble(jj) - recv_array(2,i,j,k)) .gt. 1e-8) then 
+                print'(a,2i5,a,i5,a,i6,a,f10.5)', "ERROR -- portion in y: ", portion(3:4), & 
+                       " MD rank: ", irank, " cell j: ", jj , & 
+                       " recv_array: ", recv_array(2,i,j,k)
+                no_error = .false.  
+            endif
+            if ((dble(kk) - recv_array(3,i,j,k)) .gt. 1e-8) then 
+                print'(a,2i5,a,i5,a,i6,a,f10.5)', "ERROR -- portion in z: ", portion(5:6), & 
+                       " MD rank: ", irank, " cell k: ", kk , & 
+                       " recv_array: ", recv_array(3,i,j,k)
+                no_error = .false.
+            endif
+            if ((dble(iter)-1 - recv_array(4,i,j,k)) .gt. 1e-8) then 
+                print'(a,f10.1,a,i10)', "ERROR -- recieved iter time: ", recv_array(4,i,j,k), &
+                                      " does not match current iter: ",iter 
+                no_error = .false.
+            endif
+        enddo
+        enddo
+        enddo
+        if (no_error) then
+            print*, iter-1, "Recv test passed"
+        endif
+
+    endif
+
+end subroutine debug_check_recv
 
 !=============================================================================
 ! Apply coupling forces so MD => CFD
@@ -870,7 +775,7 @@ subroutine apply_continuum_forces_NCER()
                                            cellsidelength, halfdomain, &
                                            delta_rneighbr,iblock,jblock,kblock
     use CPL, only : CPL_overlap, CPL_recv, CPL_proc_extents, & 
-                    CPL_realm, CPL_get, coupler_md_get_dt_cfd
+                    CPL_realm, CPL_get, CPL_cfd_dt
     use linked_list
     implicit none
 
@@ -903,18 +808,15 @@ subroutine apply_continuum_forces_NCER()
         inv_dtCFD = 0.0
 
     else
-        inv_dtCFD = 1.0/coupler_md_get_dt_cfd()
+        inv_dtCFD = 1.0/CPL_cfd_dt()
     endif
     iter_average = mod(iter-1, timestep_ratio)+1
 
     ! Receive value of CFD velocities at first timestep of timestep_ratio
     if (iter_average .eq. 1 .or. first_time) then
         uvw_cfdt_m_dt = uvw_cfd !Store previous timestep velocity
-        call CPL_recv(uvw_cfd,                                 & 
-                      icmin_recv=cnstd(1),icmax_recv=cnstd(2), &
-                      jcmin_recv=cnstd(3),jcmax_recv=cnstd(4), &
-                      kcmin_recv=cnstd(5),kcmax_recv=cnstd(6), &
-                      recv_flag=recv_flag                       )
+        call CPL_recv(uvw_cfd, limits=cnstd, recv_flag=recv_flag )
+
     else
         !Linear extrapolation between velocity at t and t+1
     endif
@@ -932,7 +834,8 @@ contains
 ! find the CFD box to which the particle belongs         
 !-----------------------------------------------------------------------------------
 subroutine setup_CFD_box(limits,CFD_box,recv_flag)
-    use CPL, only : CPL_recv,CPL_proc_portion,localise,map_cfd2md_global,CPL_get,VOID
+    use CPL, only : CPL_proc_portion,CPL_cfd2md,CPL_get,VOID
+    use messenger, only : localise
     implicit none
 
     !Limits of CFD box to receive data in
@@ -974,8 +877,8 @@ subroutine setup_CFD_box(limits,CFD_box,recv_flag)
         xyzmin(3) = zg(  portion(5)  ); xyzmax(3) = zg(  portion(6)+1)
 
         !Map to local MD processor
-        xyzmin = localise(map_cfd2md_global(xyzmin))
-        xyzmax = localise(map_cfd2md_global(xyzmax))
+        xyzmax = localise(CPL_cfd2md(xyzmin))
+        xyzmax = localise(CPL_cfd2md(xyzmax))
 
         !Store in return array
         CFD_box(1) = xyzmin(1); CFD_box(2) = xyzmax(1)
@@ -1144,10 +1047,10 @@ subroutine apply_continuum_forces_flekkoy
     use computational_constants_MD, only : delta_t, nh, ncells,iter, & 
                                            cellsidelength, halfdomain, &
                                            delta_rneighbr,iblock,jblock,kblock,irank
-    use CPL, only : CPL_overlap, CPL_recv, CPL_proc_extents,globalise, & 
-                    CPL_realm, CPL_get, coupler_md_get_dt_cfd, CPL_scatter, &
+    use CPL, only : CPL_overlap, CPL_recv, CPL_proc_extents, & 
+                    CPL_realm, CPL_get, CPL_cfd_dt, CPL_scatter, &
                     comm_style, comm_style_gath_scat, comm_style_send_recv, &
-                    error_abort
+                    error_abort, CPL_get_olap_limits, CPL_my_proc_portion, CPL_get_no_cells
     use linked_list
     implicit none
 
@@ -1161,7 +1064,10 @@ subroutine apply_continuum_forces_flekkoy
     real(kind(0.d0)) :: emptybuf(0, 0, 0, 0)
     real(kind(0.d0)), allocatable, dimension(:,:,:,:) :: recv_buf
 
-    integer, save :: cnstd(6), pcoords(3), extents(6), timestep_ratio
+    integer, save :: timestep_ratio
+    integer, dimension(3), save :: pcoords, recv_cells
+    integer, dimension(6), save :: cnstd, limits, portion, extents
+
     logical, save :: recv_flag, first_time=.true.
     real(kind(0.d0)), save :: CFD_box(6)
 
@@ -1187,41 +1093,13 @@ subroutine apply_continuum_forces_flekkoy
     ! Receive value of CFD velocities at first timestep of timestep_ratio
     if (iter_average .eq. 1 .or. first_time) then
 
-        allocate(recv_buf(9,size(stress_cfd,3), &
-                            size(stress_cfd,4), &
-                            size(stress_cfd,5)))
-
+        !Get detail for grid
+        call CPL_get_olap_limits(limits)
+        call CPL_my_proc_portion(limits, portion)
+        call CPL_get_no_cells(portion, recv_cells)
+        allocate(recv_buf(9, recv_cells(1), recv_cells(2), recv_cells(3)))
         recv_buf = -666.d0
-
-        select case (comm_style)
-        case (comm_style_gath_scat)
-
-            call CPL_scatter(emptybuf, 9, cnstd, recv_buf)
-        
-        case (comm_style_send_recv)
-
-            call CPL_recv(recv_buf,                                 & 
-                          icmin_recv=cnstd(1), icmax_recv=cnstd(2), &
-                          jcmin_recv=cnstd(3), jcmax_recv=cnstd(4), &
-                          kcmin_recv=cnstd(5), kcmax_recv=cnstd(6), &
-                          recv_flag=recv_flag)
-
-            !do i=1,size(stress_cfd,3)
-            !do j=1,size(stress_cfd,4)
-            !do k=1,size(stress_cfd,5)
-            !   write(100+irank,'(a,7i5,4f16.8)'),'recving', iter,iblock, &
-            !   jblock,kblock,i,j,k,stress_cfd(1,1,i,j,k), &
-            !   globalise(i*dx-halfdomain(1)-0.5d0*dx)
-            !enddo  
-            !enddo  
-            !enddo      
-
-        case default
-
-            call error_abort("Unknown comm_style in MD coupler socket "//&
-                             "apply_continuum_forces_flekkoy.")
-
-        end select
+        call CPL_recv(recv_buf, limits=limits, recv_flag=recv_flag)
 
         stress_cfd = reshape(recv_buf, &
             (/3, 3, size(recv_buf,2), size(recv_buf,3), size(recv_buf,4)/))
@@ -1246,8 +1124,9 @@ contains
 !-----------------------------------------------------------------------------------
 
 subroutine setup_CFD_box(limits,CFD_box,recv_flag)
-    use CPL, only : CPL_recv,CPL_proc_portion,localise,map_cfd2md_global, & 
+    use CPL, only : CPL_proc_portion,CPL_cfd2md, & 
                     CPL_get,VOID
+    use messenger, only : localise
     implicit none
 
     !Limits of CFD box to receive data in
@@ -1287,8 +1166,8 @@ subroutine setup_CFD_box(limits,CFD_box,recv_flag)
         xyzmin(3) = zg(  portion(5)  ); xyzmax(3) = zg(  portion(6)+1)
 
         !Map to local MD processor
-        xyzmin = localise(map_cfd2md_global(xyzmin))
-        xyzmax = localise(map_cfd2md_global(xyzmax))
+        xyzmin = localise(CPL_cfd2md(xyzmin))
+        xyzmax = localise(CPL_cfd2md(xyzmax))
 
         !Store in return array
         CFD_box(1) = xyzmin(1); CFD_box(2) = xyzmax(1)
@@ -1358,12 +1237,6 @@ subroutine average_over_bin
 
     enddo
 
-    !Get single average value for slice and store in slice
-    !do jb = 1,size(box_average,2)
-    !   box_average(:,jb,:)%np   =  sum(box_average(:,jb,:)%np)
-    !   box_average(:,jb,:)%a(2) =  sum(box_average(:,jb,:)%a(2))
-    !enddo
-
 end subroutine average_over_bin
 
 !=============================================================================
@@ -1398,32 +1271,16 @@ subroutine apply_force
         n = box_average(ib,jb,kb)%np
         g = flekkoy_gweight(r(2,molno),CFD_box(3),CFD_box(4))
 
-        !Gsum is replaced with the fixed value based on density and volume
-        !gsum = density*dV
-
         !Sum of all gsum for all molecules
         gsum = box_average(ib,jb,kb)%a(2)
 
         if (gsum .eq. 0.d0) cycle
         if (n .eq. 0) cycle
 
-        !g = 1.d0
-        !gsum = real(n,kind(0.d0))
         a(:,molno) = a(:,molno) + (g/gsum) * dA * stress_cfd(:,2,ib,jb+cnstd(3)-extents(3),kb) 
         a(2,molno) = a(2,molno) - (g/gsum) * dA * pressure
 
-        !if (g .ne. 0.d0) then
-        !   if (iter .lt. 1000) then
-        !       write(1234,'(i3,2i7,3i4,5f12.6)'),rank_world,iter,molno,ib,jb,kb, &
-        !                                     r(2,molno),v(2,molno),a(2,molno),g, & 
-        !                                    (g/gsum)*dA*stress_cfd(2,2,ib,jb+cnstd(3)-extents(3),kb)
-        !   endif
-        !endif
-
     enddo
-
-    !write(99999,'(i2,i7,i7,2f10.2,f6.1,3f9.3,6f12.4)'), rank_world,iter,np_overlap,sum(box_average(:,:,:)%a(2)),  &
-    !                gsumcheck, gratio, stress_cfd(:,2,ib,jb+jcmin_recv-extents(3),kb), ave_a,ave_a_consrnt
 
 end subroutine apply_force
 
@@ -1461,7 +1318,7 @@ subroutine DEBUG_apply_continuum_forces_CV()
     use computational_constants_MD, only :iblock,jblock,kblock, iter
     use calculated_properties_MD, only : nbins
     use CPL, only : CPL_proc_extents,CPL_realm, & 
-                    CPL_olap_extents, CPL_get
+                    CPL_get
     implicit none
 
     integer :: i,j,k
@@ -1525,18 +1382,8 @@ contains
         npercell = 3
         allocate(recv_buf(npercell,nclx,ncly,nclz))
         recv_buf = -666.d0
-        select case (comm_style)
-        case (comm_style_gath_scat)
-
-            call CPL_scatter(emptybuf, 3, cnstd, recv_buf)
-        
-        case (comm_style_send_recv)
-        call CPL_recv(recv_buf,                                & 
-                      icmin_recv=cnstd(1),icmax_recv=cnstd(2), &
-                      jcmin_recv=cnstd(3),jcmax_recv=cnstd(4), &
-                      kcmin_recv=cnstd(5),kcmax_recv=cnstd(6), &
-                      recv_flag=recv_flag                       )
-        end select
+        print*, "socket_get_velocity_debug"
+        call CPL_recv(recv_buf, limits=cnstd, recv_flag=recv_flag)
         do i=cnstd(1),cnstd(2)
         do j=cnstd(3),cnstd(4)
         do k=cnstd(5),cnstd(6)
@@ -1576,18 +1423,8 @@ contains
         !Get Stresses
         CFD_stress = 0.d0
         recv_buf = -666.d0
-        select case (comm_style)
-        case (comm_style_gath_scat)
-
-            call CPL_scatter(emptybuf, 3, cnstd, recv_buf)
-
-        case (comm_style_send_recv)
-        call CPL_recv(recv_buf,                                & 
-                      icmin_recv=cnstd(1),icmax_recv=cnstd(2), &
-                      jcmin_recv=cnstd(3),jcmax_recv=cnstd(4), &
-                      kcmin_recv=cnstd(5),kcmax_recv=cnstd(6), &
-                      recv_flag=recv_flag                       )
-        end select
+        print*, "socket_get_fluxes_and_stresses_debug"
+        call CPL_recv(recv_buf, limits=cnstd, recv_flag=recv_flag )
         do i=cnstd(1),cnstd(2)
         do j=cnstd(3),cnstd(4)
         do k=cnstd(5),cnstd(6)
@@ -1607,11 +1444,11 @@ end subroutine DEBUG_apply_continuum_forces_CV
 subroutine socket_get_velocity(u_CFD, lbl)
     use CPL, only : CPL_recv, CPL_scatter, comm_style, &
                     comm_style_send_recv, comm_style_gath_scat, &
-                    CPL_proc_portion
+                    CPL_proc_portion, CPL_get_cnst_limits, CPL_my_proc_portion, CPL_get_no_cells
     use computational_constants_MD, only :iblock,jblock,kblock,iter,nhb
     use calculated_properties_MD, only : nbins
     use CPL, only : CPL_proc_extents,CPL_realm, & 
-                    CPL_olap_extents, CPL_get,error_abort
+                    CPL_get,error_abort
     implicit none
 
 	integer,dimension(6),intent(in)		    :: lbl(6)
@@ -1622,113 +1459,89 @@ subroutine socket_get_velocity(u_CFD, lbl)
     ! Extra plus one here for y as CPL_library cannot simulate case
     ! where MD goes beyond top of domain
     integer :: y_MDcells_above_CFD = 1
-    integer :: pcoords(3),extents(6),cnstd(6),portion(6)
+    integer :: Ncells(3),cnstd(6),portion(6)
     integer :: npercell,nclx,ncly,nclz
     real(kind(0.d0)) :: emptybuf(0, 0, 0, 0)
     real(kind(0.d0)), & 
         allocatable,dimension(:,:,:,:)      :: recv_buf
 
-    !Save extents of current processor
-    pcoords = (/ iblock,jblock,kblock /)
-    call CPL_proc_extents(pcoords,CPL_realm(),extents)
-
-    ! Get total number of CFD cells on each processor
-    nclx = extents(2)-extents(1)+1
-    ncly = extents(4)-extents(3)+1
-    nclz = extents(6)-extents(5)+1
-
-    call CPL_get(icmin_cnst=cnstd(1),icmax_cnst=cnstd(2), & 
-                 jcmin_cnst=cnstd(3),jcmax_cnst=cnstd(4), & 
-                 kcmin_cnst=cnstd(5),kcmax_cnst=cnstd(6)    )
+    ! Get limits of constrained region
+    call CPL_get_cnst_limits(cnstd)
+    call CPL_my_proc_portion(cnstd, portion)
+    call CPL_get_no_cells(portion, Ncells)
 
     !Check CFD receiving array
-    if (size(u_CFD,1)-2*nhb(1) .ne. nclx) then
-        print*, 'nbins(1) = ', nbins(1), 'nclx = ', nclx
+    if (size(u_CFD,1)-2*nhb(1) .ne. Ncells(1)) then
+        print*, 'nbins(1) = ', nbins(1), 'nclx = ', Ncells(1)
         call error_abort("u_CFD -- nbins(1) not equal to x CFD cells")
     endif
-    !if (size(u_CFD,2)-2*nhb(2) .ne. ncly)then
-    !    print*, 'nbins(2) = ', nbins(2), 'ncly = ', ncly
+    !if (size(u_CFD,2)-2*nhb(2) .ne. Ncells(2))then
+    !    print*, 'nbins(2) = ', nbins(2), 'ncly = ', Ncells(2)
     !     call error_abort("u_CFD -- nbins(2) not equal to y CFD cells")
     !endif
-    if (size(u_CFD,3)-2*nhb(3) .ne. nclz) then
-        print*, 'nbins(3) = ', nbins(3), 'nclz = ', nclz
+    if (size(u_CFD,3)-2*nhb(3) .ne. Ncells(3)) then
+        print*, 'nbins(3) = ', nbins(3), 'nclz = ', Ncells(3)
         call error_abort("u_CFD -- nbins(3) not equal to z CFD cells")
     endif
     if (size(u_CFD,4) .ne. 3) call error_abort("Fourth index of velocity should be size three")
     u_CFD = 0.d0
 
     npercell = 3
-    allocate(recv_buf(npercell,nclx,ncly,nclz))
+    allocate(recv_buf(npercell,Ncells(1),Ncells(2),Ncells(3)))
     recv_buf = -666.d0
-    select case (comm_style)
-    case (comm_style_gath_scat)
+    call CPL_recv(recv_buf, limits=portion, recv_flag=recv_flag )
 
-        call CPL_scatter(emptybuf, 3, cnstd, recv_buf)
-
-    case (comm_style_send_recv)
-    call CPL_recv(recv_buf,                                & 
-                  icmin_recv=cnstd(1),icmax_recv=cnstd(2), &
-                  jcmin_recv=cnstd(3),jcmax_recv=cnstd(4), &
-                  kcmin_recv=cnstd(5),kcmax_recv=cnstd(6), &
-                  recv_flag=recv_flag                       )
-    end select
-
-    call CPL_proc_portion(pcoords,CPL_realm(),cnstd,portion)
-    ncbax = portion(2)-portion(1)+1
-    ncbay = portion(4)-portion(3)+1
-    ncbaz = portion(6)-portion(5)+1
-
-    if (lbl(2)-lbl(1)+1 .ne. ncbax) then
+    if (lbl(2)-lbl(1)+1 .ne. Ncells(1)) then
         print'(2(a,2i8))', "F CV constraint cells in x = ",lbl(1)-nhb(1), lbl(2)-nhb(2), & 
                            " portion of domain = ", portion(1), portion(2)
         call error_abort("socket_get_velocity Error -- constraint region not applied to recieved region of domain")
     endif
-    if (lbl(4)-lbl(3)+1 .ne. ncbay) then
+    if (lbl(4)-lbl(3)+1 .ne. Ncells(2)) then
         print'(2(a,2i8))', "F CV constraint cells in y = ",lbl(3)-nhb(3), lbl(4)-nhb(4), & 
                            " portion of domain = ", portion(3), portion(4)
         call error_abort("socket_get_velocity Error -- constraint region not applied to recieved region of domain")
     endif
-    if (lbl(6)-lbl(5)+1 .ne. ncbaz) then
+    if (lbl(6)-lbl(5)+1 .ne. Ncells(3)) then
         print'(2(a,2i8))', "F CV constraint cells in z = ",lbl(5)-nhb(5), lbl(6)-nhb(6), & 
                             " portion of domain = ", portion(5), portion(6)
         call error_abort("socket_get_velocity Error -- constraint region not applied to recieved region of domain")
     endif
 
 
-    !print*, cnstd(3),cnstd(4),ncbax,ncbaz, lbl
-    do i=1,ncbax
-    do j=cnstd(3),cnstd(4)
-    do k=1,ncbaz
+    !Map cells to location in array
+    do i = 1, Ncells(1)
+    do j = 1, Ncells(2)
+    do k = 1, Ncells(3)
+        ! -2 indices to match c++ and python indexing in portion and i,j,k
+        ! NOTE, constraint region information is not used at all here!!!
+        ! this is deliberate so MD code specifies where to apply constraint
+        ii = lbl(1) + i - 1; jj = lbl(3) + j - 1; kk = lbl(5) + k - 1
+!        ii = i + portion(1) - 2*nhb(1) + 1
+!        jj = j + portion(3) - 2*nhb(2) + 1
+!        kk = k + portion(5) - 2*nhb(3) + 1
 
-	!do ii = lbl(1),lbl(2)
-	!do jj = lbl(3),lbl(4)
-	!do kk = lbl(5),lbl(6)
-
-        !Map F_CV_limits to correct cells in recv array
-
-        ii = lbl(1) + i - 1; jj = lbl(3) + j - cnstd(3); kk = lbl(5) + k - 1
-        !ii = i + nhb(1); jj = j + nhb(2) + y_MDcells_above_CFD + lbl(3); kk = k + nhb(3)
-        !print'(15i6,3f10.5)', iblock,jblock,kblock,i,j,k,ii,jj,kk,lbl,recv_buf(:,i,j,k)
         u_CFD(ii,jj,kk,:) = recv_buf(:,i,j,k)
-        !Test assert number == cellno
-!        if (any(u_CFD(ii,jj,kk,:) .ne. -666)) then
-!            if (int(u_CFD(ii,jj,kk,1)) .ne. i+4*(iblock-1)) then
-!                print'(a,9i8,f13.5)',"x CFD", iblock,jblock,kblock,i,j,k,ii,jj,kk,u_CFD(ii,jj,kk,1)
-!            endif
-!            if (int(u_CFD(ii,jj,kk,2)) .ne. j) then
-!                print'(a,9i8,f13.5)',"y CFD", iblock,jblock,kblock,i,j,k,ii,jj,kk,u_CFD(ii,jj,kk,2)
-!            endif
-!            if (int(u_CFD(ii,jj,kk,3)) .ne. k+4*(kblock-1)) then
-!                print'(a,9i8,f13.5)',"z CFD", iblock,jblock,kblock,i,j,k,ii,jj,kk,u_CFD(ii,jj,kk,3)
-!            endif
-!        endif
-        !if (any(abs(u_CFD(ii,jj,kk,:)) .gt. 0.00001)) then
-        !    print'(a,10i5,3e23.10)','recv vel   ',iter,iblock,jblock,kblock,i,j,k,ii,jj,kk,u_CFD(ii,jj,kk,:)
-        !endif
+        !print'(6i6,3f10.5)', i,j,k,ii,jj,kk,u_CFD(ii,jj,kk,:)
+
     enddo
     enddo
     enddo
     deallocate(recv_buf)
+
+
+!    !print*, cnstd(3),cnstd(4),ncbax,ncbaz, lbl
+!    do i=1,ncbax
+!    do j=cnstd(3),cnstd(4)
+!    do k=1,ncbaz
+
+!        !Map F_CV_limits to correct cells in recv array
+!        ii = lbl(1) + i - 1; jj = lbl(3) + j - cnstd(3); kk = lbl(5) + k - 1
+!        u_CFD(ii,jj,kk,:) = recv_buf(:,i,j,k)
+
+!    enddo
+!    enddo
+!    enddo
+!    deallocate(recv_buf)
 
 end subroutine socket_get_velocity
 
@@ -1736,11 +1549,10 @@ end subroutine socket_get_velocity
 subroutine socket_get_fluxes_and_stresses(CFD_stress,CFD_flux)
     use CPL, only : CPL_recv, CPL_scatter, comm_style, &
                     comm_style_send_recv, comm_style_gath_scat, &
-                    CPL_proc_portion
+                    CPL_proc_portion, CPL_proc_extents,CPL_realm, & 
+                    CPL_get,error_abort
     use computational_constants_MD, only :iblock,jblock,kblock,iter,nhb
     use calculated_properties_MD, only : nbins
-    use CPL, only : CPL_proc_extents,CPL_realm, CPL_recv, & 
-                    CPL_olap_extents, CPL_get,error_abort
     implicit none
 
     real(kind(0.d0)),intent(inout), & 
@@ -1799,19 +1611,8 @@ subroutine socket_get_fluxes_and_stresses(CFD_stress,CFD_flux)
     !Get Stresses
     CFD_stress = 0.d0
     recv_buf = -666.d0
-    select case (comm_style)
-    case (comm_style_gath_scat)
-
-        call CPL_scatter(emptybuf, 9, cnstd, recv_buf)
-
-    case (comm_style_send_recv)
-    call CPL_recv(recv_buf,                                & 
-                  icmin_recv=cnstd(1),icmax_recv=cnstd(2), &
-                  jcmin_recv=cnstd(3),jcmax_recv=cnstd(4), &
-                  kcmin_recv=cnstd(5),kcmax_recv=cnstd(6), &
-                  recv_flag=recv_flag                       )
-    end select
-
+    print*, "socket_get_fluxes_and_stresses"
+    call CPL_recv(recv_buf, limits=cnstd, recv_flag=recv_flag )
     call CPL_proc_portion(pcoords,CPL_realm(),cnstd,portion)
     ncbax = portion(2)-portion(1)+1
     ncbay = portion(4)-portion(3)+1
@@ -1875,7 +1676,7 @@ function socket_get_domain_top() result(top)
 
     real(kind(0.d0)) :: yL_md, dy, top, removed_dist
     integer :: algorithm
-    integer :: OT,NCER,Flekkoy,CV,off
+    integer :: OT,NCER,Flekkoy,CV,off,debug=-666
 
     call CPL_get(dy=dy,yL_md=yL_md, &
                  constraint_algo    = algorithm, & 
@@ -1897,6 +1698,8 @@ function socket_get_domain_top() result(top)
     else if ( algorithm .eq. Flekkoy ) then
         top = yL_md/2.d0
     else if ( algorithm .eq. CV ) then
+        top = yL_md/2.d0
+    else if ( algorithm .eq. debug ) then
         top = yL_md/2.d0
     else
         call error_abort("Error in socket_get_domain_top - Unrecognised constraint algorithm flag")
@@ -1912,7 +1715,7 @@ function socket_get_domain_bottom() result(bottom)
 
     real(kind(0.d0)) :: yL_md, dy, bottom, removed_dist
     integer :: algorithm
-    integer :: OT,NCER,Flekkoy,CV,off
+    integer :: OT,NCER,Flekkoy,CV,off,debug=-666
 
     call CPL_get(dy=dy,yL_md=yL_md, &
                  constraint_algo    = algorithm, & 
@@ -1934,6 +1737,8 @@ function socket_get_domain_bottom() result(bottom)
     else if ( algorithm .eq. Flekkoy ) then
         bottom = -yL_md/2.d0
     else if ( algorithm .eq. CV ) then
+        bottom = -yL_md/2.d0
+    else if ( algorithm .eq. debug ) then
         bottom = -yL_md/2.d0
     else
         call error_abort("Error in socket_get_domain_bottom - Unrecognised constraint algorithm flag")

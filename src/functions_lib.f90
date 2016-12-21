@@ -3257,7 +3257,7 @@ end subroutine read_FEA_output_files
 !                        Domain_height, 
 !                        required_number_of_u_points_in_y
 !                        Sliding_Wall 0=top, 1=bottom, 2=both  )"
-! N.B should be used in the syntactically salty form 
+! N.B can be used in the syntactically salty form 
 !  allocate(ucouette, source=couette_analytical_fn(iter*delta_t,Re,wallslidev(1),globaldomain(2),gnbins(2),2))
 
 
@@ -3268,9 +3268,9 @@ function couette_analytical_fn(t,Re,U_wall,L,npoints,slidingwall) result (u)
     real(kind(0.d0)),intent(in)    :: t,Re,U_wall,L
     real(kind(0.d0)),dimension(:),allocatable  :: u
     
-	integer,parameter				:: top=0, bottom=1,both=2
+	integer,parameter			   :: top=0, bottom=1,both=2
     integer                        :: nmodes, n
-    real(kind(0.d0))               :: k, uinitial, lambda
+    real(kind(0.d0))               :: k, uinitial, lambda, nr
 
     real(kind(0.d0)),dimension(:),allocatable :: y
 
@@ -3285,8 +3285,11 @@ function couette_analytical_fn(t,Re,U_wall,L,npoints,slidingwall) result (u)
     case(top)
         !Uwall at top
         do n = 1,nmodes
-            lambda = (n*pi/L)**2
-            u(:)=u(:)+(uinitial*exp(-lambda*k*t) - (-1)**n *(2.d0/(n*pi))*U_wall*(1.d0-exp(-lambda*k*t)))*sin(n*pi*y/L) 
+            nr = dble(n)
+            lambda = (nr*pi/L)**2
+            !There is a FPE here, not sure why...
+            !print*, n, uinitial,lambda,k,t,nr,pi,U_wall,L!,exp(-lambda*k*t)
+            u(:)=u(:)+(uinitial*exp(-lambda*k*t) - (-1.d0)**n *(2.d0/(nr*pi))*U_wall*(1.d0-exp(-lambda*k*t)))*sin(nr*pi*y/L) 
         enddo
         u(npoints) =  U_wall
     case(bottom)
