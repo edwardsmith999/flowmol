@@ -368,7 +368,7 @@ contains
                 zeta = 0.d0
             endif
 
-            !print*, zeta, dzeta_dt, nthermo, Q, thermostatnp
+            print*, zeta, dzeta_dt, nthermo, Q, thermostatnp
 
 			Q(:)        = 0.1*thermostatnp(:) * delta_t 
 			dzeta_dt(:) = (mv2sum(:) - (nd*thermostatnp(:) + 1) & 
