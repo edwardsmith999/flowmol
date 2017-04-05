@@ -203,11 +203,11 @@ subroutine simulation_record
         call sl_interface_from_binaverage()
     endif
 
+#if __INTEL_COMPILER > 1200
 	!Obtain and record velocity distributions
 	if (vPDF_flag .ne. 0) call velocity_PDF_averaging(vPDF_flag)
 
 	!Record boundary force PDFs
-#if __INTEL_COMPILER > 1200
 	if (bforce_pdf_measure .ne. 0) call bforce_pdf_stats
 #endif
 
@@ -3497,7 +3497,7 @@ subroutine cumulative_heatflux(ixyz,sample_count)
         endif
 
 		!Calculate mass velocity dot [velocity (x) velocity] for kinetic part of heatflux tensor
-        call  simulation_compute_energy_VA(1,nbins(1), 1,nbins(2), 1,nbins(3))
+        call  simulation_compute_energy_VA(1, nbins(1), 1, nbins(2), 1, nbins(3))
 
 		!Add results to cumulative total
 		heatfluxbin(:,:,:,:)  =     evbin(:,:,:,:) 				                & 
@@ -5804,7 +5804,7 @@ contains
         allocate(X_stress(Nvals,6)); X_stress = 0.d0
         allocate(X_cross(Nvals,6))
 
-        if (first_time .eq. .true.) then
+        if (first_time .eqv. .true.) then
             pt_mdt = pt; pb_mdt = pb
             allocate(X(Nvals))
             first_time = .false.

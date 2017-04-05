@@ -178,7 +178,7 @@ module minpack_fit_funcs_mod
             integer ( kind = 4 ), intent(in) :: m
             integer ( kind = 4 ), intent(in) :: n
             integer ( kind = 4 ), intent(in) :: iflag
-            real(kind(0.d0)), intent(in)    :: x(n)
+            real(kind(0.d0)), intent(inout)    :: x(n)
             real(kind(0.d0)), intent(out)   :: fvec(m)
         end subroutine mp_fn
     end interface
@@ -3001,10 +3001,14 @@ subroutine spectral_surface(z, nrange, resolution)
     integer                     :: levels,m,n
     double precision            :: A, rand(3)
     double precision,dimension(:),allocatable  :: x,y
-	double precision,parameter  :: pi=4.d0*atan(1.d0)
+    double precision,parameter  :: pi=4.d0*atan(1.d0)
 
-    allocate(x, source=linspace(0.d0,2.d0*pi,size(z,1)))
-    allocate(y, source=linspace(0.d0,2.d0*pi,size(z,2)))
+    !gfortran does not allow this
+    !allocate(x, source=linspace(0.d0,2.d0*pi,size(z,1)))
+    !allocate(y, source=linspace(0.d0,2.d0*pi,size(z,2)))
+    allocate(x(size(z,1))); x = linspace(0.d0,2.d0*pi,size(z,1))
+    allocate(y(size(z,2))); y = linspace(0.d0,2.d0*pi,size(z,2))
+
     z = 0.d0
 
     do levels=1,20
