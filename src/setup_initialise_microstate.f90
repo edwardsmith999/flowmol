@@ -42,7 +42,7 @@ contains
 end module module_initialise_microstate
 !------------------------------------------------------------------------------
 
-subroutine setup_initialise_microstate
+subroutine setup_initialise_microstate()
     use interfaces
     use module_initialise_microstate
 	use module_read_input, only : COUETTE_t,COUETTE_Re,COUETTE_Uwall, & 
@@ -77,7 +77,7 @@ subroutine setup_initialise_microstate
         case('solid_liquid')
             call setup_initialise_solid_liquid
             call setup_location_tags(0)               !Setup locn of fixed mols
-        case('droplet2D','droplet3D','2phase')
+        case('droplet2D','droplet3D','2phase','bubble')
             call setup_initialise_solid_liquid_gas(config_special_case)
             call setup_location_tags(0)               !Setup locn of fixed mols
         case('2phase_surfactant_solution','2phase_surfactant_atsurface')
@@ -2023,7 +2023,7 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
     integer, dimension(nd) :: p_units_lb, p_units_ub 
     integer, dimension(nproc) :: proc_nps
     real(kind(0.d0)) :: domain_top, domain_bottom, solid_density, density_ratio_sl
-    real(kind(0.d0)) :: density_ratio_gl, h, h0, x, y, z, hx, hz
+    real(kind(0.d0)) :: density_ratio_gl, h, h0, x, y, z, hx, hz, rsphere
     real(kind(0.d0)), dimension (nd):: solid_bottom,solid_top, rc, c
 
 
@@ -2291,6 +2291,17 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
                             call error_abort("lg_direction specified by second argument to LIQUID_FRACTION must be 1 or 2")
                         endif
                     endif
+
+                case('bubble')
+
+                    rsphere = sqrt( (rc(1)-0.5d0*globaldomain(1)-rcentre(1))**2 & 
+                                   +(rc(2)-0.5d0*globaldomain(2)-rcentre(2))**2 & 
+                                   +(rc(3)-0.5d0*globaldomain(3)-rcentre(3))**2   )
+                    if (rsphere .lt. rbubble) then
+                        call random_number(rand)
+                        if (rand .gt. density_ratio_gl) cycle   
+                    endif
+
                 case default
                     call error_abort("Error in setup_initialise_solid_liquid_gas -- gastype not know")
                 endselect 

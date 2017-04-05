@@ -123,6 +123,14 @@ subroutine iwrite_arrays(some_array,nresults,outfile,outstep)
         global_cnt  = (outstep-1)*gnbins(1)*gnbins(2)*gnbins(3)*nresults
         offset      = global_cnt * int_size
     endif
+
+    !Error if outstep less than one
+    if (outstep .le. 0) then
+        print*, "Error -- outstep ", outstep, " for filename ", & 
+                trim(outfile) , " results in ", trim(outfile_t)
+        call error_abort("Error in write_arrays -- requires outstep > 1 ")
+    endif
+
     gsizes      = gnbins
     lsizes      = nbins
     local_indices(:) = (/  0  , 0 , 0 /)
@@ -230,6 +238,12 @@ subroutine rwrite_arrays(some_array,nresults,outfile,outstep)
         outfile_t = outfile
         global_cnt  = (outstep-1)*gnbins(1)*gnbins(2)*gnbins(3)*nresults !Global number of items written so far
         offset      = global_cnt * dp_size                               !Bytes written already 
+    endif
+    !Error if outstep less than one
+    if (outstep .le. 0) then
+        print*, "Error -- outstep ", outstep, " for filename ", & 
+                trim(outfile) , " results in ", trim(outfile_t)
+        call error_abort("Error in write_arrays -- requires outstep > 1 ")
     endif
     gsizes      = gnbins                                             !Global "sizes", i.e. bins (need a better name for this)
     lsizes      = nbins                                              !Local "sizes", i.e. bins (need a better name for this)
@@ -546,6 +560,22 @@ subroutine Create_commit_subarray(memsizes,lsizes,local_indices,datatype,MEM_FLA
     
 end subroutine
 
+
+! Get the current number for output file 
+
+function get_iter()
+    use computational_constants_MD, only : restart_numbering
+
+    integer :: get_iter
+
+    if (restart_numbering) then
+        get_iter = iter-initialstep+1
+    else
+        get_iter = iter
+    endif
+
+end function get_iter
+
 end module module_parallel_io
 
 !======================================================================
@@ -671,7 +701,7 @@ end subroutine setup_inputs
 ! Set up inputs on every processor, based on the final state of a previous simulation
 !-------------------------------------------------------------------------------------
 
-subroutine setup_restart_inputs
+subroutine setup_restart_inputs()
     use module_parallel_io
     use librarymod, only : locate
     implicit none
@@ -958,7 +988,7 @@ subroutine setup_restart_inputs
 end subroutine setup_restart_inputs
 
 !------------------------------------------------------------------------------
-subroutine setup_restart_microstate
+subroutine setup_restart_microstate()
     use module_parallel_io
     use messenger_data_exchange, only : globalSum
     implicit none
@@ -1185,7 +1215,7 @@ subroutine setup_restart_microstate
 
     ! Mie moltype should be from restart file!! If mie_potential was zero in restart
     ! but now input requests one, setup as if new run (based on location, etc).
-    if (mie_potential .eq. 2) then
+    if (Mie_potential .eq. 2) then
         call setup_moltypes_wall                  !Setup type of molecules
         mie_potential = 1
     endif
@@ -1246,6 +1276,7 @@ subroutine setup_restart_microstate
 end subroutine setup_restart_microstate
 
 
+#if __INTEL_COMPILER > 1200
 subroutine load_bforce_pdf
     use boundary_MD
     use librarymod, only: get_new_fileunit
@@ -1269,6 +1300,7 @@ subroutine load_bforce_pdf
     bforce_pdf_binsize = (bforce_pdf_max - bforce_pdf_min)/real(bforce_pdf_nbins)
 
 end subroutine load_bforce_pdf
+#endif
 
 !=============================================================================
 ! Import cylinders to be filled 
@@ -2289,9 +2321,11 @@ end subroutine parallel_io_vmd_optimised
 !------------------------------------------------------------------------
 !Write positions of molecules in halo to a file
 
-subroutine parallel_io_vmd_halo
+subroutine parallel_io_vmd_halo(recno)
     use module_parallel_io
     implicit none
+
+    integer, intent(in) :: recno
 
     call error_abort("Cannot print vmd halos in parallel simulation - run in serial")
 
@@ -2636,7 +2670,7 @@ subroutine mass_slice_io(ixyz)
                             MPI_INFO_NULL, slicefileid, ierr)
 
         !Obtain displacement of current record
-        disp =   ((iter-initialstep+1)/(tplot*Nmass_ave) - 1)       &       !Current iteration
+        disp =   (get_iter()/(tplot*Nmass_ave) - 1)       &       !Current iteration
                * gnbins(ixyz)*int_datasize  &       !Global record size
                + nbins(ixyz)*int_datasize*(ijkblock(ixyz)-1)        !Processor location
 
@@ -2687,18 +2721,18 @@ subroutine mass_bin_io(CV_mass_out,io_type)
     if (io_type .eq. 'snap') then
         select case(CV_conserve)
         case(0)
-            m = (iter-initialstep+1)/(tplot*Nmflux_ave) + 1 !Initial snapshot taken
+            m = get_iter()/(tplot*Nmflux_ave) + 1 !Initial snapshot taken
         case(1)
-            m = (iter-initialstep+1)/(Nmflux_ave) + 1 !Initial snapshot taken
+            m = get_iter()/(Nmflux_ave) + 1 !Initial snapshot taken
         case default
             call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')   
         end select
     else
-        m = (iter-initialstep+1)/(tplot*Nmass_ave)
+        m = get_iter()/(tplot*Nmass_ave)
     endif
 
     !Write mass to file
-    call write_arrays(CVmasscopy,nresults,outfile,m)
+    call write_arrays(CVmasscopy, nresults, outfile, m)
     deallocate(CVmasscopy)
 
 end subroutine mass_bin_io
@@ -2745,7 +2779,7 @@ subroutine momentum_slice_io(ixyz)
                    MPI_INFO_NULL, slicefileid, ierr)
 
         !Obtain displacement of x record
-        disp =   ((iter-initialstep+1)/(tplot*Nmass_ave) - 1)       &   !Current iteration
+        disp =   (get_iter()/(tplot*Nmass_ave) - 1)       &   !Current iteration
                * nd*gnbins(ixyz)*dp_datasize    &   !times record size
                + nbins(ixyz)*dp_datasize*(ijkblock(ixyz)-1)     !Processor location
 
@@ -2755,7 +2789,7 @@ subroutine momentum_slice_io(ixyz)
                     MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE, ierr)
 
         !Obtain displacement of y record
-        disp =   ((iter-initialstep+1)/(tplot*Nmass_ave) - 1)       &   !Current iteration
+        disp =   (get_iter()/(tplot*Nmass_ave) - 1)       &   !Current iteration
                * nd*gnbins(ixyz)*dp_datasize    &   !Record size
                + nbins(ixyz)*dp_datasize*(ijkblock(ixyz)-1) &   !Processor location
                + nbins(ixyz)*dp_datasize*idims(ixyz)        !after x data 
@@ -2766,7 +2800,7 @@ subroutine momentum_slice_io(ixyz)
                     MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE, ierr)
 
         !Obtain displacement of z record
-        disp =   ((iter-initialstep+1)/(tplot*Nmass_ave) - 1)       &   !Current iteration
+        disp =   (get_iter()/(tplot*Nmass_ave) - 1)       &   !Current iteration
                * nd*gnbins(ixyz)*dp_datasize    &   !Record size
                + nbins(ixyz)*dp_datasize*(ijkblock(ixyz)-1) &   !Processor location
                + 2*nbins(ixyz)*dp_datasize*idims(ixyz)      !after x & y data 
@@ -2818,9 +2852,9 @@ subroutine momentum_bin_io(CV_mass_out,CV_momentum_out,io_type)
         !CV_momentum_out = CV_momentum_out / (tplot*Nvflux_ave)
         select case(CV_conserve)
         case(0)
-            m = (iter-initialstep+1)/(tplot*Nvflux_ave) + 1 !Initial snapshot taken
+            m = get_iter()/(tplot*Nvflux_ave) + 1 !Initial snapshot taken
         case(1)
-            m = (iter-initialstep+1)/(Nvflux_ave) + 1 !Initial snapshot taken
+            m = get_iter()/(Nvflux_ave) + 1 !Initial snapshot taken
             !Create copy of previous timestep Control Volume mass and calculate time evolution
             if (CV_debug .ne. 0) then
                 call CVcheck_momentum%update_dXdt(CV_momentum_out(:,:,:,:))
@@ -2830,7 +2864,7 @@ subroutine momentum_bin_io(CV_mass_out,CV_momentum_out,io_type)
         end select
     else
         !CV_momentum_out = CV_momentum_out / (tplot*Nvel_ave)
-        m = (iter-initialstep+1)/(tplot*Nvel_ave)
+        m = get_iter()/(tplot*Nvel_ave)
     endif
 
     !Write out arrays
@@ -2844,7 +2878,8 @@ end subroutine momentum_bin_io
 
 subroutine centre_of_mass_bin_io(centre_of_mass)
     use module_parallel_io, only : write_arrays, nd, iter, Ncom_ave, & 
-                                   initialstep,tplot, nbinso, prefix_dir
+                                   initialstep,tplot, nbinso, prefix_dir, &
+                                   get_iter
     use messenger_bin_handler, only : swaphalos
     implicit none
 
@@ -2854,7 +2889,7 @@ subroutine centre_of_mass_bin_io(centre_of_mass)
     ! Swap Halos
     nresults = nd
     call swaphalos(centre_of_mass,nbinso(1),nbinso(2),nbinso(3),nresults)
-    m = (iter-initialstep+1)/(tplot*Ncom_ave)
+    m = get_iter()/(tplot*Ncom_ave)
 
     !Write out arrays
     call write_arrays(centre_of_mass,nresults,trim(prefix_dir)//'results/combin',m)
@@ -2915,7 +2950,7 @@ subroutine velocity_PDF_slice_io(ixyz,pfdx,pfdy,pfdz)
                            MPI_INFO_NULL, slicefileid, ierr)
 
         !Obtain displacement of x record
-        disp =   ((iter-initialstep+1)/(tplot*Nvpdf_ave) - 1)       &       !Current iteration
+        disp =   (get_iter()/(tplot*Nvpdf_ave) - 1)       &       !Current iteration
                     * datasize*int_datasize                         &       !times record size
                     + datasize*int_datasize*(ijkblock(ixyz)-1)              !Processor location
 
@@ -2936,7 +2971,7 @@ end subroutine velocity_PDF_slice_io
 !------------------------------------------------------------------------------
 ! Cylindrical polar mass bins
 subroutine mass_bin_cpol_io(mass_out)
-    use module_parallel_io, only: write_zplane
+    use module_parallel_io, only: write_zplane, get_iter
     use concentric_cylinders, only: cpol_binso
     use physical_constants_MD, only: nd
     use computational_constants_MD, only: iter, initialstep, tplot, &
@@ -2960,7 +2995,7 @@ subroutine mass_bin_cpol_io(mass_out)
     ! Bottom corner z-line of processors write to file  
     if (iblock .eq. 1 .and. jblock .eq. 1) then
 
-        m = (iter-initialstep+1)/(tplot*Nmass_ave)
+        m = get_iter()/(tplot*Nmass_ave)
         mfile = trim(prefix_dir)//'results/mbins'
 
         call write_zplane(mass_out,1,mfile,m)
@@ -2996,11 +3031,11 @@ end subroutine mass_bin_cpol_io
 !------------------------------------------------------------------------------
 ! Cylindrical polar momentum bins
 subroutine momentum_bin_cpol_io(mass_out,mom_out)
-    use module_parallel_io, only: write_zplane
-    use concentric_cylinders, only: cpol_binso
-    use physical_constants_MD, only: nd
-    use computational_constants_MD, only: iter, initialstep, tplot, &
-                                          Nvel_ave, prefix_dir
+    use module_parallel_io, only : write_zplane, get_iter
+    use concentric_cylinders, only : cpol_binso
+    use physical_constants_MD, only : nd
+    use computational_constants_MD, only : iter, initialstep, tplot, &
+                                           Nvel_ave, prefix_dir
     use messenger, only: icomm_grid,iblock,jblock,plane_comm
     implicit none
 
@@ -3032,7 +3067,7 @@ subroutine momentum_bin_cpol_io(mass_out,mom_out)
 
         nresults = 3
         vfile = trim(prefix_dir)//'results/vbins'
-        m = (iter-initialstep+1)/(tplot*Nvel_ave)
+        m = get_iter()/(tplot*Nvel_ave)
 
         call write_zplane(mom_out,nresults,vfile,m)
 
@@ -3067,7 +3102,7 @@ end subroutine momentum_bin_cpol_io
 !------------------------------------------------------------------------------
 ! Cylindrical polar KE bins
 subroutine temperature_bin_cpol_io(mass_out,KE_out)
-    use module_parallel_io, only: write_zplane
+    use module_parallel_io, only: write_zplane, get_iter
     use concentric_cylinders, only: cpol_binso
     use physical_constants_MD, only: nd
     use computational_constants_MD, only: iter, initialstep, tplot, &
@@ -3097,7 +3132,7 @@ subroutine temperature_bin_cpol_io(mass_out,KE_out)
     ! Bottom corner z-line of processors write to file  
     if (iblock .eq. 1 .and. jblock .eq. 1) then
 
-        m = (iter-initialstep+1)/(tplot*NTemp_ave)
+        m = get_iter()/(tplot*NTemp_ave)
         Tfile = trim(prefix_dir)//'results/Tbins'
 
         call write_zplane(KE_out,1,Tfile,m)
@@ -3133,7 +3168,7 @@ end subroutine temperature_bin_cpol_io
 !------------------------------------------------------------------------------
 ! Cylindrical polar momentum bins
 subroutine VA_stress_cpol_io
-    use module_parallel_io, only: write_zplane
+    use module_parallel_io, only: write_zplane, get_iter
     use concentric_cylinders, only: cpol_binso, r_oi, r_io, cpol_bins
     use computational_constants_MD, only: iter, initialstep, tplot, &
                                           Nstress_ave, prefix_dir, domain, &
@@ -3192,7 +3227,7 @@ subroutine VA_stress_cpol_io
 
         allocate(buf9(cpol_binso(1),cpol_binso(2),cpol_binso(3),9))
 
-        m = (iter-initialstep+1)/(tplot*Nstress_ave)
+        m = get_iter()/(tplot*Nstress_ave)
         nresults = 9
     
         select case (split_kin_config)
@@ -3319,7 +3354,7 @@ subroutine temperature_bin_io(CV_mass_out,CV_temperature_out,io_type)
         !m = iter/(NTflux_ave) + 1 !Initial snapshot taken
     else
         !CV_temperature_out = CV_temperature_out / (tplot*Nvel_ave)
-        m = (iter-initialstep+1)/(tplot*NTemp_ave)
+        m = get_iter()/(tplot*NTemp_ave)
     endif
     !Write temperature to file
     call write_arrays(CV_temperature_out,nresults,outfile,m)
@@ -3359,9 +3394,9 @@ subroutine energy_bin_io(CV_energy_out,io_type)
         !CV_energy_out = CV_energy_out / (tplot*Nvflux_ave)
         select case(CV_conserve)
         case(0)
-            m = (iter-initialstep+1)/(tplot*Neflux_ave) + 1 !Initial snapshot taken
+            m = get_iter()/(tplot*Neflux_ave) + 1 !Initial snapshot taken
         case(1)
-            m = (iter-initialstep+1)/(Neflux_ave) + 1 !Initial snapshot taken
+            m = get_iter()/(Neflux_ave) + 1 !Initial snapshot taken
             !Create copy of previous timestep Control Volume energy to calculate time evolution
             if (CV_debug .ne. 0) then
                 call CVcheck_energy%update_dXdt(CV_energy_out(:,:,:))
@@ -3370,7 +3405,7 @@ subroutine energy_bin_io(CV_energy_out,io_type)
             call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')   
         end select
     elseif (io_type .eq. 'bins') then
-        m = (iter-initialstep+1)/(tplot * Nenergy_ave)
+        m = get_iter()/(tplot * Nenergy_ave)
     else
         stop "Energy io error - unknown output type"
     endif
@@ -3391,7 +3426,7 @@ subroutine virial_stress_io
     !call globalAverage(Pxy, 9)
 
     !Write virial pressure to file
-    m = real(iter-initialstep+1)/real(tplot*Nstress_ave)
+    m = real(get_iter())/real(tplot*Nstress_ave)
     if (m .le. 0) then
         print*, 'WARNING: negative record number in virial_stress_io'
         return
@@ -3453,7 +3488,7 @@ subroutine VA_stress_io
 
     !Write VA pressure to file
     nresults = 9
-    m = (iter-initialstep+1)/(tplot*Nstress_ave)
+    m = get_iter()/(tplot*Nstress_ave)
 
     select case (split_kin_config)
     case(0)
@@ -3513,7 +3548,7 @@ subroutine VA_heatflux_io
     real(kind(0.d0)), dimension(3)                  :: heatflux
     real(kind(0.d0)),dimension(:,:,:,:),allocatable :: buf
 
-    !Add kinetic and configurational to Pxybin total
+    !Add kinetic and configurational to heatfluxbin total
     heatfluxbin(:,:,:,:) =     evbin(:,:,:,:)        & 
                             + rfvbin(1+nhb(1):nbins(1)+nhb(1),   & 
                                      1+nhb(2):nbins(2)+nhb(2),   & 
@@ -3540,9 +3575,9 @@ subroutine VA_heatflux_io
 
     !Write VA pressure to file
     nresults = 3
-    m = (iter-initialstep+1)/(tplot*Nstress_ave)
+    m = get_iter()/(tplot*Nstress_ave)
 
-    select case (split_kin_config)
+    select case (split_hfkin_config)
     case(0)
 
         !Write sum of kinetic and configurational
@@ -3550,7 +3585,7 @@ subroutine VA_heatflux_io
         allocate(buf(nbinso(1), nbinso(2), nbinso(3), nresults))
         buf = 0.d0; 
         buf(1+nhb(1):nbins(1)+nhb(1),1+nhb(2):nbins(2)+nhb(2),1+nhb(3):nbins(3)+nhb(3),1:nresults) = &
-            reshape(heatfluxbin,(/nbins(1),nbins(2),nbins(3),nresults/))
+            reshape(heatfluxbin,(/nbins(1),nbins(2),nbins(3), nresults/))
         call write_arrays(buf,nresults,trim(prefix_dir)//'results/hfVA',m)
         deallocate(buf)
     case(1)
@@ -3591,7 +3626,7 @@ subroutine total_heatflux_io(heatflux)
     integer     :: m, length
 
     !Write total_heatflux to file
-    m = real(iter-initialstep+1)/real(tplot*Nheatflux_ave)
+    m = real(get_iter())/real(tplot*Nheatflux_ave)
     if (m .le. 0) then
         print*, 'WARNING: negative record number in total_heatflux_io'
         return
@@ -3618,8 +3653,9 @@ module statistics_io
 
 contains
 
+#if __INTEL_COMPILER > 1200
     subroutine bforce_pdf_write
-        !use mpi
+        use module_parallel_io, only: get_iter
         use boundary_MD
         use computational_constants_MD, only: separate_outfiles, irank, iroot,&
                                               iter, initialstep, tplot, &
@@ -3644,7 +3680,7 @@ contains
         end do
 
         outfile = 'bforce_pdf'
-        record = (iter-initialstep+1)/(tplot*bforce_pdf_Nave)
+        record = get_iter()/(tplot*bforce_pdf_Nave)
 
         if (separate_outfiles) then
             call get_Timestep_FileName(record-1,outfile,outfile_t)
@@ -3674,6 +3710,7 @@ contains
         deallocate(array_out)
 
     end subroutine bforce_pdf_write
+#endif
 
 end module statistics_io
 
@@ -3711,9 +3748,9 @@ subroutine mass_flux_io
     !Calculate record number timestep
     select case(CV_conserve)
     case(0)
-        m = (iter-initialstep+1)/(tplot*Nmflux_ave)
+        m = get_iter()/(tplot*Nmflux_ave)
     case(1)
-        m = (iter-initialstep+1)/(Nmflux_ave)
+        m = get_iter()/(Nmflux_ave)
     case default
         call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
     end select
@@ -3771,9 +3808,9 @@ subroutine momentum_flux_io
     !Write momentum to file
     select case(CV_conserve)
     case(0)
-        m = (iter-initialstep+1)/(tplot*Nvflux_ave)
+        m = get_iter()/(tplot*Nvflux_ave)
     case(1)
-        m = (iter-initialstep+1)/(Nvflux_ave)
+        m = get_iter()/(Nvflux_ave)
     case default
         call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
     end select
@@ -3813,7 +3850,7 @@ subroutine MOP_stress_io(ixyz_in)
     Pxy_plane = Pxy_plane/(4*domain(1)*domain(3))
 
     !Write plane pressures to file
-    m = (iter-initialstep+1)/(tplot*Nvflux_ave)
+    m = get_iter()/(tplot*Nvflux_ave)
 !************WRITTEN ROUGHLY AND NOT TESTED************************
     !Write mass
     call mass_slice_io(ixyz)
@@ -3844,17 +3881,17 @@ subroutine MOP_stress_io(ixyz_in)
         select case(vflux_outflag)
             case(1)
                 !Obtain displacement of x record
-                disp =   (iter/(tplot*Nmass_ave) - 1)       &   !Current iteration
+                disp =   (get_iter()/(tplot*Nmass_ave) - 1)       &   !Current iteration
                        * nd*gnplanes*dp_datasize            &   !times record size
                        + nplanes*dp_datasize*(iblock-1)         !Processor location
             case(2)
                     !Obtain displacement of x record
-                disp =   (iter/(tplot*Nmass_ave) - 1)       &   !Current iteration
+                disp =   (get_iter()/(tplot*Nmass_ave) - 1)       &   !Current iteration
                        * nd*gnplanes*dp_datasize            &   !times record size
                        + nplanes*dp_datasize*(jblock-1)         !Processor location
             case(3)
                 !Obtain displacement of x record
-                disp =   (iter/(tplot*Nmass_ave) - 1)       &   !Current iteration
+                disp =   (get_iter()/(tplot*Nmass_ave) - 1)       &   !Current iteration
                        * nd*gnplanes*dp_datasize            &   !times record size
                        + nplanes*dp_datasize*(kblock-1)         !Processor location
             case default
@@ -3914,9 +3951,9 @@ subroutine surface_stress_io
     !Write surface pressures to file
     select case(CV_conserve)
     case(0)
-        m = (iter-initialstep+1)/(tplot*Nvflux_ave)
+        m = get_iter()/(tplot*Nvflux_ave)
     case(1)
-        m = (iter-initialstep+1)/(Nvflux_ave)
+        m = get_iter()/(Nvflux_ave)
     case default
         call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
     end select
@@ -3959,9 +3996,9 @@ subroutine external_force_io
     !Write external forces pressures to file
     select case(CV_conserve)
     case(0)
-        m = (iter-initialstep+1)/(Nvflux_ave*tplot)
+        m = get_iter()/(Nvflux_ave*tplot)
     case(1)
-        m = (iter-initialstep+1)/(Nvflux_ave)
+        m = get_iter()/(Nvflux_ave)
     case default
         call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
     end select
@@ -4011,9 +4048,9 @@ subroutine energy_flux_io
     !Write energy flux to file
     select case(CV_conserve)
     case(0)
-        m = (iter-initialstep+1)/(Neflux_ave*tplot)
+        m = get_iter()/(Neflux_ave*tplot)
     case(1)
-        m = (iter-initialstep+1)/(Neflux_ave)
+        m = get_iter()/(Neflux_ave)
     case default
         call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
     end select
@@ -4043,9 +4080,9 @@ subroutine surface_density_io
     !Calculate record number timestep
     select case(CV_conserve)
     case(0)
-        m = (iter-initialstep+1)/(tplot*Nsurfm_ave)
+        m = get_iter()/(tplot*Nsurfm_ave)
     case(1)
-        m = (iter-initialstep+1)/(Nsurfm_ave)
+        m = get_iter()/(Nsurfm_ave)
     case default
         call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
     end select
@@ -4058,7 +4095,7 @@ end subroutine surface_density_io
 !---------------------------------------------------------------------------------
 ! Record stress times velocity (power) accross surfaces of Control Volumes
 
-subroutine surface_power_io
+subroutine surface_power_io()
     use module_parallel_io
     use messenger_bin_handler, only : swaphalos
     use CV_objects, only : CVcheck_energy
@@ -4072,10 +4109,12 @@ subroutine surface_power_io
     call swaphalos(Pxyvface_integrated,nbinso(1),nbinso(2),nbinso(3),nresults)
 
     do ixyz = 1,3
-        binface       = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
-                        (domain(modulo(ixyz+1,3)+1)/nbins(modulo(ixyz+1,3)+1))
-        Pxyvface_integrated(:,:,:,ixyz  ) = 0.25d0 * Pxyvface_integrated(:,:,:,ixyz  )/binface !Bottom
-        Pxyvface_integrated(:,:,:,ixyz+3) = 0.25d0 * Pxyvface_integrated(:,:,:,ixyz+3)/binface !Top
+        binface = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
+                  (domain(modulo(ixyz+1,3)+1)/nbins(modulo(ixyz+1,3)+1))
+        Pxyvface_integrated(:,:,:,ixyz  ) = & 
+            0.25d0*Pxyvface_integrated(:,:,:,ixyz  )/binface !Bottom
+        Pxyvface_integrated(:,:,:,ixyz+3) = & 
+            0.25d0*Pxyvface_integrated(:,:,:,ixyz+3)/binface !Top
     enddo
 
     !Integration of stress using trapizium rule requires division by number of results
@@ -4089,13 +4128,15 @@ subroutine surface_power_io
     !Write surface pressures * velocity to file
     select case(CV_conserve)
     case(0)
-        m = (iter-initialstep+1)/(Neflux_ave*tplot)
+        m = get_iter()/(Neflux_ave*tplot)
     case(1)
-        m = (iter-initialstep+1)/(Neflux_ave)
+        m = get_iter()/(Neflux_ave)
     case default
-        call error_abort('CV_conserve value used forsurface power is incorrectly defined - should be 0=off or 1=on')
+        call error_abort('CV_conserve value used for surface power is incorrectly defined - should be 0=off or 1=on')
     end select
-    call write_arrays(Pxyvface_integrated,nresults,trim(prefix_dir)//'results/esurface',m)
+
+    call write_arrays(Pxyvface_integrated, nresults, & 
+                      trim(prefix_dir)//'results/esurface', m)
 
 end subroutine surface_power_io
 
@@ -4133,9 +4174,9 @@ subroutine external_forcev_io
     !Write external forces pressures to file
     select case(CV_conserve)
     case(0)
-        m = (iter-initialstep+1)/(Neflux_ave*tplot)
+        m = get_iter()/(Neflux_ave*tplot)
     case(1)
-        m = (iter-initialstep+1)/(Neflux_ave)
+        m = get_iter()/(Neflux_ave)
     case default
         call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
     end select
@@ -4241,9 +4282,10 @@ subroutine viscosity_io
         viscosity = (viscosity*volume)/(3.0*Nstress_ave*Nvisc_ave*inputtemperature)
 
         !Write viscosity to file
-        m = (iter-initialstep+1)/(tplot*Nstress_ave*Nvisc_ave)
+        m = get_iter()/(tplot*Nstress_ave*Nvisc_ave)
         inquire(iolength=length) viscosity
-        open (unit=7, file=trim(prefix_dir)//'results/visc',form='unformatted',access='direct',recl=length)
+        open (unit=7, file=trim(prefix_dir)//'results/visc', & 
+              form='unformatted',access='direct',recl=length)
         write(7,rec=m) viscosity
         close(7,status='keep')
     endif
@@ -4280,7 +4322,7 @@ subroutine etev_io
     !averaging interval. If, say, mass_Nave is 1, there will be 1 more record
     !of etevs than mbins (due to etev first record at 0, mbins first record
     !at tplot).
-    record = real(iter-initialstep+1)/real(tplot*1) + 1 !etev Nave must be 1
+    record = real(get_iter())/real(tplot*1) + 1 !etev Nave must be 1
     if (separate_outfiles) then
         !Either write a separate output files for each timestep
         call get_Timestep_FileName(record-1,'etev',outfile_t)
