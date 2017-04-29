@@ -417,7 +417,8 @@ subroutine setup_read_input
         allocate(thermostattemperature(nthermo))
         thermostattemperature = temp(1:nthermo)
     else
-        allocate(thermostattemperature(1))
+        nthermo = 1
+        allocate(thermostattemperature(nthermo))
         thermostattemperature = inputtemperature
     endif
 
