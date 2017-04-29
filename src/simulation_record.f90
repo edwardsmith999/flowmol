@@ -6482,7 +6482,6 @@ contains
 
                     !Get surface crossing direction
                     crosssign = sign(1.d0,(-ri12(1) + ri12(2)*dsurface_fndyi(p0, rcross(2))))
-
                     Ncross(:) = Ncross(:) + qnty(:) * crosssign * dS_i
                     if (write_debug) then
                         crossings = crossings + 1
