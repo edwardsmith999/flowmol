@@ -2053,7 +2053,13 @@ subroutine set_parameters_outputs
 		allocate( rfvbin( nbinso(1), nbinso(2), nbinso(3), 3, 1 ))
 		allocate( evbin( nbins (1),  nbins(2),  nbins(3),3  ))
 		allocate( heatfluxbin( nbins (1),  nbins(2),  nbins(3),3  ))
+<<<<<<< HEAD
+		rfvbin  = 0.d0
+		evbin = 0.d0
+        heatfluxbin = 0.d0
+=======
 		rfvbin  = 0.d0; evbin = 0.d0; heatfluxbin = 0.d0
+>>>>>>> origin/master
     elseif (heatflux_outflag .eq. 0) then
         !pass
     else

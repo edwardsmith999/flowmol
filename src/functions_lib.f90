@@ -178,7 +178,7 @@ module minpack_fit_funcs_mod
             integer ( kind = 4 ), intent(in) :: m
             integer ( kind = 4 ), intent(in) :: n
             integer ( kind = 4 ), intent(in) :: iflag
-            real(kind(0.d0)), intent(in)    :: x(n)
+            real(kind(0.d0)), intent(inout)    :: x(n)
             real(kind(0.d0)), intent(out)   :: fvec(m)
         end subroutine mp_fn
     end interface
@@ -252,7 +252,7 @@ subroutine cubic_fn ( m, n, x, fvec, iflag )
     integer ( kind = 4 ), intent(in) :: n
     integer ( kind = 4 ), intent(in) :: iflag
 
-    real(kind(0.d0)), intent(in) :: x(n)
+    real(kind(0.d0)), intent(inout) :: x(n)
 
     real(kind(0.d0)), intent(out) :: fvec(m)
 
@@ -277,7 +277,7 @@ subroutine cubic_fn2D ( m, n, x, fvec, iflag )
     integer ( kind = 4 ), intent(in) :: n
     integer ( kind = 4 ), intent(in) :: iflag
 
-    real(kind(0.d0)), intent(in) :: x(n)
+    real(kind(0.d0)), intent(inout) :: x(n)
 
     real(kind(0.d0)), intent(out) :: fvec(m)
 
@@ -3003,12 +3003,12 @@ subroutine spectral_surface(z, nrange, resolution)
     double precision,dimension(:),allocatable  :: x,y
 	double precision,parameter  :: pi=4.d0*atan(1.d0)
 
+    !gfortran does not allow this
     !allocate(x, source=linspace(0.d0,2.d0*pi,size(z,1)))
     !allocate(y, source=linspace(0.d0,2.d0*pi,size(z,2)))
-    allocate(x(size(z,1)))
-    x = linspace(0.d0,2.d0*pi,size(z,1))
-    allocate(y(size(z,2)))
-    y = linspace(0.d0,2.d0*pi,size(z,2))
+    allocate(x(size(z,1))); x = linspace(0.d0,2.d0*pi,size(z,1))
+    allocate(y(size(z,2))); y = linspace(0.d0,2.d0*pi,size(z,2))
+
     z = 0.d0
 
     do levels=1,20
@@ -3268,7 +3268,7 @@ function couette_analytical_fn(t,Re,U_wall,L,npoints,slidingwall) result (u)
     real(kind(0.d0)),intent(in)    :: t,Re,U_wall,L
     real(kind(0.d0)),dimension(:),allocatable  :: u
     
-	integer,parameter			   :: top=0, bottom=1,both=2
+	integer,parameter				:: top=0, bottom=1,both=2
     integer                        :: nmodes, n
     real(kind(0.d0))               :: k, uinitial, lambda, nr
 

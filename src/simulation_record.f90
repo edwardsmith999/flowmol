@@ -3469,7 +3469,7 @@ subroutine cumulative_heatflux(ixyz,sample_count)
         endif
 
 		!Calculate mass velocity dot [velocity (x) velocity] for kinetic part of heatflux tensor
-        call  simulation_compute_energy_VA(1,nbins(1), 1,nbins(2), 1,nbins(3))
+        call  simulation_compute_energy_VA(1, nbins(1), 1, nbins(2), 1, nbins(3))
 
 		!Add results to cumulative total
 		heatfluxbin(:,:,:,:)  =     evbin(:,:,:,:) 				                & 
