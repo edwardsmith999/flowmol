@@ -368,14 +368,18 @@ contains
                 zeta = 0.d0
             endif
 
-            !print*, zeta, dzeta_dt, nthermo, Q, thermostatnp
-
-			Q(:)        = 0.1*thermostatnp(:) * delta_t 
-			dzeta_dt(:) = (mv2sum(:) - (nd*thermostatnp(:) + 1) & 
-                           *thermostattemperature(:)) / Q(:)
-			zeta(:) 	 = zeta(:) + delta_t*dzeta_dt(:)
-			bscale(:)	 = 1.d0/(1.d0+0.5d0*delta_t*zeta(:))
-			ascale(:)	 = (1.d0-0.5d0*delta_t*zeta(:))*bscale(:)
+            do n=1,nthermo
+			    Q(n)        = 0.1*thermostatnp(n) * delta_t
+                if (thermostatnp(n) .gt. 0.d0) then
+    			    dzeta_dt(n) = (mv2sum(n) - (nd*thermostatnp(n) + 1) & 
+                                   *thermostattemperature(n)) / Q(n)
+                else
+                    dzeta_dt(n) = 0.d0
+                endif
+			    zeta(n) 	 = zeta(n) + delta_t*dzeta_dt(n)
+			    bscale(n)	 = 1.d0/(1.d0+0.5d0*delta_t*zeta(n))
+			    ascale(n)	 = (1.d0-0.5d0*delta_t*zeta(n))*bscale(n)
+            enddo
 
 		else
 
@@ -384,16 +388,14 @@ contains
 			bscale(:) = 1.d0
 		endif
 
-		!call pointsphere((/ 0.0, 0.0, 0.0 /),8.d0)
-
 		!Step through each particle n
 		do n = 1,np
 
 			select case (tag(n))
 			case (free)
 				!Leapfrog mean velocity calculated here at v(t+0.5delta_t) = v(t-0.5delta_t) + a*delta_t 
-				!Leapfrog mean position calculated here at r(t+delta_t) = r(t) + v(t+0.5delta_t)*delta_t
 				v(:,n) = v(:,n) + delta_t * a(:,n) 	!Velocity calculated from acceleration
+				!Leapfrog mean position calculated here at r(t+delta_t) = r(t) + v(t+0.5delta_t)*delta_t
 				r(:,n) = r(:,n) + delta_t * v(:,n)	!Position calculated from velocity
 			case (fixed)
 				!Fixed Molecules - no movement r(t+dt) = r(t)
@@ -407,7 +409,7 @@ contains
 				r(:,n) = r(:,n) + delta_t * v(:,n)	!Position calculated from velocity
 			case (thermo)
 				!Nose Hoover Thermostatted Molecule
-                tr = get_therm_region(n)
+                tr = get_therm_region(n)              
 				v(1,n) = v(1,n)*ascale(tr) + a(1,n)*delta_t*bscale(tr)
 				r(1,n) = r(1,n)    +     v(1,n)*delta_t			
 				v(2,n) = v(2,n)*ascale(tr) + a(2,n)*delta_t*bscale(tr)
@@ -515,12 +517,11 @@ contains
 		implicit none
 
         if (any(periodic .gt. 1)) then
-		vtrue = v
-
-		do n=1,np
-			vtrue(le_sd,n) = v(le_sd,n) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
-			rtrue(:,n)     = rtrue(:,n) + delta_t*vtrue(:,n)
-		end do
+		    vtrue = v
+		    do n=1,np
+			    vtrue(le_sd,n) = v(le_sd,n) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
+			    rtrue(:,n)     = rtrue(:,n) + delta_t*vtrue(:,n)
+		    end do
         else
 		    do n=1,np
 			    rtrue(:,n) = rtrue(:,n) + delta_t*v(:,n)
@@ -739,12 +740,12 @@ contains
         if (rin(ixyz) .gt. spec_top) then
             
             rin(ixyz) = rin(ixyz) - 2.d0*(rin(ixyz) - spec_top)
-            vin(ixyz) = vin(ixyz) * -1.d0
+            vin(ixyz) = vin(ixyz) * (-1.d0)
 
         else if (rin(ixyz) .lt. spec_bot) then
 
             rin(ixyz) = rin(ixyz) + 2.d0*(spec_top - rin(ixyz))
-            vin(ixyz) = vin(ixyz) * -1.d0
+            vin(ixyz) = vin(ixyz) * (-1.d0)
 
         end if
 

@@ -1078,6 +1078,8 @@ subroutine setup_set_parameters
 		potential_sLRC = 0.d0; Pressure_sLRC = 0.d0;
 	endif
 
+    print*, "sLRC = ", Pressure_sLRC, potential_sLRC
+
     !If Mie potential used, standard LRC are no longer valid
     if (Mie_potential .ne. 0) then
         potential_sLRC = 0.d0; Pressure_sLRC = 0.d0;
@@ -1793,6 +1795,8 @@ subroutine set_parameters_outputs
 	nbins(1) = nint(gnbins(1)/dble(npx))	!Share global evenly between processes
 	nbins(2) = nint(gnbins(2)/dble(npy))	!Share global evenly between processes
 	nbins(3) = nint(gnbins(3)/dble(npz))	!Share global evenly between processes
+
+    if (any(nbins .lt. 1)) call error_abort("Error -- bin size less than one, decrease bin to cell ratio or use bigger domain")
 
 	!Obtain global number of bins after rounding to given same number per process
 	gnbins(1) = nbins(1)
