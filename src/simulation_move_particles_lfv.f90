@@ -373,6 +373,7 @@ contains
 			Q(:)        = 0.1*thermostatnp(:) * delta_t 
 			dzeta_dt(:) = (mv2sum(:) - (nd*thermostatnp(:) + 1) & 
                            *thermostattemperature(:)) / Q(:)
+
 			zeta(:) 	 = zeta(:) + delta_t*dzeta_dt(:)
 			bscale(:)	 = 1.d0/(1.d0+0.5d0*delta_t*zeta(:))
 			ascale(:)	 = (1.d0-0.5d0*delta_t*zeta(:))*bscale(:)

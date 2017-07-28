@@ -50,60 +50,6 @@ subroutine setup_initial_record
                                    "hfVA_c      ", "hfVA        ", "msurf       ",&
                                    "combin      "                                  /) 
 
-
-!   ! COUETTE FLOW ANALYTICAL SOLUTION
-!    integer                                   :: wallbintop, wallbinbottom, appliedbins
-!    real(kind(0.d0))                          :: Re, Uwall, H, t, Fbinsize(3),dudt,div_tau,liquiddensity, appliedbinsize
-!    real(kind(0.d0)),dimension(:),allocatable :: ucouette,ucouette_pdt,y,y_tau,int_ucouette
-!    real(kind(0.d0)),dimension(:),allocatable :: taucouette,intdivtau
-
-!    Fbinsize = globaldomain/gnbins
-!    wallbintop    = ceiling(tethereddisttop(2)   /Fbinsize(2))
-!    wallbinbottom = ceiling(tethereddistbottom(2)/Fbinsize(2))
-!    appliedbins = gnbins(2)+2 - wallbintop - wallbinbottom !lbl(4)-lbl(3)+1
-!    appliedbins = appliedbins
-!    H = globaldomain(2) - tethereddistbottom(2) - tethereddisttop(2)
-!    appliedbinsize = H/appliedbins
-!    !Inclue halos
-!    appliedbins = appliedbins + 2
-!    Re = 0.005 !1.4d0
-!    Uwall = 1.d0
-
-!    !Add one extra record to get values at surfaces
-!    allocate(y,source=linspace(-0.5d0*appliedbinsize,H+0.5d0*appliedbinsize,appliedbins))
-!    allocate(y_tau,source=linspace(0.d0,H,appliedbins-1))
-!    allocate(int_ucouette(appliedbins)); int_ucouette = 0.d0; int_ucouette(size(int_ucouette,1))= Uwall
-!    allocate(intdivtau(appliedbins)); intdivtau = 0.d0; intdivtau(size(intdivtau,1))= Uwall
-
-!    do iter = 1,1000
-!	    !Time evolving solution
-!        t = (iter-1)*delta_t
-!        liquiddensity = density
-!        allocate(ucouette,     source=couette_analytical_fn(t,        Re,Uwall,H,appliedbins,0))
-!        allocate(ucouette_pdt, source=couette_analytical_fn(t+delta_t,Re,Uwall,H,appliedbins,0))
-!        allocate(taucouette,   source=couette_analytical_stress_fn(t, Re,Uwall,H,appliedbins-1,0))
-!        write(7500000+iter,'(6f18.12)'),y(1),ucouette(1),0.d0,0.d0,0.d0,0.d0
-!        do n =2,size(ucouette,1)-1
-!            dudt = (ucouette_pdt(n) - ucouette(n))/delta_t
-!            div_tau = (taucouette(n)-taucouette(n-1))/((y_tau(n+1)-y_tau(n))*liquiddensity)
-!            int_ucouette(n) = int_ucouette(n) + dudt*delta_t
-!            intdivtau(n)    = intdivtau(n)    + div_tau*delta_t
-!            write(7500000+iter,'(6f18.12)'),y(n),ucouette(n),int_ucouette(n),intdivtau(n),dudt,div_tau
-!        enddo
-!        write(7500000+iter,'(6f18.12)'),y(size(ucouette,1)),ucouette(size(ucouette,1)),0.d0,0.d0,0.d0,0.d0
-!        do n =1,size(taucouette,1)
-!            write(8500000+iter,'(2f28.12)'),y_tau(n),taucouette(n)
-!        enddo
-
-!        close(unit=7500000+iter)
-!        close(unit=8500000+iter)
-!        deallocate(ucouette)
-!        deallocate(ucouette_pdt)
-!        deallocate(taucouette)
-!    enddo
-
-!    stop "STOPPED AFTER COUETTE FLOW ANALYTICAL SOLUTION in setup_initial_record"
-
     !Delete all files from previous run if number restarted
     if (irank.eq.iroot) then
         do i=1,size(file_names)
@@ -594,6 +540,31 @@ subroutine setup_initial_record
             call error_abort("Invalid energy flux output flag in input file")
         end select
 
+
+        select case(msurf_outflag)
+        case(0)
+            print*, 'Mass surf record off'
+            print*, ''
+            print*, ''
+        case(1)
+            if (cv_conserve .eq. 0) then
+                print'(3(a,i8),a)', ' Mass surf over surface of 3D bins recorded every:', &
+                        tplot,' x ',Nsurfm_ave,' = ',tplot*Nsurfm_ave,' iterations'
+            else
+                print'(a,i8,a)', ' Mass surf over surface of 3D bins and snapshots recorded every:', &
+                        Nsurfm_ave,' iterations'
+            endif
+            print'(a,3i8)', ' Domain split into bins in x,y and z:', gnbins
+            print'(a,3f10.5)', ' Each of size:', & 
+            globaldomain(1)/gnbins(1), globaldomain(2)/gnbins(2),globaldomain(3)/gnbins(3)
+            output_steps = ceiling((Nsteps-initialstep)/dble(Nsurfm_ave))
+            est_filesize = 6*8*output_steps*gnbins(1)*gnbins(2)*gnbins(3)
+            print'(a,i14,a,i14,a)', ' Number of records ', output_steps,  & 
+                             ' Estimated File Size:', ceiling(est_filesize/dble(1024**2)), ' MB '
+        case default
+            call error_abort("Invalid mass surf output flag in input file")
+        end select
+
         !print*, 'Bins per Processor:', nbins
         !print*, 'Number of Bins on outer Surface of each processor', nsurfacebins
         print*, 'Initial condition:'
@@ -868,6 +839,7 @@ subroutine simulation_header
     write(fileunit,*)  'mass flux average steps ;  Nmflux_ave ;', Nmflux_ave
     write(fileunit,*)  'velocity flux average steps ;  Nvflux_ave ;', Nvflux_ave
     write(fileunit,*)  'energy flux average steps ;  Neflux_ave ;', Neflux_ave
+    write(fileunit,*)  'mass surface average steps ;  Nsurfm_ave ;', Nsurfm_ave
     if (momentum_outflag .eq. 5 .or. mass_outflag .eq. 5 .or. pressure_outflag .eq. 3 .or. temperature_outflag .eq. 5) then
         write(fileunit,*)  'Cylindrical polar bins post-proc flag ; cpol_bins ; 1'
         write(fileunit,*)  'momentum/stress Averaging Bins in r ;      gnbins(1) ;', gcpol_bins(1)

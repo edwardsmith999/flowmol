@@ -104,6 +104,7 @@ subroutine simulation_record
 		call mass_flux_averaging(mflux_outflag)				!Average mass flux before movement of particles
 		call momentum_flux_averaging(vflux_outflag)         !Average momnetum flux after movement of particles
 		call energy_flux_averaging(eflux_outflag)			!Average energy flux after movement of particles
+        call surface_density_averaging(msurf_outflag)	    !Obtain and record density on a surface
 	endif
 
 	!---------------Only record every tplot iterations------------------------
@@ -220,8 +221,6 @@ subroutine simulation_record
     !Obtain and record centre of mass
     if (centre_of_mass_outflag .ne. 0)	call centre_of_mass_averaging(centre_of_mass_outflag)
 
-	!Obtain and record density on a surface
-    if (msurf_outflag .ne. 0) call surface_density_averaging(msurf_outflag)
 	!Obtain and record molecular diffusion
 	!call evaluate_properties_diffusion
 
