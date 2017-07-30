@@ -41,8 +41,8 @@ if args['pptype'] == 'vis':
 
 elif args['pptype'] == 'vmd':
     parser.set_defaults(fdir=os.path.realpath('./results')+'/')
-    with Chdir(scriptdir):
-        vmd.run_vmd(parser)
+#    with Chdir(scriptdir):
+    vmd.run_vmd(parser)
 
 else:
     sys.exit("Error, specify vis or vmd post processing")

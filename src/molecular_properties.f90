@@ -66,6 +66,12 @@ contains
         case ('slide')
             tagdistbottom(:) = slidedistbottom(:)
             tagdisttop(:)	 = slidedisttop(:)
+            !Thermostat complicated wall texture if specified, otherwise thermostat
+            !is based on thermstatbottom/thermstattop
+            if (texture_type .ne. 0 .and. texture_therm .eq. 2) then
+                call wall_textures(texture_type, rg, tagdistbottom, tagdisttop)
+            endif
+
         case('nonexistent')
             !Don't remove tethered molecules!
             if (get_tag_status(rg,'teth')) then

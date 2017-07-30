@@ -268,11 +268,11 @@ subroutine rwrite_arrays(some_array,nresults,outfile,outstep)
     do n =1,nresults
         !Copy to outbuffer
         OutBuffer =  some_array(1+nhb(1):nbins(1)+nhb(1),1+nhb(2):nbins(2)+nhb(2),1+nhb(3):nbins(3)+nhb(3),n)
-        !print*,irank, n, OutBuffer(5,5,5),global_cnt,offset
         !Update array datatype and reset fileview to correct section of array
         CALL Create_commit_fileview(gsizes,lsizes,global_indices,offset,datatype,FILE_FLAG,filetype,fh)
         !Update local array datatype to ignore halo cells
         CALL Create_commit_subarray(memsizes,lsizes,local_indices,datatype,MEM_FLAG,memtype)
+        !print'(a,9i6,2i18)',"rwrite",irank, n, shape(OutBuffer), shape(some_array),global_cnt,offset
         !Write to file
         CALL MPI_file_write_all(fh, OutBuffer, 1, memtype, status, ierr)
 
@@ -526,7 +526,7 @@ subroutine Create_commit_fileview(gsizes,lsizes,global_indices,offset,datatype,F
     integer, dimension(3),intent(in)            :: gsizes, lsizes, global_indices
     integer,intent(inout)                       :: FILE_FLAG
 
-    if (FILE_FLAG.eq.1) then
+    if (FILE_FLAG .eq. 1) then
         CALL MPI_TYPE_FREE(filetype,ierr)
         FILE_FLAG = 0
     end if
@@ -549,7 +549,7 @@ subroutine Create_commit_subarray(memsizes,lsizes,local_indices,datatype,MEM_FLA
     integer,intent(inout)           :: MEM_FLAG
 
 
-    if (MEM_FLAG.eq.1) then
+    if (MEM_FLAG .eq. 1) then
         CALL MPI_TYPE_FREE(memtype,ierr)
         MEM_FLAG = 0
     end if
@@ -588,7 +588,7 @@ end module module_parallel_io
 ! Checks for command-line arguments passed to the program and assigns the 
 ! relevant values.
 !-----------------------------------------------------------------------------
-subroutine setup_command_arguments
+subroutine setup_command_arguments()
 use module_parallel_io
 implicit none
     
@@ -663,7 +663,7 @@ end subroutine setup_command_arguments
 !       the line underneath the previously "located" keyword. 
 !-----------------------------------------------------------------------------
 
-subroutine setup_inputs
+subroutine setup_inputs()
     use module_parallel_io
     use librarymod, only : locate
     implicit none
@@ -870,7 +870,7 @@ subroutine setup_restart_inputs()
             !Read 2 other global domain values followed by density and check they match
             do ixyz = 1,nd
                 if (checkdp .ne. globaldomain(ixyz)) then
-                    print*, 'Discrepancy between globaldomain(', ixyz, ')', globaldomain(ixyz),checkdp  , &
+                    print*, 'Discrepancy between globaldomain(', ixyz, ')', globaldomain(ixyz), checkdp, &
                             'in input & restart file - restart file will be used'
                     globaldomain(ixyz) = checkdp
                 endif
@@ -947,6 +947,11 @@ subroutine setup_restart_inputs()
             print*, 'global_numbering used in restart file but not requested in', &
                     'input file - global_numbering will be used '
             global_numbering = checkint
+		elseif (checkint .eq. 1 .and. global_numbering .eq. 1) then
+			!Nothing to do here, use global numbering
+		else
+			!If this is missing from an old file format, this could be a nightmare.
+			global_numbering = 0
         endif
         call MPI_File_close(restartfileid,ierr)
     endif
@@ -979,7 +984,7 @@ subroutine setup_restart_inputs()
     call MPI_BCAST(eps_ps,            1,MPI_double_precision,iroot-1,MD_COMM,ierr)
     call MPI_BCAST(eps_ss,            1,MPI_double_precision,iroot-1,MD_COMM,ierr)
     call MPI_BCAST(Mie_potential,     1,MPI_integer,iroot-1,MD_COMM,ierr)
-    call MPI_BCAST(global_numbering,     1,MPI_integer,iroot-1,MD_COMM,ierr)
+    call MPI_BCAST(global_numbering,  1,MPI_integer,iroot-1,MD_COMM,ierr)
 
     elapsedtime = elapsedtime + delta_t*extrasteps  !Set elapsed time to end of simualtion
     initialstep = Nsteps                            !Set plot count to final plot of last
@@ -1051,7 +1056,7 @@ subroutine setup_restart_microstate()
         disp =  procdisp
 
         allocate(buf(bufsize(irank)))
-        !Set each processor to that location and write particlewise
+        !Set each processor to that location and read particlewise
         call MPI_FILE_SET_VIEW(restartfileid, disp, MPI_double_precision, & 
                                MPI_double_precision, 'native', MPI_INFO_NULL, ierr)
         call MPI_FILE_READ_ALL(restartfileid, buf, bufsize(irank), MPI_double_precision, & 
@@ -1251,8 +1256,6 @@ subroutine setup_restart_microstate()
 
     deallocate(bufsize)
     if (tag_off) deallocate(tag)    !Tags off so tag info not necessary
-
-
     
     !Choose initial molecular velocities using velocity flag
     select case(initial_velocity_flag)
@@ -1277,29 +1280,29 @@ end subroutine setup_restart_microstate
 
 
 #if __INTEL_COMPILER > 1200
-subroutine load_bforce_pdf
-    use boundary_MD
-    use librarymod, only: get_new_fileunit
-    implicit none
+    subroutine load_bforce_pdf()
+        use boundary_MD
+        use librarymod, only: get_new_fileunit
+        implicit none
 
-    integer :: nperbin, f
-    real(kind(0.d0)) :: histbinsize
+        integer :: nperbin, f
+        real(kind(0.d0)) :: histbinsize
 
-    f = get_new_fileunit()
-    open(unit=f, file='bforce.input',action='read',form='unformatted',&
-         access='stream')
-    read(f) bforce_pdf_nsubcells
-    read(f) bforce_pdf_nbins
-    read(f) bforce_pdf_min
-    read(f) bforce_pdf_max
-    read(f) nperbin 
-    allocate(bforce_pdf_input_data(bforce_pdf_nsubcells, bforce_pdf_nbins, nperbin))
-    read(f) bforce_pdf_input_data 
-    close(f,status='keep')
+        f = get_new_fileunit()
+        open(unit=f, file='bforce.input',action='read',form='unformatted',&
+             access='stream')
+        read(f) bforce_pdf_nsubcells
+        read(f) bforce_pdf_nbins
+        read(f) bforce_pdf_min
+        read(f) bforce_pdf_max
+        read(f) nperbin 
+        allocate(bforce_pdf_input_data(bforce_pdf_nsubcells, bforce_pdf_nbins, nperbin))
+        read(f) bforce_pdf_input_data 
+        close(f,status='keep')
 
-    bforce_pdf_binsize = (bforce_pdf_max - bforce_pdf_min)/real(bforce_pdf_nbins)
+        bforce_pdf_binsize = (bforce_pdf_max - bforce_pdf_min)/real(bforce_pdf_nbins)
 
-end subroutine load_bforce_pdf
+    end subroutine load_bforce_pdf
 #endif
 
 !=============================================================================
@@ -1356,7 +1359,7 @@ subroutine parallel_io_cyl_footer(infile)
 
 end subroutine parallel_io_cyl_footer
 
-subroutine parallel_io_import_cylinders
+subroutine parallel_io_import_cylinders()
     use mpi
     use concentric_cylinders, only: cyl_file, cyl_np
     use physical_constants_MD, only: globalnp, np
@@ -1416,7 +1419,7 @@ end subroutine parallel_io_import_cylinders
 !------------------------------------------------------------------------
 !Write positions and velocities of molecules to a file for restart
 
-subroutine parallel_io_final_state
+subroutine parallel_io_final_state()
     use module_parallel_io
     use polymer_info_MD
     use messenger_data_exchange, only : globalSum
@@ -2521,7 +2524,7 @@ end subroutine parallel_io_psf
 
 !-----------------------------------------------------------------------------
 ! Write cylinder molecules and properties to a file
-subroutine parallel_io_write_cylinders
+subroutine parallel_io_write_cylinders()
     use concentric_cylinders, only: r_oo, r_io, r_oi, r_ii, cyl_file
     use module_parallel_io
     use messenger, only: globalise
@@ -2614,7 +2617,7 @@ end subroutine parallel_io_write_cylinders
 !-----------------------------------------------------------------------------
 ! Write value of last output iteration
 
-subroutine update_simulation_progress_file
+subroutine update_simulation_progress_file()
     use module_parallel_io
     use librarymod, only: get_new_fileunit
     implicit none
@@ -3167,7 +3170,7 @@ end subroutine temperature_bin_cpol_io
 
 !------------------------------------------------------------------------------
 ! Cylindrical polar momentum bins
-subroutine VA_stress_cpol_io
+subroutine VA_stress_cpol_io()
     use module_parallel_io, only: write_zplane, get_iter
     use concentric_cylinders, only: cpol_binso, r_oi, r_io, cpol_bins
     use computational_constants_MD, only: iter, initialstep, tplot, &
@@ -3256,7 +3259,7 @@ subroutine VA_stress_cpol_io
     
 contains
 
-    subroutine ZPlaneReduceStress
+    subroutine ZPlaneReduceStress()
     use messenger_data_exchange, only : PlaneSum
     implicit none
 
@@ -3417,7 +3420,7 @@ end subroutine energy_bin_io
 
 !---------------------------------------------------------------------------------
 
-subroutine virial_stress_io
+subroutine virial_stress_io()
     use module_parallel_io
     implicit none
 
@@ -3443,7 +3446,7 @@ end subroutine virial_stress_io
 
 !---------------------------------------------------------------------------------
 
-subroutine VA_stress_io
+subroutine VA_stress_io()
     use module_parallel_io
     implicit none
 
@@ -3539,7 +3542,7 @@ end subroutine VA_stress_io
 
 !---------------------------------------------------------------------------------
 
-subroutine VA_heatflux_io
+subroutine VA_heatflux_io()
     use module_parallel_io
     implicit none
 
@@ -3654,7 +3657,7 @@ module statistics_io
 contains
 
 #if __INTEL_COMPILER > 1200
-    subroutine bforce_pdf_write
+    subroutine bforce_pdf_write()
         use module_parallel_io, only: get_iter
         use boundary_MD
         use computational_constants_MD, only: separate_outfiles, irank, iroot,&
@@ -3724,7 +3727,7 @@ end module statistics_io
 !---------------------------------------------------------------------------------
 ! Record mass fluxes accross surfaces of Control Volumes
 
-subroutine mass_flux_io
+subroutine mass_flux_io()
     use module_parallel_io
     use CV_objects, only : CVcheck_mass, CV_debug
     use messenger_bin_handler, only : swaphalos
@@ -3764,7 +3767,7 @@ end subroutine mass_flux_io
 !---------------------------------------------------------------------------------
 ! Record momentum fluxes accross surfaces of Control Volumes
 
-subroutine momentum_flux_io
+subroutine momentum_flux_io()
     use module_parallel_io
     use CV_objects, only : CVcheck_momentum, CV_debug
     use messenger_bin_handler, only : swaphalos
@@ -3914,7 +3917,7 @@ end subroutine MOP_stress_io
 !---------------------------------------------------------------------------------
 ! Record stress accross surfaces of Control Volumes
 
-subroutine surface_stress_io
+subroutine surface_stress_io()
     use module_parallel_io
     use CV_objects, only : CVcheck_momentum,CV_debug
     use messenger_bin_handler, only : swaphalos
@@ -3971,7 +3974,7 @@ end subroutine surface_stress_io
 !---------------------------------------------------------------------------------
 ! Record external forces applied to molecules inside a volume
 
-subroutine external_force_io
+subroutine external_force_io()
     use module_parallel_io
     use CV_objects, only : CVcheck_momentum,CV_debug
     use messenger_bin_handler, only : swaphalos
@@ -4016,7 +4019,7 @@ end subroutine external_force_io
 !---------------------------------------------------------------------------------
 ! Record energy fluxes accross surfaces of Control Volumes
 
-subroutine energy_flux_io
+subroutine energy_flux_io()
     use module_parallel_io
     use messenger_bin_handler, only : swaphalos
     use CV_objects, only : CVcheck_energy
@@ -4062,7 +4065,7 @@ end subroutine energy_flux_io
 
 
 
-subroutine surface_density_io
+subroutine surface_density_io()
     use module_parallel_io
     use messenger_bin_handler, only : swaphalos
     implicit none
@@ -4145,7 +4148,7 @@ end subroutine surface_power_io
 !---------------------------------------------------------------------------------
 ! Record external forces times velocity applied to molecules inside a volume
 
-subroutine external_forcev_io
+subroutine external_forcev_io()
     use module_parallel_io
     use CV_objects, only : CVcheck_energy
     use messenger_bin_handler, only : swaphalos
@@ -4207,7 +4210,7 @@ end subroutine MOP_energy_io
 !-----------------------------------------------------------------------------
 ! Write macroscopic properties to file
 !-----------------------------------------------------------------------------
-subroutine macroscopic_properties_header
+subroutine macroscopic_properties_header()
     use module_parallel_io
 	use librarymod, only : get_new_fileunit
     implicit none
@@ -4234,7 +4237,7 @@ subroutine macroscopic_properties_header
 end subroutine macroscopic_properties_header
 
 
-subroutine macroscopic_properties_record
+subroutine macroscopic_properties_record()
     use module_parallel_io
 	use librarymod, only : get_new_fileunit
     implicit none
