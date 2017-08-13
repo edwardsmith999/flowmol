@@ -1337,7 +1337,6 @@ subroutine cumulative_mass(ixyz)
         case(0)
             do n = 1,np
                 !Add up current volume mass densities
-                !ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
                 ibin(:) = get_bin(r(:,n))
                 volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + mass(n)
             enddo
@@ -1345,7 +1344,6 @@ subroutine cumulative_mass(ixyz)
             !Seperate logging for polymer and non-polymer 
             do n = 1,np
                 !Add up current volume mass densities
-                !ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
                 ibin = get_bin(r(:,n))
                 if (monomer(n)%chainID .eq. 0) then
                     !Skip wall molecules
@@ -1546,7 +1544,6 @@ subroutine cumulative_momentum(ixyz)
             !Reset Control Volume momentum 
             do n = 1,np
                 !Add up current volume mass and momentum densities
-                !ibin(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
                 ibin(:) = get_bin(r(:,n))
                 volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + mass(n)
                 volume_momentum(ibin(1),ibin(2),ibin(3),:) = volume_momentum(ibin(1),ibin(2),ibin(3),:) & 
@@ -1556,7 +1553,6 @@ subroutine cumulative_momentum(ixyz)
             !Reset Control Volume momentum 
             do n = 1,np
                 !Add up current volume mass and momentum densities
-                !ibin(:) = ceiling((r(:,n)+halfdomain(:))/Vbinsize(:)) + nhb
                 ibin(:) = get_bin(r(:,n))
                 if (monomer(n)%chainID .eq. 0) then
                     if (any(tag(n).eq.tether_tags)) cycle
@@ -1728,30 +1724,18 @@ subroutine cumulative_temperature(ixyz)
 		!Reset Control Volume momentum 
 		do n = 1,np
 
-            if (v(1,n)**2+v(1,n)**2+v(1,n)**2 .gt. 1000.d0) then
-                print*, n, slidev(:,n), v(:,n)
-            endif
 			!Add up current volume mass and temperature densities
-			!ibin(:) = ceiling((r(:,n)+halfdomain(:))/Tbinsize(:)) + nhb
             ibin(:) = get_bin(r(:,n))
 			if (momentum_outflag .ne. 4) & 
 			volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + mass(n)
 			!Note - the streaming term is removed but includes sliding so this must be added back on
 			if (peculiar_flag .eq. 0) then
-				!if (mod(iter,1000) .eq. 0 	.and. &
-				!	ibin(1) .eq. 4 			.and. &
-				!	ibin(2) .eq. 2 			.and. &
-				!	ibin(3) .eq. 4				) then
-				!	print*, iter, ibin, dot_product(v(:,n),v(:,n)), v(:,n)
-				!endif
 				volume_temperature(ibin(1),ibin(2),ibin(3)) = volume_temperature(ibin(1),ibin(2),ibin(3)) & 
 										+ mass(n)*dot_product((v(:,n)+slidev(:,n)),(v(:,n)+slidev(:,n)))
 			else
 				volume_temperature(ibin(1),ibin(2),ibin(3)) = volume_temperature(ibin(1),ibin(2),ibin(3)) & 
 										+ mass(n)*dot_product((v(:,n)-U(:,n)+slidev(:,n)), & 
-													           (v(:,n)-U(:,n)+slidev(:,n)))
-				!write(958,'(2i8,5f10.5)'),iter,n,r(2,n),U(1,n),v(1,n),dot_product(v(:,n),v(:,n)),dot_product((v(:,n)-U(:,n)+slidev(:,n)), & 
-				!									  (v(:,n)-U(:,n)+slidev(:,n)))
+													          (v(:,n)-U(:,n)+slidev(:,n)))
 			endif
 
 		enddo
@@ -2436,7 +2420,6 @@ subroutine pressure_tensor_forces_H(ri,rj,rF)
 	!================================================================
 	!= Establish bins for molecules & check number of required bins	=
 	!================================================================
-
     ibin(:) = get_bin(ri)
     jbin(:) = get_bin(rj)
     bindiff(:) = abs(ibin(:) - jbin(:)) + 1
@@ -3305,9 +3288,9 @@ subroutine simulation_compute_rfbins_cpol(imin, imax, jmin, jmax, kmin, kmax)
 	cellsperbin = 1.d0/binspercell !ceiling(ncells(1)/dble(nbins(1)))
 	where (cellsperbin .gt. 1.d0) cellsperbin = 1.d0
 
-	do kcell=(kmin-1)*cellsperbin(3)+1, kmax*cellsperbin(3)
-	do jcell=(jmin-1)*cellsperbin(2)+1, jmax*cellsperbin(2)
-	do icell=(imin-1)*cellsperbin(1)+1, imax*cellsperbin(1)
+	do kcell=int((kmin-1)*cellsperbin(3))+1, int(kmax*cellsperbin(3))
+	do jcell=int((jmin-1)*cellsperbin(2))+1, int(jmax*cellsperbin(2))
+	do icell=int((imin-1)*cellsperbin(1))+1, int(imax*cellsperbin(1))
 	
 		cellnp = cell%cellnp(icell,jcell,kcell)
 		oldi => cell%head(icell,jcell,kcell)%point

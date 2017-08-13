@@ -6,14 +6,16 @@
 program change_proc_topology
 	implicit none
 
-	logical :: molecules_outside=.false.
+	logical :: molecules_outside=.false., found_in_input=.false.
 	integer :: i,j,k,m,n,pos,endpos
 	integer :: globalnp,Nsteps,tplot,potential_flag,nmonomers
 	integer :: checkint 
 	integer :: prev_nproc,npx,npy,npz,prev_npx,prev_npy,prev_npz
-	integer :: npxyz(3)
-	integer :: rtrue_flag, solvent_flag, mie_potential
-	integer :: tag
+	integer :: npxyz(3),npx_db,npy_db,npz_db
+	integer :: rtrue_flag, solvent_flag
+    integer :: mie_potential=0, global_numbering=0
+    integer :: debug=0, dg_nproc_min(3), dg_nproc_max(3)
+	integer :: tag, globnum, ios
 	integer,parameter :: nd = 3
     integer(selected_int_kind(18)) :: header_pos,end_pos ! 8 byte integer for header address
 	integer,dimension(2) :: seed
@@ -25,7 +27,8 @@ program change_proc_topology
 	double precision,dimension(3) :: domain,halfdomain,globaldomain
 	double precision,dimension(3) :: rbuf, vbuf, rtruebuf, rtetherbuf
 	double precision,dimension(13) :: rv_buf
-	character(30) :: input_file,initial_microstate_file
+	character(30) :: input_file,initial_microstate_file, filename
+	character(4) :: pa_padded(3)
 	integer, dimension(5), parameter :: tether_tags = (/3,5,6,7,10/)
 	type monomer_info
 		SEQUENCE !For MPI convenience
@@ -51,15 +54,37 @@ program change_proc_topology
     read(1,*) npx
     read(1,*) npy
     read(1,*) npz
+    !Optionally write a subset of 
+	call locate(1,'DEBUG_RESTART_FILE',.false.,found_in_input)
+    if (found_in_input) then
+        debug = 1
+        read(1,*) dg_nproc_min(1)
+        read(1,*) dg_nproc_max(1)
+        read(1,*) dg_nproc_min(2)
+        read(1,*) dg_nproc_max(2)
+        read(1,*) dg_nproc_min(3)
+        read(1,*) dg_nproc_max(3)
+        npx_db= dg_nproc_max(1)-dg_nproc_min(1)+1
+        npy_db= dg_nproc_max(2)-dg_nproc_min(2)+1
+        npz_db= dg_nproc_max(3)-dg_nproc_min(3)+1
+    else
+        debug = 0
+    endif
+
 	close(1,status='keep')      !Close input file
 	npxyz = (/npx,npy,npz/)
 
-	allocate(procnp(npx*npy*npz))
-	allocate(proctethernp(npx*npy*npz))
+    if (debug .eq. 1) then
+    	allocate(procnp(npx_db*npy_db*npz_db))
+    	allocate(proctethernp(npx_db*npy_db*npz_db))
+    else
+    	allocate(procnp(npx*npy*npz))
+    	allocate(proctethernp(npx*npy*npz))
+    endif
 	allocate(npcount(npx,npy,npz))
 	allocate(tethernpcount(npx,npy,npz))
 	allocate(fileunit(npx,npy,npz))
-	
+
 	open(2,file=initial_microstate_file,form='unformatted',action='read',access='stream',position='append')
     inquire(2,POS=end_pos) 				! go the end of file
     read(2,pos=end_pos-8) header_pos 	! header start is in the last 8 bytes
@@ -118,7 +143,16 @@ program change_proc_topology
 	read(2) eps_ps 
 	read(2) eps_ss 
 	read(2) delta_rneighbr
-	read(2) mie_potential
+	read(2,iostat=ios) mie_potential
+    if (ios .ne. 0 .or. abs(mie_potential) .gt. 1) then
+        print*, "Old format or wrong mie_potential in restart, assuming zero", ios, mie_potential
+        mie_potential = 0
+    endif
+	read(2,iostat=ios) global_numbering
+    if (ios .ne. 0 .or. abs(global_numbering) .gt. 1) then
+        print*, "Old format or wrong global_numbering in restart, assuming zero", ios, global_numbering
+        global_numbering = 0
+    endif
 	close(2,status='keep')
 
 	domain(1) = 	globaldomain(1)/npx
@@ -133,9 +167,21 @@ program change_proc_topology
 	do i = 1,npx
 	do j = 1,npy
 	do k = 1,npz
+
+        if (debug .eq. 1) then
+            !These are in debug range
+            if (((i .ge. dg_nproc_min(1)) .and. (i .le. dg_nproc_max(1))) .and. &
+                ((j .ge. dg_nproc_min(2)) .and. (j .le. dg_nproc_max(2))) .and. &
+                ((k .ge. dg_nproc_min(3)) .and. (k .le. dg_nproc_max(3)))) then
+            else
+                cycle
+            endif
+        endif
+
 		m = m+1
 		fileunit(i,j,k) = m
-		open(m,form='unformatted',action='write',access='stream',status='replace',position='append')
+        call get_Timestep_FileName(m,"temp",filename)
+		open(m,file=filename,form='unformatted',action='write',access='stream',status='replace',position='append')
 	end do
 	end do
 	end do
@@ -147,7 +193,8 @@ program change_proc_topology
 	!Move through location of position co-ordinates
 	do n=1,globalnp
 
-		read(2) dpbuf; tag = nint(dpbuf)		!Read position to buffer
+		read(2) dpbuf
+        tag = nint(dpbuf)		!Read position to buffer
 		read(2) rbuf
 		read(2) vbuf
 		if (rtrue_flag.eq.1) then
@@ -158,6 +205,9 @@ program change_proc_topology
 		end if
         if (mie_potential .eq. 1) then
             read(2) moltypebuf
+        endif
+        if (global_numbering .eq. 1) then
+            read(2) globnum
         endif
 		if (potential_flag.eq.1) then
             !Read monomer data
@@ -170,6 +220,15 @@ program change_proc_topology
 		pa(2) = ceiling((rbuf(2)+globaldomain(2)/2.d0)/domain(2))
 		pa(3) = ceiling((rbuf(3)+globaldomain(3)/2.d0)/domain(3))
 
+        if (debug .eq. 1) then
+            !These are in debug range
+            if (((pa(1) .ge. dg_nproc_min(1)) .and. (pa(1) .le. dg_nproc_max(1))) .and. &
+                ((pa(2) .ge. dg_nproc_min(2)) .and. (pa(2) .le. dg_nproc_max(2))) .and. &
+                ((pa(3) .ge. dg_nproc_min(3)) .and. (pa(3) .le. dg_nproc_max(3)))) then
+            else
+                cycle
+            endif
+        endif
 
 		!Capture molecules that are slightly outside the domain and print a warning
 		if (any(pa.eq.0) .or. any(pa.gt.npxyz)) then
@@ -195,6 +254,10 @@ program change_proc_topology
         if (Mie_potential .eq. 1) then
             write(fileunit(pa(1),pa(2),pa(3))) moltypebuf
         end if
+        !Add global number if required
+        if (global_numbering .eq. 1) then
+            write(fileunit(pa(1),pa(2),pa(3))) globnum
+        endif
         if (potential_flag .eq. 1) then
             write(fileunit(pa(1),pa(2),pa(3))) monomer_dpbuf
         end if
@@ -212,10 +275,21 @@ program change_proc_topology
 	do j = 1,npy
 	do k = 1,npz
 
+        if (debug .eq. 1) then
+            !These are in debug range
+            if (((i .ge. dg_nproc_min(1)) .and. (i .le. dg_nproc_max(1))) .and. &
+                ((j .ge. dg_nproc_min(2)) .and. (j .le. dg_nproc_max(2))) .and. &
+                ((k .ge. dg_nproc_min(3)) .and. (k .le. dg_nproc_max(3)))) then
+            else
+                cycle
+            endif
+        endif
+
 		procnp(m) = npcount(i,j,k)
 		proctethernp(m) = tethernpcount(i,j,k)
 		m = m + 1
 
+        call get_Timestep_FileName(fileunit(i,j,k),"temp",filename)
 		close(fileunit(i,j,k),status='keep')
 
 	end do
@@ -235,10 +309,27 @@ program change_proc_topology
 		print*, ''
 	end if
 
-	call system('cat fort.* > final_state2')
-	call system('rm fort.*')
+	call system('cat temp.* > final_state2')
+	call system('rm temp.*')
 
-	close(2,status='keep')	
+	close(2,status='keep')
+
+    if (debug .eq. 1) then
+        globalnp = sum(procnp)
+        !New number of processors
+        npx = npx_db
+        npy = npy_db
+        npz = npz_db
+
+        !We need to resize domain and initialunits here
+        globaldomain(1) = domain(1)*npx
+        globaldomain(2) = domain(2)*npy
+        globaldomain(3) = domain(3)*npz
+        initialnunits(:) = ceiling(globaldomain(:)*((density/4.d0)**(1.d0/nd)))
+
+        print*, initialnunits, domain, globaldomain, npx, npy, npz, globalnp, procnp
+    endif
+
 	!Write integer data at end of file	
 	open(2,file='./final_state2', form='unformatted',access='stream',position='append')
 
@@ -264,7 +355,7 @@ program change_proc_topology
 	write(2) npy                !Processors (npy) for new topology
 	write(2) npz                !Processors (npz) for new topology
 	write(2) procnp				!Number of molecules per processors
-	write(2) proctethernp				!Number of molecules per processors
+	write(2) proctethernp		!Number of molecules per processors
 
     write(2) globaldomain(1)
     write(2) globaldomain(2)
@@ -281,6 +372,7 @@ program change_proc_topology
 	write(2) eps_ss           !Soddemann potential parameter
 	write(2) delta_rneighbr	  !Extra distance used for neighbour list cell size
 	write(2) mie_potential	  !Mie potential flag
+	write(2) global_numbering
     write(2) header_pos-1     ! -1 for MPI IO compatibility
 	close(2,status='keep') 	  !Close final_state file
 
@@ -436,6 +528,61 @@ implicit none
 
 	return  
 
-end subroutine progress 
+end subroutine progress
+
+!------------------------------------------------------------------------------
+!Pure fortran subroutine to return an updated filename by appending
+!the current timestep to that file
+subroutine get_Timestep_FileName(timestep,basename,filename)
+		implicit none
+
+		integer,intent(in) 			:: timestep
+		character(*),intent(in) 	:: basename
+		character(*),intent(out)	:: filename
+
+        if(timestep.le.9                         		) &
+        write(filename,'(a,a7,i1)') trim(basename),'.000000',timestep
+        if(timestep.ge.10      .and. timestep.le.99     ) &
+        write(filename,'(a,a6,i2)') trim(basename),'.00000' ,timestep
+        if(timestep.ge.100     .and. timestep.le.999    ) &
+        write(filename,'(a,a5,i3)') trim(basename),'.0000'  ,timestep
+        if(timestep.ge.1000    .and. timestep.le.9999   ) &
+        write(filename,'(a,a4,i4)') trim(basename),'.000'   ,timestep
+        if(timestep.ge.10000   .and. timestep.le.99999  ) &
+        write(filename,'(a,a3,i5)') trim(basename),'.00'    ,timestep
+        if(timestep.ge.100000  .and. timestep.le.999999 ) &
+        write(filename,'(a,a2,i6)') trim(basename),'.0'     ,timestep
+        if(timestep.ge.1000000 .and. timestep.le.9999999) &
+        write(filename,'(a,a1,i7)') trim(basename),'.'      ,timestep
+
+		!Remove any surplus blanks
+		filename = trim(filename)
+
+end subroutine get_Timestep_FileName
+
+
+!------------------------------------------------------------------------------
+!Pure fortran subroutine to return an updated filename by appending
+!the current timestep to that file
+subroutine get_paddedno(no,filename)
+		implicit none
+
+		integer,intent(in) 			:: no
+		character(*),intent(out)	:: filename
+
+        if(no.le.9                         		) &
+        write(filename,'(a3,i1)') '000',no
+        if(no.ge.10      .and. no.le.99     ) &
+        write(filename,'(a2,i2)') '00' ,no
+        if(no.ge.100     .and. no.le.999    ) &
+        write(filename,'(a1,i3)') '0'  ,no
+        if(no.ge.1000    .and. no.le.9999   ) &
+        write(filename,'(i4)') no
+
+		!Remove any surplus blanks
+		filename = trim(filename)
+
+end subroutine get_paddedno
+
 
 end program change_proc_topology
