@@ -537,7 +537,7 @@ subroutine Create_commit_fileview(gsizes,lsizes,global_indices,offset,datatype,F
                             'native', MPI_INFO_NULL, ierr)
     FILE_FLAG = 1
     
-end subroutine
+end subroutine Create_commit_fileview
 
 
 subroutine Create_commit_subarray(memsizes,lsizes,local_indices,datatype,MEM_FLAG,memtype)
@@ -558,7 +558,7 @@ subroutine Create_commit_subarray(memsizes,lsizes,local_indices,datatype,MEM_FLA
     CALL MPI_TYPE_COMMIT(memtype, ierr)
     MEM_FLAG = 1
     
-end subroutine
+end subroutine Create_commit_subarray
 
 
 ! Get the current number for output file 

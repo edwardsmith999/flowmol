@@ -57,7 +57,8 @@
 !	PRESSURE TENSOR CALCULATED USING METHOD OF PLANES (MOP)
 ! See B.D.Todd, D.J.Evans and P.J.Daivis (1995) Phys Review E, Vol 52,2
 !===================================================================================
-
+!   Written by Edward ( ͡° ͜ʖ ͡°)﻿ Smith unless otherwise stated
+!===================================================================================
 module module_record
 
 	use interfaces
@@ -6254,10 +6255,13 @@ contains
 	    integer							    :: icell, jcell, kcell
 	    integer                             :: icellshift, jcellshift, kcellshift
 	    integer                             :: cellnp, adjacentcellnp 
-	    integer 							:: icellmin,jcellmin,kcellmin,icellmax,jcellmax,kcellmax
+	    integer 							:: icellmin,jcellmin,kcellmin
+	    integer 							:: icellmax,jcellmax,kcellmax
+        integer, parameter                  :: ct_mass=1, ct_momentum=2, ct_energy=3
 	    type(node), pointer 	            :: oldi, currenti, oldj, currentj
         character(33)                       :: filename, debug_outfile
-        double precision                    :: rij2, invrij2, accijmag 
+        double precision                    :: rij2, invrij2, accijmag
+        double precision,dimension(nvals)   :: qnty
         double precision,dimension(3)       :: ri, rj, rij, fij
         double precision,dimension(nvals,6) :: sc_, sc
 
@@ -6326,9 +6330,15 @@ contains
 
                             ! A function with uses position 1, 2 and qnty to update the array sc which
                             ! contains all surface crossings
-                			fij(:) = 0.5d0*accijmag*rij(:)
+            			    fij(:) = 0.5d0*accijmag*rij(:)
+                            if (cnsvtype .eq. ct_momentum) then
+                                qnty(:) = fij(:)
+                            elseif (cnsvtype .eq. ct_energy) then
+                                vi_t = v(:,molnoi) + 0.5d0*delta_t*a(:,molnoi)
+                                qnty = dot_product(fij, vi_t)
+                            endif
                             call get_all_surface_crossings_r12(pt, pb, bintop, binbot, &
-                                                               ri, rj, fij, nvals, sc_, write_debug)
+                                                               ri, rj, qnty, nvals, sc_, write_debug)
 
                             sc = sc + sc_
 					    endif
