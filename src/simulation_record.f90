@@ -57,7 +57,8 @@
 !	PRESSURE TENSOR CALCULATED USING METHOD OF PLANES (MOP)
 ! See B.D.Todd, D.J.Evans and P.J.Daivis (1995) Phys Review E, Vol 52,2
 !===================================================================================
-
+!   Written by Edward ( ͡° ͜ʖ ͡°)﻿ Smith unless otherwise stated
+!===================================================================================
 module module_record
 
 	use interfaces
@@ -5546,8 +5547,14 @@ contains
         !pt = (/ 3.d0+sin(2*3.14159*iter/1000), 0.1d0, 0.02d0, -0.001d0  /)
         !pb = (/-3.d0+cos(2*3.14159*iter/1000), 0.1d0, 0.02d0, -0.001d0  /)
 
-        pt = (/ 5.d0, 0.d0, 0.0d0, -0.00d0  /)
-        pb = (/-5.d0, 0.d0, 0.0d0, -0.00d0  /)
+        !bintop = 1.d0
+        !binbot = -1.d0
+
+!        pt = (/ 3.d0, 0.1d0,  0.01d0, -0.001d0  /)
+!        pb = (/-3.d0, -0.1d0, -0.01d0, -0.001d0  /)
+
+        !pt = (/ 1.d0, 0.5d0,  0.1d0, -0.80d0  /)
+        !pb = (/-0.2d0, 0.5d0,  0.2d0, -0.00d0  /)
 
         !call cluster_CV_fn(pt, pb, bintop, binbot, 1)
         call cluster_CV_fn(pt, pb, bintop, binbot, 2)
@@ -5796,8 +5803,8 @@ contains
 
         ! Get all stresses acting over CV surface
         if (cnsvtype .eq. ct_momentum) then
-            call get_all_surface_stresses(pt_mdt, pb_mdt, bintop, binbot, &
-                                          X_stress, 3, cnsvtype, write_debug=.false.)
+            call get_all_surface_stresses_cells(pt_mdt, pb_mdt, bintop, binbot, &
+                                                X_stress, 3, cnsvtype, write_debug=.false.)
             X_stress = X_stress * delta_t
         endif
 
@@ -5835,8 +5842,9 @@ contains
             case(ct_momentum)
                 print*, "ERROR IN CV FUNCTION FOR MOMENTUM CLUSTER"
                 do i =1,nvals
-				    print'(a,i8,2i4,7f11.5)','Error_clustCV_mom', iter,irank, i, & 
-					    conserved, sum(X_stress(i,:)), sum(X_cross(i,:)), dX_dt(i), 0.d0, X_mdt(i), X(i)                
+				    print'(a,i8,2i4,8f11.5)','Error_clustCV_mom', iter,irank, i, & 
+					    conserved, sum(X_stress(i,:)), sum(X_cross(i,:)), dX_dt(i), 0.d0, X_mdt(i), X(i)
+				    print'(a,3i8,6f11.5)','clustCV_stresses',iter,irank, i,X_stress(i,:) 
                     print'(a,2i8,4f10.5)', 'dsurf', iter, i, X_oldvol(i)-X(i), &
                                         dsurf_top(i)-dsurf_bot(i), dsurf_top(i), dsurf_bot(i)
                 enddo
@@ -5846,7 +5854,12 @@ contains
                 stop "ERROR in CLUSTER CV, UNKNOWN cnsvtype TYPE"
             end select
             !call get_clustCV_out(pt_mdt, pb_mdt, X, nvals, cnsvtype, write_debug=.true.)
-            !call get_all_surface_crossings(pt_mdt, pb_mdt, X_cross, nvals, cnsvtype, write_debug=.true.)
+            call get_all_surface_crossings(pt_mdt, pb_mdt, bintop, binbot, &
+                                           X_cross, nvals, cnsvtype, write_debug=.true.)
+
+            call get_all_surface_stresses_cells(pt_mdt, pb_mdt, bintop, binbot, &
+                                                X_stress, 3, cnsvtype, write_debug=.true.)
+
             !Calculate new number of molecules in CV for new surfaces
             !X_oldvol = X
             !call get_clustCV_out(pt, pb, X, nvals, cnsvtype, write_debug=.false.)
@@ -5854,7 +5867,7 @@ contains
             do i =1,nvals
 				!print'(a,i8,i4,7f11.5)','clustCV_mass', iter,irank, & 
 				!	conserved, 0.d0, sum(X_cross,2), dX_dt, 0.d0, X_mdt, X
-                write(586482,'(i12,i4,10f18.8)'), iter,i, X(i), X(i)-X_mdt(i), X_cross(i,:), -dsurf_top(i), dsurf_bot(i)
+                write(586482,'(i12,i4,11f18.8)'), iter,i, conserved, X(i), dX_dt(i), X_cross(i,:), -dsurf_top(i), dsurf_bot(i)
             enddo
         endif
 
@@ -6113,7 +6126,7 @@ contains
     subroutine get_all_surface_stresses(pt, pb, bintop, binbot, & 
                                         surfacecross_out, nvals, & 
                                         cnsvtype, write_debug)
-        use computational_constants_MD, only : iter, delta_t
+        use computational_constants_MD, only : iter, delta_t, pass_vhalo
         use physical_constants_MD, only : np, halo_np, rcutoff2
         use arrays_MD, only : r, v, a
         use module_set_parameters, only : mass, potenergymol, get_accijmag
@@ -6137,6 +6150,7 @@ contains
         double precision,dimension(nvals,6) :: sc_, sc
 
         !Loop over all molecules and halos
+        if (pass_vhalo .eq. 0) stop "ERROR in get_all_surface_stresses -- pass_vhalo should be on for CV cluster"
         sc = 0.d0  
         do molnoi =1,np
 
@@ -6147,7 +6161,7 @@ contains
             do n = 1,noneighbrs							!Step through all pairs of neighbours molnoi and j
 
 			    molnoj = old%molno						!Number of molecule j
-    		    rj(:) = r(:,molnoj) - delta_t*v(:,molnoj)	!Retrieve ri
+    		    rj(:) = r(:,molnoj) - delta_t*v(:,molnoj)	!Retrieve rj (note VHALOS MUST BE PASSED!!!)
     			!rj(:) = r(:,molnoj)						!Retrieve rj
 			    rij(:) = ri(:) - rj(:)   				!Evaluate distance between particle i and j
 			    rij2 = dot_product(rij,rij)				!Square of vector calculated
@@ -6160,8 +6174,13 @@ contains
                     ! contains all surface crossings
 					if (molnoj .gt. np) then
     				    fij(:) = accijmag*rij(:)
+                        PRINT*, "THIS USED TO INCLUDE A HALF IN THE NON HALO VALUES BUT THAT WAS ALWAYS WRONG."
+                        PRINT*, "THE DXDT = STRESS OVER CUBIC SURFACES BUT THE OTHER SURFACES DO NOT BALANCE"
+                        PRINT*, "THIS APPEARS TO BE AN ISSUE WITH MOLECULAR INTERACTIONS WHICH CROSS FROM HALOS"
+                        PRINT*, "PERHAPS WE NEED TO LOOP THROUGH HALO MOLECULES TO GET INTERACTIONS WITH HERE"
+                        stop "Error in get_all_surface_stresses -- Change this routine for cell list with all halo molecules"
                     else
-						fij(:) = 0.5d0*accijmag*rij(:)
+						fij(:) = accijmag*rij(:)
                     endif
                     call get_all_surface_crossings_r12(pt, pb, bintop, binbot, &
                                                        ri, rj, fij, nvals, sc_, write_debug)
@@ -6191,6 +6210,139 @@ contains
 
     end subroutine get_all_surface_stresses
 
+
+
+
+    subroutine get_all_surface_stresses_cells(pt, pb, bintop, binbot, & 
+                                              surfacecross_out, nvals, & 
+                                              cnsvtype, write_debug)
+        use computational_constants_MD, only : iter, delta_t, pass_vhalo, & 
+                                               binspercell, ncells
+        use physical_constants_MD, only : np, halo_np, rcutoff2
+        use arrays_MD, only : r, v, a
+        use module_set_parameters, only : mass, potenergymol, get_accijmag
+        use librarymod, only : get_Timestep_FileName, get_new_fileunit
+        use linked_list, only : cell
+        implicit none
+
+        logical, intent(in)                         :: write_debug
+        integer, intent(in)                         :: nvals, cnsvtype
+        double precision, dimension(3),intent(in)   :: bintop, binbot
+        double precision, dimension(4), intent(in)  :: pt, pb
+        double precision, dimension(nvals,6), intent(out) :: surfacecross_out
+
+        integer                             :: n, pid
+        integer							    :: molnoi, molnoj
+	    integer                             :: i, j, ixyz !Define dummy index
+	    integer							    :: icell, jcell, kcell
+	    integer                             :: icellshift, jcellshift, kcellshift
+	    integer                             :: cellnp, adjacentcellnp 
+	    integer 							:: icellmin,jcellmin,kcellmin
+	    integer 							:: icellmax,jcellmax,kcellmax
+        integer, parameter                  :: ct_mass=1, ct_momentum=2, ct_energy=3
+	    type(node), pointer 	            :: oldi, currenti, oldj, currentj
+        character(33)                       :: filename, debug_outfile
+        double precision                    :: rij2, invrij2, accijmag
+        double precision,dimension(nvals)   :: qnty
+        double precision,dimension(3)       :: ri, rj, rij, fij
+        double precision,dimension(nvals,6) :: sc_, sc
+
+	    real(kind(0.d0)),dimension(3)	:: vi_t, cellsperbin
+	    real(kind(0.d0)), dimension(:,:), allocatable :: rF
+	    real(kind(0.d0)), dimension(3,1):: rFv
+
+        if (pass_vhalo .eq. 0) stop "ERROR in get_all_surface_stresses -- pass_vhalo should be on for CV cluster"
+        sc = 0.d0  
+
+	    !Calculate bin to cell ratio
+	    cellsperbin = 1.d0/binspercell !ceiling(ncells(1)/dble(nbins(1)))
+
+        ! Still need to loop over every cell (i.e. get all interactions) if
+        ! bins are bigger than cells
+	    where (cellsperbin .ge. 1.d0) cellsperbin = 1.d0
+
+        icellmin = 1; icellmax = ncells(1) + 2
+        jcellmin = 1; jcellmax = ncells(2) + 2
+        kcellmin = 1; kcellmax = ncells(3) + 2
+
+	    do kcell=kcellmin, kcellmax
+	    do jcell=jcellmin, jcellmax 
+	    do icell=icellmin, icellmax 
+
+		    cellnp = cell%cellnp(icell,jcell,kcell)
+		    oldi => cell%head(icell,jcell,kcell)%point !Set old to first molecule in list
+
+		    do i = 1,cellnp					!Step through each particle in list 
+			    molnoi = oldi%molno 	 	!Number of molecule
+	   		    ri(:) = r(:,molnoi) - delta_t*v(:,molnoi)	!Retrieve ri
+			    do kcellshift = -1,1
+			    do jcellshift = -1,1
+			    do icellshift = -1,1
+
+				    !Prevents out of range values in i
+				    if (icell+icellshift .lt. icellmin) cycle
+				    if (icell+icellshift .gt. icellmax) cycle
+				    !Prevents out of range values in j
+				    if (jcell+jcellshift .lt. jcellmin) cycle
+				    if (jcell+jcellshift .gt. jcellmax) cycle
+				    !Prevents out of range values in k
+				    if (kcell+kcellshift .lt. kcellmin) cycle
+				    if (kcell+kcellshift .gt. kcellmax) cycle
+
+				    oldj => cell%head(icell+icellshift,jcell+jcellshift,kcell+kcellshift)%point
+				    adjacentcellnp = cell%cellnp(icell+icellshift,jcell+jcellshift,kcell+kcellshift)
+
+				    do j = 1,adjacentcellnp          !Step through all j for each i
+
+					    molnoj = oldj%molno 	 !Number of molecule
+            		    rj(:) = r(:,molnoj) - delta_t*v(:,molnoj)	!Retrieve rj (note VHALOS MUST BE PASSED!!!)
+
+					    currentj => oldj
+					    oldj => currentj%next    !Use pointer in datatype to obtain next item in list
+
+					    if(molnoi==molnoj) cycle !Check to prevent interaction with self
+
+					    rij2=0                   !Set rij^2 to zero
+					    rij(:) = ri(:) - rj(:)   !Evaluate distance between particle i and j
+					    rij2 = dot_product(rij,rij)	!Square of vector calculated
+
+					    if (rij2 < rcutoff2) then
+				            invrij2  = 1.d0/rij2                !Invert value
+                            accijmag = get_accijmag(invrij2, molnoi, molnoj)
+
+                            ! A function with uses position 1, 2 and qnty to update the array sc which
+                            ! contains all surface crossings
+            			    fij(:) = 0.5d0*accijmag*rij(:)
+                            if (cnsvtype .eq. ct_momentum) then
+                                qnty(:) = fij(:)
+                            elseif (cnsvtype .eq. ct_energy) then
+                                vi_t = v(:,molnoi) + 0.5d0*delta_t*a(:,molnoi)
+                                qnty = dot_product(fij, vi_t)
+                            endif
+                            call get_all_surface_crossings_r12(pt, pb, bintop, binbot, &
+                                                               ri, rj, qnty, nvals, sc_, write_debug)
+
+                            sc = sc + sc_
+					    endif
+				    enddo
+			    enddo
+			    enddo
+			    enddo
+			    currenti => oldi
+			    oldi => currenti%next !Use pointer in datatype to obtain next item in list
+		    enddo
+	    enddo
+	    enddo
+	    enddo
+
+        surfacecross_out = sc
+
+	    nullify(oldi)      	!Nullify as no longer required
+	    nullify(oldj)      	!Nullify as no longer required
+	    nullify(currenti)      	!Nullify as no longer required
+	    nullify(currentj)      	!Nullify as no longer required
+
+    end subroutine get_all_surface_stresses_cells
 
     subroutine get_all_surface_crossings_r12(pt, pb, bintop, binbot, & 
                                              ri1, ri2, qnty, nvals, & 
@@ -6237,7 +6389,7 @@ contains
                                           Ncross, write_debug)
         use computational_constants_MD, only : iter
         use librarymod, only : heaviside  =>  heaviside_a1
-        use PolynomialRoots, only : QuadraticRoots, LinearRoot, cubicroots
+        use PolynomialRoots, only : QuadraticRoots, LinearRoot, cubicroots, SolvePolynomial
         implicit none
 
         integer, intent(in)                        :: N
@@ -6248,11 +6400,12 @@ contains
         double precision, dimension(4),intent(in)  :: p0
         double precision, dimension(N),intent(out) :: Ncross
 
-        integer                         :: i, pid
-        double precision, parameter     :: tol=1e-14
-        double precision                :: dS_i, tcross, m,c,crosssign
-        double precision, dimension(4)  :: p0l
-        double precision, dimension(3)  :: vi, ri12, rcross
+        integer                           :: i, pid, code, crossings
+        double precision, parameter       :: tol=1e-14
+        double precision                  :: dS_i, tcross, m,c,crosssign
+        double precision, dimension(4)    :: p0l
+        double precision, dimension(3)    :: vi, ri12, rcross
+        complex(KIND(1.0D0))              :: temp
         complex(KIND(1.0D0)),dimension(3) :: z
 
         !reset surface crossing
@@ -6267,58 +6420,77 @@ contains
         endif
         c = ri1(1)-ri1(2)*m
 
-        !Get surface crossing direction
-        crosssign = sign(1.d0,(-ri12(1) + ri12(2)*dsurface_fndyi(p0, ri1(2))))
-
         ! Solution of cubic and line:
-        ! p0(4)*x**3 + p0(3)*x**2 + p0(2)*x + p0(1)*d - (mx + c) = 0
+        ! p0(4)*x**3 + p0(3)*x**2 + p0(2)*x + p0(1) = (mx + c) 
+        ! p0(4)*x**3 + p0(3)*x**2 + (p0(2)-m)*x + p0(1)-c = 0
         ! then find roots to determine points of crossing
         p0l(:) = p0(:)
         p0l(1) = p0(1) - c
         p0l(2) = p0(2) - m
 
+        code = 0
+!        call SolvePolynomial(0.d0, p0l(4), p0l(3), p0l(2),p0l(1), &
+!                             code, z(1),z(2),z(3),temp)
+
         if (abs(p0l(3)) .lt. tol .and. abs(p0l(4)) .lt. tol) then
+            !Linear
             z(1) = cmplx(-p0l(1)/p0l(2), 0.d0, kind(1.d0))
             z(2) = cmplx(0.d0, 1.d0, kind(1.d0))
             z(3) = cmplx(0.d0, 1.d0, kind(1.d0))
         elseif (abs(p0l(4)) .lt. tol) then
+            !Quadratic
             call QuadraticRoots(p0l(1:3), z)
             z(3) = cmplx(0.d0, 1.d0, kind(1.d0))
         else
+            !Cubic
             call CubicRoots(p0l, z)
         endif
 
         !Check if any roots are real
+        crossings = 0
         do i = 1, size(z)
             if (abs(imag(z(i))) .lt. tol) then
 
                 !Get time of crossing
                 if (abs(ri12(2)) .gt. tol) then
-                    tcross = (ri1(2) - real(z(i))) / ri12(2)
+                    tcross = (ri1(2) - dble(z(i))) / ri12(2)
                 else
-                    tcross = (ri1(2) - real(z(i))) / tol
+                    tcross = (ri1(2) - dble(z(i))) / tol
                 endif
-                rcross = (/ ri1(1)-ri12(1)*tcross, real(z(i)), ri1(3)-ri12(3)*tcross /)
+                rcross = (/ ri1(1)-ri12(1)*tcross, & 
+                            ri1(2)-ri12(2)*tcross, & 
+                            ri1(3)-ri12(3)*tcross /)
 
                 !Get surface crossing function
-                dS_i = dble((heaviside( tcross )            -heaviside(tcross - 1.d0))* & 
+                dS_i = dble((heaviside( tcross )           -heaviside(tcross - 1.d0))* & 
                             (heaviside(bintop(2)-rcross(2))-heaviside(binbot(2)-rcross(2)))* & 
                       	    (heaviside(bintop(3)-rcross(3))-heaviside(binbot(3)-rcross(3))))
 
-                if (dS_i .ne. 0.d0) then
-                    !if (i .ne. 1) then
-                    if (write_debug) then
-                        print('(a,2i6,2f6.2,10f10.5)'), 'xing',n, i, dS_i, crosssign, tcross, ri1(:), ri2(:), rcross(:)
-                        !write(pid,'(2i6,f6.2,7f10.5,3f18.12)'), n, i, dS_i, tcross, ri1(:), ri2(:), rcross(:)
+!                if (iter .eq. 62 .and. i .ge. 2 .and. abs(real(z(i))) .lt. 1.d0) then
+!                    print'(i4, 13f10.5)', iter, z(i), ri1, ri2, dS_i, tcross, rcross
+!                endif
 
+                if (abs(dS_i) .gt. tol) then
+
+                    !Get surface crossing direction
+                    crosssign = sign(1.d0,(-ri12(1) + ri12(2)*dsurface_fndyi(p0, rcross(2))))
+                    Ncross(:) = Ncross(:) + qnty(:) * crosssign * dS_i
+                    if (write_debug) then
+                        crossings = crossings + 1
+                        print('(a,3i6,2f6.2,10f10.5)'), 'xing', iter, i, crossings, & 
+                                                         dS_i, crosssign, tcross, & 
+                                                         ri1(:), ri2(:), rcross(:)
                         !It seems to be possible to get real roots which 
                         !don't actually give a zero value in the original function!?
-                        if (surface_fn(p0l, real(z(i))) .gt. tol) then
-                            print'(a,7f12.3)', "root isn't a zero of function", z(i), tcross
+                        if (surface_fn(p0, rcross(2)) .gt. 1e-8) then
+                            print'(a,f15.10,7f12.3)', "root isn't a zero of function", & 
+                                                      surface_fn(p0, rcross(2)), z, tcross
                             !stop 'ERROR -- root not zero'
                         endif
                     endif
-                    Ncross(:) = Ncross(:) + qnty(:) * crosssign * dS_i
+
+                    if (crossings .eq. 3) print'(a,2i4,6f10.5)', 'three roots', iter, i,  ri1(:), ri2(:)
+
                 endif
 
             endif
@@ -6422,31 +6594,31 @@ contains
         Ncross(:,4) = Ncross(:,4) + qnty(:)*onfacezb
 
         if (write_debug) then
-            if (onfaceyt .ne. 0.d0) then
-                print('(a,i6,4f6.2,i4,9f8.3)'), 'yplanet xing', i, &
-                    onfaceyt, onfaceyb, onfacezt, onfacezb, &
-                    int(onfaceyt - onfaceyb + onfacezt - onfacezb), &
-                    ri1, ri2, Pyt
-            endif
-            if (onfaceyb .ne. 0.d0) then
-                print('(a,i6,4f6.2,i4,9f8.3)'), 'yplaneb xing', i, &
-                    onfaceyt, onfaceyb, onfacezt, onfacezb, &
-                    int(onfaceyt - onfaceyb + onfacezt - onfacezb), &
-                    ri1, ri2, Pyb
-            endif
-            if (onfacezt .ne. 0.d0) then
-                print('(a,i6,4f6.2,i4,9f8.3)'), 'zplanet xing', i, &
-                    onfaceyt, onfaceyb, onfacezt, onfacezb, &
-                    int(onfaceyt - onfaceyb + onfacezt - onfacezb), &
-                    ri1, ri2, Pzt
-            endif
-            if (onfacezb .ne. 0.d0) then
-                print('(a,i6,4f6.2,i4,9f8.3)'), 'zplaneb xing', i, & 
-                     onfaceyt, onfaceyb, onfacezt, onfacezb, & 
-                    int(onfaceyt - onfaceyb + onfacezt - onfacezb), &
-                    ri1, ri2, Pzb
-                !write(pid,'(2i6,f6.2,7f10.5,3f18.12)'), n, i, dS_i, tcross, ri(:), ri(:)-vi(:)*delta_t, rcross(:)
-            endif
+!            if (onfaceyt .ne. 0.d0) then
+!                print('(a,4f6.2,i4,9f8.3)'), 'yplanet xing',  &
+!                    onfaceyt, onfaceyb, onfacezt, onfacezb, &
+!                    int(onfaceyt - onfaceyb + onfacezt - onfacezb), &
+!                    ri1, ri2, Pyt
+!            endif
+!            if (onfaceyb .ne. 0.d0) then
+!                print('(a,4f6.2,i4,9f8.3)'), 'yplaneb xing',  &
+!                    onfaceyt, onfaceyb, onfacezt, onfacezb, &
+!                    int(onfaceyt - onfaceyb + onfacezt - onfacezb), &
+!                    ri1, ri2, Pyb
+!            endif
+!            if (onfacezt .ne. 0.d0) then
+!                print('(a,4f6.2,i4,9f8.3)'), 'zplanet xing',  &
+!                    onfaceyt, onfaceyb, onfacezt, onfacezb, &
+!                    int(onfaceyt - onfaceyb + onfacezt - onfacezb), &
+!                    ri1, ri2, Pzt
+!            endif
+!            if (onfacezb .ne. 0.d0) then
+!                print('(a,4f6.2,i4,9f8.3)'), 'zplaneb xing',  & 
+!                     onfaceyt, onfaceyb, onfacezt, onfacezb, & 
+!                    int(onfaceyt - onfaceyb + onfacezt - onfacezb), &
+!                    ri1, ri2, Pzb
+!                !write(pid,'(2i6,f6.2,7f10.5,3f18.12)'), n, i, dS_i, tcross, ri(:), ri(:)-vi(:)*delta_t, rcross(:)
+!            endif
 
         endif
 
@@ -6469,6 +6641,7 @@ contains
         double precision                             :: surface, dx, width, yi, theta_i
         double precision, dimension(3)  :: bintopi, binboti, ri
         double precision, dimension(:), allocatable  :: surface_fitted_density
+        double precision, parameter     :: tol=1e-8
 
         !Front/back surfaces in y
         bintopi(2) =  0.5d0*globaldomain(2) - tethereddisttop(2)
@@ -6499,7 +6672,7 @@ contains
     		               	   (heaviside(bintopi(2)-ri(2))-heaviside(binboti(2)-ri(2)))* & 
     		              	   (heaviside(bintopi(3)-ri(3))-heaviside(binboti(3)-ri(3))))
 
-                if (theta_i .eq. 1.d0) then
+                if (abs(theta_i - 1.d0) .lt. tol) then
                     !write(666600+iter,'(i8,5f10.5)'), bin, bintopi(1), binboti(1), ri
                     surface_fitted_density(bin) = surface_fitted_density(bin) + 1.d0
                     exit !Found the bin for this molecule, skip to the next molecule 

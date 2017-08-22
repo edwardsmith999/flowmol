@@ -388,16 +388,14 @@ contains
 			bscale(:) = 1.d0
 		endif
 
-		!call pointsphere((/ 0.0, 0.0, 0.0 /),8.d0)
-
 		!Step through each particle n
 		do n = 1,np
 
 			select case (tag(n))
 			case (free)
 				!Leapfrog mean velocity calculated here at v(t+0.5delta_t) = v(t-0.5delta_t) + a*delta_t 
-				!Leapfrog mean position calculated here at r(t+delta_t) = r(t) + v(t+0.5delta_t)*delta_t
 				v(:,n) = v(:,n) + delta_t * a(:,n) 	!Velocity calculated from acceleration
+				!Leapfrog mean position calculated here at r(t+delta_t) = r(t) + v(t+0.5delta_t)*delta_t
 				r(:,n) = r(:,n) + delta_t * v(:,n)	!Position calculated from velocity
 			case (fixed)
 				!Fixed Molecules - no movement r(t+dt) = r(t)
@@ -520,7 +518,6 @@ contains
 
         if (any(periodic .gt. 1)) then
 		vtrue = v
-
 		do n=1,np
 			vtrue(le_sd,n) = v(le_sd,n) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
 			rtrue(:,n)     = rtrue(:,n) + delta_t*vtrue(:,n)
