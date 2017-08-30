@@ -1914,6 +1914,7 @@ subroutine set_parameters_outputs
 		allocate(volume_temperature(nbinso(1),nbinso(2),nbinso(3)))
         volume_temperature = 0.d0
 		mass_outflag = 4	!Mass binning required too
+        Nmass_ave = Ntemp_ave
 		!Allocate and zero peculiar momentum binning array
 		if (peculiar_flag .ne. 0) then
 			allocate(u(nd,np+extralloc)); u = 0.d0
@@ -2053,13 +2054,9 @@ subroutine set_parameters_outputs
 		allocate( rfvbin( nbinso(1), nbinso(2), nbinso(3), 3, 1 ))
 		allocate( evbin( nbins (1),  nbins(2),  nbins(3),3  ))
 		allocate( heatfluxbin( nbins (1),  nbins(2),  nbins(3),3  ))
-<<<<<<< HEAD
-		rfvbin  = 0.d0
-		evbin = 0.d0
-        heatfluxbin = 0.d0
-=======
+
 		rfvbin  = 0.d0; evbin = 0.d0; heatfluxbin = 0.d0
->>>>>>> origin/master
+
     elseif (heatflux_outflag .eq. 0) then
         !pass
     else

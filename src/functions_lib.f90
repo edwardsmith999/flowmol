@@ -4108,9 +4108,9 @@ end subroutine quadratic_lagrange_interp
 !    Input, real ( kind = 8 ) A(M), B(M), the lower and upper limits.
 !    Input, real ( kind = 8 ) ZD(ND), the function evaluated at the points XD.
 !    Input, real ( kind = 8 ) XI(M,NI), the points at which the interpolant is 
-!    to be evaluated.
+!                                       to be evaluated.
 !    Output, real ( kind = 8 ) ZI(NI), the interpolant evaluated at the 
-!    points XI.
+!                                      points XI.
 !	 Output, real ( kind = 8 ) XD(M,ND), the points at which data was sampled.
 !*****************************************************************************80
 

@@ -27,7 +27,7 @@ ASSEMBLY_FILES = Assembly_Heaviside_fn.s
 OBJ_DIR := obj
 
 # Use coupler default value
-USE_COUPLER := no 
+#USE_COUPLER=no 
 #
 # path to .inc file the choosen platform. 
 # This is needed for build started in this directory
@@ -50,14 +50,14 @@ endif
 # Get platform to build, compiler names and flags, check the make.inc directory
 #
 #Check for default file
-ifndef USE_COUPLER
-  $(warning USE_COUPLER not define for code $(NAME), setting uncoupled run)
-  FPP_FLAGS     := -cpp -DUSE_COUPLER=0
-else 
-  FPP_FLAGS_no  := -cpp -DUSE_COUPLER=0 
-  FPP_FLAGS_yes := -cpp -DUSE_COUPLER=1
-  FPP_FLAGS     := $(FPP_FLAGS_$(USE_COUPLER))
-endif
+#ifndef USE_COUPLER
+#  $(warning USE_COUPLER not define for code $(NAME), setting uncoupled run)
+#  FPP_FLAGS     := -cpp -DUSE_COUPLER=0
+#else 
+#  FPP_FLAGS_no  := -cpp -DUSE_COUPLER=0 
+#  FPP_FLAGS_yes := -cpp -DUSE_COUPLER=1
+#  FPP_FLAGS     := $(FPP_FLAGS_$(USE_COUPLER))
+#endif
 
 # Linking flags to use
 LDFLAGS := $(FFLAGS)
