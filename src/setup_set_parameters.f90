@@ -1351,8 +1351,8 @@ subroutine set_parameters_global_domain
 
 		volume=1	!Set domain size to unity for loop below
 		do ixyz=1,nd
-			globaldomain(ixyz) = initialnunits(ixyz) & 	!Size domain based on required density
-			/((density/4.d0)**(1.d0/nd))
+        	!Size domain based on required density
+			globaldomain(ixyz) = initialnunits(ixyz)/((density/4.d0)**(1.d0/nd))
 			volume = volume*globaldomain(ixyz)		!Volume based on size of domain
 		enddo
 
@@ -1661,7 +1661,7 @@ subroutine set_parameters_cells
 	real(kind(0.d0)) :: rneighbr
 
 	!Calculate size of neighbour list region
-	rneighbr  = rcutoff + delta_rneighbr
+	rneighbr  = rcutoff + (delta_rneighbr(1)+delta_rneighbr(2)+delta_rneighbr(3))/3.d0
 	rneighbr2 = rneighbr**2
 
 	select case(potential_flag)
@@ -1678,8 +1678,8 @@ subroutine set_parameters_cells
 			if (rneighbr < sod_cut) then
 				rcutoff   = sod_cut
 				rcutoff2  = sod_cut2
-				rneighbr  = rcutoff + delta_rneighbr
-				rneighbr2 = rneighbr**2.d0
+!				rneighbr  = rcutoff + delta_rneighbr
+!				rneighbr2 = rneighbr**2.d0
 			end if
 		case default
 			call error_abort('ERROR - Unrecognised solvent_flag in set_parameters_cells')
@@ -1691,7 +1691,7 @@ subroutine set_parameters_cells
 	!down to give fewer cells but to ensure cells are all at least rcutoff
 
 	do ixyz=1,nd
-		ncells(ixyz)=floor(domain(ixyz)/(rcutoff+delta_rneighbr))
+		ncells(ixyz)=floor(domain(ixyz)/(rcutoff+delta_rneighbr(ixyz)))
 	enddo
 
 	if (ncells(1)<3 .or. ncells(2)<3 .or. ncells(3)<3) then
@@ -1914,7 +1914,6 @@ subroutine set_parameters_outputs
 		allocate(volume_temperature(nbinso(1),nbinso(2),nbinso(3)))
         volume_temperature = 0.d0
 		mass_outflag = 4	!Mass binning required too
-        Nmass_ave = Ntemp_ave
 		!Allocate and zero peculiar momentum binning array
 		if (peculiar_flag .ne. 0) then
 			allocate(u(nd,np+extralloc)); u = 0.d0
