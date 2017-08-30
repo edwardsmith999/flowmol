@@ -2285,7 +2285,7 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
                             x = x-0.5*globaldomain(1)
                             if (abs(x) - 0.5*lg_fract*globaldomain(1) .gt. 0.d0) then
                                 call random_number(rand)
-                                if (rand .gt. density_ratio_gl) cycle
+                                if (rand .gt. density_ratio_gl) cycle   
                             endif
                         elseif (lg_direction .eq. 2) then
                             y = rc(2)
