@@ -574,7 +574,7 @@ subroutine specular_walls_cylinders
     real(kind(0.d0)) :: tol, rr
     integer :: n,cyl
         
-    tol = delta_rneighbr
+    tol = delta_rneighbr(1)
 
     do n=1,np
 

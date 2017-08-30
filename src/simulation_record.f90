@@ -5486,7 +5486,7 @@ contains
         else
             open(unit=fileunit,file='./results/linecoeff_top',access='append')
         endif
-        write(fileunit,'(i12, 7f15.8)'), iter, m, c, cl_angle, pt
+        write(fileunit,'(i12, 7f15.8)') iter, m, c, cl_angle, pt
         !write(fileunit,'(i12, 3(a,f10.5))'), iter, ' Top line    y = ', m, ' x + ',c , ' angle = ', cl_angle
         close(fileunit,status='keep')
 
@@ -5514,7 +5514,7 @@ contains
         else
             open(unit=fileunit,file='./results/linecoeff_bot',access='append')
         endif
-        write(fileunit,'(i12, 7f15.8)'), iter, m, c, cl_angle, pb
+        write(fileunit,'(i12, 7f15.8)') iter, m, c, cl_angle, pb
         !write(fileunit,'(i12, 3(a,f10.5))'), iter, ' Bottom line y = ', m, ' x + ',c  , ' angle = ', cl_angle
         close(fileunit,status='keep')
 
@@ -5867,28 +5867,28 @@ contains
         pid = get_new_fileunit()
         call get_Timestep_FileName(iter,debug_outfile,filename)
         open(unit=pid,file=trim(filename),status='replace')
-        write(pid,'(i12,6f18.8)'), iter, X,X_mdt
+        write(pid,'(i12,6f18.8)') iter, X,X_mdt
         close(pid,status='keep')
 
         debug_outfile = './results/clust_CV_stress'
         pid = get_new_fileunit()
         call get_Timestep_FileName(iter,debug_outfile,filename)
         open(unit=pid,file=trim(filename),status='replace')
-        write(pid,'(i12,18f18.8)'), iter, X_stress
+        write(pid,'(i12,18f18.8)') iter, X_stress
         close(pid,status='keep')
 
         debug_outfile = './results/clust_CV_flux'
         pid = get_new_fileunit()
         call get_Timestep_FileName(iter,debug_outfile,filename)
         open(unit=pid,file=trim(filename),status='replace')
-        write(pid,'(i12,18f18.8)'), iter, X_cross
+        write(pid,'(i12,18f18.8)') iter, X_cross
         close(pid,status='keep')
 
         debug_outfile = './results/clust_CV_surf'
         pid = get_new_fileunit()
         call get_Timestep_FileName(iter,debug_outfile,filename)
         open(unit=pid,file=trim(filename),status='replace')
-        write(pid,'(i12,6f18.8)'), iter, dsurf_top, dsurf_bot
+        write(pid,'(i12,6f18.8)') iter, dsurf_top, dsurf_bot
         close(pid,status='keep')
 
         !===================================
@@ -6516,7 +6516,7 @@ contains
         else
             open(unit=pid,file='./results/CV_binning',access='append')
         endif
-        write(pid,'(100f10.5)'), surface_fitted_density
+        write(pid,'(100f10.5)') surface_fitted_density
         close(pid,status='keep')
 
     end subroutine CV_density_binning
@@ -6629,7 +6629,7 @@ contains
             ! If interface cutoff is less that interaction rcutoff
             ! then we can use the neighbourlist to get molecules in 
             ! interface region (N.B. need to use all interations)
-            if (rd .le. rcutoff + delta_rneighbr) then
+            if (rd .le. rcutoff + minval(delta_rneighbr)) then
 
                 noneighbrs = neighbour%Nlist(molnoi)	!Determine number of elements in neighbourlist
 	            noldj => neighbour%head(molnoi)%point		!Set old to head of neighbour list
@@ -7562,7 +7562,7 @@ contains
                 ! If interface cutoff is less that interaction rcutoff
                 ! then we can use the neighbourlist to get molecules in 
                 ! interface region (N.B. need to use all interations)
-                if (rd .le. rcutoff + delta_rneighbr) then
+                if (rd .le. rcutoff + minval(delta_rneighbr)) then
 
 	                noneighbrs = neighbour%Nlist(molnoi)	!Determine number of elements in neighbourlist
 		            noldj => neighbour%head(molnoi)%point		!Set old to head of neighbour list
@@ -7594,7 +7594,7 @@ contains
                 ! If the interface cutoff is greater than rcutoff
                 ! then we can't use neighbour list and need to loop 
                 ! over a greater number of adjacent cells
-                elseif (rd .gt. rcutoff + delta_rneighbr) then
+                elseif (rd .gt. rcutoff + minval(delta_rneighbr)) then
 
                     stop "May work, probably won't so check get_molecules_within_rd for rd > rcutoff + delta_rneighbr"
 

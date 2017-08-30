@@ -233,8 +233,8 @@ subroutine set_parameters_cells_coupled
     delta_rneighbr = minval(domain/ncells-rcutoff)
 
     !Calculate size of neighbour list region
-    rneighbr  = rcutoff + delta_rneighbr
-    rneighbr2 = (rcutoff + delta_rneighbr)**2
+    rneighbr  = rcutoff + (delta_rneighbr(1)+delta_rneighbr(2)+delta_rneighbr(3))/3.d0
+    rneighbr2 = rneighbr**2
 
     !print'(a,6f10.5)', 'domains', domain, x(icmax)-x(icmin),y(jcmax)-y(jcmin),z(kcmax)-z(kcmin)
     !print'(a,12i8)',      'cell', cfd_md_cell_ratio,cfd_ncells,ncells,max_ncells
@@ -253,8 +253,8 @@ subroutine set_parameters_cells_coupled
             if (rneighbr < sod_cut) then
                 rcutoff   = sod_cut
                 rcutoff2  = sod_cut2
-                rneighbr  = rcutoff + delta_rneighbr
-                rneighbr2 = rneighbr**2.d0
+                !rneighbr  = rcutoff + delta_rneighbr
+                !rneighbr2 = rneighbr**2.d0
             end if
         case default
             call error_abort('Unrecognised solvent_flag in set_parameters_cells')
@@ -268,7 +268,7 @@ subroutine set_parameters_cells_coupled
     endif
 
     if(irank .eq. iroot) then
-        write(*,'(a/a/a,f9.6,/,a,3i8,/,a,3(f8.5),/,a,3(i8),/,a)') &
+        write(*,'(a/a/a,3f9.6,/,a,3i8,/,a,3(f8.5),/,a,3(i8),/,a)') &
                     "**********************************************************************", &
                     "WARNING - this is a coupled run which resets the following parameters:", &
                     " Extra cell size for neighbourlist =", delta_rneighbr  ,                 & 
@@ -475,7 +475,8 @@ contains
 !-----------------------------------------------------------------------------
 
     subroutine cumulative_velocity_average()
-        use CPL, only : CPL_map_coord2cell, CPL_map_glob2loc_cell, CPL_get_bnry_limits, CPL_my_proc_portion
+        use CPL, only : CPL_map_coord2cell, CPL_map_glob2loc_cell, &
+                        CPL_get_bnry_limits, CPL_my_proc_portion, CPL_get
         use computational_constants_MD, only : iter, iblock, jblock, kblock, domain
         use calculated_properties_MD, only : nbins
         use computational_constants_MD, only :  iter,irank
@@ -487,7 +488,11 @@ contains
         integer :: n
         integer, dimension(3) :: ibin, bin
         integer, dimension(6) :: limits, portion
+        real(kind(0.d0)) :: dy
         real(kind(0.d0)),dimension(3) :: Fbinsize, rglob
+
+        !Get coupler cell size
+        call CPL_get(dy=dy)
         
         Fbinsize = domain(:)/nbins(:)
         call CPL_get_bnry_limits(limits)
@@ -499,6 +504,8 @@ contains
         do n = 1,np
 
             rglob = globalise(r(:,n))
+            !We need molecular from half a cell lower to be consistent with OpenFOAM convention here
+            rglob(2) = rglob(2) + dy*0.5d0
             inbc = CPL_map_coord2cell(rglob(1), rglob(2), rglob(3), bin)
             inproc = CPL_map_glob2loc_cell(portion, bin, ibin)
             !if (inbc) print'(3i8, 3f10.5,6i8,2l8)', iblock, jblock, kblock, rglob, bin, ibin, inbc, inproc
@@ -509,7 +516,8 @@ contains
                 !    print'(a,6i8,6f10.5)', 'CPL_map_coord2cell error:', bin, ibin, Fbinsize, r(:,n)
                 !    ibin(1) = bin(1); ibin(3) = bin(3)
                 !endif
-                !print'(2i8, l5, 7i8,3f10.5)', iter, n, inbc, iblock, jblock, kblock, ibin, limits(4), r(:,n)
+                !print'(2i8, l5, 7i8,4f10.5)', iter, n, inbc, iblock, jblock, kblock, ibin, limits(4), r(:,n), & 
+                !                            uvw_md(1,ibin(1),ibin(2),ibin(3))/uvw_md(4,ibin(1),ibin(2),ibin(3))
                 ! Add velocity and molecular count to bin
                 uvw_md(1:3,ibin(1),ibin(2),ibin(3)) = uvw_md(1:3,ibin(1),ibin(2),ibin(3)) + v(:,n)
                 uvw_md(4,  ibin(1),ibin(2),ibin(3)) = uvw_md(4,  ibin(1),ibin(2),ibin(3)) + 1.d0
@@ -530,10 +538,13 @@ contains
         use CPL, only : CPL_send, CPL_get_bnry_limits, CPL_overlap, &
                         CPL_my_proc_portion, error_abort    
         use librarymod, only : couette_analytical_fn
+        use computational_constants_MD, only :  iter,irank
+        use messenger_data_exchange, only : PlaneSum
         implicit none
 
         logical :: send_flag
-        integer :: limits(6), portion(6)
+        integer :: limits(6), portion(6), cells, send_type
+        real(kind(0.d0))  :: v_sum
         real(kind(0.d0)), dimension(:), allocatable  :: u
 
         if (.not. CPL_overlap()) return
@@ -550,9 +561,46 @@ contains
 !        uvw_md(2,:,1,:) = 0.d0
 !        uvw_md(3,:,1,:) = 0.d0
 !        uvw_md(4,:,1,:) = 1.d0
-        print*, "WARNING FROM send_velocity_average, setting v component to zero"
-        uvw_md(2,:,:,:) = 0.d0
-        !TEMPTEMPTEMPTEMPTEMPTEMPTEMP
+        !print*, "WARNING FROM send_velocity_average, setting v component to zero"
+    
+        send_type = 3
+
+        select case(send_type)
+        case(1)
+            !Local processor sum (THIS WILL FAIL IF MD/CFD PROCESS BOUNDARIES DON'T LINE UP)
+            v_sum = sum(uvw_md(2,:,1,:)/uvw_md(4,:,1,:)) !N.B. velocity usum/msum must be zero
+            cells = (portion(2)-portion(1)+1)*(portion(4)-portion(3)+1)*(portion(6)-portion(5)+1)
+            uvw_md(2,:,1,:) = uvw_md(2,:,1,:) - uvw_md(4,:,1,:)*v_sum/dble(cells)
+
+        case(2)
+            !Global sum (As check is local, this doesn't work)
+            v_sum = sum(uvw_md(2,:,1,:)/uvw_md(4,:,1,:))
+            cells = (limits(2)-limits(1)+1)*(limits(4)-limits(3)+1)*(limits(6)-limits(5)+1)
+            call PlaneSum(v_sum, 2)
+            uvw_md(2,:,1,:) = uvw_md(2,:,1,:) - uvw_md(4,:,1,:)*v_sum/dble(cells)
+
+        case(3)
+            !Global sum first 
+            v_sum = sum(uvw_md(2,:,1,:)/uvw_md(4,:,1,:))
+            cells = (limits(2)-limits(1)+1)*(limits(4)-limits(3)+1)*(limits(6)-limits(5)+1)
+            call PlaneSum(v_sum, 2)
+            uvw_md(2,:,1,:) = uvw_md(2,:,1,:) - uvw_md(4,:,1,:)*v_sum/dble(cells)
+
+            !then local to satisfy OpenFOAM local only checks
+            v_sum = sum(uvw_md(2,:,1,:)/uvw_md(4,:,1,:)) !N.B. velocity usum/msum must be zero
+            cells = (portion(2)-portion(1)+1)*(portion(4)-portion(3)+1)*(portion(6)-portion(5)+1)
+            uvw_md(2,:,1,:) = uvw_md(2,:,1,:) - uvw_md(4,:,1,:)*v_sum/dble(cells)
+
+        case(4)
+            !Set v components to zero
+            uvw_md(2,:,:,:) = 0.d0
+            cells = 1
+        end select
+
+        !Check
+        !uvw_sum = sum(uvw_md(2,:,1,:))
+        !call PlaneSum(uvw_sum, 2)
+        !print*, "v_sum", iter,irank, uvw_sum/dble(cells)
 
         !Send data to CFD if send_data flag is set
         call CPL_send(uvw_md, limits=portion, send_flag=send_flag)

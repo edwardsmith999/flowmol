@@ -265,10 +265,10 @@ subroutine setup_initial_record
         print*, 'Density: ',              density
         print*, 'Initial Temperature: ',  inputtemperature
         if (rebuild_criteria .eq. 0) then
-            print'(a,f19.15,a,f10.5)', ' Cut off distance:  ', rcutoff, &
-                    '  Neighbour List Delta r:  ', delta_rneighbr
+            print'(a,f19.15,a,f10.5)', ' Cut off distance:  ', rcutoff
+            print'(a,3f12.6)', 'Neighbour List Delta r x,y,z: ', delta_rneighbr(:)
         else
-            print'(a,f19.15a,f8.4,a,i5,a)', ' Cut off ', rcutoff, ' nbr: ', delta_rneighbr, &
+            print'(a,f19.15a,3f8.4,a,i5,a)', ' Cut off ', rcutoff, ' nbr: ', delta_rneighbr(:), &
                     ' & fixed rebuild every ', fixed_rebuild, ' steps'
         endif
         print*, 'Initial unit size (FCC unit) in x,y and z:'
@@ -757,7 +757,9 @@ subroutine simulation_header
     end select
     write(fileunit,*) 'Initial Temperature ;   inputtemperature ;',  inputtemperature
     write(fileunit,*) 'Cut off distance ;  rcutoff ;', rcutoff
-    write(fileunit,*) 'Neighbour List Delta r ;  delta_rneighbr ;', delta_rneighbr
+    write(fileunit,*) 'Neighbour List Delta r x;  delta_rneighbrx ;', delta_rneighbr(1)
+    write(fileunit,*) 'Neighbour List Delta r y;  delta_rneighbry ;', delta_rneighbr(2)
+    write(fileunit,*) 'Neighbour List Delta r z;  delta_rneighbrz ;', delta_rneighbr(3)
     write(fileunit,*) 'Initial FCC unit size in x ;  initialunitsize(1) ;', initialunitsize(1)
     write(fileunit,*) 'Initial FCC unit size in y ;  initialunitsize(2) ;', initialunitsize(2)
     write(fileunit,*) 'Initial FCC unit size in z ;  initialunitsize(3) ;', initialunitsize(3)

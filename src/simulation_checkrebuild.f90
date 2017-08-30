@@ -88,7 +88,7 @@ subroutine simulation_checkrebuild(rebuild)
 	    rmax = rmax + vmax * delta_t
 
 	    !Check if maximum displacment has exceeded extra distance
-	    if (rmax .gt. 0.5d0*delta_rneighbr) rebuild = 1
+	    if (rmax .gt. 0.5d0*minval(delta_rneighbr)) rebuild = 1
 
     case(1) !fixed
 
@@ -105,7 +105,7 @@ subroutine simulation_checkrebuild(rebuild)
 	    do n = 1, np    
             rdisp(:,n) = rdisp(:,n) + v(:,n) * delta_t
             !rmax = max(rmax,rdisp(:,n))
-            if (any(abs(rdisp(:,n)) .gt. 0.5d0*delta_rneighbr)) then
+            if (any(abs(rdisp(:,n)) .gt. 0.5d0*minval(delta_rneighbr))) then
                 !print'(2i6,4f10.5)', iter, n, abs(rdisp(:,n)), delta_rneighbr
                 rebuild = 1;
                 exit
