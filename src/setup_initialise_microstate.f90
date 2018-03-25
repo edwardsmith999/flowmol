@@ -46,7 +46,8 @@ subroutine setup_initialise_microstate()
     use interfaces
     use module_initialise_microstate
 	use module_read_input, only : COUETTE_t,COUETTE_Re,COUETTE_Uwall, & 
-								  COUETTE_H,COUETTE_slidewall,COUETTE_ixyz
+								  COUETTE_H,COUETTE_slidewall,COUETTE_ixyz, &
+                                  initial_u, initial_v, initial_w
     implicit none
 
     integer     ::  n
@@ -92,6 +93,7 @@ subroutine setup_initialise_microstate()
         case('rubber_liquid')
             call setup_initialise_solid_liquid
             call setup_lattice_dense_FENE_info !Chain IDs, etc
+            call setup_location_tags(0)               !Setup locn of fixed mols
         case('concentric_cylinders')
             call setup_initialise_concentric_cylinders
             tag = free 
@@ -150,6 +152,9 @@ subroutine setup_initialise_microstate()
             call set_velocity_field_from_couette_analytical(COUETTE_t,COUETTE_Re, & 
 															COUETTE_Uwall,COUETTE_H, &
 															COUETTE_slidewall,COUETTE_ixyz)
+        case('constant')
+            call setup_initialise_velocities                 !Setup initial velocities
+            call set_velocity_field_constant((/initial_u, initial_v, initial_w/))
         case('dns')
             call setup_initialise_velocities                 !Setup initial velocities
             call set_velocity_field_from_DNS_restart(trim(DNS_filename),DNS_ngx,DNS_ngy,DNS_ngz)
@@ -1197,13 +1202,13 @@ subroutine setup_initialise_sparse_FENE
             if ( rc(2) .ge. domain_top - 0.5*equil_sep) then 
                 rc(2)  = rc(2) - equil_sep
                 rc(1)  = rc(1) + dir(1)*equil_sep
-                dir(2) = dir(2) * -1.d0
+                dir(2) = -1.d0 * dir(2)
             end if
         else 
             if ( rc(2) .lt. 0.5*equil_sep) then 
                 rc(2) = rc(2) + equil_sep
                 rc(1) = rc(1) + dir(1)*equil_sep
-                dir(2) = dir(2) * -1.d0
+                dir(2) =  -1.d0 * dir(2)
             end if
         end if
         ! Check if turn needed in x direction
@@ -1211,13 +1216,13 @@ subroutine setup_initialise_sparse_FENE
             if ( rc(1) .ge. domain(1)-0.5*equil_sep) then
                 rc(1) = rc(1) - equil_sep
                 rc(3) = rc(3) + equil_sep
-                dir(1) = dir(1) * -1.d0
+                dir(1) = -1.d0 * dir(1)
             end if
         else
             if ( rc(1) .lt. 0.5*equil_sep) then
                 rc(1) = rc(1) + equil_sep
                 rc(3) = rc(3) + equil_sep
-                dir(1) = dir(1) * -1.d0
+                dir(1) = -1.d0 * dir(1)
             end if
         end if              
 
@@ -4134,6 +4139,7 @@ subroutine set_velocity_field_from_couette_analytical(t,Re,Uwall,H,slidewall,ixy
         call set_bin_velocity(ibin-1, ibin-1, & 
 							  jbin-1, jbin-1, & 
 							  kbin-1, kbin-1, binvel,0)
+
     enddo
     enddo
     enddo
@@ -4205,6 +4211,39 @@ subroutine set_velocity_field_from_DNS_restart(filename,ngx,ngy,ngz)
 end subroutine set_velocity_field_from_DNS_restart
 
 
+
+
+
+subroutine set_velocity_field_constant(uvw)
+    use interfaces, only : error_abort
+    use calculated_properties_MD, only : gnbins
+	use computational_constants_MD, only : irank
+	use librarymod, only : couette_analytical_fn
+	use set_bin_velocity_mod
+    implicit none
+
+	real(kind(0.d0)), dimension(3), intent(in)	:: uvw
+
+	integer										:: ibin, jbin, kbin
+
+	!Create cell lists to be used in specifying velocity!
+    call assign_to_cell()
+
+    !Set MD velocity
+    do jbin=2,gnbins(2)+1
+    print*, jbin-1, uvw
+    do ibin=2,gnbins(1)+1
+    do kbin=2,gnbins(3)+1
+        call set_bin_velocity(ibin-1, ibin-1, & 
+							  jbin-1, jbin-1, & 
+							  kbin-1, kbin-1, uvw,0)
+
+    enddo
+    enddo
+    enddo
+
+
+end subroutine set_velocity_field_constant
 
 !! Get domain top minus removed molecules
 !function get_domain_top(algorithm,ixyz,L_md,removed_dist) result(top)

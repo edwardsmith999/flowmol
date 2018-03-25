@@ -427,7 +427,7 @@ contains
             je = min(ncells(2),ceiling(domain(2)/cellsidelength(2))) + nh
 
             ! check if molecules from below cells can get in constraint region ( heuristic condition )
-            if ( y2 - (js - nh - 1) * cellsidelength(2) < delta_rneighbr ) then  
+            if ( y2 - (js - nh - 1) * cellsidelength(2) < delta_rneighbr(2) ) then  
                js = js - 1
             endif
 
@@ -2145,6 +2145,9 @@ subroutine check_CFD_vs_MD(u_CFD, lbl, outtype)
 		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
 		u_CV( bin(1),bin(2),bin(3),:) = u_CV( bin(1),bin(2),bin(3),:) + v(:,n)
 	enddo
+
+    !Ignore the errors initially
+    !if (iter .lt. 100) return
 
     !Debug, print non zero cells
 !	do i = 1,size(u_CFD,1)

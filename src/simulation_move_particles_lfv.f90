@@ -409,7 +409,7 @@ contains
 				r(:,n) = r(:,n) + delta_t * v(:,n)	!Position calculated from velocity
 			case (thermo)
 				!Nose Hoover Thermostatted Molecule
-                tr = get_therm_region(n)
+                                tr = get_therm_region(n)
 				v(1,n) = v(1,n)*ascale(tr) + a(1,n)*delta_t*bscale(tr)
 				r(1,n) = r(1,n)    +     v(1,n)*delta_t			
 				v(2,n) = v(2,n)*ascale(tr) + a(2,n)*delta_t*bscale(tr)
@@ -417,7 +417,7 @@ contains
 				v(3,n) = v(3,n)*ascale(tr) + a(3,n)*delta_t*bscale(tr)
 				r(3,n) = r(3,n)    +     v(3,n)*delta_t
 			case (teth_thermo)
-                tr = get_therm_region(n)
+                                tr = get_therm_region(n)
 				!Thermostatted Tethered molecules unfixed with no sliding velocity
 				call tether_force(n)
 				v(1,n) = v(1,n)*ascale(tr) + a(1,n)*delta_t*bscale(tr)
@@ -433,7 +433,7 @@ contains
 				v(:,n) = v(:,n) + delta_t * a(:,n) 							!Velocity calculated from acceleration
 				r(:,n) = r(:,n) + delta_t * v(:,n) + delta_t*slidev(:,n)	!Position calculated from velocity+slidevel
 			case (teth_thermo_slide)
-                tr = get_therm_region(n)
+                                tr = get_therm_region(n)
 				!Thermostatted Tethered molecules unfixed with sliding velocity
 				call tether_force(n)
 				v(1,n) = v(1,n)*ascale(tr) + a(1,n)*delta_t*bscale(tr)
@@ -443,7 +443,7 @@ contains
 				v(3,n) = v(3,n)*ascale(tr) + a(3,n)*delta_t*bscale(tr)
 				r(3,n) = r(3,n)    +     v(3,n)*delta_t	+ slidev(3,n)*delta_t
 			case (PUT_thermo)
-                tr = get_therm_region(n)
+                                tr = get_therm_region(n)
 				!Profile unbiased thermostat (Nose-Hoover)
 	        	v(:,n) = v(:,n)*ascale(tr) + (a(:,n)+zeta*U(:,n))*delta_t*bscale(tr)
 				r(:,n) = r(:,n)        + v(:,n)*delta_t			
@@ -574,7 +574,7 @@ subroutine specular_walls_cylinders
     real(kind(0.d0)) :: tol, rr
     integer :: n,cyl
         
-    tol = delta_rneighbr
+    tol = delta_rneighbr(1)
 
     do n=1,np
 
