@@ -283,7 +283,7 @@ subroutine cubic_fn2D ( m, n, x, fvec, iflag )
 
     !Cubic needs four coefficients
     if (n .ne. 8) then
-        stop "Error in cubic_fn, number of coefficients 'n' should be 4"
+        stop "Error in cubic_fn, number of coefficients 'n' should be 8"
     endif
 
     fvec(1:m) = + x(1) & 
@@ -297,6 +297,32 @@ subroutine cubic_fn2D ( m, n, x, fvec, iflag )
                 - zdat(1:m)
 
 end subroutine cubic_fn2D
+
+! cubic_fn2D is a cubic function routine.
+subroutine cubic_fn2D_p ( m, n, x, fvec, iflag )
+    implicit none
+
+    integer ( kind = 4 ), intent(in) :: m
+    integer ( kind = 4 ), intent(in) :: n
+    integer ( kind = 4 ), intent(in) :: iflag
+    real(kind(0.d0)), intent(inout) :: x(n)
+    real(kind(0.d0)), intent(out) :: fvec(m)
+
+    integer :: i, j
+
+    !Cubic needs four coefficients
+    if (n .ne. 8) then
+        stop "Error in cubic_fn, number of coefficients 'n' should be 8"
+    endif
+
+    do i=0,3
+    do j=0,3
+        fvec(1:m) = x(i+1)*x(j+1)*(xdat(1:m)**i)*(xdat(1:m)**j)
+    enddo
+    enddo
+    fvec(1:m) = fvec(1:m) - zdat(1:m)
+
+end subroutine cubic_fn2D_p
 
 !Simplest implementation of piecewise linear I can 
 !think of, basically do it for even segements and

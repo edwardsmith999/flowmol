@@ -2320,7 +2320,7 @@ subroutine linklist_deallocate_cluster(self)
 
     !Check all other possible molecules
     do i = 1, np+extralloc
-        if (associated(self%head(i)%point)) then
+        if (associated(self%head(i)%point) .eqv. .true.) then
             old => self%head(i)%point
             if (associated(old%next) .eqv. .false.) then
                 nullify(self%head(i)%point)   !Set cluster head pointer to null

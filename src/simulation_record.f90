@@ -5469,7 +5469,7 @@ contains
         call cluster_extents_grid(self, imaxloc(self%Nlist), 1, resolution, & 
                                   extents_grid)!, debug_outfile='./results/maxcell_top')
         call cluster_outer_mols(self, imaxloc(self%Nlist), tolerence=tolerence, dir=1, & 
-                                rmols=rnp, extents=extents_grid)!, debug_outfile='./results/clust_edge_top')
+                                rmols=rnp, extents=extents_grid, debug_outfile='./results/clust_edge_top')
 
         !Curve fits to clusers
         allocate(x(size(rnp,2)),y(size(rnp,2)))
@@ -5481,7 +5481,7 @@ contains
         call curve_fit(fn, x, y, pt, f)
         deallocate(x,y)
         cl_angle = 90.d0+atan(m)*180.d0/pi
-    	fileunit = get_new_fileunit()
+        fileunit = get_new_fileunit()
         if (first_time) then
             open(unit=fileunit,file='./results/linecoeff_top',status='replace')
         else
@@ -5529,17 +5529,18 @@ contains
         bintop(1) = 1e18
         binbot(1) = -1e18
 
-        !Top/bottom surfaces in y
-        !bintop(2) = 2.d0; binbot(2) = -2.d0
-        !bintop(3) = 2.d0; binbot(3) = -2.d0
+        !Set a small CV in x, y and z at the surface 
+        bintop(2) = 2.d0; binbot(2) = -2.d0
+        bintop(3) = 2.d0; binbot(3) = -2.d0
+        pb = (/pt(1)-4.d0, 0.0d0, 0.00d0, 0.000d0  /)
 
         !Top/bottom surfaces in y
-        bintop(2) = 0.5d0*globaldomain(2) - tethereddisttop(2)
-        binbot(2) = -0.5d0*globaldomain(2) + tethereddistbottom(2)
+        !bintop(2) = 0.5d0*globaldomain(2) - tethereddisttop(2)
+        !binbot(2) = -0.5d0*globaldomain(2) + tethereddistbottom(2)
         
         !Front/back surfaces in z
-        bintop(3) = 0.5d0*globaldomain(3) - tethereddisttop(3)
-        binbot(3) = -0.5d0*globaldomain(3) + tethereddistbottom(3)
+        !bintop(3) = 0.5d0*globaldomain(3) - tethereddisttop(3)
+        !binbot(3) = -0.5d0*globaldomain(3) + tethereddistbottom(3)
 
         !Apply CV analysis to control volume with moving interface
         !call cluster_CV_fn(pt, pb, bintop, binbot, 1)
@@ -5752,20 +5753,20 @@ contains
         use librarymod, only : get_new_fileunit, get_Timestep_FileName
         implicit none
 
-        integer, intent(in)                           :: cnsvtype
-        double precision, dimension(3), intent(in)    :: bintop, binbot
-        double precision, dimension(4), intent(in)    :: pt, pb
+        integer, intent(in)                            :: cnsvtype
+        double precision, dimension(3), intent(in)     :: bintop, binbot
+        double precision, dimension(4), intent(in)     :: pt, pb
 
-        integer                                       :: i, nvals, pid
-        integer, parameter                            :: ct_mass=1, ct_momentum=2, ct_energy=3
-        character(33)                                 :: filename, debug_outfile
-        double precision                              :: conserved
-        double precision,dimension(:),allocatable     :: X_mdt, dX_dt
-        double precision,dimension(:),allocatable     :: X_oldvol, dsurf_top, dsurf_bot 
-        double precision,dimension(:,:),allocatable   :: X_cross, X_stress
-        double precision,dimension(:),allocatable,save:: X, CVcount
-        logical                                       :: first_time=.true.
-        double precision, dimension(4), save          :: pt_mdt, pb_mdt
+        integer                                        :: i, nvals, pid
+        integer, parameter                             :: ct_mass=1, ct_momentum=2, ct_energy=3
+        character(33)                                  :: filename, debug_outfile
+        double precision                               :: conserved
+        double precision,dimension(:),allocatable      :: X_mdt, dX_dt
+        double precision,dimension(:),allocatable      :: X_oldvol, dsurf_top, dsurf_bot 
+        double precision,dimension(:,:),allocatable    :: X_cross, X_stress
+        double precision,dimension(:),allocatable,save :: X, CVcount
+        logical                                        :: first_time=.true.
+        double precision, dimension(4), save           :: pt_mdt, pb_mdt
 
         !Select type of averaging
         select case (cnsvtype)
@@ -6403,7 +6404,7 @@ contains
 
         integer                           :: i, pid, code, crossings
         double precision, parameter       :: tol=1e-14
-        double precision                  :: dS_i, tcross, m,c,crosssign
+        double precision                  :: dS_i, tcross, m,c,crosssign, dsdy
         double precision, dimension(4)    :: p0l
         double precision, dimension(3)    :: vi, ri12, rcross
         complex(KIND(1.0D0))              :: temp
@@ -6432,8 +6433,13 @@ contains
         code = 0
 !        call SolvePolynomial(0.d0, p0l(4), p0l(3), p0l(2),p0l(1), &
 !                             code, z(1),z(2),z(3),temp)
-
-        if (abs(p0l(3)) .lt. tol .and. abs(p0l(4)) .lt. tol) then
+        if (abs(p0l(2)) .lt. tol .and. abs(p0l(3)) .lt. tol .and.  & 
+            abs(p0l(4)) .lt. tol) then
+            !flat (and line is exactly parallel?)
+            z(1) = cmplx(0.d0, 1.d0, kind(1.d0))
+            z(2) = cmplx(0.d0, 1.d0, kind(1.d0))
+            z(3) = cmplx(0.d0, 1.d0, kind(1.d0))
+        elseif (abs(p0l(3)) .lt. tol .and. abs(p0l(4)) .lt. tol) then
             !Linear
             z(1) = cmplx(-p0l(1)/p0l(2), 0.d0, kind(1.d0))
             z(2) = cmplx(0.d0, 1.d0, kind(1.d0))
@@ -6474,7 +6480,14 @@ contains
                 if (abs(dS_i) .gt. tol) then
 
                     !Get surface crossing direction
-                    crosssign = sign(1.d0,(-ri12(1) + ri12(2)*dsurface_fndyi(p0, rcross(2))))
+                    dsdy = dsurface_fndyi(p0, rcross(2))
+                    crosssign = sign(1.d0,(-ri12(1) + ri12(2)*dsdy))
+                    !Get normal and tangent of surface
+                    !norm => x - surface_fn(rcross(2)) = -(1.d0/dsdy)*(y - rcross(2))
+                    !tang => x - surface_fn(rcross(2)) = dsdy * (y - rcross(2))
+                    ! and project qnty (if mom vector only) along normal and tangent 
+                    ! using qnty = (/ dot_product(qnty, (/norm, tang, z/), & 
+                    !                 dot_product(qnty, (/tang, norm, z/))
                     Ncross(:) = Ncross(:) + qnty(:) * crosssign * dS_i
                     if (write_debug) then
                         crossings = crossings + 1
@@ -6812,9 +6825,6 @@ contains
 		            molnoj = noldj%molno			        !Number of molecule j
 
                     !if (molnoj .gt. np) cycle               !Ignore halo values
-
-                    !if (moltype(molnoj) .eq. 2 .and. & 
-                    !    .not.( any(tag(molnoj).eq.tether_tags))) stop "ERROR -- moltype not same as tethered"
 
 		            rj(:) = rmols(:,molnoj)			            !Retrieve rj
 		            rij(:)= ri(:) - rj(:)   	            !Evaluate distance between particle i and j
