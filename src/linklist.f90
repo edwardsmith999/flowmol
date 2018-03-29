@@ -90,7 +90,8 @@ module linked_list
 	! Neighbourlist with cell head 
 	!Information for pointer to neighbour list
 	type, extends(neighbrinfo) :: clusterinfo
-        integer :: Nclust     
+        integer :: Nclust
+        integer :: maxclusts=2000
         integer, dimension(:),allocatable :: inclust
 	end type clusterinfo
 	
@@ -1730,7 +1731,7 @@ subroutine linklist_merge(self, keep, delete)
         call linklist_checkpushneighbr(self, keep, current%molno)
 
         !Pop molecule from list
-        if (associated(current%next) .eqv. .true. ) then !Exit if null
+        if (associated(current%next) .eqv. .true. ) then 
             old => current%next       !Make list point to next node
         else
             nullify(old)
@@ -2319,17 +2320,20 @@ subroutine linklist_deallocate_cluster(self)
 	enddo
 
     !Check all other possible molecules
-    do i = 1, np+extralloc
-        if (associated(self%head(i)%point) .eqv. .true.) then
-            old => self%head(i)%point
-            if (associated(old%next) .eqv. .false.) then
-                nullify(self%head(i)%point)   !Set cluster head pointer to null
-            else
-                print*, iter, i, self%Nlist(i), self%Nclust, associated(old%next)
-                stop "ERROR in linklist_deallocate_cluster"
-            endif
-        endif
-    enddo
+    !E.s. March 2018. this should not be needed, Nclusts is 
+    !the number of allocated clusters so arrays should not be np+extralloc
+    !large, generally only ~300 clusters
+!    do i = 1, np+extralloc
+!        if (associated(self%head(i)%point) .eqv. .true.) then
+!            old => self%head(i)%point
+!            if (associated(old%next) .eqv. .false.) then
+!                nullify(self%head(i)%point)   !Set cluster head pointer to null
+!            else
+!                print*, iter, i, self%Nlist(i), self%inclust(i), self%Nclust, associated(old%next)
+!                !stop "ERROR in linklist_deallocate_cluster"
+!            endif
+!        endif
+!    enddo
 
     !Deallocate array of molecules neighbourlist pointers
     self%Nclust = 0
