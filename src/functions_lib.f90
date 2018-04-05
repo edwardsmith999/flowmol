@@ -203,6 +203,7 @@ subroutine curve_fit(fn, xdata, ydata, p0, fvec, zdata)
     external fn
     integer :: m, n, iflag, info
     real(kind(0.d0)) :: tol
+    real(kind(0.d0)), dimension(4) :: p0temp
 
     tol = 0.00001D+00
     iflag = 1
@@ -225,7 +226,7 @@ subroutine curve_fit(fn, xdata, ydata, p0, fvec, zdata)
         return
     endif
 
-    !Set xdat, ydat and may be zdat arrays which are used in fn
+    !Set xdat, ydat and maybe zdat arrays which are used in fn
     allocate(xdat(m),ydat(m))
     xdat = xdata; ydat = ydata
     if (present(zdata)) then
@@ -234,6 +235,19 @@ subroutine curve_fit(fn, xdata, ydata, p0, fvec, zdata)
         endif
         allocate(zdat(m))
         zdat = zdata
+
+!        p0temp = 0.d0
+!        call cubic_fn(m, 4, p0temp, fvec, iflag )
+!        call lmdif1(cubic_fn, m, 4, p0temp, fvec, tol, info)
+!        print*, p0temp
+!        p0temp = 0.d0
+!        xdat = zdata
+!        call cubic_fn(m, 4, p0temp, fvec, iflag )
+!        call lmdif1(cubic_fn, m, 4, p0temp, fvec, tol, info)
+!        xdat = xdata
+!        !print*, p0temp
+!        call fn(m, n, p0, fvec, iflag )
+!        call lmdif1(fn, m, n, p0, fvec, tol, info)
     endif
 
     call fn(m, n, p0, fvec, iflag )
@@ -269,34 +283,94 @@ subroutine cubic_fn ( m, n, x, fvec, iflag )
 
 end subroutine cubic_fn
 
-! cubic_fn2D is a cubic function routine.
+!! cubic_fn2D is a cubic function routine.
+!subroutine cubic_fn2D ( m, n, x, fvec, iflag )
+!    implicit none
+
+!    integer ( kind = 4 ), intent(in) :: m
+!    integer ( kind = 4 ), intent(in) :: n
+!    integer ( kind = 4 ), intent(in) :: iflag
+
+!    real(kind(0.d0)), intent(inout) :: x(n)
+
+!    real(kind(0.d0)), intent(out) :: fvec(m)
+
+!    !Cubic needs four coefficients
+!    if (n .ne. 8) then
+!        stop "Error in cubic_fn, number of coefficients 'n' should be 8"
+!    endif
+
+!    fvec(1:m) = + x(1) & 
+!                + x(2)*xdat(1:m) & 
+!                + x(3)*xdat(1:m)**2 & 
+!                + x(4)*xdat(1:m)**3 & 
+!                + x(5) &
+!                + x(6)*ydat(1:m) &
+!                + x(7)*ydat(1:m)**2 &
+!                + x(8)*ydat(1:m)**3 &
+!                - zdat(1:m)
+
+!end subroutine cubic_fn2D
+
+! cubic_fn2D is a surface made from the product of
+! two cubic functions.
 subroutine cubic_fn2D ( m, n, x, fvec, iflag )
     implicit none
 
     integer ( kind = 4 ), intent(in) :: m
     integer ( kind = 4 ), intent(in) :: n
     integer ( kind = 4 ), intent(in) :: iflag
-
     real(kind(0.d0)), intent(inout) :: x(n)
-
     real(kind(0.d0)), intent(out) :: fvec(m)
+
+    integer :: i, j
+    real(kind(0.d0)), dimension(m) :: temp
 
     !Cubic needs four coefficients
     if (n .ne. 8) then
-        stop "Error in cubic_fn, number of coefficients 'n' should be 4"
+        stop "Error in cubic_fn, number of coefficients 'n' should be 8"
     endif
 
-    fvec(1:m) = + x(1) & 
-                + x(2)*xdat(1:m) & 
-                + x(3)*xdat(1:m)**2 & 
-                + x(4)*xdat(1:m)**3 & 
-                + x(5) &
-                + x(6)*ydat(1:m) &
-                + x(7)*ydat(1:m)**2 &
-                + x(8)*ydat(1:m)**3 &
-                - zdat(1:m)
+    fvec(1:m) = 0.d0
+    do i=0,3
+        temp = x(i+1)*(xdat(1:m)**i)
+        do j=0,3
+            fvec(1:m) = fvec(1:m) + temp*x(j+5)*(zdat(1:m)**j)
+        enddo
+    enddo
+    fvec(1:m) = fvec(1:m) - ydat(1:m)
 
 end subroutine cubic_fn2D
+
+
+
+subroutine cubic_fn2D_16coeff ( m, n, x, fvec, iflag )
+    implicit none
+
+    integer ( kind = 4 ), intent(in) :: m
+    integer ( kind = 4 ), intent(in) :: n
+    integer ( kind = 4 ), intent(in) :: iflag
+    real(kind(0.d0)), intent(inout) :: x(n)
+    real(kind(0.d0)), intent(out) :: fvec(m)
+
+    integer :: i, j
+    real(kind(0.d0)), dimension(4,4) :: a
+
+    !Cubic needs four coefficients
+    if (n .ne. 16) then
+        stop "Error in cubic_fn2D_16coeff, number of coefficients 'n' should be 16"
+    endif
+
+    fvec(1:m) = 0.d0
+    a = reshape(x, (/4, 4/))
+    do i=0,3
+    do j=0,3
+        fvec(1:m) = fvec(1:m) + a(i+1, j+1)*(xdat(1:m)**i)*(zdat(1:m)**j)
+    enddo
+    enddo
+    fvec(1:m) = fvec(1:m) - ydat(1:m)
+
+end subroutine cubic_fn2D_16coeff
 
 !Simplest implementation of piecewise linear I can 
 !think of, basically do it for even segements and

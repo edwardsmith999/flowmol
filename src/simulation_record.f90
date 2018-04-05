@@ -5420,15 +5420,15 @@ contains
 
         !Initialised cluster list
         if (.not. allocated(self%Nlist)) then
-            allocate(self%Nlist(np+extralloc))
+            allocate(self%Nlist(self%maxclusts))
             allocate(self%inclust(np+extralloc))
-            allocate(self%head(np+extralloc))
+            allocate(self%head(self%maxclusts))
         endif
 
         self%Nclust = 0
-	    do i = 1,np+extralloc
-            self%inclust(i) = 0
-		    self%Nlist(i) = 0	!Zero number of molecules in cluster list
+	    self%Nlist = 0	!Zero number of molecules in cluster list
+        self%inclust = 0
+	    do i = 1,self%maxclusts
 		    nullify(self%head(i)%point)!Nullify cluster list head pointer 
 	    enddo
 
@@ -5440,8 +5440,98 @@ contains
 
     end subroutine build_clusters
 
+    subroutine fit_surface(x, y, z, fittype, p0, f, debug_outfile)
+        use computational_constants_MD, only : iter 
+        use physical_constants_MD, only : pi
+        use minpack_fit_funcs_mod, only : fn, cubic_fn, cubic_fn2D, & 
+                                          cubic_fn2D_16coeff, curve_fit
+        use librarymod, only : least_squares, get_new_fileunit
+        implicit none
+
+        integer, intent(in) :: fittype
+        character(23), intent(in), optional :: debug_outfile
+        double precision,dimension(:), &
+            allocatable, intent(in) :: x, y, z
+        double precision,dimension(:), &
+            allocatable, intent(out) :: p0, f 
+
+        logical :: first_time=.true.
+        integer :: fileunit
+        integer, parameter :: DEBUG=0, ONEDIM=1, TWODIM=2, TWODIM16=3
+        double precision   :: m, c, cl_angle
+        !Save previous surface as initial guess
+        double precision,dimension(:), &
+            allocatable, save :: p0_ 
+        if (present(debug_outfile)) then
+            fileunit = get_new_fileunit()
+            if (first_time .eqv. .true.) then
+                open(unit=fileunit,file=debug_outfile,status='replace')
+                first_time = .false.
+                if ((fittype .eq. DEBUG) .or. (fittype .eq. ONEDIM)) then
+                    allocate(p0_(4)); p0_ = 0.d0 
+                else if (fittype .eq. TWODIM) then
+                   allocate(p0_(8)); p0_ = 0.d0
+                else if (fittype .eq. TWODIM16) then
+                    allocate(p0_(16)); p0_ = 0.d0
+                endif
+            else
+                open(unit=fileunit,file=debug_outfile,access='append')
+            endif
+        endif
+
+        !Linear with angle
+        call least_squares(x, y, m, c)
+        cl_angle = 90.d0+atan(m)*180.d0/pi
+
+        if (fittype .eq. DEBUG) then
+            allocate(p0(4)); p0 = p0_
+            allocate(f(size(x,1)))
+            f = 0.d0
+            !Set dummy values of CV surfaces
+            if (minval(y) .lt. 0.d0) then
+                !p0 = (/-3.d0+cos(2*3.14159*iter/1000), 0.1d0, 0.02d0, -0.001d0  /)
+                p0 = (/-3.d0, -0.1d0, -0.01d0, -0.001d0  /)
+            else            
+                !p0 = (/ 3.d0+sin(2*3.14159*iter/1000), 0.1d0, 0.02d0, -0.001d0  /)
+                p0 = (/ 3.d0, 0.1d0,  0.01d0, -0.001d0  /)
+            endif
+            !p0 = (/ 1.d0, 0.5d0,  0.1d0, -0.80d0  /)
+            !p0 = (/-0.2d0, 0.5d0,  0.2d0, -0.00d0  /)
+            if (present(debug_outfile)) then
+                write(fileunit,'(i12, 7f15.8)') iter, m, c, cl_angle, p0
+            endif
+        else if (fittype .eq. ONEDIM) then
+            allocate(p0(4)); p0 = p0_
+            fn => cubic_fn
+            call curve_fit(fn, x, y, p0, f)
+            if (present(debug_outfile)) then
+                write(fileunit,'(i12, 7f15.8)') iter, m, c, cl_angle, p0
+            endif
+        else if (fittype .eq. TWODIM) then
+            allocate(p0(8)); p0 = p0_
+            fn => cubic_fn2D
+            call curve_fit(fn, x, y, p0, f, z)
+            if (present(debug_outfile)) then
+                write(fileunit,'(i12, 11f15.8)') iter, m, c, cl_angle, p0
+            endif
+       else if (fittype .eq. TWODIM16) then
+            allocate(p0(16)); p0 = p0_
+            fn => cubic_fn2D_16coeff
+            call curve_fit(fn, x, y, p0, f, z)
+            if (present(debug_outfile)) then
+                write(fileunit,'(i12, 19f15.8)') iter, m, c, cl_angle, p0
+            endif
+        endif
+        !Save soln  as initial guess for next time
+        p0_ = p0
+
+        if (present(debug_outfile)) close(fileunit,status='keep')
+
+    end subroutine fit_surface
+
+
     subroutine get_cluster_properties(self, rd)
-        use physical_constants_MD, only : pi, np, tethereddisttop, tethereddistbottom
+        use physical_constants_MD, only : np, tethereddisttop, tethereddistbottom
         use computational_constants_MD, only : iter, thermo_tags, thermo, free, globaldomain 
         use librarymod, only : imaxloc, get_Timestep_FileName, least_squares, get_new_fileunit
         use minpack_fit_funcs_mod, only : fn, cubic_fn, curve_fit
@@ -5452,112 +5542,72 @@ contains
         type(clusterinfo),intent(inout)    :: self
         double precision, intent(in)       :: rd
 
-        logical                         :: first_time=.true., print_debug
         character(32)                   :: filename, debug_outfile
-        integer                         :: n,i,j,resolution,fileunit
-        double precision                :: tolerence, m, c, cl_angle
+        integer                         :: n,i,j,resolution,fittype
+        double precision                :: tolerance
         double precision, dimension(3)  :: bintop, binbot !Used in CV
         double precision,dimension(6)   :: extents
-        double precision,dimension(:),allocatable :: x,y,f
+        double precision,dimension(4)   :: ptin, pbin
+        double precision,dimension(:),allocatable :: x,y,z,f,pt,pb
         double precision,dimension(:,:),allocatable :: rnp, extents_grid
-        double precision, dimension(4)  :: pt = (/ 0.d0, 0.d0, 0.d0, 0.d0 /)
-        double precision, dimension(4)  :: pb = (/ 0.d0, 0.d0, 0.d0, 0.d0 /)
 
-        resolution = 10; tolerence = rd
+        resolution = 10; tolerance = rd
+        fittype = 3
+
         call cluster_global_extents(self, imaxloc(self%Nlist), extents)
+
+        !Get molecules on top surface
         call cluster_extents_grid(self, imaxloc(self%Nlist), 1, resolution, & 
                                   extents_grid)!, debug_outfile='./results/maxcell_top')
-        call cluster_outer_mols(self, imaxloc(self%Nlist), tolerence=tolerence, dir=1, & 
-                                rmols=rnp, extents=extents_grid)!, debug_outfile='./results/clust_edge_top')
+        call cluster_outer_mols(self, imaxloc(self%Nlist), tolerance=tolerance, dir=1, & 
+                                rmols=rnp, extents=extents_grid, debug_outfile='./results/clust_edge_top')
 
         !Curve fits to clusers
-        allocate(x(size(rnp,2)),y(size(rnp,2)))
-        x = rnp(2,:); y = rnp(1,:)
-        !Linear
-        call least_squares(x, y, m, c)
-        !Cubic using minpack
-        fn => cubic_fn
-        call curve_fit(fn, x, y, pt, f)
-        deallocate(x,y)
-        cl_angle = 90.d0+atan(m)*180.d0/pi
-    	fileunit = get_new_fileunit()
-        if (first_time) then
-            open(unit=fileunit,file='./results/linecoeff_top',status='replace')
-        else
-            open(unit=fileunit,file='./results/linecoeff_top',access='append')
-        endif
-        write(fileunit,'(i12, 7f15.8)') iter, m, c, cl_angle, pt
-        !write(fileunit,'(i12, 3(a,f10.5))'), iter, ' Top line    y = ', m, ' x + ',c , ' angle = ', cl_angle
-        close(fileunit,status='keep')
+        allocate(x(size(rnp,2)), y(size(rnp,2)), z(size(rnp,2)))
+        x = rnp(2,:); y = rnp(1,:); z = rnp(3,:)
+        call fit_surface(x, y, z, fittype, pt, f, debug_outfile='./results/linecoeff_top')
+        deallocate(x,y,z)
 
-        !pt = (/ c, m, 0.0d0, 0.0d0  /)
 
+        !Get molecules on bottom surface
         call cluster_extents_grid(self, imaxloc(self%Nlist), 4, resolution, &
                                   extents_grid )!, debug_outfile='./results/maxcell_bot')
-        call cluster_outer_mols(self, imaxloc(self%Nlist), tolerence=tolerence, dir=4, & 
+        call cluster_outer_mols(self, imaxloc(self%Nlist), tolerance=tolerance, dir=4, & 
                                 rmols=rnp, extents=extents_grid)!, debug_outfile='./results/clust_edge_bot')
 
         !Curve fits to clusers
-        allocate(x(size(rnp,2)),y(size(rnp,2)))
-        x = rnp(2,:); y = rnp(1,:)
-        !Linear
-        call least_squares(x, y, m, c)
-        !Cubic using minpack
-        fn => cubic_fn
-        call curve_fit(fn, x, y, pb, f)
-        deallocate(x,y)
-        cl_angle = 90.d0+atan(m)*180.d0/pi
-    	fileunit = get_new_fileunit()
-        if (first_time) then
-            open(unit=fileunit,file='./results/linecoeff_bot',status='replace')
-            first_time = .false.
-        else
-            open(unit=fileunit,file='./results/linecoeff_bot',access='append')
-        endif
-        write(fileunit,'(i12, 7f15.8)') iter, m, c, cl_angle, pb
-        !write(fileunit,'(i12, 3(a,f10.5))'), iter, ' Bottom line y = ', m, ' x + ',c  , ' angle = ', cl_angle
-        close(fileunit,status='keep')
+        allocate(x(size(rnp,2)), y(size(rnp,2)), z(size(rnp,2)))
+        x = rnp(2,:); y = rnp(1,:); z = rnp(3,:)
+        call fit_surface(x, y, z, fittype, pb, f, debug_outfile='./results/linecoeff_bot')
+        deallocate(x,y,z)
 
         !pb = (/ c, m, 0.0d0, 0.0d0  /)
 
         !If cluster has broken up, stop simulation
         call check_for_cluster_breakup(self)
 
-
         !No surface in x needed
         bintop(1) = 1e18
         binbot(1) = -1e18
 
-        !Top/bottom surfaces in y
-        !bintop(2) = 2.d0; binbot(2) = -2.d0
-        !bintop(3) = 2.d0; binbot(3) = -2.d0
+        !Set a small CV in x, y and z at the surface 
+        bintop(2) = 2.d0; binbot(2) = -2.d0
+        bintop(3) = 2.d0; binbot(3) = -2.d0
+        !pb = (/pt(1)-4.d0, 0.0d0, 0.00d0, 0.000d0  /)
 
         !Top/bottom surfaces in y
-        bintop(2) = 0.5d0*globaldomain(2) - tethereddisttop(2)
-        binbot(2) = -0.5d0*globaldomain(2) + tethereddistbottom(2)
+        !bintop(2) = 0.5d0*globaldomain(2) - tethereddisttop(2)
+        !binbot(2) = -0.5d0*globaldomain(2) + tethereddistbottom(2)
         
         !Front/back surfaces in z
-        bintop(3) = 0.5d0*globaldomain(3) - tethereddisttop(3)
-        binbot(3) = -0.5d0*globaldomain(3) + tethereddistbottom(3)
+        !bintop(3) = 0.5d0*globaldomain(3) - tethereddisttop(3)
+        !binbot(3) = -0.5d0*globaldomain(3) + tethereddistbottom(3)
 
         !Apply CV analysis to control volume with moving interface
+        ptin = (/ 3.d0, -0.1d0, -0.01d0, -0.001d0  /) !pt(1:4)
+        pbin = (/-3.d0, -0.1d0, -0.01d0, -0.001d0  /) !pb(1:4)
         !call cluster_CV_fn(pt, pb, bintop, binbot, 1)
-
-        !Set dummy values of CV surfaces
-        !pt = (/ 3.d0+sin(2*3.14159*iter/1000), 0.1d0, 0.02d0, -0.001d0  /)
-        !pb = (/-3.d0+cos(2*3.14159*iter/1000), 0.1d0, 0.02d0, -0.001d0  /)
-
-        !bintop = 1.d0
-        !binbot = -1.d0
-
-!        pt = (/ 3.d0, 0.1d0,  0.01d0, -0.001d0  /)
-!        pb = (/-3.d0, -0.1d0, -0.01d0, -0.001d0  /)
-
-        !pt = (/ 1.d0, 0.5d0,  0.1d0, -0.80d0  /)
-        !pb = (/-0.2d0, 0.5d0,  0.2d0, -0.00d0  /)
-
-        !call cluster_CV_fn(pt, pb, bintop, binbot, 1)
-        call cluster_CV_fn(pt, pb, bintop, binbot, 2)
+        call cluster_CV_fn(ptin, pbin, bintop, binbot, 2)
         !call cluster_CV_fn(pt, pb, bintop, binbot, 3)
 
         ! - - -Set cluster molecules to be thermostatted - - -
@@ -5751,20 +5801,20 @@ contains
         use librarymod, only : get_new_fileunit, get_Timestep_FileName
         implicit none
 
-        integer, intent(in)                           :: cnsvtype
-        double precision, dimension(3), intent(in)    :: bintop, binbot
-        double precision, dimension(4), intent(in)    :: pt, pb
+        integer, intent(in)                            :: cnsvtype
+        double precision, dimension(3), intent(in)     :: bintop, binbot
+        double precision, dimension(4), intent(in)     :: pt, pb
 
-        integer                                       :: i, nvals, pid
-        integer, parameter                            :: ct_mass=1, ct_momentum=2, ct_energy=3
-        character(33)                                 :: filename, debug_outfile
-        double precision                              :: conserved
-        double precision,dimension(:),allocatable     :: X_mdt, dX_dt
-        double precision,dimension(:),allocatable     :: X_oldvol, dsurf_top, dsurf_bot 
-        double precision,dimension(:,:),allocatable   :: X_cross, X_stress
-        double precision,dimension(:),allocatable,save:: X, CVcount
-        logical                                       :: first_time=.true.
-        double precision, dimension(4), save          :: pt_mdt, pb_mdt
+        integer                                        :: i, nvals, pid
+        integer, parameter                             :: ct_mass=1, ct_momentum=2, ct_energy=3
+        character(33)                                  :: filename, debug_outfile
+        double precision                               :: conserved
+        double precision,dimension(:),allocatable      :: X_mdt, dX_dt
+        double precision,dimension(:),allocatable      :: X_oldvol, dsurf_top, dsurf_bot 
+        double precision,dimension(:,:),allocatable    :: X_cross, X_stress
+        double precision,dimension(:),allocatable,save :: X, CVcount
+        logical                                        :: first_time=.true.
+        double precision, dimension(4), save           :: pt_mdt, pb_mdt
 
         !Select type of averaging
         select case (cnsvtype)
@@ -6402,7 +6452,7 @@ contains
 
         integer                           :: i, pid, code, crossings
         double precision, parameter       :: tol=1e-14
-        double precision                  :: dS_i, tcross, m,c,crosssign
+        double precision                  :: dS_i, tcross, m,c,crosssign, dsdy
         double precision, dimension(4)    :: p0l
         double precision, dimension(3)    :: vi, ri12, rcross
         complex(KIND(1.0D0))              :: temp
@@ -6431,8 +6481,13 @@ contains
         code = 0
 !        call SolvePolynomial(0.d0, p0l(4), p0l(3), p0l(2),p0l(1), &
 !                             code, z(1),z(2),z(3),temp)
-
-        if (abs(p0l(3)) .lt. tol .and. abs(p0l(4)) .lt. tol) then
+        if (abs(p0l(2)) .lt. tol .and. abs(p0l(3)) .lt. tol .and.  & 
+            abs(p0l(4)) .lt. tol) then
+            !flat (and line is exactly parallel?)
+            z(1) = cmplx(0.d0, 1.d0, kind(1.d0))
+            z(2) = cmplx(0.d0, 1.d0, kind(1.d0))
+            z(3) = cmplx(0.d0, 1.d0, kind(1.d0))
+        elseif (abs(p0l(3)) .lt. tol .and. abs(p0l(4)) .lt. tol) then
             !Linear
             z(1) = cmplx(-p0l(1)/p0l(2), 0.d0, kind(1.d0))
             z(2) = cmplx(0.d0, 1.d0, kind(1.d0))
@@ -6473,7 +6528,14 @@ contains
                 if (abs(dS_i) .gt. tol) then
 
                     !Get surface crossing direction
-                    crosssign = sign(1.d0,(-ri12(1) + ri12(2)*dsurface_fndyi(p0, rcross(2))))
+                    dsdy = dsurface_fndyi(p0, rcross(2))
+                    crosssign = sign(1.d0,(-ri12(1) + ri12(2)*dsdy))
+                    !Get normal and tangent of surface
+                    !norm => x - surface_fn(rcross(2)) = -(1.d0/dsdy)*(y - rcross(2))
+                    !tang => x - surface_fn(rcross(2)) = dsdy * (y - rcross(2))
+                    ! and project qnty (if mom vector only) along normal and tangent 
+                    ! using qnty = (/ dot_product(qnty, (/norm, tang, z/), & 
+                    !                 dot_product(qnty, (/tang, norm, z/))
                     Ncross(:) = Ncross(:) + qnty(:) * crosssign * dS_i
                     if (write_debug) then
                         crossings = crossings + 1
@@ -6706,7 +6768,7 @@ contains
 
         ! Sort clusters by size and check if more than one big one!
         allocate(cluster_sizes(self%Nclust))
-        cluster_sizes = dble(self%Nlist)
+        cluster_sizes = dble(self%Nlist(1:self%Nclust))
         call bubble_sort_r(cluster_sizes)
 
         if ((cluster_sizes(1) - cluster_sizes(2))/cluster_sizes(1) .gt. 0.4d0) then
@@ -6812,9 +6874,6 @@ contains
 
                     !if (molnoj .gt. np) cycle               !Ignore halo values
 
-                    !if (moltype(molnoj) .eq. 2 .and. & 
-                    !    .not.( any(tag(molnoj).eq.tether_tags))) stop "ERROR -- moltype not same as tethered"
-
 		            rj(:) = rmols(:,molnoj)			            !Retrieve rj
 		            rij(:)= ri(:) - rj(:)   	            !Evaluate distance between particle i and j
 		            rij2  = dot_product(rij,rij)            !Square of vector calculated
@@ -6848,6 +6907,7 @@ contains
 
     subroutine AddBondedPair(self, molnoi, molnoj)
         use linked_list, only : linklist_checkpushneighbr, linklist_merge
+	    use interfaces, only : error_abort
         implicit none
 
         type(clusterinfo),intent(inout)    :: self
@@ -6860,6 +6920,9 @@ contains
         if (molnoi .eq. molnoj) then
             if (self%inclust(molnoi) .eq. 0) then
                 self%Nclust = self%Nclust + 1
+                if (self%Nclust .gt. self%maxclusts) then
+            		call error_abort("Increase maxcluster in clusterinfo linklist")
+                endif
                 nc = self%Nclust
                 call linklist_checkpushneighbr(self, nc, molnoi)
                 self%inclust(molnoi) = nc
@@ -6873,6 +6936,9 @@ contains
             if (self%inclust(molnoj) .eq. 0) then
                 !Create a new cluster
                 self%Nclust = self%Nclust + 1
+                if (self%Nclust .gt. self%maxclusts) then
+            		call error_abort("Increase maxcluster in clusterinfo linklist")
+                endif
                 nc = self%Nclust
                 !Add both molecules to it
                 self%inclust(molnoi) = nc
@@ -6924,6 +6990,8 @@ contains
 
                     !Add smaller cluster linked lists to bigger one
                     call linklist_merge(self, keep=cbig, delete=csmall)
+                    !Now we've merge too linklists, we can reduce count by one
+                    self%Nclust = self%Nclust - 1
 
                 else
                     !If already in the same cluster, nothing to do
@@ -7143,7 +7211,7 @@ contains
     end subroutine cluster_extents_grid
 
 
-    subroutine cluster_outer_mols(self, clustNo, tolerence, dir, rmols, extents, debug_outfile)
+    subroutine cluster_outer_mols(self, clustNo, tolerance, dir, rmols, extents, debug_outfile)
         use arrays_MD, only : r
         use module_set_parameters, only : mass
         use computational_constants_MD, only : halfdomain, iter
@@ -7154,7 +7222,7 @@ contains
         type(clusterinfo),intent(in)    :: self
 
         integer, intent(in)             :: clustNo, dir
-        double precision,intent(in)     :: tolerence
+        double precision,intent(in)     :: tolerance
         double precision,dimension(:,:),intent(in),optional  :: extents
         double precision,dimension(:,:),allocatable,intent(out) :: rmols
         character(*),intent(in),optional :: debug_outfile
@@ -7200,11 +7268,11 @@ contains
             cellsidelength(:) = clusterwidth(:)
         endif
 
-        !Get band of molecules within tolerence 
+        !Get band of molecules within tolerance 
         if (dir .le. 3) then
-            molband = extents_ - tolerence
+            molband = extents_ - tolerance
         elseif (dir .gt. 3) then
-            molband = extents_ + tolerence
+            molband = extents_ + tolerance
         endif
 
         Nmols = self%Nlist(clustNo)
@@ -7255,6 +7323,9 @@ contains
         allocate(rmols(3,m))
         rmols = rtemp(:,1:m)
 
+        !Create dummy data
+        !call build_debug_surface(rmols, global_extents)
+
         if (print_debug) then
             call get_Timestep_FileName(iter,debug_outfile,filename)
             n = get_new_fileunit()
@@ -7266,6 +7337,52 @@ contains
         endif
 
     end subroutine cluster_outer_mols
+
+    !Build a surface with the form x = a_{ij} * y^i * z^j 
+    subroutine build_debug_surface(rmols, global_extents)
+        use computational_constants_MD, only : halfdomain, iter
+        use librarymod, only : get_new_fileunit, get_Timestep_FileName
+        implicit none
+
+        double precision,dimension(6),intent(in)         :: global_extents
+        double precision,dimension(:,:),allocatable,intent(inout) :: rmols
+
+        integer                         :: i,j,m,n
+        double precision                :: rand
+        double precision,dimension(4,4) :: a
+        logical :: first_time = .true.
+
+        rmols = 0.d0
+        call random_number(a)
+        a = a*0.00001d0
+        a(1,1) = 14.d0
+
+        n = get_new_fileunit()
+        if (first_time) then
+            open(unit=n,file="./results/debug_surface",status='replace')
+            first_time = .false.
+        else
+            open(unit=n,file="./results/debug_surface",access='append')
+        endif
+        write(n,'(i8, 16f18.12)') iter, a 
+        close(n,status='keep')
+        
+        do m=1,size(rmols,2)
+            call random_number(rand)
+            rmols(2,m) = 2.d0*rand*halfdomain(2)-halfdomain(2)
+            call random_number(rand)
+            rmols(3,m) = 2.d0*rand*halfdomain(3)-halfdomain(3)
+            call random_number(rand)
+            rmols(1,m) = 2.d0*rand !Add a little initial noise to surface
+            do i=1,4
+            do j=1,4
+                rmols(1,m) = rmols(1,m) + a(i,j)*rmols(2,m)**(i-1) * rmols(3,m)**(j-1)
+            enddo
+            enddo
+        enddo
+
+
+    end subroutine build_debug_surface
 
 
 !    subroutine build_debug_clusters(self, rd)
