@@ -3016,9 +3016,9 @@ subroutine simulation_compute_rfbins!(imin, imax, jmin, jmax, kmin, kmax)
     jcellmin = 1; jcellmax = ncells(2) + 2
     kcellmin = 1; kcellmax = ncells(3) + 2
 
-	do kcell=kcellmin, kcellmax
-	do jcell=jcellmin, jcellmax 
-	do icell=icellmin, icellmax 
+	do kcell = kcellmin, kcellmax
+	do jcell = jcellmin, jcellmax 
+	do icell = icellmin, icellmax 
 
 	
 		cellnp = cell%cellnp(icell,jcell,kcell)
