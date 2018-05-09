@@ -332,15 +332,28 @@ end subroutine socket_check_cell_sizes
 !-----------------------------------------------------------------------------
 
 subroutine average_and_send_MD_to_CFD(iter)
+    use cpl, only : CPL_get, error_abort  
     implicit none
 
     integer, intent(in) :: iter
     logical :: debug = .false.
 
+    integer :: sendtype
+    integer, parameter :: velocity=1, stress=2
+
+    call CPL_get(sendtype_md_to_cfd=sendtype)
+
     if (debug) then
         call debug_check_send(iter)
     else
-        call average_and_send_MD_to_CFD_(iter)
+        select case (sendtype)
+        case (velocity)
+            call average_and_send_velocity_MD_to_CFD(iter)
+        case (stress)
+            call send_stress_to_CFD(iter)
+        case default
+            call error_abort("sendtype_md_to_cfd in COUPLER.in not recognised")
+        end select
     endif
 
 end subroutine average_and_send_MD_to_CFD
@@ -396,7 +409,7 @@ end subroutine debug_check_send
 ! calculate all components of velocity to pass to contiunuum region 
 !-----------------------------------------------------------------------------
 
-subroutine average_and_send_MD_to_CFD_(iter)
+subroutine average_and_send_velocity_MD_to_CFD(iter)
     use computational_constants_MD, only : initialstep, delta_t, nhb,iblock,jblock,kblock
     use calculated_properties_MD, only : nbins
     use physical_constants_MD, only : np
@@ -422,11 +435,7 @@ subroutine average_and_send_MD_to_CFD_(iter)
 
         !Get processor extents
         pcoords=(/ iblock,jblock,kblock /)
-!        call CPL_proc_extents(pcoords,CPL_realm(),extents)
         call setup_velocity_average()
-!        call CPL_get(ncx=ncx,ncy=ncy,ncz=ncz,dx=dx,dy=dy,dz=dz,xg=xg,yg=yg,zg=zg, & 
-!                        staggered_averages=staggered_averages,timestep_ratio=timestep_ratio, &
-!                        jcmin_olap=jcmin_olap)
         call CPL_get(timestep_ratio=timestep_ratio)
 
     endif
@@ -608,7 +617,57 @@ contains
 
     end subroutine send_velocity_average
 
-end subroutine average_and_send_MD_to_CFD_
+end subroutine average_and_send_velocity_MD_to_CFD
+
+!=============================================================================
+! Take calculated and send to CFD
+!-----------------------------------------------------------------------------
+
+subroutine send_stress_to_CFD(iter)
+        use CPL, only : CPL_send, CPL_get_bnry_limits, &
+                        CPL_my_proc_portion, error_abort, CPL_get
+        use messenger, only : localise_bin
+        use calculated_properties_MD, only : nbins, volume_momentum, Pxybin, rfbin
+        implicit none
+
+        integer, intent(in) :: iter
+
+        logical :: send_flag
+        logical, save :: first_time=.true.
+        integer :: limits(6), portion(6), nd, moditer, i
+        integer, save :: timestep_ratio
+        double precision, allocatable, dimension(:,:,:,:), save :: send_buf
+
+        !Setup arrays on first call
+        if (first_time) then 
+            first_time  = .false.
+            !Get processor extents
+            call CPL_get(timestep_ratio=timestep_ratio)
+            nd = timestep_ratio
+            allocate(send_buf(nd, nbins(1), nbins(2), nbins(3)))
+        endif
+
+        !Get detail for grid
+        call CPL_get_bnry_limits(limits)
+        call CPL_my_proc_portion(limits, portion)
+        
+        !If send time, add one more record and send
+        moditer = mod(iter-1, timestep_ratio)
+        send_buf(moditer+1,:,:,:) = (Pxybin(:,:,:,1,2)+Pxybin(:,:,:,1,3)+Pxybin(:,:,:,2,3))/3.d0
+!        send_buf(moditer+1,:,:,:) = ( rfbin(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1,2) & 
+!                                     +rfbin(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1,3) & 
+!                                     +rfbin(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,2,3))/3.d0
+
+        if (mod(iter, timestep_ratio) .eq. 0) then
+            !print*, 'send stress', iter, moditer, maxval(send_buf(moditer+1,:,:,:))
+            !send_buf(1+i,:,:,:) = Pxybin(:,:,:,1,2) !rfbin(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1,2)
+            !send_buf(2+i,:,:,:) = Pxybin(:,:,:,1,3) !rfbin(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,1,3)
+            !send_buf(3+i,:,:,:) = Pxybin(:,:,:,2,3) !rfbin(2:nbins(1)+1,2:nbins(2)+1,2:nbins(3)+1,2,3)
+            call CPL_send(send_buf, limits=portion, send_flag=send_flag)
+            send_buf = 0.d0
+        endif
+
+end subroutine send_stress_to_CFD
 
 !==============================================================================
 !  ____  _  _  ___  ____  ____  ____    __  __  _____  __    ___

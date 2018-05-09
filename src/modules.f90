@@ -766,7 +766,7 @@ module calculated_properties_MD
 		volume_force,  		& 		!Force acting over control volume surface 
 		momentum_flux, 		&		!Flow of momentum over a control volume surface
 		rfbin, 				& 		!Position(x)Force tensor per bin
-		rfvbin,				& 		!PositionForce dot v per bin
+		rfvbin,				& 		!Position(x)Force dot v per bin
 		vvbin, 				& 		!velocity(x)velocity tensor per bin
 		Pxybin, 			&		!Stress tensor per bin
 		Pxyface, 			&		!Stress tensor on bin face
