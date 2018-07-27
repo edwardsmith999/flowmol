@@ -68,6 +68,7 @@ subroutine setup_initial_record
                         close(23,status='delete')
                         missing_file_tolerance = 5
                     elseif(missing_file_tolerance .eq. 0) then
+                        missing_file_tolerance = 5
                         exit !Exit loop if max file reached 
                     else
                         missing_file_tolerance = missing_file_tolerance - 1
