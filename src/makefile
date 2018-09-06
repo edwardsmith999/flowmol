@@ -23,6 +23,8 @@ CU_CUDA_MD_FILES = inter.cu inter2.cu
 
 ASSEMBLY_FILES = Assembly_Heaviside_fn.s
 
+LAPACK_FILES = psudo_inv_lapack.f90
+
 # object files directory
 OBJ_DIR := obj
 
@@ -60,7 +62,8 @@ endif
 #endif
 
 # Linking flags to use
-LDFLAGS := $(FFLAGS)
+LDFLAGS := $(FFLAGS) lapack-3.8.0/lib*
+LAPACKFLAGS:=$(filter-out -fno-underscoring,$(FFLAGS))
 
 #Executable name
 MD_EXE = parallel_md.exe
@@ -71,6 +74,8 @@ O_CUDA = $(CU_CUDA_MD_FILES:.cu=.o) $(F90_CUDA_MD_FILES:.f90=.o)
 O_CONTINUUM = $(F90_CONTINUUM:.f90=.o)
 O_MD_P = $(addprefix obj/,$(F90_MD_FILES_P:.f90=.o))
 O_ASSEMBLY_FILES = $(addprefix obj/,$(ASSEMBLY_FILES:.s=.o))
+O_LAPACK_FILES = $(addprefix obj/,$(LAPACK_FILES:lapack.f90=.o)) lapack-3.8.0/lib*
+
 
 # If coupled, link to static library coupler.a
 ifeq ($(strip $(USE_COUPLER)),yes)
@@ -127,10 +132,10 @@ profile_p:
 
 #Make executables
 md.exe: $(MD_EXE)
-$(MD_EXE): obj $(O_ASSEMBLY_FILES) $(O_MD_P)
+$(MD_EXE): obj $(O_ASSEMBLY_FILES) $(O_LAPACK_FILES) $(O_MD_P)
 	@echo "MD executable is being relinked"
 	@echo "LDFLAGS = $(LDFLAGS)"
-	$(F90) -o $@ $(O_ASSEMBLY_FILES) $(O_MD_P) $(LDFLAGS)
+	$(F90) -o $@ $(O_ASSEMBLY_FILES) $(O_LAPACK_FILES) $(O_MD_P) $(LDFLAGS)
 serial_md.exe: obj $(O_MD) 
 	@$(F90) -o $(MD_EXE) $(O_MD) $(LDFLAGS)  
 md_CUDA.exe: obj $(O_CUDA)
@@ -171,6 +176,9 @@ obj/%.o: %.f90
 	$(CU) $(FLAGS_CUDA) -c $*.cu -o obj/$*.o
 obj/%.o: %.s
 	$(F90) $(FPP_FLAGS) $(FFLAGS) -c $< -o $@
+
+obj/%.o: %lapack.f90
+	$(F90) $(FPP_FLAGS) $(LAPACKFLAGS) -c $< -o $@
 #
 # Dependecies
 #

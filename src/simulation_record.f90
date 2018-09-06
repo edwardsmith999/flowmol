@@ -73,10 +73,20 @@ module module_record
 
 #endif
 	real(kind(0.d0)) :: vel
+	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: Abilinear
+
+	abstract interface
+		function fn_get_bin(r)
+	        integer,dimension(3) 					 :: fn_get_bin
+            real(kind(0.d0)),intent(in),dimension(3) :: r
+		end function fn_get_bin
+	end interface
+
+   procedure (fn_get_bin),   pointer :: get_bin   => null ()
 
 contains
 
-    function get_bin(r) result(bin)
+    function bin_from_integer_division(r) result(bin)
         use computational_constants_MD, only : halfdomain, nhb
         use calculated_properties_MD, only : binsize
         implicit none
@@ -86,7 +96,126 @@ contains
 
         bin = ceiling((r+halfdomain)/binsize)+nhb
 
-    end function get_bin
+    end function bin_from_integer_division
+
+    function zeta(y, z)
+        use computational_constants_MD, only : globaldomain
+        use messenger, only : globalise
+        implicit none
+
+        real(kind(0.d0)),intent(in) :: y, z
+	    real(kind(0.d0))            :: zeta
+
+	    real(kind(0.d0))            :: yg, zg
+
+        yg = globalise(y,2)
+        zg = globalise(z,3)
+        zeta = 10.d0*sin(2.d0*3.141592*yg/globaldomain(2))
+
+    end function zeta
+
+    subroutine debug_sine_to_bilinear_surface_coeff()!Abilinear)
+        use calculated_properties_MD, only : binsize, nbins
+        use computational_constants_MD, only : globaldomain
+        use messenger, only : globalise_bin
+        implicit none
+
+        !real(kind(0.d0)),intent(in),dimension(:,:),allocatable ::Abilinear
+
+        logical, save    :: first_time = .true.
+        integer          :: j, k, gbin(3)
+        real(kind(0.d0)) :: ysb, yst, P(2,2), A(2,2)
+
+        if (first_time) then
+            allocate(Abilinear(2,2,nbins(2)+2, nbins(3)+2))
+            first_time = .false.
+        endif
+
+	    do j = 1,nbins(2)+2
+	    do k = 1,nbins(3)+2
+            gbin = globalise_bin((/ 1, j, k /))
+            ysb = (gbin(2)-3)*binsize(2)
+            yst = (gbin(2)-2)*binsize(2)       
+            P(1,1) = 5.d0*sin(2.d0*3.141592*ysb/globaldomain(2))
+            P(2,1) = 5.d0*sin(2.d0*3.141592*yst/globaldomain(2))
+            P(1,2) = 5.d0*sin(2.d0*3.141592*ysb/globaldomain(2))
+            P(2,2) = 5.d0*sin(2.d0*3.141592*yst/globaldomain(2))
+            !print*, j, k, ysb, yst, P(1,1), P(2,1)
+            call save_bin_bilinear_surface_coeff(P, A)
+            Abilinear(:,:,j,k) = A(:,:)
+        enddo
+        enddo
+
+    end subroutine debug_sine_to_bilinear_surface_coeff
+
+
+    !Save coefficiients to matrix for bilinear 
+    ! i = ceiling((r(2)+halfdomain(2))/binsize(2))+nhb(2)
+    ! j = ceiling((r(3)+halfdomain(3))/binsize(3))+nhb(3)
+    ! save_bin_bilinear_surface_coeff(P(:,:), Abilinear(:,:,i,j))
+    subroutine save_bin_bilinear_surface_coeff(P, A)
+
+        real(kind(0.d0)),intent(in)  :: P(2,2)
+	    real(kind(0.d0)),intent(out) :: A(2,2)
+
+        A(1,1) = P(1,1)
+        A(2,1) = P(2,1) - P(1,1)
+        A(1,2) = P(1,2) - P(1,1)
+        A(2,2) = P(2,2) + P(1,1) - (P(2,1) + P(1,2))
+
+    end subroutine save_bin_bilinear_surface_coeff
+
+    !Get surface position from positions for a known bin
+    ! e.g. use with a bilinear surface as follows
+    ! i = ceiling((r(2)+halfdomain(2))/binsize(2))+nhb(2)
+    ! j = ceiling((r(3)+halfdomain(3))/binsize(3))+nhb(3)
+    ! P(:,:) = Abilinear(:,:,i,j)
+    ! x = xsurfpos(y, z, P)
+    function xsurfpos(y, z, P)
+
+        real(kind(0.d0)),intent(in) :: y, z, P(2,2)
+	    real(kind(0.d0))            :: xsurfpos
+
+        xsurfpos = 0.d0
+        do jxyz=1,2
+        do kxyz=1,2
+            xsurfpos = xsurfpos + P(jxyz, kxyz)*(y**(jxyz-1))*(z**(kxyz-1))
+        enddo
+        enddo
+
+    end function xsurfpos
+
+    function bin_from_intrinsic(r) result(bin)
+        use computational_constants_MD, only : halfdomain, nhb
+        use calculated_properties_MD, only : binsize, nbins
+        implicit none
+
+        real(kind(0.d0)),intent(in),dimension(3) :: r
+	    integer,dimension(3) 					 :: bin
+
+        integer :: ixyz
+
+        bin(2) = ceiling((r(2)+halfdomain(2))/binsize(2))+nhb(2)
+        bin(3) = ceiling((r(3)+halfdomain(3))/binsize(3))+nhb(3)
+!        bin(1) = ceiling((r(1) - zeta(r(2),r(3)) & 
+!                          +halfdomain(1))/binsize(1))+nhb(1)
+
+        bin(1) = ceiling((r(1) - xsurfpos(r(2),r(3), Abilinear(:,:,bin(2), bin(3))) & 
+                          +halfdomain(1))/binsize(1))+nhb(1)
+
+
+        !print*, "Bin before = ", ceiling((r(1)+halfdomain(1))/binsize(1))+nhb(1), "bin after = ", bin(1)
+
+        !Prevents out of range values
+        do ixyz=1,3
+    		if (bin(ixyz) > nbins(ixyz)+nhb(ixyz)) then
+                bin(ixyz) = nbins(ixyz)+nhb(ixyz)
+            elseif (bin(ixyz) < 1 ) then
+                bin(ixyz) = 1   
+            endif
+        enddo
+
+    end function bin_from_intrinsic
 
 end module module_record
 !==========================================================================
@@ -100,6 +229,17 @@ subroutine simulation_record
 
     integer, save   :: vmd_skip_count=0
     integer, save   :: vmdintervalno = 1
+
+    !Cluster analysis or average bin based tracking of liquid vapour interfaces
+    if (cluster_analysis_outflag .eq. 1) then
+        call get_interface_from_clusters()
+        call debug_sine_to_bilinear_surface_coeff()
+        get_bin => bin_from_intrinsic
+    elseif (cluster_analysis_outflag .eq. 2) then
+        call sl_interface_from_binaverage()
+    else
+        get_bin => bin_from_integer_division
+    endif
 
 	if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
 		call mass_flux_averaging(mflux_outflag)				!Average mass flux before movement of particles
@@ -197,13 +337,6 @@ subroutine simulation_record
 	!Obtain and record mass only
 	if (momentum_outflag .eq. 0 .and. &
 		mass_outflag .ne. 0) call mass_averaging(mass_outflag)
-
-    !Cluster analysis or average bin based tracking of liquid vapour interfaces
-    if (cluster_analysis_outflag .eq. 1) then
-        call get_interface_from_clusters()
-    elseif (cluster_analysis_outflag .eq. 2) then
-        call sl_interface_from_binaverage()
-    endif
 
 #if __INTEL_COMPILER > 1200
 	!Obtain and record velocity distributions
@@ -1331,7 +1464,6 @@ subroutine cumulative_mass(ixyz)
 	!Mass measurement for 3D bins throughout the domain
 	case(4)
 
-        mbinsize(:) = domain(:) / nbins(:) 
         select case (split_pol_sol_stats)
         case(0)
             do n = 1,np
@@ -1537,7 +1669,6 @@ subroutine cumulative_momentum(ixyz)
 	!momentum measurement for 3D bins throughout the domain
 	case(4)
 
-        Vbinsize(:) = domain(:) / nbins(:) 
         select case (split_pol_sol_stats)
         case(0)
             !Reset Control Volume momentum 
@@ -1714,11 +1845,6 @@ subroutine cumulative_temperature(ixyz)
 
 	!Temperature measurement for 3D bins throughout the domain
 	case(4)
-
-		!Determine bin size
-		Tbinsize(:) = domain(:) / nbins(:)
-		
-		!call evaluate_U 
 
 		!Reset Control Volume momentum 
 		do n = 1,np
@@ -2179,19 +2305,22 @@ subroutine simulation_compute_kinetic_VA(imin,imax,jmin,jmax,kmin,kmax)
 	!vvbin = 0.d0
 
 	!Determine bin size
-	VAbinsize(:) = domain(:) / nbins(:)
+	!VAbinsize(:) = domain(:) / nbins(:)
+
+
+    bin(:) = get_bin(r(:,n))
 
 	! Add kinetic part of pressure tensor for all molecules
 	do n = 1, np
 
 		!Assign to bins using integer division
-		ibin = ceiling((r(1,n)+halfdomain(1))/VAbinsize(1))	!Establish current bin
+		ibin = bin(1) !ceiling((r(1,n)+halfdomain(1))/VAbinsize(1))	!Establish current bin
 		if (ibin .gt. imax) cycle ! ibin = maxbin		!Prevents out of range values
 		if (ibin .lt. imin) cycle ! ibin = minbin		!Prevents out of range values
-		jbin = ceiling((r(2,n)+halfdomain(2))/VAbinsize(2)) 	!Establish current bin
+		jbin = bin(2) !ceiling((r(2,n)+halfdomain(2))/VAbinsize(2)) 	!Establish current bin
 		if (jbin .gt. jmax) cycle ! jbin = maxbin 		!Prevents out of range values
 		if (jbin .lt. jmin) cycle ! jbin = minbin		!Prevents out of range values
-		kbin = ceiling((r(3,n)+halfdomain(3))/VAbinsize(3)) 	!Establish current bin
+		kbin = bin(3) !ceiling((r(3,n)+halfdomain(3))/VAbinsize(3)) 	!Establish current bin
 		if (kbin .gt. kmax) cycle ! kbin = maxbin		!Prevents out of range values
 		if (kbin .lt. kmin) cycle ! kbin = minbin		!Prevents out of range values
 
@@ -5445,7 +5574,7 @@ contains
         use physical_constants_MD, only : pi
         use minpack_fit_funcs_mod, only : fn, cubic_fn, cubic_fn2D, & 
                                           cubic_fn2D_16coeff, curve_fit
-        use librarymod, only : least_squares, get_new_fileunit
+        use librarymod, only : least_squares, get_new_fileunit, fit_intrinsic_surface
         implicit none
 
         integer, intent(in) :: fittype
@@ -5457,7 +5586,7 @@ contains
 
         logical :: first_time=.true.
         integer :: fileunit
-        integer, parameter :: DEBUG=0, ONEDIM=1, TWODIM=2, TWODIM16=3
+        integer, parameter :: DEBUG=0, ONEDIM=1, TWODIM=2, TWODIM16=3, FourierISM=4
         double precision   :: m, c, cl_angle
         !Save previous surface as initial guess
         double precision,dimension(:), &
@@ -5521,6 +5650,17 @@ contains
             if (present(debug_outfile)) then
                 write(fileunit,'(i12, 19f15.8)') iter, m, c, cl_angle, p0
             endif
+       else if (fittype .eq. FourierISM) then
+!            allocate(points(size(x,1),3))
+!            !X is the surface normal, stored in y but ISM assumes z is normal
+!            points(:,1) = x
+!            points(:,2) = z
+!            points(:,3) = y
+!            call fit_intrinsic_surface(points, globaldomain, normal=3, alpha=2.d0, tau=0.5d0, modes)
+!            call surface_from_modes(xy_grid, globaldomain, alpha=2.d0, modes=modes, elevation=elevation)
+!            if (present(debug_outfile)) then
+!                write(fileunit,*) iter, elevation
+!            endif
         endif
         !Save soln  as initial guess for next time
         p0_ = p0
@@ -5562,12 +5702,11 @@ contains
         call cluster_outer_mols(self, imaxloc(self%Nlist), tolerance=tolerance, dir=1, & 
                                 rmols=rnp, extents=extents_grid, debug_outfile='./results/clust_edge_top')
 
-        !Curve fits to clusers
+        !Curve fits to clusters
         allocate(x(size(rnp,2)), y(size(rnp,2)), z(size(rnp,2)))
         x = rnp(2,:); y = rnp(1,:); z = rnp(3,:)
         call fit_surface(x, y, z, fittype, pt, f, debug_outfile='./results/linecoeff_top')
         deallocate(x,y,z)
-
 
         !Get molecules on bottom surface
         call cluster_extents_grid(self, imaxloc(self%Nlist), 4, resolution, &
@@ -5575,7 +5714,7 @@ contains
         call cluster_outer_mols(self, imaxloc(self%Nlist), tolerance=tolerance, dir=4, & 
                                 rmols=rnp, extents=extents_grid)!, debug_outfile='./results/clust_edge_bot')
 
-        !Curve fits to clusers
+        !Curve fits to clusters
         allocate(x(size(rnp,2)), y(size(rnp,2)), z(size(rnp,2)))
         x = rnp(2,:); y = rnp(1,:); z = rnp(3,:)
         call fit_surface(x, y, z, fittype, pb, f, debug_outfile='./results/linecoeff_bot')

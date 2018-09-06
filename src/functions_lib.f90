@@ -1447,6 +1447,63 @@ function linspace(d1, d2, n)
 end function linspace
 
 
+
+
+
+subroutine meshgrid2D(x, y, xgrid, ygrid)
+    implicit none
+
+    real(kind(0.d0)),dimension(:),allocatable, intent(in) :: x, y
+    real(kind(0.d0)),dimension(:,:),allocatable, intent(out)    :: xgrid, ygrid
+
+    integer :: i, j
+    integer, dimension(2) :: ncxy
+
+    ncxy(1) = size(x,1)
+    ncxy(2) = size(y,1)
+
+    ! Construct cartesian grid
+    allocate(xgrid(ncxy(1), ncxy(2)))
+    allocate(ygrid(ncxy(1), ncxy(2)))
+    do i=1, ncxy(1)
+    do j=1, ncxy(2)
+        xgrid(i, j) = x(i)
+        ygrid(i, j) = y(j)
+    enddo
+    enddo
+
+end subroutine meshgrid2D
+
+subroutine meshgrid3D(x, y, z, xgrid, ygrid, zgrid)
+    implicit none
+
+    real(kind(0.d0)),dimension(:),allocatable, intent(in) :: x,y,z
+    real(kind(0.d0)),dimension(:,:,:),allocatable, intent(out)    :: xgrid, ygrid, zgrid
+
+    integer :: i, j, k
+    integer, dimension(3) :: ncxyz
+
+    ncxyz(1) = size(x,1)
+    ncxyz(2) = size(y,1)
+    ncxyz(3) = size(z,1)
+
+    ! Construct cartesian grid
+    allocate(xgrid(ncxyz(1)+1, ncxyz(2)+1, ncxyz(3)+1))
+    allocate(ygrid(ncxyz(1)+1, ncxyz(2)+1, ncxyz(3)+1))
+    allocate(zgrid(ncxyz(1)+1, ncxyz(2)+1, ncxyz(3)+1))
+    do i=1, ncxyz(1)
+    do j=1, ncxyz(2)
+    do k=1, ncxyz(3)
+        xgrid(i, j, k) = x(i)
+        ygrid(i, j, k) = y(j)
+        zgrid(i, j, k) = z(k)
+    enddo
+    enddo
+    enddo
+
+end subroutine meshgrid3D
+
+
 !Get surface crossings on a specified control volume surface
 ! r1 -- position of molecules 1
 ! r2 -- position of molecules 2
@@ -1734,8 +1791,6 @@ subroutine bubble_sort(vec)
 
 end subroutine bubble_sort
 
-! Reverse of the above but ordering biggest to smallest
-
 subroutine bubble_sort_r(vec)
 	implicit none
 
@@ -1760,6 +1815,506 @@ subroutine bubble_sort_r(vec)
 	enddo
 
 end subroutine bubble_sort_r
+
+subroutine Qsort_r(A)
+
+    double precision, allocatable, intent(in out), dimension(:) :: A
+    call Qsort(A)
+    A = A(ubound(A,1):lbound(A,1):-1)
+
+end subroutine Qsort_r
+
+
+! Recursive Fortran 95 quicksort routine
+! sorts real numbers into ascending numerical order
+! Author: Juli Rew, SCD Consulting (juliana@ucar.edu), 9/03
+! Based on algorithm from Cormen et al., Introduction to Algorithms,
+! 1997 printing
+
+! Made F conformant by Walt Brainerd
+
+recursive subroutine Qsort(A, indices)
+    implicit none
+
+    double precision, allocatable, intent(in out), dimension(:) :: A
+    integer :: iq
+    double precision, allocatable, dimension(:) :: temp
+    integer, allocatable, dimension(:), optional :: indices
+    integer, allocatable, dimension(:) :: itemp
+
+    if(size(A) > 1) then
+        if (present(indices)) then
+            call Partition(A, iq, indices)
+        else
+            call Partition(A, iq)
+        endif
+        allocate(temp(iq-1))
+        temp = A(:iq-1)
+        if (present(indices)) then
+            allocate(itemp(iq-1))
+            itemp = indices(:iq-1)
+            call Qsort(temp, itemp)
+            indices(:iq-1) = itemp
+            deallocate(itemp)
+        else
+            call Qsort(temp)
+        endif
+        A(:iq-1) = temp
+        deallocate(temp)
+        allocate(temp(size(A,1)-iq+1))
+        temp = A(iq:)
+        if (present(indices)) then
+            allocate(itemp(size(A,1)-iq+1))
+            itemp = indices(iq:)
+            call Qsort(temp, itemp)
+            indices(iq:) = itemp
+            deallocate(itemp)
+        else
+            call Qsort(temp)
+        endif
+        A(iq:) = temp
+        deallocate(temp)
+    endif
+
+end subroutine Qsort
+
+subroutine Partition(A, marker, indices)
+    implicit none
+
+    double precision, allocatable, intent(in out), dimension(:) :: A
+    integer, intent(out) :: marker
+    integer, allocatable, dimension(:), optional :: indices
+
+    integer :: i, j, itemp
+    double precision :: temp
+    double precision :: x      ! pivot point
+
+    x = A(1)
+    i= 0
+    j= size(A) + 1
+
+    do
+        j = j-1
+        do
+            if (A(j) <= x) exit
+            j = j-1
+        end do
+        i = i+1
+        do
+            if (A(i) >= x) exit
+            i = i+1
+        end do
+        if (i < j) then
+            ! exchange A(i) and A(j)
+            temp = A(i)
+            A(i) = A(j)
+            A(j) = temp
+            if (present(indices)) then
+                itemp = indices(i)
+                indices(i) = indices(j)
+                indices(j) = itemp
+            endif
+        elseif (i == j) then
+            marker = i+1
+            return
+        else
+            marker = i
+            return
+        endif
+    end do
+
+end subroutine Partition
+
+!Copied from pytim surface code
+subroutine compute_q_vectors(box, alpha, q_vectors, modes_shape, Qxy, Q)
+    implicit none
+
+    double precision, intent(in) :: alpha
+    double precision, intent(in), dimension(3) :: box
+
+    integer, intent(out), dimension(2) :: modes_shape
+    double precision, intent(out), dimension(:), allocatable :: Q
+    double precision, intent(out), dimension(:,:), allocatable :: Qxy
+    double precision, intent(out), dimension(:,:,:), allocatable :: q_vectors
+
+    integer :: i,j
+    double precision, parameter :: pi=3.141592653589793d0
+    real(kind(0.d0)), dimension(:), allocatable :: qx, qy
+    real(kind(0.d0)), dimension(:,:), allocatable :: qx_vectors,  qy_vectors
+
+
+    !Compute the q-vectors compatible with the current box dimensions.
+
+    !Inputs:
+    !box       : List of domain dimensions [Lx, Ly, Lz]
+    !normal    : Normal to surface x=1, y=2 and z=3
+    !alpha     : Molecular scale cutoff, default 2.0
+
+    !Outputs:
+    !q_vectors : two 2D arrays forming the grid of q-values, similar
+    !            to a meshgrid
+    !mode_shape: Number of modes
+    !Qxy       : array of the different q-vectors
+    !Q         : squared module of Qxy with the first element missing
+
+    !Shift to allow normal that is any direction
+    !box = np.roll(box, 2 - normal)
+    modes_shape = ceiling(box(1:2) / alpha)
+    allocate(qx(modes_shape(1)), qy(modes_shape(2)))
+    do i=1,modes_shape(1)
+        qx(i) = dble((i-1)) * 2.d0 * pi / box(1)
+    enddo
+    do i=1,modes_shape(2)
+        qy(i) = dble((i-1)) * 2.d0 * pi / box(2)
+    enddo
+
+    call meshgrid2D(qx, qy, qx_vectors, qy_vectors)
+    allocate(q_vectors(2, modes_shape(1), modes_shape(2)))
+    q_vectors(1,:,:) = qx_vectors
+    q_vectors(2,:,:) = qy_vectors
+
+    allocate(Qxy(modes_shape(1)*modes_shape(2),2))
+    do i = 1, modes_shape(1)
+    do j = 1, modes_shape(2)
+        !print*, i,j,j+(i-1)*modes_shape(1), q_vectors(1,i,j), q_vectors(2,i,j)
+        ! Notice we swap the convention here x -> y
+        ! Not sure why (issue with meshgrid?!) but give the right results
+        Qxy(j+(i-1)*modes_shape(1),2) = q_vectors(1,i,j)
+        Qxy(j+(i-1)*modes_shape(1),1) = q_vectors(2,i,j)
+    enddo
+    enddo
+    !Exclude zeroth mode
+    allocate(Q(modes_shape(1)*modes_shape(2)-1))
+    Q = sqrt(Qxy(2:,1)**2 + Qxy(2:,2)**2)
+
+end subroutine compute_q_vectors
+
+
+subroutine get_surface_modes(points, Qxy, modes_shape, Q, modes, omega)
+    use lapack_fns, only : pinverse
+    implicit none
+
+    integer, intent(in), dimension(2) :: modes_shape
+    double precision, intent(in), optional :: omega
+    double precision, intent(in), dimension(:), allocatable :: Q
+    double precision, intent(in), dimension(:,:), allocatable :: Qxy, points
+    double complex, intent(out), dimension(:,:), allocatable :: modes
+
+    integer :: i,j
+    real(kind(0.d0)), parameter :: pi=3.141592653589793d0
+    real(kind(0.d0)) :: az, Lx, Ly
+    real(kind(0.d0)), dimension(:), allocatable :: z
+    real(kind(0.d0)), dimension(:,:), allocatable :: xy, QR
+    double complex, dimension(:), allocatable :: s
+    double complex, dimension(:,:), allocatable :: ph, pinv_ph
+
+    !Make some definitions
+    allocate(xy(size(points,1),2))
+    xy(:,1) = points(:, 1);  xy(:,2) = points(:, 2)
+    allocate(z(size(points,1)))
+    z = points(:, 3)
+    az = sum(z)/size(z)
+    z = z - az
+
+    ! Qx is an unravelled array of modes, we dot each of the x-y parts with a point
+    ! to get the contribution of each point to spectral basis set
+    allocate(QR(size(xy,1), size(Qxy,1)))
+    do i=1,size(QR,1)
+    do j=1,size(QR,2)
+        !QR(i,j) = xy(i,1)*Qxy(j,1) + xy(i,2)*Qxy(j,2)
+        QR(i,j) = dot_product(Qxy(j,:), xy(i,:))
+    enddo
+    enddo
+
+    ! We exclude the zero mode and add the mean back in as zero mode instead
+    allocate(ph(size(QR,1), size(QR,2)-1))
+    do j=1,size(ph,2)
+        ph(:,j) = dcmplx(cos(QR(:,j+1)), sin(QR(:,j+1)))/ Q(j) 
+    enddo
+
+    ! Constraint here Least Squares solution of  
+    ! A = \omega/2 * \sum_i (z_i - ph(x_i,y_i))^2 
+    !   + (Lx*Ly)/2 * \sum_k k^2 | \xi_k |^2 
+    ! min(A) with  k**2 = Q**2
+    if (present(omega)) then
+        print*, "CONSTRAINT APPLIED"
+        Lx = 2.d0 * pi / Qxy(modes_shape(1)+1,2)    
+        Ly = 2.d0 * pi / Qxy(2,1)  
+        do j=1,size(ph,2)
+            ph(:,j) = omega * ph(:,j) + complex(Lx*Ly*Q(j)**2, 0.d0)
+        enddo
+    endif
+
+    ! Least square solution solving ph*z = s
+    call pinverse(ph, pinv_ph)
+
+    !Multiply inverse with z values to get mode coefficients
+    allocate(s(modes_shape(1)*modes_shape(2)))
+    s(1) = dcmplx(az, 0.d0)
+    do i=2,size(s,1)
+        s(i) = dot_product(pinv_ph(i-1,:),z(:))/Q(i-1)
+    enddo
+
+    !Return modes in right shape
+    allocate(modes(modes_shape(1),modes_shape(2)))
+    modes = reshape(s, modes_shape)
+
+end subroutine get_surface_modes
+
+
+!subroutine surface_from_modes(points, box, alpha, modes, elevation)
+!    implicit none
+
+!    double precision, intent(in), dimension(:,:), allocatable ::  points
+!    double complex, intent(in), dimension(:,:), allocatable :: modes
+!    double precision, intent(out), dimension(:), allocatable :: elevation
+
+!    integer,dimension(2) :: modes_shape
+!    double precision, dimension(:), allocatable :: Q
+!    double precision, dimension(:,:), allocatable :: Qxy
+!    double precision, dimension(:,:,:), allocatable :: q_vectors
+
+!    call compute_q_vectors(box, alpha, q_vectors, modes_shape, Qxy, Q)
+!    call _surface_from_modes(points, q_vectors, modes, elevation)
+
+!end subroutine surface_from_modes
+
+subroutine surface_from_modes(points, q_vectors, modes, elevation)
+    implicit none
+
+    double precision, intent(in), dimension(:,:,:), allocatable :: q_vectors
+    double precision, intent(in), dimension(:,:), allocatable ::  points
+    double complex, intent(in), dimension(:,:), allocatable :: modes
+    double precision, intent(out), dimension(:), allocatable :: elevation
+
+    integer :: i, j, n
+
+    double precision, dimension(:,:), allocatable :: dotp
+    double complex, dimension(:,:), allocatable :: phase
+
+    allocate(elevation(size(points,1)))
+    allocate(dotp(size(q_vectors,2),size(q_vectors,3)))
+    allocate(phase(size(q_vectors,2),size(q_vectors,3)))
+
+    elevation = 0.d0
+    do n = 1,size(points,1)
+    do i = 1,size(q_vectors,2)
+    do j = 1,size(q_vectors,3)
+        dotp(i,j) = dot_product(q_vectors(:,i,j), points(n, :))
+        !dotp(i,j) = q_vectors(1,i,j) * points(n, 1) + q_vectors(2,i,j) * points(n,2)
+        phase(i,j) = dcmplx(cos(dotp(i,j)), sin(dotp(i,j)))
+        elevation(n) = elevation(n) + real(phase(i,j) * modes(i,j))
+    enddo
+    enddo
+    enddo
+
+end subroutine surface_from_modes
+
+subroutine get_initial_pivots(points, box, normal, pivots)
+    implicit none
+
+    integer, intent(in) :: normal
+    double precision, intent(in), dimension(3) :: box
+    double precision, intent(in), dimension(:,:), allocatable ::  points
+
+    integer, intent(out), dimension(:), allocatable ::  pivots
+
+    ! Defines the initial pivots as a set of 9 particles, where
+    ! each particle is in a distinct sector formed by dividing
+    ! the macroscopic plane into 3x3 regions.
+    integer :: Npivots, i, ind, ixyz, jxyz
+    integer, dimension(2) :: nxy
+    integer, dimension(3,3) :: sectors
+
+    integer, dimension(:), allocatable :: indices
+    double precision, dimension(:), allocatable :: z
+    
+    !Setup indices
+    allocate(indices(size(points,1))) 
+    do ind = 1, size(indices,1)
+        indices(ind) = ind
+    enddo
+
+    !Sort ascending
+    allocate(z(size(points,1)))
+    z = points(:,normal)
+    call Qsort(z, indices)
+    Npivots = 9
+    allocate(pivots(Npivots))
+    sectors = 0
+    !Start from the largest (end) value
+    ixyz = mod(normal,3)+1
+    jxyz = mod(normal+1,3)+1
+    do ind = size(z,1), 1, -1
+        nxy(1) = floor(2.999 * points(indices(ind), ixyz) / box(ixyz))+1
+        nxy(2) = floor(2.999 * points(indices(ind), jxyz) / box(jxyz))+1
+        if (sectors(nxy(1), nxy(2)) .eq. 0) then
+            pivots(Npivots) = indices(ind)
+            sectors(nxy(1), nxy(2)) = 1
+            Npivots = Npivots - 1
+        endif
+        if (sum(sectors) .ge. 9) then
+            exit
+        endif
+    enddo
+
+end subroutine get_initial_pivots
+
+subroutine update_pivots(points, q_vectors, modes, pivots, &
+                         normal, alpha, tau, new_pivots)
+    implicit none
+
+    integer, intent(in) :: normal
+    double precision, intent(in) :: alpha, tau
+
+    double precision, intent(in), dimension(:,:), allocatable ::  points
+    double precision, intent(in), dimension(:,:,:), allocatable :: q_vectors
+    double complex, intent(in), dimension(:,:), allocatable :: modes
+    integer, intent(in), dimension(:), allocatable ::  pivots
+
+    integer, intent(out), dimension(:), allocatable ::  new_pivots
+
+    logical :: found_range
+    integer :: i, n, ind, nPivots, sp
+    double precision :: z_max, z_min
+    integer, dimension(:), allocatable :: candidates, updated_pivots, indices
+    double precision, dimension(:), allocatable :: z, surf
+    double precision, dimension(:,:), allocatable :: candidates_pos, pivot_pos
+
+    ! Searches for points within a distance tau from the
+    ! interface.
+    sp = size(pivots,1)
+    allocate(pivot_pos(sp,3)) 
+    do i =1, sp
+        pivot_pos(i,:) = points(pivots(i),:)
+    enddo
+    z_max = maxval(pivot_pos(:,normal)) + alpha * 2.d0
+    z_min = minval(pivot_pos(:,normal)) - alpha * 2.d0
+
+    z = points(:, normal)
+    allocate(indices(size(points,1))) 
+    do ind = 1, size(indices,1)
+        indices(ind) = ind
+    enddo
+    call Qsort(z, indices)
+    n = 0; found_range=.false.
+    allocate(candidates(size(points,1))) 
+    do i = size(z,1), 1, -1
+        if (z(i) > z_min .and. z(i) < z_max) then
+            n = n + 1
+            candidates(n) = indices(i)
+            found_range = .true.
+            !print*, "values", i, n, z_min, z(i), z_max, candidates(n)
+        else if (found_range) then
+            !If z is sorted and we've been inside the range,
+            !once we leave, no point looping anymore
+            exit
+        endif
+
+    enddo
+
+    !Get positions from indices
+    allocate(candidates_pos(n,3))
+    do i =1, n
+        !print*, "values", i, n, candidates(i), points(candidates(i),:)
+        candidates_pos(i,:) = points(candidates(i),:)
+    enddo
+
+    !Recalculate surface at candidate pivot locations
+    call surface_from_modes(candidates_pos, q_vectors, modes, surf)
+
+    nPivots = 0
+    allocate(updated_pivots(n))
+    do i =1,n
+        if ((surf(i)-candidates_pos(i,normal))**2 .lt. tau**2) then
+            nPivots = nPivots + 1
+            updated_pivots(nPivots) = candidates(i)
+            !print*, i, nPivots, candidates(i), updated_pivots(nPivots)
+        endif
+    enddo
+    allocate(new_pivots(nPivots))
+    new_pivots = updated_pivots(1:nPivots)
+
+    !allocate(new_pivots(nPivots+sp))
+    !new_pivots(1:sp) = pivots(:)
+    !new_pivots(sp+1:) = updated_pivots(:nPivots)
+
+    !print*, new_pivots 
+
+end subroutine update_pivots
+
+subroutine fit_intrinsic_surface(points, box, normal, alpha, tau, modes, omega)
+    implicit none
+
+    integer, intent(in) :: normal
+    double precision, intent(in) :: alpha, tau
+    double precision, intent(in), optional :: omega
+    double precision, intent(in), dimension(3) :: box
+    double precision, intent(in), dimension(:,:), allocatable ::  points
+    double complex, intent(out), dimension(:,:), allocatable :: modes
+
+    integer :: i, j, Np, sp, try, maxtry=100
+    integer, dimension(2) :: modes_shape
+    integer, dimension(:), allocatable :: indices, pivots, new_pivots
+    double precision, dimension(:), allocatable :: Q, z, d, surf
+    double precision, dimension(:,:), allocatable :: Qxy, pivot_pos
+    double precision, dimension(:,:,:), allocatable :: q_vectors
+
+    call compute_q_vectors(box, alpha, q_vectors, modes_shape, Qxy, Q)
+    call get_initial_pivots(points, box, normal, pivots)
+    sp = size(pivots,1)
+    allocate(pivot_pos(sp,3))
+    do i =1, sp
+        pivot_pos(i,:) = points(pivots(i),:)
+        print*, "initial pivot pos = ", i, pivot_pos(i,:)
+    enddo
+
+    if (present(omega)) then
+        call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, omega)
+    else
+        call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes)
+    endif
+
+    allocate(d(sp))
+    do try = 1, maxtry
+
+        !Plot updated surface error
+        call surface_from_modes(pivot_pos, q_vectors, modes, surf)
+        d = pivot_pos(:, normal) - surf(:)
+        print*, "Try no. = ", try, "No. pivots = ", size(pivots), "Error=", sqrt(sum(d * d) / size(d))
+
+        !Get new pivots
+        call update_pivots(points, q_vectors, modes, pivots, &
+                           normal, alpha, tau, new_pivots)
+
+        !Get new positions and new modes
+        deallocate(pivot_pos)
+        sp = size(new_pivots,1)
+        allocate(pivot_pos(sp,3))
+        do i =1, sp
+            pivot_pos(i,:) = points(new_pivots(i),:)
+            !print*, "new pivot pos = ", i, pivot_pos(i,:)
+        enddo
+        if (present(omega)) then
+            call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, omega)
+        else
+            call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes)
+        endif
+
+        !Exit once we have converged to a fix set of pivots
+        if (all(new_pivots .eq. pivots)) then
+            exit
+        else
+            deallocate(pivots)
+            allocate(pivots(size(new_pivots,1)))
+            pivots = new_pivots
+            deallocate(new_pivots)
+        endif
+
+    enddo
+
+end subroutine fit_intrinsic_surface
+
 
 !-------------------------------------------------------------------------------------
 !Returns the heaviside function for input x -- interface at top
