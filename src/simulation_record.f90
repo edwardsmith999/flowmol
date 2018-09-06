@@ -3145,9 +3145,9 @@ subroutine simulation_compute_rfbins!(imin, imax, jmin, jmax, kmin, kmax)
     jcellmin = 1; jcellmax = ncells(2) + 2
     kcellmin = 1; kcellmax = ncells(3) + 2
 
-	do kcell=kcellmin, kcellmax
-	do jcell=jcellmin, jcellmax 
-	do icell=icellmin, icellmax 
+	do kcell = kcellmin, kcellmax
+	do jcell = jcellmin, jcellmax 
+	do icell = icellmin, icellmax 
 
 	
 		cellnp = cell%cellnp(icell,jcell,kcell)
@@ -6966,6 +6966,7 @@ contains
 	    use module_compute_forces, only: cellinfo, neighbrinfo, rj, rij, ri,&
                                          delta_rneighbr, rcutoff, rij2, &
                                          moltype
+        use computational_constants_MD, only : Mie_potential
 	    use interfaces, only : error_abort
         implicit none
 
@@ -6997,7 +6998,9 @@ contains
         do molnoi = 1, nmols
 
 	        ri = rmols(:,molnoi)         	!Retrieve ri
-            if (skipwalls .and. any(moltype(molnoi) .eq. (/ 2, 9 /) )) cycle !Don't include wall molecules
+            if (skipwalls .and. (Mie_potential .ne. 0)) then
+                if (any(moltype(molnoi) .eq. (/ 2, 9 /) )) cycle !Don't include wall molecules
+            endif
 
             ! If interface cutoff is less that interaction rcutoff
             ! then we can use the neighbourlist to get molecules in 
@@ -7018,8 +7021,12 @@ contains
 		            rij2  = dot_product(rij,rij)            !Square of vector calculated
 
 		            if (rij2 .lt. rd2) then
-                        if (skipwalls .and. any(moltype(molnoj) .eq. (/ 2, 9 /))) then
-                            call AddBondedPair(self, molnoi, molnoi)
+                        if (skipwalls .and. (Mie_potential .ne. 0)) then
+                            if (any(moltype(molnoj) .eq. (/ 2, 9 /))) then
+                                call AddBondedPair(self, molnoi, molnoi)
+                            else
+                                call AddBondedPair(self, molnoi, molnoj)
+                            endif
                         else
                             call AddBondedPair(self, molnoi, molnoj)
                         endif

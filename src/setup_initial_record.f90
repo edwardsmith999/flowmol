@@ -68,6 +68,7 @@ subroutine setup_initial_record
                         close(23,status='delete')
                         missing_file_tolerance = 5
                     elseif(missing_file_tolerance .eq. 0) then
+                        missing_file_tolerance = 5
                         exit !Exit loop if max file reached 
                     else
                         missing_file_tolerance = missing_file_tolerance - 1
@@ -212,7 +213,7 @@ subroutine setup_initial_record
         print*, 'Initial Temperature: ',  inputtemperature
         if (rebuild_criteria .eq. 0) then
             print'(a,f19.15,a,f10.5)', ' Cut off distance:  ', rcutoff
-            print'(a,3f12.6)', 'Neighbour List Delta r x,y,z: ', delta_rneighbr(:)
+            print'(a,3f12.6)', ' Neighbour List Delta r x,y,z: ', delta_rneighbr(:)
         else
             print'(a,f19.15a,3f8.4,a,i5,a)', ' Cut off ', rcutoff, ' nbr: ', delta_rneighbr(:), &
                     ' & fixed rebuild every ', fixed_rebuild, ' steps'

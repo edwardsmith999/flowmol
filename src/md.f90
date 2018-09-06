@@ -114,7 +114,7 @@ contains
 
 #if USE_COUPLER
 		call apply_boundary_force              ! Apply boundary force to prevent molecules leaving domain 
-		call socket_apply_continuum_forces     ! CFD=> MD Apply CFD based coupling forces on MD
+		call socket_apply_continuum_forces     ! CFD=>MD Apply CFD based coupling forces on MD
 		call average_and_send_MD_to_CFD(iter)  ! MD=>CFD Calculate averages of MD to pass to CFD
 #else
 		call apply_CV_force
