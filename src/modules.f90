@@ -64,7 +64,7 @@ module computational_constants_MD
     integer             :: rebuild_criteria    !Choice of rebuild criteria
     integer             :: fixed_rebuild      !Fixed rebuild frequency
 	real(kind(0.d0)) 	:: rneighbr2         !Square of rcuttoff+delta_rneighbr
-	real(kind(0.d0)) 	:: delta_rneighbr    !Radius used for neighbour list construction
+	real(kind(0.d0)),dimension(3) 	:: delta_rneighbr    !Radius used for neighbour list construction
 
 	! Move particle tags
 	logical 		   :: tag_thermostat_active
@@ -117,11 +117,11 @@ module computational_constants_MD
 
 	!Initial configuration selection
 	integer           	:: initial_config_flag
+	integer         	:: lg_direction     !Direction in which the domain is split into liquid and gas
 	character(len=128)	:: config_special_case
 	real(kind(0.d0))	:: liquid_density	!Density of liquid if solid/liquid case used
 	real(kind(0.d0))	:: gas_density	    !Density of liquid if gas/liquid case used
 	real(kind(0.d0))	:: lg_fract	        !Fraction of the domain which is liquid (0 = all gas, 1 = all liquid)
-	real(kind(0.d0))	:: lg_direction     !Direction in which the domain is split into liquid and gas
 	real(kind(0.d0))	:: dropletH =0.d0,dropletHLratio=0.d0   !Droplet height and H to length ratio
 	real(kind(0.d0))	:: rbubble, rcentre(3)   !Radius of bubble
     logical             :: Twophase_from_file = .false.
@@ -602,28 +602,28 @@ contains
 		rglob(2) = r(2,molno) - halfdomain(2)*(npy-1) + domain(2)*(jblock - 1)   
 		rglob(3) = r(3,molno) - halfdomain(3)*(npz-1) + domain(3)*(kblock - 1)   
 
-        write(f,'(a)'), '-----------------------------------------------------'
-		write(f, '(a,i8,a)'), 'Monomer information for atom ', molno,':'
-        write(f,'(a)'), '-----------------------------------------------------'
-		write(f, '(a,i8)'), 'irank: ', irank
-		write(f, '(a,i8)'), 'molno:', molno
-		write(f, '(a,f10.5,a,f10.5,a,f10.5)'), 'Local position: ', &
+        write(f,'(a)') '-----------------------------------------------------'
+		write(f, '(a,i8,a)') 'Monomer information for atom ', molno,':'
+        write(f,'(a)') '-----------------------------------------------------'
+		write(f, '(a,i8)') 'irank: ', irank
+		write(f, '(a,i8)') 'molno:', molno
+		write(f, '(a,f10.5,a,f10.5,a,f10.5)') 'Local position: ', &
 		                                   r(1,molno),' ',r(2,molno),' ',r(3,molno) 
-		write(f, '(a,f10.5,a,f10.5,a,f10.5)'), 'Global position: ', &
+		write(f, '(a,f10.5,a,f10.5,a,f10.5)') 'Global position: ', &
 		                                   rglob(1),' ',rglob(2),' ',rglob(3) 
-		write(f, '(a,i8)'), 'ChainID: '   , monomer(molno)%chainID
-		write(f, '(a,i8)'), 'SubchainID: ', monomer(molno)%subchainID
-		write(f, '(a,i8)'), 'Funcy: '     , monomer(molno)%funcy
-		write(f, '(a,i8)'), 'Glob_no: '   , monomer(molno)%glob_no
-		write(f, '(a,4i8)'), 'Bin_bflag: ' , monomer(molno)%bin_bflag
-		write(f, '(a,i8)'), 'Tag: '       , tag(molno) 
+		write(f, '(a,i8)') 'ChainID: '   , monomer(molno)%chainID
+		write(f, '(a,i8)') 'SubchainID: ', monomer(molno)%subchainID
+		write(f, '(a,i8)') 'Funcy: '     , monomer(molno)%funcy
+		write(f, '(a,i8)') 'Glob_no: '   , monomer(molno)%glob_no
+		write(f, '(a,4i8)') 'Bin_bflag: ' , monomer(molno)%bin_bflag
+		write(f, '(a,i8)') 'Tag: '       , tag(molno) 
 
 		if (molno.gt.np) then
-		    write(f,'(a,i8,a)'), 'Atom ', molno, ' is a halo particle.'
+		    write(f,'(a,i8,a)') 'Atom ', molno, ' is a halo particle.'
 		end if
 
-        write(f, '(a)'), '____________________________________________________'
-        write(f, '(a)'), '____________________________________________________'
+        write(f, '(a)') '____________________________________________________'
+        write(f, '(a)') '____________________________________________________'
         
         close(f, status='keep')
 
@@ -766,7 +766,7 @@ module calculated_properties_MD
 		volume_force,  		& 		!Force acting over control volume surface 
 		momentum_flux, 		&		!Flow of momentum over a control volume surface
 		rfbin, 				& 		!Position(x)Force tensor per bin
-		rfvbin,				& 		!PositionForce dot v per bin
+		rfvbin,				& 		!Position(x)Force dot v per bin
 		vvbin, 				& 		!velocity(x)velocity tensor per bin
 		Pxybin, 			&		!Stress tensor per bin
 		Pxyface, 			&		!Stress tensor on bin face

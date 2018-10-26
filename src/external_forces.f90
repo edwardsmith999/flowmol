@@ -427,7 +427,7 @@ contains
             je = min(ncells(2),ceiling(domain(2)/cellsidelength(2))) + nh
 
             ! check if molecules from below cells can get in constraint region ( heuristic condition )
-            if ( y2 - (js - nh - 1) * cellsidelength(2) < delta_rneighbr ) then  
+            if ( y2 - (js - nh - 1) * cellsidelength(2) < delta_rneighbr(2) ) then  
                js = js - 1
             endif
 
@@ -624,8 +624,8 @@ subroutine apply_flekkoy_test
 	pressure_flekkoy = 4.d0
 	
 	!Get average over current cell and apply constraint forces
-	call average_over_bin
-	call apply_force
+	call average_over_bin()
+	call apply_force()
 
 contains
 
@@ -675,7 +675,7 @@ end subroutine average_over_bin
 ! Apply force to molecules in overlap region
 !-----------------------------------------------------------------------------
 
-subroutine apply_force
+subroutine apply_force()
 	use arrays_MD, only : r,v,a
 	use physical_constants_MD, only : density
 	implicit none
@@ -703,7 +703,7 @@ subroutine apply_force
 
         if (g .ne. 0.d0) then
 			if (iter .lt. 1000) then
-				write(1234,'(i3,2i7,5f12.6)'),irank,iter,n, &
+				write(1234,'(i3,2i7,5f12.6)') irank,iter,n, &
 						 					  r(2,n),v(2,n),a(2,n),g, & 
 											 (g/gsum) * dA * pressure_flekkoy
 			endif
@@ -1052,7 +1052,7 @@ subroutine get_CFD_velocity(lbl, &
 	allocate(u_CFD(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); u_CFD=0.d0
 
 #if USE_COUPLER
-
+    ! v v v v v   coupler call   v v v v v 
     select case (CVforce_flag)
     case(-1)
         !DEBUG case -- no force applied
@@ -1067,17 +1067,16 @@ subroutine get_CFD_velocity(lbl, &
         call socket_get_velocity(u_CFD, lbl)
         u_CFD=0.d0  
     case(1)
-	    ! v v v v v   coupler call   v v v v v 
         call socket_get_velocity(u_CFD, lbl)
         if (config_special_case	.eq. 'solid_liquid') then
             u_CFD = u_CFD*liquid_density*volume
         else
             u_CFD = u_CFD*density*volume
         endif
-	    ! ^ ^ ^ ^ ^   coupler call   ^ ^ ^ ^ ^
     case default
         stop "Error in get_CFD_velocity -- CVforce_flag for coupled code should be 0=off, 1=on"
     end select
+    ! ^ ^ ^ ^ ^   coupler call   ^ ^ ^ ^ ^
 
 #else
     select case (CVforce_flag)
@@ -1170,7 +1169,7 @@ subroutine get_CFD_stresses_fluxes(lbl, &
 
 
 #if USE_COUPLER
-
+    ! v v v v v   coupler call   v v v v v 
     select case (CVforce_flag)
     case(-1)
         !DEBUG case -- no force applied
@@ -1185,17 +1184,17 @@ subroutine get_CFD_stresses_fluxes(lbl, &
         call socket_get_fluxes_and_stresses(CFD_stress,CFD_flux)
         CFD_stress=0.d0; CFD_flux=0.d0
     case(1)
-	    ! v v v v v   coupler call   v v v v v 
+        !Apply stress based constraint
         call socket_get_fluxes_and_stresses(CFD_stress,CFD_flux)
         if (config_special_case	.eq. 'solid_liquid') then
             CFD_stress = CFD_stress*liquid_density*volume
         else
             CFD_stress = CFD_stress*density*volume
         endif
-	    ! ^ ^ ^ ^ ^   coupler call   ^ ^ ^ ^ ^
     case default
         stop "Error in get_CFD_stresses_fluxes -- CVforce_flag for coupled code should be 0=off, 1=on"
     end select
+    ! ^ ^ ^ ^ ^   coupler call   ^ ^ ^ ^ ^
 #else
     select case (CVforce_flag)
     case(-1)
@@ -1502,12 +1501,13 @@ subroutine get_F_correction_CV(u_CFD, &
 	use librarymod, only : linspace
 	implicit none
 
-	!Perhaps they need a good talking to, if you don't mind my saying so. 
-	!Perhaps a bit more. My girls, sir, they didn't care for the Overlook 
-	!at first. One of them actually stole a pack of matches, and tried to 
-	!burn it down. But I "corrected" them sir. 
-	!And when my wife tried to prevent me from doing my duty,
-	!I "corrected" her.
+	! Perhaps they need a good talking to, if you don't mind my saying so. 
+	! Perhaps a bit more. 
+    ! My girls, sir, they didn't care for the Overlook at first. 
+    ! One of them actually stole a pack of matches, and tried to burn it down. 
+    ! But I "corrected" them sir. 
+	! And when my wife tried to prevent me from doing my duty,
+	! I "corrected" her.
 
 	logical,intent(in),optional    		 :: dir(3)
 	integer,intent(in)             		 :: lbl(6)
@@ -1657,7 +1657,7 @@ subroutine get_Fmdflux_CV(F_CV, 	 &
 
 	allocate( Fmdflux_CV(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); Fmdflux_CV=0.d0
 	allocate( Fmdflux_CV_prev(nbins(1)+2,nbins(2)+2,nbins(3)+2,3)); Fmdflux_CV_prev=0.d0
-    allocate(success(nbins(1)+2,nbins(2)+2,nbins(3)+2)); success=.true.
+    allocate(success(nbins(1)+2,nbins(2)+2,nbins(3)+2)); success=.false.
     abort = .false.
 
 	!Get initial value of flux based force
@@ -1673,7 +1673,7 @@ subroutine get_Fmdflux_CV(F_CV, 	 &
     		bin(:) = ceiling((r(:,n)+0.5d0*domain(:))/Fbinsize(:))+1
 
 			!Get total force on a molecule from sum of CV forces and molecular forces
-			F_iext = F_mol(:,n) + ( Fmdflux_CV(bin(1),bin(2),bin(3),:)  &
+			F_iext(:) = F_mol(:,n) + ( Fmdflux_CV(bin(1),bin(2),bin(3),:)  &
 						              +   F_CV(bin(1),bin(2),bin(3),:) ) & 
 								   /dble(boxnp(bin(1),bin(2),bin(3)))
 
@@ -1727,10 +1727,13 @@ contains
         do kb = lbl(5),lbl(6)
 			if (sum(Fmdflux_CV_prev(ib,jb,kb,:)) .ne. sum(Fmdflux_CV(ib,jb,kb,:))) then
                 if (sum(abs(Fmdflux_CV_prev(ib,jb,kb,:) - Fmdflux_CV(ib,jb,kb,:))) .gt. 1000.d0) then
-                    print'(a,4i8,f18.9)', "Large values in convergence ", ib,jb,kb,boxnp(ib,jb,kb), & 
-                                        sum(abs(Fmdflux_CV_prev(ib,jb,kb,:) - Fmdflux_CV(ib,jb,kb,:)))
-                    abort = .true.
-                    exit
+                    print'(a,3i4,i8,f18.9,6f10.4)', "Convergence: ", ib,jb,kb,boxnp(ib,jb,kb), & 
+                                        sum(abs(Fmdflux_CV_prev(ib,jb,kb,:) - Fmdflux_CV(ib,jb,kb,:))), &
+                                        Fmdflux_CV(ib,jb,kb,:)/dble(boxnp(ib,jb,kb)), F_CV(ib,jb,kb,:)/dble(boxnp(ib,jb,kb))
+!                    abort = .true.
+!                    !Set all to failed here!
+!                    success = .false.
+!                    exit
                 endif
 				convergence = convergence + sum(abs(Fmdflux_CV_prev(ib,jb,kb,:) - Fmdflux_CV(ib,jb,kb,:)))
                 converge_cells = converge_cells + 1
@@ -1952,7 +1955,6 @@ subroutine apply_force(F_CV,  &
         		F_iext(ixyz) = F_mol(ixyz,n) + (F_CV(bin(1),bin(2),bin(3),ixyz)) & 
                                          /dble(boxnp(bin(1),bin(2),bin(3)))
             enddo
-
 					
 		    !Apply force by adding to total
 		    a(:,n) = a(:,n) - F_iext(:)
@@ -2144,6 +2146,9 @@ subroutine check_CFD_vs_MD(u_CFD, lbl, outtype)
 		u_CV( bin(1),bin(2),bin(3),:) = u_CV( bin(1),bin(2),bin(3),:) + v(:,n)
 	enddo
 
+    !Ignore the errors initially
+    !if (iter .lt. 100) return
+
     !Debug, print non zero cells
 !	do i = 1,size(u_CFD,1)
 !	do j = 1,size(u_CFD,2)
@@ -2169,14 +2174,14 @@ subroutine check_CFD_vs_MD(u_CFD, lbl, outtype)
                      iter, irank, i, j, k, u_CFD(i,j,k,1), u_CV(i,j,k,1)
             elseif (outtype .eq. 1) then
                 if (i .eq. 5 .and. j .eq. 10 .and. k .eq. 5) then
-                    write(666,'(a,i8,4i4,2f18.12)'), &
+                    write(666,'(a,i8,4i4,2f18.12)') &
                     'CFD_vs_MD', iter, irank, i, j, k, u_CFD(i,j,k,1), u_CV(i,j,k,1)
                 end if
             elseif (outtype .eq. 2) then
         	    print'(a,i8,4i4,2f18.12)','Error_in_CFD_vs_MD', &
                      iter,irank,i,j,k,u_CFD(i,j,k,1),u_CV(i,j,k,1)
                 if (i .eq. 5 .and. j .eq. 10 .and. k .eq. 5) then
-                    write(666,'(a,i8,4i4,2f18.12)'),'CFD_vs_MD', &
+                    write(666,'(a,i8,4i4,2f18.12)')'CFD_vs_MD', &
                     iter,irank,i, j, k, u_CFD(i,j,k,1), u_CV(i,j,k,1)
                 end if
             elseif (outtype .eq. 3) then
@@ -2187,7 +2192,7 @@ subroutine check_CFD_vs_MD(u_CFD, lbl, outtype)
         endif
         if (outtype .eq. 3) then
             if (i .eq. 3 .and. j .eq. 14 .and. k .eq. 3) then
-                write(666,'(a,i8,4i4,2f18.12)'),'Error_in_CFD_vs_MD', &
+                write(666,'(a,i8,4i4,2f18.12)')'Error_in_CFD_vs_MD', &
                 iter, irank, i, j, k, u_CFD(i,j,k,1), u_CV(i,j,k,1)
             end if
         endif
@@ -2667,24 +2672,24 @@ subroutine CFD_cells_to_MD_compute_cells(ii_cfd,jj_cfd,kk_cfd, &
 	zL_min = zL_md*(kblock_realm-1); zL_max = zL_md*(kblock_realm)
 
 	! Get range of cells to check so that top and bottom of current CFD cell are covered
-	ibmin_md = (xg(ii_cfd  ,jj_cfd  )-xL_min)/cellsidelength(1)+1
-	ibmax_md = (xg(ii_cfd+1,jj_cfd  )-xL_min)/cellsidelength(1)+1
-	jbmin_md = (yg(ii_cfd  ,jj_cfd  )-yL_min)/cellsidelength(2)+1
-	jbmax_md = (yg(ii_cfd  ,jj_cfd+1)-yL_min)/cellsidelength(2)+1
-	kbmin_md = (zg(     kk_cfd      )-zL_min)/cellsidelength(3)+1
-	kbmax_md = (zg(     kk_cfd+1    )-zL_min)/cellsidelength(3)+1
+	ibmin_md = (xg(ii_cfd  ,jj_cfd  ,kk_cfd  )-xL_min)/cellsidelength(1)+1
+	ibmax_md = (xg(ii_cfd+1,jj_cfd  ,kk_cfd  )-xL_min)/cellsidelength(1)+1
+	jbmin_md = (yg(ii_cfd  ,jj_cfd  ,kk_cfd  )-yL_min)/cellsidelength(2)+1
+	jbmax_md = (yg(ii_cfd  ,jj_cfd+1,kk_cfd  )-yL_min)/cellsidelength(2)+1
+	kbmin_md = (zg(ii_cfd  ,jj_cfd  ,kk_cfd  )-zL_min)/cellsidelength(3)+1
+	kbmax_md = (zg(ii_cfd  ,jj_cfd  ,kk_cfd+1)-zL_min)/cellsidelength(3)+1
 
     print'(a,9i8)','indices', ii_cfd,ibmin_md,ibmax_md,jj_cfd,jbmin_md,&
-    jbmax_md, kk_cfd,kbmin_md,kbmax_md
+                              jbmax_md, kk_cfd,kbmin_md,kbmax_md
 
-    print*,'xcells', xg(ii_cfd  ,jj_cfd  ),(xg(ii_cfd  ,jj_cfd  )-xL_min)/&
-    cellsidelength(1)+1, (xg(ii_cfd+1,jj_cfd  )-xL_min)/cellsidelength(1)+1
+    print*,'xcells', xg(ii_cfd  ,jj_cfd  ,kk_cfd  ),(xg(ii_cfd  ,jj_cfd  ,kk_cfd  )-xL_min)/&
+    cellsidelength(1)+1, (xg(ii_cfd+1,jj_cfd,kk_cfd)-xL_min)/cellsidelength(1)+1
 
-    print*,'ycells', yg(ii_cfd  ,jj_cfd  ),(yg(ii_cfd  ,jj_cfd  )-yL_min)/&
-    cellsidelength(2)+1, (yg(ii_cfd+1,jj_cfd  )-yL_min)/cellsidelength(2)+1
+    print*,'ycells', yg(ii_cfd  ,jj_cfd  ,kk_cfd  ),(yg(ii_cfd  ,jj_cfd  ,kk_cfd  )-yL_min)/&
+    cellsidelength(2)+1, (yg(ii_cfd+1,jj_cfd,kk_cfd)-yL_min)/cellsidelength(2)+1
 
-    print*,'zcells', zg(kk_cfd  ),(zg(kk_cfd)-zL_min)/cellsidelength(3)+1,&
-    (zg(kk_cfd+1)-zL_min)/cellsidelength(3)+1
+    print*,'zcells', zg(ii_cfd  ,jj_cfd  ,kk_cfd  ),(zg(ii_cfd  ,jj_cfd  ,kk_cfd  )-zL_min)/cellsidelength(3)+1,&
+    (zg(ii_cfd  ,jj_cfd  ,kk_cfd+1)-zL_min)/cellsidelength(3)+1
 
 end subroutine CFD_cells_to_MD_compute_cells
 

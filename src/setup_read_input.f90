@@ -22,6 +22,7 @@ module module_read_input
 	! It is then called throughout the code by using this module...
 	integer			 :: COUETTE_slidewall,  COUETTE_ixyz
 	real(kind(0.d0)) :: COUETTE_t, COUETTE_Re, COUETTE_Uwall, COUETTE_H
+	real(kind(0.d0)) :: initial_u, initial_v, initial_w
 
 end module module_read_input
 !----------------------------------------------------------------------------------
@@ -384,6 +385,11 @@ subroutine setup_read_input
 		    call locate(1,'LIQUID_FRACTION',.false.,found_in_input) 
             if (found_in_input) then
                 read(1,*) lg_fract
+                read(1,*,iostat=ios) lg_direction
+                if (ios .ne. 0) then
+                    print*, "Default direction not given for LIQUID_FRACTION, assuming x"
+                    lg_direction = 1
+                endif
             endif
 
 		case default
@@ -414,10 +420,14 @@ subroutine setup_read_input
                 nthermo = nthermo + 1
             endif
         enddo
+        if (nthermo .lt. 1) then
+            call error_abort( "Error -- specify at least one value for THERMOSTATTEMPERATURE")
+        endif
         allocate(thermostattemperature(nthermo))
         thermostattemperature = temp(1:nthermo)
     else
-        allocate(thermostattemperature(1))
+        nthermo = 1
+        allocate(thermostattemperature(nthermo))
         thermostattemperature = inputtemperature
     endif
 
@@ -439,6 +449,10 @@ subroutine setup_read_input
 		   		read(1,*) COUETTE_H
 		   		read(1,*) COUETTE_slidewall
 		   		read(1,*) COUETTE_ixyz
+	   		case('constant')
+		   		read(1,*) initial_u
+		   		read(1,*) initial_v
+		   		read(1,*) initial_w
 	   		case('dns')
 		   		read(1,*) DNS_filename
 		   		read(1,*) DNS_ngx
@@ -473,8 +487,19 @@ subroutine setup_read_input
 	else
 		initialise_steps = 0
 	endif
+    !Extra distance used for neighbour cell
 	call locate(1,'DELTA_RNEIGHBR',.true.) 
-	read(1,*) delta_rneighbr 	!Extra distance used for neighbour cell
+	read(1,*) delta_rneighbr(1)
+	read(1,*,iostat=ios) delta_rneighbr(2)
+    if (ios .ne. 0) then
+        delta_rneighbr(2) = delta_rneighbr(1)
+        delta_rneighbr(3) = delta_rneighbr(1)
+    else
+    	read(1,*,iostat=ios) delta_rneighbr(3)
+        if (ios .ne. 0) then
+            call error_abort("Error -- DELTA_RNEIGHBR should be one value or three for x, y & z")
+        endif
+    endif
 
 	call locate(1,'REBUILD_CRITERIA',.false.,found_in_input) 
 	if (found_in_input) then
@@ -514,6 +539,8 @@ subroutine setup_read_input
         if (global_numbering .eq. 1 .and. sort_flag .ne. 0 ) then
             call error_abort("Global number does not work with sort flag on")
         endif
+    else
+        global_numbering = 0
     endif
 	call locate(1,'SEED',.false.,found_in_input)
 	if (found_in_input) then
@@ -533,22 +560,22 @@ subroutine setup_read_input
             print*, "Default moltype not given -- assuming Argon (=1)"
             default_moltype = 1
         endif
+        !IF Mie potential, check for EIJ wall
+        if (Mie_potential .ne. 0) then
+            call locate(1,'EIJ_WALL',.false.,found_in_input)
+            if (found_in_input) then
+                read(1,*,iostat=ios) eij_wall(1)
+        		if (ios .ne. 0) then
+                    call error_abort('Input Error -- EIJ_WALL no specified value') 
+                endif
+                read(1,*,iostat=ios) eij_wall(2)
+        		if (ios .ne. 0) eij_wall(2) = eij_wall(1)
+            else
+                eij_wall = 1.d0
+            endif
+        endif
     else
         Mie_potential = 0
-    endif
-
-    if (Mie_potential .ne. 0) then
-        call locate(1,'EIJ_WALL',.false.,found_in_input)
-        if (found_in_input) then
-            read(1,*,iostat=ios) eij_wall(1)
-    		if (ios .ne. 0) then
-                call error_abort('Input Error -- EIJ_WALL no specified value') 
-            endif
-            read(1,*,iostat=ios) eij_wall(2)
-    		if (ios .ne. 0) eij_wall(2) = eij_wall(1)
-        else
-            eij_wall = 1.d0
-        endif
     endif
 
 
@@ -581,18 +608,18 @@ subroutine setup_read_input
 
 			! Correct any bforce_flags if periodic boundaries on
 			if (periodic(1).ne.0) then
-				if (irank.eq.iroot) print*, 'Warning, resetting bforce_flag(1:2)' , &
-				' because periodic boundaries are on in the x-direction'
+!				if (irank.eq.iroot) print*, 'Warning, resetting bforce_flag(1:2)' , &
+!				' because periodic boundaries are on in the x-direction'
 				bforce_flag(1:2) = 0
 			end if
 			if (periodic(2).ne.0) then 
-				if (irank.eq.iroot) print*, 'Warning, resetting bforce_flag(3:4)' , &
-				' because periodic boundaries are on in the y-direction'
+!				if (irank.eq.iroot) print*, 'Warning, resetting bforce_flag(3:4)' , &
+!				' because periodic boundaries are on in the y-direction'
 				bforce_flag(3:4) = 0
 			end if
 			if (periodic(3).ne.0) then 
-				if (irank.eq.iroot) print*, 'Warning, resetting bforce_flag(5:6)' , &
-				' because periodic boundaries are on in the z-direction'
+!				if (irank.eq.iroot) print*, 'Warning, resetting bforce_flag(5:6)' , &
+!				' because periodic boundaries are on in the z-direction'
 				bforce_flag(5:6) = 0
 			end if
 #if __INTEL_COMPILER > 1200
@@ -927,6 +954,12 @@ subroutine setup_read_input
     else
         vmd_skip = 1
     end if
+
+	call locate(1,'SEPERATE_OUTFILES',.false.,found_in_input)
+	if (found_in_input) then
+        call error_abort('SEPERATE_OUTFILES error, sepArate is misspelt')
+    endif
+    
       
 	call locate(1,'SEPARATE_OUTFILES',.false.,found_in_input)
 	if (found_in_input) then
@@ -1184,6 +1217,8 @@ subroutine setup_read_input
 		read(1,*) NvPDF_ave
 		read(1,*) NPDFbins 
 		read(1,*) PDFvlims
+    else
+        vPDF_flag = 0
 	endif
 	
 	call locate(1,'STRUCT_OUTFLAG',.false.,found_in_input)

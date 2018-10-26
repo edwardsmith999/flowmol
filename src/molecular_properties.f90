@@ -66,6 +66,12 @@ contains
         case ('slide')
             tagdistbottom(:) = slidedistbottom(:)
             tagdisttop(:)	 = slidedisttop(:)
+            !Thermostat complicated wall texture if specified, otherwise thermostat
+            !is based on thermstatbottom/thermstattop
+            if (texture_type .ne. 0 .and. texture_therm .eq. 2) then
+                call wall_textures(texture_type, rg, tagdistbottom, tagdisttop)
+            endif
+
         case('nonexistent')
             !Don't remove tethered molecules!
             if (get_tag_status(rg,'teth')) then
@@ -365,10 +371,10 @@ subroutine wall_textures(texture_type, rg, tagdistbottom, tagdisttop)
 	real(kind(0.d0)),dimension(3),intent(in) :: rg
 	real(kind(0.d0)),dimension(3),intent(out):: tagdistbottom,tagdisttop
 
-    integer                 :: i, j, levels, Nx, Nz, lb(3), ub(3)
+    integer                 :: i, j, levels, Nx, Nz, lb(3), ub(3), npostsx, npostsz
     logical                 :: first_time=.true.
 	real(kind(0.d0))		:: xlocation, ylocation, zlocation, unitsize(3)
-	real(kind(0.d0))		:: rand, fraction_domain, postheight, sizex, sizez
+	real(kind(0.d0))		:: rand, fraction_domain, postheight, sizex, sizez, nposts
 	!real(kind(0.d0)),dimension(:),allocatable	:: temp
 	!real(kind(0.d0)),dimension(:,:),allocatable,save	:: z
 
@@ -381,7 +387,7 @@ subroutine wall_textures(texture_type, rg, tagdistbottom, tagdisttop)
 
         tagdisttop = tethereddisttop
 
-		postheight = 5.12d0
+		postheight = 5.12d0*2.d0
 		tagdistbottom = tethereddistbottom
 		ylocation = rg(2) + 0.5*globaldomain(2)
 
@@ -389,13 +395,34 @@ subroutine wall_textures(texture_type, rg, tagdistbottom, tagdisttop)
 		if ((ylocation .gt. tethereddistbottom(2) ) .and. & 
 			(ylocation .lt. tethereddistbottom(2) + postheight)) then
 
+            !Soecify number of posts
+            npostsx = 3
+            npostsz = 0
+
 			!Single strip in the middle of the domain
-			if (rg(1) .gt. -postheight/2.d0 .and. &
-				rg(1) .lt.  postheight/2.d0) then
-				tagdistbottom(2) = tethereddistbottom(2) + postheight 
-			else
-				tagdistbottom(2) = tethereddistbottom(2)
-			endif
+            if (npostsx .eq. 1) then
+			    if (rg(1) .gt. -postheight/2.d0 .and. &
+				    rg(1) .lt.  postheight/2.d0) then
+				    tagdistbottom(2) = tethereddistbottom(2) + postheight 
+			    else
+				    tagdistbottom(2) = tethereddistbottom(2)
+			    endif
+            elseif (npostsz .eq. 0) then
+                !Repeating posts over x
+			    if ( sin(dble(npostsx)*2.d0*pi*(rg(1)+0.5d0*globaldomain(1))/globaldomain(1)) .gt. 0.0) then
+				    tagdistbottom(2) = tethereddistbottom(2) + postheight 
+			    else
+				    tagdistbottom(2) = tethereddistbottom(2)
+			    endif
+            else
+                !Repeating posts over x and z
+			    if ( sin(dble(npostsx)*2.d0*pi*(rg(1)+0.5d0*globaldomain(1))/globaldomain(1)) .gt. 0.0 .and. &
+                     sin(dble(npostsz)*2.d0*pi*(rg(3)+0.5d0*globaldomain(3))/globaldomain(3)) .gt. 0.0 ) then
+				    tagdistbottom(2) = tethereddistbottom(2) + postheight 
+			    else
+				    tagdistbottom(2) = tethereddistbottom(2)
+			    endif
+            endif
 		endif
 
 	case(roughness)
@@ -428,6 +455,7 @@ subroutine wall_textures(texture_type, rg, tagdistbottom, tagdisttop)
 
 	case(fractal)
 
+        !This is setup in setup_fractal_wall from setup_set_parameters
         tagdisttop = tethereddisttop
         tagdistbottom = tethereddistbottom
         sizex = globaldomain(1)/dble(size(rough_array,1))
@@ -593,7 +621,7 @@ subroutine tether_force(molno)
 
 	integer						:: molno
 	real(kind(0.d0))			   :: acctmag, xt, sincoeff, mag, shift, freq, initialshift
-	real(kind(0.d0)), dimension(3) :: at, rglob, mat, rio
+	real(kind(0.d0)), dimension(3) :: at, rglob, mat, rio, velvect
 
 	!COEFFICIENTS MOVED TO INPUT FILE
 	!Define strength of tethering potential ~ phi= k2*rio^2 
@@ -643,9 +671,19 @@ subroutine tether_force(molno)
 		if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
 			mat = -at
 			call record_external_forces(mat(:),r(:,molno))
-			! There was a time when I though that the CV conservation would require interactions
-			! which cross the surface. However, it appears this is not the case...
+			! There was a time when I though that the CV conservation would require tethered 
+            ! interactions only when they have departed from tethering site to the point where
+            ! they cross the surface. However, it appears this is not the case...
 			!call control_volume_stresses(at(:),r(:,molno),rtether(:,molno),molno)
+		endif
+	endif
+
+	!Add tethered force to energy calculation
+	if (eflux_outflag .eq. 4) then
+		if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
+			mat = -at
+		    velvect(:) = v(:,molno) + 0.5d0*delta_t*a(:,molno)
+			call record_external_forces(mat(:), r(:,molno), velvect )
 		endif
 	endif
 

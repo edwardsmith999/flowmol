@@ -40,7 +40,8 @@
 ! globalSumIntVect(A,na)
 ! globalAverage(A, na)
 !
-
+!   Written by Edward ( ͡° ͜ʖ ͡°)﻿ Smith
+!=======================================================================
 module messenger
 	use mpi
 	use computational_constants_MD

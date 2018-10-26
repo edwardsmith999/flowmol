@@ -368,14 +368,18 @@ contains
                 zeta = 0.d0
             endif
 
-            !print*, zeta, dzeta_dt, nthermo, Q, thermostatnp
-
-			Q(:)        = 0.1*thermostatnp(:) * delta_t 
-			dzeta_dt(:) = (mv2sum(:) - (nd*thermostatnp(:) + 1) & 
-                           *thermostattemperature(:)) / Q(:)
-			zeta(:) 	 = zeta(:) + delta_t*dzeta_dt(:)
-			bscale(:)	 = 1.d0/(1.d0+0.5d0*delta_t*zeta(:))
-			ascale(:)	 = (1.d0-0.5d0*delta_t*zeta(:))*bscale(:)
+            do n=1,nthermo
+			    Q(n)        = 0.1*thermostatnp(n) * delta_t
+                if (thermostatnp(n) .gt. 0.d0) then
+    			    dzeta_dt(n) = (mv2sum(n) - (nd*thermostatnp(n) + 1) & 
+                                   *thermostattemperature(n)) / Q(n)
+                else
+                    dzeta_dt(n) = 0.d0
+                endif
+			    zeta(n) 	 = zeta(n) + delta_t*dzeta_dt(n)
+			    bscale(n)	 = 1.d0/(1.d0+0.5d0*delta_t*zeta(n))
+			    ascale(n)	 = (1.d0-0.5d0*delta_t*zeta(n))*bscale(n)
+            enddo
 
 		else
 
@@ -384,16 +388,14 @@ contains
 			bscale(:) = 1.d0
 		endif
 
-		!call pointsphere((/ 0.0, 0.0, 0.0 /),8.d0)
-
 		!Step through each particle n
 		do n = 1,np
 
 			select case (tag(n))
 			case (free)
 				!Leapfrog mean velocity calculated here at v(t+0.5delta_t) = v(t-0.5delta_t) + a*delta_t 
-				!Leapfrog mean position calculated here at r(t+delta_t) = r(t) + v(t+0.5delta_t)*delta_t
 				v(:,n) = v(:,n) + delta_t * a(:,n) 	!Velocity calculated from acceleration
+				!Leapfrog mean position calculated here at r(t+delta_t) = r(t) + v(t+0.5delta_t)*delta_t
 				r(:,n) = r(:,n) + delta_t * v(:,n)	!Position calculated from velocity
 			case (fixed)
 				!Fixed Molecules - no movement r(t+dt) = r(t)
@@ -407,7 +409,7 @@ contains
 				r(:,n) = r(:,n) + delta_t * v(:,n)	!Position calculated from velocity
 			case (thermo)
 				!Nose Hoover Thermostatted Molecule
-                tr = get_therm_region(n)
+                                tr = get_therm_region(n)
 				v(1,n) = v(1,n)*ascale(tr) + a(1,n)*delta_t*bscale(tr)
 				r(1,n) = r(1,n)    +     v(1,n)*delta_t			
 				v(2,n) = v(2,n)*ascale(tr) + a(2,n)*delta_t*bscale(tr)
@@ -415,7 +417,7 @@ contains
 				v(3,n) = v(3,n)*ascale(tr) + a(3,n)*delta_t*bscale(tr)
 				r(3,n) = r(3,n)    +     v(3,n)*delta_t
 			case (teth_thermo)
-                tr = get_therm_region(n)
+                                tr = get_therm_region(n)
 				!Thermostatted Tethered molecules unfixed with no sliding velocity
 				call tether_force(n)
 				v(1,n) = v(1,n)*ascale(tr) + a(1,n)*delta_t*bscale(tr)
@@ -431,7 +433,7 @@ contains
 				v(:,n) = v(:,n) + delta_t * a(:,n) 							!Velocity calculated from acceleration
 				r(:,n) = r(:,n) + delta_t * v(:,n) + delta_t*slidev(:,n)	!Position calculated from velocity+slidevel
 			case (teth_thermo_slide)
-                tr = get_therm_region(n)
+                                tr = get_therm_region(n)
 				!Thermostatted Tethered molecules unfixed with sliding velocity
 				call tether_force(n)
 				v(1,n) = v(1,n)*ascale(tr) + a(1,n)*delta_t*bscale(tr)
@@ -441,7 +443,7 @@ contains
 				v(3,n) = v(3,n)*ascale(tr) + a(3,n)*delta_t*bscale(tr)
 				r(3,n) = r(3,n)    +     v(3,n)*delta_t	+ slidev(3,n)*delta_t
 			case (PUT_thermo)
-                tr = get_therm_region(n)
+                                tr = get_therm_region(n)
 				!Profile unbiased thermostat (Nose-Hoover)
 	        	v(:,n) = v(:,n)*ascale(tr) + (a(:,n)+zeta*U(:,n))*delta_t*bscale(tr)
 				r(:,n) = r(:,n)        + v(:,n)*delta_t			
@@ -516,7 +518,6 @@ contains
 
         if (any(periodic .gt. 1)) then
 		vtrue = v
-
 		do n=1,np
 			vtrue(le_sd,n) = v(le_sd,n) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
 			rtrue(:,n)     = rtrue(:,n) + delta_t*vtrue(:,n)
@@ -573,7 +574,7 @@ subroutine specular_walls_cylinders
     real(kind(0.d0)) :: tol, rr
     integer :: n,cyl
         
-    tol = delta_rneighbr
+    tol = delta_rneighbr(1)
 
     do n=1,np
 
@@ -739,12 +740,12 @@ contains
         if (rin(ixyz) .gt. spec_top) then
             
             rin(ixyz) = rin(ixyz) - 2.d0*(rin(ixyz) - spec_top)
-            vin(ixyz) = vin(ixyz) * -1.d0
+            vin(ixyz) = vin(ixyz) * (-1.d0)
 
         else if (rin(ixyz) .lt. spec_bot) then
 
             rin(ixyz) = rin(ixyz) + 2.d0*(spec_top - rin(ixyz))
-            vin(ixyz) = vin(ixyz) * -1.d0
+            vin(ixyz) = vin(ixyz) * (-1.d0)
 
         end if
 

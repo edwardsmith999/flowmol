@@ -178,7 +178,7 @@ module minpack_fit_funcs_mod
             integer ( kind = 4 ), intent(in) :: m
             integer ( kind = 4 ), intent(in) :: n
             integer ( kind = 4 ), intent(in) :: iflag
-            real(kind(0.d0)), intent(in)    :: x(n)
+            real(kind(0.d0)), intent(inout)    :: x(n)
             real(kind(0.d0)), intent(out)   :: fvec(m)
         end subroutine mp_fn
     end interface
@@ -203,6 +203,7 @@ subroutine curve_fit(fn, xdata, ydata, p0, fvec, zdata)
     external fn
     integer :: m, n, iflag, info
     real(kind(0.d0)) :: tol
+    real(kind(0.d0)), dimension(4) :: p0temp
 
     tol = 0.00001D+00
     iflag = 1
@@ -225,7 +226,7 @@ subroutine curve_fit(fn, xdata, ydata, p0, fvec, zdata)
         return
     endif
 
-    !Set xdat, ydat and may be zdat arrays which are used in fn
+    !Set xdat, ydat and maybe zdat arrays which are used in fn
     allocate(xdat(m),ydat(m))
     xdat = xdata; ydat = ydata
     if (present(zdata)) then
@@ -234,6 +235,19 @@ subroutine curve_fit(fn, xdata, ydata, p0, fvec, zdata)
         endif
         allocate(zdat(m))
         zdat = zdata
+
+!        p0temp = 0.d0
+!        call cubic_fn(m, 4, p0temp, fvec, iflag )
+!        call lmdif1(cubic_fn, m, 4, p0temp, fvec, tol, info)
+!        print*, p0temp
+!        p0temp = 0.d0
+!        xdat = zdata
+!        call cubic_fn(m, 4, p0temp, fvec, iflag )
+!        call lmdif1(cubic_fn, m, 4, p0temp, fvec, tol, info)
+!        xdat = xdata
+!        !print*, p0temp
+!        call fn(m, n, p0, fvec, iflag )
+!        call lmdif1(fn, m, n, p0, fvec, tol, info)
     endif
 
     call fn(m, n, p0, fvec, iflag )
@@ -252,7 +266,7 @@ subroutine cubic_fn ( m, n, x, fvec, iflag )
     integer ( kind = 4 ), intent(in) :: n
     integer ( kind = 4 ), intent(in) :: iflag
 
-    real(kind(0.d0)), intent(in) :: x(n)
+    real(kind(0.d0)), intent(inout) :: x(n)
 
     real(kind(0.d0)), intent(out) :: fvec(m)
 
@@ -269,34 +283,121 @@ subroutine cubic_fn ( m, n, x, fvec, iflag )
 
 end subroutine cubic_fn
 
-! cubic_fn2D is a cubic function routine.
+!! cubic_fn2D is a cubic function routine.
+!subroutine cubic_fn2D ( m, n, x, fvec, iflag )
+!    implicit none
+
+!    integer ( kind = 4 ), intent(in) :: m
+!    integer ( kind = 4 ), intent(in) :: n
+!    integer ( kind = 4 ), intent(in) :: iflag
+
+!    real(kind(0.d0)), intent(inout) :: x(n)
+
+!    real(kind(0.d0)), intent(out) :: fvec(m)
+
+!    !Cubic needs four coefficients
+!    if (n .ne. 8) then
+!        stop "Error in cubic_fn, number of coefficients 'n' should be 8"
+!    endif
+
+!    fvec(1:m) = + x(1) & 
+!                + x(2)*xdat(1:m) & 
+!                + x(3)*xdat(1:m)**2 & 
+!                + x(4)*xdat(1:m)**3 & 
+!                + x(5) &
+!                + x(6)*ydat(1:m) &
+!                + x(7)*ydat(1:m)**2 &
+!                + x(8)*ydat(1:m)**3 &
+!                - zdat(1:m)
+
+!end subroutine cubic_fn2D
+
+! cubic_fn2D is a surface made from the product of
+! two cubic functions.
 subroutine cubic_fn2D ( m, n, x, fvec, iflag )
     implicit none
 
     integer ( kind = 4 ), intent(in) :: m
     integer ( kind = 4 ), intent(in) :: n
     integer ( kind = 4 ), intent(in) :: iflag
-
-    real(kind(0.d0)), intent(in) :: x(n)
-
+    real(kind(0.d0)), intent(inout) :: x(n)
     real(kind(0.d0)), intent(out) :: fvec(m)
+
+    integer :: i, j
+    real(kind(0.d0)), dimension(m) :: temp
 
     !Cubic needs four coefficients
     if (n .ne. 8) then
-        stop "Error in cubic_fn, number of coefficients 'n' should be 4"
+        stop "Error in cubic_fn, number of coefficients 'n' should be 8"
     endif
 
-    fvec(1:m) = + x(1) & 
-                + x(2)*xdat(1:m) & 
-                + x(3)*xdat(1:m)**2 & 
-                + x(4)*xdat(1:m)**3 & 
-                + x(5) &
-                + x(6)*ydat(1:m) &
-                + x(7)*ydat(1:m)**2 &
-                + x(8)*ydat(1:m)**3 &
-                - zdat(1:m)
+    fvec(1:m) = 0.d0
+    do i=0,3
+        temp = x(i+1)*(xdat(1:m)**i)
+        do j=0,3
+            fvec(1:m) = fvec(1:m) + temp*x(j+5)*(zdat(1:m)**j)
+        enddo
+    enddo
+    fvec(1:m) = fvec(1:m) - ydat(1:m)
 
 end subroutine cubic_fn2D
+
+
+
+subroutine cubic_fn2D_16coeff ( m, n, x, fvec, iflag )
+    implicit none
+
+    integer ( kind = 4 ), intent(in) :: m
+    integer ( kind = 4 ), intent(in) :: n
+    integer ( kind = 4 ), intent(in) :: iflag
+    real(kind(0.d0)), intent(inout) :: x(n)
+    real(kind(0.d0)), intent(out) :: fvec(m)
+
+    integer :: i, j
+    real(kind(0.d0)), dimension(4,4) :: a
+
+    !Cubic needs four coefficients
+    if (n .ne. 16) then
+        stop "Error in cubic_fn2D_16coeff, number of coefficients 'n' should be 16"
+    endif
+
+    fvec(1:m) = 0.d0
+    a = reshape(x, (/4, 4/))
+    do i=0,3
+    do j=0,3
+        fvec(1:m) = fvec(1:m) + a(i+1, j+1)*(xdat(1:m)**i)*(zdat(1:m)**j)
+    enddo
+    enddo
+    fvec(1:m) = fvec(1:m) - ydat(1:m)
+
+end subroutine cubic_fn2D_16coeff
+
+!Simplest implementation of piecewise linear I can 
+!think of, basically do it for even segements and
+!join the dots for the odd
+! For S segements we will need n = 2*S variables
+! and aim here to find fits for n/2 of them. The 
+! join the dots can then be done by the user
+subroutine piecewise_linear ( m, n, x, fvec, iflag )
+
+    integer ( kind = 4 ), intent(in) :: m
+    integer ( kind = 4 ), intent(in) :: n
+    integer ( kind = 4 ), intent(in) :: iflag
+
+    real(kind(0.d0)), intent(inout) :: x(n)
+
+    real(kind(0.d0)), intent(out) :: fvec(m)
+
+    integer :: s
+
+    if (mod(n,4) .ne. 0) then
+        stop "Error -- n must be a multiple of two in piecewise linear"
+    endif
+
+    s = n
+
+
+end subroutine 
 
 end module minpack_fit_funcs_mod
 
@@ -307,7 +408,7 @@ end module minpack_fit_funcs_mod
 MODULE PolynomialRoots
     ! ---------------------------------------------------------------------------
     ! PURPOSE - Solve for the roots of a polynomial equation with real
-    !   coefficients, up to quartic order. Retrun a code indicating the nature
+    !   coefficients, up to quartic order. Return a code indicating the nature
     !   of the roots found.
 
     ! AUTHORS - Alfred H. Morris, Naval Surface Weapons Center, Dahlgren,VA
@@ -327,9 +428,9 @@ MODULE PolynomialRoots
 
       IMPLICIT NONE
 
-      INTEGER,PARAMETER,PRIVATE:: SP=KIND(1.0), DP=KIND(1.0D0)
-      REAL(DP),PARAMETER,PRIVATE:: ZERO=0.0D0, FOURTH=0.25D0, HALF=0.5D0
-      REAL(DP),PARAMETER,PRIVATE:: ONE=1.0D0, TWO=2.0D0, THREE=3.0D0, FOUR=4.0D0
+      INTEGER,PARAMETER,PRIVATE:: DP=KIND(1.d0)
+      REAL(DP),PARAMETER,PRIVATE:: ZERO=0.d0, FOURTH=0.25d0, HALF=0.5d0
+      REAL(DP),PARAMETER,PRIVATE:: ONE=1.d0, TWO=2.d0, THREE=3.d0, FOUR=4.d0
       COMPLEX(DP),PARAMETER,PRIVATE:: CZERO=(0.D0,0.D0)
 
       REAL(DP),PARAMETER,PRIVATE:: EPS=EPSILON(ONE)
@@ -357,10 +458,6 @@ MODULE PolynomialRoots
       PUBLIC:: QuarticRoots
       PUBLIC:: SolvePolynomial
     !----------------------------------------------------------------------------
-
-      INTERFACE Swap
-        MODULE PROCEDURE SwapDouble, SwapSingle
-      END INTERFACE
 
     CONTAINS
 
@@ -428,236 +525,239 @@ MODULE PolynomialRoots
 
     !+
     SUBROUTINE QuadraticRoots(a, z)
-    ! ---------------------------------------------------------------------------
-    ! PURPOSE - COMPUTES THE ROOTS OF THE REAL POLYNOMIAL
-    !              A(1) + A(2)*Z + A(3)*Z**2
-    !     AND STORES THE RESULTS IN Z.  IT IS ASSUMED THAT A(3) IS NONZERO.
+        ! ---------------------------------------------------------------------------
+        ! PURPOSE - COMPUTES THE ROOTS OF THE REAL POLYNOMIAL
+        !              A(1) + A(2)*Z + A(3)*Z**2
+        !     AND STORES THE RESULTS IN Z.  IT IS ASSUMED THAT A(3) IS NONZERO.
 
-      REAL(DP),INTENT(IN),DIMENSION(:):: a
-      COMPLEX(DP),INTENT(OUT),DIMENSION(:):: z
+        REAL(DP),INTENT(IN),DIMENSION(:):: a
+        COMPLEX(DP),INTENT(OUT),DIMENSION(:):: z
 
+        REAL(DP):: d, r, w, x, y
 
-      REAL(DP):: d, r, w, x, y
-    !----------------------------------------------------------------------------
-      IF(a(1)==0.0) THEN     ! EPS is a global module constant (private)
-        z(1) = CZERO               ! one root is obviously zero
-        z(2) = CMPLX(-a(2)/a(3), ZERO,DP)    ! remainder is a linear eq.
-        outputCode=21   ! two identical real roots
+!          z(1) = (-A(2) + sqrt(A(2)**2-4.d0*A(3)*A(1)))/(2.d0*A(3))
+!          z(2) = (-A(2) - sqrt(A(2)**2-4.d0*A(3)*A(1)))/(2.d0*A(3))
+
+        !----------------------------------------------------------------------------
+        IF(abs(a(1)) .lt. eps) THEN                    ! EPS is a global module constant (private)
+            z(1) = CZERO                         ! one root is obviously zero
+            z(2) = CMPLX(-a(2)/a(3), ZERO,DP)    ! remainder is a linear eq.
+            outputCode=21                        ! two identical real roots
+            RETURN
+        END IF
+
+        d = a(2)**2 - FOUR*a(1)*a(3)             ! the discriminant
+        IF (ABS(d) <= TWO*eps*a(2)*a(2)) THEN
+            z(1) = CMPLX(-HALF*a(2)/a(3), ZERO, DP) ! discriminant is tiny
+            z(2) = z(1)
+            outputCode=22  ! two distinct real roots
+            RETURN
+        END IF
+
+        r = SQRT(ABS(d))
+        IF (d < ZERO) THEN
+            x = -HALF*a(2)/a(3)     ! negative discriminant => roots are complex   
+            y = ABS(HALF*r/a(3))
+            z(1) = CMPLX(x, y, DP)
+            z(2) = CMPLX(x,-y, DP)  ! its conjugate
+            outputCode=23           ! COMPLEX ROOTS
+            RETURN
+        END IF
+
+        IF (a(2) /= ZERO) THEN              ! see Numerical Recipes, sec. 5.5
+            w = -(a(2) + SIGN(r,a(2)))
+            z(1) = CMPLX(TWO*a(1)/w,  ZERO, DP)
+            z(2) = CMPLX(HALF*w/a(3), ZERO, DP)
+            outputCode=22           ! two real roots
+            RETURN
+        END IF
+
+        x = ABS(HALF*r/a(3))   ! a(2)=0 if you get here
+        z(1) = CMPLX( x, ZERO, DP)
+        z(2) = CMPLX(-x, ZERO, DP)
+        outputCode=22
         RETURN
-      END IF
-
-      d = a(2)*a(2) - FOUR*a(1)*a(3)             ! the discriminant
-      IF (ABS(d) <= TWO*eps*a(2)*a(2)) THEN
-        z(1) = CMPLX(-HALF*a(2)/a(3), ZERO, DP) ! discriminant is tiny
-        z(2) = z(1)
-        outputCode=22  ! two distinct real roots
-        RETURN
-      END IF
-
-      r = SQRT(ABS(d))
-      IF (d < ZERO) THEN
-        x = -HALF*a(2)/a(3)        ! negative discriminant => roots are complex   
-        y = ABS(HALF*r/a(3))
-        z(1) = CMPLX(x, y, DP)
-        z(2) = CMPLX(x,-y, DP)   ! its conjugate
-        outputCode=23                        !  COMPLEX ROOTS
-        RETURN
-      END IF
-
-      IF (a(2) /= ZERO) THEN              ! see Numerical Recipes, sec. 5.5
-        w = -(a(2) + SIGN(r,a(2)))
-        z(1) = CMPLX(TWO*a(1)/w,  ZERO, DP)
-        z(2) = CMPLX(HALF*w/a(3), ZERO, DP)
-        outputCode=22           ! two real roots
-        RETURN
-      END IF
-
-      x = ABS(HALF*r/a(3))   ! a(2)=0 if you get here
-      z(1) = CMPLX( x, ZERO, DP)
-      z(2) = CMPLX(-x, ZERO, DP)
-      outputCode=22
-      RETURN
     END Subroutine QuadraticRoots   ! -------------------------------------------
 
     !+
     SUBROUTINE CubicRoots(a, z)
-    !----------------------------------------------------------------------------
-    ! PURPOSE - Compute the roots of the real polynomial
-    !              A(1) + A(2)*Z + A(3)*Z**2 + A(4)*Z**3
-      REAL(DP),INTENT(IN),DIMENSION(:):: a
-      COMPLEX(DP),INTENT(OUT),DIMENSION(:):: z
+        !----------------------------------------------------------------------------
+        ! PURPOSE - Compute the roots of the real polynomial
+        !              A(1) + A(2)*Z + A(3)*Z**2 + A(4)*Z**3
+        REAL(DP),INTENT(IN),DIMENSION(:):: a
+        COMPLEX(DP),INTENT(OUT),DIMENSION(:):: z
 
-      REAL(DP),PARAMETER:: RT3=1.7320508075689D0    ! (Sqrt(3)
-      REAL (DP) :: aq(3), arg, c, cf, d, p, p1, q, q1
-      REAL(DP):: r, ra, rb, rq, rt
-      REAL(DP):: r1, s, sf, sq, sum, t, tol, t1, w
-      REAL(DP):: w1, w2, x, x1, x2, x3, y, y1, y2, y3
+        REAL(DP),PARAMETER:: RT3=1.7320508075689D0    ! (Sqrt(3)
+        REAL (DP) :: aq(3), arg, c, cf, d, p, p1, q, q1
+        REAL(DP):: r, ra, rb, rq, rt
+        REAL(DP):: r1, s, sf, sq, sum, t, tol, t1, w
+        REAL(DP):: w1, w2, x, x1, x2, x3, y, y1, y2, y3
 
-    ! NOTE -   It is assumed that a(4) is non-zero. No test is made here.
-    !----------------------------------------------------------------------------
-      IF (a(1)==0.0) THEN
-        z(1) = CZERO  ! one root is obviously zero
-        CALL QuadraticRoots(a(2:4), z(2:3))   ! remaining 2 roots here
+        ! NOTE -   It is assumed that a(4) is non-zero. No test is made here.
+        !----------------------------------------------------------------------------
+        IF (a(1)==0.0) THEN
+            z(1) = CZERO  ! one root is obviously zero
+            CALL QuadraticRoots(a(2:4), z(2:3))   ! remaining 2 roots here
+            RETURN
+        END IF
+
+        p = a(3)/(THREE*a(4))
+        q = a(2)/a(4)
+        r = a(1)/a(4)
+        tol = FOUR*EPS
+
+        c = ZERO
+        t = a(2) - p*a(3)
+        IF (ABS(t) > tol*ABS(a(2))) c = t/a(4)
+
+        t = TWO*p*p - q
+        IF (ABS(t) <= tol*ABS(q)) t = ZERO
+        d = r + p*t
+        IF (ABS(d) <= tol*ABS(r)) GO TO 110
+
+        !           SET  SQ = (A(4)/S)**2 * (C**3/27 + D**2/4)
+
+        s = MAX(ABS(a(1)), ABS(a(2)), ABS(a(3)))
+        p1 = a(3)/(THREE*s)
+        q1 = a(2)/s
+        r1 = a(1)/s
+
+        t1 = q - 2.25D0*p*p
+        IF (ABS(t1) <= tol*ABS(q)) t1 = ZERO
+        w = FOURTH*r1*r1
+        w1 = HALF*p1*r1*t
+        w2 = q1*q1*t1/27.0D0
+
+        IF (w1 >= ZERO) THEN
+            w = w + w1
+            sq = w + w2
+        ELSE IF (w2 < ZERO) THEN
+            sq = w + (w1 + w2)
+        ELSE
+            w = w + w2
+            sq = w + w1
+        END IF
+
+        IF (ABS(sq) <= tol*w) sq = ZERO
+        rq = ABS(s/a(4))*SQRT(ABS(sq))
+        IF (sq >= ZERO) GO TO 40
+
+        !                   ALL ROOTS ARE REAL
+
+        arg = ATAN2(rq, -HALF*d)
+        cf = COS(arg/THREE)
+        sf = SIN(arg/THREE)
+        rt = SQRT(-c/THREE)
+        y1 = TWO*rt*cf
+        y2 = -rt*(cf + rt3*sf)
+        y3 = -(d/y1)/y2
+
+        x1 = y1 - p
+        x2 = y2 - p
+        x3 = y3 - p
+
+        IF (ABS(x1) > ABS(x2)) CALL Swap(x1,x2)
+        IF (ABS(x2) > ABS(x3)) CALL Swap(x2,x3)
+        IF (ABS(x1) > ABS(x2)) CALL Swap(x1,x2)
+
+        w = x3
+
+        IF (ABS(x2) < 0.1D0*ABS(x3)) GO TO 70
+        IF (ABS(x1) < 0.1D0*ABS(x2)) x1 = - (r/x3)/x2
+        z(1) = CMPLX(x1, ZERO,DP)
+        z(2) = CMPLX(x2, ZERO,DP)
+        z(3) = CMPLX(x3, ZERO,DP)
         RETURN
-      END IF
 
-      p = a(3)/(THREE*a(4))
-      q = a(2)/a(4)
-      r = a(1)/a(4)
-      tol = FOUR*EPS
+        !  REAL AND COMPLEX ROOTS
 
-      c = ZERO
-      t = a(2) - p*a(3)
-      IF (ABS(t) > tol*ABS(a(2))) c = t/a(4)
+        40 ra =CubeRoot(-HALF*d - SIGN(rq,d))
+        rb = -c/(THREE*ra)
+        t = ra + rb
+        w = -p
+        x = -p
+        IF (ABS(t) <= tol*ABS(ra)) GO TO 41
+        w = t - p
+        x = -HALF*t - p
+        IF (ABS(x) <= tol*ABS(p)) x = ZERO
+        41 t = ABS(ra - rb)
+        y = HALF*rt3*t
 
-      t = TWO*p*p - q
-      IF (ABS(t) <= tol*ABS(q)) t = ZERO
-      d = r + p*t
-      IF (ABS(d) <= tol*ABS(r)) GO TO 110
+        IF (t <= tol*ABS(ra)) GO TO 60
+        IF (ABS(x) < ABS(y)) GO TO 50
+        s = ABS(x)
+        t = y/x
+        GO TO 51
+        50 s = ABS(y)
+        t = x/y
+        51 IF (s < 0.1D0*ABS(w)) GO TO 70
+        w1 = w/s
+        sum = ONE + t*t
+        IF (w1*w1 < 0.01D0*sum) w = - ((r/sum)/s)/s
+        z(1) = CMPLX(w, ZERO,DP)
+        z(2) = CMPLX(x, y,DP)
+        z(3) = CMPLX(x,-y,DP)
+        RETURN
 
-    !           SET  SQ = (A(4)/S)**2 * (C**3/27 + D**2/4)
+        !               AT LEAST TWO ROOTS ARE EQUAL
 
-      s = MAX(ABS(a(1)), ABS(a(2)), ABS(a(3)))
-      p1 = a(3)/(THREE*s)
-      q1 = a(2)/s
-      r1 = a(1)/s
+        60 IF (ABS(x) < ABS(w)) GO TO 61
+        IF (ABS(w) < 0.1D0*ABS(x)) w = - (r/x)/x
+        z(1) = CMPLX(w, ZERO,DP)
+        z(2) = CMPLX(x, ZERO,DP)
+        z(3) = z(2)
+        RETURN
+        61 IF (ABS(x) < 0.1D0*ABS(w)) GO TO 70
+        z(1) = CMPLX(x, ZERO,DP)
+        z(2) = z(1)
+        z(3) = CMPLX(w, ZERO,DP)
+        RETURN
 
-      t1 = q - 2.25D0*p*p
-      IF (ABS(t1) <= tol*ABS(q)) t1 = ZERO
-      w = FOURTH*r1*r1
-      w1 = HALF*p1*r1*t
-      w2 = q1*q1*t1/27.0D0
+        !     HERE W IS MUCH LARGER IN MAGNITUDE THAN THE OTHER ROOTS.
+        !     AS A RESULT, THE OTHER ROOTS MAY BE EXCEEDINGLY INACCURATE
+        !     BECAUSE OF ROUNDOFF ERROR.  TO DEAL WITH THIS, A QUADRATIC
+        !     IS FORMED WHOSE ROOTS ARE THE SAME AS THE SMALLER ROOTS OF
+        !     THE CUBIC.  THIS QUADRATIC IS THEN SOLVED.
 
-      IF (w1 >= ZERO) THEN
-        w = w + w1
-        sq = w + w2
-      ELSE IF (w2 < ZERO) THEN
-        sq = w + (w1 + w2)
-      ELSE
-        w = w + w2
-        sq = w + w1
-      END IF
+        !     THIS CODE WAS WRITTEN BY WILLIAM L. DAVIS (NSWC).
 
-      IF (ABS(sq) <= tol*w) sq = ZERO
-      rq = ABS(s/a(4))*SQRT(ABS(sq))
-      IF (sq >= ZERO) GO TO 40
+        70 aq(1) = a(1)
+        aq(2) = a(2) + a(1)/w
+        aq(3) = -a(4)*w
+        CALL QuadraticRoots(aq, z)
+        z(3) = CMPLX(w, ZERO,DP)
 
-    !                   ALL ROOTS ARE REAL
-
-      arg = ATAN2(rq, -HALF*d)
-      cf = COS(arg/THREE)
-      sf = SIN(arg/THREE)
-      rt = SQRT(-c/THREE)
-      y1 = TWO*rt*cf
-      y2 = -rt*(cf + rt3*sf)
-      y3 = -(d/y1)/y2
-
-      x1 = y1 - p
-      x2 = y2 - p
-      x3 = y3 - p
-
-      IF (ABS(x1) > ABS(x2)) CALL Swap(x1,x2)
-      IF (ABS(x2) > ABS(x3)) CALL Swap(x2,x3)
-      IF (ABS(x1) > ABS(x2)) CALL Swap(x1,x2)
-
-      w = x3
-
-      IF (ABS(x2) < 0.1D0*ABS(x3)) GO TO 70
-      IF (ABS(x1) < 0.1D0*ABS(x2)) x1 = - (r/x3)/x2
-      z(1) = CMPLX(x1, ZERO,DP)
-      z(2) = CMPLX(x2, ZERO,DP)
-      z(3) = CMPLX(x3, ZERO,DP)
-      RETURN
-
-    !                  REAL AND COMPLEX ROOTS
-
-    40 ra =CubeRoot(-HALF*d - SIGN(rq,d))
-      rb = -c/(THREE*ra)
-      t = ra + rb
-      w = -p
-      x = -p
-      IF (ABS(t) <= tol*ABS(ra)) GO TO 41
-      w = t - p
-      x = -HALF*t - p
-      IF (ABS(x) <= tol*ABS(p)) x = ZERO
-      41 t = ABS(ra - rb)
-      y = HALF*rt3*t
-      
-      IF (t <= tol*ABS(ra)) GO TO 60
-      IF (ABS(x) < ABS(y)) GO TO 50
-      s = ABS(x)
-      t = y/x
-      GO TO 51
-    50 s = ABS(y)
-      t = x/y
-    51 IF (s < 0.1D0*ABS(w)) GO TO 70
-      w1 = w/s
-      sum = ONE + t*t
-      IF (w1*w1 < 0.01D0*sum) w = - ((r/sum)/s)/s
-      z(1) = CMPLX(w, ZERO,DP)
-      z(2) = CMPLX(x, y,DP)
-      z(3) = CMPLX(x,-y,DP)
-      RETURN
-
-    !               AT LEAST TWO ROOTS ARE EQUAL
-
-    60 IF (ABS(x) < ABS(w)) GO TO 61
-      IF (ABS(w) < 0.1D0*ABS(x)) w = - (r/x)/x
-      z(1) = CMPLX(w, ZERO,DP)
-      z(2) = CMPLX(x, ZERO,DP)
-      z(3) = z(2)
-      RETURN
-      61 IF (ABS(x) < 0.1D0*ABS(w)) GO TO 70
-      z(1) = CMPLX(x, ZERO,DP)
-      z(2) = z(1)
-      z(3) = CMPLX(w, ZERO,DP)
-      RETURN
-
-    !     HERE W IS MUCH LARGER IN MAGNITUDE THAN THE OTHER ROOTS.
-    !     AS A RESULT, THE OTHER ROOTS MAY BE EXCEEDINGLY INACCURATE
-    !     BECAUSE OF ROUNDOFF ERROR.  TO DEAL WITH THIS, A QUADRATIC
-    !     IS FORMED WHOSE ROOTS ARE THE SAME AS THE SMALLER ROOTS OF
-    !     THE CUBIC.  THIS QUADRATIC IS THEN SOLVED.
-
-    !     THIS CODE WAS WRITTEN BY WILLIAM L. DAVIS (NSWC).
-
-    70 aq(1) = a(1)
-      aq(2) = a(2) + a(1)/w
-      aq(3) = -a(4)*w
-      CALL QuadraticRoots(aq, z)
-      z(3) = CMPLX(w, ZERO,DP)
-      
-      IF (AIMAG(z(1)) == ZERO) RETURN
-      z(3) = z(2)
-      z(2) = z(1)
-      z(1) = CMPLX(w, ZERO,DP)
-      RETURN
-    !-----------------------------------------------------------------------
+        IF (AIMAG(z(1)) == ZERO) RETURN
+            z(3) = z(2)
+            z(2) = z(1)
+            z(1) = CMPLX(w, ZERO,DP)
+        RETURN
+        !-----------------------------------------------------------------------
 
 
-    !                   CASE WHEN D = 0
+        !                   CASE WHEN D = 0
 
-    110 z(1) = CMPLX(-p, ZERO,DP)
-      w = SQRT(ABS(c))
-      IF (c < ZERO) GO TO 120
-      z(2) = CMPLX(-p, w,DP)
-      z(3) = CMPLX(-p,-w,DP)
-      RETURN
+        110 z(1) = CMPLX(-p, ZERO,DP)
+        w = SQRT(ABS(c))
+        IF (c < ZERO) GO TO 120
+        z(2) = CMPLX(-p, w,DP)
+        z(3) = CMPLX(-p,-w,DP)
+        RETURN
 
-    120 IF (p /= ZERO) GO TO 130
-      z(2) = CMPLX(w, ZERO,DP)
-      z(3) = CMPLX(-w, ZERO,DP)
-      RETURN
+        120 IF (p /= ZERO) GO TO 130
+        z(2) = CMPLX(w, ZERO,DP)
+        z(3) = CMPLX(-w, ZERO,DP)
+        RETURN
 
-    130 x = -(p + SIGN(w,p))
-      z(3) = CMPLX(x, ZERO,DP)
-      t = THREE*a(1)/(a(3)*x)
-      IF (ABS(p) > ABS(t)) GO TO 131
-      z(2) = CMPLX(t, ZERO,DP)
-      RETURN
-    131 z(2) = z(1)
-      z(1) = CMPLX(t, ZERO,DP)
-      RETURN
+        130 x = -(p + SIGN(w,p))
+        z(3) = CMPLX(x, ZERO,DP)
+        t = THREE*a(1)/(a(3)*x)
+        IF (ABS(p) > ABS(t)) GO TO 131
+        z(2) = CMPLX(t, ZERO,DP)
+        RETURN
+        131 z(2) = z(1)
+        z(1) = CMPLX(t, ZERO,DP)
+        RETURN
     END Subroutine CubicRoots   ! -----------------------------------------------
 
 
@@ -762,7 +862,7 @@ MODULE PolynomialRoots
     z(4) = CMPLX(x,-y,DP)
     RETURN
 
-    !                THE RESOLVENT CUBIC HAS COMPLEX ROOTS
+    !  THE RESOLVENT CUBIC HAS COMPLEX ROOTS
 
     60 t = DBLE(z(1))
     x = ZERO
@@ -864,7 +964,7 @@ MODULE PolynomialRoots
     END Subroutine SolvePolynomial   ! ------------------------------------------
 
     !+
-    SUBROUTINE SwapDouble(a,b)
+    SUBROUTINE Swap(a,b)
     ! ---------------------------------------------------------------------------
     ! PURPOSE - Interchange the contents of a and b
       REAL(DP),INTENT(IN OUT):: a,b
@@ -874,21 +974,7 @@ MODULE PolynomialRoots
       b=a
       a=t
       RETURN
-    END Subroutine SwapDouble   ! -----------------------------------------------
-
-    !+
-    SUBROUTINE SwapSingle(a,b)
-    ! ---------------------------------------------------------------------------
-    ! PURPOSE - Interchange the contents of a and b
-      REAL(SP),INTENT(IN OUT):: a,b
-      REAL(SP):: t
-    !----------------------------------------------------------------------------
-      t=b
-      b=a
-      a=t
-      RETURN
-    END Subroutine SwapSingle   ! -----------------------------------------------
-
+    END Subroutine Swap   ! -----------------------------------------------
 
 END Module PolynomialRoots   ! ==============================================
 
@@ -1361,6 +1447,63 @@ function linspace(d1, d2, n)
 end function linspace
 
 
+
+
+
+subroutine meshgrid2D(x, y, xgrid, ygrid)
+    implicit none
+
+    real(kind(0.d0)),dimension(:),allocatable, intent(in) :: x, y
+    real(kind(0.d0)),dimension(:,:),allocatable, intent(out)    :: xgrid, ygrid
+
+    integer :: i, j
+    integer, dimension(2) :: ncxy
+
+    ncxy(1) = size(x,1)
+    ncxy(2) = size(y,1)
+
+    ! Construct cartesian grid
+    allocate(xgrid(ncxy(1), ncxy(2)))
+    allocate(ygrid(ncxy(1), ncxy(2)))
+    do i=1, ncxy(1)
+    do j=1, ncxy(2)
+        xgrid(i, j) = x(i)
+        ygrid(i, j) = y(j)
+    enddo
+    enddo
+
+end subroutine meshgrid2D
+
+subroutine meshgrid3D(x, y, z, xgrid, ygrid, zgrid)
+    implicit none
+
+    real(kind(0.d0)),dimension(:),allocatable, intent(in) :: x,y,z
+    real(kind(0.d0)),dimension(:,:,:),allocatable, intent(out)    :: xgrid, ygrid, zgrid
+
+    integer :: i, j, k
+    integer, dimension(3) :: ncxyz
+
+    ncxyz(1) = size(x,1)
+    ncxyz(2) = size(y,1)
+    ncxyz(3) = size(z,1)
+
+    ! Construct cartesian grid
+    allocate(xgrid(ncxyz(1)+1, ncxyz(2)+1, ncxyz(3)+1))
+    allocate(ygrid(ncxyz(1)+1, ncxyz(2)+1, ncxyz(3)+1))
+    allocate(zgrid(ncxyz(1)+1, ncxyz(2)+1, ncxyz(3)+1))
+    do i=1, ncxyz(1)
+    do j=1, ncxyz(2)
+    do k=1, ncxyz(3)
+        xgrid(i, j, k) = x(i)
+        ygrid(i, j, k) = y(j)
+        zgrid(i, j, k) = z(k)
+    enddo
+    enddo
+    enddo
+
+end subroutine meshgrid3D
+
+
 !Get surface crossings on a specified control volume surface
 ! r1 -- position of molecules 1
 ! r2 -- position of molecules 2
@@ -1648,8 +1791,6 @@ subroutine bubble_sort(vec)
 
 end subroutine bubble_sort
 
-! Reverse of the above but ordering biggest to smallest
-
 subroutine bubble_sort_r(vec)
 	implicit none
 
@@ -1674,6 +1815,506 @@ subroutine bubble_sort_r(vec)
 	enddo
 
 end subroutine bubble_sort_r
+
+subroutine Qsort_r(A)
+
+    double precision, allocatable, intent(in out), dimension(:) :: A
+    call Qsort(A)
+    A = A(ubound(A,1):lbound(A,1):-1)
+
+end subroutine Qsort_r
+
+
+! Recursive Fortran 95 quicksort routine
+! sorts real numbers into ascending numerical order
+! Author: Juli Rew, SCD Consulting (juliana@ucar.edu), 9/03
+! Based on algorithm from Cormen et al., Introduction to Algorithms,
+! 1997 printing
+
+! Made F conformant by Walt Brainerd
+
+recursive subroutine Qsort(A, indices)
+    implicit none
+
+    double precision, allocatable, intent(in out), dimension(:) :: A
+    integer :: iq
+    double precision, allocatable, dimension(:) :: temp
+    integer, allocatable, dimension(:), optional :: indices
+    integer, allocatable, dimension(:) :: itemp
+
+    if(size(A) > 1) then
+        if (present(indices)) then
+            call Partition(A, iq, indices)
+        else
+            call Partition(A, iq)
+        endif
+        allocate(temp(iq-1))
+        temp = A(:iq-1)
+        if (present(indices)) then
+            allocate(itemp(iq-1))
+            itemp = indices(:iq-1)
+            call Qsort(temp, itemp)
+            indices(:iq-1) = itemp
+            deallocate(itemp)
+        else
+            call Qsort(temp)
+        endif
+        A(:iq-1) = temp
+        deallocate(temp)
+        allocate(temp(size(A,1)-iq+1))
+        temp = A(iq:)
+        if (present(indices)) then
+            allocate(itemp(size(A,1)-iq+1))
+            itemp = indices(iq:)
+            call Qsort(temp, itemp)
+            indices(iq:) = itemp
+            deallocate(itemp)
+        else
+            call Qsort(temp)
+        endif
+        A(iq:) = temp
+        deallocate(temp)
+    endif
+
+end subroutine Qsort
+
+subroutine Partition(A, marker, indices)
+    implicit none
+
+    double precision, allocatable, intent(in out), dimension(:) :: A
+    integer, intent(out) :: marker
+    integer, allocatable, dimension(:), optional :: indices
+
+    integer :: i, j, itemp
+    double precision :: temp
+    double precision :: x      ! pivot point
+
+    x = A(1)
+    i= 0
+    j= size(A) + 1
+
+    do
+        j = j-1
+        do
+            if (A(j) <= x) exit
+            j = j-1
+        end do
+        i = i+1
+        do
+            if (A(i) >= x) exit
+            i = i+1
+        end do
+        if (i < j) then
+            ! exchange A(i) and A(j)
+            temp = A(i)
+            A(i) = A(j)
+            A(j) = temp
+            if (present(indices)) then
+                itemp = indices(i)
+                indices(i) = indices(j)
+                indices(j) = itemp
+            endif
+        elseif (i == j) then
+            marker = i+1
+            return
+        else
+            marker = i
+            return
+        endif
+    end do
+
+end subroutine Partition
+
+!Copied from pytim surface code
+subroutine compute_q_vectors(box, alpha, q_vectors, modes_shape, Qxy, Q)
+    implicit none
+
+    double precision, intent(in) :: alpha
+    double precision, intent(in), dimension(3) :: box
+
+    integer, intent(out), dimension(2) :: modes_shape
+    double precision, intent(out), dimension(:), allocatable :: Q
+    double precision, intent(out), dimension(:,:), allocatable :: Qxy
+    double precision, intent(out), dimension(:,:,:), allocatable :: q_vectors
+
+    integer :: i,j
+    double precision, parameter :: pi=3.141592653589793d0
+    real(kind(0.d0)), dimension(:), allocatable :: qx, qy
+    real(kind(0.d0)), dimension(:,:), allocatable :: qx_vectors,  qy_vectors
+
+
+    !Compute the q-vectors compatible with the current box dimensions.
+
+    !Inputs:
+    !box       : List of domain dimensions [Lx, Ly, Lz]
+    !normal    : Normal to surface x=1, y=2 and z=3
+    !alpha     : Molecular scale cutoff, default 2.0
+
+    !Outputs:
+    !q_vectors : two 2D arrays forming the grid of q-values, similar
+    !            to a meshgrid
+    !mode_shape: Number of modes
+    !Qxy       : array of the different q-vectors
+    !Q         : squared module of Qxy with the first element missing
+
+    !Shift to allow normal that is any direction
+    !box = np.roll(box, 2 - normal)
+    modes_shape = ceiling(box(1:2) / alpha)
+    allocate(qx(modes_shape(1)), qy(modes_shape(2)))
+    do i=1,modes_shape(1)
+        qx(i) = dble((i-1)) * 2.d0 * pi / box(1)
+    enddo
+    do i=1,modes_shape(2)
+        qy(i) = dble((i-1)) * 2.d0 * pi / box(2)
+    enddo
+
+    call meshgrid2D(qx, qy, qx_vectors, qy_vectors)
+    allocate(q_vectors(2, modes_shape(1), modes_shape(2)))
+    q_vectors(1,:,:) = qx_vectors
+    q_vectors(2,:,:) = qy_vectors
+
+    allocate(Qxy(modes_shape(1)*modes_shape(2),2))
+    do i = 1, modes_shape(1)
+    do j = 1, modes_shape(2)
+        !print*, i,j,j+(i-1)*modes_shape(1), q_vectors(1,i,j), q_vectors(2,i,j)
+        ! Notice we swap the convention here x -> y
+        ! Not sure why (issue with meshgrid?!) but give the right results
+        Qxy(j+(i-1)*modes_shape(1),2) = q_vectors(1,i,j)
+        Qxy(j+(i-1)*modes_shape(1),1) = q_vectors(2,i,j)
+    enddo
+    enddo
+    !Exclude zeroth mode
+    allocate(Q(modes_shape(1)*modes_shape(2)-1))
+    Q = sqrt(Qxy(2:,1)**2 + Qxy(2:,2)**2)
+
+end subroutine compute_q_vectors
+
+
+subroutine get_surface_modes(points, Qxy, modes_shape, Q, modes, omega)
+    use lapack_fns, only : pinverse
+    implicit none
+
+    integer, intent(in), dimension(2) :: modes_shape
+    double precision, intent(in), optional :: omega
+    double precision, intent(in), dimension(:), allocatable :: Q
+    double precision, intent(in), dimension(:,:), allocatable :: Qxy, points
+    double complex, intent(out), dimension(:,:), allocatable :: modes
+
+    integer :: i,j
+    real(kind(0.d0)), parameter :: pi=3.141592653589793d0
+    real(kind(0.d0)) :: az, Lx, Ly
+    real(kind(0.d0)), dimension(:), allocatable :: z
+    real(kind(0.d0)), dimension(:,:), allocatable :: xy, QR
+    double complex, dimension(:), allocatable :: s
+    double complex, dimension(:,:), allocatable :: ph, pinv_ph
+
+    !Make some definitions
+    allocate(xy(size(points,1),2))
+    xy(:,1) = points(:, 1);  xy(:,2) = points(:, 2)
+    allocate(z(size(points,1)))
+    z = points(:, 3)
+    az = sum(z)/size(z)
+    z = z - az
+
+    ! Qx is an unravelled array of modes, we dot each of the x-y parts with a point
+    ! to get the contribution of each point to spectral basis set
+    allocate(QR(size(xy,1), size(Qxy,1)))
+    do i=1,size(QR,1)
+    do j=1,size(QR,2)
+        !QR(i,j) = xy(i,1)*Qxy(j,1) + xy(i,2)*Qxy(j,2)
+        QR(i,j) = dot_product(Qxy(j,:), xy(i,:))
+    enddo
+    enddo
+
+    ! We exclude the zero mode and add the mean back in as zero mode instead
+    allocate(ph(size(QR,1), size(QR,2)-1))
+    do j=1,size(ph,2)
+        ph(:,j) = dcmplx(cos(QR(:,j+1)), sin(QR(:,j+1)))/ Q(j) 
+    enddo
+
+    ! Constraint here Least Squares solution of  
+    ! A = \omega/2 * \sum_i (z_i - ph(x_i,y_i))^2 
+    !   + (Lx*Ly)/2 * \sum_k k^2 | \xi_k |^2 
+    ! min(A) with  k**2 = Q**2
+    if (present(omega)) then
+        print*, "CONSTRAINT APPLIED"
+        Lx = 2.d0 * pi / Qxy(modes_shape(1)+1,2)    
+        Ly = 2.d0 * pi / Qxy(2,1)  
+        do j=1,size(ph,2)
+            ph(:,j) = omega * ph(:,j) + complex(Lx*Ly*Q(j)**2, 0.d0)
+        enddo
+    endif
+
+    ! Least square solution solving ph*z = s
+    call pinverse(ph, pinv_ph)
+
+    !Multiply inverse with z values to get mode coefficients
+    allocate(s(modes_shape(1)*modes_shape(2)))
+    s(1) = dcmplx(az, 0.d0)
+    do i=2,size(s,1)
+        s(i) = dot_product(pinv_ph(i-1,:),z(:))/Q(i-1)
+    enddo
+
+    !Return modes in right shape
+    allocate(modes(modes_shape(1),modes_shape(2)))
+    modes = reshape(s, modes_shape)
+
+end subroutine get_surface_modes
+
+
+!subroutine surface_from_modes(points, box, alpha, modes, elevation)
+!    implicit none
+
+!    double precision, intent(in), dimension(:,:), allocatable ::  points
+!    double complex, intent(in), dimension(:,:), allocatable :: modes
+!    double precision, intent(out), dimension(:), allocatable :: elevation
+
+!    integer,dimension(2) :: modes_shape
+!    double precision, dimension(:), allocatable :: Q
+!    double precision, dimension(:,:), allocatable :: Qxy
+!    double precision, dimension(:,:,:), allocatable :: q_vectors
+
+!    call compute_q_vectors(box, alpha, q_vectors, modes_shape, Qxy, Q)
+!    call _surface_from_modes(points, q_vectors, modes, elevation)
+
+!end subroutine surface_from_modes
+
+subroutine surface_from_modes(points, q_vectors, modes, elevation)
+    implicit none
+
+    double precision, intent(in), dimension(:,:,:), allocatable :: q_vectors
+    double precision, intent(in), dimension(:,:), allocatable ::  points
+    double complex, intent(in), dimension(:,:), allocatable :: modes
+    double precision, intent(out), dimension(:), allocatable :: elevation
+
+    integer :: i, j, n
+
+    double precision, dimension(:,:), allocatable :: dotp
+    double complex, dimension(:,:), allocatable :: phase
+
+    allocate(elevation(size(points,1)))
+    allocate(dotp(size(q_vectors,2),size(q_vectors,3)))
+    allocate(phase(size(q_vectors,2),size(q_vectors,3)))
+
+    elevation = 0.d0
+    do n = 1,size(points,1)
+    do i = 1,size(q_vectors,2)
+    do j = 1,size(q_vectors,3)
+        dotp(i,j) = dot_product(q_vectors(:,i,j), points(n, :))
+        !dotp(i,j) = q_vectors(1,i,j) * points(n, 1) + q_vectors(2,i,j) * points(n,2)
+        phase(i,j) = dcmplx(cos(dotp(i,j)), sin(dotp(i,j)))
+        elevation(n) = elevation(n) + real(phase(i,j) * modes(i,j))
+    enddo
+    enddo
+    enddo
+
+end subroutine surface_from_modes
+
+subroutine get_initial_pivots(points, box, normal, pivots)
+    implicit none
+
+    integer, intent(in) :: normal
+    double precision, intent(in), dimension(3) :: box
+    double precision, intent(in), dimension(:,:), allocatable ::  points
+
+    integer, intent(out), dimension(:), allocatable ::  pivots
+
+    ! Defines the initial pivots as a set of 9 particles, where
+    ! each particle is in a distinct sector formed by dividing
+    ! the macroscopic plane into 3x3 regions.
+    integer :: Npivots, i, ind, ixyz, jxyz
+    integer, dimension(2) :: nxy
+    integer, dimension(3,3) :: sectors
+
+    integer, dimension(:), allocatable :: indices
+    double precision, dimension(:), allocatable :: z
+    
+    !Setup indices
+    allocate(indices(size(points,1))) 
+    do ind = 1, size(indices,1)
+        indices(ind) = ind
+    enddo
+
+    !Sort ascending
+    allocate(z(size(points,1)))
+    z = points(:,normal)
+    call Qsort(z, indices)
+    Npivots = 9
+    allocate(pivots(Npivots))
+    sectors = 0
+    !Start from the largest (end) value
+    ixyz = mod(normal,3)+1
+    jxyz = mod(normal+1,3)+1
+    do ind = size(z,1), 1, -1
+        nxy(1) = floor(2.999 * points(indices(ind), ixyz) / box(ixyz))+1
+        nxy(2) = floor(2.999 * points(indices(ind), jxyz) / box(jxyz))+1
+        if (sectors(nxy(1), nxy(2)) .eq. 0) then
+            pivots(Npivots) = indices(ind)
+            sectors(nxy(1), nxy(2)) = 1
+            Npivots = Npivots - 1
+        endif
+        if (sum(sectors) .ge. 9) then
+            exit
+        endif
+    enddo
+
+end subroutine get_initial_pivots
+
+subroutine update_pivots(points, q_vectors, modes, pivots, &
+                         normal, alpha, tau, new_pivots)
+    implicit none
+
+    integer, intent(in) :: normal
+    double precision, intent(in) :: alpha, tau
+
+    double precision, intent(in), dimension(:,:), allocatable ::  points
+    double precision, intent(in), dimension(:,:,:), allocatable :: q_vectors
+    double complex, intent(in), dimension(:,:), allocatable :: modes
+    integer, intent(in), dimension(:), allocatable ::  pivots
+
+    integer, intent(out), dimension(:), allocatable ::  new_pivots
+
+    logical :: found_range
+    integer :: i, n, ind, nPivots, sp
+    double precision :: z_max, z_min
+    integer, dimension(:), allocatable :: candidates, updated_pivots, indices
+    double precision, dimension(:), allocatable :: z, surf
+    double precision, dimension(:,:), allocatable :: candidates_pos, pivot_pos
+
+    ! Searches for points within a distance tau from the
+    ! interface.
+    sp = size(pivots,1)
+    allocate(pivot_pos(sp,3)) 
+    do i =1, sp
+        pivot_pos(i,:) = points(pivots(i),:)
+    enddo
+    z_max = maxval(pivot_pos(:,normal)) + alpha * 2.d0
+    z_min = minval(pivot_pos(:,normal)) - alpha * 2.d0
+
+    z = points(:, normal)
+    allocate(indices(size(points,1))) 
+    do ind = 1, size(indices,1)
+        indices(ind) = ind
+    enddo
+    call Qsort(z, indices)
+    n = 0; found_range=.false.
+    allocate(candidates(size(points,1))) 
+    do i = size(z,1), 1, -1
+        if (z(i) > z_min .and. z(i) < z_max) then
+            n = n + 1
+            candidates(n) = indices(i)
+            found_range = .true.
+            !print*, "values", i, n, z_min, z(i), z_max, candidates(n)
+        else if (found_range) then
+            !If z is sorted and we've been inside the range,
+            !once we leave, no point looping anymore
+            exit
+        endif
+
+    enddo
+
+    !Get positions from indices
+    allocate(candidates_pos(n,3))
+    do i =1, n
+        !print*, "values", i, n, candidates(i), points(candidates(i),:)
+        candidates_pos(i,:) = points(candidates(i),:)
+    enddo
+
+    !Recalculate surface at candidate pivot locations
+    call surface_from_modes(candidates_pos, q_vectors, modes, surf)
+
+    nPivots = 0
+    allocate(updated_pivots(n))
+    do i =1,n
+        if ((surf(i)-candidates_pos(i,normal))**2 .lt. tau**2) then
+            nPivots = nPivots + 1
+            updated_pivots(nPivots) = candidates(i)
+            !print*, i, nPivots, candidates(i), updated_pivots(nPivots)
+        endif
+    enddo
+    allocate(new_pivots(nPivots))
+    new_pivots = updated_pivots(1:nPivots)
+
+    !allocate(new_pivots(nPivots+sp))
+    !new_pivots(1:sp) = pivots(:)
+    !new_pivots(sp+1:) = updated_pivots(:nPivots)
+
+    !print*, new_pivots 
+
+end subroutine update_pivots
+
+subroutine fit_intrinsic_surface(points, box, normal, alpha, tau, modes, omega)
+    implicit none
+
+    integer, intent(in) :: normal
+    double precision, intent(in) :: alpha, tau
+    double precision, intent(in), optional :: omega
+    double precision, intent(in), dimension(3) :: box
+    double precision, intent(in), dimension(:,:), allocatable ::  points
+    double complex, intent(out), dimension(:,:), allocatable :: modes
+
+    integer :: i, j, Np, sp, try, maxtry=100
+    integer, dimension(2) :: modes_shape
+    integer, dimension(:), allocatable :: indices, pivots, new_pivots
+    double precision, dimension(:), allocatable :: Q, z, d, surf
+    double precision, dimension(:,:), allocatable :: Qxy, pivot_pos
+    double precision, dimension(:,:,:), allocatable :: q_vectors
+
+    call compute_q_vectors(box, alpha, q_vectors, modes_shape, Qxy, Q)
+    call get_initial_pivots(points, box, normal, pivots)
+    sp = size(pivots,1)
+    allocate(pivot_pos(sp,3))
+    do i =1, sp
+        pivot_pos(i,:) = points(pivots(i),:)
+        print*, "initial pivot pos = ", i, pivot_pos(i,:)
+    enddo
+
+    if (present(omega)) then
+        call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, omega)
+    else
+        call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes)
+    endif
+
+    allocate(d(sp))
+    do try = 1, maxtry
+
+        !Plot updated surface error
+        call surface_from_modes(pivot_pos, q_vectors, modes, surf)
+        d = pivot_pos(:, normal) - surf(:)
+        print*, "Try no. = ", try, "No. pivots = ", size(pivots), "Error=", sqrt(sum(d * d) / size(d))
+
+        !Get new pivots
+        call update_pivots(points, q_vectors, modes, pivots, &
+                           normal, alpha, tau, new_pivots)
+
+        !Get new positions and new modes
+        deallocate(pivot_pos)
+        sp = size(new_pivots,1)
+        allocate(pivot_pos(sp,3))
+        do i =1, sp
+            pivot_pos(i,:) = points(new_pivots(i),:)
+            !print*, "new pivot pos = ", i, pivot_pos(i,:)
+        enddo
+        if (present(omega)) then
+            call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, omega)
+        else
+            call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes)
+        endif
+
+        !Exit once we have converged to a fix set of pivots
+        if (all(new_pivots .eq. pivots)) then
+            exit
+        else
+            deallocate(pivots)
+            allocate(pivots(size(new_pivots,1)))
+            pivots = new_pivots
+            deallocate(new_pivots)
+        endif
+
+    enddo
+
+end subroutine fit_intrinsic_surface
+
 
 !-------------------------------------------------------------------------------------
 !Returns the heaviside function for input x -- interface at top
@@ -2468,14 +3109,14 @@ subroutine printf(buf,dplaces_in)
 	enddo
 	if (maxbuf .lt. 0.d0 .and. maxbuf .gt. -1.d0) n = n + 1 !For the case of -0.something
 	if (n+dplaces+2 .le. 9) then
-		write(buf_precision,'(a,i1,a,i1)'), 'f',n+dplaces+2,'.', dplaces
+		write(buf_precision,'(a,i1,a,i1)') 'f',n+dplaces+2,'.', dplaces
 	else
-		write(buf_precision,'(a,i2,a,i1)'), 'f',n+dplaces+2,'.', dplaces
+		write(buf_precision,'(a,i2,a,i1)') 'f',n+dplaces+2,'.', dplaces
 	endif
 
 	! Build up format specifier string based on size of passed array
 	string='(   ' // trim(buf_precision) // ')'
-	write(string(2:4),'(i3)'), size(buf) 
+	write(string(2:4),'(i3)') size(buf) 
 
 	!Write formatted data 
 	print(string), buf
@@ -3003,12 +3644,12 @@ subroutine spectral_surface(z, nrange, resolution)
     double precision,dimension(:),allocatable  :: x,y
 	double precision,parameter  :: pi=4.d0*atan(1.d0)
 
+    !gfortran does not allow this
     !allocate(x, source=linspace(0.d0,2.d0*pi,size(z,1)))
     !allocate(y, source=linspace(0.d0,2.d0*pi,size(z,2)))
-    allocate(x(size(z,1)))
-    x = linspace(0.d0,2.d0*pi,size(z,1))
-    allocate(y(size(z,2)))
-    y = linspace(0.d0,2.d0*pi,size(z,2))
+    allocate(x(size(z,1))); x = linspace(0.d0,2.d0*pi,size(z,1))
+    allocate(y(size(z,2))); y = linspace(0.d0,2.d0*pi,size(z,2))
+
     z = 0.d0
 
     do levels=1,20
@@ -3268,7 +3909,7 @@ function couette_analytical_fn(t,Re,U_wall,L,npoints,slidingwall) result (u)
     real(kind(0.d0)),intent(in)    :: t,Re,U_wall,L
     real(kind(0.d0)),dimension(:),allocatable  :: u
     
-	integer,parameter			   :: top=0, bottom=1,both=2
+	integer,parameter			   :: top=0, bottom=1, both=2
     integer                        :: nmodes, n
     real(kind(0.d0))               :: k, uinitial, lambda, nr
 
@@ -4108,9 +4749,9 @@ end subroutine quadratic_lagrange_interp
 !    Input, real ( kind = 8 ) A(M), B(M), the lower and upper limits.
 !    Input, real ( kind = 8 ) ZD(ND), the function evaluated at the points XD.
 !    Input, real ( kind = 8 ) XI(M,NI), the points at which the interpolant is 
-!    to be evaluated.
+!                                       to be evaluated.
 !    Output, real ( kind = 8 ) ZI(NI), the interpolant evaluated at the 
-!    points XI.
+!                                      points XI.
 !	 Output, real ( kind = 8 ) XD(M,ND), the points at which data was sampled.
 !*****************************************************************************80
 
