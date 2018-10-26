@@ -2389,8 +2389,8 @@ subroutine parallel_io_psf()
     implicit none
 
     integer                 :: n, mt, unitno, startmol
-!    character(20)           :: atomname
-    character(256)           :: filename, cmd
+    character(2)           :: nprocstr
+    character(256)          :: filename, cmd
 
     !Build array of number of particles on neighbouring
     !processe's subdomain on current proccess
@@ -2411,7 +2411,7 @@ subroutine parallel_io_psf()
     elseif (irank .lt. 10000) then
         write(filename,'(a,i4)'),trim(prefix_dir)//'results/vmd_out.psf.',irank
     else
-       stop "Error in parallel_io_psf -- irank > 1000"
+       stop "Error in parallel_io_psf -- irank > 10000"
     endif
     open(unit=unitno, file=trim(filename),status='replace',action='write')
     if (irank .eq. iroot) then
@@ -2425,7 +2425,7 @@ subroutine parallel_io_psf()
 
     do n = 1, np
         mt = moltype(n)
-        write(unitno,'(i5,a5,i5,3a5,f12.7,f12.5,i4)') &
+        write(unitno,'(i8,a5,i5,3a5,f12.7,f12.5,i4)') &
                  startmol + n, &            ! molno
                  trim(moltype_names(mt)), & ! segment name
                   1,  &                     ! Residue ID
@@ -2433,17 +2433,29 @@ subroutine parallel_io_psf()
                  trim(moltype_names(mt)), & ! atom name
                  trim(moltype_names(mt)), & ! atom type
                  epsilon_lookup(mt,mt), &   ! charge
-                 mass_lookup(mt), &            ! mass
+                 mass_lookup(mt), &         ! mass
                   0                         ! A "0" for no reason!
     enddo
     close(unitno)
 
 
     call MPI_Barrier(MD_COMM,ierr)
+
+    !This is a disgusting hack to concat each processors files on the commandline
     if (irank .eq. iroot) then
-        write(cmd,'(3a)'), "cat ", trim(prefix_dir)//"results/vmd_out.psf.* > ", & 
-                            trim(prefix_dir)//"results/vmd_out.psf"
+        write(cmd,'(3a)'), "cat ", trim(prefix_dir)//"results/vmd_out.psf.1 > ", & 
+                                   trim(prefix_dir)//"results/vmd_out.psf"
         call system(cmd)
+        if (nproc .gt. 99) then 
+            print*, "Warning, manually concat results/vmd_out.psf.* files"
+        else
+            write (nprocstr, "(i2)") nproc
+            write(cmd,'(4a)'),"for i in {2..", trim(nprocstr)//"}; do cat ", &
+                                       trim(prefix_dir)//"results/vmd_out.psf.$i >> ", &
+                                       trim(prefix_dir)//"results/vmd_out.psf; done;"
+            print*, cmd
+            call system(cmd)
+        endif
     endif
 
 end subroutine parallel_io_psf
