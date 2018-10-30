@@ -51,8 +51,14 @@ contains
                     (rg(3) .gt. local_heat_region(6) .or. rg(3) .lt. local_heat_region(5))) then
                     tagdistbottom = 0.d0
                 else
-                    tagdistbottom = local_heat_region(4) - local_heat_region(3)
-                    !print'(a,3f10.5)', 'Heated region', rg(1),thermstatbottom(2),rg(3)
+                    tagdistbottom = thermstatbottom(:) !local_heat_region(4) - local_heat_region(3)
+                    if (rg(2) .le. bottom(2) + tagdistbottom(2)) then
+                        print'(a,11f10.5,3l)', 'Heated region', local_heat_region, rg(1),rg(2),rg(3), & 
+                                            thermstatbottom(2), local_heat_region(4)-local_heat_region(3), & 
+                                            rg(1) .le. bottom(1) + tagdistbottom(1), &
+                                            rg(2) .le. bottom(2) + tagdistbottom(2), &
+                                            rg(3) .le. bottom(3) + tagdistbottom(3)
+                    endif
                 endif
             endif
         case ('teth')
