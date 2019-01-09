@@ -1978,9 +1978,9 @@ subroutine compute_q_vectors(box, alpha, q_vectors, modes_shape, Qxy, Q)
     do j = 1, modes_shape(2)
         !print*, i,j,j+(i-1)*modes_shape(1), q_vectors(1,i,j), q_vectors(2,i,j)
         ! Notice we swap the convention here x -> y
-        ! Not sure why (issue with meshgrid?!) but give the right results
-        Qxy(j+(i-1)*modes_shape(1),2) = q_vectors(1,i,j)
-        Qxy(j+(i-1)*modes_shape(1),1) = q_vectors(2,i,j)
+        ! Not sure why (issue with meshgrid?!) but appears to give the right results
+        Qxy(j+(i-1)*modes_shape(2),1) = q_vectors(1,i,j)
+        Qxy(j+(i-1)*modes_shape(2),2) = q_vectors(2,i,j)
     enddo
     enddo
     !Exclude zeroth mode
@@ -2006,7 +2006,7 @@ subroutine get_surface_modes(points, Qxy, modes_shape, Q, modes, omega)
     real(kind(0.d0)), dimension(:), allocatable :: z
     real(kind(0.d0)), dimension(:,:), allocatable :: xy, QR
     double complex, dimension(:), allocatable :: s
-    double complex, dimension(:,:), allocatable :: ph, pinv_ph
+    double complex, dimension(:,:), allocatable :: ph, pinv_ph, modesT
 
     !Make some definitions
     allocate(xy(size(points,1),2))
@@ -2021,8 +2021,8 @@ subroutine get_surface_modes(points, Qxy, modes_shape, Q, modes, omega)
     allocate(QR(size(xy,1), size(Qxy,1)))
     do i=1,size(QR,1)
     do j=1,size(QR,2)
-        !QR(i,j) = xy(i,1)*Qxy(j,1) + xy(i,2)*Qxy(j,2)
-        QR(i,j) = dot_product(Qxy(j,:), xy(i,:))
+        QR(i,j) = xy(i,1)*Qxy(j,1) + xy(i,2)*Qxy(j,2)
+        !QR(i,j) = dot_product(Qxy(j,:), xy(i,:))
     enddo
     enddo
 
@@ -2036,12 +2036,14 @@ subroutine get_surface_modes(points, Qxy, modes_shape, Q, modes, omega)
     ! A = \omega/2 * \sum_i (z_i - ph(x_i,y_i))^2 
     !   + (Lx*Ly)/2 * \sum_k k^2 | \xi_k |^2 
     ! min(A) with  k**2 = Q**2
-    if (present(omega)) then
-        print*, "CONSTRAINT APPLIED"
+   if (present(omega)) then
+        !print*, "CONSTRAINT APPLIED"
         Lx = 2.d0 * pi / Qxy(modes_shape(1)+1,2)    
         Ly = 2.d0 * pi / Qxy(2,1)  
         do j=1,size(ph,2)
-            ph(:,j) = omega * ph(:,j) + complex(Lx*Ly*Q(j)**2, 0.d0)
+            ph(:,j) = ph(:,j) + omega * dcmplx(Q(j), 0.d0)
+            !ph(:,j) = ph(:,j) + omega * dcmplx(Lx*Ly*Q(j), 0.d0)
+            !ph(:,j) = ph(:,j) + omega * dcmplx((2.d0*pi)**2*(j**2), 0.d0)
         enddo
     endif
 
@@ -2052,12 +2054,14 @@ subroutine get_surface_modes(points, Qxy, modes_shape, Q, modes, omega)
     allocate(s(modes_shape(1)*modes_shape(2)))
     s(1) = dcmplx(az, 0.d0)
     do i=2,size(s,1)
-        s(i) = dot_product(pinv_ph(i-1,:),z(:))/Q(i-1)
+        !s(i) = dot_product(congj(pinv_ph(i-1,:)),z(:))/Q(i-1)
+        s(i) = sum(pinv_ph(i-1,:)*z(:))/Q(i-1)
     enddo
 
-    !Return modes in right shape
-    allocate(modes(modes_shape(1),modes_shape(2)))
-    modes = reshape(s, modes_shape)
+   !Return modes in right shape (for some reason this needs to be done this way)
+    modesT = reshape(s, (/modes_shape(2), modes_shape(1)/))
+    allocate(modes(modes_shape(1),modes_shape(2))) 
+    modes = transpose(modesT)
 
 end subroutine get_surface_modes
 
@@ -2079,15 +2083,16 @@ end subroutine get_surface_modes
 
 !end subroutine surface_from_modes
 
-subroutine surface_from_modes(points, q_vectors, modes, elevation)
+subroutine surface_from_modes(points, normal, q_vectors, modes, elevation)
     implicit none
 
+    integer, intent(in) :: normal
     double precision, intent(in), dimension(:,:,:), allocatable :: q_vectors
     double precision, intent(in), dimension(:,:), allocatable ::  points
     double complex, intent(in), dimension(:,:), allocatable :: modes
     double precision, intent(out), dimension(:), allocatable :: elevation
 
-    integer :: i, j, n
+    integer :: i, j, n, ixyz, jxyz
 
     double precision, dimension(:,:), allocatable :: dotp
     double complex, dimension(:,:), allocatable :: phase
@@ -2096,12 +2101,15 @@ subroutine surface_from_modes(points, q_vectors, modes, elevation)
     allocate(dotp(size(q_vectors,2),size(q_vectors,3)))
     allocate(phase(size(q_vectors,2),size(q_vectors,3)))
 
+    ixyz = mod(normal,3)+1
+    jxyz = mod(normal+1,3)+1
     elevation = 0.d0
     do n = 1,size(points,1)
     do i = 1,size(q_vectors,2)
     do j = 1,size(q_vectors,3)
-        dotp(i,j) = dot_product(q_vectors(:,i,j), points(n, :))
-        !dotp(i,j) = q_vectors(1,i,j) * points(n, 1) + q_vectors(2,i,j) * points(n,2)
+        !dotp(i,j) = dot_product(q_vectors(:,i,j), points(n, :))
+        dotp(i,j) = q_vectors(1,i,j) * points(n,ixyz) &
+                  + q_vectors(2,i,j) * points(n,jxyz)
         phase(i,j) = dcmplx(cos(dotp(i,j)), sin(dotp(i,j)))
         elevation(n) = elevation(n) + real(phase(i,j) * modes(i,j))
     enddo
@@ -2123,12 +2131,13 @@ subroutine get_initial_pivots(points, box, normal, pivots)
     ! each particle is in a distinct sector formed by dividing
     ! the macroscopic plane into 3x3 regions.
     integer :: Npivots, i, ind, ixyz, jxyz
-    integer, dimension(2) :: nxy
+    integer, dimension(2) :: nxy, bins
     integer, dimension(3,3) :: sectors
 
     integer, dimension(:), allocatable :: indices
+    double precision, dimension(3) :: binsize
     double precision, dimension(:), allocatable :: z
-    
+
     !Setup indices
     allocate(indices(size(points,1))) 
     do ind = 1, size(indices,1)
@@ -2145,18 +2154,35 @@ subroutine get_initial_pivots(points, box, normal, pivots)
     !Start from the largest (end) value
     ixyz = mod(normal,3)+1
     jxyz = mod(normal+1,3)+1
+
+    bins = 3
+    binsize(1) = box(ixyz)/dble(bins(1))
+    binsize(2) = box(jxyz)/dble(bins(2))
+
+    !print*, ixyz, jxyz, box(:), box(ixyz)/dble(bins(1))
     do ind = size(z,1), 1, -1
-        nxy(1) = floor(2.999 * points(indices(ind), ixyz) / box(ixyz))+1
-        nxy(2) = floor(2.999 * points(indices(ind), jxyz) / box(jxyz))+1
+        nxy(1) = ceiling((points(indices(ind), ixyz) + 0.5d0*box(ixyz)) / binsize(1))
+        nxy(2) = ceiling((points(indices(ind), jxyz) + 0.5d0*box(jxyz)) / binsize(2))
+
+        if (nxy(1) .lt. 1 .or. nxy(2) .lt. 1 .or. & 
+            nxy(1) .gt. 3 .or. nxy(2) .gt. 3) then
+            !print*, ind, nxy, points(indices(ind), :)
+            cycle
+        endif
+!        nxy(1) = floor(2.99999999999999999 * points(indices(ind), ixyz) / box(ixyz))+1
+!        nxy(2) = floor(2.99999999999999999 * points(indices(ind), jxyz) / box(jxyz))+1
         if (sectors(nxy(1), nxy(2)) .eq. 0) then
             pivots(Npivots) = indices(ind)
             sectors(nxy(1), nxy(2)) = 1
             Npivots = Npivots - 1
+            !print*, ind, Npivots, pivots(Npivots+1), points(indices(ind), ixyz), points(indices(ind), jxyz)
         endif
         if (sum(sectors) .ge. 9) then
             exit
         endif
     enddo
+
+    if (Npivots .ne. 0) stop "Not all initial pivots found"
 
 end subroutine get_initial_pivots
 
@@ -2221,7 +2247,7 @@ subroutine update_pivots(points, q_vectors, modes, pivots, &
     enddo
 
     !Recalculate surface at candidate pivot locations
-    call surface_from_modes(candidates_pos, q_vectors, modes, surf)
+    call surface_from_modes(candidates_pos, normal, q_vectors, modes, surf)
 
     nPivots = 0
     allocate(updated_pivots(n))
@@ -2243,7 +2269,7 @@ subroutine update_pivots(points, q_vectors, modes, pivots, &
 
 end subroutine update_pivots
 
-subroutine fit_intrinsic_surface(points, box, normal, alpha, tau, modes, omega)
+subroutine fit_intrinsic_surface_modes(points, box, normal, alpha, tau, modes, pivots, omega)
     implicit none
 
     integer, intent(in) :: normal
@@ -2252,21 +2278,45 @@ subroutine fit_intrinsic_surface(points, box, normal, alpha, tau, modes, omega)
     double precision, intent(in), dimension(3) :: box
     double precision, intent(in), dimension(:,:), allocatable ::  points
     double complex, intent(out), dimension(:,:), allocatable :: modes
+    integer, dimension(:), allocatable, intent(inout) :: pivots
 
-    integer :: i, j, Np, sp, try, maxtry=100
+    integer :: i, j, ixyz, jxyz, Np, sp, ntarget, try, maxtry=100
     integer, dimension(2) :: modes_shape
-    integer, dimension(:), allocatable :: indices, pivots, new_pivots
+    integer, dimension(:), allocatable :: indices, new_pivots, initial_pivots
+    !integer, dimension(:), allocatable, save :: pivots
+    double precision :: Error, area, tau_, rand, diff, maxpivot
     double precision, dimension(:), allocatable :: Q, z, d, surf
-    double precision, dimension(:,:), allocatable :: Qxy, pivot_pos
+    double precision, dimension(:,:), allocatable :: Qxy, pivot_pos, initial_pivot_pos
     double precision, dimension(:,:,:), allocatable :: q_vectors
 
+    !Define things
+    tau_ = tau
+    ixyz = mod(normal,3)+1
+    jxyz = mod(normal+1,3)+1
+    area = box(ixyz)*box(jxyz)
     call compute_q_vectors(box, alpha, q_vectors, modes_shape, Qxy, Q)
-    call get_initial_pivots(points, box, normal, pivots)
+
+    !Get initial pivots
+    call get_initial_pivots(points, box, normal, initial_pivots)
+    if (allocated(pivots)) deallocate(pivots)
+    pivots = initial_pivots
+!    if (.not. allocated(pivots)) then
+!        allocate(pivots(9))
+!        pivots = initial_pivots
+!        !call get_initial_pivots(points, box, normal, pivots)
+!    else
+!        !Ideally we'd use previous value of pivots
+!        !here but array of points can change size
+!        deallocate(pivots)
+!        allocate(pivots(9))
+!        pivots = initial_pivots
+!        !call get_initial_pivots(points, box, normal, pivots)
+!    endif
     sp = size(pivots,1)
     allocate(pivot_pos(sp,3))
     do i =1, sp
         pivot_pos(i,:) = points(pivots(i),:)
-        print*, "initial pivot pos = ", i, pivot_pos(i,:)
+        !print*, "initial pivot pos = ", i, pivot_pos(i,:)
     enddo
 
     if (present(omega)) then
@@ -2275,20 +2325,29 @@ subroutine fit_intrinsic_surface(points, box, normal, alpha, tau, modes, omega)
         call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes)
     endif
 
-    allocate(d(sp))
+
+    !Start from the largest (end) value
+
+    !Test error before update
+    !call surface_from_modes(pivot_pos, normal, q_vectors, modes, surf)
+    
+!    do i=1,sp
+!        print*, "Pivot error = ", pivot_pos(i,:), surf(i), pivot_pos(i,3)-surf(i)
+!    enddo
+
     do try = 1, maxtry
 
-        !Plot updated surface error
-        call surface_from_modes(pivot_pos, q_vectors, modes, surf)
-        d = pivot_pos(:, normal) - surf(:)
-        print*, "Try no. = ", try, "No. pivots = ", size(pivots), "Error=", sqrt(sum(d * d) / size(d))
+!        do i =1, size(pivots,1)
+!            print*, "pivot pos = ", i, pivot_pos(i,:), surf(i)
+!        enddo
 
         !Get new pivots
         call update_pivots(points, q_vectors, modes, pivots, &
-                           normal, alpha, tau, new_pivots)
+                           normal, alpha, tau_, new_pivots)
+
 
         !Get new positions and new modes
-        deallocate(pivot_pos)
+        if (allocated(pivot_pos)) deallocate(pivot_pos)
         sp = size(new_pivots,1)
         allocate(pivot_pos(sp,3))
         do i =1, sp
@@ -2301,9 +2360,56 @@ subroutine fit_intrinsic_surface(points, box, normal, alpha, tau, modes, omega)
             call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes)
         endif
 
+
         !Exit once we have converged to a fix set of pivots
-        if (all(new_pivots .eq. pivots)) then
+!        if (size(new_pivots,1) .eq. size(pivots,1)) then
+!            if (all(new_pivots .eq. pivots)) then
+!                exit
+!            else
+!                pivots = new_pivots
+!            endif
+        !Convergence if Ns/A0 > 0.8
+        if (size(new_pivots)/area .gt. 0.8)  then
+            deallocate(pivots)
+            ! Truncate pivots to give 0.8 as all posiitons in 
+            ! order of increasing distance from max pivot mol
+            ntarget = int(0.8*area)
+            allocate(pivots(ntarget))
+            pivots = new_pivots(1:ntarget)
+!            allocate(initial_pivot_pos(9,3))
+!            do i =1, 9
+!                initial_pivot_pos(i,:) = points(initial_pivots(i),:)
+!            enddo
+!            maxpivot = maxval(initial_pivot_pos(:,normal))
+!            do i =1, sp
+!                diff = maxpivot - pivot_pos(i, normal)
+!                print'(a,2i5,3f10.5,f18.8)', "new pivot pos = ", i, ntarget, pivot_pos(i,:), diff
+!            enddo   
             exit
+        elseif (size(new_pivots,1) .eq. size(pivots,1)) then
+            tau_ = tau_ + 0.01
+!        elseif (size(new_pivots)/area .gt. 0.81) then
+!            tau_ = tau_ - 0.1
+!            !Randomly delete a few, see if we get the same
+!            deallocate(pivots)
+!            j = 0
+!            do i =1, size(new_pivots,1)
+!                call random_number(rand)
+!                if (rand .gt. 0.7) cycle
+!                j = j + 1
+!                new_pivots(j) = new_pivots(i)
+!            enddo
+!            allocate(pivots(j))
+!            pivots(:) = new_pivots(1:j)
+!            deallocate(new_pivots)   
+!            tau_ = tau
+!        elseif (size(pivots)/area .gt. 0.9) then
+!            deallocate(pivots)
+!            sp = int(0.4*area)
+!            allocate(pivots(sp))
+!            print*, "reducing pivots", sp
+!            pivots = new_pivots(1:sp)
+!            deallocate(new_pivots)
         else
             deallocate(pivots)
             allocate(pivots(size(new_pivots,1)))
@@ -2311,7 +2417,384 @@ subroutine fit_intrinsic_surface(points, box, normal, alpha, tau, modes, omega)
             deallocate(new_pivots)
         endif
 
+        !Some error handling here
+        if (try .eq. 50) then
+
+            !Plot updated surface error
+            allocate(d(sp))
+            call surface_from_modes(pivot_pos, normal, q_vectors, modes, surf)
+            d = pivot_pos(:, normal) - surf(:)
+            Error = sqrt(sum(d * d) / size(d))
+
+!        do i =1,size(q_vectors,2)
+!        do j =1,size(q_vectors,3)
+!            area = area + 0.5*box(ixyz)*box(jxyz)*(q_vectors(1,i,j)+q_vectors(2,i,j)**2)*abs(modes(i,j)*modes(i,j))
+!        enddo
+!        enddo
+            print*, "Try no. = ", try, "No. pivots = ", size(pivots), & 
+                    "Error=", Error, "Area=", area, size(pivots)/area
+
+            if (Error .gt. 1e2) then
+                print*, "Solution appears to be diverging, reverting to initial pivots"
+                deallocate(pivots)
+                call get_initial_pivots(points, box, normal, pivots)
+                deallocate(pivot_pos)
+                sp = size(pivots,1)
+                allocate(pivot_pos(sp,3))
+                do i =1, sp
+                    pivot_pos(i,:) = points(pivots(i),:)
+                    !print*, "initial pivot pos = ", i, pivot_pos(i,:)
+                enddo
+
+                if (present(omega)) then
+                    call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, omega)
+                else
+                    call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes)
+                endif
+
+            endif
+        endif
+
+
     enddo
+
+!    !Define things
+!    tau_ = tau
+!    area = box(ixyz)*box(jxyz)
+!    ixyz = mod(normal,3)+1
+!    jxyz = mod(normal+1,3)+1
+!    call compute_q_vectors(box, alpha, q_vectors, modes_shape, Qxy, Q)
+
+!    !Get initial pivots
+!    call get_initial_pivots(points, box, normal, initial_pivots)
+!    if (allocated(pivots)) deallocate(pivots)
+!    allocate(pivots(9))
+!    pivots = initial_pivots
+
+!    sp = size(pivots,1)
+!    allocate(pivot_pos(sp,3))
+!    do i =1, sp
+!        pivot_pos(i,:) = points(pivots(i),:)
+!        !print*, "initial pivot pos = ", i, pivot_pos(i,:)
+!    enddo
+
+!    if (present(omega)) then
+!        call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, omega)
+!    else
+!        call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes)
+!    endif
+
+
+!    !Start from the largest (end) value
+
+
+!    !Test error before update
+!    !call surface_from_modes(pivot_pos, normal, q_vectors, modes, surf)
+!    
+!!    do i=1,sp
+!!        print*, "Pivot error = ", pivot_pos(i,:), surf(i), pivot_pos(i,3)-surf(i)
+!!    enddo
+
+!    !allocate(d(sp))
+!    do try = 1, maxtry
+
+!        !Plot updated surface error
+!        !call surface_from_modes(pivot_pos, normal, q_vectors, modes, surf)
+!        !d = pivot_pos(:, normal) - surf(:)
+!        !Error = sqrt(sum(d * d) / size(d))
+
+!!        do i =1,size(q_vectors,2)
+!!        do j =1,size(q_vectors,3)
+!!            area = area + 0.5*box(ixyz)*box(jxyz)*(q_vectors(1,i,j)+q_vectors(2,i,j)**2)*abs(modes(i,j)*modes(i,j))
+!!        enddo
+!!        enddo
+!        !print*, "Try no. = ", try, "No. pivots = ", size(pivots), "Error=", Error, "Area=", area, size(pivots)/area
+
+
+!!        if (Error .gt. 1e2) then
+!!            print*, "Solution appears to be diverging, reverting to initial pivots"
+!!            deallocate(pivots)
+!!            call get_initial_pivots(points, box, normal, pivots)
+!!            deallocate(pivot_pos)
+!!            sp = size(pivots,1)
+!!            allocate(pivot_pos(sp,3))
+!!            do i =1, sp
+!!                pivot_pos(i,:) = points(pivots(i),:)
+!!                !print*, "initial pivot pos = ", i, pivot_pos(i,:)
+!!            enddo
+
+!!            if (present(omega)) then
+!!                call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, omega)
+!!            else
+!!                call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes)
+!!            endif
+
+!!        endif
+!!        do i =1, size(pivots,1)
+!!            print*, "pivot pos = ", i, pivot_pos(i,:), surf(i)
+!!        enddo
+
+!        !Get new pivots
+!        call update_pivots(points, q_vectors, modes, pivots, &
+!                           normal, alpha, tau_, new_pivots)
+
+!        !Get new positions and new modes
+!        if (allocated(pivot_pos)) deallocate(pivot_pos)
+!        sp = size(new_pivots,1)
+!        allocate(pivot_pos(sp,3))
+!        do i =1, sp
+!            pivot_pos(i,:) = points(new_pivots(i),:)
+!            !print*, "new pivot pos = ", i, pivot_pos(i,:)
+!        enddo
+!        if (present(omega)) then
+!            call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, omega)
+!        else
+!            call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes)
+!        endif
+
+!        !Exit once we have converged to a fix set of pivots
+!!        if (size(new_pivots,1) .eq. size(pivots,1)) then
+!!            if (all(new_pivots .eq. pivots)) then
+!!                exit
+!!            else
+!!                pivots = new_pivots
+!!            endif
+!        !Convergence if Ns/A0 > 0.8
+!        if (size(new_pivots)/area .gt. 0.8)  then
+!            deallocate(pivots)
+!            ! Truncate pivots to give 0.8 as all posiitons in 
+!            ! order of increasing distance from max pivot mol
+!            ntarget = int(0.8*area)
+!            allocate(pivots(ntarget))
+!            pivots = new_pivots(1:ntarget)
+!!            allocate(initial_pivot_pos(9,3))
+!!            do i =1, 9
+!!                initial_pivot_pos(i,:) = points(initial_pivots(i),:)
+!!            enddo
+!!            maxpivot = maxval(initial_pivot_pos(:,normal))
+!!            do i =1, sp
+!!                diff = maxpivot - pivot_pos(i, normal)
+!!                print'(a,2i5,3f10.5,f18.8)', "new pivot pos = ", i, ntarget, pivot_pos(i,:), diff
+!!            enddo   
+!            exit
+!        elseif (size(new_pivots,1) .eq. size(pivots,1)) then
+!            tau_ = tau_ + 0.01
+!!        elseif (size(new_pivots)/area .gt. 0.81) then
+!!            tau_ = tau_ - 0.1
+!!            !Randomly delete a few, see if we get the same
+!!            deallocate(pivots)
+!!            j = 0
+!!            do i =1, size(new_pivots,1)
+!!                call random_number(rand)
+!!                if (rand .gt. 0.7) cycle
+!!                j = j + 1
+!!                new_pivots(j) = new_pivots(i)
+!!            enddo
+!!            allocate(pivots(j))
+!!            pivots(:) = new_pivots(1:j)
+!!            deallocate(new_pivots)   
+!!            tau_ = tau
+!!        elseif (size(pivots)/area .gt. 0.9) then
+!!            deallocate(pivots)
+!!            sp = int(0.4*area)
+!!            allocate(pivots(sp))
+!!            print*, "reducing pivots", sp
+!!            pivots = new_pivots(1:sp)
+!!            deallocate(new_pivots)
+!        else
+!            deallocate(pivots)
+!            allocate(pivots(size(new_pivots,1)))
+!            pivots = new_pivots
+!            deallocate(new_pivots)
+!        endif
+!    enddo
+
+end subroutine fit_intrinsic_surface_modes
+
+!Save coefficiients to matrix for bilinear 
+subroutine get_bilinear_surface_coeff(x, y, P, A)
+
+    real(kind(0.d0)),intent(in)  :: x(2), y(2)
+    real(kind(0.d0)),intent(in)  :: P(2,2)
+    real(kind(0.d0)),intent(out) :: A(2,2)
+    real(kind(0.d0)) :: x1, x2, y1, y2, x12, y12, d
+    x1 = x(1); x2 = x(2)
+    y1 = y(1); y2 = y(2)
+    x12 = x2 - x1; y12 = y2 - y1
+    d = x12*y12
+    A(1,1) = ( P(1,1)*x2*y2 - P(1,2)*x2*y1 - P(2,1)*x1*y2 + P(2,2)*x1*y1)/d
+    A(2,1) = (-P(1,1)*y2    + P(1,2)*y1    + P(2,1)*y2    - P(2,2)*y1   )/d
+    A(1,2) = (-P(1,1)*x2    + P(1,2)*x2    + P(2,1)*x1    - P(2,2)*x1   )/d
+    A(2,2) = ( P(1,1)       - P(1,2)       - P(2,1)       + P(2,2)      )/d
+
+end subroutine get_bilinear_surface_coeff
+
+
+!Get surface position from positions for a known bin
+subroutine get_surface_bilinear(points, A, elevation)
+
+    real(kind(0.d0)), intent(in), dimension(:,:), allocatable ::  points
+    double precision, intent(in), dimension(2,2) :: A
+!    double precision, intent(in), dimension(:,:,:,:), allocatable :: Abilinear
+    double precision, intent(out), dimension(:), allocatable :: elevation
+
+!    real(kind(0.d0)), dimension(2,2) :: A
+
+!    A(:,:) = Abilinear(:,:,i,j)
+
+    allocate(elevation(size(points,1)))
+    elevation = 0.d0
+    do n=1,size(points,1)
+    do jxyz=1,2
+    do kxyz=1,2
+        elevation(n) = elevation(n) + A(jxyz, kxyz) & 
+                       *(points(n,1)**(jxyz-1))*(points(n,2)**(kxyz-1))
+    enddo
+    enddo
+    enddo
+
+end subroutine get_surface_bilinear
+
+
+subroutine modes_surface_to_bilinear_surface(modes, q_vectors, box, nbins, normal, Abilinear)
+    !use messenger, only : globalise_bin
+    implicit none
+
+    integer,intent(in) ::    normal
+    integer,intent(in),dimension(3) :: nbins
+    real(kind(0.d0)),intent(in),dimension(3) :: box
+    real(kind(0.d0)),intent(out),dimension(:,:,:,:),allocatable ::Abilinear
+    real(kind(0.d0)), intent(in), dimension(:,:,:), allocatable :: q_vectors
+    double complex, intent(in), dimension(:,:), allocatable :: modes
+
+    logical          :: debug=.true.
+    logical, save    :: first_time = .true.
+    integer          :: i, j, k, ixyz, jxyz, gbin(3)
+    real(kind(0.d0)) :: ysb, yst, zsb, zst, binsize(2)
+    real(kind(0.d0)) :: y(2,2), z(2,2), P(2,2), A(2,2)
+    real(kind(0.d0)), dimension(:), allocatable :: elevation
+    real(kind(0.d0)), dimension(:,:), allocatable :: points
+
+    !Start from the largest (end) value
+    ixyz = mod(normal,3)+1
+    jxyz = mod(normal+1,3)+1
+
+    allocate(Abilinear(2,2,nbins(ixyz), nbins(jxyz)))
+    allocate(points(4,2))
+
+    binsize(1) = box(ixyz)/dble(nbins(ixyz))
+    binsize(2) = box(jxyz)/dble(nbins(jxyz))
+
+    do j = 1,nbins(ixyz)
+    do k = 1,nbins(jxyz)
+        !gbin = globalise_bin((/ 1, j, k /))
+        gbin(1) = j; gbin(2) = k
+        ysb = float(gbin(1)-1)*binsize(1)-0.5d0*box(ixyz)
+        yst = float(gbin(1))*binsize(1)-0.5d0*box(ixyz)
+        zsb = float(gbin(2)-1)*binsize(2)-0.5d0*box(jxyz)
+        zst = float(gbin(2))*binsize(2)-0.5d0*box(jxyz)
+
+        points(1,1) = ysb; points(1,2) = zsb
+        points(2,1) = yst; points(2,2) = zsb 
+        points(3,1) = ysb; points(3,2) = zst 
+        points(4,1) = yst; points(4,2) = zst 
+
+        call surface_from_modes(points, 3, q_vectors, modes, elevation)
+        !print*, "elevation modes", elevation(:)
+        P = reshape(elevation, (/2,2/))
+        call get_bilinear_surface_coeff((/ysb, yst/), (/zsb, zst/), P, A)
+        Abilinear(:,:,j,k) = A(:,:)
+
+        !DEBUG code here
+        call get_surface_bilinear(points, A, elevation)
+        do i =1, 4
+            if ((elevation(i)- P(mod(i+1,2)+1,int(ceiling(i/2.d0)))) .gt. 1e-10) then
+                print'(a,3i5,f16.4, 5f10.5, e18.8)', "elevation bilinear",j,k,i,A(:,:),points(i,:), &
+                                        elevation(i)-P(mod(i+1,2)+1,int(ceiling(i/2.d0)))
+            endif
+        enddo
+    enddo
+    enddo
+
+end subroutine modes_surface_to_bilinear_surface
+
+
+
+
+subroutine fit_intrinsic_surface_return_modes(points, box, normal, nbins, & 
+                                              alpha, tau, q_vectors, modes, omega)
+    implicit none
+
+    !logical, intent(in), optional :: reuse_pivots
+    integer, intent(in) :: normal
+    integer, dimension(3), intent(in) :: nbins
+    double precision, intent(in) :: alpha, tau
+    double precision, intent(in), optional :: omega
+    double precision, intent(in), dimension(3) :: box
+    double precision, intent(in), dimension(:,:), allocatable ::  points
+    double precision, intent(out), dimension(:,:,:), allocatable :: q_vectors
+    double complex, intent(out), dimension(:,:), allocatable :: modes
+
+    integer, dimension(:), allocatable, save :: pivots
+    integer, dimension(2) :: modes_shape
+    double precision, dimension(:), allocatable :: Q
+    double precision, dimension(:,:), allocatable :: Qxy
+
+    call compute_q_vectors(box, alpha, q_vectors, modes_shape, Qxy, Q)
+    call fit_intrinsic_surface_modes(points, box, normal, alpha, tau, modes, pivots, omega)
+
+end subroutine fit_intrinsic_surface_return_modes
+
+
+
+subroutine fit_intrinsic_surface(points, box, normal, nbins, & 
+                                 alpha, tau, Abilinear, omega)
+    implicit none
+
+    integer, intent(in) :: normal
+    integer, dimension(3), intent(in) :: nbins
+    double precision, intent(in) :: alpha, tau
+    double precision, intent(in), optional :: omega
+    double precision, intent(in), dimension(3) :: box
+    double precision, intent(in), dimension(:,:), allocatable ::  points
+    double precision, intent(out), dimension(:,:,:,:), allocatable :: Abilinear
+
+    double precision, dimension(:), allocatable :: elevation
+    double precision, dimension(:,:,:), allocatable :: q_vectors
+    double complex, dimension(:,:), allocatable :: modes
+
+    !Debug
+    integer :: ixyz, jxyz, i,j,k
+    double precision :: dx, dy
+    double precision, allocatable, dimension(:,:) :: checkpoint
+
+
+    call fit_intrinsic_surface_return_modes(points, box, normal, nbins, & 
+                                            alpha, tau, q_vectors, modes, omega)
+    call surface_from_modes(points, normal, q_vectors, modes, elevation)
+    call modes_surface_to_bilinear_surface(modes, q_vectors, box, nbins, normal, Abilinear)
+
+    !Debug pivot points vs surface
+!    allocate(checkpoint(1,2))
+!    ixyz = mod(normal,3)+1
+!    jxyz = mod(normal+1,3)+1
+!    dx = box(ixyz) / dble(nbins(ixyz))
+!    dy = box(jxyz) / dble(nbins(jxyz))
+!    do i=1,size(pivots,1)
+!        checkpoint(1,1) = points(pivots(i),ixyz)!+Lx/2.d0
+!        checkpoint(1,2) = points(pivots(i),jxyz)!+Ly/2.d0
+!        j = ceiling((checkpoint(1,1)+box(ixyz)/2.d0)/dx)
+!        k = ceiling((checkpoint(1,2)+box(jxyz)/2.d0)/dy)
+
+!        call get_surface_bilinear(checkpoint, Abilinear(:,:,j,k), elevation)
+!        print'(a,3i5,10f10.5)', "Bilinear Error = ", i, j, k, & 
+!             Abilinear(:,:,j,k), checkpoint, points(pivots(i),normal), elevation
+!    enddo
+
+!    open(10, file="xp.csv"); write(10,*) points(pivots(:),1); close(10)
+!    open(10, file="yp.csv"); write(10,*) points(pivots(:),2); close(10)
+!    open(10, file="zp.csv"); write(10,*) points(pivots(:),3); close(10)
+
 
 end subroutine fit_intrinsic_surface
 
@@ -5442,7 +5925,7 @@ SUBROUTINE get_eigenvec3x3(A, Q, W)
         if (I .eq. 4) THEN
 	        do J = 1, 3
             ! Find nonzero element of v[0] and swap it with the next one
-		        if (Q(J, 1).NE.0.0D0) THEN
+		        if (Q(J, 1) .NE. 0.d0) THEN
                     NORM = 1.0D0 / SQRT(Q(J, 1)**2 + Q(1 + MOD(J,3), 1)**2)
                     Q(J, 2)		  = Q(1 + MOD(J,3), 1) * NORM
                     Q(1 + MOD(J,3), 2)   = -Q(J, 1) * NORM

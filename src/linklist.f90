@@ -91,7 +91,7 @@ module linked_list
 	!Information for pointer to neighbour list
 	type, extends(neighbrinfo) :: clusterinfo
         integer :: Nclust
-        integer :: maxclusts=2000
+        integer :: maxclusts=10000
         integer, dimension(:),allocatable :: inclust
 	end type clusterinfo
 	

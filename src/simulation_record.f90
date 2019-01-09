@@ -73,7 +73,10 @@ module module_record
 
 #endif
 	real(kind(0.d0)) :: vel
+	double complex, dimension(:,:), allocatable :: modes
+	real(kind(0.d0)), dimension(:,:,:), allocatable :: q_vectors
 	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: Abilinear
+
 
 	abstract interface
 		function fn_get_bin(r)
@@ -110,7 +113,7 @@ contains
 
         yg = globalise(y,2)
         zg = globalise(z,3)
-        zeta = 10.d0*sin(2.d0*3.141592*yg/globaldomain(2))
+        zeta = 5.d0*sin(2.d0*3.141592*yg/globaldomain(2))
 
     end function zeta
 
@@ -124,7 +127,7 @@ contains
 
         logical, save    :: first_time = .true.
         integer          :: j, k, gbin(3)
-        real(kind(0.d0)) :: ysb, yst, P(2,2), A(2,2)
+        real(kind(0.d0)) :: ysb, yst, zsb, zst, y(2,2), z(2,2), P(2,2), A(2,2)
 
         if (first_time) then
             allocate(Abilinear(2,2,nbins(2)+2, nbins(3)+2))
@@ -135,26 +138,30 @@ contains
 	    do k = 1,nbins(3)+2
             gbin = globalise_bin((/ 1, j, k /))
             ysb = (gbin(2)-3)*binsize(2)
-            yst = (gbin(2)-2)*binsize(2)       
-            P(1,1) = 5.d0*sin(2.d0*3.141592*ysb/globaldomain(2))
-            P(2,1) = 5.d0*sin(2.d0*3.141592*yst/globaldomain(2))
-            P(1,2) = 5.d0*sin(2.d0*3.141592*ysb/globaldomain(2))
-            P(2,2) = 5.d0*sin(2.d0*3.141592*yst/globaldomain(2))
+            yst = (gbin(2)-2)*binsize(2)
+            zsb = (gbin(3)-3)*binsize(3)
+            zst = (gbin(3)-2)*binsize(3)
+            P(1,1) = zeta(ysb, zsb); y(1,1) = ysb; z(1,1) = zsb 
+            P(2,1) = zeta(yst, zsb); y(2,1) = yst; z(2,1) = zsb 
+            P(1,2) = zeta(ysb, zst); y(1,2) = ysb; z(1,2) = zst    
+            P(2,2) = zeta(yst, zst); y(2,2) = yst; z(2,2) = zst    
+!            P(1,1) = 5.d0*sin(2.d0*3.141592*ysb/globaldomain(2))
+!            P(2,1) = 5.d0*sin(2.d0*3.141592*yst/globaldomain(2))
+!            P(1,2) = 5.d0*sin(2.d0*3.141592*ysb/globaldomain(2))
+!            P(2,2) = 5.d0*sin(2.d0*3.141592*yst/globaldomain(2))
             !print*, j, k, ysb, yst, P(1,1), P(2,1)
-            call save_bin_bilinear_surface_coeff(P, A)
+            call save_bin_bilinear_surface_coeff_unitsquare(y, z, P, A)
             Abilinear(:,:,j,k) = A(:,:)
         enddo
         enddo
 
     end subroutine debug_sine_to_bilinear_surface_coeff
 
-
     !Save coefficiients to matrix for bilinear 
-    ! i = ceiling((r(2)+halfdomain(2))/binsize(2))+nhb(2)
-    ! j = ceiling((r(3)+halfdomain(3))/binsize(3))+nhb(3)
-    ! save_bin_bilinear_surface_coeff(P(:,:), Abilinear(:,:,i,j))
-    subroutine save_bin_bilinear_surface_coeff(P, A)
+    !This works assuming x and y between zero and one
+    subroutine save_bin_bilinear_surface_coeff_unitsquare(x, y, P, A)
 
+        real(kind(0.d0)),intent(in)  :: x(2,2), y(2,2)
         real(kind(0.d0)),intent(in)  :: P(2,2)
 	    real(kind(0.d0)),intent(out) :: A(2,2)
 
@@ -163,7 +170,49 @@ contains
         A(1,2) = P(1,2) - P(1,1)
         A(2,2) = P(2,2) + P(1,1) - (P(2,1) + P(1,2))
 
-    end subroutine save_bin_bilinear_surface_coeff
+    end subroutine save_bin_bilinear_surface_coeff_unitsquare
+
+
+    !A version getting the explicit location from the intrinsic surface
+    function bin_from_full_intrinsic(r) result(bin)
+        use computational_constants_MD, only : halfdomain, nhb
+        use calculated_properties_MD, only : binsize, nbins
+        use librarymod, only : surface_from_modes
+        implicit none
+
+        real(kind(0.d0)),intent(in),dimension(3) :: r
+	    integer,dimension(3) 					 :: bin
+
+        integer :: ixyz
+        real(kind(0.d0)), allocatable, dimension(:) :: elevation
+        real(kind(0.d0)), allocatable, dimension(:,:) :: points
+
+        bin(2) = ceiling((r(2)+halfdomain(2))/binsize(2))+nhb(2)
+        bin(3) = ceiling((r(3)+halfdomain(3))/binsize(3))+nhb(3)
+        allocate(points(1,3))
+        points(1,1) = r(2)
+        points(1,2) = r(3)
+        points(1,3) = r(1)
+        call surface_from_modes(points, 3, q_vectors, modes, elevation)
+
+        !Add a shift by half a bin here to put in centre (otherwise on edge and switches between)
+        bin(1) = ceiling(((r(1)-elevation(1)+0.5*binsize(1))+halfdomain(1))/binsize(1))+nhb(1)
+
+!        if (abs(r(1)-elevation(1)) .lt. 1e-1) then
+!             print*, "Bin ", bin, r, elevation(1), r(1)-elevation(1)
+!        endif
+
+        !Prevents out of range values
+        do ixyz=1,3
+    		if (bin(ixyz) > nbins(ixyz)+nhb(ixyz)) then
+                bin(ixyz) = nbins(ixyz)+nhb(ixyz)
+            elseif (bin(ixyz) < 1 ) then
+                bin(ixyz) = 1   
+            endif
+        enddo
+
+    end function bin_from_full_intrinsic
+
 
     !Get surface position from positions for a known bin
     ! e.g. use with a bilinear surface as follows
@@ -171,15 +220,18 @@ contains
     ! j = ceiling((r(3)+halfdomain(3))/binsize(3))+nhb(3)
     ! P(:,:) = Abilinear(:,:,i,j)
     ! x = xsurfpos(y, z, P)
-    function xsurfpos(y, z, P)
+    function xsurfpos(y, z, Abilinear)
+        implicit none
 
-        real(kind(0.d0)),intent(in) :: y, z, P(2,2)
+        real(kind(0.d0)),intent(in) :: y, z, Abilinear(2,2)
+
+        integer                     :: jxyz, kxyz
 	    real(kind(0.d0))            :: xsurfpos
 
         xsurfpos = 0.d0
         do jxyz=1,2
         do kxyz=1,2
-            xsurfpos = xsurfpos + P(jxyz, kxyz)*(y**(jxyz-1))*(z**(kxyz-1))
+            xsurfpos = xsurfpos + Abilinear(jxyz, kxyz)*(y**(jxyz-1))*(z**(kxyz-1))
         enddo
         enddo
 
@@ -200,7 +252,8 @@ contains
 !        bin(1) = ceiling((r(1) - zeta(r(2),r(3)) & 
 !                          +halfdomain(1))/binsize(1))+nhb(1)
 
-        bin(1) = ceiling((r(1) - xsurfpos(r(2),r(3), Abilinear(:,:,bin(2), bin(3))) & 
+        !Use convention that no halos in Abilinear values (as no idea how to parallise all this)
+        bin(1) = ceiling((r(1) - xsurfpos(r(2), r(3), Abilinear(:,:,bin(2)-nhb(2), bin(3)-nhb(3))) & 
                           +halfdomain(1))/binsize(1))+nhb(1)
 
 
@@ -233,8 +286,9 @@ subroutine simulation_record
     !Cluster analysis or average bin based tracking of liquid vapour interfaces
     if (cluster_analysis_outflag .eq. 1) then
         call get_interface_from_clusters()
-        call debug_sine_to_bilinear_surface_coeff()
-        get_bin => bin_from_intrinsic
+        !call debug_sine_to_bilinear_surface_coeff()
+        !get_bin => bin_from_intrinsic
+        get_bin => bin_from_full_intrinsic
     elseif (cluster_analysis_outflag .eq. 2) then
         call sl_interface_from_binaverage()
     else
@@ -5549,15 +5603,15 @@ contains
 
         !Initialised cluster list
         if (.not. allocated(self%Nlist)) then
-            allocate(self%Nlist(self%maxclusts))
+            allocate(self%Nlist(np+extralloc))
             allocate(self%inclust(np+extralloc))
-            allocate(self%head(self%maxclusts))
+            allocate(self%head(np+extralloc))
         endif
 
         self%Nclust = 0
-	    self%Nlist = 0	!Zero number of molecules in cluster list
-        self%inclust = 0
-	    do i = 1,self%maxclusts
+	    do i = 1,np+extralloc
+            self%inclust(i) = 0
+		    self%Nlist(i) = 0	!Zero number of molecules in cluster list
 		    nullify(self%head(i)%point)!Nullify cluster list head pointer 
 	    enddo
 
@@ -5676,30 +5730,71 @@ contains
         use librarymod, only : imaxloc, get_Timestep_FileName, least_squares, get_new_fileunit
         use minpack_fit_funcs_mod, only : fn, cubic_fn, curve_fit
         use arrays_MD, only : tag, r
-        use librarymod, only : heaviside  =>  heaviside_a1
+        use librarymod, only : heaviside  =>  heaviside_a1, fit_intrinsic_surface, & 
+                               fit_intrinsic_surface_return_modes
+        use calculated_properties_MD, only : nbins
+        use module_record, only : Abilinear, modes, q_vectors
         implicit none
 
         type(clusterinfo),intent(inout)    :: self
         double precision, intent(in)       :: rd
 
+        logical                         :: first_time=.true.
         character(32)                   :: filename, debug_outfile
-        integer                         :: n,i,j,resolution,fittype
+        integer                         :: n,i,j,resolution,fittype, clustNo
         double precision                :: tolerance
         double precision, dimension(3)  :: bintop, binbot !Used in CV
         double precision,dimension(6)   :: extents
         double precision,dimension(4)   :: ptin, pbin
-        double precision,dimension(:),allocatable :: x,y,z,f,pt,pb
+        double precision,dimension(:),allocatable :: x,y,z,f,pt,pb, elevation
         double precision,dimension(:,:),allocatable :: rnp, extents_grid
+        double precision,dimension(:,:),allocatable, save :: points
 
+        clustNo = imaxloc(self%Nlist)
         resolution = 10; tolerance = rd
         fittype = 3
 
-        call cluster_global_extents(self, imaxloc(self%Nlist), extents)
+        !Only recheck external molecules of cluster every 25 timesteps
+        !if ((modulo(iter, 1) .eq. 0) .or. first_time) then 
+        !    first_time = .false.
+            !print*, "Rechecking cluster extents and rebuilding pivots"
+        call cluster_to_array(self, clustNo, rnp)
+
+        !Z normal is the only one tested so far
+        if (allocated(points)) deallocate(points)
+        allocate(points(size(rnp,2), size(rnp,1)))
+        points = 0.d0
+        do i =1, size(rnp,2)
+            points(i,1) = rnp(2,i)
+            points(i,2) = rnp(3,i)
+            points(i,3) = rnp(1,i)
+        enddo
+
+    !if (iter > 2) then
+        call fit_intrinsic_surface_return_modes(points, (/globaldomain(2), globaldomain(3), globaldomain(1)/), &
+                                                3, (/nbins(2), nbins(3), nbins(1)/), 0.8d0, 1.0d0, q_vectors, modes, 0.000001d0)
+
+            !call fit_intrinsic_surface(points, (/globaldomain(2), globaldomain(3), globaldomain(1)/), &
+            !                           3, (/nbins(2), nbins(3), nbins(1)/), 1.d0, 1.5d0, Abilinear)
+
+!        endif
+
+        !endif
+
+        !Print biggest cluster
+        !call print_cluster(self, clustNo)
+
+        !DEBUG INTRINSIC HERE, return now
+        return
+        !DEBUG INTRINSIC HERE, return now
+    
+
+        call cluster_global_extents(self, clustNo, extents)
 
         !Get molecules on top surface
-        call cluster_extents_grid(self, imaxloc(self%Nlist), 1, resolution, & 
+        call cluster_extents_grid(self, clustNo, 1, resolution, & 
                                   extents_grid)!, debug_outfile='./results/maxcell_top')
-        call cluster_outer_mols(self, imaxloc(self%Nlist), tolerance=tolerance, dir=1, & 
+        call cluster_outer_mols(self, clustNo, tolerance=tolerance, dir=1, & 
                                 rmols=rnp, extents=extents_grid, debug_outfile='./results/clust_edge_top')
 
         !Curve fits to clusters
@@ -6906,8 +7001,8 @@ contains
         double precision,dimension(:),allocatable :: cluster_sizes
 
         ! Sort clusters by size and check if more than one big one!
-        allocate(cluster_sizes(self%Nclust))
-        cluster_sizes = dble(self%Nlist(1:self%Nclust))
+        allocate(cluster_sizes(size(self%Nlist,1)))
+        cluster_sizes = dble(self%Nlist)
         call bubble_sort_r(cluster_sizes)
 
         if ((cluster_sizes(1) - cluster_sizes(2))/cluster_sizes(1) .gt. 0.4d0) then
@@ -7005,7 +7100,7 @@ contains
             ! If interface cutoff is less that interaction rcutoff
             ! then we can use the neighbourlist to get molecules in 
             ! interface region (N.B. need to use all interations)
-            if (rd .le. rcutoff + minval(delta_rneighbr)) then
+            if (rd .le. (rcutoff + minval(delta_rneighbr))) then
 
                 noneighbrs = neighbour%Nlist(molnoi)	!Determine number of elements in neighbourlist
 	            noldj => neighbour%head(molnoi)%point		!Set old to head of neighbour list
@@ -7014,7 +7109,7 @@ contains
 
 		            molnoj = noldj%molno			        !Number of molecule j
 
-                    !if (molnoj .gt. np) cycle               !Ignore halo values
+                    !if (molnoj .gt. nmols) cycle               !Ignore halo values
 
 		            rj(:) = rmols(:,molnoj)			            !Retrieve rj
 		            rij(:)= ri(:) - rj(:)   	            !Evaluate distance between particle i and j
@@ -7066,9 +7161,9 @@ contains
         if (molnoi .eq. molnoj) then
             if (self%inclust(molnoi) .eq. 0) then
                 self%Nclust = self%Nclust + 1
-                if (self%Nclust .gt. self%maxclusts) then
-            		call error_abort("Increase maxcluster in clusterinfo linklist")
-                endif
+                !if (self%Nclust .gt. self%maxclusts) then
+            	!	call error_abort("Increase maxcluster in clusterinfo linklist")
+                !endif
                 nc = self%Nclust
                 call linklist_checkpushneighbr(self, nc, molnoi)
                 self%inclust(molnoi) = nc
@@ -7082,9 +7177,9 @@ contains
             if (self%inclust(molnoj) .eq. 0) then
                 !Create a new cluster
                 self%Nclust = self%Nclust + 1
-                if (self%Nclust .gt. self%maxclusts) then
-            		call error_abort("Increase maxcluster in clusterinfo linklist")
-                endif
+                !if (self%Nclust .gt. self%maxclusts) then
+            	!	call error_abort("Increase maxcluster in clusterinfo linklist")
+                !endif
                 nc = self%Nclust
                 !Add both molecules to it
                 self%inclust(molnoi) = nc
@@ -7136,8 +7231,8 @@ contains
 
                     !Add smaller cluster linked lists to bigger one
                     call linklist_merge(self, keep=cbig, delete=csmall)
-                    !Now we've merge too linklists, we can reduce count by one
-                    self%Nclust = self%Nclust - 1
+                    !Now we've merge two linklists, we can reduce count by one
+                    !self%Nclust = self%Nclust - 1
 
                 else
                     !If already in the same cluster, nothing to do
@@ -7401,6 +7496,7 @@ contains
         call cluster_global_extents(self, clustNo, global_extents)
         clusterwidth(1) = (global_extents(jxyz) - global_extents(jxyz+3))
         clusterwidth(2) = (global_extents(kxyz) - global_extents(kxyz+3))
+
         if (present(extents)) then
             allocate(extents_(size(extents,1),size(extents,2)))
             allocate(molband(size(extents,1),size(extents,2)))
@@ -7438,7 +7534,7 @@ contains
 	            jcell = ceiling((r(jxyz,molno)-global_extents(jxyz+3))/cellsidelength(1))
                 kcell = ceiling((r(kxyz,molno)-global_extents(kxyz+3))/cellsidelength(2))
 
-                !print'(2i6,6f10.5)', jcell, kcell, r(jxyz,molno), r(kxyz,molno), cellsidelength, clusterwidth
+                   ! print'(a, 2i6,6f10.5)', "Cluster", jcell, kcell, r(jxyz,molno), r(kxyz,molno), cellsidelength, clusterwidth
 
                 !Ignore halo molecules
                 if (jcell .lt. 1) cycle
@@ -7451,6 +7547,7 @@ contains
                     if (r(ixyz,molno) .lt. extents_(jcell,kcell) .and. & 
                         r(ixyz,molno) .gt. molband(jcell,kcell)) then
                         m = m + 1
+                        !print'(a, 2i6,5f10.5)', "Top Cluster", jcell, kcell, _extents(jcell,kcell),molband(jcell,kcell), r(:,molno)
                         rtemp(:,m) = r(:,molno)
                     endif
                 elseif (dir .gt. 3) then  
@@ -7654,6 +7751,72 @@ contains
 !     
 
 !    end subroutine build_debug_clusters
+
+    subroutine cluster_to_array(self, clustNo, array)
+        use arrays_MD, only : r
+        use physical_constants_MD, only : np
+        implicit none
+
+        type(clusterinfo),intent(in)    :: self
+        integer, intent(in)             :: clustNo
+        double precision, dimension(:,:), allocatable, intent(out) :: array
+
+        integer                         :: n, m, Nmols
+	    type(node), pointer 	        :: old, current
+        double precision, dimension(:,:), allocatable :: temp
+
+
+        !For all clusters which are not empty
+        Nmols = self%Nlist(clustNo)
+        if (Nmols .gt. 0) then
+            allocate(temp(3,Nmols)); m = 1
+            current => self%head(clustNo)%point
+            !Loop through all cluster molecules         
+            do n = 1,Nmols
+                if (current%molno .le. np) then
+                    temp(:,m) = r(:,current%molno)
+                    m = m + 1
+                    !print*, n, m, current%molno
+                endif
+                old => current%next
+                current => old
+            enddo
+        endif
+        allocate(array(3,m-1))
+        array(:,:) = temp(:,1:m-1)
+
+    end subroutine cluster_to_array
+
+
+
+    subroutine print_cluster(self, clustNo)
+        use arrays_MD, only : r
+        use physical_constants_MD, only : np
+        implicit none
+
+        type(clusterinfo),intent(in)    :: self
+
+        integer, intent(in)             :: clustNo
+        integer                         :: n,Nmols
+	    type(node), pointer 	        :: old, current
+
+        !For all clusters which are not empty
+        Nmols = self%Nlist(clustNo)
+        if (Nmols .gt. 0) then
+            current => self%head(clustNo)%point
+            !Loop through all cluster molecules         
+            do n = 1,Nmols
+                if (n .le. np) then
+                    print*, "molno = ", current%molno, " position = ", r(:,current%molno), np, Nmols
+                endif
+                old => current%next
+                current => old
+            enddo
+        endif
+
+    end subroutine print_cluster
+
+
 
     subroutine destroy_clusters(self)
         use linked_list, only : linklist_deallocate_cluster

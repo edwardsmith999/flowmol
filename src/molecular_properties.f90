@@ -2307,8 +2307,6 @@ contains
 end subroutine insert_all_molecules
 
 
-
-
 !! Remove Molecules and then re-insert with same potential energy
 !! using the USHER algorithm
 !! Code Author: Edward Smith 2013
