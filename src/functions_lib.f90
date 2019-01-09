@@ -378,26 +378,26 @@ end subroutine cubic_fn2D_16coeff
 ! For S segements we will need n = 2*S variables
 ! and aim here to find fits for n/2 of them. The 
 ! join the dots can then be done by the user
-subroutine piecewise_linear ( m, n, x, fvec, iflag )
+!subroutine piecewise_linear ( m, n, x, fvec, iflag )
 
-    integer ( kind = 4 ), intent(in) :: m
-    integer ( kind = 4 ), intent(in) :: n
-    integer ( kind = 4 ), intent(in) :: iflag
+!    integer ( kind = 4 ), intent(in) :: m
+!    integer ( kind = 4 ), intent(in) :: n
+!    integer ( kind = 4 ), intent(in) :: iflag
 
-    real(kind(0.d0)), intent(inout) :: x(n)
+!    real(kind(0.d0)), intent(inout) :: x(n)
 
-    real(kind(0.d0)), intent(out) :: fvec(m)
+!    real(kind(0.d0)), intent(out) :: fvec(m)
 
-    integer :: s
+!    integer :: s
 
-    if (mod(n,4) .ne. 0) then
-        stop "Error -- n must be a multiple of two in piecewise linear"
-    endif
+!    if (mod(n,4) .ne. 0) then
+!        stop "Error -- n must be a multiple of two in piecewise linear"
+!    endif
 
-    s = n
+!    s = n
 
 
-end subroutine 
+!end subroutine 
 
 end module minpack_fit_funcs_mod
 
@@ -1991,7 +1991,9 @@ end subroutine compute_q_vectors
 
 
 subroutine get_surface_modes(points, Qxy, modes_shape, Q, modes, omega)
+#if USE_LAPACK
     use lapack_fns, only : pinverse
+#endif
     implicit none
 
     integer, intent(in), dimension(2) :: modes_shape
@@ -2048,7 +2050,11 @@ subroutine get_surface_modes(points, Qxy, modes_shape, Q, modes, omega)
     endif
 
     ! Least square solution solving ph*z = s
+#if USE_LAPACK
     call pinverse(ph, pinv_ph)
+#else
+    call error_abort("get_surface_modes Error -- build FlowMol version with lapack")
+#endif
 
     !Multiply inverse with z values to get mode coefficients
     allocate(s(modes_shape(1)*modes_shape(2)))

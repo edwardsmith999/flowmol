@@ -62,7 +62,7 @@ endif
 #endif
 
 # Linking flags to use
-LDFLAGS := $(FFLAGS) lapack-3.8.0/lib*
+LDFLAGS := $(FFLAGS)
 LAPACKFLAGS:=$(filter-out -fno-underscoring,$(FFLAGS))
 
 #Executable name
@@ -97,10 +97,10 @@ default:
 	@echo "Please add flag serial (s), parallel (p) or type help for options"
 s:
 	@make serial_md.exe
-s_continuum:
-	@make continuum.exe
 p:
 	@make $(MD_EXE)
+p_lapack:
+	@make MD_EXE_LAPACK "FPP_FLAGS = -cpp -DUSE_LAPACK=1 LDFLAGS = lapack-3.8.0/lib*"
 s_cuda:
 	@make md_CUDA.exe
 s_cuda_emulate:
@@ -132,7 +132,11 @@ profile_p:
 
 #Make executables
 md.exe: $(MD_EXE)
-$(MD_EXE): obj $(O_ASSEMBLY_FILES) $(O_LAPACK_FILES) $(O_MD_P)
+$(MD_EXE): obj $(O_ASSEMBLY_FILES) $(O_MD_P)
+	@echo "MD executable is being relinked"
+	@echo "LDFLAGS = $(LDFLAGS)"
+	$(F90) -o $@ $(O_ASSEMBLY_FILES) $(O_MD_P) $(LDFLAGS)
+MD_EXE_LAPACK: obj $(O_ASSEMBLY_FILES) $(O_LAPACK_FILES) $(O_MD_P)
 	@echo "MD executable is being relinked"
 	@echo "LDFLAGS = $(LDFLAGS)"
 	$(F90) -o $@ $(O_ASSEMBLY_FILES) $(O_LAPACK_FILES) $(O_MD_P) $(LDFLAGS)
@@ -151,6 +155,7 @@ help:
 	@echo "MOLECULAR DYNAMICS Options"
 	@echo "s				Optimised serial build"
 	@echo "p				Optimised parallel build"
+	@echo "p_lapack			Optimised parallel build with LAPACK (assumes compiled ./lapack-3.8.0 exists)"
 	@echo "s_cuda			Optimised serial build with CUDA GPGPU force optimisation"
 	@echo "s_cuda_emulate	Emulate CUDA GPU code on the CPU for debugging"
 	@echo "optimised_s		Serial build optimised for intel proccessors"

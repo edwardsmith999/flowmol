@@ -947,11 +947,10 @@ subroutine setup_restart_inputs()
             print*, 'global_numbering used in restart file but not requested in', &
                     'input file - global_numbering will be used '
             global_numbering = checkint
-		elseif (checkint .eq. 1 .and. global_numbering .eq. 1) then
-			!Nothing to do here, use global numbering
-		else
-			!If this is missing from an old file format, this could be a nightmare.
-			global_numbering = 0
+        elseif (checkint .eq. 0 .and. global_numbering .eq. 1) then
+            print*, 'global_numbering not in restart file but requested in', &
+                    'input file - global_numbering info will be created '
+            global_numbering = 2
         endif
         call MPI_File_close(restartfileid,ierr)
     endif
@@ -1099,10 +1098,14 @@ subroutine setup_restart_microstate()
                 moltype(nl) = nint(buf(pos))
                 pos = pos + 1
             endif
-            !Add global number if required
+            !Load global number if required
             if (global_numbering .eq. 1) then
                 glob_no(nl) = nint(buf(pos))
                 pos = pos + 1
+            !Create global number if not present in restart file
+            elseif (global_numbering .eq. 2) then
+                glob_no(nl) = nl + sum(procnp(1:irank-1))
+                write(2530,*) nl, glob_no(nl)
             endif
             if (potential_flag.eq.1) then
                 !Read monomer data
@@ -1198,6 +1201,9 @@ subroutine setup_restart_microstate()
             !Add global number if required
             if (global_numbering .eq. 1) then
                 glob_no(nl) = globnotemp
+            !Create global number if not present in restart file
+            elseif (global_numbering .eq. 2) then
+                glob_no(nl) = nl + sum(procnp(1:irank-1))
             endif
             if (potential_flag.eq.1) then
                 monomer(nl)%chainID        = nint(monomertemp(1))
@@ -1217,6 +1223,10 @@ subroutine setup_restart_microstate()
         call error_abort('processor re-ordering flag incorrect in restart microstate')
 
     end select
+
+    if (global_numbering .eq. 2) then
+        global_numbering = 1
+    endif
 
     ! Mie moltype should be from restart file!! If mie_potential was zero in restart
     ! but now input requests one, setup as if new run (based on location, etc).
@@ -2377,8 +2387,8 @@ subroutine parallel_io_psf()
     implicit none
 
     integer                 :: n, mt, unitno, startmol
-!    character(20)           :: atomname
-    character(256)           :: filename, cmd
+    character(2)           :: nprocstr
+    character(256)          :: filename, cmd
 
     !Build array of number of particles on neighbouring
     !processe's subdomain on current proccess
@@ -2399,7 +2409,7 @@ subroutine parallel_io_psf()
     elseif (irank .lt. 10000) then
         write(filename,'(a,i4)'),trim(prefix_dir)//'results/vmd_out.psf.',irank
     else
-       stop "Error in parallel_io_psf -- irank > 1000"
+       stop "Error in parallel_io_psf -- irank > 10000"
     endif
     open(unit=unitno, file=trim(filename),status='replace',action='write')
     if (irank .eq. iroot) then
@@ -2413,7 +2423,7 @@ subroutine parallel_io_psf()
 
     do n = 1, np
         mt = moltype(n)
-        write(unitno,'(i5,a5,i5,3a5,f12.7,f12.5,i4)') &
+        write(unitno,'(i8,a5,i5,3a5,f12.7,f12.5,i4)') &
                  startmol + n, &            ! molno
                  trim(moltype_names(mt)), & ! segment name
                   1,  &                     ! Residue ID
@@ -2421,17 +2431,29 @@ subroutine parallel_io_psf()
                  trim(moltype_names(mt)), & ! atom name
                  trim(moltype_names(mt)), & ! atom type
                  epsilon_lookup(mt,mt), &   ! charge
-                 mass_lookup(mt), &            ! mass
+                 mass_lookup(mt), &         ! mass
                   0                         ! A "0" for no reason!
     enddo
     close(unitno)
 
 
     call MPI_Barrier(MD_COMM,ierr)
+
+    !This is a disgusting hack to concat each processors files on the commandline
     if (irank .eq. iroot) then
         write(cmd,'(3a)'), "cat ", trim(prefix_dir)//"results/vmd_out.psf.* > ", & 
                             trim(prefix_dir)//"results/vmd_out.psf"
         call system(cmd)
+        if (nproc .gt. 99) then 
+            print*, "Warning, manually concat results/vmd_out.psf.* files"
+        else
+            write (nprocstr, "(i2)") nproc
+            write(cmd,'(4a)'),"for i in {2..", trim(nprocstr)//"}; do cat ", &
+                                       trim(prefix_dir)//"results/vmd_out.psf.$i >> ", &
+                                       trim(prefix_dir)//"results/vmd_out.psf; done;"
+            print*, cmd
+            call system(cmd)
+        endif
     endif
 
 end subroutine parallel_io_psf
