@@ -100,7 +100,7 @@ s:
 p:
 	@make $(MD_EXE)
 p_lapack:
-	@make MD_EXE_LAPACK "FPP_FLAGS = -cpp -DUSE_LAPACK=1 LDFLAGS = lapack-3.8.0/lib*"
+	@make MD_EXE_LAPACK "FPP_FLAGS=-cpp -DUSE_LAPACK=1" "LDFLAGS=lapack-3.8.0/lib*"
 s_cuda:
 	@make md_CUDA.exe
 s_cuda_emulate:
